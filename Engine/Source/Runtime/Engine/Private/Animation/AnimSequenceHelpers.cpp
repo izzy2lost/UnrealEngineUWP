@@ -464,7 +464,7 @@ bool CopyNotifies(const UAnimSequenceBase* SourceAnimSeq, UAnimSequenceBase* Des
 
 #endif // WITH_EDITOR
 
-bool Compression::CompressAnimationDataTracks(TArray<FRawAnimSequenceTrack>& RawAnimationData, int32 NumberOfKeys, FName ErrorName, float MaxPosDiff /*= 0.0001f*/, float MaxAngleDiff /*= 0.0003f*/)
+bool Compression::CompressAnimationDataTracks(TArray<FRawAnimSequenceTrack>& RawAnimationData, int32 NumberOfKeys, FName ErrorName, float MaxPosDiff /*= 0.0001f*/, float MaxAngleDiff /*= 0.0003f*/, float MaxScaleDiff)
 {
 	bool bRemovedKeys = false;
 
@@ -474,14 +474,14 @@ bool Compression::CompressAnimationDataTracks(TArray<FRawAnimSequenceTrack>& Raw
 		// This removes trivial keys, and this has to happen before the removing tracks
 		for (int32 TrackIndex = 0; TrackIndex < RawAnimationData.Num(); TrackIndex++)
 		{
-			bRemovedKeys |= CompressRawAnimSequenceTrack(RawAnimationData[TrackIndex], NumberOfKeys, ErrorName, MaxPosDiff, MaxAngleDiff);
+			bRemovedKeys |= CompressRawAnimSequenceTrack(RawAnimationData[TrackIndex], NumberOfKeys, ErrorName, MaxPosDiff, MaxAngleDiff, MaxScaleDiff);
 		}
 	}
 #endif
 	return bRemovedKeys;
 }
 
-bool Compression::CompressAnimationDataTracks(const USkeleton* Skeleton, const TArray<FTrackToSkeletonMap>& TrackToSkeleton, TArray<FRawAnimSequenceTrack>& RawAnimationData, int32 NumberOfKeys, FName ErrorName, float MaxPosDiff /*= 0.0001f*/, float MaxAngleDiff /*= 0.0003f*/)
+bool Compression::CompressAnimationDataTracks(const USkeleton* Skeleton, const TArray<FTrackToSkeletonMap>& TrackToSkeleton, TArray<FRawAnimSequenceTrack>& RawAnimationData, int32 NumberOfKeys, FName ErrorName, float MaxPosDiff, float MaxAngleDiff, float MaxScaleDiff)
 {
 	bool bRemovedKeys = false;
 
@@ -491,15 +491,19 @@ bool Compression::CompressAnimationDataTracks(const USkeleton* Skeleton, const T
 		// This removes trivial keys, and this has to happen before the removing tracks
 		for (int32 TrackIndex = 0; TrackIndex < RawAnimationData.Num(); TrackIndex++)
 		{
-			bRemovedKeys |= CompressRawAnimSequenceTrack(RawAnimationData[TrackIndex], NumberOfKeys, ErrorName, MaxPosDiff, MaxAngleDiff);
+			bRemovedKeys |= CompressRawAnimSequenceTrack(RawAnimationData[TrackIndex], NumberOfKeys, ErrorName, MaxPosDiff, MaxAngleDiff, MaxScaleDiff);
 		}
 	}
 #endif
 	return bRemovedKeys;
 }
-
 
 bool Compression::CompressRawAnimSequenceTrack(FRawAnimSequenceTrack& RawTrack, int32 NumberOfKeys, FName ErrorName, float MaxPosDiff, float MaxAngleDiff)
+{
+	return CompressRawAnimSequenceTrack(RawTrack, NumberOfKeys, ErrorName, MaxPosDiff, MaxAngleDiff, 0.0001f);
+}
+
+bool Compression::CompressRawAnimSequenceTrack(FRawAnimSequenceTrack& RawTrack, int32 NumberOfKeys, FName ErrorName, float MaxPosDiff, float MaxAngleDiff, float MaxScaleDiff)
 {
 	bool bRemovedKeys = false;
 
@@ -582,8 +586,6 @@ bool Compression::CompressRawAnimSequenceTrack(FRawAnimSequenceTrack& RawTrack, 
 			check(RawTrack.RotKeys.Num() == 1);
 		}
 	}
-
-	float MaxScaleDiff = 0.0001f;
 
 	// Check variation of Scaleition keys
 	if ((RawTrack.ScaleKeys.Num() > 1) && (MaxScaleDiff >= 0.0f))

@@ -72,6 +72,7 @@ class UAnimBoneCompressionCodec_ACLBase : public UAnimBoneCompressionCodec
 	float ErrorThreshold;
 
 	// UAnimBoneCompressionCodec implementation
+	virtual bool IsHighFidelity(const FCompressibleAnimData& CompressibleAnimData) const override;
 	virtual bool Compress(const FCompressibleAnimData& CompressibleAnimData, FCompressibleAnimDataResult& OutResult) override;
 	virtual void PopulateDDCKey(const UE::Anim::Compression::FAnimDDCKeyArgs& KeyArgs, FArchive& Ar) override;
 	virtual int64 EstimateCompressionMemoryUsage(const UAnimSequence& AnimSequence) const override;
