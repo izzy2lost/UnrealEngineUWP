@@ -403,9 +403,76 @@ UMovieSceneSection* UMovieSceneControlRigParameterTrack::FindOrAddSection(FFrame
 	return NewSection;
 }
 
+TArray<TWeakObjectPtr<UMovieSceneSection>> UMovieSceneControlRigParameterTrack::GetSectionsToKey() const
+{
+	TArray<TWeakObjectPtr<UMovieSceneSection>> SectionsToKey;
+	if (SectionToKeyPerControl.Num() > 0)
+	{
+		SectionToKeyPerControl.GenerateValueArray(SectionsToKey);
+	}
+	else
+	{
+		SectionsToKey.Add(SectionToKey);
+	}
+	return SectionsToKey;
+}
+
+UMovieSceneSection* UMovieSceneControlRigParameterTrack::GetSectionToKey(const FName& InControlName) const
+{
+	if (const TWeakObjectPtr<UMovieSceneSection>* Section = SectionToKeyPerControl.Find(InControlName))
+	{
+		if (Section->IsValid())
+		{
+			return Section->Get();
+		}
+	}
+	return GetSectionToKey();
+}
+
+void UMovieSceneControlRigParameterTrack::SetSectionToKey(UMovieSceneSection* InSection, const FName& InControlName)
+{
+	if (Sections.Num() < 1 || InSection == nullptr)
+	{
+		return;
+	}
+	Modify();
+	SectionToKeyPerControl.Add(InControlName, InSection);
+	SectionToKey = Sections[0];
+}
+
 void UMovieSceneControlRigParameterTrack::SetSectionToKey(UMovieSceneSection* InSection)
 {
-	SectionToKey = InSection;
+	if (Sections.Num() < 1 || InSection == nullptr)
+	{
+		return;
+	}
+	if (UMovieSceneControlRigParameterSection* CRSection = Cast<UMovieSceneControlRigParameterSection>(InSection))
+	{
+		Modify();
+		if (SectionToKeyPerControl.Num() > 0) //we have sections that are in layers so need to respect them
+		{
+			if (bSetSectionToKeyPerControl)
+			{
+				for (TPair < FName, TWeakObjectPtr<UMovieSceneSection>>& SectionToKeyItem : SectionToKeyPerControl)
+				{
+					//only set it as the section to key if it's in that section, otherwise leave it alone
+					FChannelMapInfo* pChannelIndex = CRSection->ControlChannelMap.Find(SectionToKeyItem.Key);
+					if (pChannelIndex)
+					{
+						if (CRSection->GetControlsMask(pChannelIndex->MaskIndex))
+						{
+							SectionToKeyItem.Value = InSection;
+						}
+					}
+				}
+			}
+			SectionToKey = Sections[0];
+		}
+		else
+		{
+			SectionToKey = InSection;
+		}
+	}
 }
 
 UMovieSceneSection* UMovieSceneControlRigParameterTrack::GetSectionToKey() const
