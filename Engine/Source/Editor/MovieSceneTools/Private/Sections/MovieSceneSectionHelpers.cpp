@@ -142,9 +142,9 @@ FMovieSceneKeyColorPicker::FMovieSceneKeyColorPicker(UMovieSceneSection* Section
 	PickerArgs.ParentWidget = FSlateApplication::Get().GetActiveTopLevelWindow();
 	PickerArgs.OptionalOwningDetailsView = PickerArgs.ParentWidget;
 
-	PickerArgs.OnColorCommitted = FOnLinearColorValueChanged::CreateRaw(this, &FMovieSceneKeyColorPicker::OnColorPickerPicked, RChannel, GChannel, BChannel, AChannel, InSequencer);
+	PickerArgs.OnColorCommitted = FOnLinearColorValueChanged::CreateRaw(this, &FMovieSceneKeyColorPicker::OnColorPickerPicked, Section, RChannel, GChannel, BChannel, AChannel, InSequencer);
 	PickerArgs.OnColorPickerWindowClosed = FOnWindowClosed::CreateRaw(this, &FMovieSceneKeyColorPicker::OnColorPickerClosed, Section, RChannel, GChannel, BChannel, AChannel, InSequencer);
-	PickerArgs.OnColorPickerCancelled = FOnColorPickerCancelled::CreateRaw(this, &FMovieSceneKeyColorPicker::OnColorPickerCancelled, RChannel, GChannel, BChannel, AChannel, InSequencer);
+	PickerArgs.OnColorPickerCancelled = FOnColorPickerCancelled::CreateRaw(this, &FMovieSceneKeyColorPicker::OnColorPickerCancelled, Section, RChannel, GChannel, BChannel, AChannel, InSequencer);
 
 	OpenColorPicker(PickerArgs);
 }
@@ -162,8 +162,10 @@ void UpdateOrAddKey(FMovieSceneFloatChannel* Channel, FFrameNumber KeyTime, floa
 	}
 }
 
-void FMovieSceneKeyColorPicker::OnColorPickerPicked(FLinearColor NewColor, FMovieSceneFloatChannel* RChannel, FMovieSceneFloatChannel* GChannel, FMovieSceneFloatChannel* BChannel, FMovieSceneFloatChannel* AChannel, TWeakPtr<ISequencer> WeakSequencer)
+void FMovieSceneKeyColorPicker::OnColorPickerPicked(FLinearColor NewColor, UMovieSceneSection* Section, FMovieSceneFloatChannel* RChannel, FMovieSceneFloatChannel* GChannel, FMovieSceneFloatChannel* BChannel, FMovieSceneFloatChannel* AChannel, TWeakPtr<ISequencer> WeakSequencer)
 {
+	Section->Modify();
+
 	UpdateOrAddKey(RChannel, KeyTime, NewColor.R);
 	UpdateOrAddKey(GChannel, KeyTime, NewColor.G);
 	UpdateOrAddKey(BChannel, KeyTime, NewColor.B);
@@ -211,10 +213,12 @@ void FMovieSceneKeyColorPicker::OnColorPickerClosed(const TSharedRef<SWindow>& W
 	}
 }
 
-void FMovieSceneKeyColorPicker::OnColorPickerCancelled(FLinearColor NewColor, FMovieSceneFloatChannel* RChannel, FMovieSceneFloatChannel* GChannel, FMovieSceneFloatChannel* BChannel, FMovieSceneFloatChannel* AChannel, TWeakPtr<ISequencer> WeakSequencer)
+void FMovieSceneKeyColorPicker::OnColorPickerCancelled(FLinearColor NewColor, UMovieSceneSection* Section, FMovieSceneFloatChannel* RChannel, FMovieSceneFloatChannel* GChannel, FMovieSceneFloatChannel* BChannel, FMovieSceneFloatChannel* AChannel, TWeakPtr<ISequencer> WeakSequencer)
 {
 	bColorPickerWasCancelled = true;
 	
+	Section->Modify();
+
 	// Restore the original color. No transaction will be created when the OnColorPickerClosed callback is called.
 	UpdateOrAddKey(RChannel, KeyTime, InitialColor.R);
 	UpdateOrAddKey(GChannel, KeyTime, InitialColor.G);
