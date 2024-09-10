@@ -3,6 +3,7 @@
 #include "Animators/PropertyAnimatorCoreBase.h"
 
 #include "Components/PropertyAnimatorCoreComponent.h"
+#include "Dom/JsonObject.h"
 #include "GameFramework/Actor.h"
 #include "Properties/PropertyAnimatorCoreGroupBase.h"
 #include "Properties/PropertyAnimatorCoreResolver.h"
@@ -211,6 +212,108 @@ void UPropertyAnimatorCoreBase::PostEditChangeProperty(FPropertyChangedEvent& Pr
 }
 #endif
 
+bool UPropertyAnimatorCoreBase::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue)
+{
+	const TSharedPtr<FJsonObject>* JsonAnimatorObject;
+	if (!InValue->TryGetObject(JsonAnimatorObject) || !JsonAnimatorObject)
+	{
+		return false;
+	}
+
+	bool bJsonEnabled = bAnimatorEnabled;
+	(*JsonAnimatorObject)->TryGetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, bAnimatorEnabled), bJsonEnabled);
+	SetAnimatorEnabled(bJsonEnabled);
+
+	FString JsonDisplayName = AnimatorDisplayName.ToString();
+	(*JsonAnimatorObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, AnimatorDisplayName), JsonDisplayName);
+	SetAnimatorDisplayName(FName(JsonDisplayName));
+
+	const TArray<TSharedPtr<FJsonValue>>* JsonValues;
+	(*JsonAnimatorObject)->TryGetArrayField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, LinkedProperties), JsonValues);
+	for (const TSharedPtr<FJsonValue>& JsonValue : (*JsonValues))
+	{
+		TSharedPtr<FJsonObject>* JsonPropertyObject;
+		if (!JsonValue->TryGetObject(JsonPropertyObject) || !JsonPropertyObject || !JsonPropertyObject->IsValid())
+		{
+			continue;
+		}
+
+		FString AnimatedPropertyLocatorPath;
+		if (!(*JsonPropertyObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, AnimatedProperty), AnimatedPropertyLocatorPath))
+		{
+			continue;
+		}
+
+		FPropertyAnimatorCoreData PropertyData(GetAnimatorActor(), AnimatedPropertyLocatorPath);
+
+		if (!PropertyData.IsResolved())
+		{
+			continue;
+		}
+
+		if (IPropertyAnimatorCorePresetable* PropertyContext = Cast<IPropertyAnimatorCorePresetable>(LinkProperty(PropertyData)))
+		{
+			PropertyContext->ImportPreset(InPreset, JsonValue.ToSharedRef());
+		}
+	}
+
+	bool bJsonOverrideTimeSource = bOverrideTimeSource;
+	(*JsonAnimatorObject)->TryGetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, bOverrideTimeSource), bJsonOverrideTimeSource);
+	SetOverrideTimeSource(bJsonOverrideTimeSource);
+
+	FString JsonTimeSourceName = TimeSourceName.ToString();
+	(*JsonAnimatorObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, TimeSourceName), JsonTimeSourceName);
+	SetTimeSourceName(FName(JsonTimeSourceName));
+
+	if (UPropertyAnimatorCoreTimeSourceBase* TimeSource = FindOrAddTimeSource(GetTimeSourceName()))
+	{
+		if ((*JsonAnimatorObject)->HasTypedField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, ActiveTimeSource), EJson::Object))
+		{
+			TimeSource->ImportPreset(InPreset, (*JsonAnimatorObject)->TryGetField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, ActiveTimeSource)).ToSharedRef());
+		}
+	}
+
+	return true;
+}
+
+bool UPropertyAnimatorCoreBase::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue)
+{
+	TSharedRef<FJsonObject> JsonAnimatorObject = MakeShared<FJsonObject>();
+	OutValue = MakeShared<FJsonValueObject>(JsonAnimatorObject);
+
+	JsonAnimatorObject->SetStringField(TEXT("AnimatorClass"), GetClass()->GetClassPathName().ToString());
+	JsonAnimatorObject->SetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, bAnimatorEnabled), bAnimatorEnabled);
+	JsonAnimatorObject->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, AnimatorDisplayName), AnimatorDisplayName.ToString());
+
+	TArray<TSharedPtr<FJsonValue>> JsonValues;
+	for (const TObjectPtr<UPropertyAnimatorCoreContext>& LinkedProperty : LinkedProperties)
+	{
+		if (IPropertyAnimatorCorePresetable* PropertyContext = Cast<IPropertyAnimatorCorePresetable>(LinkedProperty))
+		{
+			TSharedPtr<FJsonValue> JsonValue;
+			if (PropertyContext->ExportPreset(InPreset, JsonValue) && JsonValue.IsValid())
+			{
+				JsonValues.Add(JsonValue);
+			}
+		}
+	}
+	JsonAnimatorObject->SetArrayField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, LinkedProperties), JsonValues);
+
+	JsonAnimatorObject->SetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, bOverrideTimeSource), bOverrideTimeSource);
+	JsonAnimatorObject->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, TimeSourceName), TimeSourceName.ToString());
+
+	if (UPropertyAnimatorCoreTimeSourceBase* TimeSource = GetActiveTimeSource())
+	{
+		TSharedPtr<FJsonValue> JsonValue;
+		if (TimeSource->ExportPreset(InPreset, JsonValue) && JsonValue.IsValid())
+		{
+			JsonAnimatorObject->SetField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, ActiveTimeSource), JsonValue);
+		}
+	}
+
+	return true;
+}
+
 AActor* UPropertyAnimatorCoreBase::GetAnimatorActor() const
 {
 	return GetTypedOuter<AActor>();
@@ -235,7 +338,7 @@ void UPropertyAnimatorCoreBase::SetOverrideTimeSource(bool bInOverride)
 	}
 
 	bOverrideTimeSource = bInOverride;
-	OnTimeSourceChanged();
+	OnTimeSourceNameChanged();
 }
 
 void UPropertyAnimatorCoreBase::SetTimeSourceName(FName InTimeSourceName)
@@ -431,7 +534,7 @@ void UPropertyAnimatorCoreBase::OnTimeSourceNameChanged()
 		ActiveTimeSource->DeactivateTimeSource();
 	}
 
-	ActiveTimeSource = FindOrAddTimeSource(TimeSourceName);
+	ActiveTimeSource = bOverrideTimeSource ? FindOrAddTimeSource(TimeSourceName) : nullptr;
 
 	if (ActiveTimeSource)
 	{
@@ -439,6 +542,11 @@ void UPropertyAnimatorCoreBase::OnTimeSourceNameChanged()
 	}
 
 	OnTimeSourceChanged();
+}
+
+void UPropertyAnimatorCoreBase::OnTimeSourceEnterIdleState()
+{
+	RestoreProperties(/** Force */true);
 }
 
 void UPropertyAnimatorCoreBase::ResolvePropertiesOwner(AActor* InNewOwner)
@@ -586,7 +694,7 @@ TArray<FName> UPropertyAnimatorCoreBase::GetTimeSourceNames() const
 
 UPropertyAnimatorCoreTimeSourceBase* UPropertyAnimatorCoreBase::FindOrAddTimeSource(FName InTimeSourceName)
 {
-	if (IsTemplate() || !bOverrideTimeSource)
+	if (IsTemplate())
 	{
 		return nullptr;
 	}
@@ -672,11 +780,13 @@ int32 UPropertyAnimatorCoreBase::GetLinkedPropertiesCount() const
 	return LinkedProperties.Num();
 }
 
-bool UPropertyAnimatorCoreBase::LinkProperty(const FPropertyAnimatorCoreData& InLinkProperty)
+UPropertyAnimatorCoreContext* UPropertyAnimatorCoreBase::LinkProperty(const FPropertyAnimatorCoreData& InLinkProperty)
 {
+	UPropertyAnimatorCoreContext* PropertyContext = nullptr;
+
 	if (!InLinkProperty.IsResolved())
 	{
-		return false;
+		return PropertyContext;
 	}
 
 	const UObject* Owner = InLinkProperty.GetOwner();
@@ -684,19 +794,19 @@ bool UPropertyAnimatorCoreBase::LinkProperty(const FPropertyAnimatorCoreData& In
 
 	if (Owner != OwningActor && !Owner->IsIn(OwningActor))
 	{
-		return false;
+		return PropertyContext;
 	}
 
 	const EPropertyAnimatorPropertySupport Support = GetPropertySupport(InLinkProperty);
 
 	if (Support == EPropertyAnimatorPropertySupport::None)
 	{
-		return false;
+		return PropertyContext;
 	}
 
 	if (IsPropertyLinked(InLinkProperty))
 	{
-		return false;
+		return GetLinkedPropertyContext(InLinkProperty);
 	}
 
 	const TSubclassOf<UPropertyAnimatorCoreContext> ContextSubclass = GetPropertyContextClass(InLinkProperty);
@@ -704,10 +814,10 @@ bool UPropertyAnimatorCoreBase::LinkProperty(const FPropertyAnimatorCoreData& In
 
 	if (!IsValid(ContextClass))
 	{
-		return false;
+		return PropertyContext;
 	}
 
-	UPropertyAnimatorCoreContext* PropertyContext = NewObject<UPropertyAnimatorCoreContext>(this, ContextClass, NAME_None, RF_Transactional);
+	PropertyContext = NewObject<UPropertyAnimatorCoreContext>(this, ContextClass, NAME_None, RF_Transactional);
 	PropertyContext->ConstructInternal(InLinkProperty);
 
 	LinkedProperties.Add(PropertyContext);
@@ -715,7 +825,7 @@ bool UPropertyAnimatorCoreBase::LinkProperty(const FPropertyAnimatorCoreData& In
 
 	UPropertyAnimatorCoreBase::OnAnimatorPropertyLinkedDelegate.Broadcast(this, InLinkProperty);
 
-	return true;
+	return PropertyContext;
 }
 
 bool UPropertyAnimatorCoreBase::UnlinkProperty(const FPropertyAnimatorCoreData& InUnlinkProperty)

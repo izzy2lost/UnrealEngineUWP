@@ -34,6 +34,8 @@ protected:
 	//~ Begin UPropertyAnimatorCoreContext
 	virtual bool EvaluateProperty(const FPropertyAnimatorCoreData& InProperty, const FInstancedPropertyBag& InAnimatorResult, FInstancedPropertyBag& OutEvaluatedValues) override;
 	virtual void OnAnimatedPropertyLinked() override;
+	virtual bool ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue) override;
+	virtual bool ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue) override;
 	//~ End UPropertyAnimatorCoreContext
 
 	double GetClampedAmplitude(double InAmplitude);

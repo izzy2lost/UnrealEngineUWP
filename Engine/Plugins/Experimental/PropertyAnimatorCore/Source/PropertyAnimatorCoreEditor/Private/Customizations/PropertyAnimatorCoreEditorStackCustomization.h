@@ -32,6 +32,9 @@ protected:
 	/** Remove animator menu action */
 	void RemoveAnimatorAction(FOperatorStackEditorItemPtr InItem) const;
 
+	bool CanExportAnimator(FOperatorStackEditorItemPtr InItem) const;
+	void ExportAnimatorAction(FOperatorStackEditorItemPtr InItem);
+
 	/** Fill item action menus */
 	void FillAddAnimatorMenuSection(UToolMenu* InToolMenu) const;
 	void FillAnimatorHeaderActionMenu(UToolMenu* InToolMenu);

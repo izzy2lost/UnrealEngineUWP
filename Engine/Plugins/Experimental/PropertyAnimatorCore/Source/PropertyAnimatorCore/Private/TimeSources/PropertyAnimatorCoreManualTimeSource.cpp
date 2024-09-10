@@ -2,6 +2,8 @@
 
 #include "TimeSources/PropertyAnimatorCoreManualTimeSource.h"
 
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
 #include "Misc/App.h"
 
 void UPropertyAnimatorCoreManualTimeSource::SetOverrideTime(bool bInOverride)
@@ -77,6 +79,41 @@ void UPropertyAnimatorCoreManualTimeSource::OnTimeSourceInactive()
 	Stop();
 }
 
+bool UPropertyAnimatorCoreManualTimeSource::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue)
+{
+	const TSharedPtr<FJsonObject>* JsonTimeSourceObject;
+
+	if (Super::ImportPreset(InPreset, InValue) && InValue->TryGetObject(JsonTimeSourceObject))
+	{
+		double JsonCustomTime = CustomTime;
+		(*JsonTimeSourceObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreManualTimeSource, CustomTime), JsonCustomTime);
+		SetCustomTime(JsonCustomTime);
+
+		bool bJsonOverrideTime = bOverrideTime;
+		(*JsonTimeSourceObject)->TryGetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreManualTimeSource, bOverrideTime), bJsonOverrideTime);
+		SetOverrideTime(bJsonOverrideTime);
+
+		return true;
+	}
+
+	return false;
+}
+
+bool UPropertyAnimatorCoreManualTimeSource::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue)
+{
+	const TSharedPtr<FJsonObject>* JsonTimeSourceObject;
+
+	if (Super::ExportPreset(InPreset, OutValue) && OutValue->TryGetObject(JsonTimeSourceObject))
+	{
+		(*JsonTimeSourceObject)->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreManualTimeSource, CustomTime), CustomTime);
+		(*JsonTimeSourceObject)->SetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreManualTimeSource, bOverrideTime), bOverrideTime);
+
+		return true;
+	}
+
+	return false;
+}
+
 void UPropertyAnimatorCoreManualTimeSource::Play(bool bInForward)
 {
 	if (bOverrideTime)
@@ -110,7 +147,6 @@ void UPropertyAnimatorCoreManualTimeSource::Stop()
 		return;
 	}
 
-	CustomTime = 0.f;
 	Pause();
 	ActiveStatus = EPropertyAnimatorCoreManualStatus::Stopped;
 }

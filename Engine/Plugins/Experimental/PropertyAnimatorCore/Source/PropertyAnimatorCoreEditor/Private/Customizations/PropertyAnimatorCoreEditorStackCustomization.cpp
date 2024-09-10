@@ -9,6 +9,8 @@
 #include "Items/OperatorStackEditorGroupItem.h"
 #include "Items/OperatorStackEditorObjectItem.h"
 #include "Menus/PropertyAnimatorCoreEditorMenu.h"
+#include "Presets/PropertyAnimatorCoreAnimatorPreset.h"
+#include "Styles/PropertyAnimatorCoreEditorStyle.h"
 #include "Styling/SlateIconFinder.h"
 #include "Subsystems/PropertyAnimatorCoreEditorSubsystem.h"
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
@@ -357,6 +359,24 @@ void UPropertyAnimatorCoreEditorStackCustomization::RemoveAnimatorAction(FOperat
 	}
 }
 
+bool UPropertyAnimatorCoreEditorStackCustomization::CanExportAnimator(FOperatorStackEditorItemPtr InItem) const
+{
+	return InItem.IsValid() && InItem->GetValueCount() == 1 && InItem->HasValue(0);
+}
+
+void UPropertyAnimatorCoreEditorStackCustomization::ExportAnimatorAction(FOperatorStackEditorItemPtr InItem)
+{
+	if (!CanExportAnimator(InItem))
+	{
+		return;
+	}
+
+	if (UPropertyAnimatorCoreEditorSubsystem* AnimatorEditorSubsystem = UPropertyAnimatorCoreEditorSubsystem::Get())
+	{
+		AnimatorEditorSubsystem->CreatePresetAsset(UPropertyAnimatorCoreAnimatorPreset::StaticClass(), {InItem->Get<UPropertyAnimatorCoreBase>(0)});
+	}
+}
+
 void UPropertyAnimatorCoreEditorStackCustomization::FillAddAnimatorMenuSection(UToolMenu* InToolMenu) const
 {
 	if (!InToolMenu)
@@ -421,6 +441,23 @@ void UPropertyAnimatorCoreEditorStackCustomization::FillAnimatorHeaderActionMenu
 	if (!ItemContext->IsA<UPropertyAnimatorCoreBase>() && !ItemContext->IsA<UPropertyAnimatorCoreComponent>())
 	{
 		return;
+	}
+
+	if (ItemContext->IsA<UPropertyAnimatorCoreBase>())
+	{
+		const FToolMenuEntry ExportAnimatorAction = FToolMenuEntry::InitToolBarButton(
+			TEXT("ExportAnimatorMenuEntry")
+			, FUIAction(
+				FExecuteAction::CreateUObject(this, &UPropertyAnimatorCoreEditorStackCustomization::ExportAnimatorAction, ItemContext)
+				, FCanExecuteAction::CreateUObject(this, &UPropertyAnimatorCoreEditorStackCustomization::CanExportAnimator, ItemContext)
+				, FIsActionChecked()
+				, FIsActionButtonVisible::CreateUObject(this, &UPropertyAnimatorCoreEditorStackCustomization::CanExportAnimator, ItemContext))
+			, FText::GetEmpty()
+			, FText::GetEmpty()
+			, FSlateIcon(FPropertyAnimatorCoreEditorStyle::Get().GetStyleSetName(), "PropertyControlIcon.Export")
+		);
+
+		InToolMenu->AddMenuEntry(ExportAnimatorAction.Name, ExportAnimatorAction);
 	}
 
 	const FToolMenuEntry RemoveAnimatorAction = FToolMenuEntry::InitToolBarButton(

@@ -19,6 +19,7 @@ public class PropertyAnimatorCoreEditor : ModuleRules
 	        new string[]
 	        {
 		        "ApplicationCore",
+				"AssetDefinition",
 		        "CoreUObject",
 		        "EditorSubsystem",
 		        "EditorWidgets",

@@ -78,6 +78,10 @@ public:
 	/** Unregister a resolver */
 	PROPERTYANIMATORCORE_API bool UnregisterResolverClass(const UClass* InResolverClass);
 
+	UPropertyAnimatorCoreResolver* FindResolverByName(FName InResolverName);
+
+	UPropertyAnimatorCoreResolver* FindResolverByClass(const UClass* InResolverClass);
+
 	/** Is this resolver registered */
 	PROPERTYANIMATORCORE_API bool IsResolverClassRegistered(const UClass* InResolverClass) const;
 
@@ -114,11 +118,11 @@ public:
 	/** Is this preset class registered */
 	PROPERTYANIMATORCORE_API bool IsPresetClassRegistered(const UClass* InPresetClass) const;
 
-	/** Gets all supported presets for a specific animator and actor */
-	PROPERTYANIMATORCORE_API TSet<UPropertyAnimatorCorePresetBase*> GetSupportedPresets(const AActor* InActor, const UPropertyAnimatorCoreBase* InAnimator) const;
-
 	/** Get all registered preset available */
-	PROPERTYANIMATORCORE_API TSet<UPropertyAnimatorCorePresetBase*> GetAvailablePresets() const;
+	PROPERTYANIMATORCORE_API TSet<UPropertyAnimatorCorePresetBase*> GetAvailablePresets(TSubclassOf<UPropertyAnimatorCorePresetBase> InPresetClass) const;
+
+	/** Gets all supported presets for a specific animator and actor */
+	PROPERTYANIMATORCORE_API TSet<UPropertyAnimatorCorePresetBase*> GetSupportedPresets(const AActor* InActor, const UPropertyAnimatorCoreBase* InAnimator, TSubclassOf<UPropertyAnimatorCorePresetBase> InPresetClass) const;
 
 	PROPERTYANIMATORCORE_API bool RegisterSetterResolver(FName InPropertyName, TFunction<UFunction*(const UObject*)>&& InFunction);
 
@@ -209,6 +213,13 @@ protected:
 	 */
 	void RegisterAnimatorClasses();
 
+	void OnAssetRegistryFilesLoaded();
+	void OnAssetRegistryAssetAdded(const FAssetData& InAssetData);
+	void OnAssetRegistryAssetRemoved(const FAssetData& InAssetData);
+	void OnAssetRegistryAssetUpdated(const FAssetData& InAssetData);
+	void RegisterPresetAsset(const FAssetData& InAssetData);
+	void UnregisterPresetAsset(const FAssetData& InAssetData);
+
 	/** Time sources available to use with animators */
 	UPROPERTY()
 	TSet<TWeakObjectPtr<UPropertyAnimatorCoreTimeSourceBase>> TimeSourcesWeak;
@@ -238,4 +249,6 @@ protected:
 
 	/** Some property should have a friendlier name and replace the original name by an alias */
 	TMap<FString, FString> PropertyAliases;
+
+	bool bFilesLoaded = false;
 };

@@ -56,12 +56,6 @@ public:
 		return State;
 	}
 
-	//~ Begin UPropertyAnimatorTimeSourceBase
-	virtual bool UpdateEvaluationData(FPropertyAnimatorCoreTimeSourceEvaluationData& OutData) override;
-	virtual void OnTimeSourceActive() override;
-	virtual void OnTimeSourceInactive() override;
-	//~ End UPropertyAnimatorTimeSourceBase
-
 	void Play(bool bInForward);
 	void Pause();
 	void Stop();
@@ -75,6 +69,14 @@ protected:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
 #endif
 	//~ End UObject
+
+	//~ Begin UPropertyAnimatorTimeSourceBase
+	virtual bool UpdateEvaluationData(FPropertyAnimatorCoreTimeSourceEvaluationData& OutData) override;
+	virtual void OnTimeSourceActive() override;
+	virtual void OnTimeSourceInactive() override;
+	virtual bool ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue) override;
+	virtual bool ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue) override;
+	//~ End UPropertyAnimatorTimeSourceBase
 
 	void OnStateChanged();
 	void OnOverrideTimeChanged();

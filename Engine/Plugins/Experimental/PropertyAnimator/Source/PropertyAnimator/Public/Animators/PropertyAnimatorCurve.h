@@ -76,6 +76,8 @@ protected:
 	//~ Begin UPropertyAnimatorFloatBase
 	virtual void OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata) override;
 	virtual bool EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const override;
+	virtual bool ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue) override;
+	virtual bool ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue) override;
 	//~ End UPropertyAnimatorFloatBase
 
 	void OnEaseInChanged();

@@ -516,9 +516,9 @@ bool UPropertyAnimatorCoreComponent::EvaluateAnimators()
 
 		if (AnimatorTimeResult != EPropertyAnimatorCoreTimeSourceResult::Evaluate)
 		{
-			if (AnimatorTimeResult == EPropertyAnimatorCoreTimeSourceResult::Reset)
+			if (AnimatorTimeResult == EPropertyAnimatorCoreTimeSourceResult::Idle)
 			{
-				Animator->RestoreProperties(/** Force */true);
+				Animator->OnTimeSourceEnterIdleState();
 			}
 
 			continue;

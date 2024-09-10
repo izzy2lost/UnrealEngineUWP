@@ -36,5 +36,7 @@ protected:
 
 	FReply UnlinkProperties() const;
 
+	FReply OnCreatePropertyPresetClicked() const;
+
 	TWeakObjectPtr<UPropertyAnimatorCoreBase> AnimatorWeak;
 };

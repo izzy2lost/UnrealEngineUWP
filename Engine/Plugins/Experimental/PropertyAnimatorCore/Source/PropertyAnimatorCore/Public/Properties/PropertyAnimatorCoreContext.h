@@ -3,6 +3,8 @@
 #pragma once
 
 #include "PropertyAnimatorCoreData.h"
+#include "Presets/PropertyAnimatorCorePresetable.h"
+#include "Presets/PropertyAnimatorCorePresetBase.h"
 #include "StructUtils/PropertyBag.h"
 #include "UObject/Object.h"
 #include "PropertyAnimatorCoreContext.generated.h"
@@ -17,13 +19,15 @@ class UScriptStruct;
 UENUM(BlueprintType)
 enum class EPropertyAnimatorCoreMode : uint8
 {
+	/** Set the property value directly */
 	Absolute,
-	Additive,
+	/** Add value on the existing property value */
+	Additive
 };
 
 /** Context for properties linked to an animator */
 UCLASS(MinimalAPI, BlueprintType)
-class UPropertyAnimatorCoreContext : public UObject
+class UPropertyAnimatorCoreContext : public UObject, public IPropertyAnimatorCorePresetable
 {
 	GENERATED_BODY()
 
@@ -31,6 +35,8 @@ class UPropertyAnimatorCoreContext : public UObject
 	friend class FPropertyAnimatorCoreEditorContextTypeCustomization;
 
 public:
+	static FName GetAnimatedPropertyName();
+
 	const FPropertyAnimatorCoreData& GetAnimatedProperty() const
 	{
 		return AnimatedProperty;
@@ -57,6 +63,12 @@ public:
 	float GetMagnitude() const
 	{
 		return Magnitude;
+	}
+
+	PROPERTYANIMATORCORE_API void SetTimeOffset(double InOffset);
+	double GetTimeOffset() const
+	{
+		return TimeOffset;
 	}
 
 	PROPERTYANIMATORCORE_API void SetMode(EPropertyAnimatorCoreMode InMode);
@@ -93,6 +105,11 @@ public:
 	{
 		return false;
 	}
+
+	//~ Begin IPropertyAnimatorCorePresetable
+	PROPERTYANIMATORCORE_API virtual bool ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue) override;
+	PROPERTYANIMATORCORE_API virtual bool ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue) override;
+	//~ End IPropertyAnimatorCorePresetable
 
 protected:
 	//~ Begin UObject
@@ -154,6 +171,10 @@ private:
 	/** Magnitude of the effect on this property */
 	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(ClampMin="0.0", ClampMax="1.0", HideEditConditionToggle, EditCondition="bEditMagnitude", EditConditionHides, AllowPrivateAccess="true"))
 	float Magnitude = 1.f;
+
+	/** Time offset to evaluate this property */
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(Units=Seconds, HideEditConditionToggle, EditCondition="bEditMagnitude", EditConditionHides, AllowPrivateAccess="true"))
+	double TimeOffset = 0;
 
 	/** Edit condition for modes */
 	UPROPERTY(Transient)

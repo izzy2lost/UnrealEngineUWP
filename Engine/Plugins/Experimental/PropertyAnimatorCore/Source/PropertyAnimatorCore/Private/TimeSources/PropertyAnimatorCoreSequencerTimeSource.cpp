@@ -18,6 +18,10 @@ bool UPropertyAnimatorCoreSequencerTimeSource::UpdateEvaluationData(FPropertyAni
 void UPropertyAnimatorCoreSequencerTimeSource::OnSequencerTimeEvaluated(const TOptional<double>& InTimeEval, const TOptional<float>& InMagnitudeEval)
 {
 	EvalResult.bEvalValid = InTimeEval.IsSet() && InMagnitudeEval.IsSet();
-	EvalResult.EvalTime = InTimeEval.Get(0.0);
-	EvalResult.EvalMagnitude = InMagnitudeEval.Get(1.f);
+
+	if (EvalResult.bEvalValid)
+	{
+		EvalResult.EvalTime = InTimeEval.GetValue();
+		EvalResult.EvalMagnitude = InMagnitudeEval.GetValue();
+	}
 }

@@ -3,6 +3,8 @@
 #include "Properties/PropertyAnimatorCoreContext.h"
 
 #include "Containers/Ticker.h"
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
 #include "StructUtils/InstancedStruct.h"
 #include "Properties/PropertyAnimatorCoreGroupBase.h"
 #include "Properties/PropertyAnimatorCoreResolver.h"
@@ -31,6 +33,11 @@ TArray<FPropertyAnimatorCoreData> UPropertyAnimatorCoreContext::ResolveProperty(
 	}
 
 	return ResolvedProperties;
+}
+
+FName UPropertyAnimatorCoreContext::GetAnimatedPropertyName()
+{
+	return GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, AnimatedProperty);
 }
 
 UPropertyAnimatorCoreBase* UPropertyAnimatorCoreContext::GetAnimator() const
@@ -90,6 +97,11 @@ void UPropertyAnimatorCoreContext::SetAnimated(bool bInAnimated)
 void UPropertyAnimatorCoreContext::SetMagnitude(float InMagnitude)
 {
 	Magnitude = FMath::Clamp(InMagnitude, 0.f, 1.f);
+}
+
+void UPropertyAnimatorCoreContext::SetTimeOffset(double InOffset)
+{
+	TimeOffset = InOffset;
 }
 
 void UPropertyAnimatorCoreContext::SetMode(EPropertyAnimatorCoreMode InMode)
@@ -189,6 +201,62 @@ void UPropertyAnimatorCoreContext::PostEditChangeProperty(FPropertyChangedEvent&
 	}
 }
 #endif
+
+bool UPropertyAnimatorCoreContext::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue)
+{
+	TSharedPtr<FJsonObject>* JsonObject;
+	if (!InValue->TryGetObject(JsonObject) || !JsonObject || !JsonObject->IsValid())
+	{
+		return false;
+	}
+
+	bool bJsonAnimated = bAnimated;
+	(*JsonObject)->TryGetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, bAnimated), bJsonAnimated);
+	SetAnimated(bJsonAnimated);
+
+	if (bEditMagnitude)
+	{
+		float JsonMagnitude = Magnitude;
+		(*JsonObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Magnitude), JsonMagnitude);
+		SetMagnitude(JsonMagnitude);
+
+		float JsonTimeOffset = TimeOffset;
+		(*JsonObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, TimeOffset), JsonTimeOffset);
+		SetTimeOffset(JsonTimeOffset);
+	}
+
+	if (bEditMode)
+	{
+		float JsonMode = static_cast<float>(Mode);
+		(*JsonObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Mode), JsonMode);
+		SetMode(static_cast<EPropertyAnimatorCoreMode>(JsonMode));
+	}
+
+	return true;
+}
+
+bool UPropertyAnimatorCoreContext::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue)
+{
+	TSharedRef<FJsonObject> JsonObject = MakeShared<FJsonObject>();
+	OutValue = MakeShared<FJsonValueObject>(JsonObject);
+
+	JsonObject->SetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, bAnimated), bAnimated);
+
+	if (bEditMagnitude)
+	{
+		JsonObject->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Magnitude), Magnitude);
+		JsonObject->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, TimeOffset), TimeOffset);
+	}
+
+	if (bEditMode)
+	{
+		JsonObject->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Mode), static_cast<float>(Mode));
+	}
+
+	JsonObject->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, AnimatedProperty), AnimatedProperty.GetPropertyLocatorPath());
+
+	return true;
+}
 
 void UPropertyAnimatorCoreContext::OnAnimatedPropertyLinked()
 {

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Presets/PropertyAnimatorCorePresetable.h"
 #include "Properties/PropertyAnimatorCoreContext.h"
 #include "Properties/PropertyAnimatorCoreData.h"
 #include "UObject/Object.h"
@@ -28,7 +29,7 @@ struct FPropertyAnimatorCoreMetadata
 
 /** Abstract base class for any Animator, holds a set of linked properties */
 UCLASS(MinimalAPI, Abstract, EditInlineNew, AutoExpandCategories=("Animator"))
-class UPropertyAnimatorCoreBase : public UObject
+class UPropertyAnimatorCoreBase : public UObject, public IPropertyAnimatorCorePresetable
 {
 	GENERATED_BODY()
 
@@ -123,7 +124,7 @@ public:
 	PROPERTYANIMATORCORE_API int32 GetLinkedPropertiesCount() const;
 
 	/** Link property to this Animator to be able to drive it */
-	PROPERTYANIMATORCORE_API bool LinkProperty(const FPropertyAnimatorCoreData& InLinkProperty);
+	PROPERTYANIMATORCORE_API UPropertyAnimatorCoreContext* LinkProperty(const FPropertyAnimatorCoreData& InLinkProperty);
 
 	/** Unlink property from this Animator */
 	PROPERTYANIMATORCORE_API bool UnlinkProperty(const FPropertyAnimatorCoreData& InUnlinkProperty);
@@ -163,6 +164,11 @@ public:
 
 	/** Get the context for the linked property */
 	PROPERTYANIMATORCORE_API UPropertyAnimatorCoreContext* GetLinkedPropertyContext(const FPropertyAnimatorCoreData& InProperty) const;
+
+	TConstArrayView<UPropertyAnimatorCoreContext*> GetLinkedPropertiesContext() const
+	{
+		return LinkedProperties;
+	}
 
 	/** Get the casted context for the linked property */
 	template<typename InContextClass
@@ -208,6 +214,11 @@ public:
 
 		return true;
 	}
+
+	//~ Begin IPropertyAnimatorCorePresetable
+	PROPERTYANIMATORCORE_API virtual bool ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue) override;
+	PROPERTYANIMATORCORE_API virtual bool ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue) override;
+	//~ End IPropertyAnimatorCorePresetable
 
 protected:
 	//~ Begin UObject
@@ -322,6 +333,9 @@ private:
 	void CleanLinkedProperties();
 
 	void OnTimeSourceNameChanged();
+
+	/** Called when time source enters idle/invalid state */
+	void OnTimeSourceEnterIdleState();
 
 	/** Called after an action that causes the owner to change */
 	void ResolvePropertiesOwner(AActor* InNewOwner = nullptr);

@@ -2,6 +2,8 @@
 
 #include "Animators/PropertyAnimatorClock.h"
 
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
 #include "Misc/DateTime.h"
 #include "Properties/Converters/PropertyAnimatorCoreConverterBase.h"
 #include "Properties/Handlers/PropertyAnimatorCoreHandlerBase.h"
@@ -114,4 +116,34 @@ void UPropertyAnimatorClock::EvaluateProperties(FInstancedPropertyBag& InParamet
 
 		return true;
 	});
+}
+
+bool UPropertyAnimatorClock::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue)
+{
+	const TSharedPtr<FJsonObject>* JsonAnimatorObject;
+
+	if (Super::ImportPreset(InPreset, InValue) && InValue->TryGetObject(JsonAnimatorObject))
+	{
+		FString JsonDisplayFormat = DisplayFormat;
+		(*JsonAnimatorObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorClock, DisplayFormat), JsonDisplayFormat);
+		SetDisplayFormat(JsonDisplayFormat);
+
+		return true;
+	}
+
+	return false;
+}
+
+bool UPropertyAnimatorClock::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue)
+{
+	const TSharedPtr<FJsonObject>* JsonAnimatorObject;
+
+	if (Super::ExportPreset(InPreset, OutValue) && OutValue->TryGetObject(JsonAnimatorObject))
+	{
+		(*JsonAnimatorObject)->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorClock, DisplayFormat), DisplayFormat);
+
+		return true;
+	}
+
+	return false;
 }

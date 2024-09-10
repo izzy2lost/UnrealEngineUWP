@@ -9,11 +9,13 @@
 #include "PropertyAnimatorCoreEditorSubsystem.generated.h"
 
 class IDetailTreeNode;
+class IPropertyAnimatorCorePresetable;
 class IPropertyHandle;
 class SPropertyAnimatorCoreEditorEditPanel;
 class SWidget;
 class UPropertyAnimatorCoreBase;
 class UPropertyAnimatorCoreEditorMenuContext;
+class UPropertyAnimatorCorePresetBase;
 class UToolMenu;
 struct FPropertyAnimatorCoreData;
 struct FPropertyAnimatorCoreEditorEditPanelOptions;
@@ -37,6 +39,9 @@ public:
 
 	/** Fills a menu based on context objects and menu options */
 	PROPERTYANIMATORCOREEDITOR_API bool FillAnimatorMenu(UToolMenu* InMenu, const FPropertyAnimatorCoreEditorMenuContext& InContext, const FPropertyAnimatorCoreEditorMenuOptions& InOptions);
+
+	/** Creates a preset asset for an item */
+	PROPERTYANIMATORCOREEDITOR_API UPropertyAnimatorCorePresetBase* CreatePresetAsset(TSubclassOf<UPropertyAnimatorCorePresetBase> InPresetClass, const TArray<IPropertyAnimatorCorePresetable*>& InPresetables);
 
 protected:
 	/** Setup details panel button customization */

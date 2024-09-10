@@ -7,7 +7,9 @@
 #include "Engine/World.h"
 #include "Misc/Optional.h"
 #include "PropertyHandle.h"
+#include "Presets/PropertyAnimatorCoreAnimatorPreset.h"
 #include "Presets/PropertyAnimatorCorePresetBase.h"
+#include "Presets/PropertyAnimatorCorePropertyPreset.h"
 #include "Styling/SlateIconFinder.h"
 #include "Subsystems/PropertyAnimatorCoreEditorSubsystem.h"
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
@@ -40,11 +42,32 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillNewAnimatorSection(UToolMenu* InM
 
 	FToolMenuSection& NewAnimatorsSection = InMenu->FindOrAddSection(TEXT("NewAnimators"), LOCTEXT("NewAnimators.Label", "New Animators"));
 
+	TMap<UPropertyAnimatorCoreBase*, TArray<UPropertyAnimatorCorePresetBase*>> AvailablePresetAnimators;
+
+	UPropertyAnimatorCorePresetBase* EmptyPreset = nullptr;
 	for (UPropertyAnimatorCoreBase* NewAnimator : NewAvailableAnimators)
 	{
-		const FName MenuName = NewAnimator->GetAnimatorOriginalName();
-		const FName MenuCategory = NewAnimator->GetAnimatorCategory();
-		const FText MenuLabel = FText::FromName(MenuName);
+		AvailablePresetAnimators.FindOrAdd(NewAnimator).Add(EmptyPreset);
+	}
+
+	for (UPropertyAnimatorCorePresetBase* Preset : Subsystem->GetAvailablePresets(UPropertyAnimatorCoreAnimatorPreset::StaticClass()))
+	{
+		if (UPropertyAnimatorCoreAnimatorPreset* AnimatorPreset = Cast<UPropertyAnimatorCoreAnimatorPreset>(Preset))
+		{
+			if (UPropertyAnimatorCoreBase* AnimatorTemplate = AnimatorPreset->GetAnimatorTemplate())
+			{
+				AvailablePresetAnimators.FindOrAdd(AnimatorTemplate).Add(AnimatorPreset);
+			}
+		}
+	}
+
+	for (const TPair<UPropertyAnimatorCoreBase*, TArray<UPropertyAnimatorCorePresetBase*>>& NewPresetAnimator : AvailablePresetAnimators)
+	{
+		UPropertyAnimatorCoreBase* NewAnimator = NewPresetAnimator.Key;
+
+		const FName MenuName = NAME_None;
+		FName MenuCategory = NewAnimator->GetAnimatorCategory();
+		FText MenuLabel = FText::FromName(NewAnimator->GetAnimatorOriginalName());
 		const FText MenuTooltip = LOCTEXT("NewAnimator.Tooltip", "Create a new animator");
 		const FSlateIcon MenuIcon = FSlateIconFinder::FindIconForClass(NewAnimator->GetClass());
 
@@ -62,17 +85,24 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillNewAnimatorSection(UToolMenu* InM
 		}
 		else
 		{
-			UPropertyAnimatorCorePresetBase* EmptyPreset = nullptr;
+			for (UPropertyAnimatorCorePresetBase* Preset : NewPresetAnimator.Value)
+			{
+				if (Preset)
+				{
+					MenuLabel = FText::FromString(Preset->GetPresetDisplayName() + TEXT(" (") + NewAnimator->GetAnimatorOriginalName().ToString() + TEXT(")"));
+					MenuCategory = TEXT("Presets");
+				}
 
-			FToolMenuSection& AnimatorCategorySection = InMenu->FindOrAddSection(MenuCategory, FText::FromName(MenuCategory));
+				FToolMenuSection& AnimatorCategorySection = InMenu->FindOrAddSection(MenuCategory, FText::FromName(MenuCategory));
 
-			AnimatorCategorySection.AddMenuEntry(
-				MenuName
-				, MenuLabel
-				, MenuTooltip
-				, MenuIcon
-				, FExecuteAction::CreateLambda(&ExecuteNewAnimatorPresetAction, NewAnimator, ContextActors, EmptyPreset, InMenuData)
-			);
+				AnimatorCategorySection.AddMenuEntry(
+					MenuName
+					, MenuLabel
+					, MenuTooltip
+					, MenuIcon
+					, FExecuteAction::CreateLambda(&ExecuteNewAnimatorPresetAction, NewAnimator, ContextActors, Preset, InMenuData)
+				);
+			}
 		}
 	}
 }
@@ -396,7 +426,7 @@ void UE::PropertyAnimatorCoreEditor::Menu::ExecuteLinkLastCreatedAnimatorPropert
 	}
 }
 
-void UE::PropertyAnimatorCoreEditor::Menu::ExecuteApplyLastCreatedAnimatorPresetAction(const UPropertyAnimatorCoreBase* InAnimator, UPropertyAnimatorCorePresetBase* InPreset, TSharedRef<FPropertyAnimatorCoreEditorMenuData> InMenuData)
+void UE::PropertyAnimatorCoreEditor::Menu::ExecuteApplyLastCreatedAnimatorPresetAction(const UPropertyAnimatorCoreBase* InAnimator, UPropertyAnimatorCorePropertyPreset* InPreset, TSharedRef<FPropertyAnimatorCoreEditorMenuData> InMenuData)
 {
 	UPropertyAnimatorCoreSubsystem* Subsystem = UPropertyAnimatorCoreSubsystem::Get();
 
@@ -425,7 +455,7 @@ void UE::PropertyAnimatorCoreEditor::Menu::ExecuteApplyLastCreatedAnimatorPreset
 	}
 }
 
-void UE::PropertyAnimatorCoreEditor::Menu::ExecuteLinkAnimatorPresetAction(UPropertyAnimatorCoreBase* InAnimator, UPropertyAnimatorCorePresetBase* InPreset, TSharedRef<FPropertyAnimatorCoreEditorMenuData> InMenuData)
+void UE::PropertyAnimatorCoreEditor::Menu::ExecuteLinkAnimatorPresetAction(UPropertyAnimatorCoreBase* InAnimator, UPropertyAnimatorCorePropertyPreset* InPreset, TSharedRef<FPropertyAnimatorCoreEditorMenuData> InMenuData)
 {
 	UPropertyAnimatorCoreSubsystem* Subsystem = UPropertyAnimatorCoreSubsystem::Get();
 
@@ -448,7 +478,7 @@ void UE::PropertyAnimatorCoreEditor::Menu::ExecuteLinkAnimatorPresetAction(UProp
 	}
 }
 
-void UE::PropertyAnimatorCoreEditor::Menu::ExecuteLinkAnimatorPropertyAction(UPropertyAnimatorCoreBase* InAnimator, FPropertyAnimatorCoreData InProperty, TSharedRef<FPropertyAnimatorCoreEditorMenuData> InMenuData)
+void UE::PropertyAnimatorCoreEditor::Menu::ExecuteLinkAnimatorPropertyAction(UPropertyAnimatorCoreBase* InAnimator, FPropertyAnimatorCoreData InProperty, UPropertyAnimatorCorePropertyPreset* InPreset, TSharedRef<FPropertyAnimatorCoreEditorMenuData> InMenuData)
 {
 	UPropertyAnimatorCoreSubsystem* Subsystem = UPropertyAnimatorCoreSubsystem::Get();
 
@@ -465,10 +495,20 @@ void UE::PropertyAnimatorCoreEditor::Menu::ExecuteLinkAnimatorPropertyAction(UPr
 	if (InAnimator->IsPropertyLinked(InProperty))
 	{
 		Subsystem->UnlinkAnimatorProperty(InAnimator, InProperty, InMenuData->GetOptions().ShouldTransact());
+
+		if (InPreset)
+		{
+			InPreset->OnPresetUnapplied(InAnimator, {InProperty});
+		}
 	}
 	else
 	{
 		Subsystem->LinkAnimatorProperty(InAnimator, InProperty, InMenuData->GetOptions().ShouldTransact());
+
+		if (InPreset)
+		{
+			InPreset->OnPresetApplied(InAnimator, {InProperty});
+		}
 	}
 }
 
@@ -551,7 +591,7 @@ void UE::PropertyAnimatorCoreEditor::Menu::ExecuteDeleteAnimatorAction(UProperty
 	Subsystem->RemoveAnimator(InAnimator, InMenuData->GetOptions().ShouldTransact());
 }
 
-ECheckBoxState UE::PropertyAnimatorCoreEditor::Menu::GetAnimatorPresetState(const UPropertyAnimatorCoreBase* InAnimator, UPropertyAnimatorCorePresetBase* InPreset)
+ECheckBoxState UE::PropertyAnimatorCoreEditor::Menu::GetAnimatorPresetState(const UPropertyAnimatorCoreBase* InAnimator, UPropertyAnimatorCorePropertyPreset* InPreset)
 {
 	if (!IsValid(InAnimator) || InAnimator->IsTemplate() || !InPreset)
 	{
@@ -570,7 +610,7 @@ ECheckBoxState UE::PropertyAnimatorCoreEditor::Menu::GetAnimatorPresetState(cons
 	return !AppliedProperties.IsEmpty() ? ECheckBoxState::Undetermined : ECheckBoxState::Unchecked;
 }
 
-ECheckBoxState UE::PropertyAnimatorCoreEditor::Menu::GetLastAnimatorCreatedPresetState(const UPropertyAnimatorCoreBase* InAnimator, UPropertyAnimatorCorePresetBase* InPreset, TSharedRef<FPropertyAnimatorCoreEditorMenuData> InMenuData)
+ECheckBoxState UE::PropertyAnimatorCoreEditor::Menu::GetLastAnimatorCreatedPresetState(const UPropertyAnimatorCoreBase* InAnimator, UPropertyAnimatorCorePropertyPreset* InPreset, TSharedRef<FPropertyAnimatorCoreEditorMenuData> InMenuData)
 {
 	if (!IsValid(InAnimator)
 		|| !InAnimator->IsTemplate()
@@ -601,7 +641,7 @@ ECheckBoxState UE::PropertyAnimatorCoreEditor::Menu::GetLastAnimatorCreatedPrese
 	return AnimatorsState.Get(ECheckBoxState::Unchecked);
 }
 
-bool UE::PropertyAnimatorCoreEditor::Menu::IsAnimatorPresetLinked(UPropertyAnimatorCoreBase* InAnimator, UPropertyAnimatorCorePresetBase* InPreset)
+bool UE::PropertyAnimatorCoreEditor::Menu::IsAnimatorPresetLinked(UPropertyAnimatorCoreBase* InAnimator, UPropertyAnimatorCorePropertyPreset* InPreset)
 {
 	if (!IsValid(InAnimator) || InAnimator->IsTemplate() || !InPreset)
 	{
@@ -629,7 +669,7 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillNewAnimatorSubmenu(UToolMenu* InM
 
 		FToolMenuSection& PresetSection = InMenu->FindOrAddSection(TEXT("Presets"), LOCTEXT("NewAnimatorPresetsSection.Label", "Presets"));
 
-		UPropertyAnimatorCorePresetBase* EmptyPreset = nullptr;
+		UPropertyAnimatorCorePropertyPreset* EmptyPreset = nullptr;
 
 		PresetSection.AddMenuEntry(
 			TEXT("EmptyPreset")
@@ -644,11 +684,11 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillNewAnimatorSubmenu(UToolMenu* InM
 			)
 		);
 
-		TSet<UPropertyAnimatorCorePresetBase*> SupportedPresets = Subsystem->GetAvailablePresets();
+		TSet<UPropertyAnimatorCorePresetBase*> SupportedPresets = Subsystem->GetAvailablePresets(UPropertyAnimatorCorePropertyPreset::StaticClass());
 
 		for (const AActor* Actor : ContextActors)
 		{
-			SupportedPresets = SupportedPresets.Intersect(Subsystem->GetSupportedPresets(Actor, InAnimator));
+			SupportedPresets = SupportedPresets.Intersect(Subsystem->GetSupportedPresets(Actor, InAnimator, UPropertyAnimatorCorePropertyPreset::StaticClass()));
 		}
 
 		constexpr bool bCloseMenuAfterSelection = false;
@@ -668,7 +708,7 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillNewAnimatorSubmenu(UToolMenu* InM
 				FName(TEXT("Create") + MenuName)
 				, MenuLabel
 				, LOCTEXT("NewAnimatorPresetSection.Tooltip", "Create this animator using this preset")
-				, FNewToolMenuDelegate::CreateLambda(&FillNewPresetAnimatorSubmenu, InAnimator, SupportedPreset, InMenuData)
+				, FNewToolMenuDelegate::CreateLambda(&FillNewPresetAnimatorSubmenu, InAnimator, Cast<UPropertyAnimatorCorePropertyPreset>(SupportedPreset), InMenuData)
 				, bOpenOnClick
 				, FSlateIcon()
 				, bCloseMenuAfterSelection
@@ -741,11 +781,11 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillLinkAnimatorSubmenu(UToolMenu* In
 
 	FToolMenuSection& PresetSection = InMenu->FindOrAddSection(TEXT("Presets"), LOCTEXT("LinkAnimatorPresetsSection.Label", "Presets"));
 
-	TSet<UPropertyAnimatorCorePresetBase*> SupportedPresets = Subsystem->GetAvailablePresets();
+	TSet<UPropertyAnimatorCorePresetBase*> SupportedPresets = Subsystem->GetAvailablePresets(UPropertyAnimatorCorePropertyPreset::StaticClass());
 
 	for (const AActor* Actor : InMenuData->GetContext().GetActors())
 	{
-		SupportedPresets = SupportedPresets.Intersect(Subsystem->GetSupportedPresets(Actor, InAnimator));
+		SupportedPresets = SupportedPresets.Intersect(Subsystem->GetSupportedPresets(Actor, InAnimator, UPropertyAnimatorCorePropertyPreset::StaticClass()));
 	}
 
 	constexpr bool bCloseMenuAfterSelection = false;
@@ -766,7 +806,7 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillLinkAnimatorSubmenu(UToolMenu* In
 			MenuName
 			, MenuLabel
 			, MenuTooltip
-			, FNewToolMenuDelegate::CreateLambda(&FillPresetAnimatorSubmenu, InAnimator, SupportedPreset, InMenuData)
+			, FNewToolMenuDelegate::CreateLambda(&FillPresetAnimatorSubmenu, InAnimator, Cast<UPropertyAnimatorCorePropertyPreset>(SupportedPreset), InMenuData)
 			, bOpenOnClick
 			, FSlateIcon()
 			, bCloseMenuAfterSelection
@@ -781,6 +821,7 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillLinkAnimatorSubmenu(UToolMenu* In
 		InAnimator->GetPropertiesSupported(Property, SupportedProperties, /** SearchDepth */3);
 	}
 
+	UPropertyAnimatorCorePropertyPreset* Empty = nullptr;
 	for (const FPropertyAnimatorCoreData& SupportedProperty : SupportedProperties)
 	{
 		const FString MenuName = SupportedProperty.GetPropertyDisplayName();
@@ -792,7 +833,7 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillLinkAnimatorSubmenu(UToolMenu* In
 			, LOCTEXT("LinkAnimatorPropertySection.Tooltip", "Link or unlink this property from the animator")
 			, FSlateIcon()
 			, FUIAction(
-				FExecuteAction::CreateLambda(&ExecuteLinkAnimatorPropertyAction, InAnimator, SupportedProperty, InMenuData)
+				FExecuteAction::CreateLambda(&ExecuteLinkAnimatorPropertyAction, InAnimator, SupportedProperty, Empty, InMenuData)
 				, FCanExecuteAction()
 				, FIsActionChecked::CreateLambda(&IsAnimatorPropertyLinked, InAnimator, SupportedProperty)
 			)
@@ -801,7 +842,7 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillLinkAnimatorSubmenu(UToolMenu* In
 	}
 }
 
-void UE::PropertyAnimatorCoreEditor::Menu::FillPresetAnimatorSubmenu(UToolMenu* InMenu, UPropertyAnimatorCoreBase* InAnimator, UPropertyAnimatorCorePresetBase* InPreset, TSharedRef<FPropertyAnimatorCoreEditorMenuData> InMenuData)
+void UE::PropertyAnimatorCoreEditor::Menu::FillPresetAnimatorSubmenu(UToolMenu* InMenu, UPropertyAnimatorCoreBase* InAnimator, UPropertyAnimatorCorePropertyPreset* InPreset, TSharedRef<FPropertyAnimatorCoreEditorMenuData> InMenuData)
 {
 	if (!InMenu)
 	{
@@ -845,7 +886,7 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillPresetAnimatorSubmenu(UToolMenu* 
 			, MenuTooltip
 			, FSlateIcon()
 			, FUIAction(
-				FExecuteAction::CreateLambda(&ExecuteLinkAnimatorPropertyAction, InAnimator, SupportedProperty, InMenuData)
+				FExecuteAction::CreateLambda(&ExecuteLinkAnimatorPropertyAction, InAnimator, SupportedProperty, InPreset, InMenuData)
 				, FCanExecuteAction()
 				, FIsActionChecked::CreateLambda(&IsAnimatorPropertyLinked, InAnimator, SupportedProperty)
 			)
@@ -856,7 +897,7 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillPresetAnimatorSubmenu(UToolMenu* 
 	}
 }
 
-void UE::PropertyAnimatorCoreEditor::Menu::FillNewPresetAnimatorSubmenu(UToolMenu* InMenu, UPropertyAnimatorCoreBase* InAnimator, UPropertyAnimatorCorePresetBase* InPreset, TSharedRef<FPropertyAnimatorCoreEditorMenuData> InMenuData)
+void UE::PropertyAnimatorCoreEditor::Menu::FillNewPresetAnimatorSubmenu(UToolMenu* InMenu, UPropertyAnimatorCoreBase* InAnimator, UPropertyAnimatorCorePropertyPreset* InPreset, TSharedRef<FPropertyAnimatorCoreEditorMenuData> InMenuData)
 {
 	if (!InMenu)
 	{

@@ -23,7 +23,8 @@ public class PropertyAnimatorCore : ModuleRules
 				"ApplicationCore",
 				"CoreUObject",
 				"DeveloperSettings",
-				"Engine"
+				"Engine",
+				"Json"
 			}
 		);
 
