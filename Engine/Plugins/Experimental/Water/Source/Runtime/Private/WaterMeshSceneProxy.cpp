@@ -18,9 +18,7 @@
 #include "RenderGraphBuilder.h"
 #include "RenderGraphUtils.h"
 #include "StereoRenderUtils.h"
-
-// TODO: Remove this once FWaterViewExtension actually supports managing multiple local quadtrees
-#define FORCE_SINGLE_WATER_QUADTREE 1
+#include "WaterSubsystem.h"
 
 DECLARE_STATS_GROUP(TEXT("Water Mesh"), STATGROUP_WaterMesh, STATCAT_Advanced);
 
@@ -234,16 +232,12 @@ FWaterMeshSceneProxy::FWaterMeshSceneProxy(UWaterMeshComponent* Component)
 
 	// In case we don't need to support multiple local quadtrees, create a global quadtree right away and initialize occlusion culling bounds.
 	// Local quadtrees are incompatible with CPU-based occlusion culling as the number of quadtrees can change during the lifetime of the scene proxy.
-#if !FORCE_SINGLE_WATER_QUADTREE
 	if (!bIsLocalOnlyTessellationEnabled)
-#endif
 	{
 		FViewWaterQuadTree& ViewWaterQuadTree = ViewQuadTrees.Add(INDEX_NONE);
-#if FORCE_SINGLE_WATER_QUADTREE
-		ViewWaterQuadTree.Update(WaterQuadTreeBuilder, bIsLocalOnlyTessellationEnabled ? Component->GetDynamicWaterMeshCenter() : Component->GetGlobalWaterMeshCenter());
-#else
+
 		ViewWaterQuadTree.Update(WaterQuadTreeBuilder, Component->GetGlobalWaterMeshCenter());
-#endif
+
 		const FWaterQuadTree& WaterQuadTree = ViewWaterQuadTree.GetWaterQuadTree();
 
 		// Always do CPU occlusion queries, even if this is a GPU quadtree. The GPU quadtree still potentially uses the far mesh which is CPU driven.
@@ -257,12 +251,18 @@ FWaterMeshSceneProxy::FWaterMeshSceneProxy(UWaterMeshComponent* Component)
 			OcclusionCullingBounds[0] = FBox(FVector(WaterQuadTree.GetTileRegion().Min, ViewWaterQuadTree.GetMinHeight()), FVector(WaterQuadTree.GetTileRegion().Max, ViewWaterQuadTree.GetMaxHeight()));
 		}
 	}
-#if !FORCE_SINGLE_WATER_QUADTREE
 	else
 	{
 		EmptyOcclusionCullingBounds.Add(Component->Bounds);
+
+		// Normally the quadtrees are created and updated by the WaterViewExtension. 
+		// It can happen that a SceneProxy tries to render before the WaterView updates it, which caused some water flickering.
+		// By forcing the creation here, using the quadtree update information stored by the water view extension, we make sure the water data is always valid.
+		if (FWaterViewExtension* WaterViewExtension = UWaterSubsystem::GetWaterViewExtension(Component->GetWorld()))
+		{
+			WaterViewExtension->CreateSceneProxyQuadtrees(this);
+		}
 	}
-#endif
 
 	// When using a GPU quadtree, this scene proxy allocates pooled buffers in GetDynamicMeshElements. AllocatePooledBuffer must be called on the renderthread.
 	// The callback on GWaterMeshGPUWork seems to be invoked after all GetDynamicMeshElements tasks finish, so there should be no race condition there.
@@ -709,11 +709,7 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 const TArray<FBoxSphereBounds>* FWaterMeshSceneProxy::GetOcclusionQueries(const FSceneView* View) const
 {
 	// Local tessellation/multiple dynamic quadtrees are incompatible with CPU occlusion culling
-	if (
-#if !FORCE_SINGLE_WATER_QUADTREE
-		!bIsLocalOnlyTessellationEnabled && 
-#endif
-		CVarWaterMeshOcclusionCulling.GetValueOnRenderThread() != 0)
+	if (!bIsLocalOnlyTessellationEnabled && CVarWaterMeshOcclusionCulling.GetValueOnRenderThread() != 0)
 	{
 		return &OcclusionCullingBounds;
 	}
@@ -857,20 +853,25 @@ int32 FWaterMeshSceneProxy::FindBestQuadTreeForView(const FSceneView* View) cons
 	// Otherwise just use the closest quadtree.
 	else
 	{
-		const FVector2D ViewPosition2D = FVector2D(View->ViewLocation);
-		double ClosestDistSquared = DBL_MAX;
-		int32 ClosestQuadTreeKey = INDEX_NONE;
-		for (const auto& Pair : ViewQuadTrees)
-		{
-			const double DistSquared = FVector2D::DistSquared(Pair.Value.GetWaterQuadTree().GetTileRegion().GetCenter(), ViewPosition2D);
-			if (DistSquared < ClosestDistSquared)
-			{
-				ClosestDistSquared = DistSquared;
-				ClosestQuadTreeKey = Pair.Key;
-			}
-		}
-		return ClosestQuadTreeKey;
+		return FindBestQuadTreeForViewLocation(View);
 	}
+}
+
+int32 FWaterMeshSceneProxy::FindBestQuadTreeForViewLocation(const FSceneView* View) const
+{
+	const FVector2D ViewPosition2D = FVector2D(View->ViewLocation);
+	double ClosestDistSquared = DBL_MAX;
+	int32 ClosestQuadTreeKey = INDEX_NONE;
+	for (const auto& Pair : ViewQuadTrees)
+	{
+		const double DistSquared = FVector2D::DistSquared(Pair.Value.GetWaterQuadTree().GetTileRegion().GetCenter(), ViewPosition2D);
+		if (DistSquared < ClosestDistSquared)
+		{
+			ClosestDistSquared = DistSquared;
+			ClosestQuadTreeKey = Pair.Key;
+		}
+	}
+	return ClosestQuadTreeKey;
 }
 
 TArray<int32, TInlineAllocator<8>> FWaterMeshSceneProxy::GetViewToQuadTreeMapping(const TArray<const FSceneView*>& Views, uint32 VisibilityMap) const
@@ -1095,9 +1096,7 @@ void FWaterMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingInstanceColl
 
 bool FWaterMeshSceneProxy::CreateViewWaterQuadTree(int32 Key, const FVector2D& CenterPosition)
 {
-#if !FORCE_SINGLE_WATER_QUADTREE
 	if (bIsLocalOnlyTessellationEnabled)
-#endif
 	{
 		if (!ViewQuadTrees.Contains(Key))
 		{
@@ -1111,9 +1110,7 @@ bool FWaterMeshSceneProxy::CreateViewWaterQuadTree(int32 Key, const FVector2D& C
 
 bool FWaterMeshSceneProxy::UpdateViewWaterQuadTree(int32 Key, const FVector2D& CenterPosition)
 {
-#if !FORCE_SINGLE_WATER_QUADTREE
 	if (bIsLocalOnlyTessellationEnabled)
-#endif
 	{
 		if (FViewWaterQuadTree* ViewWaterQuadTree = ViewQuadTrees.Find(Key))
 		{
@@ -1126,9 +1123,7 @@ bool FWaterMeshSceneProxy::UpdateViewWaterQuadTree(int32 Key, const FVector2D& C
 
 void FWaterMeshSceneProxy::DestroyViewWaterQuadTree(int32 Key)
 {
-#if !FORCE_SINGLE_WATER_QUADTREE
 	if (bIsLocalOnlyTessellationEnabled)
-#endif
 	{
 		ViewQuadTrees.Remove(Key);
 	}

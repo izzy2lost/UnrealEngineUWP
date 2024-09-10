@@ -62,8 +62,6 @@ public:
 
 	FIntPoint GetExtentInTiles() const;
 
-	void SetDynamicWaterMeshCenter(const FVector2D& NewCenter);
-	FVector2D GetDynamicWaterMeshCenter() const { return DynamicWaterMeshCenter; }
 	FVector2D GetGlobalWaterMeshCenter() const;
 
 	bool IsLocalOnlyTessellationEnabled() const;
@@ -106,9 +104,6 @@ private:
 	/** The current quad tree resolution derived from the extent of the water zone and the water mesh tile size (Extent / TileSize). */
 	UPROPERTY(Transient, VisibleAnywhere, Category = Rendering)
 	mutable FIntPoint QuadTreeResolution = FIntPoint::ZeroValue;
-
-	/** The current center of the dynamic water mesh. Updated by the water view extension whenever the view location crosses the update bounds. */
-	FVector2D DynamicWaterMeshCenter = FVector2D::ZeroVector;
 
 	FWaterQuadTreeBuilder WaterQuadTreeBuilder;
 

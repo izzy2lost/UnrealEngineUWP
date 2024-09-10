@@ -56,17 +56,19 @@ public:
 	FBox2D GetZoneBounds2D() const;
 	FBox GetZoneBounds() const;
 
+	void GetDynamicWaterInfoBounds(TArray<FBox>& Bounds) const;
+
 	void SetRenderTargetResolution(FIntPoint NewResolution);
 	FIntPoint GetRenderTargetResolution() const { return RenderTargetResolution; }
 
 	uint32 GetVelocityBlurRadius() const { return VelocityBlurRadius; }
 
-	FVector GetDynamicWaterInfoCenter() const;
 	FVector GetDynamicWaterInfoExtent() const;
-	FBox GetDynamicWaterInfoBounds() const;
+
+	// gets the water info center for a specific player view
+	FVector GetDynamicWaterInfoCenter(int32 PlayerIndex);
 
 	bool IsLocalOnlyTessellationEnabled() const { return bEnableLocalOnlyTessellation; }
-	void SetLocalTessellationCenter(const FVector& NewCenter) { LocalTessellationCenter = NewCenter;}
 
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -88,6 +90,9 @@ public:
 
 	UPROPERTY(Transient, DuplicateTransient, VisibleAnywhere, BlueprintReadOnly, Category = Water)
 	TObjectPtr<UTextureRenderTarget2DArray> WaterInfoTextureArray;
+
+	UPROPERTY(Transient, DuplicateTransient, VisibleAnywhere, BlueprintReadOnly, Category = Water)
+	int32 WaterInfoTextureArrayNumSlices = 1;
 
 	FOnWaterInfoTextureArrayCreated& GetOnWaterInfoTextureArrayCreated() { return OnWaterInfoTextureArrayCreated; }
 	
@@ -132,6 +137,8 @@ private:
 	void OnLevelRemovedFromWorld(ULevel* InLevel, UWorld* InWorld);
 	void OnLevelChanged(ULevel* InLevel, UWorld* InWorld);
 
+	bool ContainsActorsAffectingWaterZone(ULevel* InLevel, const FBox& WaterZoneBounds) const;
+
 	/** Returns true if the provided actor can affect waterzone resources.
 	 *
 	 * @param	InWaterZoneBounds	The bounds of this waterzone.
@@ -155,6 +162,9 @@ private:
 	/** Called when the Bounds component is modified. Updates the value of ZoneExtent to match the new bounds */
 	void OnBoundsComponentModified();
 #endif // WITH_EDITOR
+
+	/** Mark aspects of the water zone for rebuild based on the Flags parameter within a given region. Optionally the caller can pass in a UObject to identify who requested the update. */
+	void MarkForRebuild(EWaterZoneRebuildFlags Flags, const FBox2D& UpdateRegion, const FBox& WaterInfoBounds, const UObject* DebugRequestingObject = nullptr);
 
 private:
 
@@ -208,9 +218,6 @@ private:
 
 	FVector2f WaterHeightExtents;
 	float GroundZMin;
-
-	/** Current center of the local tessellation sliding window. Updated by the WaterViewExtension when the view crosses the update boundary */
-	FVector LocalTessellationCenter;
 
 	/** Unique Id for accessing zone data (Location, extent, ,...) in GPU buffers */
 	UPROPERTY(Transient, DuplicateTransient, NonTransactional, VisibleAnywhere, Category = Water)

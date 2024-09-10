@@ -1226,7 +1226,9 @@ void UShallowWaterSubsystem::TryGetOrWaitForWaterInfoTextureFromWaterBodies(TSet
 
 				if (ShallowWaterNiagaraSimulation)
 				{
-					const FVector2D ZoneLocation = FVector2D(WaterZone->GetDynamicWaterInfoCenter());
+					// The following index assume that there is no split screen support and will request the position of the first player's water view.
+					const int32 PlayerIndex = 0;
+					const FVector2D ZoneLocation = FVector2D(WaterZone->GetDynamicWaterInfoCenter(PlayerIndex));
 
 					const FVector2D ZoneExtent = FVector2D(WaterZone->GetDynamicWaterInfoExtent());
 					const FVector2D WaterHeightExtents = FVector2D(WaterZone->GetWaterHeightExtents());

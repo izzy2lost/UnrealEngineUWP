@@ -30,16 +30,21 @@ struct FRenderingContext
 	
 void UpdateWaterInfoRendering(
 	FSceneInterface* Scene,
-	const FRenderingContext& Context);
+	const FRenderingContext& Context,
+	const FVector& WaterInfoCenter);
 
 void UpdateWaterInfoRendering2(
 	FSceneView& InView, 
-	const TWeakObjectPtrKeyMap<AWaterZone, UE::WaterInfo::FRenderingContext> WaterInfoContexts);
+	const FRenderingContext& Context,
+	int32 RenderTargetArrayLayer,
+	const FVector& WaterInfoCenter);
 
 void UpdateWaterInfoRendering_CustomRenderPass(
 	FSceneInterface* Scene,
 	const FSceneViewFamily& ViewFamily,
-	const FRenderingContext& Context);
+	const FRenderingContext& Context,
+	int32 TextureArraySlice,
+	const FVector& WaterInfoCenter);
 
 const FName& GetWaterInfoDepthPassName();
 const FName& GetWaterInfoColorPassName();
