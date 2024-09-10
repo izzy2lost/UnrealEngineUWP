@@ -9,6 +9,7 @@
 #include "Behaviors/ScriptableToolMouseWheelBehavior.h"
 #include "Behaviors/ScriptableToolMultiClickSequenceBehavior.h"
 #include "Behaviors/ScriptableToolSingleClickOrDragBehavior.h"
+#include "Behaviors/ScriptableToolKeyInputBehavior.h"
 
 void UScriptableModularBehaviorTool::AddSingleClickBehavior(
 	const FTestIfHitByClickDelegate TestIfHitByClickDelegate,
@@ -146,6 +147,41 @@ void UScriptableModularBehaviorTool::AddMouseHoverBehavior(
 	MouseHoverBehaviors.Add(BehaviorContainer);
 }
 
+
+void UScriptableModularBehaviorTool::AddSingleKeyInputBehavior(
+	FOnKeyStateToggleDelegate OnKeyPressedFuncIn,
+	FOnKeyStateToggleDelegate OnKeyReleasedFuncIn,
+	FKey Key,
+	const FMouseBehaviorModiferCheckDelegate ModifierCheckFunction,
+	int CapturePriority
+)
+{
+	TArray<FKey> Keys;
+	Keys.Add(Key);
+
+	TObjectPtr<UScriptableToolKeyInputBehavior> BehaviorContainer = NewObject<UScriptableToolKeyInputBehavior>();
+	BehaviorContainer->Init(this, ModifierCheckFunction, OnKeyPressedFuncIn, OnKeyReleasedFuncIn, Keys, true);
+	BehaviorContainer->SetDefaultPriority(FInputCapturePriority(CapturePriority));
+
+	KeyInputBehaviors.Add(BehaviorContainer);
+}
+
+
+void UScriptableModularBehaviorTool::AddMultiKeyInputBehavior(
+	FOnKeyStateToggleDelegate OnKeyPressedFuncIn,
+	FOnKeyStateToggleDelegate OnKeyReleasedFuncIn,
+	TArray<FKey> Keys,
+	bool bRequireAllKeys,
+	const FMouseBehaviorModiferCheckDelegate ModifierCheckFunction,
+	int CapturePriority
+)
+{
+	TObjectPtr<UScriptableToolKeyInputBehavior> BehaviorContainer = NewObject<UScriptableToolKeyInputBehavior>();
+	BehaviorContainer->Init(this, ModifierCheckFunction, OnKeyPressedFuncIn, OnKeyReleasedFuncIn, Keys, bRequireAllKeys);
+	BehaviorContainer->SetDefaultPriority(FInputCapturePriority(CapturePriority));
+
+	KeyInputBehaviors.Add(BehaviorContainer);
+}
 
 void UScriptableModularBehaviorTool::OnUpdateModifierState(int ModifierID, bool bIsOn)
 {
