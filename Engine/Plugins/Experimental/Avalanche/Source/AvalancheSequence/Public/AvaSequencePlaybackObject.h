@@ -19,7 +19,7 @@ namespace UE::MovieScene
 	struct FOnCameraCutUpdatedParams;
 }
 
-UINTERFACE(MinimalAPI, meta = (CannotImplementInterfaceInBlueprint))
+UINTERFACE(MinimalAPI, BlueprintType, meta = (CannotImplementInterfaceInBlueprint))
 class UAvaSequencePlaybackObject : public UInterface
 {
 	GENERATED_BODY()

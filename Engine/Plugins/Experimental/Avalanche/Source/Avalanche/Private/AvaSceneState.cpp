@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaSceneState.h"
+
+#include "AvaNameAttribute.h"
 #include "AvaSceneSettings.h"
 #include "AvaTagHandle.h"
 #include "AvaTagHandleContainer.h"
@@ -67,5 +69,67 @@ bool UAvaSceneState::ContainsTagAttribute(const FAvaTagHandle& InTagHandle) cons
 		{
 			UAvaTagAttributeBase* TagAttribute = Cast<UAvaTagAttributeBase>(InAttribute);
 			return TagAttribute && TagAttribute->ContainsTag(InTagHandle);
+		});
+}
+
+bool UAvaSceneState::AddNameAttribute(FName InName)
+{
+	if (InName.IsNone())
+	{
+		return false;
+	}
+
+	// Return true if already existing
+	if (ContainsNameAttribute(InName))
+	{
+		return true;
+	}
+
+	UAvaNameAttribute* NameAttribute = NewObject<UAvaNameAttribute>(this, NAME_None, RF_Transient);
+	check(NameAttribute);
+	NameAttribute->Name = InName;
+
+	SceneAttributes.Add(NameAttribute);
+	return true;
+}
+
+bool UAvaSceneState::RemoveNameAttribute(FName InName)
+{
+	uint32 NamesCleared = 0;
+
+	for (TArray<TObjectPtr<UAvaAttribute>>::TIterator Iter(SceneAttributes); Iter; ++Iter)
+	{
+		UAvaNameAttribute* NameAttribute = Cast<UAvaNameAttribute>(*Iter);
+		if (!NameAttribute || NameAttribute->Name != InName)
+		{
+			continue;
+		}
+
+		// Attempt to clear the given name for the attribute.
+		// If this owns the attribute, remove from the Scene Attributes list
+		if (NameAttribute->GetOuter() == this)
+		{
+			Iter.RemoveCurrent();
+		}
+		// Do not remove the attribute itself from the list if it's an external attribute as it could still have valid tags,
+		// or later have valid tags (due to a dynamic change)
+		else
+		{
+			NameAttribute->Name = NAME_None;
+		}
+
+		++NamesCleared;
+	}
+
+	return NamesCleared > 0;
+}
+
+bool UAvaSceneState::ContainsNameAttribute(FName InName) const
+{
+	return SceneAttributes.ContainsByPredicate(
+		[InName](UAvaAttribute* InAttribute)
+		{
+			UAvaNameAttribute* NameAttribute = Cast<UAvaNameAttribute>(InAttribute);
+			return NameAttribute && NameAttribute->Name == InName;
 		});
 }
