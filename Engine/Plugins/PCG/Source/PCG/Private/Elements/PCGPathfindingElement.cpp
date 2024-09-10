@@ -6,6 +6,9 @@
 #include "Data/PCGPointData.h"
 #include "Data/PCGSplineData.h"
 #include "Helpers/PCGHelpers.h"
+#include "Metadata/Accessors/IPCGAttributeAccessor.h"
+#include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
+#include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
 #include "SpatialAlgo/PCGAStar.h"
 
 #include "Components/SplineComponent.h"
@@ -119,6 +122,7 @@ bool FPCGPathfindingElement::PrepareDataInternal(FPCGContext* InContext) const
 		OutState = PCGSpatialAlgo::AStar::FSearchSettings
 		{
 			.StartPoint = FPCGPoint(FTransform(Settings->Start), /*InDensity=*/1, PCGHelpers::ComputeSeedFromPosition(Settings->Start)),
+			.GoalPoint = FPCGPoint(FTransform(Settings->Goal), /*InDensity=*/1.0, PCGHelpers::ComputeSeedFromPosition(Settings->Goal)),
 			.SearchDistance = Settings->SearchDistance,
 			.Start = Settings->Start,
 			.Goal = Settings->Goal,
@@ -130,7 +134,7 @@ bool FPCGPathfindingElement::PrepareDataInternal(FPCGContext* InContext) const
 		return EPCGTimeSliceInitResult::Success;
 	});
 
-	Context->InitializePerIterationStates(PointInputs.Num(), [&PointInputs](IterStateType& OutSearchState, const ExecStateType& SearchSettings, const uint32 IterationIndex)
+	Context->InitializePerIterationStates(PointInputs.Num(), [&PointInputs, Settings, Context](IterStateType& OutSearchState, const ExecStateType& SearchSettings, const uint32 IterationIndex)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGClusterElement::PrepareData::InitializePerIterationStates);
 
@@ -139,6 +143,63 @@ bool FPCGPathfindingElement::PrepareDataInternal(FPCGContext* InContext) const
 		{
 			// Already confirmed we can't make it from start->goal in the execution state check.
 			return EPCGTimeSliceInitResult::NoOperation;
+		}
+
+		// Build cost attribute accessor if required
+		TSharedPtr<const IPCGAttributeAccessor> CostAccessor = nullptr;
+
+		if (Settings->CostFunctionMode != EPCGPathfindingCostFunctionMode::Distance)
+		{
+			const FPCGAttributePropertyInputSelector Selector = Settings->CostAttribute.CopyAndFixLast(OutSearchState.OriginatingPointData);
+			CostAccessor = MakeShareable(PCGAttributeAccessorHelpers::CreateConstAccessor(OutSearchState.OriginatingPointData, Selector).Release());
+
+			FPCGAttributeAccessorKeysPoints Keys(OutSearchState.OriginatingPointData->GetPoints());
+
+			if (!CostAccessor)
+			{
+				PCGLog::Metadata::LogFailToCreateAccessorError(Selector, Context);
+			}
+			else if(!PCG::Private::IsBroadcastableOrConstructible(CostAccessor->GetUnderlyingType(), PCG::Private::MetadataTypes<double>::Id))
+			{
+				PCGLog::Metadata::LogFailToGetAttributeError<double>(Selector, CostAccessor.Get(), Context);
+				CostAccessor = nullptr;
+			}
+		}
+
+		if (CostAccessor)
+		{
+			if (Settings->CostFunctionMode == EPCGPathfindingCostFunctionMode::FitnessScore)
+			{
+				const double MaxFitnessPenaltyFactor = FMath::Max(Settings->MaximumFitnessPenaltyFactor, 1.0);
+
+				OutSearchState.CostFunction = [FitnessAccessor = CostAccessor, MaxFitnessPenaltyFactor](const double PreviousNodeCost, const FPCGPoint* PreviousNodePoint, const double DistanceToCurrentSquared, const FPCGPoint* CurrentNodePoint)
+				{
+					double FitnessScore = 1.0;
+					FPCGAttributeAccessorKeysPoints Key(*CurrentNodePoint);
+
+					FitnessAccessor->Get(FitnessScore, Key, EPCGAttributeAccessorFlags::AllowBroadcastAndConstructible);
+					FitnessScore = FMath::Clamp(FitnessScore, 0.0, 1.0);
+
+					return PreviousNodeCost + (1.0 - FitnessScore) * MaxFitnessPenaltyFactor * FMath::Sqrt(DistanceToCurrentSquared);
+				};
+			}
+			else if (Settings->CostFunctionMode == EPCGPathfindingCostFunctionMode::CostMultipler)
+			{
+				OutSearchState.CostFunction = [MultiplierAccessor = CostAccessor](const double PreviousNodeCost, const FPCGPoint* PreviousNodePoint, const double DistanceToCurrentSquared, const FPCGPoint* CurrentNodePoint)
+				{
+					double Multiplier = 1.0;
+					FPCGAttributeAccessorKeysPoints Key(*CurrentNodePoint);
+
+					MultiplierAccessor->Get(Multiplier, Key, EPCGAttributeAccessorFlags::AllowBroadcastAndConstructible);
+					Multiplier = FMath::Max(Multiplier, 1.0);
+
+					return PreviousNodeCost + Multiplier * FMath::Sqrt(DistanceToCurrentSquared);
+				};
+			}
+			else
+			{
+				checkNoEntry();
+			}
 		}
 
 		PCGSpatialAlgo::AStar::Initialize(OutSearchState.OriginatingPointData, SearchSettings, OutSearchState);

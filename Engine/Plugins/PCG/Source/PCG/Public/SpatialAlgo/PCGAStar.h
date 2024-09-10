@@ -27,10 +27,21 @@ struct FNode
 	double EstimatedGoalCost = 0.0;
 };
 
+namespace Cost
+{
+	double CalculateCost_EuclideanDistance(const double PreviousNodeCost, const FPCGPoint* PreviousNodePoint, const double DistanceToPreviousNodeSquared, const FPCGPoint* CurrentPoint);
+}
+
+namespace Heuristic
+{
+	double CalculateHeuristic_EuclideanDistance(const FVector& CurrentLocation, const FVector& GoalLocation);
+}
+
 struct FSearchSettings
 {
-	/** Cached as an initial point in an otherwise const point data. */
+	/** Cached start/goal points as initial points in an otherwise const point data. */
 	FPCGPoint StartPoint;
+	FPCGPoint GoalPoint;
 	/** The max distance from each point to search for the next viable point in the path. */
 	double SearchDistance = 1000;
 	/** The path's starting location. */
@@ -50,6 +61,10 @@ struct FSearchState
 	static uint32 constexpr PreAllocNodeCount = 1024u;
 	// Keep track of the point data for the octree search.
 	const UPCGPointData* OriginatingPointData = nullptr;
+	/** Cost function */
+	TFunction<double(const double /*PreviousNodeCost*/, const FPCGPoint* /*PreviousNodePoint*/, const double /*DistanceToPreviousNodeSquared*/, const FPCGPoint* /*CurrentPoint*/)> CostFunction = Cost::CalculateCost_EuclideanDistance;
+	/** Heuristic function */
+	TFunction<double(const FVector& /*CurrentLocation*/, const FVector& /*GoalLocation*/)> HeuristicFunction = Heuristic::CalculateHeuristic_EuclideanDistance;
 
 	// Storage of the current known node. Source of truth for the nodes, so it should not be resized after its initial reserve.
 	TArray<FNode, TInlineAllocator<PreAllocNodeCount>> NodeList;
@@ -66,16 +81,6 @@ namespace Helpers
 	bool CompareNodes(const FNode& Node1, const FNode& Node2);
 	void BuildFinalPath(const FSearchState& SearchState, const FNode& FinalNode, bool bCopyOriginatingPoints, TArray<FPCGPoint>& OutPath);
 }
-
-namespace Cost
-{
-	double CalculateCost_EuclideanDistance(const double PreviousNodeCost, const double DistanceToPreviousNodeSquared);
-} // namespace Cost
-
-namespace Heuristic
-{
-	double CalculateHeuristic_EuclideanDistance(const FVector& CurrentLocation, const FVector& GoalLocation);
-} // namespace Heuristic
 
 /** Initialize the search state for AStar. Must be called before ExecuteSearchIteration. */
 void Initialize(const UPCGPointData* const PointData, const FSearchSettings& Settings, FSearchState& OutSearchState);
