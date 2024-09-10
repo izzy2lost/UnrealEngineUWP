@@ -127,8 +127,9 @@ namespace UE::StylusInput
 		 * instance. The implementation of this function is responsible for any thread synchronization that might be necessary. 
 		 *
 		 * @param Packet The packet being processed.
+		 * @param Instance The stylus input instance that sent the packet.
 		 */
-		virtual void OnPacket(const FStylusInputPacket& Packet) = 0;
+		virtual void OnPacket(const FStylusInputPacket& Packet, IStylusInputInstance* Instance) = 0;
 
 		/**
 		 * Callback for each debug event sent by the stylus input instance for diagnostic purposes.
@@ -137,7 +138,8 @@ namespace UE::StylusInput
 		 * The base class implementation of this function does nothing.
 		 *
 		 * @param Message The debug message sent by the stylus input instance.
+		 * @param Instance The stylus input instance that sent the debug message.
 		 */
-		virtual void OnDebugEvent(const FString& Message) {}
+		virtual void OnDebugEvent(const FString& Message, IStylusInputInstance* Instance) {}
 	};
 }

@@ -47,7 +47,7 @@ enum class EGameplayTagMatchDirection : uint8
 	InputInRowValue,
 };
 
-USTRUCT()
+USTRUCT(DisplayName = "Gameplay Tag", Meta = (Category = "Filter", Tooltip = "A column which filters rows by comparing Gameplay Tags."))
 struct CHOOSER_API FGameplayTagColumn : public FChooserColumnBase
 {
 	GENERATED_BODY()

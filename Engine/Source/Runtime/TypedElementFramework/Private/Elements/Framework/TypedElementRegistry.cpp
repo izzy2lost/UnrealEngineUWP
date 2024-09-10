@@ -64,49 +64,49 @@ UTypedElementRegistry* UTypedElementRegistry::GetInstance()
 	return Instance.Get();
 }
 
-ITypedElementDataStorageInterface* UTypedElementRegistry::GetMutableDataStorage()
+IEditorDataStorageProvider* UTypedElementRegistry::GetMutableDataStorage()
 {
 	return DataStorage;
 }
 
-const ITypedElementDataStorageInterface* UTypedElementRegistry::GetDataStorage() const
+const IEditorDataStorageProvider* UTypedElementRegistry::GetDataStorage() const
 {
 	return DataStorage;
 }
 
-void UTypedElementRegistry::SetDataStorage(ITypedElementDataStorageInterface* Storage)
+void UTypedElementRegistry::SetDataStorage(IEditorDataStorageProvider* Storage)
 {
 	DataStorage = Storage;
 	CallDataStorageInterfacesSetDelegateIfNeeded();
 }
 
-ITypedElementDataStorageCompatibilityInterface* UTypedElementRegistry::GetMutableDataStorageCompatibility()
+IEditorDataStorageCompatibilityProvider* UTypedElementRegistry::GetMutableDataStorageCompatibility()
 {
 	return DataStorageCompatibility;
 }
 
-const ITypedElementDataStorageCompatibilityInterface* UTypedElementRegistry::GetDataStorageCompatibility() const
+const IEditorDataStorageCompatibilityProvider* UTypedElementRegistry::GetDataStorageCompatibility() const
 {
 	return DataStorageCompatibility;
 }
 
-void UTypedElementRegistry::SetDataStorageCompatibility(ITypedElementDataStorageCompatibilityInterface* Storage)
+void UTypedElementRegistry::SetDataStorageCompatibility(IEditorDataStorageCompatibilityProvider* Storage)
 {
 	DataStorageCompatibility = Storage;
 	CallDataStorageInterfacesSetDelegateIfNeeded();
 }
 
-ITypedElementDataStorageUiInterface* UTypedElementRegistry::GetMutableDataStorageUi()
+IEditorDataStorageUiProvider* UTypedElementRegistry::GetMutableDataStorageUi()
 {
 	return DataStorageUi;
 }
 
-const ITypedElementDataStorageUiInterface* UTypedElementRegistry::GetDataStorageUi() const
+const IEditorDataStorageUiProvider* UTypedElementRegistry::GetDataStorageUi() const
 {
 	return DataStorageUi;
 }
 
-void UTypedElementRegistry::SetDataStorageUi(ITypedElementDataStorageUiInterface* Storage)
+void UTypedElementRegistry::SetDataStorageUi(IEditorDataStorageUiProvider* Storage)
 {
 	DataStorageUi = Storage;
 	CallDataStorageInterfacesSetDelegateIfNeeded();

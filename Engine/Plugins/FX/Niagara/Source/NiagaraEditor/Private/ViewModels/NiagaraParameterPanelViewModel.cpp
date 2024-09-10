@@ -1889,7 +1889,7 @@ TArray<FNiagaraParameterPanelItem> FNiagaraSystemToolkitParameterPanelViewModel:
 		ParamStore->GetParameters(Vars);
 		for (const FNiagaraVariable& Var : Vars)
 		{
-			UNiagaraScriptVariable* ScriptVar = FNiagaraEditorUtilities::GetScriptVariableForUserParameter(Var, SystemViewModel);
+			UNiagaraScriptVariable* ScriptVar = FNiagaraEditorUtilities::UserParameters::GetScriptVariableForUserParameter(Var, SystemViewModel);
 
 			FNiagaraParameterPanelItem Item;
 			Item.ScriptVariable = ScriptVar;

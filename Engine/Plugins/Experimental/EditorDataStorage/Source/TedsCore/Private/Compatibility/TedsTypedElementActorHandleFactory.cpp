@@ -11,20 +11,20 @@
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "GameFramework/Actor.h"
 
-void UTypedElementActorHandleDataStorageFactory::PreRegister(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementActorHandleDataStorageFactory::PreRegister(IEditorDataStorageProvider& DataStorage)
 {
 	Super::PreRegister(DataStorage);
 	
 	BridgeEnableDelegateHandle = UE::Editor::DataStorage::Compatibility::OnTypedElementBridgeEnabled().AddUObject(this, &UTypedElementActorHandleDataStorageFactory::HandleBridgeEnabled);
 }
 
-void UTypedElementActorHandleDataStorageFactory::PreShutdown(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementActorHandleDataStorageFactory::PreShutdown(IEditorDataStorageProvider& DataStorage)
 {
 	UE::Editor::DataStorage::Compatibility::OnTypedElementBridgeEnabled().Remove(BridgeEnableDelegateHandle);
 	BridgeEnableDelegateHandle.Reset();
 }
 
-void UTypedElementActorHandleDataStorageFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementActorHandleDataStorageFactory::RegisterQueries(IEditorDataStorageProvider& DataStorage)
 {
 	Super::RegisterQueries(DataStorage);
 
@@ -42,7 +42,7 @@ void UTypedElementActorHandleDataStorageFactory::RegisterQueries(ITypedElementDa
 	.Compile());
 }
 
-void UTypedElementActorHandleDataStorageFactory::RegisterQuery_ActorHandlePopulate(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementActorHandleDataStorageFactory::RegisterQuery_ActorHandlePopulate(IEditorDataStorageProvider& DataStorage)
 {
 	using namespace UE::Editor::DataStorage::Queries;
 
@@ -75,7 +75,7 @@ void UTypedElementActorHandleDataStorageFactory::HandleBridgeEnabled(bool bEnabl
 {
 	using namespace UE::Editor::DataStorage;
 
-	ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+	IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 
 	if (bEnabled)
 	{

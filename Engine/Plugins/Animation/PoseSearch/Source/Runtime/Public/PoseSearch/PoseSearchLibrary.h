@@ -75,12 +75,15 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UE::PoseSearch::FPoseIndicesHistory PoseIndicesHistory;
 
 	// Component delta yaw (also considered as root bone delta yaw)
+	UE_DEPRECATED(5.4, "Use Steering, OrientationWarping, OffsetRootBone nodes instead")
 	float ComponentDeltaYaw = 0.f;
 
 	// Internal component yaw in world space. Initialized as FRotator(AnimInstanceProxy->GetComponentTransform().GetRotation()).Yaw, but then integrated by ComponentDeltaYaw
+	UE_DEPRECATED(5.4, "Use Steering, OrientationWarping, OffsetRootBone nodes instead")
 	float ComponentWorldYaw = 0.f;
 	
 	// RootMotionTransformDelta yaw at the end of FAnimNode_MotionMatching::Evaluate_AnyThread (it represents the previous frame animation delta yaw)
+	UE_DEPRECATED(5.4, "Use Steering, OrientationWarping, OffsetRootBone nodes instead")
 	float AnimationDeltaYaw = 0.f;
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
@@ -219,25 +222,6 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Animation|Pose Search|Experimental", meta = (BlueprintThreadSafe, Keywords = "PoseMatch"))
 	static void MotionMatch(
 		UAnimInstance* AnimInstance,
-		TArray<UObject*> AssetsToSearch,
-		const FName PoseHistoryName,
-		const FPoseSearchContinuingProperties ContinuingProperties,
-		const FPoseSearchFutureProperties Future,
-		FPoseSearchBlueprintResult& Result);
-
-	/**
-	* Implementation of the core motion matching algorithm for multiple characters
-	*
-	* @param AnimInstances					Input animation instances
-	* @param Roles							Input Roles associated to the animation instances
-	* @param AssetsToSearch					Input assets to search (UPoseSearchDatabase or any animation asset containing UAnimNotifyState_PoseSearchBranchIn)
-	* @param PoseHistoryName				Input tag of the associated PoseSearchHistoryCollector node in the anim graphs of the AnimInstances
-	* @param Result							Output FPoseSearchBlueprintResult with the search result
-	*/
-	UFUNCTION(BlueprintPure, Category = "Animation|Pose Search|Experimental", meta = (BlueprintThreadSafe, Keywords = "PoseMatch"))
-	static void MotionMatchMulti(
-		TArray<ACharacter*> Characters,
-		TArray<FName> Roles,
 		TArray<UObject*> AssetsToSearch,
 		const FName PoseHistoryName,
 		const FPoseSearchContinuingProperties ContinuingProperties,

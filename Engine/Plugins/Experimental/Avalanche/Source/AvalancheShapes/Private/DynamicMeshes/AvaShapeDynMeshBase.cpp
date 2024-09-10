@@ -51,11 +51,14 @@ UAvaShapeDynamicMeshBase::UAvaShapeDynamicMeshBase(const FLinearColor& InVertexC
 	, bVerticesDirty(false)
 	, bColorsDirty(false)
 {
+	if (!IsTemplate())
+	{
 #if WITH_EDITOR
-	FEditorDelegates::OnApplyObjectToActor.AddUObject(this, &UAvaShapeDynamicMeshBase::OnAssetDropped);
+		FEditorDelegates::OnApplyObjectToActor.AddUObject(this, &UAvaShapeDynamicMeshBase::OnAssetDropped);
 #endif
 
-	FAvaShapeParametricMaterial::OnMaterialChanged().AddUObject(this, &UAvaShapeDynamicMeshBase::OnParametricMaterialChanged);
+		FAvaShapeParametricMaterial::OnMaterialChanged().AddUObject(this, &UAvaShapeDynamicMeshBase::OnParametricMaterialChanged);
+	}
 }
 
 EMaterialType& UAvaShapeDynamicMeshBase::GetMaterialType(int32 MeshIndex)

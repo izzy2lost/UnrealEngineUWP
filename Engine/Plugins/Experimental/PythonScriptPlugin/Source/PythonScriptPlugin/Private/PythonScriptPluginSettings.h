@@ -104,6 +104,12 @@ public:
 	*/
 	UPROPERTY(config, EditAnywhere, Category=PythonPipInstall, AdvancedDisplay, meta=(ConfigRestartRequired=true))
 	FString OverrideIndexURL;
+	
+	/** Additional arguments passed to main pip install call, useful to add e.g. --cert or other proxy options for restrictive firewalls
+	* 	NOTE: Do not use this to add --index-url or --extra-index-url, instead use OverrideIndexURL setting or ExtraIndexUrls uplugin property, respectively
+	*/
+	UPROPERTY(config, EditAnywhere, Category=PythonPipInstall, AdvancedDisplay, meta=(ConfigRestartRequired=true))
+	FString ExtraInstallArgs;
 
 	/** Should remote Python execution be enabled? */
 	UPROPERTY(config, EditAnywhere, Category=PythonRemoteExecution, meta=(DisplayName="Enable Remote Execution?"))

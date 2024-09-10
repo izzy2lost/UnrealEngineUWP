@@ -6,8 +6,8 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/SListView.h"
 
-class ITypedElementDataStorageInterface;
-class ITypedElementDataStorageUiInterface;
+class IEditorDataStorageProvider;
+class IEditorDataStorageUiProvider;
 struct FTypedElementWidgetConstructor;
 
 namespace UE::Editor::DataStorage
@@ -66,8 +66,8 @@ namespace UE::Editor::DataStorage
 
 		TArray<RowDetailsItemPtr> Items;
 
-		ITypedElementDataStorageInterface* DataStorage = nullptr; 
-		ITypedElementDataStorageUiInterface* DataStorageUi = nullptr;
+		IEditorDataStorageProvider* DataStorage = nullptr; 
+		IEditorDataStorageUiProvider* DataStorageUi = nullptr;
 
 		bool bShowAllDetails = true;
 
@@ -85,14 +85,14 @@ namespace UE::Editor::DataStorage
 
 		SLATE_END_ARGS()
 		
-		void Construct(const FArguments& Args, const TSharedRef<STableViewBase>& OwnerTableView, ITypedElementDataStorageInterface* InDataStorage,
-			ITypedElementDataStorageUiInterface* InDataStorageUi);
+		void Construct(const FArguments& Args, const TSharedRef<STableViewBase>& OwnerTableView, IEditorDataStorageProvider* InDataStorage,
+			IEditorDataStorageUiProvider* InDataStorageUi);
 		
 		TSharedRef<SWidget> GenerateWidgetForColumn(const FName& ColumnName) override;
 
 	private:
 		RowDetailsItemPtr Item;
-		ITypedElementDataStorageInterface* DataStorage = nullptr;
-		ITypedElementDataStorageUiInterface* DataStorageUi = nullptr;
+		IEditorDataStorageProvider* DataStorage = nullptr;
+		IEditorDataStorageUiProvider* DataStorageUi = nullptr;
 	};
 } // namespace UE::Editor::DataStorage

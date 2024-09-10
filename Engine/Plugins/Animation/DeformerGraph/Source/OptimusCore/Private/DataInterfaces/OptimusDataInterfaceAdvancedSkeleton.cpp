@@ -7,6 +7,7 @@
 #include "OptimusHelpers.h"
 #include "OptimusDataDomain.h"
 #include "OptimusDataTypeRegistry.h"
+#include "OptimusDeformerInstance.h"
 #include "RenderGraphBuilder.h"
 #include "Rendering/SkeletalMeshLODRenderData.h"
 #include "Rendering/SkeletalMeshRenderData.h"
@@ -61,6 +62,11 @@ FString FOptimusAnimAttributeBufferDescription::GetFormattedId(
 	UniqueId += Name;	
 
 	return  UniqueId;
+}
+
+FName UOptimusAdvancedSkeletonDataInterface::GetSkinWeightProfilePropertyName()
+{
+	return GET_MEMBER_NAME_CHECKED(UOptimusAdvancedSkeletonDataInterface, SkinWeightProfile);
 }
 
 FString UOptimusAdvancedSkeletonDataInterface::GetUnusedAttributeName(int32 CurrentAttributeIndex, const FString& InName) const
@@ -268,6 +274,19 @@ TArray<FOptimusCDIPinDefinition> UOptimusAdvancedSkeletonDataInterface::GetPinDe
 	return GetPinDefinitions_Internal();
 }
 
+TArray<FOptimusCDIPropertyPinDefinition> UOptimusAdvancedSkeletonDataInterface::GetPropertyPinDefinitions() const
+{
+	TArray<FOptimusCDIPropertyPinDefinition> PropertyPinDefinitions;
+
+	const FOptimusDataTypeHandle NameType = FOptimusDataTypeRegistry::Get().FindType(*FNameProperty::StaticClass());
+	
+	PropertyPinDefinitions.Add(
+		{GetSkinWeightProfilePropertyName(), NameType}
+	);
+
+	return PropertyPinDefinitions;
+}
+
 
 TSubclassOf<UActorComponent> UOptimusAdvancedSkeletonDataInterface::GetRequiredComponentClass() const
 {
@@ -459,18 +478,18 @@ UComputeDataProvider* UOptimusAdvancedSkeletonDataInterface::CreateDataProvider(
 	Provider->Init(this, Cast<USkeletalMeshComponent>(InBinding));
 	return Provider;
 }
-void FOptimusBoneTransformBuffer::SetData(FSkeletalMeshLODRenderData const* InLodRenderData, const TArray<FTransform>& InBoneTransforms)
+void FOptimusBoneTransformBuffer::SetData(FSkeletalMeshLODRenderData const& InLodRenderData, const TArray<FTransform>& InBoneTransforms)
 {
 	const FName Matrix34TypeName = FOptimusDataTypeRegistry::Matrix34TypeName;
 	const FOptimusDataTypeHandle Matrix34TypeHandle = FOptimusDataTypeRegistry::Get().FindType(Matrix34TypeName);
 	int32 Matrix34ShaderSize = Matrix34TypeHandle->ShaderValueSize;
 
-	BufferData.AddDefaulted(InLodRenderData->RenderSections.Num());
-	NumBones.AddDefaulted(InLodRenderData->RenderSections.Num());
+	BufferData.AddDefaulted(InLodRenderData.RenderSections.Num());
+	NumBones.AddDefaulted(InLodRenderData.RenderSections.Num());
 				
-	for (int32 SectionIndex = 0; SectionIndex < InLodRenderData->RenderSections.Num(); ++SectionIndex)
+	for (int32 SectionIndex = 0; SectionIndex < InLodRenderData.RenderSections.Num(); ++SectionIndex)
 	{
-		FSkelMeshRenderSection const& RenderSection = InLodRenderData->RenderSections[SectionIndex];
+		FSkelMeshRenderSection const& RenderSection = InLodRenderData.RenderSections[SectionIndex];
 		NumBones[SectionIndex] = RenderSection.BoneMap.Num();
 
 		BufferData[SectionIndex].AddDefaulted(NumBones[SectionIndex] * Matrix34ShaderSize);
@@ -514,8 +533,14 @@ void FOptimusBoneTransformBuffer::AllocateResources(FRDGBuilder& GraphBuilder)
 	}
 }
 
+void UOptimusAdvancedSkeletonDataProvider::SetDeformerInstance(UOptimusDeformerInstance* InInstance)
+{
+	DeformerInstance = InInstance;
+}
+
 void UOptimusAdvancedSkeletonDataProvider::Init(const UOptimusAdvancedSkeletonDataInterface* InDataInterface, USkeletalMeshComponent* InSkeletalMesh)
 {
+	WeakDataInterface = InDataInterface;
 	bEnableLayeredSkinning = InDataInterface->bEnableLayeredSkinning;
 	SkeletalMesh = InSkeletalMesh;
 	SkinWeightProfile = InDataInterface->SkinWeightProfile;
@@ -567,22 +592,26 @@ void UOptimusAdvancedSkeletonDataProvider::Init(const UOptimusAdvancedSkeletonDa
 
 }
 
-void UOptimusAdvancedSkeletonDataProvider::ComputeBoneTransformsForLayeredSkinning(FOptimusBoneTransformBuffer& OutBoneBuffer, FSkeletalMeshLODRenderData const* InLodRenderData, const FReferenceSkeleton& InRefSkeleton)
+void UOptimusAdvancedSkeletonDataProvider::ComputeBoneTransformsForLayeredSkinning(FOptimusBoneTransformBuffer& OutBoneBuffer, FSkeletalMeshLODRenderData const& InLodRenderData, const FReferenceSkeleton& InRefSkeleton)
 {
 	if (!bIsLayeredSkinInitialized)
 	{
 		bIsLayeredSkinInitialized = true;
+
+		CachedWeightedBoneIndices.Reset();
+		CachedBoundaryBoneIndex.Reset();
+		CachedLayerSpaceInitialBoneTransform.Reset();
 		
 		const TArray<FTransform>& InitialBoneSpaceTransforms = InRefSkeleton.GetRefBonePose();
 		
 		// 1. Look for all bones with non-zero weights in this skin weight profile
 		CachedWeightedBoneIndices.Reserve(InRefSkeleton.GetNum());
 		
-		FSkinWeightVertexBuffer const* WeightBuffer = InLodRenderData->GetSkinWeightVertexBuffer();
-		if (InLodRenderData->SkinWeightProfilesData.ContainsProfile(SkinWeightProfile))
+		FSkinWeightVertexBuffer const* WeightBuffer = InLodRenderData.GetSkinWeightVertexBuffer();
+		if (InLodRenderData.SkinWeightProfilesData.ContainsProfile(SkinWeightProfile))
 		{
 			const FSkinWeightProfileStack ProfileStack{SkinWeightProfile};
-			WeightBuffer = InLodRenderData->SkinWeightProfilesData.GetOverrideBuffer(ProfileStack);
+			WeightBuffer = InLodRenderData.SkinWeightProfilesData.GetOverrideBuffer(ProfileStack);
 		}
 
 		for (uint32 VertexIndex = 0; VertexIndex < WeightBuffer->GetNumVertices(); VertexIndex++)
@@ -590,7 +619,7 @@ void UOptimusAdvancedSkeletonDataProvider::ComputeBoneTransformsForLayeredSkinni
 			// Find the render section, which we need to find the final bone index.
 			int32 SectionIndex = INDEX_NONE;
 			int32 SectionVertexIndex = INDEX_NONE;
-			InLodRenderData->GetSectionFromVertexIndex(VertexIndex, SectionIndex, SectionVertexIndex);
+			InLodRenderData.GetSectionFromVertexIndex(VertexIndex, SectionIndex, SectionVertexIndex);
 
 			uint32 VertexWeightOffset = 0;
 			uint32 VertexInfluenceCount = 0;
@@ -601,7 +630,7 @@ void UOptimusAdvancedSkeletonDataProvider::ComputeBoneTransformsForLayeredSkinni
 				if (Weight > 0)
 				{
 					int32 SectionBoneIndex = WeightBuffer->GetBoneIndex(VertexIndex, InfluenceIndex);
-					int32 FinalBoneIndex = InLodRenderData->RenderSections[SectionIndex].BoneMap[SectionBoneIndex];
+					int32 FinalBoneIndex = InLodRenderData.RenderSections[SectionIndex].BoneMap[SectionBoneIndex];
 					CachedWeightedBoneIndices.Add(FinalBoneIndex);
 				}
 			}
@@ -685,79 +714,67 @@ FComputeDataProviderRenderProxy* UOptimusAdvancedSkeletonDataProvider::GetRender
 
 	if (SkeletalMesh && SkeletalMesh->MeshObject)
 	{
-		FSkeletalMeshObject* SkeletalMeshObject = SkeletalMesh->MeshObject;	
-		if (!bSkinWeightBufferReady)
+		if (const UOptimusAdvancedSkeletonDataInterface* DataInterface = WeakDataInterface.Get())
 		{
-			const int32 LodIndex = SkeletalMeshObject->GetLOD();
-			FSkeletalMeshRenderData const& SkeletalMeshRenderData = SkeletalMeshObject->GetSkeletalMeshRenderData();
-			FSkeletalMeshLODRenderData const& LodRenderData = SkeletalMeshRenderData.LODRenderData[LodIndex];
+			FOptimusValueContainerStruct ValueContainer =
+					DeformerInstance->GetDataInterfacePropertyOverride(
+						DataInterface,
+						UOptimusAdvancedSkeletonDataInterface::GetSkinWeightProfilePropertyName()
+						);
 
-			if (SkinWeightProfile.IsNone())
+			TValueOrError<FName, EPropertyBagResult> Value = ValueContainer.Value.GetValueName(FOptimusValueContainerStruct::ValuePropertyName);
+			if (Value.HasValue())
 			{
-				bSkinWeightBufferReady = true;
-			}
-			else
-			{
-				if (LodRenderData.SkinWeightProfilesData.ContainsProfile(SkinWeightProfile))
+				if (SkinWeightProfile != Value.GetValue())
 				{
-					// Retrieve this profile's skin weight buffer
-					const FSkinWeightProfileStack ProfileStack{SkinWeightProfile};
-					FSkinWeightVertexBuffer* Buffer = LodRenderData.SkinWeightProfilesData.GetOverrideBuffer(ProfileStack);
-						
-					if (Buffer)
+					SkinWeightProfile = Value.GetValue();
+					if (bEnableLayeredSkinning)
 					{
-						bSkinWeightBufferReady = true;
+						bIsLayeredSkinInitialized = false;
 					}
-					else
-					{
-						TWeakObjectPtr<USkinnedMeshComponent> WeakComponent = SkeletalMesh;
-						TWeakObjectPtr<UOptimusAdvancedSkeletonDataProvider> WeakThis = this;
-						FRequestFinished Callback = [WeakComponent, WeakThis](TWeakObjectPtr<USkeletalMesh> WeakMesh, FSkinWeightProfileStack ProfileStack)
-						{
-							// Ensure that the request objects are still valid
-							if (WeakMesh.IsValid() && WeakComponent.IsValid() && WeakThis.IsValid())
-							{
-								if (FSkeletalMeshRenderData * RenderData = WeakMesh->GetResourceForRendering())
-								{
-									const int32 NumLODs = RenderData->LODRenderData.Num();
-									for (int32 Index = 0; Index < NumLODs; ++Index)
-									{
-										FSkeletalMeshLODRenderData& LODRenderData = RenderData->LODRenderData[Index];
-										FSkinWeightProfilesData& SkinweightData = LODRenderData.SkinWeightProfilesData;
-
-										// Retrieve this profile's skin weight buffer
-										FSkinWeightVertexBuffer* Buffer = SkinweightData.GetOverrideBuffer(ProfileStack);
-										if (ensure(Buffer))
-										{
-											WeakThis->bSkinWeightBufferReady = true;
-										}
-									}
-								}
-							}
-						};
-
-						// Put in a skin weight profile request
-						if (FSkinWeightProfileManager* Manager = FSkinWeightProfileManager::Get(SkeletalMesh->GetWorld()))
-						{
-							Manager->RequestSkinWeightProfileStack(ProfileStack, SkeletalMesh->GetSkinnedAsset(), this, Callback);
-						}
-					}
-				}	
+				}
 			}
 		}
-	
-		if (bSkinWeightBufferReady)
-		{
-			const int32 LodIndex = SkeletalMeshObject->GetLOD();
-			FSkeletalMeshRenderData const& SkeletalMeshRenderData = SkeletalMeshObject->GetSkeletalMeshRenderData();
-			FSkeletalMeshLODRenderData const* LodRenderData = &SkeletalMeshRenderData.LODRenderData[LodIndex];
-			const FReferenceSkeleton& RefSkeleton = SkeletalMesh->GetSkinnedAsset()->GetRefSkeleton();
-			
+		
+		FSkeletalMeshObject* SkeletalMeshObject = SkeletalMesh->MeshObject;
+		const int32 LodIndex = SkeletalMeshObject->GetLOD();
+		FSkeletalMeshRenderData const& SkeletalMeshRenderData = SkeletalMeshObject->GetSkeletalMeshRenderData();
+		FSkeletalMeshLODRenderData const& LodRenderData = SkeletalMeshRenderData.LODRenderData[LodIndex];
 
+		bool bSkinWeightBufferReady = false;
+
+		if (SkinWeightProfile.IsNone())
+		{
+			bSkinWeightBufferReady = true;
+		}
+		else if (LodRenderData.SkinWeightProfilesData.ContainsProfile(SkinWeightProfile))
+		{
+			// Retrieve this profile's skin weight buffer
+			const FSkinWeightProfileStack ProfileStack{SkinWeightProfile};
+			FSkinWeightVertexBuffer* Buffer = LodRenderData.SkinWeightProfilesData.GetOverrideBuffer(ProfileStack);
+			bSkinWeightBufferReady = Buffer ? true : false;
+		}
+
+		if (!bSkinWeightBufferReady)
+		{
+			if (LodRenderData.SkinWeightProfilesData.ContainsProfile(SkinWeightProfile))
+			{
+				const FSkinWeightProfileStack ProfileStack{SkinWeightProfile};
+				// Put in a skin weight profile request
+				if (FSkinWeightProfileManager* Manager = FSkinWeightProfileManager::Get(SkeletalMesh->GetWorld()))
+				{
+					FRequestFinished DummyCallback = [](TWeakObjectPtr<USkeletalMesh> WeakMesh, FSkinWeightProfileStack ProfileStack){};
+					Manager->RequestSkinWeightProfileStack(ProfileStack, SkeletalMesh->GetSkinnedAsset(), this, DummyCallback);
+				}
+			}
+		}
+		else
+		{
 			FOptimusBoneTransformBuffer LayeredBoneMatrixBuffer;
 			
 			if (bEnableLayeredSkinning)
 			{
+				const FReferenceSkeleton& RefSkeleton = SkeletalMesh->GetSkinnedAsset()->GetRefSkeleton();
 				ComputeBoneTransformsForLayeredSkinning(LayeredBoneMatrixBuffer, LodRenderData, RefSkeleton);
 			}
 			
@@ -766,10 +783,10 @@ FComputeDataProviderRenderProxy* UOptimusAdvancedSkeletonDataProvider::GetRender
 			// Section, Attribute, BoneData
 			TArray<TArray<TArray<uint8>>> AttributeBuffers;
 
-			AttributeBuffers.AddDefaulted(LodRenderData->RenderSections.Num());
-			for (int32 SectionIndex = 0; SectionIndex < LodRenderData->RenderSections.Num(); ++SectionIndex)
+			AttributeBuffers.AddDefaulted(LodRenderData.RenderSections.Num());
+			for (int32 SectionIndex = 0; SectionIndex < LodRenderData.RenderSections.Num(); ++SectionIndex)
 			{
-				FSkelMeshRenderSection const& RenderSection = LodRenderData->RenderSections[SectionIndex];
+				FSkelMeshRenderSection const& RenderSection = LodRenderData.RenderSections[SectionIndex];
 				AttributeBuffers[SectionIndex].AddDefaulted(AttributeBufferRuntimeData.Num());
 				for (int32 AttributeIndex = 0; AttributeIndex < AttributeBufferRuntimeData.Num(); ++AttributeIndex)
 				{

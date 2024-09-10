@@ -26,6 +26,7 @@ class UMovieGraphPipeline;
 class UMovieGraphVariable;
 struct FMovieGraphEvaluationContext;
 struct FMovieGraphTraversalContext;
+struct FMoviePipelineShotRenderTelemetry;
 
 #if WITH_EDITOR
 class UEdGraphNode;
@@ -458,6 +459,9 @@ public:
 	
 	/** Modify the Unreal URL and command line arguments when the node will be run in a new process. Only applies to nodes in the Globals branch. */
 	virtual void BuildNewProcessCommandLineArgsImpl(TArray<FString>& InOutUnrealURLParams, TArray<FString>& InOutCommandLineArgs, TArray<FString>& InOutDeviceProfileCvars, TArray<FString>& InOutExecCmds) const { }
+
+	/** Updates telemetry data for this node. Should only be used by nodes that ship with Movie Render Graph. Called on the fully-evaluated node in the flattened graph. */
+	virtual void UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const { }
 };
 
 UINTERFACE()

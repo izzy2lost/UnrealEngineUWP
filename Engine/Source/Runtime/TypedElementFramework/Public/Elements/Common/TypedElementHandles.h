@@ -17,12 +17,12 @@ namespace UE::Editor::DataStorage
 
 	using QueryHandle = uint64;
 	static constexpr QueryHandle InvalidQueryHandle = TNumericLimits<QueryHandle>::Max();
-} // namespace TypedElementDataStorage
+} // namespace UE::Editor::DataStorage
 
 /*
- * FTedsRowHandle is a strongly typed wrapper around TypedElementDataStorage::RowHandle and should only be used in cases where you need the extra info.
+ * FTedsRowHandle is a strongly typed wrapper around UE::Editor::DataStorage::RowHandle and should only be used in cases where you need the extra info.
  * E.g for reflection/UHT or for template specializing something that needs to know the semantics of the row handle.
- * For all other cases, you should use the regular typedef TypedElementDataStorage::RowHandle
+ * For all other cases, you should use the regular typedef UE::Editor::DataStorage::RowHandle
  */
 USTRUCT()
 struct FTedsRowHandle

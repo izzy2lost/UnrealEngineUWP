@@ -50,7 +50,7 @@ public:
 #if WITH_EDITOR
 	/** Called when the model needs to have the material rebuild. */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	virtual void RequestMaterialBuild() PURE_VIRTUAL(UDynamicMaterialModelEditorOnlyDataInterface::RequestMaterialBuild)
+	virtual void RequestMaterialBuild(bool bInImmediate = false) PURE_VIRTUAL(UDynamicMaterialModelEditorOnlyDataInterface::RequestMaterialBuild)
 
 	/** Called to create the build state for building materials. */
 	virtual TSharedRef<IDMMaterialBuildStateInterface> CreateBuildStateInterface(UMaterial* InMaterialToBuild) const = 0;

@@ -291,7 +291,7 @@ private:
 	TArray<TSharedPtr<FRigVMExternalVariable>> ExternalVariables;
 	TArray<UEdGraphPin*> LastEdGraphPins;
 	
-	TMap<URigVMPin*, FPinPair> CachedPins;
+	mutable TMap<TWeakObjectPtr<URigVMPin>, FPinPair> CachedPins;
 	TMap<FString, FPinPair> CachedCategoryPins;
 
 	FNodeTitleDirtied NodeTitleDirtied;

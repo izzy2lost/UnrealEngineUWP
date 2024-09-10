@@ -209,7 +209,7 @@ FScreenPassTexture AddLensFlaresPass(
 			RDG_EVENT_NAME("LensFlareBlur %dx%d", FlareViewSize.X, FlareViewSize.Y),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[VertexShader, PixelShader, VertexParameters, PixelParameters, AdditiveBlendState, FlareViewport, TileCount] (FRHICommandList& RHICmdList)
+			[VertexShader, PixelShader, VertexParameters, PixelParameters, AdditiveBlendState, FlareViewport, TileCount] (FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			// Viewport is the same as the input.
 			RHICmdList.SetViewport(
@@ -318,7 +318,7 @@ FScreenPassTexture AddLensFlaresPass(
 			RDG_EVENT_NAME("LensFlare%d", LensFlareIndex),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[PixelShader, PassParameters, OutputViewRect, FlareViewport, QuadSize, QuadOffset, PipelineState] (FRHICommandList& RHICmdList)
+			[PixelShader, PassParameters, OutputViewRect, FlareViewport, QuadSize, QuadOffset, PipelineState] (FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RHICmdList.SetViewport(OutputViewRect.Min.X, OutputViewRect.Min.Y, 0.0f, OutputViewRect.Max.X, OutputViewRect.Max.Y, 1.0f);
 

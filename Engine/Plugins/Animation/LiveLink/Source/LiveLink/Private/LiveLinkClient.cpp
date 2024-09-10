@@ -8,6 +8,7 @@
 #include "Engine/Engine.h"
 #include "LiveLinkAnimationVirtualSubject.h"
 #include "LiveLinkLog.h"
+#include "LiveLinkMessages.h"
 #include "LiveLinkPresetTypes.h"
 #include "LiveLinkRoleTrait.h"
 #include "LiveLinkProvider.h"
@@ -318,14 +319,19 @@ void FLiveLinkClient::HandleSubjectRebroadcast(ILiveLinkSubject* InSubject, cons
 
 				const FName RebroadcastName = GetRebroadcastName(InSubject->GetSubjectKey());
 
+				const FText OriginalSourceType = GetSourceType(InSubject->GetSubjectKey().Source);
+
+				TMap<FName, FString> ExtraAnnotations;
+				ExtraAnnotations.Add(FLiveLinkMessageAnnotation::OriginalSourceAnnotation, OriginalSourceType.ToString());
+
 				if (!InSubject->HasStaticDataBeenRebroadcasted())
 				{
-					RebroadcastLiveLinkProvider->UpdateSubjectStaticData(RebroadcastName, SubjectRole, MoveTemp(StaticDataCopy));
+					RebroadcastLiveLinkProvider->UpdateSubjectStaticData(RebroadcastName, SubjectRole, MoveTemp(StaticDataCopy), ExtraAnnotations);
 					InSubject->SetStaticDataAsRebroadcasted(true);
 					RebroadcastedSubjects.Add(InSubject->GetSubjectKey());
 				}
 
-				RebroadcastLiveLinkProvider->UpdateSubjectFrameData(RebroadcastName, MoveTemp(FrameDataCopy));
+				RebroadcastLiveLinkProvider->UpdateSubjectFrameData(RebroadcastName, MoveTemp(FrameDataCopy), ExtraAnnotations);
 			}
 			else
 			{
@@ -665,32 +671,7 @@ FLiveLinkSourcePreset FLiveLinkClient::GetSourcePreset(FGuid InSourceGuid, UObje
 void FLiveLinkClient::PushSubjectStaticData_AnyThread(const FLiveLinkSubjectKey& InSubjectKey, TSubclassOf<ULiveLinkRole> InRole, FLiveLinkStaticDataStruct&& InStaticData)
 {
 	FPendingSubjectStatic SubjectStatic{ InSubjectKey, InRole, MoveTemp(InStaticData) };
-	const int32 MaxNumBufferToCached = CVarMaxNewStaticDataPerUpdate.GetValueOnAnyThread();
-	bool bLogError = false;
-	{
-		FScopeLock Lock(&PendingFramesCriticalSection);
-		if (SubjectStaticToPush.Num() > MaxNumBufferToCached) // Something is wrong somewhere. Warn the user and discard the new Static Data.
-		{
-			bLogError = true;
-		}
-		else
-		{
-			{
-				FScopeLock BroadcastLock(&SubjectFrameReceivedHandleseCriticalSection);
-				if (const FSubjectFramesReceivedHandles* Handles = SubjectFrameReceivedHandles.Find(InSubjectKey))
-				{
-					Handles->OnStaticDataReceived.Broadcast(SubjectStatic.StaticData);
-				}
-			}
-			SubjectStaticToPush.Add(MoveTemp(SubjectStatic));
-		}
-	}
-
-	if (bLogError)
-	{
-		static const FName NAME_TooManyStatic = "LiveLinkClient_TooManyStatic";
-		FLiveLinkLog::ErrorOnce(NAME_TooManyStatic, FLiveLinkSubjectKey(), TEXT("Trying to add more than %d static subjects in the same frame. New Subjects will be discarded."), MaxNumBufferToCached);
-	}
+	PushPendingSubject_AnyThread(MoveTemp(SubjectStatic));
 }
 
 void FLiveLinkClient::PushSubjectStaticData_Internal(FPendingSubjectStatic&& SubjectStaticData)
@@ -781,6 +762,11 @@ void FLiveLinkClient::PushSubjectStaticData_Internal(FPendingSubjectStatic&& Sub
 			SubjectSettings->Initialize(SubjectStaticData.SubjectKey);
 
 			SubjectSettings->Role = SubjectStaticData.Role;
+
+			if (FString* OriginalSourceName = SubjectStaticData.ExtraMetadata.Find(FLiveLinkMessageAnnotation::OriginalSourceAnnotation))
+			{
+				SubjectSettings->OriginalSourceName = **OriginalSourceName;
+			}
 
 			UClass* FrameInterpolationProcessorClass = DefaultSetting.FrameInterpolationProcessor.Get();
 			if (FrameInterpolationProcessorClass != nullptr)
@@ -1421,6 +1407,42 @@ TArray<FLiveLinkTime> FLiveLinkClient::GetSubjectFrameTimes(FLiveLinkSubjectName
 	return TArray<FLiveLinkTime>();
 }
 
+FText FLiveLinkClient::GetSourceNameOverride(const FLiveLinkSubjectKey& SubjectKey) const
+{
+	FText SourceType = GetSourceType(SubjectKey.Source);
+	FText SourceNameOverride = SourceType;
+
+	UObject* Settings = GetSubjectSettings(SubjectKey);
+	if (ULiveLinkSubjectSettings* SubjectSettings = Cast<ULiveLinkSubjectSettings>(Settings))
+	{
+		if (!SubjectSettings->OriginalSourceName.IsNone())
+		{
+			SourceNameOverride = FText::Format(INVTEXT("{0} ({1})"), FText::FromName(SubjectSettings->OriginalSourceName), SourceType);
+		}
+	}
+
+	return SourceNameOverride;
+}
+
+FText FLiveLinkClient::GetSubjectDisplayName(const FLiveLinkSubjectKey& InSubjectKey) const
+{
+	FText DisplayName;
+	if (const FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(InSubjectKey))
+	{
+		UObject* Settings = SubjectItem->GetSettings();
+		if (ULiveLinkSubjectSettings* SubjectSettings = Cast<ULiveLinkSubjectSettings>(Settings))
+		{
+			DisplayName = SubjectSettings->GetDisplayName();
+		}
+		else if (ULiveLinkVirtualSubject* VirtualSubject = Cast<ULiveLinkVirtualSubject>(Settings))
+		{
+			VirtualSubject->GetDisplayName();
+		}
+	}
+
+	return DisplayName;
+}
+
 TArray<FLiveLinkSubjectKey> FLiveLinkClient::GetSubjectsSupportingRole(TSubclassOf<ULiveLinkRole> InSupportedRole, bool bIncludeDisabledSubject, bool bIncludeVirtualSubject) const
 {
 	TArray<FLiveLinkSubjectKey> SubjectKeys;
@@ -1636,6 +1658,35 @@ FName FLiveLinkClient::GetRebroadcastName(const FLiveLinkSubjectKey& InSubjectKe
 	return InSubjectKey.SubjectName;
 }
 
+void FLiveLinkClient::PushPendingSubject_AnyThread(FPendingSubjectStatic&& PendingSubject)
+{
+	const int32 MaxNumBufferToCached = CVarMaxNewStaticDataPerUpdate.GetValueOnAnyThread();
+	bool bLogError = true;
+	{
+		FScopeLock Lock(&PendingFramesCriticalSection);
+		if (SubjectStaticToPush.Num() <= MaxNumBufferToCached) 
+		{
+			bLogError = false;
+
+			{
+				FScopeLock BroadcastLock(&SubjectFrameReceivedHandleseCriticalSection);
+				if (const FSubjectFramesReceivedHandles* Handles = SubjectFrameReceivedHandles.Find(PendingSubject.SubjectKey))
+				{
+					Handles->OnStaticDataReceived.Broadcast(PendingSubject.StaticData);
+				}
+			}
+			SubjectStaticToPush.Add(MoveTemp(PendingSubject));
+		}
+	}
+
+	if (bLogError)
+	{
+		// Something is wrong somewhere. Warn the user and discard the new Static Data.
+		static const FName NAME_TooManyStatic = "LiveLinkClient_TooManyStatic";
+		FLiveLinkLog::ErrorOnce(NAME_TooManyStatic, FLiveLinkSubjectKey(), TEXT("Trying to add more than %d static subjects in the same frame. New Subjects will be discarded."), MaxNumBufferToCached);
+	}
+}
+
 FText FLiveLinkClient::GetSourceType(FGuid InEntryGuid) const
 {
 	if (const FLiveLinkCollectionSourceItem* SourceItem = Collection->FindSource(InEntryGuid))
@@ -1706,7 +1757,7 @@ UObject* FLiveLinkClient::GetSubjectSettings(const FLiveLinkSubjectKey& InSubjec
 		return SubjectItem->GetSettings();
 	}
 	return nullptr;
-}
+}	
 
 const FLiveLinkStaticDataStruct* FLiveLinkClient::GetSubjectStaticData_AnyThread(const FLiveLinkSubjectKey& InSubjectKey) const
 {

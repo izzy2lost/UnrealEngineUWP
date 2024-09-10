@@ -166,9 +166,6 @@ public:
     /** Returns a decorated name for this function that includes its signature, for use in overloading. */
     CUTF8String GetDecoratedName(uint16_t StrFlags = uint16_t(EFunctionStringFlag::Overload_)) const;
 
-    /** Returns uLang::CppMangled::Mangle(this->GetDecoratedName()). */
-    CUTF8String GetDecoratedAndMangledName() const;
-
     void MarkCoercion() { _bCoercion = true; }
 
     bool IsCoercion() const { return _bCoercion; }

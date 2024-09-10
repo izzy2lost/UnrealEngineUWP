@@ -193,7 +193,7 @@ public:
 	// ~End UEngineSubsystem
 
 	// ~Begin FSelfRegisteringExec
-	virtual bool Exec(class UWorld* InWorld, const TCHAR* InCmd, FOutputDevice& InAr) override;
+	virtual bool Exec_Dev(class UWorld* InWorld, const TCHAR* InCmd, FOutputDevice& InAr) override;
 	// ~End FSelfRegisteringExec
 
 	void PrintCache() const;

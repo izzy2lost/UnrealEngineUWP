@@ -13,16 +13,16 @@
  * the FTypedElementSlateWidgetReferenceDeletesRowTag was found.
  */
 UCLASS()
-class UWidgetReferenceColumnUpdateFactory : public UTypedElementDataStorageFactory
+class UWidgetReferenceColumnUpdateFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	~UWidgetReferenceColumnUpdateFactory() override = default;
 
-	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
+	void RegisterQueries(IEditorDataStorageProvider& DataStorage) override;
 
 private:
-	void RegisterDeleteRowOnWidgetDeleteQuery(ITypedElementDataStorageInterface& DataStorage) const;
-	void RegisterDeleteColumnOnWidgetDeleteQuery(ITypedElementDataStorageInterface& DataStorage) const;
+	void RegisterDeleteRowOnWidgetDeleteQuery(IEditorDataStorageProvider& DataStorage) const;
+	void RegisterDeleteColumnOnWidgetDeleteQuery(IEditorDataStorageProvider& DataStorage) const;
 };

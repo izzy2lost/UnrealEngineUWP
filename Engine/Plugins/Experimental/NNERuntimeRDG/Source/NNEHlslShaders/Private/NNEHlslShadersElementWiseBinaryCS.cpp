@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNEHlslShadersElementWiseBinaryCS.h"
-#include "NNE.h"
+#include "NNEHlslShadersLog.h"
 
 namespace UE::NNEHlslShaders::Internal
 {
@@ -49,7 +49,7 @@ namespace UE::NNEHlslShaders::Internal
 
 		if (OpFunc == "")
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Undefined ElementWise Binary operator name for operator:%d"), int(OpType));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Undefined ElementWise Binary operator name for operator:%d"), int(OpType));
 		}
 
 		return OpFunc;

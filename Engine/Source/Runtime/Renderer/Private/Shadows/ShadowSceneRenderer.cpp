@@ -78,6 +78,8 @@ static TAutoConsoleVariable<float> CVarResolutionLodBiasLocalMoving(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+extern TAutoConsoleVariable<int32> CVarMarkPixelPagesMipModeLocal;
+
 bool IsVSMOnePassProjectionEnabled(const FEngineShowFlags& ShowFlags)
 {
 	return CVarVirtualShadowOnePassProjection.GetValueOnAnyThread() 
@@ -127,6 +129,22 @@ struct FHeapPair
 
 void FShadowSceneRenderer::BeginRender(FRDGBuilder& GraphBuilder)
 {
+	ViewDatas.Reserve(SceneRenderer.Views.Num());
+	for (const FViewInfo& View : SceneRenderer.Views)
+	{
+		const FVector2f ViewSize = FVector2f(View.ViewRect.Size());
+		FVector2f RadiusClipXY = FVector2f(2.0f) / ViewSize;
+
+		const FMatrix &ViewToClip = View.ViewMatrices.GetProjectionMatrix();
+		// TODO: is RadiusXY always symmetrical?
+		FVector2f ProjScaleXY = FVector2f(static_cast<float>(ViewToClip.M[0][0]), static_cast<float>(ViewToClip.M[1][1]));
+		FVector2f RadiusXY = RadiusClipXY / ProjScaleXY;
+		float MinRadiusXY = FMath::Min(RadiusXY.X, RadiusXY.Y);
+		float ClipToViewSizeScale = ViewToClip.M[2][3] * MinRadiusXY;
+		float ClipToViewSizeBias = ViewToClip.M[3][3] * MinRadiusXY;
+		ViewDatas.Emplace(FViewData{ ClipToViewSizeScale, ClipToViewSizeBias });
+	}
+
 	// Kick off shadow scene updates.
 	ShadowScene.UpdateForRenderedFrame(GraphBuilder);
 
@@ -230,6 +248,32 @@ FVirtualShadowMapProjectionShaderData FShadowSceneRenderer::GetLocalLightProject
 	return Data;
 }
 
+
+/**
+ * Calculate the radius in world-space units of a single pixel at a given depth.
+ */
+static float GetWorldSpacePixelFootprint(float ViewSpaceDepth, float ClipToViewSizeScale, float ClipToViewSizeBias)
+{
+	return ViewSpaceDepth * ClipToViewSizeScale + ClipToViewSizeBias;
+}
+
+/**
+ * Compute the lowest (highest res) mip level that might be marked by any pixels inside the light influence radius for a given scene primary view.
+ */
+static uint32 GetConservativeMipLevelLocal(const FViewInfo& View, float ClipToViewSizeScale, float ClipToViewSizeBias, const FVector& LightOrigin, float LightRadius, float WorldToShadowFootprintScale, float ResolutionLodBias, float GlobalResolutionLodBias, uint32 MipModeLocal)
+{
+	// Note: not just a rotation, full world-space DP.
+	FVector ViewSpaceOrigin = View.ShadowViewMatrices.GetViewMatrix().TransformPosition(LightOrigin);
+
+	// Remove radius to arrive at minimum possible z-distance in view space, from primary view.
+	float RadiusWorld = GetWorldSpacePixelFootprint(FMath::Max(0.0f, float(ViewSpaceOrigin.Z) - LightRadius), ClipToViewSizeScale, ClipToViewSizeBias);
+
+	// Radius is the max possible shadow view space Z, which would require the max res.
+	float ShadowFootprint = RadiusWorld * WorldToShadowFootprintScale / LightRadius;
+
+	return UE::HLSL::GetMipLevelLocal(ShadowFootprint, MipModeLocal, ResolutionLodBias, GlobalResolutionLodBias);
+}
+
 TSharedPtr<FVirtualShadowMapPerLightCacheEntry> FShadowSceneRenderer::AddLocalLightShadow(const FWholeSceneProjectedShadowInitializer& ProjectedShadowInitializer, FProjectedShadowInfo* ProjectedShadowInfo, FLightSceneInfo* LightSceneInfo, float MaxScreenRadius)
 {
 	FVirtualShadowMapArrayCacheManager* CacheManager = VirtualShadowMapArray.CacheManager;
@@ -276,6 +320,33 @@ TSharedPtr<FVirtualShadowMapPerLightCacheEntry> FShadowSceneRenderer::AddLocalLi
 	ProjectedShadowInfo->VirtualShadowMapPerLightCacheEntry = PerLightCacheEntry;
 	ProjectedShadowInfo->bShouldRenderVSM = !PerLightCacheEntry->IsFullyCached();
 
+	// Compute conservative mip level estimate based on radius of the bounding sphere.
+	// TODO: can probably do better by finding  closest point on cone for certain scenarios
+
+	const FVector2f ShadowViewSize = FVector2f(FVirtualShadowMap::VirtualMaxResolutionXY, FVirtualShadowMap::VirtualMaxResolutionXY);
+	const FMatrix &ShadowViewToClip = ProjectedShadowInfo->bOnePassPointLightShadow ? ProjectedShadowInfo->OnePassShadowFaceProjectionMatrix : ProjectedShadowInfo->ViewToClipOuter;
+	float ShadowProjScale = ShadowViewToClip.M[0][0]; // always symmetrical
+	const float WorldToShadowFootprintScale = ShadowProjScale * ShadowViewSize.X;
+
+	uint32 MinMipLevel = FVirtualShadowMap::MaxMipLevels;
+	for (int32 ViewIndex = 0; ViewIndex < SceneRenderer.Views.Num(); ++ViewIndex)
+	{
+		const FViewInfo& View = SceneRenderer.Views[ViewIndex];
+		const FViewData& ViewData = ViewDatas[ViewIndex];
+
+		MinMipLevel = FMath::Min(MinMipLevel, GetConservativeMipLevelLocal(
+			View, 
+			ViewData.ClipToViewSizeScale,
+			ViewData.ClipToViewSizeBias,
+			LightSceneProxy->GetOrigin(), 
+			LightSceneProxy->GetRadius(),
+			WorldToShadowFootprintScale,
+			ResolutionLODBiasLocal, 
+			CacheManager->GetGlobalResolutionLodBias(), 
+			CVarMarkPixelPagesMipModeLocal.GetValueOnRenderThread()
+			));
+	}
+
 	for (int32 Index = 0; Index < NumMaps; ++Index)
 	{
 		const int32 FaceVirtualShadowMapId = VirtualShadowMapId + Index;
@@ -283,6 +354,7 @@ TSharedPtr<FVirtualShadowMapPerLightCacheEntry> FShadowSceneRenderer::AddLocalLi
 		VirtualSmCacheEntry.Update(VirtualShadowMapArray, *PerLightCacheEntry, FaceVirtualShadowMapId);
 		// Update projection data
 		VirtualSmCacheEntry.ProjectionData = GetLocalLightProjectionShaderData(ResolutionLODBiasLocal, ProjectedShadowInfo, Index);
+		VirtualSmCacheEntry.ProjectionData.MinMipLevel = MinMipLevel;
 	}
 
 	return PerLightCacheEntry;

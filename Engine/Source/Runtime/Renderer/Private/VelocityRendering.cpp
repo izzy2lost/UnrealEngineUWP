@@ -198,7 +198,7 @@ bool FDeferredShadingSceneRenderer::ShouldRenderVelocities() const
 		bool bWaterSSREnabled = ViewPipelineState.ReflectionsMethodWater == EReflectionsMethod::SSR && ScreenSpaceRayTracing::ShouldRenderScreenSpaceReflectionsWater(View);
 		bool bSSRTemporal = (bSceneSSREnabled || bWaterSSREnabled) && ScreenSpaceRayTracing::IsSSRTemporalPassRequired(View);
 
-		bool bRayTracing = IsRayTracingEnabled();
+		bool bRayTracing = IsRayTracingEnabled() && View.IsRayTracingAllowedForView();
 		bool bDenoise = bRayTracing;
 
 		bool bSSGI = ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::SSGI;
@@ -326,7 +326,7 @@ void FSceneRenderer::RenderVelocities(
 					RDG_EVENT_NAME("Velocity"),
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[&View, &ParallelMeshPass, PassParameters](FRHICommandList& RHICmdList)
+					[&View, &ParallelMeshPass, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					SetStereoViewport(RHICmdList, View);
 					ParallelMeshPass.Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);

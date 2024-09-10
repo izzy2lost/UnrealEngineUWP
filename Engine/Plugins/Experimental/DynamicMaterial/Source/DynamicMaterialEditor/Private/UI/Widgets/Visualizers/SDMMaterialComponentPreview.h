@@ -40,6 +40,12 @@ public:
 
 	void SetPreviewSize(const FVector2D& InSize);
 
+	UDMMaterialComponent* GetComponent() const;
+
+	UMaterial* GetPreviewMaterial() const;
+
+	UMaterialInstanceDynamic* GetPreviewMaterialDynamic() const;
+
 	//~ Begin SWidget
 	virtual void Tick(const FGeometry& InAllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 	//~ End SWidget

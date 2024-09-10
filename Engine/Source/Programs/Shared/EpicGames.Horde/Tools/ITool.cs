@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Nodes;
 
 #pragma warning disable CA1716 // Rename virtual/interface member ITool.Public so that it no longer conflicts with the reserved language keyword 'Public'.
 
@@ -100,16 +101,14 @@ namespace EpicGames.Horde.Tools
 		Task<ITool?> CreateDeploymentAsync(ToolDeploymentConfig options, HashedBlobRefValue target, CancellationToken cancellationToken = default);
 
 		/// <summary>
-		/// Gets the storage backend for a particular tool
+		/// Gets the storage backend for this tool
 		/// </summary>
-		/// <returns>Instance of the backend client</returns>
-		IStorageBackend CreateStorageBackend();
+		IStorageBackend GetStorageBackend();
 
 		/// <summary>
-		/// Gets the storage backend for a particular tool
+		/// Gets the storage namespace for this particular tool
 		/// </summary>
-		/// <returns>Instance of the storage client</returns>
-		IStorageClient CreateStorageClient();
+		IStorageNamespace GetStorageNamespace();
 	}
 
 	/// <summary>
@@ -156,6 +155,11 @@ namespace EpicGames.Horde.Tools
 		/// Reference to this tool in Horde Storage.
 		/// </summary>
 		RefName RefName { get; }
+
+		/// <summary>
+		/// Handle to the tool data
+		/// </summary>
+		IBlobRef<DirectoryNode> Content { get; }
 
 		/// <summary>
 		/// Updates the state of the current deployment

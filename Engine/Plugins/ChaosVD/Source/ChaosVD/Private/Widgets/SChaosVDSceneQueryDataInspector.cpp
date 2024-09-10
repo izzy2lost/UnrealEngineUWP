@@ -9,6 +9,7 @@
 #include "EditorViewportClient.h"
 #include "IStructureDetailsView.h"
 #include "PropertyEditorModule.h"
+#include "SChaosVDMainTab.h"
 #include "Actors/ChaosVDSolverInfoActor.h"
 #include "Components/ChaosVDSceneQueryDataComponent.h"
 #include "Modules/ModuleManager.h"
@@ -61,10 +62,11 @@ SChaosVDSceneQueryDataInspector::~SChaosVDSceneQueryDataInspector()
 	UnregisterSceneEvents();
 }
 
-void SChaosVDSceneQueryDataInspector::Construct(const FArguments& InArgs, const TWeakPtr<FChaosVDScene>& InScenePtr, const TWeakPtr<FEditorModeTools>& InEditorModeTools)
+void SChaosVDSceneQueryDataInspector::Construct(const FArguments& InArgs, const TWeakPtr<FChaosVDScene>& InScenePtr, const TSharedRef<SChaosVDMainTab>& InMainTab)
 {
 	SceneWeakPtr = InScenePtr;
-	EditorModeToolsWeakPtr = InEditorModeTools;
+	EditorModeToolsWeakPtr = InMainTab->GetEditorModeManager().AsWeak();
+	MainTabWeakPtr = InMainTab;
 
 	RegisterSceneEvents();
 
@@ -511,9 +513,13 @@ FReply SChaosVDSceneQueryDataInspector::SelectParentQuery()
 	return FReply::Handled();
 }
 
-TSharedPtr<IStructureDetailsView> SChaosVDSceneQueryDataInspector::CreateDataDetailsView()
+TSharedPtr<IStructureDetailsView> SChaosVDSceneQueryDataInspector::CreateDataDetailsView() const
 {
-	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	TSharedPtr<SChaosVDMainTab> MainTabPtr = MainTabWeakPtr.Pin();
+	if (!MainTabPtr)
+	{
+		return nullptr;
+	}
 
 	const FStructureDetailsViewArgs StructDetailsViewArgs;
 	FDetailsViewArgs DetailsViewArgs;
@@ -522,7 +528,7 @@ TSharedPtr<IStructureDetailsView> SChaosVDSceneQueryDataInspector::CreateDataDet
 	DetailsViewArgs.bAllowSearch = false;
 	DetailsViewArgs.bShowScrollBar = false;
 
-	return PropertyEditorModule.CreateStructureDetailView(DetailsViewArgs,StructDetailsViewArgs, nullptr);
+	return MainTabPtr->CreateStructureDetailsView(DetailsViewArgs,StructDetailsViewArgs, nullptr);
 }
 
 void SChaosVDSceneQueryDataInspector::HandleSceneUpdated()

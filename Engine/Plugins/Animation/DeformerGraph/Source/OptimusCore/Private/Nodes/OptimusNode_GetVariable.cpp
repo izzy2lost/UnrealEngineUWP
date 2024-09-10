@@ -115,10 +115,9 @@ void UOptimusNode_GetVariable::ExportCustomProperties(FOutputDevice& Out, uint32
 		Out.Logf(TEXT("%sCustomProperties VariableDefinition Name=\"%s\" Type=%s"),
 			FCString::Spc(Indent), *Var->VariableName.ToString(), *Var->DataType->TypeName.ToString());
 
-		if (const FProperty* Property = Var->DefaultValueStruct.GetValueProperty())
+		if (Var->DefaultValueStruct.IsInitialized())
 		{
-			FString ValueStr;
-			Property->ExportTextItem_InContainer(ValueStr, Var->DefaultValueStruct.GetValueMemory(), nullptr, nullptr, PPF_None);
+			FString ValueStr = Var->DefaultValueStruct.GetValueAsString();
 			Out.Logf(TEXT(" DefaultValue=\"%s\""), *ValueStr.ReplaceCharWithEscapedChar());
 		}
 		Out.Logf(TEXT("\n"));
@@ -167,9 +166,9 @@ void UOptimusNode_GetVariable::SetVariableDescription(UOptimusVariableDescriptio
 		return;
 	}
 
-	if (!EnumHasAnyFlags(InVariableDesc->DataType->UsageFlags, EOptimusDataTypeUsageFlags::Variable))
+	if (!EnumHasAnyFlags(InVariableDesc->DataType->UsageFlags, EOptimusDataTypeUsageFlags::Variable | EOptimusDataTypeUsageFlags::Property))
 	{
-		UE_LOG(LogOptimusCore, Error, TEXT("Data type '%s' is not usable in a resource"),
+		UE_LOG(LogOptimusCore, Error, TEXT("Data type '%s' is not usable in a variable"),
 		    *InVariableDesc->DataType->TypeName.ToString());
 		return;
 	}
@@ -195,18 +194,18 @@ TOptional<FText> UOptimusNode_GetVariable::ValidateForCompile(const FOptimusPinT
 	return {};
 }
 
-FString UOptimusNode_GetVariable::GetValueName() const
+FOptimusValueIdentifier UOptimusNode_GetVariable::GetValueIdentifier() const
 {
 	if (const UOptimusVariableDescription* Var = VariableDesc.Get())
 	{
-		return Var->VariableName.ToString();
+		return {EOptimusValueType::Variable, Var->VariableName};
 	}
 
 	return {};
 }
 
 
-FOptimusDataTypeRef UOptimusNode_GetVariable::GetValueType() const
+FOptimusDataTypeRef UOptimusNode_GetVariable::GetValueDataType() const
 {
 	if (const UOptimusVariableDescription* Var = VariableDesc.Get())
 	{
@@ -216,11 +215,12 @@ FOptimusDataTypeRef UOptimusNode_GetVariable::GetValueType() const
 	return {};
 }
 
-
-FShaderValueContainer UOptimusNode_GetVariable::GetShaderValue() const
+FOptimusValueContainerStruct UOptimusNode_GetVariable::GetValue() const
 {
-	// Unused, Graph data interface is responsible for collecting value from UOptimusVariableDescription
-	checkNoEntry();
+	if (const UOptimusVariableDescription* Var = VariableDesc.Get())
+	{
+		return Var->DefaultValueStruct;
+	}
 
 	return {};
 }

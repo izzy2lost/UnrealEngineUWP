@@ -120,6 +120,8 @@ public:
 	virtual TArray<FLiveLinkSubjectKey> GetSubjectsSupportingRole(TSubclassOf<ULiveLinkRole> SupportedRole, bool bIncludeDisabledSubject, bool bIncludeVirtualSubject) const override;
 	virtual TArray<FLiveLinkTime> GetSubjectFrameTimes(const FLiveLinkSubjectKey& SubjectKey) const override;
 	virtual TArray<FLiveLinkTime> GetSubjectFrameTimes(FLiveLinkSubjectName SubjectName) const override;
+	virtual FText GetSourceNameOverride(const FLiveLinkSubjectKey& SubjectKey) const override;
+	virtual FText GetSubjectDisplayName(const FLiveLinkSubjectKey& SubjectKey) const override;
 	virtual ULiveLinkSourceSettings* GetSourceSettings(const FGuid& SourceGuid) const override;
 	virtual UObject* GetSubjectSettings(const FLiveLinkSubjectKey& SubjectKey) const override;
 	virtual const FLiveLinkStaticDataStruct* GetSubjectStaticData_AnyThread(const FLiveLinkSubjectKey& InSubjectKey) const override;
@@ -149,6 +151,24 @@ public:
 	virtual bool RegisterForSubjectFrames(FLiveLinkSubjectName SubjectName, const FOnLiveLinkSubjectStaticDataAdded::FDelegate& OnStaticDataAdded, const FOnLiveLinkSubjectFrameDataAdded::FDelegate& OnFrameDataAdded, FDelegateHandle& OutStaticDataReceivedHandle, FDelegateHandle& OutFrameDataReceivedHandle, TSubclassOf<ULiveLinkRole>& OutSubjectRole, FLiveLinkStaticDataStruct* OutStaticData = nullptr) override;
 	virtual void UnregisterSubjectFramesHandle(FLiveLinkSubjectName InSubjectName, FDelegateHandle InStaticDataReceivedHandle, FDelegateHandle InFrameDataReceivedHandle) override;
 	//~ End ILiveLinkClient implementation
+
+public:
+	/** Struct that hold the pending static data that will be pushed next tick. */
+	struct FPendingSubjectStatic
+	{
+		FLiveLinkSubjectKey SubjectKey;
+		TSubclassOf<ULiveLinkRole> Role;
+		FLiveLinkStaticDataStruct StaticData;
+		TMap<FName, FString> ExtraMetadata;
+	};
+
+	/** Struct that hold the pending frame data that will be pushed next tick. */
+	struct FPendingSubjectFrame
+	{
+		FLiveLinkSubjectKey SubjectKey;
+		FLiveLinkFrameDataStruct FrameData;
+	};
+
 
 	/** The tick callback to update the pending work and clear the subject's snapshot*/
 	void Tick();
@@ -180,8 +200,11 @@ public:
 
 	FLiveLinkSubjectTimeSyncData GetTimeSyncData(FLiveLinkSubjectName SubjectName);
 
-	/** Get the rebroadcast name for a given subject. (Defauls to the subject's subject name, but can be overriden. */
+	/** Get the rebroadcast name for a given subject. (Defaults to the subject's subject name, but can be overriden. */
 	FName GetRebroadcastName(const FLiveLinkSubjectKey& InSubjectKey) const;
+
+	/** Push subject static data with additional metadata. */
+	void PushPendingSubject_AnyThread(FPendingSubjectStatic&& PendingSubject);
 
 	UE_DEPRECATED(4.23, "FLiveLinkClient::GetSourceTypeForEntry is deprecated. Please use GetSourceType instead!")
 	FText GetSourceTypeForEntry(FGuid EntryGuid) const { return GetSourceType(EntryGuid); }
@@ -213,22 +236,6 @@ protected:
 	bool RegisterGlobalSubjectFramesDelegate(const FOnLiveLinkSubjectStaticDataAdded::FDelegate& InOnStaticDataAdded, const FOnLiveLinkSubjectFrameDataAdded::FDelegate& InOnFrameDataAdded, FDelegateHandle& OutStaticDataAddedHandle, FDelegateHandle& OutFrameDataAddedHandle);
 	/** Remove the delegates that were triggered for all subjects. */
 	void UnregisterGlobalSubjectFramesDelegate(FDelegateHandle& InStaticDataAddedHandle, FDelegateHandle& InFrameDataAddedHandle);
-
-private:
-	/** Struct that hold the pending static data that will be pushed next tick. */
-	struct FPendingSubjectStatic
-	{
-		FLiveLinkSubjectKey SubjectKey;
-		TSubclassOf<ULiveLinkRole> Role;
-		FLiveLinkStaticDataStruct StaticData;
-	};
-
-	/** Struct that hold the pending frame data that will be pushed next tick. */
-	struct FPendingSubjectFrame
-	{
-		FLiveLinkSubjectKey SubjectKey;
-		FLiveLinkFrameDataStruct FrameData;
-	};
 
 private:
 	/** Common initialization code for the different constructors. */

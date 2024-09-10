@@ -73,10 +73,6 @@ public:
 	uint64 GPUFrequency = 0, GPUTimestamp = 0;
 	uint64 CPUFrequency = 0, CPUTimestamp = 0;
 
-	#if WITH_RHI_BREADCRUMBS
-	TArray<TSharedPtr<FRHIBreadcrumbAllocatorArray>> BreadcrumbAllocators {};
-	#endif
-
 	UE::RHI::GPUProfiler::FEventStream EventStream;
 
 #else

@@ -26,6 +26,7 @@ public class AvalancheTransitionEditor : ModuleRules
                 "AssetTools",
                 "AvalancheCore",
                 "AvalancheTransition",
+                "DeveloperSettings",
                 "EditorStyle",
                 "Engine",
                 "InputCore",

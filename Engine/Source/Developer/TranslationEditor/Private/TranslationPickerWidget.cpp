@@ -2,15 +2,14 @@
 
 #include "TranslationPickerWidget.h"
 
+#include "Engine/GameEngine.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Docking/TabManager.h"
 #include "Internationalization/Internationalization.h"
 #include "Internationalization/Text.h"
 #include "Layout/Children.h"
-#include "Layout/Margin.h"
 #include "Math/MathFwd.h"
 #include "Math/Vector2D.h"
-#include "Misc/Attribute.h"
 #include "SlotBase.h"
 #include "Styling/AppStyle.h"
 #include "Styling/ISlateStyle.h"
@@ -25,6 +24,9 @@
 #include "Widgets/SToolTip.h"
 #include "Widgets/SWindow.h"
 #include "Widgets/Text/STextBlock.h"
+#if WITH_EDITOR
+#include "Editor.h"
+#endif // WITH_EDITOR
 
 class SWidget;
 
@@ -123,27 +125,34 @@ void STranslationWidgetPicker::OnCheckStateChanged(const ECheckBoxState NewCheck
 	}
 }
 
-TSharedPtr<SWindow> TranslationPickerManager::PickerWindow = TSharedPtr<SWindow>();
-TSharedPtr<STranslationPickerFloatingWindow> TranslationPickerManager::PickerWindowWidget = TSharedPtr<STranslationPickerFloatingWindow>();
+TSharedPtr<SWindow> TranslationPickerManager::PickerWindow;
+TSharedPtr<STranslationPickerFloatingWindow> TranslationPickerManager::PickerWindowWidget;
+TSharedPtr<STranslationPickerOverlay> TranslationPickerManager::MainWindowOverlay;
+TArray<FTranslationPickerTextAndGeom> TranslationPickerManager::PickedTexts;
+bool TranslationPickerManager::bDrawBoxes = true;
 
 bool TranslationPickerManager::OpenPickerWindow()
 {
+	if (PickerWindow.IsValid() || PickerWindowWidget.IsValid())
+	{
+		return false;
+	}
+
+	TSharedPtr<SWindow> RootWindow = FGlobalTabmanager::Get()->GetRootWindow();
+
 	// Not picking previously, launch a picker window
-	if (!PickerWindow.IsValid() && !PickerWindowWidget.IsValid())
 	{
 		TSharedRef<SWindow> NewWindow = SWindow::MakeCursorDecorator();
 		NewWindow->SetSizingRule(ESizingRule::FixedSize);
 		// The Edit window and Floating window should be roughly the same size, so it isn't too distracting switching between them
-		NewWindow->Resize(FVector2D(STranslationPickerEditWindow::DefaultEditWindowWidth, STranslationPickerEditWindow::DefaultEditWindowHeight));
+		NewWindow->Resize(FVector2f(STranslationPickerEditWindow::DefaultEditWindowWidth, STranslationPickerEditWindow::DefaultEditWindowHeight));
 		NewWindow->MoveWindowTo(FSlateApplication::Get().GetCursorPos());
 		PickerWindow = NewWindow;
 
 		NewWindow->SetContent(
 			SAssignNew(PickerWindowWidget, STranslationPickerFloatingWindow)
-			.ParentWindow(NewWindow)
-			);
+			.ParentWindow(NewWindow));
 
-		TSharedPtr<SWindow> RootWindow = FGlobalTabmanager::Get()->GetRootWindow();
 		if (RootWindow.IsValid())
 		{
 			FSlateApplication::Get().AddWindowAsNativeChild(NewWindow, RootWindow.ToSharedRef());
@@ -152,11 +161,36 @@ bool TranslationPickerManager::OpenPickerWindow()
 		{
 			FSlateApplication::Get().AddWindow(NewWindow);
 		}
-
-		return true;
 	}
 
-	return false;
+	// Create overlay for drawing text boxes
+	if (!MainWindowOverlay.IsValid())
+	{
+		MainWindowOverlay = SNew(STranslationPickerOverlay);
+
+#if WITH_EDITOR
+		if (GIsEditor && IsValid(GEditor))
+		{
+			RootWindow->AddOverlaySlot()
+			[
+				MainWindowOverlay.ToSharedRef()
+			];
+		}
+		else
+#endif // WITH_EDITOR
+		if (UGameEngine* GameEngine = Cast<UGameEngine>(GEngine))
+		{
+			if (TSharedPtr<SWindow> GameViewportWindow = GameEngine->GameViewportWindow.Pin())
+			{
+				GameViewportWindow->AddOverlaySlot()
+				[
+					MainWindowOverlay.ToSharedRef()
+				];
+			}
+		}
+	}
+
+	return true;
 }
 
 void TranslationPickerManager::ClosePickerWindow()
@@ -174,6 +208,29 @@ void TranslationPickerManager::ResetPickerWindow()
 	PickerWindow.Reset();
 
 	PickerWindowWidget.Reset();
+}
+
+void TranslationPickerManager::RemoveOverlay()
+{
+	if (!MainWindowOverlay.IsValid())
+	{
+		return;
+	}
+
+#if WITH_EDITOR
+	TSharedPtr<SWindow> RootWindow = FGlobalTabmanager::Get()->GetRootWindow();
+	RootWindow->RemoveOverlaySlot(MainWindowOverlay.ToSharedRef());
+	MainWindowOverlay.Reset();
+#else
+	if (UGameEngine* GameEngine = Cast<UGameEngine>(GEngine))
+	{
+		if (TSharedPtr<SWindow> GameViewportWindow = GameEngine->GameViewportWindow.Pin())
+		{
+			GameViewportWindow->RemoveOverlaySlot(MainWindowOverlay.ToSharedRef());
+			MainWindowOverlay.Reset();
+		}
+	}
+#endif // WITH_EDITOR
 }
 
 #undef LOCTEXT_NAMESPACE

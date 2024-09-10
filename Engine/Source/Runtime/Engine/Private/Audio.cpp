@@ -421,6 +421,11 @@ void FSoundSource::SetFilterFrequency()
 		{
 			// Set the HPFFrequency to highest provided value
 			HPFFrequency = WaveInstance->AttenuationHighpassFilterFrequency;
+
+			if (WaveInstance->bEnableHighPassFilter)
+			{
+				HPFFrequency = FMath::Max(HPFFrequency, WaveInstance->HighPassFilterFrequency);
+			}
 		}
 		break;
 	}
@@ -864,6 +869,7 @@ FWaveInstance::FWaveInstance(const UPTRINT InWaveInstanceHash, FActiveSound& InA
 	, bAlreadyNotifiedHook(false)
 	, bUseSpatialization(false)
 	, bEnableLowPassFilter(false)
+	, bEnableHighPassFilter(false)
 	, bIsOccluded(false)
 	, bIsUISound(false)
 	, bIsMusic(false)
@@ -881,6 +887,7 @@ FWaveInstance::FWaveInstance(const UPTRINT InWaveInstanceHash, FActiveSound& InA
 	, SourceDataOverridePluginSettings(nullptr)
 	, OutputTarget(EAudioOutputTarget::Speaker)
 	, LowPassFilterFrequency(MAX_FILTER_FREQUENCY)
+	, HighPassFilterFrequency(MIN_FILTER_FREQUENCY)
 	, SoundClassFilterFrequency(MAX_FILTER_FREQUENCY)
 	, OcclusionFilterFrequency(MAX_FILTER_FREQUENCY)
 	, AmbientZoneFilterFrequency(MAX_FILTER_FREQUENCY)

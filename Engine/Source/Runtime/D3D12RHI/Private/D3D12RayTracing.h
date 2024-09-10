@@ -6,18 +6,10 @@
 
 #if D3D12_RHI_RAYTRACING
 
-#include "RayTracingBuiltInResources.h"
+#include "D3D12RayTracingResources.h"
 
 class FD3D12RayTracingPipelineState;
 class FD3D12RayTracingShaderBindingTable;
-
-// Built-in local root parameters that are always bound to all hit shaders
-struct FHitGroupSystemParameters
-{
-	D3D12_GPU_VIRTUAL_ADDRESS IndexBuffer;
-	D3D12_GPU_VIRTUAL_ADDRESS VertexBuffer;
-	FHitGroupSystemRootConstants RootConstants;
-};
 
 class FD3D12RayTracingGeometry : public FRHIRayTracingGeometry, public FD3D12AdapterChild, public FD3D12ShaderResourceRenameListener, public FNoncopyable
 {
@@ -42,6 +34,8 @@ public:
 	
 	// Implement FD3D12ShaderResourceRenameListener interface
 	virtual void ResourceRenamed(FD3D12ContextArray const& Contexts, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation) override;
+
+	void AllocateBufferSRVs(uint32 InGPUIndex);
 
 	void RegisterAsRenameListener(uint32 InGPUIndex);
 	void UnregisterAsRenameListener(uint32 InGPUIndex);
@@ -77,7 +71,11 @@ public:
 	bool bHasPendingCompactionRequests[MAX_NUM_GPUS];
 
 	// Hit shader parameters per geometry segment
-	TArray<FHitGroupSystemParameters> HitGroupSystemParameters[MAX_NUM_GPUS];
+	TArray<FD3D12HitGroupSystemParameters> HitGroupSystemParameters[MAX_NUM_GPUS];
+
+	// RAW SRVs to index and vertex buffers when using bindless hit group paramaters
+	TSharedPtr<FD3D12ShaderResourceView> HitGroupSystemIndexBufferSRV[MAX_NUM_GPUS];
+	TArray<TSharedPtr<FD3D12ShaderResourceView>> HitGroupSystemSegmentVertexBufferSRVs[MAX_NUM_GPUS];
 
 	FDebugName DebugName;
 	FName OwnerName;		// Store the path name of the owner object for resource tracking

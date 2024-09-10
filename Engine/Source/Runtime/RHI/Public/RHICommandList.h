@@ -89,6 +89,10 @@ DECLARE_STATS_GROUP(TEXT("RHICommands"),STATGROUP_RHI_COMMANDS, STATCAT_Advanced
 #define RHISTAT(Method)
 #endif
 
+#if !defined(RHI_EXECUTE_API)
+#define RHI_EXECUTE_API RHI_API
+#endif
+
 enum class ERHIThreadMode
 {
 	None,
@@ -1056,6 +1060,11 @@ public:
 		return GDynamicRHI->RHICreateRayTracingGeometry(*this, Initializer);
 	}
 
+	FORCEINLINE FShaderBindingTableRHIRef CreateRayTracingShaderBindingTable(const FRayTracingShaderBindingTableInitializer& Initializer)
+	{
+		return GDynamicRHI->RHICreateShaderBindingTable(*this, Initializer);
+	}
+	
 	UE_DEPRECATED(5.5, "Use the global scope RHICalcRayTracingGeometrySize function instead.")
 	FORCEINLINE FRayTracingAccelerationStructureSize CalcRayTracingGeometrySize(const FRayTracingGeometryInitializer& Initializer)
 	{
@@ -1406,7 +1415,7 @@ private:
 	FRHICommandListBase(FPersistentState const& InPersistentState);
 
 	// Replays recorded commands. Used internally, do not call directly.
-	RHI_API void Execute();
+	RHI_EXECUTE_API void Execute();
 
 	friend class FRHICommandListExecutor;
 	friend class FRHICommandListIterator;
@@ -1493,7 +1502,7 @@ FRHICOMMAND_MACRO(FRHICommandBeginUpdateMultiFrameResource)
 		: Texture(InTexture)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandEndUpdateMultiFrameResource)
@@ -1503,7 +1512,7 @@ FRHICOMMAND_MACRO(FRHICommandEndUpdateMultiFrameResource)
 		: Texture(InTexture)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandBeginUpdateMultiFrameUAV)
@@ -1513,7 +1522,7 @@ FRHICOMMAND_MACRO(FRHICommandBeginUpdateMultiFrameUAV)
 		: UAV(InUAV)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandEndUpdateMultiFrameUAV)
@@ -1523,7 +1532,7 @@ FRHICOMMAND_MACRO(FRHICommandEndUpdateMultiFrameUAV)
 		: UAV(InUAV)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 #if WITH_MGPU
@@ -1534,7 +1543,7 @@ FRHICOMMAND_MACRO(FRHICommandSetGPUMask)
 		: GPUMask(InGPUMask)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandTransferResources)
@@ -1546,7 +1555,7 @@ FRHICOMMAND_MACRO(FRHICommandTransferResources)
 	{
 	}
 
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandTransferResourceSignal)
@@ -1560,7 +1569,7 @@ FRHICOMMAND_MACRO(FRHICommandTransferResourceSignal)
 	{
 	}
 
-	RHI_API void Execute(FRHICommandListBase & CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase & CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandTransferResourceWait)
@@ -1572,7 +1581,7 @@ FRHICOMMAND_MACRO(FRHICommandTransferResourceWait)
 	{
 	}
 
-	RHI_API void Execute(FRHICommandListBase & CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase & CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandCrossGPUTransfer)
@@ -1588,7 +1597,7 @@ FRHICOMMAND_MACRO(FRHICommandCrossGPUTransfer)
 	{
 	}
 
-	RHI_API void Execute(FRHICommandListBase & CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase & CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandCrossGPUTransferSignal)
@@ -1602,7 +1611,7 @@ FRHICOMMAND_MACRO(FRHICommandCrossGPUTransferSignal)
 	{
 	}
 
-	RHI_API void Execute(FRHICommandListBase & CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase & CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandCrossGPUTransferWait)
@@ -1614,7 +1623,7 @@ FRHICOMMAND_MACRO(FRHICommandCrossGPUTransferWait)
 	{
 	}
 
-	RHI_API void Execute(FRHICommandListBase & CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase & CmdList);
 };
 #endif // WITH_MGPU
 
@@ -1625,7 +1634,7 @@ FRHICOMMAND_MACRO(FRHICommandSetStencilRef)
 		: StencilRef(InStencilRef)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO_TPL(TRHIShader, FRHICommandSetShaderParameters)
@@ -1650,7 +1659,7 @@ FRHICOMMAND_MACRO_TPL(TRHIShader, FRHICommandSetShaderParameters)
 		, BindlessParameters(InBindlessParameters)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO_TPL(TRHIShader, FRHICommandSetShaderUnbinds)
@@ -1663,7 +1672,7 @@ FRHICOMMAND_MACRO_TPL(TRHIShader, FRHICommandSetShaderUnbinds)
 		, Unbinds(InUnbinds)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase & CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase & CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandDrawPrimitive)
@@ -1677,7 +1686,7 @@ FRHICOMMAND_MACRO(FRHICommandDrawPrimitive)
 		, NumInstances(InNumInstances)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandDrawIndexedPrimitive)
@@ -1699,7 +1708,7 @@ FRHICOMMAND_MACRO(FRHICommandDrawIndexedPrimitive)
 		, NumInstances(InNumInstances)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandSetBlendFactor)
@@ -1709,7 +1718,7 @@ FRHICOMMAND_MACRO(FRHICommandSetBlendFactor)
 		: BlendFactor(InBlendFactor)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandSetStreamSource)
@@ -1723,7 +1732,7 @@ FRHICOMMAND_MACRO(FRHICommandSetStreamSource)
 		, Offset(InOffset)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandSetViewport)
@@ -1743,7 +1752,7 @@ FRHICOMMAND_MACRO(FRHICommandSetViewport)
 		, MaxZ(InMaxZ)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandSetStereoViewport)
@@ -1771,7 +1780,7 @@ FRHICOMMAND_MACRO(FRHICommandSetStereoViewport)
 		, MaxZ(InMaxZ)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandSetScissorRect)
@@ -1789,7 +1798,7 @@ FRHICOMMAND_MACRO(FRHICommandSetScissorRect)
 		, MaxY(InMaxY)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandBeginRenderPass)
@@ -1803,7 +1812,7 @@ FRHICOMMAND_MACRO(FRHICommandBeginRenderPass)
 	{
 	}
 
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandEndRenderPass)
@@ -1812,7 +1821,7 @@ FRHICOMMAND_MACRO(FRHICommandEndRenderPass)
 	{
 	}
 
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandNextSubpass)
@@ -1821,7 +1830,7 @@ FRHICOMMAND_MACRO(FRHICommandNextSubpass)
 	{
 	}
 
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandSetComputePipelineState)
@@ -1831,7 +1840,7 @@ FRHICOMMAND_MACRO(FRHICommandSetComputePipelineState)
 		: ComputePipelineState(InComputePipelineState)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandSetGraphicsPipelineState)
@@ -1845,7 +1854,7 @@ FRHICOMMAND_MACRO(FRHICommandSetGraphicsPipelineState)
 		, bApplyAdditionalState(bInApplyAdditionalState)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 #if PLATFORM_USE_FALLBACK_PSO
@@ -1860,7 +1869,7 @@ FRHICOMMAND_MACRO(FRHICommandSetGraphicsPipelineStateFromInitializer)
 		, bApplyAdditionalState(bInApplyAdditionalState)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 #endif
 
@@ -1875,7 +1884,7 @@ FRHICOMMAND_MACRO(FRHICommandDispatchComputeShader)
 		, ThreadGroupCountZ(InThreadGroupCountZ)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandDispatchIndirectComputeShader)
@@ -1887,7 +1896,7 @@ FRHICOMMAND_MACRO(FRHICommandDispatchIndirectComputeShader)
 		, ArgumentOffset(InArgumentOffset)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 using FRHIRecordBundleComputeDispatchCallback = TFunction<void(FRHIShaderBundleComputeDispatch& Dispatch)>;
@@ -1920,7 +1929,7 @@ FRHICOMMAND_MACRO(FRHICommandDispatchComputeShaderBundle)
 		, bEmulated(bInEmulated)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandDispatchGraphicsShaderBundle)
@@ -1953,7 +1962,7 @@ FRHICOMMAND_MACRO(FRHICommandDispatchGraphicsShaderBundle)
 		, bEmulated(bInEmulated)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandSetShaderRootConstants)
@@ -1969,31 +1978,31 @@ FRHICOMMAND_MACRO(FRHICommandSetShaderRootConstants)
 		: Constants(InConstants)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandBeginUAVOverlap)
 {
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandEndUAVOverlap)
 {
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandBeginSpecificUAVOverlap)
 {
 	TArrayView<FRHIUnorderedAccessView* const> UAVs;
 	FORCEINLINE_DEBUGGABLE FRHICommandBeginSpecificUAVOverlap(TArrayView<FRHIUnorderedAccessView* const> InUAVs) : UAVs(InUAVs) {}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandEndSpecificUAVOverlap)
 {
 	TArrayView<FRHIUnorderedAccessView* const> UAVs;
 	FORCEINLINE_DEBUGGABLE FRHICommandEndSpecificUAVOverlap(TArrayView<FRHIUnorderedAccessView* const> InUAVs) : UAVs(InUAVs) {}
-	RHI_API void Execute(FRHICommandListBase & CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase & CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandDrawPrimitiveIndirect)
@@ -2005,7 +2014,7 @@ FRHICOMMAND_MACRO(FRHICommandDrawPrimitiveIndirect)
 		, ArgumentOffset(InArgumentOffset)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandDrawIndexedIndirect)
@@ -2022,7 +2031,7 @@ FRHICOMMAND_MACRO(FRHICommandDrawIndexedIndirect)
 		, NumInstances(InNumInstances)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandDrawIndexedPrimitiveIndirect)
@@ -2037,7 +2046,7 @@ FRHICOMMAND_MACRO(FRHICommandDrawIndexedPrimitiveIndirect)
 		, ArgumentOffset(InArgumentOffset)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandMultiDrawIndexedPrimitiveIndirect)
@@ -2057,7 +2066,7 @@ FRHICOMMAND_MACRO(FRHICommandMultiDrawIndexedPrimitiveIndirect)
 		, MaxDrawArguments(InMaxDrawArguments)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase & CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase & CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandDispatchMeshShader)
@@ -2072,7 +2081,7 @@ FRHICOMMAND_MACRO(FRHICommandDispatchMeshShader)
 		, ThreadGroupCountZ(InThreadGroupCountZ)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase & CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase & CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandDispatchIndirectMeshShader)
@@ -2085,7 +2094,7 @@ FRHICOMMAND_MACRO(FRHICommandDispatchIndirectMeshShader)
 		, ArgumentOffset(InArgumentOffset)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase & CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase & CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandSetDepthBounds)
@@ -2098,7 +2107,7 @@ FRHICOMMAND_MACRO(FRHICommandSetDepthBounds)
 		, MaxDepth(InMaxDepth)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandSetShadingRate)
@@ -2111,7 +2120,7 @@ FRHICOMMAND_MACRO(FRHICommandSetShadingRate)
 		Combiner(InCombiner)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandClearUAVFloat)
@@ -2124,7 +2133,7 @@ FRHICOMMAND_MACRO(FRHICommandClearUAVFloat)
 		, Values(InValues)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandClearUAVUint)
@@ -2137,7 +2146,7 @@ FRHICOMMAND_MACRO(FRHICommandClearUAVUint)
 		, Values(InValues)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandCopyTexture)
@@ -2154,7 +2163,7 @@ FRHICOMMAND_MACRO(FRHICommandCopyTexture)
 		ensure(SourceTexture);
 		ensure(DestTexture);
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandResummarizeHTile)
@@ -2165,7 +2174,7 @@ FRHICOMMAND_MACRO(FRHICommandResummarizeHTile)
 	: DepthTexture(InDepthTexture)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandBeginTransitions)
@@ -2177,7 +2186,7 @@ FRHICOMMAND_MACRO(FRHICommandBeginTransitions)
 	{
 	}
 
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandEndTransitions)
@@ -2189,7 +2198,7 @@ FRHICOMMAND_MACRO(FRHICommandEndTransitions)
 	{
 	}
 
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandResourceTransition)
@@ -2201,7 +2210,7 @@ FRHICOMMAND_MACRO(FRHICommandResourceTransition)
 	{
 	}
 
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandSetTrackedAccess)
@@ -2213,7 +2222,7 @@ FRHICOMMAND_MACRO(FRHICommandSetTrackedAccess)
 	{
 	}
 
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandSetAsyncComputeBudget)
@@ -2224,7 +2233,7 @@ FRHICOMMAND_MACRO(FRHICommandSetAsyncComputeBudget)
 		: Budget(InBudget)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandCopyToStagingBuffer)
@@ -2241,7 +2250,7 @@ FRHICOMMAND_MACRO(FRHICommandCopyToStagingBuffer)
 		, NumBytes(InNumBytes)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandWriteGPUFence)
@@ -2256,7 +2265,7 @@ FRHICOMMAND_MACRO(FRHICommandWriteGPUFence)
 			Fence->NumPendingWriteCommands.Increment();
 		}
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandSetStaticUniformBuffers)
@@ -2267,7 +2276,7 @@ FRHICOMMAND_MACRO(FRHICommandSetStaticUniformBuffers)
 		: UniformBuffers(InUniformBuffers)
 	{}
 
-	RHI_API void Execute(FRHICommandListBase & CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase & CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandSetStaticUniformBuffer)
@@ -2280,7 +2289,7 @@ FRHICOMMAND_MACRO(FRHICommandSetStaticUniformBuffer)
 		, Slot(InSlot)
 	{}
 
-	RHI_API void Execute(FRHICommandListBase & CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase & CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandSetUniformBufferDynamicOffset)
@@ -2293,7 +2302,7 @@ FRHICOMMAND_MACRO(FRHICommandSetUniformBufferDynamicOffset)
 		, Slot(InSlot)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandBeginRenderQuery)
@@ -2304,7 +2313,7 @@ FRHICOMMAND_MACRO(FRHICommandBeginRenderQuery)
 		: RenderQuery(InRenderQuery)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandEndRenderQuery)
@@ -2315,7 +2324,7 @@ FRHICOMMAND_MACRO(FRHICommandEndRenderQuery)
 		: RenderQuery(InRenderQuery)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandCalibrateTimers)
@@ -2326,17 +2335,17 @@ FRHICOMMAND_MACRO(FRHICommandCalibrateTimers)
 		: CalibrationQuery(CalibrationQuery)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase & CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase & CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandPostExternalCommandsReset)
 {
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandPollOcclusionQueries)
 {
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandBeginDrawingViewport)
@@ -2349,7 +2358,7 @@ FRHICOMMAND_MACRO(FRHICommandBeginDrawingViewport)
 		, RenderTargetRHI(InRenderTargetRHI)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandEndDrawingViewport)
@@ -2364,7 +2373,7 @@ FRHICOMMAND_MACRO(FRHICommandEndDrawingViewport)
 		, bLockToVsync(InbLockToVsync)
 	{
 	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandDiscardRenderTargets)
@@ -2380,7 +2389,7 @@ FRHICOMMAND_MACRO(FRHICommandDiscardRenderTargets)
 	{
 	}
 	
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandCopyBufferRegion)
@@ -2399,7 +2408,7 @@ FRHICOMMAND_MACRO(FRHICommandCopyBufferRegion)
 		, NumBytes(InNumBytes)
 	{}
 
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_UNNAMED(FRHICommandBindAccelerationStructureMemory)
@@ -2414,7 +2423,7 @@ FRHICOMMAND_UNNAMED(FRHICommandBindAccelerationStructureMemory)
 		, BufferOffset(InBufferOffset)
 	{}
 
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_UNNAMED(FRHICommandBuildAccelerationStructure)
@@ -2425,7 +2434,7 @@ FRHICOMMAND_UNNAMED(FRHICommandBuildAccelerationStructure)
 		: SceneBuildParams(MoveTemp(InSceneBuildParams))
 	{}
 
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandCommitRayTracingBindings)
@@ -2436,7 +2445,7 @@ FRHICOMMAND_MACRO(FRHICommandCommitRayTracingBindings)
 		: Scene(InScene)
 	{}
 
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandCommitShaderBindingTable)
@@ -2447,7 +2456,7 @@ FRHICOMMAND_MACRO(FRHICommandCommitShaderBindingTable)
 		: SBT(InSBT)
 	{}
 
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandClearRayTracingBindings)
@@ -2458,7 +2467,7 @@ FRHICOMMAND_MACRO(FRHICommandClearRayTracingBindings)
 		: Scene(InScene)
 	{}
 
-	RHI_API void Execute(FRHICommandListBase & CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase & CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandClearShaderBindingTable)
@@ -2469,7 +2478,7 @@ FRHICOMMAND_MACRO(FRHICommandClearShaderBindingTable)
 		: SBT(InSBT)
 	{}
 
-	RHI_API void Execute(FRHICommandListBase & CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase & CmdList);
 };
 
 FRHICOMMAND_UNNAMED(FRHICommandBuildAccelerationStructures)
@@ -2484,7 +2493,7 @@ FRHICOMMAND_UNNAMED(FRHICommandBuildAccelerationStructures)
 		, ScratchBuffer(ScratchBufferRange.Buffer)
 	{}
 
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandRayTraceDispatch)
@@ -2547,7 +2556,7 @@ FRHICOMMAND_MACRO(FRHICommandRayTraceDispatch)
 		, Height(0)
 	{}
 
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
 FRHICOMMAND_MACRO(FRHICommandSetBindingsOnShaderBindingTable)
@@ -2581,11 +2590,11 @@ FRHICOMMAND_MACRO(FRHICommandSetBindingsOnShaderBindingTable)
 
 	}
 
-	RHI_API void Execute(FRHICommandListBase& CmdList);
+	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
-template<> RHI_API void FRHICommandSetShaderParameters           <FRHIComputeShader>::Execute(FRHICommandListBase& CmdList);
-template<> RHI_API void FRHICommandSetShaderUnbinds              <FRHIComputeShader>::Execute(FRHICommandListBase& CmdList);
+template<> RHI_EXECUTE_API void FRHICommandSetShaderParameters           <FRHIComputeShader>::Execute(FRHICommandListBase& CmdList);
+template<> RHI_EXECUTE_API void FRHICommandSetShaderUnbinds              <FRHIComputeShader>::Execute(FRHICommandListBase& CmdList);
 
 extern RHI_API FRHIComputePipelineState*	ExecuteSetComputePipelineState(FComputePipelineState* ComputePipelineState);
 extern RHI_API FRHIGraphicsPipelineState*	ExecuteSetGraphicsPipelineState(class FGraphicsPipelineState* GraphicsPipelineState);
@@ -3432,8 +3441,8 @@ public:
 	}
 };
 
-template<> RHI_API void FRHICommandSetShaderParameters           <FRHIGraphicsShader>::Execute(FRHICommandListBase& CmdList);
-template<> RHI_API void FRHICommandSetShaderUnbinds              <FRHIGraphicsShader>::Execute(FRHICommandListBase& CmdList);
+template<> RHI_EXECUTE_API void FRHICommandSetShaderParameters           <FRHIGraphicsShader>::Execute(FRHICommandListBase& CmdList);
+template<> RHI_EXECUTE_API void FRHICommandSetShaderUnbinds              <FRHIGraphicsShader>::Execute(FRHICommandListBase& CmdList);
 
 class FRHICommandList : public FRHIComputeCommandList
 {

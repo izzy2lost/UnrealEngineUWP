@@ -911,7 +911,7 @@ void AddAmbientOcclusionPass(
 				RDG_EVENT_NAME("DepthBounds ClearQuad(%s)", Output.Texture->Name),
 				ClearParameters,
 				ERDGPassFlags::Raster,
-			[OutputViewport, DepthFar](FRHICommandList& RHICmdList)
+			[OutputViewport, DepthFar](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				// We must clear all pixels that won't be touched by AO shader.
 				FClearQuadCallbacks Callbacks;
@@ -965,7 +965,7 @@ void AddAmbientOcclusionPass(
 			MoveTemp(EventName),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[&View, OutputViewport, InputViewport, VertexShader, PixelShader, PassParameters, bDepthBoundsTestEnabled, DepthFar] (FRHICommandList& RHICmdList)
+			[&View, OutputViewport, InputViewport, VertexShader, PixelShader, PassParameters, bDepthBoundsTestEnabled, DepthFar] (FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			const FIntRect InputRect = InputViewport.Rect;
 			const FIntPoint InputSize = InputViewport.Extent;

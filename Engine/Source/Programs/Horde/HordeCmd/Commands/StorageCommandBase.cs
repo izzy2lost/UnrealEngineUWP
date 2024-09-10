@@ -4,12 +4,11 @@ using System.ComponentModel;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
-using EpicGames.Horde.Storage.Clients;
 
 namespace Horde.Commands
 {
 	/// <summary>
-	/// Base class for commands that require a configured storage client
+	/// Base class for commands that require a configured storage namespace
 	/// </summary>
 	abstract class StorageCommandBase : Command
 	{
@@ -32,14 +31,14 @@ namespace Horde.Commands
 		/// </summary>
 		public BundleCache BundleCache { get; }
 
-		readonly HttpStorageClientFactory _storageClientFactory;
+		readonly HttpStorageClient _storageClient;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StorageCommandBase(HttpStorageClientFactory storageClientFactory, BundleCache bundleCache)
+		public StorageCommandBase(HttpStorageClient storageClient, BundleCache bundleCache)
 		{
-			_storageClientFactory = storageClientFactory;
+			_storageClient = storageClient;
 
 			BundleCache = bundleCache;
 		}
@@ -47,15 +46,15 @@ namespace Horde.Commands
 		/// <summary>
 		/// Creates a new client instance
 		/// </summary>
-		public IStorageClient CreateStorageClient()
+		public IStorageNamespace GetStorageNamespace()
 		{
 			if (String.IsNullOrEmpty(Path))
 			{
-				return _storageClientFactory.CreateClient(Namespace);
+				return _storageClient.GetNamespace(Namespace);
 			}
 			else
 			{
-				return _storageClientFactory.CreateClientWithPath(Path);
+				return _storageClient.GetNamespaceWithPath(Path);
 			}
 		}
 	}

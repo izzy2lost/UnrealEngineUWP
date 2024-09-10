@@ -8,6 +8,7 @@
 #include "ToolTargets/ToolTarget.h" // FToolTargetTypeRequirements
 #include "GeometryBase.h"
 #include "InteractiveTool.h"
+#include "InteractiveToolsContext.h"
 
 #include "UVEditorMode.generated.h"
 
@@ -175,10 +176,15 @@ public:
 	/**
 	 * Called by an asset editor so that a created instance of the mode has all the data it needs on Enter() to initialize itself.
 	 */
+	UE_DEPRECATED(5.5, "Initialization of contexts now requires UInteractiveToolsContext to be passed in directly. Please update code accordingly")
 	static void InitializeAssetEditorContexts(UContextObjectStore& ContextStore,
 		const TArray<TObjectPtr<UObject>>& AssetsIn, const TArray<FTransform>& TransformsIn,
 		FEditorViewportClient& LivePreviewViewportClient, FAssetEditorModeManager& LivePreviewModeManager,
 		UUVToolViewportButtonsAPI& ViewportButtonsAPI, UUVTool2DViewportAPI& UVTool2DViewportAPI);
+	static void InitializeAssetEditorContexts(UContextObjectStore& ContextStore,
+		const TArray<TObjectPtr<UObject>>& AssetsIn, const TArray<FTransform>& TransformsIn,
+		FEditorViewportClient& LivePreviewViewportClient, FAssetEditorModeManager& LivePreviewModeManager,
+		UUVToolViewportButtonsAPI& ViewportButtonsAPI, UUVTool2DViewportAPI& UVTool2DViewportAPI, UInteractiveToolsContext& ToolsContext);
 
 	// Public for use by undo/redo. Otherwise should use RequestUVChannelChange
 	void ChangeInputObjectLayer(int32 AssetID, int32 NewLayerIndex);

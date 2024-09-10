@@ -387,7 +387,7 @@ void FDeferredShadingSceneRenderer::RenderAnisotropyPass(
 					RDG_EVENT_NAME("AnisotropyPass"),
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[&View, &ParallelMeshPass, PassParameters](FRHICommandList& RHICmdList)
+					[&View, &ParallelMeshPass, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					SetStereoViewport(RHICmdList, View);
 

@@ -618,15 +618,15 @@ namespace Metasound
 					FOnGetDetailCustomizationInstance::CreateLambda([]() { return MakeShared<FMetasoundVariableDetailCustomization>(); }));
 
 				PropertyModule.RegisterCustomPropertyTypeLayout(
-					"MetaSoundEditorGraphMemberDefaultBoolRef",
+					"MetasoundEditorGraphMemberDefaultBoolRef",
 					FOnGetPropertyTypeCustomizationInstance::CreateLambda([]() { return MakeShared<FMetasoundMemberDefaultBoolDetailCustomization>(); }));
 
 				PropertyModule.RegisterCustomPropertyTypeLayout(
-					"MetaSoundEditorGraphMemberDefaultIntRef",
+					"MetasoundEditorGraphMemberDefaultIntRef",
 					FOnGetPropertyTypeCustomizationInstance::CreateLambda([]() { return MakeShared<FMetasoundMemberDefaultIntDetailCustomization>(); }));
 
 				PropertyModule.RegisterCustomPropertyTypeLayout(
-					"MetaSoundEditorGraphMemberDefaultObjectRef",
+					"MetasoundEditorGraphMemberDefaultObjectRef",
 					FOnGetPropertyTypeCustomizationInstance::CreateLambda([]() { return MakeShared<FMetasoundMemberDefaultObjectDetailCustomization>(); }));
 
 				LiteralCustomizationFactories.Add(UMetasoundEditorGraphMemberDefaultLiteral::StaticClass(), MakeUnique<FMetasoundDefaultLiteralCustomizationFactory>());
@@ -764,7 +764,6 @@ namespace Metasound
 				if (MigrationContext.GetCurrentStep() == UE::AssetTools::FPackageMigrationContext::EPackageMigrationStep::InstancedPackagesLoaded)
 				{
 					// Gather the new MetaSound assets
-					TMap<FMetasoundFrontendClassName, FMetasoundFrontendClassName> OldToNewReferencedClassNames;
 					TArray<FMetaSoundFrontendDocumentBuilder> NewMetaSoundAssetBuilders;
 					for (const UE::AssetTools::FPackageMigrationContext::FMigrationPackageData& MigrationPackageData : MigrationContext.GetMigrationPackagesData())
 					{
@@ -782,11 +781,12 @@ namespace Metasound
 
 					// Assign new class names and cache mapping with old one
 					IMetaSoundAssetManager& AssetManager = IMetaSoundAssetManager::GetChecked();
+					TMap<FNodeRegistryKey, FNodeRegistryKey> OldToNewReferenceKeys;
 					for (FMetaSoundFrontendDocumentBuilder& MetaSoundBuilder : NewMetaSoundAssetBuilders)
 					{
-						const FMetasoundFrontendClassName OldReferencedClassName = MetaSoundBuilder.GetConstDocumentChecked().RootGraph.Metadata.GetClassName();
-						const FMetasoundFrontendClassName NewReferencedClassName = MetaSoundBuilder.GenerateNewClassName();
-						OldToNewReferencedClassNames.FindOrAdd(OldReferencedClassName) = NewReferencedClassName;
+						FNodeRegistryKey OldRegistryKey(MetaSoundBuilder.GetConstDocumentChecked().RootGraph.Metadata);
+						FNodeRegistryKey NewRegistryKey(EMetasoundFrontendClassType::External, MetaSoundBuilder.GenerateNewClassName(), OldRegistryKey.Version);
+						OldToNewReferenceKeys.FindOrAdd(MoveTemp(OldRegistryKey)) = MoveTemp(NewRegistryKey);
 
 						UObject& MetaSoundObject = MetaSoundBuilder.CastDocumentObjectChecked<UObject>();
 						AssetManager.AddOrUpdateAsset(MetaSoundObject);
@@ -795,7 +795,7 @@ namespace Metasound
 					// Fix up dependencies
 					for (FMetaSoundFrontendDocumentBuilder& MetaSoundBuilder : NewMetaSoundAssetBuilders)
 					{
-						MetaSoundBuilder.UpdateDependencyClassNames(OldToNewReferencedClassNames);
+						MetaSoundBuilder.UpdateDependencyRegistryData(OldToNewReferenceKeys);
 					}
 				}
 			}

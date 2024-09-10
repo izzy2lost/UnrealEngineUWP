@@ -61,6 +61,8 @@ public:
 	const TArray<EDrawMaterialAttributeTarget>& GetAvailableMaterialAttributeIds() const { return AvailableMaterialAttributeIds; }
 	const TArray<FName>& GetAvailableMaterialAttributeNames() const { return AvailableMaterialAttributeNames; }
 
+	static FName CPPTypeNameFromMaterialParamType(EMaterialParameterType InMatType);
+
 protected:
 	// A local per Instance Material is recreated from the reference material assigned through SetMaterialInternal
 	UPROPERTY(Transient, DuplicateTransient)
@@ -68,6 +70,18 @@ protected:
 
 	TArray<EDrawMaterialAttributeTarget>	AvailableMaterialAttributeIds; // The set of material properties available for rendering
 	TArray<FName>							AvailableMaterialAttributeNames; // same with the attribute names
+
+	// Arg to Material Param Info array records the map of arg name to the corresponding Material Param
+	struct FArgToMaterialParamInfo
+	{
+		FName ArgName;
+		FName MatParamName;
+		FGuid MatParamGuid;
+		EMaterialParameterType MatType = EMaterialParameterType::None;
+
+		bool operator== (const FName& InArgName) const { return ArgName == InArgName; }
+	};
+	mutable TArray<FArgToMaterialParamInfo> ArgToMatParams; // mutable because it is populated in the BuildSignatureDynamically()
 
 	virtual void Initialize() override;
 
@@ -84,7 +98,7 @@ protected:
 	virtual TObjectPtr<UMaterialInterface> GetMaterial() const { return nullptr;}
 
 private:
-	void AddSignatureParam(TArray<FMaterialParameterInfo> OutParameterInfoScalar, FName CPPTypeName, FTG_Signature::FInit& SignatureInit, bool IsScalar = false) const;
+	void AddSignatureParam(const TArray<FMaterialParameterInfo>& OutParameterInfo, const TArray<FGuid>& OutParameterIds, EMaterialParameterType MatType, FTG_Signature::FInit& SignatureInit) const;
 
 	static EDrawMaterialAttributeTarget ConvertEMaterialPropertyToEDrawMaterialAttributeTarget(EMaterialProperty InMaterialProperty);
 };

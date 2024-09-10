@@ -50,6 +50,7 @@
 #include "Exporters/Exporter.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "Framework/Commands/GenericCommands.h"
+#include "SPositiveActionButton.h"
 
 #define LOCTEXT_NAMESPACE "ChooserEditor"
 
@@ -594,23 +595,44 @@ void FChooserTableEditor::OnObjectsTransacted(UObject* Object, const FTransactio
 		// if this is for the chooser we're editing
 		if (GetChooser() == RowDetails->Chooser)
 		{
-			// copy all the values over
-			TValueOrError<FStructView, EPropertyBagResult> Result = RowDetails->Properties.GetValueStruct("Result", FInstancedStruct::StaticStruct());
-			if (Result.IsValid())
+			if (RowDetails->Chooser->ResultsStructs.IsValidIndex(RowDetails->Row))
 			{
-				RowDetails->Chooser->ResultsStructs[RowDetails->Row] = Result.GetValue().Get<FInstancedStruct>();
+				// copy all the values over
+				TValueOrError<FStructView, EPropertyBagResult> Result = RowDetails->Properties.GetValueStruct("Result", FInstancedStruct::StaticStruct());
+				if (Result.IsValid())
+				{
+					RowDetails->Chooser->ResultsStructs[RowDetails->Row] = Result.GetValue().Get<FInstancedStruct>();
+				}
+
+				int ColumnIndex = 0;
+				for (FInstancedStruct& ColumnData : RowDetails->Chooser->ColumnsStructs)
+				{
+					FChooserColumnBase& Column = ColumnData.GetMutable<FChooserColumnBase>();
+					Column.SetFromDetails(RowDetails->Properties, ColumnIndex, RowDetails->Row);
+					ColumnIndex++;
+				}
+			
+				TValueOrError<bool, EPropertyBagResult> DisabledResult = RowDetails->Properties.GetValueBool("Disabled");
+				RowDetails->Chooser->DisabledRows[RowDetails->Row] = DisabledResult.GetValue();
+			}
+			else if (RowDetails->Row == ColumnWidget_SpecialIndex_Fallback)
+			{
+				TValueOrError<FStructView, EPropertyBagResult> Result = RowDetails->Properties.GetValueStruct("Result", FInstancedStruct::StaticStruct());
+				if (Result.IsValid())
+				{
+					RowDetails->Chooser->FallbackResult = Result.GetValue().Get<FInstancedStruct>();
+				}
+				
+				int ColumnIndex = 0;
+				for (FInstancedStruct& ColumnData : RowDetails->Chooser->ColumnsStructs)
+				{
+					FChooserColumnBase& Column = ColumnData.GetMutable<FChooserColumnBase>();
+					Column.SetFromDetails(RowDetails->Properties, ColumnIndex, RowDetails->Row);
+					ColumnIndex++;
+				}
 			}
 
-			int ColumnIndex = 0;
-			for (FInstancedStruct& ColumnData : RowDetails->Chooser->ColumnsStructs)
-			{
-				FChooserColumnBase& Column = ColumnData.GetMutable<FChooserColumnBase>();
-				Column.SetFromDetails(RowDetails->Properties, ColumnIndex, RowDetails->Row);
-				ColumnIndex++;
-			}
-			
-			TValueOrError<bool, EPropertyBagResult> DisabledResult = RowDetails->Properties.GetValueBool("Disabled");
-			RowDetails->Chooser->DisabledRows[RowDetails->Row] = DisabledResult.GetValue();
+			RefreshAll();
 		}
 	}
 }
@@ -996,15 +1018,18 @@ int FChooserTableEditor::MoveRow(int SourceRowIndex, int TargetRowIndex)
 	
 void FChooserTableEditor::SelectRow(int32 RowIndex, bool bClear)
 {
-	if (TableRows.IsValidIndex(RowIndex))
+	if (TSharedPtr<FChooserTableRow>* Row = TableRows.FindByPredicate([RowIndex](const TSharedPtr<FChooserTableRow>& InRow)
+		{
+			return InRow->RowIndex == RowIndex;
+		}))
 	{
-		if (!TableView->IsItemSelected(TableRows[RowIndex]))
+		if (!TableView->IsItemSelected(*Row))
 		{
 			if (bClear)
 			{
 				TableView->ClearSelection();
 			}
-			TableView->SetItemSelection(TableRows[RowIndex], true, ESelectInfo::OnMouseClick);
+			TableView->SetItemSelection(*Row, true, ESelectInfo::OnMouseClick);
 		}
 	}
 }
@@ -1093,10 +1118,14 @@ void FChooserTableEditor::UpdateTableColumns()
 		.FillWidth(1.0)
 		.HeaderContent( )
 		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot().MaxWidth(120)
-			[
-				CreateColumnComboButton.ToSharedRef()
+			SNew(SVerticalBox)
+			 + SVerticalBox::Slot().AutoHeight()
+			 [
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().MaxWidth(150)
+				[
+					CreateColumnComboButton.ToSharedRef()
+				]
 			]
 		]
 		);
@@ -1105,7 +1134,7 @@ void FChooserTableEditor::UpdateTableColumns()
 
 void FChooserTableEditor::AddColumn(const UScriptStruct* ColumnType)
 {
-	CreateColumnComboButton->SetIsOpen(false);
+	FSlateApplication::Get().DismissAllMenus();
 	UChooserTable* Chooser = GetChooser();
 	const FScopedTransaction Transaction(LOCTEXT("Add Column Transaction", "Add Column"));
 	Chooser->Modify(true);
@@ -1162,6 +1191,10 @@ void FChooserTableEditor::RefreshRowSelectionDetails()
 	}
 	SelectedRows.SetNum(0);
 	UChooserTable* Chooser = GetChooser();
+
+	FPropertyBagPropertyDesc ResultPropertyDesc ("Result", EPropertyBagPropertyType::Struct, FInstancedStruct::StaticStruct());
+	ResultPropertyDesc.MetaData.Add({"ExcludeBaseStruct",""});
+	ResultPropertyDesc.MetaData.Add({"BaseStruct","/Script/Chooser.ObjectChooserBase"});
 	
 	// Get the list of objects to edit the details of
 	TArray<TSharedPtr<FChooserTableRow>> SelectedItems = TableView->GetSelectedItems();
@@ -1175,7 +1208,7 @@ void FChooserTableEditor::RefreshRowSelectionDetails()
 			Selection->SetFlags(RF_Standalone | RF_Transactional);
 
 			FInstancedStruct& Result = Chooser->ResultsStructs[SelectedItem->RowIndex];
-			Selection->Properties.AddProperty("Result", EPropertyBagPropertyType::Struct, FInstancedStruct::StaticStruct());
+			Selection->Properties.AddProperties({ResultPropertyDesc});
 			Selection->Properties.SetValueStruct("Result", FConstStructView(FInstancedStruct::StaticStruct(), reinterpret_cast<uint8*>(&Result)));
 
 			int ColumnIndex = 0;
@@ -1193,7 +1226,30 @@ void FChooserTableEditor::RefreshRowSelectionDetails()
 			}
 
 			SelectedRows.Add(Selection);
-			
+		}
+		else if (SelectedItem->RowIndex == ColumnWidget_SpecialIndex_Fallback)
+		{
+			TObjectPtr<UChooserRowDetails> Selection = NewObject<UChooserRowDetails>();
+			Selection->Chooser = Chooser;
+			Selection->Row = SelectedItem->RowIndex;
+			Selection->SetFlags(RF_Standalone | RF_Transactional);
+
+			FInstancedStruct& Result = Chooser->FallbackResult;
+			Selection->Properties.AddProperties({ResultPropertyDesc});
+			Selection->Properties.SetValueStruct("Result", FConstStructView(FInstancedStruct::StaticStruct(), reinterpret_cast<uint8*>(&Result)));
+
+			int ColumnIndex = 0;
+			for (FInstancedStruct& ColumnData : Chooser->ColumnsStructs)
+			{
+				FChooserColumnBase& Column = ColumnData.GetMutable<FChooserColumnBase>();
+				if (Column.HasOutputs())
+				{
+					Column.AddToDetails(Selection->Properties, ColumnIndex, SelectedItem->RowIndex);
+				}
+				ColumnIndex++;
+			}
+
+			SelectedRows.Add(Selection);
 		}
 	}
 	
@@ -1254,6 +1310,225 @@ TSharedRef<SDockTab> FChooserTableEditor::SpawnNestedTablesTreeTab( const FSpawn
 		];
 }
 
+DECLARE_DELEGATE_OneParam(FCreateStructDelegate, UScriptStruct*);
+
+struct FColumnTypeInfoStruct
+{
+	int SortOrder = 100;
+	FString Category;
+	UScriptStruct* Type;
+	bool operator < (const FColumnTypeInfoStruct& Other) const
+	{
+		if (Category == Other.Category)
+		{
+			return Type->GetDisplayNameText().ToString() < Other.Type->GetDisplayNameText().ToString();
+		}
+		else if (SortOrder == Other.SortOrder)
+		{
+			return Category < Other.Category;
+		}
+		else
+		{
+			return SortOrder < Other.SortOrder;
+		}
+	}
+};
+
+TSharedRef<SWidget>	FChooserTableEditor::MakeCreateColumnMenu()
+{
+	FMenuBuilder MenuBuilder(true, nullptr);
+	static TArray<FColumnTypeInfoStruct> ColumnTypes;
+
+	if (ColumnTypes.IsEmpty())
+	{
+		UScriptStruct* BaseType = FChooserColumnBase::StaticStruct();
+		for (TObjectIterator<UScriptStruct> StructIt; StructIt; ++StructIt)
+		{
+			if (*StructIt != BaseType && StructIt->IsChildOf(BaseType))
+			{
+				if (!StructIt->HasMetaData("Hidden"))
+				{
+					FColumnTypeInfoStruct Info;
+					Info.Type = *StructIt;
+					Info.Category = StructIt->HasMetaData("Category") ? StructIt->GetMetaData("Category") : "Other";
+
+					if (Info.Category == "Filter")
+					{
+						Info.SortOrder = 1;
+					}
+					else if (Info.Category == "Scoring")
+                   	{
+                   		Info.SortOrder = 2;
+                   	}
+					else if (Info.Category == "Output")
+                   	{
+                   		Info.SortOrder = 3;
+                   	}
+					else if (Info.Category == "Random")
+					{
+						Info.SortOrder = 4;
+					}
+
+					ColumnTypes.Add(Info);
+				}
+			}
+		}
+		ColumnTypes.Sort();
+	}
+
+	FString Section = "";
+	for(FColumnTypeInfoStruct& Type : ColumnTypes)
+	{
+		if (Section != Type.Category)
+		{
+			if (Section != "")
+			{
+				MenuBuilder.EndSection();
+			}
+			Section = Type.Category;
+			MenuBuilder.BeginSection(FName(Section), FText::FromString(Section));
+		}
+		
+		MenuBuilder.AddMenuEntry(Type.Type->GetDisplayNameText(), Type.Type->GetToolTipText(), FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateLambda([this, Type]()
+				{
+					AddColumn(Type.Type);
+				}))
+			);
+							
+	}
+	return MenuBuilder.MakeWidget();
+}
+
+struct FResultTypeInfoStruct
+{
+	bool ObjectOnly = false;
+	bool ClassOnly = false;
+	FString Category;
+	UScriptStruct* Type = nullptr;
+	
+	bool operator < (const FResultTypeInfoStruct& Other) const
+	{
+		if (Category == Other.Category)
+		{
+			return Type->GetDisplayNameText().ToString() < Other.Type->GetDisplayNameText().ToString();
+		}
+		else
+		{
+			return Category < Other.Category;
+		}
+	}
+};
+
+void MakeCreateResultMenu(FMenuBuilder& MenuBuilder, EObjectChooserResultType ChooserResultType, FCreateStructDelegate CreateStruct)
+{
+	static TArray<FResultTypeInfoStruct> ResultTypes;
+
+	if (ResultTypes.IsEmpty())
+	{
+		UScriptStruct* BaseType = FObjectChooserBase::StaticStruct();
+		for (TObjectIterator<UScriptStruct> StructIt; StructIt; ++StructIt)
+		{
+			if (*StructIt != BaseType && StructIt->IsChildOf(BaseType))
+			{
+				if (!StructIt->HasMetaData("Hidden"))
+				{
+					FResultTypeInfoStruct Info;
+					Info.Type = *StructIt;
+					Info.Category = StructIt->HasMetaData("Category") ? StructIt->GetMetaData("Category") : "Other";
+
+					if (StructIt->HasMetaData("ResultType"))
+					{
+						FString ResultTypeString = StructIt->GetMetaData("ResultType");
+						Info.ClassOnly = ResultTypeString == "Class";
+						Info.ObjectOnly = ResultTypeString == "Object";
+					}
+					
+					ResultTypes.Add(Info);
+				}
+			}
+		}
+		ResultTypes.Sort();
+	}
+
+	FString Section = "";
+	for(FResultTypeInfoStruct& Type : ResultTypes)
+	{
+		if (Section != Type.Category)
+		{
+			if (Section != "")
+			{
+				MenuBuilder.EndSection();
+			}
+			Section = Type.Category;
+			MenuBuilder.BeginSection(FName(Section), FText::FromString(Section));
+		}
+		
+		MenuBuilder.AddMenuEntry(Type.Type->GetDisplayNameText(), Type.Type->GetToolTipText(), FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateLambda([Type, CreateStruct]()
+				{
+					CreateStruct.Execute(Type.Type);
+				}),
+				FCanExecuteAction::CreateLambda([Type, ChooserResultType]()
+				{
+					if (Type.ClassOnly && ChooserResultType == EObjectChooserResultType::ObjectResult)
+					{
+						return false;
+					}
+					if (Type.ObjectOnly && ChooserResultType == EObjectChooserResultType::ClassResult)
+					{
+						return false;
+					}
+					return true;
+				})
+				)
+			);
+							
+	}
+}
+
+TSharedRef<SWidget>	FChooserTableEditor::MakeCreateRowMenu()
+{
+	FMenuBuilder MenuBuilder(true, nullptr);
+
+    UChooserTable* Chooser = GetChooser();
+	if (!Chooser->FallbackResult.IsValid())
+	{
+		MenuBuilder.AddSubMenu(
+			LOCTEXT("Add Fallback", "Add Fallback Result"),
+				LOCTEXT("Add Fallback Tooltip", "Add a Fallback row to the chooser, which will be used in the case where no other rows passed all filter columns"),
+				FNewMenuDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
+				{
+					UChooserTable* Chooser = GetChooser();
+					MakeCreateResultMenu(MenuBuilder, Chooser->ResultType, FCreateStructDelegate::CreateLambda([this](UScriptStruct* Type)
+					{
+						UChooserTable* Chooser = GetChooser();
+						const FScopedTransaction Transaction(LOCTEXT("Add Fallback Row Transaction", "Add Fallback Row"));
+						Chooser->Modify(true);
+						Chooser->FallbackResult.InitializeAs(Type);
+						UpdateTableRows();
+					}));
+				})
+			);
+
+	}
+
+	MakeCreateResultMenu(MenuBuilder, Chooser->ResultType, FCreateStructDelegate::CreateLambda([this](UScriptStruct* Type)
+	{
+
+		UChooserTable* Chooser = GetChooser();
+		const FScopedTransaction Transaction(LOCTEXT("Add Row Transaction", "Add Row"));
+		Chooser->Modify(true);
+		Chooser->ResultsStructs.SetNum(Chooser->ResultsStructs.Num()+1);
+		Chooser->ResultsStructs.Last().InitializeAs(Type);
+		UpdateTableRows();
+	}));
+
+	return MenuBuilder.MakeWidget();
+}
+
 TSharedRef<SDockTab> FChooserTableEditor::SpawnTableTab( const FSpawnTabArgs& Args )
 {
 	check( Args.GetTabId() == TableTabId );
@@ -1262,55 +1537,17 @@ TSharedRef<SDockTab> FChooserTableEditor::SpawnTableTab( const FSpawnTabArgs& Ar
 
 	// + button to create new columns
 	
-	CreateColumnComboButton = SNew(SComboButton).OnGetMenuContent_Lambda([this]()
-	{
-		FStructViewerInitializationOptions Options;
-		Options.StructFilter = MakeShared<FStructFilter>(FChooserColumnBase::StaticStruct());
-		Options.bAllowViewOptions = false;
-		Options.bShowNoneOption = false;
-		Options.NameTypeToDisplay = EStructViewerNameTypeToDisplay::DisplayName;
-		
-		// Add class filter for columns here
-		FStructViewerModule& StructViewerModule = FModuleManager::LoadModuleChecked<FStructViewerModule>("StructViewer");
-		TSharedRef<SWidget> Widget = StructViewerModule.CreateStructViewer(Options, FOnStructPicked::CreateRaw(this, &FChooserTableEditor::AddColumn));
-		return Widget;
-	})
-	.ComboButtonStyle(FAppStyle::Get(), "SimpleComboButton")
-	.ButtonContent()
-	[
-		SNew(STextBlock).Text(LOCTEXT("AddColumn", "+ Add Column"))
-	];
-
-
-	CreateRowComboButton = SNew(SComboButton)
-		.ComboButtonStyle(FAppStyle::Get(), "SimpleComboButton")
-		.ButtonContent()
-		[
-			SNew(STextBlock).Text(LOCTEXT("AddRow", "+ Add Row"))
-		]
+	CreateColumnComboButton = SNew(SPositiveActionButton)
+		.Text(LOCTEXT("Add Column", "Add Column"))
 		.OnGetMenuContent_Lambda([this]()
 		{
-			FStructViewerInitializationOptions Options;
-			Options.StructFilter = MakeShared<FStructFilter>(FObjectChooserBase::StaticStruct());
-			Options.bAllowViewOptions = false;
-			Options.bShowNoneOption = false;
-			Options.NameTypeToDisplay = EStructViewerNameTypeToDisplay::DisplayName;
-			
-			TSharedRef<SWidget> Widget = FModuleManager::LoadModuleChecked<FStructViewerModule>("StructViewer").CreateStructViewer(Options, FOnStructPicked::CreateLambda([this](const UScriptStruct* ChosenStruct)
-			{
-				CreateRowComboButton->SetIsOpen(false);
-				UChooserTable* Chooser = GetChooser();
-				const FScopedTransaction Transaction(LOCTEXT("Add Row Transaction", "Add Row"));
-				Chooser->Modify(true);
-
-				Chooser->ResultsStructs.SetNum(Chooser->ResultsStructs.Num()+1);
-				Chooser->ResultsStructs.Last().InitializeAs(ChosenStruct);
-				UpdateTableRows();
-			}));
-			
-			return Widget;
+			return MakeCreateColumnMenu();
 		});
 
+	CreateRowComboButton = SNew(SPositiveActionButton)
+		.Text(LOCTEXT("Add Row", "Add Row"))
+		.OnGetMenuContent(this, &FChooserTableEditor::MakeCreateRowMenu);
+			
 	HeaderRow = SNew(SHeaderRow);
 
 	UpdateTableRows();
@@ -1420,7 +1657,11 @@ void FChooserTableEditor::UpdateTableRows()
 	}
 
 	// Add one at the end, for the Fallback result
-	TableRows.Add(MakeShared<FChooserTableRow>(SChooserTableRow::SpecialIndex_Fallback));
+	if (Chooser->FallbackResult.IsValid())
+	{
+		TableRows.Add(MakeShared<FChooserTableRow>(SChooserTableRow::SpecialIndex_Fallback));
+	}
+	
 	// Add one at the end, for the "Add Row" control
 	TableRows.Add(MakeShared<FChooserTableRow>(SChooserTableRow::SpecialIndex_AddRow));
 
@@ -1540,7 +1781,14 @@ int32 FChooserTableEditor::DeleteSelectedRowsInternal(int32 RowIndexToRemember)
 	TArray<uint32> RowsToDelete;
 	for(auto& SelectedRow:SelectedRows)
 	{
-		RowsToDelete.Add(SelectedRow->Row);
+		if (SelectedRow->Row == ColumnWidget_SpecialIndex_Fallback)
+		{
+			Chooser->FallbackResult.Reset();
+		}
+		else
+		{
+			RowsToDelete.Add(SelectedRow->Row);
+		}
 	}
 
 	SelectedRows.SetNum(0);
@@ -1748,7 +1996,10 @@ void FChooserTableEditor::ToggleDisableSelection()
 		{
 			for (auto& Row : SelectedRows)
 			{
-				Chooser->DisabledRows[Row->Row] = !bDisabled;
+				if (Chooser->DisabledRows.IsValidIndex(Row->Row))
+				{
+					Chooser->DisabledRows[Row->Row] = !bDisabled;
+				}
 			}
 			RefreshRowSelectionDetails();
 		}
@@ -1791,17 +2042,32 @@ void FChooserTableEditor::DuplicateSelection()
 	}
 }
 
+bool FChooserTableEditor::HasFallbackSelected()
+{
+	for(UChooserRowDetails* SelectedRow : SelectedRows)
+	{
+		if (SelectedRow->Row == ColumnWidget_SpecialIndex_Fallback)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
 
 bool FChooserTableEditor::CanMoveRowsUp()
 {
 	if (HasRowsSelected())
 	{
 		UChooserTable* Chooser = GetChooser();
-		
+
 		int MinSelectedRow = Chooser->ResultsStructs.Num();
 		for(UChooserRowDetails* SelectedRow : SelectedRows)
 		{
-			MinSelectedRow = FMath::Min(SelectedRow->Row, MinSelectedRow);
+			if (SelectedRow->Row != ColumnWidget_SpecialIndex_Fallback)
+			{
+				MinSelectedRow = FMath::Min(SelectedRow->Row, MinSelectedRow);
+			}
 		}
 
 		return MinSelectedRow > 0;
@@ -1817,7 +2083,10 @@ void FChooserTableEditor::MoveRowsUp()
 		int MinSelectedRow = Chooser->ResultsStructs.Num();
 		for(UChooserRowDetails* SelectedRow : SelectedRows)
 		{
-			MinSelectedRow = FMath::Min(SelectedRow->Row, MinSelectedRow);
+			if (SelectedRow->Row != ColumnWidget_SpecialIndex_Fallback)
+			{
+				MinSelectedRow = FMath::Min(SelectedRow->Row, MinSelectedRow);
+			}
 		}
 		MoveRows(MinSelectedRow - 1);
 	}
@@ -1965,22 +2234,35 @@ UChooserTable* FChooserTableEditor::CopySelectionInternal()
 			Column.SetNumRows(0);
 			Column.SetNumRows(SelectedRowsCopy.Num());
 		}
-
+		
+		if (SelectedRowsCopy.Num() > 0 && SelectedRowsCopy[0]->Row == ColumnWidget_SpecialIndex_Fallback)
+		{
+			SelectedRowsCopy.RemoveAt(0);
+			
+			CopyData->FallbackResult = Chooser->FallbackResult;
+			if (FNestedChooser* CopiedNestedChooser = CopyData->FallbackResult.GetMutablePtr<FNestedChooser>())
+			{
+				// if the fallback result was a nested chooser, duplicate it
+				CopiedNestedChooser->Chooser = DuplicateNestedChooser(CopiedNestedChooser->Chooser, CopyData);
+			}
+		}
+		
 		CopyData->ResultsStructs.SetNum(SelectedRowsCopy.Num());
+		CopyData->DisabledRows.SetNum(SelectedRowsCopy.Num());
 
 		// add the selected results and column data
 		
 		for (int RowIndex = 0; RowIndex < SelectedRowsCopy.Num(); RowIndex++)
 		{
-			const FInstancedStruct& Result = Chooser->ResultsStructs[SelectedRowsCopy[RowIndex]->Row];
-
-			CopyData->ResultsStructs[RowIndex] = Result;
+			CopyData->ResultsStructs[RowIndex] = Chooser->ResultsStructs[SelectedRowsCopy[RowIndex]->Row];
 			if (FNestedChooser* CopiedNestedChooser = CopyData->ResultsStructs[RowIndex].GetMutablePtr<FNestedChooser>())
 			{
 				// if the result for this row was a nested chooser, duplicate it
 				CopiedNestedChooser->Chooser = DuplicateNestedChooser(CopiedNestedChooser->Chooser, CopyData);
 			}
-
+			
+			CopyData->DisabledRows[RowIndex] = Chooser->DisabledRows[SelectedRowsCopy[RowIndex]->Row];
+			
 			for (int ColumnIndex = 0; ColumnIndex < CopyData->ColumnsStructs.Num(); ColumnIndex++)
 			{
 				FChooserColumnBase& SourceColumn = Chooser->ColumnsStructs[ColumnIndex].GetMutable<FChooserColumnBase>();
@@ -2059,7 +2341,7 @@ void FChooserTableEditor::PasteInternal(UChooserTable* PastedContent, int PasteR
 	UChooserTable* Chooser = GetChooser();
 	Chooser->Modify();
 	
-	if (PastedContent->ResultsStructs.IsEmpty())
+	if (PastedContent->ResultsStructs.IsEmpty() && !PastedContent->FallbackResult.IsValid())
 	{
 		// pasting a column
 		int InsertColumnIndex = Chooser->ColumnsStructs.Num();
@@ -2100,11 +2382,40 @@ void FChooserTableEditor::PasteInternal(UChooserTable* PastedContent, int PasteR
 				{
 					InsertIndex = FMath::Max(InsertIndex, SelectedRows[SelectedRowIndex]->Row);
 				}
-				InsertIndex++;
+				if (InsertIndex == ColumnWidget_SpecialIndex_Fallback)
+				{
+					// if the only row selected was the fallback, reset insert index to the last row
+					InsertIndex = Chooser->ResultsStructs.Num();
+				}
+				else
+				{
+					InsertIndex++;
+				}
 			}
 		}
 
-		Chooser->ResultsStructs.Insert(PastedContent->ResultsStructs, InsertIndex);
+		if (PastedContent->ResultsStructs.Num() > 0)
+		{
+			Chooser->ResultsStructs.Insert(PastedContent->ResultsStructs, InsertIndex);
+			Chooser->DisabledRows.Insert(PastedContent->DisabledRows, InsertIndex);
+
+			// Make sure each column has the same number of row datas as there are results
+			for(FInstancedStruct& ColumnData : Chooser->ColumnsStructs)
+			{
+				FChooserColumnBase& Column = ColumnData.GetMutable<FChooserColumnBase>();
+				Column.InsertRows(InsertIndex, RowsToPaste);
+			}
+		}
+		if (PastedContent->FallbackResult.IsValid())
+		{
+			// paste fallback result if copy data has one
+			Chooser->FallbackResult = PastedContent->FallbackResult;
+			if (FNestedChooser* NestedChooser = Chooser->FallbackResult.GetMutablePtr<FNestedChooser>())
+			{
+				// duplicate the nested chooser if the fallback result refers to a nested chooser
+				NestedChooser->Chooser = DuplicateNestedChooser(NestedChooser->Chooser, Chooser);
+			}
+		}
 		
 		if (!PastedContent->NestedChoosers.IsEmpty())
 		{
@@ -2117,14 +2428,6 @@ void FChooserTableEditor::PasteInternal(UChooserTable* PastedContent, int PasteR
 				}
 			}
 		}
-		
-		// Make sure each column has the same number of row datas as there are results
-		for(FInstancedStruct& ColumnData : Chooser->ColumnsStructs)
-		{
-			FChooserColumnBase& Column = ColumnData.GetMutable<FChooserColumnBase>();
-			Column.InsertRows(InsertIndex, RowsToPaste);
-		}
-
 
 		// try to also paste column data from columns in the paste buffer which match the columns in the current chooser
 		// -- matching by column type and input value name
@@ -2164,6 +2467,12 @@ void FChooserTableEditor::PasteInternal(UChooserTable* PastedContent, int PasteR
 								{
 									Column.CopyRow(PastedColumn, i, InsertIndex + i);
 								}
+
+								if (PastedContent->FallbackResult.IsValid())
+								{
+									// if the fallback row was copied, paste the fallback data for columns
+									Column.CopyFallback(PastedColumn);
+								}
 								break;
 							}
 						}
@@ -2184,7 +2493,6 @@ void FChooserTableEditor::PasteInternal(UChooserTable* PastedContent, int PasteR
 			}
 		}
 
-		
 		for(int SourceColumnIndex = 0; SourceColumnIndex < PastedContent->ColumnsStructs.Num(); SourceColumnIndex++)
 		{
 			if (!MatchedSourceColumns[SourceColumnIndex])
@@ -2210,6 +2518,10 @@ void FChooserTableEditor::PasteInternal(UChooserTable* PastedContent, int PasteR
 		for (int i = 0; i < RowsToPaste; i++)
 		{
 			SelectRow(InsertIndex + i, false);
+		}
+		if(PastedContent->FallbackResult.IsValid())
+		{
+			SelectRow(ColumnWidget_SpecialIndex_Fallback, false);
 		}
 	}
 	

@@ -129,7 +129,7 @@ namespace MeshPaintVisualize
 		}
 
 #if WITH_EDITORONLY_DATA
-		if (GPaintMode == EMeshPaintVisualizePaintMode::TextureAsset && GTextureAsset.IsValid())
+		if (GPaintMode == EMeshPaintVisualizePaintMode::TextureAsset && GTextureAsset.IsValid() && GEngine->TexturePaintingMaskMaterial)
 		{
 			FColoredTexturedMaterialRenderProxy* TextureColorVisualizationMaterialInstance = new FColoredTexturedMaterialRenderProxy(
 				GEngine->TexturePaintingMaskMaterial->GetRenderProxy(),

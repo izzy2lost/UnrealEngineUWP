@@ -157,15 +157,17 @@ void DebugVisualizeVirtualSmCS(uint2 PixelPos : SV_DispatchThreadID)
 int VisualizeVirtualShadowMapId;
 float VisualizeNaniteOverdrawScale;
 Texture2D DebugTexture;
+SamplerState DebugTextureSampler;
 
 float4 TonemapProjectionDebugTexturePS(
-	noperspective float4 UVAndScreenPos : TEXCOORD0,
-	float4 Position : SV_POSITION
+	noperspective float4 UVAndScreenPos : TEXCOORD0
 ) : SV_Target0
 {
 	bool bOneLightVisible = VisualizeVirtualShadowMapId >= 0;
 
-	float4 Output = DebugTexture.Load(uint3(Position.xy, 0));
+	float2 UV = UVAndScreenPos.xy;
+	float4 Output = Texture2DSample(DebugTexture, DebugTextureSampler, UV);
+
 	if (VisualizeModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_SMRT_RAY_COUNT)
 	{
 		if (Output.a > 0)

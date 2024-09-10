@@ -1,10 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGGather.h"
+
+#include "NNEAttributeMap.h"
+#include "NNEHlslShadersGatherCS.h"
+#include "NNEHlslShadersLog.h"
 #include "NNERuntimeRDGHelperGather.h"
 #include "NNERuntimeRDGHlslHelper.h"
-#include "NNEHlslShadersGatherCS.h"
-#include "NNEAttributeMap.h"
 #include "NNETypes.h"
 #include "NNETensor.h"
 
@@ -80,12 +82,12 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			Axis = Attributes.GetValueOrDefault(TEXT("axis"), Axis);
 			if (Axis >= Data.GetShape().Rank())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Gather Axis attribute should be inferior to first input rank"));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Gather: Axis attribute should be inferior to first input rank"));
 				return false;
 			}
 			if (Axis < -Data.GetShape().Rank())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Gather Axis attribute should be superior or equal to minus the first input rank"));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Gather: Axis attribute should be superior or equal to minus the first input rank"));
 				return false;
 			}
 			Axis = Axis >= 0 ? Axis : Data.GetShape().Rank() + Axis;
@@ -167,14 +169,14 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 		if(InputShapes[0].Rank() < 1)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Hlsl Gather: input tensor must have rank >= 1."));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Gather: input tensor must have rank >= 1."));
 			return false;
 		}
 
 		const int32 OutputRank = InputShapes[1].Rank() + (InputShapes[0].Rank() - 1);
 		if(OutputRank > NNEHlslShaders::Internal::FGatherConstants::MAX_NUM_DIMENSIONS)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Hlsl Gather: output tensor has rank %d higher than maximum supported: %d."), OutputRank, NNEHlslShaders::Internal::FGatherConstants::MAX_NUM_DIMENSIONS);
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Gather: output tensor has rank %d higher than maximum supported: %d."), OutputRank, NNEHlslShaders::Internal::FGatherConstants::MAX_NUM_DIMENSIONS);
 			return false;
 		}
 

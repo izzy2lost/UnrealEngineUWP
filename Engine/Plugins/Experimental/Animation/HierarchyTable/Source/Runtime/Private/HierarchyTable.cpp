@@ -105,3 +105,19 @@ TArray<const FHierarchyTableEntryData*> UHierarchyTable::GetChildren(const FHier
 
 	return Children;
 }
+
+bool UHierarchyTable::HasIdentifier(const FName Identifier) const
+{
+	return TableData.ContainsByPredicate([Identifier](const FHierarchyTableEntryData& Entry)
+		{
+			return Entry.Identifier == Identifier;
+		});
+}
+
+FHierarchyTableEntryData* UHierarchyTable::FindEntry(const FName EntryIdentifier, const EHierarchyTableEntryType EntryType)
+{
+	return TableData.FindByPredicate([EntryIdentifier, EntryType](const FHierarchyTableEntryData& Entry)
+		{
+			return Entry.Identifier == EntryIdentifier && Entry.EntryType == EntryType;
+		});
+}

@@ -39,4 +39,6 @@ namespace OrtHelper
 
 	TypeInfoORT TranslateTensorTypeORTToNNE(ONNXTensorElementDataType OrtDataType);
 
+	uint64 CalcRDGBufferSizeForDirectML(uint64 DataSize);
+
 } // UE::NNERuntimeORT::Private

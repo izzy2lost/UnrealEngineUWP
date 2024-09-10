@@ -8,19 +8,19 @@
 
 #include "ExportedTextWidget.generated.h"
 
-class ITypedElementDataStorageInterface;
+class IEditorDataStorageProvider;
 class UScriptStruct;
 
 UCLASS()
-class TEDSUI_API UExportedTextWidgetFactory : public UTypedElementDataStorageFactory
+class TEDSUI_API UExportedTextWidgetFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	virtual ~UExportedTextWidgetFactory() override = default;
 
-	virtual void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
-		ITypedElementDataStorageUiInterface& DataStorageUi) const override;
+	virtual void RegisterWidgetConstructors(IEditorDataStorageProvider& DataStorage,
+		IEditorDataStorageUiProvider& DataStorageUi) const override;
 
 	TSet<TWeakObjectPtr<const UScriptStruct>> RegisteredTypes;
 };
@@ -37,13 +37,13 @@ public:
 	virtual TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const override;
 	virtual const UE::Editor::DataStorage::Queries::FConditions* GetQueryConditions() const override;
 	virtual FString CreateWidgetDisplayName(
-		ITypedElementDataStorageInterface* DataStorage, UE::Editor::DataStorage::RowHandle Row) const override;
+		IEditorDataStorageProvider* DataStorage, UE::Editor::DataStorage::RowHandle Row) const override;
 
 protected:
 	virtual TSharedPtr<SWidget> CreateWidget(const UE::Editor::DataStorage::FMetaDataView& Arguments) override;
 	virtual bool FinalizeWidget(
-		ITypedElementDataStorageInterface* DataStorage,
-		ITypedElementDataStorageUiInterface* DataStorageUi,
+		IEditorDataStorageProvider* DataStorage,
+		IEditorDataStorageUiProvider* DataStorageUi,
 		UE::Editor::DataStorage::RowHandle Row,
 		const TSharedPtr<SWidget>& Widget) override;
 

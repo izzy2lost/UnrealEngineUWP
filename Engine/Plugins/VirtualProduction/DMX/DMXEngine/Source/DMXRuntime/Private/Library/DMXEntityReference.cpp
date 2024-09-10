@@ -78,10 +78,12 @@ FDMXEntityControllerRef::FDMXEntityControllerRef(UDMXEntityController* InControl
 	: FDMXEntityReference(InController)
 {}
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 UDMXEntityController* FDMXEntityControllerRef::GetController() const
 {
 	return Cast<UDMXEntityController>(GetEntity());
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 FDMXEntityFixtureTypeRef::FDMXEntityFixtureTypeRef()
 {
@@ -112,11 +114,12 @@ UDMXEntityFixturePatch* FDMXEntityFixturePatchRef::GetFixturePatch() const
 }
 
 //~ Type conversions extension for Entity Reference structs
-
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 UDMXEntityController* UDMXEntityReferenceConversions::Conv_ControllerRefToObj(const FDMXEntityControllerRef& InControllerRef)
 {
 	return InControllerRef.GetController();
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 UDMXEntityFixtureType* UDMXEntityReferenceConversions::Conv_FixtureTypeRefToObj(const FDMXEntityFixtureTypeRef& InFixtureTypeRef)
 {
@@ -128,10 +131,12 @@ UDMXEntityFixturePatch* UDMXEntityReferenceConversions::Conv_FixturePatchRefToOb
 	return InFixturePatchRef.GetFixturePatch();
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FDMXEntityControllerRef UDMXEntityReferenceConversions::Conv_ControllerObjToRef(UDMXEntityController* InController)
 {
 	return FDMXEntityControllerRef(InController);
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 FDMXEntityFixtureTypeRef UDMXEntityReferenceConversions::Conv_FixtureTypeObjToRef(UDMXEntityFixtureType* InFixtureType)
 {

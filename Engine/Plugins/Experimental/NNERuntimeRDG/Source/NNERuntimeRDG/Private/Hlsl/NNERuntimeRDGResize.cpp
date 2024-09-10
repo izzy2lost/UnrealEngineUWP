@@ -1,15 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGResize.h"
-#include "NNEHlslShadersResizeCS.h"
 
+#include "Algo/MaxElement.h"
+#include "Algo/MinElement.h"
+#include "NNEHlslShadersLog.h"
+#include "NNEHlslShadersResizeCS.h"
 #include "NNEHlslShadersTypeHelper.h"
 #include "NNERuntimeRDGHlslHelper.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
 #include "RenderGraphUtils.h"
-#include "Algo/MinElement.h"
-#include "Algo/MaxElement.h"
 
 namespace UE::NNERuntimeRDG::Private::Hlsl
 {
@@ -73,7 +74,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			{
 				if(!Roi.HasPreparedData())
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Hlsl Resize: `roi` tensor could not be made constant. (name %s)."), *Roi.GetName());
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Resize: `roi` tensor could not be made constant. (name %s)."), *Roi.GetName());
 					return -1;
 				}
 				
@@ -81,7 +82,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 				if(RegionOfInterest.Num() != 2 * Input.GetShape().Rank())
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Hlsl Resize: `roi` tensor (name %s) must have 2 * N length."), *Roi.GetName());
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Resize: `roi` tensor (name %s) must have 2 * N length."), *Roi.GetName());
 					return -1;
 				}
 			}
@@ -96,7 +97,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				const NNE::Internal::FTensor& Scales = *InputTensors[2];
 				if(!Scales.HasPreparedData())
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Hlsl Resize: `scales` tensor could not be made constant. (name %s)."), *Scales.GetName());
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Resize: `scales` tensor could not be made constant. (name %s)."), *Scales.GetName());
 					return -1;
 				}
 
@@ -128,7 +129,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				const NNE::Internal::FTensor& Sizes = *InputTensors[3];
 				if(!Sizes.HasPreparedData())
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Hlsl Resize: `sizes` tensor could not be made constant. (name %s)."), *Sizes.GetName());
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Resize: `sizes` tensor could not be made constant. (name %s)."), *Sizes.GetName());
 					return -1;
 				}
 
@@ -177,7 +178,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			// NOTE: implementation for antialiasing is missing
 			if(Attributes.GetValueOrDefault<int32>(TEXT("antialias"), 0) == 1)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Hlsl Resize: antialias not yet supported."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Resize: antialias not yet supported."));
 				return false;
 			}
 
@@ -187,7 +188,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			{
 				if (Axis > InputTensorDescs[0].GetShape().Rank() || Axis < -InputTensorDescs[0].GetShape().Rank())
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Hlsl Resize: 'Axes' attribute should contain value be in the range [-r,r] with r being the rank of the input (name: %s) however got %d while rank is %d."), *InputTensorDescs[0].GetName(), Axis, InputTensorDescs[0].GetShape().Rank());
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Resize: 'Axes' attribute should contain value be in the range [-r,r] with r being the rank of the input (name: %s) however got %d while rank is %d."), *InputTensorDescs[0].GetName(), Axis, InputTensorDescs[0].GetShape().Rank());
 					return false;
 				}
 
@@ -200,7 +201,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			// NOTE: `axes` attribute not yet supported
 			if(Axes.Num() != 0)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Hlsl Resize: `axes` attribute not yet supported."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Resize: `axes` attribute not yet supported."));
 				return false;
 			}
 
@@ -210,7 +211,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			// NOTE: `exclude_outside` attribute not yet supported
 			if(ExcludeOutside == 1)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Hlsl Resize: `exclude_outside` attribute not yet supported."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Resize: `exclude_outside` attribute not yet supported."));
 				return false;
 			}
 
@@ -220,7 +221,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			//NOTE: cubic interpolation not yet supported
 			if(Mode == UE::NNEHlslShaders::Internal::EMode::Cubic)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Hlsl Resize: cubic interpolation not yet supported."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Resize: Cubic interpolation not yet supported."));
 				return false;
 			}
 
@@ -344,13 +345,13 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 		if(InputTypes.Num() < 3 || InputTypes.Num() > 4)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Got a total of '%d' inputs but should be between 3 and 4."), InputTypes.Num());
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Resize: Got a total of '%d' inputs but should be between 3 and 4."), InputTypes.Num());
 			return false;
 		}
 
 		if(InputShapes[0].Rank() < 1)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Hlsl Resize: input tensor must have rank >= 1."));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Resize: Input tensor must have rank >= 1."));
 			return false;
 		}
 
@@ -358,14 +359,14 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 		{
 			if(InputShapes[1].Rank() != 1)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Roi tensor must be a 1-D tensor."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Resize: Roi tensor must be a 1-D tensor."));
 				return false;
 			}
 			FString TransMode = AttributeMap.GetValueOrDefault<FString>(TEXT("coordinate_transformation_mode"), TEXT("half_pixel"));
 			bool IsCropAndResizeMode = FResizeCS::CoordTransModeFromString(*TransMode) == ECoordTransMode::TfCropAndResize;
 			if(IsCropAndResizeMode && InputShapes[1].GetData()[0] != 2 * InputShapes[0].Rank())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Roi tensor must have dimension 2*N (where N is the input rank) when `coordinate_transformation_mode` is `tf_crop_and_resize`."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Resize: Roi tensor must have dimension 2*N (where N is the input rank) when `coordinate_transformation_mode` is `tf_crop_and_resize`."));
 				return false;
 			}
 		}
@@ -374,12 +375,12 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 		{
 			if(InputShapes[2].Rank() != 1)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Scales tensor must be a 1-D tensor."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Resize: Scales tensor must be a 1-D tensor."));
 				return false;
 			}
 			if(InputShapes[2].GetData()[0] != InputShapes[0].Rank())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Scales tensor must have dimension N (where N is the input rank)."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Resize: Scales tensor must have dimension N (where N is the input rank)."));
 				return false;
 			}
 		}
@@ -387,17 +388,17 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 		{
 			if(InputTypes[2] != ENNETensorDataType::None)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Scales tensor must be empty (i.e. empty name and data type 'None') when Sizes is specified."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Resize: Scales tensor must be empty (i.e. empty name and data type 'None') when Sizes is specified."));
 				return false;
 			}
 			if(InputShapes[3].Rank() != 1)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Sizes tensor must be a 1-D tensor."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Resize: Sizes tensor must be a 1-D tensor."));
 				return false;
 			}
 			if(InputShapes[3].GetData()[0] != InputShapes[0].Rank())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Sizes tensor must have dimension N (where N is the input rank)."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Resize: Sizes tensor must have dimension N (where N is the input rank)."));
 				return false;
 			}
 		}

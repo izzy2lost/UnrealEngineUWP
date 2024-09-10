@@ -127,12 +127,6 @@ AActor* UAvaMaterialDesignerTextureAssetFactory::SpawnActor(UObject* InAsset, UL
 	EditorOnlyData->SetChannelListPreset(TEXT("Emissive"));
 	EditorOnlyData->OnWizardComplete();
 
-	ON_SCOPE_EXIT
-	{
-		const IDynamicMaterialEditorModule& MaterialDesignerModule = IDynamicMaterialEditorModule::Get();
-		MaterialDesignerModule.OpenMaterialInstance(NewInstance, InLevel->GetWorld(), /* Invoke Tab */ true);
-	};
-
 	const UDMMaterialSlot* Slot = EditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor);
 
 	if (!Slot)

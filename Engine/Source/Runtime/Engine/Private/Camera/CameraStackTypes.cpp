@@ -495,10 +495,17 @@ float FMinimalViewInfo::CalculateFirstPersonFOVCorrectionFactor() const
 
 void FMinimalViewInfo::ApplyOverscan(float InOverscan, bool bScaleResolutionWithOverscan, bool bCropOverscan)
 {
-	if (InOverscan > 0.0)
+	if (!FMath::IsNearlyZero(InOverscan))
 	{
+		// Clamp the incoming overscan so that the new total overscan can never be less than zero
+		const float ClampedOverscan = FMath::Max(InOverscan, -Overscan / (1 + Overscan));
+		
+		// Keep track of the total amount of overscan that has been applied to the view. Mathematically,
+		// this formula is derived from 1 + TotalOverscan = (1 + Overscan) * (1 + InOverscan)
+		Overscan = Overscan * (1.0f + ClampedOverscan) + ClampedOverscan;
+		
 		// By convention, 0.0 means no overscan, so add 1 to compute the scalar needed for altering projection values
-		const float OverscanScalar = 1.0f + InOverscan;
+		const float OverscanScalar = 1.0f + ClampedOverscan;
 		
 		// Overscan directly scales the view frustum, but can be accomplished by scaling the FOV.
 		// However, must scale the tangent of the half-FOV to accomplish the same mathematical transform.
@@ -510,5 +517,19 @@ void FMinimalViewInfo::ApplyOverscan(float InOverscan, bool bScaleResolutionWith
 
 		OverscanResolutionFraction *= bScaleResolutionWithOverscan ? OverscanScalar : 1.0;
 		CropFraction *= bCropOverscan ? 1.0f / OverscanScalar : 1.0f;
+	}
+}
+
+void FMinimalViewInfo::ClearOverscan()
+{
+	if (Overscan > 0.0f)
+	{
+		// Apply the inverse overscan to the view frustum to obtain the original frustum values (field of view, ortho width, etc)
+		// Inverse overscan derived from (1 + Overscan) * (1 + InverseOverscan) = 1
+		const float InverseOverscan = - Overscan / (1.0f + Overscan);
+		ApplyOverscan(InverseOverscan);
+
+		OverscanResolutionFraction = 1.0f;
+		CropFraction = 1.0f;
 	}
 }

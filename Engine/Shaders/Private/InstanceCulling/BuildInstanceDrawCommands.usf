@@ -44,6 +44,7 @@
 
 
 #include "InstanceCullingLoadBalancer.ush"
+#include "InstanceCullingSetup.ush"
 
 uint InstanceSceneDataSOAStride;
 uint GPUSceneNumInstances;
@@ -243,24 +244,19 @@ void InstanceCullBuildInstanceIdBufferCS(uint3 GroupId : SV_GroupID, int GroupTh
 	BatchInfo.bAllowOcclusionCulling = true;
 #endif // ENABLE_BATCH_MODE
 
-	FInstanceWorkSetup WorkSetup = InstanceCullingLoadBalancer_Setup(GroupId, GroupThreadIndex, GetItemDataOffset(BatchInfo, CurrentBatchProcessingMode));
+	FInstanceCullingSetup InstanceCullingSetup = LoadInstanceCullingSetup(GroupId, GroupThreadIndex, BatchInfo.DynamicInstanceIdOffset, BatchInfo.DynamicInstanceIdMax, GetItemDataOffset(BatchInfo, CurrentBatchProcessingMode));
+
+	FInstanceWorkSetup WorkSetup = InstanceCullingSetup.InstanceWorkSetup;
 
 	if (!WorkSetup.bValid)
 	{
 		return;
 	}
 
+	uint InstanceId = InstanceCullingSetup.InstanceId;
+
 	// Extract the draw command payload
 	const FInstanceCullingPayload Payload = LoadInstanceCullingPayload(WorkSetup.Item.Payload, BatchInfo);
-
-	uint InstanceId = WorkSetup.Item.InstanceDataOffset + uint(WorkSetup.LocalItemIndex);
-
-	// Check dynamic flag to offset the instance ID
-	if (Payload.bDynamicInstanceDataOffset)
-	{
-		InstanceId += BatchInfo.DynamicInstanceIdOffset;
-		checkSlow(InstanceId < BatchInfo.DynamicInstanceIdMax);
-	}
 
 	// Load auxiliary per-instanced-draw command info
 	const FDrawCommandDesc DrawCommandDesc = UnpackDrawCommandDesc(DrawCommandDescs[Payload.IndirectArgIndex]);

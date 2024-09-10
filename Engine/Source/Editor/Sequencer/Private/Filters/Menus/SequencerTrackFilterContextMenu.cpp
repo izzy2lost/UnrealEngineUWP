@@ -23,7 +23,13 @@ TSharedRef<SWidget> FSequencerTrackFilterContextMenu::CreateMenuWidget(const TSh
 	if (!ToolMenus->IsMenuRegistered(FilterMenuName))
 	{
 		UToolMenu* const Menu = ToolMenus->RegisterMenu(FilterMenuName);
-		Menu->AddDynamicSection(TEXT("PopulateMenu"), FNewToolMenuDelegate::CreateRaw(this, &FSequencerTrackFilterContextMenu::PopulateMenu));
+		Menu->AddDynamicSection(TEXT("PopulateMenu"), FNewToolMenuDelegate::CreateLambda([this](UToolMenu* const InMenu)
+			{
+				if (USequencerFilterMenuContext* const Context = InMenu->FindContext<USequencerFilterMenuContext>())
+				{
+					Context->OnPopulateFilterBarMenu.ExecuteIfBound(InMenu);
+				}
+			}));
 	}
 
 	const TSharedPtr<FSequencerTrackFilter> Filter = InFilterWidget->GetFilter();
@@ -31,9 +37,9 @@ TSharedRef<SWidget> FSequencerTrackFilterContextMenu::CreateMenuWidget(const TSh
 
 	USequencerFilterMenuContext* const ContextObject = NewObject<USequencerFilterMenuContext>();
 	ContextObject->Init(InFilterWidget);
+	ContextObject->OnPopulateFilterBarMenu = FOnPopulateFilterBarMenu::CreateRaw(this, &FSequencerTrackFilterContextMenu::PopulateMenu);
 
 	const FToolMenuContext MenuContext(CommandList, nullptr, ContextObject);
-
 	return UToolMenus::Get()->GenerateWidget(FilterMenuName, MenuContext);
 }
 

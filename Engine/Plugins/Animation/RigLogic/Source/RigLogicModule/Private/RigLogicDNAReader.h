@@ -155,6 +155,11 @@ public:
 	dna::ConstArrayView<std::uint16_t> getRBFPoseAnimatedMapOutputIndices(std::uint16_t poseIndex) const override;
 	dna::ConstArrayView<float> getRBFPoseJointOutputValues(std::uint16_t poseIndex) const override;
 	float getRBFPoseScale(std::uint16_t poseIndex) const override;
+	std::uint16_t getRBFPoseControlCount() const override;
+	dna::StringView getRBFPoseControlName(std::uint16_t poseControlIndex) const override;
+	dna::ConstArrayView<std::uint16_t> getRBFPoseInputControlIndices(std::uint16_t poseIndex) const override;
+	dna::ConstArrayView<std::uint16_t> getRBFPoseOutputControlIndices(std::uint16_t poseIndex) const override;
+	dna::ConstArrayView<float> getRBFPoseOutputControlWeights(std::uint16_t poseIndex) const override;
 	std::uint16_t getRBFSolverCount() const override;
 	std::uint16_t getRBFSolverIndexListCount() const override;
 	dna::ConstArrayView<std::uint16_t> getRBFSolverIndicesForLOD(std::uint16_t lod) const override;

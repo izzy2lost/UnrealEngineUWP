@@ -65,6 +65,7 @@ public:
 public:
 	static const FName PoseTabName;
 	static const FName MotionTrailTabName;
+	static const FName AnimLayerTabName;
 	static const FName TweenOverlayName;
 	static const FName SnapperTabName;
 	static const FName DetailsTabName;
@@ -93,6 +94,7 @@ protected:
 	void UnregisterAndRemoveFloatingTabs();
 
 	static bool bMotionTrailsTabOpen;
+	static bool bAnimLayerTabOpen;
 	static bool bPoseTabOpen;
 	static bool bSnapperTabOpen;
 	static bool bTweenOpen;

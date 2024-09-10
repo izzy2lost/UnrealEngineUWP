@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGSplit.h"
+
+#include "NNEHlslShadersLog.h"
 #include "NNEHlslShadersSplitCS.h"
 #include "NNERuntimeRDGHlslHelper.h"
 #include "NNETensor.h"
@@ -49,7 +51,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				const NNE::Internal::FTensor& SplitTensor = *InputTensors[1];
 				if(!SplitTensor.HasPreparedData())
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Split: RDG Hlsl requires the split tensor to be CPU-constant in order to compute output shapes."));
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Split: split tensor need to be CPU-constant in order to compute output shapes."));
 					return -1;
 				}
 				
@@ -65,19 +67,19 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if(!CheckSplitsSum(InputShape))
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Split: Sum of split values not equal to split axis' dimension."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Split: Sum of split values not equal to split axis' dimension."));
 				return -1;
 			}
 
 			if(Splits.Num() > FSplitConstants::MAX_NUM_SPLITS)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Split: Number of splits (%d) exceeds maximum allowed (%d)."), Splits.Num(), FSplitConstants::MAX_NUM_SPLITS);
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Split: Number of splits (%d) exceeds maximum allowed (%d)."), Splits.Num(), FSplitConstants::MAX_NUM_SPLITS);
 				return -1;
 			}
 			
 			if(OutputTensors.Num() != Splits.Num())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Split: Number of output tensors differs from number of splits provided."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Split: Number of output tensors differs from number of splits provided."));
 				return -1;
 			}
 
@@ -100,7 +102,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			Axis = Attributes.GetValueOrDefault<int32>(TEXT("axis"), Axis);
 			if (Axis > InputRank || Axis  < -InputRank)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Split's attribute 'Axis' should be in the range [-r,r] with r being the rank of the input (name: %s) however got %d while rank is %d."), *InputTensorDescs[0].GetName(), Axis, InputRank);
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Split: Attribute 'Axis' should be in the range [-r,r] with r being the rank of the input (name: %s) however got %d while rank is %d."), *InputTensorDescs[0].GetName(), Axis, InputRank);
 				return false;
 			}
 			// Canonicalize Axis
@@ -119,7 +121,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				const int32 NumOutputs = Attributes.GetValue<int32>(TEXT("num_outputs"));
 				if(OutputTensorDescs.Num() != NumOutputs)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Split's attribute 'num_outputs' doesn't match number of output tensors. Value: %d. Number of output tensors: %d."), NumOutputs, OutputTensorDescs.Num());
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Split: Attribute 'num_outputs' doesn't match number of output tensors. Value: %d. Number of output tensors: %d."), NumOutputs, OutputTensorDescs.Num());
 					return false;
 				}
 			}

@@ -8,19 +8,14 @@
 #include "ChaosVDSettingsManager.h"
 #include "ChaosVDStyle.h"
 #include "ChaosVDTabsIDs.h"
-#include "DetailsCustomizations/ChaosVDGeometryComponentCustomization.h"
-#include "DetailsCustomizations/ChaosVDParticleDataWrapperCustomization.h"
-#include "DetailsCustomizations/ChaosVDQueryDataWrappersCustomizationDetails.h"
 #include "Misc/App.h"
-#include "Misc/CommandLine.h"
 #include "Misc/Guid.h"
-#include "PropertyEditorModule.h"
 #include "Trace/ChaosVDTraceManager.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/SChaosVDMainTab.h"
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
-#include "DetailsCustomizations/ChaosVDSelectionMultipleViewCustomization.h"
+#include "DetailsCustomizations/ChaosVDShapeDataCustomization.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
@@ -47,8 +42,6 @@ void FChaosVDModule::StartupModule()
 	FChaosVDStyle::Initialize();
 	
 	FChaosVDCommands::Register();
-
-	RegisterClassesCustomDetails();
 
 	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(FChaosVDTabID::ChaosVisualDebuggerTab, FOnSpawnTab::CreateRaw(this, &FChaosVDModule::SpawnMainTab))
 								.SetDisplayName(LOCTEXT("VisualDebuggerTabTitle", "Chaos Visual Debugger"))
@@ -91,22 +84,6 @@ void FChaosVDModule::ShutdownModule()
 	CloseActiveInstances();
 	
 	FChaosVDSettingsManager::TearDown();
-}
-
-void FChaosVDModule::RegisterClassesCustomDetails() const
-{
-	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
-	PropertyModule.RegisterCustomClassLayout("ChaosVDParticleActor", FOnGetDetailCustomizationInstance::CreateStatic(&FChaosVDParticleActorCustomization::MakeInstance));
-	PropertyModule.RegisterCustomClassLayout("ChaosVDInstancedStaticMeshComponent", FOnGetDetailCustomizationInstance::CreateStatic(&FChaosVDGeometryComponentCustomization::MakeInstance));
-	PropertyModule.RegisterCustomClassLayout("ChaosVDStaticMeshComponent", FOnGetDetailCustomizationInstance::CreateStatic(&FChaosVDGeometryComponentCustomization::MakeInstance));
-	PropertyModule.RegisterCustomClassLayout("ChaosVDQueryVisitStep", FOnGetDetailCustomizationInstance::CreateStatic(&FChaosVDQueryVisitDataCustomization::MakeInstance));
-	PropertyModule.RegisterCustomClassLayout("ChaosVDQueryDataWrapper", FOnGetDetailCustomizationInstance::CreateStatic(&FChaosVDQueryDataWrapperCustomization::MakeInstance));
-	PropertyModule.RegisterCustomClassLayout("ChaosVDSelectionMultipleView", FOnGetDetailCustomizationInstance::CreateStatic(&FChaosVDSelectionMultipleViewCustomization::MakeInstance));
-
-	//TODO: Rename FChaosVDParticleDataWrapperCustomization to something generic as currently works with any type that wants to hide properties of type FChaosVDWrapperDataBase with invalid data.
-	// Or another option is create a new custom layout intended to be generic from the get go
-	PropertyModule.RegisterCustomPropertyTypeLayout("ChaosVDQueryDataWrapper", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FChaosVDParticleDataWrapperCustomization::MakeInstance));
-	PropertyModule.RegisterCustomPropertyTypeLayout("ChaosVDQueryVisitStep", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FChaosVDParticleDataWrapperCustomization::MakeInstance));
 }
 
 void FChaosVDModule::SpawnCVDTab()

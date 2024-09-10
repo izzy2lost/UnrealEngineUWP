@@ -13,6 +13,7 @@
 #include "LightMap.h"
 #include "LightSceneProxy.h"
 #include "ShadowMap.h"
+#include "RayTracingInstance.h"
 #include "Materials/MaterialRenderProxy.h"
 #include "TextureResource.h"
 #include "VT/LightmapVirtualTexture.h"
@@ -342,6 +343,36 @@ FMeshBatchAndRelevance::FMeshBatchAndRelevance(const FMeshBatch& InMesh, const F
 
 #if RHI_RAYTRACING
 
+FRayTracingInstanceCollector::FRayTracingInstanceCollector(
+	ERHIFeatureLevel::Type InFeatureLevel,
+	FSceneRenderingBulkObjectAllocator& InBulkAllocator,
+	const FSceneView* InReferenceView,
+	bool bInTrackReferencedGeometryGroups)
+	: FMeshElementCollector(InFeatureLevel, InBulkAllocator, FMeshElementCollector::ECommitFlags::DeferAll)
+	, ReferenceView(InReferenceView)
+	, bTrackReferencedGeometryGroups(bInTrackReferencedGeometryGroups)
+{
+}
+
+void FRayTracingInstanceCollector::AddRayTracingInstance(FRayTracingInstance Instance)
+{
+	RayTracingInstances.Add(MoveTemp(Instance));
+}
+
+void FRayTracingInstanceCollector::AddReferencedGeometryGroup(RayTracing::GeometryGroupHandle GeometryGroup)
+{
+	if (bTrackReferencedGeometryGroups)
+	{
+		ReferencedGeometryGroups.Add(GeometryGroup);
+	}
+}
+
+void FRayTracingInstanceCollector::AddRayTracingGeometryUpdate(FRayTracingDynamicGeometryUpdateParams Params)
+{
+	RayTracingGeometriesToUpdate.Add(MoveTemp(Params));
+}
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FRayTracingMaterialGatheringContext::FRayTracingMaterialGatheringContext(
 	const FScene* InScene,
 	const FSceneView* InReferenceView,
@@ -403,7 +434,7 @@ const TSet<RayTracing::GeometryGroupHandle>& FRayTracingMaterialGatheringContext
 {
 	return ReferencedGeometryGroups;
 }
-
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif
 
 FMeshElementCollector::FMeshElementCollector(ERHIFeatureLevel::Type InFeatureLevel, FSceneRenderingBulkObjectAllocator& InBulkAllocator, ECommitFlags InCommitFlags) :

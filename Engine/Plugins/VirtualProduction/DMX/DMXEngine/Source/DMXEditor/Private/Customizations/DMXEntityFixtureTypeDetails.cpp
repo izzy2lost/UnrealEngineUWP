@@ -57,8 +57,14 @@ void FDMXEntityFixtureTypeDetails::OnGDTFSourceChanged()
 				if (UDMXEntityFixtureType* FixtureType = Cast<UDMXEntityFixtureType>(WeakFixtureTypeObject.Get()))
 				{
 					FixtureType->PreEditChange(nullptr);
+
+					// Generate GDTF
 					constexpr bool bUpdateFixtureTypeName = true;
 					FDMXGDTFToFixtureTypeConverter::ConvertGDTF(*FixtureType, *GDTF, bUpdateFixtureTypeName);
+
+					// Set Actor Class to Spawn
+					FixtureType->ActorClassToSpawn = GDTF->GetActorClass();
+
 					FixtureType->PostEditChange();
 				}
 			}
@@ -70,7 +76,13 @@ void FDMXEntityFixtureTypeDetails::OnGDTFSourceChanged()
 				if (UDMXEntityFixtureType* FixtureType = Cast<UDMXEntityFixtureType>(WeakFixtureTypeObject.Get()))
 				{
 					FixtureType->PreEditChange(nullptr);
+
+					// Reset GDTF
 					FixtureType->Modes.Reset();
+
+					// Reset Actor Class to Spawn
+					FixtureType->ActorClassToSpawn.Reset();
+
 					FixtureType->PostEditChange();
 				}
 			}

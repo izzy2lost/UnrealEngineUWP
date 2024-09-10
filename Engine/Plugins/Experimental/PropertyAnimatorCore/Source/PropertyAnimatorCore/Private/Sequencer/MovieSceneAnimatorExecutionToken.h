@@ -54,21 +54,75 @@ struct FMovieSceneAnimatorExecutionToken : IMovieSceneExecutionToken
 	{
 		if (InOperand.ObjectBindingID.IsValid() && SectionData.Section)
 		{
-			double EvaluatedTime = InContext.GetTime().AsDecimal();
+			double EvaluatedTime = 0;
 
-			if (SectionData.EvalTimeMode == EMovieSceneAnimatorEvalTimeMode::Section)
+			if (InContext.IsPreRoll())
 			{
-				EvaluatedTime -= SectionData.Section->GetInclusiveStartFrame().Value;
+				switch (SectionData.EvalTimeMode)
+				{
+					case EMovieSceneAnimatorEvalTimeMode::Sequence:
+					{
+						EvaluatedTime = (SectionData.Section->GetInclusiveStartFrame().Value * 1.0) / InContext.GetFrameRate().AsDecimal();
+					}
+					break;
+
+					case EMovieSceneAnimatorEvalTimeMode::Section:
+					{
+						EvaluatedTime = 0;
+					}
+					break;
+
+					case EMovieSceneAnimatorEvalTimeMode::Custom:
+					{
+						EvaluatedTime = SectionData.CustomStartTime;
+					}
+					break;
+				}
 			}
-
-			EvaluatedTime /= InContext.GetFrameRate().AsDecimal();
-
-			if (SectionData.EvalTimeMode == EMovieSceneAnimatorEvalTimeMode::Custom)
+			else if (InContext.IsPostRoll())
 			{
-				const double SectionStartTime = (SectionData.Section->GetInclusiveStartFrame().Value * 1.f) / InContext.GetFrameRate().AsDecimal();
-				const double SectionEndTime = (SectionData.Section->GetExclusiveEndFrame().Value * 1.f) / InContext.GetFrameRate().AsDecimal();
+				switch (SectionData.EvalTimeMode)
+				{
+					case EMovieSceneAnimatorEvalTimeMode::Sequence:
+					{
+						EvaluatedTime = (SectionData.Section->GetExclusiveEndFrame().Value * 1.0) / InContext.GetFrameRate().AsDecimal();
+					}
+					break;
 
-				EvaluatedTime = FMath::GetMappedRangeValueClamped(FVector2D(SectionStartTime, SectionEndTime), FVector2D(SectionData.CustomStartTime, SectionData.CustomEndTime), EvaluatedTime);
+					case EMovieSceneAnimatorEvalTimeMode::Section:
+					{
+						const double SectionStartTime = (SectionData.Section->GetInclusiveStartFrame().Value * 1.0) / InContext.GetFrameRate().AsDecimal();
+						const double SectionEndTime = (SectionData.Section->GetExclusiveEndFrame().Value * 1.0) / InContext.GetFrameRate().AsDecimal();
+
+						EvaluatedTime = SectionEndTime - SectionStartTime;
+					}
+					break;
+
+					case EMovieSceneAnimatorEvalTimeMode::Custom:
+					{
+						EvaluatedTime = SectionData.CustomEndTime;
+					}
+					break;
+				}
+			}
+			else
+			{
+				EvaluatedTime = InContext.GetTime().AsDecimal();
+
+				if (SectionData.EvalTimeMode == EMovieSceneAnimatorEvalTimeMode::Section)
+				{
+					EvaluatedTime -= SectionData.Section->GetInclusiveStartFrame().Value;
+				}
+
+				EvaluatedTime /= InContext.GetFrameRate().AsDecimal();
+
+				if (SectionData.EvalTimeMode == EMovieSceneAnimatorEvalTimeMode::Custom)
+				{
+					const double SectionStartTime = (SectionData.Section->GetInclusiveStartFrame().Value * 1.0) / InContext.GetFrameRate().AsDecimal();
+					const double SectionEndTime = (SectionData.Section->GetExclusiveEndFrame().Value * 1.0) / InContext.GetFrameRate().AsDecimal();
+
+					EvaluatedTime = FMath::GetMappedRangeValueClamped(FVector2D(SectionStartTime, SectionEndTime), FVector2D(SectionData.CustomStartTime, SectionData.CustomEndTime), EvaluatedTime);
+				}
 			}
 
 			const float Magnitude = SectionData.Section->EvaluateEasing(InContext.GetTime());

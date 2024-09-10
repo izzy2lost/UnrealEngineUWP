@@ -5,6 +5,7 @@
 #include "UnrealUSDWrapper.h"
 #include "USDErrorUtils.h"
 #include "USDLog.h"
+#include "USDMemory.h"
 #include "USDTypesConversion.h"
 
 #include "UsdWrappers/SdfChangeBlock.h"

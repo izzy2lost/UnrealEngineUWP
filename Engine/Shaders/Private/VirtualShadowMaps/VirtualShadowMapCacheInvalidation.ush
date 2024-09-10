@@ -86,7 +86,7 @@ void InvalidateInstancePages(int VirtualShadowMapId, uint InstanceId, bool bForc
 		// case #1 mip-map VSM - loop all mip levels, case #2 clipmap, just one 'mip level'
 		int NumMipLevels = (ProjectionData.ClipmapLevelCountRemaining <= 0) ? VSM_MAX_MIP_LEVELS : 1;
 		{
-			for (int MipLevel = 0; MipLevel < NumMipLevels; ++MipLevel)
+			for (int MipLevel = ProjectionData.MinMipLevel; MipLevel < NumMipLevels; ++MipLevel)
 			{
 				int ViewDim = int(uint(VSM_VIRTUAL_MAX_RESOLUTION_XY) >> MipLevel);
 				FScreenRect Rect = GetScreenRect(int4(0, 0, ViewDim, ViewDim), Cull, 4);

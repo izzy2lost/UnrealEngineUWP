@@ -3,6 +3,7 @@
 #include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "Misc/CoreDelegates.h"
+#include "Misc/ConfigCacheIni.h"
 
 ///////////////////////////////////////////////////////////////////////////
 // IPlatformInputDeviceMapper
@@ -11,6 +12,38 @@ DEFINE_LOG_CATEGORY(LogInputDeviceMapper);
 
 IPlatformInputDeviceMapper::FOnUserInputDeviceConnectionChange IPlatformInputDeviceMapper::OnInputDeviceConnectionChange;
 IPlatformInputDeviceMapper::FOnUserInputDevicePairingChange IPlatformInputDeviceMapper::OnInputDevicePairingChange;
+
+namespace UE::Input
+{
+	// The cached value of MaxPlatformUserCount from the input config.
+	static int32 CachedMaxUserCount = -1;
+
+	static int32 GetCachedMaxUserCount()
+	{
+		// If we are uninitialized, read from the platform config
+		if (CachedMaxUserCount == -1)
+		{
+			int32 ConfigInt = -1;
+			const FString InputSettingsSection = FString::Printf(TEXT("InputPlatformSettings_%s InputPlatformSettings"), ANSI_TO_TCHAR(FPlatformProperties::IniPlatformName()));
+			static const TCHAR* DeviceMappingPolicyName = TEXT("MaxPlatformUserCount");
+
+			if (GConfig->GetInt(*InputSettingsSection, DeviceMappingPolicyName, OUT ConfigInt, GInputIni))
+			{
+				CachedMaxUserCount = ConfigInt;
+			}
+			else
+			{
+				// Require a MaxPlatformUserCount setting to exist in some Input.ini.
+				// Default to 8 as a reasonably safe fallback.
+				ensureAlwaysMsgf(false, TEXT("Unable to find MaxPlatformUserCount from config, a max of 8 will be used."));
+				CachedMaxUserCount = 8;
+			}
+		}
+		
+		return CachedMaxUserCount;
+	}
+};
+
 
 IPlatformInputDeviceMapper& IPlatformInputDeviceMapper::Get()
 {
@@ -80,6 +113,30 @@ int32 IPlatformInputDeviceMapper::GetAllActiveUsers(TArray<FPlatformUserId>& Out
 	}
 	
 	return OutUsers.Num();
+}
+
+FPlatformUserId IPlatformInputDeviceMapper::GetFirstPlatformUserWithNoInputDevice() const
+{
+	const FPlatformUserId UnpairedUser = GetUserForUnpairedInputDevices();
+	
+	for (const FPlatformUserId ExistingUser : AllocatedPlatformUserIds)
+	{
+		// Skip the unpaired user, they can't have devices mapped to them.
+		if (ExistingUser == UnpairedUser)
+		{
+			continue;
+		}
+		
+		// If this use has no input device's mapped them, return that
+		const FInputDeviceId ExistingDevice = GetPrimaryInputDeviceForUser(ExistingUser);
+		if (!ExistingDevice.IsValid())
+		{
+			return ExistingUser;
+		}
+	}
+
+	// Nothing found
+	return PLATFORMUSERID_NONE;
 }
 
 bool IPlatformInputDeviceMapper::IsUnpairedUserId(const FPlatformUserId PlatformId) const
@@ -217,6 +274,12 @@ bool IPlatformInputDeviceMapper::Internal_ChangeInputDeviceUserMapping(FInputDev
 		return false;
 	}
 
+	if (NewUserId == OldUserId)
+	{
+		UE_LOG(LogInputDeviceMapper, Log, TEXT("[%hs] DeviceId of '%d' is already mapped to platform user '%d'."), __func__, DeviceId.GetId(), OldUserId.GetInternalId());
+		return false;
+	}
+
 	// Update the existing device state to be the new owning platform user
 	if (FPlatformInputDeviceState* ExistingDeviceState = MappedInputDevices.Find(DeviceId))
 	{
@@ -245,6 +308,12 @@ bool IPlatformInputDeviceMapper::Internal_ChangeInputDeviceUserMapping(FInputDev
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 	return true;
+}
+
+int32 IPlatformInputDeviceMapper::GetMaxPlatformUserCount() const
+{
+	// By default, return the cached value from the input config.
+	return UE::Input::GetCachedMaxUserCount();
 }
 
 void IPlatformInputDeviceMapper::BindCoreDelegates()
@@ -280,6 +349,9 @@ FGenericPlatformInputDeviceMapper::FGenericPlatformInputDeviceMapper(const bool 
 	// By default map the Default Input device to the Primary platform user in a connected state. This ensures that the SlateApplication has a 
 	// "Default" user to deal with representing the keyboard and mouse
 	Internal_MapInputDeviceToUser(GetDefaultInputDevice(), GetPrimaryPlatformUser(), EInputDeviceConnectionState::Connected);
+	
+	// Keep track of any allocated platform users so that we can utilize them when remapping input devices
+	AllocatedPlatformUserIds.AddUnique(GetPrimaryPlatformUser());
 }
 
 FPlatformUserId FGenericPlatformInputDeviceMapper::GetUserForUnpairedInputDevices() const
@@ -345,6 +417,8 @@ bool FGenericPlatformInputDeviceMapper::RemapControllerIdToPlatformUserAndDevice
 			{
 				// Otherwise just have a 1:1 mapping of input device to user id's
 				InOutUserId = FPlatformUserId::CreateFromInternalId(ControllerId);
+				
+				AllocatedPlatformUserIds.AddUnique(InOutUserId);
 			}
 			return true;
 		}
@@ -435,6 +509,14 @@ FPlatformUserId FGenericPlatformInputDeviceMapper::AllocateNewUserId()
 {
 	// Create a new platform user ID that is 1 higher than the last one
 	LastPlatformUserId = FPlatformUserId::CreateFromInternalId(LastPlatformUserId.GetInternalId() + 1);
+
+	AllocatedPlatformUserIds.AddUnique(LastPlatformUserId);
+
+	// We want to warn about this state happening, but not crash the application or anything. 
+	// Each platform has a specific number of platform users which can be signed on at any given time
+	// so going over that amount would cause undefined behavior such as your input no being routed correctly
+	// to the active local player.
+	ensureAlwaysMsgf(AllocatedPlatformUserIds.Num() <= GetMaxPlatformUserCount(), TEXT("Requested more then the max number of supported platform users! Undefined behavior may occur."));
 	
 	return LastPlatformUserId;
 }

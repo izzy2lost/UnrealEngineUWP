@@ -2086,12 +2086,27 @@ void SRigVMGraphNode::UpdatePinTreeView()
 	];
 
 	// add the tags this node potentially has
-	if(ModelNode.IsValid())
+	ERigVMTagDisplayMode TagDisplayMode = ERigVMTagDisplayMode::All;
+	if(Blueprint.IsValid())
+	{
+		TagDisplayMode = Blueprint->RigGraphDisplaySettings.TagDisplayMode;
+	}
+	if(ModelNode.IsValid() && TagDisplayMode != ERigVMTagDisplayMode::None)
 	{
 		if(URigVMFunctionReferenceNode* FunctionRefNode = Cast<URigVMFunctionReferenceNode>(ModelNode.Get()))
 		{
 			const FRigVMVariant Variant = FunctionRefNode->GetReferencedFunctionHeader().Variant;
-			if(!Variant.Tags.IsEmpty())
+
+			const bool bContainsAnyTags = Variant.Tags.ContainsByPredicate([TagDisplayMode](const FRigVMTag& InTag) -> bool
+			{
+				if(TagDisplayMode == ERigVMTagDisplayMode::DeprecationOnly)
+				{
+					return InTag.bMarksSubjectAsInvalid;
+				}
+				return true;
+			});
+			
+			if(bContainsAnyTags)
 			{
 				TWeakObjectPtr<URigVMFunctionReferenceNode> WeakFunctionRefNode = FunctionRefNode;
 				
@@ -2117,11 +2132,18 @@ void SRigVMGraphNode::UpdatePinTreeView()
 					.Orientation(EOrientation::Orient_Horizontal)
 					.CanAddTags(false)
 					.EnableContextMenu(false)
-					.OnGetTags_Lambda([WeakFunctionRefNode]() -> TArray<FRigVMTag>
+					.OnGetTags_Lambda([WeakFunctionRefNode, TagDisplayMode]() -> TArray<FRigVMTag>
 					{
 						if(WeakFunctionRefNode.IsValid())
 						{
 							const FRigVMVariant Variant = WeakFunctionRefNode->GetReferencedFunctionHeader().Variant;
+							if(TagDisplayMode == ERigVMTagDisplayMode::DeprecationOnly)
+							{
+								return Variant.Tags.FilterByPredicate([TagDisplayMode](const FRigVMTag& InTag) -> bool
+								{
+									return InTag.bMarksSubjectAsInvalid;
+								});
+							}
 							return Variant.Tags;
 						}
 						return {};

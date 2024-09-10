@@ -71,6 +71,8 @@ void FBlendStackAnimPlayer::Initialize(const FAnimationInitializeContext& Contex
 	}
 	else if (UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(AnimationAsset))
 	{
+		BlendSpacePlayerNode.SetBlendSpace(nullptr);
+
 		SequencePlayerNode.SetAccumulatedTime(AccumulatedTime);
 		SequencePlayerNode.SetSequence(SequenceBase);
 		SequencePlayerNode.SetLoopAnimation(bLoop);
@@ -82,6 +84,8 @@ void FBlendStackAnimPlayer::Initialize(const FAnimationInitializeContext& Contex
 	}
 	else if (UBlendSpace* BlendSpace = Cast<UBlendSpace>(AnimationAsset))
 	{
+		SequencePlayerNode.SetSequence(nullptr);
+
 		// making sure AccumulatedTime is in normalized space
 		AccumulatedTime = FMath::Clamp(AccumulatedTime, 0.f, 1.f);
 
@@ -103,6 +107,9 @@ void FBlendStackAnimPlayer::Initialize(const FAnimationInitializeContext& Contex
 
 	if (bUnsupportedAnimAsset)
 	{
+		BlendSpacePlayerNode.SetBlendSpace(nullptr);
+		SequencePlayerNode.SetSequence(nullptr);
+
 		UE_LOG(LogBlendStack, Error, TEXT("FBlendStackAnimPlayer unsupported AnimationAsset %s"), *GetNameSafe(AnimationAsset));
 	}
 

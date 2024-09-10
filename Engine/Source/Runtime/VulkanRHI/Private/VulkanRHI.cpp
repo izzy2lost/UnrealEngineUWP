@@ -929,6 +929,9 @@ void FVulkanDynamicRHI::InitInstance()
 			GRHISupportsRayTracingShaders = RHISupportsRayTracingShaders(GMaxRHIShaderPlatform) && Device->GetOptionalExtensions().HasRayTracingPipeline;
 			GRHISupportsInlineRayTracing = RHISupportsInlineRayTracing(GMaxRHIShaderPlatform) && Device->GetOptionalExtensions().HasRayQuery;
 
+			// Inline RayTracing SBT is needed if raytracing position fetch isn't available
+			GRHIGlobals.RayTracing.RequiresInlineRayTracingSBT = !VULKAN_SUPPORTS_RAY_TRACING_POSITION_FETCH;
+
 			GRHIRayTracingAccelerationStructureAlignment = 256; // TODO (currently handled by FVulkanAccelerationStructureBuffer)
 			//Some devices have 64 for min AS offset alignment meanwhile engine AS alignment is 256. hence using round up value
 			GRHIRayTracingScratchBufferAlignment = FPlatformMath::Max<uint32>(GRHIRayTracingAccelerationStructureAlignment, 
@@ -1124,6 +1127,8 @@ void FVulkanDynamicRHI::RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICm
 		Context.Device->ReleaseUnusedOcclusionQueryPools();
 
 		Context.Device->GetPipelineStateCache()->TickLRU();
+
+		Context.Device->GetBindlessDescriptorManager()->UpdateUBAllocator();
 
 		++Context.FrameCounter;
 	});
@@ -1615,6 +1620,24 @@ FTextureRHIRef FVulkanDynamicRHI::RHICreateTexture2DFromResource(EPixelFormat Fo
 
 	return new FVulkanTexture(*Device, Desc, Resource, ExternalImageDeleteCallbackInfo);
 }
+
+#if PLATFORM_ANDROID
+FTextureRHIRef FVulkanDynamicRHI::RHICreateTexture2DFromAndroidHardwareBuffer(AHardwareBuffer* HardwareBuffer)
+{
+	check(HardwareBuffer);
+
+	AHardwareBuffer_Desc HardwareBufferDesc;
+	AHardwareBuffer_describe(HardwareBuffer, &HardwareBufferDesc);
+	check((HardwareBufferDesc.usage & AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE) != 0);
+
+	const FRHITextureCreateDesc Desc =
+		FRHITextureCreateDesc::Create2D(TEXT("VulkanTexture2DFromAndroidHardwareBuffer"), HardwareBufferDesc.width, HardwareBufferDesc.height, PF_Unknown)
+		.SetFlags(ETextureCreateFlags::External)
+		.DetermineInititialState();
+
+	return new FVulkanTexture(*Device, Desc, HardwareBufferDesc, HardwareBuffer);
+}
+#endif
 
 FTextureRHIRef FVulkanDynamicRHI::RHICreateTexture2DArrayFromResource(EPixelFormat Format, uint32 SizeX, uint32 SizeY, uint32 ArraySize, uint32 NumMips, uint32 NumSamples, VkImage Resource, ETextureCreateFlags Flags, const FClearValueBinding& ClearValueBinding)
 {

@@ -80,8 +80,7 @@ void UMovieGraphWidgetRendererBaseNode::FMovieGraphWidgetPass::Setup(TWeakObject
 
 	// NOTE: Subclasses should specify the SubResourceName
 
-	UE::MovieGraph::DefaultRenderer::FCameraInfo CameraInfo = Renderer->GetCameraInfo(LayerData.CameraIdentifier);
-	RenderDataIdentifier.CameraName = CameraInfo.CameraName;
+	RenderDataIdentifier.CameraName = InLayer.CameraName;
 }
 
 void UMovieGraphWidgetRendererBaseNode::FMovieGraphWidgetPass::Teardown()
@@ -107,7 +106,8 @@ void UMovieGraphWidgetRendererBaseNode::FMovieGraphWidgetPass::Render(const FMov
 	const UMovieGraphPipeline* Pipeline = Renderer->GetOwningGraph();
 	UMovieGraphWidgetRendererBaseNode* ParentNodeThisFrame = GetParentNode(InTimeData.EvaluatedConfig);
 
-	const FIntPoint OutputResolution = UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(InTimeData.EvaluatedConfig);
+	const float CameraOverscan = Renderer->GetCameraInfo(InTimeData.EvaluatedConfig, LayerData.CameraIndex).ViewInfo.GetOverscan();
+	const FIntPoint OutputResolution = UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(InTimeData.EvaluatedConfig, CameraOverscan);
 	const int32 MaxResolution = GetMax2DTextureDimension();
 	if ((OutputResolution.X > MaxResolution) || (OutputResolution.Y > MaxResolution))
 	{

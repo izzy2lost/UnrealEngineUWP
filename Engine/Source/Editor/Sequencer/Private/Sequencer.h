@@ -40,6 +40,7 @@
 #include "Curves/RichCurve.h"
 #include "Sections/MovieScene3DTransformSection.h"
 #include "SequencerTimeChangeUndoRedoProxy.h"
+#include "Capabilities/CameraCutViewTargetCacheCapability.h"
 #include "Filters/ISequencerTrackFilters.h"
 
 class AActor;
@@ -116,6 +117,7 @@ class FSequencer final
 	, public FEditorUndoClient
 	, public FTickableEditorObject
 	, public UE::MovieScene::FCameraCutPlaybackCapability
+	, private UE::MovieScene::FCameraCutViewTargetCacheCapability
 {
 	using FViewModel = UE::Sequencer::FViewModel;
 
@@ -741,6 +743,7 @@ public:
 	virtual void EnterSilentMode() override;
 	virtual void ExitSilentMode() override;
 	virtual bool IsInSilentMode() const override { return SilentModeCount != 0; }
+	virtual void Save() override { SaveCurrentMovieScene(); }
 	virtual FGuid GetHandleToObject(UObject* Object, bool bCreateHandleIfMissing = true, const FName& CreatedFolderName = NAME_None) override;
 	virtual ISequencerObjectChangeListener& GetObjectChangeListener() override;
 	virtual ISequencerPropertyKeyedStatusHandler& GetPropertyKeyedStatusHandler() override;

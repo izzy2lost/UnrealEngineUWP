@@ -2700,7 +2700,7 @@ EStateTreeRunStatus FStateTreeExecutionContext::TickTasks(const float DeltaTime)
 		// No tasks, done ticking.
 		Result = EStateTreeRunStatus::Succeeded;
 		Exec.CompletedFrameIndex = FStateTreeIndex16(0);
-		Exec.CompletedStateHandle = Exec.ActiveFrames[0].ActiveStates.GetStateSafe(0);
+		Exec.CompletedStateHandle = Exec.ActiveFrames.Num() > 0 ? Exec.ActiveFrames[0].ActiveStates.Last() : FStateTreeStateHandle::Invalid;
 	}
 
 	return Result;
@@ -2832,7 +2832,7 @@ float FStateTreeExecutionContext::EvaluateUtility(const FStateTreeExecutionFrame
 			}
 		}
 
-		Value = Consideration.ComputeNormalizedScore(*this);
+		Value = Consideration.GetNormalizedScore(*this);
 
 		// Reset copied properties that might contain object references.
 		if (Consideration.BindingsBatch.IsValid())
@@ -3639,10 +3639,11 @@ bool FStateTreeExecutionContext::SelectState(const FStateTreeExecutionFrame& Cur
 			}
 		}
 	}
-	// Existing state's data is safe to access during select.
-	LastFrame.NumCurrentlyActiveStates = static_cast<uint8>(LastFrame.ActiveStates.Num());
 
 	LastFrame.ActiveStates.SetNum(FirstNewStateIndex);
+
+	// Existing state's data is safe to access during select.
+	LastFrame.NumCurrentlyActiveStates = static_cast<uint8>(LastFrame.ActiveStates.Num());
 
 	FStateSelectionResult InitialSelection;
 

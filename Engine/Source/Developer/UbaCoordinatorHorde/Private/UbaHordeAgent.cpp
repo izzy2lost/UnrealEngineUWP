@@ -32,6 +32,11 @@ FUbaHordeAgent::FUbaHordeAgent(const FHordeRemoteMachineInfo& InMachineInfo)
 	TSharedPtr<FComputeChannel> ComputeChannel = HordeComputeSocket->CreateChannel(0);
 	TSharedPtr<FComputeChannel> SecondComputeChannel = HordeComputeSocket->CreateChannel(100);
 
+	if (!ComputeChannel.IsValid() || !SecondComputeChannel.IsValid())
+	{
+		return;
+	}
+
 	// Now this is what is going to handle the ComputeChannel.
 	AgentChannel = MakeUnique<FAgentMessageChannel>(MoveTemp(ComputeChannel));
 	ChildChannel = MakeUnique<FAgentMessageChannel>(MoveTemp(SecondComputeChannel));

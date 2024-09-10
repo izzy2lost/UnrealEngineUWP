@@ -8,16 +8,16 @@
 #include "TypedElementActorViewportProcessors.generated.h"
 
 UCLASS()
-class UActorViewportDataStorageFactory : public UTypedElementDataStorageFactory
+class UActorViewportDataStorageFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	~UActorViewportDataStorageFactory() override = default;
 
-	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
+	void RegisterQueries(IEditorDataStorageProvider& DataStorage) override;
 
 private:
-	void RegisterOutlineColorColumnToActor(ITypedElementDataStorageInterface& DataStorage);
-	void RegisterOverlayColorColumnToActor(ITypedElementDataStorageInterface& DataStorage);
+	void RegisterOutlineColorColumnToActor(IEditorDataStorageProvider& DataStorage);
+	void RegisterOverlayColorColumnToActor(IEditorDataStorageProvider& DataStorage);
 };

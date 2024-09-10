@@ -25,6 +25,7 @@
 #include "USDGroomTranslatorUtils.h"
 #include "USDIntegrationUtils.h"
 #include "USDLog.h"
+#include "USDMemory.h"
 #include "USDObjectUtils.h"
 #include "USDPrimConversion.h"
 #include "USDTranslatorUtils.h"

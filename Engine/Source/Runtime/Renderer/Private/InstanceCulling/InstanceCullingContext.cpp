@@ -13,6 +13,7 @@
 #include "ScenePrivate.h"
 #include "SystemTextures.h"
 #include "InstanceCulling/InstanceCullingManager.h"
+#include "InstanceCullingDefinitions.h"
 #include "InstanceCullingLoadBalancer.h"
 #include "InstanceCullingMergedContext.h"
 #include "InstanceCullingOcclusionQuery.h"
@@ -298,20 +299,20 @@ void FInstanceCullingContext::AddInstancesToDrawCommand(uint32 IndirectArgsOffse
 	const bool bPreserveInstanceOrder = EnumHasAnyFlags(InstanceFlags, EInstanceFlags::PreserveInstanceOrder);
 	const bool bForceInstanceCulling = EnumHasAnyFlags(InstanceFlags, EInstanceFlags::ForceInstanceCulling);	
 
-	uint32 Payload;
+	uint32 Payload = (bDynamicInstanceDataOffset ? INSTANCE_CULLING_DYNAMIC_INSTANCE_DATA_OFFSET_BIT_MASK : 0U);
 	if (bPreserveInstanceOrder)
 	{
 		checkSlow(!EnumHasAnyFlags(Flags, EInstanceCullingFlags::NoInstanceOrderPreservation)); // this should have already been handled
 
 		// We need to provide full payload data for these instances
-		// NOTE: The extended payload data flag is in the lowest bit instead of the highest because the payload is not a full dword		
-		Payload = 1 | (uint32(PayloadData.Num()) << 1U);
+		// NOTE: The extended payload data flag is in the lowest bit instead of the highest because the payload is not a full dword, see FInstanceCullingLoadBalancerBase::PackItem
+		Payload |= (INSTANCE_CULLING_PRESERVE_INSTANCE_ORDER_BIT_MASK | (uint32(PayloadData.Num()) << INSTANCE_CULLING_PAYLOAD_NUM_COMMON_BITS));
 		PayloadData.Emplace(bDynamicInstanceDataOffset, IndirectArgsOffset, InstanceDataOffset, RunOffset, DrawCommandCompactionData.Num());
 	}
 	else
 	{
 		// Conserve space by packing the relevant payload information into the dword
-		Payload = (IndirectArgsOffset << 2U) | (bDynamicInstanceDataOffset ? 2U : 0U);
+		Payload |= (IndirectArgsOffset << INSTANCE_CULLING_PAYLOAD_NUM_COMMON_BITS);
 	}
 
 	// We special-case the single-instance (i.e., regular primitives) as they don't need culling (again), except where explicitly specified.
@@ -1408,7 +1409,7 @@ void FInstanceCullingContext::AddClearIndirectArgInstanceCountPass(FRDGBuilder& 
 			ParametersMetadata,
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[ParametersMetadata, PassParameters, ComputeShader, NumIndirectArgsCallback = MoveTemp(NumIndirectArgsCallback)](FRHIComputeCommandList& RHICmdList)
+			[ParametersMetadata, PassParameters, ComputeShader, NumIndirectArgsCallback = MoveTemp(NumIndirectArgsCallback)](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 		{
 			int32 NumIndirectArgs = NumIndirectArgsCallback();
 			PassParameters->NumIndirectArgs = NumIndirectArgs;

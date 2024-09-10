@@ -250,6 +250,12 @@ struct FWrapLayer
 	static void GetDeferredOperationMaxConcurrencyKHR(VkResult Result, VkDevice Device, VkDeferredOperationKHR DeferredOperation) VULKAN_LAYER_BODY
 	static void GetDeferredOperationResultKHR(VkResult Result, VkDevice Device, VkDeferredOperationKHR DeferredOperation) VULKAN_LAYER_BODY
 	static void GetDeviceFaultInfoEXT(VkResult Result, VkDevice Device, VkDeviceFaultCountsEXT* FaultCounts, VkDeviceFaultInfoEXT* FaultInfo) VULKAN_LAYER_BODY
+	static void CreateSamplerYcbcrConversion(VkResult Result, VkDevice Device, const VkSamplerYcbcrConversionCreateInfo* CreateInfo, const VkAllocationCallbacks* Allocator, VkSamplerYcbcrConversion* YcbcrConversion) VULKAN_LAYER_BODY
+	static void DestroySamplerYcbcrConversion(VkResult Result, VkDevice Device, VkSamplerYcbcrConversion YcbcrConversion, const VkAllocationCallbacks* Allocator) VULKAN_LAYER_BODY
+#if PLATFORM_ANDROID
+	static void GetAndroidHardwareBufferPropertiesANDROID(VkResult Result, VkDevice Device, const struct AHardwareBuffer* Buffer, VkAndroidHardwareBufferPropertiesANDROID* Properties) VULKAN_LAYER_BODY
+#endif
+
 };
 
 #undef VULKAN_LAYER_BODY
@@ -1731,6 +1737,31 @@ namespace VulkanRHI
 		FWrapLayer::GetDeviceFaultInfoEXT(Result, Device, FaultCounts, FaultInfo);
 		return Result;
 	}
+
+	static FORCEINLINE_DEBUGGABLE VkResult vkCreateSamplerYcbcrConversion(VkDevice Device, const VkSamplerYcbcrConversionCreateInfo* CreateInfo, const VkAllocationCallbacks* Allocator, VkSamplerYcbcrConversion* YcbcrConversion)
+	{
+		FWrapLayer::CreateSamplerYcbcrConversion(VK_RESULT_MAX_ENUM, Device, CreateInfo, Allocator, YcbcrConversion);
+		VkResult Result = VULKANAPINAMESPACE::vkCreateSamplerYcbcrConversion(Device, CreateInfo, Allocator, YcbcrConversion);
+		FWrapLayer::CreateSamplerYcbcrConversion(Result, Device, CreateInfo, Allocator, YcbcrConversion);
+		return Result;
+	}
+
+	static FORCEINLINE_DEBUGGABLE void vkDestroySamplerYcbcrConversion(VkDevice Device, VkSamplerYcbcrConversion YcbcrConversion, const VkAllocationCallbacks* Allocator)
+	{
+		FWrapLayer::DestroySamplerYcbcrConversion(VK_RESULT_MAX_ENUM, Device, YcbcrConversion, Allocator);
+		VULKANAPINAMESPACE::vkDestroySamplerYcbcrConversion(Device, YcbcrConversion, Allocator);
+		FWrapLayer::DestroySamplerYcbcrConversion(VK_SUCCESS, Device, YcbcrConversion, Allocator);
+	}
+
+#if PLATFORM_ANDROID
+	static FORCEINLINE_DEBUGGABLE VkResult vkGetAndroidHardwareBufferPropertiesANDROID(VkDevice Device, const struct AHardwareBuffer* Buffer, VkAndroidHardwareBufferPropertiesANDROID* Properties)
+	{
+		FWrapLayer::GetAndroidHardwareBufferPropertiesANDROID(VK_RESULT_MAX_ENUM, Device, Buffer, Properties);
+		VkResult Result = VULKANAPINAMESPACE::vkGetAndroidHardwareBufferPropertiesANDROID(Device, Buffer, Properties);
+		FWrapLayer::GetAndroidHardwareBufferPropertiesANDROID(Result, Device, Buffer, Properties);
+		return Result;
+	}
+#endif // PLATFORM_ANDROID
 
 #if VULKAN_ENABLE_IMAGE_TRACKING_LAYER
 	void BindDebugLabelName(VkImage Image, const TCHAR* Name);

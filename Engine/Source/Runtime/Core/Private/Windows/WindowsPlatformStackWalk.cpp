@@ -136,7 +136,7 @@ void DetermineMaxCallstackDepth()
 
 #endif
 
-void FWindowsPlatformStackWalk::StackWalkAndDump( ANSICHAR* HumanReadableString, SIZE_T HumanReadableStringSize, int32 IgnoreCount, void* Context )
+UE_AUTORTFM_ALWAYS_OPEN void FWindowsPlatformStackWalk::StackWalkAndDump( ANSICHAR* HumanReadableString, SIZE_T HumanReadableStringSize, int32 IgnoreCount, void* Context )
 {
 	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 
@@ -157,7 +157,7 @@ void FWindowsPlatformStackWalk::StackWalkAndDump( ANSICHAR* HumanReadableString,
 	}
 }
 
-void FWindowsPlatformStackWalk::StackWalkAndDump( ANSICHAR* HumanReadableString, SIZE_T HumanReadableStringSize, void* ProgramCounter, void* Context )
+UE_AUTORTFM_ALWAYS_OPEN void FWindowsPlatformStackWalk::StackWalkAndDump( ANSICHAR* HumanReadableString, SIZE_T HumanReadableStringSize, void* ProgramCounter, void* Context )
 {
 	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 
@@ -165,7 +165,7 @@ void FWindowsPlatformStackWalk::StackWalkAndDump( ANSICHAR* HumanReadableString,
 	FGenericPlatformStackWalk::StackWalkAndDump(HumanReadableString, HumanReadableStringSize, ProgramCounter, Context);
 }
 
-FORCENOINLINE TArray<FProgramCounterSymbolInfo> FWindowsPlatformStackWalk::GetStack(int32 IgnoreCount, int32 MaxDepth, void* Context)
+UE_AUTORTFM_ALWAYS_OPEN TArray<FProgramCounterSymbolInfo> FWindowsPlatformStackWalk::GetStack(int32 IgnoreCount, int32 MaxDepth, void* Context)
 {
 	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 
@@ -179,7 +179,7 @@ FORCENOINLINE TArray<FProgramCounterSymbolInfo> FWindowsPlatformStackWalk::GetSt
 	return FGenericPlatformStackWalk::GetStack(IgnoreCount, MaxDepth, Context);
 }
 
-void FWindowsPlatformStackWalk::ThreadStackWalkAndDump(ANSICHAR* HumanReadableString, SIZE_T HumanReadableStringSize, int32 IgnoreCount, uint32 ThreadId)
+UE_AUTORTFM_ALWAYS_OPEN void FWindowsPlatformStackWalk::ThreadStackWalkAndDump(ANSICHAR* HumanReadableString, SIZE_T HumanReadableStringSize, int32 IgnoreCount, uint32 ThreadId)
 {
 	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 
@@ -313,7 +313,7 @@ void FWindowsPlatformStackWalk::CaptureStackTraceByProcess(uint64* OutBacktrace,
 	CaptureStackTraceExternalProcess(OutBacktrace, MaxDepth, reinterpret_cast<PCONTEXT>(InContext), reinterpret_cast<HANDLE>(InThreadHandle), OutDepth);	
 }
 
-uint32 FWindowsPlatformStackWalk::CaptureThreadStackBackTrace(uint64 ThreadId, uint64* BackTrace, uint32 MaxDepth, void* Context)
+UE_AUTORTFM_ALWAYS_OPEN uint32 FWindowsPlatformStackWalk::CaptureThreadStackBackTrace(uint64 ThreadId, uint64* BackTrace, uint32 MaxDepth, void* Context)
 {
 	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 
@@ -383,7 +383,7 @@ uint32 FWindowsPlatformStackWalk::CaptureThreadStackBackTrace(uint64 ThreadId, u
  * @param	MaxDepth			Entries in BackTrace array
  * @param	Context				Optional thread context information (FWindowsThreadContextWrapper instance)
  */
-uint32 FWindowsPlatformStackWalk::CaptureStackBackTrace( uint64* BackTrace, uint32 MaxDepth, void* Context )
+UE_AUTORTFM_ALWAYS_OPEN uint32 FWindowsPlatformStackWalk::CaptureStackBackTrace( uint64* BackTrace, uint32 MaxDepth, void* Context )
 {
 	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 
@@ -456,82 +456,79 @@ uint32 FWindowsPlatformStackWalk::CaptureStackBackTrace( uint64* BackTrace, uint
 	return Depth;
 }
 
-void FWindowsPlatformStackWalk::ProgramCounterToSymbolInfo( uint64 ProgramCounter, FProgramCounterSymbolInfo& out_SymbolInfo )
+UE_AUTORTFM_ALWAYS_OPEN void FWindowsPlatformStackWalk::ProgramCounterToSymbolInfo( uint64 ProgramCounter, FProgramCounterSymbolInfo& out_SymbolInfo )
 {
-	UE_AUTORTFM_OPEN2
-	{
-		UE::TUniqueLock GlobalLock(GStackWalkingLock);
+	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 
-		// Initialize stack walking as it loads up symbol information which we require.
-		InitStackWalking();
+	// Initialize stack walking as it loads up symbol information which we require.
+	InitStackWalking();
 
 #if ON_DEMAND_SYMBOL_LOADING
-		// Load symbols for the module
-		bool bShouldReloadModuleMissingDebugSymbols = !FPlatformProperties::IsMonolithicBuild() && FPlatformStackWalk::WantsDetailedCallstacksInNonMonolithicBuilds();
-		LoadSymbolsForModuleByAddress(ProgramCounter, GetSymbolSearchPath(), bShouldReloadModuleMissingDebugSymbols);
+	// Load symbols for the module
+	bool bShouldReloadModuleMissingDebugSymbols = !FPlatformProperties::IsMonolithicBuild() && FPlatformStackWalk::WantsDetailedCallstacksInNonMonolithicBuilds();
+	LoadSymbolsForModuleByAddress(ProgramCounter, GetSymbolSearchPath(), bShouldReloadModuleMissingDebugSymbols);
 #endif
 
-		// Set the program counter.
-		out_SymbolInfo.ProgramCounter = ProgramCounter;
+	// Set the program counter.
+	out_SymbolInfo.ProgramCounter = ProgramCounter;
 
-		uint32 LastError = 0;
-		HANDLE ProcessHandle = GProcessHandle;
+	uint32 LastError = 0;
+	HANDLE ProcessHandle = GProcessHandle;
 
-		// Initialize symbol.
-		ANSICHAR SymbolBuffer[sizeof( SYMBOL_INFO ) + FProgramCounterSymbolInfo::MAX_NAME_LENGTH] = {0};
-		SYMBOL_INFO* Symbol = (SYMBOL_INFO*)SymbolBuffer;
-		Symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
-		Symbol->MaxNameLen = FProgramCounterSymbolInfo::MAX_NAME_LENGTH;
+	// Initialize symbol.
+	ANSICHAR SymbolBuffer[sizeof( SYMBOL_INFO ) + FProgramCounterSymbolInfo::MAX_NAME_LENGTH] = {0};
+	SYMBOL_INFO* Symbol = (SYMBOL_INFO*)SymbolBuffer;
+	Symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+	Symbol->MaxNameLen = FProgramCounterSymbolInfo::MAX_NAME_LENGTH;
 
-		// Get function name.
-		if( SymFromAddr( ProcessHandle, ProgramCounter, nullptr, Symbol ) )
+	// Get function name.
+	if( SymFromAddr( ProcessHandle, ProgramCounter, nullptr, Symbol ) )
+	{
+		// Skip any funky chars in the beginning of a function name.
+		int32 Offset = 0;
+		while( Symbol->Name[Offset] < 32 || Symbol->Name[Offset] > 127 )
 		{
-			// Skip any funky chars in the beginning of a function name.
-			int32 Offset = 0;
-			while( Symbol->Name[Offset] < 32 || Symbol->Name[Offset] > 127 )
-			{
-				Offset++;
-			}
-
-			// Write out function name.
-			FCStringAnsi::Strncpy( out_SymbolInfo.FunctionName, Symbol->Name + Offset, FProgramCounterSymbolInfo::MAX_NAME_LENGTH ); 
-			FCStringAnsi::Strncat( out_SymbolInfo.FunctionName, "()", FProgramCounterSymbolInfo::MAX_NAME_LENGTH );
-		}
-		else
-		{
-			// No symbol found for this address.
-			LastError = GetLastError();
+			Offset++;
 		}
 
-		// Get filename and line number.
-		IMAGEHLP_LINE64	ImageHelpLine = {0};
-		ImageHelpLine.SizeOfStruct = sizeof( ImageHelpLine );
-		if( SymGetLineFromAddr64( ProcessHandle, ProgramCounter, (::DWORD *)&out_SymbolInfo.SymbolDisplacement, &ImageHelpLine ) )
-		{
-			FCStringAnsi::Strncpy( out_SymbolInfo.Filename, ImageHelpLine.FileName, FProgramCounterSymbolInfo::MAX_NAME_LENGTH );
-			out_SymbolInfo.LineNumber = ImageHelpLine.LineNumber;
-		}
-		else
-		{
-			LastError = GetLastError();
-		}
+		// Write out function name.
+		FCStringAnsi::Strncpy( out_SymbolInfo.FunctionName, Symbol->Name + Offset, FProgramCounterSymbolInfo::MAX_NAME_LENGTH ); 
+		FCStringAnsi::Strncat( out_SymbolInfo.FunctionName, "()", FProgramCounterSymbolInfo::MAX_NAME_LENGTH );
+	}
+	else
+	{
+		// No symbol found for this address.
+		LastError = GetLastError();
+	}
 
-		// Get module name.
-		IMAGEHLP_MODULE64 ImageHelpModule = {0};
-		ImageHelpModule.SizeOfStruct = sizeof( ImageHelpModule );
-		if( SymGetModuleInfo64( ProcessHandle, ProgramCounter, &ImageHelpModule) )
-		{
-			// Write out module information.
-			FCStringAnsi::Strncpy( out_SymbolInfo.ModuleName, ImageHelpModule.ImageName, FProgramCounterSymbolInfo::MAX_NAME_LENGTH );
-		}
-		else
-		{
-			LastError = GetLastError();
-		}
-	};
+	// Get filename and line number.
+	IMAGEHLP_LINE64	ImageHelpLine = {0};
+	ImageHelpLine.SizeOfStruct = sizeof( ImageHelpLine );
+	if( SymGetLineFromAddr64( ProcessHandle, ProgramCounter, (::DWORD *)&out_SymbolInfo.SymbolDisplacement, &ImageHelpLine ) )
+	{
+		FCStringAnsi::Strncpy( out_SymbolInfo.Filename, ImageHelpLine.FileName, FProgramCounterSymbolInfo::MAX_NAME_LENGTH );
+		out_SymbolInfo.LineNumber = ImageHelpLine.LineNumber;
+	}
+	else
+	{
+		LastError = GetLastError();
+	}
+
+	// Get module name.
+	IMAGEHLP_MODULE64 ImageHelpModule = {0};
+	ImageHelpModule.SizeOfStruct = sizeof( ImageHelpModule );
+	if( SymGetModuleInfo64( ProcessHandle, ProgramCounter, &ImageHelpModule) )
+	{
+		// Write out module information.
+		FCStringAnsi::Strncpy( out_SymbolInfo.ModuleName, ImageHelpModule.ImageName, FProgramCounterSymbolInfo::MAX_NAME_LENGTH );
+	}
+	else
+	{
+		LastError = GetLastError();
+	}
 }
 
-void FWindowsPlatformStackWalk::ProgramCounterToSymbolInfoEx(uint64 ProgramCounter, FProgramCounterSymbolInfoEx& out_SymbolInfo)
+UE_AUTORTFM_ALWAYS_OPEN void FWindowsPlatformStackWalk::ProgramCounterToSymbolInfoEx(uint64 ProgramCounter, FProgramCounterSymbolInfoEx& out_SymbolInfo)
 {
 	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 
@@ -734,7 +731,7 @@ bool FWindowsPlatformStackWalk::UploadLocalSymbols()
 	return true;
 }
 
-void LoadSymbolsForModule(HMODULE ModuleHandle, const FString& RemoteStorage)
+UE_AUTORTFM_ALWAYS_OPEN void LoadSymbolsForModule(HMODULE ModuleHandle, const FString& RemoteStorage)
 {
 	HANDLE ProcessHandle = GProcessHandle;
 
@@ -787,7 +784,7 @@ void LoadSymbolsForModule(HMODULE ModuleHandle, const FString& RemoteStorage)
 		{
 			TCHAR ErrorMsgBuffer[2048];
 			const TCHAR* ErrorMsg = FWindowsPlatformMisc::GetSystemErrorMessage(ErrorMsgBuffer, UE_ARRAY_COUNT(ErrorMsgBuffer), ErrorCode);
-			UE_LOG(LogWindows, Warning, TEXT("Failed to load module '%s' with SymLoadModuleExW. Error %d: %s"), ModuleName, ErrorCode, ErrorMsg);
+			UE_LOG(LogWindows, Verbose, TEXT("Failed to load module '%s' with SymLoadModuleExW. Error %d: %s"), ModuleName, ErrorCode, ErrorMsg);
 		}
 	}
 }
@@ -819,7 +816,7 @@ void LoadSymbolsForProcessModules(const FString &RemoteStorage)
 	FMemory::Free(ModuleHandlePointer);
 }
 
-void LoadSymbolsForModuleByAddress(uint64 Address, const FString& RemoteStorage, bool bShouldReloadModuleMissingDebugSymbols)
+UE_AUTORTFM_ALWAYS_OPEN void LoadSymbolsForModuleByAddress(uint64 Address, const FString& RemoteStorage, bool bShouldReloadModuleMissingDebugSymbols)
 {
 	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 
@@ -867,7 +864,7 @@ int32 FWindowsPlatformStackWalk::GetProcessModuleCount()
 	return ModuleCount;
 }
 
-int32 FWindowsPlatformStackWalk::GetProcessModuleSignatures(FStackWalkModuleInfo *ModuleSignatures, const int32 ModuleSignaturesSize)
+UE_AUTORTFM_ALWAYS_OPEN int32 FWindowsPlatformStackWalk::GetProcessModuleSignatures(FStackWalkModuleInfo *ModuleSignatures, const int32 ModuleSignaturesSize)
 {
 	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 
@@ -1061,7 +1058,7 @@ FString GetSymbolSearchPath()
 /**
  * Initializes the symbol engine if needed.
  */
-bool FWindowsPlatformStackWalk::InitStackWalkingInternal(void* Process, bool bForceReinitOnProcessMismatch)
+UE_AUTORTFM_ALWAYS_OPEN bool FWindowsPlatformStackWalk::InitStackWalkingInternal(void* Process, bool bForceReinitOnProcessMismatch)
 {
 	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 
@@ -1221,7 +1218,7 @@ void FWindowsPlatformStackWalk::RegisterOnModulesChanged()
 	FModuleManager::Get().OnModulesChanged().AddStatic( &OnModulesChanged );
 }
 
-bool FWindowsPlatformStackWalk::GetFunctionDefinitionLocation(const FString& FunctionSymbolName, const FString& FunctionModuleName, FString& OutPathname, uint32& OutLineNumber, uint32& OutColumnNumber)
+UE_AUTORTFM_ALWAYS_OPEN bool FWindowsPlatformStackWalk::GetFunctionDefinitionLocation(const FString& FunctionSymbolName, const FString& FunctionModuleName, FString& OutPathname, uint32& OutLineNumber, uint32& OutColumnNumber)
 {
 	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 

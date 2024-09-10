@@ -6,8 +6,6 @@
 #include "Metadata/PCGAttributePropertySelector.h"
 #include "Metadata/Accessors/IPCGAttributeAccessor.h"
 
-#include "Internationalization/Internationalization.h"
-
 struct FPCGContext;
 
 namespace PCGLog
@@ -32,6 +30,7 @@ namespace PCGLog
 
 		// Errors
 		void LogInvalidInputDataError(const FPCGContext* InContext = nullptr);
+		void LogInvalidCardinalityError(const FName SourcePinLabel, const FName TargetPinLabel, const FPCGContext* InContext = nullptr);
 	}
 
 	namespace Metadata
@@ -61,6 +60,7 @@ namespace PCGLog
 		void LogFailToGetAttributeError(FText AttributeName, const FPCGContext* InContext = nullptr);
 		void LogFailToGetAttributeError(FName AttributeName, const FPCGContext* InContext = nullptr);
 		void LogFailToGetAttributeError(const FPCGAttributePropertySelector& Selector, const FPCGContext* InContext = nullptr);
+		void LogIncomparableAttributesError(const FPCGAttributePropertySelector& FirstSelector, const FPCGAttributePropertySelector& SecondSelector, const FPCGContext* InContext = nullptr);
 
 		template <typename T>
 		void LogFailToGetAttributeError(FText AttributeName, const IPCGAttributeAccessor* Accessor, const FPCGContext* InContext = nullptr)
@@ -86,5 +86,15 @@ namespace PCGLog
 		{
 			return LogFailToGetAttributeError<T>(Selector.GetDisplayText(), Accessor, InContext);
 		}
+	}
+
+	namespace Parsing
+	{
+		// Warnings
+		void LogEmptyExpressionWarning(const FPCGContext* InContext = nullptr);
+
+		// Errors
+		void LogInvalidCharacterInParsedStringError(const FStringView& ParsedString, const FPCGContext* InContext = nullptr);
+		void LogInvalidExpressionInParsedStringError(const FStringView& ParsedString, const FPCGContext* InContext = nullptr);
 	}
 }

@@ -3,7 +3,7 @@
 	"Version": 1,
 	"VersionName": "1.0",
 	"FriendlyName": "Storm Sync",
-	"Description": "Sync, Pull, Push, asset dependencies.",
+	"Description": "Sync, Pull, Push, asset dependencies.\n\nThis plugin is a recommended part of the Motion Design work flow.",
 	"Category": "Experimental",
 	"CreatedBy": "Epic Games, Inc.",
 	"CreatedByURL": "https://epicgames.com",

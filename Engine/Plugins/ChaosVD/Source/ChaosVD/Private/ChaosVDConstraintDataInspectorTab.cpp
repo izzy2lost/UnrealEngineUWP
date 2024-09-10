@@ -23,7 +23,7 @@ TSharedRef<SDockTab> FChaosVDConstraintDataInspectorTab::HandleTabSpawnRequest(c
 	{
 		DetailsPanelTab->SetContent
 		(
-			SAssignNew(ConstraintDataInspector, SChaosVDConstraintDataInspector, GetChaosVDScene())
+			SAssignNew(ConstraintDataInspector, SChaosVDConstraintDataInspector, GetChaosVDScene(), MainTabPtr.ToSharedRef())
 		);
 	}
 	else

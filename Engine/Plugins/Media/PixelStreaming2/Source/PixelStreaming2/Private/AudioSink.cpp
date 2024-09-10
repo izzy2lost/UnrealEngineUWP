@@ -10,6 +10,7 @@ namespace UE::PixelStreaming2
 
 	FAudioSink::~FAudioSink()
 	{
+		FScopeLock Lock(&AudioConsumersCS);
 		for (auto Iter = AudioConsumers.CreateIterator(); Iter; ++Iter)
 		{
 			IPixelStreaming2AudioConsumer* AudioConsumer = Iter.ElementIt->Value;
@@ -23,6 +24,7 @@ namespace UE::PixelStreaming2
 
 	void FAudioSink::AddAudioConsumer(IPixelStreaming2AudioConsumer* AudioConsumer)
 	{
+		FScopeLock Lock(&AudioConsumersCS);
 		bool bAlreadyInSet = false;
 		AudioConsumers.Add(AudioConsumer, &bAlreadyInSet);
 		if (!bAlreadyInSet)
@@ -33,6 +35,7 @@ namespace UE::PixelStreaming2
 
 	void FAudioSink::RemoveAudioConsumer(IPixelStreaming2AudioConsumer* AudioConsumer)
 	{
+		FScopeLock Lock(&AudioConsumersCS);
 		if (AudioConsumers.Contains(AudioConsumer))
 		{
 			AudioConsumers.Remove(AudioConsumer);
@@ -57,6 +60,7 @@ namespace UE::PixelStreaming2
 			return;
 		}
 		// Iterate audio consumers and pass this data to their buffers
+		FScopeLock Lock(&AudioConsumersCS);
 		for (IPixelStreaming2AudioConsumer* AudioConsumer : AudioConsumers)
 		{
 			AudioConsumer->ConsumeRawPCM(AudioData, SampleRate, NumChannels, NumFrames);

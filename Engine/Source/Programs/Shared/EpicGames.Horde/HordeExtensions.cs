@@ -5,7 +5,6 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
-using EpicGames.Horde.Storage.Clients;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -35,9 +34,10 @@ namespace EpicGames.Horde
 			serviceCollection.AddSingleton<BundleCache>(sp => new BundleCache(sp.GetRequiredService<IOptions<HordeOptions>>().Value.BundleCache));
 			serviceCollection.AddSingleton<StorageBackendCache>(CreateBackendCache);
 			serviceCollection.AddSingleton<HttpStorageBackendFactory>();
-			serviceCollection.AddSingleton<HttpStorageClientFactory>();
-			serviceCollection.AddSingleton<IHordeClient>(sp => sp.GetRequiredService<IHordeClientFactory>().Create());
-			serviceCollection.AddSingleton<IHordeClientFactory, HordeClientFactory>();
+			serviceCollection.AddSingleton<HttpStorageClient>();
+			serviceCollection.AddSingleton<IHordeHttpMessageHandler, HordeHttpMessageHandler>();
+			serviceCollection.AddSingleton<IHordeClient>(sp => sp.GetRequiredService<HordeClientFactory>().Create());
+			serviceCollection.AddSingleton<HordeClientFactory>();
 		}
 
 		/// <summary>

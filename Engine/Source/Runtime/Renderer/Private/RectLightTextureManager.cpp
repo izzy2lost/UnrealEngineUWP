@@ -536,7 +536,7 @@ static void AddSlotsPass(
 			RDG_EVENT_NAME("RectLightAtlas::AddTexturePass(Slot:%d)", SlotCount),
 			Parameters,
 			ERDGPassFlags::Raster,
-			[Parameters, VertexShader, PixelShader, Viewport, Resolution, SlotCount](FRHICommandList& RHICmdList)
+			[Parameters, VertexShader, PixelShader, Viewport, Resolution, SlotCount](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				FGraphicsPipelineStateInitializer GraphicsPSOInit;
 				RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -649,7 +649,7 @@ static void CopySlotsPass(
 				RDG_EVENT_NAME("RectLightAtlas::CopyTexturePass(MIP:%d,Slots:%d)", MipIt, SlotCount),
 				Parameters,
 				ERDGPassFlags::Raster,
-				[Parameters, VertexShader, PixelShader, Viewport, Resolution, SlotCount](FRHICommandList& RHICmdList)
+				[Parameters, VertexShader, PixelShader, Viewport, Resolution, SlotCount](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					FGraphicsPipelineStateInitializer GraphicsPSOInit;
 					RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -765,7 +765,7 @@ static void FilterSlotsPass(
 				RDG_EVENT_NAME("RectLightAtlas::FilterTexturePass(Mip:%d,Slots:%d)", DstMip, SlotCount),
 				Parameters,
 				ERDGPassFlags::Raster,
-				[Parameters, VertexShader, PixelShader, SlotCount](FRHICommandList& RHICmdList)
+				[Parameters, VertexShader, PixelShader, SlotCount](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					const FIntPoint Resolution = Parameters->VS.AtlasResolution;
 					const FIntRect Viewport(FIntPoint::ZeroValue, Resolution);

@@ -12,12 +12,12 @@ namespace HordeServer.Ddc
 {
 	class RequestHelper : IRequestHelper
 	{
-		readonly IStorageClientFactory _storageClientFactory;
+		readonly IStorageClient _storageClient;
 		readonly StorageConfig _storageConfig;
 
-		public RequestHelper(IStorageClientFactory storageClientFactory, IOptionsSnapshot<StorageConfig> storageConfig)
+		public RequestHelper(IStorageClient storageClient, IOptionsSnapshot<StorageConfig> storageConfig)
 		{
-			_storageClientFactory = storageClientFactory;
+			_storageClient = storageClient;
 			_storageConfig = storageConfig.Value;
 		}
 
@@ -28,8 +28,8 @@ namespace HordeServer.Ddc
 
 		public Task<ActionResult?> HasAccessToNamespaceAsync(ClaimsPrincipal user, HttpRequest request, NamespaceId ns, AclAction[] aclActions)
 		{
-			IStorageClient? storageClient = _storageClientFactory.TryCreateClient(ns);
-			if (storageClient == null)
+			IStorageNamespace? storageNamespace = _storageClient.TryGetNamespace(ns);
+			if (storageNamespace == null)
 			{
 				return Task.FromResult<ActionResult?>(new ForbidResult());
 			}

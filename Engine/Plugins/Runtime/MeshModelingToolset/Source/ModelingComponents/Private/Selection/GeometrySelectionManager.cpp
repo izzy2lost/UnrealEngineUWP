@@ -1443,6 +1443,8 @@ void UGeometrySelectionManager::ExecuteSelectionCommand(UGeometrySelectionEditCo
 		// q: we could clear the selection here, and pass the Handle a copy. Perhaps safer?
 		UInteractiveCommandResult* ResultPtr = nullptr;
 		SelectionArguments->SelectionHandle = FGeometrySelectionHandle{ Target->Selector->GetIdentifier(), &Target->Selection, Target->Selector.Get() };
+		SelectionArguments->ElementType = SelectionElementType;
+		SelectionArguments->TopologyMode = GetSelectionTopologyType();
 		SelectionArguments->SetTransactionsAPI(TransactionsAPI);
 		Command->ExecuteCommand(SelectionArguments, &ResultPtr);
 

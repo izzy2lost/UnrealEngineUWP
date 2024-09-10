@@ -9,10 +9,12 @@
 #include "../ReductionCommon.ush"
 #include "../GPUMessaging.ush"
 #include "../ShaderPrint.ush"
+#include "/Engine/Shared/VirtualShadowMapDefinitions.h"
 #include "VirtualShadowMapProjectionStructs.ush"
 #include "VirtualShadowMapProjectionCommon.ush"
 #include "VirtualShadowMapPageAccessCommon.ush"
 #include "VirtualShadowMapStats.ush"
+#include "VirtualShadowMapPerPageDispatch.ush"
 
 #ifndef HAS_CACHE_DATA
 #define HAS_CACHE_DATA 1
@@ -106,6 +108,7 @@ StructuredBuffer<int> PrevPhysicalPageLists;
 
 RWStructuredBuffer<uint4> OutUncachedPageRectBounds;
 RWStructuredBuffer<uint4> OutAllocatedPageRectBounds;
+uint NumPageRectsToClear;
 
 // This is admitadly a weird fusion of several initializations but it is the first thing
 // we run in a given analysis phase so it's more efficient to do it all here rather than
@@ -113,11 +116,19 @@ RWStructuredBuffer<uint4> OutAllocatedPageRectBounds;
 [numthreads(VSM_DEFAULT_CS_GROUP_X, 1, 1)]
 void InitPageRectBounds(uint3 Index : SV_DispatchThreadID)
 {
-	if (Index.x < VSM_MAX_MIP_LEVELS * VirtualShadowMap.NumShadowMapSlots)
+	// The X thread id maps to the range NumPageRectsToClear which is (GetNumFullShadowMaps() + GetNumSinglePageShadowMaps()) * FVirtualShadowMap::MaxMipLevels
+	// this avoids clearing unused slots.
+	if (Index.x < NumPageRectsToClear)
 	{
+		uint RectOffset = Index.x;
+		// The full shadow maps are offset to a distant part of the ID range
+		if (Index.x >= VirtualShadowMap.NumSinglePageShadowMaps * VSM_MAX_MIP_LEVELS )
+		{
+			RectOffset += VSM_MAX_SINGLE_PAGE_SHADOW_MAPS * VSM_MAX_MIP_LEVELS - VirtualShadowMap.NumSinglePageShadowMaps * VSM_MAX_MIP_LEVELS;
+		}
 		uint4 Empty = uint4(VSM_LEVEL0_DIM_PAGES_XY, VSM_LEVEL0_DIM_PAGES_XY, 0, 0);
-		OutUncachedPageRectBounds[Index.x] = Empty;
-		OutAllocatedPageRectBounds[Index.x] = Empty;
+		OutUncachedPageRectBounds[RectOffset] = Empty;
+		OutAllocatedPageRectBounds[RectOffset] = Empty;
 	}
 
 	// Clear the various list counters
@@ -421,8 +432,6 @@ void CalcPageAddressFromIndex(uint Index, inout uint MipLevel, inout uint2 PageA
 	PageAddress.y = OffsetInLevel >> (VSM_LOG2_LEVEL0_DIM_PAGES_XY - MipLevel);
 }
 
-#define EARLY_ALLOCATE 1
-
 void AllocateNewPageMappings(uint VirtualShadowMapId, uint GlobalPageOffset, uint PageOffsetInSM, const bool bSinglePageSM)
 {
 	checkStructuredBufferAccessSlow(PageRequestFlags, GlobalPageOffset);
@@ -495,42 +504,60 @@ void AllocateNewPageMappings(uint VirtualShadowMapId, uint GlobalPageOffset, uin
 	}
 }
 
+#ifdef ClearPageTableCS
+
+RWStructuredBuffer< uint > OutDestBuffer;
+uint ClearValue;
+
 /**
- * X = One thread per virtual page, Y dim == GetNumShadowMaps() (single-page + full).
+ * X = One thread per virtual page = VSM_PAGE_TABLE_SIZE, Y dim == GetNumFullShadowMaps() + GetNumSinglePage() / VSM_PAGE_TABLE_SIZE.
  */
-[numthreads(VSM_DEFAULT_CS_GROUP_X, 1, 1)]
-void AllocateNewPageMappingsCS(uint2 ThreadId : SV_DispatchThreadID)
+[numthreads(PER_PAGE_THREAD_GROUP_SIZE_X, 1, 1)]
+void ClearPageTableCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 {
-	if (ThreadId.x >= VSM_PAGE_TABLE_SIZE)
+	FPerPageDispatchSetup Setup; 
+	Setup.Init(DispatchThreadId);
+
+	if (!Setup.bValid)
 	{
 		return;
 	}
 
-	// Note: driving with an if at the root to try to help compiler preserve scalarization for the non-single-page path.
-	// Single-page lights use the K remaining slices of the 2D dispatch
-	BRANCH
-	if (ThreadId.y >= VirtualShadowMap.NumFullShadowMaps)
+	// Run a loop to do the work
+	for (uint PageOffsetInSM = Setup.PageStartOffset + Setup.LoopStart; PageOffsetInSM < Setup.PageEndOffset; PageOffsetInSM += Setup.LoopStride)
 	{
-		// remap the threads ID to shadow map ID
-		uint VirtualShadowMapId = (ThreadId.y - VirtualShadowMap.NumFullShadowMaps) * VSM_PAGE_TABLE_SIZE + ThreadId.x;
-		uint GlobalPageOffset = VirtualShadowMapId;
-
-		// Avoid oob access
-		if (VirtualShadowMapId < VirtualShadowMap.NumSinglePageShadowMaps)
-		{
-			AllocateNewPageMappings(VirtualShadowMapId, GlobalPageOffset, 0U, true);
-		}
-	}
-	else
-	{
-		uint PageOffsetInSM = ThreadId.x;
-		// Full SMs are allocated after the single-page ones.
-		uint VirtualShadowMapId = VSM_MAX_SINGLE_PAGE_SHADOW_MAPS + ThreadId.y;
-		uint GlobalPageOffset = CalcFullPageTableLevelOffset(VirtualShadowMapId, 0U) + PageOffsetInSM;
-
-		AllocateNewPageMappings(VirtualShadowMapId, GlobalPageOffset, PageOffsetInSM, false);
+		uint PageTableEntryOffset = Setup.BaseLevelOffset.LevelOffset + PageOffsetInSM;
+		OutDestBuffer[PageTableEntryOffset] = ClearValue;
 	}
 }
+
+#endif // ClearPageTableCS
+
+#ifdef AllocateNewPageMappingsCS
+
+/**
+ * X = One thread per virtual page = VSM_PAGE_TABLE_SIZE, Y dim == GetNumFullShadowMaps() + GetNumSinglePage() / VSM_PAGE_TABLE_SIZE.
+ */
+[numthreads(PER_PAGE_THREAD_GROUP_SIZE_X, 1, 1)]
+void AllocateNewPageMappingsCS(uint2 DispatchThreadId : SV_DispatchThreadID)
+{
+	FPerPageDispatchSetup Setup; 
+	Setup.Init(DispatchThreadId);
+
+	if (!Setup.bValid)
+	{
+		return;
+	}
+
+	// Run a grid x-stride loop to do all the work
+	for (uint PageOffsetInSM = Setup.PageStartOffset + Setup.LoopStart; PageOffsetInSM < Setup.PageEndOffset; PageOffsetInSM += Setup.LoopStride)
+	{
+		uint GlobalPageOffset = Setup.BaseLevelOffset.LevelOffset + PageOffsetInSM;
+		AllocateNewPageMappings(Setup.VirtualShadowMapId, GlobalPageOffset, PageOffsetInSM, Setup.BaseLevelOffset.bIsSinglePageSM);
+	}
+}
+
+#endif // AllocateNewPageMappingsCS
 
 // NOTE: We only launch a single group here for now to avoid multi-pass so we really want it as large as possible
 // Can optimize this later if needed for larger physical page counts
@@ -666,13 +693,13 @@ void MergePhysicalPixel(uint2 PixelCoord)
 }
 
 // Log2 2D dimension of thread group size, 2^4 == 16, 
-#define LOG2_TILE_THREAD_GROUP_SIZE_XY 4U
-#define TILE_THREAD_GROUP_SIZE_XY (1U << LOG2_TILE_THREAD_GROUP_SIZE_XY)
+#define LOG2_TILE_THREAD_GROUP_SIZE_XY 4u
+#define TILE_THREAD_GROUP_SIZE_XY (1u << LOG2_TILE_THREAD_GROUP_SIZE_XY)
 
 // Each thread takes 2x2 samples to work with, so tile size is 2x thread group size
-#define LOG2_TILE_SIZE_XY (LOG2_TILE_THREAD_GROUP_SIZE_XY + 1U)	
+#define LOG2_TILE_SIZE_XY (LOG2_TILE_THREAD_GROUP_SIZE_XY + 1u)
 
-#if VSM_LOG2_PAGE_SIZE < LOG2_TILE_SIZE
+#if VSM_LOG2_PAGE_SIZE < LOG2_TILE_SIZE_XY
 #error "VSM_LOG2_PAGE_SIZE must be larger than LOG2_TILE_SIZE, either increase one or reduce the other"
 #endif 
 

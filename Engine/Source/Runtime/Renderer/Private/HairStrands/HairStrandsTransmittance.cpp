@@ -547,7 +547,7 @@ static void AddHairStrandsVoxelShadowMaskPass(
 			RDG_EVENT_NAME("HairStrands::ShadowMask(Voxel,%s)", bOnePass ? TEXT("OnePass") : TEXT("PerGroup")),
 			Parameters,
 			ERDGPassFlags::Raster,
-			[Parameters, VertexShader, PixelShader, Viewport, Resolution, OutputChannel](FRHICommandList& RHICmdList)
+			[Parameters, VertexShader, PixelShader, Viewport, Resolution, OutputChannel](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FGraphicsPipelineStateInitializer GraphicsPSOInit;
 			RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -713,7 +713,7 @@ static void AddHairStrandsDeepShadowMaskPass(
 		RDG_EVENT_NAME("HairStrands::ShadowMask"),
 		Parameters,
 		ERDGPassFlags::Raster,
-		[Parameters, VertexShader, PixelShader, Viewport, Resolution, OutputChannel](FRHICommandList& RHICmdList)
+		[Parameters, VertexShader, PixelShader, Viewport, Resolution, OutputChannel](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FGraphicsPipelineStateInitializer GraphicsPSOInit;
 		RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);

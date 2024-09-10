@@ -63,6 +63,19 @@ public:
      */
     virtual EMRTC_API void StartNegotiation() = 0;
 
+    /**
+     * Sets the bitrates used for this connection. Default values are set in the EpicRtcRoomConfig during CreateRoom, but this method
+     * can be used to update the rate on a per connection basis.
+     * @param inBitrate New bitrate configuration.
+     */
+    virtual EMRTC_API void SetConnectionRates(const EpicRtcBitrate& inBitrate) = 0;
+
+    /**
+     * Stats toggle at Connection level, set to false to disable stats for this specific connection only.
+     * @param enabled Enable/disable flag
+     */
+    virtual EMRTC_API void SetStatsEnabled(EpicRtcBool enabled) = 0;
+
     // Prevent copying
     EpicRtcConnectionInterface(const EpicRtcConnectionInterface&) = delete;
     EpicRtcConnectionInterface& operator=(const EpicRtcConnectionInterface&) = delete;

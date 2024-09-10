@@ -71,7 +71,7 @@ namespace HordeServer.Artifacts
 		}
 
 		/// <summary>
-		/// Creates a new artifact. Actual data for the artifact can be uploaded using a storage client pointed to the blobs endpoint.
+		/// Creates a new artifact. Actual data for the artifact can be uploaded using a storage namespace pointed to the blobs endpoint.
 		/// </summary>
 		/// <param name="request">Information about the desired artifact</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
@@ -332,12 +332,12 @@ namespace HordeServer.Artifacts
 				return Forbid(ArtifactAclAction.ReadArtifact, artifact.StreamId);
 			}
 
-			IStorageClient storageClient = _storageService.CreateClient(artifact.NamespaceId);
+			IStorageNamespace storageNamespace = _storageService.GetNamespace(artifact.NamespaceId);
 
 			DirectoryNode directoryNode;
 			try
 			{
-				directoryNode = await storageClient.ReadRefTargetAsync<DirectoryNode>(artifact.RefName, DateTime.UtcNow.AddHours(1.0), cancellationToken: cancellationToken);
+				directoryNode = await storageNamespace.ReadRefTargetAsync<DirectoryNode>(artifact.RefName, DateTime.UtcNow.AddHours(1.0), cancellationToken: cancellationToken);
 			}
 			catch (RefNameNotFoundException)
 			{
@@ -499,8 +499,8 @@ namespace HordeServer.Artifacts
 				return Forbid(ArtifactAclAction.ReadArtifact, artifact.StreamId);
 			}
 
-			IStorageClient storageClient = _storageService.CreateClient(artifact.NamespaceId);
-			DirectoryNode directory = await storageClient.ReadRefTargetAsync<DirectoryNode>(artifact.RefName, DateTime.UtcNow.AddHours(1.0), cancellationToken: cancellationToken);
+			IStorageNamespace storageNamespace = _storageService.GetNamespace(artifact.NamespaceId);
+			DirectoryNode directory = await storageNamespace.ReadRefTargetAsync<DirectoryNode>(artifact.RefName, DateTime.UtcNow.AddHours(1.0), cancellationToken: cancellationToken);
 
 			FileEntry? fileEntry = await directory.GetFileEntryByPathAsync(path, cancellationToken: cancellationToken);
 			if (fileEntry == null)
@@ -594,8 +594,8 @@ namespace HordeServer.Artifacts
 			}
 
 #pragma warning disable CA2000
-			IStorageClient storageClient = _storageService.CreateClient(artifact.NamespaceId);
-			IHashedBlobRef<DirectoryNode> directory = await storageClient.ReadRefAsync<DirectoryNode>(artifact.RefName, DateTime.UtcNow.AddHours(1.0), cancellationToken: cancellationToken);
+			IStorageNamespace storageNamespace = _storageService.GetNamespace(artifact.NamespaceId);
+			IHashedBlobRef<DirectoryNode> directory = await storageNamespace.ReadRefAsync<DirectoryNode>(artifact.RefName, DateTime.UtcNow.AddHours(1.0), cancellationToken: cancellationToken);
 
 			Stream stream = directory.AsZipStream(filter);
 			return new FileStreamResult(stream, "application/zip") { FileDownloadName = $"{artifact.RefName}.zip" };

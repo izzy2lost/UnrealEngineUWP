@@ -464,8 +464,8 @@ public:
 	UPROPERTY(config, EditAnywhere, Category=Packaging, AdvancedDisplay, meta=(DisplayName="Internationalization Support"))
 	EProjectPackagingInternationalizationPresets InternationalizationPreset;
 
-	/** Cultures whose data should be cooked, staged, and packaged. */
-	UPROPERTY(config, EditAnywhere, Category=Packaging, AdvancedDisplay, meta=(DisplayName="Localizations to Package"))
+	/** Languages whose data should be cooked, staged, and packaged. */
+	UPROPERTY(config, EditAnywhere, Category=Packaging, AdvancedDisplay, meta=(DisplayName="Languages to Package"))
 	TArray<FString> CulturesToStage;
 
 	/** List of localization targets that should be chunked during cooking (if using chunks) */

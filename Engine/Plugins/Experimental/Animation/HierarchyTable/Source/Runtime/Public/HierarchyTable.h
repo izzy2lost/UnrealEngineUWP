@@ -14,10 +14,11 @@
 class USkeleton;
 
 UENUM()
-enum class EHierarchyTableEntryType
+enum class EHierarchyTableEntryType : uint8
 {
 	Bone,
 	Curve,
+	Attribute
 };
 
 class UHierarchyTable;
@@ -28,6 +29,12 @@ struct HIERARCHYTABLERUNTIME_API FHierarchyTableEntryData
 	GENERATED_BODY()
 
 public:
+	FHierarchyTableEntryData()
+		: EntryType(EHierarchyTableEntryType::Bone)
+		, Parent(INDEX_NONE)
+	{
+	}
+
 	friend UHierarchyTable;
 
 	UPROPERTY()
@@ -100,4 +107,8 @@ public:
 	void InitializeTable(FInstancedStruct DefaultEntry);
 
 	TArray<const FHierarchyTableEntryData*> GetChildren(const FHierarchyTableEntryData& Parent) const;
+
+	bool HasIdentifier(const FName Identifier) const;
+
+	FHierarchyTableEntryData* FindEntry(const FName EntryIdentifier, const EHierarchyTableEntryType EntryType);
 };

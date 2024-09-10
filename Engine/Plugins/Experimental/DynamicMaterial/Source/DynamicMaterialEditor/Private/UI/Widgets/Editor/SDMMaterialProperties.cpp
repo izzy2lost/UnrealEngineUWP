@@ -16,14 +16,18 @@
 #include "Items/ICustomDetailsViewCustomCategoryItem.h"
 #include "Items/ICustomDetailsViewCustomItem.h"
 #include "Items/ICustomDetailsViewItem.h"
+#include "Misc/MessageDialog.h"
+#include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelBase.h"
 #include "Model/DynamicMaterialModelDynamic.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+#include "SAssetDropTarget.h"
 #include "Styling/StyleColors.h"
 #include "UI/Utils/DMWidgetStatics.h"
 #include "UI/Widgets/Editor/SDMMaterialPropertySelector.h"
 #include "UI/Widgets/SDMMaterialEditor.h"
 #include "UI/Widgets/Visualizers/SDMMaterialComponentPreview.h"
+#include "Utils/DMMaterialSlotFunctionLibrary.h"
 #include "Utils/DMPrivate.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Layout/SBox.h"
@@ -270,8 +274,8 @@ TSharedRef<SWidget> SDMMaterialProperties::CreatePropertyRow(UDMMaterialProperty
 {
 	// There are all ensured to be valid by the caller of this method
 	TSharedPtr<SDMMaterialEditor> EditorWidget = EditorWidgetWeak.Pin();
-	UDynamicMaterialModel* MaterialModel = EditorWidget->GetMaterialModel();
-	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel);
+	UDynamicMaterialModelBase* MaterialModelBase = EditorWidget->GetMaterialModelBase();
+	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelBase);
 	UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get();
 	const EDMMaterialPropertyType MaterialProperty = InProperty->GetMaterialProperty();
 
@@ -322,55 +326,67 @@ TSharedRef<SWidget> SDMMaterialProperties::CreatePropertyRow(UDMMaterialProperty
 
 	// If the property is just disabled, leave the slider widget blank.
 
-	return SNew(SHorizontalBox)
+	TSharedRef<SHorizontalBox> PropertyWidget = SNew(SHorizontalBox)
 
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			.VAlign(EVerticalAlignment::VAlign_Center)
-			.Padding(0.f, 5.f, 0.f, 5.f)
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(EVerticalAlignment::VAlign_Center)
+		.Padding(0.f, 5.f, 0.f, 5.f)
+		[
+			PreviewWidgetContainer
+		]
+
+		+ SHorizontalBox::Slot()
+		.FillWidth(1.f)
+		.HAlign(EHorizontalAlignment::HAlign_Fill)
+		.VAlign(EVerticalAlignment::VAlign_Fill)
+		.Padding(5.f, 5.f, 0.f, 5.f)
+		[
+			SNew(SVerticalBox)
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
 			[
-				PreviewWidgetContainer
-			]
+				SNew(SHorizontalBox)
 
-			+ SHorizontalBox::Slot()
-			.FillWidth(1.f)
-			.HAlign(EHorizontalAlignment::HAlign_Fill)
-			.VAlign(EVerticalAlignment::VAlign_Fill)
-			.Padding(5.f, 5.f, 0.f, 5.f)
-			[
-				SNew(SVerticalBox)
-
-				+ SVerticalBox::Slot()
-				.AutoHeight()
-				[
-					SNew(SHorizontalBox)
-
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					.HAlign(EHorizontalAlignment::HAlign_Left)
-					.VAlign(EVerticalAlignment::VAlign_Center)
-					[
-						CreateSlot_EnabledButton(MaterialProperty)
-					]
-
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					.HAlign(EHorizontalAlignment::HAlign_Left)
-					.VAlign(EVerticalAlignment::VAlign_Center)
-					.Padding(5.f, 0.f, 0.f, 0.f)
-					[
-						PropertyName
-					]
-				]
-
-				+ SVerticalBox::Slot()
-				.FillHeight(1.f)
-				.HAlign(EHorizontalAlignment::HAlign_Fill)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.HAlign(EHorizontalAlignment::HAlign_Left)
 				.VAlign(EVerticalAlignment::VAlign_Center)
 				[
-					Slider
+					CreateSlot_EnabledButton(MaterialProperty)
 				]
-			];
+
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.HAlign(EHorizontalAlignment::HAlign_Left)
+				.VAlign(EVerticalAlignment::VAlign_Center)
+				.Padding(5.f, 0.f, 0.f, 0.f)
+				[
+					PropertyName
+				]
+			]
+
+			+ SVerticalBox::Slot()
+			.FillHeight(1.f)
+			.HAlign(EHorizontalAlignment::HAlign_Fill)
+			.VAlign(EVerticalAlignment::VAlign_Center)
+			[
+				Slider
+			]
+		];
+
+	if (!bPropertyEnabled || !MaterialModelBase->IsA<UDynamicMaterialModel>())
+	{
+		return PropertyWidget;
+	}
+
+	return SNew(SAssetDropTarget)
+		.OnAreAssetsAcceptableForDrop(this, &SDMMaterialProperties::OnAssetDraggedOver, MaterialProperty)
+		.OnAssetsDropped(this, &SDMMaterialProperties::OnAssetsDropped, MaterialProperty)
+		[
+			PropertyWidget
+		];
 }
 
 TSharedRef<SWidget> SDMMaterialProperties::CreateSlot_EnabledButton(EDMMaterialPropertyType InMaterialProperty)
@@ -740,6 +756,148 @@ void SDMMaterialProperties::OnSettingsUpdated(const FPropertyChangedEvent& InPro
 		{
 			PropertyPreview->SetPreviewSize(FVector2D(Settings->PropertyPreviewSize));
 		}
+	}
+}
+
+bool SDMMaterialProperties::OnAssetDraggedOver(TArrayView<FAssetData> InAssets, EDMMaterialPropertyType InMaterialProperty)
+{
+	TSharedPtr<SDMMaterialEditor> EditorWidget = EditorWidgetWeak.Pin();
+
+	if (!EditorWidget.IsValid())
+	{
+		return false;
+	}
+
+	UDynamicMaterialModel* MaterialModel = EditorWidget->GetMaterialModel();
+
+	if (!MaterialModel)
+	{
+		return false;
+	}
+
+	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel);
+
+	if (!EditorOnlyData)
+	{
+		return false;
+	}
+
+	UDMMaterialProperty* Property = EditorOnlyData->GetMaterialProperty(InMaterialProperty);
+
+	if (!Property || !Property->IsEnabled())
+	{
+		return false;
+	}
+
+	const TArray<UClass*> AllowedClasses = {
+		UTexture::StaticClass()
+	};
+
+	TArray<FAssetData> Textures;
+
+	for (const FAssetData& Asset : InAssets)
+	{
+		UClass* AssetClass = Asset.GetClass(EResolveClass::Yes);
+
+		if (!AssetClass)
+		{
+			continue;
+		}
+
+		for (UClass* AllowedClass : AllowedClasses)
+		{
+			if (AssetClass->IsChildOf(AllowedClass))
+			{
+				Textures.Add(Asset);
+			}
+		}
+	}
+
+	return Textures.Num() == 1;
+}
+
+void SDMMaterialProperties::OnAssetsDropped(const FDragDropEvent& InDragDropEvent, TArrayView<FAssetData> InAssets, 
+	EDMMaterialPropertyType InMaterialProperty)
+{
+	for (const FAssetData& Asset : InAssets)
+	{
+		UClass* AssetClass = Asset.GetClass(EResolveClass::Yes);
+
+		if (!AssetClass)
+		{
+			continue;
+		}
+
+		if (AssetClass->IsChildOf(UTexture::StaticClass()))
+		{
+			HandleDrop_Texture(Cast<UTexture>(Asset.GetAsset()), InMaterialProperty);
+			break;
+		}
+	}
+}
+
+void SDMMaterialProperties::HandleDrop_Texture(UTexture* InTexture, EDMMaterialPropertyType InMaterialProperty)
+{
+	TSharedPtr<SDMMaterialEditor> EditorWidget = EditorWidgetWeak.Pin();
+
+	if (!EditorWidget.IsValid())
+	{
+		return;
+	}
+
+	UDynamicMaterialModel* MaterialModel = EditorWidget->GetMaterialModel();
+
+	if (!MaterialModel)
+	{
+		return;
+	}
+
+	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel);
+
+	if (!EditorOnlyData)
+	{
+		return;
+	}
+
+	UDMMaterialProperty* Property = EditorOnlyData->GetMaterialProperty(InMaterialProperty);
+
+	if (!Property || !Property->IsEnabled())
+	{
+		return;
+	}
+
+	UDMMaterialSlot* Slot = EditorOnlyData->GetSlotForMaterialProperty(InMaterialProperty);
+
+	if (!Slot)
+	{
+		return;
+	}
+
+	const EAppReturnType::Type Result = FMessageDialog::Open(
+		EAppMsgType::YesNoCancel,
+		LOCTEXT("ReplaceSlotsTextureSet",
+			"Material Designer Channel.\n\n"
+			"Replace Slot?\n\n"
+			"- Yes: Delete Layers.\n"
+			"- No: Add Layer.\n"
+			"- Cancel")
+	);
+
+	FDMScopedUITransaction Transaction(LOCTEXT("DropTexture", "Drop Texture On Channel"));
+
+	switch (Result)
+	{
+		case EAppReturnType::Yes:
+			UDMMaterialSlotFunctionLibrary::AddTextureLayer(Slot, InTexture, InMaterialProperty, /* Replace Slot */ true);
+			break;
+
+		case EAppReturnType::No:
+			UDMMaterialSlotFunctionLibrary::AddTextureLayer(Slot, InTexture, InMaterialProperty, /* Replace Slot */ false);
+			break;
+
+		default:
+			Transaction.Transaction.Cancel();
+			break;
 	}
 }
 

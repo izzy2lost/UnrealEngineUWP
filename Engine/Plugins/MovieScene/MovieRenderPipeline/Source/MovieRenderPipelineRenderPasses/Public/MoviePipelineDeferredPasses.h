@@ -98,6 +98,8 @@ protected:
 	bool CheckIfPathTracerIsSupported() const;
 	void PathTracerValidationImpl();
 
+	virtual void UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const override;
+
 public:
 	/**
 	* Should multiple temporal/spatial samples accumulate the alpha channel? This requires r.PostProcessing.PropagateAlpha
@@ -327,7 +329,10 @@ public:
 	virtual void ValidateStateImpl() override;
 	virtual void SetupImpl(const MoviePipeline::FMoviePipelineRenderPassInitSettings& InPassInitSettings) override;
 
+	virtual TSharedPtr<FSceneViewFamilyContext> CalculateViewFamily(FMoviePipelineRenderPassMetrics& InOutSampleState, IViewCalcPayload* OptPayload) override;
+
 	virtual bool NeedsFrameThrottle() const override { return true; }
+	virtual void UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const override;
 
 	/** When enabled, the path tracer will blend all spatial and temporal samples prior to the denoising and will disable post-processed motion blur.
 	 *  In this mode it is possible to use higher temporal sample counts to improve the motion blur quality.

@@ -23,10 +23,10 @@ public:
 
 private:
 
-	void RegisterTables(ITypedElementDataStorageInterface& DataStorage);
+	void RegisterTables(IEditorDataStorageProvider& DataStorage);
 
-	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage);
-	void UnregisterQueries(ITypedElementDataStorageInterface& DataStorage);
+	void RegisterQueries(IEditorDataStorageProvider& DataStorage);
+	void UnregisterQueries(IEditorDataStorageProvider& DataStorage);
 
 	void RegisterSettings();
 	void UnregisterSettings();

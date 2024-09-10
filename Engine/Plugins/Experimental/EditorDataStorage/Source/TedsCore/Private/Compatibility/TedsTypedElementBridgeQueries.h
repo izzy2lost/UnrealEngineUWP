@@ -16,22 +16,22 @@ class UTypedElementRegistry;
  * are cleaned up when TEDS is shut down.
  */
 UCLASS(Transient)
-class UTypedElementBridgeDataStorageFactory : public UTypedElementDataStorageFactory
+class UTypedElementBridgeDataStorageFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 public:
 	~UTypedElementBridgeDataStorageFactory() override = default;
 	virtual uint8 GetOrder() const override;
-	virtual void PreRegister(ITypedElementDataStorageInterface& DataStorage) override;
-	virtual void PreShutdown(ITypedElementDataStorageInterface& DataStorage) override;
-	virtual void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
+	virtual void PreRegister(IEditorDataStorageProvider& DataStorage) override;
+	virtual void PreShutdown(IEditorDataStorageProvider& DataStorage) override;
+	virtual void RegisterQueries(IEditorDataStorageProvider& DataStorage) override;
 
 	static bool IsEnabled();
 
 private:
-	void RegisterQuery_NewUObject(ITypedElementDataStorageInterface& DataStorage);
-	void UnregisterQuery_NewUObject(ITypedElementDataStorageInterface& DataStorage);
-	void CleanupTypedElementColumns(ITypedElementDataStorageInterface& DataStorage);
+	void RegisterQuery_NewUObject(IEditorDataStorageProvider& DataStorage);
+	void UnregisterQuery_NewUObject(IEditorDataStorageProvider& DataStorage);
+	void CleanupTypedElementColumns(IEditorDataStorageProvider& DataStorage);
 	void HandleOnEnabled(IConsoleVariable* CVar);
 	
 	UE::Editor::DataStorage::QueryHandle RemoveTypedElementRowHandleQuery = UE::Editor::DataStorage::InvalidQueryHandle;

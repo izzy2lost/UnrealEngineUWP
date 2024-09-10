@@ -11,8 +11,8 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
-void USlateStylePreviewWidget::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
-                                                          ITypedElementDataStorageUiInterface& DataStorageUi) const
+void USlateStylePreviewWidget::RegisterWidgetConstructors(IEditorDataStorageProvider& DataStorage,
+	IEditorDataStorageUiProvider& DataStorageUi) const
 {
 	using namespace UE::Editor::DataStorage::Queries;
 	DataStorageUi.RegisterWidgetFactory<FSlateStylePreviewWidgetConstructor>(TEXT("General.RowLabel"), TColumn<FNameColumn>() && TColumn<FSlateStyleTag>());
@@ -24,8 +24,8 @@ FSlateStylePreviewWidgetConstructor::FSlateStylePreviewWidgetConstructor()
 {
 }
 
-TSharedPtr<SWidget> FSlateStylePreviewWidgetConstructor::CreateWidget(ITypedElementDataStorageInterface* DataStorage,
-	ITypedElementDataStorageUiInterface* DataStorageUi, UE::Editor::DataStorage::RowHandle TargetRow, UE::Editor::DataStorage::RowHandle WidgetRow,
+TSharedPtr<SWidget> FSlateStylePreviewWidgetConstructor::CreateWidget(IEditorDataStorageProvider* DataStorage,
+	IEditorDataStorageUiProvider* DataStorageUi, UE::Editor::DataStorage::RowHandle TargetRow, UE::Editor::DataStorage::RowHandle WidgetRow,
 	const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
 	UE::Editor::DataStorage::FAttributeBinder Binder(TargetRow, DataStorage);

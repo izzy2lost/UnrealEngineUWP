@@ -279,6 +279,11 @@ void FPlaylistReaderMP4::WorkerThread()
 				parseError = MP4Parser->PrepareTracks(PlayerSessionServices, TSharedPtrTS<const IParserISO14496_12>());
 				if (parseError == UEMEDIA_ERROR_OK)
 				{
+					MP4Parser->ResolveTimecodeTracks(PlayerSessionServices, IParserISO14496_12::FCancellationCheckDelegate::CreateLambda([&]()
+					{
+						return bAbort;
+					}));
+
 					Manifest = MakeSharedTS<FManifestMP4Internal>(PlayerSessionServices);
 
 					TArray<FURL_RFC3986::FQueryParam> URLFragmentComponents;

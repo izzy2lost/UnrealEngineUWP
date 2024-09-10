@@ -291,13 +291,50 @@ void UE::Interchange::FTaskParsing::Execute()
 				TEXT("Found multiple task data with the same asset name (%s). Only one will be executed."), *AssetFullPath))
 			{
 				LLM_SCOPE_BYNAME(TEXT("Interchange"));
+				
+				// Create factory
+				UInterchangeFactoryBase* Factory = NewObject<UInterchangeFactoryBase>(GetTransientPackage(), FactoryClass);
+				Factory->SetResultsContainer(AsyncHelper->AssetImportResult->GetResults());
+				AsyncHelper->AddCreatedFactory(FactoryNode->GetUniqueID(), Factory);
+
+				//If the factory wants to get async payloads it can add the task here so the payloads are in the dependency graph
+				TArray<uint64> ImportObjectQueryPayloadsTasksPrerequistes;
+				{
+					TArray<TSharedPtr<FInterchangeTaskBase>> PayloadTasks;
+					UInterchangeFactoryBase::FImportAssetObjectParams ImportAssetObjectParams;
+					ImportAssetObjectParams.AssetName = FactoryNode->GetDisplayLabel();
+					ImportAssetObjectParams.AssetNode = FactoryNode;
+					ImportAssetObjectParams.NodeContainer = AsyncHelper->BaseNodeContainers[SourceIndex].Get();
+					ImportAssetObjectParams.SourceData = AsyncHelper->SourceDatas[SourceIndex];
+					ImportAssetObjectParams.Translator = AsyncHelper->Translators[SourceIndex];
+					bool bAsyncPayloads = !AsyncHelper->bRunSynchronous;
+					if (!ImportAssetObjectParams.Translator || !ImportAssetObjectParams.Translator->IsThreadSafe())
+					{
+						//Translator not thread safe cannot get payloads asynchronously
+						bAsyncPayloads = false;
+					}
+					Factory->CreatePayloadTasks(ImportAssetObjectParams, bAsyncPayloads, PayloadTasks);
+					if (!PayloadTasks.IsEmpty())
+					{
+						for (TSharedPtr<FInterchangeTaskBase> PayloadTask : PayloadTasks)
+						{
+							int32 ImportObjectQueryPayloadsTaskIndex = AsyncHelper->ImportObjectQueryPayloadsTasks.Add(FInterchangeTaskSystem::Get().AddTask(PayloadTask, TaskData.Prerequisites));
+							ImportObjectQueryPayloadsTasksPrerequistes.Add(AsyncHelper->ImportObjectQueryPayloadsTasks[ImportObjectQueryPayloadsTaskIndex]);
+						}
+					}
+					else
+					{
+						ImportObjectQueryPayloadsTasksPrerequistes = TaskData.Prerequisites;
+					}
+				}
+
 				TArray<uint64> ImportObjectTasksPrerequistes;
 				TSharedPtr<FTaskImportObject_GameThread, ESPMode::ThreadSafe> TaskImportObject_GameThread = MakeShared<FTaskImportObject_GameThread, ESPMode::ThreadSafe>(AsyncHelper->ContentBasePath
 					, SourceIndex
 					, WeakAsyncHelper
 					, FactoryNode
 					, FactoryClass);
-				int32 BeginImportObjectTaskIndex = AsyncHelper->BeginImportObjectTasks.Add(FInterchangeTaskSystem::Get().AddTask(TaskImportObject_GameThread, TaskData.Prerequisites));
+				int32 BeginImportObjectTaskIndex = AsyncHelper->BeginImportObjectTasks.Add(FInterchangeTaskSystem::Get().AddTask(TaskImportObject_GameThread, ImportObjectQueryPayloadsTasksPrerequistes));
 				ImportObjectTasksPrerequistes.Add(AsyncHelper->BeginImportObjectTasks[BeginImportObjectTaskIndex]);
 
 				TSharedPtr<FTaskImportObject_Async, ESPMode::ThreadSafe> TaskImportObject_Async = MakeShared<FTaskImportObject_Async, ESPMode::ThreadSafe>(AsyncHelper->ContentBasePath

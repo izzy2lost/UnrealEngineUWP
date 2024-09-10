@@ -30,7 +30,7 @@ namespace UE::Editor::DataStorage::Debug::Private
 		TEXT("Print some debug information on the specified path."),
 		FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& InArgs)
 			{
-				const ITypedElementDataStorageInterface* Database = UTypedElementRegistry::GetInstance()->GetDataStorage();
+				const IEditorDataStorageProvider* Database = UTypedElementRegistry::GetInstance()->GetDataStorage();
 				IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
 
 				for (const FString& Path : InArgs)
@@ -160,7 +160,7 @@ namespace UE::Editor::DataStorage::Debug::Private
 		ULevel::StaticClass(), UBlueprint::StaticClass(), UTexture::StaticClass() };
 
 	// Populate an asset row with random information
-	void PopulateRowWithRandomInfo(RowHandle Row, ITypedElementDataStorageInterface* DataStorage)
+	void PopulateRowWithRandomInfo(RowHandle Row, IEditorDataStorageProvider* DataStorage)
 	{
 		// Don't modify any rows that aren't our placeholder assets
 		if (!DataStorage->HasColumns<FAssetTag>(Row))
@@ -220,7 +220,7 @@ namespace UE::Editor::DataStorage::Debug::Private
 				TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.CreateDebugAssetRows);
 
 
-				ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+				IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 
 				if (!DataStorage)
 				{
@@ -252,7 +252,7 @@ namespace UE::Editor::DataStorage::Debug::Private
 			{
 				using namespace UE::Editor::DataStorage::Queries;
 
-				ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+				IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 
 				if (!DataStorage)
 				{
@@ -265,7 +265,7 @@ namespace UE::Editor::DataStorage::Debug::Private
 				TArray<RowHandle> Rows;
 				
 				DataStorage->RunQuery(AssetQueryHandle,
-					CreateDirectQueryCallbackBinding([&Rows](const ITypedElementDataStorageInterface::IDirectQueryContext& Context)
+					CreateDirectQueryCallbackBinding([&Rows](const IEditorDataStorageProvider::IDirectQueryContext& Context)
 					{
 						Rows.Append(Context.GetRowHandles());
 					}));

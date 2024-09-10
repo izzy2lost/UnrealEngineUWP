@@ -5,7 +5,6 @@
 #include "Brushes/SlateColorBrush.h"
 #include "Framework/Application/IInputProcessor.h"
 #include "Framework/Application/SlateApplication.h"
-#include "HAL/PlatformCrt.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "ILocalizationServiceModule.h"
 #include "ILocalizationServiceProvider.h"
@@ -19,7 +18,6 @@
 #include "Layout/Children.h"
 #include "Layout/Margin.h"
 #include "Layout/Visibility.h"
-#include "Misc/Attribute.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
@@ -38,7 +36,6 @@
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SGridPanel.h"
-#include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SUniformGridPanel.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SWindow.h"
@@ -84,12 +81,17 @@ public:
 
 		if (Key == EKeys::Escape)
 		{
-			Owner->Close();
+			Owner->Exit();
 			return true;
 		}
 		else if (Key == EKeys::Enter)
 		{
 			Owner->RestorePicker();
+			return true;
+		}
+		else if (Key == EKeys::BackSpace)
+		{
+			TranslationPickerManager::bDrawBoxes = !TranslationPickerManager::bDrawBoxes;
 			return true;
 		}
 
@@ -110,7 +112,6 @@ UTranslationPickerSettings::UTranslationPickerSettings(const FObjectInitializer&
 void STranslationPickerEditWindow::Construct(const FArguments& InArgs)
 {
 	ParentWindow = InArgs._ParentWindow;
-	PickedTexts = InArgs._PickedTexts;
 	WindowContents = SNew(SBox);
 	TSharedRef<SVerticalBox> TextsBox = SNew(SVerticalBox);
 	UTranslationPickerSettings* TranslationPickerSettings = FTranslationPickerSettingsManager::Get()->GetSettings();
@@ -212,7 +213,7 @@ void STranslationPickerEditWindow::Construct(const FArguments& InArgs)
 						.HAlign(HAlign_Center)
 						.VAlign(VAlign_Center)
 						.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
-						.OnClicked(this, &STranslationPickerEditWindow::SaveAllAndClose)
+						.OnClicked(this, &STranslationPickerEditWindow::SaveAllAndExit)
 						.Text(LOCTEXT("SaveAllAndClose", "Save All and Close"))
 #if WITH_EDITOR
 						.Visibility(EVisibility::Visible)
@@ -227,7 +228,7 @@ void STranslationPickerEditWindow::Construct(const FArguments& InArgs)
 						.HAlign(HAlign_Center)
 						.VAlign(VAlign_Center)
 						.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
-						.OnClicked(this, &STranslationPickerEditWindow::Close)
+						.OnClicked(this, &STranslationPickerEditWindow::Exit)
 						.Text(LOCTEXT("CancelButton", "Cancel"))
 					]
 				]
@@ -272,16 +273,23 @@ FReply STranslationPickerEditWindow::Close()
 	return FReply::Handled();
 }
 
+FReply STranslationPickerEditWindow::Exit()
+{
+	TranslationPickerManager::RemoveOverlay();
+	Close();
+
+	return FReply::Handled();
+}
+
 FReply STranslationPickerEditWindow::RestorePicker()
 {
 	Close();
-
 	TranslationPickerManager::OpenPickerWindow();
 
 	return FReply::Handled();
 }
 
-FReply STranslationPickerEditWindow::SaveAllAndClose()
+FReply STranslationPickerEditWindow::SaveAllAndExit()
 {
 	TArray<UTranslationUnit*> TempArray;
 
@@ -301,7 +309,7 @@ FReply STranslationPickerEditWindow::SaveAllAndClose()
 		FTranslationDataManager::SaveSelectedTranslations(TempArray, ILocalizationServiceModule::Get().GetProvider().IsEnabled() && TranslationPickerSettings->bSubmitTranslationPickerChangesToLocalizationService);
 	}
 
-	Close();
+	Exit();
 
 	return FReply::Handled();
 }
@@ -312,17 +320,17 @@ void STranslationPickerEditWindow::UpdateListItems()
 	FilteredItems.Reset();
 
 	// Add a new Translation Picker Edit Widget for each picked text
-	for (const FText& PickedText : PickedTexts)
+	for (const FTranslationPickerTextAndGeom& PickedText : TranslationPickerManager::PickedTexts)
 	{
-		TSharedPtr<FTranslationPickerTextItem> Item = FTranslationPickerTextItem::BuildTextItem(PickedText, true);
+		TSharedPtr<FTranslationPickerTextItem> Item = FTranslationPickerTextItem::BuildTextItem(PickedText.Text, true);
 		
 		AllItems.Add(Item);
 
 		const FString& FilterBy = FilterText.ToString();
 
-		if (!PickedText.IsEmptyOrWhitespace() &&
-			!PickedText.ToString().Contains(FilterBy) &&
-			!PickedText.BuildSourceString().Contains(FilterBy))
+		if (!PickedText.Text.IsEmptyOrWhitespace() &&
+			!PickedText.Text.ToString().Contains(FilterBy) &&
+			!PickedText.Text.BuildSourceString().Contains(FilterBy))
 		{
 			continue;
 		}

@@ -78,8 +78,25 @@ namespace Horde.Commands.Compute
 		/// <inheritdoc/>
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			await using IComputeClient client = CreateComputeClient(logger);
+			if (Local)
+			{
+				await using LocalComputeClient client = new LocalComputeClient(2000, SandboxDir, InProc, logger);
+				return await ExecuteAsync(client, logger);
+			}
+			else if (Loopback)
+			{
+				AgentComputeClient client = new AgentComputeClient(Assembly.GetExecutingAssembly().Location, 2000, logger);
+				return await ExecuteAsync(client, logger);
+			}
+			else
+			{
+				IComputeClient client = _hordeClient.Compute;
+				return await ExecuteAsync(client, logger);
+			}
+		}
 
+		async Task<int> ExecuteAsync(IComputeClient client, ILogger logger)
+		{
 			Requirements? requirements = null;
 			if (Requirements != null)
 			{
@@ -104,22 +121,6 @@ namespace Horde.Commands.Compute
 			return result ? 0 : 1;
 		}
 
-		IComputeClient CreateComputeClient(ILogger logger)
-		{
-			if (Local)
-			{
-				return new LocalComputeClient(2000, SandboxDir, InProc, logger);
-			}
-			else if (Loopback)
-			{
-				return new AgentComputeClient(Assembly.GetExecutingAssembly().Location, 2000, logger);
-			}
-			else
-			{
-				return _hordeClient.CreateComputeClient();
-			}
-		}
-
 		/// <inheritdoc/>
 		async Task<bool> HandleRequestAsync(IComputeLease lease, ILogger logger, CancellationToken cancellationToken)
 		{
@@ -130,7 +131,7 @@ namespace Horde.Commands.Compute
 			JsonComputeTask task = JsonSerializer.Deserialize<JsonComputeTask>(data, new JsonSerializerOptions { AllowTrailingCommas = true, PropertyNameCaseInsensitive = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase })!;
 
 			// Create a sandbox from the data to be uploaded
-			BundleStorageClient storage = BundleStorageClient.CreateInMemory(logger);
+			BundleStorageNamespace storage = BundleStorageNamespace.CreateInMemory(logger);
 			BlobLocator sandbox = await CreateSandboxAsync(TaskFile, storage, cancellationToken);
 
 			// Open a socket and upload the sandbox
@@ -156,7 +157,7 @@ namespace Horde.Commands.Compute
 			return true;
 		}
 
-		static async Task<BlobLocator> CreateSandboxAsync(FileReference taskFile, IStorageClient storage, CancellationToken cancellationToken)
+		static async Task<BlobLocator> CreateSandboxAsync(FileReference taskFile, IStorageNamespace storage, CancellationToken cancellationToken)
 		{
 			await using IBlobWriter writer = storage.CreateBlobWriter();
 

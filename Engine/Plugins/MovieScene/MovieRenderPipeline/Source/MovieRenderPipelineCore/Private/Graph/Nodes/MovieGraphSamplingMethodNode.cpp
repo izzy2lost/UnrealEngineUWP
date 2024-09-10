@@ -4,6 +4,7 @@
 
 #include "Graph/MovieGraphConfig.h"
 #include "Graph/MovieGraphLinearTimeStep.h"
+#include "MoviePipelineTelemetry.h"
 #include "Styling/AppStyle.h"
 
 UMovieGraphSamplingMethodNode::UMovieGraphSamplingMethodNode()
@@ -66,3 +67,8 @@ FSlateIcon UMovieGraphSamplingMethodNode::GetIconAndTint(FLinearColor& OutColor)
 	return SamplingMethodPresetIcon;
 }
 #endif // WITH_EDITOR
+
+void UMovieGraphSamplingMethodNode::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	InTelemetry->TemporalSampleCount = TemporalSampleCount;
+}

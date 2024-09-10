@@ -72,8 +72,14 @@ public:
 	/** Stops DMX on this DMX Control Console on tick */
 	void StopSendingDMX();
 
+	/** Puses DMX data sending on this DMX Control Console*/
+	void PauseSendingDMX();
+
 	/** Gets if DMX is sending DMX data or not */
 	bool IsSendingDMX() const { return bSendDMX; }
+
+	/** Gets if DMX data sending is paused or not */
+	bool IsPausedDMX() const { return bPauseDMX; }
 
 #if WITH_EDITOR
 	/** Sets if the console can send DMX in Editor */
@@ -176,6 +182,9 @@ private:
 
 	/** True when this object is ticking */
 	bool bSendDMX = false;
+
+	/** True when sending DMX is paused */
+	bool bPauseDMX = false;
 
 	/** The stop DMX mode currently in use by the console */
 	UPROPERTY()

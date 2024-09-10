@@ -77,12 +77,16 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 		
 		// Get ready to begin tracking relative shot frame count
 		CurrentTimeStepData.ShotOutputFrameNumber = -1;
+		
+		FFrameTime EvalTime = CurrentCameraCut->ShotInfo.CurrentTimeInRoot;
 
+		// Seeks the external data source to match. This is done before setting up for renders
+		// so that Spawnables, etc. will be spawned.
+		GetOwningGraph()->GetDataSourceInstance()->InitializeShot(CurrentCameraCut, EvalTime);
+		
 		// Sets up the render state, etc.
 		GetOwningGraph()->SetupShot(CurrentCameraCut);
 
-		// Seeks the external data source to match
-		GetOwningGraph()->GetDataSourceInstance()->InitializeShot(CurrentCameraCut);
 
 		// Generate render layers from the evaluated graph
 		GetOwningGraph()->CreateLayersInRenderLayerSubsystem(CurrentTimeStepData.EvaluatedConfig);

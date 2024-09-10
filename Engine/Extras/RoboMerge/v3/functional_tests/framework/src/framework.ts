@@ -158,8 +158,6 @@ type RobomergeBranchOptions = {
 	streamSubpath: string
 	workspace: (string | null)
 
-	// if set, still generate workspace but use this name
-	workspaceNameOverride: string
 	additionalSlackChannelForBlockages: string
 	ignoreBranchspecs: boolean
 	lastGoodCLPath: string
@@ -204,6 +202,9 @@ type EdgeOptionFields = {
 	implicitCommands: string[]
 
 	ignoreInCycleDetection: boolean
+
+	// if set, still generate workspace but use this name
+	workspaceNameOverride: string
 
 	approval: {
 		description: string

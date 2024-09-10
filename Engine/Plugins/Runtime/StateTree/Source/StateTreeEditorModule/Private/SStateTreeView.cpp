@@ -682,4 +682,27 @@ void SStateTreeView::HandleDisableSelectedStates()
 	}
 }
 
+TSharedPtr<FStateTreeViewModel> SStateTreeView::GetViewModel() const
+{
+	return StateTreeViewModel;
+}
+
+void SStateTreeView::SetSelection(const TArray<TWeakObjectPtr<UStateTreeState>>& SelectedStates) const
+{
+	for (const TWeakObjectPtr<UStateTreeState>& WeakState : SelectedStates)
+	{
+		if (const UStateTreeState* SelectedState = WeakState.Get())
+		{
+			UStateTreeState* ParentState = SelectedState->Parent;
+			while (ParentState)
+			{
+				constexpr bool bShouldExpandItem(true);
+				TreeView->SetItemExpansion(ParentState, bShouldExpandItem);
+				ParentState = ParentState->Parent;
+			}
+		}
+	}
+	StateTreeViewModel->SetSelection(SelectedStates);
+}
+
 #undef LOCTEXT_NAMESPACE

@@ -70,7 +70,7 @@ namespace UE::NNE::ModelData
 		}
 		else
 		{
-			UE_LOG(LogNNE, Error, TEXT("UNNEModelData: No runtime '%s' found. Valid runtimes are: "), *RuntimeName);
+			UE_LOG(LogNNE, Error, TEXT("No runtime '%s' found. Valid runtimes are: "), *RuntimeName);
 			TArray<FString> Runtimes = UE::NNE::GetAllRuntimeNames();
 			for (int32 i = 0; i < Runtimes.Num(); i++)
 			{
@@ -246,7 +246,7 @@ void UNNEModelData::Serialize(FArchive& Ar)
 				Ar << Data_Size32Bits;
 				ModelData.Add(Name, MakeShared<UE::NNE::FSharedModelData>(MakeSharedBufferFromArray(MoveTemp(Data_Size32Bits)), 0));
 			}
-			UE_LOG(LogNNE, Warning, TEXT("[DEPRECATION] UNNEModelData: The asset %s (v0) is deprecated. Please right-click the asset and select 'Save' to update it to the latest version."), *this->GetName());
+			UE_LOG(LogNNE, Warning, TEXT("[DEPRECATION] The asset %s (v0) is deprecated. Please right-click the asset and select 'Save' to update it to the latest version."), *this->GetName());
 			break;
 
 		case UE::NNE::ModelData::Version::V1:
@@ -267,7 +267,7 @@ void UNNEModelData::Serialize(FArchive& Ar)
 				Ar << Data_Size32Bits;
 				ModelData.Add(Name, MakeShared<UE::NNE::FSharedModelData>(MakeSharedBufferFromArray(MoveTemp(Data_Size32Bits)), 0));
 			}
-			UE_LOG(LogNNE, Warning, TEXT("[DEPRECATION] UNNEModelData: The asset %s (v1) is deprecated. Please right-click the asset and select 'Save' to update it to the latest version."), *this->GetName());
+			UE_LOG(LogNNE, Warning, TEXT("[DEPRECATION] The asset %s (v1) is deprecated. Please right-click the asset and select 'Save' to update it to the latest version."), *this->GetName());
 			break;
 
 		case UE::NNE::ModelData::Version::V2:
@@ -341,7 +341,7 @@ void UNNEModelData::Serialize(FArchive& Ar)
 			break;
 
 		default:
-			UE_LOG(LogNNE, Error, TEXT("UNNEModelData: Unknown asset version %d: Deserialisation failed, please reimport the original model."), Ar.CustomVer(UE::NNE::ModelData::GUID));
+			UE_LOG(LogNNE, Error, TEXT("Unknown asset version %d: Deserialisation failed, please reimport the original model."), Ar.CustomVer(UE::NNE::ModelData::GUID));
 			break;
 		}
 	}
@@ -418,7 +418,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNEModelData::GetModelData(const FString&
 	TArrayView<const FString> TargetRuntimesNames = GetTargetRuntimes();
 	if (!TargetRuntimesNames.IsEmpty() && !TargetRuntimesNames.Contains(RuntimeName))
 	{
-		UE_LOG(LogNNE, Error, TEXT("UNNEModelData: Runtime '%s' is not among the target runtimes. Target runtimes are: "), *RuntimeName);
+		UE_LOG(LogNNE, Error, TEXT("Runtime '%s' is not among the target runtimes. Target runtimes are: "), *RuntimeName);
 		for (const FString& TargetRuntimesName : TargetRuntimesNames)
 		{
 			UE_LOG(LogNNE, Error, TEXT("- %s"), *TargetRuntimesName);
@@ -436,7 +436,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNEModelData::GetModelData(const FString&
 	// After this point FileData is required to either get the cache id or recreate it from scratch
 	if (FileData.Num() < 1)
 	{
-		UE_LOG(LogNNE, Error, TEXT("UNNEModelData: Cannot create model data from empty file data."));
+		UE_LOG(LogNNE, Error, TEXT("Cannot create model data from empty file data."));
 		return TSharedPtr<UE::NNE::FSharedModelData>();
 	}
 

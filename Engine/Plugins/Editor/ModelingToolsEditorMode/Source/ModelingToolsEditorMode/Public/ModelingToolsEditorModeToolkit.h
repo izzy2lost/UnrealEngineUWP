@@ -21,6 +21,12 @@ class UGeometrySelectionManager;
 class UInteractiveToolsPresetCollectionAsset;
 class FRecentPresetCollectionProvider;
 struct FAssetData;
+class IToolStylusStateProviderAPI;
+
+namespace UE::Modeling
+{
+	class FStylusInputHandler;
+}
 
 struct FToolPresetOption
 {
@@ -105,6 +111,8 @@ public:
 	TSharedPtr<STransformGizmoNumericalUIOverlay> GetGizmoNumericalUIOverlayWidget() { return GizmoNumericalUIOverlayWidget; }
 
 	void NotifySelectionSystemEnabledStateModified();
+
+	IToolStylusStateProviderAPI* GetStylusStateProviderAPI() const;
 
 private:
 	const static TArray<FName> PaletteNames_Standard;
@@ -215,6 +223,8 @@ private:
 
 	bool bFirstInitializeAfterModeSetup = true;
 	bool bShowActiveSelectionActions = true;
+
+	TUniquePtr<UE::Modeling::FStylusInputHandler> StylusInputHandler;
 
 };
 

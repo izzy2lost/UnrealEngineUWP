@@ -10,10 +10,11 @@
 
 namespace UE::StylusInput::Private::Windows
 {
-	FWindowsStylusInputPluginSync::FWindowsStylusInputPluginSync(FGetWindowContextCallback&& GetWindowContext,
+	FWindowsStylusInputPluginSync::FWindowsStylusInputPluginSync(IStylusInputInstance* Instance,
+	                                                             FGetWindowContextCallback&& GetWindowContext,
 	                                                             FUpdateTabletContextsCallback&& UpdateTabletContextsCallback,
 	                                                             IStylusInputEventHandler* EventHandler)
-		: FWindowsStylusInputPluginBase(MoveTemp(GetWindowContext), MoveTemp(UpdateTabletContextsCallback))
+		: FWindowsStylusInputPluginBase(Instance, MoveTemp(GetWindowContext), MoveTemp(UpdateTabletContextsCallback))
 	{
 		if (EventHandler)
 		{

@@ -217,6 +217,11 @@ public:
 	virtual TArrayView<const uint16> GetRBFPoseAnimatedMapOutputIndices(uint16 PoseIndex) const = 0;
 	virtual TArrayView<const float> GetRBFPoseJointOutputValues(uint16 PoseIndex) const = 0;
 	virtual float GetRBFPoseScale(uint16 PoseIndex) const = 0;
+	virtual uint16 GetRBFPoseControlCount() const = 0;
+	virtual FString GetRBFPoseControlName(uint16 PoseControlIndex) const = 0;
+	virtual TArrayView<const uint16> GetRBFPoseInputControlIndices(uint16 PoseIndex) const = 0;
+	virtual TArrayView<const uint16> GetRBFPoseOutputControlIndices(uint16 PoseIndex) const = 0;
+	virtual TArrayView<const float> GetRBFPoseOutputControlWeights(uint16 PoseIndex) const = 0;
 	virtual uint16 GetRBFSolverCount() const = 0;
 	virtual uint16 GetRBFSolverIndexListCount() const = 0;
 	virtual TArrayView<const uint16> GetRBFSolverIndicesForLOD(uint16 LOD) const = 0;

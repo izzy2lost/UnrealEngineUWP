@@ -2716,7 +2716,9 @@ public:
 	FDelegateHandle AddOnActorDestroyedHandler(const FOnActorDestroyed::FDelegate& InHandler) const;
 
 	/** Remove a listener for OnActorDestroyed events */
+	UE_DEPRECATED(5.5, "Use the typo corrected version RemoveOnActorDestroyedHandler")
 	void RemoveOnActorDestroyededHandler(FDelegateHandle InHandle) const;
+	void RemoveOnActorDestroyedHandler(FDelegateHandle InHandle) const;
 
 	/** Add a listener for OnPostRegisterAllActorComponents events */
 	FDelegateHandle AddOnPostRegisterAllActorComponentsHandler(const FOnPostRegisterAllActorComponents::FDelegate& InHandler) const;

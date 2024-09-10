@@ -197,7 +197,7 @@ namespace NiagaraStateless
 			// Write unique index as it's needed for the random operation
 			GetParticleUniqueIndex()[NumInstances] = Particle_UniqueIndex;
 
-			float Particle_Lifetime = RandomScaleBiasFloat(NumInstances, 0, EmitterData->LifetimeRange);
+			float Particle_Lifetime = RandomScaleBiasFloat(NumInstances, 0, EmitterData->LifetimeRange.GetScale(), EmitterData->LifetimeRange.Min);
 			if (Particle_Lifetime <= 0.0f || Particle_Age >= Particle_Lifetime)
 			{
 				continue;

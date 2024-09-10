@@ -24,6 +24,7 @@
 #include "EditMode/SControlRigSpacePicker.h"
 #include "LevelEditor.h"
 #include "SLevelViewport.h"
+#include "Sequencer/AnimLayers/SAnimLayers.h"
 
 #define LOCTEXT_NAMESPACE "FControlRigEditModeToolkit"
 
@@ -34,6 +35,7 @@ namespace
 }
 
 bool FControlRigEditModeToolkit::bMotionTrailsTabOpen = false;
+bool FControlRigEditModeToolkit::bAnimLayerTabOpen = false;
 bool FControlRigEditModeToolkit::bPoseTabOpen = false;
 bool FControlRigEditModeToolkit::bSnapperTabOpen = false;
 bool FControlRigEditModeToolkit::bTweenOpen = false;
@@ -41,6 +43,7 @@ bool FControlRigEditModeToolkit::bTweenOpen = false;
 const FName FControlRigEditModeToolkit::PoseTabName = FName(TEXT("PoseTab"));
 const FName FControlRigEditModeToolkit::MotionTrailTabName = FName(TEXT("MotionTrailTab"));
 const FName FControlRigEditModeToolkit::SnapperTabName = FName(TEXT("SnapperTab"));
+const FName FControlRigEditModeToolkit::AnimLayerTabName = FName(TEXT("AnimLayerTab"));
 const FName FControlRigEditModeToolkit::TweenOverlayName = FName(TEXT("TweenOverlay"));
 const FName FControlRigEditModeToolkit::OutlinerTabName = FName(TEXT("ControlRigOutlinerTab"));
 const FName FControlRigEditModeToolkit::DetailsTabName = FName(TEXT("ControlRigDetailsTab"));
@@ -113,6 +116,11 @@ void FControlRigEditModeToolkit::TryInvokeToolkitUI(const FName InName)
 	if (InName == MotionTrailTabName)
 	{
 		FTabId TabID(MotionTrailTabName);
+		ModeUILayerPtr->GetTabManager()->TryInvokeTab(TabID, false /*bIsActive*/);
+	}
+	else if (InName == AnimLayerTabName)
+	{
+		FTabId TabID(AnimLayerTabName);
 		ModeUILayerPtr->GetTabManager()->TryInvokeTab(TabID, false /*bIsActive*/);
 	}
 	else if (InName == PoseTabName)
@@ -194,6 +202,14 @@ TSharedRef<SDockTab> SpawnMotionTrailTab(const FSpawnTabArgs& Args)
 	return SNew(SDockTab)
 		[
 			SNew(SMotionTrailOptions)
+		];
+}
+
+TSharedRef<SDockTab> SpawnAnimLayerTab(const FSpawnTabArgs& Args, FControlRigEditMode* InEditorMode)
+{
+	return SNew(SDockTab)
+		[
+			SNew(SAnimLayers, *InEditorMode)
 		];
 }
 
@@ -410,6 +426,16 @@ void FControlRigEditModeToolkit::RequestModeUITabs()
 			.SetIcon(FSlateIcon(TEXT("ControlRigEditorStyle"), TEXT("ControlRig.EditableMotionTrails")));
 		ModeUILayerPtr->GetTabManager()->RegisterDefaultTabWindowSize(MotionTrailTabName, FVector2D(425, 575));
 
+		ModeUILayerPtr->GetTabManager()->UnregisterTabSpawner(AnimLayerTabName);
+		ModeUILayerPtr->GetTabManager()->RegisterTabSpawner(AnimLayerTabName, FOnSpawnTab::CreateStatic(&SpawnAnimLayerTab,&EditMode))
+			.SetDisplayName(LOCTEXT("AnimLayerTab", "Anim Layers"))
+			.SetTooltipText(LOCTEXT("AnimationLayerTabTooltip", "Animation layers"))
+			.SetGroup(MenuGroup)
+			.SetIcon(FSlateIcon(TEXT("ControlRigEditorStyle"), TEXT("ControlRig.AnimLayers")));
+		ModeUILayerPtr->GetTabManager()->RegisterDefaultTabWindowSize(AnimLayerTabName, FVector2D(425, 200));
+
+
+
 		ModeUILayer.Pin()->ToolkitHostShutdownUI().BindSP(this, &FControlRigEditModeToolkit::UnregisterAndRemoveFloatingTabs);
 
 
@@ -433,6 +459,10 @@ void FControlRigEditModeToolkit::InvokeUI()
 		if (bMotionTrailsTabOpen)
 		{
 			TryInvokeToolkitUI(MotionTrailTabName);
+		}
+		if (bAnimLayerTabOpen)
+		{
+			TryInvokeToolkitUI(AnimLayerTabName);
 		}
 		if (bSnapperTabOpen)
 		{
@@ -473,6 +503,18 @@ void FControlRigEditModeToolkit::UnregisterAndRemoveFloatingTabs()
 				bMotionTrailsTabOpen = false;
 			}
 			ModeUILayerPtr->GetTabManager()->UnregisterTabSpawner(MotionTrailTabName);
+
+			TSharedPtr<SDockTab> AnimLayerTab = ModeUILayerPtr->GetTabManager()->FindExistingLiveTab(FTabId(AnimLayerTabName));
+			if (AnimLayerTab)
+			{
+				bAnimLayerTabOpen = true;
+				AnimLayerTab->RequestCloseTab();
+			}
+			else
+			{
+				bAnimLayerTabOpen = false;
+			}
+			ModeUILayerPtr->GetTabManager()->UnregisterTabSpawner(AnimLayerTabName);
 
 			TSharedPtr<SDockTab> SnapperTab = ModeUILayerPtr->GetTabManager()->FindExistingLiveTab(FTabId(SnapperTabName));
 			if (SnapperTab)

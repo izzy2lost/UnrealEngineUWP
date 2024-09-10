@@ -100,13 +100,8 @@ void IPCGSpatialDataVisualization::ExecuteDebugDisplay(FPCGContext* Context, con
 		return;
 	}
 
-	UMaterialInterface* Material = DebugSettings.GetMaterial().LoadSynchronous();
-
-	TArray<UMaterialInterface*> Materials;
-	if (Material)
-	{
-		Materials.Add(Material);
-	}
+	TArray<TSoftObjectPtr<UMaterialInterface>> Materials;
+	Materials.Add(DebugSettings.GetMaterial());
 
 	const UPCGPointData* PointData = CollapseToDebugPointData(Context, Data);
 
@@ -160,7 +155,7 @@ void IPCGSpatialDataVisualization::ExecuteDebugDisplay(FPCGContext* Context, con
 		}
 	}
 
-	FPCGISMCBuilderParameters Params[2];
+	FPCGISMComponentBuilderParams Params[2];
 	Params[0].NumCustomDataFloats = NumCustomData;
 	Params[0].Descriptor.StaticMesh = Mesh;
 	Params[0].Descriptor.OverrideMaterials = Materials;

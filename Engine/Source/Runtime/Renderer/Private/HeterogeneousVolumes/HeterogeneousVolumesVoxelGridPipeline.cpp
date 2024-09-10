@@ -122,8 +122,8 @@ static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesBottomLevelGridVoxelH
 
 static TAutoConsoleVariable<float> CVarHeterogeneousVolumesMinimumVoxelSizeInFrustum(
 	TEXT("r.HeterogeneousVolumes.Tessellation.MinimumVoxelSizeInFrustum"),
-	1.0,
-	TEXT("The minimum voxel size (Default = 1.0)"),
+	0.1,
+	TEXT("The minimum voxel size (Default = 0.1)"),
 	ECVF_RenderThreadSafe
 );
 
@@ -252,17 +252,17 @@ static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesShadowDebugTweak(
 	ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesShadowShadingRate(
+static TAutoConsoleVariable<float> CVarHeterogeneousVolumesShadowShadingRate(
 	TEXT("r.HeterogeneousVolumes.Shadows.ShadingRate"),
-	2,
-	TEXT("Debug tweak value (Default = 0)\n"),
+	1.0f,
+	TEXT("Shading rate (in-frustum) for computing shadows (Default = 1.0)\n"),
 	ECVF_RenderThreadSafe
 );
 
 static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesShadowOutOfFrustumShadingRate(
 	TEXT("r.HeterogeneousVolumes.Shadows.OutOfFrustumShadingRate"),
 	2,
-	TEXT("Debug tweak value (Default = 0)\n"),
+	TEXT("Shading rate (out-of-frustum) for computing shadows (Default = 2.0)\n"),
 	ECVF_RenderThreadSafe
 );
 
@@ -668,9 +668,12 @@ class FTopLevelGridCalculateVoxelSize : public FGlobalShader
 		SHADER_PARAMETER(FVector3f, PrimitiveWorldBoundsMin)
 		SHADER_PARAMETER(FVector3f, PrimitiveWorldBoundsMax)
 		
-		SHADER_PARAMETER(float, ShadingRate)
+		SHADER_PARAMETER(float, ShadingRateInFrustum)
+		SHADER_PARAMETER(float, ShadingRateOutOfFrustum)
 		SHADER_PARAMETER(float, MinVoxelSizeInFrustum)
 		SHADER_PARAMETER(float, MinVoxelSizeOutOfFrustum)
+		SHADER_PARAMETER(float, DownsampleFactor)
+		SHADER_PARAMETER(int, bUseProjectedPixelSize)
 
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FTopLevelGridData>, RWTopLevelGridBuffer)
 	END_SHADER_PARAMETER_STRUCT()
@@ -1366,14 +1369,14 @@ void CalcViewBoundsAndMinimumVoxelSize(
 )
 {
 	TopLevelGridBounds = FBoxSphereBounds(ForceInit);
-	MinimumVoxelSize = BuildOptions.MinimumVoxelSizeOutsideFrustum;
+	MinimumVoxelSize = HeterogeneousVolumes::GetMinimumVoxelSizeOutsideFrustum();
 
 	// Build view bounds
 	FVector WorldCameraOrigin = View.ViewMatrices.GetViewOrigin();
 	FBoxSphereBounds WorldCameraBounds(FSphere(WorldCameraOrigin, HeterogeneousVolumes::GetMaxTraceDistance()));
 
 	float TanHalfFOV = HeterogeneousVolumes::CalcTanHalfFOV(View.FOV);
-	int32 HalfWidth = View.ViewRect.Width() * 0.5;
+	float HalfWidth = View.ViewRect.Width() * 0.5 / HeterogeneousVolumes::GetDownsampleFactor();
 	float PixelWidth = TanHalfFOV / HalfWidth;
 
 	for (int32 MeshBatchIndex = 0; MeshBatchIndex < View.HeterogeneousVolumesMeshBatches.Num(); ++MeshBatchIndex)
@@ -1405,8 +1408,8 @@ void CalcViewBoundsAndMinimumVoxelSize(
 				{
 					// Bandlimit minimum voxel size request with projected voxel size, based on shading rate
 					FVector VoxelCenter = PrimitiveBounds.Origin;
-					float Distance = FMath::Max(FVector(PrimitiveBounds.Origin - WorldCameraOrigin).Length() - TopLevelGridBounds.BoxExtent.Length(), 0.0);
-					float VoxelWidth = Distance * PixelWidth * HeterogeneousVolumes::GetShadingRateForFrustumGrid();
+					float Distance = FMath::Max(FVector(PrimitiveBounds.Origin - WorldCameraOrigin).Length() - PrimitiveBounds.BoxExtent.Length(), 0.0);
+					float VoxelWidth = Distance * PixelWidth * BuildOptions.ShadingRateInFrustum;
 
 					float PerVolumeMinimumVoxelSize = FMath::Max(VoxelWidth, HeterogeneousVolume->GetMinimumVoxelSize());
 					MinimumVoxelSize = FMath::Min(PerVolumeMinimumVoxelSize, MinimumVoxelSize);
@@ -1425,14 +1428,13 @@ void CalcGlobalBoundsAndMinimumVoxelSize(
 	float& GlobalMinimumVoxelSize
 )
 {
-	const bool bConvertToPixelSpace = (CVarHeterogeneousVolumesOrthoGridVoxelizationMode.GetValueOnAnyThread() == 0);
 	TopLevelGridBounds = FBoxSphereBounds(ForceInit);
-	GlobalMinimumVoxelSize = BuildOptions.MinimumVoxelSizeOutsideFrustum;
+	GlobalMinimumVoxelSize = HeterogeneousVolumes::GetMinimumVoxelSizeOutsideFrustum();
 
 	// Cycle through all Volume PrimitiveSceneProxies to collect bounds information and minimum voxel-size
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{
-		float ViewMinimumVoxelSize = BuildOptions.MinimumVoxelSizeOutsideFrustum;
+		float ViewMinimumVoxelSize = HeterogeneousVolumes::GetMinimumVoxelSizeOutsideFrustum();
 		FBoxSphereBounds AggregatePrimitiveBounds = FBoxSphereBounds(ForceInit);
 
 		// Build view bounds
@@ -1441,7 +1443,7 @@ void CalcGlobalBoundsAndMinimumVoxelSize(
 		FBoxSphereBounds WorldCameraBounds(FSphere(WorldCameraOrigin, HeterogeneousVolumes::GetMaxTraceDistance()));
 
 		float TanHalfFOV = HeterogeneousVolumes::CalcTanHalfFOV(View.FOV);
-		int32 HalfWidth = View.ViewRect.Width() * 0.5;
+		float HalfWidth = View.ViewRect.Width() * 0.5 / HeterogeneousVolumes::GetDownsampleFactor();
 		float PixelWidth = TanHalfFOV / HalfWidth;
 
 		for (auto MeshBatchIt = HeterogeneousVolumesMeshBatches.begin(); MeshBatchIt != HeterogeneousVolumesMeshBatches.end(); ++MeshBatchIt)
@@ -1463,34 +1465,26 @@ void CalcGlobalBoundsAndMinimumVoxelSize(
 				{
 					continue;
 				}
-				// Only incorporate the primitive if it intersects with the canera bounding sphere where radius=MaxTraceDistance
+
 				const FBoxSphereBounds& PrimitiveBounds = HeterogeneousVolume->GetBounds();
+				AggregatePrimitiveBounds = Union(AggregatePrimitiveBounds, PrimitiveBounds);
 
+				bool bIntersectsViewFrustum = View.ViewFrustum.IntersectBox(PrimitiveBounds.Origin, PrimitiveBounds.BoxExtent);
+				float VoxelWidth = bIntersectsViewFrustum ? BuildOptions.ShadingRateInFrustum : BuildOptions.ShadingRateOutOfFrustum;
+				if (BuildOptions.bUseProjectedPixelSizeForOrthoGrid)
 				{
-					AggregatePrimitiveBounds = Union(AggregatePrimitiveBounds, PrimitiveBounds);
-
-					if (View.ViewFrustum.IntersectBox(PrimitiveBounds.Origin, PrimitiveBounds.BoxExtent))
-					{
-						float VoxelWidth = BuildOptions.MinimumVoxelSizeInFrustum;
-						// Legacy behavior converts world-space units to pixel-space units
-						if (bConvertToPixelSpace)
-						{
-							FVector VoxelCenter = PrimitiveBounds.Origin;
-							float Distance = FMath::Max(FVector(PrimitiveBounds.Origin - WorldCameraOrigin).Length() - AggregatePrimitiveBounds.BoxExtent.Length(), 0.0);
-							VoxelWidth *= Distance * PixelWidth;
-						}
-
-						float PerVolumeMinimumVoxelSize = FMath::Max(VoxelWidth, HeterogeneousVolume->GetMinimumVoxelSize());
-						ViewMinimumVoxelSize = FMath::Min(PerVolumeMinimumVoxelSize, ViewMinimumVoxelSize);
-					}
+					FVector VoxelCenter = PrimitiveBounds.Origin;
+					float Distance = FMath::Max(FVector(PrimitiveBounds.Origin - WorldCameraOrigin).Length() - PrimitiveBounds.SphereRadius, 0.0);
+					VoxelWidth *= Distance * PixelWidth;
 				}
-				// TODO: Out-of-frustum minimum voxel size per-primitive?
-				// else if (FBoxSphereBounds::BoxesIntersect(WorldCameraBounds, PrimitiveBounds))
+
+				VoxelWidth = FMath::Max(VoxelWidth, HeterogeneousVolume->GetMinimumVoxelSize());
+				ViewMinimumVoxelSize = FMath::Min(VoxelWidth, ViewMinimumVoxelSize);
 			}
 		}
 
 		// When converting to pixel-space units, clamp per-view minimum voxel-size to in-frustum minimum
-		if (bConvertToPixelSpace && View.ViewFrustum.IntersectBox(AggregatePrimitiveBounds.Origin, AggregatePrimitiveBounds.BoxExtent))
+		if (BuildOptions.bUseProjectedPixelSizeForOrthoGrid && View.ViewFrustum.IntersectBox(AggregatePrimitiveBounds.Origin, AggregatePrimitiveBounds.BoxExtent))
 		{
 			ViewMinimumVoxelSize = FMath::Max(ViewMinimumVoxelSize, HeterogeneousVolumes::GetMinimumVoxelSizeInFrustum());
 		}
@@ -1713,9 +1707,12 @@ void CalculateVoxelSize(
 					PassParameters->PrimitiveWorldBoundsMin = FVector3f(PrimitiveBounds.Origin - PrimitiveBounds.BoxExtent);
 					PassParameters->PrimitiveWorldBoundsMax = FVector3f(PrimitiveBounds.Origin + PrimitiveBounds.BoxExtent);
 
-					PassParameters->ShadingRate = HeterogeneousVolumes::GetShadingRateForOrthoGrid();
+					PassParameters->ShadingRateInFrustum = BuildOptions.ShadingRateInFrustum;
+					PassParameters->ShadingRateOutOfFrustum = BuildOptions.ShadingRateOutOfFrustum;
 					PassParameters->MinVoxelSizeInFrustum = FMath::Max(HeterogeneousVolume->GetMinimumVoxelSize(), HeterogeneousVolumes::GetMinimumVoxelSizeInFrustum());
-					PassParameters->MinVoxelSizeOutOfFrustum = BuildOptions.MinimumVoxelSizeOutsideFrustum;
+					PassParameters->MinVoxelSizeOutOfFrustum = HeterogeneousVolumes::GetMinimumVoxelSizeOutsideFrustum();
+					PassParameters->DownsampleFactor = HeterogeneousVolumes::GetDownsampleFactor();
+					PassParameters->bUseProjectedPixelSize = BuildOptions.bUseProjectedPixelSizeForOrthoGrid;
 
 					PassParameters->RWTopLevelGridBuffer = GraphBuilder.CreateUAV(TopLevelGridBuffer);
 				}
@@ -1811,7 +1808,7 @@ void GenerateRasterTiles(
 )
 {
 	const uint32 RasterTileVoxelResolution = HeterogeneousVolumes::GetBottomLevelGridResolution();
-	uint32 TileFactor = 64;
+	uint32 TileFactor = HeterogeneousVolumes::EnableIndirectionGrid() ? 64 : 1;
 	uint32 MaxNumRasterTiles = TileFactor * TopLevelGridResolution.X * TopLevelGridResolution.Y * TopLevelGridResolution.Z;
 	RasterTileBuffer = GraphBuilder.CreateBuffer(
 		FRDGBufferDesc::CreateStructuredDesc(sizeof(FRasterTileData), MaxNumRasterTiles),
@@ -2122,8 +2119,7 @@ void RasterizeVolumesIntoFrustumVoxelGrid(
 				RDG_EVENT_NAME("FrustumGrid.RasterizeBottomLevelGrid"),
 				PassParameters,
 				ERDGPassFlags::Compute,
-				// Why is scene explicitly copied??
-				[PassParameters, LocalScene = Scene, &View, MaterialRenderProxy, &Material](FRHIComputeCommandList& RHICmdList)
+				[PassParameters, Scene, &View, MaterialRenderProxy, &Material](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 				{
 					FRasterizeBottomLevelFrustumGridCS::FPermutationDomain PermutationVector;
 					TShaderRef<FRasterizeBottomLevelFrustumGridCS> ComputeShader = Material.GetShader<FRasterizeBottomLevelFrustumGridCS>(&FLocalVertexFactory::StaticType, PermutationVector, false);
@@ -2133,7 +2129,7 @@ void RasterizeVolumesIntoFrustumVoxelGrid(
 						ClearUnusedGraphResources(ComputeShader, PassParameters);
 
 						FMeshDrawShaderBindings ShaderBindings;
-						UE::MeshPassUtils::SetupComputeBindings(ComputeShader, LocalScene, LocalScene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, ShaderBindings);
+						UE::MeshPassUtils::SetupComputeBindings(ComputeShader, Scene, Scene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, ShaderBindings);
 
 						UE::MeshPassUtils::DispatchIndirect(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, PassParameters->IndirectArgs->GetIndirectRHICallBuffer(), 0);
 					}
@@ -2623,7 +2619,7 @@ void RasterizeVolumesIntoOrthoVoxelGrid(
 					PassParameters,
 					ERDGPassFlags::Compute,
 					// Why is scene explicitly copied?
-					[PassParameters, LocalScene = Scene, &View, MaterialRenderProxy, &Material](FRHIComputeCommandList& RHICmdList)
+					[PassParameters, Scene, &View, MaterialRenderProxy, &Material](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 					{
 						FRasterizeBottomLevelOrthoGridCS::FPermutationDomain PermutationVector;
 						PermutationVector.Set<FRasterizeBottomLevelOrthoGridCS::FEnableIndirectionGrid>(HeterogeneousVolumes::EnableIndirectionGrid());
@@ -2635,7 +2631,7 @@ void RasterizeVolumesIntoOrthoVoxelGrid(
 							ClearUnusedGraphResources(ComputeShader, PassParameters);
 
 							FMeshDrawShaderBindings ShaderBindings;
-							UE::MeshPassUtils::SetupComputeBindings(ComputeShader, LocalScene, LocalScene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, ShaderBindings);
+							UE::MeshPassUtils::SetupComputeBindings(ComputeShader, Scene, Scene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, ShaderBindings);
 
 							UE::MeshPassUtils::DispatchIndirect(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, PassParameters->IndirectArgs->GetIndirectRHICallBuffer(), 0);
 						}
@@ -2648,6 +2644,7 @@ void RasterizeVolumesIntoOrthoVoxelGrid(
 
 bool ShouldAddToVoxelGrid(const FPrimitiveSceneProxy* Proxy, const FViewInfo& View, const FVoxelGridBuildOptions& BuildOptions)
 {
+	// TODO: Should only add element if it is within the MaxTraceDistance
 	switch (BuildOptions.VoxelGridBuildMode)
 	{
 		default:
@@ -2690,6 +2687,12 @@ void CollectHeterogeneousVolumeMeshBatches(
 		{
 			LightSceneInfoCompact.Add(*LightIt);
 		}
+	}
+
+	// TODO: Temporarily disable per-light primitive gathering because it causes a crash with VoxelGrid builder
+	if (HeterogeneousVolumes::GetShadowMode() == HeterogeneousVolumes::EShadowMode::VoxelGrid)
+	{
+		return;
 	}
 
 	int32 NumPasses = LightSceneInfoCompact.Num();
@@ -2949,6 +2952,7 @@ class FRenderVolumetricShadowMapForLightWithVoxelGridCS : public FGlobalShader
 		// Scene data
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
+		SHADER_PARAMETER_STRUCT_REF(FBlueNoise, BlueNoise)
 
 		// Shadow data
 		SHADER_PARAMETER(float, ShadowStepSize)
@@ -3483,6 +3487,8 @@ void RenderVolumetricShadowMapForLightWithVoxelGrid(
 		// Scene data
 		PassParameters->View = View.ViewUniformBuffer;
 		PassParameters->SceneTextures = GetSceneTextureParameters(GraphBuilder, SceneTextures);
+		FBlueNoise BlueNoise = GetBlueNoiseGlobalParameters();
+		PassParameters->BlueNoise = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);
 
 		// Ray Data
 		PassParameters->ShadowStepSize = HeterogeneousVolumes::GetStepSizeForShadows();
@@ -3700,6 +3706,8 @@ void RenderVolumetricShadowMapForCameraWithVoxelGrid(
 		// Scene data
 		PassParameters->View = View.ViewUniformBuffer;
 		PassParameters->SceneTextures = GetSceneTextureParameters(GraphBuilder, SceneTextures);
+		FBlueNoise BlueNoise = GetBlueNoiseGlobalParameters();
+		PassParameters->BlueNoise = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);
 
 		// Ray Data
 		PassParameters->ShadowStepSize = HeterogeneousVolumes::GetStepSizeForShadows();

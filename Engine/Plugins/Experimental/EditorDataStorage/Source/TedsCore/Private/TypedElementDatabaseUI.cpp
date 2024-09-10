@@ -28,8 +28,8 @@ namespace Internal
 }
 
 void UEditorDataStorageUi::Initialize(
-	ITypedElementDataStorageInterface* StorageInterface,
-	ITypedElementDataStorageCompatibilityInterface* StorageCompatibilityInterface)
+	IEditorDataStorageProvider* StorageInterface,
+	IEditorDataStorageCompatibilityProvider* StorageCompatibilityInterface)
 {
 	checkf(StorageInterface, TEXT("TEDS' compatibility manager is being initialized with an invalid storage target."));
 
@@ -63,11 +63,11 @@ bool UEditorDataStorageUi::RegisterWidgetFactory(FName Purpose, const UScriptStr
 	{
 		switch (PurposeInfo->Type)
 		{
-		case ITypedElementDataStorageUiInterface::EPurposeType::Generic:
+		case IEditorDataStorageUiProvider::EPurposeType::Generic:
 			PurposeInfo->Factories.Emplace(Constructor);
 			PurposeInfo->bIsSorted = false;
 			return true;
-		case ITypedElementDataStorageUiInterface::EPurposeType::UniqueByName:
+		case IEditorDataStorageUiProvider::EPurposeType::UniqueByName:
 			if (PurposeInfo->Factories.IsEmpty())
 			{
 				PurposeInfo->Factories.Emplace(Constructor);
@@ -78,13 +78,13 @@ bool UEditorDataStorageUi::RegisterWidgetFactory(FName Purpose, const UScriptStr
 				PurposeInfo->Factories.EmplaceAt(0, Constructor);
 			}
 			return true;
-		case ITypedElementDataStorageUiInterface::EPurposeType::UniqueByNameAndColumn:
+		case IEditorDataStorageUiProvider::EPurposeType::UniqueByNameAndColumn:
 			UE_LOG(LogEditorDataStorageUI, Warning,
 				TEXT("Unable to register widget factory '%s' as purpose '%s' requires at least one column for matching."), 
 				*Constructor->GetName(), *Purpose.ToString());
 			return false;
 		default:
-			checkf(false, TEXT("Unexpected ITypedElementDataStorageUiInterface::EPurposeType found provided when registering widget factory."));
+			checkf(false, TEXT("Unexpected IEditorDataStorageUiProvider::EPurposeType found provided when registering widget factory."));
 			return false;
 		}
 	}
@@ -109,11 +109,11 @@ bool UEditorDataStorageUi::RegisterWidgetFactory(
 		{
 			switch (PurposeInfo->Type)
 			{
-			case ITypedElementDataStorageUiInterface::EPurposeType::Generic:
+			case IEditorDataStorageUiProvider::EPurposeType::Generic:
 				PurposeInfo->Factories.Emplace(Constructor);
 				PurposeInfo->bIsSorted = false;
 				return true;
-			case ITypedElementDataStorageUiInterface::EPurposeType::UniqueByName:
+			case IEditorDataStorageUiProvider::EPurposeType::UniqueByName:
 				if (!Columns.IsEmpty())
 				{
 					if (PurposeInfo->Factories.IsEmpty())
@@ -131,7 +131,7 @@ bool UEditorDataStorageUi::RegisterWidgetFactory(
 				{
 					return false;
 				}
-			case ITypedElementDataStorageUiInterface::EPurposeType::UniqueByNameAndColumn:
+			case IEditorDataStorageUiProvider::EPurposeType::UniqueByNameAndColumn:
 				if (!Columns.IsEmpty())
 				{
 					PurposeInfo->Factories.Emplace(Constructor, MoveTemp(Columns));
@@ -143,7 +143,7 @@ bool UEditorDataStorageUi::RegisterWidgetFactory(
 					return false;
 				}
 			default:
-				checkf(false, TEXT("Unexpected ITypedElementDataStorageUiInterface::EPurposeType found provided when registering widget factory."));
+				checkf(false, TEXT("Unexpected IEditorDataStorageUiProvider::EPurposeType found provided when registering widget factory."));
 				return false;
 			}
 		}
@@ -168,11 +168,11 @@ bool UEditorDataStorageUi::RegisterWidgetFactory(FName Purpose, TUniquePtr<FType
 	{
 		switch (PurposeInfo->Type)
 		{
-		case ITypedElementDataStorageUiInterface::EPurposeType::Generic:
+		case IEditorDataStorageUiProvider::EPurposeType::Generic:
 			PurposeInfo->Factories.Emplace(MoveTemp(Constructor));
 			PurposeInfo->bIsSorted = false;
 			return true;
-		case ITypedElementDataStorageUiInterface::EPurposeType::UniqueByName:
+		case IEditorDataStorageUiProvider::EPurposeType::UniqueByName:
 			if (PurposeInfo->Factories.IsEmpty())
 			{
 				PurposeInfo->Factories.Emplace(MoveTemp(Constructor));
@@ -183,13 +183,13 @@ bool UEditorDataStorageUi::RegisterWidgetFactory(FName Purpose, TUniquePtr<FType
 				PurposeInfo->Factories.EmplaceAt(0, MoveTemp(Constructor));
 			}
 			return true;
-		case ITypedElementDataStorageUiInterface::EPurposeType::UniqueByNameAndColumn:
+		case IEditorDataStorageUiProvider::EPurposeType::UniqueByNameAndColumn:
 			UE_LOG(LogEditorDataStorageUI, Warning,
 				TEXT("Unable to register widget factory '%s' as purpose '%s' requires at least one column for matching."),
 				*Constructor->GetTypeInfo()->GetName(), *Purpose.ToString());
 			return false;
 		default:
-			checkf(false, TEXT("Unexpected ITypedElementDataStorageUiInterface::EPurposeType found provided when registering widget factory."));
+			checkf(false, TEXT("Unexpected IEditorDataStorageUiProvider::EPurposeType found provided when registering widget factory."));
 			return false;
 		}
 	}
@@ -212,11 +212,11 @@ bool UEditorDataStorageUi::RegisterWidgetFactory(FName Purpose, TUniquePtr<FType
 		{
 			switch (PurposeInfo->Type)
 			{
-			case ITypedElementDataStorageUiInterface::EPurposeType::Generic:
+			case IEditorDataStorageUiProvider::EPurposeType::Generic:
 				PurposeInfo->Factories.Emplace(MoveTemp(Constructor));
 				PurposeInfo->bIsSorted = false;
 				return true;
-			case ITypedElementDataStorageUiInterface::EPurposeType::UniqueByName:
+			case IEditorDataStorageUiProvider::EPurposeType::UniqueByName:
 				if (!Columns.IsEmpty())
 				{
 					if (PurposeInfo->Factories.IsEmpty())
@@ -234,7 +234,7 @@ bool UEditorDataStorageUi::RegisterWidgetFactory(FName Purpose, TUniquePtr<FType
 				{
 					return false;
 				}
-			case ITypedElementDataStorageUiInterface::EPurposeType::UniqueByNameAndColumn:
+			case IEditorDataStorageUiProvider::EPurposeType::UniqueByNameAndColumn:
 				if (!Columns.IsEmpty())
 				{
 					PurposeInfo->Factories.Emplace(MoveTemp(Constructor), MoveTemp(Columns));
@@ -246,7 +246,7 @@ bool UEditorDataStorageUi::RegisterWidgetFactory(FName Purpose, TUniquePtr<FType
 					return false;
 				}
 			default:
-				checkf(false, TEXT("Unexpected ITypedElementDataStorageUiInterface::EPurposeType found provided when registering widget factory."));
+				checkf(false, TEXT("Unexpected IEditorDataStorageUiProvider::EPurposeType found provided when registering widget factory."));
 				return false;
 			}
 		}

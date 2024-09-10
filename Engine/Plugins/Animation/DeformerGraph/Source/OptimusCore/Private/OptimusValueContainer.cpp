@@ -107,13 +107,10 @@ FOptimusValueContainerStruct UOptimusValueContainer::MakeValueContainerStruct()
 	FOptimusDataTypeRef DataType = GetValueType();
 	if (ensure(ValueProperty) && ensure(DataType.IsValid()))
 	{
-		OtherContainer.SetType(DataType.Resolve());
-		
 		TArrayView<const uint8> ValueData(ValueProperty->ContainerPtrToValuePtr<uint8>(this), ValueProperty->GetSize());
-
-		uint8* OtherContainerMemory = OtherContainer.GetMutableValueMemory();
-
-		FMemory::Memcpy(OtherContainerMemory, ValueData.GetData(), ValueData.Num());
+		
+		OtherContainer.SetType(DataType.Resolve());
+		OtherContainer.SetValue(DataType, ValueData);
 	}
 
 	return OtherContainer;

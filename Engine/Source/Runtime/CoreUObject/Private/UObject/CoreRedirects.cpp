@@ -1280,7 +1280,7 @@ public:
 	: InternalLock(InLock)
 	, NeedsUnlock(true)
 	{
-		UE_AUTORTFM_OPEN2 { InternalLock.ReadLock(); };
+		UE_AUTORTFM_OPEN { InternalLock.ReadLock(); };
 		AutoRTFM::PushOnAbortHandler(this, [this] { this->InternalLock.ReadUnlock(); });
 	}
 
@@ -1289,7 +1289,7 @@ public:
 		if (NeedsUnlock)
 		{
 			AutoRTFM::PopOnAbortHandler(this);
-			UE_AUTORTFM_OPEN2 { InternalLock.ReadUnlock(); };
+			UE_AUTORTFM_OPEN { InternalLock.ReadUnlock(); };
 		}
 	}
 protected:

@@ -68,7 +68,7 @@ namespace Dataflow::Private
 /*
  * ToolBuilder
  */
-void UDataflowEditorWeightMapPaintToolBuilder::GetSupportedViewModes(TArray<Dataflow::IDataflowConstructionViewMode*>& Modes) const
+void UDataflowEditorWeightMapPaintToolBuilder::GetSupportedConstructionViewModes(const UDataflowContextObject& ContextObject, TArray<const Dataflow::IDataflowConstructionViewMode*>& Modes) const
 {
 	//Modes.Add(Dataflow::EDataflowPatternVertexType::Sim3D);
 	//Modes.Add(Dataflow::EDataflowPatternVertexType::Sim2D);

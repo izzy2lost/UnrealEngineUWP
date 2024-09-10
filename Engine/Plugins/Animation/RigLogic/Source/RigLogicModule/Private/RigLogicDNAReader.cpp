@@ -574,6 +574,26 @@ float RigLogicDNAReader::getRBFPoseScale(std::uint16_t poseIndex) const
 {
 	return Reader->getRBFPoseScale(poseIndex);
 }
+std::uint16_t RigLogicDNAReader::getRBFPoseControlCount() const
+{
+	return Reader->getRBFPoseControlCount();
+}
+dna::StringView RigLogicDNAReader::getRBFPoseControlName(std::uint16_t poseControlIndex) const
+{
+	return Reader->getRBFPoseControlName(poseControlIndex);
+}
+dna::ConstArrayView<std::uint16_t> RigLogicDNAReader::getRBFPoseInputControlIndices(std::uint16_t poseIndex) const
+{
+	return Reader->getRBFPoseInputControlIndices(poseIndex);
+}
+dna::ConstArrayView<std::uint16_t> RigLogicDNAReader::getRBFPoseOutputControlIndices(std::uint16_t poseIndex) const
+{
+	return Reader->getRBFPoseOutputControlIndices(poseIndex);
+}
+dna::ConstArrayView<float> RigLogicDNAReader::getRBFPoseOutputControlWeights(std::uint16_t poseIndex) const
+{
+	return Reader->getRBFPoseOutputControlWeights(poseIndex);
+}
 std::uint16_t RigLogicDNAReader::getRBFSolverCount() const
 {
 	return Reader->getRBFSolverCount();

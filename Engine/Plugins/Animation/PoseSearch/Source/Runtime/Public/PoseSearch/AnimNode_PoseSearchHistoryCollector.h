@@ -38,7 +38,8 @@ public:
 	bool bStoreScales = false;
 
 	// time in seconds to recover to the reference skeleton root bone transform by RootBoneTranslationRecoveryRatio and RootBoneRotationRecoveryRatio
-	// from any eventual root bone modification. if zero the behaviour will be disabled (Experimental)
+	// from any eventual root bone modification. if zero the behaviour will be disabled
+	// Experimental, this feature might be removed without warning, not for production use
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Experimental, meta = (ClampMin="0"))
 	float RootBoneRecoveryTime = 0.f;
 
@@ -58,7 +59,8 @@ public:
 	FLinearColor DebugColor = FLinearColor::Red;
 #endif // WITH_EDITORONLY_DATA
 
-	// if true Trajectory the pose history node will generate the trajectory using the TrajectoryData parameters instead of relying on the input Trajectory (Experimental)
+	// if true Trajectory the pose history node will generate the trajectory using the TrajectoryData parameters instead of relying on the input Trajectory
+	// Experimental, this feature might be removed without warning, not for production use
 	UPROPERTY(EditAnywhere, Category = Experimental)
 	bool bGenerateTrajectory = false;
 

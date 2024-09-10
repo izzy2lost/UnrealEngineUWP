@@ -25,6 +25,7 @@
 #include "IPlatformFileSandboxWrapper.h"
 #include "Interfaces/ITargetPlatform.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
+#include "Logging/StructuredLog.h"
 #include "Misc/App.h"
 #include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
@@ -601,11 +602,11 @@ void UCookCommandlet::RunCookByTheBookCook(UCookOnTheFlyServer* CookOnTheFlyServ
 	if (bShouldVerifyEDLCookInfo)
 	{
 		bool bFullReferencesExpected = !(CookOptions & ECookByTheBookOptions::SkipHardReferences);
-		UE::SavePackageUtilities::VerifyEDLCookInfo([](ELogVerbosity::Type Verbosity, FStringView Message)
+		UE::SavePackageUtilities::VerifyEDLCookInfo([](UE::FLogRecord&& Record)
 			{
 #if !NO_LOGGING
-				FMsg::Logf(__FILE__, __LINE__, LogCook.GetCategoryName(), Verbosity, TEXT("%.*s"),
-				Message.Len(), Message.GetData());
+				Record.SetCategory(LogCook.GetCategoryName());
+				UE::DispatchDynamicLogRecord(Record);
 #endif
 			}, bFullReferencesExpected);
 	}

@@ -404,7 +404,8 @@ struct FAnimTickRecord
 	bool bRequestedInertialization = false;
 	bool bOverridePositionWhenJoiningSyncGroupAsLeader = false;
 	bool bIsExclusiveLeader = false;
-	
+	bool bActiveContext = true;
+
 	const UMirrorDataTable* MirrorDataTable = nullptr;
 
 	TSharedPtr<TArray<TUniquePtr<const UE::Anim::IAnimNotifyEventContextDataInterface>>> ContextData;

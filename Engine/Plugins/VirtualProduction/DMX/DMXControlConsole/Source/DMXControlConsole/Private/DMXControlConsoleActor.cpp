@@ -4,9 +4,16 @@
 
 #include "Components/SceneComponent.h"
 #include "DMXControlConsoleData.h"
+#include "DMXControlConsoleFaderBase.h"
+#include "DMXControlConsoleFaderGroup.h"
+#include "Layouts/Controllers/DMXControlConsoleControllerBase.h"
 
 
 #define LOCTEXT_NAMESPACE "DMXControlConsoleActor"
+
+#if WITH_EDITORONLY_DATA
+FSimpleMulticastDelegate ADMXControlConsoleActor::OnControlConsoleReset;
+#endif // WITH_EDITORONLY_DATA
 
 ADMXControlConsoleActor::ADMXControlConsoleActor()
 {
@@ -43,6 +50,78 @@ void ADMXControlConsoleActor::StopSendingDMX()
 	{
 		ControlConsoleData->StopSendingDMX();
 	}
+}
+
+void ADMXControlConsoleActor::PauseSendingDMX()
+{
+	if (ControlConsoleData)
+	{
+		ControlConsoleData->PauseSendingDMX();
+	}
+}
+
+void ADMXControlConsoleActor::ResetToDefault()
+{
+	if (!ControlConsoleData)
+	{
+		return;
+	}
+
+	const TArray<UDMXControlConsoleFaderGroup*> FaderGroups = ControlConsoleData->GetAllFaderGroups();
+	for (const UDMXControlConsoleFaderGroup* FaderGroup : FaderGroups)
+	{
+		if (!FaderGroup)
+		{
+			continue;
+		}
+
+		const TArray<UDMXControlConsoleFaderBase*> Faders = FaderGroup->GetAllFaders();
+		for (UDMXControlConsoleFaderBase* Fader : Faders)
+		{
+			if (!Fader)
+			{
+				continue;
+			}
+
+			Fader->ResetToDefault();
+		}
+	}
+
+#if WITH_EDITOR
+	OnControlConsoleReset.Broadcast();
+#endif // WITH_EDITOR
+}
+
+void ADMXControlConsoleActor::ResetToZero()
+{
+	if (!ControlConsoleData)
+	{
+		return;
+	}
+
+	const TArray<UDMXControlConsoleFaderGroup*> FaderGroups = ControlConsoleData->GetAllFaderGroups();
+	for (const UDMXControlConsoleFaderGroup* FaderGroup : FaderGroups)
+	{
+		if (!FaderGroup)
+		{
+			continue;
+		}
+
+		const TArray<UDMXControlConsoleFaderBase*> Faders = FaderGroup->GetAllFaders();
+		for (UDMXControlConsoleFaderBase* Fader : Faders)
+		{
+			if (!Fader)
+			{
+				continue;
+			}
+
+			Fader->SetValue(0);
+		}
+	}
+
+#if WITH_EDITOR
+	OnControlConsoleReset.Broadcast();
+#endif // WITH_EDITOR
 }
 
 void ADMXControlConsoleActor::BeginPlay()

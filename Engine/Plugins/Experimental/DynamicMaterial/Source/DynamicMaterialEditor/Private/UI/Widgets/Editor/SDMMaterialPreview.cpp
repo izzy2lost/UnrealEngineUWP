@@ -30,15 +30,6 @@
 
 #define LOCTEXT_NAMESPACE "SDMMaterialPreview"
 
-namespace UE::DynamicMaterialEditor::Private
-{
-	UStaticMesh* GetShaderBallMesh()
-	{
-		TSoftObjectPtr<UStaticMesh> ShaderBallSoft = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Script/Engine.StaticMesh'/Engine/EngineMeshes/SM_MatPreviewMesh_01.SM_MatPreviewMesh_01'")));
-		return ShaderBallSoft.LoadSynchronous();
-	}
-}
-
 void SDMMaterialPreview::PrivateRegisterAttributes(FSlateAttributeDescriptor::FInitializer&)
 {
 }
@@ -222,7 +213,7 @@ void SDMMaterialPreview::SetPreviewType(EDMMaterialPreviewMesh InPrimitiveType)
 		case EDMMaterialPreviewMesh::Cube: Primitive = GUnrealEd->GetThumbnailManager()->EditorCube; break;
 		case EDMMaterialPreviewMesh::Sphere: Primitive = GUnrealEd->GetThumbnailManager()->EditorSphere; break;
 		case EDMMaterialPreviewMesh::Cylinder: Primitive = GUnrealEd->GetThumbnailManager()->EditorCylinder; break;
-		case EDMMaterialPreviewMesh::ShaderBall: Primitive = GetShaderBallMesh(); break;
+		case EDMMaterialPreviewMesh::Custom: Primitive = Settings->CustomPreviewMesh.LoadSynchronous(); break;
 		default: return;
 	}
 
@@ -252,6 +243,13 @@ void SDMMaterialPreview::SetPreviewAsset(UObject* InAsset)
 		return;
 	}
 
+	UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get();
+
+	if (!Settings)
+	{
+		return;
+	}
+
 	// Unregister the current component
 	if (PreviewMeshComponent != nullptr)
 	{
@@ -269,8 +267,6 @@ void SDMMaterialPreview::SetPreviewAsset(UObject* InAsset)
 
 	using namespace UE::DynamicMaterialEditor::Private;
 
-	UStaticMesh* ShaderBallMesh = GetShaderBallMesh();
-
 	// Update the rotation of the plane mesh so that it is front facing to the viewport camera's default forward view.
 	if (StaticMesh == GUnrealEd->GetThumbnailManager()->EditorPlane)
 	{
@@ -283,7 +279,7 @@ void SDMMaterialPreview::SetPreviewAsset(UObject* InAsset)
 		Transform.SetRotation(FQuat(PlaneRotation));
 		Transform.SetScale3D(FVector(0.75));
 	}
-	else if (StaticMesh == ShaderBallMesh)
+	else if (StaticMesh == Settings->CustomPreviewMesh)
 	{
 		const FRotator PlaneRotation(0.0f, -90.0f, 0.0f);
 		Transform.SetRotation(FQuat(PlaneRotation));
@@ -472,7 +468,7 @@ TSharedRef<SWidget> SDMMaterialPreview::GenerateToolbarMenu()
 		MeshSection.AddEntry(FToolMenuEntry::InitMenuEntry(MaterialEditorCommands.SetCylinderPreview));
 
 		MeshSection.AddEntry(FToolMenuEntry::InitMenuEntry(
-			DMEditorCommands.SetShaderBallPreview, 
+			DMEditorCommands.SetCustomPreviewMesh, 
 			TAttribute<FText>(),
 			TAttribute<FText>(),
 			FSlateIconFinder::FindIcon(TEXT("GraphEditor.SpawnActor_16x"))
@@ -481,18 +477,21 @@ TSharedRef<SWidget> SDMMaterialPreview::GenerateToolbarMenu()
 		FToolMenuSection& SettingsSection = Menu->AddSection(TEXT("Settings"), LOCTEXT("Settings", "Settings"));
 		SettingsSection.AddEntry(FToolMenuEntry::InitMenuEntry(MaterialEditorCommands.TogglePreviewBackground));
 
-		FToolMenuSection& ActionsSection = Menu->AddSection(TEXT("Actions"), LOCTEXT("Actions", "Actions"));
+		if (!bIsPopout)
+		{
+			FToolMenuSection& ActionsSection = Menu->AddSection(TEXT("Actions"), LOCTEXT("Actions", "Actions"));
 
-		FUIAction OpenPreviewTabAction;
-		OpenPreviewTabAction.ExecuteAction.BindSP(this, &SDMMaterialPreview::OpenMaterialPreviewTab);
+			FUIAction OpenPreviewTabAction;
+			OpenPreviewTabAction.ExecuteAction.BindSP(this, &SDMMaterialPreview::OpenMaterialPreviewTab);
 
-		ActionsSection.AddEntry(FToolMenuEntry::InitMenuEntry(
-			TEXT("PopoutMaterialPreviewTab"),
-			LOCTEXT("OpenPreview", "Open Preview"),
-			LOCTEXT("OpenPreviewToolTip", "Open a tab with a preview of the material."),
-			TAttribute<FSlateIcon>(),
-			OpenPreviewTabAction
-		));		
+			ActionsSection.AddEntry(FToolMenuEntry::InitMenuEntry(
+				TEXT("PopoutMaterialPreviewTab"),
+				LOCTEXT("OpenPreview", "Open Preview"),
+				LOCTEXT("OpenPreviewToolTip", "Open a tab with a preview of the material."),
+				TAttribute<FSlateIcon>(),
+				OpenPreviewTabAction
+			));
+		}
 	}
 
 	FToolMenuContext Context;
@@ -591,10 +590,10 @@ void SDMMaterialPreview::BindCommands()
 		FGetActionCheckState::CreateSP(this, &SDMMaterialPreview::IsPreviewTypeSet, EDMMaterialPreviewMesh::Cylinder));
 
 	CommandList->MapAction(
-		DMEditorCommands.SetShaderBallPreview,
-		FExecuteAction::CreateSP(this, &SDMMaterialPreview::SetPreviewType, EDMMaterialPreviewMesh::ShaderBall),
+		DMEditorCommands.SetCustomPreviewMesh,
+		FExecuteAction::CreateSP(this, &SDMMaterialPreview::SetPreviewType, EDMMaterialPreviewMesh::Custom),
 		FCanExecuteAction(),
-		FGetActionCheckState::CreateSP(this, &SDMMaterialPreview::IsPreviewTypeSet, EDMMaterialPreviewMesh::ShaderBall));
+		FGetActionCheckState::CreateSP(this, &SDMMaterialPreview::IsPreviewTypeSet, EDMMaterialPreviewMesh::Custom));
 
 	CommandList->MapAction(
 		MaterialEditorCommands.TogglePreviewBackground,

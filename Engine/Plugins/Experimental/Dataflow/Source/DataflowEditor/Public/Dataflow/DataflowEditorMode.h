@@ -186,7 +186,7 @@ private:
 	bool bShouldRestoreSavedConstructionViewMode = false;
 	
 	// The Construction view mode that was active before starting the current tool. When the tool ends, restore this view mode if bShouldRestoreSavedConstructionViewMode is true.
-	const FName SavedConstructionViewMode;
+	FName SavedConstructionViewMode;
 
 	bool bConstructionViewWireframe = false;
 	bool bShouldRestoreConstructionViewWireframe = false;
@@ -211,6 +211,13 @@ private:
 
 	// Dataflow node type whose corresponding tool should be started on the next Tick
 	FName NodeTypeForPendingToolStart;
+
+	// If we should start the tool for the selected node on the next ModeTick call. Used when switching ViewModes to allow the scene to be rebuilt before restarting the tool.
+	bool bShouldRestartToolNextTick = false;
+
+	// Whether we have a single mesh selected in the Construction Scene prior to shutting down a running tool. The Scene will likely be rebuilt when the tool ends, resulting in
+	// losing selection information, so we save this before shutting the tool down.
+	bool bHadSingleSelectionBeforeToolShutdown = false;
 
 	UDataflowEditor* DataflowEditor = nullptr;
 

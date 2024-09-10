@@ -364,22 +364,32 @@ static FHairGroupInstanceRDG Convert(FRDGBuilder& GraphBuilder, const FHairGroup
 
 //------------------------------------------------------------------------------------------------------------
 
+struct FNDIHairStrandsInfo
+{
+	int32  GroupIndex = 0;
+	int32  LODIndex = 0;
+	uint32 NumControlPoints = 0;
+	uint32 NumCurves = 0;
+	FTransform LocalToWorld = FTransform::Identity;
+	bool bHasValidResources = false;
+
+	bool IsValid() const { return bHasValidResources; }
+};
+
+//------------------------------------------------------------------------------------------------------------
+
 void FNDIHairStrandsBuffer::Initialize(
 	const FNDIHairStrandsInfo& In,
 	const TStaticArray<float, 32 * NumScales>& InParamsScale)
 {
-	InfoData = In;
+	bNeedResouces = In.IsValid();
 	ParamsScale = InParamsScale;
 	bValidGeometryType = false;
 }
 
-void FNDIHairStrandsBuffer::Update()
-{
-}
-
 void FNDIHairStrandsBuffer::Transfer(FRDGBuilder& GraphBuilder, const TStaticArray<float, 32 * NumScales>& InParamsScale)
 {
-	if (InfoData.IsValid() && ParamsScaleBuffer.IsValid())
+	if (bNeedResouces && ParamsScaleBuffer.IsValid())
 	{
 		const uint32 ScaleCount = 32 * NumScales;
 		const uint32 ScaleBytes = sizeof(float) * ScaleCount;
@@ -393,7 +403,7 @@ void FNDIHairStrandsBuffer::InitRHI(FRHICommandListBase&)
 {
 	//ReadbackBuffer = new FRHIGPUBufferReadback(TEXT("Hair.PositionOffsetBuffer"));
 	
-	if (InfoData.IsValid())
+	if (bNeedResouces)
 	{
 		FRDGBuilder GraphBuilder(FRHICommandListImmediate::Get());
 		{
@@ -426,8 +436,11 @@ void FNDIHairStrandsBuffer::ReleaseRHI()
 	//delete ReadbackBuffer;
 	//ReadbackBuffer = nullptr;
 	
-	BoundingBoxBuffer.Release();
-	ParamsScaleBuffer.Release();
+	if (bNeedResouces)
+	{
+		BoundingBoxBuffer.Release();
+		ParamsScaleBuffer.Release();
+	}
 }
 
 //------------------------------------------------------------------------------------------------------------
@@ -451,10 +464,10 @@ void FNDIHairStrandsData::Release()
 {
 	if (HairStrandsBuffer)
 	{
-		BeginReleaseResource(HairStrandsBuffer);
 		ENQUEUE_RENDER_COMMAND(DeleteResource)(
 			[ParamPointerToRelease = HairStrandsBuffer](FRHICommandListImmediate& RHICmdList)
 		{
+			ParamPointerToRelease->ReleaseResource();
 			delete ParamPointerToRelease;
 		});
 		HairStrandsBuffer = nullptr;
@@ -854,7 +867,6 @@ bool UNiagaraDataInterfaceHairStrands::PerInstanceTick(void* PerInstanceData, FN
 
 	FNDIHairStrandsInfo InfoData;
 	ExtractDatasAndResources(SystemInstance, InfoData);
-	InstanceData->HairStrandsBuffer->Update();
 
 	if (SourceComponent != nullptr)
 	{
@@ -3414,8 +3426,14 @@ void UNiagaraDataInterfaceHairStrands::SetShaderParameters(const FNiagaraDataInt
 	FRDGBuilder& GraphBuilder = Context.GetGraphBuilder();
 	FNDIHairStrandsProxy& DIProxy = Context.GetProxy<FNDIHairStrandsProxy>();
 	FNDIHairStrandsData* ProxyData = DIProxy.SystemInstancesToProxyData.Find(Context.GetSystemInstanceID());
+	
+	TRefCountPtr<FHairGroupInstance> HairGroupInstance = nullptr;
+	if (ProxyData && ProxyData->HairGroupInstSource.Get())
+	{
+		HairGroupInstance = GetHairGroupInstance(ProxyData->HairGroupInstSource.Get(), ProxyData->HairGroupIndex);
+	}
 
-	FHairGroupInstanceRDG InstanceRDG = Convert(GraphBuilder, ProxyData ? ProxyData->HairGroupInstance : nullptr);
+	FHairGroupInstanceRDG InstanceRDG = Convert(GraphBuilder, ProxyData ? HairGroupInstance : nullptr);
 	
 	const int32 MeshLODIndex = InstanceRDG.MeshLODIndex;
 	const bool bIsHairValid = ProxyData != nullptr && ProxyData->HairStrandsBuffer && ProxyData->HairStrandsBuffer->IsInitialized();
@@ -3457,7 +3475,7 @@ void UNiagaraDataInterfaceHairStrands::SetShaderParameters(const FNiagaraDataInt
 		if (InstanceRDG.IsDeformedValid() &&  !InstanceRDG.IsRootValid() && InstanceRDG.BindingType == EHairBindingType::Skinning)
 		{
 			UE_LOG(LogHairStrands, Log, TEXT("FNDIHairStrandsParametersCS() Groom Asset %s from component %s is set to use skinning interpolation but the skin resources are not valid"),
-				*ProxyData->HairGroupInstance->Debug.GroomAssetName, *ProxyData->HairGroupInstance->Debug.MeshComponentName);
+				*HairGroupInstance->Debug.GroomAssetName, *HairGroupInstance->Debug.MeshComponentName);
 		}
 
 		// Set shader constants
@@ -3586,8 +3604,14 @@ void FNDIHairStrandsProxy::PostSimulate(const FNDIGpuComputePostSimulateContext&
 		return;
 	}
 
+	TRefCountPtr<FHairGroupInstance> HairGroupInstance = nullptr;
+	if (ProxyData->HairGroupInstSource.Get())
+	{
+		HairGroupInstance = GetHairGroupInstance(ProxyData->HairGroupInstSource.Get(), ProxyData->HairGroupIndex);
+	}
+
 	// MGPU DeformedPositionBuffer copy after simulation
-	FHairStrandsDeformedResource* GuideDeformedBuffer = ProxyData->HairGroupInstance ? ProxyData->HairGroupInstance->Guides.DeformedResource : nullptr;
+	FHairStrandsDeformedResource* GuideDeformedBuffer = HairGroupInstance ? HairGroupInstance->Guides.DeformedResource : nullptr;
 	if (GuideDeformedBuffer && GuideDeformedBuffer->IsInitialized())
 	{
 		const FRDGExternalBuffer& DeformedBuffer = GuideDeformedBuffer->GetBuffer(FHairStrandsDeformedResource::EFrameType::Current);

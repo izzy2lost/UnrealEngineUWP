@@ -102,7 +102,7 @@ namespace UE::Editor::DataStorage::Debug::QueryEditor
 	{
 		using namespace UE::Editor::DataStorage::Queries;
 
-		ITypedElementDataStorageInterface& TedsInterface = Model->GetTedsInterface();
+		IEditorDataStorageProvider& TedsInterface = Model->GetTedsInterface();
 
 		if(bModelDirty)
 		{
@@ -153,7 +153,7 @@ namespace UE::Editor::DataStorage::Debug::QueryEditor
 			NewTableViewerRows_Set.Reserve(TableViewerRows_Set.Num());
 
 			FQueryResult QueryResult = Model->GetTedsInterface().RunQuery(TableViewerQueryHandle,
-				CreateDirectQueryCallbackBinding([&NewTableViewerRows_Set](const ITypedElementDataStorageInterface::IDirectQueryContext& Context, const RowHandle*)
+				CreateDirectQueryCallbackBinding([&NewTableViewerRows_Set](const IEditorDataStorageProvider::IDirectQueryContext& Context, const RowHandle*)
 				{
 					NewTableViewerRows_Set.Append(Context.GetRowHandles());
 				}));
@@ -187,7 +187,7 @@ namespace UE::Editor::DataStorage::Debug::QueryEditor
 	
 		UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 		checkf(Registry, TEXT("SResultsView created before UTypedElementRegistry is available."));
-		ITypedElementDataStorageUiInterface* StorageUi = Registry->GetMutableDataStorageUi();
+		IEditorDataStorageUiProvider* StorageUi = Registry->GetMutableDataStorageUi();
 		checkf(StorageUi, TEXT("SResultsView created before data storage interfaces were initialized."))
 
 		StorageUi->CreateWidgetConstructors(TEXT("General.Cell.RowHandle"), FMetaDataView(), AssignWidgetToColumn);

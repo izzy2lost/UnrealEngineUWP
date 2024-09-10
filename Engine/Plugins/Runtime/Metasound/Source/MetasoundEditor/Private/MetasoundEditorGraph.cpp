@@ -2309,7 +2309,11 @@ void UMetasoundEditorGraph::MigrateEditorDocumentData(FMetaSoundFrontendDocument
 				if (UMetasoundEditorGraphMemberDefaultLiteral* DefaultLiteral = Input.GetLiteral())
 				{
 					TSubclassOf<UMetasoundEditorGraphMemberDefaultLiteral> SubClass = DefaultLiteral->GetClass();
+
+					// Migration can occur on async thread, and bind can create a new literal
+					FGCScopeGuard ScopeGuard;
 					EditorSubsystem->BindMemberMetadata(OutBuilder, Input, SubClass, DefaultLiteral);
+					DefaultLiteral->ClearInternalFlags(EInternalObjectFlags::Async);
 				}
 			}
 		}

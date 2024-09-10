@@ -364,10 +364,7 @@ struct FGenericPlatformMemory
 	/**
 	* @return memory used for platforms that can do it quickly (without affecting stat unit much)
 	*/
-	static uint64 GetMemoryUsedFast()
-	{
-		return 0;
-	}
+	static CORE_API uint64 GetMemoryUsedFast();
 
 	/**
 	 * Writes all platform specific current memory statistics in the format usable by the malloc profiler.

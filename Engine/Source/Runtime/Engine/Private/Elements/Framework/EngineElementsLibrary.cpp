@@ -380,7 +380,7 @@ void UEngineElementsLibrary::DestroyActorElement(const AActor* InActor, TTypedEl
 void UEngineElementsLibrary::RegisterActorElement(const AActor* InActor)
 {
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-	ITypedElementDataStorageCompatibilityInterface* Storage = Registry->GetMutableDataStorageCompatibility();
+	IEditorDataStorageCompatibilityProvider* Storage = Registry->GetMutableDataStorageCompatibility();
 	if (Storage)
 	{
 		Storage->AddCompatibleObject(const_cast<AActor*>(InActor));
@@ -390,7 +390,7 @@ void UEngineElementsLibrary::RegisterActorElement(const AActor* InActor)
 void UEngineElementsLibrary::UnregisterActorElement(const AActor* InActor)
 {
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-	if (ITypedElementDataStorageCompatibilityInterface* Storage = Registry->GetMutableDataStorageCompatibility())
+	if (IEditorDataStorageCompatibilityProvider* Storage = Registry->GetMutableDataStorageCompatibility())
 	{
 		Storage->RemoveCompatibleObject(const_cast<AActor*>(InActor));
 	}

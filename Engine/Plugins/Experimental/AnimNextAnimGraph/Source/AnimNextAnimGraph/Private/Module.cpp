@@ -14,6 +14,7 @@
 #include "TraitInterfaces/IEvaluate.h"
 #include "TraitInterfaces/IUpdate.h"
 #include "EvaluationVM/EvaluationVM.h"
+#include "Graph/AnimNext_LODPose.h"
 
 namespace UE::AnimNext::AnimGraph
 {
@@ -48,7 +49,7 @@ public:
 		UE::AnimNext::UpdateGraph(GraphInstance, DeltaTime, InputEventList, OutputEventList);
 	}
 
-	virtual void EvaluateGraph(const FAnimNextGraphInstancePtr& GraphInstance, const UE::AnimNext::FReferencePose& RefPose, int32 GraphLODLevel, FLODPoseHeap& OutputPose) const override
+	virtual void EvaluateGraph(const FAnimNextGraphInstancePtr& GraphInstance, const UE::AnimNext::FReferencePose& RefPose, int32 GraphLODLevel, FAnimNextGraphLODPose& OutputPose) const override
 	{
 		const FEvaluationProgram EvaluationProgram = UE::AnimNext::EvaluateGraph(GraphInstance);
 
@@ -62,7 +63,9 @@ public:
 			TUniquePtr<FKeyframeState> EvaluatedKeyframe;
 			if (EvaluationVM.PopValue(KEYFRAME_STACK_NAME, EvaluatedKeyframe))
 			{
-				OutputPose.CopyFrom(EvaluatedKeyframe->Pose);
+				OutputPose.LODPose.CopyFrom(EvaluatedKeyframe->Pose);
+				OutputPose.Curves.CopyFrom(EvaluatedKeyframe->Curves);
+				OutputPose.Attributes.CopyFrom(EvaluatedKeyframe->Attributes);
 				bHasValidOutput = true;
 			}
 		}
@@ -71,7 +74,9 @@ public:
 		{
 			// We need to output a valid pose, generate one
 			FKeyframeState ReferenceKeyframe = EvaluationVM.MakeReferenceKeyframe(false);
-			OutputPose.CopyFrom(ReferenceKeyframe.Pose);
+			OutputPose.LODPose.CopyFrom(ReferenceKeyframe.Pose);
+			OutputPose.Curves.CopyFrom(ReferenceKeyframe.Curves);
+			OutputPose.Attributes.CopyFrom(ReferenceKeyframe.Attributes);
 		}
 	}
 };

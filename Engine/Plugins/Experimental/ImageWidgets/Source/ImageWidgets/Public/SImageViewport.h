@@ -2,9 +2,8 @@
 
 #pragma once
 
-#include "SEditorViewport.h"
-
-#include "Framework/MultiBox/MultiBoxExtender.h"
+#include <SEditorViewport.h>
+#include <Framework/MultiBox/MultiBoxExtender.h>
 
 class SViewportToolBar;
 
@@ -18,7 +17,7 @@ namespace UE::ImageWidgets
 
 	/**
 	 * Generic viewport for displaying and interacting with 2D image-like content.
-	 * The drawing of the images is deferred to an @see IImageViewer implementation that needs to be provided upon construction. This viewport only uses the 
+	 * The drawing of the images is deferred to an @see IImageViewer implementation that needs to be provided upon construction. This viewport only uses the
 	 * metadata provided by the image viewer to have sufficient information about the image without being aware of its actual format or contents.
 	 */
 	class SImageViewport : public SEditorViewport

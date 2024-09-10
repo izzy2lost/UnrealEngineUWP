@@ -288,10 +288,6 @@ void SStateTreeViewRow::Construct(const FArguments& InArgs, const TSharedRef<STa
 											[
 												SAssignNew(NameTextBlock, SInlineEditableTextBlock)
 												.Style(FStateTreeEditorStyle::Get(), "StateTree.State.TitleInlineEditableText")
-												.OnVerifyTextChanged_Lambda([](const FText& NewLabel, FText& OutErrorMessage)
-													{
-														return !NewLabel.IsEmptyOrWhitespace();
-													})
 												.OnTextCommitted(this, &SStateTreeViewRow::HandleNodeLabelTextCommitted)
 												.OnVerifyTextChanged(this, &SStateTreeViewRow::HandleVerifyNodeLabelTextChanged)
 												.Text(this, &SStateTreeViewRow::GetStateDesc)
@@ -1977,7 +1973,7 @@ bool SStateTreeViewRow::HandleVerifyNodeLabelTextChanged(const FText& InText, FT
 				OutErrorMessage = LOCTEXT("VerifyNodeLabelFailed_MaxLength", "Max length exceeded");
 				return false;
 			}
-			return FName::IsValidXName(NewName, INVALID_NAME_CHARACTERS, &OutErrorMessage);
+			return NewName.Len() > 0 && FName::IsValidXName(NewName, INVALID_NAME_CHARACTERS, &OutErrorMessage);
 		}
 	}
 	OutErrorMessage = LOCTEXT("VerifyNodeLabelFailed", "Invalid State Tree");
@@ -1991,7 +1987,7 @@ void SStateTreeViewRow::HandleNodeLabelTextCommitted(const FText& NewLabel, ETex
 		if (UStateTreeState* State = WeakState.Get())
 		{
 			const FString NewName = FText::TrimPrecedingAndTrailing(NewLabel).ToString();
-			if (FName::IsValidXName(NewName, INVALID_NAME_CHARACTERS) && NewName.Len() < NAME_SIZE)
+			if (NewName.Len() > 0 && FName::IsValidXName(NewName, INVALID_NAME_CHARACTERS) && NewName.Len() < NAME_SIZE)
 			{
 				StateTreeViewModel->RenameState(State, FName(NewName));
 			}

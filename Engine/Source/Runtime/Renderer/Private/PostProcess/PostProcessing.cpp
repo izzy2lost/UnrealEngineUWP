@@ -3040,7 +3040,15 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 				View.UnscaledViewRect.Width(), View.UnscaledViewRect.Height());
 
 			SceneColor = CustomUpscaler->AddPasses(GraphBuilder, View, PassInputs);
-			check(SceneColor == ViewFamilyOutput);
+
+			if (PassSequence.IsLastPass(EPass::SecondaryUpscale))
+			{
+				check(SceneColor == ViewFamilyOutput);
+			}
+			else
+			{
+				check(SceneColor.ViewRect.Size() == View.UnscaledViewRect.Size());
+			}
 		}
 	}
 

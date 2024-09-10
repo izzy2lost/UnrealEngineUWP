@@ -11,6 +11,7 @@
 #include "Async/ParallelFor.h"
 #include "Containers/Queue.h"
 #include "Chaos/ChaosMarshallingManager.h"
+#include "Chaos/AsyncInitBodyHelper.h"
 #include "Stats/Stats2.h"
 #include "ChaosSolversModule.h"
 
@@ -423,7 +424,7 @@ namespace Chaos
 		void EnqueueCommandImmediate(Lambda&& Func)
 		{
 			//TODO: remove this check. Need to rename with _External
-			check(UE_CHAOS_ASYNC_INITBODY_ENABLED || IsInGameThread());
+			check(Chaos::CVars::bEnableAsyncInitBody || IsInGameThread());
 			RegisterSimOneShotCallback(MoveTemp(Func));
 		}
 

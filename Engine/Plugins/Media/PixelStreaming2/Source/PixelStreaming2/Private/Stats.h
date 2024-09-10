@@ -13,14 +13,6 @@
 
 namespace UE::PixelStreaming2
 {
-	// An interface that allows us to collect webrtc stats from anything that implements it
-	class IStatsSource
-	{
-	public:
-		virtual ~IStatsSource() = default;
-		virtual void PollWebRTCStats() const = 0;
-	};
-
 	struct FStatData
 	{
 	public:
@@ -110,7 +102,7 @@ namespace UE::PixelStreaming2
 	{
 
 	public:
-		FPeerStats(FString InAssociatedPlayer)
+		FPeerStats(const FString& InAssociatedPlayer)
 			: AssociatedPlayer(InAssociatedPlayer)
 			, PlayerIdCanvasItem(FVector2D(0, 0), FText::FromString(FString::Printf(TEXT("[Peer Stats(%s)]"), *AssociatedPlayer)), FSlateFontInfo(FSlateFontInfo(UEngine::GetSmallFont(), 15)), FLinearColor(0, 1, 0))
 		{
@@ -145,10 +137,10 @@ namespace UE::PixelStreaming2
 		static FStats*			Get();
 
 		FStats(const FStats&) = delete;
-		bool QueryPeerStat(FString PlayerId, FName StatCategory, FName StatToQuery, double& OutValue) const;
-		void RemovePeerStats(FString PlayerId);
+		bool QueryPeerStat(const FString& PlayerId, FName StatCategory, FName StatToQuery, double& OutValue) const;
+		void RemovePeerStats(const FString& PlayerId);
 		void RemoveAllPeerStats();
-		void StorePeerStat(FString PlayerId, FName StatCategory, FStatData Stat);
+		void StorePeerStat(const FString& PlayerId, FName StatCategory, FStatData Stat);
 		void StoreApplicationStat(FStatData PeerStat);
 		void Tick(float DeltaTime);
 
@@ -179,8 +171,8 @@ namespace UE::PixelStreaming2
 		FStats();
 		void RegisterEngineHooks();
 		void PollPixelStreaming2Settings();
-		void RemovePeerStat(FString PlayerId);
-		void FireStatChanged(FString PlayerId, FName StatName, float StatValue);
+		void RemovePeerStat(const FString& PlayerId);
+		void FireStatChanged(const FString& PlayerId, FName StatName, float StatValue);
 		void UpdateConsoleAutoComplete(TArray<FAutoCompleteCommand>& AutoCompleteList);
 		void GraphValue_GameThread(FName InName, float Value, int InSamples, float InMinRange, float InMaxRange, float InRefValue);
 		void AddCanvasTile_GameThread(FName Name, const FCanvasTileItem& Tile);

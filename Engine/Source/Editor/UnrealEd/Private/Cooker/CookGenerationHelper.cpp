@@ -1266,8 +1266,7 @@ void FGenerationHelper::ResetSaveState(FCookGenerationInfo& Info, UPackage* Pack
 		}
 	}
 
-	if (ReleaseSaveReason != EStateChangeReason::RecreateObjectCache &&
-		ReleaseSaveReason != EStateChangeReason::DoneForNow)
+	if (IsTerminalStateChange(ReleaseSaveReason))
 	{
 		// The save is completed and we will not come back to it; set state back to initial
 		// state and drop our reference keeping this GenerationHelper in memory for the save.
@@ -1293,9 +1292,7 @@ void FGenerationHelper::ResetSaveState(FCookGenerationInfo& Info, UPackage* Pack
 	{
 		if (NewState != EPackageState::Idle &&
 			Info.PackageData->GetCachedObjectsInOuter().Num() != 0 && IsUseInternalReferenceToAvoidGarbageCollect() &&
-			(ReleaseSaveReason != EStateChangeReason::Completed && ReleaseSaveReason != EStateChangeReason::DoneForNow
-				&& ReleaseSaveReason != EStateChangeReason::SaveError
-				&& ReleaseSaveReason != EStateChangeReason::CookerShutdown
+			(!IsTerminalStateChange(ReleaseSaveReason) && ReleaseSaveReason != EStateChangeReason::DoneForNow
 				&& ReleaseSaveReason != EStateChangeReason::Retraction))
 		{
 			UE_LOG(LogCook, Error,

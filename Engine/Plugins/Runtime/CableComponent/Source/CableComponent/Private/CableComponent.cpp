@@ -441,7 +441,7 @@ public:
 	uint32 GetAllocatedSize( void ) const { return( FPrimitiveSceneProxy::GetAllocatedSize() ); }
 
 #if RHI_RAYTRACING
-	virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) override
+	virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) override
 	{
 		if (CVarRayTracingCableMeshes.GetValueOnRenderThread() == 0)
 		{
@@ -459,7 +459,7 @@ public:
 		
 		if (bEvaluateWPO && CVarRayTracingCableMeshesWPOCulling.GetValueOnRenderThread() > 0)
 		{
-			const FVector ViewCenter = Context.ReferenceView->ViewMatrices.GetViewOrigin();
+			const FVector ViewCenter = Collector.GetReferenceView()->ViewMatrices.GetViewOrigin();
 			const FVector MeshCenter = GetBounds().Origin;
 			const float CullingRadius = CVarRayTracingCableMeshesWPOCullingRadius.GetValueOnRenderThread();
 			const float BoundingRadius = GetBounds().SphereRadius;
@@ -485,7 +485,7 @@ public:
 			return;
 		}
 
-		FRayTracingInstance& RayTracingInstance = OutRayTracingInstances.AddDefaulted_GetRef();
+		FRayTracingInstance RayTracingInstance;
 
 		const int32 NumRayTracingMaterialEntries = 1;
 
@@ -503,16 +503,16 @@ public:
 			MeshBatch.Type = PT_TriangleList;
 			MeshBatch.DepthPriorityGroup = SDPG_World;
 			MeshBatch.bCanApplyViewModeOverrides = false;
-			MeshBatch.CastRayTracedShadow = IsShadowCast(Context.ReferenceView);
+			MeshBatch.CastRayTracedShadow = IsShadowCast(Collector.GetReferenceView());
 			MeshBatch.DepthPriorityGroup = GetStaticDepthPriorityGroup();
 
 			FMeshBatchElement& BatchElement = MeshBatch.Elements[0];
 			BatchElement.IndexBuffer = &IndexBuffer;
 
-			FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer = Context.RayTracingMeshResourceCollector.AllocateOneFrameResource<FDynamicPrimitiveUniformBuffer>();
+			FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer = Collector.AllocateOneFrameResource<FDynamicPrimitiveUniformBuffer>();
 			FPrimitiveUniformShaderParametersBuilder Builder;
 			BuildUniformShaderParameters(Builder);
-			DynamicPrimitiveUniformBuffer.Set(Context.RayTracingMeshResourceCollector.GetRHICommandList(), Builder);
+			DynamicPrimitiveUniformBuffer.Set(Collector.GetRHICommandList(), Builder);
 
 			BatchElement.PrimitiveUniformBufferResource = &DynamicPrimitiveUniformBuffer.UniformBuffer;
 			BatchElement.FirstIndex = 0;
@@ -544,7 +544,7 @@ public:
 
 			const uint32 VertexCount = VertexBuffers.PositionVertexBuffer.GetNumVertices() + 1;
 
-			Context.DynamicRayTracingGeometriesToUpdate.Add(
+			Collector.AddRayTracingGeometryUpdate(
 				FRayTracingDynamicGeometryUpdateParams
 				{
 					CachedRayTracingMaterials, // TODO: this copy can be avoided if FRayTracingDynamicGeometryUpdateParams supported array views
@@ -563,6 +563,8 @@ public:
 		checkf(RayTracingInstance.Geometry->Initializer.Segments.Num() == CachedRayTracingMaterials.Num(), TEXT("Segments/Materials mismatch. Number of segments: %d. Number of Materials: %d."),
 			RayTracingInstance.Geometry->Initializer.Segments.Num(),
 			CachedRayTracingMaterials.Num());
+
+		Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
 	}
 
 	virtual bool HasRayTracingRepresentation() const override { return bSupportRayTracing; }

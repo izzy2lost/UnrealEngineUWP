@@ -7,8 +7,8 @@
 #include "ISceneOutlinerMode.h"
 #include "Elements/Columns/TypedElementHiearchyColumns.h"
 
-class ITypedElementDataStorageUiInterface;
-class ITypedElementDataStorageCompatibilityInterface;
+class IEditorDataStorageUiProvider;
+class IEditorDataStorageCompatibilityProvider;
 struct FTypedElementWidgetConstructor;
 class SWidget;
 
@@ -116,9 +116,9 @@ public:
 	void Init();
 
 	// TEDS construct getters
-	ITypedElementDataStorageInterface* GetStorage() const;
-	ITypedElementDataStorageUiInterface* GetStorageUI() const;
-	ITypedElementDataStorageCompatibilityInterface* GetStorageCompatibility() const;
+	IEditorDataStorageProvider* GetStorage() const;
+	IEditorDataStorageUiProvider* GetStorageUI() const;
+	IEditorDataStorageCompatibilityProvider* GetStorageCompatibility() const;
 
 	TOptional<FName> GetSelectionSetName() const;
 
@@ -172,7 +172,6 @@ protected:
 	void ClearSelection() const;
 	void Tick();
 
-	void CreateLabelWidgetConstructors();
 	void CreateFilterQueries();
 
 	// Check if this row can be displayed in this table viewer
@@ -180,14 +179,11 @@ protected:
 	
 protected:
 	// TEDS Storage Constructs
-	ITypedElementDataStorageInterface* Storage{ nullptr };
-	ITypedElementDataStorageUiInterface* StorageUi{ nullptr };
-	ITypedElementDataStorageCompatibilityInterface* StorageCompatibility{ nullptr };
+	IEditorDataStorageProvider* Storage{ nullptr };
+	IEditorDataStorageUiProvider* StorageUi{ nullptr };
+	IEditorDataStorageCompatibilityProvider* StorageCompatibility{ nullptr };
 
 	FTedsOutlinerParams CreationParams;
-
-	// Widget constructor to create the label widget
-	TArray<TPair<DataStorage::QueryHandle, TSharedPtr<FTypedElementWidgetConstructor>>> QueryToWidgetConstructorMap;
 
 	// Widget purposes this table viewer supports
 	TArray<FName> CellWidgetPurposes;

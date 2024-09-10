@@ -43,8 +43,7 @@ void FMovieGraphDeferredPass::Setup(TWeakObjectPtr<UMovieGraphDefaultRenderer> I
 	RenderDataIdentifier.RendererName = InRenderPassNode->GetRendererName();
 	RenderDataIdentifier.SubResourceName = TEXT("beauty");
 	
-	UE::MovieGraph::DefaultRenderer::FCameraInfo CameraInfo = InRenderer->GetCameraInfo(LayerData.CameraIdentifier);
-	RenderDataIdentifier.CameraName =  CameraInfo.CameraName;
+	RenderDataIdentifier.CameraName =  InLayer.CameraName;
 
 	SceneViewState.Allocate(InRenderer->GetWorld()->GetFeatureLevel());
 
@@ -136,18 +135,23 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 	const ESceneCaptureSource SceneCaptureSource = ParentNodeThisFrame->GetDisableToneCurve() ? ESceneCaptureSource::SCS_FinalColorHDR : ESceneCaptureSource::SCS_FinalToneCurveHDR;
 	const EAntiAliasingMethod AntiAliasingMethod = ParentNodeThisFrame->GetAntiAliasingMethod();
 	float OverscanFraction = 0.f;
+	bool bOverrideCameraOverscan = false;
 	const float TileOverlapPadRatio = 0.0f; // No tiling support right now
 
 	// Camera nodes are optional
 	const bool bIncludeCDOs = false;
+	bool bRenderAllCameras = false;
 	const UMovieGraphCameraSettingNode* CameraNode = InTimeData.EvaluatedConfig->GetSettingForBranch<UMovieGraphCameraSettingNode>(LayerData.BranchName, bIncludeCDOs);
 	if (CameraNode)
 	{
 		OverscanFraction = FMath::Clamp(CameraNode->OverscanPercentage / 100.f, 0.f, 1.f);
+		bRenderAllCameras = CameraNode->bRenderAllCameras;
+		bOverrideCameraOverscan = CameraNode->bOverride_OverscanPercentage;
 	}
 
 	// ToDo: When tiling is used, this should be the size of the per-tile backbuffer
-	FIntPoint AccumulatorResolution = UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(InTimeData.EvaluatedConfig);
+	const float CameraOverscan = GetRenderer()->GetCameraInfo(InTimeData.EvaluatedConfig, LayerData.CameraIndex).ViewInfo.GetOverscan();
+	FIntPoint AccumulatorResolution = UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(InTimeData.EvaluatedConfig, CameraOverscan);
 	FIntPoint BackbufferResolution = AccumulatorResolution;
 	
 	DefaultRenderer::FRenderTargetInitParams RenderTargetInitParams = GetRenderTargetInitParams(InTimeData, AccumulatorResolution);
@@ -175,16 +179,7 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 		}
 		 
 		// These are the parameters of our camera 
-		UE::MovieGraph::DefaultRenderer::FCameraInfo CameraInfo;
-
-		// ToDo: Get this from the renderer based on LayerData.CameraIdentifier for eventual multi-camera support
-		APlayerController* LocalPlayerController = GraphRenderer->GetWorld()->GetFirstPlayerController();
-		// CameraAnim override
-		if (LocalPlayerController->PlayerCameraManager)
-		{
-			CameraInfo.ViewInfo = LocalPlayerController->PlayerCameraManager->GetCameraCacheView();
-			CameraInfo.ViewActor = LocalPlayerController->GetViewTarget();
-		}
+		UE::MovieGraph::DefaultRenderer::FCameraInfo CameraInfo = GetRenderer()->GetCameraInfo(InTimeData.EvaluatedConfig, LayerData.CameraIndex);
 
 		CameraInfo.bAllowCameraAspectRatio = true;
 		CameraInfo.TilingParams.TileSize = BackbufferResolution;
@@ -195,8 +190,14 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 		CameraInfo.SamplingParams.TemporalSampleCount = InTimeData.TemporalSampleCount;
 		CameraInfo.SamplingParams.SpatialSampleIndex = SpatialIndex;
 		CameraInfo.SamplingParams.SpatialSampleCount = NumSpatialSamples;
-		CameraInfo.OverscanFraction = OverscanFraction;
 		CameraInfo.ProjectionMatrixJitterAmount = FVector2D((SpatialShiftAmount.X) * 2.0f / (float)BackbufferResolution.X, SpatialShiftAmount.Y * -2.0f / (float)BackbufferResolution.Y);
+		CameraInfo.bUseCameraManagerPostProcess = !bRenderAllCameras;
+		
+		if (bOverrideCameraOverscan)
+		{
+			CameraInfo.ViewInfo.ClearOverscan();
+			CameraInfo.ViewInfo.ApplyOverscan(OverscanFraction);
+		}
 		
 		// ToDo: This math probably needs the per-tile, pre-overlapped size? 
 		FIntPoint OverlappedPad = FIntPoint(FMath::CeilToInt(BackbufferResolution.X * TileOverlapPadRatio), FMath::CeilToInt(BackbufferResolution.Y * TileOverlapPadRatio));
@@ -233,7 +234,7 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 		
 		// Scale the DoF sensor scale to counteract overscan, otherwise the size of Bokeh changes when you have Overscan enabled.
 		// This needs to come after we modify it for Tiling.
-		CameraInfo.DoFSensorScale *= 1.0 + CameraInfo.OverscanFraction;
+		CameraInfo.DoFSensorScale *= 1.0 + CameraInfo.ViewInfo.GetOverscan();
 		 
 		// Construct a View to go within this family.
 		FSceneView* NewView = CreateSceneView(SceneViewInitOptions, ViewFamily, CameraInfo);
@@ -268,7 +269,7 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 			SampleState.OverlappedPad = OverlappedPad;
 			SampleState.OverlappedOffset = OverlappedOffset;
 			SampleState.OverlappedSubpixelShift = OverlappedSubpixelShift;
-			SampleState.OverscanFraction = OverscanFraction;
+			SampleState.OverscanFraction = CameraInfo.ViewInfo.GetOverscan();
 			SampleState.bAllowOCIO = ParentNodeThisFrame->GetAllowOCIO();
 			SampleState.SceneCaptureSource = SceneCaptureSource;
 			SampleState.CompositingSortOrder = 10;

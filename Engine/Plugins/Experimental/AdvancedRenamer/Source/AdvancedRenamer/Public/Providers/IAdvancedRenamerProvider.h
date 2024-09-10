@@ -17,7 +17,11 @@ public:
 	virtual FString GetOriginalName(int32 InIndex) const = 0;
 	virtual bool RemoveIndex(int32 InIndex) = 0;
 	virtual bool CanRename(int32 InIndex) const = 0;
-	virtual bool ExecuteRename(int32 InIndex, const FString& InNewName) = 0;
+
+	virtual bool BeginRename() = 0;
+	virtual bool PrepareRename(int32 InIndex, const FString& InNewName) = 0;
+	virtual bool ExecuteRename() = 0;
+	virtual bool EndRename() = 0;
 
 	virtual int32 FindHash(int32 InInHash) const
 	{

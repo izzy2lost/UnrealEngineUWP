@@ -332,6 +332,7 @@ void FDMXLibraryFromMVRImporter::InitializeDMXLibrary(UDMXLibrary* DMXLibrary, c
 				FixturePatchConstructionParams.UniverseID = FixtureNode->GetUniverseID();
 				FixturePatchConstructionParams.StartingAddress = FixtureNode->GetStartingChannel();
 				FixturePatchConstructionParams.MVRFixtureUUID = FixtureNode->UUID;
+				FixturePatchConstructionParams.DefaultTransform = FixtureNode->GetTransformAbsolute();
 
 				UDMXEntityFixturePatch* FixturePatch = UDMXEntityFixturePatch::CreateFixturePatchInLibrary(FixturePatchConstructionParams, FixtureNode->Name);
 				FixturePatch->GenerateFixtureID(DesiredFixtureID);

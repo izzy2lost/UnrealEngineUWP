@@ -9,6 +9,7 @@
 
 class FName;
 class FSequencerSectionPainter;
+class ISequencer;
 class UMovieSceneSection;
 struct FKeyHandle;
 
@@ -20,8 +21,9 @@ class FComponentMaterialParameterSection
 {
 public:
 
-	FComponentMaterialParameterSection(UMovieSceneSection& InSectionObject)
+	FComponentMaterialParameterSection(UMovieSceneSection& InSectionObject, TWeakPtr<ISequencer> InSequencer)
 		: FSequencerSection(InSectionObject)
+		, WeakSequencer(InSequencer)
 	{ }
 
 public:
@@ -32,4 +34,9 @@ public:
 	virtual bool RequestDeleteKeyArea(const TArray<FName>& KeyAreaNamePath) override;
 
 	virtual TSharedPtr<UE::Sequencer::FCategoryModel> ConstructCategoryModel(FName InCategoryName, const FText& InDisplayText, TArrayView<const FChannelData> Channels) const;
+
+private:
+
+	/** Weak pointer to the sequencer this section is for */
+	TWeakPtr<ISequencer> WeakSequencer;
 };

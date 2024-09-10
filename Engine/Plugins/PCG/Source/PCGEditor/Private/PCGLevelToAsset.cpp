@@ -358,6 +358,7 @@ bool UPCGLevelToAsset::BP_ExportWorld_Implementation(UWorld* World, const FStrin
 		FPCGPoint& RootPoint = Roots.Emplace_GetRef(FTransform::Identity, 1.0f, 0);
 		RootPoint.BoundsMin = AllActorBounds.Min;
 		RootPoint.BoundsMax = AllActorBounds.Max;
+		RootPoint.Steepness = 1.0f;
 	}
 
 	return true;

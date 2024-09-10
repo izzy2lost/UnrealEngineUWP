@@ -19,7 +19,7 @@ namespace UE::Dataflow
 	/** Spawn an actor given a class type and attach it to the cache manager */
 	TObjectPtr<AActor> SpawnSimulatedActor(const TSubclassOf<AActor>& ActorClass,
 		const TObjectPtr<AChaosCacheManager>& CacheManager, const TObjectPtr<UChaosCacheCollection>& CacheCollection,
-		const bool bIsRecording, const TObjectPtr<UDataflowBaseContent>& DataflowContent);
+		const bool bIsRecording, const TObjectPtr<UDataflowBaseContent>& DataflowContent, const FTransform& ActorTransform);
 
 	/** Setup the skelmesh animations to be used in the scene/generator */
 	void SetupSkeletonAnimation(const TObjectPtr<AActor>& PreviewActor);

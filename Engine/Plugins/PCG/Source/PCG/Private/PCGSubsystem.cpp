@@ -128,6 +128,10 @@ namespace PCGSubsystemConsole
 #endif
 }
 
+#if WITH_EDITOR
+TSet<UWorld*> UPCGSubsystem::DisablePartitionActorCreationForWorld;
+#endif
+
 UPCGSubsystem::UPCGSubsystem()
 	: Super()
 	, ActorAndComponentMapping(this)
@@ -1801,16 +1805,26 @@ void UPCGSubsystem::CreateMissingPartitionActors()
 
 void UPCGSubsystem::CreatePartitionActorsWithinBounds(UPCGComponent* InComponent, const FBox& InBounds, const PCGHiGenGrid::FSizeArray& InGridSizes)
 {
-	if (!PCGHelpers::IsRuntimeOrPIE())
+	UWorld* World = GetWorld();
+	if (!PCGHelpers::IsRuntimeOrPIE() && !IsPartitionActorCreationDisabledForWorld(World))
 	{
 		// We can't spawn actors if we are running constructions scripts, asserting when we try to get the actor with the WP API.
 		// We should never enter this if we are in a construction script. If the ensure is hit, we need to fix it.
-		UWorld* World = GetWorld();
 		if (ensure(World && !World->bIsRunningConstructionScript))
 		{
 			ForAllOverlappingCells(InComponent, InBounds, InGridSizes, true, {}, [](APCGPartitionActor*, const FBox&) { return InvalidPCGTaskId; });
 		}
 	}
+}
+
+void UPCGSubsystem::UpdateMappingPCGComponentPartitionActor(UPCGComponent* InComponent) 
+{ 
+	ActorAndComponentMapping.UpdateMappingPCGComponentPartitionActor(InComponent); 
+}
+
+TSet<TObjectPtr<APCGPartitionActor>> UPCGSubsystem::GetPCGComponentPartitionActorMappings(UPCGComponent* InComponent) const 
+{ 
+	return ActorAndComponentMapping.GetPCGComponentPartitionActorMappings(InComponent); 
 }
 
 #endif // WITH_EDITOR

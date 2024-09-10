@@ -95,7 +95,7 @@ private:
 	 * Optionally a MultiPatch UUID can be passed so the patch is added as a multi patch.
 	 * When a MultiPatch UUID is provided, the parent with related UUID is expected to exist already.
 	 */
-	void WriteFixturePatch(const UDMXEntityFixturePatch& FixturePatch, const TOptional<FTransform>& OptionalTransform = TOptional<FTransform>(), const FGuid& MultiPatchUUID = FGuid());
+	void WriteFixturePatch(const UDMXEntityFixturePatch& FixturePatch, const FTransform& Transform, const FGuid& MultiPatchUUID = FGuid());
 
 	/** Makes sure the node has a unique MVR UUID and Fixture ID */
 	void  SanetizeFixtureNode(UDMXMVRFixtureNode& FixtureNode);

@@ -50,7 +50,7 @@ enum class ERigVMNodeCreatedReason : uint8
 /**
  * A context struct passed to FRigVMStruct::OnUnitNodeCreated
  */
-struct RIGVM_API FRigVMUnitNodeCreatedContext
+struct FRigVMUnitNodeCreatedContext
 {
 public:
 
@@ -75,7 +75,7 @@ public:
 	};
 
 	/** Returns true if this context is valid to use */
-	bool IsValid() const;
+	RIGVM_API bool IsValid() const;
 
 	/** Get the reason why this node was created */
 	ERigVMNodeCreatedReason GetReason() const { return Reason; }
@@ -88,19 +88,19 @@ public:
 	FName GetNodeName() const { return NodeName; }
 
 	/** Returns all currently existing external variables */
-	TArray<FRigVMExternalVariable> GetExternalVariables() const;
+	RIGVM_API TArray<FRigVMExternalVariable> GetExternalVariables() const;
 
 	/** Creates a new variable within the host of this VM */
-	FName AddExternalVariable(const FRigVMExternalVariable& InVariableToCreate, FString InDefaultValue = FString());
+	RIGVM_API FName AddExternalVariable(const FRigVMExternalVariable& InVariableToCreate, FString InDefaultValue = FString());
 
 	/** Binds a pin to an external variable on the created node */
-	bool BindPinToExternalVariable(FString InPinPath, FString InVariablePath);
+	RIGVM_API bool BindPinToExternalVariable(FString InPinPath, FString InVariablePath);
 
 	/** Returns a variable given a name (or a non-valid variable if not found) */
-	FRigVMExternalVariable FindVariable(FName InVariableName) const;
+	RIGVM_API FRigVMExternalVariable FindVariable(FName InVariableName) const;
 
 	/** Returns the name of the first variable given a(or NAME_None if not found) */
-	FName FindFirstVariableOfType(FName InCPPTypeName) const;
+	RIGVM_API FName FindFirstVariableOfType(FName InCPPTypeName) const;
 
 	/** Returns the name of the first variable given a type (or NAME_None if not found) */
 	template <
@@ -157,7 +157,7 @@ private:
 	FRigVMCreateExternalVariableDelegate CreateExternalVariableDelegate;
 	FRigVMBindPinToExternalVariableDelegate BindPinToExternalVariableDelegate;
 
-	FName FindFirstVariableOfType(UObject* InCPPTypeObject) const;
+	RIGVM_API FName FindFirstVariableOfType(UObject* InCPPTypeObject) const;
 
 	friend class URigVMController;
 	friend struct FScope;
@@ -167,7 +167,7 @@ private:
  * The base class for all RigVM enabled structs.
  */
 USTRUCT()
-struct RIGVM_API FRigVMStruct
+struct FRigVMStruct
 {
 	GENERATED_BODY()
 
@@ -187,30 +187,30 @@ public:
 	virtual void Execute() {}
 
 	// control flow related
-	bool IsForLoop() const;
-	bool IsControlFlowNode() const; 
+	RIGVM_API bool IsForLoop() const;
+	RIGVM_API bool IsControlFlowNode() const; 
 	virtual int32 GetNumSlices() const { return 1; }
-	const TArray<FName>& GetControlFlowBlocks() const;
+	RIGVM_API const TArray<FName>& GetControlFlowBlocks() const;
 	virtual const bool IsControlFlowBlockSliced(const FName& InBlockName) const { return false; }
 
 	// node creation
 	virtual void OnUnitNodeCreated(FRigVMUnitNodeCreatedContext& InContext) const {}
 
 	// user workflow
-	TArray<FRigVMUserWorkflow> GetWorkflows(ERigVMUserWorkflowType InType, const UObject* InSubject) const; 
+	RIGVM_API TArray<FRigVMUserWorkflow> GetWorkflows(ERigVMUserWorkflowType InType, const UObject* InSubject) const; 
 
 #if WITH_EDITOR
-	static bool ValidateStruct(UScriptStruct* InStruct, FString* OutErrorMessage);
-	static bool CheckPinType(UScriptStruct* InStruct, const FName& PinName, const FString& ExpectedType, FString* OutErrorMessage = nullptr);
-	static bool CheckPinDirection(UScriptStruct* InStruct, const FName& PinName, const FName& InDirectionMetaName);
-	static ERigVMPinDirection GetPinDirectionFromProperty(FProperty* InProperty);
-	static bool CheckPinExists(UScriptStruct* InStruct, const FName& PinName, const FString& ExpectedType = FString(), FString* OutErrorMessage = nullptr);
-	static bool CheckMetadata(UScriptStruct* InStruct, const FName& PinName, const FName& InMetadataKey, FString* OutErrorMessage = nullptr);
-	static bool CheckFunctionExists(UScriptStruct* InStruct, const FName& FunctionName, FString* OutErrorMessage = nullptr);
-	virtual bool ShouldCreatePinForProperty(const FProperty* InProperty) const; 
+	RIGVM_API static bool ValidateStruct(UScriptStruct* InStruct, FString* OutErrorMessage);
+	RIGVM_API static bool CheckPinType(UScriptStruct* InStruct, const FName& PinName, const FString& ExpectedType, FString* OutErrorMessage = nullptr);
+	RIGVM_API static bool CheckPinDirection(UScriptStruct* InStruct, const FName& PinName, const FName& InDirectionMetaName);
+	RIGVM_API static ERigVMPinDirection GetPinDirectionFromProperty(FProperty* InProperty);
+	RIGVM_API static bool CheckPinExists(UScriptStruct* InStruct, const FName& PinName, const FString& ExpectedType = FString(), FString* OutErrorMessage = nullptr);
+	RIGVM_API static bool CheckMetadata(UScriptStruct* InStruct, const FName& PinName, const FName& InMetadataKey, FString* OutErrorMessage = nullptr);
+	RIGVM_API static bool CheckFunctionExists(UScriptStruct* InStruct, const FName& FunctionName, FString* OutErrorMessage = nullptr);
+	RIGVM_API virtual bool ShouldCreatePinForProperty(const FProperty* InProperty) const; 
 #endif
-	static FString ExportToFullyQualifiedText(const FProperty* InMemberProperty, const uint8* InMemberMemoryPtr, bool bUseQuotes = true);
-	static FString ExportToFullyQualifiedText(const UScriptStruct* InStruct, const uint8* InStructMemoryPtr, bool bUseQuotes = true);
+	RIGVM_API static FString ExportToFullyQualifiedText(const FProperty* InMemberProperty, const uint8* InMemberMemoryPtr, bool bUseQuotes = true);
+	RIGVM_API static FString ExportToFullyQualifiedText(const UScriptStruct* InStruct, const uint8* InStructMemoryPtr, bool bUseQuotes = true);
 
 	template <
 		typename T,
@@ -230,9 +230,9 @@ public:
 		return ExportToFullyQualifiedText(T::StaticStruct(), (const uint8*)&InStructValue);
 	}
 
-	FString ExportToFullyQualifiedText(const UScriptStruct* InScriptStruct, const FName& InPropertyName, const uint8* InStructMemoryPointer = nullptr, bool bUseQuotes = true) const;
+	RIGVM_API FString ExportToFullyQualifiedText(const UScriptStruct* InScriptStruct, const FName& InPropertyName, const uint8* InStructMemoryPointer = nullptr, bool bUseQuotes = true) const;
 	
-	virtual FName GetNextAggregateName(const FName& InLastAggregatePinName) const;
+	RIGVM_API virtual FName GetNextAggregateName(const FName& InLastAggregatePinName) const;
 	virtual FRigVMStructUpgradeInfo GetUpgradeInfo() const { return FRigVMStructUpgradeInfo(); }
 
 	static inline const FLazyName DeprecatedMetaName = FLazyName(TEXT("Deprecated"));
@@ -280,14 +280,14 @@ public:
 
 protected:
 
-	static float GetRatioFromIndex(int32 InIndex, int32 InCount);
-	TMap<FName, FString> GetDefaultValues(UScriptStruct* InScriptStruct) const;
-	bool ApplyUpgradeInfo(const FRigVMStructUpgradeInfo& InUpgradeInfo);
+	RIGVM_API static float GetRatioFromIndex(int32 InIndex, int32 InCount);
+	RIGVM_API TMap<FName, FString> GetDefaultValues(UScriptStruct* InScriptStruct) const;
+	RIGVM_API bool ApplyUpgradeInfo(const FRigVMStructUpgradeInfo& InUpgradeInfo);
 	virtual TArray<FRigVMUserWorkflow> GetSupportedWorkflows(const UObject* InSubject) const { return TArray<FRigVMUserWorkflow>(); }
-	virtual const TArray<FName>& GetControlFlowBlocks_Impl() const;
+	RIGVM_API virtual const TArray<FName>& GetControlFlowBlocks_Impl() const;
 
 #if WITH_EDITOR
-	static void ValidateControlFlowBlocks(const TArray<FName>& InBlocks);
+	RIGVM_API static void ValidateControlFlowBlocks(const TArray<FName>& InBlocks);
 #endif
 
 	friend struct FRigVMStructUpgradeInfo;
@@ -300,7 +300,7 @@ protected:
  * The base mutable class for all RigVM enabled structs.
  */
 USTRUCT()
-struct RIGVM_API FRigVMStructMutable : public FRigVMStruct
+struct FRigVMStructMutable : public FRigVMStruct
 {
 	GENERATED_BODY()
 

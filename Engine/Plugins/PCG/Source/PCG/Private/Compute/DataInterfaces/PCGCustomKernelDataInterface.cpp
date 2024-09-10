@@ -84,25 +84,7 @@ UComputeDataProvider* UPCGCustomKernelDataInterface::CreateDataProvider(TObjectP
 
 FComputeDataProviderRenderProxy* UPCGCustomComputeKernelDataProvider::GetRenderProxy()
 {
-	TArray<int32> InvocationCounts;
-	int32 TotalThreadCount = 0;
-	
-	if (!GetInvocationThreadCounts(InvocationCounts, TotalThreadCount))
-	{
-		InvocationCounts.Reset();
-	}
-
-	return new FPCGCustomComputeKernelDataProviderProxy(MoveTemp(InvocationCounts), TotalThreadCount, Seed, SourceComponentBounds);
-}
-
-bool UPCGCustomComputeKernelDataProvider::GetInvocationThreadCounts(TArray<int32>& OutInvocationThreadCount, int32& OutTotalThreadCount) const
-{
-	OutInvocationThreadCount.Reset(1);
-	OutInvocationThreadCount.Add(ThreadCount);
-
-	OutTotalThreadCount = ThreadCount;
-	
-	return true;
+	return new FPCGCustomComputeKernelDataProviderProxy(ThreadCount, Seed, SourceComponentBounds);
 }
 
 bool FPCGCustomComputeKernelDataProviderProxy::IsValid(FValidationData const& InValidationData) const
@@ -113,22 +95,13 @@ bool FPCGCustomComputeKernelDataProviderProxy::IsValid(FValidationData const& In
 		return false;
 	}
 
-	if (InvocationThreadCounts.Num() == 0)
-	{
-		UE_LOG(LogPCG, Error, TEXT("Proxy invalid due to empty InvocationThreadCounts."));
-		return false;
-	}
-
 	return true;
 }
 
 int32 FPCGCustomComputeKernelDataProviderProxy::GetDispatchThreadCount(TArray<FIntVector>& InOutThreadCounts) const
 {
-	InOutThreadCounts.Reset(InvocationThreadCounts.Num());
-	for (const int32 Count : InvocationThreadCounts)
-	{
-		InOutThreadCounts.Add({Count, 1, 1});
-	}
+	// Always dispatch at least one thread. This is necessary in order to flag the kernel as executed.
+	InOutThreadCounts.Emplace(FMath::Max(1, ThreadCount), 1, 1);
 	return InOutThreadCounts.Num();
 }
 
@@ -140,7 +113,9 @@ void FPCGCustomComputeKernelDataProviderProxy::GatherDispatchData(FDispatchData 
 		FParameters& Parameters = ParameterArray[InvocationIndex];
 
 		// Thread count
-		Parameters.NumThreads.X = InDispatchData.bUnifiedDispatch ? TotalThreadCount : InvocationThreadCounts[InvocationIndex];
+		// Note: If this ThreadCount is zero, the kernel will still execute one thread, but terminates early when comparing thread index against this value.
+		ensure(InDispatchData.bUnifiedDispatch || InDispatchData.NumInvocations == 1);
+		Parameters.NumThreads.X = ThreadCount;
 		Parameters.NumThreads.Y = Parameters.NumThreads.Z = 1;
 
 		// Seed for the node

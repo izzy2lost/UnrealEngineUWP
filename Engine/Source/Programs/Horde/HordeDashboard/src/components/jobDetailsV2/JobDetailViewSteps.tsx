@@ -1,11 +1,11 @@
-import { CollapseAllVisibility, ConstrainMode, DetailsHeader, DetailsList, DetailsListLayoutMode, DetailsRow, IColumn, Icon, IDetailsListProps, ProgressIndicator, SelectionMode, Stack, Text } from "@fluentui/react";
+import { CollapseAllVisibility, ConstrainMode, DetailsHeader, DetailsList, DetailsListLayoutMode, DetailsRow, DirectionalHint, IColumn, Icon, IDetailsListProps, ProgressIndicator, SelectionMode, Stack, Text, TooltipHost } from "@fluentui/react";
 import { observer } from "mobx-react-lite";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useId, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { BatchData, GetBatchResponse, JobStepBatchError, JobStepBatchState, JobStepOutcome, JobStepState, StepData } from "../../backend/Api";
 import dashboard, { StatusColor } from "../../backend/Dashboard";
 import { ISideRailLink } from "../../base/components/SideRail";
-import { getBatchInitElapsed, getNiceTime, getStepElapsed, getStepETA, getStepFinishTime, getStepPercent, getStepStartTime, getStepTimingDelta } from "../../base/utilities/timeUtils";
+import { getBatchInitElapsed, getNiceTime, getStepElapsed, getStepETA, getStepFinishTime, getStepPercent, getStepStartTime, getStepTimingDelta, HordeTime } from "../../base/utilities/timeUtils";
 import { HistoryModal } from "../HistoryModal";
 import { getBatchText, getStepStatusMessage } from "../JobDetailCommon";
 import { StepStatusIcon } from "../StatusIcon";
@@ -53,9 +53,12 @@ class StepsDataView extends JobDataView {
 
 }
 
+let stepToolTipId = 0;
+
 JobDetailsV2.registerDataView("StepsDataView", (details: JobDetailsV2) => new StepsDataView(details));
 
 const RenderDynamic: React.FC<{ jobDetails: JobDetailsV2, dataView: StepsDataView, step?: StepData, batch?: GetBatchResponse, column: string }> = observer(({ jobDetails, dataView, column, step, batch }) => {
+
 
    dataView.subscribe();
 
@@ -109,7 +112,7 @@ const RenderDynamic: React.FC<{ jobDetails: JobDetailsV2, dataView: StepsDataVie
 
    if (step && column === "ETA") {
 
-      let eta = {
+      let eta:HordeTime = {
          display: "",
          server: ""
       };
@@ -118,7 +121,7 @@ const RenderDynamic: React.FC<{ jobDetails: JobDetailsV2, dataView: StepsDataVie
          return null;
       }
 
-      let finished = { display: "", server: "" };
+      let finished:HordeTime = { display: "", server: "" };
 
       eta = getStepETA(step, jobDetails.jobData!);
 
@@ -127,6 +130,8 @@ const RenderDynamic: React.FC<{ jobDetails: JobDetailsV2, dataView: StepsDataVie
       if (finished.display) {
          eta.display = finished.display;
          eta.server = finished.server;
+         eta.displayNice = finished.displayNice;
+         eta.serverNice = finished.serverNice;
       }
 
       let time = eta.display;
@@ -136,16 +141,16 @@ const RenderDynamic: React.FC<{ jobDetails: JobDetailsV2, dataView: StepsDataVie
       const color = !step.finishTime ? etaColor : undefined;
 
       // Open Sans tilde rendering issue at 13px, and not rendering at all at other px: https://github.com/google/fonts/issues/399, do not change from 12px
-      return <Stack horizontalAlign={"end"}>
+      return <TooltipHost content={eta.displayNice} directionalHint={DirectionalHint.leftCenter} id={`step_unique_tooltip_${stepToolTipId++}`}><Stack horizontalAlign={"end"}>
          <Stack horizontal tokens={{ childrenGap: 2 }}>
             {!!time && !step.finishTime && <Text style={{ color: color, fontSize: "11px", paddingTop: 2 }}>~</Text>}
             <Text style={{ color: color, fontSize: "13px" }}>
                {time}
             </Text>
          </Stack>
-      </Stack>;
+      </Stack>
+      </TooltipHost>;
    };
-
 
    return null;
 
@@ -317,7 +322,7 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
          if (!started.display || !started.server) {
             return null;
          } else {
-            return <Stack horizontalAlign={"end"}><Text style={{ fontSize: "13px" }}>{started.display}</Text></Stack>;
+            return <TooltipHost content={started.displayNice ?? started.display} directionalHint={DirectionalHint.leftCenter} id={`step_unique_tooltip_${stepToolTipId++}`}><Stack horizontalAlign={"end"}><Text style={{ fontSize: "13px" }}>{started.display}</Text></Stack></TooltipHost>;
          }
       };
 

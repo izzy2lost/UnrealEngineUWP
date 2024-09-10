@@ -1003,6 +1003,116 @@ UDynamicMesh* UGeometryScriptLibrary_MeshSelectionFunctions::SelectMeshElementsB
 	return TargetMesh;
 }
 
+UDynamicMesh* UGeometryScriptLibrary_MeshSelectionFunctions::SelectMeshSharpEdges(
+	UDynamicMesh* TargetMesh,
+	FGeometryScriptMeshSelection& SelectionOut,
+	double MinAngleDeg)
+{
+	if (TargetMesh == nullptr)
+	{
+		UE_LOG(LogGeometry, Warning, TEXT("SelectMeshEdgesByEdgeAngle: TargetMesh is Null"));
+		return TargetMesh;
+	}
+
+	FGeometrySelection GeoSelection;
+	GeoSelection.InitializeTypes(EGeometryElementType::Edge, EGeometryTopologyType::Triangle);
+	double CosThresh = FMath::Cos(FMathd::DegToRad * MinAngleDeg);
+	TargetMesh->ProcessMesh([&GeoSelection, &CosThresh](const FDynamicMesh3& Mesh)
+	{
+		for (int32 EID : Mesh.EdgeIndicesItr())
+		{
+			FIndex2i EdgeT = Mesh.GetEdgeT(EID);
+			if (EdgeT.B == INDEX_NONE)
+			{
+				continue;
+			}
+			FVector3d NormalA = Mesh.GetTriNormal(EdgeT.A);
+			FVector3d NormalB = Mesh.GetTriNormal(EdgeT.B);
+			if (NormalA.Dot(NormalB) <= CosThresh)
+			{
+				Mesh.EnumerateTriEdgeIDsFromEdgeID(EID, [&GeoSelection](FMeshTriEdgeID TriEdgeID)
+				{
+					GeoSelection.Selection.Add(TriEdgeID.Encoded());
+				});
+			}
+		}
+	});
+	SelectionOut.SetSelection(GeoSelection);
+	return TargetMesh;
+}
+
+UDynamicMesh* UGeometryScriptLibrary_MeshSelectionFunctions::SelectMeshBoundaryEdges(
+	UDynamicMesh* TargetMesh,
+	FGeometryScriptMeshSelection& SelectionOut)
+{
+	if (TargetMesh == nullptr)
+	{
+		UE_LOG(LogGeometry, Warning, TEXT("SelectMeshEdgesByEdgeAngle: TargetMesh is Null"));
+		return TargetMesh;
+	}
+
+	FGeometrySelection GeoSelection;
+	GeoSelection.InitializeTypes(EGeometryElementType::Edge, EGeometryTopologyType::Triangle);
+	TargetMesh->ProcessMesh([&GeoSelection](const FDynamicMesh3& Mesh)
+	{
+		for (int32 EID : Mesh.EdgeIndicesItr())
+		{
+			FIndex2i EdgeT = Mesh.GetEdgeT(EID);
+			if (EdgeT.B == INDEX_NONE)
+			{
+				GeoSelection.Selection.Add(Mesh.GetTriEdgeIDFromEdgeID(EID).Encoded());
+			}
+		}
+	});
+	SelectionOut.SetSelection(GeoSelection);
+	return TargetMesh;
+}
+
+UDynamicMesh* UGeometryScriptLibrary_MeshSelectionFunctions::SelectSelectionBoundaryEdges(
+	UDynamicMesh* TargetMesh,
+	const FGeometryScriptMeshSelection& RegionSelection,
+	FGeometryScriptMeshSelection& SelectionOut,
+	bool bExcludeMeshBoundaryEdges
+)
+{
+	if (TargetMesh == nullptr)
+	{
+		UE_LOG(LogGeometry, Warning, TEXT("SelectMeshEdgesByEdgeAngle: TargetMesh is Null"));
+		return TargetMesh;
+	}
+
+	FGeometrySelection GeoSelection;
+	GeoSelection.InitializeTypes(EGeometryElementType::Edge, EGeometryTopologyType::Triangle);
+	TargetMesh->ProcessMesh([&GeoSelection, &RegionSelection, bExcludeMeshBoundaryEdges](const FDynamicMesh3& Mesh)
+	{
+		TSet<int32> TriSel;
+		RegionSelection.ProcessByTriangleID(Mesh, [&TriSel](int32 TID) { TriSel.Add(TID); });
+		for (int32 TID : TriSel)
+		{
+			FIndex3i TriEdges = Mesh.GetTriEdges(TID);
+			FIndex3i NbrTris = Mesh.GetTriNeighbourTris(TID);
+			for (int32 SubIdx = 0; SubIdx < 3; ++SubIdx)
+			{
+				if (NbrTris[SubIdx] == INDEX_NONE)
+				{
+					if (!bExcludeMeshBoundaryEdges)
+					{
+						GeoSelection.Selection.Add(Mesh.GetTriEdgeIDFromEdgeID(TriEdges[SubIdx]).Encoded());
+					}
+				}
+				else if (!TriSel.Contains(NbrTris[SubIdx]))
+				{
+					Mesh.EnumerateTriEdgeIDsFromEdgeID(TriEdges[SubIdx], [&GeoSelection](FMeshTriEdgeID TriEdgeID)
+					{
+						GeoSelection.Selection.Add(TriEdgeID.Encoded());
+					});
+				}
+			}
+		}
+	});
+	SelectionOut.SetSelection(GeoSelection);
+	return TargetMesh;
+}
 
 UDynamicMesh* UGeometryScriptLibrary_MeshSelectionFunctions::SelectMeshElementsInsideMesh(
 	UDynamicMesh* TargetMesh,

@@ -22,7 +22,7 @@ namespace UE::Editor::RevisionControl::Private
 		TEXT("Automatically query revision control provider and fill information into TEDS")
 	);
 
-	static void ResolvePackageReference(ITypedElementDataStorageInterface::IQueryContext& Context, const UPackage* Package, RowHandle Row, RowHandle PackageRow)
+	static void ResolvePackageReference(IEditorDataStorageProvider::IQueryContext& Context, const UPackage* Package, RowHandle Row, RowHandle PackageRow)
 	{
 		FTypedElementPackageReference PackageReference;
 		PackageReference.Row = PackageRow;
@@ -43,7 +43,7 @@ namespace UE::Editor::RevisionControl::Private
 	};
 } // namespace UE::Editor::DataStorage
 
-void UTypedElementUObjectPackagePathFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementUObjectPackagePathFactory::RegisterQueries(IEditorDataStorageProvider& DataStorage)
 {
 	using namespace UE::Editor::DataStorage::Queries;
 	
@@ -89,7 +89,7 @@ void UTypedElementUObjectPackagePathFactory::RegisterQueries(ITypedElementDataSt
 	}
 }
 
-void UTypedElementUObjectPackagePathFactory::RegisterTryAddPackageRef(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementUObjectPackagePathFactory::RegisterTryAddPackageRef(IEditorDataStorageProvider& DataStorage)
 {
 	using namespace UE::Editor::DataStorage::Queries;
 	

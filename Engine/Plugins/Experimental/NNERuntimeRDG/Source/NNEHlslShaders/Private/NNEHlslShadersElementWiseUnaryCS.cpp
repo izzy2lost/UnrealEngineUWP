@@ -1,8 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNEHlslShadersElementWiseUnaryCS.h"
-
-#include "NNE.h"
+#include "NNEHlslShadersLog.h"
 
 namespace UE::NNEHlslShaders::Internal
 {
@@ -89,7 +88,7 @@ namespace UE::NNEHlslShaders::Internal
 
 		if (OpFunc == FString(""))
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Undefined ElementWise Unary operator name for operator:%d"), int(OpType));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Undefined ElementWise Unary operator name for operator:%d"), int(OpType));
 		}
 
 		return OpFunc;

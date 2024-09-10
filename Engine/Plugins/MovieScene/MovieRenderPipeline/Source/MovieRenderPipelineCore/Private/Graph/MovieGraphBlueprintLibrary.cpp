@@ -364,7 +364,7 @@ int32 UMovieGraphBlueprintLibrary::GetCurrentVersionNumber(const UMovieGraphPipe
 	return InMovieGraphPipeline->GetActiveShotList()[CurrentShotIndex]->ShotInfo.VersionNumber;
 }
 
-FIntPoint UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(UMovieGraphEvaluatedConfig* InEvaluatedGraph)
+FIntPoint UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(UMovieGraphEvaluatedConfig* InEvaluatedGraph, float DefaultOverscan)
 {
 	if (!InEvaluatedGraph)
 	{
@@ -379,11 +379,14 @@ FIntPoint UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(UMovieGraphE
 		return FIntPoint();
 	}
 
-	float RescaledOverscan = 0.f;
+	float RescaledOverscan = DefaultOverscan;
 	if (UMovieGraphCameraSettingNode* CameraSetting = InEvaluatedGraph->GetSettingForBranch<UMovieGraphCameraSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs))
 	{
-		// The old system used [0-1] range for floats, the new system will use [0-100], so we rescale down before calling through.
-		RescaledOverscan = FMath::Clamp(CameraSetting->OverscanPercentage / 100.f, 0.f, 1.f);
+		if (CameraSetting->bOverride_OverscanPercentage)
+		{
+			// The old system used [0-1] range for floats, the new system will use [0-100], so we rescale down before calling through.
+			RescaledOverscan = FMath::Clamp(CameraSetting->OverscanPercentage / 100.f, 0.f, 1.f);
+		}
 	}
 
 	// We need to look at the Project Settings for the latest value for a given profile

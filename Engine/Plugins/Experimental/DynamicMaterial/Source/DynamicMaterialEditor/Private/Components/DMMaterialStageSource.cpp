@@ -123,7 +123,7 @@ void UDMMaterialStageSource::GeneratePreviewMaterial(UMaterial* InPreviewMateria
 	check(ModelEditorOnlyData);
 
 	TSharedRef<FDMMaterialBuildState> BuildState = ModelEditorOnlyData->CreateBuildState(InPreviewMaterial);
-	BuildState->SetPreviewMaterial();
+	BuildState->SetPreviewObject(this);
 
 	GenerateExpressions(BuildState);
 	UMaterialExpression* StageSourceExpression = BuildState->GetLastStageSourceExpression(this);
@@ -152,7 +152,7 @@ bool UDMMaterialStageSource::GenerateStagePreviewMaterial(UDMMaterialStage* InSt
 	check(ModelEditorOnlyData);
 
 	TSharedRef<FDMMaterialBuildState> BuildState = ModelEditorOnlyData->CreateBuildState(InPreviewMaterial);
-	BuildState->SetPreviewMaterial();
+	BuildState->SetPreviewObject(InStage);
 
 	UDMMaterialStageSource* PreviewSource = InStage->GetSource();
 

@@ -99,7 +99,13 @@ bool FAdvancedRenamerAssetProvider::CanRename(int32 InIndex) const
 	return true;
 }
 
-bool FAdvancedRenamerAssetProvider::ExecuteRename(int32 InIndex, const FString& InNewName)
+bool FAdvancedRenamerAssetProvider::BeginRename()
+{
+	AssetRenameDataList.Reserve(Num());
+	return true;
+}
+
+bool FAdvancedRenamerAssetProvider::PrepareRename(int32 InIndex, const FString& InNewName)
 {
 	UObject* Asset = GetAsset(InIndex);
 
@@ -111,8 +117,25 @@ bool FAdvancedRenamerAssetProvider::ExecuteRename(int32 InIndex, const FString& 
 	FString PackagePath = Asset->GetPathName();
 	PackagePath = FPaths::GetPath(PackagePath);
 
+	constexpr bool bOnlyFixSoftReferences = false;
+	constexpr bool bAlsoRenameLocalizedVariants = true;
+	AssetRenameDataList.Add(FAssetRenameData(Asset, PackagePath, InNewName, bOnlyFixSoftReferences, bAlsoRenameLocalizedVariants));
+
+	return true;
+}
+
+bool FAdvancedRenamerAssetProvider::ExecuteRename()
+{
 	IAssetTools& AssetTools = FModuleManager::GetModuleChecked<FAssetToolsModule>("AssetTools").Get();
-	return AssetTools.RenameAssets({FAssetRenameData(Asset, PackagePath, InNewName)});
+
+	constexpr bool bAutoCheckout = false;
+	return AssetTools.RenameAssetsWithDialog(AssetRenameDataList, bAutoCheckout) != EAssetRenameResult::Failure;
+}
+
+bool FAdvancedRenamerAssetProvider::EndRename()
+{
+	AssetRenameDataList.Empty();
+	return true;
 }
 
 #undef LOCTEXT_NAMESPACE

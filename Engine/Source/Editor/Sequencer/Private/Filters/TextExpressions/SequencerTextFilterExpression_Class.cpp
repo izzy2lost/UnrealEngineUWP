@@ -38,22 +38,6 @@ bool FSequencerTextFilterExpression_Class::TestComplexExpression(const FName& In
 		return true;
 	}
 
-	if (const TViewModelPtr<ITrackExtension> TrackExtension = FilterItem->FindAncestorOfType<ITrackExtension>())
-	{
-		for (const TViewModelPtr<FSectionModel>& SectionModel : TrackExtension->GetSectionModels().IterateSubList<FSectionModel>())
-		{
-			if (const auto SectionInterface = SectionModel->GetSectionInterface())
-			{
-				const FString SectionTitle = SectionInterface->GetSectionTitle().ToString();
-
-				if (TextFilterUtils::TestComplexExpression(SectionTitle, InValue, InComparisonOperation, InTextComparisonMode))
-				{
-					return true;
-				}
-			}
-		}
-	}
-
 	if (WeakTrackObject.IsValid())
 	{
 		const FString TrackClassName = WeakTrackObject->GetClass()->GetName();
@@ -61,19 +45,21 @@ bool FSequencerTextFilterExpression_Class::TestComplexExpression(const FName& In
 		{
 			return true;
 		}
-		return false;
 	}
 
 	ISequencer& Sequencer = FilterInterface.GetSequencer();
 
 	UObject* const BoundObject = FSequencerTrackFilter::ResolveTrackBoundObject(Sequencer, FilterItem, FilterInterface.GetFilterData());
-	if (IsValid(BoundObject)
-		&& !TextFilterUtils::TestComplexExpression(BoundObject->GetClass()->GetName(), InValue, InComparisonOperation, InTextComparisonMode))
+	if (IsValid(BoundObject))
 	{
-		return false;
+		const FString BoundObjectClassName = BoundObject->GetClass()->GetName();
+		if (TextFilterUtils::TestComplexExpression(BoundObjectClassName, InValue, InComparisonOperation, InTextComparisonMode))
+		{
+			return true;
+		}
 	}
 
-	return true;
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

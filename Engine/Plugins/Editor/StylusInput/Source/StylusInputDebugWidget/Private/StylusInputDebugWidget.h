@@ -21,8 +21,8 @@ namespace UE::StylusInput::DebugWidget
 
 		virtual FString GetName() override { return "DebugEventHandlerAsynchronous"; }
 
-		virtual void OnPacket(const FStylusInputPacket& Packet) override;
-		virtual void OnDebugEvent(const FString& Message) override;
+		virtual void OnPacket(const FStylusInputPacket& Packet, IStylusInputInstance* Instance) override;
+		virtual void OnDebugEvent(const FString& Message, IStylusInputInstance* Instance) override;
 
 		virtual void Tick(float DeltaTime) override;
 		virtual TStatId GetStatId() const override { RETURN_QUICK_DECLARE_CYCLE_STAT(StylusInput_DebugEventHandlerAsynchronous, STATGROUP_Tickables); }
@@ -42,8 +42,8 @@ namespace UE::StylusInput::DebugWidget
 
 		virtual FString GetName() override { return "DebugEventHandlerOnGameThread"; }
 
-		virtual void OnPacket(const FStylusInputPacket& Packet) override;
-		virtual void OnDebugEvent(const FString& Message) override;
+		virtual void OnPacket(const FStylusInputPacket& Packet, IStylusInputInstance* Instance) override;
+		virtual void OnDebugEvent(const FString& Message, IStylusInputInstance* Instance) override;
 
 	private:
 		FOnPacketCallback OnPacketCallback;

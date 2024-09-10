@@ -34,17 +34,29 @@ namespace UE::DMX::Private
 {
 	const FName SDMXControlConsoleCompactEditorView::ToolbarMenuName = "DMX.ControlConsole.CompactEditorToolbar";
 
+	SDMXControlConsoleCompactEditorView::~SDMXControlConsoleCompactEditorView()
+	{
+		UDMXControlConsoleData* ControlConsoleData = ControlConsole ? ControlConsole->GetControlConsoleData() : nullptr;
+		if (ControlConsoleData && ControlConsoleData->IsSendingDMX() && bStopSendingDMXOnDestruct)
+		{
+			ControlConsoleData->StopSendingDMX();
+		}
+	}
+
 	void SDMXControlConsoleCompactEditorView::Construct(const FArguments& InArgs)
 	{
 		UDMXControlConsoleCompactEditorModel* CompactEditorModel = GetMutableDefault<UDMXControlConsoleCompactEditorModel>();
 		ControlConsole = CompactEditorModel->LoadControlConsoleSynchronous();
-
-		if (ControlConsole)
+		const UDMXControlConsoleData* ControlConsoleData = ControlConsole ? ControlConsole->GetControlConsoleData() : nullptr;
+		
+		if (ControlConsole && ControlConsoleData)
 		{
-			EditorModel = NewObject<UDMXControlConsoleEditorModel>(GetTransientPackage(), NAME_None, RF_Transient | RF_Transactional);
-			EditorModel->Initialize(ControlConsole);
+			bStopSendingDMXOnDestruct = !ControlConsoleData->IsSendingDMX();
 
 			SetupCommands();
+
+			EditorModel = NewObject<UDMXControlConsoleEditorModel>(GetTransientPackage(), NAME_None, RF_Transient | RF_Transactional);
+			EditorModel->Initialize(ControlConsole);
 
 			PlayMenuModel = NewObject<UDMXControlConsoleEditorPlayMenuModel>(GetTransientPackage(), NAME_None, RF_Transient | RF_Transactional);
 			PlayMenuModel->Initialize(ControlConsole, CommandList.ToSharedRef());

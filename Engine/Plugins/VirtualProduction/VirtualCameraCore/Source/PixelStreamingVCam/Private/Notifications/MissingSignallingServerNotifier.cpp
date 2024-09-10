@@ -61,8 +61,15 @@ namespace UE::PixelStreamingVCam
 		{
 			return;
 		}
+
+		IPixelStreamingEditorModule& Module = IPixelStreamingEditorModule::Get();
+		// There's currently no API to detect whether an external signalling server is connected. No notifications for this case.
+		if (Module.UseExternalSignallingServer())
+		{
+			return;
+		}
 		
-		const TSharedPtr<PixelStreamingServers::IServer> SignallingServer = IPixelStreamingEditorModule::Get().GetSignallingServer();;
+		const TSharedPtr<PixelStreamingServers::IServer> SignallingServer = Module.GetSignallingServer();
 		const bool bIsServerAvailable = SignallingServer.IsValid();
 
 		// If the server comes back up, close the notification as to not confuse the user.

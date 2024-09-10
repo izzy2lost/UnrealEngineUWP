@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGShape.h"
+
+#include "NNEHlslShadersLog.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
 
@@ -50,7 +52,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (OutputTensorDescs[0].GetDataType() != ENNETensorDataType::Int64)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Shape should output a tensor of type Int64"));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Shape: Should output a tensor of type Int64"));
 				return false;
 			}
 			
@@ -59,7 +61,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 		virtual void Dispatch(FRDGBuilder& GraphBuilder, TConstArrayView<FTensorRDGRef> InputTensors, TConstArrayView<FTensorRDGRef> OutputTensors) override
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Shape: Output should be constant and already uploaded to GPU memory. Dispatch should not need to be called."));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Shape: Output should be constant and already uploaded to GPU memory. Dispatch should not need to be called."));
 		}
 	};
 

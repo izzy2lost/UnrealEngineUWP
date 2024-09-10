@@ -178,10 +178,14 @@ void FTG_Editor::InitEditor(const EToolkitMode::Type Mode, const TSharedPtr< cla
 	// Propagate all object flags except for RF_Standalone, otherwise the preview material won't GC once
 	// the TS editor releases the reference.
 	// overwrite the original TextureGraph in place by constructing a new one with the same name
-	FObjectDuplicationParameters Params = InitStaticDuplicateObjectParams(OriginalTextureGraph, OriginalTextureGraph->GetOuter(), NAME_None,
+	FName RuntimeGraphName = FName(OriginalTextureGraph->GetFName().ToString() + TEXT("_Runtime"));
+	FObjectDuplicationParameters Params = InitStaticDuplicateObjectParams(OriginalTextureGraph, OriginalTextureGraph->GetOuter(), RuntimeGraphName,
 	~RF_Standalone, UTextureGraph::StaticClass(), EDuplicateMode::Normal, EInternalObjectFlags::None);
 	
 	EditedTextureGraph = Cast<UTextureGraph>(StaticDuplicateObjectEx(Params));
+#ifdef UE_BUILD_DEBUG
+	EditedTextureGraph->Graph()->IsRuntime = 1;
+#endif
 	FCoreUObjectDelegates::OnObjectPreSave.AddSP(this, &FTG_Editor::OnTextureGraphPreSave);
 
 	//Editor gets notified when rendering is done
@@ -1392,7 +1396,8 @@ void FTG_Editor::PasteNodesHere(const FVector2D& Location, const class UEdGraph*
 	// Import the nodes
 	TSet<UEdGraphNode*> PastedNodes;
 	FEdGraphUtilities::ImportNodesFromText(ExpressionGraph, TextToImport, /*out*/ PastedNodes);
-
+	ExpressionGraph->FixDuplicatedNodesPinConnections(PastedNodes);
+	
 	//Average position of nodes so we can move them while still maintaining relative distances to each other
 	FVector2D AvgNodePosition(0.0f, 0.0f);
 
@@ -1601,8 +1606,20 @@ void FTG_Editor::OnClose()
 
 bool FTG_Editor::UpdateOriginalTextureGraph()
 {
-	// TODO : We should cancel saving when TextureGraph has errors.
-
+	// We should cancel saving when TextureGraph has certain errors.
+	FTextureGraphErrorReporter* ErrorReporter = TextureGraphEngine::GetErrorReporter(EditedTextureGraph);
+	if (ErrorReporter)
+	{
+		// see if there are recursive call errors, we warn user and not let them save in that state
+		const auto CompileErrors = TextureGraphEngine::GetErrorReporter(EditedTextureGraph)->GetCompilationErrors();
+		const TArray<FTextureGraphErrorReport>* RecursiveErrors = CompileErrors.Find((int)ETextureGraphErrorType::RECURSIVE_CALL);
+		if (RecursiveErrors != nullptr && RecursiveErrors->Num() > 0)
+		{
+			const FText Message =  FText::FromString(TEXT("Cannot save as Recursive Errors found.\r\n") + (*RecursiveErrors)[0].ErrorMsg);
+			FMessageDialog::Open(EAppMsgCategory::Error, EAppMsgType::Ok, Message);
+			return false;
+		}
+	}
 	if (EditedTextureGraph->GetPackage()->IsDirty())
 	{
 		// Cache any metadata
@@ -1614,7 +1631,9 @@ bool FTG_Editor::UpdateOriginalTextureGraph()
 
 		// UObject* NewAsset = StaticDuplicateObjectEx(Params);
 		OriginalTextureGraph = Cast<UTextureGraph>(StaticDuplicateObjectEx(Params));
-
+#ifdef UE_BUILD_DEBUG
+		OriginalTextureGraph->Graph()->IsRuntime = 0;
+#endif
 		// Restore the metadata
 		if (MetaData)
 		{

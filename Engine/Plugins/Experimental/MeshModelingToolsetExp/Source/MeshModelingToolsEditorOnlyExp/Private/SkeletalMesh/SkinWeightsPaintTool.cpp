@@ -1563,7 +1563,7 @@ FBox USkinWeightsPaintTool::GetWorldSpaceFocusBox()
 	static constexpr bool bNonColliding = true;
 	FBox PreviewBox = PreviewMesh->GetActor()->GetComponentsBoundingBox(bNonColliding);
 	
-	if (WeightToolProperties->bShowSourcePreview && SourcePreviewMesh)
+	if (SourcePreviewMesh)
 	{
 		if (AActor* SourceActor = SourcePreviewMesh->GetActor())
 		{
@@ -4192,14 +4192,6 @@ void USkinWeightsPaintTool::OnPropertyModified(UObject* ModifiedObject, FPropert
 		}
 	}
 
-	if (ModifiedProperty->GetName() == GET_MEMBER_NAME_STRING_CHECKED(USkinWeightsPaintToolProperties, bShowSourcePreview))
-	{
-		if (SourcePreviewMesh)
-		{
-			SourcePreviewMesh->SetVisible(WeightToolProperties->bShowSourcePreview);
-		}
-	}
-
 	if (ModifiedProperty->GetName() == GET_MEMBER_NAME_STRING_CHECKED(USkinWeightsPaintToolProperties, SourcePreviewOffset))
 	{
 		if (SourcePreviewMesh)
@@ -4253,8 +4245,6 @@ void USkinWeightsPaintTool::ResetSourceForTransfer(USkeletalMesh* InSkeletalMesh
 
 		const FComponentMaterialSet MaterialSet = UE::ToolTarget::GetMaterialSet(SourceTarget);
 		SourcePreviewMesh->SetMaterials(MaterialSet.Materials);
-
-		SourcePreviewMesh->SetVisible(WeightToolProperties->bShowSourcePreview);
 	}
 }
 

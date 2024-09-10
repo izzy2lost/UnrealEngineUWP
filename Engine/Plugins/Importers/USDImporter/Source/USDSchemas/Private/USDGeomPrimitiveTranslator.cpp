@@ -10,6 +10,7 @@
 #include "USDGeomMeshConversion.h"
 #include "USDGeomMeshTranslator.h"
 #include "USDInfoCache.h"
+#include "USDMemory.h"
 #include "USDTypesConversion.h"
 
 #include "UsdWrappers/SdfPath.h"

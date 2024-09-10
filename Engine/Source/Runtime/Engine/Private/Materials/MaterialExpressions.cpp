@@ -105,6 +105,7 @@
 #include "Materials/MaterialExpressionDataDrivenShaderPlatformInfoSwitch.h"
 #include "Materials/MaterialExpressionRequiredSamplersSwitch.h"
 #include "Materials/MaterialExpressionFloor.h"	
+#include "Materials/MaterialExpressionFloatToUInt.h"	
 #include "Materials/MaterialExpressionFmod.h"
 #include "Materials/MaterialExpressionFontSample.h"
 #include "Materials/MaterialExpressionFontSampleParameter.h"
@@ -2843,6 +2844,11 @@ int32 UMaterialExpressionTextureSample::Compile(class FMaterialCompiler* Compile
 
 			return CoordinateIndex;
 		};
+
+		if ((TextureType & MCT_TextureCollection) != 0 && SamplerSource == SSM_FromTextureAsset)
+		{
+			return CompilerError(Compiler, TEXT("Texture Collections do not provide a sampler, please choose something other than 'From texture asset'"));
+		}
 
 		if (TextureType & (MCT_TextureCollection | MCT_TextureMeshPaint))
 		{
@@ -9048,6 +9054,136 @@ uint32 UMaterialExpressionMaterialAttributeLayers::GetInputType(int32 InputIndex
 }
 #endif // WITH_EDITOR
 
+
+// -----
+
+UMaterialExpressionFloatToUInt::UMaterialExpressionFloatToUInt(const FObjectInitializer& ObjectInitializer)
+: Super(ObjectInitializer)
+{
+	// Structure to hold one-time initialization
+	struct FConstructorStatics
+	{
+		FText NAME_Math;
+		FConstructorStatics()
+		: NAME_Math(LOCTEXT( "Math", "Math" ))
+		{
+		}
+	};
+	static FConstructorStatics ConstructorStatics;
+
+	#if WITH_EDITORONLY_DATA
+	MenuCategories.Add(ConstructorStatics.NAME_Math);
+	#endif
+}
+
+#if WITH_EDITOR
+
+int32 UMaterialExpressionFloatToUInt::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	if (!Input.GetTracedInput().Expression)
+	{
+		return Compiler->Errorf(TEXT("Missing FloatToUInt input"));
+	}
+
+	int32 Value = Input.Compile(Compiler);
+	switch (Mode)
+	{
+		case EFloatToIntMode::Truncate: Value = Compiler->Truncate(Value); break;
+		case EFloatToIntMode::Floor: Value = Compiler->Floor(Value); break;
+		case EFloatToIntMode::Round: Value = Compiler->Round(Value); break;
+		case EFloatToIntMode::Ceil: Value = Compiler->Ceil(Value); break;
+		default: check(false);
+	}
+	
+	EMaterialValueType Type = Compiler->GetParameterType(Value);
+	int NumComponents = GetNumComponents(Type);
+	if (NumComponents <= 0 || NumComponents > 4)
+	{
+		return Compiler->Errorf(TEXT("Input FloatToUInt is not a scalar or vector"));
+	}
+
+	static const EMaterialValueType UIntTypes[] = { MCT_UInt1, MCT_UInt2, MCT_UInt3, MCT_UInt4 };
+	return Compiler->ForceCast(Value, UIntTypes[NumComponents - 1]);
+}
+
+void UMaterialExpressionFloatToUInt::GetCaption(TArray<FString>& OutCaptions) const
+{
+	OutCaptions.Add(TEXT("FloatToUInt"));
+}
+
+uint32 UMaterialExpressionFloatToUInt::GetInputType(int32 InputIndex)
+{
+	return MCT_Float;
+}
+
+uint32 UMaterialExpressionFloatToUInt::GetOutputType(int32 OutputIndex)
+{
+	return MCT_UInt;
+}
+
+
+#endif // WITH_EDITOR
+
+
+// -----
+
+UMaterialExpressionUIntToFloat::UMaterialExpressionUIntToFloat(const FObjectInitializer& ObjectInitializer)
+: Super(ObjectInitializer)
+{
+	// Structure to hold one-time initialization
+	struct FConstructorStatics
+	{
+		FText NAME_Math;
+		FConstructorStatics()
+		: NAME_Math(LOCTEXT( "Math", "Math" ))
+		{
+		}
+	};
+	static FConstructorStatics ConstructorStatics;
+
+	#if WITH_EDITORONLY_DATA
+	MenuCategories.Add(ConstructorStatics.NAME_Math);
+	#endif
+}
+
+#if WITH_EDITOR
+int32 UMaterialExpressionUIntToFloat::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+ 	if (!Input.GetTracedInput().Expression)
+	{
+		return Compiler->Errorf(TEXT("Missing UIntToFloat input"));
+	}
+
+	int32 Value = Input.Compile(Compiler);
+	EMaterialValueType Type = Compiler->GetParameterType(Value);
+	int NumComponents = GetNumComponents(Type);
+	if (NumComponents <= 0 || NumComponents > 4)
+	{
+		return Compiler->Errorf(TEXT("Input FloatToUInt is not a scalar or vector"));
+	}
+
+	static const EMaterialValueType FloatTypes[] = { MCT_Float1, MCT_Float2, MCT_Float3, MCT_Float4 };
+	return Compiler->ForceCast(Value, FloatTypes[NumComponents - 1]);
+}
+
+void UMaterialExpressionUIntToFloat::GetCaption(TArray<FString>& OutCaptions) const
+{
+	OutCaptions.Add(TEXT("UIntToFloat"));
+}
+
+uint32 UMaterialExpressionUIntToFloat::GetInputType(int32 InputIndex)
+{
+	return MCT_UInt;
+}
+
+uint32 UMaterialExpressionUIntToFloat::GetOutputType(int32 OutputIndex)
+{
+	return MCT_Float;
+}
+
+#endif // WITH_EDITOR
+
+
 // -----
 
 UMaterialExpressionFloor::UMaterialExpressionFloor(const FObjectInitializer& ObjectInitializer)
@@ -9078,6 +9214,11 @@ int32 UMaterialExpressionFloor::Compile(class FMaterialCompiler* Compiler, int32
 	}
 
 	return Compiler->Floor(Input.Compile(Compiler));
+}
+
+uint32 UMaterialExpressionFloor::GetOutputType(int32 OutputIndex)
+{
+	return MCT_Float | MCT_UInt;
 }
 
 void UMaterialExpressionFloor::GetCaption(TArray<FString>& OutCaptions) const
@@ -9115,6 +9256,10 @@ int32 UMaterialExpressionCeil::Compile(class FMaterialCompiler* Compiler, int32 
 	return Compiler->Ceil(Input.Compile(Compiler));
 }
 
+uint32 UMaterialExpressionCeil::GetOutputType(int32 OutputIndex)
+{
+	return MCT_Float | MCT_UInt;
+}
 
 void UMaterialExpressionCeil::GetCaption(TArray<FString>& OutCaptions) const
 {
@@ -9152,6 +9297,11 @@ int32 UMaterialExpressionRound::Compile(class FMaterialCompiler* Compiler, int32
 		return Compiler->Errorf(TEXT("Missing Round input"));
 	}
 	return Compiler->Round(Input.Compile(Compiler));
+}
+
+uint32 UMaterialExpressionRound::GetOutputType(int32 OutputIndex)
+{
+	return MCT_Float | MCT_UInt;
 }
 
 void UMaterialExpressionRound::GetCaption(TArray<FString>& OutCaptions) const
@@ -9195,6 +9345,11 @@ int32 UMaterialExpressionTruncate::Compile(class FMaterialCompiler* Compiler, in
 		return Compiler->Errorf(TEXT("Missing Truncate input"));
 	}
 	return Compiler->Truncate(Input.Compile(Compiler));
+}
+
+uint32 UMaterialExpressionTruncate::GetOutputType(int32 OutputIndex)
+{
+	return MCT_Float | MCT_UInt;
 }
 
 void UMaterialExpressionTruncate::GetCaption(TArray<FString>& OutCaptions) const
@@ -10997,6 +11152,12 @@ UMaterialExpressionTextureCollectionParameter::UMaterialExpressionTextureCollect
 #if WITH_EDITOR
 int32 UMaterialExpressionTextureCollectionParameter::Compile(FMaterialCompiler* Compiler, int32 OutputIndex)
 {
+	FString ErrorMessage;
+	if (!TextureCollectionIsValid(TextureCollection, ErrorMessage))
+	{
+		return CompilerError(Compiler, *ErrorMessage);
+	}
+
 	const int32 TextureCollectionCodeIndex = Compiler->TextureCollectionParameter(ParameterName, TextureCollection);
 
 	if (OutputIndex == 1)
@@ -11073,6 +11234,17 @@ bool UMaterialExpressionTextureCollectionParameter::SetParameterValue(const FNam
 		}
 	}
 	return false;
+}
+
+bool UMaterialExpressionTextureCollectionParameter::TextureCollectionIsValid(UTextureCollection* InTextureCollection, FString& OutMessage)
+{
+	if (!InTextureCollection)
+	{
+		OutMessage = TEXT("Requires valid texture collection");
+		return false;
+	}
+
+	return true;
 }
 
 bool UMaterialExpressionTextureCollectionParameter::SetParameterValue(const FName& InParameterName, UTextureCollection* InValue, EMaterialExpressionSetParameterValueFlags Flags)

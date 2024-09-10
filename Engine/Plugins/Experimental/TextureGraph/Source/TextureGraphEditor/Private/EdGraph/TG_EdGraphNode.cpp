@@ -356,7 +356,7 @@ void UTG_EdGraphNode::ReconstructNode()
 		{
 			// And also check that the new pin at that name is connected to anything, if so grab the UI connections
 			UTG_Pin* TGPin = Node->GetPin(Node->GetPinId(OldPinName));
-			if (TGPin->IsConnected())
+			if (TGPin->IsConnected() || OldPin->HasAnyConnections())
 			{
 				(*NewPin)->MovePersistentDataFromOldPin(*OldPin);
 			}
@@ -457,10 +457,13 @@ void UTG_EdGraphNode::PostPasteNode()
 	UTG_EdGraph* EdGraph = CastChecked<UTG_EdGraph>(GetGraph());
 	UTG_Graph* Graph = EdGraph->TextureGraph->Graph();
 	check(Graph);
+	
+	Node->Pins.Empty();
 	Node->Rename(nullptr, Graph, REN_DontCreateRedirectors | REN_DoNotDirty);
-
+	
 	// Our TG node is a new node that need to be taken care of and added to the graph
 	Graph->AddPostPasteNode(Node);
+
 }
 
 #if WITH_EDITOR

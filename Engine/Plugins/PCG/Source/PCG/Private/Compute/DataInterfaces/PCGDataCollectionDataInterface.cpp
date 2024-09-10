@@ -122,8 +122,7 @@ void UPCGDataCollectionDataInterface::GetSupportedInputs(TArray<FShaderFunctionD
 	// Header Writers
 	{
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("SetNumDataInternal"))
-			.AddParam(EShaderFundamentalType::Uint);
+			.SetName(TEXT("SetAsExecutedInternal"));
 
 		OutFunctions.AddDefaulted_GetRef()
 			.SetName(TEXT("SetDataAddressInternal"))
@@ -353,7 +352,7 @@ void UPCGDataCollectionDataInterface::GetSupportedInputs(TArray<FShaderFunctionD
 			.AddParam(EShaderFundamentalType::Uint);
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("IsValid"))
+			.SetName(TEXT("IsPointRemoved"))
 			.AddReturnType(EShaderFundamentalType::Bool)
 			.AddParam(EShaderFundamentalType::Uint) // DataIndex
 			.AddParam(EShaderFundamentalType::Uint); // ElementIndex

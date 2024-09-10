@@ -248,6 +248,14 @@ public:
 	 */
 	virtual void OnPostFork() {}
 
+	/**
+	 * Returns the amount of free memory cached by the allocator that can be returned to the system in case of a memory shortage
+	 */
+	virtual uint64 GetFreeCachedMemorySize() const
+	{
+		return 0;
+	}
+
 protected:
 	friend struct FCurrentFrameCalls;
 

@@ -598,6 +598,17 @@ public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Fixture Type", meta = (DisplayName = "Generate GDTF (not recommended)"))
 	bool bExportGeneratedGDTF = false;
 
+#if WITH_EDITORONLY_DATA
+	/**
+	 * The Actor Class that is spawned when the DMX Library dropped onto a Level.
+	 * Only Actors that implement the MVR Fixture Actor Interface can be used.
+	 *
+	 * Can be left blank. If so, any Actor Class with the most matching Attributes will be spawned.
+	 */
+	UPROPERTY(EditAnywhere, Category = "MVR", Meta = (MustImplement = "/Script/DMXFixtureActorInterface.DMXMVRFixtureActorInterface"))
+	TSoftClassPtr<AActor> ActorClassToSpawn;
+#endif // WITH_EDITORONLY_DATA
+
 	/** If true only shows latest GDTF mode revisions in editor */
 	UPROPERTY()
 	bool bShowOnlyLatestGDTFModeRevisions = true;

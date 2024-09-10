@@ -512,7 +512,7 @@ protected:
 	 * Used to determine if any active timer handles are ready to fire.
 	 * Means we need to tick slate even if no user interaction.
 	 */
-	SLATECORE_API bool AnyActiveTimersArePending();
+	SLATECORE_API void UpdateAnyActiveTimersArePending();
 
 public:
 	SLATECORE_API const static uint32 CursorPointerIndex;
@@ -666,5 +666,7 @@ protected:
 
 	/** Safe Zone ratio to override platform settings */
 	FMargin CustomSafeZoneRatio;
-};
 
+	/** Whether any active timers are pending for this Slate tick. Updated once a tick in AnyActiveTimersArePending(). */
+	bool bAnyActiveTimersPending = false;
+};

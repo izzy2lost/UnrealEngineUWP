@@ -140,6 +140,9 @@ struct FMinimalViewInfo
 	float CropFraction;
 	
 private:
+	/** The amount of overscan that has been applied to the view's frustum, with 0.0 meaning no overscan and 1.0 meaning 100% overscan */
+	float Overscan;
+	
 	// Only used for Ortho camera auto plane calculations, tells the Near plane of the extra distance that needs to be added.
 	FVector CameraToViewTarget;
 
@@ -169,6 +172,7 @@ public:
 		, OffCenterProjectionOffset(ForceInitToZero)
 		, OverscanResolutionFraction(1.0f)
 		, CropFraction(1.0f)
+		, Overscan(0.0f)
 		, CameraToViewTarget(FVector::ZeroVector)
 	{
 	}
@@ -227,6 +231,18 @@ public:
 
 	/**
 	 * Apply overscan to the view info, which scales the field of view and ortho width to simulate expanding the view frustum.
+	 * 
+	 * @param InOverscan - The amount of overscan to apply, from 0.0 meaning no overscan to 1.0 meaning 100% overscan
+	 * @param bScaleResolutionWithOverscan - Indicates that the view's resolution should be scaled with the amount of overscan, so that the original frustum remains the same resolution
+	 * @param bCropOverscan - Indicates that the view should be cropped during the final post process pass to remove the overscanned pixels
 	 */
 	ENGINE_API void ApplyOverscan(float InOverscan, bool bScaleResolutionWithOverscan = false, bool bCropOverscan = false);
+
+	/** Gets the total amount of overscan that has been applied to the view's frustum, with 0.0 meaning no overscan and 1.0 meaning 100% overscan */
+	ENGINE_API float GetOverscan() const { return Overscan; }
+	
+	/**
+	 * Removes all overscan from the view info.
+	 */
+	ENGINE_API void ClearOverscan();
 };

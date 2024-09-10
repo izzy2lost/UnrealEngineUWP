@@ -289,7 +289,7 @@ FText UTemplateSequence::GetDisplayName() const
 	return UMovieSceneSequence::GetDisplayName();
 }
 
-ETrackSupport UTemplateSequence::IsTrackSupported(TSubclassOf<class UMovieSceneTrack> InTrackClass) const
+ETrackSupport UTemplateSequence::IsTrackSupportedImpl(TSubclassOf<class UMovieSceneTrack> InTrackClass) const
 {
 	if (InTrackClass == UMovieSceneSkeletalAnimationTrack::StaticClass() ||
 		InTrackClass == UMovieSceneSpawnTrack::StaticClass())
@@ -297,7 +297,7 @@ ETrackSupport UTemplateSequence::IsTrackSupported(TSubclassOf<class UMovieSceneT
 		return ETrackSupport::Supported;
 	}
 
-	return Super::IsTrackSupported(InTrackClass);
+	return Super::IsTrackSupportedImpl(InTrackClass);
 }
 
 void UTemplateSequence::GetAssetRegistryTagMetadata(TMap<FName, FAssetRegistryTagMetadata>& OutMetadata) const

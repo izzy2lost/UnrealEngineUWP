@@ -221,7 +221,7 @@ void FVirtualTextureFeedback::TransferGPUToCPU(FRDGBuilder& GraphBuilder, FRDGBu
 		RDG_EVENT_NAME("VirtualTextureFeedbackCopy"),
 		Parameters,
 		ERDGPassFlags::Readback,
-		[this, Buffer, Desc](FRHICommandList& InRHICmdList)
+		[this, Buffer, Desc](FRDGAsyncTask, FRHICommandList& InRHICmdList)
 	{
 		TransferGPUToCPU(InRHICmdList, Buffer->GetRHI(), Desc);
 	});

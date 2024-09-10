@@ -108,6 +108,11 @@ namespace NiagaraDebugLocal
 		return OutValue;
 	}
 
+	static ENiagaraDebugHudFont StringToFont(const FString& Arg)
+	{
+		return FMath::Clamp(ENiagaraDebugHudFont(FCString::Atoi(*Arg)), ENiagaraDebugHudFont::Small, ENiagaraDebugHudFont::Normal);
+	}
+
 	static TTuple<const TCHAR*, const TCHAR*, TFunction<void(FString)>> GDebugConsoleCommands[] =
 	{
 		// Main HUD commands
@@ -134,6 +139,9 @@ namespace NiagaraDebugLocal
 		MakeTuple(TEXT("EmitterFilter="), TEXT("Set the emitter filter"), [](FString Arg) {Settings.EmitterFilter = Arg; Settings.bEmitterFilterEnabled = !Arg.IsEmpty(); GCachedSystemVariables.Empty(); }),
 		MakeTuple(TEXT("ActorFilter="), TEXT("Set the actor filter"), [](FString Arg) {Settings.ActorFilter = Arg; Settings.bActorFilterEnabled = !Arg.IsEmpty(); }),
 		MakeTuple(TEXT("ComponentFilter="), TEXT("Set the component filter"), [](FString Arg) {Settings.ComponentFilter = Arg; Settings.bComponentFilterEnabled = !Arg.IsEmpty(); }),
+		MakeTuple(TEXT("OverviewFont="), TEXT("Set the overview font to use"), [](FString Arg) { Settings.OverviewFont = StringToFont(Arg); }),
+		MakeTuple(TEXT("SystemTextFont="), TEXT("Set the system display text font to use"), [](FString Arg) { Settings.SystemTextOptions.Font = StringToFont(Arg); }),
+		MakeTuple(TEXT("ParticleTextFont="), TEXT("Set the particle display text font to use"), [](FString Arg) { Settings.ParticleTextOptions.Font = StringToFont(Arg); }),
 
 		MakeTuple(TEXT("ShowGlobalBudgetInfo="), TEXT("Shows global budget information"), [](FString Arg) {Settings.bShowGlobalBudgetInfo = FCString::Atoi(*Arg) != 0; }),
 
@@ -1109,8 +1117,8 @@ void FNiagaraDebugHud::GatherSystemInfo()
 				LongestSystemPrettyName = SystemDebugInfo.SystemPrettyName;
 			}
 		}
-		SystemDebugInfo.bShowInWorld = (Settings.SystemDebugVerbosity != ENiagaraDebugHudVerbosity::None) && (!Settings.bSystemFilterEnabled || Settings.SystemFilter.IsEmpty() || SystemDebugInfo.SystemName.MatchesWildcard(Settings.SystemFilter));
-		SystemDebugInfo.bPassesSystemFilter = SystemDebugInfo.bShowInWorld;
+		SystemDebugInfo.bPassesSystemFilter = !Settings.bSystemFilterEnabled || Settings.SystemFilter.IsEmpty() || SystemDebugInfo.SystemName.MatchesWildcard(Settings.SystemFilter);
+		SystemDebugInfo.bShowInWorld = (Settings.SystemDebugVerbosity != ENiagaraDebugHudVerbosity::None) && SystemDebugInfo.bPassesSystemFilter;
 
 		const bool bCanShowInWorld = 
 			SystemDebugInfo.bShowInWorld &&
@@ -2102,7 +2110,7 @@ void FNiagaraDebugHud::DrawOverview(class FNiagaraWorldManager* WorldManager, FC
 		{
 			const FSystemDebugInfo& SystemInfo = Pair.Value;
 			if ((SystemInfo.FramesSinceVisible >= Settings.PerfHistoryFrames) ||
-				(Settings.bOverviewShowFilteredSystemOnly && !SystemInfo.bPassesSystemFilter))
+				(Settings.bSystemFilterEnabled && Settings.bOverviewShowFilteredSystemOnly && !SystemInfo.bPassesSystemFilter))
 			{
 				continue;
 			}

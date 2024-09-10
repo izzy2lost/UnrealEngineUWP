@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "NNEHlslShaderBase.h"
+#include "NNEHlslShadersBase.h"
 #include "RenderGraphUtils.h"
 #include "ShaderParameterUtils.h"
 

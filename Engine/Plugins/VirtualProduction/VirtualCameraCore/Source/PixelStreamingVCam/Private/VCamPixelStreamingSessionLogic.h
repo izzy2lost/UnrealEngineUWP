@@ -35,6 +35,8 @@ namespace UE::PixelStreamingVCam
 		virtual void PostReapplyViewport(DecoupledOutputProvider::IOutputProviderEvent& Args) override;
 		virtual void OnAddReferencedObjects(DecoupledOutputProvider::IOutputProviderEvent& Args, FReferenceCollector& Collector) override;
 		virtual TFuture<FVCamStringPromptResponse> PromptClientForString(DecoupledOutputProvider::IOutputProviderEvent& Args, const FVCamStringPromptRequest& Request) override;
+		virtual void OnSerialize(DecoupledOutputProvider::IOutputProviderEvent& Args, FArchive& Ar) override;
+		virtual void OnPostLoad(DecoupledOutputProvider::IOutputProviderEvent& Args) override;
 #if WITH_EDITOR
 		virtual void OnPreEditChange(DecoupledOutputProvider::IOutputProviderEvent& Args, FProperty* PropertyAboutToChange) override;
 		virtual void OnPostEditChangeProperty(DecoupledOutputProvider::IOutputProviderEvent& Args, FPropertyChangedEvent& PropertyChangedEvent) override;

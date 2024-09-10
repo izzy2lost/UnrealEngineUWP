@@ -927,7 +927,7 @@ static void InternalGenerateHairStrandsTextures(
 			RDG_EVENT_NAME("HairStrands::TexturePS"),
 			ParametersPS,
 			ERDGPassFlags::Raster,
-			[ParametersPS, VertexShader, PixelShader, InMeshIndexBuffer, VertexCount, PrimitiveCount, IndexBaseIndex, VertexBaseIndex, OutputResolution, OutTileCoord, TileOffsetInPixels](FRHICommandList& RHICmdList)
+			[ParametersPS, VertexShader, PixelShader, InMeshIndexBuffer, VertexCount, PrimitiveCount, IndexBaseIndex, VertexBaseIndex, OutputResolution, OutTileCoord, TileOffsetInPixels](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				FHairStrandsTextureVS::FParameters ParametersVS;
 				ParametersVS.OutputResolution	= ParametersPS->OutputResolution;

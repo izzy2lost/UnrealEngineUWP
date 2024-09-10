@@ -3480,13 +3480,14 @@ namespace UnrealBuildTool
 		/// <param name="Logger"></param>
 		protected void SetupMergeModules(ILogger Logger)
 		{
-			void MergeModules(string name, IEnumerable<UEBuildModuleCPP> modules)
+			void MergeModulesToDLL(string name, IEnumerable<UEBuildModuleCPP> modules)
 			{
 				if (!modules.Any())
 				{
 					return;
 				}
 
+				List<UEBuildModuleCPP> modulesList = modules.OrderBy(m => m.Name).ToList();
 				UEBuildBinary mergedBinary = CreateDynamicLibraryForModules(name, modules.OrderBy(x => x.Name));
 				foreach (UEBuildModuleCPP module in modules)
 				{
@@ -3496,7 +3497,63 @@ namespace UnrealBuildTool
 				Binaries.Add(mergedBinary);
 			}
 
-			UEBuildModuleCPP launchModule = Binaries[0].PrimaryModule;
+			void MergeModulesToLaunch(IEnumerable<UEBuildModuleCPP> modules)
+			{
+				if (!modules.Any())
+				{
+					return;
+				}
+				foreach (UEBuildModuleCPP module in modules)
+				{
+					Binaries[0].AddModule(module);
+					module.Binary = Binaries[0];
+				}
+			}
+
+			void ConsumeModules(string name, IEnumerable<UEBuildModuleCPP> modules)
+			{
+				if (Rules.MergePluginsLaunch.Contains(name))
+				{
+					MergeModulesToLaunch(modules);
+				}
+				else
+				{
+					MergeModulesToDLL(name, modules);
+				}
+			}
+		
+			void GetDependenciesRecursively(IEnumerable<UEBuildModuleCPP> Modules, ref HashSet<UEBuildModuleCPP> Needed)
+			{
+				IEnumerable<UEBuildModuleCPP> CPPModules = Modules.OfType<UEBuildModuleCPP>();
+
+				foreach (UEBuildModuleCPP item in CPPModules)
+				{
+					bool bAddDependencies = false;
+					if (!Needed.Contains(item))
+					{
+						Needed.Add(item);
+						bAddDependencies = true;
+					}
+
+					if (bAddDependencies)
+					{
+						if (item.PrivateDependencyModules != null && item.PrivateDependencyModules.Count > 0)
+						{
+							GetDependenciesRecursively(item.PrivateDependencyModules.OfType<UEBuildModuleCPP>(), ref Needed);
+						}
+
+						if (item.PublicDependencyModules != null && item.PublicDependencyModules.Count > 0)
+						{
+							GetDependenciesRecursively(item.PublicDependencyModules.OfType<UEBuildModuleCPP>(), ref Needed);
+						}
+					}
+				}
+			}
+
+			UEBuildBinary executableBinary = Binaries[0];
+			executableBinary.bAllowExports = true; // Need to export symbols because other binaries might depend on this. (They will be stripped anyway if not used)
+
+			UEBuildModuleCPP launchModule = executableBinary.PrimaryModule;
 			HashSet<UEBuildModuleCPP> allModules = new(Binaries.SelectMany(x => x.Modules.OfType<UEBuildModuleCPP>().Where(x => x != launchModule)));
 
 			if (Rules.MergePlugins.Any() && BuildPlugins != null)
@@ -3558,30 +3615,49 @@ namespace UnrealBuildTool
 				unmergablePlugins.ExceptWith(pluginGroups.SelectMany(x => x.Value));
 				unmergablePlugins = new(unmergablePlugins.Union(unmergablePlugins.SelectMany(x => x.Dependencies ?? new())));
 
-				// Create the merged plugin modules
+				HashSet<UEBuildModuleCPP> allPluginModules = new HashSet<UEBuildModuleCPP>();
+
+				// Remove unmergable plugin modules from plugin modules
+				// and create a set of all plugin modules
 				foreach (KeyValuePair<string, HashSet<UEBuildPlugin>> item in pluginGroups)
 				{
 					// Find all modules for the unique plugins to be merged, except those that were unmergable due to being a dependency of an unmerged plugin
-					IEnumerable<UEBuildModuleCPP> pluginModules = item.Value.Except(unmergablePlugins).SelectMany(x => x.Modules).Distinct();
+					item.Value.ExceptWith(unmergablePlugins);
+					IEnumerable<UEBuildModuleCPP> pluginModules = item.Value.SelectMany(x => x.Modules).Distinct();
 
-					// Merge the plugin modules and remove those modules from remaining set of modules to merge 
-					MergeModules(item.Key, pluginModules);
+					allPluginModules.UnionWith(pluginModules);
+				}
+
+				// create a set of leftover modules from all modules after removing plugin modules
+				HashSet<UEBuildModuleCPP> allLeftoverModules = new HashSet<UEBuildModuleCPP>(allModules);
+				allLeftoverModules.ExceptWith(allPluginModules);
+
+				// create a set of all dependencies of leftover modules
+				HashSet<UEBuildModuleCPP> allLeftoverDependenies = new HashSet<UEBuildModuleCPP>();
+				GetDependenciesRecursively(allLeftoverModules.OfType<UEBuildModuleCPP>(), ref allLeftoverDependenies);
+
+				// Remove all leftover dependencies from plugin modules
+				// then remove remaining plugin modules from all modules set
+				// then merge the module into a binary and update plugin modules in all modules to that binary
+				foreach (KeyValuePair<string, HashSet<UEBuildPlugin>> item in pluginGroups)
+				{
+					// Find all modules for the unique plugins to be merged, except those that were unmergable due to being a dependency of an unmerged plugin
+					HashSet<UEBuildModuleCPP> pluginModules = item.Value.SelectMany(x => x.Modules).ToHashSet();
+
+					pluginModules.ExceptWith(allLeftoverDependenies);
 					allModules.ExceptWith(pluginModules);
+
+					ConsumeModules(item.Key, pluginModules);
 				}
 			}
-
-			IEnumerable<UEBuildModuleCPP> engineModules = allModules.Where(x => x.RulesFile.IsUnderDirectory(Unreal.EngineDirectory) && !x.Rules.IsPlugin);
-			IEnumerable<UEBuildModuleCPP> enginePluginModules = allModules.Where(x => x.RulesFile.IsUnderDirectory(Unreal.EngineDirectory) && x.Rules.IsPlugin);
-			IEnumerable<UEBuildModuleCPP> projectModules = allModules.Except(engineModules).Except(enginePluginModules).Where(x => !x.Rules.IsPlugin);
-			IEnumerable<UEBuildModuleCPP> projectPluginModules = allModules.Except(engineModules).Except(enginePluginModules).Where(x => x.Rules.IsPlugin);
-
+			
 			// Merge remaining engine modules
-			MergeModules("CommonEngine", engineModules);
-			MergeModules("CommonEnginePlugins", enginePluginModules);
+			IEnumerable<UEBuildModuleCPP> engineModules = allModules.Where(x => x.RulesFile.IsUnderDirectory(Unreal.EngineDirectory));
+			ConsumeModules("Engine", engineModules);
 
-			// Merge remaining project modules
-			MergeModules("Common", projectModules);
-			MergeModules("CommonPlugins", projectPluginModules);
+			// Merge remaining modules to common set
+			IEnumerable<UEBuildModuleCPP> commonModules = allModules.Except(engineModules);
+			ConsumeModules("Common", commonModules);
 
 			// Remove any binaries that no longer have modules due to merging
 			Binaries.ForEach(x => x.Modules.RemoveAll(y => y.Binary != x));
@@ -4408,7 +4484,7 @@ namespace UnrealBuildTool
 			}
 
 			// Get the output filenames
-			FileReference BaseBinaryPath = FileReference.Combine(OutputDirectory, MakeBinaryFileName(AppName + "-" + Module.Name, Platform, ModuleConfiguration, Architectures, Rules.UndecoratedConfiguration, UEBuildBinaryType.DynamicLinkLibrary));
+			FileReference BaseBinaryPath = FileReference.Combine(OutputDirectory, MakeBinaryFileName($"{AppName}{Rules.DecoratedSeparator}{Module.Name}", Rules.DecoratedSeparator, Platform, ModuleConfiguration, Architectures, Rules.UndecoratedConfiguration, UEBuildBinaryType.DynamicLinkLibrary));
 			List<FileReference> OutputFilePaths = UEBuildPlatform.GetBuildPlatform(Platform).FinalizeBinaryPaths(BaseBinaryPath, ProjectFile, Rules);
 
 			// Create the binary
@@ -4452,7 +4528,7 @@ namespace UnrealBuildTool
 				ModuleConfiguration = UnrealTargetConfiguration.Development;
 			}
 
-			List<FileReference> OutputPaths = MakeBinaryPaths(OutputDirectory, AppName + "-" + MergedName, Platform, Configuration, UEBuildBinaryType.DynamicLinkLibrary, Rules.Architectures, Rules.UndecoratedConfiguration, bCompileMonolithic && ProjectFile != null, Rules.ExeBinariesSubFolder, ProjectFile, Rules);
+			List<FileReference> OutputPaths = MakeBinaryPaths(OutputDirectory, AppName + Rules.DecoratedSeparator + MergedName, Platform, Configuration, UEBuildBinaryType.DynamicLinkLibrary, Rules.Architectures, Rules.UndecoratedConfiguration, bCompileMonolithic && ProjectFile != null, Rules.ExeBinariesSubFolder, ProjectFile, Rules);
 
 			// Create the binary
 			UEBuildBinary Binary = new UEBuildBinary(
@@ -4474,13 +4550,14 @@ namespace UnrealBuildTool
 		/// Makes a filename (without path) for a compiled binary (e.g. "Core-Win64-Debug.lib") */
 		/// </summary>
 		/// <param name="BinaryName">The name of this binary</param>
+		/// <param name="Separator">The separator for a decorated filename</param>
 		/// <param name="Platform">The platform being built for</param>
 		/// <param name="Configuration">The configuration being built</param>
 		/// <param name="Architectures">The target architectures being built</param>
 		/// <param name="UndecoratedConfiguration">The target configuration which doesn't require a platform and configuration suffix. Development by default.</param>
 		/// <param name="BinaryType">Type of binary</param>
 		/// <returns>Name of the binary</returns>
-		public static string MakeBinaryFileName(string BinaryName, UnrealTargetPlatform Platform, UnrealTargetConfiguration Configuration, UnrealArchitectures Architectures, UnrealTargetConfiguration UndecoratedConfiguration, UEBuildBinaryType BinaryType)
+		public static string MakeBinaryFileName(string BinaryName, string Separator, UnrealTargetPlatform Platform, UnrealTargetConfiguration Configuration, UnrealArchitectures Architectures, UnrealTargetConfiguration UndecoratedConfiguration, UEBuildBinaryType BinaryType)
 		{
 			StringBuilder Result = new StringBuilder();
 
@@ -4493,7 +4570,10 @@ namespace UnrealBuildTool
 
 			if (Configuration != UndecoratedConfiguration)
 			{
-				Result.AppendFormat("-{0}-{1}", Platform.ToString(), Configuration.ToString());
+				Result.Append(Separator);
+				Result.Append(Platform);
+				Result.Append(Separator);
+				Result.Append(Configuration);
 			}
 
 			UEBuildPlatform BuildPlatform = UEBuildPlatform.GetBuildPlatform(Platform);
@@ -4540,7 +4620,7 @@ namespace UnrealBuildTool
 				{
 					BinaryDirectory = DirectoryReference.Combine(BinaryDirectory, ExeSubFolder);
 				}
-				BinaryFile = FileReference.Combine(BinaryDirectory, MakeBinaryFileName(BinaryName, Platform, ExeConfiguration, Architectures, UndecoratedConfiguration, BinaryType));
+				BinaryFile = FileReference.Combine(BinaryDirectory, MakeBinaryFileName(BinaryName, Rules.DecoratedSeparator, Platform, ExeConfiguration, Architectures, UndecoratedConfiguration, BinaryType));
 			}
 
 			// Allow the platform to customize the output path (and output several executables at once if necessary)

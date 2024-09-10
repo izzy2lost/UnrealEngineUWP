@@ -21,6 +21,7 @@ void SPluginCategoryTree::Construct( const FArguments& Args, const TSharedRef< S
 	// Create the root categories
 	AllCategory = MakeShareable(new FPluginCategory(NULL, TEXT("All"), LOCTEXT("AllCategoryName", "All Plugins")));
 	BuiltInCategory = MakeShareable(new FPluginCategory(NULL, TEXT("Built-In"), LOCTEXT("BuiltInCategoryName", "Built-In")));
+	ExternalCategory = MakeShareable(new FPluginCategory(NULL, TEXT("External"), LOCTEXT("ExternalCategoryName", "External")));
 	InstalledCategory = MakeShareable(new FPluginCategory(NULL, TEXT("Installed"), LOCTEXT("InstalledCategoryName", "Installed")));
 	ProjectCategory = MakeShareable(new FPluginCategory(NULL, TEXT("Project"), LOCTEXT("ProjectCategoryName", "Project")));
 	ModCategory = MakeShareable(new FPluginCategory(NULL, TEXT("Mods"), LOCTEXT("ModsCategoryName", "Mods")));
@@ -113,6 +114,10 @@ void SPluginCategoryTree::RebuildAndFilterCategoryTree()
 		if (Plugin->GetType() == EPluginType::Mod)
 		{
 			RootCategory = ModCategory;
+		}
+		else if (Plugin->GetType() == EPluginType::External)
+		{
+			RootCategory = ExternalCategory;
 		}
 		else if(Plugin->GetDescriptor().bInstalled)
 		{
@@ -217,6 +222,10 @@ void SPluginCategoryTree::RebuildAndFilterCategoryTree()
 	if(InstalledCategory->SubCategories.Num() > 0 || InstalledCategory->Plugins.Num() > 0)
 	{
 		RootCategories.Add(InstalledCategory);
+	}
+	if (ExternalCategory->SubCategories.Num() > 0 || ExternalCategory->Plugins.Num() > 0)
+	{
+		RootCategories.Add(ExternalCategory);
 	}
 	if(BuiltInCategory->SubCategories.Num() > 0 || BuiltInCategory->Plugins.Num() > 0)
 	{

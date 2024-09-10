@@ -8,7 +8,6 @@ using EpicGames.Horde.Jobs;
 using HordeCommon.Rpc.Messages;
 using HordeServer.Agents;
 using HordeServer.Auditing;
-using HordeServer.Jobs;
 using HordeServer.Utilities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,7 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace HordeServer.Tests.Agents;
 
 /// <summary>
-///     Testing the agent service
+/// Testing the agent service
 /// </summary>
 [TestClass]
 public class AgentServiceTest : BuildTestSetup
@@ -63,7 +62,7 @@ public class AgentServiceTest : BuildTestSetup
 	public async Task LastOnlineChangeDuringSessionCreateAsync()
 	{
 		// No session created yet, status change timestamp is empty
-		IAgent agent = await AgentService.CreateAgentAsync("agent1", false, "");
+		IAgent agent = await AgentService.CreateAgentAsync(new CreateAgentOptions(new AgentId("agent1"), false, ""));
 		Assert.AreEqual(AgentStatus.Stopped, agent.Status);
 		Assert.IsTrue(agent.LastOnlineTime.HasValue);
 
@@ -78,7 +77,7 @@ public class AgentServiceTest : BuildTestSetup
 	private static int s_agentId = 1;
 	private async Task<IAgent> CreateAgentSessionAsync()
 	{
-		IAgent agent = await AgentService.CreateAgentAsync("agentServiceTest-" + s_agentId++, false, "");
+		IAgent agent = await AgentService.CreateAgentAsync(new CreateAgentOptions(new AgentId("agentServiceTest-" + s_agentId++), false, ""));
 		agent = await AgentService.CreateSessionAsync(agent, new RpcAgentCapabilities(), "v1");
 		return agent;
 	}
@@ -135,8 +134,8 @@ public class AgentServiceTest : BuildTestSetup
 	[TestMethod]
 	public async Task GetAgentRateTestAsync()
 	{
-		IAgent agent1 = await AgentService.CreateAgentAsync("agent1", false, "");
-		IAgent agent2 = await AgentService.CreateAgentAsync("agent2", false, "");
+		IAgent agent1 = await AgentService.CreateAgentAsync(new CreateAgentOptions(new AgentId("agent1"), false, ""));
+		IAgent agent2 = await AgentService.CreateAgentAsync(new CreateAgentOptions(new AgentId("agent2"), false, ""));
 		await AgentService.CreateSessionAsync(agent1, new RpcAgentCapabilities(new List<string>() { "aws-instance-type=c5.24xlarge", "osfamily=windows" }), "test");
 		await AgentService.CreateSessionAsync(agent2, new RpcAgentCapabilities(new List<string>() { "aws-instance-type=c4.4xLARge", "osfamily=WinDowS" }), "test");
 
@@ -152,6 +151,33 @@ public class AgentServiceTest : BuildTestSetup
 
 		double? rate2 = await AgentService.GetRateAsync(agent2.Id);
 		Assert.AreEqual(300, rate2!.Value, 0.1);
+	}
+	
+	[TestMethod]
+	public async Task Properties_ServerDefined_AgentCannotOverride_Async()
+	{
+		IAgent newAgent = await AgentService.CreateAgentAsync(new CreateAgentOptions(new AgentId("agent1"), false, ""));
+		IAgent agent = await AgentService.CreateSessionAsync(newAgent, new RpcAgentCapabilities(["foo=bar", $"{KnownPropertyNames.Trusted}=true", $"{KnownPropertyNames.Trusted}"]), "test");
+		
+		Assert.AreEqual(0, newAgent.Properties.Count);
+		Assert.AreEqual(1, agent.Properties.Count);
+		Assert.AreEqual("foo=bar", agent.Properties[0]);
+		Assert.IsTrue(AgentExtensions.IsPropertyServerDefined(KnownPropertyNames.Trusted));
+		Assert.IsFalse(AgentExtensions.IsPropertyServerDefined(KnownPropertyNames.OsFamily));
+	}
+	
+	[TestMethod]
+	public async Task Properties_ServerDefined_PropagatedToAgent_Async()
+	{
+		CreateAgentOptions options = new(new AgentId("agent1"), false, "", ["server=foo"]);
+		IAgent newAgent = await AgentService.CreateAgentAsync(options);
+		IAgent agent = await AgentService.CreateSessionAsync(newAgent, new RpcAgentCapabilities(["agent=bar"]), "test");
+		
+		Assert.AreEqual(1, newAgent.ServerDefinedProperties.Count);
+		Assert.AreEqual(0, newAgent.Properties.Count);
+		Assert.AreEqual(2, agent.Properties.Count);
+		CollectionAssert.Contains(agent.Properties.ToList(), "server=foo");
+		CollectionAssert.Contains(agent.Properties.ToList(), "agent=bar");
 	}
 
 	[TestMethod]

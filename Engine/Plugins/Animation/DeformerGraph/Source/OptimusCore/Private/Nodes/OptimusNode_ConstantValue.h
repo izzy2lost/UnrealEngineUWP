@@ -64,9 +64,9 @@ public:
 #endif
 
 	// IOptimusValueProvider overrides 
-	FString GetValueName() const override;
-	FOptimusDataTypeRef GetValueType() const override;
-	FShaderValueContainer GetShaderValue() const override;
+	FOptimusValueIdentifier GetValueIdentifier() const override;
+	FOptimusDataTypeRef GetValueDataType() const override;
+	FOptimusValueContainerStruct GetValue() const override;
 
 	// IOptimusGeneratedClassDefiner implementation
 	FTopLevelAssetPath GetAssetPathForClassDefiner() const override;

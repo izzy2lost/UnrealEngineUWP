@@ -361,7 +361,7 @@ void FLumenSurfaceCacheFeedback::SubmitFeedbackBuffer(
 	FRHIGPUBufferReadback* ReadbackBuffer = ReadbackBuffers[ReadbackBuffersWriteIndex];
 
 	AddReadbackBufferPass(GraphBuilder, RDG_EVENT_NAME("Readback"), CompactedFeedbackBuffer,
-		[ReadbackBuffer, CompactedFeedbackBuffer](FRHICommandList& RHICmdList)
+		[ReadbackBuffer, CompactedFeedbackBuffer](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			ReadbackBuffer->EnqueueCopy(RHICmdList, CompactedFeedbackBuffer->GetRHI(), 0u);
 		});

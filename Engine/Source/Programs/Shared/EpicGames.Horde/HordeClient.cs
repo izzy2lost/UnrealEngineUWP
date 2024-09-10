@@ -1,7 +1,6 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -22,12 +21,8 @@ using EpicGames.Horde.Tools;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Grpc.Net.Client.Configuration;
-using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Polly;
-using Polly.Retry;
-using Polly.Timeout;
 
 #pragma warning disable CA2234 // Use URIs instead of strings
 
@@ -36,7 +31,7 @@ namespace EpicGames.Horde
 	/// <summary>
 	/// Default implementation of <see cref="IHordeClient"/>
 	/// </summary>
-	abstract class HordeClient : IHordeClient
+	public abstract class HordeClient : IHordeClient, IAsyncDisposable
 	{
 		readonly Uri _serverUrl;
 		readonly BundleCache _bundleCache;
@@ -44,6 +39,7 @@ namespace EpicGames.Horde
 		readonly ILoggerFactory _loggerFactory;
 		readonly ILogger _logger;
 
+		ServerComputeClient? _serverComputeClient;
 		BackgroundTask<GrpcChannel>? _grpcChannel;
 
 		/// <inheritdoc/>
@@ -51,6 +47,9 @@ namespace EpicGames.Horde
 
 		/// <inheritdoc/>
 		public IArtifactCollection Artifacts { get; }
+
+		/// <inheritdoc/>
+		public IComputeClient Compute => _serverComputeClient ??= CreateComputeClient();
 
 		/// <inheritdoc/>
 		public IProjectCollection Projects { get; }
@@ -62,9 +61,14 @@ namespace EpicGames.Horde
 		public IToolCollection Tools { get; }
 
 		/// <summary>
+		/// Accessor for the logger instance
+		/// </summary>
+		protected ILogger Logger => _logger;
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HordeClient(Uri serverUrl, BundleCache bundleCache, IOptionsSnapshot<HordeOptions> hordeOptions, ILoggerFactory loggerFactory)
+		protected HordeClient(Uri serverUrl, BundleCache bundleCache, IOptionsSnapshot<HordeOptions> hordeOptions, ILoggerFactory loggerFactory)
 		{
 			_serverUrl = serverUrl;
 			_bundleCache = bundleCache;
@@ -72,88 +76,24 @@ namespace EpicGames.Horde
 			_loggerFactory = loggerFactory;
 			_logger = _loggerFactory.CreateLogger<HordeClient>();
 
-			Artifacts = new ArtifactHttpCollection(this);
-			Projects = new ProjectHttpCollection(this);
-			Secrets = new SecretHttpCollection(this);
-			Tools = new ToolHttpCollection(this);
+			Artifacts = new HttpArtifactCollection(this);
+			Projects = new HttpProjectCollection(this);
+			Secrets = new HttpSecretCollection(this);
+			Tools = new HttpToolCollection(this);
 		}
 
 		/// <inheritdoc/>
 		public virtual async ValueTask DisposeAsync()
 		{
+			_serverComputeClient?.Dispose();
+
 			if (_grpcChannel != null)
 			{
 				await _grpcChannel.DisposeAsync();
 				_grpcChannel = null;
 			}
-		}
 
-		/// <summary>
-		/// Creates a new message handler with default resilience policies
-		/// </summary>
-		protected HttpMessageHandler CreateDefaultHttpMessageHandler()
-		{
-			HttpMessageHandler? httpMessageHandler = null;
-			try
-			{
-#pragma warning disable CA2000 // Call dispose on httpMessageHandler (disposed by child handlers)
-				httpMessageHandler = new SocketsHttpHandler();
-				httpMessageHandler = new PolicyHttpMessageHandler(request => CreateDefaultTimeoutRetryPolicy(request)) { InnerHandler = httpMessageHandler };
-				httpMessageHandler = new PolicyHttpMessageHandler(request => CreateDefaultTransientErrorPolicy(request)) { InnerHandler = httpMessageHandler };
-#pragma warning restore CA2000
-				return httpMessageHandler;
-			}
-			catch
-			{
-				httpMessageHandler?.Dispose();
-				throw;
-			}
-		}
-
-		/// <summary>
-		/// Create a default timeout retry policy
-		/// </summary>
-		protected IAsyncPolicy<HttpResponseMessage> CreateDefaultTimeoutRetryPolicy(HttpRequestMessage request)
-		{
-			// Wait 30 seconds for operations to timeout
-			Task OnTimeoutAsync(Context context, TimeSpan timespan, Task timeoutTask)
-			{
-				_logger.LogWarning(KnownLogEvents.Systemic_Horde_Http, "{Method} {Url} timed out after {Time}s.", request.Method, request.RequestUri, (int)timespan.TotalSeconds);
-				return Task.CompletedTask;
-			}
-
-			AsyncTimeoutPolicy<HttpResponseMessage> timeoutPolicy = Policy.TimeoutAsync<HttpResponseMessage>(30, OnTimeoutAsync);
-
-			// Retry twice after a timeout
-			void OnRetry(Exception ex, TimeSpan timespan)
-			{
-				_logger.LogWarning(KnownLogEvents.Systemic_Horde_Http, ex, "{Method} {Url} retrying after {Time}s.", request.Method, request.RequestUri, timespan.TotalSeconds);
-			}
-
-			TimeSpan[] retryTimes = new[] { TimeSpan.FromSeconds(5.0), TimeSpan.FromSeconds(10.0) };
-			AsyncRetryPolicy retryPolicy = Policy.Handle<TimeoutRejectedException>().WaitAndRetryAsync(retryTimes, OnRetry);
-			return retryPolicy.WrapAsync(timeoutPolicy);
-		}
-
-		/// <summary>
-		/// Create a default timeout retry policy
-		/// </summary>
-		protected IAsyncPolicy<HttpResponseMessage> CreateDefaultTransientErrorPolicy(HttpRequestMessage request)
-		{
-			Task OnTimeoutAsync(DelegateResult<HttpResponseMessage> outcome, TimeSpan timespan, int retryAttempt, Context context)
-			{
-				_logger.LogWarning(KnownLogEvents.Systemic_Horde_Http, "{Method} {Url} failed ({Result}). Delaying for {DelayMs}ms (attempt #{RetryNum}).", request.Method, request.RequestUri, outcome.Result?.StatusCode, timespan.TotalMilliseconds, retryAttempt);
-				return Task.CompletedTask;
-			}
-
-			TimeSpan[] retryTimes = new[] { TimeSpan.FromSeconds(1.0), TimeSpan.FromSeconds(5.0), TimeSpan.FromSeconds(10.0), TimeSpan.FromSeconds(30.0), TimeSpan.FromSeconds(30.0) };
-
-			// Policy for transient errors is the same as HttpPolicyExtensions.HandleTransientHttpError(), but excludes HttpStatusCode.ServiceUnavailable (which is used as a response
-			// when allocating compute resources when none are available). This pathway is handled explicitly on the application side.
-			return Policy<HttpResponseMessage>
-				.Handle<HttpRequestException>()
-				.OrResult(x => (x.StatusCode >= HttpStatusCode.InternalServerError && x.StatusCode != HttpStatusCode.ServiceUnavailable) || x.StatusCode == HttpStatusCode.RequestTimeout)
-				.WaitAndRetryAsync(retryTimes, OnTimeoutAsync);
+			GC.SuppressFinalize(this);
 		}
 
 		/// <inheritdoc/>
@@ -251,6 +191,7 @@ namespace EpicGames.Horde
 			return GrpcChannel.ForAddress(serverUri, channelOptions);
 		}
 
+		/// <inheritdoc/>
 		public async Task<TClient> CreateGrpcClientAsync<TClient>(CancellationToken cancellationToken = default)
 			where TClient : ClientBase<TClient>
 		{
@@ -262,7 +203,8 @@ namespace EpicGames.Horde
 		public HordeHttpClient CreateHttpClient()
 			=> new HordeHttpClient(CreateAuthenticatedHttpClient());
 
-		public IComputeClient CreateComputeClient()
+		/// <inheritdoc/>
+		ServerComputeClient CreateComputeClient()
 		{
 			string? sessionId = null;
 			string? jobId = Environment.GetEnvironmentVariable("UE_HORDE_JOBID");
@@ -278,7 +220,7 @@ namespace EpicGames.Horde
 		}
 
 		/// <inheritdoc/>
-		public IStorageClient CreateStorageClient(string basePath, string? accessToken = null)
+		public IStorageNamespace GetStorageNamespace(string basePath, string? accessToken = null)
 		{
 			HttpClient CreateClient()
 			{
@@ -295,7 +237,7 @@ namespace EpicGames.Horde
 			}
 
 			HttpStorageBackend httpStorageBackend = new HttpStorageBackend(basePath, CreateClient, CreateUnauthenticatedHttpClient, _loggerFactory.CreateLogger<HttpStorageBackend>());
-			return new BundleStorageClient(httpStorageBackend, _bundleCache, _hordeOptions.Bundle, _loggerFactory.CreateLogger<BundleStorageClient>());
+			return new BundleStorageNamespace(httpStorageBackend, _bundleCache, _hordeOptions.Bundle, _loggerFactory.CreateLogger<BundleStorageNamespace>());
 		}
 
 		/// <inheritdoc/>
@@ -319,22 +261,21 @@ namespace EpicGames.Horde
 	class HordeClientWithStaticCredentials : HordeClient
 	{
 		readonly string? _accessToken;
-		readonly HttpMessageHandler _httpMessageHandler;
+		readonly IHordeHttpMessageHandler _httpMessageHandler;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HordeClientWithStaticCredentials(Uri serverUrl, string? accessToken, BundleCache bundleCache, IOptionsSnapshot<HordeOptions> hordeOptions, ILoggerFactory loggerFactory)
+		public HordeClientWithStaticCredentials(Uri serverUrl, string? accessToken, IHordeHttpMessageHandler httpMessageHandler, BundleCache bundleCache, IOptionsSnapshot<HordeOptions> hordeOptions, ILoggerFactory loggerFactory)
 			: base(serverUrl, bundleCache, hordeOptions, loggerFactory)
 		{
 			_accessToken = accessToken;
-			_httpMessageHandler = CreateDefaultHttpMessageHandler();
+			_httpMessageHandler = httpMessageHandler;
 		}
 
 		/// <inheritdoc/>
 		public override async ValueTask DisposeAsync()
 		{
-			_httpMessageHandler.Dispose();
 			await base.DisposeAsync();
 		}
 
@@ -353,7 +294,7 @@ namespace EpicGames.Horde
 		/// <inheritdoc/>
 		protected override HttpClient CreateAuthenticatedHttpClient()
 		{
-			HttpClient httpClient = new HttpClient(_httpMessageHandler, false);
+			HttpClient httpClient = new HttpClient(_httpMessageHandler.Instance, false);
 			httpClient.BaseAddress = ServerUrl;
 			if (!String.IsNullOrEmpty(_accessToken))
 			{
@@ -365,7 +306,7 @@ namespace EpicGames.Horde
 		/// <inheritdoc/>
 		protected override HttpClient CreateUnauthenticatedHttpClient()
 		{
-			HttpClient httpClient = new HttpClient(_httpMessageHandler, false);
+			HttpClient httpClient = new HttpClient(_httpMessageHandler.Instance, false);
 			httpClient.BaseAddress = ServerUrl;
 			return httpClient;
 		}
@@ -377,19 +318,19 @@ namespace EpicGames.Horde
 	class HordeClientWithDynamicCredentials : HordeClient
 	{
 		readonly HordeHttpAuthHandlerState _authHandlerState;
-		readonly HttpMessageHandler _baseHttpMessageHandler;
+		readonly IHordeHttpMessageHandler _baseHttpMessageHandler;
 		readonly HttpMessageHandler _authHttpMessageHandler;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HordeClientWithDynamicCredentials(Uri serverUrl, BundleCache bundleCache, IOptionsSnapshot<HordeOptions> hordeOptions, ILoggerFactory loggerFactory)
+		public HordeClientWithDynamicCredentials(Uri serverUrl, BundleCache bundleCache, IHordeHttpMessageHandler baseHttpMessageHandler, IOptionsSnapshot<HordeOptions> hordeOptions, ILoggerFactory loggerFactory)
 			: base(serverUrl, bundleCache, hordeOptions, loggerFactory)
 		{
-			_baseHttpMessageHandler = CreateDefaultHttpMessageHandler();
+			_baseHttpMessageHandler = baseHttpMessageHandler;
 
-			_authHandlerState = new HordeHttpAuthHandlerState(_baseHttpMessageHandler, serverUrl, hordeOptions, loggerFactory.CreateLogger<HordeHttpAuthHandlerState>());
-			_authHttpMessageHandler = new HordeHttpAuthHandler(_baseHttpMessageHandler, _authHandlerState, hordeOptions);
+			_authHandlerState = new HordeHttpAuthHandlerState(_baseHttpMessageHandler.Instance, serverUrl, hordeOptions, loggerFactory.CreateLogger<HordeHttpAuthHandlerState>());
+			_authHttpMessageHandler = new HordeHttpAuthHandler(_baseHttpMessageHandler.Instance, _authHandlerState, hordeOptions);
 		}
 
 		/// <inheritdoc/>
@@ -397,7 +338,6 @@ namespace EpicGames.Horde
 		{
 			await _authHandlerState.DisposeAsync();
 			_authHttpMessageHandler.Dispose();
-			_baseHttpMessageHandler.Dispose();
 			await base.DisposeAsync();
 		}
 
@@ -435,29 +375,34 @@ namespace EpicGames.Horde
 		/// <inheritdoc/>
 		protected override HttpClient CreateUnauthenticatedHttpClient()
 		{
-			HttpClient httpClient = new HttpClient(_baseHttpMessageHandler, false);
+			HttpClient httpClient = new HttpClient(_baseHttpMessageHandler.Instance, false);
 			httpClient.BaseAddress = ServerUrl;
 			return httpClient;
 		}
 	}
 
 	/// <summary>
-	/// Implementation of <see cref="IHordeClientFactory"/>
+	/// Allows creating <see cref="HordeClient"/> instances
 	/// </summary>
-	class HordeClientFactory : IHordeClientFactory
+	public class HordeClientFactory
 	{
 		readonly BundleCache _bundleCache;
+		readonly IHordeHttpMessageHandler _httpMessageHandler;
 		readonly IOptionsSnapshot<HordeOptions> _hordeOptions;
 		readonly ILoggerFactory _loggerFactory;
 
-		public HordeClientFactory(BundleCache bundleCache, IOptionsSnapshot<HordeOptions> hordeOptions, ILoggerFactory loggerFactory)
+		/// <summary>
+		/// Constructor 
+		/// </summary>
+		public HordeClientFactory(BundleCache bundleCache, IHordeHttpMessageHandler httpMessageHandler, IOptionsSnapshot<HordeOptions> hordeOptions, ILoggerFactory loggerFactory)
 		{
 			_bundleCache = bundleCache;
+			_httpMessageHandler = httpMessageHandler;
 			_hordeOptions = hordeOptions;
 			_loggerFactory = loggerFactory;
 		}
 
-		Uri GetServerUrl()
+		Uri GetDefaultServerUrl()
 		{
 			Uri? serverUrl = _hordeOptions.Value.GetServerUrlOrDefault();
 			if (serverUrl == null)
@@ -467,18 +412,20 @@ namespace EpicGames.Horde
 			return serverUrl;
 		}
 
-		/// <inheritdoc/>
-		public IHordeClient Create()
+		/// <summary>
+		/// Create a client using the user's default access token
+		/// </summary>
+		public HordeClient Create(Uri? serverUrl = null, string? accessToken = null)
 		{
-			Uri serverUrl = GetServerUrl();
-			return new HordeClientWithDynamicCredentials(serverUrl, _bundleCache, _hordeOptions, _loggerFactory);
-		}
-
-		/// <inheritdoc/>
-		public IHordeClient Create(string? accessToken)
-		{
-			Uri serverUrl = GetServerUrl();
-			return new HordeClientWithStaticCredentials(serverUrl, accessToken, _bundleCache, _hordeOptions, _loggerFactory);
+			serverUrl ??= GetDefaultServerUrl();
+			if (accessToken == null)
+			{
+				return new HordeClientWithDynamicCredentials(serverUrl, _bundleCache, _httpMessageHandler, _hordeOptions, _loggerFactory);
+			}
+			else
+			{
+				return new HordeClientWithStaticCredentials(serverUrl, accessToken, _httpMessageHandler, _bundleCache, _hordeOptions, _loggerFactory);
+			}
 		}
 	}
 }

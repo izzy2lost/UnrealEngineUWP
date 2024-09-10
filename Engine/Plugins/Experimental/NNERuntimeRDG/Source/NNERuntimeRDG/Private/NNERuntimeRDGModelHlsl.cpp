@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGModelHlsl.h"
+
+#include "NNEHlslShadersLog.h"
 #include "NNETensor.h"
 #include "NNERuntimeRDGHlsl.h"
 #include "NNERuntimeRDGHlslOp.h"
@@ -19,7 +21,7 @@ FOperatorHlsl* OpCreate(const FOperatorDesc& OpDesc, TConstArrayView<NNE::FTenso
 
 	if (!CreateFn)
 	{
-		UE_LOG(LogNNE, Warning, TEXT("Hlsl MLOperatorRegistry failed to find operator: %s"), *OpDesc.GetFullName());
+		UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Operator registry failed to find operator: %s"), *OpDesc.GetFullName());
 		return nullptr;
 	}
 
@@ -27,7 +29,7 @@ FOperatorHlsl* OpCreate(const FOperatorDesc& OpDesc, TConstArrayView<NNE::FTenso
 
 	if (!Op->Initialize(InputTensorDescs, OutputTensorDescs, AttributeMap))
 	{
-		UE_LOG(LogNNE, Warning, TEXT("Hlsl runtime: Error initializing operator: %s"), *OpDesc.GetFullName());
+		UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Error initializing operator: %s"), *OpDesc.GetFullName());
 		delete Op;
 		return nullptr;
 	}
@@ -166,7 +168,7 @@ bool FModelInstance::Init(TConstArrayView<uint8> ModelData)
 
 		if (!Op) //Op.Shader.IsNull())
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Failed to create operator:%s"), *OperatorDesc.GetFullName());
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Failed to create operator:%s"), *OperatorDesc.GetFullName());
 
 			//Note: Need to cleanup operators
 			return false;
@@ -230,7 +232,7 @@ int FModelInstance::PrepareTensorShapesAndData()
 	
 	if (Operators.Num() == 0)
 	{
-		UE_LOG(LogNNE, Warning, TEXT("No operators in model"));
+		UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("No operators in model"));
 		return -1;
 	}
 
@@ -288,7 +290,7 @@ int FModelInstance::PrepareTensorShapesAndData()
 		{
 			//Operator could not prepare the output tensors, meaning we can't allocate
 			//output buffer before running the model. This runtime does not support this.
-			UE_LOG(LogNNE, Warning, TEXT("Could not deduce tensor shapes for this model during shape inference, HLSL runtime wont support the model as it need to precompute all shapes for performance reasons."));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Could not deduce tensor shapes for this model during shape inference, HLSL runtime wont support the model as it need to precompute all shapes for performance reasons."));
 			AllTensorRDGRefs.Reset();
 			return -1;
 		}

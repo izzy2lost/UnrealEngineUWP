@@ -588,6 +588,15 @@ bool FElectraPlayerPlugin::Open(const FString& Url, const IMediaOptions* Options
 		}
 	}
 
+	if (InPlayerOptions)
+	{
+		if (InPlayerOptions->InternalCustomOptions.Find(MediaPlayerOptionValues::ParseTimecodeInfo()))
+		{
+			static const FName OptionKeyParseTimecodeInfo(TEXT("parse_timecode_info"));
+			PlayerOptions.Set(OptionKeyParseTimecodeInfo, FVariantValue());
+		}
+	}
+
 	// Check for one-time initialization options that can't be changed during playback.
 	int64 InitialStreamBitrate = Options->GetMediaOption(TEXT("ElectraInitialBitrate"), (int64)-1);
 	if (InitialStreamBitrate > 0)
@@ -754,6 +763,11 @@ void FElectraPlayerPlugin::TickInput(FTimespan DeltaTime, FTimespan Timecode)
 {
 	OutputTexturePool->Tick();
 	Player->Tick(DeltaTime, Timecode);
+}
+
+FVariant FElectraPlayerPlugin::GetMediaInfo(FName InInfoName) const
+{
+	return Player.IsValid() ?  Player->GetMediaInfo(InInfoName).ToFVariant() : FVariant();
 }
 
 //-----------------------------------------------------------------------------

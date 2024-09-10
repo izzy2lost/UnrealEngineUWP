@@ -633,6 +633,16 @@ void UUsdConversionBlueprintLibrary::SendAnalytics(
 	IUsdClassesModule::SendAnalytics(MoveTemp(Converted), EventName, bAutomated, ElapsedSeconds, NumberOfFrames, Extension);
 }
 
+void UUsdConversionBlueprintLibrary::BlockAnalyticsEvents()
+{
+	IUsdClassesModule::BlockAnalyticsEvents();
+}
+
+void UUsdConversionBlueprintLibrary::ResumeAnalyticsEvents()
+{
+	IUsdClassesModule::ResumeAnalyticsEvents();
+}
+
 void UUsdConversionBlueprintLibrary::RemoveAllPrimSpecs(const FString& StageRootLayer, const FString& PrimPath, const FString& TargetLayer)
 {
 #if USE_USD_SDK

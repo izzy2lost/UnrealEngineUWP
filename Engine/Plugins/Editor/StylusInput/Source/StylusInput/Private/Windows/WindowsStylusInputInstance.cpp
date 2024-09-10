@@ -372,6 +372,7 @@ namespace UE::StylusInput::Private::Windows
 		if (EventHandlerThread == EEventHandlerThread::OnGameThread)
 		{
 			AsyncPlugin = MakeUnique<FWindowsStylusInputPluginAsync>(
+				this,
 				FGetWindowContextCallback::CreateRaw(this, &FWindowsStylusInputInstance::GetWindowContext),
 				FUpdateTabletContextsCallback::CreateRaw(this, &FWindowsStylusInputInstance::UpdateTabletContexts),
 				EventHandler
@@ -391,6 +392,7 @@ namespace UE::StylusInput::Private::Windows
 		if (EventHandlerThread == EEventHandlerThread::Asynchronous)
 		{
 			SyncPlugin = MakeUnique<FWindowsStylusInputPluginSync>(
+				this,
 				FGetWindowContextCallback::CreateRaw(this, &FWindowsStylusInputInstance::GetWindowContext),
 				FUpdateTabletContextsCallback::CreateRaw(this, &FWindowsStylusInputInstance::UpdateTabletContexts),
 				EventHandler

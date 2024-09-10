@@ -78,6 +78,7 @@ namespace UE::USDClasses::Private
 	}
 
 	TMap<FString, int32> PackagePathNameToDirtyCounter;
+	int AnalyticsAllowedWhenZero = 0;
 }
 
 void IUsdClassesModule::UpdatePlugInfoFiles(const FString& PluginDirectory, const FString& TargetDllFolder)
@@ -236,7 +237,7 @@ void IUsdClassesModule::SendAnalytics(
 	const FString& Extension
 )
 {
-	if (FEngineAnalytics::IsAvailable())
+	if (FEngineAnalytics::IsAvailable() && UE::USDClasses::Private::AnalyticsAllowedWhenZero == 0)
 	{
 		TArray<FAnalyticsEventAttribute> Attributes(InAttributes);
 
@@ -255,7 +256,7 @@ void IUsdClassesModule::SendAnalytics(
 
 void IUsdClassesModule::SendAnalytics(TArray<FAnalyticsEventAttribute>&& InAttributes, const FString& EventName)
 {
-	if (FEngineAnalytics::IsAvailable())
+	if (FEngineAnalytics::IsAvailable() && UE::USDClasses::Private::AnalyticsAllowedWhenZero == 0)
 	{
 		TArray<FAnalyticsEventAttribute> Attributes(InAttributes);
 
@@ -266,6 +267,16 @@ void IUsdClassesModule::SendAnalytics(TArray<FAnalyticsEventAttribute>&& InAttri
 		const FString EventText = FString::Printf(TEXT("Engine.Usage.USD.%s"), *EventName);
 		FEngineAnalytics::GetProvider().RecordEvent(EventText, Attributes);
 	}
+}
+
+void IUsdClassesModule::BlockAnalyticsEvents()
+{
+	UE::USDClasses::Private::AnalyticsAllowedWhenZero += 1;
+}
+
+void IUsdClassesModule::ResumeAnalyticsEvents()
+{
+	UE::USDClasses::Private::AnalyticsAllowedWhenZero -= 1;
 }
 
 bool IUsdClassesModule::HashObjectPackage(const UObject* Object, FSHA1& HashToUpdate)

@@ -12,15 +12,15 @@ struct FSlateBrush;
 struct FTypedElementClassTypeInfoColumn;
 
 UCLASS()
-class UTypeInfoWidgetFactory : public UTypedElementDataStorageFactory
+class UTypeInfoWidgetFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	~UTypeInfoWidgetFactory() override = default;
 
-	void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
-		ITypedElementDataStorageUiInterface& DataStorageUi) const override;
+	void RegisterWidgetConstructors(IEditorDataStorageProvider& DataStorage,
+		IEditorDataStorageUiProvider& DataStorageUi) const override;
 };
 
 USTRUCT()
@@ -35,7 +35,7 @@ public:
 protected:
 	explicit FTypeInfoWidgetConstructor(const UScriptStruct* InTypeInfo);
 	TSharedPtr<SWidget> CreateWidget(const UE::Editor::DataStorage::FMetaDataView& Arguments) override;
-	bool FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi,
+	bool FinalizeWidget(IEditorDataStorageProvider* DataStorage, IEditorDataStorageUiProvider* DataStorageUi,
 		UE::Editor::DataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget) override;
 
 protected:

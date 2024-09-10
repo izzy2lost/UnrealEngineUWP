@@ -98,7 +98,7 @@ struct FVerseFunctionDescriptor
 	UObject* Owner = nullptr;
 	UFunction* Function = nullptr; // May be nullptr even when valid
 	FName DisplayName = NAME_None;
-	FName MangledName = NAME_None;
+	FName UEName = NAME_None;
 
 	FVerseFunctionDescriptor() = default;
 
@@ -106,11 +106,11 @@ struct FVerseFunctionDescriptor
 		UObject* InOwner,
 		UFunction* InFunction,
 		FName InDisplayName,
-		FName InMangledName)
+		FName InUEName)
 		: Owner(InOwner)
 		, Function(InFunction)
 		, DisplayName(InDisplayName)
-		, MangledName(InMangledName)
+		, UEName(InUEName)
 	{
 	}
 
@@ -160,6 +160,10 @@ private:
 #endif
 	//~ End UClass interface
 
+	// UField interface.
+	COREUOBJECT_API virtual const TCHAR* GetPrefixCPP() const override;
+	// End of UField interface.
+
 public:
 	UPROPERTY()
 	uint32 SolClassFlags;
@@ -190,8 +194,9 @@ public:
 	UPROPERTY()
 	FString PackageRelativeVersePath;
 
+	//~ This map is technically wrong since the FName is caseless...
 	UPROPERTY()
-	TMap<FName, FName> DisplayToMangledNameMap;
+	TMap<FName, FName> DisplayNameToUENameFunctionMap;
 
 #if WITH_VERSE_COMPILER && WITH_EDITORONLY_DATA
 	/** Path name this class had before it was marked as DEAD */
@@ -245,7 +250,7 @@ public:
 	}
 
 	/**
-	 * Iterates over Verse Function Properties on an object instance and executes a callback with VerseFunction value and its DisplayName.
+	 * Iterates over Verse Function Properties on an object instance and executes a callback with VerseFunction value and its Verse name.
 	 * @param Object Object instance to iterate Verse Functions for
 	 * @param Operation callback for each of the found Verse Functions. When the callback returns false, iteration is stopped.
 	 * @param IterationFlags Additional options used when iterating over Verse Function properties
@@ -253,14 +258,14 @@ public:
 	COREUOBJECT_API void ForEachVerseFunction(UObject* Object, TFunctionRef<bool(FVerseFunctionDescriptor)> Operation, EFieldIterationFlags IterationFlags = EFieldIterationFlags::None);
 
 	/**
-	 * Returns a VerseFunction value given its display name (Unmangled and undecorated)
+	 * Returns a VerseFunction value given its display name
 	 * @param Object Object instance to iterate Verse Functions for
-	 * @param FunctionName Unmangled and undecorated function name
+	 * @param VerseName Display name of the function
 	 * @param SearchFlags Additional options used when iterating over Verse Function properties
 	 * @return VerseFunction value acquired from the provided Object instance or invalid function value if none was found.
 	 */
 #if WITH_VERSE_BPVM
-	COREUOBJECT_API FVerseFunctionDescriptor FindVerseFunctionByDisplayName(UObject* Object, FName FunctionName, EFieldIterationFlags SearchFlags = EFieldIterationFlags::None);
+	COREUOBJECT_API FVerseFunctionDescriptor FindVerseFunctionByDisplayName(UObject* Object, const FString& DisplayName, EFieldIterationFlags SearchFlags = EFieldIterationFlags::None);
 #endif // WITH_VERSE_BPVM
 
 	/**

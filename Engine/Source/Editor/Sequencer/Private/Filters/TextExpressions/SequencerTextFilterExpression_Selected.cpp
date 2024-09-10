@@ -1,7 +1,6 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SequencerTextFilterExpression_Selected.h"
-#include "EditorModeManager.h"
+#include "Filters/TextExpressions/SequencerTextFilterExpression_Selected.h"
 #include "Filters/Filters/SequencerTrackFilter_Selected.h"
 #include "Selection.h"
 #include "Sequencer.h"
@@ -13,17 +12,28 @@ using namespace UE::Sequencer;
 FSequencerTextFilterExpression_Selected::FSequencerTextFilterExpression_Selected(ISequencerTrackFilters& InFilterInterface)
 	: FSequencerTextFilterExpressionContext(InFilterInterface)
 {
-	if (const TSharedPtr<IToolkitHost> ToolkitHost = FilterInterface.GetSequencer().GetToolkitHost())
-	{
-		ToolkitHost->GetEditorModeManager().GetSelectedObjects()->SelectionChangedEvent.AddRaw(this, &FSequencerTextFilterExpression_Selected::OnSelectionChanged);
-	}
+	BindSelectionChanged();
 }
 
 FSequencerTextFilterExpression_Selected::~FSequencerTextFilterExpression_Selected()
 {
-	if (const TSharedPtr<IToolkitHost> ToolkitHost = FilterInterface.GetSequencer().GetToolkitHost())
+	UnbindSelectionChanged();
+}
+
+void FSequencerTextFilterExpression_Selected::BindSelectionChanged()
+{
+	if (!OnSelectionChangedHandle.IsValid())
 	{
-		ToolkitHost->GetEditorModeManager().GetSelectedObjects()->SelectionChangedEvent.RemoveAll(this);
+		OnSelectionChangedHandle = USelection::SelectionChangedEvent.AddRaw(this, &FSequencerTextFilterExpression_Selected::OnSelectionChanged);
+	}
+}
+
+void FSequencerTextFilterExpression_Selected::UnbindSelectionChanged()
+{
+	if (OnSelectionChangedHandle.IsValid())
+	{
+		USelection::SelectionChangedEvent.Remove(OnSelectionChangedHandle);
+		OnSelectionChangedHandle.Reset();
 	}
 }
 
@@ -59,7 +69,7 @@ bool FSequencerTextFilterExpression_Selected::TestComplexExpression(const FName&
 
 void FSequencerTextFilterExpression_Selected::OnSelectionChanged(UObject* const InObject)
 {
-	//FilterBar.RequestFilterUpdate();
+	FilterInterface.RequestFilterUpdate();
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -4276,7 +4276,7 @@ FBinningData FRenderer::AddPass_Binning(
 				RDG_EVENT_NAME("RasterBinInit"),
 				InitPassParameters,
 				PassFlags,
-				[InitPassParameters, &DispatchContext, VisiblePatches, ComputeShader, BinCount = BinningData.BinCount](FRHIComputeCommandList& RHICmdList)
+				[InitPassParameters, &DispatchContext, VisiblePatches, ComputeShader, BinCount = BinningData.BinCount](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 				{
 					FComputeShaderUtils::Dispatch(
 						RHICmdList,
@@ -4337,7 +4337,7 @@ FBinningData FRenderer::AddPass_Binning(
 				RDG_EVENT_NAME("RasterBinCount"),
 				PassParameters,
 				PassFlags,
-				[PassParameters, &DispatchContext, VisiblePatches, ComputeShader](FRHIComputeCommandList& RHICmdList)
+				[PassParameters, &DispatchContext, VisiblePatches, ComputeShader](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 				{
 					if (VisiblePatches == nullptr || DispatchContext.HasTessellated())
 					{
@@ -4372,7 +4372,7 @@ FBinningData FRenderer::AddPass_Binning(
 				RDG_EVENT_NAME("RasterBinReserve"),
 				ReservePassParameters,
 				PassFlags,
-				[ReservePassParameters, &DispatchContext, VisiblePatches, ComputeShader, BinCount = BinningData.BinCount](FRHIComputeCommandList& RHICmdList)
+				[ReservePassParameters, &DispatchContext, VisiblePatches, ComputeShader, BinCount = BinningData.BinCount](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 				{
 					if (VisiblePatches == nullptr || DispatchContext.HasTessellated())
 					{
@@ -4407,7 +4407,7 @@ FBinningData FRenderer::AddPass_Binning(
 				RDG_EVENT_NAME("RasterBinScatter"),
 				PassParameters,
 				PassFlags,
-				[PassParameters, &DispatchContext, VisiblePatches, ComputeShader](FRHIComputeCommandList& RHICmdList)
+				[PassParameters, &DispatchContext, VisiblePatches, ComputeShader](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 				{
 					if (VisiblePatches == nullptr || DispatchContext.HasTessellated())
 					{
@@ -4442,7 +4442,7 @@ FBinningData FRenderer::AddPass_Binning(
 				RDG_EVENT_NAME("RasterBinFinalize"),
 				FinalizePassParameters,
 				PassFlags,
-				[FinalizePassParameters, &DispatchContext, VisiblePatches, ComputeShader, BinCount = BinningData.BinCount](FRHIComputeCommandList& RHICmdList)
+				[FinalizePassParameters, &DispatchContext, VisiblePatches, ComputeShader, BinCount = BinningData.BinCount](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 				{
 					if (VisiblePatches == nullptr || DispatchContext.HasTessellated())
 					{
@@ -5254,7 +5254,7 @@ FBinningData FRenderer::AddPass_Rasterize(
 			RDG_EVENT_NAME("SW Rasterize (Tessellated)"),
 			ClusterPassParameters,
 			ERDGPassFlags::Compute,
-			[ClusterPassParameters, &DispatchContext, &SceneView = SceneView, RenderFlags = RenderFlags, PSOCollectorIndex](FRHIComputeCommandList& RHICmdList)
+			[ClusterPassParameters, &DispatchContext, &SceneView = SceneView, RenderFlags = RenderFlags, PSOCollectorIndex](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 			{
 				if (DispatchContext.HasTessellated())
 				{
@@ -5277,7 +5277,7 @@ FBinningData FRenderer::AddPass_Rasterize(
 		RDG_EVENT_NAME("HW Rasterize (Triangles)"),
 		ClusterPassParameters,
 		ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
-		[ClusterPassParameters, &DispatchContext, ViewRect, &SceneView = SceneView, bMainPass, HardwarePath, PSOCollectorIndex, RenderFlags = RenderFlags](FRHICommandList& RHICmdList)
+		[ClusterPassParameters, &DispatchContext, ViewRect, &SceneView = SceneView, bMainPass, HardwarePath, PSOCollectorIndex, RenderFlags = RenderFlags](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			DispatchContext.DispatchHW(
 				RHICmdList,
@@ -5299,7 +5299,7 @@ FBinningData FRenderer::AddPass_Rasterize(
 			RDG_EVENT_NAME("SW Rasterize (Triangles)"),
 			ClusterPassParameters,
 			AsyncComputeFlag,
-			[ClusterPassParameters, &DispatchContext, &SceneView = SceneView, RenderFlags = RenderFlags, PSOCollectorIndex](FRHIComputeCommandList& RHICmdList)
+			[ClusterPassParameters, &DispatchContext, &SceneView = SceneView, RenderFlags = RenderFlags, PSOCollectorIndex](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 			{
 				DispatchContext.DispatchSW(
 					RHICmdList,
@@ -5358,7 +5358,7 @@ FBinningData FRenderer::AddPass_Rasterize(
 			RDG_EVENT_NAME("SW Rasterize (Patches)"),
 			PatchPassParameters,
 			PatchPassFlags,
-			[PatchPassParameters, &DispatchContext, &SceneView = SceneView, RenderFlags = RenderFlags, PSOCollectorIndex](FRHIComputeCommandList& RHICmdList)
+			[PatchPassParameters, &DispatchContext, &SceneView = SceneView, RenderFlags = RenderFlags, PSOCollectorIndex](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 			{
 				DispatchContext.DispatchSW(
 					RHICmdList,
@@ -5412,7 +5412,7 @@ void FRenderer::AddPass_PatchSplit(
 			RDG_EVENT_NAME("ClearVisiblePatchesArgs"),
 			Parameters,
 			PassFlags,
-			[Parameters, &DispatchContext, VisiblePatchesArgsUAV](FRHIComputeCommandList& RHICmdList)
+			[Parameters, &DispatchContext, VisiblePatchesArgsUAV](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 			{
 				if (DispatchContext.HasTessellated())
 				{
@@ -5465,7 +5465,7 @@ void FRenderer::AddPass_PatchSplit(
 			RDG_EVENT_NAME("PatchSplit"),
 			PassParameters,
 			PassFlags,
-			[PassParameters, &DispatchContext, ComputeShader](FRHIComputeCommandList& RHICmdList)
+			[PassParameters, &DispatchContext, ComputeShader](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 			{
 				if (DispatchContext.HasTessellated())
 				{
@@ -5487,7 +5487,7 @@ void FRenderer::AddPass_PatchSplit(
 			RDG_EVENT_NAME("InitVisiblePatchesArgs"),
 			PassParameters,
 			PassFlags,
-			[PassParameters, &DispatchContext, ComputeShader](FRHIComputeCommandList& RHICmdList)
+			[PassParameters, &DispatchContext, ComputeShader](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 			{
 				if (DispatchContext.HasTessellated())
 				{
@@ -5522,7 +5522,7 @@ void FRenderer::AddPass_ClearSplitQueue(
 			RDG_EVENT_NAME("InitClearQueueArgs"),
 			PassParameters,
 			PassFlags,
-			[PassParameters, &DispatchContext, ComputeShader](FRHIComputeCommandList& RHICmdList)
+			[PassParameters, &DispatchContext, ComputeShader](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 			{
 				if (DispatchContext.HasTessellated())
 				{
@@ -5545,7 +5545,7 @@ void FRenderer::AddPass_ClearSplitQueue(
 			RDG_EVENT_NAME("ClearSplitQueue"),
 			PassParameters,
 			PassFlags,
-			[PassParameters, &DispatchContext, ComputeShader](FRHIComputeCommandList& RHICmdList)
+			[PassParameters, &DispatchContext, ComputeShader](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 			{
 				if (DispatchContext.HasTessellated())
 				{

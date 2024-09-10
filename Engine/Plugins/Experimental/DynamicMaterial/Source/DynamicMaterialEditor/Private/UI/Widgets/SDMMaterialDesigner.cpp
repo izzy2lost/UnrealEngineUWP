@@ -442,7 +442,7 @@ void SDMMaterialDesigner::OnAssetsDropped(const FDragDropEvent& InDragDropEvent,
 		{
 			if (Content.IsValid() && Content->GetWidgetClass().GetWidgetType() == SDMMaterialEditor::StaticWidgetClass().GetWidgetType())
 			{
-				StaticCastSharedPtr<SDMMaterialEditor>(Content)->HandleDrop_CreateTextureSet({Asset});
+				StaticCastSharedPtr<SDMMaterialEditor>(Content)->HandleDrop_TextureSet(Cast<UDMTextureSet>(Asset.GetAsset()));
 				return;
 			}
 		}
@@ -549,28 +549,9 @@ bool SDMMaterialDesigner::SetEditorLayout(EDMMaterialEditorLayout InLayout, UDyn
 				.MaterialModelBase(InMaterialModelBase);
 			break;
 
-		case EDMMaterialEditorLayout::LeftAutoHide:
-			break;
-
-		case EDMMaterialEditorLayout::LeftSlim:
-			NewEditor = SNew(SDMMaterialEditor_LeftSlim, SharedThis(this))
-				.MaterialModelBase(InMaterialModelBase);
-			break;
-
-		case EDMMaterialEditorLayout::TopHorizontal:
-			NewEditor = SNew(SDMMaterialEditor_TopHorizontal, SharedThis(this))
-				.MaterialModelBase(InMaterialModelBase);
-			break;
-
-		case EDMMaterialEditorLayout::TopHorizontalAutoHide:
-			break;
-
-		case EDMMaterialEditorLayout::TopVertical:
+		case EDMMaterialEditorLayout::Top:
 			NewEditor = SNew(SDMMaterialEditor_TopVertical, SharedThis(this))
 				.MaterialModelBase(InMaterialModelBase);
-			break;
-
-		case EDMMaterialEditorLayout::TopVerticalAutoHide:
 			break;
 
 		case EDMMaterialEditorLayout::TopSlim:
@@ -603,28 +584,9 @@ bool SDMMaterialDesigner::SetEditorLayout(EDMMaterialEditorLayout InLayout, cons
 				.MaterialProperty(InObjectMaterialProperty);
 			break;
 
-		case EDMMaterialEditorLayout::LeftAutoHide:
-			break;
-
-		case EDMMaterialEditorLayout::LeftSlim:
-			NewEditor = SNew(SDMMaterialEditor_LeftSlim, SharedThis(this))
-				.MaterialProperty(InObjectMaterialProperty);
-			break;
-
-		case EDMMaterialEditorLayout::TopHorizontal:
-			NewEditor = SNew(SDMMaterialEditor_TopHorizontal, SharedThis(this))
-				.MaterialProperty(InObjectMaterialProperty);
-			break;
-
-		case EDMMaterialEditorLayout::TopHorizontalAutoHide:
-			break;
-
-		case EDMMaterialEditorLayout::TopVertical:
+		case EDMMaterialEditorLayout::Top:
 			NewEditor = SNew(SDMMaterialEditor_TopVertical, SharedThis(this))
 				.MaterialProperty(InObjectMaterialProperty);
-			break;
-
-		case EDMMaterialEditorLayout::TopVerticalAutoHide:
 			break;
 
 		case EDMMaterialEditorLayout::TopSlim:

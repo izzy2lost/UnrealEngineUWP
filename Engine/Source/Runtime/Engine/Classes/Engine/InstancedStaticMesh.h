@@ -473,7 +473,7 @@ public:
 
 	ENGINE_API virtual bool HasRayTracingRepresentation() const override;
 
-	ENGINE_API virtual void GetDynamicRayTracingInstances(struct FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) final override;
+	ENGINE_API virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) final override;
 
 	ENGINE_API void SetupRayTracingDynamicInstances(int32 NumDynamicInstances, int32 LODIndex);
 

@@ -102,6 +102,20 @@ public:
 	void InitializeFromGroupTopologyEdges(const FDynamicMesh3& Mesh, const FGroupTopology& Topology, const TArray<int32>& GroupEdges);
 
 	/**
+	 * Initialize the bevel with the specified mesh triangle edges
+	 * @param IsCornerVertex Function to determine whether a vertex should be treated as a corner when beveling. Only affects vertices with exactly two adjacent TriangleEdges; otherwise corners will be automatically detected.
+	 */
+	void InitializeFromTriangleEdges(const FDynamicMesh3& Mesh, TConstArrayView<int32> TriangleEdges, TFunctionRef<bool(int32)> IsCornerVertex);
+
+	/**
+	 * Initialize the bevel with the specified mesh triangle edges
+	 */
+	void InitializeFromTriangleEdges(const FDynamicMesh3& Mesh, TConstArrayView<int32> TriangleEdges)
+	{
+		InitializeFromTriangleEdges(Mesh, TriangleEdges, [](int32) {return false;});
+	}
+
+	/**
 	* Initialize the bevel with the specified faces of a GroupTopology
 	* @return false if any selection-bowtie vertices were found, in this case we cannot compute the bevel
 	*/

@@ -22,6 +22,7 @@ public class ColorGradingEditor : ModuleRules
 				"AppFramework",
 				"Core",
 				"CoreUObject",
+				"CinematicCamera",
 				"DetailCustomizations",
 				"EditorStyle",
 				"Engine",

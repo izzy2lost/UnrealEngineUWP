@@ -75,10 +75,7 @@ namespace EpicGames.Horde.Compute.Clients
 			_port = port;
 			_logger = logger;
 		}
-
-		/// <inheritdoc/>
-		public ValueTask DisposeAsync() => new ValueTask();
-		
+	
 		/// <inheritdoc/>
 		public Task<ClusterId> GetClusterAsync(Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken = default)
 		{

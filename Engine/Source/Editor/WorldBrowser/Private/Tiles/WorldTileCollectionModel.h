@@ -39,7 +39,7 @@ public:
 	virtual TSharedPtr<WorldHierarchy::FWorldBrowserDragDropOp> CreateDragDropOp() const override;
 	virtual TSharedPtr<WorldHierarchy::FWorldBrowserDragDropOp> CreateDragDropOp(const FLevelModelList& InLevels) const override;
 	virtual bool PassesAllFilters(const FLevelModel& InLevelModel) const override;
-	virtual void BuildHierarchyMenu(FMenuBuilder& InMenuBuilder) const override;
+	virtual void BuildHierarchyMenu(FMenuBuilder& InMenuBuilder, EBuildHierarchyMenuFlags Flags) const override;
 	virtual void CustomizeFileMainMenu(FMenuBuilder& InMenuBuilder) const override;
 	virtual bool GetPlayerView(FVector& Location, FRotator& Rotation) const override;
 	virtual bool GetObserverView(FVector& Location, FRotator& Rotation) const override;

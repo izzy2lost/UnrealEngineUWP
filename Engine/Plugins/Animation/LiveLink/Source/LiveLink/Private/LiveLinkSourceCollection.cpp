@@ -267,6 +267,13 @@ const FLiveLinkCollectionSubjectItem* FLiveLinkSourceCollection::FindSubject(FLi
 	return const_cast<FLiveLinkSourceCollection*>(this)->FindSubject(InSubjectKey);
 }
 
+
+const FLiveLinkCollectionSubjectItem* FLiveLinkSourceCollection::FindSubject(FLiveLinkSubjectName SubjectName) const
+{
+	UE::TUniqueLock Lock(SubjectsLock);
+	return Subjects.FindByPredicate([SubjectName](const FLiveLinkCollectionSubjectItem& Other) { return Other.Key.SubjectName == SubjectName;  });
+}
+
 const FLiveLinkCollectionSubjectItem* FLiveLinkSourceCollection::FindEnabledSubject(FLiveLinkSubjectName InSubjectName) const
 {
 	UE::TUniqueLock Lock(SubjectsLock);

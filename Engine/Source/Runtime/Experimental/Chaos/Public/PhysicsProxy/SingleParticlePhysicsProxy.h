@@ -507,6 +507,39 @@ public:
 			});
 	}
 
+	void SetPositionSolverIterations(const int32 PositionSolverIterationsIn)
+	{
+		Write([PositionSolverIterationsIn](auto* Particle)
+			{
+				if (auto Rigid = Particle->CastToRigidParticle())
+				{
+					return Rigid->SetPositionSolverIterations(PositionSolverIterationsIn);
+				}
+			});
+	}
+
+	void SetVelocitySolverIterations(const int32 VelocitySolverIterationsIn)
+	{
+		Write([VelocitySolverIterationsIn](auto* Particle)
+			{
+				if (auto Rigid = Particle->CastToRigidParticle())
+				{
+					return Rigid->SetVelocitySolverIterations(VelocitySolverIterationsIn);
+				}
+			});
+	}
+
+	void SetProjectionSolverIterations(const int32 ProjectionSolverIterationsIn)
+	{
+		Write([ProjectionSolverIterationsIn](auto* Particle)
+			{
+				if (auto Rigid = Particle->CastToRigidParticle())
+				{
+					return Rigid->SetProjectionSolverIterations(ProjectionSolverIterationsIn);
+				}
+			});
+	}
+
 	bool OneWayInteraction() const
 	{
 		return Read([](auto* Particle)
@@ -1327,6 +1360,46 @@ public:
 		}
 
 		return false;
+	}
+
+	Private::FIterationSettings IterationSettings() const
+	{
+		VerifyContext();
+		if (const TPBDRigidParticle<FReal, 3>*Rigid = GetParticle_LowLevel()->CastToRigidParticle())
+		{
+			return Rigid->IterationSettings();
+		}
+
+		return Private::FIterationSettings(0, 0, 0);
+	}
+
+	void SetPositionSolverIterationCount(uint32 PositionSolverIterationCountIn)
+	{
+		VerifyContext();
+		if (TPBDRigidParticle<FReal, 3>*Rigid = GetParticle_LowLevel()->CastToRigidParticle())
+		{
+			Rigid->SetPositionSolverIterations(PositionSolverIterationCountIn);
+		}
+	}
+
+
+	void SetVelocitySolverIterationCount(uint32 VelocitySolverIterationCountIn)
+	{
+		VerifyContext();
+		if (TPBDRigidParticle<FReal, 3>*Rigid = GetParticle_LowLevel()->CastToRigidParticle())
+		{
+			Rigid->SetVelocitySolverIterations(VelocitySolverIterationCountIn);
+		}
+	}
+
+
+	void SetProjectionSolverIterationCount(uint32 ProjectionSolverIterationCountIn)
+	{
+		VerifyContext();
+		if (TPBDRigidParticle<FReal, 3>*Rigid = GetParticle_LowLevel()->CastToRigidParticle())
+		{
+			Rigid->SetProjectionSolverIterations(ProjectionSolverIterationCountIn);
+		}
 	}
 
 	void SetMaxLinearSpeedSq(FReal InNewSpeed)

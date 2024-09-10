@@ -65,9 +65,9 @@ void SFileListReportDialog::Construct(const FArguments& InArgs)
 		];
 }
 
-void SFileListReportDialog::OpenDialog(const FText& InTitle, const FText& InHeader, const TArray<FText>& InFiles)
+void SFileListReportDialog::OpenDialog(const FText& InTitle, const FText& InHeader, const TArray<FText>& InFiles, bool bOpenAsModal /*= false*/)
 {
-	TSharedRef<SWindow> RenameWindow = SNew(SWindow)
+	TSharedRef<SWindow> FileListReportWindow = SNew(SWindow)
 		.Title(InTitle)
 		.ClientSize(FVector2D(800, 400))
 		.SupportsMaximize(false)
@@ -77,14 +77,21 @@ void SFileListReportDialog::OpenDialog(const FText& InTitle, const FText& InHead
 		];
 
 	IMainFrameModule& MainFrameModule = FModuleManager::LoadModuleChecked<IMainFrameModule>(TEXT("MainFrame"));
-
+	
 	if (MainFrameModule.GetParentWindow().IsValid())
 	{
-		FSlateApplication::Get().AddWindowAsNativeChild(RenameWindow, MainFrameModule.GetParentWindow().ToSharedRef());
+		if (bOpenAsModal)
+		{
+			FSlateApplication::Get().AddModalWindow(FileListReportWindow, MainFrameModule.GetParentWindow().ToSharedRef());
+		}
+		else
+		{
+			FSlateApplication::Get().AddWindowAsNativeChild(FileListReportWindow, MainFrameModule.GetParentWindow().ToSharedRef());
+		}
 	}
 	else
 	{
-		FSlateApplication::Get().AddWindow(RenameWindow);
+		FSlateApplication::Get().AddWindow(FileListReportWindow);
 	}
 }
 

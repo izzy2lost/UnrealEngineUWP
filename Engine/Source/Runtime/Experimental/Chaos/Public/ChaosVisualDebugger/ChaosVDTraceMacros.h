@@ -90,8 +90,8 @@
 	#endif
 
 	#ifndef CVD_TRACE_BINARY_DATA
-		#define CVD_TRACE_BINARY_DATA(InData, TypeName) \
-		FChaosVisualDebuggerTrace::TraceBinaryData(InData, TypeName);
+		#define CVD_TRACE_BINARY_DATA(InData, TypeName, ...) \
+		FChaosVisualDebuggerTrace::TraceBinaryData(InData, TypeName, ##__VA_ARGS__);
 	#endif
 
 	#ifndef CVD_TRACE_SOLVER_SIMULATION_SPACE
@@ -249,7 +249,7 @@
 	#endif
 
 	#ifndef CVD_TRACE_BINARY_DATA
-		#define CVD_TRACE_BINARY_DATA(InData, TypeName)
+		#define CVD_TRACE_BINARY_DATA(InData, TypeName, ...)
 	#endif
 
 	#ifndef CVD_TRACE_SOLVER_SIMULATION_SPACE

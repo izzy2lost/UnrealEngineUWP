@@ -625,10 +625,17 @@ public:
 public:
 	FORCEINLINE const FNavDataConfig& GetConfig() const { return NavDataConfig; }
 	FORCEINLINE ERuntimeGenerationType GetRuntimeGenerationMode() const { return RuntimeGeneration; }
-	virtual void SetConfig(const FNavDataConfig& Src) { NavDataConfig = Src; }
+	/** Populates NavDataConfig and sets NavAgentProperties with the Src config
+	 *  Should be used when initially configuring the navdata and not when updating
+	 *  values used in NavDataConfig */
+	NAVIGATIONSYSTEM_API virtual void SetConfig(const FNavDataConfig& Src);
 
 	void SetSupportsDefaultAgent(bool bIsDefault) { bSupportsDefaultAgent = bIsDefault; SetNavRenderingEnabled(bIsDefault); }
 	bool IsSupportingDefaultAgent() const { return bSupportsDefaultAgent; }
+	const FNavAgentProperties& GetNavAgentProperties() const
+	{
+		return NavAgentProperties;
+	}
 
 	NAVIGATIONSYSTEM_API virtual bool DoesSupportAgent(const FNavAgentProperties& AgentProps) const;
 
@@ -1083,6 +1090,17 @@ private:
 	uint16 NavDataUniqueID;
 
 	static NAVIGATIONSYSTEM_API uint16 GetNextUniqueID();
+
+protected:
+	/** The exact nav agent properties used when registering this navdata
+	 *  in the navigation system. If navdata configuration changes are
+	 *  needed, NavDataConfig can be modified and used */
+	FNavAgentProperties NavAgentProperties;
+
+	void SetNavAgentProperties(const FNavAgentProperties& InNavAgentProperties)
+	{
+		NavAgentProperties = InNavAgentProperties;
+	}
 };
 
 struct FAsyncPathFindingQuery : public FPathFindingQuery

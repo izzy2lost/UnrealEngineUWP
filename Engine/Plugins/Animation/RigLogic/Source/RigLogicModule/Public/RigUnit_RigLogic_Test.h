@@ -672,6 +672,31 @@ public:
 		return {};
 	}
 
+	uint16 GetRBFPoseControlCount() const override
+	{
+		return {};
+	}
+
+	FString GetRBFPoseControlName(uint16 PoseControlIndex) const override
+	{
+		return {};
+	}
+
+	TArrayView<const uint16> GetRBFPoseInputControlIndices(uint16 PoseIndex) const override
+	{
+		return {};
+	}
+
+	TArrayView<const uint16> GetRBFPoseOutputControlIndices(uint16 PoseIndex) const override
+	{
+		return {};
+	}
+
+	TArrayView<const float> GetRBFPoseOutputControlWeights(uint16 PoseIndex) const override
+	{
+		return {};
+	}
+
 	uint16 GetRBFSolverCount() const override
 	{
 		return {};

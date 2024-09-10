@@ -8,6 +8,7 @@ using System.Threading;
 using System.Text.RegularExpressions;
 using System.Drawing;
 using EpicGames.Core;
+using Gauntlet.Utils;
 
 namespace Gauntlet
 {
@@ -163,6 +164,11 @@ namespace Gauntlet
 			Dictionary<string, int> TestIterationsFailed = new Dictionary<string, int>();
 			Dictionary<string, int> TestIterationsPassedWithWarnings = new Dictionary<string, int>();
 
+			// Clean up local log files
+			if (Directory.Exists(ProcessUtils.LocalLogsPath))
+			{
+				SystemHelpers.Delete(new DirectoryInfo(ProcessUtils.LocalLogsPath), true, true);
+			}
 
 			for (CurrentTestPass = 0; CurrentTestPass < Options.TestIterations; CurrentTestPass++)
 			{

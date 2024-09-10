@@ -7,19 +7,20 @@
 
 #include "SlateBrushWidget.generated.h"
 
-class ITypedElementDataStorageInterface;
+class IEditorDataStorageProvider;
+class IEditorDataStorageUiProvider;
 class UScriptStruct;
 
 UCLASS()
-class USlateStylePreviewWidget : public UTypedElementDataStorageFactory
+class USlateStylePreviewWidget : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	~USlateStylePreviewWidget() override = default;
 
-	void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
-		ITypedElementDataStorageUiInterface& DataStorageUi) const override;
+	void RegisterWidgetConstructors(IEditorDataStorageProvider& DataStorage,
+		IEditorDataStorageUiProvider& DataStorageUi) const override;
 };
 
 // Widget to show a slate brush drawn as an SImage
@@ -33,8 +34,8 @@ public:
 	~FSlateStylePreviewWidgetConstructor() override = default;
 
 	virtual TSharedPtr<SWidget> CreateWidget(
-		ITypedElementDataStorageInterface* DataStorage,
-		ITypedElementDataStorageUiInterface* DataStorageUi,
+		IEditorDataStorageProvider* DataStorage,
+		IEditorDataStorageUiProvider* DataStorageUi,
 		UE::Editor::DataStorage::RowHandle TargetRow,
 		UE::Editor::DataStorage::RowHandle WidgetRow,
 		const UE::Editor::DataStorage::FMetaDataView& Arguments) override;

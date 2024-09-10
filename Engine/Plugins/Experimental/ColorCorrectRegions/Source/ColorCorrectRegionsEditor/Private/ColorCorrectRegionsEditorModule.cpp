@@ -11,6 +11,7 @@
 #include "ColorGradingEditorDataModel.h"
 #include "ColorGradingMixerObjectFilterRegistry.h"
 #include "IPlacementModeModule.h"
+#include "PropertyEditorModule.h"
 
 #define LOCTEXT_NAMESPACE "FColorCorrectRegionsModule"
 
@@ -30,8 +31,44 @@ void FColorCorrectRegionsEditorModule::StartupModule()
 
 	FColorGradingMixerObjectFilterRegistry::RegisterObjectClassToFilter(AColorCorrectRegion::StaticClass());
 
+	RegisterSectionMappings();
+
 	ContextMenu = MakeShared<FColorCorrectionActorContextMenu>();
 	ContextMenu->RegisterContextMenuExtender();
+}
+
+void FColorCorrectRegionsEditorModule::RegisterSectionMappings()
+{
+	static const FName PropertyEditor("PropertyEditor");
+	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(PropertyEditor);
+
+	const TArray<FName> ClassNames = {
+		AColorCorrectionRegion::StaticClass()->GetFName(),
+		AColorCorrectionWindow::StaticClass()->GetFName()
+	};
+
+	for (const FName& ClassName : ClassNames)
+	{
+		{
+			TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection(ClassName, "Color Grading", LOCTEXT("DetailsSectionColor Grading", "Color Grading"));
+			Section->AddCategory("Color Grading");
+		}
+
+		{
+			TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection(ClassName, "Orientation", LOCTEXT("DetailsSectionOrientation", "Orientation"));
+			Section->AddCategory("Orientation");
+		}
+
+		{
+			TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection(ClassName, "Per Actor CC", LOCTEXT("DetailsSectionPerActorCC", "Per Actor CC"));
+			Section->AddCategory("Per Actor CC");
+		}
+
+		{
+			TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection(ClassName, "Region", LOCTEXT("DetailsSectionRegion", "Region"));
+			Section->AddCategory("Region");
+		}
+	}
 }
 
 void FColorCorrectRegionsEditorModule::OnPlacementModeRefresh(FName CategoryName)

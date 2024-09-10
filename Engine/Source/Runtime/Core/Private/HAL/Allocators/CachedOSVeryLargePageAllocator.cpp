@@ -68,8 +68,8 @@ static FAutoConsoleVariableRef CVarMaxPageCountSmallPool(
 #if CSV_PROFILER_STATS
 CSV_DECLARE_CATEGORY_MODULE_EXTERN(CORE_API, FMemory);
 
-static volatile int32 GLargePageAllocatorCommitCount = 0;
-static volatile int32 GLargePageAllocatorDecommitCount = 0;
+static std::atomic<int32> GLargePageAllocatorCommitCount = 0;
+static std::atomic<int32> GLargePageAllocatorDecommitCount = 0;
 #endif
 
 void FCachedOSVeryLargePageAllocator::Init()
@@ -159,6 +159,7 @@ void FCachedOSVeryLargePageAllocator::Refresh()
 					}
 					LargePage->LinkHead(EmptyButAvailableLargePagesHead[AllocationHint]);
 					EmptyBackStoreCount[AllocationHint] += 1;
+					ImmediatelyFreeable += SizeOfLargePage;
 				}
 			}
 		}
@@ -225,6 +226,7 @@ FCachedOSVeryLargePageAllocator::FLargePage* FCachedOSVeryLargePageAllocator::Ge
 		LargePage->AllocationHint = AllocationHint;
 		LargePage->Unlink();
 		EmptyBackStoreCount[AllocationHint] -= 1;
+		ImmediatelyFreeable -= SizeOfLargePage;
 	}
 	else
 	{
@@ -281,7 +283,7 @@ FCachedOSVeryLargePageAllocator::FLargePage* FCachedOSVeryLargePageAllocator::Al
 			CachedFree += SizeOfLargePage;
 			CommittedLargePagesCount[AllocationHint] += 1;
 #if CSV_PROFILER_STATS
-			FPlatformAtomics::InterlockedIncrement(&GLargePageAllocatorCommitCount);
+			GLargePageAllocatorCommitCount.fetch_add(1, std::memory_order_relaxed);
 #endif
 		}
 	}
@@ -309,6 +311,7 @@ void FCachedOSVeryLargePageAllocator::Free(void* Ptr, SIZE_T Size, FCriticalSect
 			{
 				LargePage->LinkHead(EmptyButAvailableLargePagesHead[LargePage->AllocationHint]);
 				EmptyBackStoreCount[LargePage->AllocationHint] += 1;
+				ImmediatelyFreeable += SizeOfLargePage;
 			}
 			else
 			{
@@ -323,7 +326,7 @@ void FCachedOSVeryLargePageAllocator::Free(void* Ptr, SIZE_T Size, FCriticalSect
 
 				CommittedLargePagesCount[LargePage->AllocationHint] -= 1;
 #if CSV_PROFILER_STATS
-				FPlatformAtomics::InterlockedIncrement(&GLargePageAllocatorDecommitCount);
+				GLargePageAllocatorDecommitCount.fetch_add(1, std::memory_order_relaxed);
 #endif
 
 				LargePage->LinkHead(FreeLargePagesHead[LargePage->AllocationHint]);
@@ -374,8 +377,13 @@ void FCachedOSVeryLargePageAllocator::ShrinkEmptyBackStore(int32 NewEmptyBackSto
 		LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, (void*)LargePage->BaseAddress));
 		LargePage->LinkHead(FreeLargePagesHead[LargePage->AllocationHint]);
 		CachedFree -= SizeOfLargePage;
+		ImmediatelyFreeable -= SizeOfLargePage;
 		EmptyBackStoreCount[AllocationHint] -= 1;
 		CommittedLargePagesCount[LargePage->AllocationHint] -= 1;
+
+#if CSV_PROFILER_STATS
+		GLargePageAllocatorDecommitCount.fetch_add(1, std::memory_order_relaxed);
+#endif
 	}
 }
 
@@ -401,15 +409,15 @@ void FCachedOSVeryLargePageAllocator::FreeAll(FCriticalSection* Mutex)
 void FCachedOSVeryLargePageAllocator::UpdateStats()
 {
 #if CSV_PROFILER_STATS
-	CSV_CUSTOM_STAT(FMemory, LargeAllocatorCommitCount, GLargePageAllocatorCommitCount, ECsvCustomStatOp::Set);
-	CSV_CUSTOM_STAT(FMemory, LargeAllocatorDecommitCount, GLargePageAllocatorDecommitCount, ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT(FMemory, LargeAllocatorCommitCount, GLargePageAllocatorCommitCount.load(std::memory_order_relaxed), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT(FMemory, LargeAllocatorDecommitCount, GLargePageAllocatorDecommitCount.load(std::memory_order_relaxed), ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT(FMemory, LargeAllocatorBackingStoreCountSmall, EmptyBackStoreCount[FMemory::AllocationHints::SmallPool], ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT(FMemory, LargeAllocatorBackingStoreCountDefault, EmptyBackStoreCount[FMemory::AllocationHints::Default], ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT(FMemory, LargeAllocatorPageCountSmall, CommittedLargePagesCount[FMemory::AllocationHints::SmallPool], ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT(FMemory, LargeAllocatorPageCountDefault, CommittedLargePagesCount[FMemory::AllocationHints::Default], ECsvCustomStatOp::Set);
 
-	GLargePageAllocatorCommitCount = 0;
-	GLargePageAllocatorDecommitCount = 0;
+	GLargePageAllocatorCommitCount.store(0, std::memory_order_relaxed);
+	GLargePageAllocatorDecommitCount.store(0, std::memory_order_relaxed);
 #endif
 }
 #endif

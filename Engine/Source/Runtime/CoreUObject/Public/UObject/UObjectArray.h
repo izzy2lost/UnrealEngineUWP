@@ -160,7 +160,7 @@ public:
 	{
 		checkf((int32(FlagToClear) & ~int32(EInternalObjectFlags_AllFlags)) == 0, TEXT("%d is not a valid internal flag value"), int32(FlagToClear));
 		bool Result = false;
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			FlagToClear &= ~EInternalObjectFlags_ReachabilityFlags; // reachability flags can only be cleared by GC through *_ForGC functions
 			FlagToClear &= ~EInternalObjectFlags::RefCounted; // refcounted flag is internal and must only be cleared internally by AddRef/ReleaseRef.
@@ -197,7 +197,7 @@ public:
 	{
 		checkf((int32(FlagToSet) & ~int32(EInternalObjectFlags_AllFlags)) == 0, TEXT("%d is not a valid internal flag value"), int32(FlagToSet));
 		bool Result = false;
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			FlagToSet &= ~EInternalObjectFlags_ReachabilityFlags; // reachability flags can only be cleared by GC through *_ForGC functions
 			FlagToSet &= ~EInternalObjectFlags::RefCounted; // refcounted flag is internal and must only be set by AddRef/ReleaseRef.
@@ -298,7 +298,7 @@ public:
 
 	void AddRef()
 	{
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			FPlatformAtomics::InterlockedIncrement(&RefCount);
 			if ((GetFlags() & EInternalObjectFlags::RefCounted) != EInternalObjectFlags::RefCounted)
@@ -310,7 +310,7 @@ public:
 
 	void ReleaseRef()
 	{
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			// This alone is not thread-safe as we may race with AddRef and in that case we don't want ClearRootFlags to apply.
 			// We fix this by validating that the refcount is still 0 while inside the root locks in ClearRootFlags.

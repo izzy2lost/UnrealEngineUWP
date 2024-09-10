@@ -24,6 +24,7 @@
 #include "NiagaraSystemGpuComputeProxy.h"
 #include "NiagaraSystemEditorData.h"
 #include "NiagaraSystemEditorViewportToolbarSections.h"
+#include "PreviewProfileController.h"
 #include "SNiagaraSystemViewportToolBar.h"
 #include "UnrealEdGlobals.h"
 #include "Editor/EditorEngine.h"
@@ -1261,7 +1262,7 @@ TSharedPtr<SWidget> SNiagaraSystemViewport::BuildViewportToolbar()
 
 			// Add the Show submenu.
 			{
-				FToolMenuEntry ShowSubmenu = UE::NiagaraSystemEditor::CreateShowSubmenu(SharedThis(this));
+				FToolMenuEntry ShowSubmenu = UE::NiagaraSystemEditor::CreateShowSubmenu();
 				ShowSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
 				RightSection.AddEntry(ShowSubmenu);
 			}
@@ -1273,9 +1274,18 @@ TSharedPtr<SWidget> SNiagaraSystemViewport::BuildViewportToolbar()
 				RightSection.AddEntry(PerformanceAndScalabilitySubmenu);
 			}
 
+			// Add the "Preview Profile" sub menu.
+			{
+				PreviewProfileController = MakeShared<FPreviewProfileController>();
+				FToolMenuEntry PreviewProfileSubmenu =
+					UE::UnrealEd::CreateViewportToolbarAssetViewerProfileSubmenu(PreviewProfileController);
+				PreviewProfileSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+				RightSection.AddEntry(PreviewProfileSubmenu);
+			}
+
 			// Add the Settings submenu.
 			{
-				FToolMenuEntry SettingsSubmenu = UE::NiagaraSystemEditor::CreateSettingsSubmenu(SharedThis(this));
+				FToolMenuEntry SettingsSubmenu = UE::NiagaraSystemEditor::CreateSettingsSubmenu();
 				SettingsSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
 				RightSection.AddEntry(SettingsSubmenu);
 			}

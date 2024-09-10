@@ -7,7 +7,7 @@
 #include "ChaosVDDebugShapeDataWrapper.generated.h"
 
 USTRUCT()
-struct CHAOSVDRUNTIME_API FChaosVDDebugDrawShapeBase : public FChaosVDWrapperDataBase
+struct FChaosVDDebugDrawShapeBase : public FChaosVDWrapperDataBase
 {
 	GENERATED_BODY()
 
@@ -21,11 +21,11 @@ struct CHAOSVDRUNTIME_API FChaosVDDebugDrawShapeBase : public FChaosVDWrapperDat
 	FColor Color = FColor::Blue;
 
 protected:
-	void SerializeBase_Internal(FArchive& Ar);
+	CHAOSVDRUNTIME_API void SerializeBase_Internal(FArchive& Ar);
 };
 
 USTRUCT()
-struct CHAOSVDRUNTIME_API FChaosVDDebugDrawBoxDataWrapper : public FChaosVDDebugDrawShapeBase
+struct FChaosVDDebugDrawBoxDataWrapper : public FChaosVDDebugDrawShapeBase
 {
 	GENERATED_BODY()
 
@@ -34,13 +34,13 @@ struct CHAOSVDRUNTIME_API FChaosVDDebugDrawBoxDataWrapper : public FChaosVDDebug
 	UPROPERTY()
 	FBox Box = FBox(ForceInitToZero);
 
-	bool Serialize(FArchive& Ar);
+	CHAOSVDRUNTIME_API bool Serialize(FArchive& Ar);
 };
 
 CVD_IMPLEMENT_SERIALIZER(FChaosVDDebugDrawBoxDataWrapper)
 
 USTRUCT()
-struct CHAOSVDRUNTIME_API FChaosVDDebugDrawSphereDataWrapper : public FChaosVDDebugDrawShapeBase
+struct FChaosVDDebugDrawSphereDataWrapper : public FChaosVDDebugDrawShapeBase
 {
 	GENERATED_BODY()
 	
@@ -52,13 +52,13 @@ struct CHAOSVDRUNTIME_API FChaosVDDebugDrawSphereDataWrapper : public FChaosVDDe
 	UPROPERTY()
 	float Radius = 0.0f;
 
-	bool Serialize(FArchive& Ar);
+	CHAOSVDRUNTIME_API bool Serialize(FArchive& Ar);
 };
 
 CVD_IMPLEMENT_SERIALIZER(FChaosVDDebugDrawSphereDataWrapper)
 
 USTRUCT()
-struct CHAOSVDRUNTIME_API FChaosVDDebugDrawLineDataWrapper : public FChaosVDDebugDrawShapeBase
+struct FChaosVDDebugDrawLineDataWrapper : public FChaosVDDebugDrawShapeBase
 {
 	GENERATED_BODY()
 	
@@ -73,13 +73,13 @@ struct CHAOSVDRUNTIME_API FChaosVDDebugDrawLineDataWrapper : public FChaosVDDebu
 	UPROPERTY()
 	bool bIsArrow = false;
 
-	bool Serialize(FArchive& Ar);
+	CHAOSVDRUNTIME_API bool Serialize(FArchive& Ar);
 };
 
 CVD_IMPLEMENT_SERIALIZER(FChaosVDDebugDrawLineDataWrapper)
 
 USTRUCT()
-struct CHAOSVDRUNTIME_API FChaosVDDebugDrawImplicitObjectDataWrapper : public FChaosVDDebugDrawShapeBase
+struct FChaosVDDebugDrawImplicitObjectDataWrapper : public FChaosVDDebugDrawShapeBase
 {
 	GENERATED_BODY()
 	
@@ -89,5 +89,5 @@ struct CHAOSVDRUNTIME_API FChaosVDDebugDrawImplicitObjectDataWrapper : public FC
 
 	FTransform ParentTransform = FTransform();
 
-	bool Serialize(FArchive& Ar);
+	CHAOSVDRUNTIME_API bool Serialize(FArchive& Ar);
 };

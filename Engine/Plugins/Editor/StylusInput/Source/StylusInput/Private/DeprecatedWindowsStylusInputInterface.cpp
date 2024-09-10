@@ -151,27 +151,26 @@ void FDeprecatedWindowsStylusInputInterface::FDeprecatedStylusInputDevice::Tick(
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
-FDeprecatedWindowsStylusInputInterface::FStylusInputEventHandler::FStylusInputEventHandler(UE::StylusInput::IStylusInputInstance* Instance, TArray<FDeprecatedStylusInputDevice>& TabletContexts)
-	: Instance(Instance)
-	, TabletContexts(TabletContexts)
+FDeprecatedWindowsStylusInputInterface::FStylusInputEventHandler::FStylusInputEventHandler(TArray<FDeprecatedStylusInputDevice>& TabletContexts)
+	: TabletContexts(TabletContexts)
 {
 }
 
-void FDeprecatedWindowsStylusInputInterface::FStylusInputEventHandler::OnPacket(const UE::StylusInput::FStylusInputPacket& Packet)
+void FDeprecatedWindowsStylusInputInterface::FStylusInputEventHandler::OnPacket(const UE::StylusInput::FStylusInputPacket& Packet,
+                                                                                UE::StylusInput::IStylusInputInstance* Instance)
 {
-	FDeprecatedStylusInputDevice* TabletContext = GetTabletContext(Packet.TabletContextID);
+	FDeprecatedStylusInputDevice* TabletContext = GetTabletContext(Packet.TabletContextID, Instance);
 
 	TabletContext->LastPacket = Packet;
 	TabletContext->SetDirty();
 }
 
-void FDeprecatedWindowsStylusInputInterface::FStylusInputEventHandler::OnDebugEvent(const FString& Message)
+void FDeprecatedWindowsStylusInputInterface::FStylusInputEventHandler::OnDebugEvent(const FString& Message, UE::StylusInput::IStylusInputInstance* Instance)
 {
-	// UE_LOG(LogStylusInput, Warning, TEXT("%s"), *Message);
 }
 
 FDeprecatedWindowsStylusInputInterface::FDeprecatedStylusInputDevice* FDeprecatedWindowsStylusInputInterface::FStylusInputEventHandler::GetTabletContext(
-	uint32 TabletContextId)
+	uint32 TabletContextId, UE::StylusInput::IStylusInputInstance* Instance)
 {
 	FDeprecatedStylusInputDevice* TabletContext = Algo::FindByPredicate(
 		TabletContexts, [TabletContextId](const FDeprecatedStylusInputDevice& Value)
@@ -193,7 +192,7 @@ FDeprecatedWindowsStylusInputInterface::FDeprecatedStylusInputDevice* FDeprecate
 FDeprecatedWindowsStylusInputInterface::FStylusInputInstanceWrapper::FStylusInputInstanceWrapper(SWindow* Window,
                                                                                                  TArray<FDeprecatedStylusInputDevice>& TabletContexts)
 	: Instance(UE::StylusInput::CreateInstance(*Window))
-	, EventHandler(Instance, TabletContexts)
+	, EventHandler(TabletContexts)
 {
 	if (Instance)
 	{

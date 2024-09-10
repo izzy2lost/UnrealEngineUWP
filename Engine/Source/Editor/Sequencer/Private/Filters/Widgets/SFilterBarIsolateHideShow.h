@@ -21,14 +21,17 @@ public:
 	void Construct(const FArguments& InArgs, const TSharedRef<FSequencerFilterBar>& InFilterBar);
 
 protected:
+	TSharedRef<SWidget> ConstructLayeredImage(const FName InBaseImageName, const TAttribute<bool>& InShowBadge);
+	
 	bool AreFiltersMuted() const;
 
 	FReply HandleHideTracksClick();
 	FReply HandleIsolateTracksClick();
 	FReply HandleShowAllTracksClick();
 
-	FSlateColor GetHideTracksButtonTextColor() const;
-	FSlateColor GetIsolateTracksButtonTextColor() const;
+	bool HasIsolatedTracks() const;
+	bool HasHiddenTracks() const;
+
 	FSlateColor GetShowAllTracksButtonTextColor() const;
 
 	FText GetHideTracksButtonTooltipText() const;

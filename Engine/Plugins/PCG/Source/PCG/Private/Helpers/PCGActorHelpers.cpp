@@ -41,7 +41,19 @@ namespace UE::PCGActorHelpers::Local
 
 #endif
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 UInstancedStaticMeshComponent* UPCGActorHelpers::GetOrCreateISMC(AActor* InTargetActor, UPCGComponent* InSourceComponent, uint64 SettingsUID, const FPCGISMCBuilderParameters& InParams)
+{
+	return GetOrCreateISMC(InTargetActor, InSourceComponent, SettingsUID, FPCGISMComponentBuilderParams(InParams));
+}
+
+UPCGManagedISMComponent* UPCGActorHelpers::GetOrCreateManagedISMC(AActor* InTargetActor, UPCGComponent* InSourceComponent, uint64 SettingsUID, const FPCGISMCBuilderParameters& InParams)
+{
+	return GetOrCreateManagedISMC(InTargetActor, InSourceComponent, SettingsUID, FPCGISMComponentBuilderParams(InParams));
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+UInstancedStaticMeshComponent* UPCGActorHelpers::GetOrCreateISMC(AActor* InTargetActor, UPCGComponent* InSourceComponent, uint64 SettingsUID, const FPCGISMComponentBuilderParams& InParams)
 {
 	UPCGManagedISMComponent* MISMC = GetOrCreateManagedISMC(InTargetActor, InSourceComponent, SettingsUID, InParams);
 	if (MISMC)
@@ -54,19 +66,33 @@ UInstancedStaticMeshComponent* UPCGActorHelpers::GetOrCreateISMC(AActor* InTarge
 	}
 }
 
-UPCGManagedISMComponent* UPCGActorHelpers::GetOrCreateManagedISMC(AActor* InTargetActor, UPCGComponent* InSourceComponent, uint64 SettingsUID, const FPCGISMCBuilderParameters& InParams)
+UPCGManagedISMComponent* UPCGActorHelpers::GetOrCreateManagedISMC(AActor* InTargetActor, UPCGComponent* InSourceComponent, uint64 SettingsUID, const FPCGISMComponentBuilderParams& InParams)
 {
 	check(InTargetActor && InSourceComponent);
 
-	const UStaticMesh* StaticMesh = InParams.Descriptor.StaticMesh;
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGActorHelpers::GetOrCreateManagedISMC);
+
+	FISMComponentDescriptor Descriptor(InParams.Descriptor);
+
+	const UStaticMesh* StaticMesh = Descriptor.StaticMesh;
 	if (!StaticMesh)
 	{
 		return nullptr;
 	}
 
-	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGActorHelpers::GetOrCreateManagedISMC);
-
-	FISMComponentDescriptor Descriptor = InParams.Descriptor;
+	auto AddTagsToComponent = [InSourceComponent, &InParams](UInstancedStaticMeshComponent* ISMC)
+	{
+		if(ISMC)
+		{
+			ISMC->ComponentTags.AddUnique(PCGHelpers::DefaultPCGTag);
+			ISMC->ComponentTags.AddUnique(InSourceComponent->GetFName());
+			
+			for (FName ComponentTag : InParams.Descriptor.ComponentTags)
+			{
+				ISMC->ComponentTags.AddUnique(ComponentTag);
+			}
+		}
+	};
 
 	// If the component class is invalid, default to HISM.
 	// TODO: should this be part of the descriptor changes?
@@ -128,6 +154,7 @@ UPCGManagedISMComponent* UPCGActorHelpers::GetOrCreateManagedISMC(AActor* InTarg
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(UPCGActorHelpers::GetOrCreateManagedISMC::MarkAsUsed);
 			MatchingResource->MarkAsUsed();
+			AddTagsToComponent(Cast<UInstancedStaticMeshComponent>(MatchingResource->GeneratedComponent.Get()));
 
 			return MatchingResource;
 		}
@@ -160,8 +187,8 @@ UPCGManagedISMComponent* UPCGActorHelpers::GetOrCreateManagedISMC(AActor* InTarg
 	InTargetActor->AddInstanceComponent(ISMC);
 
 	ISMC->AttachToComponent(InTargetActor->GetRootComponent(), FAttachmentTransformRules(EAttachmentRule::KeepRelative, EAttachmentRule::KeepWorld, EAttachmentRule::KeepWorld, false));
-	ISMC->ComponentTags.Add(InSourceComponent->GetFName());
-	ISMC->ComponentTags.Add(PCGHelpers::DefaultPCGTag);
+	// Implementation note: Because we've used the FISMComponentDescriptor here (Descriptor vs InParams.Descriptor) which takes care of the loading, we still need to apply tags manually.
+	AddTagsToComponent(ISMC);
 
 	// Create managed resource on source component
 	UPCGManagedISMComponent* Resource = NewObject<UPCGManagedISMComponent>(InSourceComponent);

@@ -610,14 +610,14 @@ void FSkeletalMeshObjectNanite::QueuePendingRayTracingGeometryUpdate(FRHICommand
 	if (IsRayTracingEnabled() && bSupportRayTracing)
 	{
 		// TODO: Support WPO
-		const bool bAnySegmentUsesWorldPositionOffset = false;
+		//const bool bAnySegmentUsesWorldPositionOffset = false;
 
 		if (!RayTracingGeometry.IsValid() || RayTracingGeometry.IsEvicted())
 		{
 			// Only create RHI object but enqueue actual BLAS creation so they can be accumulated
 			RayTracingGeometry.CreateRayTracingGeometry(RHICmdList, ERTAccelerationStructureBuildPriority::Skip);
 
-			bRayTracingGeometryRequiresUpdate = !bAnySegmentUsesWorldPositionOffset && RayTracingGeometry.IsValid();
+			bRayTracingGeometryRequiresUpdate = /*!bAnySegmentUsesWorldPositionOffset &&*/ RayTracingGeometry.IsValid();
 		}
 
 		if (bRayTracingGeometryRequiresUpdate)

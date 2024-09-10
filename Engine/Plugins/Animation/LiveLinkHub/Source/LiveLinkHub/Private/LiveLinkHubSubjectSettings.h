@@ -33,6 +33,10 @@ public:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	//~ End UObject interface
 
+private:
+	/** Returns whether a new name candidate for the outbound name is valid. */
+	bool ValidateOutboundName(const FString& InOutboundNameCandidate) const;
+
 public:
 	/** Name of this subject. */
 	UPROPERTY(VisibleAnywhere, Category = "LiveLink")

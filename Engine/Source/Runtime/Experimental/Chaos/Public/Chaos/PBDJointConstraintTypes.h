@@ -211,7 +211,7 @@ namespace Chaos
 
 		CHAOS_API FPBDJointSolverSettings(const FPBDJointSolverSettings& InSettings);
 
-		CHAOS_API FPBDJointSolverSettings operator=(const FPBDJointSolverSettings Other);
+		CHAOS_API FPBDJointSolverSettings& operator=(const FPBDJointSolverSettings& Other);
 
 		// Tolerances
 		FReal SwingTwistAngleTolerance;

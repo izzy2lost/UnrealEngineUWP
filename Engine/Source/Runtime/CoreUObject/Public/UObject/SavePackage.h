@@ -40,6 +40,7 @@ class FOutputDevice;
 class FPackagePath;
 class FSavePackageContext;
 class IPackageWriter;
+namespace UE { class FLogRecord; }
 struct FObjectSaveContextData;
 
 /**
@@ -320,8 +321,11 @@ namespace UE::SavePackageUtilities
 
 	COREUOBJECT_API void StartSavingEDLCookInfoForVerification();
 	using FEDLMessageCallback = TFunction<void(ELogVerbosity::Type, FStringView)>;
+	using FEDLLogRecordCallback = TFunction<void(UE::FLogRecord&& Record)>;
 	COREUOBJECT_API void VerifyEDLCookInfo(bool bFullReferencesExpected = true);
+	UE_DEPRECATED(5.5, "Use version that takes FEDLLogRecordCallback")
 	COREUOBJECT_API void VerifyEDLCookInfo(const FEDLMessageCallback& MessageCallback, bool bFullReferencesExpected = true);
+	COREUOBJECT_API void VerifyEDLCookInfo(const FEDLLogRecordCallback& MessageCallback, bool bFullReferencesExpected = true);
 	COREUOBJECT_API void EDLCookInfoAddIterativelySkippedPackage(FName LongPackageName);
 	COREUOBJECT_API void EDLCookInfoMoveToCompactBinaryAndClear(FCbWriter& Writer, bool& bOutHasData);
 	COREUOBJECT_API void EDLCookInfoMoveToCompactBinaryAndClear(FCbWriter& Writer, bool& bOutHasData, FName PackageName);

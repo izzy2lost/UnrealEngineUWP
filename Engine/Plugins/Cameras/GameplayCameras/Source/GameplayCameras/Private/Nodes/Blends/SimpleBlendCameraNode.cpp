@@ -29,7 +29,10 @@ void FSimpleBlendCameraNodeEvaluator::OnRun(const FCameraNodeEvaluationParams& P
 void FSimpleBlendCameraNodeEvaluator::OnBlendParameters(const FCameraNodePreBlendParams& Params, FCameraNodePreBlendResult& OutResult)
 {
 	const FCameraVariableTable& ChildVariableTable(Params.ChildVariableTable);
-	OutResult.VariableTable.Lerp(ChildVariableTable, ECameraVariableTableFilter::Input, BlendFactor);
+	OutResult.VariableTable.Lerp(ChildVariableTable, ECameraVariableTableFilter::Input | Params.ExtraVariableTableFilter, BlendFactor);
+
+	OutResult.bIsBlendFull = BlendFactor >= 1.f;
+	OutResult.bIsBlendFinished = bIsBlendFinished;
 }
 
 void FSimpleBlendCameraNodeEvaluator::OnBlendResults(const FCameraNodeBlendParams& Params, FCameraNodeBlendResult& OutResult)
@@ -37,19 +40,7 @@ void FSimpleBlendCameraNodeEvaluator::OnBlendResults(const FCameraNodeBlendParam
 	const FCameraNodeEvaluationResult& ChildResult(Params.ChildResult);
 	FCameraNodeEvaluationResult& BlendedResult(OutResult.BlendedResult);
 
-	// Blend all properties.
-	BlendedResult.CameraPose.LerpAll(ChildResult.CameraPose, BlendFactor);
-	BlendedResult.VariableTable.LerpAll(ChildResult.VariableTable, BlendFactor);
-
-	// Merge/blend the joints.
-	BlendedResult.CameraRigJoints.LerpAll(ChildResult.CameraRigJoints, BlendFactor);
-
-	// If we have even a fraction of a camera cut, we need to make the
-	// whole result into a camera cut.
-	if (BlendFactor > 0.f && ChildResult.bIsCameraCut)
-	{
-		BlendedResult.bIsCameraCut = true;
-	}
+	BlendedResult.LerpAll(ChildResult, BlendFactor);
 
 	OutResult.bIsBlendFull = BlendFactor >= 1.f;
 	OutResult.bIsBlendFinished = bIsBlendFinished;

@@ -54,6 +54,15 @@ namespace UE::DMX::Private
 		, AnalyticsProvider("ControlConsoleEditor")
 	{}
 
+	FDMXControlConsoleEditorToolkit::~FDMXControlConsoleEditorToolkit()
+	{
+		UDMXControlConsoleData* ControlConsoleData = ControlConsole ? ControlConsole->GetControlConsoleData() : nullptr;
+		if (ControlConsoleData && ControlConsoleData->IsSendingDMX() && bStopSendingDMXOnDestruct)
+		{
+			ControlConsoleData->StopSendingDMX();
+		}
+	}
+
 	void FDMXControlConsoleEditorToolkit::InitControlConsoleEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, UDMXControlConsole* InControlConsole)
 	{
 		checkf(InControlConsole, TEXT("Invalid control console, can't initialize toolkit correctly."));
@@ -301,8 +310,9 @@ namespace UE::DMX::Private
 					Fader->Modify();
 				}
 
-				ElementController->Modify();
+				ElementController->PreEditChange(UDMXControlConsoleElementController::StaticClass()->FindPropertyByName(UDMXControlConsoleElementController::GetValuePropertyName()));
 				ElementController->ResetToDefault();
+				ElementController->PostEditChange();
 			}
 		}
 
@@ -480,10 +490,13 @@ namespace UE::DMX::Private
 
 	void FDMXControlConsoleEditorToolkit::InitializeInternal(const EToolkitMode::Type Mode, const TSharedPtr<class IToolkitHost>& InitToolkitHost, const FGuid& MessageLogGuid)
 	{
-		if (!ControlConsole)
+		const UDMXControlConsoleData* ControlConsoleData = ControlConsole ? ControlConsole->GetControlConsoleData() : nullptr;
+		if (!ControlConsole || !ControlConsoleData)
 		{
 			return;
 		}
+
+		bStopSendingDMXOnDestruct = !ControlConsoleData->IsSendingDMX();
 
 		ExtendToolbar();
 		GenerateInternalViews();

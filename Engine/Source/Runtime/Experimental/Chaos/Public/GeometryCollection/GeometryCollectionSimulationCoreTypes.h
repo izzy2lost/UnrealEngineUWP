@@ -217,6 +217,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		, bOptimizeConvexes(true)
 		, bUseSimplicialsWhenAvailable(false)
 		, bUseDamagePropagation(false)
+		, PositionSolverIterations(8)
+		, VelocitySolverIterations(1)
+		, ProjectionSolverIterations(1)
 		, BreakDamagePropagationFactor(1.0f)
 		, ShockDamagePropagationFactor(0.0f)
 		, LinearDamping(0.01f)
@@ -291,6 +294,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		, bOptimizeConvexes(Other.bOptimizeConvexes)
 		, bUseSimplicialsWhenAvailable(Other.bUseSimplicialsWhenAvailable)
 		, bUseDamagePropagation(Other.bUseDamagePropagation)
+		, PositionSolverIterations(Other.PositionSolverIterations)
+		, VelocitySolverIterations(Other.VelocitySolverIterations)
+		, ProjectionSolverIterations(Other.ProjectionSolverIterations)
 		, BreakDamagePropagationFactor(Other.BreakDamagePropagationFactor)
 		, ShockDamagePropagationFactor(Other.ShockDamagePropagationFactor)
 		, LinearDamping(Other.LinearDamping)
@@ -394,13 +400,17 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	bool UseInertiaConditioning : 1;
 	bool UseCCD : 1;
 	bool UseMACD : 1;
-
 	bool bEnableStrainOnCollision : 1;
 	bool bUseStaticMeshCollisionForTraces : 1;
 	bool bOptimizeConvexes : 1;
 	bool bUseSimplicialsWhenAvailable : 1;
 
 	bool bUseDamagePropagation : 1;
+
+	uint8 PositionSolverIterations;
+	uint8 VelocitySolverIterations;
+	uint8 ProjectionSolverIterations;
+
 	float BreakDamagePropagationFactor;
 	float ShockDamagePropagationFactor;
 

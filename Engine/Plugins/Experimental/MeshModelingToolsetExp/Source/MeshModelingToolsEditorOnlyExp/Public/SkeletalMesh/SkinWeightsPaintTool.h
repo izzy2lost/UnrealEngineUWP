@@ -446,9 +446,6 @@ public:
 	FName SourceSkinWeightProfile = FSkeletalMeshAttributesShared::DefaultSkinWeightProfileName;
 	
 	UPROPERTY(EditAnywhere, Transient, Category = "WeightTransfer|Preview")
-	bool bShowSourcePreview = false;
-	
-	UPROPERTY(EditAnywhere, Transient, Category = "WeightTransfer|Preview")
 	FTransform SourcePreviewOffset = FTransform::Identity;
 	
 private:

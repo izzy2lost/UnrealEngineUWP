@@ -14,8 +14,8 @@ namespace Horde.Commands.Vcs
 		[CommandLine("-Count")]
 		public int Count { get; set; } = 20;
 
-		public VcsLog(IStorageClientFactory storageClientFactory)
-			: base(storageClientFactory)
+		public VcsLog(IStorageClient storageClient)
+			: base(storageClient)
 		{
 		}
 
@@ -25,7 +25,7 @@ namespace Horde.Commands.Vcs
 
 			WorkspaceState workspaceState = await ReadStateAsync(rootDir);
 
-			IStorageClient store = CreateStorageClient();
+			IStorageNamespace store = GetStorageNamespace();
 
 			using MemoryCache cache = new MemoryCache(new MemoryCacheOptions());
 

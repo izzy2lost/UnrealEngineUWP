@@ -20,18 +20,7 @@ static const int32 RadiusOffset = 2;
 static const int32 ThicknessOffset = 3;
 
 struct FNDIHairStrandsData;
-
-struct FNDIHairStrandsInfo
-{
-	int32  GroupIndex = 0;
-	int32  LODIndex = 0;
-	uint32 NumControlPoints = 0;
-	uint32 NumCurves = 0;
-	FTransform LocalToWorld = FTransform::Identity;
-	bool bHasValidResources = false;
-
-	bool IsValid() const { return bHasValidResources; }
-};
+struct FNDIHairStrandsInfo;
 
 FHairGroupInstance* GetHairGroupInstance(UGroomComponent* In, int32 InGroupIndex);
 
@@ -42,9 +31,6 @@ struct FNDIHairStrandsBuffer : public FRenderResource
 	void Initialize(
 		const FNDIHairStrandsInfo& In,
 		const TStaticArray<float, 32 * NumScales>& InParamsScale);
-
-	/** Set the asset that will be used to affect the buffer */
-	void Update();
 
 	/** Transfer CPU datas to GPU */
 	void Transfer(FRDGBuilder& GraphBuilder, const TStaticArray<float, 32 * NumScales>& InParamsScale);
@@ -76,8 +62,8 @@ struct FNDIHairStrandsBuffer : public FRenderResource
 	/** Mesh LOD that is being used for the root resources */
 	int32 CurrentMeshLOD = INDEX_NONE;
 
-	/** Desc of the group */
-	FNDIHairStrandsInfo InfoData;
+	/** True if the internal resources (BoundingBoxBuffer/ParamsScaleBuffer) needs to be built */
+	bool bNeedResouces = false;
 
 	// For debug only
 	//FRHIGPUBufferReadback* ReadbackBuffer = nullptr;
@@ -289,13 +275,13 @@ struct FNDIHairStrandsData
 	bool ForceReset;
 
 	/** Strands Gpu buffer */
-	FNDIHairStrandsBuffer* HairStrandsBuffer;
+	FNDIHairStrandsBuffer* HairStrandsBuffer = nullptr;
 
 	/** Hair group index */
 	int32 HairGroupIndex = -1;
 
 	/** Hair group instance */
-	FHairGroupInstance* HairGroupInstance;
+	FHairGroupInstance* HairGroupInstance = nullptr;
 
 	/** Source component of the hair group instance */
 	TWeakObjectPtr<class UGroomComponent> HairGroupInstSource;

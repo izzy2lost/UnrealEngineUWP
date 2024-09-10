@@ -71,7 +71,7 @@ void UTedsObjectReinstancingManager::HandleOnObjectsReinstanced(
 {
 	using namespace UE::Editor::DataStorage;
 
-	ITypedElementDataStorageInterface* Interface = DataStorage;
+	IEditorDataStorageProvider* Interface = DataStorage;
 	for (FCoreUObjectDelegates::FReplacementObjectMap::TConstIterator Iter = ObjectReplacementMap.CreateConstIterator(); Iter; ++Iter)
 	{
 		const void* PreDeleteObject = Iter->Key;

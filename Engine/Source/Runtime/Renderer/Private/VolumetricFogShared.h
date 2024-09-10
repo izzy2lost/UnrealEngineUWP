@@ -20,6 +20,8 @@ END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
 extern FVector3f VolumetricFogTemporalRandom(uint32 FrameNumber);
 
+float GetVolumetricFogLightSoftFading();
+
 struct FVolumetricFogIntegrationParameterData
 {
 	FVolumetricFogIntegrationParameterData() :

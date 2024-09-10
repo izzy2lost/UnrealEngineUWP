@@ -5,6 +5,7 @@
 #include "Components/ChaosVDSolverJointConstraintDataComponent.h"
 #include "Widgets/SCompoundWidget.h"
 
+class SChaosVDMainTab;
 struct FChaosVDSolverDataSelectionHandle;
 struct FChaosVDJointConstraintSelectionHandle;
 class FChaosVDScene;
@@ -39,7 +40,7 @@ public:
 	virtual ~SChaosVDConstraintDataInspector() override;
 
 	/** Constructs this widget with InArgs */
-	void Construct(const FArguments& InArgs, const TWeakPtr<FChaosVDScene>& InScenePtr);
+	void Construct(const FArguments& InArgs, const TWeakPtr<FChaosVDScene>& InScenePtr, const TSharedRef<SChaosVDMainTab>& InMainTab);
 
 	/** Sets a new query data to be inspected */
 	virtual void SetConstraintDataToInspect(const TSharedPtr<FChaosVDSolverDataSelectionHandle>& InDataSelectionHandle);
@@ -54,7 +55,7 @@ protected:
 	virtual FText GetParticleName(EChaosVDParticlePairIndex ParticleSlot) const;
 	virtual FText GetParticleName(const EChaosVDParticlePairIndex ParticleSlot, const TSharedPtr<FChaosVDSolverDataSelectionHandle>& InSelectionHandle) const;
 
-	TSharedPtr<IStructureDetailsView> CreateDataDetailsView();
+	TSharedPtr<IStructureDetailsView> CreateDataDetailsView() const;
 
 	TSharedRef<SWidget> GenerateParticleSelectorButtons();
 	
@@ -90,5 +91,7 @@ protected:
 
 	TSharedPtr<FReadOnlyCopyStructOnScope> DataBeingInspectedCopy;
 
-	bool bIsUpToDate = true;;
+	bool bIsUpToDate = true;
+
+	TWeakPtr<SChaosVDMainTab> MainTabWeakPtr;
 };

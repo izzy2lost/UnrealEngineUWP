@@ -149,6 +149,7 @@ namespace HordeServer.Server
 
 		/// <summary>
 		/// Creates a new agent
+		/// Assumes user has permission to create new agents as it skips the enrollment process
 		/// </summary>
 		/// <param name="request">Request to create a new agent</param>
 		/// <param name="context">Context for the RPC call</param>
@@ -162,7 +163,9 @@ namespace HordeServer.Server
 				throw new StructuredRpcException(StatusCode.PermissionDenied, "User is not authenticated to create new agents");
 			}
 
-			IAgent agent = await _agentService.CreateAgentAsync(new AgentId(request.Name), request.Ephemeral, "", context.CancellationToken);
+			// If the agent/user has permission to create an agent, it's assumed the agent is also trusted
+			CreateAgentOptions options = new(new AgentId(request.Name), request.Ephemeral, "", [$"{KnownPropertyNames.Trusted}=true"]);
+			IAgent agent = await _agentService.CreateAgentAsync(options, context.CancellationToken);
 
 			List<AclClaimConfig> claims = new List<AclClaimConfig>();
 			claims.Add(new AclClaimConfig(HordeClaimTypes.Agent, agent.Id.ToString()));
@@ -188,6 +191,7 @@ namespace HordeServer.Server
 			}
 
 			AgentId agentId = new AgentId(request.Id);
+			_logger.LogInformation("Attempting to create session for agent {AgentId}", agentId);
 			using IDisposable? scope = _logger.BeginScope("CreateSession({AgentId})", agentId.ToString());
 
 			ComputeConfig computeConfig = _computeConfig.Value;
@@ -201,7 +205,7 @@ namespace HordeServer.Server
 					throw new StructuredRpcException(StatusCode.PermissionDenied, "User is not authenticated to create new agents");
 				}
 
-				agent = await _agentService.CreateAgentAsync(agentId, false, "");
+				agent = await _agentService.CreateAgentAsync(new CreateAgentOptions(agentId, false, ""));
 			}
 
 			// Check the enrollment key in the user token matches

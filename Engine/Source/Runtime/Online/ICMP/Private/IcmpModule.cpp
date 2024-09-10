@@ -17,7 +17,7 @@ void FIcmpModule::ShutdownModule()
 }
 
 
-bool FIcmpModule::Exec(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar)
+bool FIcmpModule::Exec_Dev(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar)
 {
 	// Ignore any execs that don't start with Icmp
 	if (FParse::Command(&Cmd, TEXT("Icmp")))

@@ -686,12 +686,12 @@ TSharedPtr<FNiagaraEmitterHandleViewModel> FNiagaraSystemViewModel::AddEmitter(c
 	return AddEmitter(*VersionedEmitter.Emitter, VersionedEmitter.Version);
 }
 
-TSharedPtr<FNiagaraEmitterHandleViewModel> FNiagaraSystemViewModel::AddDefaultEmptyEmitter()
+TSharedPtr<FNiagaraEmitterHandleViewModel> FNiagaraSystemViewModel::AddMinimalEmitter()
 {
-	FSoftObjectPath DefaultEmptyEmitter = GetDefault<UNiagaraEditorSettings>()->DefaultEmptyEmitter;
-	if(DefaultEmptyEmitter.IsValid() && DefaultEmptyEmitter.IsAsset())
+	FSoftObjectPath MinimalEmitter = GetDefault<UNiagaraEditorSettings>()->DefaultEmptyEmitter;
+	if(MinimalEmitter.IsValid() && MinimalEmitter.IsAsset())
 	{
-		if(UNiagaraEmitter* Emitter = Cast<UNiagaraEmitter>(DefaultEmptyEmitter.TryLoad()))
+		if(UNiagaraEmitter* Emitter = Cast<UNiagaraEmitter>(MinimalEmitter.TryLoad()))
 		{
 			return AddEmitterFromAssetData(FAssetData(Emitter));
 		}
@@ -818,13 +818,13 @@ void FNiagaraSystemViewModel::DuplicateEmitters(TArray<FEmitterHandleToDuplicate
 					FNiagaraVariable NewUserParameter = FNiagaraVariable(UserParameter.GetType(), FNiagaraUtilities::GetUniqueName(UserParameter.GetName(), ExistingUserParameterNames));
 					TargetParameterStore.AddParameter(NewUserParameter);
 					OriginalSystem->GetExposedParameters().CopyParameterData(TargetParameterStore, UserParameter, NewUserParameter);
-					FNiagaraEditorUtilities::ReplaceUserParameterReferences(EmitterHandleViewModel->GetEmitterViewModel(), UserParameter, NewUserParameter);
+					FNiagaraEditorUtilities::UserParameters::ReplaceUserParameterReferences(EmitterHandleViewModel->GetEmitterViewModel(), UserParameter, NewUserParameter);
 					RenamedUserParameters.Add(UserParameter, NewUserParameter);
 				}
 				else
 				{
 					FNiagaraVariable RenamedUserParameter = RenamedUserParameters[UserParameter];
-					FNiagaraEditorUtilities::ReplaceUserParameterReferences(EmitterHandleViewModel->GetEmitterViewModel(), UserParameter, RenamedUserParameter);
+					FNiagaraEditorUtilities::UserParameters::ReplaceUserParameterReferences(EmitterHandleViewModel->GetEmitterViewModel(), UserParameter, RenamedUserParameter);
 				}
 			}
 			// if the parameter doesn't exist at all, we just add it, copy the data and we're done
@@ -1409,7 +1409,7 @@ bool FNiagaraSystemViewModel::RenameParameter(const FNiagaraVariable TargetParam
 		NewVariable.SetName(NewName);
 		for(TSharedPtr<FNiagaraEmitterHandleViewModel> EmitterHandleViewModel : GetEmitterHandleViewModels())
 		{
-			FNiagaraEditorUtilities::ReplaceUserParameterReferences(EmitterHandleViewModel->GetEmitterViewModel(), TargetParameter, NewVariable);
+			FNiagaraEditorUtilities::UserParameters::ReplaceUserParameterReferences(EmitterHandleViewModel->GetEmitterViewModel(), TargetParameter, NewVariable);
 		}
 		bExposedParametersRename = true;
 	}

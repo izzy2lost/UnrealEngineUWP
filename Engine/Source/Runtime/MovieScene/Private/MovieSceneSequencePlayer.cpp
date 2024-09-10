@@ -802,6 +802,16 @@ void UMovieSceneSequencePlayer::SetPlayRate(float PlayRate)
 	PlaybackSettings.PlayRate = PlayRate;
 }
 
+bool UMovieSceneSequencePlayer::GetHideHud() const
+{
+	return PlaybackSettings.bHideHud;
+}
+
+void UMovieSceneSequencePlayer::SetHideHud(bool HideHud)
+{
+	PlaybackSettings.bHideHud = HideHud;
+}
+
 FFrameTime UMovieSceneSequencePlayer::GetLastValidTime() const
 {
 	if (DurationFrames > 0)

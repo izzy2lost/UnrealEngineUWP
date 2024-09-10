@@ -411,7 +411,7 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <summary>
-		/// Creates a new HTTP storage client
+		/// Creates a new HTTP storage backend
 		/// </summary>
 		/// <param name="basePath">Base path for all requests</param>
 		/// <param name="accessToken">Custom access token to use for requests</param>
@@ -440,7 +440,7 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <summary>
-		/// Creates a new HTTP storage client
+		/// Creates a new HTTP storage backend
 		/// </summary>
 		/// <param name="namespaceId">Namespace to create a client for</param>
 		/// <param name="accessToken">Custom access token to use for requests</param>

@@ -125,7 +125,8 @@ void UMenuAnchor::Open(bool bFocusMenu)
 {
 	if ( MyMenuAnchor.IsValid() && !MyMenuAnchor->IsOpen() )
 	{
-		MyMenuAnchor->SetIsOpen(true, bFocusMenu);
+		const int32 Index = GetOwningLocalPlayer() ? GetOwningLocalPlayer()->GetLocalPlayerIndex() : 0;
+		MyMenuAnchor->SetIsOpen(true, bFocusMenu, Index);
 	}
 }
 
@@ -133,7 +134,8 @@ void UMenuAnchor::Close()
 {
 	if ( MyMenuAnchor.IsValid() )
 	{
-		return MyMenuAnchor->SetIsOpen(false, false);
+		const int32 Index = GetOwningLocalPlayer() ? GetOwningLocalPlayer()->GetLocalPlayerIndex() : 0;
+		return MyMenuAnchor->SetIsOpen(false, false, Index);
 	}
 }
 

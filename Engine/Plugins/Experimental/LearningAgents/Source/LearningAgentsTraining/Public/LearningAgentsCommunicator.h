@@ -32,10 +32,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LearningAgents")
 	FString TaskName = TEXT("Training");
 
-	/** Number of processes to use for multi-processed experience gathering. */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "1", UIMin = "1"))
-	int32 ProcessNum = 1;
-
 	/** Time in seconds to wait for the training process before timing out. */
 	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", UIMin = "0.0"))
 	float Timeout = 10.0f;

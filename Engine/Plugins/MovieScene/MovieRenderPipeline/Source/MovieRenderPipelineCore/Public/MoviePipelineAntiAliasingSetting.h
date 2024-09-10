@@ -25,15 +25,16 @@ public:
 	{
 	}
 
-public:
 #if WITH_EDITOR
 	virtual FText GetDisplayText() const override { return NSLOCTEXT("MovieRenderPipeline", "AntiAliasingSettingDisplayName", "Anti-aliasing"); }
 #endif
+
 protected:
 	virtual bool IsValidOnShots() const override { return true; }
 	virtual bool IsValidOnPrimary() const override { return true; }
 	virtual void ValidateStateImpl() override;
 	virtual void GetFormatArguments(FMoviePipelineFormatArgs& InOutFormatArgs) const override;
+	virtual void UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const override;
 
 public:
 

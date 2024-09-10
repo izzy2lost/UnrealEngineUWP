@@ -122,15 +122,6 @@
 #include "EditorModeManager.h"
 #include "UnrealWidget.h"
 
-// Stylus support is currently disabled due to issues with the stylus plugin
-// We are leaving the code in this cpp file, defined out, so that it is easier to bring back if/when the stylus plugin is improved.
-#define ENABLE_STYLUS_SUPPORT 0
-
-#if ENABLE_STYLUS_SUPPORT 
-#include "IStylusState.h"
-#include "IStylusInputModule.h"
-#endif
-
 #include "LevelEditor.h"
 #include "SLevelViewport.h"
 #include "Application/ThrottleManager.h"
@@ -288,101 +279,6 @@ void UModelingToolsEditorMode::Tick(FEditorViewportClient* ViewportClient, float
 	}
 }
 
-// Note: Stylus support is currently non-functioning; the code to enable it is left here as reference in case it is brought back
-#if ENABLE_STYLUS_SUPPORT
-//
-// FStylusStateTracker registers itself as a listener for stylus events and implements
-// the IToolStylusStateProviderAPI interface, which allows MeshSurfacePointTool implementations
- // to query for the pen pressure.
-//
-// This is kind of a hack. Unfortunately the current Stylus module is a Plugin so it
-// cannot be used in the base ToolsFramework, and we need this in the Mode as a workaround.
-//
-class FStylusStateTracker : public IStylusMessageHandler, public IToolStylusStateProviderAPI
-{
-public:
-	const IStylusInputDevice* ActiveDevice = nullptr;
-	int32 ActiveDeviceIndex = -1;
-
-	bool bPenDown = false;
-	float ActivePressure = 1.0;
-
-	FStylusStateTracker()
-	{
-		UStylusInputSubsystem* StylusSubsystem = GEditor->GetEditorSubsystem<UStylusInputSubsystem>();
-		StylusSubsystem->AddMessageHandler(*this);
-
-		ActiveDevice = FindFirstPenDevice(StylusSubsystem, ActiveDeviceIndex);
-		bPenDown = false;
-	}
-
-	virtual ~FStylusStateTracker()
-	{
-		if (GEditor)
-		{
-			if (UStylusInputSubsystem* StylusSubsystem = GEditor->GetEditorSubsystem<UStylusInputSubsystem>())
-			{
-				StylusSubsystem->RemoveMessageHandler(*this);
-			}
-		}
-	}
-
-	virtual void OnStylusStateChanged(const FStylusState& NewState, int32 StylusIndex) override
-	{
-		if (ActiveDevice == nullptr)
-		{
-			UStylusInputSubsystem* StylusSubsystem = GEditor->GetEditorSubsystem<UStylusInputSubsystem>();
-			ActiveDevice = FindFirstPenDevice(StylusSubsystem, ActiveDeviceIndex);
-			bPenDown = false;
-		}
-		if (ActiveDevice != nullptr && ActiveDeviceIndex == StylusIndex)
-		{
-			bPenDown = NewState.IsStylusDown();
-			ActivePressure = NewState.GetPressure();
-		}
-	}
-
-
-	bool HaveActiveStylusState() const
-	{
-		return ActiveDevice != nullptr && bPenDown;
-	}
-
-	static const IStylusInputDevice* FindFirstPenDevice(const UStylusInputSubsystem* StylusSubsystem, int32& ActiveDeviceOut)
-	{
-		int32 NumDevices = StylusSubsystem->NumInputDevices();
-		for (int32 k = 0; k < NumDevices; ++k)
-		{
-			const IStylusInputDevice* Device = StylusSubsystem->GetInputDevice(k);
-			const TArray<EStylusInputType>& Inputs = Device->GetSupportedInputs();
-			for (EStylusInputType Input : Inputs)
-			{
-				if (Input == EStylusInputType::Pressure)
-				{
-					ActiveDeviceOut = k;
-					return Device;
-				}
-			}
-		}
-		return nullptr;
-	}
-
-
-
-	// IToolStylusStateProviderAPI implementation
-	virtual float GetCurrentPressure() const override
-	{
-		return (ActiveDevice != nullptr && bPenDown) ? ActivePressure : 1.0f;
-	}
-
-};
-#endif // ENABLE_STYLUS_SUPPORT
-
-
-
-
-
-
 void UModelingToolsEditorMode::Enter()
 {
 	UEdMode::Enter();
@@ -417,10 +313,12 @@ void UModelingToolsEditorMode::Enter()
 	GetInteractiveToolsContext()->OnRender.AddUObject(this, &UModelingToolsEditorMode::OnToolsContextRender);
 	GetInteractiveToolsContext()->OnDrawHUD.AddUObject(this, &UModelingToolsEditorMode::OnToolsContextDrawHUD);
 
-#if ENABLE_STYLUS_SUPPORT 
 	// register stylus event handler
-	StylusStateTracker = MakeUnique<FStylusStateTracker>();
-#endif
+	IToolStylusStateProviderAPI* StylusAPI = nullptr;
+	if (ensure(Toolkit.IsValid()))
+	{
+		StylusAPI = ((FModelingToolsEditorModeToolkit*)Toolkit.Get())->GetStylusStateProviderAPI();
+	}
 
 	// register gizmo helper
 	UE::TransformGizmoUtil::RegisterTransformGizmoContextObject(GetInteractiveToolsContext());
@@ -637,15 +535,11 @@ void UModelingToolsEditorMode::Enter()
 	//
 
 	auto MoveVerticesToolBuilder = NewObject<UMeshVertexSculptToolBuilder>();
-#if ENABLE_STYLUS_SUPPORT 
-	MoveVerticesToolBuilder->StylusAPI = StylusStateTracker.Get();
-#endif
+	MoveVerticesToolBuilder->StylusAPI = StylusAPI;
 	RegisterTool(ToolManagerCommands.BeginSculptMeshTool, TEXT("BeginSculptMeshTool"), MoveVerticesToolBuilder);
 
 	auto MeshGroupPaintToolBuilder = NewObject<UMeshGroupPaintToolBuilder>();
-#if ENABLE_STYLUS_SUPPORT 
-	MeshGroupPaintToolBuilder->StylusAPI = StylusStateTracker.Get();
-#endif
+	MeshGroupPaintToolBuilder->StylusAPI = StylusAPI;
 	RegisterTool(ToolManagerCommands.BeginMeshGroupPaintTool, TEXT("BeginMeshGroupPaintTool"), MeshGroupPaintToolBuilder);
 	RegisterTool(ToolManagerCommands.BeginMeshVertexPaintTool, TEXT("BeginMeshVertexPaintTool"), NewObject<UMeshVertexPaintToolBuilder>());
 
@@ -699,9 +593,7 @@ void UModelingToolsEditorMode::Enter()
 
 	auto DynaSculptToolBuilder = NewObject<UDynamicMeshSculptToolBuilder>();
 	DynaSculptToolBuilder->bEnableRemeshing = true;
-#if ENABLE_STYLUS_SUPPORT 
-	DynaSculptToolBuilder->StylusAPI = StylusStateTracker.Get();
-#endif
+	DynaSculptToolBuilder->StylusAPI = StylusAPI;
 	RegisterTool(ToolManagerCommands.BeginRemeshSculptMeshTool, TEXT("BeginRemeshSculptMeshTool"), DynaSculptToolBuilder);
 
 	RegisterTool(ToolManagerCommands.BeginRemeshMeshTool, TEXT("BeginRemeshMeshTool"), NewObject<URemeshMeshToolBuilder>());
@@ -1270,10 +1162,6 @@ void UModelingToolsEditorMode::Exit()
 
 		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MeshModelingMode.Exit"), Attributes);
 	}
-
-#if ENABLE_STYLUS_SUPPORT 
-	StylusStateTracker = nullptr;
-#endif
 
 	UModelingToolsHostCustomizationAPI::Deregister(GetInteractiveToolsContext());
 

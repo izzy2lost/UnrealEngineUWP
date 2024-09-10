@@ -10,7 +10,7 @@
 #include "../SplineMeshCommon.ush"
 #include "../MeshPaintTextureCommon.ush"
 
-#define NUM_VIRTUALTEXTURE_SAMPLES 0
+#define NUM_VIRTUALTEXTURE_SAMPLES 1
 #include "../VirtualTextureCommon.ush"
 
 #include "NaniteDataDecode.ush"
@@ -672,8 +672,11 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 					// Sample the shared mesh paint virtual texture atlas.
 					TDual<float2> UV = GetTexCoord(Cluster, TriIndices, Barycentrics, GetMeshPaintTextureCoordinateIndex(PrimitiveData));
 					float2 SVPositionXY = (float2)PixelPos + 0.5f;
-					VTPageTableResult PageTableResult = TextureLoadVirtualPageTableGrad(Scene.MeshPaint.PageTableTexture, VTPageTableUniform_Unpack(GetMeshPaintTextureDescriptor(PrimitiveData)), UV.Value, VTADDRESSMODE_CLAMP, VTADDRESSMODE_CLAMP, UV.Value_dx, UV.Value_dy, SVPositionXY);
+					FVirtualTextureFeedbackParams VirtualTextureFeedback;
+					InitializeVirtualTextureFeedback(VirtualTextureFeedback, SVPositionXY, View.FrameNumber);
+					VTPageTableResult PageTableResult = TextureLoadVirtualPageTableGrad(Scene.MeshPaint.PageTableTexture, VTPageTableUniform_Unpack(GetMeshPaintTextureDescriptor(PrimitiveData)), UV.Value, VTADDRESSMODE_CLAMP, VTADDRESSMODE_CLAMP, UV.Value_dx, UV.Value_dy, SVPositionXY, 0, VirtualTextureFeedback);
 					float4 Color = TextureVirtualSample(Scene.MeshPaint.PhysicalTexture, View.SharedBilinearClampedSampler, PageTableResult, 0, VTUniform_Unpack(Scene.MeshPaint.PackedUniform));
+					FinalizeVirtualTextureFeedback(VirtualTextureFeedback, float4(SVPositionXY, 0, 0), 1.0f, View.FrameNumber, View.VTFeedbackBuffer);
 					Result = LinearToPostTonemapSpace(ApplyMeshPaintingChannelMode(GetMeshPaintingChannelMode(), Color));
 				}
 				else

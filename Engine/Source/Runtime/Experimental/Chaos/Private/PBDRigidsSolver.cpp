@@ -28,9 +28,7 @@
 #include "Chaos/PullPhysicsDataImp.h"
 #include "Chaos/PhysicsSolverBaseImpl.h"
 #include "Chaos/ConvexOptimizer.h"
-#if UE_CHAOS_ASYNC_INITBODY_ENABLED
-#include "Misc/ScopeRWLock.h"
-#endif
+#include "Chaos/AsyncInitBodyHelper.h"
 
 #include "ChaosDebugDraw/ChaosDDContext.h"
 #include "ChaosDebugDraw/ChaosDDScene.h"
@@ -745,7 +743,7 @@ namespace Chaos
 
 	void FPBDRigidsSolver::RegisterObject(FSingleParticlePhysicsProxy* Proxy)
 	{
-		UE_CHAOS_ASYNC_INITBODY_PHYSICSSCENE_WRITESCOPELOCK(GetExternalDataLock_External());
+		UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(GetExternalDataLock_External());
 		LLM_SCOPE(ELLMTag::ChaosBody);
 
 		UE_LOG(LogPBDRigidsSolver, Verbose, TEXT("FPBDRigidsSolver::RegisterObject()"));
@@ -800,7 +798,7 @@ namespace Chaos
 
 	void FPBDRigidsSolver::UnregisterObject(FSingleParticlePhysicsProxy* Proxy)
 	{
-		UE_CHAOS_ASYNC_INITBODY_PHYSICSSCENE_WRITESCOPELOCK(GetExternalDataLock_External());
+		UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(GetExternalDataLock_External());
 		UE_LOG(LogPBDRigidsSolver, Verbose, TEXT("FPBDRigidsSolver::UnregisterObject()"));
 
 		PullResultsManager->RemoveProxy_External(Proxy);
@@ -2740,6 +2738,7 @@ TRACE_COUNTER_SET(ChaosTraceCounter_##Name, Value)
 		Rigid->SetDisabled(DynamicMisc.Disabled());
 		Rigid->SetCollisionConstraintFlags(DynamicMisc.CollisionConstraintFlags());
 		Rigid->SetControlFlags(DynamicMisc.ControlFlags());
+		Rigid->SetIterationSettings(DynamicMisc.IterationSettings());
 
 		GetEvolution()->SetParticleObjectState(Rigid, DynamicMisc.ObjectState());
 		GetEvolution()->SetParticleSleepType(Rigid, DynamicMisc.SleepType());

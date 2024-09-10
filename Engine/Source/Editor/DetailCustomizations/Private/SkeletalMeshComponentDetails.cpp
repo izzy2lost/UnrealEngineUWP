@@ -241,6 +241,9 @@ EVisibility FSkeletalMeshComponentDetails::VisibilityForBlueprintMode() const
 
 void FSkeletalMeshComponentDetails::UpdatePhysicsCategory(IDetailLayoutBuilder& DetailBuilder)
 {
+	// Force hiding ClothTeleportMode. If you stop force hiding this, please update the comment in SkeletalMeshComponent.h where the property is declared.
+	const FName ClothTeleportModeFName(GET_MEMBER_NAME_CHECKED(USkeletalMeshComponent, ClothTeleportMode));
+	DetailBuilder.HideProperty(ClothTeleportModeFName);
 }
 
 EVisibility FSkeletalMeshComponentDetails::VisibilityForAnimationMode(EAnimationMode::Type AnimationMode) const

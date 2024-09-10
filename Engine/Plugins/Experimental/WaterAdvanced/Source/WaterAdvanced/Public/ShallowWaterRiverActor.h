@@ -26,6 +26,7 @@ UENUM(BlueprintType)
 enum EShallowWaterRenderState : int
 {
 	WaterComponent,
+	WaterComponentWithBakedSim,
 	LiveSim,
 	BakedSim
 };
@@ -82,6 +83,7 @@ public:
 	virtual void PostLoad() override;
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	virtual void BeginPlay() override;
 
 	virtual void OnUnregister() override;
 

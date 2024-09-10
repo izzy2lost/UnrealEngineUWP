@@ -25,7 +25,6 @@ using UE::Geometry::FDynamicMeshMaterialAttribute;
 class FDynamicPrimitiveUniformBuffer;
 class FMaterialRenderProxy;
 class UMaterialInterface;
-struct FRayTracingMaterialGatheringContext;
 class FCardRepresentationData;
 
 
@@ -290,21 +289,20 @@ public:
 	GEOMETRYFRAMEWORK_API virtual bool IsRayTracingRelevant() const override;
 	GEOMETRYFRAMEWORK_API virtual bool HasRayTracingRepresentation() const override;
 
-	GEOMETRYFRAMEWORK_API virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) override;
+	GEOMETRYFRAMEWORK_API virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) override;
 
 
 	/**
 	* Draw a single-frame raytracing FMeshBatch for a FMeshRenderBufferSet
 	*/
 	GEOMETRYFRAMEWORK_API virtual void DrawRayTracingBatch(
-		FRayTracingMaterialGatheringContext& Context,
+		FRayTracingInstanceCollector& Collector,
 		const FMeshRenderBufferSet& RenderBuffers,
 		const FDynamicMeshIndexBuffer32& IndexBuffer,
 		FRayTracingGeometry& RayTracingGeometry,
 		FMaterialRenderProxy* UseMaterialProxy,
 		ESceneDepthPriorityGroup DepthPriority,
-		FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer,
-		TArray<FRayTracingInstance>& OutRayTracingInstances) const;
+		FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer) const;
 
 
 #endif // RHI_RAYTRACING

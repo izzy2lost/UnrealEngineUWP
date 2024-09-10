@@ -469,16 +469,16 @@ FSceneView* UMoviePipelineImagePassBase::GetSceneViewForSampleState(FSceneViewFa
 		FPlane(1, 0, 0, 0),
 		FPlane(0, 1, 0, 0),
 		FPlane(0, 0, 0, 1));
-
-	// Inflate our FOV to support the overscan, we do this before calculating the Projection Matrix so that any downstream consumers of the FOV/DesiredFOV are taken into account (ie: culling)
-	float ViewFOV = 2.0f * FMath::RadiansToDegrees(FMath::Atan((1.0f + InOutSampleState.OverscanPercentage) * FMath::Tan(FMath::DegreesToRadians(CameraInfo.ViewInfo.FOV * 0.5f ))));
-	CameraInfo.ViewInfo.FOV = ViewFOV;
-	CameraInfo.ViewInfo.DesiredFOV = ViewFOV;
+	
+	if (InOutSampleState.bOverrideCameraOverscan)
+	{
+		// If we are overriding the camera's overscan, clear out any overscan the camera added to the view info, and apply the overriding overscan
+		CameraInfo.ViewInfo.ClearOverscan();
+		CameraInfo.ViewInfo.ApplyOverscan(InOutSampleState.OverscanPercentage);
+	}
+	
 	ViewInitOptions.FOV = CameraInfo.ViewInfo.FOV;
-	ViewInitOptions.DesiredFOV = CameraInfo.ViewInfo.DesiredFOV;
-
-	// Overscan the Orthographic pass too.
-	CameraInfo.ViewInfo.OrthoWidth *= 1.0f + InOutSampleState.OverscanPercentage;
+	ViewInitOptions.DesiredFOV = CameraInfo.ViewInfo.FOV;
 
 	float DofSensorScale = 1.0f;
 

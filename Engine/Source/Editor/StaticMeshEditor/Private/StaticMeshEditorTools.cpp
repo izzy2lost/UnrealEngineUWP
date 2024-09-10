@@ -119,7 +119,8 @@ public:
 
 		UStaticMesh* StaticMesh = StaticMeshEditor.GetStaticMesh();
 		TWeakObjectPtr<UStaticMesh> WeakStaticMesh = StaticMesh;
-		LayoutImpl->AddToDetailsPanel(WeakStaticMesh, DetailBuilder, bInitiallyCollapsed);
+		const int32 SortOrder = 10;
+		LayoutImpl->AddToDetailsPanel(WeakStaticMesh, DetailBuilder, SortOrder, bInitiallyCollapsed);
 	}
 
 	inline bool IsApplyNeeded() const

@@ -285,6 +285,7 @@ FAnimTickRecord::FAnimTickRecord(UPoseAsset* InPoseAsset, float InFinalBlendWeig
 
 void FAnimTickRecord::GatherContextData(const FAnimationUpdateContext& InContext)
 {
+	bActiveContext = InContext.IsActive();
 	if(InContext.GetSharedContext())
 	{
 		TArray<TUniquePtr<const UE::Anim::IAnimNotifyEventContextDataInterface>> NewContextData;

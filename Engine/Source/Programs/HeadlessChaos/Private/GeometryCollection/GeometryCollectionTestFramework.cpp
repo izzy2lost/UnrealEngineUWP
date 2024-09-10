@@ -177,6 +177,9 @@ namespace GeometryCollectionTest
 			SimulationParams.AngularDamping = 0;
 			SimulationParams.UseCCD = false;
 			SimulationParams.UseMACD = false;
+			SimulationParams.PositionSolverIterations = 8;
+			SimulationParams.VelocitySolverIterations = 1;
+			SimulationParams.ProjectionSolverIterations = 1;
 
 			Chaos::FErrorReporter ErrorReporter;
 			BuildSimulationData(ErrorReporter, *RestCollection.Get(), SimulationParams.Shared);

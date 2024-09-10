@@ -7,9 +7,9 @@
 
 #include "TypedElementSubsystems.generated.h"
 
-class ITypedElementDataStorageInterface;
-class ITypedElementDataStorageUiInterface;
-class ITypedElementDataStorageCompatibilityInterface;
+class IEditorDataStorageProvider;
+class IEditorDataStorageUiProvider;
+class IEditorDataStorageCompatibilityProvider;
 
 /**
  * A subsystem to provide alternative access to the Editor Data Storage. This should be used in most situations instead of 
@@ -26,11 +26,11 @@ public:
 
 	~UEditorDataStorageSubsystem() override;
 
-	ITypedElementDataStorageInterface* Get();
-	const ITypedElementDataStorageInterface* Get() const;
+	IEditorDataStorageProvider* Get();
+	const IEditorDataStorageProvider* Get() const;
 
 protected:
-	mutable ITypedElementDataStorageInterface* DataStorage{ nullptr };
+	mutable IEditorDataStorageProvider* DataStorage{ nullptr };
 };
 
 /**
@@ -48,11 +48,11 @@ public:
 
 	~UEditorDataStorageUiSubsystem() override;
 
-	ITypedElementDataStorageUiInterface* Get();
-	const ITypedElementDataStorageUiInterface* Get() const;
+	IEditorDataStorageUiProvider* Get();
+	const IEditorDataStorageUiProvider* Get() const;
 
 protected:
-	mutable ITypedElementDataStorageUiInterface* DataStorageUi{ nullptr };
+	mutable IEditorDataStorageUiProvider* DataStorageUi{ nullptr };
 };
 
 /**
@@ -70,9 +70,9 @@ public:
 
 	~UEditorDataStorageCompatibilitySubsystem() override;
 
-	ITypedElementDataStorageCompatibilityInterface* Get();
-	const ITypedElementDataStorageCompatibilityInterface* Get() const;
+	IEditorDataStorageCompatibilityProvider* Get();
+	const IEditorDataStorageCompatibilityProvider* Get() const;
 
 protected:
-	mutable ITypedElementDataStorageCompatibilityInterface* DataStorageCompatibility{ nullptr };
+	mutable IEditorDataStorageCompatibilityProvider* DataStorageCompatibility{ nullptr };
 };

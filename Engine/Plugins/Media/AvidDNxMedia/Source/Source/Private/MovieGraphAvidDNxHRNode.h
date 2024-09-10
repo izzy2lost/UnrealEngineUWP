@@ -11,7 +11,7 @@
 class FAvidDNxEncoder;
 
 /** A node which can output Avid DNxHR movies. */
-UCLASS(BlueprintType, PrioritizeCategories=("FileOutput"))
+UCLASS(BlueprintType)
 class UMovieGraphAvidDNxHRNode : public UMovieGraphVideoOutputNode
 {
 	GENERATED_BODY()

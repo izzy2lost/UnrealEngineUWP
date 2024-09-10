@@ -11,6 +11,11 @@ struct FHierarchyTableType_Mask final : public FHierarchyTableType
 {
 	GENERATED_BODY()
 
+	FHierarchyTableType_Mask()
+		: Value(0.0f)
+	{
+	}
+
 	UPROPERTY()
 	float Value;
 };

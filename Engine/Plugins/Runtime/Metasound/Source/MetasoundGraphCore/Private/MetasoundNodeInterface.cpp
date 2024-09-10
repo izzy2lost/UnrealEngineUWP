@@ -99,6 +99,12 @@ namespace Metasound
 		return *this != InvalidNodeClassName;
 	}
 
+	const FNodeClassMetadata& FNodeClassMetadata::GetEmpty()
+	{
+		static const FNodeClassMetadata EmptyInfo;
+		return EmptyInfo;
+	}
+
 	bool operator==(const FOutputDataSource& InLeft, const FOutputDataSource& InRight)
 	{
 		return (InLeft.Node == InRight.Node) && (InLeft.Vertex == InRight.Vertex);

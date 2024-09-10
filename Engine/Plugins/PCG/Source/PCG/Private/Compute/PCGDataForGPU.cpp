@@ -778,24 +778,7 @@ void FPCGDataCollectionDesc::PrepareBufferForKernelOutput(TArray<uint32>& OutPac
 	const uint32 PackedDataCollectionSizeBytes = ComputePackedSize(&DataAddresses);
 
 	OutPackedDataCollection.SetNumZeroed(PackedDataCollectionSizeBytes / sizeof(uint32));
-	
-	const uint32 TotalNumElements = ComputeDataElementCount(EPCGDataType::Any);
-
-	if (TotalNumElements == 0)
-	{
-		// The kernel won't run with 0 element count, so we have to set the number of data in advance.
-		OutPackedDataCollection[0] = NumData;
-
-		// TODO: This assumption will break dynamic control flow in the future. If we are using 'NumData == 0' to flag whether a kernel ran or not,
-		// we can't just write NumData anyways whenever there are zero elements.
-		// In the future we should dispatch a single thread to execute even when there are zero elements to allow for book keeping, such as setting
-		// the data count.
-	}
-	else
-	{
-		// Num data - set to zero if writing kernel executes. If kernel doesn't execute, 0 means data collection is empty.
-		OutPackedDataCollection[0] = 0;
-	}
+	OutPackedDataCollection[0] = NumData;
 
 	for (uint32 DataIndex = 0; DataIndex < NumData; ++DataIndex)
 	{
@@ -880,7 +863,10 @@ EPCGUnpackDataCollectionResult FPCGDataCollectionDesc::UnpackDataCollection(cons
 	const int* DataAsInt = static_cast<const int*>(PackedData);
 
 	const uint32 NumPackedFloats = InPackedData.Num() / 4;
-	const uint32 NumData = DataAsUint[0];
+
+	// Most significant bit of NumData is reserved to flag whether or not the kernel executed.
+	ensureAlwaysMsgf(DataAsUint[0] & PCGComputeConstants::KernelExecutedFlag, TEXT("Tried to unpack a GPU data collection, but the compute shader did not execute."));
+	const uint32 NumData = DataAsUint[0] & ~PCGComputeConstants::KernelExecutedFlag;
 
 	if (NumData != DataDescs.Num())
 	{

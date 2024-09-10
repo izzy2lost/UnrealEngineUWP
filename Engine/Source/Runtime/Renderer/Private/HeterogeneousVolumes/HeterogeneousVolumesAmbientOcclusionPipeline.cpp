@@ -323,7 +323,7 @@ void RenderExistenceMaskWithLiveShading(
 			RDG_EVENT_NAME("ExistenceMask"),
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[ComputeShader, PassParameters, Scene, MaterialRenderProxy, &Material, GroupCount](FRHIComputeCommandList& RHICmdList)
+			[ComputeShader, PassParameters, Scene, MaterialRenderProxy, &Material, GroupCount](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 			{
 				FMeshMaterialShaderElementData ShaderElementData;
 				ShaderElementData.InitializeMeshMaterialData();
@@ -631,7 +631,7 @@ void RenderAmbientOcclusionWithLiveShadingAsFixedPoint(
 		RDG_EVENT_NAME("AmbientOcclusion"),
 		PassParameters,
 		ERDGPassFlags::Compute,
-		[ComputeShader, PassParameters, Scene, MaterialRenderProxy, &Material, GroupCount](FRHIComputeCommandList& RHICmdList)
+		[ComputeShader, PassParameters, Scene, MaterialRenderProxy, &Material, GroupCount](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 		{
 			FMeshMaterialShaderElementData ShaderElementData;
 			ShaderElementData.InitializeMeshMaterialData();

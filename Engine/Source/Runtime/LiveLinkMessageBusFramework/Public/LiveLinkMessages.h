@@ -10,6 +10,7 @@ struct LIVELINKMESSAGEBUSFRAMEWORK_API FLiveLinkMessageAnnotation
 {
 	static FName SubjectAnnotation;
 	static FName RoleAnnotation;
+	static FName OriginalSourceAnnotation;
 };
 
 USTRUCT()

@@ -329,7 +329,7 @@ TOptional<UE::Interchange::FImportImage> UInterchangeFbxTranslator::GetTexturePa
 	return TextureTranslator->GetTexturePayloadData(PayLoadKey, AlternateTexturePath);
 }
 
-TFuture<TOptional<UE::Interchange::FMeshPayloadData>> UInterchangeFbxTranslator::GetMeshPayloadData(const FInterchangeMeshPayLoadKey& PayLoadKey, const FTransform& MeshGlobalTransform) const
+TOptional<UE::Interchange::FMeshPayloadData> UInterchangeFbxTranslator::GetMeshPayloadData(const FInterchangeMeshPayLoadKey& PayLoadKey, const FTransform& MeshGlobalTransform) const
 {
 	TSharedPtr<TPromise<TOptional<UE::Interchange::FMeshPayloadData>>> Promise = MakeShared<TPromise<TOptional<UE::Interchange::FMeshPayloadData>>>();
 
@@ -418,8 +418,7 @@ TFuture<TOptional<UE::Interchange::FMeshPayloadData>> UInterchangeFbxTranslator:
 	{
 		if (!Dispatcher.IsValid())
 		{
-			Promise->SetValue(TOptional<UE::Interchange::FMeshPayloadData>());
-			return Promise->GetFuture();
+			return TOptional<UE::Interchange::FMeshPayloadData>();
 		}
 
 		// Create a json command to read the fbx file
@@ -458,7 +457,8 @@ TFuture<TOptional<UE::Interchange::FMeshPayloadData>> UInterchangeFbxTranslator:
 			Promise->SetValue(TOptional<UE::Interchange::FMeshPayloadData>{});
 		}
 	}
-	return Promise->GetFuture();
+	//We must stall since the payload async is now control by the interchange task system
+	return Promise->GetFuture().Get();
 }
 
 TArray<UE::Interchange::FAnimationPayloadData> UInterchangeFbxTranslator::GetAnimationPayloadData(const TArray<UE::Interchange::FAnimationPayloadQuery>& PayloadQueries) const

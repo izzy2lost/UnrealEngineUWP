@@ -237,7 +237,7 @@ protected:
 	/** Checks whether this modifier is ready to run, called before this modifier is executed */
 	virtual bool IsModifierReady() const { return true; }
 
-	/** You can do some additional lightweights checks here in case you want to dirty the modifier before the stack runs an update */
+	/** You can do additional lightweights checks here in case you want to dirty the modifier instead of waiting for an event, tick must be enabled in the metadata */
 	virtual bool IsModifierDirtyable() const { return false; }
 
 	/** Override in child classes, called before applying this modifier */
@@ -357,9 +357,6 @@ private:
 
 	/** Execute a const function on this modifier, only to read data */
 	ACTORMODIFIERCORE_API virtual bool ProcessFunction(TFunctionRef<bool(const UActorModifierCoreBase*)> InFunction, const FActorModifierCoreStackSearchOp& InSearchOptions) const;
-
-	/** INTERNAL USE ONLY, allows tickable modifier to mark themselves dirty */
-	void TickModifier(float InDeltaTime);
 
 	/** INTERNAL USE ONLY, called by the stack only to unapply this modifier if it was applied */
 	void Unapply();

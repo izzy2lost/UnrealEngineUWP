@@ -9,6 +9,7 @@
 #include "USDClassesModule.h"
 #include "USDInfoCache.h"
 #include "USDIntegrationUtils.h"
+#include "USDMemory.h"
 #include "USDPrimLinkCache.h"
 #include "USDTypesConversion.h"
 #include "UsdWrappers/SdfPath.h"

@@ -201,11 +201,13 @@ void UDMXControlConsoleData::GenerateFromDMXLibrary()
 
 void UDMXControlConsoleData::StartSendingDMX()
 {
+	bPauseDMX = false;
 	bSendDMX = true;
 }
 
 void UDMXControlConsoleData::StopSendingDMX()
 {
+	bPauseDMX = false;
 	bSendDMX = false;
 
 	// Handle stop DMX modes
@@ -246,6 +248,19 @@ void UDMXControlConsoleData::StopSendingDMX()
 			}
 		}
 	}
+}
+
+void UDMXControlConsoleData::PauseSendingDMX()
+{
+	// When pausing, always use the stop mode that does not send DMX values
+	const EDMXControlConsoleStopDMXMode RestoreStopDMXMode = GetStopDMXMode();
+	SetStopDMXMode(EDMXControlConsoleStopDMXMode::DoNotSendValues);
+
+	StopSendingDMX();
+
+	SetStopDMXMode(RestoreStopDMXMode);
+
+	bPauseDMX = true;
 }
 
 void UDMXControlConsoleData::SetStopDMXMode(EDMXControlConsoleStopDMXMode NewStopDMXMode)

@@ -127,7 +127,7 @@ namespace UE::DMXPixelMapping::Rendering::Private
 
 						const int32 RenderTargetPoisitionX = PixelIndex % OutputTextureSize.X;
 						const int32 RenderTargetPositionY = PixelIndex / OutputTextureSize.X;
-						
+
 						// Create shader permutations
 						FDMXPixelMappingRendererPS::FPermutationDomain PermutationVector;
 						PermutationVector.Set<FDMXPixelBlendingQualityDimension>(Element->GetParameters().CellBlendingQuality);
@@ -143,7 +143,7 @@ namespace UE::DMXPixelMapping::Rendering::Private
 						RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
 						GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
 						GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
-						GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Never>::GetRHI();
+						GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
 						GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GFilterVertexDeclaration.VertexDeclarationRHI;
 						GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
 						GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();

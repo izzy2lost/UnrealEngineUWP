@@ -142,6 +142,9 @@ protected:
 	void GetFieldOfView(float& OutHorizontal, float& OutVertical, const bool bInStereo) const;
 	FIntPoint GetPaneResolution(const FIntPoint& InSize) const;
 	FIntPoint GetPayloadPaneResolution(const FIntPoint& InSize, IViewCalcPayload* OptPayload) const;
+
+	virtual void UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const override;
+
 public:
 
 	/**

@@ -42,7 +42,6 @@ void SSequencerFilter::Construct(const FArguments& InArgs
 		.Style(FAppStyle::Get(), BrushName)
 		.ToolTipText(TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateSP(InFilter, &FSequencerTrackFilter::GetToolTipText)))
 		.IsChecked(this, &SSequencerFilter::IsChecked)
-		.OnCheckStateChanged(this, &SSequencerFilter::OnFilterToggled)
 		.CheckBoxContentUsesAutoWidth(false)
 		.OnGetMenuContent(this, &SSequencerFilter::GetRightClickMenuContent)
 		[
@@ -50,8 +49,11 @@ void SSequencerFilter::Construct(const FArguments& InArgs
 		]
 	];
 
-	ToggleButtonPtr->SetOnMouseUp(SSequencerFilterCheckBox::FOnPointerEvent::CreateSP(this, &SSequencerFilter::OnFilterMouseUp));
-	ToggleButtonPtr->SetOnDoubleClick(SSequencerFilterCheckBox::FOnPointerEvent::CreateSP(this, &SSequencerFilter::OnFilterDoubleClicked));
+	ToggleButtonPtr->SetOnClick(FOnCheckStateChanged::CreateSP(this, &SSequencerFilter::OnFilterToggled));
+	ToggleButtonPtr->SetOnCtrlClick(FSimpleDelegate::CreateSP(this, &SSequencerFilter::OnFilterCtrlClick));
+	ToggleButtonPtr->SetOnAltClick(FSimpleDelegate::CreateSP(this, &SSequencerFilter::OnFilterAltClick));
+	ToggleButtonPtr->SetOnMiddleButtonClick(FSimpleDelegate::CreateSP(this, &SSequencerFilter::OnFilterMiddleButtonClick));
+	ToggleButtonPtr->SetOnDoubleClick(FSimpleDelegate::CreateSP(this, &SSequencerFilter::OnFilterDoubleClick));
 }
 
 TSharedRef<SWidget> SSequencerFilter::ConstructBasicFilterWidget()
@@ -138,54 +140,40 @@ void SSequencerFilter::OnFilterToggled(const ECheckBoxState NewState)
 		return;
 	}
 
-	const bool bNewActive = NewState == ECheckBoxState::Checked;
+	const bool bNewActive = NewState != ECheckBoxState::Checked;
 	FilterBar->SetFilterActive(Filter.ToSharedRef(), bNewActive, true);
 }
 
-FReply SSequencerFilter::OnFilterMouseUp(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
+void SSequencerFilter::OnFilterCtrlClick()
 {
-	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
-	if (!FilterBar.IsValid())
-	{
-		return FReply::Handled();
-	}
-
-	if (InMouseEvent.IsControlDown())
-	{
-		FilterBar->ActivateCommonFilters(true, {}, {});
-	}
-	else if (InMouseEvent.IsAltDown())
-	{
-		FilterBar->ActivateCommonFilters(false, {}, {});
-	}
-	else if(InMouseEvent.GetEffectingButton() == EKeys::MiddleMouseButton)
-	{
-		if (const TSharedPtr<FSequencerTrackFilter> Filter = WeakFilter.Pin())
-		{
-			FilterBar->SetFilterEnabled(Filter.ToSharedRef(), false, true);
-		}
-	}
-
-	return FReply::Handled();
+	ActivateAllButThis(false);
 }
 
-FReply SSequencerFilter::OnFilterDoubleClicked(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
+void SSequencerFilter::OnFilterAltClick()
+{
+	ActivateAllButThis(true);
+}
+
+void SSequencerFilter::OnFilterMiddleButtonClick()
 {
 	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
 	if (!FilterBar.IsValid())
 	{
-		return FReply::Handled();
+		return;
 	}
 
-	FilterBar->ActivateCommonFilters(false, {}, {});
-	FilterBar->ActivateCustomTextFilters(false, {});
-
-	if (const TSharedPtr<FSequencerTrackFilter> Filter = WeakFilter.Pin())
+	const TSharedPtr<FSequencerTrackFilter> Filter = WeakFilter.Pin();
+	if (!Filter.IsValid())
 	{
-		FilterBar->SetFilterActive(Filter.ToSharedRef(), true, true);
+		return;
 	}
 
-	return FReply::Handled();
+	FilterBar->SetFilterEnabled(Filter.ToSharedRef(), false, true);
+}
+
+void SSequencerFilter::OnFilterDoubleClick()
+{
+	ActivateAllButThis(false);
 }
 
 TSharedRef<SWidget> SSequencerFilter::GetRightClickMenuContent()
@@ -238,6 +226,24 @@ bool SSequencerFilter::IsButtonEnabled() const
 	}
 
 	return FilterBar->IsFilterActive(Filter.ToSharedRef());
+}
+
+void SSequencerFilter::ActivateAllButThis(const bool bInActive)
+{
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
+	const TSharedPtr<FSequencerTrackFilter> Filter = WeakFilter.Pin();
+	if (!Filter.IsValid())
+	{
+		return;
+	}
+
+	FilterBar->ActivateAllEnabledFilters(bInActive, {});
+	FilterBar->SetFilterActive(Filter.ToSharedRef(), !bInActive, true);
 }
 
 #undef LOCTEXT_NAMESPACE

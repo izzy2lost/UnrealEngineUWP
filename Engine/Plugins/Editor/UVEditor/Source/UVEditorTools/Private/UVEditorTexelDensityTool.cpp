@@ -4,7 +4,7 @@
 
 #include "ContextObjectStore.h"
 #include "MeshOpPreviewHelpers.h" // UMeshOpPreviewWithBackgroundCompute
-#include "Operators/UVEditorTexelDensityOp.h"
+#include "ParameterizationOps/TexelDensityOp.h"
 #include "InputBehaviorSet.h"
 #include "InputRouter.h"
 #include "BaseBehaviors/SingleClickBehavior.h"
@@ -14,7 +14,7 @@
 #include "ToolSetupUtil.h"
 #include "UVEditorUXSettings.h"
 #include "ContextObjects/UVToolContextObjects.h"
-#include "Math/UVMetrics.h"
+#include "Parameterization/UVMetrics.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(UVEditorTexelDensityTool)
 

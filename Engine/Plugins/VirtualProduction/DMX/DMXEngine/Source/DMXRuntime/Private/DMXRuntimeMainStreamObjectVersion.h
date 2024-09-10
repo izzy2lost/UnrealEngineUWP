@@ -42,6 +42,12 @@ struct FDMXRuntimeMainStreamObjectVersion
 		// Upgrade Fixture Functions to make use of pysical properties where required (e.g. Pan, Tilt, Zoom)
 		DMXUpgradeFixtureFunctionsToUsePhysicalProperties,
 
+		// Upgrade Fixture Patches to have a Default Transform
+		DMXFixturePatchesHaveDefaultTransform,
+
+		// 5.5 Upgrade MVR Scene Actor to spawn Actors per Fixture Type of per GDTF
+		DMXMVRSceneActorSpawnsActorsPerFixtureType,
+
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
 	};

@@ -152,7 +152,7 @@ public:
 
 	bool				IsScalar() const; // float or int
 	bool				IsBool() const; // boolean
-	bool				IsString() const; // string
+	bool				IsString() const; // string  but NOT FName
 	bool				IsColor() const; // FlinearColor
 	bool				IsVector() const; // FLinearColor or ...
 	bool				IsTexture() const; // FTG_Texture or ...
@@ -169,8 +169,15 @@ public:
 	friend bool operator== (const FTG_Argument& lhs, const FTG_Argument& rhs) {
 		return (lhs.Name == rhs.Name) && (lhs.CPPTypeName == rhs.CPPTypeName) && (lhs.ArgumentType == rhs.ArgumentType);
 	}
+
+	// Comparison operator against the Arg Name, useful for FindByKey on TArray of Arguments
+	bool operator== (const FName& InArgName) {
+		return (Name == InArgName);
+	}
 };
 using FTG_Arguments = TArray<FTG_Argument>;
+
+TArray<FName> TG_MakeArrayOfArgumentNames(const FTG_Arguments& InArguments);
 
 // Argument Set:
 // A container for several Arguments which is searchable and hashable

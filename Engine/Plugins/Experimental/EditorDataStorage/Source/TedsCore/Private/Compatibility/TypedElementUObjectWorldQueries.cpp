@@ -7,13 +7,13 @@
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Engine/World.h"
 
-void UObjectWorldDataStorageFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void UObjectWorldDataStorageFactory::RegisterQueries(IEditorDataStorageProvider& DataStorage)
 {
 	RegisterAddWorldColumn(DataStorage);
 	RegisterUpdateOrRemoveWorldColumn(DataStorage);
 }
 
-void UObjectWorldDataStorageFactory::RegisterAddWorldColumn(ITypedElementDataStorageInterface& DataStorage) const
+void UObjectWorldDataStorageFactory::RegisterAddWorldColumn(IEditorDataStorageProvider& DataStorage) const
 {
 	using namespace UE::Editor::DataStorage::Queries;
 	
@@ -40,7 +40,7 @@ void UObjectWorldDataStorageFactory::RegisterAddWorldColumn(ITypedElementDataSto
 		.Compile());
 }
 
-void UObjectWorldDataStorageFactory::RegisterUpdateOrRemoveWorldColumn(ITypedElementDataStorageInterface& DataStorage) const
+void UObjectWorldDataStorageFactory::RegisterUpdateOrRemoveWorldColumn(IEditorDataStorageProvider& DataStorage) const
 {
 	using namespace UE::Editor::DataStorage::Queries;
 	

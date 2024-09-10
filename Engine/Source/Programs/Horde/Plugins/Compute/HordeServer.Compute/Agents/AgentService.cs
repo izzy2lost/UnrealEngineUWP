@@ -76,7 +76,7 @@ namespace HordeServer.Agents
 		readonly ILogger _logger;
 		readonly ITicker _ticker;
 
-		readonly RedisStringKey<AgentRateTable> _agentRateTableData = new("agent-rates");
+		readonly RedisStringKey<AgentRateTable> _agentRateTableData = new("compute:agent-rates");
 
 		/// <summary>Lazily updated costs for different agent types</summary>
 		readonly AsyncCachedValue<AgentRateTable?> _cachedRates;
@@ -188,35 +188,20 @@ namespace HordeServer.Agents
 		/// <summary>
 		/// Register a new agent
 		/// </summary>
-		/// <param name="name">Name of the agent</param>
-		/// <param name="ephemeral">Whether the agent is ephemeral or not</param>
-		/// <param name="enrollmentKey">Key for enrolling the agent</param>
+		/// <param name="options">Parameters for new agent</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Unique id for the agent</returns>
-		public Task<IAgent> CreateAgentAsync(string name, bool ephemeral, string enrollmentKey, CancellationToken cancellationToken = default)
-		{
-			return CreateAgentAsync(new AgentId(name), ephemeral, enrollmentKey, cancellationToken);
-		}
-
-		/// <summary>
-		/// Register a new agent
-		/// </summary>
-		/// <param name="agentId">Agent id</param>
-		/// <param name="ephemeral">Whether the agent is ephemeral or not</param>
-		/// <param name="enrollmentKey">Key for enrolling the agent</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Unique id for the agent</returns>
-		public async Task<IAgent> CreateAgentAsync(AgentId agentId, bool ephemeral, string enrollmentKey, CancellationToken cancellationToken = default)
+		/// <returns>Unique ID for the agent</returns>
+		public async Task<IAgent> CreateAgentAsync(CreateAgentOptions options, CancellationToken cancellationToken = default)
 		{
 			for (; ; )
 			{
-				IAgent? agent = await Agents.GetAsync(agentId, cancellationToken);
+				IAgent? agent = await Agents.GetAsync(options.Id, cancellationToken);
 				if (agent == null)
 				{
-					return await Agents.AddAsync(agentId, ephemeral, enrollmentKey, cancellationToken);
+					return await Agents.AddAsync(options, cancellationToken);
 				}
 
-				agent = await agent.TryResetAsync(ephemeral, enrollmentKey, cancellationToken);
+				agent = await agent.TryResetAsync(options.Ephemeral, options.EnrollmentKey, cancellationToken);
 				if (agent != null)
 				{
 					return agent;
@@ -352,9 +337,10 @@ namespace HordeServer.Agents
 				{
 					// Get the new pools for the agent
 					List<PoolId> dynamicPools = await GetDynamicPoolsAsync(agent, cancellationToken);
-
+					RpcAgentCapabilities normalizedCaps = NormalizeCapabilities(agent, capabilities);
+					
 					// Reset the agent to use the new session
-					newAgent = await agent.TryCreateSessionAsync(new CreateSessionOptions(capabilities, dynamicPools, version), cancellationToken);
+					newAgent = await agent.TryCreateSessionAsync(new CreateSessionOptions(normalizedCaps, dynamicPools, version), cancellationToken);
 					if (newAgent != null)
 					{
 						LogPropertyChanges(agentLogger, agent.Properties, newAgent.Properties);
@@ -373,6 +359,22 @@ namespace HordeServer.Agents
 				agent = newAgent;
 			}
 			return agent;
+		}
+		
+		/// <summary>
+		/// Filters untrusted resource and property keys from capabilities
+		/// Also injects potential server-controlled properties
+		/// </summary>
+		/// <param name="agent">Agent</param>
+		/// <param name="capabilities">Capabilities as reported by agent</param>
+		/// <returns>A new and updated RpcAgentCapabilities object</returns>
+		private static RpcAgentCapabilities NormalizeCapabilities(IAgent agent, RpcAgentCapabilities capabilities)
+		{
+			RpcAgentCapabilities caps = new (capabilities);
+			caps.Properties.Clear();
+			caps.Properties.AddRange(agent.ServerDefinedProperties);
+			caps.Properties.AddRange(AgentExtensions.RemoveServerDefinedProperties(capabilities.Properties));
+			return caps;
 		}
 
 		/// <summary>
@@ -769,7 +771,7 @@ namespace HordeServer.Agents
 		/// <returns>Hourly rate of running the given agent</returns>
 		public async ValueTask<double?> GetRateAsync(AgentId agentId, CancellationToken cancellationToken = default)
 		{
-			RedisKey key = $"agent-rate/{agentId}";
+			RedisKey key = $"compute:agent-rates:{agentId}";
 
 			// Try to get the current value
 			RedisValue value = await _redisService.GetDatabase().StringGetAsync(key).WaitAsync(cancellationToken);

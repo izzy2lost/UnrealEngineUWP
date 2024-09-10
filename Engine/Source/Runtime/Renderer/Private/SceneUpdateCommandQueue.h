@@ -421,6 +421,8 @@ public:
 
 		int32 Num() const { return NumItems; }
 
+		bool IsEmpty() const { return NumItems == 0; }
+
 	private:
 		TSceneUpdateCommandQueue& UpdateBuffer;
 		int32 NumItems = 0;

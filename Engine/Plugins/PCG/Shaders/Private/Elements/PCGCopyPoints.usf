@@ -109,6 +109,14 @@ void CopyAttributesFromTarget(uint TargetDataIndex, uint TargetElemIndex, uint O
 [numthreads(64, 1, 1)]
 void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 {
+	// Mark the kernel as having executed. Must run before we early via thread index, because the kernel is still 'executed' even if the number
+	// of threads to iterate on is zero. Even if GetNumThreads() returns 0, the kernel will still have been dispatched on a single thread to set
+	// this flag.
+	if (all(GroupId == 0) && GroupIndex == 0)
+	{
+		Out_SetAsExecutedInternal();
+	}
+
 	const uint ThreadIndex = GetUnWrappedDispatchThreadId(GroupId, GroupIndex, 64);
 	if (ThreadIndex >= GetNumThreads().x) return;
 
@@ -191,17 +199,14 @@ void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 		OutNumData = max(SourceNumData, TargetNumData);
 	}
 
-	Out_SetNumDataInternal(OutNumData);
-
 	uint OutDataIndex, OutElemIndex;
 	if (!Out_GetThreadData(ThreadIndex, OutDataIndex, OutElemIndex))
 	{
 		return;
 	}
 
-	// Propagate the 'Removed' status to the output point if either source or target point is invalid. If we don't do this, then
-	// the output point will be considered valid and not culled even if the source or target point were culled upstream.
-	if (!Source_IsValid(SourceDataIndex, SourcePointIndexInData) || !Target_IsValid(TargetDataIndex, TargetPointIndexInData))
+	// Propagate the 'Removed' status to the output point if either source or target point is removed. Otherwise, this point will not be culled.
+	if (!Source_IsPointRemoved(SourceDataIndex, SourcePointIndexInData) || !Target_IsPointRemoved(TargetDataIndex, TargetPointIndexInData))
 	{
 		Out_RemovePoint(OutDataIndex, OutElemIndex);
 		return;

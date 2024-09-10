@@ -209,7 +209,7 @@ void UNetObjectGridFilter::Filter(FNetObjectFilteringParams& Params)
 					for (const FReplicationView::FView& View : Params.View.Views)
 					{
 						const double DistSq = PerObjectInfo.GetCullDistanceSq();
-						const double ObjectToViewDistSq = FVector::DistSquared2D(PerObjectInfo.Position, View.Pos);
+						const double ObjectToViewDistSq = FVector::DistSquared(PerObjectInfo.Position, View.Pos);
 
 						if (ObjectToViewDistSq <= DistSq)
 						{

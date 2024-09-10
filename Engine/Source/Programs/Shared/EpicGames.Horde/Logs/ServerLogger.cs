@@ -27,7 +27,7 @@ namespace EpicGames.Horde.Logs
 		readonly LogLevel _minimumLevel;
 		readonly ILogger _internalLogger;
 		readonly LogBuilder _builder;
-		readonly IStorageClient _store;
+		readonly IStorageNamespace _store;
 		readonly IBlobWriter _writer;
 
 		int _bufferLength;
@@ -54,7 +54,7 @@ namespace EpicGames.Horde.Logs
 			_minimumLevel = minimumLevel;
 			_internalLogger = internalLogger;
 			_builder = new LogBuilder(LogFormat.Json, internalLogger);
-			_store = _hordeClient.CreateStorageClient(logId);
+			_store = _hordeClient.GetStorageNamespace(logId);
 			_writer = _store.CreateBlobWriter();
 
 			_tailTaskStop = new AsyncEvent();

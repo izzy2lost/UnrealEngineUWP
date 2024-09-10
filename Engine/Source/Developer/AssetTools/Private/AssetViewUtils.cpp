@@ -29,6 +29,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "IAssetTools.h"
 #include "AssetToolsModule.h"
+#include "ContentBrowserModule.h"
 #include "Settings/EditorExperimentalSettings.h"
 
 #include "PackagesDialog.h"
@@ -1291,6 +1292,9 @@ void AssetViewUtils::SetPathColor(const FString& FolderPath, TOptional<FLinearCo
 
 		// Update the map too
 		PathColors.Add(InPath, InFolderColor);
+
+		FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().GetModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
+		ContentBrowserModule.GetOnSetFolderColor().Broadcast(InPath);
 	};
 
 	auto RemoveColorInternal = [](const FString& InPath)

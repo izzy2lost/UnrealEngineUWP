@@ -16,16 +16,16 @@ class UTypedElementRegistry;
  * with TEDS/
  */
 UCLASS(Transient)
-class UTypedElementActorHandleDataStorageFactory : public UTypedElementDataStorageFactory
+class UTypedElementActorHandleDataStorageFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 public:
 
-	virtual void PreRegister(ITypedElementDataStorageInterface& DataStorage) override;
-	virtual void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
-	virtual void PreShutdown(ITypedElementDataStorageInterface& DataStorage) override;
+	virtual void PreRegister(IEditorDataStorageProvider& DataStorage) override;
+	virtual void RegisterQueries(IEditorDataStorageProvider& DataStorage) override;
+	virtual void PreShutdown(IEditorDataStorageProvider& DataStorage) override;
 private:
-	virtual void RegisterQuery_ActorHandlePopulate(ITypedElementDataStorageInterface& DataStorage);
+	virtual void RegisterQuery_ActorHandlePopulate(IEditorDataStorageProvider& DataStorage);
 	void HandleBridgeEnabled(bool bEnabled);
 
 	FDelegateHandle BridgeEnableDelegateHandle;

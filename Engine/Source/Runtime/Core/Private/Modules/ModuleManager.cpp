@@ -208,7 +208,7 @@ void FModuleManager::FindModules(const TCHAR* WildcardWithoutExtension, TArray<F
 void FModuleManager::FindModules(const TCHAR* WildcardWithoutExtension, TArray<FModuleDiskInfo>& OutModules) const
 {
 	// @todo plugins: Try to convert existing use cases to use plugins, and get rid of this function
-#if !IS_MONOLITHIC
+#if !IS_MONOLITHIC && !UE_MERGED_MODULES
 
 	TMap<FName, FString> ModulePaths;
 	FindModulePaths(WildcardWithoutExtension, ModulePaths);
@@ -257,7 +257,7 @@ void FModuleManager::FindModules(const TCHAR* WildcardWithoutExtension, TArray<F
 			OutModules.Add(FModuleDiskInfo{ WildcardName, FString() });
 		}
 	}
-#endif
+#endif //  !IS_MONOLITHIC && !UE_MERGED_MODULES
 }
 
 bool FModuleManager::ModuleExists(const TCHAR* ModuleName, FString* OutModuleFilePath) const
@@ -399,6 +399,22 @@ void FModuleManager::AddModule(const FName InModuleName)
 	FModuleManager::Get().AddModuleToModulesList(InModuleName, ModuleInfo);
 }
 
+#if CPUPROFILERTRACE_ENABLED
+
+UE_TRACE_EVENT_BEGIN(Cpu, LoadModule, NoSync)
+UE_TRACE_EVENT_FIELD(UE::Trace::WideString, Name)
+UE_TRACE_EVENT_END()
+
+UE_TRACE_EVENT_BEGIN(Cpu, FPlatformProcess_GetDllHandle, NoSync)
+UE_TRACE_EVENT_FIELD(UE::Trace::WideString, Name)
+UE_TRACE_EVENT_END()
+
+UE_TRACE_EVENT_BEGIN(Cpu, StartupModule, NoSync)
+UE_TRACE_EVENT_FIELD(UE::Trace::WideString, Name)
+UE_TRACE_EVENT_END()
+
+#endif // CPUPROFILERTRACE_ENABLED
+
 #if !IS_MONOLITHIC
 void FModuleManager::RefreshModuleFilenameFromManifestImpl(const FName InModuleName, FModuleInfo& ModuleInfo)
 {
@@ -462,6 +478,90 @@ void FModuleManager::RefreshModuleFilenameFromManifest(const FName InModuleName)
 		this->RefreshModuleFilenameFromManifestImpl(InModuleName, *ModuleInfoPtr);
 	}
 }
+
+void* FModuleManager::InternalLoadLibrary(FName ModuleName, const FString& ModuleFileToLoad)
+{
+	UE_LOG(LogModuleManager, Verbose, TEXT("InternalLoadLibrary: %s"), *ModuleName.ToString());
+
+	void* Handle = nullptr;
+
+#if UE_MERGED_MODULES
+
+	// First, attempt to find a cached library handle
+	FModuleManagerLibraryTracker& LoadedDynamicLibrary = LoadedDynamicLibraries.FindOrAdd(ModuleFileToLoad);
+	if (LoadedDynamicLibrary.Handle != nullptr)
+	{
+		Handle = LoadedDynamicLibrary.Handle;
+	}
+	else
+
+#endif // UE_MERGED_MODULES
+
+	// If no cached handle exists, then just load the library
+	{
+#if CPUPROFILERTRACE_ENABLED
+		UE_TRACE_LOG_SCOPED_T(Cpu, FPlatformProcess_GetDllHandle, CpuChannel)
+			<< FPlatformProcess_GetDllHandle.Name(*ModuleFileToLoad);
+#endif // CPUPROFILERTRACE_ENABLED
+
+		Handle = FPlatformProcess::GetDllHandle(*ModuleFileToLoad);
+	}
+
+#if UE_MERGED_MODULES
+
+	// While using merged modules, update the usage data for the loaded library
+	LoadedDynamicLibrary.Users.AddUnique(ModuleName);
+	if (LoadedDynamicLibrary.Handle == nullptr)
+	{
+		LoadedDynamicLibrary.Handle = Handle;
+		UE_LOG(LogModuleManager, Verbose, TEXT("InternalLoadLibrary: cached library '%s'"), *ModuleFileToLoad);
+	}
+	else
+	{
+		UE_LOG(LogModuleManager, Verbose, TEXT("InternalLoadLibrary: added module to users of '%s'"), *ModuleFileToLoad);
+	}
+
+#endif // UE_MERGED_MODULES
+
+	return Handle;
+}
+
+void FModuleManager::InternalFreeLibrary(FName ModuleName, void* Handle)
+{
+	UE_LOG(LogModuleManager, Verbose, TEXT("InternalFreeLibrary: %s"), *ModuleName.ToString());
+
+#if UE_MERGED_MODULES
+
+	// Find out if we should unload a dynamic library
+	const FString* LibraryToUnload = nullptr;
+	for (TPair<FString, FModuleManagerLibraryTracker>& LibraryNameAndTracker : LoadedDynamicLibraries)
+	{
+		FModuleManagerLibraryTracker& Tracker = LibraryNameAndTracker.Value;
+
+		if (Tracker.Handle == Handle)
+		{
+			Tracker.Users.Remove(ModuleName);
+			if (Tracker.Users.Num() == 0)
+			{
+				LibraryToUnload = &LibraryNameAndTracker.Key;
+			}
+			break;
+		}
+	}
+
+	// Unload the DLL
+	if (LibraryToUnload)
+	{
+		UE_LOG(LogModuleManager, Verbose, TEXT("InternalFreeLibrary: unloading library '%s'"), **LibraryToUnload);
+		LoadedDynamicLibraries.Remove(*LibraryToUnload);
+		FPlatformProcess::FreeDllHandle(Handle);
+	}
+
+#else
+	FPlatformProcess::FreeDllHandle(Handle);
+#endif // UE_MERGED_MODULES
+}
+
 #endif	// !IS_MONOLITHIC
 
 IModuleInterface* FModuleManager::LoadModule(const FName InModuleName, ELoadModuleFlags InLoadModuleFlags)
@@ -519,22 +619,6 @@ IModuleInterface& FModuleManager::LoadModuleChecked( const FName InModuleName )
 
 	return *Module;
 }
-
-#if CPUPROFILERTRACE_ENABLED
-
-UE_TRACE_EVENT_BEGIN(Cpu, LoadModule, NoSync)
-	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, Name)
-UE_TRACE_EVENT_END()
-
-UE_TRACE_EVENT_BEGIN(Cpu, FPlatformProcess_GetDllHandle, NoSync)
-	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, Name)
-UE_TRACE_EVENT_END()
-
-UE_TRACE_EVENT_BEGIN(Cpu, StartupModule, NoSync)
-	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, Name)
-UE_TRACE_EVENT_END()
-
-#endif // CPUPROFILERTRACE_ENABLED
 
 IModuleInterface* FModuleManager::LoadModuleWithFailureReason(const FName InModuleName, EModuleLoadResult& OutFailureReason, ELoadModuleFlags InLoadModuleFlags)
 {
@@ -718,13 +802,7 @@ IModuleInterface* FModuleManager::LoadModuleWithFailureReason(const FName InModu
 		// Skip this check if file manager has not yet been initialized
 		if (FPaths::FileExists(ModuleFileToLoad))
 		{
-			{
-#if CPUPROFILERTRACE_ENABLED
-				UE_TRACE_LOG_SCOPED_T(Cpu, FPlatformProcess_GetDllHandle, CpuChannel)
-					<< FPlatformProcess_GetDllHandle.Name(*ModuleFileToLoad);
-#endif // CPUPROFILERTRACE_ENABLED
-				ModuleInfo->Handle = FPlatformProcess::GetDllHandle(*ModuleFileToLoad);
-			}
+			ModuleInfo->Handle = InternalLoadLibrary(InModuleName, ModuleFileToLoad);
 			
 			if (ModuleInfo->Handle != nullptr)
 			{
@@ -793,21 +871,28 @@ IModuleInterface* FModuleManager::LoadModuleWithFailureReason(const FName InModu
 							UE_CLOG((InLoadModuleFlags & ELoadModuleFlags::LogFailures) != ELoadModuleFlags::None,
 								LogModuleManager, Warning, TEXT("ModuleManager: Unable to load module '%s' because InitializeModule function failed (returned nullptr.)"), *ModuleFileToLoad);
 
-							FPlatformProcess::FreeDllHandle(ModuleInfo->Handle);
+							InternalFreeLibrary(InModuleName, ModuleInfo->Handle);
 							ModuleInfo->Handle = nullptr;
 							OutFailureReason = EModuleLoadResult::FailedToInitialize;
 						}
 					}
 				}
+
+#if !UE_MERGED_MODULES
+
+				// This is normal with merged modules, as we don't have a single module for each library
 				else
 				{
 					UE_CLOG((InLoadModuleFlags & ELoadModuleFlags::LogFailures) != ELoadModuleFlags::None,
 						LogModuleManager, Warning, TEXT("ModuleManager: Unable to load module '%s' because InitializeModule function was not found."), *ModuleFileToLoad);
 
-					FPlatformProcess::FreeDllHandle(ModuleInfo->Handle);
+					InternalFreeLibrary(InModuleName, ModuleInfo->Handle);
 					ModuleInfo->Handle = nullptr;
 					OutFailureReason = EModuleLoadResult::FailedToInitialize;
 				}
+
+#endif // !UE_MERGED_MODULES
+
 			}
 			else
 			{
@@ -861,7 +946,7 @@ bool FModuleManager::UnloadModule( const FName InModuleName, bool bIsShutdown, b
 				if( !bIsShutdown && bAllowUnloadCode )
 				{
 					// Unload the DLL
-					FPlatformProcess::FreeDllHandle( ModuleInfo.Handle );
+					InternalFreeLibrary( InModuleName, ModuleInfo.Handle );
 				}
 				ModuleInfo.Handle = nullptr;
 			}
@@ -1568,7 +1653,7 @@ void FModuleManager::LoadModuleBinaryOnly(FName ModuleName)
 	if (ModulePaths.Num() == 1)
 	{
 		FString ModuleFilename = MoveTemp(TMap<FName, FString>::TIterator(ModulePaths).Value());
-		FPlatformProcess::GetDllHandle(*ModuleFilename);
+		InternalLoadLibrary(ModuleName, ModuleFilename);
 	}
 #endif
 }

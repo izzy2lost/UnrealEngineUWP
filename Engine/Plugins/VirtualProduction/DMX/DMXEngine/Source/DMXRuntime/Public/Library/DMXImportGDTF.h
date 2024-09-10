@@ -48,9 +48,26 @@ public:
 #endif
 
 	/** Returns GDTF Asset Import Data for this GDTF */
-	FORCEINLINE UDMXGDTFAssetImportData* GetGDTFAssetImportData() const { return GDTFAssetImportData; }
- 
+	UDMXGDTFAssetImportData* GetGDTFAssetImportData() const { return GDTFAssetImportData; }
+
+#if WITH_EDITOR
+	/** Returns the Actor Class to spawn when spawned from a DMX Library */
+	const TSoftClassPtr<AActor>& GetActorClass() const { return ActorClass; }
+#endif
+
 private:
+#if WITH_EDITORONLY_DATA
+	/** 
+	 * The Actor Class that corresponds to this GDTF. Only Actors that implement the MVR Fixture Actor Interface can be used. 
+	 *
+	 * In the current Version this set as the Fixture Type Actor Class, when this GDTF is set for the Fixture Type. 
+	 * 
+	 * Can be left blank. If so, any Actor Class with the most matching Attributes will be spawned. 
+	 */
+	UPROPERTY(EditAnywhere, Category = "MVR", Meta = (MustImplement = "/Script/DMXFixtureActorInterface.DMXMVRFixtureActorInterface", AllowPrivateAccess = true))
+	TSoftClassPtr<AActor> ActorClass;
+#endif // WITH_EDITORONLY_DATA
+
 	/** The Asset Import Data used to generate the GDTF asset or nullptr, if not generated from a GDTF file */
 	UPROPERTY()
 	TObjectPtr<UDMXGDTFAssetImportData> GDTFAssetImportData;

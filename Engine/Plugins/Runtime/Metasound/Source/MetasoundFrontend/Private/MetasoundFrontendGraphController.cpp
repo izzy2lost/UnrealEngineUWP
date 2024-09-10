@@ -1681,9 +1681,10 @@ namespace Metasound
 						if (NodeClass->Metadata.GetType() == EMetasoundFrontendClassType::External)
 						{
 							const FNodeRegistryKey RegistryKey = FNodeRegistryKey(NodeClass->Metadata);
-							if (const FTopLevelAssetPath* Path = AssetManager->FindAssetPath(RegistryKey))
+							const FTopLevelAssetPath Path = AssetManager->FindAssetPath(RegistryKey);
+							if (Path.IsValid())
 							{
-								Node.Name = Path->GetAssetName();
+								Node.Name = Path.GetAssetName();
 							}
 						}
 					}

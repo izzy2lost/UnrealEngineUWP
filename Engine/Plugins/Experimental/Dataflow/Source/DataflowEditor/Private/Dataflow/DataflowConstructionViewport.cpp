@@ -38,10 +38,15 @@ TSharedPtr<SWidget> SDataflowConstructionViewport::MakeViewportToolbar()
 
 void SDataflowConstructionViewport::OnFocusViewportToSelection()
 {
-	if(const FDataflowPreviewSceneBase* PreviewScene = static_cast<FDataflowPreviewSceneBase*>(Client->GetPreviewScene()))
+	const UDataflowEditorMode* const DataflowEdMode = GetEdMode();
+
+	if (DataflowEdMode)
 	{
-		const FBox SceneBoundingBox = PreviewScene->GetBoundingBox();
-		Client->FocusViewportOnBox(SceneBoundingBox);
+		const FBox BoundingBox = DataflowEdMode->SelectionBoundingBox();
+		if (BoundingBox.IsValid && !(BoundingBox.Min == FVector::Zero() && BoundingBox.Max == FVector::Zero()))
+		{
+			Client->FocusViewportOnBox(BoundingBox);
+		}
 	}
 }
 

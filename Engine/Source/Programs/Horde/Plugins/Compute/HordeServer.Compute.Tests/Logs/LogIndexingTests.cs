@@ -14,7 +14,7 @@ namespace HordeServer.Tests.Logs
 	class TestLogWriter : IAsyncDisposable
 	{
 		ILog _logFile;
-		readonly IStorageClient _storageClient;
+		readonly IStorageNamespace _storageNamespace;
 		readonly IBlobWriter _blobWriter;
 		readonly LogBuilder _builder;
 		int _lineCount;
@@ -22,8 +22,8 @@ namespace HordeServer.Tests.Logs
 		public TestLogWriter(ILog logFile, StorageService storageService)
 		{
 			_logFile = logFile;
-			_storageClient = storageService.CreateClient(Namespace.Logs);
-			_blobWriter = _storageClient.CreateBlobWriter(logFile.RefName);
+			_storageNamespace = storageService.GetNamespace(Namespace.Logs);
+			_blobWriter = _storageNamespace.CreateBlobWriter(logFile.RefName);
 			_builder = new LogBuilder((logFile.Type == LogType.Text) ? LogFormat.Text : LogFormat.Json, NullLogger.Instance);
 		}
 
@@ -43,7 +43,7 @@ namespace HordeServer.Tests.Logs
 		public async Task<ILog> FlushAsync(bool complete = true)
 		{
 			IHashedBlobRef<LogNode> handle = await _builder.FlushAsync(_blobWriter, complete, CancellationToken.None);
-			await _storageClient.WriteRefAsync(_logFile.RefName, handle);
+			await _storageNamespace.WriteRefAsync(_logFile.RefName, handle);
 			_logFile = await _logFile.UpdateLineCountAsync(_lineCount, complete, CancellationToken.None);
 			return _logFile;
 		}

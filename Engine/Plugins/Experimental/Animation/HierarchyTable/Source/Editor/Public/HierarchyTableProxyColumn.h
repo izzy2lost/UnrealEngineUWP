@@ -17,5 +17,5 @@ struct FHierarchyTableProxyColumn : public FEditorDataStorageColumn
 public:
 	UHierarchyTable* OwnerTable;
 
-	FHierarchyTableEntryData* OwnerEntry;
+	int32 OwnerEntryIndex;
 };

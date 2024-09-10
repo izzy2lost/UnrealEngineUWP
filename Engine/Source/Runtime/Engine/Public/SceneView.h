@@ -1497,7 +1497,11 @@ public:
 	/** Whether the scene capture is a cube map (bIsSceneCapture will also be set). */
 	bool bIsSceneCaptureCube;
 
-	/** Whether this view uses ray tracing, for views that are used to render a scene capture. */
+	/**
+	 * Whether this view may use ray tracing, for views that are used to render a scene capture.  Use IsRayTracingAllowedForView()
+	 * to test for ray tracing, not this bool.  Filled in based on the bUseRayTracingIfEnabled field in the scene capture component
+	 * and r.RayTracing.SceneCaptures CVar (-1 == use value from component, 0 == disable globally, 1 == enable globally).
+	 */
 	bool bSceneCaptureUsesRayTracing;
 
 	/** Whether this view is being used to render a reflection capture. */
@@ -1673,7 +1677,7 @@ public:
 	/** When using mobile multi view fallback path we need to instance draw calls ourselves to cover both eyes instead of letting the drivers do it for us. */
 	uint32 InstanceFactor = 1;
 
-	/** Use to allow ray tracing on this view. */
+	/** Set to false to disable ray tracing on this view.  Use IsRayTracingAllowedForView() function to test for ray tracing, not this bool. */
 	bool bAllowRayTracing = true;
 
 	/**  Stereo aspects of the shader pipeline based on this view's shader platform */
@@ -1927,6 +1931,11 @@ public:
 	}
 
 	const FSceneView* GetSnapshotOriginView() const { return SnapshotOriginView; }
+
+	inline bool IsRayTracingAllowedForView() const
+	{
+		return bAllowRayTracing && (!bIsSceneCapture || bSceneCaptureUsesRayTracing);
+	}
 
 protected:
 	FSceneViewStateInterface* EyeAdaptationViewState = nullptr;

@@ -8,6 +8,7 @@
 #include "Algo/Find.h"
 #include "Containers/Deque.h"
 #include "Containers/StaticBitArray.h"
+#include "HAL/MallocLeakDetection.h"
 #include "HAL/ThreadSafeBool.h"
 #include "Misc/TimeGuard.h"
 #include "HAL/IConsoleManager.h"
@@ -1831,7 +1832,8 @@ private:
 	}
 
 	void AllocateWipBlock(FStructArrayBlock* NextFull)
-	{	
+	{
+		MALLOCLEAK_IGNORE_SCOPE(); // GScratchPages allocations may leak until global static destruction
 		static_assert(sizeof(FStructArrayBlock) <= FPageAllocator::PageSize, "Block must fit in page");
 	
 		Wip = reinterpret_cast<FStructArrayBlock*>(GScratchPages.AllocatePage(WorkerIndex));
@@ -6221,7 +6223,7 @@ void UObjectBase::MarkAsReachable() const
 {
 	// It is safe to perform mark as reachable in the open - the worst case is that we'll mark an object reachable that
 	// should/would be destroyed, and so in the next GC iteration it will be destroyed instead of in this iteration.
-	UE_AUTORTFM_OPEN2
+	UE_AUTORTFM_OPEN
 	{
 		::MarkAsReachable<false>(this);
 	};

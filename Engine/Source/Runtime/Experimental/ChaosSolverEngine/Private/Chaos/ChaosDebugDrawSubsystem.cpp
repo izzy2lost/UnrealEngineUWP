@@ -260,7 +260,7 @@ bool UChaosDebugDrawSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 #if CHAOS_DEBUG_DRAW
 	if (UWorld* World = Cast<UWorld>(Outer))
 	{
-		const bool bCreateDebugDraw = !IsRunningCommandlet() && !World->IsPreviewWorld();
+		const bool bCreateDebugDraw = !IsRunningCommandlet();
 
 		UE_LOG(LogChaosDD, Log, TEXT("%s Chaos Debug Draw Scene for world %s"), bCreateDebugDraw ? TEXT("Creating") : TEXT("Not creating"), *World->GetName());
 		

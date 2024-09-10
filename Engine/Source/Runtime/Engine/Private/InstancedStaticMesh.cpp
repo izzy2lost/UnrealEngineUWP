@@ -1608,7 +1608,7 @@ bool FInstancedStaticMeshSceneProxy::HasRayTracingRepresentation() const
 	return bSupportRayTracing;
 }
 
-void FInstancedStaticMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances)
+void FInstancedStaticMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector)
 {
 	if (!CVarRayTracingRenderInstances.GetValueOnRenderThread())
 	{
@@ -1629,7 +1629,7 @@ void FInstancedStaticMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTr
 
 
 	// TODO: Should only do this if any instance uses static geometry
-	Context.AddReferencedGeometryGroup(RenderData->RayTracingGeometryGroupHandle);
+	Collector.AddReferencedGeometryGroup(RenderData->RayTracingGeometryGroupHandle);
 
 	const int32 MinAllowedLODIndex = FMath::Clamp<int32>(CVarRayTracingInstancedStaticMeshesMinLOD.GetValueOnRenderThread(), 0, RenderData->LODResources.Num() - 1);
 
@@ -1683,6 +1683,7 @@ void FInstancedStaticMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTr
 
 	// Visible instances
 	TArray<FVisibleInstance> VisibleInstances;
+	TArray<FRayTracingInstance> RayTracingInstances;
 
 	const uint32 RequestedSimulatedInstances = CVarRayTracingSimulatedInstanceCount.GetValueOnRenderThread();
 	const uint32 SimulatedInstances = FMath::Min(RequestedSimulatedInstances == -1 ? InstanceCount : FMath::Clamp(RequestedSimulatedInstances, 1u, InstanceCount), MaxSimulatedInstances);
@@ -1736,6 +1737,8 @@ void FInstancedStaticMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTr
 		{
 			Instance = INDEX_NONE;
 		}
+
+		RayTracingInstances.Reserve(SimulatedInstances);
 	}
 
 	VisibleInstances.Reserve(InstanceCount);
@@ -1743,10 +1746,10 @@ void FInstancedStaticMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTr
 	const FBox CurrentBounds = StaticMeshBounds.GetBox();
 
 	constexpr float LocalToWorldScale = 1.0f;
-	FVector ViewPosition = Context.ReferenceView->ViewLocation;
+	FVector ViewPosition = Collector.GetReferenceView()->ViewLocation;
 
 	const FInstanceSceneDataBuffers* InstanceSceneDataBuffers = GetInstanceSceneDataBuffers();
-	check(InstanceSceneDataBuffers && InstanceSceneDataBuffers->GetNumInstances() == InstanceCount);
+	check(InstanceSceneDataBuffers && InstanceSceneDataBuffers->GetNumInstances() == InstanceCount && !InstanceSceneDataBuffers->IsInstanceDataGPUOnly());
 
 	auto GetDistanceToInstance = [&ViewPosition, InstanceSceneDataBuffers](int32 InstanceIndex, float& OutInstanceRadius, float& OutDistanceToInstanceCenter, float& OutDistanceToInstanceStart)
 	{
@@ -1834,7 +1837,7 @@ void FInstancedStaticMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTr
 		{
 			if (SimulatedInstances < (uint32)VisibleInstances.Num())
 			{
-				const FMatrix& InvProjMatrix = Context.ReferenceView->ViewMatrices.GetInvProjectionMatrix();
+				const FMatrix& InvProjMatrix = Collector.GetReferenceView()->ViewMatrices.GetInvProjectionMatrix();
 
 				// In no culling case, we are missing distance to view, so fill it in now
 				if (CVarRayTracingRenderInstancesCulling.GetValueOnRenderThread() == 0)
@@ -1887,21 +1890,21 @@ void FInstancedStaticMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTr
 		{
 			FRayTracingInstance* DynamicInstance = nullptr;
 
-			if (ActiveInstances[DynamicInstanceIdx] == -1)
+			if (ActiveInstances[DynamicInstanceIdx] == INDEX_NONE)
 			{
 				// first case of this dynamic instance, setup the material and add it
 				const FStaticMeshLODResources& LODModel = RenderData->LODResources[LODIndex];
 
 				FRayTracingDynamicData& DynamicData = RayTracingDynamicData[DynamicInstanceIdx];
 
-				ActiveInstances[DynamicInstanceIdx] = OutRayTracingInstances.Num();
-				FRayTracingInstance& RayTracingInstance = OutRayTracingInstances.Add_GetRef(RayTracingWPOInstanceTemplate);
+				ActiveInstances[DynamicInstanceIdx] = RayTracingInstances.Num();
+				FRayTracingInstance& RayTracingInstance = RayTracingInstances.Add_GetRef(RayTracingWPOInstanceTemplate);
 				RayTracingInstance.Geometry = &DynamicData.DynamicGeometry;
 				RayTracingInstance.PrimitiveInstanceIndices.Reserve(InstanceCount);
 
 				DynamicInstance = &RayTracingInstance;
 
-				Context.DynamicRayTracingGeometriesToUpdate.Add(
+				Collector.AddRayTracingGeometryUpdate(
 					FRayTracingDynamicGeometryUpdateParams
 					{
 						RayTracingWPODynamicTemplate.Materials,
@@ -1919,7 +1922,7 @@ void FInstancedStaticMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTr
 			}
 			else
 			{
-				DynamicInstance = &OutRayTracingInstances[ActiveInstances[DynamicInstanceIdx]];
+				DynamicInstance = &RayTracingInstances[ActiveInstances[DynamicInstanceIdx]];
 			}
 
 			DynamicInstance->PrimitiveInstanceIndices.Add(InstanceIndex);
@@ -1954,7 +1957,12 @@ void FInstancedStaticMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTr
 			RayTracingInstanceTemplate.Materials.Add(MeshBatch);
 		}
 
-		OutRayTracingInstances.Add(RayTracingInstanceTemplate);
+		Collector.AddRayTracingInstance(RayTracingInstanceTemplate);
+	}
+
+	for (FRayTracingInstance& Instance : RayTracingInstances)
+	{
+		Collector.AddRayTracingInstance(MoveTemp(Instance));
 	}
 }
 

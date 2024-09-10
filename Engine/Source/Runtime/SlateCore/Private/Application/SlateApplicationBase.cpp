@@ -117,7 +117,7 @@ void FSlateApplicationBase::UnRegisterActiveTimer( const TSharedRef<FActiveTimer
 	ActiveTimerHandles.RemoveSingleSwap(ActiveTimerHandle);
 }
 
-bool FSlateApplicationBase::AnyActiveTimersArePending()
+void FSlateApplicationBase::UpdateAnyActiveTimersArePending()
 {
 	FScopeLock ActiveTimerLock(&ActiveTimerCS);
 
@@ -151,7 +151,7 @@ bool FSlateApplicationBase::AnyActiveTimersArePending()
 		}
 	}
 
-	return bAnyTickReady;
+	bAnyActiveTimersPending = bAnyTickReady;
 }
 
 bool FSlateApplicationBase::IsSlateAsleep()

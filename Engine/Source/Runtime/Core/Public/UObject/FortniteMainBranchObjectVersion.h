@@ -524,6 +524,9 @@ struct FFortniteMainBranchObjectVersion
 		// Subsurface profile now has a guid to be able to select one of many in a Substrate material.
 		SubsurfaceProfileGuid,
 
+		// Added support for to record the new solver iteration settings in CVD
+		SolverIterationsDataSupportInChaosVisualDebugger,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

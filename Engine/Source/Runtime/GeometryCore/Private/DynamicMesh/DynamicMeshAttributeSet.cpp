@@ -1054,6 +1054,38 @@ void FDynamicMeshAttributeSet::OnMergeEdges(const FDynamicMesh3::FMergeEdgesInfo
 	}
 }
 
+void FDynamicMeshAttributeSet::OnMergeVertices(const DynamicMeshInfo::FMergeVerticesInfo& MergeInfo)
+{
+	FDynamicMeshAttributeSetBase::OnMergeVertices(MergeInfo);
+
+	for (FDynamicMeshUVOverlay& UVLayer : UVLayers)
+	{
+		UVLayer.OnMergeVertices(MergeInfo);
+	}
+	for (FDynamicMeshNormalOverlay& NormalLayer : NormalLayers)
+	{
+		NormalLayer.OnMergeVertices(MergeInfo);
+	}
+	if (ColorLayer)
+	{
+		ColorLayer->OnMergeVertices(MergeInfo);
+	}
+	if (MaterialIDAttrib)
+	{
+		MaterialIDAttrib->OnMergeVertices(MergeInfo);
+	}
+
+	for (FDynamicMeshPolygroupAttribute& PolygroupLayer : PolygroupLayers)
+	{
+		PolygroupLayer.OnMergeVertices(MergeInfo);
+	}
+
+	for (FDynamicMeshWeightAttribute& WeightLayer : WeightLayers)
+	{
+		WeightLayer.OnMergeVertices(MergeInfo);
+	}
+}
+
 void FDynamicMeshAttributeSet::OnSplitVertex(const DynamicMeshInfo::FVertexSplitInfo& SplitInfo, const TArrayView<const int>& TrianglesToUpdate)
 {
 	FDynamicMeshAttributeSetBase::OnSplitVertex(SplitInfo, TrianglesToUpdate);

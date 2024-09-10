@@ -432,6 +432,11 @@ FPCGTaskId UPCGComponent::GenerateLocalGetTaskId(EPCGComponentGenerationTrigger 
 	return GenerateInternal(bForce, Grid, RequestedGenerationTrigger, {});
 }
 
+FPCGTaskId UPCGComponent::GenerateLocalGetTaskId(EPCGComponentGenerationTrigger RequestedGenerationTrigger, bool bForce, EPCGHiGenGrid Grid, const TArray<FPCGTaskId>& Dependencies)
+{
+	return GenerateInternal(bForce, Grid, RequestedGenerationTrigger, Dependencies);
+}
+
 FPCGTaskId UPCGComponent::GenerateInternal(bool bForce, EPCGHiGenGrid Grid, EPCGComponentGenerationTrigger RequestedGenerationTrigger, const TArray<FPCGTaskId>& Dependencies)
 {
 	if (IsGenerating() || !GetSubsystem() || !ShouldGenerate(bForce, RequestedGenerationTrigger))
@@ -1660,6 +1665,12 @@ void UPCGComponent::PostLoad()
 #if WITH_EDITOR
 	// Force dirty to be false on load. We should never refresh on load.
 	bDirtyGenerated = false;
+
+	// We can never be generated if we have no graph
+	if (!GetGraph())
+	{
+		bGenerated = false;
+	}
 
 	// If we have both default value (bIsComponentPartitioned = false and bIsPartitioned = true)
 	// we will follow the value of bIsPartitioned.

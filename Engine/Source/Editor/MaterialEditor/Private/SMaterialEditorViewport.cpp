@@ -1001,7 +1001,7 @@ TSharedPtr<SWidget> SMaterialEditor3DPreviewViewport::BuildViewportToolbar()
 
 				// Add the Show submenu.
 				{
-					FToolMenuEntry ShowSubmenu = UE::MaterialEditor::CreateShowSubmenu(SharedThis(this));
+					FToolMenuEntry ShowSubmenu = UE::MaterialEditor::CreateShowSubmenu();
 					ShowSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
 					RightSection.AddEntry(ShowSubmenu);
 				}

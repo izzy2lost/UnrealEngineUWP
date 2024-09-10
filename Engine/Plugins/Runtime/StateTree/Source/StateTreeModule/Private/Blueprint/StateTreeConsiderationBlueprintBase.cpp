@@ -13,21 +13,21 @@
 UStateTreeConsiderationBlueprintBase::UStateTreeConsiderationBlueprintBase(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	bHasComputeRawScore = BlueprintNodeHelpers::HasBlueprintFunction(TEXT("ReceiveComputeRawScore"), *this, *StaticClass());
+	bHasGetScore = BlueprintNodeHelpers::HasBlueprintFunction(GET_FUNCTION_NAME_CHECKED(UStateTreeConsiderationBlueprintBase, ReceiveGetScore), *this, *StaticClass());
 }
 
-float UStateTreeConsiderationBlueprintBase::ComputeRawScore(FStateTreeExecutionContext& Context) const
+float UStateTreeConsiderationBlueprintBase::GetScore(FStateTreeExecutionContext& Context) const
 {
-	if (bHasComputeRawScore)
+	if (bHasGetScore)
 	{
 		// Cache the owner and event queue for the duration the consideration is evaluated.
 		SetCachedInstanceDataFromContext(Context);
 
-		const float RawScore = ReceiveComputeRawScore();
+		const float Score = ReceiveGetScore();
 
 		ClearCachedInstanceData();
 
-		return RawScore;
+		return Score;
 	}
 
 	return .0f;
@@ -79,9 +79,9 @@ FColor FStateTreeBlueprintConsiderationWrapper::GetIconColor() const
 }
 #endif //WITH_EDITOR
 
-float FStateTreeBlueprintConsiderationWrapper::ComputeRawScore(FStateTreeExecutionContext& Context) const
+float FStateTreeBlueprintConsiderationWrapper::GetScore(FStateTreeExecutionContext& Context) const
 {
 	UStateTreeConsiderationBlueprintBase* Consideration = Context.GetInstanceDataPtr<UStateTreeConsiderationBlueprintBase>(*this);
 	check(Consideration);
-	return Consideration->ComputeRawScore(Context);
+	return Consideration->GetScore(Context);
 }

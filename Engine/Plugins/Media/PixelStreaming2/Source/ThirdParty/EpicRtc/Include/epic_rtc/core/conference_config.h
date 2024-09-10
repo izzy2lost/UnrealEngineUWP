@@ -8,6 +8,7 @@
 #include "epic_rtc/containers/epic_rtc_span.h"
 #include "epic_rtc/containers/epic_rtc_array.h"
 #include "epic_rtc/plugins/signalling/signalling_type.h"
+#include "epic_rtc/core/stats.h"
 
 #pragma pack(push, 8)
 
@@ -172,8 +173,27 @@ struct EpicRtcConfig
 
     /* Additional parameters */
     EpicRtcParameterPairArrayInterface* _parameters;
+
+    struct Stats
+    {
+        /**
+         * Callback that will be called to deliver the stats.
+         */
+        EpicRtcStatsCollectorCallbackInterface* _statsCollectorCallback = nullptr;
+
+        /**
+         * Callback interval, set to 0 to disable.
+         */
+        uint64_t _statsCollectorInterval = 0;
+
+        /**
+         * If true, EpicRtcConnectionStats will contain json string only.
+         */
+         EpicRtcBool _jsonFormatOnly;
+    } _stats;
+    static_assert(sizeof(Stats) == 24);  // Ensure Stats is expected size on all platforms
 };
 
-static_assert(sizeof(EpicRtcConfig) == 208);  // Ensure EpicRtcConfig is expected size on all platforms
+static_assert(sizeof(EpicRtcConfig) == 232);  // Ensure EpicRtcConfig is expected size on all platforms
 
 #pragma pack(pop)

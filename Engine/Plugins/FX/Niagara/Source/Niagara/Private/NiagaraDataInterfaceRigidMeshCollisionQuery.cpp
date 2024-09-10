@@ -805,10 +805,10 @@ void FNDIRigidMeshCollisionData::ReleaseBuffers()
 {
 	if (AssetBuffer)
 	{
-		BeginReleaseResource(AssetBuffer);
 		ENQUEUE_RENDER_COMMAND(DeleteResource)(
 			[ParamPointerToRelease = AssetBuffer](FRHICommandListImmediate& RHICmdList)
 			{
+				ParamPointerToRelease->ReleaseResource();
 				delete ParamPointerToRelease;
 			});
 		AssetBuffer = nullptr;

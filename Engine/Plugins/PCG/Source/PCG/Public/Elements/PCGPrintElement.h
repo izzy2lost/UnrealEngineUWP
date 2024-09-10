@@ -65,7 +65,7 @@ protected:
 
 public:
 	/** The core message to print to the logger, graph, and/or screen. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (MultiLine, PCG_Overridable))
 	FString PrintString;
 
 	/** The verbosity level of the printed message. */

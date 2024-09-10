@@ -113,6 +113,7 @@ public:
 	void RemoveSubject(FLiveLinkSubjectKey SubjectKey);
 	FLiveLinkCollectionSubjectItem* FindSubject(FLiveLinkSubjectKey SubjectKey);
 	const FLiveLinkCollectionSubjectItem* FindSubject(FLiveLinkSubjectKey SubjectKey) const;
+	const FLiveLinkCollectionSubjectItem* FindSubject(FLiveLinkSubjectName SubjectName) const;
 	const FLiveLinkCollectionSubjectItem* FindEnabledSubject(FLiveLinkSubjectName SubjectName) const;
 	/** Get the number of subjects in the collection. */
 	int32 NumSubjects() const;

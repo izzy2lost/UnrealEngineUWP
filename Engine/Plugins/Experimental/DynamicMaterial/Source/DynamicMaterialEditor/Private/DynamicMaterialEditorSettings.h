@@ -135,23 +135,36 @@ enum class EDMMaterialPreviewMesh : uint8
 	Cube,
 	Sphere,
 	Cylinder,
-	ShaderBall
+	Custom
 };
 
 UENUM(BlueprintType)
 enum class EDMMaterialEditorLayout : uint8
 {
-	Left,
-	LeftAutoHide,
-	LeftSlim,
-	TopVertical,
-	TopVerticalAutoHide,
-	TopHorizontal,
-	TopHorizontalAutoHide,
+	Top,
 	TopSlim,
+	Left,
 
-	First = Left,
-	Last = TopSlim
+	First = Top,
+	Last = Left
+};
+
+USTRUCT()
+struct FDMContentBrowserThumbnailSettings
+{
+	GENERATED_BODY()
+
+	UPROPERTY(Config, EditAnywhere, Category = "Preview")
+	EDMMaterialPreviewMesh PreviewMesh = EDMMaterialPreviewMesh::Custom;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Preview", meta = (EditCondition = "PreviewMesh == EDMMaterialPreviewMesh::Custom", EditConditionHides))
+	float CustomMeshOrbitPitch = -30.f;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Preview", meta = (EditCondition = "PreviewMesh == EDMMaterialPreviewMesh::Custom", EditConditionHides))
+	float CustomMeshOrbitYaw = 152.f;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Preview", meta = (EditCondition = "PreviewMesh == EDMMaterialPreviewMesh::Custom", EditConditionHides))
+	float CustomMeshZoom = -409.f;
 };
 
 /**
@@ -202,6 +215,12 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview")
 	EDMMaterialPreviewMesh PreviewMesh;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview")
+	TSoftObjectPtr<UStaticMesh> CustomPreviewMesh;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Preview")
+	FDMContentBrowserThumbnailSettings ContentBrowserThumbnail;
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview")
 	bool bShowPreviewBackground;

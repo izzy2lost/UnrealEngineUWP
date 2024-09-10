@@ -146,6 +146,7 @@ namespace UE::PoseSearch
 
 		float PlayTime = 0.f;
 		float DeltaTimeMultiplier = 1.f;
+		float StepDeltaTime = 1.f / 30.f;
 
 		/** Scene asset being viewed and edited by this view model. */
 		TWeakObjectPtr<UPoseSearchDatabase> PoseSearchDatabasePtr;

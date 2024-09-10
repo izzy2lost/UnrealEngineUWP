@@ -54,7 +54,8 @@ public class ObjectMixerEditor : ModuleRules
 				"TypedElementRuntime",
 				"UMG",
 				"UnrealEd",
-				"WorkspaceMenuStructure"
+				"WorkspaceMenuStructure",
+				"SourceControl"
 			}
 		);
 	}

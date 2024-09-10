@@ -6,10 +6,10 @@
 #include "OverrideFactory.generated.h"
 
 UCLASS()
-class UHierarchyTableOverrideFactory : public UTypedElementDataStorageFactory
+class UHierarchyTableOverrideFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
-	void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage, ITypedElementDataStorageUiInterface& DataStorageUi) const override;
+	void RegisterWidgetConstructors(IEditorDataStorageProvider& DataStorage, IEditorDataStorageUiProvider& DataStorageUi) const override;
 };

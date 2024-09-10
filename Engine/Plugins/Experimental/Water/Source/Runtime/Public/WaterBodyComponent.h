@@ -427,13 +427,16 @@ public:
 	void OnWaterBodyChanged(bool bShapeOrPositionChanged, bool bWeightmapSettingsChanged = false, bool bUserTriggeredChanged = false) {}
 
 	/** Get the baked shallow water simulation for this water body */
-	UBakedShallowWaterSimulationComponent* GetBakedShallowWaterSimulation() { return BakedShallowWaterSim.Get(); }
+	UBakedShallowWaterSimulationComponent* GetBakedShallowWaterSimulation() const { return BakedShallowWaterSim.Get(); }
 	
 	/** Set the baked shallow water simulation for this water body */
 	void SetBakedShallowWaterSimulation(TObjectPtr<UBakedShallowWaterSimulationComponent> BakedSim) { BakedShallowWaterSim = BakedSim; }
 
-	/** Query for if the baked shallow water sim is valid for use */
-	bool UseBakedShallowWaterSimulationForBuoyancy() const { return bUseBakedSimForPhysics && BakedShallowWaterSim.IsValid() && BakedShallowWaterSim->SimulationData.IsValid(); }
+	/** Set toggle to use baked simulations if they are valid */
+	void SetUseBakedSimulationForQueriesAndPhysics(bool bUseBakedSimulation) { bUseBakedSimForQueriesAndPhysics = bUseBakedSimulation;  }
+	
+	/** Query for if the baked simulations is valid for use */
+	bool UseBakedSimulationForQueriesAndPhysics() const { return bUseBakedSimForQueriesAndPhysics && BakedShallowWaterSim.IsValid() && BakedShallowWaterSim->SimulationData.IsValid(); }
 
 protected:
 	//~ Begin UActorComponent interface.
@@ -692,7 +695,7 @@ protected:
 
 	/**  Override to disable use of the baked shallow water simulation for collisons and other uses */
 	UPROPERTY(Category = BakedSimulation, AdvancedDisplay, EditAnywhere)
-	bool bUseBakedSimForPhysics = true;
+	bool bUseBakedSimForQueriesAndPhysics = true;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()

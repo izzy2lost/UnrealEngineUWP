@@ -4,6 +4,7 @@
 #include "KeyParams.h"
 #include "ISequencer.h"
 #include "SSequencer.h"
+#include "Misc/ConsoleVariables.h"
 #include "MVVM/ViewModels/ViewDensity.h"
 
 USequencerSettings::USequencerSettings( const FObjectInitializer& ObjectInitializer )
@@ -71,11 +72,8 @@ USequencerSettings::USequencerSettings( const FObjectInitializer& ObjectInitiali
 	bShowSequencerToolbar = true;
 	bShowMarkedFrames = true;
 	ViewDensity = "Relaxed";
-	bIncludePinnedInFilter = false;
-	bAutoExpandNodesOnFilterPass = false;
-	bUseFilterSubmenusForCategories = false;
-	LastFilterBarLayout = EFilterBarLayout::Horizontal;
-	LastFilterBarSizeCoefficient = 0.1f;
+	AssetBrowserWidth = 500.f;
+	AssetBrowserHeight = 300.f;
 
 	SectionColorTints.Add(FColor(88, 102, 142, 255)); // blue
 	SectionColorTints.Add(FColor(99, 137, 132, 255)); // blue-green
@@ -1050,6 +1048,24 @@ void USequencerSettings::SetViewDensity(FName InViewDensity)
 	}
 }
 
+void USequencerSettings::SetAssetBrowserWidth(float InAssetBrowserWidth)
+{
+	if (InAssetBrowserWidth != AssetBrowserWidth)
+	{
+		AssetBrowserWidth = InAssetBrowserWidth;
+		SaveConfig();
+	}
+}
+
+void USequencerSettings::SetAssetBrowserHeight(float InAssetBrowserHeight)
+{
+	if (InAssetBrowserHeight != AssetBrowserHeight)
+	{
+		AssetBrowserHeight = InAssetBrowserHeight;
+		SaveConfig();
+	}
+}
+
 FSidebarState& USequencerSettings::GetSidebarState()
 {
 	return SidebarState.FindOrAdd(GetFName());
@@ -1159,4 +1175,15 @@ void USequencerSettings::SetLastFilterBarSizeCoefficient(const float bInSizeCoef
 {
 	LastFilterBarSizeCoefficient = bInSizeCoefficient;
 	SaveConfig();
+}
+
+void USequencerSettings::SetThumbnailCaptureSettings(const FSequencerThumbnailCaptureSettings& InNewValue)
+{
+	ThumbnailCaptureSettings = InNewValue;
+	SaveConfig();
+}
+
+bool USequencerSettings::ShouldShowThumbnailCaptureSettings()
+{
+	return UE::Sequencer::CVarEnableRelevantThumbnails.GetValueOnGameThread();
 }

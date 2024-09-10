@@ -82,6 +82,7 @@ class FilteredBinaryInputArchive final : public AnimatedMapFilter, public BlendS
         void process(RawVertexSkinWeights& dest);
         void process(RawMachineLearnedBehavior& dest);
         void process(RawRBFBehavior& dest);
+        void process(RawRBFBehaviorExt& dest);
         void process(RawJointBehaviorMetadata& dest);
         void process(RawTwistSwingBehavior& dest);
 

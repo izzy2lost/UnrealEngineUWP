@@ -42,7 +42,7 @@ TConstArrayView<const UScriptStruct*> FTypedElementWidgetConstructor::GetAdditio
 }
 
 FString FTypedElementWidgetConstructor::CreateWidgetDisplayName(
-	ITypedElementDataStorageInterface* DataStorage, RowHandle Row) const
+	IEditorDataStorageProvider* DataStorage, RowHandle Row) const
 {
 	switch (MatchedColumnTypes.Num())
 	{
@@ -95,8 +95,8 @@ FString FTypedElementWidgetConstructor::CreateWidgetDisplayName(
 
 TSharedPtr<SWidget> FTypedElementWidgetConstructor::ConstructFinalWidget(
 	RowHandle Row,
-	ITypedElementDataStorageInterface* DataStorage,
-	ITypedElementDataStorageUiInterface* DataStorageUi,
+	IEditorDataStorageProvider* DataStorage,
+	IEditorDataStorageUiProvider* DataStorageUi,
 	const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
 	// Add the additional columns to the UI row
@@ -137,8 +137,8 @@ TSharedPtr<SWidget> FTypedElementWidgetConstructor::ConstructFinalWidget(
 
 TSharedPtr<SWidget> FTypedElementWidgetConstructor::Construct(
 	RowHandle Row,
-	ITypedElementDataStorageInterface* DataStorage,
-	ITypedElementDataStorageUiInterface* DataStorageUi,
+	IEditorDataStorageProvider* DataStorage,
+	IEditorDataStorageUiProvider* DataStorageUi,
 	const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
 	UE::Editor::DataStorage::RowHandle TargetRow = GetTargetRow(DataStorage, Row);
@@ -165,8 +165,8 @@ TSharedPtr<SWidget> FTypedElementWidgetConstructor::CreateWidget(const UE::Edito
 }
 
 TSharedPtr<SWidget> FTypedElementWidgetConstructor::CreateWidget(
-	ITypedElementDataStorageInterface* DataStorage,
-	ITypedElementDataStorageUiInterface* DataStorageUi,
+	IEditorDataStorageProvider* DataStorage,
+	IEditorDataStorageUiProvider* DataStorageUi,
 	UE::Editor::DataStorage::RowHandle TargetRow,
 	UE::Editor::DataStorage::RowHandle UiRow,
 	const UE::Editor::DataStorage::FMetaDataView& Arguments)
@@ -174,7 +174,7 @@ TSharedPtr<SWidget> FTypedElementWidgetConstructor::CreateWidget(
 	return CreateWidget(Arguments);
 }
 
-bool FTypedElementWidgetConstructor::SetColumns(ITypedElementDataStorageInterface* DataStorage, RowHandle Row)
+bool FTypedElementWidgetConstructor::SetColumns(IEditorDataStorageProvider* DataStorage, RowHandle Row)
 {
 	return true;
 }
@@ -197,15 +197,15 @@ FString FTypedElementWidgetConstructor::DescribeColumnType(const UScriptStruct* 
 }
 
 bool FTypedElementWidgetConstructor::FinalizeWidget(
-	ITypedElementDataStorageInterface* DataStorage,
-	ITypedElementDataStorageUiInterface* DataStorageUi,
+	IEditorDataStorageProvider* DataStorage,
+	IEditorDataStorageUiProvider* DataStorageUi,
 	RowHandle Row,
 	const TSharedPtr<SWidget>& Widget)
 {
 	return true;
 }
 
-void FTypedElementWidgetConstructor::AddDefaultWidgetColumns(RowHandle Row, ITypedElementDataStorageInterface* DataStorage) const
+void FTypedElementWidgetConstructor::AddDefaultWidgetColumns(RowHandle Row, IEditorDataStorageProvider* DataStorage) const
 {
 	const FString WidgetLabel(CreateWidgetDisplayName(DataStorage, Row));
 	DataStorage->AddColumn(Row, FTypedElementLabelColumn{.Label = WidgetLabel} );
@@ -224,7 +224,7 @@ void FTypedElementWidgetConstructor::AddDefaultWidgetColumns(RowHandle Row, ITyp
 	}
 }
 
-FTypedElementWidgetConstructor::RowHandle FTypedElementWidgetConstructor::GetTargetRow(ITypedElementDataStorageInterface* DataStorage, RowHandle WidgetRow) const
+FTypedElementWidgetConstructor::RowHandle FTypedElementWidgetConstructor::GetTargetRow(IEditorDataStorageProvider* DataStorage, RowHandle WidgetRow) const
 {
 	using namespace UE::Editor::DataStorage;
 	RowHandle TargetRow = InvalidRowHandle;
@@ -245,14 +245,14 @@ FSimpleWidgetConstructor::FSimpleWidgetConstructor(const UScriptStruct* InTypeIn
 {
 }
 
-TSharedPtr<SWidget> FSimpleWidgetConstructor::CreateWidget(ITypedElementDataStorageInterface* DataStorage,
-	ITypedElementDataStorageUiInterface* DataStorageUi, UE::Editor::DataStorage::RowHandle TargetRow, UE::Editor::DataStorage::RowHandle WidgetRow,
+TSharedPtr<SWidget> FSimpleWidgetConstructor::CreateWidget(IEditorDataStorageProvider* DataStorage,
+	IEditorDataStorageUiProvider* DataStorageUi, UE::Editor::DataStorage::RowHandle TargetRow, UE::Editor::DataStorage::RowHandle WidgetRow,
 	const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
 	return nullptr;
 }
 
-bool FSimpleWidgetConstructor::SetColumns(ITypedElementDataStorageInterface* DataStorage, RowHandle Row)
+bool FSimpleWidgetConstructor::SetColumns(IEditorDataStorageProvider* DataStorage, RowHandle Row)
 {
 	return FTypedElementWidgetConstructor::SetColumns(DataStorage, Row);
 }
@@ -263,15 +263,15 @@ TSharedPtr<SWidget> FSimpleWidgetConstructor::CreateWidget(const UE::Editor::Dat
 	return nullptr;
 }
 
-bool FSimpleWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi,
+bool FSimpleWidgetConstructor::FinalizeWidget(IEditorDataStorageProvider* DataStorage, IEditorDataStorageUiProvider* DataStorageUi,
 	RowHandle Row, const TSharedPtr<SWidget>& Widget)
 {
 	// This function is not needed anymore and only exists so derived classes cannot derive from it anymore
 	return true;
 }
 
-TSharedPtr<SWidget> FSimpleWidgetConstructor::Construct(RowHandle WidgetRow, ITypedElementDataStorageInterface* DataStorage,
-	ITypedElementDataStorageUiInterface* DataStorageUi, const UE::Editor::DataStorage::FMetaDataView& Arguments)
+TSharedPtr<SWidget> FSimpleWidgetConstructor::Construct(RowHandle WidgetRow, IEditorDataStorageProvider* DataStorage,
+	IEditorDataStorageUiProvider* DataStorageUi, const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
 	const UE::Editor::DataStorage::RowHandle TargetRow = GetTargetRow(DataStorage, WidgetRow);
 

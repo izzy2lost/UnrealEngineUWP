@@ -238,6 +238,7 @@ void FNiagaraSystemRenderData::GetDynamicMeshElements(const TArray<const FSceneV
 }
 
 #if RHI_RAYTRACING
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void FNiagaraSystemRenderData::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances, const FNiagaraSceneProxy& SceneProxy)
 {
 	for (auto Renderer : EmitterRenderers_RT)
@@ -245,6 +246,17 @@ void FNiagaraSystemRenderData::GetDynamicRayTracingInstances(FRayTracingMaterial
 		if (Renderer)
 		{
 			Renderer->GetDynamicRayTracingInstances(Context, OutRayTracingInstances, &SceneProxy);
+		}
+	}
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+void FNiagaraSystemRenderData::GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector, const FNiagaraSceneProxy& SceneProxy)
+{
+	for (auto Renderer : EmitterRenderers_RT)
+	{
+		if (Renderer)
+		{
+			Renderer->GetDynamicRayTracingInstances(Collector, &SceneProxy);
 		}
 	}
 }

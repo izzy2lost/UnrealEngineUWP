@@ -117,6 +117,24 @@ bool FPCGVolumeSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 			continue;
 		}
 
+		// Set seed if required
+		int32 AdditionalSeed = 0;
+		if (Settings->bUseSeedAttribute)
+		{
+			const FPCGAttributePropertyInputSelector Selector = Settings->SeedAttribute.CopyAndFixLast(InputSplineData);
+			TUniquePtr<const IPCGAttributeAccessor> SeedAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(InputSplineData, Selector);
+
+			if (!SeedAccessor)
+			{
+				PCGLog::Metadata::LogFailToCreateAccessorError(Selector, InContext);
+			}
+			// Otherwise, get the value, if it fails, the attribute wasn't compatible
+			else if (!SeedAccessor->Get(AdditionalSeed, FPCGAttributeAccessorKeysEntries(PCGInvalidEntryKey), EPCGAttributeAccessorFlags::AllowBroadcastAndConstructible))
+			{
+				PCGLog::Metadata::LogFailToGetAttributeError<int32>(Selector, SeedAccessor.Get(), InContext);
+			}
+		}
+
 		const FVector ExtrudeDirection = ExtrudeVector / ExtrudeLength;
 
 		double MinSize = 0.0;
@@ -129,7 +147,7 @@ bool FPCGVolumeSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 
 		TArray<PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>> Instances;
 		double RemainingLength = 0.0;
-		const bool bHeightSubdivideSuccess = PCGSlicingBase::Subdivide(*TokenizedGrammar.ModuleGrammar, ExtrudeLength, Instances, RemainingLength);
+		const bool bHeightSubdivideSuccess = PCGSlicingBase::Subdivide(*TokenizedGrammar.ModuleGrammar, ExtrudeLength, Instances, RemainingLength, InContext, AdditionalSeed);
 
 		if (!bHeightSubdivideSuccess)
 		{
@@ -147,10 +165,7 @@ bool FPCGVolumeSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 			const FVector Size = ExtrudeDirection * CurrentBlock.Size * (FVector::OneVector + Instance.ExtraScale);
 			
 			FPCGSplineStruct NewSpline = InputSplineData->SplineStruct;
-			for (FInterpCurvePointVector& ControlPoint : NewSpline.SplineCurves.Position.Points)
-			{
-				ControlPoint.OutVal += CurrentDisplacement;
-			}
+			NewSpline.Transform.AddToTranslation(CurrentDisplacement);
 
 			UPCGSplineData* NewSplineData = FPCGContext::NewObject_AnyThread<UPCGSplineData>(InContext);
 			NewSplineData->Initialize(NewSpline);

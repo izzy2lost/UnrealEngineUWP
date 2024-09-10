@@ -17,7 +17,7 @@ class SComboButton;
 class SWidget;
 class SSearchBox;
 class SWidgetSwitcher;
-class SEditableText;
+class SInlineEditableTextBlock;
 class SBorder;
 class SMenuAnchor;
 class UStateTree;
@@ -94,7 +94,8 @@ private:
 	FReply OnRowMouseUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
 
 	FText GetName() const;
-	void OnNameCommitted(const FText& NewText, ETextCommit::Type InTextCommit) const;
+	bool HandleVerifyNameChanged(const FText& InText, FText& OutErrorMessage) const;
+	void HandleNameCommitted(const FText& NewLabel, ETextCommit::Type CommitType) const;
 
 	FText GetNodePickerTooltip() const;
 	void OnNodePicked(const UStruct* InStruct) const;
@@ -118,7 +119,7 @@ private:
 	UScriptStruct* BaseScriptStruct = nullptr;
 	UClass* BaseClass = nullptr;
 	TSharedPtr<SWidgetSwitcher> NameSwitcher;
-	TSharedPtr<SEditableText> NameEdit;
+	TSharedPtr<SInlineEditableTextBlock> NameEdit;
 	TSharedPtr<SBorder> RowBorder; 
 
 	UStateTreeEditorData* EditorData = nullptr;

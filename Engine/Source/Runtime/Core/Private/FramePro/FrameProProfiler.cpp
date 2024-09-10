@@ -132,13 +132,13 @@ public:
 	virtual void* Alloc(size_t size) override
 	{
 		void* Ptr = nullptr;
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			Ptr = BaseMalloc.Malloc(size, DEFAULT_ALIGNMENT);
 		};
 
 		// no-op for non-transactional code
-		UE_AUTORTFM_ONABORT2(=, this)
+		UE_AUTORTFM_ONABORT(=, this)
 		{
 			// Disable the code analysis warning that complains that Free is being passed
 			// a pointer that may be null. Free explicitly handles this case already.
@@ -149,7 +149,7 @@ public:
 	}
 	virtual void Free(void* p) override
 	{
-		UE_AUTORTFM_ONCOMMIT2(=, this)
+		UE_AUTORTFM_ONCOMMIT(=, this)
 		{
 			BaseMalloc.Free(p);
 		};
@@ -166,13 +166,13 @@ public:
 	static void* Malloc(SIZE_T Count, uint32 Alignment = DEFAULT_ALIGNMENT)
 	{
 		void* Ptr = nullptr;
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			Ptr = FrameProAllocator::Get().GetBaseMalloc()->Malloc(Count, Alignment);
 		};
 
 		// no-op for non-transactional code
-		UE_AUTORTFM_ONABORT2(Ptr)
+		UE_AUTORTFM_ONABORT(Ptr)
 		{
 			// Disable the code analysis warning that complains that Free is being passed
 			// a pointer that may be null. Free explicitly handles this case already.
@@ -198,7 +198,7 @@ public:
 			if (Original)
 			{
 				SIZE_T OriginalCount = 0;
-				UE_AUTORTFM_OPEN2
+				UE_AUTORTFM_OPEN
 				{
 					BaseMalloc->GetAllocationSize(Original, OriginalCount);
 				};
@@ -216,7 +216,7 @@ public:
 
 	static void Free(void* Original)
 	{
-		UE_AUTORTFM_ONCOMMIT2(Original)
+		UE_AUTORTFM_ONCOMMIT(Original)
 		{
 			FrameProAllocator::Get().GetBaseMalloc()->Free(Original);
 		};

@@ -25,7 +25,7 @@ public:
 	CHOOSER_PARAMETER_BOILERPLATE();
 };
 
-USTRUCT()
+USTRUCT(DisplayName = "Lookup Proxy", Meta = (Category = "Proxy Table", Tooltip = "Find a Proxy Asset entry in a Proxy Table, and evaluate it's value if this row is selected."))
 struct PROXYTABLE_API FLookupProxy : public FObjectChooserBase
 {
 	GENERATED_BODY()

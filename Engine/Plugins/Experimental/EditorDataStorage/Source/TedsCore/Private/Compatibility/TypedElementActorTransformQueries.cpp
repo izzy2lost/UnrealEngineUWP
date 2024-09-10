@@ -8,14 +8,14 @@
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "GameFramework/Actor.h"
 
-void UActorTransformDataStorageFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void UActorTransformDataStorageFactory::RegisterQueries(IEditorDataStorageProvider& DataStorage)
 {
 	RegisterActorAddTransformColumn(DataStorage);
 	RegisterActorLocalTransformToColumn(DataStorage);
 	RegisterLocalTransformColumnToActor(DataStorage);
 }
 
-void UActorTransformDataStorageFactory::RegisterActorAddTransformColumn(ITypedElementDataStorageInterface& DataStorage) const
+void UActorTransformDataStorageFactory::RegisterActorAddTransformColumn(IEditorDataStorageProvider& DataStorage) const
 {
 	using namespace UE::Editor::DataStorage::Queries;
 
@@ -38,7 +38,7 @@ void UActorTransformDataStorageFactory::RegisterActorAddTransformColumn(ITypedEl
 		.Compile());
 }
 
-void UActorTransformDataStorageFactory::RegisterActorLocalTransformToColumn(ITypedElementDataStorageInterface& DataStorage) const
+void UActorTransformDataStorageFactory::RegisterActorLocalTransformToColumn(IEditorDataStorageProvider& DataStorage) const
 {
 	using namespace UE::Editor::DataStorage::Queries;
 
@@ -65,7 +65,7 @@ void UActorTransformDataStorageFactory::RegisterActorLocalTransformToColumn(ITyp
 		.Compile());
 }
 
-void UActorTransformDataStorageFactory::RegisterLocalTransformColumnToActor(ITypedElementDataStorageInterface& DataStorage) const
+void UActorTransformDataStorageFactory::RegisterLocalTransformColumnToActor(IEditorDataStorageProvider& DataStorage) const
 {
 	using namespace UE::Editor::DataStorage::Queries;
 	

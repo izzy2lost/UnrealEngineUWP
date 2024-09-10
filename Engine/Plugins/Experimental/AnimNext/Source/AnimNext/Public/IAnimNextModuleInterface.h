@@ -4,11 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "Modules/ModuleInterface.h"
-#include "LODPose.h"
 #include "ReferencePose.h"
 
 struct FAnimNextGraphInstancePtr;
 struct FAnimNextVariableBindingData;
+struct FAnimNextGraphLODPose;
 
 namespace UE::AnimNext
 {
@@ -26,7 +26,7 @@ public:
 	virtual ~IAnimNextAnimGraph() = default;
 
 	virtual void UpdateGraph(const FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime, FTraitEventList& InputEventList, FTraitEventList& OutputEventList) const = 0;
-	virtual void EvaluateGraph(const FAnimNextGraphInstancePtr& GraphInstance, const FReferencePose& RefPose, int32 GraphLODLevel, FLODPoseHeap& OutputPose) const = 0;
+	virtual void EvaluateGraph(const FAnimNextGraphInstancePtr& GraphInstance, const FReferencePose& RefPose, int32 GraphLODLevel, FAnimNextGraphLODPose& OutputPose) const = 0;
 };
 
 class IAnimNextModuleInterface : public IModuleInterface
@@ -43,7 +43,7 @@ public:
 	virtual void RegisterAnimNextAnimGraph(const IAnimNextAnimGraph& InAnimGraphImpl) = 0;
 	virtual void UnregisterAnimNextAnimGraph() = 0;
 	virtual void UpdateGraph(const FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime, FTraitEventList& InputEventList, FTraitEventList& OutputEventList) = 0;
-	virtual void EvaluateGraph(const FAnimNextGraphInstancePtr& GraphInstance, const FReferencePose& RefPose, int32 GraphLODLevel, FLODPoseHeap& OutputPose) const = 0;
+	virtual void EvaluateGraph(const FAnimNextGraphInstancePtr& GraphInstance, const FReferencePose& RefPose, int32 GraphLODLevel, FAnimNextGraphLODPose& OutputPose) const = 0;
 };
 
 }

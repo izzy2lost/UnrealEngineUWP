@@ -1013,7 +1013,7 @@ namespace Gauntlet
 							{
 								SubDirectory.Delete(true);
 							}
-							catch(Exception Exception)
+							catch (Exception Exception)
 							{
 								Log.Info("Encountered a {Exception} when attempting to delete PersistentDownloadDirectory {Directory}. The PDD will be present in artifacts", Exception, SubDirectory);
 							}
@@ -1033,7 +1033,7 @@ namespace Gauntlet
 						// Copy remaining artifacts
 						SystemHelpers.CopyDirectory(SourceDirectory.FullName, DestinationDirectory.FullName, SystemHelpers.CopyOptions.Default, TruncateLongPathFilter);
 					}
-					catch(Exception Exception)
+					catch (Exception Exception)
 					{
 						bRetainArtifacts = true;
 						Log.Warning("Encountered an {Exception} when copying saved artifacts from {SourceDirectory} to {DestinationDirectory}. " +
@@ -1046,11 +1046,11 @@ namespace Gauntlet
 						// Account for any read-only files.
 						void SetAttributesNormal(DirectoryInfo Directory)
 						{
-							foreach(FileInfo File in Directory.GetFiles())
+							foreach (FileInfo File in Directory.GetFiles())
 							{
 								File.Attributes = FileAttributes.Normal;
 							}
-							foreach(DirectoryInfo SubDirectory in Directory.GetDirectories())
+							foreach (DirectoryInfo SubDirectory in Directory.GetDirectories())
 							{
 								SetAttributesNormal(SubDirectory);
 							}
@@ -1060,7 +1060,7 @@ namespace Gauntlet
 						{
 							SourceDirectory.Delete(true);
 						}
-						catch(Exception Exception)
+						catch (Exception Exception)
 						{
 							Log.Info("Encountered an {Exception} when deleting source artifacts at {SourceDirectory}. Artifacts will remain on the device.", Exception, SourceDirectory);
 						}
@@ -1098,7 +1098,7 @@ namespace Gauntlet
 						{
 							SystemHelpers.CopyDirectory(AdditionalSourceDirectory.FullName, TargetDirectory);
 						}
-						catch(Exception Exception)
+						catch (Exception Exception)
 						{
 							Log.Warning("Encountered an {Exception} when trying to copy additional artifact directory {BaseCopyDirectory}" +
 								" from {AdditionalSourceDirectory} to {TargetDirectory}.",
@@ -1109,58 +1109,46 @@ namespace Gauntlet
 			}
 
 			// Now write the role's log file
-			string ArtifactLogFilePath = string.Empty;
-			int MaxLogSize = 1024 * 1024 * 1024;
-			int LogSize = InRunningRole.AppInstance.StdOut.Length * sizeof(char);
-			bool bIgnoreMaxSize = Globals.Params.ParseParam("NoMaxLogSize");
-			if (!bIgnoreMaxSize && LogSize > MaxLogSize)
+			string ArtifactLogFilePath = Path.GetFullPath(Path.Combine(DestinationDirectory.FullName, RoleName + "Output.log"));
+			try
 			{
-				Log.Warning("The process log for Role {0} was over 1 GB in size. A log artifact will not be generated for this process.", InRunningRole.ToString());
-			}
-			else
-			{
-				try
+				if (!InRunningRole.AppInstance.WriteOutputToFile(ArtifactLogFilePath))
 				{
-					ArtifactLogFilePath = Path.GetFullPath(Path.Combine(DestinationDirectory.FullName, RoleName + "Output.log"));
-
-					// Write a short gauntlet blurb before the entire process log
-					using (StreamWriter Writer = new(ArtifactLogFilePath, false))
-					{
-						Writer.WriteLine("------ Gauntlet Test ------");
-						Writer.WriteLine(string.Format("Role: {0}\r\n", InRunningRole.Role));
-						Writer.WriteLine(string.Format("Automation Command: {0}\r\n", Environment.CommandLine));
-						Writer.WriteLine("---------------------------");
-						Writer.Write(UnrealLogParser.SanitizeLogText(InRunningRole.AppInstance.StdOut));
-					}
-					Log.Info($"Wrote {RoleName} Log to {ArtifactLogFilePath}");
-
-					// On build machines, copy all role logs to Horde.
-					if (IsBuildMachine && Horde.IsHordeJob)
-					{
-						// Extract the log path portion that includes the Gauntlet test name. ie: UE.BootTest(Win64_Test_Client)\Client\ClientOutput.log
-						// That is to handle situation where multiple tests are run within the same Gauntlet Session and logs get overwritten.
-						string LogName = ArtifactLogFilePath.Replace(Path.GetFullPath(InContext.Options.LogDir), "").TrimStart(Path.DirectorySeparatorChar);
-						if (Path.IsPathFullyQualified(LogName))
-						{
-							// The path was expected to be relative to LogDir, however it appeared to be an absolute path.
-							// So we revert to default behavior and save the log directly in UAT log folder.
-							LogName = RoleName + "Output.log";
-						}
-						string HordeLogFilePath = Path.GetFullPath(Path.Combine(CommandUtils.CmdEnv.LogFolder, LogName));
-						Log.Verbose($"Copy log for Horde to {HordeLogFilePath}");
-						string TargetDirectry = Path.GetDirectoryName(HordeLogFilePath);
-						if (!Directory.Exists(TargetDirectry)) { Directory.CreateDirectory(TargetDirectry); }
-						File.Copy(ArtifactLogFilePath, HordeLogFilePath, true);
-					}
+					ArtifactLogFilePath = string.Empty;
 				}
-				catch (Exception Ex)
+			}
+			catch (Exception Ex)
+			{
+				string Message = "Encountered an {0} when attempting to write the {1} process log. The log will not be present in the artifacts.\n {2}";
+				Log.Warning(Message, Ex.GetType().Name, RoleName, Ex.Message);
+				ArtifactLogFilePath = string.Empty;
+			}
+
+			if (!string.IsNullOrEmpty(ArtifactLogFilePath))
+			{
+				Log.Info($"Wrote {RoleName} Log to {ArtifactLogFilePath}");
+
+				// On build machines, copy all role logs to Horde.
+				if (IsBuildMachine && Horde.IsHordeJob)
 				{
-					string Message = "Encountered an {0} when attempting to write the {1} process log. The log may contain malformed encoding and will not be present on horde. {2}";
-					Log.Warning(Message, Ex.GetType().Name, RoleName, Ex.Message);
+					// Extract the log path portion that includes the Gauntlet test name. ie: UE.BootTest(Win64_Test_Client)\Client\ClientOutput.log
+					// That is to handle situation where multiple tests are run within the same Gauntlet Session and logs get overwritten.
+					string LogName = ArtifactLogFilePath.Replace(Path.GetFullPath(InContext.Options.LogDir), "").TrimStart(Path.DirectorySeparatorChar);
+					if (Path.IsPathFullyQualified(LogName))
+					{
+						// The path was expected to be relative to LogDir, however it appeared to be an absolute path.
+						// So we revert to default behavior and save the log directly in UAT log folder.
+						LogName = RoleName + "Output.log";
+					}
+					string HordeLogFilePath = Path.GetFullPath(Path.Combine(CommandUtils.CmdEnv.LogFolder, LogName));
+					Log.Verbose($"Copy log for Horde to {HordeLogFilePath}");
+					string TargetDirectry = Path.GetDirectoryName(HordeLogFilePath);
+					if (!Directory.Exists(TargetDirectry)) { Directory.CreateDirectory(TargetDirectry); }
+					File.Copy(ArtifactLogFilePath, HordeLogFilePath, true);
 				}
 			}
 
-			// TODO REMOVEME- this should go elsewhere, likely a util that can be called or inserted by relevant test nodes.
+			// TODO REMOVEME- this should go elsewhere, likely a utile that can be called or inserted by relevant test nodes.
 			SavePSOs(InContext, InRunningRole, DestinationDirectory.FullName);
 			// END REMOVEME
 

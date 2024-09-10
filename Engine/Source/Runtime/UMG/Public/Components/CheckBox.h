@@ -188,9 +188,9 @@ class UWidgetCheckedStateRegistration : public UWidgetEnumStateRegistration
 public:
 
 	/** Post-load initialized values corresponding to this enum state */
-	static UMG_API inline FWidgetStateBitfield Unchecked;
-	static UMG_API inline FWidgetStateBitfield Checked;
-	static UMG_API inline FWidgetStateBitfield Undetermined;
+	static UMG_API FWidgetStateBitfield Unchecked;
+	static UMG_API FWidgetStateBitfield Checked;
+	static UMG_API FWidgetStateBitfield Undetermined;
 
 	static const inline FName StateName = FName("CheckedState");
 

@@ -31,7 +31,7 @@ public class AgentCollectionTests : ComputeTestSetup
 	[TestInitialize]
 	public async Task SetupAsync()
 	{
-		_agent = await AgentCollection.AddAsync(new AgentId("test"), ephemeral: true, enrollmentKey: "");
+		_agent = await AgentCollection.AddAsync(new CreateAgentOptions(new AgentId("test"), true, ""));
 	}
 
 	[TestMethod]

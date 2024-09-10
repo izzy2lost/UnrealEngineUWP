@@ -632,8 +632,8 @@ namespace JobDriver.Utility
 
 				logger.LogInformation("Reading tag \"{NodeName}\":\"{TagName}\" from temp storage (artifact: {ArtifactId} '{ArtifactName}' ({ArtifactType}), ns: {NamespaceId}, ref: {RefName}, localFile: {LocalFile})", nodeName, tagName, artifact.Id, artifactName, artifactType, namespaceId, refName, localFileListLocation);
 
-				IStorageClient storageClient = hordeClient.CreateStorageClient(namespaceId, artifact.Token);
-				DirectoryNode node = await storageClient.ReadRefTargetAsync<DirectoryNode>(artifact.RefName, cancellationToken: cancellationToken);
+				IStorageNamespace storageNamespace = hordeClient.GetStorageNamespace(namespaceId, artifact.Token);
+				DirectoryNode node = await storageNamespace.ReadRefTargetAsync<DirectoryNode>(artifact.RefName, cancellationToken: cancellationToken);
 
 				FileEntry fileEntry = node.GetFileEntry(localFileListLocation.GetFileName());
 				DirectoryReference.CreateDirectory(localFileListLocation.Directory);
@@ -770,8 +770,8 @@ namespace JobDriver.Utility
 
 				logger.LogInformation("Reading block \"{NodeName}\":\"{BlockName}\" from temp storage (artifact: {ArtifactId} '{ArtifactName}' ({ArtifactType}), ns: {NamespaceId}, ref: {RefName}, local: {LocalFile}, blockdir: {BlockDir})", nodeName, blockName, artifact.Id, artifactName, artifactType, namespaceId, refName, localManifestFile, blockDirectoryName);
 
-				IStorageClient storageClient = hordeClient.CreateStorageClient(namespaceId, artifact.Token);
-				DirectoryNode node = await storageClient.ReadRefTargetAsync<DirectoryNode>(refName, cancellationToken: cancellationToken);
+				IStorageNamespace storageNamespace = hordeClient.GetStorageNamespace(namespaceId, artifact.Token);
+				DirectoryNode node = await storageNamespace.ReadRefTargetAsync<DirectoryNode>(refName, cancellationToken: cancellationToken);
 
 				DirectoryEntry? rootDirEntry;
 				if (!node.TryGetDirectoryEntry(blockDirectoryName, out rootDirEntry))
@@ -779,13 +779,13 @@ namespace JobDriver.Utility
 					throw new TempStorageException($"Missing block \"{blockName}\" from node \"{nodeName}\"");
 				}
 
-				StorageStats initialStats = storageClient.GetStats();
+				StorageStats initialStats = storageNamespace.GetStats();
 				Stopwatch timer = Stopwatch.StartNew();
 
 				// Add all the files and flush the ref
 				await rootDirEntry.Handle.ExtractAsync(rootDir.ToDirectoryInfo(), new ExtractStatsLogger(logger), logger, cancellationToken);
 
-				StorageStats deltaStats = StorageStats.GetDelta(initialStats, storageClient.GetStats());
+				StorageStats deltaStats = StorageStats.GetDelta(initialStats, storageNamespace.GetStats());
 				logger.LogInformation("{Stats}", $"Elapsed: {(int)timer.Elapsed.TotalSeconds}s, {String.Join(", ", deltaStats.Values.Select(x => $"{x.Item1}: {x.Item2:n0}"))}");
 
 				// Read the manifest in

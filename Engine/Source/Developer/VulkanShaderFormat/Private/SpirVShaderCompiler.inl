@@ -504,7 +504,7 @@ static void GatherSpirvReflectionBindings(
 	// If bindless is supported, then offset the descriptor set to fit the bindless heaps at the beginning
 	const EShaderFrequency ShaderFrequency = InternalState.GetShaderFrequency();
 	const uint32 StageIndex = (uint32)ShaderStage::GetStageForFrequency(ShaderFrequency);
-	const uint32 DescSetNo = InternalState.bSupportsBindless ? VulkanBindless::NumBindlessSets + StageIndex : StageIndex;
+	const uint32 DescSetNo = InternalState.bSupportsBindless ? VulkanBindless::MaxNumSets + StageIndex : StageIndex;
 
 	SpvReflectResult SpvResult = Reflection.EnumerateDescriptorSets(&NumDescriptorSets, nullptr);
 	check(SpvResult == SPV_REFLECT_RESULT_SUCCESS);

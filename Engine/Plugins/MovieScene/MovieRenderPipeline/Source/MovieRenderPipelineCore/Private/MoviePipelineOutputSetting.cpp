@@ -6,6 +6,7 @@
 #include "MoviePipelineQueue.h"
 #include "MovieRenderPipelineDataTypes.h"
 #include "MoviePipeline.h"
+#include "MoviePipelineTelemetry.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MoviePipelineOutputSetting)
 
@@ -105,3 +106,7 @@ void UMoviePipelineOutputSetting::SetupForPipelineImpl(UMoviePipeline* InPipelin
 	}
 }
 
+void UMoviePipelineOutputSetting::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	InTelemetry->HandleFrameCount = FMath::Max(InTelemetry->HandleFrameCount, HandleFrameCount);
+}

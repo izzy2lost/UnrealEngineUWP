@@ -613,6 +613,16 @@ FSceneOutlinerDragValidationInfo FActorMode::ValidateDrop(const ISceneOutlinerTr
 		const FText ActorLabel = FText::FromString(ActorTarget->GetActorLabel());
 		if (bDraggedOntoAttachmentParent)
 		{
+			for (const auto& DragActorPtr : DragActors)
+			{
+				AActor* DragActor = DragActorPtr.Get();
+				if (!DragActor->EditorCanDetachFrom(DragActor->GetSceneOutlinerParent(), AttachErrorMsg))
+				{
+					// Cannot detach from parent into root
+					return FSceneOutlinerDragValidationInfo(ESceneOutlinerDropCompatibility::IncompatibleGeneric, AttachErrorMsg); 
+				}
+			}
+
 			if (DragActors.Num() == 1)
 			{
 				return FSceneOutlinerDragValidationInfo(ESceneOutlinerDropCompatibility::CompatibleDetach, ActorLabel);
@@ -783,6 +793,14 @@ FSceneOutlinerDragValidationInfo FActorMode::ValidateDrop(const ISceneOutlinerTr
 					}
 
 					return FSceneOutlinerDragValidationInfo(ESceneOutlinerDropCompatibility::IncompatibleGeneric, Text);
+				}
+				else if (Actor->GetSceneOutlinerParent())
+				{
+					FText DetachErrorMsg;
+					if (!Actor->EditorCanDetachFrom(Actor->GetSceneOutlinerParent(), DetachErrorMsg))
+					{
+						return FSceneOutlinerDragValidationInfo(ESceneOutlinerDropCompatibility::IncompatibleGeneric, DetachErrorMsg);
+					}
 				}
 			}
 		}

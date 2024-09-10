@@ -12,20 +12,20 @@ struct FSlateColor;
 class ISlateStyle;
 
 UCLASS()
-class UTedsStylingFactory : public UTypedElementDataStorageFactory
+class UTedsStylingFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	~UTedsStylingFactory() override = default;
 
-	void RegisterTables(ITypedElementDataStorageInterface& DataStorage) override;
-	virtual void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
+	void RegisterTables(IEditorDataStorageProvider& DataStorage) override;
+	virtual void RegisterQueries(IEditorDataStorageProvider& DataStorage) override;
 
 	static void RegisterAllKnownStyles();
 	
 private:
-	static void RegisterBrush(ITypedElementDataStorageInterface* DataStorage, const FName& StyleName, const FSlateBrush* Brush, const ISlateStyle& OwnerStyle);
-	static void RegisterColor(ITypedElementDataStorageInterface* DataStorage, const FName& StyleName, const FSlateColor& Color, const ISlateStyle& OwnerStyle);
-	static UE::Editor::DataStorage::RowHandle AddOrGetStyleRow(ITypedElementDataStorageInterface* DataStorage, const FName& StyleName, const ISlateStyle& OwnerStyle);
+	static void RegisterBrush(IEditorDataStorageProvider* DataStorage, const FName& StyleName, const FSlateBrush* Brush, const ISlateStyle& OwnerStyle);
+	static void RegisterColor(IEditorDataStorageProvider* DataStorage, const FName& StyleName, const FSlateColor& Color, const ISlateStyle& OwnerStyle);
+	static UE::Editor::DataStorage::RowHandle AddOrGetStyleRow(IEditorDataStorageProvider* DataStorage, const FName& StyleName, const ISlateStyle& OwnerStyle);
 };

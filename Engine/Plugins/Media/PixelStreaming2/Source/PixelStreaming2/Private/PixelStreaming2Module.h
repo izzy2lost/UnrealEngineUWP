@@ -4,6 +4,7 @@
 
 #include "IPixelStreaming2Module.h"
 #include "EpicRtcConferenceUtils.h"
+#include "EpicRtcStatsCollector.h"
 
 #include "epic_rtc/core/platform.h"
 #include "epic_rtc/plugins/signalling/signalling_type.h"
@@ -29,29 +30,30 @@ namespace UE::PixelStreaming2
 		virtual ~FPixelStreaming2Module() = default;
 
 		/** IPixelStreaming2Module implementation */
-		virtual FReadyEvent&									OnReady() override;
-		virtual bool											IsReady() override;
-		virtual bool											StartStreaming() override;
-		virtual void											StopStreaming() override;
-		virtual TSharedPtr<IPixelStreaming2Streamer>		CreateStreamer(const FString& StreamerId) override;
+		virtual FReadyEvent&							  OnReady() override;
+		virtual bool									  IsReady() override;
+		virtual bool									  StartStreaming() override;
+		virtual void									  StopStreaming() override;
+		virtual TSharedPtr<IPixelStreaming2Streamer>	  CreateStreamer(const FString& StreamerId) override;
 		virtual TSharedPtr<IPixelStreaming2AudioProducer> CreateAudioProducer() override;
 		virtual TSharedPtr<IPixelStreaming2VideoProducer> CreateVideoProducer() override;
-		virtual TArray<FString>									GetStreamerIds() override;
-		virtual TSharedPtr<IPixelStreaming2Streamer>		FindStreamer(const FString& StreamerId) override;
-		virtual TSharedPtr<IPixelStreaming2Streamer>		DeleteStreamer(const FString& StreamerId) override;
-		void													DeleteStreamer(TSharedPtr<IPixelStreaming2Streamer> ToBeDeleted) override;
-		virtual FString											GetDefaultStreamerID() override;
-		virtual FString											GetDefaultSignallingURL() override;
+		virtual TArray<FString>							  GetStreamerIds() override;
+		virtual TSharedPtr<IPixelStreaming2Streamer>	  FindStreamer(const FString& StreamerId) override;
+		virtual TSharedPtr<IPixelStreaming2Streamer>	  DeleteStreamer(const FString& StreamerId) override;
+		void											  DeleteStreamer(TSharedPtr<IPixelStreaming2Streamer> ToBeDeleted) override;
+		virtual FString									  GetDefaultStreamerID() override;
+		virtual FString									  GetDefaultSignallingURL() override;
 
 		// These are staying on the module at the moment as theres no way of the BPs knowing which streamer they are relevant to
-		virtual void									   AddInputComponent(UPixelStreaming2Input* InInputComponent);
-		virtual void									   RemoveInputComponent(UPixelStreaming2Input* InInputComponent);
+		virtual void								 AddInputComponent(UPixelStreaming2Input* InInputComponent);
+		virtual void								 RemoveInputComponent(UPixelStreaming2Input* InInputComponent);
 		virtual const TArray<UPixelStreaming2Input*> GetInputComponents();
-		virtual void									   ForEachStreamer(const TFunction<void(TSharedPtr<IPixelStreaming2Streamer>)>& Func) override;
+		virtual void								 ForEachStreamer(const TFunction<void(TSharedPtr<IPixelStreaming2Streamer>)>& Func) override;
 		/** End IPixelStreaming2Module implementation */
 
 		TSharedPtr<class FEpicRtcAudioMixingCapturer> GetAudioCapturer();
 		TRefCountPtr<EpicRtcConferenceInterface>	  GetEpicRtcConference() { return EpicRtcConference; }
+		TRefCountPtr<FEpicRtcStatsCollector>		  GetStatsCollector() { return StatsCollector; }
 
 	private:
 		/** IModuleInterface implementation */
@@ -69,17 +71,17 @@ namespace UE::PixelStreaming2
 		bool	InitializeEpicRtc();
 
 	private:
-		bool								 bModuleReady = false;
-		bool								 bStartupCompleted = false;
+		bool						   bModuleReady = false;
+		bool						   bStartupCompleted = false;
 		static FPixelStreaming2Module* PixelStreaming2Module;
 
 		FReadyEvent		ReadyEvent;
 		FDelegateHandle LogStatsHandle;
 
-		TArray<UPixelStreaming2Input*>					InputComponents;
-		mutable FCriticalSection								StreamersCS;
+		TArray<UPixelStreaming2Input*>					  InputComponents;
+		mutable FCriticalSection						  StreamersCS;
 		TMap<FString, TWeakPtr<IPixelStreaming2Streamer>> Streamers;
-		TSharedPtr<IPixelStreaming2Streamer>				DefaultStreamer;
+		TSharedPtr<IPixelStreaming2Streamer>			  DefaultStreamer;
 
 	private:
 		// FEpicRtcThread must exist before any AudioTask and AudioMixingCapturer(Which contains a audio task) to ensure it is destroyed last
@@ -87,6 +89,7 @@ namespace UE::PixelStreaming2
 		TSharedPtr<class FEpicRtcAudioMixingCapturer> AudioMixingCapturer;
 		TRefCountPtr<EpicRtcPlatformInterface>		  EpicRtcPlatform;
 		TRefCountPtr<EpicRtcConferenceInterface>	  EpicRtcConference;
+		TRefCountPtr<FEpicRtcStatsCollector>		  StatsCollector;
 
 		TRefCountPtr<FEpicRtcWebsocketFactory>	   WebsocketFactory;
 		TUniqueTaskPtr<FEpicRtcTickConferenceTask> TickConferenceTask;

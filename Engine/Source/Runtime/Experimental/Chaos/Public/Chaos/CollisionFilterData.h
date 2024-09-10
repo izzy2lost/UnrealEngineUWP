@@ -20,6 +20,21 @@ namespace Chaos
 		ModifyContacts			= 0b00100000,	// Unused - present for compatibility, whether to allow contact modification, handled in Chaos callbacks now
 		KinematicKinematicPairs	= 0b01000000,	// Unused - present for compatibility, whether to generate KK pairs, Chaos never generates KK pairs
 	};
+
+	inline const TCHAR* LexToString(EFilterFlags FilterFlag)
+	{
+		switch (FilterFlag)
+		{
+			case EFilterFlags::SimpleCollision: return TEXT("SimpleCollision");
+			case EFilterFlags::ComplexCollision: return TEXT("ComplexCollision");
+			case EFilterFlags::CCD: return TEXT("CCD");
+			case EFilterFlags::ContactNotify: return TEXT("ContactNotify");
+			case EFilterFlags::StaticShape: return TEXT("StaticShape");
+			case EFilterFlags::ModifyContacts: return TEXT("ModifyContacts");
+			case EFilterFlags::KinematicKinematicPairs: return TEXT("KinematicKinematicPairs");
+			default: return TEXT("Invalid");
+		}
+	}
 }
 
 struct FCollisionFilterData

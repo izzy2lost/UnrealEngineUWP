@@ -137,13 +137,13 @@ namespace Metasound::Engine
 
 			// Add error for multiple assets with the same class name
 			const FAssetKey Key(Document.RootGraph.Metadata);
-			const TArray<FTopLevelAssetPath>* AssetPaths = AssetManager.FindAssetPaths(Key);
-			if (AssetPaths && AssetPaths->Num() > 1)
+			const TArray<FTopLevelAssetPath> AssetPaths = AssetManager.FindAssetPaths(Key);
+			if (AssetPaths.Num() > 1)
 			{
 				Result = EDataValidationResult::Invalid;
 
 				TArray<FText> PathStrings;
-				Algo::Transform(*AssetPaths, PathStrings, [](const FTopLevelAssetPath& Path) { return FText::FromString(Path.ToString()); });
+				Algo::Transform(AssetPaths, PathStrings, [](const FTopLevelAssetPath& Path) { return FText::FromString(Path.ToString()); });
 				InOutContext.AddError(FText::Format(LOCTEXT("UniqueClassNameValidation",
 					"Multiple assets use the same class name which may result in unintended behavior. This may happen when an asset is moved, then the move is reverted in revision control without removing the newly created asset. Please remove the offending asset or duplicate it to automatically generate a new class name." \
 					"\nConflicting Asset Paths:\n{0}"), FText::Join(FText::FromString(TEXT("\n")), PathStrings)));

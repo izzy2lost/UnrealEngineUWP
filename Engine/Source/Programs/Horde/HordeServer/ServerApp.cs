@@ -135,7 +135,18 @@ namespace HordeServer
 			// Set the default data directory
 			if (baseServerSettings.DataDir != null)
 			{
-				s_dataDir = DirectoryReference.Combine(GetAppDir(), baseServerSettings.DataDir);
+				if (Path.IsPathRooted(baseServerSettings.DataDir))
+				{
+					DirectoryReference? dataDir = DirectoryReference.FromString(baseServerSettings.DataDir);
+					if (dataDir != null)
+					{
+						s_dataDir = dataDir;
+					}					
+				}
+				else
+				{
+					s_dataDir = DirectoryReference.Combine(GetAppDir(), baseServerSettings.DataDir);
+				}								
 			}
 			else if (baseServerSettings.Installed && RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 			{
@@ -303,9 +314,29 @@ namespace HordeServer
 		static IConfiguration CreateConfig(bool readInstalledConfig, FileReference? serverConfigFile)
 		{
 			IConfigurationBuilder builder = new ConfigurationBuilder();
-			if (readInstalledConfig && OperatingSystem.IsWindows())
+
+			string? regDataDir = null;
+			if (OperatingSystem.IsWindows())
 			{
-				builder = builder.Add(new RegistryConfigurationSource(Registry.LocalMachine, "SOFTWARE\\Epic Games\\Horde\\Server", ServerSettings.SectionName));
+				if (readInstalledConfig)
+				{
+					builder = builder.Add(new RegistryConfigurationSource(Registry.LocalMachine, "SOFTWARE\\Epic Games\\Horde\\Server", ServerSettings.SectionName));
+				}
+				else
+				{
+					// Check the registry for an installed server, if this is running we need to set the data directory if available
+					string? installedServerExecutable = Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Epic Games\\Horde\\Server", "InstalledServerExecutable", null) as string;
+					if (!String.IsNullOrEmpty(installedServerExecutable))
+					{
+						FileReference installedServer = new FileReference(installedServerExecutable);
+						FileReference executingServer = new FileReference(Assembly.GetExecutingAssembly().Location);
+
+						if (installedServer == executingServer)
+						{
+							regDataDir = Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Epic Games\\Horde\\Server", "DataDir", null) as string;
+						}
+					}					
+				}
 			}
 
 			builder.SetBasePath(AppDir.FullName)
@@ -345,6 +376,12 @@ namespace HordeServer
 						remappedValues.Add(new KeyValuePair<string, string?>(target, value));
 					}
 				}
+			}
+
+			// set data directory if we have one from registry
+			if (!readInstalledConfig && !String.IsNullOrEmpty(regDataDir))
+			{
+				remappedValues.Add(new KeyValuePair<string, string?>("Horde:DataDir", regDataDir));
 			}
 
 			builder.Add(new MemoryConfigurationSource { InitialData = remappedValues });

@@ -6,6 +6,7 @@
 #include "MetasoundAssetBase.h"
 #include "MetasoundAssetManager.h"
 #include "MetasoundBuilderBase.h"
+#include "MetasoundDocumentInterface.h"
 #include "Subsystems/EngineSubsystem.h"
 #include "UObject/Object.h"
 
@@ -124,6 +125,22 @@ public:
 
 	UE_DEPRECATED(5.5, "Moved to internal implementation, use IMetaSoundAssetManager::GetChecked() and analogous call")
 	virtual void WaitUntilAsyncLoadReferencedAssetsComplete(FMetasoundAssetBase& InAssetBase) { }
+
+#if WITH_EDITOR
+	UFUNCTION(BlueprintCallable, Category = "MetaSounds|Utilities")
+	UPARAM(DisplayName = "Reassigned") bool ReassignClassName(TScriptInterface<IMetaSoundDocumentInterface> DocInterface);
+
+	// Replaces dependencies in a MetaSound with the given class name and version with another MetaSound with the given
+	// class name and version.  Can be asset or code-defined.  It is up to the caller to validate the two classes have
+	// matching interfaces (Swapping with classes of unmatched interfaces can leave MetaSound in non-executable state).
+	UFUNCTION(BlueprintCallable, Category = "MetaSounds|Utilities", meta = (AdvancedDisplay = "3"))
+	UPARAM(DisplayName = "References Replaced") bool ReplaceReferencesInDirectory(
+		const TArray<FMetaSoundAssetDirectory>& InDirectories,
+		const FMetasoundFrontendClassName& OldClassName,
+		const FMetasoundFrontendClassName& NewClassName,
+		const FMetasoundFrontendVersionNumber OldVersion = FMetasoundFrontendVersionNumber(),
+		const FMetasoundFrontendVersionNumber NewVersion = FMetasoundFrontendVersionNumber());
+#endif // WITH_EDITOR
 
 	UFUNCTION(BlueprintCallable, Category = "MetaSounds|Registration")
 	void RegisterAssetClassesInDirectories(const TArray<FMetaSoundAssetDirectory>& Directories);

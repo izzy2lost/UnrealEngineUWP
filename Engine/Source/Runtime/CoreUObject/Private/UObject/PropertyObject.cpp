@@ -254,16 +254,12 @@ void FObjectProperty::PostSerializeObjectItem(FArchive& SerializingArchive, void
 		!SerializingArchive.IsTransacting() && // Don't create new objects when loading from the transaction buffer
 		!SerializingArchive.IsCountingMemory())
 	{
-		UObject* DefaultValue = ConstructDefaultObjectValueIfNecessary(CurrentValue);
-
 		UE_LOG(LogProperty, Warning,
-			TEXT("Failed to serialize value for non-nullable property %s. Reference will be defaulted to %s."),
-			*GetFullName(),
-			DefaultValue ? *DefaultValue->GetFullName() : TEXT("None")
+			TEXT("Failed to serialize value for non-nullable property %s. Reference will be nulled - will cause a runtime error if accessed."),
+			*GetFullName()
 		);
 
-		SetObjectPropertyValue(Value, DefaultValue);
-		ObjectValue = DefaultValue;
+		SetObjectPropertyValueUnchecked(Value, nullptr);
 	}
 
 	if (ObjectValue != CurrentValue)

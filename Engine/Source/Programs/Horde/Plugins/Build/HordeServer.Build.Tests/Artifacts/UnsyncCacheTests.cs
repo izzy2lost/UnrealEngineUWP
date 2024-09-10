@@ -21,12 +21,12 @@ namespace HordeServer.Tests.Artifacts
 			NamespaceId ns = new NamespaceId("test");
 			byte[] source = Enumerable.Range(0, 1024 * 1024).Select(x => (byte)(x % 257)).ToArray();
 
-			BundleStorageClient storageClient = BundleStorageClient.CreateInMemory(NullLogger.Instance);
+			BundleStorageNamespace storageNamespace = BundleStorageNamespace.CreateInMemory(NullLogger.Instance);
 
 			Dictionary<IoHash, ReadOnlyMemory<byte>> chunks = new Dictionary<IoHash, ReadOnlyMemory<byte>>();
 
 			IHashedBlobRef<DirectoryNode> directoryRef;
-			await using (IBlobWriter writer = storageClient.CreateBlobWriter())
+			await using (IBlobWriter writer = storageNamespace.CreateBlobWriter())
 			{
 				using ChunkedDataWriter chunkedWriter = new ChunkedDataWriter(writer, new ChunkingOptions());
 				await chunkedWriter.AppendAsync(source, CancellationToken.None);
@@ -40,10 +40,10 @@ namespace HordeServer.Tests.Artifacts
 			}
 
 			RefName refName = new RefName("test");
-			await storageClient.WriteRefAsync(refName, directoryRef);
+			await storageNamespace.WriteRefAsync(refName, directoryRef);
 
 			Mock<IStorageService> factory = new Mock<IStorageService>();
-			factory.Setup(x => x.TryCreateClient(ns)).Returns(storageClient);
+			factory.Setup(x => x.TryGetNamespace(ns)).Returns(storageNamespace);
 
 			Mock<IArtifact> artifact = new Mock<IArtifact>();
 			artifact.SetupGet(x => x.NamespaceId).Returns(ns);

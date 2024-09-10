@@ -127,7 +127,7 @@ namespace uba
 		bool UpdateAutoscroll();
 		bool UpdateSelection();
 		void UpdateScrollbars(bool redraw);
-		void GetTitlePrefix(StringBufferBase& out);
+		StringBufferBase& GetTitlePrefix(StringBufferBase& out);
 		void InitBrushes();
 		void ThreadLoop();
 		void Pause(bool pause);
@@ -212,10 +212,12 @@ namespace uba
 
 		Logger& m_logger;
 		VisualizerConfig m_config;
-		NetworkClient* m_client = nullptr;
 		TraceReader m_trace;
 		TraceView m_traceView;
-		
+
+		NetworkClient* m_client = nullptr;
+		Event m_clientDisconnect;
+
 		StringBuffer<256>m_listenChannel;
 		StringBuffer<256> m_newTraceName;
 		Event m_listenTimeout;

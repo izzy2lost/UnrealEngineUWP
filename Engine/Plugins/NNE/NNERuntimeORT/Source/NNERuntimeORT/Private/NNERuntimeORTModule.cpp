@@ -24,7 +24,7 @@ namespace UE::NNERuntimeORT::Private
 
 			if (!FPaths::FileExists(DllPath))
 			{
-				UE_LOG(LogNNE, Error, TEXT("Failed to find the third party library %s."), *DllPath);
+				UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to find the third party library %s."), *DllPath);
 				return false;
 			}
 			
@@ -32,7 +32,7 @@ namespace UE::NNERuntimeORT::Private
 
 			if (!DllHandle)
 			{
-				UE_LOG(LogNNE, Error, TEXT("Failed to load the third party library %s."), *DllPath);
+				UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to load the third party library %s."), *DllPath);
 				return false;
 			}
 
@@ -70,7 +70,7 @@ void FNNERuntimeORTModule::StartupModule()
 
 	if (!DllHelper::GetDllHandle(OrtSharedLibPath, DllHandles))
 	{
-		UE_LOG(LogNNE, Error, TEXT("Failed to load ONNX Runtime shared library. ORT Runtimes won't be available."));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to load ONNX Runtime shared library. ORT Runtimes won't be available."));
 		return;
 	}
 
@@ -85,14 +85,14 @@ void FNNERuntimeORTModule::StartupModule()
 	bDirectMLDllLoaded = DllHelper::GetDllHandle(DirectMLSharedLibPath, DllHandles);
 	if (!bDirectMLDllLoaded)
 	{
-		UE_LOG(LogNNE, Error, TEXT("Failed to load DirectML shared library. ORT Dml Runtime won't be available."));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to load DirectML shared library. ORT Dml Runtime won't be available."));
 	}
 #endif // PLATFORM_WINDOWS
 
 	TUniquePtr<UE::NNEOnnxruntime::OrtApiFunctions> OrtApiFunctions = UE::NNEOnnxruntime::LoadApiFunctions(OrtDllHandle);
 	if (!OrtApiFunctions.IsValid())
 	{
-		UE_LOG(LogNNE, Fatal, TEXT("Failed to load ONNX Runtime shared library functions!"));
+		UE_LOG(LogNNERuntimeORT, Fatal, TEXT("Failed to load ONNX Runtime shared library functions!"));
 		return;
 	}
 
@@ -171,8 +171,8 @@ void FNNERuntimeORTModule::ShutdownModule()
 #if WITH_EDITOR
 void FNNERuntimeORTModule::OnSettingsChanged(UObject* InObject, struct FPropertyChangedEvent& InPropertyChangedEvent)
 {
-	UE_LOG(LogNNE, Log, TEXT("Settings %s changed: %s"), *InObject->GetName(), *InPropertyChangedEvent.GetPropertyName().ToString());
-	UE_LOG(LogNNE, Warning, TEXT("It is recommended to restart the Editor if settings %s changed! Otherwise they might not be fully applied."), *InObject->GetName());
+	UE_LOG(LogNNERuntimeORT, Log, TEXT("Settings %s changed: %s"), *InObject->GetName(), *InPropertyChangedEvent.GetPropertyName().ToString());
+	UE_LOG(LogNNERuntimeORT, Warning, TEXT("It is recommended to restart the Editor if settings %s changed! Otherwise they might not be fully applied."), *InObject->GetName());
 
 	UE::NNERuntimeORT::Private::EnvironmentHelper::CreateOrtEnvFromSettings(CastChecked<UNNERuntimeORTSettings>(InObject), *Environment);
 }

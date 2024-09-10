@@ -21,7 +21,7 @@ FAutoConsoleCommand AddRandomAlertToRowConsoleCommand(
 
 			TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.AddRandomAlertToSelectedRows);
 
-			if (ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
+			if (IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
 			{
 				static QueryHandle Query = [DataStorage]
 				{
@@ -82,7 +82,7 @@ FAutoConsoleCommand ClearAllAlertsConsoleCommand(
 			static TTypedElementColumnTypeList<FTypedElementSyncBackToWorldTag> BatchAddColumns;
 			static TTypedElementColumnTypeList<FTypedElementAlertColumn, FTypedElementChildAlertColumn> BatchRemoveColumns;
 
-			if (ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
+			if (IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
 			{
 				static QueryHandle AlertInfoQuery = [DataStorage]
 				{
@@ -118,7 +118,7 @@ FAutoConsoleCommand ClearSelectedAlertsConsoleCommand(
 
 			TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.ClearSelectedAlerts);
 
-			if (ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
+			if (IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
 			{
 				static QueryHandle AlertQuery = [DataStorage]
 				{
@@ -145,7 +145,7 @@ FAutoConsoleCommand ClearSelectedAlertsConsoleCommand(
 
 const FName UTypedElementAlertQueriesFactory::AlertConditionName = FName(TEXT("Alerts"));
 
-void UTypedElementAlertQueriesFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementAlertQueriesFactory::RegisterQueries(IEditorDataStorageProvider& DataStorage)
 {
 	RegisterSubQueries(DataStorage);
 	RegisterParentUpdatesQueries(DataStorage);
@@ -154,7 +154,7 @@ void UTypedElementAlertQueriesFactory::RegisterQueries(ITypedElementDataStorageI
 	RegisterOnRemoveQueries(DataStorage);
 }
 
-void UTypedElementAlertQueriesFactory::RegisterSubQueries(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementAlertQueriesFactory::RegisterSubQueries(IEditorDataStorageProvider& DataStorage)
 {
 	using namespace UE::Editor::DataStorage::Queries;
 	
@@ -169,7 +169,7 @@ void UTypedElementAlertQueriesFactory::RegisterSubQueries(ITypedElementDataStora
 		.Compile());
 }
 
-void UTypedElementAlertQueriesFactory::RegisterParentUpdatesQueries(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementAlertQueriesFactory::RegisterParentUpdatesQueries(IEditorDataStorageProvider& DataStorage)
 {
 	using namespace UE::Editor::DataStorage::Queries;
 
@@ -206,7 +206,7 @@ void UTypedElementAlertQueriesFactory::RegisterParentUpdatesQueries(ITypedElemen
 		.Compile());
 }
 
-void UTypedElementAlertQueriesFactory::RegisterChildAlertUpdatesQueries(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementAlertQueriesFactory::RegisterChildAlertUpdatesQueries(IEditorDataStorageProvider& DataStorage)
 {
 	using namespace UE::Editor::DataStorage::Queries;
 
@@ -266,7 +266,7 @@ void UTypedElementAlertQueriesFactory::RegisterChildAlertUpdatesQueries(ITypedEl
 		.Compile());
 }
 
-void UTypedElementAlertQueriesFactory::RegisterOnAddQueries(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementAlertQueriesFactory::RegisterOnAddQueries(IEditorDataStorageProvider& DataStorage)
 {
 	using namespace UE::Editor::DataStorage::Queries;
 	
@@ -295,7 +295,7 @@ void UTypedElementAlertQueriesFactory::RegisterOnAddQueries(ITypedElementDataSto
 		.Compile());
 }
 
-void UTypedElementAlertQueriesFactory::RegisterOnRemoveQueries(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementAlertQueriesFactory::RegisterOnRemoveQueries(IEditorDataStorageProvider& DataStorage)
 {
 	using namespace UE::Editor::DataStorage::Queries;
 	using namespace UE::Editor::DataStorage;

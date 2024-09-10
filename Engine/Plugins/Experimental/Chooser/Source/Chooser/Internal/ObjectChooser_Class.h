@@ -6,7 +6,7 @@
 #include "IObjectChooser.h"
 #include "ObjectChooser_Class.generated.h"
 
-USTRUCT(DisplayName = "Class")
+USTRUCT(DisplayName = "Class", Meta = (ResultType = "Class", Category = "Basic", Tooltip = "A reference to a Class.\nOnly for use in Choosers with ResultType set to Sub Class Of"))
 struct CHOOSER_API FClassChooser : public FObjectChooserBase
 {
 	GENERATED_BODY()

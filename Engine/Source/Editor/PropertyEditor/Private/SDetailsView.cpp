@@ -1509,11 +1509,20 @@ TMap<FName, FText> SDetailsView::GetAllSections() const
 		{
 			if (TreeNode->GetNodeType() == EDetailNodeType::Category)
 			{
-				FDetailCategoryImpl& Category = (FDetailCategoryImpl&) TreeNode.Get();
-				TArray<TSharedRef<FDetailTreeNode>> Children;
-				Category.GetGeneratedChildren(Children, true, false);
-
 				LayoutCategories.Add(TreeNode->GetNodeName());
+			}
+			else if (TreeNode->GetNodeType() == EDetailNodeType::Object)
+			{
+				TArray<TSharedRef<IDetailTreeNode>> RootObjectChildren;
+				TreeNode->GetChildren(RootObjectChildren);
+
+				for (const TSharedRef<IDetailTreeNode>& RootObjectChild : RootObjectChildren)
+				{
+					if (RootObjectChild->GetNodeType() == EDetailNodeType::Category)
+					{
+						LayoutCategories.Add(RootObjectChild->GetNodeName());
+					}
+				}
 			}
 		}
 	}

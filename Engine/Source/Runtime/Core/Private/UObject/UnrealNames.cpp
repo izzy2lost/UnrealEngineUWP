@@ -1164,7 +1164,7 @@ public:
 	FNameEntryId Find(const FNameValue<Sensitivity>& Value) const
 	{
 		FNameEntryId Result;
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			FRWScopeLock _(Lock, FRWScopeLockType::SLT_ReadOnly);
 
@@ -1695,7 +1695,7 @@ FNameEntryId FNamePool::StoreWithNumber(FNameEntryIds StringParts, int32 NumberP
 {
 	FNameEntryId Result;
 
-	UE_AUTORTFM_OPEN2
+	UE_AUTORTFM_OPEN
 	{
 #if WITH_CASE_PRESERVING_NAME
 		// Look for an exact match with the right casing first
@@ -2017,7 +2017,7 @@ static FNamePool& GetNamePool()
 
 	FNamePool* Singleton = nullptr;
 	
-	UE_AUTORTFM_OPEN2
+	UE_AUTORTFM_OPEN
 	{
 		Singleton = new (NamePoolData) FNamePool;
 		bNamePoolInitialized = true;
@@ -2887,7 +2887,7 @@ struct FNameHelper
 		if (FindType == FNAME_Add)
 		{
 			FNameEntryId DisplayId;
-			UE_AUTORTFM_OPEN2
+			UE_AUTORTFM_OPEN
 			{
 				DisplayId = Pool.StoreWithNumber(BaseIds, InternalNumber);
 			};
@@ -2996,7 +2996,7 @@ private:
 	static FName MakeInternal(FNameStringView View, EFindName FindType, int32 InternalNumber)
 	{
 		FNameEntryIds Ids;
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			Ids = FindOrStoreString(View, FindType);
 		};
@@ -3057,7 +3057,7 @@ private:
 	{
 		FNameEntryIds Result{};
 
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			if (View.Len >= NAME_SIZE)
 			{

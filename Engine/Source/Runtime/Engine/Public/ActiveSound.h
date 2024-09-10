@@ -172,6 +172,9 @@ struct FSoundParseParameters
 
 	// The lowpass filter frequency to apply (if enabled)
 	float LowPassFilterFrequency;
+	
+	// The highpass filter frequency to apply (if enabled)
+	float HighPassFilterFrequency;
 
 	// The lowpass filter frequency to apply due to distance attenuation
 	float AttenuationLowpassFilterFrequency;
@@ -206,6 +209,9 @@ struct FSoundParseParameters
 
 	// Whether we have enabled low-pass filtering of this sound
 	uint8 bEnableLowPassFilter:1;
+	
+	// Whether we have enabled high-pass filtering of this sound
+	uint8 bEnableHighPassFilter:1;
 
 	// Whether this sound is occluded
 	uint8 bIsOccluded:1;
@@ -253,6 +259,7 @@ struct FSoundParseParameters
 		, AudioLinkSettingsOverride(nullptr)
 		, SourceEffectChain(nullptr)
 		, LowPassFilterFrequency(MAX_FILTER_FREQUENCY)
+		, HighPassFilterFrequency(MIN_FILTER_FREQUENCY)
 		, AttenuationLowpassFilterFrequency(MAX_FILTER_FREQUENCY)
 		, AttenuationHighpassFilterFrequency(MIN_FILTER_FREQUENCY)
 		, OcclusionFilterFrequency(MAX_FILTER_FREQUENCY)
@@ -264,6 +271,7 @@ struct FSoundParseParameters
 		, bUseSpatialization(false)
 		, bLooping(false)
 		, bEnableLowPassFilter(false)
+		, bEnableHighPassFilter(false)
 		, bIsOccluded(false)
 		, bIsPaused(false)
 		, bEnableRetrigger(false)
@@ -501,6 +509,9 @@ public:
 
 	/** Whether or not we have a low-pass filter enabled on this active sound. */
 	uint8 bEnableLowPassFilter : 1;
+	
+	/** Whether or not we have a low-pass filter enabled on this active sound. */
+	uint8 bEnableHighPassFilter : 1;
 
 	/** Whether or not this active sound will update play percentage. Based on set delegates on audio component. */
 	uint8 bUpdatePlayPercentage:1;
@@ -563,6 +574,9 @@ public:
 
 	/** The low-pass filter frequency to apply if bEnableLowPassFilter is true. */
 	float LowPassFilterFrequency;
+	
+	/** The high-pass filter frequency to apply if bEnableHighPassFilter is true. */
+	float HighPassFilterFrequency;
 
 	/** Fader that tracks component volume */
 	Audio::FVolumeFader ComponentVolumeFader;
@@ -720,7 +734,7 @@ public:
 	 * This function forces the Destination's routing method to Union.
 	 * To replace existing modulators or set a different routing method, use SetNewModulationRouting.
 	 */
-	ENGINE_API void AddModulationRouting(const TSet<TObjectPtr<USoundModulatorBase>>& NewModulators, EModulationDestination Destination, const bool bShouldModulationRoutingBeUpdated = true);
+	ENGINE_API void AddModulationRouting(const TSet<TObjectPtr<USoundModulatorBase>>& NewModulators, EModulationDestination Destination);
 
 	/* Removes given Modulators from the ActiveSound, if possible. */
 	ENGINE_API void RemoveModulationRouting(const TSet<TObjectPtr<USoundModulatorBase>>& NewModulators, EModulationDestination Destination);

@@ -19,7 +19,7 @@ class IImageWriteQueue;
 * a series of jpeg, png, bmp, or .exr images. Create an instance of the appropriate class (such as 
 * UMovieGraphImageSequenceOutputNode_JPG) instead of this abstract base class.
 */
-UCLASS(Abstract, PrioritizeCategories=("FileOutput"))
+UCLASS(Abstract)
 class UMovieGraphImageSequenceOutputNode : public UMovieGraphFileOutputNode
 {
 	GENERATED_BODY()

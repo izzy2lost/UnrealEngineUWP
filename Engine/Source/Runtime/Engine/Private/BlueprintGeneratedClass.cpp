@@ -1519,6 +1519,12 @@ UObject* UBlueprintGeneratedClass::FindArchetype(const UClass* ArchetypeClass, c
 				{
 					Archetype = ICH->GetOverridenComponentTemplate(ComponentKey);
 
+					// Exclude archetypes that were previously destroyed by ValidateTemplates to work around issues with REINST classes sharing templates
+					if (Archetype && Archetype->HasAnyFlags(RF_Transient))
+					{
+						Archetype = nullptr;
+					}
+
 					if (GEventDrivenLoaderEnabled && EVENT_DRIVEN_ASYNC_LOAD_ACTIVE_AT_RUNTIME)
 					{
 						if (Archetype && Archetype->HasAnyFlags(RF_NeedLoad))

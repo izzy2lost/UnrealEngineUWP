@@ -9,6 +9,7 @@
 
 
 #include "ChaosVisualDebugger/ChaosVDContextProvider.h"
+#include "ChaosVisualDebugger/ChaosVDDataWrapperUtils.h"
 #include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 #include "DataWrappers/ChaosVDQueryDataWrappers.h"
 #include "PBDRigidsSolver.h"

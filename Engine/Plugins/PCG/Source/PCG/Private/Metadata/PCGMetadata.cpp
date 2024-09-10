@@ -1309,7 +1309,7 @@ void UPCGMetadata::SetPointAttributes(const TArrayView<const FPCGPoint>& InPoint
 	}
 }
 
-void UPCGMetadata::SetAttributes(const TArrayView<const PCGMetadataEntryKey>& InOriginalKeys, const UPCGMetadata* InMetadata, const TArrayView<PCGMetadataEntryKey>& OutOriginalKeys, FPCGContext* OptionalContext)
+void UPCGMetadata::SetAttributes(const TArrayView<const PCGMetadataEntryKey>& InOriginalKeys, const UPCGMetadata* InMetadata, const TArrayView<PCGMetadataEntryKey>* InOutOptionalKeys, FPCGContext* OptionalContext)
 {
 	if (!InMetadata || InMetadata->GetAttributeCount() == 0 || GetAttributeCount() == 0)
 	{
@@ -1318,13 +1318,14 @@ void UPCGMetadata::SetAttributes(const TArrayView<const PCGMetadataEntryKey>& In
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGMetadata::SetAttributes);
 
-	check(InOriginalKeys.Num() == OutOriginalKeys.Num());
+	check(!InOutOptionalKeys || (InOriginalKeys.Num() == InOutOptionalKeys->Num()));
 
 	// There are a few things we can do to optimize here -
 	// basically, we don't need to set attributes more than once for a given <in, out> pair
 	TArray<PCGMetadataEntryKey, TInlineAllocator<256>> InKeys;
 	TArray<PCGMetadataEntryKey, TInlineAllocator<256>> OutKeys;
 
+	if (InOutOptionalKeys)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(UPCGMetadata::SetAttributes::CreateDeduplicatedKeys);
 		TMap<TPair<PCGMetadataEntryKey, PCGMetadataEntryKey>, int> PairMapping;
@@ -1332,7 +1333,7 @@ void UPCGMetadata::SetAttributes(const TArrayView<const PCGMetadataEntryKey>& In
 		for (int KeyIndex = 0; KeyIndex < InOriginalKeys.Num(); ++KeyIndex)
 		{
 			PCGMetadataEntryKey InKey = InOriginalKeys[KeyIndex];
-			PCGMetadataEntryKey& OutKey = OutOriginalKeys[KeyIndex];
+			PCGMetadataEntryKey& OutKey = (*InOutOptionalKeys)[KeyIndex];
 
 			if (int* MatchingPairIndex = PairMapping.Find(TPair<PCGMetadataEntryKey, PCGMetadataEntryKey>(InKey, OutKey)))
 			{
@@ -1347,6 +1348,10 @@ void UPCGMetadata::SetAttributes(const TArrayView<const PCGMetadataEntryKey>& In
 				OutKey = NewIndex;
 			}
 		}
+	}
+	else
+	{
+		OutKeys.Init(PCGInvalidEntryKey, InOriginalKeys.Num());
 	}
 
 	{
@@ -1428,11 +1433,19 @@ void UPCGMetadata::SetAttributes(const TArrayView<const PCGMetadataEntryKey>& In
 	}
 	AttributeLock.ReadUnlock();
 
-	// Finally, copy back the actual out keys to the original out keys
-	for (PCGMetadataEntryKey& OutKey : OutOriginalKeys)
+	if (InOutOptionalKeys)
 	{
-		OutKey = OutKeys[OutKey];
+		// Finally, copy back the actual out keys to the original out keys
+		for (PCGMetadataEntryKey& OutKey : *InOutOptionalKeys)
+		{
+			OutKey = OutKeys[OutKey];
+		}
 	}
+}
+
+void UPCGMetadata::SetAttributes(const TArrayView<const PCGMetadataEntryKey>& InKeys, const UPCGMetadata* InMetadata, const TArrayView<PCGMetadataEntryKey>& OutKeys, FPCGContext* OptionalContext)
+{
+	SetAttributes(InKeys, InMetadata, &OutKeys, OptionalContext);
 }
 
 void UPCGMetadata::MergeAttributesByKey(int64 KeyA, const UPCGMetadata* MetadataA, int64 KeyB, const UPCGMetadata* MetadataB, int64 TargetKey, EPCGMetadataOp Op, int64& OutKey)

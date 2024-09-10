@@ -1055,6 +1055,7 @@ public:
 
 	void Initialize(const FParamDict& Options) override;
 	void ModifyOptions(const FParamDict& InOptionsToSetOrChange, const FParamDict& InOptionsToClear) override;
+	virtual FVariantValue GetMediaInfo(FName InKey) const override;
 
 	void SetInitialStreamAttributes(EStreamType StreamType, const FStreamSelectionAttributes& InitialSelection) override;
 	void EnableFrameAccurateSeeking(bool bEnabled) override;

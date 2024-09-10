@@ -11,7 +11,7 @@
 
 namespace UE::Editor::DataStorage
 {
-	FMementoSystem::FMementoSystem(ITypedElementDataStorageInterface& InDataStorage)
+	FMementoSystem::FMementoSystem(IEditorDataStorageProvider& InDataStorage)
 		: DataStorage(InDataStorage)
 	{
 		FScopedExclusiveLock Lock(EGlobalLockScope::Public);

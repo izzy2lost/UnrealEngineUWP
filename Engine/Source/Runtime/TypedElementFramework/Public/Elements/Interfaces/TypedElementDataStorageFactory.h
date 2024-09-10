@@ -4,21 +4,21 @@
 
 #include "TypedElementDataStorageFactory.generated.h"
 
-class ITypedElementDataStorageCompatibilityInterface;
-class ITypedElementDataStorageInterface;
-class ITypedElementDataStorageUiInterface;
+class IEditorDataStorageCompatibilityProvider;
+class IEditorDataStorageProvider;
+class IEditorDataStorageUiProvider;
 
 /**
  * Base class that can be used to register various elements, such as queries and widgets, with
- * the Typed Elements Data Storage.
+ * the Editor Data Storage.
  */
 UCLASS(MinimalAPI)
-class UTypedElementDataStorageFactory : public UObject
+class UEditorDataStorageFactory : public UObject
 {
 	GENERATED_BODY()
 
 public:
-	~UTypedElementDataStorageFactory() override = default;
+	~UEditorDataStorageFactory() override = default;
 
 	/** 
 	 * Returns the order registration will be executed. Factories with a lower number will be executed
@@ -29,22 +29,22 @@ public:
 	/**
 	 * All factories will have this called before any Register functions on any factories are called
 	 */
-	virtual void PreRegister(ITypedElementDataStorageInterface& DataStorage) {}
+	virtual void PreRegister(IEditorDataStorageProvider& DataStorage) {}
 
-	virtual void RegisterTables(ITypedElementDataStorageInterface& DataStorage) {}
-	virtual void RegisterTables(ITypedElementDataStorageInterface& DataStorage, ITypedElementDataStorageCompatibilityInterface& DataStorageCompatibility) {}
-	virtual void RegisterTickGroups(ITypedElementDataStorageInterface& DataStorage) const {}
-	virtual void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) {}
+	virtual void RegisterTables(IEditorDataStorageProvider& DataStorage) {}
+	virtual void RegisterTables(IEditorDataStorageProvider& DataStorage, IEditorDataStorageCompatibilityProvider& DataStorageCompatibility) {}
+	virtual void RegisterTickGroups(IEditorDataStorageProvider& DataStorage) const {}
+	virtual void RegisterQueries(IEditorDataStorageProvider& DataStorage) {}
 
-	virtual void RegisterRegistrationFilters(ITypedElementDataStorageCompatibilityInterface& DataStorageCompatibility) const {}
-	virtual void RegisterDealiaser(ITypedElementDataStorageCompatibilityInterface& DataStorageCompatibility) const {}
+	virtual void RegisterRegistrationFilters(IEditorDataStorageCompatibilityProvider& DataStorageCompatibility) const {}
+	virtual void RegisterDealiaser(IEditorDataStorageCompatibilityProvider& DataStorageCompatibility) const {}
 	
-	virtual void RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const {}
-	virtual void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
-		ITypedElementDataStorageUiInterface& DataStorageUi) const {}
+	virtual void RegisterWidgetPurposes(IEditorDataStorageUiProvider& DataStorageUi) const {}
+	virtual void RegisterWidgetConstructors(IEditorDataStorageProvider& DataStorage,
+		IEditorDataStorageUiProvider& DataStorageUi) const {}
 
 	/**
 	 * Called in reverse order before the DataStorage object is shut down
 	 */
-	virtual void PreShutdown(ITypedElementDataStorageInterface& DataStorage) {}
+	virtual void PreShutdown(IEditorDataStorageProvider& DataStorage) {}
 };

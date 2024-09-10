@@ -560,6 +560,9 @@ public:
 
 	int32 GetFromParticleToTransformIndex(int32 Index) const { check(FromParticleToTransformIndex.IsValidIndex(Index));  return FromParticleToTransformIndex[Index]; }
 
+	CHAOS_API bool GetSkipChildToParentUpdateWhenInClusterUnion() const { return bSkipChildToParentUpdateWhenInClusterUnion; };
+	CHAOS_API void SetSkipChildToParentUpdateWhenInClusterUnion(bool bValue) { bSkipChildToParentUpdateWhenInClusterUnion = bValue; };
+
 protected:
 
 	bool RebaseParticleGameThreadCollectionTransformOnNewWorldTransform_External(int32 ParticleIndex, const TManagedArray<FTransform>& MassToLocal, bool bIsComponentTransformScaled, const FTransform& ComponentScaleTransform);
@@ -620,7 +623,7 @@ protected:
 	/** Scale the cluster particles geometry (creates if necessary an additional TImplicitObjectScaled object into the implicits hierarchy) */
 	CHAOS_API void ScaleClusterGeometry_Internal(const FVector& WorldScale);
 
-	CHAOS_API void SetWorldTransform_Internal(const FTransform& WorldTransform);
+	CHAOS_API void SetWorldTransform_Internal(const FTransform& WorldTransform, bool bInSkipChildToParentUpdateWhenInClusterUnion = false);
 	CHAOS_API void SetFilterData_Internal(const FCollisionFilterData& NewSimFilter, const FCollisionFilterData& NewQueryFilter);
 	CHAOS_API void SetPerParticleFilterData_Internal(const TArray<FParticleCollisionFilterData>& PerParticleData);
 	CHAOS_API void SetDamagePropagationData_Internal(bool bEnabled, float BreakDamagePropagationFactor, float ShockDamagePropagationFactor);
@@ -699,6 +702,9 @@ private:
 	bool IsObjectDynamic : 1; // Records current dynamic state
 	bool IsObjectLoading : 1; // Indicate when loaded
 	bool IsObjectDeleting : 1; // Indicate when pending deletion
+
+	/** when true and part of a cluster union this will skip the Child to parent update part */
+	bool bSkipChildToParentUpdateWhenInClusterUnion : 1; 
 
 	TArray<FParticleHandle*> SolverClusterID;
 	TArray<FClusterHandle*> SolverClusterHandles; // make a TArray of the base clase with type

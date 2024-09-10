@@ -26,7 +26,7 @@ public:
 	CHOOSER_PARAMETER_BOILERPLATE();
 };
 
-USTRUCT()
+USTRUCT(DisplayName = "Randomize", Meta = (Category = "Random", Tooltip = "The Randomize column will randomly select between whatever values have passed all filters.\n The value specified in each cell is a probability weighting for the row.\n  A row with a value twice as likely as another will be twice as likely to be selected.\n Using the optional RandomizationContext binding, it can track the most recent selection, and reduce the probability of randomly picking the same entry twice"))
 struct CHOOSER_API FRandomizeColumn : public FChooserColumnBase
 {
 	GENERATED_BODY()

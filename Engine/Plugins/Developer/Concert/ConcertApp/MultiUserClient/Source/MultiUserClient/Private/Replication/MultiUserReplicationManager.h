@@ -6,6 +6,7 @@
 #include "IConcertSession.h"
 #include "Client/UnifiedClientView.h"
 #include "Client/Offline/OfflineClientManager.h"
+#include "Misc/AnalyticsHandler.h"
 #include "Misc/ChangeLevelHandler.h"
 #include "Misc/Notification/ReplicationUserNotifier.h"
 #include "Misc/PreventReplicatedPropertyTransaction.h"
@@ -103,6 +104,8 @@ namespace UE::MultiUserClient::Replication
 		virtual bool FindOfflineClient(const FGuid& ClientId, TFunctionRef<void(const IOfflineReplicationClient&)> Callback) const override;
 		virtual FOnServerStateChanged& OnStreamServerStateChanged() override { return OnStreamServerStateChangedDelegate; }
 		virtual FOnServerStateChanged& OnAuthorityServerStateChanged() override { return OnAuthorityServerStateChangedDelegate; }
+		virtual FOnOfflineClientsChanged& OnOfflineClientsChanged() override { return OnOfflineClientsChangedDelegate; }
+		virtual FOnServerStateChanged& OnOfflineClientContentChanged() override { return OnOfflineClientContentChangedDelegate; }
 		//~ End IMultiUserReplication Interface
 
 	private:
@@ -137,7 +140,7 @@ namespace UE::MultiUserClient::Replication
 			FOnlineClientManager OnlineClientManager;
 			/** Keeps track of clients that were once in the session but are no longer to be able to display their old settings in the UI. */
 			FOfflineClientManager OfflineClientManager;
-			/** Adapter abstraction that allows systems to query online and offline clients with an unified interface. */
+			/** Adapter abstraction that allows systems to query online and offline clients with a unified interface. */
 			FUnifiedClientView UnifiedClientView;
 			
 			/** Interacts with the mute global server mute system. */
@@ -156,7 +159,9 @@ namespace UE::MultiUserClient::Replication
 			FPreventReplicatedPropertyTransaction PreventReplicatedPropertyTransaction;
 			/** This system notifies users when requests go wrong */
 			FReplicationUserNotifier UserNotifier;
-			
+			/** Sends analytics data about replication use. */
+			FAnalyticsHandler AnalyticsHandler;
+
 			FConnectedState(TSharedRef<IConcertSyncClient> InClient, FReplicationDiscoveryContainer& InDiscoveryContainer);
 		};
 		/** Set when connected to a replication session. */
@@ -172,6 +177,10 @@ namespace UE::MultiUserClient::Replication
 		FOnServerStateChanged OnStreamServerStateChangedDelegate;
 		/** Triggers when a client's known server state has changed. */
 		FOnServerStateChanged OnAuthorityServerStateChangedDelegate;
+		/** Triggers when the offline clients have changed. */
+		FOnOfflineClientsChanged OnOfflineClientsChangedDelegate;
+		/** Triggers when the content of an offline client has changed. Also triggered as part of OnOfflineClientsChangedDelegate. */
+		FOnServerStateChanged OnOfflineClientContentChangedDelegate;
 
 		/** Callback into Concert for when client connection has changed. */
 		void OnSessionConnectionChanged(IConcertClientSession& ConcertClientSession, EConcertConnectionStatus ConcertConnectionStatus);
@@ -187,10 +196,14 @@ namespace UE::MultiUserClient::Replication
 
 		/** Sets up delegates for implementing the broadcasting of OnStreamServerStateChangedDelegate and OnAuthorityServerStateChangedDelegate. */
 		void SetupClientConnectionEvents();
+		void OnInternalOfflineClientsChanged() const { OnOfflineClientsChangedDelegate.Broadcast(); }
+		void OnInternalOfflineClientContentChanged(FOfflineClient& OfflineClient) const { OnOfflineClientContentChangedDelegate.Broadcast(OfflineClient.GetLastAssociatedEndpoint()); }
+		void OnReplicationClientConnected(FRemoteClient& RemoteClient) const { SetupClientDelegates(RemoteClient); }
+
+		/** Sets up delegates for reacting to content changes. */
+		void SetupClientDelegates(FOnlineClient& InClient) const;
 		void OnClientStreamServerStateChanged(const FGuid EndpointId) const;
 		void OnClientAuthorityServerStateChanged(const FGuid EndpointId) const;
-		void OnReplicationClientConnected(FRemoteClient& RemoteClient) const { SetupClientDelegates(RemoteClient); }
-		void SetupClientDelegates(FOnlineClient& InClient) const;
 	};
 }
 

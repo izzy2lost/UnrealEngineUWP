@@ -1773,6 +1773,33 @@ FName UControlRigBlueprint::RemoveTransientControl(const FRigElementKey& InEleme
 
 void UControlRigBlueprint::ClearTransientControls()
 {
+	bool bHasAnyTransientControls = false;
+	
+	if (URigVMBlueprintGeneratedClass* RigClass = GetRigVMBlueprintGeneratedClass())
+	{
+		UControlRig* CDO = Cast<UControlRig>(RigClass->GetDefaultObject(true /* create if needed */));
+
+		TArray<UObject*> ArchetypeInstances;
+		CDO->GetArchetypeInstances(ArchetypeInstances);
+		for (UObject* ArchetypeInstance : ArchetypeInstances)
+		{
+			UControlRig* InstancedControlRig = Cast<UControlRig>(ArchetypeInstance);
+			if (InstancedControlRig)
+			{
+				if(!InstancedControlRig->GetHierarchy()->GetTransientControls().IsEmpty())
+				{
+					bHasAnyTransientControls = true;
+					break;
+				}
+			}
+		}
+	}
+
+	if(!bHasAnyTransientControls)
+	{
+		return;
+	}
+
 	TUniquePtr<FControlValueScope> ValueScope;
 	if (!UControlRigEditorSettings::Get()->bResetControlsOnPinValueInteraction) // if we need to retain the controls
 	{

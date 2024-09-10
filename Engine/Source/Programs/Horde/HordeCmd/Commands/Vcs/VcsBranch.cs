@@ -12,8 +12,8 @@ namespace Horde.Commands.Vcs
 		[CommandLine(Prefix = "-Name=", Required = true)]
 		public string Name { get; set; } = "";
 
-		public VcsBranch(IStorageClientFactory storageClientFactory)
-			: base(storageClientFactory)
+		public VcsBranch(IStorageClient storageClient)
+			: base(storageClient)
 		{
 		}
 
@@ -23,7 +23,7 @@ namespace Horde.Commands.Vcs
 
 			WorkspaceState workspaceState = await ReadStateAsync(rootDir);
 
-			IStorageClient store = CreateStorageClient();
+			IStorageNamespace store = GetStorageNamespace();
 
 			RefName branchName = new RefName(Name);
 			if (await store.RefExistsAsync(branchName))

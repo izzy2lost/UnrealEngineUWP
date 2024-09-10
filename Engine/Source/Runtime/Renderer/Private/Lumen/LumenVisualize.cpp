@@ -635,7 +635,7 @@ void RenderVisualizeTraces(
 			RDG_EVENT_NAME("VisualizeTraces"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[PassParameters, VertexShader, PixelShader, &View, NumPrimitives](FRHICommandListImmediate& RHICmdList)
+			[PassParameters, VertexShader, PixelShader, &View, NumPrimitives](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				FGraphicsPipelineStateInitializer GraphicsPSOInit;
 				RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);

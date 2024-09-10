@@ -8,6 +8,7 @@
 
 class FVulkanCommandListContext;
 class FVulkanResourceMultiBuffer;
+struct FVulkanRayTracingGeometryParameters;
 
 class FVulkanRayTracingPlatform
 {
@@ -62,7 +63,7 @@ struct FVkRtBLASBuildData
 class FVulkanRayTracingShaderTable : public FRHIShaderBindingTable, public VulkanRHI::FDeviceChild
 {
 public:
-	FVulkanRayTracingShaderTable(FVulkanDevice* Device, const FRayTracingShaderBindingTableInitializer& InInitializer);
+	FVulkanRayTracingShaderTable(FRHICommandListBase& RHICmdList, FVulkanDevice* Device, const FRayTracingShaderBindingTableInitializer& InInitializer);
 	~FVulkanRayTracingShaderTable();
 
 	void ReleaseLocalBuffers();
@@ -91,7 +92,11 @@ public:
 		}
 	}
 
+	void SetInlineGeometryParameters(uint32 SegmentIndex, const void* InData, uint32 InDataSize);
+
 	void Commit(FVulkanCommandListContext& Context);
+	
+	virtual FRHIShaderResourceView* GetOrCreateInlineBufferSRV(FRHICommandListBase& RHICmdList) override final;
 
 	void AddUBRef(FRHIUniformBuffer* UB)
 	{
@@ -103,9 +108,14 @@ public:
 		return ReferencedUniformBuffers;
 	}
 
-	bool AllowHitGroupIndexing() const
+	ERayTracingHitGroupIndexingMode GetHitGroupIndexingMode() const
 	{
-		return bAllowHitGroupIndexing;
+		return HitGroupIndexingMode;
+	}
+
+	ERayTracingShaderBindingMode GetShaderBindingMode() const
+	{
+		return ShaderBindingMode;
 	}
 
 	// Ray tracing shader bindings can be processed in parallel.
@@ -139,13 +149,19 @@ private:
 	FVulkanShaderTableAllocation& GetAlloc(EShaderFrequency Frequency);
 	static void ReleaseLocalBuffer(FVulkanDevice* Device, FVulkanShaderTableAllocation& Alloc);
 	
-	bool bAllowHitGroupIndexing = true;
+	ERayTracingShaderBindingMode ShaderBindingMode = ERayTracingShaderBindingMode::Disabled;
+	ERayTracingHitGroupIndexingMode HitGroupIndexingMode = ERayTracingHitGroupIndexingMode::Allow;
 
 	UE::FMutex RaygenMutex;
 	FVulkanShaderTableAllocation Raygen;
 	FVulkanShaderTableAllocation Miss;
 	FVulkanShaderTableAllocation HitGroup;
 	FVulkanShaderTableAllocation Callable;
+		
+	// Buffer that contains per-hitrecord index and vertex buffer binding data
+	TArray<uint8> InlineGeometryParameterData;
+	TRefCountPtr<FVulkanResourceMultiBuffer> InlineGeometryParameterBuffer;
+	FShaderResourceViewRHIRef InlineGeometryParameterSRV;
 
 	TArray<TRefCountPtr<FRHIUniformBuffer>> ReferencedUniformBuffers;
 
@@ -175,6 +191,8 @@ public:
 
 	void SetupHitGroupSystemParameters();
 	void ReleaseBindlessHandles();
+
+	void SetupInlineGeometryParameters(uint32 GeometrySegmentIndex, FVulkanRayTracingGeometryParameters& Parameters) const;
 
 	VkAccelerationStructureKHR Handle = VK_NULL_HANDLE;
 	VkDeviceAddress Address = 0;
@@ -212,17 +230,12 @@ public:
 		}
 	}
 
-	FVulkanResourceMultiBuffer* GetOrCreateMetadataBuffer(FRHICommandListBase& RHICmdList);
-	virtual FRHIShaderResourceView* GetOrCreateMetadataBufferSRV(FRHICommandListImmediate& RHICmdList) override final;
-
 	FRHIShaderBindingTable* FindOrCreateShaderBindingTable(const FRHIRayTracingPipelineState* Pipeline);
 
 	inline bool IsBuilt() const
 	{
 		return bBuilt;
 	}
-
-	void BuildPerInstanceGeometryParameterBuffer(FRHICommandListBase& RHICmdList);
 
 	using FRHIRayTracingAccelerationStructure::SizeInfo;
 
@@ -247,10 +260,6 @@ public:
 	uint32 NumInstances = 0;
 	
 	TRefCountPtr<FVulkanResourceMultiBuffer> AccelerationStructureBuffer;
-
-	// Buffer that contains per-instance index and vertex buffer binding data
-	TRefCountPtr<FVulkanResourceMultiBuffer> PerInstanceGeometryParameterBuffer;
-	FShaderResourceViewRHIRef PerInstanceGeometryParameterSRV;
 	
 	TMap<const FVulkanRayTracingPipelineState*, TRefCountPtr<FVulkanRayTracingShaderTable>> ShaderTables;
 

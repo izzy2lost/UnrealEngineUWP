@@ -56,5 +56,8 @@ public class AutoRTFMTestsTarget : TargetRules
 		{
 			GlobalDefinitions.Add("ALLOW_LOG_FILE=1");
 		}
+
+		GlobalDefinitions.Add("MALLOC_LEAKDETECTION=1");
+		GlobalDefinitions.Add("PLATFORM_USES_FIXED_GMalloc_CLASS=0");
 	}
 }

@@ -9,7 +9,7 @@ class SSequencerFilter;
 class SWidget;
 class UToolMenu;
 
-class FSequencerTrackFilterContextMenu
+class FSequencerTrackFilterContextMenu : public TSharedFromThis<FSequencerTrackFilterContextMenu>
 {
 public:
 	TSharedRef<SWidget> CreateMenuWidget(const TSharedRef<SSequencerFilter>& InFilterWidget);

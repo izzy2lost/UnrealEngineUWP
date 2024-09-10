@@ -15,6 +15,7 @@ class SDMMaterialEditor;
 class SVerticalBox;
 class UDMMaterialProperty;
 class UDMMaterialSlot;
+class UTexture;
 enum class ECheckBoxState : uint8;
 enum class EDMMaterialPropertyType : uint8;
 struct FPropertyChangedEvent;
@@ -68,4 +69,10 @@ protected:
 	void OnExpansionStateChanged(const TSharedRef<ICustomDetailsViewItem>& InItem, bool bInExpansionState);
 
 	void OnSettingsUpdated(const FPropertyChangedEvent& InPropertyChangedEvent);
+
+	bool OnAssetDraggedOver(TArrayView<FAssetData> InAssets, EDMMaterialPropertyType InMaterialProperty);
+
+	void OnAssetsDropped(const FDragDropEvent& InDragDropEvent, TArrayView<FAssetData> InAssets, EDMMaterialPropertyType InMaterialProperty);
+
+	void HandleDrop_Texture(UTexture* InTexture, EDMMaterialPropertyType InMaterialProperty);
 };

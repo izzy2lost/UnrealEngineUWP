@@ -462,10 +462,7 @@ void ComposeMeshEdges(FRDGBuilder& GraphBuilder,
 	
 	if (View.IsLastInFamily())
 	{
-		GraphBuilder.AddPass(
-			Forward<FRDGEventName>(RDG_EVENT_NAME("Cleanup MeshEdges")),
-			ERDGPassFlags::NeverCull,
-			[&WireframeTextureColor, &WireframeTextureDepth](FRHICommandList& RHICmdList)
+		GraphBuilder.AddPostExecuteCallback([&WireframeTextureColor, &WireframeTextureDepth]
 			{
 				WireframeTextureColor.ReleaseResource();
 				WireframeTextureDepth.ReleaseResource();

@@ -26,6 +26,7 @@ class SBorder;
 class SComboButton;
 class UFactory;
 class FDetailWidgetRow;
+struct FAssetButtonActionExtension;
 
 /**
  * A widget used to edit Asset-type properties (UObject-derived properties).
@@ -368,6 +369,11 @@ private:
 	/** @return Returns true if the asset is excluded for this property*/
 	bool IsAssetFiltered(const FAssetData& InAssetData);
 
+	/**
+	 *Generates custom Asset Picker Buttons using the provided AssetActionButtonExtensions data.
+	 */
+	void GenerateCustomAssetPickerButtons(const FAssetData& InAssetData, const TArray<FAssetButtonActionExtension>& InExtensions);
+
 private:
 
 	/** Main combobutton */
@@ -378,6 +384,9 @@ private:
 
 	/** The property editor, if any */
 	TSharedPtr<FPropertyEditor> PropertyEditor;
+
+	/** Optional Custom Asset Picker Buttons*/
+	TSharedPtr<SHorizontalBox> CustomAssetPickerButtonBox;
 
 	/** Path to the object being edited instead of accessing the value directly with a property handle */
 	TAttribute<FString> ObjectPath;

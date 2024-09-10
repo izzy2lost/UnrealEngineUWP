@@ -101,9 +101,13 @@ namespace VirtualTextureAdapter
 	{
 		FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
 
-		// Need to do a compute shader copy when source UV extends outside texture (because of tile borders). This is to get correct clamping behavior.
-		// For other cases we can just rely on the final RHICopyTexture (which can also handle direct copy of compressed formats).
-		const bool bUseCopyStep = InLevel == 0 && (InUVRange.Min.X < 0 || InUVRange.Min.Y < 0 || InUVRange.Max.X > 1 || InUVRange.Max.Y > 1);
+		// Need a compute shader copy on the first mip level when:
+		// * Source/Dest formats are incompatible, or
+		// * Source UV extends outside texture (because of tile borders). Then we need correct clamping behavior.
+		// For other cases we can just rely on the final RHICopyTexture (which can also handle the direct copy of compressed formats).
+		const bool bCanUseRHICopyTexture = InSourceFormat == InDestFormat || IsBlockCompressedFormat(InDestFormat);
+		const bool bCopyRequiresClamping = InUVRange.Min.X < 0 || InUVRange.Min.Y < 0 || InUVRange.Max.X > 1 || InUVRange.Max.Y > 1;
+		const bool bUseCopyStep = InLevel == 0 && (!bCanUseRHICopyTexture || bCopyRequiresClamping);
 		// Need downsampling steps if we are copying to higher mip level.
 		// Note that if source texture has mips then we should have passed in the correct SRV and modified InLevel to avoid the downsampling.
 		const bool bUseDownsampleStep = InLevel > 0 && !bUseCopyStep;
@@ -296,7 +300,7 @@ namespace VirtualTextureAdapter
 				RDG_EVENT_NAME("VirtualTextureAdapterCopyToOutput"),
 				Parameters,
 				ERDGPassFlags::Copy | ERDGPassFlags::NeverCull,
-				[bUseSourceTextureA, InputTextureA = InSourceSRV, InputTextureB = CurrentOutput, OutputTexture = InDestTexture, CopyInfo](FRHICommandList& RHICmdList)
+				[bUseSourceTextureA, InputTextureA = InSourceSRV, InputTextureB = CurrentOutput, OutputTexture = InDestTexture, CopyInfo](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					FRHITexture* InputTexture = bUseSourceTextureA ? InputTextureA->GetTexture() : InputTextureB->GetRHI();
 

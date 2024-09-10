@@ -357,6 +357,26 @@ static void GetBLASBuildData(
 		&BuildData.SizesInfo);
 }
 
+// This structure is analogous to FHitGroupSystemParameters in D3D12 RHI.
+// However, it only contains generic parameters that do not require a full shader binding table (i.e. no per-hit-group user data).
+// It is designed to be used to access vertex and index buffers during inline ray tracing.
+struct FVulkanRayTracingGeometryParameters
+{
+	union
+	{
+		struct
+		{
+			uint32 IndexStride : 8; // Can be just 1 bit to indicate 16 or 32 bit indices
+			uint32 VertexStride : 8; // Can be just 2 bits to indicate float3, float2 or half2 format
+			uint32 Unused : 16;
+		} Config;
+		uint32 ConfigBits = 0;
+	};
+	uint32 IndexBufferOffsetInBytes = 0;
+	uint64 IndexBuffer = 0;
+	uint64 VertexBuffer = 0;
+};
+
 FVulkanRayTracingGeometry::FVulkanRayTracingGeometry(ENoInit)
 {}
 
@@ -594,6 +614,35 @@ void FVulkanRayTracingGeometry::ReleaseBindlessHandles()
 	}
 }
 
+void FVulkanRayTracingGeometry::SetupInlineGeometryParameters(uint32 GeometrySegmentIndex, FVulkanRayTracingGeometryParameters& Parameters) const
+{
+	const FRayTracingGeometryInitializer& GeometryInitializer = GetInitializer();
+	const FVulkanResourceMultiBuffer* IndexBuffer = ResourceCast(GeometryInitializer.IndexBuffer.GetReference());
+
+	const uint32 IndexStride = IndexBuffer ? IndexBuffer->GetStride() : 0;
+	const uint32 IndexOffsetInBytes = GeometryInitializer.IndexBufferOffset;
+	const VkDeviceAddress IndexBufferAddress = IndexBuffer ? IndexBuffer->GetDeviceAddress() : VkDeviceAddress(0);
+
+	const FRayTracingGeometrySegment& Segment = GeometryInitializer.Segments[GeometrySegmentIndex];
+
+	const FVulkanResourceMultiBuffer* VertexBuffer = ResourceCast(Segment.VertexBuffer.GetReference());
+	checkf(VertexBuffer, TEXT("All ray tracing geometry segments must have a valid vertex buffer"));
+	const VkDeviceAddress VertexBufferAddress = VertexBuffer->GetDeviceAddress();
+
+	Parameters.Config.IndexStride = IndexStride;
+	Parameters.Config.VertexStride = Segment.VertexBufferStride;
+	if (IndexStride)
+	{
+		Parameters.IndexBufferOffsetInBytes = IndexOffsetInBytes + IndexStride * Segment.FirstPrimitive * 3;
+		Parameters.IndexBuffer = static_cast<uint64>(IndexBufferAddress);
+	}
+	else
+	{
+		Parameters.IndexBuffer = 0;
+	}
+	Parameters.VertexBuffer = static_cast<uint64>(VertexBufferAddress) + Segment.VertexBufferOffset;
+}
+
 static void GetTLASBuildData(
 	const VkDevice Device,
 	const uint32 NumInstances,
@@ -651,26 +700,6 @@ static VkGeometryInstanceFlagsKHR TranslateRayTracingInstanceFlags(ERayTracingIn
 
 	return Result;
 }
-
-// This structure is analogous to FHitGroupSystemParameters in D3D12 RHI.
-// However, it only contains generic parameters that do not require a full shader binding table (i.e. no per-hit-group user data).
-// It is designed to be used to access vertex and index buffers during inline ray tracing.
-struct FVulkanRayTracingGeometryParameters
-{
-	union
-	{
-		struct
-		{
-			uint32 IndexStride : 8; // Can be just 1 bit to indicate 16 or 32 bit indices
-			uint32 VertexStride : 8; // Can be just 2 bits to indicate float3, float2 or half2 format
-			uint32 Unused : 16;
-		} Config;
-		uint32 ConfigBits = 0;
-	};
-	uint32 IndexBufferOffsetInBytes = 0;
-	uint64 IndexBuffer = 0;
-	uint64 VertexBuffer = 0;
-};
 
 FVulkanRayTracingScene::FVulkanRayTracingScene(FRayTracingSceneInitializer2 InInitializer, FVulkanDevice* InDevice)
 	: FDeviceChild(InDevice)
@@ -763,10 +792,6 @@ void BuildAccelerationStructure(
 	{
 		TRHICommandList_RecursiveHazardous<FVulkanCommandListContext> RHICmdList(&CommandContext);
 
-		// Build a metadata buffer	that contains VulkanRHI-specific per-geometry parameters that allow us to access
-		// vertex and index buffers from shaders that use inline ray tracing.
-		Scene.BuildPerInstanceGeometryParameterBuffer(RHICmdList);
-
 		if (InScratchBuffer == nullptr)
 		{
 			const uint64 ScratchBufferSize = bIsUpdate ? Scene.SizeInfo.UpdateScratchSize : Scene.SizeInfo.BuildScratchSize;
@@ -835,135 +860,62 @@ void BuildAccelerationStructure(
 	Scene.bBuilt = true;
 }
 
-
-#if VULKAN_SUPPORTS_RAY_TRACING_POSITION_FETCH
-
-// Metadata buffer is unused with the support of position_fetch
-FVulkanResourceMultiBuffer* FVulkanRayTracingScene::GetOrCreateMetadataBuffer(FRHICommandListBase& RHICmdList) { return nullptr; }
-FRHIShaderResourceView* FVulkanRayTracingScene::GetOrCreateMetadataBufferSRV(FRHICommandListImmediate& RHICmdList) { return nullptr; }
-void FVulkanRayTracingScene::BuildPerInstanceGeometryParameterBuffer(FRHICommandListBase& RHICmdList) {}
-
-#else
-
-FVulkanResourceMultiBuffer* FVulkanRayTracingScene::GetOrCreateMetadataBuffer(FRHICommandListBase& RHICmdList)
-{
-	UE::TScopeLock Lock(Mutex);
-	if (!PerInstanceGeometryParameterBuffer.IsValid())
-	{
-		const uint32 ParameterBufferSize = FMath::Max<uint32>(1, Initializer.NumTotalSegments) * sizeof(FVulkanRayTracingGeometryParameters);
-		FRHIResourceCreateInfo ParameterBufferCreateInfo(TEXT("RayTracingSceneMetadata"));
-		PerInstanceGeometryParameterBuffer = ResourceCast(RHICmdList.CreateBuffer(ParameterBufferSize, BUF_Dynamic | BUF_StructuredBuffer | BUF_ShaderResource, sizeof(FVulkanRayTracingGeometryParameters), ERHIAccess::SRVMask, ParameterBufferCreateInfo).GetReference());
-	}
-	return PerInstanceGeometryParameterBuffer.GetReference();
-}
-
-FRHIShaderResourceView* FVulkanRayTracingScene::GetOrCreateMetadataBufferSRV(FRHICommandListImmediate& RHICmdList)
-{
-	if (!PerInstanceGeometryParameterSRV.IsValid())
-	{
-		PerInstanceGeometryParameterSRV = RHICmdList.CreateShaderResourceView(GetOrCreateMetadataBuffer(RHICmdList), FRHIViewDesc::CreateBufferSRV().SetType(FRHIViewDesc::EBufferType::Structured));
-	}
-
-	return PerInstanceGeometryParameterSRV.GetReference();
-}
-
-void FVulkanRayTracingScene::BuildPerInstanceGeometryParameterBuffer(FRHICommandListBase& RHICmdList)
-{
-	// TODO: we could cache parameters in the geometry object to avoid some of the pointer chasing (if this is measured to be a performance issue)
-
-	FVulkanResourceMultiBuffer* MetadataBuffer = GetOrCreateMetadataBuffer(RHICmdList);
-
-	const uint32 ParameterBufferSize = FMath::Max<uint32>(1, Initializer.NumTotalSegments) * sizeof(FVulkanRayTracingGeometryParameters);
-	check(MetadataBuffer->GetSize() >= ParameterBufferSize);
-
-	check(IsInRHIThread() || !IsRunningRHIInSeparateThread());
-
-	void* MappedBuffer = MetadataBuffer->Lock(RHICmdList, RLM_WriteOnly, ParameterBufferSize, 0);
-	FVulkanRayTracingGeometryParameters* MappedParameters = reinterpret_cast<FVulkanRayTracingGeometryParameters*>(MappedBuffer);
-	uint32 ParameterIndex = 0;
-
-	for (FRHIRayTracingGeometry* GeometryRHI : PerInstanceGeometries)
-	{
-		const FVulkanRayTracingGeometry* Geometry = ResourceCast(GeometryRHI);
-		const FRayTracingGeometryInitializer& GeometryInitializer = Geometry->GetInitializer();
-
-		const FVulkanResourceMultiBuffer* IndexBuffer = ResourceCast(GeometryInitializer.IndexBuffer.GetReference());
-
-		const uint32 IndexStride = IndexBuffer ? IndexBuffer->GetStride() : 0;
-		const uint32 IndexOffsetInBytes = GeometryInitializer.IndexBufferOffset;
-		const VkDeviceAddress IndexBufferAddress = IndexBuffer ? IndexBuffer->GetDeviceAddress() : VkDeviceAddress(0);
-
-		for (const FRayTracingGeometrySegment& Segment : GeometryInitializer.Segments)
-		{
-			const FVulkanResourceMultiBuffer* VertexBuffer = ResourceCast(Segment.VertexBuffer.GetReference());
-			checkf(VertexBuffer, TEXT("All ray tracing geometry segments must have a valid vertex buffer"));
-			const VkDeviceAddress VertexBufferAddress = VertexBuffer->GetDeviceAddress();
-
-			FVulkanRayTracingGeometryParameters SegmentParameters;
-			SegmentParameters.Config.IndexStride = IndexStride;
-			SegmentParameters.Config.VertexStride = Segment.VertexBufferStride;
-
-			if (IndexStride)
-			{
-				SegmentParameters.IndexBufferOffsetInBytes = IndexOffsetInBytes + IndexStride * Segment.FirstPrimitive * 3;
-				SegmentParameters.IndexBuffer = static_cast<uint64>(IndexBufferAddress);
-			}
-			else
-			{
-				SegmentParameters.IndexBuffer = 0;
-			}
-
-			SegmentParameters.VertexBuffer = static_cast<uint64>(VertexBufferAddress) + Segment.VertexBufferOffset;
-
-			check(ParameterIndex < Initializer.NumTotalSegments);
-			MappedParameters[ParameterIndex] = SegmentParameters;
-			ParameterIndex++;
-		}
-	}
-
-	check(ParameterIndex == Initializer.NumTotalSegments);
-
-	MetadataBuffer->Unlock(RHICmdList);
-}
-
-#endif // VULKAN_SUPPORTS_RAY_TRACING_POSITION_FETCH
-
-FVulkanRayTracingShaderTable::FVulkanRayTracingShaderTable(FVulkanDevice* Device, const FRayTracingShaderBindingTableInitializer& InInitializer)
+FVulkanRayTracingShaderTable::FVulkanRayTracingShaderTable(FRHICommandListBase& RHICmdList, FVulkanDevice* Device, const FRayTracingShaderBindingTableInitializer& InInitializer)
 	: FRHIShaderBindingTable(InInitializer)
 	, FDeviceChild(Device)
-	, bAllowHitGroupIndexing(InInitializer.bAllowHitGroupIndexing)
+	, ShaderBindingMode(InInitializer.ShaderBindingMode)
+	, HitGroupIndexingMode(InInitializer.HitGroupIndexingMode)
 	, HandleSize(Device->GetOptionalExtensionProperties().RayTracingPipelineProps.shaderGroupHandleSize)
 	, HandleSizeAligned(Align(HandleSize, Device->GetOptionalExtensionProperties().RayTracingPipelineProps.shaderGroupHandleAlignment))
 {
-	auto InitAlloc = [HandleSizeAligned = HandleSizeAligned](FVulkanShaderTableAllocation& Alloc, uint32 InHandleCount, bool InUseLocalRecord) 
+	check(ShaderBindingMode != ERayTracingShaderBindingMode::Disabled);
+
+	if (EnumHasAnyFlags(ShaderBindingMode, ERayTracingShaderBindingMode::RTPSO))
 	{
-		Alloc.HandleCount = InHandleCount;
-		Alloc.bUseLocalRecord = InUseLocalRecord;
-
-		if (Alloc.HandleCount > 0)
+		auto InitAlloc = [HandleSizeAligned = HandleSizeAligned](FVulkanShaderTableAllocation& Alloc, uint32 InHandleCount, bool InUseLocalRecord)
 		{
-			if (InUseLocalRecord)
+			Alloc.HandleCount = InHandleCount;
+			Alloc.bUseLocalRecord = InUseLocalRecord;
+
+			if (Alloc.HandleCount > 0)
 			{
-				Alloc.Region.stride = (Alloc.HandleCount > 1) ? (uint32)GVulkanRayTracingMaxShaderGroupStride : 0;
-				Alloc.Region.size = Alloc.HandleCount * (uint32)GVulkanRayTracingMaxShaderGroupStride;
+				if (InUseLocalRecord)
+				{
+					Alloc.Region.stride = (Alloc.HandleCount > 1) ? (uint32)GVulkanRayTracingMaxShaderGroupStride : 0;
+					Alloc.Region.size = Alloc.HandleCount * (uint32)GVulkanRayTracingMaxShaderGroupStride;
 
+				}
+				else
+				{
+					checkSlow(InHandleCount == 1);
+					Alloc.Region.stride = HandleSizeAligned;
+					Alloc.Region.size = HandleSizeAligned;
+				}
+
+				// Host buffer
+				Alloc.HostBuffer.SetNumUninitialized(Alloc.Region.size);
 			}
-			else
-			{
-				checkSlow(InHandleCount == 1);
-				Alloc.Region.stride = HandleSizeAligned;
-				Alloc.Region.size = HandleSizeAligned;
-			}
+		};
 
-			// Host buffer
-			Alloc.HostBuffer.SetNumUninitialized(Alloc.Region.size);
-		}
-	};
+		InitAlloc(Raygen, 1, false);
+		InitAlloc(Miss, Initializer.NumMissShaderSlots, true);
+		InitAlloc(Callable, Initializer.NumCallableShaderSlots, true);
 
-	InitAlloc(Raygen, 1, false);
-	InitAlloc(Miss, Initializer.NumMissShaderSlots, true);
-	InitAlloc(HitGroup, bAllowHitGroupIndexing ? Initializer.NumGeometrySegments * Initializer.NumShaderSlotsPerGeometrySegment : 1, true);
-	InitAlloc(Callable, Initializer.NumCallableShaderSlots, true);
+		uint32 NumHitGroupRecords = HitGroupIndexingMode == ERayTracingHitGroupIndexingMode::Allow ? Initializer.NumGeometrySegments * Initializer.NumShaderSlotsPerGeometrySegment : 1;
+		InitAlloc(HitGroup, NumHitGroupRecords, true);
+	}
+
+	if (EnumHasAnyFlags(ShaderBindingMode, ERayTracingShaderBindingMode::Inline) && Initializer.NumGeometrySegments > 0)
+	{
+		// Doesn't make sense to have inline SBT without hitgroup indexing
+		check(HitGroupIndexingMode == ERayTracingHitGroupIndexingMode::Allow);
+
+		const uint32 ParameterBufferSize = Initializer.NumGeometrySegments * sizeof(FVulkanRayTracingGeometryParameters);
+		InlineGeometryParameterData.SetNumUninitialized(ParameterBufferSize);
+		
+		FRHIResourceCreateInfo ParameterBufferCreateInfo(TEXT("RayTracingSceneMetadata"));
+		InlineGeometryParameterBuffer = ResourceCast(RHICmdList.CreateBuffer(ParameterBufferSize, BUF_Dynamic | BUF_StructuredBuffer | BUF_ShaderResource, sizeof(FVulkanRayTracingGeometryParameters), ERHIAccess::SRVMask, ParameterBufferCreateInfo).GetReference());
+	}
 }
 
 FVulkanRayTracingShaderTable::~FVulkanRayTracingShaderTable()
@@ -1050,6 +1002,31 @@ void FVulkanRayTracingShaderTable::SetLocalShaderParameters(EShaderFrequency Fre
 	Alloc.bIsDirty = true;
 }
 
+void FVulkanRayTracingShaderTable::SetInlineGeometryParameters(uint32 SegmentIndex, const void* InData, uint32 InDataSize)
+{
+	const uint32 WriteOffset = InDataSize * SegmentIndex;
+	FMemory::Memcpy(&InlineGeometryParameterData[WriteOffset], InData, InDataSize);
+}
+
+#if VULKAN_SUPPORTS_RAY_TRACING_POSITION_FETCH
+
+// Metadata buffer is unused with the support of position_fetch
+FRHIShaderResourceView* FVulkanRayTracingShaderTable::GetOrCreateInlineBufferSRV(FRHICommandListBase& RHICmdList) { return nullptr; }
+
+#else
+
+FRHIShaderResourceView* FVulkanRayTracingShaderTable::GetOrCreateInlineBufferSRV(FRHICommandListBase& RHICmdList)
+{
+	if (!InlineGeometryParameterSRV.IsValid())
+	{
+		InlineGeometryParameterSRV = RHICmdList.CreateShaderResourceView(InlineGeometryParameterBuffer.GetReference(), FRHIViewDesc::CreateBufferSRV().SetType(FRHIViewDesc::EBufferType::Structured));
+	}
+
+	return InlineGeometryParameterSRV.GetReference();
+}
+
+#endif // VULKAN_SUPPORTS_RAY_TRACING_POSITION_FETCH
+
 void FVulkanRayTracingShaderTable::Commit(FVulkanCommandListContext& Context)
 {
 	FVulkanCommandBufferManager* CommandBufferManager = Context.GetCommandBufferManager();
@@ -1112,6 +1089,19 @@ void FVulkanRayTracingShaderTable::Commit(FVulkanCommandListContext& Context)
 	CommitBuffer(HitGroup);
 	CommitBuffer(Callable);
 
+#if !VULKAN_SUPPORTS_RAY_TRACING_POSITION_FETCH
+	// Also copy geometry parameter data to the GPU buffer
+	if (InlineGeometryParameterBuffer)
+	{
+		TRHICommandList_RecursiveHazardous<FVulkanCommandListContext> RHICmdList(&Context);
+
+		const uint32 ParameterBufferSize = InlineGeometryParameterData.Num();		
+		void* MappedBuffer = InlineGeometryParameterBuffer->Lock(RHICmdList, RLM_WriteOnly, ParameterBufferSize, 0);
+		FMemory::Memcpy(MappedBuffer, InlineGeometryParameterData.GetData(), ParameterBufferSize);
+		InlineGeometryParameterBuffer->Unlock(RHICmdList);
+	}
+#endif // !VULKAN_SUPPORTS_RAY_TRACING_POSITION_FETCH
+
 	VkMemoryBarrier BarrierAfter = { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT };  // :todo-jn: VK_ACCESS_2_SHADER_BINDING_TABLE_READ_BIT_KHR
 	VulkanRHI::vkCmdPipelineBarrier(CmdBuffer->GetHandle(), VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0, 1, &BarrierAfter, 0, nullptr, 0, nullptr);
 }
@@ -1137,11 +1127,12 @@ FRHIShaderBindingTable* FVulkanRayTracingScene::FindOrCreateShaderBindingTable(c
 	SBTInitializer.NumShaderSlotsPerGeometrySegment = Initializer.ShaderSlotsPerGeometrySegment;
 	SBTInitializer.NumCallableShaderSlots = Initializer.NumCallableShaderSlots;
 	SBTInitializer.NumMissShaderSlots = Initializer.NumMissShaderSlots;
-	SBTInitializer.bAllowHitGroupIndexing = Pipeline->bAllowHitGroupIndexing;
+	SBTInitializer.HitGroupIndexingMode = Pipeline->bAllowHitGroupIndexing ? ERayTracingHitGroupIndexingMode::Allow : ERayTracingHitGroupIndexingMode::Disallow;
+	SBTInitializer.ShaderBindingMode = ERayTracingShaderBindingMode::RTPSO;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	// Create new table
-	FVulkanRayTracingShaderTable* CreatedShaderTable = new FVulkanRayTracingShaderTable(Device, MoveTemp(SBTInitializer));
+	// Create new table (use FRHICommandListExecutor::GetImmediateCommandList() directly for now this is deprecated code)
+	FVulkanRayTracingShaderTable* CreatedShaderTable = new FVulkanRayTracingShaderTable(FRHICommandListExecutor::GetImmediateCommandList(), Device, MoveTemp(SBTInitializer));
 	ShaderTables.Add(Pipeline, CreatedShaderTable);
 
 	return CreatedShaderTable;
@@ -1198,9 +1189,9 @@ FRayTracingPipelineStateRHIRef FVulkanDynamicRHI::RHICreateRayTracingPipelineSta
 	return new FVulkanRayTracingPipelineState(GetDevice(), Initializer);
 }
 
-FShaderBindingTableRHIRef FVulkanDynamicRHI::RHICreateShaderBindingTable(const FRayTracingShaderBindingTableInitializer& Initializer)
+FShaderBindingTableRHIRef FVulkanDynamicRHI::RHICreateShaderBindingTable(FRHICommandListBase& RHICmdList, const FRayTracingShaderBindingTableInitializer& Initializer)
 {
-	return new FVulkanRayTracingShaderTable(GetDevice(), Initializer);
+	return new FVulkanRayTracingShaderTable(RHICmdList, GetDevice(), Initializer);
 }
 
 void FVulkanCommandListContext::RHIClearRayTracingBindings(FRHIRayTracingScene* InScene)
@@ -2001,7 +1992,7 @@ static FVulkanPipelineBarrier SetRayGenResources(FVulkanDevice* Device, FVulkanC
 				NumSkippedSlots++;
 			}
 		}
-		Device->GetBindlessDescriptorManager()->RegisterUniformBuffers(CmdBuffer->GetHandle(), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, StageUBs);
+		Device->GetBindlessDescriptorManager()->RegisterUniformBuffers(CmdBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, StageUBs);
 	}
 
 	// Add all the UBs references by the shader table
@@ -2278,19 +2269,44 @@ static void SetRayTracingHitGroup(
 	}
 #endif // DO_CHECK
 
-	if (ShaderTable->AllowHitGroupIndexing() && Geometry)
-	{
-		const FVulkanRayTracingShader* Shader = Pipeline->GetVulkanShader(SF_RayHitGroup, HitGroupIndex);
+	ERayTracingShaderBindingMode ShaderBindingMode = ShaderTable->GetShaderBindingMode();
+	ERayTracingHitGroupIndexingMode HitGroupIndexingMode = ShaderTable->GetHitGroupIndexingMode();
 
-		FVulkanHitGroupSystemParameters SystemParameters = Geometry->HitGroupSystemParameters[GeometrySegmentIndex];
-		SystemParameters.RootConstants.UserData = UserData;
-		SetSystemParametersUB(SystemParameters, ShaderTable, NumUniformBuffers, UniformBuffers, Shader);
+	if (HitGroupIndexingMode == ERayTracingHitGroupIndexingMode::Allow && Geometry)
+	{		
+		if (EnumHasAnyFlags(ShaderBindingMode, ERayTracingShaderBindingMode::RTPSO))
+		{
+			const FVulkanRayTracingShader* Shader = Pipeline->GetVulkanShader(SF_RayHitGroup, HitGroupIndex);
 
-		ShaderTable->SetLocalShaderParameters(SF_RayHitGroup, RecordIndex, 0, SystemParameters);
-		ShaderTable->SetLooseParameterData(SF_RayHitGroup, RecordIndex, LooseParameterData, LooseParameterDataSize);
+			FVulkanHitGroupSystemParameters SystemParameters = Geometry->HitGroupSystemParameters[GeometrySegmentIndex];
+			SystemParameters.RootConstants.UserData = UserData;
+			SetSystemParametersUB(SystemParameters, ShaderTable, NumUniformBuffers, UniformBuffers, Shader);
+
+			ShaderTable->SetLocalShaderParameters(SF_RayHitGroup, RecordIndex, 0, SystemParameters);
+			ShaderTable->SetLooseParameterData(SF_RayHitGroup, RecordIndex, LooseParameterData, LooseParameterDataSize);
+		}
+
+		if (EnumHasAnyFlags(ShaderBindingMode, ERayTracingShaderBindingMode::Inline))
+		{			
+			// Only care about shader slot 0 for inline geometry parameters
+			uint32 NumShaderSlotsPerGeometrySegment = ShaderTable->GetInitializer().NumShaderSlotsPerGeometrySegment;
+			if (RecordIndex % NumShaderSlotsPerGeometrySegment == 0)
+			{
+				// Setup the inline geometry parameters - can be cached on the geometry as well if needed
+				FVulkanRayTracingGeometryParameters SegmentParameters;
+				Geometry->SetupInlineGeometryParameters(GeometrySegmentIndex, SegmentParameters);
+
+				// Recompute the geometry segment index from the record index
+				uint32 SegmentIndex = RecordIndex / NumShaderSlotsPerGeometrySegment;
+				ShaderTable->SetInlineGeometryParameters(SegmentIndex, &SegmentParameters, sizeof(FVulkanRayTracingGeometryParameters));
+			}
+		}
 	}
 
-	ShaderTable->SetSlot(SF_RayHitGroup, RecordIndex, HitGroupIndex, Pipeline->GetShaderHandles(SF_RayHitGroup));
+	if (EnumHasAnyFlags(ShaderBindingMode, ERayTracingShaderBindingMode::RTPSO))
+	{
+		ShaderTable->SetSlot(SF_RayHitGroup, RecordIndex, HitGroupIndex, Pipeline->GetShaderHandles(SF_RayHitGroup));
+	}
 }
 
 

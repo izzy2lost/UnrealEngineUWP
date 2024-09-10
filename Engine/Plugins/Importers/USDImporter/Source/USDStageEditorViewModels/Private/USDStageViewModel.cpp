@@ -9,6 +9,7 @@
 #include "USDErrorUtils.h"
 #include "USDLayerUtils.h"
 #include "USDLog.h"
+#include "USDMemory.h"
 #include "USDStageActor.h"
 #include "USDStageImportContext.h"
 #include "USDStageImporter.h"
@@ -16,7 +17,6 @@
 #include "USDStageImportOptions.h"
 #include "USDStageModule.h"
 #include "USDTypesConversion.h"
-
 #include "UsdWrappers/SdfLayer.h"
 #include "UsdWrappers/UsdStage.h"
 

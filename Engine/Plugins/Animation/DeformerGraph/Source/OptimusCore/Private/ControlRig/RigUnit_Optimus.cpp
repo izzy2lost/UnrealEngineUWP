@@ -188,6 +188,22 @@ TArray<FRigVMUserWorkflow> FRigUnit_AddOptimusDeformer::GetSupportedWorkflows(co
 						{
 							TraitName = Controller->AddTrait(Node->GetFName(), *FRigVMTrait_SetDeformerTransformArrayVariable::StaticStruct()->GetPathName(), Variable->VariableName);
 						}
+						else if (Variable->DataType == FOptimusDataTypeRegistry::Get().FindType(*FNameProperty::StaticClass()))
+						{
+							TraitName = Controller->AddTrait(Node->GetFName(), *FRigVMTrait_SetDeformerNameVariable::StaticStruct()->GetPathName(), Variable->VariableName);
+						}
+						else if (Variable->DataType == FOptimusDataTypeRegistry::Get().FindArrayType(*FNameProperty::StaticClass()))
+						{
+							TraitName = Controller->AddTrait(Node->GetFName(), *FRigVMTrait_SetDeformerNameArrayVariable::StaticStruct()->GetPathName(), Variable->VariableName);
+						}
+						else if (Variable->DataType == FOptimusDataTypeRegistry::Get().FindType(*FBoolProperty::StaticClass()))
+						{
+							TraitName = Controller->AddTrait(Node->GetFName(), *FRigVMTrait_SetDeformerBoolVariable::StaticStruct()->GetPathName(), Variable->VariableName);
+						}
+						else if (Variable->DataType == FOptimusDataTypeRegistry::Get().FindArrayType(*FBoolProperty::StaticClass()))
+						{
+							TraitName = Controller->AddTrait(Node->GetFName(), *FRigVMTrait_SetDeformerBoolArrayVariable::StaticStruct()->GetPathName(), Variable->VariableName);
+						}
 						
 						Controller->SetPinExpansion(Node->FindTrait(TraitName)->GetPinPath(), true, true);
 					}
@@ -228,6 +244,60 @@ FRigUnit_AddOptimusDeformer_Execute()
 		// While Add is done on game thread, enqueue and set variable are done on anim thread
 		// Given that parent component always ticks before child components, it should be safe for the parent
 		// component to modify the deformer instance manager on the child components
+
+		const FRigVMTrait_OptimusDeformerSettings* SettingsTraitPtr = nullptr;
+		
+		for(const FRigVMTraitScope& Scope : Traits)
+		{
+			if (const FRigVMTrait_OptimusDeformerSettings* SettingsTrait = Scope.GetTrait<FRigVMTrait_OptimusDeformerSettings>())
+			{
+				SettingsTraitPtr = SettingsTrait;
+				break;
+			}
+		}
+
+		check(SettingsTraitPtr != nullptr);
+		
+		struct Local
+		{
+			static TArray<USkeletalMeshComponent*> GetComponentsToProcess(USkeletalMeshComponent* RigMeshComponent, bool DeformChildComponents, FName ExcludeChildComponentsWithTag)
+			{
+				TArray<USkeletalMeshComponent*> ComponentsToProcess = {RigMeshComponent};
+
+				if (DeformChildComponents)
+				{
+					TArray<USceneComponent*> ChildComponents;
+					RigMeshComponent->GetChildrenComponents(true, ChildComponents);
+					for (USceneComponent* Component : ChildComponents)
+					{
+						if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(Component))
+						{
+							if (!Component->ComponentHasTag(ExcludeChildComponentsWithTag))
+							{
+								ComponentsToProcess.Add(SkeletalMeshComponent);
+							}
+						}
+					}	
+				}
+
+				return ComponentsToProcess;
+			}
+			
+		};
+		
+		TArray<USkeletalMeshComponent*> ComponentsToProcess =
+			Local::GetComponentsToProcess(
+				RigMeshComponent, SettingsTraitPtr->DeformChildComponents, SettingsTraitPtr->ExcludeChildComponentsWithTag);
+				
+		for (const USkeletalMeshComponent* ComponentToProcess : ComponentsToProcess)
+		{
+			// Currently, there is only one deformer instance used by all LODs, so use LOD 0 here for now
+			// This might change in the future depending on how per-LOD instance is implemented
+			if (UOptimusDeformerDynamicInstanceManager* DeformerInstanceManager = Cast<UOptimusDeformerDynamicInstanceManager>(ComponentToProcess->GetMeshDeformerInstanceForLOD(0)))
+			{
+				DeformerInstanceManager->EnqueueRigDeformer(DeformerInstanceGuid, SettingsTraitPtr->ExecutionPhase, SettingsTraitPtr->ExecutionGroup);
+			}	
+		}
 		
 		for(const FRigVMTraitScope& Scope : Traits)
 		{
@@ -239,7 +309,9 @@ FRigUnit_AddOptimusDeformer_Execute()
 						WeakMesh = TWeakObjectPtr(RigMeshComponent),
 						WeakRig = TWeakObjectPtr(ExecuteContext.ControlRig),
 						DeformerGraphAsset = DeformerTrait->DeformerGraph,
-						DeformerInstanceGuid]()
+						DeformerInstanceGuid,
+						DeformChildComponents = SettingsTraitPtr->DeformChildComponents,
+						ExcludeChildComponentsWithTag = SettingsTraitPtr->ExcludeChildComponentsWithTag]()
 					{
 						if (WeakMesh.IsValid() && WeakRig.IsValid())
 						{
@@ -249,19 +321,9 @@ FRigUnit_AddOptimusDeformer_Execute()
 								if (UOptimusDeformer* DeformerGraph = DeformerGraphAsset.LoadSynchronous())
 								{
 									USkeletalMeshComponent* RigMeshComponent = WeakMesh.Get();
-
-									TArray<USceneComponent*> ChildComponents;
-									RigMeshComponent->GetChildrenComponents(true, ChildComponents);
-
-									TArray<USkeletalMeshComponent*> ComponentsToProcess = {RigMeshComponent};
-
-									for (USceneComponent* Component : ChildComponents)
-									{
-										if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(Component))
-										{
-											ComponentsToProcess.Add(SkeletalMeshComponent);
-										}
-									}
+									
+									TArray<USkeletalMeshComponent*> ComponentsToProcess =
+										Local::GetComponentsToProcess(RigMeshComponent, DeformChildComponents, ExcludeChildComponentsWithTag);
 
 									for (USkeletalMeshComponent* ComponentToProcess : ComponentsToProcess)
 									{
@@ -293,45 +355,19 @@ FRigUnit_AddOptimusDeformer_Execute()
 					}, TStatId(), NULL, ENamedThreads::GameThread);
 				}	
 			}
-			else
+			else if (const FRigVMTrait_OptimusVariableBase* VariableTrait = Scope.GetTrait<FRigVMTrait_OptimusVariableBase>())
 			{
-				TArray<USceneComponent*> ChildComponents;
-				RigMeshComponent->GetChildrenComponents(true, ChildComponents);
-				TArray<USkeletalMeshComponent*> ComponentsToProcess = {RigMeshComponent};
-				for (USceneComponent* Component : ChildComponents)
+				for (const USkeletalMeshComponent* ComponentToProcess : ComponentsToProcess)
 				{
-					if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(Component))
+					// Currently, there is only one deformer instance used by all LODs, so use LOD 0 here for now
+					// This might change in the future depending on how per-LOD instance is implemented
+					if (UOptimusDeformerDynamicInstanceManager* DeformerInstanceManager = Cast<UOptimusDeformerDynamicInstanceManager>(ComponentToProcess->GetMeshDeformerInstanceForLOD(0)))
 					{
-						ComponentsToProcess.Add(SkeletalMeshComponent);
-					}
-				}
-				
-				if (const FRigVMTrait_OptimusDeformerSettings* SettingsTrait = Scope.GetTrait<FRigVMTrait_OptimusDeformerSettings>())
-				{
-					for (const USkeletalMeshComponent* ComponentToProcess : ComponentsToProcess)
-					{
-						// Currently, there is only one deformer instance used by all LODs, so use LOD 0 here for now
-						// This might change in the future depending on how per-LOD instance is implemented
-						if (UOptimusDeformerDynamicInstanceManager* DeformerInstanceManager = Cast<UOptimusDeformerDynamicInstanceManager>(ComponentToProcess->GetMeshDeformerInstanceForLOD(0)))
+						if (DeformerInstanceGuid.IsValid())
 						{
-							DeformerInstanceManager->EnqueueRigDeformer(DeformerInstanceGuid, SettingsTrait->ExecutionPhase, SettingsTrait->ExecutionGroup);
-						}	
-					}
-				}
-				else if (const FRigVMTrait_OptimusVariableBase* VariableTrait = Scope.GetTrait<FRigVMTrait_OptimusVariableBase>())
-				{
-					for (const USkeletalMeshComponent* ComponentToProcess : ComponentsToProcess)
-					{
-						// Currently, there is only one deformer instance used by all LODs, so use LOD 0 here for now
-						// This might change in the future depending on how per-LOD instance is implemented
-						if (UOptimusDeformerDynamicInstanceManager* DeformerInstanceManager = Cast<UOptimusDeformerDynamicInstanceManager>(ComponentToProcess->GetMeshDeformerInstanceForLOD(0)))
-						{
-							if (DeformerInstanceGuid.IsValid())
+							if (UOptimusDeformerInstance* DeformerInstance = DeformerInstanceManager->GetRigDeformer(DeformerInstanceGuid))
 							{
-								if (UOptimusDeformerInstance* DeformerInstance = DeformerInstanceManager->GetRigDeformer(DeformerInstanceGuid))
-								{
-									VariableTrait->SetValue(DeformerInstance);
-								}
+								VariableTrait->SetValue(DeformerInstance);
 							}
 						}
 					}
@@ -460,4 +496,24 @@ void FRigVMTrait_SetDeformerTransformVariable::SetValue(UOptimusDeformerInstance
 void FRigVMTrait_SetDeformerTransformArrayVariable::SetValue(UOptimusDeformerInstance* InInstance) const
 {
 	InInstance->SetTransformArrayVariable(*GetName(), Value);
+}
+
+void FRigVMTrait_SetDeformerNameVariable::SetValue(UOptimusDeformerInstance* InInstance) const
+{
+	InInstance->SetNameVariable(*GetName(), Value);
+}
+
+void FRigVMTrait_SetDeformerNameArrayVariable::SetValue(UOptimusDeformerInstance* InInstance) const
+{
+	InInstance->SetNameArrayVariable(*GetName(), Value);
+}
+
+void FRigVMTrait_SetDeformerBoolVariable::SetValue(UOptimusDeformerInstance* InInstance) const
+{
+	InInstance->SetBoolVariable(*GetName(), Value);
+}
+
+void FRigVMTrait_SetDeformerBoolArrayVariable::SetValue(UOptimusDeformerInstance* InInstance) const
+{
+	InInstance->SetBoolArrayVariable(*GetName(), Value);
 }

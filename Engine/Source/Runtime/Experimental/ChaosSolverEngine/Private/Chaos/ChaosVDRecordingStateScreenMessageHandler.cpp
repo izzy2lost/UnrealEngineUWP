@@ -3,29 +3,34 @@
 #include "ChaosVDRecordingStateScreenMessageHandler.h"
 
 #if WITH_CHAOS_VISUAL_DEBUGGER
-#include "ChaosVDRuntimeModule.h"
-#include "Engine/Engine.h"
 
-void FChaosVDRecordingStateScreenMessageHandler::HandleCVDRecordingStarted()
+#include "ChaosVDRuntimeModule.h"
+#include "ChaosVisualDebugger/ChaosVDTraceMacros.h"
+#include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
+#include "DataWrappers/ChaosVDCollisionDataWrappers.h"
+#include "Engine/Engine.h"
+#include "Serialization/MemoryWriter.h"
+
+void FChaosVDRecordingStateScreenMessageHandler::AddOnScreenRecordingMessage()
 {
 	if (!GEngine)
 	{
 		return;
 	}
-	
+
 	static FText ChaosVDRecordingStartedMessage = NSLOCTEXT("ChaosVisualDebugger", "OnScreenChaosVDRecordingStartedMessage", "Chaos Visual Debugger recording in progress...");
 
 	if (CVDRecordingMessageKey == 0)
 	{
 		CVDRecordingMessageKey = GetTypeHash(ChaosVDRecordingStartedMessage.ToString());
 	}
-
+	
 	// Add a long duration value, we will remove the message manually when the recording stops
 	constexpr float MessageDurationSeconds = 3600.0f;
 	GEngine->AddOnScreenDebugMessage(CVDRecordingMessageKey, MessageDurationSeconds, FColor::Red,ChaosVDRecordingStartedMessage.ToString());
 }
 
-void FChaosVDRecordingStateScreenMessageHandler::HandleCVDRecordingStopped() const
+void FChaosVDRecordingStateScreenMessageHandler::RemoveOnScreenRecordingMessage()
 {
 	if (!GEngine)
 	{
@@ -36,6 +41,18 @@ void FChaosVDRecordingStateScreenMessageHandler::HandleCVDRecordingStopped() con
 	{
 		GEngine->RemoveOnScreenDebugMessage(CVDRecordingMessageKey);
 	}
+}
+
+void FChaosVDRecordingStateScreenMessageHandler::HandleCVDRecordingStarted()
+{
+	SerializeCollisionChannelsNames();
+
+	AddOnScreenRecordingMessage();
+}
+
+void FChaosVDRecordingStateScreenMessageHandler::HandleCVDRecordingStopped()
+{
+	RemoveOnScreenRecordingMessage();
 }
 
 void FChaosVDRecordingStateScreenMessageHandler::HandleCVDRecordingStartFailed(const FText& InFailureReason) const
@@ -56,6 +73,31 @@ void FChaosVDRecordingStateScreenMessageHandler::HandlePIEStarted(UGameInstance*
 	{
 		HandleCVDRecordingStarted();
 	}
+}
+
+void FChaosVDRecordingStateScreenMessageHandler::SerializeCollisionChannelsNames()
+{
+	TArray<uint8> CollisionChannelsDataBuffer;
+	FMemoryWriter MemWriterAr(CollisionChannelsDataBuffer);
+
+	FChaosVDCollisionChannelsInfoContainer CollisionChannelInfoContainer;
+
+	if (UCollisionProfile* CollisionProfileData = UCollisionProfile::Get())
+	{
+		constexpr int32 MaxSupportedChannels = 32;
+		for (int32 ChannelIndex = 0; ChannelIndex < MaxSupportedChannels; ++ChannelIndex)
+		{
+			FChaosVDCollisionChannelInfo Info;
+			Info.DisplayName = CollisionProfileData->ReturnChannelNameFromContainerIndex(ChannelIndex).ToString();
+			Info.CollisionChannel = ChannelIndex;
+			Info.bIsTraceType = CollisionProfileData->ConvertToTraceType(static_cast<ECollisionChannel>(ChannelIndex)) != TraceTypeQuery_MAX;
+			CollisionChannelInfoContainer.CustomChannelsNames[ChannelIndex] = Info;
+		}
+	}
+
+	Chaos::VisualDebugger::WriteDataToBuffer(CollisionChannelsDataBuffer, CollisionChannelInfoContainer);
+
+	CVD_TRACE_BINARY_DATA(CollisionChannelsDataBuffer, FChaosVDCollisionChannelsInfoContainer::WrapperTypeName, EChaosVDTraceBinaryDataOptions::ForceTrace)
 }
 
 FChaosVDRecordingStateScreenMessageHandler& FChaosVDRecordingStateScreenMessageHandler::Get()

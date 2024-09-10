@@ -97,7 +97,7 @@ public:
 	) const;
 
 	/** Begin Interchange payload interfaces */
-	virtual TFuture<TOptional<UE::Interchange::FMeshPayloadData>> GetMeshPayloadData(
+	virtual TOptional<UE::Interchange::FMeshPayloadData> GetMeshPayloadData(
 		const FInterchangeMeshPayLoadKey& PayLoadKey,
 		const FTransform& MeshGlobalTransform
 	) const override;

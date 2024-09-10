@@ -10,9 +10,11 @@
 #define LOCTEXT_NAMESPACE "FDataflowPreviewSceneBase"
 
 
-bool bDataflowShowFloorDefault = false;
+bool bDataflowShowFloorDefault = true;
 FAutoConsoleVariableRef CVARDataflowShowFloorDefault(TEXT("p.Dataflow.Editor.ShowFloor"), bDataflowShowFloorDefault, TEXT("Show the floor in the dataflow editor[def:false]"));
 
+bool bDataflowShowEnvironmentDefault = true;
+FAutoConsoleVariableRef CVARDataflowShowEnvironmentDefault(TEXT("p.Dataflow.Editor.ShowEnvironment"), bDataflowShowEnvironmentDefault, TEXT("Show the environment in the dataflow editor[def:false]"));
 
 FDataflowPreviewSceneBase::FDataflowPreviewSceneBase(FPreviewScene::ConstructionValues ConstructionValues, UDataflowEditor* InEditor)
 	: FAdvancedPreviewScene(ConstructionValues)
@@ -21,7 +23,9 @@ FDataflowPreviewSceneBase::FDataflowPreviewSceneBase(FPreviewScene::Construction
 	RootSceneActor = GetWorld()->SpawnActor<AActor>(AActor::StaticClass());
 	
 	check(DataflowEditor);
-	SetFloorVisibility(bDataflowShowFloorDefault, true);
+	
+	SetFloorVisibility(bDataflowShowFloorDefault, false);
+	SetEnvironmentVisibility(bDataflowShowEnvironmentDefault, false);
 }
 
 FDataflowPreviewSceneBase::~FDataflowPreviewSceneBase()

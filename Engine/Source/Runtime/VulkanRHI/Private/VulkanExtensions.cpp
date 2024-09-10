@@ -1490,6 +1490,40 @@ public:
 	VkPhysicalDevicePipelineCreationCacheControlFeatures PhysicalDevicePipelineCreationCacheControlFeatures;
 };
 
+// ***** VK_KHR_sampler_ycbcr_conversion
+class FVulkanKHRSamplerYcbcrConversionExtension : public FVulkanDeviceExtension
+{
+public:
+
+	FVulkanKHRSamplerYcbcrConversionExtension(FVulkanDevice* InDevice) 
+		: FVulkanDeviceExtension(InDevice, VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED, VK_API_VERSION_1_1)
+	{
+	}
+
+	virtual void PrePhysicalDeviceFeatures(VkPhysicalDeviceFeatures2KHR& PhysicalDeviceFeatures2) override final
+	{
+		ZeroVulkanStruct(PhysicalDeviceSamplerYcbcrConversionFeatures, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_YCBCR_CONVERSION_FEATURES);
+		AddToPNext(PhysicalDeviceFeatures2, PhysicalDeviceSamplerYcbcrConversionFeatures);
+	}
+
+	virtual void PostPhysicalDeviceFeatures(FOptionalVulkanDeviceExtensions& ExtensionFlags) override final
+	{
+		bRequirementsPassed = (PhysicalDeviceSamplerYcbcrConversionFeatures.samplerYcbcrConversion == VK_TRUE);
+		ExtensionFlags.HasKHRSamplerYcbcrConversion = bRequirementsPassed;
+	}
+
+	virtual void PreCreateDevice(VkDeviceCreateInfo& DeviceCreateInfo) override final
+	{
+		if (bRequirementsPassed)
+		{
+			AddToPNext(DeviceCreateInfo, PhysicalDeviceSamplerYcbcrConversionFeatures);
+		}
+	}
+
+
+private:
+	VkPhysicalDeviceSamplerYcbcrConversionFeatures PhysicalDeviceSamplerYcbcrConversionFeatures;
+};
 
 template <typename ExtensionType>
 static void FlagExtensionSupport(const TArray<VkExtensionProperties>& ExtensionProperties, TArray<TUniquePtr<ExtensionType>>& UEExtensions, uint32 ApiVersion, const TCHAR* ExtensionTypeName)
@@ -1575,6 +1609,7 @@ FVulkanDeviceExtensionArray FVulkanDeviceExtension::GetUESupportedDeviceExtensio
 	ADD_CUSTOM_EXTENSION(FVulkanEXTPipelineCreationCacheControlExtension);
 	ADD_CUSTOM_EXTENSION(FVulkanKHRFragmentShaderBarycentricExtension);
 	ADD_CUSTOM_EXTENSION(FVulkanNVComputeShaderDerivatives);
+	ADD_CUSTOM_EXTENSION(FVulkanKHRSamplerYcbcrConversionExtension);
 
 	// Needed for Raytracing
 	ADD_CUSTOM_EXTENSION(FVulkanKHRBufferDeviceAddressExtension);

@@ -1187,7 +1187,7 @@ XrResult FOXRVisionOSSession::XrEndFrame(
 	}
 
 	const XrFrameEndInfo& FrameEndInfo = *InFrameEndInfo;
-	check(FrameEndInfo.environmentBlendMode == XR_ENVIRONMENT_BLEND_MODE_OPAQUE); // only opaque is supported, see XrEnumerateEnvironmentBlendModes
+	//check(FrameEndInfo.environmentBlendMode == XR_ENVIRONMENT_BLEND_MODE_OPAQUE); // only opaque is supported, see XrEnumerateEnvironmentBlendModes
 	check(FrameEndInfo.layerCount <= OXRVisionOSSessionHelpers::MaxOXRVisionOSLayers);
     
     {

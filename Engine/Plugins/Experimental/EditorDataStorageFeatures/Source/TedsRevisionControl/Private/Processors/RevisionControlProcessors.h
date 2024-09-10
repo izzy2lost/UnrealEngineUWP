@@ -7,23 +7,23 @@
 
 #include "RevisionControlProcessors.generated.h"
 
-class ITypedElementDataStorageInterface;
+class IEditorDataStorageProvider;
 
 UCLASS()
-class URevisionControlDataStorageFactory : public UTypedElementDataStorageFactory
+class URevisionControlDataStorageFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	~URevisionControlDataStorageFactory() override = default;
 
-	void RegisterTables(ITypedElementDataStorageInterface& DataStorage) override;
-	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
+	void RegisterTables(IEditorDataStorageProvider& DataStorage) override;
+	void RegisterQueries(IEditorDataStorageProvider& DataStorage) override;
 
 private:
-	void RegisterFetchUpdates(ITypedElementDataStorageInterface& DataStorage);
-	void RegisterApplyOverlays(ITypedElementDataStorageInterface& DataStorage);
-	void RegisterRemoveOverlays(ITypedElementDataStorageInterface& DataStorage);
+	void RegisterFetchUpdates(IEditorDataStorageProvider& DataStorage);
+	void RegisterApplyOverlays(IEditorDataStorageProvider& DataStorage);
+	void RegisterRemoveOverlays(IEditorDataStorageProvider& DataStorage);
 	UE::Editor::DataStorage::QueryHandle FetchUpdates = UE::Editor::DataStorage::InvalidQueryHandle;
 	UE::Editor::DataStorage::QueryHandle ApplyNewOverlays = UE::Editor::DataStorage::InvalidQueryHandle;
 	UE::Editor::DataStorage::QueryHandle ChangeOverlay = UE::Editor::DataStorage::InvalidQueryHandle;

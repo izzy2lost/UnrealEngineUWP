@@ -3,6 +3,7 @@
 #pragma once
 
 #include "BoneIndices.h"
+#include "Animation/AttributesRuntime.h"
 #include "Containers/IndirectArray.h"
 #include "ReferencePose.h"
 #include "LODPose.h"
@@ -105,6 +106,18 @@ public:
 	// The target pose should be assigned to the correct reference pose prior to this call, as transforms will not be filled
 	// in by this call if they are not affected by the current LOD.
 	static void RemapPose(const FLODPose& SourcePose, TArrayView<FTransform> TargetTransforms);
+
+	// Converts AnimNext attributes to AnimBP attributes
+	static void RemapAttributes(
+		const FLODPose& LODPose,
+		const UE::Anim::FHeapAttributeContainer& InAttributes,
+		UE::Anim::FMeshAttributeContainer& OutAttributes);
+
+	// Converts AnimNext attributes to AnimBP attributes
+	static void RemapAttributes(
+		const FLODPose& LODPose,
+		const UE::Anim::FHeapAttributeContainer& InAttributes,
+		FPoseContext& OutPose);
 
 	// Converts a local space to component space buffer given a number of required bones
 	static void ConvertLocalSpaceToComponentSpace(TConstArrayView<FBoneIndexType> InParentIndices, TConstArrayView<FTransform> InBoneSpaceTransforms, TConstArrayView<FBoneIndexType> InRequiredBoneIndices, TArrayView<FTransform> OutComponentSpaceTransforms);

@@ -395,14 +395,13 @@ template<>
 class TTreeDiffSpecification<FPropertyInstance>
 {
 public:
-	virtual ~TTreeDiffSpecification() = default;
-	
-	virtual bool AreValuesEqual(const FPropertyInstance& TreeNodeA, const FPropertyInstance& TreeNodeB) const
+
+	bool AreValuesEqual(const FPropertyInstance& TreeNodeA, const FPropertyInstance& TreeNodeB, TArray<FPropertySoftPath>* OutDifferingProperties = nullptr) const
 	{
 		return TreeNodeA == TreeNodeB;
 	}
 	
-	virtual bool AreMatching(const FPropertyInstance& TreeNodeA, const FPropertyInstance& TreeNodeB) const
+	bool AreMatching(const FPropertyInstance& TreeNodeA, const FPropertyInstance& TreeNodeB, TArray<FPropertySoftPath>* OutDifferingProperties = nullptr) const
 	{
 		if (TreeNodeA.KeyProperty->GetName() == TreeNodeB.KeyProperty->GetName())
 		{
@@ -420,18 +419,18 @@ public:
 		return false;
 	}
 	
-	virtual void GetChildren(const FPropertyInstance& InParent, TArray<FPropertyInstance>& OutChildren) const
+	void GetChildren(const FPropertyInstance& InParent, TArray<FPropertyInstance>& OutChildren) const
 	{
 		return InParent.GetChildren(OutChildren);
 	}
 
-	virtual bool ShouldMatchByValue(const FPropertyInstance& TreeNodeA) const
+	bool ShouldMatchByValue(const FPropertyInstance& TreeNodeA) const
 	{
 		// array elements should match by value
 		return CastField<FArrayProperty>(TreeNodeA.KeyProperty->Owner.ToField()) != nullptr;
 	}
 	
-	virtual bool ShouldInheritEqualFromChildren(const FPropertyInstance& TreeNodeA, const FPropertyInstance& TreeNodeB) const
+	bool ShouldInheritEqualFromChildren(const FPropertyInstance& TreeNodeA, const FPropertyInstance& TreeNodeB) const
 	{
 		return true;
 	}

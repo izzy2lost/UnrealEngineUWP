@@ -88,11 +88,6 @@ namespace UE::Learning
 			TrainingProcessFlags);
 	}
 
-	FSharedMemoryTrainerServerProcess::~FSharedMemoryTrainerServerProcess()
-	{
-		Terminate();
-	}
-
 	bool FSharedMemoryTrainerServerProcess::IsRunning() const
 	{
 		return TrainingProcess.IsRunning();
@@ -719,11 +714,6 @@ namespace UE::Learning
 			FileManager.ConvertToAbsolutePathForExternalAppForRead(*PythonExecutablePath),
 			CommandLineArguments, 
 			TrainingProcessFlags);
-	}
-
-	FSocketTrainerServerProcess::~FSocketTrainerServerProcess()
-	{
-		Terminate();
 	}
 
 	bool FSocketTrainerServerProcess::IsRunning() const

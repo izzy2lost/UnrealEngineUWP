@@ -34,6 +34,7 @@ void FDMXEntityReferenceCustomization::CustomizeHeader(TSharedRef<IPropertyHandl
 			: InPropertyHandle->CreatePropertyValueWidget(false);
 
 		InHeaderRow
+			.ShouldAutoExpand(true)
 			.NameContent()
 			[
 				InPropertyHandle->CreatePropertyNameWidget()

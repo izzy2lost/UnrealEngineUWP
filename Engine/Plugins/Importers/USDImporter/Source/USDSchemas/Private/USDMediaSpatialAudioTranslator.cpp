@@ -6,6 +6,7 @@
 #include "USDConversionUtils.h"
 #include "USDDrawModeComponent.h"
 #include "USDLog.h"
+#include "USDMemory.h"
 #include "USDObjectUtils.h"
 #include "USDPrimConversion.h"
 #include "USDShadeConversion.h"

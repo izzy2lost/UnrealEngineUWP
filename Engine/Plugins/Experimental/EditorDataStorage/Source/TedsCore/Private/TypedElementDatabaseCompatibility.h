@@ -19,11 +19,9 @@
 
 #include "TypedElementDatabaseCompatibility.generated.h"
 
-class ITypedElementDataStorageInterface;
+class IEditorDataStorageProvider;
 struct FMassActorManager;
 class UTypedElementMementoSystem;
-
-enum class ETypedElementDatabaseCompatibilityObjectType : uint8;
 
 namespace UE::Editor::DataStorage
 {
@@ -33,7 +31,7 @@ namespace UE::Editor::DataStorage
 UCLASS()
 class TEDSCORE_API UEditorDataStorageCompatibility
 	: public UObject
-	, public ITypedElementDataStorageCompatibilityInterface
+	, public IEditorDataStorageCompatibilityProvider
 {
 	GENERATED_BODY()
 
@@ -186,7 +184,7 @@ private:
 		int32 Num() const;
 		
 		void ForEachAddress(const TFunctionRef<void(AddressType&)>& Callback);
-		void ProcessEntries(ITypedElementDataStorageInterface& Storage, UEditorDataStorageCompatibility& Compatibility,
+		void ProcessEntries(IEditorDataStorageProvider& Storage, UEditorDataStorageCompatibility& Compatibility,
 			const TFunctionRef<void(UE::Editor::DataStorage::RowHandle, const AddressType&)>& SetupRowCallback);
 		void Reset();
 	};
@@ -208,7 +206,7 @@ private:
 	UE::Editor::DataStorage::TableHandle StandardActorWithTransformTable{ UE::Editor::DataStorage::InvalidTableHandle };
 	UE::Editor::DataStorage::TableHandle StandardUObjectTable{ UE::Editor::DataStorage::InvalidTableHandle };
 	UE::Editor::DataStorage::TableHandle StandardExternalObjectTable{ UE::Editor::DataStorage::InvalidTableHandle };
-	ITypedElementDataStorageInterface* Storage{ nullptr };
+	IEditorDataStorageProvider* Storage{ nullptr };
 
 	/**
 	 * Reference of objects (UObject and AActor) that need to be fully synced from the world to the database.

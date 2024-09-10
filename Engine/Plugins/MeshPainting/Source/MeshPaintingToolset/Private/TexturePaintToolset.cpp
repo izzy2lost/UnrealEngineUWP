@@ -135,12 +135,15 @@ bool UTexturePaintToolset::GenerateSeamMask(UMeshComponent* MeshComponent, int32
 	FTextureRenderTargetResource* RenderTargetResource = SeamRenderTexture->GameThread_GetRenderTargetResource();
 	check(RenderTargetResource != nullptr);
 
-	int32 NumElements = StaticMeshComponent->GetNumMaterials();
+	const bool bIsMeshPaintTexture = MeshComponent->GetMeshPaintTexture() == Texture;
+
+	const int32 NumElements = StaticMeshComponent->GetNumMaterials();
 	UTexture2D* TargetTexture2D = Texture;
 
-	// Store info that tells us if the element material uses our target texture so we don't have to do a usestexture() call for each tri.  We will
-	// use this info to eliminate triangles that do not use our texture.
-	TArray< bool > ElementUsesTargetTexture;
+	// Store info that tells us if the element material uses our target texture.
+	// We will use this info to eliminate triangles that do not use our texture.
+	TArray<bool> ElementUsesTargetTexture;
+	bool bAnyElementUsesTargetTexture = false;
 	ElementUsesTargetTexture.AddZeroed(NumElements);
 	for (int32 ElementIndex = 0; ElementIndex < NumElements; ElementIndex++)
 	{
@@ -149,60 +152,27 @@ bool UTexturePaintToolset::GenerateSeamMask(UMeshComponent* MeshComponent, int32
 		UMaterialInterface* ElementMat = StaticMeshComponent->GetMaterial(ElementIndex);
 		if (ElementMat != nullptr)
 		{
-			ElementUsesTargetTexture[ElementIndex] |= DoesMaterialUseTexture(ElementMat, TargetTexture2D);
-
-			if (ElementUsesTargetTexture[ElementIndex] == false && RenderTargetTexture != nullptr)
+			if (bIsMeshPaintTexture)
 			{
-				// If we didn't get a match on our selected texture, we'll check to see if the the material uses a
-				//  render target texture override that we put on during painting.
-				ElementUsesTargetTexture[ElementIndex] |= DoesMaterialUseTexture(ElementMat, RenderTargetTexture);
+				ElementUsesTargetTexture[ElementIndex] |= ElementMat->HasMeshPaintTexture();
 			}
-		}
-	}
-
-	// Make sure we're dealing with triangle lists
-	FIndexArrayView Indices = LODModel.IndexBuffer.GetArrayView();
-	const uint32 NumIndexBufferIndices = Indices.Num();
-	check(NumIndexBufferIndices % 3 == 0);
-	const uint32 NumTriangles = NumIndexBufferIndices / 3;
-
-	static TArray< int32 > InfluencedTriangles;
-	InfluencedTriangles.Empty(NumTriangles);
-
-	// For each triangle in the mesh
-	for (uint32 TriIndex = 0; TriIndex < NumTriangles; ++TriIndex)
-	{
-		// At least one triangle vertex was influenced.
-		bool bAddTri = false;
-
-		// Check to see if the sub-element that this triangle belongs to actually uses our paint target texture in its material
-		for (int32 ElementIndex = 0; ElementIndex < NumElements; ElementIndex++)
-		{
-			//FStaticMeshElement& Element = LODModel.Elements[ ElementIndex ];
-			FStaticMeshSection& Element = LODModel.Sections[ElementIndex];
-
-
-			if ((TriIndex >= Element.FirstIndex / 3) &&
-				(TriIndex < Element.FirstIndex / 3 + Element.NumTriangles))
+			else
 			{
+				ElementUsesTargetTexture[ElementIndex] |= DoesMaterialUseTexture(ElementMat, TargetTexture2D);
 
-				// The triangle belongs to this element, now we need to check to see if the element material uses our target texture.
-				if (TargetTexture2D != nullptr && ElementUsesTargetTexture[ElementIndex] == true)
+				if (ElementUsesTargetTexture[ElementIndex] == false && RenderTargetTexture != nullptr)
 				{
-					bAddTri = true;
+					// If we didn't get a match on our selected texture, we'll check to see if the the material uses a
+					//  render target texture override that we put on during painting.
+					ElementUsesTargetTexture[ElementIndex] |= DoesMaterialUseTexture(ElementMat, RenderTargetTexture);
 				}
-
-				// Triangles can only be part of one element so we do not need to continue to other elements.
-				break;
 			}
-
 		}
 
-		if (bAddTri)
-		{
-			InfluencedTriangles.Add(TriIndex);
-		}
-
+		// We track if there is no section that uses the texture.
+		// That would be a special case where we are painting without any context for the seams. Then seam painting would expand/blur all painting.
+		// To avoid that it's better to render _all_ sections into the seam mask rather than none.
+		bAnyElementUsesTargetTexture |= ElementUsesTargetTexture[ElementIndex];
 	}
 
 	{
@@ -210,94 +180,96 @@ bool UTexturePaintToolset::GenerateSeamMask(UMeshComponent* MeshComponent, int32
 		FCanvas Canvas(RenderTargetResource, nullptr, FGameTime(), GEditor->GetEditorWorldContext().World()->GetFeatureLevel());
 		Canvas.Clear(FLinearColor::White);
 
+		FIndexArrayView Indices = LODModel.IndexBuffer.GetArrayView();
+		
 		TArray<FCanvasUVTri> TriList;
-		FCanvasUVTri EachTri;
-		EachTri.V0_Color = FLinearColor::Black;
-		EachTri.V1_Color = FLinearColor::Black;
-		EachTri.V2_Color = FLinearColor::Black;
-
-		for (int32 CurIndex = 0; CurIndex < InfluencedTriangles.Num(); ++CurIndex)
+		for (int32 ElementIndex = 0; ElementIndex < NumElements; ++ElementIndex)
 		{
-			const int32 TriIndex = InfluencedTriangles[CurIndex];
+			FStaticMeshSection& Element = LODModel.Sections[ElementIndex];
 
-			// Grab the vertex indices and points for this triangle
-			FVector2D TriUVs[3];
-			FVector2D UVMin(99999.9f, 99999.9f);
-			FVector2D UVMax(-99999.9f, -99999.9f);
-			for (int32 TriVertexNum = 0; TriVertexNum < 3; ++TriVertexNum)
+			if (ElementUsesTargetTexture[Element.MaterialIndex] || !bAnyElementUsesTargetTexture)
 			{
-				const int32 VertexIndex = Indices[TriIndex * 3 + TriVertexNum];
-				TriUVs[TriVertexNum] = FVector2D(LODModel.VertexBuffers.StaticMeshVertexBuffer.GetVertexUV(VertexIndex, UVSet));
-
-				// Update bounds
-				float U = TriUVs[TriVertexNum].X;
-				float V = TriUVs[TriVertexNum].Y;
-
-				if (U < UVMin.X)
+				for (uint32 TriIndex = Element.FirstIndex / 3u; TriIndex < Element.FirstIndex / 3u + Element.NumTriangles; ++TriIndex)
 				{
-					UVMin.X = U;
+					// Grab the vertex indices and points for this triangle
+					FVector2D TriUVs[3];
+					FVector2D UVMin(99999.9f, 99999.9f);
+					FVector2D UVMax(-99999.9f, -99999.9f);
+					for (int32 TriVertexNum = 0; TriVertexNum < 3; ++TriVertexNum)
+					{
+						const int32 VertexIndex = Indices[TriIndex * 3 + TriVertexNum];
+						TriUVs[TriVertexNum] = FVector2D(LODModel.VertexBuffers.StaticMeshVertexBuffer.GetVertexUV(VertexIndex, UVSet));
+
+						// Update bounds
+						float U = TriUVs[TriVertexNum].X;
+						float V = TriUVs[TriVertexNum].Y;
+
+						if (U < UVMin.X)
+						{
+							UVMin.X = U;
+						}
+						if (U > UVMax.X)
+						{
+							UVMax.X = U;
+						}
+						if (V < UVMin.Y)
+						{
+							UVMin.Y = V;
+						}
+						if (V > UVMax.Y)
+						{
+							UVMax.Y = V;
+						}
+					}
+
+					// If the triangle lies entirely outside of the 0.0-1.0 range, we'll transpose it back
+					FVector2D UVOffset(0.0f, 0.0f);
+					if (UVMax.X > 1.0f)
+					{
+						UVOffset.X = -FMath::FloorToInt(UVMin.X);
+					}
+					else if (UVMin.X < 0.0f)
+					{
+						UVOffset.X = 1.0f + FMath::FloorToInt(-UVMax.X);
+					}
+
+					if (UVMax.Y > 1.0f)
+					{
+						UVOffset.Y = -FMath::FloorToInt(UVMin.Y);
+					}
+					else if (UVMin.Y < 0.0f)
+					{
+						UVOffset.Y = 1.0f + FMath::FloorToInt(-UVMax.Y);
+					}
+
+					// Note that we "wrap" the texture coordinates here to handle the case where the user
+					// is painting on a tiling texture, or with the UVs out of bounds.  Ideally all of the
+					// UVs would be in the 0.0 - 1.0 range but sometimes content isn't setup that way.
+					// @todo MeshPaint: Handle triangles that cross the 0.0-1.0 UV boundary?
+					FVector2D TrianglePoints[3];
+					for (int32 TriVertexNum = 0; TriVertexNum < 3; ++TriVertexNum)
+					{
+						TriUVs[TriVertexNum].X += UVOffset.X;
+						TriUVs[TriVertexNum].Y += UVOffset.Y;
+
+						TrianglePoints[TriVertexNum].X = TriUVs[TriVertexNum].X * Width;
+						TrianglePoints[TriVertexNum].Y = TriUVs[TriVertexNum].Y * Height;
+					}
+
+					FCanvasUVTri& Tri = TriList.Emplace_GetRef();
+					Tri.V0_Pos = TrianglePoints[0];
+					Tri.V0_UV = TriUVs[0];
+					Tri.V0_Color = FLinearColor::Black;
+					Tri.V1_Pos = TrianglePoints[1];
+					Tri.V1_UV = TriUVs[1];
+					Tri.V1_Color = FLinearColor::Black;
+					Tri.V2_Pos = TrianglePoints[2];
+					Tri.V2_UV = TriUVs[2];
+					Tri.V2_Color = FLinearColor::Black;
 				}
-				if (U > UVMax.X)
-				{
-					UVMax.X = U;
-				}
-				if (V < UVMin.Y)
-				{
-					UVMin.Y = V;
-				}
-				if (V > UVMax.Y)
-				{
-					UVMax.Y = V;
-				}
-
 			}
-
-			// If the triangle lies entirely outside of the 0.0-1.0 range, we'll transpose it back
-			FVector2D UVOffset(0.0f, 0.0f);
-			if (UVMax.X > 1.0f)
-			{
-				UVOffset.X = -FMath::FloorToInt(UVMin.X);
-			}
-			else if (UVMin.X < 0.0f)
-			{
-				UVOffset.X = 1.0f + FMath::FloorToInt(-UVMax.X);
-			}
-
-			if (UVMax.Y > 1.0f)
-			{
-				UVOffset.Y = -FMath::FloorToInt(UVMin.Y);
-			}
-			else if (UVMin.Y < 0.0f)
-			{
-				UVOffset.Y = 1.0f + FMath::FloorToInt(-UVMax.Y);
-			}
-
-
-			// Note that we "wrap" the texture coordinates here to handle the case where the user
-			// is painting on a tiling texture, or with the UVs out of bounds.  Ideally all of the
-			// UVs would be in the 0.0 - 1.0 range but sometimes content isn't setup that way.
-			// @todo MeshPaint: Handle triangles that cross the 0.0-1.0 UV boundary?
-			FVector2D TrianglePoints[3];
-			for (int32 TriVertexNum = 0; TriVertexNum < 3; ++TriVertexNum)
-			{
-				TriUVs[TriVertexNum].X += UVOffset.X;
-				TriUVs[TriVertexNum].Y += UVOffset.Y;
-
-				TrianglePoints[TriVertexNum].X = TriUVs[TriVertexNum].X * Width;
-				TrianglePoints[TriVertexNum].Y = TriUVs[TriVertexNum].Y * Height;
-			}
-
-			EachTri.V0_Pos = TrianglePoints[0];
-			EachTri.V0_UV = TriUVs[0];
-			EachTri.V0_Color = FLinearColor::Black;
-			EachTri.V1_Pos = TrianglePoints[1];
-			EachTri.V1_UV = TriUVs[1];
-			EachTri.V1_Color = FLinearColor::Black;
-			EachTri.V2_Pos = TrianglePoints[2];
-			EachTri.V2_UV = TriUVs[2];
-			EachTri.V2_Color = FLinearColor::Black;
-			TriList.Add(EachTri);
 		}
+
 		if (TriList.Num())
 		{
 			// Setup the tri render item with the list of tris
@@ -310,14 +282,11 @@ bool UTexturePaintToolset::GenerateSeamMask(UMeshComponent* MeshComponent, int32
 		}
 	}
 
-
+	ENQUEUE_RENDER_COMMAND(UpdateMeshPaintRTCommand5)(
+		[RenderTargetResource](FRHICommandListImmediate& RHICmdList)
 	{
-		ENQUEUE_RENDER_COMMAND(UpdateMeshPaintRTCommand5)(
-			[RenderTargetResource](FRHICommandListImmediate& RHICmdList)
-		{
-			TransitionAndCopyTexture(RHICmdList, RenderTargetResource->GetRenderTargetTexture(), RenderTargetResource->TextureRHI, {});
-		});
-	}
+		TransitionAndCopyTexture(RHICmdList, RenderTargetResource->GetRenderTargetTexture(), RenderTargetResource->TextureRHI, {});
+	});
 
 	return RetVal;
 }
@@ -418,13 +387,23 @@ void UTexturePaintToolset::FindMaterialIndicesUsingTexture(const UTexture* Textu
 {
 	checkf(Texture && MeshComponent, TEXT("Invalid Texture of MeshComponent"));
 
+	const bool bIsMeshPaintTexture = MeshComponent->GetMeshPaintTexture() == Texture;
+
 	const int32 NumMaterials = MeshComponent->GetNumMaterials();
 	for (int32 MaterialIndex = 0; MaterialIndex < NumMaterials; ++MaterialIndex)
 	{
 		const UMaterialInterface* MaterialInterface = MeshComponent->GetMaterial(MaterialIndex);
 		if (MaterialInterface)
 		{
-			const bool bUsesTexture = DoesMaterialUseTexture(MaterialInterface, Texture);
+			bool bUsesTexture = false;
+			if (bIsMeshPaintTexture)
+			{
+				bUsesTexture = MaterialInterface->HasMeshPaintTexture();
+			}
+			else
+			{
+				bUsesTexture = DoesMaterialUseTexture(MaterialInterface, Texture);
+			}
 			if (bUsesTexture)
 			{
 				OutIndices.AddUnique(MaterialIndex);

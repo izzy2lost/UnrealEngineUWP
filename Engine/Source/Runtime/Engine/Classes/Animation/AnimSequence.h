@@ -39,6 +39,7 @@ struct FAnimSequenceDecompressionContext;
 struct FCompactPose;
 
 namespace UE { namespace Anim { class FAnimSequenceCompilingManager; namespace Compression { struct FScopedCompressionGuard; } class FAnimationSequenceAsyncCacheTask; } }
+namespace UE::AnimNext { class FDecompressionTools; }
 
 extern ENGINE_API int32 GPerformFrameStripping;
 
@@ -945,6 +946,6 @@ public:
 	friend struct UE::Anim::Compression::FScopedCompressionGuard;
 	friend class FAnimDataControllerTestBase;
 	friend class UE::Anim::FAnimSequenceCompilingManager;
-	friend struct FAnimNextAnimSequenceKeyframeTask;
+	friend UE::AnimNext::FDecompressionTools;
 	friend class FAnimSequenceDetails;
 };

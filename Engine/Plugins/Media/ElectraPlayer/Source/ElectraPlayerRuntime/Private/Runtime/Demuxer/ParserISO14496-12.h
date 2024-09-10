@@ -115,6 +115,10 @@ namespace Electra
 
 		virtual UEMediaError PrepareTracks(IPlayerSessionServices* PlayerSession, TSharedPtrTS<const IParserISO14496_12> OptionalMP4InitSegment) = 0;
 
+		// Cancellation delegate for potentially slow tasks.
+		DECLARE_DELEGATE_RetVal(bool, FCancellationCheckDelegate);
+		virtual UEMediaError ResolveTimecodeTracks(IPlayerSessionServices* InPlayerSession, FCancellationCheckDelegate InCancellationCheckDelegate) = 0;
+
 		virtual TMediaOptionalValue<FTimeFraction> GetMovieDuration() const = 0;
 
 		virtual int32 GetNumberOfTracks() const = 0;

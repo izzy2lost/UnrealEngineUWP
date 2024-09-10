@@ -20,6 +20,8 @@
 #include "ToolMenus.h"
 #include "Framework/Application/SlateApplication.h"
 #include "HierarchyTableEditorModule.h"
+#include "Widgets/Input/STextEntryPopup.h"
+#include "PersonaModule.h"
 
 #define LOCTEXT_NAMESPACE "HierarchyTableEditorToolkit"
 
@@ -86,7 +88,7 @@ void FHierarchyTableEditorToolkit::RegisterTabSpawners(const TSharedRef<class FT
 void FHierarchyTableEditorToolkit::OnClose()
 {
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-	ITypedElementDataStorageInterface* DSI = Registry->GetMutableDataStorage();
+	IEditorDataStorageProvider* DSI = Registry->GetMutableDataStorage();
 
 	for (const TTuple<int32, UE::Editor::DataStorage::RowHandle>& Row : EntryIndexToHandleMap)
 	{
@@ -157,7 +159,7 @@ TSharedRef<SWidget> FHierarchyTableEditorToolkit::CreateTedsOutliner()
 
 	FTedsOutlinerModule& TedsOutlinerModule = FModuleManager::GetModuleChecked<FTedsOutlinerModule>("TedsOutliner");
 
-	ITypedElementDataStorageInterface* DSI = Registry->GetMutableDataStorage();
+	IEditorDataStorageProvider* DSI = Registry->GetMutableDataStorage();
 	static TableHandle Table = DSI->FindTable(FName("Editor_HierarchyTableTable"));
 	
 	TArray<UScriptStruct*> BaseHierarchyTableTypeColumns = Handler->GetColumns();
@@ -169,11 +171,11 @@ TSharedRef<SWidget> FHierarchyTableEditorToolkit::CreateTedsOutliner()
 		RowHandle Row = DSI->AddRow(Table);
 
 		FTypedElementOverrideColumn OverrideEntry;
-		OverrideEntry.OwnerEntry = Entry;
+		OverrideEntry.OwnerEntryIndex = EntryIndex;
 		OverrideEntry.OwnerTable = HierarchyTable;
 		DSI->AddColumn(Row, MoveTemp(OverrideEntry));
 
-		DSI->AddColumn<FTypedElementLabelColumn>(Row, { .Label = Entry->Identifier.ToString() });
+		DSI->AddColumn<FTypedElementLabelColumn>(Row, { .Label = CreateRowLabel(Entry->Identifier, Entry->EntryType) });
 
 		RowHandle* ParentRow = EntryIndexToHandleMap.Find(Entry->Parent);
 		if (ParentRow)
@@ -205,65 +207,174 @@ void FHierarchyTableEditorToolkit::ExtendToolbar()
 	{
 		FToolMenuSection& HierarchyTableSection = ToolMenu->AddSection("HierarchyTable", LOCTEXT("HierarchyTable_ToolbarLabel", "HierarchyTable"), SectionInsertLocation);
 
-		/*
 		HierarchyTableSection.AddEntry(FToolMenuEntry::InitComboButton(
 			"AddCurve",
 			FUIAction(),
-			FNewToolMenuWidget::CreateLambda([this](const FToolMenuContext& InContext) -> TSharedRef<SWidget>
+			FNewToolMenuDelegate::CreateLambda([this](UToolMenu* InSubMenu)
 				{
-					return SNew(SAnimCurvePicker, HierarchyTable->Skeleton)
-						.OnCurvePicked_Lambda([this](const FName SelectedCurve)
-							{
-								AddCurveEntry(SelectedCurve);
-								FSlateApplication::Get().DismissAllMenus();
-							});
+					FToolUIAction Action;
+				    Action.ExecuteAction = FToolMenuExecuteAction::CreateLambda([this](const FToolMenuContext& Context)
+				    {
+						TSharedRef<STextEntryPopup> TextEntry = SNew(STextEntryPopup)
+							.Label(LOCTEXT("NewCurveEntryLabal", "Curve Name"))
+							.OnTextCommitted_Lambda([this](const FText& CommittedText, ETextCommit::Type CommitInfo)
+								{
+									AddEntry(FName(CommittedText.ToString()), EHierarchyTableEntryType::Curve);
+									FSlateApplication::Get().DismissAllMenus();
+								});
+
+						FSlateApplication& SlateApp = FSlateApplication::Get();
+						SlateApp.PushMenu(
+							SlateApp.GetInteractiveTopLevelWindows()[0],
+							FWidgetPath(),
+							TextEntry,
+							SlateApp.GetCursorPos(),
+							FPopupTransitionEffect::TypeInPopup);
+				    });
+
+				    FToolMenuEntry Entry = FToolMenuEntry::InitMenuEntry(
+					    FName("AddNewCurve"),
+					    LOCTEXT("AddNewCurve_Label", "Add New Curve"),
+					    LOCTEXT("AddNewCurve_Tooltip", "Add a new curve value"),
+					    FSlateIcon(),
+					    FToolUIActionChoice(Action),
+						EUserInterfaceActionType::Button);
+				
+				    InSubMenu->AddMenuEntry("AddNewCurve", Entry);
+
+					FPersonaModule& PersonaModule = FModuleManager::LoadModuleChecked<FPersonaModule>("Persona");
+
+					InSubMenu->AddMenuEntry("ExistingCurveMenu", FToolMenuEntry::InitWidget(
+						"ExistingCurveMenu",
+						SNew(SVerticalBox)
+						+SVerticalBox::Slot()
+						.AutoHeight()
+						[
+							PersonaModule.CreateCurvePicker(HierarchyTable->Skeleton,
+								FOnCurvePicked::CreateLambda([this](const FName& InName)
+									{
+										AddEntry(InName, EHierarchyTableEntryType::Curve);
+										FSlateApplication::Get().DismissAllMenus();
+									}))
+						],
+						FText(),
+						true,
+						false,
+						true
+					));
 				}),
 			LOCTEXT("AddCurve_Label", "Add Curve"),
 			LOCTEXT("AddCurve_ToolTip", "Add a new curve to the hierarchy"),
 			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Plus")
 		));
-		*/
+
+		HierarchyTableSection.AddEntry(FToolMenuEntry::InitComboButton(
+			"AddAttribute",
+			FUIAction(),
+			FNewToolMenuDelegate::CreateLambda([this](UToolMenu* InSubMenu)
+				{
+					FToolUIAction Action;
+				    Action.ExecuteAction = FToolMenuExecuteAction::CreateLambda([this](const FToolMenuContext& Context)
+				    {
+						TSharedRef<STextEntryPopup> TextEntry = SNew(STextEntryPopup)
+							.Label(LOCTEXT("NewAttributeEntryLabal", "Attribute Name"))
+							.OnTextCommitted_Lambda([this](const FText& CommittedText, ETextCommit::Type CommitInfo)
+								{
+									AddEntry(FName(CommittedText.ToString()), EHierarchyTableEntryType::Attribute);
+									FSlateApplication::Get().DismissAllMenus();
+								});
+
+						FSlateApplication& SlateApp = FSlateApplication::Get();
+						SlateApp.PushMenu(
+							SlateApp.GetInteractiveTopLevelWindows()[0],
+							FWidgetPath(),
+							TextEntry,
+							SlateApp.GetCursorPos(),
+							FPopupTransitionEffect::TypeInPopup);
+				    });
+
+				    FToolMenuEntry Entry = FToolMenuEntry::InitMenuEntry(
+					    FName("AddNewAttribute"),
+					    LOCTEXT("AddNewAttribute_Label", "Add New Attribute"),
+					    LOCTEXT("AddNewAttribute_Tooltip", "Add a new attribute value"),
+					    FSlateIcon(),
+					    FToolUIActionChoice(Action),
+						EUserInterfaceActionType::Button);
+				
+				    InSubMenu->AddMenuEntry("AddNewAttribute", Entry);
+				}),
+			LOCTEXT("AddAttribute_Label", "Add Attribute"),
+			LOCTEXT("AddAttribute_ToolTip", "Add a new attribute to the hierarchy"),
+			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Plus")
+		));
 	}
 }
 
-void FHierarchyTableEditorToolkit::AddCurveEntry(const FName CurveName)
+void FHierarchyTableEditorToolkit::AddEntry(const FName Identifier, const EHierarchyTableEntryType EntryType)
 {
-	// TODO: Reimplement
+	check(EntryType != EHierarchyTableEntryType::Bone);
 
-	/*
-	using namespace UE::Editor::DataStorage;
-	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-	ITypedElementDataStorageInterface* DSI = Registry->GetMutableDataStorage();
-	static TableHandle Table = DSI->FindTable(FName("Editor_HierarchyTableTable"));
-
-	RowHandle* RootBoneHandle = EntryIndexToHandleMap.Find(0);
-	if (!ensure(RootBoneHandle))
+	if (HierarchyTable->HasIdentifier(Identifier))
 	{
+		// Avoid adding duplicate entries
 		return;
 	}
 
-	RowHandle Row = DSI->AddRow(Table);
-	DSI->AddColumn<FTypedElementOverrideColumn>(Row, { .bIsOverridden = false });
-	DSI->AddColumn<FTypedElementLabelColumn>(Row, { .Label = CurveName.ToString() });
-	DSI->AddColumn<FTypedElementMetadataColumn>(Row,
-		{
-			.OwnerTable = HierarchyTable,
-			.Children = TArray<RowHandle>(),
-			.Type = EHierarchyTableMetadataType::Curve,
-			.BoneIndex = INDEX_NONE,
-			.CurveName = CurveName
-		});
-	DSI->AddColumn<FTypedElementParentColumn>(Row, { .Parent = *RootBoneHandle });
-	
-	FTypedElementMetadataColumn* MetadataColumn = DSI->GetColumn<FTypedElementMetadataColumn>(*RootBoneHandle);
-	ensure(MetadataColumn);
-	MetadataColumn->Children.Add(Row);
+	FHierarchyTableEntryData EntryData;
+	{
+		EntryData.Identifier = Identifier;
+		EntryData.EntryType = EntryType;
+		EntryData.OwnerTable = HierarchyTable;
+		EntryData.Parent = 0;
+		EntryData.Payload = TOptional<FInstancedStruct>();
+	}
+	const int32 EntryIndex = HierarchyTable->TableData.Add(EntryData);
 
-	const UHierarchyTableTypeHandler_Base* Handler = GetDefault<UHierarchyTableTypeRegistry>()->FindHandler(HierarchyTable->TableType);
-	check(Handler);
+	using namespace UE::Editor::DataStorage;
+	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+	IEditorDataStorageProvider* DSI = Registry->GetMutableDataStorage();
+	static TableHandle Table = DSI->FindTable(FName("Editor_HierarchyTableTable"));
+	const RowHandle Row = DSI->AddRow(Table);
 
-	Handler->AddData(DSI, Row, INDEX_NONE, CurveName, HierarchyTable);
-	*/
+	{
+		FTypedElementOverrideColumn OverrideEntry;
+		OverrideEntry.OwnerEntryIndex = EntryIndex;
+		OverrideEntry.OwnerTable = HierarchyTable;
+		DSI->AddColumn(Row, MoveTemp(OverrideEntry));
+	}
+
+	// Ideally would read the label directly from the HT entry struct instead of storing it itself
+	// but this is a built-in TEDS column type that is used the the tabel viewer widget.
+	DSI->AddColumn<FTypedElementLabelColumn>(Row, { .Label = CreateRowLabel(EntryData.Identifier, EntryData.EntryType) });
+
+	const RowHandle* ParentRow = EntryIndexToHandleMap.Find(EntryData.Parent);
+	if (ParentRow)
+	{
+		DSI->AddColumn<FTableRowParentColumn>(Row, { .Parent = *ParentRow });
+	}
+
+	FHierarchyTableEditorModule& HierarchyTableModule = FModuleManager::GetModuleChecked<FHierarchyTableEditorModule>("HierarchyTableEditor");
+	const UHierarchyTableTypeHandler_Base* Handler = HierarchyTableModule.FindHandler(HierarchyTable->TableType);
+
+	for (const UScriptStruct* Column : Handler->GetColumns())
+	{
+		DSI->AddColumn(Row, Column);
+	}
+
+	EntryIndexToHandleMap.Add(EntryIndex, Row);
+}
+
+FString FHierarchyTableEditorToolkit::CreateRowLabel(const FName EntryIdentifier, const EHierarchyTableEntryType EntryType)
+{
+	switch (EntryType)
+	{
+		case EHierarchyTableEntryType::Curve:
+			return FString::Format(TEXT("{0} (Curve)"), { EntryIdentifier.ToString() });
+		case EHierarchyTableEntryType::Attribute:
+			return FString::Format(TEXT("{0} (Attribute)"), { EntryIdentifier.ToString() });
+		default:
+			return EntryIdentifier.ToString();
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

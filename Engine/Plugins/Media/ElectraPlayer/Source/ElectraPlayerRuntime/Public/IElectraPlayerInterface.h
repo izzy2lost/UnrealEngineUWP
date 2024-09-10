@@ -320,6 +320,7 @@ public:
 	virtual bool GetVideoStreamFormat(FVideoStreamFormat& OutFormat, int32 InTrackIndex, int32 InStreamIndex) const = 0;
 	virtual bool GetActiveVideoStreamFormat(FVideoStreamFormat& OutFormat) const = 0;
 
+	virtual Electra::FVariantValue GetMediaInfo(FName InInfoName) const = 0;
 	virtual TSharedPtr<TMap<FString, TArray<TSharedPtr<Electra::IMediaStreamMetadata::IItem, ESPMode::ThreadSafe>>>, ESPMode::ThreadSafe> GetMediaMetadata() const = 0;
 
 	virtual void NotifyOfOptionChange() = 0;

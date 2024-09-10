@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { BranchSpec, ConflictedResolveNFile, RoboWorkspace } from '../common/perforce';
+import { BranchSpec, ConflictedResolveNFile, EdgeServer } from '../common/perforce';
 // TODO: Remove Circular Dependency on bot-interfaces
 import { NodeBotInterface } from './bot-interfaces';
 import { FailureKind } from './status-types';
@@ -96,7 +96,6 @@ export interface BranchGraphInterface {
 export type EditableBranch = BranchBase & {
 	bot?: NodeBotInterface
 	parent: BranchGraphInterface
-	workspace: RoboWorkspace
 
 	branchspec: Map<string, BranchSpec>
 	upperName: string
@@ -164,11 +163,8 @@ export interface ChangeInfo extends TargetInfo {
 
 	propagatingNullMerge: boolean
 	forceCreateAShelf: boolean
-	edgeServerToHostShelf?: {
-		id: string
-		address: string
-	}
-	targetWorkspaceOverride?: string
+	edgeServerToHostShelf?: EdgeServer
+	targetWorkspace?: string
 	overriddenCommand: string
 	macros: string[]
 }

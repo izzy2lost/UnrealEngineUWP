@@ -58,6 +58,7 @@ namespace HordeServer.Agents
 			bool IAgent.Deleted => _document.Deleted;
 			string? IAgent.Version => _document.Version;
 			string? IAgent.Comment => _document.Comment;
+			IReadOnlyList<string> IAgent.ServerDefinedProperties => _document.ServerDefinedProperties ?? DefaultProperties;
 			IReadOnlyList<string> IAgent.Properties => _document.Properties ?? DefaultProperties;
 			IReadOnlyDictionary<string, int> IAgent.Resources => _document.Resources ?? DefaultResources;
 			string? IAgent.LastUpgradeVersion => _document.LastUpgradeVersion;
@@ -162,7 +163,8 @@ namespace HordeServer.Agents
 
 			[BsonElement("Version2")]
 			public string? Version { get; set; }
-
+			
+			public List<string>? ServerDefinedProperties { get; set; }
 			public List<string>? Properties { get; set; }
 			public Dictionary<string, int>? Resources { get; set; }
 
@@ -517,14 +519,16 @@ namespace HordeServer.Agents
 					{
 						return null;
 					}
-					if (document.SessionId == null)
+
+					SessionId? sessionId = document.SessionId;
+					if (sessionId == null)
 					{
 						session = null;
 						break;
 					}
 
 					// Fetch the session
-					session = await _scheduler.TryGetSessionAsync(document.SessionId.Value, cancellationToken);
+					session = await _scheduler.TryGetSessionAsync(sessionId.Value, cancellationToken);
 					if (session != null)
 					{
 						break;
@@ -535,6 +539,7 @@ namespace HordeServer.Agents
 					document = await TryUpdateAsync(document, Builders<AgentDocument>.Update.Unset(x => x.SessionId).Set(x => x.LastOnlineTime, _clock.UtcNow), cancellationToken);
 					if (document != null)
 					{
+						_logger.LogInformation("Cleared session state from agent {AgentId}; no matching document for {SessionId} in Redis.", document.Id, sessionId.Value);
 						break;
 					}
 				}
@@ -542,12 +547,15 @@ namespace HordeServer.Agents
 		}
 
 		/// <inheritdoc/>
-		public async Task<IAgent> AddAsync(AgentId id, bool ephemeral, string enrollmentKey, CancellationToken cancellationToken)
+		public async Task<IAgent> AddAsync(CreateAgentOptions options, CancellationToken cancellationToken)
 		{
-			AgentDocument document = new AgentDocument(id, ephemeral, enrollmentKey);
-			document.LastOnlineTime = _clock.UtcNow;
-			document.DocumentVersion = 2;
-
+			AgentDocument document = new (options.Id, options.Ephemeral, options.EnrollmentKey)
+			{
+				DocumentVersion = 2,
+				ServerDefinedProperties = options.ServerDefinedProperties?.ToList(),
+				LastOnlineTime = _clock.UtcNow,
+			};
+			
 			await _agentCollection.InsertOneAsync(document, null, cancellationToken);
 			return new Agent(this, document, null);
 		}
@@ -733,7 +741,6 @@ namespace HordeServer.Agents
 			return await _agentCollection.FindOneAndUpdateAsync<AgentDocument>(filter, updateWithIndex, new FindOneAndUpdateOptions<AgentDocument, AgentDocument> { ReturnDocument = ReturnDocument.After }, cancellationToken);
 		}
 
-		/// <inheritdoc/>
 		async Task<Agent?> TryUpdateSettingsAsync(Agent agent, UpdateAgentOptions options, CancellationToken cancellationToken)
 		{
 			// Update the database
@@ -809,12 +816,12 @@ namespace HordeServer.Agents
 			return await CreateAgentObjectAsync(newDocument, agent.Session, cancellationToken);
 		}
 
-		/// <inheritdoc/>
 		async Task<Agent?> TryUpdateSessionAsync(Agent agent, UpdateSessionOptions options, CancellationToken cancellationToken)
 		{
 			AgentId agentId = agent.Document.Id;
 			if (agent.Session == null)
 			{
+				_logger.LogWarning("Agent {AgentId} does not have an active session; cannot update", agent.Id);
 				return null;
 			}
 
@@ -862,6 +869,7 @@ namespace HordeServer.Agents
 					newDocument = await TryUpdateAsync(newDocument, updateBuilder.Combine(updates), cancellationToken);
 					if (newDocument == null)
 					{
+						_logger.LogDebug("Update of agent document {AgentId} did not succeed; will retry", agent.Document.Id);
 						return null;
 					}
 				}
@@ -911,6 +919,7 @@ namespace HordeServer.Agents
 			newSession = await _scheduler.TryUpdateSessionAsync(agent.Session, newSession, options.Capabilities, cancellationToken);
 			if (newSession == null)
 			{
+				_logger.LogDebug("Update of agent {AgentId} session {SessionId} did not succeed; will retry", agent.Document.Id, agent.Session.SessionId);
 				return null;
 			}
 
@@ -1118,6 +1127,7 @@ namespace HordeServer.Agents
 		/// <inheritdoc/>
 		async Task<Agent?> TryTerminateSessionAsync(Agent agent, CancellationToken cancellationToken)
 		{
+			_logger.LogInformation("Terminating session {SessionId} for {AgentId}", agent.Session?.SessionId ?? SessionId.Empty, agent.Id);
 			return await TryUpdateSessionAsync(agent, new UpdateSessionOptions(AgentStatus.Stopped), cancellationToken);
 		}
 

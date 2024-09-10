@@ -170,7 +170,7 @@ void FClothingSimulationContextCommon::FillDeltaSeconds(float InDeltaSeconds, fl
 
 void FClothingSimulationContextCommon::FillTeleportMode(const USkeletalMeshComponent* InComponent, float InDeltaSeconds, float InMaxPhysicsDelta)
 {
-	TeleportMode = (InDeltaSeconds > InMaxPhysicsDelta * GClothMaxDeltaTimeTeleportMultiplier.GetValueOnGameThread()) ?
+	TeleportMode = (InComponent->ClothTeleportMode < EClothingTeleportMode::Teleport && (InDeltaSeconds > InMaxPhysicsDelta * GClothMaxDeltaTimeTeleportMultiplier.GetValueOnGameThread())) ?
 		EClothingTeleportMode::Teleport :
 		InComponent->ClothTeleportMode;
 

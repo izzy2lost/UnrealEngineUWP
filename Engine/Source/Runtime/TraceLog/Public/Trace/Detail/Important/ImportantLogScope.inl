@@ -3,9 +3,6 @@
 #pragma once
 
 #include "Trace/Config.h"
-
-#if UE_TRACE_ENABLED
-
 #include "ImportantLogScope.h"
 #include "SharedBuffer.h"
 #include "Trace/Detail/Protocol.h"
@@ -16,6 +13,8 @@
 namespace UE {
 namespace Trace {
 namespace Private {
+	
+#if TRACE_PRIVATE_MINIMAL_ENABLED && TRACE_PRIVATE_ALLOW_IMPORTANTS
 
 ////////////////////////////////////////////////////////////////////////////////
 extern TRACELOG_API FSharedBuffer* volatile GSharedBuffer;
@@ -217,8 +216,58 @@ struct FImportantLogScope::FFieldSet<FieldMeta, TEventRef<DefinitionType>>
 	}
 };
 
+#else // TRACE_PRIVATE_MINIMAL_ENABLED && TRACE_PRIVATE_ALLOW_IMPORTANTS
+      
+
+template <typename FieldMeta, typename Type>
+struct FImportantLogScope::FFieldSet
+{
+	static void Impl(FImportantLogScope* Scope, const Type& Value)
+	{
+	}
+};
+	
+template <typename FieldMeta, typename Type>
+struct FImportantLogScope::FFieldSet<FieldMeta, Type[]>
+{
+	static void Impl(FImportantLogScope* Scope, Type const* Data, int32 Num)
+	{
+	}
+};
+
+template <typename FieldMeta>
+struct FImportantLogScope::FFieldSet<FieldMeta, AnsiString>
+{
+	static void Impl(FImportantLogScope* Scope, const ANSICHAR* String, int32 Length=-1)
+	{
+	}
+
+	static void Impl(FImportantLogScope* Scope, const WIDECHAR* String, int32 Length=-1)
+	{
+	}
+};
+
+template <typename FieldMeta>
+struct FImportantLogScope::FFieldSet<FieldMeta, WideString>
+{
+	static void Impl(FImportantLogScope* Scope, const WIDECHAR* String, int32 Length=-1)
+	{
+	}
+};
+
+template <typename FieldMeta, typename DefinitionType>
+struct FImportantLogScope::FFieldSet<FieldMeta, TEventRef<DefinitionType>>
+{
+	static void Impl(FImportantLogScope* Scope, const TEventRef<DefinitionType>& Reference)
+	{
+	}
+};
+	
+
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED && TRACE_PRIVATE_ALLOW_IMPORTANTS
+
 } // namespace Private
 } // namespace Trace
 } // namespace UE
 
-#endif // UE_TRACE_ENABLED
+

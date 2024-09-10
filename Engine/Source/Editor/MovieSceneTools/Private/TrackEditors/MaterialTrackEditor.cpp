@@ -37,11 +37,11 @@ TSharedRef<ISequencerSection> FMaterialTrackEditor::MakeSectionInterface( UMovie
 
 	if (ComponentMaterialParameterSection)
 	{
-		return MakeShareable(new FComponentMaterialParameterSection(*ComponentMaterialParameterSection));
+		return MakeShareable(new FComponentMaterialParameterSection(*ComponentMaterialParameterSection, GetSequencer()));
 	}
 	else
 	{
-		return MakeShareable(new FParameterSection(*ParameterSection));
+		return MakeShareable(new FParameterSection(*ParameterSection, GetSequencer()));
 	}
 }
 
@@ -271,7 +271,9 @@ void FMaterialTrackEditor::AddColorParameter( FGuid ObjectBinding, UMovieSceneMa
 		FLinearColor ParameterValue;
 		Material->GetVectorParameterValue(ParameterInfo, ParameterValue );
 		MaterialTrack->Modify();
-		MaterialTrack->AddColorParameterKey(ParameterInfo, KeyTime, ParameterValue, InLayerName, InAssetName);
+		FParameterChannelNames ChannelNames;
+		Material->GetVectorParameterChannelNames(ParameterInfo, ChannelNames);
+		MaterialTrack->AddColorParameterKey(ParameterInfo, KeyTime, INDEX_NONE, ParameterValue, InLayerName, InAssetName, ChannelNames);
 	}
 	GetSequencer()->NotifyMovieSceneDataChanged( EMovieSceneDataChangeType::MovieSceneStructureItemAdded );
 }

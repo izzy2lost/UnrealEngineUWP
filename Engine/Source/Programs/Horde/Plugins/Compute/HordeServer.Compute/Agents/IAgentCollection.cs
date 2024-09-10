@@ -16,11 +16,9 @@ namespace HordeServer.Agents
 		/// <summary>
 		/// Adds a new agent with the given properties
 		/// </summary>
-		/// <param name="id">Id for the new agent</param>
-		/// <param name="ephemeral">Whether the agent is ephemeral or not</param>
-		/// <param name="enrollmentKey">Key used to identify a unique enrollment for the agent with this id</param>
+		/// <param name="options">Parameters for new agent</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task<IAgent> AddAsync(AgentId id, bool ephemeral, string enrollmentKey, CancellationToken cancellationToken = default);
+		Task<IAgent> AddAsync(CreateAgentOptions options, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets an agent by ID

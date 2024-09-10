@@ -10,16 +10,16 @@ def _enable_vt100():
         return
 
     import ctypes
-    _win_dll = ctypes.LibraryLoader(ctypes.WinDLL)
-    _get_std_handle = _win_dll.kernel32.GetStdHandle
-    _get_console_mode = _win_dll.kernel32.GetConsoleMode
-    _set_console_mode = _win_dll.kernel32.SetConsoleMode
+    win_dll = ctypes.LibraryLoader(ctypes.WinDLL)
+    get_std_handle = win_dll.kernel32.GetStdHandle
+    get_console_mode = win_dll.kernel32.GetConsoleMode
+    set_console_mode = win_dll.kernel32.SetConsoleMode
 
     con_mode = ctypes.c_int()
-    stdout_handle = _get_std_handle(-11)
-    _get_console_mode(stdout_handle, ctypes.byref(con_mode))
+    stdout_handle = get_std_handle(-11)
+    get_console_mode(stdout_handle, ctypes.byref(con_mode))
     con_mode = con_mode.value | 4
-    _set_console_mode(stdout_handle, con_mode)
+    set_console_mode(stdout_handle, con_mode)
 
 #-------------------------------------------------------------------------------
 def _main():

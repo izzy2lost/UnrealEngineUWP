@@ -542,7 +542,7 @@ TSharedRef<SWidget> SSequencerFilterBar::OnWrapButtonClicked()
 
 	const TSharedRef<SBorder> ContainerBorder = SNew(SBorder)
 		.BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel")))
-		.Padding(2.f)
+		.Padding(0.f, 2.f, 2.f, 2.f)
 		[
 			VerticalContainer
 		];

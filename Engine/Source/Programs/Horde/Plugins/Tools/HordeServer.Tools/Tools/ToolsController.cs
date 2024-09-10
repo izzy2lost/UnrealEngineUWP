@@ -61,7 +61,7 @@ namespace HordeServer.Tools
 				request.Prefix = $"{id}/{request.Prefix}";
 			}
 
-			IStorageBackend storageBackend = tool.CreateStorageBackend();
+			IStorageBackend storageBackend = tool.GetStorageBackend();
 			return await StorageController.WriteBlobAsync(storageBackend, request, cancellationToken);
 		}
 
@@ -317,7 +317,7 @@ namespace HordeServer.Tools
 				return Ok(response);
 			}
 
-			IStorageClient client = tool.CreateStorageClient();
+			IStorageNamespace client = tool.GetStorageNamespace();
 			IHashedBlobRef<DirectoryNode> nodeRef = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken: cancellationToken);
 
 			// If we weren't specifically asked for a zip, see if this download is a single file. If it is, allow downloading it directory.
@@ -347,7 +347,7 @@ namespace HordeServer.Tools
 
 		static async Task<GetToolDeploymentResponse> GetDeploymentInfoResponseAsync(ITool tool, IToolDeployment deployment, CancellationToken cancellationToken)
 		{
-			IStorageClient client = tool.CreateStorageClient();
+			IStorageNamespace client = tool.GetStorageNamespace();
 			IBlobRef rootHandle = await client.ReadRefAsync(deployment.RefName, cancellationToken: cancellationToken);
 
 			return new GetToolDeploymentResponse(deployment.Id, deployment.Version, deployment.State, deployment.Progress, deployment.StartedAt, deployment.Duration, deployment.RefName, rootHandle.GetLocator());
@@ -379,7 +379,7 @@ namespace HordeServer.Tools
 				return BadRequest("Invalid blob id for tool");
 			}
 
-			IStorageBackend storageBackend = tool.CreateStorageBackend();
+			IStorageBackend storageBackend = tool.GetStorageBackend();
 			return await StorageController.ReadBlobInternalAsync(storageBackend, locator, Request.Headers, cancellationToken);
 		}
 

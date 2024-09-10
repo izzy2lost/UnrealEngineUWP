@@ -2,7 +2,6 @@
 
 #include "AvaModifiersActorUtils.h"
 
-#include "AvaDefs.h"
 #include "Components/PrimitiveComponent.h"
 #include "GameFramework/Actor.h"
 
@@ -197,34 +196,37 @@ bool FAvaModifiersActorUtils::IsActorNotIsolated(const AActor* InActor)
 
 FRotator FAvaModifiersActorUtils::FindLookAtRotation(const FVector& InEyePosition, const FVector& InTargetPosition, EAvaModifiersAxis InAxis, bool bInFlipAxis)
 {
-	FVector OutDirection = bInFlipAxis ? InEyePosition - InTargetPosition : InTargetPosition - InEyePosition;
-	OutDirection = OutDirection.GetSafeNormal(UE_SMALL_NUMBER, FVector::XAxisVector);
+	const FVector Direction = bInFlipAxis ? (InTargetPosition - InEyePosition).GetSafeNormal() : (InEyePosition - InTargetPosition).GetSafeNormal();
 
-	FMatrix NewRotation = FRotationMatrix::Identity;
+	if (Direction.IsNearlyZero())
+	{
+		return FRotator::ZeroRotator;
+	}
 
+	const FRotator BaseRotation = Direction.Rotation();
+
+	FQuat AxisQuat;
 	switch (InAxis)
 	{
 	case EAvaModifiersAxis::X:
-		NewRotation = FRotationMatrix::MakeFromX(OutDirection);
+		AxisQuat = FQuat::Identity;
 		break;
+
 	case EAvaModifiersAxis::Y:
-		NewRotation = FRotationMatrix::MakeFromY(OutDirection);
+		AxisQuat = FQuat(FVector::ZAxisVector, FMath::DegreesToRadians(90.0f));
 		break;
+
 	case EAvaModifiersAxis::Z:
-		NewRotation = FRotationMatrix::MakeFromZ(OutDirection);
+		AxisQuat = FQuat(FVector::YAxisVector, FMath::DegreesToRadians(-90.0f));
 		break;
-	case EAvaModifiersAxis::None:
-		return NewRotation.Rotator();
+
+	default:
+		return FRotator::ZeroRotator;
 	}
 
-	FRotator Result = NewRotation.Rotator();
+	const FQuat FinalQuat = BaseRotation.Quaternion() * AxisQuat;
 
-	if (bInFlipAxis && InAxis == EAvaModifiersAxis::X)
-	{
-		Result = Result + FRotator(180, 0, 0);
-	}
-
-	return Result;
+	return FinalQuat.Rotator();
 }
 
 bool FAvaModifiersActorUtils::IsActorVisible(const AActor* InActor)

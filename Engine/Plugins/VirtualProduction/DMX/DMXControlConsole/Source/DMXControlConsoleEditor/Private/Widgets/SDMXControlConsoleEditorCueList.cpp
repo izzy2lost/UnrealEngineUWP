@@ -226,7 +226,6 @@ namespace UE::DMX::Private
 			return;
 		}
 
-		
 		const FDMXControlConsoleCue& SelectedCue = NewSelection->GetCue();
 		CueStackModel->RecallCue(SelectedCue);
 	}

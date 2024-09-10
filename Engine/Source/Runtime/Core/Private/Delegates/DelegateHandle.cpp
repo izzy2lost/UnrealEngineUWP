@@ -15,7 +15,7 @@ uint64 FDelegateHandle::GenerateNewID()
 	// Just increment a counter to generate an ID.
 	uint64 Result = 0; // Initialize just to silence static analysis.
 	
-	UE_AUTORTFM_OPEN2
+	UE_AUTORTFM_OPEN
 	{
 		Result = ++UE::Delegates::Private::GNextID;
 

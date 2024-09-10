@@ -19,7 +19,7 @@
 
 namespace UE::Editor::DataStorage::Debug::Private
 {
-	void OnNavigateHyperlink(const ITypedElementDataStorageInterface* DataStorage,  RowHandle TargetRowHandle, RowHandle UiRowHandle)
+	void OnNavigateHyperlink(const IEditorDataStorageProvider* DataStorage,  RowHandle TargetRowHandle, RowHandle UiRowHandle)
 	{
 		const FTedsOutlinerColumn* TedsOutlinerColumn = DataStorage->GetColumn<FTedsOutlinerColumn>(UiRowHandle);
 
@@ -66,7 +66,7 @@ namespace UE::Editor::DataStorage::Debug::Private
 		SBox* WidgetInstance = static_cast<SBox*>(Widget.Get());
 		WidgetInstance->SetContent(SNullWidget::NullWidget);
 
-		const ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetDataStorage();
+		const IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetDataStorage();
 
 		// We only navigate to row references that have a label column
 		if (const FTypedElementLabelColumn* LabelColumn = DataStorage->GetColumn<FTypedElementLabelColumn>(TargetRow))
@@ -95,7 +95,7 @@ URowReferenceWidgetFactory::~URowReferenceWidgetFactory()
 {
 }
 
-void URowReferenceWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage, ITypedElementDataStorageUiInterface& DataStorageUi) const
+void URowReferenceWidgetFactory::RegisterWidgetConstructors(IEditorDataStorageProvider& DataStorage, IEditorDataStorageUiProvider& DataStorageUi) const
 {
 	using namespace UE::Editor::DataStorage::Queries;
 
@@ -104,7 +104,7 @@ void URowReferenceWidgetFactory::RegisterWidgetConstructors(ITypedElementDataSto
 		TColumn<FTypedElementRowReferenceColumn>());
 }
 
-void URowReferenceWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void URowReferenceWidgetFactory::RegisterQueries(IEditorDataStorageProvider& DataStorage)
 {
 	using namespace UE::Editor::DataStorage::Queries;
 	
@@ -149,7 +149,7 @@ TSharedPtr<SWidget> FRowReferenceWidgetConstructor::CreateWidget(const UE::Edito
 			.VAlign(VAlign_Center);
 }
 
-bool FRowReferenceWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi, UE::Editor::DataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
+bool FRowReferenceWidgetConstructor::FinalizeWidget(IEditorDataStorageProvider* DataStorage, IEditorDataStorageUiProvider* DataStorageUi, UE::Editor::DataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
 {
 	using namespace UE::Editor::DataStorage;
 	checkf(Widget, TEXT("Referenced widget is not valid. A constructed widget may not have been cleaned up. This can "

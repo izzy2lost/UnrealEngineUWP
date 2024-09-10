@@ -192,7 +192,7 @@ bool FPCGFilterByIndexTest_InvalidSelection::RunTest(const FString& Parameters)
 	PCGTestsCommon::FTestData TestData;
 	UPCGFilterByIndexSettings* Settings = PCGTestsCommon::GenerateSettings<UPCGFilterByIndexSettings>(TestData);
 
-	AddExpectedError("Invalid expression in index selection string", EAutomationExpectedMessageFlags::Contains, 2);
+	AddExpectedError("Invalid expression in parsed string:", EAutomationExpectedMessageFlags::Contains, 2);
 
 	// Test inverted range
 	{
@@ -210,7 +210,7 @@ bool FPCGFilterByIndexTest_InvalidSelection::RunTest(const FString& Parameters)
 		UTEST_TRUE("Output count", Outputs.IsEmpty());
 	}
 
-	AddExpectedError("Invalid character in index selection string");
+	AddExpectedError("Invalid character in parsed string:");
 
 	// Test invalid character
 	{

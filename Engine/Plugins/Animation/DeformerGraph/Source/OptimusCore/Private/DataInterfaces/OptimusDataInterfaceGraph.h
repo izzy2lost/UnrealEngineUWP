@@ -4,9 +4,12 @@
 
 #include "IOptimusDeformerInstanceAccessor.h"
 #include "OptimusDataTypeRegistry.h"
+#include "OptimusValue.h"
 #include "ComputeFramework/ComputeDataInterface.h"
 #include "ComputeFramework/ComputeDataProvider.h"
 #include "ComputeFramework/ShaderParamTypeDefinition.h"
+
+
 #include "OptimusDataInterfaceGraph.generated.h"
 
 class UOptimusDeformerInstance;
@@ -19,7 +22,7 @@ USTRUCT()
 struct FOptimusGraphVariableDescription
 {
 	GENERATED_BODY()
-
+	
 	UPROPERTY()
 	FString	Name;
 
@@ -27,24 +30,24 @@ struct FOptimusGraphVariableDescription
 	FShaderValueTypeHandle ValueType;
 
 	UPROPERTY()
-    FShaderValueContainer ShaderValue;
-	
+	FOptimusValueIdentifier ValueId;
+
 	UPROPERTY()
 	int32 Offset = 0;
 
-	UPROPERTY()
-	TSoftObjectPtr<UObject> SourceObject;
-	
 	// Cache below are set by the data provider, computed from serialized data
-	
-	// SourceValueName extracted from Name, Initialized by the DataProvider for when SourceObject is not null
-	FString CachedSourceValueName;
-
 	int32 CachedArrayIndexStart = 0;
+
 	
 	// Deprecated 
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use ShaderValue instead"))
 	TArray<uint8> Value_DEPRECATED;
+	
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Values are now store on the deformer instance"))
+	FShaderValueContainer ShaderValue_DEPRECATED;
+	
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Node-Value mapping is now handled by deformer instance directly"))
+	TSoftObjectPtr<UObject> SourceObject_DEPRECATED;
 };
 
 /** Compute Framework Data Interface used for marshaling compute graph parameters and variables. */
@@ -55,6 +58,7 @@ class UOptimusGraphDataInterface : public UComputeDataInterface
 
 public:
 	void Init(TArray<FOptimusGraphVariableDescription> const& InVariables);
+	int32 FindFunctionIndex(const FOptimusValueIdentifier& InValueId) const;
 
 	//~ Begin UComputeDataInterface Interface
 	TCHAR const* GetClassName() const override { return TEXT("Graph"); }
@@ -67,6 +71,10 @@ public:
 
 	void PostLoad() override;
 private:
+	
+	// For PostLoad fixup
+	friend class UOptimusDeformer;
+	
 	UPROPERTY()
 	TArray<FOptimusGraphVariableDescription> Variables;
 
@@ -102,8 +110,6 @@ public:
 	
 	
 	void Init(UMeshComponent* InMeshComponent, const TArray<FOptimusGraphVariableDescription>& InVariables, int32 InParameterBufferSize);
-	
-	void SetConstant(TSoftObjectPtr<UObject> InSourceObject, FShaderValueContainer const& InValue);
 	
 	//~ Begin UComputeDataProvider Interface
 	FComputeDataProviderRenderProxy* GetRenderProxy() override;

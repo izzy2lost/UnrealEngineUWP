@@ -11,7 +11,7 @@ FHierarchyTableWidgetConstructor::FHierarchyTableWidgetConstructor(const UScript
 {
 }
 
-TSharedRef<SWidget> FHierarchyTableWidgetConstructor::CreateInternalWidget(FHierarchyTableEntryData* EntryData)
+TSharedRef<SWidget> FHierarchyTableWidgetConstructor::CreateInternalWidget(UHierarchyTable* HierarchyTable, int32 EntryIndex)
 {
 	return SNullWidget::NullWidget;
 }
@@ -23,7 +23,7 @@ TSharedPtr<SWidget> FHierarchyTableWidgetConstructor::CreateWidget(const UE::Edi
 		.VAlign(VAlign_Center);
 }
 
-bool FHierarchyTableWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi,
+bool FHierarchyTableWidgetConstructor::FinalizeWidget(IEditorDataStorageProvider* DataStorage, IEditorDataStorageUiProvider* DataStorageUi,
 	UE::Editor::DataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
 {
 	TSharedPtr<SBox> WidgetInstance = StaticCastSharedPtr<SBox>(Widget);
@@ -32,7 +32,7 @@ bool FHierarchyTableWidgetConstructor::FinalizeWidget(ITypedElementDataStorageIn
 	UE::Editor::DataStorage::RowHandle TargetRow = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row)->Row;
 	FTypedElementOverrideColumn* OverrideColumn = DataStorage->GetColumn<FTypedElementOverrideColumn>(TargetRow);
 
-	TSharedRef<SWidget> ActualWidget = CreateInternalWidget(OverrideColumn->OwnerEntry);
+	TSharedRef<SWidget> ActualWidget = CreateInternalWidget(OverrideColumn->OwnerTable, OverrideColumn->OwnerEntryIndex);
 	WidgetInstance->SetContent(ActualWidget);
 
 	return true;

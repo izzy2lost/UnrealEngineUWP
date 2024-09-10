@@ -30,7 +30,7 @@
 #include "Texture/InterchangeImageWrapperTranslator.h"
 
 #include "Algo/Find.h"
-#include "Async/Async.h"
+#include "Async/ParallelFor.h"
 #include "Misc/App.h"
 #include "StaticMeshAttributes.h"
 #include "SkeletalMeshAttributes.h"
@@ -906,60 +906,78 @@ TOptional< UE::Interchange::FImportImage > UInterchangeGLTFTranslator::GetTextur
 	return TexturePayloadData;
 }
 
-TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> UInterchangeGLTFTranslator::GetAnimationPayloadData(const UE::Interchange::FAnimationPayloadQuery& PayloadQuery) const
+TOptional<UE::Interchange::FAnimationPayloadData> UInterchangeGLTFTranslator::GetAnimationPayloadData(const UE::Interchange::FAnimationPayloadQuery& PayloadQuery) const
 {
-	return Async(EAsyncExecution::TaskGraph, [this, PayloadQuery]
+	UE::Interchange::FAnimationPayloadData AnimationPayLoadData(PayloadQuery.SceneNodeUniqueID, PayloadQuery.PayloadKey);
+	TOptional<UE::Interchange::FAnimationPayloadData> Result;
+	switch (PayloadQuery.PayloadKey.Type)
+	{
+	case EInterchangeAnimationPayLoadType::CURVE:
+		if (UE::Interchange::Gltf::Private::GetTransformAnimationPayloadData(PayloadQuery.PayloadKey.UniqueId, GltfAsset, AnimationPayLoadData))
 		{
-
-			TOptional<UE::Interchange::FAnimationPayloadData> Result;
-			UE::Interchange::FAnimationPayloadData AnimationPayLoadData(PayloadQuery.SceneNodeUniqueID, PayloadQuery.PayloadKey);
-
-			switch (PayloadQuery.PayloadKey.Type)
-			{
-			case EInterchangeAnimationPayLoadType::CURVE:
-				if (UE::Interchange::Gltf::Private::GetTransformAnimationPayloadData(PayloadQuery.PayloadKey.UniqueId, GltfAsset, AnimationPayLoadData))
-				{
-					Result.Emplace(AnimationPayLoadData);
-				}
-				break;
-			case EInterchangeAnimationPayLoadType::MORPHTARGETCURVE:
-				if (UE::Interchange::Gltf::Private::GetMorphTargetAnimationPayloadData(PayloadQuery.PayloadKey.UniqueId, GltfAsset, AnimationPayLoadData))
-				{
-					Result.Emplace(AnimationPayLoadData);
-				}
-				break;
-			case EInterchangeAnimationPayLoadType::BAKED:
-				AnimationPayLoadData.BakeFrequency = PayloadQuery.TimeDescription.BakeFrequency;
-				AnimationPayLoadData.RangeStartTime = PayloadQuery.TimeDescription.RangeStartSecond;
-				AnimationPayLoadData.RangeEndTime = PayloadQuery.TimeDescription.RangeStopSecond;
-				if (UE::Interchange::Gltf::Private::GetBakedAnimationTransformPayloadData(PayloadQuery.PayloadKey.UniqueId, GltfAsset, AnimationPayLoadData))
-				{
-					Result.Emplace(AnimationPayLoadData);
-				}
-				break;
-			case EInterchangeAnimationPayLoadType::STEPCURVE:
-			case EInterchangeAnimationPayLoadType::NONE:
-			default:
-				break;
-			}
-
-			return Result;
+			Result = AnimationPayLoadData;
 		}
-	);
+		break;
+	case EInterchangeAnimationPayLoadType::MORPHTARGETCURVE:
+		if (UE::Interchange::Gltf::Private::GetMorphTargetAnimationPayloadData(PayloadQuery.PayloadKey.UniqueId, GltfAsset, AnimationPayLoadData))
+		{
+			Result = AnimationPayLoadData;
+		}
+		break;
+	case EInterchangeAnimationPayLoadType::BAKED:
+		AnimationPayLoadData.BakeFrequency = PayloadQuery.TimeDescription.BakeFrequency;
+		AnimationPayLoadData.RangeStartTime = PayloadQuery.TimeDescription.RangeStartSecond;
+		AnimationPayLoadData.RangeEndTime = PayloadQuery.TimeDescription.RangeStopSecond;
+		if (UE::Interchange::Gltf::Private::GetBakedAnimationTransformPayloadData(PayloadQuery.PayloadKey.UniqueId, GltfAsset, AnimationPayLoadData))
+		{
+			Result = AnimationPayLoadData;
+		}
+		break;
+	case EInterchangeAnimationPayLoadType::STEPCURVE:
+	case EInterchangeAnimationPayLoadType::NONE:
+	default:
+		break;
+	}
+
+	return Result;
 }
 
 TArray<UE::Interchange::FAnimationPayloadData> UInterchangeGLTFTranslator::GetAnimationPayloadData(const TArray<UE::Interchange::FAnimationPayloadQuery>& PayloadQueries) const
 {
-	TArray<TFuture<TOptional<UE::Interchange::FAnimationPayloadData>>> AnimationPayloadFutures;
-	for (const UE::Interchange::FAnimationPayloadQuery& PayloadQuery: PayloadQueries)
+	TArray<TOptional<UE::Interchange::FAnimationPayloadData>> AnimationPayloadOptionals;
+	int32 PayloadCount = PayloadQueries.Num();
+	AnimationPayloadOptionals.AddDefaulted(PayloadCount);
+	
+	const int32 BatchSize = 10;
+	if (PayloadQueries.Num() > BatchSize)
 	{
-		AnimationPayloadFutures.Add(GetAnimationPayloadData(PayloadQuery));
+		const int32 NumBatches = (PayloadCount / BatchSize) + 1;
+		ParallelFor(NumBatches, [&](int32 BatchIndex)
+			{
+				int32 PayloadIndexOffset = BatchIndex * BatchSize;
+				for (int32 PayloadIndex = PayloadIndexOffset; PayloadIndex < PayloadIndexOffset + BatchSize; ++PayloadIndex)
+				{
+					if (PayloadQueries.IsValidIndex(PayloadIndex))
+					{
+						AnimationPayloadOptionals[PayloadIndex] = GetAnimationPayloadData(PayloadQueries[PayloadIndex]);
+					}
+				}
+			}, EParallelForFlags::BackgroundPriority);// ParallelFor
+	}
+	else
+	{
+		for (int32 PayloadIndex = 0; PayloadIndex < PayloadCount; ++PayloadIndex)
+		{
+			if (PayloadQueries.IsValidIndex(PayloadIndex))
+			{
+				AnimationPayloadOptionals[PayloadIndex] = GetAnimationPayloadData(PayloadQueries[PayloadIndex]);
+			}
+		}
 	}
 
 	TArray<UE::Interchange::FAnimationPayloadData> AnimationPayloads;
-	for (TFuture<TOptional<UE::Interchange::FAnimationPayloadData>>& AnimationPayloadFuture : AnimationPayloadFutures)
+	for (TOptional<UE::Interchange::FAnimationPayloadData>& OptionalPayloadData : AnimationPayloadOptionals)
 	{
-		TOptional<UE::Interchange::FAnimationPayloadData> OptionalPayloadData = AnimationPayloadFuture.Get();
 		if (!OptionalPayloadData.IsSet())
 		{
 			continue;
@@ -990,12 +1008,11 @@ void UInterchangeGLTFTranslator::SetTextureSRGB(UInterchangeBaseNodeContainer& N
 	}
 }
 
-TFuture<TOptional<UE::Interchange::FVariantSetPayloadData>> UInterchangeGLTFTranslator::GetVariantSetPayloadData(const FString& PayloadKey) const
+TOptional<UE::Interchange::FVariantSetPayloadData> UInterchangeGLTFTranslator::GetVariantSetPayloadData(const FString& PayloadKey) const
 {
 	using namespace UE::Interchange;
 
-	TPromise<TOptional<FVariantSetPayloadData>> EmptyPromise;
-	EmptyPromise.SetValue(TOptional<FVariantSetPayloadData>());
+	TOptional<FVariantSetPayloadData> Result;
 
 	TArray<FString> PayloadTokens;
 
@@ -1003,7 +1020,7 @@ TFuture<TOptional<UE::Interchange::FVariantSetPayloadData>> UInterchangeGLTFTran
 	if (GltfAsset.Variants.Num() + 1 != PayloadKey.ParseIntoArray(PayloadTokens, TEXT(";")))
 	{
 		// Invalid payload
-		return EmptyPromise.GetFuture();
+		return Result;
 	}
 
 	//FString PayloadKey = FileName;
@@ -1012,23 +1029,17 @@ TFuture<TOptional<UE::Interchange::FVariantSetPayloadData>> UInterchangeGLTFTran
 		if (PayloadTokens[Index + 1] != GltfAsset.Variants[Index])
 		{
 			// Invalid payload
-			return EmptyPromise.GetFuture();
+			return Result;
 		}
 	}
 
-	return Async(EAsyncExecution::TaskGraph, [this]
-			{
-				FVariantSetPayloadData PayloadData;
-				TOptional<FVariantSetPayloadData> Result;
+	FVariantSetPayloadData PayloadData;
+	if (this->GetVariantSetPayloadData(PayloadData))
+	{
+		Result = MoveTemp(PayloadData);
+	}
 
-				if (this->GetVariantSetPayloadData(PayloadData))
-				{
-					Result.Emplace(MoveTemp(PayloadData));
-				}
-
-				return Result;
-			}
-		);
+	return Result;
 }
 
 void UInterchangeGLTFTranslator::HandleGltfVariants(UInterchangeBaseNodeContainer& NodeContainer, const FString& FileName) const
@@ -1208,45 +1219,39 @@ bool UInterchangeGLTFTranslator::GetVariantSetPayloadData(UE::Interchange::FVari
 	return true;
 }
 
-TFuture< TOptional< UE::Interchange::FMeshPayloadData > > UInterchangeGLTFTranslator::GetMeshPayloadData(const FInterchangeMeshPayLoadKey& PayLoadKey, const FTransform& MeshGlobalTransform) const
+TOptional< UE::Interchange::FMeshPayloadData > UInterchangeGLTFTranslator::GetMeshPayloadData(const FInterchangeMeshPayLoadKey& PayLoadKey, const FTransform& MeshGlobalTransform) const
 {
-	return Async(EAsyncExecution::TaskGraph, [this, PayLoadKey, MeshGlobalTransform]
+	UE::Interchange::FMeshPayloadData MeshPayloadData;
+	bool bSuccessfullAcquisition = false;
+
+	switch (PayLoadKey.Type)
+	{
+	case EInterchangeMeshPayLoadType::STATIC:
+		bSuccessfullAcquisition = UE::Interchange::Gltf::Private::GetStaticMeshPayloadDataForPayLoadKey(GltfAsset, PayLoadKey.UniqueId, MeshGlobalTransform, MeshPayloadData.MeshDescription);
+		break;
+	case EInterchangeMeshPayLoadType::SKELETAL:
+		bSuccessfullAcquisition = UE::Interchange::Gltf::Private::GetSkeletalMeshDescriptionForPayLoadKey(GltfAsset, PayLoadKey.UniqueId, MeshGlobalTransform, MeshPayloadData.MeshDescription, &MeshPayloadData.JointNames);
+		break;
+	case EInterchangeMeshPayLoadType::MORPHTARGET:
+		//GLTF handles morph targets as simple Meshes
+		bSuccessfullAcquisition = UE::Interchange::Gltf::Private::GetStaticMeshPayloadDataForPayLoadKey(GltfAsset, PayLoadKey.UniqueId, MeshGlobalTransform, MeshPayloadData.MeshDescription);
+		break;
+	case EInterchangeMeshPayLoadType::NONE:
+	default:
+		break;
+	}
+
+	if (bSuccessfullAcquisition)
+	{
+		if (!FStaticMeshOperations::ValidateAndFixData(MeshPayloadData.MeshDescription, PayLoadKey.UniqueId))
 		{
-			UE::Interchange::FMeshPayloadData MeshPayLoadData;
-			bool bSuccessfullAcquisition = false;
-
-			switch (PayLoadKey.Type)
-			{
-			case EInterchangeMeshPayLoadType::STATIC:
-				bSuccessfullAcquisition = UE::Interchange::Gltf::Private::GetStaticMeshPayloadDataForPayLoadKey(GltfAsset, PayLoadKey.UniqueId, MeshGlobalTransform, MeshPayLoadData.MeshDescription);
-				break;
-			case EInterchangeMeshPayLoadType::SKELETAL:
-				bSuccessfullAcquisition = UE::Interchange::Gltf::Private::GetSkeletalMeshDescriptionForPayLoadKey(GltfAsset, PayLoadKey.UniqueId, MeshGlobalTransform, MeshPayLoadData.MeshDescription, &MeshPayLoadData.JointNames);
-				break;
-			case EInterchangeMeshPayLoadType::MORPHTARGET:
-				//GLTF handles morph targets as simple Meshes
-				bSuccessfullAcquisition = UE::Interchange::Gltf::Private::GetStaticMeshPayloadDataForPayLoadKey(GltfAsset, PayLoadKey.UniqueId, MeshGlobalTransform, MeshPayLoadData.MeshDescription);
-				break;
-			case EInterchangeMeshPayLoadType::NONE:
-			default:
-				break;
-			}
-
-			TOptional<UE::Interchange::FMeshPayloadData> Result;
-			if (bSuccessfullAcquisition)
-			{
-				if (!FStaticMeshOperations::ValidateAndFixData(MeshPayLoadData.MeshDescription, PayLoadKey.UniqueId))
-				{
-					UInterchangeResultError_Generic* ErrorResult = AddMessage<UInterchangeResultError_Generic>();
-					ErrorResult->SourceAssetName = SourceData ? SourceData->GetFilename() : FString();
-					ErrorResult->Text = LOCTEXT("GetMeshPayloadData_ValidateMeshDescriptionFail", "Invalid mesh data (NAN) was found and changed to zero. This may affect the mesh rendering.");
-				}
-
-				Result.Emplace(MeshPayLoadData);
-			}
-
-			return Result;
-		});
+			UInterchangeResultError_Generic* ErrorResult = AddMessage<UInterchangeResultError_Generic>();
+			ErrorResult->SourceAssetName = SourceData ? SourceData->GetFilename() : FString();
+			ErrorResult->Text = LOCTEXT("GetMeshPayloadData_ValidateMeshDescriptionFail", "Invalid mesh data (NAN) was found and changed to zero. This may affect the mesh rendering.");
+		}
+		return MeshPayloadData;
+	}
+	return TOptional<UE::Interchange::FMeshPayloadData>();
 }
 
 void UInterchangeGLTFTranslator::HandleGltfSkeletons(UInterchangeBaseNodeContainer& NodeContainer, const FString& SceneNodeUid, const TArray<int32>& SkinnedMeshNodes, TSet<int>& UnusedMeshIndices) const

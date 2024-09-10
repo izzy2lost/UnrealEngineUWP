@@ -108,7 +108,12 @@ public:
 	 * Sets whether Column is visible in the UI.
 	 * @see WorldHierarchyColumns.h for named columns.
 	 */
-	void SetColumnVisible(FName ColumnId, bool bVisible) const;
+	void SetColumnVisible(FName ColumnId, bool bVisible);
+
+	/** @return Whether the column will be visible according to the config. */
+	static bool IsVisibleInConfig(FName ColumnId);
+	/** Sets whether the next widget created from now will have ColumnId visible but does not save it into the config. */
+	static void SetWillBeVisibleInConfigTransient(FName ColumnId, bool bIsVisible);
 
 public:
 	//~ FEditorUndoClient
@@ -121,6 +126,15 @@ private:
 
 	/** Creates the header row for the level hierarchy. */
 	TSharedRef<SHeaderRow> CreateHeaderRow();
+
+	/** Invokes when the column visibility changes. */
+	void SaveColumnVisibilitiesIntoConfig();
+
+	/** @return Whether the given column is always shown. */
+	static bool IsRequiredColumn(FName ColumnId);
+	
+	/** @return Whether the column is used by this UI */
+	static bool IsKnownColumn(FName ColumnId);
 	
 	/** Creates an item for the tree view */
 	TSharedRef<ITableRow> GenerateTreeRow(WorldHierarchy::FWorldTreeItemPtr Item, const TSharedRef<STableViewBase>& OwnerTable);
@@ -353,6 +367,9 @@ private:
 
 	/** True if the items require sort */
 	bool bSortDirty;
+
+	/** Whether the column visibility is currently being changed via code (as opposed to via user selection in the UI). */
+	bool bIsProgrammaticallyChangingColumnVisibility = false;
 
 	/** Operations that are waiting to be resolved for items in the tree */
 	TArray<WorldHierarchy::FPendingWorldTreeOperation> PendingOperations;

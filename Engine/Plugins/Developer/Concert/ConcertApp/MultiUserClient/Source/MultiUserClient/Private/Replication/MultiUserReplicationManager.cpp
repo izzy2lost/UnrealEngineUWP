@@ -4,16 +4,14 @@
 
 #include "ConcertLogGlobal.h"
 #include "IConcertSyncClient.h"
+#include "Misc/AnalyticsHandler.h"
 #include "Replication/ChangeOperationTypes.h"
 #include "Replication/IConcertClientReplicationManager.h"
 #include "Replication/IOfflineReplicationClient.h"
 #include "Replication/Misc/StreamAndAuthorityPredictionUtils.h"
 
 #include "Containers/Ticker.h"
-#include "Framework/Application/SlateApplication.h"
-#include "Framework/Notifications/NotificationManager.h"
 #include "UObject/Package.h"
-#include "Widgets/Notifications/SNotificationList.h"
 
 #define LOCTEXT_NAMESPACE "FMultiUserReplicationManager"
 
@@ -141,9 +139,19 @@ namespace UE::MultiUserClient::Replication
 
 	void FMultiUserReplicationManager::SetupClientConnectionEvents()
 	{
-		FOnlineClientManager& ClientManager = ConnectedState->OnlineClientManager;
-		ClientManager.ForEachClient([this](FOnlineClient& InClient){ SetupClientDelegates(InClient); return EBreakBehavior::Continue; });
-		ClientManager.OnPostRemoteClientAdded().AddRaw(this, &FMultiUserReplicationManager::OnReplicationClientConnected);
+		FOnlineClientManager& OnlineClientManager = ConnectedState->OnlineClientManager;
+		OnlineClientManager.ForEachClient([this](FOnlineClient& InClient){ SetupClientDelegates(InClient); return EBreakBehavior::Continue; });
+		OnlineClientManager.OnPostRemoteClientAdded().AddRaw(this, &FMultiUserReplicationManager::OnReplicationClientConnected);
+
+		FOfflineClientManager& OfflineClientManager = ConnectedState->OfflineClientManager;
+		OfflineClientManager.OnClientsChanged().AddRaw(this, &FMultiUserReplicationManager::OnInternalOfflineClientsChanged);
+		OfflineClientManager.OnClientContentChanged().AddRaw(this, &FMultiUserReplicationManager::OnInternalOfflineClientContentChanged);
+	}
+
+	void FMultiUserReplicationManager::SetupClientDelegates(FOnlineClient& InClient) const
+	{
+		InClient.GetStreamSynchronizer().OnServerStreamChanged().AddRaw(this, &FMultiUserReplicationManager::OnClientStreamServerStateChanged, InClient.GetEndpointId());
+		InClient.GetAuthoritySynchronizer().OnServerAuthorityChanged().AddRaw(this, &FMultiUserReplicationManager::OnClientAuthorityServerStateChanged, InClient.GetEndpointId());
 	}
 
 	void FMultiUserReplicationManager::OnClientStreamServerStateChanged(const FGuid EndpointId) const
@@ -158,21 +166,23 @@ namespace UE::MultiUserClient::Replication
 		OnAuthorityServerStateChangedDelegate.Broadcast(EndpointId);
 	}
 
-	void FMultiUserReplicationManager::SetupClientDelegates(FOnlineClient& InClient) const
-	{
-		InClient.GetStreamSynchronizer().OnServerStreamChanged().AddRaw(this, &FMultiUserReplicationManager::OnClientStreamServerStateChanged, InClient.GetEndpointId());
-		InClient.GetAuthoritySynchronizer().OnServerAuthorityChanged().AddRaw(this, &FMultiUserReplicationManager::OnClientAuthorityServerStateChanged, InClient.GetEndpointId());
-	}
-
 	const FConcertObjectReplicationMap* FMultiUserReplicationManager::FindReplicationMapForClient(const FGuid& ClientId) const
 	{
 		if (ConnectedState && ensureMsgf(IsInGameThread(), TEXT("To simplify implementation, only calls from game thread are allowed.")))
 		{
-			const FOnlineClient* ReplicationClient = ConnectedState->OnlineClientManager.FindClient(ClientId);
-			return ReplicationClient
-				? &ReplicationClient->GetStreamSynchronizer().GetServerState()
-				: nullptr;
+			if (const FOnlineClient* OnlineClient = ConnectedState->OnlineClientManager.FindClient(ClientId))
+			{
+				return &OnlineClient->GetStreamSynchronizer().GetServerState();
+			}
+
+			if (const FOfflineClient* OfflineClient = ConnectedState->OfflineClientManager.FindClient(ClientId))
+			{
+				return &OfflineClient->GetPredictedStream().ReplicationMap;
+			}
+
+			return nullptr;
 		}
+		
 		return nullptr;
 	}
 
@@ -180,10 +190,17 @@ namespace UE::MultiUserClient::Replication
 	{
 		if (ConnectedState && ensureMsgf(IsInGameThread(), TEXT("To simplify implementation, only calls from game thread are allowed.")))
 		{
-			const FOnlineClient* ReplicationClient = ConnectedState->OnlineClientManager.FindClient(ClientId);
-			return ReplicationClient
-				? &ReplicationClient->GetStreamSynchronizer().GetFrequencySettings()
-				: nullptr;
+			if (const FOnlineClient* OnlineClient = ConnectedState->OnlineClientManager.FindClient(ClientId))
+			{
+				return &OnlineClient->GetStreamSynchronizer().GetFrequencySettings();
+			}
+
+			if (const FOfflineClient* OfflineClient = ConnectedState->OfflineClientManager.FindClient(ClientId))
+			{
+				return &OfflineClient->GetPredictedStream().FrequencySettings;
+			}
+
+			return nullptr;
 		}
 		return nullptr;
 	}
@@ -262,10 +279,17 @@ namespace UE::MultiUserClient::Replication
 		return false;
 	}
 
-	FMultiUserReplicationManager::FConnectedState::FConnectedState(TSharedRef<IConcertSyncClient> InClient, FReplicationDiscoveryContainer& InDiscoveryContainer)
+	FMultiUserReplicationManager::FConnectedState::FConnectedState(
+		TSharedRef<IConcertSyncClient> InClient, FReplicationDiscoveryContainer& InDiscoveryContainer
+	)
 		: Client(InClient)
 		, QueryService(*InClient)
-		, OnlineClientManager(InClient, InClient->GetConcertClient()->GetCurrentSession().ToSharedRef(), InDiscoveryContainer, QueryService.GetStreamAndAuthorityQueryService())
+		, OnlineClientManager(
+			  InClient,
+			  InClient->GetConcertClient()->GetCurrentSession().ToSharedRef(),
+			  InDiscoveryContainer,
+			  QueryService.GetStreamAndAuthorityQueryService()
+		  )
 		, OfflineClientManager(*InClient, OnlineClientManager)
 		, UnifiedClientView(*InClient, OnlineClientManager, OfflineClientManager)
 		, MuteManager(*InClient, QueryService.GetMuteStateQueryService(), OnlineClientManager.GetAuthorityCache())
@@ -274,6 +298,7 @@ namespace UE::MultiUserClient::Replication
 		, ChangeLevelHandler(OnlineClientManager.GetLocalClient().GetClientEditModel().Get())
 		, PreventReplicatedPropertyTransaction(*InClient, OnlineClientManager, MuteManager)
 		, UserNotifier(*InClient->GetConcertClient(), OnlineClientManager, MuteManager)
+		, AnalyticsHandler(*InClient->GetConcertClient(), OnlineClientManager)
 	{}
 }
 

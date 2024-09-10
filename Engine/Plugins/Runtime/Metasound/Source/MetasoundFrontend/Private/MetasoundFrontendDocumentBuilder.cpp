@@ -737,7 +737,7 @@ void FMetaSoundFrontendDocumentBuilder::AddEdge(FMetasoundFrontendEdge&& InNewEd
 #if DO_CHECK
 	{
 		const IDocumentGraphEdgeCache& EdgeCache = DocumentCache->GetEdgeCache(PageID);
-		checkf(!EdgeCache.IsNodeInputConnected(InNewEdge.ToNodeID, InNewEdge.ToVertexID), TEXT("Failed to add edge in MetaSound Builder: Destination input a lready connected"));
+		checkf(!EdgeCache.IsNodeInputConnected(InNewEdge.ToNodeID, InNewEdge.ToVertexID), TEXT("Failed to add edge in MetaSound Builder: Destination input already connected"));
 
 		const EInvalidEdgeReason Reason = IsValidEdge(InNewEdge, &PageID);
 		checkf(Reason == Metasound::Frontend::EInvalidEdgeReason::None, TEXT("Attempted call to AddEdge in MetaSound Builder where edge is invalid: %s."), *LexToString(Reason));
@@ -1184,9 +1184,10 @@ const FMetasoundFrontendNode* FMetaSoundFrontendDocumentBuilder::AddGraphNode(co
 		using namespace Metasound::Frontend;
 
 		// Cache the asset name on the node if it node is reference to asset-defined graph.
-		if (const FTopLevelAssetPath* Path = IMetaSoundAssetManager::GetChecked().FindAssetPath(FAssetKey(ClassKey.ClassName, ClassKey.Version)))
+		const FTopLevelAssetPath Path = IMetaSoundAssetManager::GetChecked().FindAssetPath(FAssetKey(ClassKey.ClassName, ClassKey.Version));
+		if (Path.IsValid())
 		{
-			InOutNode.Name = Path->GetAssetName();
+			InOutNode.Name = Path.GetAssetName();
 			return;
 		}
 
@@ -2101,7 +2102,6 @@ FMetasoundFrontendClassName FMetaSoundFrontendDocumentBuilder::GenerateNewClassN
 {
 	using namespace Metasound::Frontend;
 	FMetasoundFrontendClassMetadata& Metadata = GetDocumentChecked().RootGraph.Metadata;
-	const FMetasoundFrontendClassName OldClassName = Metadata.GetClassName();
 	const FMetasoundFrontendClassName NewClassName(FName(), FName(*FGuid::NewGuid().ToString()), FName());
 	Metadata.SetClassName(NewClassName);
 	return NewClassName;
@@ -2237,8 +2237,20 @@ FMetasoundAssetBase* FMetaSoundFrontendDocumentBuilder::GetReferencedPresetAsset
 	{
 		const FMetasoundFrontendClass* NodeClass = FindDependency(Node->ClassID);
 		check(NodeClass);
-		const FNodeRegistryKey NodeClassRegistryKey = FNodeRegistryKey(NodeClass->Metadata);
-		return IMetaSoundAssetManager::GetChecked().FindAsset(NodeClassRegistryKey);
+		const FAssetKey NodeAssetKey(NodeClass->Metadata);
+		const TArray<FMetasoundAssetBase*> ReferencedAssets = GetMetasoundAsset().GetReferencedAssets();
+		for (FMetasoundAssetBase* RefAsset : ReferencedAssets)
+		{
+			TScriptInterface<IMetaSoundDocumentInterface> RefDocInterface = RefAsset->GetOwningAsset();
+			if (RefDocInterface.GetObject() != nullptr)
+			{
+				const FAssetKey AssetKey(RefDocInterface->GetConstDocument().RootGraph.Metadata);
+				if (AssetKey == NodeAssetKey)
+				{
+					return RefAsset;
+				}
+			}
+		}
 	}
 	return nullptr;
 }
@@ -2546,13 +2558,13 @@ void FMetaSoundFrontendDocumentBuilder::InitNodeLocations()
 	using namespace Metasound;
 	using namespace Metasound::Frontend;
 
-	FVector2D InputNodeLocation = FVector2D::ZeroVector;
-	FVector2D ExternalNodeLocation = InputNodeLocation + DisplayStyle::NodeLayout::DefaultOffsetX;
-	FVector2D OutputNodeLocation = ExternalNodeLocation + DisplayStyle::NodeLayout::DefaultOffsetX;
-
 	FMetasoundFrontendDocument& Document = GetDocumentChecked();
 	Document.RootGraph.IterateGraphPages([&](FMetasoundFrontendGraph& Graph)
 	{
+		FVector2D InputNodeLocation = FVector2D::ZeroVector;
+		FVector2D ExternalNodeLocation = InputNodeLocation + DisplayStyle::NodeLayout::DefaultOffsetX;
+		FVector2D OutputNodeLocation = ExternalNodeLocation + DisplayStyle::NodeLayout::DefaultOffsetX;
+
 		TArray<FMetasoundFrontendNode>& Nodes = Graph.Nodes;
 		for (FMetasoundFrontendNode& Node : Nodes)
 		{
@@ -4247,7 +4259,7 @@ bool FMetaSoundFrontendDocumentBuilder::SwapGraphInput(const FMetasoundFrontendC
 #endif // WITH_EDITOR
 
 	// 2. Gather data from existing member/node needed to swap
-	TArray<FMetasoundFrontendEdge> RemovedEdges;
+	TMultiMap<FGuid, FMetasoundFrontendEdge> RemovedEdgesPerPage;
 
 	const FMetasoundFrontendClassInput* ExistingInputClass = InterfaceCache.FindInput(InExistingInputVertex.Name);
 	checkf(ExistingInputClass, TEXT("'SwapGraphInput' failed to find original graph input"));
@@ -4267,7 +4279,10 @@ bool FMetaSoundFrontendDocumentBuilder::SwapGraphInput(const FMetasoundFrontendC
 
 		const FGuid VertexID = ExistingInputNode->Interface.Outputs.Last().VertexID;
 		TArray<const FMetasoundFrontendEdge*> Edges = DocumentCache->GetEdgeCache(Graph.PageID).FindEdges(NodeID, VertexID);
-		Algo::Transform(Edges, RemovedEdges, [](const FMetasoundFrontendEdge* Edge) { return *Edge; });
+		Algo::Transform(Edges, RemovedEdgesPerPage, [PageID = Graph.PageID](const FMetasoundFrontendEdge* Edge)
+		{
+			return TPair<FGuid, FMetasoundFrontendEdge>(PageID, *Edge);
+		});
 	});
 
 	// 3. Remove existing graph vertex
@@ -4302,12 +4317,14 @@ bool FMetaSoundFrontendDocumentBuilder::SwapGraphInput(const FMetasoundFrontendC
 #endif // WITH_EDITOR
 
 		// 5b. Add to new copy existing node edges
+		TArray<FMetasoundFrontendEdge> RemovedEdges;
+		RemovedEdgesPerPage.MultiFind(Graph.PageID, RemovedEdges);
 		for (const FMetasoundFrontendEdge& RemovedEdge : RemovedEdges)
 		{
 			FMetasoundFrontendEdge NewEdge = RemovedEdge;
 			NewEdge.FromNodeID = NewInputNode->GetID();
 			NewEdge.FromVertexID = NewInputNode->Interface.Outputs.Last().VertexID;
-			AddEdge(MoveTemp(NewEdge));
+			AddEdge(MoveTemp(NewEdge), &Graph.PageID);
 		}
 	});
 
@@ -4334,8 +4351,8 @@ bool FMetaSoundFrontendDocumentBuilder::SwapGraphOutput(const FMetasoundFrontend
 	TMap<FGuid, FPageNodeLocations> PageNodeLocations;
 #endif // WITH_EDITOR
 
-	// 2. Gather data from existing member/node needed to swap
-	TArray<FMetasoundFrontendEdge> RemovedEdges;
+	// 2. Gather data from existing page member/node needed to swap
+	TMultiMap<FGuid, FMetasoundFrontendEdge> RemovedEdgesPerPage;
 
 	const FMetasoundFrontendClassOutput* ExistingOutputClass = InterfaceCache.FindOutput(InExistingOutputVertex.Name);
 	checkf(ExistingOutputClass, TEXT("'SwapGraphOutput' failed to find original graph output"));
@@ -4355,7 +4372,10 @@ bool FMetaSoundFrontendDocumentBuilder::SwapGraphOutput(const FMetasoundFrontend
 
 		const FGuid VertexID = ExistingOutputNode->Interface.Inputs.Last().VertexID;
 		TArray<const FMetasoundFrontendEdge*> Edges = DocumentCache->GetEdgeCache(Graph.PageID).FindEdges(NodeID, VertexID);
-		Algo::Transform(Edges, RemovedEdges, [](const FMetasoundFrontendEdge* Edge) { return *Edge; });
+		Algo::Transform(Edges, RemovedEdgesPerPage, [PageID = Graph.PageID](const FMetasoundFrontendEdge* Edge)
+		{
+			return TPair<FGuid, FMetasoundFrontendEdge>(PageID, *Edge);
+		});
 	});
 
 	// 3. Remove existing graph vertex
@@ -4390,12 +4410,14 @@ bool FMetaSoundFrontendDocumentBuilder::SwapGraphOutput(const FMetasoundFrontend
 #endif // WITH_EDITOR
 
 		// 5b. Add to new copy existing node edges
+		TArray<FMetasoundFrontendEdge> RemovedEdges;
+		RemovedEdgesPerPage.MultiFind(Graph.PageID, RemovedEdges);
 		for (const FMetasoundFrontendEdge& RemovedEdge : RemovedEdges)
 		{
 			FMetasoundFrontendEdge NewEdge = RemovedEdge;
 			NewEdge.ToNodeID = NewOutputNode->GetID();
 			NewEdge.ToVertexID = NewOutputNode->Interface.Inputs.Last().VertexID;
-			AddEdge(MoveTemp(NewEdge));
+			AddEdge(MoveTemp(NewEdge), &Graph.PageID);
 		}
 	});
 
@@ -4441,27 +4463,59 @@ bool FMetaSoundFrontendDocumentBuilder::UnlinkVariableNode(const FGuid& InNodeID
 	return false;
 }
 
-bool FMetaSoundFrontendDocumentBuilder::UpdateDependencyClassNames(const TMap<FMetasoundFrontendClassName, FMetasoundFrontendClassName>& OldToNewReferencedClassNames)
+#if WITH_EDITOR
+bool FMetaSoundFrontendDocumentBuilder::UpdateDependencyRegistryData(const TMap<Metasound::Frontend::FNodeRegistryKey, Metasound::Frontend::FNodeRegistryKey>& OldToNewClassKeys)
 {
-	if (!DocumentDelegates.IsValid())
+	using namespace Metasound::Frontend;
+
+	bool bUpdated = false;
+	if (DocumentDelegates.IsValid())
 	{
-		return false;
+		FMetasoundFrontendDocument& Document = GetDocumentChecked();
+		for (FMetasoundFrontendClass& Dependency : Document.Dependencies)
+		{
+			const FNodeRegistryKey OldKey(Dependency.Metadata);
+			if (const FNodeRegistryKey* NewKey = OldToNewClassKeys.Find(OldKey))
+			{
+				if (Dependency.Metadata.GetType() == EMetasoundFrontendClassType::External)
+				{
+					bUpdated = true;
+					const int32* DependencyIndex = DocumentCache->FindDependencyIndex(Dependency.ID);
+					check(DependencyIndex);
+					DocumentDelegates->OnRenamingDependencyClass.Broadcast(*DependencyIndex, NewKey->ClassName);
+					Dependency.Metadata.SetType(NewKey->Type);
+					Dependency.Metadata.SetClassName(NewKey->ClassName);
+					Dependency.Metadata.SetVersion(NewKey->Version);
+				}
+			}
+		}
+
+#if WITH_EDITORONLY_DATA
+		if (bUpdated)
+		{
+			Document.Metadata.ModifyContext.SetDocumentModified();
+		}
+#endif // WITH_EDITORONLY_DATA
 	}
 
-	for (FMetasoundFrontendClass& Dependency : GetDocumentChecked().Dependencies)
-	{
-		const FMetasoundFrontendClassName OldName = Dependency.Metadata.GetClassName();
-		if (const FMetasoundFrontendClassName* NewName = OldToNewReferencedClassNames.Find(OldName))
-		{
-			const int32* DependencyIndex = DocumentCache->FindDependencyIndex(Dependency.ID);
-			check(DependencyIndex);
-			DocumentDelegates->OnRenamingDependencyClass.Broadcast(*DependencyIndex, *NewName);
-			Dependency.Metadata.SetClassName(*NewName);
-		}
-	}
-	
-	return true;
+	return bUpdated;
 }
+
+bool FMetaSoundFrontendDocumentBuilder::UpdateDependencyClassNames(const TMap<FMetasoundFrontendClassName, FMetasoundFrontendClassName>& OldToNewReferencedClassNames)
+{
+	using namespace Metasound::Frontend;
+
+	TMap<FNodeRegistryKey, FNodeRegistryKey> OldToNewKeys;
+	Algo::Transform(OldToNewReferencedClassNames, OldToNewKeys, [](const TPair<FMetasoundFrontendClassName, FMetasoundFrontendClassName>& ClassNamePair)
+	{
+		return TPair<FNodeRegistryKey, FNodeRegistryKey>(
+			FNodeRegistryKey(EMetasoundFrontendClassType::External, ClassNamePair.Key, FMetasoundFrontendVersionNumber()),
+			FNodeRegistryKey(EMetasoundFrontendClassType::External, ClassNamePair.Value, FMetasoundFrontendVersionNumber())
+		);
+	});
+	return UpdateDependencyRegistryData(OldToNewKeys);
+}
+#endif // WITH_EDITOR
 
 #if WITH_EDITORONLY_DATA
 bool FMetaSoundFrontendDocumentBuilder::VersionInterfaces()

@@ -142,3 +142,45 @@ inline void UpdateMaskFilter(uint32& Word3, FMaskFilter NewMaskFilter)
 	Word3 &= (0xFFFFFFFFu >> NumExtraFilterBits);	//we drop the top NumExtraFilterBits bits because that's where the new mask filter is going
 	Word3 |= uint32(NewMaskFilter) << (32 - NumExtraFilterBits);
 }
+
+inline FCollisionResponseContainer ExtractSimCollisionResponseContainer(const FCollisionFilterData& InSimFilterData)
+{
+	FCollisionResponseContainer CollisionResponseContainer;
+	
+	for (int32 ChannelIndex = 0; ChannelIndex < UE_ARRAY_COUNT(CollisionResponseContainer.EnumArray); ++ChannelIndex)
+	{
+		if ((InSimFilterData.Word1) & (1 << ChannelIndex))
+		{
+			CollisionResponseContainer.EnumArray[ChannelIndex] = ECR_Block;
+		}
+		else
+		{
+			CollisionResponseContainer.EnumArray[ChannelIndex] = ECR_Ignore;
+		}
+	}
+
+	return CollisionResponseContainer;
+}
+
+inline FCollisionResponseContainer ExtractQueryCollisionResponseContainer(const FCollisionFilterData& InQueryFilterData)
+{
+	FCollisionResponseContainer CollisionResponseContainer;
+	
+	for (int32 ChannelIndex = 0; ChannelIndex < UE_ARRAY_COUNT(CollisionResponseContainer.EnumArray); ++ChannelIndex)
+	{
+		if ((InQueryFilterData.Word1) & (1 << ChannelIndex))
+		{
+			CollisionResponseContainer.EnumArray[ChannelIndex] = ECR_Block;
+		}
+		else if ((InQueryFilterData.Word2) & (1 << ChannelIndex))
+		{
+			CollisionResponseContainer.EnumArray[ChannelIndex] = ECR_Overlap;
+		}
+		else
+		{
+			CollisionResponseContainer.EnumArray[ChannelIndex] = ECR_Ignore;
+		}
+	}
+
+	return CollisionResponseContainer;
+}

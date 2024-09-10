@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ILiveLinkSource.h"
+#include "Misc/Optional.h"
 #include "VCamPixelStreamingLiveLink.generated.h"
 
 UCLASS()
@@ -33,8 +34,8 @@ public:
 
 	// Registers a new subject with the Transform Role to the Live Link Client
 	// If called with a subject name that already exists in this source then this will reset any buffered data for that subject
-	void CreateSubject(FName SubjectName) const;
-	void RemoveSubject(FName SubjectName) const;
+	void CreateSubject(FName SubjectName);
+	void RemoveSubject();
 	void PushTransformForSubject(FName SubjectName, FTransform Transform);
 	void PushTransformForSubject(FName SubjectName, FTransform Transform, double Timestamp);
 
@@ -44,4 +45,7 @@ private:
 	FGuid SourceGuid;
 	uint64 NTransformsPushed = 0;
 	uint64 LastTransformGraphedCycles = 0.0f;
+
+	/** The name of the active subject, if any.  */
+	TOptional<FName> CurrentSubjectName;
 };

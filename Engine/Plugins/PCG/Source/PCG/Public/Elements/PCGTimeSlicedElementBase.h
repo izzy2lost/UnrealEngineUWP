@@ -66,7 +66,7 @@ struct TPCGTimeSlicedContext : public FPCGContext
 	EPCGTimeSliceInitResult GetExecutionStateResult() const { return ExecutionStateResult; }
 
 	/** Will return the result of the attempt to initialize a specific iteration, by Index */
-	EPCGTimeSliceInitResult GetIterationStateResult(const int32 Index)
+	EPCGTimeSliceInitResult GetIterationStateResult(const int32 Index) const
 	{
 		check(Index >= 0 && Index < PerIterationStateResultArray.Num());
 

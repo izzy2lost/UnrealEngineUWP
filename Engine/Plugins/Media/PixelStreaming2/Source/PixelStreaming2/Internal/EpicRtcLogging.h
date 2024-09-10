@@ -7,7 +7,7 @@
 
 #include "epic_rtc/common/logging.h"
 
-DECLARE_LOG_CATEGORY_EXTERN(LogPixelStreaming2EpicRtc, Log, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogPixelStreaming2EpicRtc, NoLogging, All);
 
 namespace UE::PixelStreaming2
 {

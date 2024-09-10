@@ -180,6 +180,26 @@ void UTG_EdGraph::GraphChanged(UTG_Graph* InGraph, UTG_Node* InNode, bool Tweaki
 	}
 }
 
+void UTG_EdGraph::FixDuplicatedNodesPinConnections(TSet<UEdGraphNode*>& PastedNodes)
+{
+	// we recreate the EdPin connections (coming from the copy/paste) to trigger the creation of TG_Node/TG_Pin connections correctly
+	for (TSet<UEdGraphNode*>::TIterator It(PastedNodes); It; ++It)
+	{
+		UEdGraphNode* EdNode = *It;
+	
+		for(UEdGraphPin* SourceEdGraphPin : EdNode->Pins)
+		{
+			if (SourceEdGraphPin->Direction == EGPD_Output)
+			{
+				for (UEdGraphPin* DestEdGraphPin : SourceEdGraphPin->LinkedTo)
+				{
+					GetSchema()->TryCreateConnection(SourceEdGraphPin, DestEdGraphPin);	
+				}
+			}
+		}
+	}
+}
+
 void UTG_EdGraph::OnNodeSignatureChanged(UTG_Node* InNode)
 {
 	UTG_EdGraphNode* EdGraphNode = GetViewModelNode(InNode->GetId());

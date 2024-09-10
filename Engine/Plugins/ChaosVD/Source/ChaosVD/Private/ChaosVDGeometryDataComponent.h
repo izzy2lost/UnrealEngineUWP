@@ -82,19 +82,19 @@ struct FChaosVDMeshDataInstanceState
 	GENERATED_BODY()
 
 	/** Recorded Shape instance Data */
-	UPROPERTY(VisibleAnywhere, Category="Recorded GeometryData", meta=(ShowOnlyInnerProperties))
+	UPROPERTY(VisibleAnywhere, Category="Recorded GeometryData")
 	FChaosVDShapeCollisionData CollisionData;
 
 	/** Minimum set of data about the recorded implicit object */
-	UPROPERTY(VisibleAnywhere, Category="Recorded GeometryData", meta=(ShowOnlyInnerProperties))
+	UPROPERTY(VisibleAnywhere, Category="Recorded GeometryData")
 	FChaosVDImplicitObjectBasicView ImplicitObjectInfo;
 
 	/* CVD Debug - Current world transform used to render this Mesh */
-	UPROPERTY(VisibleAnywhere, Category="CVD GeometryData")
+	UPROPERTY(VisibleAnywhere, Category="CVD GeometryData", meta=(EditCondition=bShowCVDDebugData, EditConditionHides))
 	FTransform CurrentWorldTransform;
 
 	/* CVD Debug - Current mesh component type to render this Mesh */
-	UPROPERTY(VisibleAnywhere, Category="CVD GeometryData")
+	UPROPERTY(VisibleAnywhere, Category="CVD GeometryData", meta=(EditCondition=bShowCVDDebugData, EditConditionHides))
 	EChaosVDMeshComponent MeshComponentType = EChaosVDMeshComponent::Invalid;
 
 	/* CVD Debug - Pointer to the mesh component used to render this Mesh */
@@ -102,24 +102,29 @@ struct FChaosVDMeshDataInstanceState
 	TObjectPtr<UMeshComponent> MeshComponent;
 
 	/* CVD Debug - Instance index of mesh component used to render this Mesh */
-	UPROPERTY(VisibleAnywhere, Category="CVD GeometryData")
+	UPROPERTY(VisibleAnywhere, Category="CVD GeometryData", meta=(EditCondition=bShowCVDDebugData, EditConditionHides))
 	int32 MeshInstanceIndex = INDEX_NONE;
 
 	/* CVD Debug - Color used to render this mesh */
-	UPROPERTY(VisibleAnywhere, Category="CVD GeometryData")
+	UPROPERTY(VisibleAnywhere, Category="CVD GeometryData", meta=(EditCondition=bShowCVDDebugData, EditConditionHides))
 	FLinearColor CurrentGeometryColor = FLinearColor(ForceInitToZero);
 
 	/* CVD Debug - Id of the particle this geometry belongs */
-	UPROPERTY(VisibleAnywhere, Category="CVD GeometryData")
+	UPROPERTY(VisibleAnywhere, Category="CVD GeometryData", meta=(EditCondition=bShowCVDDebugData, EditConditionHides))
 	int32 OwningParticleID = INDEX_NONE;
 
 	/* CVD Debug - Id of the solver this geometry belongs */
-	UPROPERTY(VisibleAnywhere, Category="CVD GeometryData")
+	UPROPERTY(VisibleAnywhere, Category="CVD GeometryData", meta=(EditCondition=bShowCVDDebugData, EditConditionHides))
 	int32 OwningSolverID = INDEX_NONE;
 
+	UPROPERTY(VisibleAnywhere, Category="CVD GeometryData", meta=(EditCondition=bShowCVDDebugData, EditConditionHides))
 	bool bIsVisible = true;
 
+	UPROPERTY(VisibleAnywhere, Category="CVD GeometryData", meta=(EditCondition=bShowCVDDebugData, EditConditionHides))
 	bool bIsSelected = false;
+
+	UPROPERTY(EditAnywhere, Category="CVD GeometryData")
+	bool bShowCVDDebugData = false;
 };
 
 /** Handle that provides access to a specific mesh instance on a CVD Mesh component (instanced or static)*/

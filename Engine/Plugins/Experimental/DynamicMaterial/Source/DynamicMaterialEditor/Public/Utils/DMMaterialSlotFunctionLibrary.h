@@ -18,6 +18,7 @@ class UDMMaterialStageGradient;
 class UDMMaterialValue;
 class UDMRenderTargetRenderer;
 class UMaterialFunctionInterface;
+class UTexture;
 enum class EDMMaterialLayerStage : uint8;
 enum class EDMMaterialPropertyType : uint8;
 enum class EDMValueType : uint8;
@@ -67,4 +68,7 @@ public:
 
 	DYNAMICMATERIALEDITOR_API static UDMMaterialLayerObject* AddNewLayer(UDMMaterialSlot* InSlot, UDMMaterialStage* InNewBaseStage = nullptr, 
 		UDMMaterialStage* InNewMaskStage = nullptr);
+
+	DYNAMICMATERIALEDITOR_API static UDMMaterialLayerObject* AddTextureLayer(UDMMaterialSlot* InSlot, UTexture* InTexture, 
+		EDMMaterialPropertyType InPropertyType, bool bInReplaceSlot);
 };

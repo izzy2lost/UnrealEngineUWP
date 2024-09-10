@@ -294,7 +294,7 @@ static FRDGTextureRef AddHairCoverageLUTPass(FRDGBuilder& GraphBuilder, const FV
 		RDG_EVENT_NAME("UploadHairCoverageBuffer"),
 		UploadParameters,
 		ERDGPassFlags::Copy | ERDGPassFlags::NeverCull,
-		[UploadParameters, SizeInBytes](FRHICommandList& RHICmdList)
+		[UploadParameters, SizeInBytes](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FHairCountToCoverageData Source;
 		

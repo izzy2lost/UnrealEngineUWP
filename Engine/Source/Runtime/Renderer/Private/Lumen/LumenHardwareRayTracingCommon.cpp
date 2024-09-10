@@ -150,7 +150,8 @@ bool Lumen::UseHardwareRayTracing(const FSceneViewFamily& ViewFamily)
 		&& (LumenHardwareRayTracing::IsInlineSupported() || LumenHardwareRayTracing::IsRayGenSupported())
 		&& CVarLumenUseHardwareRayTracing.GetValueOnAnyThread() != 0
 		// HWRT does not support multiple views yet due to TLAS, but stereo views can be allowed as they reuse TLAS for View[0]
-		&& (ViewFamily.Views.Num() == 1 || (ViewFamily.Views.Num() == 2 && IStereoRendering::IsStereoEyeView(*ViewFamily.Views[0])));
+		&& (ViewFamily.Views.Num() == 1 || (ViewFamily.Views.Num() == 2 && IStereoRendering::IsStereoEyeView(*ViewFamily.Views[0])))
+		&& ViewFamily.Views[0]->IsRayTracingAllowedForView();
 #else
 	return false;
 #endif
@@ -393,8 +394,8 @@ void SetLumenHardwareRayTracingSharedParameters(
 	SharedParameters->HitGroupData = View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer ? GraphBuilder.CreateSRV(View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer) : nullptr;
 	SharedParameters->LumenHardwareRayTracingUniformBuffer = View.GetPrimaryView()->LumenHardwareRayTracingUniformBuffer;
 	checkf(View.RayTracingSceneInitTask.IsCompleted(), TEXT("RayTracingSceneInitTask must be completed before creating SRV for RayTracingSceneMetadata."));
-	SharedParameters->RayTracingSceneMetadata = View.GetRayTracingSceneChecked(ERayTracingSceneLayer::Base)->GetOrCreateMetadataBufferSRV(GraphBuilder.RHICmdList);
-
+	SharedParameters->RayTracingSceneMetadata = View.LumenHardwareRayTracingSBT ? View.LumenHardwareRayTracingSBT->GetOrCreateInlineBufferSRV(GraphBuilder.RHICmdList) : nullptr;
+	
 	// Lumen
 	SharedParameters->TracingParameters = TracingParameters;
 	SharedParameters->MaxTraversalIterations = FMath::Max(CVarLumenHardwareRayTracingMaxIterations.GetValueOnRenderThread(), 1);

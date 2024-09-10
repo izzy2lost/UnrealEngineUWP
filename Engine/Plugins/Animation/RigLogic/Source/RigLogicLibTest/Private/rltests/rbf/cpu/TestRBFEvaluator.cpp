@@ -93,11 +93,11 @@ TYPED_TEST(RBFBehaviorTest, SolverPerLOD) {
                                                                     rltests::rbf::unoptimized::rawControlCount,
                                                                     0,
                                                                     0,
-                                                                    rltests::rbf::unoptimized::rbfControlCount);
+                                                                    rltests::rbf::unoptimized::poseControlCount);
     auto inputInstance = inputInstanceFactory(&this->memRes);
     auto inputBuffer = inputInstance->getInputBuffer();
     auto outputBuffer =
-        inputBuffer.subview(rltests::rbf::unoptimized::rawControlCount, rltests::rbf::unoptimized::rbfControlCount);
+        inputBuffer.subview(rltests::rbf::unoptimized::rawControlCount, rltests::rbf::unoptimized::poseControlCount);
     const auto& inputValues = rltests::rbf::input::values;
     for (std::size_t i = {}; i < inputValues.size(); ++i) {
         inputBuffer[i] = inputValues[i];

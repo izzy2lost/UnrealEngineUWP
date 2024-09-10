@@ -7,7 +7,7 @@
 #include "Modules/ModuleInterface.h"
 #include "Templates/SharedPointer.h"
 
-class ITypedElementDataStorageInterface;
+class IEditorDataStorageProvider;
 
 namespace UE::Editor::DataStorage
 {
@@ -57,7 +57,7 @@ namespace UE::Editor::ContentBrowser
 	private:
 
 		// Ptr to the data storage interface
-		ITypedElementDataStorageInterface* DataStorage;
+		IEditorDataStorageProvider* DataStorage;
 		
 		// The actual table viewer widget
 		TSharedPtr<DataStorage::STedsTableViewer> TableViewer;

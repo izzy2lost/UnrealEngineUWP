@@ -985,7 +985,7 @@ public:
 		return nullptr;
 	}
 
-	virtual FShaderBindingTableRHIRef RHICreateShaderBindingTable(const FRayTracingShaderBindingTableInitializer& Initializer)
+	virtual FShaderBindingTableRHIRef RHICreateShaderBindingTable(FRHICommandListBase& RHICmdList, const FRayTracingShaderBindingTableInitializer& Initializer)
 	{
 		checkNoEntry();
 		return nullptr;
@@ -1486,11 +1486,6 @@ FORCEINLINE FRayTracingSceneRHIRef RHICreateRayTracingScene(FRayTracingSceneInit
 FORCEINLINE FRayTracingShaderRHIRef RHICreateRayTracingShader(TArrayView<const uint8> Code, const FSHAHash& Hash, EShaderFrequency ShaderFrequency)
 {
 	return GDynamicRHI->RHICreateRayTracingShader(Code, Hash, ShaderFrequency);
-}
-
-FORCEINLINE FShaderBindingTableRHIRef RHICreateShaderBindingTable(const FRayTracingShaderBindingTableInitializer& Initializer)
-{
-	return GDynamicRHI->RHICreateShaderBindingTable(Initializer);
 }
 
 FORCEINLINE FShaderBundleRHIRef RHICreateShaderBundle(const FShaderBundleCreateInfo& CreateInfo)

@@ -92,10 +92,10 @@ namespace Chaos
 		void FPBDIslandConstraintGroupSolver::SetIterationSettings(const FIterationSettings& InDefaultIterations)
 		{
 			Iterations = InDefaultIterations;
-			//for (FPBDIsland* Island : Islands)
-			//{
-			//	Iterations = FIterationSettings::Merge(Iterations, Island->GetIterationSettings());
-			//}
+			for (FPBDIsland* Island : Islands)
+			{
+				Iterations = FIterationSettings::Merge(Iterations, Island->GetIterationSettings());
+			}
 		}
 
 	}	// namespace Private

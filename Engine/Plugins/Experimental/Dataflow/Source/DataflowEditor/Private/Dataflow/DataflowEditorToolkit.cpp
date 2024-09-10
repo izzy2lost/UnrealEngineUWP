@@ -53,6 +53,7 @@
 #include "Selection.h"
 #include "Styling/SlateStyleRegistry.h"
 #include "Widgets/Docking/SDockTab.h"
+#include "GeometryCache.h"
 
 
 #define LOCTEXT_NAMESPACE "DataflowEditorToolkit"
@@ -538,6 +539,18 @@ void FDataflowEditorToolkit::GetSaveableObjects(TArray<UObject*>& OutObjects) co
 		{
 			check(DataflowAsset->IsAsset());
 			OutObjects.AddUnique(DataflowAsset);
+		}
+
+		if(SimulationScene && SimulationScene->GetPreviewSceneDescription())
+		{
+			if(TObjectPtr<UChaosCacheCollection> CacheCollection = SimulationScene->GetPreviewSceneDescription()->CacheAsset)
+			{
+				OutObjects.AddUnique(CacheCollection);
+			}
+			if(TObjectPtr<UGeometryCache> GeometryCache = SimulationScene->GetPreviewSceneDescription()->GeometryCacheAsset)
+			{
+				OutObjects.AddUnique(GeometryCache);
+			}
 		}
 	}
 }

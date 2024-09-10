@@ -108,7 +108,9 @@ UAudioComponent::UAudioComponent(const FObjectInitializer& ObjectInitializer)
 	PitchModulationMin = 1.f;
 	PitchModulationMax = 1.f;
 	bEnableLowPassFilter = false;
+	bEnableHighPassFilter = false;
 	LowPassFilterFrequency = MAX_FILTER_FREQUENCY;
+	HighPassFilterFrequency = MIN_FILTER_FREQUENCY;
 	OcclusionCheckInterval = 0.1f;
 	ActiveCount = 0;
 
@@ -750,6 +752,8 @@ void UAudioComponent::PlayInternal(const PlayInternalRequestData& InPlayRequestD
 
 	NewActiveSound.bEnableLowPassFilter = bEnableLowPassFilter;
 	NewActiveSound.LowPassFilterFrequency = LowPassFilterFrequency;
+	NewActiveSound.bEnableHighPassFilter = bEnableHighPassFilter;
+	NewActiveSound.HighPassFilterFrequency = HighPassFilterFrequency;
 	NewActiveSound.RequestedStartTime = FMath::Max(0.f, InPlayRequestData.StartTime);
 
 	if (bOverrideSubtitlePriority)
@@ -1599,6 +1603,18 @@ void UAudioComponent::SetLowPassFilterEnabled(bool InLowPassFilterEnabled)
 	}
 }
 
+void UAudioComponent::SetHighPassFilterEnabled(bool InHighPassFilterEnabled)
+{
+	if (FAudioDevice* AudioDevice = GetAudioDevice())
+	{
+		DECLARE_CYCLE_STAT(TEXT("FAudioThreadTask.SetHighPassFilterFrequency"), STAT_AudioSetHighPassFilterEnabled, STATGROUP_AudioThreadCommands);
+		AudioDevice->SendCommandToActiveSounds(AudioComponentID, [InHighPassFilterEnabled](FActiveSound& ActiveSound)
+		{
+			ActiveSound.bEnableHighPassFilter = InHighPassFilterEnabled;
+		}, GET_STATID(STAT_AudioSetHighPassFilterEnabled));
+	}
+}
+
 void UAudioComponent::SetLowPassFilterFrequency(float InLowPassFilterFrequency)
 {
 	if (FAudioDevice* AudioDevice = GetAudioDevice())
@@ -1608,6 +1624,18 @@ void UAudioComponent::SetLowPassFilterFrequency(float InLowPassFilterFrequency)
 		{
 			ActiveSound.LowPassFilterFrequency = InLowPassFilterFrequency;
 		}, GET_STATID(STAT_AudioSetLowPassFilterFrequency));
+	}
+}
+
+void UAudioComponent::SetHighPassFilterFrequency(float InHighPassFilterFrequency)
+{
+	if (FAudioDevice* AudioDevice = GetAudioDevice())
+	{
+		DECLARE_CYCLE_STAT(TEXT("FAudioThreadTask.SetHighPassFilterFrequency"), STAT_AudioSetHighPassFilterFrequency, STATGROUP_AudioThreadCommands);
+		AudioDevice->SendCommandToActiveSounds(AudioComponentID, [InHighPassFilterFrequency](FActiveSound& ActiveSound)
+		{
+			ActiveSound.HighPassFilterFrequency = InHighPassFilterFrequency;
+		}, GET_STATID(STAT_AudioSetHighPassFilterFrequency));
 	}
 }
 
@@ -1926,9 +1954,9 @@ void UAudioComponent::AddModulationRouting(const TSet<USoundModulatorBase*>& Mod
 	}
 
 	// Tell the active sounds on the component to use the new Modulation Routing
-	AudioDevice->SendCommandToActiveSounds(AudioComponentID, [NewModulators = ConvertedModulators, Destination, bShouldModulationRoutingBeUpdated](FActiveSound& ActiveSound)
+	AudioDevice->SendCommandToActiveSounds(AudioComponentID, [NewModulators = ConvertedModulators, Destination](FActiveSound& ActiveSound)
 	{
-		ActiveSound.AddModulationRouting(NewModulators, Destination, bShouldModulationRoutingBeUpdated);
+		ActiveSound.AddModulationRouting(NewModulators, Destination);
 	});
 }
 

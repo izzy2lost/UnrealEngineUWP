@@ -137,6 +137,8 @@ public:
 	/** Removes vertex colors associated with the mesh component */
 	void RemoveComponentInstanceVertexColors(UStaticMeshComponent* StaticMeshComponent);
 
+	/** Creates and returns a mesh paint texture that isn't attached to a mesh component */
+	UTexture* CreateMeshPaintTexture(UObject* Outer, uint32 TextureSize);
 	/** Creates mesh paint texture associated with the mesh component */
 	void CreateComponentMeshPaintTexture(UStaticMeshComponent* StaticMeshComponent);
 	void CreateComponentMeshPaintTexture(UStaticMeshComponent* StaticMeshComponent, FImageView const& InImage);

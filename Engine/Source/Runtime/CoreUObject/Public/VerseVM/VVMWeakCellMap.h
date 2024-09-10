@@ -25,6 +25,8 @@ struct VWeakCellMap : VCell
 	VCell* Find(FAccessContext Context, VCell* Key);
 	void Add(FAccessContext Context, VCell* Key, VCell* Value);
 	void Remove(VCell* Key);
+	template <typename FunctorType> // FunctorType is (VCell*,VCell*) -> void
+	void ForEach(FunctorType&& Functor);
 
 	// This function is a test-only function because it has a very limited kind of meaning. Requesting the size (or
 	// checking the emptiness) of a weak map gives a kind of upper bound: it means that the map has at most this many

@@ -77,17 +77,17 @@ public:
 	UFUNCTION(BlueprintPure, DisplayName="Get Default Typed Element Registry", Category = "TypedElementFramework|Registry", meta=(ScriptName="GetDefaultTypedElementRegistry"))
 	static TYPEDELEMENTFRAMEWORK_API UTypedElementRegistry* GetInstance();
 
-	TYPEDELEMENTFRAMEWORK_API ITypedElementDataStorageInterface* GetMutableDataStorage();
-	TYPEDELEMENTFRAMEWORK_API const ITypedElementDataStorageInterface* GetDataStorage() const;
-	TYPEDELEMENTFRAMEWORK_API void SetDataStorage(ITypedElementDataStorageInterface* Storage);
+	TYPEDELEMENTFRAMEWORK_API IEditorDataStorageProvider* GetMutableDataStorage();
+	TYPEDELEMENTFRAMEWORK_API const IEditorDataStorageProvider* GetDataStorage() const;
+	TYPEDELEMENTFRAMEWORK_API void SetDataStorage(IEditorDataStorageProvider* Storage);
 
-	TYPEDELEMENTFRAMEWORK_API ITypedElementDataStorageCompatibilityInterface* GetMutableDataStorageCompatibility();
-	TYPEDELEMENTFRAMEWORK_API const ITypedElementDataStorageCompatibilityInterface* GetDataStorageCompatibility() const;
-	TYPEDELEMENTFRAMEWORK_API void SetDataStorageCompatibility(ITypedElementDataStorageCompatibilityInterface* Storage);
+	TYPEDELEMENTFRAMEWORK_API IEditorDataStorageCompatibilityProvider* GetMutableDataStorageCompatibility();
+	TYPEDELEMENTFRAMEWORK_API const IEditorDataStorageCompatibilityProvider* GetDataStorageCompatibility() const;
+	TYPEDELEMENTFRAMEWORK_API void SetDataStorageCompatibility(IEditorDataStorageCompatibilityProvider* Storage);
 
-	TYPEDELEMENTFRAMEWORK_API ITypedElementDataStorageUiInterface* GetMutableDataStorageUi();
-	TYPEDELEMENTFRAMEWORK_API const ITypedElementDataStorageUiInterface* GetDataStorageUi() const;
-	TYPEDELEMENTFRAMEWORK_API void SetDataStorageUi(ITypedElementDataStorageUiInterface* Storage);
+	TYPEDELEMENTFRAMEWORK_API IEditorDataStorageUiProvider* GetMutableDataStorageUi();
+	TYPEDELEMENTFRAMEWORK_API const IEditorDataStorageUiProvider* GetDataStorageUi() const;
+	TYPEDELEMENTFRAMEWORK_API void SetDataStorageUi(IEditorDataStorageUiProvider* Storage);
 
 	TYPEDELEMENTFRAMEWORK_API bool AreDataStorageInterfacesSet() const;
 
@@ -701,7 +701,7 @@ private:
 	FSimpleMulticastDelegate OnProcessingDeferredElementsToDestroyDelegate;
 	
 	FOnDataStorageInterfacesSet OnDataStorageInterfacesSetDelegate;
-	ITypedElementDataStorageInterface* DataStorage = nullptr;
-	ITypedElementDataStorageCompatibilityInterface* DataStorageCompatibility = nullptr;
-	ITypedElementDataStorageUiInterface* DataStorageUi = nullptr;
+	IEditorDataStorageProvider* DataStorage = nullptr;
+	IEditorDataStorageCompatibilityProvider* DataStorageCompatibility = nullptr;
+	IEditorDataStorageUiProvider* DataStorageUi = nullptr;
 };

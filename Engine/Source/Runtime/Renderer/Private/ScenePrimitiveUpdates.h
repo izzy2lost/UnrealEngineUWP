@@ -44,6 +44,7 @@ enum class EPrimitiveUpdateId : uint32
 	DrawDistance,
 	DistanceFieldScene,
 	OverridePreviousTransform,
+	UpdateInstanceFromCompute,
 	MAX
 };
 
@@ -72,6 +73,11 @@ struct FUpdateInstanceCommand : public TPrimitiveUpdatePayloadBase<EPrimitiveUpd
 	FBoxSphereBounds StaticMeshBounds;
 };
 
+struct FUpdateInstanceFromComputeCommand : public TPrimitiveUpdatePayloadBase<EPrimitiveUpdateId::UpdateInstanceFromCompute, EPrimitiveUpdateDirtyFlags::CullingBounds | EPrimitiveUpdateDirtyFlags::InstanceData>
+{
+	FPrimitiveSceneProxy* PrimitiveSceneProxy{ nullptr };
+	FGPUSceneWriteDelegate GPUSceneWriter;
+};
 
 /**
  * Helper for the update payloads that contain a single payload value.

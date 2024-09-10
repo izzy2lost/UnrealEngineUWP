@@ -7,6 +7,7 @@
 #include "IStructureDetailsView.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
+#include "SChaosVDMainTab.h"
 #include "Visualizers/ChaosVDSolverCollisionDataComponentVisualizer.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -253,7 +254,11 @@ TSharedRef<FName> SChaosVDCollisionDataInspector::GenerateNameForCollisionDataIt
 
 TSharedPtr<IStructureDetailsView> SChaosVDCollisionDataInspector::CreateCollisionDataDetailsView()
 {
-	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	TSharedPtr<SChaosVDMainTab> MainTabPtr = MainTabWeakPtr.Pin();
+	if (!MainTabPtr)
+	{
+		return nullptr;
+	}
 
 	FStructureDetailsViewArgs StructDetailsViewArgs;
 	FDetailsViewArgs DetailsViewArgs;
@@ -262,7 +267,7 @@ TSharedPtr<IStructureDetailsView> SChaosVDCollisionDataInspector::CreateCollisio
 	DetailsViewArgs.bAllowSearch = false;
 	DetailsViewArgs.bShowScrollBar = false;
 
-	return PropertyEditorModule.CreateStructureDetailView(DetailsViewArgs,StructDetailsViewArgs, nullptr);
+	return MainTabPtr->CreateStructureDetailsView(DetailsViewArgs,StructDetailsViewArgs, nullptr);
 }
 
 EVisibility SChaosVDCollisionDataInspector::GetDetailsSectionVisibility() const

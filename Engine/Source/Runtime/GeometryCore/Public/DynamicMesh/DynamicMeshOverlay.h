@@ -628,6 +628,8 @@ public:
 	void OnPokeTriangle(const DynamicMeshInfo::FPokeTriangleInfo& PokeInfo);
 	/** Update the overlay to reflect an edge merge in the parent mesh */
 	void OnMergeEdges(const DynamicMeshInfo::FMergeEdgesInfo& MergeInfo);
+	/** Update the overlay to reflect a vertex merge in the parent mesh */
+	void OnMergeVertices(const DynamicMeshInfo::FMergeVerticesInfo& MergeInfo);
 	/** Update the overlay to reflect a vertex split in the parent mesh */
 	void OnSplitVertex(const DynamicMeshInfo::FVertexSplitInfo& SplitInfo, const TArrayView<const int>& TrianglesToUpdate);
 

@@ -2,134 +2,29 @@
 
 #include "DaySequenceModifierComponent.h"
 
-#include "Components/BoxComponent.h"
 #include "DaySequence.h"
 #include "DaySequenceCollectionAsset.h"
 #include "DaySequenceModule.h"
 #include "DaySequencePlayer.h"
-#include "DaySequenceTrack.h"
 #include "DaySequenceStaticTime.h"
-
-#include "Engine/World.h"
-#include "Materials/MaterialInterface.h"
-
-#include "Components/CapsuleComponent.h"
-#include "Components/SphereComponent.h"
+#include "DaySequenceTrack.h"
 
 #include "MovieScene.h"
-#include "MovieSceneTrack.h"
 #include "MovieSceneSection.h"
-#include "MovieSceneBinding.h"
-#include "MovieScenePossessable.h"
-
-#include "Tracks/MovieSceneSubTrack.h"
-#include "Tracks/MovieSceneBoolTrack.h"
-#include "Tracks/MovieSceneFloatTrack.h"
-#include "Tracks/MovieSceneColorTrack.h"
-#include "Tracks/MovieSceneDoubleTrack.h"
-#include "Tracks/MovieSceneVectorTrack.h"
-#include "Tracks/MovieSceneMaterialTrack.h"
-#include "Tracks/MovieSceneVisibilityTrack.h"
-#include "Tracks/MovieScene3DTransformTrack.h"
-#include "Tracks/MovieScenePrimitiveMaterialTrack.h"
-
-#include "Sections/MovieSceneSubSection.h"
-#include "Sections/MovieSceneBoolSection.h"
-#include "Sections/MovieSceneFloatSection.h"
-#include "Sections/MovieSceneColorSection.h"
-#include "Sections/MovieSceneDoubleSection.h"
-#include "Sections/MovieSceneVectorSection.h"
-#include "Sections/MovieScene3DTransformSection.h"
-#include "Sections/MovieScenePrimitiveMaterialSection.h"
-
+#include "MovieSceneTrack.h"
+#include "Components/BoxComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/SphereComponent.h"
+#include "Engine/World.h"
+#include "Materials/MaterialInterface.h"
 #include "ProfilingDebugging/CsvProfiler.h"
-
-#if ENABLE_DRAW_DEBUG
-#endif
+#include "Sections/MovieSceneSubSection.h"
+#include "Tracks/MovieSceneSubTrack.h"
 
 #define LOCTEXT_NAMESPACE "DaySequenceModifierComponent"
 
 namespace UE::DaySequence
 {
-	template<typename TrackType>
-	TrackType* CreateOrAddOverrideTrack(UMovieScene* MovieScene, const FGuid& ObjectGuid, FName Name = NAME_None)
-	{
-		TrackType* Track = MovieScene->FindTrack<TrackType>(ObjectGuid, Name);
-		if (!Track)
-		{
-			// Clear RF_Transactional and set RF_Transient on created tracks and sections
-			// to avoid dirtying the package for these procedurally generated sequences.
-			// RF_Transactional is explicitly set in UMovieSceneSection/Track::PostInitProperties.
-			Track = NewObject<TrackType>(MovieScene, NAME_None, RF_Transient);
-			Track->ClearFlags(RF_Transactional);
-
-			UMovieSceneSection* Section = Track->CreateNewSection();
-			Section->ClearFlags(RF_Transactional);
-			Section->SetFlags(RF_Transient);
-			Section->SetRange(TRange<FFrameNumber>::All());
-
-			Track->AddSection(*Section);
-			MovieScene->AddGivenTrack(Track, ObjectGuid);
-		}
-
-		return Track;
-	}
-
-	template<typename TrackType>
-	TrackType* CreateOrAddPropertyOverrideTrack(UMovieScene* MovieScene, const FGuid& ObjectGuid, FName InPropertyName)
-	{
-		TrackType* Track = CreateOrAddOverrideTrack<TrackType>(MovieScene, ObjectGuid, InPropertyName);
-		check(Track);
-		
-		const FString PropertyPath = InPropertyName.ToString();
-
-		// Split the property path to capture the leaf property name and parent struct to conform
-		// with Sequencer Editor property name/path and display name conventions:
-		//
-		// PropertyName = MyProperty
-		// PropertyPath = MyPropertyStruct.MyProperty
-		// DisplayName = PropertyName (PropertyStruct)
-		FName PropertyName;
-		FName PropertyParent;
-		int32 NamePos = INDEX_NONE;
-		if (PropertyPath.FindLastChar('.', NamePos) && NamePos < PropertyPath.Len() - 1)
-		{
-			PropertyName = FName(FStringView(*PropertyPath + NamePos + 1, PropertyPath.Len() - NamePos - 1));
-			PropertyParent = FName(FStringView(*PropertyPath, NamePos));
-		}
-		else
-		{
-			PropertyName = *PropertyPath;
-		}
-		
-		Track->SetPropertyNameAndPath(PropertyName, PropertyPath);
-
-#if WITH_EDITOR
-		if (NamePos != INDEX_NONE)
-		{
-			FText DisplayText = FText::Format(LOCTEXT("ModifierPropertyTrackFormat", "{0} ({1})"), FText::FromName(PropertyName), FText::FromName(PropertyParent));
-			Track->SetDisplayName(DisplayText);
-		}
-#endif
-		return Track;
-	}
-
-	template<typename TrackType, typename SectionType>
-	SectionType* CreateOrAddPropertyOverrideSection(UMovieScene* MovieScene, const FGuid& ObjectGuid, FName PropertyName)
-	{
-		TrackType* Track = CreateOrAddPropertyOverrideTrack<TrackType>(MovieScene, ObjectGuid, PropertyName);
-		check(Track);
-		return Cast<SectionType>(Track->GetAllSections()[0]);
-	}
-
-	template<typename TrackType, typename SectionType>
-	SectionType* CreateOrAddOverrideSection(UMovieScene* MovieScene, const FGuid& ObjectGuid)
-	{
-		TrackType* Track = CreateOrAddOverrideTrack<TrackType>(MovieScene, ObjectGuid);
-		check(Track);
-		return Cast<SectionType>(Track->GetAllSections()[0]);
-	}
-
 	FVector GVolumePreviewLocation = FVector::ZeroVector;
 	bool bIsSimulating = false;
 
@@ -190,24 +85,6 @@ namespace UE::DaySequence
 		// @todo: unsupported shape?
 		return (InWorldPosition - ShapeComponent->GetComponentLocation()).Length();
 	}
-
-	bool TestValidProperty(UObject* Object, FProperty* Property)
-	{
-		if (!Property)
-		{
-			FFrame::KismetExecutionMessage(*FString::Printf(TEXT("Invalid property specified for object %s."), *Object->GetName()), ELogVerbosity::Error);
-			return false;
-		}
-
-		if (Property->HasAnyPropertyFlags(CPF_Deprecated))
-		{
-			// Emit a warning for deprecated properties but still consider them valid
-			FFrame::KismetExecutionMessage(*FString::Printf(TEXT("Depcrecated property specified: %s for object %s."), *Property->GetName(), *Object->GetName()), ELogVerbosity::Warning);
-		}
-
-		return true;
-	}
-
 } // namespace UE::DaySequence
 
 void UDaySequenceModifierEasingFunction::Initialize(EEasingFunctionType EasingType)
@@ -317,11 +194,6 @@ void UDaySequenceModifierComponent::UpdateEditorPreview(float DeltaTime)
 				// If we're using a blend we have to mark active sections as changed
 				// in order to force an update in-editor:
 				
-				if (UMovieSceneSubSection* SubSection = WeakSubSection.Get())
-				{
-					SubSection->MarkAsChanged();
-				}
-
 				for (TWeakObjectPtr<UMovieSceneSubSection> SubSection : SubSections)
 				{
 					UMovieSceneSubSection* StrongSubSection = SubSection.Get();
@@ -444,29 +316,6 @@ void UDaySequenceModifierComponent::EndPlay(EEndPlayReason::Type Reason)
 	RemoveSubSequenceTrack();
 }
 
-void UDaySequenceModifierComponent::ResetOverrides()
-{
-	if (ProceduralDaySequence)
-	{
-		UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene();
-		TArray<FMovieSceneBinding> Bindings = MovieScene->GetBindings();
-
-		for (const FMovieSceneBinding& Binding : Bindings)
-		{
-			FGuid BindingID = Binding.GetObjectGuid();
-
-			ProceduralDaySequence->UnbindPossessableObjects(BindingID);
-			MovieScene->RemovePossessable(BindingID);
-		}
-	}
-
-	if (TargetActor && bUnpauseOnDisable)
-	{
-		TargetActor->Play();
-		bUnpauseOnDisable = false;
-	}
-}
-
 void UDaySequenceModifierComponent::BindToDaySequenceActor(ADaySequenceActor* DaySequenceActor)
 {
 	if (TargetActor == DaySequenceActor)
@@ -543,9 +392,6 @@ void UDaySequenceModifierComponent::RemoveSubSequenceTrack()
 		}
 	};
 	
-	RemoveSubTrack(WeakSubSection.Get());
-	WeakSubSection = nullptr;
-
 	for (const TWeakObjectPtr<UMovieSceneSubSection> SubSection : SubSections)
 	{
 		RemoveSubTrack(SubSection.Get());
@@ -791,15 +637,21 @@ void UDaySequenceModifierComponent::ReinitializeSubSequence(ADaySequenceActor::F
 				{
 					InitializeDaySequence(Entry);
 				}
+
+				for (TInstancedStruct<FProceduralDaySequence>& ProceduralEntry : DaySequenceCollection->ProceduralDaySequences)
+				{
+					if (!ProceduralEntry.IsValid())
+					{
+						continue;
+					}
+			
+					InitializeDaySequence(ProceduralEntry.GetMutable<FProceduralDaySequence>().GetSequence(TargetActor));
+				}
 			}
 		}
 		else
 		{
-			// Always create the sub section even if it is nullptr. This means that
-			// if the procedural day sequence is created later, we can still add it to the sub section
-			UDaySequence* SequenceToUse = UserDaySequence ? UserDaySequence : ProceduralDaySequence;
-	
-			WeakSubSection = InitializeDaySequence(SequenceToUse);
+			InitializeDaySequence(UserDaySequence ? UserDaySequence : TransientSequence);
 		}
 #if ROOT_SEQUENCE_RECONSTRUCTION_ENABLED
 	}
@@ -962,407 +814,48 @@ UMovieSceneSubSection* UDaySequenceModifierComponent::InitializeDaySequence(cons
 	return SubSection;
 }
 
-FGuid UDaySequenceModifierComponent::GetOrCreateProceduralBinding(UObject* Object)
-{
-	if (!Object)
-	{
-		FFrame::KismetExecutionMessage(TEXT("Null Object parameter specified."), ELogVerbosity::Error);
-		return FGuid();
-	}
-
-	USceneComponent* Component = Cast<USceneComponent>(Object);
-	AActor*          Actor     = Cast<AActor>(Object);
-
-	// Set up the time of day actor binding if we don't have one already
-	if (!TargetActor)
-	{
-		if (Actor)
-		{
-			TargetActor = Cast<ADaySequenceActor>(Actor);
-		}
-		else if (Component)
-		{
-			TargetActor = Cast<ADaySequenceActor>(Component->GetOwner());
-		}
-	}
-
-	if (!TargetActor)
-	{
-		FFrame::KismetExecutionMessage(TEXT("No valid ADaySequenceActor has been set up. Have you called BindToDaySequenceActor yet?"), ELogVerbosity::Error);
-		return FGuid();
-	}
-
-	if (Component && !Component->IsIn(TargetActor))
-	{
-		FFrame::KismetExecutionMessage(TEXT("Unable to bind to components that exist outside of the ADaySequenceActor we are tracking."), ELogVerbosity::Error);
-		return FGuid();
-	}
-
-	if (Actor && Actor != TargetActor)
-	{
-		FFrame::KismetExecutionMessage(TEXT("Unable to bind to actors that are not the ADaySequenceActor we are tracking."), ELogVerbosity::Error);
-		return FGuid();
-	}
-
-	if (!ProceduralDaySequence)
-	{
-		// Name the procedural sequence the same as this component's owner so it shows up in the Sequence
-		// with a meaningful name
-#if WITH_EDITOR
-		FName SequenceName = MakeUniqueObjectName(this, UDaySequence::StaticClass(), *GetOwner()->GetActorLabel());
-#else
-		FName SequenceName = MakeUniqueObjectName(this, UDaySequence::StaticClass(), GetOwner()->GetFName());
-#endif
-
-		ProceduralDaySequence = NewObject<UDaySequence>(this, SequenceName);
-		ProceduralDaySequence->Initialize(RF_Transient);
-	}
-
-	// If we have a sub section but it has no sequence applied, apply it now.
-	// This implies EnableModifier was called before we had any valid sequence data
-	UMovieSceneSubSection* SubSection = WeakSubSection.Get();
-	if (SubSection && SubSection->GetSequence() == nullptr)
-	{
-		SubSection->SetIsLocked(false);
-		SubSection->MarkAsChanged();
-		SubSection->SetSequence(ProceduralDaySequence);
-		SubSection->SetIsLocked(true);
-	}
-
-	UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene();
-
-	TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(TargetActor, ProceduralDaySequence);
-
-	// Find the main binding
-	FGuid RootGuid = ProceduralDaySequence->FindBindingFromObject(TargetActor, SharedPlaybackState);
-	if (!RootGuid.IsValid())
-	{
-		FString RootName = TargetActor->GetName();
-		FMovieScenePossessable Possessable(RootName, TargetActor->GetClass());
-		FMovieSceneBinding     Binding(Possessable.GetGuid(), RootName);
-
-		RootGuid = Possessable.GetGuid();
-
-		// Explicitly invoke MarkAsChanged to ensure proper notification at runtime.
-		// The Modify that AddPossessable invokes only works in editor.
-		MovieScene->MarkAsChanged();
-		MovieScene->AddPossessable(Possessable, Binding);
-		ProceduralDaySequence->BindPossessableObject(RootGuid, *TargetActor, TargetActor);
-	}
-
-	// If we're trying to animate the actor, just return the root binding
-	if (Actor)
-	{
-		return RootGuid;
-	}
-
-	// If we're trying to animate a component within the actor, retrieve or create a child binding for that
-	FGuid ComponentGuid = ProceduralDaySequence->FindBindingFromObject(Component, SharedPlaybackState);
-	if (!ComponentGuid.IsValid() && Component)
-	{
-		FString Name = Component->GetName();
-		FMovieScenePossessable Possessable(Name, Component->GetClass());
-		FMovieSceneBinding     Binding(Possessable.GetGuid(), Name);
-
-		Possessable.SetParent(RootGuid, MovieScene);
-		ComponentGuid = Possessable.GetGuid();
-
-		// Explicitly invoke MarkAsChanged to ensure proper notification at runtime.
-		// The Modify that AddPossessable invokes only works in editor.
-		MovieScene->MarkAsChanged();
-		MovieScene->AddPossessable(Possessable, Binding);
-		ProceduralDaySequence->BindPossessableObject(ComponentGuid, *Component, TargetActor);
-	}
-
-	return ComponentGuid;
-}
-
-void UDaySequenceModifierComponent::AddScalarOverride(UObject* Object, FName PropertyName, double Value)
-{
-	using namespace UE::DaySequence;
-	using namespace	UE::MovieScene;
-
-	FGuid ObjectGuid = GetOrCreateProceduralBinding(Object);
-	if (!ObjectGuid.IsValid())
-	{
-		return;
-	}
-
-	check(ProceduralDaySequence);
-
-	// Create the new track
-	UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene();
-
-	FTrackInstancePropertyBindings Bindings(PropertyName, PropertyName.ToString());
-	FProperty* Property = Bindings.GetProperty(*Object);
-	if (!TestValidProperty(Object, Property))
-	{
-		// Do nothing
-	}
-	else if (Property->IsA<FFloatProperty>())
-	{
-		UMovieSceneFloatSection* FloatSection = CreateOrAddPropertyOverrideSection<UMovieSceneFloatTrack, UMovieSceneFloatSection>(MovieScene, ObjectGuid, PropertyName);
-		FloatSection->GetChannel().SetDefault(static_cast<float>(Value));
-	}
-	else if (Property->IsA<FDoubleProperty>())
-	{
-		UMovieSceneDoubleSection* DoubleSection = CreateOrAddPropertyOverrideSection<UMovieSceneDoubleTrack, UMovieSceneDoubleSection>(MovieScene, ObjectGuid, PropertyName);
-		DoubleSection->GetChannel().SetDefault(Value);
-	}
-	else
-	{
-		FFrame::KismetExecutionMessage(*FString::Printf(TEXT("Unable to animate a %s property as a scalar."), *Property->GetClass()->GetName()), ELogVerbosity::Error);
-	}
-}
-
-void UDaySequenceModifierComponent::AddColorOverride(UObject* Object, FName PropertyName, FLinearColor Value)
-{
-	using namespace UE::DaySequence;
-
-	FGuid ObjectGuid = GetOrCreateProceduralBinding(Object);
-	if (!ObjectGuid.IsValid())
-	{
-		return;
-	}
-
-	check(ProceduralDaySequence);
-
-	// Create the new track
-	UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene();
-
-	FTrackInstancePropertyBindings Bindings(PropertyName, PropertyName.ToString());
-	FProperty* Property = Bindings.GetProperty(*Object);
-	if (!TestValidProperty(Object, Property))
-	{
-		// Do nothing
-	}
-	else if (Property->IsA<FStructProperty>() && 
-		(CastField<FStructProperty>(Property)->Struct == TBaseStructure<FLinearColor>::Get() || CastField<FStructProperty>(Property)->Struct == TBaseStructure<FColor>::Get()) )
-	{
-		UMovieSceneColorSection* ColorSection = CreateOrAddPropertyOverrideSection<UMovieSceneColorTrack, UMovieSceneColorSection>(MovieScene, ObjectGuid, PropertyName);
-
-		ColorSection->GetRedChannel().SetDefault(Value.R);
-		ColorSection->GetGreenChannel().SetDefault(Value.G);
-		ColorSection->GetBlueChannel().SetDefault(Value.B);
-		ColorSection->GetAlphaChannel().SetDefault(Value.A);
-	}
-}
-
-void UDaySequenceModifierComponent::AddMaterialOverride(UObject* Object, int32 MaterialIndex, UMaterialInterface* Value)
-{
-	using namespace UE::DaySequence;
-
-	FGuid ObjectGuid = GetOrCreateProceduralBinding(Object);
-	if (!ObjectGuid.IsValid())
-	{
-		return;
-	}
-
-	check(ProceduralDaySequence);
-
-	// Create the new track
-	UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene();
-
-	UMovieScenePrimitiveMaterialTrack* MaterialTrack = CreateOrAddOverrideTrack<UMovieScenePrimitiveMaterialTrack>(MovieScene, ObjectGuid);
-	MaterialTrack->SetMaterialInfo(FComponentMaterialInfo{ FName(), MaterialIndex, EComponentMaterialType::IndexedMaterial });
-
-	UMovieScenePrimitiveMaterialSection* Section = Cast<UMovieScenePrimitiveMaterialSection>(MaterialTrack->GetAllSections()[0]);
-	Section->MaterialChannel.SetDefault(Value);
-}
-
-void UDaySequenceModifierComponent::AddScalarMaterialParameterOverride(UObject* Object, int32 MaterialIndex, FName ParameterName, float Value)
-{
-	using namespace UE::DaySequence;
-
-	FGuid ObjectGuid = GetOrCreateProceduralBinding(Object);
-	if (!ObjectGuid.IsValid())
-	{
-		return;
-	}
-
-	check(ProceduralDaySequence);
-
-	// Create the new track or locate an existing one
-	UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene();
-
-	// Material parameter tracks use the material index as the unique name
-	FName IndexAsName(*FString::FromInt(MaterialIndex));
-	UMovieSceneComponentMaterialTrack* MaterialTrack = CreateOrAddOverrideTrack<UMovieSceneComponentMaterialTrack>(MovieScene, ObjectGuid, IndexAsName);
-
-	MaterialTrack->SetMaterialInfo(FComponentMaterialInfo{FName(), MaterialIndex, EComponentMaterialType::IndexedMaterial });
-	MaterialTrack->AddScalarParameterKey(ParameterName, 0, Value);
-}
-
-void UDaySequenceModifierComponent::AddColorMaterialParameterOverride(UObject* Object, int32 MaterialIndex, FName ParameterName, FLinearColor Value)
-{
-	using namespace UE::DaySequence;
-
-	FGuid ObjectGuid = GetOrCreateProceduralBinding(Object);
-	if (!ObjectGuid.IsValid())
-	{
-		return;
-	}
-
-	check(ProceduralDaySequence);
-
-	// Create the new track or locate an existing one
-	UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene();
-
-	// Material parameter tracks use the material index as the unique name
-	FName IndexAsName(*FString::FromInt(MaterialIndex));
-	UMovieSceneComponentMaterialTrack* MaterialTrack = CreateOrAddOverrideTrack<UMovieSceneComponentMaterialTrack>(MovieScene, ObjectGuid, IndexAsName);
-
-	MaterialTrack->SetMaterialInfo(FComponentMaterialInfo{ FName(), MaterialIndex, EComponentMaterialType::IndexedMaterial });
-	MaterialTrack->AddColorParameterKey(ParameterName, 0, Value);
-}
-
-void UDaySequenceModifierComponent::AddVectorOverride(UObject* Object, FName PropertyName, FVector Value)
-{
-	using namespace UE::DaySequence;
-
-	FGuid ObjectGuid = GetOrCreateProceduralBinding(Object);
-	if (!ObjectGuid.IsValid())
-	{
-		return;
-	}
-
-	check(ProceduralDaySequence);
-
-	// Create the new track
-	UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene();
-
-	FTrackInstancePropertyBindings Bindings(PropertyName, PropertyName.ToString());
-	FProperty* Property = Bindings.GetProperty(*Object);
-	if (!TestValidProperty(Object, Property))
-	{
-		// Do nothing
-	}
-	else if (Property->IsA<FStructProperty>() && CastField<FStructProperty>(Property)->Struct == TBaseStructure<FVector>::Get())
-	{
-		UMovieSceneDoubleVectorSection* VectorSection = CreateOrAddPropertyOverrideSection<UMovieSceneDoubleVectorTrack, UMovieSceneDoubleVectorSection>(MovieScene, ObjectGuid, PropertyName);
-
-		VectorSection->SetChannelsUsed(3);
-
-		VectorSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(0)->SetDefault(Value.X);
-		VectorSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(1)->SetDefault(Value.Y);
-		VectorSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(2)->SetDefault(Value.Z);
-	}
-}
-
-void UDaySequenceModifierComponent::AddTransformOverride(UObject* Object, FTransform Value)
-{
-	using namespace UE::DaySequence;
-
-	FGuid ObjectGuid = GetOrCreateProceduralBinding(Object);
-	if (!ObjectGuid.IsValid())
-	{
-		return;
-	}
-
-	check(ProceduralDaySequence);
-
-	// Create the new track
-	UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene();
-
-	UMovieScene3DTransformSection* TransformSection = CreateOrAddPropertyOverrideSection<UMovieScene3DTransformTrack, UMovieScene3DTransformSection>(MovieScene, ObjectGuid, "Transform");
-
-	TransformSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(0)->SetDefault(Value.GetLocation().X);
-	TransformSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(1)->SetDefault(Value.GetLocation().Y);
-	TransformSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(2)->SetDefault(Value.GetLocation().Z);
-
-	TransformSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(3)->SetDefault(Value.Rotator().Roll);
-	TransformSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(4)->SetDefault(Value.Rotator().Pitch);
-	TransformSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(5)->SetDefault(Value.Rotator().Yaw);
-
-	TransformSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(6)->SetDefault(Value.GetScale3D().X);
-	TransformSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(7)->SetDefault(Value.GetScale3D().Y);
-	TransformSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(8)->SetDefault(Value.GetScale3D().Z);
-}
-
-void UDaySequenceModifierComponent::AddStaticTimeOfDayOverride(ADaySequenceActor* Actor, float Hours)
-{
-	using namespace UE::DaySequence;
-
-	FGuid ObjectGuid = GetOrCreateProceduralBinding(Actor);
-	if (!ObjectGuid.IsValid())
-	{
-		return;
-	}
-
-	check(ProceduralDaySequence);
-
-	// Create the new track
-	UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene();
-
-	UMovieSceneFloatSection* Section = CreateOrAddPropertyOverrideSection<UMovieSceneFloatTrack, UMovieSceneFloatSection>(MovieScene, ObjectGuid, "StaticTimeOfDay");
-	Section->GetChannel().SetDefault(Hours);
-}
-
-void UDaySequenceModifierComponent::AddBoolOverride(UObject* Object, FName PropertyName, bool bValue)
-{
-	using namespace UE::DaySequence;
-
-	FGuid ObjectGuid = GetOrCreateProceduralBinding(Object);
-	if (!ObjectGuid.IsValid())
-	{
-		return;
-	}
-
-	check(ProceduralDaySequence);
-
-	// Create the new track
-	UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene();
-
-	FTrackInstancePropertyBindings Bindings(PropertyName, PropertyName.ToString());
-	FProperty* Property = Bindings.GetProperty(*Object);
-	if (!TestValidProperty(Object, Property))
-	{
-		// Do nothing
-	}
-	else if (Property->IsA<FBoolProperty>())
-	{
-		UMovieSceneBoolSection* Section = CreateOrAddPropertyOverrideSection<UMovieSceneBoolTrack, UMovieSceneBoolSection>(MovieScene, ObjectGuid, PropertyName);
-		Section->GetChannel().SetDefault(bValue);
-	}
-}
-
-void UDaySequenceModifierComponent::AddVisibilityOverride(UObject* Object, bool bValue)
-{
-	using namespace UE::DaySequence;
-
-	FGuid ObjectGuid = GetOrCreateProceduralBinding(Object);
-	if (!ObjectGuid.IsValid())
-	{
-		return;
-	}
-
-	check(ProceduralDaySequence);
-
-	// Create the new track
-	UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene();
-
-	static const FName ActorVisibilityTrackName = TEXT("bHidden");
-	static const FName ComponentVisibilityTrackName = TEXT("bHiddenInGame");
-
-	const bool bIsComponent = Object->IsA<USceneComponent>();
-	const bool bIsActor     = Object->IsA<AActor>();
-
-	if (bIsComponent)
-	{
-		UMovieSceneBoolSection* VisibilitySection = CreateOrAddPropertyOverrideSection<UMovieSceneVisibilityTrack, UMovieSceneBoolSection>(MovieScene, ObjectGuid, "bHiddenInGame");
-		VisibilitySection->GetChannel().SetDefault(bValue);
-	}
-	else if (bIsActor)
-	{
-		UMovieSceneBoolSection* VisibilitySection = CreateOrAddPropertyOverrideSection<UMovieSceneVisibilityTrack, UMovieSceneBoolSection>(MovieScene, ObjectGuid, "bHidden");
-		VisibilitySection->GetChannel().SetDefault(bValue);
-	}
-}
-
 void UDaySequenceModifierComponent::SetUserDaySequence(UDaySequence* InDaySequence)
 {
+	if (InDaySequence && InDaySequence->HasAnyFlags(RF_Transient))
+	{
+		FFrame::KismetExecutionMessage(TEXT("SetUserDaySequence called with a transient sequence, use SetTransientSequence instead!"), ELogVerbosity::Error);
+		return;
+	}
+
 	UserDaySequence = InDaySequence;
 	ReinitializeSubSequence(nullptr);
+}
+
+UDaySequence* UDaySequenceModifierComponent::GetUserDaySequence()
+{
+	return UserDaySequence;
+}
+
+void UDaySequenceModifierComponent::SetTransientSequence(UDaySequence* InDaySequence)
+{
+	if (InDaySequence && !InDaySequence->HasAnyFlags(RF_Transient))
+	{
+		FFrame::KismetExecutionMessage(TEXT("SetTransientSequence called with a non-transient sequence, use SetUserDaySequence instead!"), ELogVerbosity::Error);
+		return;
+	}
+	
+	TransientSequence = InDaySequence;
+	ReinitializeSubSequence(nullptr);
+}
+	
+UDaySequence* UDaySequenceModifierComponent::GetTransientSequence()
+{
+	return TransientSequence;
+}
+
+void UDaySequenceModifierComponent::SetDayNightCycle(EDayNightCycleMode NewMode)
+{
+	DayNightCycle = NewMode;
+}
+
+void UDaySequenceModifierComponent::SetDayNightCycleTime(float Time)
+{
+	DayNightCycleTime = Time;
 }
 
 void UDaySequenceModifierComponent::SetMode(EDaySequenceModifierMode NewMode)

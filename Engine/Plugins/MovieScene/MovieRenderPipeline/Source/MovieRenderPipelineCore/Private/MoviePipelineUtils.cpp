@@ -13,12 +13,14 @@
 #include "AssetRegistry/AssetData.h"
 #include "UObject/UObjectIterator.h"
 #include "HAL/IConsoleManager.h"
+#include "Interfaces/Interface_PostProcessVolume.h"
 #include "MoviePipelineAntiAliasingSetting.h"
 #include "Tracks/MovieSceneSubTrack.h"
 #include "Tracks/MovieSceneCameraCutTrack.h"
 #include "Tracks/MovieSceneCinematicShotTrack.h"
 #include "Sections/MovieSceneCinematicShotSection.h"
 #include "Sections/MovieSceneCameraCutSection.h"
+#include "SceneView.h"
 #include "MovieScene.h"
 #include "MovieSceneSequence.h"
 #include "MovieRenderPipelineCoreModule.h"
@@ -1020,6 +1022,42 @@ namespace UE
 			}
 
 			return FString::Printf(TEXT("%0*d"), InZeroPadCount, InFrameNumber);
+		}
+
+		void DoPostProcessBlend(const FVector& InViewLocation, const UWorld* InWorld, const FMinimalViewInfo& InViewInfo, FSceneView* InOutView)
+		{
+			for (IInterface_PostProcessVolume* PPVolume : InWorld->PostProcessVolumes)
+			{
+				const FPostProcessVolumeProperties VolumeProperties = PPVolume->GetProperties();
+
+				// Skip any volumes which are disabled
+				if (!VolumeProperties.bIsEnabled)
+				{
+					continue;
+				}
+
+				float LocalWeight = FMath::Clamp(VolumeProperties.BlendWeight, 0.0f, 1.0f);
+
+				if (!VolumeProperties.bIsUnbound)
+				{
+					float DistanceToPoint = 0.0f;
+					PPVolume->EncompassesPoint(InViewLocation, 0.0f, &DistanceToPoint);
+
+					if (DistanceToPoint >= 0 && DistanceToPoint < VolumeProperties.BlendRadius)
+					{
+						LocalWeight *= FMath::Clamp(1.0f - DistanceToPoint / VolumeProperties.BlendRadius, 0.0f, 1.0f);
+					}
+					else
+					{
+						LocalWeight = 0.0f;
+					}
+				}
+
+				InOutView->OverridePostProcessSettings(*VolumeProperties.Settings, LocalWeight);
+			}
+
+			// After blending all post processing volumes, blend the camera's post process settings too
+			InOutView->OverridePostProcessSettings(InViewInfo.PostProcessSettings, InViewInfo.PostProcessBlendWeight);
 		}
 
 	}

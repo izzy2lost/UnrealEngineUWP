@@ -22,13 +22,12 @@ struct OPTIMUSCORE_API FOptimusValueContainerStruct
 
 	bool IsInitialized() const;
 	void SetType(FOptimusDataTypeRef InDataType);
+	void SetValue(FOptimusDataTypeRef InDataType, TArrayView<const uint8> InValue);
 	FShaderValueContainer GetShaderValue(FOptimusDataTypeRef InDataType) const;
+	FString GetValueAsString() const;
+	
+private:
 	const FProperty* GetValueProperty() const;
 	const uint8* GetValueMemory() const;
-	
-protected:
-	friend class UOptimusValueContainer;
-	
-	uint8* GetMutableValueMemory();
-	
+
 };

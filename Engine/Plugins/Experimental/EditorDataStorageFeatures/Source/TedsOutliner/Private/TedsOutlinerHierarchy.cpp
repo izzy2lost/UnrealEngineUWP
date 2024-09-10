@@ -49,7 +49,7 @@ FSceneOutlinerTreeItemPtr FTedsOutlinerHierarchy::FindOrCreateParentItem(const I
 	const TMap<FSceneOutlinerTreeItemID, FSceneOutlinerTreeItemPtr>& Items, bool bCreate)
 {
 	const FTedsOutlinerTreeItem* TedsTreeItem = Item.CastTo<FTedsOutlinerTreeItem>();
-	const ITypedElementDataStorageInterface* Storage = TedsOutlinerImpl->GetStorage();
+	const IEditorDataStorageProvider* Storage = TedsOutlinerImpl->GetStorage();
 	
 	// If this item is not a TEDS item, we are not handling it
 	if(!TedsTreeItem)

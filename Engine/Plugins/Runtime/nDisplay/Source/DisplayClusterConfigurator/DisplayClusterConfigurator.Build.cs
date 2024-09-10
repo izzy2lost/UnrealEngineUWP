@@ -22,6 +22,7 @@ public class DisplayClusterConfigurator : ModuleRules
 				"AssetTools",
 				"CinematicCamera",
 				"ClassViewer",
+				"ColorGradingEditor",
 				"Core",
 				"CoreUObject",
 				"DesktopPlatform",

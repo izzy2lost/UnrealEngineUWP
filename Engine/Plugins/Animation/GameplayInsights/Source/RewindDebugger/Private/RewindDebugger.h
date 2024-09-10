@@ -179,6 +179,7 @@ private:
 	FOnComponentListChanged ComponentListChangedDelegate;
 	FOnTrackCursor TrackCursorDelegate;
 
+	bool bQueueStartRecording = false;
 	bool bTraceJustConnected = false;
 	bool bPIEStarted = false;
 	bool bPIESimulating = false;

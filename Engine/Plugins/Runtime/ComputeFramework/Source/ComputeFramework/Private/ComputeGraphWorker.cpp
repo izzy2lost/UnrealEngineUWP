@@ -326,11 +326,24 @@ void FComputeGraphTaskWorker::SubmitWork(FRDGBuilder& GraphBuilder, FName InExec
 		}
 	}
 
+	// Let proxies perform any post-graph-dispatch actions.
+	// TODO: Given few proxies currently implement this method, it may be better to record which proxies require this callback rather than calling on all.
+	for (FSubmitDescription const& SubmitDesc : SubmitDescs)
+	{
+		const int32 GraphIndex = SubmitDesc.GraphIndex;
+		FGraphInvocation const& GraphInvocation = GraphInvocations[GraphIndex];
+		for (const FComputeDataProviderRenderProxy* Proxy : GraphInvocation.DataProviderRenderProxies)
+		{
+			if (Proxy)
+			{
+				Proxy->PostGraphDispatch(GraphBuilder);
+			}
+		}
+	}
+
 	// Release any graph resources at the end of graph execution.
-	GraphBuilder.AddPass(
-		{},
-		ERDGPassFlags::None,
-		[this, InExecutionGroupName](FRHICommandList&)
+	GraphBuilder.AddPostExecuteCallback(
+		[this, InExecutionGroupName]
 		{
 			GraphInvocationsPerGroup.FindChecked(InExecutionGroupName).Reset();
 		});

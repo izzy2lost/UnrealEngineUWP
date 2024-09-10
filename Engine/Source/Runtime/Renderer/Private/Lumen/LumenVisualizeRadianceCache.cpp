@@ -185,7 +185,7 @@ void FDeferredShadingSceneRenderer::RenderLumenRadianceCacheVisualization(FRDGBu
 				RDG_EVENT_NAME("Visualize Radiance Cache Clipmap:%d", ClipmapIndex),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[PassParameters, &View, NumInstancesPerClipmap, bCalculateIrradiance](FRHICommandList& RHICmdList)
+				[PassParameters, &View, NumInstancesPerClipmap, bCalculateIrradiance](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					TShaderMapRef<FVisualizeRadianceCacheVS> VertexShader(View.ShaderMap);
 

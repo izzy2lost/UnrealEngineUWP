@@ -66,7 +66,11 @@
 #include "ToolPresetAssetSubsystem.h"
 #include "Selection/GeometrySelectionManager.h"
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
+#include "IAssetViewport.h"
 
+#if ENABLE_STYLUS_SUPPORT
+#include "ModelingStylusInputHandler.h"
+#endif
 
 #define LOCTEXT_NAMESPACE "FModelingToolsEditorModeToolkit"
 
@@ -170,6 +174,10 @@ FModelingToolsEditorModeToolkit::FModelingToolsEditorModeToolkit()
 
 	RecentPresetCollectionProvider = MakeShared< FRecentPresetCollectionProvider>();
 	CurrentPreset = MakeShared<FAssetData>();
+	
+#if ENABLE_STYLUS_SUPPORT
+	StylusInputHandler = MakeUnique<UE::Modeling::FStylusInputHandler>();
+#endif
 }
 
 FModelingToolsEditorModeToolkit::~FModelingToolsEditorModeToolkit()
@@ -2051,6 +2059,11 @@ void FModelingToolsEditorModeToolkit::InvokeUI()
 	// of FModeToolkit::InlineContentHolder so we can just replace it here
 	InlineContentHolder->SetContent(GetInlineContent().ToSharedRef());
 
+#if ENABLE_STYLUS_SUPPORT
+	// The ToolkitWidget is only attached to a valid window from this point onwards.
+	StylusInputHandler->RegisterWindow(ToolkitWidget.ToSharedRef());
+#endif
+
 	// if the ToolkitBuilder is being used, it will make up the UI
 	if (HasToolkitBuilder())
 	{
@@ -2393,6 +2406,13 @@ void FModelingToolsEditorModeToolkit::OnActiveViewportChanged(TSharedPtr<IAssetV
 			GetToolkitHost()->AddViewportOverlayWidget(SelectionPaletteOverlayWidget.ToSharedRef(), NewViewport);
 		}
 	}
+
+#if ENABLE_STYLUS_SUPPORT
+	if (StylusInputHandler)
+	{
+		StylusInputHandler->RegisterWindow(NewViewport->AsWidget());
+	}
+#endif
 }
 
 
@@ -2676,5 +2696,11 @@ FReply FModelingToolsEditorModeToolkit::HandleCompleteClick()
 
 	return FReply::Handled();
 }
+
+IToolStylusStateProviderAPI* FModelingToolsEditorModeToolkit::GetStylusStateProviderAPI() const
+{
+	return StylusInputHandler.Get();
+}
+
 
 #undef LOCTEXT_NAMESPACE

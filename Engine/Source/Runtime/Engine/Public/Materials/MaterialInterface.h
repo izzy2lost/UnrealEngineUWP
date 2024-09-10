@@ -942,6 +942,7 @@ public:
 	ENGINE_API virtual bool IsMasked() const;
 	ENGINE_API virtual bool IsDeferredDecal() const;
 	ENGINE_API virtual bool WritesToRuntimeVirtualTexture() const;
+	ENGINE_API virtual bool HasMeshPaintTexture() const;
 	ENGINE_API virtual FDisplacementScaling GetDisplacementScaling() const;
 	ENGINE_API virtual bool IsDisplacementFadeEnabled() const;
 	ENGINE_API virtual FDisplacementFadeRange GetDisplacementFadeRange() const;

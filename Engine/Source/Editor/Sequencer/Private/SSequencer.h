@@ -724,8 +724,6 @@ private:
 
 	void OnSidebarStateChanged(const FSidebarState& InNewState);
 
-	FReply HandleCreateFolderTrackClick();
-
 	void OnTrackFiltersChanged(const ESequencerFilterChange InChangeType, const TSharedRef<FSequencerTrackFilter>& InFilter);
 
 	/** This is the main container widget for the Sequencer (minus the toolbar). This is the parent of

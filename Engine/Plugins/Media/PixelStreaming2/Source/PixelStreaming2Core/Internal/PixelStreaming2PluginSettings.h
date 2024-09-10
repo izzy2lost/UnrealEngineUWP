@@ -368,6 +368,14 @@ public:
 		))
 	bool WebRTCDisableStats = false;
 
+	static TAutoConsoleVariable<float> CVarWebRTCStatsInterval;
+	UPROPERTY(config, EditAnywhere, Category = "WebRtcSettings", meta = (
+		ConsoleVariable = "PixelStreaming2.WebRTC.StatsInterval",
+		DisplayName = "Stats Interval",
+		ToolTip = "Configures how often WebRTC stats are collected."
+		))
+	float WebRTCStatsInterval = 1.f;
+
 	static TAutoConsoleVariable<bool> CVarWebRTCNegotiateCodecs;
 	UPROPERTY(config, EditAnywhere, Category = "WebRtcSettings", meta = (
 		ConsoleVariable = "PixelStreaming2.WebRTC.NegotiateCodecs",
@@ -596,6 +604,9 @@ public:
 
 		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnWebRTCBitrateChanged, IConsoleVariable*);
 		FOnWebRTCBitrateChanged OnWebRTCBitrateChanged;
+
+		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnWebRTCDisableStatsChanged, IConsoleVariable*);
+		FOnWebRTCDisableStatsChanged OnWebRTCDisableStatsChanged;
 
 		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnLogStatsChanged, IConsoleVariable*);
 		FOnLogStatsChanged OnLogStatsChanged;

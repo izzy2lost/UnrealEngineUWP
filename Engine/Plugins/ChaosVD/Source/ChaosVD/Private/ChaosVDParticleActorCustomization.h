@@ -10,6 +10,7 @@
 #include "PropertyHandle.h"
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
 
+class SChaosVDMainTab;
 struct FChaosVDParticleDataWrapper;
 class AChaosVDParticleActor;
 
@@ -17,13 +18,13 @@ class AChaosVDParticleActor;
 class FChaosVDParticleActorCustomization : public IDetailCustomization
 {
 public:
-	FChaosVDParticleActorCustomization();
+	FChaosVDParticleActorCustomization(const TSharedPtr<SChaosVDMainTab>& InMainTab);
 	virtual ~FChaosVDParticleActorCustomization() override;
 
 	inline static FName ParticleDataCategoryName = FName("Particle Data");
 	inline static FName GeometryCategoryName = FName("Geometry Shape Data");
 
-	static TSharedRef<IDetailCustomization> MakeInstance();
+	static TSharedRef<IDetailCustomization> MakeInstance(TSharedRef<SChaosVDMainTab> InMainTab);
 
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
 
@@ -35,12 +36,20 @@ private:
 	TSet<FName> AllowedCategories;
 	TWeakObjectPtr<AChaosVDParticleActor> CurrentObservedActor;
 
-	void HandleParticleDataUpdated();
+	void ResetCachedView();
+
+	void RegisterCVDScene(const TSharedPtr<FChaosVDScene>& InScene);
+
+	void HandleSceneUpdated();
 
 	/* Copy of the last known geometry shape data structure of a selected particle and mesh instance -  Used to avoid rebuild the layout every time we change frame in CVD */
 	FChaosVDParticleDataWrapper CachedParticleData;
 	/* Copy of the last known particle data structure of a selected particle -  Used to avoid rebuild the layout every time we change frame in CVD */
 	FChaosVDMeshDataInstanceState CachedGeometryDataInstanceCopy;
+	
+	TWeakPtr<FChaosVDScene> SceneWeakPtr = nullptr;
+
+	TWeakPtr<SChaosVDMainTab> MainTabWeakPtr = nullptr;
 };
 
 template <typename TStruct>

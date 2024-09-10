@@ -48,7 +48,7 @@ TSharedRef<SWidget> CreateOutputFloatColumnWidget(UChooserTable* Chooser, FChoos
         		})
         		.OnValueCommitted_Lambda([Chooser, OutputFloatColumn](double NewValue, ETextCommit::Type CommitType)
         		{
-					const FScopedTransaction Transaction(LOCTEXT("Edit Min Value", "Edit Min Value"));
+					const FScopedTransaction Transaction(LOCTEXT("Edit Float Value", "Edit Float Value"));
 					Chooser->Modify(true);
 					OutputFloatColumn->FallbackValue = NewValue;
         		});	
@@ -64,7 +64,7 @@ TSharedRef<SWidget> CreateOutputFloatColumnWidget(UChooserTable* Chooser, FChoos
     		{
     			if (Row < OutputFloatColumn->RowValues.Num())
     			{
-    				const FScopedTransaction Transaction(LOCTEXT("Edit Min Value", "Edit Min Value"));
+    				const FScopedTransaction Transaction(LOCTEXT("Edit Float Value", "Edit Float Value"));
     				Chooser->Modify(true);
     				OutputFloatColumn->RowValues[Row] = NewValue;
     			}

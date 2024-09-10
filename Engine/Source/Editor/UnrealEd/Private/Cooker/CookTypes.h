@@ -146,6 +146,7 @@ namespace UE::Cook
 		ForceRecook,
 		UrgencyUpdated,
 	};
+	bool IsTerminalStateChange(EStateChangeReason Reason);
 	const TCHAR* LexToString(UE::Cook::EStateChangeReason Reason);
 
 	enum class ESuppressCookReason : uint8

@@ -2,11 +2,9 @@
 
 #include "NNERuntimeRDGHlsl.h"
 
-#include "EngineAnalytics.h"
-#include "Kismet/GameplayStatics.h"
 #include "Misc/SecureHash.h"
-#include "NNE.h"
 #include "NNEAttributeMap.h"
+#include "NNEHlslShadersLog.h"
 #include "NNEModelData.h"
 #include "NNEModelOptimizerInterface.h"
 #include "NNERuntimeRDG.h"
@@ -113,7 +111,7 @@ namespace ConsoleCommands
 				FOperatorRegistryHlsl* Registry = FOperatorRegistryHlsl::Get();
 				check(Registry != nullptr);
 				FString SupportMatrix = Registry->ListAllRegisteredOperators();
-				UE_LOG(LogNNE, Display, TEXT("HLSL Operators support matrix: \n%s"), *SupportMatrix);
+				UE_LOG(LogNNERuntimeRDGHlsl, Display, TEXT("Operators support matrix: \n%s"), *SupportMatrix);
 			}
 		)
 	);
@@ -126,19 +124,19 @@ bool UNNERuntimeRDGHlslImpl::IsCurrentPlatformSupported()
 #ifndef NNE_FORCE_HARDWARE_SUPPORTS_HLSL
 	if(GMaxRHIFeatureLevel < ERHIFeatureLevel::SM5)
 	{
-		UE_LOG(LogNNE, Display, TEXT("UNNERuntimeRDGHlsl: minimum feature level required is SM5 for current RHI platform."));
+		UE_LOG(LogNNERuntimeRDGHlsl, Display, TEXT("Minimum feature level required is SM5 for current RHI platform."));
 		bResult = false;
 	}
 
 	if(!GRHISupportsWaveOperations)
 	{
-		UE_LOG(LogNNE, Display, TEXT("UNNERuntimeRDGHlsl: current RHI platform doesn't support wave operations."));
+		UE_LOG(LogNNERuntimeRDGHlsl, Display, TEXT("Current RHI platform doesn't support wave operations."));
 		bResult = false;
 	}
 
 	if(!GRHIGlobals.SupportsNative16BitOps)
 	{
-		UE_LOG(LogNNE, Display, TEXT("UNNERuntimeRDGHlsl: current RHI platform doesn't support native 16-bit operations."));
+		UE_LOG(LogNNERuntimeRDGHlsl, Display, TEXT("Current RHI platform doesn't support native 16-bit operations."));
 		bResult = false;
 	}
 #endif
@@ -151,7 +149,7 @@ UNNERuntimeRDGHlslImpl::ECanCreateModelDataStatus UNNERuntimeRDGHlslImpl::CanCre
 #ifdef NNE_UTILITIES_AVAILABLE
 	return FileType.Compare("onnx", ESearchCase::IgnoreCase) == 0 ? ECanCreateModelDataStatus::Ok : ECanCreateModelDataStatus::FailFileIdNotSupported;
 #else
-	UE_LOG(LogNNE, Display, TEXT("NNERuntimeRDGUtils is not available on this platform"));
+	UE_LOG(LogNNERuntimeRDGHlsl, Display, TEXT("NNERuntimeRDGUtils is not available on this platform"));
 	return ECanCreateModelDataStatus::Fail;
 #endif
 }
@@ -186,19 +184,19 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeRDGHlslImpl::CreateModelData(co
 	// Check model is not > 2GB
 	if ((TArray<uint8>::SizeType)FileData.Num() != FileData.Num())
 	{
-		UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeRDGHlsl cannot create the model data with id %s (Filetype: %s), models > 2GBs are not supported"), *FileId.ToString(EGuidFormats::Digits).ToLower(), *FileType);
+		UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Cannot create the model data with id %s (Filetype: %s), models > 2GBs are not supported"), *FileId.ToString(EGuidFormats::Digits).ToLower(), *FileType);
 		return {};
 	}
 
 	if (!AdditionalFileData.IsEmpty())
 	{
-		UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeRDGHlsl cannot create the model data with id %s (Filetype: %s), external data not supported at the moment, please convert the model to internal storage. See https://onnx.ai/onnx/repo-docs/ExternalData.html"), *FileId.ToString(EGuidFormats::Digits).ToLower(), *FileType);
+		UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Cannot create the model data with id %s (Filetype: %s), external data not supported at the moment, please convert the model to internal storage. See https://onnx.ai/onnx/repo-docs/ExternalData.html"), *FileId.ToString(EGuidFormats::Digits).ToLower(), *FileType);
 		return {};
 	}
 
 	if (CanCreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform) != ECanCreateModelDataStatus::Ok)
 	{
-		UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeRDGHlsl cannot create the model data with id %s (Filetype: %s)"), *FileId.ToString(EGuidFormats::Digits).ToLower(), *FileType);
+		UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Cannot create the model data with id %s (Filetype: %s)"), *FileId.ToString(EGuidFormats::Digits).ToLower(), *FileType);
 		return {};
 	}
 
@@ -238,23 +236,13 @@ TSharedPtr<UE::NNE::IModelRDG> UNNERuntimeRDGHlslImpl::CreateModelRDG(const TObj
 {
 	if (CanCreateModelRDG(ModelData) != ECanCreateModelRDGStatus::Ok)
 	{
-		UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeRDGHlsl cannot create a model from the model data with id %s"), *ModelData->GetFileId().ToString(EGuidFormats::Digits));
+		UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Cannot create a model from the model data with id %s"), *ModelData->GetFileId().ToString(EGuidFormats::Digits));
 		return TSharedPtr<UE::NNE::IModelRDG>();
 	}
 
 	TSharedPtr<UE::NNE::FSharedModelData> Data = ModelData->GetModelData(GetRuntimeName());
 	check(Data.IsValid());
 	UE::NNERuntimeRDG::Private::Hlsl::FModel* Model = new UE::NNERuntimeRDG::Private::Hlsl::FModel(Data);
-
-	if (FEngineAnalytics::IsAvailable())
-	{
-		TArray<FAnalyticsEventAttribute> Attributes = MakeAnalyticsEventAttributeArray(
-			TEXT("PlatformName"), UGameplayStatics::GetPlatformName(),
-			TEXT("HashedRuntimeName"), FMD5::HashAnsiString(*GetRuntimeName()),
-			TEXT("ModelDataSize"), Data->GetView().Num()
-		);
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("NeuralNetworkEngine.CreateModel"), Attributes);
-	}
 
 	return TSharedPtr<UE::NNE::IModelRDG>(Model);
 }

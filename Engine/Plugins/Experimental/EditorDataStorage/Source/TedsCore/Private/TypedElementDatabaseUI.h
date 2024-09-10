@@ -11,15 +11,15 @@
 
 #include "TypedElementDatabaseUI.generated.h"
 
-class ITypedElementDataStorageInterface;
-class ITypedElementDataStorageCompatibilityInterface;
+class IEditorDataStorageProvider;
+class IEditorDataStorageCompatibilityProvider;
 
 TEDSCORE_API DECLARE_LOG_CATEGORY_EXTERN(LogEditorDataStorageUI, Log, All);
 
 UCLASS()
 class TEDSCORE_API UEditorDataStorageUi final
 	: public UObject
-	, public ITypedElementDataStorageUiInterface
+	, public IEditorDataStorageUiProvider
 {
 	GENERATED_BODY()
 
@@ -27,8 +27,8 @@ public:
 	~UEditorDataStorageUi() override = default;
 
 	void Initialize(
-		ITypedElementDataStorageInterface* StorageInterface, 
-		ITypedElementDataStorageCompatibilityInterface* StorageCompatibilityInterface);
+		IEditorDataStorageProvider* StorageInterface, 
+		IEditorDataStorageCompatibilityProvider* StorageCompatibilityInterface);
 	void Deinitialize();
 
 	void RegisterWidgetPurpose(FName Purpose, EPurposeType Type, FText Description) override;
@@ -112,6 +112,6 @@ private:
 	
 	TMap<FName, FPurposeInfo> WidgetPurposes;
 	
-	ITypedElementDataStorageInterface* Storage{ nullptr };
-	ITypedElementDataStorageCompatibilityInterface* StorageCompatibility{ nullptr };
+	IEditorDataStorageProvider* Storage{ nullptr };
+	IEditorDataStorageCompatibilityProvider* StorageCompatibility{ nullptr };
 };

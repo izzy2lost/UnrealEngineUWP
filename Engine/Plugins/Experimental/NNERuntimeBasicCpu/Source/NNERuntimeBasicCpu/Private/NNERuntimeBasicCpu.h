@@ -2,9 +2,12 @@
 
 #pragma once
 
+#include "Logging/LogMacros.h"
 #include "NNERuntime.h"
 #include "NNERuntimeCPU.h"
 #include "UObject/Object.h"
+
+DECLARE_LOG_CATEGORY_EXTERN(LogNNERuntimeBasicCPU, Log, All);
 
 #include "NNERuntimeBasicCpu.generated.h"
 

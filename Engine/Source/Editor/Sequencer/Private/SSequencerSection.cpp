@@ -41,6 +41,7 @@
 #include "IKeyArea.h"
 #include "Widgets/SWeakWidget.h"
 #include "Algo/Transform.h"
+#include "Tracks/IMovieSceneSectionsToKey.h"
 
 namespace UE
 {
@@ -73,6 +74,15 @@ FTimeToPixel ConstructTimeConverterForSection(const FGeometry& InSectionGeometry
 	return FTimeToPixel(InSectionGeometry, TRange<double>(LowerTime, UpperTime), TickResolution);
 }
 
+static bool IsSectionToKey(const UMovieSceneTrack* Track, UMovieSceneSection* SectionObject)
+{
+	if (const IMovieSceneSectionsToKey* MultipleSectionsToKey = Cast<IMovieSceneSectionsToKey>(Track))
+	{
+		TArray<TWeakObjectPtr<UMovieSceneSection>> SectionsToKey = MultipleSectionsToKey->GetSectionsToKey();
+		return SectionsToKey.Contains(SectionObject);
+	}
+	return (Track->GetSectionToKey() == SectionObject);
+}
 
 struct FSequencerSectionPainterImpl : FSequencerSectionPainter
 {
@@ -788,7 +798,7 @@ struct FSequencerSectionPainterImpl : FSequencerSectionPainter
 		const bool bLocked = SectionObject->IsLocked() || SectionObject->IsReadOnly();
 
 		// Only show section to key border if we have more than one section
-		const bool bIsSectionToKey = Track && Track->GetAllSections().Num() > 1 && Track->GetSectionToKey() == SectionObject;
+		const bool bIsSectionToKey = Track && Track->GetAllSections().Num() > 1 && IsSectionToKey(Track,SectionObject);
 
 		const ESlateDrawEffect DrawEffects = bParentEnabled ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect;
 
@@ -1675,7 +1685,7 @@ void SSequencerSection::PaintEasingHandles( FSequencerSectionPainter& InPainter,
 		const float MinHandleSize = 8.f;
 
 		const ESlateDrawEffect DrawEffects = InPainter.bParentEnabled ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect;
-		const bool bIsSectionToKey = Track->GetAllSections().Num() > 1 && Track->GetSectionToKey() == UnderlappingSectionObj;
+		const bool bIsSectionToKey = Track->GetAllSections().Num() > 1 && IsSectionToKey(Track, UnderlappingSectionObj);
 
 		// If this is the section to key, we draw the easing handle in the same bright green color as the border
 		// outline. We also make the handle a bit bigger, otherwise that border being drawn on top makes it look

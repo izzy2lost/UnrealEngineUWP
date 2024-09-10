@@ -27,14 +27,17 @@ class SDMMaterialPreview : public SEditorViewport, public FGCObject
 
 	SLATE_BEGIN_ARGS(SDMMaterialPreview)
 		: _ShowMenu(true)
+		, _IsPopout(false)
 		{}
 		SLATE_ARGUMENT(bool, ShowMenu)
+		SLATE_ARGUMENT(bool, IsPopout)
 	SLATE_END_ARGS()
 
 public:
 	virtual ~SDMMaterialPreview() override;
 
-	void Construct(const FArguments& InArgs, const TSharedRef<SDMMaterialEditor>& InEditorWidget, UDynamicMaterialModelBase* InMaterialModelBase);
+	void Construct(const FArguments& InArgs, const TSharedRef<SDMMaterialEditor>& InEditorWidget, 
+		UDynamicMaterialModelBase* InMaterialModelBase);
 
 	//~ Begin SEditorViewport
 	virtual TSharedPtr<SWidget> MakeViewportToolbar() override;
@@ -48,6 +51,7 @@ public:
 protected:
 	TWeakPtr<SDMMaterialEditor> EditorWidgetWeak;
 	bool bShowMenu;
+	bool bIsPopout;
 
 	TSharedPtr<FDMMaterialPreviewViewportClient> EditorViewportClient;
 	TSharedPtr<FAdvancedPreviewScene> PreviewScene;

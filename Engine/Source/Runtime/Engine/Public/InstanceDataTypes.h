@@ -57,8 +57,12 @@ struct FInstanceDataBufferHeader
 	int32 NumInstances = 0;
 	uint32 PayloadDataStride = 0u;
 	FInstanceDataFlags Flags;
+	bool bInstanceDataIsGPUOnly : 1 = false;
 
-	inline bool operator==(const FInstanceDataBufferHeader& Other) const { return NumInstances == Other.NumInstances && PayloadDataStride == Other.PayloadDataStride && Flags == Other.Flags; }
+	inline bool operator==(const FInstanceDataBufferHeader& Other) const
+	{
+		return NumInstances == Other.NumInstances && PayloadDataStride == Other.PayloadDataStride && Flags == Other.Flags && bInstanceDataIsGPUOnly == Other.bInstanceDataIsGPUOnly;
+	}
 
 	ENGINE_API static const FInstanceDataBufferHeader SinglePrimitiveHeader;
 };

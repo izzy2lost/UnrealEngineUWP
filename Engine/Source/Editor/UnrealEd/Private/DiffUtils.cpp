@@ -596,17 +596,20 @@ FPropertyPath FPropertySoftPath::ResolvePath(const UObject* Object) const
 	return Ret;
 }
 
-FString FPropertySoftPath::ToDisplayName() const
+FString FPropertySoftPath::ToDisplayName(const int32 NumberOfElements /*= INDEX_NONE*/) const
 {
 	FString Ret;
-	for( FChainElement Element : PropertyChain )
+	const int32 Count = NumberOfElements != INDEX_NONE
+		? FMath::Clamp(NumberOfElements, 1, PropertyChain.Num())
+		: PropertyChain.Num();
+	for (int32 i = PropertyChain.Num() - Count; i < PropertyChain.Num(); i++)
 	{
-		FString PropertyAsString = Element.DisplayString;
-		if(Ret.IsEmpty())
+		FString PropertyAsString = PropertyChain[i].DisplayString;
+		if (Ret.IsEmpty())
 		{
 			Ret.Append(PropertyAsString);
 		}
-		else if( PropertyAsString.IsNumeric())
+		else if (PropertyAsString.IsNumeric())
 		{
 			Ret.AppendChar('[');
 			Ret.Append(PropertyAsString);
@@ -620,6 +623,22 @@ FString FPropertySoftPath::ToDisplayName() const
 	}
 	return Ret;
 }
+
+FPropertySoftPath FPropertySoftPath::GetRootProperty(int32 Depth) const
+{
+	FPropertySoftPath RootPath;
+	Depth = FMath::Clamp(Depth, 1, PropertyChain.Num());
+	for (int32 ElementIndex = 0; ElementIndex < Depth; ElementIndex++)
+	{
+		RootPath.PropertyChain.Push(PropertyChain[ElementIndex]);
+	}
+	return RootPath;
+}
+
+int32 FPropertySoftPath::TryReadIndex(int32 Index) const
+{
+	return TryReadIndex(PropertyChain, Index);
+};
 
 const UObject* DiffUtils::GetCDO(const UBlueprint* ForBlueprint)
 {
@@ -820,7 +839,7 @@ static void IdenticalHelper(const FProperty* AProperty, const FProperty* BProper
 		{
 			int32 Offset = AProperty->GetElementSize() * I;
 
-			DiffParameters.RootPath = FPropertySoftPath(DiffParameters.RootPath, I);
+			DiffParameters.RootPath = FPropertySoftPath(RootPath, I);
 			DiffParameters.bShouldDiffArrayElements = false;
 
 			const void* CurAValue = reinterpret_cast<const void*>(reinterpret_cast<const uint8*>(AValue) + Offset);
@@ -857,7 +876,7 @@ static void IdenticalHelper(const FProperty* AProperty, const FProperty* BProper
 				{
 					const FProperty* StructProp = *PropertyIt;
 
-					DiffParameters.RootPath = FPropertySoftPath(DiffParameters.RootPath, StructProp);
+					DiffParameters.RootPath = FPropertySoftPath(RootPath, StructProp);
 
 					const void* SubValueA = StructProp->ContainerPtrToValuePtr<void>(AValue, 0);
 					const void* SubValueB = StructProp->ContainerPtrToValuePtr<void>(BValue, 0);
@@ -882,7 +901,7 @@ static void IdenticalHelper(const FProperty* AProperty, const FProperty* BProper
 			// note any differences in contained types:
 			for (int32 ArrayIndex = 0; ArrayIndex < ArrayHelperA.Num() && ArrayIndex < ArrayHelperB.Num(); ArrayIndex++)
 			{
-				DiffParameters.RootPath = FPropertySoftPath(DiffParameters.RootPath, ArrayIndex);
+				DiffParameters.RootPath = FPropertySoftPath(RootPath, ArrayIndex);
 
 				const void* SubValueA = ArrayHelperA.GetRawPtr(ArrayIndex);
 				const void* SubValueB = ArrayHelperB.GetRawPtr(ArrayIndex);
@@ -921,7 +940,7 @@ static void IdenticalHelper(const FProperty* AProperty, const FProperty* BProper
 			FScriptSetHelper::FIterator IteratorB(SetHelperB);
 			for (; IteratorA && IteratorB; ++IteratorA, ++IteratorB)
 			{
-				DiffParameters.RootPath = FPropertySoftPath(DiffParameters.RootPath, IteratorA.GetLogicalIndex());
+				DiffParameters.RootPath = FPropertySoftPath(RootPath, IteratorA.GetLogicalIndex());
 
 				const void* SubValueA = SetHelperA.GetElementPtr(IteratorA);
 				const void* SubValueB = SetHelperB.GetElementPtr(IteratorB);
@@ -952,7 +971,7 @@ static void IdenticalHelper(const FProperty* AProperty, const FProperty* BProper
 			FScriptMapHelper::FIterator IteratorB(MapHelperB);
 			for (; IteratorA && IteratorB; ++IteratorA, ++IteratorB)
 			{
-				DiffParameters.RootPath = FPropertySoftPath(DiffParameters.RootPath, IteratorA.GetLogicalIndex());
+				DiffParameters.RootPath = FPropertySoftPath(RootPath, IteratorA.GetLogicalIndex());
 
 				IdenticalHelper(APropAsMap->KeyProp, BPropAsMap->KeyProp, MapHelperA.GetKeyPtr(IteratorA), MapHelperB.GetKeyPtr(IteratorB),
 					OwningOuterA, OwningOuterB, DiffParameters, DifferingSubProperties);
@@ -991,7 +1010,7 @@ static void IdenticalHelper(const FProperty* AProperty, const FProperty* BProper
 				for (TFieldIterator<FProperty> PropertyIt(AClass); PropertyIt; ++PropertyIt)
 				{
 					const FProperty* ClassProp = *PropertyIt;
-					DiffParameters.RootPath = FPropertySoftPath(DiffParameters.RootPath, ClassProp);
+					DiffParameters.RootPath = FPropertySoftPath(RootPath, ClassProp);
 
 					const void* SubValueA = ClassProp->ContainerPtrToValuePtr<void>(A, 0);
 					const void* SubValueB = ClassProp->ContainerPtrToValuePtr<void>(B, 0);
@@ -1087,6 +1106,18 @@ bool DiffUtils::Identical(const FResolvedProperty& AProp, const FResolvedPropert
 bool DiffUtils::Identical(const TSharedPtr<IPropertyHandle>& PropertyHandleA, const TSharedPtr<IPropertyHandle>& PropertyHandleB,
                           const TArray<TWeakObjectPtr<UObject>>& OwningOutersA, const TArray<TWeakObjectPtr<UObject>>& OwningOutersB)
 {
+	TArray<FPropertySoftPath> DifferingProperties;
+	return Identical(DifferingProperties, PropertyHandleA, PropertyHandleB, OwningOutersA, OwningOutersB);
+}
+
+bool DiffUtils::Identical(
+	TArray<FPropertySoftPath>& OutDifferingProperties,
+	const TSharedPtr<IPropertyHandle>& PropertyHandleA,
+	const TSharedPtr<IPropertyHandle>& PropertyHandleB,
+	const TArray<TWeakObjectPtr<UObject>>& OwningOutersA,
+	const TArray<TWeakObjectPtr<UObject>>& OwningOutersB
+	)
+{
 	TArray<void*> ValuesA;
 	TArray<void*> ValuesB;
 	PropertyHandleA->AccessRawData(ValuesA);
@@ -1131,14 +1162,13 @@ bool DiffUtils::Identical(const TSharedPtr<IPropertyHandle>& PropertyHandleA, co
 
 		// note that we're not directly calling FProperty::Identical because sub-object properties should be weakly compared based on
 		// their paths instead of their pointers or data
-		TArray<FPropertySoftPath> DifferingProperties;
 		FDiffParameters DiffParameters;
 		DiffParameters.bShouldDiffArrayElements = false;
 
 		IdenticalHelper(PropertyHandleA->GetProperty(), PropertyHandleB->GetProperty(), ValueA, ValueB,
-			OwningOuterA, OwningOuterB, DiffParameters, DifferingProperties);
+			OwningOuterA, OwningOuterB, DiffParameters, OutDifferingProperties);
 
-		return DifferingProperties.IsEmpty();
+		return OutDifferingProperties.IsEmpty();
 	};
 	
 	if (ValuesA.Num() == ValuesB.Num())

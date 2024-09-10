@@ -660,6 +660,13 @@ private:
 
 	/** Refreshes the filename of a new module from the manifest */
 	CORE_API void RefreshModuleFilenameFromManifestImpl(const FName InModuleName, FModuleInfo& ModuleInfo);
+
+	/** Load the library for a given module */
+	void* InternalLoadLibrary(FName ModuleName, const FString& ModuleFileToLoad);
+
+	/** Attempt to free the backing library for a module */
+	void InternalFreeLibrary(FName ModuleName, void* Handle);
+
 #endif
 
 	/** Adds pending module initializer registrations to the StaticallyLinkedModuleInitializers map. */
@@ -668,6 +675,24 @@ private:
 private:
 	/** Map of all modules.  Maps the case-insensitive module name to information about that module, loaded or not. */
 	FModuleMap Modules;
+
+#if UE_MERGED_MODULES
+
+	struct FModuleManagerLibraryTracker
+	{
+		FModuleManagerLibraryTracker()
+			: Handle(nullptr)
+			, Users()
+		{}
+
+		void* Handle;
+		TArray<FName> Users;
+	};
+
+	/** Map of loaded DLL handles for when merged modular build is in use */
+	TMap<FString, FModuleManagerLibraryTracker> LoadedDynamicLibraries;
+
+#endif // UE_MERGED_MODULES
 
 	/** Pending registrations of module names */
 	/** We use an array here to stop comparisons (and thus FNames being constructed) when they are registered. */
@@ -843,7 +868,7 @@ namespace UE::Core::Private
 		}
 	}
 }
-#if IS_MONOLITHIC
+#if IS_MONOLITHIC || UE_MERGED_MODULES
 
 	// If we're linking monolithically we assume all modules are linked in with the main binary.
 	#define IMPLEMENT_MODULE( ModuleImplClass, ModuleName ) \

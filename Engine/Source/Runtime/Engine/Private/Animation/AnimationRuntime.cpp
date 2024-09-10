@@ -164,7 +164,7 @@ FORCEINLINE void BlendPose<ETransformBlendMode::Overwrite>(const FCompactPose& S
 #if INTEL_ISPC
 	if (bAnim_BlendPoseOverwrite_ISPC_Enabled)
 	{
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			AutoRTFM::RecordOpenWrite(
 				ResultPose.GetMutableBones().GetData(),
@@ -192,7 +192,7 @@ FORCEINLINE void BlendPose<ETransformBlendMode::Accumulate>(const FCompactPose& 
 #if INTEL_ISPC
 	if (bAnim_BlendPoseAccumulate_ISPC_Enabled)
 	{
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			AutoRTFM::RecordOpenWrite(
 				ResultPose.GetMutableBones().GetData(),
@@ -525,6 +525,35 @@ void FAnimationRuntime::BlendTwoPosesTogether(const FAnimationPoseData& SourcePo
 }
 
 void FAnimationRuntime::BlendTwoPosesTogetherPerBone(
+		const FCompactPose& SourcePose,
+		const FCompactPose& TargetPose,
+		const TArray<float>& TargetWeights,
+		/*out*/ FCompactPose& OutPose)
+{
+	for (FCompactPoseBoneIndex BoneIndex : OutPose.ForEachBoneIndex())
+	{
+		const float BlendWeight = TargetWeights[BoneIndex.GetInt()];
+		if (FAnimationRuntime::IsFullWeight(BlendWeight))
+		{
+			OutPose[BoneIndex] = TargetPose[BoneIndex];
+		}
+		// if it doesn't have weight, take source pose 1
+		else if (FAnimationRuntime::HasWeight(BlendWeight))
+		{
+			BlendTransform<ETransformBlendMode::Overwrite>(SourcePose[BoneIndex], OutPose[BoneIndex], 1.f - BlendWeight);
+			BlendTransform<ETransformBlendMode::Accumulate>(TargetPose[BoneIndex], OutPose[BoneIndex], BlendWeight);
+		}
+		else
+		{
+			OutPose[BoneIndex] = SourcePose[BoneIndex];
+		}
+	}
+
+	// Ensure that all of the resulting rotations are normalized
+	OutPose.NormalizeRotations();
+}
+
+void FAnimationRuntime::BlendTwoPosesTogetherPerBone(
 	const FCompactPose& SourcePose1,
 	const FCompactPose& SourcePose2,
 	const FBlendedCurve& SourceCurve1,
@@ -550,28 +579,7 @@ void FAnimationRuntime::BlendTwoPosesTogetherPerBone(const FAnimationPoseData& S
 
 	const FCompactPose& SourcePoseOne = SourcePoseOneData.GetPose();
 	const FCompactPose& SourcePoseTwo = SourcePoseTwoData.GetPose();
-
-	for (FCompactPoseBoneIndex BoneIndex : OutPose.ForEachBoneIndex())
-	{
-		const float BlendWeight = WeightsOfSource2[BoneIndex.GetInt()];
-		if (FAnimationRuntime::IsFullWeight(BlendWeight))
-		{
-			OutPose[BoneIndex] = SourcePoseTwo[BoneIndex];
-		}
-		// if it doesn't have weight, take source pose 1
-		else if (FAnimationRuntime::HasWeight(BlendWeight))
-		{
-			BlendTransform<ETransformBlendMode::Overwrite>(SourcePoseOne[BoneIndex], OutPose[BoneIndex], 1.f - BlendWeight);
-			BlendTransform<ETransformBlendMode::Accumulate>(SourcePoseTwo[BoneIndex], OutPose[BoneIndex], BlendWeight);
-		}
-		else
-		{
-			OutPose[BoneIndex] = SourcePoseOne[BoneIndex];
-		}
-	}
-
-	// Ensure that all of the resulting rotations are normalized
-	OutPose.NormalizeRotations();
+	BlendTwoPosesTogetherPerBone(SourcePoseOne, SourcePoseTwo, WeightsOfSource2, OutPose);
 
 	// @note : This isn't perfect as curve can link to joint, and it would be the best to use that information
 	// but that is very expensive option as we have to have another indirect look up table to search. 
@@ -979,7 +987,7 @@ void FAnimationRuntime::LerpBoneTransforms(TArray<FTransform>& A, const TArray<F
 #if INTEL_ISPC
 	if (bAnim_LerpBoneTransforms_ISPC_Enabled)
 	{
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			AutoRTFM::RecordOpenWrite(
 				A.GetData(),
@@ -1081,7 +1089,7 @@ void FAnimationRuntime::ConvertPoseToAdditive(FCompactPose& TargetPose, const FC
 #if INTEL_ISPC
 	if (bAnim_ConvertPoseToAdditive_ISPC_Enabled)
 	{
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			AutoRTFM::RecordOpenWrite(
 				TargetPose.GetMutableBones().GetData(),
@@ -1112,7 +1120,7 @@ void FAnimationRuntime::ConvertPoseToMeshRotation(FCompactPose& LocalPose)
 #if INTEL_ISPC
 	if (bAnim_ConvertPoseToMeshRotation_ISPC_Enabled)
 	{
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			AutoRTFM::RecordOpenWrite(
 				LocalPose.GetMutableBones().GetData(),
@@ -1143,7 +1151,7 @@ void FAnimationRuntime::ConvertMeshRotationPoseToLocalSpace(FCompactPose& Pose)
 #if INTEL_ISPC
 	if (bAnim_ConvertMeshRotationPoseToLocalSpace_ISPC_Enabled)
 	{
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			AutoRTFM::RecordOpenWrite(
 				Pose.GetMutableBones().GetData(),
@@ -1235,7 +1243,7 @@ void FAnimationRuntime::AccumulateLocalSpaceAdditivePoseInternal(FCompactPose& B
 #if INTEL_ISPC
 			if (bAnim_AccumulateLocalSpaceAdditivePose_ISPC_Enabled)
 			{
-				UE_AUTORTFM_OPEN2
+				UE_AUTORTFM_OPEN
 				{
 					AutoRTFM::RecordOpenWrite(
 						BasePose.GetMutableBones().GetData(),
@@ -1927,7 +1935,7 @@ void FAnimationRuntime::BlendPosesPerBoneFilter(FCompactPose& BasePose, const TA
 #if INTEL_ISPC
 		if (bAnim_BlendPosesPerBoneFilter_ISPC_Enabled)
 		{
-			UE_AUTORTFM_OPEN2
+			UE_AUTORTFM_OPEN
 			{
 				AutoRTFM::RecordOpenWrite(
 					OutPose.GetMutableBones().GetData(),
@@ -2013,7 +2021,7 @@ void FAnimationRuntime::BlendPosesPerBoneFilter(FCompactPose& BasePose, const TA
 #if INTEL_ISPC
 		if (bAnim_BlendPosesPerBoneFilter_ISPC_Enabled)
 		{
-			UE_AUTORTFM_OPEN2
+			UE_AUTORTFM_OPEN
 			{
 				AutoRTFM::RecordOpenWrite(
 					OutPose.GetMutableBones().GetData(),
@@ -2090,7 +2098,7 @@ void FAnimationRuntime::BlendPosesPerBoneFilter(FCompactPose& BasePose, const TA
 #if INTEL_ISPC
 		if (bAnim_BlendPosesPerBoneFilter_ISPC_Enabled)
 		{
-			UE_AUTORTFM_OPEN2
+			UE_AUTORTFM_OPEN
 			{
 				AutoRTFM::RecordOpenWrite(
 					OutPose.GetMutableBones().GetData(),
@@ -2167,7 +2175,7 @@ void FAnimationRuntime::BlendPosesPerBoneFilter(FCompactPose& BasePose, const TA
 #if INTEL_ISPC
 		if (bAnim_BlendPosesPerBoneFilter_ISPC_Enabled)
 		{
-			UE_AUTORTFM_OPEN2
+			UE_AUTORTFM_OPEN
 			{
 				AutoRTFM::RecordOpenWrite(
 					OutPose.GetMutableBones().GetData(),

@@ -686,6 +686,7 @@ void Main(
 	half3 CameraVector = -MaterialParameters.CameraVector;
 	float2 ScreenUV = ScreenPositionToBufferUV(MaterialParameters.ScreenPosition);
 
+#if (SUBSTRATE_TRANSLUCENT_FORWARD || SUBSTRATE_FORWARD_SHADING)
 	#define SUBSTRATE_DEBUG_ENABLE_LIGHTING 1
 	#if SUBSTRATE_DEBUG_ENABLE_LIGHTING
 	if (SubstratePixelHeader.ClosureCount > 0)
@@ -731,6 +732,7 @@ void Main(
 	#endif
 	}
 	#endif // SUBSTRATE_DEBUG_ENABLE_LIGHTING
+#endif // SUBSTRATE_TRANSLUCENT_FORWARD || SUBSTRATE_FORWARD_SHADING
 
   #else // SUBSTRATE_OPTIMIZED_UNLIT
 
@@ -874,7 +876,12 @@ void Main(
 
 	// Directional light
 #if !MATERIAL_SHADINGMODEL_UNLIT
-	AccumulateDirectionalLighting(GBuffer, MaterialParameters.WorldPosition_CamRelative, CameraVector, MaterialParameters.ScreenPosition, SvPosition, DynamicShadowFactors, DirectionalLightShadow, DirectLighting);
+#if MOBILE_MULTI_VIEW
+	const uint EyeIndex = BasePassInterpolants.MultiViewId;
+#else 
+	const uint EyeIndex = 0;
+#endif
+	AccumulateDirectionalLighting(GBuffer, MaterialParameters.WorldPosition_CamRelative, CameraVector, MaterialParameters.ScreenPosition, SvPosition, DynamicShadowFactors, DirectionalLightShadow, DirectLighting, EyeIndex);
 #endif
 
 	float2 LocalPosition = SvPosition.xy - ResolvedView.ViewRectMin.xy;

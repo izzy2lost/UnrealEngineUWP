@@ -96,28 +96,33 @@ EMovieSceneChannelProxyType UMovieSceneComponentMaterialParameterSection::CacheC
 		FText ParameterDisplayName = GetMaterialParameterDisplayText(FText::FromName(Color.ParameterInfo.Name), Color.ParameterLayerName, Color.ParameterAssetName);
 		FText Group = FText::FromString(ParameterPath);
 
-		FMovieSceneChannelMetaData MetaData_R(*(ParameterPath + TEXT("R")), FCommonChannelData::ChannelR, Group);
+		FText RChannelDisplayName = !Color.ParameterChannelNames.R.IsEmpty() ? Color.ParameterChannelNames.R : FCommonChannelData::ChannelR;
+		FText GChannelDisplayName = !Color.ParameterChannelNames.G.IsEmpty() ? Color.ParameterChannelNames.G : FCommonChannelData::ChannelG;
+		FText BChannelDisplayName = !Color.ParameterChannelNames.B.IsEmpty() ? Color.ParameterChannelNames.B : FCommonChannelData::ChannelB;
+		FText AChannelDisplayName = !Color.ParameterChannelNames.A.IsEmpty() ? Color.ParameterChannelNames.A : FCommonChannelData::ChannelA;
+
+		FMovieSceneChannelMetaData MetaData_R(*(ParameterPath + TEXT("R")), RChannelDisplayName, Group);
 		MetaData_R.GetTooltipTextDelegate.BindLambda(GetMaterialParameterTooltipText, ParameterPath + TEXT(".R"));
 		MetaData_R.SortOrder = SortOrder++;
 		MetaData_R.Color = FCommonChannelData::RedChannelColor;
 		MetaData_R.PropertyMetaData.Add(FCommonChannelData::GroupDisplayName, ParameterDisplayName.ToString());
 		MetaData_R.GetGroupTooltipTextDelegate.BindLambda(GetMaterialParameterTooltipText, ParameterPath);
 
-		FMovieSceneChannelMetaData MetaData_G(*(ParameterPath + TEXT("G")), FCommonChannelData::ChannelG, Group);
+		FMovieSceneChannelMetaData MetaData_G(*(ParameterPath + TEXT("G")), GChannelDisplayName, Group);
 		MetaData_G.GetTooltipTextDelegate.BindLambda(GetMaterialParameterTooltipText, ParameterPath + TEXT(".G"));
 		MetaData_G.SortOrder = SortOrder++;
 		MetaData_G.Color = FCommonChannelData::GreenChannelColor;
 		MetaData_G.PropertyMetaData.Add(FCommonChannelData::GroupDisplayName, ParameterDisplayName.ToString());
 		MetaData_G.GetGroupTooltipTextDelegate.BindLambda(GetMaterialParameterTooltipText, ParameterPath);
 
-		FMovieSceneChannelMetaData MetaData_B(*(ParameterPath + TEXT("B")), FCommonChannelData::ChannelB, Group);
+		FMovieSceneChannelMetaData MetaData_B(*(ParameterPath + TEXT("B")), BChannelDisplayName, Group);
 		MetaData_B.GetTooltipTextDelegate.BindLambda(GetMaterialParameterTooltipText, ParameterPath + TEXT(".B"));
 		MetaData_B.SortOrder = SortOrder++;
 		MetaData_B.Color = FCommonChannelData::BlueChannelColor;
 		MetaData_B.PropertyMetaData.Add(FCommonChannelData::GroupDisplayName, ParameterDisplayName.ToString());
 		MetaData_B.GetGroupTooltipTextDelegate.BindLambda(GetMaterialParameterTooltipText, ParameterPath);
 
-		FMovieSceneChannelMetaData MetaData_A(*(ParameterPath + TEXT("A")), FCommonChannelData::ChannelA, Group);
+		FMovieSceneChannelMetaData MetaData_A(*(ParameterPath + TEXT("A")), AChannelDisplayName, Group);
 		MetaData_A.GetTooltipTextDelegate.BindLambda(GetMaterialParameterTooltipText, ParameterPath + TEXT(".A"));
 		MetaData_A.SortOrder = SortOrder++;
 		MetaData_A.PropertyMetaData.Add(FCommonChannelData::GroupDisplayName, ParameterDisplayName.ToString());
@@ -193,7 +198,7 @@ void UMovieSceneComponentMaterialParameterSection::AddScalarParameterKey(const F
 	}
 }
 
-void UMovieSceneComponentMaterialParameterSection::AddColorParameterKey(const FMaterialParameterInfo& InParameterInfo, FFrameNumber InTime, FLinearColor InValue, const FString& InLayerName, const FString& InAssetName)
+void UMovieSceneComponentMaterialParameterSection::AddColorParameterKey(const FMaterialParameterInfo& InParameterInfo, FFrameNumber InTime, FLinearColor InValue, const FString& InLayerName, const FString& InAssetName, const FParameterChannelNames& InChannelNames)
 {
 	FColorMaterialParameterInfoAndCurves* ExistingCurves = nullptr;
 	for (FColorMaterialParameterInfoAndCurves& ColorParameterInfoAndCurve : ColorParameterInfosAndCurves)
@@ -211,6 +216,7 @@ void UMovieSceneComponentMaterialParameterSection::AddColorParameterKey(const FM
 #if WITH_EDITOR
 		ColorParameterInfosAndCurves[NewIndex].ParameterLayerName = InLayerName;
 		ColorParameterInfosAndCurves[NewIndex].ParameterAssetName = InAssetName;
+		ColorParameterInfosAndCurves[NewIndex].ParameterChannelNames = InChannelNames;
 #endif
 		CacheChannelProxy();
 	}

@@ -12,6 +12,7 @@
 #include "Chaos/Collision/CollisionFilterBits.h"
 #include "ChaosCheck.h"
 #include "Chaos/ChaosDebugDrawDeclares.h"
+#include "Chaos/AsyncInitBodyHelper.h"
 #include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 #include "PhysicsInterfaceTypesCore.h"
 #if CHAOS_DEBUG_DRAW
@@ -128,6 +129,7 @@ void PBDRigidParticleDefaultConstruct(FConcrete& Concrete, const FPBDRigidPartic
 	Concrete.SetGravityGroupIndex(0);
 	Concrete.SetCCDEnabled(Params.bCCDEnabled);
 	Concrete.SetMACDEnabled(false);
+	Concrete.SetIterationSettings(Private::FIterationSettings(INDEX_NONE, INDEX_NONE, INDEX_NONE));
 	Concrete.SetDisabled(Params.bDisabled);
 	Concrete.SetSleepType(ESleepType::MaterialSleep);
 }
@@ -1306,6 +1308,31 @@ public:
 		PBDRigidParticles->ControlFlags(ParticleIdx).SetMACDEnabled(bEnabled);
 	}
 
+	inline Private::FIterationSettings IterationSettings() const
+	{
+		return PBDRigidParticles->ParticleIterationCounts(ParticleIdx);
+	}
+
+	inline void SetIterationSettings(const Private::FIterationSettings& IterationSettingsIn)
+	{
+		PBDRigidParticles->ParticleIterationCounts(ParticleIdx) = IterationSettingsIn;
+	}
+
+	inline void SetPositionSolverIterations(const int32 PositionIterationsIn)
+	{
+		PBDRigidParticles->ParticleIterationCounts(ParticleIdx).SetNumPositionIterations(PositionIterationsIn);
+	}
+
+	inline void SetVelocitySolverIterations(const int32 VelocityIterationsIn)
+	{
+		PBDRigidParticles->ParticleIterationCounts(ParticleIdx).SetNumVelocityIterations(VelocityIterationsIn);
+	}
+
+	inline void SetProjectionSolverIterations(const int32 ProjectionIterationsIn)
+	{
+		PBDRigidParticles->ParticleIterationCounts(ParticleIdx).SetNumProjectionIterations(ProjectionIterationsIn);
+	}
+
 	inline bool OneWayInteraction() const
 	{ 
 		return ControlFlags().GetOneWayInteractionEnabled();
@@ -1842,6 +1869,17 @@ public:
 		}
 
 		return false;
+	}
+
+	Private::FIterationSettings IterationSettings() const
+	{
+		if (MHandle->CastToRigidParticle())
+		{
+			return MHandle->CastToRigidParticle()->IterationSettings();
+		}
+
+		return Private::FIterationSettings(0, 0, 0);
+	
 	}
 
 	bool HasCollisionConstraintFlag(const ECollisionConstraintFlags Flag)  const
@@ -3053,7 +3091,7 @@ protected:
 	template <typename Lambda>
 	void ModifyGeometry(EGeometryAccess AccessType, const Lambda& Func)
 	{
-		ensure(UE_CHAOS_ASYNC_INITBODY_ENABLED || IsInGameThread());
+		ensure(Chaos::CVars::bEnableAsyncInitBody || IsInGameThread());
 		FPhysicsSolverBase* Solver = Proxy ? Proxy->GetSolverBase() : nullptr;
 
 		if(Solver == nullptr)
@@ -3395,6 +3433,28 @@ public:
 	void SetMACDEnabled(bool bInEnabled)
 	{
 		MMiscData.Modify(true, MDirtyFlags, Proxy, [bInEnabled](auto& Data) { Data.SetMACDEnabled(bInEnabled); });
+	}
+
+	Private::FIterationSettings IterationSettings() const { return MMiscData.Read().IterationSettings(); }
+
+	void SetIterationSettings(const Private::FIterationSettings& SolverIterationSettingsIn)
+	{
+		MMiscData.Modify(true, MDirtyFlags, Proxy, [SolverIterationSettingsIn](auto& Data) { Data.SetIterationSettings(SolverIterationSettingsIn); });
+	}
+
+	void SetPositionSolverIterations(const uint32 PositionSolverIterationCount)
+	{
+		MMiscData.Modify(true, MDirtyFlags, Proxy, [PositionSolverIterationCount](auto& Data) { Data.SetPositionSolverIterationCount((int32)PositionSolverIterationCount); });
+	}
+
+	void SetVelocitySolverIterations(const uint32 VelocitySolverIterationCount)
+	{
+		MMiscData.Modify(true, MDirtyFlags, Proxy, [VelocitySolverIterationCount](auto& Data) { Data.SetVelocitySolverIterationCount((int32)VelocitySolverIterationCount); });
+	}
+
+	void SetProjectionSolverIterations(const uint32 ProjectionSolverIterationCount)
+	{
+		MMiscData.Modify(true, MDirtyFlags, Proxy, [ProjectionSolverIterationCount](auto& Data) { Data.SetProjectionSolverIterationCount((int32)ProjectionSolverIterationCount); });
 	}
 
 	bool InertiaConditioningEnabled() const { return MMiscData.Read().InertiaConditioningEnabled(); }
@@ -3798,7 +3858,7 @@ FORCEINLINE_DEBUGGABLE FAccelerationStructureHandle::FAccelerationStructureHandl
 	if (InGeometryParticle)
 	{
 		ensure(CachedUniqueIdx.IsValid());
-		ensure(UE_CHAOS_ASYNC_INITBODY_ENABLED || IsInGameThread());
+		ensure(Chaos::CVars::bEnableAsyncInitBody || IsInGameThread());
 		if (bUsePrefiltering)
 		{
 			UpdatePrePreFilter(*InGeometryParticle);

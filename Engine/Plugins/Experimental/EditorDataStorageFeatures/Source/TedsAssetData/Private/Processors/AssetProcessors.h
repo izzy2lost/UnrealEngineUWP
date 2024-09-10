@@ -6,17 +6,21 @@
 
 #include "AssetProcessors.generated.h"
 
-class ITypedElementDataStorageInterface;
+class IEditorDataStorageProvider;
 
 UCLASS()
-class UTedsAssetDataFactory : public UTypedElementDataStorageFactory
+class UTedsAssetDataFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	~UTedsAssetDataFactory() override = default;
 
-	void RegisterTables(ITypedElementDataStorageInterface& DataStorage) override;
+	void RegisterQueries(IEditorDataStorageProvider& DataStorage) override;
+	virtual void PreRegister(IEditorDataStorageProvider& DataStorage) override;
+	virtual void PreShutdown(IEditorDataStorageProvider& DataStorage) override;
 
-private:
+protected:
+
+	void OnSetFolderColor(const FString& Path, IEditorDataStorageProvider* DataStorage);
 };

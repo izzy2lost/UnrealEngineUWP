@@ -72,7 +72,7 @@ FAutoConsoleCommandWithOutputDevice PrintSupportedColumnsConsoleCommand(
 			Output.Log(TEXT("End of Typed Elements Data Storage supported column list."));
 		}));
 
-namespace TypedElementDatabasePrivate
+namespace UE::Editor::DataStorage::Private
 {
 	struct ColumnsToBitSetsResult
 	{
@@ -100,7 +100,7 @@ namespace TypedElementDatabasePrivate
 		}
 		return Result;
 	}
-}
+} // namespace UE::Editor::DataStorage::Private
 
 void UEditorDataStorage::Initialize()
 {
@@ -167,7 +167,7 @@ void UEditorDataStorage::SetFactories(TConstArrayView<UClass*> FactoryClasses)
 {
 	Factories.Reserve(FactoryClasses.Num());
 
-	UClass* BaseFactoryType = UTypedElementDataStorageFactory::StaticClass();
+	UClass* BaseFactoryType = UEditorDataStorageFactory::StaticClass();
 
 	for (UClass* FactoryClass : FactoryClasses)
 	{
@@ -179,7 +179,7 @@ void UEditorDataStorage::SetFactories(TConstArrayView<UClass*> FactoryClasses)
 		{
 			continue;
 		}
-		UTypedElementDataStorageFactory* Factory = NewObject<UTypedElementDataStorageFactory>(this, FactoryClass, NAME_None, EObjectFlags::RF_Transient);
+		UEditorDataStorageFactory* Factory = NewObject<UEditorDataStorageFactory>(this, FactoryClass, NAME_None, EObjectFlags::RF_Transient);
 		Factories.Add(FFactoryTypePair
 			{
 				.Type = FactoryClass,
@@ -219,7 +219,7 @@ UEditorDataStorage::FactoryConstIterator UEditorDataStorage::CreateFactoryIterat
 	return UEditorDataStorage::FactoryConstIterator(this);
 }
 
-const UTypedElementDataStorageFactory* UEditorDataStorage::FindFactory(const UClass* FactoryType) const
+const UEditorDataStorageFactory* UEditorDataStorage::FindFactory(const UClass* FactoryType) const
 {
 	for (const FFactoryTypePair& Factory : Factories)
 	{
@@ -580,6 +580,7 @@ void* UEditorDataStorage::GetColumnData(RowHandle Row, const UScriptStruct* Colu
 
 void UEditorDataStorage::AddColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> Columns)
 {
+	using namespace UE::Editor::DataStorage;
 	if (ActiveEditorEntityManager)
 	{
 		FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
@@ -587,11 +588,11 @@ void UEditorDataStorage::AddColumns(RowHandle Row, TConstArrayView<const UScript
 
 		FMassFragmentBitSet FragmentsToAdd;
 		FMassTagBitSet TagsToAdd;
-		if (TypedElementDatabasePrivate::ColumnsToBitSets(Columns, FragmentsToAdd, TagsToAdd).MustUpdate())
+		if (Private::ColumnsToBitSets(Columns, FragmentsToAdd, TagsToAdd).MustUpdate())
 		{
 			if (ActiveEditorEntityManager->IsEntityActive(Entity))
 			{
-				UE::Editor::DataStorage::Legacy::FCommandBuffer::Execute_AddColumnsCommand(*ActiveEditorEntityManager, Row, FragmentsToAdd, TagsToAdd);
+				Legacy::FCommandBuffer::Execute_AddColumnsCommand(*ActiveEditorEntityManager, Row, FragmentsToAdd, TagsToAdd);
 			}
 			else
 			{
@@ -630,6 +631,8 @@ void UEditorDataStorage::RemoveColumn(RowHandle Row, const UE::Editor::DataStora
 
 void UEditorDataStorage::RemoveColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> Columns)
 {
+	using namespace UE::Editor::DataStorage;
+
 	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
 	if (ActiveEditorEntityManager)
 	{
@@ -637,11 +640,11 @@ void UEditorDataStorage::RemoveColumns(RowHandle Row, TConstArrayView<const UScr
 
 		FMassFragmentBitSet FragmentsToRemove;
 		FMassTagBitSet TagsToRemove;
-		if (TypedElementDatabasePrivate::ColumnsToBitSets(Columns, FragmentsToRemove, TagsToRemove).MustUpdate())
+		if (Private::ColumnsToBitSets(Columns, FragmentsToRemove, TagsToRemove).MustUpdate())
 		{
 			if (ActiveEditorEntityManager->IsEntityActive(Entity))
 			{
-				UE::Editor::DataStorage::Legacy::FCommandBuffer::Execute_RemoveColumnsCommand(*ActiveEditorEntityManager, Row, FragmentsToRemove, TagsToRemove);
+				Legacy::FCommandBuffer::Execute_RemoveColumnsCommand(*ActiveEditorEntityManager, Row, FragmentsToRemove, TagsToRemove);
 			}
 			else
 			{
@@ -654,6 +657,7 @@ void UEditorDataStorage::RemoveColumns(RowHandle Row, TConstArrayView<const UScr
 void UEditorDataStorage::AddRemoveColumns(RowHandle Row,
 	TConstArrayView<const UScriptStruct*> ColumnsToAdd, TConstArrayView<const UScriptStruct*> ColumnsToRemove)
 {
+	using namespace UE::Editor::DataStorage;
 	if (ActiveEditorEntityManager)
 	{
 		FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
@@ -664,18 +668,18 @@ void UEditorDataStorage::AddRemoveColumns(RowHandle Row,
 		FMassTagBitSet TagsToRemove;
 		FMassFragmentBitSet FragmentsToRemove;
 
-		bool bMustAddColumns = TypedElementDatabasePrivate::ColumnsToBitSets(ColumnsToAdd, FragmentsToAdd, TagsToAdd).MustUpdate();
-		bool bMustRemoveColumns = TypedElementDatabasePrivate::ColumnsToBitSets(ColumnsToRemove, FragmentsToRemove, TagsToRemove).MustUpdate();
+		bool bMustAddColumns = Private::ColumnsToBitSets(ColumnsToAdd, FragmentsToAdd, TagsToAdd).MustUpdate();
+		bool bMustRemoveColumns = Private::ColumnsToBitSets(ColumnsToRemove, FragmentsToRemove, TagsToRemove).MustUpdate();
 		
 		if (ActiveEditorEntityManager->IsEntityActive(Entity))
 		{
 			if (bMustAddColumns)
 			{
-				UE::Editor::DataStorage::Legacy::FCommandBuffer::Execute_AddColumnsCommand(*ActiveEditorEntityManager, Row, FragmentsToAdd, TagsToAdd);
+				Legacy::FCommandBuffer::Execute_AddColumnsCommand(*ActiveEditorEntityManager, Row, FragmentsToAdd, TagsToAdd);
 			}
 			if (bMustRemoveColumns)
 			{
-				UE::Editor::DataStorage::Legacy::FCommandBuffer::Execute_RemoveColumnsCommand(*ActiveEditorEntityManager, Row, FragmentsToRemove, TagsToRemove);
+				Legacy::FCommandBuffer::Execute_RemoveColumnsCommand(*ActiveEditorEntityManager, Row, FragmentsToRemove, TagsToRemove);
 			}
 		}
 		else
@@ -703,10 +707,10 @@ void UEditorDataStorage::BatchAddRemoveColumns(TConstArrayView<RowHandle> Rows,
 		FMassTagBitSet TagsToAdd;
 		FMassTagBitSet TagsToRemove;
 
-		namespace TEDP = TypedElementDatabasePrivate;
+		using namespace UE::Editor::DataStorage;
 
-		TEDP::ColumnsToBitSetsResult AddResult = TEDP::ColumnsToBitSets(ColumnsToAdd, FragmentsToAdd, TagsToAdd);
-		TEDP::ColumnsToBitSetsResult RemoveResult = TEDP::ColumnsToBitSets(ColumnsToRemove, FragmentsToRemove, TagsToRemove);
+		Private::ColumnsToBitSetsResult AddResult = Private::ColumnsToBitSets(ColumnsToAdd, FragmentsToAdd, TagsToAdd);
+		Private::ColumnsToBitSetsResult RemoveResult = Private::ColumnsToBitSets(ColumnsToRemove, FragmentsToRemove, TagsToRemove);
 		
 		if (AddResult.MustUpdate() || RemoveResult.MustUpdate())
 		{
@@ -714,7 +718,7 @@ void UEditorDataStorage::BatchAddRemoveColumns(TConstArrayView<RowHandle> Rows,
 			using EntityArchetypeLookup = TMap<FMassArchetypeHandle, EntityHandleArray, TInlineSetAllocator<32>>;
 			using ArchetypeEntityArray = TArray<FMassArchetypeEntityCollection, TInlineAllocator<32>>;
 
-			UE::Editor::DataStorage::Legacy::FCommandBuffer& CommandBuffer = Environment->GetDirectDeferredCommands();
+			Legacy::FCommandBuffer& CommandBuffer = Environment->GetDirectDeferredCommands();
 			
 			// Sort rows (entities) into to matching table (archetype) bucket.
 			EntityArchetypeLookup LookupTable;
@@ -990,7 +994,7 @@ void UEditorDataStorage::UnregisterQuery(QueryHandle Query)
 	}
 }
 
-const ITypedElementDataStorageInterface::FQueryDescription& UEditorDataStorage::GetQueryDescription(QueryHandle Query) const
+const IEditorDataStorageProvider::FQueryDescription& UEditorDataStorage::GetQueryDescription(QueryHandle Query) const
 {
 	const UE::Editor::DataStorage::FExtendedQueryStore::Handle StorageHandle(Query);
 	return Environment->GetQueryStore().GetQueryDescription(StorageHandle);
@@ -1020,7 +1024,7 @@ FName UEditorDataStorage::GetQueryTickGroupName(EQueryTickGroups Group) const
 	}
 }
 
-ITypedElementDataStorageInterface::FQueryResult UEditorDataStorage::RunQuery(QueryHandle Query)
+IEditorDataStorageProvider::FQueryResult UEditorDataStorage::RunQuery(QueryHandle Query)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.RunQuery);
 
@@ -1035,8 +1039,8 @@ ITypedElementDataStorageInterface::FQueryResult UEditorDataStorage::RunQuery(Que
 	}
 }
 
-ITypedElementDataStorageInterface::FQueryResult UEditorDataStorage::RunQuery(
-	QueryHandle Query, ITypedElementDataStorageInterface::DirectQueryCallbackRef Callback)
+IEditorDataStorageProvider::FQueryResult UEditorDataStorage::RunQuery(
+	QueryHandle Query, IEditorDataStorageProvider::DirectQueryCallbackRef Callback)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.RunQuery);
 
@@ -1052,9 +1056,9 @@ ITypedElementDataStorageInterface::FQueryResult UEditorDataStorage::RunQuery(
 	}
 }
 
-ITypedElementDataStorageInterface::FQueryResult UEditorDataStorage::RunQuery(
+IEditorDataStorageProvider::FQueryResult UEditorDataStorage::RunQuery(
 	QueryHandle Query, UE::Editor::DataStorage::EDirectQueryExecutionFlags Flags,
-	ITypedElementDataStorageInterface::DirectQueryCallbackRef Callback)
+	IEditorDataStorageProvider::DirectQueryCallbackRef Callback)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.RunQuery);
 

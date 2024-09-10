@@ -11,7 +11,8 @@ public class MultiServerReplication : ModuleRules
                 "Core",
                 "CoreUObject",
                 "Engine",
-				"NetCore"
+				"NetCore",
+				"MultiServerConfiguration"
             }
         );
 

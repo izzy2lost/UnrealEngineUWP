@@ -13,7 +13,6 @@
 #include "WaterQuadTreeGPU.h"
 
 class FMeshElementCollector;
-struct FRayTracingMaterialGatheringContext;
 
 class UWaterMeshComponent;
 
@@ -153,7 +152,7 @@ public:
 	using FWaterVertexFactoryIndirectDrawISRType = TWaterVertexFactory<WITH_WATER_SELECTION_SUPPORT, EWaterVertexFactoryDrawMode::IndirectInstancedStereo>;
 
 #if RHI_RAYTRACING
-	virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) override final;
+	virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) override final;
 	virtual bool HasRayTracingRepresentation() const override { return true; }
 	virtual bool IsRayTracingRelevant() const override { return true; }
 #endif

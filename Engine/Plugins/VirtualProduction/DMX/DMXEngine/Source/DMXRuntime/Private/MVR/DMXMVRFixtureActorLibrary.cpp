@@ -310,8 +310,30 @@ FDMXMVRFixtureActorLibrary::FDMXMVRFixtureActorLibrary()
 	}
 }
 
-UClass* FDMXMVRFixtureActorLibrary::FindMostAppropriateActorClassForPatch(const UDMXEntityFixturePatch* const Patch) const
+UClass* FDMXMVRFixtureActorLibrary::FindMostAppropriateActorClassForPatch(const UDMXEntityFixturePatch* Patch) const
 {
+	if (!ensureMsgf(Patch, TEXT("Invalid Fixture Patch provided when trying to find most appropriate actor class for patch. Cannot spawn Fixture Patch")))
+	{
+		return nullptr;
+	}
+
+	UDMXEntityFixtureType* FixtureType = Patch->GetFixtureType();
+	if (!FixtureType)
+	{
+		// May be null. Don't ensure, just log
+		UE_LOG(LogDMXRuntime, Warning, TEXT("Cannot spawn Actor for Fixture Patch, Fixture Patch '%s'. Fixture Patch has no valid Fixture Type."), *Patch->Name);
+		return nullptr;
+	}
+
+#if WITH_EDITOR
+	// Prefer the actor class set in the fixture type if available
+	if (!FixtureType->ActorClassToSpawn.IsNull())
+	{
+		return FixtureType->ActorClassToSpawn.LoadSynchronous();
+	}
+#endif
+
+	// Find the actor class with the most matching attributes
 	const FDMXFixtureMode* const ModePtr = Patch->GetActiveMode();
 	if (!ModePtr)
 	{

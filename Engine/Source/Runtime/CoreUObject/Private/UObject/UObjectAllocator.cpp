@@ -43,7 +43,7 @@ UObjectBase* FUObjectAllocator::AllocateUObject(int32 Size, int32 Alignment, boo
 {
 	void* Result = nullptr;
 	// we want to perform this allocation uninstrumented so the GC can clean this up if the transaction is aborted
-	UE_AUTORTFM_OPEN2
+	UE_AUTORTFM_OPEN
 	{
 		if (bAllowPermanent && !GPersistentAllocatorIsDisabled)
 		{

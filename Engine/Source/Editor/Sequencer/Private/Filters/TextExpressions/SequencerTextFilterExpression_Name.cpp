@@ -1,6 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SequencerTextFilterExpression_Name.h"
+#include "MovieSceneNameableTrack.h"
 #include "MVVM/ViewModelPtr.h"
 #include "MVVM/Extensions/IOutlinerExtension.h"
 
@@ -38,21 +39,33 @@ bool FSequencerTextFilterExpression_Name::TestComplexExpression(const FName& InK
 		return true;
 	}
 
-	if (WeakTrackObject.IsValid()
-		&& !TextFilterUtils::TestComplexExpression(WeakTrackObject->GetName(), InValue, InComparisonOperation, InTextComparisonMode))
+	if (WeakTrackObject.IsValid())
 	{
-		return false;
+		if (TextFilterUtils::TestComplexExpression(WeakTrackObject->GetName(), InValue, InComparisonOperation, InTextComparisonMode))
+		{
+			return true;
+		}
+
+		UMovieSceneNameableTrack* const NameableTrack = Cast<UMovieSceneNameableTrack>(WeakTrackObject);
+		if (IsValid(NameableTrack))
+		{
+			const FString DisplayName = NameableTrack->GetDisplayName().ToString();
+			if (TextFilterUtils::TestComplexExpression(DisplayName, InValue, InComparisonOperation, InTextComparisonMode))
+			{
+				return true;
+			}
+		}
 	}
 
 	if (const TViewModelPtr<IOutlinerExtension> OutlinerExtension = FilterItem.ImplicitCast())
 	{
-		if (!TextFilterUtils::TestComplexExpression(OutlinerExtension->GetLabel().ToString(), InValue, InComparisonOperation, InTextComparisonMode))
+		if (TextFilterUtils::TestComplexExpression(OutlinerExtension->GetLabel().ToString(), InValue, InComparisonOperation, InTextComparisonMode))
 		{
-			return false;
+			return true;
 		}
 	}
 
-	return true;
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -81,4 +81,9 @@ public static class KnownPropertyNames
 	/// Whether the Wine compatibility layer is enabled (for running Windows applications on Linux)
 	/// </summary>
 	public const string WineEnabled = "WineEnabled";
+	
+	/// <summary>
+	/// Whether the agent is trusted
+	/// </summary>
+	public const string Trusted = "Trusted";
 }

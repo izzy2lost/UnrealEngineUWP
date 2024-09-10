@@ -925,7 +925,7 @@ void UDemoNetDriver::FinishDestroy()
 	
 	if (World)
 	{
-		World->RemoveOnActorDestroyededHandler(DelegateHandleActorPreDestroy);
+		World->RemoveOnActorDestroyedHandler(DelegateHandleActorPreDestroy);
 	}
 
 	Super::FinishDestroy();
@@ -5659,7 +5659,7 @@ void UDemoNetDriver::SetWorld(UWorld* InWorld)
 {
 	if (World)
 	{
-		World->RemoveOnActorDestroyededHandler(DelegateHandleActorPreDestroy);
+		World->RemoveOnActorDestroyedHandler(DelegateHandleActorPreDestroy);
 	}
 
 	Super::SetWorld(InWorld);

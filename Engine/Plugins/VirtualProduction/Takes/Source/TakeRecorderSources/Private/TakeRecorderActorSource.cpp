@@ -12,6 +12,7 @@
 #include "Misc/ScopedSlowTask.h"
 #include "SequenceRecorderUtils.h"
 #include "TakeRecorderSource.h"
+#include "TakeRecorderSourceHelpers.h"
 #include "TakeRecorderSources.h"
 #include "TakeRecorderSourcesUtils.h"
 #include "Recorder/TakeRecorderParameters.h"
@@ -644,16 +645,12 @@ void UTakeRecorderActorSource::StopRecording(ULevelSequence* InSequence)
 	ActorSerializer.Close();
 }
 
-void UTakeRecorderActorSource::ProcessRecordedTimes(ULevelSequence* InSequence)
+namespace UE::TakeRecorderActorSource::Private
 {
-	UMovieScene* MovieScene = InSequence->GetMovieScene();
-
-	TOptional<TRange<FFrameNumber> > FrameRange;
-	FMovieSceneBinding* Binding = MovieScene->FindBinding(CachedObjectBindingGuid);
-	if (!Binding)
-	{
-		return;
-	}
+TOptional<TRange<FFrameNumber>> GetFrameRange(UMovieScene* MovieScene, FMovieSceneBinding* Binding)
+{
+	TOptional<TRange<FFrameNumber>> FrameRange;
+	check(Binding);
 
 	// In case we need it later, get the earliest timecode source *before* we
 	// add the take section, since its timecode source will be default
@@ -677,119 +674,41 @@ void UTakeRecorderActorSource::ProcessRecordedTimes(ULevelSequence* InSequence)
 			}
 		}
 	}
+	return FrameRange;
+}
 
+UMovieSceneTakeTrack* FindOrAddTakeTrack(UMovieScene* MovieScene, const FGuid& CachedObjectBindingGuid)
+{
 	UMovieSceneTakeTrack* TakeTrack = MovieScene->FindTrack<UMovieSceneTakeTrack>(CachedObjectBindingGuid);
 	if (!TakeTrack)
 	{
-		TakeTrack = InSequence->GetMovieScene()->AddTrack<UMovieSceneTakeTrack>(CachedObjectBindingGuid);
+		TakeTrack = MovieScene->AddTrack<UMovieSceneTakeTrack>(CachedObjectBindingGuid);
 	}
-	TakeTrack->RemoveAllAnimationData();
+	return TakeTrack;
+}
 
-	UMovieSceneTakeSection* TakeSection = Cast<UMovieSceneTakeSection>(TakeTrack->CreateNewSection());
-	TakeTrack->AddSection(*TakeSection);
+}
+void UTakeRecorderActorSource::ProcessRecordedTimes(ULevelSequence* InSequence)
+{
+	UMovieScene* MovieScene = InSequence->GetMovieScene();
 
-	if (FrameRange.IsSet())
+	FMovieSceneBinding* Binding = MovieScene->FindBinding(CachedObjectBindingGuid);
+	if (!Binding)
 	{
-		TArray<int32> Hours, Minutes, Seconds, Frames;
-		TArray<FMovieSceneFloatValue> SubFrames;
-		TArray<FFrameNumber> Times;
-
-		const TArray<TPair<FQualifiedFrameTime, FQualifiedFrameTime>>& RecordedTimes = UTakeRecorderSources::RecordedTimes;
-
-		Hours.Reserve(RecordedTimes.Num());
-		Minutes.Reserve(RecordedTimes.Num());
-		Seconds.Reserve(RecordedTimes.Num());
-		Frames.Reserve(RecordedTimes.Num());
-		SubFrames.Reserve(RecordedTimes.Num());
-		Times.Reserve(RecordedTimes.Num());
-
-		FFrameRate TickResolution = MovieScene->GetTickResolution();
-		FFrameRate DisplayRate = MovieScene->GetDisplayRate();
-
-		FFrameRate TCRate = TickResolution;
-		for (const TPair<FQualifiedFrameTime, FQualifiedFrameTime>& RecordedTimePair : RecordedTimes)
-		{
-			FFrameNumber FrameNumber = RecordedTimePair.Key.Time.FrameNumber;
-			if (!FrameRange.GetValue().Contains(FrameNumber))
-			{
-				continue;
-			}
-
-			FTimecode Timecode = RecordedTimePair.Value.ToTimecode();
-			TCRate = RecordedTimePair.Value.Rate;
-			Hours.Add(Timecode.Hours);
-			Minutes.Add(Timecode.Minutes);
-			Seconds.Add(Timecode.Seconds);
-			Frames.Add(Timecode.Frames);
-
-			FMovieSceneFloatValue SubFrame;
-			if (RecordedTimePair.Value.Time.GetSubFrame() > 0)
-			{
-				// If the Timecode provided gave us a subframe value then we should use that value.  Otherwise, we should compute 
-				// the most appropriate value based on the timecode rate.
-				SubFrame.Value = RecordedTimePair.Value.Time.GetSubFrame();
-			}
-			else
-			{
-				FFrameTime FrameTime = FFrameRate::TransformTime(RecordedTimePair.Key.Time, TickResolution, DisplayRate);
-				FQualifiedFrameTime FrameTimeAsTimeCodeRate(FrameTime, TCRate);
-
-				SubFrame.Value = FrameTimeAsTimeCodeRate.Time.GetSubFrame();
-			}
-			
-			SubFrame.InterpMode = ERichCurveInterpMode::RCIM_Linear;
-			SubFrames.Add(SubFrame);
-
-			Times.Add(FrameNumber);
-		}
-
-		Hours.Shrink();
-		Minutes.Shrink();
-		Seconds.Shrink();
-		Frames.Shrink();
-		SubFrames.Shrink();
-		Times.Shrink();
-
-		TakeSection->HoursCurve.Set(Times, Hours);
-		TakeSection->MinutesCurve.Set(Times, Minutes);
-		TakeSection->SecondsCurve.Set(Times, Seconds);
-		TakeSection->FramesCurve.Set(Times, Frames);
-		TakeSection->SubFramesCurve.Set(Times, SubFrames);
-		TakeSection->RateCurve.SetDefault(TCRate.AsDecimal());
+		return;
 	}
 
-	// Since the take section was created post recording here in this
-	// function, it wasn't available at the start of recording to have
-	// its timecode source set with the other sections, so we set it here.
-	if (TakeSection->HoursCurve.GetNumKeys() > 0)
-	{
-		// We populated the take section's timecode curves with data, so
-		// use the first values as the timecode source.
-		const int32 Hours = TakeSection->HoursCurve.GetValues()[0];
-		const int32 Minutes = TakeSection->MinutesCurve.GetValues()[0];
-		const int32 Seconds = TakeSection->SecondsCurve.GetValues()[0];
-		const int32 Frames = TakeSection->FramesCurve.GetValues()[0];
-		const bool bIsDropFrame = false;
-		const FTimecode Timecode(Hours, Minutes, Seconds, Frames, bIsDropFrame);
-		TakeSection->TimecodeSource = FMovieSceneTimecodeSource(Timecode);
-	}
-	else
-	{
-		// Otherwise, adopt the earliest timecode source from one of the movie
-		// scene's other sections as the timecode source for the take section.
-		// This case is unlikely.
-		TakeSection->TimecodeSource = EarliestTimecodeSource;
-	}
+	// In case we need it later, get the earliest timecode source *before* we
+	// add the take section, since its timecode source will be default
+	// constructed as all zeros and might accidentally compare as earliest.
+	TOptional<TRange<FFrameNumber>> FrameRange =
+		UE::TakeRecorderActorSource::Private::GetFrameRange(MovieScene, Binding);
 
-	if (UTakeMetaData* TakeMetaData = InSequence->FindMetaData<UTakeMetaData>())
-	{
-		TakeSection->Slate.SetDefault(FString::Printf(TEXT("%s_%d"), *TakeMetaData->GetSlate(), TakeMetaData->GetTakeNumber()));
-	}
+	// Create a new take track or reuse the existing one based on binding.
+	UMovieSceneTakeTrack* TakeTrack = UE::TakeRecorderActorSource::Private::FindOrAddTakeTrack(MovieScene, CachedObjectBindingGuid);
 
-	if (TakeSection->GetAutoSizeRange().IsSet())
-	{
-		TakeSection->SetRange(TakeSection->GetAutoSizeRange().GetValue());
-	}
+	// Add the recorded times to the take track.
+	TakeRecorderSourceHelpers::ProcessRecordedTimes(InSequence, TakeTrack, FrameRange, UTakeRecorderSources::RecordedTimes);
 }
 
 TArray<UTakeRecorderSource*> UTakeRecorderActorSource::PostRecording(ULevelSequence* InSequence, class ULevelSequence* InRootSequence, const bool bCancelled)

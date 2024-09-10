@@ -156,7 +156,7 @@ TSharedRef<SWidget> SDMMaterialEditor_LeftBase::CreateSlot_Left()
 			]
 		];
 
-	MaterialPreviewSlot = TDMWidgetSlot<SDMMaterialPreview>(MaterialPreviewSlotPtr, CreateSlot_Preview());
+	MaterialPreviewSlot = TDMWidgetSlot<SWidget>(MaterialPreviewSlotPtr, CreateSlot_Preview());
 	PropertySelectorSlot = TDMWidgetSlot<SDMMaterialPropertySelector>(PropertySelectorSlotPtr, CreateSlot_PropertySelector());
 
 	return NewLeft;

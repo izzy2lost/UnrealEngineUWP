@@ -177,6 +177,11 @@ EAssetCommandResult UAssetDefinition_SoundBase::ActivateAssets(const FAssetActiv
 	return Super::ActivateAssets(ActivateArgs);
 }
 
+void UAssetDefinition_SoundBase::GetAssetActionButtonExtensions(const FAssetData& InAssetData, TArray<FAssetButtonActionExtension>& OutExtensions) const
+{
+	UAssetDefinition_SoundBase::GetSoundBaseAssetActionButtonExtensions(InAssetData, OutExtensions);
+}
+
 TSharedPtr<SWidget> UAssetDefinition_SoundBase::GetThumbnailOverlay(const FAssetData& InAssetData) const
 {
 	auto OnClickedLambda = [InAssetData]() -> FReply
@@ -456,6 +461,47 @@ bool UAssetDefinition_SoundBase::GetThumbnailActionOverlay(const FAssetData& InA
 		}
 #endif
 		return false;
+	}
+
+	void UAssetDefinition_SoundBase::GetSoundBaseAssetActionButtonExtensions(const FAssetData& InAssetData, TArray<FAssetButtonActionExtension>& OutExtensions)
+	{
+		FAssetButtonActionExtension AssetButtonActionExtension
+		{
+			.PickTooltipAttribute = TAttribute<FText>::CreateLambda([InAssetData]() -> const FText
+			{
+				if (UE::AudioEditor::IsSoundPlaying(InAssetData))
+				{
+					return LOCTEXT("SoundAudition_PlaySoundToolTip", "Stop selected sound");
+				}
+
+				return LOCTEXT("SoundAudition_StopSoundToolTip", "Play selected sound");
+			}),
+			.PickBrushAttribute = TAttribute<const FSlateBrush*>::CreateLambda([InAssetData]() -> const FSlateBrush* {
+
+				if (UE::AudioEditor::IsSoundPlaying(InAssetData))
+				{
+					return FAppStyle::GetBrush("MediaAsset.AssetActions.Stop.Small");
+				}
+
+				return FAppStyle::GetBrush("MediaAsset.AssetActions.Play.Small");
+			}),
+			.OnClicked = FOnClicked::CreateLambda([InAssetData]() -> FReply
+				{
+					if (UE::AudioEditor::IsSoundPlaying(InAssetData))
+					{
+						UE::AudioEditor::StopSound();
+					}
+					else
+					{
+						// Load and play sound
+						UE::AudioEditor::PlaySound(Cast<USoundBase>(InAssetData.GetAsset()));
+					}
+
+				return FReply::Handled();
+			})
+		};
+
+		OutExtensions.Add(AssetButtonActionExtension);
 	}
 
 namespace MenuExtension_SoundBase

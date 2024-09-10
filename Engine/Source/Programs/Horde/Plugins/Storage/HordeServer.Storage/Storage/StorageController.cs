@@ -332,9 +332,9 @@ namespace HordeServer.Storage
 		/// <summary>
 		/// Reads a ref from storage, without performing namespace access checks.
 		/// </summary>
-		public static async Task<ActionResult<ReadRefResponse>> ReadRefInternalAsync(IStorageClientFactory storageService, string basePath, NamespaceId namespaceId, RefName refName, IHeaderDictionary headers, CancellationToken cancellationToken)
+		public static async Task<ActionResult<ReadRefResponse>> ReadRefInternalAsync(IStorageClient storageClient, string basePath, NamespaceId namespaceId, RefName refName, IHeaderDictionary headers, CancellationToken cancellationToken)
 		{
-			IStorageClient client = storageService.CreateClient(namespaceId);
+			IStorageNamespace storageNamespace = storageClient.GetNamespace(namespaceId);
 
 			RefCacheTime cacheTime = new RefCacheTime();
 			foreach (string? entry in headers.CacheControl)
@@ -345,7 +345,7 @@ namespace HordeServer.Storage
 				}
 			}
 
-			IHashedBlobRef? target = await client.TryReadRefAsync(refName, cacheTime, cancellationToken: cancellationToken);
+			IHashedBlobRef? target = await storageNamespace.TryReadRefAsync(refName, cacheTime, cancellationToken: cancellationToken);
 			if (target == null)
 			{
 				return new NotFoundResult();
@@ -457,11 +457,11 @@ namespace HordeServer.Storage
 				locator = new BlobLocator(locator, String.Join("&", fragments));
 			}
 
-			IStorageClient storageClient = _storageService.CreateClient(namespaceId);
+			IStorageNamespace storageNamespace = _storageService.GetNamespace(namespaceId);
 
 			object content;
 
-			using BlobData blobData = await storageClient.CreateBlobRef(locator).ReadBlobDataAsync(cancellationToken);
+			using BlobData blobData = await storageNamespace.CreateBlobRef(locator).ReadBlobDataAsync(cancellationToken);
 			if (data)
 			{
 				ReadOnlyMemoryStream stream = new ReadOnlyMemoryStream(blobData.Data.ToArray());

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "HAL/LowLevelMemTracker.h"
+#include "HAL/Platform.h"
 #include "Misc/Optional.h"
 #include "Misc/ScopeRWLock.h"
 #include "Modules/Boilerplate/ModuleBoilerplate.h"
@@ -20,13 +21,13 @@ LLM_DECLARE_TAG_API(Usd, UNREALUSDWRAPPER_API);
  * The USD memory tools are only supported in non monolithic builds at this time, since it requires overriding new and delete per module.
  *
  * The USD SDK uses the shared C runtime allocator. This means that objects returned by the USD SDK might try to delete objects that were allocated
- *through the CRT. Since UE overrides new and delete per module, USD objects that try to call delete will end up freeing memory with the UE allocator
- *but the malloc was made using the CRT, leading in a crash.
+ * through the CRT. Since UE overrides new and delete per module, USD objects that try to call delete will end up freeing memory with the UE allocator
+ * but the malloc was made using the CRT, leading in a crash.
  *
  * To go around this problem, modules using the USD SDK need special operators for new and delete. Those operators have the ability to redirect the
- *malloc or free calls to either the UE allocator or to the CRT allocator. The choice of the allocator is made in the FUsdMemoryManager.
- *FUsdMemoryManager manages a stack of active allocators per thread. Using ActivateAllocator and DeactivateAllocator, we can push and pop which
- *allocator is active on the calling thread.
+ * malloc or free calls to either the UE allocator or to the CRT allocator. The choice of the allocator is made in the FUsdMemoryManager.
+ * FUsdMemoryManager manages a stack of active allocators per thread. Using ActivateAllocator and DeactivateAllocator, we can push and pop which
+ * allocator is active on the calling thread.
  *
  * To simplify the workflow, TScopedAllocs is provided to make sure a certain block of code is bound to the right allocator.
  * FScopedUsdAllocs is a TScopedAllocs that activates the CRT allocator, while FScopedUnrealAllocs is the one that activates the UE allocator.
@@ -126,6 +127,21 @@ class TScopedAllocs final
 public:
 	TScopedAllocs()
 	{
+		// clang-format off
+#if !FORCE_ANSI_ALLOCATOR && !IS_MONOLITHIC && !USD_MERGED_MODULES	  // If we're in a situation where we need the overriden allocators...
+#ifndef SUPPRESS_PER_MODULE_INLINE_FILE	   // ...but we don't have this define (we can't check for whether IMPLEMENT_MODULE_USD is actually used, but
+										   // hopefully this is a good enough proxy)
+#ifndef DISABLE_USDMEMORY_WARNING	// This is not normally defined anywhere, but can be defined by the user to disable this check and allow
+									// compilation anyway
+#if !UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5	  // Ignore the warning when this is defined, because then we'll still be getting transitive
+												  // USDMemory.h includes from other USD files
+COMPILE_WARNING("You should only include USDMemory.h when necessary. In order to use the allocators from USDMemory.h, make sure that your module uses 'IMPLEMENT_MODULE_USD' on your main module .cpp file, and that 'PrivateDefinitions.Add(\"SUPPRESS_PER_MODULE_INLINE_FILE\");' is added to your module's .Build.cs file. For more info, refer to the official USDImporter documentation, or the documentation comments at the start of USDMemory.h, as well as on the end of UnrealUSDWrapper.Build.cs. You can also disable this compile-time check by defining DISABLE_USDMEMORY_WARNING before including USDMemory.h.")
+#endif
+#endif
+#endif
+#endif
+		// clang-format on
+
 		FUsdMemoryManager::ActivateAllocator(AllocatorType);
 	}
 

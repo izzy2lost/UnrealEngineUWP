@@ -1,18 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-#include "CoreMinimal.h"
 
-namespace UE::Geometry
-{
-	class FDynamicMesh3;
+#include "Misc/CoreMiscDefines.h"
+UE_DEPRECATED_HEADER(5.5, "Use Parameterization/UVMetrics.h from GeometryAlgorithms instead of UVMetrics.h")
 
-	class UVEDITORTOOLS_API FUVMetrics
-	{
-	public:
-		static double ReedBeta(const UE::Geometry::FDynamicMesh3& Mesh, int32 UVChannel, int32 Tid);
-		static double Sander(const UE::Geometry::FDynamicMesh3& Mesh, int32 UVChannel, int32 Tid, bool bUseL2);
-		static double TexelDensity(const UE::Geometry::FDynamicMesh3& Mesh, int32 UVChannel, int32 Tid, int32 MapSize);
-	};
-
-}
+#include "Parameterization/UVMetrics.h"

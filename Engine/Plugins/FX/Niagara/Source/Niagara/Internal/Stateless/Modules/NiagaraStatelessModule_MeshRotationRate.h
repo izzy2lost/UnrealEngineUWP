@@ -26,7 +26,7 @@ class UNiagaraStatelessModule_MeshRotationRate : public UNiagaraStatelessModule
 public:
 	using FParameters = NiagaraStateless::FMeshRotationRateModule_ShaderParameters;
 
-	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (DisplayName = "Rotation Rate", Units="deg/s"))
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (DisplayName = "Rotation Rate", Units="deg"))
 	FNiagaraDistributionRangeVector3 RotationRateDistribution = FNiagaraDistributionRangeVector3(FVector3f::ZeroVector);
 
 	virtual void BuildEmitterData(const FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override
@@ -70,12 +70,14 @@ public:
 		using namespace NiagaraStateless;
 
 		const FModuleBuiltData* ModuleBuiltData = ParticleSimulationContext.ReadBuiltData<FModuleBuiltData>();
+		const FParameters* ShaderParameters = ParticleSimulationContext.ReadParameterNestedStruct<FParameters>();
+
 		const float* AgeData = ParticleSimulationContext.GetParticleAge();
 		const float* PreviousAgeData = ParticleSimulationContext.GetParticlePreviousAge();
 
 		for (uint32 i = 0; i < ParticleSimulationContext.GetNumInstances(); ++i)
 		{
-			const FVector3f RotationRate = ParticleSimulationContext.RandomScaleBiasFloat(i, 0, ModuleBuiltData->RotationRange);
+			const FVector3f RotationRate = ParticleSimulationContext.RandomScaleBiasFloat(i, 0, ShaderParameters->MeshRotationRate_Scale, ShaderParameters->MeshRotationRate_Bias);
 			const float Age = AgeData[i];
 			const float PreviousAge = PreviousAgeData[i];
 

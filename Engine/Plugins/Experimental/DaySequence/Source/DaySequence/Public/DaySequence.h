@@ -59,7 +59,7 @@ public:
 	//~ End IInterface_AssetUserData Interface
 
 #if WITH_EDITOR
-	virtual ETrackSupport IsTrackSupported(TSubclassOf<class UMovieSceneTrack> InTrackClass) const override;
+	virtual ETrackSupport IsTrackSupportedImpl(TSubclassOf<class UMovieSceneTrack> InTrackClass) const override;
 	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
 
 	DECLARE_DELEGATE_RetVal_OneParam(void, FPostDuplicateEvent, UDaySequence*);

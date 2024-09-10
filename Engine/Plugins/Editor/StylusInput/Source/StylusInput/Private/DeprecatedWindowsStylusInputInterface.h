@@ -52,16 +52,15 @@ private:
 	class FStylusInputEventHandler : public UE::StylusInput::IStylusInputEventHandler
 	{
 	public:
-		explicit FStylusInputEventHandler(UE::StylusInput::IStylusInputInstance* Instance, TArray<FDeprecatedStylusInputDevice>& TabletContexts);
+		explicit FStylusInputEventHandler(TArray<FDeprecatedStylusInputDevice>& TabletContexts);
 		virtual ~FStylusInputEventHandler() override = default;
 		virtual FString GetName() override { return "DeprecatedWindowsStylusInputInterfaceEventHandler"; }
-		virtual void OnPacket(const UE::StylusInput::FStylusInputPacket& Packet) override;
-		virtual void OnDebugEvent(const FString& Message) override;
+		virtual void OnPacket(const UE::StylusInput::FStylusInputPacket& Packet, UE::StylusInput::IStylusInputInstance* Instance) override;
+		virtual void OnDebugEvent(const FString& Message, UE::StylusInput::IStylusInputInstance* Instance) override;
 
 	private:
-		FDeprecatedStylusInputDevice* GetTabletContext(uint32 TabletContextId);
+		FDeprecatedStylusInputDevice* GetTabletContext(uint32 TabletContextId, UE::StylusInput::IStylusInputInstance* Instance);
 
-		UE::StylusInput::IStylusInputInstance* const Instance;
 		TArray<FDeprecatedStylusInputDevice>& TabletContexts;
 	};
 

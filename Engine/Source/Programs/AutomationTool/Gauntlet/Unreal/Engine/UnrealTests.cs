@@ -54,7 +54,7 @@ namespace Gauntlet
 		public abstract class EngineTestBase<TConfigClass> : UnrealTestNode<TConfigClass>
 		where TConfigClass : EngineTestConfig, new()
 		{
-			private int LastAutomationEntryCount = 0;
+			private UnrealLogStreamParser LogParser = null;
 
 			private DateTime LastAutomationEntryTime = DateTime.MinValue;
 
@@ -138,19 +138,17 @@ namespace Gauntlet
 			{
 				const float IdleTimeout = 30 * 60;
 
-				List<string> ChannelEntries = new List<string>();
-
-				var AppInstance = TestInstance.EditorApp;
-
-				UnrealLogParser Parser = new UnrealLogParser(AppInstance.StdOut);
-				ChannelEntries.AddRange(Parser.GetEditorBusyChannels());
-
-				if (ChannelEntries.Count > LastAutomationEntryCount)
+				if (LogParser == null)
+				{
+					LogParser = new UnrealLogStreamParser(TestInstance.EditorApp.GetLogBufferReader());
+				}
+				LogParser.ReadStream();
+				IEnumerable<string> ChannelEntries = LogParser.GetLogFromEditorBusyChannels();
+				if (ChannelEntries.Any())
 				{
 					// log new entries so people have something to look at
-					ChannelEntries.Skip(LastAutomationEntryCount).ToList().ForEach(S => Log.Info("{0}", S));
+					ChannelEntries.ToList().ForEach(S => Log.Info("{0}", S));
 					LastAutomationEntryTime = DateTime.Now;
-					LastAutomationEntryCount = ChannelEntries.Count;
 				}
 				else
 				{

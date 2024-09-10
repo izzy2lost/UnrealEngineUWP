@@ -18,6 +18,7 @@ class UActorModifierCoreStack : public UActorModifierCoreBase
 	GENERATED_BODY()
 
 	friend class UActorModifierCoreBase;
+	friend class UActorModifierCoreComponent;
 	friend class UActorModifierCoreSubsystem;
 
 	friend class FActorModifierCoreEditorDetailCustomization;
@@ -207,8 +208,8 @@ private:
 	/** Sets the stack to receive tick events */
 	virtual void OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata) override;
 
-	/** Checks if any modifier within the stack can be set dirty */
-	virtual bool IsModifierDirtyable() const override;
+	/** INTERNAL USE ONLY, allows tickable modifier to mark themselves dirty when checking IsModifierDirtyable */
+	void TickModifier(float InDelta) const;
 
 	/** Unregister this stack to the subsystem when this actor is destroyed */
 	UFUNCTION()

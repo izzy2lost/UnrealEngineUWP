@@ -55,6 +55,15 @@ struct RIGVMDEVELOPER_API FRigVMPythonSettings
 	}
 };
 
+UENUM(BlueprintType)
+enum class ERigVMTagDisplayMode : uint8
+{
+	None = 0,
+	All = 0x001,
+	DeprecationOnly = 0x002,
+	Last = DeprecationOnly UMETA(Hidden), 
+};
+
 USTRUCT()
 struct RIGVMDEVELOPER_API FRigVMEdGraphDisplaySettings
 {
@@ -74,6 +83,7 @@ struct RIGVMDEVELOPER_API FRigVMEdGraphDisplaySettings
 		, LastMaxMicroSeconds(1.0)
 		, MinDurationColor(FLinearColor::Green)
 		, MaxDurationColor(FLinearColor::Red)
+		, TagDisplayMode(ERigVMTagDisplayMode::All)
 	{
 	}
 
@@ -140,6 +150,10 @@ struct RIGVMDEVELOPER_API FRigVMEdGraphDisplaySettings
 	// The color of the slowest instruction / node
 	UPROPERTY(EditAnywhere, Category = "Graph Display Settings")
 	FLinearColor MaxDurationColor;
+
+	// The color of the slowest instruction / node
+	UPROPERTY(EditAnywhere, Category = "Graph Display Settings")
+	ERigVMTagDisplayMode TagDisplayMode;
 
 	void SetTotalMicroSeconds(double InTotalMicroSeconds);
 	void SetLastMinMicroSeconds(double InMinMicroSeconds);
@@ -847,6 +861,7 @@ private:
 	friend class SRigVMGraphNode;
 	friend struct FGuardSkipDirtyBlueprintStatus;
 	friend class SRigModuleAssetBrowser;
+	friend class FFrontendFilter_ControlRigFilterByAssetTag;
 };
 
 class RIGVMDEVELOPER_API FRigVMBlueprintCompileScope

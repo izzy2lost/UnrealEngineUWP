@@ -236,9 +236,13 @@ void FRayTracingDynamicGeometryCollection::AddDynamicMeshBatchForGeometryUpdate(
 		VertexBufferOffset = VertexPositionBuffer->UsedSize;
 		VertexPositionBuffer->UsedSize += UpdateParams.VertexBufferSize;
 
+		// Make sure vertex buffer offset is aligned to 16 (required for Raw SRV views)
+		VertexPositionBuffer->UsedSize = Align(VertexPositionBuffer->UsedSize, 16);
+
 		bUseSharedVertexBuffer = true;
 		RWBuffer = &VertexPositionBuffer->RWBuffer;
 	}
+	check(IsAligned(VertexBufferOffset, 16));
 
 	FRayTracingDynamicGeometryBuildParams GeometryBuildParams;
 	GeometryBuildParams.DispatchCommands.Reserve(UpdateParams.MeshBatches.Num());
@@ -560,7 +564,7 @@ void FRayTracingDynamicGeometryCollection::AddDynamicGeometryUpdatePass(const FV
 	PassParams->DynamicGeometryScratchBuffer = OutDynamicGeometryScratchBuffer;	
 
 	GraphBuilder.AddPass(RDG_EVENT_NAME("RayTracingDynamicUpdate"), PassParams, ComputePassFlags | ERDGPassFlags::NeverCull,
-		[this, PassParams](FRHICommandList& RHICmdList)
+		[this, PassParams](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FRHIBuffer* DynamicGeometryScratchBuffer = PassParams->DynamicGeometryScratchBuffer ? PassParams->DynamicGeometryScratchBuffer->GetRHI() : nullptr;
 

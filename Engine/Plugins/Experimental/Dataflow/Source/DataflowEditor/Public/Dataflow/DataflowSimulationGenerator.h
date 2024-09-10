@@ -54,7 +54,7 @@ namespace UE::Dataflow
 		UWorld* SimulationWorld = nullptr;
 
 		/** Boolean to check if we are running the task in the background */
-		bool bBackgroundTask = true;
+		bool bAsyncCaching = true;
 	};
 
 	/** Async simulation resource that will be used while simulating */
@@ -106,7 +106,7 @@ namespace UE::Dataflow
 		/** Allocate the simulation resource from the properties */
         bool AllocateSimulationResource(const FVector2f& TimeRange, const int32 FrameRate,
         	const TObjectPtr<UChaosCacheCollection>& CacheAsset, const TSubclassOf<AActor>& ActorClass,
-        	const TObjectPtr<UDataflowBaseContent>& DataflowContent);
+        	const TObjectPtr<UDataflowBaseContent>& DataflowContent, const FTransform& BlueprintTransform);
 
         /** Free the simulation resource */
         void FreeSimulationResource();
@@ -153,6 +153,9 @@ namespace UE::Dataflow
 
 		/** Set the blueprint class for cache recording */
 		void SetBlueprintClass(const TSubclassOf<AActor>& InBlueprintClass);
+
+		/** Set the blueprint transform for cache recording */
+		void SetBlueprintTransform(const FTransform& InBlueprintTransform);
 		
 		/** Set the cache params for cache recording */
 		void SetCacheParams(const FDataflowPreviewCacheParams& InCacheParams);
@@ -185,6 +188,9 @@ namespace UE::Dataflow
 
 		/** Blueprint class used to spawn the actor */
 		TSubclassOf<AActor> BlueprintClass = nullptr;
+
+		/** Blueprint transform used to spawn the actor */
+		FTransform BlueprintTransform = FTransform::Identity;
 
 		/** Dataflow content */
 		TObjectPtr<UDataflowBaseContent> DataflowContent;

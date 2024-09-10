@@ -67,6 +67,11 @@ public:
 		return Key.SubjectName.Name;
 	}
 
+	virtual FText GetDisplayName() const
+	{
+		return FText::FromName(Key.SubjectName);
+	}
+
 	/** List of available preprocessor the subject will use. */
 	UPROPERTY(EditAnywhere, Instanced, Category = "LiveLink", meta = (DisplayName = "Pre Processors"))
 	TArray<TObjectPtr<ULiveLinkFramePreProcessor>> PreProcessors;
@@ -97,6 +102,10 @@ public:
 	/** If enabled, rebroadcast this subject */
 	UPROPERTY(EditAnywhere, Category = "LiveLink", meta=(EditCondition="bAllowModifyingRebroadcast"))
     bool bRebroadcastSubject;
+
+	/** For sources created through LiveLinkHub, this contains the name of the original source for display purposes.*/
+	UPROPERTY()
+	FName OriginalSourceName;
 
 	/** Validate PreProcessors, Translators and Interpolation processors. Usually called after a property change event.
 	 * Will revert a given change if it does not match the current subject role.

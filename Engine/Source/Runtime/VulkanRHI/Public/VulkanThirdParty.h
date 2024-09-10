@@ -54,3 +54,7 @@ THIRD_PARTY_INCLUDES_END
 #endif
 
 #endif
+
+#if PLATFORM_ANDROID
+#include <android/hardware_buffer.h>
+#endif

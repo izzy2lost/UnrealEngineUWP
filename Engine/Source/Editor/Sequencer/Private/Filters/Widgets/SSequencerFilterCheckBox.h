@@ -2,47 +2,145 @@
 
 #pragma once
 
+#include "Framework/Application/SlateApplication.h"
+#include "GameFramework/InputSettings.h"
 #include "Widgets/Input/SCheckBox.h"
 
 class SSequencerFilterCheckBox : public SCheckBox
 {
 public:
-	DECLARE_DELEGATE_RetVal_TwoParams(FReply, FOnPointerEvent, const FGeometry& /*InMyGeometry*/, const FPointerEvent& /*InMouseEvent*/);
-
-	void SetOnMouseUp(const FOnPointerEvent& InNewOnMouseUp)
+	void SetOnClick(const FOnCheckStateChanged& InOnClick)
 	{
-		OnMouseUp = InNewOnMouseUp;
+		OnClick = InOnClick;
 	}
 
-	void SetOnDoubleClick(const FOnPointerEvent& InNewOnDoubleClick)
+	void SetOnCtrlClick(const FSimpleDelegate& InNewCtrlClick)
 	{
-		OnDoubleClick = InNewOnDoubleClick;
+		OnCtrlClick = InNewCtrlClick;
+	}
+
+	void SetOnAltClick(const FSimpleDelegate& InNewAltClick)
+	{
+		OnAltClick = InNewAltClick;
+	}
+
+	void SetOnMiddleButtonClick(const FSimpleDelegate& InNewMiddleButtonClick)
+	{
+		OnMiddleButtonClick = InNewMiddleButtonClick;
+	}
+
+	void SetOnDoubleClick(const FSimpleDelegate& InNewDoubleClick)
+	{
+		OnDoubleClick = InNewDoubleClick;
 	}
 
 protected:
 	//~ Begin SWidget
 
-	virtual FReply OnMouseButtonUp(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override
+	virtual FReply OnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent) override
 	{
-		FReply Reply = SCheckBox::OnMouseButtonUp(InMyGeometry, InMouseEvent);
-		if (OnMouseUp.IsBound())
+		if (InPointerEvent.GetEffectingButton() == EKeys::LeftMouseButton)
 		{
-			Reply = OnMouseUp.Execute(InMyGeometry, InMouseEvent).ReleaseMouseCapture();
+			bIsPressed = true;
+
+			const EButtonClickMethod::Type InputClickMethod = GetClickMethodFromInputType(InPointerEvent);
+
+			if (InputClickMethod == EButtonClickMethod::MouseDown)
+			{
+				Internal_Click(InPointerEvent);
+
+				return FReply::Handled().SetUserFocus(AsShared(), EFocusCause::Mouse);
+			}
+
+			return FReply::Handled().CaptureMouse(AsShared()).SetUserFocus(AsShared(), EFocusCause::Mouse);
 		}
-		return Reply;
+
+		if (InPointerEvent.GetEffectingButton() == EKeys::RightMouseButton && OnGetMenuContent.IsBound())
+		{
+			FSlateApplication::Get().PushMenu(
+				AsShared(),
+				InPointerEvent.GetEventPath() ? *InPointerEvent.GetEventPath() : FWidgetPath(),
+				OnGetMenuContent.Execute(),
+				InPointerEvent.GetScreenSpacePosition(),
+				FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu));
+
+			return FReply::Handled();
+		}
+
+		return FReply::Unhandled();
 	}
 
-	virtual FReply OnMouseButtonDoubleClick(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override
+	virtual FReply OnMouseButtonUp(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent) override
 	{
-		if (OnDoubleClick.IsBound())
+		const EButtonClickMethod::Type InputClickMethod = GetClickMethodFromInputType(InPointerEvent);
+		const bool bMustBePressed = InputClickMethod == EButtonClickMethod::DownAndUp || InputClickMethod == EButtonClickMethod::PreciseClick;
+		const bool bMeetsPressedRequirements = !bMustBePressed || (bIsPressed && bMustBePressed);
+
+		if (bMeetsPressedRequirements && ((InPointerEvent.GetEffectingButton() == EKeys::LeftMouseButton || InPointerEvent.IsTouchEvent())))
 		{
-			return OnDoubleClick.Execute(InMyGeometry, InMouseEvent);
+			bIsPressed = false;
+
+			if (InputClickMethod != EButtonClickMethod::MouseDown)
+			{
+				const bool IsUnderMouse = InGeometry.IsUnderLocation(InPointerEvent.GetScreenSpacePosition());
+				if (IsUnderMouse)
+				{
+					// If we were asked to allow the button to be clicked on mouse up, regardless of whether the user
+					// pressed the button down first, then we'll allow the click to proceed without an active capture
+					if (InputClickMethod == EButtonClickMethod::MouseUp || HasMouseCapture())
+					{
+						Internal_Click(InPointerEvent);
+					}
+				}
+			}
+
+			return FReply::Handled().ReleaseMouseCapture();
 		}
-		return SCheckBox::OnMouseButtonDoubleClick(InMyGeometry, InMouseEvent);
+
+		return FReply::Unhandled();
+	}
+
+	virtual FReply OnMouseButtonDoubleClick(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent) override
+	{
+		OnDoubleClick.ExecuteIfBound();
+
+		return FReply::Handled();
 	}
 
 	//~ End SWidget
 
-	FOnPointerEvent OnDoubleClick;
-	FOnPointerEvent OnMouseUp;
+	void Internal_Click(const FPointerEvent& InPointerEvent)
+	{
+		// Use a timer for click to give double click a chance to register
+		TimerHandle = RegisterActiveTimer(GetDefault<UInputSettings>()->DoubleClickTime,
+			FWidgetActiveTimerDelegate::CreateLambda([this, InPointerEvent](double InCurrentTime, float InDeltaTime) -> EActiveTimerReturnType
+			{
+				if (InPointerEvent.IsControlDown())
+				{
+					OnCtrlClick.ExecuteIfBound();
+				}
+				else if (InPointerEvent.IsAltDown())
+				{
+					OnAltClick.ExecuteIfBound();
+				}
+				else if (InPointerEvent.GetEffectingButton() == EKeys::MiddleMouseButton)
+				{
+					OnMiddleButtonClick.ExecuteIfBound();
+				}
+				else
+				{
+					OnClick.ExecuteIfBound(GetCheckedState());
+				}
+
+				return EActiveTimerReturnType::Stop;
+			}));
+	}
+
+	FOnCheckStateChanged OnClick;
+	FSimpleDelegate OnCtrlClick;
+	FSimpleDelegate OnAltClick;
+	FSimpleDelegate OnDoubleClick;
+	FSimpleDelegate OnMiddleButtonClick;
+
+	TSharedPtr<FActiveTimerHandle> TimerHandle;
 };

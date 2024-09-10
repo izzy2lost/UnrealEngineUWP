@@ -13,7 +13,7 @@
 namespace UE::PixelStreaming2
 {
 	// Tests the creation and removal of a conference from the platform
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEpicRtcConferenceLifetimeTest, "System.Plugins.PixelStreaming2.FEpicRtcConferenceLifetimeTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEpicRtcConferenceLifetimeTest, "System.Plugins.PixelStreaming2.FPS2EpicRtcConferenceLifetimeTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
 	bool FEpicRtcConferenceLifetimeTest::RunTest(const FString& Parameters)
 	{
 		EpicRtcErrorCode Result;
@@ -83,7 +83,7 @@ namespace UE::PixelStreaming2
 	}
 
 	// Tests the conference creation logic to ensure that two conferences with the same name can't be created
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEpicRtcConferenceCreateTest, "System.Plugins.PixelStreaming2.FEpicRtcConferenceCreateTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEpicRtcConferenceCreateTest, "System.Plugins.PixelStreaming2.FPS2EpicRtcConferenceCreateTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
 	bool FEpicRtcConferenceCreateTest::RunTest(const FString& Parameters)
 	{
 		EpicRtcErrorCode Result;
@@ -135,7 +135,7 @@ namespace UE::PixelStreaming2
 	}
 
 	// Tests the conference retrieval logic to ensure that a conference can be retrieved after is has been created
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEpicRtcConferenceGetTest, "System.Plugins.PixelStreaming2.FEpicRtcConferenceGetTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEpicRtcConferenceGetTest, "System.Plugins.PixelStreaming2.FPS2EpicRtcConferenceGetTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
 	bool FEpicRtcConferenceGetTest::RunTest(const FString& Parameters)
 	{
 		EpicRtcErrorCode Result;

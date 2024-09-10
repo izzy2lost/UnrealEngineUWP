@@ -575,6 +575,15 @@ void FSlateUser::CloseTooltip()
 	}
 }
 
+FVector2f FSlateUser::GetTooltipPosition() const
+{
+	if (TooltipWindowPtr.IsValid())
+	{
+		return TooltipWindowPtr.Pin()->GetPositionInScreen();
+	}
+	return FVector2f::Zero();
+}
+
 void FSlateUser::SetUserNavigationConfig(TSharedPtr<FNavigationConfig> InNavigationConfig)
 {
 	if (UserNavigationConfig)

@@ -10,14 +10,15 @@ enum class ESequencerTextFilterValueType : uint8;
 class SFilterExpressionHelpDialog : public SWindow
 {
 public:
+	static constexpr float MaxDesiredWidth = 460.f;
+	static constexpr float MaxDesiredHeight = 560.f;
+
 	SLATE_BEGIN_ARGS(SFilterExpressionHelpDialog)
 		: _DialogTitle(NSLOCTEXT("SFilterExpressionHelpDialog", "DialogTitle", "Text Filter Expression Help"))
-		, _DialogSize(FVector2D(320.f, 560.f))
 		, _HeaderText(NSLOCTEXT("SFilterExpressionHelpDialog", "HeaderText", "Text Filter Expressions"))
 		, _DocumentationLink(TEXT("https://dev.epicgames.com/documentation/en-us/unreal-engine/advanced-search-syntax-in-unreal-engine"))
 	{}
 		SLATE_ARGUMENT(FText, DialogTitle)
-		SLATE_ARGUMENT(FVector2D, DialogSize)
 		SLATE_ARGUMENT(FText, HeaderText)
 		SLATE_ARGUMENT(FString, DocumentationLink)
 		SLATE_ARGUMENT(TArray<TSharedRef<FSequencerTextFilterExpressionContext>>, TextFilterExpressionContexts)

@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNEHlslShadersCumSumCS.h"
+
 #include "Helper/NNERuntimeRDGOperatorHelper.h"
+#include "NNEHlslShadersLog.h"
 #include "NNERuntimeRDGCumSum.h"
 #include "NNERuntimeRDGHlslHelper.h"
 #include "NNETensor.h"
@@ -39,13 +41,13 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			const NNE::Internal::FTensorRef AxisTensor = InputTensors[1];
 			if(!AxisTensor->HasPreparedData())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("CumSum tensor `axis` (name: %s) must be CPU constant."), *InputTensors[1]->GetName());
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("CumSum: Tensor `axis` (name: %s) must be CPU constant."), *InputTensors[1]->GetName());
 				return -1;
 			}
 			
 			if(AxisTensor->GetVolume() != 1)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("CumSum tensor `axis` (name: %s) must be 0-D."), *InputTensors[1]->GetName());
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("CumSum: Tensor `axis` (name: %s) must be 0-D."), *InputTensors[1]->GetName());
 				return -1;
 			}
 
@@ -60,7 +62,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (Axis > InputRank || Axis  < -InputRank)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("CumSum tensor 'axis' should contain a value in the range [-r,r] with r being the rank of the input (name: %s) however got %d while rank is %d."), *InputTensors[0]->GetName(), Axis, InputRank);
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("CumSum: Tensor 'axis' should contain a value in the range [-r,r] with r being the rank of the input (name: %s) however got %d while rank is %d."), *InputTensors[0]->GetName(), Axis, InputRank);
 				return -1;
 			}
 
@@ -80,7 +82,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 				if(OutThreadGroupCount.X > GRHIMaxDispatchThreadGroupsPerDimension.X)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("CumSum input tensor (name: %s) has axis dimension greater than %d. This is not supported."), 
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("CumSum: Input tensor (name: %s) has axis dimension greater than %d. This is not supported."), 
 						*InputTensor.GetName(), GRHIMaxDispatchThreadGroupsPerDimension.X);
 					return FIntVector{};
 				}
@@ -99,14 +101,14 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				OutThreadGroupCount.Y = NumElemBeforeAxis;
 				if(OutThreadGroupCount.Y > GRHIMaxDispatchThreadGroupsPerDimension.Y)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("CumSum input tensor (name: %s) has number of elements before axis greater than %d. This is not supported."), 
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("CumSum: Input tensor (name: %s) has number of elements before axis greater than %d. This is not supported."), 
 						*InputTensor.GetName(), GRHIMaxDispatchThreadGroupsPerDimension.X);
 					return FIntVector{};
 				}
 				OutThreadGroupCount.Z = NumElemAfterAxis;
 				if(OutThreadGroupCount.Z > GRHIMaxDispatchThreadGroupsPerDimension.Z)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("CumSum input tensor (name: %s) has number of elements after axis greater than %d. This is not supported."), 
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("CumSum: Input tensor (name: %s) has number of elements after axis greater than %d. This is not supported."), 
 						*InputTensor.GetName(), GRHIMaxDispatchThreadGroupsPerDimension.Z);
 					return FIntVector{};
 				}
@@ -135,14 +137,14 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			int32 Exclusive = Attributes.GetValueOrDefault<int32>(TEXT("exclusive"), 0);
 			if(Exclusive == 1)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("CumSum attribute `exclusive` not yet supported."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("CumSum: Attribute `exclusive` not yet supported."));
 				return false;
 			}
 
 			int32 Reverse = Attributes.GetValueOrDefault<int32>(TEXT("reverse"), 0);
 			if(Reverse == 1)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("CumSum attribute `reverse` not yet supported."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("CumSum: Attribute `reverse` not yet supported."));
 				return false;
 			}
 

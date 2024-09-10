@@ -503,10 +503,9 @@ void FDeferredShadingSceneRenderer::RenderRayTracingShadows(
 				RDG_EVENT_NAME("RayTracedShadow (INLINE) (spp=%d) %dx%d", RayTracingConfig.RayCountPerPixel, Resolution.X, Resolution.Y),
 				InlinePassParameters,
 				ERDGPassFlags::Compute,
-				[InlinePassParameters, ComputeShader, GroupCount](FRHICommandListImmediate& RHICmdList)
+				[InlinePassParameters, ComputeShader, GroupCount](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 				{
-					
-					FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, *InlinePassParameters, GroupCount);	
+					FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, *InlinePassParameters, GroupCount);
 				});
 
 			//FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("RayTracedShadow (INLINE) (spp=%d) %dx%d", RayTracingConfig.RayCountPerPixel, Resolution.X, Resolution.Y), ComputeShader, InlinePassParameters, GroupCount);
@@ -565,7 +564,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingShadows(
 
 						FRayTracingPipelineState* Pipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, Initializer);
 
-						FShaderBindingTableRHIRef SBT = Scene->RayTracingSBT.AllocateRHI(ERayTracingHitGroupIndexingMode::Disallow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, Initializer.GetMaxLocalBindingDataSize());
+						FShaderBindingTableRHIRef SBT = Scene->RayTracingSBT.AllocateRHI(RHICmdList, ERayTracingShaderBindingMode::RTPSO, ERayTracingHitGroupIndexingMode::Disallow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, Initializer.GetMaxLocalBindingDataSize());
 						
 						RHICmdList.SetDefaultRayTracingHitGroup(SBT, Pipeline, 0);
 						RHICmdList.SetRayTracingMissShader(SBT, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
@@ -601,7 +600,7 @@ void FDeferredShadingSceneRenderer::RenderDitheredLODFadingOutMask(FRDGBuilder& 
 		RDG_EVENT_NAME("DitheredLODFadingOutMask"),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[this, &View, PassParameters](FRHICommandList& RHICmdList)
+		[&View, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 		RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);

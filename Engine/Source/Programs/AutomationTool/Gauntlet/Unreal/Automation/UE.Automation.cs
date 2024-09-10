@@ -19,7 +19,7 @@ namespace UE
 	public class AutomationTestConfig : UnrealTestConfiguration
 	{
 		/// <summary>
-		/// Run with specify RHI
+		/// Run with specific RHI
 		/// </summary>
 		[AutoParam]
 		public string RHI = "";
@@ -41,6 +41,11 @@ namespace UE
 			public enum Mac
 			{
 				metal
+			}
+			public enum ShaderModel
+			{
+				sm5,
+				sm6
 			}
 		}
 
@@ -271,40 +276,66 @@ namespace UE
 				{
 					AppConfig.CommandLine += " -dpcvars=r.RayTracing=0";
 				}
-
-				// Options specific to windows
-				if (ConfigRole.Platform != null && ((UnrealTargetPlatform)ConfigRole.Platform).IsInGroup(UnrealPlatformGroup.Windows))
+				
+				if (ConfigRole.Platform != null)
 				{
-					if (AttachRenderDoc && !RayTracing)
+					Type RHIType = null;
+					UnrealTargetPlatform TargetPlatform = (UnrealTargetPlatform)ConfigRole.Platform;
+
+					// Set our options by platform
+					if (TargetPlatform.IsInGroup(UnrealPlatformGroup.Windows))
 					{
-						AppConfig.CommandLine += " -attachRenderDoc";
+						RHIType = typeof(ValidRHI.Win64);
+						if (AttachRenderDoc && !RayTracing)
+						{
+							AppConfig.CommandLine += " -attachRenderDoc";
+						}
+
+						if (PreferNvidia)
+						{
+							AppConfig.CommandLine += " -preferNvidia";
+						}
+
+						if (D3DDebug)
+						{
+							AppConfig.CommandLine += " -d3ddebug";
+						}
+
+						if (StompMalloc)
+						{
+							AppConfig.CommandLine += " -stompmalloc";
+						}
+					}
+					else if (TargetPlatform.IsInGroup(UnrealPlatformGroup.Apple))
+					{
+						RHIType = typeof(ValidRHI.Mac);
+					}
+					else if (TargetPlatform.IsInGroup(UnrealPlatformGroup.Linux))
+					{
+						RHIType = typeof(ValidRHI.Linux);
 					}
 
-					if (PreferNvidia)
-					{
-						AppConfig.CommandLine += " -preferNvidia";
-					}
-
+					// RHI can specify both RHI and ShaderModel (SM) for Windows, Mac, and Linux platforms
 					if (!string.IsNullOrEmpty(RHI))
 					{
-						if (Enum.IsDefined(typeof(ValidRHI.Win64), RHI.ToLower()))
+						if (RHIType == null)
 						{
-							AppConfig.CommandLine += string.Format(" -{0}", RHI);
+							throw new AutomationException(string.Format("Unknown target platform '{0}'", TargetPlatform));
 						}
-						else
+
+						// The RHI can include the Shader Model version to go along with it and should be split out e.g d3d12-sm6
+						string[] RHIArguments = RHI.Split('-');
+						foreach (string Argument in RHIArguments)
 						{
-							throw new AutomationException(string.Format("Unknown RHI target '{0}' for Win64", RHI));
+							if (Enum.IsDefined(RHIType, Argument.ToLower()) || Enum.IsDefined(typeof(ValidRHI.ShaderModel), Argument.ToLower()))
+							{
+								AppConfig.CommandLine += string.Format(" -{0}", Argument);
+							}
+							else
+							{
+								throw new AutomationException(string.Format("Unknown RHI target or Shader Model '{0}' for {1}", Argument, RHIType.Name));
+							}
 						}
-					}
-
-					if (D3DDebug)
-					{
-						AppConfig.CommandLine += " -d3ddebug";
-					}
-
-					if (StompMalloc)
-					{
-						AppConfig.CommandLine += " -stompmalloc";
 					}
 				}
 			}
@@ -420,7 +451,7 @@ namespace UE
 		where TConfigClass : UnrealTestConfiguration, new()
 	{
 		// used to track stdout from the processes 
-		private int LastAutomationEntryCount = 0;
+		private UnrealLogStreamParser LogReader = null;
 
 		private UnrealAutomatedTestPassResults TestPassResults = null;
 
@@ -524,7 +555,7 @@ namespace UE
 		public override bool StartTest(int Pass, int InNumPasses)
 		{
 			LastAutomationEntryTime = DateTime.MinValue;
-			LastAutomationEntryCount = 0;
+			LogReader = null;
 			TestPassResults = null;
 
 			if (GetConfiguration() is AutomationTestConfig Config)
@@ -555,7 +586,7 @@ namespace UE
 		public override bool RestartTest()
 		{
 			LastAutomationEntryTime = DateTime.MinValue;
-			LastAutomationEntryCount = 0;
+			LogReader = null;
 			TestPassResults = null;
 
 			if (GetConfiguration() is AutomationTestConfig Config)
@@ -573,12 +604,13 @@ namespace UE
 		{
 			// We are primarily interested in what the editor is doing
 			var AppInstance = TestInstance.EditorApp;
+			if (LogReader == null)
+			{
+				LogReader = new UnrealLogStreamParser(AppInstance.GetLogBufferReader());
+			}
+			LogReader.ReadStream();
 
-			UnrealLogStreamParser Parser = new UnrealLogStreamParser();
-			LastAutomationEntryCount += Parser.ReadStream(AppInstance.StdOut, LastAutomationEntryCount);
-
-			IEnumerable<string> ChannelEntries = Parser.GetLogFromEditorBusyChannels();
-
+			IEnumerable<string> ChannelEntries = LogReader.GetLogFromEditorBusyChannels();
 			// Any new entries?
 			if (ChannelEntries.Any())
 			{
@@ -972,7 +1004,7 @@ namespace UE
 							if (Report != null)
 							{
 								var MainRolePlatform = Context.GetRoleContext(Config.GetMainRequiredRole().Type).Platform;
-								Report.SetMetadata("RHI", string.IsNullOrEmpty(Config.RHI) || !MainRolePlatform.IsInGroup(UnrealPlatformGroup.Windows) ? "default" : Config.RHI.ToLower());
+								Report.SetMetadata("RHI", string.IsNullOrEmpty(Config.RHI) || !MainRolePlatform.IsInGroup(UnrealPlatformGroup.Desktop) ? "default" : Config.RHI.ToLower());
 							}
 						}
 					}

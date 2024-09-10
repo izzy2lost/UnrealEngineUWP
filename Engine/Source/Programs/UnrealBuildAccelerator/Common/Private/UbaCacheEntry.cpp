@@ -2,6 +2,7 @@
 
 #include "UbaCacheEntry.h"
 #include "UbaFile.h"
+#include "UbaHashMap.h"
 #include <algorithm>
 
 namespace uba
@@ -435,7 +436,7 @@ namespace uba
 		BuildInputsT(entry, inputs, entries.empty());
 	}
 
-	void CacheEntries::UpdateEntries(Logger& logger, const GrowingNoLockUnorderedMap<u32, u32>& oldToNewCasKeyOffset, Vector<u32>& temp, Vector<u8>& temp2)
+	void CacheEntries::UpdateEntries(Logger& logger, const HashMap2<u32, u32>& oldToNewCasKeyOffset, Vector<u32>& temp, Vector<u8>& temp2)
 	{
 		if (entries.empty())
 			return;
@@ -448,9 +449,8 @@ namespace uba
 				while (reader.GetLeft())
 				{
 					u32 newOffset = u32(reader.Read7BitEncoded());
-					auto findIt = oldToNewCasKeyOffset.find(newOffset);
-					if (findIt != oldToNewCasKeyOffset.end())
-						newOffset = findIt->second;
+					if (auto o = oldToNewCasKeyOffset.Find(newOffset))
+						newOffset = *o;
 					temp.push_back(newOffset);
 					newOffsetsSize += Get7BitEncodedCount(newOffset);
 				}
@@ -496,9 +496,8 @@ namespace uba
 					u64 newSize = 0;
 					for (auto& offset : temp)
 					{
-						auto findIt = oldToNewCasKeyOffset.find(offset);
-						if (findIt != oldToNewCasKeyOffset.end())
-							offset = findIt->second;
+						if (auto o = oldToNewCasKeyOffset.Find(offset))
+							offset = *o;
 						newSize += Get7BitEncodedCount(offset);
 					}
 
@@ -521,11 +520,8 @@ namespace uba
 					// Flatten using old shared and rebuild it with new shared
 					Flatten(temp, entry, oldShared);
 					for (auto& offset : temp)
-					{
-						auto findIt = oldToNewCasKeyOffset.find(offset);
-						if (findIt != oldToNewCasKeyOffset.end())
-							offset = findIt->second;
-					}
+						if (auto o = oldToNewCasKeyOffset.Find(offset))
+							offset = *o;
 
 					// Sort temp now when it likely is out of order
 					std::sort(temp.begin(), temp.end());
@@ -556,9 +552,8 @@ namespace uba
 						while (excludedReader.GetLeft())
 						{
 							u32 offset = u32(excludedReader.Read7BitEncoded());
-							auto findIt = oldToNewCasKeyOffset.find(offset);
-							if (findIt != oldToNewCasKeyOffset.end())
-								offset = findIt->second;
+							if (auto o = oldToNewCasKeyOffset.Find(offset))
+								offset = *o;
 							out.push_back(offset);
 						}
 					};

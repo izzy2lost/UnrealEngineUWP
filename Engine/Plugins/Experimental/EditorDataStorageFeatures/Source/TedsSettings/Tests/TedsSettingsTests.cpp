@@ -19,13 +19,11 @@
 
 namespace UE::Editor::Settings::Tests
 {
-	using namespace UE::Editor;
-
 	BEGIN_DEFINE_SPEC(FTedsSettingsTestFixture, "Editor.DataStorage.Settings", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 	ISettingsModule* SettingsModule = nullptr;
 	UTypedElementRegistry* TypedElementRegistry = nullptr;
-	ITypedElementDataStorageInterface* DataStorage = nullptr;
-	ITypedElementDataStorageCompatibilityInterface* DataStorageCompatibility = nullptr;
+	IEditorDataStorageProvider* DataStorage = nullptr;
+	IEditorDataStorageCompatibilityProvider* DataStorageCompatibility = nullptr;
 	DataStorage::QueryHandle CountAllSettingsQuery = DataStorage::InvalidQueryHandle;
 
 	uint32 BeforeRowCount = 0;

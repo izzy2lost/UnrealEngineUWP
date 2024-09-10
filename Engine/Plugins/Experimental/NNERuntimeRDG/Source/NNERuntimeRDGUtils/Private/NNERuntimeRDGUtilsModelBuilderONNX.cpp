@@ -2,8 +2,8 @@
 
 #include "NNERuntimeRDGUtilsModelBuilderONNX.h"
 
-#include "NNE.h"
 #include "NNEAttributeMap.h"
+#include "NNEHlslShadersLog.h"
 #include "NNERuntimeFormat.h"
 
 THIRD_PARTY_INCLUDES_START
@@ -103,7 +103,7 @@ public:
 			}
 			catch (onnx::checker::ValidationError& e)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("ModelBuilder error:%s"), ANSI_TO_TCHAR(e.what()));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("ModelBuilder error:%s"), ANSI_TO_TCHAR(e.what()));
 				return false;
 			}
 #endif

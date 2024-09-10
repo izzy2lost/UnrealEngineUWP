@@ -11,6 +11,7 @@
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialModule.h"
 #include "Engine/Texture.h"
+#include "Framework/Application/IInputProcessor.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Materials/Material.h"
@@ -40,8 +41,70 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SNullWidget.h"
 #include "Widgets/SToolTip.h"
+#include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "SDMMaterialEditor"
+
+/**
+ * This is used to track a key, similar to how modifier keys are tracked by the engine...
+ * because non-modifier keys are not tracked.
+ */
+class FDMKeyTracker : public IInputProcessor
+{
+public:
+	FDMKeyTracker(const FKey& InTrackedKey)
+		: TrackedKey(InTrackedKey)
+		, bKeyDown(false)
+	{
+		
+	}
+
+	const FKey& GetTrackedKey() const
+	{
+		return TrackedKey;
+	}
+
+	bool IsKeyDown() const
+	{
+		return bKeyDown;
+	}
+
+	//~ Begin IInputProcessor
+	virtual void Tick(const float InDeltaTime, FSlateApplication& InSlateApp, TSharedRef<ICursor> InCursor) override
+	{		
+	}
+
+	virtual bool HandleKeyDownEvent(FSlateApplication& InSlateApp, const FKeyEvent& InKeyEvent) override
+	{
+		if (InKeyEvent.GetKey() == TrackedKey)
+		{
+			bKeyDown = true;
+		}
+
+		return false;
+	}
+
+	/** Key up input */
+	virtual bool HandleKeyUpEvent(FSlateApplication& InSlateApp, const FKeyEvent& InKeyEvent) override
+	{
+		if (InKeyEvent.GetKey() == TrackedKey)
+		{
+			bKeyDown = false;
+		}
+
+		return false;
+	}
+
+	virtual const TCHAR* GetDebugName() const override
+	{
+		return TEXT("FDMKeyTracker");
+	}
+	//~ End IInputProcessor
+
+private:
+	const FKey& TrackedKey;
+	bool bKeyDown;
+};
 
 FDMMaterialEditorPage FDMMaterialEditorPage::Preview = {EDMMaterialEditorMode::MaterialPreview, EDMMaterialPropertyType::None};
 FDMMaterialEditorPage FDMMaterialEditorPage::GlobalSettings = {EDMMaterialEditorMode::GlobalSettings, EDMMaterialPropertyType::None};
@@ -74,6 +137,11 @@ SDMMaterialEditor::~SDMMaterialEditor()
 	FCoreDelegates::OnEnginePreExit.RemoveAll(this);
 	CloseMaterialPreviewTab();
 	DestroyMaterialPreviewToolTip();
+
+	if (KeyTracker_V.IsValid() && FSlateApplication::IsInitialized())
+	{
+		FSlateApplication::Get().UnregisterInputPreProcessor(KeyTracker_V.ToSharedRef());
+	}
 
 	if (!FDynamicMaterialModule::AreUObjectsSafe())
 	{
@@ -122,6 +190,9 @@ void SDMMaterialEditor::Construct(const FArguments& InArgs, const TSharedRef<SDM
 	{
 		Settings->GetOnSettingsChanged().AddSP(this, &SDMMaterialEditor::OnSettingsChanged);
 	}
+
+	KeyTracker_V = MakeShared<FDMKeyTracker>(EKeys::V);
+	FSlateApplication::Get().RegisterInputPreProcessor(KeyTracker_V);
 }
 
 TSharedPtr<SDMMaterialDesigner> SDMMaterialEditor::GetDesignerWidget() const
@@ -424,10 +495,11 @@ void SDMMaterialEditor::OpenMaterialPreviewTab()
 
 	TSharedRef<SBox> Wrapper = SNew(SBox);
 
-	MaterialPreviewTabSlot = TDMWidgetSlot<SDMMaterialPreview>(
+	MaterialPreviewTabSlot = TDMWidgetSlot<SWidget>(
 		Wrapper, 
 		0, 
 		SNew(SDMMaterialPreview, SharedThis(this), MaterialModelBase)
+		.IsPopout(true)
 	);
 
 	MaterialPreviewTab->SetContent(Wrapper);
@@ -477,7 +549,7 @@ TSharedPtr<IToolTip> SDMMaterialEditor::GetMaterialPreviewToolTip()
 			}
 		));
 
-	MaterialPreviewToolTipSlot = TDMWidgetSlot<SDMMaterialPreview>(
+	MaterialPreviewToolTipSlot = TDMWidgetSlot<SWidget>(
 		Wrapper,
 		0,
 		SNew(SDMMaterialPreview, SharedThis(this), MaterialModelBase)
@@ -563,6 +635,12 @@ bool SDMMaterialEditor::SupportsKeyboardFocus() const
 
 FReply SDMMaterialEditor::OnKeyDown(const FGeometry& InMyGeometry, const FKeyEvent& InKeyEvent)
 {
+	// Cannot make a key bind that has 2 buttons, so hard code that here.
+	if (CheckOpacityInput(InKeyEvent))
+	{
+		return FReply::Handled();
+	}
+
 	if (CommandList->ProcessCommandBindings(InKeyEvent))
 	{
 		return FReply::Handled();
@@ -626,16 +704,28 @@ void SDMMaterialEditor::BindCommands(SDMMaterialSlotEditor* InSlotEditor)
 	);
 
 	CommandList->MapAction(
-		FDynamicMaterialEditorCommands::Get().AddDefaultLayer,
+		DMEditorCommands.AddDefaultLayer,
 		FExecuteAction::CreateSP(InSlotEditor, &SDMMaterialSlotEditor::AddNewLayer),
 		FCanExecuteAction::CreateSP(InSlotEditor, &SDMMaterialSlotEditor::CanAddNewLayer)
 	);
 
 	CommandList->MapAction(
-		FDynamicMaterialEditorCommands::Get().InsertDefaultLayerAbove,
+		DMEditorCommands.InsertDefaultLayerAbove,
 		FExecuteAction::CreateSP(InSlotEditor, &SDMMaterialSlotEditor::InsertNewLayer),
 		FCanExecuteAction::CreateSP(InSlotEditor, &SDMMaterialSlotEditor::CanInsertNewLayer)
 	);
+
+	for (const TPair<FKey, FDynamicMaterialEditorCommands::FOpacityCommand>& OpacityCommandPair : DMEditorCommands.SetOpacities)
+	{
+		const float Opacity = OpacityCommandPair.Value.Opacity;
+		const TSharedPtr<FUICommandInfo>& OpacityCommand = OpacityCommandPair.Value.Command;
+
+		CommandList->MapAction(
+			OpacityCommand,
+			FExecuteAction::CreateSP(InSlotEditor, &SDMMaterialSlotEditor::SetOpacity_Execute, Opacity),
+			FCanExecuteAction::CreateSP(InSlotEditor, &SDMMaterialSlotEditor::SetOpacity_CanExecute)
+		);
+	}
 
 	CommandList->MapAction(
 		GenericCommands.Copy,
@@ -666,6 +756,15 @@ void SDMMaterialEditor::BindCommands(SDMMaterialSlotEditor* InSlotEditor)
 		FExecuteAction::CreateSP(InSlotEditor, &SDMMaterialSlotEditor::DeleteSelectedLayer),
 		FCanExecuteAction::CreateSP(InSlotEditor, &SDMMaterialSlotEditor::CanDeleteSelectedLayer)
 	);
+
+	for (int32 LayerIndex = 0; LayerIndex < DMEditorCommands.SelectLayers.Num(); ++LayerIndex)
+	{
+		CommandList->MapAction(
+			DMEditorCommands.SelectLayers[LayerIndex],
+			FExecuteAction::CreateSP(InSlotEditor, &SDMMaterialSlotEditor::SelectLayer_Execute, LayerIndex),
+			FCanExecuteAction::CreateSP(InSlotEditor, &SDMMaterialSlotEditor::SelectLayer_CanExecute, LayerIndex)
+		);
+	}
 }
 
 bool SDMMaterialEditor::IsPropertyValidForModel(EDMMaterialPropertyType InProperty) const
@@ -892,11 +991,11 @@ void SDMMaterialEditor::HandleDrop_TextureSet(UDMTextureSet* InTextureSet)
 	const EAppReturnType::Type Result = FMessageDialog::Open(
 		EAppMsgType::YesNoCancel,
 		LOCTEXT("ReplaceSlotsTextureSet",
-			"You are about to import a Material Designer Texture Set.\n\n"
-			"Do you want to replace the slot contents?\n"
-			"- Yes: All layers are deleted in the matching slots.\n"
-			"- No: New texture layers are added to the matching slots.\n"
-			"- Cancel: Abort this operation.")
+			"Material Designer Texture Set.\n\n"
+			"Replace Slots?\n\n"
+			"- Yes: Delete Layers.\n"
+			"- No: Add Layers.\n"
+			"- Cancel")
 	);
 
 	FDMScopedUITransaction Transaction(LOCTEXT("DropTextureSet", "Drop Texture Set"));
@@ -1022,8 +1121,28 @@ TSharedRef<SDMMaterialProperties> SDMMaterialEditor::CreateSlot_MaterialProperti
 	return SNew(SDMMaterialProperties, SharedThis(this));
 }
 
-TSharedRef<SDMMaterialPreview> SDMMaterialEditor::CreateSlot_Preview()
+TSharedRef<SWidget> SDMMaterialEditor::CreateSlot_Preview()
 {
+	if (IsDynamicModel())
+	{
+		return SNew(SOverlay)
+			+ SOverlay::Slot()
+			[
+				SNew(SDMMaterialPreview, SharedThis(this), GetMaterialModelBase())
+			]
+			+ SOverlay::Slot()
+			.HAlign(EHorizontalAlignment::HAlign_Left)
+			.VAlign(EVerticalAlignment::VAlign_Bottom)
+			.Padding(3.f, 2.f)
+			[
+				SNew(STextBlock)
+				.Font(FAppStyle::GetFontStyle("TinyText"))
+				.Text(LOCTEXT("DynamicMaterial", "Dynamic"))
+				.ShadowColorAndOpacity(FLinearColor::Black)
+				.ShadowOffset(FVector2D(1.0))
+			];
+	}
+
 	return SNew(SDMMaterialPreview, SharedThis(this), GetMaterialModelBase());
 }
 
@@ -1191,6 +1310,24 @@ void SDMMaterialEditor::NavigateBack_Execute()
 bool SDMMaterialEditor::NavigateBack_CanExecute()
 {
 	return PageHistoryActive > 0;
+}
+
+bool SDMMaterialEditor::CheckOpacityInput(const FKeyEvent& InKeyEvent)
+{
+	if (!KeyTracker_V.IsValid() || !KeyTracker_V->IsKeyDown() || InKeyEvent.GetKey() == KeyTracker_V->GetTrackedKey())
+	{
+		return false;
+	}
+
+	const FDynamicMaterialEditorCommands& DMEditorCommands = FDynamicMaterialEditorCommands::Get();
+
+	if (const FDynamicMaterialEditorCommands::FOpacityCommand* OpacityCommandPair = DMEditorCommands.SetOpacities.Find(InKeyEvent.GetKey()))
+	{
+		const TSharedRef<FUICommandInfo>& OpacityCommand = OpacityCommandPair->Command;
+		return CommandList->TryExecuteAction(OpacityCommand);
+	}
+
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

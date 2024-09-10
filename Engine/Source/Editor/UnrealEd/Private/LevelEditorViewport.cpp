@@ -1671,7 +1671,7 @@ void FLevelEditorViewportClient::DestroyDropPreviewElements()
 	// and although it does still happen in the immediately triggered garbage cleanup, that feels
 	// potentially brittle.
 	UTypedElementRegistry* TypedElementRegistry = UTypedElementRegistry::GetInstance();
-	if (ITypedElementDataStorageCompatibilityInterface* TedsCompat = TypedElementRegistry->GetMutableDataStorageCompatibility())
+	if (IEditorDataStorageCompatibilityProvider* TedsCompat = TypedElementRegistry->GetMutableDataStorageCompatibility())
 	{
 		DropPreviewElements->ForEachElement<ITypedElementObjectInterface>(
 			[this, TedsCompat](const TTypedElement<ITypedElementObjectInterface>& InElement)

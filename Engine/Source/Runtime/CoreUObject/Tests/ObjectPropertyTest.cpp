@@ -6,11 +6,13 @@
 #include "TestMacros/Assertions.h"
 #include "ObjectPtrTestClass.h"
 #include "UObject/Package.h"
+#include "Logging/LogScopedVerbosityOverride.h"
 #include "Misc/ScopeExit.h"
 #include "UObject/UnrealType.h"
 #include "UObject/LinkerPlaceholderExportObject.h"
 #include "UObject/LinkerPlaceholderClass.h"
 #include "UObject/ObjectHandleTracking.h"
+#include "UObject/PropertyHelper.h"
 #include "Tests/WarnFilterScope.h"
 #include "Misc/AssetRegistryInterface.h"
 #include "AssetRegistry/AssetData.h"
@@ -121,6 +123,9 @@ TEST_CASE("UE::CoreUObject::FObjectProperty::CheckValidAddressNonNullable")
 	Property->CheckValidObject(&Obj->ObjectPtrNonNullable, nullptr);
 	CHECK(Obj->ObjectPtrNonNullable == ObjectPtr);
 
+	// Disable property warnings that will fire because we're deliberately setting non-nullable properties to null
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogProperty, ELogVerbosity::NoLogging);
+
 	bAllowRead = true; //has resolve the old value to construct a new default value for the property
 	//assign a bad value to the pointer
 	Obj->ObjectPtrNonNullable = reinterpret_cast<UObjectPtrTestClass*>(OtherTestPackage);
@@ -135,16 +140,15 @@ TEST_CASE("UE::CoreUObject::FObjectProperty::CheckValidAddressNonNullable")
 			return false;
 		});
 	Property->CheckValidObject(&Obj->ObjectPtrNonNullable, ObjectPtr);
-	CHECK(Obj->ObjectPtrNonNullable == ObjectPtr); //non nullable properties should be assigned the old value
+	CHECK(Obj->ObjectPtrNonNullable == nullptr); //non nullable properties should be nulled if invalid
 
 	//assign a bad value to the pointer
 	Obj->ObjectPtrNonNullable = reinterpret_cast<UObjectPtrTestClass*>(Obj);
 	CHECK(Obj->ObjectPtrNonNullable != nullptr);
 
-	//new value is required for non nullable properties
+	//null is required for invalid non nullable properties
 	Property->CheckValidObject(&Obj->ObjectPtrNonNullable, nullptr);
-	CHECK(Obj->ObjectPtrNonNullable != nullptr);
-	CHECK(Obj->ObjectPtrNonNullable->IsA(UObjectPtrTestClass::StaticClass()));
+	CHECK(Obj->ObjectPtrNonNullable == nullptr);
 }
 
 class FMockArchive : public FArchive

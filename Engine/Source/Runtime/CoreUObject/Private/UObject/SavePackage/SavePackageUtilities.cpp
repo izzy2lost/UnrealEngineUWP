@@ -11,6 +11,7 @@
 #include "CoreMinimal.h"
 #include "HAL/FileManager.h"
 #include "Interfaces/ITargetPlatform.h"
+#include "Logging/StructuredLog.h"
 #include "Misc/AssetRegistryInterface.h"
 #include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
@@ -1668,7 +1669,7 @@ FEDLCookChecker FEDLCookChecker::AccumulateAndClear()
 	return Accumulator;
 }
 
-void FEDLCookChecker::Verify(const UE::SavePackageUtilities::FEDLMessageCallback& MessageCallback,
+void FEDLCookChecker::Verify(const UE::SavePackageUtilities::FEDLLogRecordCallback& MessageCallback,
 	bool bFullReferencesExpected)
 {
 	check(!GIsSavingPackage);
@@ -1726,14 +1727,33 @@ void FEDLCookChecker::Verify(const UE::SavePackageUtilities::FEDLMessageCallback
 
 				for (FName PackageName : NodeData.ImportingPackagesSorted)
 				{
-					TStringBuilder<512> Message;
-					Message << TEXTVIEW("Content is missing from cook. Source package referenced an object in target package but ");
-					Message << ReasonExportIsMissing << TEXT(".\n");
-					Message << TEXT("\tSource package: ") << PackageName << TEXT("\n");
-					Message << TEXT("\tTarget package: ") << NodeDataOfExportPackage->Name << TEXT("\n");
-					Message << TEXT("\tReferenced object: ");
-					NodeData.AppendPathName(Accumulator, Message);
-					MessageCallback(MissingContentSeverity, Message);
+					UE::FLogRecord Record;
+#if !NO_LOGGING
+					Record.SetCategory(LogSavePackage.GetCategoryName());
+#endif
+					Record.SetVerbosity(MissingContentSeverity);
+					Record.SetTime(UE::FLogTime::Now());
+					Record.SetFormat(TEXT("Content is missing from cook. Source package referenced an object in target package but {Reason}.")
+						TEXT("\n\tSource package: {Source}")
+						TEXT("\n\tTarget package: {Target}")
+						TEXT("\n\tReferenced object: {ReferencedObject}"));
+					{
+						FCbWriter Writer;
+						Writer.BeginObject();
+						Writer << "Reason" << ReasonExportIsMissing;
+						Writer << "Source" << WriteToUtf8String<256>(PackageName);
+						Writer << "Target" << WriteToUtf8String<256>(NodeDataOfExportPackage->Name);
+						{
+							TStringBuilder<256> ReferencedObjectStr;
+							NodeData.AppendPathName(Accumulator, ReferencedObjectStr);
+							Writer << "ReferencedObject" << ReferencedObjectStr;
+						}
+						Writer.EndObject();
+						Record.SetFields(Writer.Save().AsObject());
+					}
+					Record.SetFile(__FILE__);
+					Record.SetLine(__LINE__);
+					MessageCallback(MoveTemp(Record));
 				}
 			}
 		}
@@ -1937,16 +1957,26 @@ void StartSavingEDLCookInfoForVerification()
 
 void VerifyEDLCookInfo(bool bFullReferencesExpected)
 {
-	VerifyEDLCookInfo([](ELogVerbosity::Type Verbosity, FStringView Message)
+	VerifyEDLCookInfo([](UE::FLogRecord&& Record)
 		{
 #if !NO_LOGGING
-			FMsg::Logf(__FILE__, __LINE__, LogSavePackage.GetCategoryName(), Verbosity, TEXT("%.*s"),
-				Message.Len(), Message.GetData());
+			DispatchDynamicLogRecord(Record);
 #endif
 		}, bFullReferencesExpected);
 }
 
 void VerifyEDLCookInfo(const UE::SavePackageUtilities::FEDLMessageCallback& MessageCallback,
+	bool bFullReferencesExpected)
+{
+	VerifyEDLCookInfo([&MessageCallback](FLogRecord&& Record)
+		{
+			TStringBuilder<256> Message;
+			Record.FormatMessageTo(Message);
+			MessageCallback(Record.GetVerbosity(), Message.ToView());
+		}, bFullReferencesExpected);
+}
+
+void VerifyEDLCookInfo(const UE::SavePackageUtilities::FEDLLogRecordCallback& MessageCallback,
 	bool bFullReferencesExpected)
 {
 	LLM_SCOPE_BYTAG(EDLCookChecker);

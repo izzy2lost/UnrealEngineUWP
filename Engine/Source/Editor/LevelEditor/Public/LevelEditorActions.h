@@ -610,10 +610,24 @@ public:
 	TSharedPtr< FUICommandInfo > ToggleFeatureLevelPreview;
 
 	TArray<TSharedPtr<FUICommandInfo>> PreviewPlatformOverrides;
-	TArray<TSharedPtr<FUICommandInfo>> PreviewPlatformFromJson;
-	TArray<TSharedPtr<FUICommandInfo>> GeneratePlatformJson;
-	TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> PlatformToPreviewPlatformOverrides;
-	TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> PlatformToPreviewJsonPlatformOverrides;
+
+	struct PreviewPlatformCommand
+	{
+		PreviewPlatformCommand()
+			: bIsGeneratingJsonCommand(false)
+			, SectionName(NAME_None)
+		{
+		}
+
+		bool bIsGeneratingJsonCommand;
+		FName SectionName;
+		TSharedPtr<FUICommandInfo> CommandInfo;
+		FString FilePath;
+	};
+	
+	TSharedPtr< FUICommandInfo > DisablePlatformPreview;
+	TMap<FName, TArray<PreviewPlatformCommand>> PlatformToPreviewPlatformOverrides;
+	TMap<FName, TArray<PreviewPlatformCommand>> PlatformToPreviewJsonPlatformOverrides;
 
 	///**
 	// * Mode Commands                   
@@ -737,7 +751,7 @@ public:
 	/**
 	* Called When Preview Json is selected in the Platforms Preview Sub Menu
 	*/
-	static void PreviewJson_Clicked(FName PlatformName, FName PreviewShaderPlatformName);
+	static void PreviewJson_Clicked(FName PlatformName, FName PreviewShaderPlatformName, FString JsonFile);
 
 	/**
 	* Is Preview Json visible in the Platforms Preview Sub Menu

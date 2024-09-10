@@ -139,7 +139,11 @@ protected:
 private:
 	FOnClonerLayoutLoaded OnClonerLayoutLoadedDelegate;
 
+	/** Called when the system package was async loaded */
 	void OnSystemPackageLoaded(const FName& InName, UPackage* InPackage, EAsyncLoadingResult::Type InResult);
+
+	/** Finds and cache first mesh renderer in emitter */
+	void CacheMeshRenderer();
 
 	/** Bind delegates to clear resources during level or world cleanup */
 	void BindCleanupDelegates();

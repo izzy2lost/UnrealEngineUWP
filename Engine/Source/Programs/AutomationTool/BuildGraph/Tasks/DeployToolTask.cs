@@ -161,8 +161,8 @@ namespace AutomationTool.Tasks
 
 			IHashedBlobRef handle;
 
-			IStorageClient storageClient = hordeClient.CreateStorageClient(toolId);
-			await using (IBlobWriter blobWriter = storageClient.CreateBlobWriter(serializerOptions: serializerOptions))
+			IStorageNamespace storageNamespace = hordeClient.GetStorageNamespace(toolId);
+			await using (IBlobWriter blobWriter = storageNamespace.CreateBlobWriter(serializerOptions: serializerOptions))
 			{
 				DirectoryNode sandbox = new DirectoryNode();
 				if (_parameters.File != null)

@@ -372,7 +372,7 @@ class DynamicMulticastDelegateClassName : public TBaseDynamicMulticastDelegate<F
 			static FName Get()
 			{
 				FName* Result = nullptr;
-				UE_AUTORTFM_OPEN2
+				UE_AUTORTFM_OPEN
 				{
 					static FName StaticResult = Create();
 					Result = &StaticResult;

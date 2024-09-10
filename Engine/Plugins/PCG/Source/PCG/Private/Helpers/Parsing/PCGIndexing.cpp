@@ -31,6 +31,11 @@ namespace PCGIndexing
 
 	bool FPCGIndexCollection::AddRange(const int32 StartIndex, const int32 EndIndex)
 	{
+		if (!ensure(IsValid()))
+		{
+			return false;
+		}
+
 		const FPCGIndexRange NewRange = AdjustIndicesAndCreateRange(StartIndex, EndIndex);
 
 		if (!RangeIsValid(NewRange))
@@ -81,7 +86,12 @@ namespace PCGIndexing
 
 	bool FPCGIndexCollection::RangeIsValid(const FPCGIndexRange& Range) const
 	{
-		return (Range.StartIndex >= 0 && Range.StartIndex <= ArraySize && Range.EndIndex >= 0 && Range.EndIndex <= ArraySize && Range.StartIndex < Range.EndIndex);
+		return IsValid()
+				&& Range.StartIndex >= 0
+				&& Range.StartIndex <= ArraySize
+				&& Range.EndIndex >= 0
+				&& Range.EndIndex <= ArraySize
+				&& Range.StartIndex < Range.EndIndex;
 	}
 
 	bool FPCGIndexCollection::ContainsIndex(const int32 Index) const
@@ -120,9 +130,30 @@ namespace PCGIndexing
 		return TotalIndexCount;
 	}
 
+	bool FPCGIndexCollection::IsValid() const
+	{
+		return ArraySize > 0;
+	}
+
+	bool FPCGIndexCollection::IsEmpty() const
+	{
+		return IndexRanges.IsEmpty();
+	}
+
 	bool FPCGIndexCollection::operator==(const FPCGIndexCollection& Other) const
 	{
 		return (ArraySize == Other.ArraySize) && (IndexRanges == Other.IndexRanges);
+	}
+
+	FPCGIndexCollection& FPCGIndexCollection::operator+=(const FPCGIndexCollection& Other)
+	{
+		ArraySize = FMath::Max(ArraySize, Other.ArraySize);
+		for (const FPCGIndexRange& Range : Other.IndexRanges)
+		{
+			AddRange(Range);
+		}
+
+		return *this;
 	}
 
 	FPCGIndexRange FPCGIndexCollection::AdjustIndicesAndCreateRange(int32 StartIndex, int32 EndIndex) const

@@ -37,9 +37,16 @@ void UCustomizableObjectNodeGroomConstant::AllocateDefaultPins(UCustomizableObje
 
 bool UCustomizableObjectNodeGroomConstant::ShouldAddToContextMenu(FText& OutCategory) const
 {
-	OutCategory = UHairStrandsMutableExtension::GroomNodeCategory;
+	OutCategory = UEdGraphSchema_CustomizableObject::NC_Experimental;
 	return true;
 }
+
+
+bool UCustomizableObjectNodeGroomConstant::IsExperimental() const
+{
+	return true;
+}
+
 
 mu::Ptr<mu::NodeExtensionData> UCustomizableObjectNodeGroomConstant::GenerateMutableNode(FExtensionDataCompilerInterface& CompilerInterface) const
 {

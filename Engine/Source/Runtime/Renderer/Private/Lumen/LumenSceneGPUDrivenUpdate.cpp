@@ -170,13 +170,13 @@ void FLumenSceneReadback::SubmitWriteBuffers(FRDGBuilder& GraphBuilder, FBuffers
 	FBuffersRHI DstBuffers = ReadbackBuffers[ReadbackBuffersWriteIndex];
 
 	AddReadbackBufferPass(GraphBuilder, RDG_EVENT_NAME("LumenSceneAddOpsReadback"), SrcBuffers.AddOps,
-		[DstBuffers, SrcBuffers](FRHICommandList& RHICmdList)
+		[DstBuffers, SrcBuffers](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			DstBuffers.AddOps->EnqueueCopy(RHICmdList, SrcBuffers.AddOps->GetRHI(), 0u);
 		});
 
 	AddReadbackBufferPass(GraphBuilder, RDG_EVENT_NAME("LumenSceneRemoveOpsReadback"), SrcBuffers.RemoveOps,
-		[DstBuffers, SrcBuffers](FRHICommandList& RHICmdList)
+		[DstBuffers, SrcBuffers](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			DstBuffers.RemoveOps->EnqueueCopy(RHICmdList, SrcBuffers.RemoveOps->GetRHI(), 0u);
 		});

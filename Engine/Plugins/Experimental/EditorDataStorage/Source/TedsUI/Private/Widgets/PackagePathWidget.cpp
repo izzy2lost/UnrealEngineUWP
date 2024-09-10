@@ -11,8 +11,8 @@
 // UPackagePathWidgetFactory
 //
 
-void UPackagePathWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
-	ITypedElementDataStorageUiInterface& DataStorageUi) const
+void UPackagePathWidgetFactory::RegisterWidgetConstructors(IEditorDataStorageProvider& DataStorage,
+	IEditorDataStorageUiProvider& DataStorageUi) const
 {
 	using namespace UE::Editor::DataStorage::Queries;
 
@@ -46,8 +46,8 @@ TSharedPtr<SWidget> FPackagePathWidgetConstructor::CreateWidget(const UE::Editor
 }
 
 bool FPackagePathWidgetConstructor::FinalizeWidget(
-	ITypedElementDataStorageInterface* DataStorage,
-	ITypedElementDataStorageUiInterface* DataStorageUi,
+	IEditorDataStorageProvider* DataStorage,
+	IEditorDataStorageUiProvider* DataStorageUi,
 	UE::Editor::DataStorage::RowHandle Row,
 	const TSharedPtr<SWidget>& Widget)
 {
@@ -78,8 +78,8 @@ FLoadedPackagePathWidgetConstructor::FLoadedPackagePathWidgetConstructor()
 }
 
 bool FLoadedPackagePathWidgetConstructor::FinalizeWidget(
-	ITypedElementDataStorageInterface* DataStorage,
-	ITypedElementDataStorageUiInterface* DataStorageUi,
+	IEditorDataStorageProvider* DataStorage,
+	IEditorDataStorageUiProvider* DataStorageUi,
 	UE::Editor::DataStorage::RowHandle Row,
 	const TSharedPtr<SWidget>& Widget)
 {

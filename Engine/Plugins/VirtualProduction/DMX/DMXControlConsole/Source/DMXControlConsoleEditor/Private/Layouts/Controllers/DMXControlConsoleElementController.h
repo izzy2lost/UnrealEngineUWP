@@ -133,6 +133,9 @@ protected:
 	TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>> Elements;
 
 private:
+	/** Updates the value of the Controller according to its Elements */
+	void UpdateControllerValueByElements();
+
 	/** The current value of the Controller */
 	UPROPERTY(EditAnywhere, meta = (HideEditConditionToggle, EditCondition = "!bIsLocked", UIMin = 0, UIMax = 1), Category = "DMX Element Controller")
 	float Value = 0.f;

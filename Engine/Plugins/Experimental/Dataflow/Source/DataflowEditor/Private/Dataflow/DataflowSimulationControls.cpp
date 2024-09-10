@@ -39,7 +39,7 @@ namespace UE::Dataflow
 	
 	TObjectPtr<AActor> SpawnSimulatedActor(const TSubclassOf<AActor>& ActorClass,
 		const TObjectPtr<AChaosCacheManager>& CacheManager, const TObjectPtr<UChaosCacheCollection>& CacheCollection,
-		const bool bIsRecording, const TObjectPtr<UDataflowBaseContent>& DataflowContent)
+		const bool bIsRecording, const TObjectPtr<UDataflowBaseContent>& DataflowContent, const FTransform& ActorTransform)
 	{
 		if(CacheManager)
 		{
@@ -56,7 +56,7 @@ namespace UE::Dataflow
 				DataflowContent->SetActorProperties(PreviewActor);
 
 				// Finish spawning
-				PreviewActor->FinishSpawning(FTransform::Identity, true);
+				PreviewActor->FinishSpawning(ActorTransform, true);
 			}
 
 			CacheManager->CacheCollection = CacheCollection;
@@ -198,6 +198,12 @@ namespace UE::Dataflow
 					SkeletalMeshComponent->SetPosition(SimulationTime);
 					SkeletalMeshComponent->TickAnimation(0.f, false /*bNeedsValidRootMotion*/);
 					SkeletalMeshComponent->RefreshBoneTransforms(nullptr /*TickFunction*/);
+
+					SkeletalMeshComponent->RefreshFollowerComponents();
+					SkeletalMeshComponent->UpdateComponentToWorld();
+					SkeletalMeshComponent->FinalizeBoneTransform();
+					SkeletalMeshComponent->MarkRenderTransformDirty();
+					SkeletalMeshComponent->MarkRenderDynamicDataDirty();
 				}
 			}
 		}

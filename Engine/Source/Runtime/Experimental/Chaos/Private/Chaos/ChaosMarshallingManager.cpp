@@ -2,9 +2,7 @@
 
 #include "Chaos/ChaosMarshallingManager.h"
 #include "Chaos/PullPhysicsDataImp.h"
-#if UE_CHAOS_ASYNC_INITBODY_ENABLED
-#include "Misc/ScopeRWLock.h"
-#endif
+#include "Chaos/AsyncInitBodyHelper.h"
 
 namespace Chaos
 {
@@ -51,7 +49,7 @@ void FChaosMarshallingManager::PreparePullData()
 
 void FChaosMarshallingManager::PrepareExternalQueue_External()
 {
-	// Here, we assume that MarshallingManagerLock is locked (when UE_CHAOS_ASYNC_INITBODY_ENABLED = 1)
+	// Here, we assume that MarshallingManagerLock is locked when p.Chaos.EnableAsyncInitBody is true (see FPBDRigidsSolver::PushPhysicsState)
 	if(!PushDataPool.Dequeue(ProducerData))
 	{
 		BackingBuffer.Add(MakeUnique<FPushPhysicsData>());
@@ -63,7 +61,7 @@ void FChaosMarshallingManager::PrepareExternalQueue_External()
 
 void FChaosMarshallingManager::Step_External(FReal ExternalDT, const int32 NumSteps, bool bInSolverSubstepped)
 {
-	// Here, we assume that MarshallingManagerLock is locked (when UE_CHAOS_ASYNC_INITBODY_ENABLED = 1)
+	// Here, we assume that MarshallingManagerLock is locked when p.Chaos.EnableAsyncInitBody is true (see FPBDRigidsSolver::PushPhysicsState)
 	ensure(NumSteps > 0);
 
 	FPushPhysicsData* FirstStepData = nullptr;

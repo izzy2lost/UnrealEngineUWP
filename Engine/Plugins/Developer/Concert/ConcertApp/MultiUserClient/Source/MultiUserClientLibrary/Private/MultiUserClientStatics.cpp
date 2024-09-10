@@ -27,14 +27,9 @@ namespace UE::MultiUserClientLibrary
 {
 	FMultiUserClientInfo ConvertClientInfo(const FGuid& ClientEndpointId, const FConcertClientInfo& ClientInfo)
 	{
-		FMultiUserClientInfo Result;
-		Result.ClientEndpointId = ClientEndpointId;
-		Result.DisplayName = ClientInfo.DisplayName;
-		Result.AvatarColor = ClientInfo.AvatarColor;
-		Result.Tags = ClientInfo.Tags;
-		return Result;
+		return FMultiUserClientInfo(ClientEndpointId, ClientInfo);
 	}
-
+	
 	FMultiUserConnectionError ConvertConnectionError(FConcertConnectionError Error)
 	{
 		FMultiUserConnectionError MUError;
@@ -78,6 +73,19 @@ namespace UE::MultiUserClientLibrary
 		return static_cast<EMultiUserClientStatus>(Status);
 	}
 } // namespace UE::MultiUserClientLibrary
+#endif
+
+#if WITH_CONCERT
+FMultiUserClientInfo::FMultiUserClientInfo(const FConcertSessionClientInfo& ClientInfo)
+	: FMultiUserClientInfo(ClientInfo.ClientEndpointId, ClientInfo.ClientInfo)
+{}
+
+FMultiUserClientInfo::FMultiUserClientInfo(const FGuid& ClientId, const FConcertClientInfo& ClientInfo)
+	: ClientEndpointId(ClientId)
+	, DisplayName(ClientInfo.DisplayName)
+	, AvatarColor(ClientInfo.AvatarColor)
+	, Tags(ClientInfo.Tags)
+{}
 #endif
 
 UMultiUserClientStatics::UMultiUserClientStatics(const FObjectInitializer& ObjectInitializer)
@@ -265,7 +273,7 @@ FMultiUserClientInfo UMultiUserClientStatics::GetLocalMultiUserClientInfo()
 
 			FGuid LocalClientEndpointId = ClientSession ? ClientSession->GetSessionClientEndpointId() : FGuid();
 			const FConcertClientInfo& LocalClientInfo = ClientSession ? ClientSession->GetLocalClientInfo() : ConcertClient->GetClientInfo();
-			ClientInfo = UE::MultiUserClientLibrary::ConvertClientInfo(LocalClientEndpointId, LocalClientInfo);
+			ClientInfo = FMultiUserClientInfo(LocalClientEndpointId, LocalClientInfo);
 		}
 	}
 #endif
@@ -315,7 +323,7 @@ bool UMultiUserClientStatics::GetMultiUserClientInfoByName(const FString& Client
 			const FConcertClientInfo& LocalClientInfo = ClientSession ? ClientSession->GetLocalClientInfo() : ConcertClient->GetClientInfo();
 			if (ClientName == LocalClientInfo.DisplayName)
 			{
-				ClientInfo = UE::MultiUserClientLibrary::ConvertClientInfo(ClientSession ? ClientSession->GetSessionClientEndpointId() : FGuid(), LocalClientInfo);
+				ClientInfo = FMultiUserClientInfo(ClientSession ? ClientSession->GetSessionClientEndpointId() : FGuid(), LocalClientInfo);
 				return true;
 			}
 
@@ -326,7 +334,7 @@ bool UMultiUserClientStatics::GetMultiUserClientInfoByName(const FString& Client
 				{
 					if (SessionClient.ClientInfo.DisplayName == ClientName)
 					{
-						ClientInfo = UE::MultiUserClientLibrary::ConvertClientInfo(SessionClient.ClientEndpointId, SessionClient.ClientInfo);
+						ClientInfo = FMultiUserClientInfo(SessionClient.ClientEndpointId, SessionClient.ClientInfo);
 						return true;
 					}
 				}
@@ -352,7 +360,7 @@ bool UMultiUserClientStatics::GetRemoteMultiUserClientInfos(TArray<FMultiUserCli
 				const TArray<FConcertSessionClientInfo> SessionClients = ClientSession->GetSessionClients();
 				for (const FConcertSessionClientInfo& SessionClient : SessionClients)
 				{
-					ClientInfos.Add(UE::MultiUserClientLibrary::ConvertClientInfo(SessionClient.ClientEndpointId, SessionClient.ClientInfo));
+					ClientInfos.Add(FMultiUserClientInfo(SessionClient.ClientEndpointId, SessionClient.ClientInfo));
 				}
 
 				return ClientInfos.Num() > 0;

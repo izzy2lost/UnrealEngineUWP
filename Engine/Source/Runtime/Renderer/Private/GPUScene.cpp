@@ -445,8 +445,17 @@ struct FUploadDataSourceAdapterScenePrimitives
 		PrimitiveUploadInfo.NaniteSceneProxy = PrimitiveSceneProxy->IsNaniteMesh() ? static_cast<const Nanite::FSceneProxyBase*>(PrimitiveSceneProxy) : nullptr;
 		PrimitiveUploadInfo.PrimitiveSceneInfo = PrimitiveSceneInfo;
 
-		PrimitiveUploadInfo.NumInstanceUploads = PrimitiveSceneInfo->GetNumInstanceSceneDataEntries();
-		PrimitiveUploadInfo.NumInstancePayloadDataUploads = PrimitiveSceneInfo->GetInstancePayloadDataStride() * PrimitiveUploadInfo.NumInstanceUploads;
+		// TODO: Somehow associate the procedural update with the update entry such that we can cross validate the existence of a writer here?
+		if (PrimitiveSceneProxy->IsInstanceDataGPUOnly())
+		{
+			PrimitiveUploadInfo.NumInstanceUploads = 0;
+			PrimitiveUploadInfo.NumInstancePayloadDataUploads = 0;
+		}
+		else
+		{
+			PrimitiveUploadInfo.NumInstanceUploads = PrimitiveSceneInfo->GetNumInstanceSceneDataEntries();
+			PrimitiveUploadInfo.NumInstancePayloadDataUploads = PrimitiveSceneInfo->GetInstancePayloadDataStride() * PrimitiveUploadInfo.NumInstanceUploads;
+		}
 	}
 
 	FORCEINLINE uint32 PackFlags(FInstanceDataFlags Flags) const
@@ -776,7 +785,7 @@ void FGPUScene::InitLightData(const FLightSceneInfoCompact& LightInfoCompact, bo
 	DataOut.LightTypeAndShadowMapChannelMaskPacked = LightInfo.PackLightTypeAndShadowMapChannelMask(bAllowStaticLighting);
 }
 
-void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, FRDGExternalAccessQueue& ExternalAccessQueue, const UE::Tasks::FTask& UpdateTaskPrerequisites)
+void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, FRDGExternalAccessQueue& ExternalAccessQueue, const UE::Tasks::FTask& UpdateTaskPrerequisites, const FUpdateFromComputeCommands& UpdatesFromCompute)
 {
 	LLM_SCOPE_BYTAG(GPUScene);
 
@@ -808,15 +817,16 @@ void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& S
 	{
 		PrimitivesToUpdate.Reset();
 		ResizeDirtyState(Scene.GetMaxPersistentPrimitiveIndex());
+		InstanceRangesToClear.Reset(Scene.Primitives.Num());
 		for (FPrimitiveSceneInfo *PrimitiveSceneInfo : Scene.Primitives)
 		{
 			PrimitiveDirtyState[PrimitiveSceneInfo->GetPersistentIndex().Index] |= EPrimitiveDirtyState::ChangedAll;
 			PrimitivesToUpdate.Add(PrimitiveSceneInfo->GetPersistentIndex());
+			InstanceRangesToClear.Add(FInstanceRange{
+				PrimitiveSceneInfo->GetPersistentIndex(),
+				(uint32)PrimitiveSceneInfo->GetInstanceSceneDataOffset(),
+				(uint32)PrimitiveSceneInfo->GetNumInstanceSceneDataEntries() });
 		}
-
-		// Clear the full instance data range
-		InstanceRangesToClear.Empty();
-		InstanceRangesToClear.Add(FInstanceRange{ 0U, uint32(GetInstanceIdUpperBoundGPU()) });
 
 		bUpdateAllPrimitives = false;
 	}
@@ -866,6 +876,28 @@ void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& S
 		SCOPE_CYCLE_COUNTER(STAT_UpdateGPUSceneTime);
 
 		UploadGeneral<FUploadDataSourceAdapterScenePrimitives>(GraphBuilder, BufferState, &ExternalAccessQueue, Adapter, UpdateTaskPrerequisites);
+	}
+
+	// Update instance data using GPU compute.
+	if (!UpdatesFromCompute.IsEmpty())
+	{
+		RDG_EVENT_SCOPE(GraphBuilder, "UpdateGPUScene UpdateInstancesFromCompute");
+
+		FGPUSceneWriteDelegateParams Params;
+		GetWriteParameters(GraphBuilder, Params.GPUWriteParams);
+
+		for (const auto& Command : UpdatesFromCompute)
+		{
+			Params.PersistentPrimitiveId = (uint32)Command.SceneInfo->GetPersistentIndex().Index;
+			Params.InstanceSceneDataOffset = Command.SceneInfo->GetInstanceSceneDataOffset();
+
+			const FInstanceSceneDataBuffers* InstanceSceneDataBuffers = Command.SceneInfo->GetInstanceSceneDataBuffers();
+			check(InstanceSceneDataBuffers);
+			Params.NumCustomDataFloats = InstanceSceneDataBuffers->GetNumCustomDataFloats();
+			Params.PackedInstanceSceneDataFlags = Adapter.PackFlags(InstanceSceneDataBuffers->GetFlags());
+
+			Command.Payload.GPUSceneWriter.Execute(GraphBuilder, Params);
+		}
 	}
 }
 
@@ -1628,6 +1660,8 @@ void FGPUScene::UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& Gra
 				DeferredWrite.ViewId = View.GPUSceneViewId;
 				DeferredWrite.PrimitiveId = PrimitiveIdStart + PrimitiveIndex;
 				DeferredWrite.InstanceSceneDataOffset = InstanceIdStart + PrimData.LocalInstanceSceneDataOffset;
+				DeferredWrite.NumCustomDataFloats = PrimData.SourceData.NumInstanceCustomDataFloats;
+				DeferredWrite.PackedInstanceSceneDataFlags = PrimData.SourceData.PayloadDataFlags;
 
 				uint32 PassIndex = uint32(PrimData.SourceData.DataWriterGPUPass);
 				DeferredGPUWritePassDelegates[PassIndex].Add(DeferredWrite);
@@ -1649,6 +1683,8 @@ void FGPUScene::UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& Gra
 				const FGPUScenePrimitiveCollector::FPrimitiveData& PrimData = Collector.UploadData->PrimitiveData[PrimitiveIndex];
 				Params.PersistentPrimitiveId = PrimitiveIdStart + PrimitiveIndex;
 				Params.InstanceSceneDataOffset = InstanceIdStart + PrimData.LocalInstanceSceneDataOffset;
+				Params.NumCustomDataFloats = PrimData.SourceData.NumInstanceCustomDataFloats;
+				Params.PackedInstanceSceneDataFlags = PrimData.SourceData.PayloadDataFlags;
 
 				PrimData.SourceData.DataWriterGPU.Execute(GraphBuilder, Params);
 			}
@@ -1725,7 +1761,7 @@ void FGPUScene::AddPrimitiveToUpdate(FPersistentPrimitiveIndex PersistentPrimiti
 }
 
 
-void FGPUScene::Update(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, FRDGExternalAccessQueue& ExternalAccessQueue, const UE::Tasks::FTask& UpdateTaskPrerequisites)
+void FGPUScene::Update(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, FRDGExternalAccessQueue& ExternalAccessQueue, const FUpdateFromComputeCommands& UpdatesFromCompute, const UE::Tasks::FTask& UpdateTaskPrerequisites)
 {
 	if (bIsEnabled)
 	{
@@ -1739,7 +1775,7 @@ void FGPUScene::Update(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, 
 		// Default state when updated (no "dynamic primitives" pushed)
 		DynamicPrimitivesOffset = Scene.GetMaxPersistentPrimitiveIndex();
 
-		UpdateInternal(GraphBuilder, SceneUB, ExternalAccessQueue, UpdateTaskPrerequisites);
+		UpdateInternal(GraphBuilder, SceneUB, ExternalAccessQueue, UpdateTaskPrerequisites, UpdatesFromCompute);
 	}
 }
 
@@ -1759,7 +1795,8 @@ inline void AddOrMergeInstanceRange(TArray<FGPUSceneInstanceRange>& Output, FGPU
 	if (!Output.IsEmpty())
 	{
 		FGPUSceneInstanceRange& Last = Output.Last();
-		if (Range.InstanceSceneDataOffset == Last.InstanceSceneDataOffset + Last.NumInstanceSceneDataEntries)
+		if (Range.InstanceSceneDataOffset == (Last.InstanceSceneDataOffset + Last.NumInstanceSceneDataEntries) &&
+			Range.Primitive == Last.Primitive)
 		{
 			Last.NumInstanceSceneDataEntries += Range.NumInstanceSceneDataEntries;
 			return;
@@ -1768,7 +1805,7 @@ inline void AddOrMergeInstanceRange(TArray<FGPUSceneInstanceRange>& Output, FGPU
 	Output.Add(Range);
 }
 
-int32 FGPUScene::AllocateInstanceSceneDataSlots(int32 NumInstanceSceneDataEntries)
+int32 FGPUScene::AllocateInstanceSceneDataSlots(FPersistentPrimitiveIndex PersistentPrimitiveIndex, int32 NumInstanceSceneDataEntries)
 {
 	LLM_SCOPE_BYTAG(GPUScene);
 
@@ -1776,8 +1813,8 @@ int32 FGPUScene::AllocateInstanceSceneDataSlots(int32 NumInstanceSceneDataEntrie
 	{
 		if (NumInstanceSceneDataEntries > 0)
 		{
-			int32 InstanceSceneDataOffset = InstanceSceneDataAllocator.Allocate(NumInstanceSceneDataEntries);
-			AddOrMergeInstanceRange(InstanceRangesToClear, FInstanceRange{ uint32(InstanceSceneDataOffset), uint32(NumInstanceSceneDataEntries) });
+			const int32 InstanceSceneDataOffset = InstanceSceneDataAllocator.Allocate(NumInstanceSceneDataEntries);
+			AddOrMergeInstanceRange(InstanceRangesToClear, FInstanceRange{ PersistentPrimitiveIndex, uint32(InstanceSceneDataOffset), uint32(NumInstanceSceneDataEntries) });
 #if LOG_INSTANCE_ALLOCATIONS
 			UE_LOG(LogTemp, Warning, TEXT("AllocateInstanceSceneDataSlots: [%6d,%6d)"), InstanceSceneDataOffset, InstanceSceneDataOffset + NumInstanceSceneDataEntries);
 #endif
@@ -1796,7 +1833,7 @@ void FGPUScene::FreeInstanceSceneDataSlots(int32 InstanceSceneDataOffset, int32 
 	if (bIsEnabled)
 	{
 		InstanceSceneDataAllocator.Free(InstanceSceneDataOffset, NumInstanceSceneDataEntries);
-		AddOrMergeInstanceRange(InstanceRangesToClear, FInstanceRange{ uint32(InstanceSceneDataOffset), uint32(NumInstanceSceneDataEntries) });
+		AddOrMergeInstanceRange(InstanceRangesToClear, FInstanceRange{ {}, uint32(InstanceSceneDataOffset), uint32(NumInstanceSceneDataEntries) });
 #if LOG_INSTANCE_ALLOCATIONS
 		UE_LOG(LogTemp, Warning, TEXT("FreeInstanceSceneDataSlots: [%6d,%6d)"), InstanceSceneDataOffset, InstanceSceneDataOffset + NumInstanceSceneDataEntries);
 #endif
@@ -2015,7 +2052,7 @@ TRange<int32> FGPUScene::CommitPrimitiveCollector(FGPUScenePrimitiveCollector& P
 	int32 StartOffset = DynamicPrimitivesOffset;
 	DynamicPrimitivesOffset += PrimitiveCollector.Num();
 
-	PrimitiveCollector.UploadData->InstanceSceneDataOffset = AllocateInstanceSceneDataSlots(PrimitiveCollector.NumInstances());
+	PrimitiveCollector.UploadData->InstanceSceneDataOffset = AllocateInstanceSceneDataSlots({}, PrimitiveCollector.NumInstances());
 	PrimitiveCollector.UploadData->InstancePayloadDataOffset = AllocateInstancePayloadDataSlots(PrimitiveCollector.NumPayloadDataSlots());
 
 	return TRange<int32>(StartOffset, DynamicPrimitivesOffset);
@@ -2058,6 +2095,8 @@ bool FGPUScene::ExecuteDeferredGPUWritePass(FRDGBuilder& GraphBuilder, TArray<FV
 		Params.View = View;
 		Params.PersistentPrimitiveId = DeferredWrite.PrimitiveId;
 		Params.InstanceSceneDataOffset = DeferredWrite.InstanceSceneDataOffset;
+		Params.NumCustomDataFloats = DeferredWrite.NumCustomDataFloats;
+		Params.PackedInstanceSceneDataFlags = DeferredWrite.PackedInstanceSceneDataFlags;
 
 		DeferredWrite.DataWriterGPU.Execute(GraphBuilder, Params);
 	}
@@ -2368,8 +2407,9 @@ void FGPUScene::AddClearInstancesPass(FRDGBuilder& GraphBuilder, FInstanceCullin
 		Range.NumInstanceSceneDataEntries = uint32(FMath::Max(0, RangeEnd - int32(Range.InstanceSceneDataOffset)));
 
 		if (Range.NumInstanceSceneDataEntries > 0u)
-		{			
-			ClearIdData.Add(Range.InstanceSceneDataOffset, Range.NumInstanceSceneDataEntries, INVALID_PRIMITIVE_ID);
+		{
+			const uint32 PrimitiveID = (Range.Primitive.Index != INDEX_NONE) ? uint32(Range.Primitive.Index) : INVALID_PRIMITIVE_ID;
+			ClearIdData.Add(Range.InstanceSceneDataOffset, Range.NumInstanceSceneDataEntries, PrimitiveID);
 #if LOG_INSTANCE_ALLOCATIONS
 			RangesStr.Appendf(TEXT("[%6d, %6d), "), Range.InstanceSceneDataOffset, Range.InstanceSceneDataOffset + Range.NumInstanceSceneDataEntries);
 #endif

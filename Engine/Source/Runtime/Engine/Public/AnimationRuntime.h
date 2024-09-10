@@ -235,6 +235,12 @@ public:
 		const FAnimationPoseData& SourcePoseTwoData,
 		const TArray<float>& WeightsOfSource2,
 		/*out*/ FAnimationPoseData& OutAnimationPoseData);
+
+	static ENGINE_API void BlendTwoPosesTogetherPerBone(
+		const FCompactPose& SourcePoseOneData,
+		const FCompactPose& SourcePoseTwoData,
+		const TArray<float>& WeightsOfSource2,
+		/*out*/ FCompactPose& OutAnimationPoseData);
 		
 	/**
 	* Blends together a set of poses, each with a given weight.

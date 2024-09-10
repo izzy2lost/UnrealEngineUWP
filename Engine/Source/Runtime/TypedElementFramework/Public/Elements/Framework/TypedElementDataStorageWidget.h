@@ -45,7 +45,7 @@ private:
 
 	void RegisterTedsWidget(const TSharedPtr<SWidget>& InContentWidget);
 	
-	static ITypedElementDataStorageInterface* GetStorageIfAvailable();
+	static IEditorDataStorageProvider* GetStorageIfAvailable();
 
 private:
 	

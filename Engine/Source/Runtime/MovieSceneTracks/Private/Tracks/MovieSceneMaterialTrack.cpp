@@ -190,7 +190,13 @@ void UMovieSceneMaterialTrack::AddColorParameterKey(const FMaterialParameterInfo
 	AddColorParameterKey(ParameterInfo, Time, INDEX_NONE, Value, InLayerName, InAssetName);
 }
 
+
 void UMovieSceneMaterialTrack::AddColorParameterKey(const FMaterialParameterInfo& ParameterInfo, FFrameNumber Time, int32 RowIndex, FLinearColor Value, const FString& InLayerName, const FString& InAssetName)
+{
+	AddColorParameterKey(ParameterInfo, Time, RowIndex, Value, InLayerName, InAssetName, FParameterChannelNames());
+}
+
+void UMovieSceneMaterialTrack::AddColorParameterKey(const FMaterialParameterInfo& ParameterInfo, FFrameNumber Time, int32 RowIndex, FLinearColor Value, const FString& InLayerName, const FString& InAssetName, const FParameterChannelNames& InChannelNames)
 {
 	UMovieSceneSection* NearestSection = SectionToKey;
 	if (NearestSection == nullptr || (RowIndex != INDEX_NONE && NearestSection->GetRowIndex() != RowIndex))
@@ -216,7 +222,7 @@ void UMovieSceneMaterialTrack::AddColorParameterKey(const FMaterialParameterInfo
 		}
 		else if (UMovieSceneComponentMaterialParameterSection* NearestComponentMaterialParameterSection = Cast<UMovieSceneComponentMaterialParameterSection>(NearestSection))
 		{
-			NearestComponentMaterialParameterSection->AddColorParameterKey(ParameterInfo, Time, Value, InLayerName, InAssetName);
+			NearestComponentMaterialParameterSection->AddColorParameterKey(ParameterInfo, Time, Value, InLayerName, InAssetName, InChannelNames);
 		}
 	}
 }

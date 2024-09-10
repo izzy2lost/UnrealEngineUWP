@@ -698,6 +698,11 @@ void FMetalViewport::PresentImmersive(const MetalRHIVisionOS::PresentImmersivePa
 				
 				FMetalCommandBuffer* CurrentCommandBuffer = Context.GetCurrentCommandBuffer();
 				
+#if ENABLE_METAL_GPUPROFILE
+				FMetalProfiler* Profiler = FMetalProfiler::GetProfiler();
+				FMetalCommandBufferStats* Stats = Profiler->AllocateCommandBuffer(CurrentCommandBuffer->GetMTLCmdBuffer(), 0);
+#endif
+				
 				{
 					dispatch_semaphore_t& FrameSemaphore = Device.GetFrameSemaphore();
 					dispatch_retain(FrameSemaphore);
@@ -715,6 +720,7 @@ void FMetalViewport::PresentImmersive(const MetalRHIVisionOS::PresentImmersivePa
 				cp_frame_t CompositorServicesFrame = VisionOSParams.SwiftFrame;
 				
 				Buffer = Context.Finalize();
+				METAL_GPUPROFILE(Stats->End(CurrentCommandBuffer->GetMTLCmdBuffer()));			
 				Context.GetDevice().GetCommandQueue().CommitCommandBuffer(Buffer);
 				Context.ResetContext();
 				

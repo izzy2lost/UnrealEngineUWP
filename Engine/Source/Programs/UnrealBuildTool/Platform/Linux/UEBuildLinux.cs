@@ -24,7 +24,7 @@ namespace UnrealBuildTool
 		{
 			get
 			{
-				if (AppleToolchainArchitectures.ContainsKey(this))
+				if (LinuxToolchainArchitectures.ContainsKey(this))
 				{
 					return LinuxToolchainArchitectures[this];
 				}

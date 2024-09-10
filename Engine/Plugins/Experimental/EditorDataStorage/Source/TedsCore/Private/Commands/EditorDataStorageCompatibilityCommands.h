@@ -9,7 +9,7 @@
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
-class ITypedElementDataStorageInterface;
+class IEditorDataStorageProvider;
 class UScriptStruct;
 class UEditorDataStorageCompatibility;
 class UObject;
@@ -27,7 +27,7 @@ namespace UE::Editor::DataStorage
 
 	/**
 	 * Objects with type info defined in either UScriptStruct or UClass can be stored into TEDS via the
-	 * ITypedElementDataStorageCompatibilityInterface
+	 * IEditorDataStorageCompatibilityProvider
 	 * This is a discriminated union which aids with callbacks made when objects are added
 	 */
 	struct FObjectTypeInfo
@@ -228,7 +228,7 @@ namespace UE::Editor::DataStorage
 	/** Prepares each command for further processing, e.g. resolving the target table. */
 	struct FPrepareCommands final
 	{
-		FPrepareCommands(ITypedElementDataStorageInterface& InStorage, UEditorDataStorageCompatibility& InStorageCompat,
+		FPrepareCommands(IEditorDataStorageProvider& InStorage, UEditorDataStorageCompatibility& InStorageCompat,
 			CompatibilityCommandBuffer::FCollection& InCommands);
 
 		template<typename T>
@@ -241,12 +241,12 @@ namespace UE::Editor::DataStorage
 		void operator()(FRemoveInteractiveSyncFromWorldTag& Command);
 		void operator()(FAddSyncFromWorldTag& Command);
 
-		ITypedElementDataStorageInterface& Storage;
+		IEditorDataStorageProvider& Storage;
 		UEditorDataStorageCompatibility& StorageCompat;
 		CompatibilityCommandBuffer::FCollection& Commands;
 		int32 CurrentIndex = 0;
 
-		static void RunPreparation(ITypedElementDataStorageInterface& Storage, UEditorDataStorageCompatibility& StorageCompat, 
+		static void RunPreparation(IEditorDataStorageProvider& Storage, UEditorDataStorageCompatibility& StorageCompat, 
 			CompatibilityCommandBuffer::FCollection& Commands);
 	};
 
@@ -299,7 +299,7 @@ namespace UE::Editor::DataStorage
 	/** Executes the commands in the command buffer for TEDS Compatibility. */
 	struct FCommandProcessor final
 	{
-		FCommandProcessor(ITypedElementDataStorageInterface& InStorage, UEditorDataStorageCompatibility& InStorageCompatibility);
+		FCommandProcessor(IEditorDataStorageProvider& InStorage, UEditorDataStorageCompatibility& InStorageCompatibility);
 
 		void SetupRow(RowHandle Row, UObject* Object);
 		void SetupRow(RowHandle Row, void* Object, TWeakObjectPtr<UScriptStruct> TypeInfo);
@@ -323,7 +323,7 @@ namespace UE::Editor::DataStorage
 		void operator()(FRemoveInteractiveSyncFromWorldTag& Command);
 		void operator()(FAddSyncFromWorldTag& Command);
 
-		ITypedElementDataStorageInterface& Storage;
+		IEditorDataStorageProvider& Storage;
 		UEditorDataStorageCompatibility& StorageCompatibility;
 		FMementoSystem& MementoSystem;
 	};

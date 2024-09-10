@@ -351,7 +351,7 @@ FBox FKBoxElem::CalcAABB(const FTransform& BoneTM, float Scale) const
 	{
 #if INTEL_ISPC
 		FBox LocalBox(ForceInit);
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			ispc::BoxCalcAABB(
 				reinterpret_cast<ispc::FBox&>(LocalBox),
@@ -394,7 +394,7 @@ FBox FKSphylElem::CalcAABB(const FTransform& BoneTM, float Scale) const
 	{
 #if INTEL_ISPC
 		FBox Result(ForceInit);
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			ispc::SPhylCalcAABB(
 				reinterpret_cast<ispc::FBox&>(Result),

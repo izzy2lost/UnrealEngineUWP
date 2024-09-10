@@ -24,8 +24,8 @@
 // ULabelWidgetFactory
 //
 
-void ULabelWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
-	ITypedElementDataStorageUiInterface& DataStorageUi) const
+void ULabelWidgetFactory::RegisterWidgetConstructors(IEditorDataStorageProvider& DataStorage,
+	IEditorDataStorageUiProvider& DataStorageUi) const
 {
 	using namespace UE::Editor::DataStorage::Queries;
 
@@ -36,12 +36,12 @@ void ULabelWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInt
 		TColumn<FTypedElementLabelColumn>() || (TColumn<FTypedElementLabelColumn>() && TColumn<FTypedElementLabelHashColumn>()));
 }
 
-void ULabelWidgetFactory::RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const
+void ULabelWidgetFactory::RegisterWidgetPurposes(IEditorDataStorageUiProvider& DataStorageUi) const
 {
-	DataStorageUi.RegisterWidgetPurpose(FName(TEXT("General.RowLabel")), ITypedElementDataStorageUiInterface::EPurposeType::UniqueByNameAndColumn,
+	DataStorageUi.RegisterWidgetPurpose(FName(TEXT("General.RowLabel")), IEditorDataStorageUiProvider::EPurposeType::UniqueByNameAndColumn,
 	LOCTEXT("GeneralRowLabelPurpose", "Specific purpose to request a widget to display a user facing display name for a row."));
 	
-	DataStorageUi.RegisterWidgetPurpose(FName(TEXT("General.RowLabel.Default")), ITypedElementDataStorageUiInterface::EPurposeType::UniqueByName,
+	DataStorageUi.RegisterWidgetPurpose(FName(TEXT("General.RowLabel.Default")), IEditorDataStorageUiProvider::EPurposeType::UniqueByName,
 	LOCTEXT("GeneralRowLabelDefaultPurpose", "Default purpose to request a widget to display a user facing display name for a row."));
 }
 
@@ -64,8 +64,8 @@ TConstArrayView<const UScriptStruct*> FLabelWidgetConstructor::GetAdditionalColu
 	return Columns;
 }
 
-TSharedPtr<SWidget> FLabelWidgetConstructor::CreateWidget(ITypedElementDataStorageInterface* DataStorage,
-	ITypedElementDataStorageUiInterface* DataStorageUi, RowHandle TargetRow, RowHandle WidgetRow,
+TSharedPtr<SWidget> FLabelWidgetConstructor::CreateWidget(IEditorDataStorageProvider* DataStorage,
+	IEditorDataStorageUiProvider* DataStorageUi, RowHandle TargetRow, RowHandle WidgetRow,
 	const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
 	UE::Editor::DataStorage::FAttributeBinder Binder(TargetRow, DataStorage);

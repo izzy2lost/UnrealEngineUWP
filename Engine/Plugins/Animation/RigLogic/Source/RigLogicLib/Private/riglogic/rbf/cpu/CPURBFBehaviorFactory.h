@@ -28,7 +28,10 @@ class Factory {
             std::uint16_t maximumInputCount{};
             std::uint16_t maximumTargetCount{};
             Matrix<std::uint16_t> solverRawControlInputIndices{memRes};
-            Matrix<std::uint16_t> solverRawControlOutputIndices{memRes};
+            Matrix<std::uint16_t> solverPoseIndices{memRes};
+            Matrix<std::uint16_t> poseInputControlIndices{memRes};
+            Matrix<std::uint16_t> poseOutputControlIndices{memRes};
+            Matrix<float> poseOutputControlWeights{memRes};
 
             auto instanceFactory = [](std::uint16_t maxInputCount, std::uint16_t maxTargetCount, MemoryResource* instanceMemRes) {
                     using OutputInstancePointer = UniqueInstance<OutputInstance, RBFBehaviorOutputInstance>;
@@ -40,7 +43,10 @@ class Factory {
                 return factory.create(LODSpec<std::uint16_t>{memRes},
                                       std::move(solvers),
                                       std::move(solverRawControlInputIndices),
-                                      std::move(solverRawControlOutputIndices),
+                                      std::move(solverPoseIndices),
+                                      std::move(poseInputControlIndices),
+                                      std::move(poseOutputControlIndices),
+                                      std::move(poseOutputControlWeights),
                                       maximumInputCount,
                                       maximumTargetCount,
                                       std::move(instanceFactory));
@@ -49,12 +55,7 @@ class Factory {
             auto lods = computeLODs(reader, memRes);
             solvers.reserve(lods.count);
             solverRawControlInputIndices.resize(lods.count);
-            solverRawControlOutputIndices.resize(lods.count);
-
-            const std::uint16_t rbfControlsOffset = static_cast<std::uint16_t>(
-                reader->getRawControlCount() +
-                reader->getPSDCount() +
-                reader->getMLControlCount());
+            solverPoseIndices.resize(lods.count);
 
             RBFSolverRecipe recipe{};
             Vector<float> targetScales{memRes};
@@ -88,10 +89,7 @@ class Factory {
                 recipe.rawControlCount = static_cast<std::uint16_t>(rawControlIndices.size());
 
                 auto poseIndices = reader->getRBFSolverPoseIndices(solverIndex);
-                solverRawControlOutputIndices[solverIndex].reserve(poseIndices.size());
-                for (const std::uint16_t pi : poseIndices) {
-                    solverRawControlOutputIndices[solverIndex].push_back(static_cast<std::uint16_t>(rbfControlsOffset + pi));
-                }
+                solverPoseIndices[solverIndex].assign(poseIndices.begin(), poseIndices.end());
 
                 const auto targetCount = static_cast<std::uint16_t>(poseIndices.size());
                 if (targetCount > maximumTargetCount) {
@@ -108,11 +106,27 @@ class Factory {
                 auto solver = RBFSolver::create(recipe, memRes);
                 solvers.emplace_back(std::move(solver));
             }
+            const auto poseCount = reader->getRBFPoseCount();
+            poseInputControlIndices.resize(poseCount);
+            poseOutputControlIndices.resize(poseCount);
+            poseOutputControlWeights.resize(poseCount);
+
+            for (std::uint16_t poseIndex = {}; poseIndex < poseCount; ++poseIndex) {
+                const auto inputControlIndices = reader->getRBFPoseInputControlIndices(poseIndex);
+                const auto outputControlIndices = reader->getRBFPoseOutputControlIndices(poseIndex);
+                const auto outputControlWeights = reader->getRBFPoseOutputControlWeights(poseIndex);
+                poseInputControlIndices[poseIndex].assign(inputControlIndices.begin(), inputControlIndices.end());
+                poseOutputControlIndices[poseIndex].assign(outputControlIndices.begin(), outputControlIndices.end());
+                poseOutputControlWeights[poseIndex].assign(outputControlWeights.begin(), outputControlWeights.end());
+            }
 
             return factory.create(std::move(lods),
                                   std::move(solvers),
                                   std::move(solverRawControlInputIndices),
-                                  std::move(solverRawControlOutputIndices),
+                                  std::move(solverPoseIndices),
+                                  std::move(poseInputControlIndices),
+                                  std::move(poseOutputControlIndices),
+                                  std::move(poseOutputControlWeights),
                                   maximumInputCount,
                                   maximumTargetCount,
                                   std::move(instanceFactory));

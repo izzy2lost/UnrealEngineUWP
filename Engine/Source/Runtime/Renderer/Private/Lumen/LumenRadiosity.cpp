@@ -1221,7 +1221,7 @@ void FDeferredShadingSceneRenderer::RenderLumenRadiosityProbeVisualization(FRDGB
 			RDG_EVENT_NAME("Visualize Radiosity Probes"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[PassParameters, &View, MaxVisualizeProbes](FRHICommandList& RHICmdList)
+			[PassParameters, &View, MaxVisualizeProbes](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				TShaderMapRef<FVisualizeRadiosityProbesVS> VertexShader(View.ShaderMap);
 				TShaderMapRef<FVisualizeRadiosityProbesPS> PixelShader(View.ShaderMap);

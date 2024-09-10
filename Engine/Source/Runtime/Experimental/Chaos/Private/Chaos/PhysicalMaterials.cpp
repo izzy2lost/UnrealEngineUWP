@@ -2,9 +2,7 @@
 
 #include "Chaos/PhysicalMaterials.h"
 #include "HAL/LowLevelMemTracker.h"
-#if UE_CHAOS_ASYNC_INITBODY_ENABLED
-#include "Misc/ScopeRWLock.h"
-#endif
+#include "Chaos/AsyncInitBodyHelper.h"
 
 namespace Chaos
 {
@@ -83,13 +81,13 @@ namespace Chaos
 	
 	void FPhysicalMaterialManager::UpdateMaterial(FMaterialHandle InHandle)
 	{
-		check(UE_CHAOS_ASYNC_INITBODY_ENABLED || IsInGameThread());
+		check(Chaos::CVars::bEnableAsyncInitBody || IsInGameThread());
 		OnMaterialUpdated.Broadcast(InHandle);
 	}
 
 	void FPhysicalMaterialManager::UpdateMaterialMask(FMaterialMaskHandle InHandle)
 	{
-		check(UE_CHAOS_ASYNC_INITBODY_ENABLED || IsInGameThread());
+		check(Chaos::CVars::bEnableAsyncInitBody || IsInGameThread());
 		OnMaterialMaskUpdated.Broadcast(InHandle);
 	}
 
@@ -117,7 +115,7 @@ namespace Chaos
 	{
 		LLM_SCOPE(ELLMTag::ChaosMaterial);
 
-		check(UE_CHAOS_ASYNC_INITBODY_ENABLED || IsInGameThread());
+		check(Chaos::CVars::bEnableAsyncInitBody || IsInGameThread());
 		FMaterialHandle OutHandle;
 		{
 			UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(MaterialsLock);
@@ -130,7 +128,7 @@ namespace Chaos
 
 	FMaterialMaskHandle FPhysicalMaterialManager::CreateMask()
 	{
-		check(UE_CHAOS_ASYNC_INITBODY_ENABLED || IsInGameThread());
+		check(Chaos::CVars::bEnableAsyncInitBody || IsInGameThread());
 		FMaterialMaskHandle OutHandle;
 		{
 			UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(MaterialMasksLock);
@@ -145,7 +143,7 @@ namespace Chaos
 	{
 		LLM_SCOPE(ELLMTag::ChaosMaterial);
 
-		check(UE_CHAOS_ASYNC_INITBODY_ENABLED || IsInGameThread());
+		check(Chaos::CVars::bEnableAsyncInitBody || IsInGameThread());
 		if(InHandle.InnerHandle.IsValid())
 		{
 			OnMaterialDestroyed.Broadcast(InHandle);
@@ -158,7 +156,7 @@ namespace Chaos
 
 	void FPhysicalMaterialManager::Destroy(FMaterialMaskHandle InHandle)
 	{
-		check(UE_CHAOS_ASYNC_INITBODY_ENABLED || IsInGameThread());
+		check(Chaos::CVars::bEnableAsyncInitBody || IsInGameThread());
 		if (InHandle.InnerHandle.IsValid())
 		{
 			OnMaterialMaskDestroyed.Broadcast(InHandle);

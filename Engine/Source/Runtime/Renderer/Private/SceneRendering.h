@@ -717,6 +717,7 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT_WITH_CONSTRUCTOR(FVolumetricFogGlobalData,)
 	SHADER_PARAMETER(FVector3f, GridZParams)
 	SHADER_PARAMETER(FVector2f, SVPosToVolumeUV)
 	SHADER_PARAMETER(float, MaxDistance)
+	SHADER_PARAMETER(float, LightSoftFading)
 	SHADER_PARAMETER(FVector3f, HeightFogInscatteringColor)
 	SHADER_PARAMETER(FVector3f, HeightFogDirectionalLightInscatteringColor)
 	SHADER_PARAMETER(FIntPoint, FogGridToPixelXY)
@@ -1143,6 +1144,9 @@ public:
 	/** A map from primitive ID to a boolean ray tracing visibility value. */
 	FSceneBitArray PrimitiveRayTracingVisibilityMap;
 
+	/** Bit set when a primitive is known to be un-occluded. */
+	FSceneBitArray PrimitiveDefinitelyUnoccludedMap;
+
 	/** A map from primitive ID to a boolean is fading value. */
 	FSceneBitArray PotentiallyFadingPrimitiveMap;
 
@@ -1270,7 +1274,6 @@ public:
 	TStaticArray<FParallelMeshDrawCommandPass, EMeshPass::Num> ParallelMeshDrawCommandPasses;
 	
 #if RHI_RAYTRACING // #yuriy_todo: Move to FRayTracingScene, as this is only valid for View[0]
-	TUniquePtr<FRayTracingMeshResourceCollector> RayTracingMeshResourceCollector;
 	FRayTracingShaderBindingDataOneFrameArray DirtyRayTracingShaderBindings;
 	FDynamicRayTracingMeshCommandStorage DynamicRayTracingMeshCommandStorage;
 

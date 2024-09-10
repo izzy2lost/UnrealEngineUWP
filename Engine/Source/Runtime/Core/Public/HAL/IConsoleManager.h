@@ -181,6 +181,7 @@ enum EConsoleVariableFlags
 	op(PluginLowPriority) \
 	op(DeviceProfile) \
 	op(PluginHighPriority) \
+	op(GameOverride) \
 	op(ConsoleVariablesIni) \
 	op(Hotfix) \
 	op(Preview) \

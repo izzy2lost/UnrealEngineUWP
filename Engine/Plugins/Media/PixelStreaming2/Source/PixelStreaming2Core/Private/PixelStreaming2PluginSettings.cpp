@@ -292,6 +292,13 @@ TAutoConsoleVariable<bool> UPixelStreaming2PluginSettings::CVarWebRTCDisableStat
 	TEXT("PixelStreaming2.WebRTC.DisableStats"),
 	false,
 	TEXT("Disables the collection of WebRTC stats."),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* Var) { Delegates()->OnWebRTCDisableStatsChanged.Broadcast(Var); }),
+	ECVF_Default);
+
+TAutoConsoleVariable<float> UPixelStreaming2PluginSettings::CVarWebRTCStatsInterval(
+	TEXT("PixelStreaming2.WebRTC.StatsInterval"),
+	1.f,
+	TEXT("Configures how often WebRTC stats are collected in seconds. Values less than 0.0f disable stats collection. Default: 1.0f"),
 	ECVF_Default);
 
 TAutoConsoleVariable<bool> UPixelStreaming2PluginSettings::CVarWebRTCNegotiateCodecs(
@@ -825,6 +832,7 @@ static const TMap<FString, FString> GetCmdArg = {
 	{ "WebRTCDisableAudioSync", "PixelStreaming2.WebRTC.DisableAudioSync" },
 	{ "WebRTCEnableFlexFec", "PixelStreaming2.WebRTC.EnableFlexFec" },
 	{ "WebRTCDisableStats", "PixelStreaming2.WebRTC.DisableStats" },
+	{ "WebRTCStatsInterval", "PixelStreaming2.WebRTC.StatsInterval" },
 	{ "WebRTCNegotiateCodecs", "PixelStreaming2.WebRTC.NegotiateCodecs" },
 	{ "WebRTCAudioGain", "PixelStreaming2.WebRTC.AudioGain" },
 	{ "WebRTCPortAllocatorFlags", "PixelStreaming2.WebRTC.PortAllocatorFlags" },

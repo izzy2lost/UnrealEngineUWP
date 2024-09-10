@@ -280,15 +280,16 @@ namespace UnrealBuildTool
 		/// Pass along the call to UEBuildTarget.MakeBinaryFileName, but taking an extension instead of a binary type, since the type is hidden
 		/// </summary>
 		/// <param name="BinaryName"></param>
+		/// <param name="Separator"></param>
 		/// <param name="Platform"></param>
 		/// <param name="Configuration"></param>
 		/// <param name="Architectures"></param>
 		/// <param name="UndecoratedConfiguration"></param>
 		/// <param name="Extension"></param>
 		/// <returns></returns>
-		public static string MakeBinaryFileName(string BinaryName, UnrealTargetPlatform Platform, UnrealTargetConfiguration Configuration, UnrealArchitectures Architectures, UnrealTargetConfiguration UndecoratedConfiguration, string? Extension)
+		public static string MakeBinaryFileName(string BinaryName, string Separator, UnrealTargetPlatform Platform, UnrealTargetConfiguration Configuration, UnrealArchitectures Architectures, UnrealTargetConfiguration UndecoratedConfiguration, string? Extension)
 		{
-			string StandardBinaryName = UEBuildTarget.MakeBinaryFileName(BinaryName, Platform, Configuration, Architectures, UndecoratedConfiguration, UEBuildBinaryType.Executable);
+			string StandardBinaryName = UEBuildTarget.MakeBinaryFileName(BinaryName, Separator, Platform, Configuration, Architectures, UndecoratedConfiguration, UEBuildBinaryType.Executable);
 			return System.IO.Path.ChangeExtension(StandardBinaryName, Extension);
 		}
 

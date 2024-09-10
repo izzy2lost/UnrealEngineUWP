@@ -128,12 +128,6 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 
 		this.initTickJournal()
 
-		if (!this.branch.workspace) {
-			throw new Error(`Branch ${this.fullName} has no valid workspace specified`)
-		}
-
-		// not looking for min CL of edges any more
-
 		// Finally after setup, create the edges. (Edges may rely on NodeBot data for setup, so always do this last.)
 		this.edges = this.createEdges()
 	}
@@ -667,7 +661,8 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 		const edgeMap = new Map<string, EdgeBot>([[edge.targetBranch.upperName, edge]])
 		let integratedCl: Change | null = null // Set to possible undefines as we use this in the finally clause
 		try {
-			const processResult = await this._createChangeInfo(blockageChange, edgeMap, this.p4.username, targetBranch.workspace, targetBranch)
+			const workspace = await edge.getWorkspace()
+			const processResult = await this._createChangeInfo(blockageChange, edgeMap, this.p4.username, workspace, targetBranch)
 			if (!processResult.info) {
 				return {
 					success: false, 
@@ -711,7 +706,7 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 			integratedCl = p4ChangeResult as Change
 
 			// Unshelve 
-			if (!await this.p4.unshelve(targetBranch.workspace, integratedCl.change)) {
+			if (!await this.p4.unshelve(workspace, integratedCl.change)) {
 				return { 
 					success: false, 
 					message: `Unable to unshelve CL ${integratedCl.change}`
@@ -757,11 +752,11 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 			// We need the depot file for each conflict file to do comparisons
 			for (const remainingFile of remainingFiles) {
 				// Find target file 
-				const targetFileInDepotZtag = await this.p4.where(integratedCl.client, remainingFile.clientFile)
-				if (!targetFileInDepotZtag[0].depotFile) { 
+				const targetFileInDepot = await this.p4.where(integratedCl.client, remainingFile.clientFile)
+				if (!targetFileInDepot[0].depotFile) { 
 					throw new Error(`Error retrieving depot path for the merge target of ${remainingFile.clientFile}`)
 				}
-				remainingFile.targetDepotFile = targetFileInDepotZtag[0].depotFile
+				remainingFile.targetDepotFile = targetFileInDepot[0].depotFile
 			}
 
 			let remainingAllBinary = true
@@ -1686,19 +1681,11 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 			}
 
 			if (blockAssetEdges.length > 0) {
-				const describeResult = await this.p4.describe(change.change)
 
-				let changeContainsAssets = false
-				for (const entry of describeResult!.entries) {
-					const fileExtIndex = entry.depotFile.lastIndexOf('.')
-					if (fileExtIndex !== -1) {
-						const fileExt = entry.depotFile.substring(fileExtIndex + 1)
-						if (fileExt === 'uasset' || fileExt === 'umap') {
-							changeContainsAssets = true
-							break
-						}
-					}
-				}
+				let uassetSize = this.p4.sizes(`//....uasset@=${change.change}`, true)
+				let umapSize = this.p4.sizes(`//....umap@=${change.change}`, true)
+
+				const changeContainsAssets = ((await uassetSize)[0].fileCount > 0 || (await umapSize)[0].fileCount > 0)
 
 				if (changeContainsAssets) {
 					for (const [edge, action] of blockAssetEdges) {

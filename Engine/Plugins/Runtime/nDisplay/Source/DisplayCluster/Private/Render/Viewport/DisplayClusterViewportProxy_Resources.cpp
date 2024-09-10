@@ -62,7 +62,7 @@ namespace UE::DisplayCluster::ViewportProxy
 	static const int32 DisplayClusterViewportProxyResourcesOverrideRecursionDepthMax = 4;
 
 	template<class TScreenPixelShader>
-	void ResampleCopyTextureImpl_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture* SrcTexture, FRHITexture* DstTexture, const FIntRect& SrcRect, const FIntRect& DstRect, const EDisplayClusterTextureCopyMode InCopyMode = EDisplayClusterTextureCopyMode::RGBA)
+	void ResampleCopyTextureImpl_RenderThread(FRHICommandList& RHICmdList, FRHITexture* SrcTexture, FRHITexture* DstTexture, const FIntRect& SrcRect, const FIntRect& DstRect, const EDisplayClusterTextureCopyMode InCopyMode = EDisplayClusterTextureCopyMode::RGBA)
 	{
 		// Texture format mismatch, use a shader to do the copy.
 		// #todo-renderpasses there's no explicit resolve here? Do we need one?
@@ -520,7 +520,7 @@ bool FDisplayClusterViewportProxy::CopyResource_RenderThread(FRDGBuilder& GraphB
 			RDG_EVENT_NAME("DisplayClusterViewportProxy_CopyResource(%s)", *GetId()),
 			PassParameters,
 			ERDGPassFlags::Copy | ERDGPassFlags::NeverCull,
-			[InCopyMode, InContextNum, InSrcTextureRef, InSrcRect, DestTextureRef, DestRect](FRHICommandListImmediate& RHICmdList)
+			[InCopyMode, InContextNum, InSrcTextureRef, InSrcRect, DestTextureRef, DestRect](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				ResampleCopyTextureImpl_RenderThread<FScreenPS>(RHICmdList, InSrcTextureRef->GetRHI(), DestTextureRef->GetRHI(), InSrcRect, DestRect, InCopyMode);
 			});
@@ -554,7 +554,7 @@ bool FDisplayClusterViewportProxy::CopyResource_RenderThread(FRDGBuilder& GraphB
 			RDG_EVENT_NAME("DisplayClusterViewportProxy_CopyResource(%s)", *GetId()),
 			PassParameters,
 			ERDGPassFlags::Copy | ERDGPassFlags::NeverCull,
-			[InCopyMode, InContextNum, SrcTextureRef, SrcRect, InDestTextureRef, InDestRect](FRHICommandListImmediate& RHICmdList)
+			[InCopyMode, InContextNum, SrcTextureRef, SrcRect, InDestTextureRef, InDestRect](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				ResampleCopyTextureImpl_RenderThread<FScreenPS>(RHICmdList, SrcTextureRef->GetRHI(), InDestTextureRef->GetRHI(), SrcRect, InDestRect, InCopyMode);
 			});

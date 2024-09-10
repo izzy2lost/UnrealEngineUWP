@@ -384,7 +384,7 @@ void FRayTracingScene::Create(FRDGBuilder& GraphBuilder, const FViewInfo& View, 
 			// copy stats to readback buffer
 			{
 				AddReadbackBufferPass(GraphBuilder, RDG_EVENT_NAME("FRayTracingScene::StatsReadback"), OutputStatsBuffer,
-					[ReadbackBuffer = StatsReadbackBuffers[StatsReadbackBuffersWriteIndex], OutputStatsBuffer](FRHICommandList& RHICmdList)
+					[ReadbackBuffer = StatsReadbackBuffers[StatsReadbackBuffersWriteIndex], OutputStatsBuffer](FRDGAsyncTask, FRHICommandList& RHICmdList)
 					{
 						ReadbackBuffer->EnqueueCopy(RHICmdList, OutputStatsBuffer->GetRHI(), 0u);
 					});

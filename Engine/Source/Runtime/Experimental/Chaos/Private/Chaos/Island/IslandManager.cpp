@@ -6,6 +6,7 @@
 #include "Chaos/PBDConstraintContainer.h"
 #include "Chaos/PBDRigidsSOAs.h"
 #include "Chaos/PerParticleGravity.h"
+#include "Chaos/Evolution/IterationSettings.h"
 #include "Chaos/PhysicsMaterialUtilities.h"
 
 #include "ChaosStats.h"
@@ -33,6 +34,7 @@ DECLARE_CYCLE_STAT(TEXT("IslandManager::Merge"), STAT_IslandManager_MergeIslands
 DECLARE_CYCLE_STAT(TEXT("IslandManager::Split"), STAT_IslandManager_SplitIslands, STATGROUP_ChaosIslands);
 DECLARE_CYCLE_STAT(TEXT("IslandManager::Levels"), STAT_IslandManager_AssignLevels, STATGROUP_ChaosIslands);
 DECLARE_CYCLE_STAT(TEXT("IslandManager::Finalize"), STAT_IslandManager_Finalize, STATGROUP_ChaosIslands);
+DECLARE_CYCLE_STAT(TEXT("IslandManager::ComputeIterationSettings"), STAT_IslandManager_ComputeIterationSettings, STATGROUP_ChaosIslands);
 DECLARE_CYCLE_STAT(TEXT("IslandManager::Validate"), STAT_IslandManager_Validate, STATGROUP_ChaosIslands);
 
 namespace Chaos::CVars
@@ -79,6 +81,10 @@ namespace Chaos::CVars
 	/* Cvar to adjust the sleep angular threshold for floating particles */
 	FRealSingle IsolatedParticleSleepAngularThresholdMultiplier = 1.0f;
 	FAutoConsoleVariableRef CVarChaosSolverIsolatedParticleSleepAngularThresholdMultiplier(TEXT("p.Chaos.Solver.Sleep.IsolatedParticle.AngularMultiplier"), IsolatedParticleSleepAngularThresholdMultiplier, TEXT("A multiplier applied to SleepAngularThreshold for floating particles"));
+	
+	/** Cvar to enable/disable computing max iterations if island is dirty */
+	bool bChaosSolverComputeIterationSettings = true;
+	FAutoConsoleVariableRef CVarChaosSolverComputeIterationSettingsEnabled(TEXT("p.Chaos.Solver.ComputeIterationSettings.Enabled"), bChaosSolverComputeIterationSettings, TEXT("Recompute iteration settings every time an island is changed"));
 }
 
 
@@ -1348,6 +1354,7 @@ namespace Chaos::Private
 			{
 				Node->Island = Island;
 				Node->IslandArrayIndex = Island->Nodes.Add(Node);
+				Island->SetIterationSettings(FIterationSettings::Merge(Island->GetIterationSettings(), Node->GetIterationSettings()));
 			}
 
 			Island->Flags.bItemsAdded = true;
@@ -1745,6 +1752,7 @@ namespace Chaos::Private
 				{
 					Node->Island = ParentIsland;
 					Node->IslandArrayIndex = NextIslandArrayIndex++;
+					ParentIsland->SetIterationSettings(FIterationSettings::Merge(ParentIsland->GetIterationSettings(), Node->GetIterationSettings()));
 				}
 			}
 
@@ -2065,6 +2073,23 @@ namespace Chaos::Private
 			if (!Island->Flags.bIsSleepAllowed || !!Island->Flags.bIsSleeping || (Island->Flags.bIsSleeping != Island->Flags.bWasSleeping))
 			{
 				Island->SleepCounter = 0;
+			}
+
+			if (Island->Flags.bItemsAdded || Island->Flags.bItemsRemoved)
+			{
+				//Compute max of iteration settings by iterating through all the nodes:
+				SCOPE_CYCLE_COUNTER(STAT_IslandManager_ComputeIterationSettings);
+				if (Chaos::CVars::bChaosSolverComputeIterationSettings)
+				{
+					Island->SetIterationSettings(FIterationSettings(0, 0, 0));
+					for (FPBDIslandParticle* Node : Island->Nodes)
+					{
+						if (Node->Flags.bIsDynamic)
+						{
+							Island->SetIterationSettings(FIterationSettings::Merge(Island->GetIterationSettings(), Node->GetIterationSettings()));
+						}
+					}
+				}
 			}
 
 			Island->Flags.bWasSleeping = Island->Flags.bIsSleeping;

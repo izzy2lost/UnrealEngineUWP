@@ -5,9 +5,11 @@
 #include "Animation/AnimExecutionContext.h"
 #include "Animation/AnimNodeReference.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "AlphaBlend.h"
 #include "BlendStackAnimNodeLibrary.generated.h"
 
 struct FAnimNode_BlendStack;
+class UBlendProfile;
 
 USTRUCT(BlueprintType)
 struct FBlendStackAnimNodeReference : public FAnimNodeReference
@@ -60,4 +62,32 @@ public:
 						FVector BlendParameters = FVector::ZeroVector,
 						float WantedPlayRate = 1.f,
 						float ActivationDelay = 0.f);
+
+	// Note: Experimental and subject to change!
+	UFUNCTION(BlueprintCallable, Category = "Animation|BlendStack|Experimental", meta = (BlueprintThreadSafe, DisplayName = "Blend To"))
+	static void BlendToWithSettings(const FAnimUpdateContext& Context, 
+						const FBlendStackAnimNodeReference& BlendStackNode, 
+						UAnimationAsset* AnimationAsset = nullptr,
+						float AnimationTime = 0.f,
+						bool bLoop = false,
+						bool bMirrored = false,
+						float BlendTime = 0.2f,
+						UBlendProfile* BlendProfile = nullptr,
+						EAlphaBlendOption BlendOption = EAlphaBlendOption::HermiteCubic,
+						bool bInertialBlend = false,
+						FVector BlendParameters = FVector::ZeroVector,
+						float WantedPlayRate = 1.f,
+						float ActivationDelay = 0.f);
+
+	UFUNCTION(BlueprintPure, Category = "Animation|BlendStack", meta = (BlueprintThreadSafe))
+    static UAnimationAsset* GetCurrentAsset(const FBlendStackAnimNodeReference& BlendStackNode);
+
+	UFUNCTION(BlueprintPure, Category = "Animation|BlendStack", meta = (BlueprintThreadSafe))
+    static float GetCurrentAssetTime(const FBlendStackAnimNodeReference& BlendStackNode);
+
+	UFUNCTION(BlueprintPure, Category = "Animation|BlendStack", meta = (BlueprintThreadSafe))
+    static float GetCurrentAssetTimeRemaining(const FBlendStackAnimNodeReference& BlendStackNode);
+
+	UFUNCTION(BlueprintPure, Category = "Animation|BlendStack", meta = (BlueprintThreadSafe))
+    static bool IsCurrentAssetLooping(const FBlendStackAnimNodeReference& BlendStackNode);
 };

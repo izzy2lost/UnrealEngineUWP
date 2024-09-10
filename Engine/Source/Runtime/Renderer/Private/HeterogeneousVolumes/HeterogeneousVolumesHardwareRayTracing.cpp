@@ -244,7 +244,7 @@ void GenerateRayTracingScene(
 		[
 			PassParamsBLAS,
 			BuildParams = MoveTemp(BuildParams)
-		](FRHICommandListImmediate& RHICmdList)
+		](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FRHIBufferRange ScratchBufferRange;
 			ScratchBufferRange.Buffer = PassParamsBLAS->ScratchBuffer->GetRHI();
@@ -257,20 +257,9 @@ void GenerateRayTracingScene(
 	// Create RayTracingScene
 	const FGPUScene* EmptyGPUScene = nullptr;
 	RayTracingScene.Create(GraphBuilder, View, EmptyGPUScene, ERDGPassFlags::Compute);
+	RayTracingScene.Build(GraphBuilder, ERDGPassFlags::Compute | ERDGPassFlags::NeverCull | ERDGPassFlags::NeverParallel, nullptr);
 
-	const bool bRayTracingAsyncBuild = false;//CVarRayTracingAsyncBuild.GetValueOnRenderThread() != 0 && GRHISupportsRayTracingAsyncBuildAccelerationStructure;
-	const ERDGPassFlags ComputePassFlags = bRayTracingAsyncBuild ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute;
-	RayTracingScene.Build(GraphBuilder, ComputePassFlags | ERDGPassFlags::NeverCull | ERDGPassFlags::NeverParallel, nullptr);
-
-	AddPass(GraphBuilder, RDG_EVENT_NAME("RayTracingEndUpdate"), [&RayTracingScene, bRayTracingAsyncBuild](FRHICommandListImmediate& RHICmdList)
-		{
-			if (!bRayTracingAsyncBuild)
-			{
-				// Submit potentially expensive BVH build commands to the GPU as soon as possible.
-				// Avoids a GPU bubble in some CPU-limited cases.
-				RHICmdList.SubmitCommandsHint();
-			}
-		});
+	GraphBuilder.AddDispatchHint();
 }
 
 IMPLEMENT_RT_PAYLOAD_TYPE(ERayTracingPayloadType::SparseVoxel, 28);
@@ -694,14 +683,15 @@ void RenderLightingCacheWithPreshadingHardwareRayTracing(
 			
 			FRayTracingShaderBindingTableInitializer SBTInitializer;
 			// WARNING: Currently hit-group indexing is required to bind uniform buffers to hit-group shaders.
-			SBTInitializer.bAllowHitGroupIndexing = true;
+			SBTInitializer.HitGroupIndexingMode = ERayTracingHitGroupIndexingMode::Allow;
+			SBTInitializer.ShaderBindingMode = ERayTracingShaderBindingMode::RTPSO;
 			SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
 			SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
 			SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
 			SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
 			SBTInitializer.LocalBindingDataSize = MaxLocalBindingDataSize;
 
-			FShaderBindingTableRHIRef SBT = RHICreateShaderBindingTable(SBTInitializer);
+			FShaderBindingTableRHIRef SBT = RHICmdList.CreateRayTracingShaderBindingTable(SBTInitializer);
 
 			// Set hit-group bindings
 			const uint32 NumBindings = 1;
@@ -869,14 +859,15 @@ void RenderSingleScatteringWithPreshadingHardwareRayTracing(
 			
 			FRayTracingShaderBindingTableInitializer SBTInitializer;
 			// WARNING: Currently hit-group indexing is required to bind uniform buffers to hit-group shaders.
-			SBTInitializer.bAllowHitGroupIndexing = true;
+			SBTInitializer.HitGroupIndexingMode = ERayTracingHitGroupIndexingMode::Allow;
+			SBTInitializer.ShaderBindingMode = ERayTracingShaderBindingMode::RTPSO;
 			SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
 			SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
 			SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
 			SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
 			SBTInitializer.LocalBindingDataSize = MaxLocalBindingDataSize;
 
-			FShaderBindingTableRHIRef SBT = RHICreateShaderBindingTable(SBTInitializer);
+			FShaderBindingTableRHIRef SBT = RHICmdList.CreateRayTracingShaderBindingTable(SBTInitializer);
 
 			// Set hit-group bindings
 			const uint32 NumBindings = 1;

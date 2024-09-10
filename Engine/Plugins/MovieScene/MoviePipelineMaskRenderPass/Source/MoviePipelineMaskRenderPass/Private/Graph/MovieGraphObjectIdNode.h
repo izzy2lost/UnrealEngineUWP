@@ -34,6 +34,8 @@ public:
 #endif
 	// ~UMovieGraphNode Interface
 
+	virtual void UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const override;
+
 protected:
 	// UMovieGraphImagePassBaseNode Interface
 	virtual TUniquePtr<UE::MovieGraph::Rendering::FMovieGraphImagePassBase> CreateInstance() const override;

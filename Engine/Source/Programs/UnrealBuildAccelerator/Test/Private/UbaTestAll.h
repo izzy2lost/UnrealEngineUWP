@@ -33,6 +33,7 @@ namespace uba
 		UBA_TEST(TestRemoteDetouredTestApp) \
 		UBA_TEST(TestCompactPathTable) \
 		UBA_TEST(TestCacheEntry) \
+		UBA_TEST(TestHashTable) \
 		UBA_TEST(TestConfig) \
 		UBA_TEST(TestCrypto) \
 		UBA_TEST(TestBinDependencies) \

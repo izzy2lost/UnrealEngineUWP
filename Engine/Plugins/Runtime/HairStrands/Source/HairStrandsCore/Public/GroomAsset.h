@@ -35,8 +35,9 @@ struct FHairStrandsRaytracingResource;
 
 enum class EHairGroupInfoFlags : uint8
 {
-	HasTrimmedPoint = 1,
-	HasTrimmedCurve = 2
+	HasTrimmedPoint = 1<<0,
+	HasTrimmedCurve = 1<<1,
+	HasInvalidPoint = 1<<2
 };
 
 USTRUCT(BlueprintType)

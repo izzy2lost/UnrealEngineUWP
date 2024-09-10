@@ -115,7 +115,7 @@ enum class EMetaSoundBuilderResult : uint8
 };
 
 /** Base implementation of MetaSound builder */
-UCLASS(Abstract)
+UCLASS(Abstract, BlueprintType, Transient)
 class METASOUNDENGINE_API UMetaSoundBuilderBase : public UObject
 {
 	GENERATED_BODY()
@@ -279,8 +279,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
 	UPARAM(DisplayName = "Node ClassVersion") FMetasoundFrontendVersion FindNodeClassVersion(const FMetaSoundNodeHandle& NodeHandle, EMetaSoundBuilderResult& OutResult);
 
-	// Returns the document's root graph class name
-	FMetasoundFrontendClassName GetRootGraphClassName() const;
+	// Returns the MetaSound asset's graph class name (used by the MetaSound Node Class Registry)
+	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder|Advanced", meta = (DisplayName = "Get MetaSound Class Name"))
+	UPARAM(DisplayName = "Class Name") FMetasoundFrontendClassName GetRootGraphClassName() const;
 
 	// Returns node input's data if valid (including things like name and datatype).
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
@@ -288,15 +289,15 @@ public:
 
 	// Returns node input's literal value if set on graph, otherwise fails and returns default literal.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
-	FMetasoundFrontendLiteral GetNodeInputDefault(const FMetaSoundBuilderNodeInputHandle& InputHandle, EMetaSoundBuilderResult& OutResult);
+	UPARAM(DisplayName = "Default") FMetasoundFrontendLiteral GetNodeInputDefault(const FMetaSoundBuilderNodeInputHandle& InputHandle, EMetaSoundBuilderResult& OutResult);
 
 	// Returns node input's class literal value if set, otherwise fails and returns default literal.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
-	FMetasoundFrontendLiteral GetNodeInputClassDefault(const FMetaSoundBuilderNodeInputHandle& InputHandle, EMetaSoundBuilderResult& OutResult);
+	UPARAM(DisplayName = "Default") FMetasoundFrontendLiteral GetNodeInputClassDefault(const FMetaSoundBuilderNodeInputHandle& InputHandle, EMetaSoundBuilderResult& OutResult);
 
 	// Returns whether the given node input is a constructor pin
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder")
-	bool GetNodeInputIsConstructorPin(const FMetaSoundBuilderNodeInputHandle& InputHandle) const;
+	UPARAM(DisplayName = "Is Constructor Pin") bool GetNodeInputIsConstructorPin(const FMetaSoundBuilderNodeInputHandle& InputHandle) const;
 
 	// Returns node output's data if valid (including things like name and datatype).
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
@@ -304,15 +305,15 @@ public:
 	
 	// Returns whether the given node output is a constructor pin
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder")
-	bool GetNodeOutputIsConstructorPin(const FMetaSoundBuilderNodeOutputHandle& OutputHandle) const;
+	UPARAM(DisplayName = "Is Constructor Pin") bool GetNodeOutputIsConstructorPin(const FMetaSoundBuilderNodeOutputHandle& OutputHandle) const;
 
 	// Return the asset referenced by this preset builder. Returns nullptr if the builder is not a preset.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder")
-	UObject* GetReferencedPresetAsset() const;
+	UPARAM(DisplayName = "Referenced Preset") UObject* GetReferencedPresetAsset() const;
 
 	// Returns if a given interface is declared.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder")
-	UPARAM(DisplayName = "IsDeclared") bool InterfaceIsDeclared(FName InterfaceName) const;
+	UPARAM(DisplayName = "Is Declared") bool InterfaceIsDeclared(FName InterfaceName) const;
 
 	// Returns if a given node output and node input are connected.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder")
@@ -328,7 +329,7 @@ public:
 
 	// Returns whether this is a preset.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder")
-	bool IsPreset() const;
+	UPARAM(DisplayName = "Is Preset") bool IsPreset() const;
 
 	// Converts this preset to a fully accessible MetaSound; sets result to succeeded if it was converted successfully and failed if it was not.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))

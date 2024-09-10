@@ -3,7 +3,6 @@
 #pragma once
 
 #include "Containers/Array.h"
-#include "Containers/UnrealString.h"
 #include "HAL/Platform.h"
 #include "Input/Reply.h"
 #include "Internationalization/Text.h"
@@ -97,6 +96,14 @@ struct FTranslationPickerTextItem : public FGCObject
 	/** Create new text item */
 	static TSharedPtr<FTranslationPickerTextItem> BuildTextItem(const FText& InText, bool bAllowEditing);
 
+	inline bool operator==(const FTranslationPickerTextItem& Other) const
+	{
+		// It is sufficient to compare a subset to know they match. We can avoid comparing other fields.
+		return (CleanNamespace.Equals(Other.CleanNamespace) &&
+			TextId.GetKey() == Other.TextId.GetKey() &&
+			SourceString.Equals(Other.SourceString));
+	}
+
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 	virtual FString GetReferencerName() const override
 	{
@@ -156,8 +163,6 @@ class STranslationPickerEditWindow : public SCompoundWidget
 
 	SLATE_ARGUMENT(TWeakPtr<SWindow>, ParentWindow)
 
-	SLATE_ARGUMENT(TArray<FText>, PickedTexts)
-
 	SLATE_END_ARGS()
 
 	virtual ~STranslationPickerEditWindow();
@@ -173,6 +178,8 @@ private:
 
 	FReply Close();
 
+	FReply Exit();
+
 	/** We need to support keyboard focus to process the 'Esc' key */
 	virtual bool SupportsKeyboardFocus() const override
 	{
@@ -182,8 +189,8 @@ private:
 	/** Return to picker floating window */
 	FReply RestorePicker();
 
-	/** Save all translations and close */
-	FReply SaveAllAndClose();
+	/** Save all translations and exit */
+	FReply SaveAllAndExit();
 
 	/** Update text list items */
 	void UpdateListItems();
@@ -207,9 +214,6 @@ private:
 
 	/** Contents of the window */
 	TSharedPtr<SBox> WindowContents;
-
-	/** The FTexts that we have found under the cursor */
-	TArray<FText> PickedTexts;
 
 	/** Full unfiltered list of items */
 	TArray<TSharedPtr<FTranslationPickerTextItem>> AllItems;

@@ -7,8 +7,7 @@
 #include "ColorViewerCommands.h"
 #include "ColorViewerStyle.h"
 #include "Algo/AllOf.h"
-#include "Algo/NoneOf.h"
-#include "Algo/Sort.h"
+#include "Algo/AnyOf.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 
 #define LOCTEXT_NAMESPACE "ColorViewerWidget"
@@ -18,6 +17,9 @@ namespace UE::ImageWidgets::Sample
 	void SColorViewerWidget::Construct(const FArguments&)
 	{
 		ColorViewer = MakeShared<FColorViewer>();
+
+		GroupColors = FName("Colors");
+		GroupFavorites = FName("Favorites");
 
 		BindCommands();
 
@@ -36,11 +38,11 @@ namespace UE::ImageWidgets::Sample
 				SAssignNew(Splitter, SSplitter)
 					.PhysicalSplitterHandleSize(2.0f)
 					+ SSplitter::Slot()
-						.Value(0.0f)
+						.Value(0.2f)
 						[
 							SAssignNew(Catalog, ImageWidgets::SImageCatalog)
-								.PinnedItemsHeading(LOCTEXT("PinnedColors", "Pinned Colors"))
-								.ItemsHeading(LOCTEXT("Colors", "Colors"))
+								.DefaultGroupName(GroupColors)
+								.DefaultGroupHeading(LOCTEXT("Colors", "Colors"))
 								.OnItemSelected_Lambda([&ColorViewer = ColorViewer, &Viewport = Viewport](const FGuid& ImageGuid)
 								{
 									if (ColorViewer)
@@ -52,10 +54,11 @@ namespace UE::ImageWidgets::Sample
 										Viewport->RequestRedraw();
 									}
 								})
-								.OnGetContextMenu(this, &SColorViewerWidget::GetContextMenu)
+								.OnGetGroupContextMenu(this, &SColorViewerWidget::GetGroupContextMenu)
+								.OnGetItemsContextMenu(this, &SColorViewerWidget::GetItemsContextMenu)
 						]
 					+ SSplitter::Slot()
-						.Value(1.0f)
+						.Value(0.8f)
 						[
 							SAssignNew(Viewport, ImageWidgets::SImageViewport, ColorViewer.ToSharedRef())
 								.ToolbarExtender(ToolbarExtender)
@@ -70,6 +73,8 @@ namespace UE::ImageWidgets::Sample
 								.bABComparisonEnabled(true)
 						]
 			];
+
+		Catalog->AddGroup(GroupFavorites, LOCTEXT("Favorites", "Favorites"), GroupColors);
 	}
 
 	FReply SColorViewerWidget::OnKeyDown(const FGeometry& Geometry, const FKeyEvent& KeyEvent)
@@ -133,13 +138,8 @@ namespace UE::ImageWidgets::Sample
 			const FLinearColor ToneMappedColor = ColorViewer->GetDefaultToneMappedColor(ColorItem->Color);
 
 			Catalog->AddItem(MakeShared<FImageCatalogItemData>(ColorItem->Guid, FSlateColorBrush(ToneMappedColor), Name, Info, ToolTip));
+			Catalog->ClearSelection();
 			Catalog->SelectItem(ColorItem->Guid);
-
-			if (bCatalogCollapsedOnInit && Catalog->NumTotalItems() > 1 && Splitter->SlotAt(0).GetSizeValue() <= 0.0f)
-			{
-				Splitter->SlotAt(0).SetSizeValue(0.2f);
-				bCatalogCollapsedOnInit = false;
-			}
 		}
 	}
 
@@ -154,50 +154,118 @@ namespace UE::ImageWidgets::Sample
 		}
 	}
 
-	TSharedPtr<SWidget> SColorViewerWidget::GetContextMenu(const TArray<FGuid>& Guids) const
+	bool SColorViewerWidget::RandomizeColorEnabled() const
 	{
-		checkSlow(!Guids.IsEmpty());
-		checkSlow(Algo::AllOf(Guids, [&Catalog = Catalog](const FGuid& Guid) { return Catalog->ItemIsPinned(Guid); })
-			|| Algo::NoneOf(Guids, [&Catalog = Catalog] (const FGuid& Guid) { return Catalog->ItemIsPinned(Guid); }));
+		const IImageViewer::FImageInfo Info = ColorViewer->GetCurrentImageInfo();
+		if (Info.bIsValid)
+		{
+			if (const TOptional<FName> GroupName = Catalog->GetItemGroupName(Info.Guid))
+			{
+				if (*GroupName == GroupColors)
+				{
+					return true;
+				}
+			}
+		}
 
+		return false;
+	}
+
+	TSharedPtr<SWidget> SColorViewerWidget::GetGroupContextMenu(FName GroupName) const
+	{
 		FMenuBuilder MenuBuilder(true, nullptr);
 
-		if (Catalog->ItemIsPinned(Guids[0]))
+		const int32 NumItems = Catalog->NumItems(GroupName);
+		if (NumItems > 0)
 		{
 			MenuBuilder.AddMenuEntry(
-				LOCTEXT("UnpinItems", "Unpin"),
-				LOCTEXT("UnpinItemsTooltip", "Removes the selected item(s) from the list of pinned items."),
-				FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Unpinned"),
+				NumItems == 1
+					? FText::Format(LOCTEXT("DeleteGroupItem", "Delete single item in group"), NumItems)
+					: FText::Format(LOCTEXT("DeleteAllGroupItems", "Delete all {0} items in group"), NumItems),
+				LOCTEXT("DeleteGroupItems", "Deletes all items in this group."),
+				FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Delete"),
 				FUIAction(FExecuteAction::CreateLambda(
-					[Guids, Catalog = Catalog]
+					[GroupName, Catalog = Catalog, ColorViewer = ColorViewer]
 					{
-						if (Catalog)
+						if (Catalog && ColorViewer)
 						{
-							for (const FGuid& Guid : Guids)
+							for (int32 Index = Catalog->NumItems(GroupName) - 1; Index >= 0; --Index)
 							{
-								Catalog->UnpinItem(Guid);
+								const TOptional<FGuid> Guid = Catalog->GetItemGuidAt(Index, GroupName);
+								if (Guid.IsSet())
+								{
+									Catalog->RemoveItem(Guid.GetValue());
+									ColorViewer->RemoveColor(Guid.GetValue());
+								}
 							}
-							Catalog->SelectItem(Guids[0]);
 						}
 					})));
 		}
-		else
+
+		return MenuBuilder.MakeWidget();
+	}
+
+	TSharedPtr<SWidget> SColorViewerWidget::GetItemsContextMenu(const TArray<FGuid>& Guids) const
+	{
+		checkSlow(!Guids.IsEmpty());
+
+		auto IsFavorite = [&Catalog = Catalog, &GroupFavorites = GroupFavorites](const FGuid& Guid)
+		{
+			const TOptional<FName> GroupName = Catalog->GetItemGroupName(Guid);
+			return GroupName && *GroupName == GroupFavorites;
+		};
+
+		const bool bHaveFavorites = Algo::AnyOf(Guids, IsFavorite);
+		const bool bHaveNonFavorites = !Algo::AllOf(Guids, IsFavorite);
+
+		FMenuBuilder MenuBuilder(true, nullptr);
+
+		if (bHaveNonFavorites)
 		{
 			MenuBuilder.AddMenuEntry(
-				LOCTEXT("PinItems", "Pin"),
-				LOCTEXT("PinItemsTooltip", "Adds the selected item(s) to the list of pinned items."),
+				LOCTEXT("AddFavorite", "Add To Favorites"),
+				LOCTEXT("AddFavoriteTooltip", "Adds the selected color(s) to the list of favorites."),
 				FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Pinned"),
 				FUIAction(
 					FExecuteAction::CreateLambda(
-						[Guids, Catalog = Catalog]
+						[Guids, Catalog = Catalog, GroupFavorites = GroupFavorites, GroupColors = GroupColors]
 						{
 							if (Catalog)
 							{
 								for (const FGuid& Guid : Guids)
 								{
-									Catalog->PinItem(Guid);
+									const auto GroupName = Catalog->GetItemGroupName(Guid);
+									if (GroupName && *GroupName == GroupColors)
+									{
+										Catalog->MoveItem(Guid, GroupFavorites);
+									}
+									Catalog->SelectItem(Guid);
 								}
-								Catalog->SelectItem(Guids[0]);
+							}
+						})));
+		}
+
+		if (bHaveFavorites)
+		{
+			MenuBuilder.AddMenuEntry(
+				LOCTEXT("RemoveFavorite", "Remove from Favorites"),
+				LOCTEXT("RemoveFavoriteTooltip", "Removes the selected color(s) from the list of favorites."),
+				FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Unpinned"),
+				FUIAction(
+					FExecuteAction::CreateLambda(
+						[Guids, Catalog = Catalog, GroupFavorites = GroupFavorites, GroupColors = GroupColors]
+						{
+							if (Catalog)
+							{
+								for (const FGuid& Guid : Guids)
+								{
+									const auto GroupName = Catalog->GetItemGroupName(Guid);
+									if (GroupName && *GroupName == GroupFavorites)
+									{
+										Catalog->MoveItem(Guid, GroupColors);
+									}
+									Catalog->SelectItem(Guid);
+								}
 							}
 						})));
 		}
@@ -215,7 +283,8 @@ namespace UE::ImageWidgets::Sample
 		MenuBuilder.AddSeparator();
 
 		MenuBuilder.AddMenuEntry(
-			LOCTEXT("DeleteItems", "Delete"), LOCTEXT("DeleteItemsTooltip", "Deletes the selected item(s) from the catalog."),
+			LOCTEXT("DeleteColors", "Delete"),
+			LOCTEXT("DeleteColorsTooltip", "Deletes the selected colors(s) from the catalog."),
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Delete"),
 			FUIAction(FExecuteAction::CreateLambda(
 				[Guids, Catalog = Catalog, ColorViewer = ColorViewer]
@@ -246,7 +315,8 @@ namespace UE::ImageWidgets::Sample
 
 		CommandList->MapAction(
 			Commands.RandomizeColor,
-			FExecuteAction::CreateSP(this, &SColorViewerWidget::RandomizeColor)
+			FExecuteAction::CreateSP(this, &SColorViewerWidget::RandomizeColor),
+			FCanExecuteAction::CreateSP(this, &SColorViewerWidget::RandomizeColorEnabled)
 		);
 
 		CommandList->MapAction(

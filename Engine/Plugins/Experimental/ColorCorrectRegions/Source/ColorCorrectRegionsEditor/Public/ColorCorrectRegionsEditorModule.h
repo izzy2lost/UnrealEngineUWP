@@ -16,6 +16,7 @@ public:
 	virtual void ShutdownModule() override;
 	/** IModuleInterface implementation end */
 
+	void RegisterSectionMappings();
 	void OnPlacementModeRefresh(FName CategoryName);
 
 private:

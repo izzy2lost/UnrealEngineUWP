@@ -42,6 +42,15 @@ namespace UE::RemoteControl::DMX
 		/** Auto assigns fixture patches in the DMX Library */
 		void AutoAssignFixturePatches(const TArray<TSharedRef<FRemoteControlDMXControlledPropertyPatch>>& PostEditChangePropertyPatches);
 
+		/** Returns all Remote Control related Fixture Patches in the DMX Library, grouped by group index */
+		TMap<int32, TArray<UDMXEntityFixturePatch*>> GetGroupIndexToRCFixturePatchesMap(const UDMXLibrary& DMXLibrary) const;
+		
+		/** Gets or creates a Group Index for a group of Fixture Patches. */
+		int32 GetOrCreateGroupIndex(const UDMXLibrary& DMXLibrary, const TArray<UDMXEntityFixturePatch*>& FixturePatches) const;
+
+		/** Extracts a group index from a Fixture Patch tag */
+		int32 ExtractGroupIndex(const FName& Tag) const;
+
 		/** Fixture types used before property patches changed */
 		TArray<UDMXEntityFixtureType*> PreviousFixtureTypes;
 
@@ -50,5 +59,8 @@ namespace UE::RemoteControl::DMX
 
 		/** The remote control preset for which the Library is built */
 		URemoteControlPreset* Preset = nullptr;
+
+		/** Tag for RC Fixture Groups */
+		static const FString RCFixtureGroupTag;
 	};
 }

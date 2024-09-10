@@ -100,19 +100,28 @@ class FD3D12GPUObject
 {
 public:
 	FD3D12GPUObject(FRHIGPUMask InGPUMask, FRHIGPUMask InVisibiltyMask)
+#if WITH_MGPU
 		: GPUMask(InGPUMask)
 		, VisibilityMask(InVisibiltyMask)
+#endif
 	{
 		// Note that node mask can't be null.
 	}
 
-	FORCEINLINE const FRHIGPUMask& GetGPUMask() const { return GPUMask; }
-	FORCEINLINE const FRHIGPUMask& GetVisibilityMask() const { return VisibilityMask; }
+#if WITH_MGPU
+	FORCEINLINE FRHIGPUMask GetGPUMask() const { return GPUMask; }
+	FORCEINLINE FRHIGPUMask GetVisibilityMask() const { return VisibilityMask; }
+#else
+	SGPU_CONSTEXPR FRHIGPUMask GetGPUMask() const { return FRHIGPUMask::GPU0(); }
+	SGPU_CONSTEXPR FRHIGPUMask GetVisibilityMask() const { return FRHIGPUMask::GPU0(); }
+#endif
 
 protected:
+#if WITH_MGPU
 	const FRHIGPUMask GPUMask;
 	// Which GPUs have direct access to this object
 	const FRHIGPUMask VisibilityMask;
+#endif
 };
 
 class FD3D12SingleNodeGPUObject : public FD3D12GPUObject
@@ -120,16 +129,24 @@ class FD3D12SingleNodeGPUObject : public FD3D12GPUObject
 public:
 	FD3D12SingleNodeGPUObject(FRHIGPUMask GPUMask)
 		: FD3D12GPUObject(GPUMask, GPUMask)
+#if WITH_MGPU
 		, GPUIndex(GPUMask.ToIndex())
+#endif
 	{}
 
+#if WITH_MGPU
 	FORCEINLINE uint32 GetGPUIndex() const
 	{
 		return GPUIndex;
 	}
+#else
+	SGPU_CONSTEXPR uint32 GetGPUIndex() const { return 0; }
+#endif
 
 private:
+#if WITH_MGPU
 	uint32 GPUIndex;
+#endif
 };
 
 class FD3D12MultiNodeGPUObject : public FD3D12GPUObject

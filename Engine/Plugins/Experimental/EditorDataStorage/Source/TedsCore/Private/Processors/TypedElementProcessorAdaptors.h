@@ -24,11 +24,11 @@ namespace UE::Editor::DataStorage
 		~FPhasePreOrPostAmbleExecutor();
 
 		void ExecuteQuery(
-			ITypedElementDataStorageInterface::FQueryDescription& Description,
+			IEditorDataStorageProvider::FQueryDescription& Description,
 			FExtendedQueryStore& QueryStore,
 			FEnvironment& Environment,
 			FMassEntityQuery& NativeQuery,
-			ITypedElementDataStorageInterface::QueryCallbackRef Callback);
+			IEditorDataStorageProvider::QueryCallbackRef Callback);
 
 		FMassExecutionContext Context;
 	};
@@ -53,7 +53,7 @@ struct FTypedElementQueryProcessorData
 		FExtendedQueryStore& InQueryStore,
 		FEnvironment& InEnvironment,
 		TArrayView<FMassEntityQuery> Subqueries);
-	static EMassProcessingPhase MapToMassProcessingPhase(ITypedElementDataStorageInterface::EQueryTickPhase Phase);
+	static EMassProcessingPhase MapToMassProcessingPhase(IEditorDataStorageProvider::EQueryTickPhase Phase);
 	FString GetProcessorName() const;
 	void DebugOutputDescription(FOutputDevice& Ar, int32 Indent) const;
 
@@ -82,7 +82,7 @@ struct FTypedElementQueryProcessorData
 	void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context);
 
 	static bool PrepareCachedDependenciesOnQuery(
-		ITypedElementDataStorageInterface::FQueryDescription& Description, FMassExecutionContext& Context);
+		IEditorDataStorageProvider::FQueryDescription& Description, FMassExecutionContext& Context);
 
 	FExtendedQueryStore::Handle ParentQuery;
 	FExtendedQueryStore* QueryStore{ nullptr };

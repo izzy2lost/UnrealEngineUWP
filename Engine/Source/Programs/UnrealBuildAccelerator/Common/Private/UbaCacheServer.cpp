@@ -6,11 +6,16 @@
 #include "UbaBinaryReaderWriter.h"
 #include "UbaDirectoryIterator.h"
 #include "UbaFileAccessor.h"
+#include "UbaHashMap.h"
 #include "UbaNetworkServer.h"
 #include "UbaStorageServer.h"
 //#include <oodle2.h>
 
-// MAKE IT RECOVER TIME WHEN GETTING UNDER CERTAIN SIZE!
+// TODO
+// - Fix so expiration time is set to oldest if overflowing and decreasing time didn't cause any deletes. That way we can make sure next maintenance will delete entries
+// - Sort buckets by last maintenance time to make sure the long ones always get a slot first
+// - Change so save happens when bucket is done in same work to minimize latency for the long ones
+
 
 #if PLATFORM_WINDOWS
 #define UBA_FORCEINLINE __forceinline
@@ -158,7 +163,7 @@ namespace uba
 			BitArray deletedOffsets;
 			bool isInitialized = false;
 			bool shouldTest = false;
-		}* m_maintenanceContext;
+		}* m_maintenanceContext = nullptr;
 	};
 
 	const tchar* ToString(CacheMessageType type)
@@ -596,11 +601,20 @@ namespace uba
 
 		u64 totalCasSize = 0;
 
-		struct CasFileInfo { CasFileInfo(u64 s = 0) : size(s) {} u64 size; Atomic<bool> isUsed; };
-		UnorderedMap<CasKey, CasFileInfo> existingCas;
+		struct CasFileInfo { CasFileInfo(u32 s = 0) : size(s) {} u32 size; Atomic<bool> isUsed; }; // These are compressed cas, should never be over 4gb
+
+		// Existing cas entries can be more than 2 million entries.. which uses a lot of memory
+		constexpr u64 existingCasMemoryReserveSize = 192*1024*1024;
+		MemoryBlock existingCasMemoryBlock;
+		if (!existingCasMemoryBlock.Init(existingCasMemoryReserveSize, nullptr, true))
+			existingCasMemoryBlock.Init(existingCasMemoryReserveSize);
+
+		HashMap<CasKey, CasFileInfo> existingCas;
+
 
 		m_storage.WaitForActiveWork();
 
+		u64 totalCasCount;
 		{
 			u64 collectCasStartTime = GetTime();
 
@@ -609,7 +623,8 @@ namespace uba
 			// TODO: Make this cleaner... (inside UbaStorage instead)
 			SCOPED_WRITE_LOCK(m_storage.m_casLookupLock, lookupLock);
 			
-			existingCas.reserve(m_storage.m_casLookup.size());
+			totalCasCount = m_storage.m_casLookup.size();
+			existingCas.Init(existingCasMemoryBlock, totalCasCount);
 
 			for (auto i=m_storage.m_casLookup.begin(), e=m_storage.m_casLookup.end(); i!=e;)
 			{
@@ -622,7 +637,8 @@ namespace uba
 					continue;
 				}
 				totalCasSize += i->second.size;
-				existingCas.try_emplace(i->first, i->second.size);
+				UBA_ASSERT(i->second.size < ~0u);
+				existingCas.Insert(i->first).size = u32(i->second.size);
 				++i;
 			}
 			lookupLock.Leave();
@@ -630,10 +646,8 @@ namespace uba
 			if (removedNonExisting)
 				m_logger.Detail(TC("  Removed %s cas entries (marked as not existing)"), CountToText(removedNonExisting).str);
 
-			m_logger.Detail(TC("  Found %s (%s) cas files and %s deleted by overflow (%s)"), CountToText(existingCas.size()).str, BytesToText(totalCasSize).str, CountToText(deletedCasFiles.size()).str, TimeToText(GetTime() - collectCasStartTime).str);
+			m_logger.Detail(TC("  Found %s (%s) cas files and %s deleted by overflow (%s)"), CountToText(existingCas.Size()).str, BytesToText(totalCasSize).str, CountToText(deletedCasFiles.size()).str, TimeToText(GetTime() - collectCasStartTime).str);
 		}
-
-		u64 totalCasCount = existingCas.size() + deletedCasCount;
 
 		if (shouldExit())
 			return true;
@@ -821,10 +835,9 @@ namespace uba
 								CasKey casKey;
 								bucket.m_casKeyTable.GetKey(casKey, offset);
 								UBA_ASSERT(IsCompressed(casKey));
-								auto findIt = existingCas.find(casKey);
-								if (findIt != existingCas.end())
+								if (auto value = existingCas.Find(casKey))
 								{
-									touchedCas.push_back(&findIt->second.isUsed);
+									touchedCas.push_back(&value->isUsed);
 									continue;
 								}
 								deleteEntry = true;
@@ -882,19 +895,20 @@ namespace uba
 			// Reset deleted cas files and update it again..
 			deletedCasFiles.clear();
 
-			for (auto i=existingCas.begin(), e=existingCas.end(); i!=e;)
+			for (auto i=existingCas.ValuesBegin(), e=existingCas.ValuesEnd(); i!=e; ++i)
 			{
-				if (i->second.isUsed)
+				if (i->isUsed)
 				{
-					i->second.isUsed = false;
-					++i;
+					i->isUsed = false;
 					continue;
 				}
-				deletedCasFiles.insert(i->first);
+				const CasKey* key = existingCas.GetKey(i);
+				if (!key)
+					continue;
+				deletedCasFiles.insert(*key);
 				++deletedCasCount;
-				totalCasSize -= i->second.size;
-				i = existingCas.erase(i);
-				e = existingCas.end();
+				totalCasSize -= i->size;
+				existingCas.Erase(*key);
 			}
 
 			// Add drop cas as work so it can run in the background
@@ -906,6 +920,8 @@ namespace uba
 			++deleteIteration;
 		}
 		while (!deletedCasFiles.empty()); // if cas files are deleted we need to do another loop and check cache entry inputs to see if files were inputs
+
+		existingCasMemoryBlock.Deinit();
 
 		if (overflowedEntryCount)
 			m_logger.Detail(TC("  Found %llu overflowed cache entries"), overflowedEntryCount.load());
@@ -984,11 +1000,11 @@ namespace uba
 				});
 
 			// Build new path table based on used offsets
-			GrowingNoLockUnorderedMap<u32, u32> oldToNewPathOffset(&memoryBlock);
+			HashMap2<u32, u32> oldToNewPathOffset;
 			u32 oldSize = bucket.m_pathTable.GetSize();
 			{
 				CompactPathTable newPathTable(CachePathTableMaxSize, CompactPathTable::V1, bucket.m_pathTable.GetPathCount(), bucket.m_pathTable.GetSegmentCount());
-				oldToNewPathOffset.reserve(usedPathOffsets.CountSetBits());
+				oldToNewPathOffset.Init(memoryBlock, usedPathOffsets.CountSetBits());
 
 				StringBuffer<> temp;
 				usedPathOffsets.Traverse([&](u32 pathOffset)
@@ -1003,10 +1019,7 @@ namespace uba
 					#endif
 
 					if (pathOffset != newPathOffset)
-					{
-						auto res = oldToNewPathOffset.try_emplace(pathOffset, newPathOffset);
-						UBA_ASSERT(res.second);(void)res;
-					}
+						oldToNewPathOffset.Insert(pathOffset) = newPathOffset;
 				});
 				bucket.m_pathTable.Swap(newPathTable);
 			}
@@ -1015,10 +1028,10 @@ namespace uba
 
 			// Build new caskey table based on used offsets
 			u64 recreateCasKeyTableStart = GetTime();
-			GrowingNoLockUnorderedMap<u32, u32> oldToNewCasKeyOffset(&memoryBlock);
+			HashMap2<u32, u32> oldToNewCasKeyOffset;
 			oldSize = bucket.m_casKeyTable.GetSize();
 			{
-				oldToNewCasKeyOffset.reserve(usedCasKeyOffsetsCount);
+				oldToNewCasKeyOffset.Init(memoryBlock, usedCasKeyOffsetsCount);
 				CompactCasKeyTable newCasKeyTable(CacheCasKeyTableMaxSize, usedCasKeyOffsetsCount);
 				BinaryReader reader2(bucket.m_casKeyTable.GetMemory(), 0, bucket.m_casKeyTable.GetSize());
 				usedCasKeyOffsets.Traverse([&](u32 casKeyOffset)
@@ -1027,22 +1040,18 @@ namespace uba
 					u32 oldPathOffset = u32(reader2.Read7BitEncoded());
 					CasKey casKey = reader2.ReadCasKey();
 					u32 newPathOffset = oldPathOffset;
-					auto findIt = oldToNewPathOffset.find(oldPathOffset);
-					if (findIt != oldToNewPathOffset.end())
-						newPathOffset = findIt->second;
+					if (auto value = oldToNewPathOffset.Find(oldPathOffset))
+						newPathOffset = *value;
 					u32 newCasKeyOffset = newCasKeyTable.Add(casKey, newPathOffset);
 					if (casKeyOffset != newCasKeyOffset)
-					{
-						auto res = oldToNewCasKeyOffset.try_emplace(casKeyOffset, newCasKeyOffset);
-						UBA_ASSERT(res.second);(void)res;
-					}
+						oldToNewCasKeyOffset.Insert(casKeyOffset) = newCasKeyOffset;
 				});
 				bucket.m_casKeyTable.Swap(newCasKeyTable);
 			}
 			m_logger.Detail(TC("    Bucket %u Recreated caskey table. %s -> %s (%s)"), bucket.index, BytesToText(oldSize).str, BytesToText(bucket.m_casKeyTable.GetSize()).str, TimeToText(GetTime() - recreateCasKeyTableStart).str);
 
 
-			if (!oldToNewCasKeyOffset.empty())
+			if (oldToNewCasKeyOffset.Size() > 0)
 			{
 				// Update all casKeyOffsets
 				u64 updateEntriesStart = GetTime();
@@ -1101,7 +1110,7 @@ namespace uba
 		u64 oldestTime = oldest ? GetFileTimeAsTime(now - (m_creationTime + oldest)) : 0;
 		u64 longestUnusedTime = longestUnused ? GetFileTimeAsTime(now - (m_creationTime + longestUnused)) : 0;
 		u64 duration = GetTime() - startTime;
-		m_logger.Info(TC("Maintenance done! (%s) CasFiles: %s (%s) Entries: %s Oldest: %s LongestUnused: %s MaintenanceMem: %s"), TimeToText(duration).str, CountToText(totalCasCount - deletedCasCount).str, BytesToText(totalCasSize).str, CountToText(totalEntryCount.load()).str, TimeToText(oldestTime, true).str, TimeToText(longestUnusedTime, true).str, BytesToText(maxCommittedMemory).str);
+		m_logger.Info(TC("Maintenance done! (%s) CasFiles: %s (%s) Entries: %s Oldest: %s LongestUnused: %s MaintenanceMem: %s/%s"), TimeToText(duration).str, CountToText(totalCasCount - deletedCasCount).str, BytesToText(totalCasSize).str, CountToText(totalEntryCount.load()).str, TimeToText(oldestTime, true).str, TimeToText(longestUnusedTime, true).str, BytesToText(maxCommittedMemory).str, BytesToText(m_maintenanceReserveSize).str);
 		
 		m_longestMaintenance = Max(m_longestMaintenance, duration);
 

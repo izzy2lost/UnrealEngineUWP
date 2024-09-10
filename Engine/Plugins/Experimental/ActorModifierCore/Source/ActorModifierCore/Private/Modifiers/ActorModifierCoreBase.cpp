@@ -647,19 +647,6 @@ void UActorModifierCoreBase::LogModifier(const FString& InLog, bool bInForce) co
 	}
 }
 
-void UActorModifierCoreBase::TickModifier(float InDeltaTime)
-{
-	if (!Metadata->IsTickAllowed())
-	{
-		return;
-	}
-
-	if (IsModifierDirtyable())
-	{
-		MarkModifierDirty();
-	}
-}
-
 void UActorModifierCoreBase::PostModifierCreation(UActorModifierCoreStack* InStack)
 {
 	// initialize once, called by the subsystem itself

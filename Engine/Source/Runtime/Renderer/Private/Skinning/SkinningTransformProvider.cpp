@@ -74,3 +74,9 @@ const FSkinningTransformProvider::FProviderId& GetRefPoseProviderId()
 	// TODO: Temp until skinning scene extension is refactored into a public API outside of Nanite
 	return Nanite::FSkinningSceneExtension::GetRefPoseProviderId();
 }
+
+const FSkinningTransformProvider::FProviderId& GetAnimRuntimeProviderId()
+{
+	// TODO: Temp until skinning scene extension is refactored into a public API outside of Nanite
+	return Nanite::FSkinningSceneExtension::GetAnimRuntimeProviderId();
+}

@@ -99,7 +99,7 @@ namespace Metasound
 	};
 
 	/** Provides metadata for a given node. */
-	struct METASOUNDGRAPHCORE_API FNodeClassMetadata
+	struct FNodeClassMetadata
 	{
 		/** Name of class. Used for registration and lookup. */
 		FNodeClassName ClassName;
@@ -138,11 +138,7 @@ namespace Metasound
 		bool bDeprecated = false;
 
 		/** Returns an empty FNodeClassMetadata object. */
-		static const FNodeClassMetadata& GetEmpty()
-		{
-			static const FNodeClassMetadata EmptyInfo;
-			return EmptyInfo;
-		}
+		static METASOUNDGRAPHCORE_API const FNodeClassMetadata& GetEmpty();
 	};
 
 	/** INodeBase

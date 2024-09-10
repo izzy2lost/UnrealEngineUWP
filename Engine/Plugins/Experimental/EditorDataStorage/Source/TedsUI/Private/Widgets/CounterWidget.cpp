@@ -43,7 +43,7 @@ UCounterWidgetFactory::UCounterWidgetFactory()
 	}
 }
 
-void UCounterWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void UCounterWidgetFactory::RegisterQueries(IEditorDataStorageProvider& DataStorage)
 {
 	using namespace UE::Editor::DataStorage::Queries;
 	
@@ -77,14 +77,14 @@ void UCounterWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& D
 	.Compile());
 }
 
-void UCounterWidgetFactory::RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const
+void UCounterWidgetFactory::RegisterWidgetPurposes(IEditorDataStorageUiProvider& DataStorageUi) const
 {
-	DataStorageUi.RegisterWidgetPurpose(WigetPurpose, ITypedElementDataStorageUiInterface::EPurposeType::Generic,
+	DataStorageUi.RegisterWidgetPurpose(WigetPurpose, IEditorDataStorageUiProvider::EPurposeType::Generic,
 		LOCTEXT("ToolBarPurposeDescription", "Widgets added to the status bar at the bottom editor of the main editor window."));
 }
 
-void UCounterWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
-	ITypedElementDataStorageUiInterface& DataStorageUi) const
+void UCounterWidgetFactory::RegisterWidgetConstructors(IEditorDataStorageProvider& DataStorage,
+	IEditorDataStorageUiProvider& DataStorageUi) const
 {
 	using namespace UE::Editor::DataStorage::Queries;
 
@@ -113,12 +113,12 @@ void UCounterWidgetFactory::SetupMainWindowIntegrations(TSharedPtr<SWindow> Pare
 	{
 		UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 		checkf(Registry, TEXT(
-			"FTypedElementsDataStorageUiModule didn't find the UTypedElementRegistry during main window integration when it should be available."));
+			"FEditorDataStorageUiModule didn't find the UTypedElementRegistry during main window integration when it should be available."));
 
-		ITypedElementDataStorageUiInterface* UiInterface = Registry->GetMutableDataStorageUi();
+		IEditorDataStorageUiProvider* UiInterface = Registry->GetMutableDataStorageUi();
 		checkf(UiInterface, TEXT(
-			"FTypedElementsDataStorageUiModule tried to integrate with the main window before the "
-			"Typed Elements Data Storage UI interface is available."));
+			"FEditorDataStorageUiModule tried to integrate with the main window before the "
+			"TEDS UI interface is available."));
 
 		UToolMenu* Menu = UToolMenus::Get()->ExtendMenu(WigetPurpose);
 
@@ -173,7 +173,7 @@ TSharedPtr<SWidget> FCounterWidgetConstructor::CreateWidget(const UE::Editor::Da
 		.Justification(ETextJustify::Center);
 }
 
-bool FCounterWidgetConstructor::SetColumns(ITypedElementDataStorageInterface* DataStorage, UE::Editor::DataStorage::RowHandle Row)
+bool FCounterWidgetConstructor::SetColumns(IEditorDataStorageProvider* DataStorage, UE::Editor::DataStorage::RowHandle Row)
 {
 	FCounterWidgetColumn* CounterColumn = DataStorage->GetColumn<FCounterWidgetColumn>(Row);
 	checkf(CounterColumn, TEXT("Added a new FCounterWidgetColumn to the Typed Elements Data Storage, but didn't get a valid pointer back."));

@@ -55,11 +55,11 @@ namespace UnrealGameSync
 				await using ServiceProvider serviceProvider = services.BuildServiceProvider();
 
 				IHordeClient hordeClient = serviceProvider.GetRequiredService<IHordeClient>();
-				IStorageClient storageClient = hordeClient.CreateStorageClient(baseUri.AbsolutePath);
+				IStorageNamespace storageNamespace = hordeClient.GetStorageNamespace(baseUri.AbsolutePath);
 
 				progress.Report("Connecting to server...");
 
-				IBlobRef<DirectoryNode>? blobRef = await storageClient.ReadRefAsync<DirectoryNode>(refName, cancellationToken: cancellationToken);
+				IBlobRef<DirectoryNode>? blobRef = await storageNamespace.ReadRefAsync<DirectoryNode>(refName, cancellationToken: cancellationToken);
 
 				progress.Report("Starting...");
 				await blobRef.ExtractAsync(outputDir.ToDirectoryInfo(), new CopyProgressAdapter(progress), TimeSpan.FromSeconds(0.2), serviceProvider.GetRequiredService<ILogger<ArtifactDownload>>(), cancellationToken);

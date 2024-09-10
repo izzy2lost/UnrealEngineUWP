@@ -10,6 +10,7 @@
 #include "UbaNetworkServer.h"
 #include "UbaSessionServer.h"
 #include "UbaStorageServer.h"
+#include "../Private/UbaHashMap.h"
 
 namespace uba
 {
@@ -204,6 +205,85 @@ namespace uba
 					return false;
 			}
 		}
+		return true;
+	}
+
+	bool TestHashTable(Logger& logger, const StringBufferBase& rootDir)
+	{
+		{
+			MemoryBlock memoryBlock(1024*1024);
+			HashMap<u32, u32> casMap;
+			casMap.Init(memoryBlock, 3);
+			if (casMap.Find(1))
+				return false;
+			casMap.Insert(1) = 2;
+			if (*casMap.Find(1) != 2)
+				return false;
+			casMap.Insert(1) = 3;
+			if (*casMap.Find(1) != 3)
+				return false;
+		}
+
+#if 0
+		struct CasFileInfo { CasFileInfo(u32 s = 0) : size(s) {} u32 size; bool isUsed; }; // These are compressed cas, should never be over 4gb
+		constexpr u64 memoryReserveSize = 192*1024*1024;
+		struct ProfileScope
+		{
+			ProfileScope() : startTime(GetTime()) {}
+			~ProfileScope() { u64 duration = GetTime() - startTime; LoggerWithWriter(g_consoleLogWriter, TC("")).Info(TC("Time: %s"), TimeToText(duration).str); }
+			u64 startTime;
+		};
+
+		u32 totalCasCount = 1'800'000;
+
+		{
+			ProfileScope _;
+			MemoryBlock memoryBlock;
+			if (!memoryBlock.Init(memoryReserveSize, nullptr, true))
+				memoryBlock.Init(memoryReserveSize);
+
+			HashMap<CasKey, CasFileInfo> casMap;
+			casMap.Init(memoryBlock, totalCasCount);
+
+			CasKey key;
+
+			for (u32 i=0; i!=totalCasCount; ++i)
+			{
+				key.a = i;
+				casMap.Insert(key);
+			}
+
+			for (u32 i=0; i!=totalCasCount; ++i)
+			{
+				key.a = i;
+				casMap.Find(key);
+			}
+		}
+
+		{
+			ProfileScope _;
+			MemoryBlock memoryBlock;
+			if (!memoryBlock.Init(memoryReserveSize, nullptr, true))
+				memoryBlock.Init(memoryReserveSize);
+
+			GrowingNoLockUnorderedMap<CasKey, CasFileInfo> casMap(&memoryBlock);
+			casMap.reserve(totalCasCount);
+
+			CasKey key;
+
+			for (u32 i=0; i!=totalCasCount; ++i)
+			{
+				key.a = i;
+				casMap.try_emplace(key);
+			}
+
+			for (u32 i=0; i!=totalCasCount; ++i)
+			{
+				key.a = i;
+				auto it = casMap.find(key);
+			}
+		}
+#endif
 		return true;
 	}
 }

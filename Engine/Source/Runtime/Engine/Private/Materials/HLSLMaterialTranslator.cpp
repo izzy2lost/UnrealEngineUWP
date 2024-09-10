@@ -4853,6 +4853,12 @@ int32 FHLSLMaterialTranslator::ForceCast(int32 Code, EMaterialValueType DestType
 			return AddInlinedCodeChunk(DestType, *FiniteCode);
 		}
 	}
+	else if (IsNumericType(SourceType) && IsNumericType(DestType))
+	{
+		EMaterialCastFlags CastFlags = GetForceCastFlags(ForceCastFlags) | EMaterialCastFlags::AllowInteger;
+		FString FiniteCode = CastValue(GetParameterCode(Code), SourceType, DestType, CastFlags);
+		return AddInlinedCodeChunk(DestType, *FiniteCode);
+	}
 	else if ((SourceType & MCT_StaticBool) && IsFloatNumericType(DestType))
 	{
 		FString StaticBoolToFloat = GetParameterCode(Code).Equals("true") ? "1.0f" : "0.0f";
@@ -14973,6 +14979,10 @@ int32 FHLSLMaterialTranslator::CustomExpression( class UMaterialExpressionCustom
 				InputParamDecl += TEXT(", SamplerState ");
 				InputParamDecl += InputNameStr;
 				InputParamDecl += TEXT("Sampler ");
+				break;
+			case MCT_TextureCollection:
+				InputParamDecl += TEXT("FResourceCollection ");
+				InputParamDecl += InputNameStr;
 				break;
 			default:
 				return Errorf(TEXT("Bad type %s for %s input %s"), DescribeType(GetParameterType(CompiledInputs[i])), *Custom->Description, *InputNameStr);

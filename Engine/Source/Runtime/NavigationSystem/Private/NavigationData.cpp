@@ -877,3 +877,9 @@ uint32 ANavigationData::LogMemUsed() const
 
 	return MemUsed;
 }
+
+void ANavigationData::SetConfig(const FNavDataConfig& Src)
+{
+	SetNavAgentProperties(Src);
+	NavDataConfig = Src;
+}

@@ -37,6 +37,12 @@ namespace Gauntlet
 
 		public string StdOut { get { return ""; } }
 
+		public ILogStreamReader GetLogReader() { return null; }
+
+		public ILogStreamReader GetLogBufferReader() { return null; }
+
+		public bool WriteOutputToFile(string FilePath) { return false; }
+
 		public int ExitCode { get { return 0; }}
 
 		public void Kill(bool GenerateDump)
@@ -165,6 +171,8 @@ namespace Gauntlet
 		{
 
 		}
+
+		public string LocalCachePath => null;
 
 		public void InstallBuild(UnrealAppConfig AppConfiguration)
 		{

@@ -5,6 +5,7 @@
 #include "UnrealUSDWrapper.h"
 #include "USDLayerUtils.h"
 #include "USDLog.h"
+#include "USDMemory.h"
 #include "USDProjectSettings.h"
 #include "USDTypesConversion.h"
 

@@ -8,6 +8,9 @@
 #include "Graph/Nodes/MovieGraphGlobalGameOverrides.h"
 #include "Graph/Nodes/MovieGraphRenderLayerNode.h"
 #include "Graph/Nodes/MovieGraphRenderPassNode.h"
+#include "Graph/Nodes/MovieGraphGlobalGameOverrides.h"
+#include "Graph/Nodes/MovieGraphDebugNode.h"
+#include "Graph/Nodes/MovieGraphCameraNode.h"
 #include "Graph/Nodes/MovieGraphUIRendererNode.h"
 #include "MovieRenderPipelineCoreModule.h"
 #include "RenderingThread.h"
@@ -31,8 +34,10 @@
 
 void UMovieGraphDefaultRenderer::SetupRenderingPipelineForShot(UMoviePipelineExecutorShot* InShot)
 {
+
 	// Iterate through the graph config and look for Render Layers.
 	UMovieGraphConfig* RootGraph = GetOwningGraph()->GetRootGraphForShot(InShot);
+
 
 	struct FMovieGraphPass
 	{
@@ -48,6 +53,24 @@ void UMovieGraphDefaultRenderer::SetupRenderingPipelineForShot(UMoviePipelineExe
 	const FMovieGraphTimeStepData& TimeStepData = GetOwningGraph()->GetTimeStepInstance()->GetCalculatedTimeData();
 	UMovieGraphEvaluatedConfig* EvaluatedConfig = TimeStepData.EvaluatedConfig;
 	TArray<FName> GraphBranches = EvaluatedConfig->GetBranchNames();
+
+	// Figure out how many cameras we're rendering and generate fguids so render layers can fetch
+	// the appropriate camera later.
+	UMovieGraphCameraSettingNode* CameraNode = EvaluatedConfig->GetSettingForBranch<UMovieGraphCameraSettingNode>(UMovieGraphNode::GlobalsPinName);
+	TArray<int32> CameraIndexes;
+	if (CameraNode->bRenderAllCameras)
+	{
+		// When using sidecar cameras, the primary one is included as one of them.
+		for (int32 Index = 0; Index < InShot->SidecarCameras.Num(); Index++)
+		{
+			CameraIndexes.Add(Index);
+		}
+	}
+	else
+	{
+		// "-1" means primary camera instead of any sidecar cameras
+		CameraIndexes.Add(-1);
+	}
 
 	for (const FName& Branch : GraphBranches)
 	{
@@ -92,6 +115,7 @@ void UMovieGraphDefaultRenderer::SetupRenderingPipelineForShot(UMoviePipelineExe
 
 	//UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Found: %d Render Passes:"), OutputPasses.Num());
 	int32 TotalLayerCount = 0;
+	int32 CameraCount = 1;
 	for (const FMovieGraphPass& Pass : OutputPasses)
 	{
 		// ToDo: This should probably come from the Renderers themselves, as they can internally produce multiple
@@ -103,10 +127,20 @@ void UMovieGraphDefaultRenderer::SetupRenderingPipelineForShot(UMoviePipelineExe
 		//UE_LOG(LogMovieRenderPipeline, Warning, TEXT("\tRenderer Class: %s"), *Pass.ClassType->GetName());
 		for (const TTuple<FMovieGraphRenderDataIdentifier, TWeakObjectPtr<UMovieGraphRenderPassNode>>& BranchRenderer : Pass.BranchRenderers)
 		{
-			FMovieGraphRenderPassLayerData& LayerData = SetupData.Layers.AddDefaulted_GetRef();
-			LayerData.BranchName = BranchRenderer.Key.RootBranchName;
-			LayerData.LayerName = BranchRenderer.Key.LayerName;
-			LayerData.RenderPassNode = BranchRenderer.Value;
+			for (int32 CameraIndex = 0; CameraIndex < CameraIndexes.Num(); CameraIndex++)
+			{
+				FMovieGraphRenderPassLayerData& LayerData = SetupData.Layers.AddDefaulted_GetRef();
+				LayerData.BranchName = BranchRenderer.Key.RootBranchName;
+				LayerData.LayerName = BranchRenderer.Key.LayerName;
+				LayerData.RenderPassNode = BranchRenderer.Value;
+				// Result could be -1 or 0...n
+				LayerData.CameraIndex = CameraIndexes[CameraIndex]; 
+				
+				// We provide the name here so that the setup functions of the renderers can create RenderLayerIdentifiers.
+				UE::MovieGraph::DefaultRenderer::FCameraInfo CameraInfo = GetCameraInfo(EvaluatedConfig, LayerData.CameraIndex);
+				LayerData.CameraName = CameraInfo.CameraName;
+			}
+				
 			// UE_LOG(LogMovieRenderPipeline, Warning, TEXT("\t\tBranch Name: %s"), *LayerBranchName.ToString());
 		}
 
@@ -116,7 +150,7 @@ void UMovieGraphDefaultRenderer::SetupRenderingPipelineForShot(UMoviePipelineExe
 		RenderPassesInUse.Add(RenderPassCDO);
 	}
 
-	UE_LOG(LogMovieRenderPipeline, Log, TEXT("Finished initializing %d Render Passes (with %d total layers)."), OutputPasses.Num(), TotalLayerCount);
+	UE_LOG(LogMovieRenderPipeline, Log, TEXT("Finished initializing %d Render Passes (with %d total layers and %d cameras)."), OutputPasses.Num(), TotalLayerCount, CameraCount);
 }
 
 void UMovieGraphDefaultRenderer::TeardownRenderingPipelineForShot(UMoviePipelineExecutorShot* InShot)
@@ -301,6 +335,12 @@ void UMovieGraphDefaultRenderer::FlushAsyncEngineSystems(const TObjectPtr<UMovie
 		return;
 	}
 
+	const UMovieGraphCameraSettingNode* CameraSettingNode = InConfig->GetSettingForBranch<UMovieGraphCameraSettingNode>(UMovieGraphNode::GlobalsPinName);
+	if (!CameraSettingNode)
+	{
+		return;
+	}
+
 	// Block until level streaming is completed, we do this at the end of the frame
 	// so that level streaming requests made by Sequencer level visibility tracks are
 	// accounted for.
@@ -356,24 +396,22 @@ void UMovieGraphDefaultRenderer::FlushAsyncEngineSystems(const TObjectPtr<UMovie
 			constexpr bool bFlushGrass = false; // Flush means a different thing to grass system
 			constexpr bool bInForceSync = true;
 
+			UMoviePipelineExecutorShot* CurrentShot = GetOwningGraph()->GetActiveShotList()[GetOwningGraph()->GetCurrentShotIndex()];
+
 			TArray<FVector> CameraLocations;
-			GetCameraLocationsForFrame(CameraLocations);
+			GetCameraLocationsForFrame(CameraLocations, CurrentShot, CameraSettingNode->bRenderAllCameras);
 
 			LandscapeSubsystem->RegenerateGrass(bFlushGrass, bInForceSync, MakeArrayView(CameraLocations));
 		}
 	}
 }
 
-void UMovieGraphDefaultRenderer::GetCameraLocationsForFrame(TArray<FVector>& OutLocations) const
+void UMovieGraphDefaultRenderer::GetCameraLocationsForFrame(TArray<FVector>& OutLocations, UMoviePipelineExecutorShot* InShot, bool bIncludeSidecar) const
 {
-	// ToDo: Multi-camera support
-	if (const APlayerController* LocalPlayerController = GetOwningGraph()->GetWorld()->GetFirstPlayerController())
+	TArray<FMinimalViewInfo> ViewInfos = GetOwningGraph()->GetDataSourceInstance()->GetCameraInformation(InShot, bIncludeSidecar);
+	for (const FMinimalViewInfo& ViewInfo : ViewInfos)
 	{
-		FVector PrimaryCameraLoc;
-		FRotator PrimaryCameraRot;
-
-		LocalPlayerController->GetPlayerViewPoint(PrimaryCameraLoc, PrimaryCameraRot);
-		OutLocations.Add(PrimaryCameraLoc);
+		OutLocations.Add(ViewInfo.Location);
 	}
 }
 
@@ -385,29 +423,46 @@ void UMovieGraphDefaultRenderer::AddOutstandingRenderTask_AnyThread(UE::Tasks::F
 	OutstandingTasks.Add(MoveTemp(InTask));
 }
 
-UE::MovieGraph::DefaultRenderer::FCameraInfo UMovieGraphDefaultRenderer::GetCameraInfo(const FGuid& InCameraIdentifier) const
+UE::MovieGraph::DefaultRenderer::FCameraInfo UMovieGraphDefaultRenderer::GetCameraInfo(UMovieGraphEvaluatedConfig* InConfig, const int32 InCameraIndex) const
 {
 	UE::MovieGraph::DefaultRenderer::FCameraInfo CameraInfo;
-
-	// We only support the primary camera right now
-	APlayerController* LocalPlayerController = GetWorld()->GetFirstPlayerController();
-	if (LocalPlayerController && LocalPlayerController->PlayerCameraManager)
+	
+	const bool bIncludeCDOs = true;
+	const UMovieGraphCameraSettingNode* CameraSettingNode = InConfig->GetSettingForBranch<UMovieGraphCameraSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs);
+	if (!ensure(CameraSettingNode))
 	{
-		CameraInfo.ViewInfo = LocalPlayerController->PlayerCameraManager->GetCameraCacheView();
-		CameraInfo.ViewActor = LocalPlayerController->GetViewTarget();
-		
-		UMoviePipelineExecutorShot* CurrentShot = GetOwningGraph()->GetActiveShotList()[GetOwningGraph()->GetCurrentShotIndex()];
+		return CameraInfo;
+	}
 
-		// INDEX_NONE returns the primary camera from the rendered shot until we have
-		// multi-camera support.
+	UMoviePipelineExecutorShot* CurrentShot = GetOwningGraph()->GetActiveShotList()[GetOwningGraph()->GetCurrentShotIndex()];
+
+	// When not using multi-camera the index is "-1" (but we store the data in the 0th array) so we remap,
+	// but the GetCameraName function is -1 aware.
+	int32 LocalArrayIndex = InCameraIndex;
+	if (InCameraIndex < 0)
+	{
+		LocalArrayIndex = 0;
 		const int32 CameraIndex = INDEX_NONE;
 		CameraInfo.CameraName = CurrentShot->GetCameraName(CameraIndex);
 	}
 	else
 	{
-		UE_LOG(LogMovieRenderPipeline, Error, TEXT("Failed to find Local Player Controller/Camera Manager to get viewpoint!"));
+		CameraInfo.CameraName = CurrentShot->GetCameraName(InCameraIndex);
 	}
-	
+
+	APlayerController* LocalPlayerController = GetWorld()->GetFirstPlayerController();
+	if (LocalPlayerController && LocalPlayerController->PlayerCameraManager)
+	{
+		CameraInfo.ViewActor = LocalPlayerController->GetViewTarget();
+	}
+
+	TArray<FMinimalViewInfo> ViewInfos = GetOwningGraph()->GetDataSourceInstance()->GetCameraInformation(GetOwningGraph()->GetActiveShotList()[GetOwningGraph()->GetCurrentShotIndex()], CameraSettingNode->bRenderAllCameras);
+	if (!ensureAlways(ViewInfos.IsValidIndex(LocalArrayIndex)))
+	{
+		return CameraInfo;
+	}
+
+	CameraInfo.ViewInfo = ViewInfos[LocalArrayIndex];
 	return CameraInfo;
 }
 
@@ -471,6 +526,12 @@ TArray<FMovieGraphImagePreviewData> UMovieGraphDefaultRenderer::GetPreviewData()
 { 
 	TArray<FMovieGraphImagePreviewData> Results;
 
+	TSet<FString> CameraNamesInUse;
+	for (const TPair<UE::MovieGraph::DefaultRenderer::FMovieGraphImagePreviewDataPoolParams, TObjectPtr<UTextureRenderTarget2D>>& RenderTarget : PooledViewRenderTargets)
+	{
+		CameraNamesInUse.Add(RenderTarget.Key.Identifier.CameraName);
+	}
+
 	for (const TPair<UE::MovieGraph::DefaultRenderer::FMovieGraphImagePreviewDataPoolParams, TObjectPtr<UTextureRenderTarget2D>>& RenderTarget : PooledViewRenderTargets)
 	{
 		const FString RendererName = RenderTarget.Key.Identifier.RendererName;
@@ -484,6 +545,7 @@ TArray<FMovieGraphImagePreviewData> UMovieGraphDefaultRenderer::GetPreviewData()
 		FMovieGraphImagePreviewData& Data = Results.AddDefaulted_GetRef();
 		Data.Identifier = RenderTarget.Key.Identifier;
 		Data.Texture = RenderTarget.Value.Get();
+		Data.bMultipleCameraNames = CameraNamesInUse.Num() > 1;
 	}
 
 	return Results;

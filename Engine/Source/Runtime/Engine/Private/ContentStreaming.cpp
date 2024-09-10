@@ -34,8 +34,7 @@
 static TAutoConsoleVariable<int32> CVarMeshStreaming(
 	TEXT("r.MeshStreaming"),
 	0,
-	TEXT("Experimental - ")
-	TEXT("When non zero, enables mesh stremaing.\n"),
+	TEXT("When enabled mesh LODs will stream in based on what is visible on screen."),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
 static int32 GNaniteCoarseMeshStreamingEnabled = 0;
@@ -373,7 +372,7 @@ FStreamingManagerCollection& IStreamingManager::Get()
 	{
 		// Since this is a lazily created static global variable we create it
 		// in the open.
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			StreamingManagerCollection = new FStreamingManagerCollection();
 		};

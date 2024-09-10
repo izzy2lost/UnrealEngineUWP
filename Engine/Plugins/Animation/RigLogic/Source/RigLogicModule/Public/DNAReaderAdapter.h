@@ -148,6 +148,11 @@ public:
 	TArrayView<const uint16> GetRBFPoseAnimatedMapOutputIndices(uint16 PoseIndex) const override;
 	TArrayView<const float> GetRBFPoseJointOutputValues(uint16 PoseIndex) const override;
 	float GetRBFPoseScale(uint16 PoseIndex) const override;
+	uint16 GetRBFPoseControlCount() const override;
+	FString GetRBFPoseControlName(uint16 PoseControlIndex) const override;
+	TArrayView<const uint16> GetRBFPoseInputControlIndices(uint16 PoseIndex) const override;
+	TArrayView<const uint16> GetRBFPoseOutputControlIndices(uint16 PoseIndex) const override;
+	TArrayView<const float> GetRBFPoseOutputControlWeights(uint16 PoseIndex) const override;
 	uint16 GetRBFSolverCount() const override;
 	uint16 GetRBFSolverIndexListCount() const override;
 	TArrayView<const uint16> GetRBFSolverIndicesForLOD(uint16 LOD) const override;
@@ -1019,6 +1024,39 @@ template <class TWrappedReader>
 float FDNAReader<TWrappedReader>::GetRBFPoseScale(uint16 PoseIndex) const
 {
 	return ReaderPtr->getRBFPoseScale(PoseIndex);
+}
+
+template <class TWrappedReader>
+uint16 FDNAReader<TWrappedReader>::GetRBFPoseControlCount() const
+{
+	return ReaderPtr->getRBFPoseControlCount();
+}
+
+template <class TWrappedReader>
+FString FDNAReader<TWrappedReader>::GetRBFPoseControlName(uint16 PoseControlIndex) const
+{
+	return FString(ANSI_TO_TCHAR(ReaderPtr->getRBFPoseControlName(PoseControlIndex).data()));
+}
+
+template <class TWrappedReader>
+TArrayView<const uint16> FDNAReader<TWrappedReader>::GetRBFPoseInputControlIndices(uint16 PoseIndex) const
+{
+	const auto Indices = ReaderPtr->getRBFPoseInputControlIndices(PoseIndex);
+	return TArrayView<const uint16>(Indices.data(), static_cast<int32>(Indices.size()));
+}
+
+template <class TWrappedReader>
+TArrayView<const uint16> FDNAReader<TWrappedReader>::GetRBFPoseOutputControlIndices(uint16 PoseIndex) const
+{
+	const auto Indices = ReaderPtr->getRBFPoseOutputControlIndices(PoseIndex);
+	return TArrayView<const uint16>(Indices.data(), static_cast<int32>(Indices.size()));
+}
+
+template <class TWrappedReader>
+TArrayView<const float> FDNAReader<TWrappedReader>::GetRBFPoseOutputControlWeights(uint16 PoseIndex) const
+{
+	const auto Values = ReaderPtr->getRBFPoseOutputControlWeights(PoseIndex);
+	return TArrayView<const float>(Values.data(), static_cast<int32>(Values.size()));
 }
 
 template <class TWrappedReader>

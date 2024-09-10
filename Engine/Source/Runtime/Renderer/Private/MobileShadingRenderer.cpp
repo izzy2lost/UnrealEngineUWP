@@ -657,7 +657,9 @@ void FMobileSceneRenderer::InitViews(
 
 		if (bRequiresShadowProjections)
 		{
-			InitMobileShadowProjectionOutputs(RHICmdList, SceneTexturesConfig.Extent);
+			FViewInfo* MainView = Views.Num() > 0 ? &Views[0] : nullptr;
+			bool bIsMobileMultiView = SceneTexturesConfig.bRequireMultiView || (MainView && MainView->Aspects.IsMobileMultiViewEnabled());
+			InitMobileShadowProjectionOutputs(RHICmdList, SceneTexturesConfig.Extent, bIsMobileMultiView);
 		}
 		else
 		{
@@ -1625,6 +1627,12 @@ void FMobileSceneRenderer::RenderForward(FRDGBuilder& GraphBuilder, FRDGTextureR
 		{
 			RenderForwardSinglePass(GraphBuilder, PassParameters, ViewContext, SceneTextures);
 		}
+	}
+	
+	static auto CVarAlphaInvertPassLocal = IConsoleManager::Get().FindConsoleVariable(TEXT("r.AlphaInvertPass"));
+	if(CVarAlphaInvertPassLocal != nullptr && CVarAlphaInvertPassLocal->GetBool())
+	{
+		AddAlphaInvertPass(GraphBuilder, MainView, SceneTextures);
 	}
 }
 

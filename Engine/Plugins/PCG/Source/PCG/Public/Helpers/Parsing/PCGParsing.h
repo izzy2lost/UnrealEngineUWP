@@ -23,5 +23,5 @@ namespace PCGParser
 	/** Indices should be included individually or with ranges using a delimiter. Negative terminating ranges are accepted.
 	* For example, on an array of size 10: '0,2,4:5,7:-1' will include indices: 0,2,4,5,7,8
 	*/
-	PCG_API EPCGParserResult ParseIndexRanges(PCGIndexing::FPCGIndexCollection& OutIndexCollection, const FString& InputString);
+	PCG_API EPCGParserResult ParseIndexRanges(PCGIndexing::FPCGIndexCollection& OutIndexCollection, const FStringView& InputString);
 }

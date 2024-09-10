@@ -38,6 +38,7 @@ void FTranslationEditorModule::ShutdownModule()
 #if WITH_EDITOR
 	MenuExtensibilityManager.Reset();
 #endif // WITH_EDITOR
+	TranslationPickerManager::RemoveOverlay();
 	TranslationPickerManager::ClosePickerWindow();
 
 #if WITH_UNREAL_DEVELOPER_TOOLS

@@ -9,20 +9,20 @@
 #include "AlertWidget.generated.h"
 
 UCLASS()
-class UAlertWidgetFactory : public UTypedElementDataStorageFactory
+class UAlertWidgetFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	TEDSOUTLINER_API ~UAlertWidgetFactory() override = default;
 
-	TEDSOUTLINER_API void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
-		ITypedElementDataStorageUiInterface& DataStorageUi) const override;
-	TEDSOUTLINER_API void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
+	TEDSOUTLINER_API void RegisterWidgetConstructors(IEditorDataStorageProvider& DataStorage,
+		IEditorDataStorageUiProvider& DataStorageUi) const override;
+	TEDSOUTLINER_API void RegisterQueries(IEditorDataStorageProvider& DataStorage) override;
 
 private:
-	void RegisterAlertQueries(ITypedElementDataStorageInterface& DataStorage);
-	void RegisterAlertHeaderQueries(ITypedElementDataStorageInterface& DataStorage);
+	void RegisterAlertQueries(IEditorDataStorageProvider& DataStorage);
+	void RegisterAlertHeaderQueries(IEditorDataStorageProvider& DataStorage);
 };
 
 USTRUCT()
@@ -46,7 +46,7 @@ public:
 protected:
 	TEDSOUTLINER_API TSharedPtr<SWidget> CreateWidget(const UE::Editor::DataStorage::FMetaDataView& Arguments) override;
 	TEDSOUTLINER_API TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const override;
-	TEDSOUTLINER_API bool FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi,
+	TEDSOUTLINER_API bool FinalizeWidget(IEditorDataStorageProvider* DataStorage, IEditorDataStorageUiProvider* DataStorageUi,
 		UE::Editor::DataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget) override;
 };
 
@@ -68,7 +68,7 @@ public:
 protected:
 	TEDSOUTLINER_API TSharedPtr<SWidget> CreateWidget(const UE::Editor::DataStorage::FMetaDataView& Arguments) override;
 	TEDSOUTLINER_API TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const override;
-	TEDSOUTLINER_API bool FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi,
+	TEDSOUTLINER_API bool FinalizeWidget(IEditorDataStorageProvider* DataStorage, IEditorDataStorageUiProvider* DataStorageUi,
 		UE::Editor::DataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget) override;
 };
 

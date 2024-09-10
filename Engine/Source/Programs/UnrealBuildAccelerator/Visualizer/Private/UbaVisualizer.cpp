@@ -250,9 +250,7 @@ namespace uba
 
 		{
 			StringBuffer<> title;
-			GetTitlePrefix(title);
-			title.Appendf(L"Listening for new sessions on channel '%s'", m_listenChannel.data);
-			PostNewTitle(title);
+			PostNewTitle(GetTitlePrefix(title).Appendf(L"Listening for new sessions on channel '%s'", m_listenChannel.data));
 		}
 
 		StringBuffer<256> traceName;
@@ -317,6 +315,8 @@ namespace uba
 		if (!StartHwndThread())
 			return true;
 
+		m_clientDisconnect.Create(true);
+
 		wchar_t dots[] = TC("....");
 		u32 dotsCounter = 0;
 
@@ -326,28 +326,32 @@ namespace uba
 			if (!m_client)
 			{
 				bool ctorSuccess = true;
-				m_client = new NetworkClient(ctorSuccess, {});
+				NetworkClientCreateInfo ncci;
+				ncci.workerCount = 1;
+				m_client = new NetworkClient(ctorSuccess, ncci);
 				if (!ctorSuccess)
 					return false;
 			}
 
 			StringBuffer<> title;
-			GetTitlePrefix(title);
-			title.Appendf(L"Trying to connect to %s:%u%s", host, port, dots + ((dotsCounter--) % 4));
-			PostNewTitle(title);
+			PostNewTitle(GetTitlePrefix(title).Appendf(L"Trying to connect to %s:%u%s", host, port, dots + ((dotsCounter--) % 4)));
 
 			if (!m_client->Connect(backend, host, port))
 				continue;
 
+			PostNewTitle(GetTitlePrefix(title).Appendf(L"Connected to %s:%u", host, port));
 			PostNewTrace(0, false);
 
-			while (m_hwnd && m_client->IsConnected())
-				Sleep(1000);
+			while (m_hwnd && m_client->IsConnected() && !m_clientDisconnect.IsSet(1000))
+				;
+
+			PostNewTitle(GetTitlePrefix(title).Appendf(L"Disconnected..."));
 
 			m_client->Disconnect();
 			delete m_client;
 			m_client = nullptr;
-			Sleep(2000); // To prevent it from reconnecting to the same thing again and get thrown out (since it will post a WM_NEWTRACE and clean everything
+			m_clientDisconnect.Reset();
+			Sleep(4000); // To prevent it from reconnecting to the same thing again and get thrown out (since it will post a WM_NEWTRACE and clean everything
 		}
 		return true;
 	}
@@ -387,13 +391,15 @@ namespace uba
 		m_locked = lock;
 	}
 
-	void Visualizer::GetTitlePrefix(StringBufferBase& out)
+	StringBufferBase& Visualizer::GetTitlePrefix(StringBufferBase& out)
 	{
+		out.Clear();
 		out.Append(L"UbaVisualizer");
 		#if UBA_DEBUG
 		out.Append(L" (DEBUG)");
 		#endif
 		out.Append(L" - ");
+		return out;
 	}
 
 	bool Visualizer::Unselect()
@@ -580,8 +586,7 @@ namespace uba
 			windowStyle = WS_POPUP | WS_VSCROLL | WS_HSCROLL;// | WS_VISIBLE;
 
 		StringBuffer<> title;
-		GetTitlePrefix(title);
-		title.Append(L"Initializing...");
+		GetTitlePrefix(title).Append(L"Initializing...");
 
 		HWND hwnd = CreateWindowEx(exStyle, windowClassName, title.data, windowStyle, winPosX, winPosY, winWidth, winHeight, NULL, NULL, hInstance, this);
 		SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)this);
@@ -2349,7 +2354,7 @@ namespace uba
 		{
 			drawText(L"Finished Processes: %u (local: %u)", m_traceView.totalProcessExitedCount, session.processExitedCount);
 			drawText(L"Active Processes: %u (local: %u)", m_traceView.totalProcessActiveCount, session.processActiveCount);
-			drawText(L"Active Helpers: %u", m_traceView.activeSessionCount - 1);
+			drawText(L"Active Helpers: %u", Max(1u, m_traceView.activeSessionCount) - 1);
 
 			if (!session.updates.empty())
 			{
@@ -2962,16 +2967,18 @@ namespace uba
 			if (m_client)
 			{
 				if (!m_trace.StartReadClient(m_traceView, *m_client))
+				{
+					m_clientDisconnect.Set();
 					return false;
+				}
 				m_namedTrace.Clear().Append(m_newTraceName);
-				title.Appendf(L"Connected to host");
 				m_traceView.finished = false;
 			}
 			else if (!m_fileName.IsEmpty())
 			{
 				m_trace.ReadFile(m_traceView, m_fileName.data, m_replay != 0);
-				title.Append(m_fileName);
 				m_traceView.finished = m_replay == 0;
+				PostNewTitle(GetTitlePrefix(title).Append(m_fileName));
 			}
 			else
 			{
@@ -2979,10 +2986,9 @@ namespace uba
 					return false;
 				m_namedTrace.Clear().Append(m_newTraceName);
 				m_traceView.finished = false;
-				title.Appendf(L"%s (Listening for new sessions on channel '%s')", m_namedTrace.data, m_listenChannel.data);
+				PostNewTitle(GetTitlePrefix(title).Appendf(L"%s (Listening for new sessions on channel '%s')", m_namedTrace.data, m_listenChannel.data));
 			}
 
-			PostNewTitle(title);
 			SetTimer(m_hwnd, 0, 200, NULL);
 			return 0;
 		}
@@ -3039,7 +3045,10 @@ namespace uba
 						m_trace.UpdateReadFile(m_traceView, timeOffset, changed);
 				}
 				else if (m_client)
-					m_trace.UpdateReadClient(m_traceView, *m_client, changed);
+				{
+					if (!m_trace.UpdateReadClient(m_traceView, *m_client, changed))
+						m_clientDisconnect.Set();
+				}
 				else
 				{
 					if (!m_trace.UpdateReadNamed(m_traceView, m_replay ? timeOffset : ~u64(0), changed))

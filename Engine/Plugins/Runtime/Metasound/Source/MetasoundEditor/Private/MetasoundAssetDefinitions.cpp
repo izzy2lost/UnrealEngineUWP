@@ -396,6 +396,11 @@ EAssetCommandResult UAssetDefinition_MetaSoundSource::ActivateAssets(const FAsse
 	return EAssetCommandResult::Unhandled;
 }
 
+void UAssetDefinition_MetaSoundSource::GetAssetActionButtonExtensions(const FAssetData& InAssetData, TArray<FAssetButtonActionExtension>& OutExtensions) const
+{
+	UAssetDefinition_SoundBase::GetSoundBaseAssetActionButtonExtensions(InAssetData, OutExtensions);
+}
+
 namespace MenuExtension_MetaSoundSourceTemplate
 {
 	template <typename TClass>

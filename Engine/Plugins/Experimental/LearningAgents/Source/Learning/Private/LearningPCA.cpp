@@ -185,7 +185,10 @@ namespace UE::Learning
 			OutEigenMatrix(OutData.Slice(RowStart, RowSliceNum)).noalias() =
 				(InEigenMatrix(Matrix).transpose() * InEigenMatrix(Data.Slice(RowStart, RowSliceNum)).transpose()).transpose();
 
-			Progress->Decrement(RowSliceNum);
+			if (Progress)
+			{
+				Progress->Decrement(RowSliceNum);
+			}
 		});
 
 		Array::Check(OutData);

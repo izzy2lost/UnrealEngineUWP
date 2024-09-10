@@ -171,8 +171,7 @@ void ComputeHeterogeneousVolumeBakeMaterial(
 		RDG_EVENT_NAME("HeterogeneousVolumesBakedMaterialCS"),
 		PassParameters,
 		ERDGPassFlags::Compute,
-		// Why is scene explicitly copied??
-		[PassParameters, LocalScene = Scene, &View, MaterialRenderProxy, &Material, GroupCount](FRHIComputeCommandList& RHICmdList)
+		[PassParameters, Scene, &View, MaterialRenderProxy, &Material, GroupCount](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 		{
 			FHeterogeneousVolumesBakeMaterialCS::FPermutationDomain PermutationVector;
 			TShaderRef<FHeterogeneousVolumesBakeMaterialCS> ComputeShader = Material.GetShader<FHeterogeneousVolumesBakeMaterialCS>(&FLocalVertexFactory::StaticType, PermutationVector, false);
@@ -180,7 +179,7 @@ void ComputeHeterogeneousVolumeBakeMaterial(
 			if (!ComputeShader.IsNull())
 			{
 				FMeshDrawShaderBindings ShaderBindings;
-				UE::MeshPassUtils::SetupComputeBindings(ComputeShader, LocalScene, LocalScene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, ShaderBindings);
+				UE::MeshPassUtils::SetupComputeBindings(ComputeShader, Scene, Scene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, ShaderBindings);
 
 				UE::MeshPassUtils::Dispatch(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, GroupCount);
 			}

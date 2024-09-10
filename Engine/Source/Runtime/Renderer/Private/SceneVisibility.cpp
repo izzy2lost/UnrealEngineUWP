@@ -672,7 +672,7 @@ static void UpdateAlwaysVisible(const FScene& Scene, FViewInfo& View, FFrustumCu
 #if RHI_RAYTRACING
 	uint32* RESTRICT  RTWords = View.PrimitiveRayTracingVisibilityMap.GetData();
 
-	const bool bRayTracingEnabled = IsRayTracingEnabled(View.GetShaderPlatform());
+	const bool bRayTracingEnabled = IsRayTracingEnabled(View.GetShaderPlatform()) && View.IsRayTracingAllowedForView();
 #endif
 
 	for (int32 WordIndex = TaskWordOffset; WordIndex < TaskWordOffset + int32(TaskConfig.AlwaysVisible.NumWordsPerTask) && WordIndex * NumBitsPerDWORD < BitArrayNumInner; ++WordIndex)
@@ -732,7 +732,7 @@ static int32 FrustumCull(const FScene& Scene, FViewInfo& View, FFrustumCullingFl
 #if RHI_RAYTRACING
 	uint32* RESTRICT  RTWords = View.PrimitiveRayTracingVisibilityMap.GetData();
 
-	const bool bRayTracingEnabled = IsRayTracingEnabled(View.GetShaderPlatform());
+	const bool bRayTracingEnabled = IsRayTracingEnabled(View.GetShaderPlatform()) && View.IsRayTracingAllowedForView();
 #endif
 
 	for (int32 WordIndex = TaskWordOffset; WordIndex < TaskWordOffset + int32(TaskConfig.FrustumCull.NumWordsPerTask) && WordIndex * NumBitsPerDWORD < BitArrayNumInner; WordIndex++)
@@ -1023,7 +1023,7 @@ static void UpdatePrimitiveFading(const FScene& Scene, FViewInfo& View, FSceneVi
 	SCOPE_CYCLE_COUNTER(STAT_UpdatePrimitiveFading);
 
 #if RHI_RAYTRACING
-	const bool bRayTracingEnabled = IsRayTracingEnabled(View.GetShaderPlatform());
+	const bool bRayTracingEnabled = IsRayTracingEnabled(View.GetShaderPlatform()) && View.IsRayTracingAllowedForView();
 #endif 
 
 	// Should we allow fading transitions at all this frame?  For frames where the camera moved
@@ -1595,7 +1595,7 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 								}
 #if RHI_RAYTRACING
 								// Only used by ray traced shadows
-								if (IsRayTracingEnabled() && Scene.bHasLightsWithRayTracedShadows)
+								if (IsRayTracingEnabled() && Scene.bHasLightsWithRayTracedShadows && View.IsRayTracingAllowedForView())
 								{
 									if (MarkMask & EMarkMaskBits::StaticMeshFadeOutDitheredLODMapMask)
 									{
@@ -1856,7 +1856,8 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 			const bool bCollectInstanceHitProxyIds = bSelectedInstancesOnly &&
 				NaniteProxy->HasSelectedInstances() &&
 				OutSelectedInstanceHitProxyIDs != nullptr &&
-				InstanceSceneDataBuffers != nullptr;
+				InstanceSceneDataBuffers != nullptr &&
+				!InstanceSceneDataBuffers->IsInstanceDataGPUOnly();
 			const bool bOverlaidDraws = OutOverlaidInstanceDraws &&
 				NaniteProxy->WantsEditorEffects() &&
 				!NaniteProxy->IsSelected();
@@ -2010,8 +2011,12 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 
 		PrimitiveSceneInfo->LastRenderTime = CurrentWorldTime;
 
-		const bool bUpdateLastRenderTimeOnScreen = true;
-		PrimitiveSceneInfo->UpdateComponentLastRenderTime(CurrentWorldTime, bUpdateLastRenderTimeOnScreen);
+		// Update the last component render time only if we know for certain the primitive is un-occluded.
+		if (View.PrimitiveDefinitelyUnoccludedMap[BitIndex] || View.Family->EngineShowFlags.Wireframe)
+		{
+			const bool bUpdateLastRenderTimeOnScreen = true;
+			PrimitiveSceneInfo->UpdateComponentLastRenderTime(CurrentWorldTime, bUpdateLastRenderTimeOnScreen);
+		}
 
 		// Cache the nearest reflection proxy if needed
 		if (PrimitiveSceneInfo->NeedsReflectionCaptureUpdate())
@@ -2548,6 +2553,18 @@ bool FGPUOcclusionPacket::OcclusionCullPrimitive(VisitorType& Visitor, FOcclusio
 	const TArray<FBoxSphereBounds>* SubBounds = nullptr;
 	int32 SubIsOccludedStart = 0;
 
+	const auto SetAtomicBit = [] (FSceneBitArray& Array, int32 Index, bool Value)
+	{
+		if constexpr (bIsParallel)
+		{
+			Array[Index].AtomicSet(Value);
+		}
+		else
+		{
+			Array[Index] = Value;
+		}
+	};
+
 	if ((OcclusionFlags & EOcclusionFlags::HasSubprimitiveQueries) && OcclusionState.bAllowSubQueries)
 	{
 		FPrimitiveSceneProxy* Proxy = Scene.PrimitiveSceneProxies[Index];
@@ -2556,14 +2573,7 @@ bool FGPUOcclusionPacket::OcclusionCullPrimitive(VisitorType& Visitor, FOcclusio
 		bSubQueries = true;
 		if (!NumSubQueries)
 		{
-			if constexpr (bIsParallel)
-			{
-				View.PrimitiveVisibilityMap[Index].AtomicSet(false);
-			}
-			else
-			{
-				View.PrimitiveVisibilityMap[Index] = false;
-			}
+			SetAtomicBit(View.PrimitiveVisibilityMap, Index, false);
 			return false;
 		}
 
@@ -2834,16 +2844,13 @@ bool FGPUOcclusionPacket::OcclusionCullPrimitive(VisitorType& Visitor, FOcclusio
 		{
 			if (bIsOccluded)
 			{
-				if constexpr (bIsParallel)
-				{
-					View.PrimitiveVisibilityMap[Index].AtomicSet(false);
-				}
-				else
-				{
-					View.PrimitiveVisibilityMap[Index] = false;
-				}
+				SetAtomicBit(View.PrimitiveVisibilityMap, Index, false);
 				bIsVisible = false;
 				Result.NumCulledPrimitives++;
+			}
+			else if (bOcclusionStateIsDefinite)
+			{
+				SetAtomicBit(View.PrimitiveDefinitelyUnoccludedMap, Index, true);
 			}
 		}
 	}
@@ -2855,16 +2862,13 @@ bool FGPUOcclusionPacket::OcclusionCullPrimitive(VisitorType& Visitor, FOcclusio
 
 		if (bAllSubOccluded)
 		{
-			if constexpr (bIsParallel)
-			{
-				View.PrimitiveVisibilityMap[Index].AtomicSet(false);
-			}
-			else
-			{
-				View.PrimitiveVisibilityMap[Index] = false;
-			}
+			SetAtomicBit(View.PrimitiveVisibilityMap, Index, false);
 			bIsVisible = false;
 			Result.NumCulledPrimitives++;
+		}
+		else if (bAllSubOcclusionStateIsDefinite)
+		{
+			SetAtomicBit(View.PrimitiveDefinitelyUnoccludedMap, Index, true);
 		}
 	}
 
@@ -3089,6 +3093,7 @@ bool FGPUOcclusionParallelPacket::AddPrimitive(int32 PrimitiveIndex)
 		return true;
 	}
 
+	View.PrimitiveDefinitelyUnoccludedMap[PrimitiveIndex].AtomicSet(true);
 	return false;
 }
 
@@ -3264,6 +3269,10 @@ void FGPUOcclusionSerial::AddPrimitives(FPrimitiveRange PrimitiveRange)
 		if (Packet.CanBeOccluded(BitIt.GetIndex(), OcclusionFlags))
 		{
 			Packet.OcclusionCullPrimitive<false>(ProcessVisitor, OcclusionCullResult, BitIt.GetIndex());
+		}
+		else
+		{
+			View.PrimitiveDefinitelyUnoccludedMap.AccessCorrespondingBit(BitIt) = true;
 		}
 	}
 }
@@ -3616,6 +3625,7 @@ void FVisibilityViewPacket::BeginInitVisibility()
 	// Allocate the view's visibility maps.
 	View.PrimitiveVisibilityMap.Init(!bShouldVisibilityCull, Scene.Primitives.Num());
 	View.PrimitiveRayTracingVisibilityMap.Init(false, Scene.Primitives.Num());
+	View.PrimitiveDefinitelyUnoccludedMap.Init(false, Scene.Primitives.Num());
 	View.PotentiallyFadingPrimitiveMap.Init(false, Scene.Primitives.Num());
 	View.PrimitiveFadeUniformBuffers.AddZeroed(Scene.Primitives.Num());
 	View.PrimitiveFadeUniformBufferMap.Init(false, Scene.Primitives.Num());

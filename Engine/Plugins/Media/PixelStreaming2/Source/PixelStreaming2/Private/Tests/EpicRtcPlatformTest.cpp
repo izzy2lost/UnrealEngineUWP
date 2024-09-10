@@ -11,7 +11,7 @@
 
 namespace UE::PixelStreaming2
 {
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEpicRtcPlatformCreateTest, "System.Plugins.PixelStreaming2.FEpicRtcPlatformCreateTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEpicRtcPlatformCreateTest, "System.Plugins.PixelStreaming2.FPS2EpicRtcPlatformCreateTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
 	bool FEpicRtcPlatformCreateTest::RunTest(const FString& Parameters)
 	{
 		EpicRtcErrorCode Result;
@@ -26,7 +26,7 @@ namespace UE::PixelStreaming2
 		return true;
 	}
 
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEpicRtcPlatformLifetimeTest, "System.Plugins.PixelStreaming2.FEpicRtcPlatformLifetimeTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEpicRtcPlatformLifetimeTest, "System.Plugins.PixelStreaming2.FPS2EpicRtcPlatformLifetimeTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
 	bool FEpicRtcPlatformLifetimeTest::RunTest(const FString& Parameters)
 	{
 		EpicRtcPlatformInterface* PlatformPtr;
@@ -56,7 +56,7 @@ namespace UE::PixelStreaming2
 		return true;
 	}
 
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEpicRtcPlatformGetTest, "System.Plugins.PixelStreaming2.FEpicRtcPlatformGetTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEpicRtcPlatformGetTest, "System.Plugins.PixelStreaming2.FPS2EpicRtcPlatformGetTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
 	bool FEpicRtcPlatformGetTest::RunTest(const FString& Parameters)
 	{
 		EpicRtcErrorCode Result;

@@ -209,8 +209,9 @@
 #include "/Engine/Private/Substrate/SubstrateExport.ush"
 #endif
 
-#define ENABLE_LOCAL_FOG_VOLUMES_ON_OPAQUE_FORWARD (PROJECT_SUPPORTS_LOCALFOGVOLUME && NEEDS_BASEPASS_PIXEL_VOLUMETRIC_FOGGING && OPAQUE_NEEDS_BASEPASS_FOGGING)
-#if ENABLE_LOCAL_FOG_VOLUMES_ON_OPAQUE_FORWARD
+#define ENABLE_LOCAL_FOG_VOLUMES_ON_OPAQUE_FORWARD  (PROJECT_SUPPORTS_LOCALFOGVOLUME && NEEDS_BASEPASS_PIXEL_VOLUMETRIC_FOGGING && OPAQUE_NEEDS_BASEPASS_FOGGING)
+#define LOCAL_FOG_VOLUME_PER_PIXEL_ON_TRANSLUCENT (PROJECT_SUPPORTS_LOCALFOGVOLUME && NEEDS_BASEPASS_PIXEL_FOGGING)
+#if ENABLE_LOCAL_FOG_VOLUMES_ON_OPAQUE_FORWARD || LOCAL_FOG_VOLUME_PER_PIXEL_ON_TRANSLUCENT
 #include "LocalFogVolumes/LocalFogVolumeCommon.ush"
 #endif
 
@@ -1348,6 +1349,15 @@ void FPixelShaderInOut_MainPS(
 
 	float4 Fogging = HeightFogging;
 
+#if LOCAL_FOG_VOLUME_PER_PIXEL_ON_TRANSLUCENT
+	{
+		float3 TranslatedWorldPosition = SvPositionToResolvedTranslatedWorld(In.SvPosition);
+		uint2 TilePos = clamp(uint2(In.SvPosition.xy / float(LFVTilePixelSize)), uint2(0, 0), LFVTileDataResolution - 1);
+		float4 LocalFogVolumeContrib = GetLFVContribution(ResolvedView, TilePos, TranslatedWorldPosition);
+		Fogging = float4(LocalFogVolumeContrib.rgb + Fogging.rgb * LocalFogVolumeContrib.a, LocalFogVolumeContrib.a * Fogging.a);
+	}
+#endif
+
 #if NEEDS_BASEPASS_PIXEL_VOLUMETRIC_FOGGING
 	if (FogStruct.ApplyVolumetricFog > 0) 
 	{
@@ -1355,11 +1365,11 @@ void FPixelShaderInOut_MainPS(
 		float3 TranslatedWorldPosition = SvPositionToResolvedTranslatedWorld(In.SvPosition);
 		uint2 TilePos = clamp(uint2(In.SvPosition.xy / float(LFVTilePixelSize)), uint2(0, 0), LFVTileDataResolution - 1);
 		float4 LocalFogVolumeContrib = GetLFVContribution(ResolvedView, TilePos, TranslatedWorldPosition);
-		HeightFogging = float4(LocalFogVolumeContrib.rgb + HeightFogging.rgb * LocalFogVolumeContrib.a, LocalFogVolumeContrib.a * HeightFogging.a);
+		Fogging = float4(LocalFogVolumeContrib.rgb + Fogging.rgb * LocalFogVolumeContrib.a, LocalFogVolumeContrib.a * Fogging.a);
 	#endif 
 
 		float3 VolumeUV = ComputeVolumeUV(MaterialParameters.AbsoluteWorldPosition, ResolvedView.WorldToClip, ResolvedView);
-		Fogging = CombineVolumetricFog(HeightFogging, VolumeUV, EyeIndex, GBuffer.Depth, ResolvedView);
+		Fogging = CombineVolumetricFog(Fogging, VolumeUV, EyeIndex, GBuffer.Depth, ResolvedView);
 	}
 #endif
 

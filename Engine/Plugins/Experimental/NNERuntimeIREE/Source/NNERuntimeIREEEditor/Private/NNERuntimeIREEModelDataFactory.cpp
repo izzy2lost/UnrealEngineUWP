@@ -4,13 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "Editor.h"
-#include "EngineAnalytics.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Commands/UIAction.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Input/Reply.h"
 #include "Interfaces/IMainFrameModule.h"
-#include "Kismet/GameplayStatics.h"
 #include "Modules/ModuleManager.h"
 #include "NNE.h"
 #include "NNEModelData.h"
@@ -215,16 +213,6 @@ UObject* UNNERuntimeIREEModelDataFactory::FactoryCreateBinary(UClass* Class, UOb
 	ModelData->Init(Type, BufferView, AdditionalFileData);
 
 	GEditor->GetEditorSubsystem<UImportSubsystem>()->BroadcastAssetPostImport(this, ModelData);
-
-	if (FEngineAnalytics::IsAvailable())
-	{
-		TArray<FAnalyticsEventAttribute> Attributes = MakeAnalyticsEventAttributeArray(
-			TEXT("PlatformName"), UGameplayStatics::GetPlatformName(),
-			TEXT("FactoryName"), TEXT("UNNERuntimeIREEModelDataFactory"),
-			TEXT("ModelFileSize"), BufferView.Num()
-		);
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("NeuralNetworkEngine.FactoryCreateBinary"), Attributes);
-	}
 
 	return ModelData;
 }

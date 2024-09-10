@@ -917,7 +917,7 @@ void UDMMaterialStageThroughput::GeneratePreviewMaterial(UMaterial* InPreviewMat
 	}
 
 	TSharedRef<FDMMaterialBuildState> BuildState = ModelEditorOnlyData->CreateBuildState(InPreviewMaterial);
-	BuildState->SetPreviewMaterial();
+	BuildState->SetPreviewObject(this);
 
 	if (!bHasStageInput || Inputs.IsEmpty())
 	{

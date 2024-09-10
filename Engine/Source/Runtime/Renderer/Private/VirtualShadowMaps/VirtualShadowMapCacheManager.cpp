@@ -537,7 +537,7 @@ void FVirtualShadowMapFeedback::SubmitFeedbackBuffer(
 	Buffers[WriteIndex].Size = FeedbackBuffer->Desc.GetSize();
 
 	AddReadbackBufferPass(GraphBuilder, RDG_EVENT_NAME("Readback"), FeedbackBuffer,
-		[ReadbackBuffer, FeedbackBuffer](FRHICommandList& RHICmdList)
+		[ReadbackBuffer, FeedbackBuffer](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			ReadbackBuffer->EnqueueCopy(RHICmdList, FeedbackBuffer->GetRHI(), 0u);
 		});
@@ -1113,22 +1113,6 @@ void FVirtualShadowMapArrayCacheManager::UpdateUnreferencedCacheEntries(
 		else
 		{
 			It.RemoveCurrent();
-		}
-	}
-}
-
-void FVirtualShadowMapArrayCacheManager::UploadProjectionData(FRDGScatterUploadBuffer& Uploader) const
-{
-	// If we get here, this should be non-empty, otherwise we will upload nothing and the destination buffer
-	// will end up as not having been written in RDG, which makes it upset even if it will never get referenced on the GPU.
-	check(!CacheEntries.IsEmpty());
-
-	for (const auto& LightEntry : CacheEntries)
-	{
-		TSharedPtr<FVirtualShadowMapPerLightCacheEntry> CacheEntry = LightEntry.Value;
-		for (const auto& Entry : CacheEntry->ShadowMapEntries)
-		{
-			Uploader.Add(Entry.CurrentVirtualShadowMapId, &Entry.ProjectionData);
 		}
 	}
 }

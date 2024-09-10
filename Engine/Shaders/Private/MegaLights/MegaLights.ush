@@ -2,8 +2,8 @@
 
 #pragma once
 
-// Change this to force recompilation of all Mega Lights shaders
-#pragma message("UESHADERMETADATA_VERSION 6B9BA9CC-6798-4A69-9A12-3C63ECB0A328")
+// Change this to force recompilation of all MegaLights shaders
+#pragma message("UESHADERMETADATA_VERSION 20B31250-3221-44EF-8034-AC9A233C2022")
 
 // Keep in sync with MegaLights::ETileType
 #define TILE_MODE_SIMPLE_SHADING				0
@@ -42,9 +42,10 @@
 // Keep in sync with MegaLights.cpp
 #define DOWNSAMPLE_FACTOR			2
 #define TILE_SIZE					8
-// Limited by PackLightSample and SharedCandidateLightHiMask
-#define MAX_LOCAL_LIGHT_INDEX		1024
-#define SHARED_LIGHT_MASK_SIZE		(MAX_LOCAL_LIGHT_INDEX / 32)
+// Limited by PackLightSample
+#define MAX_LOCAL_LIGHT_NUM			4096
+#define MAX_LOCAL_LIGHT_INDEX		(MAX_LOCAL_LIGHT_NUM - 1)
+#define SHARED_LIGHT_MASK_SIZE		(MAX_LOCAL_LIGHT_NUM / 32)
 #define VISIBLE_LIGHT_HASH_SIZE		4 // 4 uints
 
 #if DEBUG_MODE
@@ -114,7 +115,7 @@ FLightSample InitLightSample()
 
 uint PackLightSample(FLightSample LightSample)
 {
-	uint PackedLightSample = LightSample.LocalLightIndex & 0x3FF;
+	uint PackedLightSample = LightSample.LocalLightIndex & 0xFFF;
 	PackedLightSample |= LightSample.bVisible ? 0x8000 : 0;
 	PackedLightSample |= LightSample.bCompleted ? 0x4000 : 0;
 	PackedLightSample |= LightSample.bGuidedAsVisible ? 0x2000 : 0;
@@ -126,7 +127,7 @@ uint PackLightSample(FLightSample LightSample)
 FLightSample UnpackLightSample(uint PackedLightSample)
 {
 	FLightSample LightSample;
-	LightSample.LocalLightIndex = PackedLightSample & 0x3FF;
+	LightSample.LocalLightIndex = PackedLightSample & 0xFFF;
 	LightSample.bVisible = PackedLightSample & 0x8000 ? true : false;
 	LightSample.bCompleted = PackedLightSample & 0x4000 ? true : false;
 	LightSample.bGuidedAsVisible = PackedLightSample & 0x2000 ? true : false;

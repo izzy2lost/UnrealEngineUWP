@@ -3146,6 +3146,7 @@ void FPropertyNode::NotifyPreChangeInternal( TSharedRef<FEditPropertyChain> Prop
 void FPropertyNode::NotifyPostChange( FPropertyChangedEvent& InPropertyChangedEvent, class FNotifyHook* InNotifyHook )
 {
 	TSharedRef<FEditPropertyChain> PropertyChain = BuildPropertyChain( InPropertyChangedEvent.Property );
+	TArray<TMap<FString, int32>> ArrayIndices = BuildArrayIndices();
 	
 	// remember the property that was the chain's original active property; this will correspond to the outermost property of struct/array that was modified
 	FProperty* const OriginalActiveProperty = PropertyChain->GetActiveMemberNode() ? PropertyChain->GetActiveMemberNode()->GetValue() : nullptr;
@@ -3205,7 +3206,7 @@ void FPropertyNode::NotifyPostChange( FPropertyChangedEvent& InPropertyChangedEv
 
 				// Use a scope to ensure that only local variable are use in the loop.
 				// Since this object can be destroyed in this loop.
-				auto ScopePostEditChange = [&PropertyChain, &InPropertyChangedEvent, &CurProperty, CurrentObjectIndex](UObject* Object)
+				auto ScopePostEditChange = [&PropertyChain, &InPropertyChangedEvent, &CurProperty, CurrentObjectIndex, &ArrayIndices](UObject* Object)
 				{
 					// copy the property changed event
 					FPropertyChangedEvent ChangedEvent = InPropertyChangedEvent;
@@ -3225,6 +3226,10 @@ void FPropertyNode::NotifyPostChange( FPropertyChangedEvent& InPropertyChangedEv
 					else
 					{
 						FPropertyChangedChainEvent ChainEvent(*PropertyChain, ChangedEvent);
+						if (!ArrayIndices.IsEmpty())
+						{
+							ChainEvent.SetArrayIndexPerObject(ArrayIndices);
+						}
 						ChainEvent.ObjectIteratorIndex = CurrentObjectIndex;
 
 						Object->PostEditChangeChainProperty(ChainEvent);
@@ -3557,6 +3562,31 @@ TSharedRef<FEditPropertyChain> FPropertyNode::BuildPropertyChain( FProperty* InP
 	PropertyChain->SetActiveMemberPropertyNode( MemberProperty );
 
 	return PropertyChain;
+}
+
+TArray<TMap<FString, int32>> FPropertyNode::BuildArrayIndices() const
+{
+	TArray<TMap<FString, int32>> ArrayIndices;
+	FReadAddressList ReadAddresses;
+    GetReadAddress(HasNodeFlags(EPropertyNodeFlags::SingleSelectOnly), ReadAddresses, false, true);
+	const int32 ObjectNum = ReadAddresses.Num();
+
+	for (const FPropertyNode* ItemNode = this; ItemNode; ItemNode = ItemNode->GetParentNode())
+	{
+		if (int32 Index = ItemNode->GetArrayIndex(); Index != INDEX_NONE)
+		{
+			if (ArrayIndices.IsEmpty())
+            {
+                ArrayIndices.SetNum(ObjectNum);
+            }
+			for (int ObjectIndex = 0; ObjectIndex < ObjectNum; ++ObjectIndex)
+			{
+                ArrayIndices[ObjectIndex].Add(ItemNode->Property->GetName(), Index);
+			}
+		}
+	} 
+
+	return ArrayIndices;
 }
 
 TSharedRef<FEditPropertyChain> FPropertyNode::BuildPropertyChain( FProperty* InProperty, const TSet<UObject*>& InAffectedArchetypeInstances ) const

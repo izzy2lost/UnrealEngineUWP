@@ -25,7 +25,10 @@ class FSlateUpdatableInstanceBuffer final : public ISlateUpdatableInstanceBuffer
 
 		void Update(FRHICommandListImmediate& RHICmdList, FSlateInstanceBufferData& Data);
 
-		virtual void BindStreamSource(FRHICommandList& RHICmdList, int32 StreamIndex, uint32 InstanceOffset) override final;
+		FRHIBuffer* GetRHI() const override
+		{
+			return InstanceBufferResource.VertexBufferRHI;
+		}
 	} *Proxy;
 
 public:

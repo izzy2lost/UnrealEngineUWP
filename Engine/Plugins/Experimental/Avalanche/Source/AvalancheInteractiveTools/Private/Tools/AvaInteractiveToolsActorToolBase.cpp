@@ -15,7 +15,12 @@ bool UAvaInteractiveToolsActorToolBase::OnBegin()
 
 void UAvaInteractiveToolsActorToolBase::DefaultAction()
 {
-	SpawnedActor = SpawnActor(ActorClass, false);
+	if (OnBegin())
+	{
+		SpawnedActor = SpawnActor(ActorClass, /** Preview */false);
+
+		OnComplete();
+	}
 
 	Super::DefaultAction();
 }

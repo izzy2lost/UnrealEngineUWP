@@ -79,7 +79,7 @@ namespace Gauntlet
 				throw new DeviceException("Specified path {0} not found!", WinApp.ExecutablePath);
 			}
 
-			IProcessResult Result = null;
+			ILongProcessResult Result = null;
 
 			lock (Globals.MainLock)
 			{
@@ -91,16 +91,17 @@ namespace Gauntlet
 				Log.Info("Launching {0} on {1}", App.Name, ToString());
 
 				string CmdLine = WinApp.CommandArguments;
-				CommandUtils.ERunOptions FinalRunOptions = WinApp.RunOptions;
-				bool bAllowSpew = WinApp.RunOptions.HasFlag(CommandUtils.ERunOptions.AllowSpew);
 
 				Log.Verbose("\t{0}", CmdLine);
 
-				Result = CommandUtils.Run(WinApp.ExecutablePath,
+				Result = new LongProcessResult(
+					WinApp.ExecutablePath,
 					CmdLine,
-					Options: FinalRunOptions,
-					SpewFilterCallback: new SpewFilterCallbackType(delegate (string M) { return bAllowSpew ? M : null; }) /* make sure stderr does not spew in the stdout */,
-					WorkingDir: WinApp.WorkingDirectory);
+					WinApp.RunOptions,
+					OutputCallback: WinApp.FilterLoggingDelegate,
+					WorkingDir: WinApp.WorkingDirectory,
+					LocalCache: WinApp.Device.LocalCachePath
+				);
 
 				if (Result.HasExited && Result.ExitCode != 0)
 				{
@@ -356,7 +357,7 @@ namespace Gauntlet
 			MiniDumpValidTypeFlags = 0x01ffffff
 		}
 
-		public WindowsAppInstance(WindowsAppInstall InInstall, IProcessResult InProcess, string InProcessLogFile = null)
+		public WindowsAppInstance(WindowsAppInstall InInstall, ILongProcessResult InProcess, string InProcessLogFile = null)
 			: base(InInstall, InProcess, InProcessLogFile)
 		{ }
 

@@ -87,7 +87,15 @@ public:
         return CDefinition::GetBaseOverriddenDefinition().AsChecked<CDataDefinition>();
     }
 
-    bool HasInitializer() const;
+    void SetHasInitializer()
+    {
+        ULANG_ASSERT(GetPrototypeDefinition() == this);
+        _bHasInitializer = true;
+    }
+    bool HasInitializer() const
+    {
+        return GetPrototypeDefinition()->_bHasInitializer;
+    }
 
     void SetVarAccessLevel(TOptional<SAccessLevel>&& AccessLevel)
     {
@@ -136,6 +144,7 @@ private:
     const CTypeBase* _Type{nullptr};
     mutable bool _bPersistenceCompatConstraint{false};
     bool _bIsVar{false};
+    bool _bHasInitializer{ false };
 };
 
 }  // namespace uLang

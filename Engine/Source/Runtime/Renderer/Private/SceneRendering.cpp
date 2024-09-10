@@ -3754,7 +3754,7 @@ void FSceneRenderer::FlushCrossGPUFences(FRDGBuilder& GraphBuilder)
 		RDG_GPU_STAT_SCOPE(GraphBuilder, CrossGPUSync);
 
 		AddPass(GraphBuilder, RDG_EVENT_NAME("CrossGPUTransferSync"),
-			[LocalFenceDatas = MoveTemp(CrossGPUTransferFencesWait)](FRHICommandListImmediate& RHICmdList)
+			[LocalFenceDatas = MoveTemp(CrossGPUTransferFencesWait)](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RHICmdList.CrossGPUTransferWait(LocalFenceDatas);
 		});
@@ -6330,7 +6330,7 @@ void AddResolveSceneColorPass(FRDGBuilder& GraphBuilder, const FViewInfo& View, 
 		RDG_EVENT_NAME("ResolveSceneColor"),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[&View, SceneColorTargetable, SceneColorFMask, NumSamples](FRHICommandList& RHICmdList)
+		[&View, SceneColorTargetable, SceneColorFMask, NumSamples](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FRHITexture* SceneColorTargetableRHI = SceneColorTargetable->GetRHI();
 		SceneColorTargetable->MarkResourceAsUsed();
@@ -6499,7 +6499,7 @@ void AddResolveSceneDepthPass(FRDGBuilder& GraphBuilder, const FViewInfo& View, 
 		RDG_EVENT_NAME("ResolveSceneDepth"),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[&View, SourceTexture, NumSamples, DepthExtent, ResolveRect](FRHICommandList& RHICmdList)
+		[&View, SourceTexture, NumSamples, DepthExtent, ResolveRect](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FRHITexture* SourceTextureRHI = SourceTexture->GetRHI();
 		SourceTexture->MarkResourceAsUsed();

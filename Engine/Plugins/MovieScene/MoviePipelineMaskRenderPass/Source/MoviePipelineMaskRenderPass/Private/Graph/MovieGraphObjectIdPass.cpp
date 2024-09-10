@@ -160,9 +160,7 @@ void FMovieGraphObjectIdPass::Setup(TWeakObjectPtr<UMovieGraphDefaultRenderer> I
 		NewIdentifier.LayerName = LayerData.LayerName;
 		NewIdentifier.RendererName = InRenderPassNode->GetRendererName();
 		NewIdentifier.SubResourceName = NewIdentifier.RendererName + FString::Printf(TEXT("%02d"), Index);
-
-		UE::MovieGraph::DefaultRenderer::FCameraInfo CameraInfo = InRenderer->GetCameraInfo(LayerData.CameraIdentifier);
-		NewIdentifier.CameraName =  CameraInfo.CameraName;
+		NewIdentifier.CameraName = InLayer.CameraName;
 		
 		RenderDataIdentifiers.Add(NewIdentifier);
 	}

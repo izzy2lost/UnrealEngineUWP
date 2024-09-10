@@ -121,7 +121,7 @@ protected:
 	/** The progress text displayed in the notification (if any) */
 	FText ProgressText;
 
-	/** The progress text displayed in the notification (if any) */
+	/** The text used by the prompt button (if any) */
 	FText PromptText;
 
 	/** When set this will display as a hyperlink on the right side of the notification. */

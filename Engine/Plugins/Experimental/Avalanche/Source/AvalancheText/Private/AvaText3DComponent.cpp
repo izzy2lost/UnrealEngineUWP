@@ -28,6 +28,11 @@ namespace UE::AvaText::Private
 
 		if (UMaterialInstance* CurrentMaterialInstance = Cast<UMaterialInstance>(Invoke(InGetter, InComponent)))
 		{
+			if (CurrentMaterialInstance == InNewMaterial)
+			{
+				return;
+			}
+
 			InNewMaterial->CopyInterpParameters(CurrentMaterialInstance);
 		}
 
@@ -506,22 +511,31 @@ void UAvaText3DComponent::SetupSolidMaterial()
 		const EAvaTextMaterialFeatures MaterialFeatures = GetMaterialFeaturesFromProperties();
 		const FAvaTextMaterialSettings MaterialSettings(EAvaTextColoringStyle::Solid, MaterialFeatures);
 
+		// Front & Back
+		UMaterialInstanceDynamic* PreviousMaterial = nullptr;
+
 		if (UMaterialInstanceDynamic* const SolidMaterial = GetMIDWithSettings(TextMaterialInstance, MaterialSettings))
 		{
-			UMaterialInstanceDynamic* PreviousMaterial = TextMaterialInstance;
+			PreviousMaterial = TextMaterialInstance;
 			TextMaterialInstance = SolidMaterial;
 			if (PreviousMaterial)
 			{
 				TextMaterialInstance->CopyInterpParameters(PreviousMaterial);
 			}
+		}
 
+		if (UMaterialInstanceDynamic* const SolidMaterial = GetMIDWithSettings(ExtrudeTextMaterialInstance, MaterialSettings))
+		{
 			PreviousMaterial = ExtrudeTextMaterialInstance;
 			ExtrudeTextMaterialInstance = SolidMaterial;
 			if (PreviousMaterial)
 			{
 				ExtrudeTextMaterialInstance->CopyInterpParameters(PreviousMaterial);
 			}
+		}
 
+		if (UMaterialInstanceDynamic* const SolidMaterial = GetMIDWithSettings(BevelTextMaterialInstance, MaterialSettings))
+		{
 			PreviousMaterial = BevelTextMaterialInstance;
 			BevelTextMaterialInstance = SolidMaterial;
 			if (PreviousMaterial)
@@ -532,7 +546,6 @@ void UAvaText3DComponent::SetupSolidMaterial()
 
 		RemoveRefreshReason(EAvaTextRefreshReason::MaterialInstancesChange);
 	}
- 
 	{
 		UE::AvaText::Private::PatchMaterial(
 			this
@@ -1296,7 +1309,7 @@ void UAvaText3DComponent::RefreshExtrudeColor() const
 
 	if (ExtrudeTextMaterialInstance)
 	{
-		ExtrudeTextMaterialInstance->SetVectorParameterValue(UAvaTextMaterialHub::FMaterialStatics::SolidColor_MatParam, Color);
+		ExtrudeTextMaterialInstance->SetVectorParameterValue(UAvaTextMaterialHub::FMaterialStatics::SolidColor_MatParam, ExtrudeColor);
 	}
 }
 
@@ -1309,7 +1322,7 @@ void UAvaText3DComponent::RefreshBevelColor() const
 
 	if (BevelTextMaterialInstance)
 	{
-		BevelTextMaterialInstance->SetVectorParameterValue(UAvaTextMaterialHub::FMaterialStatics::SolidColor_MatParam, Color);
+		BevelTextMaterialInstance->SetVectorParameterValue(UAvaTextMaterialHub::FMaterialStatics::SolidColor_MatParam, BevelColor);
 	}
 }
 

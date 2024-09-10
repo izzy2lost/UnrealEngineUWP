@@ -35,6 +35,10 @@ public:
 
 	void SavePersistentExpandedStates();
 
+	TSharedPtr<FStateTreeViewModel> GetViewModel() const;
+
+	void SetSelection(const TArray<TWeakObjectPtr<UStateTreeState>>& SelectedStates) const;
+
 private:
 	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;

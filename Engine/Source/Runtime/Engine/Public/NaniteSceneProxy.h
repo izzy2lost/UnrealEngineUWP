@@ -411,10 +411,10 @@ class FSceneProxy : public FSceneProxyBase
 public:
 	using Super = FSceneProxyBase;
 
-	ENGINE_API FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshSceneProxyDesc& ProxyDesc, bool bIsInstanced = false);
+	ENGINE_API FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshSceneProxyDesc& ProxyDesc, const TSharedPtr<FInstanceDataSceneProxy, ESPMode::ThreadSafe>& InInstanceDataSceneProxy = {});
 	ENGINE_API FSceneProxy(const FMaterialAudit& MaterialAudit, const FInstancedStaticMeshSceneProxyDesc& ProxyDesc);
 
-	ENGINE_API FSceneProxy(const FMaterialAudit& MaterialAudit, UStaticMeshComponent* Component);
+	ENGINE_API FSceneProxy(const FMaterialAudit& MaterialAudit, UStaticMeshComponent* Component, const TSharedPtr<FInstanceDataSceneProxy, ESPMode::ThreadSafe>& InInstanceDataSceneProxy = {});
 	ENGINE_API FSceneProxy(const FMaterialAudit& MaterialAudit, UInstancedStaticMeshComponent* Component);
 	ENGINE_API FSceneProxy(const FMaterialAudit& MaterialAudit, UHierarchicalInstancedStaticMeshComponent* Component);
 
@@ -448,7 +448,7 @@ public:
 	ENGINE_API virtual bool HasRayTracingRepresentation() const override;
 	virtual bool IsRayTracingRelevant() const { return true; }
 	virtual bool IsRayTracingStaticRelevant() const { return true; }
-	ENGINE_API virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<struct FRayTracingInstance>& OutRayTracingInstances) override;
+	ENGINE_API virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) override;
 	ENGINE_API virtual ERayTracingPrimitiveFlags GetCachedRayTracingInstance(FRayTracingInstance& RayTracingInstance) override;
 	virtual Nanite::CoarseMeshStreamingHandle GetCoarseMeshStreamingHandle() const override { return CoarseMeshStreamingHandle; }
 	ENGINE_API virtual RayTracing::GeometryGroupHandle GetRayTracingGeometryGroupHandle() const override;
@@ -660,7 +660,13 @@ class FSkinnedSceneProxy : public FSceneProxyBase
 public:
 	using Super = FSceneProxyBase;
 	
-	ENGINE_API FSkinnedSceneProxy(const FMaterialAudit& MaterialAudit, USkinnedMeshComponent* InComponent, FSkeletalMeshRenderData* InRenderData);
+	ENGINE_API FSkinnedSceneProxy(
+		const FMaterialAudit& MaterialAudit,
+		USkinnedMeshComponent* InComponent,
+		FSkeletalMeshRenderData* InRenderData,
+		bool bAllowScaling = true
+	);
+
 	ENGINE_API virtual ~FSkinnedSceneProxy();
 
 public:
@@ -697,8 +703,9 @@ public:
 
 	ENGINE_API virtual uint8 GetCurrentFirstLODIdx_RenderThread() const final override;
 
-	virtual const TConstArrayView<uint64> GetAnimationProviderData() const
+	virtual const TConstArrayView<uint64> GetAnimationProviderData(bool& bOutValid) const
 	{
+		bOutValid = true;
 		return TConstArrayView<uint64>();
 	}
 
@@ -722,10 +729,7 @@ public:
 		return bHasScale;
 	}
 
-	inline const FGuid& GetTransformProviderId() const
-	{
-		return TransformProviderId;
-	}
+	ENGINE_API const FGuid& GetTransformProviderId() const;
 
 	// TODO: TEMP - Move to shared location with GPU
 	inline uint32 GetObjectSpaceFloatCount() const
@@ -735,7 +739,7 @@ public:
 	}
 
 #if RHI_RAYTRACING
-	ENGINE_API virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<struct FRayTracingInstance>& OutRayTracingInstances) override;
+	ENGINE_API virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) override;
 
 	virtual bool IsRayTracingRelevant() const override { return true; }
 #endif
@@ -746,6 +750,8 @@ protected:
 	const FSkeletalMeshRenderData* RenderData = nullptr;
 	FSkeletalMeshObject* MeshObject = nullptr;
 
+	FGuid TransformProviderId;
+
 	uint32 NaniteResourceID = INDEX_NONE;
 	uint32 NaniteHierarchyOffset = INDEX_NONE;
 
@@ -755,8 +761,6 @@ protected:
 
 	TArray<uint32> BoneHierarchy;
 	TArray<float> BoneObjectSpace;
-
-	FGuid TransformProviderId;
 
 	bool bHasScale = false;
 

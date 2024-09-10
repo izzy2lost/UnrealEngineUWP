@@ -123,6 +123,7 @@ public:
 
 		if constexpr (std::is_same_v<UE::RHI::GPUProfiler::FEvent::FBeginWork, TEventType>)
 		{
+			// Store BeginEvents in a separate array as the CPUTimestamp field needs updating at submit time.
 			State.BeginEvents.Add(&Data);
 		}
 

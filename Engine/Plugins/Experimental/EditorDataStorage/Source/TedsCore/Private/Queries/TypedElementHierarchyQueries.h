@@ -11,12 +11,12 @@
  * Calls to queries for general hierarchy management.
  */
 UCLASS()
-class UTypedElementHiearchyQueriesFactory : public UTypedElementDataStorageFactory
+class UTypedElementHiearchyQueriesFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	~UTypedElementHiearchyQueriesFactory() override = default;
 
-	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
+	void RegisterQueries(IEditorDataStorageProvider& DataStorage) override;
 };

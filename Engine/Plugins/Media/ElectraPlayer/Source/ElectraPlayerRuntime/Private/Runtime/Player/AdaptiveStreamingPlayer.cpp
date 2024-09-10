@@ -267,6 +267,10 @@ void FAdaptiveStreamingPlayer::ModifyOptions(const FParamDict& InOptionsToSetOrC
 	WorkerThread.SendOptionChangeMessage(InOptionsToSetOrChange, InOptionsToClear);
 }
 
+FVariantValue FAdaptiveStreamingPlayer::GetMediaInfo(FName InKey) const
+{
+	return PlayerOptions.GetValue(InKey);	// thread safe
+}
 
 void FAdaptiveStreamingPlayer::SetStaticResourceProviderCallback(const TSharedPtr<IAdaptiveStreamingPlayerResourceProvider, ESPMode::ThreadSafe>& InStaticResourceProvider)
 {

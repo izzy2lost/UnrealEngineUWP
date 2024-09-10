@@ -123,6 +123,14 @@ static FAutoConsoleVariableRef CVarSlateUseFixedDeltaTime(
 	GSlateUseFixedDeltaTime,
 	TEXT("True means we use a constant delta time on every widget tick.")
 );
+
+static bool GSlateSkipWidgetDrawingInHeadlessMode = true;
+static FAutoConsoleVariableRef CVarSlateSkipWidgetDrawingInHeadlessMode(
+	TEXT("Slate.SkipWidgetDrawingInHeadlessMode"),
+	GSlateSkipWidgetDrawingInHeadlessMode,
+	TEXT("Skip drawing the widgets when running without rendering (e.g. -nullrhi). On by default, disable if there's non-visual logic in widget's Tick function (as this also skips ticking them).")
+);
+
 //////////////////////////////////////////////////////////////////////////
 
 /** 
@@ -1335,6 +1343,12 @@ TArray<SWindow*> GatherAllDescendants(const TArray< TSharedRef<SWindow> >& InWin
 
 void FSlateApplication::PrivateDrawWindows( TSharedPtr<SWindow> DrawOnlyThisWindow )
 {
+	if (GSlateSkipWidgetDrawingInHeadlessMode && !FApp::CanEverRender() && !bAnyActiveTimersPending)
+	{
+		// early out, as window "drawing" can take 1-2ms of a -nullrhi PC game
+		return;
+	}
+
 	check(Renderer.IsValid());
 
 	// Grab a scope lock around access to the resource proxy map, just to ensure we never cross over
@@ -1680,7 +1694,7 @@ void FSlateApplication::TickAndDrawWidgets(float DeltaTime)
 		const double TimeSinceMouseMove = LastTickTime - LastMouseMoveTime;
 	
 		const bool bIsUserIdle = (TimeSinceInput > SleepThreshold) && (TimeSinceMouseMove > SleepThreshold);
-		const bool bAnyActiveTimersPending = AnyActiveTimersArePending();
+		UpdateAnyActiveTimersArePending();
 
 		// skip tick/draw if we are idle and there are no active timers registered that we need to drive slate for.
 		// This effectively means the slate application is totally idle and we don't need to update the UI.

@@ -21,7 +21,7 @@
 #include "Transform/Mix/T_UpdateTargets.h"
 
 
-bool UTextureGraph::CheckCyclicDependency(const UTextureGraph* InTextureGraph) const
+bool UTextureGraph::CheckRecursiveDependency(const UTextureGraph* InTextureGraph) const
 {
 	TArray<UTextureGraph*> DependentGraphs;
 	GatherAllDependentGraphs(DependentGraphs);
@@ -35,6 +35,10 @@ bool UTextureGraph::CheckCyclicDependency(const UTextureGraph* InTextureGraph) c
 		return CurrentTextureGraph->GetOutermostObject() == InTextureGraph->GetOutermostObject() ||
 				(Package == SecondPackage && !bIsTransientPackage);
 	});
+}
+bool UTextureGraph::HasCyclicDependency() const
+{
+	return CheckRecursiveDependency(this);
 }
 void UTextureGraph::GatherAllDependentGraphs(TArray<UTextureGraph*>& DependentGraphs) const
 {
@@ -60,7 +64,7 @@ void UTextureGraph::GatherAllDependentGraphs(TArray<UTextureGraph*>& DependentGr
 				}
 		});
 }
-bool UTextureGraph::IsDependent(const UTextureGraph* InTextureGraph) const
+bool UTextureGraph::IsDependentOn(const UTextureGraph* InTextureGraph) const
 {
 	
 	// check if we're trying to assign our own TextureGraph to this expression
@@ -71,7 +75,7 @@ bool UTextureGraph::IsDependent(const UTextureGraph* InTextureGraph) const
 	}
 			
 	// check for cyclic dependency
-	if (CheckCyclicDependency(InTextureGraph))
+	if (CheckRecursiveDependency(InTextureGraph))
 	{
 		return true;
 	}

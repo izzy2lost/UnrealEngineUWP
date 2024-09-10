@@ -3,6 +3,7 @@
 #pragma once
 
 #include "../Common.ush"
+#include "/Engine/Shared/InstanceCullingDefinitions.h"
 
 #ifndef BATCH_PROCESSING_MODE_NUM
 #define BATCH_PROCESSING_MODE_NUM 1
@@ -120,7 +121,12 @@ struct FPackedInstanceCullingPayload
 
 bool IsExtendedInstanceCullingPayload(uint WorkItemPayload)
 {
-	return (WorkItemPayload & 1U) != 0U;
+	return (WorkItemPayload & INSTANCE_CULLING_PRESERVE_INSTANCE_ORDER_BIT_MASK) != 0U;
+}
+
+bool IsDynamicInstanceDataOffset(uint WorkItemPayload)
+{
+	return (WorkItemPayload & INSTANCE_CULLING_DYNAMIC_INSTANCE_DATA_OFFSET_BIT_MASK) != 0U;
 }
 
 FInstanceCullingPayload UnpackInstanceCullingPayload(FPackedInstanceCullingPayload Payload)
@@ -149,11 +155,13 @@ FInstanceCullingPayload LoadInstanceCullingPayload(uint WorkItemPayload, FContex
 {
 	FInstanceCullingPayload Output;
 
+	Output.bDynamicInstanceDataOffset = IsDynamicInstanceDataOffset(WorkItemPayload);
+
 #if ENABLE_EXTENDED_INSTANCE_CULLING_PAYLOADS
 	BRANCH
 	if (IsExtendedInstanceCullingPayload(WorkItemPayload))
 	{
-		Output = UnpackInstanceCullingPayload(InstanceCullingPayloads[BatchInfo.PayloadOffset + (WorkItemPayload >> 1U)]);
+		Output = UnpackInstanceCullingPayload(InstanceCullingPayloads[BatchInfo.PayloadOffset + (WorkItemPayload >> INSTANCE_CULLING_PAYLOAD_NUM_COMMON_BITS)]);
 		Output.IndirectArgIndex += BatchInfo.IndirectArgOffset;
 		Output.CompactionDataIndex += BatchInfo.CompactionDataOffset;
 		return Output;
@@ -163,8 +171,7 @@ FInstanceCullingPayload LoadInstanceCullingPayload(uint WorkItemPayload, FContex
 	checkSlow(!IsExtendedInstanceCullingPayload(WorkItemPayload));
 #endif
 
-	Output.bDynamicInstanceDataOffset = (WorkItemPayload & 2U) != 0U;
-	Output.IndirectArgIndex = BatchInfo.IndirectArgOffset + (WorkItemPayload >> 2U);
+	Output.IndirectArgIndex = BatchInfo.IndirectArgOffset + (WorkItemPayload >> INSTANCE_CULLING_PAYLOAD_NUM_COMMON_BITS);
 	Output.InstanceDataOffset = 0xFFFFFFFFU;
 	Output.RunInstanceOffset = 0xFFFFFFFFU;
 	Output.CompactionDataIndex = 0xFFFFFFFFU;

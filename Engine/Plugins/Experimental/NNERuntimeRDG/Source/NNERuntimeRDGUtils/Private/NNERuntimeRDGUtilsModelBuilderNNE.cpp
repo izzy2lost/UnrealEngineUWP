@@ -2,8 +2,8 @@
 
 #include "NNERuntimeRDGUtilsModelBuilderNNE.h"
 
-#include "NNE.h"
 #include "NNEAttributeMap.h"
+#include "NNEHlslShadersLog.h"
 #include "NNERuntimeFormat.h"
 #include "Misc/StringBuilder.h"
 #include "Serialization/MemoryWriter.h"
@@ -88,13 +88,13 @@ public:
 
 		if (Idx < 0 || Idx >= Format.Tensors.Num())
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Failed to add input tensor, invalid tensor index"));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Failed to add input tensor, invalid tensor index"));
 			return false;
 		}
 
 		if (Format.Tensors[Idx].Type != ENNEFormatTensorType::None)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Failed to add input tensor, tensor usage already set up"));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Failed to add input tensor, tensor usage already set up"));
 			return false;
 		}
 
@@ -109,13 +109,13 @@ public:
 
 		if (Idx < 0 || Idx >= Format.Tensors.Num())
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Failed to add output tensor, invalid tensor index"));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Failed to add output tensor, invalid tensor index"));
 			return false;
 		}
 
 		if (Format.Tensors[Idx].Type != ENNEFormatTensorType::None)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Failed to add output tensor, tensor usage already set up"));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Failed to add output tensor, tensor usage already set up"));
 			return false;
 		}
 
@@ -145,7 +145,7 @@ public:
 
 		if (TensorIdx < 0 || TensorIdx >= Format.Tensors.Num())
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Failed to add operator input tensor, invalid tensor index"));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Failed to add operator input tensor, invalid tensor index"));
 			return false;
 		}
 
@@ -161,13 +161,13 @@ public:
 
 		if (TensorIdx < 0 || TensorIdx >= Format.Tensors.Num())
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Failed to add operator output tensor, invalid tensor index"));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Failed to add operator output tensor, invalid tensor index"));
 			return false;
 		}
 
 		if (Format.Tensors[TensorIdx].Type == ENNEFormatTensorType::Input)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Failed to add output tensor, tensor usage already set up to input"));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Failed to add output tensor, tensor usage already set up to input"));
 			return false;
 		}
 

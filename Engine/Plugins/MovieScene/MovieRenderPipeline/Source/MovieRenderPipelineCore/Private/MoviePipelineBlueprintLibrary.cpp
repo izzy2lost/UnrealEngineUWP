@@ -900,7 +900,7 @@ int32 UMoviePipelineBlueprintLibrary::GetCurrentVersionNumber(const UMoviePipeli
 	return InMoviePipeline->GetActiveShotList()[CurrentShotIndex]->ShotInfo.VersionNumber;
 }
 
-FIntPoint UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(UMoviePipelinePrimaryConfig* InPrimaryConfig, UMoviePipelineExecutorShot* InPipelineExecutorShot)
+FIntPoint UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(UMoviePipelinePrimaryConfig* InPrimaryConfig, UMoviePipelineExecutorShot* InPipelineExecutorShot, float DefaultOverscan)
 {
 	if (InPrimaryConfig && InPipelineExecutorShot)
 	{
@@ -908,7 +908,7 @@ FIntPoint UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(UMoviePip
 		const UMoviePipelineCameraSetting* CameraSetting = Cast<const UMoviePipelineCameraSetting>(UMoviePipelineBlueprintLibrary::FindOrGetDefaultSettingForShot(UMoviePipelineCameraSetting::StaticClass(), InPrimaryConfig, InPipelineExecutorShot));
 		check(OutputSetting);
 		check(CameraSetting);
-		return Utility_GetEffectiveOutputResolution(CameraSetting->OverscanPercentage, OutputSetting->OutputResolution);
+		return Utility_GetEffectiveOutputResolution(CameraSetting->bOverrideCameraOverscan ? CameraSetting->OverscanPercentage : DefaultOverscan, OutputSetting->OutputResolution);
 	}
 
 	return FIntPoint();

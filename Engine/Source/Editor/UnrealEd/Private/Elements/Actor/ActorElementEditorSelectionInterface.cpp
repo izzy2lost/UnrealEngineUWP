@@ -53,12 +53,12 @@ bool UActorElementEditorSelectionInterface::SelectElement(const FTypedElementHan
 	const AActor* Actor = ActorElementDataUtil::GetActorFromHandle(InElementHandle);
 	UTypedElementRegistry* Registry = InSelectionSet->GetRegistry();
 	// Add a selection column in TEDS
-	if (const ITypedElementDataStorageCompatibilityInterface* Compatibility = Registry->GetDataStorageCompatibility())
+	if (const IEditorDataStorageCompatibilityProvider* Compatibility = Registry->GetDataStorageCompatibility())
 	{
 		RowHandle Row = Compatibility->FindRowWithCompatibleObject(Actor);
 		if (Row != InvalidRowHandle)
 		{
-			if (ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
+			if (IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
 			{
 				DataStorage->AddColumn<FTypedElementSelectionColumn>(Row);
 
@@ -81,12 +81,12 @@ bool UActorElementEditorSelectionInterface::DeselectElement(const FTypedElementH
 
 	const AActor* Actor = ActorElementDataUtil::GetActorFromHandle(InElementHandle);
 	UTypedElementRegistry* Registry = InSelectionSet->GetRegistry();
-	if (const ITypedElementDataStorageCompatibilityInterface* Compatibility = Registry->GetDataStorageCompatibility())
+	if (const IEditorDataStorageCompatibilityProvider* Compatibility = Registry->GetDataStorageCompatibility())
 	{
 		RowHandle Row = Compatibility->FindRowWithCompatibleObject(Actor);
 		if (Row != InvalidRowHandle)
 		{
-			if (ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
+			if (IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
             {
             	DataStorage->RemoveColumn(Row, FTypedElementSelectionColumn::StaticStruct());
             }

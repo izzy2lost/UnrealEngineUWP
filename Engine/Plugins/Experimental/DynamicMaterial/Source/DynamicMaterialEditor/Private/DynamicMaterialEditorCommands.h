@@ -21,8 +21,20 @@ public:
 	TSharedPtr<FUICommandInfo> MoveLayerUp;
 	TSharedPtr<FUICommandInfo> MoveLayerDown;
 
-	TSharedPtr<FUICommandInfo> SetShaderBallPreview;
+	TSharedPtr<FUICommandInfo> SetCustomPreviewMesh;
 
 	TSharedPtr<FUICommandInfo> NavigateForward;
 	TSharedPtr<FUICommandInfo> NavigateBack;
+
+	// Individual commands are initialised as SelectLayerX
+	TArray<TSharedPtr<FUICommandInfo>, TInlineAllocator<10>> SelectLayers;
+
+	struct FOpacityCommand
+	{
+		const float Opacity;
+		TSharedRef<FUICommandInfo> Command;
+	};
+
+	// Individual commands are initialised as SetOpacityX
+	TMap<FKey, FOpacityCommand> SetOpacities;
 };

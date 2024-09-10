@@ -508,7 +508,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingSkyLight(
 
 				Pipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, Initializer);
 
-				SBT = Scene->RayTracingSBT.AllocateRHI(ERayTracingHitGroupIndexingMode::Disallow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, Initializer.GetMaxLocalBindingDataSize());
+				SBT = Scene->RayTracingSBT.AllocateRHI(RHICmdList, ERayTracingShaderBindingMode::RTPSO, ERayTracingHitGroupIndexingMode::Disallow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, Initializer.GetMaxLocalBindingDataSize());
 
 				RHICmdList.SetDefaultRayTracingHitGroup(SBT, Pipeline, 0);
 				RHICmdList.SetRayTracingMissShader(SBT, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
@@ -672,7 +672,7 @@ void FDeferredShadingSceneRenderer::CompositeRayTracingSkyLight(
 			RDG_EVENT_NAME("GlobalIlluminationComposite"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[this, &View, PassParameters, SceneTextureExtent = SceneTextures.Config.Extent](FRHICommandList& RHICmdList)
+			[this, &View, PassParameters, SceneTextureExtent = SceneTextures.Config.Extent](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			TShaderMapRef<FPostProcessVS> VertexShader(View.ShaderMap);
 			TShaderMapRef<FCompositeSkyLightPS> PixelShader(View.ShaderMap);

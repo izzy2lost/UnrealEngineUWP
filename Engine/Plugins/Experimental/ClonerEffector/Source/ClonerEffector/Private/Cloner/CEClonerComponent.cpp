@@ -665,7 +665,7 @@ void UCEClonerComponent::UpdateDirtyMeshesAsync()
 
 	// Update baked dynamic meshes on other thread
 	TWeakObjectPtr<UCEClonerComponent> ThisWeak(this);
-	Async(EAsyncExecution::TaskGraph, [ThisWeak, DirtyAttachments]()
+	Async(EAsyncExecution::ThreadPool, [ThisWeak, DirtyAttachments]()
 	{
 		UCEClonerComponent* This = ThisWeak.Get();
 
@@ -1006,16 +1006,26 @@ void UCEClonerComponent::InitializeCloner()
 
 	SetAsset(nullptr);
 
-	OnLayoutNameChanged();
-
 #if WITH_EDITOR
 	OnVisualizerSpriteVisibleChanged();
+
+	const AActor* Owner = GetOwner();
+
+	// Skip init for preview actor
+	if (Owner && Owner->bIsEditorPreviewActor)
+	{
+		return;
+	}
 #endif
 
-	OnClonerInitializedDelegate.Broadcast(this);
-
-	/** Register a custom ticker to avoid using the component tick that needs the simulation to be solo */
+	// Register a custom ticker to avoid using the component tick that needs the simulation to be solo
+	TreeUpdateDeltaTime = TreeUpdateInterval;
 	RegisterTicker();
+
+	// Load layout after registering ticker to let attachment tree update, then layout rendering will occur with up to date attachment data
+	OnLayoutNameChanged();
+
+	OnClonerInitializedDelegate.Broadcast(this);
 }
 
 void UCEClonerComponent::RegisterTicker()
@@ -1617,7 +1627,11 @@ UCEClonerLayoutBase* UCEClonerComponent::FindOrAddLayout(FName InLayoutName)
 	if (!NewActiveLayout)
 	{
 		NewActiveLayout = Subsystem->CreateNewLayout(InLayoutName, this);
-		LayoutInstances.Add(NewActiveLayout);
+
+		if (NewActiveLayout)
+		{
+			LayoutInstances.Add(NewActiveLayout);
+		}
 	}
 
 	return NewActiveLayout;

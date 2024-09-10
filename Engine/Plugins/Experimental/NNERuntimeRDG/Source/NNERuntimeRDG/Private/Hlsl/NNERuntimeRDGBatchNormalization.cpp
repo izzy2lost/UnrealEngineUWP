@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGBatchNormalization.h"
+
 #include "NNEHlslShadersBatchNormalizationCS.h"
+#include "NNEHlslShadersLog.h"
 #include "NNERuntimeRDGHlslHelper.h"
 #include "NNEAttributeMap.h"
 #include "NNETypes.h"
@@ -46,7 +48,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (OutputTensorDescs.Num() > 1)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("BatchNormalization is only supported in inference mode at the moment, supporting no more than one output."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("BatchNormalization: Only supported in inference mode at the moment, supporting no more than one output."));
 				return false;
 			}
 			

@@ -34,7 +34,9 @@ FToolMenuEntry CreateShowHLODsSubmenu();
 FToolMenuEntry CreateShowLayersSubmenu();
 FToolMenuEntry CreateShowSpritesSubmenu();
 #if STATS
-FToolMenuEntry CreateShowStatsSubmenu();
+FToolMenuEntry CreateShowStatsSubmenu(
+	bool bInAddToggleStatsCheckbox = false, TAttribute<FText> InLabelOverride = TAttribute<FText>()
+);
 #endif
 FToolMenuEntry CreateShowVolumesSubmenu();
 FToolMenuEntry CreateViewportToolbarShowSubmenu();

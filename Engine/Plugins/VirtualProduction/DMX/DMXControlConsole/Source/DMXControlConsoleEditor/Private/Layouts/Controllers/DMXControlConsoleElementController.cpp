@@ -6,6 +6,7 @@
 #include "Algo/AnyOf.h"
 #include "Algo/Sort.h"
 #include "Algo/Transform.h"
+#include "DMXControlConsoleActor.h"
 #include "DMXControlConsoleFaderBase.h"
 #include "DMXControlConsoleFaderGroup.h"
 #include "DMXControlConsoleFaderGroupController.h"
@@ -352,6 +353,11 @@ void UDMXControlConsoleElementController::PostInitProperties()
 	Super::PostInitProperties();
 
 	UserName = GetName();
+
+	if (!ADMXControlConsoleActor::GetOnControlConsoleReset().IsBoundToObject(this))
+	{
+		ADMXControlConsoleActor::GetOnControlConsoleReset().AddUObject(this, &UDMXControlConsoleElementController::UpdateControllerValueByElements);
+	}
 }
 
 void UDMXControlConsoleElementController::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
@@ -398,6 +404,24 @@ TStatId UDMXControlConsoleElementController::GetStatId() const
 ETickableTickType UDMXControlConsoleElementController::GetTickableTickType() const
 {
 	return ETickableTickType::Conditional;
+}
+
+void UDMXControlConsoleElementController::UpdateControllerValueByElements()
+{
+	if (Elements.IsEmpty())
+	{
+		return;
+	}
+	
+	if (const UDMXControlConsoleFaderBase* FirstFader = Cast<UDMXControlConsoleFaderBase>(Elements[0].GetObject()))
+	{
+		const uint8 NumBytes = static_cast<uint8>(FirstFader->GetDataType()) + 1;
+		const float ValueRange = FMath::Pow(2.f, 8.f * NumBytes) - 1;
+		const float NormalizedValue = FirstFader->GetValue() / ValueRange;
+
+		constexpr bool bSyncElements = false;
+		SetValue(NormalizedValue, bSyncElements);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -298,14 +298,14 @@ struct FShadowPageTranslationResult
 };
 
 // Finds the best-resolution mapped page at the given UV
-FShadowPageTranslationResult ShadowVirtualToPhysicalUV(uint VirtualShadowMapID, float2 ShadowMapUV)
+FShadowPageTranslationResult ShadowVirtualToPhysicalUV(uint VirtualShadowMapID, float2 ShadowMapUV, uint MinMipLevel)
 {
 	uint2 vPage = uint2(ShadowMapUV * VSM_LEVEL0_DIM_PAGES_XY);
-	FShadowPhysicalPage PhysicalPageEntry = ShadowGetPhysicalPage(CalcPageOffset(VirtualShadowMapID, 0, vPage));
+	FShadowPhysicalPage PhysicalPageEntry = ShadowGetPhysicalPage(CalcPageOffset(VirtualShadowMapID, MinMipLevel, vPage >> MinMipLevel));
 
 	FShadowPageTranslationResult Result;
 	Result.bValid = PhysicalPageEntry.bAnyLODValid;
-	Result.LODOffset = IsSinglePageVirtualShadowMap(VirtualShadowMapID) ? (VSM_MAX_MIP_LEVELS - 1U) : PhysicalPageEntry.LODOffset;
+	Result.LODOffset = IsSinglePageVirtualShadowMap(VirtualShadowMapID) ? (VSM_MAX_MIP_LEVELS - 1U) : (PhysicalPageEntry.LODOffset + MinMipLevel);
 	// TODO: Can optimize this slightly based on relative offset
 	Result.VirtualTexelAddressFloat = ShadowMapUV * float(CalcLevelDimsTexels(Result.LODOffset));
 	Result.VirtualTexelAddress = uint2(Result.VirtualTexelAddressFloat);

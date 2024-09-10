@@ -165,7 +165,10 @@ namespace WorldHierarchy
 		virtual FText GetLockToolTipText() const = 0;
 
 		/** Gets the tooltip for this item's visibility icon */
-		virtual FText GetVisibilityToolTipText() const = 0;
+		virtual FText GetEditorVisibilityToolTipText() const = 0;
+		
+		/** Gets the tooltip for this item's visibility icon */
+		virtual FText GetGameVisibilityToolTipText() const = 0;
 
 		/** Gets the tooltip text for this item's save icon */
 		virtual FText GetSaveToolTipText() const = 0;
@@ -201,7 +204,8 @@ namespace WorldHierarchy
 
 	public:
 
-		virtual bool IsVisible() const = 0;
+		virtual bool IsVisibleInEditor() const = 0;
+		virtual bool IsVisibleInGame() const = 0;
 		virtual bool IsLocked() const = 0;
 
 		/** Can this item be saved? */
@@ -214,7 +218,10 @@ namespace WorldHierarchy
 		virtual bool HasLockControls() const { return true; }
 
 		/** Can visibility on this item be toggled? */
-		virtual bool HasVisibilityControls() const { return true; }
+		virtual bool HasEditorVisibilityControls() const { return true; }
+		
+		/** Can visibility on this item be toggled? */
+		virtual bool HasGameVisibilityControls() const { return true; }
 
 		/** Does this item have color button controls? */
 		virtual bool HasColorButtonControls() const { return false; }
@@ -255,9 +262,12 @@ namespace WorldHierarchy
 		virtual const FSlateBrush* GetHierarchyItemBrush() const { return nullptr; }
 		virtual float GetHierarchyItemBrushWidth() const { return 7.0f; }
 
-		virtual void OnToggleVisibility() {}
-		virtual void OnShowOnlySelected() {}
-		virtual void OnShowAllButSelected() {}
+		virtual void OnToggleEditorVisibility() {}
+		virtual void OnShowInEditorOnlySelected() {}
+		virtual void OnShowInEditorAllButSelected() {}
+		virtual void OnToggleGameVisibility() {}
+		virtual void OnShowInGameOnlySelected() {}
+		virtual void OnShowInGameAllButSelected() {}
 		virtual void PopulateLevelModelList(FLevelModelList& InModelList) {}
 		virtual void OnToggleLightingScenario() {}
 		virtual void OnLockOnlySelected() {}
@@ -272,8 +282,10 @@ namespace WorldHierarchy
 		/** Generates a context menu option for this item if and only if it's the only item selected in the hierarchy */
 		virtual void GenerateContextMenu(UToolMenu* Menu, const SWorldHierarchyImpl& Hierarchy) {}
 
-		/** Sets the item's visible status */
-		virtual void SetVisible(bool bVisible) = 0;
+		/** Sets the item's editor visible status */
+		virtual void SetVisibleInEditor(bool bVisible) = 0;
+		/** Sets the item's game visible status */
+		virtual void SetVisibleInGame(bool bVisible) = 0;
 
 		/** Sets the item's locked status */
 		virtual void SetLocked(bool bLocked) = 0;

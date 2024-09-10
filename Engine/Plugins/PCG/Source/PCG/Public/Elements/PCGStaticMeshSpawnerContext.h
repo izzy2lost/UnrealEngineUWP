@@ -20,11 +20,11 @@ struct FPCGInstancesAndWeights
 };
 
 USTRUCT(BlueprintType)
-struct FPCGStaticMeshSpawnerContext : public FPCGContext, public IPCGAsyncLoadingContext
+struct PCG_API FPCGStaticMeshSpawnerContext : public FPCGContext, public IPCGAsyncLoadingContext
 {
 	GENERATED_BODY()
 
-	struct FPackedInstanceListData
+	struct PCG_API FPackedInstanceListData
 	{
 		FPackedInstanceListData();
 		~FPackedInstanceListData();

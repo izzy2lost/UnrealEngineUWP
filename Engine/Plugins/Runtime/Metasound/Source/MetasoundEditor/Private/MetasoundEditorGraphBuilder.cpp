@@ -287,9 +287,10 @@ namespace Metasound
 					bool bIsClassNative = FMetasoundFrontendRegistryContainer::Get()->IsNodeNative(RegistryKey);
 					if (!bIsClassNative)
 					{
-						if (const FTopLevelAssetPath* Path = IMetaSoundAssetManager::GetChecked().FindAssetPath(RegistryKey))
+						const FTopLevelAssetPath Path = IMetaSoundAssetManager::GetChecked().FindAssetPath(RegistryKey);
+						if (Path.IsValid())
 						{
-							DisplayName = FText::FromName(Path->GetAssetName());
+							DisplayName = FText::FromName(Path.GetAssetName());
 						}
 					}
 				}

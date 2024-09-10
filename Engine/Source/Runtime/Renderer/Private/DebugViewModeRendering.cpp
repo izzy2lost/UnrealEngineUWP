@@ -235,7 +235,7 @@ void RenderDebugViewMode(FRDGBuilder& GraphBuilder, TArrayView<FViewInfo> Views,
 			{},
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[&View, PassParameters](FRHICommandList& RHICmdList)
+			[&View, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1);
 			View.ParallelMeshDrawCommandPasses[EMeshPass::DebugViewMode].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);

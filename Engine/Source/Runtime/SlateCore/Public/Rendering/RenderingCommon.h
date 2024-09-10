@@ -20,6 +20,7 @@
 #include "RenderingCommon.generated.h"
 
 class FRHICommandListImmediate;
+class FRHIBuffer;
 class FRDGBuilder;
 class FRDGTexture;
 class FSlateElementBatcher;
@@ -942,7 +943,10 @@ protected:
 	virtual ~ISlateUpdatableInstanceBufferRenderProxy() {};
 
 public:
-	virtual void BindStreamSource(class FRHICommandList& RHICmdList, int32 StreamIndex, uint32 InstanceOffset) = 0;
+	virtual FRHIBuffer* GetRHI() const = 0;
+
+	UE_DEPRECATED(5.5, "Use GetStreamSource instead")
+	virtual void BindStreamSource(class FRHICommandList& RHICmdList, int32 StreamIndex, uint32 InstanceOffset) {}
 };
 
 typedef TArray<FVector4f> FSlateInstanceBufferData;

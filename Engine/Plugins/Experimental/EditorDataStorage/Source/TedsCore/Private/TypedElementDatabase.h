@@ -15,7 +15,7 @@
 
 struct FMassEntityManager;
 struct FMassProcessingPhaseManager;
-class UTypedElementDataStorageFactory;
+class UEditorDataStorageFactory;
 class FOutputDevice;
 class UWorld;
 
@@ -27,7 +27,7 @@ namespace UE::Editor::DataStorage
 UCLASS()
 class TEDSCORE_API UEditorDataStorage
 	: public UObject
-	, public ITypedElementDataStorageInterface
+	, public IEditorDataStorageProvider
 {
 	GENERATED_BODY()
 
@@ -61,8 +61,8 @@ public:
 		int32 Index = 0;
 	};
 
-	using FactoryIterator = TFactoryIterator<UTypedElementDataStorageFactory, UEditorDataStorage>;
-	using FactoryConstIterator = TFactoryIterator<const UTypedElementDataStorageFactory, const UEditorDataStorage>;
+	using FactoryIterator = TFactoryIterator<UEditorDataStorageFactory, UEditorDataStorage>;
+	using FactoryConstIterator = TFactoryIterator<const UEditorDataStorageFactory, const UEditorDataStorage>;
 
 public:
 	~UEditorDataStorage() override = default;
@@ -78,7 +78,7 @@ public:
 	FactoryConstIterator CreateFactoryIterator() const;
 
 	/** Returns factory instance given the type of factory */
-	virtual const UTypedElementDataStorageFactory* FindFactory(const UClass* FactoryType) const override;
+	virtual const UEditorDataStorageFactory* FindFactory(const UClass* FactoryType) const override;
 	/** Helper for FindFactory(const UClass*) */
 	template<typename FactoryTypeT>
 	const FactoryTypeT* FindFactory() const;
@@ -191,7 +191,7 @@ private:
 		// Used to find the factory by type without needing to dereference each one
 		TObjectPtr<UClass> Type;
 		
-		TObjectPtr<UTypedElementDataStorageFactory> Instance;
+		TObjectPtr<UEditorDataStorageFactory> Instance;
 	};
 	
 	static const FName TickGroupName_Default;

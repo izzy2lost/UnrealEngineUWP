@@ -9,6 +9,9 @@
 #include "DMXControlConsoleFaderBase.h"
 #include "DMXControlConsoleFaderGroup.h"
 #include "Layouts/Controllers/DMXControlConsoleElementController.h"
+#include "Layouts/Controllers/DMXControlConsoleFaderGroupController.h"
+#include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
+#include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Misc/MessageDialog.h"
 #include "ScopedTransaction.h"
 
@@ -29,6 +32,11 @@ namespace UE::DMX::Private
 	UDMXControlConsoleEditorData* FDMXControlConsoleCueStackModel::GetControlConsoleEditorData() const
 	{
 		return WeakControlConsole.IsValid() ? Cast<UDMXControlConsoleEditorData>(WeakControlConsole->ControlConsoleEditorData) : nullptr;
+	}
+
+	UDMXControlConsoleEditorLayouts* FDMXControlConsoleCueStackModel::GetControlConsoleEditorLayouts() const
+	{
+		return WeakControlConsole.IsValid() ? Cast<UDMXControlConsoleEditorLayouts>(WeakControlConsole->ControlConsoleEditorLayouts) : nullptr;
 	}
 
 	UDMXControlConsoleCueStack* FDMXControlConsoleCueStackModel::GetControlConsoleCueStack() const
@@ -65,7 +73,9 @@ namespace UE::DMX::Private
 		UDMXControlConsoleEditorData* ControlConsoleEditorData = GetControlConsoleEditorData();
 		const UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData();
 		UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
-		if (!ControlConsoleEditorData || !ControlConsoleCueStack)
+		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = GetControlConsoleEditorLayouts();
+		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
+		if (!ControlConsoleEditorData || !ControlConsoleCueStack || !ActiveLayout)
 		{
 			return;
 		}
@@ -74,7 +84,13 @@ namespace UE::DMX::Private
 		const TArray<UDMXControlConsoleFaderGroup*> AllFaderGroups = ControlConsoleData->GetAllFaderGroups();
 		for (const UDMXControlConsoleFaderGroup* FaderGroup : AllFaderGroups)
 		{
-			if (FaderGroup)
+			if (!FaderGroup)
+			{
+				continue;
+			}
+
+			const UDMXControlConsoleFaderGroupController* FaderGroupController = Cast<UDMXControlConsoleFaderGroupController>(FaderGroup->GetFaderGroupController());
+			if (FaderGroupController && ActiveLayout->ContainsFaderGroupController(FaderGroupController) && FaderGroupController->IsActive())
 			{
 				FadersToCue.Append(FaderGroup->GetAllFaders());
 			}
@@ -105,7 +121,9 @@ namespace UE::DMX::Private
 	{
 		const UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData();
 		UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
-		if (!ControlConsoleCueStack)
+		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = GetControlConsoleEditorLayouts();
+		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
+		if (!ControlConsoleCueStack || !ActiveLayout)
 		{
 			return;
 		}
@@ -121,7 +139,13 @@ namespace UE::DMX::Private
 		const TArray<UDMXControlConsoleFaderGroup*> AllFaderGroups = ControlConsoleData->GetAllFaderGroups();
 		for (const UDMXControlConsoleFaderGroup* FaderGroup : AllFaderGroups)
 		{
-			if (FaderGroup)
+			if (!FaderGroup)
+			{
+				continue;
+			}
+
+			const UDMXControlConsoleFaderGroupController* FaderGroupController = Cast<UDMXControlConsoleFaderGroupController>(FaderGroup->GetFaderGroupController());
+			if (FaderGroupController && ActiveLayout->ContainsFaderGroupController(FaderGroupController) && FaderGroupController->IsActive())
 			{
 				FadersToCue.Append(FaderGroup->GetAllFaders());
 			}

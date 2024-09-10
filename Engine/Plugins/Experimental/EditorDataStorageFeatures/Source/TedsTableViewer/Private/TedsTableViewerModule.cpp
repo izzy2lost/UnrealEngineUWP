@@ -70,7 +70,7 @@ public:
 			return SNullWidget::NullWidget;
 		}
 
-		ITypedElementDataStorageInterface* DataStorage = Registry->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = Registry->GetMutableDataStorage();
 
 		using namespace UE::Editor::DataStorage::Queries;
 
@@ -85,7 +85,7 @@ public:
 		Rows.Empty();
 		
 		UE::Editor::DataStorage::FQueryResult QueryResult = DataStorage->RunQuery(QueryHandle,
-			CreateDirectQueryCallbackBinding([this](const ITypedElementDataStorageInterface::IDirectQueryContext& Context, const UE::Editor::DataStorage::RowHandle* RowHandles)
+			CreateDirectQueryCallbackBinding([this](const IEditorDataStorageProvider::IDirectQueryContext& Context, const UE::Editor::DataStorage::RowHandle* RowHandles)
 			{
 				Rows.Append(RowHandles, Context.GetRowCount());
 			}));

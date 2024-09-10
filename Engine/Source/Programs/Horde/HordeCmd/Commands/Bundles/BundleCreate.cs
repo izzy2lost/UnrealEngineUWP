@@ -5,7 +5,6 @@ using System.Diagnostics;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
-using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Logging;
 
@@ -34,8 +33,8 @@ namespace Horde.Commands.Bundles
 		[Description("Clean the output folder before writing any data")]
 		public bool CleanOutput { get; set; }
 
-		public BundleCreate(HttpStorageClientFactory storageClientFactory, BundleCache bundleCache)
-			: base(storageClientFactory, bundleCache)
+		public BundleCreate(HttpStorageClient storageClient, BundleCache bundleCache)
+			: base(storageClient, bundleCache)
 		{
 		}
 
@@ -50,12 +49,12 @@ namespace Horde.Commands.Bundles
 			if (File != null)
 			{
 				using MemoryMappedFileCache memoryMappedFileCache = new MemoryMappedFileCache();
-				IStorageClient store = BundleStorageClient.CreateFromDirectory(File.Directory, BundleCache, memoryMappedFileCache, logger);
+				IStorageNamespace store = BundleStorageNamespace.CreateFromDirectory(File.Directory, BundleCache, memoryMappedFileCache, logger);
 				return await ExecuteInternalAsync(store, logger);
 			}
 			else if (!String.IsNullOrEmpty(Ref))
 			{
-				IStorageClient store = CreateStorageClient();
+				IStorageNamespace store = GetStorageNamespace();
 				return await ExecuteInternalAsync(store, logger);
 			}
 			else
@@ -64,7 +63,7 @@ namespace Horde.Commands.Bundles
 			}
 		}
 
-		async Task<int> ExecuteInternalAsync(IStorageClient store, ILogger logger)
+		async Task<int> ExecuteInternalAsync(IStorageNamespace store, ILogger logger)
 		{
 			// Gather the input files
 			DirectoryReference baseDir;

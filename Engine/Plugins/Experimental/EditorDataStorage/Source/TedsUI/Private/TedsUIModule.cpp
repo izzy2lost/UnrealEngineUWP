@@ -10,7 +10,7 @@
 
 #define LOCTEXT_NAMESPACE "TedsUIModule"
 
-namespace UE::TypedElementsDataStorageUI::Private
+namespace UE::Editor::DataStorage::Private
 {
 	FAutoConsoleCommandWithOutputDevice PrintWidgetPurposesConsoleCommand(
 	TEXT("TEDS.UI.PrintWidgetPurposes"),
@@ -18,11 +18,11 @@ namespace UE::TypedElementsDataStorageUI::Private
 	FConsoleCommandWithOutputDeviceDelegate::CreateLambda([](FOutputDevice& Output)
 		{
 			UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-			if (ITypedElementDataStorageUiInterface* UiStorage = Registry->GetMutableDataStorageUi())
+			if (IEditorDataStorageUiProvider* UiStorage = Registry->GetMutableDataStorageUi())
 			{
 				Output.Log(TEXT("The Typed Elements Data Storage has recorded the following widget purposes:"));
 				UiStorage->ListWidgetPurposes(
-					[&Output](FName Purpose, ITypedElementDataStorageUiInterface::EPurposeType, const FText& Description)
+					[&Output](FName Purpose, IEditorDataStorageUiProvider::EPurposeType, const FText& Description)
 					{
 						Output.Logf(TEXT("    %s - %s"), *Purpose.ToString(), *Description.ToString());
 					});
@@ -36,7 +36,7 @@ namespace UE::TypedElementsDataStorageUI::Private
 		bUseNewTEDSUIWidgets,
 		TEXT("If true, TEDS UI will use new attribute binding driven widgets (needs to be set at startup)")
 	);
-}
+} // namespace UE::Editor::DataStorage::Private
 
 void FTedsUIModule::StartupModule()
 {

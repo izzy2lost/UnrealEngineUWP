@@ -963,6 +963,11 @@ void UK2Node_Event::FindDiffs(UEdGraphNode* OtherNode, struct FDiffResults& Resu
 	}
 }
 
+UEdGraphPin* UK2Node_Event::GetDelegatePin() const
+{
+	return FindPinChecked(DelegateOutputName);
+}
+
 bool UK2Node_Event::AreEventNodesIdentical(const UK2Node_Event* InNodeA, const UK2Node_Event* InNodeB)
 {
 	return InNodeA->EventReference.GetMemberName() == InNodeB->EventReference.GetMemberName()

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "OptimusDataType.h"
 #include "ComputeFramework/ComputeDataInterface.h"
 
 #include "Templates/SubclassOf.h"
@@ -123,6 +124,12 @@ struct FOptimusCDIPinDefinition
 	bool bMutable = true;
 };
 
+struct FOptimusCDIPropertyPinDefinition
+{
+	FName PinName = NAME_None;
+
+	FOptimusDataTypeRef DataType; 
+};
 
 UCLASS(Abstract, Const)
 class OPTIMUSCORE_API UOptimusComputeDataInterface : public UComputeDataInterface
@@ -147,8 +154,11 @@ public:
 	virtual FName GetCategory() const { return CategoryName::DataInterfaces; }
 
 	/// Returns the list of pins that will map to the shader functions provided by this data interface.
-	virtual TArray<FOptimusCDIPinDefinition> GetPinDefinitions() const PURE_VIRTUAL(UOptimusComputeDataInterface::GetDisplayName, return {};)
+	virtual TArray<FOptimusCDIPinDefinition> GetPinDefinitions() const PURE_VIRTUAL(UOptimusComputeDataInterface::GetPinDefinitions, return {};)
 
+	/// Returns the list of pins that are related to the properties of the data interface.
+	virtual TArray<FOptimusCDIPropertyPinDefinition> GetPropertyPinDefinitions() const { return {}; }
+	
 	/// Data interface can use this to set default values/pins
 	virtual void Initialize() {};
 

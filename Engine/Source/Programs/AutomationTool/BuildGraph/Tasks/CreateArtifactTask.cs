@@ -191,7 +191,7 @@ namespace AutomationTool.Tasks
 			Logger.LogInformation("Creating artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with namespace {NamespaceId}, ref {RefName} ({Link})", artifact.Id, name, type, artifact.NamespaceId, artifact.RefName, $"{hordeClient.ServerUrl}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
 
 			// Upload the files
-			IStorageClient storage = hordeClient.CreateStorageClient(artifact.NamespaceId);
+			IStorageNamespace storage = hordeClient.GetStorageNamespace(artifact.NamespaceId);
 			Stopwatch timer = Stopwatch.StartNew();
 
 			IHashedBlobRef<DirectoryNode> rootRef;

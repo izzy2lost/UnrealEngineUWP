@@ -86,7 +86,7 @@ void FNiagaraGpuReadbackManager::EnqueueReadback(FRDGBuilder& GraphBuilder, FRDG
 
 	AddReadbackBufferPass(
 		GraphBuilder, RDG_EVENT_NAME("NiagaraReadback"), Buffer,
-		[Buffer, ReadbackBuffer=Readback.StagingBuffers[0].Key, Offset, NumBytes, Fence=Readback.Fence](FRHICommandList& RHICmdList)
+		[Buffer, ReadbackBuffer=Readback.StagingBuffers[0].Key, Offset, NumBytes, Fence=Readback.Fence](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RHICmdList.CopyToStagingBuffer(Buffer->GetRHI(), ReadbackBuffer, Offset, NumBytes);
 			RHICmdList.WriteGPUFence(Fence);
@@ -117,7 +117,7 @@ void FNiagaraGpuReadbackManager::EnqueueReadbacks(FRDGBuilder& GraphBuilder, TCo
 		const bool bWriteFence = i == Buffers.Num() - 1;
 		AddReadbackBufferPass(
 			GraphBuilder, RDG_EVENT_NAME("NiagaraReadback"), Buffer,
-			[Buffer, ReadbackBuffer, Offset=0, NumBytes, Fence=bWriteFence ? Readback.Fence : nullptr](FRHICommandListImmediate& RHICmdList)
+			[Buffer, ReadbackBuffer, Offset=0, NumBytes, Fence=bWriteFence ? Readback.Fence : nullptr](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				RHICmdList.CopyToStagingBuffer(Buffer->GetRHI(), ReadbackBuffer, Offset, NumBytes);
 				if (Fence != nullptr)
@@ -154,7 +154,7 @@ void FNiagaraGpuReadbackManager::EnqueueReadbacks(FRDGBuilder& GraphBuilder, TCo
 		const bool bWriteFence = i == BufferRequests.Num() - 1;
 		AddReadbackBufferPass(
 			GraphBuilder, RDG_EVENT_NAME("NiagaraReadback"), Buffer,
-			[Buffer, ReadbackBuffer, Offset = 0, NumBytes, Fence=bWriteFence ? Readback.Fence : nullptr](FRHICommandListImmediate& RHICmdList)
+			[Buffer, ReadbackBuffer, Offset = 0, NumBytes, Fence=bWriteFence ? Readback.Fence : nullptr](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				RHICmdList.CopyToStagingBuffer(Buffer->GetRHI(), ReadbackBuffer, Offset, NumBytes);
 				if (Fence != nullptr)

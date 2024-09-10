@@ -31,7 +31,7 @@ TSharedRef<ISequencerSection> FParticleParameterTrackEditor::MakeSectionInterfac
 	UMovieSceneParameterSection* ParameterSection = Cast<UMovieSceneParameterSection>(&SectionObject);
 	checkf( ParameterSection != nullptr, TEXT("Unsupported section type.") );
 
-	return MakeShareable(new FParameterSection( *ParameterSection ));
+	return MakeShareable(new FParameterSection( *ParameterSection, GetSequencer() ));
 }
 
 

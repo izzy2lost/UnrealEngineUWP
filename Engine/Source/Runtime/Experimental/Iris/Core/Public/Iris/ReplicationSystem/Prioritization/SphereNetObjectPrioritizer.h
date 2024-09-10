@@ -10,7 +10,7 @@
 
 class FMemStackBase;
 
-UCLASS(transient, config=Engine)
+UCLASS(transient, config=Engine, MinimalAPI)
 class USphereNetObjectPrioritizerConfig : public UNetObjectPrioritizerConfig
 {
 	GENERATED_BODY()

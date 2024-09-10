@@ -30,10 +30,10 @@ namespace JobDriver.Commands.Execution
 		[CommandLine("-WorkingDir=", Required = true)]
 		public DirectoryReference WorkingDir { get; set; } = null!;
 
-		readonly IHordeClientFactory _hordeClientFactory;
+		readonly HordeClientFactory _hordeClientFactory;
 		readonly IOptions<DriverSettings> _driverSettings;
 
-		public ExecuteConformCommand(IHordeClientFactory hordeClientFactory, IOptions<DriverSettings> driverSettings)
+		public ExecuteConformCommand(HordeClientFactory hordeClientFactory, IOptions<DriverSettings> driverSettings)
 		{
 			_hordeClientFactory = hordeClientFactory;
 			_driverSettings = driverSettings;
@@ -45,7 +45,7 @@ namespace JobDriver.Commands.Execution
 
 			ConformTask conformTask = ConformTask.Parser.ParseFrom(Convert.FromBase64String(Task));
 
-			IHordeClient hordeClient = _hordeClientFactory.Create();
+			await using HordeClient hordeClient = _hordeClientFactory.Create();
 
 			ConformExecutor conformExecutor = new ConformExecutor(hordeClient, WorkingDir, AgentId, LeaseId, conformTask, _driverSettings.Value, logger);
 			await conformExecutor.ExecuteAsync(CancellationToken.None);

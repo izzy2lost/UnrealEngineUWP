@@ -1222,6 +1222,7 @@ void SNiagaraAddEmitterToSystemWindow::Construct(const FArguments& InArgs, TShar
 		   [
 			   SNew(SButton)
 			   .OnClicked(this, &SNiagaraAddEmitterToSystemWindow::AddEmptyEmitter)
+			   .ToolTipText(FNiagaraEditorUtilities::Tooltips::GetMinimalEmitterCreationTooltip())
 			   [
 				   SNew(SHorizontalBox)
 				   + SHorizontalBox::Slot()
@@ -1235,7 +1236,7 @@ void SNiagaraAddEmitterToSystemWindow::Construct(const FArguments& InArgs, TShar
 				   .AutoWidth()
 				   .Padding(2.f)
 				   [
-					   SNew(STextBlock).Text(FText::FormatOrdered(LOCTEXT("AddEmptyEmitterButtonLabel", "Add Empty {0}"), UNiagaraEmitter::StaticClass()->GetDisplayNameText()))
+					   SNew(STextBlock).Text(FText::FormatOrdered(LOCTEXT("AddEmptyEmitterButtonLabel", "Add Minimal {0}"), UNiagaraEmitter::StaticClass()->GetDisplayNameText()))
 				   ]
 			   ]
 		   ]
@@ -1283,7 +1284,7 @@ void SNiagaraAddEmitterToSystemWindow::OnAssetsActivatedInternal(const TArray<FA
 	{
 		if(AssetData.Num() == 0)
 		{
-			WeakSystemViewModel.Pin()->AddDefaultEmptyEmitter();
+			WeakSystemViewModel.Pin()->AddMinimalEmitter();
 		}
 		else
 		{

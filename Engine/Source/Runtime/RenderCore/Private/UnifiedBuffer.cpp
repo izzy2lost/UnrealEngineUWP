@@ -1482,7 +1482,7 @@ RENDERCORE_API bool ResizeResourceSOAIfNeeded(FRDGBuilder& GraphBuilder, FRWBuff
 		NewBuffer.Initialize(GraphBuilder.RHICmdList, DebugName, BytesPerElement, NumElements);
 
 		AddPass(GraphBuilder, RDG_EVENT_NAME("ResizeResourceSOAIfNeeded"), 
-			[OldBuffer, NewBuffer, NumElements, NumElementsOld, Params](FRHICommandListImmediate& RHICmdList)
+			[OldBuffer, NewBuffer, NumElements, NumElementsOld, Params](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RHICmdList.Transition({
 				FRHITransitionInfo(OldBuffer.UAV, ERHIAccess::Unknown, ERHIAccess::SRVCompute),
@@ -1518,7 +1518,7 @@ template <typename FBufferType>
 void AddCopyBufferPass(FRDGBuilder& GraphBuilder, const FBufferType &NewBuffer, const FBufferType &OldBuffer, uint32 ElementSize)
 {
 	AddPass(GraphBuilder, RDG_EVENT_NAME("ResizeResourceIfNeeded-Copy"), 
-		[OldBuffer, NewBuffer, ElementSize](FRHICommandListImmediate& RHICmdList)
+		[OldBuffer, NewBuffer, ElementSize](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		RHICmdList.Transition({
 			FRHITransitionInfo(OldBuffer.UAV, ERHIAccess::Unknown, ERHIAccess::SRVCompute),

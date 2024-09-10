@@ -76,8 +76,8 @@ struct TStructOpsTypeTraits<FDMXByteArray64>
 	};
 };
 
-
-USTRUCT(BlueprintType)
+struct UE_DEPRECATED(5.5, "This stuct had no specific use and is now deprecated.") FDMXRequestBase;
+USTRUCT(BlueprintType, meta = (Deprecated = "Deprecated 5.5. This stuct had no specific use and is now deprecated."))
 struct FDMXRequestBase
 {
 	GENERATED_BODY()
@@ -89,7 +89,9 @@ public:
 
 };
 
-USTRUCT(BlueprintType)
+struct UE_DEPRECATED(5.5, "This stuct had no specific use and is now deprecated.") FDMXRequest;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+USTRUCT(BlueprintType, meta = (Deprecated = "Deprecated 5.5. This stuct had no specific use and is now deprecated."))
 struct FDMXRequest : public FDMXRequestBase
 {
 	GENERATED_BODY()
@@ -100,8 +102,11 @@ public:
 	TSubclassOf<UDMXLibrary> DMXLibrary;
 
 };
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-USTRUCT(BlueprintType)
+struct UE_DEPRECATED(5.5, "This stuct had no specific use and is now deprecated.") FDMXRawArtNetRequest;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+USTRUCT(BlueprintType, meta = (Deprecated = "Deprecated 5.5. This stuct had no specific use and is now deprecated."))
 struct FDMXRawArtNetRequest : public FDMXRequestBase
 {
 	GENERATED_BODY()
@@ -121,8 +126,11 @@ public:
 	int32 Address = 1;
 
 };
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-USTRUCT(BlueprintType)
+struct UE_DEPRECATED(5.5, "This stuct had no specific use and is now deprecated.") FDMXRawSACN;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+USTRUCT(BlueprintType, meta = (Deprecated = "Deprecated 5.5. This stuct had no specific use and is now deprecated."))
 struct FDMXRawSACN : public FDMXRequestBase
 {
 	GENERATED_BODY()
@@ -135,3 +143,4 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DMX|RawRequest", meta = (ClampMin = 0, ClampMax = 512, UIMin = 0, UIMax = 512))
 	int32 Address = 0;
 };
+PRAGMA_ENABLE_DEPRECATION_WARNINGS

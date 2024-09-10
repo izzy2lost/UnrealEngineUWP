@@ -10,8 +10,8 @@ class SNiagaraSystemViewport;
 namespace UE::NiagaraSystemEditor
 {
 TSharedRef<SWidget> CreateShowMenuWidget(const TSharedRef<SNiagaraSystemViewport>& InNiagaraSystemEditorViewport, bool bInShowViewportStatsToggle = true);
-FToolMenuEntry CreateShowSubmenu(const TWeakPtr<SNiagaraSystemViewport>& InNiagaraSystemEditorViewport);
+FToolMenuEntry CreateShowSubmenu();
 
 TSharedRef<SWidget> CreateMotionMenuWidget(const TSharedRef<SNiagaraSystemViewport>& InNiagaraSystemEditorViewport);
-FToolMenuEntry CreateSettingsSubmenu(const TWeakPtr<SNiagaraSystemViewport>& InNiagaraSystemEditorViewport);
+FToolMenuEntry CreateSettingsSubmenu();
 }

@@ -10,6 +10,7 @@ class UDMXControlConsole;
 class UDMXControlConsoleCueStack;
 class UDMXControlConsoleData;
 class UDMXControlConsoleEditorData;
+class UDMXControlConsoleEditorLayouts;
 
 
 namespace UE::DMX::Private
@@ -27,6 +28,9 @@ namespace UE::DMX::Private
 
 		/** Gets a reference to the control console editor data */
 		UDMXControlConsoleEditorData* GetControlConsoleEditorData() const;
+
+		/** Gets a reference to the control console editor layouts */
+		UDMXControlConsoleEditorLayouts* GetControlConsoleEditorLayouts() const;
 
 		/** Gets a reference to the control console cue stack */
 		UDMXControlConsoleCueStack* GetControlConsoleCueStack() const;

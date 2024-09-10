@@ -112,15 +112,15 @@ namespace EpicGames.Horde.Storage.Backends
 
 		/// <inheritdoc/>
 		public Task AddAliasAsync(string name, BlobLocator locator, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
-			=> throw new NotSupportedException("File storage client does not currently support aliases.");
+			=> throw new NotSupportedException("File storage backend does not currently support aliases.");
 
 		/// <inheritdoc/>
 		public Task RemoveAliasAsync(string name, BlobLocator locator, CancellationToken cancellationToken = default)
-			=> throw new NotSupportedException("File storage client does not currently support aliases.");
+			=> throw new NotSupportedException("File storage backend does not currently support aliases.");
 
 		/// <inheritdoc/>
 		public Task<BlobAliasLocator[]> FindAliasesAsync(string alias, int? maxResults = null, CancellationToken cancellationToken = default)
-			=> throw new NotSupportedException("File storage client does not currently support aliases.");
+			=> throw new NotSupportedException("File storage backend does not currently support aliases.");
 
 		#endregion
 

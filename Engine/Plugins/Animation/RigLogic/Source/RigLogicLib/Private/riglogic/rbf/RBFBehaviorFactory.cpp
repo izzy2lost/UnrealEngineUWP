@@ -53,7 +53,7 @@ RBFBehaviorEvaluator::Pointer createRBFEvaluator(const Configuration& config, co
 
 RBFBehavior::Pointer RBFBehaviorFactory::create(const Configuration& config, const dna::Reader* reader, MemoryResource* memRes) {
     auto moduleFactory = UniqueInstance<RBFBehavior>::with(memRes);
-    if (!config.loadRBFBehavior || (reader->getRBFSolverCount() == 0u) || (reader->getRBFPoseCount() == 0u)) {
+    if (!config.loadRBFBehavior || (reader->getRBFSolverCount() == 0u) || (reader->getRBFPoseControlCount() == 0u)) {
         auto evaluator =
             UniqueInstance<RBFBehaviorNullEvaluator, RBFBehaviorEvaluator>::with(memRes).create();
         return moduleFactory.create(std::move(evaluator));

@@ -30,6 +30,7 @@
 #include "SceneInterface.h"
 #include "StaticMeshComponentLODInfo.h"
 #include "Stats/StatsTrace.h"
+#include "SkinningDefinitions.h"
 
 #include "ComponentRecreateRenderStateContext.h"
 #include "StaticMeshSceneProxyDesc.h"
@@ -652,7 +653,7 @@ bool FSceneProxyBase::SupportsAlwaysVisible() const
 #endif
 }
 
-FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshSceneProxyDesc& ProxyDesc, bool InbIsInstancedMesh)
+FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshSceneProxyDesc& ProxyDesc, const TSharedPtr<FInstanceDataSceneProxy, ESPMode::ThreadSafe>& InInstanceDataSceneProxy)
 : FSceneProxyBase(ProxyDesc)
 , MeshInfo(ProxyDesc)
 , RenderData(ProxyDesc.GetStaticMesh()->GetRenderData())
@@ -670,6 +671,14 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 #endif
 {
 	LLM_SCOPE_BYTAG(Nanite);
+
+	const bool bIsInstancedMesh = InInstanceDataSceneProxy.IsValid();
+	if (bIsInstancedMesh)
+	{
+		// Nanite supports the GPUScene instance data buffer.
+		InstanceDataSceneProxy = InInstanceDataSceneProxy;
+		SetupInstanceSceneDataBuffers(InstanceDataSceneProxy->GeInstanceSceneDataBuffers());
+	}
 
 	Resources = ProxyDesc.GetNaniteResources();
 
@@ -705,8 +714,6 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 	bEvaluateWorldPositionOffset = ProxyDesc.bEvaluateWorldPositionOffset;
 	
 	MaterialSections.SetNum(MeshSections.Num());
-
-	const bool bIsInstancedMesh = InbIsInstancedMesh;
 
 	for (int32 SectionIndex = 0; SectionIndex < MeshSections.Num(); ++SectionIndex)
 	{
@@ -836,7 +843,7 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 	}
 #endif
 
-	FilterFlags = EFilterFlags::StaticMesh;
+	FilterFlags = bIsInstancedMesh ? EFilterFlags::InstancedStaticMesh : EFilterFlags::StaticMesh;
 	FilterFlags |= ProxyDesc.Mobility == EComponentMobility::Static ? EFilterFlags::StaticMobility : EFilterFlags::NonStaticMobility;
 
 	bReverseCulling = ProxyDesc.bReverseCulling;
@@ -849,16 +856,12 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 }
 
 FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FInstancedStaticMeshSceneProxyDesc& InProxyDesc)
-	: FSceneProxy(MaterialAudit, InProxyDesc, true)
+	: FSceneProxy(MaterialAudit, InProxyDesc, InProxyDesc.InstanceDataSceneProxy)
 {
 	LLM_SCOPE_BYTAG(Nanite);
 
 	// Nanite meshes do not deform internally
 	bHasDeformableMesh = false;
-
-	// Nanite supports the GPUScene instance data buffer.
-	InstanceDataSceneProxy = InProxyDesc.InstanceDataSceneProxy;
-	SetupInstanceSceneDataBuffers(InstanceDataSceneProxy->GeInstanceSceneDataBuffers());
 
 #if WITH_EDITOR
 	const bool bSupportInstancePicking = HasPerInstanceHitProxies() && SMInstanceElementDataUtil::SMInstanceElementsEnabled();
@@ -877,13 +880,10 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FInstancedSt
 #endif
 
 	EndCullDistance = InProxyDesc.InstanceEndCullDistance;
-
-	FilterFlags = EFilterFlags::InstancedStaticMesh;
-	FilterFlags |= InProxyDesc.Mobility == EComponentMobility::Static ? EFilterFlags::StaticMobility : EFilterFlags::NonStaticMobility;
 }
 
-FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UStaticMeshComponent* Component)
-	: FSceneProxy(MaterialAudit, FStaticMeshSceneProxyDesc(Component))
+FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UStaticMeshComponent* Component, const TSharedPtr<FInstanceDataSceneProxy, ESPMode::ThreadSafe>& InInstanceDataSceneProxy)
+	: FSceneProxy(MaterialAudit, FStaticMeshSceneProxyDesc(Component), InInstanceDataSceneProxy)
 {
 }
 
@@ -1390,8 +1390,12 @@ void FSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>& Views,
 			const bool bDrawSimpleWireframeCollision = (EngineShowFlags.Collision && IsCollisionEnabled() && CollisionTraceFlag != ECollisionTraceFlag::CTF_UseComplexAsSimple); 
 
 			const FInstanceSceneDataBuffers *InstanceSceneDataBuffers = GetInstanceSceneDataBuffers();
-			// Note: this will return 1 for the non-instanced case.
-			const int32 InstanceCount = InstanceSceneDataBuffers ? InstanceSceneDataBuffers->GetNumInstances() : 1;
+
+			int32 InstanceCount = 1;
+			if (InstanceSceneDataBuffers)
+			{
+				InstanceCount = InstanceSceneDataBuffers->IsInstanceDataGPUOnly() ? 0 : InstanceSceneDataBuffers->GetNumInstances();
+			}
 
 			for (int32 InstanceIndex = 0; InstanceIndex < InstanceCount; InstanceIndex++)
 			{
@@ -1736,7 +1740,7 @@ void FSceneProxy::ReleaseDynamicRayTracingGeometries()
 	DynamicRayTracingGeometries.Empty();
 }
 
-void FSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances)
+void FSceneProxy::GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector)
 {
 	check(!IsRayTracingStaticRelevant());
 
@@ -1767,7 +1771,7 @@ void FSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringCont
 	FRayTracingGeometry* DynamicGeometry = &DynamicRayTracingGeometries[ValidLODIndex];
 
 	// Setup a new instance
-	FRayTracingInstance& RayTracingInstance = OutRayTracingInstances.Emplace_GetRef();
+	FRayTracingInstance RayTracingInstance;
 	RayTracingInstance.Geometry = DynamicGeometry;
 
 	const FInstanceSceneDataBuffers* InstanceSceneDataBuffers = GetInstanceSceneDataBuffers();
@@ -1800,10 +1804,12 @@ void FSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringCont
 
 	RayTracingInstance.MaterialsView = CachedRayTracingMaterials;
 
+	Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
+
 	// Use the shared vertex buffer - needs to be updated every frame
 	FRWBuffer* VertexBuffer = nullptr;
 
-	Context.DynamicRayTracingGeometriesToUpdate.Add(
+	Collector.AddRayTracingGeometryUpdate(
 		FRayTracingDynamicGeometryUpdateParams
 		{
 			CachedRayTracingMaterials,
@@ -2087,12 +2093,20 @@ uint32 FSceneProxy::GetMemoryFootprint() const
 	return sizeof( *this ) + GetAllocatedSize();
 }
 
-FSkinnedSceneProxy::FSkinnedSceneProxy(const FMaterialAudit& MaterialAudit, USkinnedMeshComponent* InComponent, FSkeletalMeshRenderData* InRenderData)
+static FGuid AnimRuntimeId(ANIM_RUNTIME_TRANSFORM_PROVIDER_GUID);
+
+FSkinnedSceneProxy::FSkinnedSceneProxy(
+	const FMaterialAudit& MaterialAudit,
+	USkinnedMeshComponent* InComponent,
+	FSkeletalMeshRenderData* InRenderData,
+	bool bAllowScaling
+)
 : FSceneProxyBase(InComponent)
 , SkinnedAsset(InComponent->GetSkinnedAsset())
 , Resources(InComponent->GetNaniteResources())
 , RenderData(InRenderData)
 , MeshObject(InComponent->MeshObject)
+, TransformProviderId(AnimRuntimeId)
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 , DebugDrawColor(InComponent->GetDebugDrawColor())
 , bDrawDebugSkeleton(InComponent->ShouldDrawDebugSkeleton())
@@ -2146,6 +2160,8 @@ FSkinnedSceneProxy::FSkinnedSceneProxy(const FMaterialAudit& MaterialAudit, USki
 
 	bHasScale = false;
 
+	const bool bRemoveScale = !bAllowScaling;
+
 	for (int32 BoneIndex = 0; BoneIndex < MaxBoneTransformCount; ++BoneIndex)
 	{
 		struct FPackedBone
@@ -2161,7 +2177,11 @@ FSkinnedSceneProxy::FSkinnedSceneProxy(const FMaterialAudit& MaterialAudit, USki
 		Packed.BoneDepth			= uint16(BoneDepth);
 		BoneHierarchy[BoneIndex]	= *reinterpret_cast<uint32*>(&Packed);
 
-		if (!FMath::IsNearlyEqual((float)ComponentTransforms[BoneIndex].GetDeterminant(), 1.0f, UE_KINDA_SMALL_NUMBER))
+		if (bRemoveScale)
+		{
+			ComponentTransforms[BoneIndex].RemoveScaling();
+		}
+		else if (!bHasScale && !FMath::IsNearlyEqual((float)ComponentTransforms[BoneIndex].GetDeterminant(), 1.0f, UE_KINDA_SMALL_NUMBER))
 		{
 			bHasScale = true;
 		}
@@ -2502,7 +2522,7 @@ void FSkinnedSceneProxy::DebugDrawSkeleton(int32 ViewIndex, FMeshElementCollecto
 }
 
 #if RHI_RAYTRACING
-void FSkinnedSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<struct FRayTracingInstance>& OutRayTracingInstances)
+void FSkinnedSceneProxy::GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector)
 {
 	if (!CVarRayTracingNaniteSkinnedProxyMeshes.GetValueOnRenderThread())
 	{
@@ -2514,7 +2534,7 @@ void FSkinnedSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGather
 		return;
 	}
 
-	MeshObject->QueuePendingRayTracingGeometryUpdate(Context.RHICmdList);
+	MeshObject->QueuePendingRayTracingGeometryUpdate(Collector.GetRHICommandList());
 
 	FRayTracingGeometry* RayTracingGeometry = MeshObject->GetRayTracingGeometry();
 
@@ -2528,7 +2548,7 @@ void FSkinnedSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGather
 		check(LODData.RenderSections.Num() > 0);		
 		check(LODData.RenderSections.Num() == RayTracingGeometry->Initializer.Segments.Num());
 
-		FRayTracingInstance& RayTracingInstance = OutRayTracingInstances.Emplace_GetRef();
+		FRayTracingInstance RayTracingInstance;
 		RayTracingInstance.Geometry = RayTracingGeometry;
 		RayTracingInstance.InstanceTransformsView = MakeArrayView(&GetLocalToWorld(), 1);
 		RayTracingInstance.NumTransforms = 1;
@@ -2562,7 +2582,7 @@ void FSkinnedSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGather
 		/*
 		TODO: Support WPO
 
-		Context.DynamicRayTracingGeometriesToUpdate.Add(
+		Collector.AddRayTracingGeometryUpdate(
 			FRayTracingDynamicGeometryUpdateParams
 			{
 				RayTracingInstance.Materials,
@@ -2575,6 +2595,8 @@ void FSkinnedSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGather
 				true
 			}
 		);*/
+
+		Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
 	}
 }
 #endif
@@ -2633,6 +2655,24 @@ uint32 FSkinnedSceneProxy::GetMaxBoneInfluenceCount() const
 uint32 FSkinnedSceneProxy::GetUniqueAnimationCount() const
 {
 	return UniqueAnimationCount;
+}
+
+const FGuid& FSkinnedSceneProxy::GetTransformProviderId() const
+{
+	// If the proxy is current in an invalid state, use the
+	// reference pose transform provider
+	if (TransformProviderId.IsValid())
+	{
+		bool bIsValid = false;
+		GetAnimationProviderData(bIsValid);
+		if (!bIsValid)
+		{
+			static FGuid RefPoseProviderId(REF_POSE_TRANSFORM_PROVIDER_GUID);
+			return RefPoseProviderId;
+		}
+	}
+
+	return TransformProviderId;
 }
 
 FDesiredLODLevel FSkinnedSceneProxy::GetDesiredLODLevel_RenderThread(const FSceneView* View) const

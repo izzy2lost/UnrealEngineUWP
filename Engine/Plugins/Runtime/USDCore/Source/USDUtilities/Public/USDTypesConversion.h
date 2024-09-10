@@ -4,7 +4,9 @@
 
 #if USE_USD_SDK
 #include "UnrealUSDWrapper.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "USDMemory.h"
+#endif	  // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "USDStageOptions.h"
 
 #include <string>
@@ -41,9 +43,12 @@ PXR_NAMESPACE_OPEN_SCOPE
 
 	using UsdStageRefPtr = TfRefPtr<UsdStage>;
 
-	template <typename T>
+	template<typename T>
 	class VtArray;
 PXR_NAMESPACE_CLOSE_SCOPE
+
+template<typename UsdObjectType>
+class TUsdStore;
 
 struct USDUTILITIES_API FUsdStageInfo
 {

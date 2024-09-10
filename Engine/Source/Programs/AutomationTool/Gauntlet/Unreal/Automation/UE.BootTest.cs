@@ -19,7 +19,7 @@ namespace UE
 		/// <summary>
 		/// Used to track progress via logging
 		/// </summary>
-		int LogLinesLastTick = 0;
+		UnrealLogStreamParser LogReader = null;
 
 		/// <summary>
 		/// Time we last saw a change in logging
@@ -84,7 +84,7 @@ namespace UE
 
 			// track our starting condition
 			LastLogTime = DateTime.Now;
-			LogLinesLastTick = 0;
+			LogReader = null;
 			DidDetectLaunch = false;
 
 			return true;
@@ -111,10 +111,13 @@ namespace UE
 			// Get the log of the first client app
 			IAppInstance RunningInstance = this.TestInstance.RunningRoles.First().AppInstance;
 
-			UnrealLogStreamParser LogParser = new UnrealLogStreamParser();
-			LogLinesLastTick += LogParser.ReadStream(RunningInstance.StdOut, LogLinesLastTick);
+			if (LogReader == null)
+			{
+				LogReader = new UnrealLogStreamParser(RunningInstance.GetLogBufferReader());
+			}
+			LogReader.ReadStream();
 
-			IEnumerable<string> BusyLogLines = LogParser.GetLogFromEditorBusyChannels();
+			IEnumerable<string> BusyLogLines = LogReader.GetLogFromEditorBusyChannels();
 			if (BusyLogLines.Any())
 			{
 				LastLogTime = DateTime.Now;
@@ -134,7 +137,7 @@ namespace UE
 			string CompletionString = GetCompletionString();
 			if (!string.IsNullOrEmpty(CompletionString))
 			{
-				if (LogParser.GetLogLinesContaining(CompletionString).Any())
+				if (LogReader.GetLogLinesContaining(CompletionString).Any())
 				{
 					Log.Info("Found '{0}'. Ending Test", GetCompletionString());
 					MarkTestComplete();

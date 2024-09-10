@@ -31,7 +31,20 @@ bool FSequencerFilterBarConfig::IsFilterActive(const FString& InFilterName) cons
 
 bool FSequencerFilterBarConfig::SetFilterActive(const FString& InFilterName, const bool bInActive)
 {
-	ActiveFilters.EnabledStates.FindOrAdd(InFilterName) = bInActive;
+	if (bool* EnabledStatePtr = ActiveFilters.EnabledStates.Find(InFilterName))
+	{
+		if (*EnabledStatePtr == bInActive)
+		{
+			return false;
+		}
+
+		*EnabledStatePtr = bInActive;
+
+		return true;
+	}
+
+	ActiveFilters.EnabledStates.Add(InFilterName) = bInActive;
+
 	return true;
 }
 

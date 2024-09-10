@@ -73,7 +73,7 @@ namespace HordeServer.Commands.Generate
 			await using (BundleCache bundleCache = new BundleCache())
 			using (MemoryMappedFileCache memoryMappedFileCache = new MemoryMappedFileCache())
 			{
-				IStorageClient client = BundleStorageClient.CreateFromDirectory(bundleDir, bundleCache, memoryMappedFileCache, logger);
+				IStorageNamespace client = BundleStorageNamespace.CreateFromDirectory(bundleDir, bundleCache, memoryMappedFileCache, logger);
 
 				IHashedBlobRef<DirectoryNode> dirNodeRef;
 				await using (DedupeBlobWriter writer = client.CreateDedupeBlobWriter(refName))
@@ -138,7 +138,7 @@ namespace HordeServer.Commands.Generate
 			return 0;
 		}
 
-		static async Task PopulateCacheAsync(IStorageClient client, DedupeBlobWriter writer, DirectoryReference searchDir, CancellationToken cancellationToken)
+		static async Task PopulateCacheAsync(IStorageNamespace client, DedupeBlobWriter writer, DirectoryReference searchDir, CancellationToken cancellationToken)
 		{
 			foreach (RefName refName in FileStorageBackend.EnumerateRefs(searchDir))
 			{

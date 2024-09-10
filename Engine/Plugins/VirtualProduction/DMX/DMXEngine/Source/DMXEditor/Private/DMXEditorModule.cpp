@@ -8,6 +8,7 @@
 #include "Commands/DMXConflictMonitorCommands.h"
 #include "Commands/DMXEditorCommands.h"
 #include "Customizations/DMXAttributeNameCustomization.h"
+#include "Customizations/DMXAutoExpandedStructCustomization.h"
 #include "Customizations/DMXEntityFixtureTypeDetails.h"
 #include "Customizations/DMXEntityReferenceCustomization.h"
 #include "Customizations/DMXFixtureCategoryCustomization.h"
@@ -406,6 +407,23 @@ void FDMXEditorModule::RegisterPropertyTypeCustomizations()
 	RegisterCustomPropertyTypeLayout(FAddAllPatchesButton::StaticStruct()->GetFName(), 
 		FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTakeRecorderDMXLibrarySourceEditorCustomization::MakeInstance)
 	);
+
+	// Customizations for auto expanded structs. The listed structs need to be auto expanded by default in most use cases.
+	const TArray<FName> StructNames
+	{
+		FDMXFixtureMode::StaticStruct()->GetFName(),
+		FDMXInputPortReference::StaticStruct()->GetFName(),
+		FDMXOutputPortReference::StaticStruct()->GetFName()
+	};
+
+	for (const FName& StructName : StructNames)
+	{
+		RegisterCustomPropertyTypeLayout
+		(
+			StructName,
+			FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FDMXAutoExpandedStructCustomization::MakeInstance)
+		);
+	}
 }
 
 void FDMXEditorModule::RegisterSequencerTypes()

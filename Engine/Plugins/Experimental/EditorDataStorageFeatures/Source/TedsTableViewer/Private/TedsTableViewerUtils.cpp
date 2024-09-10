@@ -90,9 +90,9 @@ namespace UE::Editor::DataStorage::TableViewerUtils
 		return VerifiedColumnTypes;
 	}
 
-	TSharedPtr<FTypedElementWidgetConstructor> CreateHeaderWidgetConstructor(ITypedElementDataStorageUiInterface& StorageUi, const UE::Editor::DataStorage::FMetaDataView& InMetaData, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes, const TConstArrayView<FName> CellWidgetPurposes)
+	TSharedPtr<FTypedElementWidgetConstructor> CreateHeaderWidgetConstructor(IEditorDataStorageUiProvider& StorageUi, const UE::Editor::DataStorage::FMetaDataView& InMetaData, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes, const TConstArrayView<FName> CellWidgetPurposes)
 	{
-		using MatchApproach = ITypedElementDataStorageUiInterface::EMatchApproach;
+		using MatchApproach = IEditorDataStorageUiProvider::EMatchApproach;
 
 		TArray<TWeakObjectPtr<const UScriptStruct>> VerifiedColumnTypes = CreateVerifiedColumnTypeArray(ColumnTypes);
 		TSharedPtr<FTypedElementWidgetConstructor> Constructor;
@@ -145,7 +145,7 @@ namespace UE::Editor::DataStorage::TableViewerUtils
 		return nullptr;
 	}
 
-	const FSlateBrush* GetIconForRow(ITypedElementDataStorageInterface* DataStorage, RowHandle Row)
+	const FSlateBrush* GetIconForRow(IEditorDataStorageProvider* DataStorage, RowHandle Row)
 	{
 		static TMap<FName, const FSlateBrush*> CachedIconMap;
 
@@ -201,7 +201,7 @@ namespace UE::Editor::DataStorage::TableViewerUtils
 	}
 }
 
-void UTypedElementTableViewerFactory::RegisterTables(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementTableViewerFactory::RegisterTables(IEditorDataStorageProvider& DataStorage)
 {
 	using namespace UE::Editor::DataStorage;
 	const TableHandle BaseWidgetTable = DataStorage.FindTable(FName(TEXT("Editor_WidgetTable")));

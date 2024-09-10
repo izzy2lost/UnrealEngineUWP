@@ -220,7 +220,6 @@ if (botname === '__TEST__') {
 		let branch: EditableBranch = {
 			name: name,
 			parent: this,
-			workspace: options.workspace || null,
 			branchspec: new Map<string, BranchSpec>(),
 			edgeProperties: new Map(),
 			upperName: nameUpper,

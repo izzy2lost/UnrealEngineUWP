@@ -43,7 +43,7 @@ public:
 	/**
 	 * Apply the orientation and position of the headset to the Camera.
 	 */
-	virtual bool UpdatePlayerCamera(FQuat& CurrentOrientation, FVector& CurrentPosition) = 0;
+	virtual bool UpdatePlayerCamera(FQuat& CurrentOrientation, FVector& CurrentPosition, float DeltaTime) = 0;
 	
 	/**
 	 * Override the Field of View for the player camera component.

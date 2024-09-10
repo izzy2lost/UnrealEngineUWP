@@ -9,8 +9,7 @@
 
 #include "TypedElementObjectReinstancingManager.generated.h"
 
-class ITypedElementDataStorageCompatibilityInterface;
-class ITypedElementDataStorageInterface;
+class IEditorDataStorageCompatibilityProvider;
 class UEditorDataStorageCompatibility;
 class UTypedElementMementoSystem;
 class UEditorDataStorage;

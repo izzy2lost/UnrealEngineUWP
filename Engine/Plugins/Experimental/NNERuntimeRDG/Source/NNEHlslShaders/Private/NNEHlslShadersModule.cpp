@@ -4,7 +4,7 @@
 #include "Interfaces/IPluginManager.h"
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
-#include "NNE.h"
+#include "NNEHlslShadersLog.h"
 #include "ShaderCore.h"
 
 class FNNEHlslShadersModule : public IModuleInterface
@@ -21,7 +21,7 @@ public:
 		}
 		else
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Shaders directory not added. Failed to find NNERuntimeRDG plugin"));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Shaders directory not added. Failed to find NNERuntimeRDG plugin"));
 		}
 
 	}

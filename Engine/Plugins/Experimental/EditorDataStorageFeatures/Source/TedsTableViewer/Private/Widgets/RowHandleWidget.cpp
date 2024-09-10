@@ -9,20 +9,20 @@
 #define LOCTEXT_NAMESPACE "RowHandleWidget"
 
 
-void URowHandleWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage, ITypedElementDataStorageUiInterface& DataStorageUi) const
+void URowHandleWidgetFactory::RegisterWidgetConstructors(IEditorDataStorageProvider& DataStorage, IEditorDataStorageUiProvider& DataStorageUi) const
 {
 	DataStorageUi.RegisterWidgetFactory(FName(TEXT("General.Cell.RowHandle")), FRowHandleWidgetConstructor::StaticStruct());
 }
 
-void URowHandleWidgetFactory::RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const
+void URowHandleWidgetFactory::RegisterWidgetPurposes(IEditorDataStorageUiProvider& DataStorageUi) const
 {
-	DataStorageUi.RegisterWidgetPurpose(FName(TEXT("General.Cell.RowHandle")), ITypedElementDataStorageUiInterface::EPurposeType::UniqueByName,
+	DataStorageUi.RegisterWidgetPurpose(FName(TEXT("General.Cell.RowHandle")), IEditorDataStorageUiProvider::EPurposeType::UniqueByName,
 	LOCTEXT("GeneralRowHandlePurpose", "Specific purpose to request a widget to display row handles."));
 
-	DataStorageUi.RegisterWidgetPurpose(FName(TEXT("RowDetails.Cell")), ITypedElementDataStorageUiInterface::EPurposeType::UniqueByNameAndColumn,
+	DataStorageUi.RegisterWidgetPurpose(FName(TEXT("RowDetails.Cell")), IEditorDataStorageUiProvider::EPurposeType::UniqueByNameAndColumn,
 	LOCTEXT("DetailsRowHandlePurpose", "Specific purpose to request a widget to display the details on a row (e.g SRowDetails)."));
 
-	DataStorageUi.RegisterWidgetPurpose(FName(TEXT("RowDetails.Cell.Large")), ITypedElementDataStorageUiInterface::EPurposeType::UniqueByNameAndColumn,
+	DataStorageUi.RegisterWidgetPurpose(FName(TEXT("RowDetails.Cell.Large")), IEditorDataStorageUiProvider::EPurposeType::UniqueByNameAndColumn,
 	LOCTEXT("LargeDetailsRowHandlePurpose", "Specific purpose to request a widget that is larger than a single cell to display the details on a row (e.g SRowDetails)"));
 
 
@@ -41,7 +41,7 @@ TSharedPtr<SWidget> FRowHandleWidgetConstructor::CreateWidget(const UE::Editor::
 		.VAlign(VAlign_Center)
 		.Padding(8, 0, 0, 0);}
 
-bool FRowHandleWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi, UE::Editor::DataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
+bool FRowHandleWidgetConstructor::FinalizeWidget(IEditorDataStorageProvider* DataStorage, IEditorDataStorageUiProvider* DataStorageUi, UE::Editor::DataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
 {
 
 	checkf(Widget->GetType() == SBox::StaticWidgetClass().GetWidgetType(),

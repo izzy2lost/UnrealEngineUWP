@@ -419,7 +419,7 @@ void FCustomVersionContainer::SetVersionUsingRegistry(FGuid CustomKey, ESetCusto
 		}
 
 		TOptional<FCustomVersion> RegisteredVersion;
-		UE_AUTORTFM_OPEN2{
+		UE_AUTORTFM_OPEN{
 			RegisteredVersion = FCurrentCustomVersions::Get(CustomKey);
 		};
 		checkf(RegisteredVersion, TEXT("Attempted to set a version that is not registered"));
@@ -430,7 +430,7 @@ void FCustomVersionContainer::SetVersionUsingRegistry(FGuid CustomKey, ESetCusto
 	else
 	{
 		TOptional<FCustomVersion> RegisteredVersion;
-		UE_AUTORTFM_OPEN2{
+		UE_AUTORTFM_OPEN{
 			RegisteredVersion = FCurrentCustomVersions::Get(CustomKey);
 		};
 

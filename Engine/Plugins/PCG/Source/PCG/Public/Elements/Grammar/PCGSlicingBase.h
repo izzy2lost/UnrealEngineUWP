@@ -109,6 +109,14 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bGrammarAsAttribute", EditConditionHides, DisplayAfter = bGrammarAsAttribute, PCG_Overridable))
 	FPCGAttributePropertyInputSelector GrammarAttribute;
 
+	/** Controls whether we'll use an attribute to drive random seeding for stochastic processes in the subdivision. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, InlineEditConditionToggle))
+	bool bUseSeedAttribute = false;
+
+	/** Attribute to use to drive seed selection. It should be convertible to an integer. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bUseSeedAttribute", PCG_Overridable))
+	FPCGAttributePropertyInputSelector SeedAttribute;
+
 	/** Do a match and set with the incoming modules info, only if the modules info is passed as input. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (EditCondition = "bModuleInfoAsInput", EditConditionHides, PCG_Overridable))
 	bool bForwardAttributesFromModulesInfo = false;
@@ -170,7 +178,7 @@ namespace PCGSlicingBase
 	PCGGrammar::FTokenizedGrammar GetTokenizedGrammar(FPCGContext* InContext, const FString& InGrammar, const FPCGModulesInfoMap& InModulesInfo, double& OutMinSize);
 
 	template<typename T>
-	bool Subdivide(const T& Root, double Length, TArray<TPCGSubDivModuleInstance<T>>& OutModuleInstances, double& RemainingLength, FPCGContext* InOptionalContext = nullptr, int32 InOptionalSeed = 42)
+	bool Subdivide(const T& Root, double Length, TArray<TPCGSubDivModuleInstance<T>>& OutModuleInstances, double& RemainingLength, FPCGContext* InOptionalContext = nullptr, int32 InOptionalAdditionalSeed = 0)
 	{
 		OutModuleInstances.Reset();
 		RemainingLength = Length;
@@ -180,7 +188,7 @@ namespace PCGSlicingBase
 			return true;
 		}
 
-		FRandomStream RandomStream(InOptionalContext ? InOptionalContext->GetSeed() : InOptionalSeed);
+		FRandomStream RandomStream((InOptionalContext ? InOptionalContext->GetSeed() : 42) + InOptionalAdditionalSeed);
 		TArray<TPCGSubDivModuleInstance<T>> CurrentModules;
 
 		// Start with root

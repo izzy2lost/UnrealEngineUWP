@@ -6,6 +6,7 @@
 #include "USDAssetUserData.h"
 #include "USDClassesModule.h"
 #include "USDLog.h"
+#include "USDMemory.h"
 #include "USDObjectUtils.h"
 #include "USDPrimConversion.h"
 #include "USDProjectSettings.h"

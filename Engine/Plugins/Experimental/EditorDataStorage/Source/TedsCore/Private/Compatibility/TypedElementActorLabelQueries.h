@@ -9,23 +9,23 @@
 
 
 UCLASS()
-class UActorLabelDataStorageFactory : public UTypedElementDataStorageFactory
+class UActorLabelDataStorageFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	~UActorLabelDataStorageFactory() override = default;
 
-	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
+	void RegisterQueries(IEditorDataStorageProvider& DataStorage) override;
 
 private:
 	/**
 	 * Takes the label set on an actor and copies it to the Data Storage if they differ.
 	 */
-	void RegisterActorLabelToColumnQuery(ITypedElementDataStorageInterface& DataStorage) const;
+	void RegisterActorLabelToColumnQuery(IEditorDataStorageProvider& DataStorage) const;
 	/**
 	 * Takes the label stored in the Data Storage and copies it to the actor's label if the FTypedElementSyncBackToWorldTag
 	 * has been set and the labels differ.
 	 */
-	void RegisterLabelColumnToActorQuery(ITypedElementDataStorageInterface& DataStorage) const;
+	void RegisterLabelColumnToActorQuery(IEditorDataStorageProvider& DataStorage) const;
 };

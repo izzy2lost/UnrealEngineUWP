@@ -694,7 +694,7 @@ void USimpleConstructionScript::ExecuteScriptOnActor(AActor* Actor, const TInlin
 		USceneComponent* SceneComp = NewObject<USceneComponent>(Actor);
 
 		// The object is new, so its safe for us to atomically set the flag in the open.
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 			{
 				SceneComp->SetFlags(RF_Transactional);
 			};

@@ -20,6 +20,72 @@
 
 // ------------------- Weight Map Paint Tool -------------------
 
+void UClothEditorWeightMapPaintToolBuilder::GetSupportedConstructionViewModes(const UDataflowContextObject& ContextObject, TArray<const Dataflow::IDataflowConstructionViewMode*>& Modes) const
+{
+	using namespace UE::Chaos::ClothAsset;
+
+	const Dataflow::FRenderingViewModeFactory& Factory = Dataflow::FRenderingViewModeFactory::GetInstance();
+	const Dataflow::IDataflowConstructionViewMode* const Sim2DMode = Factory.GetViewMode(ClothViewModeToDataflowViewModeName(EClothPatternVertexType::Sim2D));
+	const Dataflow::IDataflowConstructionViewMode* const Sim3DMode = Factory.GetViewMode(ClothViewModeToDataflowViewModeName(EClothPatternVertexType::Sim3D));
+	const Dataflow::IDataflowConstructionViewMode* const RenderMode = Factory.GetViewMode(ClothViewModeToDataflowViewModeName(EClothPatternVertexType::Render));
+
+	checkf(Sim2DMode, TEXT("Couldn't find DataflowConstructionViewMode corresponding to EClothPatternVertexType::Sim2D"));
+	checkf(Sim3DMode, TEXT("Couldn't find DataflowConstructionViewMode corresponding to EClothPatternVertexType::Sim3D"));
+	checkf(RenderMode, TEXT("Couldn't find DataflowConstructionViewMode corresponding to EClothPatternVertexType::Render"));
+
+	const FChaosClothAssetWeightMapNode* const WeightMapNode = ContextObject.GetSelectedNodeOfType<FChaosClothAssetWeightMapNode>();
+	if (WeightMapNode)
+	{
+		if (WeightMapNode->MeshTarget == EChaosClothAssetWeightMapMeshTarget::Render)
+		{
+			Modes.Add(RenderMode);
+		}
+		else
+		{
+			check(WeightMapNode->MeshTarget == EChaosClothAssetWeightMapMeshTarget::Simulation);
+			Modes.Add(Sim2DMode);
+			Modes.Add(Sim3DMode);
+		}
+	}
+	else
+	{
+		const EClothPatternVertexType CurrentViewMode = DataflowViewModeToClothViewMode(ContextObject.GetConstructionViewMode());
+
+		if (CurrentViewMode == EClothPatternVertexType::Render)
+		{
+			Modes.Add(RenderMode);
+		}
+		else
+		{
+			Modes.Add(Sim2DMode);
+			Modes.Add(Sim3DMode);
+		}
+	}
+}
+
+bool UClothEditorWeightMapPaintToolBuilder::CanSceneStateChange(const UInteractiveTool* ActiveTool, const FToolBuilderState& SceneState) const
+{
+	return ActiveTool->IsA<UClothEditorWeightMapPaintTool>();
+}
+
+void UClothEditorWeightMapPaintToolBuilder::SceneStateChanged(UInteractiveTool* ActiveTool, const FToolBuilderState& SceneState)
+{
+	check(CanSceneStateChange(ActiveTool, SceneState));
+
+	UClothEditorWeightMapPaintTool* const PaintTool = Cast<UClothEditorWeightMapPaintTool>(ActiveTool);
+	checkf(PaintTool, TEXT("Expected the ActiveTool to be UClothEditorWeightMapPaintTool"));
+
+	UToolTarget* const Target = SceneState.TargetManager->BuildFirstSelectedTargetable(SceneState, GetTargetRequirements());
+	check(Target);
+	check(Target->IsValid());
+	PaintTool->SetTarget(Target);
+	PaintTool->NotifyTargetChanged();
+
+	// These are likely to be empty functions but are called here for completeness (see UInteractiveToolManager::ActivateToolInternal())
+	PostBuildTool(ActiveTool, SceneState);
+	PostSetupTool(ActiveTool, SceneState);
+}
+
 void UClothEditorWeightMapPaintToolBuilder::GetSupportedViewModes(const UDataflowContextObject& ContextObject, TArray<UE::Chaos::ClothAsset::EClothPatternVertexType>& Modes) const
 {
 	using namespace UE::Chaos::ClothAsset;
@@ -71,7 +137,64 @@ UMeshSurfacePointTool* UClothEditorWeightMapPaintToolBuilder::CreateNewTool(cons
 	return PaintTool;
 }
 
+
 // ------------------- Selection Tool -------------------
+
+
+void UClothMeshSelectionToolBuilder::GetSupportedConstructionViewModes(const UDataflowContextObject& ContextObject, TArray<const Dataflow::IDataflowConstructionViewMode*>& Modes) const
+{
+	using namespace UE::Chaos::ClothAsset;
+
+	const Dataflow::FRenderingViewModeFactory& Factory = Dataflow::FRenderingViewModeFactory::GetInstance();
+	const Dataflow::IDataflowConstructionViewMode* const Sim2DMode = Factory.GetViewMode(ClothViewModeToDataflowViewModeName(EClothPatternVertexType::Sim2D));
+	const Dataflow::IDataflowConstructionViewMode* const Sim3DMode = Factory.GetViewMode(ClothViewModeToDataflowViewModeName(EClothPatternVertexType::Sim3D));
+	const Dataflow::IDataflowConstructionViewMode* const RenderMode = Factory.GetViewMode(ClothViewModeToDataflowViewModeName(EClothPatternVertexType::Render));
+
+	checkf(Sim2DMode, TEXT("Couldn't find DataflowConstructionViewMode corresponding to EClothPatternVertexType::Sim2D"));
+	checkf(Sim3DMode, TEXT("Couldn't find DataflowConstructionViewMode corresponding to EClothPatternVertexType::Sim3D"));
+	checkf(RenderMode, TEXT("Couldn't find DataflowConstructionViewMode corresponding to EClothPatternVertexType::Render"));
+
+	const FChaosClothAssetSelectionNode_v2* const SelectionNode = ContextObject.GetSelectedNodeOfType<FChaosClothAssetSelectionNode_v2>();
+	if (SelectionNode)
+	{
+		if (SelectionNode->Group.Name == ClothCollectionGroup::RenderVertices.ToString() || SelectionNode->Group.Name == ClothCollectionGroup::RenderFaces.ToString())
+		{
+			Modes.Add(RenderMode);
+			return;
+		}
+		
+		if (SelectionNode->Group.Name == ClothCollectionGroup::SimVertices2D.ToString() || SelectionNode->Group.Name == ClothCollectionGroup::SimVertices3D.ToString() || SelectionNode->Group.Name == ClothCollectionGroup::SimFaces.ToString())
+		{
+			Modes.Add(Sim2DMode);
+			Modes.Add(Sim3DMode);
+			return;
+		}
+	}
+
+	// No node selected or no valid group name set in the node -- use the current view mode to decide
+
+	const EClothPatternVertexType CurrentViewMode = DataflowViewModeToClothViewMode(ContextObject.GetConstructionViewMode());
+
+	if (CurrentViewMode == EClothPatternVertexType::Render)
+	{
+		Modes.Add(RenderMode);
+	}
+	else
+	{
+		Modes.Add(Sim2DMode);
+		Modes.Add(Sim3DMode);
+	}
+}
+
+bool UClothMeshSelectionToolBuilder::CanSceneStateChange(const UInteractiveTool* ActiveTool, const FToolBuilderState& SceneState) const
+{
+	return false;
+}
+
+void UClothMeshSelectionToolBuilder::SceneStateChanged(UInteractiveTool* ActiveTool, const FToolBuilderState& SceneState)
+{
+	check(CanSceneStateChange(ActiveTool, SceneState));
+}
 
 void UClothMeshSelectionToolBuilder::GetSupportedViewModes(const UDataflowContextObject& ContextObject, TArray<UE::Chaos::ClothAsset::EClothPatternVertexType>& Modes) const
 {
@@ -80,6 +203,7 @@ void UClothMeshSelectionToolBuilder::GetSupportedViewModes(const UDataflowContex
 	Modes.Add(UE::Chaos::ClothAsset::EClothPatternVertexType::Sim2D);
 	Modes.Add(UE::Chaos::ClothAsset::EClothPatternVertexType::Render);
 }
+
 
 const FToolTargetTypeRequirements& UClothMeshSelectionToolBuilder::GetTargetRequirements() const
 {
@@ -115,6 +239,26 @@ UInteractiveTool* UClothMeshSelectionToolBuilder::BuildTool(const FToolBuilderSt
 
 
 // ------------------- Skin Weight Transfer Tool -------------------
+
+
+void UClothTransferSkinWeightsToolBuilder::GetSupportedConstructionViewModes(const UDataflowContextObject& ContextObject, TArray<const Dataflow::IDataflowConstructionViewMode*>& Modes) const
+{
+	using namespace UE::Chaos::ClothAsset;
+	const Dataflow::FRenderingViewModeFactory& Factory = Dataflow::FRenderingViewModeFactory::GetInstance();
+	const Dataflow::IDataflowConstructionViewMode* const Sim3DMode = Factory.GetViewMode(ClothViewModeToDataflowViewModeName(EClothPatternVertexType::Sim3D));
+	Modes.Add(Sim3DMode);
+}
+
+bool UClothTransferSkinWeightsToolBuilder::CanSceneStateChange(const UInteractiveTool* ActiveTool, const FToolBuilderState& SceneState) const
+{
+	return false;
+}
+
+void UClothTransferSkinWeightsToolBuilder::SceneStateChanged(UInteractiveTool* ActiveTool, const FToolBuilderState& SceneState)
+{
+	check(CanSceneStateChange(ActiveTool, SceneState));
+}
+
 
 void UClothTransferSkinWeightsToolBuilder::GetSupportedViewModes(const UDataflowContextObject& ContextObject, TArray<UE::Chaos::ClothAsset::EClothPatternVertexType>& Modes) const
 {

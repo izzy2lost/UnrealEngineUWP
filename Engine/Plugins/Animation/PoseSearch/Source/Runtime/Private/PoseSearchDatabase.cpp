@@ -600,7 +600,7 @@ void UPoseSearchDatabase::UpdateCachedProperties()
 		}
 	}
 
-	for (TPair<TObjectPtr<UObject>, TArray<int32>>& CachedAssetMapPair : CachedAssetMap)
+	for (TPair<TWeakObjectPtr<UObject>, TArray<int32>>& CachedAssetMapPair : CachedAssetMap)
 	{
 		CachedAssetMapPair.Value.Sort();
 	}
@@ -1134,7 +1134,7 @@ void UPoseSearchDatabase::PopulateNonSelectableIdx(FNonSelectableIdx& NonSelecta
 #if UE_POSE_SEARCH_TRACE_ENABLED
 						const TArray<float> PoseValues = SearchIndex.GetPoseValuesSafe(PoseIdx);
 						const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
-						SearchContext.Track(this, PoseIdx, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime, PoseCost);
+						SearchContext.Track(this, PoseIdx, EPoseCandidateFlags::DiscardedBy_AssetReselection, PoseCost);
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 					}
 				}

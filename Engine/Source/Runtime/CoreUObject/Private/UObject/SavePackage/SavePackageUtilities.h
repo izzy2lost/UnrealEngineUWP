@@ -160,7 +160,7 @@ struct FEDLCookChecker
 	void AddPackageWithUnknownExports(FName LongPackageName);
 
 	static void StartSavingEDLCookInfoForVerification();
-	static void Verify(const UE::SavePackageUtilities::FEDLMessageCallback& MessageCallback,
+	static void Verify(const UE::SavePackageUtilities::FEDLLogRecordCallback& MessageCallback,
 		bool bFullReferencesExpected);
 	static void MoveToCompactBinaryAndClear(FCbWriter& Writer, bool& bOutHasData);
 	static bool AppendFromCompactBinary(FCbFieldView Field);

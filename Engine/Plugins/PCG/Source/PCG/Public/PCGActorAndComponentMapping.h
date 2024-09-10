@@ -151,6 +151,9 @@ private:
 	/** Update the current mapping between a PCG component and its PCG Partition actors */
 	void UpdateMappingPCGComponentPartitionActor(UPCGComponent* InComponent);
 
+	/** Returns the current mapping between a PCG component and its PCG Partition actors */
+	TSet<TObjectPtr<APCGPartitionActor>> GetPCGComponentPartitionActorMappings(UPCGComponent* InComponent) const;
+	
 	/** Delete the current mapping between a PCG component and its PCG Partition actors */
 	void DeleteMappingPCGComponentPartitionActor(UPCGComponent* InComponent);
 

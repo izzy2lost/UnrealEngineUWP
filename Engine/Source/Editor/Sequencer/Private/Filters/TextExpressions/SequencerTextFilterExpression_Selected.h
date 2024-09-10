@@ -24,5 +24,10 @@ public:
 	//~ End ITextFilterExpressionContext
 
 protected:
+	void BindSelectionChanged();
+	void UnbindSelectionChanged();
+
 	void OnSelectionChanged(UObject* const InObject);
+
+	FDelegateHandle OnSelectionChangedHandle;
 };

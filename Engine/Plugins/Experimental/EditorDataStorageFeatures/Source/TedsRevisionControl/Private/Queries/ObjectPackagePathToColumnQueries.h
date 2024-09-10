@@ -7,19 +7,19 @@
 
 #include "ObjectPackagePathToColumnQueries.generated.h"
 
-class ITypedElementDataStorageInterface;
+class IEditorDataStorageProvider;
 
 UCLASS()
-class UTypedElementUObjectPackagePathFactory : public UTypedElementDataStorageFactory
+class UTypedElementUObjectPackagePathFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	~UTypedElementUObjectPackagePathFactory() override = default;
 
-	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
+	void RegisterQueries(IEditorDataStorageProvider& DataStorage) override;
 
 private:
-	void RegisterTryAddPackageRef(ITypedElementDataStorageInterface& DataStorage);
+	void RegisterTryAddPackageRef(IEditorDataStorageProvider& DataStorage);
 	UE::Editor::DataStorage::QueryHandle TryAddPackageRef = UE::Editor::DataStorage::InvalidQueryHandle;
 };

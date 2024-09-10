@@ -1870,7 +1870,7 @@ public class IOSPlatform : ApplePlatform
 			if (!SC.IsCodeBasedProject)
 			{
 				TargetReceipt Target = SC.StageTargets[0].Receipt;
-				AppBaseName = AppleExports.MakeBinaryFileName(SC.ShortProjectName, Target.Platform, Target.Configuration, Target.Architectures, UnrealTargetConfiguration.Development, null);
+				AppBaseName = AppleExports.MakeBinaryFileName(SC.ShortProjectName, "-", Target.Platform, Target.Configuration, Target.Architectures, UnrealTargetConfiguration.Development, null);
 			}
 			AppToDeploy = FileReference.Combine(SC.StageDirectory, AppBaseName + ".app").FullName;
 

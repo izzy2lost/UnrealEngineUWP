@@ -92,11 +92,9 @@ void SDMMaterialStage::Construct(const FArguments& InArgs, const TSharedRef<SDMM
 		return;
 	}
 
-	TSharedPtr<SAssetDropTarget> DropTarget;
-
 	ChildSlot
 	[
-		SAssignNew(DropTarget, SAssetDropTarget)
+		SNew(SAssetDropTarget)
 		.OnAreAssetsAcceptableForDrop(this, &SDMMaterialStage::OnAssetDraggedOver)
 		.OnAssetsDropped(this, &SDMMaterialStage::OnAssetsDropped)
 		[

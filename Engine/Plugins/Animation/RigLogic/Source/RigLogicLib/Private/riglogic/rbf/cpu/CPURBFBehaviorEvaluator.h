@@ -32,15 +32,21 @@ class Evaluator : public RBFBehaviorEvaluator {
     public:
         Evaluator(LODSpec<std::uint16_t>&& lods_,
                   SolverVectorType&& solvers_,
-                  Matrix<std::uint16_t> solverRawControlInputIndices_,
-                  Matrix<std::uint16_t> solverRawControlOutputIndices_,
+                  Matrix<std::uint16_t>&& solverRawControlInputIndices_,
+                  Matrix<std::uint16_t>&& solverPoseIndices_,
+                  Matrix<std::uint16_t>&& poseInputControlIndices_,
+                  Matrix<std::uint16_t>&& poseOutputControlIndices_,
+                  Matrix<float>&& poseOutputControlWeights_,
                   std::uint16_t maximumInputCount_,
                   std::uint16_t maxTargetCount_,
                   OutputInstance::Factory&& instanceFactory_) :
             lods{std::move(lods_)},
             solvers{std::move(solvers_)},
             solverRawControlInputIndices{std::move(solverRawControlInputIndices_)},
-            solverRawControlOutputIndices{std::move(solverRawControlOutputIndices_)},
+            solverPoseIndices{std::move(solverPoseIndices_)},
+            poseInputControlIndices{std::move(poseInputControlIndices_)},
+            poseOutputControlIndices{std::move(poseOutputControlIndices_)},
+            poseOutputControlWeights{std::move(poseOutputControlWeights_)},
             instanceFactory{std::move(instanceFactory_)},
             maximumInputCount{maximumInputCount_},
             maxTargetCount{maxTargetCount_} {
@@ -61,10 +67,10 @@ class Evaluator : public RBFBehaviorEvaluator {
             const auto rawControlInputCount = rawControlInputIndices.size();
             inputBuffer = inputBuffer.subview(0u, rawControlInputCount);
 
-            const auto& rawControlOutputIndices = solverRawControlOutputIndices[solverIndex];
-            const auto rawControlOutputCount = rawControlOutputIndices.size();
-            intermediateWeightsBuffer = intermediateWeightsBuffer.subview(0u, rawControlOutputCount);
-            outputWeightsBuffer = outputWeightsBuffer.subview(0u, rawControlOutputCount);
+            const auto& poseIndices = solverPoseIndices[solverIndex];
+            const auto poseCount = poseIndices.size();
+            intermediateWeightsBuffer = intermediateWeightsBuffer.subview(0u, poseCount);
+            outputWeightsBuffer = outputWeightsBuffer.subview(0u, poseCount);
 
             for (std::uint16_t i = {}; i < rawControlInputCount; ++i) {
                 const std::uint16_t ri = rawControlInputIndices[i];
@@ -73,11 +79,22 @@ class Evaluator : public RBFBehaviorEvaluator {
 
             solvers[solverIndex]->solve(inputBuffer, intermediateWeightsBuffer, outputWeightsBuffer);
 
-            for (std::uint16_t i = {}; i < rawControlOutputCount; ++i) {
-                const std::uint16_t ri = rawControlOutputIndices[i];
-                rawControls[ri] = outputWeightsBuffer[i];
-            }
+            for (std::uint16_t i = {}; i < poseCount; ++i) {
+                const std::uint16_t pi = poseIndices[i];
+                const auto& inputControlIndices = poseInputControlIndices[pi];
+                const auto& outputControlIndices = poseOutputControlIndices[pi];
+                const auto& outputControlWeights = poseOutputControlWeights[pi];
+                assert(outputControlIndices.size() == outputControlWeights.size());
 
+                float inputWeight = 1.0f;
+                for (const auto inputControlIndex : inputControlIndices) {
+                    inputWeight *= rawControls[inputControlIndex];
+                }
+
+                for (std::uint16_t ci = 0u; ci < outputControlIndices.size(); ci++) {
+                    rawControls[outputControlIndices[ci]] = outputControlWeights[ci] * outputWeightsBuffer[i] * inputWeight;
+                }
+            }
         }
 
         void calculate(ControlsInputInstance* inputs, RBFBehaviorOutputInstance* intermediateOutputs,
@@ -110,7 +127,6 @@ class Evaluator : public RBFBehaviorEvaluator {
             auto outputWeightsBuffer = static_cast<OutputInstance*>(intermediateOutputs)->getOutputWeightsBuffer();
 
             calculate(solverIndex, rawControls, inputBuffer, intermediateWeightsBuffer, outputWeightsBuffer);
-
         }
 
         void load(terse::BinaryInputArchive<BoundedIOStream>& archive) override {
@@ -132,7 +148,10 @@ class Evaluator : public RBFBehaviorEvaluator {
                 solvers[i]->load(archive);
             }
             archive(solverRawControlInputIndices);
-            archive(solverRawControlOutputIndices);
+            archive(solverPoseIndices);
+            archive(poseInputControlIndices);
+            archive(poseOutputControlIndices);
+            archive(poseOutputControlWeights);
             archive(maximumInputCount);
             archive(maxTargetCount);
         }
@@ -147,7 +166,10 @@ class Evaluator : public RBFBehaviorEvaluator {
                 solver->save(archive);
             }
             archive(solverRawControlInputIndices);
-            archive(solverRawControlOutputIndices);
+            archive(solverPoseIndices);
+            archive(poseInputControlIndices);
+            archive(poseOutputControlIndices);
+            archive(poseOutputControlWeights);
             archive(maximumInputCount);
             archive(maxTargetCount);
         }
@@ -156,7 +178,10 @@ class Evaluator : public RBFBehaviorEvaluator {
         LODSpec<std::uint16_t> lods;
         SolverVectorType solvers;
         Matrix<std::uint16_t> solverRawControlInputIndices;
-        Matrix<std::uint16_t> solverRawControlOutputIndices;
+        Matrix<std::uint16_t> solverPoseIndices;
+        Matrix<std::uint16_t> poseInputControlIndices;
+        Matrix<std::uint16_t> poseOutputControlIndices;
+        Matrix<float> poseOutputControlWeights;
         OutputInstance::Factory instanceFactory;
         std::uint16_t maximumInputCount;
         std::uint16_t maxTargetCount;

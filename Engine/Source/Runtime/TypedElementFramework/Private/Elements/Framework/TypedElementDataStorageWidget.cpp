@@ -29,7 +29,7 @@ void STedsWidget::Construct(const FArguments& InArgs)
 void STedsWidget::RegisterTedsWidget(const TSharedPtr<SWidget>& InContentWidget)
 {
 	using namespace UE::Editor::DataStorage;
-	ITypedElementDataStorageInterface* Storage = GetStorageIfAvailable();
+	IEditorDataStorageProvider* Storage = GetStorageIfAvailable();
 
 	// If TEDS is not enabled, STedsWidget will just behave like a regular widget
 	if(!Storage)
@@ -54,7 +54,7 @@ void STedsWidget::RegisterTedsWidget(const TSharedPtr<SWidget>& InContentWidget)
 
 void STedsWidget::SetContent(const TSharedRef< SWidget >& InContent)
 {
-	if(ITypedElementDataStorageInterface* Storage = GetStorageIfAvailable())
+	if(IEditorDataStorageProvider* Storage = GetStorageIfAvailable())
 	{
 		if(FTypedElementSlateWidgetReferenceColumn* WidgetReferenceColumn = Storage->GetColumn<FTypedElementSlateWidgetReferenceColumn>(UiRowHandle))
 		{
@@ -73,7 +73,7 @@ UE::Editor::DataStorage::RowHandle STedsWidget::GetRowHandle() const
 	return UiRowHandle;
 }
 
-ITypedElementDataStorageInterface* STedsWidget::GetStorageIfAvailable()
+IEditorDataStorageProvider* STedsWidget::GetStorageIfAvailable()
 {
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 

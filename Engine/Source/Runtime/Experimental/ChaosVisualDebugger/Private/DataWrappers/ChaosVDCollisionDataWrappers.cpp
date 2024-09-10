@@ -13,7 +13,7 @@ bool FChaosVDContactPoint::Serialize(FArchive& Ar)
 	Ar << FaceIndex;
 	Ar << ContactType;
 
-	return true;
+	return !Ar.IsError();
 }
 
 bool FChaosVDManifoldPoint::Serialize(FArchive& Ar)
@@ -142,7 +142,7 @@ bool FChaosVDConstraint::Serialize(FArchive& Ar)
 	Ar << Particle0Index;
 	Ar << Particle1Index;
 
-	return true;
+	return !Ar.IsError();
 }
 
 bool FChaosVDParticlePairMidPhase::Serialize(FArchive& Ar)
@@ -183,7 +183,7 @@ bool FChaosVDParticlePairMidPhase::Serialize(FArchive& Ar)
 
 	Ar << Constraints;
 
-	return true;
+	return !Ar.IsError();
 }
 
 bool FChaosVDCollisionFilterData::Serialize(FArchive& Ar)
@@ -228,7 +228,7 @@ bool FChaosVDShapeCollisionData::Serialize(FArchive& Ar)
 		Ar << QueryData;
 	}
 
-	return true;
+	return !Ar.IsError();
 }
 
 bool FChaosVDShapeCollisionData::operator==(const FChaosVDShapeCollisionData& Other) const
@@ -236,5 +236,25 @@ bool FChaosVDShapeCollisionData::operator==(const FChaosVDShapeCollisionData& Ot
 	return CollisionTraceType == Other.CollisionTraceType
 			&& bSimCollision == Other.bSimCollision
 			&& bQueryCollision == Other.bQueryCollision
-			&& bIsProbe == Other.bIsProbe;
+			&& bIsProbe == Other.bIsProbe
+			&& QueryData == Other.QueryData
+			&& SimData == Other.SimData;
+}
+
+bool FChaosVDCollisionChannelInfo::Serialize(FArchive& Ar)
+{
+	Ar << DisplayName;
+
+	Ar << CollisionChannel;
+
+	Ar << bIsTraceType;
+
+	return !Ar.IsError();
+}
+
+bool FChaosVDCollisionChannelsInfoContainer::Serialize(FArchive& Ar)
+{
+	CVD_SERIALIZE_STATIC_ARRAY(Ar, CustomChannelsNames);
+
+	return !Ar.IsError();
 }

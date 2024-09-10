@@ -15,7 +15,7 @@ namespace PCGParser
 	}
 
 	// TODO: Consider passing error messages as well for more precise feedback
-	EPCGParserResult ParseIndexRanges(PCGIndexing::FPCGIndexCollection& OutIndexCollection, const FString& InputString)
+	EPCGParserResult ParseIndexRanges(PCGIndexing::FPCGIndexCollection& OutIndexCollection, const FStringView& InputString)
 	{
 		FString PurgedInputString(InputString);
 		PurgedInputString.RemoveSpacesInline();

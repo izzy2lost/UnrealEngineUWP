@@ -382,6 +382,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Sequencer|Player")
 	MOVIESCENE_API void SetPlayRate(float PlayRate);
 
+	/** Get if the hud is hidden during play. */
+	UFUNCTION(BlueprintCallable, Category = "Sequencer|Player")
+	MOVIESCENE_API bool GetHideHud() const;
+
+	/**
+	 * Set if hiding the hud during play.
+	 * @param HideHud - The new value of Hide Hud during play.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Sequencer|Player")
+	MOVIESCENE_API void SetHideHud(bool HideHud);
+
 	/** Set whether to disable camera cuts */
 	UFUNCTION(BlueprintCallable, Category = "Sequencer|Player")
 	void SetDisableCameraCuts(bool bInDisableCameraCuts) { PlaybackSettings.bDisableCameraCuts = bInDisableCameraCuts; }

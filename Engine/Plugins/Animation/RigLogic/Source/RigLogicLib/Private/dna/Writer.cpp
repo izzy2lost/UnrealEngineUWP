@@ -527,10 +527,24 @@ static void copyRBFBehavior(const RBFBehaviorReader* source, RBFBehaviorWriter* 
         source->getLODCount(),
         memRes);
 
+    for (std::uint16_t pciPlusOne = source->getRBFPoseControlCount(); pciPlusOne > 0u; --pciPlusOne) {
+        const auto pci = static_cast<std::uint16_t>(pciPlusOne - 1u);
+        destination->setRBFPoseControlName(pci, source->getRBFPoseControlName(pci).data());
+    }
+
     for (std::uint16_t posePlusOne = source->getRBFPoseCount(); posePlusOne > 0u; --posePlusOne) {
         const auto pi = static_cast<std::uint16_t>(posePlusOne - 1u);
         destination->setRBFPoseName(pi, source->getRBFPoseName(pi).data());
         destination->setRBFPoseScale(pi, source->getRBFPoseScale(pi));
+        const auto inputControlIndices = source->getRBFPoseInputControlIndices(pi);
+        destination->setRBFPoseInputControlIndices(pi, inputControlIndices.data(),
+                                                   static_cast<std::uint16_t>(inputControlIndices.size()));
+        const auto outputControlIndices = source->getRBFPoseOutputControlIndices(pi);
+        destination->setRBFPoseOutputControlIndices(pi, outputControlIndices.data(),
+                                                    static_cast<std::uint16_t>(outputControlIndices.size()));
+        const auto outputControlWeights = source->getRBFPoseOutputControlWeights(pi);
+        destination->setRBFPoseOutputControlWeights(pi, outputControlWeights.data(),
+                                                    static_cast<std::uint16_t>(outputControlWeights.size()));
     }
 
     for (std::uint16_t solverPlusOne = source->getRBFSolverCount(); solverPlusOne > 0u; --solverPlusOne) {

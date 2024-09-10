@@ -21,6 +21,8 @@ class FJsonObject;
 struct FWorldContext;
 struct FGameFeaturePluginStateRange;
 struct FGameFeaturePluginStateMachineProperties;
+struct FInstallBundleReleaseRequestInfo;
+enum class EInstallBundleResult : uint32;
 enum class EInstallBundleRequestFlags : uint32;
 enum class EInstallBundleReleaseRequestFlags : uint32;
 
@@ -656,6 +658,7 @@ private:
 	void OnGameFeaturePredownloading(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier);
 
 	void OnGameFeatureDownloading(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier);
+	void OnGameFeatureDownloaded(const FGameFeaturePluginIdentifier& PluginIdentifier);
 	friend struct FGameFeaturePluginState_Downloading;
 
 	void OnGameFeatureReleasing(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier);
@@ -712,6 +715,23 @@ private:
 	/** Prunes any cached GFP details */
 	void PruneCachedGameFeaturePluginDetails(const FString& PluginURL, const FString& PluginDescriptorFilename) const;
 	friend struct FGameFeaturePluginState_Unmounting;
+	friend struct FBaseDataReleaseGameFeaturePluginState;
+
+	/**
+	 * Wrapper to InstallBundleManager release bundle.
+	 * Will only release the bundle if this is the last GFP using the bundle.
+	 */
+	TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> ReleaseBundle(const FString& PluginName, TArrayView<const FName> BundleNames, EInstallBundleReleaseRequestFlags Flags);
+
+	/**
+	 * Wrapper to InstallBundleManager release bundle for the unmount call
+	 * Will only unmount the bundle if this is the last GFP using the bundle.
+	 */
+	TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> UnmountBundle(const FString& PluginName,  TArrayView<const FName> BundleNames, EInstallBundleReleaseRequestFlags Flags);
+
+	// Reference tracker to know which bundles are in use.
+	TMap<FName, TSet<FString>> MountedBundleToPlugin;
+	TMap<FName, TSet<FString>> DownloadedBundleToPlugin;
 
 	/** Gets the state machine associated with the specified URL */
 	UGameFeaturePluginStateMachine* FindGameFeaturePluginStateMachine(const FString& PluginURL) const;

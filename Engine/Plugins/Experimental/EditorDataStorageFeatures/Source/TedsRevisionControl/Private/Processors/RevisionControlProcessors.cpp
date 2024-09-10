@@ -162,7 +162,7 @@ namespace UE::Editor::RevisionControl::Private
 	}
 } // namespace UE::Editor::RevisionControl::Private
 
-void URevisionControlDataStorageFactory::RegisterTables(ITypedElementDataStorageInterface& DataStorage)
+void URevisionControlDataStorageFactory::RegisterTables(IEditorDataStorageProvider& DataStorage)
 {
 	DataStorage.RegisterTable(
 		TTypedElementColumnTypeList<
@@ -175,7 +175,7 @@ void URevisionControlDataStorageFactory::RegisterTables(ITypedElementDataStorage
 		FName("Editor_PackageUpdateTable"));
 }
 
-void URevisionControlDataStorageFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void URevisionControlDataStorageFactory::RegisterQueries(IEditorDataStorageProvider& DataStorage)
 {
 	using namespace UE::Editor::DataStorage;
 	using namespace UE::Editor::RevisionControl::Private;
@@ -235,7 +235,7 @@ void URevisionControlDataStorageFactory::RegisterQueries(ITypedElementDataStorag
 	}
 }
 
-void URevisionControlDataStorageFactory::RegisterFetchUpdates(ITypedElementDataStorageInterface& DataStorage)
+void URevisionControlDataStorageFactory::RegisterFetchUpdates(IEditorDataStorageProvider& DataStorage)
 {
 	using namespace UE::Editor::DataStorage::Queries;
 	
@@ -263,7 +263,7 @@ void URevisionControlDataStorageFactory::RegisterFetchUpdates(ITypedElementDataS
 	}
 }
 
-void URevisionControlDataStorageFactory::RegisterApplyOverlays(ITypedElementDataStorageInterface& DataStorage)
+void URevisionControlDataStorageFactory::RegisterApplyOverlays(IEditorDataStorageProvider& DataStorage)
 {
 	using namespace UE::Editor::DataStorage::Queries;
 	using namespace UE::Editor::RevisionControl::Private;
@@ -377,7 +377,7 @@ void URevisionControlDataStorageFactory::RegisterApplyOverlays(ITypedElementData
 	}
 }
 
-void URevisionControlDataStorageFactory::RegisterRemoveOverlays(ITypedElementDataStorageInterface& DataStorage)
+void URevisionControlDataStorageFactory::RegisterRemoveOverlays(IEditorDataStorageProvider& DataStorage)
 {
 	using namespace UE::Editor::DataStorage::Queries;
 	

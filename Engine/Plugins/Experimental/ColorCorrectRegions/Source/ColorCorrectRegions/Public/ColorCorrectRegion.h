@@ -117,7 +117,7 @@ typedef TSharedPtr<FColorCorrectRenderProxy, ESPMode::ThreadSafe> FColorCorrectR
  * AActor class itself is not aware of when it is added/removed, Undo/Redo etc in the Editor. 
  * More information in ColorCorrectRegionsSubsytem.h
  */
-UCLASS(Blueprintable, NotPlaceable, Abstract)
+UCLASS(Blueprintable, NotPlaceable, Abstract, HideCategories=(Actor, HLOD, Collision, Replication, Cooking, Input, DataLayers, Physics, Streaming, WorldPartition))
 class COLORCORRECTREGIONS_API AColorCorrectRegion : public AActor, public IDisplayClusterStageActor
 {
 	GENERATED_UCLASS_BODY()
@@ -129,7 +129,7 @@ public:
 	virtual ~AColorCorrectRegion() override;
 	
 	/** Region type. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Color Correction")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Region")
 	EColorCorrectRegionsType Type;
 
 	/** 
@@ -137,55 +137,55 @@ public:
 	* A region with Priority 1 will be rendered before a region with Priority 10. 
 	* This property is hidden if priority is determined by distance from the camera (When Window CCR is being used). 
 	*/
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Color Correction")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Region")
 	int32 Priority;
 
 	/** Color correction intensity. Clamped to 0-1 range. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Correction", meta = (UIMin = 0.0, UIMax = 1.0))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Region", meta = (UIMin = 0.0, UIMax = 1.0))
 	float Intensity;
 
 	/** Inner of the region. Swapped with Outer in case it is higher than Outer. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Correction", meta = (UIMin = 0.0, UIMax = 1.0))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Region", meta = (UIMin = 0.0, UIMax = 1.0))
 	float Inner;
 
 	/** Outer of the region. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Correction", meta = (UIMin = 0.0, UIMax = 1.0))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Region", meta = (UIMin = 0.0, UIMax = 1.0))
 	float Outer;
 
 	/** Falloff. Softening the region. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Correction", meta = (UIMin = 0.0))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Region", meta = (UIMin = 0.0))
 	float Falloff;
 
 	/** Invert region. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Correction")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Region")
 	bool Invert;
 
 	/** Type of algorithm to be used to control color temperature or white balance. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Correction")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Grading")
 	EColorCorrectRegionTemperatureType TemperatureType;
 
 	/** Color correction temperature. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Correction", meta = (UIMin = "1500.0", UIMax = "15000.0"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Grading", meta = (UIMin = "1500.0", UIMax = "15000.0"))
 	float Temperature;
 
 	/** Color temperature tint. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Correction", meta=(UIMin = "-1.0", UIMax = "1.0"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Grading", meta=(UIMin = "-1.0", UIMax = "1.0"))
 	float Tint;
 
 	/** Color correction settings. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Correction")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Grading", meta = (ShowPostProcessCategories))
 	FColorGradingSettings ColorGradingSettings;
 
 	/** Enable/Disable color correction provided by this region. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Correction")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Grading", meta = (DisplayName = "Enable Color Grading", DisplayPriority = 1))
 	bool Enabled;
 
 	/** Enables or disabled per actor color correction. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Per Actor CC")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Per Actor CC", meta = (DisplayName = "Enable Per-Actor CC"))
 	bool bEnablePerActorCC;
 
 	/** Controls in which way the below targets will be affected by color correction. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Per Actor CC", meta = (editcondition = "bEnablePerActorCC", DisplayName = "Per Actor CC Mode"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Per Actor CC", meta = (editcondition = "bEnablePerActorCC", DisplayName = "Per-Actor CC Mode"))
 	EColorCorrectRegionStencilType PerActorColorCorrection;
 
 	/** List of actors that get affected or ignored by Per actor CC. Effect depends on the above option. */

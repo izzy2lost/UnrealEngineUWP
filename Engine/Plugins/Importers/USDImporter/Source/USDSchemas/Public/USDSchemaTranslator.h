@@ -8,7 +8,9 @@
 #include "USDAssetCache2.h"
 #include "USDAssetCache3.h"
 #include "USDInfoCache.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "USDMemory.h"
+#endif	  // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "USDMetadataImportOptions.h"
 #include "USDPrimLinkCache.h"
 #include "USDSkeletalDataConversion.h"

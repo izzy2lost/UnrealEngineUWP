@@ -13,7 +13,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace EpicGames.Horde.Tests
 {
 	[TestClass]
-	public class StorageClientTests
+	public class StorageNamespaceTests
 	{
 		[BlobConverter(typeof(TestNodeConverter))]
 		class TestNode
@@ -62,18 +62,18 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task TestBasicAsync()
 		{
-			KeyValueStorageClient store = KeyValueStorageClient.CreateInMemory();
+			KeyValueStorageNamespace store = KeyValueStorageNamespace.CreateInMemory();
 			await TestBasicAsync(store);
 		}
 
 		[TestMethod]
 		public async Task TestBasicBundleV2Async()
 		{
-			BundleStorageClient storeV2 = BundleStorageClient.CreateInMemory(NullLogger.Instance);
+			BundleStorageNamespace storeV2 = BundleStorageNamespace.CreateInMemory(NullLogger.Instance);
 			await TestBasicAsync(storeV2);
 		}
 
-		static async Task TestBasicAsync(IStorageClient store)
+		static async Task TestBasicAsync(IStorageNamespace store)
 		{
 			IHashedBlobRef<TestNode> nodeRef;
 			await using (IBlobWriter writer = store.CreateBlobWriter())
@@ -91,7 +91,7 @@ namespace EpicGames.Horde.Tests
 		{
 			await using BundleCache cache = new BundleCache();
 
-			BundleStorageClient store = BundleStorageClient.CreateInMemory(NullLogger.Instance);
+			BundleStorageNamespace store = BundleStorageNamespace.CreateInMemory(NullLogger.Instance);
 
 			IHashedBlobRef<TestNode> nodeRef2;
 			await using (IBlobWriter writer = store.CreateBlobWriter())
@@ -116,7 +116,7 @@ namespace EpicGames.Horde.Tests
 			await using BundleCache cache = new BundleCache();
 
 			BundleOptions bundleOptions = new BundleOptions { MinCompressionPacketSize = 100, MaxBlobSize = 1024 * 1024, MaxVersion = BundleVersion.LatestV2 };
-			BundleStorageClient store = BundleStorageClient.CreateInMemory(bundleOptions, NullLogger.Instance);
+			BundleStorageNamespace store = BundleStorageNamespace.CreateInMemory(bundleOptions, NullLogger.Instance);
 
 			await using IBlobWriter writer = store.CreateBlobWriter();
 			IHashedBlobRef<TestNode> nodeRef1 = await writer.WriteBlobAsync(new TestNode(123) { Padding = new byte[1024] });

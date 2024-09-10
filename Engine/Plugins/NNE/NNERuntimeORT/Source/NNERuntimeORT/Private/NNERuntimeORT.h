@@ -12,6 +12,8 @@
 
 #include "NNERuntimeORT.generated.h"
 
+DECLARE_LOG_CATEGORY_EXTERN(LogNNERuntimeORT, Log, All);
+
 namespace UE::NNERuntimeORT::Private
 {
 	class FEnvironment;

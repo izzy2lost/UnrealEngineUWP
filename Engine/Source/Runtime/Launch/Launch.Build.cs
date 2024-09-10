@@ -84,6 +84,7 @@ public class Launch : ModuleRules
 			{
 				DynamicallyLoadedModuleNames.AddRange(new string[] {
 					"AudioMixerXAudio2",
+					"AudioMixerWasapi",
 				});
 			}
 			else if (Target.Platform == UnrealTargetPlatform.Mac)

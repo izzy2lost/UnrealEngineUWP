@@ -105,7 +105,11 @@ public:
 	FORCEINLINE bool IsMotionBlurEnabled() const { return bMotionBlurEnabled; }
 
 #if RHI_RAYTRACING
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "Use FRayTracingInstanceCollector instead.")
 	virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances, const FNiagaraSceneProxy* Proxy) {}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector, const FNiagaraSceneProxy* Proxy) {}
 #endif
 
 	FORCEINLINE static FRHIShaderResourceView* GetSrvOrDefaultFloat(const FRWBuffer& RWBuffer) { return RWBuffer.SRV.IsValid() ? (FRHIShaderResourceView*)RWBuffer.SRV : GetDummyFloatBuffer(); }

@@ -21,6 +21,7 @@ void FAnimNotifyEventReference::GatherTickRecordData(const FAnimTickRecord& InTi
 {
 	ContextData = InTickRecord.ContextData;
 	CurrentAnimTime = InTickRecord.TimeAccumulator != nullptr ? *InTickRecord.TimeAccumulator : 0.0f;
+	bActiveContext = InTickRecord.bActiveContext;
 }
 
 bool FAnimNotifyQueue::PassesFiltering(const FAnimNotifyEvent* Notify) const

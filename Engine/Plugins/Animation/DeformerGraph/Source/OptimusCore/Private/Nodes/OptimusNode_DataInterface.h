@@ -5,6 +5,7 @@
 #include "IOptimusComponentBindingProvider.h"
 #include "IOptimusDataInterfaceProvider.h"
 #include "IOptimusPinMutabilityDefiner.h"
+#include "IOptimusPropertyPinProvider.h"
 #include "OptimusComputeDataInterface.h"
 #include "OptimusComponentSource.h"
 
@@ -21,7 +22,8 @@ class UOptimusNode_DataInterface :
 	public UOptimusNode,
 	public IOptimusDataInterfaceProvider,
 	public IOptimusComponentBindingProvider,
-	public IOptimusPinMutabilityDefiner
+	public IOptimusPinMutabilityDefiner,
+	public IOptimusPropertyPinProvider
 {
 	GENERATED_BODY()
 
@@ -54,7 +56,9 @@ public:
 
 	// -- IOptimusPinMutabilityDefiner
 	EOptimusPinMutability GetOutputPinMutability(const UOptimusNodePin* InPin) const override;
-	
+
+	// -- IOptimusPropertyPinProvider
+	TArray<UOptimusNodePin*> GetPropertyPins() const override;
 protected:
 	// -- UOptimusNode overrides
 	void ConstructNode() override;
@@ -71,9 +75,7 @@ protected:
 	void PostDuplicate(EDuplicateMode::Type DuplicateMode) override;
 	
 private:
-	void CreatePinsFromDataInterface(const UOptimusComputeDataInterface *InDataInterface, bool bSupportUndo);
-	
-
+	void CreateShaderPinsFromDataInterface(const UOptimusComputeDataInterface *InDataInterface, bool bSupportUndo);
 	void CreatePinFromDefinition(
 		const FOptimusCDIPinDefinition &InDefinition,
 		const TMap<FString, const FShaderFunctionDefinition *>& InReadFunctionMap,
@@ -81,6 +83,7 @@ private:
 		bool bSupportUndo
 		);
 
+	void CreatePropertyPinsFromDataInterface(const UOptimusComputeDataInterface *InDataInterface, bool bSupportUndo);
 	void CreateComponentPin();
 
 protected:

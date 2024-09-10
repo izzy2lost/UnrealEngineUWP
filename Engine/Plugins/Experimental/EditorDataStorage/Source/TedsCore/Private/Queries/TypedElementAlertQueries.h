@@ -20,21 +20,21 @@ namespace UE::Editor::DataStorage
  * Calls to manage alerts, in particular child alerts.
  */
 UCLASS()
-class UTypedElementAlertQueriesFactory final : public UTypedElementDataStorageFactory
+class UTypedElementAlertQueriesFactory final : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	~UTypedElementAlertQueriesFactory() override = default;
 
-	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
+	void RegisterQueries(IEditorDataStorageProvider& DataStorage) override;
 
 private:
-	void RegisterSubQueries(ITypedElementDataStorageInterface& DataStorage);
-	void RegisterParentUpdatesQueries(ITypedElementDataStorageInterface& DataStorage);
-	void RegisterChildAlertUpdatesQueries(ITypedElementDataStorageInterface& DataStorage);
-	void RegisterOnAddQueries(ITypedElementDataStorageInterface& DataStorage);
-	void RegisterOnRemoveQueries(ITypedElementDataStorageInterface& DataStorage);
+	void RegisterSubQueries(IEditorDataStorageProvider& DataStorage);
+	void RegisterParentUpdatesQueries(IEditorDataStorageProvider& DataStorage);
+	void RegisterChildAlertUpdatesQueries(IEditorDataStorageProvider& DataStorage);
+	void RegisterOnAddQueries(IEditorDataStorageProvider& DataStorage);
+	void RegisterOnRemoveQueries(IEditorDataStorageProvider& DataStorage);
 
 	static void AddChildAlertsToHierarchy(
 		UE::Editor::DataStorage::IQueryContext& Context, UE::Editor::DataStorage::RowHandle Parent, int32 ParentQueryIndex);

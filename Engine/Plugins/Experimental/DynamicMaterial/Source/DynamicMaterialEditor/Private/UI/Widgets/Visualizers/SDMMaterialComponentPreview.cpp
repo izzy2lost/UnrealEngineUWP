@@ -98,6 +98,21 @@ void SDMMaterialComponentPreview::SetPreviewSize(const FVector2D& InSize)
 	}
 }
 
+UDMMaterialComponent* SDMMaterialComponentPreview::GetComponent() const
+{
+	return ComponentWeak.Get();
+}
+
+UMaterial* SDMMaterialComponentPreview::GetPreviewMaterial() const
+{
+	return PreviewMaterialBaseWeak.Get();
+}
+
+UMaterialInstanceDynamic* SDMMaterialComponentPreview::GetPreviewMaterialDynamic() const
+{
+	return PreviewMaterialDynamicWeak.Get();
+}
+
 void SDMMaterialComponentPreview::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
 	SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);

@@ -346,6 +346,34 @@ namespace UE::NNE::RuntimeBasic
 			const FModelBuilderElement& GatingLayer,
 			const TConstArrayView<FModelBuilderElement> SubLayers);
 
+		/**
+		 * Makes a new Layer Norm layer.
+		 *
+		 * @param InputOutputSize	Input and Output Vector Size
+		 * @param Offsets			Initial Offsets
+		 * @param Scales			Initial Scales
+		 * @param Epsilon			Standard Deviation Epsilon
+		 */
+		FModelBuilderElement MakeLayerNorm(
+			const uint32 InputOutputSize,
+			const TConstArrayView<float> Offsets,
+			const TConstArrayView<float> Scales,
+			const float Epsilon = 1e-5f);
+
+		/**
+		 * Makes a new Lipschizt linear layer.
+		 *
+		 * @param InputSize		Input Vector Size (Number of Rows)
+		 * @param OutputSize	Output Vector Size (Number of Columns)
+		 * @param Weights		Linear layer weights.
+		 * @param Biases		Linear layer biases.
+		 */
+		FModelBuilderElement MakeLipschiztLinear(
+			const uint32 InputSize,
+			const uint32 OutputSize,
+			const TConstArrayView<float> Weights,
+			const TConstArrayView<float> Biases);
+
 	public:
 
 		/** Creates a array of weights from a copy of the given array view */

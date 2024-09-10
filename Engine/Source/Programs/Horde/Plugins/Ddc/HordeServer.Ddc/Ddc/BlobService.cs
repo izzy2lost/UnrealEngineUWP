@@ -11,12 +11,12 @@ namespace HordeServer.Ddc
 	{
 		static readonly BlobType s_rawBlobType = new BlobType(new Guid("{03E6C37B-33C1-491F-8541-D3C401B8B8EF}"), 1);
 
-		readonly IStorageClientFactory _storageClientFactory;
+		readonly IStorageClient _storageClient;
 		readonly Tracer _tracer;
 
-		public BlobService(IStorageClientFactory storageClientFactory, Tracer tracer)
+		public BlobService(IStorageClient storageClient, Tracer tracer)
 		{
-			_storageClientFactory = storageClientFactory;
+			_storageClient = storageClient;
 			_tracer = tracer;
 		}
 
@@ -60,30 +60,30 @@ namespace HordeServer.Ddc
 
 		public async Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, CancellationToken cancellationToken = default)
 		{
-			IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
-			return await storageClient.FindAliasAsync(GetAlias(blob), cancellationToken) != null;
+			IStorageNamespace storageNamespace = _storageClient.GetNamespace(ns);
+			return await storageNamespace.FindAliasAsync(GetAlias(blob), cancellationToken) != null;
 		}
 
 		public async Task DeleteObjectAsync(NamespaceId ns, BlobId blob, CancellationToken cancellationToken)
 		{
-			IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
+			IStorageNamespace storageNamespace = _storageClient.GetNamespace(ns);
 			string aliasName = GetAlias(blob);
 
-			BlobAlias[] aliases = await storageClient.FindAliasesAsync(aliasName, cancellationToken: cancellationToken);
+			BlobAlias[] aliases = await storageNamespace.FindAliasesAsync(aliasName, cancellationToken: cancellationToken);
 			foreach (BlobAlias alias in aliases)
 			{
-				await storageClient.RemoveAliasAsync(aliasName, alias.Target, cancellationToken);
+				await storageNamespace.RemoveAliasAsync(aliasName, alias.Target, cancellationToken);
 			}
 		}
 
 		public async Task<BlobId[]> FilterOutKnownBlobsAsync(NamespaceId ns, IEnumerable<BlobId> blobIds, CancellationToken cancellationToken)
 		{
-			IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
+			IStorageNamespace storageNamespace = _storageClient.GetNamespace(ns);
 
 			List<BlobId> unknownBlobIds = new List<BlobId>();
 			foreach (BlobId blobId in blobIds)
 			{
-				if (await storageClient.FindAliasAsync(GetAlias(blobId), cancellationToken) == null)
+				if (await storageNamespace.FindAliasAsync(GetAlias(blobId), cancellationToken) == null)
 				{
 					unknownBlobIds.Add(blobId);
 				}
@@ -123,9 +123,9 @@ namespace HordeServer.Ddc
 
 		public async Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers, bool supportsRedirectUri, bool allowOndemandReplication = true, CancellationToken cancellationToken = default)
 		{
-			IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
+			IStorageNamespace storageNamespace = _storageClient.GetNamespace(ns);
 
-			BlobAlias? alias = await storageClient.FindAliasAsync(GetAlias(blob), cancellationToken);
+			BlobAlias? alias = await storageNamespace.FindAliasAsync(GetAlias(blob), cancellationToken);
 			if (alias == null)
 			{
 				throw new BlobNotFoundException(ns, blob);
@@ -174,10 +174,10 @@ namespace HordeServer.Ddc
 
 		public async Task<BlobId> PutObjectKnownHashAsync(NamespaceId ns, IBufferedPayload content, BlobId identifier, CancellationToken cancellationToken)
 		{
-			IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
+			IStorageNamespace storageNamespace = _storageClient.GetNamespace(ns);
 
 			IHashedBlobRef blobRef;
-			await using (IBlobWriter writer = storageClient.CreateBlobWriter())
+			await using (IBlobWriter writer = storageNamespace.CreateBlobWriter())
 			{
 				int contentLength = (int)content.Length;
 				Memory<byte> memory = writer.GetMemory(contentLength).Slice(0, contentLength);
@@ -190,7 +190,7 @@ namespace HordeServer.Ddc
 				await writer.FlushAsync(cancellationToken);
 			}
 
-			await storageClient.AddAliasAsync(GetAlias(identifier), blobRef, data: identifier.AsIoHash().ToByteArray(), cancellationToken: cancellationToken);
+			await storageNamespace.AddAliasAsync(GetAlias(identifier), blobRef, data: identifier.AsIoHash().ToByteArray(), cancellationToken: cancellationToken);
 			return identifier;
 		}
 

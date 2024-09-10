@@ -1,10 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/Nodes/MovieGraphGlobalOutputSettingNode.h"
+
+#include "Algo/Find.h"
 #include "Graph/MovieGraphProjectSettings.h"
 #include "Graph/MovieGraphBlueprintLibrary.h"
+#include "MoviePipelineTelemetry.h"
 #include "Styling/AppStyle.h"
-#include "Algo/Find.h"
 
 UMovieGraphGlobalOutputSettingNode::UMovieGraphGlobalOutputSettingNode()
 	: OutputFrameRate(FFrameRate(24, 1))
@@ -46,6 +48,11 @@ void UMovieGraphGlobalOutputSettingNode::GetFormatResolveArgs(FMovieGraphResolve
 	}
 
 	// We don't resolve the version here because that's handled on a per-file/shot basis
+}
+
+void UMovieGraphGlobalOutputSettingNode::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	InTelemetry->HandleFrameCount = HandleFrameCount;
 }
 
 #if WITH_EDITOR

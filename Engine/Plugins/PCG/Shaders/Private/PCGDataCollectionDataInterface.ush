@@ -34,7 +34,8 @@ void StoreBufferInternal_{DataInterfaceName}(uint Address, uint Value)
 
 uint GetNumData_{DataInterfaceName}()
 {
-	return {DataInterfaceName}_DataCollectionBuffer.Load(0);
+	// We use the most significant bit of NumData to store the KernelExecuted flag
+	return {DataInterfaceName}_DataCollectionBuffer.Load(0) & ~(1 << 31); // TODO: Code-gen to PCGComputeConstants::KernelExecutedFlag
 }
 
 uint GetDataAddress_{DataInterfaceName}(uint DataIndex)
@@ -162,9 +163,11 @@ uint GetAttributeAddress_{DataInterfaceName}(uint InDataAddress, uint InAttribut
 
 // #################### HEADER WRITERS ##########################
 
-void SetNumDataInternal_{DataInterfaceName}(uint NumData)
+void SetAsExecutedInternal_{DataInterfaceName}()
 {
-	{DataInterfaceName}_DataCollectionBuffer.Store(0, NumData);
+	// We use the most significant bit of NumData to store the KernelExecuted flag
+	const uint NumData = GetNumData_{DataInterfaceName}();
+	{DataInterfaceName}_DataCollectionBuffer.Store(0, NumData | (1 << 31)); // TODO: Code-gen to PCGComputeConstants::KernelExecutedFlag
 }
 
 void SetDataAddressInternal_{DataInterfaceName}(uint DataIndex, uint DataAddress)
@@ -388,7 +391,7 @@ float4x4 GetPointTransform_{DataInterfaceName}(uint InDataIndex, uint InElementI
 		(float3)0.0, 1.0);
 }
 
-bool IsValid_{DataInterfaceName}(uint InDataIndex, uint InElementIndex)
+bool IsPointRemoved_{DataInterfaceName}(uint InDataIndex, uint InElementIndex)
 {
 	return GetDensity_{DataInterfaceName}(InDataIndex, InElementIndex) != INVALID_DENSITY;
 }

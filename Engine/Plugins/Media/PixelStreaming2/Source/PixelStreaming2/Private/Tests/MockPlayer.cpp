@@ -66,16 +66,6 @@ namespace UE::PixelStreaming2
 
 		TRefCountPtr<FEpicRtcWebsocketFactory> WebsocketFactory = MakeRefCount<FEpicRtcWebsocketFactory>(false);
 
-		static const EpicRtcLogLevel UnrealLogToEpicRtcCategoryMap[] = {
-			EpicRtcLogLevel::Trace,
-			EpicRtcLogLevel::Debug,
-			EpicRtcLogLevel::Info,
-			EpicRtcLogLevel::Warning,
-			EpicRtcLogLevel::Error,
-			EpicRtcLogLevel::Critical,
-			EpicRtcLogLevel::Off
-		};
-
 		Result = Platform->CreateConference(ToEpicRtcStringView(ConferenceId),
 			{ ._websocketFactory = WebsocketFactory.GetReference(),
 				._signallingType = EpicRtcSignallingType::PixelStreaming,

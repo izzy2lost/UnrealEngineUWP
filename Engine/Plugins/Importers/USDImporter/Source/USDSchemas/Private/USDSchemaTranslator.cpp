@@ -3,9 +3,9 @@
 #include "USDSchemaTranslator.h"
 
 #include "USDInfoCache.h"
+#include "USDMemory.h"
 #include "USDSchemasModule.h"
 #include "USDTypesConversion.h"
-
 #include "UsdWrappers/UsdPrim.h"
 #include "UsdWrappers/UsdTyped.h"
 
@@ -246,9 +246,9 @@ bool FUsdSchemaTranslator::IsCollapsed(ECollapsingType CollapsingType) const
 
 	// This is merely a fallback, and we should never need this
 	return CanBeCollapsed(CollapsingType);
-#else	// #if USE_USD_SDK
+#else	  // #if USE_USD_SDK
 	return false;
-#endif	// #if USE_USD_SDK
+#endif	  // #if USE_USD_SDK
 }
 
 UE::FSdfPath FUsdSchemaTranslator::GetPrototypePrimPath() const

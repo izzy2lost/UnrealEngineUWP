@@ -1217,7 +1217,12 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 		// Utility Considerations
 		for (const FStateTreeEditorNode& Node : State.Considerations)
 		{
-			if (const FStateTreeConsiderationBase* Consideration = Node.Node.GetPtr<FStateTreeConsiderationBase>())
+			if (VisitFuncNodes(Node.ID, Node.GetName()) == EStateTreeVisitor::Break)
+			{
+				bContinue = false;
+				break;
+			}
+			else if (const FStateTreeConsiderationBase* Consideration = Node.Node.GetPtr<FStateTreeConsiderationBase>())
 			{
 				FStateTreeBindableStructDesc Desc;
 				Desc.StatePath = StatePathWithConsiderations;

@@ -49,7 +49,7 @@ FInstancedStructContainer& FInstancedStructContainer::operator=(FInstancedStruct
 			
 		Memory = InOther.Memory;
 		AllocatedSize = InOther.AllocatedSize;
-		NumItems = InOther.AllocatedSize;
+		NumItems = InOther.NumItems;
 			
 		InOther.Memory = nullptr;
 		InOther.AllocatedSize = 0;
@@ -682,4 +682,92 @@ void FInstancedStructContainer::GetPreloadDependencies(TArray<UObject*>& OutDeps
 			}
 		}
 	}
+}
+
+bool FInstancedStructContainer::ExportTextItem(FString& ValueStr, FInstancedStructContainer const& DefaultValue,
+	UObject* Parent, int32 PortFlags, UObject* ExportRootScope) const
+{
+	ValueStr += TEXT('(');
+	for (int32 Index = 0; Index < NumItems; ++Index)
+	{
+		if (Index > 0)
+		{
+			ValueStr += TEXT(',');
+		}
+
+		FItem& Item = GetItem(Index);
+
+		// Serialize in the format of FInstancedStruct::ExportTextItem
+		if (Item.ScriptStruct)
+		{
+			ValueStr += Item.ScriptStruct->GetPathName();
+
+			Item.ScriptStruct->ExportText(
+				ValueStr,
+				Memory + Item.Offset,
+				DefaultValue.IsValidIndex(Index) && Item.ScriptStruct == DefaultValue.GetItem(Index).ScriptStruct
+					? DefaultValue.Memory + DefaultValue.GetItem(Index).Offset
+					: nullptr,
+				Parent,
+				PortFlags,
+				ExportRootScope
+			);
+		}
+		else
+		{
+			ValueStr += TEXT("None");
+		}
+	}
+
+	ValueStr += TEXT(')');
+	return true;
+}
+
+bool FInstancedStructContainer::ImportTextItem(const TCHAR*& Buffer, int32 PortFlags, UObject* Parent,
+	FOutputDevice* ErrorText, FArchive* InSerializingArchive)
+{
+	// We can't predict the size of the container during string read, so let's work in a temporary array
+	// instead of constantly resizing the container
+	TArray<FInstancedStruct, TInlineAllocator<64>> RawStructs;
+
+	if (*Buffer != TEXT('('))
+	{
+		ErrorText->Logf(
+			ELogVerbosity::Warning,
+			TEXT("FInstancedStructContainer: Missing opening \'(\' while importing property values.")
+		);
+
+		return false;
+	}
+	Buffer++;
+
+	bool bFirst = true;
+	while (*Buffer != TEXT(')'))
+	{
+		if (!bFirst)
+		{
+			if (*Buffer == TEXT(','))
+			{
+				Buffer++;
+			}
+			else
+			{
+				ErrorText->Logf(ELogVerbosity::Warning, TEXT("FInstancedStructContainer: Missing \',\' after item."));
+				return false;
+			}
+		}
+
+		// We can do this because we've exported exactly as FInstancedStruct::ExportTextItem does
+		FInstancedStruct& InstancedStruct = RawStructs.AddDefaulted_GetRef();
+		const bool bSuccess = InstancedStruct.ImportTextItem(Buffer, PortFlags, Parent, ErrorText, InSerializingArchive);
+		if (!bSuccess)
+		{
+			return false;
+		}
+
+		bFirst = false;
+	}
+
+	*this = RawStructs;
+	return true;
 }

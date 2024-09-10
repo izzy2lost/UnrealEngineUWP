@@ -8,11 +8,11 @@
 #include "USDConversionUtils.h"
 #include "USDDuplicateType.h"
 #include "USDLayerUtils.h"
+#include "USDMemory.h"
 #include "USDOptionsWindow.h"
 #include "USDPrimViewModel.h"
 #include "USDReferenceOptions.h"
 #include "USDTypesConversion.h"
-
 #include "UsdWrappers/SdfChangeBlock.h"
 #include "UsdWrappers/SdfPath.h"
 #include "UsdWrappers/UsdPrim.h"
@@ -1706,7 +1706,10 @@ void SUsdStageTreeView::FillCollapsingSubmenu(FMenuBuilder& MenuBuilder)
 
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("CollapseOnKind", "Default"),
-		LOCTEXT("CollapseOnKind_ToolTip", "When 'Use prim kinds for collapsing' is enabled, prims are collapsed according to their kind (default). When disabled, prims won't be collapsed by default."),
+		LOCTEXT(
+			"CollapseOnKind_ToolTip",
+			"When 'Use prim kinds for collapsing' is enabled, prims are collapsed according to their kind (default). When disabled, prims won't be collapsed by default."
+		),
 		FSlateIcon(),
 		FUIAction(
 			FExecuteAction::CreateSP(this, &SUsdStageTreeView::OnSetCollapsingPreference, UsdUtils::ECollapsingPreference::Default),

@@ -644,12 +644,12 @@ public:
 	virtual bool IsRayTracingRelevant() const { return true; }
 	virtual bool IsRayTracingStaticRelevant() const { return false; }
 
-	virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext & Context, TArray<struct FRayTracingInstance>& OutRayTracingInstances) override
+	virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) override
 	{
 		if (!IsHairRayTracingEnabled() || HairGroupInstances.Num() == 0)
 			return;
 
-		const EShaderPlatform Platform = Context.ReferenceView->GetShaderPlatform();
+		const EShaderPlatform Platform = Collector.GetReferenceView()->GetShaderPlatform();
 		if (!IsHairStrandsEnabled(EHairStrandsShaderType::Strands, Platform) &&
 			!IsHairStrandsEnabled(EHairStrandsShaderType::Cards, Platform) &&
 			!IsHairStrandsEnabled(EHairStrandsShaderType::Meshes, Platform))
@@ -657,8 +657,8 @@ public:
 			return;
 		}
 
-		const bool bWireframe = AllowDebugViewmodes() && Context.ReferenceViewFamily.EngineShowFlags.Wireframe;
-		const EHairViewRayTracingMask ViewRayTracingMask = Context.ReferenceViewFamily.EngineShowFlags.PathTracing ? EHairViewRayTracingMask::PathTracing : EHairViewRayTracingMask::RayTracing;
+		const bool bWireframe = AllowDebugViewmodes() && Collector.GetReferenceView()->Family->EngineShowFlags.Wireframe;
+		const EHairViewRayTracingMask ViewRayTracingMask = Collector.GetReferenceView()->Family->EngineShowFlags.PathTracing ? EHairViewRayTracingMask::PathTracing : EHairViewRayTracingMask::RayTracing;
 		if (bWireframe)
 			return;
 
@@ -709,7 +709,7 @@ public:
 					check(Segment.VertexBuffer.IsValid());
 				}
 				// ViewFamily.EngineShowFlags.PathTracing
-				if (FMeshBatch* MeshBatch = CreateMeshBatch(Context.ReferenceView, Context.ReferenceViewFamily, Context.RayTracingMeshResourceCollector, EHairMeshBatchType::Raytracing, Instance, GroupIt, nullptr))
+				if (FMeshBatch* MeshBatch = CreateMeshBatch(Collector.GetReferenceView(), *Collector.GetReferenceView()->Family, Collector, EHairMeshBatchType::Raytracing, Instance, GroupIt, nullptr))
 				{
 					FRayTracingInstance RayTracingInstance;
 					RayTracingInstance.Geometry = &RTGeometry->RayTracingGeometry;
@@ -717,7 +717,7 @@ public:
 					RayTracingInstance.InstanceTransforms.Add(OverrideLocalToWorld);
 					RayTracingInstance.bThinGeometry = bIsHairStrands;
 
-					OutRayTracingInstances.Add(RayTracingInstance);
+					Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
 				}
 			}
 		}

@@ -68,9 +68,9 @@ The plugin demonstrates tests using either Blueprint or code. This section descr
 
 ### CQTests
 
-**CQTest**, or Code Quality Tests, are a method of creating functional tests using C++. The **CQTest** framework resides in a plugin that is provided with Unreal Engine and is enabled within **ShooterTests**. Unreal Engine provides multiple testing frameworks, but the focus on CQTest was decided due to providing before/after functionality that is paired with each test case. Another benefit is that **CQTest** resets the state of each test automatically, making sure that each test is atomic in that there is no worry about leaking objects to or from another test. Please refer to the readme documentation located in `/Engine/Plugins/Test/CQTest` for a deeper understanding of **CQTest**.
+**CQTest**, or Code Quality Tests, are a method of creating functional tests using C++. The **CQTest** framework is an Unreal Engine module and is enabled within **ShooterTests**. Unreal Engine provides multiple testing frameworks, but the focus on CQTest was decided due to providing before/after functionality that is paired with each test case. Another benefit is that **CQTest** resets the state of each test automatically, making sure that each test is atomic in that there is no worry about leaking objects to or from another test. Please refer to the readme documentation located in `/Engine/Source/Developer/CQTest` for a deeper understanding of **CQTest**.
 
-**Shooter Tests** are tests implemented using the **CQTest** framework and they are implemented within their respective categories. Within the categories, it's possible to have subcategories to help further define the type or functionality expected to be tested. While [Blueprint Functional Tests](#blueprint-functional-tests) are categorized in the **Automation** tab by the map that they reside in. Similar to how clicking on a [Blueprint Functional Tests](#blueprint-functional-tests) will load the level with the Functional Test Actor, clicking on a **CQTest** will open the code file where the test is implemented.
+**Shooter Tests** are tests implemented using the **CQTest** framework within their respective categories. Within the categories, it's possible to have subcategories to help further define the type or functionality expected to be tested. While [Blueprint Functional Tests](#blueprint-functional-tests) are categorized in the **Automation** tab by the map that they reside in. Similar to how clicking on a [Blueprint Functional Tests](#blueprint-functional-tests) will load the level with the Functional Test Actor, clicking on a **CQTest** will open the code file where the test is implemented.
 
 Tests created using the **CQTest** framework allows for custom categorization when declaring the `TEST_CLASS` or `TEST` itself. For example
 
@@ -368,7 +368,7 @@ There are 2 different character models that are spawned in a **Lyra** session, M
   * `B_CharacterSelection` is more deterministic in that it loads the model using a round robin approach starting with `B_Manny`, then `B_Quinn`, before going back to `B_Manny`
 * Either duplicate the `B_PickRandomCharacter` or `B_CharacterSelection` Blueprint or create a new Blueprint Class with the `Lyra Controller Component Character Parts` as the parent class
 * Modify the `Event Graph` of the new blueprint to load the character you wish to test with and make sure to compile and save when done.
-* Back in the Content Browser, navigate to `/Plugins/ShooterTests COntent/System/Experiences`
+* Back in the Content Browser, navigate to `/Plugins/ShooterTests Content/System/Experiences`
   * This directory has 2 Blueprint Classes, `B_BasicShooterTest` and `B_AutomatedShooterTest`
 * * Either duplicate the `B_BasicShooterTest` or `B_AutomatedShooterTest` Blueprint or create a new Blueprint Class with the `Lyra Experience Definition` as the parent class
 * Under the `Class Defaults` section navigate to the `Actions` category and expand both the `Actions` category and the `Actions` item.

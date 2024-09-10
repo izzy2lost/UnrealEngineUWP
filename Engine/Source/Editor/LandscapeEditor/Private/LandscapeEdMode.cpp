@@ -2852,9 +2852,29 @@ void FEdModeLandscape::UpdateLayerUsageInformation(TWeakObjectPtr<ULandscapeLaye
 
 bool FEdModeLandscape::ShouldShowLayer(TSharedRef<FLandscapeTargetListInfo> Target) const
 {
-	if (!UISettings->ShowUnusedLayers)
+	if (!UISettings->ShowUnusedLayers && (!Target->LayerInfoObj.IsValid() || !Target->LayerInfoObj.Get()->IsReferencedFromLoadedData))
 	{
-		return Target->LayerInfoObj.IsValid() && Target->LayerInfoObj.Get()->IsReferencedFromLoadedData;
+		return false;
+	}
+
+	// check each string in the filter strings list against our layer name
+	if (!UISettings->TargetLayersFilterString.IsEmpty())
+	{
+		// Build a list of strings that must be matched
+		TArray<FString> FilterStrings;
+
+		FString FilterString = UISettings->TargetLayersFilterString;
+		FilterString.TrimStartAndEndInline();
+		FilterString.ParseIntoArray(FilterStrings, TEXT(" "), true /*bCullEmpty*/);
+
+		const FString LayerName = Target->GetLayerName().ToString();
+		for (const FString& String : FilterStrings)
+		{
+			if (!LayerName.Contains(String))
+			{
+				return false;
+			}
+		}
 	}
 
 	return true;

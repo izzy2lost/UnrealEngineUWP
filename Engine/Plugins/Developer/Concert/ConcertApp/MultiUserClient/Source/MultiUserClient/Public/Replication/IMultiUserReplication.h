@@ -27,7 +27,7 @@ namespace UE::MultiUserClient
 	public:
 
 		/**
-		 * @return Gets the last known server map of objects registered for replication for a given client.
+		 * @return Gets the last known server map of objects registered for replication for an online or offline client.
 		 * 
 		 * This server state is regularly polled whilst the local client state should always be in sync.
 		 * @note This function must be called from the game thread.
@@ -36,7 +36,7 @@ namespace UE::MultiUserClient
 		virtual const FConcertObjectReplicationMap* FindReplicationMapForClient(const FGuid& ClientId) const = 0;
 
 		/**
-		 * @return Gets the last known server object replication frequencies.
+		 * @return Gets the last known server object replication frequencies for an online or offline .
 		 * 
 		 * This server state is regularly polled whilst the local client state should always be in sync.
 		 * @note This function must be called from the game thread.
@@ -112,6 +112,13 @@ namespace UE::MultiUserClient
 		virtual FOnServerStateChanged& OnStreamServerStateChanged() = 0;
 		/** @return Delegate that triggers when the given client's known server state has changed. */
 		virtual FOnServerStateChanged& OnAuthorityServerStateChanged() = 0;
+
+		DECLARE_MULTICAST_DELEGATE(FOnOfflineClientsChanged);
+		/** @return Delegate that triggers when the endpoints considered offline have changed. */
+		virtual FOnOfflineClientsChanged& OnOfflineClientsChanged() = 0;
+
+		/** @return Delegates that triggers when the content of an offline client has changed. Not called as part of OnOfflineClientsChanged. */
+		virtual FOnServerStateChanged& OnOfflineClientContentChanged() = 0;
 
 		virtual ~IMultiUserReplication() = default;
 	};

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AssetRegistry/AssetData.h"
 #include "IDetailCustomization.h"
 #include "StructUtils/PropertyBag.h"
 #include "ChooserDetails.generated.h"

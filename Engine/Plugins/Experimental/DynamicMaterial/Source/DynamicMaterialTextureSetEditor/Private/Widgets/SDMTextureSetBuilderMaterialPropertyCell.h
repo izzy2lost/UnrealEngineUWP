@@ -43,4 +43,6 @@ protected:
 	bool GetPropertyEnabled() const;
 
 	void SetMaterialForChannelMask();
+
+	EVisibility GetTextureNameVisibility() const;
 };

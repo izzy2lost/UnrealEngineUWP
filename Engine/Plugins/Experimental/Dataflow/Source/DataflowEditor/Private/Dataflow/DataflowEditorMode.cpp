@@ -133,10 +133,51 @@ void UDataflowEditorMode::RegisterDataflowTool(TSharedPtr<FUICommandInfo> UIComm
 	const TSharedRef<FUICommandList>& CommandList = Toolkit->GetToolkitCommands();
 
 	CommandList->MapAction(UICommand, 
-		FExecuteAction::CreateWeakLambda(ToolsContext, [this, ToolsContext, ToolIdentifier]()
+		FExecuteAction::CreateWeakLambda(ToolsContext, [this, ToolsContext, ToolIdentifier, Builder]()
 		{
 			UDataflowContextObject* ContextObject = ToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>();
 			check(ContextObject);
+
+			if (const IDataflowEditorToolBuilder* const DataflowToolBuilder = Cast<IDataflowEditorToolBuilder>(Builder))
+			{
+				// Check if we need to switch view modes before starting the tool
+				TArray<const Dataflow::IDataflowConstructionViewMode*> SupportedModes;
+
+				DataflowToolBuilder->GetSupportedConstructionViewModes(*ContextObject, SupportedModes);
+
+				if (SupportedModes.Num() > 0 && !SupportedModes.Contains(GetConstructionViewMode()))
+				{
+					if (!bShouldRestoreSavedConstructionViewMode)
+					{
+						// remember the current view mode so we can restore it later
+						SavedConstructionViewMode = GetConstructionViewMode()->GetName();
+						bShouldRestoreSavedConstructionViewMode = true;
+					}
+
+					bool bHadSingleSelectedMesh = false;
+					if (const USelection* const SelectedComponents = GetModeManager()->GetSelectedComponents())
+					{
+						bHadSingleSelectedMesh = (SelectedComponents->Num() == 1);
+					}
+
+					// switch to the preferred view mode for the tool that's about to start
+					SetConstructionViewMode(SupportedModes[0]->GetName());
+
+					if (bHadSingleSelectedMesh)
+					{
+						// If there is a single dynamic mesh component in the scene, select it so the tool can start
+						const TArray<UDynamicMeshComponent*> DynamicMeshComponents = ConstructionScene->GetDynamicMeshComponents();
+						if (DynamicMeshComponents.Num() == 1)
+						{
+							if (USelection* const SelectedComponents = GetModeManager()->GetSelectedComponents())
+							{
+								SelectedComponents->Select(DynamicMeshComponents[0]);
+							}
+						}
+					}
+
+				}
+			}
 
 			// Make sure the ContextObject's selected Collection is the from the Input side of the selected node (so that the tool gets the Collection as it appears before node execution)
 
@@ -538,6 +579,43 @@ void UDataflowEditorMode::ModeTick(float DeltaTime)
 
 		NodeTypeForPendingToolStart = FName();
 	}
+
+
+	if (bShouldRestartToolNextTick)
+	{
+		// If we ended the active tool in order to change view mode, restart it now
+
+		const UDataflowBaseContent* const EditorContent = ConstructionScene->GetEditorContent();
+		checkf(EditorContent, TEXT("Expected EditorContent in ConstructionScene"));
+
+		if (!EditorContent->IsConstructionDirty())		// hold off restarting the tool until the scene finishes rebuilding
+		{
+			// First select the lone mesh in the construction scene if there is one
+			if (bHadSingleSelectionBeforeToolShutdown)
+			{
+				const TArray<UDynamicMeshComponent*> DynamicMeshComponents = ConstructionScene->GetDynamicMeshComponents();
+				if (DynamicMeshComponents.Num() == 1)
+				{
+					if (USelection* const SelectedComponents = GetModeManager()->GetSelectedComponents())
+					{
+						SelectedComponents->Select(DynamicMeshComponents[0]);
+					}
+				}
+			}
+
+			// Now start the tool
+			if (const TSharedPtr<const SDataflowGraphEditor> PinnedGraphEditor = DataflowGraphEditor.Pin())
+			{
+				const FGraphPanelSelectionSet& SelectedNodes = PinnedGraphEditor->GetSelectedNodes();
+				if (SelectedNodes.Num() == 1)
+				{
+					StartToolForSelectedNode(*SelectedNodes.CreateConstIterator());
+				}
+			}
+
+			bShouldRestartToolNextTick = false;
+		}
+	}
 }
 
 void UDataflowEditorMode::ConstructionViewportResized(FViewport* ConstructionViewport, uint32 /*Unused*/)
@@ -570,6 +648,17 @@ FBox UDataflowEditorMode::SceneBoundingBox() const
 
 FBox UDataflowEditorMode::SelectionBoundingBox() const
 {
+	// if Tool supports custom Focus box, use that first
+	if (GetToolManager()->HasAnyActiveTool())
+	{
+		UInteractiveTool* const Tool = GetToolManager()->GetActiveTool(EToolSide::Mouse);
+		IInteractiveToolCameraFocusAPI* const FocusAPI = Cast<IInteractiveToolCameraFocusAPI>(Tool);
+		if (FocusAPI && FocusAPI->SupportsWorldSpaceFocusBox())
+		{
+			return FocusAPI->GetWorldSpaceFocusBox();
+		}
+	}
+
 	// If the selection is on the GetBoundingBox is automatically computing the selection one
 	FBox Bounds = ConstructionScene->GetBoundingBox();
 	if (Bounds.IsValid)
@@ -583,25 +672,56 @@ FBox UDataflowEditorMode::SelectionBoundingBox() const
 
 void UDataflowEditorMode::SetConstructionViewMode(const FName& NewViewModeName)
 {
-	// We will first check if there is an active tool. If so, we'll shut down the tool and save the results to the Node, then change view modes, then restart the tool again.
-	
-	bool bEndedActiveTool = false;
-	UInteractiveToolManager* const ToolManager = GetInteractiveToolsContext()->ToolManager;
-	checkf(ToolManager, TEXT("No valid ToolManager found for UDataflowEditorMode"));
-	if (UInteractiveTool* const ActiveTool = ToolManager->GetActiveTool(EToolSide::Left))
+	if (NewViewModeName == ConstructionViewMode->GetName())
 	{
-		// avoid switching back to the previous view mode when the tool ends here
-		const bool bTempShouldRestoreVal = bShouldRestoreSavedConstructionViewMode;
-		bShouldRestoreSavedConstructionViewMode = false;
-
-		ToolManager->PostActiveToolShutdownRequest(ActiveTool, EToolShutdownType::Accept);
-		bEndedActiveTool = true;
-
-		// now we can restore the previous view mode the next time the tool ends
-		bShouldRestoreSavedConstructionViewMode = bTempShouldRestoreVal;
+		return;
 	}
 
-	// Next get the ViewMode pointer from the given name
+	const TObjectPtr<UInteractiveToolManager> ToolManager = GetInteractiveToolsContext()->ToolManager;
+	checkf(ToolManager, TEXT("No valid ToolManager found for UDataflowEditorMode"));
+
+	checkf(ConstructionScene, TEXT("Expected UDataflowEditorMode::ConstructionScene to have been initialized"));
+
+	// Check if we have a single component selected. If we do, we will attempt to re-select it once the Construction Scene is rebuilt (if we have a tool running)
+	bHadSingleSelectionBeforeToolShutdown = false;
+
+	// Also check if we needed to shut down a running tool or not
+	bool bToolWasShutDown = false;
+
+	if (UInteractiveTool* const ActiveTool = ToolManager->GetActiveTool(EToolSide::Left))
+	{
+		if (const USelection* const SelectedComponents = GetModeManager()->GetSelectedComponents())
+		{
+			if (SelectedComponents->Num() == 1)			// TODO: Extend this to handle multiple selected components
+			{
+				if (const UDynamicMeshComponent* const SelectedDynamicMeshComponent = Cast<UDynamicMeshComponent>(SelectedComponents->GetSelectedObject(0)))
+				{
+					if (ConstructionScene->GetDynamicMeshComponents().Contains(SelectedDynamicMeshComponent))
+					{
+						bHadSingleSelectionBeforeToolShutdown = true;
+					}
+				}
+			}
+		}
+
+		const UInteractiveToolBuilder* const ActiveToolBuilder = ToolManager->GetActiveToolBuilder(EToolSide::Left);
+		checkf(ActiveToolBuilder, TEXT("Found active tool with no active tool builder"));
+
+		bool bToolCanHandleStateChange = false;
+
+		if (const IDataflowEditorToolBuilder* const DataflowToolBuilder = Cast<IDataflowEditorToolBuilder>(ActiveToolBuilder))
+		{
+			FToolBuilderState SceneState;
+			ToolManager->GetContextQueriesAPI()->GetCurrentSelectionState(SceneState);
+			bToolCanHandleStateChange = DataflowToolBuilder->CanSceneStateChange(ActiveTool, SceneState);
+		}
+
+		if (!bToolCanHandleStateChange)
+		{
+			ToolManager->PostActiveToolShutdownRequest(ActiveTool, EToolShutdownType::Accept);
+			bToolWasShutDown = true;
+		}
+	}
 
 	const Dataflow::FRenderingViewModeFactory& ViewModes = Dataflow::FRenderingViewModeFactory::GetInstance();
 	const Dataflow::IDataflowConstructionViewMode* const NewMode = ViewModes.GetViewMode(NewViewModeName);
@@ -626,16 +746,40 @@ void UDataflowEditorMode::SetConstructionViewMode(const FName& NewViewModeName)
 	// If we are switching to a mode with a valid mesh for the first time, focus the camera on it
 	FirstTimeFocusConstructionViewport();
 
-	if (bEndedActiveTool)
+
+	if (bToolWasShutDown)
 	{
-		// If we ended the active tool in order to change modes, restart it now
-		if (const TSharedPtr<const SDataflowGraphEditor> PinnedGraphEditor = DataflowGraphEditor.Pin())
+		// Tool restart must be done on the next tick because shutting down the current tool will cause the ConstructionView to be rebuilt next tick as well
+		bShouldRestartToolNextTick = true;
+	}
+	else if (UInteractiveTool* const ActiveTool = ToolManager->GetActiveTool(EToolSide::Left))
+	{
+		// If there is a currently active tool, notify it that the scene has changed
+
+		// First check if we previously had a single selected component before changing view modes. If so, and if there is now a single component in the construction scene, select it.
+		// TODO: Extend this to handle multiple selected components
+
+		if (bHadSingleSelectionBeforeToolShutdown)
 		{
-			const FGraphPanelSelectionSet& SelectedNodes = PinnedGraphEditor->GetSelectedNodes();
-			if (SelectedNodes.Num() == 1)
+			const TArray<UDynamicMeshComponent*> DynamicMeshComponents = ConstructionScene->GetDynamicMeshComponents();
+			if (DynamicMeshComponents.Num() == 1)
 			{
-				StartToolForSelectedNode(*SelectedNodes.CreateConstIterator());
+				if (USelection* const SelectedComponents = GetModeManager()->GetSelectedComponents())
+				{
+					SelectedComponents->Select(DynamicMeshComponents[0]);
+				}
 			}
+		}
+
+		// Now notify the active tool that the SceneState is different
+		UInteractiveToolBuilder* const ActiveToolBuilder = ToolManager->GetActiveToolBuilder(EToolSide::Left);
+		checkf(ActiveToolBuilder, TEXT("Found active tool with no active tool builder"));
+
+		if (IDataflowEditorToolBuilder* const DataflowToolBuilder = Cast<IDataflowEditorToolBuilder>(ActiveToolBuilder))
+		{
+			FToolBuilderState SceneState;
+			ToolManager->GetContextQueriesAPI()->GetCurrentSelectionState(SceneState);
+			DataflowToolBuilder->SceneStateChanged(ActiveTool, SceneState);
 		}
 	}
 }
@@ -672,18 +816,28 @@ bool UDataflowEditorMode::CanChangeConstructionViewModeTo(const FName& NewViewMo
 		return false;
 	}
 
-	// TODO: Check active tool to see if we can switch modes while the tool is running
-//	/*
-//	const UInteractiveToolBuilder* const ActiveToolBuilder = GetToolManager()->GetActiveToolBuilder(EToolSide::Left);
-//	checkf(ActiveToolBuilder, TEXT("No Active Tool Builder found despite having an Active Tool"));
-//
-//	const IDataflowEditorToolBuilder* const DataflowToolBuilder = Cast<const IDataflowEditorToolBuilder>(ActiveToolBuilder);
-//	checkf(ClothToolBuilder, TEXT("Cloth Editor has an active Tool Builder that does not implement IDataflowEditorToolBuilder"));
-//
-//	TArray<Dataflow::EDataflowPatternVertexType> SupportedViewModes;
-//	ClothToolBuilder->GetSupportedViewModes(SupportedViewModes);
-//	return SupportedViewModes.Contains(NewViewMode);
-//	*/
+
+	// Check active tool to see if we can switch modes while the tool is running
+
+	const UInteractiveToolBuilder* const ActiveToolBuilder = GetToolManager()->GetActiveToolBuilder(EToolSide::Left);
+	checkf(ActiveToolBuilder, TEXT("No Active Tool Builder found despite having an Active Tool"));
+
+	if (const IDataflowEditorToolBuilder* const DataflowToolBuilder = Cast<const IDataflowEditorToolBuilder>(ActiveToolBuilder))
+	{
+		const UEditorInteractiveToolsContext* const ConstructionToolsContext = GetInteractiveToolsContext();
+		checkf(ConstructionToolsContext, TEXT("No Tools Context found in Dataflow Editor"));
+
+		const UDataflowContextObject* const DataflowContextObject = ConstructionToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>();
+		checkf(DataflowContextObject, TEXT("No Dataflow Context Object found in ContextObjectStore, despite having an Active Tool. This should have been created by the time a tool is activated"));
+
+		TArray<const Dataflow::IDataflowConstructionViewMode*> SupportedViewModes;
+		DataflowToolBuilder->GetSupportedConstructionViewModes(*DataflowContextObject, SupportedViewModes);
+
+		if (const Dataflow::IDataflowConstructionViewMode* const NewViewMode = Dataflow::FRenderingViewModeFactory::GetInstance().GetViewMode(NewViewModeName))
+		{
+			return SupportedViewModes.Contains(NewViewMode);
+		}
+	}
 
 	return false;
 }

@@ -290,8 +290,8 @@ namespace UE
 			{
 				// see if the engine has been initialized yet
 				IAppInstance RunningInstance = this.TestInstance.RunningRoles.First().AppInstance;
-				UnrealLogParser LogParser = new UnrealLogParser(RunningInstance.StdOut);
-				if (LogParser.Content.IndexOf( GetCompletionString(), StringComparison.OrdinalIgnoreCase) > 0 )
+				UnrealLogParser LogParser = new UnrealLogParser(RunningInstance.GetLogBufferReader());
+				if (LogParser.GetAllContainingLines(GetCompletionString(), StringComparison.OrdinalIgnoreCase).Any())
 				{
 					Log.Info("Found '{0}'. Starting PLM tests...", GetCompletionString() );
 					bHasEngineInit = true;

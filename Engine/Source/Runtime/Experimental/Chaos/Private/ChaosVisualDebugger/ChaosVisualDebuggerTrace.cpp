@@ -1051,6 +1051,11 @@ void FChaosVisualDebuggerTrace::UnregisterEventHandlers()
 	bIsTracing = false;
 }
 
+TSharedRef<FChaosVDSerializableNameTable>& FChaosVisualDebuggerTrace::GetNameTableInstance()
+{
+	return CVDNameTable;
+}
+
 void FChaosVisualDebuggerTrace::Reset()
 {
 	CVDNameTable->ResetTable();

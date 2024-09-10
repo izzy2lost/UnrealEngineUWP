@@ -11,6 +11,7 @@
 #include "Misc/Optional.h"
 #include "UI/Utils/DMWidgetSlot.h"
 
+class FDMKeyTracker;
 class FDMPreviewMaterialManager;
 class FSlotBase;
 class FUICommandList;
@@ -164,7 +165,7 @@ protected:
 	TDMWidgetSlot<SWidget> ContentSlot;
 	TDMWidgetSlot<SDMToolBar> ToolBarSlot;
 	TDMWidgetSlot<SWidget> MainSlot;
-	TDMWidgetSlot<SDMMaterialPreview> MaterialPreviewSlot;
+	TDMWidgetSlot<SWidget> MaterialPreviewSlot;
 	TDMWidgetSlot<SDMMaterialPropertySelector> PropertySelectorSlot;
 	TDMWidgetSlot<SDMMaterialGlobalSettingsEditor> GlobalSettingsEditorSlot;
 	TDMWidgetSlot<SDMMaterialProperties> MaterialPropertiesSlot;
@@ -177,11 +178,12 @@ protected:
 	TOptional<FDMObjectMaterialProperty> ObjectMaterialPropertyOpt;
 
 	TSharedRef<FUICommandList> CommandList;
+	TSharedPtr<FDMKeyTracker> KeyTracker_V;
 	TSharedRef<FDMPreviewMaterialManager> PreviewMaterialManager;
 	TSharedPtr<SDockTab> MaterialPreviewTab;
-	TDMWidgetSlot<SDMMaterialPreview> MaterialPreviewTabSlot;
+	TDMWidgetSlot<SWidget> MaterialPreviewTabSlot;
 	TSharedPtr<IToolTip> MaterialPreviewToolTip;
-	TDMWidgetSlot<SDMMaterialPreview> MaterialPreviewToolTipSlot;
+	TDMWidgetSlot<SWidget> MaterialPreviewToolTipSlot;
 
 	EDMMaterialEditorMode EditMode;
 	EDMMaterialPropertyType SelectedMaterialProperty;
@@ -233,7 +235,7 @@ protected:
 
 	TSharedRef<SDMMaterialProperties> CreateSlot_MaterialProperties();
 
-	TSharedRef<SDMMaterialPreview> CreateSlot_Preview();
+	TSharedRef<SWidget> CreateSlot_Preview();
 
 	TSharedRef<SDMMaterialPropertySelector> CreateSlot_PropertySelector();
 
@@ -268,4 +270,6 @@ protected:
 
 	void NavigateBack_Execute();
 	bool NavigateBack_CanExecute();
+
+	bool CheckOpacityInput(const FKeyEvent& InKeyEvent);
 };

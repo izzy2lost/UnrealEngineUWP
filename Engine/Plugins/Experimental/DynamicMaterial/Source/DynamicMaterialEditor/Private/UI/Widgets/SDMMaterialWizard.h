@@ -46,6 +46,14 @@ public:
 	UDynamicMaterialModel* GetMaterialModel() const;
 
 protected:
+	enum EDMMaterialWizardMode : uint8
+	{
+		Template = 0,
+		Instance = 1,
+
+		Count = 2
+	};
+
 	TWeakPtr<SDMMaterialDesigner> DesignerWidgetWeak;
 	FName CurrentPreset;
 	TSharedPtr<SBox> PresetChannelContainer;
@@ -59,11 +67,11 @@ protected:
 	/** Creation of widgets. */
 	TSharedRef<SWidget> CreateLayout();
 	TSharedRef<SWidget> CreateModeSelector();
-	TSharedRef<SWidget> CreateSelectPresetLayout();
-	TSharedRef<SWidget> CreateSelectPreset_ChannelPresets();
-	TSharedRef<SWidget> CreateSelectPreset_ChannelList();
-	TSharedRef<SWidget> CreateSelectPreset_AcceptButton();
-	TSharedRef<SWidget> CreateTemplateListLayout();
+	TSharedRef<SWidget> CreateNewTemplateLayout();
+	TSharedRef<SWidget> CreateNewTemplate_ChannelPresets();
+	TSharedRef<SWidget> CreateNewTemplate_ChannelList();
+	TSharedRef<SWidget> CreateNewTemplate_AcceptButton();
+	TSharedRef<SWidget> CreateNewInstanceLayout();
 
 	/** Attributes and Events */
 	ECheckBoxState Preset_GetState(FName InPresetName) const;
@@ -75,9 +83,9 @@ protected:
 
 	void OpenMaterialInEditor();
 
-	ECheckBoxState IsModeSelected(int32 InMode) const;
+	ECheckBoxState IsModeSelected(EDMMaterialWizardMode InMode) const;
 
-	void SetMode(ECheckBoxState InState, int32 InMode);
+	void SetMode(ECheckBoxState InState, EDMMaterialWizardMode InMode);
 
 	void OnSearchBoxChanged(const FText& InSearchText);
 	void OnSearchBoxCommitted(const FText& InSearchText, ETextCommit::Type InCommitInfo);
@@ -88,6 +96,8 @@ protected:
 	bool ShouldFilterOutAsset(const FAssetData& InAsset) const;
 
 	void OnAssetsActivated(TArrayView<const FContentBrowserItem> InSelectedItems, EAssetTypeActivationMethod::Type InActivationMethod);
+
+	void OnEnginePreExit();
 
 	/** Operations */
 	void SelectTemplate(UDynamicMaterialModel* InTemplateModel);

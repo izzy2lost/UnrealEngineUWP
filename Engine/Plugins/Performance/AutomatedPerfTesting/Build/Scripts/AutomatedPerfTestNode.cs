@@ -36,12 +36,12 @@ namespace AutomatedPerfTest
 
 			InitHandledErrors();
 
-			LastLogLineCount = 0;
+			LogParser = null;
 		}
 
 		public override bool StartTest(int Pass, int InNumPasses)
 		{
-			LastLogLineCount = 0;
+			LogParser = null;
 			return base.StartTest(Pass, InNumPasses);
 		}
 
@@ -78,9 +78,9 @@ namespace AutomatedPerfTest
 		public Guid TestGuid { get; protected set; }
 
 		/// <summary>
-		/// Line count of the client log messages that have been written to the test logs.
+		/// Track client log messages that have been written to the test logs.
 		/// </summary>
-		private int LastLogLineCount;
+		private UnrealLogStreamParser LogParser;
 
 		/// <summary>
 		// Temporary directory for perf report CSVs
@@ -121,34 +121,33 @@ namespace AutomatedPerfTest
 
 			if (App != null)
 			{
-				UnrealLogParser Parser = new UnrealLogParser(App.StdOut);
-				
-				
-				
+				if (LogParser == null)
+				{
+					LogParser = new UnrealLogStreamParser(App.GetLogBufferReader());
+				}
+				LogParser.ReadStream();
 				string LogChannelName = Context.BuildInfo.ProjectName + "Test";
-				List<string> TestLines = Parser.GetLogChannel(LogChannelName).ToList();
+				List<string> TestLines = LogParser.GetLogFromChannel(LogChannelName, false).ToList();
 
 				string LogCategory = "Log" + LogChannelName;
 				string LogCategoryError = LogCategory + ": Error:";
 				string LogCategoryWarning = LogCategory + ": Warning:";
 				
-				for (int i = LastLogLineCount; i < TestLines.Count; i++)
+				foreach (string Line in TestLines)
 				{
-					if (TestLines[i].StartsWith(LogCategoryError))
+					if (Line.StartsWith(LogCategoryError))
 					{
-						ReportError(TestLines[i]);
+						ReportError(Line);
 					}
-					else if (TestLines[i].StartsWith(LogCategoryWarning))
+					else if (Line.StartsWith(LogCategoryWarning))
 					{
-						ReportWarning(TestLines[i]);
+						ReportWarning(Line);
 					}
 					else
 					{
-						Log.Info(TestLines[i]);
+						Log.Info(Line);
 					}
 				}
-
-				LastLogLineCount = TestLines.Count;
 			}
 
 			base.TickTest();
@@ -207,7 +206,7 @@ namespace AutomatedPerfTest
 		protected override UnrealProcessResult GetExitCodeAndReason(StopReason InReason, UnrealLog InLogSummary, UnrealRoleArtifacts InArtifacts, out string ExitReason, out int ExitCode)
 		{
 			// Check for login failure
-			UnrealLogParser Parser = new UnrealLogParser(InArtifacts.AppInstance.StdOut);
+			UnrealLogParser Parser = new UnrealLogParser(InArtifacts.AppInstance.GetLogReader());
 
 			ExitReason = "";
 			ExitCode = -1;

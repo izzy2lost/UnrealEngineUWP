@@ -23,7 +23,7 @@ namespace UE::Editor::DataStorage::Private
 	static const UStruct* GetTypeInfo(const TObjectPtr<const UScriptStruct>& TypeInfo) { return TypeInfo; }
 
 	template<typename TypeInfoType>
-	void PrintObjectTypeInformation(ITypedElementDataStorageInterface* DataStorage, FString Message, FOutputDevice& Output)
+	void PrintObjectTypeInformation(IEditorDataStorageProvider* DataStorage, FString Message, FOutputDevice& Output)
 	{
 		using namespace UE::Editor::DataStorage::Queries;
 
@@ -65,7 +65,7 @@ namespace UE::Editor::DataStorage::Private
 	{
 		using namespace UE::Editor::DataStorage::Queries;
 
-		if (ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
+		if (IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
 		{
 			static QueryHandle LabelQuery = [DataStorage]
 			{
@@ -136,7 +136,7 @@ FAutoConsoleCommandWithOutputDevice PrintObjectTypeInformationConsoleCommand(
 
 			TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.PrintObjectTypeInfo);
 
-			if (ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
+			if (IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
 			{
 				FString Message;
 				Output.Log(TEXT("The Typed Elements Data Storage has the types:"));
@@ -190,17 +190,17 @@ FAutoConsoleCommandWithOutputDevice ListExtensionsConsoleCommand(
 
 			UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 
-			if (const ITypedElementDataStorageInterface* DataStorage = Registry->GetDataStorage())
+			if (const IEditorDataStorageProvider* DataStorage = Registry->GetDataStorage())
 			{
 				Message = TEXT("Data Storage Extensions: \n");
 				DataStorage->ListExtensions(RecordExtensions);
 			}
-			if (const ITypedElementDataStorageCompatibilityInterface* DataStorageCompat = Registry->GetDataStorageCompatibility())
+			if (const IEditorDataStorageCompatibilityProvider* DataStorageCompat = Registry->GetDataStorageCompatibility())
 			{
 				Message += TEXT("Data Storage Compatibility Extensions: \n");
 				DataStorageCompat->ListExtensions(RecordExtensions);
 			}
-			if (const ITypedElementDataStorageUiInterface* DataStorageUi = Registry->GetDataStorageUi())
+			if (const IEditorDataStorageUiProvider* DataStorageUi = Registry->GetDataStorageUi())
 			{
 				Message += TEXT("Data Storage UI Extensions: \n");
 				DataStorageUi->ListExtensions(RecordExtensions);
@@ -217,7 +217,7 @@ static FAutoConsoleCommand CVarCreateRow(
 	TEXT("Argument: \n"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
-		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 		static UE::Editor::DataStorage::TableHandle Table = DataStorage->RegisterTable<FTestColumnA>(FName(TEXT("Debug.CreateRow Table")));
 
 		const UE::Editor::DataStorage::RowHandle RowHandle = DataStorage->AddRow(Table);
@@ -230,7 +230,7 @@ static FAutoConsoleCommand CVarAddDynamicColumnTag(
 	TEXT("Argument: Row, Identifier\n"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
-		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 		
 		if (Args.Num() != 2)
 		{
@@ -252,7 +252,7 @@ static FAutoConsoleCommand CVarAddDynamicColumn(
 	TEXT("Argument: Row, Identifier\n"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
-		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 		
 		if (Args.Num() != 2)
 		{
@@ -283,7 +283,7 @@ static FAutoConsoleCommand CVarRemoveDynamicColumn(
 	TEXT("Argument: Row, Identifier\n"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
-		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 		
 		if (Args.Num() != 2)
 		{
@@ -305,7 +305,7 @@ static FAutoConsoleCommand CVarAddToDynamicColumn(
 	TEXT("Argument: Row, TagId, Value, [optional] MethodId\n"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
-		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 		
 		if (Args.Num() < 3 || Args.Num() > 4)
 		{
@@ -357,7 +357,7 @@ static FAutoConsoleCommand CVarPrintDynamicColumn(
 	TEXT("Argument: Row, TagId\n"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
-		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 		
 		if (Args.Num() != 2)
 		{
@@ -413,7 +413,7 @@ static FAutoConsoleCommand CVarPrintDynamicColumnWithQuery(
 			return;
 		}
 		
-		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 		
 		const FName Identifier(*Args[0]);
 
@@ -473,7 +473,7 @@ static FAutoConsoleCommand CVarCountDynamicTagWithQuery(
 			return;
 		}
 				
-		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 				
 		const FName Identifier(*Args[0]);
 
@@ -514,7 +514,7 @@ static FAutoConsoleCommand CVarRegisterListDynamicColumnQuery(
 			return;
 		}
 				
-		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 				
 		const FName Identifier(*Args[0]);
 		const FName ActivationGroup(*Args[1]);
@@ -553,7 +553,7 @@ static FAutoConsoleCommand CVarActivateListDynamicColumnQuery(
 			return;
 		}
 						
-		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 		
 		const FName ActivationGroup(*Args[0]);
 
@@ -567,7 +567,7 @@ static FAutoConsoleCommand CVarAddValueTag(
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
 		using namespace UE::Editor::DataStorage;
-		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 
 		if (Args.Num() != 3)
 		{
@@ -601,7 +601,7 @@ static FAutoConsoleCommand CVarRemoveValueTag(
 	TEXT("Argument: Row, Group\n"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
-		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 
 		if (Args.Num() != 2)
 		{
@@ -633,7 +633,7 @@ static FAutoConsoleCommand CVarMatchValueTag(
 	{
 		using namespace UE::Editor::DataStorage::Queries;
 		
-		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 
 		if (Args.Num() < 1 || Args.Num() > 2)
 		{
@@ -687,7 +687,7 @@ static FAutoConsoleCommand CVarAddValueTagFromEnum(
 	{
 		using namespace UE::Editor::DataStorage;
 
-		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 
 		if (Args.Num() < 1 || Args.Num() > 2)
 		{
@@ -725,7 +725,7 @@ static FAutoConsoleCommand CVarRemoveValueTagFromEnum(
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
 		using namespace UE::Editor::DataStorage;
-		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 
 		if (Args.Num() != 1)
 		{
@@ -747,7 +747,7 @@ static FAutoConsoleCommand CVarMatchValueTagFromEnum(
 	{
 		using namespace UE::Editor::DataStorage::Queries;
 		
-		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 
 		if (Args.Num() > 1)
 		{

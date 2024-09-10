@@ -20,10 +20,14 @@ public:
 	void TearDown();
 
 private:
+	void AddOnScreenRecordingMessage();
+	void RemoveOnScreenRecordingMessage();
 	void HandleCVDRecordingStarted();
-	void HandleCVDRecordingStopped() const;
+	void HandleCVDRecordingStopped();
 	void HandleCVDRecordingStartFailed(const FText& InFailureReason) const;
 	void HandlePIEStarted(UGameInstance* GameInstance);
+
+	void SerializeCollisionChannelsNames();
 
 	FDelegateHandle RecordingStartedHandle;
 	FDelegateHandle RecordingStoppedHandle;

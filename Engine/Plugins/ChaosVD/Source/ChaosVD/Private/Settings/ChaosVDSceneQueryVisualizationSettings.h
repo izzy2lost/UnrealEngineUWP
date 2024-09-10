@@ -46,6 +46,11 @@ public:
 	UPROPERTY(EditAnywhere, Category=DebugDraw)
 	bool bShowText = false;
 
+	/** The depth priority used for while drawing. Can be World or Foreground (with this one the shapes representing the query
+	 * will be drawn on top of the geometry and be always visible) */
+	UPROPERTY(config, EditAnywhere, Category=DebugDraw)
+	TEnumAsByte<ESceneDepthPriorityGroup> DepthPriority = ESceneDepthPriorityGroup::SDPG_World;
+
 	UPROPERTY()
 	EChaosVDSQFrameVisualizationMode CurrentVisualizationMode = EChaosVDSQFrameVisualizationMode::AllEnabledQueries;
 

@@ -9,12 +9,12 @@
 
 #include "CounterWidget.generated.h"
 
-class ITypedElementDataStorageInterface;
+class IEditorDataStorageProvider;
 class SWindow;
 class UScriptStruct;
 
 UCLASS()
-class TEDSUI_API UCounterWidgetFactory : public UTypedElementDataStorageFactory
+class TEDSUI_API UCounterWidgetFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
@@ -24,10 +24,10 @@ public:
 	UCounterWidgetFactory();
 	~UCounterWidgetFactory() override = default;
 
-	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
-	void RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const override;
-	void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
-		ITypedElementDataStorageUiInterface& DataStorageUi) const override;
+	void RegisterQueries(IEditorDataStorageProvider& DataStorage) override;
+	void RegisterWidgetPurposes(IEditorDataStorageUiProvider& DataStorageUi) const override;
+	void RegisterWidgetConstructors(IEditorDataStorageProvider& DataStorage,
+		IEditorDataStorageUiProvider& DataStorageUi) const override;
 
 	static void EnableCounterWidgets();
 
@@ -61,7 +61,7 @@ public:
 
 protected:
 	TSharedPtr<SWidget> CreateWidget(const UE::Editor::DataStorage::FMetaDataView& Arguments) override;
-	bool SetColumns(ITypedElementDataStorageInterface* DataStorage, UE::Editor::DataStorage::RowHandle Row) override;
+	bool SetColumns(IEditorDataStorageProvider* DataStorage, UE::Editor::DataStorage::RowHandle Row) override;
 };
 
 USTRUCT(meta = (DisplayName = "Counter widget"))

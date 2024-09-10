@@ -6,8 +6,10 @@
 #include "Modules/ModuleManager.h"
 #include "Misc/Guid.h"
 
+class SWidget;
 class FChaosVDTraceManager;
 class FChaosVDEngine;
+class SChaosVDMainTab;
 class SDockTab;
 class FSpawnTabArgs;
 struct FGuid;
@@ -18,6 +20,8 @@ DECLARE_LOG_CATEGORY_EXTERN(LogChaosVDEditor, Log, Log);
 class FChaosVDModule : public IModuleInterface
 {
 public:
+
+	using ToolkitHostType = SChaosVDMainTab;
 
 	static FChaosVDModule& Get();
 
@@ -34,8 +38,6 @@ public:
 	static bool IsStandaloneChaosVisualDebugger();
 
 private:
-
-	void RegisterClassesCustomDetails() const;
 
 	TSharedRef<SDockTab> SpawnMainTab(const FSpawnTabArgs& Args);
 
@@ -60,5 +62,4 @@ private:
 	static FString ChaosVisualDebuggerProgramName;
 
 	bool bIsShuttingDown = false;
-
 };

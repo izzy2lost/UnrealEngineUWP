@@ -52,17 +52,13 @@ public:
 	uint32 Seed = 42;
 
 	FBox SourceComponentBounds;
-
-protected:
-	bool GetInvocationThreadCounts(TArray<int32>& OutInvocationThreadCount, int32& OutTotalThreadCount) const;
 };
 
 class FPCGCustomComputeKernelDataProviderProxy : public FComputeDataProviderRenderProxy
 {
 public:
-	FPCGCustomComputeKernelDataProviderProxy(TArray<int32>&& InInvocationThreadCounts, int32 InTotalThreadCount, int32 InSeed, const FBox& InSourceComponentBounds)
-		: InvocationThreadCounts(MoveTemp(InInvocationThreadCounts))
-		, TotalThreadCount(InTotalThreadCount)
+	FPCGCustomComputeKernelDataProviderProxy(int32 InThreadCount, int32 InSeed, const FBox& InSourceComponentBounds)
+		: ThreadCount(InThreadCount)
 		, Seed(InSeed)
 		, SourceComponentBounds(InSourceComponentBounds)
 	{}
@@ -76,10 +72,7 @@ public:
 protected:
 	using FParameters = FPCGCustomKernelDataInterfaceParameters;
 
-	TArray<int32> InvocationThreadCounts;
-	int32 TotalThreadCount;
-
+	int32 ThreadCount;
 	uint32 Seed = 42;
-
 	FBox SourceComponentBounds;
 };

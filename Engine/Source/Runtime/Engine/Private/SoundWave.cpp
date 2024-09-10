@@ -3351,8 +3351,10 @@ void USoundWave::Parse(FAudioDevice* AudioDevice, const UPTRINT NodeWaveInstance
 	WaveInstance->SetOcclusionAttenuation(ParseParams.OcclusionAttenuation);
 	WaveInstance->SetPitch(ParseParams.Pitch * Pitch);
 	WaveInstance->bEnableLowPassFilter = ParseParams.bEnableLowPassFilter;
+	WaveInstance->bEnableHighPassFilter = ParseParams.bEnableHighPassFilter;
 	WaveInstance->bIsOccluded = ParseParams.bIsOccluded;
 	WaveInstance->LowPassFilterFrequency = ParseParams.LowPassFilterFrequency;
+	WaveInstance->HighPassFilterFrequency = ParseParams.HighPassFilterFrequency;
 	WaveInstance->OcclusionFilterFrequency = ParseParams.OcclusionFilterFrequency;
 	WaveInstance->AttenuationLowpassFilterFrequency = ParseParams.AttenuationLowpassFilterFrequency;
 	WaveInstance->AttenuationHighpassFilterFrequency = ParseParams.AttenuationHighpassFilterFrequency;

@@ -182,7 +182,20 @@ static TArray<FColor> ConvertLinearTosRGB8bppViaLookupTable(FFloat16Color* InCol
 	RandStreamTable.SetNumUninitialized(TableSize);
 	for (int32 Index = 0; Index < TableSize; Index++)
 	{
-		RandStreamTable[Index] = RandStream.GetFraction();
+		// GetFraction() returns [0,1) as desired, but it occasionally contains
+		// too much precision - the sRGBTable will return values of 255.0f, and
+		// GetFraction() can return values like 0.999996185, which when taken
+		// as decimals is a valid value (255.99999996185), and then below we floor it
+		// before casting to uint8, which should be fine.
+
+		// In practice however, we can't actually represent 255.999996185 with a 
+		// single-point precision float, it gets rounded up to 256 by the hardware,
+		// then floored, and then cast to uint8 overflowing to zero.
+
+		// To fix this, we limit this float to 15 bits of mantissa precision.
+		float Value = RandStream.GetFraction();
+		*(uint32*)&Value &= 0xFFFFFF00U;
+		RandStreamTable[Index] = Value;
 	}
 	// Convert all of our pixels.
 	TArray<FColor> OutsRGBData;

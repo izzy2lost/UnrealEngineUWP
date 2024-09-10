@@ -1035,6 +1035,14 @@ namespace UE::MLDeformer
 		
 		bIsScrubbingTimeline = bIsScrubbing;
 		UpdatePaintModePose(/*bFullUpdate=*/!bIsScrubbing);
+
+		// If we scrubbed and we were playing before, and we are in ground truth heat map mode, then we need to possibly enable the heatmap again.
+		// We disable it while playing in ground truth mode as we cannot really get correct ground truth heatmaps during playback because of interpolation and other issues.
+		// If we do not do this, then while ground truth heat map is enabled and we are playing, and we scrub, then the heat map isn't enabled again.
+		if (VizSettings->GetShowHeatMap() && VizSettings->GetHeatMapMode() == EMLDeformerHeatMapMode::GroundTruth)
+		{
+			UpdateHeatMapMaterialBasedOnMode();
+		}
 	}
 
 	void FMLDeformerEditorModel::UpdatePaintModePose(bool bFullUpdate)
@@ -1275,10 +1283,12 @@ namespace UE::MLDeformer
 			SetHeatMapMaterialEnabled(Model->GetVizSettings()->GetShowHeatMap());
 			UpdateDeformerGraph();
 			UpdateStepInterpolationMode();
+			UpdateHeatMapMaterialBasedOnMode();
 		}
 		else if (Property->GetFName() == UMLDeformerVizSettings::GetHeatMapModePropertyName())
 		{
 			UpdateStepInterpolationMode();
+			UpdateHeatMapMaterialBasedOnMode();
 		}
 		else
 		if (Property->GetFName() == UMLDeformerVizSettings::GetDrawLinearSkinnedActorPropertyName() ||
@@ -1347,6 +1357,23 @@ namespace UE::MLDeformer
 			{
 				SetHeatMapMaterialEnabled(VizSettings->GetShowHeatMap());
 			}
+		}
+	}
+
+	void FMLDeformerEditorModel::UpdateHeatMapMaterialBasedOnMode()
+	{
+		const FMLDeformerEditorActor* BaseActor = GetVisualizationModeBaseActor();
+		const bool bIsPlaying = (BaseActor && BaseActor->IsPlaying());
+		const UMLDeformerVizSettings* VizSettings = Model->GetVizSettings();
+		const bool bInTestMode = (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TestData);
+
+		if (bIsPlaying && VizSettings->GetHeatMapMode() == EMLDeformerHeatMapMode::GroundTruth)
+		{
+			SetHeatMapMaterialEnabled(false);
+		}
+		else
+		{
+			SetHeatMapMaterialEnabled(VizSettings->GetShowHeatMap());
 		}
 	}
 

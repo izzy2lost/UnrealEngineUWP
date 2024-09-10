@@ -113,6 +113,12 @@ void UAvaAutoFollowModifier::Apply()
 		return;
 	}
 
+	if (ModifyActor->IsAttachedTo(FollowedActor))
+	{
+		Fail(LOCTEXT("InvalidReferenceActor", "Followed actor cannot be a parent of modified actor"));
+		return;
+	}
+
 	const FVector FollowAxisVector = FAvaModifiersActorUtils::GetVectorAxis(FollowedAxis);
 	if (FollowAxisVector.IsNearlyZero())
 	{
@@ -319,7 +325,7 @@ void UAvaAutoFollowModifier::OnTransformUpdated(AActor* InActor, bool bInParentM
 	const bool bIsAttachedToReferenceActor = InActor->IsAttachedTo(FollowedActor);
 	const bool bIsReferenceActor = InActor == FollowedActor;
 	
-	if (IsValid(FollowedActor) && (bIsAttachedToReferenceActor || bIsReferenceActor))
+	if (!bInParentMoved && IsValid(FollowedActor) && (bIsAttachedToReferenceActor || bIsReferenceActor))
 	{
 		MarkModifierDirty();
 	}
@@ -397,7 +403,11 @@ void UAvaAutoFollowModifier::OnSceneTreeTrackedActorChildrenChanged(int32 InIdx,
 
 void UAvaAutoFollowModifier::OnReferenceActorChanged()
 {
-	if (ReferenceActor.ReferenceActorWeak.Get() == GetModifiedActor())
+	const AActor* FollowerActor = GetModifiedActor();
+	const AActor* TrackedActor = ReferenceActor.ReferenceActorWeak.Get();
+
+	if (TrackedActor == FollowerActor
+		|| FollowerActor->IsAttachedTo(TrackedActor))
 	{
 		ReferenceActor.ReferenceActorWeak = nullptr;
 	}

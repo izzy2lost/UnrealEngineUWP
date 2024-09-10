@@ -247,7 +247,7 @@ public:
 
 protected:
 	ENGINE_API bool IsXRHeadTrackedCamera() const;
-	ENGINE_API virtual void HandleXRCamera();
+	ENGINE_API virtual void HandleXRCamera(float DeltaTime);
 
 public:
 	/**

@@ -37,7 +37,7 @@ float ComputeOptimalSlopeBiasLocal(
 
 	float4 ShadowUVz = mul(float4(ShadowTranslatedWorldPosition, 1.0f), ProjectionData.TranslatedWorldToShadowUVMatrix);
 	ShadowUVz.xyz /= ShadowUVz.w;
-	FShadowPageTranslationResult Page = ShadowVirtualToPhysicalUV(ProjectionData.VirtualShadowMapId, ShadowUVz.xy);
+	FShadowPageTranslationResult Page = ShadowVirtualToPhysicalUV(ProjectionData.VirtualShadowMapId, ShadowUVz.xy, ProjectionData.MinMipLevel);
 
 	float MipLevelDim = float(CalcLevelDimsTexels(Page.LODOffset));
 	float2 TexelCenter = float2(Page.VirtualTexelAddress) + 0.5f;
@@ -55,6 +55,7 @@ struct FSMRTSingleRayState
 	float3 RayStartUVz;	
 	float3 RayStepUVz;
 	float ExtrapolateSlope;
+	uint MinMipLevel;
 	// Debug output
 	int MipLevel;
 	uint2 VirtualTexelAddress;
@@ -97,6 +98,7 @@ FSMRTSingleRayState SMRTSingleRayInitialize(
 	Result.RayStartUVz = RayStartUVz.xyz;
 	Result.RayStepUVz = RayStepUVz.xyz;
 	Result.ExtrapolateSlope = ExtrapolateSlope * RayStepUVz.z;
+	Result.MinMipLevel = ProjectionData.MinMipLevel;
 	Result.MipLevel = 0;
 	Result.VirtualTexelAddress = uint2(0xFFFFFFFF, 0xFFFFFFFF);
 	Result.PhysicalTexelAddress = uint2(0xFFFFFFFF, 0xFFFFFFFF);
@@ -114,7 +116,7 @@ FSMRTSample SMRTFindSample(inout FSMRTSingleRayState RayState, float SampleTime)
 
 	if (all(UVz.xy == saturate(UVz.xy)))
 	{
-		FVirtualShadowMapSample SmSample = SampleVirtualShadowMap(RayState.VirtualShadowMapId, UVz.xy);
+		FVirtualShadowMapSample SmSample = SampleVirtualShadowMap(RayState.VirtualShadowMapId, UVz.xy, RayState.MinMipLevel);
 		if (SmSample.bValid)
 		{
 			Sample.bValid = true;

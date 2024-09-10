@@ -6,6 +6,7 @@
 #include "NiagaraEditorCommands.h"
 #include "SNiagaraSystemViewport.h"
 #include "ToolMenu.h"
+#include "ViewportToolbar/UnrealEdViewportToolbarContext.h"
 #include "Widgets/Input/SSpinBox.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraSystemEditorViewportToolbarSections"
@@ -68,17 +69,25 @@ TSharedRef<SWidget> UE::NiagaraSystemEditor::CreateShowMenuWidget(
 	return ShowMenuBuilder.MakeWidget();
 }
 
-FToolMenuEntry UE::NiagaraSystemEditor::CreateShowSubmenu(const TWeakPtr<SNiagaraSystemViewport>& InNiagaraSystemEditorViewport)
+FToolMenuEntry UE::NiagaraSystemEditor::CreateShowSubmenu()
 {
 	return FToolMenuEntry::InitSubMenu(
 		"Show",
 		LOCTEXT("ShowSubmenuLabel", "Show"),
 		LOCTEXT("ShowSubmenuTooltip", "Show options"),
 		FNewToolMenuDelegate::CreateLambda(
-			[InNiagaraSystemEditorViewport](UToolMenu* Submenu) -> void
+			[](UToolMenu* Submenu) -> void
 			{
-				TSharedPtr<SNiagaraSystemViewport> Viewport = InNiagaraSystemEditorViewport.Pin();
-				if (!Viewport)
+				UUnrealEdViewportToolbarContext* ViewportToolbarContext =
+					Submenu->FindContext<UUnrealEdViewportToolbarContext>();
+				if (!ViewportToolbarContext)
+				{
+					return;
+				}
+
+				TSharedPtr<SNiagaraSystemViewport> NiagaraSystemViewport =
+					StaticCastSharedPtr<SNiagaraSystemViewport>(ViewportToolbarContext->Viewport.Pin());
+				if (!NiagaraSystemViewport)
 				{
 					return;
 				}
@@ -86,22 +95,24 @@ FToolMenuEntry UE::NiagaraSystemEditor::CreateShowSubmenu(const TWeakPtr<SNiagar
 				FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection(NAME_None);
 
 				UnnamedSection.AddEntry(FToolMenuEntry::InitWidget(
-					"ShowMenuItems", UE::NiagaraSystemEditor::CreateShowMenuWidget(Viewport.ToSharedRef(), true), FText(), true
+					"ShowMenuItems",
+					UE::NiagaraSystemEditor::CreateShowMenuWidget(NiagaraSystemViewport.ToSharedRef(), true),
+					FText(),
+					true
 				));
 			}
 		)
 	);
 }
 
-FToolMenuEntry UE::NiagaraSystemEditor::CreateSettingsSubmenu(const TWeakPtr<SNiagaraSystemViewport>& InNiagaraSystemEditorViewport
-)
+FToolMenuEntry UE::NiagaraSystemEditor::CreateSettingsSubmenu()
 {
 	return FToolMenuEntry::InitSubMenu(
 		"Settings",
 		LOCTEXT("SettingsSubmenuLabel", "Settings"),
 		LOCTEXT("SettingsSubmenuTooltip", "Settings options"),
 		FNewToolMenuDelegate::CreateLambda(
-			[InNiagaraSystemEditorViewport](UToolMenu* Submenu) -> void
+			[](UToolMenu* Submenu) -> void
 			{
 				FToolMenuSection& ViewportControlsSection =
 					Submenu->FindOrAddSection("ViewportControls", LOCTEXT("ViewportControlsLabel", "Viewport Controls"));
@@ -111,10 +122,18 @@ FToolMenuEntry UE::NiagaraSystemEditor::CreateSettingsSubmenu(const TWeakPtr<SNi
 					LOCTEXT("MotionOptionsSubMenu", "Motion Options"),
 					LOCTEXT("MotionOptionsSubMenu_ToolTip", "Set Motion Options for the Niagara Component"),
 					FNewToolMenuDelegate::CreateLambda(
-						[InNiagaraSystemEditorViewport](UToolMenu* InMenu)
+						[](UToolMenu* InMenu)
 						{
-							TSharedPtr<SNiagaraSystemViewport> Viewport = InNiagaraSystemEditorViewport.Pin();
-							if (!Viewport)
+							UUnrealEdViewportToolbarContext* ViewportToolbarContext =
+								InMenu->FindContext<UUnrealEdViewportToolbarContext>();
+							if (!ViewportToolbarContext)
+							{
+								return;
+							}
+
+							TSharedPtr<SNiagaraSystemViewport> NiagaraSystemViewport =
+								StaticCastSharedPtr<SNiagaraSystemViewport>(ViewportToolbarContext->Viewport.Pin());
+							if (!NiagaraSystemViewport)
 							{
 								return;
 							}
@@ -123,7 +142,7 @@ FToolMenuEntry UE::NiagaraSystemEditor::CreateSettingsSubmenu(const TWeakPtr<SNi
 								"MotionOptions",
 								FToolMenuEntry::InitWidget(
 									"MotionOptions",
-									UE::NiagaraSystemEditor::CreateMotionMenuWidget(Viewport.ToSharedRef()),
+									UE::NiagaraSystemEditor::CreateMotionMenuWidget(NiagaraSystemViewport.ToSharedRef()),
 									FText(),
 									true
 								)

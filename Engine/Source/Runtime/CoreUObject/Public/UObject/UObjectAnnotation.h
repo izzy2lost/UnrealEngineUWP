@@ -111,12 +111,12 @@ private:
 				if (bAutoRemove)
 #endif
 				{
-					UE_AUTORTFM_OPEN2
+					UE_AUTORTFM_OPEN
 					{
 						GUObjectArray.AddUObjectDeleteListener(this);
 					};
 
-					UE_AUTORTFM_ONABORT2(this)
+					UE_AUTORTFM_ONABORT(this)
 					{
 						GUObjectArray.RemoveUObjectDeleteListener(this);
 					};
@@ -183,7 +183,7 @@ public:
 	 */
 	void RemoveAnnotation(const UObjectBase *Object)
 	{
-		UE_AUTORTFM_ONCOMMIT2(this, Object)
+		UE_AUTORTFM_ONCOMMIT(this, Object)
 		{
 			check(Object);
 			bool bHadElements = false;
@@ -862,7 +862,7 @@ public:
 
 		TAnnotation Result = TAnnotation();
 
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			FTransactionallySafeReadScopeLock AnnotationArrayLock(AnnotationArrayCritical);
 

@@ -2,6 +2,8 @@
 
 #include "SequencerTrackFilter_HideIsolate.h"
 #include "Filters/SequencerTrackFilterCommands.h"
+#include "MVVM/ViewModels/CategoryModel.h"
+#include "MVVM/ViewModels/TrackModel.h"
 #include "MVVM/ViewModels/ViewModelIterators.h"
 
 using namespace UE::Sequencer;
@@ -128,6 +130,71 @@ void FSequencerTrackFilter_HideIsolate::UnisolateTracks(const TSet<TWeakViewMode
 	}
 
 	BroadcastChangedEvent();
+}
+
+void FSequencerTrackFilter_HideIsolate::IsolateCategoryGroupTracks(const TSet<TWeakViewModelPtr<IOutlinerExtension>>& InTracks
+	, const TSet<FName>& InCategoryNames
+	, const bool bInAddToExisting)
+{
+	TSharedPtr<FSequencerEditorViewModel> SequencerViewModel = GetSequencer().GetViewModel();
+	if (!SequencerViewModel.IsValid())
+	{
+		return;
+	}
+
+	if (!bInAddToExisting)
+	{
+		EmptyIsolatedTracks(false);
+	}
+
+	TSet<TWeakViewModelPtr<IOutlinerExtension>> TracksToIsolate;
+	TSet<TViewModelPtr<IOutlinerExtension>> TracksToExpand;
+
+	auto IsolateChildCategoryGroups = [this, &InCategoryNames, &TracksToIsolate, &TracksToExpand](const TViewModelPtr<IOutlinerExtension>& InTrack)
+	{
+		const TParentFirstChildIterator<FCategoryGroupModel> ChildTracks = InTrack.AsModel()->GetDescendantsOfType<FCategoryGroupModel>(true);
+		for (const TViewModelPtr<FCategoryGroupModel>& ChildCategoryGroup : ChildTracks)
+		{
+			if (InCategoryNames.Contains(ChildCategoryGroup->GetCategoryName()))
+			{
+				TracksToIsolate.Add(ChildCategoryGroup);
+
+				const TParentModelIterator<IOutlinerExtension> Ancestors = ChildCategoryGroup->GetAncestorsOfType<IOutlinerExtension>();
+				TracksToExpand.Append(Ancestors.ToArray());
+				TracksToExpand.Add(ChildCategoryGroup);
+			}
+		}
+	};
+
+	for (const TWeakViewModelPtr<IOutlinerExtension>& WeakTrack : InTracks)
+	{
+		const TViewModelPtr<IOutlinerExtension> Track = WeakTrack.Pin();
+		if (!Track.IsValid())
+		{
+			continue;
+		}
+
+		const TViewModelPtr<FCategoryGroupModel> CategoryGroupModel = Track.AsModel()->FindAncestorOfType<FCategoryGroupModel>(true);
+		if (CategoryGroupModel.IsValid())
+		{
+			const TViewModelPtr<FTrackModel> ParentTrack = Track.AsModel()->FindAncestorOfType<FTrackModel>();
+			if (ParentTrack.IsValid())
+			{
+				IsolateChildCategoryGroups(ParentTrack);
+			}
+		}
+		else
+		{
+			IsolateChildCategoryGroups(Track);
+		}
+	}
+
+	IsolateTracks(TracksToIsolate, true);
+
+	for (const TViewModelPtr<IOutlinerExtension>& Track : TracksToExpand)
+	{
+		Track->SetExpansion(true);
+	}
 }
 
 void FSequencerTrackFilter_HideIsolate::ShowAllTracks()

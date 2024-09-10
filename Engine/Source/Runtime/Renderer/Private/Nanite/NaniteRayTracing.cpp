@@ -547,7 +547,7 @@ namespace Nanite
 			// readback
 			{
 				AddReadbackBufferPass(GraphBuilder, RDG_EVENT_NAME("NaniteRayTracing::Readback"), MeshDataBuffer,
-					[MeshDataReadbackBuffer = ReadbackData.MeshDataReadbackBuffer, MeshDataBuffer](FRHICommandList& RHICmdList)
+					[MeshDataReadbackBuffer = ReadbackData.MeshDataReadbackBuffer, MeshDataBuffer](FRDGAsyncTask, FRHICommandList& RHICmdList)
 					{
 						MeshDataReadbackBuffer->EnqueueCopy(RHICmdList, MeshDataBuffer->GetRHI(), 0u);
 					});
@@ -873,7 +873,7 @@ namespace Nanite
 			PassParams->ScratchBuffer = ScratchBuffer;
 
 			GraphBuilder.AddPass(RDG_EVENT_NAME("NaniteRayTracing::UpdateBLASes"), PassParams, ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
-				[PassParams, BuildParams = MoveTemp(BuildParams)](FRHIComputeCommandList& RHICmdList)
+				[PassParams, BuildParams = MoveTemp(BuildParams)](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 			{
 				FRHIBufferRange ScratchBufferRange;
 				ScratchBufferRange.Buffer = PassParams->ScratchBuffer->GetRHI();

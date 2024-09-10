@@ -6535,11 +6535,11 @@ namespace
 	{
 	private:
 		virtual bool IsEnabled() const override { return false; }
-		virtual bool HasExternalContent(const FString& ExternalContentId) const override { return false; }
-		virtual bool IsExternalContentLoaded(const FString& ExternalContentId) const override { return false; }
-		virtual TArray<FString> GetExternalContentIds() const override { return {}; }
-		virtual void AddExternalContent(const FString& ExternalContentId, FAddExternalContentComplete CompleteCallback) override { CompleteCallback.ExecuteIfBound(false, /*Plugins=*/{}); }
-		virtual void RemoveExternalContent(TConstArrayView<FString> ExternalContentIds, FRemoveExternalContentComplete CompleteCallback) override { CompleteCallback.ExecuteIfBound(false); }
+		virtual bool HasExternalContent(const FString& VersePath) const override { return false; }
+		virtual bool IsExternalContentLoaded(const FString& VersePath) const override { return false; }
+		virtual TArray<FString> GetExternalContentVersePaths() const override { return {}; }
+		virtual void AddExternalContent(const FString& VersePath, FAddExternalContentComplete CompleteCallback) override { CompleteCallback.ExecuteIfBound(false, /*Plugins=*/{}); }
+		virtual void RemoveExternalContent(TConstArrayView<FString> VersePaths, FRemoveExternalContentComplete CompleteCallback) override { CompleteCallback.ExecuteIfBound(false); }
 	};
 
 	FProjectExternalContentDefault ProjectExternalContentDefault;

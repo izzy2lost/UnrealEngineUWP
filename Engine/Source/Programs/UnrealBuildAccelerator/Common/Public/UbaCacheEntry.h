@@ -8,6 +8,8 @@
 
 namespace uba
 {
+	template<typename Key, typename Value> struct HashMap2;
+
 	enum LogLinesType : u8
 	{
 		LogLinesType_Empty,
@@ -43,7 +45,7 @@ namespace uba
 		bool Write(BinaryWriter& writer, u32 clientVersion, bool toDisk);
 		bool Read(Logger& logger, BinaryReader& reader, u32 databaseVersion);
 		void BuildInputs(CacheEntry& entry, const Set<u32>& inputs);
-		void UpdateEntries(Logger& logger, const GrowingNoLockUnorderedMap<u32, u32>& oldToNewCasKeyOffset, Vector<u32>& temp, Vector<u8>& temp2);
+		void UpdateEntries(Logger& logger, const HashMap2<u32, u32>& oldToNewCasKeyOffset, Vector<u32>& temp, Vector<u8>& temp2);
 
 		void Flatten(Vector<u8>& out, const CacheEntry& entry);
 		void Flatten(Vector<u32>& out, const CacheEntry& entry, const Vector<u8>& sharedOffsets);

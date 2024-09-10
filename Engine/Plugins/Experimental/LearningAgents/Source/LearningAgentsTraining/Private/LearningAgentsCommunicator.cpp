@@ -36,7 +36,7 @@ FLearningAgentsTrainerProcess ULearningAgentsCommunicatorLibrary::SpawnSharedMem
 		PythonExecutablePath,
 		PythonContentPath,
 		IntermediatePath,
-		SharedMemorySettings.ProcessNum,
+		1, // ProcessNum hard-coded to 1 for now
 		SharedMemorySettings.Timeout);
 
 	return TrainerProcess;
@@ -57,7 +57,7 @@ FLearningAgentsCommunicator ULearningAgentsCommunicatorLibrary::MakeSharedMemory
 
 	Communicator.Trainer = MakeShared<UE::Learning::FSharedMemoryTrainer>(
 		SharedMemorySettings.TaskName,
-		SharedMemorySettings.ProcessNum,
+		1, // ProcessNum hard-coded to 1 for now
 		TrainerProcess.TrainerProcess,
 		SharedMemorySettings.Timeout);
 

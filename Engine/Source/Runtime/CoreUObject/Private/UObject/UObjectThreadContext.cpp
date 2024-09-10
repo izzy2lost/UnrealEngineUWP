@@ -30,6 +30,10 @@ FUObjectThreadContext::~FUObjectThreadContext()
 	(void)PackagesMarkedEditorOnlyByOtherPackage;
 #endif
 }
+#if WITH_EDITORONLY_DATA
+FUObjectThreadContext::FUObjectThreadContext(const FUObjectThreadContext& Other) = default;
+FUObjectThreadContext::FUObjectThreadContext(FUObjectThreadContext&& Other) = default;
+#endif
 PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 
 FObjectInitializer& FUObjectThreadContext::ReportNull()

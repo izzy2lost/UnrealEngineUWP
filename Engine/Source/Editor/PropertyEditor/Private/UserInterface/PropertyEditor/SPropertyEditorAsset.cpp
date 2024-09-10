@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UserInterface/PropertyEditor/SPropertyEditorAsset.h"
+#include "AssetDefinitionRegistry.h"
+#include "AssetDefinition.h"
 #include "Engine/Texture.h"
 #include "Engine/SkeletalMesh.h"
 #include "Components/StaticMeshComponent.h"
@@ -12,6 +14,7 @@
 #include "UObject/UObjectIterator.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SButton.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Particles/ParticleSystem.h"
 #include "UserInterface/PropertyEditor/SPropertyEditorAsset.h"
@@ -296,6 +299,45 @@ bool SPropertyEditorAsset::IsAssetFiltered(const FAssetData& InAssetData)
 		}
 	}
 	return false;
+}
+
+void SPropertyEditorAsset::GenerateCustomAssetPickerButtons(const FAssetData& InAssetData, const TArray<FAssetButtonActionExtension>& InExtensions)
+{
+	if (!CustomAssetPickerButtonBox.IsValid())
+	{
+		return;
+	}
+
+	CustomAssetPickerButtonBox->ClearChildren();
+
+	for (FAssetButtonActionExtension Extension : InExtensions)
+	{
+		CustomAssetPickerButtonBox->AddSlot()
+			.Padding(2.0f, 0.0f)
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			[
+				SNew(SBox)
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					.WidthOverride(22.0f)
+					.HeightOverride(22.0f)
+					.IsEnabled(true)
+					.ToolTipText(Extension.PickTooltipAttribute)
+					[
+						SNew(SButton)
+							.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+							.OnClicked_Lambda([Extension]()-> FReply { return Extension.OnClicked.Execute(); })
+							.ContentPadding(0.0f)
+							.IsFocusable(false)
+							[
+								SNew(SImage)
+									.Image(Extension.PickBrushAttribute)
+									.ColorAndOpacity(FSlateColor::UseForeground())
+							]
+					]
+			];
+	}
 }
 
 // Awful hack to deal with UClass::FindCommonBase taking an array of non-const classes...
@@ -718,6 +760,26 @@ void SPropertyEditorAsset::Construct(const FArguments& InArgs, const TSharedPtr<
 			ActorPicker
 		];
 	}
+		
+	FObjectOrAssetData Value;
+	GetValue(Value, FObjectOrAssetData::EAssetDataOptions::SkipAssetRegistryTagsGathering);
+
+	if (const UAssetDefinition* AssetDefinition = UAssetDefinitionRegistry::Get()->GetAssetDefinitionForAsset(Value.AssetData))
+	{
+		TArray<FAssetButtonActionExtension> AssetButtonActionExtension;
+		AssetDefinition->GetAssetActionButtonExtensions(Value.AssetData, AssetButtonActionExtension);
+
+		if (!AssetButtonActionExtension.IsEmpty())
+		{
+			CustomAssetPickerButtonBox = SNew(SHorizontalBox);
+			ButtonBox->AddSlot()
+			[
+				CustomAssetPickerButtonBox.ToSharedRef()
+			];
+
+			GenerateCustomAssetPickerButtons(Value.AssetData, AssetButtonActionExtension);
+		}
+	}	
 
 	NumButtons = ButtonBox->NumSlots();
 	
@@ -1050,6 +1112,13 @@ void SPropertyEditorAsset::SetValue( const FAssetData& AssetData )
 			if (PropertyEditor.IsValid())
 			{
 				PropertyEditor->GetPropertyHandle()->SetValue(AssetData);
+
+				if (const UAssetDefinition* AssetDefinition = UAssetDefinitionRegistry::Get()->GetAssetDefinitionForAsset(AssetData))
+				{
+					TArray<FAssetButtonActionExtension> AssetButtonActionExtension;
+					AssetDefinition->GetAssetActionButtonExtensions(AssetData, AssetButtonActionExtension);
+					GenerateCustomAssetPickerButtons(AssetData, AssetButtonActionExtension);
+				}
 			}
 
 			OnSetObject.ExecuteIfBound(AssetData);

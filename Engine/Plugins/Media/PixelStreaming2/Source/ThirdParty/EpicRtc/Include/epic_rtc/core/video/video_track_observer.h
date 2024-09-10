@@ -23,9 +23,9 @@ public:
     /**
      * Indicates whether the observer is ready to receive messages.
      * If false, any method calls will be ignored.
-     * @return bool Observer enabled state
+     * @return EpicRtcBool Observer enabled state
      */
-    virtual bool Enabled() const = 0;
+    virtual EpicRtcBool Enabled() const = 0;
 };
 
 class EpicRtcVideoTrackObserverFactoryInterface : public EpicRtcRefCountInterface

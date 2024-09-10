@@ -31,7 +31,7 @@ class SWorldHierarchy
 	//~ Begin IWorldHierarchy Interface
 	virtual TSharedRef<SWidget> GetWidget() override { return SharedThis(this); }
 	virtual bool IsColumnVisible(FName Column) const override;
-	virtual void SetColumnVisible(FName Column, bool bVisible) const override;
+	virtual void SetColumnVisible(FName Column, bool bVisible) override;
 	//~ End IWorldHierarchy Interface
 
 private:

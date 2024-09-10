@@ -52,6 +52,79 @@ class DNAAPI RBFBehaviorWriter : public virtual BehaviorWriter {
         */
         virtual void setRBFPoseScale(std::uint16_t poseIndex, float scale) = 0;
         /**
+            @brief Delete all RBF pose control names.
+        */
+        virtual void clearRBFPoseControlNames() = 0;
+        /**
+            @brief Name of the specified RBF pose control.
+            @param index
+                A name's position in the zero-indexed array of RBF pose control names.
+            @note
+                The control name storage will be implicitly resized (if needed) to provide
+                storage for the number of names that is inferred from the specified index.
+            @param name
+                A null-terminated string.
+            @note
+                The passed in name is copied, which will involve an additional allocation.
+        */
+        virtual void setRBFPoseControlName(std::uint16_t poseControlIndex, const char* name) = 0;
+        /**
+            @brief Set the list of control indices that additionally multiply the pose output (optional).
+            @param poseIndex
+                A poses's position in the zero-indexed array of poses.
+            @warning
+               poseIndex must be less than the value returned by getRBFPoseCount
+            @param controlIndices
+                The source address from which the control indices are to be copied.
+            @note
+                When the final output weight of a pose is calculated (this is after it's already
+                multiplied by the weights from @getRBFPoseOutputControlWeights), it can optionally be
+                additionally multiplied by a list of input controls.
+            @param controlCount
+                The number of control indices to copy.
+        */
+        virtual void setRBFPoseInputControlIndices(std::uint16_t poseIndex,
+                                                   const std::uint16_t* controlIndices,
+                                                   std::uint16_t controlIndexCount) = 0;
+        /**
+            @brief Set the list of control indices that the specified pose drives.
+            @param poseIndex
+                A poses's position in the zero-indexed array of poses.
+            @warning
+               poseIndex must be less than the value returned by getRBFPoseCount
+            @param controlIndices
+                The source address from which the control indices are to be copied.
+            @note
+                These control indices
+                This is an additional level of indirection, through which a single RBF pose is able to
+                drive even multiple expressions (by providing multiple control indices for a pose).
+                The solver calculates the output weight for a pose, and that output weight is distributed
+                (and multiplied by the multiplier, @see setRBFPoseOutputControlWeights) to all the controls
+                that are specified in this array.
+            @param controlCount
+                The number of control indices to copy.
+        */
+        virtual void setRBFPoseOutputControlIndices(std::uint16_t poseIndex,
+                                                    const std::uint16_t* controlIndices,
+                                                    std::uint16_t controlIndexCount) = 0;
+        /**
+            @brief Set the list of weights that multiply the RBF outputs.
+            @param poseIndex
+                A poses's position in the zero-indexed array of poses.
+            @warning
+               poseIndex must be less than the value returned by getRBFPoseCount
+            @param controlWeights
+                The source address from which the control weights are to be copied.
+            @note
+                When an RBF solver calculates the weights for each of its poses, those output weights are
+                additionally multiplied by this fixed list of multipliers (one weight per control is given).
+            @param controlWeightCount
+                The number of control weights to copy.
+        */
+        virtual void setRBFPoseOutputControlWeights(std::uint16_t poseIndex,
+                                                    const float* controlWeights,
+                                                    std::uint16_t controlWeightCount) = 0;
+        /**
             @brief Delete all RBF solvers.
         */
         virtual void clearRBFSolvers() = 0;

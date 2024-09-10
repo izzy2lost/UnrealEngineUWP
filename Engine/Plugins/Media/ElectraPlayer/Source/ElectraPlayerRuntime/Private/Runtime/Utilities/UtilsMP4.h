@@ -120,6 +120,30 @@ public:
 		volatile bool bHasErrored = false;
 	};
 
+	class FMP4ChunkLoader
+	{
+	public:		
+		FMP4ChunkLoader() = default;
+		~FMP4ChunkLoader() = default;
+		
+		DECLARE_DELEGATE_RetVal(bool, FCancellationCheckDelegate);
+		TSharedPtrTS<FWaitableBuffer> LoadChunk(const int64 InOffset, const int64 InSize, const TSharedPtrTS<IElectraHttpManager>& InHTTPManager, const TSharedPtrTS<IHTTPResponseCache>& InHttpResponseCache, const FString& InURL, FCancellationCheckDelegate InCheckCancellationDelegate);
+
+		int64 GetFileSize() const
+		{ return FileSize; }
+		bool DidDownloadFail() const
+		{ return bHasErrored; }
+		const HTTP::FConnectionInfo& GetConnectionInfo() const
+		{ return ConnectionInfo; }
+
+		const FString& GetErrorMessage() const
+		{ return ErrorMsg; }
+	private:
+		HTTP::FConnectionInfo ConnectionInfo;
+		FString ErrorMsg;
+		int64 FileSize = -1;
+		volatile bool bHasErrored = false;
+	};
 };
 
 } // namespace Electra

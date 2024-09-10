@@ -61,22 +61,27 @@ FText FPixelStreamingLiveLinkSource::GetSourceStatus() const
 	return LOCTEXT("ActiveStatus", "Active");
 }
 
-void FPixelStreamingLiveLinkSource::CreateSubject(FName SubjectName) const
+void FPixelStreamingLiveLinkSource::CreateSubject(FName SubjectName)
 {
 	if (LiveLinkClient)
 	{
+		RemoveSubject();
+
 		const FLiveLinkSubjectKey SubjectKey(SourceGuid, SubjectName);
 		FLiveLinkStaticDataStruct StaticDataStruct(FLiveLinkTransformStaticData::StaticStruct());
 		LiveLinkClient->PushSubjectStaticData_AnyThread(SubjectKey, ULiveLinkTransformRole::StaticClass(), MoveTemp(StaticDataStruct));
+		
+		CurrentSubjectName = SubjectName;
 	}
 }
 
-void FPixelStreamingLiveLinkSource::RemoveSubject(FName SubjectName) const
+void FPixelStreamingLiveLinkSource::RemoveSubject()
 {
-	if (LiveLinkClient)
+	if (LiveLinkClient && CurrentSubjectName)
 	{
-		const FLiveLinkSubjectKey SubjectKey(SourceGuid, SubjectName);
+		const FLiveLinkSubjectKey SubjectKey(SourceGuid, *CurrentSubjectName);
 		LiveLinkClient->RemoveSubject_AnyThread(SubjectKey);
+		CurrentSubjectName.Reset();
 	}
 }
 

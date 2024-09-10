@@ -35,20 +35,22 @@ namespace UnrealBuildTool
 		/// <param name="Platform">Which OS platform to target.</param>
 		/// <param name="Arch">Which architecture inside an OS platform to target. Only used for Android currently.</param>
 		/// <returns>List of instruction set targets passed to ISPC compiler</returns>
-		public virtual List<string> GetISPCCompileTargets(UnrealTargetPlatform Platform, UnrealArch? Arch)
+		public virtual List<string> GetISPCCompileTargets(UnrealTargetPlatform Platform, UnrealArch Arch)
 		{
 			List<string> ISPCTargets = new List<string>();
 
-			// @todo this could be simplified for the arm case - but sse has more options
 			if (UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Windows) ||
-				(UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Unix) && Platform != UnrealTargetPlatform.LinuxArm64) ||
-				Platform == UnrealTargetPlatform.Mac)
+				UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Unix) ||
+				UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Apple))
 			{
-				ISPCTargets.AddRange(new string[] { "avx512skx-i32x8", "avx2", "avx", "sse4" });
-			}
-			else if (Platform == UnrealTargetPlatform.LinuxArm64)
-			{
-				ISPCTargets.AddRange(new string[] { "neon" });
+				if (Arch.bIsX64)
+				{
+					ISPCTargets.AddRange(new string[] { "avx512skx-i32x8", "avx2", "avx", "sse4" });
+				}
+				else
+				{
+					ISPCTargets.Add("neon");
+				}
 			}
 			else if (Platform == UnrealTargetPlatform.Android)
 			{
@@ -65,10 +67,6 @@ namespace UnrealBuildTool
 					Logger.LogWarning("Invalid Android architecture for ISPC. At least one architecture (arm64, x64) needs to be selected in the project settings to build");
 				}
 			}
-			else if (Platform == UnrealTargetPlatform.IOS)
-			{
-				ISPCTargets.Add("neon");
-			}
 			else
 			{
 				Logger.LogWarning("Unsupported ISPC platform target!");
@@ -84,34 +82,29 @@ namespace UnrealBuildTool
 		/// <returns>OS string passed to ISPC compiler</returns>
 		public virtual string GetISPCOSTarget(UnrealTargetPlatform Platform)
 		{
-			string ISPCOS = "";
-
 			if (UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Windows))
 			{
-				ISPCOS += "windows";
+				return "windows";
 			}
 			else if (UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Unix))
 			{
-				ISPCOS += "linux";
+				return "linux";
 			}
-			else if (Platform == UnrealTargetPlatform.Android)
+			else if (UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Android))
 			{
-				ISPCOS += "android";
+				return "android";
 			}
-			else if (Platform == UnrealTargetPlatform.IOS)
+			else if (UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.IOS))
 			{
-				ISPCOS += "ios";
+				return "ios";
 			}
 			else if (Platform == UnrealTargetPlatform.Mac)
 			{
-				ISPCOS += "macos";
+				return "macos";
 			}
-			else
-			{
-				Logger.LogWarning("Unsupported ISPC platform target!");
-			}
-
-			return ISPCOS;
+			
+			Logger.LogWarning("Unsupported ISPC platform target!");
+			return String.Empty;
 		}
 
 		/// <summary>
@@ -120,45 +113,22 @@ namespace UnrealBuildTool
 		/// <param name="Platform">Which OS platform to target.</param>
 		/// <param name="Arch">Which architecture inside an OS platform to target. Only used for Android currently.</param>
 		/// <returns>Arch string passed to ISPC compiler</returns>
-		public virtual string GetISPCArchTarget(UnrealTargetPlatform Platform, UnrealArch? Arch)
+		public virtual string GetISPCArchTarget(UnrealTargetPlatform Platform, UnrealArch Arch)
 		{
-			string ISPCArch = "";
-
 			if (UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Windows) ||
-				(UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Unix) && Platform != UnrealTargetPlatform.LinuxArm64) ||
-				Platform == UnrealTargetPlatform.Mac)
+				UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Unix) ||
+				UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Apple) ||
+				UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Android))
 			{
-				ISPCArch += "x86-64";
-			}
-			else if (Platform == UnrealTargetPlatform.LinuxArm64)
-			{
-				ISPCArch += "aarch64";
-			}
-			else if (Platform == UnrealTargetPlatform.Android)
-			{
-				if (Arch == UnrealArch.Arm64)
+				if (Arch.bIsX64)
 				{
-					ISPCArch += "aarch64";
+					return "x86-64";
 				}
-				else if (Arch == UnrealArch.X64)
-				{
-					ISPCArch += "x86-64";
-				}
-				else
-				{
-					Logger.LogWarning("Invalid Android architecture for ISPC. At least one architecture (arm64, x64) needs to be selected in the project settings to build");
-				}
+				return "aarch64";
 			}
-			else if (Platform == UnrealTargetPlatform.IOS)
-			{
-				ISPCArch += "aarch64";
-			}
-			else
-			{
-				Logger.LogWarning("Unsupported ISPC platform target!");
-			}
-
-			return ISPCArch;
+			
+			Logger.LogWarning("Unsupported ISPC platform target!");
+			return String.Empty;
 		}
 
 		/// <summary>
@@ -249,25 +219,16 @@ namespace UnrealBuildTool
 		/// <returns>Object file suffix</returns>
 		public virtual string GetISPCObjectFileFormat(UnrealTargetPlatform Platform)
 		{
-			string Format = "";
-
-			if (UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Windows))
+			if (UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Windows) ||
+				UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Unix) ||
+				UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Apple) ||
+				UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Android))
 			{
-				Format += "obj";
-			}
-			else if (UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Unix) ||
-					Platform == UnrealTargetPlatform.Mac ||
-					Platform == UnrealTargetPlatform.IOS ||
-					Platform == UnrealTargetPlatform.Android)
-			{
-				Format += "obj";
-			}
-			else
-			{
-				Logger.LogWarning("Unsupported ISPC platform target!");
+				return "obj";
 			}
 
-			return Format;
+			Logger.LogWarning("Unsupported ISPC platform target!");
+			return String.Empty;
 		}
 
 		/// <summary>
@@ -277,25 +238,19 @@ namespace UnrealBuildTool
 		/// <returns>Object file suffix</returns>
 		public virtual string GetISPCObjectFileSuffix(UnrealTargetPlatform Platform)
 		{
-			string Suffix = "";
-
 			if (UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Windows))
 			{
-				Suffix += ".obj";
+				return ".obj";
 			}
 			else if (UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Unix) ||
-					Platform == UnrealTargetPlatform.Mac ||
-					Platform == UnrealTargetPlatform.IOS ||
-					Platform == UnrealTargetPlatform.Android)
+				UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Apple) ||
+				UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Android))
 			{
-				Suffix += ".o";
-			}
-			else
-			{
-				Logger.LogWarning("Unsupported ISPC platform target!");
+				return ".o";
 			}
 
-			return Suffix;
+			Logger.LogWarning("Unsupported ISPC platform target!");
+			return String.Empty;
 		}
 
 		private string EscapeDefinitionForISPC(string Definition)
@@ -424,7 +379,7 @@ namespace UnrealBuildTool
 			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.RootDirectory);
 		}
 
-		public override CPPOutput GenerateISPCHeaders(CppCompileEnvironment CompileEnvironment, IEnumerable<FileItem> InputFiles, DirectoryReference OutputDir, IActionGraphBuilder Graph)
+		protected override CPPOutput GenerateISPCHeaders(CppCompileEnvironment CompileEnvironment, IEnumerable<FileItem> InputFiles, DirectoryReference OutputDir, IActionGraphBuilder Graph)
 		{
 			CPPOutput Result = new CPPOutput();
 
@@ -433,14 +388,14 @@ namespace UnrealBuildTool
 				return Result;
 			}
 
-			List<string> CompileTargets = GetISPCCompileTargets(CompileEnvironment.Platform, null);
+			List<string> CompileTargets = GetISPCCompileTargets(CompileEnvironment.Platform, CompileEnvironment.Architecture);
 
 			List<string> GlobalArguments = new List<string>();
 
 			// Build target string. No comma on last
 			string TargetString = String.Join(',', CompileTargets);
 
-			string ISPCArch = GetISPCArchTarget(CompileEnvironment.Platform, null);
+			string ISPCArch = GetISPCArchTarget(CompileEnvironment.Platform, CompileEnvironment.Architecture);
 
 			// Build target triplet
 			GlobalArguments.Add($"--target-os={GetISPCOSTarget(CompileEnvironment.Platform)}");
@@ -454,10 +409,11 @@ namespace UnrealBuildTool
 				GlobalArguments.Add($"--cpu={CpuTarget}");
 			}
 
-			// PIC is needed for modular builds except on Microsoft platforms
+			// PIC is needed for modular builds except on Microsoft platforms, and for android
 			if ((CompileEnvironment.bIsBuildingDLL ||
 				CompileEnvironment.bIsBuildingLibrary) &&
-				!UEBuildPlatform.IsPlatformInGroup(CompileEnvironment.Platform, UnrealPlatformGroup.Microsoft))
+				!UEBuildPlatform.IsPlatformInGroup(CompileEnvironment.Platform, UnrealPlatformGroup.Microsoft) ||
+				UEBuildPlatform.IsPlatformInGroup(CompileEnvironment.Platform, UnrealPlatformGroup.Android))
 			{
 				GlobalArguments.Add("--pic");
 			}
@@ -563,7 +519,7 @@ namespace UnrealBuildTool
 			return Result;
 		}
 
-		public override CPPOutput CompileISPCFiles(CppCompileEnvironment CompileEnvironment, IEnumerable<FileItem> InputFiles, DirectoryReference OutputDir, IActionGraphBuilder Graph)
+		protected override CPPOutput CompileISPCFiles(CppCompileEnvironment CompileEnvironment, IEnumerable<FileItem> InputFiles, DirectoryReference OutputDir, IActionGraphBuilder Graph)
 		{
 			CPPOutput Result = new CPPOutput();
 
@@ -572,7 +528,7 @@ namespace UnrealBuildTool
 				return Result;
 			}
 
-			List<string> CompileTargets = GetISPCCompileTargets(CompileEnvironment.Platform, null);
+			List<string> CompileTargets = GetISPCCompileTargets(CompileEnvironment.Platform, CompileEnvironment.Architecture);
 
 			List<string> GlobalArguments = new List<string>();
 
@@ -592,7 +548,7 @@ namespace UnrealBuildTool
 
 			// Build target triplet
 			string PlatformObjectFileFormat = GetISPCObjectFileFormat(CompileEnvironment.Platform);
-			string ISPCArch = GetISPCArchTarget(CompileEnvironment.Platform, null);
+			string ISPCArch = GetISPCArchTarget(CompileEnvironment.Platform, CompileEnvironment.Architecture);
 
 			GlobalArguments.Add($"--target-os={GetISPCOSTarget(CompileEnvironment.Platform)}");
 			GlobalArguments.Add($"--arch={ISPCArch}");
@@ -630,10 +586,11 @@ namespace UnrealBuildTool
 			}
 			GlobalArguments.AddRange(CommonArgs);
 
-			// PIC is needed for modular builds except on Microsoft platforms
+			// PIC is needed for modular builds except on Microsoft platforms, and for android
 			if ((CompileEnvironment.bIsBuildingDLL ||
 				CompileEnvironment.bIsBuildingLibrary) &&
-				!UEBuildPlatform.IsPlatformInGroup(CompileEnvironment.Platform, UnrealPlatformGroup.Microsoft))
+				!UEBuildPlatform.IsPlatformInGroup(CompileEnvironment.Platform, UnrealPlatformGroup.Microsoft) ||
+				UEBuildPlatform.IsPlatformInGroup(CompileEnvironment.Platform, UnrealPlatformGroup.Android))
 			{
 				GlobalArguments.Add("--pic");
 			}

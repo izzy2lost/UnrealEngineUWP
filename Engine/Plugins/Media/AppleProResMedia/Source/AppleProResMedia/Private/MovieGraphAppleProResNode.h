@@ -9,7 +9,7 @@
 #include "MovieGraphAppleProResNode.generated.h"
 
 /** A node which can output Apple ProRes movies. */
-UCLASS(BlueprintType, PrioritizeCategories=("FileOutput"))
+UCLASS(BlueprintType)
 class UMovieGraphAppleProResNode : public UMovieGraphVideoOutputNode
 {
 	GENERATED_BODY()

@@ -7,6 +7,19 @@ VirtualShadowMapDefinitions.h: used in virtual shadow map shaders and C++ code t
 
 #pragma once
 
+// Page size is 128x128
+#define VSM_LOG2_PAGE_SIZE 7u
+#define VSM_PAGE_SIZE (1u << VSM_LOG2_PAGE_SIZE)
+#define VSM_PAGE_SIZE_MASK (VSM_PAGE_SIZE - 1u)
+// Page table size is 128x128 (total 16k)
+#define VSM_LOG2_LEVEL0_DIM_PAGES_XY 7u
+#define VSM_LEVEL0_DIM_PAGES_XY (1u << VSM_LOG2_LEVEL0_DIM_PAGES_XY)
+#define VSM_MAX_MIP_LEVELS (VSM_LOG2_LEVEL0_DIM_PAGES_XY + 1u)
+#define VSM_VIRTUAL_MAX_RESOLUTION_XY (VSM_LEVEL0_DIM_PAGES_XY * VSM_PAGE_SIZE)
+#define VSM_RASTER_WINDOW_PAGES (4u)
+#define VSM_PAGE_TABLE_SIZE 21845u // (0x55555555u & ((1u << (VSM_MAX_MIP_LEVELS << 1u)) - 1u))
+
+
 #define VIRTUAL_SHADOW_MAP_VISUALIZE_NONE						0
 #define VIRTUAL_SHADOW_MAP_VISUALIZE_SHADOW_FACTOR				(1 << 0)
 #define VIRTUAL_SHADOW_MAP_VISUALIZE_CLIPMAP_OR_MIP				(1 << 1)
@@ -71,6 +84,7 @@ VirtualShadowMapDefinitions.h: used in virtual shadow map shaders and C++ code t
 
 #ifdef __cplusplus
 #include "HLSLTypeAliases.h"
+#include "HLSLMathAliases.h"
 
 namespace UE::HLSL
 {
@@ -96,10 +110,32 @@ struct FNextVirtualShadowMapData
 	int _Padding;
 };
 
+
+inline uint GetMipLevelLocal(float Footprint, uint MipMode, float ShadowMapResolutionLodBias, float GlobalResolutionLodBias)
+{
+	float MipLevelFloat = log2(Footprint) + ShadowMapResolutionLodBias + GlobalResolutionLodBias;
+	uint MipLevel = uint(max(floor(MipLevelFloat), 0.0f));
+	MipLevel = min(MipLevel, (VSM_MAX_MIP_LEVELS - 1U));
+
+	if (MipMode == 1)
+	{
+		// Even mips
+		MipLevel &= ~(1U);
+	}
+	else if (MipMode == 2)
+	{
+		// Odd mips
+		MipLevel |= 1U;
+	}
+
+	return MipLevel;
+}
+
 #ifdef __cplusplus
 } // namespace UE::HLSL
 
 using FVSMVisibleInstanceCmd = UE::HLSL::FVSMVisibleInstanceCmd;
 using FVSMCullingBatchInfo = UE::HLSL::FVSMCullingBatchInfo;
 using FNextVirtualShadowMapData = UE::HLSL::FNextVirtualShadowMapData;
+
 #endif

@@ -52,6 +52,7 @@
 #include "DetailLayoutBuilder.h"
 #include "DetailCategoryBuilder.h"
 #include "DetailWidgetRow.h"
+#include "Misc/GameVisibilityColumnToggler.h"
 
 
 #include "Widgets/SConcertBrowser.h"
@@ -629,10 +630,20 @@ public:
 		// Hook UI elements in the tool bar (and setup commands).
 		RegisterUI();
 		RegisterLogging();
+#if WITH_EDITOR
+		if (GIsEditor)
+		{
+			VisibilityColumnToggler = MakeUnique<UE::MultiUserClient::FGameVisibilityColumnToggler>(MultiUserClient.ToSharedRef());
+		}
+#endif
 	}
 
 	virtual void ShutdownModule() override
 	{
+#if WITH_EDITOR
+		VisibilityColumnToggler.Reset();
+#endif
+		
 		// Unhook AppPreExit and call it
 		FCoreDelegates::OnPreExit.RemoveAll(this);
 		HandleAppPreExit();
@@ -1410,6 +1421,11 @@ private:
 	TSharedPtr<IConcertSyncClient> MultiUserClient;
 	/** Interacts with the replication system on behalf of Multi-User. */
 	TSharedPtr<UE::MultiUserClient::Replication::FMultiUserReplicationManager> ReplicationManager;
+
+#if WITH_EDITOR
+	/** Toggles the game visibility column in the Levels tab when joining & leaving sessions. */
+	TUniquePtr<UE::MultiUserClient::FGameVisibilityColumnToggler> VisibilityColumnToggler;
+#endif
 
 	/** True if the tab spawners have been registered for this module */
 	bool bHasRegisteredTabSpawners = false;

@@ -4,7 +4,6 @@
 
 #include "AssetToolsModule.h"
 #include "ContentBrowserModule.h"
-#include "DesktopPlatformModule.h"
 #include "DynamicMaterialEditorModule.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "Engine/Engine.h"
@@ -12,7 +11,6 @@
 #include "EngineAnalytics.h"
 #include "Framework/Application/SlateApplication.h"
 #include "IContentBrowserSingleton.h"
-#include "IDesktopPlatform.h"
 #include "ISinglePropertyView.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Materials/Material.h"
@@ -212,18 +210,6 @@ void FDMToolBarMenus::AddEditorLayoutSection(UToolMenu* InMenu)
 	{
 		FUIAction Action;
 
-		switch (Layout)
-		{
-			case EDMMaterialEditorLayout::LeftAutoHide:
-			case EDMMaterialEditorLayout::TopHorizontalAutoHide:
-			case EDMMaterialEditorLayout::TopVerticalAutoHide:
-				Action.CanExecuteAction = FCanExecuteAction::CreateLambda([]() { return false; });
-				break;
-
-			default:
-				break;
-		}
-
 		Action.GetActionCheckState = FGetActionCheckState::CreateLambda(
 			[Layout]()
 			{
@@ -409,27 +395,26 @@ void FDMToolBarMenus::SnapshotMaterial(TWeakObjectPtr<UDynamicMaterialModelBase>
 		return;
 	}
 
-	TArray<FString> OutFilenames;
+	// Choose asset location
+	IContentBrowserSingleton& ContentBrowser = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser").Get();
+	const FContentBrowserItemPath CurrentPath = ContentBrowser.GetCurrentPath();
+	const FString PathStr = CurrentPath.HasInternalPath() ? CurrentPath.GetInternalPathString() : "/Game";
 
-	if (IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get())
-	{
-		DesktopPlatform->SaveFileDialog(
-			FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr),
-			LOCTEXT("SaveSnapshotAs", "Save Snapshot As").ToString(),
-			FPaths::ProjectSavedDir(),
-			Material->GetName() + "_Snapshot_" + FString::FromInt(InTextureSize.X) + "x" + FString::FromInt(InTextureSize.Y),
-			TEXT("HDR File (*.hdr)|*.hdr|EXR File (*.exr)|*.exr|PNG File (*.png)|*.png"),
-			EFileDialogFlags::None,
-			OutFilenames
-		);
-	}
+	FSaveAssetDialogConfig SaveAssetDialogConfig;
+	SaveAssetDialogConfig.DialogTitleOverride = LOCTEXT("ExportMaterialTo", "Export Material To");
+	SaveAssetDialogConfig.DefaultPath = PathStr;
+	SaveAssetDialogConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::Disallow;
+	SaveAssetDialogConfig.DefaultAssetName = TEXT("T_MD_") + Material->GetName();
 
-	if (OutFilenames.IsEmpty())
+	FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+	FString SaveObjectPath = ContentBrowserModule.Get().CreateModalSaveAssetDialog(SaveAssetDialogConfig);
+
+	if (SaveObjectPath.IsEmpty())
 	{
 		return;
 	}
 
-	FDMMaterialShapshotLibrary::SnapshotMaterial(Material, InTextureSize, OutFilenames[0]);
+	FDMMaterialShapshotLibrary::SnapshotMaterial(Material, InTextureSize, SaveObjectPath);
 
 	if (FEngineAnalytics::IsAvailable())
 	{

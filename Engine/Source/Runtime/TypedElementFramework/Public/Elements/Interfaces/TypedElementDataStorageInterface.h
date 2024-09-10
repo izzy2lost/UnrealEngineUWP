@@ -25,14 +25,14 @@
 class UClass;
 class USubsystem;
 class UScriptStruct;
-class UTypedElementDataStorageFactory;
+class UEditorDataStorageFactory;
 
 using FTypedElementOnDataStorageCreation = FSimpleMulticastDelegate;
 using FTypedElementOnDataStorageDestruction = FSimpleMulticastDelegate;
 using FTypedElementOnDataStorageUpdate = FSimpleMulticastDelegate;
 
 UINTERFACE(MinimalAPI)
-class UTypedElementDataStorageInterface : public UInterface
+class UEditorDataStorageProvider : public UInterface
 {
 	GENERATED_BODY()
 };
@@ -51,7 +51,7 @@ struct TTypedElementColumnTypeList
 	operator TConstArrayView<const UScriptStruct*>() const { return ColumnTypes; }
 };
 
-class ITypedElementDataStorageInterface
+class IEditorDataStorageProvider
 {
 	GENERATED_BODY()
 
@@ -73,7 +73,7 @@ public:
 	 */
 
 	/** Finds a factory instance registered with TEDS */
-	virtual const UTypedElementDataStorageFactory* FindFactory(const UClass* FactoryType) const = 0;
+	virtual const UEditorDataStorageFactory* FindFactory(const UClass* FactoryType) const = 0;
 
 	/** Convenience function for FindFactory */
 	template<typename FactoryT>
@@ -308,14 +308,14 @@ public:
 	/**
 	 * Finds the type information for a dynamic column.
 	 * If the dynamic column has not been generated, then return nullptr
-	 * The TemplateType may be a typed derived from either FTypedElementDataStorageColumn or FTypedElementDataStorageTag, anything else will return nullptr
+	 * The TemplateType may be a typed derived from either UE::Editor::DataStorage::FColumn or UE::Editor::DataStorage::FTag, anything else will return nullptr
 	 */
 	virtual const UScriptStruct* FindDynamicColumn(const UE::Editor::DataStorage::FDynamicColumnDescription& Description) const = 0;
 
 	/**
 	 * Generates a new dynamic column from a Template.  A dynamic column is uniquely identified using the given template and an Identifier
 	 * This function is idempotent - multiple calls with the same parameters will result in subsequent calls returning the same type
-	 * The TemplateType may be a typed derived from either FTypedElementDataStorageColumn or FTypedElementDataStorageTag
+	 * The TemplateType may be a typed derived from either UE::Editor::DataStorage::FColumn or UE::Editor::DataStorage::FTag
 	 */
 	virtual const UScriptStruct* GenerateDynamicColumn(const UE::Editor::DataStorage::FDynamicColumnDescription& Description) = 0;
 	
@@ -446,57 +446,57 @@ public:
 // Implementations
 
 template <typename FactoryT>
-const FactoryT* ITypedElementDataStorageInterface::FindFactory() const
+const FactoryT* IEditorDataStorageProvider::FindFactory() const
 {
 	return static_cast<const FactoryT*>(FindFactory(FactoryT::StaticClass()));
 }
 
 template<UE::Editor::DataStorage::TColumnType... Columns>
-UE::Editor::DataStorage::TableHandle ITypedElementDataStorageInterface::RegisterTable(const FName Name)
+UE::Editor::DataStorage::TableHandle IEditorDataStorageProvider::RegisterTable(const FName Name)
 {
 	return RegisterTable({ Columns::StaticStruct()... }, Name);
 }
 
 template<UE::Editor::DataStorage::TColumnType... Columns>
-UE::Editor::DataStorage::TableHandle ITypedElementDataStorageInterface::RegisterTable(
+UE::Editor::DataStorage::TableHandle IEditorDataStorageProvider::RegisterTable(
 	TableHandle SourceTable, const FName Name)
 {
 	return RegisterTable(SourceTable, { Columns::StaticStruct()... }, Name);
 }
 
 template<UE::Editor::DataStorage::TColumnType Column>
-void ITypedElementDataStorageInterface::AddColumn(RowHandle Row)
+void IEditorDataStorageProvider::AddColumn(RowHandle Row)
 {
 	AddColumn(Row, Column::StaticStruct());
 }
 
 template<UE::Editor::DataStorage::TColumnType Column>
-void ITypedElementDataStorageInterface::RemoveColumn(RowHandle Row)
+void IEditorDataStorageProvider::RemoveColumn(RowHandle Row)
 {
 	RemoveColumn(Row, Column::StaticStruct());
 }
 
 template<UE::Editor::DataStorage::TColumnType... Columns>
-void ITypedElementDataStorageInterface::AddColumns(RowHandle Row)
+void IEditorDataStorageProvider::AddColumns(RowHandle Row)
 {
 	AddColumns(Row, { Columns::StaticStruct()...});
 }
 
 template <>
-inline void ITypedElementDataStorageInterface::AddColumn<UE::Editor::DataStorage::FValueTag>(RowHandle Row, const FName& Tag, const FName& Value)
+inline void IEditorDataStorageProvider::AddColumn<UE::Editor::DataStorage::FValueTag>(RowHandle Row, const FName& Tag, const FName& Value)
 {
 	AddColumn(Row, UE::Editor::DataStorage::FValueTag(Tag), Value);
 }
 
 template <>
-inline void ITypedElementDataStorageInterface::RemoveColumn<UE::Editor::DataStorage::FValueTag>(RowHandle Row, const FName& Tag)
+inline void IEditorDataStorageProvider::RemoveColumn<UE::Editor::DataStorage::FValueTag>(RowHandle Row, const FName& Tag)
 {
 	using namespace UE::Editor::DataStorage;
 	RemoveColumn(Row, FValueTag(Tag));
 }
 
 template<UE::Editor::DataStorage::TColumnType DynamicColumnTemplate>
-void ITypedElementDataStorageInterface::RemoveColumn(RowHandle Row, const FName& Identifier)
+void IEditorDataStorageProvider::RemoveColumn(RowHandle Row, const FName& Identifier)
 {
 	const UE::Editor::DataStorage::FDynamicColumnDescription Description
 	{
@@ -508,7 +508,7 @@ void ITypedElementDataStorageInterface::RemoveColumn(RowHandle Row, const FName&
 }
 
 template<UE::Editor::DataStorage::TEnumType EnumT>
-void ITypedElementDataStorageInterface::AddColumn(RowHandle Row, EnumT Value)
+void IEditorDataStorageProvider::AddColumn(RowHandle Row, EnumT Value)
 {
 	const UEnum* Enum = StaticEnum<EnumT>();
 	const FName ValueAsFName = *Enum->GetNameStringByValue(static_cast<int64>(Value));
@@ -519,13 +519,13 @@ void ITypedElementDataStorageInterface::AddColumn(RowHandle Row, EnumT Value)
 }
 
 template<auto Value, UE::Editor::DataStorage::TEnumType EnumT>
-void ITypedElementDataStorageInterface::AddColumn(RowHandle Row)
+void IEditorDataStorageProvider::AddColumn(RowHandle Row)
 {
 	AddColumn<EnumT>(Row, Value);
 }
 
 template <UE::Editor::DataStorage::TColumnType DynamicColumnTemplate>
-void ITypedElementDataStorageInterface::AddColumn(RowHandle Row, const FName& Identifier)
+void IEditorDataStorageProvider::AddColumn(RowHandle Row, const FName& Identifier)
 {
 	static_assert(UE::Editor::DataStorage::TDataColumnType<DynamicColumnTemplate> || UE::Editor::DataStorage::TTagColumnType<DynamicColumnTemplate>,
 		"DynamicColumnTemplate must be derived from either a Tag or Column");
@@ -539,7 +539,7 @@ void ITypedElementDataStorageInterface::AddColumn(RowHandle Row, const FName& Id
 }
 
 template <UE::Editor::DataStorage::TColumnType DynamicColumnTemplate>
-void ITypedElementDataStorageInterface::AddColumn(RowHandle Row, const FName& Identifier, DynamicColumnTemplate&& TemplateInstance)
+void IEditorDataStorageProvider::AddColumn(RowHandle Row, const FName& Identifier, DynamicColumnTemplate&& TemplateInstance)
 {
 	static_assert(UE::Editor::DataStorage::TDataColumnType<DynamicColumnTemplate> || UE::Editor::DataStorage::TTagColumnType<DynamicColumnTemplate>,
 		"DynamicColumnTemplate must be derived from either a Tag or Column");
@@ -576,20 +576,20 @@ void ITypedElementDataStorageInterface::AddColumn(RowHandle Row, const FName& Id
 }
 
 template<UE::Editor::DataStorage::TEnumType EnumT>
-void ITypedElementDataStorageInterface::RemoveColumn(RowHandle Row)
+void IEditorDataStorageProvider::RemoveColumn(RowHandle Row)
 {
 	const UEnum* Enum = StaticEnum<EnumT>();
 	RemoveColumn(Row, UE::Editor::DataStorage::FValueTag(Enum->GetFName()));
 }
 
 template<UE::Editor::DataStorage::TColumnType... Columns>
-void ITypedElementDataStorageInterface::RemoveColumns(RowHandle Row)
+void IEditorDataStorageProvider::RemoveColumns(RowHandle Row)
 {
 	RemoveColumns(Row, { Columns::StaticStruct()...});
 }
 
 template<UE::Editor::DataStorage::TDataColumnType ColumnType>
-void ITypedElementDataStorageInterface::AddColumn(RowHandle Row, ColumnType&& Column)
+void IEditorDataStorageProvider::AddColumn(RowHandle Row, ColumnType&& Column)
 {
 	AddColumnData(Row, ColumnType::StaticStruct(),
 		[&Column](void* ColumnData, const UScriptStruct&)
@@ -617,19 +617,19 @@ void ITypedElementDataStorageInterface::AddColumn(RowHandle Row, ColumnType&& Co
 }
 
 template<UE::Editor::DataStorage::TDataColumnType ColumnType>
-ColumnType* ITypedElementDataStorageInterface::GetColumn(RowHandle Row)
+ColumnType* IEditorDataStorageProvider::GetColumn(RowHandle Row)
 {
 	return reinterpret_cast<ColumnType*>(GetColumnData(Row, ColumnType::StaticStruct()));
 }
 
 template<UE::Editor::DataStorage::TDataColumnType ColumnType>
-const ColumnType* ITypedElementDataStorageInterface::GetColumn(RowHandle Row) const
+const ColumnType* IEditorDataStorageProvider::GetColumn(RowHandle Row) const
 {
 	return reinterpret_cast<const ColumnType*>(GetColumnData(Row, ColumnType::StaticStruct()));
 }
 
 template <UE::Editor::DataStorage::TDataColumnType DynamicColumnTemplate>
-DynamicColumnTemplate* ITypedElementDataStorageInterface::GetColumn(RowHandle Row, const FName& Identifier)
+DynamicColumnTemplate* IEditorDataStorageProvider::GetColumn(RowHandle Row, const FName& Identifier)
 {
 	const UE::Editor::DataStorage::FDynamicColumnDescription Description
 	{
@@ -645,7 +645,7 @@ DynamicColumnTemplate* ITypedElementDataStorageInterface::GetColumn(RowHandle Ro
 }
 
 template <UE::Editor::DataStorage::TDataColumnType DynamicColumnTemplate>
-const DynamicColumnTemplate* ITypedElementDataStorageInterface::GetColumn(RowHandle Row, const FName& Identifier) const
+const DynamicColumnTemplate* IEditorDataStorageProvider::GetColumn(RowHandle Row, const FName& Identifier) const
 {
 	const UE::Editor::DataStorage::FDynamicColumnDescription Description
 	{
@@ -661,13 +661,13 @@ const DynamicColumnTemplate* ITypedElementDataStorageInterface::GetColumn(RowHan
 }
 
 template<UE::Editor::DataStorage::TColumnType... ColumnType>
-bool ITypedElementDataStorageInterface::HasColumns(RowHandle Row) const
+bool IEditorDataStorageProvider::HasColumns(RowHandle Row) const
 {
 	return HasColumns(Row, TConstArrayView<const UScriptStruct*>({ ColumnType::StaticStruct()... }));
 }
 
 template<typename SystemType>
-SystemType* ITypedElementDataStorageInterface::GetExternalSystem()
+SystemType* IEditorDataStorageProvider::GetExternalSystem()
 {
 	return reinterpret_cast<SystemType*>(GetExternalSystemAddress(SystemType::StaticClass()));
 }

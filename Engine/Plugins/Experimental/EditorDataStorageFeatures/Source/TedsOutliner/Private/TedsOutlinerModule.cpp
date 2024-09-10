@@ -114,7 +114,7 @@ void FTedsOutlinerModule::ShutdownModule()
 DataStorage::QueryHandle FTedsOutlinerModule::GetLevelEditorTedsOutlinerColumnQuery()
 {
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-	ITypedElementDataStorageInterface* Storage = Registry->GetMutableDataStorage();
+	IEditorDataStorageProvider* Storage = Registry->GetMutableDataStorage();
 		
 	using namespace DataStorage::Queries;
 

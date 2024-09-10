@@ -508,10 +508,8 @@ public:
 			// Adds any buttons that were passed in.
 			TSharedRef<SHorizontalBox> ButtonsBox = SNew(SHorizontalBox);
 
-			for (int32 idx = 0; idx < InArgs._ButtonDetails.Num(); idx++)
+			for (const FNotificationButtonInfo& Button : InArgs._ButtonDetails)
 			{
-				FNotificationButtonInfo Button = InArgs._ButtonDetails[idx];
-
 				ButtonsBox->AddSlot()
 				.AutoWidth()
 				.VAlign(VAlign_Center)
@@ -519,10 +517,11 @@ public:
 				[
 					SNew(SButton)
 					.Text(Button.Text)
-					.ToolTipText(Button.ToolTip.IsEmpty() ? Button.Text : Button.ToolTip)
+					.ToolTipText(Button.ToolTip.IsSet() ? Button.ToolTip : Button.Text)
 					.TextStyle(&FAppStyle::GetWidgetStyle<FTextBlockStyle>("NotificationList.WidgetText"))
 					.OnClicked(this, &SNotificationItemImpl::OnButtonClicked, Button.Callback) 
-					.Visibility( this, &SNotificationItemImpl::GetButtonVisibility, Button.VisibilityOnNone, Button.VisibilityOnPending, Button.VisibilityOnSuccess, Button.VisibilityOnFail )
+					.Visibility( this, &SNotificationItemImpl::GetButtonVisibility, Button.VisibilityCallback, Button.VisibilityOnNone, Button.VisibilityOnPending, Button.VisibilityOnSuccess, Button.VisibilityOnFail )
+					.IsEnabled( this, &SNotificationItemImpl::IsButtonEnabled, Button.IsEnabledCallback )
 				];
 			}
 
@@ -589,9 +588,19 @@ public:
 
 protected:
 
-	/* Used to determine whether the button is visible */
-	EVisibility GetButtonVisibility( const EVisibility VisibilityOnNone, const EVisibility VisibilityOnPending, const EVisibility VisibilityOnSuccess, const EVisibility VisibilityOnFail ) const
+	/* Used to determine whether the button is enabled */
+	bool IsButtonEnabled( const FNotificationButtonInfo::FIsEnabledDelegate IsEnabledCallback ) const
 	{
+		return !IsEnabledCallback.IsBound() || IsEnabledCallback.Execute(CompletionState);
+	}
+
+	/* Used to determine whether the button is visible */
+	EVisibility GetButtonVisibility( const FNotificationButtonInfo::FVisibilityDelegate VisibilityCallback, const EVisibility VisibilityOnNone, const EVisibility VisibilityOnPending, const EVisibility VisibilityOnSuccess, const EVisibility VisibilityOnFail ) const
+	{
+		if (VisibilityCallback.IsBound())
+		{
+			return VisibilityCallback.Execute(CompletionState);
+		}
 		switch ( CompletionState )
 		{
 		case SNotificationItem::CS_None: return VisibilityOnNone;

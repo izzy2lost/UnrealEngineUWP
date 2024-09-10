@@ -8,24 +8,24 @@
 #include "TypedElementActorParentQueries.generated.h"
 
 UCLASS()
-class UActorParentDataStorageFactory : public UTypedElementDataStorageFactory
+class UActorParentDataStorageFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	~UActorParentDataStorageFactory() override = default;
 
-	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
+	void RegisterQueries(IEditorDataStorageProvider& DataStorage) override;
 
 private:
 	/**
 	 * Checks rows with actors that don't have a parent column yet if one needs to be added whenever
 	 * the row is marked for updates.
 	 */
-	void RegisterAddParentColumn(ITypedElementDataStorageInterface& DataStorage) const;
+	void RegisterAddParentColumn(IEditorDataStorageProvider& DataStorage) const;
 	/**
 	 * Updates the parent column with the parent from the actor or removes it if there's no parent associated
 	 * with the actor anymore.
 	 */
-	void RegisterUpdateOrRemoveParentColumn(ITypedElementDataStorageInterface& DataStorage) const;
+	void RegisterUpdateOrRemoveParentColumn(IEditorDataStorageProvider& DataStorage) const;
 };

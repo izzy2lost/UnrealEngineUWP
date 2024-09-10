@@ -44,13 +44,12 @@ public:
 	 */
 	static TSharedRef<ISequencerTrackEditor> CreateTrackEditor(TSharedRef<ISequencer> OwningSequencer);
 
-	TWeakObjectPtr<AActor> GetCinematicShotCamera() const { return CinematicShotCamera; }
+	UE_DEPRECATED(5.5, "Use FCameraCutPlaybackCapability::LastViewTargetCamera instead.")
+	TWeakObjectPtr<AActor> GetCinematicShotCamera() const;
 
 public:
 
 	// ISequencerTrackEditor interface
-	virtual void OnInitialize() override;
-	virtual void OnRelease() override;
 	virtual TSharedPtr<SWidget> BuildOutlinerColumnWidget(const FBuildColumnWidgetParams& Params, const FName& ColumnName) override;
 	virtual TSharedRef<ISequencerSection> MakeSectionInterface(UMovieSceneSection& SectionObject, UMovieSceneTrack& Track, FGuid ObjectBinding) override;
 	virtual bool SupportsSequence(UMovieSceneSequence* InSequence) const override;
@@ -91,9 +90,6 @@ private:
 	/** Delegate for shots button lock tooltip */
 	FText GetLockShotsToolTip() const;
 
-	/** Called when our sequencer wants to switch cameras */
-	void OnUpdateCameraCut(UObject* CameraObject, bool bJumpCut);
-
 	/** Callback for ImportEDL. */
 	void ImportEDL();
 	
@@ -110,10 +106,4 @@ private:
 
 	/** The Thumbnail pool which draws all the viewport thumbnails for the shot track. */
 	TSharedPtr<FTrackEditorThumbnailPool> ThumbnailPool;
-
-	/** The camera actor for the current cut. */
-	TWeakObjectPtr<AActor> CinematicShotCamera;
-
-	/** Delegate binding handle for ISequencer::OnCameraCut */
-	FDelegateHandle OnCameraCutHandle;
 };

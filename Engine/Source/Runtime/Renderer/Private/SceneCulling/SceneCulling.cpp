@@ -2905,7 +2905,9 @@ inline bool FSceneCulling::IsUncullable(const FPrimitiveBounds& Bounds, FPrimiti
 {
 	// a primitive cannot be culled if it is too large, OR if it is so far away that it cannot be represented in the precision used in the hierarhcy
 	return Bounds.BoxSphereBounds.SphereRadius * 2.0 >= SpatialHash.GetLastLevelCellSize()
-		||  Bounds.BoxSphereBounds.Origin.SquaredLength() >= FMath::Square(SpatialHash.GetMaxCullingDistance() - Bounds.BoxSphereBounds.SphereRadius);
+		||  Bounds.BoxSphereBounds.Origin.SquaredLength() >= FMath::Square(SpatialHash.GetMaxCullingDistance() - Bounds.BoxSphereBounds.SphereRadius)
+		// TODO: this may become costly if many primitives end up here and if so, we should insert them by the primitive bounds to at least get that level of culling.
+		|| PrimitiveSceneInfo->Proxy->IsInstanceDataGPUOnly();
 }
 
 

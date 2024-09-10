@@ -1171,6 +1171,14 @@ namespace UE::MLDeformer
 		 */
 		void UpdateStepInterpolationMode();
 
+		/**
+		 * Because of some technical reasons we cannot display a correct ground truth heat map at the moment while playing an animation.
+		 * Scrubbing works fine though, because we can align on the right keyframes then.
+		 * This method will look whether we are having heatmaps enabled or not, and if we are playing or not and if we're in ground truth mode.
+		 * It then disables or enables the heatmap material based on the current state.
+		 */
+		void UpdateHeatMapMaterialBasedOnMode();
+
 	protected:
 		struct FLODInfo
 		{

@@ -16,6 +16,7 @@
 #include "Selection/UVToolSelectionAPI.h"
 #include "Drawing/MeshElementsVisualizer.h"
 #include "Editor.h"
+#include "EditorModelingObjectsCreationAPI.h"
 #include "EditorModes.h"
 #include "EditorViewportClient.h"
 #include "EdModeInteractiveToolsContext.h" //ToolsContext, EditorInteractiveToolsContext
@@ -44,6 +45,7 @@
 #include "UVEditorLayerEditTool.h"
 #include "UVEditorSeamTool.h"
 #include "UVEditorRecomputeUVsTool.h"
+#include "UVEditorUVSnapshotTool.h"
 #include "UVSelectTool.h"
 #include "UVEditorTexelDensityTool.h"
 #include "UVEditorInitializationContext.h"
@@ -632,6 +634,9 @@ void UUVEditorMode::RegisterTools()
 	BrushToolBuilder->Initialize(ToolInputObjects, UUVEditorBrushSelectTool::StaticClass());
 	RegisterTool(CommandInfos.BeginBrushSelectTool, BrushToolIdentifier, BrushToolBuilder);
 	ToolsThatAllowActions.Add(BrushToolIdentifier);
+	UUVEditorUVSnapshotToolBuilder* UVEditorUVSnapshotToolBuilder = NewObject<UUVEditorUVSnapshotToolBuilder>();
+	UVEditorUVSnapshotToolBuilder->Targets = &ToolInputObjects;
+	RegisterTool(CommandInfos.BeginUVSnapshotTool, TEXT("BeginUVSnapshotTool"), UVEditorUVSnapshotToolBuilder);
 }
 
 void UUVEditorMode::RegisterActions()
@@ -1064,6 +1069,15 @@ void UUVEditorMode::InitializeAssetEditorContexts(UContextObjectStore& ContextSt
 	FEditorViewportClient& LivePreviewViewportClient, FAssetEditorModeManager& LivePreviewModeManager,
 	UUVToolViewportButtonsAPI& ViewportButtonsAPI, UUVTool2DViewportAPI& UVTool2DViewportAPI)
 {
+	UInteractiveToolsContext* InteractiveToolsContext = Cast<UInteractiveToolsContext>(ContextStore.GetOuter());
+	InitializeAssetEditorContexts(ContextStore, AssetsIn, TransformsIn, LivePreviewViewportClient, LivePreviewModeManager,
+		ViewportButtonsAPI, UVTool2DViewportAPI, *InteractiveToolsContext);
+}
+void UUVEditorMode::InitializeAssetEditorContexts(UContextObjectStore& ContextStore,
+	const TArray<TObjectPtr<UObject>>& AssetsIn, const TArray<FTransform>& TransformsIn,
+	FEditorViewportClient& LivePreviewViewportClient, FAssetEditorModeManager& LivePreviewModeManager,
+	UUVToolViewportButtonsAPI& ViewportButtonsAPI, UUVTool2DViewportAPI& UVTool2DViewportAPI, UInteractiveToolsContext& ToolsContext)
+{
 	using namespace UVEditorModeLocals;
 
 	UUVToolAssetInputsContext* AssetInputsContext = ContextStore.FindContext<UUVToolAssetInputsContext>();
@@ -1074,6 +1088,13 @@ void UUVEditorMode::InitializeAssetEditorContexts(UContextObjectStore& ContextSt
 		ContextStore.AddContextObject(AssetInputsContext);
 	}
 
+	UEditorModelingObjectsCreationAPI* ModelingObjectsCreationAPI = ContextStore.FindContext<UEditorModelingObjectsCreationAPI>();
+	if (!ModelingObjectsCreationAPI)
+	{
+		ModelingObjectsCreationAPI = NewObject<UEditorModelingObjectsCreationAPI>(&ToolsContext);
+		ContextStore.AddContextObject(ModelingObjectsCreationAPI);
+	}
+	
 	UToolsContextCursorAPI* LivePreviewToolsContextCursorAPI = LivePreviewModeManager.GetInteractiveToolsContext()->ContextObjectStore->FindContext<UToolsContextCursorAPI>();
 	UUVToolLivePreviewAPI* LivePreviewAPI = ContextStore.FindContext<UUVToolLivePreviewAPI>();
 	if (!LivePreviewAPI)

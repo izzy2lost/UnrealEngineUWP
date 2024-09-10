@@ -10,9 +10,11 @@
 #include "SColorGradingPanel.h"
 
 #include "Camera/CameraActor.h"
+#include "CineCameraActor.h"
 #include "Engine/PostProcessVolume.h"
 #include "Framework/Docking/LayoutExtender.h"
 #include "LevelEditor.h"
+#include "PropertyEditorModule.h"
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
 
@@ -29,6 +31,7 @@ void FColorGradingEditorModule::StartupModule()
 		FGetDetailsDataModelGenerator::CreateStatic(&FColorGradingDataModelGenerator_CameraActor::MakeInstance));
 
 	FColorGradingMixerObjectFilterRegistry::RegisterActorClassToPlace(APostProcessVolume::StaticClass());
+	FColorGradingMixerObjectFilterRegistry::RegisterActorClassToPlace(ACineCameraActor::StaticClass());
 	FColorGradingMixerObjectFilterRegistry::RegisterActorClassToPlace(ACameraActor::StaticClass());
 
 	FColorGradingMixerObjectFilterRegistry::RegisterObjectClassToFilter(APostProcessVolume::StaticClass());

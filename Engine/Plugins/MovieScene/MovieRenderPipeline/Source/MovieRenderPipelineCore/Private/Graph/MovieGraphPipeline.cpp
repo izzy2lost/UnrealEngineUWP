@@ -3,6 +3,7 @@
 #include "Graph/MovieGraphPipeline.h"
 
 #include "MoviePipelineQueue.h"
+#include "MoviePipelineTelemetry.h"
 #include "MoviePipelineUtils.h"
 #include "MovieRenderPipelineCoreModule.h"
 #include "MovieScene.h"
@@ -903,7 +904,7 @@ void UMovieGraphPipeline::SetupShot(const TObjectPtr<UMoviePipelineExecutorShot>
 	//}
 
 	const FMovieGraphTimeStepData& TimeStepData = GetTimeStepInstance()->GetCalculatedTimeData();
-	const UMovieGraphEvaluatedConfig* EvaluatedConfig = TimeStepData.EvaluatedConfig;
+	UMovieGraphEvaluatedConfig* EvaluatedConfig = TimeStepData.EvaluatedConfig;
 
 	// Apply any global game overrides, which includes cvars. This needs to be done before the CVarManager sets cvars
 	// so any user-specified cvars can override cvars set via the global game overrides. Note that the CDO is intentionally
@@ -925,6 +926,8 @@ void UMovieGraphPipeline::SetupShot(const TObjectPtr<UMoviePipelineExecutorShot>
 
 	// Setup required rendering architecture for all passes in this shot.
 	GraphRendererInstance->SetupRenderingPipelineForShot(InShot);
+
+	FMoviePipelineTelemetry::SendBeginShotRenderTelemetry(InShot, EvaluatedConfig);
 }
 
 void UMovieGraphPipeline::TeardownShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot)
@@ -1011,6 +1014,9 @@ void UMovieGraphPipeline::TeardownShot(const TObjectPtr<UMoviePipelineExecutorSh
 		constexpr bool bOverrideValues = false;
 		GlobalGameOverridesNode->ApplySettings(bOverrideValues, GetWorld());
 	}
+
+	constexpr bool bIsGraph = true;
+	FMoviePipelineTelemetry::SendEndShotRenderTelemetry(bIsGraph, !bShutdownSetErrorFlag, bShutdownRequested);
 
 	if (IsPostShotCallbackNeeded())
 	{

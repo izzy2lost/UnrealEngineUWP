@@ -39,7 +39,7 @@ FAutoConsoleCommand BindColumnsToSceneOutlinerConsoleCommand(
 		    const FName WidgetPurposes[] = {TEXT("SceneOutliner.Cell"), TEXT("General.Cell")};
 
 			UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-			if (ITypedElementDataStorageInterface* DataStorage = Registry->GetMutableDataStorage())
+			if (IEditorDataStorageProvider* DataStorage = Registry->GetMutableDataStorage())
 			{
 				static UE::Editor::DataStorage::QueryHandle Queries[] =
 				{
@@ -117,9 +117,9 @@ public:
 	~FSceneOutlinerTedsBridge();
 
 	void Initialize(
-		ITypedElementDataStorageInterface& InStorage,
-		ITypedElementDataStorageUiInterface& InStorageUi,
-		ITypedElementDataStorageCompatibilityInterface& InStorageCompatibility,
+		IEditorDataStorageProvider& InStorage,
+		IEditorDataStorageUiProvider& InStorageUi,
+		IEditorDataStorageCompatibilityProvider& InStorageCompatibility,
 		const TSharedPtr<ISceneOutliner>& InOutliner);
 
 	void AssignQuery(UE::Editor::DataStorage::QueryHandle Query, const TConstArrayView<FName> CellWidgetPurposes);
@@ -131,9 +131,9 @@ private:
 
 	TArray<FName> AddedColumns;
 	TWeakPtr<ISceneOutliner> Outliner;
-	ITypedElementDataStorageInterface* Storage{ nullptr };
-	ITypedElementDataStorageUiInterface* StorageUi{ nullptr };
-	ITypedElementDataStorageCompatibilityInterface* StorageCompatibility{ nullptr };
+	IEditorDataStorageProvider* Storage{ nullptr };
+	IEditorDataStorageUiProvider* StorageUi{ nullptr };
+	IEditorDataStorageCompatibilityProvider* StorageCompatibility{ nullptr };
 	FTreeItemIDDealiaser Dealiaser;
 	TArray<FName> CellWidgetPurposes;
 };
@@ -143,9 +143,9 @@ class FOutlinerColumn : public ISceneOutlinerColumn
 public:
 	FOutlinerColumn(
 		UE::Editor::DataStorage::QueryHandle InQuery,
-		ITypedElementDataStorageInterface& InStorage, 
-		ITypedElementDataStorageUiInterface& InStorageUi, 
-		ITypedElementDataStorageCompatibilityInterface& InStorageCompatibility,
+		IEditorDataStorageProvider& InStorage, 
+		IEditorDataStorageUiProvider& InStorageUi, 
+		IEditorDataStorageCompatibilityProvider& InStorageCompatibility,
 		FName InNameId, 
 		TArray<TWeakObjectPtr<const UScriptStruct>> InColumnTypes,
 		TSharedPtr<FTypedElementWidgetConstructor> InHeaderWidgetConstructor,
@@ -311,9 +311,9 @@ public:
 	// The table viewer implementation that we internally use to create our widgets
 	TUniquePtr<UE::Editor::DataStorage::FTedsTableViewerColumn> TableViewerColumnImpl;
 	
-	ITypedElementDataStorageInterface& Storage;
-	ITypedElementDataStorageUiInterface& StorageUi;
-	ITypedElementDataStorageCompatibilityInterface& StorageCompatibility;
+	IEditorDataStorageProvider& Storage;
+	IEditorDataStorageUiProvider& StorageUi;
+	IEditorDataStorageCompatibilityProvider& StorageCompatibility;
 	UE::Editor::DataStorage::QueryHandle QueryHandle;
 	UE::Editor::DataStorage::FMetaData MetaData;
 	FName NameId;
@@ -329,9 +329,9 @@ public:
 // USceneOutlinerTedsBridgeFactory
 // 
 
-void USceneOutlinerTedsBridgeFactory::RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const
+void USceneOutlinerTedsBridgeFactory::RegisterWidgetPurposes(IEditorDataStorageUiProvider& DataStorageUi) const
 {
-	using PurposeType = ITypedElementDataStorageUiInterface::EPurposeType;
+	using PurposeType = IEditorDataStorageUiProvider::EPurposeType;
 
 	DataStorageUi.RegisterWidgetPurpose(FSceneOutlinerTedsQueryBinder::HeaderWidgetPurpose, PurposeType::UniqueByNameAndColumn,
 		LOCTEXT("HeaderWidgetPurpose", "Widgets for headers in any Scene Outliner for specific columns or column combinations."));
@@ -474,9 +474,9 @@ FSceneOutlinerTedsBridge::~FSceneOutlinerTedsBridge()
 }
 
 void FSceneOutlinerTedsBridge::Initialize(
-	ITypedElementDataStorageInterface& InStorage,
-	ITypedElementDataStorageUiInterface& InStorageUi,
-	ITypedElementDataStorageCompatibilityInterface& InStorageCompatibility,
+	IEditorDataStorageProvider& InStorage,
+	IEditorDataStorageUiProvider& InStorageUi,
+	IEditorDataStorageCompatibilityProvider& InStorageCompatibility,
 	const TSharedPtr<ISceneOutliner>& InOutliner)
 {
 	Storage = &InStorage;
@@ -498,7 +498,7 @@ FTreeItemIDDealiaser FSceneOutlinerTedsBridge::GetDealiaser()
 
 void FSceneOutlinerTedsBridge::AssignQuery(UE::Editor::DataStorage::QueryHandle Query, const TConstArrayView<FName> InCellWidgetPurposes)
 {
-	using MatchApproach = ITypedElementDataStorageUiInterface::EMatchApproach;
+	using MatchApproach = IEditorDataStorageUiProvider::EMatchApproach;
 	constexpr int32 DefaultPriorityIndex = 100;
 	FSceneOutlinerTedsQueryBinder& Binder = FSceneOutlinerTedsQueryBinder::GetInstance();
 	CellWidgetPurposes = InCellWidgetPurposes;
@@ -506,12 +506,12 @@ void FSceneOutlinerTedsBridge::AssignQuery(UE::Editor::DataStorage::QueryHandle 
 
 	if (TSharedPtr<ISceneOutliner> OutlinerPinned = Outliner.Pin())
 	{
-		const ITypedElementDataStorageInterface::FQueryDescription& Description = Storage->GetQueryDescription(Query);
+		const IEditorDataStorageProvider::FQueryDescription& Description = Storage->GetQueryDescription(Query);
 		UE::Editor::DataStorage::FQueryMetaDataView MetaDataView(Description);
 
 		ClearColumns(*OutlinerPinned);
 
-		if (Description.Action == ITypedElementDataStorageInterface::FQueryDescription::EActionType::Select)
+		if (Description.Action == IEditorDataStorageProvider::FQueryDescription::EActionType::Select)
 		{
 			int32 SelectionCount = Description.SelectionTypes.Num();
 			AddedColumns.Reset(SelectionCount);

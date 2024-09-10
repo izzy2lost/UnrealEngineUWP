@@ -36,7 +36,7 @@ public:
 	FNiagaraGpuComputeDispatchInterface* GetComputeDispatchInterface() const { return ComputeDispatchInterface; }
 
 #if RHI_RAYTRACING
-	NIAGARA_API virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) override;
+	NIAGARA_API virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) override;
 	virtual bool IsRayTracingRelevant() const override { return true; }
 	virtual bool HasRayTracingRepresentation() const override { return true; }
 #endif

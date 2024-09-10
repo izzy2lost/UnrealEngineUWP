@@ -3,7 +3,7 @@
 #include "Message.h"
 #include "Trace/Config.h"
 
-#if UE_TRACE_ENABLED
+#if TRACE_PRIVATE_MINIMAL_ENABLED
 
 #include "Platform.h"
 #include "Trace/Detail/Atomic.h"
@@ -69,14 +69,12 @@ struct FTraceGuid
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-UE_TRACE_EVENT_BEGIN($Trace, NewTrace, Important|NoSync)
-	UE_TRACE_EVENT_FIELD(uint64, StartCycle)
-	UE_TRACE_EVENT_FIELD(uint64, CycleFrequency)
-	UE_TRACE_EVENT_FIELD(uint16, Endian)
-	UE_TRACE_EVENT_FIELD(uint8, PointerSize)
-UE_TRACE_EVENT_END()
-
-
+UE_TRACE_MINIMAL_EVENT_BEGIN($Trace, NewTrace, Important | NoSync)
+	UE_TRACE_MINIMAL_EVENT_FIELD(uint64, StartCycle)
+	UE_TRACE_MINIMAL_EVENT_FIELD(uint64, CycleFrequency)
+	UE_TRACE_MINIMAL_EVENT_FIELD(uint16, Endian)
+	UE_TRACE_MINIMAL_EVENT_FIELD(uint8, PointerSize)
+UE_TRACE_MINIMAL_EVENT_END()
 
 ////////////////////////////////////////////////////////////////////////////////
 static volatile bool			GInitialized;		// = false;
@@ -779,7 +777,7 @@ static void Writer_InternalInitializeImpl()
 
 	AtomicStoreRelaxed(&GInitialized, true);
 
-	UE_TRACE_LOG($Trace, NewTrace, TraceLogChannel)
+	UE_TRACE_MINIMAL_LOG($Trace, NewTrace, TraceLogChannel)
 		<< NewTrace.StartCycle(GStartCycle)
 		<< NewTrace.CycleFrequency(TimeGetFrequency())
 		<< NewTrace.Endian(uint16(0x524d))
@@ -923,6 +921,7 @@ static UPTRINT Writer_PackSendFlags(UPTRINT DataHandle, uint32 Flags)
 ////////////////////////////////////////////////////////////////////////////////
 bool Writer_SendTo(const ANSICHAR* Host, uint32 Flags, uint32 Port)
 {
+#if TRACE_PRIVATE_ALLOW_TCP
 	if (AtomicLoadRelaxed(&GPendingDataHandle))
 	{
 		return false;
@@ -947,11 +946,15 @@ bool Writer_SendTo(const ANSICHAR* Host, uint32 Flags, uint32 Port)
 
 	AtomicStoreRelaxed(&GPendingDataHandle, DataHandle);
 	return true;
+#else
+	return false;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 bool Writer_WriteTo(const ANSICHAR* Path, uint32 Flags)
 {
+#if TRACE_PRIVATE_ALLOW_FILE
 	if (AtomicLoadRelaxed(&GPendingDataHandle))
 	{
 		return false;
@@ -974,6 +977,9 @@ bool Writer_WriteTo(const ANSICHAR* Path, uint32 Flags)
 
 	AtomicStoreRelaxed(&GPendingDataHandle, DataHandle);
 	return true;
+#else
+	return false;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1107,11 +1113,14 @@ bool Writer_WriteSnapshot(const FSnapshotTarget& Target)
 
 		if (Target.Type == FSnapshotTarget::EType::FileTarget)
 		{
+#if TRACE_PRIVATE_ALLOW_FILE
 			// Open the snapshot file 
 			GDataHandle = FileOpen(Target.File.Path);
+#endif
 		}
 		else
 		{
+#if TRACE_PRIVATE_ALLOW_TCP
 			// Open the snapshot connection and write 
 			const uint32 Port = Target.Host.Port ? Target.Host.Port : 1981;
 			GDataHandle = TcpSocketConnect(Target.Host.Host, uint16(Port));
@@ -1120,6 +1129,7 @@ bool Writer_WriteSnapshot(const FSnapshotTarget& Target)
 				return false;
 			}
 			GDataHandle = Writer_PackSendFlags(GDataHandle, 0);
+#endif
 		}
 
 		// Write the file header
@@ -1208,4 +1218,4 @@ bool Writer_Stop()
 } // namespace Trace
 } // namespace UE
 
-#endif // UE_TRACE_ENABLED
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED

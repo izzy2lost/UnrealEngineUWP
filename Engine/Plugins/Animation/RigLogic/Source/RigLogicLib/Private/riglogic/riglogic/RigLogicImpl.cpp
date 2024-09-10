@@ -49,7 +49,7 @@ static RigMetrics::Pointer computeRigMetrics(const dna::Reader* reader, const Co
     metrics->mlControlCount = reader->getMLControlCount();
     metrics->neuralNetworkCount = reader->getNeuralNetworkCount();
     metrics->rbfSolverCount = reader->getRBFSolverCount();
-    metrics->rbfControlCount = reader->getRBFPoseCount();
+    metrics->rbfControlCount = reader->getRBFPoseControlCount();
     return metrics;
 }
 

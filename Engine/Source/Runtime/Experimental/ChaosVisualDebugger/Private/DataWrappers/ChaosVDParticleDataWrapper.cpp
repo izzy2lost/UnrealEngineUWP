@@ -2,6 +2,7 @@
 
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
 
+#include "UObject/FortniteMainBranchObjectVersion.h"
 #include "UObject/FortniteSeasonBranchObjectVersion.h"
 
 // @note: Tracing an scene with 1000 particles moving, Manually serializing the structs is ~20% faster
@@ -27,6 +28,15 @@ bool FChaosVDFRigidParticleControlFlags::Serialize(FArchive& Ar)
 	Ar << bInertiaConditioningEnabled;
 	Ar << GravityGroupIndex;
 	Ar << bMACDEnabled;
+
+	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
+
+	if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::SolverIterationsDataSupportInChaosVisualDebugger)
+	{
+		Ar << PositionSolverIterationCount;
+		Ar << VelocitySolverIterationCount;
+		Ar << ProjectionSolverIterationCount;
+	}
 
 	return !Ar.IsError();
 }

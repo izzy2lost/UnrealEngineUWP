@@ -343,6 +343,27 @@ bool FAssetRenameManager::RenameAssetsAndVariants(const TArray<FAssetRenameData>
 			}
 			return false;
 		}
+		
+		// Display newly added rename data if possible
+		if (bWithDialog)
+		{
+			TArray<FText> NewAssetsAdded;
+			for (const FAssetRenameData& AssetRenameData : AssetsAndVariants)
+			{
+				if (!InAssetsRenameData.ContainsByPredicate([&AssetRenameData](const FAssetRenameData& InAssetRenameData) { return AssetRenameData.Asset == InAssetRenameData.Asset; }))
+				{
+					const FString& AssetNameStr = AssetRenameData.Asset->GetOuter()->GetName();
+					UE_LOG(LogAssetTools, Display, TEXT("Also trying to rename: %s"), *AssetNameStr);
+					NewAssetsAdded.Add(FText::AsCultureInvariant(AssetNameStr));
+				}
+			}
+			if (!NewAssetsAdded.IsEmpty())
+			{
+				LocalizedAssetTools->OpenLocalizedVariantsListMessageDialog(LOCTEXT("AddedLocalizedVariantsHeader", "Renaming localized variants too"),
+					LOCTEXT("AddedLocalizedVariantsMessage", "The following localized variants (or source assets) are also going to be renamed alongside the selected assets."),
+					NewAssetsAdded);
+			}
+		}
 	}
 
 	// We now have a full list of Assets to rename and their variants if applicable. Let's continue the renaming process.

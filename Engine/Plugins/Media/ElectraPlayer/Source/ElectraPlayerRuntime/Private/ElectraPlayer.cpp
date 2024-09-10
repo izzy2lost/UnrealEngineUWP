@@ -1400,6 +1400,15 @@ TRange<FTimespan> FElectraPlayer::GetPlaybackRange(ETimeRangeType InRangeToGet) 
 	return Range;
 }
 
+Electra::FVariantValue FElectraPlayer::GetMediaInfo(FName InInfoName) const
+{
+	const TSharedPtr<FInternalPlayerImpl, ESPMode::ThreadSafe> LockedPlayer = CurrentPlayer;
+	if (LockedPlayer.IsValid() && LockedPlayer->AdaptivePlayer.IsValid())
+	{
+		return LockedPlayer->AdaptivePlayer->GetMediaInfo(InInfoName);
+	}
+	return Electra::FVariantValue();
+}
 
 TSharedPtr<TMap<FString, TArray<TSharedPtr<Electra::IMediaStreamMetadata::IItem, ESPMode::ThreadSafe>>>, ESPMode::ThreadSafe> FElectraPlayer::GetMediaMetadata() const
 {

@@ -22,8 +22,8 @@ namespace Horde.Commands.Vcs
 		[CommandLine("-Force")]
 		public bool Force { get; set; }
 
-		public VcsCheckout(IStorageClientFactory storageClientFactory)
-			: base(storageClientFactory)
+		public VcsCheckout(IStorageClient storageClient)
+			: base(storageClient)
 		{
 		}
 
@@ -51,7 +51,7 @@ namespace Horde.Commands.Vcs
 
 			RefName branchName = (Branch != null) ? new RefName(Branch) : workspaceState.Branch;
 
-			IStorageClient store = CreateStorageClient();
+			IStorageNamespace store = GetStorageNamespace();
 
 			CommitNode? tip = await GetCommitAsync(store, branchName, Change);
 			if (tip == null)

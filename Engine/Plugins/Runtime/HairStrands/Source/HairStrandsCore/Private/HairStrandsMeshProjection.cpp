@@ -142,7 +142,7 @@ void AddSkinUpdatePass(
 		ParametersMetadata,
 		Parameters,
 		ERDGPassFlags::Compute,
-		[ParametersMetadata, Parameters, ComputeShader, Sections, bPrevPosition](FRHIComputeCommandList& RHICmdList)
+		[ParametersMetadata, Parameters, ComputeShader, Sections, bPrevPosition](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 		{
 			for (const FSkinUpdateSection& Section : Sections)
 			{
@@ -816,7 +816,7 @@ static void AddFollicleMaskPass(
 		RDG_EVENT_NAME("HairStrands::FollicleMask"),
 		Parameters,
 		ERDGPassFlags::Raster,
-		[Parameters, ParametersVS, ParametersPS, VertexShader, PixelShader, OutputResolution](FRHICommandList& RHICmdList)
+		[Parameters, ParametersVS, ParametersPS, VertexShader, PixelShader, OutputResolution](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 
 		RHICmdList.SetViewport(0, 0, 0.0f, OutputResolution.X, OutputResolution.Y, 1.0f);
@@ -877,7 +877,7 @@ static void AddFollicleMaskPass(
 		RDG_EVENT_NAME("HairStrands::FollicleMask"),
 		Parameters,
 		ERDGPassFlags::Raster,
-		[Parameters, ParametersVS, ParametersPS, VertexShader, PixelShader, OutputResolution](FRHICommandList& RHICmdList)
+		[Parameters, ParametersVS, ParametersPS, VertexShader, PixelShader, OutputResolution](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 
 			RHICmdList.SetViewport(0, 0, 0.0f, OutputResolution.X, OutputResolution.Y, 1.0f);
@@ -1008,7 +1008,7 @@ void AddComputeMipsPass(
 			RDG_EVENT_NAME("HairStrandsComputeVoxelMip"),
 			Parameters,
 			ERDGPassFlags::Compute,
-			[Parameters, ComputeShader, TargetResolution](FRHICommandList& RHICmdList)
+			[Parameters, ComputeShader, TargetResolution](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(FIntPoint(TargetResolution, TargetResolution), FIntPoint(8, 8));
 			FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, *Parameters, GroupCount);

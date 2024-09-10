@@ -30,6 +30,7 @@
 #include "Chaos/Capsule.h"
 #include "Chaos/Convex.h"
 #include "Chaos/TriangleMeshImplicitObject.h"
+#include "Chaos/AsyncInitBodyHelper.h"
 #include "Physics/Experimental/ChaosInterfaceUtils.h"
 
 #include "PhysicsEngine/TaperedCapsuleElem.h"
@@ -330,7 +331,8 @@ FBodyInstance::FBodyInstance()
 	: InstanceBodyIndex(INDEX_NONE)
 	, InstanceBoneIndex(INDEX_NONE)
 	, PositionSolverIterationCount(8)
-	, VelocitySolverIterationCount(1)
+	, VelocitySolverIterationCount(2)
+	, ProjectionSolverIterationCount(1)
 	, ObjectType(ECC_WorldStatic)
 	, MaskFilter(0)
 	, CollisionEnabled(ECollisionEnabled::QueryAndPhysics)
@@ -1279,6 +1281,10 @@ void TInitBodiesHelperBase<InAllocatorType>::CreateActor_AssumesLocked(FBodyInst
 		FPhysicsInterface::SetSmoothEdgeCollisionsEnabled_AssumesLocked(Instance->ActorHandle, Instance->bSmoothEdgeCollisions);
 		FPhysicsInterface::SetInertiaConditioningEnabled_AssumesLocked(Instance->ActorHandle, Instance->IsInertiaConditioningEnabled());
 
+		FPhysicsInterface::SetPositionSolverIterationCount_AssumesLocked(Instance->ActorHandle, Instance->PositionSolverIterationCount);
+		FPhysicsInterface::SetVelocitySolverIterationCount_AssumesLocked(Instance->ActorHandle, Instance->VelocitySolverIterationCount);
+		FPhysicsInterface::SetProjectionSolverIterationCount_AssumesLocked(Instance->ActorHandle, Instance->ProjectionSolverIterationCount);
+
 		// Set sleep event notification
 		FPhysicsInterface::SetSendsSleepNotifies_AssumesLocked(Instance->ActorHandle, Instance->bGenerateWakeEvents);
 	}
@@ -1390,12 +1396,9 @@ bool TInitBodiesHelperBase<InAllocatorType>::CreateShapesAndActors()
 	const int32 NumBodies = Bodies.Num();
 
 	const bool bIsInGameThread = IsInGameThread();
-	check(UE_CHAOS_ASYNC_INITBODY_ENABLED || bIsInGameThread);
-#if UE_CHAOS_ASYNC_INITBODY_ENABLED
-	// Current case where CreateShapesAndActors is not called from the GameThread is when experimental UE_CHAOS_ASYNC_INITBODY_ENABLED = 1
-	check(bIsInGameThread || (BodySetup->bCreatedPhysicsMeshes || BodySetup->bNeverNeedsCookedCollisionData));
+	// Current case where CreateShapesAndActors is not called from the GameThread is when p.Chaos.EnableAsyncInitBody is true
+	check(bIsInGameThread || (Chaos::CVars::bEnableAsyncInitBody && (BodySetup->bCreatedPhysicsMeshes || BodySetup->bNeverNeedsCookedCollisionData)));
 	if (bIsInGameThread)
-#endif
 	{
 		// Ensure we have the AggGeom inside the body setup so we can calculate the number of shapes
 		BodySetup->CreatePhysicsMeshes();
@@ -1538,7 +1541,7 @@ void TInitBodiesHelperBase<InAllocatorType>::InitBodies()
 	LLM_SCOPE(ELLMTag::ChaosBody);
 
 	const bool bIsInGameThread = IsInGameThread();
-	check(UE_CHAOS_ASYNC_INITBODY_ENABLED || bIsInGameThread);
+	check(Chaos::CVars::bEnableAsyncInitBody || bIsInGameThread);
 	if (bIsInGameThread ? CreateShapesAndActors() : true)
 	{
 		FPhysicsCommand::ExecuteWrite(PhysScene, [&]()
@@ -2438,6 +2441,9 @@ void FBodyInstance::UpdateInstanceSimulatePhysics()
 		FPhysicsInterface::SetIsKinematic_AssumesLocked(Actor, !bUseSimulate);
 		FPhysicsInterface::SetCcdEnabled_AssumesLocked(Actor, bUseCCD);
 		FPhysicsInterface::SetMACDEnabled_AssumesLocked(Actor, bUseMACD);
+		FPhysicsInterface::SetPositionSolverIterationCount_AssumesLocked(Actor, PositionSolverIterationCount);
+		FPhysicsInterface::SetVelocitySolverIterationCount_AssumesLocked(Actor, VelocitySolverIterationCount);
+		FPhysicsInterface::SetProjectionSolverIterationCount_AssumesLocked(Actor, ProjectionSolverIterationCount);
 
 		if(bSimulatePhysics)
 		{
@@ -3807,6 +3813,54 @@ void FBodyInstance::SetUseMACD(bool bInUseMACD)
 	}
 }
 
+void FBodyInstance::SetPositionSolverIterationCount(uint8 PositionSolverIterationCountIn)
+{
+	if (PositionSolverIterationCount != PositionSolverIterationCountIn)
+	{
+		PositionSolverIterationCount = PositionSolverIterationCountIn;
+
+		FPhysicsCommand::ExecuteWrite(ActorHandle, [this, PositionSolverIterationCountIn](const FPhysicsActorHandle& Actor)
+			{
+				if (FPhysicsInterface::IsValid(Actor) && FPhysicsInterface::IsRigidBody(Actor))
+				{
+					FPhysicsInterface::SetPositionSolverIterationCount_AssumesLocked(Actor, PositionSolverIterationCount);
+				}
+			});
+	}
+}
+
+void FBodyInstance::SetVelocitySolverIterationCount(uint8 VelocitySolverIterationCountIn)
+{
+	if (VelocitySolverIterationCount != VelocitySolverIterationCountIn)
+	{
+		VelocitySolverIterationCount = VelocitySolverIterationCountIn;
+
+		FPhysicsCommand::ExecuteWrite(ActorHandle, [this, VelocitySolverIterationCountIn](const FPhysicsActorHandle& Actor)
+			{
+				if (FPhysicsInterface::IsValid(Actor) && FPhysicsInterface::IsRigidBody(Actor))
+				{
+					FPhysicsInterface::SetVelocitySolverIterationCount_AssumesLocked(Actor, VelocitySolverIterationCount);
+				}
+			});
+	}
+}
+
+void FBodyInstance::SetProjectionSolverIterationCount(uint8 ProjectionSolverIterationCountIn)
+{
+	if (ProjectionSolverIterationCount != ProjectionSolverIterationCountIn)
+	{
+		ProjectionSolverIterationCount = ProjectionSolverIterationCountIn;
+
+		FPhysicsCommand::ExecuteWrite(ActorHandle, [this, ProjectionSolverIterationCountIn](const FPhysicsActorHandle& Actor)
+			{
+				if (FPhysicsInterface::IsValid(Actor) && FPhysicsInterface::IsRigidBody(Actor))
+				{
+					FPhysicsInterface::SetProjectionSolverIterationCount_AssumesLocked(Actor, ProjectionSolverIterationCount);
+				}
+			});
+	}
+}
+
 void FBodyInstance::SetPhysicsDisabled(bool bSetDisabled)
 {
 	FPhysicsCommand::ExecuteWrite(ActorHandle, [&](const FPhysicsActorHandle& Actor)
@@ -4335,8 +4389,10 @@ void FBodyInstance::InitDynamicProperties_AssumesLocked()
 
 		uint32 PositionIterCount = FMath::Clamp<uint8>(PositionSolverIterationCount, 1, 255);
 		uint32 VelocityIterCount = FMath::Clamp<uint8>(VelocitySolverIterationCount, 1, 255);
+		uint32 ProjectionIterCount = FMath::Clamp<uint8>(ProjectionSolverIterationCount, 1, 255);
 		FPhysicsInterface::SetSolverPositionIterationCount_AssumesLocked(ActorHandle, PositionIterCount);
 		FPhysicsInterface::SetSolverVelocityIterationCount_AssumesLocked(ActorHandle, VelocityIterCount);
+		FPhysicsInterface::SetSolverProjectionIterationCount_AssumesLocked(ActorHandle, ProjectionIterCount);
 
 		CreateDOFLock();
 		if(FPhysicsInterface::IsInScene(ActorHandle) && !IsRigidBodyKinematic_AssumesLocked(ActorHandle))

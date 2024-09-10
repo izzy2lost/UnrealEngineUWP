@@ -17,7 +17,6 @@ namespace unoptimized {
 const std::uint16_t lodCount = 3u;
 
 const std::uint16_t rawControlCount = 8u;
-const std::uint16_t rbfControlCount = 15u;
 
 const pma::Matrix<std::uint16_t> solverIndicesPerLOD = {
     {0u, 1u},
@@ -77,6 +76,17 @@ const pma::Matrix<std::uint16_t> solverRawControlIndices = {
     {4u, 5u, 6u, 7u},
 };
 
+const std::uint16_t poseControlCount = 16u;
+
+const Matrix<std::uint16_t> poseInputControlIndices =
+{{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {1u}};
+
+const Matrix<std::uint16_t> poseOutputControlIndices =
+{{8u}, {9u}, {10u}, {11u}, {12u}, {13u}, {14u}, {15u}, {16u}, {17u}, {18u}, {19u}, {20u}, {21u}, {22u, 23u}};
+
+const Matrix<float> poseOutputControlWeights =
+{{1.0f}, {1.0f}, {1.0f}, {1.0f}, {1.0f}, {1.0f}, {1.0f}, {1.0f}, {1.0f}, {1.0f}, {1.0f}, {1.0f}, {1.0f}, {1.0f}, {0.5f, 0.5f}};
+
 const pma::Matrix<float> solverRawControlValues = {
     {
         0.000000000000000f, 0.000000000000000f, 0.000000000000000f, 1.000000000000000f,
@@ -110,9 +120,6 @@ const LODSpec<std::uint16_t> lods = {
 };
 
 const Matrix<std::uint16_t> solverRawControlInputIndices = {{0u, 1u, 2u, 3u}, {4u, 5u, 6u, 7u}};
-
-const Matrix<std::uint16_t> solverRawControlOutputIndices =
-{{8u, 9u, 10u, 11u, 12u, 13u, 14u, 15u, 16u, 17u, 18u, 19u}, {8u, 20u, 21u, 22u}};
 
 const std::uint16_t maximumInputCount = 4u;
 
@@ -237,7 +244,8 @@ const Matrix<float> valuesPerLOD = {
         0.0198993f,
         0.0f,
         0.453696f,
-        0.480578f,
+        0.09189290998017785f,
+        0.09189290998017785f,
     },
     {
         0.0f,

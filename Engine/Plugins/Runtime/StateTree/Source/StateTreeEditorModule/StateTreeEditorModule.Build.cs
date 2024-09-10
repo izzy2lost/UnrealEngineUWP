@@ -52,6 +52,7 @@ namespace UnrealBuildTool.Rules
 				"RewindDebuggerInterface",
 				"DetailCustomizations",
 				"AppFramework",
+				"Kismet",
 				"KismetCompiler",
 				"EditorInteractiveToolsFramework",
 				"InteractiveToolsFramework",

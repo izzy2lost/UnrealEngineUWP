@@ -216,7 +216,7 @@ FText UActorSequence::GetDisplayName() const
 }
 
 
-ETrackSupport UActorSequence::IsTrackSupported(TSubclassOf<class UMovieSceneTrack> InTrackClass) const
+ETrackSupport UActorSequence::IsTrackSupportedImpl(TSubclassOf<class UMovieSceneTrack> InTrackClass) const
 {
 	if (InTrackClass == UMovieSceneAudioTrack::StaticClass() ||
 		InTrackClass == UMovieSceneEventTrack::StaticClass() ||
@@ -226,7 +226,7 @@ ETrackSupport UActorSequence::IsTrackSupported(TSubclassOf<class UMovieSceneTrac
 		return ETrackSupport::Supported;
 	}
 
-	return Super::IsTrackSupported(InTrackClass);
+	return Super::IsTrackSupportedImpl(InTrackClass);
 }
 
 #endif

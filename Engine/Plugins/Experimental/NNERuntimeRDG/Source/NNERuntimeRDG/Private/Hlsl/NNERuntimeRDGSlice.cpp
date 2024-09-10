@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGSlice.h"
+
 #include "Helper/NNERuntimeRDGOperatorHelper.h"
+#include "NNEHlslShadersLog.h"
 #include "NNEHlslShadersSliceCS.h"
 #include "NNERuntimeRDGHelperSlice.h"
 #include "NNERuntimeRDGHlslHelper.h"
@@ -43,12 +45,12 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			{
 				if (!OperatorHelper::GetInt32ArrayFromConstTensor(AxesAttr, InputTensors[3]))
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Error: Slice op 'Axes' input tensor (%s) is only supported as a constant integer tensor but it is not."), *InputTensors[3]->GetName());
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: 'Axes' input tensor (%s) is only supported as a constant integer tensor but it is not."), *InputTensors[3]->GetName());
 					return false;
 				}
 				if(AxesAttr.Num() > InputTensors[0]->GetShape().Rank() || AxesAttr.Num() < 1)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Error: Slice op 'Axes' input tensor (%s) contains %d elements but input rank is %d."), *InputTensors[3]->GetName(), AxesAttr.Num(), InputTensors[0]->GetShape().Rank());
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: 'Axes' input tensor (%s) contains %d elements but input rank is %d."), *InputTensors[3]->GetName(), AxesAttr.Num(), InputTensors[0]->GetShape().Rank());
 					return false;
 				}
 			}
@@ -64,23 +66,23 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (!OperatorHelper::GetInt32ArrayFromConstTensor(StartsAttr, InputTensors[1]))
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Error: Slice op 'Starts' input tensor (%s) is only supported as a constant integer tensor but it is not."), *InputTensors[1]->GetName());
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: 'Starts' input tensor (%s) is only supported as a constant integer tensor but it is not."), *InputTensors[1]->GetName());
 				return false;
 			}
 			if(StartsAttr.Num() != NumAxes)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Error: Slice op 'Starts' input tensor (%s) contains %d elements but number of axes is %d."), *InputTensors[1]->GetName(), StartsAttr.Num(), NumAxes);
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: 'Starts' input tensor (%s) contains %d elements but number of axes is %d."), *InputTensors[1]->GetName(), StartsAttr.Num(), NumAxes);
 				return false;
 			}
 
 			if (!OperatorHelper::GetInt32ArrayFromConstTensor(EndsAttr, InputTensors[2]))
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Error: Slice op 'Ends' input tensor (%s) is only supported as a constant integer tensor but it is not."), *InputTensors[2]->GetName());
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: 'Ends' input tensor (%s) is only supported as a constant integer tensor but it is not."), *InputTensors[2]->GetName());
 				return false;
 			}
 			if(EndsAttr.Num() != NumAxes)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Error: Slice op 'Ends' input tensor (%s) contains %d elements but number of axes is %d."), *InputTensors[2]->GetName(), EndsAttr.Num(), NumAxes);
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: 'Ends' input tensor (%s) contains %d elements but number of axes is %d."), *InputTensors[2]->GetName(), EndsAttr.Num(), NumAxes);
 				return false;
 			}
 
@@ -90,19 +92,19 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			{
 				if (!OperatorHelper::GetInt32ArrayFromConstTensor(StepsAttr, InputTensors[4]))
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Error: Slice op 'Steps' input tensor (%s) is only supported as a constant integer tensor but it is not."), *InputTensors[4]->GetName());
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: 'Steps' input tensor (%s) is only supported as a constant integer tensor but it is not."), *InputTensors[4]->GetName());
 					return false;
 				}
 				if(StepsAttr.Num() != NumAxes)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Error: Slice op 'Steps' input tensor (%s) contains %d elements but number of axes is %d."), *InputTensors[4]->GetName(), StepsAttr.Num(), NumAxes);
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: 'Steps' input tensor (%s) contains %d elements but number of axes is %d."), *InputTensors[4]->GetName(), StepsAttr.Num(), NumAxes);
 					return false;
 				}
 				for(const int32 Value : StepsAttr)
 				{
 					if(Value == 0)
 					{
-						UE_LOG(LogNNE, Warning, TEXT("Error: Slice op 'Steps' tensor (%s) can only contain non-0 integers."), *InputTensors[4]->GetName());
+						UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: 'Steps' tensor (%s) can only contain non-0 integers."), *InputTensors[4]->GetName());
 						return false;
 					}
 				}
@@ -208,7 +210,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				int32 RangeSize = Step[Idx] > 0 ? End[Idx] - Start[Idx] : Start[Idx] - End[Idx];
 				if(RangeSize < 1)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Error: Slice op start (tensor: %s) and end (tensor: %s) indices are incompatible with step direction for dimension %d."), *InputTensors[1]->GetName(), *InputTensors[2]->GetName(), Idx);
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: Start (tensor: %s) and end (tensor: %s) indices are incompatible with step direction for dimension %d."), *InputTensors[1]->GetName(), *InputTensors[2]->GetName(), Idx);
 					return -1;
 				}
 				uint32 OutDimSize = FMath::DivideAndRoundUp(RangeSize, FMath::Abs(Step[Idx]));
@@ -223,7 +225,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (InputTensors[0]->HasPreparedData() && !OutputTensors[0]->HasPreparedData())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Error: Slice op output tensor (%s) could not be constant-folded from input."), *OutputTensors[0]->GetName());
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: Output tensor (%s) could not be constant-folded from input."), *OutputTensors[0]->GetName());
 				return -1;
 			}
 
@@ -252,7 +254,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 				if (EndsAttr.Num() != StartsAttr.Num() || AxesAttr.Num() != StartsAttr.Num())
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Slice: Starts, Ends and Axes must be of the same size."));
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: Starts, Ends and Axes must be of the same size."));
 					return false;
 				}
 

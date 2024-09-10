@@ -53,7 +53,7 @@ void FTedsOutlinerMode::Rebuild()
 void FTedsOutlinerMode::OnSelectionChanged()
 {
 	TOptional<FName> SelectionSetName = TedsOutlinerImpl->GetSelectionSetName();
-	ITypedElementDataStorageInterface* Storage = TedsOutlinerImpl->GetStorage();
+	IEditorDataStorageProvider* Storage = TedsOutlinerImpl->GetStorage();
 	
 	// The selection in TEDS was changed, update the outliner to respond
 	SceneOutliner->SetSelection([SelectionSetName, Storage](ISceneOutlinerTreeItem& InItem) -> bool
@@ -139,7 +139,7 @@ bool FTedsOutlinerMode::ParseDragDrop(FSceneOutlinerDragDropPayload& OutPayload,
 FSceneOutlinerDragValidationInfo FTedsOutlinerMode::ValidateDrop(const ISceneOutlinerTreeItem& DropTarget, const FSceneOutlinerDragDropPayload& Payload) const
 {
 	const TOptional<FTedsOutlinerHierarchyData>& HierarchyData = TedsOutlinerImpl->GetHierarchyData();
-	ITypedElementDataStorageInterface* Storage = TedsOutlinerImpl->GetStorage();
+	IEditorDataStorageProvider* Storage = TedsOutlinerImpl->GetStorage();
 
 	// We don't want drag/drop if this TEDS Outliner isn't showing any hierarchy data
 	if(!HierarchyData.IsSet())
@@ -220,7 +220,7 @@ FSceneOutlinerDragValidationInfo FTedsOutlinerMode::ValidateDrop(const ISceneOut
 void FTedsOutlinerMode::OnDrop(ISceneOutlinerTreeItem& DropTarget, const FSceneOutlinerDragDropPayload& Payload, const FSceneOutlinerDragValidationInfo& ValidationInfo) const
 {
 	const TOptional<FTedsOutlinerHierarchyData>& HierarchyData = TedsOutlinerImpl->GetHierarchyData();
-	ITypedElementDataStorageInterface* Storage = TedsOutlinerImpl->GetStorage();
+	IEditorDataStorageProvider* Storage = TedsOutlinerImpl->GetStorage();
 
 	if(!Private::TedsOutlinerDragDropEnabledCvar->GetBool() || !HierarchyData.IsSet())
 	{

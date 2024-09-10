@@ -1832,32 +1832,40 @@ void UActorModifierCoreStack::OnModifierCDOSetup(FActorModifierCoreMetadata& InM
 	InMetadata.SetName(TEXT("Stack"));
 }
 
-bool UActorModifierCoreStack::IsModifierDirtyable() const
+void UActorModifierCoreStack::TickModifier(float InDelta) const
 {
-	if (!IsModifierInitialized()
+	if (!IsRootStack()
 		|| !IsModifierEnabled()
-		|| IsModifierDirty()
-		|| !IsModifierIdle())
+		|| !IsModifierInitialized()
+		|| !IsModifierIdle()
+		|| !Metadata->IsTickAllowed()
+		|| IsModifierDirty())
 	{
-		return false;
+		return;
 	}
 
-	// Tickable modifiers can mark stack dirty by returning true
-	for (const TObjectPtr<UActorModifierCoreBase>& Modifier : Modifiers)
+	// Skips nested stack when processing
+	UActorModifierCoreBase* FirstDirtyModifier = nullptr;
+	ProcessFunction([&FirstDirtyModifier](const UActorModifierCoreBase* InModifier)->bool
 	{
-		if (IsValid(Modifier)
-			&& Modifier->IsModifierEnabled()
-			&& !Modifier->IsModifierDirty())
+		if (IsValid(InModifier)
+			&& InModifier->IsModifierEnabled()
+			&& !InModifier->IsModifierDirty()
+			&& InModifier->Metadata->IsTickAllowed()
+			&& InModifier->IsModifierDirtyable())
 		{
-			if (Modifier->IsModifierDirtyable())
-			{
-				// Stop here all modifiers below will re-execute
-				return true;
-			}
+			FirstDirtyModifier = const_cast<UActorModifierCoreBase*>(InModifier);
+			// break loop
+			return false;
 		}
-	}
 
-	return false;
+		return true;
+	});
+
+	if (FirstDirtyModifier)
+	{
+		FirstDirtyModifier->MarkModifierDirty();
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

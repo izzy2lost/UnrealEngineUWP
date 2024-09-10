@@ -119,6 +119,21 @@ struct FAndroidPlatformProperties
 		return true;
 	}
 
+	static FORCEINLINE bool SupportsMemoryMappedAudio()
+	{
+		return true;
+	}
+
+	static FORCEINLINE bool SupportsMemoryMappedAnimation()
+	{
+		return true;
+	}
+
+	static FORCEINLINE int64 GetMemoryMappingAlignment()
+	{
+		return 4096;
+	}
+
 	static FORCEINLINE bool SupportsVirtualTextureStreaming()
 	{
 		return true;

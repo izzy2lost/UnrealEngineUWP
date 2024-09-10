@@ -41,7 +41,7 @@ namespace Gauntlet
 			Project = InCopy.Project;
 			GameMap = InCopy.GameMap;
 			AdditionalExplicitCommandLineArgs = InCopy.AdditionalExplicitCommandLineArgs;
-			Params = new Dictionary<string, object>(InCopy.Params);
+			Params = new Dictionary<string, object>(InCopy.Params, StringComparer.OrdinalIgnoreCase);
 			NonOptionParams = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		}
 

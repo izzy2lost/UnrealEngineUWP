@@ -195,11 +195,11 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 
 		FMovementModifierGroup& CurrentModifiers = OutputState.SyncState.MovementModifiers;
 		FlushModifierCancellationsToGroup(CurrentModifiers);
-		TArray<TSharedPtr<FMovementModifierBase>> ActiveModifiers = CurrentModifiers.GenerateActiveModifiers(MoverComp, TimeStep, SubstepStartData.SyncState, SubstepStartData.AuxState);
+		TArray<TSharedPtr<FMovementModifierBase>> ActiveModifiers = CurrentModifiers.GenerateActiveModifiers(MoverComp, SubTimeStep, SubstepStartData.SyncState, SubstepStartData.AuxState);
 
 		for (TSharedPtr<FMovementModifierBase> Modifier : ActiveModifiers)
 		{
-			Modifier->OnPreMovement(MoverComp, TimeStep);
+			Modifier->OnPreMovement(MoverComp, SubTimeStep);
 		}
 		
 		FLayeredMoveGroup& CurrentLayeredMoves = OutputState.SyncState.LayeredMoves;
@@ -218,10 +218,10 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 		for (TSharedPtr<FLayeredMoveBase>& ActiveMove : ActiveMoves)
 		{
 			FProposedMove MoveStep;
-			if (ActiveMove->GenerateMove(SubstepStartData, TimeStep, MoverComp, SimBlackboard, MoveStep))
+			if (ActiveMove->GenerateMove(SubstepStartData, SubTimeStep, MoverComp, SimBlackboard, MoveStep))
 			{
 				// If this active move is already past it's first tick we don't need to set the preferred mode again
-				if (ActiveMove->StartSimTimeMs <= TimeStep.BaseSimTimeMs)
+				if (ActiveMove->StartSimTimeMs < SubTimeStep.BaseSimTimeMs)
 				{
 					MoveStep.PreferredMode = NAME_None;
 				}
@@ -345,7 +345,7 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 
 		for (TSharedPtr<FMovementModifierBase> Modifier : ActiveModifiers)
 		{
-			Modifier->OnPostMovement(MoverComp, TimeStep, OutputState.SyncState, OutputState.AuxState);
+			Modifier->OnPostMovement(MoverComp, SubTimeStep, OutputState.SyncState, OutputState.AuxState);
 		}
 		
 		const float RemainingMs = FMath::Clamp(OutputState.MovementEndState.RemainingMs, 0.0f, SubTimeStep.StepMs);

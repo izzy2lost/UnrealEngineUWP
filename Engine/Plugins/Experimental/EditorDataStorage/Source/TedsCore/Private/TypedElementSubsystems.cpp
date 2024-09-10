@@ -13,7 +13,7 @@ UEditorDataStorageSubsystem::~UEditorDataStorageSubsystem()
 	DataStorage = nullptr;
 }
 
-ITypedElementDataStorageInterface* UEditorDataStorageSubsystem::Get()
+IEditorDataStorageProvider* UEditorDataStorageSubsystem::Get()
 {
 	if (!DataStorage)
 	{
@@ -24,7 +24,7 @@ ITypedElementDataStorageInterface* UEditorDataStorageSubsystem::Get()
 	return DataStorage;
 }
 
-const ITypedElementDataStorageInterface* UEditorDataStorageSubsystem::Get() const
+const IEditorDataStorageProvider* UEditorDataStorageSubsystem::Get() const
 {
 	return const_cast<UEditorDataStorageSubsystem*>(this)->Get();
 }
@@ -39,7 +39,7 @@ UEditorDataStorageUiSubsystem::~UEditorDataStorageUiSubsystem()
 	DataStorageUi = nullptr;
 }
 
-ITypedElementDataStorageUiInterface* UEditorDataStorageUiSubsystem::Get()
+IEditorDataStorageUiProvider* UEditorDataStorageUiSubsystem::Get()
 {
 	if (!DataStorageUi)
 	{
@@ -50,7 +50,7 @@ ITypedElementDataStorageUiInterface* UEditorDataStorageUiSubsystem::Get()
 	return DataStorageUi;
 }
 
-const ITypedElementDataStorageUiInterface* UEditorDataStorageUiSubsystem::Get() const
+const IEditorDataStorageUiProvider* UEditorDataStorageUiSubsystem::Get() const
 {
 	return const_cast<UEditorDataStorageUiSubsystem*>(this)->Get();
 }
@@ -65,7 +65,7 @@ UEditorDataStorageCompatibilitySubsystem::~UEditorDataStorageCompatibilitySubsys
 	DataStorageCompatibility = nullptr;
 }
 
-ITypedElementDataStorageCompatibilityInterface* UEditorDataStorageCompatibilitySubsystem::Get()
+IEditorDataStorageCompatibilityProvider* UEditorDataStorageCompatibilitySubsystem::Get()
 {
 	if (!DataStorageCompatibility)
 	{
@@ -77,7 +77,7 @@ ITypedElementDataStorageCompatibilityInterface* UEditorDataStorageCompatibilityS
 	return DataStorageCompatibility;
 }
 
-const ITypedElementDataStorageCompatibilityInterface* UEditorDataStorageCompatibilitySubsystem::Get() const
+const IEditorDataStorageCompatibilityProvider* UEditorDataStorageCompatibilitySubsystem::Get() const
 {
 	return const_cast<UEditorDataStorageCompatibilitySubsystem*>(this)->Get();
 }
