@@ -1913,7 +1913,7 @@ void UAudioComponent::SetModulationRouting(const TSet<USoundModulatorBase*>& Mod
 
 }
 
-void UAudioComponent::AddModulationRouting(const TSet<USoundModulatorBase*>& Modulators, const EModulationDestination Destination, const bool bShouldModulationRoutingBeUpdated)
+void UAudioComponent::AddModulationRouting(const TSet<USoundModulatorBase*>& Modulators, const EModulationDestination Destination)
 {
 	FAudioDevice* AudioDevice = GetAudioDevice();
 	if (!AudioDevice)
