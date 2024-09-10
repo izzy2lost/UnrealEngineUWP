@@ -28,7 +28,7 @@ bool UMouseHoverBehavior::WantsHoverEvents()
 
 FInputCaptureRequest UMouseHoverBehavior::WantsHoverCapture(const FInputDeviceState& InputState)
 {
-	if (Target != nullptr)
+	if (Target != nullptr && ((HoverModifierCheckFunc == nullptr || HoverModifierCheckFunc(InputState))) )
 	{
 		Modifiers.UpdateModifiers(InputState, Target);
 
