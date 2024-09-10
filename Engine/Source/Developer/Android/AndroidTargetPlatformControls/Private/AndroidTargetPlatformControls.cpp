@@ -481,8 +481,8 @@ void FAndroidTargetPlatformControls::GetTextureFormats(const UTexture* Texture, 
 	const bool bSupportFilteredFloat32Textures = false;
 
 	// optionaly compress landscape weightmaps for a mobile rendering
-	static const auto CompressLandscapeWeightMapsVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.CompressLandscapeWeightMaps"));
-	static const bool bCompressLandscapeWeightMaps = (CompressLandscapeWeightMapsVar && CompressLandscapeWeightMapsVar->GetValueOnAnyThread() != 0);
+	bool bCompressLandscapeWeightMaps = false;
+	GetTargetPlatformSettings()->GetConfigSystem()->GetBool(TEXT("/Script/Engine.RendererSettings"), TEXT("r.Mobile.CompressLandscapeWeightMaps"), bCompressLandscapeWeightMaps, GEngineIni);
 
 	TArray<FName>& LayerFormats = OutFormats.AddDefaulted_GetRef();
 	int32 BlockSize = 1; // this looks wrong? should be 4 for FAndroid_DXTTargetPlatform ? - it is wrong, but BlockSize is ignored

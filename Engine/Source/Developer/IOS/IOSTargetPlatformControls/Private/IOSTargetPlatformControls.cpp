@@ -507,8 +507,9 @@ void FIOSTargetPlatformControls::GetTextureFormats( const UTexture* Texture, TAr
 	// @todo Oodle: this should not be here
 	//	should be in GetDefaultTextureFormatNamePerLayer
 	//	so that 4x4 checks can be applied correctly, etc.
-	static const auto CompressLandscapeWeightMapsVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.CompressLandscapeWeightMaps"));
-	static const bool bCompressLandscapeWeightMaps = (CompressLandscapeWeightMapsVar && CompressLandscapeWeightMapsVar->GetValueOnAnyThread() != 0);
+	bool bCompressLandscapeWeightMaps = false;
+	GetTargetPlatformSettings()->GetConfigSystem()->GetBool(TEXT("/Script/Engine.RendererSettings"), TEXT("r.Mobile.CompressLandscapeWeightMaps"), bCompressLandscapeWeightMaps, GEngineIni);
+
 	if (Texture->LODGroup == TEXTUREGROUP_Terrain_Weightmap && bCompressLandscapeWeightMaps)
 	{
 		TextureFormatNames.Init(FName(TEXT("AutoDXT")), NumLayers);
