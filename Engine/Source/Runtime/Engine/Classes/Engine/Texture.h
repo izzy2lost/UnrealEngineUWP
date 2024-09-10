@@ -309,6 +309,9 @@ struct FTextureSource
 	/** Computes the size of a single mip in bytes.  Same size as the image in GetMipImageInfo.
 	See also: CalcMipOffset. */
 	ENGINE_API int64 CalcMipSize(int32 BlockIndex, int32 LayerIndex, int32 MipIndex) const;
+	
+	/** Retrieve the size and offset for a source mip. The size includes all slices. */
+	ENGINE_API int64 CalcMipOffset(int32 BlockIndex, int32 LayerIndex, int32 MipIndex) const;
 
 	/** Computes the number of bytes per-pixel. */
 	ENGINE_API int64 GetBytesPerPixel(int32 LayerIndex = 0) const;
@@ -647,10 +650,7 @@ private:
 	DoUEDeltaTransform( DoUEDeltaTransform(Buffer,true), false) == Buffer
 	*/
 	FSharedBuffer DoUEDeltaTransform(FSharedBuffer InBuffer,bool bForward) const;
-
-	/** Retrieve the size and offset for a source mip. The size includes all slices. */
-	int64 CalcMipOffset(int32 BlockIndex, int32 LayerIndex, int32 MipIndex) const;
-	
+		
 	/* total size of source data in bytes */
 	int64 CalcTotalSize() const;
 	/* size of block in bytes, over all layers */

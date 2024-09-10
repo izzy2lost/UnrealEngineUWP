@@ -1092,7 +1092,9 @@ void UTexture::Serialize(FArchive& Ar)
 
 	if (Ar.IsLoading())
 	{
-		// Could potentially guard this with a new custom version, but overhead of just checking on every load should be very small
+		// EnsureBlocksAreSorted here should do nothing, because it only sets them if they were not saved
+		//	if they were saved, they are not changed
+		// this mainly acts to create a BlockDataOffsets array for legacy non-UDIM textures that had none
 		Source.EnsureBlocksAreSorted();
 
 		if (Ar.UEVer() < VER_UE4_TEXTURE_LEGACY_GAMMA)
@@ -3499,10 +3501,10 @@ int64 FTextureSource::CalcLayerSize(const FTextureSourceBlock& Block, int32 Laye
 
 int64 FTextureSource::CalcMipOffset(int32 BlockIndex, int32 LayerIndex, int32 OffsetToMipIndex) const
 {
-	if ( BlockIndex == 0 && LayerIndex == 0 && OffsetToMipIndex == 0 )
+	if ( LayerIndex == 0 && OffsetToMipIndex == 0 )
 	{
 		// early out common case
-		return 0;
+		return BlockDataOffsets[BlockIndex];
 	}
 
 	/*************
@@ -3518,6 +3520,8 @@ int64 FTextureSource::CalcMipOffset(int32 BlockIndex, int32 LayerIndex, int32 Of
 	then step into all mips on a layer
 
 	note these are the mips in the *source*, not the number of mips generated
+
+	note: BlockDataOffsets[] are not sorted, and BlockDataOffsets[0] == 0 is not guaranteed
 
 	*************/
 
@@ -4924,7 +4928,7 @@ void FTextureSource::InitBlockedImpl(const ETextureSourceFormat* InLayerFormats,
 		LayerFormat[i] = InLayerFormats[i];
 	}
 
-	EnsureBlocksAreSorted();
+	EnsureBlocksAreSorted(); // this resizes and fills out the BlockDataOffsets
 
 	CheckTextureIsUnlocked(TEXT("InitBlockedImpl"));
 }
@@ -4946,11 +4950,16 @@ inline bool operator<(const FSortedTextureSourceBlock& Lhs, const FSortedTexture
 
 bool FTextureSource::EnsureBlocksAreSorted()
 {
+	// confusingly, EnsureBlocksAreSorted does not sort the offsets if they already exist
+	// it populates the BlockDataOffsets in sorted order if it does not exist
+	//	  sort order is by XY, not offset
+	// also for non-UDIM it ensure you have a 1-entry array with [0]==0
+
 	// BlockDataOffsets is of size NumBlocks, even when NumBlocks==1
-	// and BlockDataOffsets[0] == 0
 	const int32 NumBlocks = GetNumBlocks();
 	if (BlockDataOffsets.Num() == NumBlocks)
 	{
+		// do nothing if BlockDataOffsets is already set up
 		return false;
 	}
 
@@ -4969,6 +4978,7 @@ bool FTextureSource::EnsureBlocksAreSorted()
 			GetBlock(BlockIndex, SortedBlock.Block);
 			SortedBlock.SourceBlockIndex = BlockIndex;
 			SortedBlock.DataOffset = CurrentDataOffset;
+			// note: Sort is by XY position, NOT by DataOffset
 			SortedBlock.SortKey = SortedBlock.Block.BlockY * SizeInBlocks.X + SortedBlock.Block.BlockX;
 			CurrentDataOffset += CalcBlockSize(SortedBlock.Block);
 		}
