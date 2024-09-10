@@ -8,6 +8,7 @@
 #include "ImgMediaPrivate.h"
 
 #include "HAL/FileManager.h"
+#include "MediaPlayer.h"
 #include "Misc/Paths.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
 
@@ -158,6 +159,11 @@ FString UImgMediaSource::GetMediaOption(const FName& Key, const FString& Default
 	if (Key == ImgMedia::ProxyOverrideOption)
 	{
 		return ProxyOverride;
+	}
+
+	if (Key == UMediaPlayer::MediaInfoNameStartTimecodeValue.Resolve())
+	{
+		return StartTimecode.ToString();
 	}
 
 	return Super::GetMediaOption(Key, DefaultValue);
