@@ -163,4 +163,19 @@ COREUOBJECT_API void GetTextIdForEdit(UPackage* InPackage, const ETextEditAction
  */
 COREUOBJECT_API bool EditTextProperty(UObject* InTextOwner, const FTextProperty* InTextProperty, const ETextEditAction InEditAction, const FString& InEditValue, TFunctionRef<FString()> InTextKeyGenerator = &GenerateRandomTextKey, const bool bApplyPackageNamespace = true);
 
+/**
+ * Edit an attribute of the given text property, akin to what happens when editing a text property in a details panel.
+ *
+ * @param InPackage						The package that hosts the text value.
+ * @param InTextValue					The raw value of the TextProperty to be edited.
+ * @param InTextProperty				The text property to edit.
+ * @param InEditAction					How has the given text been edited?
+ * @param InEditValue					The new value of the attribute that was edited.
+ * @param InTextKeyGenerator			Generator for the new text key. Will generate a random key by default.
+ * @param bApplyPackageNamespace		If true, apply the package namespace to the generated text ID (when USE_STABLE_LOCALIZATION_KEYS is true).
+ *
+ * @return True if edit was possible, or false if not.
+ */
+COREUOBJECT_API bool EditTextProperty_Direct(UPackage* InPackage, void* InTextValue, const FTextProperty* InTextProperty, const ETextEditAction InEditAction, const FString& InEditValue, TFunctionRef<FString()> InTextKeyGenerator = &GenerateRandomTextKey, const bool bApplyPackageNamespace = true);
+
 }

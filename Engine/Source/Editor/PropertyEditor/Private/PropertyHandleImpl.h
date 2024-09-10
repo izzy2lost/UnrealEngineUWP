@@ -755,6 +755,10 @@ public:
 
 	virtual FPropertyAccess::Result SetValue(const FString& InValue, EPropertyValueSetFlags::Type Flags = EPropertyValueSetFlags::DefaultFlags) override;
 	virtual FPropertyAccess::Result SetValue(const TCHAR* InValue, EPropertyValueSetFlags::Type Flags = EPropertyValueSetFlags::DefaultFlags) override;
+	virtual FPropertyAccess::Result SetValueFromFormattedString(const FString& InValue, EPropertyValueSetFlags::Type Flags = EPropertyValueSetFlags::DefaultFlags) override;
+
+private:
+	FPropertyAccess::Result ImportFormattedTextString(const FString& InValue, EPropertyValueSetFlags::Type Flags);
 };
 
 class FPropertyHandleSet : public FPropertyHandleBase, public IPropertyHandleSet

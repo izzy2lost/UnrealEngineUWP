@@ -38,6 +38,7 @@
 #include "SStandaloneCustomizedValueWidget.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
+#include "Internationalization/TextPackageNamespaceUtil.h"
 
 #define LOCTEXT_NAMESPACE "PropertyHandleImplementation"
 
@@ -5460,7 +5461,7 @@ FPropertyAccess::Result FPropertyHandleText::SetValue(const FText& NewValue, EPr
 {
 	FString StringValue;
 	FTextStringHelper::WriteToBuffer(StringValue, NewValue);
-	return Implementation->ImportText(StringValue, Flags);
+	return ImportFormattedTextString(StringValue, Flags);
 }
 
 FPropertyAccess::Result FPropertyHandleText::SetValue(const FString& NewValue, EPropertyValueSetFlags::Type Flags)
@@ -5471,6 +5472,93 @@ FPropertyAccess::Result FPropertyHandleText::SetValue(const FString& NewValue, E
 FPropertyAccess::Result FPropertyHandleText::SetValue(const TCHAR* NewValue, EPropertyValueSetFlags::Type Flags)
 {
 	return SetValue(FText::FromString(NewValue), Flags);
+}
+
+FPropertyAccess::Result FPropertyHandleText::SetValueFromFormattedString(const FString& InValue, EPropertyValueSetFlags::Type Flags)
+{
+	return ImportFormattedTextString(InValue, Flags);
+}
+
+FPropertyAccess::Result FPropertyHandleText::ImportFormattedTextString(const FString& NewValue, EPropertyValueSetFlags::Type Flags)
+{
+	TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode();
+
+	TArray<FObjectBaseAddress> ObjectsToModify;
+	Implementation->GetObjectsToModify(ObjectsToModify, PropertyNode.Get());
+
+	TArray<FString> NewTextValuesToImport;
+	{
+		TArray<UPackage*> OuterPackages;
+		GetOuterPackages(OuterPackages);
+
+		FTextProperty* TextProperty = CastField<FTextProperty>(GetProperty());
+		FStringView PropertyPath = GetPropertyPath();
+
+		const FText NewTextValue = FTextStringHelper::CreateFromBuffer(*NewValue);
+		for (int32 ObjectIndex = 0; ObjectIndex < ObjectsToModify.Num(); ++ObjectIndex)
+		{
+			const FObjectBaseAddress& ObjectToModify = ObjectsToModify[ObjectIndex];
+			if (ObjectToModify.BaseAddress)
+			{
+				FText ResolvedTextValue = NewTextValue;
+
+				// If the FText value was initialized from a string, then try and generate a stable and deterministic key for it instead
+				if (TextProperty && NewTextValue.IsInitializedFromString())
+				{
+					UPackage* OuterPackage = OuterPackages.IsValidIndex(ObjectIndex) ? OuterPackages[ObjectIndex] : nullptr;
+
+					auto DeterministicTextKeyGenerator = [PropertyPath, OuterPackage, TextProperty]()
+					{
+						auto GetNameKeyHash = [](const FName Name)
+						{
+							FNameBuilder Builder(Name);
+							return TextKeyUtil::HashString(Builder.ToString(), Builder.Len());
+						};
+
+						auto GetObjectKeyHash = [](const UObject* Obj)
+						{
+							FNameBuilder Builder;
+							if (Obj)
+							{
+								Obj->GetPathName(nullptr, Builder);
+							}
+							return TextKeyUtil::HashString(Builder.ToString(), Builder.Len());
+						};
+
+						// Build a (hopefully) unique and deterministic key from a combination of the outer package and text property info
+						FGuid KeyGuid(GetObjectKeyHash(OuterPackage), TextKeyUtil::HashString(PropertyPath), GetNameKeyHash(TextProperty->GetOwnerStruct()->GetFName()), GetNameKeyHash(TextProperty->GetFName()));
+#if USE_STABLE_LOCALIZATION_KEYS
+						if (OuterPackage)
+						{
+							if (const FString PackageNamespace = TextNamespaceUtil::EnsurePackageNamespace(OuterPackage);
+								!PackageNamespace.IsEmpty())
+							{
+								// Mix the package namespace hash into the outer hash
+								KeyGuid.A = TextKeyUtil::HashString(PackageNamespace, KeyGuid.A);
+							}
+						}
+#endif // USE_STABLE_LOCALIZATION_KEYS
+						return KeyGuid.ToString();
+					};
+
+					const FText* CurrentTextValue = reinterpret_cast<FText*>(ObjectToModify.BaseAddress);
+					ResolvedTextValue = *CurrentTextValue;
+					TextNamespaceUtil::EditTextProperty_Direct(OuterPackage, &ResolvedTextValue, TextProperty, TextNamespaceUtil::ETextEditAction::SourceString, NewTextValue.ToString(), DeterministicTextKeyGenerator);
+				}
+
+				FString& NewTextValueToImport = NewTextValuesToImport.AddDefaulted_GetRef();
+				FTextStringHelper::WriteToBuffer(NewTextValueToImport, ResolvedTextValue);
+			}
+		}
+	}
+
+	FPropertyAccess::Result Result = FPropertyAccess::Fail;
+	if (NewTextValuesToImport.Num() > 0)
+	{
+		Result = Implementation->ImportText(ObjectsToModify, NewTextValuesToImport, PropertyNode.Get(), Flags);
+	}
+
+	return Result;
 }
 
 // Sets
