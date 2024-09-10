@@ -46,7 +46,7 @@ namespace PCGLog
 		PCG_API void LogFailToCreateAccessorError(const FPCGAttributePropertySelector& Selector, const FPCGContext* InContext = nullptr);
 
 		template <typename T>
-		void LogFailToCreateAttributeError(FText AttributeName, const FPCGContext* InContext = nullptr)
+		void LogFailToCreateAttributeError(const FText& AttributeName, const FPCGContext* InContext = nullptr)
 		{
 			PCGLog::LogErrorOnGraph(FText::Format(Format::CreateAttributeFailure, AttributeName, PCG::Private::GetTypeNameText<T>()), InContext);
 		}
@@ -57,13 +57,13 @@ namespace PCGLog
 			LogFailToCreateAttributeError<T>(FText::FromName(AttributeName), InContext);
 		}
 
-		PCG_API void LogFailToGetAttributeError(FText AttributeName, const FPCGContext* InContext = nullptr);
+		PCG_API void LogFailToGetAttributeError(const FText& AttributeName, const FPCGContext* InContext = nullptr);
 		PCG_API void LogFailToGetAttributeError(FName AttributeName, const FPCGContext* InContext = nullptr);
 		PCG_API void LogFailToGetAttributeError(const FPCGAttributePropertySelector& Selector, const FPCGContext* InContext = nullptr);
 		PCG_API void LogIncomparableAttributesError(const FPCGAttributePropertySelector& FirstSelector, const FPCGAttributePropertySelector& SecondSelector, const FPCGContext* InContext = nullptr);
 
 		template <typename T>
-		void LogFailToGetAttributeError(FText AttributeName, const IPCGAttributeAccessor* Accessor, const FPCGContext* InContext = nullptr)
+		void LogFailToGetAttributeError(const FText& AttributeName, const IPCGAttributeAccessor* Accessor, const FPCGContext* InContext = nullptr)
 		{
 			if (Accessor)
 			{
