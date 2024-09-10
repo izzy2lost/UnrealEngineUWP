@@ -410,7 +410,7 @@ FBuiltInComponentTypes::FBuiltInComponentTypes()
 	Tags.HasUnresolvedBinding    = ComponentRegistry->NewTag(TEXT("Has Unresolved Binding"));
 	Tags.HasAssignedInitialValue = ComponentRegistry->NewTag(TEXT("Has Assigned Initial Value"));
 	Tags.Root                    = ComponentRegistry->NewTag(TEXT("Root"));
-	Tags.SubInstance             = ComponentRegistry->NewTag(TEXT("Sub Instance"));
+	Tags.SubInstance             = ComponentRegistry->NewTag(TEXT("Sub Instance"), EComponentTypeFlags::CopyToChildren);
 	Tags.ImportedEntity          = ComponentRegistry->NewTag(TEXT("Imported Entity"));
 	Tags.Finished                = ComponentRegistry->NewTag(TEXT("Finished Evaluating"));
 	Tags.Ignored                 = ComponentRegistry->NewTag(TEXT("Ignored"));

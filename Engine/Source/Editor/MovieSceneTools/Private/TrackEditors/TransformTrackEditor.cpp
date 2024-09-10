@@ -52,6 +52,7 @@
 #include "IDetailKeyframeHandler.h"
 #include "ISequencerObjectChangeListener.h"
 #include "ISequencerPropertyKeyedStatus.h"
+#include "Systems/MovieSceneTransformOriginSystem.h"
 
 #define LOCTEXT_NAMESPACE "MovieScene_TransformTrack"
 
@@ -972,6 +973,40 @@ FTransform F3DTransformTrackEditor::GetTransformOrigin() const
 	{
 		// Retrieve the current origin
 		TransformOrigin = RawInterface ? RawInterface->GetTransformOrigin() : IMovieSceneTransformOrigin::Execute_BP_GetTransformOrigin(InstanceData);
+	}
+	
+	const TArray<FMovieSceneSequenceID>& Hierarchy = GetSequencer()->GetSubSequenceHierarchy();
+
+	const FMovieSceneRootEvaluationTemplateInstance& EvaluationTemplate = GetSequencer()->GetEvaluationTemplate();
+	const UMovieSceneEntitySystemLinker* EntityLinker = EvaluationTemplate.GetEntitySystemLinker();
+	if(!EntityLinker)
+	{
+		return TransformOrigin;
+	}
+
+	const UMovieSceneTransformOriginSystem* TransformOriginSystem = EntityLinker->FindSystem<UMovieSceneTransformOriginSystem>();
+
+	if(!TransformOriginSystem)
+	{
+		return TransformOrigin;
+	}
+	
+	const TSparseArray<FTransform>& TransformOrigins = TransformOriginSystem->GetTransformOriginsByInstanceID();
+	const TMap<FMovieSceneSequenceID, UE::MovieScene::FInstanceHandle> SequenceIDToInstanceHandle = TransformOriginSystem->GetSequenceIDToInstanceHandle();
+
+	// Transform Origins will be pre-multiplied at this step, so only retrieve the entry for the currently focused sub-sequence.
+	if(Hierarchy.Num())
+	{
+		const FMovieSceneSequenceID CurrentSequence = Hierarchy.Last();
+		if(SequenceIDToInstanceHandle.Contains(CurrentSequence))
+		{
+			const UE::MovieScene::FInstanceHandle CurrentHandle = SequenceIDToInstanceHandle[CurrentSequence];
+			if(TransformOrigins.IsValidIndex(CurrentHandle.InstanceID))
+			{
+				// Override the root origin 
+				TransformOrigin = TransformOrigins[CurrentHandle.InstanceID];
+			}
+		}
 	}
 
 	return TransformOrigin;
