@@ -10,6 +10,7 @@
 #include "IMediaOptions.h"
 #include "UObject/Object.h"
 #include "UObject/StrongObjectPtrTemplates.h"
+#include "UObject/WeakObjectPtr.h"
 
 class IAnalyticsProviderET;
 class IMediaEventSink;
@@ -81,7 +82,7 @@ public:
 	{
 		FScopeLock lock(&OwnerLock);
 		Owner = nullptr;
-		OwnerObject = nullptr;
+		OwnerObject.Reset();
 	}
 	virtual void Lock() override
 	{
@@ -93,12 +94,12 @@ public:
 	}
 	virtual IMediaOptions* GetMediaOptionInterface() override
 	{
-		return Owner;
+		return OwnerObject.IsStale(true, true) ? nullptr : Owner;
 	}
 private:
 	FCriticalSection OwnerLock;
 	IMediaOptions* Owner = nullptr;
-	TStrongObjectPtr<const UObject> OwnerObject;
+	FWeakObjectPtr OwnerObject;
 };
 
 

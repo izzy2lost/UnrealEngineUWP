@@ -768,7 +768,7 @@ public:
 
 	virtual const IMediaOptions* GetOptions() const override
 	{
-		return OptionsObject.IsValid() ? Options : nullptr;
+		return OptionsObject.IsStale() ? nullptr : Options;
 	}
 
 	virtual const FMediaPlayerOptions* GetPlayerOptions() const override
