@@ -42,7 +42,7 @@ void SetPropertyDescFromPin(FPropertyBagPropertyDesc& Desc, const FEdGraphPinTyp
 		Desc.ContainerTypes.Add(EPropertyBagContainerType::Array);
 		break;
 	case EPinContainerType::Set:
-		ensureMsgf(false, TEXT("Unsuported container type [Set] "));
+		Desc.ContainerTypes.Add(EPropertyBagContainerType::Set);
 		break;
 	case EPinContainerType::Map:
 		ensureMsgf(false, TEXT("Unsuported container type [Map] "));
@@ -347,6 +347,9 @@ FEdGraphPinType GetPropertyDescAsPin(const FPropertyBagPropertyDesc& Desc)
 	{
 	case EPropertyBagContainerType::Array:
 		PinType.ContainerType = EPinContainerType::Array;
+		break;
+	case EPropertyBagContainerType::Set:
+		PinType.ContainerType = EPinContainerType::Set;
 		break;
 	default:
 		PinType.ContainerType = EPinContainerType::None;
@@ -1499,7 +1502,7 @@ TSharedPtr<SWidget> FPropertyBagDetails::MakeAddPropertyWidget(TSharedPtr<IPrope
 bool UPropertyBagSchema::SupportsPinTypeContainer(TWeakPtr<const FEdGraphSchemaAction> SchemaAction,
 		const FEdGraphPinType& PinType, const EPinContainerType& ContainerType) const
 {
-	return ContainerType == EPinContainerType::None || ContainerType == EPinContainerType::Array;
+	return ContainerType == EPinContainerType::None || ContainerType == EPinContainerType::Array || ContainerType == EPinContainerType::Set;
 }
 
 #undef LOCTEXT_NAMESPACE

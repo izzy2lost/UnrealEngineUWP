@@ -143,6 +143,19 @@ struct FTestStructSimple7 : public FTestStructSimpleBase
 	float Float = 0.0f;
 };
 
+USTRUCT()
+struct FTestStructHashable1 : public FTestStructSimpleBase
+{
+	GENERATED_BODY()
+	
+	FTestStructHashable1() = default;
+	
+	UPROPERTY()
+	float Float = 0.0f;
+};
+
+uint32 GetTypeHash(const FTestStructHashable1& other);
+
 UCLASS()
 class UBagTestObject1 : public UObject
 {

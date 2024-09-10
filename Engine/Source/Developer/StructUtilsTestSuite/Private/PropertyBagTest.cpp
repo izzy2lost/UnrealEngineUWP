@@ -461,7 +461,7 @@ struct FTest_Arrays : FAITestBase
 		AITEST_TRUE(TEXT("Float array should have 1 item"), FloatArray.Num() == 1);
 
 		const TValueOrError<float, EPropertyBagResult> GetDefaultFloatRes = FloatArray.GetValueFloat(FloatIndex);
-		AITEST_TRUE(TEXT("Get float should succeed immediatelly after add"), GetDefaultFloatRes.IsValid());
+		AITEST_TRUE(TEXT("Get float should succeed immediately after add"), GetDefaultFloatRes.IsValid());
 		AITEST_TRUE(TEXT("Default value for Float should be 0.0f"), FMath::IsNearlyEqual(GetDefaultFloatRes.GetValue(), 0.0f));
 
 		const EPropertyBagResult SetFloatRes = FloatArray.SetValueFloat(FloatIndex, 123.0f);
@@ -482,6 +482,141 @@ struct FTest_Arrays : FAITestBase
 	}
 };
 IMPLEMENT_AI_INSTANT_TEST(FTest_Arrays, "System.StructUtils.PropertyBag.Arrays");
+
+struct FTest_Sets : FAITestBase
+{
+	virtual bool InstantTest() override
+	{
+		static const FName FloatSetName(TEXT("FloatSet"));
+		static const FName EnumSetName(TEXT("EnumSet"));
+		static const FName StructSetName(TEXT("StructSet"));
+		static const FName ObjectSetName(TEXT("ObjectSet"));
+		static const FName ClassSetName(TEXT("ClassSet"));
+
+		FInstancedPropertyBag Bag;
+		Bag.AddProperties({
+			{ FloatSetName, EPropertyBagContainerType::Set, EPropertyBagPropertyType::Float },
+			{ EnumSetName, EPropertyBagContainerType::Set, EPropertyBagPropertyType::Enum, StaticEnum<EPropertyBagTest1>() },
+			{ StructSetName, EPropertyBagContainerType::Set, EPropertyBagPropertyType::Struct, FTestStructHashable1::StaticStruct()},
+			{ ObjectSetName, EPropertyBagContainerType::Set, EPropertyBagPropertyType::Object, UBagTestObject1::StaticClass()},
+			{ ClassSetName, EPropertyBagContainerType::Set, EPropertyBagPropertyType::Class, UBagTestObject1::StaticClass()}
+		});
+
+		//Test Numeric Type Set
+		TValueOrError<const FPropertyBagSetRef, EPropertyBagResult> FloatSetRes = Bag.GetSetRef(FloatSetName);
+		AITEST_TRUE(TEXT("Bag should have float set"), FloatSetRes.IsValid());
+
+		FPropertyBagSetRef FloatSet = FloatSetRes.GetValue();
+		float FloatValue1 = 1.f;
+		TValueOrError<bool, EPropertyBagResult> EmptySetContainsResult = FloatSet.Contains(FloatValue1);
+		AITEST_TRUE(TEXT("Float set contain result should have value"), EmptySetContainsResult.HasValue());
+		AITEST_EQUAL(TEXT("Float set contain result should be false"), EmptySetContainsResult.GetValue(), false);
+
+		const EPropertyBagResult SetFloatRes = FloatSet.AddValueFloat(FloatValue1);
+		AITEST_EQUAL(TEXT("Float set should have 1 item"), FloatSet.Num(), 1);
+		AITEST_EQUAL(TEXT("Set float should succeed"), SetFloatRes, EPropertyBagResult::Success);
+
+		TValueOrError<bool, EPropertyBagResult> FilledSetContainsResult = FloatSet.Contains(FloatValue1);
+		AITEST_TRUE(TEXT("Float set contain result should have value"), FilledSetContainsResult.HasValue());
+		AITEST_EQUAL(TEXT("Float set contain result should be true"), FilledSetContainsResult.GetValue(), true);
+
+		const float FloatValue2 = 2.f;
+		const EPropertyBagResult NewSetFloatRes = FloatSet.AddValueFloat(FloatValue2);
+		AITEST_TRUE(TEXT("Setting a new float value should succeed"), NewSetFloatRes == EPropertyBagResult::Success);
+		AITEST_EQUAL(TEXT("Float set should have 2 items"), FloatSet.Num(), 2);
+
+		const float FloatValue3 = 3.f;
+		TValueOrError<bool, EPropertyBagResult> ContainsUnknownResult = FloatSet.Contains(FloatValue3);
+		AITEST_EQUAL(TEXT("Calling Contains with a value not stored in the set should return false"), ContainsUnknownResult.GetValue(), false);
+
+		EPropertyBagResult RemoveUnknownResult = FloatSet.Remove(FloatValue3);
+		AITEST_EQUAL(TEXT("Calling Remove with a value not stored in the set should return a property not found error"), RemoveUnknownResult, EPropertyBagResult::PropertyNotFound);
+		AITEST_EQUAL(TEXT("Float set should still 2 items after failed removal"), FloatSet.Num(), 2);
+
+		const EPropertyBagResult AddExistingFloatRes = FloatSet.AddValueFloat(FloatValue2);
+		AITEST_EQUAL(TEXT("Setting an existing element to a value already present in the set should return a duplicated value error"), AddExistingFloatRes, EPropertyBagResult::DuplicatedValue);
+
+		EPropertyBagResult RemoveKnownResult = FloatSet.Remove(FloatValue2);
+		AITEST_EQUAL(TEXT("Removing an element in the set should result in success"), RemoveKnownResult, EPropertyBagResult::Success);
+		AITEST_EQUAL(TEXT("Float set should have 1 item after successfull removal"), FloatSet.Num(), 1);
+
+		const int32 IntValue = 3;
+		const EPropertyBagResult SetIntRes = FloatSet.AddValueInt32(IntValue);
+		AITEST_EQUAL(TEXT("Setting a signed integer on a float set should succeed"), SetIntRes, EPropertyBagResult::Success);
+		AITEST_TRUE(TEXT("Float set should contain the new int value"), FloatSet.Contains(IntValue).GetValue());
+
+		const uint32 UIntValue = 4;
+		const EPropertyBagResult SetUIntRes = FloatSet.AddValueUInt32(UIntValue);
+		AITEST_EQUAL(TEXT("Setting an unsigned integer on a float set should succeed"), SetUIntRes, EPropertyBagResult::Success);
+		AITEST_TRUE(TEXT("Float set should contain the new uint value"), FloatSet.Contains(UIntValue).GetValue());
+
+		const FString TestString = TEXT("TestString");
+		const EPropertyBagResult SetStringResult = FloatSet.AddValueString(TestString);
+		AITEST_NOT_EQUAL(TEXT("Setting a string on a float set should not succeed"), SetStringResult, EPropertyBagResult::Success);
+		AITEST_FALSE(TEXT("Float set should not contain the new string value"), FloatSet.Contains(TestString).GetValue());
+
+		//Test Enum Set
+		TValueOrError<const FPropertyBagSetRef, EPropertyBagResult> EnumSetRes = Bag.GetSetRef(EnumSetName);
+		AITEST_TRUE(TEXT("Bag should have Enum set property"), EnumSetRes.IsValid());
+		FPropertyBagSetRef EnumSet = EnumSetRes.GetValue();
+
+		AITEST_EQUAL(TEXT("Adding enum value to set should succeed"), EnumSet.AddValueEnum(EPropertyBagTest1::Foo), EPropertyBagResult::Success);
+		AITEST_TRUE(TEXT("We should be able to find the enum value we just added"), EnumSet.Contains(EPropertyBagTest1::Foo).GetValue());
+		AITEST_EQUAL(TEXT("Adding a different enum value to set should succeed"), EnumSet.AddValueEnum(EPropertyBagTest1::Bar), EPropertyBagResult::Success);
+		AITEST_EQUAL(TEXT("Adding an already store enum value should return a duplicated value error"), EnumSet.AddValueEnum(EPropertyBagTest1::Bar), EPropertyBagResult::DuplicatedValue);
+		AITEST_EQUAL(TEXT("Adding value from a different enum type to set should return a type mismatch error"), EnumSet.AddValueEnum(EPropertyBagTest2::Bongo), EPropertyBagResult::TypeMismatch);
+		AITEST_EQUAL(TEXT("Adding a non enum value to an enum set should return a type mismatch error"), EnumSet.AddValueInt32(1), EPropertyBagResult::TypeMismatch);
+ 
+		//Test Struct Set
+		TValueOrError<const FPropertyBagSetRef, EPropertyBagResult> StructSetRes = Bag.GetSetRef(StructSetName);
+		AITEST_TRUE(TEXT("Bag should have Struct set property"), StructSetRes.IsValid());
+		FPropertyBagSetRef StructSet = StructSetRes.GetValue();
+
+		FTestStructHashable1 TestStructInstance1;
+		TestStructInstance1.Float = 1.0f;
+
+		FTestStructHashable1 TestStructInstance2;
+		TestStructInstance2.Float = 2.0f;
+
+		FTestStructComplex ComplexStructInstance;
+
+		AITEST_EQUAL(TEXT("Adding struct value to set should succeed"), StructSet.AddValueStruct(FConstStructView::Make(TestStructInstance1)), EPropertyBagResult::Success);
+		AITEST_TRUE(TEXT("We should be able to find the struct we just added"), StructSet.Contains(FConstStructView::Make(TestStructInstance1).GetMemory()).GetValue());
+		AITEST_EQUAL(TEXT("Adding a different struct value to set should succeed"), StructSet.AddValueStruct(FConstStructView::Make(TestStructInstance2)), EPropertyBagResult::Success);
+		AITEST_EQUAL(TEXT("Adding the same struct value to set should return a duplicated value error"), StructSet.AddValueStruct(FConstStructView::Make(TestStructInstance2)), EPropertyBagResult::DuplicatedValue);
+		AITEST_EQUAL(TEXT("Adding a different struct type should return a type mismatch error"), StructSet.AddValueStruct(FConstStructView::Make(ComplexStructInstance)), EPropertyBagResult::TypeMismatch);
+		AITEST_EQUAL(TEXT("Adding a non struct type to a struct set should return a type mismatch error"), StructSet.AddValueInt32(1), EPropertyBagResult::TypeMismatch);
+
+		//Test Object Set
+		UBagTestObject1* TestObject1_Instance1 = NewObject<UBagTestObject1>();
+		UBagTestObject1* TestObject1_Instance2 = NewObject<UBagTestObject1>();
+		UBagTestObject2* TestObject2 = NewObject<UBagTestObject2>();
+		UBagTestObject1Derived* TestObject1Derived = NewObject<UBagTestObject1Derived>();
+
+		TValueOrError<const FPropertyBagSetRef, EPropertyBagResult> ObjectSetRes = Bag.GetSetRef(ObjectSetName);
+		AITEST_TRUE(TEXT("Bag should have Object set property"), ObjectSetRes.IsValid());
+		FPropertyBagSetRef ObjectSet = ObjectSetRes.GetValue();
+
+		AITEST_EQUAL(TEXT("Adding a TestObject1 type instance to set should succeed"), ObjectSet.AddValueObject(TestObject1_Instance1), EPropertyBagResult::Success);
+		AITEST_TRUE(TEXT("We should be able to find the object we just added"), ObjectSet.Contains(TestObject1_Instance1).GetValue());
+		AITEST_EQUAL(TEXT("Adding a second instance of type TestObject1 to set should succeed"), ObjectSet.AddValueObject(TestObject1_Instance2), EPropertyBagResult::Success);
+		AITEST_EQUAL(TEXT("Adding an object type derived from TestObject1 to set should succeed"), ObjectSet.AddValueObject(TestObject1Derived), EPropertyBagResult::Success);
+		AITEST_EQUAL(TEXT("Adding a TestObject2 type instance to a TestObject1 type set should return a type mismatch error"), ObjectSet.AddValueObject(TestObject2), EPropertyBagResult::TypeMismatch);
+
+		//Test Class Set
+		TValueOrError<const FPropertyBagSetRef, EPropertyBagResult> ClassSetRes = Bag.GetSetRef(ClassSetName);
+		AITEST_TRUE(TEXT("Bag should have Object set property"), ClassSetRes.IsValid());
+		FPropertyBagSetRef ClassSet = ClassSetRes.GetValue();
+
+		AITEST_EQUAL(TEXT("Adding a class to a class set should succeed"), ClassSet.AddValueClass(UBagTestObject1::StaticClass()), EPropertyBagResult::Success);
+		AITEST_TRUE(TEXT("We should be able to find the class we just added"), ClassSet.Contains(UBagTestObject1::StaticClass()).GetValue());
+		AITEST_EQUAL(TEXT("Adding a different type to a class set should return a type mismatch error"), ClassSet.AddValueClass(UBagTestObject2::StaticClass()), EPropertyBagResult::TypeMismatch);
+		AITEST_EQUAL(TEXT("Adding a derived class type to a class set should succeed"), ClassSet.AddValueClass(UBagTestObject1Derived::StaticClass()), EPropertyBagResult::Success);
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FTest_Sets, "System.StructUtils.PropertyBag.Sets");
 
 struct FTest_SameBag : FAITestBase
 {
