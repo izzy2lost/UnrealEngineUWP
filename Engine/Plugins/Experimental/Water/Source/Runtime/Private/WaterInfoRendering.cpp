@@ -712,7 +712,8 @@ static FSceneRenderer* CreateWaterInfoSceneRenderer(const FCreateWaterInfoSceneR
 
 void UpdateWaterInfoRendering(
 	FSceneInterface* Scene,
-	const WaterInfo::FRenderingContext& Context)
+	const WaterInfo::FRenderingContext& Context,
+	const FVector& WaterInfoCenter)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(WaterInfo::UpdateWaterInfoRendering);
 
@@ -731,7 +732,7 @@ void UpdateWaterInfoRendering(
 	}
 	const FVector ZoneExtent = Context.ZoneToRender->GetDynamicWaterInfoExtent();
 
-	FVector ViewLocation = Context.ZoneToRender->GetDynamicWaterInfoCenter();
+	FVector ViewLocation = WaterInfoCenter;
 	ViewLocation.Z = Context.CaptureZ;
 
 	const FBox2D CaptureBounds(FVector2D(ViewLocation - ZoneExtent), FVector2D(ViewLocation + ZoneExtent));
@@ -822,77 +823,72 @@ void UpdateWaterInfoRendering(
 		});
 }
 
-void UpdateWaterInfoRendering2(FSceneView& InView, const TWeakObjectPtrKeyMap<AWaterZone, UE::WaterInfo::FRenderingContext> WaterInfoContexts)
+void UpdateWaterInfoRendering2(FSceneView& InView, const FRenderingContext& Context, int32 RenderTargetArrayLayer, const FVector& WaterInfoCenter)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(WaterInfo::UpdateWaterInfoRendering2);
 
 	InView.WaterInfoTextureRenderingParams.Reset();
-	for (const TPair<TWeakObjectPtr<AWaterZone>, UE::WaterInfo::FRenderingContext>& Pair : WaterInfoContexts)
+
+	if (!IsValid(Context.TextureRenderTarget))
 	{
-		if (Pair.Key.IsValid())
+		return;
+	}
+
+	const FVector ZoneExtent = Context.ZoneToRender->GetDynamicWaterInfoExtent();
+
+	FVector ViewLocation = WaterInfoCenter;
+	ViewLocation.Z = Context.CaptureZ;
+
+	const FBox2D CaptureBounds(FVector2D(ViewLocation - ZoneExtent), FVector2D(ViewLocation + ZoneExtent));
+
+	// Zone rendering always happens facing towards negative z.
+	const FVector LookAt = ViewLocation - FVector(0.f, 0.f, 1.f);
+
+	FSceneView::FWaterInfoTextureRenderingParams RenderingParams;
+	RenderingParams.RenderTarget = Context.TextureRenderTarget->GameThread_GetRenderTargetResource();
+	RenderingParams.ViewLocation = ViewLocation;
+	RenderingParams.ViewRotationMatrix = FLookAtMatrix(ViewLocation, LookAt, FVector(0.f, -1.f, 0.f));
+	RenderingParams.ViewRotationMatrix = RenderingParams.ViewRotationMatrix.RemoveTranslation();
+	RenderingParams.ViewRotationMatrix.RemoveScaling();
+	RenderingParams.ProjectionMatrix = BuildOrthoMatrix(ZoneExtent.X, ZoneExtent.Y);
+	RenderingParams.CaptureZ = ViewLocation.Z;
+	RenderingParams.WaterHeightExtents = Context.ZoneToRender->GetWaterHeightExtents();
+	RenderingParams.GroundZMin = Context.ZoneToRender->GetGroundZMin();
+	RenderingParams.VelocityBlurRadius = Context.ZoneToRender->GetVelocityBlurRadius();
+	RenderingParams.WaterZoneExtents = ZoneExtent;
+	RenderingParams.RenderTargetArrayLayer = RenderTargetArrayLayer;
+
+	if (Context.GroundPrimitiveComponents.Num() > 0)
+	{
+		RenderingParams.TerrainComponentIds.Reserve(Context.GroundPrimitiveComponents.Num());
+		for (TWeakObjectPtr<UPrimitiveComponent> GroundPrimComp : Context.GroundPrimitiveComponents)
 		{
-			const UE::WaterInfo::FRenderingContext& Context(Pair.Value);
-
-			if (!IsValid(Context.TextureRenderTarget))
+			if (GroundPrimComp.IsValid())
 			{
-				continue;
+				RenderingParams.TerrainComponentIds.Add(GroundPrimComp.Get()->GetPrimitiveSceneId());
 			}
-			const FVector ZoneExtent = Context.ZoneToRender->GetDynamicWaterInfoExtent();
-
-			FVector ViewLocation = Context.ZoneToRender->GetDynamicWaterInfoCenter();
-			ViewLocation.Z = Context.CaptureZ;
-
-			const FBox2D CaptureBounds(FVector2D(ViewLocation - ZoneExtent), FVector2D(ViewLocation + ZoneExtent));
-
-			// Zone rendering always happens facing towards negative z.
-			const FVector LookAt = ViewLocation - FVector(0.f, 0.f, 1.f);
-
-			FSceneView::FWaterInfoTextureRenderingParams RenderingParams;
-			RenderingParams.RenderTarget = Context.TextureRenderTarget->GameThread_GetRenderTargetResource();
-			RenderingParams.ViewLocation = ViewLocation;
-			RenderingParams.ViewRotationMatrix = FLookAtMatrix(ViewLocation, LookAt, FVector(0.f, -1.f, 0.f));
-			RenderingParams.ViewRotationMatrix = RenderingParams.ViewRotationMatrix.RemoveTranslation();
-			RenderingParams.ViewRotationMatrix.RemoveScaling();
-			RenderingParams.ProjectionMatrix = BuildOrthoMatrix(ZoneExtent.X, ZoneExtent.Y);
-			RenderingParams.CaptureZ = ViewLocation.Z;
-			RenderingParams.WaterHeightExtents = Context.ZoneToRender->GetWaterHeightExtents();
-			RenderingParams.GroundZMin = Context.ZoneToRender->GetGroundZMin();
-			RenderingParams.VelocityBlurRadius = Context.ZoneToRender->GetVelocityBlurRadius();
-			RenderingParams.WaterZoneExtents = ZoneExtent;
-
-			if (Context.GroundPrimitiveComponents.Num() > 0)
-			{
-				RenderingParams.TerrainComponentIds.Reserve(Context.GroundPrimitiveComponents.Num());
-				for (TWeakObjectPtr<UPrimitiveComponent> GroundPrimComp : Context.GroundPrimitiveComponents)
-				{
-					if (GroundPrimComp.IsValid())
-					{
-						RenderingParams.TerrainComponentIds.Add(GroundPrimComp.Get()->GetPrimitiveSceneId());
-					}
-				}
-			}
-			if (Context.WaterBodies.Num() > 0)
-			{
-				RenderingParams.WaterBodyComponentIds.Reserve(Context.WaterBodies.Num());
-				RenderingParams.DilatedWaterBodyComponentIds.Reserve(Context.WaterBodies.Num());
-				for (const TWeakObjectPtr<UWaterBodyComponent> WaterBodyToRenderPtr : Context.WaterBodies)
-				{
-					if (UWaterBodyComponent* WaterBodyToRender = WaterBodyToRenderPtr.Get())
-					{
-						// Perform our own simple culling based on the known Capture bounds:
-						const FBox WaterBodyBounds = WaterBodyToRender->Bounds.GetBox();
-						if (CaptureBounds.Intersect(FBox2D(FVector2D(WaterBodyBounds.Min), FVector2D(WaterBodyBounds.Max))))
-						{
-							RenderingParams.WaterBodyComponentIds.Add(WaterBodyToRender->GetWaterInfoMeshComponent()->GetPrimitiveSceneId());
-							RenderingParams.DilatedWaterBodyComponentIds.Add(WaterBodyToRender->GetDilatedWaterInfoMeshComponent()->GetPrimitiveSceneId());
-						}
-					}
-				}
-			}
-
-			InView.WaterInfoTextureRenderingParams.Add(MoveTemp(RenderingParams));
 		}
 	}
+	if (Context.WaterBodies.Num() > 0)
+	{
+		RenderingParams.WaterBodyComponentIds.Reserve(Context.WaterBodies.Num());
+		RenderingParams.DilatedWaterBodyComponentIds.Reserve(Context.WaterBodies.Num());
+		for (const TWeakObjectPtr<UWaterBodyComponent> WaterBodyToRenderPtr : Context.WaterBodies)
+		{
+			if (UWaterBodyComponent* WaterBodyToRender = WaterBodyToRenderPtr.Get())
+			{
+				// Perform our own simple culling based on the known Capture bounds:
+				const FBox WaterBodyBounds = WaterBodyToRender->Bounds.GetBox();
+				if (CaptureBounds.Intersect(FBox2D(FVector2D(WaterBodyBounds.Min), FVector2D(WaterBodyBounds.Max))))
+				{
+					RenderingParams.WaterBodyComponentIds.Add(WaterBodyToRender->GetWaterInfoMeshComponent()->GetPrimitiveSceneId());
+					RenderingParams.DilatedWaterBodyComponentIds.Add(WaterBodyToRender->GetDilatedWaterInfoMeshComponent()->GetPrimitiveSceneId());
+				}
+			}
+		}
+	}
+
+	InView.WaterInfoTextureRenderingParams.Add(MoveTemp(RenderingParams));
 }
 
 
@@ -989,6 +985,7 @@ public:
 		FinalizeWaterInfo(GraphBuilder, *Views[0]->Family, *Views[0], MergeTargetTexture, FinalizedTexture, Params);
 
 		FRDGTextureRef WaterInfoTexture = RegisterExternalTexture(GraphBuilder, WaterInfoRenderTarget->GetRenderTargetTexture(), TEXT("WaterInfoTexture"));
+		GraphBuilder.UseInternalAccessMode(WaterInfoTexture);
 		FRHICopyTextureInfo CopyInfo;
 		CopyInfo.DestSliceIndex = RenderTargetArraySlice;
 		AddCopyTexturePass(GraphBuilder, FinalizedTexture, WaterInfoTexture, CopyInfo);
@@ -1053,7 +1050,9 @@ static TMap<uint32, int32> GatherLandscapeLODOverrides(const UWorld* World, cons
 void UpdateWaterInfoRendering_CustomRenderPass(
 	FSceneInterface* Scene,
 	const FSceneViewFamily& ViewFamily,
-	const WaterInfo::FRenderingContext& Context)
+	const WaterInfo::FRenderingContext& Context,
+	int32 TextureArraySlice,
+	const FVector& WaterInfoCenter)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(WaterInfo::UpdateWaterInfoRendering_CustomRenderPass);
 
@@ -1074,7 +1073,7 @@ void UpdateWaterInfoRendering_CustomRenderPass(
 
 	const FVector ZoneExtent = Context.ZoneToRender->GetDynamicWaterInfoExtent();
 
-	FVector ViewLocation = Context.ZoneToRender->GetDynamicWaterInfoCenter();
+	FVector ViewLocation = WaterInfoCenter;
 	ViewLocation.Z = Context.CaptureZ;
 
 	const FBox2D CaptureBounds(FVector2D(ViewLocation - ZoneExtent), FVector2D(ViewLocation + ZoneExtent));
@@ -1155,6 +1154,7 @@ void UpdateWaterInfoRendering_CustomRenderPass(
 	DilationPass->ColorPass = ColorPass;
 	DilationPass->WaterInfoRenderTarget = Context.TextureRenderTarget->GameThread_GetRenderTargetResource();
 	DilationPass->Params = Params;
+	DilationPass->RenderTargetArraySlice = TextureArraySlice;
 	if (bPerformRenderCapture)
 	{
 		// End a render capture when this pass runs :

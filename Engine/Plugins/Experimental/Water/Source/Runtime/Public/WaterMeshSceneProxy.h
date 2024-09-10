@@ -164,6 +164,8 @@ public:
 	// Destroys the quadtree associated with Key.
 	void DestroyViewWaterQuadTree(int32 Key);
 
+	int32 FindBestQuadTreeForViewLocation(const FSceneView* View) const;
+
 private:
 
 #if RHI_RAYTRACING

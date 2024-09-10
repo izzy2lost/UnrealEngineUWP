@@ -185,15 +185,6 @@ FMaterialRelevance UWaterMeshComponent::GetWaterMaterialRelevance(ERHIFeatureLev
 	return Result;
 }
 
-void UWaterMeshComponent::SetDynamicWaterMeshCenter(const FVector2D& NewCenter)
-{
-	if (!DynamicWaterMeshCenter.Equals(NewCenter))
-	{
-		DynamicWaterMeshCenter = NewCenter;
-		MarkWaterMeshGridDirty();
-	}
-}
-
 FVector2D UWaterMeshComponent::GetGlobalWaterMeshCenter() const
 {
 	const float LODCountBiasFactor = FMath::Pow(2.0f, (float)CVarWaterMeshLODCountBias.GetValueOnGameThread());
