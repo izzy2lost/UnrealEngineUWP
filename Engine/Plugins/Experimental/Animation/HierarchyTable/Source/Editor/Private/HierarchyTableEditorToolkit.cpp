@@ -175,7 +175,7 @@ TSharedRef<SWidget> FHierarchyTableEditorToolkit::CreateTedsOutliner()
 		OverrideEntry.OwnerTable = HierarchyTable;
 		DSI->AddColumn(Row, MoveTemp(OverrideEntry));
 
-		DSI->AddColumn<FTypedElementLabelColumn>(Row, { .Label = CreateRowLabel(Entry->Identifier, Entry->EntryType) });
+		DSI->AddColumn<FTypedElementLabelColumn>(Row, { .Label = Entry->Identifier.ToString() });
 
 		RowHandle* ParentRow = EntryIndexToHandleMap.Find(Entry->Parent);
 		if (ParentRow)
@@ -345,7 +345,7 @@ void FHierarchyTableEditorToolkit::AddEntry(const FName Identifier, const EHiera
 
 	// Ideally would read the label directly from the HT entry struct instead of storing it itself
 	// but this is a built-in TEDS column type that is used the the tabel viewer widget.
-	DSI->AddColumn<FTypedElementLabelColumn>(Row, { .Label = CreateRowLabel(EntryData.Identifier, EntryData.EntryType) });
+	DSI->AddColumn<FTypedElementLabelColumn>(Row, { .Label = EntryData.Identifier.ToString() });
 
 	const RowHandle* ParentRow = EntryIndexToHandleMap.Find(EntryData.Parent);
 	if (ParentRow)
@@ -362,19 +362,6 @@ void FHierarchyTableEditorToolkit::AddEntry(const FName Identifier, const EHiera
 	}
 
 	EntryIndexToHandleMap.Add(EntryIndex, Row);
-}
-
-FString FHierarchyTableEditorToolkit::CreateRowLabel(const FName EntryIdentifier, const EHierarchyTableEntryType EntryType)
-{
-	switch (EntryType)
-	{
-		case EHierarchyTableEntryType::Curve:
-			return FString::Format(TEXT("{0} (Curve)"), { EntryIdentifier.ToString() });
-		case EHierarchyTableEntryType::Attribute:
-			return FString::Format(TEXT("{0} (Attribute)"), { EntryIdentifier.ToString() });
-		default:
-			return EntryIdentifier.ToString();
-	}
 }
 
 #undef LOCTEXT_NAMESPACE

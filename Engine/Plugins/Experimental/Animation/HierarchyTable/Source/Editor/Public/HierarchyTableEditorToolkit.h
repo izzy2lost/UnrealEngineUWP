@@ -24,8 +24,6 @@ public:
 	void ExtendToolbar();
 
 private:
-	FString CreateRowLabel(const FName EntryIdentifier, const EHierarchyTableEntryType EntryType);
-
 	void AddEntry(const FName Identifier, const EHierarchyTableEntryType EntryType);
 
 	TSharedRef<SWidget> CreateTedsOutliner();
@@ -35,6 +33,4 @@ private:
 	TMap<int32, UE::Editor::DataStorage::RowHandle> EntryIndexToHandleMap;
 
 	UE::Editor::DataStorage::QueryHandle InitialColumnQuery;
-
-	//UE::Editor::DataStorage::QueryHandle CollectDataQuery;
 };
