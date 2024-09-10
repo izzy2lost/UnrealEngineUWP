@@ -1360,7 +1360,7 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 				else
 				{
 					// Cluster parent
-					GameThreadCollection.IterateThroughChildren(TransformGroupIndex, [&](int32 ChildIndex)
+					PhysicsThreadCollection.IterateThroughChildren(TransformGroupIndex, [&](int32 ChildIndex)
 					{
 						if (SubTreeContainsSimulatableParticle.IsValidIndex(ChildIndex) && SubTreeContainsSimulatableParticle[ChildIndex])
 						{
@@ -1404,7 +1404,7 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 				}
 
 				Chaos::FMatrix33 FullInertia = Chaos::FMatrix33(0);
-				GameThreadCollection.IterateThroughChildren(TransformGroupIndex, [&](int32 ChildIndex)
+				PhysicsThreadCollection.IterateThroughChildren(TransformGroupIndex, [&](int32 ChildIndex)
 					{
 						Masses[TransformGroupIndex] += Masses[ChildIndex];
 						const Chaos::FMatrix33 ChildWorldSpaceI = Chaos::Utilities::ComputeWorldSpaceInertia(Transforms[ChildIndex].GetRotation(), Inertias[ChildIndex]);
