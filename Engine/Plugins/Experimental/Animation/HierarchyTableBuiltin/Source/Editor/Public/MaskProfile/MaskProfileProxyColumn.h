@@ -6,7 +6,7 @@
 
 #include "MaskProfileProxyColumn.generated.h"
 
-USTRUCT()
+USTRUCT(meta = (DisplayName = "Mask"))
 struct FHierarchyTableMaskColumn_Value final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()

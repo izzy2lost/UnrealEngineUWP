@@ -22,6 +22,7 @@
 #include "HierarchyTableEditorModule.h"
 #include "Widgets/Input/STextEntryPopup.h"
 #include "PersonaModule.h"
+#include "TedsOutlinerItem.h"
 
 #define LOCTEXT_NAMESPACE "HierarchyTableEditorToolkit"
 
@@ -193,6 +194,8 @@ TSharedRef<SWidget> FHierarchyTableEditorToolkit::CreateTedsOutliner()
 	}
 
 	TSharedRef<ISceneOutliner> TedsOutliner = TedsOutlinerModule.CreateTedsOutliner(InitOptions, Params, InitialColumnQuery);
+	TedsOutlinerPtr = TedsOutliner;
+
 	return TedsOutliner;
 }
 
@@ -321,20 +324,33 @@ void FHierarchyTableEditorToolkit::AddEntry(const FName Identifier, const EHiera
 		return;
 	}
 
+	using namespace UE::Editor::DataStorage;
+	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+	IEditorDataStorageProvider* DSI = Registry->GetMutableDataStorage();
+	static TableHandle Table = DSI->FindTable(FName("Editor_HierarchyTableTable"));
+
+	int32 ParentIndex = 0; // root of hierarchy
+
+	TArray<FSceneOutlinerTreeItemPtr> Selection = TedsOutlinerPtr->GetTree().GetSelectedItems();
+	if (Selection.Num() > 0)
+	{
+		const UE::Editor::Outliner::FTedsOutlinerTreeItem* TedsItem = Selection[0]->CastTo<UE::Editor::Outliner::FTedsOutlinerTreeItem>();
+		const UE::Editor::DataStorage::RowHandle ParentRowHandle = TedsItem->GetRowHandle();
+
+		const FTypedElementOverrideColumn* OverrideColumn = DSI->GetColumn<FTypedElementOverrideColumn>(ParentRowHandle);
+		ParentIndex = OverrideColumn->OwnerEntryIndex;
+	}
+
 	FHierarchyTableEntryData EntryData;
 	{
 		EntryData.Identifier = Identifier;
 		EntryData.EntryType = EntryType;
 		EntryData.OwnerTable = HierarchyTable;
-		EntryData.Parent = 0;
+		EntryData.Parent = ParentIndex;
 		EntryData.Payload = TOptional<FInstancedStruct>();
 	}
 	const int32 EntryIndex = HierarchyTable->TableData.Add(EntryData);
 
-	using namespace UE::Editor::DataStorage;
-	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-	IEditorDataStorageProvider* DSI = Registry->GetMutableDataStorage();
-	static TableHandle Table = DSI->FindTable(FName("Editor_HierarchyTableTable"));
 	const RowHandle Row = DSI->AddRow(Table);
 
 	{
