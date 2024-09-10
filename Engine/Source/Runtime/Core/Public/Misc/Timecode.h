@@ -384,13 +384,34 @@ public:
 	}
 
 	/**
+	 * Parses a string representation of a timecode.
+	 *
+	 * Supported SMPTE drop frame (DF) and non-drop frame (NDF) formats variations:
+	 * - NDF: HH:MM:SS:FF
+	 * - DF: HH:MM:SS;FF or HH:MM:SS.FF or HH;MM;SS;FF or HH.MM.SS.FF.
+	 *
+	 * The 2 digits per number is not enforced. It is possible to parse high frame numbers (above 60), such as for audio timecodes.
+	 * Full SMPTE compliance is not ensured by the parser (i.e. greater than 24h, negative time and any number of frames per second).
+	 *
+	 * Sub-frame variation:
+	 * Supports the sub-frame variation where the frame number is a decimal number: HH:MM:SS:FF.ZZ.
+	 *
+	 * Side effect of supporting sub-frame is that this function can't unambiguously parse partial timecodes.
+	 * 
+	 * @param InTimecodeString A string representation of a timecode
+	 * 
+	 * @return Parsed timecode if valid.
+	 */
+	static CORE_API TOptional<FTimecode> ParseTimecode(const FStringView InTimecodeString);
+
+	/**
 	 * Will return true if the timecode represents a valid timecode value where
 	 *
 	 * Hours is +/- [0,23]
 	 * Minutes is +/- [0, 59]
 	 * Seconds is +/- [0, 59]
 	 * Frames [INT_MIN, INT_MAX]
-	 * Subframes > 0
+	 * Subframes >= 0
 	 *
 	 */
 	bool IsValid() const
