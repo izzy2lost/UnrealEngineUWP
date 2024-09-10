@@ -2,8 +2,10 @@
 
 #include "Subsystems/PropertyAnimatorCoreEditorSubsystem.h"
 
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "Components/PropertyAnimatorCoreComponent.h"
 #include "DetailRowMenuContext.h"
+#include "Dialogs/DlgPickAssetPath.h"
 #include "Editor.h"
 #include "Framework/Application/SlateApplication.h"
 #include "IDetailTreeNode.h"
@@ -153,6 +155,57 @@ bool UPropertyAnimatorCoreEditorSubsystem::FillAnimatorMenu(UToolMenu* InMenu, c
 	}
 
 	return false;
+}
+
+UPropertyAnimatorCorePresetBase* UPropertyAnimatorCoreEditorSubsystem::CreatePresetAsset(TSubclassOf<UPropertyAnimatorCorePresetBase> InPresetClass, const TArray<IPropertyAnimatorCorePresetable*>& InPresetables)
+{
+	UPropertyAnimatorCorePresetBase* NewPreset = nullptr;
+
+	if (!InPresetClass.Get() || InPresetables.IsEmpty())
+	{
+		return NewPreset;
+	}
+
+	// Pick asset path and name
+	FString PickedPath;
+	FString PickedName;
+	{
+		TSharedPtr<SDlgPickAssetPath> DialogWidget = SNew(SDlgPickAssetPath)
+		.Title(LOCTEXT("PickAssetsLocation", "Choose preset name and location"))
+		.DefaultAssetPath(FText::FromString(TEXT("/PropertyAnimatorCore/Presets/NewPreset")))
+		.AllowReadOnlyFolders(true);
+
+		if (DialogWidget->ShowModal() != EAppReturnType::Ok)
+		{
+			PickedPath = TEXT("");
+			return NewPreset;
+		}
+
+		PickedPath = DialogWidget->GetAssetPath().ToString();
+		PickedName = DialogWidget->GetAssetName().ToString();
+	}
+
+	if (PickedPath.IsEmpty() || PickedName.IsEmpty())
+	{
+		return NewPreset;
+	}
+
+	// Find/create package
+	UPackage* Package = CreatePackage(*(PickedPath + TEXT("/") + PickedName));
+
+	if (!Package)
+	{
+		return nullptr;
+	}
+
+	NewPreset = NewObject<UPropertyAnimatorCorePresetBase>(Package, InPresetClass.Get(), FName(PickedName), RF_Public | RF_Standalone);
+	NewPreset->CreatePreset(FName(PickedName), InPresetables);
+	NewPreset->MarkPackageDirty();
+
+	// Notify asset registry of new asset
+	FAssetRegistryModule::AssetCreated(NewPreset);
+
+	return NewPreset;
 }
 
 UPropertyAnimatorCoreEditorSubsystem* UPropertyAnimatorCoreEditorSubsystem::Get()

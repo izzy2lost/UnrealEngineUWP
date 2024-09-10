@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Presets/PropertyAnimatorCorePresetable.h"
 #include "PropertyAnimatorCoreTimeSourceBase.generated.h"
 
 class UPropertyAnimatorCoreBase;
@@ -11,8 +12,8 @@ enum class EPropertyAnimatorCoreTimeSourceResult
 {
 	/** Time is the same as previous, evaluation can be skipped */
 	Skip,
-	/** Time is in an invalid state or out of range, restore values */
-	Reset,
+	/** Time is in an invalid state or out of range */
+	Idle,
 	/** Time is valid and in range, evaluate time */
 	Evaluate
 };
@@ -32,7 +33,7 @@ struct FPropertyAnimatorCoreTimeSourceEvaluationData
  * Can be transient or saved to disk if contains user set data
  */
 UCLASS(MinimalAPI, Abstract)
-class UPropertyAnimatorCoreTimeSourceBase : public UObject
+class UPropertyAnimatorCoreTimeSourceBase : public UObject, public IPropertyAnimatorCorePresetable
 {
 	GENERATED_BODY()
 
@@ -78,6 +79,11 @@ public:
 	{
 		return LastTimeElapsed;
 	}
+
+	//~ Begin IPropertyAnimatorCorePresetable
+	PROPERTYANIMATORCORE_API virtual bool ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue) override;
+	PROPERTYANIMATORCORE_API virtual bool ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue) override;
+	//~ End IPropertyAnimatorCorePresetable
 
 protected:
 	/** Retrieve evaluation data to provide animators, return true if data is valid, false otherwise */

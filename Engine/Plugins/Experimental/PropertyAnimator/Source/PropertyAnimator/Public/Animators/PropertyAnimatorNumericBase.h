@@ -59,12 +59,6 @@ public:
 		return CycleRate;
 	}
 
-	PROPERTYANIMATOR_API void SetTimeOffset(double InOffset);
-	double GetTimeOffset() const
-	{
-		return TimeOffset;
-	}
-
 	PROPERTYANIMATOR_API void SetRandomTimeOffset(bool bInOffset);
 	bool GetRandomTimeOffset() const
 	{
@@ -87,7 +81,6 @@ protected:
 	virtual void OnMagnitudeChanged() {}
 	virtual void OnCycleDurationChanged() {}
 	virtual void OnCycleModeChanged() {}
-	virtual void OnTimeOffsetChanged() {}
 	virtual void OnSeedChanged() {}
 
 	//~ Begin UPropertyAnimatorCoreBase
@@ -97,6 +90,8 @@ protected:
 	virtual void OnPropertyLinked(UPropertyAnimatorCoreContext* InLinkedProperty, EPropertyAnimatorPropertySupport InSupport) override;
 	virtual bool IsTimeSourceSupported(UPropertyAnimatorCoreTimeSourceBase* InTimeSource) const override;
 	virtual void OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata) override;
+	virtual bool ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue) override;
+	virtual bool ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue) override;
 	//~ End UPropertyAnimatorCoreBase
 
 	/** Evaluate and return float value for a property */
@@ -132,10 +127,6 @@ protected:
 	/** Seed to generate per property time offset */
 	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(EditCondition="bRandomTimeOffset"))
 	int32 Seed = 0;
-
-	/** Time offset accumulated for each property for every round */
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(Units=Seconds))
-	double TimeOffset = 0;
 
 private:
 	/** Random stream for time offset */

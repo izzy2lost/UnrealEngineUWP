@@ -4,6 +4,8 @@
 
 #include "Curves/PropertyAnimatorEaseCurve.h"
 #include "Curves/PropertyAnimatorWaveCurve.h"
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
 #include "Properties/PropertyAnimatorFloatContext.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -120,6 +122,110 @@ bool UPropertyAnimatorCurve::EvaluateProperty(const FPropertyAnimatorCoreData& I
 	InParameters.SetValueFloat(AlphaParameterName, SampleValueNormalized);
 
 	return InContext->EvaluateProperty(InPropertyData, InParameters, OutEvaluationResult);
+}
+
+bool UPropertyAnimatorCurve::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue)
+{
+	const TSharedPtr<FJsonObject>* JsonAnimatorObject;
+
+	if (Super::ImportPreset(InPreset, InValue) && InValue->TryGetObject(JsonAnimatorObject))
+	{
+		FString JsonWaveCurve;
+		(*JsonAnimatorObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCurve, WaveCurve), JsonWaveCurve);
+
+		if (UPropertyAnimatorWaveCurve* Curve = LoadObject<UPropertyAnimatorWaveCurve>(nullptr, *JsonWaveCurve))
+		{
+			SetWaveCurve(Curve);
+		}
+
+		bool bJsonEaseInEnabled = bEaseInEnabled;
+		(*JsonAnimatorObject)->TryGetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCurve, bEaseInEnabled), bJsonEaseInEnabled);
+		SetEaseInEnabled(bJsonEaseInEnabled);
+
+		bool bJsonEaseOutEnabled = bEaseOutEnabled;
+		(*JsonAnimatorObject)->TryGetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCurve, bEaseOutEnabled), bJsonEaseOutEnabled);
+		SetEaseOutEnabled(bJsonEaseOutEnabled);
+
+		const TSharedPtr<FJsonObject>* JsonEaseInObject;
+		(*JsonAnimatorObject)->TryGetObjectField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCurve, EaseIn), JsonEaseInObject);
+
+		if (JsonEaseInObject)
+		{
+			FString JsonEaseCurve;
+			(*JsonEaseInObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCurveEasing, EaseCurve), JsonEaseCurve);
+
+			double JsonEaseDuration;
+			(*JsonEaseInObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCurveEasing, EaseDuration), JsonEaseDuration);
+
+			if (UPropertyAnimatorEaseCurve* EaseCurve = LoadObject<UPropertyAnimatorEaseCurve>(nullptr, *JsonEaseCurve))
+			{
+				FPropertyAnimatorCurveEasing Easing;
+				Easing.EaseCurve = EaseCurve;
+				Easing.EaseDuration = JsonEaseDuration;
+				SetEaseIn(Easing);
+			}
+		}
+
+		const TSharedPtr<FJsonObject>* JsonEaseOutObject;
+		(*JsonAnimatorObject)->TryGetObjectField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCurve, EaseOut), JsonEaseOutObject);
+
+		if (JsonEaseOutObject)
+		{
+			FString JsonEaseCurve;
+			(*JsonEaseOutObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCurveEasing, EaseCurve), JsonEaseCurve);
+
+			double JsonEaseDuration;
+			(*JsonEaseOutObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCurveEasing, EaseDuration), JsonEaseDuration);
+
+			if (UPropertyAnimatorEaseCurve* EaseCurve = LoadObject<UPropertyAnimatorEaseCurve>(nullptr, *JsonEaseCurve))
+			{
+				FPropertyAnimatorCurveEasing Easing;
+				Easing.EaseCurve = EaseCurve;
+				Easing.EaseDuration = JsonEaseDuration;
+				SetEaseOut(Easing);
+			}
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
+bool UPropertyAnimatorCurve::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue)
+{
+	const TSharedPtr<FJsonObject>* JsonAnimatorObject;
+
+	if (Super::ExportPreset(InPreset, OutValue) && OutValue->TryGetObject(JsonAnimatorObject))
+	{
+		if (WaveCurve)
+		{
+			(*JsonAnimatorObject)->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCurve, WaveCurve), WaveCurve.GetPath());
+		}
+
+		(*JsonAnimatorObject)->SetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCurve, bEaseInEnabled), bEaseInEnabled);
+		(*JsonAnimatorObject)->SetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCurve, bEaseOutEnabled), bEaseOutEnabled);
+
+		if (EaseIn.EaseCurve)
+		{
+			TSharedRef<FJsonObject> JsonEaseObject = MakeShared<FJsonObject>();
+			JsonEaseObject->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCurveEasing, EaseCurve), EaseIn.EaseCurve.GetPath());
+			JsonEaseObject->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCurveEasing, EaseDuration), EaseIn.EaseDuration);
+			(*JsonAnimatorObject)->SetObjectField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCurve, EaseIn), JsonEaseObject);
+		}
+
+		if (EaseOut.EaseCurve)
+		{
+			TSharedRef<FJsonObject> JsonEaseObject = MakeShared<FJsonObject>();
+			JsonEaseObject->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCurveEasing, EaseCurve), EaseOut.EaseCurve.GetPath());
+			JsonEaseObject->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCurveEasing, EaseDuration), EaseOut.EaseDuration);
+			(*JsonAnimatorObject)->SetObjectField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCurve, EaseOut), JsonEaseObject);
+		}
+
+		return true;
+	}
+
+	return false;
 }
 
 void UPropertyAnimatorCurve::OnEaseInChanged()

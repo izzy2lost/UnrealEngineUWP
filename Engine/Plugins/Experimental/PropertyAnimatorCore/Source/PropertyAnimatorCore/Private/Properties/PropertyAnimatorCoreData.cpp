@@ -69,6 +69,108 @@ FPropertyAnimatorCoreData::FPropertyAnimatorCoreData(UObject* InObject, const TA
 	FindSetterFunctions();
 }
 
+FPropertyAnimatorCoreData::FPropertyAnimatorCoreData(AActor* InActor, const FString& InPropertyLocatorPath)
+{
+	UPropertyAnimatorCoreSubsystem* Subsystem = UPropertyAnimatorCoreSubsystem::Get();
+
+	if (!InActor || InPropertyLocatorPath.IsEmpty() || !Subsystem)
+	{
+		return;
+	}
+
+	UPropertyAnimatorCoreResolver* Resolver = nullptr;
+
+	TArray<FString> Elements;
+	InPropertyLocatorPath.ParseIntoArray(Elements, TEXT(";"));
+
+	if (Elements.Num() < 2)
+	{
+		return;
+	}
+
+	int32 ElementIndex = 0;
+
+	// Get Resolver
+	if (Elements.Num() == 3)
+	{
+		FString ResolverClass;
+		FString ResolverName;
+		Elements[ElementIndex].Split(TEXT(":"), &ResolverClass, &ResolverName);
+
+		Resolver = Subsystem->FindResolverByName(FName(ResolverName));
+		Resolver = Resolver ? Resolver : Subsystem->FindResolverByClass(LoadObject<UClass>(nullptr, *ResolverClass));
+
+		if (Resolver)
+		{
+			PropertyResolverClass = Resolver->GetClass();
+		}
+
+		ElementIndex++;
+	}
+
+	// Locate Owner
+	TArray<FString> Outers;
+	Elements[ElementIndex].ParseIntoArray(Outers, TEXT(","));
+
+	UObject* FoundObject = InActor;
+	for (const FString& Outer : Outers)
+	{
+		FString OuterClass;
+		FString OuterName;
+		Outer.Split(TEXT(":"), &OuterClass, &OuterName);
+
+		TArray<UObject*> OwnedObjects;
+		GetObjectsWithOuter(FoundObject, OwnedObjects);
+
+		bool bFound = false;
+
+		// Search by name
+		for (UObject* OwnedObject : OwnedObjects)
+		{
+			if (OwnedObject->GetName() == OuterName)
+			{
+				FoundObject = OwnedObject;
+				bFound = true;
+				break;
+			}
+		}
+
+		// Search by class
+		if (!bFound)
+		{
+			for (UObject* OwnedObject : OwnedObjects)
+			{
+				if (OwnedObject->GetClass()->GetClassPathName().ToString() == OuterClass)
+				{
+					FoundObject = OwnedObject;
+					bFound = true;
+					break;
+				}
+			}
+		}
+
+		if (!bFound)
+		{
+			return;
+		}
+	}
+
+	OwnerWeak = FoundObject;
+	ElementIndex++;
+
+	// Locate Property
+	TArray<FString> Properties;
+	Elements[ElementIndex].ParseIntoArray(Properties, TEXT(","));
+
+	for (const FString& Property : Properties)
+	{
+		ChainProperties.Add(FindFProperty<FProperty>(*Property));
+	}
+
+	GeneratePropertyPath();
+	FindSetterFunctions();
+}
+
 bool FPropertyAnimatorCoreData::IsResolvable() const
 {
 	return PropertyResolverClass.Get() != nullptr;
@@ -235,6 +337,37 @@ FString FPropertyAnimatorCoreData::GetPropertyDisplayName() const
 	MutableThis->PropertyDisplayName = ResolverName + DisplayName;
 
 	return PropertyDisplayName;
+}
+
+FString FPropertyAnimatorCoreData::GetPropertyLocatorPath() const
+{
+	FString LocatorPath;
+
+	// Append resolver
+	if (const UPropertyAnimatorCoreResolver* Resolver = GetPropertyResolver())
+	{
+		LocatorPath += Resolver->GetClass()->GetClassPathName().ToString() + TEXT(":") + Resolver->GetResolverName().ToString() + TEXT(";");
+	}
+
+	// Append outers
+	for (const UObject* Outer : GetOuters(GetOwningActor()))
+	{
+		LocatorPath += Outer->GetClass()->GetClassPathName().ToString() + TEXT(":") + Outer->GetName() + TEXT(",");
+	}
+
+	LocatorPath.RemoveFromEnd(TEXT(","));
+	LocatorPath += TEXT(";");
+
+	// Append properties
+	const AActor* OwningActor = GetOwningActor();
+	for (const TFieldPath<FProperty>& Property : ChainProperties)
+	{
+		LocatorPath += Property->GetPathName(OwningActor) + TEXT(",");
+	}
+
+	LocatorPath.RemoveFromEnd(TEXT(","));
+
+	return LocatorPath;
 }
 
 FName FPropertyAnimatorCoreData::GetMemberPropertyName() const

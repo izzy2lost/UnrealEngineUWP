@@ -35,6 +35,9 @@ struct FPropertyAnimatorCoreData
 	/** Take the owner, the property chain until the inner property and lastly the inner property */
 	PROPERTYANIMATORCORE_API explicit FPropertyAnimatorCoreData(UObject* InObject, const TArray<FProperty*>& InChainProperties, FProperty* InProperty, TSubclassOf<UPropertyAnimatorCoreResolver> InResolverClass = nullptr);
 
+	/** Takes an actor and a locator path, tries to resolve property and owner */
+	PROPERTYANIMATORCORE_API explicit FPropertyAnimatorCoreData(AActor* InActor, const FString& InPropertyLocatorPath);
+
 	/** Is this a resolvable property that uses a custom resolver */
 	PROPERTYANIMATORCORE_API bool IsResolvable() const;
 
@@ -102,6 +105,9 @@ struct FPropertyAnimatorCoreData
 	{
 		return PathHash;
 	}
+
+	/** Creates a single path that contains resolver, owner and properties for (de)serialization */
+	FString GetPropertyLocatorPath() const;
 
 	/** The member property name */
 	PROPERTYANIMATORCORE_API FName GetMemberPropertyName() const;

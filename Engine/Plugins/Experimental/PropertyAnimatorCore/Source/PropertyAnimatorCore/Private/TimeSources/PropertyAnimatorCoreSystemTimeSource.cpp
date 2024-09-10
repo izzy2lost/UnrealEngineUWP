@@ -2,6 +2,8 @@
 
 #include "TimeSources/PropertyAnimatorCoreSystemTimeSource.h"
 
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
 #include "Internationalization/Regex.h"
 #include "Misc/DateTime.h"
 
@@ -40,6 +42,41 @@ void UPropertyAnimatorCoreSystemTimeSource::OnTimeSourceActive()
 
 	ActivationTime = FDateTime::Now();
 	OnModeChanged();
+}
+
+bool UPropertyAnimatorCoreSystemTimeSource::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue)
+{
+	const TSharedPtr<FJsonObject>* JsonTimeSourceObject;
+
+	if (Super::ImportPreset(InPreset, InValue) && InValue->TryGetObject(JsonTimeSourceObject))
+	{
+		FString JsonCountdown = CountdownDuration;
+		(*JsonTimeSourceObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreSystemTimeSource, CountdownDuration), JsonCountdown);
+		SetCountdownDuration(JsonCountdown);
+
+		double JsonMode = static_cast<double>(Mode);
+		(*JsonTimeSourceObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreSystemTimeSource, Mode), JsonMode);
+		SetMode(static_cast<EPropertyAnimatorCoreSystemMode>(JsonMode));
+
+		return true;
+	}
+
+	return false;
+}
+
+bool UPropertyAnimatorCoreSystemTimeSource::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue)
+{
+	TSharedPtr<FJsonObject>* JsonTimeSourceObject = nullptr;
+
+	if (Super::ExportPreset(InPreset, OutValue) && OutValue->TryGetObject(JsonTimeSourceObject))
+	{
+		(*JsonTimeSourceObject)->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreSystemTimeSource, Mode), static_cast<double>(Mode));
+		(*JsonTimeSourceObject)->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreSystemTimeSource, CountdownDuration), CountdownDuration);
+
+		return true;
+	}
+
+	return false;
 }
 
 void UPropertyAnimatorCoreSystemTimeSource::SetMode(EPropertyAnimatorCoreSystemMode InMode)

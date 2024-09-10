@@ -126,6 +126,7 @@ public:
 
 protected:
 	FString FormatNumber(double InNumber) const;
+	const FPropertyAnimatorCounterFormat* GetFormat() const;
 
 	//~ Begin UObject
 #if WITH_EDITOR
@@ -136,6 +137,8 @@ protected:
 	//~ Begin UPropertyAnimatorCoreBase
 	virtual void OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata) override;
 	virtual void EvaluateProperties(FInstancedPropertyBag& InParameters) override;
+	virtual bool ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue) override;
+	virtual bool ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue) override;
 	//~ End UPropertyAnimatorCoreBase
 
 	UFUNCTION()
@@ -152,7 +155,7 @@ protected:
 	void OnUseCustomFormatChanged();
 	void OnCustomFormatChanged();
 
-	/** Display pattern for the output, use {0} as replacement symbol */
+	/** Display pattern for the output to add prefix and suffix, use {0} as replacement symbol */
 	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator")
 	FText DisplayPattern = FText::FromString(TEXT("{0}"));
 

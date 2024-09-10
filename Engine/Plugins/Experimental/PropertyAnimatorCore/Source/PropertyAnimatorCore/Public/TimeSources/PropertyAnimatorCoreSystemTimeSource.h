@@ -32,11 +32,6 @@ public:
 		: UPropertyAnimatorCoreTimeSourceBase(TEXT("System"))
 	{}
 
-	//~ Begin UPropertyAnimatorTimeSourceBase
-	virtual bool UpdateEvaluationData(FPropertyAnimatorCoreTimeSourceEvaluationData& OutData) override;
-	virtual void OnTimeSourceActive() override;
-	//~ End UPropertyAnimatorTimeSourceBase
-
 	void SetMode(EPropertyAnimatorCoreSystemMode InMode);
 	EPropertyAnimatorCoreSystemMode GetMode() const
 	{
@@ -63,6 +58,13 @@ protected:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
 #endif
 	//~ End UObject
+
+	//~ Begin UPropertyAnimatorTimeSourceBase
+	virtual bool UpdateEvaluationData(FPropertyAnimatorCoreTimeSourceEvaluationData& OutData) override;
+	virtual void OnTimeSourceActive() override;
+	virtual bool ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue) override;
+	virtual bool ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue) override;
+	//~ End UPropertyAnimatorTimeSourceBase
 
 	void OnModeChanged();
 

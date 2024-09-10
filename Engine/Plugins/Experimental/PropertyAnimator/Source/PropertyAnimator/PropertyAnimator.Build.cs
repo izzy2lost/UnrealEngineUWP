@@ -24,6 +24,7 @@ public class PropertyAnimator : ModuleRules
 				"CoreUObject",
 				"DeveloperSettings",
 				"Engine",
+				"Json",
 				"MovieSceneTracks",
 				"Text3D"
 			});

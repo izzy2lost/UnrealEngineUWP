@@ -3,6 +3,8 @@
 #include "Properties/PropertyAnimatorVectorContext.h"
 
 #include "Animators/PropertyAnimatorCoreBase.h"
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
 
 void UPropertyAnimatorVectorContext::SetAmplitudeMin(const FVector& InAmplitude)
 {
@@ -85,6 +87,45 @@ void UPropertyAnimatorVectorContext::OnAnimatedPropertyLinked()
 		}
 	}
 #endif
+}
+
+bool UPropertyAnimatorVectorContext::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue)
+{
+	TSharedPtr<FJsonObject>* JsonObject = nullptr;
+
+	if (Super::ImportPreset(InPreset, InValue) && InValue->TryGetObject(JsonObject))
+	{
+		FString JsonAmplitudeMin = AmplitudeMin.ToString();
+		(*JsonObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorVectorContext, AmplitudeMin), JsonAmplitudeMin);
+		FVector ParseAmplitudeMin;
+		ParseAmplitudeMin.InitFromString(JsonAmplitudeMin);
+		SetAmplitudeMin(ParseAmplitudeMin);
+
+		FString JsonAmplitudeMax = AmplitudeMax.ToString();
+		(*JsonObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorVectorContext, AmplitudeMax), JsonAmplitudeMax);
+		FVector ParseAmplitudeMax;
+		ParseAmplitudeMax.InitFromString(JsonAmplitudeMax);
+		SetAmplitudeMax(ParseAmplitudeMax);
+
+		return true;
+	}
+
+	return false;
+}
+
+bool UPropertyAnimatorVectorContext::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue)
+{
+	TSharedPtr<FJsonObject>* JsonObject = nullptr;
+
+	if (Super::ExportPreset(InPreset, OutValue) && OutValue->TryGetObject(JsonObject))
+	{
+		(*JsonObject)->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorVectorContext, AmplitudeMin), AmplitudeMin.ToString());
+		(*JsonObject)->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorVectorContext, AmplitudeMax), AmplitudeMax.ToString());
+
+		return true;
+	}
+
+	return false;
 }
 
 FVector UPropertyAnimatorVectorContext::GetClampedAmplitude(FVector InAmplitude)

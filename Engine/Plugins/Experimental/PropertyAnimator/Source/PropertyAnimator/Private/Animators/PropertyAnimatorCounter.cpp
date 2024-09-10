@@ -2,6 +2,8 @@
 
 #include "Animators/PropertyAnimatorCounter.h"
 
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
 #include "Properties/Converters/PropertyAnimatorCoreConverterBase.h"
 #include "Settings/PropertyAnimatorSettings.h"
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
@@ -182,25 +184,27 @@ FString UPropertyAnimatorCounter::FormatNumber(double InNumber) const
 {
 	FText Output = FText::GetEmpty();
 
-	if (!bUseCustomFormat)
+	if (const FPropertyAnimatorCounterFormat* Format = GetFormat())
 	{
-		if (const UPropertyAnimatorSettings* AnimatorSettings = GetDefault<UPropertyAnimatorSettings>())
-		{
-			if (const FPropertyAnimatorCounterFormat* Format = AnimatorSettings->GetCounterFormat(PresetFormatName))
-			{
-				Output = FText::Format(DisplayPattern, FText::FromString(Format->FormatNumber(InNumber)));
-			}
-		}
-	}
-	else
-	{
-		if (const FPropertyAnimatorCounterFormat* Format = CustomFormat.GetPtr<FPropertyAnimatorCounterFormat>())
-		{
-			Output = FText::Format(DisplayPattern, FText::FromString(Format->FormatNumber(InNumber)));
-		}
+		Output = FText::Format(DisplayPattern, FText::FromString(Format->FormatNumber(InNumber)));
 	}
 
 	return Output.ToString();
+}
+
+const FPropertyAnimatorCounterFormat* UPropertyAnimatorCounter::GetFormat() const
+{
+	if (bUseCustomFormat)
+	{
+		return CustomFormat.GetPtr<FPropertyAnimatorCounterFormat>();
+	}
+
+	if (const UPropertyAnimatorSettings* AnimatorSettings = GetDefault<UPropertyAnimatorSettings>())
+	{
+		return AnimatorSettings->GetCounterFormat(PresetFormatName);
+	}
+
+	return nullptr;
 }
 
 #if WITH_EDITOR
@@ -277,6 +281,78 @@ void UPropertyAnimatorCounter::EvaluateProperties(FInstancedPropertyBag& InParam
 
 		return true;
 	});
+}
+
+bool UPropertyAnimatorCounter::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue)
+{
+	const TSharedPtr<FJsonObject>* JsonAnimatorObject;
+
+	if (Super::ImportPreset(InPreset, InValue) && InValue->TryGetObject(JsonAnimatorObject))
+	{
+		FString JsonDisplayPattern = DisplayPattern.ToString();
+		(*JsonAnimatorObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCounter, DisplayPattern), JsonDisplayPattern);
+		SetDisplayPattern(FText::FromString(JsonDisplayPattern));
+
+		FString JsonPresetFormatNameStr = PresetFormatName.ToString();
+		(*JsonAnimatorObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCounter, PresetFormatName), JsonPresetFormatNameStr);
+		FName JsonPresetFormatName(JsonPresetFormatNameStr);
+		SetPresetFormatName(JsonPresetFormatName);
+
+		if (!PresetFormatName.IsEqual(JsonPresetFormatName))
+		{
+			FPropertyAnimatorCounterFormat Format;
+			Format.FormatName = JsonPresetFormatName;
+
+			(*JsonAnimatorObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, MinIntegerCount), Format.MinIntegerCount);
+			(*JsonAnimatorObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, MaxDecimalCount), Format.MaxDecimalCount);
+			(*JsonAnimatorObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, GroupingSize), Format.GroupingSize);
+			(*JsonAnimatorObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, DecimalCharacter), Format.DecimalCharacter);
+			(*JsonAnimatorObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, GroupingCharacter), Format.GroupingCharacter);
+			(*JsonAnimatorObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, PaddingCharacter), Format.PaddingCharacter);
+
+			uint8 JsonRoundingMode = static_cast<uint8>(Format.RoundingMode);
+			(*JsonAnimatorObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, RoundingMode), JsonRoundingMode);
+			Format.RoundingMode = static_cast<EPropertyAnimatorCounterRoundingMode>(JsonRoundingMode);
+
+			(*JsonAnimatorObject)->TryGetBoolField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, bUseSign), Format.bUseSign);
+			(*JsonAnimatorObject)->TryGetBoolField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, bTruncate), Format.bTruncate);
+
+			SetUseCustomFormat(true);
+			SetCustomFormat(&Format);
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
+bool UPropertyAnimatorCounter::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue)
+{
+	const TSharedPtr<FJsonObject>* JsonAnimatorObject;
+
+	if (Super::ExportPreset(InPreset, OutValue) && OutValue->TryGetObject(JsonAnimatorObject))
+	{
+		(*JsonAnimatorObject)->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCounter, DisplayPattern), DisplayPattern.ToString());
+
+		if (const FPropertyAnimatorCounterFormat* Format = GetFormat())
+		{
+			(*JsonAnimatorObject)->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCounter, PresetFormatName), bUseCustomFormat ? Format->FormatName.ToString() : PresetFormatName.ToString());
+			(*JsonAnimatorObject)->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, MinIntegerCount), Format->MinIntegerCount);
+			(*JsonAnimatorObject)->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, MaxDecimalCount), Format->MaxDecimalCount);
+			(*JsonAnimatorObject)->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, GroupingSize), Format->GroupingSize);
+			(*JsonAnimatorObject)->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, DecimalCharacter), Format->DecimalCharacter);
+			(*JsonAnimatorObject)->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, GroupingCharacter), Format->GroupingCharacter);
+			(*JsonAnimatorObject)->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, PaddingCharacter), Format->PaddingCharacter);
+			(*JsonAnimatorObject)->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, RoundingMode), static_cast<uint8>(Format->RoundingMode));
+			(*JsonAnimatorObject)->SetBoolField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, bUseSign), Format->bUseSign);
+			(*JsonAnimatorObject)->SetBoolField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, bTruncate), Format->bTruncate);
+		}
+
+		return true;
+	}
+
+	return false;
 }
 
 TArray<FName> UPropertyAnimatorCounter::GetAvailableFormatNames() const

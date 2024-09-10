@@ -3,6 +3,8 @@
 #include "Properties/PropertyAnimatorRotatorContext.h"
 
 #include "Animators/PropertyAnimatorCoreBase.h"
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
 
 void UPropertyAnimatorRotatorContext::SetAmplitudeMin(const FRotator& InAmplitude)
 {
@@ -85,6 +87,45 @@ void UPropertyAnimatorRotatorContext::OnAnimatedPropertyLinked()
 		}
 	}
 #endif
+}
+
+bool UPropertyAnimatorRotatorContext::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue)
+{
+	TSharedPtr<FJsonObject>* JsonObject = nullptr;
+
+	if (Super::ImportPreset(InPreset, InValue) && InValue->TryGetObject(JsonObject))
+	{
+		FString JsonAmplitudeMin = AmplitudeMin.ToString();
+		(*JsonObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorRotatorContext, AmplitudeMin), JsonAmplitudeMin);
+		FRotator ParseAmplitudeMin;
+		ParseAmplitudeMin.InitFromString(JsonAmplitudeMin);
+		SetAmplitudeMin(ParseAmplitudeMin);
+
+		FString JsonAmplitudeMax = AmplitudeMax.ToString();
+		(*JsonObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorRotatorContext, AmplitudeMax), JsonAmplitudeMax);
+		FRotator ParseAmplitudeMax;
+		ParseAmplitudeMax.InitFromString(JsonAmplitudeMax);
+		SetAmplitudeMax(ParseAmplitudeMax);
+
+		return true;
+	}
+
+	return false;
+}
+
+bool UPropertyAnimatorRotatorContext::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue)
+{
+	TSharedPtr<FJsonObject>* JsonObject = nullptr;
+
+	if (Super::ExportPreset(InPreset, OutValue) && OutValue->TryGetObject(JsonObject))
+	{
+		(*JsonObject)->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorRotatorContext, AmplitudeMin), AmplitudeMin.ToString());
+		(*JsonObject)->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorRotatorContext, AmplitudeMax), AmplitudeMax.ToString());
+
+		return true;
+	}
+
+	return false;
 }
 
 FRotator UPropertyAnimatorRotatorContext::GetClampedAmplitude(FRotator InAmplitude)

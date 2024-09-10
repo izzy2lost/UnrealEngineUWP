@@ -3,6 +3,8 @@
 #include "Properties/PropertyAnimatorFloatContext.h"
 
 #include "Animators/PropertyAnimatorCoreBase.h"
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
 
 void UPropertyAnimatorFloatContext::SetAmplitudeMin(double InAmplitude)
 {
@@ -85,6 +87,41 @@ void UPropertyAnimatorFloatContext::OnAnimatedPropertyLinked()
 		}
 	}
 #endif
+}
+
+bool UPropertyAnimatorFloatContext::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue)
+{
+	TSharedPtr<FJsonObject>* JsonObject = nullptr;
+
+	if (Super::ImportPreset(InPreset, InValue) && InValue->TryGetObject(JsonObject))
+	{
+		double JsonAmplitudeMin = AmplitudeMin;
+		(*JsonObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorFloatContext, AmplitudeMin), JsonAmplitudeMin);
+		SetAmplitudeMin(JsonAmplitudeMin);
+
+		double JsonAmplitudeMax = AmplitudeMax;
+		(*JsonObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorFloatContext, AmplitudeMax), JsonAmplitudeMax);
+		SetAmplitudeMax(JsonAmplitudeMax);
+
+		return true;
+	}
+
+	return false;
+}
+
+bool UPropertyAnimatorFloatContext::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue)
+{
+	TSharedPtr<FJsonObject>* JsonObject = nullptr;
+
+	if (Super::ExportPreset(InPreset, OutValue) && OutValue->TryGetObject(JsonObject))
+	{
+		(*JsonObject)->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorFloatContext, AmplitudeMin), AmplitudeMin);
+		(*JsonObject)->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorFloatContext, AmplitudeMax), AmplitudeMax);
+
+		return true;
+	}
+
+	return false;
 }
 
 double UPropertyAnimatorFloatContext::GetClampedAmplitude(double InAmplitude)
