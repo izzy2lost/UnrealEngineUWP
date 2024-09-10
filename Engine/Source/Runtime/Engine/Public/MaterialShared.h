@@ -1183,7 +1183,7 @@ public:
 	ENGINE_API void SetShaderDependencies(const TArray<FShaderType*>& ShaderTypes, const TArray<const FShaderPipelineType*>& ShaderPipelineTypes, const TArray<FVertexFactoryType*>& VFTypes, EShaderPlatform ShaderPlatform);
 #endif
 
-	void Serialize(FArchive& Ar, bool bLoadedByCookedMaterial);
+	void Serialize(FArchive& Ar, bool bLoadingCooked);
 
 	bool IsCookedId() const
 	{
@@ -1368,8 +1368,6 @@ private:
 		inline const FHashedName& operator()(const FMeshMaterialShaderMap* InShaderMap) { return InShaderMap->GetVertexFactoryTypeName(); }
 	};
 
-	//void Serialize(FArchive& Ar, bool bInlineShaderResources, bool bLoadedByCookedMaterial);
-
 	ENGINE_API const FMeshMaterialShaderMap* GetMeshShaderMap(const FHashedName& VertexFactoryTypeName) const;
 	ENGINE_API FMeshMaterialShaderMap* AcquireMeshShaderMap(const FHashedName& VertexFactoryTypeName);
 
@@ -1538,15 +1536,17 @@ public:
 	ENGINE_API void AddRef();
 	ENGINE_API void Release();
 
-	/** Serializes the shader map. */
-	UE_DEPRECATED(5.5, "Inlining of shader code into shadermaps is no longer supported. If you rely on this please reach out to the UE rendering team.")
-	// note: FSerializationContext param in the below overload can be defaulted once this is removed, to avoid a bunch of explicit instantiations of FSerializationContext in various callsites
-	bool Serialize(FArchive& Ar, bool bInlineShaderResources = true, bool bLoadedByCookedMaterial = false, bool bInlineShaderCode = false, const FName& SerializingAsset = NAME_None)
+	UE_DEPRECATED(5.5, "Please use overload accepting an FShaderSerializeContext. Note that inlining of shader code into runtime shadermaps is no longer supported. If you rely on this please reach out to the UE rendering team.")
+	bool Serialize(FArchive& Ar, bool bInlineShaderResources = true, bool bLoadingCooked = false, bool bInlineShaderCode = false, const FName& SerializingAsset = NAME_None)
 	{
-		return Serialize(Ar, { bLoadedByCookedMaterial, SerializingAsset });
+		FShaderSerializeContext Ctx(Ar);
+		Ctx.bLoadingCooked = bLoadingCooked;
+		Ctx.SerializingAsset = SerializingAsset;
+		return Serialize(Ctx);
 	}
 
-	bool Serialize(FArchive& Ar, const FShaderMapBase::FSerializationContext& Ctx);
+	/** Serializes the shader map. */
+	bool Serialize(FShaderSerializeContext& Ctx);
 
 #if WITH_EDITOR
 	/** Saves this shader map to the derived data cache. */
@@ -2097,7 +2097,7 @@ public:
 	void SerializeInlineShaderMap(FArchive& Ar, const FName& SerializingAsset = NAME_None);
 
 	/** Serializes the shader map inline in this material, including any shader dependencies. */
-	void RegisterInlineShaderMap(bool bLoadedByCookedMaterial);
+	void RegisterInlineShaderMap(bool bLoadingCooked);
 
 	/** Releases this material's shader map.  Must only be called on materials not exposed to the rendering thread! */
 	void ReleaseShaderMap();

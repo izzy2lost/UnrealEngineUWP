@@ -52,6 +52,7 @@
 #include "Serialization/CompactBinarySerialization.h"
 #include "Serialization/CompactBinaryWriter.h"
 #include "Serialization/MemoryReader.h"
+#include "ShaderSerialization.h"
 #endif
 
 CSV_DECLARE_CATEGORY_MODULE_EXTERN(RENDERCORE_API, Shaders);
@@ -972,7 +973,7 @@ void FSubstrateCompilationConfig::Serialize(FArchive& Ar)
 }
 #endif
 
-void FMaterialShaderMapId::Serialize(FArchive& Ar, bool bLoadedByCookedMaterial)
+void FMaterialShaderMapId::Serialize(FArchive& Ar, bool bLoadingCooked)
 {
 	SCOPED_LOADTIMER(FMaterialShaderMapId_Serialize);
 
@@ -992,9 +993,9 @@ void FMaterialShaderMapId::Serialize(FArchive& Ar, bool bLoadedByCookedMaterial)
 
 #if WITH_EDITOR
 	const bool bIsSavingCooked = Ar.IsSaving() && Ar.IsCooking();
-	bIsCookedId = bLoadedByCookedMaterial;
+	bIsCookedId = bLoadingCooked;
 
-	if (!bIsSavingCooked && !bLoadedByCookedMaterial)
+	if (!bIsSavingCooked && !bLoadingCooked)
 	{
 		uint32 UsageInt = Usage;
 		Ar << UsageInt;
@@ -1022,7 +1023,7 @@ void FMaterialShaderMapId::Serialize(FArchive& Ar, bool bLoadedByCookedMaterial)
 	}
 
 #if WITH_EDITOR
-	if (!bIsSavingCooked && !bLoadedByCookedMaterial)
+	if (!bIsSavingCooked && !bLoadingCooked)
 	{
 		if (Ar.CustomVer(FRenderingObjectVersion::GUID) < FRenderingObjectVersion::MaterialShaderMapIdSerialization)
 		{
@@ -1832,13 +1833,12 @@ TSharedRef<FMaterialShaderMap::FAsyncLoadContext> FMaterialShaderMap::BeginLoadF
 
 	struct FMaterialShaderMapAsyncLoadContext : public FMaterialShaderMap::FAsyncLoadContext
 	{
-		FString	         DataKey;
-		FSharedBuffer    CachedData;
-		FIoHash          CachedDataHash;
-		EShaderPlatform  Platform;
-		const FMaterial* Material = nullptr;
-		FRequestOwner    RequestOwner{UE::DerivedData::EPriority::Normal};
-		TRefCountPtr<FMaterialShaderMap> ShaderMap;
+		FString								DataKey;
+		FShaderCacheLoadContext				LoadContext;
+		EShaderPlatform						Platform;
+		const FMaterial*					Material = nullptr;
+		FRequestOwner						RequestOwner{UE::DerivedData::EPriority::Normal};
+		TRefCountPtr<FMaterialShaderMap>	ShaderMap;
 
 		bool IsReady() const override
 		{
@@ -1858,16 +1858,17 @@ TSharedRef<FMaterialShaderMap::FAsyncLoadContext> FMaterialShaderMap::BeginLoadF
 			TRACE_CPUPROFILER_EVENT_SCOPE(FMaterialShaderMap::FinishLoadFromDerivedDataCache);
 			COOK_STAT(auto Timer = MaterialShaderCookStats::UsageStats.TimeSyncWork());
 
-			if (CachedData)
+			if (LoadContext)
 			{
 				TRACE_COUNTER_INCREMENT(Shaders_FMaterialShaderMapDDCHits);
-				TRACE_COUNTER_ADD(Shaders_FMaterialShaderMapDDCBytesReceived, int64(CachedData.GetSize()));
-				COOK_STAT(Timer.AddHit(int64(CachedData.GetSize())));
-				ShaderMap = new FMaterialShaderMap();
-				FMemoryReaderView Ar(CachedData, /*bIsPersistent*/ true);
 
+				int64 BytesReceived = LoadContext.GetSerializedSize();
+				TRACE_COUNTER_ADD(Shaders_FMaterialShaderMapDDCBytesReceived, BytesReceived);
+				COOK_STAT(Timer.AddHit(BytesReceived));
+
+				ShaderMap = new FMaterialShaderMap();
 				// Deserialize from the cached data
-				ShaderMap->Serialize(Ar, FShaderMapBase::FSerializationContext{});
+				ShaderMap->Serialize(LoadContext);
 
 				check(Material != nullptr);
 
@@ -1877,7 +1878,7 @@ TSharedRef<FMaterialShaderMap::FAsyncLoadContext> FMaterialShaderMap::BeginLoadF
 				{
 					UE_LOG(LogMaterial, Warning, TEXT("Shader map key recomputed from DDC data: %s"), *InDataKey);
 					UE_LOG(LogMaterial, Warning, TEXT("Shader map key from request: %s"), *DataKey);
-					UE_LOG(LogMaterial, Warning, TEXT("Cached data size %llu, hash %s"), CachedData.GetSize(), *LexToString(CachedDataHash))
+					UE_LOG(LogMaterial, Warning, TEXT("Cached data size %llu"), BytesReceived);
 					checkf(false, TEXT("DDC key constructed from deserialized shadermap does not match request key!"));
 				}
 
@@ -1958,23 +1959,26 @@ TSharedRef<FMaterialShaderMap::FAsyncLoadContext> FMaterialShaderMap::BeginLoadF
 			//   - since the get call is synchronous, this can cause a hitch if there's network latency
 			if (Material->IsPersistent())
 			{
-				FCacheGetValueRequest Request;
+				FCacheGetRequest Request;
 				Request.Name = GetMaterialShaderMapName(Material->GetFullPath(), ShaderMapId, InPlatform);
 				Request.Key = GetMaterialShaderMapKey(Result->DataKey);
 				Result->Material = Material;
 				Result->Platform = InPlatform;
 
-				GetCache().GetValue({Request}, Result->RequestOwner, [Result, bCheckCache](FCacheGetValueResponse&& Response)
-				{
-					if (bCheckCache)
+				GetCache().Get({ Request }, Result->RequestOwner, [Result, bCheckCache](FCacheGetResponse&& Response)
 					{
-						Result->CachedData = Response.Value.GetData().Decompress();
-						Result->CachedDataHash = Response.Value.GetRawHash();
-						// This callback might hold the last reference to Result, which owns RequestOwner, so
-						// we must not cancel in the Owner's destructor; Canceling in a callback will deadlock.
-						Result->RequestOwner.KeepAlive();
-					}
-				});
+						if (bCheckCache)
+						{
+							if (Response.Status == EStatus::Ok)
+							{
+								Result->LoadContext.ReadFromRecord(Response.Record, /* bIsPersisent */ true);
+							}
+
+							// This callback might hold the last reference to Result, which owns RequestOwner, so
+							// we must not cancel in the Owner's destructor; Canceling in a callback will deadlock.
+							Result->RequestOwner.KeepAlive();
+						}
+					});
 			}
 		}
 		INC_FLOAT_STAT_BY(STAT_ShaderCompiling_DDCLoading,(float)MaterialDDCTime);
@@ -1987,28 +1991,24 @@ void FMaterialShaderMap::SaveToDerivedDataCache(const FMaterialShaderParameters&
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FMaterialShaderMap::SaveToDerivedDataCache);
 	COOK_STAT(auto Timer = MaterialShaderCookStats::UsageStats.TimeSyncWork());
-	TArray64<uint8> SaveData;
-	FMemoryWriter64 Ar(SaveData, true);
-	Serialize(Ar, FShaderMapBase::FSerializationContext{});
 
-	TRACE_COUNTER_ADD(Shaders_FMaterialShaderMapDDCBytesSent, SaveData.Num());
-	COOK_STAT(Timer.AddMiss(SaveData.Num()));
+	FShaderCacheSaveContext Ctx;
+	Serialize(Ctx);
 
 	const FString DataKey = GetMaterialShaderMapKeyString(ShaderMapId, ShaderParameters, GetShaderPlatform());
 
 	using namespace UE::DerivedData;
-	FCachePutValueRequest Request;
-	Request.Name = GetMaterialShaderMapName(GetMaterialPath(), ShaderMapId, GetShaderPlatform());
-	Request.Key = GetMaterialShaderMapKey(DataKey);
+	FCacheKey Key = GetMaterialShaderMapKey(DataKey);
 
-	UE_LOG(LogMaterial, Verbose, TEXT("Saved shaders for %s to DDC (key hash: %s)"), *Request.Name, *LexToString(Request.Key.Hash));
-	UE_LOG(LogMaterial, VeryVerbose, TEXT("Full DDC data key for %s: %s"), *Request.Name, *DataKey);
+	UE::FSharedString RequestName = GetMaterialShaderMapName(GetMaterialPath(), ShaderMapId, GetShaderPlatform());
+	UE_LOG(LogMaterial, Verbose, TEXT("Saved shaders for %s to DDC (key hash: %s)"), *RequestName, *LexToString(Key.Hash));
+	UE_LOG(LogMaterial, VeryVerbose, TEXT("Full DDC data key for %s: %s"), *RequestName, *DataKey);
 
 	if (!CVarMaterialShaderMapDump->GetString().IsEmpty() && CVarMaterialShaderMapDump->GetString() == GetMaterialPath())
 	{
 		TStringBuilder<256> Path;
 		FPathViews::Append(Path, FPaths::ProjectSavedDir(), TEXT("MaterialShaderMaps"), TEXT(""));
-		Path << Request.Key.Hash << ".txt";
+		Path << Key.Hash << ".txt";
 		FArchive* DumpAr = IFileManager::Get().CreateFileWriter(*Path, FILEWRITE_Silent);
 		if (DumpAr)
 		{
@@ -2017,10 +2017,14 @@ void FMaterialShaderMap::SaveToDerivedDataCache(const FMaterialShaderParameters&
 		}
 	}
 
-	Request.Value = FValue::Compress(MakeSharedBufferFromArray(MoveTemp(SaveData)));
 	FRequestOwner AsyncOwner(EPriority::Normal);
 	FRequestBarrier AsyncBarrier(AsyncOwner);
-	GetCache().PutValue({Request}, AsyncOwner);
+	GetCache().Put({ { RequestName, Ctx.BuildCacheRecord(Key) } }, AsyncOwner);
+
+	uint64 SerializedSize = Ctx.GetSerializedSize();
+	TRACE_COUNTER_ADD(Shaders_FMaterialShaderMapDDCBytesSent, SerializedSize);
+	COOK_STAT(Timer.AddMiss(SerializedSize));
+
 	AsyncOwner.KeepAlive();
 }
 #endif // WITH_EDITOR
@@ -2048,7 +2052,8 @@ void FMaterialShaderMap::SaveForRemoteRecompile(FArchive& Ar, const TMap<FString
 			{
 				uint8 bIsValid = 1;
 				Ar << bIsValid;
-				ShaderMap->Serialize(Ar, FShaderMapBase::FSerializationContext{});
+				FShaderSerializeContext Ctx(Ar);
+				ShaderMap->Serialize(Ctx);
 			}
 			else
 			{
@@ -2100,7 +2105,8 @@ void FMaterialShaderMap::LoadForRemoteRecompile(FArchive& Ar, EShaderPlatform Sh
 				TRefCountPtr<FMaterialShaderMap> ShaderMap = new FMaterialShaderMap();
 
 				// serialize the id and the material shader map
-				ShaderMap->Serialize(Ar, FShaderMapBase::FSerializationContext{});
+				FShaderSerializeContext Ctx(Ar);
+				ShaderMap->Serialize(Ctx);
 
 				LoadedShaderMapsDictionary.Add(ShaderMap->GetShaderMapId(), ShaderMap);
 				MaterialShaderMapData.LoadedShaderMapsIds.Add(ShaderMap->GetShaderMapId());
@@ -3589,14 +3595,15 @@ FMaterialShaderMap* FMaterialShaderMap::GetFinalizedClone() const
 }
 #endif // WITH_EDITOR
 
-bool FMaterialShaderMap::Serialize(FArchive& Ar, const FShaderMapBase::FSerializationContext& Ctx)
+bool FMaterialShaderMap::Serialize(FShaderSerializeContext& Ctx)
 {
 	SCOPED_LOADTIMER(FMaterialShaderMap_Serialize);
 	// Note: This is saved to the DDC, not into packages (except when cooked)
 	// Backwards compatibility therefore will not work based on the version of Ar
 	// Instead, just bump MATERIALSHADERMAP_DERIVEDDATA_VER
-	ShaderMapId.Serialize(Ar, Ctx.bLoadedByCookedMaterial);
-	bool bSerialized = Super::Serialize(Ar, Ctx);
+	FArchive& Ar = Ctx.GetMainArchive();
+	ShaderMapId.Serialize(Ar, Ctx.bLoadingCooked);
+	bool bSerialized = Super::Serialize(Ctx);
 #if STATS
 	// This is an unsavory hack to repair STAT_Shaders_NumShadersLoaded not being calculated right in the superclass because the Content class isn't allowed to have virtual functions atm.
 	// A better way is tracked in UE-127112

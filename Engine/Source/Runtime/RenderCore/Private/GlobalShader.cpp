@@ -6,14 +6,15 @@
 
 #include "GlobalShader.h"
 
+#include "Containers/StaticBitArray.h"
 #include "Interfaces/ITargetPlatform.h"
+#include "Interfaces/ITargetPlatformManagerModule.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Misc/CoreMisc.h"
 #include "Misc/Paths.h"
 #include "Serialization/MemoryWriter.h"
-#include "Misc/CoreMisc.h"
-#include "Misc/ConfigCacheIni.h"
-#include "Interfaces/ITargetPlatformManagerModule.h"
-#include "Containers/StaticBitArray.h"
 #include "ShaderCodeLibrary.h"
+#include "ShaderSerialization.h"
 
 /** The global shader map. */
 FGlobalShaderMap* GGlobalShaderMap[SP_NumPlatforms] = {};
@@ -538,7 +539,8 @@ FGlobalShaderMap* GetGlobalShaderMap(EShaderPlatform Platform)
 FGlobalShaderMapSection* FGlobalShaderMapSection::CreateFromArchive(FArchive& Ar)
 {
 	FGlobalShaderMapSection* Section = new FGlobalShaderMapSection();
-	if (Section->Serialize(Ar))
+	FShaderSerializeContext Ctx(Ar);
+	if (Section->Serialize(Ctx))
 	{
 		return Section;
 	}
@@ -546,9 +548,22 @@ FGlobalShaderMapSection* FGlobalShaderMapSection::CreateFromArchive(FArchive& Ar
 	return nullptr;
 }
 
-bool FGlobalShaderMapSection::Serialize(FArchive& Ar)
+#if WITH_EDITOR
+FGlobalShaderMapSection* FGlobalShaderMapSection::CreateFromCache(FShaderCacheLoadContext& Ctx)
 {
-	return Super::Serialize(Ar, FShaderMapBase::FSerializationContext());
+	FGlobalShaderMapSection* Section = new FGlobalShaderMapSection();
+	if (Section->Serialize(Ctx))
+	{
+		return Section;
+	}
+	delete Section;
+	return nullptr;
+}
+#endif
+
+bool FGlobalShaderMapSection::Serialize(FShaderSerializeContext& Ctx)
+{
+	return Super::Serialize(Ctx);
 }
 
 TShaderRef<FShader> FGlobalShaderMapSection::GetShader(FShaderType* ShaderType, int32 PermutationId) const
@@ -766,7 +781,8 @@ void FGlobalShaderMap::SaveToGlobalArchive(FArchive& Ar)
 
 	for (const auto& It : SectionMap)
 	{
-		It.Value->Serialize(Ar);
+		FShaderSerializeContext Ctx(Ar);
+		It.Value->Serialize(Ctx);
 	}
 }
 

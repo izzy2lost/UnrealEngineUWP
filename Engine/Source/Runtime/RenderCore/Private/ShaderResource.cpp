@@ -5,22 +5,22 @@
 =============================================================================*/
 
 #include "Shader.h"
+#include "Compression/OodleDataCompression.h"
+#include "DataDrivenShaderPlatformInfo.h"
 #include "Misc/Compression.h"
 #include "Misc/CoreMisc.h"
 #include "Misc/StringBuilder.h"
 #include "Interfaces/ITargetPlatform.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "Interfaces/IShaderFormat.h"
-#include "RHI.h"
-#include "ShaderCore.h"
+#include "Misc/MemStack.h"
 #include "Misc/ScopeLock.h"
 #include "RenderingThread.h"
-#include "UObject/RenderingObjectVersion.h"
-#include "Misc/MemStack.h"
-#include "ShaderCompilerCore.h"
-#include "Compression/OodleDataCompression.h"
+#include "RHI.h"
 #include "RHIResources.h"	// Access to FRHIRayTracingShader::RayTracingPayloadType requires this
-#include "DataDrivenShaderPlatformInfo.h"
+#include "ShaderCompilerCore.h"
+#include "ShaderCore.h"
+#include "UObject/RenderingObjectVersion.h"
 
 #if WITH_EDITORONLY_DATA
 #include "Interfaces/IShaderFormat.h"
@@ -177,7 +177,7 @@ static void ApplyResourceStats(FShaderMapResourceCode& Resource)
 {
 #if STATS
 	INC_DWORD_STAT_BY(STAT_Shaders_ShaderResourceMemory, Resource.GetSizeBytes());
-	for (const FShaderMapResourceCode::FShaderEntry& Shader : Resource.ShaderEntries)
+	for (const FShaderCodeResource& Shader : Resource.ShaderCodeResources)
 	{
 		INC_DWORD_STAT_BY_FName(GetMemoryStatType(Shader.Frequency).GetName(), Shader.Code.Num());
 	}
@@ -188,7 +188,7 @@ static void RemoveResourceStats(FShaderMapResourceCode& Resource)
 {
 #if STATS
 	DEC_DWORD_STAT_BY(STAT_Shaders_ShaderResourceMemory, Resource.GetSizeBytes());
-	for (const FShaderMapResourceCode::FShaderEntry& Shader : Resource.ShaderEntries)
+	for (const FShaderCodeResource& Shader : Resource.ShaderCodeResources)
 	{
 		DEC_DWORD_STAT_BY_FName(GetMemoryStatType(Shader.Frequency).GetName(), Shader.Code.Num());
 	}
@@ -199,17 +199,19 @@ FShaderMapResourceCode::FShaderMapResourceCode(const FShaderMapResourceCode& Oth
 {
 	ResourceHash = Other.ResourceHash;
 	ShaderHashes = Other.ShaderHashes;
-	ShaderEntries = Other.ShaderEntries;
+	ShaderCodeResources = Other.ShaderCodeResources;
 
 #if WITH_EDITORONLY_DATA
 	ShaderEditorOnlyDataEntries = Other.ShaderEditorOnlyDataEntries;
 #endif // WITH_EDITORONLY_DATA
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FShaderMapResourceCode::~FShaderMapResourceCode()
 {
 	RemoveResourceStats(*this);
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FShaderMapResourceCode::Finalize()
 {
@@ -226,8 +228,8 @@ void FShaderMapResourceCode::Finalize()
 
 uint32 FShaderMapResourceCode::GetSizeBytes() const
 {
-	uint64 Size = sizeof(*this) + ShaderHashes.GetAllocatedSize() + ShaderEntries.GetAllocatedSize();
-	for (const FShaderEntry& Entry : ShaderEntries)
+	uint64 Size = sizeof(*this) + ShaderHashes.GetAllocatedSize() + ShaderCodeResources.GetAllocatedSize();
+	for (const FShaderCodeResource& Entry : ShaderCodeResources)
 	{
 		Size += Entry.Code.GetAllocatedSize();
 	}
@@ -245,7 +247,6 @@ void FShaderMapResourceCode::AddShaderCompilerOutput(const FShaderCompilerOutput
 	TRACE_CPUPROFILER_EVENT_SCOPE(FShaderMapResourceCode::AddShaderCode);
 
 	const FSHAHash& InHash = Output.OutputHash;
-	const FShaderCode& InCode = Output.ShaderCode;
 	const int32 Index = Algo::LowerBound(ShaderHashes, InHash);
 	if (Index >= ShaderHashes.Num() || ShaderHashes[Index] != InHash)
 	{
@@ -256,66 +257,9 @@ void FShaderMapResourceCode::AddShaderCompilerOutput(const FShaderCompilerOutput
 		AddEditorOnlyData(Index, DebugName, Output.PlatformDebugData, Output.Errors, Output.ShaderStatistics, DebugInfo);
 #endif
 
-		FShaderEntry& Entry = ShaderEntries.InsertDefaulted_GetRef(Index);
-		Entry.Frequency = Output.Target.GetFrequency();
-		const TArray<uint8>& ShaderCode = InCode.GetReadAccess();
-
-		FName ShaderCompressionFormat = GetShaderCompressionFormat();
-		if (ShaderCompressionFormat != NAME_None)
-		{
-			Entry.UncompressedSize = InCode.GetUncompressedSize();
-
-			// we trust that SCWs also obeyed by the same CVar, so we expect a compressed shader code at this point
-			// However, if we see an uncompressed shader, it perhaps means that SCW tried to compress it, but the result was worse than uncompressed. 
-			// Because of that we special-case NAME_None here
-			if (ShaderCompressionFormat != InCode.GetCompressionFormat())
-			{
-				if (InCode.GetCompressionFormat() != NAME_None)
-				{
-					UE_LOG(LogShaders, Fatal, TEXT("Shader %s is expected to be compressed with %s, but it is compressed with %s instead."),
-						*InHash.ToString(),
-						*ShaderCompressionFormat.ToString(),
-						*InCode.GetCompressionFormat().ToString()
-						);
-					// unreachable
-					return;
-				}
-				
-				// assume uncompressed due to worse ratio than the compression
-				Entry.UncompressedSize = ShaderCode.Num();
-				UE_LOG(LogShaders, Verbose, TEXT("Shader %s is expected to be compressed with %s, but it arrived uncompressed (size=%d). Assuming compressing made it longer and storing uncompressed."),
-					*InHash.ToString(),
-					*ShaderCompressionFormat.ToString(),
-					ShaderCode.Num()
-				);
-			}
-			else if (ShaderCompressionFormat == NAME_Oodle)
-			{
-				// check if Oodle-specific settings match
-				FOodleDataCompression::ECompressor OodleCompressor;
-				FOodleDataCompression::ECompressionLevel OodleLevel;
-				GetShaderCompressionOodleSettings(OodleCompressor, OodleLevel);
-
-				if (InCode.GetOodleCompressor() != OodleCompressor || InCode.GetOodleLevel() != OodleLevel)
-				{
-					UE_LOG(LogShaders, Fatal, TEXT("Shader %s is expected to be compressed with Oodle compressor %d level %d, but it is compressed with compressor %d level %d instead."),
-						*InHash.ToString(),
-						static_cast<int32>(OodleCompressor),
-						static_cast<int32>(OodleLevel),
-						static_cast<int32>(InCode.GetOodleCompressor()),
-						static_cast<int32>(InCode.GetOodleLevel())
-					);
-					// unreachable
-					return;
-				}
-			}
-		}
-		else
-		{
-			Entry.UncompressedSize = ShaderCode.Num();
-		}
-
-		Entry.Code = ShaderCode;
+		// This moves the internal array in the Output's ShaderCode object into the resource format; assuming that after
+		// the code is moved to the shadermap that it's no longer required in the job output struct.
+		ShaderCodeResources.Insert(Output.ConvertCodeToResource(), Index);
 	}
 #if WITH_EDITORONLY_DATA
 	else
@@ -410,20 +354,41 @@ void FShaderMapResourceCode::ToString(FStringBuilderBase& OutString) const
 	OutString.Appendf(TEXT("Shaders: Num=%d\n"), ShaderHashes.Num());
 	for (int32 i = 0; i < ShaderHashes.Num(); ++i)
 	{
-		const FShaderEntry& Entry = ShaderEntries[i];
+		const FShaderCodeResource& Res = ShaderCodeResources[i];
 		OutString.Appendf(TEXT("    [%d]: { Hash: %s, Freq: %s, Size: %d, UncompressedSize: %d }\n"),
-			i, *ShaderHashes[i].ToString(), GetShaderFrequencyString(Entry.Frequency), Entry.Code.Num(), Entry.UncompressedSize);
+			i, *ShaderHashes[i].ToString(), GetShaderFrequencyString(Res.Frequency), Res.Code.Num(), Res.UncompressedSize);
 	}
 }
 
-void FShaderMapResourceCode::Serialize(FArchive& Ar, bool bLoadedByCookedMaterial)
+void FShaderMapResourceCode::Serialize(FShaderSerializeContext& Ctx)
 {
+	FArchive& Ar = Ctx.GetMainArchive();
 	Ar << ResourceHash;
 	Ar << ShaderHashes;
-	Ar << ShaderEntries;
-	check(ShaderEntries.Num() == ShaderHashes.Num());
+	if (!Ctx.SerializeCodeFunc)
+	{
+		Ar << ShaderCodeResources;
+	}
+	else
+	{
+		if (Ar.IsLoading())
+		{
+			ShaderCodeResources.SetNum(ShaderHashes.Num());
+		}
+		
+		if (Ctx.ReserveCodeFunc)
+		{
+			Ctx.ReserveCodeFunc(ShaderCodeResources.Num());
+		}
+
+		for (int32 CodeIndex = 0; CodeIndex < ShaderCodeResources.Num(); ++CodeIndex)
+		{
+			Ctx.SerializeCodeFunc(ShaderCodeResources[CodeIndex], CodeIndex);
+		}
+	}
+	check(ShaderCodeResources.Num() == ShaderHashes.Num());
 #if WITH_EDITORONLY_DATA
-	const bool bSerializeEditorOnlyData = !bLoadedByCookedMaterial && (!Ar.IsCooking() || Ar.CookingTarget()->HasEditorOnlyData());
+	const bool bSerializeEditorOnlyData = !Ctx.bLoadingCooked && (!Ar.IsCooking() || Ar.CookingTarget()->HasEditorOnlyData());
 	if (bSerializeEditorOnlyData)
 	{
 		Ar << ShaderEditorOnlyDataEntries;
@@ -689,21 +654,21 @@ FRHIShader* FShaderMapResource_InlineCode::CreateRHIShaderOrCrash(int32 ShaderIn
 	}
 
 	FMemStackBase& MemStack = FMemStack::Get();
-	const FShaderMapResourceCode::FShaderEntry& ShaderEntry = Code->ShaderEntries[ShaderIndex];
-	const uint8* ShaderCode = ShaderEntry.Code.GetData();
+	const FShaderCodeResource& ShaderCodeResource = Code->ShaderCodeResources[ShaderIndex];
+	const uint8* ShaderCode = ShaderCodeResource.Code.GetData();
 
 	FMemMark Mark(MemStack);
-	if (ShaderEntry.Code.Num() != ShaderEntry.UncompressedSize)
+	if (ShaderCodeResource.Code.Num() != ShaderCodeResource.UncompressedSize)
 	{
-		void* UncompressedCode = MemStack.Alloc(ShaderEntry.UncompressedSize, 16);
-		bool bSucceed = FCompression::UncompressMemory(GetShaderCompressionFormat(), UncompressedCode, ShaderEntry.UncompressedSize, ShaderCode, ShaderEntry.Code.Num());
+		void* UncompressedCode = MemStack.Alloc(ShaderCodeResource.UncompressedSize, 16);
+		bool bSucceed = FCompression::UncompressMemory(GetShaderCompressionFormat(), UncompressedCode, ShaderCodeResource.UncompressedSize, ShaderCode, ShaderCodeResource.Code.Num());
 		check(bSucceed);
 		ShaderCode = (uint8*)UncompressedCode;
 	}
 
-	const auto ShaderCodeView = MakeArrayView(ShaderCode, ShaderEntry.UncompressedSize);
+	const auto ShaderCodeView = MakeArrayView(ShaderCode, ShaderCodeResource.UncompressedSize);
 	const FSHAHash& ShaderHash = Code->ShaderHashes[ShaderIndex];
-	const EShaderFrequency Frequency = ShaderEntry.Frequency;
+	const EShaderFrequency Frequency = ShaderCodeResource.Frequency;
 
 	TRefCountPtr<FRHIShader> RHIShader;
 	switch (Frequency)

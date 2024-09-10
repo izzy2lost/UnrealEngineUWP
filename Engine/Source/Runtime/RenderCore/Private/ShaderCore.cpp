@@ -32,6 +32,7 @@
 #include "Serialization/MemoryWriter.h"
 #include "Serialization/ShaderKeyGenerator.h"
 #include "Shader.h"
+#include "ShaderSerialization.h"
 #include "ShaderCompilerCore.h"
 #include "ShaderCompilerDefinitions.h"
 #include "ShaderCompilerJobTypes.h"
@@ -3999,40 +4000,36 @@ FShaderCompilerInputHash FShaderCompileJob::GetInputHash()
 	return InputHash;
 }
 
-void FShaderCompileJob::SerializeOutput(FArchive& Ar)
+void FShaderCompileJob::SerializeOutput(FShaderCacheSerializeContext& Ctx, int32 CodeIndex)
 {
-	double ActualCompileTime = 0.0;
-	// Save the preprocess time as set in the job regardless of whether saving or loading - if loading from the cache and the preprocessed job
-	// cache is enabled this job will have already run its own preprocessing and we want to track/aggregate this time properly.
-	double ActualPreprocessTime = Output.PreprocessTime;
-	if (Ar.IsSaving())
-	{
-		// Clear preprocess time and compile time when storing a job in the cache. This reduces storage requirements since these objects are
-		// deduplicated based on a hash (and otherwise duplicate jobs will still differ in these values).
-		ActualCompileTime = Output.CompileTime;
-		Output.CompileTime = 0.0;
-		Output.PreprocessTime = 0.0;
-	}
+	Output.bSerializingForCache = true;
+	FArchive& Ar = Ctx.GetMainArchive();
+	bool bIsSaving = Ar.IsSaving();
+	bool bIsLoading = Ar.IsLoading();
 
 	Ar << Output;
+
+	FShaderCodeResource CodeResource;
+	if (bIsSaving)
+	{
+		CodeResource = Output.ConvertCodeToResource();
+	}
+
+	Ctx.SerializeCodeFunc(CodeResource, CodeIndex);
+
+	// we intentionally re-set the internal ShaderCode even when saving; GetCodeResource moves the code array into the
+	// FShaderCodeResource's internal array and this moves it back (preventing an unnecessary temporary copy of the code)
+	Output.SetCodeFromResource(MoveTemp(CodeResource));
+	
 	// output hash is now serialized as part of the output, as the shader code is compressed in SCWs
 	checkf(!Output.bSucceeded || Output.OutputHash != FSHAHash(), TEXT("Successful compile job does not have an OutputHash generated."));
 	checkf(Output.Target == Input.Target, TEXT("Output FShaderTarget does not match the input struct; incorrect results associated with job?"));
 
-	if (Ar.IsLoading())
+	if (bIsLoading)
 	{
 		bFinalized = true;
 		bSucceeded = Output.bSucceeded;
 	}
-	else
-	{
-		// Restore the compile time for this job if we're saving to the cache.
-		// Jobs that will be deserialized from the cache will have a compile time of 0.0
-		Output.CompileTime = ActualCompileTime;
-	}
-
-	// Unconditionally restore the preprocess time for this job after saving to or loading from the cache.
-	Output.PreprocessTime = ActualPreprocessTime;
 }
 
 void FShaderCompileJob::OnComplete()
@@ -4191,16 +4188,22 @@ FShaderPipelineCompileJob::FShaderPipelineCompileJob(uint32 InHash, uint32 InId,
 	}
 }
 
-void FShaderPipelineCompileJob::SerializeOutput(FArchive& Ar)
+void FShaderPipelineCompileJob::SerializeOutput(FShaderCacheSerializeContext& Ctx)
 {
 	bool bAllStagesSucceeded = true;
+
+	if (Ctx.ReserveCodeFunc)
+	{
+		Ctx.ReserveCodeFunc(StageJobs.Num());
+	}
+
 	for (int32 Index = 0, Num = StageJobs.Num(); Index < Num; ++Index)
 	{
-		StageJobs[Index]->SerializeOutput(Ar);
+		StageJobs[Index]->SerializeOutput(Ctx, Index);
 		bAllStagesSucceeded = bAllStagesSucceeded && StageJobs[Index]->bSucceeded;
 	}
 
-	if (Ar.IsLoading())
+	if (Ctx.GetMainArchive().IsLoading())
 	{
 		bFinalized = true;
 		bSucceeded = bAllStagesSucceeded;

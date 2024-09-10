@@ -1087,6 +1087,22 @@ public:
 	}
 };
 
+struct FShaderCodeResource
+{
+	TArray<uint8> Code;
+	int32 UncompressedSize; // full size of code array before compression
+	int32 ShaderCodeSize;	// uncompressed size excluding optional data
+	EShaderFrequency Frequency;
+
+	friend FArchive& operator<<(FArchive& Ar, FShaderCodeResource& Resource)
+	{
+		uint8 Freq = Resource.Frequency;
+		Ar << Resource.Code << Resource.UncompressedSize << Resource.ShaderCodeSize << Freq;
+		Resource.Frequency = (EShaderFrequency)Freq;
+		return Ar;
+	}
+};
+
 class FShaderCode
 {
 	// -1 if ShaderData was finalized
@@ -1223,6 +1239,89 @@ public:
 	{
 		uint32 Size = FCStringAnsi::Strlen(InString) + 1;
 		AddOptionalData(Key, (uint8*)InString, Size);
+	}
+
+	// Converts code to FShaderCodeResource format. Note that this is destructive (internal code array will be moved into the resource).
+	FShaderCodeResource ConvertToResource(EShaderFrequency Frequency, FSHAHash OutputHash) const
+	{
+		check(OptionalDataSize == -1); // shader code must be finalized before converting to FShaderCodeResource
+		FShaderCodeResource Resource;
+		// need to persist this in the resource since it will not be readable from the code array after compression
+		Resource.ShaderCodeSize = GetShaderCodeSize();
+		Resource.Frequency = Frequency;
+
+		// Validate that compression settings used for this ShaderCode by the compilation process match what is expected
+		FName ShaderCompressionFormat = GetShaderCompressionFormat();
+		if (ShaderCompressionFormat != NAME_None)
+		{
+			Resource.UncompressedSize = GetUncompressedSize();
+
+			// we trust that SCWs also obeyed by the same CVar, so we expect a compressed shader code at this point
+			// However, if we see an uncompressed shader, it perhaps means that SCW tried to compress it, but the result was worse than uncompressed. 
+			// Because of that we special-case NAME_None here
+			if (ShaderCompressionFormat != GetCompressionFormat())
+			{
+				if (GetCompressionFormat() != NAME_None)
+				{
+					UE_LOG(LogShaders, Fatal, TEXT("Shader %s is expected to be compressed with %s, but it is compressed with %s instead."),
+						*OutputHash.ToString(),
+						*ShaderCompressionFormat.ToString(),
+						*GetCompressionFormat().ToString()
+					);
+					// unreachable
+					return Resource;
+				}
+
+				// assume uncompressed due to worse ratio than the compression
+				Resource.UncompressedSize = ShaderCodeWithOptionalData.Num();
+				UE_LOG(LogShaders, Verbose, TEXT("Shader %s is expected to be compressed with %s, but it arrived uncompressed (size=%d). Assuming compressing made it longer and storing uncompressed."),
+					*OutputHash.ToString(),
+					*ShaderCompressionFormat.ToString(),
+					ShaderCodeWithOptionalData.Num()
+				);
+			}
+			else if (ShaderCompressionFormat == NAME_Oodle)
+			{
+				// check if Oodle-specific settings match
+				FOodleDataCompression::ECompressor OodleCompressorSetting;
+				FOodleDataCompression::ECompressionLevel OodleLevelSetting;
+				GetShaderCompressionOodleSettings(OodleCompressorSetting, OodleLevelSetting);
+
+				if (GetOodleCompressor() != OodleCompressorSetting || GetOodleLevel() != OodleLevelSetting)
+				{
+					UE_LOG(LogShaders, Fatal, TEXT("Shader %s is expected to be compressed with Oodle compressor %d level %d, but it is compressed with compressor %d level %d instead."),
+						*OutputHash.ToString(),
+						static_cast<int32>(OodleCompressorSetting),
+						static_cast<int32>(OodleLevelSetting),
+						static_cast<int32>(GetOodleCompressor()),
+						static_cast<int32>(GetOodleLevel())
+					);
+					// unreachable
+					return Resource;
+				}
+			}
+		}
+		else
+		{
+			Resource.UncompressedSize = ShaderCodeWithOptionalData.Num();
+		}
+
+		Resource.Code = MoveTemp(ShaderCodeWithOptionalData);
+		return Resource;
+	}
+
+	void SetFromResource(FShaderCodeResource&& Resource)
+	{
+		// Set to the state of a finalized ShaderCode object
+		UncompressedSize = Resource.UncompressedSize;
+		ShaderCodeSize = Resource.ShaderCodeSize;
+		OptionalDataSize = -1;
+
+		// already validated that compression settings matched when serializing the resource, so we can just initialize them to the known-correct values
+		CompressionFormat = GetShaderCompressionFormat();
+		GetShaderCompressionOodleSettings(OodleCompressor, OodleLevel);
+
+		ShaderCodeWithOptionalData = MoveTemp(Resource.Code);
 	}
 
 	friend RENDERCORE_API FArchive& operator<<(FArchive& Ar, FShaderCode& Output);

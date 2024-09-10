@@ -867,7 +867,6 @@ bool PreprocessShader(
 
 	OutPreprocessedShader = FString(Output.GetSourceViewWide());
 
-	Output.MoveDirectives(ShaderOutput.PragmaDirectives);
 	for (FShaderCompilerError& Error : Output.EditErrors())
 	{
 		ShaderOutput.Errors.Add(MoveTemp(Error));

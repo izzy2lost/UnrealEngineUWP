@@ -17,6 +17,7 @@
 #include "ProfilingDebugging/StallDetector.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
+#include "ShaderSerialization.h"
 
 
 // Switch to Verbose after initial testing
@@ -139,7 +140,6 @@ namespace
 {
 	/** The FCacheBucket used with the DDC, cached to avoid recreating it for each request */
 	UE::DerivedData::FCacheBucket ShaderJobCacheDDCBucket = UE::DerivedData::FCacheBucket(ANSITEXTVIEW("FShaderJobCacheShaders"), TEXTVIEW("Shader"));
-	UE::DerivedData::FValueId ShaderJobCacheId = UE::DerivedData::FValueId::FromName("FShaderJobCacheShaderID");
 }
 #endif
 
@@ -377,6 +377,9 @@ public:
 	/** Canned output */
 	FSharedBuffer JobOutput;
 
+	/** Separate blobs for shader code */
+	TArray<FSharedBuffer> JobCode;
+
 	/** Path to where the cached debug info is stored. */
 	FString CachedDebugInfoPath;
 
@@ -609,7 +612,6 @@ public:
 
 private:
 	using FJobOutputHash = FBlake3Hash;
-	using FJobCachedOutput = FSharedBuffer;
 	using FStoredOutput = FShaderJobCacheStoredOutput;
 
 	// cannot allow managing this from outside as the caching logic is not exposed
@@ -620,10 +622,22 @@ private:
 		return PrevNumOutstandingJobs - Value;
 	}
 
+	FJobOutputHash ComputeJobHash(const FShaderCacheSerializeContext& SerializeContext)
+	{
+		FBlake3 Hasher;
+		check(SerializeContext);
+		Hasher.Update(SerializeContext.ShaderObjectData.GetData(), SerializeContext.ShaderObjectData.GetSize());
+		for (const FSharedBuffer& CodeBuf : SerializeContext.ShaderCode)
+		{
+			Hasher.Update(CodeBuf.GetData(), CodeBuf.GetSize());
+		}
+		return Hasher.Finalize();
+	}
+
 	void InternalSetPriority(FShaderCommonCompileJob* Job, EShaderCompileJobPriority InPriority);
 
 	/** Looks for or adds an entry for the given hash in the cache.  Returns cached output if it exists, or may initialize DDC request if one has been issued. */
-	FShaderJobCacheRef FindOrAdd(const FShaderCompilerInputHash& Hash, EShaderCompileJobPriority JobPriority, const bool bCheckDDC, TPimplPtr<UE::DerivedData::FRequestOwner>& InoutRequestOwner, FJobCachedOutput*& OutCachedOutput);
+	FShaderCacheLoadContext FindOrAdd(const FShaderCompilerInputHash& Hash, FShaderCommonCompileJob* Job, const bool bCheckDDC);
 
 	/** Find an existing item in the cache. */
 	FShaderJobData* Find(const FShaderCompilerInputHash& Hash);
@@ -635,7 +649,7 @@ private:
 	void RemoveDuplicateJob(FShaderCommonCompileJob* DuplicateJob);
 
 	/** Adds a job output to the cache */
-	void AddJobOutput(FShaderJobData& JobData, const FShaderCommonCompileJob* FinishedJob, const FShaderCompilerInputHash& Hash, const FJobCachedOutput& Contents, int32 InitialHitCount, const bool bAddToDDC);
+	void AddJobOutput(FShaderJobData& JobData, const FShaderCommonCompileJob* FinishedJob, const FShaderCompilerInputHash& Hash, FShaderCacheSaveContext& SaveContext, int32 InitialHitCount, const bool bAddToDDC);
 
 	/** Returns memory used by the cache*/
 	uint64 GetAllocatedMemory() const;
@@ -1365,11 +1379,10 @@ void FShaderJobCache::SubmitJob(FShaderCommonCompileJob* Job)
 		}
 		check(Job->JobIndex != INDEX_NONE);
 
-		FSharedBuffer* ExistingOutput;
-		FShaderJobCacheRef JobCacheRef = FindOrAdd(InputHash, Job->Priority, bCheckDDC, Job->RequestOwner, ExistingOutput);
+		FShaderCacheLoadContext LoadContext = FindOrAdd(InputHash, Job, bCheckDDC);
 
-		// see if there are already cached results for this job
-		if (ExistingOutput)
+		// see if there are already cached results for this job that were returned synchronously by FindOrAdd
+		if (LoadContext)
 		{
 			Unlink(*Job);		// from PendingSubmitJobTaskJobs
 
@@ -1380,17 +1393,15 @@ void FShaderJobCache::SubmitJob(FShaderCommonCompileJob* Job)
 			bJobCacheLocked = false;
 
 			UE_LOG(LogShaderCompilers, UE_SHADERCACHE_LOG_LEVEL, TEXT("There is already a cached job with the ihash %s, processing the new one immediately."), *LexToString(InputHash));
-			FMemoryReaderView MemReader(*ExistingOutput);
-			Job->SerializeOutput(MemReader);
+
+			Job->SerializeOutput(LoadContext);
 
 			// finish the job instantly
 			Job->TimeTaskSubmitJobsStall += ProcessFinishedJob(Job, true);
 		}
 		else
 		{
-			FShaderJobData& JobData = GetShaderJobData(JobCacheRef);
-			Job->JobCacheRef = JobCacheRef;
-
+			FShaderJobData& JobData = GetShaderJobData(Job->JobCacheRef);
 			// see if another job with the same input hash is being worked on
 			if (JobData.JobInFlight)
 			{
@@ -1424,11 +1435,10 @@ void FShaderJobCache::SubmitJob(FShaderCommonCompileJob* Job)
 	}
 	else if (ShaderCompiler::IsJobCacheDebugValidateEnabled())
 	{
-		FSharedBuffer* ExistingOutput;
 		const FShaderCompilerInputHash& InputHash = Job->GetInputHash();
 		const bool bCheckDDC = !(Job->bIsDefaultMaterial || Job->bIsGlobalShader);
 		JobLock.WriteLock();
-		Job->JobCacheRef = FindOrAdd(InputHash, Job->Priority, bCheckDDC, Job->RequestOwner, ExistingOutput);
+		FShaderCacheLoadContext LoadContext = FindOrAdd(InputHash, Job, bCheckDDC);
 		bJobCacheLocked = true;
 	}
 
@@ -1568,11 +1578,8 @@ void FShaderJobCache::AddToCacheAndProcessPending(FShaderCommonCompileJob* Finis
 	ensureMsgf(FinishedJob->bInputHashSet, TEXT("Finished job didn't have input hash set, was shader compiler jobs cache toggled runtime?"));
 
 	const FShaderCompilerInputHash& InputHash = FinishedJob->GetInputHash();
-	TArray<uint8> Output;
-	FMemoryWriter Writer(Output);
-	FinishedJob->SerializeOutput(Writer);
-
-	FSharedBuffer Buffer = MakeSharedBufferFromArray(MoveTemp(Output));
+	FShaderCacheSaveContext SaveContext;
+	FinishedJob->SerializeOutput(SaveContext);
 
 	FShaderJobData& JobData = GetShaderJobData(FinishedJob->JobCacheRef);
 
@@ -1605,7 +1612,7 @@ void FShaderJobCache::AddToCacheAndProcessPending(FShaderCommonCompileJob* Finis
 		{
 			const bool bAddToDDC = GShaderCompilerPerShaderDDCGlobal || !(FinishedJob->bIsDefaultMaterial || FinishedJob->bIsGlobalShader);
 			// we only cache jobs that succeded
-			AddJobOutput(JobData, FinishedJob, InputHash, Buffer, FinishedDuplicateJobs.Num(), bAddToDDC);
+			AddJobOutput(JobData, FinishedJob, InputHash, SaveContext, FinishedDuplicateJobs.Num(), bAddToDDC);
 		}
 
 		// remove ourselves from the jobs in flight
@@ -1626,10 +1633,16 @@ void FShaderJobCache::AddToCacheAndProcessPending(FShaderCommonCompileJob* Finis
 	{
 		UE_LOG(LogShaderCompilers, UE_SHADERCACHE_LOG_LEVEL, TEXT("Processed %d outstanding jobs with the same ihash %s."), FinishedDuplicateJobs.Num(), *LexToString(InputHash));
 
+		check(JobData.HasOutput());
+		FStoredOutput** StoredOutput = Outputs.Find(JobData.OutputHash);
+		check(StoredOutput);
+		// Construct a single load context pointing to the data now stored in the cache
+		FShaderCacheLoadContext LoadContext((*StoredOutput)->JobOutput, (*StoredOutput)->JobCode);
 		for (FShaderCommonCompileJob* DuplicateJob : FinishedDuplicateJobs)
 		{
-			FMemoryReaderView MemReader(Buffer);
-			DuplicateJob->SerializeOutput(MemReader);
+			// reuse the same load context for each duplicate job to avoid reallocating anything
+			LoadContext.Reuse();
+			DuplicateJob->SerializeOutput(LoadContext);
 			checkf(DuplicateJob->bSucceeded == FinishedJob->bSucceeded, TEXT("Different success status for the job with the same ihash"));
 
 			// finish the job instantly
@@ -1731,7 +1744,7 @@ int32 FShaderJobCache::GetPendingJobs(EShaderCompilerWorkerType InWorkerType, ES
 	return NumJobs;
 }
 
-FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FShaderCompilerInputHash& Hash, EShaderCompileJobPriority JobPriority, const bool bCheckDDC, TPimplPtr<UE::DerivedData::FRequestOwner>& InoutRequestOwner, FJobCachedOutput*& OutCachedOutput)
+FShaderCacheLoadContext FShaderJobCache::FindOrAdd(const FShaderCompilerInputHash& Hash, FShaderCommonCompileJob* Job, const bool bCheckDDC)
 {
 	LLM_SCOPE_BYTAG(ShaderCompiler);
 
@@ -1740,13 +1753,10 @@ FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FShaderCompilerInputHash& Ha
 	++TotalSearchAttempts;
 	TRACE_COUNTER_INCREMENT(Shaders_JobCacheSearchAttempts);
 	TRACE_CPUPROFILER_EVENT_SCOPE(FShaderJobCache::Find);
-
-	OutCachedOutput = nullptr;
-
 	uint64 InputHashToJobDataSize = InputHashToJobData.GetAllocatedSize();
 
-	FShaderJobCacheRef JobCacheRef = InputHashToJobData.FindOrAdd(Hash);
-	FShaderJobData& JobData = GetShaderJobData(JobCacheRef);
+	Job->JobCacheRef = InputHashToJobData.FindOrAdd(Hash);
+	FShaderJobData& JobData = GetShaderJobData(Job->JobCacheRef);
 
 	CurrentlyAllocatedMemory += InputHashToJobData.GetAllocatedSize() - InputHashToJobDataSize;
 
@@ -1762,7 +1772,7 @@ FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FShaderCompilerInputHash& Ha
 		// update the output hit count
 		(*CannedOutput)->NumHits++;
 
-		OutCachedOutput = &(*CannedOutput)->JobOutput;
+		return FShaderCacheLoadContext((*CannedOutput)->JobOutput, (*CannedOutput)->JobCode);
 	}
 #if WITH_EDITOR
 	else
@@ -1773,7 +1783,7 @@ FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FShaderCompilerInputHash& Ha
 		// If we didn't find it in memory search the DDC if it's enabled.
 		// Don't search if this isn't the first job with this hash (JobInFlight already set), or there's already a request in flight.
 		const bool bCachePerShaderDDC = IsShaderJobCacheDDCEnabled() && bCheckDDC && !bNoShaderDDC;
-		if (bCachePerShaderDDC && (JobData.JobInFlight == nullptr) && !InoutRequestOwner)
+		if (bCachePerShaderDDC && (JobData.JobInFlight == nullptr) && !Job->RequestOwner)
 		{
 			TRACE_COUNTER_INCREMENT(Shaders_JobCacheDDCRequests);
 
@@ -1791,15 +1801,15 @@ FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FShaderCompilerInputHash& Ha
 				}
 				else
 				{
-					switch (JobPriority)
+					switch (Job->Priority)
 					{
 					case EShaderCompileJobPriority::Low:		DerivedDataPriority = UE::DerivedData::EPriority::Low;		break;
 					case EShaderCompileJobPriority::Normal:		DerivedDataPriority = UE::DerivedData::EPriority::Normal;	break;
 					default:									DerivedDataPriority = UE::DerivedData::EPriority::Highest;	break;
 					}
 				}
-				InoutRequestOwner = MakePimpl<UE::DerivedData::FRequestOwner>(DerivedDataPriority);
-				RequestOwner = InoutRequestOwner.Get();
+				Job->RequestOwner = MakePimpl<UE::DerivedData::FRequestOwner>(DerivedDataPriority);
+				RequestOwner = Job->RequestOwner.Get();
 			}
 			else
 			{
@@ -1814,15 +1824,17 @@ FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FShaderCompilerInputHash& Ha
 			Request.Key.Hash = Hash;
 			Request.Policy = IsShaderJobCacheDDCRemotePolicyEnabled() ? UE::DerivedData::ECachePolicy::Default : UE::DerivedData::ECachePolicy::Local;
 
-			// Optionally read the cached output back to the main thread
-			FJobCachedOutput** OutCachedOutputPtr = &OutCachedOutput;
 			bool bCompletedSynchronously = false;
 			bool* bCompletedSynchronouslyPtr = &bCompletedSynchronously;
+			
+			// Optionally read the cached output back to the main thread (this is only ever set if bCompletedSynchronously is true)
+			FStoredOutput* StoredOutput = nullptr;
+			FStoredOutput** StoredOutputPtr = &StoredOutput;
 
 			UE::DerivedData::GetCache().Get(
 				{ Request },
 				*RequestOwner,
-				[this, JobDataPtr = &JobData, OutCachedOutputPtr, DerivedDataPriority, bCompletedSynchronouslyPtr](UE::DerivedData::FCacheGetResponse&& Response)
+				[this, JobDataPtr = &JobData, DerivedDataPriority, StoredOutputPtr, bCompletedSynchronouslyPtr](UE::DerivedData::FCacheGetResponse&& Response)
 				{
 					if (GShaderCompilerDebugStallDDCQuery > 0)
 					{
@@ -1843,10 +1855,11 @@ FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FShaderCompilerInputHash& Ha
 					{
 						// Retrieve the shared buffer containing the job output and compute the associated output hash for the result retrieved from DDC
 						// If an existing duplicate of this buffer is already registered in the Outputs map, this copy will be freed at end of scope
-						FSharedBuffer JobOutput = Response.Record.GetValue(ShaderJobCacheId).GetData().Decompress();
-						FJobOutputHash OutputHash = FBlake3::HashBuffer(JobOutput.GetData(), JobOutput.GetSize());
+						FShaderCacheLoadContext LoadContext;
+						LoadContext.ReadFromRecord(Response.Record);
+						FJobOutputHash OutputHash = ComputeJobHash(LoadContext);
 
-						TRACE_COUNTER_ADD(Shaders_JobCacheDDCBytesReceived, JobOutput.GetSize());
+						TRACE_COUNTER_ADD(Shaders_JobCacheDDCBytesReceived, LoadContext.GetSerializedSize());
 						TRACE_COUNTER_INCREMENT(Shaders_JobCacheDDCHits);
 
 						// If we are running the cache logic async (not blocking in the main thread), we need a lock before writing to the job cache.
@@ -1887,8 +1900,10 @@ FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FShaderCompilerInputHash& Ha
 						if (StoredOutput == nullptr)
 						{
 							// Create a new entry to store in the FShaderJobCache if one doesn't already exist for this output hash
+							check(LoadContext); // sanity check that the load context was populated properly
 							StoredOutput = new FStoredOutput();
-							StoredOutput->JobOutput = JobOutput;
+							StoredOutput->JobOutput = LoadContext.ShaderObjectData;
+							StoredOutput->JobCode = MoveTemp(LoadContext.OwnedShaderCode);
 							Outputs.Add(OutputHash, StoredOutput);
 							CurrentlyAllocatedMemory += StoredOutput->GetAllocatedSize();
 						}
@@ -1934,11 +1949,14 @@ FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FShaderCompilerInputHash& Ha
 							// Need to release the lock before calling ProcessFinishedJobs
 							JobLock.WriteUnlock();
 
+							// Re-initialize load context pointing to the stored code array in the cache and reuse for each duplicate job needing population
+							LoadContext = FShaderCacheLoadContext(StoredOutput->JobOutput, StoredOutput->JobCode);
+
 							// Call ProcessFinishedJob on main job and duplicates
 							for (FShaderCommonCompileJob* FinishedJob : FinishedJobs)
 							{
-								FMemoryReaderView MemReader(StoredOutput->JobOutput);
-								FinishedJob->SerializeOutput(MemReader);
+								LoadContext.Reuse();
+								FinishedJob->SerializeOutput(LoadContext);
 								ProcessFinishedJob(FinishedJob, true);
 							}
 
@@ -1950,7 +1968,7 @@ FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FShaderCompilerInputHash& Ha
 						else
 						{
 							// Send results back to the main thread when running synchronous
-							*OutCachedOutputPtr = &StoredOutput->JobOutput;
+							*StoredOutputPtr = StoredOutput;
 						}
 					}
 					else
@@ -2001,13 +2019,17 @@ FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FShaderCompilerInputHash& Ha
 				// in which case we can delete the TPimplPtr request owner by setting it to null.  This tells the main thread
 				// there is no async DDC request in flight, and it should handle adding the pending job to the queue, since the
 				// DDC request callback won't be handling that.
-				InoutRequestOwner = nullptr;
+				Job->RequestOwner = nullptr;
+
+				if (StoredOutput)
+				{
+					return FShaderCacheLoadContext(StoredOutput->JobOutput, StoredOutput->JobCode);
+				}
 			}
 		}
 	}
 #endif
-
-	return JobCacheRef;
+	return FShaderCacheLoadContext();
 }
 
 FShaderJobData* FShaderJobCache::Find(const FShaderCompilerInputHash& Hash)
@@ -2071,7 +2093,7 @@ FShaderJobCache::~FShaderJobCache()
 	}
 }
 
-void FShaderJobCache::AddJobOutput(FShaderJobData& JobData, const FShaderCommonCompileJob* FinishedJob, const FShaderCompilerInputHash& Hash, const FJobCachedOutput& Contents, int32 InitialHitCount, const bool bAddToDDC)
+void FShaderJobCache::AddJobOutput(FShaderJobData& JobData, const FShaderCommonCompileJob* FinishedJob, const FShaderCompilerInputHash& Hash, FShaderCacheSaveContext& SaveContext, int32 InitialHitCount, const bool bAddToDDC)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FShaderJobCache::Add);
 
@@ -2085,7 +2107,11 @@ void FShaderJobCache::AddJobOutput(FShaderJobData& JobData, const FShaderCommonC
 		return;
 	}
 
-	FJobOutputHash OutputHash = FBlake3::HashBuffer(Contents.GetData(), Contents.GetSize());
+	// Explicitly finalize the serialization to generate the job struct FSharedBuffer since we store
+	// this in the in-memory cache prior to pushing to DDC (subsequent Finalize call in BuildCacheRecord 
+	// will be a noop)
+	SaveContext.Finalize();
+	FJobOutputHash OutputHash = ComputeJobHash(SaveContext);
 
 	if (JobData.HasOutput() && ShaderCompiler::IsJobCacheDebugValidateEnabled())
 	{
@@ -2179,9 +2205,11 @@ void FShaderJobCache::AddJobOutput(FShaderJobData& JobData, const FShaderCommonC
 		{
 			const uint64 OutputsOriginalSize = Outputs.GetAllocatedSize();
 
+			check(SaveContext);
 			FStoredOutput* NewStoredOutput = new FStoredOutput();
 			NewStoredOutput->NumHits = InitialHitCount;
-			NewStoredOutput->JobOutput = Contents;
+			NewStoredOutput->JobOutput = SaveContext.ShaderObjectData;
+			NewStoredOutput->JobCode = MoveTemp(SaveContext.OwnedShaderCode);
 			NewStoredOutput->CachedDebugInfoPath = InputDebugInfoPath;
 			NewStoredOutput->AddRef();
 			Outputs.Add(OutputHash, NewStoredOutput);
@@ -2202,8 +2230,14 @@ void FShaderJobCache::AddJobOutput(FShaderJobData& JobData, const FShaderCommonC
 			// Write new allocated cache file
 			if (!InputDebugInfoPath.IsEmpty())
 			{
-				const FString CacheFilename = FString::Printf(TEXT("%s/%s.bytecode"), *InputDebugInfoPath, *InputSourceFilename);
-				FFileHelper::SaveArrayToFile(TArrayView<const uint8>((const uint8*)Contents.GetData(), Contents.GetSize()), *CacheFilename);
+				const FString CacheOutputFilename = FString::Printf(TEXT("%s/%s.joboutput"), *InputDebugInfoPath, *InputSourceFilename);
+				FFileHelper::SaveArrayToFile(TArrayView<const uint8>((const uint8*)SaveContext.ShaderObjectData.GetData(), SaveContext.ShaderObjectData.GetSize()), *CacheOutputFilename);
+				for (int32 CodeIndex = 0; CodeIndex < SaveContext.ShaderCode.Num(); ++CodeIndex)
+				{
+					const FString CacheCodeFilename = FString::Printf(TEXT("%s/%s_%d.bytecode"), *InputDebugInfoPath, *InputSourceFilename);
+					const FSharedBuffer& JobCode = SaveContext.ShaderCode[CodeIndex];
+					FFileHelper::SaveArrayToFile(TArrayView<const uint8>((const uint8*)JobCode.GetData(), JobCode.GetSize()), *CacheCodeFilename);
+				}
 			}
 		}
 
@@ -2235,21 +2269,21 @@ void FShaderJobCache::AddJobOutput(FShaderJobData& JobData, const FShaderCommonC
 		UE::DerivedData::FCacheKey Key;
 		Key.Bucket = ShaderJobCacheDDCBucket;
 		Key.Hash = Hash;
-		UE::DerivedData::FCacheRecordBuilder RecordBuilder(Key);
-
-		RecordBuilder.AddValue(ShaderJobCacheId, FSharedBuffer::MakeView(Contents));
-
-		TRACE_COUNTER_ADD(Shaders_JobCacheDDCBytesSent, Contents.GetSize());
 
 		UE::DerivedData::FRequestOwner RequestOwner(UE::DerivedData::EPriority::Normal);
 		UE::DerivedData::FRequestBarrier RequestBarrier(RequestOwner);
 		RequestOwner.KeepAlive();
 		UE::DerivedData::GetCache().Put(
-			{ {{TEXT("FShaderJobCache")}, RecordBuilder.Build(), IsShaderJobCacheDDCRemotePolicyEnabled() ? UE::DerivedData::ECachePolicy::Default : UE::DerivedData::ECachePolicy::Local } },
+			{ {{TEXT("FShaderJobCache")}, SaveContext.BuildCacheRecord(Key), IsShaderJobCacheDDCRemotePolicyEnabled() ? UE::DerivedData::ECachePolicy::Default : UE::DerivedData::ECachePolicy::Local } },
 			RequestOwner
 		);
+
+
+		TRACE_COUNTER_ADD(Shaders_JobCacheDDCBytesSent, SaveContext.GetSerializedSize());
 	}
 #endif
+
+
 }
 
 /** Returns memory used by the cache*/
