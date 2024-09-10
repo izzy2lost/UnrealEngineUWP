@@ -294,6 +294,7 @@ void FMediaSourceEditorToolkit::BindCommands()
 			FMediaPlayerOptions Options;
 			Options.SetAllAsOptional();
 			Options.InternalCustomOptions.Emplace(MediaPlayerOptionValues::Environment(), MediaPlayerOptionValues::Environment_Preview());
+			Options.InternalCustomOptions.Emplace(MediaPlayerOptionValues::ParseTimecodeInfo(), FVariant());
 			MediaPlayer->OpenSourceWithOptions(MediaSource, Options);
 		}),
 		FCanExecuteAction::CreateLambda([this] { return true; })

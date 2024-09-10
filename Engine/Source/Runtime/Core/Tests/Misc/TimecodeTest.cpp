@@ -245,5 +245,175 @@ TEST_CASE_NAMED(FTimecodeTest, "System::Core::Misc::Timecode", "[ApplicationCont
 	REQUIRE(bSuccessfully);
 }
 
+namespace UE::TimecodeParserTest::Private
+{
+	/**
+	 * Bypass the FTimecode constructor to avoid the checkSlow for non conforming timecode tests
+	 * i.e. we want to test parser results even if not conforming to FTimecode constructor.
+	 */
+	static FTimecode MakeTimecodeNoCheck(int32 InHours, int32 InMinutes, int32 InSeconds, int32 InFrames, float InSubframe, bool bInDropFrame)
+	{
+		FTimecode Timecode;
+		Timecode.Hours = InHours;
+		Timecode.Minutes = InMinutes;
+		Timecode.Seconds = InSeconds;
+		Timecode.Frames = InFrames;
+		Timecode.Subframe = InSubframe;
+		Timecode.bDropFrameFormat = bInDropFrame;
+		return Timecode;
+	};
+
+	/**
+	 * Formats a timecode to string for testing.
+	 * Including the signed sub-frame and up to 6 decimal of precision on sub-frame fraction.
+	 */
+	static FString TimecodeToString(const FTimecode& InTimecode)
+	{
+		const bool bHasNegativeComponent = InTimecode.Hours < 0 || InTimecode.Minutes < 0 || InTimecode.Seconds < 0 || InTimecode.Frames < 0 || InTimecode.Subframe < 0.0;
+		const TCHAR* SignText = bHasNegativeComponent ? TEXT("- ") : TEXT("");
+
+		TStringBuilder<64> Builder;	// (Allow for up to 10 digits per values + sign and separator) x 5 values = 60 + terminating char.
+		Builder.Appendf(TEXT("%s%02d:%02d:%02d%c%02d"), SignText,
+			FMath::Abs(InTimecode.Hours), FMath::Abs(InTimecode.Minutes), FMath::Abs(InTimecode.Seconds), InTimecode.bDropFrameFormat ? TEXT(';') : TEXT(':'), FMath::Abs(InTimecode.Frames));
+
+		if (InTimecode.Subframe != 0.0f)
+		{
+			// Allow for up to 6 decimals of precision.
+			TStringBuilder<32> SubFrameBuilder;
+			SubFrameBuilder.Appendf(TEXT("%02d"), FMath::Clamp(static_cast<int32>(1000000 * FMath::Abs(InTimecode.Subframe)),0,999999));
+
+			// Trim trailing zeros, but leave at least 2 digits.
+			const FStringView SubFrameValue = SubFrameBuilder.ToView();
+			int NumDigits = SubFrameValue.Len();
+			while (NumDigits > 2 && SubFrameValue[NumDigits - 1] == TEXT('0'))
+			{
+				NumDigits--;
+			}
+			Builder.Appendf(TEXT(".%.*s"), NumDigits, SubFrameValue.GetData());
+		}
+		return Builder.ToString();
+	};
+
+	static bool IsSame(const FTimecode& InTimecode, const FTimecode& InOtherTimecode)
+	{
+		// Remark: FTimecode == operator ignores bDropFrameFormat.
+		return InTimecode == InOtherTimecode && InTimecode.bDropFrameFormat == InOtherTimecode.bDropFrameFormat;
+	}
+}
+
+TEST_CASE_NAMED(FTimecodeParserTest, "System::Core::Misc::TimecodeParser", "[ApplicationContextMask][EngineFilter]")
+{
+	using namespace UE::TimecodeParserTest::Private;
+	
+	struct FTimecodeParserTestEntry
+	{
+		FString TimecodeString;
+		FTimecode ExpectedTimecode;
+	};
+
+	constexpr bool bDropFrame = true;	// a.k.a DF
+	constexpr bool bStandard = false;	// a.k.a NDF
+
+	TArray<FTimecodeParserTestEntry> TimecodeParseSuccessTests =
+	{
+		{ TEXT("00:00:00:00"), FTimecode(0,0,0,0,bStandard)},
+		{ TEXT("00:00:00;00"), FTimecode(0,0,0,0,bDropFrame)},
+		{ TEXT("00:00:00:00.00"), FTimecode(0,0,0,0, 0.0f, bStandard)},
+		{ TEXT("00:00:00;00.00"), FTimecode(0,0,0,0, 0.0f, bDropFrame)},
+		{ TEXT("10:20:30:40.50"), FTimecode(10,20,30,40, 0.5f, bStandard)},
+		{ TEXT("15:55:22;09.90"), FTimecode(15,55,22,9, 0.9f, bDropFrame)},
+		{ TEXT("10: 11: 12; 191"), FTimecode(10,11,12,191, bDropFrame)},
+		// drop frame variations separator
+		{ TEXT("01;02;03;04"), FTimecode(1,2,3,4,bDropFrame)},
+		{ TEXT("01:02;03;04"), FTimecode(1,2,3,4,bDropFrame)},
+		{ TEXT("01;02;03;04.50"), FTimecode(1,2,3,4, 0.5f, bDropFrame)},
+		// drop frame variations with '.' separator
+		{ TEXT("01:02:03.04"), FTimecode(1,2,3,4,bDropFrame)},
+		{ TEXT("01.02.03.04"), FTimecode(1,2,3,4,bDropFrame)},
+		{ TEXT("01:02.03.04"), FTimecode(1,2,3,4,bDropFrame)},
+		{ TEXT("01.02.03.04.50"), FTimecode(1,2,3,4, 0.5f, bDropFrame)},
+		// higher precision sub-frame
+		{ TEXT("01:02:03:04.777"), FTimecode(1,2,3,4, 0.777f, bStandard)},
+		{ TEXT("01.02.03.04.555"), FTimecode(1,2,3,4, 0.555f, bDropFrame)},
+		// sign tests
+		{ TEXT("+ 15:55:22;09.90"), FTimecode(15,55,22,9, 0.9f, bDropFrame)},
+		{ TEXT("+15:55:22;09.90"), FTimecode(15,55,22,9, 0.9f, bDropFrame)},
+		{ TEXT("- 15:55:22;09.90"), FTimecode(-15,55,22,9, 0.9f, bDropFrame)},
+		{ TEXT("-15:55:22;09.90"), FTimecode(-15,55,22,9, 0.9f, bDropFrame)},
+		{ TEXT("15:-55:22;09.90"), FTimecode(15,-55,22,9, 0.9f, bDropFrame)},
+		{ TEXT("15:55:-22;09.90"), FTimecode(15,55,-22,9, 0.9f, bDropFrame)},
+		{ TEXT("15:55:22;-09.90"), FTimecode(15,55,22,-9, 0.9f, bDropFrame)},
+		// sign tests - sign gets applied to first non-zero value.
+		{ TEXT("- 00:55:22:09"), FTimecode(0,-55,22,9, bStandard)},
+		{ TEXT("- 00:00:22:09"), FTimecode(0,0,-22,9, bStandard)},
+		{ TEXT("- 00:00:00:09"), FTimecode(0,0,0,-9, bStandard)},
+		// sign tests - negative on the sub-frame. The sub-frame is negative only if there is no other way to preserve sign.
+		// -- Note: this would only happen if manually entered, but we still want the parser to do something with it.
+		{ TEXT("15:55:22;09.-90"), FTimecode(-15,55,22,9, 0.9f, bDropFrame)},
+		{ TEXT("00:55:22;09.-90"), FTimecode(0,-55,22,9, 0.9f, bDropFrame)},
+		{ TEXT("00:00:22;09.-90"), FTimecode(0,0,-22,9, 0.9f, bDropFrame)},
+		{ TEXT("00:00:00;09.-90"), FTimecode(0,0,0,-9, 0.9f, bDropFrame)},
+		{ TEXT("00:00:00;00.-90"), MakeTimecodeNoCheck(0,0,0,0, -0.9f, bDropFrame)},
+		{ TEXT("- 00:00:00:00.90"), MakeTimecodeNoCheck(0,0,0,0, -0.9f, bStandard)},
+		// High frame number (ex for audio timecodes) supported.
+		{ TEXT("15:55:22:43999"), FTimecode(15,55,22,43999, bStandard)},
+		// Values out of normal range
+		{ TEXT("200:210:220:44000"), MakeTimecodeNoCheck(200,210,220,44000, 0.0f, bStandard)}
+	};
+
+	TArray<FTimecodeParserTestEntry> TimecodeParseFailureTests =
+	{
+		{ TEXT(""), FTimecode()},
+		{ TEXT("00:00"), FTimecode()},			// not enough values
+		{ TEXT("01:02:1d:25"), FTimecode()},	// value is not a valid 'base10' number
+		{ TEXT("00.00:00:00"), FTimecode()},	// wrong separator
+		{ TEXT(":00:00:00:00"), FTimecode()},	// doesn't begin with a number
+		{ TEXT("...0"), FTimecode()},			// ""
+		{ TEXT("00;00:00:00"), FTimecode()},	// drop frame separator at the wrong place (ambiguous)
+		{ TEXT("00:00:00:00:00"), FTimecode()},	// wrong subframe separator
+	};
+
+	auto ExecuteTimecodeTests = [](const TArray<FTimecodeParserTestEntry>& InTests, bool bInExpectedSuccess)
+	{
+		for (const FTimecodeParserTestEntry& Test : InTests)
+		{
+			TOptional<FTimecode> TimecodeOptional = FTimecode::ParseTimecode(*Test.TimecodeString);
+			if (TimecodeOptional.IsSet())
+			{
+				const FTimecode& Timecode = TimecodeOptional.GetValue();
+				if (bInExpectedSuccess)
+				{
+					if (IsSame(Timecode, Test.ExpectedTimecode))
+					{
+						INFO(FString::Printf(TEXT("Parsing '%s' to parsed timecode '%s' -> OK"), *Test.TimecodeString, *TimecodeToString(Timecode)));
+					}
+					else
+					{
+						FAIL_CHECK(FString::Printf(TEXT("Parsing '%s' (parsed timecode '%s') was different than expected: '%s'"),
+							*Test.TimecodeString, *TimecodeToString(Timecode), *TimecodeToString(Test.ExpectedTimecode)));
+					}
+				}
+				else
+				{
+					FAIL_CHECK(FString::Printf(TEXT("Parsing '%s' was expected to failed, but it succeeded (parsed timecode '%s')"), *Test.TimecodeString, *TimecodeToString(Timecode)));
+				}
+			}
+			else
+			{
+				if (bInExpectedSuccess)
+				{
+					FAIL_CHECK(FString::Printf(TEXT("Parsing '%s' failed, but was expected to succeed (Expected: '%s'."), *Test.TimecodeString, *TimecodeToString(Test.ExpectedTimecode)));
+				}
+				else
+				{
+					INFO(FString::Printf(TEXT("Parsing '%s' failed as expected."), *Test.TimecodeString));
+				}
+			}
+		}
+	};
+
+	ExecuteTimecodeTests(TimecodeParseSuccessTests, true /*bInExpectedSuccess*/);
+	ExecuteTimecodeTests(TimecodeParseFailureTests, false /*bInExpectedSuccess*/);
+}
 
 #endif //WITH_TESTS

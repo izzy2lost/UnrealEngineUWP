@@ -1287,6 +1287,10 @@ public:
 	static MEDIAASSETS_API FLazyName MediaInfoNameSourceNumMips;
 	/** Number of tiles (X and Y) in the source. IntPoint.*/
 	static MEDIAASSETS_API FLazyName MediaInfoNameSourceNumTiles;
+	/** Start Timecode. SMPTE format (ex: HH:MM:SS:FF) string. */
+	static MEDIAASSETS_API FLazyName MediaInfoNameStartTimecodeValue;
+	/** Start Timecode frame rate. String. */
+	static MEDIAASSETS_API FLazyName MediaInfoNameStartTimecodeFrameRate;
 
 	/**
 	 * Duration of samples to cache ahead of the play head.
