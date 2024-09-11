@@ -190,5 +190,77 @@ UE_NET_TEST_FIXTURE(FReplicationConfigTestFixture, TestNetObjectListGrowEvent)
 	//CreateReplicatedObjects(1);
 }
 
+
+UE_NET_TEST_FIXTURE(FReplicationConfigTestFixture, TestNetObjectListGrow_DuringPollPhase)
+{
+	const uint32 MaxNumObjects = 96;
+	const uint32 InitNumObjects = 32;
+	const uint32 GrowCount = 32;
+
+	OverrideServerConfig.MaxReplicatedObjectCount = MaxNumObjects;
+	OverrideServerConfig.InitialNetObjectListCount = InitNumObjects;
+	OverrideServerConfig.NetObjectListGrowCount = GrowCount;
+
+	StartReplicationSystem();
+
+	FDelegateHandle ServerDelegate;
+
+	FNetRefHandleManager* ServerNetRefHandleManager = &Server->ReplicationSystem->GetReplicationSystemInternal()->GetNetRefHandleManager();
+	ON_SCOPE_EXIT
+	{
+		ServerNetRefHandleManager->GetOnMaxInternalNetRefIndexIncreasedDelegate().Remove(ServerDelegate);
+	};
+
+
+	bool bHasServerRealloc = false;
+	ServerDelegate = ServerNetRefHandleManager->GetOnMaxInternalNetRefIndexIncreasedDelegate().AddLambda([&bHasServerRealloc](uint32 NewMaxIndex)
+	{
+		bHasServerRealloc = true;
+	});
+
+	// Create enough objects to fill the init list (entry[0] is already reserved for invalid object)
+	for (uint32 i = 0; i < (InitNumObjects - 1); ++i)
+	{
+		UObjectReplicationBridge::FRootObjectReplicationParams Params;
+		Params.bNeedsPreUpdate = true;
+		ServerObjects.Emplace(Server->CreateObject(Params));
+	}
+
+	// Send and deliver packet
+	Server->UpdateAndSend({ Client });
+	
+	UTestReplicatedIrisObject* ServerObject = ServerObjects[0];
+	UE_NET_ASSERT_NE(ServerObject, nullptr);
+
+	UTestReplicatedIrisObject* ServerSubObject(nullptr);
+
+	// Add a PreUpdate callback where we create a new subobject
+	auto PreUpdateObject = [&](TArrayView<UObject*> Instances, const UReplicationBridge* Bridge)
+	{
+		for (UObject* ReplicatedObject : Instances)
+		{
+			if (ServerObject == ReplicatedObject)
+			{
+				if (ServerSubObject == nullptr)
+				{
+					// Create a subobject
+					ServerSubObject = Server->CreateSubObject<UTestReplicatedIrisObject>(ServerObject->NetRefHandle);
+				}
+			}
+		}
+	};
+	Server->GetReplicationBridge()->SetExternalPreUpdateFunctor(PreUpdateObject);
+
+	Server->UpdateAndSend( { Client });
+
+	// Check that the server realloc happened.
+	UE_NET_ASSERT_EQ(bHasServerRealloc, true);
+
+	// Make sure the subobject was spawned on the client
+	UTestReplicatedIrisObject* ClientSubObject = Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerSubObject->NetRefHandle));
+	UE_NET_ASSERT_NE(ClientSubObject, nullptr);
+}
+
+
 } // end namespace UE::Net::Private
 
