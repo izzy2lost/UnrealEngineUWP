@@ -23,6 +23,7 @@
 #include "HAL/ThreadSafeCounter.h"
 #include "Misc/ScopeRWLock.h"
 #include "ProfilingDebugging/StringsTrace.h"
+#include "ProfilingDebugging/MetadataTrace.h"
 #include "Containers/Set.h"
 #include "Internationalization/Text.h"
 #include "Internationalization/Internationalization.h"
@@ -382,6 +383,9 @@ private:
 		if (!Buffer)
 		{
 			LLM_SCOPE(ELLMTag::FName);
+			LLM_TAGSET_SCOPE(ELLMTag::EngineMisc, ELLMTagSet::Assets);
+			LLM_TAGSET_SCOPE(ELLMTag::EngineMisc, ELLMTagSet::AssetClasses);
+			UE_TRACE_METADATA_CLEAR_SCOPE();
 			constexpr uint32 BufferSizeBytes = NumWords * sizeof(WordType);
 			Buffer = (WordType*) FMemory::MallocZeroed(BufferSizeBytes, alignof(WordType));
 			WordType* Expected = nullptr;
@@ -657,6 +661,9 @@ private:
 	static uint8* AllocBlock()
 	{
 		LLM_SCOPE(ELLMTag::FName);
+		LLM_TAGSET_SCOPE(ELLMTag::EngineMisc, ELLMTagSet::Assets);
+		LLM_TAGSET_SCOPE(ELLMTag::EngineMisc, ELLMTagSet::AssetClasses);
+		UE_TRACE_METADATA_CLEAR_SCOPE();
 		return (uint8*)FMemory::Malloc(BlockSizeBytes, alignof(FNameEntry));
 	}
 	
@@ -996,6 +1003,9 @@ public:
 	void Initialize(FNameEntryAllocator& InEntries)
 	{
 		LLM_SCOPE(ELLMTag::FName);
+		LLM_TAGSET_SCOPE(ELLMTag::EngineMisc, ELLMTagSet::Assets);
+		LLM_TAGSET_SCOPE(ELLMTag::EngineMisc, ELLMTagSet::AssetClasses);
+		UE_TRACE_METADATA_CLEAR_SCOPE();
 		Entries = &InEntries;
 
 		Slots = (FNameSlot*)FMemory::Malloc(FNamePoolInitialSlotsPerShard * sizeof(FNameSlot), alignof(FNameSlot));
@@ -1398,6 +1408,9 @@ private:
 	void Grow(const uint32 NewCapacity)
 	{
 		LLM_SCOPE(ELLMTag::FName);
+		LLM_TAGSET_SCOPE(ELLMTag::EngineMisc, ELLMTagSet::Assets);
+		LLM_TAGSET_SCOPE(ELLMTag::EngineMisc, ELLMTagSet::AssetClasses);
+		UE_TRACE_METADATA_CLEAR_SCOPE();
 		TArrayView<FNameSlot> OldSlots(Slots, Capacity());
 		const uint32 OldUsedSlots = UsedSlots;
 

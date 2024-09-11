@@ -3639,7 +3639,9 @@ const UE::LLMPrivate::FTagData* FLowLevelMemTracker::FindTagData(FName TagName, 
 
 void FLLMScope::Init(ELLMTag TagEnum, bool bInIsStatTag, ELLMTagSet InTagSet, ELLMTracker InTracker, bool bOverride)
 {
-	LLMCheck(!bInIsStatTag && InTagSet == ELLMTagSet::None);
+	// This scope does not support TagSets (use FLLMScopeDynamic instead), except for the special case of
+	// anonymized allocations, which are indicated with a TagSet and ELLMTag::EngineMisc
+	LLMCheck((!bInIsStatTag && InTagSet == ELLMTagSet::None) || (TagEnum == ELLMTag::EngineMisc));
 	// ELLMTag::FMalloc is a special tag expected to only be used by the Platform Tracker (see header where defined).
 	LLMCheck((TagEnum != ELLMTag::FMalloc) || (ELLMTracker::Platform == InTracker));
 

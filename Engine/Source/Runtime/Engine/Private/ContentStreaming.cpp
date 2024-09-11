@@ -20,6 +20,8 @@
 #include "VT/VirtualTextureChunkManager.h"
 #include "Rendering/NaniteCoarseMeshStreamingManager.h"
 #include "AutoRTFM/AutoRTFM.h"
+#include "HAL/LowLevelMemStats.h"
+#include "ProfilingDebugging/MetadataTrace.h"
 
 #if WITH_EDITOR
 #include "AudioDevice.h"
@@ -370,6 +372,9 @@ FStreamingManagerCollection& IStreamingManager::Get()
 {
 	if (StreamingManagerCollection == nullptr)
 	{
+		LLM_TAGSET_SCOPE(ELLMTag::EngineMisc, ELLMTagSet::Assets);
+		LLM_TAGSET_SCOPE(ELLMTag::EngineMisc, ELLMTagSet::AssetClasses);
+		UE_TRACE_METADATA_CLEAR_SCOPE();
 		// Since this is a lazily created static global variable we create it
 		// in the open.
 		UE_AUTORTFM_OPEN
