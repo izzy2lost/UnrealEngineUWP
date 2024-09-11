@@ -683,7 +683,7 @@ void FLevelEditorMenu::RegisterBuildMenu()
 						: BuildTypeLocalizedNames[Index];
 
 					check(BuildTypeSection != nullptr);
-					BuildTypeSection->AddMenuEntry(CommandInfo, Label, ToolTip).Name = NAME_None;
+					BuildTypeSection->AddMenuEntry(CommandInfo, Label, ToolTip).Name = BuildTypeNames[Index];
 				}
 			}
 		}));
