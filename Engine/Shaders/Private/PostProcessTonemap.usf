@@ -764,10 +764,10 @@ void AlphaInvert_MainPS(
 )
 {
 	uint ArrayIndex = 0;
-#if MOBILE_MULTI_VIEW
-	ArrayIndex = MultiViewId;
-#elif MOBILE_MULTI_VIEW_FALLBACK
+#if MOBILE_MULTI_VIEW_FALLBACK
 	ArrayIndex = EyeIndex;
+#elif MOBILE_MULTI_VIEW
+	ArrayIndex = MultiViewId;
 #else
 #endif
 	
