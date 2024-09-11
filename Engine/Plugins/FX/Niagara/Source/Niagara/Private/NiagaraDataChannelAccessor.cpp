@@ -130,18 +130,6 @@ FNiagaraSpawnInfo UNiagaraDataChannelReader::ReadSpawnInfo(FName VarName, int32 
 
 //////////////////////////////////////////////////////////////////////////
 
-template<typename T>
-void UNiagaraDataChannelWriter::WriteData(const FNiagaraVariableBase& Var, int32 Index, const T& InData)
-{
-	if (ensure(Data.IsValid()))
-	{
-		if (FNiagaraDataChannelVariableBuffer* VarBuffer = Data->FindVariableBuffer(Var))
-		{
-			VarBuffer->Write<T>(Index, InData);
-		}
-	}
-}
-
 bool UNiagaraDataChannelWriter::InitWrite(FNiagaraDataChannelSearchParameters SearchParams, int32 Count, bool bVisibleToGame, bool bVisibleToCPU, bool bVisibleToGPU, const FString& DebugSource)
 {
 	if (Count == 0)

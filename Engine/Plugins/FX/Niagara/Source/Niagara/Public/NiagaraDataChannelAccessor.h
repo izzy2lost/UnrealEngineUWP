@@ -86,10 +86,19 @@ private:
 	/** Local data buffers we're writing into. */
 	FNiagaraDataChannelGameDataPtr Data = nullptr;
 
-	template<typename T>
-	void WriteData(const FNiagaraVariableBase& Var, int32 Index, const T& InData);
 
 public:
+	template<typename T>
+	void WriteData(const FNiagaraVariableBase& Var, int32 Index, const T& InData)
+	{
+		if (ensure(Data.IsValid()))
+		{
+			if (FNiagaraDataChannelVariableBuffer* VarBuffer = Data->FindVariableBuffer(Var))
+			{
+				VarBuffer->Write<T>(Index, InData);
+			}
+		}
+	}
 
 	UPROPERTY()
 	TObjectPtr<UNiagaraDataChannelHandler> Owner;
