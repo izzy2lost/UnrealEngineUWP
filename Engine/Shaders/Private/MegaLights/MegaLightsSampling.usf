@@ -30,24 +30,18 @@ ADAPTIVE_LICM
 
 struct FLightTargetPDF
 {
-	float3 Diffuse;
-	float3 Specular;
 	float Weight;
 };
 
 FLightTargetPDF InitLightTargetPDF()
 {
 	FLightTargetPDF LightTargetPDF;
-	LightTargetPDF.Diffuse = 0.0f;
-	LightTargetPDF.Specular = 0.0f;
 	LightTargetPDF.Weight = 0.0f;
 	return LightTargetPDF;
 }
 
 FLightTargetPDF GetLocalLightTargetPDF(FDeferredLightData LightData, float3 TranslatedWorldPosition, FMegaLightsMaterial Material, uint2 ScreenCoord, inout FDebug Debug)
 {
-	FLightTargetPDF LightTargetPDF = InitLightTargetPDF();
-
 	float3 CameraVector = normalize(TranslatedWorldPosition - View.TranslatedWorldCameraOrigin);
 
 	float4 LightAttenuation = 1.0f;
@@ -62,20 +56,16 @@ FLightTargetPDF GetLocalLightTargetPDF(FDeferredLightData LightData, float3 Tran
 		LightData, LightAttenuation, Dither, ScreenCoord, 
 		SurfaceShadow);
 
-	LightTargetPDF.Diffuse = SplitLighting.DiffuseLighting.xyz * View.PreExposure;
-	LightTargetPDF.Specular = SplitLighting.SpecularLighting.xyz * View.PreExposure;
+	float Lum = Luminance(SplitLighting.DiffuseLighting.xyz + SplitLighting.SpecularLighting.xyz) * View_PreExposure;
 
-	// #ml_todo: move light profile to GetDynamicLightingSplit for better handling
-	if (LightData.IESAtlasIndex >= 0 && Luminance(LightTargetPDF.Diffuse + LightTargetPDF.Specular) > 0.01f)
+	if (LightData.IESAtlasIndex >= 0 && Lum > 0.01f)
 	{
-		const float LightProfileMult = ComputeLightProfileMultiplier(TranslatedWorldPosition, LightData.TranslatedWorldPosition, -LightData.Direction, LightData.Tangent, LightData.IESAtlasIndex);
-		LightTargetPDF.Diffuse *= LightProfileMult;
-		LightTargetPDF.Specular *= LightProfileMult;
+		Lum *= ComputeLightProfileMultiplier(TranslatedWorldPosition, LightData.TranslatedWorldPosition, -LightData.Direction, LightData.Tangent, LightData.IESAtlasIndex);
 	}
 
 	// Simulate tonemapping
-	LightTargetPDF.Weight = log2(Luminance(LightTargetPDF.Diffuse + LightTargetPDF.Specular) + 1.0f);
-
+	FLightTargetPDF LightTargetPDF = InitLightTargetPDF();
+	LightTargetPDF.Weight = log2(Lum + 1.0f);
 	return LightTargetPDF;
 }
 
