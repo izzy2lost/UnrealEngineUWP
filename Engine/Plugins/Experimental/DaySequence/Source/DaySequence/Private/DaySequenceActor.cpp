@@ -116,7 +116,7 @@ ADaySequenceActor::ADaySequenceActor(const FObjectInitializer& Init)
 	bAlwaysRelevant = true;
 	bReplicates = true;
 	bReplicateUsingRegisteredSubObjectList = true;
-	bReplicatePlayback = false;
+	bReplicatePlayback = true;
 	SetHidden(false);
 	
 #if ENABLE_DRAW_DEBUG
