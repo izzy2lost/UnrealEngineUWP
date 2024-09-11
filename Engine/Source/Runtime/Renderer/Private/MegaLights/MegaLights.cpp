@@ -562,6 +562,7 @@ class FGenerateLightSamplesCS : public FGlobalShader
 		MegaLights::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
 		OutEnvironment.CompilerFlags.Add(CFLAG_WaveOperations);
+		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
 
 		FPermutationDomain PermutationVector(Parameters.PermutationId);
 		const int32 NumSamplesPerPixel1d = PermutationVector.Get<FNumSamplesPerPixel1d>();
