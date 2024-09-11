@@ -1193,7 +1193,7 @@ void RenderAlphaInvertPass(FRHICommandList& RHICmdList, const FViewInfo& View, F
 {
 	// Part of scene rendering pass
 	check(RHICmdList.IsInsideRenderPass());
-	SCOPED_DRAW_EVENT(RHICmdList, MobileTonemapSubpass);
+	SCOPED_DRAW_EVENT(RHICmdList, AlphaInvert);
 
 	const FIntPoint TargetSize = SceneTextures.Color.Resolve->Desc.Extent;
 	
