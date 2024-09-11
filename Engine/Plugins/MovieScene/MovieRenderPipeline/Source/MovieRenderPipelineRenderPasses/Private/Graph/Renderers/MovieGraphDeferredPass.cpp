@@ -275,6 +275,8 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 			SampleState.CompositingSortOrder = 10;
 		}
 
+		ApplyMovieGraphOverridesToSampleState(SampleState);
+
 		if (UMovieGraphImagePassBaseNode* ParentNode = GetParentNode(InFrameTraversalContext.Time.EvaluatedConfig))
 		{
 			TSet<UMaterialInterface*> HighPrecisionMaterials;
