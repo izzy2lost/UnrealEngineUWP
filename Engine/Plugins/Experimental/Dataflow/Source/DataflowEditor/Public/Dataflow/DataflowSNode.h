@@ -7,11 +7,31 @@
 #include "UObject/GCObject.h"
 #include "Dataflow/DataflowCore.h"
 #include "Dataflow/DataflowSEditorInterface.h"
+#include "SGraphPin.h"
 
 #include "DataflowSNode.generated.h"
 
 class UDataflowEdNode;
 class SCheckBox;
+
+//
+// SDataflowOutputPin
+//
+
+class SDataflowOutputPin : public SGraphPin
+{
+public:
+	SLATE_BEGIN_ARGS(SDataflowOutputPin)
+		: _IsPinInvalid(false)
+	{}
+		SLATE_ATTRIBUTE(bool, IsPinInvalid)
+	SLATE_END_ARGS()
+
+	void Construct(const FArguments& InArgs, UEdGraphPin* InPin);
+
+private:
+	TAttribute<bool> IsPinInvalid;
+};
 
 //
 // SDataflowEdNode
@@ -59,7 +79,7 @@ private:
 	/** Checks whether Add pin button should currently be visible */
 	virtual EVisibility IsAddPinButtonVisible() const;
 
-	
+	virtual TSharedPtr<SGraphPin> CreatePinWidget(UEdGraphPin* Pin) const override;
 
 	TObjectPtr<UDataflowEdNode> DataflowGraphNode = nullptr;	
 

@@ -94,7 +94,8 @@ protected:
 
 	// Node evaluation
 	void EvaluateNode(const FDataflowNode* Node, const FDataflowOutput* Output, Dataflow::FTimestamp& InOutTimestamp);
-	
+	void OnFinishEvaluate();
+
 private:
 	
 	// Spawning of all the additional tabs (viewport,details ones are coming from the base asset toolkit)

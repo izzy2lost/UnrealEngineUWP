@@ -23,6 +23,30 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataflowSNode)
 
 #define LOCTEXT_NAMESPACE "SDataflowEdNode"
+
+//
+// SDataflowOutputPin
+//
+
+void SDataflowOutputPin::Construct(const FArguments& InArgs, UEdGraphPin* InPin)
+{
+	const bool bIsPinInvalid = InArgs._IsPinInvalid.Get();
+	const FText InvalidPinDisplayText = bIsPinInvalid ? NSLOCTEXT("DataflowGraph", "DataflowOutputPinInvalidText", "*") : NSLOCTEXT("DataflowGraph", "DataflowOutputPinValidText", " ");
+
+	SGraphPin::Construct(SGraphPin::FArguments(), InPin);
+
+	GetLabelAndValue()->AddSlot()
+		.Padding(2.0f, 0.0f, 0.0f, 0.0f)
+		[
+			SNew(STextBlock)
+			.Text_Lambda([InvalidPinDisplayText]()
+				{
+					return InvalidPinDisplayText;
+				})
+		.MinDesiredWidth(5)
+		];
+}
+
 //
 // SDataflowEdNode
 //
@@ -32,6 +56,7 @@ void SDataflowEdNode::Construct(const FArguments& InArgs, UDataflowEdNode* InNod
 	GraphNode = InNode;
 	DataflowGraphNode = Cast<UDataflowEdNode>(InNode);
 	DataflowInterface = InArgs._DataflowInterface;
+
 	UpdateGraphNode();
 
 	
@@ -110,6 +135,45 @@ void SDataflowEdNode::Construct(const FArguments& InArgs, UDataflowEdNode* InNod
 			return ECheckBoxState::Unchecked;
 		});
 	*/
+}
+
+TSharedPtr<SGraphPin> SDataflowEdNode::CreatePinWidget(UEdGraphPin* Pin) const
+{
+	if (Pin->Direction == EEdGraphPinDirection::EGPD_Output)
+	{
+		if (DataflowGraphNode)
+		{
+			if (TSharedPtr<FDataflowNode> DataflowNode = DataflowGraphNode->GetDataflowNode())
+			{
+				if (FDataflowOutput* Output = DataflowNode->FindOutput(Pin->GetFName()))
+				{
+					if (const TSharedPtr<Dataflow::FEngineContext> DataflowContext = DataflowInterface->GetDataflowContext())
+					{
+						TSet<Dataflow::FContextCacheKey> CacheKeys;
+						const int32 NumKeys = DataflowContext->GetKeys(CacheKeys);
+
+						//
+						// DataStore is empty or 
+						// CacheKey is not in DataStore or
+						// Node's Timestamp is invalid or
+						// Node's Timestamp is greater than CacheKey's Timestamp -> Pin is invalid
+						//
+						const bool bIsOutputInvalid = !NumKeys ||
+							!CacheKeys.Contains(Output->CacheKey()) ||
+PRAGMA_DISABLE_DEPRECATION_WARNINGS  // Until LastModifiedTimestamp becomes private
+							DataflowNode->LastModifiedTimestamp.IsInvalid() || 
+							!DataflowContext->IsCacheEntryAfterTimestamp(Output->CacheKey(), DataflowNode->LastModifiedTimestamp);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+						return SNew(SDataflowOutputPin, Pin)
+								.IsPinInvalid(bIsOutputInvalid);
+					}
+				}
+			}
+		}
+	}
+
+	return SGraphNode::CreatePinWidget(Pin);
 }
 
 TArray<FOverlayWidgetInfo> SDataflowEdNode::GetOverlayWidgets(bool bSelected, const FVector2D& WidgetSize) const
