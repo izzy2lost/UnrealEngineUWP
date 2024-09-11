@@ -104,6 +104,12 @@ bool ExecuteSearchIteration(const FSearchSettings& SearchSettings, FSearchState&
 
 		const double TentativeNewLocalCost = SearchState.CostFunction(NodeList[CurrentNodeIndex].LocalCost, NodeList[CurrentNodeIndex].PCGPoint, DistanceToPointSquared, Point);
 
+		// Blocked paths don't need expansion here, and serve no purpose at this point (at least from that direction) from being visited.
+		if (TentativeNewLocalCost == std::numeric_limits<double>::max())
+		{
+			return;
+		}
+
 		// Not tracking this point yet--add it to the node list and map it.
 		if (!bTrackedPoint)
 		{

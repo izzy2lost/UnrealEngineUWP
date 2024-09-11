@@ -3,6 +3,7 @@
 #include "Elements/PCGPathfindingElement.h"
 
 #include "PCGContext.h"
+#include "PCGComponent.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSplineData.h"
 #include "Helpers/PCGHelpers.h"
@@ -12,6 +13,8 @@
 #include "SpatialAlgo/PCGAStar.h"
 
 #include "Components/SplineComponent.h"
+#include "Engine/HitResult.h"
+#include "Engine/World.h"
 
 #define LOCTEXT_NAMESPACE "PCGPathfindingElement"
 
@@ -50,6 +53,12 @@ namespace PCGPathfindingElement::Helpers
 		return SplinePoints;
 	}
 } // namespace PCGPathfindingElement::Helpers
+
+UPCGPathfindingSettings::UPCGPathfindingSettings()
+{
+	// In most cases, we're not going to be interested in checking for occlusion by the landscape itself, as we'll be pathfinding on the landscape.
+	PathTraceParams.SelectLandscapeHits = EPCGWorldQuerySelectLandscapeHits::Exclude;
+}
 
 TArray<FPCGPinProperties> UPCGPathfindingSettings::InputPinProperties() const
 {
@@ -91,6 +100,12 @@ EPCGChangeType UPCGPathfindingSettings::GetChangeTypeForProperty(const FName& In
 	return Super::GetChangeTypeForProperty(InPropertyName) | LocalChangeType;
 }
 #endif // WITH_EDITOR
+
+bool FPCGPathfindingElement::IsCacheable(const UPCGSettings* InSettings) const
+{
+	const UPCGPathfindingSettings* Settings = Cast<const UPCGPathfindingSettings>(InSettings);
+	return !Settings || !Settings->bUsePathTraces;
+}
 
 bool FPCGPathfindingElement::PrepareDataInternal(FPCGContext* InContext) const
 {
@@ -166,14 +181,49 @@ bool FPCGPathfindingElement::PrepareDataInternal(FPCGContext* InContext) const
 			}
 		}
 
+		TFunction<bool(const FVector&, const FVector&)> LineTraceTest = [](const FVector&, const FVector&) -> bool { return true; };
+
+		if (Settings->bUsePathTraces)
+		{
+			if (UWorld* World = Context->SourceComponent.Get() ? Context->SourceComponent->GetWorld() : nullptr)
+			{
+				FPCGWorldRaycastQueryParams PathTraceParams = Settings->PathTraceParams;
+				PathTraceParams.Initialize();
+
+				TWeakObjectPtr<UPCGComponent> OriginatingComponent = Context->SourceComponent;
+				FCollisionObjectQueryParams ObjectQueryParams(PathTraceParams.CollisionChannel);
+				FCollisionQueryParams Params;
+				Params.bTraceComplex = PathTraceParams.bTraceComplex;
+
+				LineTraceTest = [World, ObjectQueryParams = MoveTemp(ObjectQueryParams), Params = MoveTemp(Params), OriginatingComponent, PathTraceParams = MoveTemp(PathTraceParams)](const FVector& StartPosition, const FVector& EndPosition) -> bool
+				{
+					TArray<FHitResult> OutHits;
+					if (World->LineTraceMultiByObjectType(OutHits, StartPosition, EndPosition, ObjectQueryParams, Params))
+					{
+						TOptional<FHitResult> HitResult = PCGWorldQueryHelpers::FilterRayHitResults(&PathTraceParams, OriginatingComponent, OutHits);
+						return !HitResult.IsSet();
+					}
+					else
+					{
+						return true;
+					}
+				};
+			}
+		}
+
 		if (CostAccessor)
 		{
 			if (Settings->CostFunctionMode == EPCGPathfindingCostFunctionMode::FitnessScore)
 			{
 				const double MaxFitnessPenaltyFactor = FMath::Max(Settings->MaximumFitnessPenaltyFactor, 1.0);
 
-				OutSearchState.CostFunction = [FitnessAccessor = CostAccessor, MaxFitnessPenaltyFactor](const double PreviousNodeCost, const FPCGPoint* PreviousNodePoint, const double DistanceToCurrentSquared, const FPCGPoint* CurrentNodePoint)
+				OutSearchState.CostFunction = [FitnessAccessor = CostAccessor, MaxFitnessPenaltyFactor, PathTraceTest = MoveTemp(LineTraceTest)](const double PreviousNodeCost, const FPCGPoint* PreviousNodePoint, const double DistanceToCurrentSquared, const FPCGPoint* CurrentNodePoint)
 				{
+					if(!PathTraceTest(PreviousNodePoint->Transform.GetLocation(), CurrentNodePoint->Transform.GetLocation()))
+					{
+						return std::numeric_limits<double>::max();
+					}
+
 					double FitnessScore = 1.0;
 					FPCGAttributeAccessorKeysPoints Key(*CurrentNodePoint);
 
@@ -185,8 +235,13 @@ bool FPCGPathfindingElement::PrepareDataInternal(FPCGContext* InContext) const
 			}
 			else if (Settings->CostFunctionMode == EPCGPathfindingCostFunctionMode::CostMultipler)
 			{
-				OutSearchState.CostFunction = [MultiplierAccessor = CostAccessor](const double PreviousNodeCost, const FPCGPoint* PreviousNodePoint, const double DistanceToCurrentSquared, const FPCGPoint* CurrentNodePoint)
+				OutSearchState.CostFunction = [MultiplierAccessor = CostAccessor, PathTraceTest = MoveTemp(LineTraceTest)](const double PreviousNodeCost, const FPCGPoint* PreviousNodePoint, const double DistanceToCurrentSquared, const FPCGPoint* CurrentNodePoint)
 				{
+					if (!PathTraceTest(PreviousNodePoint->Transform.GetLocation(), CurrentNodePoint->Transform.GetLocation()))
+					{
+						return std::numeric_limits<double>::max();
+					}
+
 					double Multiplier = 1.0;
 					FPCGAttributeAccessorKeysPoints Key(*CurrentNodePoint);
 
@@ -200,6 +255,21 @@ bool FPCGPathfindingElement::PrepareDataInternal(FPCGContext* InContext) const
 			{
 				checkNoEntry();
 			}
+		}
+		else if (Settings->bUsePathTraces)
+		{
+			// Use distance but with line trace
+			OutSearchState.CostFunction = [PathTraceTest = MoveTemp(LineTraceTest)](const double PreviousNodeCost, const FPCGPoint* PreviousNodePoint, const double DistanceToCurrentSquared, const FPCGPoint* CurrentNodePoint)
+			{
+				if (!PathTraceTest(PreviousNodePoint->Transform.GetLocation(), CurrentNodePoint->Transform.GetLocation()))
+				{
+					return std::numeric_limits<double>::max();
+				}
+				else
+				{
+					return PCGSpatialAlgo::AStar::Cost::CalculateCost_EuclideanDistance(PreviousNodeCost, PreviousNodePoint, DistanceToCurrentSquared, CurrentNodePoint);
+				}
+			};
 		}
 
 		PCGSpatialAlgo::AStar::Initialize(OutSearchState.OriginatingPointData, SearchSettings, OutSearchState);
