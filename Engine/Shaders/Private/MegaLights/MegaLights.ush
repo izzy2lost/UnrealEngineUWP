@@ -99,6 +99,7 @@ struct FLightSample
 	bool bCompleted; // Whether tracing was completed
 	bool bGuidedAsVisible;
 	bool bGuidedAsPartiallyVisibleLight;
+	bool bSupportScreenTrace;
 };
 
 FLightSample InitLightSample()
@@ -110,6 +111,7 @@ FLightSample InitLightSample()
 	LightSample.bCompleted = true;
 	LightSample.bGuidedAsVisible = true;
 	LightSample.bGuidedAsPartiallyVisibleLight = false;
+	LightSample.bSupportScreenTrace = true;
 	return LightSample;
 }
 
@@ -120,7 +122,8 @@ uint PackLightSample(FLightSample LightSample)
 	PackedLightSample |= LightSample.bCompleted ? 0x4000 : 0;
 	PackedLightSample |= LightSample.bGuidedAsVisible ? 0x2000 : 0;
 	PackedLightSample |= LightSample.bGuidedAsPartiallyVisibleLight ? 0x1000 : 0;
-	PackedLightSample |= f32tof16(LightSample.Weight) << 16;
+	PackedLightSample |= LightSample.bSupportScreenTrace ? 0x10000 : 0;
+	PackedLightSample |= (f32tof16(LightSample.Weight) & 0xFFFE) << 16;
 	return PackedLightSample;
 }
 
@@ -132,7 +135,8 @@ FLightSample UnpackLightSample(uint PackedLightSample)
 	LightSample.bCompleted = PackedLightSample & 0x4000 ? true : false;
 	LightSample.bGuidedAsVisible = PackedLightSample & 0x2000 ? true : false;
 	LightSample.bGuidedAsPartiallyVisibleLight = PackedLightSample & 0x1000 ? true : false;
-	LightSample.Weight = f16tof32(PackedLightSample >> 16);
+	LightSample.bSupportScreenTrace = PackedLightSample & 0x10000 ? true : false;
+	LightSample.Weight = f16tof32((PackedLightSample >> 16) & 0xFFFE);
 	return LightSample;
 }
 

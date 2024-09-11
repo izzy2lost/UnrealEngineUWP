@@ -243,9 +243,9 @@ void ScreenSpaceRayTraceLightSamplesCS(
 
 		bHit = bHit && !bUncertain;
 
-		const float RayT = sqrt(ComputeRayHitSqrDistance(TranslatedWorldPosition, HitUVz));
+		const float RayT = LightSample.bSupportScreenTrace ? sqrt(ComputeRayHitSqrDistance(TranslatedWorldPosition, HitUVz)) : 0;
 
-		const bool bCompleted = bHit || (RayT >= LightSampleTrace.Distance * 0.999f);
+		const bool bCompleted = LightSample.bSupportScreenTrace && (bHit || (RayT >= LightSampleTrace.Distance * 0.999f));
 
 		if (bCompleted)
 		{

@@ -470,6 +470,9 @@ void GenerateLightSamplesCS(
 					uint2 SampleCoord = GetSampleCoord(DownsampledScreenCoord, LightSampleIndex);
 					float2 LightSampleUV = BlueNoiseVec2(SampleCoord, MegaLightsStateFrameIndex);
 
+					// Disble screen tracing on hair material as it is very noisy and can cause light leak when light and view are opposed.
+					LightSample.bSupportScreenTrace = !Material.bIsHair;
+
 					#if GUIDE_BY_HISTORY
 					if (bHasValidHistory && LocalLightData.PrevLocalLightIndex >= 0)
 					{
