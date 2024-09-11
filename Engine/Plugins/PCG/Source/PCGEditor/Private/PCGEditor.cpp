@@ -12,6 +12,7 @@
 #include "PCGInputOutputSettings.h"
 #include "PCGPin.h"
 #include "PCGSubsystem.h"
+#include "Compute/IPCGNodeSourceTextProvider.h"
 #include "Elements/PCGReroute.h"
 #include "Helpers/PCGSubgraphHelpers.h"
 #include "Rendering/SlateRenderer.h"
@@ -39,6 +40,7 @@
 #include "SPCGEditorGraphLogView.h"
 #include "SPCGEditorGraphNodePalette.h"
 #include "SPCGEditorGraphProfilingView.h"
+#include "Widgets/SPCGEditorNodeSource.h"
 
 #include "AssetToolsModule.h"
 #include "EdGraphUtilities.h"
@@ -91,6 +93,7 @@ namespace FPCGEditor_private
 	const FName DeterminismID = FName(TEXT("Determinism"));
 	const FName ProfilingID = FName(TEXT("Profiling"));
 	const FName LogID = FName(TEXT("Log"));
+	const FName NodeSourceID = FName(TEXT("NodeSource"));
 }
 
 UPCGEditorGraph* FPCGEditor::GetPCGEditorGraph(UPCGGraph* InGraph)
@@ -142,6 +145,7 @@ void FPCGEditor::Initialize(const EToolkitMode::Type InMode, const TSharedPtr<cl
 	DeterminismWidget = CreateDeterminismWidget();
 	ProfilingWidget = CreateProfilingWidget();
 	LogWidget = CreateLogWidget();
+	NodeSourceWidget = CreateNodeSourceWidget();
 
 	BindCommands();
 	RegisterToolbar();
@@ -204,6 +208,7 @@ void FPCGEditor::Initialize(const EToolkitMode::Type InMode, const TSharedPtr<cl
 	InitAssetEditor(InMode, InToolkitHost, PCGGraphEditorAppName, StandaloneDefaultLayout, /*bCreateDefaultStandaloneMenu=*/ true, /*bCreateDefaultToolbar=*/ true, InPCGGraph);
 
 	PCGGraphBeingEdited->OnGraphChangedDelegate.AddRaw(this, &FPCGEditor::OnGraphChanged);
+	PCGGraphBeingEdited->OnNodeSourceCompiledDelegate.AddRaw(this, &FPCGEditor::OnNodeSourceCompiled);
 
 	// Hook to map change / delete actor to refresh debug object selection list, to help prevent it going stale.
 	FLevelEditorModule& LevelEditor = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
@@ -443,6 +448,11 @@ const FPCGStack* FPCGEditor::GetStackBeingInspected() const
 	return StackBeingInspected.GetStackFrames().IsEmpty() ? nullptr : &StackBeingInspected;
 }
 
+void FPCGEditor::SetSourceEditorTargetObject(UObject* InObject)
+{
+	NodeSourceWidget->SetTextProviderObject(InObject);
+}
+
 void FPCGEditor::JumpToNode(const UEdGraphNode* InNode)
 {
 	if (GraphEditorWidget.IsValid())
@@ -549,6 +559,10 @@ void FPCGEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager
 	InTabManager->RegisterTabSpawner(FPCGEditor_private::LogID, FOnSpawnTab::CreateSP(this, &FPCGEditor::SpawnTab_Log))
 		.SetDisplayName(LOCTEXT("LogCaptureTab", "Log Capture"))
 		.SetGroup(WorkspaceMenuCategoryRef);
+
+	InTabManager->RegisterTabSpawner(FPCGEditor_private::NodeSourceID, FOnSpawnTab::CreateSP(this, &FPCGEditor::SpawnTab_NodeSource))
+		.SetDisplayName(LOCTEXT("NodeSourceTab", "Node Source Editor"))
+		.SetGroup(WorkspaceMenuCategoryRef);
 }
 
 void FPCGEditor::UnregisterTabSpawners(const TSharedRef<class FTabManager>& InTabManager)
@@ -566,6 +580,9 @@ void FPCGEditor::UnregisterTabSpawners(const TSharedRef<class FTabManager>& InTa
 	InTabManager->UnregisterTabSpawner(FPCGEditor_private::AttributesID[3]);
 	InTabManager->UnregisterTabSpawner(FPCGEditor_private::FindID);
 	InTabManager->UnregisterTabSpawner(FPCGEditor_private::DeterminismID);
+	InTabManager->UnregisterTabSpawner(FPCGEditor_private::ProfilingID);
+	InTabManager->UnregisterTabSpawner(FPCGEditor_private::LogID);
+	InTabManager->UnregisterTabSpawner(FPCGEditor_private::NodeSourceID);
 
 	FAssetEditorToolkit::UnregisterTabSpawners(InTabManager);
 }
@@ -2961,6 +2978,11 @@ TSharedRef<SPCGEditorGraphLogView> FPCGEditor::CreateLogWidget()
 	return SNew(SPCGEditorGraphLogView, SharedThis(this));
 }
 
+TSharedRef<SPCGEditorNodeSource> FPCGEditor::CreateNodeSourceWidget()
+{
+	return SNew(SPCGEditorNodeSource, SharedThis(this));
+}
+
 void FPCGEditor::OnSelectedNodesChanged(const TSet<UObject*>& NewSelection)
 {
 	TArray<TWeakObjectPtr<UObject>> SelectedObjects;
@@ -2984,6 +3006,11 @@ void FPCGEditor::OnSelectedNodesChanged(const TSet<UObject*>& NewSelection)
 	{
 		PropertyDetailsWidget->SetObjects(SelectedObjects, /*bForceRefresh=*/true);
 	}
+
+	// Give a single selected node with valid settings to the source editor, or give it null so it can clear the UI.
+	UPCGEditorGraphNode* SelectedNode = (NewSelection.Num() == 1) ? Cast<UPCGEditorGraphNode>(*NewSelection.CreateConstIterator()) : nullptr;
+	UPCGNode* PCGNode = SelectedNode ? SelectedNode->GetPCGNode() : nullptr;
+	SetSourceEditorTargetObject(PCGNode ? PCGNode->GetSettings() : nullptr);
 }
 
 void FPCGEditor::OnNodeTitleCommitted(const FText& NewText, ETextCommit::Type CommitInfo, UEdGraphNode* NodeBeingChanged)
@@ -3138,6 +3165,21 @@ void FPCGEditor::OnGraphChanged(UPCGGraphInterface* InGraph, EPCGChangeType Chan
 	}
 }
 
+void FPCGEditor::OnNodeSourceCompiled(const UPCGNode* InNode, const FPCGCompilerDiagnostics& InDiagnostics)
+{
+	check(NodeSourceWidget);
+
+	const UPCGSettings* Settings = InNode ? InNode->GetSettings() : nullptr;
+	if (Settings && NodeSourceWidget->GetTextProviderObject() == Settings)
+	{
+		NodeSourceWidget->OnDiagnosticsUpdated(InDiagnostics);
+	}
+	else
+	{
+		NodeSourceWidget->OnDiagnosticsUpdated({});
+	}
+}
+
 void FPCGEditor::OnMapChanged(UWorld* InWorld, EMapChangeType InMapChangedType)
 {
 	if (InMapChangedType != EMapChangeType::SaveMap)
@@ -3269,6 +3311,16 @@ TSharedRef<SDockTab> FPCGEditor::SpawnTab_Log(const FSpawnTabArgs& Args)
 		.TabColorScale(GetTabColorScale())
 		[
 			LogWidget.ToSharedRef()
+		];
+}
+
+TSharedRef<SDockTab> FPCGEditor::SpawnTab_NodeSource(const FSpawnTabArgs& Args)
+{
+	return SNew(SDockTab)
+		.Label(LOCTEXT("PCGNodeSourceTitle", "Node Source Editor"))
+		.TabColorScale(GetTabColorScale())
+		[
+			NodeSourceWidget.ToSharedRef()
 		];
 }
 

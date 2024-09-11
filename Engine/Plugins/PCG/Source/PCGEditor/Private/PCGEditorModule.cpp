@@ -3,13 +3,6 @@
 #include "PCGEditorModule.h"
 
 #include "PCGComponent.h"
-#include "PCGEditorCommands.h"
-#include "PCGEditorGraphNodeFactory.h"
-#include "PCGEditorMenuUtils.h"
-#include "PCGEditorProgressNotification.h"
-#include "PCGEditorSettings.h"
-#include "PCGEditorStyle.h"
-#include "PCGEditorUtils.h"
 #include "PCGEngineSettings.h"
 #include "PCGModule.h"
 #include "PCGParamData.h"
@@ -22,6 +15,15 @@
 #include "DataVisualizations/PCGSplineDataVisualization.h"
 #include "Grid/PCGPartitionActor.h"
 #include "WorldPartitionBuilder/PCGWorldPartitionBuilder.h"
+
+#include "PCGEditorCommands.h"
+#include "PCGEditorGraphNodeFactory.h"
+#include "PCGEditorMenuUtils.h"
+#include "PCGEditorProgressNotification.h"
+#include "PCGEditorSettings.h"
+#include "PCGEditorStyle.h"
+#include "PCGEditorUtils.h"
+#include "Widgets/SPCGNodeSourceTextBox.h"
 
 #include "ContentBrowserMenuContexts.h"
 #include "ContentBrowserModule.h"
@@ -66,7 +68,8 @@ void FPCGEditorModule::StartupModule()
 
 	FPCGEditorCommands::Register();
 	FPCGEditorStyle::Register();
-
+	FPCGNodeSourceEditorTextBoxCommands::Register();
+	
 	GraphNodeFactory = MakeShareable(new FPCGEditorGraphNodeFactory());
 	FEdGraphUtilities::RegisterVisualNodeFactory(GraphNodeFactory);
 

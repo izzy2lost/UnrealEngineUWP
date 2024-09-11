@@ -455,6 +455,43 @@ const UPCGPin* UPCGCustomHLSLSettings::GetFirstPointOutputPin() const
 	return nullptr;
 }
 
+#if WITH_EDITOR
+FString UPCGCustomHLSLSettings::GetDeclarationsText() const
+{
+	return InputDeclarations + TEXT("\n\n") + OutputDeclarations + TEXT("\n\n") + HelperDeclarations;
+}
+
+FString UPCGCustomHLSLSettings::GetShaderFunctionsText() const
+{
+	return ShaderFunctions;
+}
+
+FString UPCGCustomHLSLSettings::GetShaderText() const
+{
+	return ShaderSource;
+}
+
+void UPCGCustomHLSLSettings::SetShaderFunctionsText(const FString& NewFunctionsText)
+{
+	ShaderFunctions = NewFunctionsText;
+}
+
+void UPCGCustomHLSLSettings::SetShaderText(const FString& NewText)
+{
+	ShaderSource = NewText;
+}
+
+bool UPCGCustomHLSLSettings::IsShaderTextReadOnly() const
+{
+	return false;
+}
+
+void UPCGCustomHLSLSettings::ApplySourceChanges()
+{
+	OnSettingsChangedDelegate.Broadcast(this, GetChangeTypeForProperty(GET_MEMBER_NAME_CHECKED(UPCGCustomHLSLSettings, ShaderSource)));
+}
+#endif //WITH_EDITOR
+
 const FPCGPinPropertiesGPU* UPCGCustomHLSLSettings::GetOutputPinPropertiesGPU(const FName& InPinLabel) const
 {
 	return OutputPins.FindByPredicate([InPinLabel](const FPCGPinPropertiesGPU& InProperties)
@@ -475,6 +512,43 @@ void UPCGCustomHLSLSettings::UpdateDeclarations()
 void UPCGCustomHLSLSettings::UpdateInputDeclarations()
 {
 	InputDeclarations.Reset();
+
+	// Constants category
+	{
+		if (KernelType == EPCGKernelType::PointGenerator)
+		{
+			InputDeclarations += TEXT("/*** INPUT CONSTANTS ***/\n\n");
+			InputDeclarations += FString::Format(TEXT("const uint PointCount = {0};\n\n"), { PointCount });
+		}
+
+		InputDeclarations += TEXT("/*** INPUT PER-THREAD CONSTANTS ***/\n\n");
+		InputDeclarations += TEXT("const uint ThreadIndex;\n");
+
+		if (KernelType == EPCGKernelType::PointProcessor)
+		{
+			const UPCGPin* PointProcessingInputPin = GetPointProcessingInputPin();
+			const UPCGPin* PointProcessingOutputPin = GetFirstPointOutputPin();
+
+			if (PointProcessingInputPin && PointProcessingOutputPin)
+			{
+				InputDeclarations += FString::Format(TEXT(
+					"const uint {0}_DataIndex;\n"
+					"const uint {1}_DataIndex;\n"),
+					{ PointProcessingInputPin->Properties.Label.ToString(),  PointProcessingOutputPin->Properties.Label.ToString() });
+			}
+		}
+		else if (KernelType == EPCGKernelType::PointGenerator)
+		{
+			if (const UPCGPin* PointProcessingOutputPin = GetFirstPointOutputPin())
+			{
+				InputDeclarations += FString::Format(
+					TEXT("const uint {0}_DataIndex;\n"),
+					{ PointProcessingOutputPin->Properties.Label.ToString() });
+			}
+		}
+
+		InputDeclarations += TEXT("const uint ElementIndex;\n\n");
+	}
 
 	TArray<FString> DataPins;
 	TArray<FString> PointDataPins;
@@ -510,7 +584,7 @@ void UPCGCustomHLSLSettings::UpdateInputDeclarations()
 
 	if (!DataPins.IsEmpty())
 	{
-		InputDeclarations += TEXT("### DATA FUNCTIONS ###\n\n");
+		InputDeclarations += TEXT("/*** INPUT DATA FUNCTIONS ***/\n\n");
 
 		const bool bMultiPin = DataPins.Num() > 1;
 
@@ -534,7 +608,7 @@ void UPCGCustomHLSLSettings::UpdateInputDeclarations()
 
 	if (!PointDataPins.IsEmpty())
 	{
-		InputDeclarations += TEXT("### POINT DATA FUNCTIONS ###\n\n");
+		InputDeclarations += TEXT("/*** INPUT POINT DATA FUNCTIONS ***/\n\n");
 
 		const bool bMultiPin = PointDataPins.Num() > 1;
 
@@ -563,7 +637,7 @@ void UPCGCustomHLSLSettings::UpdateInputDeclarations()
 
 	if (!LandscapeDataPins.IsEmpty())
 	{
-		InputDeclarations += TEXT("### LANDSCAPE DATA FUNCTIONS ###\n\n");
+		InputDeclarations += TEXT("/*** INPUT LANDSCAPE DATA FUNCTIONS ***/\n\n");
 
 		const bool bMultiPin = LandscapeDataPins.Num() > 1;
 
@@ -582,7 +656,7 @@ void UPCGCustomHLSLSettings::UpdateInputDeclarations()
 
 	if (!TextureDataPins.IsEmpty())
 	{
-		InputDeclarations += TEXT("### TEXTURE DATA FUNCTIONS ###\n\n");
+		InputDeclarations += TEXT("/*** INPUT TEXTURE DATA FUNCTIONS ***/\n\n");
 
 		const bool bMultiPin = TextureDataPins.Num() > 1;
 
@@ -601,7 +675,7 @@ void UPCGCustomHLSLSettings::UpdateInputDeclarations()
 
 	if (!RawBufferDataPins.IsEmpty())
 	{
-		InputDeclarations += TEXT("### BYTE ADDRESS BUFFER DATA FUNCTIONS ###\n\n");
+		InputDeclarations += TEXT("/*** INPUT BYTE ADDRESS BUFFER DATA FUNCTIONS ***/\n\n");
 
 		const bool bMultiPin = RawBufferDataPins.Num() > 1;
 
@@ -647,7 +721,7 @@ void UPCGCustomHLSLSettings::UpdateOutputDeclarations()
 
 	if (!DataPins.IsEmpty())
 	{
-		OutputDeclarations += TEXT("### DATA FUNCTIONS ###\n\n");
+		OutputDeclarations += TEXT("/*** OUTPUT DATA FUNCTIONS ***/\n\n");
 
 		const bool bMultiPin = DataPins.Num() > 1;
 
@@ -668,7 +742,7 @@ void UPCGCustomHLSLSettings::UpdateOutputDeclarations()
 
 	if (!PointDataPins.IsEmpty())
 	{
-		OutputDeclarations += TEXT("### POINT DATA FUNCTIONS ###\n\n");
+		OutputDeclarations += TEXT("/*** OUTPUT POINT DATA FUNCTIONS ***/\n\n");
 
 		const bool bMultiPin = PointDataPins.Num() > 1;
 
@@ -696,7 +770,7 @@ void UPCGCustomHLSLSettings::UpdateOutputDeclarations()
 
 	if (!RawBufferDataPins.IsEmpty())
 	{
-		OutputDeclarations += TEXT("### BYTE ADDRESS BUFFER DATA FUNCTIONS ###\n\n");
+		OutputDeclarations += TEXT("/*** OUTPUT BYTE ADDRESS BUFFER DATA FUNCTIONS ***/\n\n");
 
 		const bool bMultiPin = RawBufferDataPins.Num() > 1;
 
@@ -719,48 +793,10 @@ void UPCGCustomHLSLSettings::UpdateHelperDeclarations()
 {
 	HelperDeclarations.Reset();
 
-	// Constants category
-	{
-		if (KernelType == EPCGKernelType::PointGenerator)
-		{
-			HelperDeclarations += TEXT("### CONSTANTS ###\n\n");
-			HelperDeclarations += FString::Format(TEXT("const uint PointCount = {0};\n\n"), { PointCount });
-		}
-
-		HelperDeclarations += TEXT("### PER-THREAD CONSTANTS ###\n\n");
-		HelperDeclarations += TEXT("const uint ThreadIndex;\n");
-
-		if (KernelType == EPCGKernelType::PointProcessor)
-		{
-			const UPCGPin* PointProcessingInputPin = GetPointProcessingInputPin();
-			const UPCGPin* PointProcessingOutputPin = GetFirstPointOutputPin();
-
-			if (PointProcessingInputPin && PointProcessingOutputPin)
-			{
-				HelperDeclarations += FString::Format(TEXT(
-					"const uint {0}_DataIndex;\n"
-					"const uint {1}_DataIndex;\n"),
-					{ PointProcessingInputPin->Properties.Label.ToString(),  PointProcessingOutputPin->Properties.Label.ToString() });
-			}
-		}
-		else if (KernelType == EPCGKernelType::PointGenerator)
-		{
-			if (const UPCGPin* PointProcessingOutputPin = GetFirstPointOutputPin())
-			{
-				HelperDeclarations += FString::Format(
-					TEXT("const uint {0}_DataIndex;\n"),
-					{ PointProcessingOutputPin->Properties.Label.ToString() });
-			}
-		}
-
-		HelperDeclarations += TEXT("const uint ElementIndex;\n");
-		HelperDeclarations += TEXT("\n");
-	}
-
 	// Helper funcs category
 	{
 		HelperDeclarations += TEXT(
-			"### HELPER FUNCTIONS ###\n"
+			"/*** HELPER FUNCTIONS ***/\n"
 			"\n"
 			"int3 GetNumThreads();\n");
 
@@ -1427,8 +1463,6 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FPCGKernelAttri
 	Functions.ReplaceInline(TEXT("\r"), TEXT(""));
 #endif
 
-	Source.ReplaceInline(TEXT("\n"), TEXT("\n    ")); // Properly indent kernel source
-
 	for (const TPair<FPCGKernelAttributeKey, int32>& Pair : GlobalAttributeLookupTable)
 	{
 		const FString SourceDefinition = PCGHLSLElement::GetKernelAttributeKeyAsString(Pair.Key);
@@ -1469,7 +1503,7 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FPCGKernelAttri
 
 	for (const FPCGPinPropertiesGPU& PinProps : OutputPins)
 	{
-		SetAsExecuted += FString::Format(TEXT("    if (all(GroupId == 0) && GroupIndex == 0) {0}_SetAsExecutedInternal();\n"), { PinProps.Label.ToString() });
+		SetAsExecuted += FString::Format(TEXT("    if (all(GroupId == 0u) && GroupIndex == 0) {0}_SetAsExecutedInternal();\n"), { PinProps.Label.ToString() });
 	}
 
 	// Per-kernel-type preamble. Set up shader inputs and initialize output data.

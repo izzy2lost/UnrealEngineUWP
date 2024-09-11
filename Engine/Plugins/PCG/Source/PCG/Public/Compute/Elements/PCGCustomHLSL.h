@@ -5,6 +5,8 @@
 #include "PCGSettings.h"
 #include "Compute/PCGPinPropertiesGPU.h"
 
+#include "Compute/IPCGNodeSourceTextProvider.h"
+
 #include "PCGCustomHLSL.generated.h"
 
 class UPCGPin;
@@ -29,7 +31,9 @@ enum class EPCGDispatchThreadCount : uint8
 
 /** Produces a HLSL compute shader which will be executed on the GPU. */
 UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
-class UPCGCustomHLSLSettings : public UPCGSettings
+class UPCGCustomHLSLSettings
+	: public UPCGSettings
+	, public IPCGNodeSourceTextProvider
 {
 	GENERATED_BODY()
 
@@ -75,6 +79,18 @@ protected:
 #endif
 	virtual FPCGElementPtr CreateElement() const override;
 	//~End UPCGSettings interface
+
+#if WITH_EDITOR
+	//~Begin IPCGNodeSourceTextProvider interface
+	FString GetShaderText() const override;
+	FString GetDeclarationsText() const override;
+	FString GetShaderFunctionsText() const override;
+	void SetShaderFunctionsText(const FString& NewFunctionsText) override;
+	void SetShaderText(const FString& NewText) override;
+	bool IsShaderTextReadOnly() const override;
+	void ApplySourceChanges() override;
+	//~End IPCGNodeSourceTextProvider interface
+#endif
 
 	/** Gets the GPU pin properties for the output pin with the given label. */
 	const FPCGPinPropertiesGPU* GetOutputPinPropertiesGPU(const FName& InPinLabel) const;
@@ -140,18 +156,23 @@ public:
 #endif
 
 protected:
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Source", meta = (MultiLine = true, Tooltip = ""))
+	/** Optional functions that can be called from the source. Intended to be edited using the Node Source Editor window. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Source", meta = (MultiLine = true))
 	FString ShaderFunctions;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Source", meta = (MultiLine = true, Tooltip = ""))
+	/** Shader code that forms the body of the kernel. Intended to be edited using the Node Source Editor window. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Source", meta = (MultiLine = true))
 	FString ShaderSource;
 
+	/** Inputs data accessors that can be used from the shader code. Intended to be viewed using the Node Source Editor window. */
 	UPROPERTY(Transient, VisibleAnywhere, Category = "Declarations|Inputs", meta = (MultiLine = true))
 	FString InputDeclarations;
 
+	/** Output data accessors that can be used from the shader code. Intended to be viewed using the Node Source Editor window. */
 	UPROPERTY(Transient, VisibleAnywhere, Category = "Declarations|Outputs", meta = (MultiLine = true))
 	FString OutputDeclarations;
 
+	/** Helper data and functions that can be used from the shader code. Intended to be viewed using the Node Source Editor window. */
 	UPROPERTY(Transient, VisibleAnywhere, Category = "Declarations|Helpers", meta = (MultiLine = true))
 	FString HelperDeclarations;
 };

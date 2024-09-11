@@ -22,11 +22,13 @@ class SPCGEditorGraphFind;
 class SPCGEditorGraphLogView;
 class SPCGEditorGraphNodePalette;
 class SPCGEditorGraphProfilingView;
+class SPCGEditorNodeSource;
 class UEdGraphNode;
 class UPCGComponent;
 class UPCGEditorGraph;
 class UPCGEditorGraphNodeBase;
 class UPCGGraph;
+struct FPCGCompilerDiagnostics;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnInspectedStackChanged, const FPCGStack&);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnInspectedNodeChanged, UPCGEditorGraphNodeBase*);
@@ -57,6 +59,8 @@ public:
 	
 	/** Gets the PCG stack we are inspecting */
 	const FPCGStack* GetStackBeingInspected() const;
+
+	void SetSourceEditorTargetObject(UObject* InObject);
 
 	/** Focus the graph view on a specific node */
 	void JumpToNode(const UEdGraphNode* InNode);
@@ -304,8 +308,11 @@ private:
 	/** Create a new profiling tab widget */
 	TSharedRef<SPCGEditorGraphProfilingView> CreateProfilingWidget();
 
-	/** Create a new profiling tab widget */
+	/** Create a new log capture tab widget */
 	TSharedRef<SPCGEditorGraphLogView> CreateLogWidget();
+
+	/** Create a new node source editor tab widget */
+	TSharedRef<SPCGEditorNodeSource> CreateNodeSourceWidget();
 
 	/** Called when the selection changes in the GraphEditor */
 	void OnSelectedNodesChanged(const TSet<UObject*>& NewSelection);
@@ -346,6 +353,8 @@ private:
 	void UnregisterDelegatesForWorld(UWorld* World);
 
 	void OnGraphChanged(UPCGGraphInterface* InGraph, EPCGChangeType ChangeType);
+	void OnNodeSourceCompiled(const UPCGNode* InNode, const FPCGCompilerDiagnostics& InDiagnostics);
+
 	void OnMapChanged(UWorld* InWorld, EMapChangeType InMapChangedType);
 	void OnPostPIEStarted(bool bIsSimulating);
 	void OnEndPIE(bool bIsSimulating);
@@ -360,6 +369,7 @@ private:
 	TSharedRef<SDockTab> SpawnTab_Determinism(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_Profiling(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_Log(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_NodeSource(const FSpawnTabArgs& Args);
 
 	FText GetDetailsTabLabel(int DetailsIndex);
 	FText GetDetailsViewObjectName(int DetailsIndex);
@@ -374,6 +384,7 @@ private:
 	TSharedPtr<SPCGEditorGraphDeterminismListView> DeterminismWidget;
 	TSharedPtr<SPCGEditorGraphProfilingView> ProfilingWidget;
 	TSharedPtr<SPCGEditorGraphLogView> LogWidget;
+	TSharedPtr<SPCGEditorNodeSource> NodeSourceWidget;
 
 	TSharedPtr<FUICommandList> GraphEditorCommands;
 
