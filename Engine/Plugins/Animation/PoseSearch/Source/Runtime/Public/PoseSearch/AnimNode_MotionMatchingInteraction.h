@@ -30,9 +30,6 @@ struct POSESEARCH_API FAnimNode_MotionMatchingInteraction : public FAnimNode_Ble
 {
 	GENERATED_BODY();
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Links)
-	FPoseLink Source;
-
 	UPROPERTY(EditAnywhere, Category = Settings)
 	EMotionMatchingInteractionEvaluationMode EvaluationMode = EMotionMatchingInteractionEvaluationMode::ContinuousReselection;
 
@@ -58,9 +55,7 @@ struct POSESEARCH_API FAnimNode_MotionMatchingInteraction : public FAnimNode_Ble
 
 	// FAnimNode_Base interface
 	virtual void GatherDebugData(FNodeDebugData& DebugData) override;
-	virtual void Initialize_AnyThread(const FAnimationInitializeContext& Context) override;
 	virtual void Evaluate_AnyThread(FPoseContext& Output) override;
-	virtual void CacheBones_AnyThread(const FAnimationCacheBonesContext& Context) override;
 
 	virtual void UpdateAssetPlayer(const FAnimationUpdateContext& Context) override;
 	// End of FAnimNode_Base interface
@@ -71,7 +66,6 @@ struct POSESEARCH_API FAnimNode_MotionMatchingInteraction : public FAnimNode_Ble
 	float GetRotationWarpLerp() const { return RotationWarpLerp; }
 
 protected:
-	float BlendLerp = 0.f;
 	float TranslationWarpLerp = 0.f;
 	float RotationWarpLerp = 0.f;
 	// if a search is successful InteractingRolesNum > 0. 
