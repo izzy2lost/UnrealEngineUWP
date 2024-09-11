@@ -47,8 +47,8 @@ void SampleLight(float3 TranslatedWorldPosition, float3 CameraVector, float Dist
 	if (Debug.bActive)
 	{
 		Newline(Debug.Context);
-		Print(Debug.Context, LocalLightData.LightSceneId, Select(LocalLightData.LightSceneId == DebugLightId, FontYellow, FontWhite));
-		Print(Debug.Context, LocalLightIndex, Select(LocalLightData.LightSceneId == DebugLightId, FontYellow, FontWhite));
+		Print(Debug.Context, LocalLightData.LightSceneId, Select(LocalLightData.LightSceneId == DebugLightId, FontSelected, FontValue));
+		Print(Debug.Context, LocalLightIndex, Select(LocalLightData.LightSceneId == DebugLightId, FontSelected, FontValue));
 		Print(Debug.Context, SampleWeight);
 	}
 	#endif

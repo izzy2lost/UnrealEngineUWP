@@ -217,17 +217,17 @@ void DenoiserTemporalCS(
 		#if DEBUG_MODE
 		if (Debug.bActive)
 		{
-			Print(Debug.Context, TEXT("TemporalAccumulation"));
+			Print(Debug.Context, TEXT("TemporalAccumulation"), FontTitle);
 			Newline(Debug.Context);
-			Print(Debug.Context, TEXT("ScreenCoord: "));
-			Print(Debug.Context, ScreenCoord.x);
-			Print(Debug.Context, ScreenCoord.y);
+			Print(Debug.Context, TEXT("ScreenCoord         : "));
+			Print(Debug.Context, ScreenCoord.x, FontValue);
+			Print(Debug.Context, ScreenCoord.y, FontValue);
 			Newline(Debug.Context);
-			Print(Debug.Context, TEXT("CenterDiffuse: "));
-			Print(Debug.Context, DiffuseLighting);
+			Print(Debug.Context, TEXT("CenterDiffuse       : "));
+			Print(Debug.Context, DiffuseLighting, FontValue);
 			Newline(Debug.Context);
-			Print(Debug.Context, TEXT("CenterSpecular: "));
-			Print(Debug.Context, SpecularLighting);
+			Print(Debug.Context, TEXT("CenterSpecular      : "));
+			Print(Debug.Context, SpecularLighting, FontValue);
 		}
 		#endif
 
@@ -284,11 +284,11 @@ void DenoiserTemporalCS(
 					if (Debug.bActive)
 					{
 						Newline(Debug.Context);
-						Print(Debug.Context, TEXT("DepthWeights: "));
-						Print(Debug.Context, DepthWeights);
+						Print(Debug.Context, TEXT("DepthWeights        : "));
+						Print(Debug.Context, DepthWeights, FontValue);
 						Newline(Debug.Context);
-						Print(Debug.Context, TEXT("HistoryWeights: "));
-						Print(Debug.Context, HistoryWeights);
+						Print(Debug.Context, TEXT("HistoryWeights      : "));
+						Print(Debug.Context, HistoryWeights, FontValue);
 					}
 					#endif
 
@@ -365,26 +365,26 @@ void DenoiserTemporalCS(
 
 							Newline(Debug.Context);
 							Print(Debug.Context, TEXT("NumFramesAccumulated: "));
-							Print(Debug.Context, NumFramesAccumulated);
+							Print(Debug.Context, NumFramesAccumulated, FontValue);
 							Newline(Debug.Context);
-							Print(Debug.Context, TEXT("DiffuseVariance:  "));
-							Print(Debug.Context, DiffuseVariance);
+							Print(Debug.Context, TEXT("DiffuseVariance     : "));
+							Print(Debug.Context, DiffuseVariance, FontValue);
 							Newline(Debug.Context);
-							Print(Debug.Context, TEXT("SpecularVariance: "));
-							Print(Debug.Context, SpecularVariance);
+							Print(Debug.Context, TEXT("SpecularVariance    : "));
+							Print(Debug.Context, SpecularVariance, FontValue);
 							Newline(Debug.Context);
-							Print(Debug.Context, TEXT("Specular Second Moment: "));
-							Print(Debug.Context, SpecularSecondMoment);
+							Print(Debug.Context, TEXT("Specular 2nd Moment : "));
+							Print(Debug.Context, SpecularSecondMoment, FontValue);
 							Newline(Debug.Context);
-							Print(Debug.Context, TEXT("Diffuse: "));
-							Print(Debug.Context, DiffuseLighting);
+							Print(Debug.Context, TEXT("Diffuse             : "));
+							Print(Debug.Context, DiffuseLighting, FontValue);
 							Newline(Debug.Context);
-							Print(Debug.Context, TEXT("Specular: "));
-							Print(Debug.Context, SpecularLighting);
+							Print(Debug.Context, TEXT("Specular            : "));
+							Print(Debug.Context, SpecularLighting, FontValue);
 							Newline(Debug.Context);
-							Print(Debug.Context, TEXT("Luminance:          "));
-							Print(Debug.Context, Luminance(DiffuseLighting));
-							Print(Debug.Context, Luminance(SpecularLighting));
+							Print(Debug.Context, TEXT("Luminance           : "));
+							Print(Debug.Context, Luminance(DiffuseLighting), FontValue);
+							Print(Debug.Context, Luminance(SpecularLighting), FontValue);
 						}
 						#endif
 					}

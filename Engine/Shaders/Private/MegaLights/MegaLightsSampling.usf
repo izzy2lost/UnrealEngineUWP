@@ -180,8 +180,8 @@ void SampleLight(uint2 ScreenCoord, float3 TranslatedWorldPosition, const FMegaL
 	if (Debug.bActive)
 	{
 		Newline(Debug.Context);
-		Print(Debug.Context, LocalLightData.LightSceneId, Select(LocalLightData.LightSceneId == DebugLightId, FontYellow, FontWhite));
-		Print(Debug.Context, LocalLightIndex, Select(LocalLightData.LightSceneId == DebugLightId, FontYellow, FontWhite));
+		Print(Debug.Context, LocalLightData.LightSceneId, Select(LocalLightData.LightSceneId == DebugLightId, FontSelected, FontValue));
+		Print(Debug.Context, LocalLightIndex, Select(LocalLightData.LightSceneId == DebugLightId, FontSelected, FontValue));
 		Print(Debug.Context, LightTargetPDF.Weight);
 		Print(Debug.Context, LightData.LightFunctionAtlasLightIndex, Select(LightData.LightFunctionAtlasLightIndex != 0, FontWhite, FontGrey));
 		Print(Debug.Context, LightData.IESAtlasIndex, Select(LightData.IESAtlasIndex != -1, FontWhite, FontGrey));
@@ -329,63 +329,63 @@ void GenerateLightSamplesCS(
 				#if DEBUG_MODE
 				if (Debug.bActive)
 				{
-					Print(Debug.Context, TEXT("MegaLights"));
+					Print(Debug.Context, TEXT("MegaLights"), FontTitle);
 					Newline(Debug.Context);
-					Print(Debug.Context, TEXT("TileType  | Num      "));
+					Print(Debug.Context, TEXT("TileType             | Num      "), FontSilver);
 					Newline(Debug.Context);
-					PrintTileTypeString(Debug.Context, TILE_MODE_SIMPLE_SHADING);
+					PrintTileTypeString(Debug.Context, TILE_MODE_SIMPLE_SHADING, FontValue);
 					Print(Debug.Context, TEXT(": "));
-					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_SIMPLE_SHADING]);
+					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_SIMPLE_SHADING], FontValue);
 					Newline(Debug.Context);
 					PrintTileTypeString(Debug.Context, TILE_MODE_SIMPLE_SHADING_RECT);
 					Print(Debug.Context, TEXT(": "));
-					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_SIMPLE_SHADING_RECT]);
+					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_SIMPLE_SHADING_RECT], FontValue);
 					Newline(Debug.Context);
 					PrintTileTypeString(Debug.Context, TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED);
 					Print(Debug.Context, TEXT(": "));
-					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED]);
+					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED], FontValue);
 					Newline(Debug.Context);
 					PrintTileTypeString(Debug.Context, TILE_MODE_COMPLEX_SHADING);
 					Print(Debug.Context, TEXT(": "));
-					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_COMPLEX_SHADING]);
+					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_COMPLEX_SHADING], FontValue);
 					Newline(Debug.Context);
 					PrintTileTypeString(Debug.Context, TILE_MODE_COMPLEX_SHADING_RECT);
 					Print(Debug.Context, TEXT(": "));
-					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_COMPLEX_SHADING_RECT]);
+					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_COMPLEX_SHADING_RECT], FontValue);
 					Newline(Debug.Context);
 					PrintTileTypeString(Debug.Context, TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED);
 					Print(Debug.Context, TEXT(": "));
-					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED]);
+					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED], FontValue);
 					Newline(Debug.Context);
 					PrintTileTypeString(Debug.Context, TILE_MODE_EMPTY);
 					Print(Debug.Context, TEXT(": "));
-					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_EMPTY]);
+					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_EMPTY], FontValue);
 					Newline(Debug.Context);
 					Newline(Debug.Context);
 
-					Print(Debug.Context, TEXT("GenerateSamples"));
+					Print(Debug.Context, TEXT("GenerateSamples"), FontTitle);
 					Newline(Debug.Context);
-					Print(Debug.Context, TEXT("ScreenCoord: "));
-					Print(Debug.Context, ScreenCoord.x);
-					Print(Debug.Context, ScreenCoord.y);
+					Print(Debug.Context, TEXT("ScreenCoord        : "));
+					Print(Debug.Context, ScreenCoord.x, FontValue);
+					Print(Debug.Context, ScreenCoord.y, FontValue);
 					Newline(Debug.Context);
-					Print(Debug.Context, TEXT("Roughness: "));
-					Print(Debug.Context, Material.Roughness);
+					Print(Debug.Context, TEXT("Roughness          : "));
+					Print(Debug.Context, Material.Roughness, FontValue);
 					Newline(Debug.Context);
-					Print(Debug.Context, TEXT("TileType: "));
-					PrintTileTypeString(Debug.Context, TILE_TYPE);
+					Print(Debug.Context, TEXT("TileType           : "));
+					PrintTileTypeString(Debug.Context, TILE_TYPE, Select(TILE_TYPE == TILE_MODE_SIMPLE_SHADING, FontGreen, FontRed));
 					Newline(Debug.Context);
-					Print(Debug.Context, TEXT("View.PreExposure: "));
-					Print(Debug.Context, View.PreExposure);
+					Print(Debug.Context, TEXT("View.PreExposure   : "));
+					Print(Debug.Context, View.PreExposure, FontValue);
 					Newline(Debug.Context);
 					Print(Debug.Context, TEXT("NumLightsInGridCell: "));
-					Print(Debug.Context, NumLightsInGridCell);
+					Print(Debug.Context, NumLightsInGridCell, FontValue);
 					Newline(Debug.Context);
-					Print(Debug.Context, TEXT("NumLocalLights: "));
-					Print(Debug.Context, NumLocalLights, Select(NumLocalLights < MAX_LOCAL_LIGHT_INDEX + 1, FontWhite, FontRed));
+					Print(Debug.Context, TEXT("NumLocalLights     : "));
+					Print(Debug.Context, NumLocalLights, Select(NumLocalLights < MAX_LOCAL_LIGHT_INDEX + 1, FontLightGreen, FontRed));
 					AddCrossTWS(Debug.Context, TranslatedWorldPosition, 5.0f, float4(1, 1, 0, 1));
 					Newline(Debug.Context);
-					Print(Debug.Context, TEXT("LightId | LocalLightId | Weight  | LFAtlas   | IESAtlas  | History"));
+					Print(Debug.Context, TEXT("LightId | LocalLightId | Weight  | LFAtlas   | IESAtlas  | History"), FontSilver);
 				}
 				#endif
 
@@ -451,12 +451,12 @@ void GenerateLightSamplesCS(
 				if (Debug.bActive)
 				{
 					Newline(Debug.Context);
-					Print(Debug.Context, TEXT("Weight sum: "));
-					Print(Debug.Context, LightSampler.WeightSum);
+					Print(Debug.Context, TEXT("Weight sum         : "));
+					Print(Debug.Context, LightSampler.WeightSum, FontValue);
 					Newline(Debug.Context);
-					Print(Debug.Context, TEXT("Selected:"));
+					Print(Debug.Context, TEXT("Selected           :"));
 					Newline(Debug.Context);
-					Print(Debug.Context, TEXT("LightId | Weight    | History | AsVis | AsPartiallyVis | UV"));
+					Print(Debug.Context, TEXT("LightId | Weight    | History | AsVis | AsPartiallyVis | UV"), FontSilver);
 				}
 				#endif
 
@@ -546,8 +546,8 @@ void GenerateLightSamplesCS(
 					if (Debug.bActive)
 					{						
 						Newline(Debug.Context);
-						Print(Debug.Context, LocalLightData.LightSceneId, Select(LocalLightData.LightSceneId == DebugLightId, FontYellow, FontWhite));
-						Print(Debug.Context, LightSample.Weight);
+						Print(Debug.Context, LocalLightData.LightSceneId, Select(LocalLightData.LightSceneId == DebugLightId, FontSelected, FontValue));
+						Print(Debug.Context, LightSample.Weight, FontValue);
 
 						const uint VisibleInLastFrameMask = GetLightVisibilityMask(VisibleLightMaskHash, LocalLightData.PrevLocalLightIndex);
 						uint VisibleInLastFrameMaskDebug = 0;
@@ -555,11 +555,11 @@ void GenerateLightSamplesCS(
 						VisibleInLastFrameMaskDebug += VisibleInLastFrameMask & 0x2 ? 10 : 0;
 						VisibleInLastFrameMaskDebug += VisibleInLastFrameMask & 0x4 ? 100 : 0;
 						VisibleInLastFrameMaskDebug += VisibleInLastFrameMask & 0x8 ? 1000 : 0;
-						Print(Debug.Context, VisibleInLastFrameMaskDebug);
+						Print(Debug.Context, VisibleInLastFrameMaskDebug, FontValue);
 
-						Print(Debug.Context, LightSample.bGuidedAsVisible ? 1u : 0u);
-						Print(Debug.Context, LightSample.bGuidedAsPartiallyVisibleLight ? 1u : 0u);
-						Print(Debug.Context, LightSampleUV);
+						Print(Debug.Context, LightSample.bGuidedAsVisible ? 1u : 0u, FontValue);
+						Print(Debug.Context, LightSample.bGuidedAsPartiallyVisibleLight ? 1u : 0u, FontValue);
+						Print(Debug.Context, LightSampleUV, FontValue);
 						if (DebugMode == DEBUG_MODE_VISUALIZE_SAMPLING)
 						{
 							const uint2 SampleCoord = GetSampleCoord(DownsampledScreenCoord, LightSampleIndex);

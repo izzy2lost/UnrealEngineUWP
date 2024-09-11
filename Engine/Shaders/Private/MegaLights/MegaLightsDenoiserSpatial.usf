@@ -154,27 +154,28 @@ void DenoiserSpatialCS(
 			#if DEBUG_MODE
 			if (bDebug)
 			{
-				Print(Context, TEXT("Spatial pass"));
+				Print(Context, TEXT("Spatial pass"), FontTitle);
 				Newline(Context);
-				Print(Context, TEXT("AccumulatedSceneColor: "));
-				Print(Context, AccumulatedSceneColor);
+				Print(Context, TEXT("AccumulatedSceneColor : "));
+				Print(Context, AccumulatedSceneColor, FontValue);
 				Newline(Context);
-				Print(Context, CenterSpecularLightingAndSecondMoment);
+				Print(Context, TEXT("CenterSpecLit+2nd Mmt : "));
+				Print(Context, CenterSpecularLightingAndSecondMoment, FontValue);
 				Newline(Context);
-				Print(Context, TEXT("CenterDiffuseStdDev:  "));
-				Print(Context, CenterDiffuseStdDev);
+				Print(Context, TEXT("CenterDiffuseStdDev   : "));
+				Print(Context, CenterDiffuseStdDev, FontValue);
 				Newline(Context);
-				Print(Context, TEXT("CenterSpecularStdDev: "));
-				Print(Context, CenterSpecularStdDev);
+				Print(Context, TEXT("CenterSpecularStdDev  : "));
+				Print(Context, CenterSpecularStdDev, FontValue);
 				Newline(Context);
-				Print(Context, TEXT("Filter: "));
-				Print(Context, bFilterDiffuse ? 1u : 0u);
-				Print(Context, bFilterSpecular ? 1u : 0u);
+				Print(Context, TEXT("Filter                : "));
+				Print(Context, bFilterDiffuse ? 1u : 0u, FontValue);
+				Print(Context, bFilterSpecular ? 1u : 0u, FontValue);
 				Newline(Context);
-				Print(Context, TEXT("DisocclusionFactor: "));
-				Print(Context, DisocclusionFactor);
+				Print(Context, TEXT("DisocclusionFactor    : "));
+				Print(Context, DisocclusionFactor, FontValue);
 				Newline(Context);
-				Print(Context, TEXT("ShadingConfidence: "));
+				Print(Context, TEXT("ShadingConfidence     : "));
 				Print(Context, ShadingConfidence, Select(ShadingConfidence > 0.75f, FontYellow, Select(ShadingConfidence > 0.25f, FontWhite, FontGrey)));
 			}
 			#endif
