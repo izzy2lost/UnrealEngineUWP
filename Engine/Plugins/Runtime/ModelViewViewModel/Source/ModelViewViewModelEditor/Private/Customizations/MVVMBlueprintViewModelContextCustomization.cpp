@@ -526,7 +526,7 @@ void FBlueprintViewModelContextDetailCustomization::HandleCreationTypeChanged()
 				UObject* ExistingResolver = nullptr;
 				if (ResolverHandle->GetValue(ExistingResolver) == FPropertyAccess::Fail || ExistingResolver == nullptr)
 				{
-					TObjectPtr<UMVVMViewModelContextResolver> NewResolver = ContextPtr->CreateDefaultResolver();
+					TObjectPtr<UMVVMViewModelContextResolver> NewResolver = ContextPtr->CreateDefaultResolver(GetTransientPackage());
 
 					// Bypass SetValue, Resolver is set to Instanced which will block it
 					FString PropertyText = NewResolver ? NewResolver->GetPathName() : TEXT("None");

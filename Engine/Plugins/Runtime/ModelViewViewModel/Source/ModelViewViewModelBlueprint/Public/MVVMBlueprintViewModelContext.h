@@ -98,7 +98,7 @@ public:
 	}
 
 #if WITH_EDITOR
-	[[nodiscard]] TObjectPtr<UMVVMViewModelContextResolver> CreateDefaultResolver() const;
+	[[nodiscard]] TObjectPtr<UMVVMViewModelContextResolver> CreateDefaultResolver(UPackage* Package) const;
 #endif
 
 private:
