@@ -92,6 +92,11 @@ public:
 	/** Refresh a component set to Generate At Runtime, if some parameters changed. Can also flush the cache. */
 	UFUNCTION(BlueprintCallable, Category = "PCG|Runtime", meta = (ScriptMethod, DisplayName = "Refresh PCG Runtime Component"))
 	static void RefreshPCGRuntimeComponent(UPCGComponent* InComponent, const bool bFlushCache = false);
+
+	// Implementation note: Needs to be done outside of UPCGData because of circular dependency between PCGContext.h and PCGData.h
+	/** Return a copy of the data, with Metadata inheritance for spatial data. */
+	UFUNCTION(BlueprintCallable, Category="PCG|Data", meta = (ScriptMethod))
+	static UPCGData* DuplicateData(const UPCGData* InData, UPARAM(ref) FPCGContext& Context, bool bInitializeMetadata = true);
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
