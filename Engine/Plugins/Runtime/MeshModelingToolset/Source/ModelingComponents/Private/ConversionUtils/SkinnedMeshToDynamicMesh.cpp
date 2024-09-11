@@ -78,7 +78,7 @@ public:
 		}
 		
 		// construct a list of all valid VertIDs for this mesh.
-		bool bLogMeshInfoDueToErrors = true;
+		bool bLogMeshInfoDueToErrors = false;
 		
 		VertIDs.Reserve(NumVerts);
 		for (const FSkelMeshRenderSection& Section : LODData.RenderSections)
