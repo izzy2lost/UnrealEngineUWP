@@ -69,7 +69,6 @@ public:
 	virtual void MoveRow(int SourceIndex, int TargetIndex) {}
 	virtual void InsertRows(int Index, int Count) {}
 	virtual void CopyRow(FChooserColumnBase& SourceColumn, int SourceIndex, int TargetIndex) {}
-	virtual void CopyFallback(FChooserColumnBase& SourceColumn) {}
 	
 	virtual UScriptStruct* GetInputBaseType() const { return nullptr; };
 	virtual const UScriptStruct* GetInputType() const { return nullptr; };
@@ -95,7 +94,6 @@ public:
 #endif
 };
 
-enum {  ChooserColumn_SpecialIndex_Fallback = -2 };
 
 #if WITH_EDITOR
 #define CHOOSER_COLUMN_BOILERPLATE2(ParameterType, RowValuesProperty) \

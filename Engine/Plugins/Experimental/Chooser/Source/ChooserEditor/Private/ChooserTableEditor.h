@@ -17,7 +17,6 @@
 #include "ChooserTableEditor.generated.h"
 
 class SComboButton;
-class SPositiveActionButton;
 class SEditableText;
 class IDetailsView;
 class UChooserRowDetails;
@@ -107,7 +106,6 @@ namespace UE::ChooserEditor
 		void ToggleDisableSelection();
 		void DeleteSelection();
 		void DuplicateSelection();
-		bool HasFallbackSelected();
 
 		bool CanMoveRowsUp();
 		void MoveRowsUp();
@@ -219,19 +217,17 @@ namespace UE::ChooserEditor
 		void UpdateTableColumns();
 		TArray<TSharedPtr<FChooserTableRow>> TableRows;
 	
-		TSharedPtr<SPositiveActionButton> CreateColumnComboButton;
-		TSharedPtr<SWidget> CreateRowComboButton;
+		TSharedPtr<SComboButton> CreateColumnComboButton;
+		TSharedPtr<SComboButton> CreateRowComboButton;
 
 		TSharedPtr<SHeaderRow> HeaderRow;
 		TSharedPtr<SListView<TSharedPtr<FChooserTableRow>>> TableView;
 
 		ESelectionType CurrentSelectionType = ESelectionType::Root;
 
-		TSharedRef<SWidget>	MakeCreateRowMenu();
-		TSharedRef<SWidget>	MakeCreateColumnMenu();
 	public:
 
-		TSharedPtr<SWidget>& GetCreateRowComboButton() { return CreateRowComboButton; };
+		TSharedPtr<SComboButton>& GetCreateRowComboButton() { return CreateRowComboButton; };
 		TSharedPtr<SNestedChooserTree> NestedChooserTree;
 
 		/** The name given to all instances of this type of editor */

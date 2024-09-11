@@ -31,8 +31,8 @@ TSharedRef<SWidget> CreateFloatDistanceColumnWidget(UChooserTable* Chooser, FCho
 		// create column header widget
 		
 		const FSlateBrush* ColumnIcon = FCoreStyle::Get().GetBrush("Icons.SortUp");
-		const FText ColumnTooltip = LOCTEXT("Float difference tooltip", "Float Difference Column: rows recieve a Score based on how different the input float is from the row value");
-		const FText ColumnName = LOCTEXT("Float Difference","Float Difference");
+		const FText ColumnTooltip = LOCTEXT("Float distance tooltip", "Float Distance Column: rows recieve a Cost based on how different the input float is from the row value");
+		const FText ColumnName = LOCTEXT("Float Distance","Float Distance");
 		
 		TSharedPtr<SWidget> DebugWidget = nullptr;
 		if (Chooser->GetEnableDebugTesting())

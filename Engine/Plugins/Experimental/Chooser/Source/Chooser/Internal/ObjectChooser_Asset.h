@@ -6,7 +6,7 @@
 #include "IObjectChooser.h"
 #include "ObjectChooser_Asset.generated.h"
 
-USTRUCT(DisplayName = "Asset", Meta = (ResultType = "Object", Category = "Basic", Tooltip = "A hard reference to a specific asset"))
+USTRUCT(DisplayName = "Asset")
 struct CHOOSER_API FAssetChooser : public FObjectChooserBase
 {
 	GENERATED_BODY()
@@ -23,7 +23,7 @@ struct CHOOSER_API FAssetChooser : public FObjectChooserBase
 	TObjectPtr<UObject> Asset;
 };
 
-USTRUCT(DisplayName = "Asset (Soft Reference)", Meta = (ResultType = "Object", Category = "Basic", Tooltip = "A soft object reference to a specific asset\nAssets will need to be preloaded manually to avoid a hitch if they are selected."))
+USTRUCT(DisplayName = "Soft Asset")
 struct CHOOSER_API FSoftAssetChooser : public FObjectChooserBase
 {
 	GENERATED_BODY()
