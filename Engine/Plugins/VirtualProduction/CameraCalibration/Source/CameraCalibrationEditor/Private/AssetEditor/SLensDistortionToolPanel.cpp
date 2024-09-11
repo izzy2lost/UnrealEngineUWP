@@ -156,6 +156,15 @@ FAssetData FCaptureSettingsCustomization::GetCalibratorAssetData() const
 	return Tmp;
 }
 
+bool SLensDistortionToolPanel::IsSolverSettingPropertyReadOnly(const FPropertyAndParent& PropertyAndParent) const
+{
+	if (PropertyAndParent.Property.GetFName() == GET_MEMBER_NAME_CHECKED(FLensSolverSettings, bSolveNodalOffset) && Tool.IsValid())
+	{
+		return !(Tool->CaptureSettings.bIsCalibratorTracked && Tool->CaptureSettings.bIsCameraTracked);
+	}
+	return false;
+}
+
 void SLensDistortionToolPanel::Construct(const FArguments& InArgs, ULensDistortionTool* InTool, TWeakPtr<FCameraCalibrationStepsController> InStepsController)
 {
 	Tool = InTool;
@@ -171,6 +180,7 @@ void SLensDistortionToolPanel::Construct(const FArguments& InArgs, ULensDistorti
 
 	TSharedRef<FStructOnScope> SolverSettingsStruct = MakeShared<FStructOnScope>(FLensSolverSettings::StaticStruct(), reinterpret_cast<uint8*>(&Tool->SolverSettings));
 	TSharedPtr<IStructureDetailsView> SolverSettingsDetailsView = PropertyEditor.CreateStructureDetailView(DefaultDetailsViewArgs, DefaultStructuDetailsViewArgs, SolverSettingsStruct);
+	SolverSettingsDetailsView->GetDetailsView()->SetIsPropertyReadOnlyDelegate(FIsPropertyReadOnly::CreateSP(this, &SLensDistortionToolPanel::IsSolverSettingPropertyReadOnly));
 
 	TSharedRef<FStructOnScope> CaptureSettingsStruct = MakeShared<FStructOnScope>(FLensCaptureSettings::StaticStruct(), reinterpret_cast<uint8*>(&Tool->CaptureSettings));
 
