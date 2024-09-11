@@ -206,6 +206,7 @@ struct FSlatePostProcessUpsampleInputs
 
 	const FSlateClippingOp* ClippingOp = nullptr;
 	const FDepthStencilBinding* ClippingStencilBinding = nullptr;
+	FIntRect ClippingElementsViewRect;
 
 	FIntRect OutputRect;
 	FVector4f CornerRadius = FVector4f::Zero();
@@ -262,13 +263,16 @@ void AddSlatePostProcessUpsamplePass(FRDGBuilder& GraphBuilder, const FSlatePost
 		RDG_EVENT_NAME("Upsample"),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[OutputViewport, InputViewport, PipelineState, PixelShader, ClippingOp = Inputs.ClippingOp, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
+		[OutputViewport, InputViewport, ClippingElementsViewRect = Inputs.ClippingElementsViewRect, PipelineState, PixelShader, ClippingOp = Inputs.ClippingOp, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
+		if (ClippingOp)
+		{
+			RHICmdList.SetViewport(ClippingElementsViewRect.Min.X, ClippingElementsViewRect.Min.Y, 0.0f, ClippingElementsViewRect.Max.X, ClippingElementsViewRect.Max.Y, 1.0f);
+			// Stencil clipping will issue its own draw calls.
+			SetSlateClipping(RHICmdList, ClippingOp, ClippingElementsViewRect);
+		}
+
 		RHICmdList.SetViewport(OutputViewport.Rect.Min.X, OutputViewport.Rect.Min.Y, 0.0f, OutputViewport.Rect.Max.X, OutputViewport.Rect.Max.Y, 1.0f);
-
-		// Stencil clipping will issue its own draw calls.
-		SetSlateClipping(RHICmdList, ClippingOp, OutputViewport.Rect);
-
 		SetScreenPassPipelineState(RHICmdList, PipelineState);
 		SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), *PassParameters);
 		DrawScreenPass_PostSetup(RHICmdList, FScreenPassViewInfo(), OutputViewport, InputViewport, PipelineState, EScreenPassDrawFlags::None);
@@ -427,6 +431,7 @@ void AddSlatePostProcessBlurPass(FRDGBuilder& GraphBuilder, const FSlatePostProc
 	UpsampleInputs.OutputRect = Inputs.OutputRect;
 	UpsampleInputs.ClippingOp = Inputs.ClippingOp;
 	UpsampleInputs.ClippingStencilBinding = Inputs.ClippingStencilBinding;
+	UpsampleInputs.ClippingElementsViewRect = Inputs.ClippingElementsViewRect;
 	UpsampleInputs.CornerRadius = Inputs.CornerRadius;
 
 	AddSlatePostProcessUpsamplePass(GraphBuilder, UpsampleInputs);

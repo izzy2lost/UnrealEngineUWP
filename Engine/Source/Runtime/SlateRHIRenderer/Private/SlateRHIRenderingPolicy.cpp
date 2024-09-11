@@ -1591,6 +1591,7 @@ void AddSlateDrawElementsPass(
 			BlurInputs.OutputLoadAction = ConsumeLoadAction(ElementsLoadAction);
 			BlurInputs.ClippingOp = NextClippingOp;
 			BlurInputs.ClippingStencilBinding = &NextPassParameters->RenderTargets.DepthStencil;
+			BlurInputs.ClippingElementsViewRect = RenderBatchDrawInputs->ElementsViewRect;
 			BlurInputs.KernelSize = ShaderParams.PixelParams2.X;
 			BlurInputs.Strength = ShaderParams.PixelParams2.Y;
 			BlurInputs.DownsampleAmount = ShaderParams.PixelParams2.Z;
