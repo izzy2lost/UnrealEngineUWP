@@ -285,6 +285,8 @@ struct FParticlePerfStats
 	FName CSVStat_Culled = NAME_None;
 	FName CSVStat_MemoryKB = NAME_None;
 
+	TOptional<uint64> CSVMemoryKB_Asset;
+
 	void PopulateStatNames(const FName InName);
 	void ResetStatNames();
 #endif
