@@ -542,13 +542,8 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	
 #endif
 		
-#if PLATFORM_MAC
-    if (MTLDevice->supportsFeatureSet(MTL::FeatureSet_macOS_GPUFamily1_v3))
-#endif
-	{
-		GRHISupportsDynamicResolution = true;
-		GRHISupportsFrameCyclesBubblesRemoval = true;
-	}
+	GRHISupportsDynamicResolution = true;
+	GRHISupportsFrameCyclesBubblesRemoval = true;
 
 	GPoolSizeVRAMPercentage = 0;
 	GTexturePoolSize = 0;
@@ -655,7 +650,7 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	GMaxBufferDimensions = 1 << 27;
 
 #if PLATFORM_MAC
-	check(MTLDevice->supportsFeatureSet(MTL::FeatureSet_macOS_GPUFamily1_v1));
+	check(MTLDevice->supportsFamily(MTL::GPUFamilyMac2));
 	GRHISupportsBaseVertexIndex = true;
 	GRHISupportsFirstInstance = true; // Supported on macOS & iOS but not tvOS.
 	GMaxTextureDimensions = 16384;
@@ -663,8 +658,8 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	GMaxTextureArrayLayers = 2048;
 	GMaxShadowDepthBufferSizeX = GMaxTextureDimensions;
 	GMaxShadowDepthBufferSizeY = GMaxTextureDimensions;
-    bSupportsD16 = !FParse::Param(FCommandLine::Get(),TEXT("nometalv2")) && MTLDevice->supportsFeatureSet(MTL::FeatureSet_macOS_GPUFamily1_v2);
-    GRHISupportsHDROutput = MTLDevice->supportsFeatureSet(MTL::FeatureSet_macOS_GPUFamily1_v2);
+    bSupportsD16 = true;
+    GRHISupportsHDROutput = true;
 	GRHIHDRDisplayOutputFormat = (GRHISupportsHDROutput) ? PF_PLATFORM_HDR_0 : PF_B8G8R8A8;
 	// Based on the spec below, the maxTotalThreadsPerThreadgroup is not a fixed number but calculated according to the device current ability, so the available threads could less than the maximum number.
 	// For safety and keep the consistency for all platform, reduce the maximum number to half of the device based.

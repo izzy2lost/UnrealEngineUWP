@@ -536,53 +536,50 @@ void FMetalDevice::EnumerateFeatureSupport()
 
 	FString DeviceName(Device->name()->cString(NS::UTF8StringEncoding));
 	
-	if (Device->supportsFeatureSet(MTL::FeatureSet_macOS_GPUFamily1_v2))
+	Features |= EMetalFeaturesMSAADepthResolve | EMetalFeaturesMSAAStoreAndResolve;
+	
+	// Assume that set*Bytes only works on macOS Sierra and above as no-one has tested it anywhere else.
+	Features |= EMetalFeaturesSetBytes;
+	
+	// On earlier OS versions Intel Broadwell couldn't suballocate properly
+	if (!(DeviceName.Contains(TEXT("Intel")) && (DeviceName.Contains(TEXT("5300")) || DeviceName.Contains(TEXT("6000")) || DeviceName.Contains(TEXT("6100")))))
 	{
-		Features |= EMetalFeaturesMSAADepthResolve | EMetalFeaturesMSAAStoreAndResolve;
+		// Using Private Memory & BlitEncoders for Vertex & Index data should be *much* faster.
+		Features |= EMetalFeaturesEfficientBufferBlits;
 		
-		// Assume that set*Bytes only works on macOS Sierra and above as no-one has tested it anywhere else.
-		Features |= EMetalFeaturesSetBytes;
-		
-		// On earlier OS versions Intel Broadwell couldn't suballocate properly
-		if (!(DeviceName.Contains(TEXT("Intel")) && (DeviceName.Contains(TEXT("5300")) || DeviceName.Contains(TEXT("6000")) || DeviceName.Contains(TEXT("6100")))))
-		{
-			// Using Private Memory & BlitEncoders for Vertex & Index data should be *much* faster.
-			Features |= EMetalFeaturesEfficientBufferBlits;
-			
-			Features |= EMetalFeaturesBufferSubAllocation;
-					
-			// On earlier OS versions Vega didn't like non-zero blit offsets
-			if (!DeviceName.Contains(TEXT("Vega")))
-			{
-				Features |= EMetalFeaturesPrivateBufferSubAllocation;
-			}
-		}
-		
-		if (!FParse::Param(FCommandLine::Get(), TEXT("nometalparallelencoder")))
-		{
-			Features |= EMetalFeaturesParallelRenderEncoders;
-		}
-		Features |= EMetalFeaturesTextureBuffers;
-		if (IndirectArgumentTier >= 1)
-		{
-			Features |= EMetalFeaturesIABs;
+		Features |= EMetalFeaturesBufferSubAllocation;
 				
-			if (IndirectArgumentTier >= 2)
-			{
-				Features |= EMetalFeaturesTier2IABs;
-			}
-		}
-
-		// The editor spawns so many viewports and preview icons that we can run out of hardware fences!
-		// Need to figure out a way to safely flush the rendering and reuse the fences when that happens.
-#if WITH_EDITORONLY_DATA
-		if (!GIsEditor)
-#endif
+		// On earlier OS versions Vega didn't like non-zero blit offsets
+		if (!DeviceName.Contains(TEXT("Vega")))
 		{
-			if (FParse::Param(FCommandLine::Get(),TEXT("metalfence")))
-			{
-				Features |= EMetalFeaturesFences;
-			}
+			Features |= EMetalFeaturesPrivateBufferSubAllocation;
+		}
+	}
+	
+	if (!FParse::Param(FCommandLine::Get(), TEXT("nometalparallelencoder")))
+	{
+		Features |= EMetalFeaturesParallelRenderEncoders;
+	}
+	Features |= EMetalFeaturesTextureBuffers;
+	if (IndirectArgumentTier >= 1)
+	{
+		Features |= EMetalFeaturesIABs;
+			
+		if (IndirectArgumentTier >= 2)
+		{
+			Features |= EMetalFeaturesTier2IABs;
+		}
+	}
+
+	// The editor spawns so many viewports and preview icons that we can run out of hardware fences!
+	// Need to figure out a way to safely flush the rendering and reuse the fences when that happens.
+#if WITH_EDITORONLY_DATA
+	if (!GIsEditor)
+#endif
+	{
+		if (FParse::Param(FCommandLine::Get(),TEXT("metalfence")))
+		{
+			Features |= EMetalFeaturesFences;
 		}
 	}
 	
@@ -595,19 +592,16 @@ void FMetalDevice::EnumerateFeatureSupport()
 		Features |= EMetalFeaturesHeaps;
 	}
 	
-	if(Device->supportsFeatureSet(MTL::FeatureSet_macOS_GPUFamily1_v3))
+	Features |= EMetalFeaturesMultipleViewports | EMetalFeaturesPipelineBufferMutability | EMetalFeaturesGPUCaptureManager;
+	
+	if (FParse::Param(FCommandLine::Get(),TEXT("metalfence")))
 	{
-		Features |= EMetalFeaturesMultipleViewports | EMetalFeaturesPipelineBufferMutability | EMetalFeaturesGPUCaptureManager;
-		
-		if (FParse::Param(FCommandLine::Get(),TEXT("metalfence")))
-		{
-			Features |= EMetalFeaturesFences;
-		}
-		
-		if (FParse::Param(FCommandLine::Get(),TEXT("metaliabs")))
-		{
-			Features |= EMetalFeaturesIABs;
-		}
+		Features |= EMetalFeaturesFences;
+	}
+	
+	if (FParse::Param(FCommandLine::Get(),TEXT("metaliabs")))
+	{
+		Features |= EMetalFeaturesIABs;
 	}
 #endif
 	

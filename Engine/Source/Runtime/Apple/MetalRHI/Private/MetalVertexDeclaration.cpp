@@ -14,10 +14,6 @@
 
 #pragma mark - Metal Vertex Declaration Globals
 
-
-MTL::VertexFormat GMetalFColorVertexFormat = MTL::VertexFormatUChar4Normalized;
-
-
 //------------------------------------------------------------------------------
 
 #pragma mark - Metal Vertex Declaration Support Routines
@@ -63,7 +59,7 @@ static MTL::VertexFormat TranslateElementTypeToMTLType(EVertexElementType Type)
 		case VET_PackedNormal:	return MTL::VertexFormatChar4Normalized;
 		case VET_UByte4:		return MTL::VertexFormatUChar4;
 		case VET_UByte4N:		return MTL::VertexFormatUChar4Normalized;
-		case VET_Color:			return GMetalFColorVertexFormat;
+		case VET_Color:			return MTL::VertexFormatUChar4Normalized_BGRA;
 		case VET_Short2:		return MTL::VertexFormatShort2;
 		case VET_Short4:		return MTL::VertexFormatShort4;
 		case VET_Short2N:		return MTL::VertexFormatShort2Normalized;

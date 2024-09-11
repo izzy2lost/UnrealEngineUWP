@@ -19,10 +19,8 @@
 
 #pragma mark - Private C++ Statics -
 NS::UInteger FMetalCommandQueue::PermittedOptions = 0;
-extern MTL::VertexFormat GMetalFColorVertexFormat;
 
 bool GMetalCommandBufferDebuggingEnabled = 0;
-
 
 #pragma mark - Public C++ Boilerplate -
 
@@ -56,11 +54,7 @@ FMetalCommandQueue::FMetalCommandQueue(FMetalDevice& MetalDevice, uint32 const M
 	check(CommandQueue);
 	
 #if PLATFORM_IOS
-#if PLATFORM_TVOS
-	GMetalFColorVertexFormat = MTL::VertexFormatUChar4Normalized_BGRA;
-#else
-	GMetalFColorVertexFormat = MTL::VertexFormatUChar4Normalized_BGRA;
-
+#if !PLATFORM_TVOS
 	if (Device.GetDevice()->supportsFeatureSet(MTL::FeatureSet_iOS_GPUFamily4_v1))
 	{
 		// The below implies tile shaders which are necessary to order the draw calls and generate a buffer that shows what PSOs/draws ran on each tile.
