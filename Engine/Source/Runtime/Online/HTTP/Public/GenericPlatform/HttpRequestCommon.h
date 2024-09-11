@@ -25,6 +25,8 @@ public:
 	HTTP_API virtual EHttpFailureReason GetFailureReason() const override;
 	HTTP_API virtual void SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy InDelegateThreadPolicy) override;
 	HTTP_API virtual EHttpRequestDelegateThreadPolicy GetDelegateThreadPolicy() const override;
+	HTTP_API virtual FString GetOption(const FName Option) const override;
+	HTTP_API virtual void SetOption(const FName Option, const FString & OptionValue) override;
 
 	HTTP_API virtual void SetTimeout(float InTimeoutSecs) override;
 	HTTP_API virtual void ClearTimeout() override;
@@ -179,6 +181,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** Payload to use with the request. Typically for POST, PUT, or PATCH */
 	TUniquePtr<FRequestPayload> RequestPayload;
+
+	/** Options for this request. */
+	TMap<const FName, FString> Options;
 
 	/** Total elapsed time in seconds since the start of the request */
 	float ElapsedTime = 0.0f;

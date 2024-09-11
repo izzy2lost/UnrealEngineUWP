@@ -58,6 +58,15 @@ public class HTTP : ModuleRules
 		}
 	}
 
+	protected virtual bool bPlatformSupportsUnixSockets
+	{
+		get
+		{
+			return (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows) && !Target.WindowsPlatform.bUseXCurl) ||
+				Target.IsInPlatformGroup(UnrealPlatformGroup.Unix);
+		}
+	}
+
 	public HTTP(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PublicDefinitions.Add("HTTP_PACKAGE=1");
@@ -149,5 +158,6 @@ public class HTTP : ModuleRules
 		PublicDefinitions.Add("UE_HTTP_CONNECTION_TIMEOUT_SUPPORT_RETRY=" + (bPlatformConnectionTimeoutSupportRetry ? "1" : "0"));
 		PublicDefinitions.Add("UE_HTTP_ACTIVITY_TIMER_START_AFTER_RECEIVED_DATA=" + ((bPlatformSupportsXCurl || Target.IsInPlatformGroup(UnrealPlatformGroup.Apple)) ? "1" : "0"));
 		PublicDefinitions.Add("UE_HTTP_SUPPORT_LOCAL_SERVER=" + (bPlatformSupportsLocalHttpServer ? "1" : "0"));
+		PublicDefinitions.Add("UE_HTTP_SUPPORT_UNIX_SOCKET=" + (bPlatformSupportsUnixSockets ? "1" : "0"));
 	}
 }
