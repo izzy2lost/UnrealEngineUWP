@@ -909,7 +909,8 @@ TSharedRef<SDataflowGraphEditor> FChaosClothAssetEditorToolkit::CreateGraphEdito
 		.GraphToEdit(Dataflow)
 		.GraphEvents(InEvents)
 		.DetailsView(NodeDetailsEditor)
-		.EvaluateGraph(EvalLambda);
+		.EvaluateGraph(EvalLambda)
+		.DataflowEditor(nullptr);
 
 	NewGraphEditor->OnSelectionChangedMulticast.AddSP(this, &FChaosClothAssetEditorToolkit::OnNodeSelectionChanged);
 	NewGraphEditor->OnNodeDeletedMulticast.AddSP(this, &FChaosClothAssetEditorToolkit::OnNodeDeleted);
