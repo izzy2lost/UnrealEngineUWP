@@ -88,5 +88,6 @@ FDataflowCollectionSpreadSheet::~FDataflowCollectionSpreadSheet()
 	if (CollectionSpreadSheet)
 	{
 		CollectionSpreadSheet->GetOnPinnedDownChangedDelegate().Remove(OnPinnedDownChangedDelegateHandle);
+		CollectionSpreadSheet->GetOnRefreshLockedChangedDelegate().Remove(OnRefreshLockedChangedDelegateHandle);
 	}
 }
