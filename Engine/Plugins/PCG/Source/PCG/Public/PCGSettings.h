@@ -68,6 +68,7 @@ enum class EPCGSettingsType : uint8
 	GraphParameters,
 	Reroute,
 	GPU,
+	DynamicMesh,
 };
 
 #if WITH_EDITOR

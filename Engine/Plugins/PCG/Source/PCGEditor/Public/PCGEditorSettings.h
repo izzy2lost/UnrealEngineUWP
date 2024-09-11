@@ -108,6 +108,10 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = Node, meta = (HideAlphaChannel))
 	FLinearColor RerouteNodeColor;
 
+	/** Color used for dynamic mesh nodes */
+	UPROPERTY(EditAnywhere, config, Category = Node, meta = (HideAlphaChannel))
+	FLinearColor DynamicMeshNodeColor;
+
 	/** Default pin color */
 	UPROPERTY(EditAnywhere, config, Category = Node, meta = (HideAlphaChannel))
 	FLinearColor DefaultPinColor;
@@ -159,6 +163,10 @@ public:
 	/** Color used for data pins of type Attribute Set */
 	UPROPERTY(EditAnywhere, config, Category = Node, meta = (HideAlphaChannel, DisplayName = "Attribute Set Pin Color"))
 	FLinearColor ParamDataPinColor;
+
+	/** Color used for data pins of type Dynamic Mesh */
+	UPROPERTY(EditAnywhere, config, Category = Node, meta = (HideAlphaChannel))
+	FLinearColor DynamicMeshPinColor;
 
 	/** Color used for other/unknown data types */
 	UPROPERTY(EditAnywhere, config, Category = Node, meta = (HideAlphaChannel))
