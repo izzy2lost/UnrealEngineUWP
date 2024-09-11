@@ -219,9 +219,18 @@ void ULensComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 				// Set the camera's overscan settings
 				if (bOverrideCameraOverscan)
 				{
-					CineCameraComponent->Overscan = LensDistortionHandler->GetOverscanFactor() - 1.0f;
-					CineCameraComponent->bScaleResolutionWithOverscan = true;
-					CineCameraComponent->bCropOverscan = (DistortionRenderingMode == EDistortionRenderingMode::SceneViewExtension);
+					const float DesiredOverscan = FMath::Clamp(LensDistortionHandler->GetOverscanFactor() - 1.0f, 0.0f, 1.0f);
+
+					// Only override the camera overscan if the existing amount is too small for lens distortion
+					if (CineCameraComponent->Overscan < DesiredOverscan)
+					{
+						CineCameraComponent->Overscan = DesiredOverscan;
+					}
+
+					// The overscan factor used by the post process material needs to be equivalent to what is set on the camera in order for the PPM and SVE paths to render the same
+					LensDistortionHandler->SetOverscanFactor(CineCameraComponent->Overscan + 1.0f);
+
+ 					CineCameraComponent->bCropOverscan = (DistortionRenderingMode == EDistortionRenderingMode::SceneViewExtension);
 				}
 			}
 			else
@@ -771,14 +780,6 @@ void ULensComponent::CleanupDistortion(UCineCameraComponent* const CineCameraCom
 		{
 			CineCameraComponent->RemoveBlendable(LastDistortionMID);
 			LastDistortionMID = nullptr;
-		}
-
-		// Reset the camera's overscan settings
-		if (bOverrideCameraOverscan)
-		{
-			CineCameraComponent->Overscan = 0.0;
-			CineCameraComponent->bScaleResolutionWithOverscan = false;
-			CineCameraComponent->bCropOverscan = false;
 		}
 
 		if (UCameraCalibrationSubsystem* SubSystem = GEngine->GetEngineSubsystem<UCameraCalibrationSubsystem>())
