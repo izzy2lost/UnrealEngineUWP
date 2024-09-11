@@ -138,6 +138,7 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 	FDeferredLightingSplit DirectLighting;
 	DirectLighting.DiffuseLighting = 0;
 	DirectLighting.SpecularLighting = 0;
+	DirectLighting.LightingLuminance = 0;
 
 	float SpecularScale = 1;
 #if TRANSLUCENCY_ANY_VOLUMETRIC
@@ -236,9 +237,11 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 			// This cannot go into LightAttenuation due to some distance based attenuation math being applied.
 			NewLighting.DiffuseLighting *= InDirectionalLightCloudShadow;
 			NewLighting.SpecularLighting *= InDirectionalLightCloudShadow;
+			NewLighting.LightingLuminance *= InDirectionalLightCloudShadow;
 		#endif
 			NewLighting.DiffuseLighting.rgb *= InDirectionalLightAtmosphereTransmittance;
 			NewLighting.SpecularLighting.rgb *= InDirectionalLightAtmosphereTransmittance;
+			NewLighting.LightingLuminance *= InDirectionalLightAtmosphereTransmittance;
 
 			if (bSeparateMainDirLightLuminance)
 			{
@@ -249,6 +252,7 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 			{
 				DirectLighting.DiffuseLighting += NewLighting.DiffuseLighting;
 				DirectLighting.SpecularLighting += NewLighting.SpecularLighting;
+				DirectLighting.LightingLuminance += NewLighting.LightingLuminance;
 			}
 		}
 	}
