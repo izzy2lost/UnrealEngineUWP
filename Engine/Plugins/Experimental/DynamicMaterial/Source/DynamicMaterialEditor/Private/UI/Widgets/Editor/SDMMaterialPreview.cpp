@@ -74,6 +74,7 @@ void SDMMaterialPreview::Construct(const FArguments& InArgs, const TSharedRef<SD
 {
 	EditorWidgetWeak = InEditorWidget;
 	bShowMenu = InArgs._ShowMenu;
+	bIsPopout = InArgs._IsPopout;
 	PreviewScene = MakeShareable(new FAdvancedPreviewScene(
 		FPreviewScene::ConstructionValues()
 		.SetCreatePhysicsScene(false)
@@ -477,27 +478,50 @@ TSharedRef<SWidget> SDMMaterialPreview::GenerateToolbarMenu()
 		FToolMenuSection& SettingsSection = Menu->AddSection(TEXT("Settings"), LOCTEXT("Settings", "Settings"));
 		SettingsSection.AddEntry(FToolMenuEntry::InitMenuEntry(MaterialEditorCommands.TogglePreviewBackground));
 
-		if (!bIsPopout)
-		{
-			FToolMenuSection& ActionsSection = Menu->AddSection(TEXT("Actions"), LOCTEXT("Actions", "Actions"));
-
-			FUIAction OpenPreviewTabAction;
-			OpenPreviewTabAction.ExecuteAction.BindSP(this, &SDMMaterialPreview::OpenMaterialPreviewTab);
-
-			ActionsSection.AddEntry(FToolMenuEntry::InitMenuEntry(
-				TEXT("PopoutMaterialPreviewTab"),
-				LOCTEXT("OpenPreview", "Open Preview"),
-				LOCTEXT("OpenPreviewToolTip", "Open a tab with a preview of the material."),
-				TAttribute<FSlateIcon>(),
-				OpenPreviewTabAction
-			));
-		}
+		Menu->AddDynamicSection(
+			TEXT("Actions"),
+			FNewSectionConstructChoice(FNewToolMenuDelegate::CreateStatic(&SDMMaterialPreview::AddActionMenu))		
+		);
 	}
+
+	UDMMaterialPreviewContext* PreviewContext = NewObject<UDMMaterialPreviewContext>();
+	PreviewContext->SetPreviewWidget(SharedThis(this));
 
 	FToolMenuContext Context;
 	Context.AppendCommandList(CommandList);
+	Context.AddObject(PreviewContext);
 
 	return ToolMenus->GenerateWidget(MenuName, Context);
+}
+
+void SDMMaterialPreview::AddActionMenu(UToolMenu* InMenu)
+{
+	const UDMMaterialPreviewContext* Context = InMenu->FindContext<UDMMaterialPreviewContext>();
+
+	if (!Context)
+	{
+		return;
+	}
+
+	TSharedPtr<SDMMaterialPreview> PreviewWidget = Context->GetPreviewWidget();
+
+	if (!PreviewWidget.IsValid() || PreviewWidget->bIsPopout)
+	{
+		return;
+	}
+
+	FToolMenuSection& ActionsSection = InMenu->AddSection(TEXT("Actions"), LOCTEXT("Actions", "Actions"));
+
+	FUIAction OpenPreviewTabAction;
+	OpenPreviewTabAction.ExecuteAction.BindSP(PreviewWidget.Get(), &SDMMaterialPreview::OpenMaterialPreviewTab);
+
+	ActionsSection.AddEntry(FToolMenuEntry::InitMenuEntry(
+		TEXT("PopoutMaterialPreviewTab"),
+		LOCTEXT("OpenPreview", "Open Preview"),
+		LOCTEXT("OpenPreviewToolTip", "Open a tab with a preview of the material."),
+		TAttribute<FSlateIcon>(),
+		OpenPreviewTabAction
+	));
 }
 
 void SDMMaterialPreview::OnEditorSettingsChanged(const FPropertyChangedEvent& InPropertyChangedEvent)
