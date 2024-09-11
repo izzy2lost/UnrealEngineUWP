@@ -541,6 +541,14 @@ namespace UnrealBuildTool
 		public bool bStrictEnumTypesConformance = false;
 
 		/// <summary>
+		/// Enables enforcing standard C++ ODR violations (/Zc:checkGwOdr) in VS2022 17.5 Preview 2.0+
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		[XmlConfigFile(Category = "WindowsPlatform")]
+		[CommandLine("-StrictODR")]
+		public bool bStrictODRViolationConformance = false;
+
+		/// <summary>
 		/// Volatile Metadata is enabled by default and improves x64 emulation on arm64, but may come at a small perfomance cost (/volatileMetadata-).
 		/// </summary>
 		[RequiresUniqueBuildEnvironment]
@@ -921,6 +929,8 @@ namespace UnrealBuildTool
 		public bool bStrictPreprocessorConformance => Inner.bStrictPreprocessorConformance;
 
 		public bool bStrictEnumTypesConformance => Inner.bStrictEnumTypesConformance;
+
+		public bool bStrictODRViolationConformance => Inner.bStrictODRViolationConformance;
 
 		public bool bDisableVolatileMetadata => Inner.bDisableVolatileMetadata;
 
