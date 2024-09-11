@@ -42,6 +42,16 @@ namespace
 	size_t   GModuleSymbolFileMemorySize = 0U;
 }
 
+void CORE_API UnixPlatformStackWalk_UnloadPreloadedModuleSymbol()
+{
+	if (GModuleSymbolFileMemory)
+	{
+		GModuleSymbolFileMemory -= FPlatformMemory::GetConstants().PageSize;
+		FMemory::Free(GModuleSymbolFileMemory);
+		GModuleSymbolFileMemory = nullptr;
+	}
+}
+
 void CORE_API UnixPlatformStackWalk_PreloadModuleSymbolFile()
 {
 	if (GModuleSymbolFileMemory == nullptr)
@@ -117,16 +127,6 @@ void CORE_API UnixPlatformStackWalk_PreloadModuleSymbolFile()
 				mprotect(reinterpret_cast<void*>(reinterpret_cast<uint64>(GModuleSymbolFileMemory) & ~(FPlatformMemory::GetConstants().PageSize - 1)), GModuleSymbolFileMemorySize, PROT_READ);
 			}
 		}
-	}
-}
-
-void CORE_API UnixPlatformStackWalk_UnloadPreloadedModuleSymbol()
-{
-	if (GModuleSymbolFileMemory)
-	{
-		GModuleSymbolFileMemory -= FPlatformMemory::GetConstants().PageSize;
-		FMemory::Free(GModuleSymbolFileMemory);
-		GModuleSymbolFileMemory = nullptr;
 	}
 }
 
