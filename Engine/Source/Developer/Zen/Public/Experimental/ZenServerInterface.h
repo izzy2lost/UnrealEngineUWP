@@ -44,7 +44,7 @@ struct FServiceAutoLaunchSettings
 	bool bShowConsole = false;
 	bool bIsDefaultDataPath = false;
 	bool bLimitProcessLifetime = false;
-	bool bAllowPublicNetworkInterface = false;
+	bool bAllowRemoteNetworkService = false;
 	bool bSendUnattendedBugReports = false;
 	bool bIsDefaultSharedRunContext = true;
 };
