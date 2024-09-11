@@ -1,6 +1,6 @@
 {
-	"CompilerCommand": [ "${PLUGIN_DIR}/Source/ThirdParty/IREE/Bin/Linux/iree-compile" ],
-	"LinkerCommand": [ "${PLUGIN_DIR}/Source/ThirdParty/IREE/Bin/Linux/ld.lld" ],
+	"CompilerCommand": [ "${PLUGIN_DIR}/Binaries/ThirdParty/IREE/Linux/iree-compile" ],
+	"LinkerCommand": [ "${PLUGIN_DIR}/Binaries/ThirdParty/IREE/Linux/ld.lld" ],
 	"SharedLibExt": ".so",
 	"Targets": [
 		{

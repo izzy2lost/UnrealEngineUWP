@@ -1,6 +1,6 @@
 {
-	"CompilerCommand": [ "${PLUGIN_DIR}/Source/ThirdParty/IREE/Bin/Windows/iree-compile.exe" ],
-	"LinkerCommand": [ "${PLUGIN_DIR}/Source/ThirdParty/IREE/Bin/Windows/clang++.exe" ],
+	"CompilerCommand": [ "${PLUGIN_DIR}/Binaries/ThirdParty/IREE/Windows/iree-compile.exe" ],
+	"LinkerCommand": [ "${PLUGIN_DIR}/Binaries/ThirdParty/IREE/Windows/clang++.exe" ],
 	"SharedLibExt": ".dll",
 	"Targets": [
 		{
