@@ -405,7 +405,10 @@ public:
 
 	void HandleAssetOpened(UObject* InAsset)
 	{
-		RefreshAsset();
+		if (AssetFamily.IsValid() && AssetFamily->IsAssetCompatible(FAssetData(InAsset)))
+		{
+			RefreshAsset();
+		}
 	}
 
 	EVisibility GetThumbnailVisibility() const
@@ -443,12 +446,15 @@ public:
 			}
 
 			// switch to new asset if needed
-			FAssetData NewAssetData = AssetFamily->FindAssetOfType(AssetData.GetClass());
-			if (!bAssetBeingEdited && NewAssetData != AssetData)
+			if (!bAssetBeingEdited)
 			{
-				AssetData = NewAssetData;
+				FAssetData NewAssetData = AssetFamily->FindAssetOfType(AssetData.GetClass());
+				if (NewAssetData != AssetData)
+				{
+					AssetData = NewAssetData;
 
-				RegenerateThumbnail();
+					RegenerateThumbnail();
+				}
 			}
 		}
 	}
