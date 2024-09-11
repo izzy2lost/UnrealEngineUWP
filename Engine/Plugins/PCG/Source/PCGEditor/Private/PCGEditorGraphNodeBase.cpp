@@ -947,6 +947,10 @@ FEdGraphPinType UPCGEditorGraphNodeBase::GetPinType(const UPCGPin* InPin)
 		{
 			EdPinType.PinSubCategory = FPCGEditorCommon::VolumeDataType;
 		}
+		else if (CheckType(EPCGDataType::DynamicMesh))
+		{
+			EdPinType.PinSubCategory = FPCGEditorCommon::DynamicMeshDataType;
+		}
 		else if (CheckType(EPCGDataType::Primitive))
 		{
 			EdPinType.PinSubCategory = FPCGEditorCommon::PrimitiveDataType;

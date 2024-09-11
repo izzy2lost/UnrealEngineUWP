@@ -32,6 +32,7 @@ UPCGEditorSettings::UPCGEditorSettings(const FObjectInitializer& ObjectInitializ
 	HierarchicalGenerationNodeColor = FLinearColor(1.0f, 0.132868f, 0.0f);
 	GraphParametersNodeColor = FLinearColor::Yellow;
 	RerouteNodeColor = FLinearColor(0.5f, 1.0f, 0.83f);
+	DynamicMeshNodeColor = FLinearColor(0.42f, 0.25f, 1.0f);
 
 	DefaultPinColor = FLinearColor(0.29f, 0.29f, 0.29f);
 	SpatialDataPinColor = FLinearColor(1.0f, 1.0f, 1.0f);
@@ -45,6 +46,7 @@ UPCGEditorSettings::UPCGEditorSettings(const FObjectInitializer& ObjectInitializ
 	RenderTargetDataPinColor = FLinearColor(0.8f, 0.18f, 0.12f);
 	VolumeDataPinColor = FLinearColor(0.79f, 0.06f, 0.5f);
 	PrimitiveDataPinColor = FLinearColor(0.22f, 0.05f, 1.0f);
+	DynamicMeshPinColor = FLinearColor(0.42f, 0.25f, 1.0f);
 
 	ParamDataPinColor = FLinearColor(1.0f, 0.38f, 0.02f);
 	UnknownDataPinColor = FLinearColor(0.3f, 0.3f, 0.3f);
@@ -98,6 +100,8 @@ FLinearColor UPCGEditorSettings::GetColor(UPCGSettings* Settings) const
 			return GraphParametersNodeColor;
 		case EPCGSettingsType::Reroute:
 			return RerouteNodeColor;
+		case EPCGSettingsType::DynamicMesh:
+			return DynamicMeshNodeColor;
 		case EPCGSettingsType::Generic: // falls through
 		default:
 			// Finally, we couldn't find any match, so return the default value
@@ -141,6 +145,10 @@ FLinearColor UPCGEditorSettings::GetPinColor(const FEdGraphPinType& PinType) con
 		else if (PinType.PinSubCategory == FPCGEditorCommon::VolumeDataType)
 		{
 			return VolumeDataPinColor;
+		}
+		else if (PinType.PinSubCategory == FPCGEditorCommon::DynamicMeshDataType)
+		{
+			return DynamicMeshPinColor;
 		}
 		else if (PinType.PinSubCategory == FPCGEditorCommon::PrimitiveDataType)
 		{

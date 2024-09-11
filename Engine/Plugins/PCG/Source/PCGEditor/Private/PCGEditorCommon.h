@@ -48,6 +48,7 @@ namespace FPCGEditorCommon
 	const FName RenderTargetDataType = FName(TEXT("Render Target Data"));
 	const FName VolumeDataType = FName(TEXT("Volume Data"));
 	const FName PrimitiveDataType = FName(TEXT("Primitive Data"));
+	const FName DynamicMeshDataType = FName(TEXT("Dynamic Mesh Data"));
 
 	extern TAutoConsoleVariable<bool> CVarShowAdvancedAttributesFields;
 

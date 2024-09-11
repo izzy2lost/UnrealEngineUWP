@@ -75,9 +75,10 @@ enum class EPCGDataType : uint32
 
 	Volume = 1 << 7,
 	Primitive = 1 << 8,
+	DynamicMesh = 1 << 10,
 
 	/** Simple concrete data. */
-	Concrete = Point | PolyLine | Surface | Volume | Primitive,
+	Concrete = Point | PolyLine | Surface | Volume | Primitive | DynamicMesh,
 
 	/** Boolean operations like union, difference, intersection. */
 	Composite = 1 << 9 UMETA(Hidden),
@@ -119,7 +120,8 @@ enum class EPCGExclusiveDataType : uint8
 	Settings UMETA(Hidden),
 	Other,
 	Any,
-	PointOrParam
+	PointOrParam,
+	DynamicMesh
 };
 
 namespace PCGPinConstants

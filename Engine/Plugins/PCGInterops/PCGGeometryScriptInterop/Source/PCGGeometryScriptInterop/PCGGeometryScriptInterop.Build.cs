@@ -35,6 +35,7 @@ namespace UnrealBuildTool.Rules
 					new string[]
 					{
 						"UnrealEd",
+						"PCGEditor"
 					}
 				);
 			}
