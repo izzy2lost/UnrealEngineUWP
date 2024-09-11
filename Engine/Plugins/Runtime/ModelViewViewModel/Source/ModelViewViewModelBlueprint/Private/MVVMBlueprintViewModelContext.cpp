@@ -20,10 +20,6 @@ FMVVMBlueprintViewModelContext::FMVVMBlueprintViewModelContext(const UClass* InC
 			NotifyFieldValueClass = const_cast<UClass*>(InClass);
 			ViewModelName = InViewModelName;
 			bExposeInstanceInEditor = GetDefault<UMVVMDeveloperProjectSettings>()->bExposeViewModelInstanceInEditor;
-
-#if WITH_EDITOR
-			Resolver = CreateDefaultResolver();
-#endif
 		}
 	}
 }
@@ -35,7 +31,7 @@ FText FMVVMBlueprintViewModelContext::GetDisplayName() const
 }
 
 #if WITH_EDITOR
-TObjectPtr<UMVVMViewModelContextResolver> FMVVMBlueprintViewModelContext::CreateDefaultResolver() const
+TObjectPtr<UMVVMViewModelContextResolver> FMVVMBlueprintViewModelContext::CreateDefaultResolver(UPackage* Package) const
 {
 	TObjectPtr<UMVVMViewModelContextResolver> DefaultResolver;
 
@@ -47,7 +43,7 @@ TObjectPtr<UMVVMViewModelContextResolver> FMVVMBlueprintViewModelContext::Create
 			{
 				if (DefaultResolverClass->DoesSupportViewModelClass(GetViewModelClass()))
 				{
-					DefaultResolver = NewObject<UMVVMViewModelContextResolver>(GetTransientPackage(), DefaultClass);
+					DefaultResolver = NewObject<UMVVMViewModelContextResolver>(Package, DefaultClass);
 				}
 			}
 		}
