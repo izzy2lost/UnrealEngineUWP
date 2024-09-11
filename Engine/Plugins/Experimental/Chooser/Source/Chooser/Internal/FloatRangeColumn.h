@@ -58,7 +58,7 @@ struct FChooserFloatRangeRowData
 };
 
 
-USTRUCT(DisplayName = "Float Range", Meta = (Category = "Filter", Tooltip = "A column which filters rows if an input value is not within the range specified for the row."))
+USTRUCT()
 struct CHOOSER_API FFloatRangeColumn : public FChooserColumnBase
 {
 	GENERATED_BODY()

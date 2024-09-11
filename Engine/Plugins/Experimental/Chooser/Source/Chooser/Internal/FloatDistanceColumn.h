@@ -35,7 +35,7 @@ public:
 	virtual void NativeAutoPopulate(UObject* InObject, bool& OutSuccess, float& OutValue) { }
 };
 
-USTRUCT(DisplayName = "Float Difference", Meta = (Category = "Scoring", Tooltip = "A column which scores rows based on their difference from an Input float."))
+USTRUCT()
 struct CHOOSER_API FFloatDistanceColumn : public FChooserColumnBase
 {
 	GENERATED_BODY()

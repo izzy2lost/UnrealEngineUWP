@@ -67,12 +67,10 @@ void FOutputStructColumn::AddToDetails(FInstancedPropertyBag& PropertyBag, int32
 			FText DisplayName;
 			StructInput.GetDisplayName(DisplayName);
 			FName PropertyName("RowData",ColumnIndex);
-			
-			FInstancedStruct& Value = GetValueForIndex(RowIndex);
-			FPropertyBagPropertyDesc PropertyDesc(PropertyName,  EPropertyBagPropertyType::Struct, Value.GetScriptStruct());
+			FPropertyBagPropertyDesc PropertyDesc(PropertyName,  EPropertyBagPropertyType::Struct, RowValues[RowIndex].GetScriptStruct());
 			PropertyDesc.MetaData.Add(FPropertyBagPropertyDescMetaData("DisplayName", DisplayName.ToString()));
 			PropertyBag.AddProperties({PropertyDesc});
-			PropertyBag.SetValueStruct(PropertyName, FConstStructView(Value.GetScriptStruct(), Value.GetMemory()));
+			PropertyBag.SetValueStruct(PropertyName, FConstStructView(RowValues[RowIndex].GetScriptStruct(), RowValues[RowIndex].GetMemory()));
 		}
 	}
 }
@@ -86,12 +84,10 @@ void FOutputStructColumn::SetFromDetails(FInstancedPropertyBag& PropertyBag, int
 		{
 			FName PropertyName("RowData", ColumnIndex);
 
-			FInstancedStruct& Value = GetValueForIndex(RowIndex);
-
-			TValueOrError<FStructView, EPropertyBagResult> Result = PropertyBag.GetValueStruct(PropertyName, Value.GetScriptStruct());
+			TValueOrError<FStructView, EPropertyBagResult> Result = PropertyBag.GetValueStruct(PropertyName, RowValues[RowIndex].GetScriptStruct());
 			if (FStructView* StructView = Result.TryGetValue())
 			{
-				RowValues[RowIndex].GetScriptStruct()->CopyScriptStruct(Value.GetMutableMemory(), StructView->GetMemory());
+				RowValues[RowIndex].GetScriptStruct()->CopyScriptStruct(RowValues[RowIndex].GetMutableMemory(), StructView->GetMemory());
 			}
 		}
 	}
@@ -108,18 +104,22 @@ void FOutputStructColumn::SetOutputs(FChooserEvaluationContext& Context, int Row
 {
 	if (InputValue.IsValid())
 	{
-		const FInstancedStruct& OutputValue = GetValueForIndex(RowIndex);
-
-		if (OutputValue.IsValid())
+		const FInstancedStruct* OutputValue = &FallbackValue;
+		if (RowValues.IsValidIndex(RowIndex))
 		{
-			InputValue.Get<FChooserParameterStructBase>().SetValue(Context, OutputValue);
+			OutputValue = &RowValues[RowIndex];
+		}
+
+		if (OutputValue && OutputValue->IsValid())
+		{
+			InputValue.Get<FChooserParameterStructBase>().SetValue(Context, *OutputValue);
 		}
 	}
 	
 #if WITH_EDITOR
 	if (Context.DebuggingInfo.bCurrentDebugTarget)
 	{
-		TestValue = GetValueForIndex(RowIndex);
+		TestValue = RowValues[RowIndex];
 	}
 #endif
 }

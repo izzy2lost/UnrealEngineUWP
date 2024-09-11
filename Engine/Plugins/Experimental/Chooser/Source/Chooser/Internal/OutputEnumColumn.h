@@ -24,7 +24,7 @@ struct FChooserOutputEnumRowData
 };
 
 
-USTRUCT(DisplayName = "Output Enum", Meta = (Category = "Output", Tooltip = "A column which writes an Enum value."))
+USTRUCT()
 struct CHOOSER_API FOutputEnumColumn : public FEnumColumnBase
 {
 	GENERATED_BODY()
@@ -68,18 +68,9 @@ public:
 
 	virtual void AddToDetails (FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) override;
 	virtual void SetFromDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) override;
-	virtual void CopyFallback(FChooserColumnBase& SourceColumn) override { FallbackValue = static_cast<FOutputEnumColumn&>(SourceColumn).FallbackValue; }
 	
 	virtual void EnumChanged(const UEnum* Enum) override;
 #endif
-	FChooserOutputEnumRowData& GetValueForIndex(int32 Index)
-	{
-		return Index == ChooserColumn_SpecialIndex_Fallback ? FallbackValue : RowValues[Index];
-	}
-	const FChooserOutputEnumRowData& GetValueForIndex(int32 Index) const
-	{
-		return Index == ChooserColumn_SpecialIndex_Fallback ? FallbackValue : RowValues[Index];
-	}
 	
 	CHOOSER_COLUMN_BOILERPLATE(FChooserParameterEnumBase);
 };

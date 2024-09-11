@@ -46,7 +46,7 @@ public:
 	
 };
 
-USTRUCT(DisplayName = "Bool", Meta = (Category = "Filter", Tooltip = "A column that filters rows based on the value of a Bool."))
+USTRUCT()
 struct CHOOSER_API FBoolColumn : public FChooserColumnBase
 {
 	GENERATED_BODY()

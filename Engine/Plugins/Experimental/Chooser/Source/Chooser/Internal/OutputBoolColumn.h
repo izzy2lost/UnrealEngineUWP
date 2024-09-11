@@ -8,7 +8,7 @@
 #include "StructUtils/InstancedStruct.h"
 #include "OutputBoolColumn.generated.h"
 
-USTRUCT(DisplayName = "Output Bool", Meta = (Category = "Output", Tooltip = "A column which writes a Bool value."))
+USTRUCT()
 struct CHOOSER_API FOutputBoolColumn : public FChooserColumnBase
 {
 	GENERATED_BODY()
@@ -26,18 +26,7 @@ struct CHOOSER_API FOutputBoolColumn : public FChooserColumnBase
 
 	virtual void AddToDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) override;
 	virtual void SetFromDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) override;
-	virtual void CopyFallback(FChooserColumnBase& SourceColumn) override { bFallbackValue = static_cast<FOutputBoolColumn&>(SourceColumn).bFallbackValue; }
 #endif
-		
-	bool& GetValueForIndex(int32 Index)
-	{
-		return Index == ChooserColumn_SpecialIndex_Fallback ? bFallbackValue : RowValues[Index];
-	}
-	
-	bool GetValueForIndex(int32 Index) const
-	{
-		return Index == ChooserColumn_SpecialIndex_Fallback ? bFallbackValue : RowValues[Index];
-	}
 	
 	// FallbackValue will be used as the output value if the all rows in the chooser fail, and the FallbackResult from the chooser is used.
 	UPROPERTY(EditAnywhere, Category=Data);

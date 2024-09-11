@@ -11,7 +11,7 @@
 
 struct FBindingChainElement;
 
-USTRUCT(DisplayName = "Output Object", Meta = (Category = "Output", Tooltip = "A column which writes an Object reference."))
+USTRUCT()
 struct FChooserOutputObjectRowData
 {
 	GENERATED_BODY()
@@ -20,7 +20,7 @@ struct FChooserOutputObjectRowData
 	FInstancedStruct Value;
 };
 
-USTRUCT(DisplayName = "Output Object", Meta = (Category = "Output", Tooltip = "A column which an Object Reference."))
+USTRUCT()
 struct CHOOSER_API FOutputObjectColumn : public FChooserColumnBase
 {
 	GENERATED_BODY()
@@ -51,18 +51,7 @@ struct CHOOSER_API FOutputObjectColumn : public FChooserColumnBase
 #if WITH_EDITOR
 	virtual void AddToDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) override;
 	virtual void SetFromDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) override;
-	virtual void CopyFallback(FChooserColumnBase& SourceColumn) override { FallbackValue = static_cast<FOutputObjectColumn&>(SourceColumn).FallbackValue; }
 #endif
-	
-	FChooserOutputObjectRowData& GetValueForIndex(int32 Index)
-	{
-		return Index == ChooserColumn_SpecialIndex_Fallback ? FallbackValue : RowValues[Index];
-	}
-	
-	const FChooserOutputObjectRowData& GetValueForIndex(int32 Index) const
-	{
-		return Index == ChooserColumn_SpecialIndex_Fallback ? FallbackValue : RowValues[Index];
-	}
 
 	CHOOSER_COLUMN_BOILERPLATE(FChooserParameterObjectBase);
 
