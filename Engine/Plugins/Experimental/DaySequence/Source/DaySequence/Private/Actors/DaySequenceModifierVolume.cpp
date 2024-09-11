@@ -24,11 +24,6 @@ ADaySequenceModifierVolume::ADaySequenceModifierVolume(const FObjectInitializer&
 	DefaultBox->SetupAttachment(DaySequenceModifier);
 	DefaultBox->SetLineThickness(10.f);
 	DefaultBox->SetBoxExtent(FVector(500.f));
-
-	FComponentReference DefaultBoxReference;
-	DefaultBoxReference.OverrideComponent = DefaultBox;
-	DaySequenceModifier->EmptyVolumeShapeComponents();
-	DaySequenceModifier->AddVolumeShapeComponent(DefaultBoxReference);
 }
 
 void ADaySequenceModifierVolume::SetBlendTarget(APlayerController* InPC)
@@ -65,6 +60,11 @@ void ADaySequenceModifierVolume::Initialize()
 		return;
 	}
 
+	FComponentReference DefaultBoxReference;
+	DefaultBoxReference.OverrideComponent = DefaultBox;
+	DaySequenceModifier->EmptyVolumeShapeComponents();
+	DaySequenceModifier->AddVolumeShapeComponent(DefaultBoxReference);
+	
 	// This actor should only initialize on the client.
 	if (GetNetMode() == NM_DedicatedServer)
 	{
