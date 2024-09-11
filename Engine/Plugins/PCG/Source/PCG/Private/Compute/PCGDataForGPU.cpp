@@ -407,7 +407,7 @@ FPCGDataDesc::FPCGDataDesc(EPCGDataType InType, int InElementCount)
 	InitializeAttributeDescs(nullptr);
 }
 
-FPCGDataDesc::FPCGDataDesc(const UPCGData* Data, const TMap<FPCGKernelAttributeKey, int32>& GlobalAttributeLookupTable)
+FPCGDataDesc::FPCGDataDesc(const UPCGData* Data, const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable)
 {
 	check(Data);
 
@@ -443,7 +443,7 @@ uint32 FPCGDataDesc::ComputePackedSize() const
 	return DataSizeBytes;
 }
 
-void FPCGDataDesc::InitializeAttributeDescs(const UPCGMetadata* Metadata, const TMap<FPCGKernelAttributeKey, int32>& GlobalAttributeLookupTable)
+void FPCGDataDesc::InitializeAttributeDescs(const UPCGMetadata* Metadata, const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable)
 {
 	if (Type == EPCGDataType::Point)
 	{
@@ -477,8 +477,6 @@ void FPCGDataDesc::InitializeAttributeDescs(const UPCGMetadata* Metadata, const 
 				continue;
 			}
 
-			const FPCGKernelAttributeKey AttributeKey = { AttributeType, AttributeName };
-
 			// Ignore excess attributes.
 			if (CustomAttributeIndex >= MAX_NUM_CUSTOM_ATTRS)
 			{
@@ -494,14 +492,14 @@ void FPCGDataDesc::InitializeAttributeDescs(const UPCGMetadata* Metadata, const 
 				continue;
 			}
 
-			if (const int32* AttributeId = GlobalAttributeLookupTable.Find(AttributeKey))
+			if (const FPCGKernelAttributeIDAndType* AttributeIdAndType = GlobalAttributeLookupTable.Find(AttributeName))
 			{
-				AttributeDescs.Emplace(*AttributeId, AttributeType, AttributeName);
+				AttributeDescs.Emplace(AttributeIdAndType->Id, AttributeType, AttributeName);
 				++NumAttributesFromLUT;
 			}
 			else
 			{
-				DelayedAttributeKeys.Add(AttributeKey);
+				DelayedAttributeKeys.Emplace(AttributeName, AttributeType);
 			}
 		}
 
@@ -516,7 +514,7 @@ void FPCGDataDesc::InitializeAttributeDescs(const UPCGMetadata* Metadata, const 
 FPCGDataCollectionDesc FPCGDataCollectionDesc::BuildFromInputDataCollectionAndInputPinLabel(
 	const FPCGDataCollection& InDataCollection,
 	FName InputPinLabel,
-	const TMap<FPCGKernelAttributeKey, int32>& InAttributeLookupTable)
+	const TMap<FName, FPCGKernelAttributeIDAndType>& InAttributeLookupTable)
 {
 	FPCGDataCollectionDesc Desc;
 	TArray<FPCGTaggedData> DataForPin = InDataCollection.GetInputsByPin(InputPinLabel);

@@ -25,7 +25,7 @@ FText UPCGCopyPointsSettings::GetNodeTooltipText() const
 }
 #endif
 
-FString UPCGCopyPointsSettings::GetCookedKernelSource(const TMap<FPCGKernelAttributeKey, int>& GlobalAttributeLookupTable) const
+FString UPCGCopyPointsSettings::GetCookedKernelSource(const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable) const
 {
 	FString TemplateFile;
 	LoadShaderSourceFile(TEXT("/Plugin/PCG/Private/Elements/PCGCopyPoints.usf"), EShaderPlatform::SP_PCD3D_SM5, &TemplateFile, nullptr);

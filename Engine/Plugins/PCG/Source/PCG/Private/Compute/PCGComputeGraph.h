@@ -24,8 +24,11 @@ public:
 	void OnKernelCompilationComplete(int32 InKernelIndex, FComputeKernelCompileResults const& InCompileResults) override;
 	//~End UComputeGraph interface
 
+	/** Some attributes in table may be missing type information that we could not infer statically. Fill in missing types from the execution-time data. */
+	void FillInMissingAttributeTableTypes(const FPCGDataCollection& InComputeGraphElementInputData);
+
 	/** Get the global attribute indices. */
-	const TMap<FPCGKernelAttributeKey, int32>& GetAttributeLookupTable() const { return GlobalAttributeLookupTable; }
+	const TMap<FName, FPCGKernelAttributeIDAndType>& GetAttributeLookupTable() const { return GlobalAttributeLookupTable; }
 
 public:
 	TMap<TObjectKey<const UPCGNode>, TArray<FComputeKernelCompileMessage>> KernelToCompileMessages;
@@ -48,7 +51,7 @@ public:
 
 protected:
 	UPROPERTY()
-	TMap<FPCGKernelAttributeKey, int32 /* Attribute Index */> GlobalAttributeLookupTable;
+	TMap<FName /* Attribute name */, FPCGKernelAttributeIDAndType> GlobalAttributeLookupTable;
 
 	friend class FPCGGraphCompilerGPU;
 };

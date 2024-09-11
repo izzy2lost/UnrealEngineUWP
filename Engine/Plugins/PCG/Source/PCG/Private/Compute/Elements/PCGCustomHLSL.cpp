@@ -306,24 +306,25 @@ FPCGDataCollectionDesc UPCGCustomHLSLSettings::ComputeOutputPinDataDesc(const UP
 		PCGComputeHelpers::ComputeOutputPinDataDesc(*Properties, this, Binding, PinDesc);
 	}
 
-	const TMap<FPCGKernelAttributeKey, int32>& GlobalAttributeLookupTable = ensure(Binding && Binding->Graph) ? Binding->Graph->GetAttributeLookupTable() : TMap<FPCGKernelAttributeKey, int32>();
-
-	for (const FPCGKernelAttributeKey& AttributeKey : KernelAttributeKeys)
+	if (const TMap<FName, FPCGKernelAttributeIDAndType>* GlobalAttributeLookupTable = ensure(Binding && Binding->Graph) ? &Binding->Graph->GetAttributeLookupTable() : nullptr)
 	{
-		// Add attributes that will be created for this pin on the GPU.
-		if (const TArray<TTuple<FPCGKernelAttributeKey, bool>>* Keys = PinToAttributeKeys.Find(OutputPin->Properties.Label))
+		for (const FPCGKernelAttributeKey& AttributeKey : KernelAttributeKeys)
 		{
-			const TTuple<FPCGKernelAttributeKey, bool>* Pair = Keys->FindByPredicate([AttributeKey](const TTuple<FPCGKernelAttributeKey, bool>& Pair) { return Pair.Key == AttributeKey; });
-			const bool bCreatedOnGPU = Pair && Pair->Value;
-
-			if (bCreatedOnGPU)
+			// Add attributes that will be created for this pin on the GPU.
+			if (const TArray<TTuple<FPCGKernelAttributeKey, bool>>* Keys = PinToAttributeKeys.Find(OutputPin->Properties.Label))
 			{
-				for (FPCGDataDesc& DataDesc : PinDesc.DataDescs)
+				const TTuple<FPCGKernelAttributeKey, bool>* Pair = Keys->FindByPredicate([AttributeKey](const TTuple<FPCGKernelAttributeKey, bool>& Pair) { return Pair.Key == AttributeKey; });
+				const bool bCreatedOnGPU = Pair && Pair->Value;
+
+				if (bCreatedOnGPU)
 				{
-					if (const int* Index = GlobalAttributeLookupTable.Find(AttributeKey))
+					for (FPCGDataDesc& DataDesc : PinDesc.DataDescs)
 					{
-						const FPCGKernelAttributeDesc AttributeDesc(*Index, AttributeKey.Type, AttributeKey.Name);
-						DataDesc.AttributeDescs.AddUnique(AttributeDesc);
+						if (const FPCGKernelAttributeIDAndType* IDAndType = GlobalAttributeLookupTable->Find(AttributeKey.Name))
+						{
+							const FPCGKernelAttributeDesc AttributeDesc(IDAndType->Id, IDAndType->Type, AttributeKey.Name);
+							DataDesc.AttributeDescs.AddUnique(AttributeDesc);
+						}
 					}
 				}
 			}
@@ -1449,7 +1450,7 @@ bool UPCGCustomHLSLSettings::AreKernelAttributesValid(FPCGContext* InContext, FT
 	return true;
 }
 
-FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FPCGKernelAttributeKey, int32>& GlobalAttributeLookupTable) const
+FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable) const
 {
 	const FIntVector GroupSize = GetThreadGroupSize();
 
@@ -1463,10 +1464,11 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FPCGKernelAttri
 	Functions.ReplaceInline(TEXT("\r"), TEXT(""));
 #endif
 
-	for (const TPair<FPCGKernelAttributeKey, int32>& Pair : GlobalAttributeLookupTable)
+	for (const TPair<FName, FPCGKernelAttributeIDAndType>& Pair : GlobalAttributeLookupTable)
 	{
-		const FString SourceDefinition = PCGHLSLElement::GetKernelAttributeKeyAsString(Pair.Key);
-		const FString AttributeIndexAsString = FString::FromInt(Pair.Value);
+		FPCGKernelAttributeKey AttributeKey(Pair.Key, Pair.Value.Type);
+		const FString SourceDefinition = PCGHLSLElement::GetKernelAttributeKeyAsString(AttributeKey);
+		const FString AttributeIndexAsString = FString::FromInt(Pair.Value.Id);
 
 		Source.ReplaceInline(*SourceDefinition, *AttributeIndexAsString);
 		Functions.ReplaceInline(*SourceDefinition, *AttributeIndexAsString);

@@ -10,6 +10,7 @@
 class UPCGMetadata;
 class UPCGPin;
 class UPCGSettings;
+enum class EPCGMetadataTypes : uint8;
 
 enum class EPCGUnpackDataCollectionResult
 {
@@ -20,7 +21,8 @@ enum class EPCGUnpackDataCollectionResult
 UENUM()
 enum class EPCGKernelAttributeType : uint8
 {
-	Bool = 0,
+	None = 0,
+	Bool,
 	Int,
 	Float,
 	Float2,
@@ -38,14 +40,40 @@ struct FPCGKernelAttributeKey
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, Category = "Settings")
-	EPCGKernelAttributeType Type = EPCGKernelAttributeType::Float;
+	FPCGKernelAttributeKey() = default;
+
+	explicit FPCGKernelAttributeKey(FName InName, EPCGKernelAttributeType InType)
+		: Name(InName)
+		, Type(InType)
+	{}
 
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	FName Name = NAME_None;
 
+	UPROPERTY(EditAnywhere, Category = "Settings")
+	EPCGKernelAttributeType Type = EPCGKernelAttributeType::Float;
+
 	bool operator==(const FPCGKernelAttributeKey& Other) const;
 	friend uint32 GetTypeHash(const FPCGKernelAttributeKey& In);
+};
+
+USTRUCT()
+struct FPCGKernelAttributeIDAndType
+{
+	GENERATED_BODY()
+
+	FPCGKernelAttributeIDAndType() = default;
+
+	explicit FPCGKernelAttributeIDAndType(int32 InId, EPCGKernelAttributeType InType)
+		: Id(InId)
+		, Type(InType)
+	{}
+
+	UPROPERTY()
+	int32 Id;
+
+	UPROPERTY()
+	EPCGKernelAttributeType Type;
 };
 
 struct FPCGKernelAttributeDesc
@@ -67,7 +95,7 @@ struct FPCGKernelAttributeDesc
 struct FPCGDataDesc
 {
 	FPCGDataDesc(EPCGDataType InType, int32 InElementCount);
-	FPCGDataDesc(const UPCGData* Data, const TMap<FPCGKernelAttributeKey, int32>& GlobalAttributeLookupTable);
+	FPCGDataDesc(const UPCGData* Data, const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable);
 
 	uint32 ComputePackedSize() const;
 
@@ -76,7 +104,7 @@ struct FPCGDataDesc
 	int32 ElementCount = 0;
 
 private:
-	void InitializeAttributeDescs(const UPCGMetadata* Metadata, const TMap<FPCGKernelAttributeKey, int32>& GlobalAttributeLookupTable = {});
+	void InitializeAttributeDescs(const UPCGMetadata* Metadata, const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable = {});
 };
 
 struct FPCGDataCollectionDesc
@@ -84,7 +112,7 @@ struct FPCGDataCollectionDesc
 	static FPCGDataCollectionDesc BuildFromInputDataCollectionAndInputPinLabel(
 		const FPCGDataCollection& InDataCollection,
 		FName InputPinLabel,
-		const TMap<FPCGKernelAttributeKey, int32>& InAttributeLookupTable);
+		const TMap<FName, FPCGKernelAttributeIDAndType>& InAttributeLookupTable);
 
 	/** Computes the size (in bytes) of the data collection after packing. Also produces the offset (in bytes) for each data in the packed collection. */
 	uint32 ComputePackedSize(TArray<uint32>* OutDataAddresses = nullptr) const;
@@ -116,3 +144,8 @@ struct FPCGDataForGPU
 	// Since the compute graph is collapsed to a single element, all data crossing from CPU to GPU is in a single collection.
 	FPCGDataCollection InputDataCollection;
 };
+
+namespace PCGDataForGPUHelpers
+{
+	EPCGKernelAttributeType GetAttributeTypeFromMetadataType(EPCGMetadataTypes MetadataType);
+}
