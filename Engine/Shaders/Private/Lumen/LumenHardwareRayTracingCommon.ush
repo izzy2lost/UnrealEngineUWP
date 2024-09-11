@@ -359,16 +359,21 @@ bool LumenMinimalRayAnyHitShader(uint UserData, float HitT, bool bHitBackFace, b
 
 	#if AVOID_SELF_INTERSECTIONS_MODE == AVOID_SELF_INTERSECTIONS_MODE_AHS
 	{
-		// Avoid self-shadowing by skipping back face hits for some distance
-		if (bHitBackFace && HitT < LumenHardwareRayTracingUniformBuffer.SkipBackFaceHitDistance)
+		if (bIsTwoSided)
 		{
-			return false;
+			// SkipBackFaceHitDistance doesn't work on two sided geometry, but we still need to avoid self-intersections with the Nanite fallback mesh
+			if (HitT < LumenHardwareRayTracingUniformBuffer.SkipTwoSidedHitDistance)
+			{
+				return false;
+			}
 		}
-
-		// SkipBackFaceHitDistance doesn't work on two sided geometry, but we still need to avoid self-intersections with the Nanite fallback mesh
-		if (bIsTwoSided && HitT < LumenHardwareRayTracingUniformBuffer.SkipTwoSidedHitDistance)
+		else if (bHitBackFace)
 		{
-			return false;
+			// Avoid self-shadowing by skipping back face hits for some distance
+			if (HitT < LumenHardwareRayTracingUniformBuffer.SkipBackFaceHitDistance)
+			{
+				return false;
+			}
 		}
 	}
 	#endif
@@ -1045,13 +1050,21 @@ FRayTracedLightingResult TraceSurfaceCacheRay(
 	{
 		float SkipDistance = -1;
 
-		if (MinimalRayResult.bTwoSided && MinimalRayResult.HitT < LumenHardwareRayTracingUniformBuffer.SkipTwoSidedHitDistance)
+		if (MinimalRayResult.bTwoSided)
 		{
-			SkipDistance = MinimalRayResult.HitT + 0.01f;
+			// SkipBackFaceHitDistance doesn't work on two sided geometry, but we still need to avoid self-intersections with the Nanite fallback mesh
+			if (MinimalRayResult.HitT < LumenHardwareRayTracingUniformBuffer.SkipTwoSidedHitDistance)
+			{
+				SkipDistance = MinimalRayResult.HitT + 0.01f;
+			}
 		}
-		else if (!MinimalRayResult.bTwoSided && MinimalRayResult.HitT < LumenHardwareRayTracingUniformBuffer.SkipBackFaceHitDistance)
+		else if (!MinimalRayResult.bFrontFace)
 		{
-			SkipDistance = LumenHardwareRayTracingUniformBuffer.SkipBackFaceHitDistance;
+			// Avoid self-shadowing by skipping back face hits for some distance
+			if (MinimalRayResult.HitT < LumenHardwareRayTracingUniformBuffer.SkipBackFaceHitDistance)
+			{
+				SkipDistance = LumenHardwareRayTracingUniformBuffer.SkipBackFaceHitDistance;
+			}
 		}
 
 		if (SkipDistance > 0.0f)
