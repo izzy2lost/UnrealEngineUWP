@@ -19,6 +19,17 @@ float SpatialFilterKernelRadius;
 uint SpatialFilterNumSamples;
 float TemporalMaxFramesAccumulated;
 
+float3 TonemapLighting(float3 Lighting, float DisocclusionFactor)
+{
+	// Run heavy tonemapping for DisocclusionFactor in order to suppress fireflies in new areas
+	return Lighting / (1.0f + DisocclusionFactor * Luminance(Lighting));
+}
+
+float3 InverseTonemapLighting(float3 TonemappedLighting, float DisocclusionFactor)
+{
+	return TonemappedLighting / (1.0f - DisocclusionFactor * Luminance(TonemappedLighting));
+}
+
 /**
  * Run a spatial filter in order to filter out noise based on the temporal variance.
  */
@@ -47,20 +58,21 @@ void DenoiserSpatialCS(
 		{
 			FMegaLightsMaterial Material = LoadMaterial(ScreenUV, ScreenCoord);
 
+			float ShadingConfidence = ShadingConfidenceTexture[ScreenCoord];
 			float CenterDiffuseStdDev = sqrt(max(CenterDiffuseLightingAndSecondMoment.w - Pow2(Luminance(CenterDiffuseLightingAndSecondMoment.xyz)), 0.0f));
 			float CenterSpecularStdDev = sqrt(max(CenterSpecularLightingAndSecondMoment.w - Pow2(Luminance(CenterSpecularLightingAndSecondMoment.xyz)), 0.0f));
 	
 			// Run spatial filter until we accumulate enough frames to estimated temporal variance
 			float NumFramesAccumulated = NumFramesAccumulatedTexture[ScreenCoord] * TemporalMaxFramesAccumulated;
 			float DisocclusionFactor = 0.0f;
-			if (TemporalMaxFramesAccumulated > 1)
+			if (TemporalMaxFramesAccumulated > 1 && ShadingConfidence <= 0.2f)
 			{
-				DisocclusionFactor = 1.0f - saturate((NumFramesAccumulated - 1.0f) / min(3.0f, TemporalMaxFramesAccumulated - 1.0f));
+				DisocclusionFactor = 1.0f - saturate((NumFramesAccumulated - 1.0f) / min(2.0f, TemporalMaxFramesAccumulated - 1.0f));
 			}
 			CenterDiffuseStdDev = lerp(1.0f, CenterDiffuseStdDev, saturate(NumFramesAccumulated / min(5.0f, TemporalMaxFramesAccumulated)));
 
-			float3 DiffuseLightingSum = CenterDiffuseLightingAndSecondMoment.xyz;
-			float3 SpecularLightingSum = CenterSpecularLightingAndSecondMoment.xyz;
+			float3 DiffuseLightingSum = TonemapLighting(CenterDiffuseLightingAndSecondMoment.xyz, DisocclusionFactor);
+			float3 SpecularLightingSum = TonemapLighting(CenterSpecularLightingAndSecondMoment.xyz, DisocclusionFactor);
 			float DiffuseLightingWeightSum = 1.0f;
 			float SpecularLightingWeightSum = 1.0f;
 
@@ -69,7 +81,6 @@ void DenoiserSpatialCS(
 			float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, Material.Depth);
 			float4 ScenePlane = float4(Material.WorldNormalForPositionBias, dot(TranslatedWorldPosition, Material.WorldNormalForPositionBias));
 
-			float ShadingConfidence = ShadingConfidenceTexture[ScreenCoord];
 			bool bFilterDiffuse = false;
 			bool bFilterSpecular = false;
 
@@ -113,10 +124,10 @@ void DenoiserSpatialCS(
 							if (IsLightingValid(NeighborDiffuseLightingAndSecondMoment.xyz))
 							{
 								float LuminanceDelta = abs(Luminance(CenterDiffuseLightingAndSecondMoment.xyz) - Luminance(NeighborDiffuseLightingAndSecondMoment.xyz));
-								float LuminanceWeight = exp2(-LuminanceDelta / max(CenterDiffuseStdDev, 0.001f));
+								float LuminanceWeight = exp2(-(LuminanceDelta / max(CenterDiffuseStdDev, 0.001f)) * saturate(1.0f - DisocclusionFactor));
 
 								const float DiffuseNeighborWeight = DepthWeight * NormalWeight * LuminanceWeight;
-								DiffuseLightingSum += NeighborDiffuseLightingAndSecondMoment.xyz * DiffuseNeighborWeight;
+								DiffuseLightingSum += TonemapLighting(NeighborDiffuseLightingAndSecondMoment.xyz, DisocclusionFactor) * DiffuseNeighborWeight;
 								DiffuseLightingWeightSum += DiffuseNeighborWeight;
 							}
 						}
@@ -129,10 +140,10 @@ void DenoiserSpatialCS(
 							if (IsLightingValid(NeighborSpecularLightingAndSecondMoment.xyz))
 							{
 								float LuminanceDelta = abs(Luminance(CenterSpecularLightingAndSecondMoment.xyz) - Luminance(NeighborSpecularLightingAndSecondMoment.xyz));
-								float LuminanceWeight = exp2(-LuminanceDelta / max(CenterSpecularStdDev, 0.001f));
+								float LuminanceWeight = exp2(-(LuminanceDelta / max(CenterSpecularStdDev, 0.001f)) * saturate(1.0f - DisocclusionFactor));
 
 								const float SpecularNeighborWeight = DepthWeight * NormalWeight * LuminanceWeight;
-								SpecularLightingSum += NeighborSpecularLightingAndSecondMoment.xyz * SpecularNeighborWeight;
+								SpecularLightingSum += TonemapLighting(NeighborSpecularLightingAndSecondMoment.xyz, DisocclusionFactor) * SpecularNeighborWeight;
 								SpecularLightingWeightSum += SpecularNeighborWeight;
 							}
 						}
@@ -142,8 +153,9 @@ void DenoiserSpatialCS(
 			#endif
 
 			// Final pass outputs composites irradiance and outputs it to scene color
-			float3 DiffuseLighting = DiffuseLightingSum / DiffuseLightingWeightSum;
-			float3 SpecularLighting = SpecularLightingSum / SpecularLightingWeightSum;
+			float3 DiffuseLighting = InverseTonemapLighting(DiffuseLightingSum / DiffuseLightingWeightSum, DisocclusionFactor);
+			float3 SpecularLighting = InverseTonemapLighting(SpecularLightingSum / SpecularLightingWeightSum, DisocclusionFactor);
+
 			ModulateLighting(Material, TranslatedWorldPosition, DiffuseLighting, SpecularLighting);
 
 			// Composite diffuse and specular into scene color
