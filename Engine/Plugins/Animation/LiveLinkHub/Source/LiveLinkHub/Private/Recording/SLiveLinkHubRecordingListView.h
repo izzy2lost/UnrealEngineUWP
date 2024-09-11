@@ -102,7 +102,7 @@ public:
 			[
 				SNew(SVerticalBox)
 				+ SVerticalBox::Slot()
-				.AutoHeight()
+				.VAlign(VAlign_Fill)
 				[
 					SNew(SBox)
 					.Visibility(this, &SLiveLinkHubRecordingListView::GetRecordingPickerVisibility)
