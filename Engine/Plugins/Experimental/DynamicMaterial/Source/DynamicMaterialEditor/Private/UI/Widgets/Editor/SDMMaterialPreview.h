@@ -9,16 +9,41 @@
 #include "UObject/ObjectPtr.h"
 #include "UObject/UObjectGlobals.h"
 
+#include "SDMMaterialPreview.generated.h"
+
 class APostProcessVolume;
 class FAdvancedPreviewScene;
 class FDMMaterialPreviewViewportClient;
 class FEditorViewportClient;
 class SDMMaterialEditor;
+class SDMMaterialPreview;
 class UDynamicMaterialModelBase;
 class UMaterialInterface;
 class UMeshComponent;
+class UToolMenu;
 enum class EDMMaterialPreviewMesh : uint8;
 struct FPropertyChangedEvent;
+
+UCLASS(MinimalAPI)
+class UDMMaterialPreviewContext : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	void SetPreviewWidget(const TSharedRef<SDMMaterialPreview>& InPreviewWidget)
+	{
+		PreviewWidgetWeak = InPreviewWidget;
+	}
+
+	TSharedPtr<SDMMaterialPreview> GetPreviewWidget() const
+	{
+		return PreviewWidgetWeak.Pin();
+	}
+
+private:
+	TWeakPtr<SDMMaterialPreview> PreviewWidgetWeak;
+};
+
 
 /** Based on SMaterialEditor3DPreviewViewport (private) */
 class SDMMaterialPreview : public SEditorViewport, public FGCObject
@@ -88,6 +113,8 @@ protected:
 	void OnAssetViewerSettingsChanged(const FName& InPropertyName);
 
 	TSharedRef<SWidget> GenerateToolbarMenu();
+
+	static void AddActionMenu(UToolMenu* InMenu);
 
 	void OnEditorSettingsChanged(const FPropertyChangedEvent& InPropertyChangedEvent);
 
