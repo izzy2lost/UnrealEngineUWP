@@ -207,6 +207,8 @@ void UIKRetargetBatchOperation::RetargetAssets(
 {
 	USkeleton* OldSkeleton = Context.SourceMesh->GetSkeleton();
 	USkeleton* NewSkeleton = Context.TargetMesh->GetSkeleton();
+
+	TArray<FAdditiveRetargetSettings> SettingsToRestoreAfterRetarget;
 	
 	for (UAnimationAsset* AssetToRetarget : AnimationAssetsToRetarget)
 	{
@@ -234,10 +236,9 @@ void UIKRetargetBatchOperation::RetargetAssets(
 			Controller.RemoveAllBoneTracks(bShouldTransact);
 
 			// reset all additive animation properties to ensure WYSIWYG playback of additive anims between retargeter and sequence
-			AnimSequenceToRetarget->AdditiveAnimType = EAdditiveAnimationType::AAT_None;
-			AnimSequenceToRetarget->RefPoseType = EAdditiveBasePoseType::ABPT_None;
-			AnimSequenceToRetarget->RefFrameIndex = 0;
-			AnimSequenceToRetarget->RefPoseSeq = nullptr;
+			FAdditiveRetargetSettings SequenceSettings;
+			SequenceSettings.PrepareForRetarget(AnimSequenceToRetarget);
+			SettingsToRestoreAfterRetarget.Add(SequenceSettings);
 			
 			// set the retarget source to the target skeletal mesh
 			AnimSequenceToRetarget->RetargetSource = NAME_None;
@@ -279,6 +280,15 @@ void UIKRetargetBatchOperation::RetargetAssets(
 
 	// convert the animation using the IK retargeter
 	ConvertAnimation(Context,Progress);
+
+	// optionally restore the additive flags
+	if (Context.bRetainAdditiveFlags)
+	{
+		for (FAdditiveRetargetSettings SettingsToRestore : SettingsToRestoreAfterRetarget)
+		{
+			SettingsToRestore.RestoreOnAsset();
+		}
+	}
 
 	// convert all Animation Blueprints and compile 
 	for (UAnimBlueprint* AnimBlueprint : AnimBlueprintsToRetarget)
@@ -739,6 +749,41 @@ void UIKRetargetBatchOperation::CleanupIfCancelled(const FScopedSlowTask& Progre
 	// delete any newly created assets
 	constexpr bool bShowConfirmation = true;
 	ObjectTools::DeleteObjects(NewAssets, bShowConfirmation);
+}
+
+void FAdditiveRetargetSettings::PrepareForRetarget(UAnimSequence* InSequenceAsset)
+{
+	if (!ensure(InSequenceAsset))
+	{
+		return;
+	}
+
+	SequenceAsset = InSequenceAsset;
+
+	// store setting values
+	AdditiveAnimType = SequenceAsset->AdditiveAnimType;
+	RefPoseType = SequenceAsset->RefPoseType;
+	RefFrameIndex = SequenceAsset->RefFrameIndex;
+	RefPoseSeq = SequenceAsset->RefPoseSeq;
+
+	// remove all additive settings so that retarget happens on base motion
+	SequenceAsset->AdditiveAnimType = EAdditiveAnimationType::AAT_None;
+	SequenceAsset->RefPoseType = EAdditiveBasePoseType::ABPT_None;
+	SequenceAsset->RefFrameIndex = 0;
+	SequenceAsset->RefPoseSeq = nullptr;
+}
+
+void FAdditiveRetargetSettings::RestoreOnAsset() const
+{
+	if (!ensure(SequenceAsset))
+	{
+		return;
+	}
+		
+	SequenceAsset->AdditiveAnimType = AdditiveAnimType;
+	SequenceAsset->RefPoseType = RefPoseType;
+	SequenceAsset->RefFrameIndex = RefFrameIndex;
+	SequenceAsset->RefPoseSeq = RefPoseSeq;
 }
 
 TArray<FAssetData> UIKRetargetBatchOperation::DuplicateAndRetarget(
