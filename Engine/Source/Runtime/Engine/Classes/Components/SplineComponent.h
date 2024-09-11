@@ -371,6 +371,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = Spline)
 	ENGINE_API virtual void UpdateSpline();
 
+	/** Set the spline to be edited outside of the construction script */
+	UFUNCTION(BlueprintCallable, Category = Spline)
+	ENGINE_API virtual void SetOverrideConstructionScript(bool InOverride);
+
 	/** Get location along spline at the provided input key value */
 	UFUNCTION(BlueprintCallable, Category = Spline)
 	ENGINE_API FVector GetLocationAtSplineInputKey(float InKey, ESplineCoordinateSpace::Type CoordinateSpace) const;
