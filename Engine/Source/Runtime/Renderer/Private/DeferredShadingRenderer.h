@@ -1125,7 +1125,7 @@ private:
 	/** Functions to create ray tracing pipeline state objects for various effects */
 	void CreateRayTracingMaterialPipeline(FRDGBuilder& GraphBuilder, FViewInfo& View, const TArrayView<FRHIRayTracingShader*>& RayGenShaderTable, uint32& OutMaxLocalBindingDataSize);
 	void CreateLumenHardwareRayTracingMaterialPipeline(FRDGBuilder& GraphBuilder, FViewInfo& View, const TArrayView<FRHIRayTracingShader*>& RayGenShaderTable, uint32& OutMaxLocalBindingDataSize);
-	void SetupLumenHardwareRaytracingHitGroupBindings(FRDGBuilder& GraphBuilder, FViewInfo& View);
+	void SetupLumenHardwareRaytracingHitGroupBindings(FRDGBuilder& GraphBuilder, FViewInfo& View, ERayTracingShaderBindingMode ShaderBindingMode);
 
 	/** Functions to bind parameters to the ray tracing scene (fill the shader binding tables, etc.) */
 	void BindRayTracingMaterialPipeline(FRHICommandList& RHICmdList, FViewInfo& View);

@@ -35,8 +35,8 @@ static TAutoConsoleVariable<float> CVarLumenHardwareRayTracingSkipTwoSidedHitDis
 
 namespace LumenHardwareRayTracing
 {
-	// 0 - hit group with AVOID_SELF_INTERSECTIONS=0
-	// 1 - hit group with AVOID_SELF_INTERSECTIONS=1
+	// 0 - hit group with EAvoidSelfIntersectionsMode::Disabled
+	// 1 - hit group with EAvoidSelfIntersectionsMode::AHS
 	constexpr uint32 NumHitGroups = 2;
 };
 
@@ -240,7 +240,7 @@ void FDeferredShadingSceneRenderer::CreateLumenHardwareRayTracingMaterialPipelin
 	View.LumenHardwareRayTracingMaterialPipeline = PipelineState;
 }
 
-void FDeferredShadingSceneRenderer::SetupLumenHardwareRaytracingHitGroupBindings(FRDGBuilder& GraphBuilder, FViewInfo& View)
+void FDeferredShadingSceneRenderer::SetupLumenHardwareRaytracingHitGroupBindings(FRDGBuilder& GraphBuilder, FViewInfo& View, ERayTracingShaderBindingMode ShaderBindingMode)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::SetupLumenHardwareRaytracingHitGroupBindings);
 
@@ -300,7 +300,7 @@ void FDeferredShadingSceneRenderer::SetupLumenHardwareRaytracingHitGroupBindings
 	FBinding* ShaderBindingsNaniteRT = (FBinding*)View.LumenRayTracingMaterialBindingsMemory.Alloc(sizeof(FBinding) * LumenHardwareRayTracing::NumHitGroups, alignof(FBinding));
 
 	// Only setup the actual bindings if there is a RTPSO (inline SBT doesn't need that)
-	bool bRequiresShaderBindings = View.RayTracingSBT && View.RayTracingSBT->GetInitializer().ShaderBindingMode == ERayTracingShaderBindingMode::RTPSO;
+	bool bRequiresShaderBindings = EnumHasAnyFlags(ShaderBindingMode, ERayTracingShaderBindingMode::RTPSO);
 	if (bRequiresShaderBindings)
 	{
 		FLumenHardwareRayTracingMaterialHitGroup::FPermutationDomain PermutationVector;
