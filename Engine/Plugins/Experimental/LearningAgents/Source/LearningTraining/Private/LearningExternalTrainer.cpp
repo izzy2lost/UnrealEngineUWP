@@ -714,6 +714,12 @@ namespace UE::Learning
 			FileManager.ConvertToAbsolutePathForExternalAppForRead(*PythonExecutablePath),
 			CommandLineArguments, 
 			TrainingProcessFlags);
+
+		if (PLATFORM_MAC)
+		{
+			// TODO we seem to have to sleep on Mac so the trainer can start listening before we try to connect
+			FPlatformProcess::Sleep(1.0f);
+		}
 	}
 
 	bool FSocketTrainerServerProcess::IsRunning() const
@@ -780,7 +786,7 @@ namespace UE::Learning
 			return;
 		}
 
-		Socket = FTcpSocketBuilder(TEXT("LearningTrainerSocket")).AsNonBlocking().Build();
+		Socket = FTcpSocketBuilder(TEXT("LearningTrainerSocket")).AsBlocking().Build();
 
 		OutResponse = SocketTraining::WaitForConnection(*Socket, TrainingProcess, *Address, Timeout);
 	}
@@ -811,7 +817,11 @@ namespace UE::Learning
 
 	ETrainerResponse FSocketTrainer::SendStop()
 	{
-		checkf(Socket, TEXT("Training socket is nullptr"));
+		if (!Socket)
+		{
+			UE_LOG(LogLearning, Error, TEXT("Training socket is nullptr"));
+			return ETrainerResponse::Unexpected;
+		}
 
 		return SocketTraining::SendStop(*Socket, TrainingProcess, Timeout);
 	}
@@ -820,7 +830,11 @@ namespace UE::Learning
 		const TSharedRef<FJsonObject>& ConfigObject,
 		const ELogSetting LogSettings)
 	{
-		checkf(Socket, TEXT("Training socket is nullptr"));
+		if (!Socket)
+		{
+			UE_LOG(LogLearning, Error, TEXT("Training socket is nullptr"));
+			return ETrainerResponse::Unexpected;
+		}
 
 		FString ConfigString;
 		TSharedRef<TJsonWriter<>> JsonWriter = TJsonWriterFactory<>::Create(&ConfigString, 0);
@@ -843,7 +857,12 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
-		checkf(Socket, TEXT("Training socket is nullptr"));
+		if (!Socket)
+		{
+			UE_LOG(LogLearning, Error, TEXT("Training socket is nullptr"));
+			return ETrainerResponse::Unexpected;
+		}
+
 		if (!ensureMsgf(NetworkBuffers.Num() >= NetworkId, TEXT("Network %d has not been added. Call AddNetwork prior to ReceiveNetwork."), NetworkId))
 		{
 			return ETrainerResponse::Unexpected;
@@ -858,7 +877,12 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
-		checkf(Socket, TEXT("Training socket is nullptr"));
+		if (!Socket)
+		{
+			UE_LOG(LogLearning, Error, TEXT("Training socket is nullptr"));
+			return ETrainerResponse::Unexpected;
+		}
+
 		if (!ensureMsgf(NetworkBuffers.Num() >= NetworkId, TEXT("Network %d has not been added. Call AddNetwork prior to SendNetwork."), NetworkId))
 		{
 			return ETrainerResponse::Unexpected;
@@ -875,7 +899,12 @@ namespace UE::Learning
 
 	ETrainerResponse FSocketTrainer::SendReplayBuffer(const int32 ReplayBufferId, const FReplayBuffer& ReplayBuffer, const ELogSetting LogSettings)
 	{
-		checkf(Socket, TEXT("Training socket is nullptr"));
+		if (!Socket)
+		{
+			UE_LOG(LogLearning, Error, TEXT("Training socket is nullptr"));
+			return ETrainerResponse::Unexpected;
+		}
+
 		if (!ensureMsgf(ReplayBufferId <= LastReplayBufferId, TEXT("ReplayBuffer %d has not been added. Call AddReplayBuffer prior to SendReplayBuffer."), ReplayBufferId))
 		{
 			return ETrainerResponse::Unexpected;
