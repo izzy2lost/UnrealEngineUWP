@@ -31,6 +31,8 @@ public:
 
 	TSharedPtr<SWidget> GetInnerPropertyValueWidget(const TSharedRef<SWidget>& InWidget);
 
+	void ClearData();
+
 private:
 	struct FExpansionItem
 	{
