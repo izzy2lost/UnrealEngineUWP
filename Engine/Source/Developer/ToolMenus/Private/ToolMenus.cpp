@@ -269,17 +269,16 @@ public:
 			}
 			else
 			{
-				FMenuEntryParams MenuEntryParams;
-				MenuEntryParams.LabelOverride = LabelToDisplay;
-				MenuEntryParams.ToolTipOverride = Block.ToolTip;
-				MenuEntryParams.IconOverride = Block.Icon.Get();
-				MenuEntryParams.DirectActions = UIAction;
-				MenuEntryParams.ExtensionHook = BlockNameOverride;
-				MenuEntryParams.UserInterfaceActionType = Block.UserInterfaceActionType;
-				MenuEntryParams.TutorialHighlightName = Block.TutorialHighlightName;
-				MenuEntryParams.InputBindingOverride = Block.InputBindingLabel;
-				
-				MenuBuilder.AddMenuEntry(MenuEntryParams);
+				MenuBuilder.AddMenuEntry(
+					LabelToDisplay,
+					Block.ToolTip,
+					Block.Icon.Get(),
+					UIAction,
+					BlockNameOverride,
+					Block.UserInterfaceActionType,
+					Block.TutorialHighlightName,
+					Block.InputBindingLabel
+				);
 			}
 		}
 	}
