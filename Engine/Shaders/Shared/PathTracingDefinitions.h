@@ -47,9 +47,6 @@
 #define PATHTRACER_LIGHT_GRID_SINGULAR_MASK					0x80000000u
 #define PATHTRACER_LIGHT_GRID_LIGHT_COUNT_MASK				0x7FFFFFFFu
 
-// Constants for the energy conservation texture sizes
-#define PATHTRACER_ENERGY_TABLE_RESOLUTION				32
-
 // Constants related to volumetric support
 #define VOLUMEID_ATMOSPHERE				0
 #define VOLUMEID_CLOUDS					1
