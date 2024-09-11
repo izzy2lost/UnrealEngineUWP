@@ -2035,6 +2035,20 @@ void USkeletalMesh::Serialize( FArchive& Ar )
 			ThisLODInfo.BuildSettings.bUseBackwardsCompatibleF16TruncUVs = true;
 		}
 	}
+
+#if WITH_EDITOR
+	// Preload MeshClothingAssets because we call ConditionalPostLoad on them in our PostLoad. The PostLoad of these assets requires the data to actually have been loaded already
+	if (Ar.IsLoading())
+	{
+		for (UClothingAssetBase* MeshClothingAsset : GetMeshClothingAssets())
+		{
+			if (MeshClothingAsset)
+			{
+				Ar.Preload(MeshClothingAsset);
+			}
+		}
+	}
+#endif //WITH_EDITOR
 }
 
 #if WITH_EDITORONLY_DATA
