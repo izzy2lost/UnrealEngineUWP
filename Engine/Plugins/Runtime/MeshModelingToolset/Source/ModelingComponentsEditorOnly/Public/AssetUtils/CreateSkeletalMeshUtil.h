@@ -65,6 +65,9 @@ namespace UE::AssetUtils
 		// Controls whether or not the RecomputeTangents option will be enabled on the Asset
 		bool bEnableRecomputeTangents = true;
 
+		// Whether to attempt to re-create the original non-manifold mesh from the (optional) non-manifold index map on the dynamic mesh.
+		bool bConvertBackToNonManifold = false;
+
 		// List of skeletal materials. These will be used over the AssetMaterials, if provided.
 		TArray<FSkeletalMaterial> SkeletalMaterials;
 		

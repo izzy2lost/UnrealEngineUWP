@@ -218,6 +218,8 @@ UStaticMesh* UGeometryScriptLibrary_CreateNewAssetFunctions::CreateNewStaticMesh
 	AssetOptions.bCreatePhysicsBody = Options.bEnableCollision;
 	AssetOptions.CollisionType = Options.CollisionMode;
 
+	AssetOptions.bConvertBackToNonManifold = Options.bUseOriginalVertexOrder;
+
 	/**
 	 * We are making a copy of each LOD mesh since UDynamicMesh can potentially be editable asynchronously in the future, 
 	 * so we should not hold onto the pointer outside the function.

@@ -105,6 +105,7 @@ UDynamicMesh*  UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshFromStaticMes
 	ConversionOptions.bIgnoreRemoveDegenerates = AssetOptions.bIgnoreRemoveDegenerates;
 	ConversionOptions.bUseBuildScale = AssetOptions.bUseBuildScale;
 	ConversionOptions.bUseSectionMaterialIndices = bUseSectionMaterials;
+	ConversionOptions.bIncludeNonManifoldSrcInfo = true;
 
 	FText ErrorMessage;
 
@@ -263,6 +264,8 @@ UDynamicMesh*  UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshToStaticMesh(
 		}
 
 		FConversionToMeshDescriptionOptions ConversionOptions;
+		ConversionOptions.bConvertBackToNonManifold = Options.bUseOriginalVertexOrder;
+		
 		FDynamicMeshToMeshDescription Converter(ConversionOptions);
 		if (!bUseSectionMaterials && !Options.bReplaceMaterials)
 		{
@@ -943,6 +946,8 @@ UDynamicMesh* UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshToSkeletalMesh
 	ToSkeletalMeshAsset->ModifyMeshDescription(TargetLOD.LODIndex);
 	
 	FConversionToMeshDescriptionOptions ConversionOptions;
+	ConversionOptions.bConvertBackToNonManifold = Options.bUseOriginalVertexOrder;
+
 	FDynamicMeshToMeshDescription Converter(ConversionOptions);
 	FromDynamicMesh->ProcessMesh([&](const FDynamicMesh3& ReadMesh)
 	{

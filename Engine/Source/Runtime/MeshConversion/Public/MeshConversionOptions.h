@@ -30,6 +30,9 @@ public:
 	/** Should Vertex Colors of MeshDescription be transformed from SRGB to Linear */
 	bool bTransformVtxColorsSRGBToLinear = true;
 
+	/** Should the mesh be put back in the original non-manifold state, if the information is present */
+	bool bConvertBackToNonManifold = false;
+
 	//
 	// utility functions for common configuration cases
 	//

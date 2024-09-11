@@ -270,6 +270,7 @@ namespace Private::ConversionHelper
 		}
 
 		FMeshDescriptionToDynamicMesh Converter;
+		Converter.bVIDsFromNonManifoldMeshDescriptionAttr = AssetOptions.bIncludeNonManifoldSrcInfo;
 		if (!AssetOptions.bUseSectionMaterialIndices)
 		{
 			Converter.SetPolygonGroupToMaterialIndexMap(PolygonGroupToMaterialMap);
