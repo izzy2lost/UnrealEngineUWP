@@ -873,19 +873,35 @@ void UObjectReplicationBridge::OnStartPreSendUpdate()
 void UObjectReplicationBridge::PreSendUpdate()
 {
 	using namespace UE::Net;
+	using namespace UE::Net::Private;
 
-	FNetBitArrayView ObjectsConsideredForPolling = GetReplicationSystem()->GetReplicationSystemInternal()->GetNetRefHandleManager().GetPolledObjectsInternalIndices();
-	ObjectsConsideredForPolling.ClearAllBits();
+	FNetRefHandleManager& LocalNetRefHandleManager = GetReplicationSystem()->GetReplicationSystemInternal()->GetNetRefHandleManager();
 
-	BuildPollList(ObjectsConsideredForPolling);
+	{
+		const uint32 InitialNumBits = LocalNetRefHandleManager.GetPolledObjectsInternalIndices().GetNumBits();
+		
+		FNetBitArray InitialPollList(InitialNumBits);
+		FNetBitArrayView InitialPollListView(MakeNetBitArrayView(InitialPollList));
+		BuildPollList(InitialPollListView);
 
-	PreUpdate(ObjectsConsideredForPolling);
+		PreUpdate(InitialPollListView);
+		
+		// PreUpdate is allowed to generate new objects, so the netrefhandlemanager bitarrays may have grown.
+		// Limit the size of the NetHandleManager list to the pre-grown array.
+		FNetBitArrayView CachedPollList(LocalNetRefHandleManager.GetPolledObjectsInternalIndices().GetData(), InitialNumBits);
+
+		CachedPollList.Copy(InitialPollList);
+	}
 
 	FinalizeDirtyObjects();
 
-	ReconcileNewSubObjects(ObjectsConsideredForPolling);
+	{
+		FNetBitArrayView ObjectsConsideredForPolling = LocalNetRefHandleManager.GetPolledObjectsInternalIndices();
+		
+		ReconcileNewSubObjects(ObjectsConsideredForPolling);
 
-	PollAndCopy(ObjectsConsideredForPolling);
+		PollAndCopy(ObjectsConsideredForPolling);
+	}
 }
 
 void UObjectReplicationBridge::OnPostSendUpdate()
@@ -966,17 +982,36 @@ void UObjectReplicationBridge::ForcePollObject(FNetRefHandle Handle)
 {
 	using namespace UE::Net::Private;
 
-	if (Handle.IsValid())
+	if (!Handle.IsValid())
 	{
-		IRIS_PROFILER_SCOPE(UObjectReplicationBridge_ForcePollAndCopyObject);
-
-		FObjectPoller::FInitParams PollerInitParams;
-		PollerInitParams.ObjectReplicationBridge = this;
-		PollerInitParams.ReplicationSystemInternal = GetReplicationSystem()->GetReplicationSystemInternal();
-		FObjectPoller Poller(PollerInitParams);
-
-		Poller.PollAndCopySingleObject(Handle);
+		return;
 	}
+
+	IRIS_PROFILER_SCOPE(UObjectReplicationBridge_ForcePollAndCopyObject);
+
+	const FNetRefHandleManager& LocalNetRefHandleManager = GetReplicationSystem()->GetReplicationSystemInternal()->GetNetRefHandleManager();
+
+	const FInternalNetRefIndex ObjectIndex = LocalNetRefHandleManager.GetInternalIndex(Handle);
+	if (ObjectIndex == FNetRefHandleManager::InvalidInternalIndex)
+	{
+		return;
+	}
+
+	if (PreUpdateInstanceFunction)
+	{
+		UObject* Instance = LocalNetRefHandleManager.GetReplicatedInstances()[ObjectIndex];
+		if (Instance && LocalNetRefHandleManager.GetObjectsWithPreUpdate().GetBit(ObjectIndex))
+		{
+			PreUpdateInstanceFunction(MakeArrayView<UObject*>(&Instance, 1U), this);
+		}
+	}
+
+	FObjectPoller::FInitParams PollerInitParams;
+	PollerInitParams.ObjectReplicationBridge = this;
+	PollerInitParams.ReplicationSystemInternal = GetReplicationSystem()->GetReplicationSystemInternal();
+	FObjectPoller Poller(PollerInitParams);
+
+	Poller.PollAndCopySingleObject(ObjectIndex);
 }
 
 void UObjectReplicationBridge::BuildPollList(UE::Net::FNetBitArrayView ObjectsConsideredForPolling)
@@ -1122,20 +1157,56 @@ void UObjectReplicationBridge::BuildPollList(UE::Net::FNetBitArrayView ObjectsCo
 	
 void UObjectReplicationBridge::PreUpdate(const UE::Net::FNetBitArrayView ObjectsConsideredForPolling)
 {
+	using namespace UE::Net;
 	using namespace UE::Net::Private;
 
 	IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationBridge_PreUpdate);
+	IRIS_PROFILER_SCOPE_VERBOSE(PreUpdatePass);
 
-	// TODO: Get rid of Poller
-	FObjectPoller::FInitParams PollerInitParams;
-	PollerInitParams.ObjectReplicationBridge = this;
-	PollerInitParams.ReplicationSystemInternal = GetReplicationSystem()->GetReplicationSystemInternal();
-	
-	FObjectPoller Poller(PollerInitParams);
-	Poller.PreUpdatePass(ObjectsConsideredForPolling);
+	if (!PreUpdateInstanceFunction)
+	{
+		return;
+	}
 
-	FObjectPoller::FPreUpdateAndPollStats Stats = Poller.GetPollStats();
-	UE_NET_TRACE_FRAME_STATSCOUNTER(ReplicationSystem->GetId(), ReplicationSystem.PreUpdatedObjectCount, Stats.PreUpdatedObjectCount, ENetTraceVerbosity::Trace);
+	const FNetRefHandleManager& LocalNetRefHandleManager = GetReplicationSystem()->GetReplicationSystemInternal()->GetNetRefHandleManager();
+
+	const TNetChunkedArray<TObjectPtr<UObject>>& ReplicatedInstances = LocalNetRefHandleManager.GetReplicatedInstances();
+
+	uint32 PreUpdatedObjectCount = 0;
+
+	constexpr uint32 PreUpdateBatchCount = 128U;
+	UObject* BatchedObjects[PreUpdateBatchCount];
+	uint32 BatchedObjectCount = 0U;
+
+	auto BatchedPreUpdate = [&](FInternalNetRefIndex Objectindex)
+	{
+		// Flush if needed
+		if (BatchedObjectCount == PreUpdateBatchCount)
+		{
+			PreUpdateInstanceFunction(MakeArrayView<UObject*>(BatchedObjects, BatchedObjectCount), this);
+			PreUpdatedObjectCount += BatchedObjectCount;
+			BatchedObjectCount = 0U;
+		}
+
+		UObject* Instance = ReplicatedInstances[Objectindex];
+		BatchedObjects[BatchedObjectCount] = Instance;
+		BatchedObjectCount += Instance ? 1U : 0U;
+	};
+
+	// Make a copy of the list we'll iterate on since the PreUpdate callbacks can create new objects and realloc the NetRefHandleManager bitarrays
+	FNetBitArray ObjectsWithPreUpdate;
+	ObjectsWithPreUpdate.InitAndCopy(LocalNetRefHandleManager.GetObjectsWithPreUpdate());
+
+	FNetBitArrayView::ForAllSetBits(ObjectsConsideredForPolling, MakeNetBitArrayView(ObjectsWithPreUpdate), FNetBitArrayView::AndOp, BatchedPreUpdate);
+
+	// Flush last batch
+	if (BatchedObjectCount > 0)
+	{
+		PreUpdateInstanceFunction(MakeArrayView(BatchedObjects, BatchedObjectCount), this);
+		PreUpdatedObjectCount += BatchedObjectCount;
+	}
+
+	UE_NET_TRACE_FRAME_STATSCOUNTER(ReplicationSystem->GetId(), ReplicationSystem.PreUpdatedObjectCount, PreUpdatedObjectCount, ENetTraceVerbosity::Trace);
 }
 
 void UObjectReplicationBridge::PollAndCopy(const UE::Net::FNetBitArrayView ObjectsConsideredForPolling)

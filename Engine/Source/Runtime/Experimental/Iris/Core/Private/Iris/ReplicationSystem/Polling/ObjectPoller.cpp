@@ -33,54 +33,6 @@ FObjectPoller::FObjectPoller(const FInitParams& InitParams)
 	// DirtyObjectsThisFrame is acquired only during polling 
 }
 
-void FObjectPoller::PreUpdatePass(const FNetBitArrayView& ObjectsConsideredForPolling)
-{
-	IRIS_PROFILER_SCOPE_VERBOSE(PreUpdatePass);
-
-	constexpr uint32 PreUpdateBatchCount = 128U;
-
-	UObject* BatchedObjects[PreUpdateBatchCount];
-	uint32 BatchedObjectCount = 0U;
-
-	if (!ObjectReplicationBridge->PreUpdateInstanceFunction)
-	{
-		return;
-	}
-	
-	auto BatchedPreUpdate = [this, &BatchedObjects, &BatchedObjectCount](FInternalNetRefIndex Objectindex)
-	{
-		// Flush if needed
-		if (BatchedObjectCount == PreUpdateBatchCount)
-		{
-			ObjectReplicationBridge->PreUpdateInstanceFunction(MakeArrayView<UObject*>(BatchedObjects, BatchedObjectCount), ObjectReplicationBridge);
-			PollStats.PreUpdatedObjectCount += BatchedObjectCount;
-			BatchedObjectCount = 0U;
-		}
-		UObject* Instance = ReplicatedInstances[Objectindex];
-		BatchedObjects[BatchedObjectCount] = Instance;
-		BatchedObjectCount += Instance ? 1U : 0U;
-	};
-
-	FNetBitArrayView::ForAllSetBits(ObjectsConsideredForPolling, LocalNetRefHandleManager.GetObjectsWithPreUpdate(), FNetBitArrayView::AndOp, BatchedPreUpdate);
-
-	// Flush last batch
-	if (BatchedObjectCount > 0)
-	{
-		ObjectReplicationBridge->PreUpdateInstanceFunction(MakeArrayView(BatchedObjects, BatchedObjectCount), ObjectReplicationBridge);
-		PollStats.PreUpdatedObjectCount += BatchedObjectCount;
-	}
-}
-
-void FObjectPoller::CallPreUpdate(FInternalNetRefIndex ObjectIndex)
-{
-	UObject* Instance = ReplicatedInstances[ObjectIndex];
-	if (Instance && LocalNetRefHandleManager.GetObjectsWithPreUpdate().GetBit(ObjectIndex))
-	{
-		ObjectReplicationBridge->PreUpdateInstanceFunction(MakeArrayView<UObject*>(&Instance, 1U), ObjectReplicationBridge);	
-		++PollStats.PreUpdatedObjectCount;
-	}
-}
-
 void FObjectPoller::PollAndCopyObjects(const FNetBitArrayView& ObjectsConsideredForPolling)
 {
 	FDirtyObjectsAccessor DirtyObjectsAccessor(ReplicationSystemInternal->GetDirtyNetObjectTracker());
@@ -108,23 +60,16 @@ void FObjectPoller::PollAndCopyObjects(const FNetBitArrayView& ObjectsConsidered
 	NetStatsContext = nullptr;
 }
 
-void FObjectPoller::PollAndCopySingleObject(FNetRefHandle Handle)
+void FObjectPoller::PollAndCopySingleObject(FInternalNetRefIndex ObjectIndex)
 {
-	if (uint32 InternalObjectIndex = LocalNetRefHandleManager.GetInternalIndex(Handle))
-	{
-		NetStatsContext = ReplicationSystemInternal->GetNetTypeStats().GetNetStatsContext();
+	FDirtyObjectsAccessor DirtyObjectsAccessor(ReplicationSystemInternal->GetDirtyNetObjectTracker());
+	DirtyObjectsThisFrame = DirtyObjectsAccessor.GetDirtyNetObjects();
 
-		CallPreUpdate(InternalObjectIndex);
+	ForcePollObject(ObjectIndex);
 
-		FDirtyObjectsAccessor DirtyObjectsAccessor(ReplicationSystemInternal->GetDirtyNetObjectTracker());
-		DirtyObjectsThisFrame = DirtyObjectsAccessor.GetDirtyNetObjects();
-
-		ForcePollObject(InternalObjectIndex);
-
-		// Clear ref to locked dirty bit array
-		DirtyObjectsThisFrame = FNetBitArrayView();
-		NetStatsContext = nullptr;
-	}
+	// Clear ref to locked dirty bit array
+	DirtyObjectsThisFrame = FNetBitArrayView();
+	NetStatsContext = nullptr;
 }
 
 void FObjectPoller::ForcePollObject(FInternalNetRefIndex ObjectIndex)
