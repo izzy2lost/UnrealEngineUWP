@@ -4,6 +4,7 @@
 
 #include "PCGSettings.h"
 
+#include "Data/PCGWorldData.h"
 #include "Elements/PCGTimeSlicedElementBase.h"
 #include "SpatialAlgo/PCGAStar.h"
 
@@ -29,12 +30,14 @@ enum class EPCGPathfindingCostFunctionMode : uint8
 /** Finds the optimal path across the points of a given point cloud--should one exist--when provided a start and goal
  * location, and a maximum jump distance between points. Can return a partial path.
  */
-UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural), hidecategories="Data|Attributes")
 class UPCGPathfindingSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
 public:
+	UPCGPathfindingSettings();
+
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("PathfindingElement")); }
@@ -81,6 +84,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin = "1.0", EditCondition = "CostFunctionMode == EPCGPathfindingCostFunctionMode::FitnessScore", EditConditionHides, PCG_Overridable))
 	double MaximumFitnessPenaltyFactor = 10.0;
 
+	/** Controls whether raycasts will be used to test for collisions along the path (hit results will be considered obstacles for the pathfinding). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PCG_Overridable))
+	bool bUsePathTraces = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (EditCondition = "bUsePathTraces", EditConditionHides, PCG_Overridable, ShowOnlyInnerProperties))
+	FPCGWorldRaycastQueryParams PathTraceParams;
+
 	/** Even if the path is not complete, return the most optimal and viable partial path to the goal. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PCG_Overridable))
 	bool bAcceptPartialPath = true;
@@ -100,6 +110,8 @@ public:
 
 class FPCGPathfindingElement : public TPCGTimeSlicedElementBase<PCGSpatialAlgo::AStar::FSearchSettings, PCGSpatialAlgo::AStar::FSearchState>
 {
+public:
+	virtual bool IsCacheable(const UPCGSettings* InSettings) const override;
 protected:
 	virtual bool PrepareDataInternal(FPCGContext* InContext) const override;
 	virtual bool ExecuteInternal(FPCGContext* InContext) const override;
