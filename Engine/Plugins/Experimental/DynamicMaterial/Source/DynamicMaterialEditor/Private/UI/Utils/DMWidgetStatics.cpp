@@ -140,6 +140,12 @@ TSharedPtr<SWidget> FDMWidgetStatics::GetInnerPropertyValueWidget(const TSharedR
 	return nullptr;
 }
 
+void FDMWidgetStatics::ClearData()
+{
+	ExpansionStates.Empty();
+	PropertyHandleMap.Empty();
+}
+
 FDMPropertyHandle FDMWidgetStatics::CreatePropertyHandle(const void* InOwningWidget, UObject* InObject, FName InPropertyName)
 {
 	FDMPropertyHandle PropertyHandle;

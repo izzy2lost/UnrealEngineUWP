@@ -45,6 +45,7 @@
 #include "UI/PropertyGenerators/DMTextureUVDynamicPropertyRowGenerator.h"
 #include "UI/PropertyGenerators/DMTextureUVPropertyRowGenerator.h"
 #include "UI/PropertyGenerators/DMThroughputPropertyRowGenerator.h"
+#include "UI/Utils/DMWidgetStatics.h"
 #include "UI/Utils/DynamicMaterialInstanceThumbnailRenderer.h"
 #include "UI/Widgets/SDMMaterialDesigner.h"
 
@@ -292,6 +293,8 @@ void FDynamicMaterialEditorModule::ShutdownModule()
 	UDMMaterialValueTexture::GetDefaultRGBTexture.Unbind();
 
 	FDMValueDetailsRowExtensions::Get().UnregisterRowExtensions();
+
+	FDMWidgetStatics::Get().ClearData();
 }
 
 void FDynamicMaterialEditorModule::OpenMaterialModel(UDynamicMaterialModelBase* InMaterialModel, UWorld* InWorld, bool bInInvokeTab) const
