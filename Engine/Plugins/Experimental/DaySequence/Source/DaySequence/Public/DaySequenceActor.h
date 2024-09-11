@@ -114,6 +114,14 @@ public:
 	 */
 	DECLARE_EVENT_OneParam(ADaySequenceActor, FOnTimeOfDayPreviewChangedEvent, float)
 	FOnTimeOfDayPreviewChangedEvent OnTimeOfDayPreviewChangedEvent;
+
+	/**
+	 * Native event invoked when a subsection is removed from the Root Sequence.
+	 * Primarily called by modifier components but generally callable by anything that adds a subsection to the root sequence.
+	 * @param The subsection being removed.
+	 */
+	DECLARE_EVENT_OneParam(ADaySequenceActor, FOnSubSectionRemovedEvent, const UMovieSceneSubSection*)
+	static FOnSubSectionRemovedEvent OnSubSectionRemovedEvent;
 #endif //WITH_EDITOR
 
 	/** @return the preview time in hours. */
