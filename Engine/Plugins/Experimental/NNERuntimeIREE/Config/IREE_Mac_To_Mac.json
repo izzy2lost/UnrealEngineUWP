@@ -1,6 +1,6 @@
 {
-	"CompilerCommand": [ "${PLUGIN_DIR}/Source/ThirdParty/IREE/Bin/Mac/iree-compile" ],
-	"LinkerCommand": [ "${PLUGIN_DIR}/Source/ThirdParty/IREE/Bin/Mac/ld64.lld" ],
+	"CompilerCommand": [ "${PLUGIN_DIR}/Binaries/ThirdParty/IREE/Mac/iree-compile" ],
+	"LinkerCommand": [ "${PLUGIN_DIR}/Binaries/ThirdParty/IREE/Mac/ld64.lld" ],
 	"SharedLibExt": ".dylib",
 	"Targets": [
 		{
