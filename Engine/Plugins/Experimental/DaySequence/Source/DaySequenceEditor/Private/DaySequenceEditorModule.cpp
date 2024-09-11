@@ -23,6 +23,7 @@
 #include "ISequencerModule.h"
 #include "ISettingsModule.h"
 #include "SequencerSettings.h"
+#include "Sections/MovieSceneSubSection.h"
 
 #include "Application/ThrottleManager.h"
 #include "Framework/Docking/TabManager.h"
@@ -137,6 +138,8 @@ private:
 
 	FDelegateHandle OnSwitchPIEAndSIEHandle;
 
+	FDelegateHandle OnSubSectionRemovedHandle;
+
 	int32 LastAllowThrottling = 1;
 };
 
@@ -164,6 +167,35 @@ void FDaySequenceEditorModule::StartupModule()
 	OnSwitchPIEAndSIEHandle = FEditorDelegates::OnSwitchBeginPIEAndSIE.AddLambda([](bool bIsSimulating)
 	{
 		UDaySequenceModifierComponent::SetIsSimulating(bIsSimulating);
+	});
+
+	OnSubSectionRemovedHandle = ADaySequenceActor::OnSubSectionRemovedEvent.AddLambda([](const UMovieSceneSubSection* RemovedSubSection)
+	{
+		FDaySequenceEditorToolkit::IterateOpenToolkits([RemovedSubSection](const FDaySequenceEditorToolkit& Toolkit)
+		{
+			if (!Toolkit.IsActorPreview())
+			{
+				// In rare cases a focused subsection can be removed right as an evaluation is triggered,
+				// breaking assumptions in core Sequencer code that the focused subsequence is always valid.
+				// Any time a subsection is removed we should enforce this assumption.
+				if (const TSharedPtr<ISequencer> ToolkitSequencer = Toolkit.GetSequencer())
+				{
+					const UMovieSceneSequence* FocusedSequence = ToolkitSequencer->GetFocusedMovieSceneSequence();
+					const UMovieSceneSequence* RemovedSequence = RemovedSubSection ? RemovedSubSection->GetSequence() : nullptr;
+					
+					if (!FocusedSequence || FocusedSequence == RemovedSequence)
+					{
+						ToolkitSequencer->PopToSequenceInstance(ToolkitSequencer->GetRootTemplateID());
+					}
+				}
+				
+				// Break out of iteration now that we found a sequence editor
+				return false;
+			}
+
+			// Continue looking for sequence editor toolkit
+			return true;
+		});
 	});
 	
 	PluginCommands = MakeShareable(new FUICommandList);
@@ -260,6 +292,8 @@ void FDaySequenceEditorModule::ShutdownModule()
 	FEditorDelegates::EndPIE.Remove(OnEndPIEHandle);
 
 	FEditorDelegates::OnSwitchBeginPIEAndSIE.Remove(OnSwitchPIEAndSIEHandle);
+
+	ADaySequenceActor::OnSubSectionRemovedEvent.Remove(OnSubSectionRemovedHandle);
 
 	if (FPropertyEditorModule* PropertyModule = FModuleManager::GetModulePtr<FPropertyEditorModule>(PropertyEditorModuleName))
 	{

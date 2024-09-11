@@ -40,6 +40,10 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DaySequenceActor)
 
+#if WITH_EDITOR
+ADaySequenceActor::FOnSubSectionRemovedEvent ADaySequenceActor::OnSubSectionRemovedEvent;
+#endif
+
 namespace UE::DaySequence
 {
 #if ENABLE_DRAW_DEBUG
@@ -572,6 +576,10 @@ void ADaySequenceActor::InitializeRootSequence()
 		{
 			if (!Section.Value)
 			{
+#if WITH_EDITOR
+				OnSubSectionRemovedEvent.Broadcast(Section.Key);
+#endif
+				
 				UMovieSceneTrack* Track = Section.Key->GetTypedOuter<UMovieSceneTrack>();
 				UMovieScene* MovieScene = Track->GetTypedOuter<UMovieScene>();
 	

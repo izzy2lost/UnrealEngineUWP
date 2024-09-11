@@ -394,6 +394,9 @@ void UDaySequenceModifierComponent::RemoveSubSequenceTrack()
 	
 	for (const TWeakObjectPtr<UMovieSceneSubSection> SubSection : SubSections)
 	{
+#if WITH_EDITOR
+		ADaySequenceActor::OnSubSectionRemovedEvent.Broadcast(SubSection.Get());
+#endif
 		RemoveSubTrack(SubSection.Get());
 	}
 	SubSections.Empty();
