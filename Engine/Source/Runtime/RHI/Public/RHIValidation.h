@@ -396,8 +396,13 @@ public:
 		check(Layout);
 		check(Layout->Resources.Num() > 0 || Layout->ConstantBufferSize > 0);
 		FUniformBufferRHIRef UniformBuffer = RHI->RHICreateUniformBuffer(Contents, Layout, Usage, Validation);
-		// Use the render thread frame ID for any non RHI thread allocations.
-		UniformBuffer->InitLifetimeTracking(IsInRHIThread() ? RHIThreadFrameID : RenderThreadFrameID, Contents, Usage);
+
+		// Use the render thread frame ID for any non RHI thread allocations. TODO: This is actually incorrect as command list recording on the render thread timeline
+		// can straddle EndFrame boundaries, causing a uniform buffer allocated in frame N to be recorded as being allocated in frame N+1. The solution here is to introduce
+		// a command list to RHICreateUniformBuffer so that the correct render thread frame can be propagated. Unfortunately, in the meantime, this means that the lifetime
+		// tracker can miss legitimate cases. For example, if a (single frame) uniform buffer is allocated in frame N (but straddles to frame N+1), and then is incorrectly
+		// used in frame N+1, that test will pass because they are equal. However, since the issue is timing dependent, it's still likely to catch legitimate allocation misuses.
+		UniformBuffer->InitLifetimeTracking(IsInRHIThread() ? RHIThreadFrameID : RenderThreadFrameID.load(std::memory_order_relaxed), Contents, Usage);
 		return UniformBuffer;
 	}
 
@@ -406,7 +411,11 @@ public:
 		check(UniformBufferRHI);
 		check(Contents);
 		RHI->RHIUpdateUniformBuffer(RHICmdList, UniformBufferRHI, Contents);
-		UniformBufferRHI->UpdateAllocation(RenderThreadFrameID);
+
+		RHICmdList.EnqueueLambda([this, UniformBufferRHI] (FRHICommandListBase& RHICmdList)
+		{
+			UniformBufferRHI->UpdateAllocation(RHIThreadFrameID);
+		});
 	}
 
 	/**
@@ -1248,7 +1257,7 @@ public:
 	FDynamicRHI*				RHI;
 	TMap<FRHIDepthStencilState*, FDepthStencilStateInitializerRHI> DepthStencilStates;
 
-	uint64						RenderThreadFrameID;
+	std::atomic_uint64_t		RenderThreadFrameID;
 	uint64						RHIThreadFrameID;
 
 private:
