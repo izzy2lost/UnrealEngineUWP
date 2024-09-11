@@ -9,10 +9,10 @@
 #include "DynamicMesh/DynamicVertexAttribute.h"
 #include "MeshDescriptionBuilder.h"
 #include "DynamicMesh/MeshTangents.h"
+#include "DynamicMesh/NonManifoldMappingSupport.h"
 #include "Util/ColorConstants.h"
 
 using namespace UE::Geometry;
-
 
 namespace DynamicMeshToMeshDescriptionConversionHelper
 {
@@ -41,6 +41,76 @@ namespace DynamicMeshToMeshDescriptionConversionHelper
 				InstanceAttrib.Set(InstanceTri[0], AttribIndex, DefaultValue);
 				InstanceAttrib.Set(InstanceTri[1], AttribIndex, DefaultValue);
 				InstanceAttrib.Set(InstanceTri[2], AttribIndex, DefaultValue);
+			}
+		}
+	}
+
+	void ConvertVertices(
+		const FDynamicMesh3& InMesh,
+		FMeshDescriptionBuilder& InBuilder,
+		const bool bReconstructNonManifoldMesh,
+		TArray<FVertexID>& OutVertexMappings
+		)
+	{
+		OutVertexMappings.SetNum(InMesh.MaxVertexID());
+		
+		FNonManifoldMappingSupport ManifoldMapping(InMesh);
+		if (bReconstructNonManifoldMesh && ManifoldMapping.IsNonManifoldVertexInSource())
+		{
+			// Figure out the actual vertex count we need. For non-mapping vertices, we count them separately and
+			// then tally them all up. The new vertices will be appended after the original vertices.
+			int32 MaxOriginalVertexID = 0;
+			int32 NumNewVertices = 0;
+			for (const int VertID : InMesh.VertexIndicesItr())
+			{
+				int32 OriginalVertID = ManifoldMapping.GetOriginalNonManifoldVertexID(VertID);
+				if (OriginalVertID != INDEX_NONE)
+				{
+					MaxOriginalVertexID = FMath::Max(MaxOriginalVertexID, OriginalVertID);
+				}
+				else
+				{
+					NumNewVertices++;
+				}
+			}
+		
+			int32 NewVertexID = MaxOriginalVertexID + 1;
+
+			InBuilder.ReserveNewVertices(NewVertexID + NumNewVertices);
+			TSet<int32> DefinedVertexIDs;
+
+			for (int VertID : InMesh.VertexIndicesItr())
+			{
+				const FVector3d Position = InMesh.GetVertex(VertID);
+				int32 OriginalVertID = ManifoldMapping.GetOriginalNonManifoldVertexID(VertID);
+				if (OriginalVertID != INDEX_NONE)
+				{
+					// FMeshDescription::CreateVertexWithID is not happy if we try to create the same vertex twice.
+					if (!DefinedVertexIDs.Contains(OriginalVertID))
+					{
+						OutVertexMappings[VertID] = InBuilder.AppendVertexWithId(OriginalVertID, Position);
+						DefinedVertexIDs.Add(OriginalVertID);
+					}
+					else
+					{
+						OutVertexMappings[VertID] = FVertexID{OriginalVertID};
+					}
+				}
+				else
+				{
+					OutVertexMappings[VertID] = InBuilder.AppendVertexWithId(NewVertexID++, Position);
+				}
+			}
+		}
+		else
+		{
+			// allocate
+			InBuilder.ReserveNewVertices(InMesh.VertexCount());
+		
+			// create "vertex buffer" in MeshDescription
+			for (int VertID : InMesh.VertexIndicesItr())
+			{
+				OutVertexMappings[VertID] = InBuilder.AppendVertex(InMesh.GetVertex(VertID));
 			}
 		}
 	}
@@ -452,7 +522,7 @@ void FDynamicMeshToMeshDescription::Convert_NoAttributes(const FDynamicMesh3* Me
 	Builder.SetMeshDescription(&MeshOut);
 
 	Builder.SuspendMeshDescriptionIndexing();
-	const int32 UVLayerIndex = 0;
+	constexpr int32 UVLayerIndex = 0;
 	Builder.SetNumUVLayers(1);
 	Builder.ReserveNewUVs(MeshIn->VertexCount(), UVLayerIndex);
 
@@ -463,15 +533,11 @@ void FDynamicMeshToMeshDescription::Convert_NoAttributes(const FDynamicMesh3* Me
 		bCopyGroupToPolyGroup = true;
 	}
 
-	// create vertices
-	TArray<FVertexID> MapV; 
-	MapV.SetNum(MeshIn->MaxVertexID());
-	Builder.ReserveNewVertices(MeshIn->VertexCount());
-	for (int VertID : MeshIn->VertexIndicesItr())
-	{
-		MapV[VertID] = Builder.AppendVertex((FVector)MeshIn->GetVertex(VertID));
-	}
-
+	// Convert the vertices and construct a mapping table between the dynamic mesh and the MeshDescription, optionally applying
+	// an undoing conversion for the non-manifold fixes applied when converting from a MeshDescription to dynamic mesh.
+	TArray<FVertexID> MapV;
+	DynamicMeshToMeshDescriptionConversionHelper::ConvertVertices(*MeshIn, Builder, ConversionOptions.bConvertBackToNonManifold, MapV);
+	
 	FPolygonGroupID AllGroupID = Builder.AppendPolygonGroup();
 
 	// create new instances when seen
@@ -792,15 +858,10 @@ void FDynamicMeshToMeshDescription::Convert_NoSharedInstances(const FDynamicMesh
 	// disable indexing during the full build of the mesh
 	Builder.SuspendMeshDescriptionIndexing();
 
-	// allocate
-	Builder.ReserveNewVertices(MeshIn->VertexCount());
-
-	// create "vertex buffer" in MeshDescription
-	TArray<FVertexID> MapV; MapV.SetNum(MeshIn->MaxVertexID());
-	for (int VertID : MeshIn->VertexIndicesItr())
-	{
-		MapV[VertID] = Builder.AppendVertex((FVector)MeshIn->GetVertex(VertID));
-	}
+	// Convert the vertices and construct a mapping table between the dynamic mesh and the MeshDescription, optionally applying
+	// an undoing conversion for the non-manifold fixes applied when converting from a MeshDescription to dynamic mesh.
+	TArray<FVertexID> MapV;
+	DynamicMeshToMeshDescriptionConversionHelper::ConvertVertices(*MeshIn, Builder, ConversionOptions.bConvertBackToNonManifold, MapV);
 
 	// create UV vertex buffer in MeshDescription
 	Builder.SetNumUVLayers(NumUVLayers);
@@ -1163,4 +1224,3 @@ void FDynamicMeshToMeshDescription::ApplyVertexColorTransform(FVector4f& Color) 
 		LinearColors::SRGBToLinear(Color);
 	}
 }
-

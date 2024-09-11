@@ -103,6 +103,9 @@ namespace Conversion {
 
 		// Whether to directly use the section material indices as output material IDs. Otherwise, material IDs will be indices in to the materials array.
 		bool bUseSectionMaterialIndices = false;
+
+		// Whether in the case of non-manifold source geometry to include a vertex layer to map vertices back to src VertexIDs
+		bool bIncludeNonManifoldSrcInfo = false;
 	};
 
 	/**

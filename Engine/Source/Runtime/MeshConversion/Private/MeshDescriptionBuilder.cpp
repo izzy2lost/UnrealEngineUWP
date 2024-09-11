@@ -75,6 +75,14 @@ FVertexID FMeshDescriptionBuilder::AppendVertex(const FVector& Position)
 	return VertexID;
 }
 
+FVertexID FMeshDescriptionBuilder::AppendVertexWithId(int32 NewVertexID, const FVector& Position)
+{
+	FVertexID VertexID{NewVertexID};
+	MeshDescription->CreateVertexWithID(VertexID);
+	VertexPositions.Set(VertexID, FVector3f(Position));	//LWC_TODO: Precision loss
+	return VertexID;
+}
+
 
 FPolygonGroupID FMeshDescriptionBuilder::AppendPolygonGroup(FName MaterialSlotName)
 {

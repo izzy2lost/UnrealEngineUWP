@@ -78,6 +78,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bRemapBoneIndicesToMatchAsset = false;
 
+	/** Use the original vertex order found in the source data. This is useful if the inbound mesh was originally non-manifold, and needs to keep
+	 *  the non-manifold structure when re-created. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bUseOriginalVertexOrder = false;
+
 	// Whether to use the build scale on the target asset. If enabled, the inverse scale will be applied when saving to the asset, and the BuildScale will be preserved. Otherwise, BuildScale will be set to 1.0 on the asset BuildSettings.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bUseBuildScale = true;

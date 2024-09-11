@@ -42,6 +42,9 @@ public:
 	/** Append vertex and return new vertex ID */
 	MESHCONVERSION_API FVertexID AppendVertex(const FVector& Position);
 
+	/** Append vertex with a specific ID and return it */
+	MESHCONVERSION_API FVertexID AppendVertexWithId(int32 NewVertexID, const FVector& Position);
+
 	/** Return position of vertex */
 	MESHCONVERSION_API FVector GetPosition(const FVertexID& VertexID);
 

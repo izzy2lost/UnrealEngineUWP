@@ -156,7 +156,9 @@ UE::AssetUtils::ECreateStaticMeshResult UE::AssetUtils::CreateStaticMeshAsset(
 			for (int32 k = 0; k < UseNumSourceModels; ++k)
 			{
 				FMeshDescription* Mesh = NewStaticMesh->GetMeshDescription(k);
-				FDynamicMeshToMeshDescription Converter;
+				FConversionToMeshDescriptionOptions ConverterOptions;
+				ConverterOptions.bConvertBackToNonManifold = Options.bConvertBackToNonManifold;
+				FDynamicMeshToMeshDescription Converter(ConverterOptions);
 				Converter.Convert(Options.SourceMeshes.DynamicMeshes[k], *Mesh, !Options.bEnableRecomputeTangents);
 				MaxNumSections = FMath::Max(MaxNumSections, Mesh->PolygonGroups().Num());
 				NewStaticMesh->CommitMeshDescription(k);

@@ -99,6 +99,9 @@ namespace AssetUtils
 
 		// Whether to build a reversed index buffer. Will double the memory usage of indices.
 		bool bBuildReversedIndexBuffer = true;
+
+		// Whether to attempt to re-create the original non-manifold mesh from the (optional) non-manifold index map on the dynamic mesh.
+		bool bConvertBackToNonManifold = false;
 	};
 
 	/**
