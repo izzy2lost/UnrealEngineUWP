@@ -395,7 +395,7 @@ void FCinematicShotSection::AddShotMenuSection(FMenuBuilder& MenuBuilder, const 
 
 	TSharedPtr<ISequencer> Sequencer = GetSequencer();
 	
-	MenuBuilder.BeginSection(NAME_None, LOCTEXT("SequenceMenuText", "Active Channels"));
+	MenuBuilder.BeginSection(NAME_None, LOCTEXT("OriginChannelsText", "Active Channels"));
 	MenuBuilder.AddSubMenu(
 		LOCTEXT("AllTranslation", "Translation"), LOCTEXT("AllTranslation_ToolTip", "Causes this section to affect the translation of the transform"),
 		FNewMenuDelegate::CreateLambda([Sequencer, MakeUIAction](FMenuBuilder& SubMenuBuilder){
