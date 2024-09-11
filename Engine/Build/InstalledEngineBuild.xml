@@ -144,10 +144,14 @@
 	<Macro Name="Platform_FilterRestrictedFolders"/>
 	<Macro Name="Platform_FilterOverrides"/>
 	<Macro Name="Platform_Agent_Target_Win64_Licensee"/>
+	<Macro Name="Platform_Agent_Target_Mac_Licensee"/>
+	<Macro Name="Platform_Agent_Target_Linux_Licensee"/>
 	<Macro Name="Platform_AddInstalledRequirements"/>
+	<Macro Name="Platform_AddFilterRequirements"/>
 	<Macro Name="Platform_TagCsToolsRedistUATSource"/>
 	<Macro Name="Platform_Build_Tools_CS_Binaries"/>
 	<Macro Name="Platform_Append_DDCPlatformsWin64"/>
+	<Macro Name="Platform_Append_DDCPlatformsMac"/>
 	<Macro Name="Platform_TagDDCFiles"/>
 	<Macro Name="Platform_Tag_UnrealGame"/>
 	<Macro Name="Platform_ExtraSignFiles"/>
@@ -371,6 +375,8 @@
 	</Agent>
 	<Aggregate Name="TargetPlatforms_LinuxNative" Requires="Compile UnrealGame LinuxNative"/>
 
+	<Expand Name="Platform_Agent_Target_Linux_Licensee"/>
+
 	<Agent Name="Target LinuxArm64" Type="Win64_Licensee">
 		<Node Name="Compile UnrealGame LinuxArm64" Requires="Update Version Files" Produces="#UnrealGame LinuxArm64;#UnrealGame LinuxArm64 Unstripped;#UnrealGame LinuxArm64 Stripped">
 			<ForEach Name="Target" Values="UnrealGame;$(OptionalClientTarget);$(OptionalServerTarget)">
@@ -481,6 +487,8 @@
 		</Node>
 	</Agent>
 	<Aggregate Name="TargetPlatforms_TVOS" Label="Platforms/TVOS" Requires="Compile UnrealGame TVOS"/>
+
+	<Expand Name="Platform_Agent_Target_Mac_Licensee"/>
 
 	<Agent Name="NotForLicensee Tools Group Win64" Type="Win64">
 		<Node Name="Build NotForLicensee Tools Win64" Requires="Update Version Files" Produces="#NotForLicensee Build Tools Win64">
@@ -844,7 +852,7 @@
 			<Tag Files="Engine\Binaries\Win64\zenserver.*" With="#ToCopy"/>
 			<Tag Files="Engine\Binaries\Win64\UnrealBuildAccelerator\..." With="#ToCopy"/>
 			<Tag Files="Templates\TemplateResources\..." With="#ToCopy"/>
-			<Expand Name="TagDDCEngineFiles" ExceptPlugins="Plugins\...\Binaries\Mac\..."/>
+			<Expand Name="TagDDCEngineFiles" ExceptPlugins="Plugins/.../Binaries/Mac/..."/>
 			<!-- Filter out the files not needed to build DDC. Removing confidential folders can affect DDC keys, so we want to be sure that we're making DDC with a build that can use it. -->
 			<Tag Files="#ToCopy" Except="$(ConfidentialExceptions);$(RootDir)/.../Source/...;$(RootDir)/.../Intermediate/..." With="#FilteredCopyList"/>
 			
@@ -873,6 +881,7 @@
 		<Property Name="DDCPlatformsMac" Value="$(DDCPlatformsMac)+Android_ATC" If="'$(WithAndroid)' == true"/>
 		<Property Name="DDCPlatformsMac" Value="$(DDCPlatformsMac)+IOS" If="'$(WithIOS)' == true"/>
 		<Property Name="DDCPlatformsMac" Value="$(DDCPlatformsMac)+TVOS" If="'$(WithTVOS)' == true"/>
+		<Expand Name="Platform_Append_DDCPlatformsMac"/>
 	</Do>
 
 	<Property Name="MacDDCAgentType" Value="Mac" />
@@ -1150,6 +1159,8 @@
 		<Property Name="FilterRequirements" Value="$(FilterRequirements);#CompressedDDCMac" If="$(WithDDC) And $(WithMac)"/>
 		<Property Name="FilterRequirements" Value="$(FilterRequirements);#Compile Datasmith Plugins Mac;#DatasmithPluginBinaries Mac" If="$(WithMac) And $(CompileDatasmithPlugins)"/>
 
+		<Expand Name="Platform_AddFilterRequirements" />
+
 		<!-- Feature packs -->
 		<Property Name="FilterRequirements" Value="$(FilterRequirements);Make Feature Packs Mac"/>
 
@@ -1200,6 +1211,8 @@
 				<Property Name="CopyInstalledFilter" Value="$(CopyInstalledFilter);$(CopyTVOSFilter)"/>
 				<Property Name="CopyInstalledExceptions" Value="$(CopyInstalledExceptions);$(CopyTVOSExceptions)"/>
 			</Do>
+			<Expand Name="Platform_Tag_UnrealGame" />
+			<Expand Name="Platform_ExtraSignFiles" />
 
 			<!-- Tag any dependencies from all previous build products -->
 			<Tag Files="#Installed Mac" Filter="*.target" With="#TargetReceipts"/>
@@ -1320,6 +1333,8 @@
 				<Property Name="CopyInstalledFilter" Value="$(CopyInstalledFilter);$(CopyAndroidFilter)"/>
 				<Property Name="CopyInstalledExceptions" Value="$(CopyInstalledExceptions);$(CopyAndroidExceptions)"/>
 			</Do>
+			<Expand Name="Platform_Tag_UnrealGame" />
+			<Expand Name="Platform_ExtraSignFiles"/>
 
 			<!-- Tag any dependencies from all previous build products -->
 			<Tag Files="#Installed Linux" Filter="*.target" With="#TargetReceipts"/>
