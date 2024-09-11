@@ -168,6 +168,8 @@ FDeferredLightingSplit GetMegaLightsSplitLighting(
 				// SUBSTRATE_TODO - Add support for SUBSTRATE_OPAQUE_ROUGH_REFRACTION_ENABLED
 				Out.DiffuseLighting = float4(SubstrateLighting.TotalDiffuseLighting, 0);
 				Out.SpecularLighting = float4(SubstrateLighting.TotalSpecularLighting, 0);
+				// SUBSTRATE_TODO - Accumulate Luminance separately
+				Out.LightingLuminance = Luminance(SubstrateLighting.TotalDiffuseLighting + SubstrateLighting.TotalSpecularLighting);
 			}
 		}
 	return Out;

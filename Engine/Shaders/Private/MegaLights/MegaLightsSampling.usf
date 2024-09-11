@@ -56,7 +56,8 @@ FLightTargetPDF GetLocalLightTargetPDF(FDeferredLightData LightData, float3 Tran
 		LightData, LightAttenuation, Dither, ScreenCoord, 
 		SurfaceShadow);
 
-	float Lum = Luminance(SplitLighting.DiffuseLighting.xyz + SplitLighting.SpecularLighting.xyz) * View_PreExposure;
+	//float Lum = Luminance(SplitLighting.DiffuseLighting.xyz + SplitLighting.SpecularLighting.xyz) * View.PreExposure;
+	float Lum = SplitLighting.LightingLuminance * View.PreExposure;
 
 	if (LightData.IESAtlasIndex >= 0 && Lum > 0.01f)
 	{
