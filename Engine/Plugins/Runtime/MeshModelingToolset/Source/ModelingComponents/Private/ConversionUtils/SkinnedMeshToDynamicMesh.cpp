@@ -90,7 +90,10 @@ public:
 			const int32 NumSectionVtx = static_cast<int32>( Section.NumVertices );
 			for (int32 VtxIndex = BaseVertexIndex; VtxIndex < NumSectionVtx + BaseVertexIndex; ++VtxIndex)
 			{
-				VertIDs.Add(VtxIndex);
+				if (ensure(VtxIndex < SkinnedVertices.Num()))
+				{
+					VertIDs.Add(VtxIndex);
+				}
 			}
 		}
 
