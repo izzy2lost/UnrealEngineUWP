@@ -242,6 +242,21 @@ EHttpRequestDelegateThreadPolicy FHttpRequestCommon::GetDelegateThreadPolicy() c
 	return DelegateThreadPolicy; 
 }
 
+FString FHttpRequestCommon::GetOption(const FName Option) const
+{
+	const FString* OptionValue = Options.Find(Option);
+	if (OptionValue)
+	{
+		return *OptionValue;
+	}
+	return TEXT("");
+}
+
+void FHttpRequestCommon::SetOption(const FName Option, const FString& OptionValue)
+{
+	Options.Add(Option, OptionValue);
+}
+
 void FHttpRequestCommon::HandleRequestSucceed(TSharedPtr<IHttpResponse> InResponse)
 {
 	SetStatus(EHttpRequestStatus::Succeeded);

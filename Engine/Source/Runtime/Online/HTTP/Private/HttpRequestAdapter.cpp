@@ -49,6 +49,11 @@ FString FHttpRequestAdapterBase::GetVerb() const
 	return HttpRequest->GetVerb(); 
 }
 
+FString FHttpRequestAdapterBase::GetOption(const FName Option) const
+{
+	return HttpRequest->GetOption(Option);
+}
+
 void FHttpRequestAdapterBase::SetVerb(const FString& Verb) 
 { 
 	HttpRequest->SetVerb(Verb); 
@@ -57,6 +62,11 @@ void FHttpRequestAdapterBase::SetVerb(const FString& Verb)
 void FHttpRequestAdapterBase::SetURL(const FString& URL) 
 { 
 	HttpRequest->SetURL(URL); 
+}
+
+void FHttpRequestAdapterBase::SetOption(const FName Option, const FString& OptionValue)
+{
+	HttpRequest->SetOption(Option, OptionValue);
 }
 
 void FHttpRequestAdapterBase::SetContent(const TArray<uint8>& ContentPayload) 

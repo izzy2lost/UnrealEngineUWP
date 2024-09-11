@@ -156,6 +156,7 @@ public:
 		FParse::Value(FCommandLine::Get(), TEXT("web_server_ip="), WebServerIp);
 		FParse::Bool(FCommandLine::Get(), TEXT("run_heavy_tests="), bRunHeavyTests);
 		FParse::Bool(FCommandLine::Get(), TEXT("retry_enabled="), bRetryEnabled);
+		FParse::Value(FCommandLine::Get(), TEXT("web_server_unix_socket="), WebServerUnixSocket);
 	}
 
 	void DisableWarningsInThisTest()
@@ -181,8 +182,10 @@ public:
 	const FString UrlStreamUpload() { return FString::Format(TEXT("{0}/streaming_upload_put"), { *UrlHttpTests() }); }
 	const FString UrlMockLatency(uint32 Latency) const { return FString::Format(TEXT("{0}/mock_latency/{1}/"), { *UrlHttpTests(), Latency }); }
 	const FString UrlMockStatus(uint32 StatusCode) const { return FString::Format(TEXT("{0}/mock_status/{1}/"), { *UrlHttpTests(), StatusCode }); }
+	const FString UrlUnixSocketHttpTests() const { return "http://localhost/webtests/unixsockettests"; }
 
 	FString WebServerIp;
+	FString WebServerUnixSocket;
 	uint32 WebServerHttpPort;
 	FMockHttpModule* HttpModule = nullptr;
 	bool bRunHeavyTests;
@@ -2424,3 +2427,56 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Test platform request requests 
 		}
 	}
 }
+
+#if UE_HTTP_SUPPORT_UNIX_SOCKET
+
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http Methods over Unix Domain Socket", HTTP_TAG)
+{
+	if (WebServerUnixSocket.Len() == 0)
+	{
+		return;
+	}
+
+	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+	CHECK(HttpRequest->GetVerb() == TEXT("GET"));
+
+	const int Number = FPlatformTime::Cycles();
+
+	HttpRequest->SetURL(FString::Format(TEXT("{0}/{1}"), { *UrlUnixSocketHttpTests(), Number }));
+	HttpRequest->SetOption(HttpRequestOptions::UnixSocketPath, WebServerUnixSocket);
+
+	SECTION("Default GET")
+	{
+	}
+	SECTION("GET")
+	{
+		HttpRequest->SetVerb(TEXT("GET"));
+	}
+	SECTION("POST")
+	{
+		HttpRequest->SetVerb(TEXT("POST"));
+	}
+	SECTION("PUT")
+	{
+		HttpRequest->SetVerb(TEXT("PUT"));
+	}
+	SECTION("DELETE")
+	{
+		HttpRequest->SetVerb(TEXT("DELETE"));
+	}
+
+	HttpRequest->OnProcessRequestComplete().BindLambda([Number](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		CHECK(bSucceeded);
+		REQUIRE(HttpResponse != nullptr);
+		CHECK(HttpResponse->GetResponseCode() == 200);
+
+		FString ResponseContent = HttpResponse->GetContentAsString();
+
+		int NumberReturned = FCString::Atoi(*ResponseContent);
+		CHECK(Number == NumberReturned);
+
+		});
+	HttpRequest->ProcessRequest();
+}
+
+#endif //UE_HTTP_SUPPORT_UNIX_SOCKET

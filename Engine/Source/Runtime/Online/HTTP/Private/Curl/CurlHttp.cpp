@@ -312,6 +312,18 @@ void FCurlHttpRequest::SetURL(const FString& InURL)
 	URL = InURL;
 }
 
+void FCurlHttpRequest::SetOption(const FName Option, const FString& OptionValue)
+{
+	if (CompletionStatus == EHttpRequestStatus::Processing)
+	{
+		UE_LOG(LogHttp, Warning, TEXT("FCurlHttpRequest::SetOption() - attempted to set option on a request that is inflight"));
+		return;
+	}
+
+	check(EasyHandle);
+	FHttpRequestCommon::SetOption(Option, OptionValue);
+}
+
 void FCurlHttpRequest::SetContent(const TArray<uint8>& ContentPayload)
 {
 	SetContent(CopyTemp(ContentPayload));
@@ -868,6 +880,14 @@ bool FCurlHttpRequest::SetupRequestHttpThread()
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_FCurlHttpRequest_SetupRequest_EASY_SETOPT);
 
 		curl_easy_setopt(EasyHandle, CURLOPT_URL, TCHAR_TO_ANSI(*URL));
+
+#if UE_HTTP_SUPPORT_UNIX_SOCKET
+		FString UnixSocketPath = GetOption(HttpRequestOptions::UnixSocketPath);
+		if (UnixSocketPath.Len() > 0)
+		{
+			curl_easy_setopt(EasyHandle, CURLOPT_UNIX_SOCKET_PATH, TCHAR_TO_ANSI(*UnixSocketPath));
+		}
+#endif //UE_HTTP_SUPPORT_UNIX_SOCKET
 
 		if (!FCurlHttpManager::CurlRequestOptions.LocalHostAddr.IsEmpty())
 		{

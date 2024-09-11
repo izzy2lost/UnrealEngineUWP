@@ -25,8 +25,10 @@ public:
 	HTTP_API virtual uint64 GetContentLength() const override;
 	HTTP_API virtual const TArray<uint8>& GetContent() const override;
 	HTTP_API virtual FString GetVerb() const override;
+	HTTP_API virtual FString GetOption(const FName Option) const override;
 	HTTP_API virtual void SetVerb(const FString& Verb) override;
 	HTTP_API virtual void SetURL(const FString& URL) override;
+	HTTP_API virtual void SetOption(const FName Option, const FString& OptionValue) override;
 	HTTP_API virtual void SetContent(const TArray<uint8>& ContentPayload) override;
 	HTTP_API virtual void SetContent(TArray<uint8>&& ContentPayload) override;
 	HTTP_API virtual void SetContentAsString(const FString& ContentString) override;

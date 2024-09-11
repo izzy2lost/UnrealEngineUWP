@@ -25,6 +25,8 @@ public:
 	virtual FString GetVerb() const override;
 	virtual void SetVerb(const FString& InVerb) override;
 	virtual void SetURL(const FString& InURL) override;
+	virtual FString GetOption(const FName Option) const override;
+	virtual void SetOption(const FName Option, const FString& OptionValue) override;
 	virtual void SetContent(const TArray<uint8>& ContentPayload) override;
 	virtual void SetContent(TArray<uint8>&& ContentPayload) override;
 	virtual void SetContentAsString(const FString& ContentString) override;
@@ -67,6 +69,7 @@ private:
 	EHttpRequestStatus::Type CompletionStatus;
 	EHttpFailureReason FailureReason;
 	TMap<FString, FString> Headers;
+	TMap<const FName, FString> Options;
 	float ElapsedTime;
 	TOptional<float> TimeoutSecs;
 };

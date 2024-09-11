@@ -126,6 +126,16 @@ private:
 };
 
 /**
+ * Options that can be specified on a Http Request
+ */
+namespace HttpRequestOptions
+{
+#if UE_HTTP_SUPPORT_UNIX_SOCKET
+	static const FName UnixSocketPath("UnixSocketPath");
+#endif //UE_HTTP_SUPPORT_UNIX_SOCKET
+}
+
+/**
  * Interface for Http requests (created using FHttpFactory)
  */
 class IHttpRequest :
@@ -158,6 +168,22 @@ public:
 	 * @param URL - URL to use.
 	 */
 	virtual void SetURL(const FString& URL) = 0;
+
+	/**
+	 * Get the current value for the given option
+	 *
+	 * @return the current value set for this option or an empty string if no value has been specified
+	 */
+	virtual FString GetOption(const FName Option) const = 0;
+
+	/**
+	 * Sets the given option for this Request
+	 * Must be set before calling ProcessRequest.
+	 *
+	 * @param Option - The option to set, see 'HttpRequestOptions' for supported options
+	 * @param OptionValue - The value of the option to set
+	 */
+	virtual void SetOption(const FName Option, const FString& OptionValue) = 0;
 
 	/**
 	 * Sets the content of the request (optional data).

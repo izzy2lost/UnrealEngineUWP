@@ -107,6 +107,8 @@ public:
 	virtual FString GetVerb() const override { return TEXT(""); }
 	virtual void SetVerb(const FString& Verb) override {}
 	virtual void SetURL(const FString& URL) override {}
+	virtual FString GetOption(const FName Option) const override { return TEXT(""); }
+	virtual void SetOption(const FName Option, const FString& OptionValue) override {}
 	virtual void SetContent(const TArray<uint8>& ContentPayload) override {}
 	virtual void SetContent(TArray<uint8>&& ContentPayload) override {}
 	virtual void SetContentAsString(const FString& ContentString) override {}
