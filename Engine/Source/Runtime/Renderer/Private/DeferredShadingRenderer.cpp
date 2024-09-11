@@ -716,7 +716,7 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStatesAndSBT(FRDGBuil
 
 		if (ShaderBindingMode != ERayTracingShaderBindingMode::Disabled)
 		{
-			SetupLumenHardwareRaytracingHitGroupBindings(GraphBuilder, ReferenceView);
+			SetupLumenHardwareRaytracingHitGroupBindings(GraphBuilder, ReferenceView, ShaderBindingMode);
 
 			// Allocate the SBT if using hit shaders or the RHI requires an SBT for inline raytracing
 			const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
