@@ -245,14 +245,14 @@ void ShadeLightSamplesCS(
 				#if DEBUG_MODE
 				if (bDebug)
 				{
-					Print(Context, TEXT("ShadeSamples"));
+					Print(Context, TEXT("ShadeSamples"), FontTitle);
 					Newline(Context);
-					Print(Context, TEXT("ScreenCoord: "));
-					Print(Context, ScreenCoord.x);
-					Print(Context, ScreenCoord.y);
+					Print(Context, TEXT("ScreenCoord         : "));
+					Print(Context, ScreenCoord.x, FontValue);
+					Print(Context, ScreenCoord.y, FontValue);
 					Newline(Context);
 
-					Print(Context, TEXT("LightId    | Weight  | Diffuse  | Specular")); 
+					Print(Context, TEXT("LightId    | Weight  | Diffuse  | Specular"), FontSilver); 
 				}
 				#endif
 
@@ -330,8 +330,8 @@ void ShadeLightSamplesCS(
 						if (bDebug)
 						{
 							Newline(Context);
-							Print(Context, LocalLightData.LightSceneId, Select(LocalLightData.LightSceneId == DebugLightId, FontYellow, FontWhite));
-							Print(Context, SampleWeight);
+							Print(Context, LocalLightData.LightSceneId, Select(LocalLightData.LightSceneId == DebugLightId, FontSelected, FontValue));
+							Print(Context, SampleWeight, FontValue);
 						}
 						#endif
 
@@ -354,8 +354,8 @@ void ShadeLightSamplesCS(
 							#if DEBUG_MODE 
 							if (bDebug)
 							{
-								Print(Context, SplitLighting.DiffuseLighting.xyz);
-								Print(Context, SplitLighting.SpecularLighting.xyz);
+								Print(Context, SplitLighting.DiffuseLighting.xyz, FontValue);
+								Print(Context, SplitLighting.SpecularLighting.xyz, FontValue);
 							}
 							#endif
 						}
@@ -376,26 +376,26 @@ void ShadeLightSamplesCS(
 			if (bDebug)
 			{
 				Newline(Context);
-				Print(Context, TEXT("Diffuse:  ")); 
-				Print(Context, DiffuseLighting);
+				Print(Context, TEXT("Diffuse             : ")); 
+				Print(Context, DiffuseLighting, FontValue);
 				Newline(Context);
-				Print(Context, TEXT("Specular: ")); 
-				Print(Context, SpecularLighting);
+				Print(Context, TEXT("Specular            : ")); 
+				Print(Context, SpecularLighting, FontValue);
 				Newline(Context);
-				Print(Context, TEXT("WeightRatioSum: ")); 
-				Print(Context, WeightRatioSum);
+				Print(Context, TEXT("WeightRatioSum      : ")); 
+				Print(Context, WeightRatioSum, FontValue);
 				Newline(Context);
-				Print(Context, TEXT("VisibleLightHash: ")); 
-				Print(Context, SharedVisibleLightHash[0]);
-				Print(Context, SharedVisibleLightHash[1]);
-				Print(Context, SharedVisibleLightHash[2]);
-				Print(Context, SharedVisibleLightHash[3]);
+				Print(Context, TEXT("VisibleLightHash    : ")); 
+				Print(Context, SharedVisibleLightHash[0], FontValue);
+				Print(Context, SharedVisibleLightHash[1], FontValue);
+				Print(Context, SharedVisibleLightHash[2], FontValue);
+				Print(Context, SharedVisibleLightHash[3], FontValue);
 				Newline(Context);
 				Print(Context, TEXT("VisibleLightMaskHash: ")); 
-				Print(Context, SharedVisibleLightMaskHash[0]);
-				Print(Context, SharedVisibleLightMaskHash[1]);
-				Print(Context, SharedVisibleLightMaskHash[2]);
-				Print(Context, SharedVisibleLightMaskHash[3]);
+				Print(Context, SharedVisibleLightMaskHash[0], FontValue);
+				Print(Context, SharedVisibleLightMaskHash[1], FontValue);
+				Print(Context, SharedVisibleLightMaskHash[2], FontValue);
+				Print(Context, SharedVisibleLightMaskHash[3], FontValue);
 			}
 			#endif
 

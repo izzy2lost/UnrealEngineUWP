@@ -30,6 +30,9 @@
 
 #if DEBUG_MODE
 	#include "../ShaderPrint.ush"
+	#define FontValue FontLightYellow
+	#define FontSelected FontRed
+	#define FontTitle FontEmerald
 #endif
 
 #include "../Lumen/LumenPosition.ush"
@@ -49,17 +52,17 @@
 #define VISIBLE_LIGHT_HASH_SIZE		4 // 4 uints
 
 #if DEBUG_MODE
-void PrintTileTypeString(inout FShaderPrintContext Context, uint TileType)
+void PrintTileTypeString(inout FShaderPrintContext Context, uint TileType, FFontColor InColor = FontWhite)
 {
 	switch (TileType)
 	{
-		case TILE_MODE_SIMPLE_SHADING:					Print(Context, TEXT("Simple               ")); break;
-		case TILE_MODE_SIMPLE_SHADING_RECT:				Print(Context, TEXT("Simple Rect          ")); break;
-		case TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED:	Print(Context, TEXT("Simple Textured Rect ")); break;
-		case TILE_MODE_COMPLEX_SHADING:					Print(Context, TEXT("Complex              ")); break;
-		case TILE_MODE_COMPLEX_SHADING_RECT:			Print(Context, TEXT("Complex Rect         ")); break;
-		case TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED:	Print(Context, TEXT("Complex Textured Rect")); break;
-		case TILE_MODE_EMPTY:							Print(Context, TEXT("Empty                ")); break;
+		case TILE_MODE_SIMPLE_SHADING:					Print(Context, TEXT("Simple               "), InColor); break;
+		case TILE_MODE_SIMPLE_SHADING_RECT:				Print(Context, TEXT("Simple Rect          "), InColor); break;
+		case TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED:	Print(Context, TEXT("Simple Textured Rect "), InColor); break;
+		case TILE_MODE_COMPLEX_SHADING:					Print(Context, TEXT("Complex              "), InColor); break;
+		case TILE_MODE_COMPLEX_SHADING_RECT:			Print(Context, TEXT("Complex Rect         "), InColor); break;
+		case TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED:	Print(Context, TEXT("Complex Textured Rect"), InColor); break;
+		case TILE_MODE_EMPTY:							Print(Context, TEXT("Empty                "), InColor); break;
 	}
 }
 #endif
