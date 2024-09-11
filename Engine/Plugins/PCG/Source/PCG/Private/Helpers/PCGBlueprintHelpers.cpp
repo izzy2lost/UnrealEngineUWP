@@ -271,3 +271,8 @@ void UPCGBlueprintHelpers::RefreshPCGRuntimeComponent(UPCGComponent* InComponent
 		PCGSubsystem->RefreshRuntimeGenComponent(InComponent, EPCGChangeType::GenerationGrid);
 	}
 }
+
+UPCGData* UPCGBlueprintHelpers::DuplicateData(const UPCGData* InData, FPCGContext& Context, bool bInitializeMetadata)
+{
+	return InData ? InData->DuplicateData(&Context, bInitializeMetadata) : nullptr;
+}
