@@ -259,7 +259,7 @@ public:
 
 	// WARNING: THIS IS DANGEROUS. Use this only if you know for a fact that the Value is valid JSON!
 	// Use this to insert the results of a different JSON Writer in.
-	void WriteRawJSONValue( const FString& Identifier, const FString& Value )
+	void WriteRawJSONValue( FStringView Identifier, FStringView Value )
 	{
 		check( Stack.Top() == EJson::Object );
 		WriteIdentifier( Identifier );

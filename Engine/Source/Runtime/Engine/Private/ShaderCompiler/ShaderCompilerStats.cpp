@@ -9,6 +9,8 @@
 #include "AnalyticsEventAttribute.h"
 #include "CoreMinimal.h"
 #include "DistributedBuildControllerInterface.h"
+#include "Dom/JsonObject.h"
+#include "JsonObjectConverter.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/EngineVersion.h"
 #include "ProfilingDebugging/CookStats.h"
@@ -16,7 +18,6 @@
 #include "ProfilingDebugging/LoadTimeTracker.h"
 #include "ProfilingDebugging/StallDetector.h"
 #include "Serialization/CompactBinaryWriter.h"
-
 
 static int32 GLogShaderCompilerStats = 0;
 static FAutoConsoleVariableRef CVarLogShaderCompilerStats(
@@ -66,7 +67,7 @@ void FShaderCompilerStats::WriteStats(FOutputDevice* Ar)
 				for (const auto& Pair : Stats)
 				{
 					const FString& Path = Pair.Key;
-					const FShaderCompilerStats::FShaderStats& SingleStats = Pair.Value;
+					const FShaderStats& SingleStats = Pair.Value;
 
 					StatWriter.AddColumn(*Path);
 					StatWriter.AddColumn(TEXT("%u"), Platform);
@@ -148,8 +149,8 @@ void FShaderCompilerStats::WriteStats(FOutputDevice* Ar)
 				for (const auto& Pair : Stats)
 				{
 					const FString& Path = Pair.Key;
-					const FShaderCompilerStats::FShaderStats& SingleStats = Pair.Value;
-					for (const FShaderCompilerStats::FShaderCompilerSinglePermutationStat& Stat : SingleStats.PermutationCompilations)
+					const FShaderStats& SingleStats = Pair.Value;
+					for (const FShaderCompilerSinglePermutationStat& Stat : SingleStats.PermutationCompilations)
 					{
 						StatWriter.AddColumn(*Path);
 						StatWriter.AddColumn(TEXT("%u"), Platform);
@@ -577,6 +578,51 @@ void FShaderCompilerStats::Aggregate(FShaderCompilerStats& Other)
 	MaterialCounters += Other.MaterialCounters;
 }
 
+
+TSharedPtr<FJsonObject> FShaderCompilerStats::ToJson()
+{
+	TSharedPtr<FJsonObject> RootObject(MakeShared<FJsonObject>());
+	{
+		TSharedRef<FJsonObject> JsonObject = MakeShared<FJsonObject>();
+		FJsonObjectConverter::UStructToJsonObject(FShaderCompilerCounters::StaticStruct(), &Counters, JsonObject, 0, 0, nullptr, EJsonObjectConversionFlags::SkipStandardizeCase);
+		RootObject->SetObjectField("Counters", JsonObject);
+	}
+	{
+		TSharedRef<FJsonObject> JsonObject = MakeShared<FJsonObject>();
+		FJsonObjectConverter::UStructToJsonObject(FShaderCompilerMaterialCounters::StaticStruct(), &MaterialCounters, JsonObject, 0, 0, nullptr, EJsonObjectConversionFlags::SkipStandardizeCase);
+		RootObject->SetObjectField("MaterialCounters", JsonObject);
+	}
+
+	TArray<TSharedPtr<FJsonValue>> CompileStatsArray;
+	for (TSparseArray<ShaderCompilerStats>::TConstIterator It(CompileStats); It; ++It)
+	{
+		if (!CompileStats.IsValidIndex(It.GetIndex()))
+		{
+			continue;
+		}
+
+		TSharedPtr<FJsonObject> InnerObject(MakeShared<FJsonObject>());
+		for (const TPair<FString, FShaderStats>& Pair : *It)
+		{
+			TSharedRef<FJsonObject> JsonObject = MakeShared<FJsonObject>();
+			FJsonObjectConverter::UStructToJsonObject(FShaderStats::StaticStruct(), &Pair.Value, JsonObject, 0, 0, nullptr, EJsonObjectConversionFlags::SkipStandardizeCase);
+			InnerObject->SetObjectField(Pair.Key, JsonObject);
+		}
+		CompileStatsArray.Push(MakeShared<FJsonValueObject>(InnerObject));
+	}
+	RootObject->SetArrayField("CompileStats", CompileStatsArray);
+
+	TSharedPtr<FJsonObject> ShaderTimingsObject(MakeShared<FJsonObject>());
+	for (const TPair<FString, FShaderTimings>& TimingPair : ShaderTimings)
+	{
+		TSharedRef<FJsonObject> JsonObject = MakeShared<FJsonObject>();
+		FJsonObjectConverter::UStructToJsonObject(FShaderTimings::StaticStruct(), &TimingPair.Value, JsonObject, 0, 0, nullptr, EJsonObjectConversionFlags::SkipStandardizeCase);
+		ShaderTimingsObject->SetObjectField(TimingPair.Key, JsonObject);
+	}
+	RootObject->SetObjectField("ShaderTimings", ShaderTimingsObject);
+	return RootObject;
+}
+
 void FShaderCompilerStats::WriteToCompactBinary(FCbWriter& Writer)
 {
 	FScopeLock Lock(&CompileStatsLock);
@@ -666,12 +712,12 @@ void FShaderCompilerStats::ReadFromCompactBinary(FCbObjectView& Reader)
 {
 	FScopeLock Lock(&CompileStatsLock);
 	FMemoryView CountersMem = Reader["Counters"].AsBinaryView();
-	check(CountersMem.GetSize() == sizeof(FCounters));
-	Counters = *reinterpret_cast<const FCounters*>(CountersMem.GetData());
+	check(CountersMem.GetSize() == sizeof(FShaderCompilerCounters));
+	Counters = *reinterpret_cast<const FShaderCompilerCounters*>(CountersMem.GetData());
 
 	FMemoryView MaterialCountersMem = Reader["MaterialCounters"].AsBinaryView();
-	check(MaterialCountersMem.GetSize() == sizeof(FMaterialCounters));
-	MaterialCounters = *reinterpret_cast<const FMaterialCounters*>(MaterialCountersMem.GetData());
+	check(MaterialCountersMem.GetSize() == sizeof(FShaderCompilerMaterialCounters));
+	MaterialCounters = *reinterpret_cast<const FShaderCompilerMaterialCounters*>(MaterialCountersMem.GetData());
 
 	FCbArrayView CompileStatIndicesView = Reader["CompileStatIndices"].AsArrayView();
 	FCbArrayView CompileStatsView = Reader["CompileStats"].AsArrayView();
@@ -900,7 +946,7 @@ void FShaderCompilerStats::RegisterDistributedBuildStats(const FDistributedBuild
 	Counters.MaxActiveAgentCores = FMath::Max(Counters.MaxActiveAgentCores, InStats.MaxActiveAgentCores);
 }
 
-void FShaderCompilerStats::FMaterialCounters::WriteStatSummary(const TCHAR* AggregatedSuffix)
+void FShaderCompilerMaterialCounters::WriteStatSummary(const TCHAR* AggregatedSuffix)
 {
 	auto CalcTimePercentage = [&](double Val) {
 		return  (int)round(Val / FMath::Max(1e-6, MaterialTranslateTotalTimeSec) * 100);
@@ -917,7 +963,7 @@ void FShaderCompilerStats::FMaterialCounters::WriteStatSummary(const TCHAR* Aggr
 	UE_LOG(LogShaderCompilers, Display, TEXT("Material Cache Hits: %d (%d%%)"), MaterialCacheHits, HitsPercentage);
 }
 
-void FShaderCompilerStats::FMaterialCounters::GatherAnalytics(TArray<FAnalyticsEventAttribute>& Attributes)
+void FShaderCompilerMaterialCounters::GatherAnalytics(TArray<FAnalyticsEventAttribute>& Attributes)
 {
 	Attributes.Emplace(TEXT("Material_NumMaterialsCooked"), NumMaterialsCooked);
 	Attributes.Emplace(TEXT("Material_MaterialTranslateCalls"), MaterialTranslateCalls);
@@ -957,7 +1003,7 @@ void FShaderCompilerStats::RegisterCookedShaders(uint32 NumCooked, float Compile
 		CompileStats.Insert(Platform, Stats);
 	}
 
-	FShaderCompilerStats::FShaderStats& Stats = CompileStats[Platform].FindOrAdd(MaterialPath);
+	FShaderStats& Stats = CompileStats[Platform].FindOrAdd(MaterialPath);
 	Stats.CompileTime += CompileTime;
 	bool bFound = false;
 	for (FShaderCompilerSinglePermutationStat& Stat : Stats.PermutationCompilations)
@@ -995,7 +1041,7 @@ void FShaderCompilerStats::RegisterCompiledShaders(uint32 NumCompiled, EShaderPl
 		ShaderCompilerStats Stats;
 		CompileStats.Insert(Platform, Stats);
 	}
-	FShaderCompilerStats::FShaderStats& Stats = CompileStats[Platform].FindOrAdd(MaterialPath);
+	FShaderStats& Stats = CompileStats[Platform].FindOrAdd(MaterialPath);
 
 	bool bFound = false;
 	for (FShaderCompilerSinglePermutationStat& Stat : Stats.PermutationCompilations)
