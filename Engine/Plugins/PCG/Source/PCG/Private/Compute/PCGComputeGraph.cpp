@@ -6,6 +6,7 @@
 #include "PCGModule.h"
 #include "PCGNode.h"
 #include "Compute/PCGCompilerDiagnostic.h"
+#include "Metadata/PCGMetadata.h"
 
 #include "ComputeFramework/ComputeKernelCompileResult.h"
 
@@ -83,5 +84,49 @@ void UPCGComputeGraph::OnKernelCompilationComplete(int32 InKernelIndex, FCompute
 	{
 		// We may in general have kernels with no corresponding node.
 		UE_LOG(LogPCG, Verbose, TEXT("Compilation message ignored for kernel index %d which has no associated node."), InKernelIndex);
+	}
+}
+
+void UPCGComputeGraph::FillInMissingAttributeTableTypes(const FPCGDataCollection& InComputeGraphElementInputData)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGComputeGraph::FillInMissingAttributeTableTypes);
+
+	// Local to loop body but hoisted for perf.
+	TArray<FName> AttributeNames;
+	TArray<EPCGMetadataTypes> AttributeTypes;
+
+	for (TPair<FName, FPCGKernelAttributeIDAndType>& Entry : GlobalAttributeLookupTable)
+	{
+		if (Entry.Value.Type != EPCGKernelAttributeType::None)
+		{
+			continue;
+		}
+
+		for (const FPCGTaggedData& Data : InComputeGraphElementInputData.TaggedData)
+		{
+			AttributeNames.Reset();
+			AttributeTypes.Reset();
+
+			if (const UPCGMetadata* Metadata = Data.Data ? Data.Data->ConstMetadata() : nullptr)
+			{
+				Metadata->GetAttributes(AttributeNames, AttributeTypes);
+			}
+
+			for (int Index = 0; Index < AttributeNames.Num(); ++Index)
+			{
+				if (AttributeNames[Index] == Entry.Key)
+				{
+					Entry.Value.Type = PCGDataForGPUHelpers::GetAttributeTypeFromMetadataType(AttributeTypes[Index]);
+					break;
+				}
+			}
+
+			if (Entry.Value.Type != EPCGKernelAttributeType::None)
+			{
+				break;
+			}
+		}
+
+		ensure(Entry.Value.Type != EPCGKernelAttributeType::None);
 	}
 }

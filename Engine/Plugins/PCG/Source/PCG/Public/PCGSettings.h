@@ -458,12 +458,6 @@ protected:
 	TArray<FPCGPinProperties> DefaultPointInputPinProperties() const;
 	TArray<FPCGPinProperties> DefaultPointOutputPinProperties() const;
 
-	/** Attributes statically detected as being read, written, or created by this node. */
-	TArray<FPCGKernelAttributeKey> KernelAttributeKeys;
-
-	/** Maps pins to their attribute keys and whether or not they were created on the GPU. */
-	TMap<FName, TArray<TTuple<FPCGKernelAttributeKey, bool /*bCreatedOnGPU*/>>> PinToAttributeKeys;
-
 public:
 #if WITH_EDITORONLY_DATA
 	/** The version number of the data after load and after any data migration. */
@@ -522,12 +516,12 @@ public:
 	virtual bool ShouldExecuteOnGPU() const { return bExecuteOnGPU; }
 
 	virtual bool IsKernelValid(FPCGContext* InContext = nullptr, bool bQuiet = true) const;
-	virtual FString GetCookedKernelSource(const TMap<FPCGKernelAttributeKey, int>& GlobalAttributeLookupTable) const { return TEXT(""); }
+	virtual FString GetCookedKernelSource(const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable) const { return TEXT(""); }
 	virtual FString GetKernelEntryPoint() const { return TEXT("Main"); }
 	virtual FIntVector GetThreadGroupSize() const { return FIntVector(64, 1, 1); }
 
 	/** Get a list of the attributes read or written by this node. */
-	virtual const TArray<FPCGKernelAttributeKey>& GetKernelAttributeKeys() const { return KernelAttributeKeys; }
+	virtual const TArray<FPCGKernelAttributeKey> GetKernelAttributeKeys() const { return {}; }
 
 	/** Compute how many threads should be dispatched to execute this node on the GPU. */
 	virtual int ComputeKernelThreadCount(const UPCGDataBinding* Binding) const { return 0; };

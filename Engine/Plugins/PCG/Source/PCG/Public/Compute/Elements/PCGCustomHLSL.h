@@ -67,7 +67,8 @@ public:
 	virtual void ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfigureInfo) override;
 
 	virtual bool IsKernelValid(FPCGContext* InContext = nullptr, bool bQuiet = true) const override;
-	virtual FString GetCookedKernelSource(const TMap<FPCGKernelAttributeKey, int>& GlobalAttributeLookupTable) const override;
+	virtual FString GetCookedKernelSource(const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable) const override;
+	virtual const TArray<FPCGKernelAttributeKey> GetKernelAttributeKeys() const { return KernelAttributeKeys; }
 	virtual int ComputeKernelThreadCount(const UPCGDataBinding* Binding) const override;
 	virtual FPCGDataCollectionDesc ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding) const override;
 
@@ -175,6 +176,12 @@ protected:
 	/** Helper data and functions that can be used from the shader code. Intended to be viewed using the Node Source Editor window. */
 	UPROPERTY(Transient, VisibleAnywhere, Category = "Declarations|Helpers", meta = (MultiLine = true))
 	FString HelperDeclarations;
+
+	/** Attributes statically detected as being read, written, or created by this node. */
+	TArray<FPCGKernelAttributeKey> KernelAttributeKeys;
+
+	/** Maps pins to their attribute keys and whether or not they were created on the GPU. */
+	TMap<FName, TArray<TTuple<FPCGKernelAttributeKey, bool /*bCreatedOnGPU*/>>> PinToAttributeKeys;
 };
 
 class FPCGCustomHLSLElement : public IPCGElement

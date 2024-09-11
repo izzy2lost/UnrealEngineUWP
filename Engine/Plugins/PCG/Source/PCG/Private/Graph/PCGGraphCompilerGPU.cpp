@@ -597,9 +597,26 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 
 					for (const FPCGKernelAttributeKey& Key : Settings->GetKernelAttributeKeys())
 					{
-						if (!ComputeGraph->GlobalAttributeLookupTable.Find(Key))
+						FPCGKernelAttributeIDAndType* FoundEntry = ComputeGraph->GlobalAttributeLookupTable.Find(Key.Name);
+						if (FoundEntry)
 						{
-							ComputeGraph->GlobalAttributeLookupTable.Add(Key, ComputeGraph->GlobalAttributeLookupTable.Num() + PCGComputeConstants::NUM_RESERVED_ATTRS);
+							// If we already registered this attribute, populate the type if not populated already, or otherwise ensure type matches.
+							if (Key.Type != EPCGKernelAttributeType::None)
+							{
+								if (FoundEntry->Type == EPCGKernelAttributeType::None)
+								{
+									FoundEntry->Type = Key.Type;
+								}
+								else
+								{
+									ensure(Key.Type == FoundEntry->Type);
+								}
+							}
+						}
+						else
+						{
+							const FPCGKernelAttributeIDAndType IDAndType(ComputeGraph->GlobalAttributeLookupTable.Num() + PCGComputeConstants::NUM_RESERVED_ATTRS, Key.Type);
+							ComputeGraph->GlobalAttributeLookupTable.Add(Key.Name, IDAndType);
 						}
 					}
 				}
@@ -931,13 +948,12 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 			{
 				UE_LOG(LogPCG, Warning, TEXT("ATTRIBUTE LOOK-UP TABLE [%s]"), *Settings->GetDefaultNodeTitle().ToString());
 
-				for (const TPair<FPCGKernelAttributeKey, int32 /* Attribute Index */>& Pair : ComputeGraph->GlobalAttributeLookupTable)
+				for (const TPair<FName, FPCGKernelAttributeIDAndType>& Pair : ComputeGraph->GlobalAttributeLookupTable)
 				{
-					const FString TypeString = UEnum::GetValueAsString(Pair.Key.Type);
-					const FString NameString = Pair.Key.Name.ToString();
-					const FString IndexString = FString::FromInt(Pair.Value);
-
-					UE_LOG(LogPCG, Warning, TEXT("%s: %s (%s)"), *IndexString, *NameString, *TypeString);
+					UE_LOG(LogPCG, Warning, TEXT("%s: %s (%s)"),
+						*FString::FromInt(Pair.Value.Id),
+						*Pair.Key.ToString(),
+						*UEnum::GetValueAsString(Pair.Value.Type));
 				}
 			}
 #endif
