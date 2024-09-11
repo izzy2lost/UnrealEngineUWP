@@ -77,6 +77,7 @@ public:
 private:
 	/** Callback to handle changes to the customized capture settings */
 	void OnCaptureSettingsChanged(const FPropertyChangedEvent& PropertyChangedEvent);
+	bool IsSolverSettingPropertyReadOnly(const FPropertyAndParent& PropertyAndParent) const;
 
 	TSharedRef<SWidget> BuildDatasetListView();
 	TSharedRef<ITableRow> OnGenerateDatasetRow(TSharedPtr<FCalibrationRow> InItem, const TSharedRef<STableViewBase>& OwnerTable);

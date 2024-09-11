@@ -638,7 +638,7 @@ void ULensDistortionTool::SaveCalibrationResult()
 	}
 
 	// If the calibration result contains a meaningful nodal offset result, add it to the Lens File
-	if (SolverSettings.CalibrationType == ECalibrationType::NodalOffset || SolverSettings.CalibrationType == ECalibrationType::Everything)
+	if (SolverSettings.bSolveNodalOffset && CaptureSettings.bIsCalibratorTracked && CaptureSettings.bIsCameraTracked)
 	{
 		if (!CalibrationResult.NodalOffset.LocationOffset.Equals(FVector::ZeroVector) || !CalibrationResult.NodalOffset.RotationOffset.Equals(FQuat::Identity))
 		{

@@ -29,15 +29,6 @@ enum class ECalibrationPattern : uint8
 	Points
 };
 
-/** List of supported calibration workflows */
-UENUM()
-enum class ECalibrationType : uint8
-{
-	DistortionAndIntrinsics,
-	NodalOffset,
-	Everything
-};
-
 /** Version info to support backwards compatibility of dataset importing */
 enum class EDatasetVersion : uint8
 {
@@ -137,9 +128,12 @@ struct FLensSolverSettings
 	UPROPERTY(EditAnywhere, NoClear, Category = "Solver Settings", meta = (HideViewOptions, ShowDisplayNames))
 	TSubclassOf<ULensDistortionSolver> SolverClass = ULensDistortionSolverOpenCV::StaticClass();
 
-	/** Select the data that the solver should compute and write to the Lens File */
+	/** 
+	 * If true, the solver will calibrate for the nodal offset in addition to lens distortion. 
+	 * This property will be read-only if either IsCalibratorTracked or IsCameraTracked is unchecked because both are required to compute the nodal offset.
+	 */
 	UPROPERTY(EditAnywhere, Category = "Solver Settings")
-	ECalibrationType CalibrationType = ECalibrationType::DistortionAndIntrinsics;
+	bool bSolveNodalOffset = false;
 
 	/** An estimate for the focal length of the lens */
 	UPROPERTY(EditAnywhere, Category = "Solver Settings")
