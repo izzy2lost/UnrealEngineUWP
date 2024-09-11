@@ -304,11 +304,14 @@ protected:
 	EDistortionRenderingMode DistortionRenderingMode = EDistortionRenderingMode::PostProcessMaterial;
 
 	/**
-	 * If checked, the camera's overscan settings (including resolution scaling and crop) will be driven by the lens component.
-	 * The overscan value is computed to be the minimum amount needed for the current distortion state. 
+	 * If checked, the camera's overscan value will be driven by the lens component to automatically compensate for distortion. 
+	 * The camera's overscan crop property will also be driven based on the distortion rendering mode:
+	 *   Disabled for Post Process Material
+	 *   Enabled for Scene View Extension
+	 * Note: The camera's overscan properties will not be automatically reset when the "Apply Distortion" or "Override Camera Overscan" properties are disabled
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Distortion")
-	bool bOverrideCameraOverscan = false;
+	bool bOverrideCameraOverscan = true;
 
 	/** The current lens model used for distortion */
 	UPROPERTY(EditAnywhere, Category = "Distortion", meta = (EditCondition = "DistortionStateSource == EDistortionSource::Manual"))
