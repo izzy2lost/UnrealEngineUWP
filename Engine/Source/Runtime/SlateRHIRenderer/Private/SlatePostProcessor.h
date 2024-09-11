@@ -58,8 +58,10 @@ struct FSlatePostProcessBlurPassInputs
 	FRDGTexture* OutputTexture = nullptr;
 	ERenderTargetLoadAction OutputLoadAction = ERenderTargetLoadAction::ELoad;
 
+	// An optional set of inputs for when a blur is performed as part of a slate render batch.
 	const FSlateClippingOp* ClippingOp = nullptr;
 	const FDepthStencilBinding* ClippingStencilBinding = nullptr;
+	FIntRect ClippingElementsViewRect;
 
 	FIntRect InputRect;
 	FIntRect OutputRect;
