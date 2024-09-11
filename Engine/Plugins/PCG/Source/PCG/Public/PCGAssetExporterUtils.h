@@ -30,4 +30,14 @@ public:
 	// Native API equivalent
 	static UPackage* CreateAsset(UPCGAssetExporter* Exporter, const FPCGAssetExporterParameters& Parameters, FPCGContext* InOptionalContext);
 	static void UpdateAssets(const TArray<FAssetData>& PCGAssets, const FPCGAssetExporterParameters& Parameters, FPCGContext* InOptionalContext);
+
+	// Generic equivalent
+	static UPackage* CreateAsset(const UClass* AssetClass, const FPCGAssetExporterParameters& Parameters,  TFunctionRef<bool(const FString& PackagePath, UObject* Asset)> ExportFunc, FPCGContext* InOptionalContext);
+
+	template <typename T>
+	static UPackage* CreateAsset(const FPCGAssetExporterParameters& Parameters,  TFunctionRef<bool(const FString& PackagePath, UObject* Asset)> ExportFunc, FPCGContext* InOptionalContext)
+	{
+		static_assert(std::is_base_of_v<UObject, T>, "T needs to be a UObject");
+		return CreateAsset(T::StaticClass(), Parameters, std::move(ExportFunc), InOptionalContext);
+	}
 };
