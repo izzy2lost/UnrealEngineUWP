@@ -128,13 +128,13 @@ FBox2D AWaterZone::GetZoneBounds2D() const
 	return WaterZoneBounds;
 }
 
-void AWaterZone::GetDynamicWaterInfoBounds(TArray<FBox>& Bounds) const
+void AWaterZone::GetAllDynamicWaterInfoBounds(TArray<FBox>& OutBounds) const
 {
-	if (FWaterViewExtension* WaterViewExtension = UWaterSubsystem::GetWaterViewExtension(GetWorld()))
+	if (const FWaterViewExtension* WaterViewExtension = UWaterSubsystem::GetWaterViewExtension(GetWorld()))
 	{
-		FWaterViewExtension::FWaterZoneInfo* WaterZoneInfo = WaterViewExtension->WaterZoneInfos.Find(this);
+		const FWaterViewExtension::FWaterZoneInfo* WaterZoneInfo = WaterViewExtension->WaterZoneInfos.Find(this);
 
-		if (WaterZoneInfo != nullptr)
+		if (ensure(WaterZoneInfo != nullptr))
 		{
 			for (const FWaterViewExtension::FWaterZoneInfo::FWaterZoneViewInfo& ViewInfo : WaterZoneInfo->ViewInfos)
 			{
@@ -147,7 +147,30 @@ void AWaterZone::GetDynamicWaterInfoBounds(TArray<FBox>& Bounds) const
 
 				const FVector HalfExtent(GetDynamicWaterInfoExtent() / 2);
 
-				Bounds.Add(FBox(Center - HalfExtent, Center + HalfExtent));
+				OutBounds.Emplace(FBox(Center - HalfExtent, Center + HalfExtent));
+			}
+		}
+	}
+}
+
+void AWaterZone::GetAllDynamicWaterInfoCenters(TArray<FVector>& OutCenters) const
+{
+	if (const FWaterViewExtension* WaterViewExtension = UWaterSubsystem::GetWaterViewExtension(GetWorld()))
+	{
+		const FWaterViewExtension::FWaterZoneInfo* WaterZoneInfo = WaterViewExtension->WaterZoneInfos.Find(this);
+
+		if (ensure(WaterZoneInfo != nullptr))
+		{
+			for (const FWaterViewExtension::FWaterZoneInfo::FWaterZoneViewInfo& ViewInfo : WaterZoneInfo->ViewInfos)
+			{
+				FVector Center(ViewInfo.Center);
+
+				if (!IsLocalOnlyTessellationEnabled())
+				{
+					Center = GetActorLocation();
+				}
+
+				OutCenters.Emplace(Center);
 			}
 		}
 	}
@@ -242,27 +265,6 @@ void AWaterZone::DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConstruc
 	OutConstructClasses.Add(FTopLevelAssetPath(UBoxComponent::StaticClass()));
 }
 #endif
-
-void AWaterZone::MarkForRebuild(EWaterZoneRebuildFlags Flags, const FBox2D& UpdateRegion, const FBox& WaterInfoBounds, const UObject* DebugRequestingObject)
-{
-	const FBox2D WaterInfoBounds2D(FVector2D(WaterInfoBounds.Min), FVector2D(WaterInfoBounds.Max));
-
-	// Suppress updates which occur outside the bounds of the water zone.
-	if ((!UpdateRegion.bIsValid || UpdateRegion.Intersect(WaterInfoBounds2D)))
-	{
-		if (EnumHasAnyFlags(Flags, EWaterZoneRebuildFlags::UpdateWaterMesh))
-		{
-			UE_LOG(LogWater, Verbose, TEXT("AWaterZone (%s) UpdateWaterMesh in region {%s} (triggered by %s)"), *GetNameSafe(this), *UpdateRegion.ToString(), *GetNameSafe(DebugRequestingObject));
-			WaterMesh->MarkWaterMeshGridDirty();
-			WaterMesh->MarkRenderStateDirty();
-		}
-		if (EnumHasAnyFlags(Flags, EWaterZoneRebuildFlags::UpdateWaterInfoTexture))
-		{
-			UE_LOG(LogWater, Verbose, TEXT("AWaterZone (%s) UpdateWaterInfoTexture in region {%s} (triggered by %s)"), *GetNameSafe(this), *UpdateRegion.ToString(), *GetNameSafe(DebugRequestingObject));
-			bNeedsWaterInfoRebuild = true;
-		}
-	}
-}
 
 void AWaterZone::MarkForRebuild(EWaterZoneRebuildFlags Flags, const FBox2D& UpdateRegion, const UObject* DebugRequestingObject)
 {
@@ -741,20 +743,45 @@ FVector AWaterZone::GetDynamicWaterInfoExtent() const
 	}
 }
 
-FVector AWaterZone::GetDynamicWaterInfoCenter(int32 PlayerIndex)
+FVector AWaterZone::GetDynamicWaterInfoCenter(int32 PlayerIndex) const
 {
-	UWorld* World = GetWorld();
+	const UWorld* World = GetWorld();
 
 	check(World != nullptr);
 
 	FVector Center = GetActorLocation();
 
-	if (FWaterViewExtension* WaterViewExtension = UWaterSubsystem::GetWaterViewExtension(World))
+	if (const FWaterViewExtension* WaterViewExtension = UWaterSubsystem::GetWaterViewExtension(World))
 	{
 		Center = WaterViewExtension->GetZoneLocation(this, PlayerIndex);
 	}
 	
 	return Center;
+}
+
+FBox AWaterZone::GetDynamicWaterInfoBounds(int32 PlayerIndex) const
+{
+	const UWorld* World = GetWorld();
+
+	check(World != nullptr);
+
+	FVector Center = GetActorLocation();
+
+	if (const FWaterViewExtension* WaterViewExtension = UWaterSubsystem::GetWaterViewExtension(World))
+	{
+		Center = WaterViewExtension->GetZoneLocation(this, PlayerIndex);
+	}
+	
+	const FVector WaterInfoHalfExtents = GetDynamicWaterInfoExtent() / 2.;
+	return FBox(Center - WaterInfoHalfExtents, Center + WaterInfoHalfExtents);
+}
+
+FVector AWaterZone::GetDynamicWaterInfoCenter() const
+{
+	// The following index assume that there is no split screen and will request the position of the first player's water view.
+	// This call is a temporary fallback and is deprecated in favor of the overload which takes a specific player view.
+	constexpr int32 PlayerIndex = 0;
+	return GetDynamicWaterInfoCenter(PlayerIndex);
 }
 
 void AWaterZone::OnLevelAddedToWorld(ULevel* InLevel, UWorld* InWorld)
@@ -785,7 +812,7 @@ void AWaterZone::OnLevelChanged(ULevel* InLevel, UWorld* InWorld)
 	}
 
 	TArray<FBox> WaterZoneViewsBounds;
-	GetDynamicWaterInfoBounds(WaterZoneViewsBounds);
+	GetAllDynamicWaterInfoBounds(WaterZoneViewsBounds);
 
 	bool bContainsActorsAffectingWaterZone = false;
 
