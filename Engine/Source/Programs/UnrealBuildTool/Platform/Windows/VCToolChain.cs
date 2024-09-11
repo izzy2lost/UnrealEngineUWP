@@ -553,6 +553,11 @@ namespace UnrealBuildTool
 				{
 					Arguments.Add("/Zc:enumTypes");
 				}
+
+				if (Target.WindowsPlatform.bStrictODRViolationConformance && Target.WindowsPlatform.bOptimizeGlobalData)
+				{
+					Arguments.Add("/Zc:checkGwOdr");
+				}
 			}
 
 			// @todo HoloLens: UE is non-compliant when it comes to use of %s and %S
