@@ -13,6 +13,23 @@ struct FScopedSlowTask;
 class USkeletalMesh;
 class UAnimationAsset;
 class UAnimBlueprint;
+class UAnimSequence;
+
+
+struct FAdditiveRetargetSettings
+{
+	// the asset this operates on
+	TObjectPtr<UAnimSequence> SequenceAsset;
+	
+	// the settings to save/restore before/after retargeting
+	TEnumAsByte<EAdditiveAnimationType> AdditiveAnimType;
+	TEnumAsByte<EAdditiveBasePoseType> RefPoseType;
+	int32 RefFrameIndex;
+	TObjectPtr<UAnimSequence> RefPoseSeq;
+	
+	void PrepareForRetarget(UAnimSequence* InSequenceAsset);
+	void RestoreOnAsset() const;
+};
 
 // which skeleton are we referring to?
 UENUM()
@@ -60,6 +77,10 @@ public:
 
 	// Will not produce keys on bones that are not animated, reducing size on disk of the resulting files.
 	bool bExportOnlyAnimatedBones = true;
+
+	// Keep the additive animation sequence attributes on the retargeted results.
+	// NOTE: results may not be WYSIWYG with the editor, but the behavior should remain intact.
+	bool bRetainAdditiveFlags = true;
 
 	// Reset all data (called when window re-opened
 	void Reset()
