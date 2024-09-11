@@ -1158,7 +1158,6 @@ TSet<TObjectPtr<UDataLayerInstance>>& AWorldDataLayers::GetDataLayerInstances()
 	if (IsUsingExternalPackageDataLayerInstances())
 	{
 		check(DataLayerInstances.IsEmpty());
-		check(AsyncLoadRequestExternalPackageDataLayerInstances.IsEmpty());
 		check(LoadedExternalPackageDataLayerInstances.IsEmpty());
 		return ExternalPackageDataLayerInstances;
 	}
@@ -1174,12 +1173,7 @@ TSet<TObjectPtr<UDataLayerInstance>>& AWorldDataLayers::GetDataLayerInstances()
 void AWorldDataLayers::InitializeExternalPackageDataLayerInstances()
 {
 	check(IsUsingExternalPackageDataLayerInstances());
-	if (AsyncLoadRequestExternalPackageDataLayerInstances.Num() != LoadedExternalPackageDataLayerInstances.Num())
-	{
-		FlushAsyncLoading(AsyncLoadRequestExternalPackageDataLayerInstances);
-	}
 	ExternalPackageDataLayerInstances.Append(LoadedExternalPackageDataLayerInstances);
-	AsyncLoadRequestExternalPackageDataLayerInstances.Reset();
 	LoadedExternalPackageDataLayerInstances.Reset();
 }
 #endif
@@ -1295,8 +1289,7 @@ void AWorldDataLayers::PostLoad()
 		if (!Level->bWasDuplicated && IsUsingExternalPackageDataLayerInstances())
 		{
 			// Load all folders for this level
-			check(AsyncLoadRequestExternalPackageDataLayerInstances.IsEmpty());
-			AsyncLoadRequestExternalPackageDataLayerInstances = FExternalPackageHelper::AsyncLoadObjectsFromExternalPackages<UDataLayerInstance>(this, [this](UDataLayerInstance* LoadedDataLayerInstance)
+			FExternalPackageHelper::LoadObjectsFromExternalPackages<UDataLayerInstance>(this, [this](UDataLayerInstance* LoadedDataLayerInstance)
 			{
 				check(IsValid(LoadedDataLayerInstance));
 				LoadedExternalPackageDataLayerInstances.Add(LoadedDataLayerInstance);

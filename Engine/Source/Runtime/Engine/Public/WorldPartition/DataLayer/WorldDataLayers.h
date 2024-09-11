@@ -311,12 +311,17 @@ private:
 	UPROPERTY()
 	bool bAllowRuntimeDataLayerEditing;
 
-	/** Used by Actor Editor Context */
 	UPROPERTY(Transient)
 	FActorPlacementDataLayers CurrentDataLayers;
 
-	/** Used by Actor Editor Context */
 	TArray<FActorPlacementDataLayers> CurrentDataLayersStack;
+#endif
+
+	UPROPERTY()
+	TObjectPtr<UExternalDataLayerInstance> RootExternalDataLayerInstance;
+
+	UPROPERTY()
+	TSet<TObjectPtr<UDataLayerInstance>> DataLayerInstances;
 
 	/** Data layer instances stored in their external package (only used when UseExternalPackageDataLayerInstances is True) */
 	UPROPERTY(Transient)
@@ -325,16 +330,6 @@ private:
 	/** Temporary array containing data layer instances manually loaded from their external packages */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UDataLayerInstance>> LoadedExternalPackageDataLayerInstances;
-
-	/** AsyncLoad requests of data layer instance external packages */
-	TArray<int32> AsyncLoadRequestExternalPackageDataLayerInstances;
-#endif
-
-	UPROPERTY()
-	TObjectPtr<UExternalDataLayerInstance> RootExternalDataLayerInstance;
-
-	UPROPERTY()
-	TSet<TObjectPtr<UDataLayerInstance>> DataLayerInstances;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UDataLayerInstance>> TransientDataLayerInstances;
