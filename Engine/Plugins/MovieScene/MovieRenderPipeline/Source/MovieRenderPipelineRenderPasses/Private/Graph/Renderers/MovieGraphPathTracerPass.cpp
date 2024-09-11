@@ -100,4 +100,10 @@ void FMovieGraphPathTracerPass::ApplyMovieGraphOverridesToSceneView(TSharedRef<F
 	View->bForcePathTracerReset = SampleIndex == 0;
 }
 
+void FMovieGraphPathTracerPass::ApplyMovieGraphOverridesToSampleState(FMovieGraphSampleState& SampleState) const
+{
+	// Cancel out the subpixel shift because the path tracer does its own anti-aliasing
+	SampleState.OverlappedSubpixelShift = FVector2D(0.5, 0.5);
+}
+
 } // UE::MovieGraph::Rendering
