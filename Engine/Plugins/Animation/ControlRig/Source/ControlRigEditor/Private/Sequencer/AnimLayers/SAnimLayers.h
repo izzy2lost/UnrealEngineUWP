@@ -7,6 +7,7 @@
 #include "Widgets/SCompoundWidget.h"
 #include "ISequencer.h"
 #include "Misc/Guid.h"
+#include "Widgets/DeclarativeSyntaxSupport.h"
 
 class UControlRig;
 class FControlRigEditMode;
