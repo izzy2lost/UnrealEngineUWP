@@ -625,7 +625,7 @@ private:
 	FJobOutputHash ComputeJobHash(const FShaderCacheSerializeContext& SerializeContext)
 	{
 		FBlake3 Hasher;
-		check(SerializeContext);
+		check(SerializeContext.HasData());
 		Hasher.Update(SerializeContext.ShaderObjectData.GetData(), SerializeContext.ShaderObjectData.GetSize());
 		for (const FSharedBuffer& CodeBuf : SerializeContext.ShaderCode)
 		{
@@ -1382,7 +1382,7 @@ void FShaderJobCache::SubmitJob(FShaderCommonCompileJob* Job)
 		FShaderCacheLoadContext LoadContext = FindOrAdd(InputHash, Job, bCheckDDC);
 
 		// see if there are already cached results for this job that were returned synchronously by FindOrAdd
-		if (LoadContext)
+		if (LoadContext.HasData())
 		{
 			Unlink(*Job);		// from PendingSubmitJobTaskJobs
 
@@ -1636,7 +1636,7 @@ void FShaderJobCache::AddToCacheAndProcessPending(FShaderCommonCompileJob* Finis
 	{
 		UE_LOG(LogShaderCompilers, UE_SHADERCACHE_LOG_LEVEL, TEXT("Processed %d outstanding jobs with the same ihash %s."), FinishedDuplicateJobs.Num(), *LexToString(InputHash));
 
-		check(SaveContext);
+		check(SaveContext.HasData());
 		// Construct a single load context pointing to the data in the save context used above
 		FShaderCacheLoadContext LoadContext(SaveContext.ShaderObjectData, SaveContext.ShaderCode);
 		for (FShaderCommonCompileJob* DuplicateJob : FinishedDuplicateJobs)
@@ -1901,10 +1901,10 @@ FShaderCacheLoadContext FShaderJobCache::FindOrAdd(const FShaderCompilerInputHas
 						if (StoredOutput == nullptr)
 						{
 							// Create a new entry to store in the FShaderJobCache if one doesn't already exist for this output hash
-							check(LoadContext); // sanity check that the load context was populated properly
+							check(LoadContext.HasData()); // sanity check that the load context was populated properly
 							StoredOutput = new FStoredOutput();
 							StoredOutput->JobOutput = LoadContext.ShaderObjectData;
-							StoredOutput->JobCode = MoveTemp(LoadContext.OwnedShaderCode);
+							LoadContext.MoveCode(StoredOutput->JobCode);
 							Outputs.Add(OutputHash, StoredOutput);
 							CurrentlyAllocatedMemory += StoredOutput->GetAllocatedSize();
 						}
@@ -2202,13 +2202,11 @@ void FShaderJobCache::AddJobOutput(FShaderJobData& JobData, const FShaderCommonC
 		{
 			const uint64 OutputsOriginalSize = Outputs.GetAllocatedSize();
 
-			check(SaveContext);
+			check(SaveContext.HasData());
 			FStoredOutput* NewStoredOutput = new FStoredOutput();
 			NewStoredOutput->NumHits = InitialHitCount;
 			NewStoredOutput->JobOutput = SaveContext.ShaderObjectData;
-			NewStoredOutput->JobCode = MoveTemp(SaveContext.OwnedShaderCode);
-			// reset ShaderCode view in SaveContext to point to the cached array, in case its data is reused to populate duplicate jobs
-			SaveContext.ShaderCode = NewStoredOutput->JobCode;
+			SaveContext.MoveCode(NewStoredOutput->JobCode);
 			NewStoredOutput->CachedDebugInfoPath = InputDebugInfoPath;
 			NewStoredOutput->AddRef();
 			Outputs.Add(OutputHash, NewStoredOutput);

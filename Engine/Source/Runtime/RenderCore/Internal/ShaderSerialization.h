@@ -95,8 +95,15 @@ struct FShaderCacheSerializeContext : public FShaderSerializeContext
 		return Size;
 	}
 
-	/* Boolean conversion operator which checks for validity of the data referenced by this context. */
-	explicit operator bool() const { return ShaderObjectData && !ShaderCode.IsEmpty(); }
+	/* Populates the given code array (transfering ownership) and resets the internal view to point to the new owning array's data */
+	void MoveCode(TArray<FSharedBuffer>& TargetCode)
+	{
+		TargetCode = MoveTemp(OwnedShaderCode);
+		ShaderCode = TargetCode;
+	}
+
+	/* Returns true if there is valid serialized data referenced by this context. */
+	bool HasData() const { return ShaderObjectData && !ShaderCode.IsEmpty(); }
 };
 
 /* Implementation of FShaderCacheSerializeContext used for saving data to caches. */

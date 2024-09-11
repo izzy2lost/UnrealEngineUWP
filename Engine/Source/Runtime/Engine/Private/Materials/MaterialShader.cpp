@@ -1858,7 +1858,7 @@ TSharedRef<FMaterialShaderMap::FAsyncLoadContext> FMaterialShaderMap::BeginLoadF
 			TRACE_CPUPROFILER_EVENT_SCOPE(FMaterialShaderMap::FinishLoadFromDerivedDataCache);
 			COOK_STAT(auto Timer = MaterialShaderCookStats::UsageStats.TimeSyncWork());
 
-			if (LoadContext)
+			if (LoadContext.HasData())
 			{
 				TRACE_COUNTER_INCREMENT(Shaders_FMaterialShaderMapDDCHits);
 
