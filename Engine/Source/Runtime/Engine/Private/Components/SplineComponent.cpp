@@ -283,6 +283,12 @@ void USplineComponent::UpdateSpline()
 #endif
 }
 
+void USplineComponent::SetOverrideConstructionScript(bool bInOverride)
+{
+	bSplineHasBeenEdited = bInOverride;
+}
+
+
 float FSplineCurves::GetSegmentLength(const int32 Index, const float Param, bool bClosedLoop, const FVector& Scale3D) const
 {
 	const int32 NumPoints = Position.Points.Num();
