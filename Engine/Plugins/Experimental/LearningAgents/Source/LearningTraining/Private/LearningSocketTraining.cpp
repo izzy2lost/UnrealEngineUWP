@@ -14,21 +14,13 @@ namespace UE::Learning::SocketTraining
 	ETrainerResponse WaitForConnection(FSocket& Socket, FSubprocess* Process, const FInternetAddr& Addr, const float Timeout)
 	{
 		float WaitTime = 0.0f;
-		const float SleepTime = 0.001f;
+		const float SleepTime = 0.001f; // 1 millisecond
 
-		while (true)
+		while (!Process || Process->Update())
 		{
-			// If we're monitoring a process, then has it has exited?
-			if (Process && !Process->Update())
+			if (Socket.Connect(Addr))
 			{
-				return ETrainerResponse::Unexpected;
-			}
-
-			Socket.Connect(Addr);
-
-			if (Socket.GetConnectionState() == ESocketConnectionState::SCS_Connected)
-			{
-				break;
+				return ETrainerResponse::Success;
 			}
 			else
 			{
@@ -42,37 +34,32 @@ namespace UE::Learning::SocketTraining
 			}
 		}
 
-		return ETrainerResponse::Success;
+		return ETrainerResponse::Unexpected;
 	}
 
 	ETrainerResponse RecvWithTimeout(FSocket& Socket, FSubprocess* Process, uint8* Bytes, const int32 ByteNum, const float Timeout)
 	{
 		float WaitTime = 0.0f;
-		const float SleepTime = 0.001f;
 
 		int32 BytesRead = 0;
 		int32 TotalBytesRead = 0;
 
-		while (Socket.GetConnectionState() == SCS_Connected)
+		while (!Process || Process->Update())
 		{
-			// If we're monitoring a process, then has it has exited?
-			if (Process && !Process->Update())
+			if (Socket.Wait(ESocketWaitConditions::WaitForRead, FTimespan(1000))) // 1 millisecond
 			{
-				return ETrainerResponse::Unexpected;
-			}
-
-			if (Socket.Recv(Bytes + TotalBytesRead, ByteNum - TotalBytesRead, BytesRead))
-			{
-				TotalBytesRead += BytesRead;
-
-				if (TotalBytesRead == ByteNum)
+				if (Socket.Recv(Bytes + TotalBytesRead, ByteNum - TotalBytesRead, BytesRead))
 				{
-					return ETrainerResponse::Success;
+					TotalBytesRead += BytesRead;
+
+					if (TotalBytesRead == ByteNum)
+					{
+						return ETrainerResponse::Success;
+					}
 				}
 			}
 
-			FPlatformProcess::Sleep(SleepTime);
-			WaitTime += SleepTime;
+			WaitTime += 0.001f; // 1 millisecond
 
 			if (WaitTime > Timeout)
 			{
@@ -163,25 +150,26 @@ namespace UE::Learning::SocketTraining
 	ETrainerResponse SendWithTimeout(FSocket& Socket, FSubprocess* Process, const uint8* Bytes, const int32 ByteNum, const float Timeout)
 	{
 		float WaitTime = 0.0f;
-		const float SleepTime = 0.001f;
 
 		int32 BytesSent = 0;
 		int32 TotalBytesSent = 0;
 
-		while ((!Process || Process->Update()) && Socket.GetConnectionState() == SCS_Connected)
+		while (!Process || Process->Update())
 		{
-			if (Socket.Send(Bytes + TotalBytesSent, ByteNum - TotalBytesSent, BytesSent))
+			if (Socket.Wait(ESocketWaitConditions::WaitForWrite, FTimespan(1000))) // 1 millisecond
 			{
-				TotalBytesSent += BytesSent;
-
-				if (TotalBytesSent == ByteNum)
+				if (Socket.Send(Bytes + TotalBytesSent, ByteNum - TotalBytesSent, BytesSent))
 				{
-					return ETrainerResponse::Success;
+					TotalBytesSent += BytesSent;
+
+					if (TotalBytesSent == ByteNum)
+					{
+						return ETrainerResponse::Success;
+					}
 				}
 			}
 
-			FPlatformProcess::Sleep(SleepTime);
-			WaitTime += SleepTime;
+			WaitTime += 0.001f; // 1 millisecond
 
 			if (WaitTime > Timeout)
 			{

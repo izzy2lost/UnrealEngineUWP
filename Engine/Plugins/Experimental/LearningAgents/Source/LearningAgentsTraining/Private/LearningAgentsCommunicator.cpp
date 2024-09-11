@@ -13,6 +13,12 @@ FLearningAgentsTrainerProcess ULearningAgentsCommunicatorLibrary::SpawnSharedMem
 {
 	FLearningAgentsTrainerProcess TrainerProcess;
 
+	if (PLATFORM_MAC)
+	{
+		UE_LOG(LogLearning, Error, TEXT("SpawnSharedMemoryTrainingProcess: Shared Memory not supported on Mac. Switch to Socket Communicator instead."));
+		return TrainerProcess;
+	}
+
 	const FString PythonExecutablePath = UE::Learning::Trainer::GetPythonExecutablePath(TrainerProcessSettings.GetIntermediatePath());
 	if (!FPaths::FileExists(PythonExecutablePath))
 	{
@@ -48,6 +54,12 @@ FLearningAgentsCommunicator ULearningAgentsCommunicatorLibrary::MakeSharedMemory
 	const FLearningAgentsSharedMemoryCommunicatorSettings& SharedMemorySettings)
 {
 	FLearningAgentsCommunicator Communicator;
+
+	if (PLATFORM_MAC)
+	{
+		UE_LOG(LogLearning, Error, TEXT("MakeSharedMemoryCommunicator: Shared Memory not supported on Mac. Switch to Socket Communicator instead."));
+		return Communicator;
+	}
 
 	if (!TrainerProcess.TrainerProcess)
 	{
