@@ -1489,9 +1489,8 @@ void FAnimNode_FootPlacement::GatherLegDataFromInputs(
 		const FTransform& RootToComponent = GetRootToComponent();
 
 		LegData.AlignedFootTransformRS = LegData.InputPose.FootTransformCS.GetRelativeTransform(RootToComponent);
-		LegData.AlignedFootTransformWS =
+		LegData.AlignedFootTransformWS = LegData.InputPose.FootTransformCS * Context.OwningComponentToWorld;
 		LegData.UnalignedFootTransformRS = LegData.AlignedFootTransformRS;
-			LegData.InputPose.FootTransformCS * Context.OwningComponentToWorld;
 		LegData.UnalignedFootTransformWS = LegData.AlignedFootTransformWS;
 
 		const FVector IKFootRootLocationWS =
