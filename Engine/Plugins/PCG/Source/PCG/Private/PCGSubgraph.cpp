@@ -774,7 +774,7 @@ bool FPCGSubgraphElement::ExecuteInternal(FPCGContext* InContext) const
 		{
 			// when woken up, get the output data from the subgraph
 			// and copy it to the current context output data, and finally return true
-			UPCGSubsystem* Subsystem = Context->SourceComponent->GetSubsystem();
+			UPCGSubsystem* Subsystem = Context->SourceComponent.IsValid() ? Context->SourceComponent->GetSubsystem() : nullptr;
 			if (Subsystem)
 			{
 				if (Context->SubgraphTaskIds.Num() > 0)
