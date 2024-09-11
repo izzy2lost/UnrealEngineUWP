@@ -52,6 +52,19 @@ public class NNEEditor : ModuleRules
 			PublicDefinitions.Add("NNEEDITORONNXTOOLS_SUPPORTED");
 			PublicDefinitions.Add("NNEEDITORONNXTOOLS_SHAREDLIB_FILENAME=" + SharedLibFileName);
 		}
+		else if (Target.Platform == UnrealTargetPlatform.Mac)
+		{
+			string SharedLibFileName = "libNNEEditorOnnxTools.dylib";
+
+			// Not fully supported on macOS:
+			// https://dev.epicgames.com/documentation/en-us/unreal-engine/integrating-third-party-libraries-into-unreal-engine
+			// PublicDelayLoadDLLs.Add(SharedLibFileName);
+
+			RuntimeDependencies.Add("$(TargetOutputDir)/" + SharedLibFileName, Path.Combine(SharedLibPath, SharedLibFileName));
+
+			PublicDefinitions.Add("NNEEDITORONNXTOOLS_SUPPORTED");
+			PublicDefinitions.Add("NNEEDITORONNXTOOLS_SHAREDLIB_FILENAME=" + SharedLibFileName);
+		}
 
 		PublicDefinitions.Add("UE_NNEEDITORONNXTOOLS");
 	}
