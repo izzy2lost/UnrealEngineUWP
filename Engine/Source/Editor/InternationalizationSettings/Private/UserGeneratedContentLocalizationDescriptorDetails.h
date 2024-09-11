@@ -7,6 +7,8 @@
 
 namespace ESelectInfo { enum Type : int; }
 
+class SComboButton;
+
 class FUserGeneratedContentLocalizationDescriptorDetails : public IPropertyTypeCustomization
 {
 public:
@@ -41,6 +43,8 @@ private:
 	TSharedPtr<IPropertyHandle> NativeCultureHandle;
 
 	TSharedPtr<IPropertyHandle> CulturesToGenerateHandle;
+
+	TSharedPtr<SComboButton> NativeCulture_ComboButton;
 
 	bool CulturesToGenerate_IsInBatchSelectOperation = false;
 };
