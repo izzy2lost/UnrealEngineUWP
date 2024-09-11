@@ -827,8 +827,6 @@ void UpdateWaterInfoRendering2(FSceneView& InView, const FRenderingContext& Cont
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(WaterInfo::UpdateWaterInfoRendering2);
 
-	InView.WaterInfoTextureRenderingParams.Reset();
-
 	if (!IsValid(Context.TextureRenderTarget))
 	{
 		return;
