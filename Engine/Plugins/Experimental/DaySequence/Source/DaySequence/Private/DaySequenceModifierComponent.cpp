@@ -692,6 +692,11 @@ UMovieSceneSubSection* UDaySequenceModifierComponent::InitializeDaySequence(cons
     {
     	return nullptr;
     }
+
+	if (const UWorld* World = GetWorld(); World && World->WorldType != EWorldType::Editor && TargetActor->GetNetMode() == NM_DedicatedServer)
+	{
+		return nullptr;
+	}
 	
 	auto CreateSubTrack = [this, MovieScene](UDaySequence* Sequence, int BiasOffset, bool bActivate, bool bBlendHierarchicalBias)
 	{
