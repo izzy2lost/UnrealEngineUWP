@@ -62,6 +62,11 @@ public:
 
 	FIntPoint GetExtentInTiles() const;
 
+	UE_DEPRECATED(5.5, "It is no longer possible to manually set the dynamic mesh center. This is controlled per view by the water view extension.")
+	void SetDynamicWaterMeshCenter(const FVector2D& NewCenter) { }
+	UE_DEPRECATED(5.5, "Dynamic water mesh center is now per-view and must be retrieved through the water view extension (water zone actor provides utilities to do this as well)")
+	FVector2D GetDynamicWaterMeshCenter() const { return FVector2D::ZeroVector; }
+
 	FVector2D GetGlobalWaterMeshCenter() const;
 
 	bool IsLocalOnlyTessellationEnabled() const;

@@ -56,19 +56,33 @@ public:
 	FBox2D GetZoneBounds2D() const;
 	FBox GetZoneBounds() const;
 
-	void GetDynamicWaterInfoBounds(TArray<FBox>& Bounds) const;
+	/** Retrieves all the per-view bounds for this water zone */
+	void GetAllDynamicWaterInfoBounds(TArray<FBox>& OutBounds) const;
+	/** Retrieves all the per-view centers for this water zone */
+	void GetAllDynamicWaterInfoCenters(TArray<FVector>& OutCenters) const;
 
 	void SetRenderTargetResolution(FIntPoint NewResolution);
 	FIntPoint GetRenderTargetResolution() const { return RenderTargetResolution; }
 
 	uint32 GetVelocityBlurRadius() const { return VelocityBlurRadius; }
 
+	/** Retrieves the dynamic water info center for a specific player index. */
+	FVector GetDynamicWaterInfoCenter(int32 PlayerIndex) const;
+	/** Retrieves the dynamic water info bounds for a specific player index. */
+	FBox GetDynamicWaterInfoBounds(int32 PlayerIndex) const;
+
 	FVector GetDynamicWaterInfoExtent() const;
 
-	// gets the water info center for a specific player view
-	FVector GetDynamicWaterInfoCenter(int32 PlayerIndex);
-
 	bool IsLocalOnlyTessellationEnabled() const { return bEnableLocalOnlyTessellation; }
+
+	UE_DEPRECATED(5.5, "In 5.5 the dynamic water info is now per player view. Either call GetAllDynamicWaterInfoCenters or use the per-player index version")
+	FVector GetDynamicWaterInfoCenter() const;
+
+	UE_DEPRECATED(5.5, "In 5.5 the dynamic water info is now per player view. Either call GetAllDynamicWaterInfoCenters or use the per-player index version")
+	FBox GetDynamicWaterInfoBounds() const;
+
+	UE_DEPRECATED(5.5, "It is no longer possible to manually set the local tessellation center. This is controlled per view by the water view extension.")
+	void SetLocalTessellationCenter(const FVector& NewCenter) {}
 
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -162,9 +176,6 @@ private:
 	/** Called when the Bounds component is modified. Updates the value of ZoneExtent to match the new bounds */
 	void OnBoundsComponentModified();
 #endif // WITH_EDITOR
-
-	/** Mark aspects of the water zone for rebuild based on the Flags parameter within a given region. Optionally the caller can pass in a UObject to identify who requested the update. */
-	void MarkForRebuild(EWaterZoneRebuildFlags Flags, const FBox2D& UpdateRegion, const FBox& WaterInfoBounds, const UObject* DebugRequestingObject = nullptr);
 
 private:
 

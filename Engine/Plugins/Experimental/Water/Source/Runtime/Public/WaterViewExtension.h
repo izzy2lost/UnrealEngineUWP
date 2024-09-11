@@ -36,7 +36,7 @@ public:
 	void AddWaterZone(AWaterZone* InWaterZone);
 	void RemoveWaterZone(AWaterZone* InWaterZone);
 
-	FVector GetZoneLocation(AWaterZone* InWaterZone, int32 PlayerIndex) const;
+	FVector GetZoneLocation(const AWaterZone* InWaterZone, int32 PlayerIndex) const;
 
 	void CreateSceneProxyQuadtrees(FWaterMeshSceneProxy* SceneProxy);
 
