@@ -5,11 +5,20 @@
 #include "../VertexFactoryCommon.ush" // for TransformLocalToTranslatedWorld
 #include "../Nanite/NaniteHZBCull.ush"
 
+// We need to define NUM_THREADS_PER_GROUP before including InstanceCullingSetup as it includes InstanceCullingLoadBalancer.ush which requires declares groupshared uint ItemIndex[NUM_THREADS_PER_GROUP];
+#ifndef NUM_THREADS_PER_GROUP_DEFAULT
+#	define NUM_THREADS_PER_GROUP_DEFAULT 64
+#endif // NUM_THREADS_PER_GROUP_DEFAULT
+
 #ifndef NUM_THREADS_PER_GROUP
-#	define NUM_THREADS_PER_GROUP 64
+#	define NUM_THREADS_PER_GROUP NUM_THREADS_PER_GROUP_DEFAULT
 #endif // NUM_THREADS_PER_GROUP
 
-static const uint GBumpMeToForceRebuild = 2;
+// InstanceCullingSetup.ush pulls some variables that get set by FInstanceProcessingGPULoadBalancer::SetShaderDefines. We only call that when USE_LOAD_BALANCER == 1
+#if USE_LOAD_BALANCER 
+#define LOAD_BALANCER_SINGLE_INSTANCE_MODE 0
+#include "InstanceCullingSetup.ush"
+#endif
 
 #ifndef HZB_DESIRED_FOOTPRINT_PIXELS
 #	define HZB_DESIRED_FOOTPRINT_PIXELS 4
@@ -126,6 +135,23 @@ RWBuffer<uint> OutInstanceIdBuffer;
 // Remap linear visible index to a visible GPUScene instance index
 Buffer<uint> InstanceIdBuffer;
 
+bool LoadInstanceId(uint3 GroupId, uint GroupThreadIndex, uint DispatchThreadId, inout uint InstanceId)
+{
+#if USE_LOAD_BALANCER
+    // No need to properly fetch the final instance id for dynamic primitives since we're going to skip them anyway
+    uint DynamicInstanceIdOffset = 0;
+    uint DynamicInstanceIdMax = 0;
+	FInstanceCullingSetup InstanceCullingSetup = LoadInstanceCullingSetup(GroupId, GroupThreadIndex, DynamicInstanceIdOffset, DynamicInstanceIdMax, 0);
+	InstanceId = InstanceCullingSetup.InstanceId;
+    return InstanceCullingSetup.bValid && !InstanceCullingSetup.bIsDynamic;
+#else
+	const bool bValidInvocation = DispatchThreadId < NumInstances;
+	uint ClampedThreadId = min(DispatchThreadId, NumInstances - 1);
+	InstanceId = InstanceIdBuffer[ClampedThreadId];
+    return bValidInvocation;
+#endif
+}
+
 [numthreads(NUM_THREADS_PER_GROUP, 1, 1)]
 void MainCS(uint3 GroupId : SV_GroupID, uint GroupThreadIndex : SV_GroupIndex, uint DispatchThreadId : SV_DispatchThreadID)
 {
@@ -136,10 +162,8 @@ void MainCS(uint3 GroupId : SV_GroupID, uint GroupThreadIndex : SV_GroupIndex, u
 		GroupNumVisibleInstances = 0;
 	}
 
-	const bool bValidInvocation = DispatchThreadId < NumInstances;
-
-	uint ClampedThreadId = min(DispatchThreadId, NumInstances - 1);
-	uint InstanceId = InstanceIdBuffer[ClampedThreadId];
+    uint InstanceId = 0;
+	const bool bValidInvocation = LoadInstanceId(GroupId, GroupThreadIndex, DispatchThreadId, InstanceId);
 
 	GroupMemoryBarrierWithGroupSync();
 
@@ -272,17 +296,17 @@ void DebugMainVS(
 
 		if (VisibilityStatus == IVS_PossiblyVisible)
 		{
-			OutDebugVisibility = bWasVisibleLastFrame ? 2 : 3;
+			OutDebugVisibility = bWasVisibleLastFrame ? IVS_PossiblyVisible : IVS_Incompatible;
 		}
 		else
 		{
-			OutDebugVisibility = bWasVisibleLastFrame ? 1 : 0;
+			OutDebugVisibility = bWasVisibleLastFrame ? IVS_Visible : IVS_Hidden;
 		}
 	}
 	else
 	{
 		OutPosition = asfloat(0xFFFFFFFF);
-		OutDebugVisibility = 0;
+		OutDebugVisibility = IVS_Hidden;
 	}
 }
 
@@ -293,21 +317,21 @@ void DebugMainPS(
 {
 	switch (DebugVisibility)
 	{
-	case 0:
+	case IVS_Hidden:
 		// Definitely invisible due to HZB test.
 		// No occlusion query performed.
 		OutColor = float4(0.1, 0.0, 0.0, 0.0); // red
 		break;
-	case 1:
+	case IVS_Visible:
 		// Definitely visible due to near plane intersection or other heuristics.
 		// No occlusion query performed.
 		OutColor = float4(0.1, 0.1, 0.0, 0.0); // yellow
 		break;
-	case 2:
+	case IVS_PossiblyVisible:
 		// Visible due to occlusion query.
 		OutColor = float4(0.0, 0.025, 0.0, 0.0); // green
 		break;
-	case 3:
+	case IVS_Incompatible:
 		// Invisible due to occlusion query.
 		OutColor = float4(0.25, 0.0, 0.25, 0.0); // magenta
 		break;

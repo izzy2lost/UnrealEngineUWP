@@ -6,6 +6,7 @@
 #include "Containers/ResourceArray.h"
 #include "GPUScene.h"
 #include "GlobalShader.h"
+#include "InstanceCulling/InstanceCullingManager.h"
 #include "RHIAccess.h"
 #include "RHIFeatureLevel.h"
 #include "RHIGlobals.h"
@@ -28,6 +29,13 @@ static TAutoConsoleVariable<int32> CVarInstanceCullingOcclusionQueries(
 	0,
 	TEXT("EXPERIMENTAL: Use per-instance software occlusion queries to perform less conservative visibility test than what's possible with HZB alone"),
 	ECVF_RenderThreadSafe | ECVF_Preview);
+
+static int32 GInstanceCullingUseLoadBalancer = 1;
+static FAutoConsoleVariableRef CVarInstanceCullingUseLoadBalancer(
+	TEXT("r.InstanceCulling.UseLoadBalancer"),
+	GInstanceCullingUseLoadBalancer,
+	TEXT("Prefer to use UseLoadBalancer"),
+	ECVF_RenderThreadSafe);
 
 struct FInstanceCullingOcclusionQueryDeferredContext;
 
@@ -70,7 +78,8 @@ class FInstanceCullingOcclusionQueryCS : public FGlobalShader
 public:
 
 	class FMultiView : SHADER_PERMUTATION_BOOL("DIM_MULTI_VIEW");
-	using FPermutationDomain = TShaderPermutationDomain<FMultiView>;
+	class FUseLoadBalancerDim : SHADER_PERMUTATION_BOOL("USE_LOAD_BALANCER");
+	using FPermutationDomain = TShaderPermutationDomain<FMultiView, FUseLoadBalancerDim>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -82,9 +91,17 @@ public:
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		const FPermutationDomain PermutationVector(Parameters.PermutationId);
+		
+		// Currently, instance compaction is not supported on mobile platforms
+		if (PermutationVector.Get<FUseLoadBalancerDim>())
+		{
+			FInstanceProcessingGPULoadBalancer::SetShaderDefines(OutEnvironment);
+		}
+
 		OutEnvironment.SetDefine(TEXT("USE_GLOBAL_GPU_SCENE_DATA"), 1);
 		OutEnvironment.SetDefine(TEXT("VF_SUPPORTS_PRIMITIVE_SCENE_DATA"), 1);
-		OutEnvironment.SetDefine(TEXT("NUM_THREADS_PER_GROUP"), NumThreadsPerGroup);
+		OutEnvironment.SetDefine(TEXT("NUM_THREADS_PER_GROUP_DEFAULT"), NumThreadsPerGroup);
 	}
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
@@ -97,6 +114,7 @@ public:
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, GPUScenePrimitiveSceneData)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint32>, InstanceIdBuffer)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FInstanceProcessingGPULoadBalancer::FShaderParameters, LoadBalancerParameters)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HZBTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState, HZBSampler)
 		SHADER_PARAMETER(FVector2f, HZBSize)
@@ -285,10 +303,11 @@ static void RenderInstanceOcclusionCulling(
 */
 struct FInstanceCullingOcclusionQueryDeferredContext
 {
-	FInstanceCullingOcclusionQueryDeferredContext(const FViewInfo* InView, int32 InNumGPUSceneInstances, EMeshPass::Type InMeshPass)
+	FInstanceCullingOcclusionQueryDeferredContext(const FViewInfo* InView, int32 InNumGPUSceneInstances, EMeshPass::Type InMeshPass, FInstanceCullingContext* InInstanceCullingContext)
 		: View(InView)
 		, NumGPUSceneInstances(InNumGPUSceneInstances)
 		, MeshPass(InMeshPass)
+		, InstanceCullingContext(InInstanceCullingContext)
 	{
 	}
 
@@ -341,6 +360,28 @@ struct FInstanceCullingOcclusionQueryDeferredContext
 		// Execute() is expected to run late enough to not stall here.
 		// If it does happen, then we may have to move the render pass to later point in the frame.
 		MeshDrawCommandPass.WaitForSetupTask(); 
+
+		if (InstanceCullingContext != nullptr)
+		{
+			InstanceProcessingGPULoadBalancer = InstanceCullingContext->LoadBalancers[int(EBatchProcessingMode::Generic)];
+			bValid = (InstanceProcessingGPULoadBalancer != nullptr);
+			static FInstanceProcessingGPULoadBalancer Dummy;
+			// Always provide a load balancer so that CreateLoadBalancerGPUDataDeferred doesn't crash. bValid=false will skip the dispatch
+			if (!bValid)
+			{
+				InstanceProcessingGPULoadBalancer = &Dummy;
+			}
+
+			// in case something goes wrong: we will skip the compute since bValid won't be true and we will fill up the data from VisibleInstanceIds
+			AlignedNumInstances = FInstanceCullingOcclusionQueryCS::NumThreadsPerGroup;
+			VisibleInstanceIds.SetNumZeroed(AlignedNumInstances);
+			InstanceProcessingGPULoadBalancer->FinalizeBatches();
+			FIntVector LoadBalancerNumThreadGroups = InstanceProcessingGPULoadBalancer->GetWrappedCsGroupCount();
+			// Needed to allocate the buffer holding the instance ids after the culling pass, see DeferredAlignedNumInstancesOutputCulling
+			AlignedNumInstances = LoadBalancerNumThreadGroups.X * LoadBalancerNumThreadGroups.Y * LoadBalancerNumThreadGroups.Z * FInstanceCullingOcclusionQueryCS::NumThreadsPerGroup;
+			
+			return;
+		}
 
 		const FMeshCommandOneFrameArray& VisibleMeshDrawCommands = MeshDrawCommandPass.GetMeshDrawCommands();
 
@@ -440,13 +481,22 @@ struct FInstanceCullingOcclusionQueryDeferredContext
 		check(ResultCursor == ResultData + AlignedNumInstances);
 	}
 
-	FRDGBufferNumElementsCallback DeferredAlignedNumInstances()
+	FRDGBufferNumElementsCallback DeferredAlignedNumInstancesOutputCulling()
 	{
 		return [Context = this]() -> uint32
-			{
-				Context->Execute();
-				return Context->AlignedNumInstances;
-			};
+		{
+			Context->Execute();
+			return Context->AlignedNumInstances;
+		};
+	}
+
+	FRDGBufferNumElementsCallback DeferredNumInstanceIdData()
+	{
+		return [Context = this]() -> uint32
+		{
+			Context->Execute();
+			return Context->VisibleInstanceIds.Num();
+		};
 	}
 
 	FRDGBufferInitialDataCallback DeferredInstanceIdData()
@@ -476,12 +526,33 @@ struct FInstanceCullingOcclusionQueryDeferredContext
 	const FViewInfo* View = nullptr;
 	int32 NumGPUSceneInstances = 0;
 	EMeshPass::Type MeshPass = EMeshPass::Num;
+	FInstanceCullingContext* InstanceCullingContext = nullptr;
+	FInstanceProcessingGPULoadBalancer* InstanceProcessingGPULoadBalancer = nullptr;
 	int32 NumInstances = 0;
 	int32 AlignedNumInstances = 0;
 	FIntVector NumThreadGroups = FIntVector::ZeroValue;
 
 	TArray<uint32> VisibleInstanceIds;
 };
+
+static void CreateLoadBalancerGPUDataDeferred(FRDGBuilder& GraphBuilder, FInstanceCullingOcclusionQueryCS::FParameters* PassParameters, FInstanceCullingOcclusionQueryDeferredContext* DeferredContext)
+{
+	PassParameters->LoadBalancerParameters.BatchBuffer = GraphBuilder.CreateSRV(
+		CreateStructuredBuffer(GraphBuilder, TEXT("InstanceCullingLoadBalancer.Batches"), [DeferredContext]() 
+			-> const TArray<FInstanceCullingLoadBalancerBase::FPackedBatch>& 
+			{ 
+				DeferredContext->Execute(); 
+				return DeferredContext->InstanceProcessingGPULoadBalancer->GetBatches(); 
+			}));
+
+	PassParameters->LoadBalancerParameters.ItemBuffer = GraphBuilder.CreateSRV(
+		CreateStructuredBuffer(GraphBuilder, TEXT("InstanceCullingLoadBalancer.Items"), [DeferredContext]() 
+			-> const TArray<FInstanceCullingLoadBalancerBase::FPackedItem>& 
+			{ 
+				DeferredContext->Execute(); 
+				return DeferredContext->InstanceProcessingGPULoadBalancer->GetItems(); 
+			}));
+}
 
 uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 	FRDGBuilder& GraphBuilder,
@@ -508,7 +579,17 @@ uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 
 	const int32 NumGPUSceneInstances = GPUScene.GetNumInstances();
 
-	FInstanceCullingOcclusionQueryDeferredContext* DeferredContext = GraphBuilder.AllocObject<FInstanceCullingOcclusionQueryDeferredContext>(&View, NumGPUSceneInstances, EMeshPass::BasePass);
+	FInstanceCullingContext* InstanceCullingContext = nullptr;
+	if (GInstanceCullingUseLoadBalancer > 0)
+	{
+		FParallelMeshDrawCommandPass& MeshDrawCommandPass = View.ParallelMeshDrawCommandPasses[EMeshPass::BasePass];
+
+		// At this point in time, we don't have the guarantee that MeshDrawCommandPass is done. Only access stable members, not batches/items/mdcs
+		InstanceCullingContext = MeshDrawCommandPass.GetInstanceCullingContext();
+	}
+
+	FInstanceCullingOcclusionQueryDeferredContext* DeferredContext = GraphBuilder.AllocObject<FInstanceCullingOcclusionQueryDeferredContext>(&View, NumGPUSceneInstances, 
+		EMeshPass::BasePass, InstanceCullingContext);
 
 	FRDGTextureRef DepthTexture = View.GetSceneTextures().Depth.Target;
 	FRDGTextureRef HZBTexture = View.HZB;
@@ -556,14 +637,23 @@ uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 	FRDGBufferUAVRef IndirectArgsUAV = GraphBuilder.CreateUAV(IndirectArgsBuffer, PF_R32_UINT);
 
 	// Buffer of GPUScene instance indices to run occlusion queries for (input for setup CS)
-	FRDGBufferRef SetupInstanceIdBuffer = GraphBuilder.CreateBuffer(
-		FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), 1 /*real size is provided via callback later*/),
-		TEXT("FInstanceCullingOcclusionQueryRenderer_SetupInstanceIdBuffer"), 
-		DeferredContext->DeferredAlignedNumInstances());
+	FRDGBufferRef SetupInstanceIdBuffer;
 
-	GraphBuilder.QueueBufferUpload(SetupInstanceIdBuffer,
-		DeferredContext->DeferredInstanceIdData(),
-		DeferredContext->DeferredInstanceIdDataSize());
+	// When using the GPU load balancer, the upload of the data holding instance ids happens below with InstanceProcessingGPULoadBalancer->Upload
+	if (InstanceCullingContext == nullptr)
+	{
+		SetupInstanceIdBuffer = GraphBuilder.CreateBuffer(
+			FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), 1 /*real size is provided via callback later*/),
+			TEXT("FInstanceCullingOcclusionQueryRenderer_SetupInstanceIdBuffer"), 
+			DeferredContext->DeferredNumInstanceIdData());
+		GraphBuilder.QueueBufferUpload(SetupInstanceIdBuffer,
+									   DeferredContext->DeferredInstanceIdData(),
+									   DeferredContext->DeferredInstanceIdDataSize());
+	}
+	else
+	{
+		SetupInstanceIdBuffer = GSystemTextures.GetDefaultBuffer(GraphBuilder, 4);
+	}
 
 	FRDGBufferSRVRef SetupInstanceIdBufferSRV = GraphBuilder.CreateSRV(SetupInstanceIdBuffer, PF_R32_UINT);
 
@@ -571,7 +661,7 @@ uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 	FRDGBufferRef InstanceIdBuffer = GraphBuilder.CreateBuffer(
 		FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), 1 /*real size is provided via callback later*/),
 		TEXT("FInstanceCullingOcclusionQueryRenderer_InstanceIdBuffer"),
-		DeferredContext->DeferredAlignedNumInstances());
+		DeferredContext->DeferredAlignedNumInstancesOutputCulling());
 
 	FRDGBufferUAVRef InstanceIdUAV = GraphBuilder.CreateUAV(InstanceIdBuffer, PF_R32_UINT);
 	FRDGBufferSRVRef InstanceIdSRV = GraphBuilder.CreateSRV(InstanceIdBuffer, PF_R32_UINT);
@@ -581,6 +671,14 @@ uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 	// Compute pass to perform initial per-instance filtering and prepare instance list for per-pixel occlusion tests
 	{
 		FInstanceCullingOcclusionQueryCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FInstanceCullingOcclusionQueryCS::FParameters>();
+
+		// FInstanceGPULoadBalancer uses the SceneRenderingAllocator which should keep data alive until the graphbuilder execution
+		bool bUseGPULoadBalancer = false;
+		if (InstanceCullingContext != nullptr)
+		{
+			CreateLoadBalancerGPUDataDeferred(GraphBuilder, PassParameters, DeferredContext);
+			bUseGPULoadBalancer = true;
+		}
 
 		PassParameters->OutIndirectArgsBuffer = IndirectArgsUAV;
 		PassParameters->OutInstanceIdBuffer = InstanceIdUAV;
@@ -601,6 +699,7 @@ uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 
 		FInstanceCullingOcclusionQueryCS::FPermutationDomain CSPermutationVector;
 		CSPermutationVector.Set<FInstanceCullingOcclusionQueryCS::FMultiView>(bMultiView);
+		CSPermutationVector.Set<FInstanceCullingOcclusionQueryCS::FUseLoadBalancerDim>(bUseGPULoadBalancer);
 		TShaderMapRef<FInstanceCullingOcclusionQueryCS> ComputeShader(View.ShaderMap, CSPermutationVector);
 
 		ClearUnusedGraphResources(ComputeShader, PassParameters);
@@ -618,11 +717,20 @@ uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 
 			PassParameters->NumInstances = DeferredContext->NumInstances;
 
+			FIntVector CullingNumThreadGroups(DeferredContext->NumThreadGroups);
+			FInstanceProcessingGPULoadBalancer* DeferredContextInstanceProcessingGPULoadBalancer = DeferredContext->InstanceProcessingGPULoadBalancer;
+			if (DeferredContextInstanceProcessingGPULoadBalancer)
+			{
+				PassParameters->LoadBalancerParameters.NumBatches = DeferredContextInstanceProcessingGPULoadBalancer->GetBatches().Num();
+				PassParameters->LoadBalancerParameters.NumItems = DeferredContextInstanceProcessingGPULoadBalancer->GetItems().Num();
+				CullingNumThreadGroups = DeferredContextInstanceProcessingGPULoadBalancer->GetWrappedCsGroupCount();
+			}
+
 			FComputeShaderUtils::Dispatch(
 				RHICmdList,
 				ComputeShader,
 				*PassParameters,
-				DeferredContext->NumThreadGroups);
+				CullingNumThreadGroups);
 		});
 	}
 
