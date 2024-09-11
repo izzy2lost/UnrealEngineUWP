@@ -467,6 +467,8 @@ void FMallocBinned2::OnMallocInitialized()
 #if UE_USE_VERYLARGEPAGEALLOCATOR
 	FCoreDelegates::GetLowLevelAllocatorMemoryTrimDelegate().AddLambda([this]()
 		{
+			FCoreDelegates::GetMemoryTrimDelegate().Broadcast();
+
 			FScopeLock Lock(&ExternalAllocMutex);
 			CachedOSPageAllocator.FreeAll(&ExternalAllocMutex);
 		}
