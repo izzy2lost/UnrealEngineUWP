@@ -588,7 +588,10 @@ protected:
 		/** Handler to create a right click menu */
 		TSharedRef<SWidget> GetRightClickMenuContent()
 		{
-			FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/true, NULL);
+			constexpr bool bShouldCloseWindowAfterMenuSelection = true;
+			// CloseSelfOnly in case the FilterBar is part of another menu
+			constexpr bool bCloseSelfOnly = true;
+			FMenuBuilder MenuBuilder(bShouldCloseWindowAfterMenuSelection, nullptr, {}, bCloseSelfOnly);
 
 			MenuBuilder.BeginSection("FilterOptions", LOCTEXT("FilterContextHeading", "Filter Options"));
 			{

@@ -272,8 +272,9 @@ public:
 	 * @param	InExtensionHook			The section hook. Can be NAME_None
 	 * @param	UserInterfaceActionType	Type of interface action
 	 * @param	InTutorialHighlightName	Optional name to identify this widget and highlight during tutorials
+	 * @param	InInputBindingOverride  Optional overridden input binding text for this menu entry.  If not set, then the UI action's binding will be used if available.
 	 */
-	SLATE_API void AddMenuEntry( const TAttribute<FText>& InLabel, const TAttribute<FText>& InToolTip, const FSlateIcon& InIcon, const FUIAction& UIAction, FName InExtensionHook = NAME_None, const EUserInterfaceActionType UserInterfaceActionType = EUserInterfaceActionType::Button, FName InTutorialHighlightName = NAME_None );
+	SLATE_API void AddMenuEntry( const TAttribute<FText>& InLabel, const TAttribute<FText>& InToolTip, const FSlateIcon& InIcon, const FUIAction& UIAction, FName InExtensionHook = NAME_None, const EUserInterfaceActionType UserInterfaceActionType = EUserInterfaceActionType::Button, FName InTutorialHighlightName = NAME_None, const TAttribute<FText>& InInputBindingOverride = TAttribute<FText>());
 	
 	/**
 	 * Adds a menu entry with a custom widget
