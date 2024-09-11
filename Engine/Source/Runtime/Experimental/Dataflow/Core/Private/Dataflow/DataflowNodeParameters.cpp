@@ -47,6 +47,25 @@ namespace Dataflow
 #endif
 	}
 
+	bool FContext::IsCacheEntryAfterTimestamp(FContextCacheKey InKey, const FTimestamp InTimestamp)
+	{
+		if (HasData(InKey))
+		{
+			if (TUniquePtr<FContextCacheElementBase>* CacheEntry = GetDataImpl(InKey))
+			{
+				if (*CacheEntry)
+				{
+					if ((*CacheEntry)->GetTimestamp() >= InTimestamp)
+					{
+						return true;
+					}
+				}
+			}
+		}
+
+		return false;
+	}
+
 	FContextScopedCallstack::FContextScopedCallstack(FContext& InContext, const FDataflowConnection* InConnection)
 		: Context(InContext)
 		, Connection(InConnection)

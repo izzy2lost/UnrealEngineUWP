@@ -1067,6 +1067,11 @@ void FDataflowEditorToolkit::OnConstructionViewSelectionChanged(const TArray<UPr
 	}
 }
 
+void FDataflowEditorToolkit::OnFinishEvaluate()
+{
+	// Refresh graph display to update node output pin display (invalid or valid)
+	GraphEditor->NotifyGraphChanged();
+}
 
 void FDataflowEditorToolkit::Tick(float DeltaTime)
 {
@@ -1167,6 +1172,11 @@ TSharedRef<SDataflowGraphEditor> FDataflowEditorToolkit::CreateGraphEditorWidget
 
 				EditorContent->SetLastModifiedTimestamp(LastNodeTimestamp);
 			}
+
+			//
+			// Graph evaluation done
+			//
+			OnFinishEvaluate();
 		};
 	
 	DataflowEditor->UpdateTerminalContents(Dataflow::FTimestamp::Invalid);

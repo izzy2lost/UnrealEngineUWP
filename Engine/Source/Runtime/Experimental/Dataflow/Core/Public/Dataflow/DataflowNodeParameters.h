@@ -270,6 +270,7 @@ namespace Dataflow
 		DATAFLOWCORE_API void PopFromCallstack(const FDataflowConnection* Connection);
 		DATAFLOWCORE_API bool IsInCallstack(const FDataflowConnection* Connection) const;
 
+		DATAFLOWCORE_API bool IsCacheEntryAfterTimestamp(FContextCacheKey InKey, const FTimestamp InTimestamp);
 
 	private:
 #if DATAFLOW_EDITOR_EVALUATION
