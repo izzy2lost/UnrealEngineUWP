@@ -711,7 +711,7 @@ void UWeightToolTransferManager::InitialSetup(USkinWeightsPaintTool* InWeightToo
 	WeightTool = InWeightTool;
 
 	// always reset back to target selection
-	GetToolProperties()->MeshSelectMode = EMeshTransferOption::Target;
+	WeightTool->GetWeightToolProperties()->MeshSelectMode = EMeshTransferOption::Target;
 
 	// create the mesh selector and run initial setup
 	// NOTE: currently this must happen inside the Setup of a UInteractiveTool so that input is routed to the selection mechanic
@@ -724,7 +724,7 @@ void UWeightToolTransferManager::SetSourceMesh(USkeletalMesh* InSkeletalMesh)
 {
 	SourceSkeletalMesh = InSkeletalMesh;
 
-	USkinWeightsPaintToolProperties* ToolProperties = GetToolProperties();
+	USkinWeightsPaintToolProperties* ToolProperties = WeightTool->GetWeightToolProperties();
 	
 	// reset to prepare for new mesh (or possibly no mesh)
 	{
@@ -783,7 +783,7 @@ void UWeightToolTransferManager::SetSourceMesh(USkeletalMesh* InSkeletalMesh)
 		Location.X -= TargetBounds.GetBoxExtrema(1).X;
 		Location.X -= 1.1 * SourceBounds.GetBoxExtrema(1).X;
 		Transform.SetLocation(Location);
-		GetToolProperties()->SourcePreviewOffset = Transform;
+		WeightTool->GetWeightToolProperties()->SourcePreviewOffset = Transform;
 		SourcePreviewMesh->SetTransform(Transform);
 	}
 
@@ -809,7 +809,7 @@ void UWeightToolTransferManager::SetSourceMesh(USkeletalMesh* InSkeletalMesh)
 
 void UWeightToolTransferManager::UpdateSelectionAndVisibility() const
 {
-	const USkinWeightsPaintToolProperties* ToolProperties = GetToolProperties();
+	const USkinWeightsPaintToolProperties* ToolProperties = WeightTool->GetWeightToolProperties();
 	const bool bHasSourceMesh = GetPreviewMesh() != nullptr;
 	const bool bWasSetToSelectSource = ToolProperties->MeshSelectMode == EMeshTransferOption::Source;
 	const bool bEnableSourceMeshSelector = bWasSetToSelectSource && bHasSourceMesh;
@@ -865,7 +865,7 @@ void UWeightToolTransferManager::TransferWeights()
 		return;
 	}
 
-	USkinWeightsPaintToolProperties* ToolProperties = GetToolProperties();
+	USkinWeightsPaintToolProperties* ToolProperties = WeightTool->GetWeightToolProperties();
 
 	const USkeletalMesh* TargetSkeletalMesh = GetSkeletalMeshComponent(WeightTool->GetTarget())->GetSkeletalMeshAsset();
 	const bool bSameMesh = SourceSkeletalMesh == TargetSkeletalMesh;
@@ -902,7 +902,7 @@ void UWeightToolTransferManager::TransferWeightsFromOtherMesh()
 		return;
 	}
 
-	USkinWeightsPaintToolProperties* ToolProperties = GetToolProperties();
+	USkinWeightsPaintToolProperties* ToolProperties = WeightTool->GetWeightToolProperties();
 
 	// get LOD IDs
 	const EMeshLODIdentifier TargetLODId = GetLODId(ToolProperties->ActiveLOD);
@@ -1029,7 +1029,7 @@ void UWeightToolTransferManager::TransferWeightsFromSameMeshAndLOD()
 	using UE::Geometry::FDynamicMeshVertexSkinWeightsAttribute;
 	using UE::AnimationCore::FBoneWeights;
 	
-	const USkinWeightsPaintToolProperties* ToolProperties = GetToolProperties();
+	const USkinWeightsPaintToolProperties* ToolProperties = WeightTool->GetWeightToolProperties();
 	
 	// get target dynamic mesh
 	const EMeshLODIdentifier TargetLODId = GetLODId(ToolProperties->ActiveLOD);
@@ -1176,21 +1176,6 @@ void UWeightToolTransferManager::ApplyTranferredWeightsAsTransaction(
 	// notify user that weights were transferred.
 	const FText NotificationText = LOCTEXT("WeightsTransferred", "Skin weights transferred.");
 	ShowEditorMessage(ELogVerbosity::Log, NotificationText);
-}
-
-USkinWeightsPaintToolProperties* UWeightToolTransferManager::GetToolProperties() const
-{
-	TArray<UObject*> AllToolProperties = WeightTool->GetToolProperties(false/*bEnabledOnly*/);
-
-	for (UObject* PropertyObject : AllToolProperties)
-	{
-		if (PropertyObject->IsA(USkinWeightsPaintToolProperties::StaticClass()))
-		{
-			return CastChecked<USkinWeightsPaintToolProperties>(PropertyObject);
-		}
-	}
-
-	return nullptr;
 }
 
 FName USkinWeightsPaintToolProperties::GetActiveSkinWeightProfile() const
@@ -2184,6 +2169,10 @@ void USkinWeightsPaintTool::Setup()
 	TransferManager = NewObject<UWeightToolTransferManager>();
 	TransferManager->InitialSetup(this, GetViewportClient());
 
+	// create the isolated selection manager
+	SelectionIsolator = NewObject<UWeightToolSelectionIsolator>();
+	SelectionIsolator->InitialSetup(this);
+
 	// setup selection for the main mesh
 	MeshSelector = NewObject<UWeightToolMeshSelector>(this);
 	auto OnSelectionChangedLambda = [this](){OnSelectionChanged.Broadcast();};
@@ -2191,7 +2180,7 @@ void USkinWeightsPaintTool::Setup()
 	UpdateComponentSelectionMode();
 
 	// run all initialization for mesh/weights
-	PostEditMeshInitialization(Component, *PreviewMesh->GetMesh(), *EditedMesh);
+	UpdateCurrentlyEditedMesh(Component, *PreviewMesh->GetMesh(), *EditedMesh);
 
 	// bind the skeletal mesh editor context
 	if (EditorContext.IsValid())
@@ -2401,10 +2390,9 @@ FInputRayHit USkinWeightsPaintTool::CanBeginClickDragSequence(const FInputDevice
 
 void USkinWeightsPaintTool::OnTick(float DeltaTime)
 {
-	if (bPendingUpdateFromPartialMesh)
+	if (SelectionIsolator)
 	{
-		FinishIsolatedSelection();
-		bPendingUpdateFromPartialMesh = false;
+		SelectionIsolator->OnTick(DeltaTime);
 	}
 	
 	if (bStampPending)
@@ -2435,7 +2423,7 @@ void USkinWeightsPaintTool::OnTick(float DeltaTime)
 	Weights.Deformer.UpdateVertexDeformation(this, Weights.Deformer.Component->GetComponentSpaceTransforms());
 }
 
-void USkinWeightsPaintTool::PostEditMeshInitialization(
+void USkinWeightsPaintTool::UpdateCurrentlyEditedMesh(
 	const USkeletalMeshComponent* InComponent,
 	const FDynamicMesh3& InDynamicMesh,
 	const FMeshDescription& InMeshDescription)
@@ -2525,6 +2513,29 @@ void USkinWeightsPaintToolProperties::SetBrushMode(EWeightEditOperation InBrushM
 	BrushFalloffAmount = GetBrushConfig().Falloff;
 
 	WeightTool->SetFocusInViewport();
+}
+
+void FIsolateSelectionChange::Apply(UObject* Object)
+{
+	USkinWeightsPaintTool* Tool = Cast<USkinWeightsPaintTool>(Object);
+	if (Tool)
+	{
+		Tool->GetSelectionIsolator()->SetIsolatedTriangles(IsolatedTrianglesAfter);
+	}	
+}
+
+void FIsolateSelectionChange::Revert(UObject* Object)
+{
+	USkinWeightsPaintTool* Tool = Cast<USkinWeightsPaintTool>(Object);
+	if (Tool)
+	{
+		Tool->GetSelectionIsolator()->SetIsolatedTriangles(IsolatedTrianglesBefore);
+	}
+}
+
+FString FIsolateSelectionChange::ToString() const
+{
+	return FToolCommandChange::ToString();
 }
 
 bool USkinWeightsPaintTool::HitTest(const FRay& Ray, FHitResult& OutHit)
@@ -3120,7 +3131,7 @@ void USkinWeightsPaintTool::ApplyWeightEditsWithoutTransaction(const FMultiBoneW
 	// update list of vertices needing updated vertex colors
 	WeightEdits.AddEditedVerticesToSet(VerticesToUpdateColor);
 	// store changes in the transaction buffer, but keep it open
-	auto PartialToFullVertexConverter = [this](int32 InVertexIndex){ return PartialToFullMeshVertexIndex(InVertexIndex); };
+	auto PartialToFullVertexConverter = [this](int32 InVertexIndex){ return GetSelectionIsolator()->PartialToFullMeshVertexIndex(InVertexIndex); };
 	ActiveChange->StoreMultipleWeightEdits(WeightEdits, PartialToFullVertexConverter);
 }
 
@@ -3162,7 +3173,10 @@ void USkinWeightsPaintTool::SetFocusInViewport() const
 void USkinWeightsPaintTool::OnShutdown(EToolShutdownType ShutdownType)
 {
 	// shutdown must be performed on full mesh, so end isolated selection
-	FinishIsolatedSelection();
+	if (SelectionIsolator)
+	{
+		SelectionIsolator->RestoreFullMesh();
+	}
 	
 	// save tool properties
 	WeightToolProperties->SaveProperties(this);
@@ -3227,6 +3241,11 @@ FEditorViewportClient* USkinWeightsPaintTool::GetViewportClient() const
 	return ViewportClient;
 }
 
+USkinWeightsPaintToolProperties* USkinWeightsPaintTool::GetWeightToolProperties() const
+{
+	return WeightToolProperties;
+}
+
 void USkinWeightsPaintTool::BeginChange()
 {
 	const EMeshLODIdentifier LOD = GetLODId(WeightToolProperties->ActiveLOD);
@@ -3254,7 +3273,7 @@ void USkinWeightsPaintTool::ExternalUpdateWeights(const int32 BoneIndex, const T
 	{
 		// weights are always stored in transactions as full mesh indices
 		// if we are in an isolated selection, we must convert them to the partial mesh for them to be applied
-		const int32 VertexID = FullToPartialMeshVertexIndex(Pair.Key);
+		const int32 VertexID = SelectionIsolator->FullToPartialMeshVertexIndex(Pair.Key);
 		const float Weight = Pair.Value;
 		Weights.SetWeightOfBoneOnVertex(BoneIndex, VertexID, Weight, Weights.CurrentWeights);
 		Weights.SetWeightOfBoneOnVertex(BoneIndex, VertexID, Weight, Weights.PreChangeWeights);
@@ -4118,9 +4137,9 @@ void USkinWeightsPaintTool::OnActiveLODChanged()
 		return;
 	}
 
-	if (IsSelectionIsolated())
+	if (SelectionIsolator->IsSelectionIsolated())
 	{
-		FinishIsolatedSelection();
+		SelectionIsolator->RestoreFullMesh();
 	}
 
 	// apply previous changes
@@ -4138,7 +4157,7 @@ void USkinWeightsPaintTool::OnActiveLODChanged()
 
 	// reinitialize all mesh data structures
 	const FDynamicMesh3 DynamicMesh = UE::ToolTarget::GetDynamicMeshCopy(Target, Params);
-	PostEditMeshInitialization(Component, DynamicMesh, *EditedMesh);
+	UpdateCurrentlyEditedMesh(Component, DynamicMesh, *EditedMesh);
 }
 
 void USkinWeightsPaintTool::OnActiveSkinWeightProfileChanged()
@@ -4151,9 +4170,9 @@ void USkinWeightsPaintTool::OnActiveSkinWeightProfileChanged()
 
 	WeightToolProperties->bShowNewProfileName = WeightToolProperties->ActiveSkinWeightProfile == CreateNewName();
 
-	if (IsSelectionIsolated())
+	if (SelectionIsolator->IsSelectionIsolated())
 	{
-		FinishIsolatedSelection();
+		SelectionIsolator->RestoreFullMesh();
 	}
 
 	if (WeightToolProperties->bShowNewProfileName)
@@ -4276,6 +4295,226 @@ UWeightToolMeshSelector* USkinWeightsPaintTool::GetActiveMeshSelector()
 	return MeshSelector;
 }
 
+void UWeightToolSelectionIsolator::InitialSetup(USkinWeightsPaintTool* InTool)
+{
+	WeightTool = InTool;
+}
+
+void UWeightToolSelectionIsolator::OnTick(float DeltaTime)
+{
+	if (bRestoreFullMeshOnNextTick)
+	{
+		// this is queued to run on Tick() because modifying the mesh from other threads can cause the tool's Render() to be out of sync
+		RestoreFullMesh();
+		bRestoreFullMeshOnNextTick = false;
+	}
+}
+
+bool UWeightToolSelectionIsolator::IsSelectionIsolated() const
+{
+	return PartialMeshDescription.IsValid();
+}
+
+void UWeightToolSelectionIsolator::IsolateSelectionAsTransaction()
+{
+	const FText& TransactionLabel = LOCTEXT("IsolateSelectTransaction", "Isolate Selection");
+
+	TUniquePtr<FIsolateSelectionChange> ActiveChange = MakeUnique<FIsolateSelectionChange>();
+	ActiveChange->IsolatedTrianglesBefore = GetIsolatedTriangles();
+	WeightTool->GetMainMeshSelector()->GetSelectedTriangles(ActiveChange->IsolatedTrianglesAfter);
+
+	SetIsolatedTriangles(ActiveChange->IsolatedTrianglesAfter);
+	
+	UInteractiveToolManager* ToolManager = WeightTool->GetToolManager();
+	ToolManager->BeginUndoTransaction(TransactionLabel);
+	ToolManager->EmitObjectChange(WeightTool, MoveTemp(ActiveChange), TransactionLabel);
+	ToolManager->EndUndoTransaction();
+}
+
+void UWeightToolSelectionIsolator::UnIsolateSelectionAsTransaction()
+{
+	const FText& TransactionLabel =  LOCTEXT("ShowAllTransaction", "Show All");
+
+	TUniquePtr<FIsolateSelectionChange> ActiveChange = MakeUnique<FIsolateSelectionChange>();
+	ActiveChange->IsolatedTrianglesBefore = GetIsolatedTriangles();
+	ActiveChange->IsolatedTrianglesAfter = {};
+
+	SetIsolatedTriangles(ActiveChange->IsolatedTrianglesAfter);
+	
+	UInteractiveToolManager* ToolManager = WeightTool->GetToolManager();
+	ToolManager->BeginUndoTransaction(TransactionLabel);
+	ToolManager->EmitObjectChange(WeightTool, MoveTemp(ActiveChange), TransactionLabel);
+	ToolManager->EndUndoTransaction();
+}
+
+void UWeightToolSelectionIsolator::SetIsolatedTriangles(const TArray<int32>& TrianglesToIsolate)
+{
+	// if we are turning off an isolated selection, we must queue the Tick() to update the full mesh
+	if (TrianglesToIsolate.IsEmpty() && PartialMeshDescription.IsValid())
+	{
+		bRestoreFullMeshOnNextTick = true;
+		return;
+	}
+	
+	if (PartialMeshDescription.IsValid())
+	{
+		// should be reset to null
+		// NOTE: we do not support isolating the selection twice in a row
+		// ie. you must isolate the selection, then un-isolate it before isolating it again
+		ensure(false); 
+		return;
+	}
+	
+	UPolygonSelectionMechanic* SelectionMechanic = WeightTool->GetMainMeshSelector()->GetSelectionMechanic();
+	if (!ensure(SelectionMechanic))
+	{
+		return;
+	}
+
+	const USkeletalMeshComponent* SkeletalMeshComponent = GetSkeletalMeshComponent(WeightTool->GetTarget());
+	if (!ensure(SkeletalMeshComponent))
+	{
+		return;
+	}
+
+	const FMeshDescription* EditedMesh = WeightTool->GetCurrentlyEditedMeshDescription();
+	if (!ensure(EditedMesh))
+	{
+		return;
+	}
+
+	// record the triangles we are isolating
+	CurrentlyIsolatedTriangles = TrianglesToIsolate;
+
+	// get the weights
+	FSkinToolWeights& Weights = WeightTool->GetWeights();
+
+	// apply previous changes
+	Weights.ApplyCurrentWeightsToMeshDescription(WeightTool->GetCurrentlyEditedMeshDescription());
+	
+	// put into ref pose, BEFORE copying the mesh, so that submesh deformer initializes with vertices in ref pose
+	Weights.Deformer.SetToRefPose(WeightTool);
+
+	// store selection to be restored
+	IsolatedSelectionToRestoreVertices.Reset();
+	IsolatedSelectionToRestoreEdges.Reset();
+	IsolatedSelectionToRestoreFaces.Reset();
+	IsolatedSelectionToRestoreVertices.ElementType = UE::Geometry::EGeometryElementType::Vertex;
+	IsolatedSelectionToRestoreEdges.ElementType = UE::Geometry::EGeometryElementType::Edge;
+	IsolatedSelectionToRestoreFaces.ElementType = UE::Geometry::EGeometryElementType::Face;
+	SelectionMechanic->GetSelection_AsTriangleTopology(IsolatedSelectionToRestoreVertices);
+	SelectionMechanic->GetSelection_AsTriangleTopology(IsolatedSelectionToRestoreEdges);
+	SelectionMechanic->GetSelection_AsTriangleTopology(IsolatedSelectionToRestoreFaces);
+
+	// store copy of original FDynamicMesh to restore
+	FDynamicMesh3 DynamicMesh;
+	FMeshDescriptionToDynamicMesh Converter;
+	Converter.Convert(EditedMesh, DynamicMesh);
+	FullDynamicMesh = MoveTemp(DynamicMesh);
+
+	// create a submesh from the given triangles
+	PartialSubMesh = UE::Geometry::FDynamicSubmesh3(&FullDynamicMesh, TrianglesToIsolate);
+
+	// create mesh description for sub-mesh
+	PartialMeshDescription = MakeShared<FMeshDescription>();
+	// registering skeletal mesh attributes is required to create room to copy attributes during conversion from dynamic mesh
+	FSkeletalMeshAttributes Attributes(*PartialMeshDescription);
+	Attributes.Register();
+	// convert the partial dynamic mesh to a mesh description
+	// NOTE: this copies vertex weights to partial mesh description (later used to load weights into the tool)
+	FDynamicMeshToMeshDescription DnyToDescConverter;
+	constexpr bool bCopyTangents = true;
+	DnyToDescConverter.Convert(&PartialSubMesh.GetSubmesh(), *PartialMeshDescription, bCopyTangents);
+	
+	// reinitialize all mesh data structures
+	WeightTool->UpdateCurrentlyEditedMesh(SkeletalMeshComponent, PartialSubMesh.GetSubmesh(), *PartialMeshDescription.Get());
+}
+
+void UWeightToolSelectionIsolator::RestoreFullMesh()
+{
+	const USkeletalMeshComponent* SkeletalMeshComponent = GetSkeletalMeshComponent(WeightTool->GetTarget());
+	if (!SkeletalMeshComponent)
+	{
+		// this can happen at shutdown
+		return;
+	}
+
+	if (!PartialMeshDescription)
+	{
+		// nothing hidden
+		return;
+	}
+
+	FSkinToolWeights& Weights = WeightTool->GetWeights();
+
+	// apply partial mesh weights to partial mesh description
+	Weights.ApplyCurrentWeightsToMeshDescription(PartialMeshDescription.Get());
+
+	// reinitialize with full mesh
+	FMeshDescription* CurrentlyEditedMesh = WeightTool->GetCurrentlyEditedMeshDescription();
+	WeightTool->UpdateCurrentlyEditedMesh(SkeletalMeshComponent, FullDynamicMesh, *CurrentlyEditedMesh);
+
+	// copy the remapped weights back to the full mesh
+	const FSkeletalMeshConstAttributes MeshAttribs(*PartialMeshDescription.Get());
+	const FName ActiveProfile = WeightTool->GetWeightToolProperties()->GetActiveSkinWeightProfile();
+	const FSkinWeightsVertexAttributesConstRef AllVertexWeights = MeshAttribs.GetVertexSkinWeights(ActiveProfile);
+	const int32 NumVerticesInPartialMesh = PartialMeshDescription.Get()->Vertices().Num();
+	for (int32 VertexIndexPartial = 0; VertexIndexPartial < NumVerticesInPartialMesh; VertexIndexPartial++)
+	{
+		// get the equivalent vertex on the full mesh
+		const int32 VertexIndexFull = PartialSubMesh.MapVertexToBaseMesh(VertexIndexPartial);
+		// clear all the weights on this vertex
+		Weights.CurrentWeights[VertexIndexFull].Reset();
+		// replace with weights from partial mesh
+		const FVertexBoneWeightsConst& VertexWeightsPartial = AllVertexWeights.Get(VertexIndexPartial);
+		for (const UE::AnimationCore::FBoneWeight& SingleBoneWeight : VertexWeightsPartial)
+		{
+			const FBoneIndexType BoneID = SingleBoneWeight.GetBoneIndex();
+			const float Weight = SingleBoneWeight.GetWeight();
+			const FVector& RefPoseVertexPosition = Weights.Deformer.RefPoseVertexPositions[VertexIndexFull];
+			const FTransform& InvRefPoseBoneTransform = Weights.Deformer.InvCSRefPoseTransforms[BoneID];
+			const FVector VertexInBoneSpace = InvRefPoseBoneTransform.TransformPosition(RefPoseVertexPosition);
+			// store the new influence on this vertex
+			Weights.CurrentWeights[VertexIndexFull].Emplace(BoneID, VertexInBoneSpace, Weight);
+		}
+	}
+	// sync both weight buffers
+	Weights.PreChangeWeights = Weights.CurrentWeights;
+	// apply full mesh weights to full mesh description
+	Weights.ApplyCurrentWeightsToMeshDescription(CurrentlyEditedMesh);
+
+	// restore selection (a convenience for the user that allows for easily adjusting the isolation by going back/forth as needed)
+	if (UPolygonSelectionMechanic* SelectionMechanic = WeightTool->GetMainMeshSelector()->GetSelectionMechanic())
+	{
+		SelectionMechanic->SetSelection_AsTriangleTopology(IsolatedSelectionToRestoreVertices);
+		SelectionMechanic->SetSelection_AsTriangleTopology(IsolatedSelectionToRestoreEdges);
+		SelectionMechanic->SetSelection_AsTriangleTopology(IsolatedSelectionToRestoreFaces);
+	}
+
+	PartialMeshDescription = nullptr;
+	CurrentlyIsolatedTriangles.Reset();
+}
+
+int32 UWeightToolSelectionIsolator::PartialToFullMeshVertexIndex(int32 PartialMeshVertexIndex) const
+{
+	if (!PartialMeshDescription)
+	{
+		return PartialMeshVertexIndex;
+	}
+
+	return PartialSubMesh.MapVertexToBaseMesh(PartialMeshVertexIndex);
+}
+
+int32 UWeightToolSelectionIsolator::FullToPartialMeshVertexIndex(int32 FullMeshVertexIndex) const
+{
+	if (!PartialMeshDescription)
+	{
+		return FullMeshVertexIndex;
+	}
+
+	return PartialSubMesh.MapVertexToSubmesh(FullMeshVertexIndex);
+}
+
 bool USkinWeightsPaintTool::HasActiveSelectionOnMainMesh()
 {
 	const bool bSelectingTargetMesh = WeightToolProperties->MeshSelectMode == EMeshTransferOption::Target;
@@ -4320,7 +4559,7 @@ void USkinWeightsPaintTool::SelectAffected() const
 	else
 	{
 		// REPLACE selection
-		Selection.SelectedCornerIDs.Append(AffectedVertices);
+		Selection.SelectedCornerIDs = MoveTemp(AffectedVertices);
 	}
 	
 	// select vertices
@@ -4328,170 +4567,6 @@ void USkinWeightsPaintTool::SelectAffected() const
 	SelectionMechanic->SetSelection(Selection, bBroadcast);
 	SelectionMechanic->EndChangeAndEmitIfModified();
 	GetToolManager()->EndUndoTransaction();
-}
-
-bool USkinWeightsPaintTool::IsSelectionIsolated() const
-{
-	return PartialMeshDescription.IsValid();
-}
-
-void USkinWeightsPaintTool::SetIsolateSelected(const bool bIsolateSelection)
-{
-	// if we are turning off an isolated selection, we must queue the Tick() to update the full mesh
-	if (!bIsolateSelection && PartialMeshDescription.IsValid())
-	{
-		bPendingUpdateFromPartialMesh = true;
-		return;
-	}
-	
-	if (PartialMeshDescription.IsValid())
-	{
-		ensure(false); // should be reset to null
-		return;
-	}
-	
-	UPolygonSelectionMechanic* SelectionMechanic = MeshSelector->GetSelectionMechanic();
-	if (!ensure(SelectionMechanic))
-	{
-		return;
-	}
-
-	const USkeletalMeshComponent* SkeletalMeshComponent = GetSkeletalMeshComponent(Target);
-	if (!ensure(SkeletalMeshComponent))
-	{
-		return;
-	}
-
-	if (!ensure(EditedMesh))
-	{
-		return;
-	}
-
-	// apply previous changes
-	Weights.ApplyCurrentWeightsToMeshDescription(EditedMesh);
-	
-	// put into ref pose, BEFORE copying the mesh, so that submesh deformer initializes with vertices in ref pose
-	Weights.Deformer.SetToRefPose(this);
-
-	// store selection to be restored
-	IsolatedSelectionToRestoreVertices.Reset();
-	IsolatedSelectionToRestoreEdges.Reset();
-	IsolatedSelectionToRestoreFaces.Reset();
-	IsolatedSelectionToRestoreVertices.ElementType = UE::Geometry::EGeometryElementType::Vertex;
-	IsolatedSelectionToRestoreEdges.ElementType = UE::Geometry::EGeometryElementType::Edge;
-	IsolatedSelectionToRestoreFaces.ElementType = UE::Geometry::EGeometryElementType::Face;
-	SelectionMechanic->GetSelection_AsTriangleTopology(IsolatedSelectionToRestoreVertices);
-	SelectionMechanic->GetSelection_AsTriangleTopology(IsolatedSelectionToRestoreEdges);
-	SelectionMechanic->GetSelection_AsTriangleTopology(IsolatedSelectionToRestoreFaces);
-
-	// store copy of original FDynamicMesh to restore
-	FDynamicMesh3 DynamicMesh;
-	FMeshDescriptionToDynamicMesh Converter;
-	Converter.Convert(EditedMesh, DynamicMesh);
-	FullDynamicMesh = MoveTemp(DynamicMesh);
-
-	// create a submesh from the selected triangles (or triangles connected to selected vertices/edges)
-	TArray<int32> TrianglesToIsolate;
-	MeshSelector->GetSelectedTriangles(TrianglesToIsolate);
-	if (TrianglesToIsolate.IsEmpty())
-	{
-		return;
-	}
-	PartialSubMesh = UE::Geometry::FDynamicSubmesh3(&FullDynamicMesh, TrianglesToIsolate);
-
-	// create mesh description for sub-mesh
-	PartialMeshDescription = MakeShared<FMeshDescription>();
-	// registering skeletal mesh attributes is required to create room to copy attributes during conversion from dynamic mesh
-	FSkeletalMeshAttributes Attributes(*PartialMeshDescription);
-	Attributes.Register();
-	// convert the partial dynamic mesh to a mesh description
-	// NOTE: this copies vertex weights to partial mesh description (later used to load weights into the tool)
-	FDynamicMeshToMeshDescription DnyToDescConverter;
-	constexpr bool bCopyTangents = true;
-	DnyToDescConverter.Convert(&PartialSubMesh.GetSubmesh(), *PartialMeshDescription, bCopyTangents);
-	
-	// reinitialize all mesh data structures
-	PostEditMeshInitialization(SkeletalMeshComponent, PartialSubMesh.GetSubmesh(), *PartialMeshDescription.Get());
-}
-
-void USkinWeightsPaintTool::FinishIsolatedSelection()
-{
-	const USkeletalMeshComponent* SkeletalMeshComponent = GetSkeletalMeshComponent(Target);
-	if (!SkeletalMeshComponent)
-	{
-		// this can happen at shutdown
-		return;
-	}
-
-	if (!PartialMeshDescription)
-	{
-		// nothing hidden
-		return;
-	}
-
-	// apply partial mesh weights to partial mesh description
-	Weights.ApplyCurrentWeightsToMeshDescription(PartialMeshDescription.Get());
-
-	// reinitialize with full mesh
-	PostEditMeshInitialization(SkeletalMeshComponent, FullDynamicMesh, *EditedMesh);
-
-	// copy the remapped weights back to the full mesh
-	const FSkeletalMeshConstAttributes MeshAttribs(*PartialMeshDescription.Get());
-	const FSkinWeightsVertexAttributesConstRef AllVertexWeights = MeshAttribs.GetVertexSkinWeights(WeightToolProperties->GetActiveSkinWeightProfile());
-	const int32 NumVerticesInPartialMesh = PartialMeshDescription.Get()->Vertices().Num();
-	for (int32 VertexIndexPartial = 0; VertexIndexPartial < NumVerticesInPartialMesh; VertexIndexPartial++)
-	{
-		// get the equivalent vertex on the full mesh
-		const int32 VertexIndexFull = PartialSubMesh.MapVertexToBaseMesh(VertexIndexPartial);
-		// clear all the weights on this vertex
-		Weights.CurrentWeights[VertexIndexFull].Reset();
-		// replace with weights from partial mesh
-		const FVertexBoneWeightsConst& VertexWeightsPartial = AllVertexWeights.Get(VertexIndexPartial);
-		for (const UE::AnimationCore::FBoneWeight& SingleBoneWeight : VertexWeightsPartial)
-		{
-			const FBoneIndexType BoneID = SingleBoneWeight.GetBoneIndex();
-			const float Weight = SingleBoneWeight.GetWeight();
-			const FVector& RefPoseVertexPosition = Weights.Deformer.RefPoseVertexPositions[VertexIndexFull];
-			const FTransform& InvRefPoseBoneTransform = Weights.Deformer.InvCSRefPoseTransforms[BoneID];
-			const FVector VertexInBoneSpace = InvRefPoseBoneTransform.TransformPosition(RefPoseVertexPosition);
-			// store the new influence on this vertex
-			Weights.CurrentWeights[VertexIndexFull].Emplace(BoneID, VertexInBoneSpace, Weight);
-		}
-	}
-	// sync both weight buffers
-	Weights.PreChangeWeights = Weights.CurrentWeights;
-	// apply full mesh weights to full mesh description
-	Weights.ApplyCurrentWeightsToMeshDescription(EditedMesh);
-
-	// restore selection (allows for easily adjusting crop)
-	if (UPolygonSelectionMechanic* SelectionMechanic = MeshSelector->GetSelectionMechanic())
-	{
-		SelectionMechanic->SetSelection_AsTriangleTopology(IsolatedSelectionToRestoreVertices);
-		SelectionMechanic->SetSelection_AsTriangleTopology(IsolatedSelectionToRestoreEdges);
-		SelectionMechanic->SetSelection_AsTriangleTopology(IsolatedSelectionToRestoreFaces);
-	}
-
-	PartialMeshDescription = nullptr;
-}
-
-int32 USkinWeightsPaintTool::PartialToFullMeshVertexIndex(int32 PartialMeshVertexIndex) const
-{
-	if (!PartialMeshDescription)
-	{
-		return PartialMeshVertexIndex;
-	}
-
-	return PartialSubMesh.MapVertexToBaseMesh(PartialMeshVertexIndex);
-}
-
-int32 USkinWeightsPaintTool::FullToPartialMeshVertexIndex(int32 FullMeshVertexIndex) const
-{
-	if (!PartialMeshDescription)
-	{
-		return FullMeshVertexIndex;
-	}
-
-	return PartialSubMesh.MapVertexToSubmesh(FullMeshVertexIndex);
 }
 
 void USkinWeightsPaintTool::GetVerticesAffectedByBone(BoneIndex IndexOfBone, TSet<int32>& OutVertexIndices) const

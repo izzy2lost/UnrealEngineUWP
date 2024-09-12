@@ -595,8 +595,6 @@ private:
 		const TArray<int32>& VertexSubset,
 		FDynamicMesh3& TargetMesh);
 	
-	USkinWeightsPaintToolProperties* GetToolProperties() const;
-	
 	UPROPERTY()
 	TObjectPtr<UPreviewMesh> SourcePreviewMesh = nullptr;
 	UPROPERTY()
@@ -606,6 +604,71 @@ private:
 	UPROPERTY()
 	TObjectPtr<UWeightToolMeshSelector> MeshSelector;
 	TWeakObjectPtr<USkinWeightsPaintTool> WeightTool;
+};
+
+// this class wraps all the data needed to isolate a selection of a mesh while editing skin weights
+UCLASS()
+class MESHMODELINGTOOLSEDITORONLYEXP_API UWeightToolSelectionIsolator : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	// call during tool Setup()
+	void InitialSetup(USkinWeightsPaintTool* InTool);
+
+	// call every tick to apply deferred changes to mesh
+	void OnTick(float DeltaTime);
+
+	// returns true if any triangles are currently isolated
+	bool IsSelectionIsolated() const;
+
+	// isolate the current selection
+	void IsolateSelectionAsTransaction();
+
+	// unisolate the current selection
+	void UnIsolateSelectionAsTransaction();
+
+	// isolate the array of triangles
+	void SetIsolatedTriangles(const TArray<int32>& TrianglesToIsolate);
+	
+	// restores the whole mesh
+	void RestoreFullMesh();
+	
+	// get the current triangles that are isolated
+	const TArray<int32>& GetIsolatedTriangles() { return CurrentlyIsolatedTriangles; };
+
+	// convert to/from partial-isolated and full mesh vertex indices
+	int32 PartialToFullMeshVertexIndex(int32 PartialMeshVertexIndex) const;
+	int32 FullToPartialMeshVertexIndex(int32 FullMeshVertexIndex) const;
+
+private:
+	
+	UPROPERTY()
+	TObjectPtr<USkinWeightsPaintTool> WeightTool;
+		
+	// when selection is isolated, we hide the full mesh and show a submesh
+	// when islated selection is unhidden, we remap all changes from the submesh back to the full mesh
+	TSharedPtr<FMeshDescription> PartialMeshDescription = nullptr; // only non-null during isolated selection
+	TArray<int32> CurrentlyIsolatedTriangles;
+	UE::Geometry::FGeometrySelection IsolatedSelectionToRestoreVertices;
+	UE::Geometry::FGeometrySelection IsolatedSelectionToRestoreEdges;
+	UE::Geometry::FGeometrySelection IsolatedSelectionToRestoreFaces;
+	bool bRestoreFullMeshOnNextTick = false;
+	// isolate selection sub-meshes
+	UE::Geometry::FDynamicSubmesh3 PartialSubMesh;
+	UE::Geometry::FDynamicMesh3 FullDynamicMesh;
+};
+
+class MESHMODELINGTOOLSEDITORONLYEXP_API FIsolateSelectionChange : public FToolCommandChange
+{
+public:
+	TArray<int32> IsolatedTrianglesBefore;
+	TArray<int32> IsolatedTrianglesAfter;
+
+	virtual void Apply(UObject* Object) override;
+	virtual void Revert(UObject* Object) override;
+	virtual FString ToString() const override;
 };
 
 // An interactive tool for painting and editing skin weights.
@@ -681,10 +744,6 @@ public:
 	bool HasActiveSelectionOnMainMesh();
 	// select all vertices affected by the currently selected bone(s)
 	void SelectAffected() const;
-	
-	// isolate selection
-	bool IsSelectionIsolated() const;
-	void SetIsolateSelected(const bool bIsolateSelection);
 
 	// get the average weight value of each influence on the given vertices
 	void GetInfluences(const TArray<int32>& VertexIndices, TArray<BoneIndex>& OutBoneIndices);
@@ -713,6 +772,15 @@ public:
 
 	// get the viewport this tool is operating in
 	FEditorViewportClient* GetViewportClient() const;
+	
+	// get access to the selection isolation system
+	UWeightToolSelectionIsolator* GetSelectionIsolator() const { return SelectionIsolator; };
+
+	// get the tool properties
+	USkinWeightsPaintToolProperties* GetWeightToolProperties() const;
+
+	// get access to the mesh description for the mesh being edited
+	FMeshDescription* GetCurrentlyEditedMeshDescription() const { return EditedMesh; };
 
 	// HOW TO EDIT WEIGHTS WITH UNDO/REDO:
 	//
@@ -732,6 +800,12 @@ public:
 	// It will Begin/End the change and create a transaction for it.
 	void ApplyWeightEditsAsTransaction(const SkinPaintTool::FMultiBoneWeightEdits& WeightEdits, const FText& TransactionLabel);
 
+	// call this whenever the target mesh is modified
+	void UpdateCurrentlyEditedMesh(
+		const USkeletalMeshComponent* Component,
+		const FDynamicMesh3& InDynamicMesh,
+		const FMeshDescription& InMeshDescription);
+
 	// called whenever the selection is modified
 	DECLARE_MULTICAST_DELEGATE(FOnSelectionChanged);
 	FOnSelectionChanged OnSelectionChanged;
@@ -745,11 +819,6 @@ protected:
 	virtual void ApplyStamp(const FBrushStampData& Stamp);
 	void OnShutdown(EToolShutdownType ShutdownType) override;
 	void OnTick(float DeltaTime) override;
-
-	void PostEditMeshInitialization(
-		const USkeletalMeshComponent* Component,
-		const FDynamicMesh3& InDynamicMesh,
-		const FMeshDescription& InMeshDescription);
 
 	void CleanMesh() const;
 
@@ -801,20 +870,6 @@ protected:
 	// the currently edited mesh descriptions
 	mutable TMap<EMeshLODIdentifier, FMeshDescription> EditedMeshes;
 	FMeshDescription* EditedMesh = nullptr;
-	// when selection is isolated, we hide the full mesh and show a submesh
-	// when islated selection is unhidden, we remap all changes from the submesh back to the full mesh
-	TSharedPtr<FMeshDescription> PartialMeshDescription = nullptr; // only non-null during isolated selection
-	UE::Geometry::FGeometrySelection IsolatedSelectionToRestoreVertices;
-	UE::Geometry::FGeometrySelection IsolatedSelectionToRestoreEdges;
-	UE::Geometry::FGeometrySelection IsolatedSelectionToRestoreFaces;
-	bool bPendingUpdateFromPartialMesh = false;
-	void FinishIsolatedSelection();
-	// isolate selection sub-meshes
-	UE::Geometry::FDynamicSubmesh3 PartialSubMesh;
-	UE::Geometry::FDynamicMesh3 FullDynamicMesh;
-	// convert to/from partial-isolated and full mesh vertex indices
-	int32 PartialToFullMeshVertexIndex(int32 PartialMeshVertexIndex) const;
-	int32 FullToPartialMeshVertexIndex(int32 FullMeshVertexIndex) const;
 
 	// storage of vertex weights per bone 
 	SkinPaintTool::FSkinToolWeights Weights;
@@ -882,6 +937,10 @@ protected:
 	// manages transferring skin weights from a separate mesh
 	UPROPERTY()
 	TObjectPtr<UWeightToolTransferManager> TransferManager = nullptr;
+
+	// manages isolating a selection of the mesh
+	UPROPERTY()
+	TObjectPtr<UWeightToolSelectionIsolator> SelectionIsolator = nullptr;
 	
 	// editor state to restore when exiting the paint tool
 	FString PreviewProfileToRestore;
