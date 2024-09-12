@@ -556,7 +556,8 @@ void EngineShowFlagOverride(EShowFlagInitMode ShowFlagInitMode, EViewModeIndex V
 		if( ViewModeIndex == VMI_Lit ||
 			ViewModeIndex == VMI_Lit_Wireframe ||
 			ViewModeIndex == VMI_LightingOnly ||
-			ViewModeIndex == VMI_LitLightmapDensity)
+			ViewModeIndex == VMI_LitLightmapDensity ||
+			ViewModeIndex == VMI_VisualizeVirtualShadowMap )
 		{
 			EngineShowFlags.SetLighting(true);
 		}
