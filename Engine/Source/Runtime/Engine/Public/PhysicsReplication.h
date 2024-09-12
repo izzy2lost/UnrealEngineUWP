@@ -65,7 +65,7 @@ struct FPhysicsRepAsyncInputData
 	TOptional<FPhysicsRepErrorCorrectionData> ErrorCorrection;
 	EPhysicsReplicationMode RepMode;
 	int32 ServerFrame;
-	int32 FrameOffset;
+	TOptional<int32> FrameOffset;
 	float LatencyOneWay;
 
 	FPhysicsRepAsyncInputData(Chaos::FConstPhysicsObjectHandle POHandle)

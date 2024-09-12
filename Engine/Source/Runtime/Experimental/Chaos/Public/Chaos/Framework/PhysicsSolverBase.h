@@ -745,11 +745,59 @@ namespace Chaos
 			return PhysicsHistoryCount;
 		}
 
+		UE_DEPRECATED(5.5, "ResimulationErrorThreshold has been renamed, please use GetResimulationErrorPositionThreshold.")
 		static float ResimulationErrorThreshold()
 		{
-			const float ResimulationErrorThreshold = FChaosSolversModule::GetModule()->GetSettingsProvider().GetResimulationErrorThreshold();
+			const float ResimulationErrorThreshold = FChaosSolversModule::GetModule()->GetSettingsProvider().GetResimulationErrorPositionThreshold();
 			return ResimulationErrorThreshold;
+		}
 
+		static bool GetResimulationErrorPositionThresholdEnabled()
+		{
+			const bool ResimulationErrorPositionThresholdEnabled = FChaosSolversModule::GetModule()->GetSettingsProvider().GetResimulationErrorPositionThresholdEnabled();
+			return ResimulationErrorPositionThresholdEnabled;
+		}
+
+		static float GetResimulationErrorPositionThreshold()
+		{
+			const float ResimulationErrorPositionThreshold = FChaosSolversModule::GetModule()->GetSettingsProvider().GetResimulationErrorPositionThreshold();
+			return ResimulationErrorPositionThreshold;
+		}
+
+		static bool GetResimulationErrorRotationThresholdEnabled()
+		{
+			const bool ResimulationErrorRotationThresholdEnabled = FChaosSolversModule::GetModule()->GetSettingsProvider().GetResimulationErrorRotationThresholdEnabled();
+			return ResimulationErrorRotationThresholdEnabled;
+		}
+
+		static float GetResimulationErrorRotationThreshold()
+		{
+			const float ResimulationErrorRotationThreshold = FChaosSolversModule::GetModule()->GetSettingsProvider().GetResimulationErrorRotationThreshold();
+			return ResimulationErrorRotationThreshold;
+		}
+
+		static bool GetResimulationErrorLinearVelocityThresholdEnabled()
+		{
+			const bool ResimulationErrorLinearVelocityThresholdEnabled = FChaosSolversModule::GetModule()->GetSettingsProvider().GetResimulationErrorLinearVelocityThresholdEnabled();
+			return ResimulationErrorLinearVelocityThresholdEnabled;
+		}
+
+		static float GetResimulationErrorLinearVelocityThreshold()
+		{
+			const float ResimulationErrorLinearVelocityThreshold = FChaosSolversModule::GetModule()->GetSettingsProvider().GetResimulationErrorLinearVelocityThreshold();
+			return ResimulationErrorLinearVelocityThreshold;
+		}
+
+		static bool GetResimulationErrorAngularVelocityThresholdEnabled()
+		{
+			const bool ResimulationErrorAngularVelocityThresholdEnabled = FChaosSolversModule::GetModule()->GetSettingsProvider().GetResimulationErrorAngularVelocityThresholdEnabled();
+			return ResimulationErrorAngularVelocityThresholdEnabled;
+		}
+
+		static float GetResimulationErrorAngularVelocityThreshold()
+		{
+			const float ResimulationErrorAngularVelocityThreshold = FChaosSolversModule::GetModule()->GetSettingsProvider().GetResimulationErrorAngularVelocityThreshold();
+			return ResimulationErrorAngularVelocityThreshold;
 		}
 
 		/** Return the interpolation lerp in case the resim is off */

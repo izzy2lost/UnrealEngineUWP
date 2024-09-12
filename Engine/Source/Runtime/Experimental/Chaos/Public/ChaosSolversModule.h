@@ -41,7 +41,48 @@ public:
 		return false;
 	}
 
+	UE_DEPRECATED(5.5, "GetResimulationErrorThreshold has been renamed, please use GetResimulationErrorPositionThreshold.")
 	virtual float GetResimulationErrorThreshold() const
+	{
+		return GetResimulationErrorPositionThreshold();
+	}
+
+	virtual bool GetResimulationErrorPositionThresholdEnabled() const
+	{
+		return false;
+	}
+
+	virtual float GetResimulationErrorPositionThreshold() const
+	{
+		return 0;
+	}
+
+	virtual bool GetResimulationErrorRotationThresholdEnabled() const
+	{
+		return false;
+	}
+
+	virtual float GetResimulationErrorRotationThreshold() const
+	{
+		return 0;
+	}
+
+	virtual bool GetResimulationErrorLinearVelocityThresholdEnabled() const
+	{
+		return false;
+	}
+
+	virtual float GetResimulationErrorLinearVelocityThreshold() const
+	{
+		return 0;
+	}
+
+	virtual bool GetResimulationErrorAngularVelocityThresholdEnabled() const
+	{
+		return false;
+	}
+
+	virtual float GetResimulationErrorAngularVelocityThreshold() const
 	{
 		return 0;
 	}
