@@ -8,7 +8,6 @@
 #include "ModelingToolsEditorModeStyle.h"
 #include "Widgets/Input/SSegmentedControl.h"
 #include "SkeletalMesh/SkinWeightsPaintTool.h"
-#include "Selection/PolygonSelectionMechanic.h"
 #include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SNumericEntryBox.h"
@@ -422,30 +421,30 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 					{
 						// isolated selection only available on main mesh (for now)
 						const bool bHasSelection = Tool->GetMainMeshSelector()->IsAnyComponentSelected();
-						const bool bAlreadyIsolatingSelection = Tool->IsSelectionIsolated();
+						const bool bAlreadyIsolatingSelection = Tool->GetSelectionIsolator()->IsSelectionIsolated();
 						return bHasSelection ||  bAlreadyIsolatingSelection;
 					})
 					.IsChecked_Lambda([this]()
 					{
-						const bool bAlreadyIsolatingSelection = Tool->IsSelectionIsolated();
+						const bool bAlreadyIsolatingSelection = Tool->GetSelectionIsolator()->IsSelectionIsolated();
 						return bAlreadyIsolatingSelection ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 					})
 					.OnCheckStateChanged_Lambda([this](ECheckBoxState InCheckBoxState)
 					{
 						if (InCheckBoxState == ECheckBoxState::Checked)
 						{
-							Tool->SetIsolateSelected(true);	
+							Tool->GetSelectionIsolator()->IsolateSelectionAsTransaction();
 						}
 						else
 						{
-							Tool->SetIsolateSelected(false);	
+							Tool->GetSelectionIsolator()->UnIsolateSelectionAsTransaction();
 						}
 					})
 					[
 						SNew(STextBlock)
 						.Text_Lambda([this]()
 						{
-							if (Tool->IsSelectionIsolated())
+							if (Tool->GetSelectionIsolator()->IsSelectionIsolated())
 							{
 								return LOCTEXT("ShowAllButtonLabel", "Show Full Mesh");
 							}
