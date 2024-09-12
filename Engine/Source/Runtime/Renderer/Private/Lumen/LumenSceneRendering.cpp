@@ -2489,8 +2489,10 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 		}
 	}
 
-	UpdateLumenCardSceneUniformBuffer(GraphBuilder, Scene, *Scene->GetLumenSceneData(Views[0]), FrameTemporaries);
-
+ 	UpdateLumenCardSceneUniformBuffer(GraphBuilder, Scene, *Scene->GetLumenSceneData(Views[0]), FrameTemporaries);
+ 
+ 	// Reset arrays, but keep allocated memory for 1024 elements
+	int32 LumenSlack = bAnyLumenActive ? 1024 : 0;
 	FLumenSceneData& LumenSceneData = *Scene->GetLumenSceneData(Views[0]);
 	if (!bAnyLumenActive)
 	{
@@ -2505,12 +2507,12 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 		}
 	}
 
-	// Reset arrays, but keep allocated memory for 1024 elements
-	LumenSceneData.CardIndicesToUpdateInBuffer.Empty(1024);
-	LumenSceneData.MeshCardsIndicesToUpdateInBuffer.Empty(1024);
-	LumenSceneData.HeightfieldIndicesToUpdateInBuffer.Empty(1024);
-	LumenSceneData.PrimitivesToUpdateMeshCards.Empty(1024);
-	LumenSceneData.PrimitiveGroupIndicesToUpdateInBuffer.Empty(1024);
+	LumenSceneData.CardIndicesToUpdateInBuffer.Empty(LumenSlack);
+	LumenSceneData.MeshCardsIndicesToUpdateInBuffer.Empty(LumenSlack);
+	LumenSceneData.HeightfieldIndicesToUpdateInBuffer.Empty(LumenSlack);
+	LumenSceneData.PrimitivesToUpdateMeshCards.Empty(LumenSlack);
+	LumenSceneData.PrimitiveGroupIndicesToUpdateInBuffer.Empty(LumenSlack);
+	
 }
 
 void FLumenViewOrigin::Init(const FViewInfo& View)
