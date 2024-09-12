@@ -24,7 +24,7 @@ namespace Dataflow
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FUnionIntArraysDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FRemoveFloatArrayElementDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FFloatArrayComputeStatisticsDataflowNode);
-
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FRandomizeFloatArrayDataflowNode);
 	}
 }
 
@@ -584,5 +584,31 @@ void FFloatArrayComputeStatisticsDataflowNode::Evaluate(Dataflow::FContext& Cont
 
 		SetValue(Context, OutValue, &Value);
 		SetValue(Context, OutIndices, &Indices);
+	}
+}
+
+void FRandomizeFloatArrayDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA(&FloatArray))
+	{
+		const TArray<float> InFloatArray = GetValue(Context, &FloatArray);
+		const float InRandomRangeMin = GetValue(Context, &RandomRangeMin);
+		const float InRandomRangeMax = GetValue(Context, &RandomRangeMax);
+		const int32 InRandomSeed = GetValue(Context, &RandomSeed);
+		TArray<float> OutFloatArray;
+
+		FRandomStream RandStream(InRandomSeed);
+
+		const int32 NumPoints = InFloatArray.Num();
+		if (NumPoints > 0)
+		{
+			OutFloatArray.Reserve(NumPoints);
+			for (int32 Idx = 0; Idx < NumPoints; ++Idx)
+			{
+				OutFloatArray.Emplace(RandStream.FRandRange(InRandomRangeMin, InRandomRangeMax));
+			}
+		}
+
+		SetValue(Context, MoveTemp(OutFloatArray), &FloatArray);
 	}
 }

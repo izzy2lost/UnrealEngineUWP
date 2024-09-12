@@ -56,6 +56,7 @@ namespace Dataflow
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FMakeLiteralVectorDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FMakeTransformDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FMakeQuaternionDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FMakeFloatArrayDataflowNode);
 
 		// Generators
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY_NODE_COLORS_BY_CATEGORY("Generators", FLinearColor(.4f, 0.8f, 0.f), CDefaultNodeBodyTintColor);
@@ -166,4 +167,17 @@ void FMakeQuaternionDataflowNode::Evaluate(Dataflow::FContext& Context, const FD
 	}
 }
 
+void FMakeFloatArrayDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA(&FloatArray))
+	{
+		const int32 InNumElements = GetValue(Context, &NumElements);
+		const float InValue = GetValue(Context, &Value);
+
+		TArray<float> OutFloatArray;
+		OutFloatArray.Init(InValue, InNumElements);
+
+		SetValue(Context, OutFloatArray, &FloatArray);
+	}
+}
 

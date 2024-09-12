@@ -1328,6 +1328,110 @@ public:
 
 };
 
+UENUM(BlueprintType)
+enum class ESelectionByAttrGroup : uint8
+{
+	Vertices UMETA(DisplayName = "Vertices"),
+	Faces UMETA(DisplayName = "Faces"),
+	Transform UMETA(DisplayName = "Transform"),
+	Geometry UMETA(DisplayName = "Geometry"),
+	Material UMETA(DisplayName = "Material")
+};
+
+namespace Dataflow::Private
+{
+	inline FName GetAttributeFromEnumAsName(const ESelectionByAttrGroup Value)
+	{
+		static const UEnum* SelectionByAttrGroupEnum = StaticEnum<ESelectionByAttrGroup>();
+		return *SelectionByAttrGroupEnum->GetNameStringByValue((int64)Value);
+	}
+}
+
+UENUM(BlueprintType)
+enum class ESelectionByAttrOperation : uint8
+{
+	/** Select faces which attribute value equal with specified value */
+	Equal UMETA(DisplayName = "=="),
+	/** Select faces which attribute value not equal with specified value */
+	NotEqual UMETA(DisplayName = "!="),
+	/** Select faces which attribute value greater than specified value */
+	Greater UMETA(DisplayName = ">"),
+	/** Select faces which attribute value greater or equal than specified value */
+	GreaterOrEqual UMETA(DisplayName = ">="),
+	/** Select faces which attribute value smaller than specified value */
+	Smaller UMETA(DisplayName = "<"),
+	/** Select faces which attribute value greater than specified value */
+	SmallerOrEqual UMETA(DisplayName = "<=")
+};
+
+/**
+ *
+ * Selects specified Vertices/Faces/Transforms in the GeometryCollection by using an attribute value
+ * Currently supported attribute types: float, int32, String, bool
+ *
+ */
+USTRUCT(meta = (DataflowGeometryCollection))
+struct FCollectionSelectionByAttrDataflowNode : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FCollectionSelectionByAttrDataflowNode, "CollectionSelectByAttr", "GeometryCollection|Selection|All", "")
+
+public:
+	/** GeometryCollection for the selection */
+	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
+	FManagedArrayCollection Collection;
+
+	/** Group */
+	UPROPERTY(EditAnywhere, Category = "Selection")
+	ESelectionByAttrGroup Group = ESelectionByAttrGroup::Faces;
+
+	/** Attribute for the selection */
+	UPROPERTY(EditAnywhere, Category = "Selection")
+	FString Attribute = FString("Internal");
+
+	/** Operation */
+	UPROPERTY(EditAnywhere, Category = "Selection")
+	ESelectionByAttrOperation Operation = ESelectionByAttrOperation::Equal;
+
+	/** Attribute value for the operation */
+	UPROPERTY(EditAnywhere, Category = "Selection")
+	FString Value = FString("true");
+
+	/** Vertex selection output */
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "VertexSelection"))
+	FDataflowVertexSelection VertexSelection;
+
+	/** Face selection output */
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "FaceSelection"))
+	FDataflowFaceSelection FaceSelection;
+
+	/** Transform selection output */
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
+	FDataflowTransformSelection TransformSelection;
+
+	/** Geometry selection output */
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "GeometrySelection"))
+	FDataflowGeometrySelection GeometrySelection;
+
+	/** Material selection output */
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "MaterialSelection"))
+	FDataflowMaterialSelection MaterialSelection;
+
+	FCollectionSelectionByAttrDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+		: FDataflowNode(InParam, InGuid)
+	{
+		RegisterInputConnection(&Collection);
+		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&VertexSelection);
+		RegisterOutputConnection(&FaceSelection);
+		RegisterOutputConnection(&TransformSelection);
+		RegisterOutputConnection(&GeometrySelection);
+		RegisterOutputConnection(&MaterialSelection);
+	}
+
+	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+};
+
 namespace Dataflow
 {
 	void GeometryCollectionSelectionNodes();
