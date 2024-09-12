@@ -1362,19 +1362,8 @@ void UNearestNeighborModel::PostLoad()
 	Super::PostLoad();
 
 #if WITH_EDITORONLY_DATA
-	UpdateNetworkInputDim();
-	UpdateNetworkOutputDim();
 
-	UpdateFileCache();
-
-	for (FSection* Section : Sections)
-	{
-		if (Section)
-		{
-			Section->SetModel(this);
-		}
-	}
-
+	// Apply any upgrades
 	if (IsBeforeCustomVersionWasAdded())
 	{
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS 
@@ -1399,6 +1388,20 @@ void UNearestNeighborModel::PostLoad()
 	if (IsBeforeDeprecateNumEpochs())
 	{
 		NumIterations = 20000;
+	}
+
+	// Update data set at runtime.
+	UpdateNetworkInputDim();
+	UpdateNetworkOutputDim();
+
+	UpdateFileCache();
+
+	for (FSection* Section : Sections)
+	{
+		if (Section)
+		{
+			Section->SetModel(this);
+		}
 	}
 #endif
 }
@@ -1615,7 +1618,7 @@ const FMLDeformerGeomCacheTrainingInputAnim* UNearestNeighborModel::GetNearestNe
 void UNearestNeighborModel::UpdatePCACoeffStarts()
 {
 	uint32 Acc = 0;
-	PCACoeffStarts.Reserve(Sections.Num());
+	PCACoeffStarts.Reset(Sections.Num());
 	for(const FSection* Section : Sections)
 	{
 		PCACoeffStarts.Add(Acc);

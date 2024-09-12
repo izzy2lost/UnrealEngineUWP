@@ -597,8 +597,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbor Settings")
 	bool bUsePCA = false;
 
-	/** The number of basis used in each section. Only editable when UsePCA is false. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbor Settings", meta = (EditCondition = "!bUsePCA"))
+	/** The number of basis used in each section. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbor Settings", meta = (EditCondition = "!bUsePCA", EditConditionHides))
 	int32 NumBasisPerSection = 128;
 
 	/** Whether to use dual quaternion deltas. If false, LBS deltas will be used. */
