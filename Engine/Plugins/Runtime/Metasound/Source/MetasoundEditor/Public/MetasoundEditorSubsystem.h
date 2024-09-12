@@ -20,7 +20,7 @@ struct FMetaSoundPageSettings;
 
 
 /** The subsystem in charge of editor MetaSound functionality */
-UCLASS()
+UCLASS(meta = (DisplayName = "MetaSound Editor Subsystem"))
 class METASOUNDEDITOR_API UMetaSoundEditorSubsystem : public UEditorSubsystem
 {
 	GENERATED_BODY()

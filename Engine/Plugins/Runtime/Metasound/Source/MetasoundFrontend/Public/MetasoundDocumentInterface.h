@@ -24,7 +24,7 @@ namespace Metasound::Frontend
 // UInterface for all MetaSound UClasses that implement a MetaSound document
 // as a means for accessing data via code, scripting, execution, or node
 // class generation.
-UINTERFACE(BlueprintType, meta = (CannotImplementInterfaceInBlueprint))
+UINTERFACE(BlueprintType, meta = (DisplayName = "MetaSound Document Interface", CannotImplementInterfaceInBlueprint))
 class METASOUNDFRONTEND_API UMetaSoundDocumentInterface : public UInterface
 {
 	GENERATED_BODY()

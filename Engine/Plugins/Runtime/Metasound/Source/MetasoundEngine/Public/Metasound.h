@@ -68,7 +68,7 @@ public:
  * This asset type is used for Metasound assets that can only be used as nodes in other Metasound graphs.
  * Because of this, they contain no required inputs or outputs.
  */
-UCLASS(hidecategories = object, BlueprintType)
+UCLASS(hidecategories = object, BlueprintType, meta = (DisplayName = "MetaSound Patch"))
 class METASOUNDENGINE_API UMetaSoundPatch : public UObject, public FMetasoundAssetBase, public IMetaSoundDocumentInterface
 {
 	GENERATED_BODY()

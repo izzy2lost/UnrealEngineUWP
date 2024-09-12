@@ -1331,7 +1331,7 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendInterface : public FMetasoundFron
 
 
 // Name of a Metasound class
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, meta = (DisplayName = "MetaSound Class Name"))
 struct METASOUNDFRONTEND_API FMetasoundFrontendClassName
 {
 	GENERATED_BODY()
