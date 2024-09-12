@@ -38,6 +38,8 @@ UStereoLayerComponent::UStereoLayerComponent(const FObjectInitializer& ObjectIni
 
 void UStereoLayerComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	Super::EndPlay(EndPlayReason);
+
 	if (EndPlayReason == EEndPlayReason::EndPlayInEditor || EndPlayReason == EEndPlayReason::Quit)
 	{
 		FStereoLayerAdditionalFlagsManager::Destroy();
