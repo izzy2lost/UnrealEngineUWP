@@ -47,6 +47,7 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SToolTip.h"
 #include "Widgets/Text/STextBlock.h"
+#include "Widgets/Images/SImage.h"
 
 class SWidget;
 class UEdGraphPin;
@@ -58,6 +59,11 @@ void SGraphNodeBlendSpaceGraph::Construct(const FArguments& InArgs, UAnimGraphNo
 	GraphNode = InNode;
 
 	SetCursor(EMouseCursor::CardinalCross);
+
+	FastPathWidget = SNew(SImage)
+		.Image(FAppStyle::Get().GetBrush(TEXT("Graph.AnimationFastPathIndicator")))
+		.ToolTip(IDocumentation::Get()->CreateToolTip(LOCTEXT("AnimGraphNodeIndicatorTooltip", "Fast path enabled: This node is not using any Blueprint calls to update its data."), nullptr, TEXT("Shared/GraphNodes/Animation"), TEXT("GraphNode_FastPathInfo")))
+		.Visibility(EVisibility::Visible);
 
 	PoseWatchWidget = SNew(SPoseWatchOverlay, InNode);
 
@@ -79,6 +85,17 @@ TArray<FOverlayWidgetInfo> SGraphNodeBlendSpaceGraph::GetOverlayWidgets(bool bSe
 
 	if (UAnimGraphNode_Base* AnimNode = CastChecked<UAnimGraphNode_Base>(GraphNode, ECastCheckedType::NullAllowed))
 	{
+		if (AnimNode->BlueprintUsage == EBlueprintUsage::DoesNotUseBlueprint)
+		{
+			const FSlateBrush* ImageBrush = FAppStyle::Get().GetBrush(TEXT("Graph.AnimationFastPathIndicator"));
+
+			FOverlayWidgetInfo Info;
+			Info.OverlayOffset = FVector2D(WidgetSize.X - (ImageBrush->ImageSize.X * 0.5f), -(ImageBrush->ImageSize.Y * 0.5f));
+			Info.Widget = FastPathWidget;
+
+			Widgets.Add(Info);
+		}
+
 		if (PoseWatchWidget->IsPoseWatchValid())
 		{
 			FOverlayWidgetInfo Info;

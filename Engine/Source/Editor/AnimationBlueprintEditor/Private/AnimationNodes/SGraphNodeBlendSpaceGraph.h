@@ -32,5 +32,7 @@ protected:
 	TSharedPtr<SToolTip> GetComplexTooltip() override;
 
 private:
+	TSharedPtr<SWidget> FastPathWidget;
+
 	TSharedPtr<SPoseWatchOverlay> PoseWatchWidget;
 };
