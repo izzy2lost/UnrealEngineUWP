@@ -72,6 +72,8 @@ FSceneView* FMovieGraphImagePassBase::CreateSceneView(const FSceneViewInitOption
 	View->LensPrincipalPointOffsetScale = CalculatePrinciplePointOffsetForTiling(InCameraInfo.TilingParams);
 	View->EndFinalPostprocessSettings(InInitOptions);
 
+	UE::MovieRenderPipeline::UpdateSceneViewForShowFlags(View);
+
 	return View;
 }
 
@@ -139,7 +141,6 @@ void FMovieGraphImagePassBase::ApplyCameraManagerPostProcessBlends(FSceneView* I
 
 TSharedRef<FSceneViewFamilyContext> FMovieGraphImagePassBase::CreateSceneViewFamily(const FViewFamilyInitData& InInitData) const
 {
-
 	EViewModeIndex ViewModeIndex = InInitData.ViewModeIndex;
 	FEngineShowFlags ShowFlags = InInitData.ShowFlags;
 
@@ -172,7 +173,6 @@ void FMovieGraphImagePassBase::ApplyMovieGraphOverridesToViewFamily(TSharedRef<F
 	// Used to specify if the Tone Curve is being applied or not to our Linear Output data
 	InOutFamily->SceneCaptureSource = InInitData.SceneCaptureSource;
 	InOutFamily->bWorldIsPaused = InInitData.bWorldIsPaused;
-	// InOutFamily->ViewMode = ViewModeIndex;
 	InOutFamily->bOverrideVirtualTextureThrottle = true;
 	
 	// We need to check if this is the first FSceneView being submitted to the renderer module, and set some flags on the ViewFamily for ensuring some
