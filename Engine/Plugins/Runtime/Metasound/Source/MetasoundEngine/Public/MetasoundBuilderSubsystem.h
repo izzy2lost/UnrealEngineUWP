@@ -47,7 +47,7 @@ namespace Metasound::Engine
 DECLARE_DYNAMIC_DELEGATE_OneParam(FOnCreateAuditionGeneratorHandleDelegate, UMetasoundGeneratorHandle*, GeneratorHandle);
 
 /** Builder in charge of building a MetaSound Patch */
-UCLASS(Transient, BlueprintType)
+UCLASS(Transient, BlueprintType, meta = (DisplayName = "MetaSound Patch Builder"))
 class METASOUNDENGINE_API UMetaSoundPatchBuilder : public UMetaSoundBuilderBase
 {
 	GENERATED_BODY()
@@ -66,7 +66,7 @@ protected:
 };
 
 /** Builder in charge of building a MetaSound Source */
-UCLASS(Transient, BlueprintType)
+UCLASS(Transient, BlueprintType, meta = (DisplayName = "MetaSound Source Builder"))
 class METASOUNDENGINE_API UMetaSoundSourceBuilder : public UMetaSoundBuilderBase
 {
 	GENERATED_BODY()
@@ -150,7 +150,7 @@ private:
 };
 
 /** The subsystem in charge of tracking MetaSound builders */
-UCLASS()
+UCLASS(meta = (DisplayName = "MetaSound Builder Subsystem"))
 class METASOUNDENGINE_API UMetaSoundBuilderSubsystem : public UEngineSubsystem
 {
 	GENERATED_BODY()

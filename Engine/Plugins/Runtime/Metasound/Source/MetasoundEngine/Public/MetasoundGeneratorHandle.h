@@ -411,7 +411,7 @@ namespace Metasound
 /**
  * Blueprint-facing interface to a FMetasoundGenerator on a UAudioComponent.
  */
-UCLASS(BlueprintType,Category="MetaSound")
+UCLASS(BlueprintType, Category = "MetaSound", meta = (DisplayName = "MetaSound Generator Handle"))
 class METASOUNDENGINE_API UMetasoundGeneratorHandle : public UObject
 {
 	GENERATED_BODY()

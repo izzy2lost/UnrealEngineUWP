@@ -55,8 +55,8 @@ namespace Metasound::Engine
 	void InitializeAssetManager();
 } // namespace Metasound::Engine
 
-/** DEPRECATED: Subsystem in charge of the MetaSound asset registry */
-UCLASS()
+
+UCLASS(meta = (DisplayName = "MetaSound Asset Subsystem"))
 class METASOUNDENGINE_API UMetaSoundAssetSubsystem : public UEngineSubsystem
 {
 	GENERATED_BODY()

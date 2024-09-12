@@ -58,7 +58,7 @@ public:
 	}
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, meta = (DisplayName = "MetaSound Node Handle"))
 struct METASOUNDENGINE_API FMetaSoundNodeHandle
 {
 	GENERATED_BODY()
@@ -107,7 +107,7 @@ struct METASOUNDENGINE_API FMetaSoundBuilderOptions
 	TScriptInterface<IMetaSoundDocumentInterface> ExistingMetaSound;
 };
 
-UENUM(BlueprintType)
+UENUM(BlueprintType, meta = (DisplayName = "MetaSound Builder Result"))
 enum class EMetaSoundBuilderResult : uint8
 {
 	Succeeded,
@@ -115,7 +115,7 @@ enum class EMetaSoundBuilderResult : uint8
 };
 
 /** Base implementation of MetaSound builder */
-UCLASS(Abstract, BlueprintType, Transient)
+UCLASS(Abstract, BlueprintType, Transient, meta = (DisplayName = "MetaSound Builder Base"))
 class METASOUNDENGINE_API UMetaSoundBuilderBase : public UObject
 {
 	GENERATED_BODY()
