@@ -4,8 +4,6 @@
 
 #include "Animation/AnimBulkCurves.h"
 #include "Animation/AnimNode_CustomProperty.h"
-#include "Rigs/RigHierarchyPoseAdapter.h"
-#include "Rigs/RigHierarchy.h"
 #include "AnimNode_ControlRigBase.generated.h"
 
 class UNodeMappingContainer;
@@ -52,82 +50,6 @@ struct CONTROLRIG_API FControlRigAnimNodeEventName
 
 	UPROPERTY(EditAnywhere, Category = Links)
 	FName EventName;	
-};
-
-class CONTROLRIG_API FAnimNode_ControlRig_PoseAdapter : public FRigHierarchyPoseAdapter
-{
-public:
-
-	FAnimNode_ControlRig_PoseAdapter()
-	: bTransferInLocalSpace(true)
-	, LastTopologyVersion(UINT32_MAX)
-	, bRequiresResetPoseToInitial(true)
-	, Hierarchy(nullptr)
-	, bEnabled(true)
-	{
-	}
-	
-protected:
-
-	virtual void PostLinked(URigHierarchy* InHierarchy) override;
-	virtual void PreUnlinked(URigHierarchy* InHierarchy) override;
-
-	void ConvertToLocalPose();
-	void ConvertToGlobalPose();
-	const FTransform& GetLocalTransform(int32 InIndex);
-	const FTransform& GetGlobalTransform(int32 InIndex);
-	
-	void UpdateDirtyStates(const TOptional<bool> InLocalIsPrimary = TOptional<bool>());
-	void ComputeDependentTransforms();
-	void MarkDependentsDirty();
-	
-	void UnlinkTransformStorage();
-	void UnlinkCurveStorage();
-
-	bool bTransferInLocalSpace;
-
-	TArray<int32> ParentPoseIndices;
-	TArray<bool> RequiresHierarchyForSpaceConversion;
-	TArray<FTransform> LocalPose;
-	TArray<FTransform> GlobalPose;
-	TArray<bool> LocalPoseIsDirty;
-	TArray<bool> GlobalPoseIsDirty;
-	TArray<int32> PoseCurveToStorageIndex;
-	TArray<bool> HierarchyCurveCopied;
-	uint32 LastTopologyVersion;
-	bool bRequiresResetPoseToInitial;
-	TArray<int32> BonesToResetToInitial;
-
-	TMap<uint16, uint16> ElementIndexToPoseIndex;
-	TArray<int32> PoseIndexToElementIndex;
-
-	struct FDependentTransform
-	{
-		FDependentTransform()
-			: KeyAndIndex()
-			, TransformType(ERigTransformType::InitialLocal)
-			, StorageType(ERigTransformStorageType::Pose)
-			, DirtyState(nullptr)
-		{}
-		
-		FDependentTransform(const FRigElementKeyAndIndex& InKeyAndIndex, ERigTransformType::Type InTransformType, ERigTransformStorageType::Type InStorageType, FRigLocalAndGlobalDirtyState* InDirtyState)
-			: KeyAndIndex(InKeyAndIndex)
-			, TransformType(InTransformType)
-			, StorageType(InStorageType)
-			, DirtyState(InDirtyState)
-		{}
-
-		FRigElementKeyAndIndex KeyAndIndex;
-		ERigTransformType::Type TransformType;
-		ERigTransformStorageType::Type StorageType;
-		FRigLocalAndGlobalDirtyState* DirtyState;
-	};
-	TArray<FDependentTransform> Dependents;
-
-	URigHierarchy* Hierarchy;
-	bool bEnabled;;
-
-	friend struct FAnimNode_ControlRigBase;
 };
 
 /**
@@ -196,20 +118,34 @@ protected:
 	 * of the input pose transfer phase.
 	 * If this list is empty all bones will be transferred.
 	 */
-	UPROPERTY()
-	TArray<FBoneReference> InputBonesToTransfer_DEPRECATED;
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Settings)
+	TArray<FBoneReference> InputBonesToTransfer;
 
 	/**
 	 * An inclusive list of bones to transfer as part
 	 * of the output pose transfer phase.
 	 * If this list is empty all bones will be transferred.
 	 */
-	UPROPERTY()
-	TArray<FBoneReference> OutputBonesToTransfer_DEPRECATED;
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Settings)
+	TArray<FBoneReference> OutputBonesToTransfer;
 
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Settings)
 	TArray<TObjectPtr<UAssetUserData>> AssetUserData;
 
+	/** Complete mapping from skeleton to control rig bone index */
+	TArray<TPair<uint16, uint16>> ControlRigBoneInputMappingByIndex;
+	TArray<TPair<uint16, uint16>> ControlRigBoneOutputMappingByIndex;
+
+	/** Complete mapping from skeleton to curve name */
+	TArray<TPair<uint16, FName>> ControlRigCurveMappingByIndex;
+
+	/** Rig Hierarchy bone name to required array index mapping */
+	TMap<FName, uint16> ControlRigBoneInputMappingByName;
+	TMap<FName, uint16> ControlRigBoneOutputMappingByName;
+
+	/** Rig Curve name to Curve mapping */
+	TMap<FName, FName> ControlRigCurveMappingByName;
+	
 	TMap<FName, int32> InputToControlIndex;
 	
 	/** Node Mapping Container */
@@ -221,8 +157,6 @@ protected:
 
 	UPROPERTY(transient)
 	FControlRigIOSettings OutputSettings;
-
-	TSharedPtr<FAnimNode_ControlRig_PoseAdapter> PoseAdapter;
 
 	UPROPERTY(transient)
 	bool bExecute;
@@ -238,7 +172,7 @@ protected:
 
 	virtual bool CanExecute();
 	// update input/output to control rig
-	virtual void UpdateInput(UControlRig* ControlRig, FPoseContext& InOutput);
+	virtual void UpdateInput(UControlRig* ControlRig, const FPoseContext& InOutput);
 	virtual void UpdateOutput(UControlRig* ControlRig, FPoseContext& InOutput);
 	virtual UClass* GetTargetClass() const override;
 	

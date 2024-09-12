@@ -936,9 +936,7 @@ bool UControlRig::Execute(const FName& InEventName)
 #if WITH_EDITOR
 	TSharedPtr<TGuardValue<bool>> RecordTransformsPerInstructionGuard;
 #endif
-
-	URigHierarchy* Hierarchy = GetHierarchy();
-	if(Hierarchy)
+	if(URigHierarchy* Hierarchy = GetHierarchy())
 	{
 		Hierarchy->UpdateReferences(&PublicContext);
 
@@ -977,10 +975,8 @@ bool UControlRig::Execute(const FName& InEventName)
 	// we'll special case the construction event here
 	if (bIsConstructionEvent)
 	{
-		check(Hierarchy);
-		
 		// remember the previous selection
-		const TArray<FRigElementKey> PreviousSelection = Hierarchy->GetSelectedKeys();
+		const TArray<FRigElementKey> PreviousSelection = GetHierarchy()->GetSelectedKeys();
 
 		// construction mode means that we are running the construction event
 		// constantly for testing purposes.
@@ -1002,37 +998,36 @@ bool UControlRig::Execute(const FName& InEventName)
 #endif
 
 			// disable selection notifications from the hierarchy
-			TGuardValue<bool> DisableSelectionNotifications(Hierarchy->GetController(true)->bSuspendSelectionNotifications, true);
+			TGuardValue<bool> DisableSelectionNotifications(GetHierarchy()->GetController(true)->bSuspendSelectionNotifications, true);
 			{
 				FRigPose CurrentPose;
 				// We might want to reset the input pose after construction
 				if (bResetCurrentTransformsAfterConstruction)
 				{
-					CurrentPose = Hierarchy->GetPose(false, ERigElementType::ToResetAfterConstructionEvent, FRigElementKeyCollection());
+					CurrentPose = GetHierarchy()->GetPose(false, ERigElementType::ToResetAfterConstructionEvent, FRigElementKeyCollection());
 				}
 				
 				{
 					// Copy the hierarchy from the default object onto this one
 #if WITH_EDITOR
-					FTransientControlScope TransientControlScope(Hierarchy);
+					FTransientControlScope TransientControlScope(GetHierarchy());
 	#endif
 					{
 						// maintain the initial pose if it ever was set by the client
 						FRigPose InitialPose;
 						if(!bResetInitialTransformsBeforeConstruction)
 						{
-							InitialPose = Hierarchy->GetPose(true, ERigElementType::ToResetAfterConstructionEvent, FRigElementKeyCollection());
+							InitialPose = GetHierarchy()->GetPose(true, ERigElementType::ToResetAfterConstructionEvent, FRigElementKeyCollection());
 						}
 
 						if(bCopyHierarchyBeforeConstruction)
 						{
-							Hierarchy->ResetToDefault();
+							GetHierarchy()->ResetToDefault();
 						}
 
 						if(InitialPose.Num() > 0)
 						{
-							const TGuardValue<bool> DisableRecordingCurveChanges(Hierarchy->GetRecordCurveChangesFlag(), false);
-							Hierarchy->SetPose(InitialPose, ERigTransformType::InitialLocal);
+							GetHierarchy()->SetPose(InitialPose, ERigTransformType::InitialLocal);
 						}
 					}
 
@@ -1046,7 +1041,7 @@ bool UControlRig::Execute(const FName& InEventName)
 						}
 	#endif
 						// reset the pose to initial such that construction event can run from a deterministic initial state
-						Hierarchy->ResetPoseToInitial(ERigElementType::All);
+						GetHierarchy()->ResetPoseToInitial(ERigElementType::All);
 					}
 
 					RestoreShapeLibrariesFromCDO();
@@ -1070,14 +1065,13 @@ bool UControlRig::Execute(const FName& InEventName)
 				// Reset the input pose after construction
 				if (CurrentPose.Num() > 0)
 				{
-					const TGuardValue<bool> DisableRecordingCurveChanges(Hierarchy->GetRecordCurveChangesFlag(), false);
-					Hierarchy->SetPose(CurrentPose, ERigTransformType::CurrentLocal);
+					GetHierarchy()->SetPose(CurrentPose, ERigTransformType::CurrentLocal);
 				}
 			}
 			
 			// set it here to reestablish the selection. the notifications
 			// will be eaten since we still have the bSuspend flag on in the controller.
-			Hierarchy->GetController()->SetSelection(PreviousSelection);
+			GetHierarchy()->GetController()->SetSelection(PreviousSelection);
 			
 		} // destroy DisableSelectionNotifications
 
@@ -1097,25 +1091,25 @@ bool UControlRig::Execute(const FName& InEventName)
 				TransientControlPoseScope = MakeUnique<FTransientControlPoseScope>(this);
 			}
 #endif
-			Hierarchy->ResetPoseToInitial(ERigElementType::Bone);
+			GetHierarchy()->ResetPoseToInitial(ERigElementType::Bone);
 		}
 
 		// synchronize the selection now with the new hierarchy after running construction
-		const TArray<const FRigBaseElement*> CurrentSelection = Hierarchy->GetSelectedElements();
+		const TArray<const FRigBaseElement*> CurrentSelection = GetHierarchy()->GetSelectedElements();
 		for(const FRigBaseElement* SelectedElement : CurrentSelection)
 		{
 			if(!PreviousSelection.Contains(SelectedElement->GetKey()))
 			{
-				Hierarchy->Notify(ERigHierarchyNotification::ElementSelected, SelectedElement);
+				GetHierarchy()->Notify(ERigHierarchyNotification::ElementSelected, SelectedElement);
 			}
 		}
 		for(const FRigElementKey& PreviouslySelectedKey : PreviousSelection)
 		{
-			if(const FRigBaseElement* PreviouslySelectedElement = Hierarchy->Find(PreviouslySelectedKey))
+			if(const FRigBaseElement* PreviouslySelectedElement = GetHierarchy()->Find(PreviouslySelectedKey))
 			{
 				if(!CurrentSelection.Contains(PreviouslySelectedElement))
 				{
-					Hierarchy->Notify(ERigHierarchyNotification::ElementDeselected, PreviouslySelectedElement);
+					GetHierarchy()->Notify(ERigHierarchyNotification::ElementDeselected, PreviouslySelectedElement);
 				}
 			}
 		}
@@ -1221,16 +1215,16 @@ bool UControlRig::Execute(const FName& InEventName)
 		EventContext.Event = ERigEvent::CloseUndoBracket;
 		EventContext.SourceEventName = InEventName;
 		EventContext.LocalTime = PublicContext.GetAbsoluteTime();
-		HandleHierarchyEvent(Hierarchy, EventContext);
+		HandleHierarchyEvent(GetHierarchy(), EventContext);
 	}
 
 	if (PublicContext.GetDrawInterface() && PublicContext.GetDrawContainer() && bIsEventLastInQueue) 
 	{
 		PublicContext.GetDrawInterface()->Instructions.Append(PublicContext.GetDrawContainer()->Instructions);
 
-		FRigHierarchyValidityBracket ValidityBracket(Hierarchy);
+		FRigHierarchyValidityBracket ValidityBracket(GetHierarchy());
 		
-		Hierarchy->ForEach<FRigControlElement>([this, Hierarchy](FRigControlElement* ControlElement) -> bool
+		GetHierarchy()->ForEach<FRigControlElement>([this](FRigControlElement* ControlElement) -> bool
 		{
 			const FRigControlSettings& Settings = ControlElement->Settings;
 
@@ -1239,7 +1233,7 @@ bool UControlRig::Execute(const FName& InEventName)
 				Settings.bDrawLimits &&
 				Settings.LimitEnabled.Contains(FRigControlLimitEnabled(true, true)))
 			{
-				FTransform Transform = Hierarchy->GetGlobalControlOffsetTransformByIndex(ControlElement->GetIndex());
+				FTransform Transform = GetHierarchy()->GetGlobalControlOffsetTransformByIndex(ControlElement->GetIndex());
 				FRigVMDrawInstruction Instruction(ERigVMDrawSettings::Lines, Settings.ShapeColor, 0.f, Transform);
 
 				switch (Settings.ControlType)

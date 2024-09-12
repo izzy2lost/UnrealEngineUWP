@@ -886,14 +886,6 @@ public:
 	{
 		return GetElementsOfType<FRigBoneElement>(bTraverse);
 	}
-	
-	/**
-   	 * Returns all Bone elements without traversing the hierarchy
-   	 */
-   	TArray<FRigBaseElement*>& GetBonesFast() const
-   	{
-   		return ElementsPerType[RigElementTypeToFlatIndex(ERigElementType::Bone)];
-   	}
 
 	/**
 	 * Returns all Bone elements

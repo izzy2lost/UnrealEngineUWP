@@ -134,7 +134,7 @@ private:
 
 protected:
 	virtual UClass* GetTargetClass() const override;
-	virtual void UpdateInput(UControlRig* InControlRig, FPoseContext& InOutput) override;
+	virtual void UpdateInput(UControlRig* InControlRig, const FPoseContext& InOutput) override;
 	virtual void UpdateOutput(UControlRig* InControlRig, FPoseContext& InOutput) override;
 
 	void SetControlRigClass(TSubclassOf<UControlRig> InControlRigClass);
