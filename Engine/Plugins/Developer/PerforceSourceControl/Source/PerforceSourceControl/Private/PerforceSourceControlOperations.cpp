@@ -426,6 +426,8 @@ bool FPerforceConnectWorker::Execute(FPerforceSourceControlCommand& InCommand)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPerforceConnectWorker::Execute);
 
+	GetSCCProvider().ResetPersistentConnection();
+
 	if (InCommand.ConnectionInfo.Workspace.IsEmpty())
 	{
 		// Running FConnect for perforce does not actually connect to the server but

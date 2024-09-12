@@ -114,8 +114,7 @@ void FPerforceSourceControlProvider::Close()
 	if ( PersistentConnection )
 	{
 		PersistentConnection->Disconnect();
-		delete PersistentConnection;
-		PersistentConnection = NULL;
+		PersistentConnection.Reset();
 	}
 
 	// clear the cache
@@ -222,21 +221,26 @@ bool FPerforceSourceControlProvider::EstablishPersistentConnection()
 	FPerforceConnectionInfo ConnectionInfo = AccessSettings().GetConnectionInfo();
 
 	bool bIsValidConnection = false;
-	if ( !PersistentConnection )
+	if (!PersistentConnection)
 	{
-		PersistentConnection = new FPerforceConnection(ConnectionInfo, *this);
+		PersistentConnection = MakeUnique<FPerforceConnection>(ConnectionInfo, *this);
 	}
 
 	bIsValidConnection = PersistentConnection->IsValidConnection();
-	if ( !bIsValidConnection )
+	if (!bIsValidConnection)
 	{
-		delete PersistentConnection;
-		PersistentConnection = new FPerforceConnection(ConnectionInfo, *this);
+		PersistentConnection.Reset();
+		PersistentConnection = MakeUnique<FPerforceConnection>(ConnectionInfo, *this);
 		bIsValidConnection = PersistentConnection->IsValidConnection();
 	}
 
 	bServerAvailable = bIsValidConnection;
 	return bIsValidConnection;
+}
+
+void FPerforceSourceControlProvider::ResetPersistentConnection()
+{
+	PersistentConnection.Reset();
 }
 
 ISourceControlProvider::FInitResult FPerforceSourceControlProvider::ParseCommandLineSettings(EInitFlags InitFlags)
