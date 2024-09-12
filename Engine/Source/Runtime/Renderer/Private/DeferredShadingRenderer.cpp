@@ -1707,18 +1707,15 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	InitViewTaskDatas.VisibilityTaskData->FinishGatherDynamicMeshElements(BasePassDepthStencilAccess, InstanceCullingManager, VirtualTextureUpdater.Get());
 
-	if (RendererOutput == ERendererOutput::FinalSceneColor)
+	// Notify the FX system that the scene is about to be rendered.
+	// TODO: These should probably be moved to scene extensions
+	if (FXSystem && Views.IsValidIndex(0))
 	{
-		// Notify the FX system that the scene is about to be rendered.
-		// TODO: These should probably be moved to scene extensions
-		if (FXSystem && Views.IsValidIndex(0))
+		SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_FXSystem_PreRender);
+		FXSystem->PreRender(GraphBuilder, GetSceneViews(), GetSceneUniforms(), bIsFirstSceneRenderer /*bAllowGPUParticleUpdate*/);
+		if (FGPUSortManager* GPUSortManager = FXSystem->GetGPUSortManager())
 		{
-			SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_FXSystem_PreRender);
-			FXSystem->PreRender(GraphBuilder, GetSceneViews(), GetSceneUniforms(), bIsFirstSceneRenderer /*bAllowGPUParticleUpdate*/);
-			if (FGPUSortManager* GPUSortManager = FXSystem->GetGPUSortManager())
-			{
-				GPUSortManager->OnPreRender(GraphBuilder);
-			}
+			GPUSortManager->OnPreRender(GraphBuilder);
 		}
 	}
 
