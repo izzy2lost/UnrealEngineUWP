@@ -37,6 +37,11 @@ public:
 	 */
 	HAIRSTRANDSCORE_API void AddGroomBindings(TArrayView<UGroomBindingAsset* const> InGroomBindingAssets);
 
+	/**
+	 * Register groom binding assets to compile once their dependencies are finished compiling.
+	 */
+	HAIRSTRANDSCORE_API void AddGroomBindingsWithPendingDependencies(TArrayView<UGroomBindingAsset* const> InGroomBindingAssets);
+
 	/** 
 	 * Blocks until completion of the requested groom binding assets.
 	 */
@@ -81,6 +86,7 @@ private:
 	friend class FAssetCompilingManager;
 	
 	bool bHasShutdown = false;
+	TSet<UGroomBindingAsset*> GroomBindingWithPendingDependencies;
 	TSet<UGroomBindingAsset*> RegisteredGroomBindingAssets;
 	TMultiMap<class USkeletalMesh*, UGroomBindingAsset*> RegisteredSkeletalMeshes;
 	TMultiMap<class UGroomAsset*, UGroomBindingAsset*> RegisteredGroomAssets;
@@ -92,7 +98,7 @@ private:
 	
 	void AttachDependencies(UGroomBindingAsset* GroomBindingAsset);
 	void DetachDependencies(UGroomBindingAsset* GroomBindingAsset);
-
+	void SchedulePendingCompilations();
 	void PostCompilation(UGroomBindingAsset* GroomBindingAsset);
 	void PostCompilation(TArrayView<UGroomBindingAsset* const> InGroomBindingAssets);
 	void OnPostReachabilityAnalysis();

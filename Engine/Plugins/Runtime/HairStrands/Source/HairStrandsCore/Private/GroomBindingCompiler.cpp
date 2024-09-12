@@ -107,6 +107,16 @@ void FGroomBindingCompilingManager::OnPostReachabilityAnalysis()
 
 		TArray<UGroomBindingAsset*> PendingAssets;
 		PendingAssets.Reserve(GetNumRemainingJobs());
+		
+		// Compilation has not started yet... just remove it from our pending list
+		for (auto Iterator = GroomBindingWithPendingDependencies.CreateIterator(); Iterator; ++Iterator)
+		{
+			UGroomBindingAsset* GroomBinding = *Iterator;
+			if (GroomBinding->IsUnreachable())
+			{
+				Iterator.RemoveCurrent();
+			}
+		}
 
 		for (auto Iterator = RegisteredGroomBindingAssets.CreateIterator(); Iterator; ++Iterator)
 		{
@@ -307,7 +317,20 @@ FGroomBindingCompilingManager& FGroomBindingCompilingManager::Get()
 
 int32 FGroomBindingCompilingManager::GetNumRemainingJobs() const
 {
-	return RegisteredGroomBindingAssets.Num();
+	return RegisteredGroomBindingAssets.Num() + GroomBindingWithPendingDependencies.Num();
+}
+
+void FGroomBindingCompilingManager::AddGroomBindingsWithPendingDependencies(TArrayView<UGroomBindingAsset* const> InGroomBindingAssets)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FGroomBindingCompilingManager::AddGroomBindingsWithPendingDependencies);
+	check(IsInGameThread());
+
+	for (UGroomBindingAsset* GroomBindingAsset : InGroomBindingAssets)
+	{
+		GroomBindingWithPendingDependencies.Emplace(GroomBindingAsset);
+	}
+
+	UpdateCompilationNotification();
 }
 
 void FGroomBindingCompilingManager::AddGroomBindings(TArrayView<UGroomBindingAsset* const> InGroomBindingAssets)
@@ -317,6 +340,9 @@ void FGroomBindingCompilingManager::AddGroomBindings(TArrayView<UGroomBindingAss
 
 	for (UGroomBindingAsset* GroomBindingAsset : InGroomBindingAssets)
 	{
+		// If the compilation is launched while we still have it in our list, we don't want to schedule it again so remove it now.
+		GroomBindingWithPendingDependencies.Remove(GroomBindingAsset);
+
 		check(GroomBindingAsset->AsyncTask != nullptr);
 		RegisteredGroomBindingAssets.Emplace(GroomBindingAsset);
 
@@ -331,6 +357,25 @@ void FGroomBindingCompilingManager::FinishCompilation(TArrayView<UGroomBindingAs
 	TRACE_CPUPROFILER_EVENT_SCOPE(FGroomBindingCompilingManager::FinishCompilation);
 
 	check(IsInGameThread());
+
+	TSet<USkinnedAsset*> Dependencies;
+	for (UGroomBindingAsset* GroomBindingAsset : InGroomBindingAssets)
+	{
+		if (GroomBindingAsset->GetTargetSkeletalMesh() && GroomBindingAsset->GetTargetSkeletalMesh()->IsCompiling())
+		{
+			Dependencies.Emplace(GroomBindingAsset->GetTargetSkeletalMesh());
+		}
+
+		if (GroomBindingAsset->GetSourceSkeletalMesh() && GroomBindingAsset->GetSourceSkeletalMesh()->IsCompiling())
+		{
+			Dependencies.Emplace(GroomBindingAsset->GetSourceSkeletalMesh());
+		}
+	}
+
+	FSkinnedAssetCompilingManager::Get().FinishCompilation(Dependencies.Array());
+	
+	// Now that dependencies have finished, we can launch the compilations for the groom bindings.
+	SchedulePendingCompilations();
 
 	TArray<UGroomBindingAsset*> PendingGroomBindingAssets;
 	PendingGroomBindingAssets.Reserve(InGroomBindingAssets.Num());
@@ -382,6 +427,26 @@ void FGroomBindingCompilingManager::FinishCompilation(TArrayView<UGroomBindingAs
 		PostCompilation(PendingGroomBindingAssets);
 
 		UpdateCompilationNotification();
+	}
+}
+
+void FGroomBindingCompilingManager::SchedulePendingCompilations()
+{
+	TArray<UGroomBindingAsset*> ReadyToSchedule;
+	for (auto It = GroomBindingWithPendingDependencies.CreateIterator(); It; ++It)
+	{
+		UGroomBindingAsset* GroomBindingAsset = *It;
+		if (!GroomBindingAsset->HasAnyDependenciesCompiling())
+		{
+			ReadyToSchedule.Emplace(GroomBindingAsset);
+			It.RemoveCurrent();
+		}
+	}
+
+	// Call CacheDerivedDatas again so it's scheduled for real this time.
+	for (UGroomBindingAsset* GroomBindingAsset : ReadyToSchedule)
+	{
+		GroomBindingAsset->CacheDerivedDatas();
 	}
 }
 
@@ -489,6 +554,8 @@ void FGroomBindingCompilingManager::ProcessAsyncTasks(bool bLimitExecutionTime)
 	FinishCompilationsForGame();
 
 	Reschedule();
+	
+	SchedulePendingCompilations();
 
 	ProcessGroomBindingAssets(bLimitExecutionTime);
 
