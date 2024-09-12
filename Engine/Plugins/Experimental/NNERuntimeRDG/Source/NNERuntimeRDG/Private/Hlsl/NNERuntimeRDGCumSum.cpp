@@ -283,9 +283,12 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 	{
 		using namespace UE::NNEHlslShaders::Internal;
 
-		Registry.OpAdd({ {TEXT("CumSum"), TEXT("Onnx")}, 11}, CreateCumSumOperator<11>, ValidateCumSumOperator<11>);
-		Registry.OpAdd({ {TEXT("CumSum"), TEXT("Onnx")}, 14}, CreateCumSumOperator<14>, ValidateCumSumOperator<14>);
-		
+		// Note: CumSum is currently not working on Mac.
+		#if !PLATFORM_MAC
+			Registry.OpAdd({ {TEXT("CumSum"), TEXT("Onnx")}, 11}, CreateCumSumOperator<11>, ValidateCumSumOperator<11>);
+			Registry.OpAdd({ {TEXT("CumSum"), TEXT("Onnx")}, 14}, CreateCumSumOperator<14>, ValidateCumSumOperator<14>);
+		#endif
+
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl
