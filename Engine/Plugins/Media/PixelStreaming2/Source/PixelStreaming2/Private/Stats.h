@@ -144,14 +144,9 @@ namespace UE::PixelStreaming2
 		void StoreApplicationStat(FStatData PeerStat);
 		void Tick(float DeltaTime);
 
-		DECLARE_MULTICAST_DELEGATE(FOnStatsPolled);
-		FOnStatsPolled OnStatsPolled;
-
-		void  ExecStatPS();
 		bool  OnToggleStats(UWorld* World, FCommonViewportClient* ViewportClient, const TCHAR* Stream);
 		int32 OnRenderStats(UWorld* World, FViewport* Viewport, FCanvas* Canvas, int32 X, int32 Y, const FVector* ViewLocation, const FRotator* ViewRotation);
 
-		void  ExecStatPSGraphs();
 		bool  OnToggleGraphs(UWorld* World, FCommonViewportClient* ViewportClient, const TCHAR* Stream);
 		int32 OnRenderGraphs(UWorld* World, FViewport* Viewport, FCanvas* Canvas, int32 X, int32 Y, const FVector* ViewLocation, const FRotator* ViewRotation);
 
@@ -169,18 +164,18 @@ namespace UE::PixelStreaming2
 
 	private:
 		FStats();
+
 		void RegisterEngineHooks();
+		void UpdateConsoleAutoComplete(TArray<FAutoCompleteCommand>& AutoCompleteList);
+
 		void PollPixelStreaming2Settings();
 		void RemovePeerStat(const FString& PlayerId);
 		void FireStatChanged(const FString& PlayerId, FName StatName, float StatValue);
-		void UpdateConsoleAutoComplete(TArray<FAutoCompleteCommand>& AutoCompleteList);
 		void GraphValue_GameThread(FName InName, float Value, int InSamples, float InMinRange, float InMaxRange, float InRefValue);
 		void AddCanvasTile_GameThread(FName Name, const FCanvasTileItem& Tile);
 
 	private:
 		static FStats* Instance;
-
-		bool bRegisterEngineStats = false;
 
 		mutable FCriticalSection  PeerStatsCS;
 		TMap<FString, FPeerStats> PeerStats;
@@ -189,7 +184,6 @@ namespace UE::PixelStreaming2
 		TMap<FName, FStoredStat> ApplicationStats;
 
 		int64 LastTimeSettingsPolledCycles = 0;
-		float RTCStatsPolledDelta = 0.0f;
 
 		TMap<FName, FDebugGraph>	 Graphs;
 		TMap<FName, FCanvasTileItem> Tiles;

@@ -73,14 +73,6 @@ class PIXELSTREAMING2CORE_API UPixelStreaming2PluginSettings : public UDeveloper
 
 public:
 	// clang-format off
-	static TAutoConsoleVariable<bool> CVarOnScreenStats;
-	UPROPERTY(config, EditAnywhere, Category = "PixelStreaming", meta = (
-		ConsoleVariable = "PixelStreaming2.HUDStats",
-		DisplayName = "Show Pixel Streaming Stats On Screen",
-		ToolTip = "Whether to show PixelStreaming stats on the in-game HUD (default: false)."
-		))
-	bool OnScreenStats = false;
-
 	static TAutoConsoleVariable<bool> CVarLogStats;
 	UPROPERTY(config, EditAnywhere, Category = "PixelStreaming", meta = (
 		ConsoleVariable = "PixelStreaming2.LogStats",

@@ -70,19 +70,43 @@ namespace
 		// CVars are . deliminated by section. To get their equivilent commandline arg parameter, we need to to remove the .
 		return InCVarName.Replace(TEXT("."), TEXT("")).Replace(TEXT("PixelStreaming2"), TEXT("PixelStreaming"));
 	}
+
+	static void ParseLegacyCommandLineValue(const TCHAR* Match, TAutoConsoleVariable<FString>& CVar)
+	{
+		FString Value;
+		if (FParse::Value(FCommandLine::Get(), Match, Value))
+		{
+			CVar->Set(*Value, ECVF_SetByCommandline);
+		}
+	};
+
+	static void ParseLegacyCommandLineOption(const TCHAR* Match, TAutoConsoleVariable<bool>& CVar)
+	{
+		FString ValueMatch(Match);
+		ValueMatch.Append(TEXT("="));
+		FString Value;
+		if (FParse::Value(FCommandLine::Get(), *ValueMatch, Value))
+		{
+			if (Value.Equals(FString(TEXT("true")), ESearchCase::IgnoreCase))
+			{
+				CVar->Set(true, ECVF_SetByCommandline);
+			}
+			else if (Value.Equals(FString(TEXT("false")), ESearchCase::IgnoreCase))
+			{
+				CVar->Set(false, ECVF_SetByCommandline);
+			}
+		}
+		else if (FParse::Param(FCommandLine::Get(), Match))
+		{
+			CVar->Set(true, ECVF_SetByCommandline);
+		}
+	}
 } // namespace
 
 static FName PixelStreaming2ConsoleVariableMetaFName(TEXT("ConsoleVariable"));
 static FName PixelStreaming2MappedConsoleVariableFName(TEXT("MappedConsoleVariable"));
 
 // Begin Pixel Streaming Plugin CVars
-
-TAutoConsoleVariable<bool> UPixelStreaming2PluginSettings::CVarOnScreenStats(
-	TEXT("PixelStreaming2.HUDStats"),
-	false,
-	TEXT("Whether to show PixelStreaming stats on the in-game HUD (default: false)."),
-	ECVF_Default);
-
 TAutoConsoleVariable<bool> UPixelStreaming2PluginSettings::CVarLogStats(
 	TEXT("PixelStreaming2.LogStats"),
 	false,
@@ -803,7 +827,6 @@ void UPixelStreaming2PluginSettings::SetCVarFromProperty(IConsoleVariable* CVar,
 
 // Map of Property Names to their commandline args as GetMetaData() is not avaliable in packaged projects
 static const TMap<FString, FString> GetCmdArg = {
-	{ "OnScreenStats", "PixelStreaming2.HUDStats" },
 	{ "LogStats", "PixelStreaming2.LogStats" },
 	{ "SendPlayerIdAsInteger", "PixelStreaming2.SendPlayerIdAsInteger" },
 	{ "DisableLatencyTester", "PixelStreaming2.DisableLatencyTester" },
@@ -866,12 +889,16 @@ static const TMap<FString, FString> GetMappedCmdArg = {
 };
 
 static const TArray<FString> GetLegacyCmdArg = {
-	"PixelStreaming2.Encoder.MinQp",
-	"PixelStreaming2.Encoder.MaxQp",
-	"PixelStreaming2.IP",
-	"PixelStreaming2.Port",
-	"PixelStreaming2.URL",
-	"AllowPixelStreamingCommands"
+	"PixelStreaming2.Encoder.MinQp", // Renamed to MaxQuality
+	"PixelStreaming2.Encoder.MaxQp", // Renamed to MinQuality
+	"PixelStreaming2.IP", // Moved to URL
+	"PixelStreaming2.Port", // Moved to URL
+	"PixelStreaming2.URL", // Renamed to SignallingURL
+	"AllowPixelStreamingCommands", 
+	"PixelStreaming2.NegotiateCodecs", // Renamed to WebRTC.NegotiateCodecs
+	"PixelStreaming2.OnScreenStats", // CVar is removed but launch arg is used in stats.cpp
+	"PixelStreaming2.HudStats", // CVar is removed but launch arg is used in stats.cpp
+	"PixelStreaming2.EnableHMD" // Renamed to HMDEnable
 };
 
 void UPixelStreaming2PluginSettings::ValidateCommandLineArgs()
@@ -939,6 +966,7 @@ void UPixelStreaming2PluginSettings::ValidateCommandLineArgs()
 
 void UPixelStreaming2PluginSettings::ParseLegacyCommandlineArgs()
 {
+	// Begin legacy PixelStreaming command line args
 	int32 MinQP;
 	if (FParse::Value(FCommandLine::Get(), TEXT("PixelStreamingEncoderMinQp="), MinQP))
 	{
@@ -978,54 +1006,23 @@ void UPixelStreaming2PluginSettings::ParseLegacyCommandlineArgs()
 		CVarSignallingURL.AsVariable()->Set(*LegacyUrl, ECVF_SetByCommandline);
 	}
 
-	if (FParse::Param(FCommandLine::Get(), TEXT("AllowPixelStreamingCommands")))
-	{
-		CVarInputAllowConsoleCommands->Set(true);
-	}
+	ParseLegacyCommandLineOption(TEXT("PixelStreamingNegotiateCodecs"), CVarWebRTCNegotiateCodecs);
+	ParseLegacyCommandLineOption(TEXT("AllowPixelStreamingCommands"), CVarInputAllowConsoleCommands);
+	ParseLegacyCommandLineOption(TEXT("PixelStreamingDebugDumpFrame"), CVarEncoderDebugDumpFrame);
+	// End legacy PixelStreaming command line args
 
-	// This one gets parsed here because it has no matching UProperty
-	if (FParse::Param(FCommandLine::Get(), TEXT("PixelStreamingEncoderDumpDebugFrames")))
-	{
-		CVarEncoderDebugDumpFrame->Set(true);
-	}
+	// Begin legacy PixelStreamingEditor command line args
+	ParseLegacyCommandLineOption(TEXT("EditorPixelStreamingStartOnLaunch"), CVarEditorStartOnLaunch);
+	ParseLegacyCommandLineOption(TEXT("EditorPixelStreamingUseRemoteSignallingServer"), CVarEditorUseRemoteSignallingServer);
 
-	// Begin legacy EditorStreaming command line args
-	if (FParse::Param(FCommandLine::Get(), TEXT("EditorPixelStreamingStartOnLaunch")))
-	{
-		CVarEditorStartOnLaunch->Set(true);
-	}
+	ParseLegacyCommandLineValue(TEXT("EditorPixelStreamingSource="), CVarEditorSource);
+	IConsoleVariable* EditorSourceCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("PixelStreaming2.Editor.Source"));
+	CheckConsoleEnum<EPixelStreaming2EditorStreamTypes>(EditorSourceCVar);
+	// End legacy PixelStreamingEditor command line args
 
-	FString StartOnLaunchString;
-	if (FParse::Value(FCommandLine::Get(), TEXT("EditorPixelStreamingStartOnLaunch="), StartOnLaunchString))
-	{
-		if (StartOnLaunchString.Equals(FString(TEXT("true")), ESearchCase::IgnoreCase))
-		{
-			CVarEditorStartOnLaunch->Set(true, ECVF_SetByCommandline);
-		}
-		else if (StartOnLaunchString.Equals(FString(TEXT("false")), ESearchCase::IgnoreCase))
-		{
-			CVarEditorStartOnLaunch->Set(false, ECVF_SetByCommandline);
-		}
-	}
-
-	if (FParse::Param(FCommandLine::Get(), TEXT("EditorPixelStreamingUseRemoteSignallingServer")))
-	{
-		CVarEditorUseRemoteSignallingServer->Set(true);
-	}
-
-	FString UseRemoteSignallingServerString;
-	if (FParse::Value(FCommandLine::Get(), TEXT("EditorPixelStreamingUseRemoteSignallingServer="), UseRemoteSignallingServerString))
-	{
-		if (UseRemoteSignallingServerString.Equals(FString(TEXT("true")), ESearchCase::IgnoreCase))
-		{
-			CVarEditorUseRemoteSignallingServer->Set(true, ECVF_SetByCommandline);
-		}
-		else if (UseRemoteSignallingServerString.Equals(FString(TEXT("false")), ESearchCase::IgnoreCase))
-		{
-			CVarEditorUseRemoteSignallingServer->Set(false, ECVF_SetByCommandline);
-		}
-	}
-	// End legacy EditorStreaming command line args
+	// End legacy PixelStreamingHMD command line args
+	ParseLegacyCommandLineOption(TEXT("PixelStreamingEnableHMD"), CVarHMDEnable);
+	// End legacy PixelStreamingHMD command line args
 }
 
 void UPixelStreaming2PluginSettings::PostInitProperties()
