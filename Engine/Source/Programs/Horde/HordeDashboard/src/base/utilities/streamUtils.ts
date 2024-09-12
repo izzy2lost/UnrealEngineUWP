@@ -12,7 +12,7 @@ export const getActiveStreamId = (): string | undefined => {
         return undefined;
     }
 
-    if (![projectStore.streamById(path[1])]) {
+    if (!projectStore.streamById(path[1])) {
         return undefined;
     }
 
