@@ -29,11 +29,7 @@ int FOnlineServicesEOSModule::GetRegistryPriority()
 
 void FOnlineServicesEOSModule::StartupModule()
 {
-	const FName EOSSharedModuleName = TEXT("EOSShared");
-	if (!FModuleManager::Get().IsModuleLoaded(EOSSharedModuleName))
-	{
-		FModuleManager::Get().LoadModuleChecked(EOSSharedModuleName);
-	}
+	FModuleManager::Get().LoadModuleChecked(TEXT("OnlineServicesEOSGS"));
 
 	// Making sure we load the module at this point will avoid errors while cooking
 	const FName OnlineServicesInterfaceModuleName = TEXT("OnlineServicesInterface");
