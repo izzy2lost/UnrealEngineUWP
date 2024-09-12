@@ -129,6 +129,7 @@ UnrealEngine.cpp: Implements the UEngine class and helpers.
 
 #if UE_WITH_IRIS
 #include "Iris/IrisConfig.h"
+#include "Iris/ReplicationSystem/NetObjectFactoryRegistry.h"
 #endif
 
 #include "IUniversalObjectLocatorModule.h"
@@ -230,6 +231,10 @@ UnrealEngine.cpp: Implements the UEngine class and helpers.
 #if !UE_BUILD_SHIPPING
 #include "GenericPlatform/GenericPlatformCrashContext.h"
 #include "Streaming/StreamingManagerTexture.h"
+#endif
+
+#if UE_WITH_IRIS
+#include "Net/Iris/ReplicationSystem/NetEngineFactories.h"
 #endif
 
 #include "HAL/FileManagerGeneric.h"
@@ -351,6 +356,10 @@ void FEngineModule::StartupModule()
 
 	UE::Anim::FSkeletonRemappingRegistry::Init();
 
+#if UE_WITH_IRIS
+	UE::Net::InitEngineNetObjectFactories();
+#endif
+
 	IUniversalObjectLocatorModule& UolModule = FModuleManager::Get().LoadModuleChecked<IUniversalObjectLocatorModule>("UniversalObjectLocator");
 
 	FDelayedAutoRegisterHelper(EDelayedRegisterRunPhase::ObjectSystemReady,
@@ -382,6 +391,10 @@ void FEngineModule::StartupModule()
 
 void FEngineModule::ShutdownModule()
 {
+#if UE_WITH_IRIS
+	UE::Net::ShutdownEngineNetObjectFactories();
+#endif
+
 #if TRACE_FILTERING_ENABLED
 	FTraceFilter::Destroy();
 #endif
@@ -14315,6 +14328,13 @@ namespace UE::Private
 				const FName DriverName = InNetDriverName.IsNone() ? ReturnVal->GetFName() : InNetDriverName;
 				const bool bInitializeWithIris = Engine->WillNetDriverUseIris(Context, NetDriverDefinition, DriverName);
 
+#if UE_WITH_IRIS
+				if (bInitializeWithIris)
+				{
+					UE::Net::FNetObjectFactoryRegistry::SetFactoryRegistrationAllowed(false);
+				}
+#endif
+
 				ReturnVal->SetNetDriverName(DriverName);
 				ReturnVal->SetNetDriverDefinition(NetDriverDefinition);
 				ReturnVal->PostCreation(bInitializeWithIris);
@@ -14384,6 +14404,29 @@ namespace UE::Private
 				break;
 			}
 		}
+
+#if UE_WITH_IRIS
+		auto IsAnyNetDriverUsingIris = []()
+		{
+			const TIndirectArray<FWorldContext>& Worlds = GEngine->GetWorldContexts();
+			for (const FWorldContext& Context : Worlds)
+			{
+				for (const FNamedNetDriver& NetDriver : Context.ActiveNetDrivers)
+				{
+					if (NetDriver.NetDriver && NetDriver.NetDriver->IsUsingIrisReplication())
+					{
+						return true;
+					}
+				}
+			}
+			return false;
+		};
+		
+		if (!IsAnyNetDriverUsingIris())
+		{
+			UE::Net::FNetObjectFactoryRegistry::SetFactoryRegistrationAllowed(true);
+		}
+#endif // UE_WITH_IRIS
 	}
 } // end namespace UE::Private
 

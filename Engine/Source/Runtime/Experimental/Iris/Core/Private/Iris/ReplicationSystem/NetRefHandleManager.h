@@ -13,6 +13,7 @@
 #include "Iris/ReplicationState/ReplicationStateDescriptor.h"
 #include "Iris/ReplicationSystem/NetRefHandle.h"
 #include "Iris/ReplicationSystem/NetDependencyData.h"
+#include "Iris/ReplicationSystem/NetObjectFactoryRegistry.h"
 #include "UObject/ObjectPtr.h"
 #include "Delegates/Delegate.h"
 
@@ -65,40 +66,41 @@ public:
 	struct FReplicatedObjectData
 	{
 		FReplicatedObjectData()
-		: Protocol(nullptr)
-		, InstanceProtocol(nullptr)
-		, ReceiveStateBuffer(nullptr)
-		, SubObjectRootIndex(InvalidInternalIndex)
-		, SubObjectParentIndex(InvalidInternalIndex)
-		, Flags(0U)
+		: Flags(0U)
 		{
 		}
 
 		FNetRefHandle RefHandle;
 		FNetHandle NetHandle;
-		const FReplicationProtocol* Protocol;
-		const FReplicationInstanceProtocol* InstanceProtocol;
-		uint8* ReceiveStateBuffer;
+		
+		const FReplicationProtocol* Protocol = nullptr;
+		const FReplicationInstanceProtocol* InstanceProtocol = nullptr;
+		uint8* ReceiveStateBuffer = nullptr ;
+		
 		/** Subobjects only: Internal index of the RootObject of this subobject */
-		FInternalNetRefIndex SubObjectRootIndex;
+		FInternalNetRefIndex SubObjectRootIndex = InvalidInternalIndex;
+		
 		/** Subobjects only: Internal index of the ParentObject of this subobject */
-		FInternalNetRefIndex SubObjectParentIndex;
+		FInternalNetRefIndex SubObjectParentIndex = InvalidInternalIndex;
+
+		/** The factory responsible for instantiating this object */
+		FNetObjectFactoryId NetFactoryId = InvalidNetObjectFactoryId;
 
 		union
 		{
-			uint32 Flags : 32U;
+			uint16 Flags : 16U;
 			struct
 			{
-				uint32 bShouldPropagateChangedStates : 1U;
-				uint32 bTearOff : 1U;
-				uint32 bDestroySubObjectWithOwner : 1U;
-				uint32 bIsDependentObject : 1U;
-				uint32 bHasDependentObjects : 1U;
-				uint32 bAllowDestroyInstanceFromRemote : 1U;
-				uint32 bNeedsFullCopyAndQuantize : 1U;
-				uint32 bWantsFullPoll : 1U;
-				uint32 bPendingEndReplication : 1U;
-				uint32 bHasCachedCreationInfo : 1U;
+				uint16 bShouldPropagateChangedStates : 1U;
+				uint16 bTearOff : 1U;
+				uint16 bDestroySubObjectWithOwner : 1U;
+				uint16 bIsDependentObject : 1U;
+				uint16 bHasDependentObjects : 1U;
+				uint16 bAllowDestroyInstanceFromRemote : 1U;
+				uint16 bNeedsFullCopyAndQuantize : 1U;
+				uint16 bWantsFullPoll : 1U;
+				uint16 bPendingEndReplication : 1U;
+				uint16 bHasCachedCreationInfo : 1U;
 			};
 		};
 	

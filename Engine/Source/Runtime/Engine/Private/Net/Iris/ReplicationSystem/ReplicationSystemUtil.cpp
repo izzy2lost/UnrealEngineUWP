@@ -237,12 +237,13 @@ void FReplicationSystemUtil::BeginReplicationForActorSubObject(const AActor* Act
 		{
 			if (ReplicationSystem->IsServer())
 			{
-				if (UObjectReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridgeAs<UObjectReplicationBridge>())
+				if (UActorReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridgeAs<UActorReplicationBridge>())
 				{
 					const FNetRefHandle ActorRefHandle = Bridge->GetReplicatedRefHandle(ActorHandle);
 					if (ActorRefHandle.IsValid())
 					{
-						const FNetRefHandle SubObjectRefHandle = Bridge->StartReplicatingSubObject(ActorRefHandle, ActorSubObject);
+						const UObjectReplicationBridge::FSubObjectReplicationParams Params { .RootObjectHandle = ActorRefHandle };
+						const FNetRefHandle SubObjectRefHandle = Bridge->StartReplicatingSubObject(ActorSubObject, Params);
 						if (SubObjectRefHandle.IsValid() && NetCondition != ELifetimeCondition::COND_None)
 						{
 							Bridge->SetSubObjectNetCondition(SubObjectRefHandle, NetCondition);
@@ -271,13 +272,19 @@ void FReplicationSystemUtil::BeginReplicationForActorComponentSubObject(UActorCo
 			{
 				if (ReplicationSystem->IsServer())
 				{
-					if (UObjectReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridgeAs<UObjectReplicationBridge>())
+					if (UActorReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridgeAs<UActorReplicationBridge>())
 					{
 						const FNetRefHandle ActorRefHandle = Bridge->GetReplicatedRefHandle(ActorHandle);
 						const FNetRefHandle ActorComponentRefHandle = Bridge->GetReplicatedRefHandle(ActorComponent);
 						if (ActorRefHandle.IsValid() && ActorComponentRefHandle.IsValid())
 						{
-							const FNetRefHandle SubObjectRefHandle = Bridge->StartReplicatingSubObject(ActorRefHandle, SubObject, ActorComponentRefHandle, UReplicationBridge::ESubObjectInsertionOrder::ReplicateWith);
+							const UObjectReplicationBridge::FSubObjectReplicationParams Params
+							{ 
+								.RootObjectHandle = ActorRefHandle,
+								.InsertRelativeToSubObjectHandle = ActorComponentRefHandle,
+								.InsertionOrder = UReplicationBridge::ESubObjectInsertionOrder::ReplicateWith
+							};
+							const FNetRefHandle SubObjectRefHandle = Bridge->StartReplicatingSubObject(SubObject, Params);
 							if (SubObjectRefHandle.IsValid() && NetCondition != ELifetimeCondition::COND_None)
 							{
 								Bridge->SetSubObjectNetCondition(SubObjectRefHandle, NetCondition);

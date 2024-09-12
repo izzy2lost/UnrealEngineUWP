@@ -5,25 +5,34 @@
 
 #if UE_WITH_IRIS
 
-#include "Net/Iris/ReplicationSystem/ActorReplicationBridgeInternal.h"
+#include "Net/Iris/ReplicationSystem/NetActorFactory.h"
+#include "Net/Iris/ReplicationSystem/NetSubObjectFactory.h"
+
 #include "Iris/IrisConfig.h"
 #include "Iris/IrisConstants.h"
+
 #include "Iris/Core/IrisLog.h"
 #include "Iris/Core/IrisProfiler.h"
 #include "Iris/Core/NetObjectReference.h"
 #include "Iris/Core/IrisMemoryTracker.h"
+
 #include "Iris/ReplicationSystem/NetToken.h"
 #include "Iris/ReplicationSystem/ObjectReplicationBridgeConfig.h"
 #include "Iris/ReplicationSystem/StringTokenStore.h"
 #include "Iris/ReplicationSystem/ReplicationOperations.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilter.h"
+
 #include "Iris/Serialization/NetBitStreamReader.h"
 #include "Iris/Serialization/NetBitStreamUtil.h"
 #include "Iris/Serialization/NetBitStreamWriter.h"
 #include "Iris/Serialization/ObjectNetSerializer.h"
 #include "Iris/Serialization/IrisObjectReferencePackageMap.h"
+
 #include "Iris/Metrics/NetMetrics.h"
+
+#include "AnalyticsEventAttribute.h"
+
 #include "Engine/Engine.h"
 #include "Engine/EngineTypes.h"
 #include "Engine/Level.h"
@@ -31,10 +40,12 @@
 #include "Engine/NetDriver.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
-#include "AnalyticsEventAttribute.h"
+
 #include "GameFramework/Actor.h"
 #include "GameFramework/PlayerController.h"
+
 #include "HAL/LowLevelMemStats.h"
+
 #include "Net/DataBunch.h"
 #include "Net/DataChannel.h"
 #include "Net/Core/Connection/NetEnums.h"
@@ -42,8 +53,11 @@
 #include "Net/Core/Misc/NetSubObjectRegistry.h"
 #include "Net/Core/Trace/NetDebugName.h"
 #include "Net/NetSubObjectRegistryGetter.h"
+
 #include "ProfilingDebugging/AssetMetadataTrace.h"
+
 #include "Templates/Casts.h"
+
 #include "UObject/Package.h"
 
 #include <limits>
@@ -107,7 +121,8 @@ bool ShouldIncludeActorInLevelGroups(const AActor* Actor)
 
 UActorReplicationBridge::UActorReplicationBridge()
 : UObjectReplicationBridge()
-, SpawnInfoFlags(0U)
+, ActorFactoryId(UE::Net::InvalidNetObjectFactoryId)
+, SubObjectFactoryId(UE::Net::InvalidNetObjectFactoryId)
 {
 	SetInstancePreUpdateFunction(UE::Net::Private::ActorReplicationBridgePreUpdateFunction);
 	SetInstanceGetWorldObjectInfoFunction(UE::Net::Private::ActorReplicationBridgeGetActorWorldObjectInfo);
@@ -115,9 +130,17 @@ UActorReplicationBridge::UActorReplicationBridge()
 
 void UActorReplicationBridge::Initialize(UReplicationSystem* InReplicationSystem)
 {
+	using namespace UE::Net;
+
 	Super::Initialize(InReplicationSystem);
 
 	ensureMsgf(GDefaultUseSubObjectReplicationList, TEXT("Iris requires replicated actors to use registered subobjectslists. Add \n[SystemSettings]\nnet.SubObjects.DefaultUseSubObjectReplicationList=1\n to your DefaultEngine.ini"));
+
+	ActorFactoryId = FNetObjectFactoryRegistry::GetFactoryIdFromName(UNetActorFactory::GetFactoryName());
+	checkf(ActorFactoryId != InvalidNetObjectFactoryId, TEXT("UNetActorFactory with name %s was not registered"), ToCStr(UNetActorFactory::GetFactoryName().ToString()));
+
+	SubObjectFactoryId = FNetObjectFactoryRegistry::GetFactoryIdFromName(UNetSubObjectFactory::GetFactoryName());
+	checkf(SubObjectFactoryId != InvalidNetObjectFactoryId, TEXT("UNetSubObjectFactory with name %s was not registered"), ToCStr(UNetSubObjectFactory::GetFactoryName().ToString()));
 
 	{
 		auto ShouldSpatialize = [](const UClass* Class)
@@ -160,9 +183,6 @@ void UActorReplicationBridge::Initialize(UReplicationSystem* InReplicationSystem
 	}
 
 	ObjectReferencePackageMap = NewObject<UIrisObjectReferencePackageMap>();
-
-	// Get spawn info flags from cvars
-	SpawnInfoFlags = UE::Net::Private::GetActorReplicationBridgeSpawnInfoFlags();
 }
 
 UActorReplicationBridge::~UActorReplicationBridge()
@@ -279,7 +299,7 @@ UE::Net::FNetRefHandle UActorReplicationBridge::StartReplicatingActor(AActor* Ac
 	ensureMsgf(!(Actor->bAlwaysRelevant || Actor->bOnlyRelevantToOwner) || RootObjectParams.StaticPriority >= 1.0f, TEXT("Very low NetPriority %.02f for always relevant or owner relevant Actor %s. Set it to 1.0f or higher."), Actor->NetPriority, ToCStr(Actor->GetName()));
 #endif
 
-	FNetRefHandle ActorRefHandle = StartReplicatingRootObject(Actor, RootObjectParams);
+	FNetRefHandle ActorRefHandle = StartReplicatingRootObject(Actor, RootObjectParams, ActorFactoryId);
 
 	if (!ActorRefHandle.IsValid())
 	{
@@ -330,13 +350,14 @@ UE::Net::FNetRefHandle UActorReplicationBridge::StartReplicatingActor(AActor* Ac
 
 	if (ActorSubObjects.GetRegistryList().Num() != 0 || ReplicatedComponents.Num() != 0)
 	{
+		const FSubObjectReplicationParams SubObjectParams { .RootObjectHandle = ActorRefHandle };
 		// Start with the Actor's SubObjects (that is SubObjects that are not ActorComponents)
 		for (const FSubObjectRegistry::FEntry& SubObjectInfo : ActorSubObjects.GetRegistryList())
 		{
 			UObject* SubObjectToReplicate = SubObjectInfo.GetSubObject();
 			if (IsValid(SubObjectToReplicate) && SubObjectInfo.NetCondition != ELifetimeCondition::COND_Never)
 			{
-				FNetRefHandle SubObjectRefHandle = StartReplicatingSubObject(ActorRefHandle, SubObjectToReplicate);
+				FNetRefHandle SubObjectRefHandle = Super::StartReplicatingSubObject(SubObjectToReplicate, SubObjectParams, SubObjectFactoryId);
 				if (SubObjectRefHandle.IsValid() && SubObjectInfo.NetCondition != ELifetimeCondition::COND_None)
 				{
 					UObjectReplicationBridge::SetSubObjectNetCondition(SubObjectRefHandle, SubObjectInfo.NetCondition);
@@ -359,11 +380,11 @@ UE::Net::FNetRefHandle UActorReplicationBridge::StartReplicatingActor(AActor* Ac
 	return ActorRefHandle;
 }
 
-UE::Net::FNetRefHandle UActorReplicationBridge::StartReplicatingComponent(FNetRefHandle OwnerHandle, UActorComponent* SubObject)
+UE::Net::FNetRefHandle UActorReplicationBridge::StartReplicatingComponent(FNetRefHandle RootObjectHandle, UActorComponent* SubObject)
 {
 	using namespace UE::Net;
 
-	if (!OwnerHandle.IsValid())
+	if (!RootObjectHandle.IsValid())
 	{
 		return FNetRefHandle::GetInvalid();
 	}
@@ -395,7 +416,8 @@ UE::Net::FNetRefHandle UActorReplicationBridge::StartReplicatingComponent(FNetRe
 		}
 
 		// Start replicating the subobject with its owner.
-		ReplicatedComponentHandle = StartReplicatingSubObject(OwnerHandle, SubObject);
+		const FSubObjectReplicationParams Params{ .RootObjectHandle = RootObjectHandle };
+		ReplicatedComponentHandle = Super::StartReplicatingSubObject(SubObject, Params, SubObjectFactoryId);
 	}
 
 	if (!ReplicatedComponentHandle.IsValid())
@@ -411,20 +433,34 @@ UE::Net::FNetRefHandle UActorReplicationBridge::StartReplicatingComponent(FNetRe
 	}
 
 	// Begin replication for any SubObjects registered by the component
-	for (const FSubObjectRegistry::FEntry& SubObjectInfo : RepComponentInfo->SubObjects.GetRegistryList())
 	{
-		UObject* SubObjectToReplicate = SubObjectInfo.GetSubObject();
-		if (IsValid(SubObjectToReplicate) && SubObjectInfo.NetCondition != ELifetimeCondition::COND_Never)
+		const FSubObjectReplicationParams Params
 		{
-			FNetRefHandle SubObjectHandle = StartReplicatingSubObject(OwnerHandle, SubObjectToReplicate, ReplicatedComponentHandle, UReplicationBridge::ESubObjectInsertionOrder::ReplicateWith);
-			if (SubObjectHandle.IsValid() && SubObjectInfo.NetCondition != ELifetimeCondition::COND_None)
+			.RootObjectHandle = RootObjectHandle,
+			.InsertRelativeToSubObjectHandle = ReplicatedComponentHandle,
+			.InsertionOrder = ESubObjectInsertionOrder::ReplicateWith
+		};
+	
+		for (const FSubObjectRegistry::FEntry& SubObjectInfo : RepComponentInfo->SubObjects.GetRegistryList())
+		{
+			UObject* SubObjectToReplicate = SubObjectInfo.GetSubObject();
+			if (IsValid(SubObjectToReplicate) && SubObjectInfo.NetCondition != ELifetimeCondition::COND_Never)
 			{
-				SetSubObjectNetCondition(SubObjectHandle, SubObjectInfo.NetCondition);
+				FNetRefHandle SubObjectHandle = Super::StartReplicatingSubObject(SubObjectToReplicate, Params, SubObjectFactoryId);
+				if (SubObjectHandle.IsValid() && SubObjectInfo.NetCondition != ELifetimeCondition::COND_None)
+				{
+					SetSubObjectNetCondition(SubObjectHandle, SubObjectInfo.NetCondition);
+				}
 			}
 		}
 	}
 
 	return ReplicatedComponentHandle;
+}
+
+UE::Net::FNetRefHandle UActorReplicationBridge::StartReplicatingSubObject(UObject* SubObject, const FSubObjectReplicationParams& Params)
+{
+	return Super::StartReplicatingSubObject(SubObject, Params, SubObjectFactoryId);
 }
 
 void UActorReplicationBridge::StopReplicatingActor(AActor* Actor, EEndPlayReason::Type EndPlayReason)
@@ -486,385 +522,6 @@ void UActorReplicationBridge::StopReplicatingComponent(UActorComponent* ActorCom
 	}
 }
 
-bool UActorReplicationBridge::WriteCreationHeader(UE::Net::FNetSerializationContext& Context, FNetRefHandle Handle)
-{
-	using namespace UE::Net;
-	using namespace UE::Net::Private;
-
-	FNetBitStreamWriter* Writer = Context.GetBitStreamWriter();
-	ensure(IsReplicatedHandle(Handle));
-	const UObject* Object = GetReplicatedObject(Handle);
-	if (const AActor* Actor = Cast<AActor>(Object))
-	{
-		// Get Header
-		FActorCreationHeader Header;
-		GetActorCreationHeader(Actor, Header);
-	
-		// Serialize the data
-		// Indicate that this is an actor
-		Writer->WriteBool(true);
-		WriteActorCreationHeader(Context, Header, SpawnInfoFlags);
-
-		return !Writer->IsOverflown();
-	}
-	else if (Object)
-	{
-		const UObject* RootObject = GetReplicatedObject(GetRootObjectOfSubObject(Handle));
-
-		// Get Header
-		FSubObjectCreationHeader Header;
-		GetSubObjectCreationHeader(Object, RootObject, Header);
-
-		// Serialize the data
-		// Indicate that this is a SubObject
-		Writer->WriteBool(false);
-		WriteSubObjectCreationHeader(Context, Header);
-
-		return !Writer->IsOverflown();
-	}
-
-	ensureMsgf(false, TEXT("UActorReplicationBridge::WriteCreationHeader Failed to write creationHeader for NetRefHandle (Id=%u) %s"), Handle.GetId(), ToCStr(GetReplicationSystem()->GetDebugName(Handle)));
-
-	return false;
-}
-
-TUniquePtr<UObjectReplicationBridge::FCreationHeader> UActorReplicationBridge::GetCreationHeader(FNetRefHandle Handle)
-{
-	using namespace UE::Net;
-	using namespace UE::Net::Private;
-
-	if (!ensure(IsReplicatedHandle(Handle)))
-	{
-		return nullptr;
-	}
-
-	const UObject* Object = GetReplicatedObject(Handle);
-	if (const AActor* Actor = Cast<AActor>(Object))
-	{
-		// Get Header
-		TUniquePtr<FActorCreationHeader> Header(new FActorCreationHeader);
-		GetActorCreationHeader(Actor, *(Header.Get()));
-	
-		return Header;
-	}
-	else if (Object)
-	{
-		const UObject* RootObject = GetReplicatedObject(GetRootObjectOfSubObject(Handle));
-
-		// Get Header
-		TUniquePtr<FSubObjectCreationHeader> Header(new FSubObjectCreationHeader);
-		GetSubObjectCreationHeader(Object, RootObject, *(Header.Get()));
-
-		return Header;
-	}
-
-	ensureMsgf(false, TEXT("UActorReplicationBridge::GetCreationHeader Failed to get creationHeader for NetRefHandle (Id=%u) %s"), Handle.GetId(), ToCStr(GetReplicationSystem()->GetDebugName(Handle)));
-
-	return nullptr;
-}
-
-bool UActorReplicationBridge::WriteCreationHeader(UE::Net::FNetSerializationContext& Context, const FCreationHeader* InHeader)
-{
-	using namespace UE::Net;
-	using namespace UE::Net::Private;
-
-	FNetBitStreamWriter* Writer = Context.GetBitStreamWriter();
-
-	if (!InHeader)
-	{
-		return false;
-	}
-
-	const FActorReplicationBridgeCreationHeader* BridgeHeader = static_cast<const FActorReplicationBridgeCreationHeader*>(InHeader);
-
-	if (BridgeHeader->bIsActor)
-	{
-		const FActorCreationHeader* Header = static_cast<const FActorCreationHeader*>(BridgeHeader);
-
-		// Serialize the data
-		// Indicate that this is an actor
-		Writer->WriteBool(true);
-		WriteActorCreationHeader(Context, *Header, SpawnInfoFlags);
-
-		return !Writer->IsOverflown();
-	}
-	else
-	{
-		const FSubObjectCreationHeader* Header = static_cast<const FSubObjectCreationHeader*>(BridgeHeader);
-
-		// Serialize the data
-		// Indicate that this is a SubObject
-		Writer->WriteBool(false);
-		WriteSubObjectCreationHeader(Context, *Header);
-
-		return !Writer->IsOverflown();
-	}
-}
-
-TUniquePtr<UObjectReplicationBridge::FCreationHeader> UActorReplicationBridge::ReadCreationHeader(UE::Net::FNetSerializationContext& Context)
-{
-	using namespace UE::Net;
-	using namespace UE::Net::Private;
-
-	FNetBitStreamReader* Reader = Context.GetBitStreamReader();
-
-	if (const bool bIsActor = Reader->ReadBool())
-	{
-		TUniquePtr<FActorCreationHeader> Header(new FActorCreationHeader);
-		ReadActorCreationHeader(Context, *(Header.Get()));
-
-		if (!Reader->IsOverflown())
-		{
-			return Header;
-		}
-	}
-	else
-	{
-		TUniquePtr<FSubObjectCreationHeader> Header(new FSubObjectCreationHeader);
-		ReadSubObjectCreationHeader(Context, *(Header.Get()));
-
-		if (!Reader->IsOverflown())
-		{
-			return Header;
-		}
-	}
-
-	return nullptr;
-}
-
-FObjectReplicationBridgeInstantiateResult UActorReplicationBridge::BeginInstantiateFromRemote(FNetRefHandle RootObjectOfSubObject, const UE::Net::FNetObjectResolveContext& ResolveContext, const UObjectReplicationBridge::FCreationHeader* InHeader)
-{
-	LLM_SCOPE(ELLMTag::EngineMisc);
-
-	using namespace UE::Net::Private;
-
-	IRIS_PROFILER_SCOPE(ActorReplicationBridge_OnBeginInstantiateFromRemote);
-
-	FObjectReplicationBridgeInstantiateResult InstantiateResult;
-
-	const FActorReplicationBridgeCreationHeader* BridgeHeader = static_cast<const FActorReplicationBridgeCreationHeader*>(InHeader);
-
-	if (BridgeHeader->bIsActor)
-	{
-		const FActorCreationHeader* Header = static_cast<const FActorCreationHeader*>(InHeader);
-
-		// Spawn actor
-		// Try to instantiate the actor (or find it if it already exists)
-		if (Header->bIsDynamic)
-		{
-			// Find archetype
-			UObject* Archetype = ResolveObjectReference(Header->ArchetypeReference, ResolveContext);
-
-			// Find level
-			UObject* Level = nullptr;
-			if (!Header->bUsePersistentLevel)
-			{
-				Level = ResolveObjectReference(Header->LevelReference, ResolveContext);
-			}
-
-			if (Archetype)
-			{
-				LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Archetype->GetPackage(), ELLMTagSet::Assets);
-				LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Archetype->GetClass(), ELLMTagSet::AssetClasses);
-				UE_TRACE_METADATA_SCOPE_ASSET(Archetype, Archetype->GetClass());
-				// For streaming levels, it's possible that the owning level has been made not-visible but is still loaded.
-				// In that case, the level will still be found but the owning world will be invalid.
-				// If that happens, wait to spawn the Actor until the next time the level is streamed in.
-				// At that point, the Server should resend any dynamic Actors.
-				ULevel* SpawnLevel = Cast<ULevel>(Level);
-				check(SpawnLevel == nullptr || SpawnLevel->GetWorld() != nullptr);
-
-				FActorSpawnParameters SpawnInfo;
-				SpawnInfo.Template = Cast<AActor>(Archetype);
-				SpawnInfo.OverrideLevel = SpawnLevel;
-				SpawnInfo.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-				SpawnInfo.bRemoteOwned = true;
-				SpawnInfo.bNoFail = true;
-
-				UWorld* World = NetDriver->GetWorld();
-				FVector SpawnLocation = FRepMovement::RebaseOntoLocalOrigin(Header->SpawnInfo.Location, World->OriginLocation);
-		
-				AActor* Actor = World->SpawnActorAbsolute(Archetype->GetClass(), FTransform(Header->SpawnInfo.Rotation, SpawnLocation), SpawnInfo);
-
-				// For Iris we expect that we will be able to spawn the actor as streaming always is controlled from server
-				if (ensure(Actor))
-				{
-					const FActorReplicationBridgeSpawnInfo& DefaultSpawnInfo = GetDefaultActorReplicationBridgeSpawnInfo();
-					static constexpr float Epsilon = UE_KINDA_SMALL_NUMBER;
-
-					// Set Velocity if it differs from Default
-					if (!Header->SpawnInfo.Velocity.Equals(DefaultSpawnInfo.Velocity, Epsilon))
-					{
-						Actor->PostNetReceiveVelocity(Header->SpawnInfo.Velocity);
-					}
-					
-					// Set Scale if it differs from Default
-					if (!Header->SpawnInfo.Scale.Equals(DefaultSpawnInfo.Scale, Epsilon))
-					{
-						Actor->SetActorRelativeScale3D(Header->SpawnInfo.Scale);
-					}
-
-					UE_LOG_ACTORREPLICATIONBRIDGE(Verbose, TEXT("OnBeginInstantiateFromRemote Spawned Actor %s"), *Actor->GetPathName());
-				}
-
-				InstantiateResult.Object = Actor;
-				if (NetDriver->ShouldClientDestroyActor(Actor))
-				{
-					InstantiateResult.Flags |= EReplicationBridgeCreateNetRefHandleResultFlags::AllowDestroyInstanceFromRemote;
-				}
-				return InstantiateResult;
-			}
-			else
-			{
-				UE_LOG_ACTORREPLICATIONBRIDGE(Error, TEXT("OnBeginInstantiateFromRemote Unable to spawn object, failed to resolve archetype with %s"), *DescribeObjectReference(Header->ArchetypeReference, ResolveContext));
-			}
-		}
-		else
-		{
-			if (UObject* Object = ResolveObjectReference(Header->ObjectReference, ResolveContext))
-			{
-				UE_LOG_ACTORREPLICATIONBRIDGE(Verbose, TEXT("OnBeginInstantiateFromRemote Found static Actor using path %s"), ToCStr(Object->GetPathName()));
-				InstantiateResult.Object = Object;
-				if (NetDriver->ShouldClientDestroyActor(Cast<AActor>(Object)))
-				{
-					InstantiateResult.Flags |= EReplicationBridgeCreateNetRefHandleResultFlags::AllowDestroyInstanceFromRemote;
-				}
-				return InstantiateResult;
-			}
-			else
-			{
-				UE_LOG_ACTORREPLICATIONBRIDGE(Error, TEXT("OnBeginInstantiateFromRemote Failed to find Resolve ObjectReference for static Actor %s"), *DescribeObjectReference(Header->ObjectReference, ResolveContext));
-			}
-		}
-	}
-	else
-	{
-		const FSubObjectCreationHeader* Header = static_cast<const FSubObjectCreationHeader*>(InHeader);
-
-		// Spawn sub object
-		if (Header->bIsDynamic)
-		{
-			// Resolve root object
-			UObject* RootObject = GetReplicatedObject(RootObjectOfSubObject);
-			AActor* RootActor = CastChecked<AActor>(RootObject);
-			
-			UObject* SubObj = nullptr;
-
-			if (Header->bIsNameStableForNetworking)
-			{
-				// Resolve by finding object relative to owner. We do not allow this object to be destroyed.
-				SubObj = ResolveObjectReference(Header->ObjectReference, ResolveContext);
-
-				if (!SubObj)
-				{
-					UE_LOG_ACTORREPLICATIONBRIDGE(Error, TEXT("BeginInstantiateFromRemote Failed to find stable name reference of dynamic SubObject %s, Owner %s, RootObject %s"), *DescribeObjectReference(Header->ObjectReference, ResolveContext), *RootObjectOfSubObject.ToString(), *GetPathNameSafe(RootActor));
-				}
-			}
-			else
-			{
-				// Find the proper Outer
-				UObject* OuterObject = nullptr;
-				if (Header->bOuterIsTransientLevel)
-				{
-					OuterObject = GetTransientPackage();
-				}
-				else if (Header->bOuterIsRootObject)
-				{
-					OuterObject = RootActor;
-				}				
-				else
-				{
-					OuterObject = ResolveObjectReference(Header->OuterReference, ResolveContext);
-
-					if (!OuterObject)
-					{
-						UE_LOG_ACTORREPLICATIONBRIDGE(Error, TEXT("BeginInstantiateFromRemote Failed to find Outer %s for dynamic subobject %s"), *DescribeObjectReference(Header->OuterReference, ResolveContext), *DescribeObjectReference(Header->ObjectReference, ResolveContext))
-
-						// Fallback to the rootobject instead
-						OuterObject = RootActor;
-					}
-				}
-
-				// We need to spawn the subobject
-				UObject* SubObjClassObj = ResolveObjectReference(Header->ObjectClassReference, ResolveContext);
-				UClass * SubObjClass = Cast<UClass>(SubObjClassObj);
-
-				// Try to spawn SubObject
- 				SubObj = NewObject<UObject>(OuterObject, SubObjClass);
-
-				// Sanity check some things
-				checkf(SubObj != nullptr, TEXT("UActorReplicationBridge::BeginInstantiateFromRemote: Subobject is NULL after instantiating. Class: %s, Outer %s, Actor %s"), *GetNameSafe(SubObjClass), *GetNameSafe(OuterObject), *GetNameSafe(RootActor));
-				checkf(!OuterObject || SubObj->IsIn(OuterObject), TEXT("UActorReplicationBridge::BeginInstantiateFromRemote: Subobject is not in Outer. SubObject: %s, Outer %s, Actor %s"), *SubObj->GetName(), *GetNameSafe(OuterObject), *GetNameSafe(RootActor));
-				checkf(Cast<AActor>(SubObj) == nullptr, TEXT("UActorReplicationBridge::BeginInstantiateFromRemote: Subobject is an Actor. SubObject: %s, Outer %s, Actor %s"), *SubObj->GetName(), *GetNameSafe(OuterObject), *GetNameSafe(RootActor));
-
-				// We must defer call OnSubObjectCreatedFromReplication after the state has been applied to the owning actor in order to behave like old system.
-				InstantiateResult.Flags |= EReplicationBridgeCreateNetRefHandleResultFlags::ShouldCallSubObjectCreatedFromReplication;
-
-				// Created objects may be destroyed.
-				InstantiateResult.Flags |= EReplicationBridgeCreateNetRefHandleResultFlags::AllowDestroyInstanceFromRemote;
-			}
-			
-			InstantiateResult.Object = SubObj;
-			return InstantiateResult;
-		}
-		else
-		{
-			// try to find the object by path
-			if (UObject* Object = ResolveObjectReference(Header->ObjectReference, ResolveContext))
-			{
-				UE_LOG_ACTORREPLICATIONBRIDGE(Verbose, TEXT("BeginInstantiateFromRemote Found static SubObject using path %s"), ToCStr(Object->GetPathName()));
-				// We do not allow this object to be destroyed.
-				InstantiateResult.Object = Object;
-				return InstantiateResult;
-			}
-			else
-			{
-				UE_LOG_ACTORREPLICATIONBRIDGE(Error, TEXT("BeginInstantiateFromRemote Failed to find Resolve SubObjectReference for static SubObject %s, Owner %s (%s)"), 
-				*DescribeObjectReference(Header->ObjectReference, ResolveContext), *RootObjectOfSubObject.ToString(), *GetPathNameSafe(GetReplicatedObject(RootObjectOfSubObject)));
-			}			
-		}
-	}
-
-	return InstantiateResult;
-}
-
-bool UActorReplicationBridge::OnInstantiatedFromRemote(UObject* Instance, const UObjectReplicationBridge::FCreationHeader* InHeader, uint32 ConnectionId) const
-{
-	LLM_SCOPE(ELLMTag::EngineMisc);
-
-	using namespace UE::Net::Private;
-
-	const FActorReplicationBridgeCreationHeader* BridgeHeader = static_cast<const FActorReplicationBridgeCreationHeader*>(InHeader);
-
-	if (BridgeHeader->bIsActor)
-	{
-		const FActorCreationHeader* Header = static_cast<const FActorCreationHeader*>(InHeader);
-		
-		AActor* Actor = CastChecked<AActor>(Instance);
-		if (Actor)
-		{
-			// OnActorChannelOpen
-			{
-				UNetConnection* Connection = NetDriver->GetConnectionById(ConnectionId);
-				FInBunch Bunch(Connection, const_cast<uint8*>(Header->CustomCreationData.GetData()), Header->CustomCreationDataBitCount);
-				Actor->OnActorChannelOpen(Bunch, Connection);
-
-				if (Bunch.IsError() || Bunch.GetBitsLeft() != 0)
-				{
-					// $IRIS TODO Report an intelligent error
-					check(false);
-					return false;
-				}
-			}
-
-			// Wake up from dormancy. This is important for client replays.
-			WakeUpObjectInstantiatedFromRemote(Actor);
-		}
-	}
-	
-	return true;
-}
-
 void UActorReplicationBridge::EndInstantiateFromRemote(FNetRefHandle Handle)
 {
 	if (AActor* Actor = Cast<AActor>(GetReplicatedObject(Handle)))
@@ -876,6 +533,7 @@ void UActorReplicationBridge::EndInstantiateFromRemote(FNetRefHandle Handle)
 	}
 }
 
+//$IRIS todo: move this to be a factory callback
 void UActorReplicationBridge::OnSubObjectCreatedFromReplication(FNetRefHandle SubObjectHandle)
 {
 	AActor* RootObject = Cast<AActor>(GetReplicatedObject(GetRootObjectOfSubObject(SubObjectHandle)));
@@ -1032,144 +690,6 @@ void UActorReplicationBridge::OnMaxTickRateChanged(UNetDriver* InNetDriver, int3
 	SetMaxTickRate(static_cast<float>(FPlatformMath::Max(InNetDriver->GetNetServerMaxTickRate(), 0)));
 
 	ReinitPollFrequency();
-}
-
-void UActorReplicationBridge::GetActorCreationHeader(const AActor* Actor, UE::Net::Private::FActorCreationHeader& Header) const
-{
-	Header.bIsActor = true;
-	
-	UE::Net::FNetObjectReference ActorReference = GetOrCreateObjectReference(Actor);
-
-	Header.bIsDynamic = ActorReference.GetRefHandle().IsDynamic();
-
-	// Dynamic actor?
-	if (Header.bIsDynamic)
-	{
-		// Get creation data
-
-		// This is more or less a straight copy from ClientPackageMap and needs to be updated accordingly
-		UObject* Archetype = nullptr;
-		UObject* ActorLevel = nullptr;
-
-		// ChildActor's need to be spawned from the ChildActorTemplate otherwise any non-replicated 
-		// customized properties will be incorrect on the Client.
-		if (UChildActorComponent* CAC = Actor->GetParentComponent())
-		{
-			Archetype = CAC->GetSpawnableChildActorTemplate();
-		}
-		if (Archetype == nullptr)
-		{
-			Archetype = Actor->GetArchetype();
-		}
-		ActorLevel = Actor->GetLevel();
-
-		check(Archetype != nullptr);
-		check(Actor->NeedsLoadForClient());			// We have no business sending this unless the client can load
-		check(Archetype->NeedsLoadForClient());		// We have no business sending this unless the client can load
-
-		// Fill in Header
-		Header.ArchetypeReference = GetOrCreateObjectReference(Archetype);
-		Header.bUsePersistentLevel = (UE::Net::Private::SerializeNewActorOverrideLevel == 0) || (NetDriver->GetWorld()->PersistentLevel == ActorLevel);
-		if (!Header.bUsePersistentLevel)
-		{
-			Header.LevelReference = GetOrCreateObjectReference(ActorLevel);
-		}
-
-		if (USceneComponent* RootComponent = Actor->GetRootComponent())
-		{
-			Header.SpawnInfo.Location = FRepMovement::RebaseOntoZeroOrigin(Actor->GetActorLocation(), Actor);
-			Header.SpawnInfo.Rotation = Actor->GetActorRotation();
-			Header.SpawnInfo.Scale = Actor->GetActorScale();
-			FVector Scale = Actor->GetActorScale();
-
-			if (USceneComponent* AttachParent = RootComponent->GetAttachParent())
-			{
-				// If this actor is attached, when the scale is serialized on the client, the attach parent property won't be set yet.
-				// USceneComponent::SetWorldScale3D (which got called by AActor::SetActorScale3D, which we used to do but no longer).
-				// would perform this transformation so that what is sent is relative to the parent. If we don't do this, we will
-				// apply the world scale on the client, which will then get applied a second time when the attach parent property is received.
-				FTransform ParentToWorld = AttachParent->GetSocketTransform(RootComponent->GetAttachSocketName());
-				Scale = Scale * ParentToWorld.GetSafeScaleReciprocal(ParentToWorld.GetScale3D());
-			}
-
-			Header.SpawnInfo.Scale = Scale;
-			Header.SpawnInfo.Velocity = Actor->GetVelocity();
-		}
-		else
-		{
-			Header.SpawnInfo = UE::Net::Private::GetDefaultActorReplicationBridgeSpawnInfo();
-		}
-	}
-	else // Refer by path
-	{
-		Header.ObjectReference = ActorReference;
-	}
-
-	// Custom actor creation data
-	{
-		constexpr int64 MaxBunchBits = 1024;
-		FOutBunch Bunch(MaxBunchBits);
-		const_cast<AActor*>(Actor)->OnSerializeNewActor(Bunch);
-		Header.CustomCreationDataBitCount = Bunch.GetNumBits();
-		if (Header.CustomCreationDataBitCount > 0)
-		{
-			check(Header.CustomCreationDataBitCount == Bunch.GetNumBits());
-			Header.CustomCreationData.SetNumZeroed(Align(Bunch.GetNumBytes(), 4));
-			FMemory::Memcpy(Header.CustomCreationData.GetData(), Bunch.GetData(), Bunch.GetNumBytes());
-		}
-	}
-}
-
-void UActorReplicationBridge::GetSubObjectCreationHeader(const UObject* Object, const UObject* RootObject, UE::Net::Private::FSubObjectCreationHeader& Header) const
-{
-	using namespace UE::Net;
-	using namespace UE::Net::Private;
-
-	// SubObject
-	FNetObjectReference ObjectRef = GetOrCreateObjectReference(Object);
-
-	// It's Outer
-	UObject* OuterObject = Object->GetOuter();
-
-	Header.bIsActor = false;
-	Header.bOuterIsTransientLevel = false;
-	Header.bOuterIsRootObject = false;
-	Header.bIsDynamic = ObjectRef.GetRefHandle().IsDynamic();
-	Header.bUsePersistentLevel = false;
-	Header.bIsNameStableForNetworking = Object->IsNameStableForNetworking();
-
-	if (Header.bIsDynamic)
-	{
-		check(Object->NeedsLoadForClient() );				// We have no business sending this unless the client can load
-		check(Object->GetClass()->NeedsLoadForClient());	// We have no business sending this unless the client can load
-
-		// We need to spawn this object on the receiving end, so we include the class
-		if (!Header.bIsNameStableForNetworking)
-		{
-			Header.ObjectClassReference = GetOrCreateObjectReference(Object->GetClass());
-
-			// Find the Outer
-			if (OuterObject == GetTransientPackage())
-			{
-				Header.bOuterIsTransientLevel = true;
-			}
-			else if (OuterObject == RootObject)
-			{
-				Header.bOuterIsRootObject = true;
-			}
-			else
-			{
-				Header.OuterReference = GetOrCreateObjectReference(OuterObject);
-
-				if (!ensure(Header.OuterReference.IsValid()))
-				{
-					UE_LOG_ACTORREPLICATIONBRIDGE(Error, TEXT("Could not create NetReference to Outer %s of subobject %s"), *GetNameSafe(OuterObject), *GetNameSafe(Object));
-				}
-			}
-		}
-	}
-
-	Header.ObjectReference = ObjectRef;
 }
 
 bool UActorReplicationBridge::RemapPathForPIE(uint32 ConnectionId, FString& Str, bool bReading) const

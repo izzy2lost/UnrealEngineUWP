@@ -533,6 +533,8 @@ class UReplicatedTestObjectBridge : public UObjectReplicationBridge
 
 public:
 	UReplicatedTestObjectBridge();
+
+	virtual void Initialize(UReplicationSystem* InReplicationSystem) override;
 	
 	void SetCreatedObjectsOnNode(TArray<TStrongObjectPtr<UObject>>* InCreatedObjectsOnNode) { CreatedObjectsOnNode = InCreatedObjectsOnNode; }
 
@@ -573,38 +575,22 @@ public:
 		bool bSuppressCreateInstanceFailedEnsure;
 	};
 
+public:
+
+	TArray<TStrongObjectPtr<UObject>>* CreatedObjectsOnNode;
+
 protected:
 
 	friend FSupressCreateInstanceFailedEnsureScope;
 
-	// Type specifics for serializing creation data this will most likely be made into a separate interface to support different types of header data for different types
-	// But if we can avoid having custom data per type for instantiating remote objects as we would like to be able to fully express the state of a replicated object using the define protocol alone. 
-	// This will probably be specified as a Iris generated struct
-	struct FReplicationTestObjectCreationHeader : public FCreationHeader
-	{
-		FString ArchetypeName;
-		uint32 NumComponentsToSpawn;
-		uint32 NumIrisComponentsToSpawn;
-		uint32 NumDynamicComponentsToSpawn;
-		uint32 NumConnectionFilteredComponentsToSpawn;
-		uint32 NumObjectReferenceComponentsToSpawn;
-		bool bForceFailCreateRemoteInstance;
-	};
-
-	virtual TUniquePtr<FCreationHeader> GetCreationHeader(FNetRefHandle Handle) override;
-	virtual bool WriteCreationHeader(UE::Net::FNetSerializationContext& Context, FNetRefHandle Handle) override;
-	virtual bool WriteCreationHeader(UE::Net::FNetSerializationContext& Context, const FCreationHeader* Header) override;
-	virtual TUniquePtr<FCreationHeader> ReadCreationHeader(UE::Net::FNetSerializationContext& Context) override;
-
-	virtual FObjectReplicationBridgeInstantiateResult BeginInstantiateFromRemote(FNetRefHandle RootObjectOfSubObject, const UE::Net::FNetObjectResolveContext& ResolveContext, const FCreationHeader* InHeader) override;
 	virtual void EndInstantiateFromRemote(FNetRefHandle Handle) override;
 	virtual void DestroyInstanceFromRemote(const FDestroyInstanceParams& Params) override;
 	virtual bool IsAllowedToDestroyInstance(const UObject* Instance) const override;
 
-	TArray<TStrongObjectPtr<UObject>>* CreatedObjectsOnNode;
-
 	TFunction<void(FNetRefHandle NetHandle, const UObject* ReplicatedObject, FVector& OutLocation, float& OutCullDistance)> WorldLocationUpdateFunc;
 	bool bForceFailCreateRemoteInstance = false;
+
+	UE::Net::FNetObjectFactoryId ReplicatedObjectFactoryId = UE::Net::InvalidNetObjectFactoryId;
 };
 
 extern const UE::Net::FRepTag RepTag_FakeGeneratedReplicationState_IntB;
