@@ -108,6 +108,16 @@ public:
 	 */
 	void GetAvailableHistoryMenuItems(bool bGetPrior, FMenuBuilder& MenuBuilder);
 
+	/** Rewrite all history data as determined by the passed in predicate */
+	template <class PREDICATE_CLASS>
+	void RewriteHistoryData(const PREDICATE_CLASS& Predicate)
+	{
+		for (FHistoryData& HistoryDataEntry : HistoryData)
+		{
+			Predicate(HistoryDataEntry);
+		}
+	}
+
 	/** Removes all history data as determined by the passed in predicate */
 	template <class PREDICATE_CLASS>
 	void RemoveHistoryData(const PREDICATE_CLASS& Predicate)
