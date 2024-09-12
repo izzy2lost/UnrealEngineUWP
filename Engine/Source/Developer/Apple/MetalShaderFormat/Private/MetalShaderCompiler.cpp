@@ -25,6 +25,12 @@
 #include "MetalCompileShaderSPIRV.h"
 #include "MetalCompileShaderMSC.h"
 
+#if PLATFORM_MAC
+THIRD_PARTY_INCLUDES_START
+#include "metal_irconverter.h"
+THIRD_PARTY_INCLUDES_END
+#endif
+
 #if PLATFORM_WINDOWS
 #include "Windows/AllowWindowsPlatformTypes.h"
 THIRD_PARTY_INCLUDES_START
@@ -517,13 +523,14 @@ void BuildMetalShaderOutput(
 #if UE_METAL_USE_METAL_SHADER_CONVERTER
     if (bUseMetalShaderConverter)
     {
+#if PLATFORM_MAC
 		EnumAddFlags(Header.Bindings.Flags, EMetalBindingsFlags::UseMetalShaderConverter);
 				
 		// Only needed for VS Input (to generate the stage-in function used to convert inputs).
         if (Frequency == SF_Vertex)
         {
             Header.Bindings.IRConverterReflectionJSON = ANSI_TO_TCHAR(ShaderReflectionJSON);
-            //delete ShaderReflectionJSON; // TODO: FIXME: Fails because delete calls the UE's allocator instead of the global one
+			IRShaderReflectionFreeString(ShaderReflectionJSON);
 			check(ShaderReflectionJSON && Header.Bindings.IRConverterReflectionJSON.Len() > 0);
         }
         else
@@ -558,6 +565,9 @@ void BuildMetalShaderOutput(
                 }
             }
         }
+#else
+		UE_LOG(LogMetalShaderCompiler, Fatal, TEXT("Attempting to build using MSC on unsupported platform"));
+#endif
     }
 #endif
 

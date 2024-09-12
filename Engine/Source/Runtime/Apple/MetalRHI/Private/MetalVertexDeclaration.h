@@ -29,7 +29,7 @@ public:
 
 #if METAL_USE_METAL_SHADER_CONVERTER
     IRVersionedInputLayoutDescriptor InputDescriptor;
-    TMap<uint32, uint32> InputDescriptorBufferStrides;
+	TStaticArray<uint32, MaxVertexElementCount> InputDescriptorBufferStrides;
 #endif
 	/** Cached element info array (offset, stream index, etc) */
 	FVertexDeclarationElementList Elements;

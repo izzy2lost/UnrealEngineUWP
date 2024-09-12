@@ -23,6 +23,10 @@
 
 #if PLATFORM_MAC
 
+THIRD_PARTY_INCLUDES_START
+#include "metal_irconverter.h"
+THIRD_PARTY_INCLUDES_END
+
 extern void BuildMetalShaderOutput(
 	FShaderCompilerOutput& ShaderOutput,
 	const FShaderCompilerInput& ShaderInput,
@@ -48,8 +52,6 @@ extern void BuildMetalShaderOutput(
 );
 
 #include "ShaderConductorContext.h"
-
-#include "metal_irconverter.h"
 
 #include "d3d12shader.h"
 #include "dxc/dxcapi.h"
@@ -513,8 +515,17 @@ void FMetalCompileShaderMSC::DoCompileMetalShader(
 			return;
 		}
 		
+		TArray<FString> ExtraArgs;
+		
+		if (Input.Environment.CompilerFlags.Contains(CFLAG_ExtraShaderData))
+		{
+			ExtraArgs.Add(TEXT("-Zi"));
+			ExtraArgs.Add(TEXT("-Qembed_debug"));
+			ExtraArgs.Add(TEXT("--ignore-line-directives"));
+		}
+		
 		// Load shader source into compiler context
-		CompilerContext.LoadSource(PreprocessedShader, Input.VirtualSourceFilePath, Input.EntryPointName, Frequency);
+		CompilerContext.LoadSource(PreprocessedShader, Input.VirtualSourceFilePath, Input.EntryPointName, Frequency, nullptr, &ExtraArgs);
 
 		// Convert shader source to ANSI string
 		FAnsiString SourceData = FAnsiString::ConstructFromPtrSize(CompilerContext.GetSourceString(), CompilerContext.GetSourceLength());
@@ -528,7 +539,7 @@ void FMetalCompileShaderMSC::DoCompileMetalShader(
 		// If source data was modified, reload it into the compiler context
 		if (bSourceDataWasModified)
 		{
-			CompilerContext.LoadSource(SourceData, Input.VirtualSourceFilePath, Input.EntryPointName, Frequency);
+			CompilerContext.LoadSource(SourceData, Input.VirtualSourceFilePath, Input.EntryPointName, Frequency, nullptr, &ExtraArgs);
 		}
 
 		if (bDumpDebugInfo)
@@ -547,6 +558,7 @@ void FMetalCompileShaderMSC::DoCompileMetalShader(
 		
 		// Compile HLSL source to DXIL binary
 		TArray<uint32> DxilData;
+		
 		if (!CompilerContext.CompileHlslToDxil(Options, DxilData))
 		{
 			Result = 0;
@@ -610,7 +622,7 @@ void FMetalCompileShaderMSC::DoCompileMetalShader(
 		IRRootSignature* RootSignature = IRRootSignatureCreateFromDescriptor(&RootSignatureDesc, &RootSignatureCreationError);
 		if (RootSignature == nullptr || RootSignatureCreationError != nullptr)
 		{
-			FShaderCompilerError Error(FString::Printf(TEXT("Error: MetalShaderConverter failed to create a root signature for '%s' (error code: %u)!"), *Input.EntryPointName, IRErrorGetCode(RootSignatureCreationError)));
+			FShaderCompilerError Error(FString::Printf(TEXT("Error: MetalShaderConverter failed to create a root signature for '%s' (%s)!"), *Input.EntryPointName, ANSI_TO_TCHAR((const char *)IRErrorGetPayload(RootSignatureCreationError))));
 			Output.Errors.Add(Error);
 			Output.bSucceeded = false;
 			
@@ -625,6 +637,8 @@ void FMetalCompileShaderMSC::DoCompileMetalShader(
 		IRCompilerSetGlobalRootSignature(CompilerInstance, RootSignature);
 		IRCompilerSetStageInGenerationMode(CompilerInstance, IRStageInCodeGenerationModeUseSeparateStageInFunction);
 		IRCompilerSetCompatibilityFlags(CompilerInstance, IRCompatibilityFlagBoundsCheck);
+		IRCompilerSetMinimumGPUFamily(CompilerInstance, IRGPUFamilyMetal3);
+		IRCompilerSetMinimumDeploymentTarget(CompilerInstance, IROperatingSystem_macOS, "15.0.0");
 		
 #if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
 		IRCompilerEnableGeometryAndTessellationEmulation(CompilerInstance, Input.Environment.CompilerFlags.Contains(CFLAG_VertexToGeometryShader));
@@ -644,7 +658,7 @@ void FMetalCompileShaderMSC::DoCompileMetalShader(
 		IRObject* AirBytecode = IRCompilerAllocCompileAndLink(CompilerInstance, nullptr, DXILBytecode, &CompileError);
 		if (!AirBytecode || CompileError != nullptr)
 		{
-			FShaderCompilerError Error(FString::Printf(TEXT("Error: MetalShaderConverter failed to produce air bytecode for '%s' (error code: %u)!"), *Input.EntryPointName, IRErrorGetCode(CompileError)));
+			FShaderCompilerError Error(FString::Printf(TEXT("Error: MetalShaderConverter failed to produce air bytecode for '%s' (%s)!"), *Input.EntryPointName, ANSI_TO_TCHAR((const char *)IRErrorGetPayload(CompileError))));
 			Output.Errors.Add(Error);
 			Output.bSucceeded = false;
 			

@@ -92,9 +92,9 @@ static FAutoConsoleVariableRef CVarMetalPresentFramePacing(
 #endif
 
 #if PLATFORM_MAC
-static int32 GMetalDefaultUniformBufferAllocation = 1024*1024;
+static int32 GMetalDefaultUniformBufferAllocation = 1024 * 1024 * 2;
 #else
-static int32 GMetalDefaultUniformBufferAllocation = 1024*256;
+static int32 GMetalDefaultUniformBufferAllocation = 1024 * 256;
 #endif
 static FAutoConsoleVariableRef CVarMetalDefaultUniformBufferAllocation(
     TEXT("rhi.Metal.DefaultUniformBufferAllocation"),
@@ -389,9 +389,9 @@ FMetalDevice::FMetalDevice(MTL::Device* MetalDevice, uint32 InDeviceIndex)
 		GMetalSupportsIntermediateBackBuffer = 1;
 	}
     
-    // initialize uniform allocator
-    UniformBufferAllocator = new FMetalTempAllocator(*this, GMetalDefaultUniformBufferAllocation, GMetalTargetUniformAllocationLimit);
-	TransferBufferAllocator = new FMetalTempAllocator(*this, GMetalDefaultTransferAllocation, GMetalTargetTransferAllocatorLimit);
+    // initialize uniform and transfer allocators
+    UniformBufferAllocator = new FMetalTempAllocator(*this, GMetalDefaultUniformBufferAllocation, GMetalTargetUniformAllocationLimit, BufferOffsetAlignment);
+	TransferBufferAllocator = new FMetalTempAllocator(*this, GMetalDefaultTransferAllocation, GMetalTargetTransferAllocatorLimit, BufferBackedLinearTextureOffsetAlignment);
 	
 	PSOManager = new FMetalPipelineStateCacheManager(*this);
 	
@@ -411,6 +411,9 @@ FMetalDevice::~FMetalDevice()
 {
 	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 	RHICmdList.SubmitAndBlockUntilGPUIdle();
+
+	FlushFreeList(true);
+	ClearFreeList();
 	
 	delete &(GetCommandQueue());
 	delete PSOManager;
@@ -653,15 +656,15 @@ void FMetalDevice::ClearFreeList()
 			for (FMetalBufferPtr Buffer : Pair->UsedBuffers)
 			{
                 Buffer->MarkDeleted();
+				
 #if METAL_DEBUG_OPTIONS
-                MTL::Buffer* MTLBuffer = Buffer->GetMTLBuffer().get();
+                MTL::Buffer* MTLBuffer = Buffer->GetMTLBuffer();
 				if (GMetalResourcePurgeOnDelete && !MTLBuffer->heap() &&
                     Buffer->GetOffset() == 0 && Buffer->GetLength() == MTLBuffer->length())
 				{
                     MTLBuffer->setPurgeableState(MTL::PurgeableStateEmpty);
 				}
 #endif
-                Heap.ReleaseBuffer(Buffer);
 			}
 			for (MTLTexturePtr Texture : Pair->UsedTextures)
 			{
@@ -714,6 +717,20 @@ bool FMetalDevice::FMetalDelayedFreeList::IsComplete() const
 	return bFinished;
 }
 
+void FMetalDevice::AddCommandBufferFence(TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe> Fence)
+{
+	FreeListMutex.Lock();
+	
+	// TODO: Temporary, removing this code for 5.5, moving to RHI deferred delete
+	FreeListFences.Add(Fence);
+	if(bPendingGarbageCollect)
+	{
+		FlushFreeList(true);
+		bPendingGarbageCollect = false;
+	}
+	FreeListMutex.Unlock();
+}
+
 void FMetalDevice::FlushFreeList(bool const bFlushFences)
 {
 	FreeListMutex.Lock();
@@ -721,7 +738,7 @@ void FMetalDevice::FlushFreeList(bool const bFlushFences)
 	FMetalDelayedFreeList* NewList = new FMetalDelayedFreeList;
 	
 	// Get the committed command buffer fences and clear the array in the command-queue
-	GetCommandQueue().GetCommittedCommandBufferFences(NewList->Fences);
+	NewList->Fences = MoveTemp(FreeListFences);
 	
 	METAL_DEBUG_OPTION(NewList->DeferCount = GMetalResourceDeferDeleteNumFrames);
 	NewList->UsedBuffers = MoveTemp(UsedBuffers);
@@ -758,7 +775,7 @@ void FMetalDevice::FlushFreeList(bool const bFlushFences)
 
 void FMetalDevice::GarbageCollect()
 {
-	FlushFreeList();
+	MarkForGarbageCollect();
 	ClearFreeList();
 	DrainHeap();
 	
@@ -815,7 +832,6 @@ void FMetalDevice::ReleaseFence(FMetalFence* Fence)
 void FMetalDevice::ReleaseFunction(TFunction<void()> Func)
 {
 	check(GIsMetalInitialized);
-	
 	FunctionFreeList.Push(Func);
 }
 
@@ -856,7 +872,7 @@ FMetalBufferPtr FMetalDevice::CreatePooledBuffer(FMetalPooledBufferArgs const& A
 	
     check(Buffer);
 #if METAL_DEBUG_OPTIONS
-    MTL::Buffer* MTLBuffer = Buffer->GetMTLBuffer().get();
+    MTL::Buffer* MTLBuffer = Buffer->GetMTLBuffer();
 	if (GMetalResourcePurgeOnDelete && !MTLBuffer->heap())
 	{
         MTLBuffer->setPurgeableState(MTL::PurgeableStateNonVolatile);

@@ -107,6 +107,8 @@ public:
 #endif
 
 #if METAL_USE_METAL_SHADER_CONVERTER
+	void CacheOrSkipResourceResidencyUpdate(MTL::Resource* InResource, EMetalShaderStages const Frequency, bool bReadOnly, bool bForceUseResource = false);
+	
     void IRMakeSRVResident(EMetalShaderStages const Frequency, FMetalShaderResourceView* SRV);
     void IRMakeUAVResident(EMetalShaderStages const Frequency, FMetalUnorderedAccessView* UAV);
     void IRMakeTextureResident(EMetalShaderStages const Frequency, MTL::Texture* Texture);
@@ -121,7 +123,9 @@ public:
 	 * @param Content Data to upload
 	 * @param Size Size in bytes
 	 */
-    uint64 IRSideUploadToBuffer(void const* Content, uint64 Size);
+	FMetalBufferPtr IRSideUploadToBuffer(void const* Content, uint64 Size);
+	
+	FMetalBufferPtr GetOrCreateBackingBufferCopy(FMetalUniformBuffer* UB);
 
     template<class ShaderType, EMetalShaderStages Frequency, MTL::FunctionType FunctionType>
     void IRBindResourcesToEncoder(ShaderType Shader, FMetalCommandEncoder* Encoder);
@@ -129,8 +133,6 @@ public:
     void IRMapVertexBuffers(MTL::RenderCommandEncoder* Encoder, bool bBindForMeshShaders = false);
 #endif
 
-	void RegisterMetalHeap(MTL::Heap* Heap);
-	
 	/*
 	 * Set a global texture for the specified shader frequency at the given bind point index.
 	 * @param Frequency The shader frequency to modify.
@@ -307,25 +309,17 @@ private:
 		
 #if METAL_USE_METAL_SHADER_CONVERTER
     static constexpr uint32 TopLevelABNumEntry = 16;
-    static constexpr uint32 SideAllocsBufferSize = 64 * 1024 * 1024; // 64Mb
-
-    struct IRResourceTableBuffer
-    {
-        FMetalBufferPtr         TableBuffer;
-        std::atomic_uint64_t    TableOffset = 0;
-    };
-
+	TMap<FMetalBuffer*, FMetalBufferPtr>  UniformBufferVAs;
+	
     uint64                 CBVTable[EMetalShaderStages::Num][TopLevelABNumEntry];
-    IRResourceTableBuffer  SideAllocs;
-    
-    struct FVertexBufferBind
-    {
-        uint64_t GPUVA;
-        uint32_t Length;
-        uint32_t Stride;
-    };
-
-    FVertexBufferBind VertexBufferVAs[31];
+	
+	IRRuntimeVertexBuffer VertexBufferVAs[31];
+	
+	TStaticArray<TSet<MTL::Heap*>, EMetalShaderStages::Num> HeapsUsedByStage;
+	TStaticArray<TSet<MTL::Resource*>, EMetalShaderStages::Num> RWResourcesByStage;
+	TStaticArray<TSet<MTL::Resource*>, EMetalShaderStages::Num> ROResourcesByStage;
+	
+	TArray<FMetalBufferPtr> TemporaryBuffers;
 #endif
 
 	FMetalQueryBuffer* VisibilityResults;

@@ -20,8 +20,6 @@
 
 #if METAL_SM6_PROFILE == 1
     #define PLATFORM_SUPPORTS_SM6_0_WAVE_OPERATIONS 1
-    // Disable WaveVote due to bugs
-    #define COMPILER_SUPPORTS_WAVE_VOTE 0
 #endif
 
 #if IS_BASE_PASS && COMPUTE_SHADED && !defined(USE_FORCE_TEXTURE_MIP)

@@ -19,6 +19,14 @@ FMetalHashedVertexDescriptor::FMetalHashedVertexDescriptor()
 	// void
 }
 
+FMetalHashedVertexDescriptor::FMetalHashedVertexDescriptor(IRVersionedInputLayoutDescriptor& Desc, uint32 Hash)
+	: VertexDescHash(Hash)
+	, IRVertexDesc(Desc)
+	, bUsesIRVertexDesc(true)	
+{
+	// void
+}
+
 FMetalHashedVertexDescriptor::FMetalHashedVertexDescriptor(MTLVertexDescriptorPtr Desc, uint32 Hash)
 	: VertexDescHash(Hash)
 	, VertexDesc(Desc)
@@ -43,6 +51,7 @@ FMetalHashedVertexDescriptor& FMetalHashedVertexDescriptor::operator=(FMetalHash
 	{
 		VertexDescHash = Other.VertexDescHash;
 		VertexDesc = Other.VertexDesc;
+		IRVertexDesc = Other.IRVertexDesc;
 	}
 	return *this;
 }
@@ -56,7 +65,26 @@ bool FMetalHashedVertexDescriptor::operator==(FMetalHashedVertexDescriptor const
 		if (VertexDescHash == Other.VertexDescHash)
 		{
 			bEqual = true;
-			if (VertexDesc != Other.VertexDesc)
+			
+			if(bUsesIRVertexDesc)
+			{
+				bEqual &= (IRVertexDesc.desc_1_0.numElements == Other.IRVertexDesc.desc_1_0.numElements);
+				
+				if (bEqual)
+				{
+					for (uint32 ElementIdx = 0; ElementIdx < IRVertexDesc.desc_1_0.numElements; ElementIdx++)
+					{
+						bEqual &= (FCStringAnsi::Strcmp(IRVertexDesc.desc_1_0.semanticNames[ElementIdx], Other.IRVertexDesc.desc_1_0.semanticNames[ElementIdx]) == 0);
+						bEqual &= (IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].format == Other.IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].format);
+						bEqual &= (IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].alignedByteOffset == Other.IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].alignedByteOffset);
+						bEqual &= (IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].inputSlot == Other.IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].inputSlot);
+						bEqual &= (IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].inputSlotClass == Other.IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].inputSlotClass);
+						bEqual &= (IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].instanceDataStepRate == Other.IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].instanceDataStepRate);
+						bEqual &= (IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].semanticIndex == Other.IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].semanticIndex);
+					}
+				}
+			}
+			else if (VertexDesc != Other.VertexDesc)
 			{
                 MTL::VertexBufferLayoutDescriptorArray* Layouts = VertexDesc->layouts();
 				MTL::VertexAttributeDescriptorArray* Attributes = VertexDesc->attributes();

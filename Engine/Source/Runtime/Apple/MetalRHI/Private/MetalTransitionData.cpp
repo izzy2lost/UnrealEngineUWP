@@ -75,7 +75,7 @@ void FMetalTransitionData::EndResourceTransitions(FMetalCommandEncoder& CurrentE
 				else
 				{
 					FMetalRHIBuffer* Buffer = ResourceCast(UAV->GetBuffer());
-					CurrentEncoder.TransitionResources(Buffer->GetCurrentBuffer()->GetMTLBuffer().get());
+					CurrentEncoder.TransitionResources(Buffer->GetCurrentBuffer()->GetMTLBuffer());
 				}
 				break;
 			}
@@ -84,7 +84,7 @@ void FMetalTransitionData::EndResourceTransitions(FMetalCommandEncoder& CurrentE
 				auto Resource = ResourceCast(Info.Buffer);
 				if (Resource->GetCurrentBufferOrNil())
 				{
-					CurrentEncoder.TransitionResources(Resource->GetCurrentBuffer()->GetMTLBuffer().get());
+					CurrentEncoder.TransitionResources(Resource->GetCurrentBuffer()->GetMTLBuffer());
 				}
 				
 				break;

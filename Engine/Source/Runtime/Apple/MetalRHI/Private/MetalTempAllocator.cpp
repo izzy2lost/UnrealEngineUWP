@@ -5,10 +5,11 @@
 #include "MetalRHIPrivate.h"
 #include "MetalProfiler.h"
 
-FMetalTempAllocator::FMetalTempAllocator(FMetalDevice& InDevice, uint32_t InMinAllocationSize, uint32_t InTargetAllocationLimit)
+FMetalTempAllocator::FMetalTempAllocator(FMetalDevice& InDevice, uint32_t InMinAllocationSize, uint32_t InTargetAllocationLimit, uint32_t InAlignment)
     : Device(InDevice),
 	MinAllocationSize(InMinAllocationSize),
-	TargetAllocationLimit(InTargetAllocationLimit)
+	TargetAllocationLimit(InTargetAllocationLimit),
+	Alignment(InAlignment)
 {
 	TotalAllocationStat = GET_STATID(STAT_MetalTempAllocatorAllocatedMemory);
 }
@@ -16,61 +17,36 @@ FMetalTempAllocator::FMetalTempAllocator(FMetalDevice& InDevice, uint32_t InMinA
 FMetalBufferPtr FMetalTempAllocator::Allocate(const uint32_t Size)
 {
     FScopeLock lock(&AllocatorLock);
-    
-	const bool bAppleGPU = Device.GetDevice()->supportsFamily(MTL::GPUFamilyApple1);
-		
-	FMetalBufferPtr Buffer;
-	if(bAppleGPU)
-	{
-		MTL::SizeAndAlign BufferSizeAndAlign = Device.GetDevice()->heapBufferSizeAndAlign(Size, MTL::ResourceCPUCacheModeWriteCombined | MTL::ResourceHazardTrackingModeUntracked);
-		
-		uint32 AlignedSize = Align(BufferSizeAndAlign.size, BufferSizeAndAlign.align);
-		
-		MTLHeapPtr AllocHeap;
-		static uint32_t MaxAvailableSize = 0;
-		
-		for(MTLHeapPtr Heap : Heaps)
-		{
-			if(Heap->maxAvailableSize(BufferSizeAndAlign.align) >= AlignedSize)
-			{
-				AllocHeap = Heap;
-				break;
-			}
-		}
 
-		if(AllocHeap.get() == nullptr)
-		{
-			MTL::HeapDescriptor* Desc = MTL::HeapDescriptor::alloc()->init();
-			check(Desc);
-			
-			uint32_t HeapSize = FMath::Max((uint32_t)MinAllocationSize, AlignedSize);
-			
-			Desc->setType(MTL::HeapTypeAutomatic);
-			Desc->setSize(HeapSize);
-			Desc->setStorageMode(MTL::StorageModeShared);
-			Desc->setResourceOptions(MTL::CPUCacheModeWriteCombined);
-			Desc->setHazardTrackingMode(MTL::HazardTrackingModeUntracked);
-			
-			AllocHeap = NS::TransferPtr(Device.GetDevice()->newHeap(Desc));
-			Desc->release();
-			
-			TotalAllocated += AllocHeap->size();
-			INC_MEMORY_STAT_BY_FName(TotalAllocationStat.GetName(), AllocHeap->size());
-			
-			Heaps.Add(AllocHeap);
-		}
-		
-		MTLBufferPtr MTLBuffer = NS::TransferPtr(AllocHeap->newBuffer(AlignedSize, MTL::ResourceCPUCacheModeWriteCombined | MTL::ResourceHazardTrackingModeUntracked));
-		
-		check(MTLBuffer);
-		
-		Buffer = FMetalBufferPtr(new FMetalBuffer(MTLBuffer));
-		Buffer->MarkAllocated();
-	}
-	else
+	uint32 AlignedSize = Align(Size, Alignment);
+	
+	FTempBufferInfo* TempBuffer = nullptr;
+	for(FTempBufferInfo& Buffer : Buffers)
 	{
-		Buffer = Device.GetResourceHeap().CreateBuffer(Size, 16, BUF_Volatile, FMetalCommandQueue::GetCompatibleResourceOptions((MTL::ResourceOptions)(BUFFER_CACHE_MODE | MTL::ResourceHazardTrackingModeUntracked | MTL::ResourceStorageModeShared)), true);
+		if(Buffer.Size - Buffer.Offset >= AlignedSize)
+		{
+			TempBuffer = &Buffer;
+			break;
+		}
 	}
+	
+	if(TempBuffer == nullptr)
+	{
+		uint32_t BufferSize = FMath::Max((uint32_t)MinAllocationSize, AlignedSize);
+		TempBuffer = &Buffers.AddDefaulted_GetRef();
+								  
+		TotalAllocated += BufferSize;
+		INC_MEMORY_STAT_BY_FName(TotalAllocationStat.GetName(), BufferSize);
+		
+		TempBuffer->Offset = 0;
+		TempBuffer->Size = BufferSize; 
+		TempBuffer->Buffer = Device.GetDevice()->newBuffer(BufferSize, 
+														MTL::ResourceCPUCacheModeWriteCombined |
+														MTL::ResourceStorageModeShared);
+	}
+	
+	FMetalBufferPtr Buffer = FMetalBufferPtr(new FMetalBuffer(TempBuffer->Buffer, NS::Range(TempBuffer->Offset, AlignedSize), this));
+	TempBuffer->Offset += AlignedSize;
 	
 	check(Buffer);
 	
@@ -80,34 +56,37 @@ FMetalBufferPtr FMetalTempAllocator::Allocate(const uint32_t Size)
 void FMetalTempAllocator::Cleanup()
 {
 	FScopeLock lock(&AllocatorLock);
-	const bool bAppleGPU = Device.GetDevice()->supportsFamily(MTL::GPUFamilyApple1);
-	 
-	// Clean up heaps
-	if(!bAppleGPU || Heaps.Num() <= 1 || TotalAllocated < TargetAllocationLimit)
-	{
-		return;
-	}
 	
-	TArray<MTLHeapPtr> ToDestroy;
+	TArray<FTempBufferInfo> OldBuffers;
 	
-	for(MTLHeapPtr Heap : Heaps)
+	// Move all buffers that have been used in this window
+	for(FTempBufferInfo TempBuffer : Buffers)
 	{
-		if(Heap->usedSize() == 0)
+		if(TempBuffer.Offset != 0)
 		{
-			ToDestroy.Add(Heap);
+			TempBuffer.Offset = 0;
+			OldBuffers.Add(TempBuffer);
 		}
 	}
 	
-	for(MTLHeapPtr Heap : ToDestroy)
+	Buffers.RemoveAll([](const FTempBufferInfo& TempBuffer) { return TempBuffer.Offset != 0; });
+	
+	// Ensure that buffers are re-added to the pool when fences are complete (if we are below the target limit)
+	Device.ReleaseFunction([this, OldBuffers]()
 	{
-		if(Heaps.Num() <= 1 || TotalAllocated < TargetAllocationLimit)
+		FScopeLock lock(&AllocatorLock);
+		for(const FTempBufferInfo& Buffer : OldBuffers)
 		{
-			break;
+			if((TotalAllocated + Buffer.Size) <= TargetAllocationLimit)
+			{
+				Buffers.Add(Buffer);
+			}
+			else
+			{
+				Buffer.Buffer->release();
+				TotalAllocated -= Buffer.Size;
+				DEC_MEMORY_STAT_BY_FName(TotalAllocationStat.GetName(), Buffer.Size);
+			}
 		}
-		
-		TotalAllocated -= Heap->size();
-		DEC_MEMORY_STAT_BY_FName(TotalAllocationStat.GetName(), Heap->size());
-		
-		Heaps.Remove(Heap);
-	}
+	});
 }

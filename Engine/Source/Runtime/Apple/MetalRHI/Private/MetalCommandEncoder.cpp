@@ -282,7 +282,7 @@ FMetalCommandBuffer* FMetalCommandEncoder::Finalize()
     {
         for (FMetalBufferPtr Buffer : ActiveBuffers)
         {
-            Device.AddActiveBuffer(Buffer->GetMTLBuffer().get(), Buffer->GetRange());
+            Device.AddActiveBuffer(Buffer->GetMTLBuffer(), Buffer->GetRange());
         }
         
         TSet<FMetalBufferPtr> NewActiveBuffers = MoveTemp(ActiveBuffers);
@@ -292,7 +292,7 @@ FMetalCommandBuffer* FMetalCommandEncoder::Finalize()
         {
             for (FMetalBufferPtr Buffer : NewActiveBuffers)
             {
-				InDevice.RemoveActiveBuffer(Buffer->GetMTLBuffer().get(), Buffer->GetRange());
+				InDevice.RemoveActiveBuffer(Buffer->GetMTLBuffer(), Buffer->GetRange());
             }
         });
         
@@ -1051,7 +1051,7 @@ void FMetalCommandEncoder::SetShaderAccelerationStructure(MTL::FunctionType cons
 
 void FMetalCommandEncoder::SetShaderBuffer(MTL::FunctionType const FunctionType, FMetalBufferPtr Buffer, NS::UInteger const Offset, NS::UInteger const Length, NS::UInteger index, MTL::ResourceUsage const Usage, EPixelFormat const Format, NS::UInteger const ElementRowPitch, TArray<TTuple<MTL::Resource*, MTL::ResourceUsage>> ReferencedResources)
 {
-	FenceResource(Buffer->GetMTLBuffer().get(), FunctionType);
+	FenceResource(Buffer->GetMTLBuffer(), FunctionType);
 	check(index < ML_MaxBuffers);
     
     if(Device.SupportsFeature(EMetalFeaturesSetBufferOffset) && Buffer && (ShaderBuffers[uint32(FunctionType)].Bound & (1 << index)) && ShaderBuffers[uint32(FunctionType)].Buffers[index] == Buffer)
@@ -1300,7 +1300,7 @@ void FMetalCommandEncoder::UseIndirectArgumentResource(MTL::Texture* Texture, MT
 
 void FMetalCommandEncoder::UseIndirectArgumentResource(FMetalBufferPtr Buffer, MTL::ResourceUsage const Usage)
 {
-    MTL::Buffer* MTLBuffer = Buffer->GetMTLBuffer().get();
+    MTL::Buffer* MTLBuffer = Buffer->GetMTLBuffer();
 	FenceResource(MTLBuffer, MTL::FunctionTypeVertex);
 	UseResource(MTLBuffer, Usage);
 }
@@ -1461,6 +1461,19 @@ void FMetalCommandEncoder::UseResource(MTL::Resource* Resource, MTL::ResourceUsa
     }
 }
 
+void FMetalCommandEncoder::UseResources(TArray<MTL::Resource*> const& Resources, MTL::ResourceUsage const Usage, MTL::RenderStages RenderStages)
+{
+	if (RenderCommandEncoder)
+	{
+		checkSlow(RenderStages != 0);
+		RenderCommandEncoder->useResources(Resources.GetData(), Resources.Num(), Usage, RenderStages);
+	}
+	else if (ComputeCommandEncoder)
+	{
+		ComputeCommandEncoder->useResources(Resources.GetData(), Resources.Num(), Usage);
+	}
+}
+
 void FMetalCommandEncoder::SetShaderBufferInternal(MTL::FunctionType Function, uint32 Index)
 {
 	FMetalBufferBindings& Binding = ShaderBuffers[uint32(Function)];
@@ -1566,7 +1579,7 @@ void FMetalCommandEncoder::SetShaderBufferInternal(MTL::FunctionType Function, u
 			ActiveBuffers.Add(Buffer);
 		}
 #endif
-        MTL::Buffer* MTLBuffer = Buffer->GetMTLBuffer().get();
+        MTL::Buffer* MTLBuffer = Buffer->GetMTLBuffer();
         FenceResource(MTLBuffer, Function);
 		switch (Function)
 		{
@@ -1605,14 +1618,6 @@ void FMetalCommandEncoder::SetShaderBufferInternal(MTL::FunctionType Function, u
 			default:
 				check(false);
 				break;
-		}
-		
-		if (Buffer->IsSingleUse())
-		{
-			Binding.Usage[Index] = MTL::ResourceUsage(0);
-			Binding.Offsets[Index] = 0;
-			Binding.Buffers[Index] = nullptr;
-			Binding.Bound &= ~(1 << Index);
 		}
 	}
 	else if (bBufferHasBytes && bSupportsMetalFeaturesSetBytes)

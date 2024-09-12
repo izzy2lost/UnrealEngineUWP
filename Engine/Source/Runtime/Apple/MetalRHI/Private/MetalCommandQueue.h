@@ -49,9 +49,6 @@ public:
 	/** @returns Creates a new MTLFence or nullptr if this is unsupported */
 	FMetalFence* CreateFence(NS::String* Label) const;
 	
-	/** @params Fences An array of command-buffer fences for the committed command-buffers */
-	void GetCommittedCommandBufferFences(TArray<TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe>>& Fences);
-	
 #pragma mark - Public Command Queue Accessors -
 	
 	/** @returns The command queue's native device. */
@@ -82,9 +79,6 @@ private:
 #pragma mark - Private Member Variables -
 	FMetalDevice& Device;
 	MTL::CommandQueue* CommandQueue;
-	TArray<TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe>> CommandBufferFences;
 	int32 RuntimeDebuggingLevel;
 	static NS::UInteger PermittedOptions;
-	
-	FCriticalSection CommandBufferFenceLock;
 };

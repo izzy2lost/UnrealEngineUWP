@@ -43,36 +43,26 @@ class FMetalSubBufferLinear;
 class FMetalSubBufferMagazine;
 class FMetalDevice;
 
-inline uint32 GetTypeHash(const MTLBufferPtr& BufferPtr)
+inline uint32 GetTypeHash(const MTL::Buffer* BufferPtr)
 {
-    return GetTypeHash(BufferPtr.get());
+    return GetTypeHash((void*)BufferPtr);
 }
 
+class IMetalBufferAllocator;
 class FMetalBuffer
 {
 public:
-	FMetalBuffer() : Buffer(),
-                    Heap(nullptr),
-                    Linear(nullptr),
-                    Magazine(nullptr),
-                    SubRange(0, 0),
-                    bPooled(false) { }
-    
-	FMetalBuffer(MTLBufferPtr Handle);
+	enum class FreePolicy
+	{
+		Owner, // FMetalBuffer owns releasing memory
+		BufferAllocator, // Owned by allocator
+		Temporary, // Temporary buffer that does not need a release
+	};	
 	
-	FMetalBuffer(MTLBufferPtr Handle, NS::Range Range, FMetalSubBufferHeap* heap);
-	FMetalBuffer(MTLBufferPtr Handle, NS::Range Range, FMetalSubBufferLinear* heap);
-	FMetalBuffer(MTLBufferPtr Handle, NS::Range Range, FMetalSubBufferMagazine* magazine);
-    FMetalBuffer(MTLBufferPtr Handle, NS::Range Range, bool bInPooled);
+	FMetalBuffer(MTL::Buffer* Handle, FreePolicy Allocation);
+	FMetalBuffer(MTL::Buffer* Handle, NS::Range Range, IMetalBufferAllocator* InAllocator);
 	
 	virtual ~FMetalBuffer();
-	
-	inline bool IsPooled() const { return bPooled; }
-	inline bool IsSingleUse() const { return bSingleUse; }
-	inline void MarkSingleUse() { bSingleUse = true; }
-    inline void MarkAllocated() { bMarkedAllocated = true; }
-    void SetOwner(class FMetalRHIBuffer* Owner, bool bIsSwap);
-	void Release();
     
     uint32 GetOffset()
     {
@@ -105,7 +95,7 @@ public:
 		return Buffer->gpuAddress() + GetOffset();
 	}
 	
-    MTLBufferPtr GetMTLBuffer() {return Buffer;};
+	MTL::Buffer* GetMTLBuffer() {return Buffer;};
     
     void MarkDeleted()
     {
@@ -113,15 +103,13 @@ public:
     }
     
 private:
-    MTLBufferPtr Buffer;
-	FMetalSubBufferHeap* Heap;
-	FMetalSubBufferLinear* Linear;
-	FMetalSubBufferMagazine* Magazine;
+	void Release();
+	
+	MTL::Buffer* Buffer;
+	IMetalBufferAllocator* Allocator;
     
     NS::Range SubRange;
-    bool bPooled = false;
-    bool bSingleUse = false;
-    bool bMarkedAllocated = false;
+	FreePolicy OnFreePolicy;
     bool bMarkedDeleted = false;
 };
 
@@ -185,12 +173,12 @@ public:
 	virtual ~FMetalSurface();
 
 	/** @returns A newly allocated buffer object large enough for the surface within the texture specified. */
-    MTLBufferPtr AllocSurface(uint32 MipIndex, uint32 ArrayIndex, EResourceLockMode LockMode, uint32& DestStride, bool SingleLayer = false);
+	MTL::Buffer* AllocSurface(uint32 MipIndex, uint32 ArrayIndex, EResourceLockMode LockMode, uint32& DestStride, bool SingleLayer = false);
 
 	/** Apply the data in Buffer to the surface specified.
 	 * Will also handle destroying SourceBuffer appropriately.
 	 */
-	void UpdateSurfaceAndDestroySourceBuffer(FMetalRHICommandContext* Context, MTLBufferPtr SourceBuffer, uint32 MipIndex, uint32 ArrayIndex);
+	void UpdateSurfaceAndDestroySourceBuffer(FMetalRHICommandContext* Context, MTL::Buffer* SourceBuffer, uint32 MipIndex, uint32 ArrayIndex);
 	
 	/**
 	 * Locks one of the texture's mip-maps.
@@ -214,7 +202,7 @@ public:
 	/** Unlocks a previously locked mip-map.
 	 * @param ArrayIndex Index of the texture array/face in the form Index*6+Face
 	 */
-	void AsyncUnlock(MTLBufferPtr SourceData, uint32 MipIndex, uint32 ArrayIndex);
+	void AsyncUnlock(MTL::Buffer* SourceData, uint32 MipIndex, uint32 ArrayIndex);
 
 	/**
 	 * Returns how much memory a single mip uses, and optionally returns the stride
@@ -536,6 +524,8 @@ public:
     {
         return BindlessHandle;
     }
+	
+	FMetalSurface* SurfaceOverride;
 #endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
 };
 

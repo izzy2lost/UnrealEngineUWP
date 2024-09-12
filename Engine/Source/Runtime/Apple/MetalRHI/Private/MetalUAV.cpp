@@ -92,6 +92,8 @@ FMetalShaderResourceView::FMetalShaderResourceView(FMetalDevice& InDevice, FRHIC
 	{
 		BindlessHandle = BindlessDescriptorManager->ReserveDescriptor(ERHIDescriptorHeapType::Standard);
 	}
+	
+	SurfaceOverride = nullptr;
 #endif
 
 	RHICmdList.EnqueueLambda([this](FRHICommandListBase&)
@@ -250,6 +252,12 @@ void FMetalShaderResourceView::UpdateView()
 			break;
 		}
 	}
+	else if (SurfaceOverride != nullptr)
+	{
+		MTLTexturePtr View = SurfaceOverride->Texture;
+		InitAsTextureView(View);
+		bOwnsResource = false;
+	}
 	else
 	{
 		FMetalSurface* Texture = ResourceCast(GetTexture());
@@ -293,6 +301,8 @@ void FMetalShaderResourceView::UpdateView()
         
         bool bUseSourceTexture = Info.bAllMips && Info.bAllSlices && MetalFormat == Texture->Texture->pixelFormat() &&
                                 SRVDimensionToMetalTextureType(Device, Info.Dimension) == TextureType;
+		
+		check(TextureType != MTL::TextureType1D);
 		
 		bool bIsBindless = IsMetalBindlessEnabled();
         
@@ -506,6 +516,8 @@ void FMetalUnorderedAccessView::UpdateView()
         bool bUseSourceTexture = Info.bAllMips && Info.bAllSlices &&
                                 UAVDimensionToMetalTextureType(Info.Dimension) == TextureType && MetalFormat == Texture->Texture->pixelFormat();
         
+		check(TextureType != MTL::TextureType1D);
+		
         bool bIsAtomicCompatible = EnumHasAllFlags(Texture->GetDesc().Flags, TexCreate_AtomicCompatible) ||
                                             EnumHasAllFlags(Texture->GetDesc().Flags, ETextureCreateFlags::Atomic64Compatible);
         
@@ -527,7 +539,7 @@ void FMetalUnorderedAccessView::UpdateView()
             // If we are using texture atomics then we need to bind them as buffers because Metal lacks texture atomics
             if(bBufferBacked && Texture->Texture->buffer())
             {
-                FMetalBufferPtr MetalBuffer = FMetalBufferPtr(new FMetalBuffer(NS::RetainPtr(Texture->Texture->buffer())));
+                FMetalBufferPtr MetalBuffer = FMetalBufferPtr(new FMetalBuffer(Texture->Texture->buffer(), FMetalBuffer::FreePolicy::Temporary));
                 InitAsTextureBufferBacked(Texture->Texture, MetalBuffer,
                                         Texture->Texture->bufferOffset(),
                                         Texture->Texture->buffer()->length(), Info.Format, false);
@@ -577,7 +589,7 @@ void FMetalUnorderedAccessView::UpdateView()
             // If we are using texture atomics then we need to bind them as buffers because Metal lacks texture atomics
             if((EnumHasAllFlags(Texture->GetDesc().Flags, TexCreate_UAV | TexCreate_NoTiling) || (!bIsBindless && bIsAtomicCompatible)) && Texture->Texture->buffer())
             {
-                FMetalBufferPtr MetalBuffer = FMetalBufferPtr(new FMetalBuffer(NS::RetainPtr(Texture->Texture->buffer())));
+                FMetalBufferPtr MetalBuffer = FMetalBufferPtr(new FMetalBuffer(Texture->Texture->buffer(), FMetalBuffer::FreePolicy::Temporary));
                 InitAsTextureBufferBacked(MetalTexture, MetalBuffer,
                                           Texture->Texture->bufferOffset(),
                                           Texture->Texture->buffer()->length(), Info.Format, false);
@@ -626,7 +638,7 @@ void FMetalUnorderedAccessView::ClearUAVWithBlitEncoder(TRHICommandList_Recursiv
 		FMetalBufferPtr Buffer = SourceBuffer->GetCurrentBuffer();
 		uint32 Size = Info.SizeInBytes;
 		uint32 AlignedSize = Align(Size, BufferOffsetAlignment);
-		FMetalPooledBufferArgs Args(Device.GetDevice(), AlignedSize, BUF_Dynamic, MTL::StorageModeShared);
+		FMetalPooledBufferArgs Args(&Device, AlignedSize, BUF_Dynamic, MTL::StorageModeShared);
 
 		FMetalBufferPtr Temp = Device.CreatePooledBuffer(Args);
 
@@ -660,7 +672,9 @@ void FMetalUnorderedAccessView::ClearUAV(TRHICommandList_RecursiveHazardous<FMet
     auto GetValueType = [&](EPixelFormat InFormat)
     {
         if (bFloat)
-            return EClearReplacementValueType::Float;
+		{
+			return EClearReplacementValueType::Float;
+		}
 
         // The Metal validation layer will complain about resources with a
         // signed format bound against an unsigned data format type as the
@@ -796,7 +810,7 @@ void FMetalRHICommandContext::RHICopyToStagingBuffer(FRHIBuffer* SourceBufferRHI
         {
             Device.ReleaseBuffer(ReadbackBuffer);
         }
-        FMetalPooledBufferArgs ArgsCPU(Device.GetDevice(), NumBytes, BUF_Dynamic, MTL::StorageModeShared);
+        FMetalPooledBufferArgs ArgsCPU(&Device, NumBytes, BUF_Dynamic, MTL::StorageModeShared);
         ReadbackBuffer = Device.CreatePooledBuffer(ArgsCPU);
     }
 

@@ -1,6 +1,6 @@
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 //
-// Copyright 2023 Apple Inc.
+// Copyright 2023-2024 Apple Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -81,8 +81,9 @@ extern const uint64_t kIRArgumentBufferDrawArgumentsBindPoint;
 extern const uint64_t kIRArgumentBufferUniformsBindPoint;
 extern const uint64_t kIRVertexBufferBindPoint;
 extern const uint64_t kIRStageInAttributeStartIndex;
-extern const char* kIRIndirectTriangleIntersectionFunctionName;
-extern const char* kIRIndirectProceduralIntersectionFunctionName;
+extern const char*    kIRIndirectTriangleIntersectionFunctionName;
+extern const char*    kIRIndirectProceduralIntersectionFunctionName;
+extern const uint16_t kIRNonIndexedDraw;
 
 typedef struct IRDescriptorTableEntry
 {
@@ -251,7 +252,7 @@ typedef struct IRRuntimeDrawParams
 typedef struct IRRuntimeDrawInfo
 {
     // Vertex pipelines only require the index type.
-    uint16_t indexType;
+    uint16_t indexType; // set to kIRNonIndexedDraw to indicate a non-indexed draw call
     
     // Required by all mesh shader-based pipelines.
     uint8_t primitiveTopology;
@@ -515,6 +516,7 @@ const uint64_t kIRVertexBufferBindPoint                     = 6;
 const uint64_t kIRStageInAttributeStartIndex                = 11;
 const char* kIRIndirectTriangleIntersectionFunctionName     = "irconverter.wrapper.intersection.function.triangle";
 const char* kIRIndirectProceduralIntersectionFunctionName   = "irconverter.wrapper.intersection.function.procedural";
+const uint16_t kIRNonIndexedDraw                            = 0;
 
 
 const uint64_t kIRBufSizeOffset     = 0;
@@ -662,7 +664,7 @@ void IRRuntimeDrawPrimitives(renderencoder_t enc, primitivetype_t primitiveType,
 {
     IRRuntimeDrawArgument da = { (uint32_t)vertexCount, (uint32_t)instanceCount, (uint32_t)vertexStart, (uint32_t)baseInstance };
     IRRuntimeDrawParams dp = { .draw = da };
-    IRRuntimeDrawInfo di = { 0, (uint8_t)primitiveType, 0, 0, 0 };
+    IRRuntimeDrawInfo di = { kIRNonIndexedDraw, (uint8_t)primitiveType, 0, 0, 0 };
 
     #ifdef IR_RUNTIME_METALCPP
     enc->setVertexBytes( &dp, sizeof( IRRuntimeDrawParams ), kIRArgumentBufferDrawArgumentsBindPoint );
@@ -690,11 +692,14 @@ void IRRuntimeDrawPrimitives(renderencoder_t enc, primitivetype_t primitiveType,
 IR_INLINE
 void IRRuntimeDrawPrimitives(renderencoder_t enc, primitivetype_t primitiveType, buffer_t indirectBuffer, uint64_t indirectBufferOffset) IR_OVERLOADABLE
 {
+    IRRuntimeDrawInfo di = { kIRNonIndexedDraw, (uint8_t)primitiveType, 0, 0, 0 };
     #ifdef IR_RUNTIME_METALCPP
     enc->setVertexBuffer( indirectBuffer, indirectBufferOffset, kIRArgumentBufferDrawArgumentsBindPoint );
+    enc->setVertexBytes( &di, sizeof( IRRuntimeDrawInfo ), kIRArgumentBufferUniformsBindPoint );
     enc->drawPrimitives( primitiveType, indirectBuffer, indirectBufferOffset );
     #else
     [enc setVertexBuffer:indirectBuffer offset:indirectBufferOffset atIndex:kIRArgumentBufferDrawArgumentsBindPoint];
+    [enc setVertexBytes:&di length:sizeof( IRRuntimeDrawInfo ) atIndex:kIRArgumentBufferUniformsBindPoint];
     [enc drawPrimitives:primitiveType indirectBuffer:indirectBuffer indirectBufferOffset:indirectBufferOffset];
     #endif
 }
@@ -777,23 +782,6 @@ static uint32_t IRRuntimePrimitiveTypeVertexOverlap(IRRuntimePrimitiveType primi
         case IRRuntimePrimitiveTypeLineWithAdj:     return 0; break;
         case IRRuntimePrimitiveTypeTriangleStrip:   return 2; break;
         case IRRuntimePrimitiveTypeLineStrip:       return 1; break;
-        default: return 0;
-    }
-    return 0;
-}
-
-IR_INLINE
-static uint32_t DXAIRPrimitiveTypeToPrimitiveTopology(IRRuntimePrimitiveType primitiveType)
-{
-    switch (primitiveType)
-    {
-        case IRRuntimePrimitiveTypePoint: return 1;
-        case IRRuntimePrimitiveTypeLine: return 2;
-        case IRRuntimePrimitiveTypeLineStrip: return 3;
-        case IRRuntimePrimitiveTypeTriangle: return 4;
-        case IRRuntimePrimitiveTypeTriangleStrip: return 5;
-        case IRRuntimePrimitiveTypeLineWithAdj: return 10;
-        case IRRuntimePrimitiveTypeTriangleWithAdj: return 12;
         default: return 0;
     }
     return 0;
@@ -906,11 +894,11 @@ void IRRuntimeDrawIndexedPrimitivesGeometryEmulation(renderencoder_t enc,
     
     IRRuntimeDrawParams drawParams;
     drawParams.drawIndexed = (IRRuntimeDrawIndexedArgument){
-        .startInstanceLocation = baseInstance,
+        .indexCountPerInstance = indexCountPerInstance,
         .instanceCount = instanceCount,
-        .baseVertexLocation = baseVertex,
         .startIndexLocation = startIndex,
-        .indexCountPerInstance = indexCountPerInstance
+        .baseVertexLocation = baseVertex,
+        .startInstanceLocation = baseInstance
     };
     
     
@@ -1020,11 +1008,11 @@ void IRRuntimeDrawIndexedPatchesTessellationEmulation(renderencoder_t enc,
     
     IRRuntimeDrawParams drawParams;
     drawParams.drawIndexed = (IRRuntimeDrawIndexedArgument){
-        .startInstanceLocation = baseInstance,
+        .indexCountPerInstance = indexCountPerInstance,
         .instanceCount = instanceCount,
-        .baseVertexLocation = baseVertex,
         .startIndexLocation = startIndex,
-        .indexCountPerInstance = indexCountPerInstance
+        .baseVertexLocation = baseVertex,
+        .startInstanceLocation = baseInstance
     };
     
     uint32_t threadgroupMem = 16;
@@ -1532,8 +1520,7 @@ exit_stagein_function_error:
         
         MTLFunctionDescriptor* pFunctionDesc = [[MTLFunctionDescriptor alloc] init];
         [pFunctionDesc setConstantValues:pFunctionConstants];
-        
-        NSString* functionName = [NSString stringWithFormat:@"%s.dxil_irconverter_object_shader", descriptor->vertexFunctionName];
+        pFunctionDesc.name = [NSString stringWithFormat:@"%s.dxil_irconverter_object_shader", descriptor->vertexFunctionName];
         
         pVertexFn = [descriptor->vertexLibrary newFunctionWithDescriptor:pFunctionDesc error:error];
         

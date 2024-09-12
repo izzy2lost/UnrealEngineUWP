@@ -661,7 +661,7 @@ FMetalSurface::FMetalSurface(FMetalDevice& MetalDevice, FRHICommandListBase* RHI
 			const NS::UInteger BytesPerRow = Align(NewCreateDesc.Desc->width() * GPixelFormats[NewCreateDesc.Format].BlockBytes, MinimumByteAlignment);
 
 			// Backing buffer resource options must match the texture we are going to create from it
-			FMetalPooledBufferArgs Args(MTLDevice, BytesPerRow * NewCreateDesc.Desc->height(), BUF_Dynamic, MTL::StorageModePrivate, NewCreateDesc.Desc->cpuCacheMode());
+			FMetalPooledBufferArgs Args(&Device, BytesPerRow * NewCreateDesc.Desc->height(), BUF_Dynamic, MTL::StorageModePrivate, NewCreateDesc.Desc->cpuCacheMode());
 			FMetalBufferPtr Buffer = Device.CreatePooledBuffer(Args);
 
 			Texture = NS::TransferPtr(Buffer->GetMTLBuffer()->newTexture(NewCreateDesc.Desc.get(), Buffer->GetOffset(), BytesPerRow));
@@ -678,7 +678,7 @@ FMetalSurface::FMetalSurface(FMetalDevice& MetalDevice, FRHICommandListBase* RHI
             const NS::UInteger BytesPerRow = Align(NewCreateDesc.Desc->width() * NewCreateDesc.Desc->arrayLength() * GPixelFormats[NewCreateDesc.Format].BlockBytes, MinimumByteAlignment);
 
             // Backing buffer resource options must match the texture we are going to create from it
-            FMetalPooledBufferArgs Args(MTLDevice, BytesPerRow * NewCreateDesc.Desc->height(), BUF_Dynamic, MTL::StorageModePrivate, NewCreateDesc.Desc->cpuCacheMode());
+            FMetalPooledBufferArgs Args(&Device, BytesPerRow * NewCreateDesc.Desc->height(), BUF_Dynamic, MTL::StorageModePrivate, NewCreateDesc.Desc->cpuCacheMode());
             FMetalBufferPtr Buffer = Device.CreatePooledBuffer(Args);
 
             NewCreateDesc.Desc->setWidth(NewCreateDesc.Desc->width() * NewCreateDesc.Desc->arrayLength());
@@ -922,7 +922,7 @@ void FMetalSurface::SafeRelease(MTLTexturePtr InTexture)
 	}
 }
 
-MTLBufferPtr FMetalSurface::AllocSurface(uint32 MipIndex, uint32 ArrayIndex, EResourceLockMode LockMode, uint32& DestStride, bool SingleLayer /*= false*/)
+MTL::Buffer* FMetalSurface::AllocSurface(uint32 MipIndex, uint32 ArrayIndex, EResourceLockMode LockMode, uint32& DestStride, bool SingleLayer /*= false*/)
 {
 	check(IsInRenderingThread());
 
@@ -932,8 +932,8 @@ MTLBufferPtr FMetalSurface::AllocSurface(uint32 MipIndex, uint32 ArrayIndex, ERe
 	// allocate some temporary memory
 	// This should really be pooled and texture transfers should be their own pool
 	MTL::Device* MTLDevice = Device.GetDevice();
-    MTLBufferPtr* Buffer = new MTLBufferPtr(NS::TransferPtr(MTLDevice->newBuffer(MipBytes, MTL::ResourceStorageModeShared)));
-	(*Buffer)->setLabel(NS::String::string("Temporary Surface Backing", NS::UTF8StringEncoding));
+    MTL::Buffer* Buffer = MTLDevice->newBuffer(MipBytes, MTL::ResourceStorageModeShared);
+	Buffer->setLabel(NS::String::string("Temporary Surface Backing", NS::UTF8StringEncoding));
 	
 	// Note: while the lock is active, this map owns the backing store.
 	const uint32 LockIndex = ComputeLockIndex(MipIndex, ArrayIndex);
@@ -951,12 +951,12 @@ MTLBufferPtr FMetalSurface::AllocSurface(uint32 MipIndex, uint32 ArrayIndex, ERe
 	}
 #endif
 	
-	check(*Buffer);
+	check(Buffer);
 	
-	return *Buffer;
+	return Buffer;
 }
 
-void FMetalSurface::UpdateSurfaceAndDestroySourceBuffer(FMetalRHICommandContext* Context, MTLBufferPtr SourceBuffer, uint32 MipIndex, uint32 ArrayIndex)
+void FMetalSurface::UpdateSurfaceAndDestroySourceBuffer(FMetalRHICommandContext* Context, MTL::Buffer* SourceBuffer, uint32 MipIndex, uint32 ArrayIndex)
 {
 #if STATS
 	uint64 Start = FPlatformTime::Cycles64();
@@ -1014,6 +1014,8 @@ void FMetalSurface::UpdateSurfaceAndDestroySourceBuffer(FMetalRHICommandContext*
 	}
 #endif
 	
+	FMetalBufferPtr Source = FMetalBufferPtr(new FMetalBuffer(SourceBuffer, FMetalBuffer::FreePolicy::Owner));
+	
 	if(Texture->storageMode() == MTL::StorageModePrivate)
 	{
         MTL_SCOPED_AUTORELEASE_POOL;
@@ -1031,8 +1033,6 @@ void FMetalSurface::UpdateSurfaceAndDestroySourceBuffer(FMetalRHICommandContext*
 			Options = MTL::BlitOptionRowLinearPVRTC;
 		}
 #endif
-        FMetalBufferPtr Source = FMetalBufferPtr(new FMetalBuffer(SourceBuffer, NS::Range(0, SourceBuffer->length()), false));
-                            
 		Context->CopyFromBufferToTexture(Source, 0, Stride, BytesPerImage, Region.size, Texture.get(), ArrayIndex, MipIndex, Region.origin, Options);
 		
 		FMetalCommandBufferCompletionHandler CompletionHandler;
@@ -1042,7 +1042,6 @@ void FMetalSurface::UpdateSurfaceAndDestroySourceBuffer(FMetalRHICommandContext*
 		});
 		
 		Context->AddCompletionHandler(CompletionHandler);
-		Device.ReleaseBuffer(Source);
 		
 		INC_DWORD_STAT_BY(STAT_MetalTextureMemUpdate, Size);
 		
@@ -1062,10 +1061,12 @@ void FMetalSurface::UpdateSurfaceAndDestroySourceBuffer(FMetalRHICommandContext*
 #endif
 		
         Texture->replaceRegion(Region, MipIndex, ArrayIndex, SourceBuffer->contents(), Stride, BytesPerImage);
-		SourceBuffer.reset();
+		SourceBuffer = nullptr;
 		
 		INC_DWORD_STAT_BY(STAT_MetalTextureMemUpdate, BytesPerImage);
 	}
+	
+	Device.ReleaseBuffer(Source);
 	
 	FPlatformAtomics::InterlockedExchange(&Written, 1);
 	
@@ -1084,7 +1085,7 @@ void* FMetalSurface::Lock(uint32 MipIndex, uint32 ArrayIndex, EResourceLockMode 
 	}
 	
 	// allocate some temporary memory
-	MTLBufferPtr SourceData = AllocSurface(MipIndex, ArrayIndex, LockMode, DestStride, SingleLayer);
+	MTL::Buffer* SourceData = AllocSurface(MipIndex, ArrayIndex, LockMode, DestStride, SingleLayer);
 	
 	switch(LockMode)
 	{
@@ -1120,7 +1121,7 @@ void* FMetalSurface::Lock(uint32 MipIndex, uint32 ArrayIndex, EResourceLockMode 
 				auto CopyTexToBuf =
 				[this, ArrayIndex, MipIndex, Region, SourceData, DestStride, MipBytes](FRHICommandListImmediate& RHICmdList)
 				{
-                    FMetalBufferPtr Source = FMetalBufferPtr(new FMetalBuffer(SourceData, NS::Range(0, SourceData->length()), false));
+                    FMetalBufferPtr Source = FMetalBufferPtr(new FMetalBuffer(SourceData, FMetalBuffer::FreePolicy::Temporary));
                                         
 					FMetalRHICommandContext& Context = FMetalRHICommandContext::Get(RHICmdList);
 					Context.CopyFromTextureToBuffer(this->Texture.get(), ArrayIndex, MipIndex, Region.origin, Region.size, Source, 0, DestStride, MipBytes, MTL::BlitOptionNone);
@@ -1207,7 +1208,6 @@ void* FMetalSurface::Lock(uint32 MipIndex, uint32 ArrayIndex, EResourceLockMode 
 			break;
 	}
 	
-	Device.ReleaseFunction([SourceData]{});
 	return SourceData->contents();
 }
 
@@ -1218,7 +1218,7 @@ void FMetalSurface::Unlock(uint32 MipIndex, uint32 ArrayIndex, bool bTryAsync)
 	const uint32 LockIndex = ComputeLockIndex(MipIndex, ArrayIndex);
 	FRHILockTracker::FLockParams Params = GRHILockTracker.Unlock(this, LockIndex);
 	
-	MTLBufferPtr* SourceData = (MTLBufferPtr*) Params.Buffer;
+	MTL::Buffer* SourceData = (MTL::Buffer*) Params.Buffer;
 	
 	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 	
@@ -1229,8 +1229,7 @@ void FMetalSurface::Unlock(uint32 MipIndex, uint32 ArrayIndex, bool bTryAsync)
 		SourceData](FRHICommandListBase& ExecutingCmdList)
 	{
 		FMetalRHICommandContext& Context = FMetalRHICommandContext::Get(ExecutingCmdList);
-		Surface->UpdateSurfaceAndDestroySourceBuffer(&Context, *SourceData, MipIndex, ArrayIndex);
-		delete SourceData;
+		Surface->UpdateSurfaceAndDestroySourceBuffer(&Context, SourceData, MipIndex, ArrayIndex);
 	});
 }
 
@@ -1592,7 +1591,7 @@ static FMetalBufferPtr Internal_CreateBufferAndCopyTexture2DUpdateRegionData(FMe
 		&& Texture->Texture->pixelFormat() == MTL::PixelFormatRGBA8Unorm_sRGB)
 	{
 		const uint32 ExpandedBufferSize = UpdateRegion.Height * UpdateRegion.Width * sizeof(uint32);
-		OutBuffer = Device.CreatePooledBuffer(FMetalPooledBufferArgs(Device.GetDevice(), ExpandedBufferSize, BUF_Static, MTL::StorageModeShared));
+		OutBuffer = Device.CreatePooledBuffer(FMetalPooledBufferArgs(&Device, ExpandedBufferSize, BUF_Static, MTL::StorageModeShared));
 		InternalExpandR8ToStandardRGBA((uint32*)OutBuffer->Contents(), UpdateRegion, InOutSourcePitch, OffsetSourceData);
 	}
 	else
@@ -1602,7 +1601,7 @@ static FMetalBufferPtr Internal_CreateBufferAndCopyTexture2DUpdateRegionData(FMe
 		const uint32 StagingPitch = static_cast<size_t>(WidthInBlocks) * FormatInfo.BlockBytes;
 
 		const uint32 BufferSize = UpdateRegion.Height * InOutSourcePitch;
-		OutBuffer = Device.CreatePooledBuffer(FMetalPooledBufferArgs(Device.GetDevice(), BufferSize, BUF_Static, MTL::StorageModeShared));
+		OutBuffer = Device.CreatePooledBuffer(FMetalPooledBufferArgs(&Device, BufferSize, BUF_Static, MTL::StorageModeShared));
 
 		uint8* pDestRow = (uint8*)OutBuffer->Contents();
 		const uint8* pSourceRow = OffsetSourceData;
@@ -1673,7 +1672,7 @@ static FMetalBufferPtr Internal_CreateBufferAndCopyTexture3DUpdateRegionData(FMe
 	FMetalSurface* Texture = ResourceCast(TextureRHI);
 	
 	const uint32 BufferSize = SourceDepthPitch * UpdateRegion.Depth;
-	FMetalBufferPtr OutBuffer = Device.CreatePooledBuffer(FMetalPooledBufferArgs(Device.GetDevice(), BufferSize, BUF_Static, MTL::StorageModeShared));
+	FMetalBufferPtr OutBuffer = Device.CreatePooledBuffer(FMetalPooledBufferArgs(&Device, BufferSize, BUF_Static, MTL::StorageModeShared));
 
 	const FPixelFormatInfo& FormatInfo = GPixelFormats[TextureRHI->GetFormat()];
 	uint32 CopyPitch = FMath::DivideAndRoundUp(UpdateRegion.Width, (uint32)FormatInfo.BlockSizeX) * FormatInfo.BlockBytes;
@@ -1898,7 +1897,7 @@ void FMetalRHICommandContext::RHICopyTexture(FRHITexture* SourceTextureRHI, FRHI
                     const uint32 BytesPerImage = AlignedStride *  SourceSize.height;
                     const uint32 DataSize = BytesPerImage * SourceSize.depth;
                     
-                    FMetalBufferPtr Buffer = Device.CreatePooledBuffer(FMetalPooledBufferArgs(Device.GetDevice(), DataSize, BUF_Dynamic, MTL::StorageModeShared));
+                    FMetalBufferPtr Buffer = Device.CreatePooledBuffer(FMetalPooledBufferArgs(&Device, DataSize, BUF_Dynamic, MTL::StorageModeShared));
                     
                     check(Buffer);
                     
@@ -2010,10 +2009,11 @@ void FMetalDynamicRHI::RHIUpdateTextureReference(FRHICommandListBase& RHICmdList
         {
             FMetalSurface* NewSurface = GetMetalSurfaceFromRHITexture(NewTexture);
             
-            FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device->GetBindlessDescriptorManager();
-            check(BindlessDescriptorManager);
-            
-            BindlessDescriptorManager->BindTexture(RHICmdList, DestHandle, NewSurface->Texture.get(), EDescriptorUpdateType_GPU);
+			MetalTextureRefSRV->SurfaceOverride = NewSurface;
+			MetalTextureRefSRV->UpdateView();
+			
+			FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device->GetBindlessDescriptorManager();
+			BindlessDescriptorManager->BindResource(DestHandle, MetalTextureRefSRV);
         }
 	}
 #endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
