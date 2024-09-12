@@ -1154,7 +1154,7 @@ void SNewClassDialog::FinishClicked()
 				if (NewBP)
 				{
 					// Set the default "IsExternallyReferenceable" state
-					Package->SetIsExternallyReferenceable(IAssetTools::Get().GetCreateAssetsAsExternallyReferenceable());
+					Package->SetIsExternallyReferenceable(IAssetTools::Get().ShouldCreateAssetsAsExternallyReferenceableForPath(PackagePath));
 
 					// Notify the asset registry
 					FAssetRegistryModule::AssetCreated(NewBP);

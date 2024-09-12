@@ -38,6 +38,8 @@ namespace UE::AssetTools
 	DECLARE_DELEGATE_RetVal_OneParam(bool, FCanMigrateAsset, FName);
 
 	DECLARE_DELEGATE_RetVal_OneParam(bool, FCanAssetBePublic, FStringView /*AssetPath*/);
+
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FShouldCreateAssetsAsExternallyReferenceableForPath, FStringView /*AssetPath*/, TOptional<bool>& /*ExternallyReferenceable*/);
 }
 
 UENUM()
@@ -384,8 +386,14 @@ public:
 	/** Controls whether or not newly created assets are made externally referneceable or not */
 	virtual void SetCreateAssetsAsExternallyReferenceable(bool bValue) = 0;
 
-	/** Gets whether assets are being made externally referenceable or not */
+	/** Gets whether all assets being made at any location are externally referenceable or not */
 	virtual bool GetCreateAssetsAsExternallyReferenceable() = 0;
+
+	/** Gets whether assets being made at this location are externally referenceable or not */
+	virtual bool ShouldCreateAssetsAsExternallyReferenceableForPath(const FStringView AssetPath) const = 0;
+
+	/** Delegate to control whether assets being made at a specific location are externally referenceable or not */
+	virtual UE::AssetTools::FShouldCreateAssetsAsExternallyReferenceableForPath& GetOnShouldCreateAssetsAsExternallyReferenceableForPath() = 0;
 
 	/** Gets whether assets registry is still loading assets or not */
 	virtual bool IsDiscoveringAssetsInProgress() const = 0;

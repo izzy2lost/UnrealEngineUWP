@@ -1751,7 +1751,7 @@ UObject* UAssetToolsImpl::CreateAsset(const FString& AssetName, const FString& P
 	if( NewObj )
 	{
 
-		Pkg->SetIsExternallyReferenceable(CreateAssetsAsExternallyReferenceable);
+		Pkg->SetIsExternallyReferenceable(ShouldCreateAssetsAsExternallyReferenceableForPath(PackageName));
 
 		// Notify the asset registry
 		FAssetRegistryModule::AssetCreated(NewObj);
@@ -1989,6 +1989,25 @@ void UAssetToolsImpl::SetCreateAssetsAsExternallyReferenceable(bool bValue)
 bool UAssetToolsImpl::GetCreateAssetsAsExternallyReferenceable()
 {
 	return CreateAssetsAsExternallyReferenceable;
+}
+
+bool UAssetToolsImpl::ShouldCreateAssetsAsExternallyReferenceableForPath(const FStringView AssetPath) const
+{
+	// Allow other systems to control the result
+	TOptional<bool> bExternallyReferenceable;
+	CreateAssetsAsExternallyReferenceableForPathDelegate.Broadcast(AssetPath, bExternallyReferenceable);
+	if (bExternallyReferenceable.IsSet())
+	{
+		return bExternallyReferenceable.GetValue();
+	}
+
+	// If no other systems set a result, then use the global setting applied to all assets
+	return CreateAssetsAsExternallyReferenceable;
+}
+
+UE::AssetTools::FShouldCreateAssetsAsExternallyReferenceableForPath& UAssetToolsImpl::GetOnShouldCreateAssetsAsExternallyReferenceableForPath()
+{
+	return CreateAssetsAsExternallyReferenceableForPathDelegate;
 }
 
 void UAssetToolsImpl::GenerateAdvancedCopyDestinations(FAdvancedCopyParams& InParams, const TArray<FName>& InPackageNamesToCopy, const UAdvancedCopyCustomization* CopyCustomization, TMap<FString, FString>& OutPackagesAndDestinations) const
@@ -4517,7 +4536,7 @@ TArray<UObject*> UAssetToolsImpl::ImportAssetsInternal(const TArray<FString>& Fi
 				continue;
 			}
 
-			Pkg->SetIsExternallyReferenceable(CreateAssetsAsExternallyReferenceable);
+			Pkg->SetIsExternallyReferenceable(ShouldCreateAssetsAsExternallyReferenceableForPath(PackageName));
 
 			Factory->SetAutomatedAssetImportData(Params.ImportData);
 			Factory->SetAssetImportTask(Params.AssetImportTask);
