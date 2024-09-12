@@ -611,22 +611,12 @@ void UTickableTransformConstraint::ResolveBoundObjects(FMovieSceneSequenceID Loc
 
 void UTickableTransformConstraint::Evaluate(bool bTickHandlesAlso) const
 {
-	if (bTickHandlesAlso)
+	if (IsFullyActive())
 	{
-		if (ParentTRSHandle)
+		if (bTickHandlesAlso)
 		{
 			ParentTRSHandle->TickTarget();
 		}
-
-		Super::Evaluate();
-		//todo test this more may be able to remove it
-		if (ChildTRSHandle)
-		{
-			ChildTRSHandle->TickTarget();
-		}
-	}
-	else
-	{
 		Super::Evaluate();
 	}
 }
