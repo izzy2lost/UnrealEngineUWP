@@ -17,6 +17,7 @@
 #include "UObject/Package.h"
 #include "LevelInstance/LevelInstanceActor.h"
 #include "LevelInstance/LevelInstanceComponent.h"
+#include "Components/PrimitiveComponent.h"
 
 #if WITH_EDITOR
 	#include "Editor.h"
@@ -898,6 +899,10 @@ UClass* GetModifiedClass(UObject* InObject)
 	if (Cast<USceneComponent>(InObject))
 	{
 		return USceneComponent::StaticClass();
+	}
+	if (Cast<UPrimitiveComponent>(InObject))
+	{
+		return UPrimitiveComponent::StaticClass();
 	}
 	return nullptr;
 }
