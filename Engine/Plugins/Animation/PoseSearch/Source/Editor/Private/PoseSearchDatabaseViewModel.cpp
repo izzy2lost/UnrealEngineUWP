@@ -731,7 +731,7 @@ bool FDatabaseViewModel::SetAnimationAsset(int32 AnimationAssetIndex, UObject* A
 			{
 				// Ensure that our target database item matches the input object's class.
 				const UClass* AssetClass = AnimAsset->GetClass();
-				if (AssetClass == DatabaseAnimationAsset->GetAnimationAssetStaticClass())
+				if (AssetClass->IsChildOf(DatabaseAnimationAsset->GetAnimationAssetStaticClass()))
 				{
 					if (AssetClass->IsChildOf( UAnimSequence::StaticClass()))
 					{
