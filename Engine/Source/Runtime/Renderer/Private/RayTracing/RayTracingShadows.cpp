@@ -39,7 +39,7 @@ static FAutoConsoleVariableRef CVarRayTracingShadowsEnableMaterials(
 	ECVF_RenderThreadSafe
 );
 
-static float GRayTracingShadowsAvoidSelfIntersectionTraceDistance = 0.0f;
+static float GRayTracingShadowsAvoidSelfIntersectionTraceDistance = 1.0f;
 static FAutoConsoleVariableRef CVarRayTracingShadowsAvoidSelfIntersectionTraceDistance(
 	TEXT("r.RayTracing.Shadows.AvoidSelfIntersectionTraceDistance"),
 	GRayTracingShadowsAvoidSelfIntersectionTraceDistance,
