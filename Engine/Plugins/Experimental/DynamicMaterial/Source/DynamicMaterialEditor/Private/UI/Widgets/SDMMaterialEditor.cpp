@@ -1137,7 +1137,7 @@ TSharedRef<SWidget> SDMMaterialEditor::CreateSlot_Preview()
 			[
 				SNew(STextBlock)
 				.Font(FAppStyle::GetFontStyle("TinyText"))
-				.Text(LOCTEXT("DynamicMaterial", "Dynamic"))
+				.Text(LOCTEXT("MaterialInstance", "Instance"))
 				.ShadowColorAndOpacity(FLinearColor::Black)
 				.ShadowOffset(FVector2D(1.0))
 			];

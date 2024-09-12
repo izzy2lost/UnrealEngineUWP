@@ -61,6 +61,7 @@ protected:
 	TSharedPtr<SWidget> AssetRowWidget;
 	TSharedPtr<STextBlock> ActorNameWidget;
 	TSharedPtr<STextBlock> AssetNameWidget;
+	TSharedPtr<STextBlock> InstanceWidget;
 	TSharedPtr<SWidget> OpenParentButton;
 	TSharedPtr<SWidget> ConvertToEditableButton;
 
