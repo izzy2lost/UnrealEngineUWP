@@ -9,7 +9,9 @@
 #include "Voronoi/Voronoi.h"
 #include "PlanarCut.h"
 #include "GeometryCollection/Facades/CollectionMeshFacade.h"
-
+#include "Algo/RemoveIf.h"
+#include "GeometryCollection/Facades/CollectionTransformSelectionFacade.h"
+#include "GeometryCollection/GeometryCollectionClusteringUtility.h"
 
 static void AddAdditionalAttributesIfRequired(FManagedArrayCollection& InOutCollection)
 {
@@ -896,5 +898,163 @@ int32 FFractureEngineFracturing::BrickCutter(FManagedArrayCollection& InOutColle
 
 	return INDEX_NONE;
 }
+	
+void FFractureEngineFracturing::GenerateMeshTransforms(TArray<FTransform>& MeshTransforms,
+	const FBox& InBoundingBox,
+	const int32 InRandomSeed,
+	const EMeshCutterCutDistribution InCutDistribution,
+	const int32 InNumberToScatter,
+	const int32 InGridX,
+	const int32 InGridY,
+	const int32 InGridZ,
+	const float InVariability,
+	const float InMinScaleFactor,
+	const float InMaxScaleFactor,
+	const bool InRandomOrientation,
+	const float InRollRange,
+	const float InPitchRange,
+	const float InYawRange)
+{
+	FRandomStream RandStream(InRandomSeed);
+
+	FBox Bounds = InBoundingBox;
+	const FVector Extent(Bounds.Max - Bounds.Min);
+
+	TArray<FVector> Positions;
+	if (InCutDistribution == EMeshCutterCutDistribution::UniformRandom)
+	{
+		Positions.Reserve(InNumberToScatter);
+		for (int32 Idx = 0; Idx < InNumberToScatter; ++Idx)
+		{
+			Positions.Emplace(Bounds.Min + FVector(RandStream.FRand(), RandStream.FRand(), RandStream.FRand()) * Extent);
+		}
+	}
+	else if (InCutDistribution == EMeshCutterCutDistribution::Grid)
+	{
+		Positions.Reserve(InGridX * InGridY * InGridZ);
+		auto ToFrac = [](int32 Val, int32 NumVals) -> FVector::FReal
+		{
+			return (FVector::FReal(Val) + FVector::FReal(.5)) / FVector::FReal(NumVals);
+		};
+		for (int32 X = 0; X < InGridX; ++X)
+		{
+			FVector::FReal XFrac = ToFrac(X, InGridX);
+			for (int32 Y = 0; Y < InGridY; ++Y)
+			{
+				FVector::FReal YFrac = ToFrac(Y, InGridY);
+				for (int32 Z = 0; Z < InGridZ; ++Z)
+				{
+					FVector::FReal ZFrac = ToFrac(Z, InGridZ);
+					Positions.Emplace(Bounds.Min + FVector(XFrac, YFrac, ZFrac) * Extent);
+				}
+			}
+		}
+
+		for (FVector& Position : Positions)
+		{
+			Position += (RandStream.VRand() * RandStream.FRand() * InVariability);
+		}
+	}
+
+	MeshTransforms.Reserve(MeshTransforms.Num() + Positions.Num());
+	for (const FVector& Position : Positions)
+	{
+		const FVector ScaleVec(RandStream.FRandRange(InMinScaleFactor, InMaxScaleFactor));
+		FRotator Orientation = FRotator::ZeroRotator;
+		if (InRandomOrientation)
+		{
+			Orientation = FRotator(
+				RandStream.FRandRange(-InPitchRange, InPitchRange),
+				RandStream.FRandRange(-InYawRange, InYawRange),
+				RandStream.FRandRange(-InRollRange, InRollRange)
+			);
+		}
+		MeshTransforms.Emplace(FTransform(Orientation, Position, ScaleVec));
+	}
+}
+
+int32 FFractureEngineFracturing::MeshCutter(TArray<FTransform>& MeshTransforms,
+	FManagedArrayCollection& InOutCollection,
+	FDataflowTransformSelection InTransformSelection,
+	const UE::Geometry::FDynamicMesh3& InDynCuttingMesh,
+	const FTransform& InTransform,
+	const int32 InRandomSeed,
+	const float InChanceToFracture,
+	const bool InSplitIslands,
+	const float InCollisionSampleSpacing)
+{
+	if (TUniquePtr<FGeometryCollection> GeomCollection = TUniquePtr<FGeometryCollection>(InOutCollection.NewCopy<FGeometryCollection>()))
+	{
+		// Note: Noise not currently supported
+		FInternalSurfaceMaterials InternalSurfaceMaterials;
+
+		int32 ResultGeometryIndex = -1;
+
+		const int32 OriginalNumTransforms = InOutCollection.NumElements(FGeometryCollection::TransformGroup);
+
+		RandomReduceSelection(InTransformSelection, InRandomSeed, InChanceToFracture);
+		TArray<int32> TransformSelectionArr = InTransformSelection.AsArray();
+
+		for (const FTransform& ScatterTransform : MeshTransforms)
+		{
+			constexpr bool bSetDefaultInternalMaterialsFromCollection = true;
+			int32 Index = CutWithMesh(InDynCuttingMesh, ScatterTransform, InternalSurfaceMaterials, *GeomCollection, TransformSelectionArr, InCollisionSampleSpacing, InTransform, bSetDefaultInternalMaterialsFromCollection, nullptr, InSplitIslands);
+
+			int32 NewLen = Algo::RemoveIf(TransformSelectionArr, [&](int32 Bone)
+				{
+					return !GeomCollection->IsVisible(Bone); // remove already-fractured pieces from the to-cut list
+				});
+			TransformSelectionArr.SetNum(NewLen);
+
+			if (ResultGeometryIndex == -1)
+			{
+				ResultGeometryIndex = Index;
+			}
+			if (Index > -1)
+			{
+				const int32 TransformIdx = GeomCollection->TransformIndex[Index];
+				// after a successful cut, also consider any new bones added by the cut
+				for (int32 NewBoneIdx = TransformIdx; NewBoneIdx < GeomCollection->NumElements(FGeometryCollection::TransformGroup); NewBoneIdx++)
+				{
+					TransformSelectionArr.Add(NewBoneIdx);
+				}
+			}
+		}
+
+		if (ResultGeometryIndex > -1)
+		{
+			TArray<int32> ToRemove;
+			for (int32 NewIdx = OriginalNumTransforms; NewIdx < GeomCollection->NumElements(FGeometryCollection::TransformGroup); ++NewIdx)
+			{
+				if (GeomCollection->IsRigid(NewIdx))
+				{
+					int32 ParentIdx = GeomCollection->Parent[NewIdx];
+					if (ParentIdx >= OriginalNumTransforms)
+					{
+						do
+						{
+							ParentIdx = GeomCollection->Parent[ParentIdx];
+						} while (GeomCollection->Parent[ParentIdx] >= OriginalNumTransforms);
+						GeomCollection->ParentTransforms(ParentIdx, NewIdx);
+					}
+				}
+				else
+				{
+					ToRemove.Add(NewIdx);
+				}
+			}
+			FManagedArrayCollection::FProcessingParameters ProcessingParams;
+			ProcessingParams.bDoValidation = false;
+			GeomCollection->RemoveElements(FGeometryCollection::TransformGroup, ToRemove, ProcessingParams);
+		}
+
+		InOutCollection = (const FManagedArrayCollection&)(*GeomCollection);
+
+		return ResultGeometryIndex;
+	}
+
+	return INDEX_NONE;
+}
+
 
 

@@ -11,6 +11,7 @@
 #include "GeometryCollectionFracturingNodes.generated.h"
 
 class FGeometryCollection;
+class UDynamicMesh;
 
 USTRUCT(meta = (DataflowGeometryCollection, Deprecated = "5.5"))
 struct FUniformScatterPointsDataflowNode : public FDataflowNode
@@ -298,7 +299,8 @@ public:
 
 /**
  *
- * Generates a Voronoi fracture
+ * Editor Fracture Mode / Fracture / Uniform tool
+ * Fracture using a Voronoi diagram with a uniform random pattern, creating fracture pieces of similar volume across the shape.
  *
  */
 USTRUCT(meta = (DataflowGeometryCollection, Deprecated = "5.5"))
@@ -377,6 +379,12 @@ public:
 
 };
 
+/**
+ *
+ * Editor Fracture Mode / Fracture / Uniform tool
+ * Fracture using a Voronoi diagram with a uniform random pattern, creating fracture pieces of similar volume across the shape.
+ *
+ */
 USTRUCT(meta = (DataflowGeometryCollection))
 struct FVoronoiFractureDataflowNode_v2 : public FDataflowNode
 {
@@ -400,15 +408,16 @@ public:
 	UPROPERTY(meta = (DataflowInput, DisplayName = "Transform"))
 	FTransform Transform = FTransform::Identity;
 
+	// Made it hidden to hide this parameter, the random seed for Voronoi fracturing is on the point generation nodes
 	/** Seed for random */
-	UPROPERTY(EditAnywhere, Category = "Common Fracture", meta = (DataflowInput, UIMin = "0"));
+	UPROPERTY();
 	int32 RandomSeed = 0;
 
 	/** Chance to fracture each selected bone. If 0, no bones will fracture; if 1, all bones will fracture. */
 	UPROPERTY(EditAnywhere, Category = "Common Fracture", meta = (DataflowInput, UIMin = "0.0", UIMax = "1.0", ClampMin = "0.0", ClampMax = "1.0"));
 	float ChanceToFracture = 1.f;
 
-	// Whether to split the fractured mesh pieces based on geometric connectivity after fracturing
+	/** Whether to split the fractured mesh pieces based on geometric connectivity after fracturing */
 	UPROPERTY(EditAnywhere, Category = "Common Fracture");
 	bool SplitIslands = true;
 
@@ -470,7 +479,6 @@ public:
 		RegisterInputConnection(&Points);
 		RegisterInputConnection(&TransformSelection);
 		RegisterInputConnection(&Transform);
-		RegisterInputConnection(&RandomSeed);
 		RegisterInputConnection(&ChanceToFracture);
 		RegisterInputConnection(&Grout);
 		RegisterInputConnection(&Amplitude);
@@ -490,7 +498,8 @@ public:
 
 /**
  *
- * Cuts geometry using a set of noised up planes
+ * Editor Fracture Mode / Fracture / Planar tool
+ * Fracture using a set of noised up planes.
  *
  */
 USTRUCT(meta = (DataflowGeometryCollection, Deprecated = "5.5"))
@@ -566,6 +575,12 @@ public:
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
+/**
+ *
+ * Editor Fracture Mode / Fracture / Planar tool
+ * Fracture using a set of noised up planes.
+ *
+ */
 USTRUCT(meta = (DataflowGeometryCollection))
 struct FPlaneCutterDataflowNode_v2 : public FDataflowNode
 {
@@ -601,7 +616,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Common Fracture", meta = (DataflowInput, UIMin = 0.f, DisplayName = "Chance To Fracture Per Bone", UIMax = 1.f));
 	float ChanceToFracture = 1.f;
 
-	// Whether to split the fractured mesh pieces based on geometric connectivity after fracturing
+	/** Whether to split the fractured mesh pieces based on geometric connectivity after fracturing */
 	UPROPERTY(EditAnywhere, Category = "Common Fracture");
 	bool SplitIslands = true;
 
@@ -725,8 +740,9 @@ private:
 
 /**
  *
- * Slice tool
- *
+ * Editor Fracture Mode / Fracture / Slice tool
+ * Fracture with a grid of X, Y, and Z slices, with optional random variation in angle and offset.
+ * 
  */
 USTRUCT(meta = (DataflowGeometryCollection))
 struct FSliceCutterDataflowNode : public FDataflowNode
@@ -774,7 +790,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Common Fracture", meta = (DataflowInput, UIMin = 0.f, UIMax = 1.f));
 	float ChanceToFracture = 1.f;
 
-	// Whether to split the fractured mesh pieces based on geometric connectivity after fracturing
+	/** Whether to split the fractured mesh pieces based on geometric connectivity after fracturing */
 	UPROPERTY(EditAnywhere, Category = "Common Fracture");
 	bool SplitIslands = true;
 
@@ -859,8 +875,10 @@ public:
 };
 
 /**
- *
- * Brick tool
+ * 
+ * Editor Fracture Mode / Fracture / Brick tool
+ * Fracture with a customizable brick pattern. 
+ * Note: Currently only supports fracturing with at least some (non-zero) Grout.
  *
  */
 USTRUCT(meta = (DataflowGeometryCollection))
@@ -910,7 +928,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Common Fracture", meta = (DataflowInput, UIMin = 0.f, UIMax = 1.f));
 	float ChanceToFracture = 1.f;
 
-	// Whether to split the fractured mesh pieces based on geometric connectivity after fracturing
+	/** Whether to split the fractured mesh pieces based on geometric connectivity after fracturing */
 	UPROPERTY(EditAnywhere, Category = "Common Fracture");
 	bool SplitIslands = true;
 
@@ -993,38 +1011,147 @@ public:
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
+/**
+ * 
+ * Editor Fracture Mode / Fracture / Mesh tool
+ * Fracture using the shape of a chosen static mesh
+ * 
+ */
+USTRUCT(meta = (DataflowGeometryCollection))
+struct FMeshCutterDataflowNode : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FMeshCutterDataflowNode, "MeshCutter", "GeometryCollection|Fracture", "")
 
+public:
+	/** Collection to cut */
+	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
+	FManagedArrayCollection Collection;
 
+	/** Boundingbox to create the cutting planes in */
+	UPROPERTY(meta = (DataflowInput))
+	FBox BoundingBox = FBox(ForceInit);
 
+	/** The selected pieces to cut */
+	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "TransformSelection", DisplayName = "TransformSelection"))
+	FDataflowTransformSelection TransformSelection;
 
+	/** Transform to apply to cut planes */
+	UPROPERTY(meta = (DataflowInput, DisplayName = "Transform"))
+	FTransform Transform = FTransform::Identity;
 
+	/** Mesh to cut with */
+	UPROPERTY(meta = (DataflowInput, DataflowIntrinsic))
+	TObjectPtr<UDynamicMesh> CuttingMesh;
 
+	/** How to arrange the mesh cuts in space */
+	UPROPERTY(EditAnywhere, Category = Distribution)
+	EMeshCutterCutDistribution CutDistribution = EMeshCutterCutDistribution::SingleCut;
 
+	/** Number of meshes to random scatter */
+	UPROPERTY(EditAnywhere, Category = Distribution, meta = (DataflowInput, ClampMin = "1", UIMax = "5000", EditCondition = "CutDistribution == EMeshCutterCutDistribution::UniformRandom", EditConditionHides))
+	int32 NumberToScatter = 10;
 
+	/** Number of meshes to add to grid in X */
+	UPROPERTY(EditAnywhere, Category = Distribution, meta = (DataflowInput, DisplayName = "Grid Width", ClampMin = "1", UIMax = "100", ClampMax = "5000", EditCondition = "CutDistribution == EMeshCutterCutDistribution::Grid", EditConditionHides))
+	int32 GridX = 2;
 
+	/** Number of meshes to add to grid in Y */
+	UPROPERTY(EditAnywhere, Category = Distribution, meta = (DataflowInput, DisplayName = "Grid Depth", ClampMin = "1", UIMax = "100", ClampMax = "5000", EditCondition = "CutDistribution == EMeshCutterCutDistribution::Grid", EditConditionHides))
+	int32 GridY = 2;
 
+	/** Number of meshes to add to grid in Z */
+	UPROPERTY(EditAnywhere, Category = Distribution, meta = (DataflowInput, DisplayName = "Grid Height", ClampMin = "1", UIMax = "100", ClampMax = "5000", EditCondition = "CutDistribution == EMeshCutterCutDistribution::Grid", EditConditionHides))
+	int32 GridZ = 2;
 
+	/** Magnitude of random displacement to cutting meshes */
+	UPROPERTY(EditAnywhere, Category = Distribution, meta = (DataflowInput, DisplayName = "Variability", EditCondition = "CutDistribution == EMeshCutterCutDistribution::Grid", EditConditionHides, UIMin = "0.0", ClampMin = "0.0"))
+	float Variability = 0.f;
 
+	/** Minimum scale factor to apply to cutting meshes. A random scale will be chosen between Min and Max */
+	UPROPERTY(EditAnywhere, Category = Distribution, meta = (DataflowInput, ClampMin = "0.001", EditCondition = "CutDistribution != EMeshCutterCutDistribution::SingleCut", EditConditionHides))
+	float MinScaleFactor = .5;
 
+	/** Maximum scale factor to apply to cutting meshes. A random scale will be chosen between Min and Max */
+	UPROPERTY(EditAnywhere, Category = Distribution, meta = (DataflowInput, ClampMin = "0.001", EditCondition = "CutDistribution != EMeshCutterCutDistribution::SingleCut", EditConditionHides))
+	float MaxScaleFactor = 1.5;
 
+	/** Whether to randomly vary the orientation of the cutting meshes */
+	UPROPERTY(EditAnywhere, Category = Distribution, meta = (EditCondition = "CutDistribution != EMeshCutterCutDistribution::SingleCut", EditConditionHides))
+	bool bRandomOrientation = true;
 
+	/** Roll will be chosen between -Range and +Range */
+	UPROPERTY(EditAnywhere, Category = Distribution, meta = (DataflowInput, DisplayName = "+/- Roll Range", EditCondition = "CutDistribution != EMeshCutterCutDistribution::SingleCut && bRandomOrientation", EditConditionHides, ClampMin = "0", ClampMax = "180"))
+	float RollRange = 180;
 
+	/** Pitch will be chosen between -Range and +Range */
+	UPROPERTY(EditAnywhere, Category = Distribution, meta = (DataflowInput, DisplayName = "+/- Pitch Range", EditCondition = "CutDistribution != EMeshCutterCutDistribution::SingleCut && bRandomOrientation", EditConditionHides, ClampMin = "0", ClampMax = "180"))
+	float PitchRange = 180;
 
+	/** Yaw will be chosen between -Range and +Range */
+	UPROPERTY(EditAnywhere, Category = Distribution, meta = (DataflowInput, DisplayName = "+/- Yaw Range", EditCondition = "CutDistribution != EMeshCutterCutDistribution::SingleCut && bRandomOrientation", EditConditionHides, ClampMin = "0", ClampMax = "180"))
+	float YawRange = 180;
 
+	/** Seed for random */
+	UPROPERTY(EditAnywhere, Category = "Common Fracture", meta = (DataflowInput, UIMin = "0"))
+	int32 RandomSeed = 0;
 
+	/** Chance to fracture each selected bone. If 0, no bones will fracture; if 1, all bones will fracture. */
+	UPROPERTY(EditAnywhere, Category = "Common Fracture", meta = (DataflowInput, UIMin = 0.f, UIMax = 1.f));
+	float ChanceToFracture = 1.f;
 
+	/** Whether to split the fractured mesh pieces based on geometric connectivity after fracturing */
+	UPROPERTY(EditAnywhere, Category = "Common Fracture");
+	bool SplitIslands = true;
+	
+	/**
+	 * If enabled, add extra vertices (without triangles) to the geometry in regions where vertices are spaced too far apart (e.g. across large triangles)
+	 * These extra vertices will be used as collision samples in particle-implicit collisions, and can help the physics system detect collisions more accurately
+	 *
+	 * Note this is *only* useful for simulations that use particle-implicit collisions
+	 */
+	UPROPERTY(EditAnywhere, Category = "Collision");
+	bool AddSamplesForCollision = false;
 
+	/**
+	 * The number of centimeters to allow between vertices on the mesh surface: If there are gaps larger than this, add additional vertices (without triangles) to help support particle-implicit collisions
+	 * Only used if Add Samples For Collision is enabled
+	 */
+	UPROPERTY(EditAnywhere, Category = "Collision", meta = (DataflowInput, DisplayName = "Point Spacing", UIMin = 0.f, EditCondition = "AddSamplesForCollision"));
+	float CollisionSampleSpacing = 50.f;
 
+	/** Fractured Pieces */
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "FracturedTransformSelection "))
+	FDataflowTransformSelection NewGeometryTransformSelection;
 
+	FMeshCutterDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+		: FDataflowNode(InParam, InGuid)
+	{
+		RegisterInputConnection(&Collection);
+		RegisterInputConnection(&BoundingBox);
+		RegisterInputConnection(&TransformSelection);
+		RegisterInputConnection(&Transform);
+		RegisterInputConnection(&CuttingMesh);
+		RegisterInputConnection(&NumberToScatter);
+		RegisterInputConnection(&GridX);
+		RegisterInputConnection(&GridY);
+		RegisterInputConnection(&GridZ);
+		RegisterInputConnection(&Variability);
+		RegisterInputConnection(&MinScaleFactor);
+		RegisterInputConnection(&MaxScaleFactor);
+		RegisterInputConnection(&RollRange);
+		RegisterInputConnection(&PitchRange);
+		RegisterInputConnection(&YawRange);
+		RegisterInputConnection(&RandomSeed);
+		RegisterInputConnection(&ChanceToFracture);
+		RegisterInputConnection(&CollisionSampleSpacing);
+		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection, &TransformSelection);
+		RegisterOutputConnection(&NewGeometryTransformSelection);
+	}
 
-
-
-
-
-
-
-
-
+	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+};
 
 namespace Dataflow
 {

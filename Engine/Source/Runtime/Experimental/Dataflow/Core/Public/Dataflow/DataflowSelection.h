@@ -65,3 +65,14 @@ struct FDataflowFaceSelection : public FDataflowSelection
 	GENERATED_USTRUCT_BODY()
 };
 
+USTRUCT()
+struct FDataflowGeometrySelection : public FDataflowSelection
+{
+	GENERATED_USTRUCT_BODY()
+};
+
+USTRUCT()
+struct FDataflowMaterialSelection : public FDataflowSelection
+{
+	GENERATED_USTRUCT_BODY()
+};

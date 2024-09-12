@@ -362,6 +362,41 @@ public:
 
 };
 
+/**
+ *
+ * Description for this node
+ *
+ */
+USTRUCT()
+struct FMakeFloatArrayDataflowNode : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FMakeFloatArrayDataflowNode, "MakeFloatArray", "Math|Float", "")
+
+public:
+	/** Number of elements of the array */
+	UPROPERTY(EditAnywhere, Category = "Float", meta = (DataflowInput, DisplayName = "Number of Elements", UIMin = "0"));
+	int32 NumElements = 1;
+
+	/** Value to initialize the array with */
+	UPROPERTY(EditAnywhere, Category = "Float", meta = (DataflowInput));
+	float Value = 0.f;
+
+	/** Output float array */
+	UPROPERTY(meta = (DataflowOutput))
+	TArray<float> FloatArray;
+
+	FMakeFloatArrayDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+		: FDataflowNode(InParam, InGuid)
+	{
+		RegisterInputConnection(&NumElements);
+		RegisterInputConnection(&Value);
+		RegisterOutputConnection(&FloatArray);
+	}
+
+	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+
+};
 
 namespace Dataflow
 {

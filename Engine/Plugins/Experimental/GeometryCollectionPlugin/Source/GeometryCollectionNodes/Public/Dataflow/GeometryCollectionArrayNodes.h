@@ -487,7 +487,46 @@ public:
 
 };
 
+/**
+ *
+ * Randomize elements in a float array (Random value will be in (RandomRangeMin, RandomRangeMax)
+ *
+ */
+USTRUCT()
+struct FRandomizeFloatArrayDataflowNode : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FRandomizeFloatArrayDataflowNode, "RandomizeFloatArray", "Utilities|Array", "")
 
+public:
+	/** Array to randomize */
+	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "FloatArray", DataflowIntrinsic))
+	TArray<float> FloatArray;
+
+	/** Random range min */
+	UPROPERTY(EditAnywhere, Category = "Random", meta = (DataflowInput, DisplayName = "Random Range Min"))
+	float RandomRangeMin = 0.f;
+
+	/** Random range max */
+	UPROPERTY(EditAnywhere, Category = "Random", meta = (DataflowInput, DisplayName = "Random Range Max"))
+	float RandomRangeMax = 1.f;
+
+	/** Seed for random */
+	UPROPERTY(EditAnywhere, Category = "Random", meta = (DataflowInput, UIMin = "0"));
+	int32 RandomSeed = 0;
+
+	FRandomizeFloatArrayDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+		: FDataflowNode(InParam, InGuid)
+	{
+		RegisterInputConnection(&FloatArray);
+		RegisterInputConnection(&RandomRangeMin);
+		RegisterInputConnection(&RandomRangeMax);
+		RegisterInputConnection(&RandomSeed);
+		RegisterOutputConnection(&FloatArray, &FloatArray);
+	}
+
+	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+};
 
 namespace Dataflow
 {

@@ -6,6 +6,8 @@
 
 #include "FractureEngineFracturing.generated.h"
 
+namespace UE { namespace Geometry { class FDynamicMesh3; } }
+
 struct FDataflowTransformSelection;
 struct FManagedArrayCollection;
 
@@ -17,10 +19,17 @@ enum class EFractureBrickBondEnum : uint8
 	Dataflow_FractureBrickBond_English UMETA(DisplayName = "English"),
 	Dataflow_FractureBrickBond_Header UMETA(DisplayName = "Header"),
 	Dataflow_FractureBrickBond_Flemish UMETA(DisplayName = "Flemish"),
+};
 
-	//~~~
-	//256th entry
-	Dataflow_Max                UMETA(Hidden)
+UENUM(BlueprintType)
+enum class EMeshCutterCutDistribution : uint8
+{
+	// Cut only once, at the cutting mesh's current location in the level
+	SingleCut UMETA(DisplayName = "Single Cut"),
+	// Scatter the cutting mesh in a uniform random distribution around the geometry bounding box
+	UniformRandom UMETA(DisplayName = "Uniform Random"),
+	// Arrange the cutting mesh in a regular grid pattern
+	Grid UMETA(DisplayName = "Grid"),
 };
 
 class FRACTUREENGINE_API FFractureEngineFracturing
@@ -127,6 +136,31 @@ public:
 		bool InAddSamplesForCollision,
 		float InCollisionSampleSpacing);
 
+	static void GenerateMeshTransforms(TArray<FTransform>& MeshTransforms,
+		const FBox& InBoundingBox,
+		const int32 InRandomSeed,
+		const EMeshCutterCutDistribution InCutDistribution,
+		const int32 InNumberToScatter,
+		const int32 InGridX,
+		const int32 InGridY,
+		const int32 InGridZ,
+		const float InVariability,
+		const float InMinScaleFactor,
+		const float InMaxScaleFactor,
+		const bool InRandomOrientation,
+		const float InRollRange,
+		const float InPitchRange,
+		const float InYawRange);
+
+	static int32 MeshCutter(TArray<FTransform>& MeshTransforms,
+		FManagedArrayCollection& InOutCollection,
+		FDataflowTransformSelection InTransformSelection,
+		const UE::Geometry::FDynamicMesh3& InDynCuttingMesh,
+		const FTransform& InTransform,
+		const int32 InRandomSeed,
+		const float InChanceToFracture,
+		const bool InSplitIslands,
+		const float InCollisionSampleSpacing);
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

@@ -216,24 +216,27 @@ void FCollectionToMeshDataflowNode::Evaluate(Dataflow::FContext& Context, const 
 void FStaticMeshToMeshDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 #if WITH_EDITORONLY_DATA
-	if (Out->IsA<TObjectPtr<UDynamicMesh>>(&Mesh))
+	if (Out->IsA(&Mesh))
 	{
-		if (FMeshDescription* MeshDescription = bUseHiRes ? StaticMesh->GetHiResMeshDescription() : StaticMesh->GetMeshDescription(LODLevel))
+		if (StaticMesh)
 		{
-			TObjectPtr<UDynamicMesh> NewMesh = NewObject<UDynamicMesh>();
-			NewMesh->Reset();
-
-			UE::Geometry::FDynamicMesh3& DynMesh = NewMesh->GetMeshRef();
+			if (FMeshDescription* MeshDescription = bUseHiRes ? StaticMesh->GetHiResMeshDescription() : StaticMesh->GetMeshDescription(LODLevel))
 			{
-				FMeshDescriptionToDynamicMesh ConverterToDynamicMesh;
-				ConverterToDynamicMesh.Convert(MeshDescription, DynMesh);
-			}
+				TObjectPtr<UDynamicMesh> NewMesh = NewObject<UDynamicMesh>();
+				NewMesh->Reset();
 
-			SetValue(Context, NewMesh, &Mesh);
-		}
-		else
-		{
-			SetValue(Context, TObjectPtr<UDynamicMesh>(NewObject<UDynamicMesh>()), &Mesh);
+				UE::Geometry::FDynamicMesh3& DynMesh = NewMesh->GetMeshRef();
+				{
+					FMeshDescriptionToDynamicMesh ConverterToDynamicMesh;
+					ConverterToDynamicMesh.Convert(MeshDescription, DynMesh);
+				}
+
+				SetValue(Context, NewMesh, &Mesh);
+			}
+			else
+			{
+				SetValue(Context, TObjectPtr<UDynamicMesh>(NewObject<UDynamicMesh>()), &Mesh);
+			}
 		}
 	}
 #endif

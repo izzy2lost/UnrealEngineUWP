@@ -34,6 +34,10 @@ namespace Dataflow
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FMergeConvexHullsDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FUpdateVolumeAttributesDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FGetConvexHullVolumeDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FFixTinyGeoDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FRecomputeNormalsInGeometryCollectionDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FResampleGeometryCollectionDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FValidateGeometryCollectionDataflowNode);
 	}
 }
 
@@ -601,5 +605,149 @@ void FGetConvexHullVolumeDataflowNode::Evaluate(Dataflow::FContext& Context, con
 		}
 		
 		SetValue(Context, VolumeSum, &Volume);
+	}
+}
+
+void FFixTinyGeoDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA(&Collection))
+	{
+		FDataflowTransformSelection InTransformSelection = GetValue(Context, &TransformSelection);
+		//
+		// If not connected select everything by default
+		//
+		if (!IsConnected(&TransformSelection))
+		{
+			const FManagedArrayCollection& InCollection = GetValue(Context, &Collection);
+
+			GeometryCollection::Facades::FCollectionTransformSelectionFacade TransformSelectionFacade(InCollection);
+			const TArray<int32>& SelectionArr = TransformSelectionFacade.SelectAll();
+
+			FDataflowTransformSelection NewTransformSelection;
+			NewTransformSelection.Initialize(InCollection.NumElements(FGeometryCollection::TransformGroup), false);
+			NewTransformSelection.SetFromArray(SelectionArr);
+
+			InTransformSelection = NewTransformSelection;
+		}
+
+		if (InTransformSelection.AnySelected())
+		{
+			FManagedArrayCollection InCollection = GetValue(Context, &Collection);
+
+			FFractureEngineUtility::FixTinyGeo(InCollection,
+				InTransformSelection,
+				MergeType,
+				bOnFractureLevel,
+				SelectionMethod,
+				MinVolumeCubeRoot,
+				RelativeVolume,
+				UseBoneSelection,
+				bOnlyClusters,
+				NeighborSelection,
+				bOnlyToConnected,
+				bOnlySameParent);
+
+			SetValue(Context, MoveTemp(InCollection), &Collection);
+
+			return;
+		}
+
+		SafeForwardInput(Context, &Collection, &Collection);
+	}
+}
+
+void FRecomputeNormalsInGeometryCollectionDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA(&Collection))
+	{
+		FDataflowTransformSelection InTransformSelection = GetValue(Context, &TransformSelection);
+		//
+		// If not connected select everything by default
+		//
+		if (!IsConnected(&TransformSelection))
+		{
+			const FManagedArrayCollection& InCollection = GetValue(Context, &Collection);
+
+			GeometryCollection::Facades::FCollectionTransformSelectionFacade TransformSelectionFacade(InCollection);
+			const TArray<int32>& SelectionArr = TransformSelectionFacade.SelectAll();
+
+			FDataflowTransformSelection NewTransformSelection;
+			NewTransformSelection.Initialize(InCollection.NumElements(FGeometryCollection::TransformGroup), false);
+			NewTransformSelection.SetFromArray(SelectionArr);
+
+			InTransformSelection = NewTransformSelection;
+		}
+
+		if (InTransformSelection.AnySelected())
+		{
+			FManagedArrayCollection InCollection = GetValue(Context, &Collection);
+
+			FFractureEngineUtility::RecomputeNormalsInGeometryCollection(InCollection,
+				InTransformSelection,
+				bOnlyTangents,
+				bRecomputeSharpEdges,
+				SharpEdgeAngleThreshold,
+				bOnlyInternalSurfaces);
+
+			SetValue(Context, MoveTemp(InCollection), &Collection);
+
+			return;
+		}
+
+		SafeForwardInput(Context, &Collection, &Collection);
+	}
+}
+
+void FResampleGeometryCollectionDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA(&Collection))
+	{
+		FDataflowTransformSelection InTransformSelection = GetValue(Context, &TransformSelection);
+		//
+		// If not connected select everything by default
+		//
+		if (!IsConnected(&TransformSelection))
+		{
+			const FManagedArrayCollection& InCollection = GetValue(Context, &Collection);
+
+			GeometryCollection::Facades::FCollectionTransformSelectionFacade TransformSelectionFacade(InCollection);
+			const TArray<int32>& SelectionArr = TransformSelectionFacade.SelectAll();
+
+			FDataflowTransformSelection NewTransformSelection;
+			NewTransformSelection.Initialize(InCollection.NumElements(FGeometryCollection::TransformGroup), false);
+			NewTransformSelection.SetFromArray(SelectionArr);
+
+			InTransformSelection = NewTransformSelection;
+		}
+
+		if (InTransformSelection.AnySelected())
+		{
+			FManagedArrayCollection InCollection = GetValue(Context, &Collection);
+
+			FFractureEngineUtility::ResampleGeometryCollection(InCollection,
+				InTransformSelection,
+				GetValue(Context, &CollisionSampleSpacing));
+
+			SetValue(Context, MoveTemp(InCollection), &Collection);
+
+			return;
+		}
+
+		SafeForwardInput(Context, &Collection, &Collection);
+	}
+}
+
+void FValidateGeometryCollectionDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA(&Collection))
+	{
+		FManagedArrayCollection InCollection = GetValue(Context, &Collection);
+
+		FFractureEngineUtility::ValidateGeometryCollection(InCollection,
+			bRemoveUnreferencedGeometry,
+			bRemoveClustersOfOne,
+			bRemoveDanglingClusters);
+
+		SetValue(Context, MoveTemp(InCollection), &Collection);
 	}
 }
