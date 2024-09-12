@@ -19,6 +19,7 @@ FMetalHashedVertexDescriptor::FMetalHashedVertexDescriptor()
 	// void
 }
 
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 FMetalHashedVertexDescriptor::FMetalHashedVertexDescriptor(IRVersionedInputLayoutDescriptor& Desc, uint32 Hash)
 	: VertexDescHash(Hash)
 	, IRVertexDesc(Desc)
@@ -26,6 +27,7 @@ FMetalHashedVertexDescriptor::FMetalHashedVertexDescriptor(IRVersionedInputLayou
 {
 	// void
 }
+#endif
 
 FMetalHashedVertexDescriptor::FMetalHashedVertexDescriptor(MTLVertexDescriptorPtr Desc, uint32 Hash)
 	: VertexDescHash(Hash)
@@ -51,7 +53,9 @@ FMetalHashedVertexDescriptor& FMetalHashedVertexDescriptor::operator=(FMetalHash
 	{
 		VertexDescHash = Other.VertexDescHash;
 		VertexDesc = Other.VertexDesc;
+#if METAL_USE_METAL_SHADER_CONVERTER
 		IRVertexDesc = Other.IRVertexDesc;
+#endif
 	}
 	return *this;
 }
@@ -66,6 +70,7 @@ bool FMetalHashedVertexDescriptor::operator==(FMetalHashedVertexDescriptor const
 		{
 			bEqual = true;
 			
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 			if(bUsesIRVertexDesc)
 			{
 				bEqual &= (IRVertexDesc.desc_1_0.numElements == Other.IRVertexDesc.desc_1_0.numElements);
@@ -84,7 +89,9 @@ bool FMetalHashedVertexDescriptor::operator==(FMetalHashedVertexDescriptor const
 					}
 				}
 			}
-			else if (VertexDesc != Other.VertexDesc)
+			else
+#endif
+			if (VertexDesc != Other.VertexDesc)
 			{
                 MTL::VertexBufferLayoutDescriptorArray* Layouts = VertexDesc->layouts();
 				MTL::VertexAttributeDescriptorArray* Attributes = VertexDesc->attributes();

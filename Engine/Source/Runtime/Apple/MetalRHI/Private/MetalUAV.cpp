@@ -252,12 +252,14 @@ void FMetalShaderResourceView::UpdateView()
 			break;
 		}
 	}
+#if METAL_USE_METAL_SHADER_CONVERTER
 	else if (SurfaceOverride != nullptr)
 	{
 		MTLTexturePtr View = SurfaceOverride->Texture;
 		InitAsTextureView(View);
 		bOwnsResource = false;
 	}
+#endif
 	else
 	{
 		FMetalSurface* Texture = ResourceCast(GetTexture());
