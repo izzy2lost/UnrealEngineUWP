@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "EOSSharedTypes.h"
 #include "Online/PresenceCommon.h"
 
 #if defined(EOS_PLATFORM_BASE_FILE_NAME)
@@ -38,12 +39,15 @@ protected:
 protected:
 	EOS_HPresence PresenceHandle = nullptr;
 
+	using FOnPresenceChangedCallback = TEOSGlobalCallback<EOS_Presence_OnPresenceChangedCallback, EOS_Presence_PresenceChangedCallbackInfo, IPresence>;
+	TUniquePtr<FOnPresenceChangedCallback> OnPresenceChangedCallback = nullptr;
+	EOS_NotificationId OnPresenceChangedNotificationId = EOS_INVALID_NOTIFICATIONID;
+
 	/** Login status changed event handle */
 	FOnlineEventDelegateHandle LoginStatusChangedHandle;
 
 	TMap<EOS_EpicAccountId, TArray<EOS_EpicAccountId>> PendingPresenceUpdates;
 	TMap<FAccountId, TMap<FAccountId, TSharedRef<FUserPresence>>> PresenceLists;
-	EOS_NotificationId NotifyPresenceChangedNotificationId = 0;
 };
 
 /* UE::Online */ }

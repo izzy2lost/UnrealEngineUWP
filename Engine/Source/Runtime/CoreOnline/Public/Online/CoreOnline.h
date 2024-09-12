@@ -294,6 +294,7 @@ public:
 	}
 
 	inline bool IsValid() const { return GetHandle() != 0; }
+	inline explicit operator bool() const { return IsValid(); }
 
 	EOnlineServices GetOnlineServicesType() const { return EOnlineServices(Value >> 24); }
 	uint32 GetHandle() const { return Value & 0x00FFFFFF; }
