@@ -959,6 +959,7 @@ bool FOptimusDataTypeRegistry::RegisterArrayTypeIfApplicable(FOptimusDataTypeHan
 			// Convert each element, store them in a separate buffer that is to be uploaded
 			FScriptArrayHelper ArrayHelper(ArrayProperty, InRawValue.GetData());
 			TArray<uint8>& Buffer = OutShaderValue.ArrayList[0].ArrayOfValues;
+			Buffer.Reset();
 			Buffer.AddZeroed(ElementShaderValueSize * ArrayHelper.Num());
 					
 			for (int32 Index = 0; Index < ArrayHelper.Num(); Index++)
