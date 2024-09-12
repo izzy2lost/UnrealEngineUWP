@@ -162,7 +162,7 @@ void UClothTransferSkinWeightsTool::Setup()
 		}
 	});
 
-	SourceMeshTransformGizmo = UE::TransformGizmoUtil::CreateCustomTransformGizmo(GizmoManager, ETransformGizmoSubElements::StandardTranslateRotate, this);
+	SourceMeshTransformGizmo = UE::TransformGizmoUtil::CreateCustomTransformGizmo(GizmoManager, ETransformGizmoSubElements::FullTranslateRotateScale, this);
 	ensure(SourceMeshTransformGizmo);
 
 	SourceMeshTransformGizmo->SetActiveTarget(SourceMeshTransformProxy, GetToolManager());
