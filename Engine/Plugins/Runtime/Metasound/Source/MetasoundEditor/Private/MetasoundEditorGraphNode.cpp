@@ -677,19 +677,6 @@ void UMetasoundEditorGraphNode::PostEditUndo()
 	using namespace Metasound::Frontend;
 
 	UEdGraphPin::ResolveAllPinReferences();
-
-	// Test for frontend node existence safely as it can no longer be so after rolling transactions back or forward.
-	const FMetaSoundFrontendDocumentBuilder& Builder = GetBuilderChecked().GetConstBuilder();
-	if (const FMetasoundFrontendNode* FrontendNode = Builder.FindNode(GetNodeID()))
-	{
-		for (UEdGraphPin* Pin : Pins)
-		{
-			if (Pin && Pin->Direction == EGPD_Input)
-			{
-				FGraphBuilder::SynchronizePinLiteral(Builder, *Pin);
-			}
-		}
-	}
 }
 
 void UMetasoundEditorGraphNode::PostDuplicate(bool bDuplicateForPIE)
