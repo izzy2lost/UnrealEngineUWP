@@ -72,8 +72,13 @@ void UpsampleShadowFactors(
 		);
 	float4 DepthWeights = 1.0f / (abs(CornerDepths - SceneDepth.xxxx) + Epsilon);
 	float4 FinalWeights = CornerWeights * CornerDepthsValid * DepthWeights;
+	float TotalWeight = dot(FinalWeights, 1);
 
-	float InterpolatedResult = dot(ShadowFactors, FinalWeights) / max(dot(FinalWeights, 1), Epsilon);
+	float InterpolatedResult = 1;
+	if (TotalWeight != 0)
+	{
+		InterpolatedResult = dot(ShadowFactors, FinalWeights) / TotalWeight;
+	}
 
 	ShadowFactor = InterpolatedResult;
 #else
