@@ -52,7 +52,13 @@ void InitCumSum(uint3 DispatchThreadID : SV_DispatchThreadID)
 
 	for (uint Idx = DispatchThreadID.x; Idx < NumThreadGroupsPerScan * NumThreadGroupsY * NumThreadGroupsZ; Idx += Increment)
 	{
-		FPartitionDescriptor InitPD;
+#if METAL_SM6_PROFILE
+		PartitionDescriptor[Idx].StatusFlag = STATUS_INVALID;
+		PartitionDescriptor[Idx].InclusivePrefix = (WORK_TYPE) 0;
+		PartitionDescriptor[Idx].Aggregate = (WORK_TYPE) 0;
+		PartitionDescriptor[Idx].PadToQWord = 0;
+#else
+        FPartitionDescriptor InitPD;
 
 		InitPD.StatusFlag = STATUS_INVALID;
 		InitPD.InclusivePrefix = (WORK_TYPE) 0;
@@ -60,6 +66,7 @@ void InitCumSum(uint3 DispatchThreadID : SV_DispatchThreadID)
 		InitPD.PadToQWord = 0;
 
 		PartitionDescriptor[Idx] = InitPD;
+#endif
 
 		if (Idx % NumThreadGroupsPerScan == 0)
 		{
