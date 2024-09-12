@@ -23,8 +23,9 @@ public:
 	bool bEnabled = false;
 
 	/**
-	 * An optional name which which will be used as the {renderer_sub_name} file name format token for this material. If a name is not specified here,
-	 * the name of the material will be used for {renderer_sub_name}.
+	 * An optional name which which will identify this material in the file name. For MRQ, the material name will be included in the {render_pass}
+	 * token. For Movie Render Graph, the material name will be used in {renderer_sub_name}. If a name is not specified here, the full name of the material
+	 * will be used in these tokens instead.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
 	FString Name;
@@ -99,6 +100,10 @@ protected:
 	void PathTracerValidationImpl();
 
 	virtual void UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const override;
+
+private:
+	/** Gets the name for a post-process material (either the custom-specified name, or the material name). */
+	FString GetNameForPostProcessMaterial(const UMaterialInterface* InMaterial);
 
 public:
 	/**

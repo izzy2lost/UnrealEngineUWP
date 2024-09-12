@@ -460,7 +460,7 @@ void UMoviePipelineDeferredPassBase::GatherOutputPassesImpl(TArray<FMoviePipelin
 		{
 			if (Material)
 			{
-				RenderPasses.Add(Material->GetName());
+				RenderPasses.Add(GetNameForPostProcessMaterial(Material));
 			}
 		}
 
@@ -554,7 +554,8 @@ void UMoviePipelineDeferredPassBase::RenderSample_GameThreadImpl(const FMoviePip
 				{
 					continue;
 				}
-				FMoviePipelinePassIdentifier LayerPassIdentifier = FMoviePipelinePassIdentifier(PassIdentifier.Name + VisMaterial->GetName(), PassIdentifierForCurrentCamera.CameraName);
+
+				FMoviePipelinePassIdentifier LayerPassIdentifier = FMoviePipelinePassIdentifier(PassIdentifier.Name + GetNameForPostProcessMaterial(VisMaterial), PassIdentifierForCurrentCamera.CameraName);
 
 				auto BufferPipe = MakeShared<FImagePixelPipe, ESPMode::ThreadSafe>();
 				BufferPipe->bIsExpecting32BitPixelData = ActiveHighPrecisionPostProcessMaterials.Contains(VisMaterial);
@@ -1202,4 +1203,18 @@ void UMoviePipelineDeferredPassBase::UpdateTelemetry(FMoviePipelineShotRenderTel
 {
 	InTelemetry->bUsesDeferred = true;
 	InTelemetry->bUsesPPMs |= Algo::AnyOf(AdditionalPostProcessMaterials, [](const FMoviePipelinePostProcessPass& Pass) { return Pass.bEnabled; });
+}
+
+FString UMoviePipelineDeferredPassBase::GetNameForPostProcessMaterial(const UMaterialInterface* InMaterial)
+{
+	FString MaterialName = InMaterial->GetName();
+
+	// Use the name specified in the post process pass if it's not empty. Otherwise fall back to the material's name.
+	const FMoviePipelinePostProcessPass* MatchingPass = Algo::FindByPredicate(AdditionalPostProcessMaterials, [InMaterial](const FMoviePipelinePostProcessPass& InPass) { return InPass.Material == InMaterial; });
+	if (MatchingPass && !MatchingPass->Name.IsEmpty())
+	{
+		MaterialName = MatchingPass->Name;
+	}
+
+	return MaterialName;
 }
