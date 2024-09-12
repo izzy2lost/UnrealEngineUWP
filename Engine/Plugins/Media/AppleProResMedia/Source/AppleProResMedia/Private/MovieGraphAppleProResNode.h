@@ -50,12 +50,6 @@ public:
 	uint8 bOverride_Quality : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
-	uint8 bOverride_CustomTimecodeStart : 1;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
-	uint8 bOverride_bDropFrameTimecode : 1;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_OCIOConfiguration : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
@@ -64,14 +58,6 @@ public:
 	/** The Apple ProRes codec that should be used. See Apple documentation for more specifics. Uses Rec 709 color primaries. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Apple ProRes", meta = (EditCondition = "bOverride_Quality"))
 	EAppleProResEncoderCodec Quality;
-
-	/** Start the timecode at a specific value, rather than the value coming from the Level Sequence. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Apple ProRes", meta = (EditCondition = "bOverride_CustomTimecodeStart"))
-	FTimecode CustomTimecodeStart;
-
-	/** Whether the embedded timecode track should be written using drop-frame format. Only applicable if the sequence framerate is 29.97 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Apple ProRes", DisplayName = "Use DF Timecode if 29.97 FPS", meta = (EditCondition = "bOverride_bDropFrameTimecode"))
-	bool bDropFrameTimecode;
 
 	/**
 	* OCIO configuration/transform settings.

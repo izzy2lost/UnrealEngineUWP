@@ -6,6 +6,7 @@
 #include "Graph/MovieGraphNode.h"
 
 #include "Misc/FrameRate.h"
+#include "Misc/Timecode.h"
 
 #include "MovieGraphGlobalOutputSettingNode.generated.h"
 
@@ -78,6 +79,12 @@ public:
 	uint8 bOverride_CustomPlaybackRangeEndFrame : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_CustomTimecodeStart : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_bDropFrameTimecode : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_VersioningSettings : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
@@ -124,6 +131,14 @@ public:
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Frames", meta = (EditCondition = "bOverride_CustomPlaybackRangeEndFrame"))
 	int32 CustomPlaybackRangeEndFrame;
+
+	/** Start the timecode at a specific value, rather than the value coming from the Level Sequence. Only applicable to output formats that support timecode. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timecode", meta = (EditCondition = "bOverride_CustomTimecodeStart"))
+	FTimecode CustomTimecodeStart;
+
+	/** Whether the embedded timecode track should be written using drop-frame format. Only applicable to output formats that support timecode, and when the sequence framerate is 29.97. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timecode", DisplayName = "Use DF Timecode if 29.97 FPS", meta = (EditCondition = "bOverride_bDropFrameTimecode"))
+	bool bDropFrameTimecode;
 
 	/**
 	 * Determines how versioning should be handled (Auto Version, Version Number, etc.).

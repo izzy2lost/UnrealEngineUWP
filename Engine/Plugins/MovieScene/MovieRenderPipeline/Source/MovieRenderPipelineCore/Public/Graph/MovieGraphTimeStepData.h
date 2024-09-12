@@ -129,7 +129,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	TObjectPtr<UMovieGraphEvaluatedConfig> EvaluatedConfig;
 
-	/** The current timecode at the root (sequence) level. */
+	/** The current timecode at the root (sequence) level. Note that this is adjusted according to the timecode settings on the Global Output Settings node. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	FTimecode RootTimeCode;
 
@@ -140,7 +140,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	FFrameNumber RootFrameNumber;
 
-	/** The current timecode at the shot level. */
+	/** The current timecode at the shot level. Note that this is adjusted according to the timecode settings on the Global Output Settings node. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	FTimecode ShotTimeCode;
 
