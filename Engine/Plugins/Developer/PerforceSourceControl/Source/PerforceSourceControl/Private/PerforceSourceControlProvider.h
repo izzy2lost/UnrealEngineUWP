@@ -12,7 +12,6 @@
 #include "PerforceSourceControlState.h"
 #include "SourceControlInitSettings.h"
 
-class FPerforceConnection;
 class FPerforceSourceControlCommand;
 
 class FPerforceSourceControlProvider : public ISourceControlProvider
@@ -97,12 +96,10 @@ public:
 	 */
 	bool EstablishPersistentConnection();
 
-	void ResetPersistentConnection();
-
 	/** Get the persistent connection, if any */
 	class FPerforceConnection* GetPersistentConnection()
 	{
-		return PersistentConnection.Get();
+		return PersistentConnection;
 	}
 
 	/** Remove a named file from the state cache */
@@ -132,7 +129,7 @@ private:
 	/** 
 	 * Logs any messages that a command needs to output.
 	 */
-	void OutputCommandMessages(const FPerforceSourceControlCommand& InCommand) const;
+	void OutputCommandMessages(const class FPerforceSourceControlCommand& InCommand) const;
 
 	/**
 	 * Loads user/SCC information from the INI file and can attempt to make a connection to the server if requested by
@@ -145,12 +142,12 @@ private:
 	 * This really doesn't execute synchronously; rather it adds the command to the queue & does not return until
 	 * the command is completed.
 	 */
-	ECommandResult::Type ExecuteSynchronousCommand(FPerforceSourceControlCommand& InCommand, const FText& Task, bool bSuppressResponseMsg);
+	ECommandResult::Type ExecuteSynchronousCommand(class FPerforceSourceControlCommand& InCommand, const FText& Task, bool bSuppressResponseMsg);
 
 	/**
 	 * Run a command synchronously or asynchronously.
 	 */
-	ECommandResult::Type IssueCommand(FPerforceSourceControlCommand& InCommand, const bool bSynchronous);
+	ECommandResult::Type IssueCommand(class FPerforceSourceControlCommand& InCommand, const bool bSynchronous);
 
 private:
 
@@ -182,14 +179,14 @@ private:
 	TArray<FText> LastErrors;
 
 	/** A pointer to the persistent P4 connection for synchronous operations */
-	TUniquePtr<FPerforceConnection> PersistentConnection;
+	class FPerforceConnection* PersistentConnection;
 
 	/** State cache */
 	TMap<FString, TSharedRef<class FPerforceSourceControlState, ESPMode::ThreadSafe> > StateCache;
 	TMap<FPerforceSourceControlChangelist, TSharedRef<class FPerforceSourceControlChangelistState, ESPMode::ThreadSafe> > ChangelistsStateCache;
 
 	/** Queue for commands given by the main thread */
-	TArray <FPerforceSourceControlCommand* > CommandQueue;
+	TArray < FPerforceSourceControlCommand* > CommandQueue;
 
 	/** For notifying when the source control states in the cache have changed */
 	FSourceControlStateChanged OnSourceControlStateChanged;
