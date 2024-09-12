@@ -111,7 +111,7 @@ void SPoseSearchDatabaseAssetBrowser::OnObjectPropertyChanged(UObject* InObject,
 	if (DatabaseViewModel && InObject)
 	{
 		const UPoseSearchDatabase* Database = DatabaseViewModel->GetPoseSearchDatabase();
-		if (Database && Database->Schema == InObject ||
+		if ((Database != nullptr && Database->Schema == InObject) ||
 			InObject->GetClass()->IsChildOf(UAnimationAsset::StaticClass()) ||
 			InObject->GetClass()->IsChildOf(UMultiAnimAsset::StaticClass()))
 		{
