@@ -67,16 +67,16 @@ static FAutoConsoleVariableRef CVarMutableEnabled(
 	TEXT("true/false - Disabling Mutable will turn off CO compilation, mesh generation, and texture streaming and will remove the system ticker. "),
 	FConsoleVariableDelegate::CreateStatic(&UCustomizableObjectSystemPrivate::OnMutableEnabledChanged));
 
-int32 WorkingMemory =
+int32 WorkingMemoryKB =
 #if !PLATFORM_DESKTOP
 (10 * 1024);
 #else
 (50 * 1024);
 #endif
 
-static FAutoConsoleVariableRef CVarWorkingMemory(
+static FAutoConsoleVariableRef CVarWorkingMemoryKB(
 	TEXT("mutable.WorkingMemory"),
-	WorkingMemory,
+	WorkingMemoryKB,
 	TEXT("Limit the amount of memory (in KB) to use as working memory when building characters. More memory reduces the object construction time. 0 means no restriction. Defaults: Desktop = 50,000 KB, Others = 10,000 KB"),
 	ECVF_Scalability);
 
@@ -532,7 +532,7 @@ void UCustomizableObjectSystem::InitSystem()
 	Private->CurrentMutableOperation = nullptr;
 	Private->CurrentInstanceBeingUpdated = nullptr;
 
-	Private->LastWorkingMemoryBytes = CVarWorkingMemory->GetInt() * 1024;
+	Private->LastWorkingMemoryBytes = CVarWorkingMemoryKB->GetInt() * 1024;
 	Private->LastGeneratedResourceCacheSize = CVarGeneratedResourcesCacheSize.GetValueOnGameThread();
 
 	const mu::Ptr<mu::Settings> pSettings = new mu::Settings;
@@ -1528,7 +1528,7 @@ void UCustomizableObjectSystemPrivate::UpdateMemoryLimit()
 	// This must run on game thread, and when the mutable thread is not running
 	check(IsInGameThread());
 
-	const uint64 MemoryBytes = CVarWorkingMemory->GetInt() * 1024;
+	const uint64 MemoryBytes = uint64(CVarWorkingMemoryKB->GetInt()) * 1024;
 	if (MemoryBytes != LastWorkingMemoryBytes)
 	{
 		LastWorkingMemoryBytes = MemoryBytes;
@@ -4191,20 +4191,20 @@ bool UCustomizableObjectSystem::ShouldReuseTexturesBetweenInstances()
 }
 
 
-#if WITH_EDITOR
-
-void UCustomizableObjectSystem::SetWorkingMemory(int32 Bytes)
+void UCustomizableObjectSystem::SetWorkingMemory(int32 KBytes)
 {
-	WorkingMemory = Bytes;
-	UE_LOG(LogMutable, Log, TEXT("Working Memory set to %i bytes."), Bytes);
+	CVarWorkingMemoryKB->Set( KBytes );
+	UE_LOG(LogMutable, Log, TEXT("Working Memory set to %i kilobytes."), KBytes);
 }
 
 
 int32 UCustomizableObjectSystem::GetWorkingMemory() const
 {
-	return UCustomizableObjectSystemPrivate::IsUsingBenchmarkingSettings() ? 16384 : WorkingMemory;
+	return UCustomizableObjectSystemPrivate::IsUsingBenchmarkingSettings() ? 16384 : CVarWorkingMemoryKB->GetInt();
 }
 
+
+#if WITH_EDITOR
 
 uint64 UCustomizableObjectSystem::GetMaxChunkSizeForPlatform(const ITargetPlatform* TargetPlatform)
 {

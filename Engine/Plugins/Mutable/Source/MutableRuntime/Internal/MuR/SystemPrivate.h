@@ -1949,6 +1949,9 @@ namespace mu
 		//!
 		void PrepareCache(const Model*, int32 State);
 
+		//! Update some mutable core unreal stats.
+		void UpdateStats();
+
 	private:
 
 		/** Owned by this system. */
