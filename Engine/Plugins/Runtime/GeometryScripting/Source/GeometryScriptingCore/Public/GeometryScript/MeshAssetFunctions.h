@@ -18,7 +18,7 @@ USTRUCT(BlueprintType)
 struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptCopyMeshFromAssetOptions
 {
 	GENERATED_BODY()
-public:
+	
 	// Whether to apply Build Settings during the mesh copy.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bApplyBuildSettings = true;
@@ -62,7 +62,7 @@ USTRUCT(BlueprintType)
 struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptCopyMeshToAssetOptions
 {
 	GENERATED_BODY()
-public:
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bEnableRecomputeNormals = false;
 
@@ -122,7 +122,6 @@ USTRUCT(BlueprintType)
 struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptCopyMorphTargetToAssetOptions
 {
 	GENERATED_BODY()
-public:
 
 	/** If true and the morph target with the given name exists, it will be overwritten. If false, will abort and print a 
 	 * console error. */
@@ -135,6 +134,25 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bDeferMeshPostEditChange = false;
 };
+
+
+USTRUCT(BlueprintType)
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptCopySkinWeightProfileToAssetOptions
+{
+	GENERATED_BODY()
+
+	/** If true and a skin weight profile with the given name exists, it will be overwritten. 
+	 *  If false, will abort and print a console error. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bOverwriteExistingProfile = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bEmitTransaction = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bDeferMeshPostEditChange = false;
+};
+
 
 // Although the class name indicates StaticMeshFunctions, that was a naming mistake that is difficult
 // to correct. This class is intended to serve as a generic asset utils function library. The naming
@@ -359,6 +377,23 @@ public:
 		EGeometryScriptOutcomePins& Outcome,
 		UGeometryScriptDebug* Debug = nullptr);
 
+   /** 
+	* Add a Dynamic Mesh skin weight profile to a Skeletal Mesh Asset.
+	* 
+	* @param FromDynamicMesh the dynamic mesh representing the geometry of the morph target
+	* @param ToSkeletalMeshAsset the asset we are writing the morph target into
+	* @param TargetProfileName the name of the skin weight profile as it will appear in the UI. Leave blank for the default profile.
+	* @param SourceProfileName The name of the skin weight profile to copy from the dynamic mesh. Leave blank for the default profile.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|SkeletalMesh", meta = (ExpandEnumAsExecs = "Outcome"))
+	static UPARAM(DisplayName = "Dynamic Mesh") UDynamicMesh* 
+	CopySkinWeightProfileToSkeletalMesh(
+		UDynamicMesh* FromDynamicMesh, 
+		USkeletalMesh* ToSkeletalMeshAsset,
+		FName TargetProfileName,
+		FName SourceProfileName,
+		FGeometryScriptCopySkinWeightProfileToAssetOptions Options,
+		FGeometryScriptMeshWriteLOD TargetLOD,
+		EGeometryScriptOutcomePins& Outcome,
+		UGeometryScriptDebug* Debug = nullptr);
 };
-
-
