@@ -45,14 +45,14 @@ FDisplayClusterFillDerivedDataCacheWorker::FDisplayClusterFillDerivedDataCacheWo
 	CurrentExecutableName = FPlatformProcess::ExecutablePath();
 	const FString ProjectPath = FPaths::SetExtension(
 		FPaths::Combine(FPaths::ProjectDir(), FApp::GetProjectName()),".uproject");
-	Arguments = ProjectPath + " " + GetDdcCommandletParams();
+	Arguments = FString::Printf(TEXT("\"%s\" %s"), *ProjectPath, *GetDdcCommandletParams());
 	
 	UE_LOG(LogDisplayClusterFillDerivedDataCache, Display, TEXT("Running commandlet: %s %s"), *CurrentExecutableName, *Arguments);
 
 	uint32 ProcessID;
 	const bool bLaunchDetached = true;
-	const bool bLaunchHidden = true;
-	const bool bLaunchReallyHidden = true;
+	const bool bLaunchHidden = false;
+	const bool bLaunchReallyHidden = false;
 	ProcessHandle = FPlatformProcess::CreateProc(
 		*CurrentExecutableName, *Arguments, bLaunchDetached, bLaunchHidden, bLaunchReallyHidden, &ProcessID,
 		0, nullptr, WritePipe, ReadPipe);
@@ -189,7 +189,7 @@ void FDisplayClusterFillDerivedDataCacheWorker::RegexParseForCompilationProgress
 
 FString FDisplayClusterFillDerivedDataCacheWorker::GetDdcCommandletParams() const
 {
-	return FString::Printf(TEXT("-run=DerivedDataCache %s -fill -DDC=CreateInstalledEnginePak"), *GetTargetPlatformParams());
+	return FString::Printf(TEXT("-run=DerivedDataCache %s -fill -DDC=CreateInstalledProjectPak"), *GetTargetPlatformParams());
 }
 
 FString FDisplayClusterFillDerivedDataCacheWorker::GetTargetPlatformParams() const
