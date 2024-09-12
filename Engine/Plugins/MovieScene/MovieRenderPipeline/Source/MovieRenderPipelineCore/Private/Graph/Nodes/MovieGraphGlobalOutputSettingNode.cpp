@@ -16,6 +16,7 @@ UMovieGraphGlobalOutputSettingNode::UMovieGraphGlobalOutputSettingNode()
 	, HandleFrameCount(0)
 	, CustomPlaybackRangeStartFrame(0)
 	, CustomPlaybackRangeEndFrame(0)
+	, bDropFrameTimecode(true)	// Defaults to true because most 29.97 FPS content uses this
 	, bFlushDiskWritesPerShot(false)
 {
 	OutputDirectory.Path = TEXT("{project_dir}/Saved/MovieRenders/");

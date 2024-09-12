@@ -438,18 +438,29 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 		// the wrong one. Because temporal sub-sampling isn't centered around a frame (the centering is done via the final eval time) we can just subtract TSI*TPS to get our centered value.
 		const FFrameTime CenteringOffset = CurrentFrameData.TemporalSampleIndex * CurrentFrameMetrics.FrameTimePerTemporalSample;
 		FFrameTime CenteredFrameTime = CurrentCameraCut->ShotInfo.CurrentTimeInRoot - CenteringOffset;
+		FFrameTime ShotCenteredFrameTime = CenteredFrameTime * CurrentCameraCut->ShotInfo.OuterToInnerTransform;
 	
 		const FFrameRate SourceFrameRate = GetOwningGraph()->GetDataSourceInstance()->GetDisplayRate();
 		const FFrameRate EffectiveFrameRate = UMovieGraphBlueprintLibrary::GetEffectiveFrameRate(OutputSetting, SourceFrameRate);
 		const FFrameRate TickResolution = GetOwningGraph()->GetDataSourceInstance()->GetTickResolution();
 
-		constexpr bool bDropFrame = false;
-		CurrentTimeStepData.RootFrameNumber = FFrameRate::TransformTime(CenteredFrameTime, TickResolution, EffectiveFrameRate).RoundToFrame();
+		// Enable DF timecodes if the framerate is 29.97 and the user requested DF timecodes
+		const FFrameRate TwentyNineNineSeven = FFrameRate(30000, 1001);
+		const bool bDropFrame = OutputSetting->bDropFrameTimecode && (EffectiveFrameRate == TwentyNineNineSeven);
+
+		// If using a custom timecode start, the frame number for the root and shot need to be changed
+		const FFrameNumber RootFrameNumber = OutputSetting->bOverride_CustomTimecodeStart
+			? CurrentTimeStepData.OutputFrameNumber + OutputSetting->CustomTimecodeStart.ToFrameNumber(EffectiveFrameRate).Value
+			: FFrameRate::TransformTime(CenteredFrameTime, TickResolution, EffectiveFrameRate).RoundToFrame();
+		const FFrameNumber ShotFrameNumber = OutputSetting->bOverride_CustomTimecodeStart
+			? CurrentTimeStepData.OutputFrameNumber + OutputSetting->CustomTimecodeStart.ToFrameNumber(EffectiveFrameRate).Value
+			: FFrameRate::TransformTime(ShotCenteredFrameTime, TickResolution, EffectiveFrameRate).RoundToFrame();
+
+		CurrentTimeStepData.RootFrameNumber = RootFrameNumber;
 		CurrentTimeStepData.RootTimeCode = FTimecode::FromFrameNumber(CurrentTimeStepData.RootFrameNumber, EffectiveFrameRate, bDropFrame);
 
 		// Calculate metrics for the shot as well
-		CenteredFrameTime = CenteredFrameTime * CurrentCameraCut->ShotInfo.OuterToInnerTransform;
-		CurrentTimeStepData.ShotFrameNumber = FFrameRate::TransformTime(CenteredFrameTime, TickResolution, EffectiveFrameRate).RoundToFrame();
+		CurrentTimeStepData.ShotFrameNumber = ShotFrameNumber;
 		CurrentTimeStepData.ShotTimeCode = FTimecode::FromFrameNumber(CurrentTimeStepData.ShotFrameNumber, EffectiveFrameRate, bDropFrame);
 	}
 

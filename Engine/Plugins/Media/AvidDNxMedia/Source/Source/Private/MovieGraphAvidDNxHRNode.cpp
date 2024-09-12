@@ -14,7 +14,6 @@
 #include "Styling/AppStyle.h"
 
 UMovieGraphAvidDNxHRNode::UMovieGraphAvidDNxHRNode()
-	: bDropFrameTimecode(true)
 {
 }
 
@@ -67,15 +66,15 @@ TUniquePtr<MovieRenderGraph::IVideoCodecWriter> UMovieGraphAvidDNxHRNode::Initia
 
 	// Determine the timecode that the movie should be started at
 	FTimecode StartTimecode;
-	if (EvaluatedNode->bOverride_CustomTimecodeStart)
+	if (OutputSetting->bOverride_CustomTimecodeStart)
 	{
 		const int32 OutputFrameNumber = InInitializationContext.TraversalContext->Time.OutputFrameNumber;
 
 		// When using a custom timecode start, just use the root-level frame number (relative to zero) offset by the custom timecode start
 		StartTimecode = FTimecode::FromFrameNumber(
-			OutputFrameNumber + EvaluatedNode->CustomTimecodeStart.ToFrameNumber(EffectiveFrameRate).Value,
+			OutputFrameNumber + OutputSetting->CustomTimecodeStart.ToFrameNumber(EffectiveFrameRate).Value,
 			EffectiveFrameRate,
-			EvaluatedNode->bDropFrameTimecode);
+			OutputSetting->bDropFrameTimecode);
 	}
 	else
 	{
@@ -91,7 +90,7 @@ TUniquePtr<MovieRenderGraph::IVideoCodecWriter> UMovieGraphAvidDNxHRNode::Initia
 	Options.FrameRate = EffectiveFrameRate;
 	Options.bCompress = true;
 	Options.NumberOfEncodingThreads = 4;
-	Options.bDropFrameTimecode = EvaluatedNode->bDropFrameTimecode;
+	Options.bDropFrameTimecode = OutputSetting->bDropFrameTimecode;
 	Options.StartTimecode = StartTimecode;
 
 	// If OCIO is enabled, don't do additional color conversion. RGB444 12-bit is never converted to sRGB.

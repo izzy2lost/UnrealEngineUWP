@@ -15,7 +15,6 @@
 
 UMovieGraphAppleProResNode::UMovieGraphAppleProResNode()
 	: Quality(EAppleProResEncoderCodec::ProRes_422LT)
-	, bDropFrameTimecode(true)	// Defaults to true because most 29.97 FPS content uses this
 {
 	
 }
@@ -77,7 +76,7 @@ TUniquePtr<MovieRenderGraph::IVideoCodecWriter> UMovieGraphAppleProResNode::Init
 	Options.ColorPrimaries = EAppleProResEncoderColorPrimaries::CD_HDREC709; // Force Rec 709 for now
 	Options.ScanMode = EAppleProResEncoderScanMode::IM_PROGRESSIVE_SCAN; // No interlace sources
 	Options.bWriteAlpha = true;
-	Options.bDropFrameTimecode = bDropFrameTimecode;
+	Options.bDropFrameTimecode = OutputSetting->bDropFrameTimecode;
 
 	// If OCIO is enabled, don't do additional color conversion
 	Options.bConvertToSrgb = !(EvaluatedNode->bOverride_OCIOConfiguration && EvaluatedNode->OCIOConfiguration.bIsEnabled && InInitializationContext.bAllowOCIO);
@@ -104,11 +103,15 @@ bool UMovieGraphAppleProResNode::Initialize_EncodeThread(MovieRenderGraph::IVide
 
 void UMovieGraphAppleProResNode::WriteFrame_EncodeThread(MovieRenderGraph::IVideoCodecWriter* InWriter, FImagePixelData* InPixelData, TArray<FMovieGraphPassData>&& InCompositePasses, TObjectPtr<UMovieGraphEvaluatedConfig> InEvaluatedConfig, const FString& InBranchName)
 {
-	constexpr bool bIncludeCDOs = false;
+	bool bIncludeCDOs = false;
 	constexpr bool bExactMatch = true;
 	const UMovieGraphAppleProResNode* EvaluatedNode = Cast<UMovieGraphAppleProResNode>(
 		InEvaluatedConfig->GetSettingForBranch(GetClass(), FName(InBranchName), bIncludeCDOs, bExactMatch));
 	checkf(EvaluatedNode, TEXT("Apple ProRes node could not be found in the graph in branch [%s]."), *InBranchName);
+
+	bIncludeCDOs = true;
+	const UMovieGraphGlobalOutputSettingNode* OutputSettingNode =
+		InEvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(GlobalsPinName, bIncludeCDOs, bExactMatch);
 	
 	const FProResWriter* CodecWriter = static_cast<FProResWriter*>(InWriter);
 	
@@ -117,9 +120,9 @@ void UMovieGraphAppleProResNode::WriteFrame_EncodeThread(MovieRenderGraph::IVide
 	// Translate our Movie Pipeline specific payload to a ProRes Encoder specific payload.
 	const TSharedPtr<FAppleProResEncoder::FTimecodePayload, ESPMode::ThreadSafe> ProResPayload = MakeShared<FAppleProResEncoder::FTimecodePayload, ESPMode::ThreadSafe>();
 
-	if (EvaluatedNode->bOverride_CustomTimecodeStart)
+	if (OutputSettingNode->bOverride_CustomTimecodeStart)
 	{
-		const int32 CustomTimecodeStartFrame = EvaluatedNode->CustomTimecodeStart.ToFrameNumber(CodecWriter->Writer->GetOptions().FrameRate).Value;
+		const int32 CustomTimecodeStartFrame = OutputSettingNode->CustomTimecodeStart.ToFrameNumber(CodecWriter->Writer->GetOptions().FrameRate).Value;
 		const FMovieGraphTimeStepData& TimeData = GraphPayload->TraversalContext.Time;
 		
 		// When using a custom timecode start, just use the root-level frame number (relative to zero) offset by the custom timecode start
