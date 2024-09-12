@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PoseSearchDatabaseAssetBrowser.h"
 
@@ -12,6 +12,7 @@
 #include "Widgets/SBoxPanel.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "PoseSearchDatabaseViewModel.h"
+#include "PoseSearch/MultiAnimAsset.h"
 #include "PoseSearch/PoseSearchDatabase.h"
 #include "PoseSearch/PoseSearchSchema.h"
 #include "Subsystems/AssetEditorSubsystem.h"
@@ -46,11 +47,10 @@ void SPoseSearchDatabaseAssetBrowser::Construct(const FArguments& InArgs, TShare
 
 void SPoseSearchDatabaseAssetBrowser::RefreshView()
 {
-	// @TODO: Add support for MultiAnimAsset.
-	
 	FAssetPickerConfig AssetPickerConfig;
 	
 	AssetPickerConfig.Filter.ClassPaths.Add(UAnimationAsset::StaticClass()->GetClassPathName());
+	AssetPickerConfig.Filter.ClassPaths.Add(UMultiAnimAsset::StaticClass()->GetClassPathName());
 	AssetPickerConfig.Filter.bRecursiveClasses = true;
 	
 	AssetPickerConfig.bAddFilterUI = true;
@@ -91,64 +91,31 @@ SPoseSearchDatabaseAssetBrowser::~SPoseSearchDatabaseAssetBrowser()
 
 void SPoseSearchDatabaseAssetBrowser::OnAssetDoubleClicked(const FAssetData& AssetData)
 {
-	if (!AssetData.GetAsset())
+	if (const UObject* Asset = AssetData.GetAsset())
 	{
-		return;
+		if (Cast<UAnimationAsset>(Asset) || Cast<UMultiAnimAsset>(Asset))
+		{
+			GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(Asset);
+		}
 	}
-
-	UAnimationAsset* NewAnimationAsset = Cast<UAnimationAsset>(AssetData.GetAsset());
-	if (!NewAnimationAsset)
-	{
-		return;
-	}
-
-	// Just open asset in persona.
-	GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(NewAnimationAsset);
 }
 
 bool SPoseSearchDatabaseAssetBrowser::OnShouldFilterAsset(const FAssetData& AssetData)
 {
-	bool bAssetHasCompatibleSkeleton = false;
-
-	if (DatabaseViewModel)
-	{
-		bAssetHasCompatibleSkeleton = FPoseSearchEditorUtils::IsAssetCompatibleWithDatabase(DatabaseViewModel->GetPoseSearchDatabase(), AssetData);
-	}
-	
-	if (AssetData.GetClass()->IsChildOf(UAnimSequence::StaticClass()) && bAssetHasCompatibleSkeleton)
-	{
-		return false;
-	}
-
-	if (AssetData.GetClass()->IsChildOf(UAnimComposite::StaticClass()) && bAssetHasCompatibleSkeleton)
-	{
-		return false;
-	}
-
-	if (AssetData.GetClass()->IsChildOf(UAnimMontage::StaticClass()) && bAssetHasCompatibleSkeleton)
-	{
-		return false;
-	}
-	
-	if (AssetData.GetClass()->IsChildOf(UBlendSpace::StaticClass()) && bAssetHasCompatibleSkeleton)
-	{
-		return false;
-	}
-	
-	return true;
+	const bool bIsAssetCompatibleWithDatabase = DatabaseViewModel && FPoseSearchEditorUtils::IsAssetCompatibleWithDatabase(DatabaseViewModel->GetPoseSearchDatabase(), AssetData);
+	return !bIsAssetCompatibleWithDatabase;
 }
 	
 void SPoseSearchDatabaseAssetBrowser::OnObjectPropertyChanged(UObject* InObject, FPropertyChangedEvent& InPropertyChangedEvent) const
 {
-	if (DatabaseViewModel)
+	if (DatabaseViewModel && InObject)
 	{
-		if (const UPoseSearchDatabase* Database = DatabaseViewModel->GetPoseSearchDatabase())
+		const UPoseSearchDatabase* Database = DatabaseViewModel->GetPoseSearchDatabase();
+		if (Database && Database->Schema == InObject ||
+			InObject->GetClass()->IsChildOf(UAnimationAsset::StaticClass()) ||
+			InObject->GetClass()->IsChildOf(UMultiAnimAsset::StaticClass()))
 		{
-			// Only refresh asset browser if our target schema has changed.
-			if (Database->Schema && Database->Schema == InObject)
-			{
-				RefreshAssetViewDelegate.ExecuteIfBound(true);	
-			}
+			RefreshAssetViewDelegate.ExecuteIfBound(true);
 		}
 	}
 }
