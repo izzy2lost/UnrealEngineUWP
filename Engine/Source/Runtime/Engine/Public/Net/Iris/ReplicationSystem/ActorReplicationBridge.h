@@ -76,7 +76,10 @@ public:
 	 * Begin replication of an ActorComponent and its registered SubObjects, 
 	 * if the ActorComponent already is replicated any set NetObjectConditions will be updated.
 	*/
-	ENGINE_API FNetRefHandle StartReplicatingComponent(FNetRefHandle OwnerHandle, UActorComponent* ActorComponent);
+	ENGINE_API FNetRefHandle StartReplicatingComponent(FNetRefHandle RootObjectHandle, UActorComponent* ActorComponent);
+
+	/** Begin replication of a subobject. */
+	ENGINE_API FNetRefHandle StartReplicatingSubObject(UObject* SubObject, const FSubObjectReplicationParams& Params);
 
 	/** Stop replicating an ActorComponent and its associated SubObjects. */
 	ENGINE_API void StopReplicatingComponent(UActorComponent* ActorComponent, EEndReplicationFlags EndReplicationFlags = EEndReplicationFlags::None);
@@ -93,6 +96,8 @@ public:
 	/** Called when NetUpdateFrequency has changed on the Actor. */
 	void OnNetUpdateFrequencyChanged(const AActor* Actor);
 
+	void WakeUpObjectInstantiatedFromRemote(AActor* Actor) const;
+
 	/**
 	 * Add relevant network metrics gathered since the last call to ConsumeNetMetrics.
 	 * Any periodic stat will be reset here too.
@@ -105,12 +110,6 @@ protected:
 	// UObjectReplicationBridge
 	virtual void Initialize(UReplicationSystem* ReplicationSystem) override;
 	virtual void Deinitialize() override;
-	virtual bool WriteCreationHeader(UE::Net::FNetSerializationContext& Context, FNetRefHandle Handle) override;
-	virtual TUniquePtr<FCreationHeader> GetCreationHeader(FNetRefHandle Handle) override;
-	virtual bool WriteCreationHeader(UE::Net::FNetSerializationContext& Context, const FCreationHeader* Header) override;
-	virtual TUniquePtr<FCreationHeader> ReadCreationHeader(UE::Net::FNetSerializationContext& Context) override;
-	virtual FObjectReplicationBridgeInstantiateResult BeginInstantiateFromRemote(FNetRefHandle RootObjectOfSubObject, const UE::Net::FNetObjectResolveContext& ResolveContext, const FCreationHeader* InHeader) override;
-	virtual bool OnInstantiatedFromRemote(UObject* Instance, const FCreationHeader* InHeader, uint32 ConnectionId) const override;
 	virtual void OnSubObjectCreatedFromReplication(FNetRefHandle SubObjectHandle) override;
 	virtual void EndInstantiateFromRemote(FNetRefHandle Handle) override;
 	virtual void DestroyInstanceFromRemote(const FDestroyInstanceParams& Params) override;
@@ -126,17 +125,15 @@ protected:
 	[[nodiscard]] virtual FString PrintConnectionInfo(uint32 ConnectionId) const override;
 
 private:
-	void GetActorCreationHeader(const AActor* Actor, UE::Net::Private::FActorCreationHeader& Header) const;
-	void GetSubObjectCreationHeader(const UObject* Object, const UObject* RootObject, UE::Net::Private::FSubObjectCreationHeader& Header) const;
-
+	
 	void OnMaxTickRateChanged(UNetDriver* InNetDriver, int32 NewMaxTickRate, int32 OldMaxTickRate);
 
-	void WakeUpObjectInstantiatedFromRemote(AActor* Actor) const;
 	void AddActorToLevelGroup(const AActor* Actor);
 
 private:
 
-	uint32 SpawnInfoFlags;
+	UE::Net::FNetObjectFactoryId ActorFactoryId;
+	UE::Net::FNetObjectFactoryId SubObjectFactoryId;
 
 #endif // UE_WITH_IRIS
 

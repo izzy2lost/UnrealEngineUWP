@@ -36,6 +36,8 @@
 #include "Iris/ReplicationSystem/ReplicationOperations.h"
 #include "Iris/ReplicationSystem/ReplicationOperationsInternal.h"
 #include "Iris/ReplicationSystem/ReplicationWriter.h"
+#include "Iris/ReplicationSystem/NetObjectFactory.h"
+#include "Iris/ReplicationSystem/NetObjectFactoryRegistry.h"
 #include "Iris/ReplicationSystem/RepTag.h"
 #include "Iris/ReplicationSystem/Polling/ObjectPoller.h"
 #include "Iris/Serialization/NetSerializationContext.h"
@@ -163,11 +165,14 @@ void UObjectReplicationBridge::Initialize(UReplicationSystem* InReplicationSyste
 	LoadConfig();
 
 	InitConditionalPropertyDelegates();
+	InitNetObjectFactories();
 }
 
 void UObjectReplicationBridge::Deinitialize()
 {
 	NetRefHandleManager->GetOnMaxInternalNetRefIndexIncreasedDelegate().RemoveAll(this);
+
+	DeinitNetObjectFactories();
 
 	UE::Net::Private::FPropertyConditionDelegates::GetOnPropertyCustomConditionChangedDelegate().Remove(OnCustomConditionChangedHandle);
 	UE::Net::Private::FPropertyConditionDelegates::GetOnPropertyDynamicConditionChangedDelegate().Remove(OnDynamicConditionChangedHandle);
@@ -175,6 +180,42 @@ void UObjectReplicationBridge::Deinitialize()
 	OnDynamicConditionChangedHandle.Reset();
 	PollFrequencyLimiter->Deinit();
 	Super::Deinitialize();
+}
+
+void UObjectReplicationBridge::InitNetObjectFactories()
+{
+	using namespace UE::Net;
+	TConstArrayView<FNetObjectFactoryRegistry::FFactoryData> RegisteredFactories = FNetObjectFactoryRegistry::GetRegisteredFactories();
+
+	check(NetObjectFactories.IsEmpty());
+
+	for(int32 Index=0; Index < RegisteredFactories.Num(); ++Index )
+	{
+		const FNetObjectFactoryRegistry::FFactoryData& Data = RegisteredFactories[Index];
+		check(Data.Id == (FNetObjectFactoryId)Index);
+		check(Data.NetFactoryClass);
+
+		UNetObjectFactory* Factory = NewObject<UNetObjectFactory>(this, Data.NetFactoryClass);
+		NetObjectFactories.Add(Factory);
+
+		Factory->Init(Data.Id, this);
+	}
+}
+
+void UObjectReplicationBridge::DeinitNetObjectFactories()
+{
+	for (UNetObjectFactory* Factory : NetObjectFactories)
+	{
+		Factory->Deinit();
+	}
+
+	NetObjectFactories.Empty();
+}
+
+UNetObjectFactory* UObjectReplicationBridge::GetNetFactory(UE::Net::FNetObjectFactoryId FactoryId) const
+{
+	check(FactoryId != UE::Net::InvalidNetObjectFactoryId);
+	return NetObjectFactories[FactoryId];
 }
 
 void UObjectReplicationBridge::OnMaxInternalNetRefIndexIncreased(UE::Net::Private::FInternalNetRefIndex NewMaxInternalIndex)
@@ -245,7 +286,7 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::GetReplicatedRefHandle(FNetHand
 	return ObjectData.RefHandle;
 }
 
-UE::Net::FNetRefHandle UObjectReplicationBridge::StartReplicatingNetObject(UObject* Instance, UE::Net::EReplicationFragmentTraits Traits)
+UE::Net::FNetRefHandle UObjectReplicationBridge::StartReplicatingNetObject(UObject* Instance, UE::Net::EReplicationFragmentTraits Traits, UE::Net::FNetObjectFactoryId NetFactoryId)
 {
 	using namespace UE::Net;
 	using namespace UE::Net::Private;
@@ -347,6 +388,9 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::StartReplicatingNetObject(UObje
 
 	const FInternalNetRefIndex InternalReplicationIndex = NetRefHandleManager->GetInternalIndex(RefHandle);
 
+	check(NetFactoryId != InvalidNetObjectFactoryId);
+	NetRefHandleManager->GetReplicatedObjectDataNoCheck(InternalReplicationIndex).NetFactoryId = NetFactoryId;
+
 	// Initialize conditionals
 	FReplicationSystemInternal* ReplicationSystemInternal = GetReplicationSystem()->GetReplicationSystemInternal();
 	ReplicationSystemInternal->GetConditionals().InitPropertyCustomConditions(InternalReplicationIndex);
@@ -365,7 +409,7 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::StartReplicatingNetObject(UObje
 	return RefHandle;
 }
 
-UE::Net::FNetRefHandle UObjectReplicationBridge::StartReplicatingRootObject(UObject* Instance, const FRootObjectReplicationParams& Params)
+UE::Net::FNetRefHandle UObjectReplicationBridge::StartReplicatingRootObject(UObject* Instance, const FRootObjectReplicationParams& Params, UE::Net::FNetObjectFactoryId NetFactoryId)
 {
 	LLM_SCOPE_BYTAG(IrisState);
 
@@ -383,7 +427,7 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::StartReplicatingRootObject(UObj
 	Traits |= Params.bNeedsWorldLocationUpdate ? EReplicationFragmentTraits::NeedsWorldLocationUpdate : EReplicationFragmentTraits::None;
 
 	// Register the object
-	FNetRefHandle RefHandle = StartReplicatingNetObject(Instance, Traits);
+	FNetRefHandle RefHandle = StartReplicatingNetObject(Instance, Traits, NetFactoryId);
 
 	if (!RefHandle.IsValid())
 	{
@@ -475,7 +519,7 @@ void UObjectReplicationBridge::AssignDynamicFilter(UObject* Instance, const FRoo
 	
 }
 
-UE::Net::FNetRefHandle UObjectReplicationBridge::StartReplicatingSubObject(FNetRefHandle OwnerRefHandle, UObject* Instance, FNetRefHandle InsertRelativeToSubObjectRefHandle, ESubObjectInsertionOrder InsertionOrder)
+UE::Net::FNetRefHandle UObjectReplicationBridge::StartReplicatingSubObject(UObject* Instance, const FSubObjectReplicationParams& Params , UE::Net::FNetObjectFactoryId NetFactoryId)
 {
 	LLM_SCOPE_BYTAG(IrisState);
 
@@ -485,22 +529,22 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::StartReplicatingSubObject(FNetR
 	const FReplicationSystemInternal* ReplicationSystemInternal = GetReplicationSystem()->GetReplicationSystemInternal();
 	const FNetRefHandleManager& LocalNetRefHandleManager = ReplicationSystemInternal->GetNetRefHandleManager();
 
-	checkf(IsReplicatedHandle(OwnerRefHandle), TEXT("Owner %s (%s) must be replicated for subobject %s to replicate."), 
-		*GetNameSafe(LocalNetRefHandleManager.GetReplicatedObjectInstance(LocalNetRefHandleManager.GetInternalIndex(OwnerRefHandle))), *OwnerRefHandle.ToString(), *GetNameSafe(Instance));
+	checkf(IsReplicatedHandle(Params.RootObjectHandle), TEXT("Owner %s (%s) must be replicated for subobject %s to replicate."), 
+		*GetNameSafe(LocalNetRefHandleManager.GetReplicatedObjectInstance(LocalNetRefHandleManager.GetInternalIndex(Params.RootObjectHandle))), *Params.RootObjectHandle.ToString(), *GetNameSafe(Instance));
 
 	checkf(!Instance->HasAnyFlags(RF_ArchetypeObject | RF_ClassDefaultObject), TEXT("Iris cannot replicate subobject %s owned by %s because it's an %s"), 
-		*GetNameSafe(Instance), *GetNameSafe(LocalNetRefHandleManager.GetReplicatedObjectInstance(LocalNetRefHandleManager.GetInternalIndex(OwnerRefHandle))), Instance->HasAnyFlags(RF_ArchetypeObject)?TEXT("Archetype"):TEXT("DefaultObject"));
+		*GetNameSafe(Instance), *GetNameSafe(LocalNetRefHandleManager.GetReplicatedObjectInstance(LocalNetRefHandleManager.GetInternalIndex(Params.RootObjectHandle))), Instance->HasAnyFlags(RF_ArchetypeObject)?TEXT("Archetype"):TEXT("DefaultObject"));
 
 	FNetRefHandle SubObjectRefHandle = GetReplicatedRefHandle(Instance);
 	if (SubObjectRefHandle.IsValid())
 	{
 		// Verify that the existing object is a subobject of the owner
-		check(OwnerRefHandle == LocalNetRefHandleManager.GetRootObjectOfSubObject(SubObjectRefHandle));
+		check(Params.RootObjectHandle == LocalNetRefHandleManager.GetRootObjectOfSubObject(SubObjectRefHandle));
 		return SubObjectRefHandle;
 	}
 	
 	const EReplicationFragmentTraits Traits = EReplicationFragmentTraits::CanReplicate;
-	SubObjectRefHandle = StartReplicatingNetObject(Instance, Traits);
+	SubObjectRefHandle = StartReplicatingNetObject(Instance, Traits, NetFactoryId);
 
 	if (!SubObjectRefHandle.IsValid())
 	{
@@ -508,15 +552,15 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::StartReplicatingSubObject(FNetR
 	}
 
 	// Add subobject
-	InternalAddSubObject(OwnerRefHandle, SubObjectRefHandle, InsertRelativeToSubObjectRefHandle, InsertionOrder);
+	InternalAddSubObject(Params.RootObjectHandle, SubObjectRefHandle, Params.InsertRelativeToSubObjectHandle, Params.InsertionOrder);
 
-	UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("StartReplicatingSubObject Added %s RelativeToSubObjectHandle %s"), *PrintObjectFromNetRefHandle(SubObjectRefHandle), *PrintObjectFromNetRefHandle(InsertRelativeToSubObjectRefHandle));
+	UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("StartReplicatingSubObject Added %s RelativeToSubObjectHandle %s"), *PrintObjectFromNetRefHandle(SubObjectRefHandle), *PrintObjectFromNetRefHandle(Params.InsertRelativeToSubObjectHandle));
 
 	// SubObjects should always poll with owner
-	SetPollWithObject(OwnerRefHandle, SubObjectRefHandle);
+	SetPollWithObject(Params.RootObjectHandle, SubObjectRefHandle);
 
 	// Copy pending dormancy from owner
-	SetSubObjectDormancyStatus(SubObjectRefHandle, OwnerRefHandle);
+	SetSubObjectDormancyStatus(SubObjectRefHandle, Params.RootObjectHandle);
 	
 	return SubObjectRefHandle;
 }
@@ -610,45 +654,78 @@ void UObjectReplicationBridge::RemoveDependentObject(FNetRefHandle ParentHandle,
 
 bool UObjectReplicationBridge::WriteNetRefHandleCreationInfo(FReplicationBridgeSerializationContext& Context, FNetRefHandle Handle)
 {
-	// Write Type header, if there is a cached one, use it!
-	if (TUniquePtr<const FCreationHeader>* CachedHeader = CachedCreationHeaders.Find(Handle))
+	using namespace UE::Net;
+	using namespace UE::Net::Private;
+
+	// If there is a cached header for this handle, use it!
+	if (TUniquePtr<const FNetObjectCreationHeader>* CachedHeader = CachedCreationHeaders.Find(Handle))
 	{
-		Context.SerializationContext.GetBitStreamWriter()->WriteBits((*CachedHeader)->ProtocolIdentifier, 32);
-		return WriteCreationHeader(Context.SerializationContext, (*CachedHeader).Get());
+		const FNetObjectCreationHeader* Header = CachedHeader->Get();
+		UNetObjectFactory* Factory = GetNetFactory(Header->GetNetFactoryId());
+		UE_LOG(LogIrisBridge, VeryVerbose, TEXT("WriteNetRefHandleCreationInfo (cached) for %s : Factory: %s (id:%u) Header: %s"), *Handle.ToString(), *GetNameSafe(Factory), Header->GetNetFactoryId(), *Header->ToString());
+		return Factory->WriteHeader(Handle, Context.SerializationContext, Header);
 	}
-	else
+	
+	// Find the ProtocolId
+	const UE::Net::FReplicationProtocol* Protocol = GetReplicationSystem()->GetReplicationProtocol(Handle);
+	if (!Protocol)
 	{
-		// Write ProtocolId
-		const UE::Net::FReplicationProtocol* Protocol = GetReplicationSystem()->GetReplicationProtocol(Handle);
-		if (!Protocol)
-		{
-			UE_LOG_OBJECTREPLICATIONBRIDGE(Error, TEXT("WriteNetRefHandleCreationInfo: Cannot write creationinfo for %s, since protocol has been detached"), *Handle.ToString());
-			ensureMsgf(Protocol, TEXT("WriteNetRefHandleCreationInfo: Cannot write creationinfo for %s, since protocol has been detached"), *Handle.ToString());
-			return false;
-		}
-		Context.SerializationContext.GetBitStreamWriter()->WriteBits(Protocol->ProtocolIdentifier, 32);
-		return WriteCreationHeader(Context.SerializationContext, Handle);
+		UE_LOG_OBJECTREPLICATIONBRIDGE(Error, TEXT("WriteNetRefHandleCreationInfo: Cannot write creationinfo for %s, since protocol has been detached"), *Handle.ToString());
+		ensureMsgf(Protocol, TEXT("WriteNetRefHandleCreationInfo: Cannot write creationinfo for %s, since protocol has been detached"), *Handle.ToString());
+		return false;
 	}
+
+	const FInternalNetRefIndex ObjectIndex = NetRefHandleManager->GetInternalIndex(Handle);
+	if (ObjectIndex == FNetRefHandleManager::InvalidInternalIndex)
+	{
+		UE_LOG(LogIrisBridge, Error, TEXT("WriteNetRefHandleCreationInfo: Cannot write creationinfo for %s: No internal index assigned to it"), *Handle.ToString());
+		return false;
+	}
+
+	const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(ObjectIndex);
+	const FNetObjectFactoryId FactoryId = ObjectData.NetFactoryId;
+
+	UNetObjectFactory* Factory = GetNetFactory(FactoryId);
+
+	TUniquePtr<FNetObjectCreationHeader> Header = Factory->CreateHeader(Handle, Protocol->ProtocolIdentifier);
+
+	UE_LOG(LogIrisBridge, VeryVerbose, TEXT("WriteNetRefHandleCreationInfo (new) for %s : Factory: %s (id:%u) Header: %s"), *Handle.ToString(), *GetNameSafe(Factory), FactoryId, *Header->ToString());
+
+	return Factory->WriteHeader(Handle, Context.SerializationContext, Header.Get());
 }
 
 bool UObjectReplicationBridge::CacheNetRefHandleCreationInfo(FNetRefHandle Handle)
 {
-	const UE::Net::FReplicationProtocol* Protocol = GetReplicationSystem()->GetReplicationProtocol(Handle);	
+	using namespace UE::Net;
+	using namespace UE::Net::Private;
+
+	const FReplicationProtocol* Protocol = GetReplicationSystem()->GetReplicationProtocol(Handle);	
 	if (!Protocol)
 	{
 		return false;
 	}
 
-	TUniquePtr<FCreationHeader> Header(GetCreationHeader(Handle));
-
-	if (Header)
+	const FInternalNetRefIndex ObjectIndex = NetRefHandleManager->GetInternalIndex(Handle);
+	if (ObjectIndex == FNetRefHandleManager::InvalidInternalIndex)
 	{
-		Header->ProtocolIdentifier = Protocol->ProtocolIdentifier;
-		CachedCreationHeaders.Add(Handle, MoveTemp(Header));
-		return true;
+		UE_LOG(LogIrisBridge, Error, TEXT("CacheNetRefHandleCreationInfo cannot cache creation info for %s: no internal index assigned to it"), *Handle.ToString());
+		ensureMsgf(false, TEXT("CacheNetRefHandleCreationInfo cannot cache creation info for %s: no internal index assigned to it"), *Handle.ToString());
+		return false;
 	}
 
-	return false;
+	const FNetObjectFactoryId FactoryId = NetRefHandleManager->GetReplicatedObjectDataNoCheck(ObjectIndex).NetFactoryId;
+
+	UNetObjectFactory* Factory = GetNetFactory(FactoryId);
+
+	TUniquePtr<FNetObjectCreationHeader> Header = Factory->CreateHeader(Handle, Protocol->ProtocolIdentifier);
+
+	if (!Header.IsValid())
+	{
+		return false;
+	}
+	
+	CachedCreationHeaders.Add(Handle, MoveTemp(Header));
+	return true;
 }
 
 void UObjectReplicationBridge::StopReplicatingNetObject(UObject* Instance, EEndReplicationFlags EndReplicationFlags)
@@ -709,7 +786,7 @@ void UObjectReplicationBridge::UnregisterInstance(FNetRefHandle RefHandle)
 	}
 }
 
-void UObjectReplicationBridge::RegisterRemoteInstance(FNetRefHandle RefHandle, UObject* Instance, const UE::Net::FReplicationProtocol* Protocol, UE::Net::FReplicationInstanceProtocol* InstanceProtocol, const FCreationHeader* Header, uint32 ConnectionId)
+void UObjectReplicationBridge::RegisterRemoteInstance(FNetRefHandle RefHandle, UObject* Instance, const UE::Net::FReplicationProtocol* Protocol, UE::Net::FReplicationInstanceProtocol* InstanceProtocol, uint32 ConnectionId)
 {
 	// Attach the instance protocol and instance to the handle
 	constexpr bool bBindInstanceProtocol = false;
@@ -733,59 +810,68 @@ FReplicationBridgeCreateNetRefHandleResult UObjectReplicationBridge::CreateNetRe
 
 	FNetBitStreamReader* Reader = Context.SerializationContext.GetBitStreamReader();
 
-	FReplicationProtocolIdentifier ReceivedProtocolId = Context.SerializationContext.GetBitStreamReader()->ReadBits(32);
+	const FNetObjectFactoryId FactoryId = IntCastChecked<FNetObjectFactoryId>(Reader->ReadBits(FNetObjectFactoryRegistry::GetMaxBits()));
+	check(FactoryId != InvalidNetObjectFactoryId);
 
-	// Read creation header
-	TUniquePtr<FCreationHeader> Header(ReadCreationHeader(Context.SerializationContext));
-	if (Context.SerializationContext.HasErrorOrOverflow())
+	UNetObjectFactory* Factory = GetNetFactory(FactoryId);
+
+	TUniquePtr<FNetObjectCreationHeader> Header = Factory->ReadHeader(WantedNetHandle, Context.SerializationContext);
+		
+	if (!Header.IsValid() || Context.SerializationContext.HasErrorOrOverflow())
 	{
 		return FReplicationBridgeCreateNetRefHandleResult();
 	}
+
+	const FReplicationProtocolIdentifier ReceivedProtocolId = Header->GetProtocolId();	
 
 	// Currently remote objects can only receive replicated data
 	FFragmentRegistrationContext FragmentRegistrationContext(GetReplicationStateDescriptorRegistry(), GetReplicationSystem(), EReplicationFragmentTraits::CanReceive);
 	FReplicationProtocolManager* ProtocolManager = GetReplicationProtocolManager();
 
-	FReplicationBridgeCreateNetRefHandleResult CreateResult;
-
 	if (UE_LOG_ACTIVE(LogIrisBridge, Verbose))
 	{
 		if (RootObjectOfSubObject.IsValid())
 		{
-			UE_LOG(LogIrisBridge, Verbose, TEXT("CreateNetRefHandleFromRemote: SubObject: %s of RootObject: %s"), *WantedNetHandle.ToString(), *RootObjectOfSubObject.ToString());
+			UE_LOG(LogIrisBridge, Verbose, TEXT("CreateNetRefHandleFromRemote: SubObject: %s of RootObject: %s using header: %s"), *WantedNetHandle.ToString(), *RootObjectOfSubObject.ToString(), ToCStr(Header->ToString()));
 		}
 		else
 		{
-			UE_LOG(LogIrisBridge, Verbose, TEXT("CreateNetRefHandleFromRemote: RootObject: %s"), *WantedNetHandle.ToString());
+			UE_LOG(LogIrisBridge, Verbose, TEXT("CreateNetRefHandleFromRemote: RootObject: %s using header: %s"), *WantedNetHandle.ToString(), ToCStr(Header->ToString()));
 		}
 	}
 	
-	
-	
-
 	// Currently we need to always instantiate remote objects, moving forward we want to make this optional so that can be deferred until it is time to apply received state data.
 	// https://jira.it.epicgames.com/browse/UE-127369	
-	FObjectReplicationBridgeInstantiateResult InstantiateResult = BeginInstantiateFromRemote(RootObjectOfSubObject, Context.SerializationContext.GetInternalContext()->ResolveContext, Header.Get());
-	UObject* InstancePtr = InstantiateResult.Object;
-	if (!InstancePtr)
+
+	UObject* InstancePtr = nullptr;
+	FReplicationBridgeCreateNetRefHandleResult CreateResult;
+	
+	// Instantiate the replicated object
+	const UNetObjectFactory::FInstantiateContext InstantiateContext(WantedNetHandle, Context.SerializationContext.GetInternalContext()->ResolveContext, RootObjectOfSubObject);
+	
+	const UNetObjectFactory::FInstantiateResult Result = Factory->InstantiateReplicatedObjectFromHeader(InstantiateContext, Header.Get());
+
+	// Failed ?
+	if (!Result.Instance)
 	{
 		if (UE_LOG_ACTIVE(LogIrisBridge, Warning) && !bSuppressCreateInstanceFailedEnsure)
 		{
 			if (RootObjectOfSubObject.IsValid())
 			{
-				UE_LOG(LogIrisBridge, Warning, TEXT("CreateNetRefHandleFromRemote: Failed to instantiate SubObject NetHandle: %s of %s"), *WantedNetHandle.ToString(), *PrintObjectFromNetRefHandle(RootObjectOfSubObject));
+				UE_LOG(LogIrisBridge, Warning, TEXT("CreateNetRefHandleFromRemote: Failed to instantiate SubObject NetHandle: %s of %s using header: %s"), *WantedNetHandle.ToString(), *PrintObjectFromNetRefHandle(RootObjectOfSubObject), ToCStr(Header->ToString()));
 			}
 			else
 			{
-				UE_LOG(LogIrisBridge, Warning, TEXT("CreateNetRefHandleFromRemote: Failed to instantiate RootObject NetHandle: %s"), *WantedNetHandle.ToString());
+				UE_LOG(LogIrisBridge, Warning, TEXT("CreateNetRefHandleFromRemote: Failed to instantiate RootObject NetHandle: %s using header: %s"), *WantedNetHandle.ToString(), ToCStr(Header->ToString()));
 			}
 		}
 		
 		ensureMsgf(bSuppressCreateInstanceFailedEnsure, TEXT("Failed to instantiate Handle: %s"), *WantedNetHandle.ToString());
-		return CreateResult;
+		return FReplicationBridgeCreateNetRefHandleResult();
 	}
 
-	CreateResult.Flags |= InstantiateResult.Flags;
+	InstancePtr = Result.Instance;
+	CreateResult.Flags |= Result.Flags;
 
 	// Register all fragments
 	CallRegisterReplicationFragments(InstancePtr, FragmentRegistrationContext, EFragmentRegistrationFlags::None);
@@ -836,13 +922,12 @@ FReplicationBridgeCreateNetRefHandleResult UObjectReplicationBridge::CreateNetRe
 		CreateResult.NetRefHandle = Handle;
 		if (Handle.IsValid())
 		{
-			RegisterRemoteInstance(Handle, InstancePtr, ReplicationProtocol, InstanceProtocol.Get(), Header.Get(), Context.ConnectionId);
+			RegisterRemoteInstance(Handle, InstancePtr, ReplicationProtocol, InstanceProtocol.Get(), Context.ConnectionId);
 
 			// Release instance protocol from the uniquePtr as it is now successfully bound to the handle
 			(void)InstanceProtocol.Release();
 
-			// Now it is safe to issue OnActorChannelOpen callback
-			ensureMsgf(OnInstantiatedFromRemote(InstancePtr, Header.Get(), Context.ConnectionId), TEXT("Failed to invoke OnInstantiatedFromRemote for Instance named %s %s"), *InstancePtr->GetName(), *Handle.ToString());
+			Factory->PostInstantiation(UNetObjectFactory::FPostInstantiationContext{ .Instance = InstancePtr, .Header = Header.Get(), .ConnectionId = Context.ConnectionId });
 		}
 	}
 

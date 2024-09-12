@@ -8,6 +8,8 @@
 #include "Iris/ReplicationSystem/ReplicationBridge.h"
 #include "Delegates/IDelegateInstance.h"
 #include "Iris/ReplicationSystem/ReplicationSystemTypes.h"
+#include "Iris/ReplicationSystem/NetObjectFactory.h"
+#include "Iris/ReplicationSystem/NetObjectFactoryRegistry.h"
 #include "Containers/ArrayView.h"
 
 #include "ObjectReplicationBridge.generated.h"
@@ -17,6 +19,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LogIrisFilterConfig, Log, All);
 namespace UE::Net
 {
 	enum class ENetRefHandleError : uint32;
+	enum class EReplicationFragmentTraits : uint32;
 
 	struct FNetObjectResolveContext;
 
@@ -25,8 +28,6 @@ namespace UE::Net
 	typedef uint32 FReplicationProtocolIdentifier;
 
 	class FNetObjectReference;
-
-	enum class EReplicationFragmentTraits : uint32;
 
 	namespace Private
 	{
@@ -55,42 +56,8 @@ public:
 
 	using EGetRefHandleFlags = UE::Net::EGetRefHandleFlags;
 
-	struct FRootObjectReplicationParams
-	{
-		/** When true it means the object wants to receive a PreUpdate callback just before it gets polled. */
-		bool bNeedsPreUpdate = false;
-
-		/** When true the object has a dynamic world location and we should ask the bridge to update its current location everytime it is polled. */
-		bool bNeedsWorldLocationUpdate = false;
-
-		/** Whether the object is dormant or not */
-		bool bIsDormant = false;
-
-		/** Ask the class config for a dynamic filter assigned to this class or one of it's parent class. Default is true. */
-		bool bUseClassConfigDynamicFilter = true;
-
-		/** When enabled we ignore the class config for this object and instead use the one specified by ExplicitDynamicFilter */
-		bool bUseExplicitDynamicFilter = false;
-
-		/** 
-		 * The name of the dynamic filter to use for this object (instead of asking the class config).
-		 * Can be none so that no dynamic filter is assigned to the object.
-		 * Only used when bUseExplicitDynamicFilter is true.
-		 */
-		FName ExplicitDynamicFilterName;
-
-		/**
-		 * If StaticPriority is > 0 the ReplicationSystem will use that as priority when scheduling objects. 
-		 * If it's <= 0.0f one will look for a world location support and then use the default spatial prioritizer.
-		 */
-		float StaticPriority = 0.0f;
-
-		/**
-		 * How often per second the object should be polled for dirtiness, including calling the InstancePreUpdate function. 
-		 * When set to zero it will be polled every frame.
-		 */
-		float PollFrequency = 0.0f;
-	};
+	struct FRootObjectReplicationParams;
+	struct FSubObjectReplicationParams;
 
 	IRISCORE_API UObjectReplicationBridge();
 
@@ -122,7 +89,7 @@ public:
 	 * @param Params Optional configuration parameters to specify how the root object will be replicated.
 	 * @return The NetRefHandle associated to this object if the operation succeeded.
 	 */
-	IRISCORE_API FNetRefHandle StartReplicatingRootObject(UObject* Instance, const FRootObjectReplicationParams& Params);
+	IRISCORE_API FNetRefHandle StartReplicatingRootObject(UObject* Instance, const FRootObjectReplicationParams& Params, UE::Net::FNetObjectFactoryId NetFactoryId);
 
 	/**
 	 * Start replicating a SubObject and return a valid NetRefHandle if successful.
@@ -133,7 +100,7 @@ public:
 	 * @param InsertionOrder When none will always add the new subobject at the end of the list. 
 	 * @return The NetRefHandle of the subobject if successful.
 	 */
-	IRISCORE_API FNetRefHandle StartReplicatingSubObject(FNetRefHandle OwnerHandle, UObject* Instance, FNetRefHandle InsertRelativeToSubObjectHandle = FNetRefHandle::GetInvalid(), ESubObjectInsertionOrder InsertionOrder = UReplicationBridge::ESubObjectInsertionOrder::None);
+	IRISCORE_API FNetRefHandle StartReplicatingSubObject(UObject* Instance, const FSubObjectReplicationParams& Params, UE::Net::FNetObjectFactoryId NetFactoryId);
 
 	/** 
 	 * Stop replicating any type of NetObject. @see UReplicationBridge::StopReplicatingNetObject for more details.
@@ -162,15 +129,6 @@ public:
 	/** Returns true of the level that the Object belongs to has finished loading. */
 	virtual bool ObjectLevelHasFinishedLoading(UObject* Object) const { return true; }
 
-	struct FCreationHeader
-	{
-		virtual ~FCreationHeader() {};
-
-	private:
-		friend UObjectReplicationBridge;
-		UE::Net::FReplicationProtocolIdentifier ProtocolIdentifier = 0U;
-	};
-	
 	/**
 	 * Adds a dependent object. A dependent object can replicate separately or if a parent replicates.
 	 * Dependent objects cannot be filtered out by dynamic filtering unless the parent is also filtered out.
@@ -208,6 +166,57 @@ public:
 
 public:
 
+	struct FRootObjectReplicationParams
+	{
+		/** When true it means the object wants to receive a PreUpdate callback just before it gets polled. */
+		bool bNeedsPreUpdate = false;
+
+		/** When true the object has a dynamic world location and we should ask the bridge to update its current location everytime it is polled. */
+		bool bNeedsWorldLocationUpdate = false;
+
+		/** Whether the object is dormant or not */
+		bool bIsDormant = false;
+
+		/** Ask the class config for a dynamic filter assigned to this class or one of it's parent class. Default is true. */
+		bool bUseClassConfigDynamicFilter = true;
+
+		/** When enabled we ignore the class config for this object and instead use the one specified by ExplicitDynamicFilter */
+		bool bUseExplicitDynamicFilter = false;
+
+		/** 
+		* The name of the dynamic filter to use for this object (instead of asking the class config).
+		* Can be none so that no dynamic filter is assigned to the object.
+		* Only used when bUseExplicitDynamicFilter is true.
+		*/
+		FName ExplicitDynamicFilterName;
+
+		/**
+		* If StaticPriority is > 0 the ReplicationSystem will use that as priority when scheduling objects. 
+		* If it's <= 0.0f one will look for a world location support and then use the default spatial prioritizer.
+		*/
+		float StaticPriority = 0.0f;
+
+		/**
+		* How often per second the object should be polled for dirtiness, including calling the InstancePreUpdate function. 
+		* When set to zero it will be polled every frame.
+		*/
+		float PollFrequency = 0.0f;
+	};
+
+	struct FSubObjectReplicationParams
+	{
+		/** The root object that the subobject will be attached to*/
+		FNetRefHandle RootObjectHandle;
+
+		/** Optional handle to another subobject indicating where in the subobject list we inserted */
+		FNetRefHandle InsertRelativeToSubObjectHandle; 
+
+		/** Optional enum to select where in the list this subobject will be inserted */
+		ESubObjectInsertionOrder InsertionOrder = ESubObjectInsertionOrder::None;
+	};
+
+public:
+
 	// Debug functions that are triggered via console commands
 	void PrintDynamicFilterClassConfig() const;
 	void PrintReplicatedObjects(uint32 ArgTraits) const;
@@ -241,31 +250,7 @@ protected:
 	IRISCORE_API virtual void OnErrorWithNetRefHandleReported(UE::Net::ENetRefHandleError ErrorType, FNetRefHandle RefHandle, uint32 ConnectionId) override;
 	
 protected:
-	/**
-	* $IRIS TODO:
-	* Consider moving these methods to separate interface to allow for a single ObjectReplicationBridge to support different type specific methods to its own interface and allow for a single bridge to support multiple subtypes? 
-	* We will see what we need when we start to Serialize data we might not even want to expose virtual methods for doing this, and instead provide support for specifying a "creation state" that works exactly as any other state
-	* but only ever is replicated when we first instantiate an object of the specific type 
-	*/
-
-	/** Allocate and fill in creation header. */
-	virtual TUniquePtr<FCreationHeader> GetCreationHeader(FNetRefHandle Handle) { return nullptr; };
-
-	/** Write creation header. */
-	virtual bool WriteCreationHeader(UE::Net::FNetSerializationContext& Context, const FCreationHeader* CreationHeader) { return false; };
-
-	/** Write data required to instantiate the Handle. */
-	virtual bool WriteCreationHeader(UE::Net::FNetSerializationContext& Context, FNetRefHandle Handle) { return false; };
-
-	/** Create Header and read data required to instantiate the Handle. */
-	virtual TUniquePtr<FCreationHeader> ReadCreationHeader(UE::Net::FNetSerializationContext& Context) { return nullptr; };
-
-	/** Called when we instantiate/find object instance requested by remote. */
-	virtual FObjectReplicationBridgeInstantiateResult BeginInstantiateFromRemote(FNetRefHandle RootObjectOfSubObject, const UE::Net::FNetObjectResolveContext& ResolveContext, const FCreationHeader* Header) { return FObjectReplicationBridgeInstantiateResult(); };
-
-	/** Invoked before we start applying state data to instance on remote end. */
-	virtual bool OnInstantiatedFromRemote(UObject* Instance, const FCreationHeader* InHeader, uint32 ConnectionId) const { return true; }
-
+	
 	/** Invoked for new replicated SubObjects after state has been applied to owner */
 	virtual void OnSubObjectCreatedFromReplication(FNetRefHandle SubObjectHandle) {};
 
@@ -385,7 +370,7 @@ private:
 	/** Remove mapping between handle and object instance. */
 	void UnregisterInstance(FNetRefHandle RefHandle);
 
-	void RegisterRemoteInstance(FNetRefHandle RefHandle, UObject* InstancePtr, const UE::Net::FReplicationProtocol* Protocol, UE::Net::FReplicationInstanceProtocol* InstanceProtocol, const FCreationHeader* Header, uint32 ConnectionId);
+	void RegisterRemoteInstance(FNetRefHandle RefHandle, UObject* InstancePtr, const UE::Net::FReplicationProtocol* Protocol, UE::Net::FReplicationInstanceProtocol* InstanceProtocol, uint32 ConnectionId);
 
 	void SetNetPushIdOnInstance(UE::Net::FReplicationInstanceProtocol* InstanceProtocol, FNetHandle NetHandle);
 
@@ -393,7 +378,7 @@ private:
 	void FindClassesInPollPeriodOverrides();
 
 	/** Does all that is necessary to replicate any given UObject. Returns the object's handle if successful  */
-	UE::Net::FNetRefHandle StartReplicatingNetObject(UObject* Instance, UE::Net::EReplicationFragmentTraits Traits);
+	UE::Net::FNetRefHandle StartReplicatingNetObject(UObject* Instance, UE::Net::EReplicationFragmentTraits Traits, UE::Net::FNetObjectFactoryId NetFactoryId);
 
 protected:
 	/** Retrieves the dynamic filter to set for the given class. Will return an invalid handle if no dynamic filter should be set. */
@@ -424,8 +409,12 @@ private:
 	FName GetConfigClassPathName(const UClass* Class);
 
 	void InitConditionalPropertyDelegates();
+	void InitNetObjectFactories();
+	void DeinitNetObjectFactories();
 
 	void OnMaxInternalNetRefIndexIncreased(UE::Net::Private::FInternalNetRefIndex NewMaxInternalIndex);
+
+	UNetObjectFactory* GetNetFactory(UE::Net::FNetObjectFactoryId FactoryId) const;
 
 private:
 
@@ -488,7 +477,7 @@ private:
 	TMap<FName, FName> ClassesWithTypeStats;
 
 	// When we flush objects, we might need to defer sending creation info.
-	TMap<FNetRefHandle, TUniquePtr<const FCreationHeader>> CachedCreationHeaders;
+	TMap<FNetRefHandle, TUniquePtr<const UE::Net::FNetObjectCreationHeader>> CachedCreationHeaders;
 
 	// Objects which has object references and could be affected by garbage collection.
 	UE::Net::FNetBitArray ObjectsWithObjectReferences;
@@ -499,6 +488,9 @@ private:
 
 	FDelegateHandle OnCustomConditionChangedHandle;
 	FDelegateHandle OnDynamicConditionChangedHandle;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UNetObjectFactory>> NetObjectFactories;
 
 	bool bHasPollOverrides = false;
 	bool bHasDirtyClassesInPollPeriodOverrides = false;

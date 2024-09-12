@@ -449,7 +449,7 @@ private:
 	friend class UPackageMapClient;
 
 #if UE_WITH_IRIS
-	friend class UActorReplicationBridge;
+	friend class UNetActorFactory;
 #endif // UE_WITH_IRIS
 
 	/* Is the actor remotely owned. This should only be set true by the package map when it is creating an actor on a client that was replicated from the server. */
