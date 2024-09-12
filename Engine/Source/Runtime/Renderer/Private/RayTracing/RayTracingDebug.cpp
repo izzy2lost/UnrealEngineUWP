@@ -1381,7 +1381,7 @@ static uint32 GetRaytracingDebugViewMode(const FSceneView& View)
 
 	uint32 OutMode;
 	
-	FString ConsoleViewMode = CVarRayTracingDebugMode.GetValueOnRenderThread();
+	FString ConsoleViewMode = CVarRayTracingDebugMode.GetValueOnAnyThread();
 
 	if (!ConsoleViewMode.IsEmpty())
 	{

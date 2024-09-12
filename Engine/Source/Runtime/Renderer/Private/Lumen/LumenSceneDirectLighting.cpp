@@ -1783,6 +1783,11 @@ uint32 PackRG16(float In0, float In1);
 
 void FDeferredShadingSceneRenderer::BeginGatherLumenLights(const FLumenSceneFrameTemporaries& FrameTemporaries, FLumenDirectLightingTaskData*& TaskData, IVisibilityTaskData* VisibilityTaskData)
 {
+	if (HasRayTracedOverlay(ViewFamily))
+	{
+		return;
+	}
+
 	bool bAnyLumenActive = false;
 
 	for (const FViewInfo& View : Views)
