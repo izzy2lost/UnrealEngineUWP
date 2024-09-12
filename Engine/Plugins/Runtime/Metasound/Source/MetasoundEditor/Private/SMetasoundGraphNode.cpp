@@ -1137,7 +1137,7 @@ namespace Metasound
 									DefaultBool->Modify();
 
 									FMetasoundFrontendLiteral OutputLiteral;
-									OutputLiteral.Set(FloatInputWidget->GetOutputValue(Value));
+									OutputLiteral.Set(Value);
 
 									const FGuid BuildPageID = Builder.GetBuildPageID();
 									DefaultBool->SetFromLiteral(OutputLiteral, BuildPageID);
