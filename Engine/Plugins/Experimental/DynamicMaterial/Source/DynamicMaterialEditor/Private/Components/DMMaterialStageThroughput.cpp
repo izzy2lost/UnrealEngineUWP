@@ -152,9 +152,9 @@ bool UDMMaterialStageThroughput::ShouldKeepInput(int32 InThroughputInputIndex)
 		return false;
 	}
 
-	const int RequiredInputCount = UDMValueDefinitionLibrary::GetValueDefinition(InputConnectors[InThroughputInputIndex].Type).GetFloatCount();
+	const int32 RequiredInputCount = UDMValueDefinitionLibrary::GetValueDefinition(InputConnectors[InThroughputInputIndex].Type).GetFloatCount();
 
-	int ActualInputCount = 0;
+	int32 ActualInputCount = 0;
 
 	for (const FDMMaterialStageConnectorChannel& Channel : InputConnectionMap[InThroughputInputIndex].Channels)
 	{
@@ -256,7 +256,8 @@ bool UDMMaterialStageThroughput::ShouldKeepInput(int32 InThroughputInputIndex)
 		ActualInputCount += ThisInputCount;
 	}
 
-	return (ActualInputCount == RequiredInputCount);
+	// An input size of 1 float will always work.
+	return (ActualInputCount == 1) || (ActualInputCount == RequiredInputCount);
 }
 
 void UDMMaterialStageThroughput::ConnectOutputToInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InThroughputInputIndex,
