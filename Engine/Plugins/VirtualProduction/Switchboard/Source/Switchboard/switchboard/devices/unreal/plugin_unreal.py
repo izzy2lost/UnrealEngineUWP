@@ -2232,7 +2232,7 @@ class DeviceUnreal(Device):
         current_level_valid = current_level_only and current_level != None and current_level != DEFAULT_MAP_TEXT
         map_name = ' Map=' + current_level if current_level_valid else ''
 
-        args = CONFIG.UPROJECT_PATH.get_value(self.name) + map_name + " -run=DerivedDataCache -TargetPlatform=" + platform_string + " -fill -DDC=CreateInstalledEnginePak"
+        args = "\"" + CONFIG.UPROJECT_PATH.get_value(self.name) + map_name + "\"" + " -run=DerivedDataCache -TargetPlatform=" + platform_string + " -fill -DDC=CreateInstalledProjectPak"
         LOGGER.info('Filling ddc with arguments: ' + args)
 
         puuid, msg = message_protocol.create_start_process_message(
