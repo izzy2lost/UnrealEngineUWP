@@ -198,6 +198,17 @@ TSharedRef<SWidget> SDMToolBar::CreateToolBarEntries()
 			.VAlign(VAlign_Center)
 			.Padding(5.0f, 0.0f, 0.0f, 0.0f)
 			[
+				SAssignNew(InstanceWidget, STextBlock)
+				.TextStyle(FDynamicMaterialEditorStyle::Get(), "ActorName")
+				.Text(LOCTEXT("Instance", "(Inst)"))
+				.Visibility(EVisibility::Collapsed)
+			]
+
+			+ SWrapBox::Slot()
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.Padding(5.0f, 0.0f, 0.0f, 0.0f)
+			[
 				SAssignNew(ActorRowWidget, SHorizontalBox)
 				.Visibility(EVisibility::Collapsed)
 				+ SHorizontalBox::Slot()
@@ -369,11 +380,13 @@ void SDMToolBar::SetButtonVisibilities()
 	{
 		OpenParentButton->SetVisibility(EVisibility::Visible);
 		ConvertToEditableButton->SetVisibility(EVisibility::Visible);
+		InstanceWidget->SetVisibility(EVisibility::Visible);
 	}
 	else
 	{
 		OpenParentButton->SetVisibility(EVisibility::Collapsed);
 		ConvertToEditableButton->SetVisibility(EVisibility::Collapsed);
+		InstanceWidget->SetVisibility(EVisibility::Collapsed);
 	}
 }
 
