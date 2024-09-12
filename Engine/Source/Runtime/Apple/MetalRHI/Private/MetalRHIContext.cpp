@@ -382,7 +382,7 @@ void FMetalRHICommandContext::CopyFromTextureToBuffer(MTL::Texture* Texture, uin
 		if(Texture)
 		{
 			Encoder->copyFromTexture(Texture, sourceSlice, sourceLevel, sourceOrigin, sourceSize,
-									 toBuffer->GetMTLBuffer().get(), destinationOffset + toBuffer->GetOffset(), destinationBytesPerRow, destinationBytesPerImage, options);
+									 toBuffer->GetMTLBuffer(), destinationOffset + toBuffer->GetOffset(), destinationBytesPerRow, destinationBytesPerImage, options);
 		}
 	}
 	EndBlitEncoder();
@@ -397,12 +397,12 @@ void FMetalRHICommandContext::CopyFromBufferToTexture(FMetalBufferPtr Buffer, ui
 	METAL_GPUPROFILE(FMetalProfiler::GetProfiler()->EncodeBlit(CurrentEncoder.GetCommandBufferStats(), __FUNCTION__));
 	if (options == MTL::BlitOptionNone)
 	{
-		Encoder->copyFromBuffer(Buffer->GetMTLBuffer().get(), sourceOffset + Buffer->GetOffset(), sourceBytesPerRow, sourceBytesPerImage, sourceSize,
+		Encoder->copyFromBuffer(Buffer->GetMTLBuffer(), sourceOffset + Buffer->GetOffset(), sourceBytesPerRow, sourceBytesPerImage, sourceSize,
 								toTexture, destinationSlice, destinationLevel, destinationOrigin);
 	}
 	else
 	{
-		Encoder->copyFromBuffer(Buffer->GetMTLBuffer().get(), sourceOffset + Buffer->GetOffset(), sourceBytesPerRow, sourceBytesPerImage, sourceSize,
+		Encoder->copyFromBuffer(Buffer->GetMTLBuffer(), sourceOffset + Buffer->GetOffset(), sourceBytesPerRow, sourceBytesPerImage, sourceSize,
 								toTexture, destinationSlice, destinationLevel, destinationOrigin, options);
 	}
 	
@@ -431,8 +431,8 @@ void FMetalRHICommandContext::CopyFromBufferToBuffer(FMetalBufferPtr SourceBuffe
 	
 	METAL_GPUPROFILE(FMetalProfiler::GetProfiler()->EncodeBlit(CurrentEncoder.GetCommandBufferStats(), __FUNCTION__));
 	
-	Encoder->copyFromBuffer(SourceBuffer->GetMTLBuffer().get(), SourceOffset + SourceBuffer->GetOffset(),
-							DestinationBuffer->GetMTLBuffer().get(), DestinationOffset + DestinationBuffer->GetOffset(), Size);
+	Encoder->copyFromBuffer(SourceBuffer->GetMTLBuffer(), SourceOffset + SourceBuffer->GetOffset(),
+							DestinationBuffer->GetMTLBuffer(), DestinationOffset + DestinationBuffer->GetOffset(), Size);
 	
 	EndBlitEncoder();
 }

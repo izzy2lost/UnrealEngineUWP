@@ -189,9 +189,9 @@ FMetalRHIBuffer::FMetalRHIBuffer(FRHICommandListBase& RHICmdList, FMetalDevice& 
 			else
 			{
 				FMetalBufferPtr TheBuffer = GetCurrentBuffer();
-                MTLBufferPtr MTLBuffer = TheBuffer->GetMTLBuffer();
+				MTL::Buffer* MTLBuffer = TheBuffer->GetMTLBuffer();
 				FMemory::Memcpy(TheBuffer->Contents(), CreateInfo.ResourceArray->GetResourceData(), InBufferDesc.Size);
-#if PLATFORM_MAC
+#if PLATFORM_MAC 
 				if (Mode == MTL::StorageModeManaged)
 				{
                     NS::Range ModifyRange = NS::Range(TheBuffer->GetOffset(), TheBuffer->GetLength());
@@ -283,16 +283,15 @@ void FMetalRHIBuffer::AllocateBuffers()
 		FMetalBufferPtr Buffer = nullptr;
 
 #if METAL_POOL_BUFFER_BACKING
-		FMetalPooledBufferArgs ArgsCPU(Device.GetDevice(), AllocSize, GetDesc().Usage, Mode);
+		FMetalPooledBufferArgs ArgsCPU(&Device, AllocSize, GetDesc().Usage, Mode);
 		Buffer = Device.CreatePooledBuffer(ArgsCPU);
-		Buffer->SetOwner(nullptr, false);
 #else
 		NS::UInteger Options = (((NS::UInteger) Mode) << MTL::ResourceStorageModeShift);
 		
 		METAL_GPUPROFILE(FScopedMetalCPUStats CPUStat(FString::Printf(TEXT("AllocBuffer: %llu, %llu"), AllocSize, Options)));
 		// Allocate one.
-		MTLBufferPtr BufferPtr = NS::TransferPtr(Device.GetDevice()->newBuffer(AllocSize, (MTL::ResourceOptions) Options));
-		Buffer = FMetalBufferPtr(new FMetalBuffer(BufferPtr));
+		MTL::Buffer* BufferPtr = NS::TransferPtr(Device.GetDevice()->newBuffer(AllocSize, (MTL::ResourceOptions) Options));
+		Buffer = FMetalBufferPtr(new FMetalBuffer(BufferPtr, FMetalBuffer::FreePolicy::Owner));
 		
 		#if STATS || ENABLE_LOW_LEVEL_MEM_TRACKER
 			MetalLLM::LogAllocBuffer(Buffer);
@@ -330,14 +329,13 @@ void FMetalRHIBuffer::ReleaseBuffers()
 		METAL_INC_DWORD_STAT_BY(MemFreed, Buffer->GetLength(), GetUsage());
 		Device.ReleaseBuffer(Buffer);
 	}
-}
+} 
 
 void FMetalRHIBuffer::AllocTransferBuffer(bool bOnRHIThread, uint32 InSize, EResourceLockMode LockMode)
 {
 	check(!TransferBuffer);
-	FMetalPooledBufferArgs ArgsCPU(Device.GetDevice(), InSize, BUF_Dynamic, MTL::StorageModeShared);
+	FMetalPooledBufferArgs ArgsCPU(&Device, InSize, BUF_Dynamic, MTL::StorageModeShared);
 	TransferBuffer = Device.CreatePooledBuffer(ArgsCPU);
-	TransferBuffer->SetOwner(nullptr, false);
 	check(TransferBuffer);
 	METAL_INC_DWORD_STAT_BY(MemAlloc, InSize, GetUsage());
 	METAL_FATAL_ASSERT(TransferBuffer, TEXT("Failed to create buffer of size %u and storage mode %u"), InSize, (uint32)MTL::StorageModeShared);
@@ -451,7 +449,7 @@ void* FMetalRHIBuffer::Lock(bool bIsOnRHIThread, EResourceLockMode InLockMode, u
 			FMetalRHICommandContext& Context = FMetalRHICommandContext::Get(RHICmdList);
 			
 			// Synchronise the buffer with the CPU
-			Context.SynchronizeResource(GetCurrentBuffer()->GetMTLBuffer().get());
+			Context.SynchronizeResource(GetCurrentBuffer()->GetMTLBuffer());
 			
 			//kick the current command buffer.
 			RHICmdList.SubmitAndBlockUntilGPUIdle();
@@ -513,7 +511,7 @@ void FMetalRHIBuffer::Unlock(FRHICommandListBase& RHICmdList)
 				UploadContext.EnqueueFunction([&InDevice=Device, Size=LockSize, Dest=CurrentBuffer, InTransferBuffer=TransferBuffer](FMetalRHICommandContext* Context)
 				{
 					Context->CopyFromBufferToBuffer(InTransferBuffer, 0, Dest, 0, Size);
-                    InDevice.ReleaseBuffer(InTransferBuffer);
+					InDevice.ReleaseBuffer(InTransferBuffer);
 				});
 				
 				TransferBuffer = nullptr;
@@ -668,7 +666,7 @@ void* FMetalDynamicRHI::RHILockBuffer(class FRHICommandListBase& RHICmdList, FRH
 			
 			if(Buffer->RequiresTransferBuffer())
 			{
-				FMetalBufferPtr TempBuffer = Device->GetTransferAllocator()->Allocate(SizeRHI);
+				FMetalBufferPtr TempBuffer = Device->GetResourceHeap().CreateBuffer(SizeRHI, BufferBackedLinearTextureOffsetAlignment, BUF_Dynamic, MTL::ResourceCPUCacheModeDefaultCache | MTL::ResourceStorageModeShared, true);
 				
 				Result = (uint8*) TempBuffer->Contents();
 				

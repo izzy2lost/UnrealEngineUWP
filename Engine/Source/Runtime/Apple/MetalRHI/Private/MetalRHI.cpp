@@ -408,8 +408,13 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 		GRHISupportsWaveOperations = true;
 		GRHIMinimumWaveSize = 32;
 		GRHIMaximumWaveSize = 32;
-
-		bSupportsSM6 = !GRHIAdapterName.Contains("M1");
+		
+		// Only MacOS 15.0+ can use SM6 with MSC
+		if (@available(macOS 15.0, *))
+		{
+			bSupportsSM6 = !GRHIAdapterName.Contains("M1");
+		}
+		
         if(bSupportsSM6)
         {
             // Int64 atomic support was introduced with M2 devices.
@@ -1412,7 +1417,7 @@ void FMetalDynamicRHI::RHIFlushResources()
 {
     MTL_SCOPED_AUTORELEASE_POOL;
     
-    Device->FlushFreeList(false);
+	Device->MarkForGarbageCollect();
 	Device->ClearFreeList();
 	Device->DrainHeap();
 }

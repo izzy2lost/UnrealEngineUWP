@@ -51,8 +51,9 @@ class FMetalDevice;
 namespace MetalLLM
 {
 	void LogAllocTexture(FMetalDevice& Device, MTL::TextureDescriptor* Desc, MTL::Texture* Texture);
+	void LogAllocBuffer(FMetalBuffer* Buffer);
 	void LogAllocBuffer(FMetalBufferPtr Buffer);
-    void LogAllocBufferNative(MTLBufferPtr Buffer);
+    void LogAllocBufferNative(MTL::Buffer* Buffer);
 	void LogAllocHeap(MTL::Heap* Heap);
 	
 	void LogAliasTexture(MTL::Texture* Texture);

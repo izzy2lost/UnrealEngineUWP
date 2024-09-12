@@ -117,7 +117,7 @@ static void SetUniformBufferInternal(FMetalStateCache& StateCache, FMetalShaderD
 #endif
         {
             StateCache.SetShaderBuffer(Stage, UB->BackingBuffer, nullptr,
-									   UB->BackingBuffer->GetOffset(), UB->BackingBuffer->GetLength(),
+									   0, UB->GetSize(),
 									   BufferIndex, MTL::ResourceUsageRead);
         }
     }
@@ -207,93 +207,20 @@ void FMetalRHICommandContext::RHISetComputePipelineState(FRHIComputePipelineStat
 }
 
 #if METAL_USE_METAL_SHADER_CONVERTER
-inline void IRBindBytesToEncoder(MTL::RenderCommandEncoder* Encoder, const IRRuntimeDrawParams& DrawArgs, const IRRuntimeDrawInfo& DrawInfos)
-{
-	Encoder->setVertexBytes(&DrawArgs, sizeof(IRRuntimeDrawParams), kIRArgumentBufferDrawArgumentsBindPoint);
-	Encoder->setVertexBytes(&DrawInfos, sizeof(IRRuntimeDrawInfo), kIRArgumentBufferUniformsBindPoint);
-}
-
-static void IRBindIndexedDrawArguments(MTL::RenderCommandEncoder* Encoder, MTL::PrimitiveType PrimitiveType, uint32 NumIndices, uint32 NumInstances, uint32 BaseIndexLocation, int32 BaseVertexIndex, uint32 BaseInstanceIndex, const FMetalBufferPtr IndexBuffer, MTL::IndexType IndexType, FMetalStateCache& State)
-{
-	IRRuntimeDrawParams DrawParams;
-	IRRuntimeDrawIndexedArgument& DrawArgs = DrawParams.drawIndexed;
-	DrawArgs = { 0 };
-	DrawArgs.indexCountPerInstance = NumIndices;
-	DrawArgs.instanceCount = NumInstances;
-	DrawArgs.startIndexLocation = BaseIndexLocation;
-	DrawArgs.baseVertexLocation = BaseVertexIndex;
-	DrawArgs.startInstanceLocation = BaseInstanceIndex;
-
-	IRRuntimeDrawInfo DrawInfos = { 0 };
-	DrawInfos.primitiveTopology = static_cast<uint8_t>(PrimitiveType);
-	DrawInfos.indexType = static_cast<uint16_t>(IndexType);
-	DrawInfos.indexBuffer = IndexBuffer->GetGPUAddress();
-
-	// TODO: Could we improve this? (e.g. cache the mapped resources to avoid blindly remapping the index buffer?)
-	Encoder->useResource(IndexBuffer->GetMTLBuffer().get(), MTL::ResourceUsageRead);
-
-	IRBindBytesToEncoder(Encoder, DrawParams, DrawInfos);
-	State.IRMapVertexBuffers(Encoder);
-}
-
-static void IRBindDrawArguments(MTL::RenderCommandEncoder* Encoder, MTL::PrimitiveType PrimitiveType, uint32 NumVertices, uint32 NumInstances, uint32 BaseVertexIndex, uint32 BaseInstanceIndex, FMetalStateCache& State)
-{
-	IRRuntimeDrawParams DrawParams;
-	IRRuntimeDrawArgument& DrawArgs = DrawParams.draw;
-	DrawArgs = { 0 };
-	DrawArgs.vertexCountPerInstance = NumVertices;
-	DrawArgs.instanceCount = NumInstances;
-	DrawArgs.startVertexLocation = BaseVertexIndex;
-	DrawArgs.startInstanceLocation = BaseInstanceIndex;
-
-	IRRuntimeDrawInfo DrawInfos = { 0 };
-	DrawInfos.primitiveTopology = static_cast<uint8_t>(PrimitiveType);
-
-	IRBindBytesToEncoder(Encoder, DrawParams, DrawInfos);
-	State.IRMapVertexBuffers(Encoder);
-}
-
-static void IRBindIndirectDrawArguments(MTL::RenderCommandEncoder* Encoder, MTL::PrimitiveType PrimitiveType, FMetalBufferPtr TheBackingBuffer, const uint32 ArgumentOffset, FMetalStateCache& State)
-{
-	IRRuntimeDrawInfo DrawInfos = { 0 };
-	DrawInfos.primitiveTopology = static_cast<uint8_t>(PrimitiveType);
-	
-	Encoder->useResource(TheBackingBuffer->GetMTLBuffer().get(), MTL::ResourceUsageRead);
-	
-	Encoder->setVertexBuffer(TheBackingBuffer->GetMTLBuffer().get(), TheBackingBuffer->GetOffset() + ArgumentOffset, kIRArgumentBufferDrawArgumentsBindPoint);
-	Encoder->setVertexBytes(&DrawInfos, sizeof(IRRuntimeDrawInfo), kIRArgumentBufferUniformsBindPoint);
-	
-	State.IRMapVertexBuffers(Encoder);
-}
-
-static void IRBindIndirectIndexedDrawArguments(MTL::RenderCommandEncoder* Encoder, MTL::PrimitiveType PrimitiveType, FMetalBufferPtr TheBackingBuffer, FMetalBufferPtr TheBackingIndexBuffer, MTL::IndexType IndexType, const uint32 ArgumentOffset, FMetalStateCache& State)
-{
-	IRRuntimeDrawInfo DrawInfos = { 0 };
-	DrawInfos.primitiveTopology = static_cast<uint8_t>(PrimitiveType);
-	DrawInfos.indexType = static_cast<uint16_t>(IndexType);
-	DrawInfos.indexBuffer = TheBackingIndexBuffer->GetGPUAddress();
-	
-	Encoder->useResource(TheBackingBuffer->GetMTLBuffer().get(), MTL::ResourceUsageRead);
-	Encoder->useResource(TheBackingIndexBuffer->GetMTLBuffer().get(), MTL::ResourceUsageRead);
-	
-	Encoder->setVertexBuffer(TheBackingBuffer->GetMTLBuffer().get(), TheBackingBuffer->GetOffset() + ArgumentOffset, kIRArgumentBufferDrawArgumentsBindPoint);
-	Encoder->setVertexBytes(&DrawInfos, sizeof(IRRuntimeDrawInfo), kIRArgumentBufferUniformsBindPoint);
-	
-	State.IRMapVertexBuffers(Encoder);
-}
 
 #if PLATFORM_SUPPORTS_MESH_SHADERS
+
 static void IRBindIndirectMeshDrawArguments(MTL::RenderCommandEncoder* Encoder, MTL::PrimitiveType PrimitiveType, FMetalBufferPtr TheBackingBuffer, const uint32 ArgumentOffset, FMetalStateCache& State)
 {
 	IRRuntimeDrawInfo DrawInfos = { 0 };
 	DrawInfos.primitiveTopology = static_cast<uint8_t>(PrimitiveType);
 	
-	Encoder->useResource(TheBackingBuffer->GetMTLBuffer().get(), MTL::ResourceUsageRead);
+	Encoder->useResource(TheBackingBuffer->GetMTLBuffer(), MTL::ResourceUsageRead);
 	
-	Encoder->setMeshBuffer(TheBackingBuffer->GetMTLBuffer().get(), TheBackingBuffer->GetOffset() + ArgumentOffset, kIRArgumentBufferDrawArgumentsBindPoint);
+	Encoder->setMeshBuffer(TheBackingBuffer->GetMTLBuffer(), TheBackingBuffer->GetOffset() + ArgumentOffset, kIRArgumentBufferDrawArgumentsBindPoint);
 	Encoder->setMeshBytes(&DrawInfos, sizeof(IRRuntimeDrawInfo), kIRArgumentBufferUniformsBindPoint);
 	
-	Encoder->setObjectBuffer(TheBackingBuffer->GetMTLBuffer().get(), TheBackingBuffer->GetOffset() + ArgumentOffset, kIRArgumentBufferDrawArgumentsBindPoint);
+	Encoder->setObjectBuffer(TheBackingBuffer->GetMTLBuffer(), TheBackingBuffer->GetOffset() + ArgumentOffset, kIRArgumentBufferDrawArgumentsBindPoint);
 	Encoder->setObjectBytes(&DrawInfos, sizeof(IRRuntimeDrawInfo), kIRArgumentBufferUniformsBindPoint);
 	
 	State.IRMapVertexBuffers(Encoder, true);
@@ -414,8 +341,8 @@ void FMetalRHICommandContext::RHIDispatchIndirectComputeShader(FRHIBuffer* Argum
 			MTL::Size ThreadgroupCounts = MTL::Size(ComputeShader->NumThreadsX, ComputeShader->NumThreadsY, ComputeShader->NumThreadsZ);
 			check(ComputeShader->NumThreadsX > 0 && ComputeShader->NumThreadsY > 0 && ComputeShader->NumThreadsZ > 0);
 
-			CurrentEncoder.GetComputeCommandEncoder()->dispatchThreadgroups(VertexBuffer->GetCurrentBuffer()->GetMTLBuffer().get(),
-																			VertexBuffer->GetCurrentBuffer()->GetOffset() + ArgumentOffset, ThreadgroupCounts);
+			CurrentEncoder.GetComputeCommandEncoder()->dispatchThreadgroups(VertexBuffer->GetCurrentBuffer()->GetMTLBuffer(),
+																	VertexBuffer->GetCurrentBuffer()->GetOffset() + ArgumentOffset, ThreadgroupCounts);
 			
 			EndComputeEncoder();
 		}
@@ -695,7 +622,6 @@ static void SetShaderParameters(
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
     if(IsMetalBindlessEnabled())
     {
-        Binder.StateCache.IRForwardBindlessParameters(Binder.Stage, InResourceParameters);
         Binder.StateCache.IRForwardBindlessParameters(Binder.Stage, InBindlessParameters);
     }
 #endif
@@ -1025,12 +951,15 @@ void FMetalRHICommandContext::RHIDrawPrimitive(uint32 BaseVertexIndex, uint32 Nu
 #if METAL_USE_METAL_SHADER_CONVERTER
 	if(IsMetalBindlessEnabled())
 	{
-		IRBindDrawArguments(CurrentEncoder.GetRenderCommandEncoder(), TranslatePrimitiveType(PrimitiveType), NumVertices, NumInstances, BaseVertexIndex, 0, StateCache);
+		StateCache.IRMapVertexBuffers(CurrentEncoder.GetRenderCommandEncoder());
+		IRRuntimeDrawPrimitives(CurrentEncoder.GetRenderCommandEncoder(), TranslatePrimitiveType(PrimitiveType), BaseVertexIndex, NumVertices, NumInstances, 0);
 	}
+	else
 #endif
-	
-	METAL_GPUPROFILE(FMetalProfiler::GetProfiler()->EncodeDraw(CurrentEncoder.GetCommandBufferStats(), __FUNCTION__, NumPrimitives, NumVertices, NumInstances));
-	CurrentEncoder.GetRenderCommandEncoder()->drawPrimitives(TranslatePrimitiveType(PrimitiveType), BaseVertexIndex, NumVertices, NumInstances);
+	{
+		METAL_GPUPROFILE(FMetalProfiler::GetProfiler()->EncodeDraw(CurrentEncoder.GetCommandBufferStats(), __FUNCTION__, NumPrimitives, NumVertices, NumInstances));
+		CurrentEncoder.GetRenderCommandEncoder()->drawPrimitives(TranslatePrimitiveType(PrimitiveType), BaseVertexIndex, NumVertices, NumInstances);
+	}
 }
 
 void FMetalRHICommandContext::RHIDrawPrimitiveIndirect(FRHIBuffer* ArgumentBufferRHI, uint32 ArgumentOffset)
@@ -1056,17 +985,21 @@ void FMetalRHICommandContext::RHIDrawPrimitiveIndirect(FRHIBuffer* ArgumentBuffe
 #if METAL_USE_METAL_SHADER_CONVERTER
 		if(IsMetalBindlessEnabled())
 		{
-			// TODO: Carl - Remove this when API validation is fixed
-			// Binding to uniforms bind point to work around error in API validation
-			CurrentEncoder.GetRenderCommandEncoder()->setVertexBuffer(TheBackingBuffer->GetMTLBuffer().get(), TheBackingBuffer->GetOffset() + ArgumentOffset, kIRArgumentBufferUniformsBindPoint);
-			CurrentEncoder.GetRenderCommandEncoder()->setVertexBuffer(TheBackingBuffer->GetMTLBuffer().get(), TheBackingBuffer->GetOffset() + ArgumentOffset, kIRArgumentBufferDrawArgumentsBindPoint);
+			uint32 NullBuffer = 0x0;
+			CurrentEncoder.GetRenderCommandEncoder()->setVertexBytes(&NullBuffer, sizeof(uint32), kIRArgumentBufferUniformsBindPoint);
+			CurrentEncoder.GetRenderCommandEncoder()->useResource(TheBackingBuffer->GetMTLBuffer(), MTL::ResourceUsageRead);
+			
+			StateCache.IRMapVertexBuffers(CurrentEncoder.GetRenderCommandEncoder());
+			IRRuntimeDrawPrimitives(CurrentEncoder.GetRenderCommandEncoder(), TranslatePrimitiveType(PrimitiveType), TheBackingBuffer->GetMTLBuffer(), TheBackingBuffer->GetOffset() + ArgumentOffset);		
 		}
+		else
 #endif
-		
-		METAL_GPUPROFILE(FMetalProfiler::GetProfiler()->EncodeDraw(CurrentEncoder.GetCommandBufferStats(), __FUNCTION__, 1, 1, 1));
-		CurrentEncoder.GetRenderCommandEncoder()->drawPrimitives(TranslatePrimitiveType(PrimitiveType),
-																 TheBackingBuffer->GetMTLBuffer().get(), TheBackingBuffer->GetOffset() + ArgumentOffset);
-    }
+		{
+			METAL_GPUPROFILE(FMetalProfiler::GetProfiler()->EncodeDraw(CurrentEncoder.GetCommandBufferStats(), __FUNCTION__, 1, 1, 1));
+			CurrentEncoder.GetRenderCommandEncoder()->drawPrimitives(TranslatePrimitiveType(PrimitiveType),
+																	 TheBackingBuffer->GetMTLBuffer(), TheBackingBuffer->GetOffset() + ArgumentOffset);
+		}
+	}
     else
     {
         NOT_SUPPORTED("RHIDrawPrimitiveIndirect");
@@ -1107,7 +1040,7 @@ void FMetalRHICommandContext::RHIDispatchIndirectMeshShader(FRHIBuffer* Argument
 	
 	// TODO: Cache this at RHI init time?
 	const uint32 MSThreadGroupSize = FDataDrivenShaderPlatformInfo::GetMaxMeshShaderThreadGroupSize(GMaxRHIShaderPlatform);
-	CurrentEncoder.GetRenderCommandEncoder()->drawMeshThreadgroups(TheBackingBuffer->GetMTLBuffer().get(),
+	CurrentEncoder.GetRenderCommandEncoder()->drawMeshThreadgroups(TheBackingBuffer->GetMTLBuffer(),
 																ArgumentOffset,
 																MTL::Size::Make(MSThreadGroupSize, 1, 1),
 																MTL::Size::Make(MSThreadGroupSize, 1, 1));
@@ -1190,29 +1123,37 @@ void FMetalRHICommandContext::RHIDrawIndexedPrimitive(FRHIBuffer* IndexBufferRHI
 #if METAL_USE_METAL_SHADER_CONVERTER
 	if(IsMetalBindlessEnabled())
 	{
-		uint32 BaseIndexLocation = (StartIndex * IndexStride);
+		FMetalBufferPtr IndexBufferPtr = IndexBuffer->GetCurrentBuffer();
+		uint32 BaseIndexLocation = IndexBufferPtr->GetOffset() + (StartIndex * IndexStride);
 		MTL::IndexType IndexType = ((IndexStride == 2) ? MTL::IndexTypeUInt16 : MTL::IndexTypeUInt32);
 		
-		IRBindIndexedDrawArguments(CurrentEncoder.GetRenderCommandEncoder(), TranslatePrimitiveType(PrimitiveType), NumIndices, NumInstances, BaseIndexLocation, BaseVertexIndex, FirstInstance, IndexBuffer->GetCurrentBuffer(), IndexType, StateCache);
-	}
-#endif
-
-	FMetalBufferPtr IndexBufferPtr = IndexBuffer->GetCurrentBuffer();
+		StateCache.IRMapVertexBuffers(CurrentEncoder.GetRenderCommandEncoder());
 	
-	METAL_GPUPROFILE(FMetalProfiler::GetProfiler()->EncodeDraw(CurrentEncoder.GetCommandBufferStats(), __FUNCTION__, NumPrimitives, NumVertices, NumInstances));
-	if (GRHISupportsBaseVertexIndex && GRHISupportsFirstInstance)
-	{
-		CurrentEncoder.GetRenderCommandEncoder()->drawIndexedPrimitives(TranslatePrimitiveType(PrimitiveType), NumIndices,
-																		((IndexStride == 2) ? MTL::IndexTypeUInt16 : MTL::IndexTypeUInt32),
-																		IndexBufferPtr->GetMTLBuffer().get(), IndexBufferPtr->GetOffset() + (StartIndex * IndexStride),
-																		NumInstances, BaseVertexIndex, FirstInstance);
+		CurrentEncoder.GetRenderCommandEncoder()->useResource(IndexBufferPtr->GetMTLBuffer(), MTL::ResourceUsageRead);
+		
+		IRRuntimeDrawIndexedPrimitives(CurrentEncoder.GetRenderCommandEncoder(), TranslatePrimitiveType(PrimitiveType), NumIndices, IndexType, IndexBufferPtr->GetMTLBuffer(), BaseIndexLocation, NumInstances, BaseVertexIndex, FirstInstance);
 	}
 	else
+#endif
 	{
-		CurrentEncoder.GetRenderCommandEncoder()->drawIndexedPrimitives(TranslatePrimitiveType(PrimitiveType), NumIndices,
-																		((IndexStride == 2) ? MTL::IndexTypeUInt16 : MTL::IndexTypeUInt32),
-																		IndexBufferPtr->GetMTLBuffer().get(), IndexBufferPtr->GetOffset() + (StartIndex * IndexStride),
-																		NumInstances);
+		FMetalBufferPtr IndexBufferPtr = IndexBuffer->GetCurrentBuffer();
+		
+		METAL_GPUPROFILE(FMetalProfiler::GetProfiler()->EncodeDraw(CurrentEncoder.GetCommandBufferStats(), __FUNCTION__, NumPrimitives, NumVertices, NumInstances));
+		if (GRHISupportsBaseVertexIndex && GRHISupportsFirstInstance)
+		{
+			CurrentEncoder.GetRenderCommandEncoder()->drawIndexedPrimitives(TranslatePrimitiveType(PrimitiveType), NumIndices,
+																			((IndexStride == 2) ? MTL::IndexTypeUInt16 : MTL::IndexTypeUInt32),
+																			IndexBufferPtr->GetMTLBuffer(), IndexBufferPtr->GetOffset() + (StartIndex * IndexStride),
+																			NumInstances, BaseVertexIndex, FirstInstance);
+		}
+		else
+		{
+			CurrentEncoder.GetRenderCommandEncoder()->drawIndexedPrimitives(TranslatePrimitiveType(PrimitiveType),
+																			NumIndices,
+																			((IndexStride == 2) ? MTL::IndexTypeUInt16 : MTL::IndexTypeUInt32),
+																			IndexBufferPtr->GetMTLBuffer(), IndexBufferPtr->GetOffset() + (StartIndex * IndexStride),
+																			NumInstances);
+		}
 	}
 }
 
@@ -1248,16 +1189,35 @@ void FMetalRHICommandContext::RHIDrawIndexedIndirect(FRHIBuffer* IndexBufferRHI,
 		
 #if METAL_USE_METAL_SHADER_CONVERTER
 		if(IsMetalBindlessEnabled())
-		{
-			IRBindIndirectIndexedDrawArguments(CurrentEncoder.GetRenderCommandEncoder(), TranslatePrimitiveType(PrimitiveType), TheBackingBuffer, TheBackingIndexBuffer, IndexBuffer->GetIndexType(), (DrawArgumentsIndex * 5 * sizeof(uint32)), StateCache);
+		{			
+			// TODO: Carl - Remove this when API validation is fixed
+			// Binding to uniforms bind point to work around error in API validation
+			uint32 NullBuffer = 0x0;
+			CurrentEncoder.GetRenderCommandEncoder()->setVertexBytes(&NullBuffer, sizeof(uint32), kIRArgumentBufferUniformsBindPoint);
+			
+			StateCache.IRMapVertexBuffers(CurrentEncoder.GetRenderCommandEncoder());
+			CurrentEncoder.GetRenderCommandEncoder()->useResource(TheBackingBuffer->GetMTLBuffer(), MTL::ResourceUsageRead);
+			CurrentEncoder.GetRenderCommandEncoder()->useResource(TheBackingIndexBuffer->GetMTLBuffer(), MTL::ResourceUsageRead);
+			IRRuntimeDrawIndexedPrimitives(CurrentEncoder.GetRenderCommandEncoder(),
+										   TranslatePrimitiveType(PrimitiveType),
+										   IndexBuffer->GetIndexType(),
+										   TheBackingIndexBuffer->GetMTLBuffer(),
+										   TheBackingIndexBuffer->GetOffset(),
+										   TheBackingBuffer->GetMTLBuffer(),
+										   TheBackingBuffer->GetOffset() + (DrawArgumentsIndex * 5 * sizeof(uint32)));
 		}
+		else
 #endif
-
-		METAL_GPUPROFILE(FMetalProfiler::GetProfiler()->EncodeDraw(CurrentEncoder.GetCommandBufferStats(), __FUNCTION__, 1, 1, 1));
-		
-		CurrentEncoder.GetRenderCommandEncoder()->drawIndexedPrimitives(TranslatePrimitiveType(PrimitiveType),
-																		IndexBuffer->GetIndexType(), TheBackingIndexBuffer->GetMTLBuffer().get(), TheBackingIndexBuffer->GetOffset(),
-																		TheBackingBuffer->GetMTLBuffer().get(), TheBackingBuffer->GetOffset() + (DrawArgumentsIndex * 5 * sizeof(uint32)));
+		{
+			METAL_GPUPROFILE(FMetalProfiler::GetProfiler()->EncodeDraw(CurrentEncoder.GetCommandBufferStats(), __FUNCTION__, 1, 1, 1));
+			
+			CurrentEncoder.GetRenderCommandEncoder()->drawIndexedPrimitives(TranslatePrimitiveType(PrimitiveType),
+																			IndexBuffer->GetIndexType(), 
+																			TheBackingIndexBuffer->GetMTLBuffer(), 
+																			TheBackingIndexBuffer->GetOffset(),
+																			TheBackingBuffer->GetMTLBuffer(), 
+																			TheBackingBuffer->GetOffset() + (DrawArgumentsIndex * 5 * sizeof(uint32)));
+		}
 	}
 	else
 	{
@@ -1297,14 +1257,28 @@ void FMetalRHICommandContext::RHIDrawIndexedPrimitiveIndirect(FRHIBuffer* IndexB
 #if METAL_USE_METAL_SHADER_CONVERTER
 		if(IsMetalBindlessEnabled())
 		{
-			IRBindIndirectIndexedDrawArguments(CurrentEncoder.GetRenderCommandEncoder(), TranslatePrimitiveType(PrimitiveType), TheBackingBuffer, TheBackingIndexBuffer, IndexBuffer->GetIndexType(), ArgumentOffset, StateCache);
+			// TODO: Carl - Remove this when API validation is fixed
+			// Binding to uniforms bind point to work around error in API validation
+			uint32 NullBuffer = 0x0;
+			CurrentEncoder.GetRenderCommandEncoder()->setVertexBytes(&NullBuffer, sizeof(uint32), kIRArgumentBufferUniformsBindPoint);
+			
+			StateCache.IRMapVertexBuffers(CurrentEncoder.GetRenderCommandEncoder());
+			
+			CurrentEncoder.GetRenderCommandEncoder()->useResource(TheBackingBuffer->GetMTLBuffer(), MTL::ResourceUsageRead);
+			CurrentEncoder.GetRenderCommandEncoder()->useResource(TheBackingIndexBuffer->GetMTLBuffer(), MTL::ResourceUsageRead);
+			
+			IRRuntimeDrawIndexedPrimitives(CurrentEncoder.GetRenderCommandEncoder(), TranslatePrimitiveType(PrimitiveType), IndexBuffer->GetIndexType(), TheBackingIndexBuffer->GetMTLBuffer(), TheBackingIndexBuffer->GetOffset(), TheBackingBuffer->GetMTLBuffer(), TheBackingBuffer->GetOffset() + ArgumentOffset);
 		}
+		else
 #endif
-
-		METAL_GPUPROFILE(FMetalProfiler::GetProfiler()->EncodeDraw(CurrentEncoder.GetCommandBufferStats(), __FUNCTION__, 1, 1, 1));
-		CurrentEncoder.GetRenderCommandEncoder()->drawIndexedPrimitives(TranslatePrimitiveType(PrimitiveType), IndexBuffer->GetIndexType(),
-																		TheBackingIndexBuffer->GetMTLBuffer().get(), TheBackingIndexBuffer->GetOffset(),
-																		TheBackingBuffer->GetMTLBuffer().get(), TheBackingBuffer->GetOffset() + ArgumentOffset);
+		{
+			METAL_GPUPROFILE(FMetalProfiler::GetProfiler()->EncodeDraw(CurrentEncoder.GetCommandBufferStats(), __FUNCTION__, 1, 1, 1));
+			CurrentEncoder.GetRenderCommandEncoder()->drawIndexedPrimitives(TranslatePrimitiveType(PrimitiveType), 															IndexBuffer->GetIndexType(),
+																			TheBackingIndexBuffer->GetMTLBuffer(),
+																			TheBackingIndexBuffer->GetOffset(),
+																			TheBackingBuffer->GetMTLBuffer(), 
+																			TheBackingBuffer->GetOffset() + ArgumentOffset);
+		}
 	}
 	else
 	{

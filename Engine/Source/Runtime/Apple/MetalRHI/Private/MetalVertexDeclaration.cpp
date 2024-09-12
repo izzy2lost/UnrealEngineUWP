@@ -131,32 +131,67 @@ bool FMetalVertexDeclaration::GetInitializer(FVertexDeclarationElementList& Init
 void FMetalVertexDeclaration::GenerateLayout(const FVertexDeclarationElementList& InElements)
 {
 #if METAL_USE_METAL_SHADER_CONVERTER
+	typedef TArray<IRInputElementDescriptor1, TFixedAllocator<MaxVertexElementCount> > FMetalVertexElements;
+	
 	if(IsMetalBindlessEnabled())
 	{
-		InputDescriptor.version = IRInputLayoutDescriptorVersion_1;
-		InputDescriptor.desc_1_0.numElements = InElements.Num();
+		BaseHash = 0;
+		uint32 StrideHash = BaseHash;
 		
+		FMetalVertexElements VertexElements;
 		for (uint32 ElementIndex = 0; ElementIndex < InElements.Num(); ElementIndex++)
 		{
 			const FVertexElement& Element = InElements[ElementIndex];
+
+			IRInputElementDescriptor1 Descriptor = {0};
+			Descriptor.inputSlot = Element.StreamIndex;
+			Descriptor.alignedByteOffset = Element.Offset;
+			Descriptor.format = TranslateElementTypeToIRType(Element.Type);
+			Descriptor.semanticIndex = Element.AttributeIndex;
+			Descriptor.inputSlotClass = Element.bUseInstanceIndex ? IRInputClassificationPerInstanceData : IRInputClassificationPerVertexData;
+			Descriptor.instanceDataStepRate = Element.bUseInstanceIndex ? 1 : 0;
 			
-			// Copy/Paste from D3D11VertexDeclaration.cpp
-			InputDescriptor.desc_1_0.inputElementDescs[ElementIndex] = {0};
-			InputDescriptor.desc_1_0.inputElementDescs[ElementIndex].inputSlot = Element.StreamIndex;
-			InputDescriptor.desc_1_0.inputElementDescs[ElementIndex].alignedByteOffset = Element.Offset;
-			InputDescriptor.desc_1_0.inputElementDescs[ElementIndex].format = TranslateElementTypeToIRType(Element.Type);
-			InputDescriptor.desc_1_0.inputElementDescs[ElementIndex].semanticIndex = Element.AttributeIndex;
-			InputDescriptor.desc_1_0.inputElementDescs[ElementIndex].inputSlotClass = Element.bUseInstanceIndex ? IRInputClassificationPerInstanceData : IRInputClassificationPerVertexData;
-			InputDescriptor.desc_1_0.inputElementDescs[ElementIndex].instanceDataStepRate = Element.bUseInstanceIndex ? 1 : 0;
-			
-			InputDescriptor.desc_1_0.semanticNames[ElementIndex] = "ATTRIBUTE";
-			
-			uint32* ExistingStride = InputDescriptorBufferStrides.Find(Element.StreamIndex);
-			if (ExistingStride == NULL)
-			{
-				InputDescriptorBufferStrides.Add(Element.StreamIndex, Element.Stride);
-			}
+			VertexElements.Add(Descriptor);
+			BaseHash = FCrc::MemCrc32(&Element.StreamIndex, sizeof(Element.StreamIndex), BaseHash);
+			BaseHash = FCrc::MemCrc32(&Element.Offset, sizeof(Element.Offset), BaseHash);
+			BaseHash = FCrc::MemCrc32(&Element.Type, sizeof(Element.Type), BaseHash);
+			BaseHash = FCrc::MemCrc32(&Element.AttributeIndex, sizeof(Element.AttributeIndex), BaseHash);
+		
+			uint32 Stride = Element.Stride;
+			StrideHash = FCrc::MemCrc32(&Stride, sizeof(Stride), StrideHash);
+			checkSlow(InputDescriptorBufferStrides[Element.StreamIndex] != 0);
+			InputDescriptorBufferStrides[Element.StreamIndex] = Element.Stride;
 		}
+			
+		// Sort by stream then offset.
+		struct FCompareDesc
+		{
+			FORCEINLINE bool operator()(const IRInputElementDescriptor1& A, const IRInputElementDescriptor1 &B) const
+			{
+				if (A.inputSlot != B.inputSlot)
+				{
+					return A.inputSlot < B.inputSlot;
+				}
+				if (A.alignedByteOffset != B.alignedByteOffset)
+				{
+					return A.alignedByteOffset < B.alignedByteOffset;
+				}
+				return A.semanticIndex < B.semanticIndex;
+			}
+		};
+		
+		Algo::Sort(VertexElements, FCompareDesc());
+		InputDescriptor.version = IRInputLayoutDescriptorVersion_1;
+		InputDescriptor.desc_1_0.numElements = VertexElements.Num();
+		
+		// Assign all the SemanticName after hashing. It's a constant string, always the same, so no need to hash the data.
+		for (int32 ElementIndex = 0; ElementIndex < VertexElements.Num(); ElementIndex++)
+		{
+			InputDescriptor.desc_1_0.inputElementDescs[ElementIndex] = VertexElements[ElementIndex];
+			InputDescriptor.desc_1_0.semanticNames[ElementIndex] = "ATTRIBUTE";
+		}
+		
+		Layout = FMetalHashedVertexDescriptor(InputDescriptor, HashCombine(BaseHash, StrideHash));
 	}
 	else
 #endif

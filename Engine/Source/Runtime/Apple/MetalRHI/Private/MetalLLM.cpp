@@ -210,21 +210,25 @@ void MetalLLM::LogAllocTexture(FMetalDevice& Device, MTL::TextureDescriptor* Des
 	}
 }
 
-void MetalLLM::LogAllocBuffer(FMetalBufferPtr Buffer)
+void MetalLLM::LogAllocBuffer(FMetalBuffer* Buffer)
 {
-	void* Ptr = (void*)Buffer.Get();
+	void* Ptr = (void*)Buffer;
 	uint64 Size = Buffer->GetLength();
 	
 	INC_MEMORY_STAT_BY(STAT_MetalBufferMemory, Size);
 	INC_DWORD_STAT(STAT_MetalBufferCount);
 	
 	LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Platform, Ptr, Size, ELLMTag::Untagged, ELLMAllocType::System));
-    Buffer->MarkAllocated();
 }
 
-void MetalLLM::LogAllocBufferNative(MTLBufferPtr Buffer)
+void MetalLLM::LogAllocBuffer(FMetalBufferPtr Buffer)
 {
-    void* Ptr = (void*)Buffer.get();
+	LogAllocBuffer(Buffer.Get());
+}
+
+void MetalLLM::LogAllocBufferNative(MTL::Buffer* Buffer)
+{
+    void* Ptr = (void*)Buffer;
     uint64 Size = Buffer->length();
     
     INC_MEMORY_STAT_BY(STAT_MetalBufferMemory, Size);
@@ -235,7 +239,7 @@ void MetalLLM::LogAllocBufferNative(MTLBufferPtr Buffer)
     {
         LLM_SCOPED_PAUSE_TRACKING(ELLMAllocType::System);
         
-        objc_setAssociatedObject((__bridge id<MTLBuffer>)Buffer.get(), (void*)&MetalLLM::LogAllocBufferNative,
+        objc_setAssociatedObject((__bridge id<MTLBuffer>)Buffer, (void*)&MetalLLM::LogAllocBufferNative,
         [[[FMetalDeallocHandler alloc] initWithBlock:^{
             LLM_PLATFORM_SCOPE_METAL(ELLMTagMetal::Buffers);
             

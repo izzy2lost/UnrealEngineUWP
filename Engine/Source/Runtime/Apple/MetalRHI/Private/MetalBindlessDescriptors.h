@@ -76,8 +76,6 @@ public:
 
     void                    BindDescriptorHeapsToEncoder(FMetalCommandEncoder* Encoder, MTL::FunctionType FunctionType, EMetalShaderStages Frequency);
 
-    void                    MakeResident(FRHIDescriptorHandle DescriptorHandle, MTL::Resource* Resource, MTL::ResourceUsage Usage, EMetalShaderStages Frequency);
-
 	bool					IsSupported() {return bIsSupported;}
     
 	void 					UpdateDescriptorsWithGPU(FMetalRHICommandContext* Context);
@@ -92,8 +90,6 @@ private:
     FMetalDescriptorHeap    SamplerResources;
 
     FCriticalSection        ComputeDescriptorCS;
-    
-    TArray<TTuple<MTL::Resource*, MTL::ResourceUsage>> ResidentResources[EMetalShaderStages::Num];
 };
 
 #endif

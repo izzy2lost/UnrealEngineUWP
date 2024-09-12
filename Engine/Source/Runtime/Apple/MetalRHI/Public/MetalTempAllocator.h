@@ -9,23 +9,29 @@
 
 class FMetalCommandBuffer;
 class FMetalDevice;
-
 /*
    Simple Temporary allocator that allocates from heaps
-   Resource lifetime is managed by the code allocating the buffer (recommend Device.ReleaseBuffer)c
  */
-class FMetalTempAllocator
+class FMetalTempAllocator : public IMetalBufferAllocator
 {
 public:
-	FMetalTempAllocator(FMetalDevice& InDevice, uint32_t InMinAllocationSize, uint32_t InTargetAllocationLimit);
+	FMetalTempAllocator(FMetalDevice& InDevice, uint32_t InMinAllocationSize, uint32_t InTargetAllocationLimit, uint32_t InAlignment);
 	
 	FMetalBufferPtr Allocate(const uint32_t Size);
 	void Cleanup();
     
+	virtual void ReleaseBuffer(FMetalBuffer*) override {}
+	
 private:
+	struct FTempBufferInfo
+	{
+		MTL::Buffer* Buffer;
+		uint32_t Offset;
+		uint32_t Size;
+	};
+	
 	FMetalDevice& Device;
-	TArray<MTLHeapPtr> Heaps;
-	TArray<FMetalBufferPtr> ActiveBuffers;
+	TArray<FTempBufferInfo> Buffers;
 	
 	FCriticalSection AllocatorLock;
 	
@@ -34,5 +40,6 @@ private:
 	uint32_t TotalAllocated = 0;
 	uint32_t MinAllocationSize = 0;
 	uint32_t TargetAllocationLimit = 0;
+	uint32_t Alignment;
 };
 

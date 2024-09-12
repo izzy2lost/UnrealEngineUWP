@@ -243,7 +243,7 @@ void FMetalDynamicRHI::RHIReadSurfaceData(FRHITexture* TextureRHI, FIntRect Rect
 		
 		FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 		
-		FMetalBufferPtr Buffer = Device->CreatePooledBuffer(FMetalPooledBufferArgs(Device->GetDevice(), BytesPerImage, BUF_Dynamic, MTL::StorageModeShared));
+		FMetalBufferPtr Buffer = Device->CreatePooledBuffer(FMetalPooledBufferArgs(Device, BytesPerImage, BUF_Dynamic, MTL::StorageModeShared));
 		
 		RHICmdList.EnqueueLambda([this, &Buffer, &Texture, &Region, Surface, AlignedStride, BytesPerImage, InFlags](FRHICommandListImmediate& RHICmdList)
 		{
@@ -350,7 +350,7 @@ void FMetalDynamicRHI::RHIReadSurfaceFloatData(FRHITexture* TextureRHI, FIntRect
 	const uint32 AlignedStride = ((Stride - 1) & ~(Alignment - 1)) + Alignment;
 	const uint32 BytesPerImage = AlignedStride  * SizeY;
 	int32 FloatBGRADataSize = BytesPerImage;
-	FMetalBufferPtr Buffer = Device->CreatePooledBuffer(FMetalPooledBufferArgs(Device->GetDevice(), FloatBGRADataSize, BUF_Dynamic, MTL::StorageModeShared));
+	FMetalBufferPtr Buffer = Device->CreatePooledBuffer(FMetalPooledBufferArgs(Device, FloatBGRADataSize, BUF_Dynamic, MTL::StorageModeShared));
 	{
 		// Synchronise the texture with the CPU
 		SCOPE_CYCLE_COUNTER(STAT_MetalTexturePageOffTime);
@@ -424,7 +424,7 @@ void FMetalDynamicRHI::RHIRead3DSurfaceFloatData(FRHITexture* TextureRHI,FIntRec
 	const uint32 AlignedStride = ((Stride - 1) & ~(Alignment - 1)) + Alignment;
 	const uint32 BytesPerImage = AlignedStride  * SizeY;
 	int32 FloatBGRADataSize = BytesPerImage * SizeZ;
-	FMetalBufferPtr Buffer = Device->CreatePooledBuffer(FMetalPooledBufferArgs(Device->GetDevice(), FloatBGRADataSize, BUF_Dynamic, MTL::StorageModeShared));
+	FMetalBufferPtr Buffer = Device->CreatePooledBuffer(FMetalPooledBufferArgs(Device, FloatBGRADataSize, BUF_Dynamic, MTL::StorageModeShared));
 	
 	{
 		// Synchronise the texture with the CPU

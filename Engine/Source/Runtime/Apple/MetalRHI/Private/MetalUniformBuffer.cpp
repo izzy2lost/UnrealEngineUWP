@@ -34,7 +34,6 @@ FMetalSuballocatedUniformBuffer::~FMetalSuballocatedUniformBuffer()
 {
 	if(BackingBuffer)
 	{
-		Device.ReleaseBuffer(BackingBuffer);
 		BackingBuffer = nullptr;
 	}
 	
@@ -52,12 +51,7 @@ void FMetalSuballocatedUniformBuffer::Update(const void* Contents)
 // pushes the data in Contents into that GPU backing store
 // The amount of data read from Contents is given by the Layout
 void FMetalSuballocatedUniformBuffer::PushToGPUBacking(const void* Contents)
-{
-    if(BackingBuffer)
-    {
-        Device.ReleaseBuffer(BackingBuffer);
-    }
-    
+{    
 	FMetalTempAllocator* Allocator = Device.GetUniformAllocator();
 	FMetalBufferPtr Buffer = Allocator->Allocate(GetSize());
 	// copy contents into backing

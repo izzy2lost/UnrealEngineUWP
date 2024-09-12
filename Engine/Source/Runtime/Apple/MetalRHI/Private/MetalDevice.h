@@ -119,7 +119,12 @@ public:
 	void ReleaseFence(FMetalFence* Fence);
     void ReleaseFunction(TFunction<void()>);
 	
-	void FlushFreeList(bool const bFlushFences = true);
+	void AddCommandBufferFence(TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe> Fence);
+	void MarkForGarbageCollect()
+	{
+		bPendingGarbageCollect = true;
+	};
+	
 	void ClearFreeList();
 	void DrainHeap();
 	void GarbageCollect();
@@ -170,19 +175,6 @@ public:
 		return RuntimeDebuggingLevel;
 	}
 	
-	inline void RegisterMetalHeap(MTL::Heap* InHeap)
-	{
-		FScopeLock ScopeLock(&ActiveHeapsLock);
-		ActiveHeaps.Add(InHeap);
-	}
-	
-	// TODO: Carl - Returning by copy as this is not thread safe, need to correctly mark active heaps in the render state
-	inline TArray<MTL::Heap*> GetActiveHeaps()
-	{
-		FScopeLock ScopeLock(&ActiveHeapsLock);
-		return ActiveHeaps;
-	}
-	
 	void AddInflightCommandBuffer(MTL::CommandBuffer* CmdBuffer)
 	{
 		FScopeLock Lock(&InflightCommandBufferCriticalSection);
@@ -228,6 +220,8 @@ public:
 private:
 	FMetalDevice(MTL::Device* MetalDevice, uint32 DeviceIndex);
 	
+	void FlushFreeList(bool const bFlushFences = true);
+	
 private:
 	MTL::Device* Device;
 	
@@ -252,6 +246,7 @@ private:
 	TLockFreePointerListLIFO<FMetalFence> FenceFreeList;
     TArray<TFunction<void()>> FunctionFreeList;
 	TSet<NS::Object*> ObjectFreeList;
+	
 	struct FMetalDelayedFreeList
 	{
 		bool IsComplete() const;
@@ -265,7 +260,10 @@ private:
 		int32 DeferCount;
 #endif
 	};
+	
+	TArray<TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe>> FreeListFences;
 	TArray<FMetalDelayedFreeList*> DelayedFreeLists;
+	bool bPendingGarbageCollect = false;
 	
     FMetalTempAllocator* UniformBufferAllocator;
 	FMetalTempAllocator* TransferBufferAllocator;
@@ -299,10 +297,7 @@ private:
     uint32 FrameNumberRHIThread = 0;
 
 	int32 RuntimeDebuggingLevel = 0;
-	
-	FCriticalSection               ActiveHeapsLock;
-	TArray<MTL::Heap*>             ActiveHeaps;
-	
+
 	FCriticalSection 			   InflightCommandBufferCriticalSection;
 	TArray<MTL::CommandBuffer*>	   InflightCommandBuffers;
 	

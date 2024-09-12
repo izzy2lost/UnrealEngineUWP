@@ -116,10 +116,7 @@ FMetalCommandBuffer* FMetalCommandQueue::CreateCommandBuffer(void)
     CmdBufferDesc->release();
                                                            
     FMetalCommandBuffer* CommandBuffer = new FMetalCommandBuffer(CmdBuffer);
-	
-	CommandBufferFenceLock.Lock();
-	CommandBufferFences.Push(CommandBuffer->GetCompletionFence());
-	CommandBufferFenceLock.Unlock();
+	Device.AddCommandBufferFence(CommandBuffer->GetCompletionFence());
     
 	INC_DWORD_STAT(STAT_MetalCommandBufferCreatedPerFrame);
 	return CommandBuffer;
@@ -168,13 +165,6 @@ FMetalFence* FMetalCommandQueue::CreateFence(NS::String* Label) const
 	{
 		return nullptr;
 	}
-}
-
-void FMetalCommandQueue::GetCommittedCommandBufferFences(TArray<TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe>>& Fences)
-{
-	CommandBufferFenceLock.Lock();
-    Fences = MoveTemp(CommandBufferFences);
-	CommandBufferFenceLock.Unlock();
 }
 
 #pragma mark - Public Command Queue Accessors -

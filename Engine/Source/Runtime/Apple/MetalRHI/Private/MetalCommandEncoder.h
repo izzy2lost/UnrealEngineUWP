@@ -525,6 +525,7 @@ private:
 
 public:
 	void UseResource(MTL::Resource* Resource, MTL::ResourceUsage const Usage);
+	void UseResources(TArray<MTL::Resource*> const& Resources, MTL::ResourceUsage const Usage, MTL::RenderStages RenderStages = 0);
 	void UseHeaps(TArray<MTL::Heap*> const& Heaps, const MTL::FunctionType Function);
 	
 #pragma mark - Private Type Declarations -

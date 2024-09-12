@@ -22,8 +22,11 @@ struct FMetalHashedVertexDescriptor
 {
 	NS::UInteger VertexDescHash;
 	MTLVertexDescriptorPtr VertexDesc;
-
+	IRVersionedInputLayoutDescriptor IRVertexDesc;
+	bool bUsesIRVertexDesc = false;
+	
 	FMetalHashedVertexDescriptor();
+	FMetalHashedVertexDescriptor(IRVersionedInputLayoutDescriptor& Desc, uint32 Hash);
 	FMetalHashedVertexDescriptor(MTLVertexDescriptorPtr Desc, uint32 Hash);
 	FMetalHashedVertexDescriptor(FMetalHashedVertexDescriptor const& Other);
 	~FMetalHashedVertexDescriptor();
