@@ -1548,7 +1548,7 @@ static void ParseOpenedResults(const FP4RecordSet& InRecords, const FString& Cli
 
 		// Convert the depot file name to a local file name
 		FString FullPath = ClientFileName;
-		const FString PathRoot = FString::Printf(TEXT("//%s"), *ClientName);
+		const FString PathRoot = FString::Printf(TEXT("//%s/"), *ClientName);
 
 		if (FullPath.StartsWith(PathRoot))
 		{
@@ -1557,7 +1557,7 @@ static void ParseOpenedResults(const FP4RecordSet& InRecords, const FString& Cli
 			{
 				// Null clients use the pattern in PathRoot: //Workspace/FileName
 				// Here we chop off the '//Workspace/' to return the workspace filename
-				FullPath.RightChopInline(PathRoot.Len() + 1, EAllowShrinking::No);
+				FullPath.RightChopInline(PathRoot.Len(), EAllowShrinking::No);
 			}
 			else
 			{
