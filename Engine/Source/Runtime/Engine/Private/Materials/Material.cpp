@@ -4862,6 +4862,13 @@ void UMaterial::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEve
 	return PostEditChangePropertyInternal(PropertyChangedEvent, EPostEditChangeEffectOnShaders::Default);
 }
 
+static bool IsMaterialAlreadyConvertedToSubstrate(const UMaterial* InMaterial, const UMaterialEditorOnlyData* InEditorOnly)
+{
+	return 
+		InEditorOnly->FrontMaterial.IsConnected() || 
+		InMaterial->HasAnyExpressionsInMaterialAndFunctionsOfType<UMaterialExpressionSubstrateBSDF>();
+}
+
 void UMaterial::PostEditChangePropertyInternal(FPropertyChangedEvent& PropertyChangedEvent, const EPostEditChangeEffectOnShaders EffectOnShaders)
 {
 	// PreEditChange is not enforced to be called before PostEditChange.
@@ -4877,6 +4884,15 @@ void UMaterial::PostEditChangePropertyInternal(FPropertyChangedEvent& PropertyCh
 	CancelOutstandingCompilation();
 
 	const UMaterialEditorOnlyData* EditorOnly = GetEditorOnlyData();
+
+	// Apply Substrate material conversion if needed.
+	// For imported materials, the conversion won't happen during the PostLoad() phase. 
+	// Usually material importers create material by code, and then calls PostEditChange(), which calls PostEditChangeProperty()
+	// This late conversion ensures that imported materials are converted properly with Substrate.
+	if (Substrate::IsSubstrateEnabled() && !IsMaterialAlreadyConvertedToSubstrate(this, EditorOnly))
+	{
+		ConvertMaterialToSubstrateMaterial();
+	}
 
 	// Check for distortion in material 
 	bUsesDistortion = RefractionMethod != RM_None;
