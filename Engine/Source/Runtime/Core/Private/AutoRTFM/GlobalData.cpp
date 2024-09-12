@@ -22,9 +22,8 @@ void InitializeGlobalDataIfNecessary()
 /*
    Disable warning about deprecated STD C functions.
 */
-#pragma warning(disable : 4996)
-
 #pragma warning(push)
+#pragma warning(disable : 4996)
 #endif
 
     UE_CALL_ONCE([]
