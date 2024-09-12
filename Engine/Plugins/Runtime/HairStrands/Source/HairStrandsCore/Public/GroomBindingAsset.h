@@ -436,6 +436,8 @@ public:
 
 	void CacheDerivedDatas();
 
+	bool HasAnyDependenciesCompiling() const;
+
 	virtual void BeginCacheForCookedPlatformData(const ITargetPlatform* TargetPlatform);
 	virtual void ClearAllCachedCookedPlatformData();
 	TArray<FHairGroupPlatformData>* GetCachedCookedPlatformData(const ITargetPlatform* TargetPlatform);
@@ -451,9 +453,11 @@ public:
 private:
 	TArray<FCachedCookedPlatformData*> CachedCookedPlatformDatas;
 
-	bool bRegisterSourceMeshCallback = false;
-	bool bRegisterTargetMeshCallback = false;
-	bool bRegisterGroomAssetCallback = false;
+	void RegisterGroomDelegates();
+	void UnregisterGroomDelegates();
+	void RegisterSkeletalMeshDelegates();
+	void UnregisterSkeletalMeshDelegates();
+
 	TArray<FString> CachedDerivedDataKey;
 #endif
 #if WITH_EDITOR
