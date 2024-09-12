@@ -25,12 +25,12 @@
 #if WITH_EDITOR
 FName UPCGWriteToNiagaraDataChannelSettings::GetDefaultNodeName() const
 {
-	return FName(TEXT("WriteToNDC"));
+	return FName(TEXT("WriteToNiagaraDataChannel"));
 }
 
 FText UPCGWriteToNiagaraDataChannelSettings::GetDefaultNodeTitle() const
 {
-	return LOCTEXT("NodeTitle", "Write To NDC");
+	return LOCTEXT("NodeTitle", "Write To Niagara Data Channel");
 }
 #endif // WITH_EDITOR
 
