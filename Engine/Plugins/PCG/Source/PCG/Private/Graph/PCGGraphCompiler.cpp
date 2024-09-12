@@ -33,6 +33,48 @@ namespace PCGGraphCompiler
 		TEXT("pcg.GraphExecution.GPU.Enable"),
 		true,
 		TEXT("Whether to emit compatible nodes as compute graphs to execute on the GPU."));
+
+	/**
+	 * Utility structure to store "FPCGGraphTaskInput" in a hashable set
+	 * and query it easily using only the task id and its upstream pin, to keep track of inputs used multiple times.
+	 * TaskInput is the same as another if they have the same task id and the same upstream pin (or they are both null).
+	 */
+	struct FTaskInputOrigin
+	{
+		FTaskInputOrigin(FPCGGraphTaskInput* InTaskInput)
+		{
+			// Only set it if the upstream properties is set
+			TaskInput = (InTaskInput && InTaskInput->UpstreamPin.IsSet()) ? InTaskInput : nullptr;
+		}
+		
+		friend uint32 GetTypeHash(const FTaskInputOrigin& Value)
+		{
+			check(!Value.TaskInput || Value.TaskInput->UpstreamPin.IsSet());
+			return Value.TaskInput ? HashCombine(Value.TaskInput->TaskId, GetTypeHash(Value.TaskInput->UpstreamPin.GetValue())) : PointerHash(nullptr);
+		}
+
+		bool operator==(const FTaskInputOrigin& Other) const
+		{
+			if (!TaskInput && !Other.TaskInput)
+			{
+				return true;
+			}
+			else if (!TaskInput || !Other.TaskInput || TaskInput->TaskId != Other.TaskInput->TaskId)
+			{
+				return false;
+			}
+			else
+			{
+				// By construction those are set.
+				const FPCGPinProperties& Properties = TaskInput->UpstreamPin.GetValue();
+				const FPCGPinProperties& OtherProperties = Other.TaskInput->UpstreamPin.GetValue();
+
+				return Properties == OtherProperties;
+			}
+		}
+		
+		FPCGGraphTaskInput* TaskInput = nullptr;
+	};
 }
 
 TArray<FPCGGraphTask> FPCGGraphCompiler::CompileGraph(UPCGGraph* InGraph, FPCGTaskId& NextId, FPCGStackContext& InOutStackContext)
@@ -1126,6 +1168,31 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 	{
 		// Result is written directly to tasks.
 		CalculateDynamicActivePinDependencies(CompiledTasks[TaskIndex].NodeId, CompiledTasks);
+	}
+
+	// Also we keep track of all the inputs of each task. If the input is in SeenInputs it means it is used multiple times, so mark it as is.
+	TSet<PCGGraphCompiler::FTaskInputOrigin> SeenInputs;
+	for (int TaskIndex = 0; TaskIndex < CompiledTasks.Num(); ++TaskIndex)
+	{
+		for (FPCGGraphTaskInput& TaskInput : CompiledTasks[TaskIndex].Inputs)
+		{
+			PCGGraphCompiler::FTaskInputOrigin InputOrigin(&TaskInput);
+			if (!InputOrigin.TaskInput)
+			{
+				continue;
+			}
+
+			if (PCGGraphCompiler::FTaskInputOrigin* It = SeenInputs.Find(InputOrigin))
+			{
+				check(It->TaskInput);
+				It->TaskInput->bIsUsedMultipleTimes = true;
+				TaskInput.bIsUsedMultipleTimes = true;
+			}
+			else
+			{
+				SeenInputs.Emplace(std::move(InputOrigin));
+			}
+		}
 	}
 
 	const int TaskNum = CompiledTasks.Num();

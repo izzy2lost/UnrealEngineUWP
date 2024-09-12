@@ -91,6 +91,8 @@ struct PCG_API FPCGPinProperties
 	// Convert the bIsAdvanced boolean to PinStatus for deprecation purposes.
 	void PostSerialize(const FArchive& Ar);
 
+	friend uint32 GetTypeHash(const FPCGPinProperties& Value);
+
 #if WITH_EDITOR
 	bool CanEditChange(const FEditPropertyChain& PropertyChain) const;
 #endif
