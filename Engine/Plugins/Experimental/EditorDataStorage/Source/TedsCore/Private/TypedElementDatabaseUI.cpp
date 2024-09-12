@@ -270,7 +270,7 @@ void UEditorDataStorageUi::CreateWidgetConstructors(FName Purpose,
 	{
 		for (const FWidgetFactory& Factory : PurposeInfo->Factories)
 		{
-			if (!CreateSingleWidgetConstructor(Factory.Constructor, Arguments, {}, Factory.Columns, Callback))
+			if (!CreateSingleWidgetConstructor(Factory.Constructor, Arguments, {}, Factory.GetConditions(Storage), Callback))
 			{
 				return;
 			}
@@ -298,10 +298,10 @@ void UEditorDataStorageUi::CreateWidgetConstructors(FName Purpose, EMatchApproac
 			// This is the only call that requires the array of factories to be sorted from largest to smallest number
 			// of columns, so lazily sort only when needed.
 			PurposeInfo->Factories.StableSort(
-				[](const FWidgetFactory& Lhs, const FWidgetFactory& Rhs)
+				[this](const FWidgetFactory& Lhs, const FWidgetFactory& Rhs)
 				{
-					int32 LeftSize = Lhs.Columns.MinimumColumnMatchRequired();
-					int32 RightSize = Rhs.Columns.MinimumColumnMatchRequired();
+					int32 LeftSize = Lhs.GetConditions(Storage).MinimumColumnMatchRequired();
+					int32 RightSize = Rhs.GetConditions(Storage).MinimumColumnMatchRequired();
 					return LeftSize > RightSize;
 				});
 			PurposeInfo->bIsSorted = true;
@@ -473,7 +473,7 @@ void UEditorDataStorageUi::CreateWidgetConstructors_LongestMatch(const TArray<FW
 	TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumns;
 	for (auto FactoryIt = WidgetFactories.CreateConstIterator(); FactoryIt && !Columns.IsEmpty(); ++FactoryIt)
 	{
-		if (FactoryIt->Columns.MinimumColumnMatchRequired() > Columns.Num())
+		if (FactoryIt->GetConditions(Storage).MinimumColumnMatchRequired() > Columns.Num())
 		{
 			// There are more columns required for this factory than there are in the requested columns list so skip this
 			// factory.
@@ -481,8 +481,8 @@ void UEditorDataStorageUi::CreateWidgetConstructors_LongestMatch(const TArray<FW
 		}
 
 		MatchedColumns.Reset();
-
-		if (FactoryIt->Columns.Verify(MatchedColumns, Columns, true))
+		
+		if (FactoryIt->GetConditions(Storage).Verify(MatchedColumns, Columns, true))
 		{
 			// Remove the found columns from the requested list.
 			Algo::SortBy(MatchedColumns, [](const TWeakObjectPtr<const UScriptStruct>& Column) { return Column.Get(); });
@@ -508,7 +508,7 @@ void UEditorDataStorageUi::CreateWidgetConstructors_LongestMatch(const TArray<FW
 				--ColumnsEnd;
 			}
 			
-			if (!CreateSingleWidgetConstructor(FactoryIt->Constructor, Arguments, MoveTemp(MatchedColumns), FactoryIt->Columns, Callback))
+			if (!CreateSingleWidgetConstructor(FactoryIt->Constructor, Arguments, MoveTemp(MatchedColumns), FactoryIt->GetConditions(Storage), Callback))
 			{
 				return;
 			}
@@ -526,21 +526,21 @@ void UEditorDataStorageUi::CreateWidgetConstructors_ExactMatch(const TArray<FWid
 	{
 		// If there are more matches required that there are columns, then there will never be an exact match.
 		// Less than the column count can still result in a match that covers all columns.
-		if (Factory.Columns.MinimumColumnMatchRequired() > ColumnCount)
+		if (Factory.GetConditions(Storage).MinimumColumnMatchRequired() > ColumnCount)
 		{
 			continue;
 		}
 
 		MatchedColumns.Reset();
 
-		if (Factory.Columns.Verify(MatchedColumns, Columns, true))
+		if (Factory.GetConditions(Storage).Verify(MatchedColumns, Columns, true))
 		{
 			Algo::SortBy(MatchedColumns, [](const TWeakObjectPtr<const UScriptStruct>& Column) { return Column.Get(); });
 			MatchedColumns.SetNum(Algo::Unique(MatchedColumns), EAllowShrinking::No);
 			if (MatchedColumns.Num() == Columns.Num())
 			{
 				Columns.Reset();
-				CreateSingleWidgetConstructor(Factory.Constructor, Arguments, MoveTemp(MatchedColumns), Factory.Columns, Callback);
+				CreateSingleWidgetConstructor(Factory.Constructor, Arguments, MoveTemp(MatchedColumns), Factory.GetConditions(Storage), Callback);
 				return;
 			}
 		}
@@ -559,7 +559,7 @@ void UEditorDataStorageUi::CreateWidgetConstructors_SingleMatch(const TArray<FWi
 	{
 		for (; FactoryIt != FactoryEnd; ++FactoryIt)
 		{
-			TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnData = (*FactoryIt).Columns.GetColumns();
+			TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnData = (*FactoryIt).GetConditions(Storage).GetColumns();
 			if (ColumnData.Num() > 1)
 			{
 				// Moved passed the point where factories only have a single column.
@@ -575,7 +575,7 @@ void UEditorDataStorageUi::CreateWidgetConstructors_SingleMatch(const TArray<FWi
 			{
 				Columns.RemoveAt(ColumnIndex);
 				CreateSingleWidgetConstructor((*FactoryIt).Constructor, Arguments, 
-					TArray<TWeakObjectPtr<const UScriptStruct>>(ColumnData), (*FactoryIt).Columns, Callback);
+					TArray<TWeakObjectPtr<const UScriptStruct>>(ColumnData), (*FactoryIt).GetConditions(Storage), Callback);
 				// Match was found so move on to the next column in the column.
 				break;
 			}
@@ -615,4 +615,11 @@ UEditorDataStorageUi::FWidgetFactory::FWidgetFactory(TUniquePtr<FTypedElementWid
 {
 	checkf(std::get<TUniquePtr<FTypedElementWidgetConstructor>>(Constructor)->GetTypeInfo(),
 		TEXT("Widget constructor registered that didn't contain valid type information."));
+}
+
+const UE::Editor::DataStorage::Queries::FConditions& UEditorDataStorageUi::FWidgetFactory::GetConditions(IEditorDataStorageProvider* DataStorage) const
+{
+	Columns.Compile(UE::Editor::DataStorage::Queries::FEditorStorageQueryConditionCompileContext(DataStorage));
+	
+	return Columns;
 }

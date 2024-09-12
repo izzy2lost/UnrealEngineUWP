@@ -58,9 +58,12 @@ public:
 private:
 	struct FWidgetFactory
 	{
-		using ConstructorType = std::variant<const UScriptStruct*, TUniquePtr<FTypedElementWidgetConstructor>>;
+	private:
+		// Private and mutable so we can control access to it via GetConditions() to compile the conditions on demand
+		mutable UE::Editor::DataStorage::Queries::FConditions Columns;
 
-		UE::Editor::DataStorage::Queries::FConditions Columns;
+	public:
+		using ConstructorType = std::variant<const UScriptStruct*, TUniquePtr<FTypedElementWidgetConstructor>>;
 		ConstructorType Constructor;
 
 		FWidgetFactory() = default;
@@ -68,6 +71,8 @@ private:
 		explicit FWidgetFactory(TUniquePtr<FTypedElementWidgetConstructor>&& InConstructor);
 		FWidgetFactory(const UScriptStruct* InConstructor, UE::Editor::DataStorage::Queries::FConditions&& InColumns);
 		FWidgetFactory(TUniquePtr<FTypedElementWidgetConstructor>&& InConstructor, UE::Editor::DataStorage::Queries::FConditions&& InColumns);
+		const UE::Editor::DataStorage::Queries::FConditions& GetConditions(IEditorDataStorageProvider* DataStorage) const;
+		
 	};
 
 	struct FPurposeInfo
