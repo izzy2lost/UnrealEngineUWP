@@ -144,7 +144,7 @@ void UMetasoundEditorGraphInputNode::GetPinHoverText(const UEdGraphPin& Pin, FSt
 			{
 				if (const FMetasoundFrontendClassVertex* Vertex = Input->GetFrontendClassVertex())
 				{
-					OutHoverText = FString::Format(TEXT("{0}\nVertex Name: {1}\nDataType: {2}\nID: {3}"),
+					OutHoverText = FString::Format(TEXT("Description: {0}\nVertex Name: {1}\nDataType: {2}\nID: {3}"),
 					{
 						OutHoverText,
 						Vertex->Name.ToString(),
