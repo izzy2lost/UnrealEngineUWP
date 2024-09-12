@@ -1420,7 +1420,17 @@ void FPerforceConnection::EstablishConnection(const FPerforceConnectionInfo& InC
 				UE_LOG(LogSourceControl, Verbose, TEXT(" ... getting clientroot" ));
 				ClientRoot = Records[0](TEXT("clientRoot"));
 
-				FPaths::NormalizeDirectoryName(ClientRoot);
+				// Make sure that workspace roots end with a seperator or are null
+				if (ClientRoot != TEXT("null"))
+				{
+					FPaths::NormalizeFilename(ClientRoot);		// Don't use NormalizeDirectoryName, we want to preserve trailing slashes
+					FPaths::RemoveDuplicateSlashes(ClientRoot); // Perforce client specs support duplicate slashes
+
+					if (!ClientRoot.EndsWith(TEXT("/")))
+					{
+						ClientRoot.Append(TEXT("/"));
+					}
+				}
 			}
 		}
 	}
