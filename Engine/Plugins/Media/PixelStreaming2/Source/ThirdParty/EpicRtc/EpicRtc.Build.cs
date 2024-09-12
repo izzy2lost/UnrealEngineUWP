@@ -42,8 +42,8 @@ namespace UnrealBuildTool.Rules
             }
             else if (Platform == UnrealTargetPlatform.Mac)
             {
-                // TODO we probably need something to detect intel macs
-                return "aarch64";
+                // Uses fatlib containing symbols for aarch64 and x86_64, so don't bother with an arch folder
+                return "";
             }
             else if (Platform == UnrealTargetPlatform.LinuxArm64)
             {
