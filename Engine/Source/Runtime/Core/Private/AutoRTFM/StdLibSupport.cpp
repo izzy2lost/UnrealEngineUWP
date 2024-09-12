@@ -619,9 +619,8 @@ wchar_t* RTFM_wcsncpy(wchar_t* Dst, const wchar_t* Src, size_t Count)
 /*
    Disable warning about deprecated STD C functions.
 */
-#pragma warning(disable : 4996)
-
 #pragma warning(push)
+#pragma warning(disable : 4996)
 #endif
 
 UE_AUTORTFM_REGISTER_OPEN_FUNCTION(wcscpy);
