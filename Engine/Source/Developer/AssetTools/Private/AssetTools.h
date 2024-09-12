@@ -92,6 +92,8 @@ public:
 	virtual UObject* DuplicateAssetWithDialogAndTitle(const FString& AssetName, const FString& PackagePath, UObject* OriginalObject, FText DialogTitle) override;
 	virtual void SetCreateAssetsAsExternallyReferenceable(bool bValue) override;
 	virtual bool GetCreateAssetsAsExternallyReferenceable() override;
+	virtual bool ShouldCreateAssetsAsExternallyReferenceableForPath(const FStringView AssetPath) const override;
+	virtual UE::AssetTools::FShouldCreateAssetsAsExternallyReferenceableForPath& GetOnShouldCreateAssetsAsExternallyReferenceableForPath() override;
 	virtual bool IsDiscoveringAssetsInProgress() const override;
 	virtual void OpenDiscoveringAssetsDialog(const FOnAssetsDiscovered& InOnAssetsDiscovered) override;
 	virtual bool RenameAssets(const TArray<FAssetRenameData>& AssetsAndNames) override;
@@ -277,6 +279,7 @@ private:
 	TArray<FString> SubContentDenyListPaths;
 
 	bool CreateAssetsAsExternallyReferenceable;
+	UE::AssetTools::FShouldCreateAssetsAsExternallyReferenceableForPath CreateAssetsAsExternallyReferenceableForPathDelegate;
 
 	TMap<FName, FIsNameAllowed> IsNameAllowedDelegates;
 	TMap<FName, FSanitizeName> SanitizeNameDelegates;
