@@ -103,6 +103,18 @@ struct PCG_API FPCGTaggedData
 	// Special flag for data that are forwarded to other nodes, but without a pin. Useful for internal data.
 	UPROPERTY()
 	bool bPinlessData = false;
+	
+	/**
+	* Special flag to be modified by execution when a data is used multiple times (in this node or other nodes),
+	* to enable optimization when they are not. Always assume that it is true by default.
+	*/
+	UPROPERTY(BlueprintReadOnly, Transient, Category = Data)
+	bool bIsUsedMultipleTimes = true;
+
+#if !UE_BUILD_SHIPPING
+	// For debug tracking.
+	TWeakObjectPtr<const UPCGNode> OriginatingNode;
+#endif // !UE_BUILD_SHIPPING
 
 	// Used to re-order elements when using per-data caching
 	int32 OriginalIndex = INDEX_NONE;

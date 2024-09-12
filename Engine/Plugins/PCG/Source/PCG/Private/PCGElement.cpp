@@ -401,6 +401,43 @@ void IPCGElement::PostExecute(FPCGContext* Context) const
 		}
 	}
 
+	// Analyze if the output data is used multiple times, if the element requires it.
+	if (ShouldVerifyIfOutputsAreUsedMultipleTimes(Settings))
+	{
+		for (FPCGTaggedData& OutputData : Context->OutputData.TaggedData)
+		{
+			// Enforce that pinless data is always used multiple times, or if the debug mode is enabled.
+			if (OutputData.bPinlessData || (Settings && Settings->CanBeDebugged() && Settings->bDebug))
+			{
+				OutputData.bIsUsedMultipleTimes = true;
+				continue;
+			}
+			
+			// For data that are marked to be used multiple times, they are potentially not used multiple times if they are not passthrough
+			// (hence if they are not in the input). So set them back to false in that case. It will be set to true again by the executor
+			// if it is actually used in multiple places.
+			auto PassthroughPredicate = [&OutputData](const FPCGTaggedData& InputData) { return InputData.Data == OutputData.Data; };
+			if (OutputData.bIsUsedMultipleTimes && !Context->InputData.TaggedData.ContainsByPredicate(PassthroughPredicate))
+			{
+#if !UE_BUILD_SHIPPING
+				OutputData.OriginatingNode = Context->Node;
+#endif //!UE_BUILD_SHIPPING
+				OutputData.bIsUsedMultipleTimes = false;
+			}
+			
+			// We also need to verify that the data is not used in other outputs.
+			auto SameDataDifferentTaggedData = [&OutputData](const FPCGTaggedData& OtherOutputData)
+			{
+				return (&OtherOutputData != &OutputData) && (OtherOutputData.Data == OutputData.Data);
+			};
+			
+			if (!OutputData.bIsUsedMultipleTimes && Context->OutputData.TaggedData.ContainsByPredicate(SameDataDifferentTaggedData))
+			{
+				OutputData.bIsUsedMultipleTimes = true;
+			}
+		}
+	}
+	
 #if WITH_EDITOR
 	// Register the element to the component indicating the element has run and can have dynamic tracked keys.
 	if (Settings && Settings->CanDynamicallyTrackKeys() && Context->SourceComponent.IsValid())

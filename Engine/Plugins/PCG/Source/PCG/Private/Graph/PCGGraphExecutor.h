@@ -63,6 +63,9 @@ struct FPCGGraphTaskInput
 
 	/** Whether the input provides any data. For the post execute task, only the output node will provide data. */
 	bool bProvideData;
+	
+	/** Whether the input is used multiple times (previous task has multiple successors). Useful to know if the data can be stolen or not. True by default.*/
+	bool bIsUsedMultipleTimes = true;
 
 	static inline const TOptional<FPCGPinProperties> NoPin = TOptional<FPCGPinProperties>();
 };

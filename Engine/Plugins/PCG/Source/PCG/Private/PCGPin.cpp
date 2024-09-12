@@ -94,6 +94,19 @@ bool FPCGPinProperties::operator==(const FPCGPinProperties& Other) const
 		bInvisiblePin == Other.bInvisiblePin;
 }
 
+uint32 GetTypeHash(const FPCGPinProperties& Value)
+{
+	uint32 Hash = GetTypeHash(Value.Label);
+	Hash = HashCombine(Hash, static_cast<uint32>(Value.AllowedTypes));
+	Hash = HashCombine(Hash, Value.bAllowMultipleConnections);
+	Hash = HashCombine(Hash, Value.bAllowMultipleData);
+	Hash = HashCombine(Hash, static_cast<uint32>(Value.Usage));
+	Hash = HashCombine(Hash, static_cast<uint32>(Value.PinStatus));
+	Hash = HashCombine(Hash, Value.bInvisiblePin);
+
+	return Hash;
+}
+
 void FPCGPinProperties::PostSerialize(const FArchive& Ar)
 {
 #if WITH_EDITOR

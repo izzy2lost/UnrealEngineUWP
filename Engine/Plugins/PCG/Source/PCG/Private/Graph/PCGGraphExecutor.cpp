@@ -2240,11 +2240,18 @@ void FPCGGraphExecutor::BuildTaskInput(FPCGGraphTask& Task, TArray<FPCGTaskId>& 
 
 		// Apply labelling on data; technically, we should ensure that we do this only for pass-through nodes,
 		// Otherwise we could also null out the label on the input...
-		if (Input.DownstreamPin.IsSet())
+		// Also marking the data used multiple times if the given input is used multiple times.
+		if (Input.DownstreamPin.IsSet() || Input.bIsUsedMultipleTimes)
 		{
 			for (int32 TaggedDataIndex = TaggedDataOffset; TaggedDataIndex < Task.TaskInput.TaggedData.Num(); ++TaggedDataIndex)
 			{
-				Task.TaskInput.TaggedData[TaggedDataIndex].Pin = Input.DownstreamPin.GetValue().Label;
+				FPCGTaggedData& TaggedData = Task.TaskInput.TaggedData[TaggedDataIndex];
+				if (Input.DownstreamPin.IsSet())
+				{
+					TaggedData.Pin = Input.DownstreamPin.GetValue().Label;
+				}
+
+				TaggedData.bIsUsedMultipleTimes |= Input.bIsUsedMultipleTimes;
 			}
 		}
 	}

@@ -109,6 +109,9 @@ public:
 
 	/** Returns true if the node can be cached (e.g. does not create artifacts & does not depend on untracked data */
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const { return true; }
+	
+	/** Returns true if the node outputs requires to update the output tagged data to detect if the data is used multiple times. */
+	virtual bool ShouldVerifyIfOutputsAreUsedMultipleTimes(const UPCGSettings* InSettings) const { return false; }
 
 	/** Whether to do a 'deep' fine-grained CRC of the output data to pass to downstream nodes. Can be expensive so should be used sparingly. */
 	virtual bool ShouldComputeFullOutputDataCrc(FPCGContext* Context) const { return false; }
