@@ -44,7 +44,8 @@ namespace UE::PixelStreaming2
 	FStats::FStats()
 	{
 		checkf(Instance == nullptr, TEXT("There should only ever been one PixelStreaming2 stats object."));
-		UConsole::RegisterConsoleAutoCompleteEntries.AddRaw(this, &FStats::UpdateConsoleAutoComplete);
+
+		FCoreDelegates::OnPostEngineInit.AddRaw(this, &FStats::RegisterEngineHooks);
 	}
 
 	void FStats::StorePeerStat(const FString& PlayerId, FName StatCategory, FStatData Stat)
@@ -393,33 +394,7 @@ namespace UE::PixelStreaming2
 
 	void FStats::Tick(float DeltaTime)
 	{
-		RTCStatsPolledDelta += DeltaTime;
-
-		// Note (Luke): If we want more metrics from WebRTC there is also the histogram counts.
-		// For example:
-		// RTC_HISTOGRAM_COUNTS("WebRTC.Video.NacksSent", nacks_sent, 1, 100000, 100);
-		// webrtc::metrics::Histogram* Hist1 = webrtc::metrics::HistogramFactoryGetCounts("WebRTC.Video.NacksSent", 0, 100000, 100);
-		// Will require calling webrtc::metrics::Enable();
-
-		// We only poll WebRTC stats every 1s as this matches chrome://webrtc-internals
-		// and more frequency does not seem useful as these stats are mostly used for visual inspection
-		if (RTCStatsPolledDelta > 1.0f)
-		{
-			OnStatsPolled.Broadcast();
-			RTCStatsPolledDelta = 0;
-		}
-
 		PollPixelStreaming2Settings();
-
-		if (!GEngine)
-		{
-			return;
-		}
-
-		if (!bRegisterEngineStats)
-		{
-			RegisterEngineHooks();
-		}
 	}
 
 	void FStats::RemoveAllPeerStats()
@@ -428,62 +403,61 @@ namespace UE::PixelStreaming2
 		PeerStats.Empty();
 	}
 
-	void FStats::ExecStatPS()
-	{
-		// Intetionally empty, registering this function is mostly about getting the stat comment to show up in autocomplete
-	}
-
-	void FStats::ExecStatPSGraphs()
-	{
-		// Intetionally empty, registering this function is mostly about getting the stat comment to show up in autocomplete
-	}
-
 	void FStats::RegisterEngineHooks()
 	{
 		GAreScreenMessagesEnabled = true;
 
 		const FName				   StatName("STAT_PixelStreaming2");
 		const FName				   StatCategory("STATCAT_PixelStreaming2");
-		const FText				   StatDescription(FText::FromString("Pixel Streaming stats for all connected peers."));
+		const FText				   StatDescription(FText::FromString("Stats for the Pixel Streaming plugin and its peers."));
 		UEngine::FEngineStatRender RenderStatFunc = UEngine::FEngineStatRender::CreateRaw(this, &FStats::OnRenderStats);
 		UEngine::FEngineStatToggle ToggleStatFunc = UEngine::FEngineStatToggle::CreateRaw(this, &FStats::OnToggleStats);
 		GEngine->AddEngineStat(StatName, StatCategory, StatDescription, RenderStatFunc, ToggleStatFunc, false);
 
-		// We register this console command so we get autocomplete on `Stat PixelStreaming2`
-		IConsoleManager::Get().RegisterConsoleCommand(
-			TEXT("Stat PixelStreaming2"),
-			TEXT("Stats for the Pixel Streaming plugin and its peers."),
-			FConsoleCommandDelegate::CreateRaw(this, &FStats::ExecStatPS),
-			ECVF_Default);
-
 		const FName				   GraphName("STAT_PixelStreaming2Graphs");
-		const FText				   GraphDescription(FText::FromString("Pixel Streaming graphs showing frame pipeline timings."));
+		const FText				   GraphDescription(FText::FromString("Draws stats graphs for the Pixel Streaming plugin."));
 		UEngine::FEngineStatRender RenderGraphFunc = UEngine::FEngineStatRender::CreateRaw(this, &FStats::OnRenderGraphs);
 		UEngine::FEngineStatToggle ToggleGraphFunc = UEngine::FEngineStatToggle::CreateRaw(this, &FStats::OnToggleGraphs);
 		GEngine->AddEngineStat(GraphName, StatCategory, GraphDescription, RenderGraphFunc, ToggleGraphFunc, false);
 
-		// We register this console command so we get autocomplete on `Stat PixelStreaming2Graphs`
-		IConsoleManager::Get().RegisterConsoleCommand(
-			TEXT("Stat PixelStreaming2Graphs"),
-			TEXT("Draws stats graphs for the Pixel Streaming plugin."),
-			FConsoleCommandDelegate::CreateRaw(this, &FStats::ExecStatPSGraphs),
-			ECVF_Default);
+		UConsole::RegisterConsoleAutoCompleteEntries.AddRaw(this, &FStats::UpdateConsoleAutoComplete);
 
-		bool StatsEnabled = UPixelStreaming2PluginSettings::CVarOnScreenStats.GetValueOnAnyThread();
-		if (StatsEnabled)
+		// Check the command line for launch args to automatically enable stats for users
+		TFunction<bool(const TCHAR*)> CheckLaunchArgFunc = [](const TCHAR* Match) -> bool {
+			FString ValueMatch(Match);
+			ValueMatch.Append(TEXT("="));
+			FString Value;
+			if (FParse::Value(FCommandLine::Get(), *ValueMatch, Value))
+			{
+				if (Value.Equals(FString(TEXT("true")), ESearchCase::IgnoreCase))
+				{
+					return true;
+				}
+				else if (Value.Equals(FString(TEXT("false")), ESearchCase::IgnoreCase))
+				{
+					return false;
+				}
+			}
+			else if (FParse::Param(FCommandLine::Get(), Match))
+			{
+				return true;
+			}
+
+			return false;
+		};
+
+		bool bHudStats = CheckLaunchArgFunc(TEXT("PixelStreamingHudStats"));
+		bool bOnScreenStats = CheckLaunchArgFunc(TEXT("PixelStreamingOnScreenStats"));
+
+		if (bHudStats || bOnScreenStats)
 		{
 			for (const FWorldContext& WorldContext : GEngine->GetWorldContexts())
 			{
-				if (WorldContext.WorldType == EWorldType::Game || WorldContext.WorldType == EWorldType::PIE)
-				{
-					UWorld*				 World = WorldContext.World();
-					UGameViewportClient* ViewportClient = World->GetGameViewport();
-					GEngine->SetEngineStat(World, ViewportClient, TEXT("PixelStreaming2"), StatsEnabled);
-				}
+				UWorld*				 World = WorldContext.World();
+				UGameViewportClient* ViewportClient = World->GetGameViewport();
+				GEngine->SetEngineStat(World, ViewportClient, TEXT("PixelStreaming2"), true);
 			}
 		}
-
-		bRegisterEngineStats = true;
 	}
 
 	//

@@ -5,7 +5,7 @@
 #include "PixelStreaming2Style.h"
 #include "PixelStreaming2Toolbar.h"
 #include "AssetTypeActions_VideoProducer.h"
-
+#include "Engine/GameViewportClient.h"
 #include "CoreUtils.h"
 #include "Editor/EditorPerformanceSettings.h"
 #include "Framework/Application/SlateApplication.h"
@@ -78,6 +78,33 @@ namespace UE::EditorPixelStreaming2
 				FSlateNotificationManager::Get().AddNotification(Info);
 			});
 		}
+
+		// We register console commands for "Stat xxx" here as the autocomplete logic doesn't execute in the editor
+		IConsoleManager::Get().RegisterConsoleCommand(
+			TEXT("Stat PixelStreaming2"),
+			TEXT("Stats for the Pixel Streaming plugin and its peers."),
+			FConsoleCommandDelegate::CreateLambda([]() {
+				for (const FWorldContext& WorldContext : GEngine->GetWorldContexts())
+				{
+					UWorld*				 World = WorldContext.World();
+					UGameViewportClient* ViewportClient = World->GetGameViewport();
+					GEngine->SetEngineStat(World, ViewportClient, TEXT("PixelStreaming2"), true);
+				}
+			}),
+			ECVF_Default);
+
+		IConsoleManager::Get().RegisterConsoleCommand(
+			TEXT("Stat PixelStreaming2Graphs"),
+			TEXT("Draws stats graphs for the Pixel Streaming plugin."),
+			FConsoleCommandDelegate::CreateLambda([]() {
+				for (const FWorldContext& WorldContext : GEngine->GetWorldContexts())
+				{
+					UWorld*				 World = WorldContext.World();
+					UGameViewportClient* ViewportClient = World->GetGameViewport();
+					GEngine->SetEngineStat(World, ViewportClient, TEXT("PixelStreaming2"), true);
+				}
+			}),
+			ECVF_Default);
 
 		IPixelStreaming2Module& Module = IPixelStreaming2Module::Get();
 		Module.OnReady().AddRaw(this, &FPixelStreaming2EditorModule::InitEditorStreaming);
