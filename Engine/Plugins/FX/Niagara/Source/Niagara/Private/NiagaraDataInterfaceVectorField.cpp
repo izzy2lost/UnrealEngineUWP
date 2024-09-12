@@ -30,10 +30,8 @@ static const FName GetVectorFieldBoundsName("FieldBounds");
 #if INTEL_ISPC
 static_assert(sizeof(ispc::FVector) == sizeof(FVector), "sizeof(ispc::FVector) != sizeof(FVector)");
 
-#if UE_BUILD_SHIPPING
-const bool GNiagaraVectorFieldUseIspc = true;
-#else
-bool GNiagaraVectorFieldUseIspc = true;
+#if !UE_BUILD_SHIPPING
+bool GNiagaraVectorFieldUseIspc = NIAGARA_VECTOR_FIELD_ISPC_ENABLED_DEFAULT;
 static FAutoConsoleVariableRef CVarNiagaraVectorFieldUseIspc(
 	TEXT("fx.NiagaraVectorFieldUseIspc"),
 	GNiagaraVectorFieldUseIspc,

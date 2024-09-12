@@ -414,3 +414,13 @@ private:
 #include "PrimitiveViewRelevance.h"
 #include "StaticMeshResources.h"
 #endif
+
+#if !defined(GEOMETRY_CACHE_SCENE_PROXY_ISPC_ENABLED_DEFAULT)
+#define GEOMETRY_CACHE_SCENE_PROXY_ISPC_ENABLED_DEFAULT 1
+#endif
+
+#if !INTEL_ISPC || UE_BUILD_SHIPPING
+static constexpr bool GGeometryCacheSceneProxyUseIspc = INTEL_ISPC && GEOMETRY_CACHE_SCENE_PROXY_ISPC_ENABLED_DEFAULT;
+#else
+extern bool GGeometryCacheSceneProxyUseIspc;
+#endif
