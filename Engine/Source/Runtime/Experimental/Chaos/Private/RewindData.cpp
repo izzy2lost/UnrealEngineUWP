@@ -269,27 +269,57 @@ const int32 FRewindData::CompareTargetsToLastFrame()
 		return RewindFrame;
 	}
 
+	// TODO: Take per actor settings into consideration via NetworkPhysicsSettingsComponent
+	const bool bCompareX = Chaos::FPhysicsSolverBase::GetResimulationErrorPositionThresholdEnabled();
+	const bool bCompareR = Chaos::FPhysicsSolverBase::GetResimulationErrorRotationThresholdEnabled();
+	const bool bCompareV = Chaos::FPhysicsSolverBase::GetResimulationErrorLinearVelocityThresholdEnabled();
+	const bool bCompareW = Chaos::FPhysicsSolverBase::GetResimulationErrorAngularVelocityThresholdEnabled();
+
+	bool ShouldTriggerResim = false;
+
 	// Iterate over targets that exist for current frame
 	for (FDirtyParticleInfo& DirtyParticleInfo : DirtyParticles)
 	{
-		// TODO: Only iterate targets that are not predicted/interpolated
+		// TODO: Only iterate source target states, i.e. states that are not predicted/interpolated to fill in gaps
 		FGeometryParticleHandle* PTParticle = DirtyParticleInfo.GetObjectPtr();
 		if (PTParticle)
 		{
 			FGeometryParticleStateBase& History = DirtyParticleInfo.GetHistory();
-			if (!History.TargetPositions.IsEmpty())
+			if ((bCompareX || bCompareR) && !History.TargetPositions.IsEmpty())
 			{
 				// Compare with particle for this frame and mark resim if needed from CurrentFrame()
 				if (const FParticlePositionRotation* TargetState = History.TargetPositions.Read(FrameAndPhase, PropertiesPool))
 				{
-					if (const FParticlePositionRotation* XRState = History.ParticlePositionRotation.Read(FrameAndPhase, PropertiesPool))
+					if (const FParticlePositionRotation* PastState = History.ParticlePositionRotation.Read(FrameAndPhase, PropertiesPool))
 					{
-						const FVec3 ErrorOffset = TargetState->GetX() - XRState->GetX();
-						const bool ShouldTriggerResim = ErrorOffset.Size() >= FPhysicsSolverBase::ResimulationErrorThreshold();
-
-						if (ShouldTriggerResim)
+						if (bCompareX)
 						{
-							RewindFrame = CurrentFrame() - 1;
+							ShouldTriggerResim |= FRewindData::CheckVectorThreshold(TargetState->GetX(), PastState->GetX(), FPhysicsSolverBase::GetResimulationErrorPositionThreshold()); // TODO: Take per actor settings into consideration via NetworkPhysicsSettingsComponent
+						}
+
+						if (bCompareR)
+						{
+							ShouldTriggerResim |= FRewindData::CheckQuaternionThreshold(TargetState->GetR(), PastState->GetR(), FPhysicsSolverBase::GetResimulationErrorRotationThreshold()); // TODO: Take per actor settings into consideration via NetworkPhysicsSettingsComponent
+						}
+					}
+				}
+			}
+
+			if (!ShouldTriggerResim && (bCompareV || bCompareW) && !History.TargetVelocities.IsEmpty())
+			{
+				// Compare with particle for this frame and mark resim if needed from CurrentFrame()
+				if (const FParticleVelocities* TargetState = History.TargetVelocities.Read(FrameAndPhase, PropertiesPool))
+				{
+					if (const FParticleVelocities* PastState = History.Velocities.Read(FrameAndPhase, PropertiesPool))
+					{
+						if (bCompareV)
+						{
+							ShouldTriggerResim |= FRewindData::CheckVectorThreshold(TargetState->GetV(), PastState->GetV(), FPhysicsSolverBase::GetResimulationErrorLinearVelocityThreshold()); // TODO: Take per actor settings into consideration via NetworkPhysicsSettingsComponent
+						}
+
+						if (bCompareW)
+						{
+							ShouldTriggerResim |= FRewindData::CheckVectorThreshold(TargetState->GetW(), PastState->GetW(), FPhysicsSolverBase::GetResimulationErrorAngularVelocityThreshold()); // TODO: Take per actor settings into consideration via NetworkPhysicsSettingsComponent
 						}
 					}
 				}
@@ -297,8 +327,35 @@ const int32 FRewindData::CompareTargetsToLastFrame()
 		}
 	}
 
+	if (ShouldTriggerResim)
+	{
+		RewindFrame = FrameAndPhase.Frame;
+	}
+
 	return RewindFrame;
 }
+
+bool FRewindData::CheckVectorThreshold(FVec3 A, FVec3 B, float Threshold)
+{
+	const FVector Delta = A - B;
+	return Delta.Size() >= Threshold;
+}
+
+bool FRewindData::CheckQuaternionThreshold(FQuat A, FQuat B, float ThresholdDegrees)
+{
+	// Get the rotational delta between A and B 
+	const FQuat RotDelta = A * B.Inverse();
+
+	// Convert delta to angle and axis
+	float Angle;
+	FVector Axis;
+	RotDelta.ToAxisAndAngle(Axis, Angle);
+	Angle = FMath::RadiansToDegrees(FMath::UnwindRadians(Angle));
+	Angle = FMath::Abs(Angle);
+
+	return Angle >= ThresholdDegrees;
+}
+
 
 CHAOS_API bool bResimAllowRewindToResimulatedFrames = false;
 FAutoConsoleVariableRef CVarResimAllowRewindToResimulatedFrames(TEXT("p.Resim.AllowRewindToResimulatedFrames"), bResimAllowRewindToResimulatedFrames, TEXT("Allow rewinding back to a frame that was previously part of a resimulation. If a resimulation is performed between frame 100-110, allow a new resim from 105-115 if needed, else next resim will be able to start from frame 111."));

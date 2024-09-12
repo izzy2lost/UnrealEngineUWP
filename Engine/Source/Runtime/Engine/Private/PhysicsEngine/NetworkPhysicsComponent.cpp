@@ -382,7 +382,7 @@ void UNetworkPhysicsSystem::OnWorldPostInit(UWorld* World, const UWorld::Initial
 		return;
 	}
 
-	if (UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsPrediction)
+	if (UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsPrediction || UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsHistoryCapture)
 	{
 		if (FPhysScene* PhysScene = World->GetPhysicsScene())
 		{
@@ -393,9 +393,8 @@ void UNetworkPhysicsSystem::OnWorldPostInit(UWorld* World, const UWorld::Initial
 					Solver->SetRewindCallback(MakeUnique<FNetworkPhysicsCallback>(World));
 				}
 
-				if (UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsResimulation)
+				if (UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsHistoryCapture)
 				{
-					// Enable RewindData from having bEnablePhysicsResimulation set
 					if (Solver->GetRewindData() == nullptr)
 					{
 						const int32 NumFrames = UPhysicsSettings::Get()->GetPhysicsHistoryCount();

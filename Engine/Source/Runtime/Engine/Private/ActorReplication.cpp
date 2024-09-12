@@ -1198,5 +1198,5 @@ EPhysicsReplicationMode AActor::GetPhysicsReplicationMode()
 
 float AActor::GetResimulationThreshold() const
 {
-	return UPhysicsSettings::Get()->PhysicsPrediction.ResimulationErrorThreshold;
+	return UPhysicsSettings::Get()->PhysicsPrediction.ResimulationSettings.ResimulationErrorPositionThreshold;
 }

@@ -1724,6 +1724,9 @@ public:
 	* NOTE: This only happens when the client has desynced and is behind the server, so we receive server states for frames not yet simulated */
 	const int32 CHAOS_API CompareTargetsToLastFrame();
 
+	static bool CHAOS_API CheckVectorThreshold(FVec3 A, FVec3 B, float Threshold);
+	static bool CHAOS_API CheckQuaternionThreshold(FQuat A, FQuat B, float ThresholdDegrees);
+
 private:
 	friend class FPBDRigidsSolver;
 

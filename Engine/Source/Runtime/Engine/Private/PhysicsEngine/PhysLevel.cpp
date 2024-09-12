@@ -49,9 +49,50 @@ public:
 		return GetSettings()->PhysicsPrediction.bEnablePhysicsPrediction;
 	}
 
+	UE_DEPRECATED(5.5, "GetResimulationErrorThreshold has been renamed, please use GetResimulationErrorPositionThreshold.")
 	virtual float GetResimulationErrorThreshold() const override
 	{
-		return GetSettings()->PhysicsPrediction.ResimulationErrorThreshold;
+		return GetResimulationErrorPositionThreshold();
+	}
+
+	virtual bool GetResimulationErrorPositionThresholdEnabled() const
+	{
+		return GetSettings()->PhysicsPrediction.ResimulationSettings.bEnableResimulationErrorPositionThreshold;
+	}
+
+	virtual float GetResimulationErrorPositionThreshold() const
+	{
+		return GetSettings()->PhysicsPrediction.ResimulationSettings.ResimulationErrorPositionThreshold;
+	}
+
+	virtual bool GetResimulationErrorRotationThresholdEnabled() const
+	{
+		return GetSettings()->PhysicsPrediction.ResimulationSettings.bEnableResimulationErrorRotationThreshold;
+	}
+
+	virtual float GetResimulationErrorRotationThreshold() const
+	{
+		return GetSettings()->PhysicsPrediction.ResimulationSettings.ResimulationErrorRotationThreshold;
+	}
+
+	virtual bool GetResimulationErrorLinearVelocityThresholdEnabled() const
+	{
+		return GetSettings()->PhysicsPrediction.ResimulationSettings.bEnableResimulationErrorLinearVelocityThreshold;
+	}
+
+	virtual float GetResimulationErrorLinearVelocityThreshold() const
+	{
+		return GetSettings()->PhysicsPrediction.ResimulationSettings.ResimulationErrorLinearVelocityThreshold;
+	}
+
+	virtual bool GetResimulationErrorAngularVelocityThresholdEnabled() const
+	{
+		return GetSettings()->PhysicsPrediction.ResimulationSettings.bEnableResimulationErrorAngularVelocityThreshold;
+	}
+
+	virtual float GetResimulationErrorAngularVelocityThreshold() const
+	{
+		return GetSettings()->PhysicsPrediction.ResimulationSettings.ResimulationErrorAngularVelocityThreshold;
 	}
 
 	virtual int32 GetPhysicsHistoryCount() const override
