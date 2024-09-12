@@ -566,7 +566,7 @@ $ CppStandard (CppStandardVersion): Which C++ standard to use for compiling this
 
 $ CStandard (CStandardVersion): Which C standard to use for compiling this target
 
-$ MinCpuArchX64 (MinimumCpuArchitectureX64): Direct the compiler to generate AVX instructions wherever SSE or AVX intrinsics are used, on the x64 platforms that support it. Note that by enabling this you are changing the minspec for the PC platform, and the resultant executable will crash on machines without AVX support.
+$ MinCpuArchX64 (MinimumCpuArchitectureX64): Direct the compiler to generate AVX instructions wherever SSE or AVX intrinsics are used, on the x64 platforms that support it. Ignored for arm64. Note that by enabling this you are changing the minspec for the target platform, and the resultant executable will crash on machines without AVX support.
 
 $ BuildVersion (String): The build version string
 
