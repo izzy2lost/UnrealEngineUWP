@@ -13,11 +13,11 @@
 #include <atomic>
 #include "HAL/CriticalSection.h"
 
-struct FLinearVirtualMemoryAllocator
+struct FLinearAllocator
 {
-	CORE_API FLinearVirtualMemoryAllocator(SIZE_T ReserveMemorySize);
+	CORE_API FLinearAllocator(SIZE_T ReserveMemorySize);
 
-	FORCEINLINE ~FLinearVirtualMemoryAllocator()
+	FORCEINLINE ~FLinearAllocator()
 	{
 		VirtualMemory.FreeVirtual();
 	}
@@ -69,13 +69,13 @@ private:
 	bool CanFit(SIZE_T Size, uint32 Alignment) const;
 };
 
-CORE_API FLinearVirtualMemoryAllocator& GetPersistentLinearAllocator();
+CORE_API FLinearAllocator& GetPersistentLinearAllocator();
 
 #else
 // stub implementation with most functions being nop
-struct FLinearVirtualMemoryAllocator
+struct FLinearAllocator
 {
-	FORCEINLINE FLinearVirtualMemoryAllocator(SIZE_T) {}
+	FORCEINLINE FLinearAllocator(SIZE_T) {}
 
 	FORCEINLINE void*	Allocate(SIZE_T Size, uint32 Alignment = 8) { return FMemory::Malloc(Size, Alignment); }
 	FORCEINLINE void	PreAllocate(SIZE_T, uint32) {}
@@ -89,15 +89,15 @@ struct FLinearVirtualMemoryAllocator
 	FORCEINLINE const void* GetBasePointer() const			{ return nullptr; }
 };
 
-FORCEINLINE FLinearVirtualMemoryAllocator GetPersistentLinearAllocator() { return FLinearVirtualMemoryAllocator(0); }
+FORCEINLINE FLinearAllocator GetPersistentLinearAllocator() { return FLinearAllocator(0); }
 
 #endif	//~UE_ENABLE_LINEAR_VIRTUAL_ALLOCATOR
 
-struct FLinearVirtualMemoryAllocatorExtends
+struct FPersistentLinearAllocatorExtends
 {
 	uint64 Address;
 	uint64 Size;
 };
 
 // Special case for the FPermanentObjectPoolExtents to reduce the amount of pointer dereferencing
-extern CORE_API FLinearVirtualMemoryAllocatorExtends GPersistentLinearAllocatorExtends;
+extern CORE_API FPersistentLinearAllocatorExtends GPersistentLinearAllocatorExtends;

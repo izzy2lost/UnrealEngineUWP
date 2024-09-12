@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Memory/LinearVirtualMemoryAllocator.h"
+#include "Memory/LinearAllocator.h"
 
 
-CORE_API FLinearVirtualMemoryAllocatorExtends GPersistentLinearAllocatorExtends;
+CORE_API FPersistentLinearAllocatorExtends GPersistentLinearAllocatorExtends;
 
 static struct FInitializer
 {
@@ -21,7 +21,7 @@ static struct FInitializer
 #include "Misc/ScopeLock.h"
 #include "HAL/LowLevelMemTracker.h"
 
-FLinearVirtualMemoryAllocator::FLinearVirtualMemoryAllocator(SIZE_T ReserveMemorySize)
+FLinearAllocator::FLinearAllocator(SIZE_T ReserveMemorySize)
 	: Reserved(ReserveMemorySize)
 {
 	if (FPlatformMemory::CanOverallocateVirtualMemory() && ReserveMemorySize)
@@ -47,7 +47,7 @@ FLinearVirtualMemoryAllocator::FLinearVirtualMemoryAllocator(SIZE_T ReserveMemor
 	GPersistentLinearAllocatorExtends.Size = (uint64)Reserved;
 }
 
-void* FLinearVirtualMemoryAllocator::Allocate(SIZE_T Size, uint32 Alignment)
+void* FLinearAllocator::Allocate(SIZE_T Size, uint32 Alignment)
 {
 	Alignment = FMath::Max(Alignment, 8u);
 	{
@@ -91,7 +91,7 @@ void* FLinearVirtualMemoryAllocator::Allocate(SIZE_T Size, uint32 Alignment)
 	return FMemory::Malloc(Size, Alignment);
 }
 
-void FLinearVirtualMemoryAllocator::PreAllocate(SIZE_T Size, uint32 Alignment)
+void FLinearAllocator::PreAllocate(SIZE_T Size, uint32 Alignment)
 {
 	Alignment = FMath::Max(Alignment, 8u);
 
@@ -109,7 +109,7 @@ void FLinearVirtualMemoryAllocator::PreAllocate(SIZE_T Size, uint32 Alignment)
 	}
 }
 
-bool FLinearVirtualMemoryAllocator::TryDeallocate(void* Ptr, SIZE_T Size)
+bool FLinearAllocator::TryDeallocate(void* Ptr, SIZE_T Size)
 {
 	if (ContainsPointer(Ptr))
 	{
@@ -128,14 +128,14 @@ bool FLinearVirtualMemoryAllocator::TryDeallocate(void* Ptr, SIZE_T Size)
 	return true;
 }
 
-bool FLinearVirtualMemoryAllocator::CanFit(SIZE_T Size, uint32 Alignment) const
+bool FLinearAllocator::CanFit(SIZE_T Size, uint32 Alignment) const
 {
 	return (Reserved - Align(CurrentOffset, Alignment)) >= Size;
 }
 
-FLinearVirtualMemoryAllocator& GetPersistentLinearAllocator()
+FLinearAllocator& GetPersistentLinearAllocator()
 {
-	static FLinearVirtualMemoryAllocator GPersistentLinearAllocator(UE_PERSISTENT_ALLOCATOR_RESERVE_SIZE);
+	static FLinearAllocator GPersistentLinearAllocator(UE_PERSISTENT_ALLOCATOR_RESERVE_SIZE);
 	return GPersistentLinearAllocator;
 }
 
