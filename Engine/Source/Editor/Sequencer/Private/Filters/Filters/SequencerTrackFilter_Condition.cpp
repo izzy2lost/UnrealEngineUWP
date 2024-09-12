@@ -47,15 +47,14 @@ FString FSequencerTrackFilter_Condition::GetName() const
 
 bool FSequencerTrackFilter_Condition::PassesFilter(FSequencerTrackFilterType InItem) const
 {
-	const TViewModelPtr<IConditionableExtension> Conditionable = InItem.ImplicitCast();
-	if (!Conditionable)
+	for (const TViewModelPtr<IConditionableExtension>& Conditionable : InItem->GetDescendantsOfType<IConditionableExtension>(true))
 	{
-		return false;
+		if (Conditionable->GetConditionState() != EConditionableConditionState::None)
+		{
+			return true;
+		}
 	}
-	else
-	{
-		return Conditionable->GetConditionState() != EConditionableConditionState::None;
-	}
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE
