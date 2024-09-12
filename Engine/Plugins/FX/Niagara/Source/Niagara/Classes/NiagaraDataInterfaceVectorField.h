@@ -109,3 +109,14 @@ struct FNiagaraDataInterfaceProxyVectorField : public FNiagaraDataInterfaceProxy
 		return 0;
 	}
 };
+
+#if !defined(NIAGARA_VECTOR_FIELD_ISPC_ENABLED_DEFAULT)
+#define NIAGARA_VECTOR_FIELD_ISPC_ENABLED_DEFAULT 1
+#endif
+
+// Support run-time toggling on supported platforms in non-shipping configurations
+#if !INTEL_ISPC || UE_BUILD_SHIPPING
+static constexpr bool GNiagaraVectorFieldUseIspc = INTEL_ISPC && NIAGARA_VECTOR_FIELD_ISPC_ENABLED_DEFAULT;
+#else
+extern bool GNiagaraVectorFieldUseIspc;
+#endif

@@ -30,10 +30,8 @@ static_assert(sizeof(uint32) == sizeof(FPackedNormal), "sizeof(uint32) != sizeof
 static_assert(sizeof(ispc::FVector2f) == sizeof(FVector2f), "sizeof(ispc::FVector2f) != sizeof(FVector2f)");
 static_assert(sizeof(ispc::FVector3f) == sizeof(FVector3f), "sizeof(ispc::FVector3f) != sizeof(FVector3f)");
 
-#if UE_BUILD_SHIPPING
-const bool GGeometryCacheSceneProxyUseIspc = true;
-#else
-bool GGeometryCacheSceneProxyUseIspc = true;
+#if !UE_BUILD_SHIPPING
+bool GGeometryCacheSceneProxyUseIspc = GEOMETRY_CACHE_SCENE_PROXY_ISPC_ENABLED_DEFAULT;
 static FAutoConsoleVariableRef CVarGeometryCacheSceneProxyUseIspc(
 	TEXT("r.GeometryCacheSceneProxy.ISPC"),
 	GGeometryCacheSceneProxyUseIspc,
