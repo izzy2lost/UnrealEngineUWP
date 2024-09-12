@@ -36,6 +36,12 @@
 #include "ProfilingDebugging/CountersTrace.h"
 #include "PackedNormal.h"
 
+
+DECLARE_STATS_GROUP(TEXT("MutableCore"), STATGROUP_MutableCore, STATCAT_Advanced);
+DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Working Memory"), STAT_MutableWorkingMemory, STATGROUP_MutableCore);
+DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Working Memory Excess"), STAT_MutableWorkingMemoryExcess, STATGROUP_MutableCore);
+DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Current Memory"), STAT_MutableCurrentMemory, STATGROUP_MutableCore);
+
 namespace 
 {
 
@@ -118,6 +124,8 @@ namespace mu
 		{
 			ExtensionDataStreamer = MakeShared<NullExtensionDataStreamer>();
 		}
+
+		UpdateStats();
 	}
 
 
@@ -151,6 +159,8 @@ namespace mu
 
 		m_pD->WorkingMemoryManager.BudgetBytes = InBytes;
 		m_pD->WorkingMemoryManager.EnsureBudgetBelow(0);
+
+		m_pD->UpdateStats();
 	}
 
 
@@ -195,6 +205,8 @@ namespace mu
 		m_pD->WorkingMemoryManager.CacheResources.Empty();
 		check(m_pD->WorkingMemoryManager.TempImages.IsEmpty());
 		check(m_pD->WorkingMemoryManager.TempMeshes.IsEmpty());
+
+		m_pD->UpdateStats();
 	}
 
 	
@@ -604,8 +616,8 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    void System::EndUpdate( Instance::ID instanceID )
-    {
+	void System::EndUpdate(Instance::ID instanceID)
+	{
 		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
 		MUTABLE_CPUPROFILER_SCOPE(EndUpdate);
 
@@ -613,7 +625,7 @@ namespace mu
 		if (pLiveInstance)
 		{
 			pLiveInstance->Instance = nullptr;
-			
+
 			// Debug check to see if we managed the op-hit-counts correctly
 			pLiveInstance->Cache->CheckHitCountsCleared();
 
@@ -639,6 +651,7 @@ namespace mu
 			m_pD->WorkingMemoryManager.PooledImages.Empty();
 		}
 
+		m_pD->UpdateStats();
 	}
 
 
@@ -1100,6 +1113,21 @@ namespace mu
 				WorkingMemoryManager.CurrentInstanceCache->SetForceCached(Address);
 			}
 		}
+	}
+
+
+	//---------------------------------------------------------------------------------------------
+	void System::Private::UpdateStats()
+	{
+		// Updater stats
+		int32 WorkingMemoryKb = WorkingMemoryManager.BudgetBytes / 1024;
+		SET_DWORD_STAT(STAT_MutableWorkingMemory, WorkingMemoryKb);
+
+		int32 WorkingMemoryExcessKb = WorkingMemoryManager.BudgetExcessBytes / 1024;
+		SET_DWORD_STAT(STAT_MutableWorkingMemoryExcess, WorkingMemoryExcessKb);
+
+		int32 CurrentMemoryKb = WorkingMemoryManager.GetCurrentMemoryBytes() / 1024;
+		SET_DWORD_STAT(STAT_MutableCurrentMemory, CurrentMemoryKb);
 	}
 
 

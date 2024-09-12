@@ -28,9 +28,9 @@ void PrepareAssetRegistry()
 void LogGlobalSettings()
 {
 	// Mutable Settings
-	const int32 WorkingMemory = UCustomizableObjectSystem::GetInstanceChecked()->GetWorkingMemory() ;
-	UE_LOG(LogMutable,Log, TEXT("(int) working_memory_bytes : %d"), WorkingMemory * 1024)
-	UE_LOG(LogMutable, Display, TEXT("The mutable updates will use as working memory the value of %d KB"), WorkingMemory)
+	const int32 WorkingMemoryKB = UCustomizableObjectSystem::GetInstanceChecked()->GetWorkingMemory() ;
+	UE_LOG(LogMutable,Log, TEXT("(int) working_memory_bytes : %d"), WorkingMemoryKB*1024)
+	UE_LOG(LogMutable, Display, TEXT("The mutable updates will use as working memory the value of %d KB"), WorkingMemoryKB)
 	
 	// Expand this when adding new controls from the .xml file
 	
