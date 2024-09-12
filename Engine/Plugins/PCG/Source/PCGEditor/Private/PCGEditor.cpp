@@ -3174,10 +3174,6 @@ void FPCGEditor::OnNodeSourceCompiled(const UPCGNode* InNode, const FPCGCompiler
 	{
 		NodeSourceWidget->OnDiagnosticsUpdated(InDiagnostics);
 	}
-	else
-	{
-		NodeSourceWidget->OnDiagnosticsUpdated({});
-	}
 }
 
 void FPCGEditor::OnMapChanged(UWorld* InWorld, EMapChangeType InMapChangedType)
