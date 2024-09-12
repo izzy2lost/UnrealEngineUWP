@@ -3,6 +3,7 @@
 #include "Components/MaterialProperties/DMMPDisplacement.h"
 
 #include "Components/MaterialValues/DMMaterialValueFloat1.h"
+#include "Materials/Material.h"
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
@@ -33,6 +34,20 @@ UMaterialExpression* UDMMaterialPropertyDisplacement::GetDefaultInput(
 	const TSharedRef<FDMMaterialBuildState>& InBuildState) const
 {
 	return CreateConstant(InBuildState, FVector::ZeroVector);
+}
+
+void UDMMaterialPropertyDisplacement::GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const
+{
+	Super::GenerateExpressions(InBuildState);
+
+	if (!InBuildState->GetPreviewObject())
+	{
+		if (UMaterial* GeneratedMaterial = InBuildState->GetDynamicMaterial())
+		{
+			// Set this to true if we have a displacement channel.
+			GeneratedMaterial->bUsedWithNanite = true;
+		}
+	}
 }
 
 void UDMMaterialPropertyDisplacement::AddAlphaMultiplier(const TSharedRef<FDMMaterialBuildState>& InBuildState) const

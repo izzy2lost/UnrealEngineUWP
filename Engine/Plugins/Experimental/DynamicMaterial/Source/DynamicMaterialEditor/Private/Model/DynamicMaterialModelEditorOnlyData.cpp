@@ -401,6 +401,9 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 	// is used with Niagara. It doesn't negatively affect the material in any meaningful way.
 	MaterialModel->DynamicMaterial->bUsedWithNiagaraMeshParticles = true;
 
+	// If bNaniteTessellationEnabled is false, bUsedWithNanite will be set back to true if there's a displacement property.
+	MaterialModel->DynamicMaterial->bUsedWithNanite = bNaniteTessellationEnabled;
+
 	switch (ShadingModel)
 	{
 		case EDMMaterialShadingModel::DefaultLit:
