@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "Elements/Framework/TypedElementRegistry.h"
 #if WITH_TESTS
 #include "TypedElementTestColumns.h"
 
@@ -28,8 +29,12 @@ static void AppendColumnName(FString& Output, TWeakObjectPtr<const UScriptStruct
 #endif
 }
 
-static bool TestMatching(const FConditions& TestQuery, const TArray<FColumnBase>& RequestedColumns, bool Expected, bool Sort = false)
+static bool TestMatching(FConditions& TestQuery, const TArray<FColumnBase>& RequestedColumns, bool Expected, bool Sort = false)
 {
+	IEditorDataStorageProvider* Storage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+
+	TestQuery.Compile(UE::Editor::DataStorage::Queries::FEditorStorageQueryConditionCompileContext(Storage));
+	
 	if (Sort)
 	{
 		Algo::SortBy(RequestedColumns,

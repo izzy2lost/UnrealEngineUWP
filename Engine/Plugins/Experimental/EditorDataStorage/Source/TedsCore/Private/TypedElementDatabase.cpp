@@ -917,6 +917,8 @@ bool UEditorDataStorage::MatchesColumns(RowHandle Row, const UE::Editor::DataSto
 {
 	if (ActiveEditorEntityManager)
 	{
+		checkf(Conditions.IsCompiled(), TEXT("Query Conditions must be compiled before they can be used"));
+		
 		FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
 		if (ActiveEditorEntityManager->IsEntityActive(Entity))
 		{

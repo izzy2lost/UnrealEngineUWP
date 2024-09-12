@@ -2,18 +2,39 @@
 
 #include "Elements/Common/TypedElementQueryConditions.h"
 
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "UObject/Class.h"
 
 namespace UE::Editor::DataStorage::Queries
 {
+	FEditorStorageQueryConditionCompileContext::FEditorStorageQueryConditionCompileContext(IEditorDataStorageProvider* InDataStorage)
+		: DataStorage(InDataStorage)
+	{
+	}
+
+	const UScriptStruct* FEditorStorageQueryConditionCompileContext::GenerateDynamicColumn(
+		const FDynamicColumnDescription& Description) const
+	{
+		return DataStorage->GenerateDynamicColumn(Description);
+	}
+
+	FConditions::FConditions()
+	{
+		Identifiers.Init(NAME_None, MaxColumnCount);
+	}
+
 	FConditions::FConditions(FColumnBase Column)
 		: ColumnCount(1)
 	{
+		Identifiers.Init(NAME_None, MaxColumnCount);
 		Columns[0] = Column.TypeInfo;
+		Identifiers[0] = Column.Identifier;
 	}
 
 	void FConditions::AppendToString(FString& Output) const
 	{
+		checkf(bIsCompiled, TEXT("Query Conditions must call Compile() before you can use them"));
+		
 		if (TokenCount > 0)
 		{
 			Output += "{ ";
@@ -62,6 +83,8 @@ namespace UE::Editor::DataStorage::Queries
 
 	bool FConditions::Verify(TConstArrayView<FColumnBase> AvailableColumns) const
 	{
+		checkf(bIsCompiled, TEXT("Query Conditions must call Compile() before you can use them"));
+		
 		return VerifyBootstrap(
 			[&AvailableColumns](uint8_t ColumnIndex, TWeakObjectPtr<const UScriptStruct> Column)
 			{
@@ -80,6 +103,9 @@ namespace UE::Editor::DataStorage::Queries
 		bool AvailableColumnsAreSorted) const
 	{
 		static_assert(MaxColumnCount < 64, "Query conditions use a bit mask to locate matches. As a result MaxColumnCount can be larger than 64.");
+
+		checkf(bIsCompiled, TEXT("Query Conditions must call Compile() before you can use them"));
+		
 		uint64 Matches = 0;
 		bool Result = AvailableColumnsAreSorted
 			? VerifyBootstrap(
@@ -116,8 +142,11 @@ namespace UE::Editor::DataStorage::Queries
 		return Result;
 	}
 
-	bool FConditions::Verify(TConstArrayView<TWeakObjectPtr<const UScriptStruct>> AvailableColumns, bool AvailableColumnsAreSorted) const
+	bool FConditions::Verify(TConstArrayView<TWeakObjectPtr<const UScriptStruct>> AvailableColumns,
+		bool AvailableColumnsAreSorted) const
 	{
+		checkf(bIsCompiled, TEXT("Query Conditions must call Compile() before you can use them"));
+		
 		return AvailableColumnsAreSorted
 			? VerifyBootstrap(
 				[&AvailableColumns](uint8_t ColumnIndex, TWeakObjectPtr<const UScriptStruct> Column)
@@ -136,9 +165,13 @@ namespace UE::Editor::DataStorage::Queries
 	}
 
 	bool FConditions::Verify(TArray<TWeakObjectPtr<const UScriptStruct>>& MatchedColumns,
-		TConstArrayView<TWeakObjectPtr<const UScriptStruct>> AvailableColumns, bool AvailableColumnsAreSorted) const
+		TConstArrayView<TWeakObjectPtr<const UScriptStruct>> AvailableColumns,
+		bool AvailableColumnsAreSorted) const
 	{
 		static_assert(MaxColumnCount < 64, "Query conditions use a bit mask to locate matches. As a result MaxColumnCount cannot be larger than 64.");
+		
+		checkf(bIsCompiled, TEXT("Query Conditions must call Compile() before you can use them"));
+		
 		uint64 Matches = 0;
 		bool Result = AvailableColumnsAreSorted
 			? VerifyBootstrap(
@@ -169,6 +202,8 @@ namespace UE::Editor::DataStorage::Queries
 
 	bool FConditions::Verify(TSet<TWeakObjectPtr<const UScriptStruct>> AvailableColumns) const
 	{
+		checkf(bIsCompiled, TEXT("Query Conditions must call Compile() before you can use them"));
+		
 		return VerifyBootstrap(
 			[&AvailableColumns](uint8_t ColumnIndex, TWeakObjectPtr<const UScriptStruct> Column)
 			{
@@ -178,6 +213,8 @@ namespace UE::Editor::DataStorage::Queries
 
 	bool FConditions::Verify(ContainsCallback Callback) const
 	{
+		checkf(bIsCompiled, TEXT("Query Conditions must call Compile() before you can use them"));
+		
 		return VerifyBootstrap(Callback);
 	}
 
@@ -200,12 +237,47 @@ namespace UE::Editor::DataStorage::Queries
 
 	TConstArrayView<TWeakObjectPtr<const UScriptStruct>> FConditions::GetColumns() const
 	{
+		checkf(bIsCompiled, TEXT("Query Conditions must call Compile() before you can use them"));
+		
 		return TConstArrayView<TWeakObjectPtr<const UScriptStruct>>(Columns, ColumnCount);
 	}
 
 	bool FConditions::IsEmpty() const
 	{
 		return ColumnCount == 0;
+	}
+
+	FConditions& FConditions::Compile(const IQueryConditionCompileContext& CompileContext)
+	{
+		if(bIsCompiled)
+		{
+			return *this;
+		}
+
+		// Resolve all dynamic columns by generating their UScriptStruct
+		for (uint8_t ColumnIndex = 0; ColumnIndex < ColumnCount; ++ColumnIndex)
+		{
+			if(Identifiers[ColumnIndex] != NAME_None)
+			{
+				const UScriptStruct* ResolvedDynamicColumn = CompileContext.GenerateDynamicColumn(
+					FDynamicColumnDescription
+						{
+							.TemplateType = Columns[ColumnIndex].Get(),
+							.Identifier = Identifiers[ColumnIndex]
+						});
+				
+				Columns[ColumnIndex] = ResolvedDynamicColumn;
+			}
+		}
+
+		bIsCompiled = true;
+
+		return *this;
+	}
+
+	bool FConditions::IsCompiled() const
+	{
+		return bIsCompiled;
 	}
 
 	void FConditions::AppendName(FString& Output, TWeakObjectPtr<const UScriptStruct> TypeInfo) const
@@ -381,6 +453,7 @@ namespace UE::Editor::DataStorage::Queries
 		for (uint8_t Index = 0; Index < Source.ColumnCount; ++Index)
 		{
 			Target.Columns[Target.ColumnCount + Index] = Source.Columns[Index];
+			Target.Identifiers[Target.ColumnCount + Index] = Source.Identifiers[Index];
 		}
 
 		checkf(Target.TokenCount + Source.TokenCount < MaxTokenCount, TEXT("Too many operations in the query. Try simplifying your query."));
@@ -396,7 +469,8 @@ namespace UE::Editor::DataStorage::Queries
 	FConditions operator&&(const FConditions& Lhs, FColumnBase Rhs)
 	{
 		FConditions Result = Lhs;
-		Result.Columns[Result.ColumnCount++] = Rhs.TypeInfo;
+		Result.Columns[Result.ColumnCount] = Rhs.TypeInfo;
+		Result.Identifiers[Result.ColumnCount++] = Rhs.Identifier;
 		Result.Tokens[Result.TokenCount++] = FConditions::Token::And;
 		return Result;
 	}
@@ -420,7 +494,8 @@ namespace UE::Editor::DataStorage::Queries
 	FConditions operator&&(FColumnBase Lhs, FColumnBase Rhs)
 	{
 		FConditions Result(Lhs);
-		Result.Columns[Result.ColumnCount++] = Rhs.TypeInfo;
+		Result.Columns[Result.ColumnCount] = Rhs.TypeInfo;
+		Result.Identifiers[Result.ColumnCount++] = Rhs.Identifier;
 		Result.Tokens[Result.TokenCount++] = FConditions::Token::And;
 		return Result;
 	}
@@ -438,7 +513,8 @@ namespace UE::Editor::DataStorage::Queries
 	FConditions operator||(const FConditions& Lhs, FColumnBase Rhs)
 	{
 		FConditions Result = Lhs;
-		Result.Columns[Result.ColumnCount++] = Rhs.TypeInfo;
+		Result.Columns[Result.ColumnCount] = Rhs.TypeInfo;
+		Result.Identifiers[Result.ColumnCount++] = Rhs.Identifier;
 		Result.Tokens[Result.TokenCount++] = FConditions::Token::Or;
 		return Result;
 	}
@@ -462,7 +538,8 @@ namespace UE::Editor::DataStorage::Queries
 	FConditions operator||(FColumnBase Lhs, FColumnBase Rhs)
 	{
 		FConditions Result(Lhs);
-		Result.Columns[Result.ColumnCount++] = Rhs.TypeInfo;
+		Result.Columns[Result.ColumnCount] = Rhs.TypeInfo;
+		Result.Identifiers[Result.ColumnCount++] = Rhs.Identifier;
 		Result.Tokens[Result.TokenCount++] = FConditions::Token::Or;
 		return Result;
 	}

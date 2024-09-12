@@ -38,6 +38,7 @@ namespace UE::Editor::DataStorage
 		 * 
 		 * @param InVariable The data member inside a column to be bound
 		 * @param InDefaultValue The default value to be used when the column isn't present on a row
+		 * @param InIdentifier The identifier for this column if it is a dynamic column, NAME_None if it is not a dynamic column
 		 * @return A TAttribute bound to the row, column pair specified
 		 *
 		 * Example:
@@ -45,7 +46,8 @@ namespace UE::Editor::DataStorage
 		 * TAttribute<FString> TestAttribute(Binder.BindData(&FTypedElementLabelColumn::Label))
 		 */
 		template <typename AttributeType, TDataColumnType ColumnType>
-		TAttribute<AttributeType> BindData(AttributeType ColumnType::* InVariable, const AttributeType& InDefaultValue = AttributeType());
+		TAttribute<AttributeType> BindData(AttributeType ColumnType::* InVariable, const AttributeType& InDefaultValue = AttributeType(),
+			const FName& InIdentifier = NAME_None);
 
 		/**
 		 * Bind a specific data member inside a TEDS column to an attribute of a different type than the data by providing a conversion function
@@ -53,7 +55,8 @@ namespace UE::Editor::DataStorage
 		 *
 		 * @param InVariable The data member inside a column to be bound
 		 * @param InConverter Conversion function to convert from DataType -> AttributeType
-		 * @param InDefaultValue The default value to be used when the column isn't present on a row 
+		 * @param InDefaultValue The default value to be used when the column isn't present on a row
+		 * @param InIdentifier The identifier for this column if it is a dynamic column, NAME_None if it is not a dynamic column
 		 * @return A TAttribute bound to the row, column pair specified
 		 *
 		 * Example:
@@ -66,43 +69,50 @@ namespace UE::Editor::DataStorage
 		 *                                 ));
 		 */
 		template <typename AttributeType, typename DataType, TDataColumnType ColumnType>
-		TAttribute<AttributeType> BindData(DataType ColumnType::* InVariable, const TFunction<AttributeType(const DataType&)>& InConverter, const DataType& InDefaultValue = DataType());
+		TAttribute<AttributeType> BindData(DataType ColumnType::* InVariable, const TFunction<AttributeType(const DataType&)>& InConverter,
+			const DataType& InDefaultValue = DataType(), const FName& InIdentifier = NAME_None);
 
 		/**
 		 * Overload for the conversion binder to accept lambdas instead of TFunctions
 		 *
 		 * @param InVariable The data member inside a column to be bound
 		 * @param InConverter Conversion function to convert from DataType -> AttributeType
-		 * @param InDefaultValue The default value to be used when the column isn't present on a row
+		 * @param InDefaultValue The default value to be used when the column isn't present on a row\
+		 * @param InIdentifier The identifier for this column if it is a dynamic column, NAME_None if it is not a dynamic column
 		 * @return A TAttribute bound to the row, column pair specified
 		 */
 		template <typename DataType, TDataColumnType ColumnType, typename FunctionType>
 			requires AttributeBinderInvocable<FunctionType, DataType>
-		auto BindData(DataType ColumnType::* InVariable, FunctionType InConverter, const DataType& InDefaultValue = DataType());
+		auto BindData(DataType ColumnType::* InVariable, FunctionType InConverter, const DataType& InDefaultValue = DataType(),
+			const FName& InIdentifier = NAME_None);
 
 		/**
 		 * Bind a delegate inside a Teds column to a SLATE_EVENT macro on a widget
 		 * @param InVariable The delegate inside the Teds column
+		 * @param InIdentifier The identifier for this column if it is a dynamic column, NAME_None if it is not a dynamic column
 		 * @return A delegate that can be provided to an event on a slate widget
 		 */
-		template <typename InRetValType, typename... ParamTypes, typename ColumnType>
-		TDelegate<InRetValType(ParamTypes...)> BindEvent(TDelegate<InRetValType(ParamTypes...)> ColumnType::* InVariable);
+		template <typename InRetValType, typename... ParamTypes, TDataColumnType ColumnType>
+		TDelegate<InRetValType(ParamTypes...)> BindEvent(TDelegate<InRetValType(ParamTypes...)> ColumnType::* InVariable,
+			const FName& InIdentifier = NAME_None);
 
 		/**
 		 * Directly bind an FString member in a Teds column to an FText attribute as a shortcut
-		 * @param InFStringVariable The FString variable 
+		 * @param InFStringVariable The FString variable
+		 * @param InIdentifier The identifier for this column if it is a dynamic column, NAME_None if it is not a dynamic column
 		 * @return A delegate that can be provided to a text widget in Slate (e.g STextBlock)
 		 */
 		template <TDataColumnType ColumnType>
-		TAttribute<FText> BindText(FString ColumnType::* InFStringVariable);
+		TAttribute<FText> BindText(FString ColumnType::* InFStringVariable, const FName& InIdentifier = NAME_None);
 
 		/**
 		 * Directly bind an FName member in a Teds column to an FText attribute as a shortcut
-		 * @param InFNameVariable The FName variable 
+		 * @param InFNameVariable The FName variable
+		 * @param InIdentifier The identifier for this column if it is a dynamic column, NAME_None if it is not a dynamic column
 		 * @return A delegate that can be provided to a text widget in Slate (e.g STextBlock)
 		 */
 		template <TDataColumnType ColumnType>
-		TAttribute<FText> BindText(FName ColumnType::* InFNameVariable);
+		TAttribute<FText> BindText(FName ColumnType::* InFNameVariable, const FName& InIdentifier = NAME_None);
 		
 	private:
 

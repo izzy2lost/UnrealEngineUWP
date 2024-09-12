@@ -130,13 +130,21 @@ namespace UE::Editor::ContentBrowser
 		
 		RowQueryStack = MakeShared<FQueryStackNode_RowView>(&Rows);
 
+		// Sample dynamic column to display the "Triangles" attribute on static meshes
+		// We probably want the dynamic columns in the table viewer to be data driven based on the rows in the future
+		const UScriptStruct* DynamicStaticMeshTrianglesColumn = DataStorage->GenerateDynamicColumn(FDynamicColumnDescription
+						{
+							.TemplateType = FItemStringAttributeColumn_Experimental::StaticStruct(),
+							.Identifier = "Triangles"
+						});
+
 		// Create the table viewer widget
 		TableViewer = SNew(STedsTableViewer)
 					.QueryStack(RowQueryStack)
 					.CellWidgetPurposes({TEXT("General.RowLabel"), TEXT("General.Cell")})
 					// Default list of columns to display
-					.Columns({ FNameColumn::StaticStruct(), FAssetTag::StaticStruct(), FAssetPathColumn_Experimental::StaticStruct(),
-						FDiskSizeColumn::StaticStruct(), FVirtualPathColumn_Experimental::StaticStruct() })
+					.Columns({ FNameColumn::StaticStruct(), FAssetClassColumn::StaticStruct(), FAssetTag::StaticStruct(), FAssetPathColumn_Experimental::StaticStruct(),
+						FDiskSizeColumn::StaticStruct(), FVirtualPathColumn_Experimental::StaticStruct(), DynamicStaticMeshTrianglesColumn })
 					.ListSelectionMode(ESelectionMode::Multi)
 					.OnSelectionChanged_Lambda([this](RowHandle Row)
 					{
