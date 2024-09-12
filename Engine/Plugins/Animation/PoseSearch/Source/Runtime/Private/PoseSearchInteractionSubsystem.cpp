@@ -97,7 +97,12 @@ namespace UE::PoseSearch
 				{
 					// we already found the FRoledAnimInstances. Updating the BroadPhaseRadius and MaxCost accordingly
 					RoledAnimInstance.BroadPhaseRadius = FMath::Max(RoledAnimInstance.BroadPhaseRadius, BroadPhaseRadius);
-					RoledAnimInstance.MaxCost = FMath::Min(RoledAnimInstance.MaxCost, MaxCost);
+					
+					// MaxCost is valid only if greater than zero
+					if (MaxCost > 0.f)
+					{
+						RoledAnimInstance.MaxCost = FMath::Min(RoledAnimInstance.MaxCost, MaxCost);
+					}
 					return;
 				}
 			}
@@ -108,7 +113,10 @@ namespace UE::PoseSearch
 			NewRoledAnimInstance.HistoryCollector = HistoryCollector;
 			NewRoledAnimInstance.Role = Role;
 			NewRoledAnimInstance.BroadPhaseRadius = BroadPhaseRadius;
-			NewRoledAnimInstance.MaxCost = MaxCost;
+			if (MaxCost > 0.f)
+			{
+				NewRoledAnimInstance.MaxCost = MaxCost;
+			}
 
 			// @todo: use a better datastructure to keep things FRoledAnimInstance(s) sorted? Or use insertion sort?
 			RoledAnimInstances.Sort([](const FRoledAnimInstance& A, const FRoledAnimInstance& B)
