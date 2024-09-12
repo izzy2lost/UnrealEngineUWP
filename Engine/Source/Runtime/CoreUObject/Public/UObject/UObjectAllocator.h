@@ -8,7 +8,7 @@
 
 #include "CoreMinimal.h"
 #include "HAL/PlatformMath.h"
-#include "Memory/LinearVirtualMemoryAllocator.h"
+#include "Memory/LinearAllocator.h"
 
 class UObjectBase;
 
@@ -20,7 +20,7 @@ public:
 	 *
 	 * @param InPermanentObjectPoolSize size of permanent object pool
 	 */
-	UE_DEPRECATED(5.5, "Permanent Object Pool is handled by the global instance of FLinearVirtualMemoryAllocator now")
+	UE_DEPRECATED(5.5, "Permanent Object Pool is handled by the global instance of FLinearAllocator now")
 	COREUOBJECT_API void AllocatePermanentObjectPool(int32 InPermanentObjectPoolSize) {}
 
 	/**
@@ -59,7 +59,7 @@ extern COREUOBJECT_API FUObjectAllocator GUObjectAllocator;
 class FPermanentObjectPoolExtents
 {
 public:
-	FORCEINLINE FPermanentObjectPoolExtents(const FLinearVirtualMemoryAllocatorExtends& InAllocatorExtends = GPersistentLinearAllocatorExtends)
+	FORCEINLINE FPermanentObjectPoolExtents(const FPersistentLinearAllocatorExtends& InAllocatorExtends = GPersistentLinearAllocatorExtends)
 		: Address(InAllocatorExtends.Address)
 		, Size(InAllocatorExtends.Size)
 	{}
