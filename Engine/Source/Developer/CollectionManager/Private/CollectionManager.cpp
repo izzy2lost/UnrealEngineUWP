@@ -2102,7 +2102,7 @@ bool FCollectionManager::HandleRedirectorsDeleted(TConstArrayView<FSoftObjectPat
 				const TSharedRef<FCollection>& Collection = *CollectionRefPtr;
 
 				FText SaveError;
-				constexpr bool bForceCommitToRevisionControl = true;
+				constexpr bool bForceCommitToRevisionControl = false;
 				if (InternalSaveCollection(Guard, Collection, &SaveError, bForceCommitToRevisionControl))
 				{
 					CollectionFileCaches[CollectionKey.Type]->IgnoreFileModification(Collection->GetSourceFilename());
