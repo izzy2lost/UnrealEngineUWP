@@ -45,7 +45,7 @@ FOptimusDataTypeHandle FOptimusDataTypeRef::Resolve() const
 	// so we have to register these types on demand.
 	if (!TypeHandle.IsValid())
 	{
-		if (TypeObject.IsValid())
+		if (TypeObject.LoadSynchronous())
 		{
 			if (Registry.RegisterStructType(Cast<UScriptStruct>(TypeObject.Get())))
 			{
