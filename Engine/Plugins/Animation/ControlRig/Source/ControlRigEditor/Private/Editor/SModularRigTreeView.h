@@ -97,17 +97,19 @@ public:
 
 	void HandleSelectionChanged(TSharedPtr<FModularRigTreeElement> Selection, ESelectInfo::Type SelectInfo)
 	{
-		if(bSelectionIsChanged)
+		if(bSuspendSelectionDelegate)
 		{
 			return;
 		}
-		TGuardValue<bool> Guard(bSelectionIsChanged, true);
+		TGuardValue<bool> Guard(bSuspendSelectionDelegate, true);
 		(void)OnSelectionChanged.ExecuteIfBound(Selection, SelectInfo);
 	}
 
 private:
 
-	bool bSelectionIsChanged = false;
+	bool bSuspendSelectionDelegate = false;
+
+	friend class SModularRigTreeView;
 };
 
 
