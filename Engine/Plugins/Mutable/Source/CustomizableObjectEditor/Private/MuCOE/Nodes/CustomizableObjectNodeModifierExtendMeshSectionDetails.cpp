@@ -65,7 +65,7 @@ void FCustomizableObjectNodeModifierExtendMeshSectionDetails::CustomizeDetails( 
 					.Padding(FMargin(0, 4.0f, 0, 4.0f))
 					[
 						SNew(STextBlock)
-							.Text(LOCTEXT("MeshSectionDetails_Tags", "Tags enabled for extended data"))
+							.Text(LOCTEXT("ExtendMeshSectionDetails_Tags", "Tags enabled for extended data"))
 							.Font(IDetailLayoutBuilder::GetDetailFont())
 					]
 			]
