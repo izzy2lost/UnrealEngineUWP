@@ -414,11 +414,15 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 	bool RegisterResizeOperator(FOperatorRegistryHlsl& Registry)
 	{
 		// Note: support of a particular version is partial with respect to tensor data types (only the most typical ones are usually supported).
-		Registry.OpAdd({{TEXT("Resize"), TEXT("Onnx")}, 10}, CreateResizeOperator, ValidateResizeOperator);
-		Registry.OpAdd({{TEXT("Resize"), TEXT("Onnx")}, 11}, CreateResizeOperator, ValidateResizeOperator);
-		Registry.OpAdd({{TEXT("Resize"), TEXT("Onnx")}, 13}, CreateResizeOperator, ValidateResizeOperator);
-		Registry.OpAdd({{TEXT("Resize"), TEXT("Onnx")}, 18}, CreateResizeOperator, ValidateResizeOperator);
-		Registry.OpAdd({{TEXT("Resize"), TEXT("Onnx")}, 19}, CreateResizeOperator, ValidateResizeOperator);
+		
+		// Note: CumSum is currently not working on Mac.
+		#if !PLATFORM_MAC
+			Registry.OpAdd({{TEXT("Resize"), TEXT("Onnx")}, 10}, CreateResizeOperator, ValidateResizeOperator);
+			Registry.OpAdd({{TEXT("Resize"), TEXT("Onnx")}, 11}, CreateResizeOperator, ValidateResizeOperator);
+			Registry.OpAdd({{TEXT("Resize"), TEXT("Onnx")}, 13}, CreateResizeOperator, ValidateResizeOperator);
+			Registry.OpAdd({{TEXT("Resize"), TEXT("Onnx")}, 18}, CreateResizeOperator, ValidateResizeOperator);
+			Registry.OpAdd({{TEXT("Resize"), TEXT("Onnx")}, 19}, CreateResizeOperator, ValidateResizeOperator);
+		#endif
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl
