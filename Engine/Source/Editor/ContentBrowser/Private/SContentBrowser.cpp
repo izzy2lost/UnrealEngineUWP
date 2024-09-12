@@ -4322,21 +4322,43 @@ void SContentBrowser::OnAssetViewRefreshRequested()
 
 void SContentBrowser::HandleCollectionRemoved(const FCollectionNameType& Collection)
 {
-	AssetViewPtr->SetSourcesData(FSourcesData());
-
-	auto RemoveHistoryDelegate = [&](const FHistoryData& HistoryData)
+	FSourcesData NewSourcesData = AssetViewPtr->GetSourcesData();
+	if (NewSourcesData.Collections.RemoveSingle(Collection) > 0)
 	{
-		return (HistoryData.SourcesData.Collections.Num() == 1 &&
-				HistoryData.SourcesData.VirtualPaths.Num() == 0 &&
-				HistoryData.SourcesData.Collections.Contains(Collection));
-	};
+		AssetViewPtr->SetSourcesData(NewSourcesData);
+	}
 
-	HistoryManager.RemoveHistoryData(RemoveHistoryDelegate);
+	HistoryManager.RemoveHistoryData([&Collection](const FHistoryData& HistoryData)
+	{
+		return HistoryData.SourcesData.Collections.Num() == 1
+			&& HistoryData.SourcesData.VirtualPaths.Num() == 0
+			&& HistoryData.SourcesData.Collections.Contains(Collection);
+	});
 }
 
 void SContentBrowser::HandleCollectionRenamed(const FCollectionNameType& OriginalCollection, const FCollectionNameType& NewCollection)
 {
-	return HandleCollectionRemoved(OriginalCollection);
+	FSourcesData NewSourcesData = AssetViewPtr->GetSourcesData();
+	if (NewSourcesData.Collections.RemoveSingle(OriginalCollection) > 0)
+	{
+		NewSourcesData.Collections.Add(NewCollection);
+		AssetViewPtr->SetSourcesData(NewSourcesData);
+	}
+
+	HistoryManager.RewriteHistoryData([&OriginalCollection, &NewCollection](FHistoryData& HistoryData)
+	{
+		if (HistoryData.SourcesData.Collections.RemoveSingle(OriginalCollection) > 0)
+		{
+			HistoryData.SourcesData.Collections.Add(NewCollection);
+		}
+	});
+
+	HistoryManager.RemoveHistoryData([&OriginalCollection](const FHistoryData& HistoryData)
+	{
+		return HistoryData.SourcesData.Collections.Num() == 1
+			&& HistoryData.SourcesData.VirtualPaths.Num() == 0
+			&& HistoryData.SourcesData.Collections.Contains(OriginalCollection);
+	});
 }
 
 void SContentBrowser::HandleCollectionUpdated(const FCollectionNameType& Collection)
@@ -4361,14 +4383,12 @@ void SContentBrowser::HandleCollectionUpdated(const FCollectionNameType& Collect
 
 void SContentBrowser::HandlePathRemoved(const FName Path)
 {
-	auto RemoveHistoryDelegate = [&](const FHistoryData& HistoryData)
+	HistoryManager.RemoveHistoryData([&Path](const FHistoryData& HistoryData)
 	{
-		return (HistoryData.SourcesData.VirtualPaths.Num() == 1 &&
-				HistoryData.SourcesData.Collections.Num() == 0 &&
-				HistoryData.SourcesData.VirtualPaths.Contains(Path));
-	};
-
-	HistoryManager.RemoveHistoryData(RemoveHistoryDelegate);
+		return HistoryData.SourcesData.VirtualPaths.Num() == 1
+			&& HistoryData.SourcesData.Collections.Num() == 0
+			&& HistoryData.SourcesData.VirtualPaths.Contains(Path);
+	});
 }
 
 void SContentBrowser::HandleItemDataUpdated(TArrayView<const FContentBrowserItemDataUpdate> InUpdatedItems)
