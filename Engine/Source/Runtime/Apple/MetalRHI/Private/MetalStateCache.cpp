@@ -1498,6 +1498,8 @@ static bool CanMakeTextureResidentViaHeaps(const MTL::Texture* Texture)
         && !(Texture->usage() & MTL::TextureUsageShaderWrite);
 }
 
+#if METAL_USE_METAL_SHADER_CONVERTER
+
 void FMetalStateCache::CacheOrSkipResourceResidencyUpdate(MTL::Resource* InResource, EMetalShaderStages const Frequency, bool bReadOnly, bool bForceUseResource)
 {
 	bool bAlreadyInSet = false;
@@ -1516,7 +1518,6 @@ void FMetalStateCache::CacheOrSkipResourceResidencyUpdate(MTL::Resource* InResou
 	}
 }
 
-#if METAL_USE_METAL_SHADER_CONVERTER
 void FMetalStateCache::IRMakeSRVResident(EMetalShaderStages const Frequency, FMetalShaderResourceView* SRV)
 {
     FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device.GetBindlessDescriptorManager();
