@@ -19,7 +19,7 @@ static_assert(sizeof(ispc::FIntVector) == sizeof(Chaos::TVec3<int32>), "sizeof(i
 static_assert(sizeof(ispc::FVector4f) == sizeof(Chaos::TVec4<Chaos::Softs::FSolverReal>), "sizeof(ispc::FVector4f) == sizeof(Chaos::TVec4<Chaos::Softs::FSolverReal>)");
 static_assert(sizeof(ispc::FIntVector) == sizeof(Chaos::TVec3<int32>), "sizeof(ispc::FIntVector) != sizeof(Chaos::TVec3<int32>");
 
-bool bChaos_MultiRes_ISPC_Enabled = true;
+bool bChaos_MultiRes_ISPC_Enabled = CHAOS_MULTIRES_ISPC_ENABLED_DEFAULT;
 FAutoConsoleVariableRef CVarChaosMultiResISPCEnabled(TEXT("p.Chaos.MultiRes.ISPC"), bChaos_MultiRes_ISPC_Enabled, TEXT("Whether to use ISPC optimizations in MultiRes constraints"));
 bool bChaos_MultiRes_SparseWeightMap_Enabled = false;
 FAutoConsoleVariableRef CVarChaosMultiResSparseWeightMapEnabled(TEXT("p.Chaos.MultiRes.SparseWeightMap"), bChaos_MultiRes_SparseWeightMap_Enabled, TEXT("Exploit the sparse weight map structure and skip the particles with 0 stiffness at the beginning and at the end"));

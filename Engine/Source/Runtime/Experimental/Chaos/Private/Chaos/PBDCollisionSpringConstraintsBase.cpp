@@ -20,7 +20,7 @@ static_assert(sizeof(ispc::FVector3f) == sizeof(Chaos::Softs::FSolverVec3), "siz
 static_assert(sizeof(ispc::FVector4f) == sizeof(Chaos::Softs::FPAndInvM), "sizeof(ispc::FVector4f) != sizeof(Chaos::Softs::FPAndInvM");
 static_assert(sizeof(ispc::FIntVector) == sizeof(Chaos::TVec3<int32>), "sizeof(ispc::FIntVector) != sizeof(Chaos::TVec3<int32>");
 
-bool bChaos_CollisionSpring_ISPC_Enabled = true;
+bool bChaos_CollisionSpring_ISPC_Enabled = CHAOS_COLLISION_SPRING_ISPC_ENABLED_DEFAULT;
 FAutoConsoleVariableRef CVarChaosCollisionSpringsISPCEnabled(TEXT("p.Chaos.CollisionSpring.ISPC"), bChaos_CollisionSpring_ISPC_Enabled, TEXT("Whether to use ISPC optimizations in collision spring constraints"));
 #endif
 

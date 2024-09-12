@@ -409,11 +409,13 @@ extern bool bChaos_XPBDBending_SplitLambdaDamping;
 
 }  // End namespace Chaos::Softs
 
+#if !defined(CHAOS_XPBD_BENDING_ISPC_ENABLED)
+#define CHAOS_XPBD_BENDING_ISPC_ENABLED 1
+#endif
+
 // Support ISPC enable/disable in non-shipping builds
-#if !INTEL_ISPC
-const bool bChaos_XPBDBending_ISPC_Enabled = false;
-#elif UE_BUILD_SHIPPING
-const bool bChaos_XPBDBending_ISPC_Enabled = true;
+#if !INTEL_ISPC || UE_BUILD_SHIPPING
+static constexpr bool bChaos_XPBDBending_ISPC_Enabled = INTEL_ISPC && CHAOS_XPBD_BENDING_ISPC_ENABLED;
 #else
 extern CHAOS_API bool bChaos_XPBDBending_ISPC_Enabled;
 #endif
