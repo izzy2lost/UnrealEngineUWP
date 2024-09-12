@@ -82,7 +82,17 @@ public:
 	TSharedPtr<FUICommandInfo> DuplicateItem;
 
 	/**
-	 * UI Command for updating tha action in the action list with the value in the field list. Currently used for Logic panel
+	 * UI Command for updating the action in the action list with the value in the field list. Currently used for Logic panel
 	 */
 	TSharedPtr<FUICommandInfo> UpdateValue;
+
+	/**
+	 * UI Command to Toggle if protocols generate property changed events
+	 */
+	TSharedPtr<FUICommandInfo> ProtocolsGeneratePropertyChangeEvents;
+
+	/**
+	 * UI Command to Toggle if protocols generate transactions
+	 */
+	TSharedPtr<FUICommandInfo> ProtocolsGenerateTransactions;
 };

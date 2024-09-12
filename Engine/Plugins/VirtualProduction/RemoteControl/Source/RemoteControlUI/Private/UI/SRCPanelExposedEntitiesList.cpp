@@ -25,6 +25,7 @@
 #include "SRCPanelExposedEntitiesGroup.h"
 #include "SRCPanelExposedField.h"
 #include "SRCPanelFieldGroup.h"
+#include "SRCPanelPerPresetProtocolSettings.h"
 #include "SSearchToggleButton.h"
 #include "Styling/RemoteControlStyles.h"
 #include "UI/IRCExposedEntitiesPanelExtender.h"
@@ -37,7 +38,6 @@
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
 #include "Widgets/Views/STreeView.h"
-
 
 #define LOCTEXT_NAMESPACE "RemoteControlPanelEntitiesList"
 
@@ -525,12 +525,21 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 			GetGroupMenuContentWidget()
 		];
 
+	// Per Preset Protocol Settings
+	const TSharedRef<SRCPanelPerPresetProtocolSettings> PerPresetProtocolSettings =
+		SNew(SRCPanelPerPresetProtocolSettings, Preset.Get())
+		.Visibility_Lambda([this]()
+			{
+				return bIsInProtocolsMode.Get() ? EVisibility::Visible : EVisibility::Collapsed;
+			});
+
 	// Expose Button
 	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Center, SearchBoxPtr.ToSharedRef());
 	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Right, SNew(SSearchToggleButton, SearchBoxPtr.ToSharedRef()));
 	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Right, ComboButtonGroupButton.ToSharedRef());
 	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Right, FilterComboButton.ToSharedRef());
 	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Right, ModeSwitcher.ToSharedRef());
+	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Right, PerPresetProtocolSettings);
 	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Left, InArgs._ExposeActorsComboButton.Get().ToSharedRef());
 	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Left, InArgs._ExposeFunctionsComboButton.Get().ToSharedRef());
 

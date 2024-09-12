@@ -102,6 +102,20 @@ void FRemoteControlCommands::RegisterCommands()
 		"Update the selected UI item value with the one in the fields list",
 		EUserInterfaceActionType::Button,
 		FInputChord(EKeys::U, EModifierKey::Control));
+
+	// Protocols generate property changed events
+	UI_COMMAND(ProtocolsGeneratePropertyChangeEvents,
+		"Protocols Generate Property Change Events",
+		"When checked, protocols generate Property change events whenever they change a property.\nEnabling this option may impact performance significantly, but may be required for certain editor controls.",
+		EUserInterfaceActionType::ToggleButton,
+		FInputChord());
+
+	// Protocols generate transactions
+	UI_COMMAND(ProtocolsGenerateTransactions,
+		"Protocols Generate Transactions",
+		"When checked, protocols generate Undo Redo events whenever they change a property.\nEnabling this option is not recommended as protocols will raise many transactions and impact performance significantly.",
+		EUserInterfaceActionType::ToggleButton,
+		FInputChord());
 }
 
 #undef LOCTEXT_NAMESPACE

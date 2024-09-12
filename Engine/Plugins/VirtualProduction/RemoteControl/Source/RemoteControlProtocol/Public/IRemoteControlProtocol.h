@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "RCModifyOperationFlags.h"
 
 #include "UObject/StructOnScope.h"
 

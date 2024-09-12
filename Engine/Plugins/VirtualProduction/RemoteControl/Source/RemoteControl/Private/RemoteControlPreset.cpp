@@ -39,6 +39,7 @@
 #include "Editor.h"
 #include "EngineAnalytics.h"
 #include "Engine/Blueprint.h"
+#include "RemoteControlSettings.h"
 #include "TimerManager.h"
 #include "UObject/PackageReload.h"
 #endif
@@ -1900,6 +1901,21 @@ void URemoteControlPreset::Serialize(FArchive& Ar)
 		{
 			PresetId = FGuid::NewGuid();
 		}
+		
+#if WITH_EDITOR
+		// 5.5 - Upgrade to per perset protocol modify operation flags
+		if (Ar.CustomVer(FRemoteControlObjectVersion::GUID) < FRemoteControlObjectVersion::AddedPerPresetModifyOperationFlags)
+		{
+			const URemoteControlSettings* Settings = GetDefault<URemoteControlSettings>();
+
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			if (Settings->bProtocolsGenerateTransactions_DEPRECATED)
+			{
+				ModifyOperationFlagsForProtocols = ERCModifyOperationFlags::None;
+			}
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		}
+#endif
 	}
 }
 

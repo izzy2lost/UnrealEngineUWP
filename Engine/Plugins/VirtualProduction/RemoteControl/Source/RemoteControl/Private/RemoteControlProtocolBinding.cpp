@@ -9,7 +9,6 @@
 #include "Factories/IRemoteControlMaskingFactory.h"
 #include "IRemoteControlModule.h"
 #include "RemoteControlPreset.h"
-#include "RemoteControlSettings.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
 #include "UObject/StructOnScope.h"
@@ -635,7 +634,7 @@ const FString& FRemoteControlProtocolEntity::GetRangePropertyMaxValue() const
 	return Empty;
 }
 
-bool FRemoteControlProtocolEntity::ApplyProtocolValueToProperty(const double InProtocolValue, const ERCModifyOperationFlags ModifyOperationFlags)
+bool FRemoteControlProtocolEntity::ApplyProtocolValueToProperty(const double InProtocolValue)
 {
 	if (Mappings.Num() <= 1)
 	{
@@ -681,9 +680,9 @@ bool FRemoteControlProtocolEntity::ApplyProtocolValueToProperty(const double InP
 	FRCObjectReference ObjectRef;
 	ObjectRef.Property = Property;
 	ObjectRef.Access = ERCAccess::WRITE_ACCESS;
-
-	const URemoteControlSettings* RemoteControlSettings = GetDefault<URemoteControlSettings>();
-	if (RemoteControlSettings->bProtocolsGenerateTransactions)
+	
+	const ERCModifyOperationFlags ModifyOperationFlags = Preset->GetModifyOperationFlagsForProtocols();
+	if (EnumHasAnyFlags(ModifyOperationFlags, ERCModifyOperationFlags::None))
 	{
 		ObjectRef.Access = ERCAccess::WRITE_TRANSACTION_ACCESS;
 	}

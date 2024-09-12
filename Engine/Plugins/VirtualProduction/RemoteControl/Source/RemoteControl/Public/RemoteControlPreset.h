@@ -3,6 +3,7 @@
 
 #include "Algo/Transform.h"
 #include "CoreTypes.h"
+#include "RCModifyOperationFlags.h"
 #include "RemoteControlEntity.h"
 #include "RemoteControlField.h"
 #include "RemoteControlPropertyIdRegistry.h"
@@ -889,6 +890,12 @@ public:
 	 */
 	TObjectPtr<URemoteControlPropertyIdRegistry> GetPropertyIdRegistry() const { return PropertyIdRegistry; }
 
+	/** Sets how this preset modifies properties when changed by protocols */
+	void SetModifyOperationFlagsForProtocols(ERCModifyOperationFlags InOperationFlags) { ModifyOperationFlagsForProtocols = InOperationFlags; }
+
+	/** Returns how this preset modifies properties when changed by protocols */
+	ERCModifyOperationFlags GetModifyOperationFlagsForProtocols() const { return ModifyOperationFlagsForProtocols; }
+
 private:
 
 	/** Find a binding that has the same boundobjectmap but that currently points to the object passed as argument. */
@@ -934,6 +941,10 @@ private:
 	/** Preset unique ID */
 	UPROPERTY(AssetRegistrySearchable)
 	FGuid PresetId;
+
+	/** Defines how this preset modifies properties when changed by protocols */
+	UPROPERTY()
+	ERCModifyOperationFlags ModifyOperationFlagsForProtocols = ERCModifyOperationFlags::SkipPropertyChangeEvents | ERCModifyOperationFlags::SkipTransactions;
 
 	/** The cache for information about an exposed field. */
 	UPROPERTY(Transient)
