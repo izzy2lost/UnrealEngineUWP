@@ -232,7 +232,7 @@ UClass* FAnimNode_ControlRig::GetTargetClass() const
 	return DefaultControlRigClass;
 }
 
-void FAnimNode_ControlRig::UpdateInput(UControlRig* InControlRig, const FPoseContext& InOutput)
+void FAnimNode_ControlRig::UpdateInput(UControlRig* InControlRig, FPoseContext& InOutput)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
