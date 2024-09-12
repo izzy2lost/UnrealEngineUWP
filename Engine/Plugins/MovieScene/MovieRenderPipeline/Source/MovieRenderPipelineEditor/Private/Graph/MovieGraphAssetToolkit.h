@@ -38,6 +38,7 @@ public:
 	virtual FText GetBaseToolkitName() const override;
 	virtual FString GetWorldCentricTabPrefix() const override;
 	virtual void SaveAsset_Execute() override;
+	virtual void OnAssetsSavedAs(const TArray<UObject*>& SavedObjects) override;
 	virtual void OnClose() override;
 	//~ End FAssetEditorToolkit interface
 

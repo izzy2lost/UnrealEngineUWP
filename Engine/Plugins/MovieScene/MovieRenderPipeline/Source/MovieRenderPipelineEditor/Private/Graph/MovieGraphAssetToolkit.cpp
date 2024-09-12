@@ -715,6 +715,25 @@ void FMovieGraphAssetToolkit::SaveAsset_Execute()
 	// TODO: Any custom save logic here
 }
 
+void FMovieGraphAssetToolkit::OnAssetsSavedAs(const TArray<UObject*>& SavedObjects)
+{
+	FAssetEditorToolkit::OnAssetsSavedAs(SavedObjects);
+
+	UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+
+	// The default behavior for SaveAs in the toolkit doesn't properly re-open the assets that were saved during a SaveAs, it only closes the assets
+	// that were the source of the SaveAs. After a SaveAs, the graph potentially goes through a complete data change, and re-opening is the most
+	// reliable way to make sure that the graph and editor are properly in sync. Without this, connections, delegates, etc can get badly out-of-sync
+	// after a SaveAs. Generally a crash won't result, but the graph will be in a nearly unusable state.
+	for (UObject* SavedObject : SavedObjects)
+	{
+		AssetEditorSubsystem->CloseAllEditorsForAsset(SavedObject);
+		AssetEditorSubsystem->NotifyAssetClosed(SavedObject, this);
+	}
+
+	AssetEditorSubsystem->OpenEditorForAssets_Advanced(SavedObjects, ToolkitMode, ToolkitHost.Pin());
+}
+
 void FMovieGraphAssetToolkit::OnClose()
 {
 	// Editor-only nodes are copied to the underlying runtime graph on save/close
