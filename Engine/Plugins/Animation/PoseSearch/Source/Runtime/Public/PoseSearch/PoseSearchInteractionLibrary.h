@@ -34,9 +34,9 @@ struct POSESEARCH_API FPoseSearchInteractionAvailability
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Settings)
 	float BroadPhaseRadius = 500.f;
 
-	// the associated character to this FPoseSearchInteractionAvailability will not partecipate in an interaction if the motion matching search cost result is higher than MaxCost
+	// if MaxCost if greater than zero, the associated character to this FPoseSearchInteractionAvailability will not partecipate in an interaction if the motion matching search cost result is higher than MaxCost
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Settings)
-	float MaxCost = 1000.f;
+	float MaxCost = 0.f;
 };
 
 USTRUCT(Experimental, BlueprintType, Category="Animation|Pose Search")
