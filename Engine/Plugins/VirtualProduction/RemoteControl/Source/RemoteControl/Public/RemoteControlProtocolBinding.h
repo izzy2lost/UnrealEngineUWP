@@ -391,7 +391,7 @@ public:
 	 * @param ModifyOperationFlags			(optional) Flags that specify how the property is modified when the value is applied.
 	 * @return								True if the value was applied successfully
 	 */
-	bool ApplyProtocolValueToProperty(const double InProtocolValue, const ERCModifyOperationFlags ModifyOperationFlags = ERCModifyOperationFlags::None);
+	bool ApplyProtocolValueToProperty(const double InProtocolValue);
 
 	/** 
 	 * Get bound range property. For example, the range could be bound to FFloatProperty or FIntProperty, etc.
