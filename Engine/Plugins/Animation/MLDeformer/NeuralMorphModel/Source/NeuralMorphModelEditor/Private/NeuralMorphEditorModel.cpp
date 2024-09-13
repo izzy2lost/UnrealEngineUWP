@@ -668,6 +668,10 @@ namespace UE::NeuralMorphModel
 	void FNeuralMorphEditorModel::DebugDrawItemMask(FPrimitiveDrawInterface* PDI, int32 MaskItemIndex, const FVector& DrawOffset)
 	{
 		FMLDeformerSampler* Sampler = GetSamplerForActiveAnim();
+		if (!Sampler)
+		{
+			return;
+		}
 
 		UMLDeformerMorphModelVizSettings* VizSettings = Cast<UMLDeformerMorphModelVizSettings>(Model->GetVizSettings());
 		const int32 NumVerts = Model->GetNumBaseMeshVerts();
