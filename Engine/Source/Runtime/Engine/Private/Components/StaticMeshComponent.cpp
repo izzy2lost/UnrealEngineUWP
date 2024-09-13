@@ -3348,6 +3348,11 @@ void UStaticMeshComponent::UpdateBounds()
 	Super::UpdateBounds();
 }
 
+void UStaticMeshComponent::PreStaticMeshCompilation()
+{
+	FNavigationSystem::UnregisterComponent(*this);
+}
+
 void UStaticMeshComponent::PostStaticMeshCompilation()
 {
 	// Flag indicates that the component is currently registering and all the following actions
@@ -3993,6 +3998,11 @@ void UStaticMeshComponent::GetPrimitiveStats(FPrimitiveStats& PrimitiveStats) co
 void FActorStaticMeshComponentInterface::OnMeshRebuild(bool bRenderDataChanged)
 {
 	UStaticMeshComponent::GetStaticMeshComponent(this)->OnMeshRebuild(bRenderDataChanged);
+}
+
+void FActorStaticMeshComponentInterface::PreStaticMeshCompilation()
+{
+	UStaticMeshComponent::GetStaticMeshComponent(this)->PreStaticMeshCompilation();
 }
 
 void FActorStaticMeshComponentInterface::PostStaticMeshCompilation()

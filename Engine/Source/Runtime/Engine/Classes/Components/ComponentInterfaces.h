@@ -114,6 +114,7 @@ class IStaticMeshComponent
 public:
 #if WITH_EDITOR
 	virtual void OnMeshRebuild(bool bRenderDataChanged) = 0;
+	virtual void PreStaticMeshCompilation() = 0;
 	virtual void PostStaticMeshCompilation() = 0;
 #endif
 	virtual UStaticMesh* GetStaticMesh() const = 0;

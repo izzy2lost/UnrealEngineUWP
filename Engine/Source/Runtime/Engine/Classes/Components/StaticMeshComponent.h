@@ -613,6 +613,7 @@ public:
 	ENGINE_API virtual bool IsShown(const FEngineShowFlags& ShowFlags) const override;
 #if WITH_EDITOR
 	ENGINE_API void OnMeshRebuild(bool bRenderDataChanged);
+	ENGINE_API virtual void PreStaticMeshCompilation();
 	ENGINE_API virtual void PostStaticMeshCompilation();
 	ENGINE_API virtual bool ComponentIsTouchingSelectionBox(const FBox& InSelBBox, const bool bConsiderOnlyBSP, const bool bMustEncompassEntireComponent) const override;
 	ENGINE_API virtual bool ComponentIsTouchingSelectionFrustum(const FConvexVolume& InSelBBox, const bool bConsiderOnlyBSP, const bool bMustEncompassEntireComponent) const override;

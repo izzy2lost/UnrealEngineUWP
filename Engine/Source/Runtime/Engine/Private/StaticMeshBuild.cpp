@@ -198,6 +198,8 @@ void UStaticMesh::BatchBuild(const TArray<UStaticMesh*>& InStaticMeshes, const F
 
 				for (IStaticMeshComponent* Component : ObjectCacheScope.GetContext().GetStaticMeshComponents(StaticMesh))
 				{
+					Component->PreStaticMeshCompilation();
+
 					IPrimitiveComponent* PrimitiveComponent = Component->GetPrimitiveComponentInterface();
 
 					// Detach all instances of those static meshes from the scene.
