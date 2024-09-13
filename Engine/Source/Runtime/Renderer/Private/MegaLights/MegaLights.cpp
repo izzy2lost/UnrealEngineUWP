@@ -843,6 +843,7 @@ class FDenoiserTemporalCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, SpecularLightingAndSecondMomentHistoryTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UNORM float>, NumFramesAccumulatedHistoryTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, MegaLightsDepthHistory)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, MegaLightsNormalAndShading)
 		SHADER_PARAMETER(FVector4f, HistoryScreenPositionScaleBias)
 		SHADER_PARAMETER(FVector4f, HistoryUVMinMax)
 		SHADER_PARAMETER(FVector4f, HistoryGatherUVMinMax)
@@ -1047,6 +1048,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 		FRDGTextureRef DiffuseLightingAndSecondMomentHistory = nullptr;
 		FRDGTextureRef SpecularLightingAndSecondMomentHistory = nullptr;
 		FRDGTextureRef SceneDepthHistory = nullptr;
+		FRDGTextureRef SceneNormalAndShadingHistory = nullptr;
 		FRDGTextureRef NumFramesAccumulatedHistory = nullptr;
 		FRDGBufferRef VisibleLightHashHistory = nullptr;
 		FRDGBufferRef VisibleLightMaskHashHistory = nullptr;
@@ -1069,6 +1071,12 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 					&& StochasticLightingViewState.SceneDepthHistory->GetDesc().Extent == SceneTextures.Depth.Resolve->Desc.Extent)
 				{
 					SceneDepthHistory = GraphBuilder.RegisterExternalTexture(StochasticLightingViewState.SceneDepthHistory);
+				}
+
+				if (StochasticLightingViewState.SceneNormalHistory
+					&& StochasticLightingViewState.SceneNormalHistory->GetDesc().Extent == SceneTextures.Depth.Resolve->Desc.Extent)
+				{
+					SceneNormalAndShadingHistory = GraphBuilder.RegisterExternalTexture(StochasticLightingViewState.SceneNormalHistory);
 				}
 
 				if (bTemporal &&
@@ -1606,6 +1614,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			PassParameters->SpecularLightingAndSecondMomentHistoryTexture = SpecularLightingAndSecondMomentHistory;
 			PassParameters->NumFramesAccumulatedHistoryTexture = NumFramesAccumulatedHistory;
 			PassParameters->MegaLightsDepthHistory = SceneDepthHistory;
+			PassParameters->MegaLightsNormalAndShading = SceneNormalAndShadingHistory;
 			PassParameters->PrevSceneColorPreExposureCorrection = View.PreExposure / View.PrevViewInfo.SceneColorPreExposure;
 			PassParameters->HistoryScreenPositionScaleBias = HistoryScreenPositionScaleBias;
 			PassParameters->HistoryUVMinMax = HistoryUVMinMax;
