@@ -1523,6 +1523,14 @@ void FCompressedAnimSequence::SerializeCompressedData(FArchive& Ar, bool bDDCDat
 		}
 	}
 
+	if (Ar.IsLoading() || Ar.IsCooking())
+	{
+		if (CurveCompressionCodec != nullptr)
+		{
+			CurveCompressionCodec->ValidateCompressedData(DataOwner, *this);
+		}
+	}
+
 #if WITH_EDITOR
 	if (bDDCData)
 	{

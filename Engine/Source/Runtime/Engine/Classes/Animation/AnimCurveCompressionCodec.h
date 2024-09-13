@@ -41,6 +41,15 @@ class UAnimCurveCompressionCodec : public UObject
 
 	ENGINE_API virtual void Serialize(FArchive& Ar) override;
 
+	/*
+	 * Called on load and when cooking to validate that the compressed data is good.
+	 * Codecs should perform necessary validation and emit an error when appropriate.
+	 * e.g: UE_LOG(LogAnimationCompression, Error, TEXT("Bad data!"));
+	 * 
+	 * Returns true when the data is valid, false otherwise.
+	 */
+	ENGINE_API virtual bool ValidateCompressedData(UObject* DataOwner, const FCompressedAnimSequence& AnimSeq) const { return true; }
+
 #if WITH_EDITORONLY_DATA
 	/** Returns whether or not we can use this codec to compress. */
 	virtual bool IsCodecValid() const { return true; }
