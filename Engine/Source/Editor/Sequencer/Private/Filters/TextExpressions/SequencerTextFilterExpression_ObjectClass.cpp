@@ -1,34 +1,33 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SequencerTextFilterExpression_Class.h"
-#include "Filters/SequencerFilterData.h"
+#include "SequencerTextFilterExpression_ObjectClass.h"
 #include "Sequencer.h"
 
 using namespace UE::Sequencer;
 
-#define LOCTEXT_NAMESPACE "SequencerTextFilterExpression_Class"
+#define LOCTEXT_NAMESPACE "SequencerTextFilterExpression_ObjectClass"
 
-FSequencerTextFilterExpression_Class::FSequencerTextFilterExpression_Class(ISequencerTrackFilters& InFilterInterface)
+FSequencerTextFilterExpression_ObjectClass::FSequencerTextFilterExpression_ObjectClass(ISequencerTrackFilters& InFilterInterface)
 	: FSequencerTextFilterExpressionContext(InFilterInterface)
 {
 }
 
-TSet<FName> FSequencerTextFilterExpression_Class::GetKeys() const
+TSet<FName> FSequencerTextFilterExpression_ObjectClass::GetKeys() const
 {
-	return { TEXT("CLASS"), TEXT("TYPE") };
+	return { TEXT("OBJECTCLASS"), TEXT("OBJECTTYPE") };
 }
 
-ESequencerTextFilterValueType FSequencerTextFilterExpression_Class::GetValueType() const
+ESequencerTextFilterValueType FSequencerTextFilterExpression_ObjectClass::GetValueType() const
 {
 	return ESequencerTextFilterValueType::String;
 }
 
-FText FSequencerTextFilterExpression_Class::GetDescription() const
+FText FSequencerTextFilterExpression_ObjectClass::GetDescription() const
 {
-	return LOCTEXT("ExpressionDescription_Class", "Filter by class name");
+	return LOCTEXT("ExpressionDescription_Class", "Filter by bound object class name");
 }
 
-bool FSequencerTextFilterExpression_Class::TestComplexExpression(const FName& InKey
+bool FSequencerTextFilterExpression_ObjectClass::TestComplexExpression(const FName& InKey
 	, const FTextFilterString& InValue
 	, const ETextFilterComparisonOperation InComparisonOperation
 	, const ETextFilterTextComparisonMode InTextComparisonMode) const
@@ -36,15 +35,6 @@ bool FSequencerTextFilterExpression_Class::TestComplexExpression(const FName& In
 	if (!FSequencerTextFilterExpressionContext::TestComplexExpression(InKey, InValue, InComparisonOperation, InTextComparisonMode))
 	{
 		return true;
-	}
-
-	if (WeakTrackObject.IsValid())
-	{
-		const FString TrackClassName = WeakTrackObject->GetClass()->GetName();
-		if (TextFilterUtils::TestComplexExpression(TrackClassName, InValue, InComparisonOperation, InTextComparisonMode))
-		{
-			return true;
-		}
 	}
 
 	ISequencer& Sequencer = FilterInterface.GetSequencer();

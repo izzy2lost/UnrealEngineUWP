@@ -11,17 +11,18 @@
 #include "Filters/TextExpressions/SequencerTextFilterExpression_ConditionClass.h"
 #include "Filters/TextExpressions/SequencerTextFilterExpression_ConditionFunc.h"
 #include "Filters/TextExpressions/SequencerTextFilterExpression_ConditionPasses.h"
-#include "Filters/TextExpressions/SequencerTextFilterExpression_Class.h"
 #include "Filters/TextExpressions/SequencerTextFilterExpression_Group.h"
 #include "Filters/TextExpressions/SequencerTextFilterExpression_Level.h"
 #include "Filters/TextExpressions/SequencerTextFilterExpression_Locked.h"
 #include "Filters/TextExpressions/SequencerTextFilterExpression_Modified.h"
 #include "Filters/TextExpressions/SequencerTextFilterExpression_Muted.h"
 #include "Filters/TextExpressions/SequencerTextFilterExpression_Name.h"
+#include "Filters/TextExpressions/SequencerTextFilterExpression_ObjectClass.h"
 #include "Filters/TextExpressions/SequencerTextFilterExpression_Selected.h"
 #include "Filters/TextExpressions/SequencerTextFilterExpression_Soloed.h"
 #include "Filters/TextExpressions/SequencerTextFilterExpression_Tag.h"
 #include "Filters/TextExpressions/SequencerTextFilterExpression_Time.h"
+#include "Filters/TextExpressions/SequencerTextFilterExpression_TrackClass.h"
 #include "Filters/TextExpressions/SequencerTextFilterExpression_Unbound.h"
 #include "UObject/UObjectIterator.h"
 
@@ -40,7 +41,8 @@ FSequencerTrackFilter_Text::FSequencerTrackFilter_Text(ISequencerTrackFilters& I
 
 	// Ordered by importance and most often used. This will dictate the order of display in the text expressions help dialog.
 	TextFilterExpressionContexts.Add(MakeShared<FSequencerTextFilterExpression_Name>(InFilterInterface));
-	TextFilterExpressionContexts.Add(MakeShared<FSequencerTextFilterExpression_Class>(InFilterInterface));
+	TextFilterExpressionContexts.Add(MakeShared<FSequencerTextFilterExpression_TrackClass>(InFilterInterface));
+	TextFilterExpressionContexts.Add(MakeShared<FSequencerTextFilterExpression_ObjectClass>(InFilterInterface));
 	TextFilterExpressionContexts.Add(MakeShared<FSequencerTextFilterExpression_Condition>(InFilterInterface));
 	TextFilterExpressionContexts.Add(MakeShared<FSequencerTextFilterExpression_ConditionClass>(InFilterInterface));
 	TextFilterExpressionContexts.Add(MakeShared<FSequencerTextFilterExpression_ConditionFunc>(InFilterInterface));
