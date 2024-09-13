@@ -15,7 +15,7 @@
 #include "IO/IoDispatcherInternal.h"
 #include "HAL/IConsoleManager.h"
 
-static bool GUseOldLoaderAsFallback = true;
+static bool GUseOldLoaderAsFallback = false;
 static FAutoConsoleVariableRef CVarGUseOldLoaderAsFallback(
 	TEXT("s.UseOldLoaderAsFallback"),
 	GUseOldLoaderAsFallback,
