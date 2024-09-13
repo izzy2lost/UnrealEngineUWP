@@ -1107,11 +1107,6 @@ void SSequencer::BindCommands(TSharedRef<FUICommandList> SequencerCommandBinding
 		FSequencerCommands::Get().OpenNodeGroupsManager,
 		FExecuteAction::CreateSP(this, &SSequencer::OpenNodeGroupsManager)
 	);
-
-	if (const TSharedPtr<FSequencerFilterBar> FilterBar = GetFilterBar())
-	{
-		FilterBar->BindCommands();
-	}
 }
 
 void SSequencer::OpenTickResolutionOptions()
