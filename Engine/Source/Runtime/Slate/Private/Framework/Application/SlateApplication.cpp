@@ -1343,7 +1343,7 @@ TArray<SWindow*> GatherAllDescendants(const TArray< TSharedRef<SWindow> >& InWin
 
 void FSlateApplication::PrivateDrawWindows( TSharedPtr<SWindow> DrawOnlyThisWindow )
 {
-	if (GSlateSkipWidgetDrawingInHeadlessMode && !FApp::CanEverRender() && !bAnyActiveTimersPending)
+	if (GSlateSkipWidgetDrawingInHeadlessMode && !FApp::CanEverRender())
 	{
 		// early out, as window "drawing" can take 1-2ms of a -nullrhi PC game
 		return;
