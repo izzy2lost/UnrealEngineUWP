@@ -27,7 +27,7 @@ struct FTakeRecordSettings
 	GENERATED_BODY();
 
 	UPROPERTY(config,EditAnywhere,Category="Multi-user Client Record Settings")
-	bool bRecordOnClient = true;
+	bool bRecordOnClient = false;
 
 	UPROPERTY(config,EditAnywhere,Category="Multi-user Client Record Settings")
 	bool bTransactSources = true;
