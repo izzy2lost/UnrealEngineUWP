@@ -204,7 +204,7 @@ bool FPCGMetadataMathsOp_OneMinus::RunTest(const FString& Parameters)
 	// Point Data
 	FPCGAttributePropertyInputSelector Selector;
 	Selector.SetPointProperty(EPCGPointProperties::Seed);
-	bSuccess &= ExecuteTest(TestParams(OneMinus, GeneratePointData(), TArray<int64>({0}), TArray<int64>({0})), Selector);
+	bSuccess &= ExecuteTest(TestParams(OneMinus, GeneratePointData(), TArray<int32>({0}), TArray<int32>({0})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Density);
 	bSuccess &= ExecuteTest(TestParams(OneMinus, GeneratePointData(), TArray({0.0}), TArray({0.0})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Position);
@@ -235,7 +235,7 @@ bool FPCGMetadataMathsOp_Sign::RunTest(const FString& Parameters)
 	// Point Data
 	FPCGAttributePropertyInputSelector Selector;
 	Selector.SetPointProperty(EPCGPointProperties::Seed);
-	bSuccess &= ExecuteTest(TestParams(Sign, GeneratePointData(), TArray<int64>({0}), TArray<int64>({1})), Selector);
+	bSuccess &= ExecuteTest(TestParams(Sign, GeneratePointData(), TArray<int32>({0}), TArray<int32>({1})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Density);
 	bSuccess &= ExecuteTest(TestParams(Sign, GeneratePointData(), TArray({0.0}), TArray({1.0})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Position);
@@ -264,7 +264,7 @@ bool FPCGMetadataMathsOp_Frac::RunTest(const FString& Parameters)
 	// Point Data
 	FPCGAttributePropertyInputSelector Selector;
 	Selector.SetPointProperty(EPCGPointProperties::Seed);
-	bSuccess &= ExecuteTest(TestParams(Frac, GeneratePointData(), TArray<int64>({0}), TArray<int64>({0})), Selector);
+	bSuccess &= ExecuteTest(TestParams(Frac, GeneratePointData(), TArray<int32>({0}), TArray<int32>({0})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Density);
 	bSuccess &= ExecuteTest(TestParams(Frac, GeneratePointData(), TArray({0.0}), TArray({0.0})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Position);
@@ -293,7 +293,7 @@ bool FPCGMetadataMathsOp_Truncate::RunTest(const FString& Parameters)
 	// Point Data
 	FPCGAttributePropertyInputSelector Selector;
 	Selector.SetPointProperty(EPCGPointProperties::Seed);
-	bSuccess &= ExecuteTest(TestParams(Truncate, GeneratePointData(), TArray<int64>({0}), TArray<int64>({1})), Selector);
+	bSuccess &= ExecuteTest(TestParams(Truncate, GeneratePointData(), TArray<int32>({0}), TArray<int32>({1})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Density);
 	bSuccess &= ExecuteTest(TestParams(Truncate, GeneratePointData(), TArray({0.0}), TArray({1.0})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Position);
@@ -322,7 +322,7 @@ bool FPCGMetadataMathsOp_Add::RunTest(const FString& Parameters)
 	// Point Data
 	FPCGAttributePropertyInputSelector Selector;
 	Selector.SetPointProperty(EPCGPointProperties::Seed);
-	bSuccess &= ExecuteTest(TestParams(Add, GeneratePointData(2), TArray<int64>({0}), TArray<int64>({3})), Selector);
+	bSuccess &= ExecuteTest(TestParams(Add, GeneratePointData(2), TArray<int32>({0}), TArray<int32>({3})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Density);
 	bSuccess &= ExecuteTest(TestParams(Add, GeneratePointData(2), TArray({0.0}), TArray({3.0})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Position);
@@ -351,7 +351,7 @@ bool FPCGMetadataMathsOp_Subtract::RunTest(const FString& Parameters)
 	// Point Data
 	FPCGAttributePropertyInputSelector Selector;
 	Selector.SetPointProperty(EPCGPointProperties::Seed);
-	bSuccess &= ExecuteTest(TestParams(Subtract, GeneratePointData(2), TArray<int64>({0}), TArray<int64>({-1})), Selector);
+	bSuccess &= ExecuteTest(TestParams(Subtract, GeneratePointData(2), TArray<int32>({0}), TArray<int32>({-1})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Density);
 	bSuccess &= ExecuteTest(TestParams(Subtract, GeneratePointData(2), TArray({0.0}), TArray({1.0})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Position);
@@ -380,7 +380,7 @@ bool FPCGMetadataMathsOp_Multiply::RunTest(const FString& Parameters)
 	// Point Data
 	FPCGAttributePropertyInputSelector Selector;
 	Selector.SetPointProperty(EPCGPointProperties::Seed);
-	bSuccess &= ExecuteTest(TestParams(Multiply, GeneratePointData(2), TArray<int64>({0}), TArray<int64>({2})), Selector);
+	bSuccess &= ExecuteTest(TestParams(Multiply, GeneratePointData(2), TArray<int32>({0}), TArray<int32>({2})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Density);
 	bSuccess &= ExecuteTest(TestParams(Multiply, GeneratePointData(2), TArray({0.0}), TArray({2.0})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Position);
@@ -409,7 +409,7 @@ bool FPCGMetadataMathsOp_Divide::RunTest(const FString& Parameters)
 	// Point Data
 	FPCGAttributePropertyInputSelector Selector;
 	Selector.SetPointProperty(EPCGPointProperties::Seed);
-	bSuccess &= ExecuteTest(TestParams(Divide, GeneratePointData(2), TArray<int64>({0}), TArray<int64>({0})), Selector);
+	bSuccess &= ExecuteTest(TestParams(Divide, GeneratePointData(2), TArray<int32>({0}), TArray<int32>({0})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Density);
 	bSuccess &= ExecuteTest(TestParams(Divide, GeneratePointData(2), TArray({0.0}), TArray({2.0})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Position);
@@ -481,7 +481,7 @@ bool FPCGMetadataMathsOp_Abs::RunTest(const FString& Parameters)
 	// Point Data
 	FPCGAttributePropertyInputSelector Selector;
 	Selector.SetPointProperty(EPCGPointProperties::Seed);
-	bSuccess &= ExecuteTest(TestParams(Abs, GeneratePointData(), TArray<int64>({0}), TArray<int64>({1})), Selector);
+	bSuccess &= ExecuteTest(TestParams(Abs, GeneratePointData(), TArray<int32>({0}), TArray<int32>({1})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Density);
 	bSuccess &= ExecuteTest(TestParams(Abs, GeneratePointData(), TArray({0.0}), TArray({1.0})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Position);
@@ -510,7 +510,7 @@ bool FPCGMetadataMathsOp_Inc::RunTest(const FString& Parameters)
 	// Point Data
 	FPCGAttributePropertyInputSelector Selector;
 	Selector.SetPointProperty(EPCGPointProperties::Seed);
-	bSuccess &= ExecuteTest(TestParams(Inc, GeneratePointData(), TArray<int64>({0}), TArray<int64>({2})), Selector);
+	bSuccess &= ExecuteTest(TestParams(Inc, GeneratePointData(), TArray<int32>({0}), TArray<int32>({2})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Density);
 	bSuccess &= ExecuteTest(TestParams(Inc, GeneratePointData(), TArray({0.0}), TArray({2.0})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Position);
@@ -539,7 +539,7 @@ bool FPCGMetadataMathsOp_Dec::RunTest(const FString& Parameters)
 	// Point Data
 	FPCGAttributePropertyInputSelector Selector;
 	Selector.SetPointProperty(EPCGPointProperties::Seed);
-	bSuccess &= ExecuteTest(TestParams(Dec, GeneratePointData(), TArray<int64>({0}), TArray<int64>({0})), Selector);
+	bSuccess &= ExecuteTest(TestParams(Dec, GeneratePointData(), TArray<int32>({0}), TArray<int32>({0})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Density);
 	bSuccess &= ExecuteTest(TestParams(Dec, GeneratePointData(), TArray({0.0}), TArray({0.0})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Position);
@@ -568,7 +568,7 @@ bool FPCGMetadataMathsOp_Negate::RunTest(const FString& Parameters)
 	// Point Data
 	FPCGAttributePropertyInputSelector Selector;
 	Selector.SetPointProperty(EPCGPointProperties::Seed);
-	bSuccess &= ExecuteTest(TestParams(Negate, GeneratePointData(), TArray<int64>({0}), TArray<int64>({-1})), Selector);
+	bSuccess &= ExecuteTest(TestParams(Negate, GeneratePointData(), TArray<int32>({0}), TArray<int32>({-1})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Density);
 	bSuccess &= ExecuteTest(TestParams(Negate, GeneratePointData(), TArray({0.0}), TArray({-1.0})), Selector);
 	Selector.SetPointProperty(EPCGPointProperties::Position);
