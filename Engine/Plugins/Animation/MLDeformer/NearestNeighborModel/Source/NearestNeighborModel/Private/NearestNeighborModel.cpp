@@ -1351,6 +1351,7 @@ void UNearestNeighborModel::PostLoad()
 			check(Section);
 			Section->InitFromClothPartData(ClothPartData_DEPRECATED[Index]);
 		}
+		bUsePCA = true;
 		UpdateForTraining();
 		UpdateForInference();
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
