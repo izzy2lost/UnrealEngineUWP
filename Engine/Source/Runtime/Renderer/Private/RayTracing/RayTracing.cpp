@@ -1134,9 +1134,12 @@ namespace RayTracing
 
 					// CacheInstances expects to have one ray tracing mesh command per BLAS segment.
 					// If that's not the case in the future, other logic such as NumCachedStaticVisibleMeshCommands calculation needs to be updated.
-					checkf(RTLODData.CachedMeshCommandIndices.Num() == CachedRayTracingInstance.GeometryRHI->GetNumSegments(),
-						TEXT("Expected to have one ray tracing mesh command per BLAS segment (primitive has %d cached mesh commands but BLAS has %d segments)."),
-						RTLODData.CachedMeshCommandIndices.Num(), CachedRayTracingInstance.GeometryRHI->GetNumSegments());
+					if (!bUsingNaniteRayTracing)
+					{
+						checkf(RTLODData.CachedMeshCommandIndices.Num() == RelevantPrimitive->RayTracingGeometry->Initializer.Segments.Num(),
+							TEXT("Expected to have one ray tracing mesh command per BLAS segment (primitive has %d cached mesh commands but BLAS has %d segments)."),
+							RTLODData.CachedMeshCommandIndices.Num(), RelevantPrimitive->RayTracingGeometry->Initializer.Segments.Num());
+					}
 
 					const bool bNeedMainInstance = !RelevantPrimitive->CachedMeshCommandFlags.bAllSegmentsDecal;
 
