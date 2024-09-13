@@ -7,6 +7,7 @@
 #include "GPUSceneWriter.h"
 
 class FPrimitiveSceneInfo;
+class FScene;
 
 /**
  * Experimental interface that is able to submit updates to modify GPU-scene. 
@@ -24,21 +25,13 @@ public:
 	 */
 	void EnqueueUpdate(FPrimitiveSceneInfo* PrimitiveSceneInfo, FGPUSceneWriteDelegate&& DataWriterGPU)
 	{
-		if (ensure(IsEnabled()))
-		{
-			EnqueueUpdateInternal(PrimitiveSceneInfo, MoveTemp(DataWriterGPU));
-		}
+		EnqueueUpdateInternal(PrimitiveSceneInfo, MoveTemp(DataWriterGPU));
 	}
 
-	/** Whether writes are enabled. */
-	virtual bool IsEnabled() const { return bEnabled; }
-	virtual void SetEnabled(bool bInEnabled) { bEnabled = bInEnabled; }
+	virtual void SetScene(FScene* InScene) = 0;
 
 protected:
 	virtual void EnqueueUpdateInternal(FPrimitiveSceneInfo* PrimitiveSceneInfo, FGPUSceneWriteDelegate&& DataWriterGPU) = 0;
-
-private:
-	bool bEnabled = true;
 };
 
 /**

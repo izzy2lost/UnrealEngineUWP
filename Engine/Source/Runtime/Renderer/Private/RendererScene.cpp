@@ -5407,14 +5407,20 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 class FSceneComputeUpdates : public ISceneComputeUpdates
 {
 public:
-	FSceneComputeUpdates(FScene &InScene) : Scene(InScene) {}
+	FSceneComputeUpdates(FScene* InScene) : Scene(InScene) {}
+
+	virtual void SetScene(FScene* InScene) override { Scene = InScene; }
 
 	virtual void EnqueueUpdateInternal(FPrimitiveSceneInfo* PrimitiveSceneInfo, FGPUSceneWriteDelegate&& DataWriterGPU) override
 	{
-		Scene.UpdatePrimitiveInstancesFromCompute(PrimitiveSceneInfo, MoveTemp(DataWriterGPU));
+		if (ensure(Scene))
+		{
+			Scene->UpdatePrimitiveInstancesFromCompute(PrimitiveSceneInfo, MoveTemp(DataWriterGPU));
+		}
 	}
 
-	FScene &Scene;
+private:
+	FScene* Scene = nullptr;
 };
 
 void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Parameters)
@@ -5436,9 +5442,15 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 	}
 
 	// Add interface to blackboard to receive scene updates from compute.
+	if (const FSceneComputeUpdatesBlackboardEntry* FoundBlackboardEntry = GraphBuilder.Blackboard.Get<FSceneComputeUpdatesBlackboardEntry>())
+	{
+		check(FoundBlackboardEntry->SceneComputeUpdates);
+		FoundBlackboardEntry->SceneComputeUpdates->SetScene(this);
+	}
+	else
 	{
 		FSceneComputeUpdatesBlackboardEntry& BlackboardEntry = GraphBuilder.Blackboard.Create<FSceneComputeUpdatesBlackboardEntry>();
-		BlackboardEntry.SceneComputeUpdates = GraphBuilder.AllocObject<FSceneComputeUpdates>(*this);
+		BlackboardEntry.SceneComputeUpdates = GraphBuilder.AllocObject<FSceneComputeUpdates>(this);
 	}
 
 	for (IComputeTaskWorker* ComputeTaskWorker : ComputeTaskWorkers)
@@ -5452,7 +5464,7 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 	// Disable scene updates on this builder from this point onwards.
 	{
 		const FSceneComputeUpdatesBlackboardEntry& BlackboardEntry = GraphBuilder.Blackboard.GetChecked<FSceneComputeUpdatesBlackboardEntry>();
-		BlackboardEntry.SceneComputeUpdates->SetEnabled(false);
+		BlackboardEntry.SceneComputeUpdates->SetScene(nullptr);
 	}
 
 	// Avoid overlapping prior scene render and async RDG execution tasks to simplify things as there are a lot of moving pieces.
