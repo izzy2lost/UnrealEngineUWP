@@ -508,7 +508,7 @@ namespace Gauntlet
 				return ProcessResult.WriteOutputToFile(FilePath) != null;
 			}
 
-			if (File.Exists(ProcessLogFile) && HasExited)
+			if (File.Exists(ProcessLogFile))
 			{
 				ProcessUtils.CheckProcessLogReachedSizeLimit(new FileReference(ProcessLogFile));
 				File.Copy(ProcessLogFile, FilePath, true);
