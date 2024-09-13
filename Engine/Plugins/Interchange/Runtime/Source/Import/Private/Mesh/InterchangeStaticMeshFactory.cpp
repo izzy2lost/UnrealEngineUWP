@@ -254,7 +254,7 @@ void UInterchangeStaticMeshFactory::CreatePayloadTasks(const FImportAssetObjectP
 					FInterchangeMeshPayLoadKey& PayLoadKey = OptionalPayLoadKey.GetValue();
 					
 					FInterchangeMeshPayLoadKey GlobalPayLoadKey = PayLoadKey;
-					GlobalPayLoadKey.UniqueId += GlobalMeshTransform.ToString();
+					GlobalPayLoadKey.UniqueId += FInterchangeMeshPayLoadKey::GetTransformString(GlobalMeshTransform);
 					if (!PayloadPerKey.Contains(GlobalPayLoadKey))
 					{
 						FMeshPayload& Payload = PayloadPerKey.FindOrAdd(GlobalPayLoadKey);

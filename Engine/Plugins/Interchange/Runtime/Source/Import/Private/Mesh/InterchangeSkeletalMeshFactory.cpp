@@ -89,7 +89,7 @@ namespace UE
 					FInterchangeMeshPayLoadKey GlobalPayloadKey = MorphTargetKey;
 					if (SceneGlobalTransform.IsSet())
 					{
-						GlobalPayloadKey.UniqueId += SceneGlobalTransform->ToString();
+						GlobalPayloadKey.UniqueId += FInterchangeMeshPayLoadKey::GetTransformString(SceneGlobalTransform.GetValue());
 					}
 					return GlobalPayloadKey;
 				}
@@ -100,7 +100,7 @@ namespace UE
 					FString UniqueId = TranslatorPayloadKey.UniqueId;
 					if (SceneGlobalTransform.IsSet())
 					{
-						UniqueId += SceneGlobalTransform->ToString();
+						UniqueId += FInterchangeMeshPayLoadKey::GetTransformString(SceneGlobalTransform.GetValue());
 					}
 					return UniqueId;
 				}
