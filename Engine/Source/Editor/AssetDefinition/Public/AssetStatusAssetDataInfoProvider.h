@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include "AssetDefinitionStatusBase.h"
+#if UE_CONTENTBROWSER_NEW_STYLE
+#include "IAssetStatusInfoProvider.h"
 #include "AssetRegistry/AssetData.h"
 
 class ASSETDEFINITION_API FAssetStatusAssetDataInfoProvider : public IAssetStatusInfoProvider
@@ -19,3 +20,4 @@ public:
 private:
 	FAssetData AssetData;
 };
+#endif

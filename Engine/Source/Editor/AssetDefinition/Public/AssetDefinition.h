@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "AssetDefinitionStatusBase.h"
 #include "UObject/Object.h"
 #include "UObject/SoftObjectPtr.h"
 #include "AssetRegistry/AssetData.h"
@@ -15,7 +14,10 @@
 
 class IToolkitHost;
 class UThumbnailInfo;
+struct FAssetDisplayInfo;
 struct FSlateBrush;
+class IAssetSystemInfoProvider;
+class IAssetStatusInfoProvider;
 class ISourceControlRevision;
 class SWidget;
 
@@ -600,7 +602,7 @@ public:
 
 #if UE_CONTENTBROWSER_NEW_STYLE
 	// Implementation will change in the AssetDefinitionDefault in a later update
-	virtual void GetAssetStatusInfo(const TSharedPtr<IAssetStatusInfoProvider>& InAssetStatusInfoProvider, FAssetStatusInfo& OutStatusInfo) const
+	virtual void GetAssetStatusInfo(const TSharedPtr<IAssetStatusInfoProvider>& InAssetStatusInfoProvider, TArray<FAssetDisplayInfo>& OutStatusInfo) const
 	{
 		return;
 	}

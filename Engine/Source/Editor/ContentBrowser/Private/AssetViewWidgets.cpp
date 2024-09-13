@@ -6,6 +6,7 @@
 #include "ActorFolder.h"
 #include "ActorFolderDesc.h"
 #include "AssetDefinitionRegistry.h"
+#include "AssetSystemContentBrowserInfoProvider.h"
 #include "AssetRegistry/AssetData.h"
 #include "AssetTagItemTypes.h"
 #include "AssetThumbnail.h"
@@ -77,6 +78,7 @@
 #include "Widgets/Images/SLayeredImage.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SNullWidget.h"
@@ -296,8 +298,13 @@ public:
 
 		SToolTip::Construct(
 			SToolTip::FArguments()
+#if UE_CONTENTBROWSER_NEW_STYLE
+			.TextMargin(FMargin(12.f, 8.f, 12.f, 2.f))
+			.BorderImage(FAppStyle::GetBrush("ContentBrowser.Tooltip.Border"))
+#else
 			.TextMargin(1.0f)
 			.BorderImage(UE::ContentBrowser::Private::FContentBrowserStyle::Get().GetBrush("ContentBrowser.TileViewTooltip.ToolTipBorder"))
+#endif
 			);
 	}
 
@@ -1130,7 +1137,58 @@ TSharedRef<SWidget> SAssetViewItem::CreateToolTipWidget() const
 					}
 				}
 			}
+#if UE_CONTENTBROWSER_NEW_STYLE
+			return SNew(SVerticalBox)
 
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				[
+					SNew(SVerticalBox)
+
+					+ SVerticalBox::Slot()
+					.AutoHeight()
+					[
+						SNew(SHorizontalBox)
+
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						[
+							SNew(STextBlock)
+							.Text(FolderName)
+							.ColorAndOpacity(FStyleColors::White)
+							.Font(FAppStyle::GetFontStyle("ContentBrowser.Tooltip.EntryFont"))
+						]
+
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						[
+							SNew(STextBlock)
+							.Font(FAppStyle::GetFontStyle("ContentBrowser.Tooltip.EntryFont"))
+							.ColorAndOpacity(FStyleColors::White)
+							.Text(LOCTEXT("FolderNameBracketed", " (Folder)"))
+						]
+					]
+				]
+
+				+ SVerticalBox::Slot()
+				.Padding(FMargin(0.f,6.f))
+				.AutoHeight()
+				[
+					SNew(SSeparator)
+					.Orientation(Orient_Horizontal)
+					.Thickness(1.f)
+					.ColorAndOpacity(COLOR("#484848FF"))
+					.SeparatorImage(FAppStyle::Get().GetBrush("WhiteBrush"))
+				]
+
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				[
+					InfoBox
+				];
+#else
 			return SNew(SBorder)
 				.Padding(6)
 				.BorderImage( UE::ContentBrowser::Private::FContentBrowserStyle::Get().GetBrush("ContentBrowser.TileViewTooltip.NonContentBorder") )
@@ -1184,6 +1242,7 @@ TSharedRef<SWidget> SAssetViewItem::CreateToolTipWidget() const
 						]
 					]
 				];
+#endif
 		}
 	}
 	else
@@ -1239,7 +1298,34 @@ FText SAssetViewItem::GetAssetUserDescription() const
 
 	return FText::GetEmpty();
 }
+#if UE_CONTENTBROWSER_NEW_STYLE
+void SAssetViewItem::AddToToolTipInfoBox(const TSharedRef<SVerticalBox>& InfoBox, const FText& Key, const FText& Value, bool bImportant) const
+{
+	InfoBox->AddSlot()
+	.Padding(0.f, 0.f, 0.f, 6.f)
+	.AutoHeight()
+	[
+		SNew(SHorizontalBox)
+		+SHorizontalBox::Slot()
+		.AutoWidth()
+		.Padding(0, 0, 4, 0)
+		[
+			SNew(STextBlock)
+			.Font(FAppStyle::GetFontStyle("ContentBrowser.Tooltip.EntryFont"))
+			.Text(FText::Format(NSLOCTEXT("AssetThumbnailToolTip", "AssetViewTooltipFormat", "{0}:"), Key))
+		]
 
+		+SHorizontalBox::Slot()
+		.AutoWidth()
+		[
+			SNew(STextBlock)
+			.Font(FAppStyle::GetFontStyle("ContentBrowser.Tooltip.EntryFont"))
+			.ColorAndOpacity(FStyleColors::White)
+			.Text(Value)
+		]
+	];
+}
+#else
 void SAssetViewItem::AddToToolTipInfoBox(const TSharedRef<SVerticalBox>& InfoBox, const FText& Key, const FText& Value, bool bImportant) const
 {
 	FWidgetStyle ImportantStyle;
@@ -1269,6 +1355,7 @@ void SAssetViewItem::AddToToolTipInfoBox(const TSharedRef<SVerticalBox>& InfoBox
 		]
 	];
 }
+#endif
 
 void SAssetViewItem::UpdateDirtyState()
 {
@@ -1953,6 +2040,7 @@ void SAssetTileItem::Construct( const FArguments& InArgs )
 		ThumbnailConfig.Padding= FMargin(2.0f);
 		ThumbnailConfig.GenericThumbnailSize = MakeAttributeSP(this, &SAssetTileItem::GetGenericThumbnailSize);
 #if UE_CONTENTBROWSER_NEW_STYLE
+		ThumbnailConfig.AssetSystemInfoProvider = MakeShared<FAssetSystemContentBrowserInfoProvider>(AssetItem);
 		ThumbnailConfig.bAllowAssetStatusThumbnailOverlay = true;
 		ThumbnailConfig.bShowAssetChip = true;
 		ThumbnailConfig.AssetChipBorderImageOverride = TAttribute<const FSlateBrush*>::CreateSP(this, &SAssetTileItem::GetAssetAreaOverlayBackgroundImage);
@@ -1978,6 +2066,13 @@ void SAssetTileItem::Construct( const FArguments& InArgs )
 		}
 
 		Thumbnail = AssetThumbnail->MakeThumbnailWidget(ThumbnailConfig);
+#if UE_CONTENTBROWSER_NEW_STYLE
+		// Use the same tooltip as the Thumbnail
+		if (const TSharedPtr<IToolTip>& ThumbnailTooltip = Thumbnail->GetToolTip())
+		{
+			SetToolTip(ThumbnailTooltip);
+		}
+#endif
 	}
 	else
 	{

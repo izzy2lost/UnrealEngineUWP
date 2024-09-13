@@ -41,6 +41,7 @@ void SDocumentationToolTip::Construct( const FArguments& InArgs )
 	DocumentationMargin = InArgs._DocumentationMargin;
 	IsDisplayingDocumentationLink = false;
 	Shortcut = InArgs._Shortcut;
+	OverrideFullTooltipContent = InArgs._OverrideExtendedToolTipContent;
 
 	ExcerptName = InArgs._ExcerptName;
 	IsShowingFullTip = false;
@@ -54,6 +55,12 @@ void SDocumentationToolTip::Construct( const FArguments& InArgs )
 
 	SAssignNew(DocumentationControlBox, SHorizontalBox);
 	SAssignNew(FullTipContent, SBox);
+	if (OverrideFullTooltipContent.IsValid())
+	{
+		FullTipContent->SetContent(OverrideFullTooltipContent.ToSharedRef());
+		FullTipContent->SetVisibility(TAttribute<EVisibility>::CreateSP(this, &SDocumentationToolTip::GetOverriddenFullToolTipVisibility));
+	}
+
 	ConstructSimpleTipContent();
 
 	ChildSlot
@@ -110,7 +117,7 @@ void SDocumentationToolTip::Construct( const FArguments& InArgs )
 	TransitionLength = 0.2f;
 	LastDesiredSize = SimpleTipContent->GetDesiredSize();
 	TransitionStartSize = SimpleTipContent->GetDesiredSize();
-	bFullTipContentIsReady = false;
+	bFullTipContentIsReady = OverrideFullTooltipContent.IsValid();
 }
 
 void SDocumentationToolTip::ConstructSimpleTipContent()
@@ -215,7 +222,7 @@ void SDocumentationToolTip::ConstructSimpleTipContent()
 
 void SDocumentationToolTip::AddDocumentation(TSharedPtr< SVerticalBox > VerticalBox)
 {
-	if ( !DocumentationLink.IsEmpty() )
+	if ( !DocumentationLink.IsEmpty() && !OverrideFullTooltipContent.IsValid())
 	{
 		if ( !DocumentationPage.IsValid() )
 		{
@@ -538,7 +545,7 @@ void SDocumentationToolTip::Tick( const FGeometry& AllottedGeometry, const doubl
 	LastDesiredSize = WidgetContent->GetDesiredSize();
 
 	const FModifierKeysState ModifierKeys = FSlateApplication::Get().GetModifierKeys();
-	const bool NeedsUpdate = IsDisplayingDocumentationLink != GetDefault<UEditorPerProjectUserSettings>()->bDisplayDocumentationLink;
+	const bool NeedsUpdate = !OverrideFullTooltipContent.IsValid() && IsDisplayingDocumentationLink != GetDefault<UEditorPerProjectUserSettings>()->bDisplayDocumentationLink;
 	if (TransitionStartTime > 0)
 	{
 		TransitionPercentage = (InCurrentTime - TransitionStartTime) / TransitionLength;
@@ -557,25 +564,31 @@ void SDocumentationToolTip::Tick( const FGeometry& AllottedGeometry, const doubl
 
 	if ( !IsShowingFullTip && ModifierKeys.IsAltDown() && ModifierKeys.IsControlDown() )
 	{
-		if ( !bFullTipContentIsReady && DocumentationPage.IsValid() && DocumentationPage->HasExcerpt(ExcerptName))
+		if (!OverrideFullTooltipContent.IsValid())
 		{
-			ConstructFullTipContent();
-		}
-		else if ( GetDefault<UEditorPerProjectUserSettings>()->bDisplayDocumentationLink )
-		{
-			ReloadDocumentation();
+			if ( !bFullTipContentIsReady && DocumentationPage.IsValid() && DocumentationPage->HasExcerpt(ExcerptName))
+			{
+				ConstructFullTipContent();
+			}
+			else if ( GetDefault<UEditorPerProjectUserSettings>()->bDisplayDocumentationLink )
+			{
+				ReloadDocumentation();
+			}
 		}
 
 		if ( bFullTipContentIsReady)
 		{
-			// Analytics event
-			if (FEngineAnalytics::IsAvailable())
+			if (!OverrideFullTooltipContent.IsValid())
 			{
-				TArray<FAnalyticsEventAttribute> Params;
-				Params.Add(FAnalyticsEventAttribute(TEXT("Page"), DocumentationLink));
-				Params.Add(FAnalyticsEventAttribute(TEXT("Excerpt"), ExcerptName));
+				// Analytics event
+				if (FEngineAnalytics::IsAvailable())
+				{
+					TArray<FAnalyticsEventAttribute> Params;
+					Params.Add(FAnalyticsEventAttribute(TEXT("Page"), DocumentationLink));
+					Params.Add(FAnalyticsEventAttribute(TEXT("Excerpt"), ExcerptName));
 
-				FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.Documentation.FullTooltipShown"), Params);
+					FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.Documentation.FullTooltipShown"), Params);
+				}
 			}
 			bIsInTransition = true;
 			IsShowingFullTip = true;
@@ -601,12 +614,17 @@ void SDocumentationToolTip::Tick( const FGeometry& AllottedGeometry, const doubl
 bool SDocumentationToolTip::IsInteractive() const
 {
 	const FModifierKeysState ModifierKeys = FSlateApplication::Get().GetModifierKeys();
-	return ( DocumentationPage.IsValid() && ModifierKeys.IsAltDown() && ModifierKeys.IsControlDown() );
+	return ((OverrideFullTooltipContent.IsValid() || DocumentationPage.IsValid()) && ModifierKeys.IsAltDown() && ModifierKeys.IsControlDown() );
 }
 
 FVector2D SDocumentationToolTip::ComputeDesiredSize(float LayoutScaleMultiplier) const
 {
 	return LastDesiredSize;
+}
+
+EVisibility SDocumentationToolTip::GetOverriddenFullToolTipVisibility() const
+{
+	return IsShowingFullTip ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 EVisibility SDocumentationToolTip::GetFullTipVisibility() const
@@ -647,7 +665,7 @@ EVisibility SDocumentationToolTip::GetShortcutVisibility() const
 
 const FSlateBrush* SDocumentationToolTip::GetSimpleTipBorderStyle() const
 {
-	if (IsShowingFullTip)
+	if (IsShowingFullTip && !OverrideContent.IsValid())
 	{
 		return FDocumentationStyleSet::Get().GetBrush("ToolTip.Header");
 	}

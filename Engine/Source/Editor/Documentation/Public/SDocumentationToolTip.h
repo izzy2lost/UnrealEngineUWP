@@ -38,6 +38,7 @@ public:
 		, _ColorAndOpacity( FLinearColor::Black )
 		, _AddDocumentation( true )
 		, _DocumentationMargin(0)
+		, _OverrideExtendedToolTipContent(nullptr)
 		, _Content()
 		{}
 
@@ -73,6 +74,9 @@ public:
 		/**  */
 		SLATE_ARGUMENT( FString, ExcerptName )
 
+		/** Extended ToolTip to use when Ctrl + Alt is pressed instead of loading it from the Documentation */
+		SLATE_ARGUMENT(TSharedPtr<SWidget>, OverrideExtendedToolTipContent)
+
 		/** Arbitrary content to be displayed in the tool tip; overrides any text that may be set. */
 		SLATE_DEFAULT_SLOT( FArguments, Content )
 
@@ -106,6 +110,8 @@ public:
 
 private:
 
+	EVisibility GetOverriddenFullToolTipVisibility() const;
+
 	void ConstructSimpleTipContent();
 
 	void ConstructFullTipContent();
@@ -126,6 +132,7 @@ private:
 	TAttribute< FText > TextContent;
 	TAttribute< FText > Shortcut;
 	TSharedPtr< SWidget > OverrideContent;
+	TSharedPtr< SWidget > OverrideFullTooltipContent;
 	FTextBlockStyle StyleInfo;
 	FTextBlockStyle SubduedStyleInfo;
 	FTextBlockStyle HyperlinkTextStyleInfo;
