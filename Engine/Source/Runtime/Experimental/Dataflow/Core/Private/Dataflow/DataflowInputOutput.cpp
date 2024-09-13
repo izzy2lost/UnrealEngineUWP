@@ -307,6 +307,12 @@ void FDataflowOutput::ForwardInput(const FDataflowInput* Input, Dataflow::FConte
 				Context.SetDataReference(CacheKey(), Property, ConnectionOut->CacheKey());
 			}
 		}
+		else
+		{
+			// if there's no connection we make a invalid reference 
+			// so when the input is going to pull the cached value , it will return a default value instead
+			Context.SetNullData(CacheKey(), Property, GetOwningNodeGuid(), GetOwningNodeValueHash(), GetOwningNodeTimestamp());
+		}
 	}
 }
 
