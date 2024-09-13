@@ -573,6 +573,11 @@ void UOptimusNode_DataInterface::CreatePinFromDefinition(const FOptimusCDIPinDef
 
 void UOptimusNode_DataInterface::CreatePropertyPinsFromDataInterface(const UOptimusComputeDataInterface* InDataInterface, bool bSupportUndo)
 {
+	if (!InDataInterface)
+	{
+		return;
+	}
+
 	const TArray<FOptimusCDIPropertyPinDefinition> PropertyPinDefinitions = InDataInterface->GetPropertyPinDefinitions();
 
 	// Property pins should go before any shader pins
