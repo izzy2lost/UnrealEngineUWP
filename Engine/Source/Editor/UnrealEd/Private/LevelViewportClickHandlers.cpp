@@ -898,7 +898,6 @@ namespace LevelViewportClickHandlers
 			if( !Click.IsControlDown() )
 			{
 				const FScopedTransaction Transaction( NSLOCTEXT("UnrealEd", "ClickingBackground", "Clicking Background") );
-				UE_LOG(LogEditorViewport, Log,  TEXT("Clicking Background") );
 				GEditor->SelectNone( true, true );
 			}
 		}
