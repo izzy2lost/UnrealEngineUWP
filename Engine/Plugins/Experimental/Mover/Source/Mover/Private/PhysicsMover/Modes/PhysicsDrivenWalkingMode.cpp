@@ -13,6 +13,7 @@
 #include "GameFramework/PhysicsVolume.h"
 #include "Math/UnitConversion.h"
 #include "MoverComponent.h"
+#include "MoveLibrary/MovementUtils.h"
 #include "MoveLibrary/GroundMovementUtils.h"
 #include "MoveLibrary/WaterMovementUtils.h"
 #include "PhysicsMover/PhysicsMovementUtils.h"
@@ -389,7 +390,7 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 		// Target orientation
 		// This is always applied regardless of whether the character is supported
 		FRotator TargetOrientation = StartingSyncState->GetOrientation_WorldSpace();
-		if (!ProposedMove.AngularVelocity.IsZero())
+		if (!UMovementUtils::IsAngularVelocityZero(ProposedMove.AngularVelocity)) 
 		{
 			TargetOrientation += (ProposedMove.AngularVelocity * DeltaSeconds);
 		}

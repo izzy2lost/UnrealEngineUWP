@@ -181,6 +181,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = Mover)
 	static FVector ComputeDirectionIntent(const FVector& MoveInput, EMoveInputType MoveInputType);
 
+	/** Returns whether this rotator representing angular velocity has any non-zero values. This function exists due to FRotator::IsZero queries performing undesired wrapping and clamping. */
+	UFUNCTION(BlueprintCallable, Category = Mover)
+	static bool IsAngularVelocityZero(const FRotator& AngularVelocity);
+
+
 	// Internal functions - not meant to be called outside of this library
 	
 	/** Internal function that other move functions use to perform all actual component movement and retrieve results

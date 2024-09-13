@@ -8,6 +8,7 @@
 #include "GameFramework/PhysicsVolume.h"
 #include "Math/UnitConversion.h"
 #include "MoveLibrary/FloorQueryUtils.h"
+#include "MoveLibrary/MovementUtils.h"
 #include "MoveLibrary/WaterMovementUtils.h"
 #include "MoverComponent.h"
 #include "PhysicsMover/PhysicsMovementUtils.h"
@@ -109,7 +110,7 @@ void UPhysicsDrivenSwimmingMode::OnSimulationTick(const FSimulationTickParams& P
 		const bool bFallTrigger = FMath::Clamp((WaterResult.WaterSplineData.ImmersionDepth + TargetHeight) / (2 * TargetHeight), -2.f, 2.f) < -1.f;
 	
 		FRotator TargetOrient = StartingSyncState->GetOrientation_WorldSpace();
-		if (!ProposedMove.AngularVelocity.IsZero())
+		if (!UMovementUtils::IsAngularVelocityZero(ProposedMove.AngularVelocity))
 		{
 			TargetOrient += (ProposedMove.AngularVelocity * DeltaSeconds);
 		}

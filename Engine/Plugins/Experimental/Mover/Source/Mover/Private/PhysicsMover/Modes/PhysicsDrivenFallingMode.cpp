@@ -112,7 +112,7 @@ void UPhysicsDrivenFallingMode::OnSimulationTick(const FSimulationTickParams& Pa
 	// In air steering
 
 	FRotator TargetOrient = StartingSyncState->GetOrientation_WorldSpace();
-	if (!ProposedMove.AngularVelocity.IsZero())
+	if (!UMovementUtils::IsAngularVelocityZero(ProposedMove.AngularVelocity)) 
 	{
 		TargetOrient += (ProposedMove.AngularVelocity * DeltaSeconds);
 	}
