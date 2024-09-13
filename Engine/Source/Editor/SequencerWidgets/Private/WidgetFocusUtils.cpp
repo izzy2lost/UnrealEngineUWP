@@ -5,6 +5,19 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Application/SlateUser.h"
 
+FPendingWidgetFocus::FPendingWidgetFocus(const TArray<FName>& InTypesKeepingFocus)
+	: KeepingFocus(InTypesKeepingFocus)
+{}
+
+FPendingWidgetFocus FPendingWidgetFocus::MakeNoTextEdit()
+{
+	static TArray<FName> EditableTextTypes({"SEditableText"});
+	// NOTE: "SMultiLineEditableText" might be added as well
+	
+	static FPendingWidgetFocus NewPendingFocus(EditableTextTypes);
+	return NewPendingFocus;
+}
+
 FPendingWidgetFocus::~FPendingWidgetFocus()
 {
 	PendingFocusFunction.Reset();
@@ -23,6 +36,12 @@ void FPendingWidgetFocus::SetPendingFocusIfNeeded(const TWeakPtr<SWidget>& InWid
 		return;
 	}
 
+	if (!CanFocusBeStolen())
+	{
+		PendingFocusFunction.Reset();
+		return;
+	}
+	
 	PendingFocusFunction = [WidgetFocus = InWidget]()
 	{
 		if (WidgetFocus.IsValid())
@@ -71,3 +90,21 @@ void FPendingWidgetFocus::OnPreInputKeyDown(const FKeyEvent&)
 		PendingFocusFunction.Reset();
 	}
 }
+
+bool FPendingWidgetFocus::CanFocusBeStolen() const
+{
+	if (!KeepingFocus.IsEmpty())
+	{
+		bool bShouldCurrentFocusBeKept = false;
+		FSlateApplication::Get().ForEachUser([this, &bShouldCurrentFocusBeKept](const FSlateUser& User)
+		{
+			if (TSharedPtr<SWidget> FocusedWidget = User.GetFocusedWidget())
+			{
+				bShouldCurrentFocusBeKept = KeepingFocus.Contains(FocusedWidget->GetType());
+			}
+		});
+		return !bShouldCurrentFocusBeKept;
+	}
+	return true;
+}
+

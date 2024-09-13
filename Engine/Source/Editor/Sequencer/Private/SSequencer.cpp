@@ -165,6 +165,7 @@ void SSequencer::Construct(const FArguments& InArgs, TSharedRef<FSequencer> InSe
 	bUserIsSelecting = false;
 	CachedClampRange = TRange<double>::Empty();
 	CachedViewRange = TRange<double>::Empty();
+	PendingFocus = FPendingWidgetFocus::MakeNoTextEdit();
 
 	OnPlaybackRangeBeginDrag = InArgs._OnPlaybackRangeBeginDrag;
 	OnPlaybackRangeEndDrag = InArgs._OnPlaybackRangeEndDrag;
