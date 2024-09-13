@@ -6,13 +6,96 @@
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationHelpers_Postprocess.h"
 #include "DisplayClusterConfigurationTypes_Postprocess.h"
 
-int32 GDisplayClusterPostProcessConfigureForViewport = 1;
-static FAutoConsoleVariableRef CVarDisplayClusterPostProcessConfigureForViewport(
-	TEXT("nDisplay.render.postprocess.ConfigureForViewport"),
-	GDisplayClusterPostProcessConfigureForViewport,
-	TEXT("Enable changes to some postprocessing parameters depending on the viewport context. (DoF, etc.) (0 to disable).\n"),
+// Override post-processing for nDisplay is allowed by default.
+int32 GDisplayClusterPostProcessOverrideEnable = 1;
+static FAutoConsoleVariableRef CVarDisplayClusterPostProcessOverrideEnable(
+	TEXT("nDisplay.render.postprocess.override.enable"),
+	GDisplayClusterPostProcessOverrideEnable,
+	TEXT("Enable postprocess overrides for nDisplay (0 to disable).\n"),
 	ECVF_RenderThreadSafe
 );
+
+// Override post-processing for InCamera viewports is allowed by default.
+int32 GDisplayClusterPostProcessOverrideInCameraVFX = 1;
+static FAutoConsoleVariableRef CVarDisplayClusterPostProcessOverrideInCameraVFX(
+	TEXT("nDisplay.render.postprocess.override.InCameraVFX"),
+	GDisplayClusterPostProcessOverrideInCameraVFX,
+	TEXT("Enable post-processing override for ICVFX Camera viewport (0 to disable).\n"),
+	ECVF_RenderThreadSafe
+);
+
+// By default, post-processing for Outers viewports is disabled.
+// Because of some issues with the depth of field effect.
+int32 GDisplayClusterPostProcessOverrideOutersVFX = 0;
+static FAutoConsoleVariableRef CVarDisplayClusterPostProcessOverrideOutersVFX(
+	TEXT("nDisplay.render.postprocess.override.OutersVFX"),
+	GDisplayClusterPostProcessOverrideOutersVFX,
+	TEXT("Enable postprocess override for ICVFX Outer viewports (0 to disable).\n"),
+	ECVF_RenderThreadSafe
+);
+
+/**
+* Auxiliary functions for post-processing.
+*/
+namespace UE::DisplayClusterViewport::CustomPostProcess
+{
+	/** Overrides the DoF post-processing parameters for the nDisplay viewport. */
+	static inline bool OverrideDepthOfFieldPostProcessSettings(IDisplayClusterViewport* InViewport, const uint32 InContextNum, FPostProcessSettings& InOutPostProcessSettings)
+	{
+		check(InViewport);
+
+		// This math only works for the CineCamera DoF because it provides a valid 'DepthOfFieldSensorFocalLength' value.
+		if (!(InOutPostProcessSettings.DepthOfFieldFstop > 0.0f
+			&& InOutPostProcessSettings.DepthOfFieldFocalDistance > 0.0f))
+		{
+			return false;
+		}
+
+		const TArray<FDisplayClusterViewport_Context>& InViewportContexts = InViewport->GetContexts();
+		if (!InViewportContexts.IsValidIndex(InContextNum))
+		{
+			return false;
+		}
+
+		const FDisplayClusterViewport_Context& ViewportContext = InViewportContexts[InContextNum];
+		if (!(ViewportContext.DepthOfField.SensorFocalLength > 0.f))
+		{
+			return false;
+		}
+
+		const FMatrix& ProjectionMatrix =
+			ViewportContext.ProjectionData.bUseOverscan ?
+			ViewportContext.OverscanProjectionMatrix :
+			ViewportContext.ProjectionMatrix;
+
+		// Ignore if the projection matrix is invalid.
+		if (ProjectionMatrix.M[0][0] == 0.0f || ProjectionMatrix.M[1][1] == 0.0f)
+		{
+			return false;
+		}
+
+		// M00 = 2n/(r-l)
+		// M11 = 2n/(t-b)
+		// => (r-l)/(t-b) = M11/M00 (= "SensorAspectRatio")
+		const double SensorAspectRatio = ProjectionMatrix.M[1][1] / ProjectionMatrix.M[0][0];
+		const double RenderingAspectRatio = double(ViewportContext.RenderTargetRect.Width()) / double(ViewportContext.RenderTargetRect.Height());
+		const double SensorToRenderAspectRatio = SensorAspectRatio / RenderingAspectRatio;
+
+		// Override sensor width such that DoF recovers our desired focal length
+		// 
+		// FocalLength = SensorWidth * M00 / 2
+		// => SensorWidth = 2 * FocalLength / M00
+		//
+		InOutPostProcessSettings.bOverride_DepthOfFieldSensorWidth = true;
+		InOutPostProcessSettings.DepthOfFieldSensorWidth = 2.0 * ViewportContext.DepthOfField.SensorFocalLength / ProjectionMatrix.M[0][0] / FMath::Pow(SensorToRenderAspectRatio, 2);
+
+		// Compensate with squeeze factor the effect of non-square pixels onto bokeh squeeze.
+		InOutPostProcessSettings.bOverride_DepthOfFieldSqueezeFactor = true;
+		InOutPostProcessSettings.DepthOfFieldSqueezeFactor = ViewportContext.DepthOfField.SqueezeFactor * SensorToRenderAspectRatio;
+
+		return true;
+	}
+};
 
 ///////////////////////////////////////////////////////////////////////////////////////
 // FDisplayClusterViewport_CustomPostProcessSettings
@@ -115,12 +198,33 @@ bool FDisplayClusterViewport_CustomPostProcessSettings::ApplyCustomPostProcess(I
 
 bool FDisplayClusterViewport_CustomPostProcessSettings::ConfigurePostProcessSettingsForViewport(IDisplayClusterViewport* InViewport, const uint32 InContextNum, const ERenderPass InRenderPass, FPostProcessSettings& InOutPostProcessSettings) const
 {
-	if (!InViewport || !GDisplayClusterPostProcessConfigureForViewport)
+	using namespace UE::DisplayClusterViewport::CustomPostProcess;
+
+	if (!InViewport || !GDisplayClusterPostProcessOverrideEnable)
 	{
 		return false;
 	}
 
-	// Todo: Updates DoF and other PP settings for the current viewport.(JIRAs UE-219457,UE-219466)
+	// Ignore ICVFX cameras
+	if (!GDisplayClusterPostProcessOverrideInCameraVFX && EnumHasAnyFlags(InViewport->GetRenderSettingsICVFX().RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::InCamera))
+	{
+		return false;
+	}
+
+	// Ignore Outers for ICVFX
+	if (!GDisplayClusterPostProcessOverrideOutersVFX && EnumHasAnyFlags(InViewport->GetRenderSettingsICVFX().RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::Target))
+	{
+		return false;
+	}
+
+	// If there are any changes to the PP settings, return true.
+	bool bPostProcessSettingsHaveChanged = false;
+
+	if (InRenderPass == IDisplayClusterViewport_CustomPostProcessSettings::ERenderPass::Override)
+	{
+		// Updates the CineCamera DoF PP settings for the current viewport.
+		bPostProcessSettingsHaveChanged |= OverrideDepthOfFieldPostProcessSettings(InViewport, InContextNum, InOutPostProcessSettings);
+	}
 
 	return false;
 }

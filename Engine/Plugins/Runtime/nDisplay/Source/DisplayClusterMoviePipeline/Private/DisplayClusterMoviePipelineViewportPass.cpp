@@ -566,7 +566,7 @@ IDisplayClusterViewport* UDisplayClusterMoviePipelineViewportPassBase::GetAndCal
 		{
 			// Obtaining the internal viewpoint for a given viewport with stereo eye offset distance.
 			FMinimalViewInfo ViewInfo;
-			if (!DCViewport->SetupViewPoint(ViewInfo))
+			if (!DCViewport->SetupViewPoint(InContextNum, ViewInfo))
 			{
 				return nullptr;
 			}
