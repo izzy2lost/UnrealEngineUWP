@@ -289,20 +289,25 @@ float3 GetCardLocalPosition(float3 CardLocalExtent, float2 CardUV, float Depth)
 	return LocalPosition;
 }
 
-void GetCardLocalBBox(FLumenCardPageData CardPage, FLumenCardData Card, float2 UVMin, float2 UVMax, out float3 CardPageLocalCenter, out float3 CardPageLocalExtent)
+void GetCardLocalBBox(FLumenCardPageData CardPage, FLumenCardData Card, float2 UVMin, float2 UVMax, float2 CardTileDepthRange, out float3 CardPageLocalCenter, out float3 CardPageLocalExtent)
 {
 	float2 CardUVMin = lerp(CardPage.CardUVRect.xw, CardPage.CardUVRect.zy, UVMin);
 	float2 CardUVMax = lerp(CardPage.CardUVRect.xw, CardPage.CardUVRect.zy, UVMax);
-	float3 CardPageLocalBoxMin = GetCardLocalPosition(Card.LocalExtent, CardUVMin, 1.0f);
-	float3 CardPageLocalBoxMax = GetCardLocalPosition(Card.LocalExtent, CardUVMax, 0.0f);
+	float3 CardPageLocalBoxMin = GetCardLocalPosition(Card.LocalExtent, CardUVMin, CardTileDepthRange.y);
+	float3 CardPageLocalBoxMax = GetCardLocalPosition(Card.LocalExtent, CardUVMax, CardTileDepthRange.x);
 
 	CardPageLocalCenter = 0.5f * (CardPageLocalBoxMax + CardPageLocalBoxMin);
 	CardPageLocalExtent = 0.5f * (CardPageLocalBoxMax - CardPageLocalBoxMin);
 }
 
+void GetCardLocalBBox(FLumenCardPageData CardPage, FLumenCardData Card, float2 UVMin, float2 UVMax, out float3 CardPageLocalCenter, out float3 CardPageLocalExtent)
+{
+	GetCardLocalBBox(CardPage, Card, UVMin, UVMax, float2(0, 1), CardPageLocalCenter, CardPageLocalExtent);
+}
+
 void GetCardPageLocalBBox(FLumenCardPageData CardPage, FLumenCardData Card, out float3 CardPageLocalCenter, out float3 CardPageLocalExtent)
 {
-	GetCardLocalBBox(CardPage, Card, 0, 1, CardPageLocalCenter, CardPageLocalExtent);
+	GetCardLocalBBox(CardPage, Card, 0, 1, float2(0, 1), CardPageLocalCenter, CardPageLocalExtent);
 }
 
 float3 GetCardWorldPosition(FLumenCardData Card, float2 CardUV, float Depth)

@@ -53,7 +53,7 @@ void BuildRadiosityTilesCS(
 				UVMin.y = 1.0f - UVMax.y;
 				UVMax.y = 1.0f - SwapY;
 
-				uint ViewIndex = GetCardViewIndex(CardPage, Card, UVMin, UVMax, NumViews, false);
+				uint ViewIndex = GetCardViewIndex(CardPage, Card, UVMin, UVMax, float2(0, 1), NumViews, false);
 
 				FCardTileData CardTile;
 				CardTile.CardPageIndex = CardPageIndex;
