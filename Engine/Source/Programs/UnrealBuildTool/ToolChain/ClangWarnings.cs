@@ -1,5 +1,6 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Collections.Generic;
 using EpicGames.Core;
 
@@ -241,5 +242,24 @@ namespace UnrealBuildTool
 			Arguments.Add("-Wno-c++20-extensions");
 			Arguments.Add("-Wno-deprecated-declarations");
 		}
+
+		static Lazy<Dictionary<string, int>> CheckerAddedVersion = new Lazy<Dictionary<string, int>>(() => new()
+			{
+				{ "core.BitwiseShift", 18 },
+				{ "optin.core.EnumCastOutOfRange", 18 },
+				{ "security.cert.env.InvalidPtr", 18 },
+				{ "unix.Errno", 18 },
+				{ "unix.StdCLibraryFunctions", 18 },
+				{ "cplusplus.ArrayDelete", 19 },
+				{ "cplusplus.Move", 19 },
+				{ "optin.taint.TaintedAlloc", 19 },
+				{ "security.MmapWriteExec", 19 },
+				{ "security.PutenvStackArray", 19 },
+				{ "security.SetgidSetuidOrder", 19 },
+				{ "unix.BlockInCriticalSection", 19 },
+				{ "unix.Stream", 19 },
+			});
+
+		internal static bool IsAvailableAnalyzerChecker(string Checker, VersionNumber ClangVersion) => !CheckerAddedVersion.Value.ContainsKey(Checker) || ClangVersion.Components[0] >= CheckerAddedVersion.Value[Checker];
 	}
 }
