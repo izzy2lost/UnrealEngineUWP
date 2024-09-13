@@ -1995,26 +1995,28 @@ FTextureReferenceRHIRef FMetalDynamicRHI::RHICreateTextureReference(FRHICommandL
 
 void FMetalDynamicRHI::RHIUpdateTextureReference(FRHICommandListBase& RHICmdList, FRHITextureReference* TextureRef, FRHITexture* InNewTexture)
 {
-    FRHITexture* NewTexture = InNewTexture ? InNewTexture : FRHITextureReference::GetDefaultTexture();
-
+	FRHITexture* NewTexture = InNewTexture ? InNewTexture : FRHITextureReference::GetDefaultTexture();
+	
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	if (TextureRef && TextureRef->IsBindless())
 	{
-		FMetalTextureReference* MetalTextureReference = ResourceCast(TextureRef);
-		FMetalShaderResourceView* MetalTextureRefSRV = MetalTextureReference->BindlessView;
-		
-        FRHIDescriptorHandle DestHandle = MetalTextureRefSRV->GetBindlessHandle();
-        
-        if(DestHandle.IsValid())
-        {
-            FMetalSurface* NewSurface = GetMetalSurfaceFromRHITexture(NewTexture);
-            
-			MetalTextureRefSRV->SurfaceOverride = NewSurface;
-			MetalTextureRefSRV->UpdateView();
+		RHICmdList.EnqueueLambda(TEXT("FMetalDynamicRHI::RHIUpdateTextureReference"), [NewTexture, TextureRef, InNewTexture, InDevice=Device](FRHICommandListBase& ExecutingCmdList)
+		{		
+			FMetalTextureReference* MetalTextureReference = ResourceCast(TextureRef);
+			FMetalShaderResourceView* MetalTextureRefSRV = MetalTextureReference->BindlessView;
 			
-			FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device->GetBindlessDescriptorManager();
-			BindlessDescriptorManager->BindResource(DestHandle, MetalTextureRefSRV);
-        }
+			FRHIDescriptorHandle DestHandle = MetalTextureRefSRV->GetBindlessHandle();
+			if(DestHandle.IsValid())
+			{
+				FMetalSurface* NewSurface = GetMetalSurfaceFromRHITexture(NewTexture);
+				
+				MetalTextureRefSRV->SurfaceOverride = NewSurface;
+				MetalTextureRefSRV->UpdateView();
+				
+				FMetalBindlessDescriptorManager* BindlessDescriptorManager = InDevice->GetBindlessDescriptorManager();
+				BindlessDescriptorManager->BindResource(DestHandle, MetalTextureRefSRV);
+			}
+		});
 	}
 #endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
 

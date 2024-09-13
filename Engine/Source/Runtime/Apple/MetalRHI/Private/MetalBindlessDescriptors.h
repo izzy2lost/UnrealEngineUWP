@@ -1,4 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -36,7 +37,7 @@ struct FMetalDescriptorHeap
 
     static constexpr int32 NumPendingFrame = 3;
 
-    TQueue<FRHIDescriptorHandle>                                            DeferredDeletionList[NumPendingFrame];
+    TQueue<FRHIDescriptorHandle>    DeferredDeletionList[NumPendingFrame];
 
     std::atomic<uint32>             PeakDescriptorCount;
     struct IRDescriptorTableEntry*  Descriptors;

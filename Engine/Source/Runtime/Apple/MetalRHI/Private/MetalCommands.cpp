@@ -61,27 +61,34 @@ MTL::PrimitiveType TranslatePrimitiveType(uint32 PrimitiveType)
 	}
 }
 
-static FORCEINLINE EMetalShaderStages GetShaderStage(FRHIGraphicsShader* ShaderRHI)
+static FORCEINLINE EMetalShaderStages GetShaderStage(EShaderFrequency ShaderFrequency)
 {
 	EMetalShaderStages Stage = EMetalShaderStages::Num;
-	switch (ShaderRHI->GetFrequency())
+	switch (ShaderFrequency)
 	{
 	case SF_Vertex:		Stage = EMetalShaderStages::Vertex; break;
 	case SF_Pixel:		Stage = EMetalShaderStages::Pixel; break;
+	case SF_Compute:	Stage = EMetalShaderStages::Compute; break;
 #if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
-    case SF_Geometry:   Stage = EMetalShaderStages::Geometry; break;
+	case SF_Geometry:   Stage = EMetalShaderStages::Geometry; break;
 #endif
 #if PLATFORM_SUPPORTS_MESH_SHADERS
-    case SF_Mesh:               Stage = EMetalShaderStages::Mesh; break;
-    case SF_Amplification:      Stage = EMetalShaderStages::Amplification; break;
+	case SF_Mesh:               Stage = EMetalShaderStages::Mesh; break;
+	case SF_Amplification:      Stage = EMetalShaderStages::Amplification; break;
 #endif
 	default:
-		checkf(0, TEXT("FRHIShader Type %d is invalid or unsupported!"), (int32)ShaderRHI->GetFrequency());
+		checkf(0, TEXT("FRHIShader Type %d is invalid or unsupported!"), (int32)ShaderFrequency);
 		NOT_SUPPORTED("RHIShaderStage");
 		break;
 	}
 
 	return Stage;
+}
+
+static FORCEINLINE EMetalShaderStages GetShaderStage(FRHIGraphicsShader* ShaderRHI)
+{
+	EMetalShaderStages Stage = EMetalShaderStages::Num;
+	return GetShaderStage(ShaderRHI->GetFrequency());
 }
 
 void FMetalRHICommandContext::RHISetStreamSource(uint32 StreamIndex, FRHIBuffer* VertexBufferRHI,uint32 Offset)
@@ -572,8 +579,27 @@ static void SetShaderParameters(
             Binder.SetBindlessHandle(Handle, Parameter.Index);
         }
     }
-#endif
-
+	
+	for (const FRHIShaderParameterResource& Parameter : InBindlessParameters)
+	{
+		if (Parameter.Type == FRHIShaderParameterResource::EType::UnorderedAccessView)
+		{
+			if (ShaderFrequency == SF_Pixel || ShaderFrequency == SF_Compute)
+			{
+				Binder.StateCache.IRMakeUAVResident(GetShaderStage(ShaderFrequency), static_cast<FMetalUnorderedAccessView*>(Parameter.Resource));
+			}
+			else
+			{
+				checkf(false, TEXT("TShaderRHI Can't have compute shader to be set. UAVs are not supported on vertex, tessellation and geometry shaders."));
+			}
+		}
+		else if(Parameter.Type == FRHIShaderParameterResource::EType::ResourceView)
+		{
+			Binder.StateCache.IRMakeSRVResident(GetShaderStage(ShaderFrequency), static_cast<FMetalShaderResourceView*>(Parameter.Resource));
+		}
+	}
+#endif 
+	
     for (const FRHIShaderParameterResource& Parameter : InResourceParameters)
     {
         if (Parameter.Type == FRHIShaderParameterResource::EType::UnorderedAccessView)

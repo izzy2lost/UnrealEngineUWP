@@ -86,6 +86,7 @@ void FMetalDescriptorHeap::Reset()
 
 void FMetalDescriptorHeap::FreeDescriptor(FRHIDescriptorHandle DescriptorHandle)
 {
+	FScopeLock ScopeLock(&FreeListCS);
 	DeferredDeletionList[DeferredDeletionListIndex].Enqueue(DescriptorHandle);
 }
 
@@ -427,20 +428,19 @@ void FMetalBindlessDescriptorManager::BindTexture(FRHICommandListBase& RHICmdLis
 	UpdateType = !GIsRHIInitialized ? EDescriptorUpdateType_Immediate : UpdateType;
 #endif
 	
-	if(UpdateType == EDescriptorUpdateType_Immediate)
+	RHICmdList.EnqueueLambda([this, InUpdateType=UpdateType, Data=DescriptorData, Handle=DescriptorHandle](FRHICommandListBase&)
 	{
-		StandardResources.UpdateDescriptor(DescriptorHandle, DescriptorData);
-	}
-	else if(UpdateType == EDescriptorUpdateType_GPU)
-	{
-		RHICmdList.EnqueueLambda([this, Data=DescriptorData, Handle=DescriptorHandle](FRHICommandListBase&)
+		FScopeLock ScopeLock(&ComputeDescriptorCS);
+		if(InUpdateType == EDescriptorUpdateType_Immediate)
 		{
-			FScopeLock ScopeLock(&ComputeDescriptorCS);
-			
+			StandardResources.UpdateDescriptor(Handle, Data);
+		}
+		else
+		{
 			StandardResources.ComputeDescriptorEntries.Add(Data);
 			StandardResources.ComputeDescriptorIndices.Add(Handle.GetIndex());
-		});
-	}
+		}
+	});
 }
 
 void FMetalBindlessDescriptorManager::BindDescriptorHeapsToEncoder(FMetalCommandEncoder* Encoder, MTL::FunctionType FunctionType, EMetalShaderStages Frequency)

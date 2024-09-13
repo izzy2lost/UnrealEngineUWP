@@ -1590,10 +1590,8 @@ void FMetalStateCache::IRMakeUAVResident(EMetalShaderStages const Frequency, FMe
 			{
 				CacheOrSkipResourceResidencyUpdate(View->parentTexture(), Frequency, false);
 			}
-			else
-			{
-				CacheOrSkipResourceResidencyUpdate(View.get(), Frequency, false);
-			}
+			
+			CacheOrSkipResourceResidencyUpdate(View.get(), Frequency, false);
 			break;
         }
             
@@ -1644,7 +1642,7 @@ void FMetalStateCache::IRMakeTextureResident(EMetalShaderStages const Frequency,
 	{
 		CacheOrSkipResourceResidencyUpdate(Texture->parentTexture(), Frequency, true, CanMakeTextureResidentViaHeaps(Texture->parentTexture()));
 	}
-	else
+	
 	{
 		CacheOrSkipResourceResidencyUpdate(Texture, Frequency, true, CanMakeTextureResidentViaHeaps(Texture));
 	}
