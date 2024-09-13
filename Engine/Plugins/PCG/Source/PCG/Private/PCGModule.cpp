@@ -23,7 +23,12 @@
 
 FPCGModule& FPCGModule::GetPCGModuleChecked()
 {
-	return FModuleManager::GetModuleChecked<FPCGModule>("PCG");
+	return FModuleManager::GetModuleChecked<FPCGModule>(TEXT("PCG"));
+}
+
+bool FPCGModule::IsPCGModuleLoaded()
+{
+	return FModuleManager::Get().IsModuleLoaded(TEXT("PCG"));
 }
 
 #if WITH_EDITOR
