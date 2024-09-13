@@ -1197,7 +1197,7 @@ UDynamicMesh* UGeometryScriptLibrary_StaticMeshFunctions::CopyMorphTargetToSkele
 		}
 	}
 
-	if (!bMorphTargetIsEmpty)
+	if (bMorphTargetIsEmpty)
 	{
 		MeshAttributes.UnregisterMorphTargetAttribute(MorphTargetName);
 		if (Transaction)
