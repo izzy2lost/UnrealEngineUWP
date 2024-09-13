@@ -178,7 +178,7 @@ namespace Metasound::Editor
 
 		virtual bool IsPlaying() const override;
 
-		/** Whether pasting the currently selected nodes is permissible */
+		/** Whether pasting the current data on the clipboard to the focused graph is permissible */
 		bool CanPasteNodes();
 
 		/** Duplicates the selected node(s) in the graph */
