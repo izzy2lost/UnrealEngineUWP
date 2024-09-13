@@ -4,24 +4,29 @@
 
 #include "PCGSettings.h"
 
-#include "PCGSplineCrossSectionGenerator.generated.h"
+#include "PCGPrimitiveCrossSection.generated.h"
+
+namespace PCGPrimitiveCrossSection::Constants
+{
+	static constexpr double MinTierMergingThreshold = 0.01;
+}
 
 /**
- * Creates a spline cross-section of one more primitives based on vertex features, slice resolution, or both.
+ * Creates spline cross-sections of one more primitives based on vertex features.
  */
 UCLASS(BlueprintType, ClassGroup = (Procedural))
-class UPCGSplineCrossSectionGeneratorSettings : public UPCGSettings
+class UPCGPrimitiveCrossSectionSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
 public:
-	UPCGSplineCrossSectionGeneratorSettings();
+	UPCGPrimitiveCrossSectionSettings();
 
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
-	virtual FName GetDefaultNodeName() const override { return FName(TEXT("SplineCrossSectionGenerator")); }
-	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGSplineCrossSectionGeneratorElement", "NodeTitle", "Spline Cross Section Generator"); }
-	virtual FText GetNodeTooltipText() const override { return NSLOCTEXT("PCGSplineCrossSectionGeneratorElement", "NodeTooltip", "Creates a spline cross-section of one more primitives based on vertex features, slice resolution, or both."); }
+	virtual FName GetDefaultNodeName() const override { return FName(TEXT("PrimitiveCrossSection")); }
+	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGPrimitiveCrossSectionElement", "NodeTitle", "Primitive Cross-Section"); }
+	virtual FText GetNodeTooltipText() const override { return NSLOCTEXT("PCGPrimitiveCrossSectionElement", "NodeTooltip", "Creates spline cross-sections of one more primitives based on vertex features."); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spatial; }
 #endif
 
@@ -32,7 +37,7 @@ protected:
 	//~End UPCGSettings interface
 
 public:
-	/** Slicing will happen from the minimum vertex along this direction vector (normalized). Useful primarily with the Tier Slicing Resolution. */
+	/** Slicing will happen from the minimum vertex along this direction vector (normalized). */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	FVector SliceDirection = FVector::UpVector;
 
@@ -40,29 +45,21 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	FPCGAttributePropertyOutputSelector ExtrusionVectorAttribute;
 
-	/** Find primitive tier "features", which consist of a number of co-planar vertices. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
-	bool bEnableFindFeatures = true;
-
 	/** The minimum required number of vertices that must be co-planar in order to be considered a tier "feature". */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "bEnableFindFeatures", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	int32 MinimumCoplanarVertices = 3;
 
-	/** Create tiers at a specified resolution. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, InlineEditConditionToggle))
-	bool bEnableTierSlicing = false;
-
-	/** A tier will be created at this interval (in cm). */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "bEnableTierSlicing", ClampMin = "100"))
-	double TierSlicingResolution = 500.0;
+	/** A safeguard to prevent finding features on an overly complex mesh. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Advanced", meta = (PCG_Overridable, EditCondition = "GenerateCrossSectionMode != EPCGGenerateCrossSectionMode::TierSlicing", EditConditionHides))
+	int32 MaxMeshVertexCount = 2048;
 
 	/** Cull tiers that are within a specified threshold. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, InlineEditConditionToggle))
 	bool bEnableTierMerging = false;
 
 	/** If a tier is within this distance (in cm) of the previous tier, it will be culled. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "bEnableTierMerging"))
-	double TierMergingThreshold = 100.0;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (ClampMin = "0.01", PCG_Overridable, EditCondition = "bEnableTierMerging"))
+	double TierMergingThreshold = 1.0;
 
 	/** Cull tiers that have a surface area smaller than a specified threshold. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, InlineEditConditionToggle))
@@ -75,13 +72,9 @@ public:
 	/** If multiple tiers can be combined into a single tier without affecting the contour, remove the redundant one. Note: This will currently cull even if there are other unique tiers in between. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	bool bRemoveRedundantSections = true;
-
-	/** A safeguard to prevent finding features on an overly complex mesh. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Advanced", meta = (PCG_Overridable, EditCondition = "bEnableFindFeatures", EditConditionHides))
-	int32 MaxMeshVertexCount = 2048;
 };
 
-class FPCGSplineCrossSectionGeneratorElement : public IPCGElement
+class FPCGPrimitiveCrossSectionElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
