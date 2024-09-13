@@ -36,7 +36,7 @@ FAnimAssetFindReplaceSummoner::FAnimAssetFindReplaceSummoner(TSharedPtr<FAssetEd
 	, Config(InConfig)
 {
 	TabLabel = LOCTEXT("AnimAssetFindReplaceTabLabel", "Find/Replace");
-	TabIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "Kismet.Tabs.FindResults");
+	TabIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "Persona.Tabs.FindReplace");
 }
 
 TSharedRef<SWidget> FAnimAssetFindReplaceSummoner::CreateTabBody(const FWorkflowTabSpawnInfo& Info) const

@@ -5112,6 +5112,7 @@ void FStarshipEditorStyle::FStyle::SetupPersonaStyle()
 		Set("Persona.Tabs.SkeletonCurves", new IMAGE_BRUSH(TEXT("Icons/icon_Persona_Skeleton_Curves_16x"), Icon16x16));
 		Set("Persona.Tabs.AnimAssetDetails", new IMAGE_BRUSH(TEXT("Icons/icon_Persona_Anim_Asset_Details_16x"), Icon16x16));
 		Set("Persona.Tabs.ControlRigMappingWindow", new IMAGE_BRUSH(TEXT("Icons/icon_Persona_Skeleton_Tree_16x"), Icon16x16));
+		Set("Persona.Tabs.FindReplace", new IMAGE_BRUSH_SVG(TEXT("Starship/Persona/FindReplace_16"), Icon16x16));
 
 		// AssetFamilyIcons
 		Set("Persona.AssetClass.Skeleton", new IMAGE_BRUSH_SVG("Starship/Persona/Skeleton", Icon20x20));
@@ -5119,6 +5120,10 @@ void FStarshipEditorStyle::FStyle::SetupPersonaStyle()
 		Set("Persona.AssetClass.SkeletalMesh", new IMAGE_BRUSH_SVG("Starship/Persona/SkeletalMesh", Icon20x20));
 		Set("Persona.AssetClass.Blueprint", new IMAGE_BRUSH_SVG( "Starship/MainToolbar/blueprints", Icon20x20) );
 		Set("Persona.AssetClass.Physics", new IMAGE_BRUSH_SVG("Starship/Persona/Physics", Icon20x20));
+
+		// Find/replace tab
+		Set("Persona.FindReplace.MatchCase", new IMAGE_BRUSH_SVG("Starship/Persona/MatchCase_20", Icon20x20));
+		Set("Persona.FindReplace.MatchWholeWord", new IMAGE_BRUSH_SVG("Starship/Persona/MatchWord_20", Icon20x20));
 	}
 
 	// Skeleton editor
