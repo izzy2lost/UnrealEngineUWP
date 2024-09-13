@@ -2779,12 +2779,16 @@ void UCookOnTheFlyServer::DemoteToIdle(UE::Cook::FPackageData& PackageData, UE::
 	{
 		WorkerRequests->ReportDemoteToIdle(PackageData, Reason);
 
+		bool bHasCookResult = PackageData.HasAllCookedPlatforms(PlatformManager->GetSessionPlatforms(), true /* bIncludeFailed */);
+
 		// If per-package display is on, write a log statement explaining that the package was reachable but skipped.
 		bool bPrintDiagnostic = !bCookListMode &
 			!!((GCookProgressDisplay & ((int32)ECookProgressDisplayMode::Instigators | (int32)ECookProgressDisplayMode::PackageNames)));
 
 		// Suppress the message in cases that cause large spam like NotInCurrentPlugin for DLC cooks.
 		bPrintDiagnostic &= (Reason != ESuppressCookReason::NotInCurrentPlugin);
+		// Iterative cooks: suppress the diagnostic for packages that were iteratively skipped
+		bPrintDiagnostic &= !bHasCookResult;
 		if (bPrintDiagnostic && IsCookingDLC() && Reason == ESuppressCookReason::AlreadyCooked && LogCook.GetVerbosity() < ELogVerbosity::Verbose)
 		{
 			bPrintDiagnostic = false;
@@ -2804,9 +2808,6 @@ void UCookOnTheFlyServer::DemoteToIdle(UE::Cook::FPackageData& PackageData, UE::
 			// Reachability: Suppress the diagnostic that were found via cookload reference traversal but are not reachable on the target platforms
 			bPrintDiagnostic &= (PackageData.HasInstigator() || Reason != ESuppressCookReason::OnlyEditorOnly);
 
-			// Iterative cooks: suppress the diagnostic for packages that were iteratively skipped
-			bPrintDiagnostic &= !PackageData.HasAllCookedPlatforms(PlatformManager->GetSessionPlatforms(), true /* bIncludeFailed */);
-
 			if (bPrintDiagnostic)
 			{
 				UE_CLOG((GCookProgressDisplay & (int32)ECookProgressDisplayMode::Instigators), LogCook, Display,
@@ -2815,6 +2816,12 @@ void UCookOnTheFlyServer::DemoteToIdle(UE::Cook::FPackageData& PackageData, UE::
 				UE_CLOG(GCookProgressDisplay & (int32)ECookProgressDisplayMode::PackageNames, LogCook, Display,
 					TEXT("Cooking %s -> Rejected %s"), *PackageNameStr, LexToString(Reason));
 			}
+		}
+
+		// If the package is demoted without a cookresult, store the suppressed reason
+		if (!bHasCookResult)
+		{
+			PackageData.SetSuppressCookReason(Reason);
 		}
 	}
 	PackageData.SendToState(UE::Cook::EPackageState::Idle, SendFlags, ConvertToStateChangeReason(Reason));
@@ -10505,7 +10512,7 @@ void UCookOnTheFlyServer::CookByTheBookFinishedInternal()
 	PackageDatas->LockAndEnumeratePackageDatas([&DanglingGenerationHelpers](FPackageData* PackageData)
 		{
 			TRefCountPtr<FGenerationHelper> GenerationHelper = PackageData->GetGenerationHelper();
-			if (GenerationHelper && GenerationHelper->IsInitialized())
+			if (GenerationHelper)
 			{
 				DanglingGenerationHelpers.Add(PackageData);
 			}
@@ -10516,7 +10523,10 @@ void UCookOnTheFlyServer::CookByTheBookFinishedInternal()
 		if (GenerationHelper)
 		{
 			GenerationHelper->DiagnoseWhyNotShutdown();
-			GenerationHelper->ForceUninitialize();
+			if (GenerationHelper->IsInitialized())
+			{
+				GenerationHelper->ForceUninitialize();
+			}
 		}
 	};
 

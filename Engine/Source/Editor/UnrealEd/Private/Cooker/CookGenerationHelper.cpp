@@ -10,6 +10,7 @@
 #include "Cooker/CookWorkerServer.h"
 #include "Cooker/IWorkerRequests.h"
 #include "Cooker/PackageTracker.h"
+#include "Interfaces/ITargetPlatform.h"
 #include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/PackageAccessTrackingOps.h"
@@ -259,20 +260,34 @@ void FGenerationHelper::DiagnoseWhyNotShutdown()
 			}
 			else
 			{
-				bool bMissingPlatform = false;
+				TArray< const ITargetPlatform*> MissingPlatforms;
 				for (const ITargetPlatform* TargetPlatform : COTFS.PlatformManager->GetSessionPlatforms())
 				{
 					const FPackagePlatformData* PlatformData = Info.PackageData->GetPlatformDatas().Find(TargetPlatform);
 					if (!PlatformData || PlatformData->GetCookResults() == ECookResult::NotAttempted)
 					{
-						bMissingPlatform = true;
+						MissingPlatforms.Add(TargetPlatform);
 					}
 				}
-				if (bMissingPlatform)
+				if (!MissingPlatforms.IsEmpty())
 				{
-					Lines.Appendf(TEXT("\t%s%s was not cooked.\n"),
+					TStringBuilder<256> MissingPlatformStr;
+					if (MissingPlatforms.Num() != COTFS.PlatformManager->GetSessionPlatforms().Num())
+					{
+						MissingPlatformStr << TEXT(" for platforms { ");
+						for (const ITargetPlatform* TargetPlatform : MissingPlatforms)
+						{
+							MissingPlatformStr << TargetPlatform->PlatformName() << TEXT(", ");
+						}
+						MissingPlatformStr.RemoveSuffix(2);
+						MissingPlatformStr << TEXT(" }");
+					}
+
+					Lines.Appendf(TEXT("\t%s%s was not cooked%s. SuppressCookReason == %s.\n"),
 						Info.IsGenerator() ? TEXT("OwnerInfo") : TEXT("GeneratedPackage "),
-						Info.IsGenerator() ? TEXT("") : *Info.GetPackageName());
+						Info.IsGenerator() ? TEXT("") : *Info.GetPackageName(),
+						*MissingPlatformStr,
+						LexToString(Info.PackageData->GetSuppressCookReason()));
 				}
 			}
 			if (!Info.HasSaved())
@@ -363,9 +378,18 @@ void FGenerationHelper::DiagnoseWhyNotShutdown()
 		Lines.RemoveSuffix(1);
 	}
 
-	UE_LOG(LogCook, Error,
-		TEXT("GenerationHelper for package %s is still allocated at end of cooksession. This is unexpected and could indicate some generated packages are missing."),
-		*GetOwner().GetPackageName().ToString());
+	FString Message = FString::Printf(
+		TEXT("GenerationHelper for package %s is still allocated%s at end of cooksession. This is unexpected and could indicate some generated packages are missing."),
+		*GetOwner().GetPackageName().ToString(), IsInitialized() ? TEXT(" and initialized") : TEXT(""));
+
+	if (IsInitialized())
+	{
+		UE_LOG(LogCook, Error, TEXT("%s"), *Message);
+	}
+	else
+	{
+		UE_LOG(LogCook, Warning, TEXT("%s"), *Message);
+	}
 	UE_LOG(LogCook, Display, TEXT("Diagnostics:\n%s"), *Lines);
 }
 
@@ -1268,12 +1292,13 @@ void FGenerationHelper::ResetSaveState(FCookGenerationInfo& Info, UPackage* Pack
 
 	if (IsTerminalStateChange(ReleaseSaveReason))
 	{
-		// The save is completed and we will not come back to it; set state back to initial
-		// state and drop our reference keeping this GenerationHelper in memory for the save.
-		Info.SetHasSaved(*this, true, FWorkerId::Local());
-
+		// The package's progress is completed and we will not come back to it; set state back to initial
+		// state, mark the package as saved in our GenerationHelper data, and drop the ParentGenerationHelper
+		// reference.
 		if (Info.IsGenerator())
 		{
+			Info.SetHasSaved(*this, true, FWorkerId::Local());
+
 			// Now that we've finished saving, we know that we will not call QueueGeneratedPackages again, so we can
 			// teardown iterative results as well
 			ClearKeepForIterative();
@@ -1284,7 +1309,8 @@ void FGenerationHelper::ResetSaveState(FCookGenerationInfo& Info, UPackage* Pack
 		}
 		else
 		{
-			Info.PackageData->SetParentGenerationHelper(nullptr);
+			// For generated packages, SetHasSaved is called inside of SetParentGenerationHelper
+			Info.PackageData->SetParentGenerationHelper(nullptr, ReleaseSaveReason, &Info);
 		}
 	}
 
