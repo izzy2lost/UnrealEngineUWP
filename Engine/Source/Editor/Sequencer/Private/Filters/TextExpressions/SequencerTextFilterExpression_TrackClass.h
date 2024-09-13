@@ -4,10 +4,10 @@
 
 #include "Filters/SequencerTextFilterExpressionContext.h"
 
-class FSequencerTextFilterExpression_Class : public FSequencerTextFilterExpressionContext
+class FSequencerTextFilterExpression_TrackClass : public FSequencerTextFilterExpressionContext
 {
 public:
-	FSequencerTextFilterExpression_Class(ISequencerTrackFilters& InFilterInterface);
+	FSequencerTextFilterExpression_TrackClass(ISequencerTrackFilters& InFilterInterface);
 
 	//~ Begin FSequencerTextFilterExpressionContext
 	virtual TSet<FName> GetKeys() const override;
