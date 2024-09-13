@@ -58,11 +58,18 @@ namespace UE::NearestNeighborModel
 		InitInputInfo(Model->GetInputInfo());
 		VertexMapSelector = MakeUnique<FVertexMapSelector>();
 		VertexMapSelector->Update(Model->GetSkeletalMesh());
-		const UNearestNeighborModel* const NearestNeighborModel = GetCastModel();
+		UNearestNeighborModel* NearestNeighborModel = GetCastModel();
 		if (!NearestNeighborModel)
 		{
 			return;
 		}
+
+		// Create one section on default.
+		if (NearestNeighborModel->GetNumSections() == 0)
+		{
+			CreateDefaultSection();
+		}
+
 		const int32 NumSections = NearestNeighborModel->GetNumSections();
 		if (UNearestNeighborModelVizSettings* const NNViz = GetCastVizSettings())
 		{
@@ -818,6 +825,39 @@ namespace UE::NearestNeighborModel
 			return Cast<UNearestNeighborModelInstance>(MLDeformerComponent->GetModelInstance());
 		}
 		return nullptr;
+	}
+
+	void FNearestNeighborEditorModel::CreateDefaultSection()
+	{
+		UNearestNeighborModel* NearestNeighborModel = GetCastModel();
+		VertexMapSelector->Update(Model->GetSkeletalMesh());
+		NearestNeighborModel->AddSection(nullptr);
+		FSection* const Section = NearestNeighborModel->OnSectionAdded(0);
+		FString MapString;
+		if (NearestNeighborModel->GetSkeletalMesh())
+		{
+			const TArray<FInt32Range> Ranges = NearestNeighborModel->GetMeshVertRanges(*NearestNeighborModel->GetSkeletalMesh());
+			const int32 MeshIndex = Section->GetMeshIndex(); 
+			if (Ranges.IsValidIndex(MeshIndex))
+			{
+				MapString = FString::Printf(TEXT("%d-%d"), Ranges[MeshIndex].GetLowerBoundValue(), Ranges[MeshIndex].GetUpperBoundValue() - 1);
+			}
+		}
+		Section->SetVertexMapString(MapString);
+		NearestNeighborModel->InvalidateTrainingModelOnly();
+		NearestNeighborModel->UpdateNetworkOutputDim();
+		NearestNeighborModel->InvalidateTraining();
+	}
+
+	void FNearestNeighborEditorModel::CopyBaseSettingsFromModel(const FMLDeformerEditorModel* SourceEditorModel)
+	{
+		FMLDeformerMorphModelEditorModel::CopyBaseSettingsFromModel(SourceEditorModel);
+
+		UNearestNeighborModel* NearestNeighborModel = GetCastModel();
+
+		// Wipe existing sections (as our init might have created one) and create a default new one.
+		NearestNeighborModel->RemoveAllSections();
+		CreateDefaultSection();
 	}
 
 	void FVertexMapSelector::Update(const USkeletalMesh* SkelMesh)
