@@ -24,11 +24,22 @@ RWTexture3D<float3> RWVolumeResolvedLighting;
 #define SHARED_TILE_SIZE_Z ((2 + 2) * NUM_SAMPLES_PER_VOXEL_3D_Z)
 groupshared uint SharedSamples[SHARED_TILE_SIZE_X][SHARED_TILE_SIZE_Y][SHARED_TILE_SIZE_Z];
 
-// Light scalarization
-groupshared uint SharedLightHiMask;
-groupshared uint SharedLightMask[SHARED_LIGHT_MASK_SIZE];
+void AccumulateLightSample(uint3 SharedSampleCoord, inout uint NextLocalLightIndex)
+{
+	for (uint SampleOffsetZ = 0; SampleOffsetZ < NUM_SAMPLES_PER_VOXEL_3D_Z; ++SampleOffsetZ)
+	{
+		for (uint SampleOffsetY = 0; SampleOffsetY < NUM_SAMPLES_PER_VOXEL_3D_Y; ++SampleOffsetY)
+		{
+			for (uint SampleOffsetX = 0; SampleOffsetX < NUM_SAMPLES_PER_VOXEL_3D_X; ++SampleOffsetX)
+			{
+				FLightSample LightSample = UnpackLightSample(SharedSamples[SharedSampleCoord.x * NUM_SAMPLES_PER_VOXEL_3D_X + SampleOffsetX][SharedSampleCoord.y * NUM_SAMPLES_PER_VOXEL_3D_Y + SampleOffsetY][SharedSampleCoord.z * NUM_SAMPLES_PER_VOXEL_3D_Z + SampleOffsetZ]);
+				NextLocalLightIndex = min(NextLocalLightIndex, LightSample.LocalLightIndex);
+			}
+		}
+	}
+}
 
-void AccumulateLightSample(uint3 SharedSampleCoord, uint LocalLightIndex, float UpsampleWeight, inout float SampleWeightSum)
+void AccumulateLightSample(uint3 SharedSampleCoord, uint LocalLightIndex, float UpsampleWeight, inout uint NextLocalLightIndex, inout float SampleWeightSum)
 {
 	for (uint SampleOffsetZ = 0; SampleOffsetZ < NUM_SAMPLES_PER_VOXEL_3D_Z; ++SampleOffsetZ)
 	{
@@ -41,6 +52,11 @@ void AccumulateLightSample(uint3 SharedSampleCoord, uint LocalLightIndex, float 
 				if (LightSample.LocalLightIndex == LocalLightIndex)
 				{
 					SampleWeightSum += LightSample.Weight * UpsampleWeight;
+				}
+
+				if (LightSample.LocalLightIndex > LocalLightIndex)
+				{
+					NextLocalLightIndex = min(NextLocalLightIndex, LightSample.LocalLightIndex);
 				}
 			}
 		}
@@ -96,19 +112,6 @@ void VolumeShadeLightSamplesCS(
 {
 	uint3 VolumeCoord = DispatchThreadId.xyz;
 
-	uint LinearThreadIndex = GroupThreadId.x + GroupThreadId.y * THREADGROUP_SIZE + GroupThreadId.z * THREADGROUP_SIZE * THREADGROUP_SIZE;
-	if (LinearThreadIndex == 0)
-	{
-		SharedLightHiMask = 0;
-	}
-
-	if (LinearThreadIndex < SHARED_LIGHT_MASK_SIZE)
-	{
-		SharedLightMask[LinearThreadIndex] = 0;
-	}
-
-	GroupMemoryBarrierWithGroupSync();
-
 	// First load all samples into shared memory
 	{
 		uint LocalLightHiMask = 0;
@@ -130,16 +133,7 @@ void VolumeShadeLightSamplesCS(
 					{
 						LightSample = UnpackLightSample(VolumeLightSamples[SampleCoord]);
 
-						if (LightSample.bVisible && LightSample.LocalLightIndex < MAX_LOCAL_LIGHT_INDEX)
-						{
-							uint DWORDIndex = LightSample.LocalLightIndex / 32;
-							uint BitMask = 1u << (LightSample.LocalLightIndex % 32);
-							InterlockedOr(SharedLightMask[DWORDIndex], BitMask);
-
-							uint HiBitMask = 1u << DWORDIndex;
-							LocalLightHiMask |= HiBitMask;
-						}
-						else
+						if (!LightSample.bVisible || LightSample.LocalLightIndex >= MAX_LOCAL_LIGHT_INDEX)
 						{
 							LightSample = InitLightSample();
 						}
@@ -148,12 +142,6 @@ void VolumeShadeLightSamplesCS(
 					SharedSamples[SharedSampleCoord.x][SharedSampleCoord.y][SharedSampleCoord.z] = PackLightSample(LightSample);
 				}
 			}
-		}
-
-		uint WaveHiMask = WaveActiveBitOr(LocalLightHiMask);
-		if (WaveIsFirstLane())
-		{
-			InterlockedOr(SharedLightHiMask, WaveHiMask);
 		}
 
 		GroupMemoryBarrierWithGroupSync();
@@ -246,44 +234,56 @@ void VolumeShadeLightSamplesCS(
 			}
 			#endif
 
-			uint LightHiMask = SharedLightHiMask;
-			while (LightHiMask != 0)
+			uint NextLocalLightIndex = MAX_LOCAL_LIGHT_INDEX;
+			#if STOCHASTIC_SAMPLE_INTERPOLATION
 			{
-				const uint NextHiBitIndex = firstbitlow(LightHiMask);
-				const uint NextHiBitMask = 1u << NextHiBitIndex;
-				LightHiMask ^= NextHiBitMask;
+				AccumulateLightSample(SharedSampleCoord000 + StochasticTrilinearOffset0, NextLocalLightIndex);
+				AccumulateLightSample(SharedSampleCoord000 + StochasticTrilinearOffset1, NextLocalLightIndex);
+			}
+			#else
+			{
+				// Full trilinear interpolation
+				AccumulateLightSample(SharedSampleCoord000 + uint3(0, 0, 0), NextLocalLightIndex);
+				AccumulateLightSample(SharedSampleCoord000 + uint3(1, 0, 0), NextLocalLightIndex);
+				AccumulateLightSample(SharedSampleCoord000 + uint3(0, 1, 0), NextLocalLightIndex);
+				AccumulateLightSample(SharedSampleCoord000 + uint3(1, 1, 0), NextLocalLightIndex);
+				AccumulateLightSample(SharedSampleCoord000 + uint3(0, 0, 1), NextLocalLightIndex);
+				AccumulateLightSample(SharedSampleCoord000 + uint3(1, 0, 1), NextLocalLightIndex);
+				AccumulateLightSample(SharedSampleCoord000 + uint3(0, 1, 1), NextLocalLightIndex);
+				AccumulateLightSample(SharedSampleCoord000 + uint3(1, 1, 1), NextLocalLightIndex);
+			}
+			#endif
 
-				const uint MaskIndex = NextHiBitIndex;
-				uint LightMask = SharedLightMask[MaskIndex];
-
-				while (LightMask != 0)
+			while (NextLocalLightIndex < MAX_LOCAL_LIGHT_INDEX)
+			{
+				const uint LocalLightIndex = WaveActiveMin(NextLocalLightIndex);
+				if (LocalLightIndex == NextLocalLightIndex)
 				{
-					const uint NextBitIndex = firstbitlow(LightMask);
-					const uint NextBitMask = 1u << NextBitIndex;
-					LightMask ^= NextBitMask;
-
-					const uint LocalLightIndex = MaskIndex * 32 + NextBitIndex;
-					const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
-					const FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
+					NextLocalLightIndex = MAX_LOCAL_LIGHT_INDEX;
 
 					float SampleWeight = 0.0f;
+
 					#if STOCHASTIC_SAMPLE_INTERPOLATION
 					{
-						AccumulateLightSample(SharedSampleCoord000 + StochasticTrilinearOffset0, LocalLightIndex, 0.5f, SampleWeight);
-						AccumulateLightSample(SharedSampleCoord000 + StochasticTrilinearOffset1, LocalLightIndex, 0.5f, SampleWeight);
+						AccumulateLightSample(SharedSampleCoord000 + StochasticTrilinearOffset0, LocalLightIndex, 0.5f, NextLocalLightIndex, SampleWeight);
+						AccumulateLightSample(SharedSampleCoord000 + StochasticTrilinearOffset1, LocalLightIndex, 0.5f, NextLocalLightIndex, SampleWeight);
 					}
 					#else
 					{
-						AccumulateLightSample(SharedSampleCoord000 + uint3(0, 0, 0), LocalLightIndex, InterpolationWeights0.x, SampleWeight);
-						AccumulateLightSample(SharedSampleCoord000 + uint3(1, 0, 0), LocalLightIndex, InterpolationWeights0.y, SampleWeight);
-						AccumulateLightSample(SharedSampleCoord000 + uint3(0, 1, 0), LocalLightIndex, InterpolationWeights0.z, SampleWeight);
-						AccumulateLightSample(SharedSampleCoord000 + uint3(1, 1, 0), LocalLightIndex, InterpolationWeights0.w, SampleWeight);
-						AccumulateLightSample(SharedSampleCoord000 + uint3(0, 0, 1), LocalLightIndex, InterpolationWeights1.x, SampleWeight);
-						AccumulateLightSample(SharedSampleCoord000 + uint3(1, 0, 1), LocalLightIndex, InterpolationWeights1.y, SampleWeight);
-						AccumulateLightSample(SharedSampleCoord000 + uint3(0, 1, 1), LocalLightIndex, InterpolationWeights1.z, SampleWeight);
-						AccumulateLightSample(SharedSampleCoord000 + uint3(1, 1, 1), LocalLightIndex, InterpolationWeights1.w, SampleWeight);
+						// Full trilinear interpolation
+						AccumulateLightSample(SharedSampleCoord000 + uint3(0, 0, 0), LocalLightIndex, InterpolationWeights0.x, NextLocalLightIndex, SampleWeight);
+						AccumulateLightSample(SharedSampleCoord000 + uint3(1, 0, 0), LocalLightIndex, InterpolationWeights0.y, NextLocalLightIndex, SampleWeight);
+						AccumulateLightSample(SharedSampleCoord000 + uint3(0, 1, 0), LocalLightIndex, InterpolationWeights0.z, NextLocalLightIndex, SampleWeight);
+						AccumulateLightSample(SharedSampleCoord000 + uint3(1, 1, 0), LocalLightIndex, InterpolationWeights0.w, NextLocalLightIndex, SampleWeight);
+						AccumulateLightSample(SharedSampleCoord000 + uint3(0, 0, 1), LocalLightIndex, InterpolationWeights1.x, NextLocalLightIndex, SampleWeight);
+						AccumulateLightSample(SharedSampleCoord000 + uint3(1, 0, 1), LocalLightIndex, InterpolationWeights1.y, NextLocalLightIndex, SampleWeight);
+						AccumulateLightSample(SharedSampleCoord000 + uint3(0, 1, 1), LocalLightIndex, InterpolationWeights1.z, NextLocalLightIndex, SampleWeight);
+						AccumulateLightSample(SharedSampleCoord000 + uint3(1, 1, 1), LocalLightIndex, InterpolationWeights1.w, NextLocalLightIndex, SampleWeight);
 					}
 					#endif
+
+					const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
+					const FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
 
 					#if DEBUG_MODE
 					if (Debug.bActive)
