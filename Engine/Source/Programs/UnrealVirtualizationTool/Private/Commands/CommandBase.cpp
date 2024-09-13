@@ -237,14 +237,25 @@ bool FCommand::TryParseChangelist(FStringView ClientSpecName, FStringView Change
 
 			for (const FSourceControlStateRef& FileState : FilesinChangelist)
 			{
-				if (IsPackageFile(FileState->GetFilename()))
-				{
-					OutPackages.Add(FileState->GetFilename());
-				}
-				else
+				if (!IsPackageFile(FileState->GetFilename()))
 				{
 					UE_LOG(LogVirtualizationTool, Log, TEXT("\tIgnoring non-package file '%s'"), *FileState->GetFilename());
+					continue;
 				}
+
+				if (FileState->IsDeleted())
+				{
+					UE_LOG(LogVirtualizationTool, Verbose, TEXT("\tIgnoring package marked for delete '%s'"), *FileState->GetFilename());
+					continue;
+				}
+
+				if (FileState->IsIgnored())
+				{
+					UE_LOG(LogVirtualizationTool, Verbose, TEXT("\tIgnoring package marked for ignore '%s'"), *FileState->GetFilename());
+					continue;
+				}
+
+				OutPackages.Add(FileState->GetFilename());
 			}
 
 			if (OutChangelist != nullptr)
