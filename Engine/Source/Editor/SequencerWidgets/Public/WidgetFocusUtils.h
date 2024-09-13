@@ -19,6 +19,11 @@ struct FKeyEvent;
 class SEQUENCERWIDGETS_API FPendingWidgetFocus : public TSharedFromThis<FPendingWidgetFocus>
 {
 public:
+
+	FPendingWidgetFocus() = default;
+	FPendingWidgetFocus(const TArray<FName>& InTypesKeepingFocus);
+
+	static FPendingWidgetFocus MakeNoTextEdit();
 	
 	~FPendingWidgetFocus();
 
@@ -31,7 +36,10 @@ public:
 private:
 	
 	void OnPreInputKeyDown(const FKeyEvent&);
+	bool CanFocusBeStolen() const;
 
 	TFunction<void()> PendingFocusFunction;
 	FDelegateHandle PreInputKeyDownHandle;
+
+	TArray<FName> KeepingFocus;
 };

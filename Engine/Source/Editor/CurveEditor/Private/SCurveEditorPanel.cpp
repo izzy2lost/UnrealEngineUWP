@@ -123,7 +123,8 @@ struct FCurveEditorPanelViewTracker
 };
 
 SCurveEditorPanel::SCurveEditorPanel()
-	: bNeedsRefresh(true)
+	: PendingFocus(FPendingWidgetFocus::MakeNoTextEdit())
+	, bNeedsRefresh(true)
 	, CachedActiveCurvesSerialNumber(-1)
 {
 	EditObjects = MakeUnique<FCurveEditorEditObjectContainer>();

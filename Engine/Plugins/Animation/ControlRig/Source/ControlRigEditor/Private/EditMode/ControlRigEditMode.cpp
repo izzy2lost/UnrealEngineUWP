@@ -175,7 +175,8 @@ namespace ControlRigSelectionConstants
 }
 
 FControlRigEditMode::FControlRigEditMode()
-	: bIsChangingControlShapeTransform(false)
+	: PendingFocus(FPendingWidgetFocus::MakeNoTextEdit())
+	, bIsChangingControlShapeTransform(false)
 	, bIsTracking(false)
 	, bManipulatorMadeChange(false)
 	, bSelecting(false)
