@@ -20,6 +20,12 @@ void UCustomizableObjectNodeTextureParameter::AllocateDefaultPins(UCustomizableO
 }
 
 
+bool UCustomizableObjectNodeTextureParameter::IsExperimental() const
+{
+	return true;
+}
+
+
 FText UCustomizableObjectNodeTextureParameter::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
 	if (TitleType == ENodeTitleType::ListView || ParameterName.IsEmpty())
