@@ -154,7 +154,7 @@ private:
 
 	/** Marked as true for local function definitions */
 	UPROPERTY(Transient)
-	bool bIsLocalFunction;
+	bool bIsLocalFunction = false;
 
 	/** Holds the node type that this spawner will instantiate. */
 	UPROPERTY(Transient)
