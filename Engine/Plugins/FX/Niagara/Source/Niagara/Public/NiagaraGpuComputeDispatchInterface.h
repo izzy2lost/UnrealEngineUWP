@@ -29,6 +29,7 @@ class FNiagaraSystemGpuComputeProxy;
 class FNiagaraGpuComputeDispatchInterface : public FFXSystemInterface
 {
 public:
+	DECLARE_EVENT_OneParam(FNiagaraGpuComputeDispatchInterface, FOnPreInitViewsEvent, FRDGBuilder&);
 	DECLARE_EVENT_OneParam(FNiagaraGpuComputeDispatchInterface, FOnPostPreRenderEvent, FRDGBuilder&);
 
 	static NIAGARA_API FNiagaraGpuComputeDispatchInterface* Get(class UWorld* World);
@@ -185,9 +186,19 @@ public:
 	FORCEINLINE void MultiGPUResourceModified(FRHICommandList& RHICmdList, FRHITexture* Texture, bool bRequiredForSimulation, bool bRequiredForRendering) const {}
 #endif
 
-	/** Event that broadcast before any rendering work is prepared / executed for Niagara. */
+	/**
+	Event that broadcast when we enter PreInitViews.
+	*/
+	FOnPreInitViewsEvent& GetOnPreInitViewsEvent() { check(IsInRenderingThread()); return OnPreInitViewsEvent; }
+	/**
+	Event that broadcast when we endter PreRender.
+	This is called before we prepare any work or add passes for simulating.
+	*/
 	FOnPostPreRenderEvent& GetOnPreRenderEvent() { check(IsInRenderingThread()); return OnPreRenderEvent; }
-	/** Event that broadcast after all rendering for Niagara is complete. */
+	/**
+	Event that broadcast at the end of PostRenderOpaque.
+	This is called after all simulation passes have been added.
+	*/
 	FOnPostPreRenderEvent& GetOnPostRenderEvent() { check(IsInRenderingThread()); return OnPostRenderEvent; }
 
 protected:
@@ -210,6 +221,7 @@ protected:
 	bool									bIsFirstViewFamily = true;
 	bool									bIsLastViewFamily = true;
 
+	FOnPreInitViewsEvent					OnPreInitViewsEvent;
 	FOnPostPreRenderEvent					OnPreRenderEvent;
 	FOnPostPreRenderEvent					OnPostRenderEvent;
 

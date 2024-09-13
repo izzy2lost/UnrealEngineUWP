@@ -58,7 +58,8 @@ public:
 	void GenerateDataBufferForDebugging(FRHICommandListImmediate& RHICmdList, FNiagaraDataBuffer* DataBuffer, const NiagaraStateless::FEmitterInstance_RT* EmitterInstance) const;
 
 private:
-	void OnPostPreRender(FRDGBuilder& GraphBuilder);
+	void OnPreInitViews(FRDGBuilder& GraphBuilder);
+	void OnPreRender(FRDGBuilder& GraphBuilder);
 	void OnPostPostRender(FRDGBuilder& GraphBuilder);
 
 private:
@@ -68,6 +69,7 @@ private:
 	TArray<TUniquePtr<FStatelessDataCache>>				FreeData;
 	TArray<uint32>										CountsToRelease;
 
+	bool												bAllowDeferredGeneration = false;
 	TArray<FStatelessDataGenerationRequest>				GPUGenerationRequests;
 
 	UE::FMutex											GetDataBufferGuard;
