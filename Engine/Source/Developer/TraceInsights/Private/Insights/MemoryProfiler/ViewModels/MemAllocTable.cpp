@@ -474,7 +474,7 @@ void FMemAllocTable::AddDefaultColumns()
 		Column.SetTitleName(LOCTEXT("AllocThreadColumnTitle", "Alloc Thread"));
 		Column.SetDescription(LOCTEXT("AllocThreadColumnDesc", "The thread the allocation was made on"));
 
-		Column.SetFlags(ETableColumnFlags::CanBeHidden | ETableColumnFlags::CanBeFiltered);
+		Column.SetFlags(ETableColumnFlags::CanBeHidden);
 
 		Column.SetHorizontalAlignment(HAlign_Left);
 		Column.SetInitialWidth(80.0f);
@@ -530,7 +530,7 @@ void FMemAllocTable::AddDefaultColumns()
 		Column.SetTitleName(LOCTEXT("FreeThreadColumnTitle", "Free Thread"));
 		Column.SetDescription(LOCTEXT("FreeThreadColumnDesc", "The thread the allocation was freed on"));
 
-		Column.SetFlags(ETableColumnFlags::CanBeHidden | ETableColumnFlags::CanBeFiltered);
+		Column.SetFlags(ETableColumnFlags::CanBeHidden);
 
 		Column.SetHorizontalAlignment(HAlign_Left);
 		Column.SetInitialWidth(80.0f);
