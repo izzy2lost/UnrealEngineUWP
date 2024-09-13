@@ -11,23 +11,22 @@
 
 class FViewInfo;
 
-struct FShadingEnergyConservationStateData
+struct FShadingEnergyConservationData
 {
 	bool bEnergyConservation = false;
 	bool bEnergyPreservation = false;
-	EPixelFormat Format = PF_Unknown;
+
 	TRefCountPtr<IPooledRenderTarget> GGXSpecEnergyTexture = nullptr;
 	TRefCountPtr<IPooledRenderTarget> GGXGlassEnergyTexture = nullptr;
 	TRefCountPtr<IPooledRenderTarget> ClothEnergyTexture = nullptr;
 	TRefCountPtr<IPooledRenderTarget> DiffuseEnergyTexture = nullptr;
-
-	uint64 GetGPUSizeBytes(bool bLogSizes) const;
 };
 
 namespace ShadingEnergyConservation
 {
-	void Init(FRDGBuilder& GraphBuilder, FViewInfo& View);
+	void Init(FRDGBuilder& GraphBuilder, const FViewInfo& View);
 	void Debug(FRDGBuilder& GraphBuilder, const FViewInfo& View, FSceneTextures& SceneTextures);
+	FShadingEnergyConservationData GetData(const FViewInfo& View);
 
 	RENDERER_API bool IsEnable();
 }

@@ -1140,8 +1140,6 @@ public:
 
 	FShaderPrintStateData ShaderPrintStateData;
 
-	FShadingEnergyConservationStateData ShadingEnergyConservationData;
-
 	FGlintShadingLUTsStateData GlintShadingLUTsData;
 
 	bool bLumenSceneDataAdded;
