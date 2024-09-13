@@ -67,7 +67,10 @@ void UComputeGraph::PostLoad()
 
 	for (UComputeDataInterface* DataInterface : DataInterfaces)
 	{
-		DataInterface->ConditionalPostLoad();
+		if (DataInterface)
+		{
+			DataInterface->ConditionalPostLoad();
+		}
 	}
 	
 #if WITH_EDITOR
