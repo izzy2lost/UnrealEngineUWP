@@ -99,11 +99,8 @@ UPCGManagedProceduralISMComponent* PCGManagedProceduralISMComponent::GetOrCreate
 	Resource->SetSettingsUID(InSettingsUID);
 	InSourceComponent->AddToManagedResources(Resource);
 
-	if (ISMC)
-	{
-		ISMC->ComponentTags.AddUnique(PCGHelpers::DefaultPCGTag);
-		ISMC->ComponentTags.AddUnique(InSourceComponent->GetFName());
-	}
+	ISMC->ComponentTags.AddUnique(PCGHelpers::DefaultPCGTag);
+	ISMC->ComponentTags.AddUnique(InSourceComponent->GetFName());
 
 	return Resource;
 }
