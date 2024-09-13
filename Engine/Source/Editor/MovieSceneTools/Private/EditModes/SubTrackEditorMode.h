@@ -35,9 +35,13 @@ private:
 	static bool DoesSubSectionHaveTransformOverrides(const UMovieSceneSubSection& SubSection);
 
 	// Gets the sequence ID from the context of the subsection in the current hierarchy.
-	TOptional<FMovieSceneSequenceID> GetSequenceIDForSubSeciton(const UMovieSceneSubSection* InSubSection) const;
+	TOptional<FMovieSceneSequenceID> GetSequenceIDForSubSection(const UMovieSceneSubSection* InSubSection) const;
+	// Gets the sequence ID of the currently focused sequence.
+	TOptional<FMovieSceneSequenceID> GetFocusedSequenceID() const;
 	// Gets the transform origin of the provided section, after all parent transforms have been applied.
 	FTransform GetFinalTransformOriginForSubSection(const UMovieSceneSubSection* SubSection) const;
+	// Gets the transform origin corresponding to the sequence in the current hierarchy matching the provided sequence ID.
+	FTransform GetTransformOriginForSequence(TOptional<FMovieSceneSequenceID> InSequenceID) const;
 	// returns true if any actors are selected in the level editor. This is used to prevent this editor mode from being active when actors are selected.
 	bool AreAnyActorsSelected() const;
 
