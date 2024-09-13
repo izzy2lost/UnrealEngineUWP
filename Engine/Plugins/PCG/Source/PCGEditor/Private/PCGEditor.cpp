@@ -2913,6 +2913,7 @@ void FPCGEditor::OnClose()
 	if (PCGGraphBeingEdited)
 	{
 		PCGGraphBeingEdited->OnGraphChangedDelegate.RemoveAll(this);
+		PCGGraphBeingEdited->OnNodeSourceCompiledDelegate.RemoveAll(this);
 
 		if (PCGGraphBeingEdited->IsInspecting())
 		{
