@@ -49,6 +49,7 @@ namespace UE::NearestNeighborModel
 		virtual void OnPostTraining(ETrainingResult TrainingResult, bool bUsePartiallyTrainedWhenAborted) override;
 		virtual void Render(const FSceneView* View, FViewport* Viewport, FPrimitiveDrawInterface* PDI) override;
 		virtual void UpdateTrainingDeviceList() override;
+		virtual void CopyBaseSettingsFromModel(const FMLDeformerEditorModel* SourceEditorModel) override;
 		// ~END FMLDeformerEditorModel overrides.
 		
 		// UMLDeformerMorphModelEditorModel overrides.
@@ -74,6 +75,7 @@ namespace UE::NearestNeighborModel
 		UMLDeformerComponent* GetTestMLDeformerComponent() const;
 		USkeletalMeshComponent* GetTestSkeletalMeshComponent() const;
 		UNearestNeighborModelInstance* GetTestNearestNeighborModelInstance() const;
+		void CreateDefaultSection();
 
 		EOpFlag Update();
 		EOpFlag CheckNetwork();

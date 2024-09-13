@@ -379,6 +379,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Python")
 	const UNearestNeighborModelSection* GetSectionPtr(int32 Index) const;
 	const UNearestNeighborModelSection& GetSection(int32 Index) const;
+	UNearestNeighborModelSection& GetSection(int32 Index);
 
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
 	const TArray<int32>& GetPCACoeffStarts() const;
@@ -406,6 +407,10 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
 	bool DoesUsePCA() const { return bUsePCA; }
+
+#if WITH_EDITORONLY_DATA
+	TArray<FInt32Range> GetMeshVertRanges(const USkeletalMesh& SkelMesh);
+#endif
 
 #if WITH_EDITOR
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
@@ -471,9 +476,12 @@ public:
 	void InvalidateInferenceModelOnly();
 	bool LoadOptimizedNetworkFromFile(const FString& Filename);
 	void ClearOptimizedNetwork();
+	void RemoveAllSections();
 
 	FMLDeformerGeomCacheTrainingInputAnim* GetNearestNeighborAnim(int32 SectionIndex);
 	const FMLDeformerGeomCacheTrainingInputAnim* GetNearestNeighborAnim(int32 SectionIndex) const;
+
+	void AddSection(TObjectPtr<UNearestNeighborModelSection> Section) { Sections.Add(Section); }
 
 	void UpdateFileCache();
 	const FString& GetFileCacheDirectory() const;
@@ -621,12 +629,15 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbor Settings", META = (ClampMin = "0"))
 	float RBFSigma = 1.0f;
 
+public:
+#if WITH_EDITOR
+	UNearestNeighborModelSection* OnSectionAdded(int32 NewIndex);
+#endif
+
 private:
 	TWeakObjectPtr<UNetwork> GetOptimizedNetwork();
 
 #if WITH_EDITOR
-	UNearestNeighborModelSection* OnSectionAdded(int32 NewIndex);
-	FSection& GetSection(int32 Index);
 
 	void SetOptimizedNetwork(UNearestNeighborOptimizedNetwork* InOptimizedNetwork);
 

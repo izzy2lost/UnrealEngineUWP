@@ -295,34 +295,6 @@ namespace UE::NearestNeighborModel
 		}
 
 #if WITH_EDITORONLY_DATA
-		TArray<FInt32Range> GetMeshVertRanges(const USkeletalMesh& SkelMesh)
-		{
-			constexpr int32 LODIndex = 0;
-
-			if (!SkelMesh.HasMeshDescription(LODIndex))
-			{
-				return {};
-			}
-
-			const FMeshDescription* MeshDescription = SkelMesh.GetMeshDescription(LODIndex);
-			const FSkeletalMeshConstAttributes MeshAttributes(*MeshDescription);
-
-			if (!MeshAttributes.HasSourceGeometryParts())
-			{
-				return {};
-			}
-
-			TArray<FInt32Range> MeshVertRanges;
-			MeshVertRanges.Reserve(MeshAttributes.GetNumSourceGeometryParts());
-			const FSkeletalMeshAttributesShared::FSourceGeometryPartVertexOffsetAndCountConstRef PartOffsetAndCountRef = MeshAttributes.GetSourceGeometryPartVertexOffsetAndCounts();
-			for (const FSourceGeometryPartID GeometryPartID: MeshAttributes.SourceGeometryParts().GetElementIDs())
-			{
-				TArrayView<const int32> OffsetAndCount = PartOffsetAndCountRef.Get(GeometryPartID);
-				MeshVertRanges.Emplace(OffsetAndCount[0], OffsetAndCount[0] + OffsetAndCount[1]);
-			}
-			return MeshVertRanges;
-		}
-
 		TArray<FName> GetVertexFloatAttributeNames(const USkeletalMesh& SkelMesh)
 		{
 			constexpr int32 LODIndex = 0;
@@ -1168,6 +1140,10 @@ UNearestNeighborModel::UNearestNeighborModel(const FObjectInitializer& ObjectIni
 {
 #if WITH_EDITORONLY_DATA
 	SetVizSettings(ObjectInitializer.CreateEditorOnlyDefaultSubobject<UNearestNeighborModelVizSettings>(this, TEXT("VizSettings")));
+
+	// Add two layers of 128 units on default.
+	HiddenLayerDims.Add(128);
+	HiddenLayerDims.Add(128);
 #endif
 }
 
@@ -1236,7 +1212,7 @@ void UNearestNeighborModel::PostEditChangeProperty(FPropertyChangedEvent& Proper
 			FString MapString;
 			if (GetSkeletalMesh())
 			{
-				const TArray<FInt32Range> Ranges = UE::NearestNeighborModel::Private::GetMeshVertRanges(*GetSkeletalMesh());
+				const TArray<FInt32Range> Ranges = GetMeshVertRanges(*GetSkeletalMesh());
 				const int32 MeshIndex = Section->GetMeshIndex(); 
 				if (Ranges.IsValidIndex(MeshIndex))
 				{
@@ -1421,6 +1397,11 @@ const UNearestNeighborModelSection& UNearestNeighborModel::GetSection(int32 Inde
 	return *Sections[Index];
 }
 
+UNearestNeighborModelSection& UNearestNeighborModel::GetSection(int32 Index)
+{
+	return *Sections[Index];
+}
+
 const TArray<int32>& UNearestNeighborModel::GetPCACoeffStarts() const
 {
 	return PCACoeffStarts;
@@ -1516,6 +1497,38 @@ float UNearestNeighborModel::GetRBFSigma() const
 	return RBFSigma;
 }
 
+
+#if WITH_EDITORONLY_DATA
+TArray<FInt32Range> UNearestNeighborModel::GetMeshVertRanges(const USkeletalMesh& SkelMesh)
+{
+	constexpr int32 LODIndex = 0;
+
+	if (!SkelMesh.HasMeshDescription(LODIndex))
+	{
+		return {};
+	}
+
+	const FMeshDescription* MeshDescription = SkelMesh.GetMeshDescription(LODIndex);
+	const FSkeletalMeshConstAttributes MeshAttributes(*MeshDescription);
+
+	if (!MeshAttributes.HasSourceGeometryParts())
+	{
+		return {};
+	}
+
+	TArray<FInt32Range> MeshVertRanges;
+	MeshVertRanges.Reserve(MeshAttributes.GetNumSourceGeometryParts());
+	const FSkeletalMeshAttributesShared::FSourceGeometryPartVertexOffsetAndCountConstRef PartOffsetAndCountRef = MeshAttributes.GetSourceGeometryPartVertexOffsetAndCounts();
+	for (const FSourceGeometryPartID GeometryPartID: MeshAttributes.SourceGeometryParts().GetElementIDs())
+	{
+		TArrayView<const int32> OffsetAndCount = PartOffsetAndCountRef.Get(GeometryPartID);
+		MeshVertRanges.Emplace(OffsetAndCount[0], OffsetAndCount[0] + OffsetAndCount[1]);
+	}
+	return MeshVertRanges;
+}
+#endif
+
+
 #if WITH_EDITOR
 UNearestNeighborModelSection* UNearestNeighborModel::OnSectionAdded(int32 NewIndex)
 {
@@ -1535,11 +1548,6 @@ UNearestNeighborModelSection* UNearestNeighborModel::OnSectionAdded(int32 NewInd
 	}
 	Sections[NewIndex] = Section;
 	return Section;
-}
-
-UNearestNeighborModelSection& UNearestNeighborModel::GetSection(int32 Index)
-{
-	return *Sections[Index];
 }
 
 FDateTime UNearestNeighborModel::GetNetworkLastWriteTime() const
@@ -1972,7 +1980,16 @@ bool UNearestNeighborModel::LoadOptimizedNetworkFromFile(const FString& Filename
 	}
 	return false;
 }
-#endif
+
+void UNearestNeighborModel::RemoveAllSections()
+{
+	for (TObjectPtr<UNearestNeighborModelSection>& Section : Sections)
+	{
+		Section->ConditionalBeginDestroy();
+	}
+	Sections.Empty();
+}
+#endif	// WITH_EDITOR
 
 int32 UNearestNeighborModel::GetNumNetworkOutputs() const
 {
