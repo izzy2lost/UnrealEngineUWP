@@ -189,8 +189,7 @@ namespace Gauntlet
 		private bool HasEngineInitialized()
 		{
 			// Search for Engine initialized pattern.
-			// Since long log can have the early part truncated, look for test exit code or requested exit and assumed the engine was initialized to get this far.
-			return _parser.GetAllMatches(EngineInitializedPattern).Any() || HasTestExitCode || RequestedExit;
+			return _parser.GetAllMatches(EngineInitializedPattern).Any();
 		}
 
 		/// <summary>
