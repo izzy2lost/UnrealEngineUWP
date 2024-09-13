@@ -186,16 +186,18 @@ TUniquePtr<UE::Net::FNetObjectCreationHeader> UNetActorFactory::CreateAndFillHea
 
 	UActorReplicationBridge* ActorBridge = CastChecked<UActorReplicationBridge>(Bridge);
 
-	TUniquePtr<FActorNetCreationHeader> Header( new FActorNetCreationHeader );
+	TUniquePtr<FBaseActorNetCreationHeader> BaseHeader;
 
 	const FNetObjectReference ActorReference = ActorBridge->GetOrCreateObjectReference(Actor);	
-	Header->bIsDynamic = ActorReference.GetRefHandle().IsDynamic();
-	//$IRIS TODO: Create two different header classes for dynamic and static actors.
-	if (Header->bIsDynamic)
+		
+	if (ActorReference.GetRefHandle().IsDynamic())
 	{
+		FDynamicActorNetCreationHeader* Header = new FDynamicActorNetCreationHeader;
+		BaseHeader.Reset(Header);
+
 		// This is more or less a straight copy from ClientPackageMap and needs to be updated accordingly
 		UObject* Archetype = nullptr;
-		ULevel* ActorLevel = nullptr;
+		UObject* ActorLevel = nullptr;
 
 		// ChildActor's need to be spawned from the ChildActorTemplate otherwise any non-replicated 
 		// customized properties will be incorrect on the Client.
@@ -252,6 +254,8 @@ TUniquePtr<UE::Net::FNetObjectCreationHeader> UNetActorFactory::CreateAndFillHea
 	}
 	else 
 	{
+		FStaticActorNetCreationHeader* Header = new FStaticActorNetCreationHeader;
+		BaseHeader.Reset(Header);
 		// Refer by path for static actors
 		Header->ObjectReference = ActorReference;
 	}
@@ -260,33 +264,65 @@ TUniquePtr<UE::Net::FNetObjectCreationHeader> UNetActorFactory::CreateAndFillHea
 	{
 		FOutBunch Bunch(UE::Net::Private::SerializeNewActorMaxBunchSize);
 		Actor->OnSerializeNewActor(Bunch);
-		Header->CustomCreationDataBitCount = IntCastChecked<uint16>(Bunch.GetNumBits());
-		if (Header->CustomCreationDataBitCount > 0)
+		BaseHeader->CustomCreationDataBitCount = IntCastChecked<uint16>(Bunch.GetNumBits());
+		if (BaseHeader->CustomCreationDataBitCount > 0)
 		{
-			Header->CustomCreationData.SetNumZeroed(Align(Bunch.GetNumBytes(), 4));
-			FMemory::Memcpy(Header->CustomCreationData.GetData(), Bunch.GetData(), Bunch.GetNumBytes());
+			BaseHeader->CustomCreationData.SetNumZeroed(Align(Bunch.GetNumBytes(), 4));
+			FMemory::Memcpy(BaseHeader->CustomCreationData.GetData(), Bunch.GetData(), Bunch.GetNumBytes());
 		}
 	}
 
-	return Header;
+	return BaseHeader;
 }
 
 bool UNetActorFactory::SerializeHeader(const UE::Net::FCreationHeaderContext& Context, const UE::Net::FNetObjectCreationHeader* Header) 
 {
 	using namespace UE::Net;
 
-	const FActorNetCreationHeader* ActorHeader = static_cast<const FActorNetCreationHeader*>(Header);
+	FNetBitStreamWriter* Writer = Context.Serialization.GetBitStreamWriter();
+
+	const FBaseActorNetCreationHeader* BaseActorHeader = static_cast<const FBaseActorNetCreationHeader*>(Header);
+
+	Writer->WriteBool(BaseActorHeader->IsDynamic());
 	
-	return ActorHeader->Serialize(Context, SpawnInfoFlags, DefaultSpawnInfo);;
+	if (BaseActorHeader->IsDynamic())
+	{
+		const FDynamicActorNetCreationHeader* DynamicHeader = static_cast<const FDynamicActorNetCreationHeader*>(Header);
+		return DynamicHeader->Serialize(Context, SpawnInfoFlags, DefaultSpawnInfo);
+	}
+	else
+	{
+		const FStaticActorNetCreationHeader* StaticHeader = static_cast<const FStaticActorNetCreationHeader*>(Header);
+		return StaticHeader->Serialize(Context);
+	}
+	
+	
 }
 
 TUniquePtr<UE::Net::FNetObjectCreationHeader> UNetActorFactory::CreateAndDeserializeHeader(const UE::Net::FCreationHeaderContext& Context)
 {
 	using namespace UE::Net;
 
-	TUniquePtr<FActorNetCreationHeader> Header(new FActorNetCreationHeader);
+	TUniquePtr<FBaseActorNetCreationHeader> Header;
 
-	Header->Deserialize(Context, DefaultSpawnInfo);
+	FNetBitStreamReader* Writer = Context.Serialization.GetBitStreamReader();
+
+	const bool bIsDynamic = Writer->ReadBool();
+	if (bIsDynamic)
+	{
+		FDynamicActorNetCreationHeader* DynamicHeader = new FDynamicActorNetCreationHeader;
+		Header.Reset(DynamicHeader);
+
+		DynamicHeader->Deserialize(Context, DefaultSpawnInfo);
+	}
+	else
+	{
+		FStaticActorNetCreationHeader* StaticHeader = new FStaticActorNetCreationHeader;
+		Header.Reset(StaticHeader);
+
+		StaticHeader->Deserialize(Context);
+	}
+	
 	return Header;
 }
 
@@ -301,19 +337,21 @@ UNetObjectFactory::FInstantiateResult UNetActorFactory::InstantiateReplicatedObj
 	UActorReplicationBridge* ActorBridge = CastChecked<UActorReplicationBridge>(Bridge);
 	UNetDriver* NetDriver = ActorBridge->GetNetDriver();
 
-	const FActorNetCreationHeader* ActorHeader = static_cast<const FActorNetCreationHeader*>(Header);
+	const FBaseActorNetCreationHeader* BaseHeader = static_cast<const FBaseActorNetCreationHeader*>(Header);
 
 	// For static actors, just find the object using the path
-	if (!ActorHeader->bIsDynamic)
+	if (!BaseHeader->IsDynamic())
 	{
-		AActor* Actor = Cast<AActor>(ActorBridge->ResolveObjectReference(ActorHeader->ObjectReference, Context.ResolveContext));
+		const FStaticActorNetCreationHeader* StaticHeader = static_cast<const FStaticActorNetCreationHeader*>(Header);
+
+		AActor* Actor = Cast<AActor>(ActorBridge->ResolveObjectReference(StaticHeader->ObjectReference, Context.ResolveContext));
 		if (!Actor)
 		{
-			UE_LOG(LogIris, Error, TEXT("UNetActorFactory::InstantiateNetObjectFromHeader Failed to resolve ObjectReference: %s . Could not find static actor."), *ActorBridge->DescribeObjectReference(ActorHeader->ObjectReference, Context.ResolveContext));
+			UE_LOG(LogIris, Error, TEXT("UNetActorFactory::InstantiateNetObjectFromHeader Failed to resolve ObjectReference: %s . Could not find static actor."), *ActorBridge->DescribeObjectReference(StaticHeader->ObjectReference, Context.ResolveContext));
 			return FInstantiateResult();
 		}
 
-		UE_LOG(LogIris, Verbose, TEXT("UNetActorFactory::InstantiateNetObjectFromHeader Found static Actor: %s using ObjectReference: %s"), ToCStr(Actor->GetPathName()), *ActorBridge->DescribeObjectReference(ActorHeader->ObjectReference, Context.ResolveContext));
+		UE_LOG(LogIris, Verbose, TEXT("UNetActorFactory::InstantiateNetObjectFromHeader Found static Actor: %s using ObjectReference: %s"), ToCStr(Actor->GetPathName()), *ActorBridge->DescribeObjectReference(StaticHeader->ObjectReference, Context.ResolveContext));
 
 		FInstantiateResult Result {  .Instance = Actor };
 			
@@ -326,20 +364,21 @@ UNetObjectFactory::FInstantiateResult UNetActorFactory::InstantiateReplicatedObj
 	}
 
 	// For dynamic actors, spawn a new actor using the provided information
+	const FDynamicActorNetCreationHeader* DynamicHeader = static_cast<const FDynamicActorNetCreationHeader*>(Header);
 
 	// Find archetype
-	AActor* Archetype = Cast<AActor>(Bridge->ResolveObjectReference(ActorHeader->ArchetypeReference, Context.ResolveContext));
+	AActor* Archetype = Cast<AActor>(Bridge->ResolveObjectReference(DynamicHeader->ArchetypeReference, Context.ResolveContext));
 	if (!Archetype)
 	{
-		UE_LOG(LogIris, Error, TEXT("UNetActorFactory::InstantiateNetObjectFromHeader Unable to instantiate actor, failed to resolve archetype: %s"), *Bridge->DescribeObjectReference(ActorHeader->ArchetypeReference, Context.ResolveContext));
+		UE_LOG(LogIris, Error, TEXT("UNetActorFactory::InstantiateNetObjectFromHeader Unable to instantiate actor, failed to resolve archetype: %s"), *Bridge->DescribeObjectReference(DynamicHeader->ArchetypeReference, Context.ResolveContext));
 		return FInstantiateResult();
 	}
 
 	// Find level
 	ULevel* Level = nullptr;
-	if (!ActorHeader->bUsePersistentLevel)
+	if (!DynamicHeader->bUsePersistentLevel)
 	{
-		Level = Cast<ULevel>(Bridge->ResolveObjectReference(ActorHeader->LevelReference, Context.ResolveContext));
+		Level = Cast<ULevel>(Bridge->ResolveObjectReference(DynamicHeader->LevelReference, Context.ResolveContext));
 	}
 
 	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Archetype->GetPackage(), ELLMTagSet::Assets);
@@ -361,36 +400,32 @@ UNetObjectFactory::FInstantiateResult UNetActorFactory::InstantiateReplicatedObj
 	SpawnInfo.bNoFail = true;
 
 	UWorld* World = NetDriver->GetWorld();
-	FVector SpawnLocation = FRepMovement::RebaseOntoLocalOrigin(ActorHeader->SpawnInfo.Location, World->OriginLocation);
+	FVector SpawnLocation = FRepMovement::RebaseOntoLocalOrigin(DynamicHeader->SpawnInfo.Location, World->OriginLocation);
 		
-	AActor* Actor = World->SpawnActorAbsolute(Archetype->GetClass(), FTransform(ActorHeader->SpawnInfo.Rotation, SpawnLocation), SpawnInfo);
+	AActor* Actor = World->SpawnActorAbsolute(Archetype->GetClass(), FTransform(DynamicHeader->SpawnInfo.Rotation, SpawnLocation), SpawnInfo);
 
 	// For Iris we expect that we will be able to spawn the actor as streaming always is controlled from server
 	if (!Actor)
 	{
-		ensureMsgf(Actor, TEXT("UNetActorFactory::InstantiateNetObjectFromHeader SpawnActor failed. Used Archetype: %s ObjectReference: %s"), *GetNameSafe(Archetype), *ActorBridge->DescribeObjectReference(ActorHeader->ArchetypeReference, Context.ResolveContext));
+		ensureMsgf(Actor, TEXT("UNetActorFactory::InstantiateNetObjectFromHeader SpawnActor failed. Used Archetype: %s ObjectReference: %s"), *GetNameSafe(Archetype), *ActorBridge->DescribeObjectReference(DynamicHeader->ArchetypeReference, Context.ResolveContext));
 		return FInstantiateResult();
 	}
 
-	FActorNetCreationHeader::FActorNetSpawnInfo DefaultNetSpawnInfo;
 	static constexpr float Epsilon = UE_KINDA_SMALL_NUMBER;
 
 	// Set Velocity if it differs from Default
-	if (!ActorHeader->SpawnInfo.Velocity.Equals(DefaultNetSpawnInfo.Velocity, Epsilon))
+	if (!DynamicHeader->SpawnInfo.Velocity.Equals(DefaultSpawnInfo.Velocity, Epsilon))
 	{
-		Actor->PostNetReceiveVelocity(ActorHeader->SpawnInfo.Velocity);
+		Actor->PostNetReceiveVelocity(DynamicHeader->SpawnInfo.Velocity);
 	}
 					
 	// Set Scale if it differs from Default
-	if (!ActorHeader->SpawnInfo.Scale.Equals(DefaultNetSpawnInfo.Scale, Epsilon))
+	if (!DynamicHeader->SpawnInfo.Scale.Equals(DefaultSpawnInfo.Scale, Epsilon))
 	{
-		Actor->SetActorRelativeScale3D(ActorHeader->SpawnInfo.Scale);
+		Actor->SetActorRelativeScale3D(DynamicHeader->SpawnInfo.Scale);
 	}
 
-	FInstantiateResult Result
-	{ 
-		.Instance = Actor
-	};
+	FInstantiateResult Result { .Instance = Actor };
 
 	if (NetDriver->ShouldClientDestroyActor(Actor))
 	{
@@ -415,12 +450,12 @@ void UNetActorFactory::PostInstantiation(const FPostInstantiationContext& Contex
 	UActorReplicationBridge* ActorBridge = CastChecked<UActorReplicationBridge>(Bridge);
 	UNetDriver* NetDriver = ActorBridge->GetNetDriver();
 
-	const FActorNetCreationHeader* ActorHeader = static_cast<const FActorNetCreationHeader*>(Context.Header);
+	const FBaseActorNetCreationHeader* BaseHeader = static_cast<const FBaseActorNetCreationHeader*>(Context.Header);
 
 	// OnActorChannelOpen
 	{
 		UNetConnection* Connection = NetDriver->GetConnectionById(Context.ConnectionId);
-		FInBunch Bunch(Connection, const_cast<uint8*>(ActorHeader->CustomCreationData.GetData()),ActorHeader->CustomCreationDataBitCount);
+		FInBunch Bunch(Connection, const_cast<uint8*>(BaseHeader->CustomCreationData.GetData()), BaseHeader->CustomCreationDataBitCount);
 		Actor->OnActorChannelOpen(Bunch, Connection);
 
 		if (Bunch.IsError() || Bunch.GetBitsLeft() != 0)
@@ -436,48 +471,20 @@ void UNetActorFactory::PostInstantiation(const FPostInstantiationContext& Contex
 }
 
 
-//------------------------------------------------------------------------
-// FActorNetCreationHeader
-//------------------------------------------------------------------------
  namespace UE::Net
  {
 
-bool FActorNetCreationHeader::Serialize(const FCreationHeaderContext& Context, UE::Net::Private::EActorNetSpawnInfoFlags SpawnFlags, const FActorNetSpawnInfo& DefaultSpawnInfo) const
+//------------------------------------------------------------------------
+// FStaticActorNetCreationHeader
+//------------------------------------------------------------------------
+
+bool FStaticActorNetCreationHeader::Serialize(const FCreationHeaderContext& Context) const
 {
 	using namespace UE::Net::Private;
 
 	FNetBitStreamWriter* Writer = Context.Serialization.GetBitStreamWriter();
 
-	if (Writer->WriteBool(bIsDynamic))
-	{
-		// Write Archetype and LevelPath
-		WriteFullNetObjectReference(Context.Serialization, ArchetypeReference);
-		
-		// Only write the LevelPath if it differs from the persistent level
-		if (!Writer->WriteBool(bUsePersistentLevel))
-		{
-			WriteFullNetObjectReference(Context.Serialization, LevelReference);
-		}
-
-		const bool bQuantizeLocation = (SpawnFlags&EActorNetSpawnInfoFlags::QuantizeLocation)!=EActorNetSpawnInfoFlags::None;
-		const bool bQuantizeScale = (SpawnFlags&EActorNetSpawnInfoFlags::QuantizeScale)!=EActorNetSpawnInfoFlags::None;
-		const bool bQuantizeVelocity = (SpawnFlags&EActorNetSpawnInfoFlags::QuantizeVelocity)!=EActorNetSpawnInfoFlags::None;
-
-		// Write actor spawn info
-		WriteConditionallyQuantizedVector(Writer, SpawnInfo.Location, DefaultSpawnInfo.Location, bQuantizeLocation);
-		WriteConditionallyQuantizedVector(Writer, SpawnInfo.Scale, DefaultSpawnInfo.Scale, bQuantizeScale);
-		WriteConditionallyQuantizedVector(Writer, SpawnInfo.Velocity, DefaultSpawnInfo.Velocity, bQuantizeVelocity);
-
-		// For rotation we use 0.001f for Rotation comparison to keep consistency with old behavior.
-		static constexpr float RotationEpsilon = 0.001f;
-		WriteRotator(Writer, SpawnInfo.Rotation, DefaultSpawnInfo.Rotation, RotationEpsilon);
-
-
-	}
-	else // should be possible to refer by path??
-	{
-		WriteFullNetObjectReference(Context.Serialization, ObjectReference);
-	}
+	WriteFullNetObjectReference(Context.Serialization, ObjectReference);
 
 	if (Writer->WriteBool(CustomCreationDataBitCount > 0))
 	{
@@ -488,39 +495,14 @@ bool FActorNetCreationHeader::Serialize(const FCreationHeaderContext& Context, U
 	return true;
 }
 
-bool FActorNetCreationHeader::Deserialize(const FCreationHeaderContext& Context, const FActorNetSpawnInfo& DefaultSpawnInfo)
+bool FStaticActorNetCreationHeader::Deserialize(const FCreationHeaderContext& Context)
 {
 	using namespace UE::Net::Private;
 
 	FNetBitStreamReader* Reader = Context.Serialization.GetBitStreamReader();
 
-	// Dynamic actor?
-	bIsDynamic = Reader->ReadBool();
+	ReadFullNetObjectReference(Context.Serialization, ObjectReference);
 
-	if (bIsDynamic)
-	{
-		// Read Archetype
-		ReadFullNetObjectReference(Context.Serialization, ArchetypeReference);
-		
-		bUsePersistentLevel = Reader->ReadBool();
-		if (!bUsePersistentLevel)
-		{
-			ReadFullNetObjectReference(Context.Serialization, LevelReference);
-		}
-
-		// Read actor spawn info
-		ReadConditionallyQuantizedVector(Reader, SpawnInfo.Location, DefaultSpawnInfo.Location);
-		ReadConditionallyQuantizedVector(Reader, SpawnInfo.Scale, DefaultSpawnInfo.Scale);
-		ReadConditionallyQuantizedVector(Reader, SpawnInfo.Velocity, DefaultSpawnInfo.Velocity);
-
-		ReadRotator(Reader, SpawnInfo.Rotation, DefaultSpawnInfo.Rotation);
-	}
-	else
-	{
-		ReadFullNetObjectReference(Context.Serialization, ObjectReference);
-	}
-
-	CustomCreationDataBitCount = 0;
 	if (Reader->ReadBool())
 	{
 		CustomCreationDataBitCount = 1U + Reader->ReadBits(16U);
@@ -532,11 +514,93 @@ bool FActorNetCreationHeader::Deserialize(const FCreationHeaderContext& Context,
 }
 
 
-FString FActorNetCreationHeader::ToString() const
+FString FStaticActorNetCreationHeader::ToString() const
+{
+	return FString::Printf(TEXT("FStaticActorNetCreationHeader (ProtocolId:0x%x):\n\t"
+								"ObjectReference=%s\n\t"
+								"CustomCreationData=%u bits"),
+						   		GetProtocolId(),
+						   		*ObjectReference.ToString(),
+								CustomCreationDataBitCount);
+}
+
+//------------------------------------------------------------------------
+// FDynamicActorNetCreationHeader
+//------------------------------------------------------------------------
+
+bool FDynamicActorNetCreationHeader::Serialize(const FCreationHeaderContext& Context, UE::Net::Private::EActorNetSpawnInfoFlags SpawnFlags, const FActorNetSpawnInfo& DefaultSpawnInfo) const
+{
+	using namespace UE::Net::Private;
+
+	FNetBitStreamWriter* Writer = Context.Serialization.GetBitStreamWriter();
+
+	// Write Archetype and LevelPath
+	WriteFullNetObjectReference(Context.Serialization, ArchetypeReference);
+		
+	// Only write the LevelPath if it differs from the persistent level
+	if (!Writer->WriteBool(bUsePersistentLevel))
+	{
+		WriteFullNetObjectReference(Context.Serialization, LevelReference);
+	}
+
+	const bool bQuantizeLocation = (SpawnFlags&EActorNetSpawnInfoFlags::QuantizeLocation)!=EActorNetSpawnInfoFlags::None;
+	const bool bQuantizeScale = (SpawnFlags&EActorNetSpawnInfoFlags::QuantizeScale)!=EActorNetSpawnInfoFlags::None;
+	const bool bQuantizeVelocity = (SpawnFlags&EActorNetSpawnInfoFlags::QuantizeVelocity)!=EActorNetSpawnInfoFlags::None;
+
+	// Write actor spawn info
+	WriteConditionallyQuantizedVector(Writer, SpawnInfo.Location, DefaultSpawnInfo.Location, bQuantizeLocation);
+	WriteConditionallyQuantizedVector(Writer, SpawnInfo.Scale, DefaultSpawnInfo.Scale, bQuantizeScale);
+	WriteConditionallyQuantizedVector(Writer, SpawnInfo.Velocity, DefaultSpawnInfo.Velocity, bQuantizeVelocity);
+
+	// For rotation we use 0.001f for Rotation comparison to keep consistency with old behavior.
+	static constexpr float RotationEpsilon = 0.001f;
+	WriteRotator(Writer, SpawnInfo.Rotation, DefaultSpawnInfo.Rotation, RotationEpsilon);
+
+	if (Writer->WriteBool(CustomCreationDataBitCount > 0))
+	{
+		Writer->WriteBits(CustomCreationDataBitCount - 1U, 16U);
+		Writer->WriteBitStream(reinterpret_cast<const uint32*>(CustomCreationData.GetData()), 0U, CustomCreationDataBitCount);
+	}
+
+	return true;
+}
+
+bool FDynamicActorNetCreationHeader::Deserialize(const FCreationHeaderContext& Context, const FActorNetSpawnInfo& DefaultSpawnInfo)
+{
+	using namespace UE::Net::Private;
+
+	FNetBitStreamReader* Reader = Context.Serialization.GetBitStreamReader();
+
+	// Read Archetype
+	ReadFullNetObjectReference(Context.Serialization, ArchetypeReference);
+		
+	bUsePersistentLevel = Reader->ReadBool();
+	if (!bUsePersistentLevel)
+	{
+		ReadFullNetObjectReference(Context.Serialization, LevelReference);
+	}
+
+	// Read actor spawn info
+	ReadConditionallyQuantizedVector(Reader, SpawnInfo.Location, DefaultSpawnInfo.Location);
+	ReadConditionallyQuantizedVector(Reader, SpawnInfo.Scale, DefaultSpawnInfo.Scale);
+	ReadConditionallyQuantizedVector(Reader, SpawnInfo.Velocity, DefaultSpawnInfo.Velocity);
+
+	ReadRotator(Reader, SpawnInfo.Rotation, DefaultSpawnInfo.Rotation);
+	
+	if (Reader->ReadBool())
+	{
+		CustomCreationDataBitCount = 1U + Reader->ReadBits(16U);
+		CustomCreationData.SetNumZeroed(((CustomCreationDataBitCount + 31U) & ~31U) >> 3U);
+		Reader->ReadBitStream(reinterpret_cast<uint32*>(CustomCreationData.GetData()), CustomCreationDataBitCount);
+	}
+	
+	return true;
+}
+
+
+FString FDynamicActorNetCreationHeader::ToString() const
 {
 	return FString::Printf(TEXT("FDynamicActorNetCreationHeader (ProtocolId:0x%x):\n\t"
-								"bIsDynamic=%u\n\t"
-								"ObjectReference=%s\n\t"
 								"ArchetypeReference=%s\n\t"
 								"SpawnInfo.Location=%s\n\t"
 								"SpawnInfo.Rotation=%s\n\t"
@@ -544,11 +608,8 @@ FString FActorNetCreationHeader::ToString() const
 								"SpawnInfo.Velocity=%s\n\t"		
 								"bUsePersistentLevel=%s\n\t"
 								"LevelReference=%s\n\t"
-								"CustomCreationData=%u bits"
-								),
+								"CustomCreationData=%u bits"),
 						   		GetProtocolId(),
-						   		bIsDynamic,
-						   		*ObjectReference.ToString(),
 								*ArchetypeReference.ToString(),
 								*SpawnInfo.Location.ToCompactString(),
 								*SpawnInfo.Rotation.ToCompactString(),
@@ -556,8 +617,7 @@ FString FActorNetCreationHeader::ToString() const
 								*SpawnInfo.Velocity.ToCompactString(),		
 								bUsePersistentLevel?TEXT("True"):TEXT("False"),
 								*LevelReference.ToString(),
-								CustomCreationDataBitCount
-								);
+								CustomCreationDataBitCount);
 }
 
 

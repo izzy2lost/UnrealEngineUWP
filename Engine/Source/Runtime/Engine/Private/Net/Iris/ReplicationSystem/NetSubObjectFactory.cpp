@@ -30,9 +30,6 @@ TUniquePtr<UE::Net::FNetObjectCreationHeader> UNetSubObjectFactory::CreateAndFil
 {
 	using namespace UE::Net;
 
-	TUniquePtr<FNetObjectCreationHeader> Header(new FNetSubObjectCreationHeader);
-	FNetSubObjectCreationHeader* SubObjectHeader = static_cast<FNetSubObjectCreationHeader*>(Header.Get());
-
 	UObject* SubObject = Bridge->GetReplicatedObject(Handle);
 	if (!SubObject)
 	{
@@ -42,15 +39,16 @@ TUniquePtr<UE::Net::FNetObjectCreationHeader> UNetSubObjectFactory::CreateAndFil
 
 	FNetObjectReference ObjectRef = Bridge->GetOrCreateObjectReference(SubObject);
 
-	SubObjectHeader->bIsDynamic = ObjectRef.GetRefHandle().IsDynamic();
-	SubObjectHeader->bIsNameStableForNetworking = SubObject->IsNameStableForNetworking();
-	SubObjectHeader->ObjectReference = ObjectRef;
-
-	if (!SubObjectHeader->bIsDynamic || SubObjectHeader->bIsNameStableForNetworking)
+	if (!ObjectRef.GetRefHandle().IsDynamic() || SubObject->IsNameStableForNetworking())
 	{
 		// No more information needed since we don't need to spawn the object on the remote.
+		TUniquePtr<FNetStaticSubObjectCreationHeader> Header(new FNetStaticSubObjectCreationHeader);
+		Header->ObjectReference = ObjectRef;
 		return Header;
 	}
+
+	TUniquePtr<FNetDynamicSubObjectCreationHeader> Header(new FNetDynamicSubObjectCreationHeader);
+	FNetDynamicSubObjectCreationHeader* SubObjectHeader = static_cast<FNetDynamicSubObjectCreationHeader*>(Header.Get());
 
 	check(SubObject->NeedsLoadForClient() ); // We have no business sending this unless the client can load
 	check(SubObject->GetClass()->NeedsLoadForClient());	// We have no business sending this unless the client can load
@@ -91,9 +89,20 @@ TUniquePtr<UE::Net::FNetObjectCreationHeader> UNetSubObjectFactory::CreateAndDes
 {
 	using namespace UE::Net;
 
-	TUniquePtr<FNetSubObjectCreationHeader> Header(new FNetSubObjectCreationHeader);
-	Header->Deserialize(Context);
-	return Header;
+	FNetBitStreamReader* Reader = Context.Serialization.GetBitStreamReader();
+
+	if (Reader->ReadBool())
+	{
+		TUniquePtr<FNetDynamicSubObjectCreationHeader> Header(new FNetDynamicSubObjectCreationHeader);
+		Header->Deserialize(Context);
+		return Header;
+	}
+	else
+	{
+		TUniquePtr<FNetStaticSubObjectCreationHeader> Header(new FNetStaticSubObjectCreationHeader);
+		Header->Deserialize(Context);
+		return Header;
+	}
 }
 
 
@@ -101,34 +110,31 @@ UNetSubObjectFactory::FInstantiateResult UNetSubObjectFactory::InstantiateReplic
 {
 	using namespace UE::Net;
 
-	const FNetSubObjectCreationHeader* SubObjectHeader = static_cast<const FNetSubObjectCreationHeader*>(Header);
+	const FNetBaseSubObjectCreationHeader* BaseHeader = static_cast<const FNetBaseSubObjectCreationHeader*>(Header);
 
-	if (!SubObjectHeader->bIsDynamic || SubObjectHeader->bIsNameStableForNetworking)
+	if (!BaseHeader->IsDynamic())
 	{
+		const FNetStaticSubObjectCreationHeader* SubObjectHeader = static_cast<const FNetStaticSubObjectCreationHeader*>(BaseHeader);
+
 		// Resolve by finding object relative to owner. We do not allow this object to be destroyed.
 		UObject* SubObject = Bridge->ResolveObjectReference(SubObjectHeader->ObjectReference, Context.ResolveContext);
 
 		if (!SubObject)
 		{
-			if (!SubObjectHeader->bIsDynamic)
-			{
-				UE_LOG(LogIris, Error, TEXT("UNetSubObjectFactory::InstantiateNetObjectFromHeader %s: Failed to find static object reference for static SubObject: %s, Owner: %s, RootObject: %s"), *Context.Handle.ToString(), *Bridge->DescribeObjectReference(SubObjectHeader->ObjectReference, Context.ResolveContext), *Bridge->PrintObjectFromNetRefHandle(Context.RootObjectOfSubObject), *GetPathNameSafe(Bridge->GetReplicatedObject(Context.RootObjectOfSubObject)));
-			}
-			else if (SubObjectHeader->bIsNameStableForNetworking)
-			{
-				UE_LOG(LogIris, Error, TEXT("UNetSubObjectFactory::InstantiateNetObjectFromHeader %s: Failed to find stable name reference of dynamic SubObject: %s, Owner: %s, RootObject: %s"), *Context.Handle.ToString(), *Bridge->DescribeObjectReference(SubObjectHeader->ObjectReference, Context.ResolveContext), *Bridge->PrintObjectFromNetRefHandle(Context.RootObjectOfSubObject), *GetPathNameSafe(Bridge->GetReplicatedObject(Context.RootObjectOfSubObject)));
-			}
-
+			UE_LOG(LogIris, Error, TEXT("UNetSubObjectFactory::InstantiateNetObjectFromHeader %s: Failed to find static or stable name object referenced by SubObject: %s, Owner: %s, RootObject: %s"), *Context.Handle.ToString(), *Bridge->DescribeObjectReference(SubObjectHeader->ObjectReference, Context.ResolveContext), *Bridge->PrintObjectFromNetRefHandle(Context.RootObjectOfSubObject), *GetPathNameSafe(Bridge->GetReplicatedObject(Context.RootObjectOfSubObject)));
+			
 			return FInstantiateResult();
 		}
 
-		UE_LOG(LogIris, Verbose, TEXT("UNetSubObjectFactory::InstantiateNetObjectFromHeader %s: Found static SubObject using path %s"), *Context.Handle.ToString(), ToCStr(SubObject->GetPathName()));
+		UE_LOG(LogIris, Verbose, TEXT("UNetSubObjectFactory::InstantiateNetObjectFromHeader %s: Found static or stable name SubObject using path %s"), *Context.Handle.ToString(), ToCStr(SubObject->GetPathName()));
 
 		FInstantiateResult Result { .Instance = SubObject };
 		return Result;
 	}
 
 	// For dynamic objects we have to spawn them
+
+	const FNetDynamicSubObjectCreationHeader* SubObjectHeader = static_cast<const FNetDynamicSubObjectCreationHeader*>(Header);
 		
 	UObject* RootObject = Bridge->GetReplicatedObject(Context.RootObjectOfSubObject);
 	AActor* RootActor = CastChecked<AActor>(RootObject);
@@ -149,7 +155,7 @@ UNetSubObjectFactory::FInstantiateResult UNetSubObjectFactory::InstantiateReplic
 
 		if (!OuterObject)
 		{
-			UE_LOG(LogIris, Error, TEXT("BeginInstantiateFromRemote Failed to find Outer %s for dynamic subobject %s"), *Bridge->DescribeObjectReference(SubObjectHeader->OuterReference, Context.ResolveContext), *Bridge->DescribeObjectReference(SubObjectHeader->ObjectReference, Context.ResolveContext))
+			UE_LOG(LogIris, Error, TEXT("BeginInstantiateFromRemote Failed to find Outer %s for dynamic subobject %s"), *Bridge->DescribeObjectReference(SubObjectHeader->OuterReference, Context.ResolveContext), *Context.Handle.ToString())
 
 			// Fallback to the rootobject instead
 			OuterObject = RootActor;
@@ -182,7 +188,12 @@ UNetSubObjectFactory::FInstantiateResult UNetSubObjectFactory::InstantiateReplic
 bool UNetSubObjectFactory::SerializeHeader(const UE::Net::FCreationHeaderContext& Context, const UE::Net::FNetObjectCreationHeader* Header)
 {
 	using namespace UE::Net;
-	const FNetSubObjectCreationHeader* SubObjectHeader = static_cast<const FNetSubObjectCreationHeader*>(Header);
+	const FNetBaseSubObjectCreationHeader* SubObjectHeader = static_cast<const FNetBaseSubObjectCreationHeader*>(Header);
+	
+	FNetBitStreamWriter* Writer = Context.Serialization.GetBitStreamWriter();
+	
+	Writer->WriteBool(SubObjectHeader->IsDynamic());
+
 	return SubObjectHeader->Serialize(Context);
 }
 
@@ -191,91 +202,82 @@ bool UNetSubObjectFactory::SerializeHeader(const UE::Net::FCreationHeaderContext
 namespace UE::Net
 {
 
-FString FNetSubObjectCreationHeader::ToString() const
+//------------------------------------------------------------------------
+// FNetStaticSubObjectCreationHeader
+//------------------------------------------------------------------------
+FString FNetStaticSubObjectCreationHeader::ToString() const
 {
-	return FString::Printf(TEXT("FNetSubObjectCreationHeader (ProtocolId:0x%x):\n\t"
-								"ObjectReference=%s\n\t"
+	return FString::Printf(TEXT("FNetStaticSubObjectCreationHeader (ProtocolId:0x%x):\n\t"
+								"ObjectReference=%s\n\t"),								
+								GetProtocolId(),
+								*ObjectReference.ToString());
+
+}
+
+bool FNetStaticSubObjectCreationHeader::Serialize(const FCreationHeaderContext& Context) const
+{
+	WriteFullNetObjectReference(Context.Serialization, ObjectReference);
+	return true;
+}
+
+bool FNetStaticSubObjectCreationHeader::Deserialize(const FCreationHeaderContext& Context)
+{
+	ReadFullNetObjectReference(Context.Serialization, ObjectReference);
+	return true;
+}
+
+//------------------------------------------------------------------------
+// FNetDynamicSubObjectCreationHeader
+//------------------------------------------------------------------------
+
+FString FNetDynamicSubObjectCreationHeader::ToString() const
+{
+	return FString::Printf(TEXT("FNetDynamicSubObjectCreationHeader (ProtocolId:0x%x):\n\t"
 								"ObjectClassReference=%s\n\t"
 								"OuterReference=%s\n\t"
-								"bIsDynamic=%u\n\t"
-								"bIsNameStableForNetworking=%u\n\t"
 								"bUsePersistenLevel=%u\n\t"
 								"bOuterIsTransientLevel=%u\n\t"
 								"bOuterIsRootObject=%u\n\t"),
 								GetProtocolId(),
-								*ObjectReference.ToString(),
 								*ObjectClassReference.ToString(),
 								*OuterReference.ToString(),
-								bIsDynamic,
-								bIsNameStableForNetworking,
 								bUsePersistentLevel,
 								bOuterIsTransientLevel,
 								bOuterIsRootObject);
 
 }
 
-bool FNetSubObjectCreationHeader::Serialize(const FCreationHeaderContext& Context) const
+bool FNetDynamicSubObjectCreationHeader::Serialize(const FCreationHeaderContext& Context) const
 {
 	FNetBitStreamWriter* Writer = Context.Serialization.GetBitStreamWriter();
 
-	// Write required references to either find or instantiate the subobject
-	if (Writer->WriteBool(bIsDynamic))
-	{
-		if (Writer->WriteBool(bIsNameStableForNetworking))
-		{
-			WriteFullNetObjectReference(Context.Serialization, ObjectReference);
-		}
-		else
-		{
-			WriteFullNetObjectReference(Context.Serialization, ObjectClassReference);
+	WriteFullNetObjectReference(Context.Serialization, ObjectClassReference);
 
-			if (!Writer->WriteBool(bOuterIsTransientLevel))
-			{
-				if (!Writer->WriteBool(bOuterIsRootObject))
-				{
-					WriteFullNetObjectReference(Context.Serialization, OuterReference);
-				}
-			}
-		}
-	}
-	else
+	if (!Writer->WriteBool(bOuterIsTransientLevel))
 	{
-		WriteFullNetObjectReference(Context.Serialization, ObjectReference);
+		if (!Writer->WriteBool(bOuterIsRootObject))
+		{
+			WriteFullNetObjectReference(Context.Serialization, OuterReference);
+		}
 	}
 
 	return true;
 }
 
-bool FNetSubObjectCreationHeader::Deserialize(const FCreationHeaderContext& Context)
+bool FNetDynamicSubObjectCreationHeader::Deserialize(const FCreationHeaderContext& Context)
 {
 	FNetBitStreamReader* Reader = Context.Serialization.GetBitStreamReader();
 
-	bIsDynamic = Reader->ReadBool();
-	if (bIsDynamic)
-	{
-		bIsNameStableForNetworking = Reader->ReadBool();
-		if (bIsNameStableForNetworking)
-		{
-			ReadFullNetObjectReference(Context.Serialization, ObjectReference);
-		}
-		else
-		{
-			ReadFullNetObjectReference(Context.Serialization, ObjectClassReference);
+	ReadFullNetObjectReference(Context.Serialization, ObjectClassReference);
 
-			bOuterIsTransientLevel = Reader->ReadBool();
-			if (!bOuterIsTransientLevel)
-			{
-				bOuterIsRootObject = Reader->ReadBool();
-				if (!bOuterIsRootObject)
-				{
-					ReadFullNetObjectReference(Context.Serialization, OuterReference);
-				}
-			}
-		}
-	}
-	else
+	bOuterIsTransientLevel = Reader->ReadBool();
+	if (!bOuterIsTransientLevel)
 	{
-		ReadFullNetObjectReference(Context.Serialization, ObjectReference);
+		bOuterIsRootObject = Reader->ReadBool();
+		if (!bOuterIsRootObject)
+		{
+			ReadFullNetObjectReference(Context.Serialization, OuterReference);
+		}
 	}
 
 	return true;

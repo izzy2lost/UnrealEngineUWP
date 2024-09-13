@@ -22,11 +22,51 @@ namespace UE::Net
 #if UE_WITH_IRIS
 
 /**
-* Header information representing dynamic actors
-*/
-class FActorNetCreationHeader : public FNetObjectCreationHeader
+ * Header information to be able to tell if its a dynamic or static header
+ */
+class FBaseActorNetCreationHeader : public FNetObjectCreationHeader
 {
 public:
+	virtual bool IsDynamic() const = 0;
+
+	TArray<uint8> CustomCreationData;
+	uint16 CustomCreationDataBitCount = 0;
+};
+
+/**
+ * Header information representing static actors
+ */
+class FStaticActorNetCreationHeader : public FBaseActorNetCreationHeader
+{
+public:
+
+	virtual bool IsDynamic() const
+	{
+		return false;
+	}
+
+	FNetObjectReference ObjectReference;
+	
+	bool Serialize(const FCreationHeaderContext& Context) const;
+	bool Deserialize(const FCreationHeaderContext& Context);
+
+	virtual FString ToString() const override;
+};
+
+
+/**
+ * Header information representing dynamic actors
+ */
+class FDynamicActorNetCreationHeader : public FBaseActorNetCreationHeader
+{
+public:
+
+	virtual bool IsDynamic() const override
+	{ 
+		return true;
+	}
+
+	virtual FString ToString() const override;
 
 	struct FActorNetSpawnInfo
 	{
@@ -45,20 +85,13 @@ public:
 
 	FActorNetSpawnInfo SpawnInfo;
 
-	FNetObjectReference ObjectReference;
 	FNetObjectReference ArchetypeReference;
 	FNetObjectReference LevelReference; // Only when bUsePersistentLevel is false
 	
-	bool bIsDynamic = false;
 	bool bUsePersistentLevel = false;
 
-	TArray<uint8> CustomCreationData;
-	uint16 CustomCreationDataBitCount = 0;
-	
 	bool Serialize(const FCreationHeaderContext& Context, UE::Net::Private::EActorNetSpawnInfoFlags SpawnFlags, const FActorNetSpawnInfo& DefaultSpawnInfo) const;
 	bool Deserialize(const FCreationHeaderContext& Context, const FActorNetSpawnInfo& DefaultSpawnInfo);
-
-	virtual FString ToString() const override;
 };
 
 #endif // UE_WITH_IRIS
@@ -77,7 +110,10 @@ class UNetActorFactory : public UNetObjectFactory
 
 public:
 
-	static FName GetFactoryName() { return TEXT("NetActorFactory"); }
+	static FName GetFactoryName()
+	{ 
+		return TEXT("NetActorFactory"); 
+	}
 
 	virtual void OnInit() override;
 
@@ -96,7 +132,7 @@ private:
 
 	UE::Net::Private::EActorNetSpawnInfoFlags SpawnInfoFlags;
 
-	const UE::Net::FActorNetCreationHeader::FActorNetSpawnInfo DefaultSpawnInfo;
+	const UE::Net::FDynamicActorNetCreationHeader::FActorNetSpawnInfo DefaultSpawnInfo;
 
 #endif // UE_WITH_IRIS
 };
