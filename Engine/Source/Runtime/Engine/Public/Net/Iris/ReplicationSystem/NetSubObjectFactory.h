@@ -22,7 +22,10 @@ class UNetSubObjectFactory : public UNetObjectFactory
 
 public:
 
-	static FName GetFactoryName() { return TEXT("NetSubObjectFactory"); }
+	static FName GetFactoryName()
+	{ 
+		return TEXT("NetSubObjectFactory");
+	}
 
 	virtual FInstantiateResult InstantiateReplicatedObjectFromHeader(const FInstantiateContext& Context, const UE::Net::FNetObjectCreationHeader* Header) override;
 
@@ -39,34 +42,65 @@ protected:
 namespace UE::Net
 {
 #if UE_WITH_IRIS
+
 /**
-* Header information representing subobjects
-*/
-class FNetSubObjectCreationHeader : public FNetObjectCreationHeader
+ * Header information to be able to tell if its a dynamic or static header
+ */
+class FNetBaseSubObjectCreationHeader : public FNetObjectCreationHeader
+{
+public:
+	
+	virtual bool IsDynamic() const = 0;
+
+	virtual bool Serialize(const FCreationHeaderContext& Context) const
+	{ 
+		return false;
+	}
+};
+
+
+/**
+ * Header information representing subobjects that can be found via their pathname (aka: static or stable name)
+ */
+class FNetStaticSubObjectCreationHeader : public FNetBaseSubObjectCreationHeader
 {
 public:
 
-	bool Serialize(const FCreationHeaderContext& Context) const;
+	virtual bool IsDynamic() const override
+	{
+		return false;
+	}
+
+	virtual bool Serialize(const FCreationHeaderContext& Context) const override;
 	bool Deserialize(const FCreationHeaderContext& Context);
 
 	virtual FString ToString() const override;
 
-	FNetSubObjectCreationHeader()
-		: bIsDynamic(false)
-		, bIsNameStableForNetworking(false)
-		, bUsePersistentLevel(false)
-		, bOuterIsTransientLevel(false)
-		, bOuterIsRootObject(false)
-	{}
-
 	FNetObjectReference ObjectReference; // Only for static objects
-	FNetObjectReference ObjectClassReference; // Only for dynamic objects
-	FNetObjectReference OuterReference; // Optional: Outer ref sent only for dynamic subobjects.
-	uint8 bIsDynamic : 1;
-	uint8 bIsNameStableForNetworking : 1;
-	uint8 bUsePersistentLevel : 1;
-	uint8 bOuterIsTransientLevel : 1;	// When set the OuterReference was not sent because the Outer is the default transient level.
-	uint8 bOuterIsRootObject : 1;		// When set the OuterReference was not sent because the Outer is the known RootObject.
+};
+
+/**
+ * Header information representing subobjects that must be instantiated
+ */
+class FNetDynamicSubObjectCreationHeader : public FNetBaseSubObjectCreationHeader
+{
+public:
+
+	virtual bool Serialize(const FCreationHeaderContext& Context) const override;
+	bool Deserialize(const FCreationHeaderContext& Context);
+
+	virtual bool IsDynamic() const override
+	{ 
+		return true;
+	}
+
+	virtual FString ToString() const override;
+
+	FNetObjectReference ObjectClassReference;
+	FNetObjectReference OuterReference;
+	uint8 bUsePersistentLevel : 1 = false;
+	uint8 bOuterIsTransientLevel : 1 = false;	// When set the OuterReference was not sent because the Outer is the default transient level.
+	uint8 bOuterIsRootObject : 1 = false;		// When set the OuterReference was not sent because the Outer is the known RootObject.
 
 };
 #endif // UE_WITH_IRIS
