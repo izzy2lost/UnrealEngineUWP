@@ -691,6 +691,7 @@ TSharedRef<SWidget> SProjectDialog::MakeTemplateProjectView()
 			.AutoWidth()
 			[
 				SNew(SVerticalBox)
+				.Clipping(EWidgetClipping::ClipToBounds)
 				// Preview image
 				+ SVerticalBox::Slot()
 				.AutoHeight()
