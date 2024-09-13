@@ -92,7 +92,7 @@ struct CHOOSER_API FEnumColumnBase : public FChooserColumnBase
 	virtual void EnumChanged(const UEnum* Enum) {}
 };
 
-USTRUCT()
+USTRUCT(DisplayName = "Enum", Meta = (Category = "Filter", Tooltip = "A column that filters rows based on the value of an Enum, with Equal Not Equal, or Any as cell comparison options."))
 struct CHOOSER_API FEnumColumn : public FEnumColumnBase
 {
 	GENERATED_BODY()

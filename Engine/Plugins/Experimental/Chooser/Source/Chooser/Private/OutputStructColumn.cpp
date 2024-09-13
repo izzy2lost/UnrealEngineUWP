@@ -67,10 +67,12 @@ void FOutputStructColumn::AddToDetails(FInstancedPropertyBag& PropertyBag, int32
 			FText DisplayName;
 			StructInput.GetDisplayName(DisplayName);
 			FName PropertyName("RowData",ColumnIndex);
-			FPropertyBagPropertyDesc PropertyDesc(PropertyName,  EPropertyBagPropertyType::Struct, RowValues[RowIndex].GetScriptStruct());
+			
+			FInstancedStruct& Value = GetValueForIndex(RowIndex);
+			FPropertyBagPropertyDesc PropertyDesc(PropertyName,  EPropertyBagPropertyType::Struct, Value.GetScriptStruct());
 			PropertyDesc.MetaData.Add(FPropertyBagPropertyDescMetaData("DisplayName", DisplayName.ToString()));
 			PropertyBag.AddProperties({PropertyDesc});
-			PropertyBag.SetValueStruct(PropertyName, FConstStructView(RowValues[RowIndex].GetScriptStruct(), RowValues[RowIndex].GetMemory()));
+			PropertyBag.SetValueStruct(PropertyName, FConstStructView(Value.GetScriptStruct(), Value.GetMemory()));
 		}
 	}
 }
@@ -84,10 +86,12 @@ void FOutputStructColumn::SetFromDetails(FInstancedPropertyBag& PropertyBag, int
 		{
 			FName PropertyName("RowData", ColumnIndex);
 
-			TValueOrError<FStructView, EPropertyBagResult> Result = PropertyBag.GetValueStruct(PropertyName, RowValues[RowIndex].GetScriptStruct());
+			FInstancedStruct& Value = GetValueForIndex(RowIndex);
+
+			TValueOrError<FStructView, EPropertyBagResult> Result = PropertyBag.GetValueStruct(PropertyName, Value.GetScriptStruct());
 			if (FStructView* StructView = Result.TryGetValue())
 			{
-				RowValues[RowIndex].GetScriptStruct()->CopyScriptStruct(RowValues[RowIndex].GetMutableMemory(), StructView->GetMemory());
+				RowValues[RowIndex].GetScriptStruct()->CopyScriptStruct(Value.GetMutableMemory(), StructView->GetMemory());
 			}
 		}
 	}
@@ -104,22 +108,28 @@ void FOutputStructColumn::SetOutputs(FChooserEvaluationContext& Context, int Row
 {
 	if (InputValue.IsValid())
 	{
-		const FInstancedStruct* OutputValue = &FallbackValue;
-		if (RowValues.IsValidIndex(RowIndex))
+		if (RowIndex == ChooserColumn_SpecialIndex_Fallback || RowValues.IsValidIndex(RowIndex))
 		{
-			OutputValue = &RowValues[RowIndex];
-		}
-
-		if (OutputValue && OutputValue->IsValid())
-		{
-			InputValue.Get<FChooserParameterStructBase>().SetValue(Context, *OutputValue);
-		}
-	}
-	
+			const FInstancedStruct& OutputValue = GetValueForIndex(RowIndex);
+			
+			if (OutputValue.IsValid())
+			{
+				InputValue.Get<FChooserParameterStructBase>().SetValue(Context, OutputValue);
 #if WITH_EDITOR
-	if (Context.DebuggingInfo.bCurrentDebugTarget)
-	{
-		TestValue = RowValues[RowIndex];
-	}
+				if (Context.DebuggingInfo.bCurrentDebugTarget)
+				{
+					TestValue = OutputValue;
+				}
 #endif
+			}
+		}
+		else
+		{
+#if CHOOSER_DEBUGGING_ENABLED
+			UE_ASSET_LOG(LogChooser, Error, Context.DebuggingInfo.CurrentChooser, TEXT("Invalid index %d passed to FOutputStructColumn::SetOutputs"), RowIndex);
+#else
+			UE_LOG(LogChooser, Error, TEXT("Invalid index %d passed to FOutputStructColumn::SetOutputs"), RowIndex);
+#endif
+		}
+	}
 }
