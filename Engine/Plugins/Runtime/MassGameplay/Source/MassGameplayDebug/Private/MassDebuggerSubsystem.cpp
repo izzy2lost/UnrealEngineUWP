@@ -43,14 +43,17 @@ void UMassDebuggerSubsystem::OnEntitySelected(const FMassEntityManager& EntityMa
 }
 #endif // WITH_MASSENTITY_DEBUG
 
-void UMassDebuggerSubsystem::PreTickProcessors()
+void UMassDebuggerSubsystem::ResetDebugShapes()
 {
 	// get ready to receive new debug info
 	for (TArray<FShapeDesc>& Array : Shapes)
 	{
 		Array.Reset();
 	}
-	
+}
+
+void UMassDebuggerSubsystem::PreTickProcessors()
+{
 	Entities.Reset();
 	Locations.Reset();
 	SelectedEntityDetails.Empty();
