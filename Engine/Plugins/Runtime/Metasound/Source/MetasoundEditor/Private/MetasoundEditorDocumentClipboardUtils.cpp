@@ -448,6 +448,11 @@ namespace Metasound::Editor
 		FMetasoundAssetBase* Asset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&OutMetaSound);
 		check(Asset);
 
+		const FScopedTransaction Transaction(InTransactionText);
+
+		OutMetaSound.Modify();
+		Asset->GetGraphChecked().Modify();
+
 		TArray<UMetasoundEditorGraphCommentNode*> PastedCommentNodes;
 		TArray<UMetasoundEditorGraphNode*> PastedGraphNodes;
 		{
@@ -467,13 +472,7 @@ namespace Metasound::Editor
 			return PastedNodes;
 		}
 
-		const FScopedTransaction Transaction(InTransactionText);
-
-		OutMetaSound.Modify();
-		Asset->GetGraphChecked().Modify();
-
 		ProcessPastedCommentNodes(*Asset, PastedCommentNodes);
-
 		ProcessPastedInputNodes(*Asset, PastedGraphNodes);
 		ProcessPastedOutputNodes(*Asset, PastedGraphNodes);
 		ProcessPastedVariableNodes(*Asset, PastedGraphNodes, OutNotifications);
@@ -483,6 +482,7 @@ namespace Metasound::Editor
 
 		PastedNodes.Append(MoveTemp(PastedGraphNodes));
 		PastedNodes.Append(MoveTemp(PastedCommentNodes));
+
 		return PastedNodes;
 	}
 } // namespace Metasound::Editor
