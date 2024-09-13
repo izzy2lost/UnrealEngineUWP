@@ -18,9 +18,9 @@ struct FChaosVDCollisionChannelsInfoContainer;
 class FChaosVDShapeDataCustomization : public IPropertyTypeCustomization
 {
 public:
-	static TSharedRef<IPropertyTypeCustomization> MakeInstance(TSharedRef<SChaosVDMainTab> MainTab);
+	static TSharedRef<IPropertyTypeCustomization> MakeInstance(TWeakPtr<SChaosVDMainTab> MainTab);
 	
-	FChaosVDShapeDataCustomization(const TSharedPtr<SChaosVDMainTab>& InMainTab);
+	FChaosVDShapeDataCustomization(const TWeakPtr<SChaosVDMainTab>& InMainTab);
 	virtual ~FChaosVDShapeDataCustomization() override;
 
 	virtual void CustomizeHeader(TSharedRef<IPropertyHandle> StructPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils) override;
