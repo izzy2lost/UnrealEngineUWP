@@ -1190,6 +1190,7 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 			}
 			else
 			{
+				TaskInput.bIsUsedMultipleTimes = false;
 				SeenInputs.Emplace(std::move(InputOrigin));
 			}
 		}
