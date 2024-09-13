@@ -327,18 +327,20 @@ void FSequencerSelectionDrawer::BuildOutlinerDetails(const TSharedRef<FSequencer
 	TArray<TWeakObjectPtr<>> WeakTrackObjects;
 	TSet<TViewModelPtr<FObjectBindingModel>> ObjectBindings;
 	TSet<TViewModelPtr<FChannelGroupOutlinerModel>> ChannelGroups;
+	TArray<TPair<TWeakObjectPtr<UMovieSceneTrack>, int32>> SelectedTrackRows;
+
 
 	for (const FViewModelPtr OutlinerItem : InSelection->Outliner)
 	{
-		if (const TViewModelPtr<FTrackModel> TrackModel = OutlinerItem.ImplicitCast())
+		if (const TViewModelPtr<ITrackExtension> TrackExtension = OutlinerItem.ImplicitCast())
 		{
-			WeakSectionObjects.Append(TrackModel->GetSections());
-			WeakTrackObjects.Add(TrackModel->GetTrack());
-		}
-		else if (const TViewModelPtr<FTrackRowModel> TrackRowModel = OutlinerItem.ImplicitCast())
-		{
-			WeakSectionObjects.Append(TrackRowModel->GetSections());
-			WeakTrackObjects.Add(TrackRowModel->GetTrack());
+			WeakSectionObjects.Append(TrackExtension->GetSections());
+			UMovieSceneTrack* Track = TrackExtension->GetTrack();
+			if (IsValid(Track))
+			{
+				WeakTrackObjects.Add(Track);
+				SelectedTrackRows.Add(TPair<TWeakObjectPtr<UMovieSceneTrack>, int32>(Track, TrackExtension->GetRowIndex()));
+			}
 		}
 		else if (const TViewModelPtr<FObjectBindingModel> ObjectBindingModel = OutlinerItem.ImplicitCast())
 		{
@@ -370,15 +372,24 @@ void FSequencerSelectionDrawer::BuildOutlinerDetails(const TSharedRef<FSequencer
 		// Shows duplicate information as above?
 		//MenuBuilder.BeginSection(TEXT("CustomBinding"));
 		//MenuBuilder.EndSection();
-
-		MenuBuilder.BeginSection(TEXT("TrackRowMetadata"));
-		MenuBuilder.EndSection();
 	}
 
 	if (!ChannelGroups.IsEmpty())
 	{
 		BuildExtensionDetails(ChannelGroups, MenuBuilder);
 	}
+
+	if (!SelectedTrackRows.IsEmpty() && !Algo::AnyOf(SelectedTrackRows, [](const TPair<TWeakObjectPtr<UMovieSceneTrack>, int32> TrackRow) {
+		return TrackRow.Key.IsValid() && !TrackRow.Key->SupportsMultipleRows();
+		}))
+	{
+		MenuBuilder.BeginSection(TEXT("TrackRowMetadata"), LOCTEXT("TrackRowMetadata", "Track Row Metadata"));
+		{
+			// Empty here, will be implemented by extension.
+		}
+		MenuBuilder.EndSection();
+	}
+
 
 	if (!WeakTrackObjects.IsEmpty())
 	{
