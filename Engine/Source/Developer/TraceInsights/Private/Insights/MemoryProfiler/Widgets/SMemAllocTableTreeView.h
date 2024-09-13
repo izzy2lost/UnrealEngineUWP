@@ -145,11 +145,15 @@ private:
 	ECheckBoxState CallstackGroupingByFunction_IsChecked() const;
 
 	void InitAvailableViewPresets();
-	void PopulateLLMTagSuggestionList(const FString& Text, TArray<FString>& OutSuggestions);
+	void PopulateLLMTagSuggestionList(const FString& Text, TArray<FString>& OutSuggestions) const;
+	void PopulateThreadSuggestionList(const FString& Text, TArray<FString>& OutSuggestions) const;
 
 private:
 	const static int32 FullCallStackIndex;
 	const static int32 LLMFilterIndex;
+	const static int32 AllocThreadFilterIndex;
+	const static int32 FreeThreadFilterIndex;
+
 	int32 TabIndex = -1;
 	TSharedPtr<FMemoryRuleSpec> Rule = nullptr;
 	double TimeMarkers[4];

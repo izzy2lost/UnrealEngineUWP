@@ -26,6 +26,7 @@
 #include "TraceServices/Model/MetadataProvider.h"
 #include "TraceServices/Model/Modules.h"
 #include "TraceServices/Model/Strings.h"
+#include "TraceServices/Model/Threads.h"
 
 // TraceInsightsCore
 #include "InsightsCore/Filter/ViewModels/FilterConfigurator.h"
@@ -45,6 +46,7 @@
 #include "Insights/MemoryProfiler/ViewModels/MemAllocGroupingByTag.h"
 #include "Insights/MemoryProfiler/ViewModels/MemAllocNode.h"
 #include "Insights/MemoryProfiler/ViewModels/MemAllocTable.h"
+#include "Insights/MemoryProfiler/ViewModels/MemoryFiltersValueConverters.h"
 #include "Insights/MemoryProfiler/ViewModels/MemorySharedState.h"
 #include "Insights/MemoryProfiler/Widgets/SMemoryProfilerWindow.h"
 #include "Insights/TimingProfilerCommon.h"
@@ -59,6 +61,8 @@ namespace UE::Insights::MemoryProfiler
 
 const int32 SMemAllocTableTreeView::FullCallStackIndex = 0x0000FFFFF;
 const int32 SMemAllocTableTreeView::LLMFilterIndex = 0x0000FFFFE;
+const int32 SMemAllocTableTreeView::AllocThreadFilterIndex = 0x0000FFFFD;
+const int32 SMemAllocTableTreeView::FreeThreadFilterIndex = 0x0000FFFFC;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1500,6 +1504,16 @@ void SMemAllocTableTreeView::UpdateFilterContext(const FFilterConfigurator& InFi
 		{
 			FilterContext.SetFilterData<FString>(LLMFilterIndex, MemNode.GetMemAlloc()->GetTag());
 		}
+
+		if (InFilterConfigurator.IsKeyUsed(AllocThreadFilterIndex))
+		{
+			FilterContext.SetFilterData<int64>(AllocThreadFilterIndex, MemNode.GetMemAlloc()->GetAllocThreadId());
+		}
+
+		if (InFilterConfigurator.IsKeyUsed(FreeThreadFilterIndex))
+		{
+			FilterContext.SetFilterData<int64>(FreeThreadFilterIndex, MemNode.GetMemAlloc()->GetFreeThreadId());
+		}
 	}
 }
 
@@ -1532,11 +1546,42 @@ void SMemAllocTableTreeView::InitFilterConfigurator(FFilterConfigurator& InOutFi
 		this->PopulateLLMTagSuggestionList(Text, OutSuggestions);
 	});
 	InOutFilterConfigurator.Add(LLMTagFilter);
+
+	TSharedPtr<TArray<TSharedPtr<IFilterOperator>>> AllocThreadFilterOperators = MakeShared<TArray<TSharedPtr<IFilterOperator>>>();
+	AllocThreadFilterOperators->Add(StaticCastSharedRef<IFilterOperator>(MakeShared<FFilterOperator<int64>>(EFilterOperator::Eq, TEXT("Is"), [](int64 lhs, int64 rhs) { return lhs == rhs; })));
+
+	TSharedRef<FFilterWithSuggestions> AllocThreadFilter = MakeShared<FFilterWithSuggestions>(
+		AllocThreadFilterIndex,
+		LOCTEXT("AllocThread", "Alloc Thread"),
+		LOCTEXT("AllocThreadDesc", "The allocation thread."),
+		EFilterDataType::StringInt64Pair,
+		MakeShared<FThreadFilterValueConverter>(),
+		AllocThreadFilterOperators);
+	FilterContext.AddFilterData<int64>(AllocThreadFilterIndex, 0);
+	AllocThreadFilter->SetCallback([this](const FString& Text, TArray<FString>& OutSuggestions)
+		{
+			this->PopulateThreadSuggestionList(Text, OutSuggestions);
+		});
+	InOutFilterConfigurator.Add(AllocThreadFilter);
+
+	TSharedRef<FFilterWithSuggestions> FreeThreadFilter = MakeShared<FFilterWithSuggestions>(
+		FreeThreadFilterIndex,
+		LOCTEXT("FreeThread", "Free Thread"),
+		LOCTEXT("FreeThreadDesc", "The thread the allocation was freed on."),
+		EFilterDataType::StringInt64Pair,
+		MakeShared<FThreadFilterValueConverter>(),
+		AllocThreadFilterOperators);
+	FilterContext.AddFilterData<int64>(FreeThreadFilterIndex, 0);
+	FreeThreadFilter->SetCallback([this](const FString& Text, TArray<FString>& OutSuggestions)
+		{
+			this->PopulateThreadSuggestionList(Text, OutSuggestions);
+		});
+	InOutFilterConfigurator.Add(FreeThreadFilter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SMemAllocTableTreeView::PopulateLLMTagSuggestionList(const FString& Text, TArray<FString>& OutSuggestions)
+void SMemAllocTableTreeView::PopulateLLMTagSuggestionList(const FString& Text, TArray<FString>& OutSuggestions) const
 {
 	const TraceServices::IAllocationsProvider* AllocationsProvider = TraceServices::ReadAllocationsProvider(*Session.Get());
 	if (!AllocationsProvider)
@@ -1562,6 +1607,39 @@ void SMemAllocTableTreeView::PopulateLLMTagSuggestionList(const FString& Text, T
 
 	OutSuggestions = Suggestions.Array();
 	OutSuggestions.Sort();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void SMemAllocTableTreeView::PopulateThreadSuggestionList(const FString& Text, TArray<FString>& OutSuggestions) const
+{
+	TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
+	const TraceServices::IThreadProvider& ThreadProvider = TraceServices::ReadThreadProvider(*Session.Get());
+
+	bool bIsInteger = Text.IsNumeric() && !Text.Contains(TEXT("."));
+	TStringBuilder<128> Builder;
+	ThreadProvider.EnumerateThreads([&Text, &OutSuggestions, &Builder, bIsInteger](const TraceServices::FThreadInfo& ThreadInfo)
+	{
+		bool bAddSuggestion = false;
+		if (bIsInteger)
+		{
+			if (ThreadInfo.Id == FCString::Atoi(*Text))
+			{
+				bAddSuggestion = true;
+			}
+		}
+		if (FCString::Stristr(ThreadInfo.Name, *Text))
+		{
+			bAddSuggestion = true;
+		}
+
+		if (bAddSuggestion)
+		{
+			Builder.Appendf(TEXT("%s (id:%d)"), ThreadInfo.Name, ThreadInfo.Id);
+			OutSuggestions.Add(Builder.ToString());
+			Builder.Reset();
+		}
+	});
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
