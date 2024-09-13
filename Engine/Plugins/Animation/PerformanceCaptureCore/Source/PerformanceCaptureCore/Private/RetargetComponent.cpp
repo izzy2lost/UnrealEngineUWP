@@ -238,6 +238,7 @@ void URetargetComponent::InitiateAnimation()
 			RetargetAsset->IncrementVersion();
 			AnimInstance->ConfigureAnimInstance(RetargetAsset, SourceMesh, CustomRetargetProfile);
 			ControlledMesh->SetUpdateAnimationInEditor(true);
+			ControlledMesh->AddTickPrerequisiteActor(SourceMesh->GetOwner());
 			ControlledMesh->bPropagateCurvesToFollowers = true;
 			ControlledMesh->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 			ControlledMesh->InitAnim(true /*bForceReinit*/);
