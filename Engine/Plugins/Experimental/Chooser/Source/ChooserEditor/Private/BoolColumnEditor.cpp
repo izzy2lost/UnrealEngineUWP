@@ -120,8 +120,13 @@ TSharedRef<SWidget> CreateOutputBoolColumnWidget(UChooserTable* Chooser, FChoose
 		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 		[
 			SNew(SCheckBox)
-			.IsChecked_Lambda([BoolColumn]() { return BoolColumn->bFallbackValue ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
-			.OnCheckStateChanged_Lambda([BoolColumn](ECheckBoxState State) { BoolColumn->bFallbackValue = State == ECheckBoxState::Checked; })
+			.IsChecked_Lambda([ BoolColumn]() { return BoolColumn->bFallbackValue ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+			.OnCheckStateChanged_Lambda([Chooser, BoolColumn](ECheckBoxState State)
+			{
+				const FScopedTransaction Transaction(LOCTEXT("Change Bool Value", "Change Bool Value"));
+				Chooser->Modify(true);
+				BoolColumn->bFallbackValue = State == ECheckBoxState::Checked;
+			})
 		]
 		+ SHorizontalBox::Slot().FillWidth(1);
 	}

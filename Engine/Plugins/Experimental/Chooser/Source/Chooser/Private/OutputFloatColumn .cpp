@@ -15,22 +15,29 @@ void FOutputFloatColumn::SetOutputs(FChooserEvaluationContext& Context, int RowI
 {
 	if (InputValue.IsValid())
 	{
-		double OutputValue = FallbackValue;
-		if (RowValues.IsValidIndex(RowIndex))
+		if (RowIndex == ChooserColumn_SpecialIndex_Fallback || RowValues.IsValidIndex(RowIndex))
 		{
-			OutputValue = RowValues[RowIndex];
+			double Value = GetValueForIndex(RowIndex);
+			InputValue.Get<FChooserParameterFloatBase>().SetValue(Context, Value);
+						
+			#if WITH_EDITOR
+			if (Context.DebuggingInfo.bCurrentDebugTarget)
+			{
+				TestValue = Value;
+			}
+			#endif
 		}
-	
-		InputValue.Get<FChooserParameterFloatBase>().SetValue(Context, OutputValue);
-	}
-	
-#if WITH_EDITOR
-	if (Context.DebuggingInfo.bCurrentDebugTarget)
-	{
-		TestValue = RowValues[RowIndex];
-	}
+		else
+		{
+#if CHOOSER_DEBUGGING_ENABLED
+			UE_ASSET_LOG(LogChooser, Error, Context.DebuggingInfo.CurrentChooser, TEXT("Invalid index passed to FOutputFloatColumn::SetOutputs"), RowIndex);
+#else
+			UE_LOG(LogChooser, Error, TEXT("Invalid index %d passed to FOutputFloatColumn::SetOutputs"), RowIndex);
 #endif
+		}
+	}
 }
+
 #if WITH_EDITOR
 	void FOutputFloatColumn::AddToDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex)
 	{
@@ -40,7 +47,7 @@ void FOutputFloatColumn::SetOutputs(FChooserEvaluationContext& Context, int RowI
 		FPropertyBagPropertyDesc PropertyDesc(PropertyName, EPropertyBagPropertyType::Float);
 		PropertyDesc.MetaData.Add(FPropertyBagPropertyDescMetaData("DisplayName", DisplayName.ToString()));
 		PropertyBag.AddProperties({PropertyDesc});
-		PropertyBag.SetValueFloat(PropertyName, RowValues[RowIndex]);
+		PropertyBag.SetValueFloat(PropertyName, GetValueForIndex(RowIndex));
 	}
 
 	void FOutputFloatColumn::SetFromDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex)
@@ -50,7 +57,7 @@ void FOutputFloatColumn::SetOutputs(FChooserEvaluationContext& Context, int RowI
 		TValueOrError<float, EPropertyBagResult> Result = PropertyBag.GetValueFloat(PropertyName);
 		if (float* Value = Result.TryGetValue())
 		{
-			RowValues[RowIndex] = *Value;
+			GetValueForIndex(RowIndex) = *Value;
 		}
 	}
 #endif

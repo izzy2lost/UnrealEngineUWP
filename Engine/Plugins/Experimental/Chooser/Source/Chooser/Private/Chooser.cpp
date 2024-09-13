@@ -521,10 +521,10 @@ FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvalu
 		#if WITH_EDITOR
 		if (Context.DebuggingInfo.bCurrentDebugTarget)
 		{
-			Chooser->SetDebugSelectedRow(-1);
+			Chooser->SetDebugSelectedRow(ChooserColumn_SpecialIndex_Fallback);
 		}
 		#endif
-		TRACE_CHOOSER_EVALUATION(Chooser, Context, -1);
+		TRACE_CHOOSER_EVALUATION(Chooser, Context, ChooserColumn_SpecialIndex_Fallback);
 	
 		if (Chooser->FallbackResult.IsValid())
 		{
@@ -537,7 +537,7 @@ FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvalu
 				for (const FInstancedStruct& ColumnData : Chooser->ColumnsStructs)
 				{
 					const FChooserColumnBase& Column = ColumnData.Get<FChooserColumnBase>();
-					Column.SetOutputs(Context, -1);
+					Column.SetOutputs(Context, ChooserColumn_SpecialIndex_Fallback);
 				}
 			}
 			if (Status == FObjectChooserBase::EIteratorStatus::Stop)

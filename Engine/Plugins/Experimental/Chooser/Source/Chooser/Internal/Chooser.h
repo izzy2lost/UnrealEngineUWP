@@ -197,7 +197,7 @@ public:
 	static FObjectChooserBase::EIteratorStatus IterateChooser(const UChooserTable* Chooser, FObjectChooserBase::FObjectChooserIteratorCallback Callback);
 };
 
-USTRUCT(BlueprintType, DisplayName = "Nested Chooser")
+USTRUCT(DisplayName = "Nested Chooser", Meta = (Category = "Chooser", Tooltip = "Reference another ChooserTable embedded in this asset, which will be evaluated at runtime if this row is selected."))
 struct CHOOSER_API FNestedChooser : public FObjectChooserBase
 {
 	GENERATED_BODY()
@@ -215,7 +215,7 @@ struct CHOOSER_API FNestedChooser : public FObjectChooserBase
 	TObjectPtr<UChooserTable> Chooser;
 };
 
-USTRUCT(BlueprintType, DisplayName = "Evaluate Chooser")
+USTRUCT(DisplayName = "Evaluate Chooser", Meta = (Category = "Chooser", Tooltip = "Reference another ChooserTable asset, which will be evaluated at runtime if this row is selected."))
 struct CHOOSER_API FEvaluateChooser : public FObjectChooserBase
 {
 	GENERATED_BODY()

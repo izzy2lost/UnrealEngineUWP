@@ -54,7 +54,7 @@ struct FChooserObjectRowData
 	bool Evaluate(const FSoftObjectPath& LeftHandSide) const;
 };
 
-USTRUCT()
+USTRUCT(DisplayName = "Object", Meta = (Category = "Filter", Tooltip = "A column which filters rows by an input Object to specified Objects for each row."))
 struct CHOOSER_API FObjectColumn : public FChooserColumnBase
 {
 	GENERATED_BODY()

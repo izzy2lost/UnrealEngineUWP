@@ -58,7 +58,7 @@ namespace UE::ChooserEditor
 					]
 				);
 		}
-		else if (RowIndex->RowIndex == SpecialIndex_Fallback)
+		else if (RowIndex->RowIndex == SpecialIndex_Fallback || RowIndex->RowIndex == SpecialIndex_AddRow )
 		{
 			SetContent(
 					SNew(SOverlay)
@@ -252,12 +252,28 @@ namespace UE::ChooserEditor
 		{
 			if (ColumnName == Handles)
 			{
-				return SNew(SBox).Padding(0.0f) .HAlign(HAlign_Center) .VAlign(VAlign_Center) .WidthOverride(16.0f)
+				return SNew(SOverlay)
+				+ SOverlay::Slot()
+				[
+					SNew(SBox).Padding(0.0f) .HAlign(HAlign_Center) .VAlign(VAlign_Center) .WidthOverride(16.0f)
+                    					[
+                    						SNew(SImage)
+                    						.Image(FChooserEditorStyle::Get().GetBrush("ChooserEditor.FallbackIcon"))
+                    						.ToolTipText(LOCTEXT("FallbackTooltip","Fallback result:  Returned if all rows failed."))
+                    					]
+				]
+				+ SOverlay::Slot()
+				[
+					SNew(SBox).Padding(0.0f) .HAlign(HAlign_Center) .VAlign(VAlign_Center) .WidthOverride(16.0f)
 					[
 						SNew(SImage)
-						.Image(FChooserEditorStyle::Get().GetBrush("ChooserEditor.FallbackIcon"))
-						.ToolTipText(LOCTEXT("FallbackTooltip","Fallback result:  Returned if all rows failed."))
-					];
+						.Visibility_Lambda([this]()
+						{
+							return Chooser->GetDebugTestValuesValid() && RowIndex->RowIndex == Chooser->GetDebugSelectedRow() ? EVisibility::HitTestInvisible : EVisibility::Hidden;
+						})
+						.Image(FAppStyle::Get().GetBrush("Icons.ArrowRight"))
+					]
+				];
 			}
 			else if (ColumnName == Result) 
 			{
@@ -327,7 +343,11 @@ namespace UE::ChooserEditor
 			// on the row past the end, show an Add button in the result column
 			if (ColumnName == Result)
 			{
-				return Editor->GetCreateRowComboButton().ToSharedRef();
+				return SNew(SHorizontalBox)
+								+SHorizontalBox::Slot().AutoWidth()
+								[
+									Editor->GetCreateRowComboButton().ToSharedRef()
+								];
 			}
 		}
 
