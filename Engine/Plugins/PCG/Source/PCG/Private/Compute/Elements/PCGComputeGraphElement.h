@@ -69,6 +69,8 @@ protected:
 	// TODO - need to accumulate dependencies from compute graph nodes.
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return false; }
 
+	bool SetupProceduralISMComponents(FPCGContext* InContext, UPCGDataBinding* Binding) const;
+
 	void ResetAsyncOperations(FPCGContext* InContext) const;
 
 #if WITH_EDITOR

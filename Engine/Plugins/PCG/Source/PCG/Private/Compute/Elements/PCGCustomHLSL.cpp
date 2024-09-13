@@ -1629,13 +1629,8 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FName, FPCGKern
 
 bool FPCGCustomHLSLElement::ExecuteInternal(FPCGContext* Context) const
 {
-	check(Context);
-
-	const UPCGCustomHLSLSettings* Settings = Context->GetInputSettings<UPCGCustomHLSLSettings>();
-	check(Settings);
-
-	Settings->IsKernelValid(Context, /*bQuiet=*/false);
-
+	// This element does not support CPU execution and we are never supposed to land here.
+	check(false);
 	return true;
 }
 

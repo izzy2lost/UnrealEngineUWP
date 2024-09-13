@@ -69,4 +69,17 @@ void UPCGInstanceDataPackerByAttribute::PackInstances_Implementation(FPCGContext
 	PackCustomDataFromAccessors(InstanceList, std::move(SelectedAccessors), std::move(SelectedKeys), OutPackedCustomData);
 }
 
+bool UPCGInstanceDataPackerByAttribute::GetAttributeNames(TArray<FName>* OutNames)
+{
+	if (OutNames)
+	{
+		for (const FPCGAttributePropertyInputSelector& AttributeSelector : AttributeSelectors)
+		{
+			OutNames->Add(AttributeSelector.GetAttributeName());
+		}
+	}
+
+	return true;
+}
+
 #undef LOCTEXT_NAMESPACE

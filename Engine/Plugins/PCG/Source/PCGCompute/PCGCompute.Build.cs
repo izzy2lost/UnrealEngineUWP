@@ -17,6 +17,12 @@ namespace UnrealBuildTool.Rules
 					"RenderCore",
 					"Renderer",
 				});
+
+			PrivateDependencyModuleNames.AddRange(
+				new string[]
+				{
+					"Engine",
+				});
 		}
 	}
 }

@@ -114,8 +114,11 @@ int UPCGCopyPointsSettings::ComputeKernelThreadCount(const UPCGDataBinding* Bind
 
 void UPCGCopyPointsSettings::CreateAdditionalInputDataInterfaces(TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const
 {
-	TObjectPtr<UPCGCopyPointsDataInterface> DataInterface = Cast<UPCGCopyPointsDataInterface>(OutDataInterfaces.Add_GetRef(NewObject<UPCGCopyPointsDataInterface>()));
-	DataInterface->Settings = this;
+	Super::CreateAdditionalInputDataInterfaces(OutDataInterfaces);
+
+	TObjectPtr<UPCGCopyPointsDataInterface> NodeDI = NewObject<UPCGCopyPointsDataInterface>();
+	NodeDI->Settings = this;
+	OutDataInterfaces.Add(NodeDI);
 }
 
 TArray<FPCGPinProperties> UPCGCopyPointsSettings::InputPinProperties() const
@@ -143,7 +146,7 @@ bool FPCGCopyPointsElement::ExecuteInternal(FPCGContext* Context) const
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGCopyPointsElement::Execute);
 
 	const UPCGCopyPointsSettings* Settings = Context->GetInputSettings<UPCGCopyPointsSettings>();
-	check(Settings);
+	check(Settings && !Settings->ShouldExecuteOnGPU());
 
 	const EPCGCopyPointsInheritanceMode RotationInheritance = Settings->RotationInheritance;
 	const EPCGCopyPointsInheritanceMode ScaleInheritance = Settings->ScaleInheritance;

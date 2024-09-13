@@ -264,10 +264,20 @@ void IPCGElement::PreExecute(FPCGContext* Context) const
 	// Will override the settings if there is any override.
 	Context->OverrideSettings();
 
+	const UPCGSettings* Settings = Context->GetInputSettings<UPCGSettings>();
+
+	// If we were supposed to execute on GPU and end up here, then GPU compilation failed. Run validation in noisy mode
+	// to generate runtime errors/graph errors, then pass through.
+	if (Settings && Settings->ShouldExecuteOnGPU())
+	{
+		Settings->IsKernelValid(Context, /*bQuiet=*/false);
+		DisabledPassThroughData(Context);
+		Context->CurrentPhase = EPCGExecutionPhase::PostExecute;
+		return;
+	}
+
 	if (CVarPCGAllowPerDataCaching.GetValueOnAnyThread())
 	{
-		const UPCGSettings* Settings = Context->GetInputSettings<UPCGSettings>();
-
 		// Default implementation when the entries in a primary loop can be processed independently, e.g. they can appear in the cache separately
 		// Implementation note: this supposes that the current node has only ONE required pin, and not multiple.
 		// For more complex cases (such as multiple required pins, whether cartesian or matching), the implementation should use common code instead to streamline this process -

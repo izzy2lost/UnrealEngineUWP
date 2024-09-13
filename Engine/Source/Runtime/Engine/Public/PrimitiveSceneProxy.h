@@ -1161,7 +1161,7 @@ public:
 
 	/**
 	 */
-	FInstanceDataBufferHeader GetInstanceDataHeader() const;
+	ENGINE_API FInstanceDataBufferHeader GetInstanceDataHeader() const;
 
 #if UE_WITH_PSO_PRECACHING
 	ENGINE_API void BoostPrecachedPSORequestsOnDraw();
