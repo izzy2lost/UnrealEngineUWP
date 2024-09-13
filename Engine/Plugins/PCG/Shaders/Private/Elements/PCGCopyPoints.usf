@@ -206,7 +206,7 @@ void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 	}
 
 	// Propagate the 'Removed' status to the output point if either source or target point is removed. Otherwise, this point will not be culled.
-	if (!Source_IsPointRemoved(SourceDataIndex, SourcePointIndexInData) || !Target_IsPointRemoved(TargetDataIndex, TargetPointIndexInData))
+	if (Source_IsPointRemoved(SourceDataIndex, SourcePointIndexInData) || Target_IsPointRemoved(TargetDataIndex, TargetPointIndexInData))
 	{
 		Out_RemovePoint(OutDataIndex, OutElemIndex);
 		return;

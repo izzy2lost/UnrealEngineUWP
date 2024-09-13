@@ -1534,7 +1534,7 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FName, FPCGKern
 
 			// If input point is invalid, mark output point as invalid and abort.
 			KernelSpecificPreamble += FString::Format(TEXT(
-				"    if (!{0}_IsPointRemoved({0}_DataIndex, ElementIndex))\n"
+				"    if ({0}_IsPointRemoved({0}_DataIndex, ElementIndex))\n"
 				"    {\n"
 				"        {1}_RemovePoint({1}_DataIndex, ElementIndex);\n"
 				"        return;\n"
