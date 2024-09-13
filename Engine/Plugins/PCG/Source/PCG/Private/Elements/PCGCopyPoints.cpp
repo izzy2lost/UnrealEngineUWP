@@ -34,6 +34,11 @@ FString UPCGCopyPointsSettings::GetCookedKernelSource(const TMap<FName, FPCGKern
 
 FPCGDataCollectionDesc UPCGCopyPointsSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding) const
 {
+	if (!ShouldExecuteOnGPU())
+	{
+		return Super::ComputeOutputPinDataDesc(OutputPin, Binding);
+	}
+
 	check(OutputPin);
 
 	const UPCGNode* Node = CastChecked<UPCGNode>(GetOuter());

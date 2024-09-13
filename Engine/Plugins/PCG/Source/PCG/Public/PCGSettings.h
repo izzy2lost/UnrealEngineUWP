@@ -514,7 +514,7 @@ protected:
 	// GPU section
 public:
 	/** Whether this node should be executed on the GPU. */
-	virtual bool ShouldExecuteOnGPU() const { return bExecuteOnGPU; }
+	bool ShouldExecuteOnGPU() const { return bExecuteOnGPU; }
 
 	virtual bool IsKernelValid(FPCGContext* InContext = nullptr, bool bQuiet = true) const;
 	virtual FString GetCookedKernelSource(const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable) const { return TEXT(""); }
