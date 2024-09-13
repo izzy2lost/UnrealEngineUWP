@@ -11,6 +11,7 @@
 #include "GameDelegates.h"
 #include "GameFramework/Pawn.h"
 #include "TimerManager.h"
+#include "Net/UnrealNetwork.h"
 
 ADaySequenceModifierVolume::ADaySequenceModifierVolume(const FObjectInitializer& Init)
 : Super(Init)
@@ -39,11 +40,22 @@ void ADaySequenceModifierVolume::SetBlendTarget(APlayerController* InPC)
 	DaySequenceModifier->SetUserBlendWeight(1.f);
 }
 
-void ADaySequenceModifierVolume::BeginPlay()
+void ADaySequenceModifierVolume::BeginPlay()	
 {
 	Super::BeginPlay();
 
 	Initialize();
+
+	if (const UWorld* World = GetWorld(); World && World->IsPlayingReplay())
+	{
+		ReplayScrubbedHandle = FNetworkReplayDelegates::OnReplayScrubComplete.AddWeakLambda(this, [this](const UWorld* InWorld)
+		{
+			if (InWorld == GetWorld())
+			{
+				DaySequenceActorSetup();
+			}
+		});
+	}
 }
 
 void ADaySequenceModifierVolume::OnConstruction(const FTransform& Transform)
