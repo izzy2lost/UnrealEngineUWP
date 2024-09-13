@@ -158,6 +158,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Target Trace Selection | Trace Data")
 	uint8 bComplexTrace : 1;
 
+	/** Indicates whether the trace should be a multi trace or a single trace */
+	UPROPERTY(EditAnywhere, Category = "Target Trace Selection | Trace Data")
+	uint8 bMultiTrace : 1;
+
 	/** Indicates the trace should ignore the source actor */
 	UPROPERTY(EditAnywhere, Category = "Target Trace Selection | Trace Data")
 	uint8 bIgnoreSourceActor : 1;
