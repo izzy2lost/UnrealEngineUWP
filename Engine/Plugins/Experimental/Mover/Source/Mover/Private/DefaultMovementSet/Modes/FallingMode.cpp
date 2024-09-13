@@ -166,7 +166,7 @@ void UFallingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 	FRotator TargetOrient = StartingSyncState->GetOrientation_WorldSpace();
 
 	// Apply orientation changes (if any)
-	if (!ProposedMove.AngularVelocity.IsZero())
+	if (!UMovementUtils::IsAngularVelocityZero(ProposedMove.AngularVelocity))
 	{
 		TargetOrient += (ProposedMove.AngularVelocity * DeltaSeconds);
 	}

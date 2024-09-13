@@ -492,6 +492,12 @@ FVector UMovementUtils::ComputeDirectionIntent(const FVector& MoveInput, EMoveIn
 	return ResultDirIntent;
 }
 
+bool UMovementUtils::IsAngularVelocityZero(const FRotator& AngularVelocity)
+{
+	return (AngularVelocity.Yaw == 0.0 && AngularVelocity.Pitch == 0.0 && AngularVelocity.Roll == 0.0);
+}
+
+
 bool UMovementUtils::TryMoveUpdatedComponent_Internal(const FMovingComponentSet& MovingComps, const FVector& Delta, const FQuat& NewRotation, bool bSweep, EMoveComponentFlags MoveComponentFlags, FHitResult* OutHit, ETeleportType Teleport)
 {
 	if (MovingComps.UpdatedComponent.IsValid())
