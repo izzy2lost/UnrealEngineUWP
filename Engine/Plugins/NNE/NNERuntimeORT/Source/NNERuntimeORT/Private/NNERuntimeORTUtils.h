@@ -41,4 +41,7 @@ namespace OrtHelper
 
 	uint64 CalcRDGBufferSizeForDirectML(uint64 DataSize);
 
+	TUniquePtr<Ort::Session> CreateOrtSessionFromArray(const FEnvironment& Environment, TConstArrayView64<uint8> ModelBuffer, const Ort::SessionOptions& SessionOptions);
+	TUniquePtr<Ort::Session> CreateOrtSession(const FEnvironment& Environment, const FString& ModelPath, const Ort::SessionOptions& SessionOptions);
+
 } // UE::NNERuntimeORT::Private

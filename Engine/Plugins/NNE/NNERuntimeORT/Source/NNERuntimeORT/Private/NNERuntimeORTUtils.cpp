@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeORTUtils.h"
+#include "HAL/ExceptionHandling.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformFileManager.h"
 #include "HAL/PlatformTime.h"
@@ -315,32 +316,23 @@ bool OptimizeModel(const TSharedRef<FEnvironment> &Environment, Ort::SessionOpti
 	FString ProjIntermediateDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectIntermediateDir());
 	FString ModelOptimizedPath = FPaths::CreateTempFilename(*ProjIntermediateDir, TEXT("ORTOptimizerPass_Optimized"), TEXT(".onnx"));
 
-#if WITH_EDITOR
-	try
-#endif // WITH_EDITOR
-	{
 #if PLATFORM_WINDOWS
-		SessionOptions.SetOptimizedModelFilePath(*ModelOptimizedPath);
-
-		Ort::Session Session(Environment->GetOrtEnv(), InputModel.GetData(), InputModel.Num(), SessionOptions);
+	SessionOptions.SetOptimizedModelFilePath(*ModelOptimizedPath);
 #else
-		SessionOptions.SetOptimizedModelFilePath(TCHAR_TO_ANSI(*ModelOptimizedPath));
+	SessionOptions.SetOptimizedModelFilePath(StringCast<ANSICHAR>(*ModelOptimizedPath).Get());
+#endif // PLATFORM_WINDOWS
 
-		Ort::Session Session(Environment->GetOrtEnv(), InputModel.GetData(), InputModel.Num(), SessionOptions);
-#endif
-	}
-#if WITH_EDITOR
-	catch (const Ort::Exception& Exception)
 	{
-		UE_LOG(LogNNERuntimeORT, Error, TEXT("ORT Exception: %s"), UTF8_TO_TCHAR(Exception.what()));
-		return false;
+		TUniquePtr<Ort::Session> Session = CreateOrtSessionFromArray(Environment.Get(), InputModel, SessionOptions);
+		if (!Session)
+		{
+			UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to create ONNX Runtime session"));
+			
+			IFileManager::Get().Delete(*ModelOptimizedPath);
+			
+			return false;
+		}
 	}
-	catch (...)
-	{
-		UE_LOG(LogNNERuntimeORT, Error, TEXT("ORT Exception: Unknown!"));
-		return false;
-	}
-#endif // WITH_EDITOR
 
 	FFileHelper::LoadFileToArray(OptimizedModel, *ModelOptimizedPath);
 
@@ -453,6 +445,87 @@ uint64 CalcRDGBufferSizeForDirectML(uint64 DataSize)
 	MinimumImpliedSizeInBytes = (MinimumImpliedSizeInBytes + 3) & ~3ull;
 
 	return MinimumImpliedSizeInBytes;
+}
+
+template<typename FunctionType, typename... ArgTypes>
+bool OrtApiCallWithStatus(FunctionType &&Function, ArgTypes &&... Args)
+{
+	OrtStatusPtr StatusPtr = Forward<FunctionType>(Function)(Forward<ArgTypes>(Args)...);
+	if (StatusPtr)
+	{
+		OrtErrorCode Code = Ort::GetApi().GetErrorCode(StatusPtr);
+		const char* Message = Ort::GetApi().GetErrorMessage(StatusPtr);
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("ONNX Runtime error %d: %hs"), (int32)Code, Message)
+		return false;
+	}
+	return true;
+}
+
+#if PLATFORM_WINDOWS && !PLATFORM_SEH_EXCEPTIONS_DISABLED
+template<typename FunctionType, typename... ArgTypes>
+bool GuardedOrtApiCallWithStatus(FunctionType &&Function, ArgTypes &&... Args)
+{
+	if (FPlatformMisc::IsDebuggerPresent())
+	{
+		return OrtApiCallWithStatus(Forward<FunctionType>(Function), Forward<ArgTypes>(Args)...);
+	}
+	else
+	{
+		__try
+		{
+			return OrtApiCallWithStatus(Forward<FunctionType>(Function), Forward<ArgTypes>(Args)...);
+		}
+		__except(EXCEPTION_EXECUTE_HANDLER)
+		{
+			UE_LOG(LogNNERuntimeORT, Error, TEXT("ONNX Runtime unknown exception (SEH)!"));
+			return false;
+		}
+	}
+}
+#endif // PLATFORM_WINDOWS && !PLATFORM_SEH_EXCEPTIONS_DISABLED
+
+TUniquePtr<Ort::Session> CreateOrtSessionFromArray(const FEnvironment& Environment, TConstArrayView64<uint8> ModelBuffer, const Ort::SessionOptions& SessionOptions)
+{
+	OrtSession* SessionPtr = nullptr;
+#if PLATFORM_WINDOWS && !PLATFORM_SEH_EXCEPTIONS_DISABLED
+	bool Success = GuardedOrtApiCallWithStatus(Ort::GetApi().CreateSessionFromArray, Environment.GetOrtEnv(), ModelBuffer.GetData(), ModelBuffer.Num(), SessionOptions, &SessionPtr);
+#else
+	bool Success = OrtApiCallWithStatus(Ort::GetApi().CreateSessionFromArray, Environment.GetOrtEnv(), ModelBuffer.GetData(), ModelBuffer.Num(), SessionOptions, &SessionPtr);
+#endif // PLATFORM_WINDOWS && !PLATFORM_SEH_EXCEPTIONS_DISABLED
+	if (!Success)
+	{
+		return {};
+	}
+
+	check(SessionPtr);
+
+	TUniquePtr<Ort::Session> Session;
+	Session.Reset(static_cast<Ort::Session *>(new Ort::Session::Base(SessionPtr)));
+
+	return Session;
+}
+
+TUniquePtr<Ort::Session> CreateOrtSession(const FEnvironment& Environment, const FString& ModelPath, const Ort::SessionOptions& SessionOptions)
+{
+	OrtSession* SessionPtr = nullptr;
+#if PLATFORM_WINDOWS && !PLATFORM_SEH_EXCEPTIONS_DISABLED
+	bool Success = GuardedOrtApiCallWithStatus(Ort::GetApi().CreateSession, Environment.GetOrtEnv(), *ModelPath, SessionOptions, &SessionPtr);
+#elif PLATFORM_WINDOWS
+	bool Success = OrtApiCallWithStatus(Ort::GetApi().CreateSession, Environment.GetOrtEnv(), *ModelPath, SessionOptions, &SessionPtr);
+#else
+	bool Success = OrtApiCallWithStatus(Ort::GetApi().CreateSession, Environment.GetOrtEnv(), StringCast<ANSICHAR>(*ModelPath).Get(), SessionOptions, &SessionPtr);
+#endif
+	if (!Success)
+	{
+		return {};
+	}
+
+	check(SessionPtr);
+	
+	TUniquePtr<Ort::Session> Session;
+	Session.Reset(static_cast<Ort::Session *>(new Ort::Session::Base(SessionPtr)));
+
+	return Session;
 }
 
 } // namespace UE::NNERuntimeORT::Private

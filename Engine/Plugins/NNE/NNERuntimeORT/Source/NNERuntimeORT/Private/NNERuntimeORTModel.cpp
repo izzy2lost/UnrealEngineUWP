@@ -2,8 +2,8 @@
 
 #include "NNERuntimeORTModel.h"
 
-#include "HAL/PlatformMisc.h"
 #include "HAL/PlatformFileManager.h"
+#include "HAL/PlatformMisc.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "NNERuntimeORT.h"
@@ -121,15 +121,11 @@ namespace Detail
 				Filepath = FPaths::Combine(TempDirForModelWithExternalData, TEXT("OnnxModel.onnx"));
 			}
 
-#if PLATFORM_WINDOWS
-			Session = MakeUnique<Ort::Session>(Environment.GetOrtEnv(), *Filepath, SessionOptions);
-#else
-			Session = MakeUnique<Ort::Session>(Environment.GetOrtEnv(), TCHAR_TO_ANSI(*Filepath), SessionOptions);
-#endif
+			Session = CreateOrtSession(Environment, Filepath, SessionOptions);
 		}
 		else
 		{
-			Session = MakeUnique<Ort::Session>(Environment.GetOrtEnv(), ModelBuffer.GetData(), ModelBuffer.Num(), SessionOptions);
+			Session = CreateOrtSessionFromArray(Environment, ModelBuffer, SessionOptions);
 		}
 
 		return Session.IsValid();
@@ -763,28 +759,11 @@ FModelInstanceORTDmlRDG::ESetInputTensorShapesStatus FModelInstanceORTDmlRDG::Se
 		}
 	}
 
-#if WITH_EDITOR
-	try
-#endif // WITH_EDITOR
+	if (!Detail::CreateSession(ModelData->GetView(), *SessionOptions, *Environment, Session, TempDirForModelWithExternalData))
 	{
-		if (!Detail::CreateSession(ModelData->GetView(), *SessionOptions, *Environment, Session, TempDirForModelWithExternalData))
-		{
-			UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to recreate session!"));
-			return ESetInputTensorShapesStatus::Fail;
-		}
-	}
-#if WITH_EDITOR
-	catch (const Ort::Exception& Exception)
-	{
-		UE_LOG(LogNNERuntimeORT, Error, TEXT("%s"), UTF8_TO_TCHAR(Exception.what()));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to recreate session!"));
 		return ESetInputTensorShapesStatus::Fail;
 	}
-	catch (...)
-	{
-		UE_LOG(LogNNERuntimeORT, Error, TEXT("Unknown exception!"));
-		return ESetInputTensorShapesStatus::Fail;
-	}
-#endif // WITH_EDITOR
 
 	// Need to configure output tensors with new session (to apply free dimension overrides)
 	if (!ConfigureTensors(*Session, false))
