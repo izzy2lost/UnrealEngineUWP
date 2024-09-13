@@ -159,7 +159,7 @@ bool FDisplayClusterViewportPreview::CalculateStereoViewOffset(FDisplayClusterVi
 
 	// Obtaining the internal viewpoint for a given viewport with stereo eye offset distance.
 	FMinimalViewInfo ViewInfo;
-	if (!InViewport.SetupViewPoint(ViewInfo))
+	if (!InViewport.SetupViewPoint(InContextNum, ViewInfo))
 	{
 		return false;
 	}

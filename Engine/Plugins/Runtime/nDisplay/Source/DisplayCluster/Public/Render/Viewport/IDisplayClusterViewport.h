@@ -101,7 +101,7 @@ public:
 	 * 
 	 * @return - true if there is an internal viewpoint for the given viewport.
 	 */
-	virtual bool SetupViewPoint(struct FMinimalViewInfo& InOutViewInfo) = 0;
+	virtual bool SetupViewPoint(const uint32 InContextNum, struct FMinimalViewInfo& InOutViewInfo) = 0;
 
 	/** Return view point camera component for this viewport.
 	* @param InRootActorType - the root type
@@ -273,4 +273,17 @@ public:
 	{
 		return false;
 	}
+
+	/** Setup viewpoint for this viewport
+	 *
+	 * @param InOutViewInfo - [in\out] viewinfo
+	 *
+	 * @return - true if there is an internal viewpoint for the given viewport.
+	 */
+	UE_DEPRECATED(5.5, "This function has been deprecated. Please use 'SetupViewPoint()'.")
+	virtual bool SetupViewPoint(struct FMinimalViewInfo& InOutViewInfo)
+	{
+		return false;
+	}
+
 };

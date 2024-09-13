@@ -26,8 +26,9 @@ bool FDisplayClusterViewportManagerViewPointExtension::IsActive() const
 
 void FDisplayClusterViewportManagerViewPointExtension::SetupViewPoint(APlayerController* Player, FMinimalViewInfo& InOutViewInfo)
 {
-	if (IDisplayClusterViewport* DCViewport = IsActive() ? Configuration->GetViewportManager()->FindViewport(CurrentStereoViewIndex) : nullptr)
+	uint32 ContextNum = 0;
+	if (IDisplayClusterViewport* DCViewport = IsActive() ? Configuration->GetViewportManager()->FindViewport(CurrentStereoViewIndex, &ContextNum) : nullptr)
 	{
-		DCViewport->SetupViewPoint(InOutViewInfo);
+		DCViewport->SetupViewPoint(ContextNum, InOutViewInfo);
 	}
 }
