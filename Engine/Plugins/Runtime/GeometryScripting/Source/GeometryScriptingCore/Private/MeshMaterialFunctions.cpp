@@ -297,7 +297,6 @@ UDynamicMesh* UGeometryScriptLibrary_MeshMaterialFunctions::GetMaterialIDsOfTria
     UGeometryScriptDebug* Debug)
 {
 	MaterialIDList.Reset(EGeometryScriptIndexType::MaterialID);
-	MaterialIDList.List->SetNumZeroed(TriangleIDList.List->Num());
 	
 	if (TargetMesh == nullptr)
 	{
@@ -321,17 +320,24 @@ UDynamicMesh* UGeometryScriptLibrary_MeshMaterialFunctions::GetMaterialIDsOfTria
 	
 	bool bHasMaterials = false;
 	bool bAllValidTriangles = true;
-	SimpleMeshMaterialQuery<int32>(TargetMesh, bHasMaterials, 0, [&](const FDynamicMesh3& EditMesh, const FDynamicMeshMaterialAttribute& MaterialIDs) {
+	SimpleMeshMaterialQuery<int32>(TargetMesh, bHasMaterials, 0, 
+		[&MaterialIDList, &bHasMaterials, &bAllValidTriangles, &TriangleIDList] 
+		(const FDynamicMesh3& EditMesh, const FDynamicMeshMaterialAttribute& MaterialIDs) 
+	{
 		TArray<int>& MaterialIDArray = *MaterialIDList.List;
+		MaterialIDArray.SetNum(TriangleIDList.List->Num());
 		for (int32 i = 0; i < TriangleIDList.List->Num(); i++)
 		{
 			int32 TriangleID = (*TriangleIDList.List)[i];
 			if (EditMesh.IsTriangle(TriangleID) == false)
 			{
 				bAllValidTriangles = false;
-				return 0;
+				MaterialIDArray[i] = -1;
 			}
-			MaterialIDArray[i] = MaterialIDs.GetValue(TriangleID);
+			else
+			{
+				MaterialIDArray[i] = MaterialIDs.GetValue(TriangleID);
+			}
 		}
 		return 0;
 	});

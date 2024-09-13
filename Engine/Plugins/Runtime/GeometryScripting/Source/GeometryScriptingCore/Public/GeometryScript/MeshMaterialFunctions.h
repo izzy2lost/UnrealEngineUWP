@@ -109,8 +109,8 @@ public:
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
 	GetMaterialIDsOfTriangles(
 		UDynamicMesh* TargetMesh,
-		FGeometryScriptIndexList TriangleIDList,
-		FGeometryScriptIndexList& MaterialIDList,
+		UPARAM(DisplayName = "Triangle ID List") FGeometryScriptIndexList TriangleIDList,
+		UPARAM(DisplayName = "Material ID List") FGeometryScriptIndexList& MaterialIDList,
 		UGeometryScriptDebug* Debug = nullptr);
 	
 	/**
@@ -130,7 +130,7 @@ public:
 	GetTrianglesByMaterialID( 
 		UDynamicMesh* TargetMesh, 
 		int MaterialID,
-		FGeometryScriptIndexList& TriangleIDList,
+		UPARAM(DisplayName = "Triangle ID List") FGeometryScriptIndexList& TriangleIDList,
 		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
@@ -155,7 +155,7 @@ public:
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
 	SetAllTriangleMaterialIDs(
 		UDynamicMesh* TargetMesh,
-		FGeometryScriptIndexList TriangleMaterialIDList,
+		UPARAM(DisplayName = "Triangle Material ID List") FGeometryScriptIndexList TriangleMaterialIDList,
 		bool bDeferChangeNotifications = false,
 		UGeometryScriptDebug* Debug = nullptr);
 
@@ -169,7 +169,7 @@ public:
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
 	SetMaterialIDOnTriangles(
 		UDynamicMesh* TargetMesh,
-		FGeometryScriptIndexList TriangleIDList,
+		UPARAM(DisplayName = "Triangle ID List") FGeometryScriptIndexList TriangleIDList,
 		int MaterialID,
         bool bDeferChangeNotifications = false,
 		UGeometryScriptDebug* Debug = nullptr);
