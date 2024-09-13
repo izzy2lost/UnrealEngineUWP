@@ -29,6 +29,7 @@ namespace UnrealBuildTool.Rules
 				{
 					"ComputeFramework",
 					"PCGCompute",
+					"Renderer",
 					"Voronoi",
 				});
 

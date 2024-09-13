@@ -103,6 +103,8 @@ UPCGManagedISMComponent* UPCGActorHelpers::GetOrCreateManagedISMC(AActor* InTarg
 
 	if (InParams.bAllowDescriptorChanges)
 	{
+		// It's potentially less efficient to put Nanite meshes inside of HISMs so decay those to ISM in this case.
+		// Note the equality here, not a IsA because we do not want to change derived types either
 		if (Descriptor.ComponentClass == UHierarchicalInstancedStaticMeshComponent::StaticClass())
 		{
 			// Done as in InstancedStaticMesh.cpp
@@ -165,8 +167,6 @@ UPCGManagedISMComponent* UPCGActorHelpers::GetOrCreateManagedISMC(AActor* InTarg
 
 	FString ComponentName;
 
-	// It's potentially less efficient to put nanite meshes inside of HISMs so decay those to ISM in this case.
-	// Note the equality here, not a IsA because we do not want to change derived types either
 	if (Descriptor.ComponentClass == UHierarchicalInstancedStaticMeshComponent::StaticClass())
 	{
 		ComponentName = TEXT("HISM_");

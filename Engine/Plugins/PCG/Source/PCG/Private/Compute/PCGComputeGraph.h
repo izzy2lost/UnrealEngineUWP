@@ -45,9 +45,13 @@ public:
 	UPROPERTY()
 	TMap<TObjectPtr<const UPCGPin>, FName> OutputCPUPinToInputGPUPinAlias;
 
-	// Node corresponding to each kernel, useful for compilation feedback.
+	/** Node corresponding to each kernel, useful for compilation feedback. */
 	UPROPERTY()
 	TArray<TWeakObjectPtr<const UPCGNode>> KernelToNode;
+
+	/** List of settings for all nodes that spawn static meshes, so we can do required primitive & DI setup when compute graph element executes. */
+	UPROPERTY()
+	TArray<TObjectPtr<const UPCGSettings>> StaticMeshSpawners;
 
 protected:
 	UPROPERTY()

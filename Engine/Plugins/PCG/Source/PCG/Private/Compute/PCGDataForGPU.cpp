@@ -6,6 +6,8 @@
 #include "PCGParamData.h"
 #include "PCGPoint.h"
 #include "Compute/PCGComputeCommon.h"
+#include "Compute/PCGComputeGraph.h"
+#include "Compute/PCGDataBinding.h"
 #include "Data/PCGPointData.h"
 #include "Helpers/PCGAsync.h"
 #include "Metadata/PCGMetadata.h"
@@ -382,6 +384,40 @@ namespace PCGDataForGPUHelpers
 		}
 
 		return true;
+	}
+
+	void ComputeCustomFloatPacking(
+		TArray<FName>& InAttributeNames,
+		const UPCGDataBinding* InBinding,
+		const FPCGDataCollectionDesc& InDataCollectionDescription,
+		uint32& OutCustomFloatCount,
+		TArray<FUint32Vector4>& OutAttributeIdOffsetStrides)
+	{
+		check(InBinding);
+		check(InBinding->Graph);
+		const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable = InBinding->Graph->GetAttributeLookupTable();
+
+		uint32 OffsetFloats = 0;
+
+		for (FName AttributeName : InAttributeNames)
+		{
+			const FPCGKernelAttributeIDAndType* FoundAttribute = GlobalAttributeLookupTable.Find(AttributeName);
+			if (!FoundAttribute)
+			{
+				ensure(false);
+				continue;
+			}
+
+			const uint32 AttributeId = static_cast<uint32>(FoundAttribute->Id);
+			const EPCGKernelAttributeType AttributeType = FoundAttribute->Type;
+			const uint32 StrideFloats = GetAttributeTypeStrideBytes(AttributeType) / sizeof(float);
+
+			OutAttributeIdOffsetStrides.Emplace(AttributeId, OffsetFloats, StrideFloats, /*Unused*/0);
+
+			OffsetFloats += StrideFloats;
+		}
+
+		OutCustomFloatCount = OffsetFloats;
 	}
 }
 
@@ -863,7 +899,7 @@ EPCGUnpackDataCollectionResult FPCGDataCollectionDesc::UnpackDataCollection(cons
 	const uint32 NumPackedFloats = InPackedData.Num() / 4;
 
 	// Most significant bit of NumData is reserved to flag whether or not the kernel executed.
-	ensureAlwaysMsgf(DataAsUint[0] & PCGComputeConstants::KernelExecutedFlag, TEXT("Tried to unpack a GPU data collection, but the compute shader did not execute."));
+	ensureMsgf(DataAsUint[0] & PCGComputeConstants::KernelExecutedFlag, TEXT("Tried to unpack a GPU data collection, but the compute shader did not execute."));
 	const uint32 NumData = DataAsUint[0] & ~PCGComputeConstants::KernelExecutedFlag;
 
 	if (NumData != DataDescs.Num())

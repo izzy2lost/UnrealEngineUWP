@@ -7,6 +7,7 @@
 
 #include "PCGDataForGPU.generated.h"
 
+class UPCGDataBinding;
 class UPCGMetadata;
 class UPCGPin;
 class UPCGSettings;
@@ -147,5 +148,14 @@ struct FPCGDataForGPU
 
 namespace PCGDataForGPUHelpers
 {
+	/** Returns GPU type that will be used to represent the given metadata type. */
 	EPCGKernelAttributeType GetAttributeTypeFromMetadataType(EPCGMetadataTypes MetadataType);
+
+	/** Compute how attributes can be packed to custom floats. */
+	void ComputeCustomFloatPacking(
+		TArray<FName>& InAttributeNames,
+		const UPCGDataBinding* InBinding,
+		const FPCGDataCollectionDesc& InDataCollectionDescription,
+		uint32& OutCustomFloatCount,
+		TArray<FUint32Vector4>& OutAttributeIdOffsetStrides);
 }

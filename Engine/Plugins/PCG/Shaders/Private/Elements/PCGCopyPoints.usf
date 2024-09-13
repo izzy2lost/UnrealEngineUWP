@@ -109,9 +109,8 @@ void CopyAttributesFromTarget(uint TargetDataIndex, uint TargetElemIndex, uint O
 [numthreads(64, 1, 1)]
 void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 {
-	// Mark the kernel as having executed. Must run before we early via thread index, because the kernel is still 'executed' even if the number
-	// of threads to iterate on is zero. Even if GetNumThreads() returns 0, the kernel will still have been dispatched on a single thread to set
-	// this flag.
+	// Mark the kernel as having executed. Must run before we early out via thread index, because the kernel is still 'executed' even if the number of
+	// threads to iterate on is zero. Even if GetNumThreads() returns 0, the kernel will still have been dispatched on a single thread to set this flag.
 	if (all(GroupId == 0) && GroupIndex == 0)
 	{
 		Out_SetAsExecutedInternal();

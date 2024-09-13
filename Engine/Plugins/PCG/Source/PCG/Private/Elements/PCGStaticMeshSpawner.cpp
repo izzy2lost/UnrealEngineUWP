@@ -5,6 +5,9 @@
 #include "PCGComponent.h"
 #include "PCGCustomVersion.h"
 #include "PCGManagedResource.h"
+#include "Compute/PCGComputeCommon.h"
+#include "Compute/DataInterfaces/PCGInstanceDataInterface.h"
+#include "Compute/DataInterfaces/Elements/PCGStaticMeshSpawnerDataInterface.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialData.h"
 #include "Elements/PCGStaticMeshSpawnerContext.h"
@@ -39,6 +42,123 @@ UPCGStaticMeshSpawnerSettings::UPCGStaticMeshSpawnerSettings(const FObjectInitia
 	{
 		MeshSelectorParameters = ObjectInitializer.CreateDefaultSubobject<UPCGMeshSelectorWeighted>(this, TEXT("DefaultSelectorInstance"));
 	}
+}
+
+TCHAR const* UPCGStaticMeshSpawnerSettings::TemplateFilePath = TEXT("/Plugin/PCG/Private/Elements/PCGStaticMeshSpawner.usf");
+
+bool UPCGStaticMeshSpawnerSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) const
+{
+	if (!Super::IsKernelValid(InContext, bQuiet))
+	{
+		return false;
+	}
+
+	UPCGMeshSelectorWeighted* Selector = Cast<UPCGMeshSelectorWeighted>(MeshSelectorParameters);
+
+	if (!Selector)
+	{
+		PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, LOCTEXT("InvalidMeshSelector", "Currently GPU Static Mesh Spawner nodes must use PCGMeshSelectorWeighted as the mesh selector type."));
+		return false;
+	}
+
+	if (Selector->MeshEntries.IsEmpty())
+	{
+		PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, LOCTEXT("NoMeshEntries", "No meshes specified."));
+		return false;
+	}
+
+	for (const FPCGMeshSelectorWeightedEntry& Entry : Selector->MeshEntries)
+	{
+		UStaticMesh* StaticMesh = Entry.Descriptor.StaticMesh.LoadSynchronous();
+
+		if (!StaticMesh)
+		{
+			PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, LOCTEXT("UnassignedMesh", "Unassigned mesh."));
+			return false;
+		}
+
+		if (!StaticMesh->HasValidNaniteData())
+		{
+			PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, LOCTEXT("NonNaniteMesh", "Only Nanite meshes are currently supported by the GPU Static Mesh Spawner path."));
+			return false;
+		}
+	}
+
+	// Currently instance packers must be able to specify a full list of attribute names upfront, to build the attribute table at compile time.
+	// TODO: We should be able to augment a static attribute table with new attributes at execution time, which will allow other types like regex.
+	if (InstanceDataPackerParameters && !InstanceDataPackerParameters->GetAttributeNames(/*OutNames=*/nullptr))
+	{
+		PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, LOCTEXT("InvalidInstancePacker", "Selected instance packer does not support GPU execution."));
+		return false;
+	}
+
+	return true;
+}
+
+FString UPCGStaticMeshSpawnerSettings::GetCookedKernelSource(const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable) const
+{
+	FString TemplateFile;
+	ensure(LoadShaderSourceFile(TemplateFilePath, EShaderPlatform::SP_PCD3D_SM5, &TemplateFile, nullptr));
+
+	return TemplateFile;
+}
+
+FPCGDataCollectionDesc UPCGStaticMeshSpawnerSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding) const
+{
+	check(OutputPin);
+
+	const UPCGNode* Node = CastChecked<UPCGNode>(GetOuter());
+	const UPCGPin* InputPin = Node->GetInputPin(PCGPinConstants::DefaultInputLabel);
+
+	// Passthrough - output description matches input description.
+	return ComputeInputPinDataDesc(InputPin, Binding);
+}
+
+const TArray<FPCGKernelAttributeKey> UPCGStaticMeshSpawnerSettings::GetKernelAttributeKeys() const
+{
+	TArray<FPCGKernelAttributeKey> AttributeKeys;
+
+	if (InstanceDataPackerParameters)
+	{
+		TArray<FName> AttributeNames;
+		if (ensure(InstanceDataPackerParameters->GetAttributeNames(&AttributeNames)))
+		{
+			for (const FName& AttributeName : AttributeNames)
+			{
+				// We don't know the type statically before execution, leave unset.
+				AttributeKeys.Emplace(AttributeName, EPCGKernelAttributeType::None);
+			}
+		}
+	}
+
+	return AttributeKeys;
+}
+
+int UPCGStaticMeshSpawnerSettings::ComputeKernelThreadCount(const UPCGDataBinding* Binding) const
+{
+	const UPCGNode* Node = CastChecked<UPCGNode>(GetOuter());
+	const UPCGPin* Pin = Node->GetInputPin(PCGPinConstants::DefaultInputLabel);
+
+	return ComputeInputPinDataDesc(Pin, Binding).ComputeDataElementCount(EPCGDataType::Point);
+}
+
+void UPCGStaticMeshSpawnerSettings::CreateAdditionalInputDataInterfaces(TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const
+{
+	Super::CreateAdditionalInputDataInterfaces(OutDataInterfaces);
+
+	TObjectPtr<UPCGStaticMeshSpawnerDataInterface> NodeDI = NewObject<UPCGStaticMeshSpawnerDataInterface>();
+	NodeDI->Settings = this;
+	OutDataInterfaces.Add(NodeDI);
+}
+
+void UPCGStaticMeshSpawnerSettings::CreateAdditionalOutputDataInterfaces(TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const
+{
+	Super::CreateAdditionalOutputDataInterfaces(OutDataInterfaces);
+
+	UPCGInstanceDataInterface* InstanceDI = NewObject<UPCGInstanceDataInterface>();
+	InstanceDI->SetProducerSettings(this);
+	InstanceDI->InputPinProvidingData = PCGPinConstants::DefaultInputLabel;
+	OutDataInterfaces.Add(InstanceDI);
 }
 
 #if WITH_EDITOR
@@ -289,7 +409,7 @@ bool FPCGStaticMeshSpawnerElement::ExecuteInternal(FPCGContext* InContext) const
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGStaticMeshSpawnerElement::Execute);
 	FPCGStaticMeshSpawnerContext* Context = static_cast<FPCGStaticMeshSpawnerContext*>(InContext);
 	const UPCGStaticMeshSpawnerSettings* Settings = Context->GetInputSettings<UPCGStaticMeshSpawnerSettings>();
-	check(Settings);
+	check(Settings && !Settings->ShouldExecuteOnGPU());
 
 	while(!Context->MeshInstancesData.IsEmpty())
 	{

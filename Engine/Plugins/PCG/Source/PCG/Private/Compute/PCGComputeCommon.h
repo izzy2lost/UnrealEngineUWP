@@ -58,6 +58,8 @@ namespace PCGComputeConstants
 	constexpr EPCGDataType AllowedDataCollectionTypes = EPCGDataType::Point | EPCGDataType::Param;
 
 	constexpr uint32 KernelExecutedFlag = 1 << 31;
+
+	constexpr uint32 MAX_PRIMITIVE_COMPONENTS_PER_SPAWNER = 64;
 }
 
 namespace PCGComputeHelpers

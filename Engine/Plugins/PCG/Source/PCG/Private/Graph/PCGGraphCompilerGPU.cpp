@@ -14,6 +14,7 @@
 #include "Compute/Elements/PCGComputeGraphElement.h"
 #include "Compute/PCGComputeCommon.h"
 #include "Compute/PCGComputeKernelSource.h"
+#include "Elements/PCGStaticMeshSpawner.h"
 #include "Graph/PCGGraphCompiler.h"
 #include "Graph/PCGGraphExecutor.h"
 
@@ -24,7 +25,7 @@
 namespace PCGGraphCompilerGPU
 {
 #if WITH_EDITOR
-	static TAutoConsoleVariable<bool> CVarEnableGPUDebugging(
+	static TAutoConsoleVariable<bool> CVarEnableDebugging(
 		TEXT("pcg.GraphExecution.GPU.EnableDebugging"),
 		false,
 		TEXT("Enable verbose logging of GPU compilation and execution."));
@@ -705,6 +706,11 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 		const UPCGSettings* Settings = Node ? Node->GetSettings() : nullptr;
 		check(Settings && Settings->bEnabled && Settings->ShouldExecuteOnGPU());
 
+		if (Settings->IsA<UPCGStaticMeshSpawnerSettings>())
+		{
+			ComputeGraph->StaticMeshSpawners.Add(Settings);
+		}
+
 		// One data interface may be connected to multiple downstream pins. Because each entry in these arrays produces its own bindings and graph edges,
 		// we also need to specify the pin label to uniquely describe each edge.
 		TArray<TPair</*DataInterfaceIndex=*/int, /*PinLabel=*/FName>> InputDataInterfaceIndexAndPin;
@@ -848,10 +854,6 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 			}
 		}
 
-		// TODO add graph data interface (graph params). Reference: UOptimusGraphDataInterface.
-		//Element->Graph->DataInterfaces.Add(NewObject< UPCGDataCollectionDataInterface>(InGraph));
-		//Element->Graph->DataInterfaceToBinding.Add(0);
-
 		// TODO once we support cooking for different platforms/configs, don't create the interface if logging is not present.
 		if (Settings->bPrintShaderDebugValues)
 		{
@@ -944,7 +946,7 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 			}
 
 #if WITH_EDITOR
-			if (PCGGraphCompilerGPU::CVarEnableGPUDebugging.GetValueOnAnyThread())
+			if (PCGGraphCompilerGPU::CVarEnableDebugging.GetValueOnAnyThread())
 			{
 				UE_LOG(LogPCG, Warning, TEXT("ATTRIBUTE LOOK-UP TABLE [%s]"), *Settings->GetDefaultNodeTitle().ToString());
 

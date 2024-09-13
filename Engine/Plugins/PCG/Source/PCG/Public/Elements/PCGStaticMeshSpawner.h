@@ -28,8 +28,17 @@ class PCG_API UPCGStaticMeshSpawnerSettings : public UPCGSettings
 public:
 	UPCGStaticMeshSpawnerSettings(const FObjectInitializer &ObjectInitializer);
 
-#if WITH_EDITOR
 	// ~Begin UPCGSettings interface
+	virtual bool IsKernelValid(FPCGContext* InContext = nullptr, bool bQuiet = true) const;
+	virtual FString GetCookedKernelSource(const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable) const override;
+	virtual const TArray<FPCGKernelAttributeKey> GetKernelAttributeKeys() const override;
+	virtual int ComputeKernelThreadCount(const UPCGDataBinding* Binding) const override;
+	virtual FPCGDataCollectionDesc ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding) const override;
+	virtual void CreateAdditionalInputDataInterfaces(TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const override;
+	virtual void CreateAdditionalOutputDataInterfaces(TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const override;
+#if WITH_EDITOR
+
+	virtual bool DisplayExecuteOnGPUSetting() const override { return true; }
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("StaticMeshSpawner")); }
 	virtual FText GetDefaultNodeTitle() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spawner; }
@@ -116,6 +125,9 @@ public:
 protected:
 	void RefreshMeshSelector();
 	void RefreshInstancePacker();
+
+private:
+	static TCHAR const* TemplateFilePath;
 };
 
 class PCG_API FPCGStaticMeshSpawnerElement : public IPCGElement
