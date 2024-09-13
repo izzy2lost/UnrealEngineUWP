@@ -307,6 +307,7 @@ void FSceneRenderer::RenderVelocities(
 				ExclusiveDepthStencil);
 
 			PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneTextures.Velocity, (bNeedsClearMask & View.GPUMask.GetNative()) ? ERenderTargetLoadAction::EClear : ERenderTargetLoadAction::ELoad);
+			PassParameters->RenderTargets.MultiViewCount = (View.bIsMobileMultiViewEnabled) ? 2 : (View.Aspects.IsMobileMultiViewEnabled() ? 1 : 0);
 			bNeedsClearMask &= ~View.GPUMask.GetNative();
 
 			if (bIsParallelVelocity)
@@ -378,9 +379,11 @@ ETextureCreateFlags FVelocityRendering::GetCreateFlags(EShaderPlatform ShaderPla
 	return TexCreate_RenderTargetable | TexCreate_UAV | TexCreate_ShaderResource | FastVRamFlag;
 }
 
-FRDGTextureDesc FVelocityRendering::GetRenderTargetDesc(EShaderPlatform ShaderPlatform, FIntPoint Extent)
+FRDGTextureDesc FVelocityRendering::GetRenderTargetDesc(EShaderPlatform ShaderPlatform, FIntPoint Extent, const bool bRequireMultiView)
 {
-	return FRDGTextureDesc::Create2D(Extent, GetFormat(ShaderPlatform), FClearValueBinding::Transparent, GetCreateFlags(ShaderPlatform));
+	return bRequireMultiView ?
+		FRDGTextureDesc::Create2DArray(Extent, GetFormat(ShaderPlatform), FClearValueBinding::Transparent, GetCreateFlags(ShaderPlatform), 2) :
+		FRDGTextureDesc::Create2D(Extent, GetFormat(ShaderPlatform), FClearValueBinding::Transparent, GetCreateFlags(ShaderPlatform));
 }
 
 bool FVelocityRendering::IsVelocityPassSupported(EShaderPlatform ShaderPlatform)

@@ -39,7 +39,7 @@ struct FVelocityRendering
 	static ETextureCreateFlags GetCreateFlags(EShaderPlatform ShaderPlatform);
 	
 	/** Returns the render target description for the velocity buffer. */
-	static FRDGTextureDesc GetRenderTargetDesc(EShaderPlatform ShaderPlatform, FIntPoint Extent);
+	static FRDGTextureDesc GetRenderTargetDesc(EShaderPlatform ShaderPlatform, FIntPoint Extent, const bool bRequireMultiView = false);
 
 	/** Returns true if a velocity pass is supported. */
 	static bool IsVelocityPassSupported(EShaderPlatform ShaderPlatform);
