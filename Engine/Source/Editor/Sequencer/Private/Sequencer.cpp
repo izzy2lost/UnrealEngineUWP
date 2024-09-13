@@ -10577,11 +10577,18 @@ void FSequencer::RebindPossessableReferences()
 
 	TMap<FGuid, TArray<UObject*, TInlineAllocator<1>>> AllObjects;
 
-	UObject* PlaybackContext = PlaybackContextAttribute.Get(nullptr);
+	UObject* PlaybackContext = PlaybackContextAttribute.Get(nullptr); 
+	const FMovieSceneBindingReferences* Refs = FocusedSequence->GetBindingReferences();
 
 	for (int32 Index = 0; Index < FocusedMovieScene->GetPossessableCount(); Index++)
 	{
 		const FMovieScenePossessable& Possessable = FocusedMovieScene->GetPossessable(Index);
+
+		// Skip custom bindings here
+		if (Refs && Refs->GetCustomBinding(Possessable.GetGuid(), 0))
+		{
+			continue;
+		}
 
 		TArray<UObject*, TInlineAllocator<1>>& References = AllObjects.FindOrAdd(Possessable.GetGuid());
 		TArrayView<TWeakObjectPtr<>> BoundObjects = State.FindBoundObjects(Possessable.GetGuid(), GetFocusedTemplateID(), GetSharedPlaybackState());
