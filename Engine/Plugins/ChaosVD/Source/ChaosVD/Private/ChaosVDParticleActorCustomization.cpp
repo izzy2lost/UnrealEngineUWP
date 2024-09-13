@@ -16,7 +16,7 @@
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
-FChaosVDParticleActorCustomization::FChaosVDParticleActorCustomization(const TSharedPtr<SChaosVDMainTab>& InMainTab)
+FChaosVDParticleActorCustomization::FChaosVDParticleActorCustomization(const TWeakPtr<SChaosVDMainTab>& InMainTab)
 {
 	AllowedCategories.Add(FChaosVDParticleActorCustomization::ParticleDataCategoryName);
 	AllowedCategories.Add(FChaosVDParticleActorCustomization::GeometryCategoryName);
@@ -31,7 +31,7 @@ FChaosVDParticleActorCustomization::~FChaosVDParticleActorCustomization()
 	RegisterCVDScene(nullptr);
 }
 
-TSharedRef<IDetailCustomization> FChaosVDParticleActorCustomization::MakeInstance(TSharedRef<SChaosVDMainTab> InMainTab)
+TSharedRef<IDetailCustomization> FChaosVDParticleActorCustomization::MakeInstance(TWeakPtr<SChaosVDMainTab> InMainTab)
 {
 	return MakeShared<FChaosVDParticleActorCustomization>(InMainTab);
 }

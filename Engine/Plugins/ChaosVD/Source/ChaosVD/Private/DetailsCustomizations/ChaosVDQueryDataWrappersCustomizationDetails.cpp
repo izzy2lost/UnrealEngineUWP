@@ -86,7 +86,7 @@ void FChaosVDQueryDataWrapperCustomization::CustomizeDetails(IDetailLayoutBuilde
 	FChaosVDDetailsCustomizationUtils::HideInvalidCVDDataWrapperProperties(PotentialPropertiesToHide, DetailBuilder);
 }
 
-FChaosVDCollisionChannelsCustomizationBase::FChaosVDCollisionChannelsCustomizationBase(const TSharedPtr<SChaosVDMainTab>& InMainTab)
+FChaosVDCollisionChannelsCustomizationBase::FChaosVDCollisionChannelsCustomizationBase(const TWeakPtr<SChaosVDMainTab>& InMainTab)
 {
 	MainTabWeakPtr = InMainTab;
 	// Fill with the Engine defaults. When a CVD file is loaded we will update it with any new data is available
@@ -140,7 +140,7 @@ ECollisionResponse FChaosVDCollisionResponseParamsCustomization::GetCurrentColli
 	return ECollisionResponse::ECR_MAX;
 }
 
-TSharedRef<IPropertyTypeCustomization> FChaosVDCollisionResponseParamsCustomization::MakeInstance(TSharedRef<SChaosVDMainTab> MainTab)
+TSharedRef<IPropertyTypeCustomization> FChaosVDCollisionResponseParamsCustomization::MakeInstance(TWeakPtr<SChaosVDMainTab> MainTab)
 {
 	return MakeShared<FChaosVDCollisionResponseParamsCustomization>(MainTab);
 }
@@ -196,7 +196,7 @@ void FChaosVDCollisionResponseParamsCustomization::CustomizeChildren(TSharedRef<
 																	CollisionGroup);
 }
 
-TSharedRef<IPropertyTypeCustomization> FChaosVDCollisionObjectParamsCustomization::MakeInstance(TSharedRef<SChaosVDMainTab> MainTab)
+TSharedRef<IPropertyTypeCustomization> FChaosVDCollisionObjectParamsCustomization::MakeInstance(TWeakPtr<SChaosVDMainTab> MainTab)
 {
 	return MakeShared<FChaosVDCollisionObjectParamsCustomization>(MainTab);
 }

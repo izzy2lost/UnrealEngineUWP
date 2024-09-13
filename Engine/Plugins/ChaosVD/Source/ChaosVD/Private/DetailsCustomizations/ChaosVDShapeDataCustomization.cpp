@@ -24,12 +24,12 @@
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
-TSharedRef<IPropertyTypeCustomization> FChaosVDShapeDataCustomization::MakeInstance(TSharedRef<SChaosVDMainTab> MainTab)
+TSharedRef<IPropertyTypeCustomization> FChaosVDShapeDataCustomization::MakeInstance(TWeakPtr<SChaosVDMainTab> MainTab)
 {
 	return MakeShared<FChaosVDShapeDataCustomization>(MainTab);
 }
 
-FChaosVDShapeDataCustomization::FChaosVDShapeDataCustomization(const TSharedPtr<SChaosVDMainTab>& InMainTab)
+FChaosVDShapeDataCustomization::FChaosVDShapeDataCustomization(const TWeakPtr<SChaosVDMainTab>& InMainTab)
 {
 	MainTabWeakPtr = InMainTab;
 }

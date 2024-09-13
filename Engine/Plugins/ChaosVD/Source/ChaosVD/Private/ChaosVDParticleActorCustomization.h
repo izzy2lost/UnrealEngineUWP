@@ -18,13 +18,13 @@ class AChaosVDParticleActor;
 class FChaosVDParticleActorCustomization : public IDetailCustomization
 {
 public:
-	FChaosVDParticleActorCustomization(const TSharedPtr<SChaosVDMainTab>& InMainTab);
+	FChaosVDParticleActorCustomization(const TWeakPtr<SChaosVDMainTab>& InMainTab);
 	virtual ~FChaosVDParticleActorCustomization() override;
 
 	inline static FName ParticleDataCategoryName = FName("Particle Data");
 	inline static FName GeometryCategoryName = FName("Geometry Shape Data");
 
-	static TSharedRef<IDetailCustomization> MakeInstance(TSharedRef<SChaosVDMainTab> InMainTab);
+	static TSharedRef<IDetailCustomization> MakeInstance(TWeakPtr<SChaosVDMainTab> InMainTab);
 
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
 
