@@ -38,7 +38,9 @@ public:
 	PCG_API static FPCGModule& GetPCGModuleChecked();
 	static const FPCGGetDataFunctionRegistry& ConstGetDataFunctionRegistry() { return GetPCGModuleChecked().GetDataFunctionRegistry; }
 	static FPCGGetDataFunctionRegistry& MutableGetDataFunctionRegistry() { return GetPCGModuleChecked().GetDataFunctionRegistry; }
-
+	
+	PCG_API static bool IsPCGModuleLoaded();
+	
 private:
 	FPCGGetDataFunctionRegistry GetDataFunctionRegistry;
 
