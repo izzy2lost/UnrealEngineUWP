@@ -5,7 +5,7 @@
 namespace UE::Sequencer
 {
 
-FName FCommonOutlinerNames::Indicator("Indicator");
+FName FCommonOutlinerNames::Decorator("Decorator");
 FName FCommonOutlinerNames::Pin("Pin");
 FName FCommonOutlinerNames::Lock("Lock");
 FName FCommonOutlinerNames::Mute("Mute");
@@ -16,5 +16,7 @@ FName FCommonOutlinerNames::Add("Add");
 FName FCommonOutlinerNames::Nav("Nav");
 FName FCommonOutlinerNames::KeyFrame("KeyFrame");
 FName FCommonOutlinerNames::ColorPicker("ColorPicker");
+FName FCommonOutlinerNames::TimeWarp("TimeWarp");
+FName FCommonOutlinerNames::Condition("Condition");
 
 } // namespace UE::Sequencer

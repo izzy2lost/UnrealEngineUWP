@@ -131,6 +131,7 @@
 #include "ISequencerChannelInterface.h"
 #include "IMovieRendererInterface.h"
 #include "MVVM/ViewModels/OutlinerColumns/IOutlinerColumn.h"
+#include "MVVM/ViewModels/OutlinerDecorators/IOutlinerDecorator.h"
 #include "SequencerKeyCollection.h"
 #include "CurveEditor.h"
 #include "CurveEditorScreenSpace.h"
@@ -298,7 +299,12 @@ namespace UE
 const FName FSequencer::SelectionDrawerId = TEXT("SelectionDetails");
 bool FSequencer::bSelectionLimited = false;
 
-void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSharedRef<ISequencerObjectChangeListener>& InObjectChangeListener, const TArray<FOnCreateTrackEditor>& TrackEditorDelegates, const TArray<FOnCreateEditorObjectBinding>& EditorObjectBindingDelegates, const TArray<FOnCreateOutlinerColumn>& OutlinerColumnDelegates)
+void FSequencer::InitSequencer(const FSequencerInitParams& InitParams
+	, const TSharedRef<ISequencerObjectChangeListener>& InObjectChangeListener
+	, const TArray<FOnCreateTrackEditor>& TrackEditorDelegates
+	, const TArray<FOnCreateEditorObjectBinding>& EditorObjectBindingDelegates
+	, const TArray<FOnCreateOutlinerColumn>& OutlinerColumnDelegates
+	, const TArray<FOnCreateOutlinerDecorator>& OutlinerDecoratorDelegates)
 {
 	using namespace UE::MovieScene;
 	using namespace UE::Sequencer;
@@ -521,6 +527,19 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSh
 		{
 			check(!OutlinerColumns.Contains(OutlinerColumn->GetColumnName()));
 			OutlinerColumns.Add(OutlinerColumn->GetColumnName(), OutlinerColumn);
+		}
+	}
+
+	// OutlinerDecorators are registered to be provided to SOutlinerView by SSequencer
+	for (int32 DelegateIndex = 0; DelegateIndex < OutlinerDecoratorDelegates.Num(); ++DelegateIndex)
+	{
+		check(OutlinerDecoratorDelegates[DelegateIndex].IsBound());
+		TSharedRef<IOutlinerDecorator> OutlinerDecorator = OutlinerDecoratorDelegates[DelegateIndex].Execute();
+
+		if (OutlinerDecorator->SupportsSequence(InitParams.RootSequence))
+		{
+			check(!OutlinerDecorators.Contains(OutlinerDecorator->GetDecoratorName()));
+			OutlinerDecorators.Add(OutlinerDecorator->GetDecoratorName(), OutlinerDecorator);
 		}
 	}
 
