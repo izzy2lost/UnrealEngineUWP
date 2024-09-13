@@ -600,8 +600,8 @@ namespace Gauntlet
 
 			// Detect json log line output
 			if (Config.CommandLineParams.HasParam("JsonStdOut")
-				|| (Role.Platform == BuildHostPlatform.Current.Platform
-					&& !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("UE_LOG_JSON_TO_STDOUT"))))
+				|| (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("UE_LOG_JSON_TO_STDOUT"))
+					&& (Role.Platform == BuildHostPlatform.Current.Platform || CanRunPlatformVirtualized(Role.Platform))))
 			{
 				Config.FilterLoggingDelegate = (string M, bool IsErr) => UnrealLogParser.SanitizeJsonOutputLine(M);
 			}
@@ -617,6 +617,12 @@ namespace Gauntlet
 			}
 
 			return Config;
+		}
+
+		private bool CanRunPlatformVirtualized(UnrealTargetPlatform? Platform)
+		{
+			return Utils.InterfaceHelpers.FindImplementations<IVirtualLocalDevice>()
+				.Any(F => F.GetPlatform() == Platform && F.CanRunVirtualFromPlatform(BuildHostPlatform.Current.Platform));
 		}
 
 		/// <summary>
