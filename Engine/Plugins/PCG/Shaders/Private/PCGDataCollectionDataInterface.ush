@@ -393,7 +393,7 @@ float4x4 GetPointTransform_{DataInterfaceName}(uint InDataIndex, uint InElementI
 
 bool IsPointRemoved_{DataInterfaceName}(uint InDataIndex, uint InElementIndex)
 {
-	return GetDensity_{DataInterfaceName}(InDataIndex, InElementIndex) != INVALID_DENSITY;
+	return GetDensity_{DataInterfaceName}(InDataIndex, InElementIndex) == INVALID_DENSITY;
 }
 
 // #################### POINT ATTRIBUTE SETTERS ##########################
