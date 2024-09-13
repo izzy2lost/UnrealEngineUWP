@@ -35,6 +35,7 @@
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Input/STextComboBox.h"
 #include "Widgets/Layout/SUniformGridPanel.h"
+#include "Widgets/Input/SEditableTextBox.h"
 
 #define LOCTEXT_NAMESPACE "InterchangePipelineConfiguration"
 
@@ -431,6 +432,113 @@ TSharedRef<SBox> SInterchangePipelineConfigurationDialog::SpawnPipelineConfigura
 		];
 	}
 
+	TSharedPtr<SWidget> StackAndGroupWidget;
+
+	//Groups
+	FText GroupUsedText = LOCTEXT("GroupUsedText", "Group Used:");
+
+	FInterchangeGroup::EUsedGroupStatus UsedGroupStatus;
+	const FInterchangeGroup& UsedInterchangeGroup = FInterchangeProjectSettingsUtils::GetUsedGroup(UsedGroupStatus);
+
+	switch (UsedGroupStatus)
+	{
+		case FInterchangeGroup::NotSet:
+			StackAndGroupWidget = SNew(SBox)
+				[
+					SNew(SHorizontalBox)
+						+ SHorizontalBox::Slot()
+						.VAlign(VAlign_Center)
+						.AutoWidth()
+						[
+							StackTextComboBox.ToSharedRef()
+						]
+				];
+			break;
+		case FInterchangeGroup::SetAndValid:
+			{
+				FText GroupComboBoxTooltip = LOCTEXT("GroupComboBoxTooltip", "Group usage can be set in Editor Preferences > Interchange > Groups.");
+
+				StackAndGroupWidget = SNew(SBox)
+					[
+						SNew(SHorizontalBox)
+							+ SHorizontalBox::Slot()
+							.VAlign(VAlign_Center)
+							.AutoWidth()
+							[
+								StackTextComboBox.ToSharedRef()
+							]
+							+ SHorizontalBox::Slot()
+							.VAlign(VAlign_Center)
+							.AutoWidth()
+							[
+								SNew(SBox)
+									[
+										SNew(SHorizontalBox)
+											+ SHorizontalBox::Slot()
+											.VAlign(VAlign_Center)
+											.Padding(16.0f, 0.0f, 4.0f, 0.0f)
+											.AutoWidth()
+											[
+												SNew(SBox)
+													[
+														SNew(STextBlock)
+															.Text(GroupUsedText)
+													]
+											]
+											+ SHorizontalBox::Slot()
+											.VAlign(VAlign_Center)
+											.AutoWidth()
+											[
+												SNew(SEditableTextBox)
+													.Text(FText::FromName(UsedInterchangeGroup.DisplayName))
+													.IsEnabled(false)
+													.ToolTipText(GroupComboBoxTooltip)
+											]
+									]
+							]
+					];
+			}
+			break;
+		case FInterchangeGroup::SetAndInvalid:
+			{
+				//invalid Group usage:
+				FText InvalidGroupText = LOCTEXT("InvalidGroupText", "Invalid Group setup for usage!");
+				FText InvalidGroupTooltip = LOCTEXT("InvalidGroupTooltip", "Please review Group usage in Editor Preferences > Interchange > Groups.");
+
+				StackAndGroupWidget = SNew(SBox)
+					[
+						SNew(SHorizontalBox)
+							+ SHorizontalBox::Slot()
+							.VAlign(VAlign_Center)
+							.AutoWidth()
+							[
+								StackTextComboBox.ToSharedRef()
+							]
+							+ SHorizontalBox::Slot()
+							.VAlign(VAlign_Center)
+							.AutoWidth()
+							[
+								SNew(SHorizontalBox)
+									+ SHorizontalBox::Slot()
+									.VAlign(VAlign_Center)
+									.Padding(16.0f, 0.0f, 0.0f, 0.0f)
+									.AutoWidth()
+									[
+										SNew(SBox)
+											[
+												SNew(STextBlock)
+													.Text(InvalidGroupText)
+													.ToolTipText(InvalidGroupTooltip)
+											]
+									]
+							]
+					];
+			}
+			break;
+		default:
+			break;
+	}
+
 	TSharedPtr<SBox> InspectorBox;
 	TSharedRef<SBox> PipelineConfigurationPanelBox = SNew(SBox)
 	[
@@ -447,7 +555,7 @@ TSharedRef<SBox> SInterchangePipelineConfigurationDialog::SpawnPipelineConfigura
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
 				[
-					StackTextComboBox.ToSharedRef()
+					StackAndGroupWidget.ToSharedRef()
 				]
 				+ SHorizontalBox::Slot()
 				.FillWidth(1.0f)
