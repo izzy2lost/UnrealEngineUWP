@@ -309,7 +309,10 @@ bool FInterchangeImportTest::RunTest(const FString& Path)
 			}
 			else
 			{
-				ObjectsToDelete.Add(ResultObject);
+				if (ResultObject && !ResultObject->HasAnyFlags(RF_BeginDestroyed | RF_FinishDestroyed))
+				{
+					ObjectsToDelete.Add(ResultObject);
+				}
 			}
 		}
 	}
