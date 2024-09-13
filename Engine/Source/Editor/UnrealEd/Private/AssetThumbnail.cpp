@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AssetThumbnail.h"
+#include "AssetThumbnailToolTip.h"
 #include "AssetDefinitionRegistry.h"
 #include "AssetStatusAssetDataInfoProvider.h"
 #include "Engine/Blueprint.h"
@@ -36,14 +37,21 @@
 #include "ShaderCompiler.h"
 #include "AssetCompilingManager.h"
 #include "AssetDefinitionRegistry.h"
+#include "AssetDefinitionAssetInfo.h"
+#include "AssetDefinitionDefault.h"
 #include "IAssetTools.h"
 #include "AssetTypeActions_Base.h"
 #include "AssetToolsModule.h"
 #include "Styling/SlateIconFinder.h"
 #include "ClassIconFinder.h"
+#include "IAssetSystemInfoProvider.h"
 #include "IVREditorModule.h"
+#include "SDocumentationToolTip.h"
+#include "Fonts/FontMeasure.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Widgets/Images/SLayeredImage.h"
+#include "Widgets/Layout/SSeparator.h"
+#include "Widgets/Text/SRichTextBlock.h"
 
 namespace AssetThumbnailPool
 {
@@ -107,7 +115,9 @@ public:
 		SLATE_ARGUMENT(FMargin, Padding)
 		SLATE_ATTRIBUTE(int32, GenericThumbnailSize)
 #if UE_CONTENTBROWSER_NEW_STYLE
+		SLATE_ARGUMENT(TSharedPtr<IAssetSystemInfoProvider>, AssetSystemInfoProvider)
 		SLATE_ARGUMENT(bool, AllowAssetStatusThumbnailOverlay)
+		SLATE_ATTRIBUTE(TSharedPtr<IToolTip>, TooltipOverride)
 		SLATE_ARGUMENT(bool, ShowAssetChip)
 		SLATE_ARGUMENT(TAttribute<const FSlateBrush*>, AssetChipBorderImageOverride)
 #endif
@@ -133,6 +143,7 @@ public:
 		GenericThumbnailSize = InArgs._GenericThumbnailSize;
 		ColorStripOrientation = InArgs._ColorStripOrientation;
 #if UE_CONTENTBROWSER_NEW_STYLE
+		AssetSystemInfoProvider = InArgs._AssetSystemInfoProvider;
 		bShowAssetChip = InArgs._ShowAssetChip;
 		AssetChipBorderImageOverride = InArgs._AssetChipBorderImageOverride;
 #endif
@@ -160,6 +171,18 @@ public:
 		}
 
 		TSharedRef<SOverlay> OverlayWidget = SNew(SOverlay);
+
+#if UE_CONTENTBROWSER_NEW_STYLE
+		if (InArgs._TooltipOverride.IsSet())
+		{
+			SetToolTip(InArgs._TooltipOverride);
+		}
+		else
+		{
+			// Set our tooltip - this will refresh each time it's opened to make sure it's up-to-date
+			SetToolTip(SNew(SAssetThumbnailToolTip).AssetThumbnail(SharedThis(this)));
+		}
+#endif
 
 		UpdateThumbnailClass(AssetTypeActions.Get());
 
@@ -336,12 +359,17 @@ public:
 #if UE_CONTENTBROWSER_NEW_STYLE
 		const UAssetDefinition* AssetDefinition = UAssetDefinitionRegistry::Get()->GetAssetDefinitionForClass(Class);
 
+		if (!AssetDefinition)
+		{
+			AssetDefinition = GetDefault<UAssetDefinitionDefault>();
+		}
+
 		if (InArgs._AllowAssetStatusThumbnailOverlay && AssetDefinition)
 		{
 			const TSharedPtr<FAssetStatusAssetDataInfoProvider> AssetDataInfoProvider = MakeShared<FAssetStatusAssetDataInfoProvider>(AssetData);
 			AssetDefinition->GetAssetStatusInfo(AssetDataInfoProvider, OverlayInfo);
 			// Sort the list based on Status Priority
-			auto SortStatus = [] (const FAssetStatus& InFirstStatus, const FAssetStatus& InSecondStatus)
+			auto SortStatus = [] (const FAssetDisplayInfo& InFirstStatus, const FAssetDisplayInfo& InSecondStatus)
 			{
 				if (!InFirstStatus.Priority.IsSet())
 				{
@@ -355,12 +383,12 @@ public:
 
 				return InSecondStatus.Priority.Get() < InFirstStatus.Priority.Get();
 			};
-			OverlayInfo.AssetStatus.Sort(SortStatus);
+			OverlayInfo.Sort(SortStatus);
 
 			const TSharedRef<SHorizontalBox> HorizontalBox = SNew(SHorizontalBox);
-			for (int32 StatusIndex = 0; StatusIndex < OverlayInfo.AssetStatus.Num(); StatusIndex++)
+			for (int32 StatusIndex = 0; StatusIndex < OverlayInfo.Num(); StatusIndex++)
 			{
-				Statuses.Add(CreateStatusWidget(StatusIndex, OverlayInfo.AssetStatus[StatusIndex]));
+				Statuses.Add(CreateStatusWidget(StatusIndex, OverlayInfo[StatusIndex]));
 				HorizontalBox->AddSlot()
 				[
 					Statuses[StatusIndex].ToSharedRef()
@@ -553,11 +581,269 @@ public:
 		}
 	}
 
+#if UE_CONTENTBROWSER_NEW_STYLE
+	TSharedRef<SWidget> GetDefaultTooltip() const
+	{
+		const FAssetData& AssetData = AssetThumbnail->GetAssetData();
+
+		const UClass* Class = FindObjectSafe<UClass>(AssetData.AssetClassPath);
+
+		TArray<FAssetDisplayInfo> OutSystemInfo;
+		TSharedRef<SVerticalBox> OverallTooltipVBox = SNew(SVerticalBox);
+		{
+			const FSlateBrush* ClassIcon = FAppStyle::GetDefaultBrush();
+			TOptional<FLinearColor> Color;
+			TArray<FAssetDisplayInfo> OutStatusInfo;
+			if (const UAssetDefinition* AssetDefinition = UAssetDefinitionRegistry::Get()->GetAssetDefinitionForClass(AssetData.GetClass()))
+			{
+				TSharedRef<FAssetStatusAssetDataInfoProvider> Provider = MakeShared<FAssetStatusAssetDataInfoProvider>(AssetData);
+				AssetDefinition->GetAssetStatusInfo(Provider, OutStatusInfo);
+				ClassIcon = AssetDefinition->GetIconBrush(AssetData, AssetData.AssetClassPath.GetAssetName());
+				Color = AssetDefinition->GetAssetColor();
+			}
+			// Get the default asset definition to retrieve some default information on it (ex: SourceControl)
+			else if (const UAssetDefinition* AssetDefinitionDefaultUObject = GetDefault<UAssetDefinitionDefault>())
+			{
+				TSharedRef<FAssetStatusAssetDataInfoProvider> Provider = MakeShared<FAssetStatusAssetDataInfoProvider>(AssetData);
+				AssetDefinitionDefaultUObject->GetAssetStatusInfo(Provider, OutStatusInfo);
+			}
+
+			if (AssetSystemInfoProvider.IsValid())
+			{
+				AssetSystemInfoProvider->PopulateAssetInfo(OutSystemInfo);
+			}
+
+			if (ClassIcon == nullptr || ClassIcon == FAppStyle::GetDefaultBrush())
+			{
+				ClassIcon = FSlateIconFinder::FindIconForClass(AssetData.GetClass()).GetIcon();
+			}
+
+			FText ClassNameText = NSLOCTEXT("AssetThumbnail", "ClassNameText", "Not Found");
+			if (Class != NULL)
+			{
+				ClassNameText = Class->GetDisplayNameText();
+			}
+			else if (!AssetData.AssetClassPath.IsNull())
+			{
+				ClassNameText = FText::FromString(AssetData.AssetClassPath.ToString());
+			}
+
+			const FText NameText = FText::FromString(AssetData.AssetName.ToString());
+			// Name/Type Slot
+			OverallTooltipVBox->AddSlot()
+			.AutoHeight()
+			[
+				SNew(SVerticalBox)
+
+				+ SVerticalBox::Slot()
+				.Padding(0.f, 0.f, 0.f, 6.f)
+				.AutoHeight()
+				[
+					SNew(STextBlock)
+					.Text(NameText)
+					.ColorAndOpacity(FStyleColors::White)
+					.Font(FAppStyle::GetFontStyle("ContentBrowser.Tooltip.AssetNameFont"))
+				]
+
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				[
+					SNew(SHorizontalBox)
+
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.Padding(0.f, 0.f, 4.f, 0.f)
+					[
+						SNew(SBox)
+						.WidthOverride(16.f)
+						.HeightOverride(16.f)
+						[
+							SNew(SImage)
+							.Image(ClassIcon)
+							.ColorAndOpacity_Lambda([Color] () { return Color.IsSet() ? Color.GetValue() : FStyleColors::White;})
+						]
+					]
+
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.VAlign(VAlign_Center)
+					[
+						SNew(STextBlock)
+						.Font(FAppStyle::GetFontStyle("ContentBrowser.Tooltip.EntryFont"))
+						.Text(ClassNameText)
+					]
+				]
+			];
+
+			// Separator
+			OverallTooltipVBox->AddSlot()
+			.Padding(0.f,6.f)
+			.AutoHeight()
+			[
+				SNew(SSeparator)
+				.Orientation(Orient_Horizontal)
+				.Thickness(1.f)
+				.ColorAndOpacity(COLOR("#484848FF"))
+				.SeparatorImage(FAppStyle::Get().GetBrush("WhiteBrush"))
+			];
+
+			TSharedRef<SVerticalBox> StatusVerticalBox = SNew(SVerticalBox);
+
+			for (const FAssetDisplayInfo& AssetStatusInfo : OutStatusInfo)
+			{
+				StatusVerticalBox->AddSlot()
+					.Padding(0.f, 0.f, 0.f, 6.f)
+					.AutoHeight()
+					[
+						SNew(SHorizontalBox)
+						.Visibility(AssetStatusInfo.IsVisible)
+
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						.Padding(0.f, 0.f, 4.f, 0.f)
+						[
+						   SNew(SBox)
+						   .WidthOverride(16.f)
+						   .HeightOverride(16.f)
+						   [
+							   SNew(SImage)
+							   .Image(AssetStatusInfo.StatusIcon)
+						   ]
+						]
+
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						[
+							SNew(STextBlock)
+							.Font(FAppStyle::GetFontStyle("ContentBrowser.Tooltip.EntryFont"))
+							.Text(AssetStatusInfo.StatusDescription)
+						]
+					];
+			}
+
+			// Status
+			OverallTooltipVBox->AddSlot()
+			.AutoHeight()
+			[
+				StatusVerticalBox
+			];
+
+			// More info
+			if (!OutSystemInfo.IsEmpty())
+			{
+				OverallTooltipVBox->AddSlot()
+				.Padding(0.f, 2.f, 0.f, 0.f)
+				.AutoHeight()
+				.VAlign(VAlign_Center)
+				[
+					SNew(SRichTextBlock)
+					.Visibility_Lambda([] ()
+					{
+						const FModifierKeysState ModifierKeys = FSlateApplication::Get().GetModifierKeys();
+						return ModifierKeys.IsAltDown() && ModifierKeys.IsControlDown() ? EVisibility::Collapsed : EVisibility::Visible;
+					})
+					// .Font(FAppStyle::GetFontStyle("ContentBrowser.Tooltip.MoreInfo"))
+					.Justification(ETextJustify::Center)
+					.Text(NSLOCTEXT("AssetThumbnail", "MoreInfoTooltip", "Hold <WrappedCommand/> for more"))
+					+ SRichTextBlock::WidgetDecorator( TEXT("WrappedCommand"), this, &SAssetThumbnail::OnCreateWidgetDecoratorWidget )
+				];
+			}
+		}
+
+		TSharedRef<SVerticalBox> ExtendedToolTipVerticalBox = SNew(SVerticalBox);
+		TSharedRef<SBox> ExtendedToolTip = SNew(SBox)
+			.Padding(FMargin(9.f, -9.f, 10.f, 6.f))
+			[
+				ExtendedToolTipVerticalBox
+			];
+
+		for (const FAssetDisplayInfo& SystemInfo : OutSystemInfo)
+		{
+			if (!SystemInfo.StatusTitle.IsSet() || !SystemInfo.StatusDescription.IsSet())
+			{
+				continue;
+			}
+
+			if ((SystemInfo.IsVisible.IsSet() && SystemInfo.IsVisible.Get().IsVisible()) || !SystemInfo.IsVisible.IsSet())
+			{
+				AddToExtendedToolTipInfoBox(ExtendedToolTipVerticalBox, SystemInfo.StatusIcon, SystemInfo.StatusTitle.Get(), SystemInfo.StatusDescription.Get());
+			}
+		}
+
+		return SNew(SDocumentationToolTip)
+				.OverrideExtendedToolTipContent(ExtendedToolTip)
+				[
+					OverallTooltipVBox
+				];
+	}
+#endif
+
 private:
 #if UE_CONTENTBROWSER_NEW_STYLE
+	FSlateWidgetRun::FWidgetRunInfo OnCreateWidgetDecoratorWidget(const FTextRunInfo& InRunInfo, const ISlateStyle* InStyle) const
+	{
+		TSharedRef<SWidget> CtrlAltWidget = SNew(SBorder)
+			.VAlign(VAlign_Center)
+			.HAlign(HAlign_Center)
+			.BorderImage(FAppStyle::GetBrush("ContentBrowser.ToolTip.CommandBorder"))
+			[
+				SNew(STextBlock)
+				.Font(FAppStyle::GetFontStyle("ContentBrowser.Tooltip.MoreInfo"))
+				.Text(NSLOCTEXT("AssetThumbnail", "CtrlAltLabel", " Ctrl + Alt "))
+			];
+		const TSharedRef<FSlateFontMeasure> FontMeasure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+		const int16 Baseline = FontMeasure->GetBaseline(FAppStyle::GetFontStyle("ContentBrowser.Tooltip.MoreInfo"));
+
+		return FSlateWidgetRun::FWidgetRunInfo(CtrlAltWidget, Baseline - 2);
+
+	}
+
+	void AddToExtendedToolTipInfoBox(const TSharedRef<SVerticalBox>& InfoBox, const TAttribute<const FSlateBrush*>& Icon, const FText& Key, const FText& Value) const
+	{
+		InfoBox->AddSlot()
+		.Padding(0.f, 0.f, 0.f, 6.f)
+		.AutoHeight()
+		[
+			SNew(SHorizontalBox)
+
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(0, 0, 4, 0)
+			[
+				SNew(SBox)
+				.Visibility(Icon.IsSet()? EVisibility::Visible : EVisibility::Collapsed)
+				.WidthOverride(16.f)
+				.HeightOverride(16.f)
+				[
+					SNew(SImage)
+					.Image(Icon)
+				]
+			]
+
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(0, 0, 4, 0)
+			[
+				SNew(STextBlock)
+				.Font(FAppStyle::GetFontStyle("ContentBrowser.Tooltip.EntryFont"))
+				.Text(FText::Format(NSLOCTEXT("AssetThumbnailToolTip", "AssetViewTooltipFormat", "{0}:"), Key))
+			]
+
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				SNew(STextBlock)
+				.Font(FAppStyle::GetFontStyle("ContentBrowser.Tooltip.EntryFont"))
+				.ColorAndOpacity(FStyleColors::White)
+				.Text(Value)
+			]
+		];
+	}
+
 	EVisibility GetStatusBorderVisibility() const
 	{
-		for (const FAssetStatus& AssetStatus : OverlayInfo.AssetStatus)
+		for (const FAssetDisplayInfo& AssetStatus : OverlayInfo)
 		{
 			if (AssetStatus.IsVisible.IsSet() && AssetStatus.IsVisible.Get().IsVisible())
 			{
@@ -567,7 +853,7 @@ private:
 		return EVisibility::Collapsed;
 	}
 
-	TSharedRef<SWidget> CreateStatusWidget(int32 StatusIndex, const FAssetStatus& InStatusInfo) const
+	TSharedRef<SWidget> CreateStatusWidget(int32 StatusIndex, const FAssetDisplayInfo& InStatusInfo) const
 	{
 		return SNew(SBox)
 			.WidthOverride(StatusSize)
@@ -582,9 +868,9 @@ private:
 
 	EVisibility GetStatusVisibility(int32 StatusIndex) const
 	{
-		if (OverlayInfo.AssetStatus.IsValidIndex(StatusIndex))
+		if (OverlayInfo.IsValidIndex(StatusIndex))
 		{
-			const FAssetStatus& AssetStatus = OverlayInfo.AssetStatus[StatusIndex];
+			const FAssetDisplayInfo& AssetStatus = OverlayInfo[StatusIndex];
 			if (AssetStatus.IsVisible.IsSet() && AssetStatus.IsVisible.Get() == EVisibility::Visible)
 			{
 				return GetStatusVisibilityBasedOnGeometry(StatusIndex);
@@ -615,7 +901,7 @@ private:
 		const int32 MaxShownStatus = FMath::FloorToInt32(ThumbnailWidth / StatusSize);
 
 		int32 ShownStatus = 0;
-		for (const FAssetStatus& Status : OverlayInfo.AssetStatus)
+		for (const FAssetDisplayInfo& Status : OverlayInfo)
 		{
 			if (Status.IsVisible.IsSet() && Status.IsVisible.Get().IsVisible())
 			{
@@ -632,7 +918,7 @@ private:
 		const int32 MaxShownStatus = FMath::FloorToInt32(ThumbnailWidth / StatusSize);
 
 		int32 ShownStatus = 0;
-		for (const FAssetStatus& Status : OverlayInfo.AssetStatus)
+		for (const FAssetDisplayInfo& Status : OverlayInfo)
 		{
 			if (Status.IsVisible.IsSet() && Status.IsVisible.Get().IsVisible())
 			{
@@ -1082,8 +1368,9 @@ private:
 	TSharedPtr<SWidget> StatusOverflowWidget;
 	const float StatusSize = 16.f;
 	const float StatusPadding = 4.f;
-	FAssetStatusInfo OverlayInfo;
+	TArray<FAssetDisplayInfo> OverlayInfo;
 	TArray<TSharedPtr<SWidget>> Statuses;
+	TSharedPtr<IAssetSystemInfoProvider> AssetSystemInfoProvider;
 	bool bShowAssetChip;
 	TAttribute<const FSlateBrush*> AssetChipBorderImageOverride;
 #endif
@@ -1107,8 +1394,37 @@ private:
 	bool bIsClassType;
 };
 
+void SAssetThumbnailToolTip::Construct(const FArguments& InArgs)
+{
+	AssetThumbnail = InArgs._AssetThumbnail;
 
+	SToolTip::Construct(
+		SToolTip::FArguments()
+		.TextMargin(FMargin(1.f, -3.f))
+		.BorderImage(FAppStyle::GetBrush("ContentBrowser.Tooltip.Border"))
+		);
+}
 
+bool SAssetThumbnailToolTip::IsEmpty() const
+{
+	return !AssetThumbnail.IsValid();
+}
+
+void SAssetThumbnailToolTip::OnOpening()
+{
+#if UE_CONTENTBROWSER_NEW_STYLE
+	TSharedPtr<SAssetThumbnail> AssetViewItemPin = AssetThumbnail.Pin();
+	if (AssetViewItemPin.IsValid())
+	{
+		SetContentWidget(AssetViewItemPin->GetDefaultTooltip());
+	}
+#endif
+}
+
+void SAssetThumbnailToolTip::OnClosed()
+{
+	ResetContentWidget();
+}
 
 FAssetThumbnail::FAssetThumbnail( UObject* InAsset, uint32 InWidth, uint32 InHeight, const TSharedPtr<class FAssetThumbnailPool>& InThumbnailPool )
 	: ThumbnailPool(InThumbnailPool)
@@ -1226,6 +1542,8 @@ TSharedRef<SWidget> FAssetThumbnail::MakeThumbnailWidget( const FAssetThumbnailC
 		.Padding(InConfig.Padding)
 		.GenericThumbnailSize(InConfig.GenericThumbnailSize)
 #if UE_CONTENTBROWSER_NEW_STYLE
+		.AssetSystemInfoProvider(InConfig.AssetSystemInfoProvider)
+		.TooltipOverride(InConfig.TooltipOverride)
 		.AllowAssetStatusThumbnailOverlay(InConfig.bAllowAssetStatusThumbnailOverlay)
 		.ShowAssetChip(InConfig.bShowAssetChip)
 		.AssetChipBorderImageOverride(InConfig.AssetChipBorderImageOverride)

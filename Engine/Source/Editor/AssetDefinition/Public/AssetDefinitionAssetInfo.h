@@ -1,15 +1,12 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
-#include "Containers/Array.h"
-#include "Containers/UnrealString.h"
+#if UE_CONTENTBROWSER_NEW_STYLE
 #include "Internationalization/Text.h"
 #include "Layout/Visibility.h"
 #include "Misc/Attribute.h"
 
-class SWidget;
-class UPackage;
 struct FSlateBrush;
 
 enum class EStatusSeverity
@@ -27,7 +24,7 @@ struct FAssetStatusPriority
 		, SeverityPriority(0)
 	{}
 
-	explicit FAssetStatusPriority(const TAttribute<EStatusSeverity>& InSeverity)
+	FAssetStatusPriority(const TAttribute<EStatusSeverity>& InSeverity)
 		: Severity(InSeverity)
 		, SeverityPriority(0)
 	{}
@@ -73,29 +70,13 @@ public:
 	int32 SeverityPriority;
 };
 
-struct FAssetStatus
+struct FAssetDisplayInfo
 {
 public:
 	TAttribute<const FSlateBrush*> StatusIcon;
+	TAttribute<FText> StatusTitle;
 	TAttribute<FText> StatusDescription;
 	TAttribute<EVisibility> IsVisible;
 	TAttribute<FAssetStatusPriority> Priority;
 };
-
-struct FAssetStatusInfo
-{
-public:
-	TArray<FAssetStatus> AssetStatus;
-};
-
-class ASSETDEFINITION_API IAssetStatusInfoProvider
-{
-public:
-	virtual ~IAssetStatusInfoProvider() = default;
-
-	/** Try to find the Package without loading it, if the package is not loaded it will return nullptr */
-	virtual UPackage* FindPackage() const = 0;
-
-	/** Try to get the filename, return empty otherwise */
-	virtual FString TryGetFilename() const = 0;
-};
+#endif

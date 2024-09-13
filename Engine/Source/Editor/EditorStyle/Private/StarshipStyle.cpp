@@ -6342,6 +6342,9 @@ void FStarshipEditorStyle::FStyle::SetupContentBrowserStyle()
 		Set( "ContentBrowser.AssetTileViewNameFontVerySmall", DEFAULT_FONT( "VeryLight", 7 ) );
 		Set( "ContentBrowser.AssetTileViewNameFontDirty", FStyleFonts::Get().SmallBold);
 
+		Set("ContentBrowser.Tooltip.Border", new FSlateRoundedBoxBrush(FStyleColors::Secondary, 0.f, COLOR("#484848FF"), 2.f));
+		Set("ContentBrowser.ToolTip.CommandBorder", new FSlateRoundedBoxBrush(FStyleColors::Transparent, 4.f, FStyleColors::White, 1.f));
+
 		Set("ContentBrowser.AssetListView.ColumnListTableRow", FTableRowStyle()
 			.SetEvenRowBackgroundBrush(FSlateColorBrush(FStyleColors::Recessed))
 			.SetEvenRowBackgroundHoveredBrush(FSlateColorBrush(FStyleColors::SelectHover))

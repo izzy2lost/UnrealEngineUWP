@@ -2,7 +2,9 @@
 
 #include "AssetDefinitionDefault.h"
 
+#include "AssetDefinitionAssetInfo.h"
 #include "AssetToolsModule.h"
+#include "IAssetStatusInfoProvider.h"
 #include "EditorFramework/AssetImportData.h"
 #include "EditorFramework/ThumbnailInfo.h"
 #include "ISourceControlModule.h"
@@ -12,6 +14,7 @@
 
 #define LOCTEXT_NAMESPACE "AssetDefinitionDefault"
 
+#if UE_CONTENTBROWSER_NEW_STYLE
 namespace UE::AssetDefinitionDefault::Status
 {
 	EVisibility GetDirtyStatusVisibility(const TSharedPtr<IAssetStatusInfoProvider> InAssetStatusInfoProvider)
@@ -98,6 +101,7 @@ namespace UE::AssetDefinitionDefault::Status
 		return SourceControlDescription;
 	}
 }
+#endif
 
 EAssetCommandResult UAssetDefinitionDefault::OpenAssets(const FAssetOpenArgs& OpenArgs) const
 {
@@ -130,21 +134,21 @@ EAssetCommandResult UAssetDefinitionDefault::PerformAssetDiff(const FAssetDiffAr
 }
 
 #if UE_CONTENTBROWSER_NEW_STYLE
-void UAssetDefinitionDefault::GetAssetStatusInfo(const TSharedPtr<IAssetStatusInfoProvider>& InAssetStatusInfoProvider, FAssetStatusInfo& OutStatusInfo) const
+void UAssetDefinitionDefault::GetAssetStatusInfo(const TSharedPtr<IAssetStatusInfoProvider>& InAssetStatusInfoProvider, TArray<FAssetDisplayInfo>& OutStatusInfo) const
 {
-	FAssetStatus DirtyStatus;
+	FAssetDisplayInfo DirtyStatus;
 	DirtyStatus.StatusIcon = FAppStyle::GetBrush("ContentBrowser.ContentDirty");
 	DirtyStatus.Priority = FAssetStatusPriority(EStatusSeverity::Info, 1);
 	DirtyStatus.StatusDescription = LOCTEXT("DirtyAssetTooltip", "Asset has unsaved changes");
 	DirtyStatus.IsVisible = TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateStatic(&UE::AssetDefinitionDefault::Status::GetDirtyStatusVisibility, InAssetStatusInfoProvider));
-	OutStatusInfo.AssetStatus.Add(DirtyStatus);
+	OutStatusInfo.Add(DirtyStatus);
 
-	FAssetStatus SCCStatus;
+	FAssetDisplayInfo SCCStatus;
 	SCCStatus.Priority = FAssetStatusPriority(EStatusSeverity::Info, 0);
 	SCCStatus.StatusIcon = TAttribute<const FSlateBrush*>::Create(TAttribute<const FSlateBrush*>::FGetter::CreateStatic(&UE::AssetDefinitionDefault::Status::GetSourceControlStatusBrush, InAssetStatusInfoProvider));
 	SCCStatus.IsVisible = TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateStatic(&UE::AssetDefinitionDefault::Status::GetSourceControlStatusVisibility, InAssetStatusInfoProvider));
 	SCCStatus.StatusDescription = TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateStatic(&UE::AssetDefinitionDefault::Status::GetSourceControlStatusDescription, InAssetStatusInfoProvider));
-	OutStatusInfo.AssetStatus.Add(SCCStatus);
+	OutStatusInfo.Add(SCCStatus);
 }
 #endif
 

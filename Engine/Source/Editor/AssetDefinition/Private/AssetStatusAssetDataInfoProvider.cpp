@@ -1,6 +1,8 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AssetStatusAssetDataInfoProvider.h"
+
+#if UE_CONTENTBROWSER_NEW_STYLE
 #include "AssetRegistry/AssetData.h"
 #include "Misc/PackageName.h"
 #include "UObject/UObjectGlobals.h"
@@ -17,3 +19,4 @@ FString FAssetStatusAssetDataInfoProvider::TryGetFilename() const
 	FPackageName::TryConvertLongPackageNameToFilename(AssetData.PackageName.ToString(), OutFileName, *PackageExtension);
 	return OutFileName;
 }
+#endif
