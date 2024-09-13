@@ -287,11 +287,20 @@ namespace PCGAttributeAccessorHelpers
 		{
 			if (NumericProperty->IsFloatingPoint())
 			{
+				// As floating properties are mostly all double in UE, convert float to double attributes.
 				return Functor(Signature<FPCGNumericPropertyAccessor<double>>{}, NumericProperty);
 			}
 			else if (NumericProperty->IsInteger())
 			{
-				return Functor(Signature<FPCGNumericPropertyAccessor<int64>>{}, NumericProperty);
+				// But for int32/int64 we can distinguish between the two. Everything of size 32 or less is will be an int32, 64bits integers will be int64.
+				if (NumericProperty->IsA<FInt64Property>() || NumericProperty->IsA<FUInt64Property>())
+				{
+					return Functor(Signature<FPCGNumericPropertyAccessor<int64>>{}, NumericProperty);
+				}
+				else
+				{
+					return Functor(Signature<FPCGNumericPropertyAccessor<int32>>{}, NumericProperty);
+				}
 			}
 		}
 		else if (const FBoolProperty* BoolProperty = CastField<FBoolProperty>(InProperty))

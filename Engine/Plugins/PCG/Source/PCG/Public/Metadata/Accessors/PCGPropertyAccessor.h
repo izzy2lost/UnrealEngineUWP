@@ -145,7 +145,7 @@ public:
 			{
 				if constexpr (std::is_integral_v<T>)
 				{
-					Property->SetIntPropertyValue(PropertyAddressData, Value);
+					Property->SetIntPropertyValue(PropertyAddressData, static_cast<int64>(Value));
 				}
 				else
 				{
