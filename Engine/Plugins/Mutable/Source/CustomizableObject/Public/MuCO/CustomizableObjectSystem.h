@@ -115,7 +115,10 @@ struct FCustomizableObjectExternalTexture
 };
 
 
-/** Base class for Image provider. */
+/** Base class for Image provider.
+ * 
+ *  An image provider only needs to be alive when calling UpdateSkeletalMeshAsync. Once called it can be safety destructed.
+ *  Mutable will cache those images in case they are needed due to MIP updates. */
 UCLASS(abstract)
 class CUSTOMIZABLEOBJECT_API UCustomizableSystemImageProvider : public UObject
 {

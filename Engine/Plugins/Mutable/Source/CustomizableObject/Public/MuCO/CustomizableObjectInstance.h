@@ -402,7 +402,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	void SetColorParameterSelectedOption(const FString& ColorParamName, const FLinearColor& ColorValue);
 
-	/** Sets the bool value "BoolValue" of a bool parameter with name "BoolParamName". */
+	/** Gets the bool value "BoolValue" of a bool parameter with name "BoolParamName". */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	bool GetBoolParameterSelectedOption(const FString& BoolParamName) const;
 
@@ -410,7 +410,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	void SetBoolParameterSelectedOption(const FString& BoolParamName, bool BoolValue);
 
-	/** Sets the vector value "VectorValue" of a bool parameter with index "VectorParamIndex". */
+	/** Sets the vector value "VectorValue" of a vector parameter with index "VectorParamIndex". */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	void SetVectorParameterSelectedOption(const FString& VectorParamName, const FLinearColor& VectorValue);
 
