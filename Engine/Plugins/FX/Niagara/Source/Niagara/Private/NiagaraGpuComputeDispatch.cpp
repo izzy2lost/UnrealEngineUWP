@@ -1824,6 +1824,8 @@ void FNiagaraGpuComputeDispatch::PreInitViews(FRDGBuilder& GraphBuilder, bool bA
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, Niagara);
 	LLM_SCOPE(ELLMTag::Niagara);
 
+	OnPreInitViewsEvent.Broadcast(GraphBuilder);
+
 	bIsFirstViewFamily = CurrentFamily ? CurrentFamily == ViewFamilies[0] : true;
 	bIsLastViewFamily = CurrentFamily ? CurrentFamily == ViewFamilies.Last() : true;
 	bRequiresReadback = false;
