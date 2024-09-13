@@ -13,6 +13,7 @@
 #include "CompactBinaryTCP.h"
 #include "Cooker/CookDirector.h"
 #include "Cooker/CookGenerationHelper.h"
+#include "Cooker/CookPackagePreloader.h"
 #include "Cooker/CookPlatformManager.h"
 #include "Cooker/CookRequestCluster.h"
 #include "Cooker/CookWorkerClient.h"
@@ -20,7 +21,6 @@
 #include "Cooker/PackageTracker.h"
 #include "CookOnTheSide/CookOnTheFlyServer.h"
 #include "Containers/StringView.h"
-#include "EditorDomain/EditorDomain.h"
 #include "Engine/Console.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformTime.h"
@@ -32,7 +32,6 @@
 #include "Misc/PackageName.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
-#include "Misc/PreloadableFile.h"
 #include "Misc/ScopeExit.h"
 #include "Misc/ScopeLock.h"
 #include "Serialization/CompactBinaryWriter.h"
@@ -94,8 +93,8 @@ bool FPackagePlatformData::NeedsCooking(const ITargetPlatform* PlatformItBelongs
 FPackageData::FPackageData(FPackageDatas& PackageDatas, const FName& InPackageName, const FName& InFileName)
 	: ParentGenerationHelper(nullptr), PackageName(InPackageName), FileName(InFileName), PackageDatas(PackageDatas)
 	, Instigator(EInstigator::NotYetRequested), bIsUrgent(0), bIsCookLast(0)
-	, bIsVisited(0), bIsPreloadAttempted(0)
-	, bIsPreloaded(0), bHasSaveCache(0), bPrepareSaveFailed(0), bPrepareSaveRequiresGC(0)
+	, bIsVisited(0)
+	, bHasSaveCache(0), bPrepareSaveFailed(0), bPrepareSaveRequiresGC(0)
 	, MonitorCookResult((uint8)ECookResult::NotAttempted)
 	, bCompletedGeneration(0), bGenerated(0), bKeepReferencedDuringGC(0)
 	, bWasCookedThisSession(0)
@@ -112,14 +111,19 @@ FPackageData::~FPackageData()
 {
 	// ClearReferences should have been called earlier, but call it here in case it was missed
 	ClearReferences();
-	// FPackageDatas guarantees that all references to GenerationHelper are removed before any PackageDatas are deleted.
-	// We rely on that so that we can be sure that when this PackageData is being deleted, its GenerationHelper - which
-	// assumes the FPackageData lifetime exceeds its own - has already been deleted.
-	check(GenerationHelper == nullptr);
 	// We need to send OnLastCookedPlatformRemoved message to the monitor, so call SetPlatformsNotCooked
 	ClearCookResults();
 	// Update the monitor's counters and call exit functions
 	SendToState(EPackageState::Idle, ESendFlags::QueueNone, EStateChangeReason::CookerShutdown);
+
+	// FPackageDatas guarantees that all references to GenerationHelper are removed before any PackageDatas are deleted.
+	// We rely on that so that we can be sure that when this PackageData is being deleted, its GenerationHelper - which
+	// assumes the FPackageData lifetime exceeds its own - has already been deleted.
+	check(GenerationHelper == nullptr);
+	// FPackageDatas guarantees that all references to PackagePreloaders are removed before any PackageDatas are deleted.
+	// We rely on that so that we can be sure that when this PackageData is being deleted, its PackagePreloader - which
+	// assumes the FPackageData lifetime exceeds its own - has already been deleted.
+	check(PackagePreloader == nullptr);
 }
 
 void FPackageData::ClearReferences()
@@ -129,6 +133,10 @@ void FPackageData::ClearReferences()
 		GenerationHelper->ClearSelfReferences();
 	}
 	SetParentGenerationHelper(nullptr, EStateChangeReason::CookerShutdown);
+	if (PackagePreloader)
+	{
+		PackagePreloader->Shutdown(); // Clears references to any other preloaders
+	}
 }
 
 const FName& FPackageData::GetPackageName() const
@@ -1045,12 +1053,19 @@ void FPackageData::OnExitInProgress(EStateChangeReason StateChangeReason)
 
 void FPackageData::OnEnterLoading()
 {
-	CheckPreloadEmpty();
+	TRefCountPtr<FPackagePreloader> Local = CreatePackagePreloader();
+	Local->SetSelfReference();
+
+	check(PackagePreloader);
+	PackagePreloader->CheckPreloadEmpty();
 }
 
 void FPackageData::OnExitLoading()
 {
-	ClearPreload();
+	check(PackagePreloader); // Guaranteed by OnEnterLoading
+	PackagePreloader->ClearPreload();
+	PackagePreloader->ClearSelfReference();
+	// PackagePreloader might now be nullptr
 }
 
 void FPackageData::OnEnterSaving()
@@ -1132,191 +1147,33 @@ void FPackageData::AddCompletionCallback(TConstArrayView<const ITargetPlatform*>
 	}
 }
 
+TRefCountPtr<FPackagePreloader> FPackageData::GetPackagePreloader() const
+{
+	return TRefCountPtr<FPackagePreloader>(PackagePreloader);
+}
+
+TRefCountPtr<FPackagePreloader> FPackageData::CreatePackagePreloader()
+{
+	if (PackagePreloader)
+	{
+		return TRefCountPtr<FPackagePreloader>(PackagePreloader);
+	}
+	TRefCountPtr<FPackagePreloader> Result(new FPackagePreloader(*this));
+	PackagePreloader = Result.GetReference();
+	return Result;
+}
+
+void FPackageData::OnPackagePreloaderDestroyed(FPackagePreloader& InPackagePreloader)
+{
+	check(PackagePreloader == &InPackagePreloader);
+	PackagePreloader = nullptr;
+}
+
 bool FPackageData::TryPreload()
 {
 	check(IsInStateProperty(EPackageStateProperty::Loading));
-	if (GetIsPreloadAttempted())
-	{
-		return true;
-	}
-	if (FindObjectFast<UPackage>(nullptr, GetPackageName()))
-	{
-		if (AsyncRequest && !AsyncRequest->bHasFinished)
-		{
-			// In case of async loading, the object can be found while still being asynchronously serialized, we need
-			// to wait until the callback is called and the async request is completely done.
-			return false;
-		}
-
-		// If the package has already loaded, then there is no point in further preloading
-		ClearPreload();
-		SetIsPreloadAttempted(true);
-		return true;
-	}
-	if (IsGenerated())
-	{
-		// Deferred populate generated packages are loaded from their generator, not from disk
-		ClearPreload();
-		SetIsPreloadAttempted(true);
-		return true;
-	}
-	if (IsAsyncLoadingMultithreaded())
-	{
-		if (!AsyncRequest.IsValid())
-		{
-			PackageDatas.GetMonitor().OnPreloadAllocatedChanged(*this, true);
-			AsyncRequest = MakeShared<FAsyncRequest>();
-			AsyncRequest->RequestID = LoadPackageAsync(
-				GetFileName().ToString(), 
-				FLoadPackageAsyncDelegate::CreateLambda(
-					[AsyncRequest = AsyncRequest](const FName&, UPackage*, EAsyncLoadingResult::Type) 
-					{
-						AsyncRequest->bHasFinished = true;
-					}
-				),
-				32 /* Use arbitrary higher priority for preload as we're going to need them very soon */
-			);
-		}
-
-		// always return false so we continue to check the status of the load until FindObjectFast above finds the
-		// loaded object
-		return false;
-	}
-	if (!PreloadableFile.Get())
-	{
-		if (FEditorDomain* EditorDomain(FEditorDomain::Get());
-			EditorDomain && EditorDomain->IsReadingPackages())
-		{
-			EditorDomain->PrecachePackageDigest(GetPackageName());
-		}
-		TStringBuilder<NAME_SIZE> FileNameString;
-		GetFileName().ToString(FileNameString);
-		PreloadableFile.Set(MakeShared<FPreloadableArchive>(FileNameString.ToString()), *this);
-		PreloadableFile.Get()->InitializeAsync([this]()
-			{
-				TStringBuilder<NAME_SIZE> FileNameString;
-				// Note this async callback has an read of this->GetFilename and a write of PreloadableFileOpenResult
-				// outside of a critical section. This read and write is allowed because GetFilename does
-				// not change until this is destructed, and the destructor does not run and other threads do not read
-				// or write PreloadableFileOpenResult until after PreloadableFile.Get() has finished initialization
-				// and this callback is therefore complete.
-				// The code that accomplishes that waiting is in TryPreload (IsInitialized) and ClearPreload
-				// (ReleaseCache)
-				this->GetFileName().ToString(FileNameString);
-				FPackagePath PackagePath = FPackagePath::FromLocalPath(FileNameString);
-				FOpenPackageResult Result = IPackageResourceManager::Get().OpenReadPackage(PackagePath);
-				if (Result.Archive)
-				{
-					this->PreloadableFileOpenResult.CopyMetaData(Result);
-				}
-				return Result.Archive.Release();
-			},
-			FPreloadableFile::Flags::PreloadHandle | FPreloadableFile::Flags::Prime);
-	}
-	const TSharedPtr<FPreloadableArchive>& FilePtr = PreloadableFile.Get();
-	if (!FilePtr->IsInitialized())
-	{
-		if (GetIsUrgent())
-		{
-			// For urgent requests, wait on them to finish preloading rather than letting them run asynchronously
-			// and coming back to them later
-			FilePtr->WaitForInitialization();
-			check(FilePtr->IsInitialized());
-		}
-		else
-		{
-			return false;
-		}
-	}
-	if (FilePtr->TotalSize() < 0)
-	{
-		UE_LOG(LogCook, Warning, TEXT("Failed to find file when preloading %s."), *GetFileName().ToString());
-		SetIsPreloadAttempted(true);
-		PreloadableFile.Reset(*this);
-		PreloadableFileOpenResult = FOpenPackageResult();
-		return true;
-	}
-
-	TStringBuilder<NAME_SIZE> FileNameString;
-	GetFileName().ToString(FileNameString);
-	if (!IPackageResourceManager::TryRegisterPreloadableArchive(FPackagePath::FromLocalPath(FileNameString),
-		FilePtr, PreloadableFileOpenResult))
-	{
-		UE_LOG(LogCook, Warning, TEXT("Failed to register %s for preload."), *GetFileName().ToString());
-		SetIsPreloadAttempted(true);
-		PreloadableFile.Reset(*this);
-		PreloadableFileOpenResult = FOpenPackageResult();
-		return true;
-	}
-
-	SetIsPreloaded(true);
-	SetIsPreloadAttempted(true);
-	return true;
-}
-
-void FPackageData::FTrackedPreloadableFilePtr::Set(TSharedPtr<FPreloadableArchive>&& InPtr, FPackageData& Owner)
-{
-	Reset(Owner);
-	if (InPtr)
-	{
-		Ptr = MoveTemp(InPtr);
-		Owner.PackageDatas.GetMonitor().OnPreloadAllocatedChanged(Owner, true);
-	}
-}
-
-void FPackageData::FTrackedPreloadableFilePtr::Reset(FPackageData& Owner)
-{
-	if (Ptr)
-	{
-		Owner.PackageDatas.GetMonitor().OnPreloadAllocatedChanged(Owner, false);
-		Ptr.Reset();
-	}
-}
-
-void FPackageData::ClearPreload()
-{
-	if (AsyncRequest)
-	{
-		if (!AsyncRequest->bHasFinished)
-		{
-			FlushAsyncLoading(AsyncRequest->RequestID);
-			check(AsyncRequest->bHasFinished);
-		}
-		PackageDatas.GetMonitor().OnPreloadAllocatedChanged(*this, false);
-		AsyncRequest.Reset();
-	}
-
-	const TSharedPtr<FPreloadableArchive>& FilePtr = PreloadableFile.Get();
-	if (GetIsPreloaded())
-	{
-		check(FilePtr);
-		TStringBuilder<NAME_SIZE> FileNameString;
-		GetFileName().ToString(FileNameString);
-		if (IPackageResourceManager::UnRegisterPreloadableArchive(FPackagePath::FromLocalPath(FileNameString)))
-		{
-			UE_LOG(LogCook, Display,
-				TEXT("PreloadableFile was created for %s but never used. This is wasteful and bad for cook performance."),
-				*PackageName.ToString());
-		}
-		FilePtr->ReleaseCache(); // ReleaseCache to conserve memory if the Linker still has a pointer to it
-	}
-	else
-	{
-		check(!FilePtr || !FilePtr->IsCacheAllocated());
-	}
-
-	PreloadableFile.Reset(*this);
-	PreloadableFileOpenResult = FOpenPackageResult();
-	SetIsPreloaded(false);
-	SetIsPreloadAttempted(false);
-}
-
-void FPackageData::CheckPreloadEmpty()
-{
-	check(!AsyncRequest);
-	check(!GetIsPreloadAttempted());
-	check(!PreloadableFile.Get());
-	check(!GetIsPreloaded());
+	check(PackagePreloader != nullptr); // Guaranteed by OnEnterLoading
+	return PackagePreloader->TryPreload();
 }
 
 TArray<FCachedObjectInOuter>& FPackageData::GetCachedObjectsInOuter()
