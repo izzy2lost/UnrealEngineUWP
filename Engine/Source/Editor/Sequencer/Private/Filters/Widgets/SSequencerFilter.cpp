@@ -42,6 +42,7 @@ void SSequencerFilter::Construct(const FArguments& InArgs
 		.Style(FAppStyle::Get(), BrushName)
 		.ToolTipText(TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateSP(InFilter, &FSequencerTrackFilter::GetToolTipText)))
 		.IsChecked(this, &SSequencerFilter::IsChecked)
+		.OnCheckStateChanged(this, &SSequencerFilter::OnFilterToggled)
 		.CheckBoxContentUsesAutoWidth(false)
 		.OnGetMenuContent(this, &SSequencerFilter::GetRightClickMenuContent)
 		[
@@ -49,11 +50,10 @@ void SSequencerFilter::Construct(const FArguments& InArgs
 		]
 	];
 
-	ToggleButtonPtr->SetOnClick(FOnCheckStateChanged::CreateSP(this, &SSequencerFilter::OnFilterToggled));
-	ToggleButtonPtr->SetOnCtrlClick(FSimpleDelegate::CreateSP(this, &SSequencerFilter::OnFilterCtrlClick));
-	ToggleButtonPtr->SetOnAltClick(FSimpleDelegate::CreateSP(this, &SSequencerFilter::OnFilterAltClick));
-	ToggleButtonPtr->SetOnMiddleButtonClick(FSimpleDelegate::CreateSP(this, &SSequencerFilter::OnFilterMiddleButtonClick));
-	ToggleButtonPtr->SetOnDoubleClick(FSimpleDelegate::CreateSP(this, &SSequencerFilter::OnFilterDoubleClick));
+	ToggleButtonPtr->SetOnCtrlClick(FOnClicked::CreateSP(this, &SSequencerFilter::OnFilterCtrlClick));
+	ToggleButtonPtr->SetOnAltClick(FOnClicked::CreateSP(this, &SSequencerFilter::OnFilterAltClick));
+	ToggleButtonPtr->SetOnMiddleButtonClick(FOnClicked::CreateSP(this, &SSequencerFilter::OnFilterMiddleButtonClick));
+	ToggleButtonPtr->SetOnDoubleClick(FOnClicked::CreateSP(this, &SSequencerFilter::OnFilterDoubleClick));
 }
 
 TSharedRef<SWidget> SSequencerFilter::ConstructBasicFilterWidget()
@@ -140,40 +140,48 @@ void SSequencerFilter::OnFilterToggled(const ECheckBoxState NewState)
 		return;
 	}
 
-	const bool bNewActive = NewState != ECheckBoxState::Checked;
+	const bool bNewActive = NewState == ECheckBoxState::Checked;
 	FilterBar->SetFilterActive(Filter.ToSharedRef(), bNewActive, true);
 }
 
-void SSequencerFilter::OnFilterCtrlClick()
+FReply SSequencerFilter::OnFilterCtrlClick()
 {
 	ActivateAllButThis(false);
+
+	return FReply::Handled();
 }
 
-void SSequencerFilter::OnFilterAltClick()
+FReply SSequencerFilter::OnFilterAltClick()
 {
 	ActivateAllButThis(true);
+
+	return FReply::Handled();
 }
 
-void SSequencerFilter::OnFilterMiddleButtonClick()
+FReply SSequencerFilter::OnFilterMiddleButtonClick()
 {
 	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
 	if (!FilterBar.IsValid())
 	{
-		return;
+		return FReply::Handled();
 	}
 
 	const TSharedPtr<FSequencerTrackFilter> Filter = WeakFilter.Pin();
 	if (!Filter.IsValid())
 	{
-		return;
+		return FReply::Handled();
 	}
 
 	FilterBar->SetFilterEnabled(Filter.ToSharedRef(), false, true);
+
+	return FReply::Handled();
 }
 
-void SSequencerFilter::OnFilterDoubleClick()
+FReply SSequencerFilter::OnFilterDoubleClick()
 {
 	ActivateAllButThis(false);
+
+	return FReply::Handled();
 }
 
 TSharedRef<SWidget> SSequencerFilter::GetRightClickMenuContent()
