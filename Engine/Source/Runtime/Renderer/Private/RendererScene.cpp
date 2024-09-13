@@ -1006,15 +1006,6 @@ uint64 FTemporalRenderTargetState::GetGPUSizeBytes(bool bLogSizes) const
 	return TotalSize;
 }
 
-uint64 FShadingEnergyConservationStateData::GetGPUSizeBytes(bool bLogSizes) const
-{
-	return
-		GetRenderTargetGPUSizeBytes(GGXSpecEnergyTexture, bLogSizes) +
-		GetRenderTargetGPUSizeBytes(GGXGlassEnergyTexture, bLogSizes) +
-		GetRenderTargetGPUSizeBytes(ClothEnergyTexture, bLogSizes) +
-		GetRenderTargetGPUSizeBytes(DiffuseEnergyTexture, bLogSizes);
-}
-
 uint64 FGlintShadingLUTsStateData::GetGPUSizeBytes(bool bLogSizes) const
 {
 	return GetTextureGPUSizeBytes(RHIGlintShadingLUTs, bLogSizes);
@@ -1091,7 +1082,6 @@ uint64 FSceneViewState::GetGPUSizeBytes(bool bLogSizes) const
 	TotalSize += GetBufferGPUSizeBytes(HairStrandsViewStateData.VoxelFeedbackBuffer, bLogSizes);
 	TotalSize += GetBufferGPUSizeBytes(ShaderPrintStateData.EntryBuffer, bLogSizes);
 	TotalSize += GetBufferGPUSizeBytes(ShaderPrintStateData.StateBuffer, bLogSizes);
-	TotalSize += ShadingEnergyConservationData.GetGPUSizeBytes(bLogSizes);
 	TotalSize += GlintShadingLUTsData.GetGPUSizeBytes(bLogSizes);
 
 	// Per-view Lumen scene data is stored in a map in the FScene

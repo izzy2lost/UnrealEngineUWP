@@ -2095,22 +2095,20 @@ void FViewInfo::SetupUniformBufferParameters(
 	ViewUniformShaderParameters.HairScatteringLUTSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 
 	// Shading energy conservation
-	ViewUniformShaderParameters.bShadingEnergyConservation = 0u;
-	ViewUniformShaderParameters.bShadingEnergyPreservation = 0u;
-	ViewUniformShaderParameters.ShadingEnergySampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
-	if (ViewState)
 	{
-		ViewUniformShaderParameters.bShadingEnergyConservation		= ViewState->ShadingEnergyConservationData.bEnergyConservation ? 1u : 0u;
-		ViewUniformShaderParameters.bShadingEnergyPreservation		= ViewState->ShadingEnergyConservationData.bEnergyPreservation ? 1u : 0u;
-		ViewUniformShaderParameters.ShadingEnergyGGXSpecTexture		= ViewState->ShadingEnergyConservationData.GGXSpecEnergyTexture ? ViewState->ShadingEnergyConservationData.GGXSpecEnergyTexture->GetRHI() : nullptr;
-		ViewUniformShaderParameters.ShadingEnergyGGXGlassTexture	= ViewState->ShadingEnergyConservationData.GGXGlassEnergyTexture ? ViewState->ShadingEnergyConservationData.GGXGlassEnergyTexture->GetRHI() : nullptr;
-		ViewUniformShaderParameters.ShadingEnergyClothSpecTexture	= ViewState->ShadingEnergyConservationData.ClothEnergyTexture ? ViewState->ShadingEnergyConservationData.ClothEnergyTexture->GetRHI() : nullptr;
-		ViewUniformShaderParameters.ShadingEnergyDiffuseTexture		= ViewState->ShadingEnergyConservationData.DiffuseEnergyTexture ? ViewState->ShadingEnergyConservationData.DiffuseEnergyTexture->GetRHI() : nullptr;
+		const FShadingEnergyConservationData ShadingEnergyConservationData = ShadingEnergyConservation::GetData(*this);
+		ViewUniformShaderParameters.bShadingEnergyConservation		= ShadingEnergyConservationData.bEnergyConservation ? 1u : 0u;
+		ViewUniformShaderParameters.bShadingEnergyPreservation		= ShadingEnergyConservationData.bEnergyPreservation ? 1u : 0u;
+		ViewUniformShaderParameters.ShadingEnergyGGXSpecTexture		= ShadingEnergyConservationData.GGXSpecEnergyTexture ? ShadingEnergyConservationData.GGXSpecEnergyTexture->GetRHI() : nullptr;
+		ViewUniformShaderParameters.ShadingEnergyGGXGlassTexture	= ShadingEnergyConservationData.GGXGlassEnergyTexture ?ShadingEnergyConservationData.GGXGlassEnergyTexture->GetRHI() : nullptr;
+		ViewUniformShaderParameters.ShadingEnergyClothSpecTexture	= ShadingEnergyConservationData.ClothEnergyTexture ?   ShadingEnergyConservationData.ClothEnergyTexture->GetRHI() : nullptr;
+		ViewUniformShaderParameters.ShadingEnergyDiffuseTexture		= ShadingEnergyConservationData.DiffuseEnergyTexture ? ShadingEnergyConservationData.DiffuseEnergyTexture->GetRHI() : nullptr;
 	}
 	ViewUniformShaderParameters.ShadingEnergyGGXSpecTexture		 = OrBlack2DIfNull(ViewUniformShaderParameters.ShadingEnergyGGXSpecTexture);
 	ViewUniformShaderParameters.ShadingEnergyGGXGlassTexture	 = OrBlack3DIfNull(ViewUniformShaderParameters.ShadingEnergyGGXGlassTexture);
 	ViewUniformShaderParameters.ShadingEnergyClothSpecTexture	 = OrBlack2DIfNull(ViewUniformShaderParameters.ShadingEnergyClothSpecTexture);
 	ViewUniformShaderParameters.ShadingEnergyDiffuseTexture		 = OrBlack2DIfNull(ViewUniformShaderParameters.ShadingEnergyDiffuseTexture);
+	ViewUniformShaderParameters.ShadingEnergySampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 
 	// Glint
 	ViewUniformShaderParameters.GlintSampler = TStaticSamplerState<SF_Trilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
