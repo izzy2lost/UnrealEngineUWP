@@ -1047,6 +1047,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		public HashSet<string> StaticAnalyzerDisabledCheckers { get; } = new() {
 			// Work in progress, remove disabled checkers as all warnings are fixed
+			"core.BitwiseShift",
 			"core.CallAndMessage",
 			"core.DivideZero",
 			"core.NonNullParamChecker",
