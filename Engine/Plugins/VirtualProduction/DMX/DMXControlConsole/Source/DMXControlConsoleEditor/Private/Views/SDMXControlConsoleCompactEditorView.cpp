@@ -53,10 +53,11 @@ namespace UE::DMX::Private
 		{
 			bStopSendingDMXOnDestruct = !ControlConsoleData->IsSendingDMX();
 
-			SetupCommands();
-
 			EditorModel = NewObject<UDMXControlConsoleEditorModel>(GetTransientPackage(), NAME_None, RF_Transient | RF_Transactional);
 			EditorModel->Initialize(ControlConsole);
+
+			// Setup commands now, it relies on EditorModel and is required for PlayMenuModel
+			SetupCommands();
 
 			PlayMenuModel = NewObject<UDMXControlConsoleEditorPlayMenuModel>(GetTransientPackage(), NAME_None, RF_Transient | RF_Transactional);
 			PlayMenuModel->Initialize(ControlConsole, CommandList.ToSharedRef());
@@ -170,13 +171,16 @@ namespace UE::DMX::Private
 	{
 		CommandList = MakeShared<FUICommandList>();
 
-		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
-		constexpr bool bSelectOnlyVisible = true;
-		CommandList->MapAction
-		(
-			FDMXControlConsoleEditorCommands::Get().SelectAll,
-			FExecuteAction::CreateSP(SelectionHandler, &FDMXControlConsoleEditorSelection::SelectAll, bSelectOnlyVisible)
-		);
+		if (ensureMsgf(EditorModel, TEXT("Invalid Editor Model, cannot setup commands for Control Console Compact Editor")))
+		{
+			const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
+			constexpr bool bSelectOnlyVisible = true;
+			CommandList->MapAction
+			(
+				FDMXControlConsoleEditorCommands::Get().SelectAll,
+				FExecuteAction::CreateSP(SelectionHandler, &FDMXControlConsoleEditorSelection::SelectAll, bSelectOnlyVisible)
+			);
+		}
 	}
 
 	TSharedRef<SWidget> SDMXControlConsoleCompactEditorView::CreateToolbar()
