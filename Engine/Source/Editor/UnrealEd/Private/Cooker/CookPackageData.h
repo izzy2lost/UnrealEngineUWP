@@ -23,13 +23,9 @@
 #include "UObject/GCObject.h"
 #include "UObject/ICookInfo.h"
 #include "UObject/NameTypes.h"
-#include "UObject/PackageResourceManager.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
-#include <atomic>
-
-class FPreloadableFile;
 class FReferenceCollector;
 class ITargetPlatform;
 class FCbFieldView;
@@ -38,6 +34,7 @@ class UCookOnTheFlyServer;
 class UObject;
 class UPackage;
 namespace UE::Cook { class FCookWorkerClient; }
+namespace UE::Cook { class FPackagePreloader; }
 namespace UE::Cook { class FRequestCluster; }
 namespace UE::Cook { struct FConstructPackageData; }
 namespace UE::Cook { struct FDiscoveredPlatformSet; }
@@ -518,16 +515,6 @@ public:
 
 	/** Try to preload the file. Return true if preloading is complete (succeeded or failed or was skipped). */
 	bool TryPreload();
-	/** Get/Set whether preloading is complete (succeeded or failed or was skipped). */
-	bool GetIsPreloadAttempted() const { return bIsPreloadAttempted != 0; }
-	void SetIsPreloadAttempted(bool bValue) { bIsPreloadAttempted = static_cast<uint32>(bValue); }
-	/** Get/Set whether preloading succeeded and completed. */
-	bool GetIsPreloaded() const { return bIsPreloaded != 0; }
-	void SetIsPreloaded(bool bValue) { bIsPreloaded = static_cast<uint32>(bValue); }
-	/** Clear any allocated preload data. */
-	void ClearPreload();
-	/** Issue check statements confirming that no preload data is allocated or flags are set. */
-	void CheckPreloadEmpty();
 
 	/**
 	 * The list of objects inside the package.  Only non-empty during saving; it is populated on demand by
@@ -605,6 +592,16 @@ public:
 
 	/** Swap all ITargetPlatform* stored on this instance according to the mapping in @param Remap. */
 	void RemapTargetPlatforms(const TMap<ITargetPlatform*, ITargetPlatform*>& Remap);
+
+	// The PackagePreloader holds data necessary to preload and load the UPackage for this PackageData.
+	// It is used during this PackageData's load state, but also during the load of packages that have
+	// a transitive import of it, so it is refcounted.
+	/** Return the PackagePreloader if it already exists, otherwise return nullptr. */
+	TRefCountPtr<FPackagePreloader> GetPackagePreloader() const;
+	/** Create the PackagePreloader if it does not already exist and return a non-null TRefCountPtr to it. */
+	TRefCountPtr<FPackagePreloader> CreatePackagePreloader();
+	/** Helper function for ~FPackagePreloader: clear the pointer this->PackagePreloader. */
+	void OnPackagePreloaderDestroyed(FPackagePreloader& InPackagePreloader);
 
 	// GenerationHelper is set on packages that are generator packages: they generate other packages
 	// during cook. The PackageData for the generator package has a pointer to the GenerationHelper to look
@@ -804,33 +801,13 @@ private:
 	FName FileName;
 	FName ParentGenerator;
 
-	struct FAsyncRequest
-	{
-		int32 RequestID { 0 };
-		std::atomic<bool> bHasFinished { false };
-	};
-	TSharedPtr<FAsyncRequest> AsyncRequest;
-
 	TWeakObjectPtr<UPackage> Package;
 	/** The one-per-CookOnTheFlyServer owner of this PackageData. */
 	FPackageDatas& PackageDatas;
-	/**
-	 * The number of active PreloadableFiles is tracked globally; wrap the PreloadableFile in a struct that
-	 * guarantees we always update the counter when changing it
-	 */
-	struct FTrackedPreloadableFilePtr
-	{
-		const TSharedPtr<FPreloadableArchive>& Get() { return Ptr; }
-		void Set(TSharedPtr<FPreloadableArchive>&& InPtr, FPackageData& PackageData);
-		void Reset(FPackageData& PackageData);
-	private:
-		TSharedPtr<FPreloadableArchive> Ptr;
-	};
-	FTrackedPreloadableFilePtr PreloadableFile;
+	FPackagePreloader* PackagePreloader = nullptr;
 	int32 NumPendingCookedPlatformData = 0;
 	int32 CookedPlatformDataNextIndex = -1;
 	int32 NumRetriesBeginCacheOnObject = 0;
-	FOpenPackageResult PreloadableFileOpenResult;
 	FInstigator Instigator;
 
 	FWorkerId WorkerAssignment = FWorkerId::Invalid();
@@ -841,8 +818,6 @@ private:
 	uint32 bIsUrgent : 1;
 	uint32 bIsCookLast : 1;
 	uint32 bIsVisited : 1;
-	uint32 bIsPreloadAttempted : 1;
-	uint32 bIsPreloaded : 1;
 	uint32 bHasSaveCache : 1;
 	uint32 bPrepareSaveFailed : 1;
 	uint32 bPrepareSaveRequiresGC : 1;
