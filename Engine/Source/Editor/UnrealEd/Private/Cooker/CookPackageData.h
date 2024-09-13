@@ -379,7 +379,7 @@ public:
 	 * Clear all the inprogress variables from the current PackageData. It is invalid to call this except when
 	 * the PackageData is transitioning out of InProgress.
 	 */
-	void ClearInProgressData();
+	void ClearInProgressData(EStateChangeReason StateChangeReason);
 
 	/**
 	 * FindOrAdd each TargetPlatform and set its flags: CookAttempted=true, Succeeded=<given>.
@@ -437,6 +437,10 @@ public:
 	 * returns ECookResult::NotAttempted, otherwise returns whatever result has been set.
 	 */
 	ECookResult GetCookResults(const ITargetPlatform* Platform) const;
+	/** Get/Set the SuppressCookReason for the package. Defaults to ESuppressCookReason::NotSuppressed. */
+	ESuppressCookReason GetSuppressCookReason() const;
+	/** Get/Set the SuppressCookReason for the package. Defaults to ESuppressCookReason::NotSuppressed. */
+	void SetSuppressCookReason(ESuppressCookReason Reason);
 
 	/**
 	 * Return the package pointer. By contract it will be non-null if and only if the PackageData's state is
@@ -639,7 +643,8 @@ public:
 	 * Set the owning generator PackageData. Only valid to call with non-null if SetGenerated() has been called. Keeps
 	 * the GenerationHelper referenced until SetParentGenerationHelper(nullptr) is called.
 	 */
-	void SetParentGenerationHelper(FGenerationHelper* InGenerationHelper);
+	void SetParentGenerationHelper(FGenerationHelper* InGenerationHelper, EStateChangeReason StateChangeReason,
+		FCookGenerationInfo* InfoOfPackageInGenerator = nullptr);
 	/** Return the ParentGenerator's GenerationHelper if the pointer to it has already been set on this. */
 	TRefCountPtr<FGenerationHelper> GetParentGenerationHelper() const;
 	/**
@@ -776,7 +781,7 @@ private:
 	void OnEnterSaveStalledAssignedToWorker();
 	void OnExitSaveStalledAssignedToWorker();
 	/* Entry/Exit gates for Properties shared between multiple states */
-	void OnExitInProgress();
+	void OnExitInProgress(EStateChangeReason StateChangeReason);
 	void OnEnterInProgress();
 	void OnExitLoading();
 	void OnEnterLoading();
@@ -832,6 +837,7 @@ private:
 	FWorkerId WorkerAssignmentConstraint = FWorkerId::Invalid();
 	uint32 State : int32(EPackageState::BitCount);
 	uint32 SaveSubState : int32(ESaveSubState::BitCount);
+	uint32 SuppressCookReason : int32(ESuppressCookReason::BitCount);
 	uint32 bIsUrgent : 1;
 	uint32 bIsCookLast : 1;
 	uint32 bIsVisited : 1;
@@ -1514,6 +1520,16 @@ inline void FPackageData::GetReachablePlatforms(ArrayType& OutPlatforms) const
 inline ESaveSubState FPackageData::GetSaveSubState() const
 {
 	return static_cast<ESaveSubState>(SaveSubState);
+}
+
+inline ESuppressCookReason FPackageData::GetSuppressCookReason() const
+{
+	return static_cast<ESuppressCookReason>(SuppressCookReason);
+}
+
+inline void FPackageData::SetSuppressCookReason(ESuppressCookReason Reason)
+{
+	SuppressCookReason = static_cast<uint32>(Reason);
 }
 
 inline bool FPackageData::HasCompletedGeneration() const

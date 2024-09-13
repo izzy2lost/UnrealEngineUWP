@@ -168,6 +168,8 @@ namespace UE::Cook
 		MultiprocessAssignmentError,
 		RetractedByCookDirector,
 		CookFilter,
+		Count,
+		BitCount = FPlatformMath::ConstExprCeilLogTwo(Count),
 	};
 	const TCHAR* LexToString(UE::Cook::ESuppressCookReason Reason);
 	EStateChangeReason ConvertToStateChangeReason(ESuppressCookReason Reason);

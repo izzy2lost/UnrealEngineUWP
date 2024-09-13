@@ -103,6 +103,7 @@ FPackageData::FPackageData(FPackageDatas& PackageDatas, const FName& InPackageNa
 {
 	SetState(EPackageState::Idle);
 	SetSaveSubState(ESaveSubState::StartSave);
+	SetSuppressCookReason(ESuppressCookReason::NotSuppressed);
 
 	SendToState(EPackageState::Idle, ESendFlags::QueueAdd, EStateChangeReason::Discovered);
 }
@@ -127,7 +128,7 @@ void FPackageData::ClearReferences()
 	{
 		GenerationHelper->ClearSelfReferences();
 	}
-	ParentGenerationHelper.SafeRelease();
+	SetParentGenerationHelper(nullptr, EStateChangeReason::CookerShutdown);
 }
 
 const FName& FPackageData::GetPackageName() const
@@ -327,7 +328,7 @@ void FPackageData::SetInstigatorInternal(FInstigator&& InInstigator)
 	}
 }
 
-void FPackageData::ClearInProgressData()
+void FPackageData::ClearInProgressData(EStateChangeReason StateChangeReason)
 {
 	SetIsUrgent(false);
 	CompletionCallback = FCompletionCallback();
@@ -339,7 +340,7 @@ void FPackageData::ClearInProgressData()
 		// in progress.
 		GenerationHelper->ClearKeepForGeneratorSave();
 	}
-	ParentGenerationHelper.SafeRelease();
+	SetParentGenerationHelper(nullptr, StateChangeReason);
 }
 
 void FPackageData::SetPlatformsCooked(
@@ -444,6 +445,7 @@ void FPackageData::ClearCookResults()
 		bWasCookedThisSession = false;
 		PackageDatas.GetMonitor().OnLastCookedPlatformRemoved(*this);
 	}
+	SetSuppressCookReason(ESuppressCookReason::NotSuppressed);
 }
 
 void FPackageData::ClearCookResults(const ITargetPlatform* TargetPlatform)
@@ -695,7 +697,7 @@ void FPackageData::SendToState(EPackageState NextState, ESendFlags SendFlags, ES
 			switch (Iterator)
 			{
 			case EPackageStateProperty::InProgress:
-				OnExitInProgress();
+				OnExitInProgress(ReleaseSaveReason);
 				break;
 			case EPackageStateProperty::Loading:
 				OnExitLoading();
@@ -940,11 +942,13 @@ void FPackageData::OnEnterAssignedToWorker()
 {
 	if (IsGenerated())
 	{
-		// Clear the referencecount that we added in OnEnterInProgress; we don't want to keep
-		// the GenerationHelper referenced for the entire duration of assigned packages
-		// running on other CookWorkers. If this package gets retracted and moved into
-		// LoadState locally, we will recreate the GenerationHelper if necessary.
-		ParentGenerationHelper.SafeRelease();
+		// Clear the referencecount that we added in OnEnterInProgress; we don't want to keep the GenerationHelper
+		// referenced for the entire duration of assigned packages running on other CookWorkers. If this package gets
+		// retracted and moved into LoadState locally, we will recreate the GenerationHelper if necessary.
+		// Since we have set the ParentGenerationHelper to null, we can no automatically longer report to the
+		// GenerationHelper that the package has saved when it transitions to Idle. Reporting to the GenerationHelper
+		// that this FPackageData has saved is now the responsibility of the CookWorkerServer's RecordResults function.
+		SetParentGenerationHelper(nullptr, EStateChangeReason::Retraction);
 	}
 }
 
@@ -1028,7 +1032,7 @@ void FPackageData::OnEnterInProgress()
 	}
 }
 
-void FPackageData::OnExitInProgress()
+void FPackageData::OnExitInProgress(EStateChangeReason StateChangeReason)
 {
 	PackageDatas.GetMonitor().OnInProgressChanged(*this, false);
 	UE::Cook::FCompletionCallback LocalCompletionCallback(MoveTemp(GetCompletionCallback()));
@@ -1036,7 +1040,7 @@ void FPackageData::OnExitInProgress()
 	{
 		LocalCompletionCallback(this);
 	}
-	ClearInProgressData();
+	ClearInProgressData(StateChangeReason);
 }
 
 void FPackageData::OnEnterLoading()
@@ -1647,10 +1651,24 @@ TRefCountPtr<FGenerationHelper> FPackageData::GetParentGenerationHelper() const
 	return ParentGenerationHelper;
 }
 
-void FPackageData::SetParentGenerationHelper(FGenerationHelper* InGenerationHelper)
+void FPackageData::SetParentGenerationHelper(FGenerationHelper* InGenerationHelper,
+	EStateChangeReason StateChangeReason, FCookGenerationInfo* InfoOfPackageInGenerator)
 {
 	check(InGenerationHelper == nullptr || IsGenerated());
 	check(!(ParentGenerationHelper && InGenerationHelper) || ParentGenerationHelper == InGenerationHelper);
+
+	if (ParentGenerationHelper && !InGenerationHelper && IsTerminalStateChange(StateChangeReason))
+	{
+		// The package's progress is completed and we will not come back to it; report the package was saved.
+		if (!InfoOfPackageInGenerator)
+		{
+			InfoOfPackageInGenerator = ParentGenerationHelper->FindInfo(*this);
+		}
+		if (InfoOfPackageInGenerator)
+		{
+			InfoOfPackageInGenerator->SetHasSaved(*ParentGenerationHelper, true, FWorkerId::Local());
+		}
+	}
 	ParentGenerationHelper = InGenerationHelper;
 }
 
@@ -1671,7 +1689,7 @@ TRefCountPtr<FGenerationHelper> FPackageData::GetOrFindParentGenerationHelper()
 		return nullptr;
 	}
 
-	ParentGenerationHelper = OwnerPackageData->GetGenerationHelper();
+	SetParentGenerationHelper(OwnerPackageData->GetGenerationHelper(), EStateChangeReason::Requested);
 	return ParentGenerationHelper;
 }
 
@@ -1681,7 +1699,7 @@ TRefCountPtr<FGenerationHelper> FPackageData::TryCreateValidParentGenerationHelp
 	{
 		if (!ParentGenerationHelper->IsValid())
 		{
-			ParentGenerationHelper.SafeRelease();
+			SetParentGenerationHelper(nullptr, EStateChangeReason::Requested);
 		}
 		return ParentGenerationHelper;
 	}

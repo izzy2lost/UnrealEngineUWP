@@ -940,7 +940,11 @@ void FCookWorkerServer::RecordResults(FPackageResultsMessage& Message)
 			else
 			{
 				ParentGenerationHelper->MarkPackageSavedRemotely(COTFS, *PackageData, GetWorkerId());
-				PackageData->SetParentGenerationHelper(nullptr);
+				EStateChangeReason StateChangeReason =
+					Result.GetSuppressCookReason() == ESuppressCookReason::NotSuppressed
+					? EStateChangeReason::Saved
+					: ConvertToStateChangeReason(Result.GetSuppressCookReason());
+				PackageData->SetParentGenerationHelper(nullptr, StateChangeReason);
 			}
 		}
 		TRefCountPtr<FGenerationHelper> GenerationHelper = PackageData->GetGenerationHelper();
