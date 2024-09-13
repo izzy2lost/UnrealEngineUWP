@@ -634,6 +634,11 @@ FNiagaraCompilationTaskHandle FNiagaraEditorModule::RequestCompileSystem(UNiagar
 	const TArray<TWeakObjectPtr<UNiagaraParameterCollection>>& Collections = ParameterCollectionAssetCache.Get();
 	CompileOptions.ParameterCollections = ParameterCollectionAssetCache.Get();
 
+	// the issue here is that we aren't strictly allowed to call ComputeVMCompilationId on the worker threads which leaves us in a
+	// state where we could have broken RI parameters.  We ensure that the RI parameters are up to date before we begin.  This is a
+	// costly operation, but sadly seems necessary for some content.
+	System->PrepareRapidIterationParametersForCompilation();
+
 	return FNiagaraSystemCompilingManager::Get().AddSystem(System, CompileOptions);
 }
 
