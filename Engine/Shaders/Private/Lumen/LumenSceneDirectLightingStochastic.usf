@@ -301,7 +301,7 @@ void GenerateLightSamplesCS(
 		#endif
 
 		const FTransientCoord TransientCoord = GetTransientCoord(TileIndex, GroupThreadId.xy);
-		const uint ViewIndex = GetCardViewIndex(CardPage, Card, UVMin, UVMax, NumViews, true);
+		const uint ViewIndex = GetCardViewIndex(CardPage, Card, UVMin, UVMax, float2(0, 1), NumViews, true);
 
 		// 2. Cull & Sample lights
 		{

@@ -125,11 +125,11 @@ FDFVector3 GetPreViewTranslation(uint ViewIndex)
 	return MakeDFVector3(PreViewTranslationHigh[ViewIndex].xyz, PreViewTranslationLow[ViewIndex].xyz);
 }
 
-uint GetCardViewIndex(FLumenCardPageData CardPage, FLumenCardData Card, float2 UVMin, float2 UVMax, uint NumViews, bool bPrioritizeWhenInFrustum)
+uint GetCardViewIndex(FLumenCardPageData CardPage, FLumenCardData Card, float2 UVMin, float2 UVMax, float2 CardTileDepthRange, uint NumViews, bool bPrioritizeWhenInFrustum)
 {
 	float3 CardPageLocalCenter;
 	float3 CardPageLocalExtent;
-	GetCardLocalBBox(CardPage, Card, UVMin, UVMax, CardPageLocalCenter, CardPageLocalExtent);
+	GetCardLocalBBox(CardPage, Card, UVMin, UVMax, CardTileDepthRange, CardPageLocalCenter, CardPageLocalExtent);
 
 	uint ViewIndex = 0;
 	

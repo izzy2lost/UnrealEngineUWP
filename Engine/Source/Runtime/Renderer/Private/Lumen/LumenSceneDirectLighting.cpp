@@ -43,6 +43,13 @@ static TAutoConsoleVariable<int32> CVarLumenDirectLightingMaxLightsPerTile(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarLumenDirectLightingCullToTileDepthRange(
+	TEXT("r.LumenScene.DirectLighting.CullToTileDepthRange"),
+	1,
+	TEXT("Whether to calculate each Card Tile's depth range and use it for tighter light culling."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 float GOffscreenShadowingTraceStepFactor = 5;
 FAutoConsoleVariableRef CVarOffscreenShadowingTraceStepFactor(
 	TEXT("r.LumenScene.DirectLighting.OffscreenShadowingTraceStepFactor"),
@@ -244,27 +251,6 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLumenLightTileScatterParameters, )
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, LightTileOffsetsPerLight)
 END_SHADER_PARAMETER_STRUCT()
 
-class FRasterizeToLightTilesVS : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FRasterizeToLightTilesVS);
-	SHADER_USE_PARAMETER_STRUCT(FRasterizeToLightTilesVS, FGlobalShader);
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FLumenCardScene, LumenCardScene)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenLightTileScatterParameters, LightTileScatterParameters)
-		SHADER_PARAMETER(uint32, LightIndex)
-		SHADER_PARAMETER(uint32, ViewIndex)
-		SHADER_PARAMETER(uint32, NumViews)
-	END_SHADER_PARAMETER_STRUCT()
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return DoesPlatformSupportLumenGI(Parameters.Platform);
-	}
-};
-
-IMPLEMENT_GLOBAL_SHADER(FRasterizeToLightTilesVS,"/Engine/Private/Lumen/LumenSceneDirectLightingCulling.usf","RasterizeToLightTilesVS",SF_Vertex);
-
 class FSpliceCardPagesIntoTilesCS : public FGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FSpliceCardPagesIntoTilesCS);
@@ -393,6 +379,40 @@ void Lumen::SpliceCardPagesIntoTiles(
 	OutCardTileUpdateContext.DispatchCardTilesIndirectArgs = DispatchCardTilesIndirectArgs;
 }
 
+class FCalculateCardTileDepthRangesCS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FCalculateCardTileDepthRangesCS);
+	SHADER_USE_PARAMETER_STRUCT(FCalculateCardTileDepthRangesCS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		RDG_BUFFER_ACCESS(IndirectArgBuffer, ERHIAccess::IndirectArgs)
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FLumenCardScene, LumenCardScene)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWCardTileDepthRanges)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CardTileAllocator)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CardTiles)
+	END_SHADER_PARAMETER_STRUCT()
+
+	using FPermutationDomain = TShaderPermutationDomain<>;
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return DoesPlatformSupportLumenGI(Parameters.Platform);
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
+	}
+
+	static int32 GetGroupSize()
+	{
+		return Lumen::CardTileSize;
+	}
+};
+
+IMPLEMENT_GLOBAL_SHADER(FCalculateCardTileDepthRangesCS, "/Engine/Private/Lumen/LumenSceneDirectLightingCulling.usf", "CalculateCardTileDepthRangesCS", SF_Compute);
+
 class FBuildLightTilesCS : public FGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FBuildLightTilesCS);
@@ -410,6 +430,8 @@ class FBuildLightTilesCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWLightTileOffsetNumPerCardTile)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CardTileAllocator)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CardTiles)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CardTileDepthRanges)
+		SHADER_PARAMETER(uint32, CullToCardTileDepthRange)
 		SHADER_PARAMETER(uint32, MaxLightsPerTile)
 		SHADER_PARAMETER(uint32, NumLights)
 		SHADER_PARAMETER(uint32, NumViews)
@@ -1578,7 +1600,7 @@ static void CullDirectLightingTiles(
 	TConstArrayView<FLumenGatheredLight> GatheredLights,
 	const LumenSceneDirectLighting::FLightDataParameters& LumenLightData,
 	FLightTileCullContext& CullContext,
-	FLumenCardTileUpdateContext& CardTileUpdateCotnext,
+	FLumenCardTileUpdateContext& CardTileUpdateContext,
 	ERDGPassFlags ComputePassFlags)
 {
 	RDG_EVENT_SCOPE(GraphBuilder, "CullTiles %d lights", GatheredLights.Num());
@@ -1591,11 +1613,36 @@ static void CullDirectLightingTiles(
 	const uint32 MaxLightsPerTile = FMath::RoundUpToPowerOfTwo(FMath::Clamp(CVarLumenDirectLightingMaxLightsPerTile.GetValueOnRenderThread(), 1, 32));
 	const uint32 MaxCulledCardTiles = MaxLightsPerTile * MaxLightTiles;
 
-	Lumen::SpliceCardPagesIntoTiles(GraphBuilder, GlobalShaderMap, CardUpdateContext, LumenCardSceneUniformBuffer, CardTileUpdateCotnext, ComputePassFlags);
+	Lumen::SpliceCardPagesIntoTiles(GraphBuilder, GlobalShaderMap, CardUpdateContext, LumenCardSceneUniformBuffer, CardTileUpdateContext, ComputePassFlags);
 
-	FRDGBufferRef CardTileAllocator = CardTileUpdateCotnext.CardTileAllocator;
-	FRDGBufferRef CardTiles = CardTileUpdateCotnext.CardTiles;
-	FRDGBufferRef DispatchCardTilesIndirectArgs = CardTileUpdateCotnext.DispatchCardTilesIndirectArgs;
+	const bool bCullToCardTileDepthRange = CVarLumenDirectLightingCullToTileDepthRange.GetValueOnRenderThread() != 0;
+
+	FRDGBufferRef CardTileDepthRanges = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), bCullToCardTileDepthRange ? MaxLightTiles : 1), TEXT("Lumen.CardTileDepthRanges"));
+	FRDGBufferRef CardTileAllocator = CardTileUpdateContext.CardTileAllocator;
+	FRDGBufferRef CardTiles = CardTileUpdateContext.CardTiles;
+	FRDGBufferRef DispatchCardTilesIndirectArgs = CardTileUpdateContext.DispatchCardTilesIndirectArgs;
+
+	// Calculate min and max card tile depth for better light culling
+	if (bCullToCardTileDepthRange)
+	{
+		FCalculateCardTileDepthRangesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FCalculateCardTileDepthRangesCS::FParameters>();
+		PassParameters->IndirectArgBuffer = DispatchCardTilesIndirectArgs;
+		PassParameters->LumenCardScene = LumenCardSceneUniformBuffer;
+		PassParameters->RWCardTileDepthRanges = GraphBuilder.CreateUAV(CardTileDepthRanges);
+		PassParameters->CardTileAllocator = GraphBuilder.CreateSRV(CardTileAllocator);
+		PassParameters->CardTiles = GraphBuilder.CreateSRV(CardTiles);
+
+		auto ComputeShader = GlobalShaderMap->GetShader<FCalculateCardTileDepthRangesCS>();
+
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("CalculateCardTileDepthRanges"),
+			ComputePassFlags,
+			ComputeShader,
+			PassParameters,
+			DispatchCardTilesIndirectArgs,
+			(uint32)ELumenDispatchCardTilesIndirectArgsOffset::OneGroupPerCardTile);
+	}
 
 	FRDGBufferRef LightTileAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 1), TEXT("Lumen.DirectLighting.LightTileAllocator"));
 	FRDGBufferRef LightTiles = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(2 * sizeof(uint32), MaxCulledCardTiles), TEXT("Lumen.DirectLighting.LightTiles"));
@@ -1624,6 +1671,8 @@ static void CullDirectLightingTiles(
 		PassParameters->RWLightTileOffsetNumPerCardTile = GraphBuilder.CreateUAV(LightTileOffsetNumPerCardTile);
 		PassParameters->CardTileAllocator = GraphBuilder.CreateSRV(CardTileAllocator);
 		PassParameters->CardTiles = GraphBuilder.CreateSRV(CardTiles);
+		PassParameters->CardTileDepthRanges = bCullToCardTileDepthRange ? GraphBuilder.CreateSRV(CardTileDepthRanges) : PassParameters->CardTiles;
+		PassParameters->CullToCardTileDepthRange = bCullToCardTileDepthRange ? 1 : 0;
 		PassParameters->MaxLightsPerTile = MaxLightsPerTile;
 		PassParameters->NumLights = GatheredLights.Num();
 		PassParameters->NumViews = NumViewOrigins;
