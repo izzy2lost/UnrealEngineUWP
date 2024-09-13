@@ -4359,6 +4359,7 @@ void SAnimNotifyPanel::PostUndo( bool bSuccess )
 	{
 		Sequence->RefreshCacheData();
 	}
+	RefreshNotifyTracks();
 }
 
 void SAnimNotifyPanel::PostRedo( bool bSuccess )
@@ -4367,6 +4368,7 @@ void SAnimNotifyPanel::PostRedo( bool bSuccess )
 	{
 		Sequence->RefreshCacheData();
 	}
+	RefreshNotifyTracks();
 }
 
 void SAnimNotifyPanel::OnDeletePressed()
