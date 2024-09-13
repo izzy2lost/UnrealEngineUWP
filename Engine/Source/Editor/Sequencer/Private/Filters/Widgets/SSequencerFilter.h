@@ -32,10 +32,10 @@ protected:
 
 	void OnFilterToggled(const ECheckBoxState NewState);
 
-	void OnFilterCtrlClick();
-	void OnFilterAltClick();
-	void OnFilterMiddleButtonClick();
-	void OnFilterDoubleClick();
+	FReply OnFilterCtrlClick();
+	FReply OnFilterAltClick();
+	FReply OnFilterMiddleButtonClick();
+	FReply OnFilterDoubleClick();
 
 	TSharedRef<SWidget> GetRightClickMenuContent();
 
