@@ -9,6 +9,7 @@ class FActorStaticMeshComponentInterface : public IStaticMeshComponent
 public:
 #if WITH_EDITOR
 	virtual void OnMeshRebuild(bool bRenderDataChanged) override;
+	virtual void PreStaticMeshCompilation() override;
 	virtual void PostStaticMeshCompilation() override;
 #endif
 	virtual UStaticMesh* GetStaticMesh() const override;
