@@ -68,24 +68,27 @@ struct FHttpStatsPlatform
 
 struct FHttpStats
 {
+	// Use atomic for the following fields because csv profiler reads them from game thread while 
+	// http thread record them from http thread
+
 	/** The number of requests waiting in queue in http manager */
-	int32 RequestsInQueue = 0;
+	std::atomic<int32> RequestsInQueue = 0;
 	/** The number of requests in flight in http manager */
-	int32 RequestsInFlight = 0;
+	std::atomic<int32> RequestsInFlight = 0;
 	/** The max time to successfully connect the backend */
-	float MaxTimeToConnect = -1.0f;
+	std::atomic<float> MaxTimeToConnect = -1.0f;
 	/** The max waiting queue in http manager */
-	uint32 MaxRequestsInQueue = 0;
+	std::atomic<uint32> MaxRequestsInQueue = 0;
 	/** The max number of requests in flight in http manager */
-	uint32 MaxRequestsInFlight = 0;
+	std::atomic<uint32> MaxRequestsInFlight = 0;
 	/** The max waiting time in queue of http manager */
-	float MaxTimeToWaitInQueue = 0.0f;
+	std::atomic<float> MaxTimeToWaitInQueue = 0.0f;
 	/** The total bytes downloaded so far */
-	int64 TotalDownloadedBytes = 0;
+	std::atomic<int64> TotalDownloadedBytes = 0;
 	/** Approximate download bandwidth used */
-	int64 BandwidthMbps = 0;
+	std::atomic<int64> BandwidthMbps = 0;
 	/** Avg duration (in milliseconds) from request to response */
-	int64 HttpDurationMsAvg = 0;
+	std::atomic<int64> HttpDurationMsAvg = 0;
 	/** The optional http stats on specific platform */
 	TOptional<FHttpStatsPlatform> PlatformStats;
 
@@ -101,6 +104,24 @@ struct FHttpStats
 			&& HttpDurationMsAvg == Other.HttpDurationMsAvg
 			&& FMath::IsNearlyEqual(MaxTimeToConnect, Other.MaxTimeToConnect)
 			&& FMath::IsNearlyEqual(MaxTimeToWaitInQueue, Other.MaxTimeToWaitInQueue);
+	}
+
+	FHttpStats()
+	{
+	}
+
+	FHttpStats(const FHttpStats& Other)
+		: RequestsInQueue(Other.RequestsInQueue.load())
+		, RequestsInFlight(Other.RequestsInFlight.load())
+		, MaxTimeToConnect(Other.MaxTimeToConnect.load())
+		, MaxRequestsInQueue(Other.MaxRequestsInQueue.load())
+		, MaxRequestsInFlight(Other.MaxRequestsInFlight.load())
+		, MaxTimeToWaitInQueue(Other.MaxTimeToWaitInQueue.load())
+		, TotalDownloadedBytes(Other.TotalDownloadedBytes.load())
+		, BandwidthMbps(Other.BandwidthMbps.load())
+		, HttpDurationMsAvg(Other.HttpDurationMsAvg.load())
+		, PlatformStats(Other.PlatformStats)
+	{
 	}
 };
 

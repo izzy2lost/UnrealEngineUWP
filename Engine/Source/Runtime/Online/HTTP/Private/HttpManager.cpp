@@ -522,15 +522,15 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 	
 	// Report csv stats.
-	int32 TotalDownloadedMB = int32(HttpStats.TotalDownloadedBytes >> 20);
-	CSV_CUSTOM_STAT_DEFINED(RequestsInQueue, HttpStats.RequestsInQueue, ECsvCustomStatOp::Set);
-	CSV_CUSTOM_STAT_DEFINED(MaxRequestsInQueue, int32(HttpStats.MaxRequestsInQueue), ECsvCustomStatOp::Set);
-	CSV_CUSTOM_STAT_DEFINED(RequestsInFlight, HttpStats.RequestsInFlight, ECsvCustomStatOp::Set);
-	CSV_CUSTOM_STAT_DEFINED(MaxRequestsInFlight, int32(HttpStats.MaxRequestsInFlight), ECsvCustomStatOp::Set);
-	CSV_CUSTOM_STAT_DEFINED(MaxTimeToWaitInQueue, int32(HttpStats.MaxTimeToWaitInQueue), ECsvCustomStatOp::Set);
+	int32 TotalDownloadedMB = int32(HttpStats.TotalDownloadedBytes.load() >> 20);
+	CSV_CUSTOM_STAT_DEFINED(RequestsInQueue, HttpStats.RequestsInQueue.load(), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(MaxRequestsInQueue, int32(HttpStats.MaxRequestsInQueue.load()), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(RequestsInFlight, HttpStats.RequestsInFlight.load(), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(MaxRequestsInFlight, int32(HttpStats.MaxRequestsInFlight.load()), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(MaxTimeToWaitInQueue, int32(HttpStats.MaxTimeToWaitInQueue.load()), ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT_DEFINED(DownloadedMB, TotalDownloadedMB, ECsvCustomStatOp::Set);
-	CSV_CUSTOM_STAT_DEFINED(BandwidthMbps, int32(HttpStats.BandwidthMbps), ECsvCustomStatOp::Set);
-	CSV_CUSTOM_STAT_DEFINED(DurationMsAvg, int32(HttpStats.HttpDurationMsAvg), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(BandwidthMbps, int32(HttpStats.BandwidthMbps.load()), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(DurationMsAvg, int32(HttpStats.HttpDurationMsAvg.load()), ECsvCustomStatOp::Set);
 
 	// keep ticking
 	return true;
@@ -655,24 +655,24 @@ FHttpThreadBase* FHttpManager::GetThread()
 
 void FHttpManager::RecordStatTimeToConnect(float Duration)
 {
-	HttpStats.MaxTimeToConnect = FGenericPlatformMath::Max(Duration, HttpStats.MaxTimeToConnect);
+	HttpStats.MaxTimeToConnect = FGenericPlatformMath::Max(Duration, HttpStats.MaxTimeToConnect.load());
 }
 
 void FHttpManager::RecordStatRequestsInFlight(uint32 RequestsInFlight)
 {
 	HttpStats.RequestsInFlight = RequestsInFlight;
-	HttpStats.MaxRequestsInFlight = FGenericPlatformMath::Max(RequestsInFlight, HttpStats.MaxRequestsInFlight);
+	HttpStats.MaxRequestsInFlight = FGenericPlatformMath::Max(RequestsInFlight, HttpStats.MaxRequestsInFlight.load());
 }
 
 void FHttpManager::RecordStatRequestsInQueue(uint32 RequestsInQueue)
 {
 	HttpStats.RequestsInQueue = RequestsInQueue;
-	HttpStats.MaxRequestsInQueue = FGenericPlatformMath::Max(RequestsInQueue, HttpStats.MaxRequestsInQueue);
+	HttpStats.MaxRequestsInQueue = FGenericPlatformMath::Max(RequestsInQueue, HttpStats.MaxRequestsInQueue.load());
 }
 
 void FHttpManager::RecordMaxTimeToWaitInQueue(float Duration)
 {
-	HttpStats.MaxTimeToWaitInQueue = FGenericPlatformMath::Max(Duration, HttpStats.MaxTimeToWaitInQueue);
+	HttpStats.MaxTimeToWaitInQueue = FGenericPlatformMath::Max(Duration, HttpStats.MaxTimeToWaitInQueue.load());
 }
 
 void FHttpManager::RecordPlatformStats(const FHttpStatsPlatform& PlatformStats)
