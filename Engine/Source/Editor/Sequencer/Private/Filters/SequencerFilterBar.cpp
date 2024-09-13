@@ -201,21 +201,27 @@ void FSequencerFilterBar::BindCommands()
 	}
 
 	// Add bindings for curve editor if supported
-	FCurveEditorExtension* CurveEditorExtension = Sequencer.GetViewModel()->CastDynamic<FCurveEditorExtension>();
-	if (CurveEditorExtension && ensure(CurveEditorExtension->GetCurveEditor()))
+	FCurveEditorExtension* const CurveEditorExtension = Sequencer.GetViewModel()->CastDynamic<FCurveEditorExtension>();
+	if (CurveEditorExtension)
 	{
-		const TSharedPtr<FUICommandList> SequencerBindings = Sequencer.GetCommandBindings(ESequencerCommandBindings::Sequencer);
-		SequencerBindings->MapAction(TrackFilterCommands.ResetFilters, *CommandList->GetActionForCommand(TrackFilterCommands.ResetFilters));
-		if (const TSharedPtr<FCurveEditor> CurveEditor = CurveEditorExtension->GetCurveEditor())
+		const TSharedPtr<FCurveEditor> CurveEditor = CurveEditorExtension->GetCurveEditor();
+		if (ensure(CurveEditor.IsValid()))
 		{
-			CurveEditor->GetCommands()->Append(SequencerBindings.ToSharedRef());
-		}
-		
-		const TSharedPtr<FUICommandList> CurveEditorSharedBindings = Sequencer.GetCommandBindings(ESequencerCommandBindings::CurveEditor);
-		CurveEditorSharedBindings->MapAction(TrackFilterCommands.ResetFilters, *CommandList->GetActionForCommand(TrackFilterCommands.ResetFilters));
-		if (const TSharedPtr<FCurveEditor> CurveEditor = CurveEditorExtension->GetCurveEditor())
-		{
-			CurveEditor->GetCommands()->Append(CurveEditorSharedBindings.ToSharedRef());
+			const TSharedPtr<FUICommandList> CurveEditorCommands = CurveEditor->GetCommands();
+			if (ensure(CurveEditorCommands.IsValid()))
+			{
+				const TSharedPtr<FUICommandList> CurveEditorSharedBindings = Sequencer.GetCommandBindings(ESequencerCommandBindings::CurveEditor);
+
+				for (const TSharedPtr<FUICommandInfo>& Command : TrackFilterCommands.GetAllCommands())
+				{
+					if (Command.IsValid() && CommandList->IsActionMapped(Command))
+					{
+						CurveEditorSharedBindings->MapAction(Command, *CommandList->GetActionForCommand(Command));
+					}
+				}
+
+				CurveEditorCommands->Append(CurveEditorSharedBindings.ToSharedRef());
+			}
 		}
 	}
 }

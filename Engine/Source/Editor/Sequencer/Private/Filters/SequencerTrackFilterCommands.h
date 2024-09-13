@@ -15,6 +15,8 @@ public:
 	virtual void RegisterCommands() override;
 	//~ End TCommands
 
+	TArray<TSharedPtr<FUICommandInfo>> GetAllCommands() const;
+
 	/** FilterBar Commands */
 
 	TSharedPtr<FUICommandInfo> ToggleFilterBarVisibility;

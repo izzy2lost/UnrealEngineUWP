@@ -64,4 +64,59 @@ void FSequencerTrackFilterCommands::RegisterCommands()
 	UI_COMMAND(ToggleFilter_Levels, "Toggle Levels Filter", "Toggle the filter for Level tracks", EUserInterfaceActionType::Button, FInputChord());
 }
 
+TArray<TSharedPtr<FUICommandInfo>> FSequencerTrackFilterCommands::GetAllCommands() const
+{
+	TArray<TSharedPtr<FUICommandInfo>> OutCommands;
+
+	OutCommands.Add(ToggleFilterBarVisibility);
+
+	OutCommands.Add(ResetFilters);
+
+	OutCommands.Add(ToggleMuteFilters);
+
+	OutCommands.Add(DisableAllFilters);
+
+	OutCommands.Add(ToggleActivateEnabledFilters);
+	
+	OutCommands.Add(HideSelectedTracks);
+	OutCommands.Add(IsolateSelectedTracks);
+
+	OutCommands.Add(ClearHiddenTracks);
+	OutCommands.Add(ClearIsolatedTracks);
+
+	OutCommands.Add(ShowAllTracks);
+
+	OutCommands.Add(ShowLocationCategoryGroups);
+	OutCommands.Add(ShowRotationCategoryGroups);
+	OutCommands.Add(ShowScaleCategoryGroups);
+
+	OutCommands.Add(ToggleFilter_Audio);
+	OutCommands.Add(ToggleFilter_DataLayer);
+	OutCommands.Add(ToggleFilter_Event);
+	OutCommands.Add(ToggleFilter_Fade);
+	OutCommands.Add(ToggleFilter_Folder);
+	OutCommands.Add(ToggleFilter_LevelVisibility);
+	OutCommands.Add(ToggleFilter_Particle);
+	OutCommands.Add(ToggleFilter_CinematicShot);
+	OutCommands.Add(ToggleFilter_Subsequence);
+	OutCommands.Add(ToggleFilter_TimeDilation);
+	OutCommands.Add(ToggleFilter_TimeWarp);
+	
+	OutCommands.Add(ToggleFilter_Camera);
+	OutCommands.Add(ToggleFilter_CameraCut);
+	OutCommands.Add(ToggleFilter_Light);
+	OutCommands.Add(ToggleFilter_SkeletalMesh);
+
+	OutCommands.Add(ToggleFilter_Condition);
+	OutCommands.Add(ToggleFilter_Keyed);
+	OutCommands.Add(ToggleFilter_Modified);
+	OutCommands.Add(ToggleFilter_Selected);
+	OutCommands.Add(ToggleFilter_Unbound);
+
+	OutCommands.Add(ToggleFilter_Groups);
+	OutCommands.Add(ToggleFilter_Levels);
+
+	return OutCommands;
+}
+
 #undef LOCTEXT_NAMESPACE
