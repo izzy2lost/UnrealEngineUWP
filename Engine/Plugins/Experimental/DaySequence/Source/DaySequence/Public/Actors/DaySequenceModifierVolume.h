@@ -93,4 +93,6 @@ protected:
 	TObjectPtr<AActor> CurrentBlendTarget;
 	
 	FDelegateHandle ViewTargetChangedHandle;
+	
+	FDelegateHandle ReplayScrubbedHandle;
 };
