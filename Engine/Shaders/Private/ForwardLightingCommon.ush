@@ -241,7 +241,7 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 		#endif
 			NewLighting.DiffuseLighting.rgb *= InDirectionalLightAtmosphereTransmittance;
 			NewLighting.SpecularLighting.rgb *= InDirectionalLightAtmosphereTransmittance;
-			NewLighting.LightingLuminance *= InDirectionalLightAtmosphereTransmittance;
+			NewLighting.LightingLuminance *= Luminance(InDirectionalLightAtmosphereTransmittance);
 
 			if (bSeparateMainDirLightLuminance)
 			{
