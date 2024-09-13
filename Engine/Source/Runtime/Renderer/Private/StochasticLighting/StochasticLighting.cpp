@@ -53,7 +53,7 @@ void FDeferredShadingSceneRenderer::StoreStochasticLightingSceneHistory(FRDGBuil
 			const FPerViewPipelineState& ViewPipelineState = GetViewPipelineState(View);
 			const FSceneTextureParameters& SceneTextureParameters = GetSceneTextureParameters(GraphBuilder, SceneTextures);
 			const bool bStoreDepth = ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen || ViewPipelineState.ReflectionsMethod == EReflectionsMethod::Lumen || MegaLights::IsEnabled(ViewFamily);
-			const bool bStoreNormal = ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen && LumenScreenProbeGather::UseRejectBasedOnNormal();
+			const bool bStoreNormal = (ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen && LumenScreenProbeGather::UseRejectBasedOnNormal()) || MegaLights::IsEnabled(ViewFamily);
 
 			if (bStoreDepth)
 			{
@@ -65,7 +65,7 @@ void FDeferredShadingSceneRenderer::StoreStochasticLightingSceneHistory(FRDGBuil
 				FRDGTextureRef NormalHistory = bStoreNormal ? FrameTemporaries.NormalHistory.CreateSharedRT(GraphBuilder,
 					FRDGTextureDesc::Create2D(SceneTextures.Config.Extent, PF_A2B10G10R10, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
 					FrameTemporaries.ViewExtent,
-					TEXT("StochasticLighting.NormalHistory")) : nullptr;
+					TEXT("StochasticLighting.NormalAndShadingInfoHistory")) : nullptr;
 
 				FStochasticLightingStoreSceneHistoryCS::FPermutationDomain PermutationVector;
 				PermutationVector.Set<FStochasticLightingStoreSceneHistoryCS::FStoreNormal>(bStoreNormal);

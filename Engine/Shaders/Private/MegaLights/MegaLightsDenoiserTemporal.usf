@@ -6,6 +6,7 @@
 #include "../Common.ush"
 #include "MegaLightsShading.ush"
 #include "../Lumen/LumenReflectionDenoiserCommon.ush"
+#include "../StochasticLighting/StochasticLightingCommon.ush"
 
 // Improves performance on certain platforms
 #if !DEBUG_MODE && VALID_HISTORY
@@ -16,6 +17,7 @@ Texture2D ResolvedDiffuseLighting;
 Texture2D ResolvedSpecularLighting;
 Texture2D<UNORM float> ShadingConfidenceTexture;
 Texture2D MegaLightsDepthHistory;
+Texture2D<float4> MegaLightsNormalAndShading;
 Texture2D DiffuseLightingAndSecondMomentHistoryTexture;
 Texture2D SpecularLightingAndSecondMomentHistoryTexture;
 Texture2D<UNORM float> NumFramesAccumulatedHistoryTexture;
@@ -279,6 +281,21 @@ void DenoiserTemporalCS(
 						HistoryBilinearWeights.y * HistoryBilinearWeights.x);
 
 					HistoryWeights *= DepthWeights;
+
+					// If shading info history is available, used it to only fetch compatible pixels.
+					// For now only hair pixel are filtered out as their shading model is too different from the others
+					{
+						const float4 PackedW = MegaLightsNormalAndShading.GatherAlpha(GlobalPointClampedSampler, HistoryGatherUV).wzxy;
+
+						const bool4 bIsHair4 = bool4(
+							UnpackNormalAndShadingInfo(float4(0,0,0,PackedW.x)).bIsHair,
+							UnpackNormalAndShadingInfo(float4(0,0,0,PackedW.y)).bIsHair,
+							UnpackNormalAndShadingInfo(float4(0,0,0,PackedW.z)).bIsHair,
+							UnpackNormalAndShadingInfo(float4(0,0,0,PackedW.w)).bIsHair);
+						const float4 ShadingInfoWeights = select(Material.bIsHair.xxxx == bIsHair4, 1.f, 0.f);
+
+						HistoryWeights *= ShadingInfoWeights;
+					}
 
 					#if DEBUG_MODE	
 					if (Debug.bActive)

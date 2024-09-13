@@ -21,6 +21,7 @@
 #include "LumenReflectionsCombine.ush"
 #include "LumenFloatQuantization.ush"
 #include "../ReflectionEnvironmentShared.ush"
+#include "../StochasticLighting/StochasticLightingCommon.ush"
 
 #ifndef THREADGROUP_SIZE
 #define THREADGROUP_SIZE 1
@@ -1803,7 +1804,7 @@ FGatherUV GetGatherUV(Bilinear In, float2 InTexelSize)
 
 float3 GetHistoryNormal(float2 InUV)
 {
-	return DecodeNormal(Texture2DSampleLevel(DiffuseIndirectNormalHistory, GlobalPointClampedSampler, InUV, 0).xyz);
+	return UnpackNormalAndShadingInfo(Texture2DSampleLevel(DiffuseIndirectNormalHistory, GlobalPointClampedSampler, InUV, 0)).Normal;
 }
 
 #ifdef ScreenProbeTemporalReprojectionCS

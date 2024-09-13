@@ -4,6 +4,7 @@
 
 #include "../Common.ush"
 #include "../Lumen/LumenMaterial.ush"
+#include "StochasticLightingCommon.ush"
 
 RWTexture2D<float> RWDepthTexture;
 RWTexture2D<float4> RWNormalTexture;
@@ -22,7 +23,10 @@ void StoreSceneHistoryCS(
 
 	#if PERMUTATION_STORE_NORMAL
 	{
-		RWNormalTexture[DispatchThreadId + View.ViewRectMinAndSize.xy] = float4(EncodeNormal(LumenMaterial.WorldNormal), 0.0f);
+		FNormalAndShadingInfo Info;
+		Info.Normal = LumenMaterial.WorldNormal;
+		Info.bIsHair = LumenMaterial.bIsHair;
+		RWNormalTexture[DispatchThreadId + View.ViewRectMinAndSize.xy] = PackNormalAndShadingInfo(Info);
 	}
 	#endif
 }
