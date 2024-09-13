@@ -886,10 +886,6 @@ namespace UE::Online {
 #undef CHECK_STATE_SESSION_NAME_ALREADY_EXISTS
 
 	// Events
-	TOnlineEvent<void(const FSessionCreated&)> FSessionsCommon::OnSessionCreated()
-	{
-		return SessionEvents.OnSessionCreated;
-	}
 
 	TOnlineEvent<void(const FSessionJoined&)> FSessionsCommon::OnSessionJoined()
 	{
