@@ -66,7 +66,7 @@ void UAnimGraphNode_BlendProfileLayeredBlend::ValidateAnimNodeDuringCompilation(
 	}
 	else if (BlendMask->TableType != FHierarchyTableType_Mask::StaticStruct())
 	{
-		MessageLog.Error(*LOCTEXT("InvalidMask", "@@ has a null blend profile that is not a mask type..").ToString(), this, BlendMask);
+		MessageLog.Error(*LOCTEXT("InvalidMaskType", "@@ has a null blend profile that is not a mask type.").ToString(), this, BlendMask);
 		bCompilationError = true;
 	}
 
