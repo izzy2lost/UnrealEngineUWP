@@ -113,6 +113,8 @@ namespace UE::MLDeformer
 		/** Determine frame time from a mouse position. */
 		FFrameTime GetFrameTimeFromMouse(const FGeometry& Geometry, FVector2D ScreenSpacePosition) const;
 
+		FTimeSliderArgs& GetTimeSliderArgs() { return TimeSliderArgs; }
+
 	private:
 		// Forward declared as class members to prevent name collision with similar types defined in other units.
 		struct FDrawTickArgs;
@@ -294,6 +296,10 @@ namespace UE::MLDeformer
 	void FMLTimeSliderController::SetModel(TWeakPtr<FMLDeformerEditorModel> InModel)
 	{
 		WeakModel = InModel;
+		if (WeakTimeline.IsValid())
+		{
+			WeakTimeline.Pin()->UpdateTimeSliderArgs(TimeSliderArgs);
+		}
 	}
 
 	FFrameTime FMLTimeSliderController::ComputeFrameTimeFromMouse(const FGeometry& Geometry, FVector2D ScreenSpacePosition, FScrubRangeToScreen RangeToScreen, bool CheckSnapping) const
@@ -1339,6 +1345,31 @@ namespace UE::MLDeformer
 		TimeSliderController->OnPaintViewArea(AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, ShouldBeEnabled(bParentEnabled), PaintArgs);
 		return SCompoundWidget::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
 	}
+
+
+	void SMLDeformerTimeline::UpdateTimeSliderArgs(FTimeSliderArgs& TimeSliderArgs)
+	{
+		TimeSliderArgs.ScrubPosition = MakeAttributeLambda([this](){ return Model.IsValid() ? Model.Pin()->GetTickResScrubPosition() : FFrameTime(0); });
+		TimeSliderArgs.PlaybackRange = MakeAttributeLambda([this](){ return Model.IsValid() ? Model.Pin()->GetPlaybackRange() : TRange<FFrameNumber>(0, 0); });
+		TimeSliderArgs.ClampRange = MakeAttributeLambda([this]()
+		{
+			if (Model.IsValid())
+			{
+				const TRange<double> Range = Model.Pin()->GetWorkingRange();
+				return FAnimatedRange(Range.GetLowerBoundValue(), Range.GetUpperBoundValue());
+			}
+			else
+			{
+				return FAnimatedRange(0.0, 0.0);
+			}
+		});
+
+		if (Model.IsValid())
+		{
+			TimeSliderArgs.OnClampRangeChanged = FOnTimeRangeChanged::CreateSP(Model.Pin().Get(), &FMLDeformerEditorModel::HandleWorkingRangeChanged);
+		}
+	}
+
 
 	void SMLDeformerTimeline::Construct(const FArguments& InArgs, FMLDeformerEditorToolkit* InEditor)
 	{

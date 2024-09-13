@@ -104,7 +104,7 @@ public:
 	bool SetCurrentSampleIndex(int32 Index);
 
 	/**
-	 * Take the next sample.
+	 * Take the next sample. This will update the deltas, curve values and bone rotation arrays with values sampled at the next frame.
 	 * This will return false when there is something wrong or we sampled more times than NumSamples() returns.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Training Data")
@@ -177,15 +177,15 @@ protected:
 	int32 GetMaskIndexForAnimIndex(int32 AnimIndex) const;
 
 public:
-	// The delta values per vertex for this sample. This is updated after SetCurrentSampleIndex is called. Contains an xyz (3 floats) for each vertex.
+	// The delta values per vertex for this sample. This is updated after NextSample is called. Contains an xyz (3 floats) for each vertex.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Data")
 	TArray<float> SampleDeltas;
 
-	// The curve weights. This is updated after SetCurrentSampleIndex is called.
+	// The curve weights. This is updated after NextSample is called.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Data")
 	TArray<float> SampleCurveValues;
 
-	// The bone rotations in bone (local) space for this sample. This is updated after SetCurrentSampleIndex is called and is 6 floats per bone (2 columns of 3x3 rotation matrix).
+	// The bone rotations in bone (local) space for this sample. This is updated after NextSample is called and is 6 floats per bone (2 columns of 3x3 rotation matrix).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Data")
 	TArray<float> SampleBoneRotations;
 
