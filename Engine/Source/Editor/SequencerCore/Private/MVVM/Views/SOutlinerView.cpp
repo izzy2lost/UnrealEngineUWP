@@ -388,11 +388,6 @@ void SOutlinerView::UpdateOutlinerColumns()
 	//    This is implemented this way because columns can be turned on and off dynamically, but we must
 	//    always have a consistent padding within the group. Separators dynamically appear based on the presence of
 	//    each group so we can't put padding on those
-	if (NumFarLeftGutter > 0)
-	{
-		ColumnMetaData->Columns[0].CellPadding.Left += 4.f;
-		ColumnMetaData->Columns[NumFarLeftGutter - 1].CellPadding.Right += 4.f;
-	}
 	if (NumLeftGutter > 0)
 	{
 		ColumnMetaData->Columns[NumFarLeftGutter].CellPadding.Left  += 4.f;
