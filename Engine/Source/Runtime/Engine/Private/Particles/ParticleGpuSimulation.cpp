@@ -478,7 +478,7 @@ public:
 		// allocate the new textures
 		FTextureRHIRef NewAttributesTextureRHI = CreateAttributesTextureRHI();
 
-		RHICmdList.Transition(FRHITransitionInfo(NewAttributesTextureRHI, ERHIAccess::SRVMask, ERHIAccess::CopyDest));
+		RHICmdList.Transition(FRHITransitionInfo(NewAttributesTextureRHI, ERHIAccess::RTV, ERHIAccess::CopyDest));
 		RHICmdList.Transition(FRHITransitionInfo(TextureRHI, ERHIAccess::SRVMask, ERHIAccess::CopySrc));
 
 		FRHICopyTextureInfo CopyTextureInfo;
