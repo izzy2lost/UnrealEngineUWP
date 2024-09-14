@@ -33,6 +33,12 @@ template<typename ValueType> const void GetMinMax(ValueType& Min, ValueType& Max
 	}
 }
 
+/** Checks if value is within a range, exclusive on MinValue and MaxValue) */
+template<typename ValueType> bool IsWithinExclusive(const ValueType& TestValue, const ValueType& MinValue, const ValueType& MaxValue)
+{
+	return ((TestValue > MinValue) && (TestValue < MaxValue));
+}
+
 inline int32 RealCompare(const double Value1, const double Value2, const double Tolerance = DOUBLE_SMALL_NUMBER)
 {
 	double Difference = Value1 - Value2;

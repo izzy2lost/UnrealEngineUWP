@@ -93,8 +93,18 @@ public:
 
 	virtual void FindNotDerivableCoordinates(const FLinearBoundary& InBoundary, int32 DerivativeOrder, TArray<double>& OutNotDerivableCoordinates) const override
 	{
-		//TO DO
-		ensureCADKernel(false);
+		const int32 CoordinateCount = this->Coordinates.Num();
+		if (CoordinateCount > 2)
+		{
+			OutNotDerivableCoordinates.Reserve(CoordinateCount - 2);
+			int32 Index = 1;
+			for (; Index < CoordinateCount - 1 && this->Coordinates[Index] <= InBoundary.GetMin(); ++Index);
+
+			for (; Index < CoordinateCount - 1 && this->Coordinates[Index] <= InBoundary.GetMax(); ++Index)
+			{
+				OutNotDerivableCoordinates.Emplace(this->Coordinates[Index]);
+			}
+		}
 	}
 
 	void SetPoints(const TArray<PointType>& InPoints)
@@ -177,12 +187,12 @@ class CADKERNEL_API FPolyline2DCurve : public TPolylineCurve<FPoint2D, FCurvePoi
 
 protected:
 	FPolyline2DCurve(const TArray<FPoint2D>& InPoints, const TArray<double>& InCoordinates)
-		: TPolylineCurve<FPoint2D, FCurvePoint2D>(InPoints, InCoordinates, 3)
+		: TPolylineCurve<FPoint2D, FCurvePoint2D>(InPoints, InCoordinates, 2)
 	{
 	}
 
 	FPolyline2DCurve(const TArray<FPoint2D>& InPoints)
-		: TPolylineCurve<FPoint2D, FCurvePoint2D>(InPoints, 3)
+		: TPolylineCurve<FPoint2D, FCurvePoint2D>(InPoints, 2)
 	{
 	}
 
@@ -192,7 +202,7 @@ public:
 
 	virtual ECurve GetCurveType() const override
 	{
-		return ECurve::Polyline3D;
+		return ECurve::Polyline2D;
 	}
 
 	virtual TSharedPtr<FEntityGeom> ApplyMatrix(const FMatrixH& InMatrix) const override

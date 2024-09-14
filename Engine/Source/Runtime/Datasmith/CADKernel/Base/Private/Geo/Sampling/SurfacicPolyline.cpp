@@ -9,6 +9,8 @@
 #include "Geo/Sampling/PolylineTools.h"
 #include "Math/SlopeUtils.h"
 
+#include "Algo/BinarySearch.h"
+
 namespace UE::CADKernel
 {
 
@@ -88,124 +90,131 @@ void FSurfacicPolyline::GetExtremities(const FLinearBoundary& InBoundary, const 
 	}
 }
 
-void FSurfacicPolyline::ComputeIntersectionsWithIsos(const FLinearBoundary& InBoundary, const TArray<double>& IsoCoordinates, const EIso TypeIso, const FSurfacicTolerance& ToleranceIso, TArray<double>& Intersection) const
+void FSurfacicPolyline::ComputeIntersectionsWithIsos(const FLinearBoundary& InBoundary, const TArray<double>& IsoCoordinates, const EIso IsoType, const FSurfacicTolerance& ToleranceIso, TArray<double>& Intersection) const
 {
-	if (BoundingBox.Length(TypeIso) < ToleranceIso[TypeIso])
+	TRACE_CPUPROFILER_EVENT_SCOPE(UE::CADKernel::FSurfacicPolyline::ComputeIntersectionsWithIsos)
+
+	const double SurfaceIsoTolerance = ToleranceIso[IsoType];
+
+	if (BoundingBox.Length(IsoType) < SurfaceIsoTolerance)
 	{
 		// the edge is on an IsoCurve on Iso axis
 		return;
 	}
 
-#ifdef DEBUG_COMPUTEINTERSECTIONSWITHISOS
-	F3DDebugSession _(TEXT("IntersectEdgeIsos"));
-#endif
- 
-	Intersection.Reserve(IsoCoordinates.Num());
+	const int32 IsoCoordinateCount = IsoCoordinates.Num();
+	Intersection.Reserve(IsoCoordinateCount + Coordinates.Num());
 
-	double UMin;
-	double UMax;
+	double LastIntersection = UE_MAX_FLT;
 
-	int32 IsoCoordinateIndex = 0;
-	double IsoCoordinate = IsoCoordinates[0];
+	TFunction<void(double, double, int32, double)> InsertIntersection;
+	InsertIntersection = [this, &Intersection, &LastIntersection](double Start, double End, int32 SegmentIndex, double IsoCoordinate) -> void
+		{
+			const double LocalCoord = (IsoCoordinate - Start) / (End - Start);
+			double EdgeCoord = this->Coordinates[SegmentIndex] + (LocalCoord * (this->Coordinates[SegmentIndex + 1] - this->Coordinates[SegmentIndex]));
 
-	for (int32 Index = 0; Index < Points2D.Num() - 1; ++Index)
+			if (!FMath::IsNearlyEqual(EdgeCoord, LastIntersection))
+			{
+				Intersection.Add(EdgeCoord);
+			}
+		};
+
+	// Find the largest surface's iso coordinate that is less or equal to the start iso value,
+	// within the surface's tolerance on the given iso type
+	TFunction<int32(double)> FindIsoCoordinateIndex;
+	FindIsoCoordinateIndex = [&IsoCoordinates, &SurfaceIsoTolerance, &IsoCoordinateCount](double Value) -> int32
+		{
+			// #cad_kernel: Algo::LowerBound ???
+			int32 Index = 0;
+			const double IsoValueStartMinusTol = Value - SurfaceIsoTolerance;
+			for (; Index < IsoCoordinateCount - 1 && IsoValueStartMinusTol > IsoCoordinates[Index]; ++Index);
+
+			return Index;
+		};
+
+	for (int32 Index = 0, NextIndex = 1; NextIndex < Points2D.Num(); ++NextIndex, ++Index)
 	{
-		// if the segment is outside edge boundary, go to the next one
-		if (Coordinates[Index + 1] < InBoundary.GetMin())
+		// Check that the segment to consider is within the curve's boundaries
+		// used for trimming
 		{
-			continue;
-		}
-
-		if (Coordinates[Index] > InBoundary.GetMax())
-		{
-			break;
-		}
-
-		// if the segment is too parallel to Iso, go to the next one
-		double EdgeLocalSlope = ComputeUnorientedSlope(Points2D[Index], Points2D[Index + 1], 0);
-		if (TypeIso == EIso::IsoV)
-		{
-			if (EdgeLocalSlope < 0.1 || EdgeLocalSlope > 3.9)
+			// if the segment is outside the minimum edge boundary, go to the next one
+			if (Coordinates[NextIndex] < InBoundary.GetMin())
 			{
 				continue;
 			}
-		}
-		else
-		{
-			if (EdgeLocalSlope < 2.1 && EdgeLocalSlope > 1.9)
+
+			// if the segment is outside the maximum edge boundary, no need to go any further
+			if (Coordinates[Index] > InBoundary.GetMax())
 			{
-				continue;
-			}
-		}
-
-		GetMinMax(Points2D[Index][TypeIso], Points2D[Index + 1][TypeIso], UMin, UMax);
-		UMin -= DOUBLE_SMALL_NUMBER;
-		UMax += DOUBLE_SMALL_NUMBER;
-
-		if (IsoCoordinate < UMin || IsoCoordinate > UMax)
-		{
-			if (IsoCoordinateIndex > 0 && IsoCoordinateIndex < IsoCoordinates.Num() - 1 && IsoCoordinates[IsoCoordinateIndex - 1] < UMin && UMax < IsoCoordinates[IsoCoordinateIndex + 1])
-			{
-				continue;
-			}
-		}
-
-		if (IsoCoordinate > UMin)
-		{
-			while (IsoCoordinateIndex > 0 && IsoCoordinates[IsoCoordinateIndex - 1] > UMin)
-			{
-				IsoCoordinateIndex--;
-			}
-			IsoCoordinate = IsoCoordinates[IsoCoordinateIndex];
-		}
-
-		while (IsoCoordinateIndex < IsoCoordinates.Num() - 1 && IsoCoordinates[IsoCoordinateIndex] < UMin)
-		{
-			IsoCoordinateIndex++;
-		}
-		IsoCoordinate = IsoCoordinates[IsoCoordinateIndex];
-
-		if (UMax < IsoCoordinate)
-		{
-			continue;
-		}
-
-		for (;; ++IsoCoordinateIndex)
-		{
-			if (IsoCoordinateIndex == IsoCoordinates.Num() || IsoCoordinates[IsoCoordinateIndex] > UMax)
-			{
-				--IsoCoordinateIndex;
 				break;
 			}
-			IsoCoordinate = IsoCoordinates[IsoCoordinateIndex];
+		}
 
-			if ((IsoCoordinate > UMin) && (IsoCoordinate < UMax))
+		const double IsoValueStart = Points2D[Index][IsoType];
+		const double IsoValueEnd = Points2D[NextIndex][IsoType];
+
+		// Skip this segment if it is degenerated along the given iso type
+		if (FMath::IsNearlyEqual(IsoValueStart, IsoValueEnd, SurfaceIsoTolerance))
+		{
+			continue;
+		}
+
+		int32 IsoCoordinateIndex = FindIsoCoordinateIndex(IsoValueStart);
+
+		// If the start point is equal to the iso coordinate within the surface's tolerance
+		// on the given iso direction, add the polyline's coordinate and continue
+		if (FMath::IsNearlyEqual(IsoValueStart, IsoCoordinates[IsoCoordinateIndex], SurfaceIsoTolerance))
+		{
+			Intersection.Add(Coordinates[Index]);
+			LastIntersection = Intersection.Last();
+		}
+
+		// Segment is forward in surface's given iso type's direction
+		if (IsoValueStart < IsoValueEnd)
+		{
+			// Insert an intersection as long as the iso values are less than the end value
+			// Intentionally do not check whether the end iso value is within surface's tolerance
+			// on an iso type's coordinate. It will be checked on the next iteration
+			const double IsoValueEndMinusTol = IsoValueEnd - SurfaceIsoTolerance;
+			for (++IsoCoordinateIndex; IsoCoordinateIndex < IsoCoordinateCount && IsoCoordinates[IsoCoordinateIndex] < IsoValueEndMinusTol; ++IsoCoordinateIndex)
 			{
-				double EdgeCoord = 0.;
-				const double Delta = (Points2D[Index + 1][TypeIso] - Points2D[Index][TypeIso]);
-				if (FMath::IsNearlyZero(Delta))
-				{
-					EdgeCoord = Coordinates[Index];
-				}
-				else
-				{
-					const double LocalCoord = (IsoCoordinate - Points2D[Index][TypeIso]) / Delta;
-					EdgeCoord = PolylineTools::LinearInterpolation(Coordinates, Index, LocalCoord);
-				}
-
-#ifdef DEBUG_COMPUTEINTERSECTIONSWITHISOS
-				::DisplayPoint(Points2D[Index + 1], EVisuProperty::RedPoint);
-				::DisplayPoint(Points2D[Index], EVisuProperty::RedPoint);
-				FPoint2D IntersectionPoint = PolylineTools::LinearInterpolation(Points2D, Index, LocalCoord);
-				::DisplayPoint(IntersectionPoint);
-				Wait();
-#endif // #ifdef DEBUG_COMPUTEINTERSECTIONSWITHISOS
-
-				if (!(Intersection.Num() && FMath::IsNearlyEqual(EdgeCoord, Intersection.Last())))
-				{
-					Intersection.Add(EdgeCoord);
-				}
+				InsertIntersection(IsoValueStart, IsoValueEnd, Index, IsoCoordinates[IsoCoordinateIndex]);
+				LastIntersection = Intersection.Last();
 			}
+		}
+		// Segment is backward in surface's given iso type's direction
+		else if(IsoCoordinateIndex > 0)
+		{
+			// Insert an intersection as long as the iso values are more than the end value
+			// Intentionally do not check whether the end iso value is within surface's tolerance
+			// on an iso type's coordinate. It will be checked on the next iteration
+			const double IsoValueEndMinusTol = IsoValueEnd + SurfaceIsoTolerance;
+			for (--IsoCoordinateIndex; IsoCoordinateIndex >= 0 && IsoCoordinates[IsoCoordinateIndex] > IsoValueEndMinusTol; --IsoCoordinateIndex)
+			{
+				InsertIntersection(IsoValueStart, IsoValueEnd, Index, IsoCoordinates[IsoCoordinateIndex]);
+				LastIntersection = Intersection.Last();
+			}
+		}
+		// Lowest surface's iso coordinate is strictly between the end value and the start value
+		// Insert an intersection there
+		else
+		{
+			InsertIntersection(IsoValueStart, IsoValueEnd, Index, IsoCoordinates[IsoCoordinateIndex]);
+			LastIntersection = Intersection.Last();
+		}
+	}
+
+	// Process last point
+	{
+		const double IsoValue = Points2D.Last()[IsoType];
+
+		int32 IsoCoordinateIndex = FindIsoCoordinateIndex(IsoValue);
+
+		// If the start point is equal to the iso coordinate within the surface's tolerance
+		// on the given iso direction, add the polyline's coordinate and continue
+		if (FMath::IsNearlyEqual(IsoValue, IsoCoordinates[IsoCoordinateIndex], SurfaceIsoTolerance))
+		{
+			Intersection.Add(Coordinates.Last());
 		}
 	}
 }

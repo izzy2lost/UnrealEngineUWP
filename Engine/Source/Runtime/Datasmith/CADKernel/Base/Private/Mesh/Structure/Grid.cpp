@@ -3,6 +3,7 @@
 #include "Mesh/Structure/Grid.h"
 
 #include "Geo/Sampling/SurfacicSampling.h"
+#include "Geo/Surfaces/SurfaceUtilities.h"
 #include "Mesh/Meshers/MesherTools.h"
 #include "Mesh/Structure/EdgeMesh.h"
 #include "Mesh/Structure/VertexMesh.h"
@@ -21,83 +22,31 @@ FGrid::FGrid(FTopologicalFace& InFace, FModelMesh& InMeshModel)
 	, MinimumElementSize(Tolerance3D * 2.)
 	, MeshModel(InMeshModel)
 {
-#ifdef DEBUG_ONLY_SURFACE_TO_DEBUG
-	bDisplay = (InFace.GetId() == FaceToDebug);
-	Open3DDebugSession(bDisplay, FString::Printf(TEXT("Grid %d"), InFace.GetId()));
-#endif
 }
 
 void FGrid::ProcessPointCloud()
 {
-	FTimePoint StartTime = FChrono::Now();
+	TRACE_CPUPROFILER_EVENT_SCOPE(UE::CADKernel::FGrid::ProcessPointCloud)
 
 	if (!GetMeshOfLoops())
 	{
 		return;
 	}
 
-#ifdef DEBUG_GRID
-	if(bDisplay)
-	{
-		DisplayGridLoops(TEXT("FGrid::Loop 2D"), GetLoops2D(EGridSpace::Default2D), true, true, false);
-		DisplayInnerDomainPoints(TEXT("FGrid::PointCloud 2D"), GetInner2DPoints(EGridSpace::Default2D));
-
-		DisplayGridLoops(TEXT("FGrid::Loop 2D Scaled"), GetLoops2D(EGridSpace::Scaled), true, false, false);
-		DisplayInnerDomainPoints(TEXT("FGrid::PointCloud 2D Scaled"), GetInner2DPoints(EGridSpace::Scaled));
-
-		DisplayGridLoops(TEXT("FGrid::Loop 2D UniformScaled"), GetLoops2D(EGridSpace::UniformScaled), true, true, false);
-		DisplayInnerDomainPoints(TEXT("FGrid::PointCloud 2D UniformScaled"), GetInner2DPoints(EGridSpace::UniformScaled));
-
-		DisplayGridLoops(TEXT("FGrid::Loop 3D"), GetLoops3D(), true, false, false);
-		DisplayInnerDomainPoints(TEXT("FGrid::PointCloud 3D"), GetInner3DPoints());
-
-		DisplayGridLoops(TEXT("FGrid::Loop 3D"), GetLoops3D(), true, false, false);
-		DisplayInnerDomainPoints(TEXT("FGrid::PointCloud 3D"), GetInner3DPoints());
-
-		DisplayGridNormal();
-
-		DisplayInnerDomainPoints(TEXT("FGrid::PointCloud before FindInnerFacePoints"), GetInner2DPoints(EGridSpace::UniformScaled));
-
-		Wait(false);
-	}
-#endif
-
 	FindInnerFacePoints();
-
-#ifdef DEBUG_GRID
-	DisplayInnerDomainPoints(TEXT("FGrid::PointCloud after FindInnerFacePoints"), GetInner2DPoints(EGridSpace::UniformScaled));
-#endif
 
 	FindPointsCloseToLoop();
 
-#ifdef DEBUG_GRID
-	DisplayInnerDomainPoints(TEXT("FGrid::PointCloud after FindPointsCloseToLoop"), GetInner2DPoints(EGridSpace::UniformScaled));
-#endif
-
 	RemovePointsCloseToLoop();
-
-#ifdef DEBUG_GRID
-	DisplayInnerDomainPoints(TEXT("FGrid::PointCloud after RemovePointsCloseToLoop"), GetInner2DPoints(EGridSpace::UniformScaled));
-#endif
 
 	// Removed of Thin zone boundary (the last boundaries). In case of thin zone, the number of 2d boundary will be biggest than 3d boundary one.
 	// Only EGridSpace::UniformScaled is needed.
 	FaceLoops2D[EGridSpace::UniformScaled].SetNum(FaceLoops3D.Num());
-
-#ifdef DEBUG_GRID
-	if (bDisplay)
-	{
-		DisplayGridLoops(TEXT("FGrid::Final Loop 2D"), GetLoops2D(EGridSpace::UniformScaled), true, true, false);
-		Wait(false);
-	}
-#endif
-
-	Chronos.ProcessPointCloudDuration = FChrono::Elapse(StartTime);
 }
 
 void FGrid::DefineCuttingParameters()
 {
-	FTimePoint StartTime = FChrono::Now();
+	TRACE_CPUPROFILER_EVENT_SCOPE(UE::CADKernel::FGrid::DefineCuttingParameters)
 
 	FCuttingGrid PreferredCuttingParametersFromLoops;
 	GetPreferredUVCuttingParametersFromLoops(PreferredCuttingParametersFromLoops);
@@ -106,29 +55,17 @@ void FGrid::DefineCuttingParameters()
 	DefineCuttingParameters(EIso::IsoV, PreferredCuttingParametersFromLoops);
 
 	CuttingSize = CoordinateGrid.Count();
-
-	Chronos.DefineCuttingParametersDuration = FChrono::Elapse(StartTime);
 }
 
 void FGrid::DefineCuttingParameters(EIso Iso, FCuttingGrid& Neighbors)
 {
-	FTimePoint StartTime = FChrono::Now();
+	TRACE_CPUPROFILER_EVENT_SCOPE(UE::CADKernel::FGrid::DefineCuttingParameters)
 
 	const FSurfacicBoundary& Boundary = Face.GetBoundary();
 
-#ifdef DEBUG_GET_PREFERRED_UVCOORDINATES_FROM_NEIGHBOURS
-	TArray<double> CuttingPointTmp;
-#endif
 	if (Neighbors[Iso].Num())
 	{
-#ifdef DEBUG_GET_PREFERRED_UVCOORDINATES_FROM_NEIGHBOURS
-		TArray<FCuttingPoint> Extremities;
-		Extremities.Reserve(2);
-		Extremities.Emplace(Boundary[Iso].Min, ECoordinateType::VertexCoordinate, -1, 0.001);
-		Extremities.Emplace(Boundary[Iso].Max, ECoordinateType::VertexCoordinate, -1, 0.001);
-		FMesherTools::ComputeFinalCuttingPointsWithImposedCuttingPoints(Face.GetCrossingPointCoordinates(Iso), Face.GetCrossingPointDeltaMaxs(Iso), Extremities, CuttingPointTmp);
-#endif
-		FMesherTools::ComputeFinalCuttingPointsWithPreferredCuttingPoints(Face.GetCrossingPointCoordinates(Iso), Face.GetCrossingPointDeltaMaxs(Iso), Neighbors[Iso], Boundary[Iso], Face.GetCuttingCoordinatesAlongIso(Iso));
+		FMesherTools::ComputeFinalCuttingPointsWithPreferredCuttingPoints(Face.GetCrossingPointCoordinates(Iso), Face.GetCrossingPointDeltaMaxs(Iso), Neighbors[Iso], Boundary[Iso], CoordinateGrid[Iso]);
 	}
 	else
 	{
@@ -136,78 +73,25 @@ void FGrid::DefineCuttingParameters(EIso Iso, FCuttingGrid& Neighbors)
 		Extremities.Reserve(2);
 		Extremities.Emplace(Boundary[Iso].Min, ECoordinateType::VertexCoordinate, -1, 0.001);
 		Extremities.Emplace(Boundary[Iso].Max, ECoordinateType::VertexCoordinate, -1, 0.001);
-		FMesherTools::ComputeFinalCuttingPointsWithImposedCuttingPoints(Face.GetCrossingPointCoordinates(Iso), Face.GetCrossingPointDeltaMaxs(Iso), Extremities, Face.GetCuttingCoordinatesAlongIso(Iso));
+		FMesherTools::ComputeFinalCuttingPointsWithImposedCuttingPoints(Face.GetCrossingPointCoordinates(Iso), Face.GetCrossingPointDeltaMaxs(Iso), Extremities, CoordinateGrid[Iso]);
 	}
 
-#ifdef DEBUG_GET_PREFERRED_UVCOORDINATES_FROM_NEIGHBOURS
-	if (bDisplay)
+	// #cadkernel_check: Why does this only apply to planar surfaces?
+	FSurface& CarrierSurface = *Face.GetCarrierSurface();
+	if (SurfaceUtilities::IsPlanar(CarrierSurface))
 	{
-		EIso OtherIso = Other(Iso);
-		F3DDebugSession _(TEXT("GetPreferredUVCoordinatesFromNeighbours"));
-		{
-			F3DDebugSession _(FString::Printf(TEXT("%s From Neighbours"), IsoNames[Iso]));
-			for (FCuttingPoint CuttingU : Neighbors[Iso])
-			{
-				if (Iso == EIso::IsoU)
-				{
-					DisplayPoint(FPoint(CuttingU.Coordinate, Boundary[OtherIso].GetMin() - Boundary[OtherIso].Length() * 1 / 20), EVisuProperty::GreenPoint);
-				}
-				else
-				{
-					DisplayPoint(FPoint(Boundary[OtherIso].GetMin() - Boundary[OtherIso].Length() * 1 / 20, CuttingU.Coordinate), EVisuProperty::GreenPoint);
-				}
-			}
-		}
-		{
-			F3DDebugSession _(FString::Printf(TEXT("%s From Criteria"), IsoNames[Iso]));
-			for (double CuttingU : CuttingPointTmp)
-			{
-				if (Iso == EIso::IsoU)
-				{
-					DisplayPoint(FPoint(CuttingU, Boundary[OtherIso].GetMin() - Boundary[OtherIso].Length() * 1 / 40), EVisuProperty::YellowPoint);
-				}
-				else
-				{
-					DisplayPoint(FPoint(Boundary[OtherIso].GetMin() - Boundary[OtherIso].Length() * 1 / 40, CuttingU), EVisuProperty::YellowPoint);
-				}
-			}
-		}
-		{
-			F3DDebugSession _(FString::Printf(TEXT("%s From Neighbours"), IsoNames[Iso]));
-			for (double CuttingU : Face.GetCuttingCoordinatesAlongIso(Iso))
-			{
-				if (Iso == EIso::IsoU)
-				{
-					DisplayPoint(FPoint(CuttingU, Boundary[OtherIso].GetMin() - Boundary[OtherIso].Length() * 1 / 60), EVisuProperty::BluePoint);
-				}
-				else
-				{
-					DisplayPoint(FPoint(Boundary[OtherIso].GetMin() - Boundary[OtherIso].Length() * 1 / 60, CuttingU), EVisuProperty::BluePoint);
-				}
-			}
-		}
-		//Wait();
-	}
-#endif
-	CuttingCount[Iso] = CoordinateGrid.IsoCount(Iso);
+		FCoordinateGrid FaceNotDerivableCoordinates;
+		CarrierSurface.LinesNotDerivables(Face.GetBoundary(), 1, FaceNotDerivableCoordinates);
 
-	Chronos.DefineCuttingParametersDuration = FChrono::Elapse(StartTime);
+		ArrayUtils::Complete(CoordinateGrid[Iso], FaceNotDerivableCoordinates[Iso], CarrierSurface.GetIsoTolerance(Iso));
+	}
+
+	CuttingCount[Iso] = CoordinateGrid.IsoCount(Iso);
 }
 
-//#define DEBUG_GET_PREFERRED_UVCOORDINATES_FROM_NEIGHBOURS
 void FGrid::GetPreferredUVCuttingParametersFromLoops(FCuttingGrid& CuttingParametersFromLoops)
 {
-#ifdef DEBUG_GET_PREFERRED_UVCOORDINATES_FROM_NEIGHBOURS
-	F3DDebugSession _(bDisplay, TEXT("GetPreferredUVCoordinatesFromNeighbours"));
-
-	if (bDisplay)
-	{
-		{
-			F3DDebugSession _(TEXT("Surface 2D"));
-			UE::CADKernel::Display2D(*Face.GetCarrierSurface());
-		}
-	}
-#endif
+	TRACE_CPUPROFILER_EVENT_SCOPE(UE::CADKernel::FGrid::GetPreferredUVCuttingParametersFromLoops)
 
 	int32 nbPoints = 0;
 	for (const TSharedPtr<FTopologicalLoop>& Loop : Face.GetLoops())
@@ -226,14 +110,6 @@ void FGrid::GetPreferredUVCuttingParametersFromLoops(FCuttingGrid& CuttingParame
 		for (const FOrientedEdge& OrientedEdge : Loop->GetEdges())
 		{
 			const TSharedPtr<FTopologicalEdge>& Edge = OrientedEdge.Entity;
-
-#ifdef DEBUG_GET_PREFERRED_UVCOORDINATES_FROM_NEIGHBOURS
-			if (bDisplay)
-			{
-				F3DDebugSession _(FString::Printf(TEXT("Edge %d"), Edge->GetId()));
-				Display2D(*Edge);
-			}
-#endif
 
 			TArray<double> ProjectedPointCoords;
 			TSharedRef<FTopologicalEdge> ActiveEdge = Edge->GetLinkActiveEdge();
@@ -267,19 +143,10 @@ void FGrid::GetPreferredUVCuttingParametersFromLoops(FCuttingGrid& CuttingParame
 			TArray<FPoint2D> EdgePoints2D;
 			Edge->Approximate2DPoints(ProjectedPointCoords, EdgePoints2D);
 
-#ifdef DEBUG_GET_PREFERRED_UVCOORDINATES_FROM_NEIGHBOURS
-			F3DDebugSession _(bDisplay, ("Nodes"));
-#endif
 			for (int32 Index = 0; Index < EdgePoints2D.Num(); ++Index)
 			{
 				CuttingParametersFromLoops[EIso::IsoU].Emplace(EdgePoints2D[Index].U, ECoordinateType::OtherCoordinate);
 				CuttingParametersFromLoops[EIso::IsoV].Emplace(EdgePoints2D[Index].V, ECoordinateType::OtherCoordinate);
-#ifdef DEBUG_GET_PREFERRED_UVCOORDINATES_FROM_NEIGHBOURS
-				if (bDisplay)
-				{
-					DisplayPoint(EdgePoints2D[Index]);
-				}
-#endif
 			}
 		}
 	}
@@ -324,7 +191,7 @@ void FGrid::GetPreferredUVCuttingParametersFromLoops(FCuttingGrid& CuttingParame
 
 bool FGrid::GeneratePointCloud()
 {
-	FTimePoint StartTime = FChrono::Now();
+	TRACE_CPUPROFILER_EVENT_SCOPE(UE::CADKernel::FGrid::GeneratePointCloud)
 
 	if (CheckIf2DGridIsDegenerate())
 	{
@@ -342,13 +209,12 @@ bool FGrid::GeneratePointCloud()
 		return false;
 	}
 
-	Chronos.GeneratePointCloudDuration += FChrono::Elapse(StartTime);
 	return true;
 }
 
 void FGrid::FindPointsCloseToLoop()
 {
-	FTimePoint StartTime = FChrono::Now();
+	TRACE_CPUPROFILER_EVENT_SCOPE(UE::CADKernel::FGrid::FindPointsCloseToLoop)
 
 	int32 IndexLoop = 0;
 	int32 Index[2] = { 1, 1 };
@@ -356,28 +222,6 @@ void FGrid::FindPointsCloseToLoop()
 
 	const FPoint2D* PointA = nullptr;
 	const FPoint2D* PointB = nullptr;
-
-#ifdef DEBUG_FINDPOINTSCLOSETOLOOP
-	if (bDisplay)
-	{
-		Open3DDebugSession(TEXT("FGrid::FindPointsClosedToLoop result"));
-	}
-
-	int32 CellIndex = 0;
-	bool bWaitCell = true;
-	TFunction<void()> DisplayCell = [&]()
-	{
-		if (bDisplay)
-		{
-			F3DDebugSession _(*FString::Printf(TEXT("Cell %d"), CellIndex++));
-			DisplayPoint2DWithScale(Points2D[EGridSpace::UniformScaled][GlobalIndex]);
-			DisplayPoint2DWithScale(Points2D[EGridSpace::UniformScaled][GlobalIndex - 1]);
-			DisplayPoint2DWithScale(Points2D[EGridSpace::UniformScaled][GlobalIndex - 1 - CuttingCount[EIso::IsoU]]);
-			DisplayPoint2DWithScale(Points2D[EGridSpace::UniformScaled][GlobalIndex - CuttingCount[EIso::IsoU]]);
-			Wait(bWaitCell);
-		}
-	};
-#endif
 
 	// Find start index
 	TFunction<void(EIso)> FindPointAIndex = [&](EIso Iso)
@@ -398,9 +242,6 @@ void FGrid::FindPointsCloseToLoop()
 		SetCloseToLoop(GlobalIndex - 1);
 		SetCloseToLoop(GlobalIndex - 1 - CuttingCount[EIso::IsoU]);
 		SetCloseToLoop(GlobalIndex - CuttingCount[EIso::IsoU]);
-#ifdef DEBUG_FINDPOINTSCLOSETOLOOP
-		DisplayCell();
-#endif
 	};
 
 	TFunction<void(EIso)> Increase = [&](EIso Iso)
@@ -530,14 +371,6 @@ void FGrid::FindPointsCloseToLoop()
 		{
 			PointB = &Loop[BIndex];
 
-#ifdef DEBUG_FINDPOINTSCLOSETOLOOP
-			if (bDisplay)
-			{
-				F3DDebugSession _(TEXT("SEG"));
-				DisplaySegmentWithScale(*PointB, *PointA);
-			}
-#endif
-
 			// Horizontal case
 			if (FindIntersectionIsoStrip(EIso::IsoU))
 			{
@@ -608,21 +441,11 @@ void FGrid::FindPointsCloseToLoop()
 			PointA = PointB;
 		}
 	}
-
-#ifdef DEBUG_FINDPOINTSCLOSETOLOOP
-	if (bDisplay)
-	{
-		Close3DDebugSession();
-		Wait();
-	}
-#endif
-
-	Chronos.FindPointsCloseToLoopDuration += FChrono::Elapse(StartTime);
 }
 
 void FGrid::RemovePointsCloseToLoop()
 {
-	FTimePoint StartTime = FChrono::Now();
+	TRACE_CPUPROFILER_EVENT_SCOPE(UE::CADKernel::FGrid::RemovePointsCloseToLoop)
 
 	struct FGridSegment
 	{
@@ -831,8 +654,6 @@ void FGrid::RemovePointsCloseToLoop()
 			break;
 		}
 	}
-
-	Chronos.RemovePointsClosedToLoopDuration += FChrono::Elapse(StartTime);
 }
 
 /**
@@ -895,6 +716,8 @@ void SlightlyDisplacedPolyline(TArray<FPoint2D>& D2Points, const FSurfacicBounda
 
 void FGrid::GetMeshOfLoop(const FTopologicalLoop& Loop)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UE::CADKernel::FGrid::GetMeshOfLoop)
+
 	int32 LoopNodeCount = 0;
 
 	for (const FOrientedEdge& Edge : Loop.GetEdges())
@@ -918,15 +741,6 @@ void FGrid::GetMeshOfLoop(const FTopologicalLoop& Loop)
 	{
 		const TSharedPtr<FTopologicalEdge>& Edge = OrientedEdge.Entity;
 		const TSharedRef<FTopologicalEdge>& ActiveEdge = Edge->GetLinkActiveEdge();
-
-#ifdef DEBUG_GET_MESH_OF_LOOP
-		if (bDisplay)
-		{
-			F3DDebugSession _(bDisplay, FString::Printf(TEXT("Edge %d"), Edge->GetId()));
-			Display2D(*Edge);
-			Wait();
-		}
-#endif
 
 		bool bSameDirection = Edge->IsSameDirection(*ActiveEdge);
 
@@ -1005,6 +819,22 @@ void FGrid::GetMeshOfLoop(const FTopologicalLoop& Loop)
 				Swap(CuttingPolyline.Coordinates, EdgeCuttingPointCoordinates);
 			}
 
+			// #cadkernel_check: Why does this only applies to planar surfaces
+			const FSurface& CarrierSurface = *OrientedEdge.Entity->GetLoop()->GetFace()->GetCarrierSurface();
+			if (SurfaceUtilities::IsPlanar(CarrierSurface))
+			{
+				// Make sure 'not derivable coordinates' are part of the polyline's coordinates
+				TSharedPtr<FRestrictionCurve> Curve = OrientedEdge.Entity->GetCurve();
+				TArray<double> NotDerivableCoordinates;
+				Curve->FindNotDerivableCoordinates(Curve->GetBoundary(), 1, NotDerivableCoordinates);
+				ArrayUtils::Complete(CuttingPolyline.Coordinates, NotDerivableCoordinates, Curve->GetMinLinearTolerance());
+
+				// Remove duplicates
+				TArray<double> CachedCoordinates(CuttingPolyline.Coordinates);
+				ArrayUtils::RemoveDuplicates(CuttingPolyline.Coordinates, Curve->GetMinLinearTolerance());
+				ensureCADKernel(CuttingPolyline.Coordinates.Num() > 1);
+			}
+			
 			Edge->ApproximatePolyline(CuttingPolyline);
 		}
 
@@ -1046,20 +876,16 @@ void FGrid::GetMeshOfLoop(const FTopologicalLoop& Loop)
 		else
 		{
 			EdgeVerticesIndex = ActiveEdge->GetOrCreateMesh(MeshModel).EdgeVerticesIndex;
-		}
 
-#ifdef DEBUG_GET_MESH_OF_LOOP
-		if (bDisplay)
-		{
-			F3DDebugSession _(bDisplay, FString::Printf(TEXT("Edge %d cutting points on surface"), ActiveEdge->GetId()));
-			for (const FPoint2D& Point2D : CuttingPolyline.Points2D)
+			// #cadkernel_check: Adding the 'not derivable coordinates may introduce new points
+			//		Whys is EdgeVerticesIndex taken from the ActiveEdge?
+			//		Should the EdgeVerticesIndex be regenerated?
+			int32 LastID = EdgeVerticesIndex.Last();
+			while (EdgeVerticesIndex.Num() < CuttingPolyline.Size())
 			{
-				DisplayPoint(Point2D);
+				EdgeVerticesIndex.Add(LastID);
 			}
-			DisplayPolyline(CuttingPolyline.Points2D, EVisuProperty::BlueCurve);
-			Wait();
 		}
-#endif
 
 		if (OrientedEdge.Direction != EOrientation::Front)
 		{
@@ -1074,52 +900,22 @@ void FGrid::GetMeshOfLoop(const FTopologicalLoop& Loop)
 		ensureCADKernel(CuttingPolyline.Size() > 1);
 
 		Loop2D.Append(MoveTemp(CuttingPolyline.Points2D));
-		Loop2D.Pop();
-
-#ifdef DEBUG_GET_MESH_OF_LOOP
-		if (bDisplay)
-		{
-			F3DDebugSession _(bDisplay, FString::Printf(TEXT("Loop with Edge %d"), Edge->GetId()));
-			DisplayPolyline(Loop2D, EVisuProperty::BlueCurve);
-			Wait();
-		}
-#endif
-
-#ifdef CADKERNEL_DEBUG_
-		const FPoint2D* PrevPoint = &Loop2D.Last();
-		if(Loop2D.Num() > 1)
-		{
-			for (const FPoint2D& Point : Loop2D)
-			{
-				double Dist = PrevPoint->Distance(Point);
-				if(Dist > 0.0001)
-				{
-					ensureCADKernel(false);
-				}
-				PrevPoint = &Point;
-			}
-		}
-#endif
+		// Ignore last added vertex as it is equal to first of next edge in loop
+		Loop2D.SetNum(Loop2D.Num() - 1, EAllowShrinking::No); 
 
 		int32 LastIndex = Loop3D.Num();
 		Loop3D.Append(MoveTemp(CuttingPolyline.Points3D));
 		Loop3D[LastIndex] = (ActiveEdge->GetStartVertex((OrientedEdge.Direction == EOrientation::Front) == bSameDirection)->GetLinkActiveEntity()->GetBarycenter());
-		Loop3D.Pop();
+		// Ignore last added vertex as it is equal to first of next edge in loop
+		Loop3D.SetNum(Loop3D.Num() - 1, EAllowShrinking::No);
 
 		LoopNormals.Append(MoveTemp(CuttingPolyline.Normals));
-		LoopNormals.Pop();
+		// Ignore last added normal as it is equal to first of next edge in loop
+		LoopNormals.SetNum(LoopNormals.Num() - 1, EAllowShrinking::No);
 
 		LoopIds.Append(MoveTemp(EdgeVerticesIndex));
-		LoopIds.Pop();
-
-#ifdef DEBUG_GET_MESH_OF_LOOP
-		static int32 GetMeshOfLoopIter = 0;
-		GetMeshOfLoopIter++;
-		if (LoopIds.Num() != Loop2D.Num() || GetMeshOfLoopIter == 2991)
-		{
-			printf("");
-		}
-#endif
+		// Ignore last added index as it is equal to first of next edge in loop
+		LoopIds.SetNum(LoopIds.Num() - 1, EAllowShrinking::No);
 	}
 
 	if (Loop2D.Num() < 3) // degenerated loop
@@ -1133,6 +929,8 @@ void FGrid::GetMeshOfLoop(const FTopologicalLoop& Loop)
 
 void FGrid::GetMeshOfThinZone(const FThinZone2D& ThinZone)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UE::CADKernel::FGrid::GetMeshOfThinZone)
+
 	// ThinZones are identified during "ApplyCriteria". "ApplyCriteria" use the FCriteriaGrid, The EGridSpace::UniformScaled are not the same between FCriteriaGrid and FGrid
 	// This is the reason why, to get the ThinZone in the FGrid UniformScaled space, we need to get the mesh of the thinZone defined by the node ids, 
 	// And then, from this, we retrieve the thinZone points in Grid UniformScaled space.
@@ -1282,16 +1080,14 @@ void FGrid::GetMeshOfThinZone(const FThinZone2D& ThinZone)
 
 bool FGrid::GetMeshOfLoops()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UE::CADKernel::FGrid::GetMeshOfLoops)
+
 	int32 LoopCount = Face.GetLoops().Num();
 	FaceLoops2D[EGridSpace::Default2D].Reserve(LoopCount);
 
 	FaceLoops3D.Reserve(LoopCount);
 	NormalsOfFaceLoops.Reserve(LoopCount);
 	NodeIdsOfFaceLoops.Reserve(LoopCount);
-
-#ifdef DEBUG_GET_BOUNDARY_MESH
-	F3DDebugSession _(bDisplay, ("GetLoopMesh"));
-#endif
 
 	// Outer loops is processed first
 	for (const TSharedPtr<FTopologicalLoop>& Loop : Face.GetLoops())
@@ -1320,23 +1116,10 @@ bool FGrid::GetMeshOfLoops()
  
 	if (Face.HasThinZone())
 	{
-#ifdef DEBUG_GET_BOUNDARY_MESH
-		F3DDebugSession _(bDisplay, ("Thin zone loop"));
-#endif
 		for (const FThinZone2D& ThinZone : Face.GetThinZones())
 		{
 			GetMeshOfThinZone(ThinZone);
-#ifdef DEBUG_GET_BOUNDARY_MESH
-			if(bDisplay)
-			{
-				DisplayGridLoop(TEXT("ThinZone"), FaceLoops2D[EGridSpace::UniformScaled][FaceLoops2D[EGridSpace::UniformScaled].Num() - 1], true, true, false);
-				Wait();
-			}
-#endif
 		}
-#ifdef DEBUG_GET_BOUNDARY_MESH
-		//Wait();
-#endif
 	}
 
 	// Fit loops to Surface bounds.
@@ -1427,13 +1210,15 @@ bool FGrid::CheckIf2DGridIsDegenerate() const
 
 void FGrid::FindInnerFacePoints()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UE::CADKernel::FGrid::FindInnerFacePoints)
+
+	// #cadkernel_check: This could use the TPolygon class???
+
 	// FindInnerDomainPoints: Inner Points <-> bIsOfInnerDomain = true
 	// For each points count the number of intersection with the boundary in the four directions U+ U- V+ V-
 	// It for each the number is pair, the point is outside,
 	// If in 3 directions the point is inner, the point is inner else we have a doubt so it preferable to consider it outside. 
 	// Most of the time, there is a doubt if the point is to close of the boundary. So it will be removed be other criteria
-
-	FTimePoint StartTime = FChrono::Now();
 
 	TFunction<void(TArray<char>&, int32)> AddIntersection = [](TArray<char>& Intersect, int32 Index)
 	{
@@ -1529,10 +1314,6 @@ void FGrid::FindInnerFacePoints()
 			}
 		}
 	}
-
-#ifdef DEBUG_FIND_INNER_FACE_POINTS
-	DisplayGridLoops(TEXT("FGrid::Loop 2D After move according tol"), GetLoops2D(EGridSpace::UniformScaled), true, false);
-#endif
 
 	// Intersection along U axis
 	for (const TArray<FPoint2D>& Loop : FaceLoops2D[EGridSpace::UniformScaled])
@@ -1741,8 +1522,6 @@ void FGrid::FindInnerFacePoints()
 			CountOfInnerNodes--;
 		}
 	}
-
-	Chronos.FindInnerDomainPointsDuration += FChrono::Elapse(StartTime);
 }
 
 bool FGrid::CheckIfExternalLoopIsDegenerate() const
@@ -1765,5 +1544,4 @@ bool FGrid::CheckIfExternalLoopIsDegenerate() const
 }
 
 } // NS CADKernel
-
 

@@ -6,13 +6,13 @@ namespace UE::CADKernel
 
 void FBoundedCurve::EvaluatePoint(double Coordinate, FCurvePoint& OutPoint, int32 DerivativeOrder) const
 {
-	ensure(Boundary.Contains(Coordinate));
+	ensureCADKernel(Boundary.Contains(Coordinate));
 	return Curve->EvaluatePoint(Coordinate, OutPoint, DerivativeOrder);
 }
 
 void FBoundedCurve::Evaluate2DPoint(double Coordinate, FCurvePoint2D& OutPoint, int32 DerivativeOrder) const
 {
-	ensure(Boundary.Contains(Coordinate));
+	ensureCADKernel(Boundary.Contains(Coordinate));
 	return Curve->Evaluate2DPoint(Coordinate, OutPoint, DerivativeOrder);
 }
 

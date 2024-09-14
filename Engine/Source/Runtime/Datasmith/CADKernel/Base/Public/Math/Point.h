@@ -374,6 +374,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return FPoint(PointX, PointY, PointZ);
 	}
 
+	bool Equals(const FPoint& Other, double Tolerance = UE_DOUBLE_SMALL_NUMBER) const
+	{
+		return FMath::IsNearlyEqual(X, Other.X, Tolerance) && FMath::IsNearlyEqual(Y, Other.Y, Tolerance) && FMath::IsNearlyEqual(Z, Other.Z, Tolerance);
+	}
 };
 
 class CADKERNEL_API FPointH
@@ -731,6 +735,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	friend FPoint2D Max(const FPoint2D& PointA, const FPoint2D& PointB)
 	{
 		return { FMath::Max(PointA.U, PointB.U), FMath::Max(PointA.V, PointB.V) };
+	}
+
+	bool Equals(const FPoint2D& Other, double Tolerance = UE_DOUBLE_SMALL_NUMBER) const
+	{
+		return FMath::IsNearlyEqual(U, Other.U, Tolerance) && FMath::IsNearlyEqual(V, Other.V, Tolerance);
 	}
 };
 

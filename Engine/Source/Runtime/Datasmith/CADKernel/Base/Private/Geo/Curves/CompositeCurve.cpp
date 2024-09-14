@@ -55,7 +55,7 @@ double FCompositeCurve::GlobalToLocalCoordinate(int32 CurveIndex, double Coordin
 
 void FCompositeCurve::EvaluatePoint(double Coordinate, FCurvePoint& OutPoint, int32 DerivativeOrder) const
 {
-	ensure(Dimension == 3);
+	ensureCADKernel(Dimension == 3);
 
 	OutPoint.DerivativeOrder = DerivativeOrder;
 
@@ -88,7 +88,7 @@ void FCompositeCurve::EvaluatePoint(double Coordinate, FCurvePoint& OutPoint, in
 
 void FCompositeCurve::Evaluate2DPoint(double Coordinate, FCurvePoint2D& OutPoint, int32 DerivativeOrder) const
 {
-	ensure(Dimension == 2);
+	ensureCADKernel(Dimension == 2);
 
 	OutPoint.DerivativeOrder = DerivativeOrder;
 

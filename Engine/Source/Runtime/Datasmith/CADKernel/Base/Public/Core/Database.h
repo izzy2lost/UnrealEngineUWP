@@ -18,6 +18,7 @@ class CADKERNEL_API FDatabase
 	friend class FCADKernelArchive;
 	friend class FEntity;
 	friend class FSession;
+	template<typename, ESPMode> friend class SharedPointerInternals::TIntrusiveReferenceController;
 
 protected:
 
@@ -78,7 +79,8 @@ public:
 
 	FDatabase();
 
-	FModel& GetModel();
+	FModel& GetModel() { return *GetModelAsShared(); }
+	TSharedPtr<FModel> GetModelAsShared();
 
 	/**
 	 * Remove from database

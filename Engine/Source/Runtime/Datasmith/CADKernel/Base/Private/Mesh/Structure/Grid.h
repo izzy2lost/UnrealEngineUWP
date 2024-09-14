@@ -51,7 +51,7 @@ protected:
 	/*
 	 * Cutting coordinates of the face respecting the meshing criteria
 	 */
-	const FCoordinateGrid& CoordinateGrid;
+	FCoordinateGrid& CoordinateGrid;
 
 	virtual const FCoordinateGrid& GetCoordinateGrid() const override
 	{

@@ -79,6 +79,11 @@ public:
 		return Curve2D.ToSharedRef();
 	}
 
+	double GetMinLinearTolerance() const
+	{
+		return MinLinearTolerance;
+	}
+
 	TSharedPtr<FEntityGeom> ApplyMatrix(const FMatrixH& InMatrix) const override
 	{
 		ensureCADKernel(false);
@@ -269,7 +274,7 @@ public:
 	 */
 	virtual void Offset(const FPoint& OffsetDirection) override
 	{
-		ensure(false);
+		ensureCADKernel(false);
 	}
 
 };

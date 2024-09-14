@@ -142,10 +142,6 @@ protected:
 
 	FGrid Grid;
 
-#ifdef CADKERNEL_DEV
-	bool bDisplay = false;
-#endif
-
 public:
 
 	FParametricFaceMesher(FTopologicalFace& Face, FModelMesh& InMeshModel, const FMeshingTolerances& InTolerances, bool bActivateThinZoneMeshing);
@@ -157,6 +153,7 @@ private:
 	void Mesh(FTopologicalEdge& InEdge, bool bFinalMeshing = true);
 	void Mesh(FTopologicalVertex& Vertex);
 	void MeshVerticesOfFace(FTopologicalFace& Face);
+	void MeshPlanarFace();
 
 	void MeshFaceLoops();
 

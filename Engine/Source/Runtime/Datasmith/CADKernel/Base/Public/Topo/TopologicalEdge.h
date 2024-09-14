@@ -225,7 +225,6 @@ public:
 
 	/**
 	 * It can be linked to the edge if :
-	 *  - they are connected at their extremities,
 	 *  - they have the same length (5% or +/- EdgeLengthTolerance)
 	 *  - they are ~tangent at their extremities i.e @see IsTangentAtExtremitiesWith
 	 */
@@ -234,8 +233,8 @@ public:
 	/**
 	 * Link two edges.
 	 * Two edges can be linked if :
-	 *  - they are connected at their extremities (SquareJoiningTolerance),
-	 *  - they are linkable (@see IsLinkableTo)
+	 *  - Their extremities coincide following SquareJoiningTolerance's criteria,
+	 *  - They are linkable (@see IsLinkableTo)
 	 * 
 	 * This step must be done when the loop is finalize because in some case edges can be delete, split, extend... to avoid problems
 	 */

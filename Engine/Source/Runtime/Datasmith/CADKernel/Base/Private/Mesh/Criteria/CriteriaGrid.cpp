@@ -21,7 +21,7 @@ void FCriteriaGrid::Init()
 		TArray<double>& Tab2 = CoordinateGrid[Iso];
 
 		CuttingCount[Iso] = Tab.Num() * 2 - 1;
-		ensure(CuttingCount[Iso]);
+		ensureCADKernel(CuttingCount[Iso]);
 		Tab2.SetNum(CuttingCount[Iso]);
 
 		Tab2[0] = Tab[0];

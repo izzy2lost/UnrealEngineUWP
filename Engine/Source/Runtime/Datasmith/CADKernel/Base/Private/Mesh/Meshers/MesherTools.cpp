@@ -44,7 +44,7 @@ void FMesherTools::ComputeFinalCuttingPointsWithPreferredCuttingPoints(const TAr
 
 
 	// Step 2: Define the number of step(each step lasts one) as it must be an integer bigger than 1
-	double CorrectedFinalTravelTime = FMath::Max(((double)((int32)(TravelTime + 0.5))), 1.);
+	double CorrectedFinalTravelTime = FMath::Max((double)(FMath::CeilToInt32(TravelTime)), 1.);
 
 	// Step 3: Adjust the speeds than the travel respect the count of step
 	{
@@ -68,20 +68,20 @@ void FMesherTools::ComputeFinalCuttingPointsWithPreferredCuttingPoints(const TAr
 		{
 			for (; UIndex < DeltaUs.Num(); ++UIndex)
 			{
-				double DeltaU = DeltaUs[UIndex];
-				if (PreferredCuttingPoints[NeighbourIndex].Coordinate - DOUBLE_SMALL_NUMBER > CrossingUs[UIndex + 1])
+				const double DeltaU = DeltaUs[UIndex];
+				const double PreferredCuttingPoint = PreferredCuttingPoints[NeighbourIndex].Coordinate;
+
+				if (PreferredCuttingPoint - DOUBLE_SMALL_NUMBER > CrossingUs[UIndex + 1])
 				{
-					double DeltaTravelTime = (CrossingUs[UIndex + 1] - LastStep) / DeltaU;
+					TravelTime += (CrossingUs[UIndex + 1] - LastStep) / DeltaU;
 					LastStep = CrossingUs[UIndex + 1];
-					TravelTime += DeltaTravelTime;
 					continue;
 				}
 
-				if (CrossingUs[UIndex] - DOUBLE_SMALL_NUMBER < PreferredCuttingPoints[NeighbourIndex].Coordinate && PreferredCuttingPoints[NeighbourIndex].Coordinate < CrossingUs[UIndex + 1] + DOUBLE_SMALL_NUMBER)
+				if (CrossingUs[UIndex] - DOUBLE_SMALL_NUMBER < PreferredCuttingPoint && PreferredCuttingPoint < CrossingUs[UIndex + 1] + DOUBLE_SMALL_NUMBER)
 				{
-					double DeltaTravelTime = (PreferredCuttingPoints[NeighbourIndex].Coordinate - LastStep) / DeltaU;
-					double TravelTimeToNeighbourU = TravelTime + DeltaTravelTime;
-					TravelTimeOfNeighborsU[NeighbourIndex] = TravelTimeToNeighbourU;
+					const double DeltaTravelTime = (PreferredCuttingPoint - LastStep) / DeltaU;
+					TravelTimeOfNeighborsU[NeighbourIndex] = TravelTime + DeltaTravelTime;
 				}
 				break;
 			}

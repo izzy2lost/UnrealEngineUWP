@@ -286,10 +286,10 @@ void InterpolerBSpline2D(const FNURBSSurface& Nurbs, FGrid& Grid)
 		}
 
 		// pour chaque Reseau Pj(U), on calcule les points P(UV)
-		//TBSplineData<FPointH> Data(FMath::Max(Nurbs.GetUDegre(), Nurbs.GetVDegre()) + 1);
+		//TBSplineData<FPointH> Data(FMath::Max(Nurbs.GetUDegree(), Nurbs.GetVDegree()) + 1);
 
 		//FTimePoint StartTime2 = FChrono::Now();
-		//TBSplineData<FPointH> Data2(FMath::Max(Nurbs.GetUDegre() , Grid.GetNumV()) + 1);
+		//TBSplineData<FPointH> Data2(FMath::Max(Nurbs.GetUDegree() , Grid.GetNumV()) + 1);
 		//FChrono::PrintClockElapse(LOG, "    ", "Alloc", FChrono::Elapse(StartTime2), ETimeUnit::NanoSeconds);
 
 		//FTimePoint StartTime = FChrono::Now();
@@ -299,7 +299,7 @@ void InterpolerBSpline2D(const FNURBSSurface& Nurbs, FGrid& Grid)
 
 		{
 			FPointH OutGradient;
-			TBSplineSurface<FPointH> Surface(Nurbs.GetPoleNumU(), Nurbs.GetUDegre(), Nurbs.GetNodalVectorU(), Nurbs.GetHomogeneousPoles());
+			TBSplineSurface<FPointH> Surface(Nurbs.GetPoleNumU(), Nurbs.GetUDegree(), Nurbs.GetNodalVectorU(), Nurbs.GetHomogeneousPoles());
 			//string Message = "Iteration IndexV " + Utils::ToString(IndexV);
 			Surface.Display(TEXT("in"));
 			Wait();
@@ -310,15 +310,15 @@ void InterpolerBSpline2D(const FNURBSSurface& Nurbs, FGrid& Grid)
 			}
 		}
 
-		TBSplineSurface<FPointH> OutSurface(Nurbs.GetPoleNumV(), Nurbs.GetVDegre(), Nurbs.GetNodalVectorV(), PointUCurveIndexVArray);
+		TBSplineSurface<FPointH> OutSurface(Nurbs.GetPoleNumV(), Nurbs.GetVDegree(), Nurbs.GetNodalVectorV(), PointUCurveIndexVArray);
 		OutSurface.Display(TEXT("Hello"));
 		Wait();
 
 		return;
 		//{
-		//TBSplineSurface<FPointH> OutSurface(Nurbs.GetPoleNumV(), Nurbs.GetVDegre(), Nurbs.GetVNodalVector(), PointUCurveIndexVArray);
+		//TBSplineSurface<FPointH> OutSurface(Nurbs.GetPoleNumV(), Nurbs.GetVDegree(), Nurbs.GetVNodalVector(), PointUCurveIndexVArray);
 		//	FPointH OutGradient;
-		//	TBSplineSurface<FPointH> InSurface(Nurbs.GetPoleNumV(), Nurbs.GetVDegre(), Nurbs.GetVNodalVector(), Nurbs.GetHomogeneousPoles());
+		//	TBSplineSurface<FPointH> InSurface(Nurbs.GetPoleNumV(), Nurbs.GetVDegree(), Nurbs.GetVNodalVector(), Nurbs.GetHomogeneousPoles());
 		//	for (int32 IndexU = 0, Index = 0; IndexU <Grid.GetNumU(); ++IndexU)
 		//	{
 		//		InSurface.SetPoles(PointUCurveIndexVArray[IndexU].GetData() + Index);
@@ -717,7 +717,7 @@ void Interpolate2DBSpline(
 
 void EvaluatePoint(const FNURBSCurve& Nurbs, double Coordinate, FCurvePoint& OutPoint, int32 DerivativeOrder)
 {
-	ensure(Nurbs.GetDimension() == 3);
+	ensureCADKernel(Nurbs.GetDimension() == 3);
 
 	OutPoint.DerivativeOrder = DerivativeOrder;
 
