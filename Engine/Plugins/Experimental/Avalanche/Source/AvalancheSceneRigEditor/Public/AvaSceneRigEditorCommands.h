@@ -5,9 +5,13 @@
 #include "Framework/Commands/Commands.h"
 #include "Styling/AppStyle.h"
 
-class AVALANCHESCENERIGEDITOR_API FAvaSceneRigEditorCommands : public TCommands<FAvaSceneRigEditorCommands>
+class FAvaSceneRigEditorCommands : public TCommands<FAvaSceneRigEditorCommands>
 {
 public:
+	AVALANCHESCENERIGEDITOR_API static const FAvaSceneRigEditorCommands& GetExternal();
+
+	static const FAvaSceneRigEditorCommands& GetInternal();
+
 	FAvaSceneRigEditorCommands()
 		: TCommands<FAvaSceneRigEditorCommands>(TEXT("AvaSceneRigCommands")
 		, NSLOCTEXT("AvaSceneRigCommands", "AvaSceneRigCommands", "Avalanche Scene Rig Commands")
@@ -23,4 +27,8 @@ public:
 
 	TSharedPtr<FUICommandInfo> AddOutlinerItemsToSceneRig;
 	TSharedPtr<FUICommandInfo> RemoveOutlinerItemsToSceneRig;
+
+private:
+	// Make this unavailable to the public
+	using TCommands<FAvaSceneRigEditorCommands>::Get;
 };

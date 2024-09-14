@@ -43,8 +43,8 @@ void FAvaSceneRigExtension::Deactivate()
 void FAvaSceneRigExtension::BindCommands(const TSharedRef<FUICommandList>& InCommandList)
 {
 	FAvaEditorExtension::BindCommands(InCommandList);
-	
-	const FAvaSceneRigEditorCommands& SceneRigEditorCommands = FAvaSceneRigEditorCommands::Get();
+
+	const FAvaSceneRigEditorCommands& SceneRigEditorCommands = FAvaSceneRigEditorCommands::GetExternal();
 	
 	InCommandList->MapAction(
 		SceneRigEditorCommands.PromptToSaveSceneRigFromOutlinerItems,
@@ -88,7 +88,7 @@ void FAvaSceneRigExtension::ExtendOutlinerItemContextMenu(UToolMenu* const InToo
 	const TArray<AActor*> SelectedActors = OutlinerItemsToActors(ItemsContextWeak.Get()->GetItems(), true);
 	if (!SelectedActors.IsEmpty() && UAvaSceneRigSubsystem::AreActorsSupported(SelectedActors))
 	{
-		const FAvaSceneRigEditorCommands& SceneRigEditorCommands = FAvaSceneRigEditorCommands::Get();
+		const FAvaSceneRigEditorCommands& SceneRigEditorCommands = FAvaSceneRigEditorCommands::GetExternal();
 
 		FToolMenuSection& NewSection = InToolMenu->AddSection(TEXT("SceneRig"), LOCTEXT("SceneRig", "Scene Rig")
 			, FToolMenuInsert(TEXT("ContextActions"), EToolMenuInsertType::After));
@@ -107,7 +107,7 @@ void FAvaSceneRigExtension::CreateSubMenu(UToolMenu* const InToolMenu)
 	InToolMenu->AddDynamicSection(TEXT("SceneRig"), FNewToolMenuDelegate::CreateSPLambda(this, [this](UToolMenu* const InToolMenu)
 		{
 			const TSharedPtr<FUICommandList> CommandList = CommandListWeak.Pin();
-			const FAvaSceneRigEditorCommands& SceneRigEditorCommands = FAvaSceneRigEditorCommands::Get();
+			const FAvaSceneRigEditorCommands& SceneRigEditorCommands = FAvaSceneRigEditorCommands::GetExternal();
 
 			FToolMenuSection& NewSection = InToolMenu->AddSection(TEXT("SceneRig"), LOCTEXT("SceneRigActions", "Scene Rig"));
 

@@ -107,7 +107,7 @@ TSharedPtr<SWidget> SAvaLevelViewport::MakeViewportToolbar()
 
 TSharedRef<SWidget> SAvaLevelViewport::OnExtendLevelEditorViewportToolbarForChildActorLock(FWeakObjectPtr InExtensionContext)
 {
-	const FAvaLevelViewportCommands& Commands = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& Commands = FAvaLevelViewportCommands::GetInternal();
 
 	return SNew(SEditorViewportToolBarButton)
 		.ButtonType(EUserInterfaceActionType::Check)
@@ -168,7 +168,7 @@ void SAvaLevelViewport::FillCameraMenu(UToolMenu* InMenu)
 		return;
 	}
 
-	const FAvaLevelViewportCommands& LevelViewportCommands = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& LevelViewportCommands = FAvaLevelViewportCommands::GetInternal();
 
 	TArray<TWeakObjectPtr<ACameraActor>> CameraActors;
 	for (ACameraActor* const CameraActor : TActorRange<ACameraActor>(World))
@@ -373,7 +373,7 @@ void SAvaLevelViewport::AddVirtualSizeMenuEntries(UToolMenu* InMenu)
 
 void SAvaLevelViewport::AddVirtualSizeDefaultEntries(FToolMenuSection& InSection)
 {
-	const FAvaLevelViewportCommands& LevelViewportCommands = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& LevelViewportCommands = FAvaLevelViewportCommands::GetInternal();
 
 	InSection.AddMenuEntry("NoSize", LevelViewportCommands.VirtualSizeDisable, INVTEXT("-"));
 	InSection.AddMenuEntry("1920x1080", LevelViewportCommands.VirtualSize1920x1080, INVTEXT("1920 x 1080"));
@@ -383,7 +383,7 @@ void SAvaLevelViewport::AddVirtualSizeSizeSettings(FToolMenuSection& InSection)
 {
 	using namespace UE::AvaLevelViewport::Private;
 
-	const FAvaLevelViewportCommands& LevelViewportCommands = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& LevelViewportCommands = FAvaLevelViewportCommands::GetInternal();
 
 	InSection.AddMenuEntry("UseUnlockedAspectRatio", LevelViewportCommands.VirtualSizeAspectRatioUnlocked, LOCTEXT("VirtualSizeUnlockedAspectRatio", "Free Aspect Ratio"));
 	InSection.AddMenuEntry("UseLockedAspectRatio", LevelViewportCommands.VirtualSizeAspectRatioLocked, LOCTEXT("VirtualSizeLockedAspectRatio", "Locked Aspect Ratio"));
@@ -744,7 +744,7 @@ void SAvaLevelViewport::AddGuidePresetSavedMenu(UToolMenu* InMenu)
 
 void SAvaLevelViewport::AddCameraZoomMenuEntries(UToolMenu* InMenu)
 {
-	const FAvaLevelViewportCommands& LevelViewportCommands = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& LevelViewportCommands = FAvaLevelViewportCommands::GetInternal();
 
 	FToolMenuSection& PanSection = InMenu->AddSection(TEXT("CameraPanSection"), LOCTEXT("CameraPanSection", "Pan"));
 	PanSection.AddMenuEntry("CameraPanLeft",       LevelViewportCommands.CameraPanLeft,       LOCTEXT("CameraPanLeft",       "Pan Left"));

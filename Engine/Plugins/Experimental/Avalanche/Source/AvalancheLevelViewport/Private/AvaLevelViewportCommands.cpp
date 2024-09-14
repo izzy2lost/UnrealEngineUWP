@@ -5,6 +5,21 @@
 
 #define LOCTEXT_NAMESPACE "AvaLevelViewportCommands"
 
+const FAvaLevelViewportCommands& FAvaLevelViewportCommands::GetExternal()
+{
+	if (!IsRegistered())
+	{
+		Register();
+	}
+
+	return Get();
+}
+
+const FAvaLevelViewportCommands& FAvaLevelViewportCommands::GetInternal()
+{
+	return Get();
+}
+
 FAvaLevelViewportCommands::FAvaLevelViewportCommands()
 	: TCommands<FAvaLevelViewportCommands>(
 		TEXT("AvaLevelViewport")

@@ -254,7 +254,7 @@ void SAvaLevelViewportStatusBarButtons::PopulateActorButtons(TSharedPtr<SHorizon
 {
 	using namespace UE::AvaLevelViewport::Private;
 
-	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::GetInternal();
 
 	InContainer->AddSlot()
 		.AutoWidth()
@@ -292,7 +292,7 @@ void SAvaLevelViewportStatusBarButtons::PopulateViewportButtons(TSharedPtr<SHori
 {
 	using namespace UE::AvaLevelViewport::Private;
 
-	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::GetInternal();
 	const FLevelViewportCommands& ViewportActionsRef = FLevelViewportCommands::Get();
 
 	InContainer->AddSlot()
@@ -550,7 +550,7 @@ TSharedRef<SWidget> SAvaLevelViewportStatusBarButtons::GetPostProcessMenuContent
 
 	using namespace UE::Ava::LevelViewportStatusBarButtons::Private;
 
-	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::GetInternal();
 
 	FToolMenuSection& EffectsSection = ContextMenu->FindOrAddSection("Effects", LOCTEXT("Effects", "Effects"));
 
@@ -891,7 +891,7 @@ TSharedRef<SWidget> SAvaLevelViewportStatusBarButtons::GetSnappingMenuContent() 
 
 	FToolMenuSection& SnapToSection = ContextMenu->FindOrAddSection("SnapTo", LOCTEXT("SnapTo", "Snap To"));
 
-	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::GetInternal();
 
 	SnapToSection.AddEntry(FToolMenuEntry::InitMenuEntryWithCommandList(
 		CommandsRef.ToggleGridSnapping,
@@ -1061,7 +1061,7 @@ TSharedRef<SWidget> SAvaLevelViewportStatusBarButtons::GetGridMenuContent() cons
 
 	FToolMenuSection& GridSection = ContextMenu->FindOrAddSection("Grid", LOCTEXT("Grid", "Grid"));
 
-	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::GetInternal();
 
 	const FAvaLevelViewportGuideFrameAndWidget FrameAndWidget(ViewportFrameWeak);
 
