@@ -388,6 +388,9 @@ public:
 	TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe>       GetGeometryCollection() { return GeometryCollection; }
 	const TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> GetGeometryCollection() const { return GeometryCollection; }
 
+	/** Return true if the collection is "Empty" ( has no transforms at all ) */
+	GEOMETRYCOLLECTIONENGINE_API bool IsEmpty() const;
+
 	/** Return collection to initial (ie. empty) state. */
 	GEOMETRYCOLLECTIONENGINE_API void Reset();
 

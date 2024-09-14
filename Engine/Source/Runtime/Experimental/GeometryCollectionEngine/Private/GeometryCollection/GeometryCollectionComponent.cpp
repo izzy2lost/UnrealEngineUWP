@@ -1282,7 +1282,7 @@ void UGeometryCollectionComponent::SetSimulatePhysics(bool bEnabled)
 	if (bEnabled && !PhysicsProxy && RestCollection)
 	{
 		EnsurePhysicsStateCreated();
-		if (!PhysicsProxy)
+		if (!PhysicsProxy && !RestCollection->IsEmpty())
 		{
 			RegisterAndInitializePhysicsProxy();
 		}
