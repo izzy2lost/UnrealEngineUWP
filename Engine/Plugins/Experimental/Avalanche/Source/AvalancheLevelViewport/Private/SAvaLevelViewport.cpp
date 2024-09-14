@@ -97,7 +97,7 @@ void SAvaLevelViewport::BindCommands()
 	CommandListRef.UnmapAction(EditorViewportCommands.Right);
 	CommandListRef.UnmapAction(EditorViewportCommands.Bottom);
 
-	const FAvaLevelViewportCommands& AvaLevelViewportCommands = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& AvaLevelViewportCommands = FAvaLevelViewportCommands::GetInternal();
 
 	// Viewport
 	CommandListRef.MapAction(
@@ -611,7 +611,7 @@ void SAvaLevelViewport::ActivateCamera(TWeakObjectPtr<ACameraActor> InCamera)
 
 	ViewportClient->SetViewTarget(InCamera);
 
-	const FAvaLevelViewportCommands& AvaLevelViewportCommands = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& AvaLevelViewportCommands = FAvaLevelViewportCommands::GetInternal();
 	ViewportClient->GetZoomController()->Reset();
 
 	if (VirtualSizeAspectRatioState == EAvaViewportVirtualSizeAspectRatioState::LockedToCamera)

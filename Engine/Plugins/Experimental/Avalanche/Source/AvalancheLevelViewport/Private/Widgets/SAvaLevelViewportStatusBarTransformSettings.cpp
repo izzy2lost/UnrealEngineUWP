@@ -138,7 +138,7 @@ TSharedRef<SHorizontalBox> SAvaLevelViewportStatusBarTransformSettings::CreateLo
 {
 	using namespace UE::AvaLevelViewport::Private;
 
-	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::GetInternal();
 
 	return SNew(SHorizontalBox)
 
@@ -178,7 +178,7 @@ TSharedRef<SHorizontalBox> SAvaLevelViewportStatusBarTransformSettings::CreateRo
 {
 	using namespace UE::AvaLevelViewport::Private;
 
-	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::GetInternal();
 
 	return SNew(SHorizontalBox)
 
@@ -217,7 +217,7 @@ TSharedRef<SHorizontalBox> SAvaLevelViewportStatusBarTransformSettings::CreateSc
 {
 	using namespace UE::AvaLevelViewport::Private;
 
-	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::GetInternal();
 
 	return SNew(SHorizontalBox)
 

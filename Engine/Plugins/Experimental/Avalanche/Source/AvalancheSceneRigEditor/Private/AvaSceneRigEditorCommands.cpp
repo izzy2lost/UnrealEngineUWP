@@ -4,6 +4,21 @@
 
 #define LOCTEXT_NAMESPACE "AvaSceneRigEditorCommands"
 
+const FAvaSceneRigEditorCommands& FAvaSceneRigEditorCommands::GetExternal()
+{
+	if (!IsRegistered())
+	{
+		Register();
+	}
+
+	return Get();
+}
+
+const FAvaSceneRigEditorCommands& FAvaSceneRigEditorCommands::GetInternal()
+{
+	return Get();
+}
+
 void FAvaSceneRigEditorCommands::RegisterCommands()
 {
 	UI_COMMAND(PromptToSaveSceneRigFromOutlinerItems

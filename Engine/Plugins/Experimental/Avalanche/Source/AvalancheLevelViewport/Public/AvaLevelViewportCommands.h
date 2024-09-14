@@ -4,22 +4,18 @@
 
 #include "Framework/Commands/Commands.h"
 
-class AVALANCHELEVELVIEWPORT_API FAvaLevelViewportCommands : public TCommands<FAvaLevelViewportCommands>
+class FAvaLevelViewportCommands : public TCommands<FAvaLevelViewportCommands>
 {
 public:
+	AVALANCHELEVELVIEWPORT_API static const FAvaLevelViewportCommands& GetExternal();
+
+	static const FAvaLevelViewportCommands& GetInternal();
+
 	FAvaLevelViewportCommands();
 
 	//~ Begin TCommands
 	virtual void RegisterCommands() override;
 	//~ End TCommands
-
-	void RegisterViewportCommands();
-	void RegisterCameraCommands();
-	void RegisterGridCommands();
-	void RegisterSnappingCommands();
-	void RegisterVirtualSizeCommands();
-	void RegisterGuideCommands();
-	void RegisterTransformCommands();
 
 	// Viewport
 	TSharedPtr<FUICommandInfo> ToggleOverlay;
@@ -82,4 +78,16 @@ public:
 	TSharedPtr<FUICommandInfo> ResetRotation;
 	TSharedPtr<FUICommandInfo> ResetScale;
 	TSharedPtr<FUICommandInfo> ResetTransform;
+
+private:
+	// Make this unavailable to the public
+	using TCommands<FAvaLevelViewportCommands>::Get;
+
+	void RegisterViewportCommands();
+	void RegisterCameraCommands();
+	void RegisterGridCommands();
+	void RegisterSnappingCommands();
+	void RegisterVirtualSizeCommands();
+	void RegisterGuideCommands();
+	void RegisterTransformCommands();
 };

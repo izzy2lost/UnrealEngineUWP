@@ -130,7 +130,7 @@ void FAvaLevelViewportExtension::BindCommands(const TSharedRef<FUICommandList>& 
 	InCommandList->MapAction(FAvaEditorCommands::Get().SwitchViewports
 		, FExecuteAction::CreateSP(this, &FAvaLevelViewportExtension::OnSwitchViewports));
 
-	const FAvaLevelViewportCommands& LevelViewportCommands = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& LevelViewportCommands = FAvaLevelViewportCommands::GetExternal();
 
 	InCommandList->MapAction(LevelViewportCommands.ResetLocation
 		, FExecuteAction::CreateSP(this, &FAvaLevelViewportExtension::ExecuteResetLocation));

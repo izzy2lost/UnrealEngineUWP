@@ -51,7 +51,7 @@ void FAvaViewportCameraHistory::BindCommands()
 		return;
 	}
 	
-	const FAvaLevelViewportCommands& AvaLevelViewportCommands = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& AvaLevelViewportCommands = FAvaLevelViewportCommands::GetInternal();
 	const TSharedRef<FUICommandList> LevelEditorActions = LevelEditorModule->GetGlobalLevelEditorActions();
 
 	LevelEditorActions->MapAction(AvaLevelViewportCommands.CameraTransformUndo
@@ -73,7 +73,7 @@ void FAvaViewportCameraHistory::UnbindCommands()
 		return;
 	}
 	
-	const FAvaLevelViewportCommands& AvaLevelViewportCommands = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& AvaLevelViewportCommands = FAvaLevelViewportCommands::GetInternal();
 	const TSharedRef<FUICommandList> LevelEditorActions = LevelEditorModule->GetGlobalLevelEditorActions();
 
 	LevelEditorActions->UnmapAction(AvaLevelViewportCommands.CameraTransformUndo);
