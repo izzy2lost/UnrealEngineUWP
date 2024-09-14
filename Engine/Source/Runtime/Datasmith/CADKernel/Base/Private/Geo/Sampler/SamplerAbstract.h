@@ -91,10 +91,6 @@ protected:
 	 */
 	virtual void SamplingInitalizing()
 	{
-#ifdef DEBUG_CURVE_SAMPLING
-		++CurveIndex;
-		CurveToDisplay = CurveIndex;
-#endif
 		IsOptimalSegments.Empty(100);
 		Sampling.Empty(100);
 
@@ -116,8 +112,10 @@ protected:
 
 			for (int32 Index = 0; Index < NotDerivableCoordinates.Num() - 1; ++Index)
 			{
-				AddIntermediateCoordinates(NotDerivableCoordinates[Index], NotDerivableCoordinates[Index + 1], ComplementaryPointOffset);
-				NextCoordinates.Add(NotDerivableCoordinates[Index + 1]);
+				if (AddIntermediateCoordinates(NotDerivableCoordinates[Index], NotDerivableCoordinates[Index + 1], ComplementaryPointOffset))
+				{
+					NextCoordinates.Add(NotDerivableCoordinates[Index + 1]);
+				}
 			}
 		}
 
@@ -125,23 +123,17 @@ protected:
 		CandidatePoints.SwapCoordinates(NextCoordinates);
 		EvaluatesNewCandidatePoints();
 
-		// Not Derivable point initialize the sampling
+		// Not Derivable points and boundaries initialize the sampling
 		ComplementaryPointOffset++;
 		for (int32 Index = 0, ISampling = 0; Index < CandidatePoints.Size(); Index += ComplementaryPointOffset, ++ISampling)
 		{
 			Sampling.EmplaceAt(ISampling, CandidatePoints, Index);
 			IsOptimalSegments.Add(false);
 		}
+		// Remove last entered entry to IsOptimalSegments as this is to track segments
 		IsOptimalSegments.Pop();
 
 		CandidatePoints.RemoveComplementaryPoints(ComplementaryPointOffset);
-
-		// first segment is not optimal
-
-#ifdef DEBUG_CURVE_SAMPLING
-		int32 Step = 0;
-		DisplaySampling(CurveIndex == CurveToDisplay, Step);
-#endif
 	}
 
 	/**
@@ -255,11 +247,11 @@ protected:
 	}
 
 	/** Adds coordinates of the next candidate points in NextCoordinates array */
-	void AddIntermediateCoordinates(double UMin, double UMax, int32 PointNum)
+	bool AddIntermediateCoordinates(double UMin, double UMax, int32 PointNum)
 	{
 		if (FMath::IsNearlyEqual(UMin, UMax, UE_DOUBLE_SMALL_NUMBER))
 		{
-			return;
+			return false;
 		}
 		double DeltaCoord = (UMax - UMin) / (PointNum + 1);
 		double UCoord = UMin;
@@ -268,6 +260,8 @@ protected:
 			UCoord += DeltaCoord;
 			NextCoordinates.Add(UCoord);
 		}
+
+		return true;
 	};
 
 	/**

@@ -109,9 +109,8 @@ enum EVerboseLevel : uint8
 };
 } // namespace UE::CADKernel
 
-#ifdef DO_ENSURE_CADKERNEL
+#if CADKERNEL_DO_ENSURE
 #define ensureCADKernel(InExpression) ensure(InExpression)
 #else
-#define ensureCADKernel(InExpression) ensure(InExpression)
-//#define ensureCADKernel(InExpression) {}
+#define ensureCADKernel(InExpression) (LIKELY(!!(InExpression)))
 #endif

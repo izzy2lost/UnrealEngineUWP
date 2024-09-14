@@ -311,8 +311,10 @@ public:
 
 			for (int32 Index = 0; Index < LocalNotDerivableCoordinates.Num() - 1; ++Index)
 			{
-				AddIntermediateCoordinates(LocalNotDerivableCoordinates[Index], LocalNotDerivableCoordinates[Index + 1], ComplementaryPointOffset);
-				NextCoordinates.Add(LocalNotDerivableCoordinates[Index + 1]);
+				if (AddIntermediateCoordinates(LocalNotDerivableCoordinates[Index], LocalNotDerivableCoordinates[Index + 1], ComplementaryPointOffset))
+				{
+					NextCoordinates.Add(LocalNotDerivableCoordinates[Index + 1]);
+				}
 			}
 		}
 
@@ -329,13 +331,6 @@ public:
 		IsOptimalSegments.Pop();
 
 		CandidatePoints.RemoveComplementaryPoints(ComplementaryPointOffset);
-
-		// first segment is not optimal
-
-#ifdef DEBUG_CURVE_SAMPLING
-		int32 Step = 0;
-		DisplaySampling(CurveIndex == CurveToDisplay, Step);
-#endif
 	}
 
 protected:

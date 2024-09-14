@@ -18,6 +18,7 @@ class CADKERNEL_API FSession
 {
 	friend FEntity;
 	friend FCADKernelArchive;
+	template<typename, ESPMode> friend class SharedPointerInternals::TIntrusiveReferenceController;
 
 protected:
 
@@ -36,7 +37,8 @@ public:
 		IntersectionTool::SetTolerance(InGeometricTolerance);
 	}
 
-	FModel& GetModel();
+	FModel& GetModel() { return *GetModelAsShared(); }
+	TSharedPtr<FModel> GetModelAsShared();
 
 	void Serialize(FCADKernelArchive& Ar)
 	{

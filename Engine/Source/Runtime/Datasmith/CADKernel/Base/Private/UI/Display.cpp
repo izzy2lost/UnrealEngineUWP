@@ -744,7 +744,7 @@ void DisplayControlPolygon(const FSurface& Surface)
 	if (Surface.GetSurfaceType() == ESurface::Bezier)
 	{
 		const FBezierSurface& Bezier = (const FBezierSurface&)Surface;
-		DisplayHull(Bezier.GetPoles(), Bezier.GetUDegre() + 1, Bezier.GetVDegre() + 1);
+		DisplayHull(Bezier.GetPoles(), Bezier.GetUDegree() + 1, Bezier.GetVDegree() + 1);
 		return;
 	}
 	if (Surface.GetSurfaceType() == ESurface::Nurbs)

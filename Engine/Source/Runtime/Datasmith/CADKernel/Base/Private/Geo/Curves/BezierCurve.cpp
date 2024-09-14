@@ -37,7 +37,7 @@ bool FBezierCurve::IsBezier(const FNurbsCurveData& NurbsCurveData)
 
 FBezierCurve::FBezierCurve(const FNurbsCurveData& NurbsCurveData)
 {
-	ensure(IsBezier(NurbsCurveData));
+	ensureCADKernel(IsBezier(NurbsCurveData));
 
 	Degree = NurbsCurveData.Degree;
 	Dimension = (int8)NurbsCurveData.Dimension;
@@ -91,12 +91,12 @@ FBezierCurve::FBezierCurve(const FNurbsCurveData& NurbsCurveData)
 void FBezierCurve::EvaluatePoint(double Coordinate, FCurvePoint& OutPoint, int32 DerivativeOrder) const
 {
 	// Adjust coordinate value to curve's boundaries
-	if (!ensure(Coordinate >= (NodalVector[0] - UE_DOUBLE_SMALL_NUMBER)))
+	if (!ensureCADKernel(Coordinate >= (NodalVector[0] - UE_DOUBLE_SMALL_NUMBER)))
 	{
 		Coordinate = NodalVector[0];
 	}
 
-	if (!ensure(Coordinate <= (NodalVector[NumSegments] + UE_DOUBLE_SMALL_NUMBER)))
+	if (!ensureCADKernel(Coordinate <= (NodalVector[NumSegments] + UE_DOUBLE_SMALL_NUMBER)))
 	{
 		Coordinate = NodalVector[NumSegments];
 	}
@@ -117,7 +117,7 @@ void FBezierCurve::EvaluatePoint(double Coordinate, FCurvePoint& OutPoint, int32
 			}
 		}
 	}
-	ensure(SegmentIndex < NumSegments);
+	ensureCADKernel(SegmentIndex < NumSegments);
 
 	OutPoint.DerivativeOrder = DerivativeOrder;
 	OutPoint.Init();

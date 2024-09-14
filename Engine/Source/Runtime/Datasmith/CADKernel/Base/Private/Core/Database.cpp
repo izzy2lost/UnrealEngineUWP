@@ -32,14 +32,14 @@ FDatabase::FDatabase()
 	AddEntity(Model.ToSharedRef());
 }
 
-FModel& FDatabase::GetModel()
+TSharedPtr<FModel> FDatabase::GetModelAsShared()
 {
 	if (!Model.IsValid())
 	{
 		Model = FEntity::MakeShared<FModel>();
 		AddEntity(Model.ToSharedRef());
 	}
-	return *Model;
+	return Model;
 }
 
 FIdent FDatabase::CreateId()
@@ -236,7 +236,7 @@ void FDatabase::SerializeSelection(FCADKernelArchive& Ar, const TArray<FIdent>& 
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FDatabase::Serialize);
 
-	ensure(Ar.IsSaving());
+	ensureCADKernel(Ar.IsSaving());
 
 	bIsRecursiveSerialization = true;
 
@@ -304,7 +304,7 @@ void FDatabase::Serialize(FCADKernelArchive& Ar)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FDatabase::Serialize);
 
-	ensure(Ar.IsSaving());
+	ensureCADKernel(Ar.IsSaving());
 
 	SpawnEntityIdent(GetModel(), true);
 
@@ -338,7 +338,7 @@ void FDatabase::Deserialize(FCADKernelArchive& Ar)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FDatabase::Deserialize);
 
-	ensure(Ar.IsLoading());
+	ensureCADKernel(Ar.IsLoading());
 
 	Ar.Session.Serialize(Ar);
 
@@ -397,7 +397,7 @@ void FDatabase::CleanArchiveEntities()
 				TSharedPtr<FVertexLink> VertexLink = StaticCastSharedPtr<FVertexLink>(Entity);
 				VertexLink->CleanLink();
 #ifdef CADKERNEL_DEV
- 				ensureCADKernel(VertexLink->GetTwinEntityNum());
+ 				ensureCADKernel(VertexLink->GetTwinEntityCount());
 #endif
 				break;
 			}

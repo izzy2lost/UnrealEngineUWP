@@ -10,7 +10,7 @@ namespace UE::CADKernel
 
 TSharedPtr<FEntityGeom> FSplineCurve::ApplyMatrix(const FMatrixH& InMatrix) const
 {
-	ensure(false);
+	ensureCADKernel(false);
 	//TArray<FPoint> TransformedPoles;
 	//TransformedPoles.Reserve(Poles.Num());
 
@@ -24,7 +24,7 @@ TSharedPtr<FEntityGeom> FSplineCurve::ApplyMatrix(const FMatrixH& InMatrix) cons
 
 void FSplineCurve::Offset(const FPoint& OffsetDirection)
 {
-	ensure(false);
+	ensureCADKernel(false);
 	//for (FPoint& Pole : Poles)
 	//{
 	//	Pole += OffsetDirection;
@@ -42,7 +42,7 @@ FInfoEntity& FSplineCurve::GetInfo(FInfoEntity& Info) const
 
 void FSplineCurve::ExtendTo(const FPoint& Point)
 {
-	ensure(false);
+	ensureCADKernel(false);
 	//PolylineTools::ExtendTo(Poles, Point);
 }
 
@@ -71,7 +71,7 @@ void FSplineCurve::SetSplinePoints(const TArray<FPoint>& Points)
 void FSplineCurve::SetSplinePoints(const TArray<FPoint>& Points, const TArray<FPoint>& Tangents)
 {
 	const int32 NumPoints = Points.Num();
-	ensure(Tangents.Num() == NumPoints);
+	ensureCADKernel(Tangents.Num() == NumPoints);
 
 	Position.Points.Reset(NumPoints);
 
@@ -91,7 +91,7 @@ void FSplineCurve::SetSplinePoints(const TArray<FPoint>& Points, const TArray<FP
 {
 	const int32 NumPoints = Points.Num();
 	Position.Points.Reset(NumPoints);
-	ensure(false);
+	ensureCADKernel(false);
 
 	double InputKey = 0.0;
 	for (int32 Index = 0; Index < Points.Num(); ++Index)

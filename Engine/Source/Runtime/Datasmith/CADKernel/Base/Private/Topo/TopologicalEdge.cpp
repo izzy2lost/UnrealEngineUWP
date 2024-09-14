@@ -410,13 +410,18 @@ void FTopologicalEdge::ComputeCrossingPointCoordinates()
 		// #cadkernel_check: Why could this happen? Shouldn't it be detected way earlier?
 		return;
 	}
+
 	double Tolerance = GetTolerance3D();
 
-	FSurfacicPolyline Presampling;
-	FSurfacicCurveSamplerOnParam Sampler(*Curve, Boundary, Tolerance * 10., Tolerance, Presampling);
-	Sampler.Sample();
+	{
+		FSurfacicPolyline Presampling;
+		FSurfacicCurveSamplerOnParam Sampler(*Curve, Boundary, Tolerance * 10., Tolerance, Presampling);
+		Sampler.Sample();
 
-	Presampling.SwapCoordinates(CrossingPointUs);
+		Presampling.SwapCoordinates(CrossingPointUs);
+	}
+
+	ensureCADKernel(FMath::IsNearlyEqual(CrossingPointUs.Last(), Boundary.GetMax(), Curve->GetMinLinearTolerance()));
 	// #cadkernel_check: To investigate - It looks like the sampler does not start and end the sample data with the boundary values???
 	if (!FMath::IsNearlyEqual(CrossingPointUs.Last(), Boundary.GetMax(), UE_DOUBLE_SMALL_NUMBER))
 	{
@@ -769,20 +774,6 @@ void FTopologicalEdge::GenerateMeshElements(FModelMesh& MeshModel)
 		Algo::Reverse(Coordinates);
 	}
 
-#ifdef DEBUG_MESH_EDGE
-	if (bDisplay)
-	{
-		F3DDebugSession _(FString::Printf(TEXT("Edge Mesh %d"), Edge.GetId()));
-		TArray<FPoint2D> Mesh2D;
-		Edge.Approximate2DPoints(CuttingPointCoordinates, Mesh2D);
-		for (const FPoint2D& Vertex : Mesh2D)
-		{
-			DisplayPoint(Vertex, EVisuProperty::RedPoint);
-		}
-		Wait();
-	}
-#endif
-
 	EdgeMesh.RegisterCoordinates();
 	EdgeMesh.Mesh(StartVertexNodeIndex, EndVertexNodeIndex);
 	MeshModel.AddMesh(EdgeMesh);
@@ -855,6 +846,7 @@ FEdgeMesh& FTopologicalEdge::GetOrCreateMesh(FModelMesh& ShellMesh)
 	{
 		Mesh = FEntity::MakeShared<FEdgeMesh>(ShellMesh, *this);
 	}
+
 	return *Mesh;
 }
 

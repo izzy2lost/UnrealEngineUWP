@@ -157,7 +157,7 @@ public:
 	 */
 	virtual void Evaluate2DPoint(double Coordinate, FPoint2D& OutPoint) const
 	{
-		ensure(Dimension == 2);
+		ensureCADKernel(Dimension == 2);
 		FCurvePoint2D CurvePoint;
 		Evaluate2DPoint(Coordinate, CurvePoint);
 		OutPoint = CurvePoint.Point;
@@ -187,7 +187,10 @@ public:
 	 */
 	virtual void Evaluate2DPoints(const TArray<double>& Coordinates, TArray<FCurvePoint2D>& OutPoints, int32 DerivativeOrder = 0) const;
 
-	void FindNotDerivableCoordinates(int32 DerivativeOrder, TArray<double>& OutNotDerivableCoordinates) const;
+	void FindNotDerivableCoordinates(int32 DerivativeOrder, TArray<double>& OutNotDerivableCoordinates) const
+	{
+		return FindNotDerivableCoordinates(Boundary, DerivativeOrder, OutNotDerivableCoordinates);
+	}
 	virtual void FindNotDerivableCoordinates(const FLinearBoundary& InBoundary, int32 DerivativeOrder, TArray<double>& OutNotDerivableCoordinates) const;
 
 
@@ -218,7 +221,7 @@ public:
 	 */
 	virtual void ExtendTo(const FPoint& DesiredPosition)
 	{
-		ensure(Dimension == 3);
+		ensureCADKernel(Dimension == 3);
 
 		NOT_IMPLEMENTED;
 		ensureCADKernel(false);
@@ -229,7 +232,7 @@ public:
 	 */
 	virtual void ExtendTo(const FPoint2D& DesiredPosition)
 	{
-		ensure(Dimension == 2);
+		ensureCADKernel(Dimension == 2);
 		FPoint Point = DesiredPosition;
 		ExtendTo(Point);
 	}

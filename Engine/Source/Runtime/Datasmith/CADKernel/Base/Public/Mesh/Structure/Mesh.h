@@ -88,6 +88,11 @@ public:
 	{
 		return TopologicalEntity;
 	}
+
+	FTopologicalEntity& GetGeometricEntity()
+	{
+		return TopologicalEntity;
+	}
 };
 }
 

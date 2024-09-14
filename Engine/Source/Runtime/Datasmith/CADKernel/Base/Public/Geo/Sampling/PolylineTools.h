@@ -374,7 +374,7 @@ public:
 					OutPoints[IPoint].Point = PolylinePoints[Index];
 					OutPoints[IPoint].Gradient = FPoint::ZeroPoint;
 					OutPoints[IPoint].Laplacian = FPoint::ZeroPoint;
-					return;
+					continue;
 				}
 
 				double SectionCoordinate = (InCoordinates[IPoint] - PolylineCoordinates[Index]) / DeltaU;
@@ -396,7 +396,7 @@ public:
 		int32 EndIndex = DichotomyFinder.Find(InCoordinates.Last());
 		bool bUseDichotomy = PolylineTools::IsDichotomyToBePreferred(EndIndex - StartIndex, InCoordinates.Num());
 
-		OutPoints.Empty(InCoordinates.Num());
+		OutPoints.SetNum(InCoordinates.Num(), EAllowShrinking::No);
 		if (bUseDichotomy)
 		{
 			DichotomyFinder.StartLower = StartIndex;

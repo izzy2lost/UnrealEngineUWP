@@ -52,12 +52,12 @@ public:
 		return ESurface::Bezier;
 	}
 
-	int32 GetUDegre() const
+	int32 GetUDegree() const
 	{
 		return UDegre;
 	}
 
-	int32 GetVDegre() const
+	int32 GetVDegree() const
 	{
 		return VDegre;
 	}

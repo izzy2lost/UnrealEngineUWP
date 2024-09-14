@@ -23,9 +23,9 @@ void FSession::SaveDatabase(const TCHAR* FileName)
 	Archive->Close();
 }
 
-FModel& FSession::GetModel()
+TSharedPtr<FModel> FSession::GetModelAsShared()
 {
-	return Database.GetModel();
+	return Database.GetModelAsShared();
 }
 
 void FSession::SaveDatabase(const TCHAR* FileName, const TArray<FEntity*>& SelectedEntities)
@@ -66,6 +66,7 @@ void FSession::SaveDatabase(const TCHAR* FileName, const TArray<TSharedPtr<FEnti
 
 void FSession::LoadDatabase(const TCHAR* FilePath)
 {
+	TGuardValue<double> GeometricToleranceGuard(GeometricTolerance, 0.01);
 	TSharedPtr<FCADKernelArchive> Archive = FCADKernelArchive::CreateArchiveReader(*this, FilePath);
 	if (!Archive.IsValid())
 	{
@@ -88,13 +89,14 @@ void FSession::LoadDatabase(const TCHAR* FilePath)
 
 void FSession::AddDatabase(const TArray<uint8>& InRawData)
 {
+	TGuardValue<double> GeometricToleranceGuard(GeometricTolerance, 0.01);
 	FCADKernelArchive Archive = FCADKernelArchive(*this, InRawData);
 	Database.Deserialize(Archive);
 }
 
 void FSession::SetGeometricTolerance(double NewTolerance)
 {
-	ensure(Database.GetModel().EntityCount() == 0);
+	ensureCADKernel(Database.GetModel().EntityCount() == 0);
 	GeometricTolerance = NewTolerance;
 	IntersectionTool::SetTolerance(NewTolerance);
 }

@@ -17,8 +17,11 @@ namespace UnrealBuildTool.Rules
 				new string[]
 				{
 					"Core",
+					"GeometryCore",
 				}
 			);
+
+			PublicDefinitions.Add(Target.Type == TargetType.Program ? "CADKERNEL_DO_ENSURE=0" : "CADKERNEL_DO_ENSURE=1");
 		}
 	}
 }

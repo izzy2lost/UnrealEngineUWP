@@ -112,7 +112,7 @@ public:
 	 */
 	virtual void Offset(const FPoint& OffsetDirection) override
 	{
-		ensure(false);
+		ensureCADKernel(false);
 	}
 
 	virtual void EvaluatePoint(double Coordinate, FCurvePoint& OutPoint, int32 DerivativeOrder = 0) const override;

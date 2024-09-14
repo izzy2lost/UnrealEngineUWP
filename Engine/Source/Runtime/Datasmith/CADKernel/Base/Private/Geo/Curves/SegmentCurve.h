@@ -47,13 +47,13 @@ public:
 
 	virtual void EvaluatePoint(double Coordinate, FCurvePoint& OutPoint, int32 DerivativeOrder = 0) const override
 	{
-		ensure(Dimension == 3);
+		ensureCADKernel(Dimension == 3);
 		Evaluate<FCurvePoint, FPoint>(Coordinate, OutPoint, DerivativeOrder);
 	}
 
 	virtual void Evaluate2DPoint(double Coordinate, FCurvePoint2D& OutPoint, int32 DerivativeOrder = 0) const override
 	{
-		ensure(Dimension == 2);
+		ensureCADKernel(Dimension == 2);
 		Evaluate<FCurvePoint2D, FPoint2D>(Coordinate, OutPoint, DerivativeOrder);
 	}
 

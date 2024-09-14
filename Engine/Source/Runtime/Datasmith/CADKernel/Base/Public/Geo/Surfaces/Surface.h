@@ -200,6 +200,18 @@ public:
 
 	virtual void EvaluateNormals(const TArray<FPoint2D>& Points2D, TArray<FVector3f>& Normals) const;
 
+	virtual void EvaluatePointAndNormal(const FPoint2D& InPoint2D, FPoint& Point, FVector3f& Normal) const
+	{
+		int32 DerivativeOrder = 1;
+		FSurfacicPoint SurfacicPoint;
+		EvaluatePoint(InPoint2D, SurfacicPoint, DerivativeOrder);
+
+		Point = SurfacicPoint.Point;
+
+		FVector NormalD = SurfacicPoint.GradientU ^ SurfacicPoint.GradientV;
+		Normal = (FVector3f)NormalD.GetSafeNormal();
+	}
+
 	virtual FVector EvaluateNormal(const FPoint2D& InPoint2D) const
 	{
 		int32 DerivativeOrder = 1;

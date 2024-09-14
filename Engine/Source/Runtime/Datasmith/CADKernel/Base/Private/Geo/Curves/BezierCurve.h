@@ -66,7 +66,7 @@ public:
 
 	int32 GetDegre() const
 	{
-		return Poles.Num() - 1;
+		return Degree;
 	}
 
 	const TArray<FPoint>& GetPoles() const

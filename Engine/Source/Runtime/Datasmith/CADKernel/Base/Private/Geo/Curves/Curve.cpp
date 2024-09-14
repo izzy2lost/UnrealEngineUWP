@@ -74,22 +74,6 @@ void FCurve::Evaluate2DPoints(const TArray<double>& Coordinates, TArray<FPoint2D
 	}
 }
 
-#ifdef CADKERNEL_DEV
-FInfoEntity& FCurve::GetInfo(FInfoEntity& Info) const
-{
-	return FEntity::GetInfo(Info)
-		.Add(TEXT("Curve type"), CurvesTypesNames[(uint8)GetCurveType()])
-		.Add(TEXT("Dimension"), (int32)Dimension)
-		.Add(TEXT("Boundary"), Boundary)
-		.Add(TEXT("Length"), GetLength(0.01));
-}
-#endif
-
-void FCurve::FindNotDerivableCoordinates(int32 DerivativeOrder, TArray<double>& OutNotDerivableCoordinates) const
-{
-	FindNotDerivableCoordinates(Boundary, DerivativeOrder, OutNotDerivableCoordinates);
-}
-
 void FCurve::FindNotDerivableCoordinates(const FLinearBoundary& InBoundary, int32 DerivativeOrder, TArray<double>& OutNotDerivableCoordinates) const
 {
 }
