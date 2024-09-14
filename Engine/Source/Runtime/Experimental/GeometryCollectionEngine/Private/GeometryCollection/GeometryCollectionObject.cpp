@@ -542,6 +542,11 @@ void UGeometryCollection::GetSharedSimulationParams(FSharedSimulationParameters&
 	OutParams.SizeSpecificData.Sort();	//can we do this at editor time on post edit change?
 }
 
+bool UGeometryCollection::IsEmpty() const
+{
+	return (NumElements(FGeometryCollection::TransformGroup) == 0);
+}
+
 void UGeometryCollection::Reset()
 {
 	if (GeometryCollection.IsValid())
@@ -557,10 +562,9 @@ void UGeometryCollection::Reset()
 
 void UGeometryCollection::ResetFrom(const FManagedArrayCollection& InCollection, const TArray<UMaterial*>& InMaterials, bool bHasInternalMaterials)
 {
+	Reset();
 	if (GeometryCollection.IsValid())
 	{
-		Reset();
-
 		InCollection.CopyTo(GeometryCollection.Get());
 
 		// todo(Chaos) : we could certainly run a "dependent attribute update method here instead of having to known about convex specifically 
@@ -573,9 +577,9 @@ void UGeometryCollection::ResetFrom(const FManagedArrayCollection& InCollection,
 
 void UGeometryCollection::ResetFrom(const FManagedArrayCollection& InCollection, const TArray<UMaterialInterface*>& InMaterialInstances, bool bHasInternalMaterials)
 {
+	Reset();
 	if (GeometryCollection.IsValid())
 	{
-		Reset();
 		InCollection.CopyTo(GeometryCollection.Get());
 		// todo(Chaos) : we could certainly run a "dependent attribute update method here instead of having to known about convex specifically 
 		UpdateConvexGeometryIfMissing();
@@ -604,9 +608,9 @@ int32 UGeometryCollection::AppendGeometry(const UGeometryCollection & Element, b
 }
 
 /** NumElements */
-int32 UGeometryCollection::NumElements(const FName & Group) const
+int32 UGeometryCollection::NumElements(const FName& Group) const
 {
-	return GeometryCollection->NumElements(Group);
+	return GeometryCollection? GeometryCollection->NumElements(Group): 0;
 }
 
 /** RemoveElements */
