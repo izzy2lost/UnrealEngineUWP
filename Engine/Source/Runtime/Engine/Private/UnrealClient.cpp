@@ -1815,6 +1815,11 @@ void FViewport::Draw( bool bShouldPresent /*= true */)
 
 				GInputLatencyTimer.GameThreadTrigger = false;
 			}
+			else if (World && World->IsGameWorld())
+			{
+				// since we aren't drawing the viewport, we still need to update streaming
+				World->UpdateLevelStreaming();
+			}
 		}
 
 		// Reset the camera cut flags if we are in a viewport that has a world
