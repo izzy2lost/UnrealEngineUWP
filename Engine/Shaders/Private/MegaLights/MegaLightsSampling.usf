@@ -153,14 +153,12 @@ void SampleLight(uint2 ScreenCoord, float3 TranslatedWorldPosition, const FMegaL
 		LightData.IESAtlasIndex = -1;
 	}
 						
-	const bool bTileHasRect = TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT || TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED || TILE_TYPE == TILE_MODE_COMPLEX_SHADING_RECT || TILE_TYPE == TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED;
-	if (!bTileHasRect)
+	if (!IsRectLightTileType(TILE_TYPE))
 	{
 		LightData.bRectLight = false;
 	}
 
-	const bool bTileHasTextured = TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED || TILE_TYPE == TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED;
-	if (!bTileHasTextured)
+	if (!IsTexturedLightTileType(TILE_TYPE))
 	{
 		LightData.RectLightData.AtlasData.AtlasMaxLevel = MAX_RECT_ATLAS_MIP;
 	}
@@ -237,10 +235,7 @@ void GenerateLightSamplesCS(
 		uint2 DownsampledTileCoord = UnpackTile(DownsampledTileData[DownsampledTileIndex + TILE_TYPE * DownsampledTileDataStride]);
 		uint2 DownsampledScreenCoord = DownsampledTileCoord * TILE_SIZE + GroupThreadId.xy;
 
-		const bool bForceSimpleShading = 
-			TILE_TYPE == TILE_MODE_SIMPLE_SHADING 
-			|| TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT
-			|| TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED;
+		const bool bForceSimpleShading = IsSimpleShadingTileType(TILE_TYPE);
 
 		if (all(DownsampledScreenCoord < DownsampledViewMin + DownsampledViewSize))
 		{
@@ -333,34 +328,13 @@ void GenerateLightSamplesCS(
 					Print(Debug.Context, TEXT("MegaLights"), FontTitle);
 					Newline(Debug.Context);
 					Print(Debug.Context, TEXT("TileType             | Num      "), FontSilver);
-					Newline(Debug.Context);
-					PrintTileTypeString(Debug.Context, TILE_MODE_SIMPLE_SHADING, FontValue);
-					Print(Debug.Context, TEXT(": "));
-					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_SIMPLE_SHADING], FontValue);
-					Newline(Debug.Context);
-					PrintTileTypeString(Debug.Context, TILE_MODE_SIMPLE_SHADING_RECT);
-					Print(Debug.Context, TEXT(": "));
-					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_SIMPLE_SHADING_RECT], FontValue);
-					Newline(Debug.Context);
-					PrintTileTypeString(Debug.Context, TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED);
-					Print(Debug.Context, TEXT(": "));
-					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED], FontValue);
-					Newline(Debug.Context);
-					PrintTileTypeString(Debug.Context, TILE_MODE_COMPLEX_SHADING);
-					Print(Debug.Context, TEXT(": "));
-					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_COMPLEX_SHADING], FontValue);
-					Newline(Debug.Context);
-					PrintTileTypeString(Debug.Context, TILE_MODE_COMPLEX_SHADING_RECT);
-					Print(Debug.Context, TEXT(": "));
-					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_COMPLEX_SHADING_RECT], FontValue);
-					Newline(Debug.Context);
-					PrintTileTypeString(Debug.Context, TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED);
-					Print(Debug.Context, TEXT(": "));
-					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED], FontValue);
-					Newline(Debug.Context);
-					PrintTileTypeString(Debug.Context, TILE_MODE_EMPTY);
-					Print(Debug.Context, TEXT(": "));
-					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_EMPTY], FontValue);
+					for (uint TileTypeIndex = 0; TileTypeIndex < TILE_MODE_MAX; ++TileTypeIndex)
+					{
+						Newline(Debug.Context);
+						PrintTileTypeString(Debug.Context, TileTypeIndex, FontValue);
+						Print(Debug.Context, TEXT(": "));
+						Print(Debug.Context, DownsampledTileAllocator[TileTypeIndex], FontValue);
+					}
 					Newline(Debug.Context);
 					Newline(Debug.Context);
 
@@ -374,7 +348,7 @@ void GenerateLightSamplesCS(
 					Print(Debug.Context, Material.Roughness, FontValue);
 					Newline(Debug.Context);
 					Print(Debug.Context, TEXT("TileType           : "));
-					PrintTileTypeString(Debug.Context, TILE_TYPE, Select(TILE_TYPE == TILE_MODE_SIMPLE_SHADING, FontGreen, FontRed));
+					PrintTileTypeString(Debug.Context, TILE_TYPE, Select(IsSimpleShadingTileType(TILE_TYPE), FontGreen, FontRed));
 					Newline(Debug.Context);
 					Print(Debug.Context, TEXT("View.PreExposure   : "));
 					Print(Debug.Context, View.PreExposure, FontValue);
