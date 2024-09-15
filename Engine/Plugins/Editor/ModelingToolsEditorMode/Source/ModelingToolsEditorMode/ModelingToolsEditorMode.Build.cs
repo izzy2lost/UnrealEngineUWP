@@ -60,6 +60,6 @@ public class ModelingToolsEditorMode : ModuleRules
 		);
 
 		PublicDefinitions.Add("WITH_PROXYLOD=" + (Target.Platform == UnrealTargetPlatform.Win64 ? '1' : '0'));
-		PrivateDefinitions.Add("ENABLE_STYLUS_SUPPORT=1");
+		PrivateDefinitions.Add("ENABLE_STYLUS_SUPPORT=" + (Target.Platform == UnrealTargetPlatform.Win64 ? '1' : '0'));
 	}
 }
