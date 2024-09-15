@@ -23,10 +23,12 @@ class FRecentPresetCollectionProvider;
 struct FAssetData;
 class IToolStylusStateProviderAPI;
 
+#if ENABLE_STYLUS_SUPPORT
 namespace UE::Modeling
 {
 	class FStylusInputHandler;
 }
+#endif
 
 struct FToolPresetOption
 {
@@ -224,7 +226,9 @@ private:
 	bool bFirstInitializeAfterModeSetup = true;
 	bool bShowActiveSelectionActions = true;
 
+#if ENABLE_STYLUS_SUPPORT
 	TUniquePtr<UE::Modeling::FStylusInputHandler> StylusInputHandler;
+#endif
 
 };
 

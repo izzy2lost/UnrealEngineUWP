@@ -2699,7 +2699,11 @@ FReply FModelingToolsEditorModeToolkit::HandleCompleteClick()
 
 IToolStylusStateProviderAPI* FModelingToolsEditorModeToolkit::GetStylusStateProviderAPI() const
 {
+#if ENABLE_STYLUS_SUPPORT
 	return StylusInputHandler.Get();
+#else
+	return nullptr;
+#endif
 }
 
 
