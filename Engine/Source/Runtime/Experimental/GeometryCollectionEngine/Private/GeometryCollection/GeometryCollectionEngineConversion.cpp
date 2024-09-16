@@ -1556,13 +1556,16 @@ void FGeometryCollectionEngineConversion::ConvertStaticMeshToGeometryCollection(
 
 void FGeometryCollectionEngineConversion::ConvertStaticMeshToGeometryCollection(const TObjectPtr<UStaticMesh> StaticMesh, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterialInterface>>& OutMaterialInstances, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, bool bSetInternalFromMaterialIndex, bool bSplitComponents)
 {
+	ConvertStaticMeshToGeometryCollection(StaticMesh, FTransform::Identity, OutCollection, OutMaterialInstances, OutInstancedMeshes, bSetInternalFromMaterialIndex, bSplitComponents);
+}
+
+void FGeometryCollectionEngineConversion::ConvertStaticMeshToGeometryCollection(const TObjectPtr<UStaticMesh> StaticMesh, const FTransform& MeshTransform, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterialInterface>>& OutMaterialInstances, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, bool bSetInternalFromMaterialIndex, bool bSplitComponents)
+{
 #if WITH_EDITORONLY_DATA
 	if (UGeometryCollection* NewGeometryCollection = NewObject<UGeometryCollection>())
 	{
 		// If any of the static meshes have Nanite enabled, also enable on the new geometry collection asset for convenience.
 		NewGeometryCollection->EnableNanite |= StaticMesh->IsNaniteEnabled();
-
-		FTransform ComponentTransform = FTransform::Identity;
 
 		// Record the contributing source on the asset.
 		FSoftObjectPath SourceSoftObjectPath(StaticMesh);
@@ -1583,8 +1586,8 @@ void FGeometryCollectionEngineConversion::ConvertStaticMeshToGeometryCollection(
 
 		bool bAddInternalMaterials = false;
 
-		NewGeometryCollection->GeometrySource.Emplace(SourceSoftObjectPath, ComponentTransform, SourceMaterials, bSplitComponents, bSetInternalFromMaterialIndex);
-		FGeometryCollectionEngineConversion::AppendStaticMesh(StaticMesh, SourceMaterials, ComponentTransform, NewGeometryCollection, false, bAddInternalMaterials, bSplitComponents, bSetInternalFromMaterialIndex);
+		NewGeometryCollection->GeometrySource.Emplace(SourceSoftObjectPath, MeshTransform, SourceMaterials, bSplitComponents, bSetInternalFromMaterialIndex);
+		FGeometryCollectionEngineConversion::AppendStaticMesh(StaticMesh, SourceMaterials, MeshTransform, NewGeometryCollection, false, bAddInternalMaterials, bSplitComponents, bSetInternalFromMaterialIndex);
 
 		NewGeometryCollection->InitializeMaterials();
 
