@@ -26,6 +26,9 @@ public:
 	virtual void Serialize(FArchive& Ar) override;
 	// End UObject interface
 
+#if WITH_EDITOR
+	INTERCHANGEENGINE_API  virtual bool ConvertAssetImportDataToNewOwner(UObject* Owner) override;
+#endif
 
 	/**
 	 * Return the first filename stored in this data. The resulting filename will be absolute (that is, not relative to the asset).

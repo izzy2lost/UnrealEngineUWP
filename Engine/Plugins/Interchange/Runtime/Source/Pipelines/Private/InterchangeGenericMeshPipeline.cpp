@@ -173,7 +173,9 @@ void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(const FInterchang
 			}
 			bImportStaticMeshes = false;
 			HideCategories.Add(StaticMeshesCategory);
-			if(!bContainSkeletalMesh || SkeletalMeshImportContentType == EInterchangeSkeletalMeshContentType::Geometry)
+			if(!bContainSkeletalMesh
+				|| SkeletalMeshImportContentType == EInterchangeSkeletalMeshContentType::Geometry
+				|| CommonMeshesProperties->ForceAllMeshAsType == EInterchangeForceMeshType::IFMT_StaticMesh)
 			{
 				CommonMeshesProperties->ForceAllMeshAsType = EInterchangeForceMeshType::IFMT_SkeletalMesh;
 			}
@@ -183,7 +185,8 @@ void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(const FInterchang
 			HideCategories.Add(SkeletalMeshesCategory);
 			HideCategories.Add(CommonSkeletalMeshesAndAnimationCategory);
 			bImportSkeletalMeshes = false;
-			if (!bContainStaticMesh)
+			if (!bContainStaticMesh
+				|| CommonMeshesProperties->ForceAllMeshAsType == EInterchangeForceMeshType::IFMT_SkeletalMesh)
 			{
 				CommonMeshesProperties->ForceAllMeshAsType = EInterchangeForceMeshType::IFMT_StaticMesh;
 			}
