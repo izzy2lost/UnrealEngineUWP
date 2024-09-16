@@ -17,7 +17,7 @@ bool FModelInstanceRDG::LoadModel(TConstArrayView<uint8> ModelData, FNNERuntimeF
 {
 	TConstArrayView<uint8> ModelBuffer = { &(ModelData.GetData()[GuidAndVersionSize]), ModelData.Num() - GuidAndVersionSize };
 
-	FMemoryReaderView Reader(ModelBuffer);
+	FMemoryReaderView Reader(ModelBuffer, /*bIsPersitent =*/ true);
 	Reader.SetIsPersistent(true);
 
 	Format.Serialize(Reader);

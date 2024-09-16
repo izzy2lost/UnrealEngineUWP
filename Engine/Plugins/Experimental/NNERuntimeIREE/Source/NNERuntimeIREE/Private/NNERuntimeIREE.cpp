@@ -137,14 +137,14 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREECpu::CreateModelData(const 
 		FFileHelper::LoadFileToArray(ResultData, *IREEModelDataFilePath);
 		
 		{
-			FMemoryReaderView Reader(ResultData);
+			FMemoryReaderView Reader(ResultData, /*bIsPersitent =*/ true);
 			IREEModelData->Serialize(Reader);
 		}
 
 		check(FileIdString.Equals(IREEModelData->FileId.ToString(EGuidFormats::Digits).ToLower()));
 
 		{
-			FMemoryReaderView Reader(IREEModelData->CompilerResult);
+			FMemoryReaderView Reader(IREEModelData->CompilerResult, /*bIsPersitent =*/ true);
 			FNNERuntimeIREECompilerResultCPU::StaticStruct()->SerializeBin(Reader, &CompilerResult);
 		}
 
@@ -193,16 +193,16 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREECpu::CreateModelData(const 
 		}
 		if (IREEModelData->ModuleMetaData.IsEmpty())
 		{
-			FMemoryWriter64 Writer(IREEModelData->ModuleMetaData);
+			FMemoryWriter64 Writer(IREEModelData->ModuleMetaData, /*bIsPersitent =*/ true);
 			CompilerModuleMetaData->Serialize(Writer);
 		}
 		{
-			FMemoryWriter64 Writer(IREEModelData->CompilerResult);
+			FMemoryWriter64 Writer(IREEModelData->CompilerResult, /*bIsPersitent =*/ true);
 			FNNERuntimeIREECompilerResultCPU::StaticStruct()->SerializeBin(Writer, &CompilerResult);
 		}
 
 		{
-			FMemoryWriter64 Writer(ResultData);
+			FMemoryWriter64 Writer(ResultData, /*bIsPersitent =*/ true);
 			IREEModelData->Serialize(Writer);
 		}
 
@@ -286,7 +286,7 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeIREECpu::CreateModelCPU(const TObjectP
 
 	TWeakObjectPtr<UNNERuntimeIREEModelData> IREEModelData = NewObject<UNNERuntimeIREEModelData>();
 	{
-		FMemoryReaderView Reader(SharedDataView);
+		FMemoryReaderView Reader(SharedDataView, /*bIsPersitent =*/ true);
 		IREEModelData->Serialize(Reader);
 	}
 
@@ -298,7 +298,7 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeIREECpu::CreateModelCPU(const TObjectP
 
 	TWeakObjectPtr<UNNERuntimeIREEModuleMetaData> ModuleMetaData = NewObject<UNNERuntimeIREEModuleMetaData>();
 	{
-		FMemoryReaderView Reader(IREEModelData->ModuleMetaData);
+		FMemoryReaderView Reader(IREEModelData->ModuleMetaData, /*bIsPersitent =*/ true);
 		ModuleMetaData->Serialize(Reader);
 	}
 
@@ -310,7 +310,7 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeIREECpu::CreateModelCPU(const TObjectP
 
 	FNNERuntimeIREECompilerResultCPU CompilerResult{};
 	{
-		FMemoryReaderView Reader(IREEModelData->CompilerResult);
+		FMemoryReaderView Reader(IREEModelData->CompilerResult, /*bIsPersitent =*/ true);
 		FNNERuntimeIREECompilerResultCPU::StaticStruct()->SerializeBin(Reader, &CompilerResult);
 	}
 

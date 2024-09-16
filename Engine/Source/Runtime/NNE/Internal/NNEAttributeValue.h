@@ -22,7 +22,7 @@ struct FNNEAttributeValue
 	template<typename T>
 	explicit FNNEAttributeValue(T InValue)
 	{
-		FMemoryWriter writer(Value, true);
+		FMemoryWriter writer(Value, /*bIsPersitent =*/ true);
 		writer << InValue;
 
 		Type = TNNEAttributeValueTraits<T>::GetType();
@@ -35,7 +35,7 @@ struct FNNEAttributeValue
 
 		T Result;
 
-		FMemoryReader Reader(Value, true);
+		FMemoryReader Reader(Value, /*bIsPersitent =*/ true);
 		Reader << Result;
 
 		return Result;

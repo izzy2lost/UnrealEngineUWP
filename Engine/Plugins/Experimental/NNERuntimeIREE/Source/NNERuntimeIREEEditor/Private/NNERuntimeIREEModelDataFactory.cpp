@@ -203,7 +203,7 @@ UObject* UNNERuntimeIREEModelDataFactory::FactoryCreateBinary(UClass* Class, UOb
 	}
 
 	TArray<uint8> MetaDataByteArray;
-	FMemoryWriter Writer(MetaDataByteArray);
+	FMemoryWriter Writer(MetaDataByteArray, /*bIsPersitent =*/ true);
 	ModuleMetaData->Serialize(Writer);
 
 	TMap<FString, TConstArrayView64<uint8>> AdditionalFileData;
