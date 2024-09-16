@@ -98,8 +98,7 @@ protected:
 	void UpdateMaskDelegates();
 	void UpdateMaskVisibility();
 
-	/** When masking target with tool, tool must have a depth */
-	static void MaskActor(const UAvaBooleanModifier* InTool, const UAvaBooleanModifier* InTarget);
+	static void ApplyTool(EAvaBooleanMode InMode, const UE::Geometry::FDynamicMesh3& InModeTool, const UAvaBooleanModifier* InTarget, UE::Geometry::FDynamicMesh3& OutMesh);
 
 	/** Mode to use when shapes are colliding, none means you will be masked otherwise you are masking */
 	UPROPERTY(EditInstanceOnly, Setter="SetMode", Getter="GetMode", Category="Boolean", meta=(AllowPrivateAccess="true"))
