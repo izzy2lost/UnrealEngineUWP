@@ -18,7 +18,8 @@ namespace Metasound
 				{
 					if (FMetaSoundFrontendDocumentBuilder* Builder = BuilderRegistry->FindBuilder(InGraphClass.Metadata.GetClassName(), { }))
 					{
-						return Builder->FindBuildGraphChecked();
+						// Const cast and not exposed to public API to dissuade from direct manipulation of graphs as this can corrupt the internal document cache
+						return const_cast<FMetasoundFrontendGraph&>(Builder->FindConstBuildGraphChecked());
 					}
 				}
 

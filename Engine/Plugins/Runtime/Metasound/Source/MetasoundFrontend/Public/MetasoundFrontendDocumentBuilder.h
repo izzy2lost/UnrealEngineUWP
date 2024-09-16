@@ -211,6 +211,9 @@ public:
 	const FMetasoundFrontendNode* DuplicateGraphOutput(const FMetasoundFrontendClassOutput& InClassOutput, const FName InName, const FGuid* InPageID = nullptr);
 
 #if WITH_EDITORONLY_DATA
+	const FMetasoundFrontendEdgeStyle* FindConstEdgeStyle(const FGuid& InNodeID, FName OutputName, const FGuid* InPageID = nullptr) const;
+	FMetasoundFrontendEdgeStyle* FindEdgeStyle(const FGuid& InNodeID, FName OutputName, const FGuid* InPageID = nullptr);
+	FMetasoundFrontendEdgeStyle& FindOrAddEdgeStyle(const FGuid& InNodeID, FName OutputName, const FGuid* InPageID = nullptr);
 	const FMetaSoundFrontendGraphComment* FindGraphComment(const FGuid& InCommentID, const FGuid* InPageID = nullptr) const;
 	FMetaSoundFrontendGraphComment* FindGraphComment(const FGuid& InCommentID, const FGuid* InPageID = nullptr);
 	FMetaSoundFrontendGraphComment& FindOrAddGraphComment(const FGuid& InCommentID, const FGuid* InPageID = nullptr);
@@ -234,7 +237,7 @@ public:
 	bool FindInterfaceInputNodes(FName InterfaceName, TArray<const FMetasoundFrontendNode*>& OutInputs, const FGuid* InPageID = nullptr) const;
 	bool FindInterfaceOutputNodes(FName InterfaceName, TArray<const FMetasoundFrontendNode*>& OutOutputs, const FGuid* InPageID = nullptr) const;
 
-	FMetasoundFrontendGraph& FindBuildGraphChecked();
+	// Accessor for the currently set build graph.
 	const FMetasoundFrontendGraph& FindConstBuildGraphChecked() const;
 
 	const FMetasoundFrontendNode* FindNode(const FGuid& InNodeID, const FGuid* InPageID = nullptr) const;
@@ -363,9 +366,10 @@ public:
 	bool RemoveEdgesFromNodeOutput(const FGuid& InNodeID, const FGuid& InVertexID, const FGuid* InPageID = nullptr);
 	bool RemoveEdgeToNodeInput(const FGuid& InNodeID, const FGuid& InVertexID, const FGuid* InPageID = nullptr);
 
-#if WITH_EDITOR
+#if WITH_EDITORONLY_DATA
+	bool RemoveEdgeStyle(const FGuid& InNodeID, FName OutputName, const FGuid* InPageID = nullptr);
 	bool RemoveGraphComment(const FGuid& InCommentID, const FGuid* InPageID = nullptr);
-#endif // WITH_EDITOR
+#endif // WITH_EDITORONLY_DATA
 
 	bool RemoveGraphInput(FName InInputName);
 	bool RemoveGraphOutput(FName InOutputName);
@@ -378,7 +382,7 @@ public:
 	bool RemoveNamedEdges(const TSet<Metasound::Frontend::FNamedEdge>& InNamedEdgesToRemove, TArray<FMetasoundFrontendEdge>* OutRemovedEdges = nullptr, const FGuid* InPageID = nullptr);
 	bool RemoveNode(const FGuid& InNodeID, const FGuid* InPageID = nullptr);
 
-#if WITH_EDITOR
+#if WITH_EDITORONLY_DATA
 	int32 RemoveNodeLocation(const FGuid& InNodeID, const FGuid* InLocationGuid = nullptr, const FGuid* InPageID = nullptr);
 #endif // WITH_EDITOR
 
@@ -529,6 +533,8 @@ private:
 	// modify edge data (i.e. if the DataType is changed on the given node and it has corresponding
 	// edges, edges may then be invalid due to access type/DataType incompatibility).
 	bool ConformGraphOutputNodeToClass(const FMetasoundFrontendClassOutput& GraphOutput);
+
+	FMetasoundFrontendGraph& FindBuildGraphChecked() const;
 
 	bool FindNodeClassInterfaces(const FGuid& InNodeID, TSet<FMetasoundFrontendVersion>& OutInterfaces, const FGuid& InPageID) const;
 	FMetasoundFrontendNode* FindNodeInternal(const FGuid& InNodeID, const FGuid* InPageID = nullptr);

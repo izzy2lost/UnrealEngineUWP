@@ -48,7 +48,8 @@ namespace Metasound
 			{
 				if (FMetaSoundFrontendDocumentBuilder* Builder = BuilderRegistry->FindBuilder(InGraphClass.Metadata.GetClassName(), { }))
 				{
-					return Builder->FindBuildGraphChecked();
+					// const cast to dissuade mutable accessor for external API as the controller API is actively deprecated across engine releases.
+					return const_cast<FMetasoundFrontendGraph&>(Builder->FindConstBuildGraphChecked());
 				}
 			}
 
@@ -777,8 +778,9 @@ namespace Metasound
 		{
 			if (FMetasoundFrontendGraphClass* GraphClass = GraphClassPtr.Get())
 			{
-				FindBuildGraphChecked(*GraphClass).Nodes.Reset();
-				FindBuildGraphChecked(*GraphClass).Edges.Reset();
+				FMetasoundFrontendGraph& Graph = FindBuildGraphChecked(*GraphClass);
+				Graph.Nodes.Reset();
+				Graph.Edges.Reset();
 				GraphClass->Interface.Inputs.Reset();
 				GraphClass->Interface.Outputs.Reset();
 				GraphClass->PresetOptions.InputsInheritingDefault.Reset();
@@ -790,6 +792,8 @@ namespace Metasound
 				FMetasoundFrontendDocument* Document = DocumentPtr.Get();
 				check(Document);
 				Document->Metadata.MemberMetadata.Reset();
+
+				Graph.Style.EdgeStyles.Reset();
 #endif // WITH_EDITORONLY_DATA
 			}
 		}
@@ -1708,14 +1712,22 @@ namespace Metasound
 		{
 			if (FMetasoundFrontendGraphClass* GraphClass = GraphClassPtr.Get())
 			{
-				auto IsEdgeForThisNode = [&](const FMetasoundFrontendEdge& ConDesc) { return (ConDesc.FromNodeID == InDesc.GetID()) || (ConDesc.ToNodeID == InDesc.GetID()); };
-
 				// Remove any reference connections
-				int32 NumRemoved = FindBuildGraphChecked(*GraphClass).Edges.RemoveAll(IsEdgeForThisNode);
+				FMetasoundFrontendGraph& Graph = FindBuildGraphChecked(*GraphClass);
+
+#if WITH_EDITORONLY_DATA
+				{
+					auto IsStyleForThisNode = [&](const FMetasoundFrontendEdgeStyle& EdgeStyle) { return (EdgeStyle.NodeID == InDesc.GetID()); };
+					Graph.Style.EdgeStyles.RemoveAllSwap(IsStyleForThisNode);
+				}
+#endif // WITH_EDITORONLY_DATA
+
+				auto IsEdgeForThisNode = [&](const FMetasoundFrontendEdge& ConDesc) { return (ConDesc.FromNodeID == InDesc.GetID()) || (ConDesc.ToNodeID == InDesc.GetID()); };
+				int32 NumRemoved = Graph.Edges.RemoveAll(IsEdgeForThisNode);
 
 				auto IsNodeWithID = [&](const FMetasoundFrontendNode& Desc) { return InDesc.GetID() == Desc.GetID(); };
 
-				NumRemoved += FindBuildGraphChecked(*GraphClass).Nodes.RemoveAll(IsNodeWithID);
+				NumRemoved += Graph.Nodes.RemoveAll(IsNodeWithID);
 				OwningDocument->RemoveUnreferencedDependencies();
 
 #if WITH_EDITOR

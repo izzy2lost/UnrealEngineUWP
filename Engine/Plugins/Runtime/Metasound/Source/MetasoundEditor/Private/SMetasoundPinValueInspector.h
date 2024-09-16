@@ -71,7 +71,7 @@ namespace Metasound
 
 			FGraphConnectionManager* GetConnectionManager();
 
-			const FMetasoundFrontendEdgeStyle* GetEdgeStyle() const;
+			const FMetasoundFrontendEdgeStyle* FindConstEdgeStyle() const;
 
 			void Update();
 
@@ -92,6 +92,9 @@ namespace Metasound
 
 		private:
 			FLinearColor GetEdgeStyleColorAtIndex(int32 InIndex) const;
+			FMetasoundFrontendEdgeStyle* FindOrAddEdgeStyle();
+			FMetasoundFrontendEdgeStyle* FindEdgeStyle();
+			bool GetNodeIDAndOutputName(FGuid& OutNodeID, FName& OutName) const;
 
 			void DisableValueColorization();
 			void EnableValueColorization();
