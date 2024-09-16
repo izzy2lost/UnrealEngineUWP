@@ -3,12 +3,12 @@
 #include "VCamPixelStreamingSubsystem.h"
 
 #include "BuiltinProviders/VCamPixelStreamingSession.h"
-#include "Networking/VCamPixelStreamingLiveLink.h"
 
 #include "Engine/Engine.h"
 #include "Features/IModularFeatures.h"
 #include "ILiveLinkClient.h"
 #include "PixelStreamingVCamLog.h"
+#include "LiveLink/VCamPixelStreamingLiveLink.h"
 
 UVCamPixelStreamingSubsystem* UVCamPixelStreamingSubsystem::Get()
 {
@@ -21,6 +21,7 @@ void UVCamPixelStreamingSubsystem::Initialize(FSubsystemCollectionBase& Collecti
 
 	MissingSignallingServerNotifier = MakeUnique<UE::PixelStreamingVCam::FMissingSignallingServerNotifier>(*this);
 	SignalingServerLifecycle = MakeUnique<UE::PixelStreamingVCam::FSignalingServerLifecycle>(*this);
+	LiveLinkManager = MakeUnique<UE::PixelStreamingVCam::FLiveLinkManager>();
 }
 
 void UVCamPixelStreamingSubsystem::Deinitialize()
@@ -44,50 +45,14 @@ void UVCamPixelStreamingSubsystem::RegisterActiveOutputProvider(UVCamPixelStream
 {
 	check(OutputProvider);
 	RegisteredSessions.AddUnique(OutputProvider);
-	UpdateLiveLinkSource(OutputProvider);
+	LiveLinkManager->CreateOrRefreshSubjectFor(*OutputProvider);
 }
 
 void UVCamPixelStreamingSubsystem::UnregisterActiveOutputProvider(UVCamPixelStreamingSession* OutputProvider)
 {
 	check(OutputProvider);
 	RegisteredSessions.RemoveSingle(OutputProvider);
-	
-	if (LiveLinkSource)
-	{
-		LiveLinkSource->RemoveSubject();
-	}
-}
-
-void UVCamPixelStreamingSubsystem::UpdateLiveLinkSource(UVCamPixelStreamingSession* OutputProvider)
-{
-	if (!IsValid(OutputProvider))
-	{
-		return;
-	}
-	
-	IModularFeatures& ModularFeatures = IModularFeatures::Get();
-	if (!ModularFeatures.IsModularFeatureAvailable(ILiveLinkClient::ModularFeatureName))
-	{
-		UE_LOG(LogPixelStreamingVCam, Warning, TEXT("Failed to create subobject. VCam's camera transform will not update."))
-		return;
-	}
-
-	ILiveLinkClient* LiveLinkClient = &ModularFeatures.GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
-	if (!LiveLinkSource)
-	{
-		LiveLinkSource = MakeShared<FPixelStreamingLiveLinkSource>();
-		LiveLinkClient->AddSource(LiveLinkSource);
-	}
-	
-	// This will delete the old subject, if it exists, and create a new subject with the target name.
-	const FName SubjectName = FName(OutputProvider->StreamerId);
-	LiveLinkSource->CreateSubject(SubjectName);
-	LiveLinkSource->PushTransformForSubject(SubjectName, FTransform::Identity);
-}
-
-TSharedPtr<FPixelStreamingLiveLinkSource> UVCamPixelStreamingSubsystem::TryGetLiveLinkSource(UVCamPixelStreamingSession* OutputProvider)
-{
-	return LiveLinkSource;
+	LiveLinkManager->DestroySubjectFor(*OutputProvider);
 }
 
 void UVCamPixelStreamingSubsystem::LaunchSignallingServerIfNeeded(UVCamPixelStreamingSession& Session)

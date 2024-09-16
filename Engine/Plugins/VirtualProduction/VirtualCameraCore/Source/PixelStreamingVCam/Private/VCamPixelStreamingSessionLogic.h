@@ -35,8 +35,6 @@ namespace UE::PixelStreamingVCam
 		virtual void PostReapplyViewport(DecoupledOutputProvider::IOutputProviderEvent& Args) override;
 		virtual void OnAddReferencedObjects(DecoupledOutputProvider::IOutputProviderEvent& Args, FReferenceCollector& Collector) override;
 		virtual TFuture<FVCamStringPromptResponse> PromptClientForString(DecoupledOutputProvider::IOutputProviderEvent& Args, const FVCamStringPromptRequest& Request) override;
-		virtual void OnSerialize(DecoupledOutputProvider::IOutputProviderEvent& Args, FArchive& Ar) override;
-		virtual void OnPostLoad(DecoupledOutputProvider::IOutputProviderEvent& Args) override;
 #if WITH_EDITOR
 		virtual void OnPreEditChange(DecoupledOutputProvider::IOutputProviderEvent& Args, FProperty* PropertyAboutToChange) override;
 		virtual void OnPostEditChangeProperty(DecoupledOutputProvider::IOutputProviderEvent& Args, FPropertyChangedEvent& PropertyChangedEvent) override;
@@ -98,8 +96,6 @@ namespace UE::PixelStreamingVCam
 		void OnCaptureStateChanged(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr);
 		void OnRemoteResolutionChanged(const FIntPoint& RemoteResolution, TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr);
 
-		/** Sets the owning VCam's live link subject to this the subject created by this session, if this behaviour is enabled. */
-		void ConditionallySetLiveLinkSubjectToThis(UVCamPixelStreamingSession* This) const;
 
 		void SetupARKitResponseTimer(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr);
 		void StopARKitResponseTimer();
