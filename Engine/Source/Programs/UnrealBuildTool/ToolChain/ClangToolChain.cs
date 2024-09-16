@@ -1175,30 +1175,30 @@ namespace UnrealBuildTool
 
 		protected override IEnumerable<DirectoryItem> GetEnvironmentBasePaths(CppCompileEnvironment CompileEnvironment)
 		{
-			if (GetToolChainInfo().BasePath != null)
-			{
-				yield return DirectoryItem.GetItemByDirectoryReference(GetToolChainInfo().BasePath!);
-			}
 			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.EngineDirectory);
 			if (ProjectFile != null && (!CompileEnvironment.bUseSharedBuildEnvironment || CompileEnvironment.AllIncludePath.Any(x => x.IsUnderDirectory(ProjectFile.Directory))))
 			{
 				yield return DirectoryItem.GetItemByDirectoryReference(ProjectFile.Directory);
 			}
 			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.RootDirectory);
-		}
-
-		protected override IEnumerable<DirectoryItem> GetEnvironmentBasePaths(LinkEnvironment LinkEnvironment)
-		{
 			if (GetToolChainInfo().BasePath != null)
 			{
 				yield return DirectoryItem.GetItemByDirectoryReference(GetToolChainInfo().BasePath!);
 			}
+		}
+
+		protected override IEnumerable<DirectoryItem> GetEnvironmentBasePaths(LinkEnvironment LinkEnvironment)
+		{
 			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.EngineDirectory);
 			if (ProjectFile != null && LinkEnvironment.InputFiles.Any(x => x.Location.IsUnderDirectory(ProjectFile.Directory)))
 			{
 				yield return DirectoryItem.GetItemByDirectoryReference(ProjectFile.Directory);
 			}
 			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.RootDirectory);
+			if (GetToolChainInfo().BasePath != null)
+			{
+				yield return DirectoryItem.GetItemByDirectoryReference(GetToolChainInfo().BasePath!);
+			}
 		}
 
 		protected virtual Action CompileCPPFile(CppCompileEnvironment CompileEnvironment, FileItem SourceFile, DirectoryReference OutputDir, string ModuleName, IActionGraphBuilder Graph, IReadOnlyCollection<string> GlobalArguments, CPPOutput Result)
