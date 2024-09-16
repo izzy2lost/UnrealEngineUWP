@@ -800,12 +800,11 @@ FD3D12SamplerState::FD3D12SamplerState(FD3D12Device* InParent, const D3D12_SAMPL
 	GetParentDevice()->CreateSamplerInternal(Desc, OfflineDescriptor);
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	FD3D12Adapter* Adapter = InParent->GetParentAdapter();
-	if (Adapter->GetBindlessManager().GetSamplersConfiguration() != ERHIBindlessConfiguration::Disabled)
+	if (InParent->GetBindlessDescriptorAllocator().GetSamplersConfiguration() != ERHIBindlessConfiguration::Disabled)
 	{
-		BindlessHandle = FirstLinkedObject ? FirstLinkedObject->BindlessHandle : InParent->GetParentAdapter()->GetBindlessManager().AllocateSamplerHandle();
+		BindlessHandle = FirstLinkedObject ? FirstLinkedObject->BindlessHandle : InParent->GetBindlessDescriptorAllocator().AllocateSamplerHandle();
 
-		InParent->GetBindlessDescriptorManager().InitializeSampler(BindlessHandle, this);
+		InParent->GetBindlessDescriptorManager().InitializeDescriptor(BindlessHandle, this);
 	}
 #endif
 }

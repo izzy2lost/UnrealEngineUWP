@@ -318,6 +318,9 @@ FD3D12Adapter::FD3D12Adapter(FD3D12AdapterDesc& DescIn)
 	, StaticRayTracingGlobalRootSignature(this)
 	, StaticRayTracingLocalRootSignature(this)
 #endif
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	, BindlessDescriptorAllocator(this)
+#endif
 {
 	FMemory::Memzero(&UploadHeapAllocator, sizeof(UploadHeapAllocator));
 	FMemory::Memzero(&Devices, sizeof(Devices));
@@ -1200,10 +1203,10 @@ void FD3D12Adapter::InitializeDevices()
 		if (Desc.MaxSupportedFeatureLevel >= D3D_FEATURE_LEVEL_12_0 && Desc.MaxSupportedShaderModel >= D3D_SHADER_MODEL_6_6 && Desc.ResourceBindingTier >= D3D12_RESOURCE_BINDING_TIER_3)
 		{
 			// Needs to happen before device creation below
-			BindlessManager.Init(this);
+			BindlessDescriptorAllocator.Init();
 
-			BindlessResourcesConfig = BindlessManager.GetResourcesConfiguration();
-			BindlessSamplersConfig = BindlessManager.GetSamplersConfiguration();
+			BindlessResourcesConfig = BindlessDescriptorAllocator.GetResourcesConfiguration();
+			BindlessSamplersConfig = BindlessDescriptorAllocator.GetSamplersConfiguration();
 
 			GRHIGlobals.ShaderBundles.RequiresSharedBindlessParameters = (BindlessResourcesConfig == ERHIBindlessConfiguration::AllShaders || BindlessSamplersConfig == ERHIBindlessConfiguration::AllShaders);
 		}

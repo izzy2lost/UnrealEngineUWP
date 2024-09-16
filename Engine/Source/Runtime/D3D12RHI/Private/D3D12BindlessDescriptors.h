@@ -27,47 +27,45 @@ namespace UE::D3D12BindlessDescriptors
 }
 
 /** Manager for configuration settings and shared descriptor allocators, stored on the adapter. */
-class FD3D12BindlessManagerAdapter : public FD3D12AdapterChild
+class FD3D12BindlessDescriptorAllocator : public FD3D12AdapterChild
 {
 public:
-	void Init(FD3D12Adapter* InParent);
+	FD3D12BindlessDescriptorAllocator() = delete;
+	FD3D12BindlessDescriptorAllocator(FD3D12Adapter* InParent);
+
+	void Init();
 
 	ERHIBindlessConfiguration GetResourcesConfiguration() const { return BindlessResourcesConfiguration; }
 	ERHIBindlessConfiguration GetSamplersConfiguration() const { return BindlessSamplersConfiguration; }
 
-	bool GetResourcesAllowed() const { return bBindlessResourcesAllowed; }
-	bool GetSamplersAllowed() const { return bBindlessSamplersAllowed; }
+	bool AreResourcesBindless() const { return ResourceAllocator != nullptr; }
+	bool AreSamplersBindless() const { return SamplerAllocator != nullptr; }
 
 	// Bindless descriptor allocators are stored in the adapter, so descriptor handles can be allocated once and shared for multi-GPU objects
 	FRHIDescriptorHandle AllocateSamplerHandle();
 	FRHIDescriptorHandle AllocateResourceHandle();
+
 	void FreeSamplerHandle(FRHIDescriptorHandle Handle);
 	void FreeResourceHandle(FRHIDescriptorHandle Handle);
 
 	FCriticalSection& GetResourceHeapsCS() { return ResourceHeapsCS; }
 
 	uint32 GetResourceCapacity() const { return ResourceAllocator->GetCapacity(); }
+	uint32 GetSamplerCapacity()  const { return SamplerAllocator->GetCapacity(); }
 
 	bool GetResourceAllocatedRange(FRHIDescriptorAllocatorRange& OutAllocatedRange) const { return ResourceAllocator->GetAllocatedRange(OutAllocatedRange); }
-
-	FRHIDescriptorHandle& GetSamplerDefaultHandle() { return SamplerDefaultHandle; }
 
 #if D3D12RHI_CUSTOM_BINDLESS_RESOURCE_MANAGER
 	FRHIHeapDescriptorAllocator* GetResourceAllocator() { return ResourceAllocator; }
 #endif
 
 private:
-	bool bBindlessResourcesAllowed = false;
-	bool bBindlessSamplersAllowed = false;
-
 	ERHIBindlessConfiguration BindlessResourcesConfiguration{};
 	ERHIBindlessConfiguration BindlessSamplersConfiguration{};
 
 	FCriticalSection ResourceHeapsCS;
 	FRHIHeapDescriptorAllocator* ResourceAllocator = nullptr;
 	FRHIHeapDescriptorAllocator* SamplerAllocator = nullptr;
-
-	FRHIDescriptorHandle SamplerDefaultHandle;
 };
 
 /** Manager specifically for bindless sampler descriptors. */
@@ -75,9 +73,11 @@ class FD3D12BindlessSamplerManager : public FD3D12DeviceChild
 {
 public:
 	FD3D12BindlessSamplerManager() = delete;
-	FD3D12BindlessSamplerManager(FD3D12Device* InDevice, ERHIBindlessConfiguration InConfiguration, uint32 InNumDescriptors, TConstArrayView<TStatId> InStats);
+	FD3D12BindlessSamplerManager(FD3D12Device* InDevice, FD3D12BindlessDescriptorAllocator& InAllocator);
 
 	void CleanupResources();
+
+	void InitializeDescriptor(FRHIDescriptorHandle DstHandle, FD3D12SamplerState* SamplerState);
 
 	void OpenCommandList(FD3D12CommandContext& Context);
 	void CloseCommandList(FD3D12CommandContext& Context);
@@ -87,15 +87,14 @@ public:
 	FD3D12DescriptorHeap* GetHeap() const { return GpuHeap.GetReference(); }
 	ERHIBindlessConfiguration GetConfiguration() const { return Configuration; }
 
-	void InitializeSampler(FRHIDescriptorHandle DstHandle, FD3D12SamplerState* SamplerState);
-
 private:
 	FD3D12DescriptorHeapPtr      GpuHeap;
-	FRHIHeapDescriptorAllocator  Allocator;
 	ERHIBindlessConfiguration    Configuration;
 };
 
 #if !D3D12RHI_CUSTOM_BINDLESS_RESOURCE_MANAGER
+
+#define D3D12RHI_BINDLESS_RESOURCE_MANAGER_SUPPORTS_RESIZING 1
 
 // Helper container for all context related bindless state.
 struct FD3D12ContextBindlessState
@@ -164,7 +163,7 @@ class FD3D12BindlessResourceManager : public FD3D12DeviceChild
 {
 public:
 	FD3D12BindlessResourceManager() = delete;
-	FD3D12BindlessResourceManager(FD3D12Device* InDevice, FD3D12Adapter* InAdapter);
+	FD3D12BindlessResourceManager(FD3D12Device* InDevice, FD3D12BindlessDescriptorAllocator& InAllocator);
 
 	void CleanupResources();
 	
@@ -238,11 +237,16 @@ struct FD3D12DescriptorHeapPair
 class FD3D12BindlessDescriptorManager : public FD3D12DeviceChild
 {
 public:
-	FD3D12BindlessDescriptorManager(FD3D12Device* InDevice);
+	FD3D12BindlessDescriptorManager(FD3D12Device* InDevice, FD3D12BindlessDescriptorAllocator& InAllocator);
 	~FD3D12BindlessDescriptorManager();
 
 	void Init();
 	void CleanupResources();
+
+	FD3D12BindlessDescriptorAllocator& GetAllocator() { return Allocator; }
+
+	FD3D12BindlessResourceManager* GetResourceManager() const { return ResourceManager.Get(); }
+	FD3D12BindlessSamplerManager*  GetSamplerManager()  const { return SamplerManager.Get();  }
 
 	ERHIBindlessConfiguration GetResourcesConfiguration() const { return ResourcesConfiguration; }
 	ERHIBindlessConfiguration GetSamplersConfiguration()  const { return SamplersConfiguration; }
@@ -262,8 +266,7 @@ public:
 	void GarbageCollect();
 	void Recycle(FD3D12DescriptorHeap* DescriptorHeap);
 
-	void InitializeSampler(FRHIDescriptorHandle DstHandle, FD3D12SamplerState* SamplerState) { SamplerManager->InitializeSampler(DstHandle, SamplerState); }
-
+	void InitializeDescriptor(FRHIDescriptorHandle DstHandle, FD3D12SamplerState* SamplerState);
 	void InitializeDescriptor(FRHIDescriptorHandle DstHandle, FD3D12View* View);
 	void UpdateDescriptor(FD3D12ContextArray const& Contexts, FRHIDescriptorHandle DstHandle, FD3D12View* SourceView);
 
@@ -282,31 +285,13 @@ public:
 #endif
 
 private:
-	// Needs direct access to underlying resource manager for resource allocation functions
-	friend class FD3D12BindlessManagerAdapter;
-	FD3D12BindlessResourceManager& GetResourceManager() const { return *ResourceManager; }
+	FD3D12BindlessDescriptorAllocator& Allocator;
 
 	TUniquePtr<FD3D12BindlessResourceManager> ResourceManager;
 	TUniquePtr<FD3D12BindlessSamplerManager>  SamplerManager;
 
 	ERHIBindlessConfiguration ResourcesConfiguration{};
 	ERHIBindlessConfiguration SamplersConfiguration{};
-};
-
-#else // PLATFORM_SUPPORTS_BINDLESS_RENDERING
-
-// Stub version when bindless is compiled out
-class FD3D12BindlessManagerAdapter : public FD3D12AdapterChild
-{
-public:
-	inline void Init(FD3D12Adapter* InParent) { SetParentAdapter(InParent); }
-
-	inline FRHIDescriptorHandle AllocateSamplerHandle() { return FRHIDescriptorHandle(); }
-	inline FRHIDescriptorHandle AllocateResourceHandle() { return FRHIDescriptorHandle(); }
-	inline FRHIDescriptorHandle& GetSamplerDefaultHandle() { return SamplerDefaultHandle; }
-
-private:
-	FRHIDescriptorHandle SamplerDefaultHandle;
 };
 
 #endif // !PLATFORM_SUPPORTS_BINDLESS_RENDERING
