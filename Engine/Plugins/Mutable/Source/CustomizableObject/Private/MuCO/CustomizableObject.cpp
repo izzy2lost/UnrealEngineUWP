@@ -314,13 +314,6 @@ bool UCustomizableObjectPrivate::TryLoadCompiledCookDataForPlatform(const ITarge
 void UCustomizableObject::PostLoad()
 {
 	Super::PostLoad();
-
-#if	WITH_EDITORONLY_DATA
-	if (Source)
-	{
-		Source->ConditionalPostLoad();
-	}
-#endif
 	
 	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
 
@@ -388,7 +381,6 @@ void UCustomizableObject::PostLoad()
 			GetPrivate()->LoadCompiledDataFromDisk();
 		}
 	}
-
 #endif
 }
 
