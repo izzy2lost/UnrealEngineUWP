@@ -31,9 +31,9 @@ void FMovieSceneClonerTrackEditor::BindDelegates()
 	OnClonerTrackExists.AddSP(this, &FMovieSceneClonerTrackEditor::ExecuteTrackExists);
 }
 
-void FMovieSceneClonerTrackEditor::ExecuteAddTrack(UCEClonerComponent* InCloner)
+void FMovieSceneClonerTrackEditor::ExecuteAddTrack(const TSet<UCEClonerComponent*>& InCloners)
 {
-	if (!IsValid(InCloner))
+	if (InCloners.IsEmpty())
 	{
 		return;
 	}
@@ -54,48 +54,60 @@ void FMovieSceneClonerTrackEditor::ExecuteAddTrack(UCEClonerComponent* InCloner)
 
 	FocusedMovieScene->Modify();
 
-	const FGuid ComponentBinding = SequencerPtr->GetHandleToObject(InCloner);
-	if (FocusedMovieScene->FindSpawnable(ComponentBinding))
+	for (UCEClonerComponent* Cloner : InCloners)
 	{
-		// we only want to add tracks for possessables
-		return;
-	}
+		if (!IsValid(Cloner))
+		{
+			continue;
+		}
 
-	// Add lifecycle track
-	UMovieSceneTrack* LifeCycleTrack = FocusedMovieScene->FindTrack(UMovieSceneNiagaraSystemTrack::StaticClass(), ComponentBinding);
+		const FGuid ComponentBinding = SequencerPtr->GetHandleToObject(Cloner);
+		if (FocusedMovieScene->FindSpawnable(ComponentBinding))
+		{
+			// we only want to add tracks for possessables
+			return;
+		}
 
-	if (!LifeCycleTrack)
-	{
-		UMovieSceneNiagaraSystemTrack* NiagaraSystemTrack = FocusedMovieScene->AddTrack<UMovieSceneNiagaraSystemTrack>(ComponentBinding);
-		NiagaraSystemTrack->SetDisplayName(LOCTEXT("ClonerLifeCycleTrackName", "Cloner Life Cycle"));
+		// Add lifecycle track
+		const UMovieSceneTrack* LifeCycleTrack = FocusedMovieScene->FindTrack(UMovieSceneNiagaraSystemTrack::StaticClass(), ComponentBinding);
 
-		UMovieSceneNiagaraSystemSpawnSection* NiagaraSpawnSection = Cast<UMovieSceneNiagaraSystemSpawnSection>(NiagaraSystemTrack->CreateNewSection());
-		NiagaraSpawnSection->SetAgeUpdateMode(ENiagaraAgeUpdateMode::DesiredAge);
+		if (!LifeCycleTrack)
+		{
+			if (UMovieSceneNiagaraSystemTrack* NiagaraSystemTrack = FocusedMovieScene->AddTrack<UMovieSceneNiagaraSystemTrack>(ComponentBinding))
+			{
+				NiagaraSystemTrack->SetDisplayName(LOCTEXT("ClonerLifeCycleTrackName", "Cloner Life Cycle"));
 
-		NiagaraSpawnSection->SetRange(TRange<FFrameNumber>(
-			FocusedMovieScene->GetPlaybackRange().GetLowerBound(),
-			FocusedMovieScene->GetPlaybackRange().GetUpperBound()
-		));
+				UMovieSceneNiagaraSystemSpawnSection* NiagaraSpawnSection = CastChecked<UMovieSceneNiagaraSystemSpawnSection>(NiagaraSystemTrack->CreateNewSection());
+				NiagaraSpawnSection->SetAgeUpdateMode(ENiagaraAgeUpdateMode::DesiredAge);
 
-		NiagaraSystemTrack->AddSection(*NiagaraSpawnSection);
-	}
+				NiagaraSpawnSection->SetRange(TRange<FFrameNumber>(
+					FocusedMovieScene->GetPlaybackRange().GetLowerBound(),
+					FocusedMovieScene->GetPlaybackRange().GetUpperBound()
+				));
 
-	// Add cache track
-	UMovieSceneTrack* CacheTrack = FocusedMovieScene->FindTrack(UMovieSceneNiagaraCacheTrack::StaticClass(), ComponentBinding);
+				NiagaraSystemTrack->AddSection(*NiagaraSpawnSection);
+			}
+		}
 
-	if (!CacheTrack)
-	{
-		UMovieSceneNiagaraCacheTrack* NiagaraCacheTrack = FocusedMovieScene->AddTrack<UMovieSceneNiagaraCacheTrack>(ComponentBinding);
-		NiagaraCacheTrack->SetDisplayName(LOCTEXT("ClonerSimCacheTrackName", "Cloner Sim Cache"));
+		// Add cache track
+		const UMovieSceneTrack* CacheTrack = FocusedMovieScene->FindTrack(UMovieSceneNiagaraCacheTrack::StaticClass(), ComponentBinding);
 
-		UMovieSceneNiagaraCacheSection* NiagaraCacheSection = Cast<UMovieSceneNiagaraCacheSection>(NiagaraCacheTrack->CreateNewSection());
+		if (!CacheTrack)
+		{
+			if (UMovieSceneNiagaraCacheTrack* NiagaraCacheTrack = FocusedMovieScene->AddTrack<UMovieSceneNiagaraCacheTrack>(ComponentBinding))
+			{
+				NiagaraCacheTrack->SetDisplayName(LOCTEXT("ClonerSimCacheTrackName", "Cloner Sim Cache"));
 
-		NiagaraCacheSection->SetRange(TRange<FFrameNumber>(
-			FocusedMovieScene->GetPlaybackRange().GetLowerBound(),
-			FocusedMovieScene->GetPlaybackRange().GetUpperBound()
-		));
+				UMovieSceneNiagaraCacheSection* NiagaraCacheSection = CastChecked<UMovieSceneNiagaraCacheSection>(NiagaraCacheTrack->CreateNewSection());
 
-		NiagaraCacheTrack->AddSection(*NiagaraCacheSection);
+				NiagaraCacheSection->SetRange(TRange<FFrameNumber>(
+					FocusedMovieScene->GetPlaybackRange().GetLowerBound(),
+					FocusedMovieScene->GetPlaybackRange().GetUpperBound()
+				));
+
+				NiagaraCacheTrack->AddSection(*NiagaraCacheSection);
+			}
+		}
 	}
 
 	SequencerPtr->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);

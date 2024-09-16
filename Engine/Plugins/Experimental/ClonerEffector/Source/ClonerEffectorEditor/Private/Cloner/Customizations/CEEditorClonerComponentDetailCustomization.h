@@ -37,15 +37,21 @@ public:
 	//~ End IDetailCustomization
 
 protected:
+	static constexpr const TCHAR* TrackEditor = TEXT("CreateClonerSequencerTracks");
 	static void RemoveEmptySections();
 	static void OnChildPropertyChanged(const FPropertyChangedEvent& InEvent, TWeakPtr<IPropertyHandle> InParentHandleWeak);
 	static void OnPropertyChanged(const FPropertyChangedEvent& InEvent, TWeakPtr<IPropertyUtilities> InUtilitiesWeak);
+
+	bool CanAddSequencerTracks() const;
+	FReply OnAddSequencerTracks();
 
 	/** Bind delegates needed */
 	void Init();
 
 	/** Used to refresh details view when layout changes */
 	void OnClonerLayoutLoaded(UCEClonerComponent* InCloner, UCEClonerLayoutBase* InLayout);
+
+	bool IsFunctionButtonEnabled(FName InFunctionName) const;
 
 	/** Execute ufunction with that name on selected objects */
 	FReply OnFunctionButtonClicked(FName InFunctionName);

@@ -5,6 +5,7 @@
 #include "Cloner/CEClonerComponent.h"
 #include "Cloner/Extensions/CEClonerExtensionBase.h"
 #include "Cloner/Layouts/CEClonerLayoutBase.h"
+#include "Cloner/Sequencer/MovieSceneClonerTrackEditor.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
 #include "IDetailChildrenBuilder.h"
@@ -140,7 +141,10 @@ void FCEEditorClonerComponentDetailCustomization::CustomizeDetails(IDetailLayout
 		}
 	}
 
-	if (!LayoutFunctionNames.IsEmpty())
+	// Add cloner create track button
+	FunctionToCategory.Add(TrackEditor, TEXT("Utilities"));
+
+	if (!FunctionToCategory.IsEmpty())
 	{
 		TMap<FName, const TSharedPtr<SVerticalBox>> FunctionToWidget;
 
@@ -170,11 +174,11 @@ void FCEEditorClonerComponentDetailCustomization::CustomizeDetails(IDetailLayout
 			FunctionToWidget.Add(FunctionToCategoryPair.Key, FunctionsWidget);
 		}
 
-		for (const TPair<FName, TMap<TWeakObjectPtr<UObject>, TWeakObjectPtr<UFunction>>>& LayoutFunctionNamesPair : LayoutFunctionNames)
+		for (const TPair<FName, const TSharedPtr<SVerticalBox>>& FunctionNameToWidget : FunctionToWidget)
 		{
-			const FText ButtonLabel = FText::FromString(FName::NameToDisplayString(LayoutFunctionNamesPair.Key.ToString(), false));
+			const FText ButtonLabel = FText::FromString(FName::NameToDisplayString(FunctionNameToWidget.Key.ToString(), /** IsBool */false));
 
-			const TSharedPtr<SVerticalBox>& FunctionsWidget = FunctionToWidget.FindChecked(LayoutFunctionNamesPair.Key);
+			const TSharedPtr<SVerticalBox>& FunctionsWidget = FunctionNameToWidget.Value;
 
 			FunctionsWidget->AddSlot()
 				.Padding(0.f, 3.f)
@@ -184,7 +188,8 @@ void FCEEditorClonerComponentDetailCustomization::CustomizeDetails(IDetailLayout
 					.Text(ButtonLabel)
 					.HAlign(HAlign_Center)
 					.VAlign(VAlign_Fill)
-					.OnClicked(this, &FCEEditorClonerComponentDetailCustomization::OnFunctionButtonClicked, LayoutFunctionNamesPair.Key)
+					.IsEnabled(this, &FCEEditorClonerComponentDetailCustomization::IsFunctionButtonEnabled, FunctionNameToWidget.Key)
+					.OnClicked(this, &FCEEditorClonerComponentDetailCustomization::OnFunctionButtonClicked, FunctionNameToWidget.Key)
 				];
 		}
 	}
@@ -240,9 +245,23 @@ void FCEEditorClonerComponentDetailCustomization::OnClonerLayoutLoaded(UCECloner
 	}
 }
 
+bool FCEEditorClonerComponentDetailCustomization::IsFunctionButtonEnabled(FName InFunctionName) const
+{
+	if (InFunctionName.IsEqual(TrackEditor))
+	{
+		return CanAddSequencerTracks();
+	}
+
+	return true;
+}
+
 FReply FCEEditorClonerComponentDetailCustomization::OnFunctionButtonClicked(FName InFunctionName)
 {
-	if (TMap<TWeakObjectPtr<UObject>, TWeakObjectPtr<UFunction>> const* ObjectFunctions = LayoutFunctionNames.Find(InFunctionName))
+	if (InFunctionName.IsEqual(TrackEditor))
+	{
+		OnAddSequencerTracks();
+	}
+	else if (TMap<TWeakObjectPtr<UObject>, TWeakObjectPtr<UFunction>> const* ObjectFunctions = LayoutFunctionNames.Find(InFunctionName))
 	{
 		for (const TPair<TWeakObjectPtr<UObject>, TWeakObjectPtr<UFunction>>& ObjectFunction : *ObjectFunctions)
 		{
@@ -257,6 +276,50 @@ FReply FCEEditorClonerComponentDetailCustomization::OnFunctionButtonClicked(FNam
 			Object->ProcessEvent(Function, nullptr);
 		}
 	}
+
+	return FReply::Handled();
+}
+
+bool FCEEditorClonerComponentDetailCustomization::CanAddSequencerTracks() const
+{
+	// Lifecycle + cache tracks
+	constexpr uint32 ExpectedTrackCount = 2;
+
+	for (const TWeakObjectPtr<UCEClonerComponent>& ClonerComponentWeak : ClonerComponentsWeak)
+	{
+		if (UCEClonerComponent* ClonerComponent = ClonerComponentWeak.Get())
+		{
+			uint32 TrackCount = 0;
+			FMovieSceneClonerTrackEditor::OnClonerTrackExists.Broadcast(ClonerComponent, TrackCount);
+
+			if (TrackCount < ExpectedTrackCount)
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+FReply FCEEditorClonerComponentDetailCustomization::OnAddSequencerTracks()
+{
+	TSet<UCEClonerComponent*> ClonersWeak;
+
+	Algo::TransformIf(
+		ClonerComponentsWeak
+		, ClonersWeak
+		, [](const TWeakObjectPtr<UCEClonerComponent>& InClonerWeak)
+		{
+			return InClonerWeak.IsValid();
+		}
+		, [](const TWeakObjectPtr<UCEClonerComponent>& InClonerWeak)
+		{
+			return InClonerWeak.Get();
+		}
+	);
+
+	FMovieSceneClonerTrackEditor::OnAddClonerTrack.Broadcast(ClonersWeak);
 
 	return FReply::Handled();
 }
