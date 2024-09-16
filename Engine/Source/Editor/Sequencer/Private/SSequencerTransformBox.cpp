@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SSequencerTransformBox.h"
+
+#include "Misc/FrameRate.h"
 #include "Sequencer.h"
 #include "SequencerSettings.h"
 #include "SequencerCommonHelpers.h"
@@ -16,7 +18,6 @@ void SSequencerTransformBox::Construct(const FArguments& InArgs, const TSharedRe
 	Settings = &InSettings;
 	NumericTypeInterface = InNumericTypeInterface;
 	
-	DeltaTime = FFrameNumber(0);
 	ScaleFactor = 1.f;
 
 	const FDockTabStyle* GenericTabStyle = &FCoreStyle::Get().GetWidgetStyle<FDockTabStyle>("Docking.Tab");
@@ -59,7 +60,7 @@ void SSequencerTransformBox::Construct(const FArguments& InArgs, const TSharedRe
 						.ToolTipText(LOCTEXT("TransformDelta_Tooltip", "The amount to offset the selected keys/sections by"))
 						.OnValueCommitted(this, &SSequencerTransformBox::OnDeltaCommitted)
 						.OnValueChanged(this, &SSequencerTransformBox::OnDeltaChanged)
-						.Value_Lambda([this](){ return DeltaTime.Value; })
+						.Value_Lambda([this](){ return DeltaTime.IsSet() ? DeltaTime.GetValue().Value : 0.0; })
 					]
 
 				+ SHorizontalBox::Slot()
@@ -128,6 +129,11 @@ void SSequencerTransformBox::ToggleVisibility()
 	}
 	else
 	{
+		if (!DeltaTime.IsSet())
+		{
+			InitializeDeltaTime();
+		}
+
 		Border->SetVisibility(EVisibility::Visible);
 		LastFocusedWidget = SlateApplication.GetUserFocusedWidget(0);
 		SlateApplication.SetAllUserFocus(OffsetEntryBox, EFocusCause::Navigation);
@@ -156,11 +162,16 @@ void SSequencerTransformBox::OnScaleChanged(float Value)
 
 FReply SSequencerTransformBox::OnPlusButtonClicked()
 {
-	if (DeltaTime != 0)
+	if (!DeltaTime.IsSet())
+	{
+		InitializeDeltaTime();
+	}
+
+	if (DeltaTime.GetValue() != 0)
 	{
 		TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
 
-		Sequencer->TransformSelectedKeysAndSections(DeltaTime, 1.f);
+		Sequencer->TransformSelectedKeysAndSections(DeltaTime.GetValue(), 1.f);
 	}
 
 	return FReply::Handled();
@@ -168,11 +179,16 @@ FReply SSequencerTransformBox::OnPlusButtonClicked()
 
 FReply SSequencerTransformBox::OnMinusButtonClicked()
 {
-	if (DeltaTime != 0)
+	if (!DeltaTime.IsSet())
+	{
+		InitializeDeltaTime();
+	}
+
+	if (DeltaTime.GetValue() != 0)
 	{
 		TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
 	
-		Sequencer->TransformSelectedKeysAndSections(-DeltaTime, 1.f);
+		Sequencer->TransformSelectedKeysAndSections(-DeltaTime.GetValue(), 1.f);
 	}
 
 	return FReply::Handled();
@@ -206,6 +222,16 @@ FReply SSequencerTransformBox::OnCloseButtonClicked()
 	ToggleVisibility();
 
 	return FReply::Handled();
+}
+
+void SSequencerTransformBox::InitializeDeltaTime()
+{
+	TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
+
+	// Default to 1 frame
+	const FFrameRate DisplayRate = Sequencer->GetFocusedDisplayRate();
+	const FFrameRate TickResolution = Sequencer->GetFocusedTickResolution();
+	DeltaTime = FFrameRate::TransformTime(FFrameTime(1), DisplayRate, TickResolution).FrameNumber;
 }
 
 #undef LOCTEXT_NAMESPACE
