@@ -702,7 +702,7 @@ TArray<TTuple<ALandscapeProxy*, UE::Landscape::EOutdatedDataFlags>> ULandscapeSu
 	TArray<ProxyAndFlagsArray> TaskContexts;
 	ParallelForWithTaskContext(TaskContexts, Proxies.Num(), [this, InMatchingOutdatedDataFlags, bInMustMatchAllFlags](ProxyAndFlagsArray& InTaskContext, int32 InIndex)
 		{
-			FTaskTagScope Scope(ETaskTag::EParallelGameThread);
+			FOptionalTaskTagScope Scope(ETaskTag::EParallelGameThread);
 			ALandscapeProxy* ValidProxy = Proxies[InIndex].Get();
 			const UE::Landscape::EOutdatedDataFlags ProxyOutdatedDataFlags = ValidProxy->GetOutdatedDataFlags();
 
