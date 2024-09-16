@@ -28,6 +28,7 @@ public class VCamCoreEditor : ModuleRules
 				"EnhancedInput",
 				"InputBlueprintNodes",
 				"InputCore",
+				"KismetCompiler",
 				"LiveLinkInterface",
 				"PropertyEditor",
 				"Slate",
