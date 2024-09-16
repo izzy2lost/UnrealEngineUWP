@@ -79,6 +79,8 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		ClipNode->MultipleTagsPolicy = TypedNodeClip->MultipleTagPolicy;
 		ClipNode->RequiredTags = TypedNodeClip->RequiredTags;
 
+		ClipNode->Parameters.FaceCullStrategy = TypedNodeClip->FaceCullStrategy;
+
 		GenerationContext.MeshGenerationFlags.Pop();
 	}
 
@@ -92,6 +94,8 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		mu::Ptr<mu::NodeModifierMeshClipDeform> ClipNode = new mu::NodeModifierMeshClipDeform();
 		Result = ClipNode;
 	
+		ClipNode->FaceCullStrategy = TypedNodeClipDeform->FaceCullStrategy;
+
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeClipDeform->ClipShapePin()))
 		{
 			FMutableGraphMeshGenerationData DummyMeshData;
@@ -144,6 +148,8 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 
 		mu::Ptr<mu::NodeModifierMeshClipWithMesh> ClipNode = new mu::NodeModifierMeshClipWithMesh();
 		Result = ClipNode;
+
+		ClipNode->FaceCullStrategy = TypedNodeClipMesh->FaceCullStrategy;
 
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeClipMesh->ClipMeshPin()))
 		{
@@ -214,6 +220,8 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 
 		mu::Ptr<mu::NodeModifierMeshClipWithUVMask> ClipNode = new mu::NodeModifierMeshClipWithUVMask();
 		Result = ClipNode;
+
+		ClipNode->FaceCullStrategy = TypedNodeClipUVMask->FaceCullStrategy;
 
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeClipUVMask->ClipMaskPin()))
 		{
@@ -401,6 +409,8 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 			int32 LODCount = GenerationContext.NumLODsInRoot;
 			SurfNode->LODs.SetNum(LODCount);
 
+			SurfNode->FaceCullStrategy = TypedNodeRem->FaceCullStrategy;
+
 			for (int32 LODIndex = 0; LODIndex < LODCount; ++LODIndex)
 			{
 				GenerationContext.FromLOD = 0;
@@ -426,6 +436,8 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 
 		mu::Ptr<mu::NodeModifierMeshClipWithUVMask> ClipNode = new mu::NodeModifierMeshClipWithUVMask();
 		Result = ClipNode;
+
+		ClipNode->FaceCullStrategy = TypedNodeRemBlocks->FaceCullStrategy;
 
 		ClipNode->MultipleTagsPolicy = TypedNodeRemBlocks->MultipleTagPolicy;
 		ClipNode->RequiredTags = TypedNodeRemBlocks->RequiredTags;

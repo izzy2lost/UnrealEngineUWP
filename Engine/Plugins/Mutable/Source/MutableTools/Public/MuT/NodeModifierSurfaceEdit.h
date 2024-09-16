@@ -58,6 +58,9 @@ namespace mu
 
 		TArray<FLOD> LODs;
 
+		/** For remove operations, use this strategy to cull faces. */
+		EFaceCullStrategy FaceCullStrategy = EFaceCullStrategy::AllVerticesCulled;
+
 		/** Name of the morph to apply to the modified surface if it has it. */
 		FString MeshMorph;
 

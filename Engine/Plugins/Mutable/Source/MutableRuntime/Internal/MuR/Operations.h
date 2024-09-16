@@ -3,6 +3,7 @@
 #pragma once
 
 #include "MuR/Image.h"
+#include "MuR/Types.h"
 #include "MuR/SerialisationPrivate.h"
 #include "HAL/PlatformMath.h"
 #include "HAL/UnrealMemory.h"
@@ -376,8 +377,8 @@ namespace mu
 		EMeshBindColorChannelUsage A;
 	};
 
-
 	static_assert(sizeof(FMeshBindColorChannelUsages) == sizeof(uint32));
+
 
     //---------------------------------------------------------------------------------------------
     //!
@@ -914,16 +915,12 @@ namespace mu
 
 			ADDRESS morphShape;
 			ADDRESS vertexSelectionShapeOrBone;
-			
-			typedef enum 
-			{
-				VS_NONE,
-				VS_SHAPE,
-				VS_BONE_HIERARCHY
-			} VERTEX_SELECTION_TYPE;
-            uint8 vertexSelectionType;
 
 			float dist, factor, maxBoneRadius;
+
+			EClipVertexSelectionType VertexSelectionType;
+
+			EFaceCullStrategy FaceCullStrategy;
 		};
 
         struct MeshClipWithMeshArgs
@@ -987,6 +984,7 @@ namespace mu
 			ADDRESS clipShape;
 
 			float clipWeightThreshold = 0.9f;
+			EFaceCullStrategy FaceCullStrategy;
 		};
 
 		struct MeshOptimizeSkinningArgs

@@ -4,6 +4,7 @@
 
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
+#include "MuR/Types.h"
 #include "MuR/Skeleton.h"
 #include "MuT/Node.h"
 #include "MuT/NodeModifier.h"
@@ -20,10 +21,10 @@ namespace mu
 	{
 		// Morph field parameters
 
-		 //! Distance to the plane of last affected vertex
+		// Distance to the plane of last affected vertex
 		float DistanceToPlane = 0;
 
-		//! "Linearity" factor of the influence.
+		// "Linearity" factor of the influence.
 		float LinearityFactor = 0;
 
 		// Ellipse location
@@ -31,21 +32,8 @@ namespace mu
 		FVector3f Normal = FVector3f(0, 0, 0);
 		float Radius1 = 0, Radius2 = 0, Rotation = 0;
 
-		//! Typed of vertex selection
-		typedef enum
-		{
-			//! All vertices, so no extra info is needed
-			VS_ALL,
-
-			//! Select vertices inside a shape
-			VS_SHAPE,
-
-			//! Select all vertices affected by any bone in a sub hierarchy
-			VS_BONE_HIERARCHY,
-		} EVertexSelection;
-
 		// Vertex selection box
-		uint8 VertexSelectionType = VS_ALL;
+		EClipVertexSelectionType VertexSelectionType = EClipVertexSelectionType::None;
 		FVector3f SelectionBoxOrigin = FVector3f(0, 0, 0);
 		FVector3f SelectionBoxRadius = FVector3f(0, 0, 0);
 		FBoneName VertexSelectionBone;
@@ -53,6 +41,8 @@ namespace mu
 		// Max distance a vertex can have to the bone in order to be affected. A negative value
 		// means no limit.
 		float MaxEffectRadius = -1.0f;
+
+		EFaceCullStrategy FaceCullStrategy = EFaceCullStrategy::AllVerticesCulled;
 	};
 
 

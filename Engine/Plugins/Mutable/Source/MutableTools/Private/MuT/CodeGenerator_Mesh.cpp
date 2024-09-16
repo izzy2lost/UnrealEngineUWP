@@ -1403,6 +1403,8 @@ namespace mu
     {
         Ptr<ASTOpMeshClipMorphPlane> op = new ASTOpMeshClipMorphPlane();
 
+		op->FaceCullStrategy = ClipNode->Parameters.FaceCullStrategy;
+
         // Base
         if (ClipNode->Source)
         {
@@ -1424,8 +1426,8 @@ namespace mu
             op->morphShape.up = ClipNode->Parameters.Normal;
             op->morphShape.size = FVector3f(ClipNode->Parameters.Radius1, ClipNode->Parameters.Radius2, ClipNode->Parameters.Rotation); // TODO: Move rotation to ellipse rotation reference base instead of passing it directly
 
-                                                                                      // Generate a "side" vector.
-                                                                                      // \todo: make generic and move to the vector class
+            // Generate a "side" vector.
+            // \todo: make generic and move to the vector class
             {
                 // Generate vector perpendicular to normal for ellipse rotation reference base
 				FVector3f aux_base(0.f, 1.f, 0.f);
@@ -1440,25 +1442,20 @@ namespace mu
         }
 
         // Selection by shape
-        if (ClipNode->Parameters.VertexSelectionType== FClipMorphPlaneParameters::VS_SHAPE)
+		op->VertexSelectionType = ClipNode->Parameters.VertexSelectionType;
+        if (op->VertexSelectionType == EClipVertexSelectionType::Shape)
         {
-            op->vertexSelectionType = OP::MeshClipMorphPlaneArgs::VS_SHAPE;
             op->selectionShape.type = (uint8_t)FShape::Type::AABox;
             op->selectionShape.position = ClipNode->Parameters.SelectionBoxOrigin;
             op->selectionShape.size = ClipNode->Parameters.SelectionBoxRadius;
         }
-        else if (ClipNode->Parameters.VertexSelectionType == FClipMorphPlaneParameters::VS_BONE_HIERARCHY)
+        else if (op->VertexSelectionType == EClipVertexSelectionType::BoneHierarchy)
         {
             // Selection by bone hierarchy?
-            op->vertexSelectionType = OP::MeshClipMorphPlaneArgs::VS_BONE_HIERARCHY;
             op->vertexSelectionBone = ClipNode->Parameters.VertexSelectionBone;
 			op->vertexSelectionBoneMaxRadius = ClipNode->Parameters.MaxEffectRadius;
         }
-        else
-        {
-            op->vertexSelectionType = OP::MeshClipMorphPlaneArgs::VS_NONE;
-        }
-
+ 
         // Parameters
         op->dist = ClipNode->Parameters.DistanceToPlane;
         op->factor = ClipNode->Parameters.LinearityFactor;

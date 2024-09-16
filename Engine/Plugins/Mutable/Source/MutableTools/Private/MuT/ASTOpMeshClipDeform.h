@@ -23,6 +23,9 @@ struct FProgram;
 		ASTChild Mesh;
 		ASTChild ClipShape;
 
+		/** Strategy to decide when to cull a face. */
+		EFaceCullStrategy FaceCullStrategy = EFaceCullStrategy::AllVerticesCulled;
+
 	public:
 
 		ASTOpMeshClipDeform();

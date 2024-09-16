@@ -39,7 +39,8 @@ namespace mu
 				morphShape == other->morphShape &&
 				selectionShape == other->selectionShape &&
 				vertexSelectionBone == other->vertexSelectionBone &&
-				vertexSelectionType == other->vertexSelectionType &&
+				VertexSelectionType == other->VertexSelectionType &&
+				FaceCullStrategy == other->FaceCullStrategy &&
 				dist == other->dist &&
 				factor == other->factor;
 		}
@@ -63,7 +64,8 @@ namespace mu
 		n->morphShape = morphShape;
 		n->selectionShape = selectionShape;
 		n->vertexSelectionBone = vertexSelectionBone;
-		n->vertexSelectionType = vertexSelectionType;
+		n->VertexSelectionType = VertexSelectionType;
+		n->FaceCullStrategy = FaceCullStrategy;
 		n->dist = dist;
 		n->factor = factor;
 		return n;
@@ -82,20 +84,22 @@ namespace mu
 		if (!linkedAddress)
 		{
 			OP::MeshClipMorphPlaneArgs args;
-			memset(&args, 0, sizeof(args));
+			FMemory::Memzero(&args, sizeof(args));
 
 			if (source) args.source = source->linkedAddress;
 
 			args.morphShape = (OP::ADDRESS)program.m_constantShapes.Num();
 			program.m_constantShapes.Add(morphShape);
 
-			args.vertexSelectionType = (uint8_t)vertexSelectionType;
-			if (vertexSelectionType == OP::MeshClipMorphPlaneArgs::VS_BONE_HIERARCHY)
+			args.FaceCullStrategy = FaceCullStrategy;
+
+			args.VertexSelectionType = VertexSelectionType;
+			if (VertexSelectionType == EClipVertexSelectionType::BoneHierarchy)
 			{
 				check(vertexSelectionBone.Id < MAX_uint32);
 				args.vertexSelectionShapeOrBone = vertexSelectionBone.Id;
 			}
-			else if (vertexSelectionType == OP::MeshClipMorphPlaneArgs::VS_SHAPE)
+			else if (VertexSelectionType == EClipVertexSelectionType::Shape)
 			{
 				args.vertexSelectionShapeOrBone = program.AddConstant(selectionShape);
 			}

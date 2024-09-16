@@ -27,6 +27,9 @@ namespace mu
 		/** Layout index of the UVs to use inthe source mesh to ben clipped with the mask. */
 		uint8 LayoutIndex = 0;
 
+		/** */
+		EFaceCullStrategy FaceCullStrategy = EFaceCullStrategy::AllVerticesCulled;
+
 	public:
 
 		// Node interface

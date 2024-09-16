@@ -26,7 +26,8 @@ struct FProgram;
 		FShape selectionShape;
 		FBoneName vertexSelectionBone;
 
-		OP::MeshClipMorphPlaneArgs::VERTEX_SELECTION_TYPE vertexSelectionType = OP::MeshClipMorphPlaneArgs::VS_NONE;
+		EClipVertexSelectionType VertexSelectionType = EClipVertexSelectionType::None;
+		EFaceCullStrategy FaceCullStrategy = EFaceCullStrategy::AllVerticesCulled;
 
 		float dist = 0.f, factor = 0.f, vertexSelectionBoneMaxRadius = -1.f;
 

@@ -72,7 +72,8 @@ namespace mu
 	//! Reference version
 	//---------------------------------------------------------------------------------------------
 	inline void MeshClipMorphPlane(Mesh* Result, const Mesh* pBase, const FVector3f& Origin, const FVector3f& Normal, float Dist, float Factor, float Radius,
-		float Radius2, float Angle, const FShape& SelectionShape, bool& bOutSuccess, const FBoneName* BoneId = nullptr, float VertexSelectionBoneMaxRadius = -1.f)
+		float Radius2, float Angle, const FShape& SelectionShape, bool bRemoveIfAllVerticesCulled, bool& bOutSuccess, 
+		const FBoneName* BoneId = nullptr, float VertexSelectionBoneMaxRadius = -1.f)
 	{
 		bOutSuccess = true;
 		//float Radius = 8.f;
@@ -372,6 +373,6 @@ namespace mu
 			(PositionIterBegin + VertexIndex).SetFromVec3f(Position);
 		}
 
-        MeshRemoveVerticesWithCullSet(Result, VerticesToCull);
+        MeshRemoveVerticesWithCullSet(Result, VerticesToCull, bRemoveIfAllVerticesCulled);
 	}
 }

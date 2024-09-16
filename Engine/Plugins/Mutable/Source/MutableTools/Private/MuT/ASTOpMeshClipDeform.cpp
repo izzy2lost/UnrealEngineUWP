@@ -31,7 +31,7 @@ namespace mu
 		if (OtherUntyped.GetOpType()==GetOpType())
 		{
 			const ASTOpMeshClipDeform* Other = static_cast<const ASTOpMeshClipDeform*>(&OtherUntyped);
-			return Mesh == Other->Mesh && ClipShape == Other->ClipShape;
+			return Mesh == Other->Mesh && ClipShape == Other->ClipShape && FaceCullStrategy == Other->FaceCullStrategy;
 		}
 
 		return false;
@@ -51,6 +51,7 @@ namespace mu
 		Ptr<ASTOpMeshClipDeform> n = new ASTOpMeshClipDeform();
 		n->Mesh = mapChild(Mesh.child());
 		n->ClipShape = mapChild(ClipShape.child());
+		n->FaceCullStrategy = FaceCullStrategy;
 		return n;
 	}
 
@@ -68,7 +69,9 @@ namespace mu
 		if (!linkedAddress)
 		{
 			OP::MeshClipDeformArgs args;
-			memset(&args, 0, sizeof(args));
+			FMemory::Memzero(&args, sizeof(args));
+
+			args.FaceCullStrategy = FaceCullStrategy;
 
 			if (Mesh)
 			{

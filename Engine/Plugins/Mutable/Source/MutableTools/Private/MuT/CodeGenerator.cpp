@@ -2067,6 +2067,7 @@ namespace mu
 					{
 						RemoveOp = new ASTOpMeshRemoveMask();
 						RemoveOp->source = LastMeshOp;
+						RemoveOp->FaceCullStrategy = Edit->FaceCullStrategy;
 						LastMeshOp = RemoveOp;
 					}
 
@@ -2197,6 +2198,7 @@ namespace mu
 				{
 					RemoveOp = new ASTOpMeshRemoveMask();
 					RemoveOp->source = LastMeshOp;
+					RemoveOp->FaceCullStrategy = TypedClipNode->FaceCullStrategy;
 					LastMeshOp = RemoveOp;
 				}
 
@@ -2273,6 +2275,7 @@ namespace mu
 					{
 						RemoveOp = new ASTOpMeshRemoveMask();
 						RemoveOp->source = LastMeshOp;
+						RemoveOp->FaceCullStrategy = TypedClipNode->FaceCullStrategy;
 						LastMeshOp = RemoveOp;
 					}
 
@@ -2292,6 +2295,7 @@ namespace mu
 				const NodeModifierMeshClipMorphPlane* TypedNode = static_cast<const NodeModifierMeshClipMorphPlane*>(m.Node);
 				Ptr<ASTOpMeshClipMorphPlane> op = new ASTOpMeshClipMorphPlane();
 				op->source = LastMeshOp;
+				op->FaceCullStrategy = TypedNode->Parameters.FaceCullStrategy;
 
 				// Morph to an ellipse
 				{
@@ -2319,24 +2323,19 @@ namespace mu
 				}
 
 				// Selection box
-				if (TypedNode->Parameters.VertexSelectionType == FClipMorphPlaneParameters::VS_SHAPE)
+				op->VertexSelectionType = TypedNode->Parameters.VertexSelectionType;
+				if (op->VertexSelectionType == EClipVertexSelectionType::Shape)
 				{
-					op->vertexSelectionType = OP::MeshClipMorphPlaneArgs::VS_SHAPE;
 					FShape selectionShape;
 					selectionShape.type = (uint8)FShape::Type::AABox;
 					selectionShape.position = TypedNode->Parameters.SelectionBoxOrigin;
 					selectionShape.size = TypedNode->Parameters.SelectionBoxRadius;
 					op->selectionShape = selectionShape;
 				}
-				else if (TypedNode->Parameters.VertexSelectionType == FClipMorphPlaneParameters::VS_BONE_HIERARCHY)
+				else if (op->VertexSelectionType == EClipVertexSelectionType::BoneHierarchy)
 				{
-					op->vertexSelectionType = OP::MeshClipMorphPlaneArgs::VS_BONE_HIERARCHY;
 					op->vertexSelectionBone = TypedNode->Parameters.VertexSelectionBone;
 					op->vertexSelectionBoneMaxRadius = TypedNode->Parameters.MaxEffectRadius;
-				}
-				else
-				{
-					op->vertexSelectionType = OP::MeshClipMorphPlaneArgs::VS_NONE;
 				}
 
 				// Parameters
@@ -2367,9 +2366,11 @@ namespace mu
 				Ptr<ASTOpMeshBindShape>  BindOp = new ASTOpMeshBindShape();
 				Ptr<ASTOpMeshClipDeform> ClipOp = new ASTOpMeshClipDeform();
 
+				ClipOp->FaceCullStrategy = TypedClipNode->FaceCullStrategy;
+
 				FMeshGenerationOptions ClipOptions;
 				ClipOptions.bLayouts = false;
-				ClipOptions.State = Options.State;
+				ClipOptions.State = Options.State;				
 
 				FMeshGenerationResult ClipShapeResult;
 				GenerateMesh(ClipOptions, ClipShapeResult, TypedClipNode->ClipMesh);

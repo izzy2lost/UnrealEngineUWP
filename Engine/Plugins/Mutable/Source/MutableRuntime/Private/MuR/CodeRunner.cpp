@@ -2062,7 +2062,9 @@ namespace mu
                 const FVector3f& origin = morphShape.position;
                 const FVector3f& normal = morphShape.up;
 
-                if (args.vertexSelectionType == OP::MeshClipMorphPlaneArgs::VS_SHAPE)
+				bool bRemoveFaceIfAllVerticesCulled = args.FaceCullStrategy==EFaceCullStrategy::AllVerticesCulled;
+
+                if (args.VertexSelectionType == EClipVertexSelectionType::Shape)
                 {
                     check(args.vertexSelectionShapeOrBone < (uint32)pModel->GetPrivate()->m_program.m_constantShapes.Num());
 
@@ -2072,7 +2074,7 @@ namespace mu
 					Ptr<Mesh> Result = CreateMesh(Source ? Source->GetDataSize() : 0);
 
 					bool bOutSuccess = false;
-					MeshClipMorphPlane(Result.get(), Source.get(), origin, normal, args.dist, args.factor, morphShape.size[0], morphShape.size[1], morphShape.size[2], selectionShape, bOutSuccess, nullptr, -1);
+					MeshClipMorphPlane(Result.get(), Source.get(), origin, normal, args.dist, args.factor, morphShape.size[0], morphShape.size[1], morphShape.size[2], selectionShape, bRemoveFaceIfAllVerticesCulled, bOutSuccess, nullptr, -1);
 					
 					if (!bOutSuccess)
 					{
@@ -2086,7 +2088,7 @@ namespace mu
 					}
                 }
 
-				else if (args.vertexSelectionType == OP::MeshClipMorphPlaneArgs::VS_BONE_HIERARCHY)
+				else if (args.VertexSelectionType == EClipVertexSelectionType::BoneHierarchy)
 				{
 					FShape selectionShape;
 					selectionShape.type = (uint8)FShape::Type::None;
@@ -2097,7 +2099,7 @@ namespace mu
 					const FBoneName Bone(args.vertexSelectionShapeOrBone);
 
 					bool bOutSuccess = false;
-					MeshClipMorphPlane(Result.get(), Source.get(), origin, normal, args.dist, args.factor, morphShape.size[0], morphShape.size[1], morphShape.size[2], selectionShape, bOutSuccess, &Bone, args.maxBoneRadius);
+					MeshClipMorphPlane(Result.get(), Source.get(), origin, normal, args.dist, args.factor, morphShape.size[0], morphShape.size[1], morphShape.size[2], selectionShape, bRemoveFaceIfAllVerticesCulled, bOutSuccess, &Bone, args.maxBoneRadius);
 
 					if (!bOutSuccess)
 					{
@@ -2119,7 +2121,7 @@ namespace mu
 					Ptr<Mesh> Result = CreateMesh(Source ? Source->GetDataSize() : 0);
 
 					bool bOutSuccess = false;
-					MeshClipMorphPlane(Result.get(), Source.get(), origin, normal, args.dist, args.factor, morphShape.size[0], morphShape.size[1], morphShape.size[2], selectionShape, bOutSuccess, nullptr, -1.0f);
+					MeshClipMorphPlane(Result.get(), Source.get(), origin, normal, args.dist, args.factor, morphShape.size[0], morphShape.size[1], morphShape.size[2], selectionShape, bRemoveFaceIfAllVerticesCulled, bOutSuccess, nullptr, -1.0f);
 
 					if (!bOutSuccess)
 					{
@@ -2236,8 +2238,10 @@ namespace mu
 				{
 					Ptr<Mesh> Result = CreateMesh(BaseMesh->GetDataSize());
 
+					bool bRemoveIfAllVerticesCulled = args.FaceCullStrategy == EFaceCullStrategy::AllVerticesCulled;
+
 					bool bOutSuccess = false;
-					MeshClipDeform(Result.get(), BaseMesh.get(), ClipShape.get(), args.clipWeightThreshold, bOutSuccess);
+					MeshClipDeform(Result.get(), BaseMesh.get(), ClipShape.get(), args.clipWeightThreshold, bRemoveIfAllVerticesCulled, bOutSuccess);
 
 					Release(ClipShape);
 
@@ -2746,6 +2750,10 @@ namespace mu
             FMemory::Memcpy(&source,data,sizeof(OP::ADDRESS)); 
 			data += sizeof(OP::ADDRESS);
 
+			EFaceCullStrategy FaceCullStrategy;
+			FMemory::Memcpy(&FaceCullStrategy, data, sizeof(EFaceCullStrategy));
+			data += sizeof(EFaceCullStrategy);
+
             TArray<FScheduledOp> conditions;
 			TArray<OP::ADDRESS> masks;
 
@@ -2847,7 +2855,8 @@ namespace mu
 								Ptr<Mesh> IterResult = CreateMesh(Result->GetDataSize());
 
 								bool bOutSuccess = false;
-								MeshRemoveMask(IterResult.get(), Result.get(), Mask.get(), bOutSuccess);
+								bool bRemoveIfAllVerticesCulled = FaceCullStrategy == EFaceCullStrategy::AllVerticesCulled;
+								MeshRemoveMask(IterResult.get(), Result.get(), Mask.get(), bRemoveIfAllVerticesCulled, bOutSuccess);
 
 								Release(Mask);
 

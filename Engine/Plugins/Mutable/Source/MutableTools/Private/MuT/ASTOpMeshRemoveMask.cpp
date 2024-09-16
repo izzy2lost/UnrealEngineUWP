@@ -42,7 +42,7 @@ namespace mu
 		if (otherUntyped.GetOpType() == GetOpType())
 		{
 			const ASTOpMeshRemoveMask* other = static_cast<const ASTOpMeshRemoveMask*>(&otherUntyped);
-			return source == other->source && removes == other->removes;
+			return source == other->source && removes == other->removes && FaceCullStrategy==other->FaceCullStrategy;
 		}
 		return false;
 	}
@@ -53,6 +53,7 @@ namespace mu
 	{
 		Ptr<ASTOpMeshRemoveMask> n = new ASTOpMeshRemoveMask();
 		n->source = mapChild(source.child());
+		n->FaceCullStrategy = FaceCullStrategy;
 		for (const TPair<ASTChild, ASTChild>& r : removes)
 		{
 			n->removes.Add({ ASTChild(n,mapChild(r.Key.child())), ASTChild(n,mapChild(r.Value.child())) });
@@ -96,8 +97,12 @@ namespace mu
 
 			program.m_opAddress.Add((uint32_t)program.m_byteCode.Num());
 			AppendCode(program.m_byteCode, OP_TYPE::ME_REMOVEMASK);
+
 			OP::ADDRESS sourceAt = source ? source->linkedAddress : 0;
 			AppendCode(program.m_byteCode, sourceAt);
+
+			AppendCode(program.m_byteCode, FaceCullStrategy);
+
 			AppendCode(program.m_byteCode, (uint16)removes.Num());
 			for (const TPair<ASTChild, ASTChild>& b : removes)
 			{
