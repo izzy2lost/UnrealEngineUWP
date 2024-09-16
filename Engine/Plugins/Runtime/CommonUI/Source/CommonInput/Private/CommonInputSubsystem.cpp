@@ -515,7 +515,7 @@ bool UCommonInputSubsystem::PlatformSupportsInputType(ECommonInputType InInputTy
 		case ECommonInputType::Touch:
 		{
 			bPlatformSupportsInput &= !UE_COMMONINPUT_FORCE_TOUCH_SUPPORT_DISABLED;
-#if WITH_EDITOR
+#if !UE_BUILD_SHIPPING
 			// Support touch testing (testing with UseMouseForTouch setting enabled or with URemote in the editor) until touch is supported on desktop
 			bPlatformSupportsInput = true;
 #endif
