@@ -75,6 +75,7 @@
 
 #if defined(VK_VERSION_1_3) && \
     defined(VK_EXT_descriptor_indexing) && \
+    defined(VK_EXT_mesh_shader) && \
     defined(VK_EXT_scalar_block_layout) && \
     defined(VK_EXT_shader_image_atomic_int64)
 #define VP_UE_Vulkan_SM6 1
@@ -86,6 +87,7 @@
 #if defined(VK_VERSION_1_3) && \
     defined(VK_EXT_descriptor_buffer) && \
     defined(VK_EXT_descriptor_indexing) && \
+    defined(VK_EXT_mesh_shader) && \
     defined(VK_EXT_scalar_block_layout) && \
     defined(VK_EXT_scalar_block_layout) && \
     defined(VK_EXT_shader_image_atomic_int64) && \
@@ -1229,10 +1231,12 @@ static const VkStructureType featureStructTypes[] = {
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES_EXT,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT,
 };
 
 static const VkStructureType propertyStructTypes[] = {
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_PROPERTIES_EXT,
 };
 
 static const VkStructureType formatStructTypes[] = {
@@ -1242,6 +1246,7 @@ static const VkStructureType formatStructTypes[] = {
 
 static const VkExtensionProperties deviceExtensions[] = {
     VkExtensionProperties{ VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, 1 },
+    VkExtensionProperties{ VK_EXT_MESH_SHADER_EXTENSION_NAME, 1 },
     VkExtensionProperties{ VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME, 1 },
     VkExtensionProperties{ VK_EXT_SHADER_IMAGE_ATOMIC_INT64_EXTENSION_NAME, 1 },
 };
@@ -1289,6 +1294,12 @@ static const VpFeatureDesc featureDesc = {
                     s->features.fragmentStoresAndAtomics = VK_TRUE;
                     s->features.shaderInt64 = VK_TRUE;
                 } break;
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT: {
+                    VkPhysicalDeviceMeshShaderFeaturesEXT* s = static_cast<VkPhysicalDeviceMeshShaderFeaturesEXT*>(static_cast<void*>(p));
+                    s->meshShader = VK_TRUE;
+                    s->multiviewMeshShader = VK_TRUE;
+                    s->taskShader = VK_TRUE;
+                } break;
                 default: break;
             }
     },
@@ -1335,6 +1346,12 @@ static const VpFeatureDesc featureDesc = {
                     ret = ret && (prettify_VkPhysicalDeviceFeatures2KHR->features.fragmentStoresAndAtomics == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceFeatures2KHR->features.fragmentStoresAndAtomics == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceFeatures2KHR::features.fragmentStoresAndAtomics == VK_TRUE");
                     ret = ret && (prettify_VkPhysicalDeviceFeatures2KHR->features.shaderInt64 == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceFeatures2KHR->features.shaderInt64 == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceFeatures2KHR::features.shaderInt64 == VK_TRUE");
                 } break;
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT: {
+                    VkPhysicalDeviceMeshShaderFeaturesEXT* prettify_VkPhysicalDeviceMeshShaderFeaturesEXT = static_cast<VkPhysicalDeviceMeshShaderFeaturesEXT*>(static_cast<void*>(p));
+                    ret = ret && (prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->meshShader == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->meshShader == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceMeshShaderFeaturesEXT::meshShader == VK_TRUE");
+                    ret = ret && (prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->multiviewMeshShader == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->multiviewMeshShader == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceMeshShaderFeaturesEXT::multiviewMeshShader == VK_TRUE");
+                    ret = ret && (prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->taskShader == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->taskShader == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceMeshShaderFeaturesEXT::taskShader == VK_TRUE");
+                } break;
                 default: break;
             }
         return ret;
@@ -1360,11 +1377,13 @@ static const VpStructChainerDesc chainerDesc = {
         VkPhysicalDeviceMaintenance4Features physicalDeviceMaintenance4Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_4_FEATURES, &physicalDeviceSynchronization2Features };
         VkPhysicalDeviceBufferDeviceAddressFeatures physicalDeviceBufferDeviceAddressFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES, &physicalDeviceMaintenance4Features };
         VkPhysicalDeviceScalarBlockLayoutFeaturesEXT physicalDeviceScalarBlockLayoutFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES_EXT, &physicalDeviceBufferDeviceAddressFeatures };
-        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceScalarBlockLayoutFeaturesEXT));
+        VkPhysicalDeviceMeshShaderFeaturesEXT physicalDeviceMeshShaderFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT, &physicalDeviceScalarBlockLayoutFeaturesEXT };
+        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceMeshShaderFeaturesEXT));
         pfnCb(p, pUser);
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {
-        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(nullptr));
+        VkPhysicalDeviceMeshShaderPropertiesEXT physicalDeviceMeshShaderPropertiesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_PROPERTIES_EXT, nullptr };
+        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceMeshShaderPropertiesEXT));
         pfnCb(p, pUser);
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {
@@ -1406,11 +1425,13 @@ static const VpStructChainerDesc chainerDesc = {
         VkPhysicalDeviceMaintenance4Features physicalDeviceMaintenance4Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_4_FEATURES, &physicalDeviceSynchronization2Features };
         VkPhysicalDeviceBufferDeviceAddressFeatures physicalDeviceBufferDeviceAddressFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES, &physicalDeviceMaintenance4Features };
         VkPhysicalDeviceScalarBlockLayoutFeaturesEXT physicalDeviceScalarBlockLayoutFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES_EXT, &physicalDeviceBufferDeviceAddressFeatures };
-        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceScalarBlockLayoutFeaturesEXT));
+        VkPhysicalDeviceMeshShaderFeaturesEXT physicalDeviceMeshShaderFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT, &physicalDeviceScalarBlockLayoutFeaturesEXT };
+        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceMeshShaderFeaturesEXT));
         pfnCb(p, pUser);
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {
-        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(nullptr));
+        VkPhysicalDeviceMeshShaderPropertiesEXT physicalDeviceMeshShaderPropertiesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_PROPERTIES_EXT, nullptr };
+        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceMeshShaderPropertiesEXT));
         pfnCb(p, pUser);
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {
@@ -1426,6 +1447,7 @@ static const VpStructChainerDesc chainerDesc = {
 namespace SM6 {
 static const VkExtensionProperties deviceExtensions[] = {
     VkExtensionProperties{ VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, 1 },
+    VkExtensionProperties{ VK_EXT_MESH_SHADER_EXTENSION_NAME, 1 },
     VkExtensionProperties{ VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME, 1 },
     VkExtensionProperties{ VK_EXT_SHADER_IMAGE_ATOMIC_INT64_EXTENSION_NAME, 1 },
 };
@@ -1473,6 +1495,12 @@ static const VpFeatureDesc featureDesc = {
                     s->features.fragmentStoresAndAtomics = VK_TRUE;
                     s->features.shaderInt64 = VK_TRUE;
                 } break;
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT: {
+                    VkPhysicalDeviceMeshShaderFeaturesEXT* s = static_cast<VkPhysicalDeviceMeshShaderFeaturesEXT*>(static_cast<void*>(p));
+                    s->meshShader = VK_TRUE;
+                    s->multiviewMeshShader = VK_TRUE;
+                    s->taskShader = VK_TRUE;
+                } break;
                 default: break;
             }
     },
@@ -1519,6 +1547,12 @@ static const VpFeatureDesc featureDesc = {
                     ret = ret && (prettify_VkPhysicalDeviceFeatures2KHR->features.fragmentStoresAndAtomics == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceFeatures2KHR->features.fragmentStoresAndAtomics == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceFeatures2KHR::features.fragmentStoresAndAtomics == VK_TRUE");
                     ret = ret && (prettify_VkPhysicalDeviceFeatures2KHR->features.shaderInt64 == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceFeatures2KHR->features.shaderInt64 == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceFeatures2KHR::features.shaderInt64 == VK_TRUE");
                 } break;
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT: {
+                    VkPhysicalDeviceMeshShaderFeaturesEXT* prettify_VkPhysicalDeviceMeshShaderFeaturesEXT = static_cast<VkPhysicalDeviceMeshShaderFeaturesEXT*>(static_cast<void*>(p));
+                    ret = ret && (prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->meshShader == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->meshShader == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceMeshShaderFeaturesEXT::meshShader == VK_TRUE");
+                    ret = ret && (prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->multiviewMeshShader == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->multiviewMeshShader == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceMeshShaderFeaturesEXT::multiviewMeshShader == VK_TRUE");
+                    ret = ret && (prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->taskShader == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->taskShader == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceMeshShaderFeaturesEXT::taskShader == VK_TRUE");
+                } break;
                 default: break;
             }
         return ret;
@@ -1532,6 +1566,10 @@ static const VpPropertyDesc propertyDesc = {
                     VkPhysicalDeviceProperties2KHR* s = static_cast<VkPhysicalDeviceProperties2KHR*>(static_cast<void*>(p));
                     s->properties.limits.maxBoundDescriptorSets = 9;
                 } break;
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_PROPERTIES_EXT: {
+                    VkPhysicalDeviceMeshShaderPropertiesEXT* s = static_cast<VkPhysicalDeviceMeshShaderPropertiesEXT*>(static_cast<void*>(p));
+                    s->maxMeshWorkGroupInvocations = 128;
+                } break;
                 default: break;
             }
     },
@@ -1541,6 +1579,10 @@ static const VpPropertyDesc propertyDesc = {
                 case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR: {
                     VkPhysicalDeviceProperties2KHR* prettify_VkPhysicalDeviceProperties2KHR = static_cast<VkPhysicalDeviceProperties2KHR*>(static_cast<void*>(p));
                     ret = ret && (prettify_VkPhysicalDeviceProperties2KHR->properties.limits.maxBoundDescriptorSets >= 9); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceProperties2KHR->properties.limits.maxBoundDescriptorSets >= 9), "Unsupported properties condition: VkPhysicalDeviceProperties2KHR::properties.limits.maxBoundDescriptorSets >= 9");
+                } break;
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_PROPERTIES_EXT: {
+                    VkPhysicalDeviceMeshShaderPropertiesEXT* prettify_VkPhysicalDeviceMeshShaderPropertiesEXT = static_cast<VkPhysicalDeviceMeshShaderPropertiesEXT*>(static_cast<void*>(p));
+                    ret = ret && (prettify_VkPhysicalDeviceMeshShaderPropertiesEXT->maxMeshWorkGroupInvocations >= 128); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceMeshShaderPropertiesEXT->maxMeshWorkGroupInvocations >= 128), "Unsupported properties condition: VkPhysicalDeviceMeshShaderPropertiesEXT::maxMeshWorkGroupInvocations >= 128");
                 } break;
                 default: break;
             }
@@ -1584,11 +1626,13 @@ static const VpStructChainerDesc chainerDesc = {
         VkPhysicalDeviceMaintenance4Features physicalDeviceMaintenance4Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_4_FEATURES, &physicalDeviceSynchronization2Features };
         VkPhysicalDeviceBufferDeviceAddressFeatures physicalDeviceBufferDeviceAddressFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES, &physicalDeviceMaintenance4Features };
         VkPhysicalDeviceScalarBlockLayoutFeaturesEXT physicalDeviceScalarBlockLayoutFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES_EXT, &physicalDeviceBufferDeviceAddressFeatures };
-        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceScalarBlockLayoutFeaturesEXT));
+        VkPhysicalDeviceMeshShaderFeaturesEXT physicalDeviceMeshShaderFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT, &physicalDeviceScalarBlockLayoutFeaturesEXT };
+        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceMeshShaderFeaturesEXT));
         pfnCb(p, pUser);
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {
-        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(nullptr));
+        VkPhysicalDeviceMeshShaderPropertiesEXT physicalDeviceMeshShaderPropertiesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_PROPERTIES_EXT, nullptr };
+        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceMeshShaderPropertiesEXT));
         pfnCb(p, pUser);
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {
@@ -1617,14 +1661,17 @@ static const VkStructureType featureStructTypes[] = {
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES_EXT,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR,
 };
 
 static const VkStructureType propertyStructTypes[] = {
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_PROPERTIES_EXT,
 };
 
 static const VkStructureType formatStructTypes[] = {
@@ -1635,6 +1682,7 @@ static const VkStructureType formatStructTypes[] = {
 static const VkExtensionProperties deviceExtensions[] = {
     VkExtensionProperties{ VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME, 1 },
     VkExtensionProperties{ VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, 1 },
+    VkExtensionProperties{ VK_EXT_MESH_SHADER_EXTENSION_NAME, 1 },
     VkExtensionProperties{ VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME, 1 },
     VkExtensionProperties{ VK_EXT_SHADER_IMAGE_ATOMIC_INT64_EXTENSION_NAME, 1 },
     VkExtensionProperties{ VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, 1 },
@@ -1690,6 +1738,12 @@ static const VpFeatureDesc featureDesc = {
                     s->features.fragmentStoresAndAtomics = VK_TRUE;
                     s->features.shaderInt64 = VK_TRUE;
                 } break;
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT: {
+                    VkPhysicalDeviceMeshShaderFeaturesEXT* s = static_cast<VkPhysicalDeviceMeshShaderFeaturesEXT*>(static_cast<void*>(p));
+                    s->meshShader = VK_TRUE;
+                    s->multiviewMeshShader = VK_TRUE;
+                    s->taskShader = VK_TRUE;
+                } break;
                 case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR: {
                     VkPhysicalDeviceRayQueryFeaturesKHR* s = static_cast<VkPhysicalDeviceRayQueryFeaturesKHR*>(static_cast<void*>(p));
                     s->rayQuery = VK_TRUE;
@@ -1707,6 +1761,10 @@ static const VpFeatureDesc featureDesc = {
                 case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT: {
                     VkPhysicalDeviceDescriptorBufferFeaturesEXT* s = static_cast<VkPhysicalDeviceDescriptorBufferFeaturesEXT*>(static_cast<void*>(p));
                     s->descriptorBuffer = VK_TRUE;
+                } break;
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR: {
+                    VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR* s = static_cast<VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR*>(static_cast<void*>(p));
+                    s->rayTracingPositionFetch = VK_TRUE;
                 } break;
                 default: break;
             }
@@ -1754,6 +1812,12 @@ static const VpFeatureDesc featureDesc = {
                     ret = ret && (prettify_VkPhysicalDeviceFeatures2KHR->features.fragmentStoresAndAtomics == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceFeatures2KHR->features.fragmentStoresAndAtomics == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceFeatures2KHR::features.fragmentStoresAndAtomics == VK_TRUE");
                     ret = ret && (prettify_VkPhysicalDeviceFeatures2KHR->features.shaderInt64 == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceFeatures2KHR->features.shaderInt64 == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceFeatures2KHR::features.shaderInt64 == VK_TRUE");
                 } break;
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT: {
+                    VkPhysicalDeviceMeshShaderFeaturesEXT* prettify_VkPhysicalDeviceMeshShaderFeaturesEXT = static_cast<VkPhysicalDeviceMeshShaderFeaturesEXT*>(static_cast<void*>(p));
+                    ret = ret && (prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->meshShader == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->meshShader == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceMeshShaderFeaturesEXT::meshShader == VK_TRUE");
+                    ret = ret && (prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->multiviewMeshShader == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->multiviewMeshShader == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceMeshShaderFeaturesEXT::multiviewMeshShader == VK_TRUE");
+                    ret = ret && (prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->taskShader == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->taskShader == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceMeshShaderFeaturesEXT::taskShader == VK_TRUE");
+                } break;
                 case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR: {
                     VkPhysicalDeviceRayQueryFeaturesKHR* prettify_VkPhysicalDeviceRayQueryFeaturesKHR = static_cast<VkPhysicalDeviceRayQueryFeaturesKHR*>(static_cast<void*>(p));
                     ret = ret && (prettify_VkPhysicalDeviceRayQueryFeaturesKHR->rayQuery == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceRayQueryFeaturesKHR->rayQuery == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceRayQueryFeaturesKHR::rayQuery == VK_TRUE");
@@ -1771,6 +1835,10 @@ static const VpFeatureDesc featureDesc = {
                 case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT: {
                     VkPhysicalDeviceDescriptorBufferFeaturesEXT* prettify_VkPhysicalDeviceDescriptorBufferFeaturesEXT = static_cast<VkPhysicalDeviceDescriptorBufferFeaturesEXT*>(static_cast<void*>(p));
                     ret = ret && (prettify_VkPhysicalDeviceDescriptorBufferFeaturesEXT->descriptorBuffer == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceDescriptorBufferFeaturesEXT->descriptorBuffer == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceDescriptorBufferFeaturesEXT::descriptorBuffer == VK_TRUE");
+                } break;
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR: {
+                    VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR* prettify_VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR = static_cast<VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR*>(static_cast<void*>(p));
+                    ret = ret && (prettify_VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR->rayTracingPositionFetch == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR->rayTracingPositionFetch == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR::rayTracingPositionFetch == VK_TRUE");
                 } break;
                 default: break;
             }
@@ -1797,15 +1865,18 @@ static const VpStructChainerDesc chainerDesc = {
         VkPhysicalDeviceMaintenance4Features physicalDeviceMaintenance4Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_4_FEATURES, &physicalDeviceSynchronization2Features };
         VkPhysicalDeviceBufferDeviceAddressFeatures physicalDeviceBufferDeviceAddressFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES, &physicalDeviceMaintenance4Features };
         VkPhysicalDeviceScalarBlockLayoutFeaturesEXT physicalDeviceScalarBlockLayoutFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES_EXT, &physicalDeviceBufferDeviceAddressFeatures };
-        VkPhysicalDeviceRayQueryFeaturesKHR physicalDeviceRayQueryFeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR, &physicalDeviceScalarBlockLayoutFeaturesEXT };
+        VkPhysicalDeviceMeshShaderFeaturesEXT physicalDeviceMeshShaderFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT, &physicalDeviceScalarBlockLayoutFeaturesEXT };
+        VkPhysicalDeviceRayQueryFeaturesKHR physicalDeviceRayQueryFeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR, &physicalDeviceMeshShaderFeaturesEXT };
         VkPhysicalDeviceRayTracingPipelineFeaturesKHR physicalDeviceRayTracingPipelineFeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR, &physicalDeviceRayQueryFeaturesKHR };
         VkPhysicalDeviceAccelerationStructureFeaturesKHR physicalDeviceAccelerationStructureFeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR, &physicalDeviceRayTracingPipelineFeaturesKHR };
         VkPhysicalDeviceDescriptorBufferFeaturesEXT physicalDeviceDescriptorBufferFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT, &physicalDeviceAccelerationStructureFeaturesKHR };
-        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceDescriptorBufferFeaturesEXT));
+        VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR physicalDeviceRayTracingPositionFetchFeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR, &physicalDeviceDescriptorBufferFeaturesEXT };
+        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceRayTracingPositionFetchFeaturesKHR));
         pfnCb(p, pUser);
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {
-        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(nullptr));
+        VkPhysicalDeviceMeshShaderPropertiesEXT physicalDeviceMeshShaderPropertiesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_PROPERTIES_EXT, nullptr };
+        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceMeshShaderPropertiesEXT));
         pfnCb(p, pUser);
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {
@@ -1847,15 +1918,18 @@ static const VpStructChainerDesc chainerDesc = {
         VkPhysicalDeviceMaintenance4Features physicalDeviceMaintenance4Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_4_FEATURES, &physicalDeviceSynchronization2Features };
         VkPhysicalDeviceBufferDeviceAddressFeatures physicalDeviceBufferDeviceAddressFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES, &physicalDeviceMaintenance4Features };
         VkPhysicalDeviceScalarBlockLayoutFeaturesEXT physicalDeviceScalarBlockLayoutFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES_EXT, &physicalDeviceBufferDeviceAddressFeatures };
-        VkPhysicalDeviceRayQueryFeaturesKHR physicalDeviceRayQueryFeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR, &physicalDeviceScalarBlockLayoutFeaturesEXT };
+        VkPhysicalDeviceMeshShaderFeaturesEXT physicalDeviceMeshShaderFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT, &physicalDeviceScalarBlockLayoutFeaturesEXT };
+        VkPhysicalDeviceRayQueryFeaturesKHR physicalDeviceRayQueryFeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR, &physicalDeviceMeshShaderFeaturesEXT };
         VkPhysicalDeviceRayTracingPipelineFeaturesKHR physicalDeviceRayTracingPipelineFeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR, &physicalDeviceRayQueryFeaturesKHR };
         VkPhysicalDeviceAccelerationStructureFeaturesKHR physicalDeviceAccelerationStructureFeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR, &physicalDeviceRayTracingPipelineFeaturesKHR };
         VkPhysicalDeviceDescriptorBufferFeaturesEXT physicalDeviceDescriptorBufferFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT, &physicalDeviceAccelerationStructureFeaturesKHR };
-        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceDescriptorBufferFeaturesEXT));
+        VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR physicalDeviceRayTracingPositionFetchFeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR, &physicalDeviceDescriptorBufferFeaturesEXT };
+        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceRayTracingPositionFetchFeaturesKHR));
         pfnCb(p, pUser);
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {
-        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(nullptr));
+        VkPhysicalDeviceMeshShaderPropertiesEXT physicalDeviceMeshShaderPropertiesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_PROPERTIES_EXT, nullptr };
+        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceMeshShaderPropertiesEXT));
         pfnCb(p, pUser);
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {
@@ -1871,6 +1945,7 @@ static const VpStructChainerDesc chainerDesc = {
 namespace SM6 {
 static const VkExtensionProperties deviceExtensions[] = {
     VkExtensionProperties{ VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, 1 },
+    VkExtensionProperties{ VK_EXT_MESH_SHADER_EXTENSION_NAME, 1 },
     VkExtensionProperties{ VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME, 1 },
     VkExtensionProperties{ VK_EXT_SHADER_IMAGE_ATOMIC_INT64_EXTENSION_NAME, 1 },
 };
@@ -1918,6 +1993,12 @@ static const VpFeatureDesc featureDesc = {
                     s->features.fragmentStoresAndAtomics = VK_TRUE;
                     s->features.shaderInt64 = VK_TRUE;
                 } break;
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT: {
+                    VkPhysicalDeviceMeshShaderFeaturesEXT* s = static_cast<VkPhysicalDeviceMeshShaderFeaturesEXT*>(static_cast<void*>(p));
+                    s->meshShader = VK_TRUE;
+                    s->multiviewMeshShader = VK_TRUE;
+                    s->taskShader = VK_TRUE;
+                } break;
                 default: break;
             }
     },
@@ -1964,6 +2045,12 @@ static const VpFeatureDesc featureDesc = {
                     ret = ret && (prettify_VkPhysicalDeviceFeatures2KHR->features.fragmentStoresAndAtomics == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceFeatures2KHR->features.fragmentStoresAndAtomics == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceFeatures2KHR::features.fragmentStoresAndAtomics == VK_TRUE");
                     ret = ret && (prettify_VkPhysicalDeviceFeatures2KHR->features.shaderInt64 == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceFeatures2KHR->features.shaderInt64 == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceFeatures2KHR::features.shaderInt64 == VK_TRUE");
                 } break;
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT: {
+                    VkPhysicalDeviceMeshShaderFeaturesEXT* prettify_VkPhysicalDeviceMeshShaderFeaturesEXT = static_cast<VkPhysicalDeviceMeshShaderFeaturesEXT*>(static_cast<void*>(p));
+                    ret = ret && (prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->meshShader == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->meshShader == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceMeshShaderFeaturesEXT::meshShader == VK_TRUE");
+                    ret = ret && (prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->multiviewMeshShader == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->multiviewMeshShader == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceMeshShaderFeaturesEXT::multiviewMeshShader == VK_TRUE");
+                    ret = ret && (prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->taskShader == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceMeshShaderFeaturesEXT->taskShader == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceMeshShaderFeaturesEXT::taskShader == VK_TRUE");
+                } break;
                 default: break;
             }
         return ret;
@@ -1977,6 +2064,10 @@ static const VpPropertyDesc propertyDesc = {
                     VkPhysicalDeviceProperties2KHR* s = static_cast<VkPhysicalDeviceProperties2KHR*>(static_cast<void*>(p));
                     s->properties.limits.maxBoundDescriptorSets = 9;
                 } break;
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_PROPERTIES_EXT: {
+                    VkPhysicalDeviceMeshShaderPropertiesEXT* s = static_cast<VkPhysicalDeviceMeshShaderPropertiesEXT*>(static_cast<void*>(p));
+                    s->maxMeshWorkGroupInvocations = 128;
+                } break;
                 default: break;
             }
     },
@@ -1986,6 +2077,10 @@ static const VpPropertyDesc propertyDesc = {
                 case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR: {
                     VkPhysicalDeviceProperties2KHR* prettify_VkPhysicalDeviceProperties2KHR = static_cast<VkPhysicalDeviceProperties2KHR*>(static_cast<void*>(p));
                     ret = ret && (prettify_VkPhysicalDeviceProperties2KHR->properties.limits.maxBoundDescriptorSets >= 9); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceProperties2KHR->properties.limits.maxBoundDescriptorSets >= 9), "Unsupported properties condition: VkPhysicalDeviceProperties2KHR::properties.limits.maxBoundDescriptorSets >= 9");
+                } break;
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_PROPERTIES_EXT: {
+                    VkPhysicalDeviceMeshShaderPropertiesEXT* prettify_VkPhysicalDeviceMeshShaderPropertiesEXT = static_cast<VkPhysicalDeviceMeshShaderPropertiesEXT*>(static_cast<void*>(p));
+                    ret = ret && (prettify_VkPhysicalDeviceMeshShaderPropertiesEXT->maxMeshWorkGroupInvocations >= 128); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceMeshShaderPropertiesEXT->maxMeshWorkGroupInvocations >= 128), "Unsupported properties condition: VkPhysicalDeviceMeshShaderPropertiesEXT::maxMeshWorkGroupInvocations >= 128");
                 } break;
                 default: break;
             }
@@ -2029,15 +2124,18 @@ static const VpStructChainerDesc chainerDesc = {
         VkPhysicalDeviceMaintenance4Features physicalDeviceMaintenance4Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_4_FEATURES, &physicalDeviceSynchronization2Features };
         VkPhysicalDeviceBufferDeviceAddressFeatures physicalDeviceBufferDeviceAddressFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES, &physicalDeviceMaintenance4Features };
         VkPhysicalDeviceScalarBlockLayoutFeaturesEXT physicalDeviceScalarBlockLayoutFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES_EXT, &physicalDeviceBufferDeviceAddressFeatures };
-        VkPhysicalDeviceRayQueryFeaturesKHR physicalDeviceRayQueryFeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR, &physicalDeviceScalarBlockLayoutFeaturesEXT };
+        VkPhysicalDeviceMeshShaderFeaturesEXT physicalDeviceMeshShaderFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT, &physicalDeviceScalarBlockLayoutFeaturesEXT };
+        VkPhysicalDeviceRayQueryFeaturesKHR physicalDeviceRayQueryFeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR, &physicalDeviceMeshShaderFeaturesEXT };
         VkPhysicalDeviceRayTracingPipelineFeaturesKHR physicalDeviceRayTracingPipelineFeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR, &physicalDeviceRayQueryFeaturesKHR };
         VkPhysicalDeviceAccelerationStructureFeaturesKHR physicalDeviceAccelerationStructureFeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR, &physicalDeviceRayTracingPipelineFeaturesKHR };
         VkPhysicalDeviceDescriptorBufferFeaturesEXT physicalDeviceDescriptorBufferFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT, &physicalDeviceAccelerationStructureFeaturesKHR };
-        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceDescriptorBufferFeaturesEXT));
+        VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR physicalDeviceRayTracingPositionFetchFeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR, &physicalDeviceDescriptorBufferFeaturesEXT };
+        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceRayTracingPositionFetchFeaturesKHR));
         pfnCb(p, pUser);
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {
-        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(nullptr));
+        VkPhysicalDeviceMeshShaderPropertiesEXT physicalDeviceMeshShaderPropertiesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_PROPERTIES_EXT, nullptr };
+        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceMeshShaderPropertiesEXT));
         pfnCb(p, pUser);
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {
@@ -2094,6 +2192,10 @@ static const VpFeatureDesc featureDesc = {
                     VkPhysicalDeviceDescriptorBufferFeaturesEXT* s = static_cast<VkPhysicalDeviceDescriptorBufferFeaturesEXT*>(static_cast<void*>(p));
                     s->descriptorBuffer = VK_TRUE;
                 } break;
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR: {
+                    VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR* s = static_cast<VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR*>(static_cast<void*>(p));
+                    s->rayTracingPositionFetch = VK_TRUE;
+                } break;
                 default: break;
             }
     },
@@ -2126,6 +2228,10 @@ static const VpFeatureDesc featureDesc = {
                 case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT: {
                     VkPhysicalDeviceDescriptorBufferFeaturesEXT* prettify_VkPhysicalDeviceDescriptorBufferFeaturesEXT = static_cast<VkPhysicalDeviceDescriptorBufferFeaturesEXT*>(static_cast<void*>(p));
                     ret = ret && (prettify_VkPhysicalDeviceDescriptorBufferFeaturesEXT->descriptorBuffer == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceDescriptorBufferFeaturesEXT->descriptorBuffer == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceDescriptorBufferFeaturesEXT::descriptorBuffer == VK_TRUE");
+                } break;
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR: {
+                    VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR* prettify_VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR = static_cast<VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR*>(static_cast<void*>(p));
+                    ret = ret && (prettify_VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR->rayTracingPositionFetch == VK_TRUE); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR->rayTracingPositionFetch == VK_TRUE), "Unsupported feature condition: VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR::rayTracingPositionFetch == VK_TRUE");
                 } break;
                 default: break;
             }
@@ -2166,15 +2272,18 @@ static const VpStructChainerDesc chainerDesc = {
         VkPhysicalDeviceMaintenance4Features physicalDeviceMaintenance4Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_4_FEATURES, &physicalDeviceSynchronization2Features };
         VkPhysicalDeviceBufferDeviceAddressFeatures physicalDeviceBufferDeviceAddressFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES, &physicalDeviceMaintenance4Features };
         VkPhysicalDeviceScalarBlockLayoutFeaturesEXT physicalDeviceScalarBlockLayoutFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES_EXT, &physicalDeviceBufferDeviceAddressFeatures };
-        VkPhysicalDeviceRayQueryFeaturesKHR physicalDeviceRayQueryFeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR, &physicalDeviceScalarBlockLayoutFeaturesEXT };
+        VkPhysicalDeviceMeshShaderFeaturesEXT physicalDeviceMeshShaderFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT, &physicalDeviceScalarBlockLayoutFeaturesEXT };
+        VkPhysicalDeviceRayQueryFeaturesKHR physicalDeviceRayQueryFeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR, &physicalDeviceMeshShaderFeaturesEXT };
         VkPhysicalDeviceRayTracingPipelineFeaturesKHR physicalDeviceRayTracingPipelineFeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR, &physicalDeviceRayQueryFeaturesKHR };
         VkPhysicalDeviceAccelerationStructureFeaturesKHR physicalDeviceAccelerationStructureFeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR, &physicalDeviceRayTracingPipelineFeaturesKHR };
         VkPhysicalDeviceDescriptorBufferFeaturesEXT physicalDeviceDescriptorBufferFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT, &physicalDeviceAccelerationStructureFeaturesKHR };
-        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceDescriptorBufferFeaturesEXT));
+        VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR physicalDeviceRayTracingPositionFetchFeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR, &physicalDeviceDescriptorBufferFeaturesEXT };
+        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceRayTracingPositionFetchFeaturesKHR));
         pfnCb(p, pUser);
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {
-        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(nullptr));
+        VkPhysicalDeviceMeshShaderPropertiesEXT physicalDeviceMeshShaderPropertiesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_PROPERTIES_EXT, nullptr };
+        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceMeshShaderPropertiesEXT));
         pfnCb(p, pUser);
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {

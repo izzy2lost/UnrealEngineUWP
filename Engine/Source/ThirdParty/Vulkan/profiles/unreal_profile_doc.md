@@ -96,6 +96,7 @@
 | [VK_EXT_host_query_reset](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VK_EXT_host_query_reset.html) | :x: | :x: | :x: | 1.2 Core | 1.2 Core | 1.2 Core |
 | [VK_EXT_image_robustness](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VK_EXT_image_robustness.html) | :x: | :x: | :x: | :x: | 1.3 Core | 1.3 Core |
 | [VK_EXT_inline_uniform_block](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VK_EXT_inline_uniform_block.html) | :x: | :x: | :x: | :x: | 1.3 Core | 1.3 Core |
+| [VK_EXT_mesh_shader](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VK_EXT_mesh_shader.html) | :x: | :x: | :x: | :x: | :heavy_check_mark: | :heavy_check_mark: |
 | [VK_EXT_pipeline_creation_cache_control](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VK_EXT_pipeline_creation_cache_control.html) | :x: | :x: | :x: | :x: | 1.3 Core | 1.3 Core |
 | [VK_EXT_pipeline_creation_feedback](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VK_EXT_pipeline_creation_feedback.html) | :x: | :x: | :x: | :x: | 1.3 Core | 1.3 Core |
 | [VK_EXT_private_data](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VK_EXT_private_data.html) | :x: | :x: | :x: | :x: | 1.3 Core | 1.3 Core |
@@ -149,6 +150,8 @@
 | **VK_KHR_ray_tracing_pipeline** |
 | [rayTracingPipeline](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkPhysicalDeviceRayTracingPipelineFeaturesKHR.html) | :x: | :x: | :x: | :x: | :x: | <span title="defined in VkPhysicalDeviceRayTracingPipelineFeaturesKHR (VK_KHR_ray_tracing_pipeline)">:heavy_check_mark:</span> |
 | [rayTraversalPrimitiveCulling](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkPhysicalDeviceRayTracingPipelineFeaturesKHR.html) | :x: | :x: | :x: | :x: | :x: | <span title="defined in VkPhysicalDeviceRayTracingPipelineFeaturesKHR (VK_KHR_ray_tracing_pipeline)">:heavy_check_mark:</span> |
+| **VK_KHR_ray_tracing_position_fetch** |
+| [rayTracingPositionFetch](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR.html) | :x: | :x: | :x: | :x: | :x: | <span title="defined in VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR (VK_KHR_ray_tracing_position_fetch)">:heavy_check_mark:</span> |
 | **VK_KHR_separate_depth_stencil_layouts** |
 | [separateDepthStencilLayouts](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkPhysicalDeviceSeparateDepthStencilLayoutsFeatures.html) | :x: | :x: | :x: | :x: | <span title="equivalent defined in VkPhysicalDeviceSeparateDepthStencilLayoutsFeatures (Vulkan 1.2)">:warning:</span> | <span title="equivalent defined in VkPhysicalDeviceSeparateDepthStencilLayoutsFeatures (Vulkan 1.2)">:warning:</span> |
 | **VK_KHR_shader_atomic_int64** |
@@ -162,6 +165,10 @@
 | [descriptorBindingUpdateUnusedWhilePending](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkPhysicalDeviceDescriptorIndexingFeatures.html) | :x: | :x: | :x: | :x: | <span title="defined in VkPhysicalDeviceDescriptorIndexingFeaturesEXT (VK_EXT_descriptor_indexing)">:heavy_check_mark:</span> | <span title="defined in VkPhysicalDeviceDescriptorIndexingFeaturesEXT (VK_EXT_descriptor_indexing)">:heavy_check_mark:</span> |
 | [descriptorBindingVariableDescriptorCount](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkPhysicalDeviceDescriptorIndexingFeatures.html) | :x: | :x: | :x: | :x: | <span title="defined in VkPhysicalDeviceDescriptorIndexingFeaturesEXT (VK_EXT_descriptor_indexing)">:heavy_check_mark:</span> | <span title="defined in VkPhysicalDeviceDescriptorIndexingFeaturesEXT (VK_EXT_descriptor_indexing)">:heavy_check_mark:</span> |
 | [runtimeDescriptorArray](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkPhysicalDeviceDescriptorIndexingFeatures.html) | :x: | :x: | :x: | :x: | <span title="defined in VkPhysicalDeviceDescriptorIndexingFeaturesEXT (VK_EXT_descriptor_indexing)">:heavy_check_mark:</span> | <span title="defined in VkPhysicalDeviceDescriptorIndexingFeaturesEXT (VK_EXT_descriptor_indexing)">:heavy_check_mark:</span> |
+| **VK_EXT_mesh_shader** |
+| [meshShader](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkPhysicalDeviceMeshShaderFeaturesEXT.html) | :x: | :x: | :x: | :x: | <span title="defined in VkPhysicalDeviceMeshShaderFeaturesEXT (VK_EXT_mesh_shader)">:heavy_check_mark:</span> | <span title="defined in VkPhysicalDeviceMeshShaderFeaturesEXT (VK_EXT_mesh_shader)">:heavy_check_mark:</span> |
+| [multiviewMeshShader](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkPhysicalDeviceMeshShaderFeaturesEXT.html) | :x: | :x: | :x: | :x: | <span title="defined in VkPhysicalDeviceMeshShaderFeaturesEXT (VK_EXT_mesh_shader)">:heavy_check_mark:</span> | <span title="defined in VkPhysicalDeviceMeshShaderFeaturesEXT (VK_EXT_mesh_shader)">:heavy_check_mark:</span> |
+| [taskShader](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkPhysicalDeviceMeshShaderFeaturesEXT.html) | :x: | :x: | :x: | :x: | <span title="defined in VkPhysicalDeviceMeshShaderFeaturesEXT (VK_EXT_mesh_shader)">:heavy_check_mark:</span> | <span title="defined in VkPhysicalDeviceMeshShaderFeaturesEXT (VK_EXT_mesh_shader)">:heavy_check_mark:</span> |
 | **VK_EXT_scalar_block_layout** |
 | [scalarBlockLayout](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkPhysicalDeviceScalarBlockLayoutFeatures.html) | :x: | :x: | :x: | <span title="defined in VkPhysicalDeviceScalarBlockLayoutFeaturesEXT (VK_EXT_scalar_block_layout)">:heavy_check_mark:</span> | <span title="defined in VkPhysicalDeviceScalarBlockLayoutFeaturesEXT (VK_EXT_scalar_block_layout)">:heavy_check_mark:</span> | <span title="defined in VkPhysicalDeviceScalarBlockLayoutFeaturesEXT (VK_EXT_scalar_block_layout)">:heavy_check_mark:</span> |
 | **VK_EXT_shader_image_atomic_int64** |
@@ -179,6 +186,8 @@
 |----------|----------------------------|------------------|--------------------------|-----------------------------|------------------|---------------------|
 | **Vulkan 1.0** |
 | [maxBoundDescriptorSets (max)](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkPhysicalDeviceLimits.html) | - | <span title="defined in VkPhysicalDeviceProperties (Vulkan 1.0)">4</span> | - | <span title="defined in VkPhysicalDeviceProperties (Vulkan 1.0)">7</span> | <span title="defined in VkPhysicalDeviceProperties (Vulkan 1.0)">9</span> | <span title="defined in VkPhysicalDeviceProperties (Vulkan 1.0)">9</span> |
+| **VK_EXT_mesh_shader** |
+| [maxMeshWorkGroupInvocations (max)](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkPhysicalDeviceMeshShaderPropertiesEXT.html) | - | - | - | - | <span title="defined in VkPhysicalDeviceMeshShaderPropertiesEXT (VK_EXT_mesh_shader)">128</span> | <span title="defined in VkPhysicalDeviceMeshShaderPropertiesEXT (VK_EXT_mesh_shader)">128</span> |
 
 ## Vulkan Profile Queue Families
 
