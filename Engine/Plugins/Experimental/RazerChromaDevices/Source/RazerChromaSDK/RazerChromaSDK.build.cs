@@ -27,7 +27,13 @@ namespace UnrealBuildTool.Rules
 					// We only want the debug symbols outside of shipping
 					if (Target.Configuration != UnrealTargetConfiguration.Shipping)
 					{
-						RuntimeDependencies.Add(Path.Combine(DllPath, "CChromaEditorLibrary64.pdb"));
+						// The PDB file may not exist if cloning from GitHub. See the README for
+						// where to put it if you need extra debug symbols.
+						string PDBPath = Path.Combine(DllPath, "CChromaEditorLibrary64.pdb");
+						if (File.Exists(PDBPath))
+						{
+							RuntimeDependencies.Add(PDBPath);
+						}						
 					}					
 				}
 				else
@@ -40,7 +46,13 @@ namespace UnrealBuildTool.Rules
 					// We only want the debug symbols outside of shipping
 					if (Target.Configuration != UnrealTargetConfiguration.Shipping)
 					{
-						RuntimeDependencies.Add(Path.Combine(DllPath, "CChromaEditorLibrary.pdb"));
+						// The PDB file may not exist if cloning from GitHub. See the README for
+						// where to put it if you need extra debug symbols.
+						string PDBPath = Path.Combine(DllPath, "CChromaEditorLibrary.pdb");
+						if (File.Exists(PDBPath))
+						{
+							RuntimeDependencies.Add(PDBPath);
+						}							
 					}						
 				}
 			}
