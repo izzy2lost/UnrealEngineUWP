@@ -143,10 +143,10 @@ FRayTracingGeometryManager::FRayTracingGeometryManager()
 
 FRayTracingGeometryManager::~FRayTracingGeometryManager()
 {
-	check(GeometryBuildRequests.IsEmpty());
-	check(RegisteredGeometries.IsEmpty());
+	ensure(GeometryBuildRequests.IsEmpty());
+	ensure(RegisteredGeometries.IsEmpty());
 
-	check(RegisteredGroups.IsEmpty());
+	ensure(RegisteredGroups.IsEmpty());
 }
 
 static float GetInitialBuildPriority(ERTAccelerationStructureBuildPriority InBuildPriority)
