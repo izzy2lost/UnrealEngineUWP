@@ -7,10 +7,10 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimCurveCompressionCodec_ACL)
 
+#include "AnimationCompression.h"
 #include "Animation/AnimCurveUtils.h"
 
 #if WITH_EDITORONLY_DATA
-#include "AnimationCompression.h"
 #include "Animation/MorphTarget.h"
 #include "Engine/SkeletalMesh.h"
 #include "Rendering/SkeletalMeshModel.h"
