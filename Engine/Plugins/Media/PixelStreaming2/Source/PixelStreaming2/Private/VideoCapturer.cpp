@@ -8,6 +8,8 @@
 #include "PixelCaptureCapturerI420.h"
 #include "PixelCaptureCapturerI420ToRHI.h"
 #include "PixelCaptureCapturerNV12ToRHI.h"
+#include "PixelCaptureCapturerRHIRDG.h"
+#include "PixelCaptureCapturerRHIToI420CPU.h"
 #include "PixelStreaming2PluginSettings.h"
 #include "Logging.h"
 #include "PixelStreaming2Trace.h"
@@ -133,7 +135,16 @@ namespace UE::PixelStreaming2
 	{
 		if (LastFrameType == PixelCaptureBufferFormat::FORMAT_RHI)
 		{
-			return FPixelCaptureCapturerMediaCapture::Create(FinalScale, FinalFormat);
+			switch (FinalFormat)
+			{
+				case PixelCaptureBufferFormat::FORMAT_RHI:
+					return FPixelCaptureCapturerRHIRDG::Create(FinalScale);
+				case PixelCaptureBufferFormat::FORMAT_I420:
+					return FPixelCaptureCapturerRHIToI420CPU::Create(FinalScale);
+				default:
+					UE_LOGFMT(LogPixelStreaming2, Error, "Unsupported final format ({0}) for RHI input format", FinalFormat);
+					return nullptr;
+			}
 		}
 		else if (LastFrameType == PixelCaptureBufferFormat::FORMAT_I420)
 		{
