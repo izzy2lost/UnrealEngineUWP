@@ -114,7 +114,7 @@ FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances
 	Output.BaseInstancePrefixSum.SetNumUninitialized(NumSceneInstances);
 	Output.PerInstanceGeometries.SetNumUninitialized(NumSceneInstances);
 
-	FRayTracingSceneInitializer2 Initializer;
+	FRayTracingSceneInitializer Initializer;
 	Initializer.DebugName = FName(TEXT("FRayTracingScene"));
 	Initializer.BuildFlags = BuildFlags;
 
@@ -338,7 +338,7 @@ void FillRayTracingInstanceUploadBuffer(
 	TArrayView<FRayTracingInstanceDescriptorInput> OutInstanceUploadData,
 	TArrayView<FVector4f> OutTransformData)
 {
-	const FRayTracingSceneInitializer2& SceneInitializer = RayTracingSceneRHI->GetInitializer();
+	const FRayTracingSceneInitializer& SceneInitializer = RayTracingSceneRHI->GetInitializer();
 
 	FillRayTracingInstanceUploadBuffer(
 		RayTracingSceneRHI,

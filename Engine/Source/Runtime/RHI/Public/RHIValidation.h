@@ -1212,7 +1212,7 @@ public:
 		return Result;
 	}
 
-	virtual FRayTracingSceneRHIRef RHICreateRayTracingScene(FRayTracingSceneInitializer2 Initializer) override final
+	virtual FRayTracingSceneRHIRef RHICreateRayTracingScene(FRayTracingSceneInitializer Initializer) override final
 	{
 		FName DebugName = Initializer.DebugName;
 		FRayTracingSceneRHIRef Result = RHI->RHICreateRayTracingScene(MoveTemp(Initializer));
@@ -1230,7 +1230,7 @@ public:
 		return RHI->RHICreateRayTracingPipelineState(Initializer);
 	}
 
-	virtual FRayTracingAccelerationStructureSize RHICalcRayTracingSceneSize(const FRayTracingSceneInitializer2& Initializer) override final
+	virtual FRayTracingAccelerationStructureSize RHICalcRayTracingSceneSize(const FRayTracingSceneInitializer& Initializer) override final
 	{
 		return RHI->RHICalcRayTracingSceneSize(Initializer);
 	}

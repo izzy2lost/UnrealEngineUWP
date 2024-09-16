@@ -1151,7 +1151,7 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 			const ERayTracingAccelerationStructureFlags SceneBuildFlags = ERayTracingAccelerationStructureFlags::FastTrace;
 
 			{
-				FRayTracingSceneInitializer2 Initializer;
+				FRayTracingSceneInitializer Initializer;
 				Initializer.DebugName = FName(TEXT("LightmapRendererRayTracingScene"));
 				Initializer.MaxNumInstances = RayTracingSceneInitializationData.NumNativeGPUSceneInstances + RayTracingSceneInitializationData.NumNativeCPUInstances;
 				Initializer.NumTotalSegments = RayTracingSceneInitializationData.TotalNumSegments;
@@ -1160,7 +1160,7 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 				RayTracingScene = RHICreateRayTracingScene(MoveTemp(Initializer));
 			}
 
-			const FRayTracingSceneInitializer2& SceneInitializer = RayTracingScene->GetInitializer();
+			const FRayTracingSceneInitializer& SceneInitializer = RayTracingScene->GetInitializer();
 
 			FRayTracingAccelerationStructureSize SizeInfo = RHICalcRayTracingSceneSize(SceneInitializer);
 			FRHIResourceCreateInfo BufferCreateInfo(TEXT("LightmassRayTracingSceneBuffer"));

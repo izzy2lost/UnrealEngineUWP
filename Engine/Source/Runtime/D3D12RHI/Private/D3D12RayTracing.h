@@ -92,10 +92,10 @@ class FD3D12RayTracingScene : public FRHIRayTracingScene, public FD3D12AdapterCh
 {
 public:
 
-	FD3D12RayTracingScene(FD3D12Adapter* Adapter, FRayTracingSceneInitializer2 Initializer);
+	FD3D12RayTracingScene(FD3D12Adapter* Adapter, FRayTracingSceneInitializer Initializer);
 	~FD3D12RayTracingScene();
 
-	const FRayTracingSceneInitializer2& GetInitializer() const override final { return Initializer; }
+	const FRayTracingSceneInitializer& GetInitializer() const override final { return Initializer; }
 
 	void BindBuffer(FRHIBuffer* Buffer, uint32 BufferOffset);
 	void ReleaseBuffer();
@@ -107,7 +107,7 @@ public:
 	TRefCountPtr<FD3D12Buffer> AccelerationStructureBuffers[MAX_NUM_GPUS];
 	uint32 BufferOffset = 0;
 
-	const FRayTracingSceneInitializer2 Initializer;
+	const FRayTracingSceneInitializer Initializer;
 
 	// Unique list of geometries referenced by all instances in this scene.
 	// Any referenced geometry is kept alive while the scene is alive.

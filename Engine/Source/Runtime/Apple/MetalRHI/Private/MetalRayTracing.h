@@ -74,7 +74,7 @@ private:
 class FMetalRayTracingScene : public FRHIRayTracingScene
 {
 public:
-	FMetalRayTracingScene(FRayTracingSceneInitializer2 InInitializer);
+	FMetalRayTracingScene(FRayTracingSceneInitializer InInitializer);
 	virtual ~FMetalRayTracingScene();
 
 	void BindBuffer(FRHIBuffer* InBuffer, uint32 InBufferOffset);
@@ -85,7 +85,7 @@ public:
 
 	void BuildPerInstanceGeometryParameterBuffer();
 
-	inline const FRayTracingSceneInitializer2& GetInitializer() const override final { return Initializer; }
+	inline const FRayTracingSceneInitializer& GetInitializer() const override final { return Initializer; }
 
 	TRefCountPtr<FMetalShaderResourceView> InstanceBufferSRV;
 
@@ -96,7 +96,7 @@ private:
 
 private:
 	/** The initializer provided to build the scene. Contains all the free standing stuff that used to be owned by the RT implementation. */
-	const FRayTracingSceneInitializer2 Initializer;
+	const FRayTracingSceneInitializer Initializer;
 
 	/** Acceleration Structure for the whole scene. */
 	TRefCountPtr<FMetalRHIBuffer> AccelerationStructureBuffer;
