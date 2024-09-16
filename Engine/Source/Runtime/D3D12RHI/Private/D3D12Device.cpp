@@ -102,7 +102,8 @@ FD3D12Device::FD3D12Device(FRHIGPUMask InGPUMask, FD3D12Adapter* InAdapter)
 	, ResidencyManager         (*this)
 	, DescriptorHeapManager    (this)
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	, BindlessDescriptorManager(this)
+	, BindlessDescriptorAllocator(InAdapter->GetBindlessDescriptorAllocator())
+	, BindlessDescriptorManager(this, InAdapter->GetBindlessDescriptorAllocator())
 #endif
 	, GlobalSamplerHeap        (this)
 	, OnlineDescriptorManager  (this)

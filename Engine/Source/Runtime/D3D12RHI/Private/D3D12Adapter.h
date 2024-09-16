@@ -449,7 +449,9 @@ public:
 	HMODULE GetDxgiDllHandle() const { return DxgiDllHandle; };
 #endif
 
-	FD3D12BindlessManagerAdapter& GetBindlessManager() { return BindlessManager; }
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	FD3D12BindlessDescriptorAllocator& GetBindlessDescriptorAllocator() { return BindlessDescriptorAllocator; }
+#endif
 
 protected:
 
@@ -620,7 +622,9 @@ protected:
 	FD3D12RootSignature StaticRayTracingLocalRootSignature;
 #endif
 
-	FD3D12BindlessManagerAdapter BindlessManager;
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	FD3D12BindlessDescriptorAllocator BindlessDescriptorAllocator;
+#endif
 
 private:
 	// Insight memory trace helper

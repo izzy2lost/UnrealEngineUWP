@@ -5,7 +5,7 @@
 FD3D12RHITextureReference::FD3D12RHITextureReference(FD3D12Device* InDevice, FD3D12Texture* InReferencedTexture, FD3D12RHITextureReference* FirstLinkedObject)
 	: FD3D12DeviceChild(InDevice)
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	, FRHITextureReference(InReferencedTexture, FirstLinkedObject ? FirstLinkedObject->BindlessHandle : InDevice->GetParentAdapter()->GetBindlessManager().AllocateResourceHandle())
+	, FRHITextureReference(InReferencedTexture, FirstLinkedObject ? FirstLinkedObject->BindlessHandle : InDevice->GetBindlessDescriptorAllocator().AllocateResourceHandle())
 #else
 	, FRHITextureReference(InReferencedTexture)
 #endif

@@ -225,7 +225,7 @@ FD3D12View::FD3D12View(FD3D12Device* InDevice, ERHIDescriptorHeapType InHeapType
 	if (HeapType == ERHIDescriptorHeapType::Standard)
 	{
 		// Bindless handle is shared across linked objects, so pull the handle from the first object if available, or allocate if we are the first
-		BindlessHandle = FirstLinkedObject ? FirstLinkedObject->BindlessHandle : InDevice->GetParentAdapter()->GetBindlessManager().AllocateResourceHandle();
+		BindlessHandle = FirstLinkedObject ? FirstLinkedObject->BindlessHandle : InDevice->GetBindlessDescriptorAllocator().AllocateResourceHandle();
 	}
 #endif
 }
