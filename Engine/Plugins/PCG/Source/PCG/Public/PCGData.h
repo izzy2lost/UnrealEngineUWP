@@ -59,6 +59,7 @@ public:
 
 	// ~Begin UObject interface
 	virtual void PostDuplicate(bool bDuplicateForPIE) override { InitUID(); }
+	virtual void PostEditImport() override;
 	// ~End UObject interface
 
 	// Metadata ops, to be implemented if data supports Metadata

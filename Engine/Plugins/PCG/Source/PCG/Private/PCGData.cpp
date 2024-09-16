@@ -80,6 +80,12 @@ void UPCGData::InitUID()
 	UID = ++UIDCounter;
 }
 
+void UPCGData::PostEditImport()
+{
+	Super::PostEditImport();
+	InitUID();
+}
+
 void UPCGData::Flatten()
 {
 	if (UPCGMetadata* Metadata = MutableMetadata())
