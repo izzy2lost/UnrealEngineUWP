@@ -1270,6 +1270,8 @@ mu::Ptr<mu::Node> FCustomizableObjectCompiler::Export(UCustomizableObject* Objec
 
 	FMutableGraphGenerationContext GenerationContext(Object, this, CompilerOptions);
 
+	GenerationContext.bSkipParticipatingObjectsPass = true;
+	
 	// Generate the mutable node expression
 	mu::NodeObjectPtr MutableRoot = GenerateMutableRoot(Object, GenerationContext);
 	if (!MutableRoot)

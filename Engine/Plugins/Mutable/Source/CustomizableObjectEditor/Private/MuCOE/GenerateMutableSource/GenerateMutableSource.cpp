@@ -471,8 +471,11 @@ void FMutableGraphGenerationContext::AddParticipatingObjectChecked(const FName& 
 	{
 		checkCode
 		(
-			FGuid* Result = ParticipatingObjects.Find(PackageName);
-			check(Result && *Result == PackageGuid); // If this check is hit it means that this Participating Object is not being discovered in the Participating Objects pass.
+			if (!bSkipParticipatingObjectsPass)
+			{
+				FGuid* Result = ParticipatingObjects.Find(PackageName);
+				check(Result && *Result == PackageGuid); // If this check is hit it means that this Participating Object is not being discovered in the Participating Objects pass.
+			}
 		)
 	}
 }
