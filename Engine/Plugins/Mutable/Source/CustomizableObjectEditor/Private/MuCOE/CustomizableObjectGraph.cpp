@@ -22,6 +22,9 @@ void UCustomizableObjectGraph::PostLoad()
 
 	// TODO UE-222779 If compatibility code has to be executed, loaded the full hierarchy and in sync the BackwardsCompatibleFixup 
 	
+	// Make sure the Object has executed its compatibility code.
+	GetOuter()->ConditionalPostLoad();
+
 	// Make sure all nodes have finished loading.
 	for (UEdGraphNode* Node : Nodes)
 	{
