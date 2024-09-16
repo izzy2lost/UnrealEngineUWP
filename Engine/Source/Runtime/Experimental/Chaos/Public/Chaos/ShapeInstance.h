@@ -600,6 +600,33 @@ namespace Chaos
 			}
 		}
 
+		int32 NumMaterialsInternal(const THandleArray<FChaosPhysicsMaterial>*const SimMaterials) const
+		{
+			if (bIsSingleMaterial)
+			{
+				return Material.MaterialHandle.IsValidInternal(SimMaterials) ? 1 : 0;
+			}
+			else
+			{
+				return (Material.MaterialData != nullptr) ? Material.MaterialData->Materials.Num() : 0;
+			}
+		}
+
+		const FMaterialHandle& GetMaterialInternal(const int32 Index, const THandleArray<FChaosPhysicsMaterial>*const SimMaterials) const
+		{
+			if (bIsSingleMaterial)
+			{
+				check(Index == 0);
+				check(Material.MaterialHandle.IsValidInternal(SimMaterials));
+				return Material.MaterialHandle;
+			}
+			else
+			{
+				return GetMaterialDataImpl().Materials[Index];
+			}
+		}
+
+
 		const TArray<FMaterialHandle>& GetMaterials() const { return GetMaterialDataImpl().Materials; }
 		const TArray<FMaterialMaskHandle>& GetMaterialMasks() const { return GetMaterialDataImpl().MaterialMasks; }
 		const TArray<uint32>& GetMaterialMaskMaps() const { return GetMaterialDataImpl().MaterialMaskMaps; }

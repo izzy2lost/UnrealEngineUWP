@@ -38,20 +38,20 @@ namespace Chaos
 			}
 
 			// If no particle material, see if the shape has one
-			if ((Shape != nullptr) && (SimMaterials != nullptr) && (Shape->NumMaterials() > 0))
+			if ((Shape != nullptr) && (SimMaterials != nullptr) && (Shape->NumMaterialsInternal(SimMaterials) > 0))
 			{
 				// By default we take the first material (all non-mesh shapes will use material 0)
 				int32 ShapeMaterialIndex = 0;
 
-				if ((Shape->NumMaterials() > 1) && (ShapeFaceIndex != INDEX_NONE))
+				if ((Shape->NumMaterialsInternal(SimMaterials) > 1) && (ShapeFaceIndex != INDEX_NONE))
 				{
 					// Multi-shape object (tri mesh, heightfield, etc) - use the face index
 					ShapeMaterialIndex = Shape->GetGeometry()->GetMaterialIndex(ShapeFaceIndex);
 				}
 
-				if (ShapeMaterialIndex < Shape->NumMaterials())
+				if (ShapeMaterialIndex < Shape->NumMaterialsInternal(SimMaterials))
 				{
-					return SimMaterials->Get(Shape->GetMaterial(ShapeMaterialIndex).InnerHandle);
+					return SimMaterials->Get(Shape->GetMaterialInternal(ShapeMaterialIndex, SimMaterials).InnerHandle);
 				}
 			}
 

@@ -24,6 +24,16 @@ namespace Chaos
 		return nullptr;
 	}
 
+	FChaosPhysicsMaterial* FMaterialHandle::GetInternal(const THandleArray<FChaosPhysicsMaterial>* const SimMaterials) const
+	{
+		if (SimMaterials != nullptr && InnerHandle.IsValid())
+		{
+			return SimMaterials->Get(InnerHandle);
+		}
+		return nullptr;
+	}
+
+
 	FChaosPhysicsMaterialMask* FMaterialMaskHandle::Get() const
 	{
 		if (InnerHandle.IsValid())
