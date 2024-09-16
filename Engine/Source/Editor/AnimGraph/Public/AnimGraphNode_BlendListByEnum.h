@@ -45,6 +45,7 @@ public:
 	virtual void ValidateAnimNodeDuringCompilation(class USkeleton* ForSkeleton, class FCompilerResultsLog& MessageLog) override;
 	virtual void BakeDataDuringCompilation(class FCompilerResultsLog& MessageLog) override;
 	virtual void PreloadRequiredAssets() override;
+	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
 	// End of UAnimGraphNode_Base interface
 
 	//@TODO: Generalize this behavior (returning a list of actions/delegates maybe?)
@@ -63,6 +64,13 @@ protected:
 	static void GetPinInformation(const FString& InPinName, int32& Out_PinIndex, bool& Out_bIsPosePin, bool& Out_bIsTimePin);
 
 private:
+	void ClearEnum();
+
+	static void RefreshAvailableEnums();
+
 	/** Constructing FText strings can be costly, so we cache the node's title */
 	FNodeTextCache CachedNodeTitle;
+
+	/** Shared array that contains all possible enums to select from */
+	static TArray<TSharedPtr<FString>> AvailableEnums;
 };
