@@ -279,4 +279,67 @@ namespace UE::LevelSnapshots::Private::Tests
 		return true;
 	}
 #endif
+
+	/**
+	 * There used to be a bug in FApplySnapshotFilter::TrackPossibleMapSubobjectProperties would invoke FScriptSetHelper:.GetElementPtr and
+	 * FScriptMapHelper::GetKeyPtr before converting logical indices to internal indices.
+	 * The result was that the following would crash:
+	 * 1. Add an actor that has a UPROPERTY(EditAnywhere, Instanced) TMap<FName, UObject*> property
+	 * 2. Add 3 subobjects to that property
+	 * 3. Remove the middle one
+	 * 4. Diff the snapshot > Crash
+	 */
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FInstancedSubobjectRemovedFromTMap, "VirtualProduction.LevelSnapshots.Snapshot.Regression.InstancedSubobjectRemovedFromTMap", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	bool FInstancedSubobjectRemovedFromTMap::RunTest(const FString& Parameters)
+	{
+		ASnapshotTestActor* Actor = nullptr;
+		USubobject* Subobject1 = nullptr;
+		USubobject* Subobject2 = nullptr;
+		USubobject* Subobject3 = nullptr;
+		const FName SubobjectName1 = TEXT("Subobject1");
+		const FName SubobjectName2 = TEXT("Subobject2");
+		const FName SubobjectName3 = TEXT("Subobject3");
+		
+		FSnapshotTestRunner()
+			.ModifyWorld([&](UWorld* World)
+			{
+				Actor = ASnapshotTestActor::Spawn(World);
+				Subobject1 = NewObject<USubobject>(Actor, SubobjectName1);
+				Subobject2 = NewObject<USubobject>(Actor, SubobjectName2);
+				Subobject3 = NewObject<USubobject>(Actor, SubobjectName3);
+
+				Subobject1->IntProperty = 1;
+				Subobject2->IntProperty = 2;
+				Subobject3->IntProperty = 3;
+				
+				Actor->EditableInstancedSubobjectMap_OptionalSubobject.Add(SubobjectName1, Subobject1);
+				Actor->EditableInstancedSubobjectMap_OptionalSubobject.Add(SubobjectName2, Subobject2);
+				Actor->EditableInstancedSubobjectMap_OptionalSubobject.Add(SubobjectName3, Subobject3);
+			})
+			.TakeSnapshot()
+			.ModifyWorld([&](UWorld* World)
+			{
+				Actor->EditableInstancedSubobjectMap_OptionalSubobject.Remove(SubobjectName2);
+			})
+			.ApplySnapshot()
+			.ModifyWorld([&](UWorld* World)
+			{
+				const TObjectPtr<USubobject>* Restored1 = Actor->EditableInstancedSubobjectMap_OptionalSubobject.Find(SubobjectName1);
+				const TObjectPtr<USubobject>* Restored2 = Actor->EditableInstancedSubobjectMap_OptionalSubobject.Find(SubobjectName2);
+				const TObjectPtr<USubobject>* Restored3 = Actor->EditableInstancedSubobjectMap_OptionalSubobject.Find(SubobjectName3);
+
+				if (!Restored1 || !Restored2 || !Restored3 || !*Restored1 || !*Restored2 || !*Restored3)
+				{
+					AddError(TEXT("Not all objects where restored"));
+				}
+				else
+				{
+					TestEqual(TEXT("1"), Restored1->Get()->IntProperty, 1);
+					TestEqual(TEXT("2"), Restored2->Get()->IntProperty, 2);
+					TestEqual(TEXT("3"), Restored3->Get()->IntProperty, 3);
+				}
+			});
+
+		return true;
+	}
 }

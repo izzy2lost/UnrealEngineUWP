@@ -498,12 +498,17 @@ TOptional<UE::LevelSnapshots::Private::FApplySnapshotFilter::EPropertySearchResu
 			}
 		}
 
-		void* GetSnapshotValuePtrFromIndex(int32 WorldIndex)
+		void* GetSnapshotValuePtrFromIndex(int32 LogicalWorldIndex)
 		{
 			// Note: we only look for subobjects with the same name because it is faster; otherwise we'd need to compare all properties (n^2 performance).
 			// This works most of the time but not when some subobject has changed name (unlikely but possible).
 			// In the cases it does not work, we just end up with an additional diff in the results view; a low price to pay.
-			const void* WorldValuePtr = GetWorldValuePtrFromIndex(WorldIndex);
+			const void* WorldValuePtr = GetWorldValuePtrFromIndex(LogicalWorldIndex);
+			if (!WorldValuePtr)
+			{
+				return nullptr;
+			}
+			
 			if (UObject* WorldObject = ObjectProperty->GetObjectPropertyValue(WorldValuePtr))
 			{
 				void** PossibleSnapshotObject = ObjectNameToSnapshotValuePtr.Find(WorldObject->GetFName());
@@ -512,9 +517,10 @@ TOptional<UE::LevelSnapshots::Private::FApplySnapshotFilter::EPropertySearchResu
 			return nullptr;
 		}
 
-		void* GetWorldValuePtrFromIndex(int32 WorldIndex)
+		void* GetWorldValuePtrFromIndex(int32 LogicalWorldIndex)
 		{
-			return WorldSet.GetElementPtr(WorldIndex);
+			const int32 InternalIndex = WorldSet.FindInternalIndex(LogicalWorldIndex);
+			return WorldSet.IsValidIndex(InternalIndex) ? WorldSet.GetElementPtr(InternalIndex) : nullptr;
 		}
 	};
 
@@ -544,15 +550,21 @@ TOptional<UE::LevelSnapshots::Private::FApplySnapshotFilter::EPropertySearchResu
 			WorldNum(WorldMap.Num())
 		{}
 
-		void* GetSnapshotValuePtrFromIndex(int32 WorldIndex)
+		void* GetSnapshotValuePtrFromIndex(int32 LogicalWorldIndex)
 		{
-			const void* WorldKey = WorldMap.GetKeyPtr(WorldIndex);
-			return SnapshotMap.FindValueFromHash(WorldKey);
+			const int32 InternalIndex = WorldMap.FindInternalIndex(LogicalWorldIndex);
+			if (SnapshotMap.IsValidIndex(InternalIndex))
+			{
+				const void* WorldKey = WorldMap.GetKeyPtr(InternalIndex);
+				return SnapshotMap.FindValueFromHash(WorldKey);
+			}
+			return nullptr;
 		}
 
-		void* GetWorldValuePtrFromIndex(int32 WorldIndex)
+		void* GetWorldValuePtrFromIndex(int32 LogicalWorldIndex)
 		{
-			return WorldMap.GetValuePtr(WorldIndex);
+			const int32 InternalIndex = WorldMap.FindInternalIndex(LogicalWorldIndex);
+			return WorldMap.IsValidIndex(InternalIndex) ? WorldMap.GetValuePtr(InternalIndex) : nullptr;
 		}
 	};
 
@@ -575,20 +587,20 @@ TOptional<UE::LevelSnapshots::Private::FApplySnapshotFilter::EPropertySearchResu
 	for (int32 WorldIndex = 0; WorldIndex < MaxSharedSize; ++WorldIndex)
 	{
 		void* SnapshotValuePtr = Detail.GetSnapshotValuePtrFromIndex(WorldIndex);
-		if (!SnapshotValuePtr)
+		void* WorldValuePtr = SnapshotValuePtr ? Detail.GetWorldValuePtrFromIndex(WorldIndex) : nullptr;
+		if (!SnapshotValuePtr || !WorldValuePtr)
 		{
 			bHadUnmatchedObjects = true;
 			continue;
 		}
-
-		void* WorldValuePtr = Detail.GetWorldValuePtrFromIndex(WorldIndex);
-		const TOptional<EPropertySearchResult> SubbjectPairResult = TrackPossibleSubobjectProperties(ContainerContext, ObjectProperty, SnapshotValuePtr, WorldValuePtr);
-		if (!SubbjectPairResult.IsSet())
+		
+		const TOptional<EPropertySearchResult> SubobjectPairResult = TrackPossibleSubobjectProperties(ContainerContext, ObjectProperty, SnapshotValuePtr, WorldValuePtr);
+		if (!SubobjectPairResult.IsSet())
 		{
 			return {};
 		}
 		
-		const bool bFoundChangesOnSubobject = SubbjectPairResult == EPropertySearchResult::FoundProperties;
+		const bool bFoundChangesOnSubobject = SubobjectPairResult == EPropertySearchResult::FoundProperties;
 		bFoundChangedProperties |= bFoundChangesOnSubobject;
 		UObject* WorldObject = ObjectProperty->GetObjectPropertyValue(WorldValuePtr);
 		if (!bFoundChangesOnSubobject && WorldObject)
