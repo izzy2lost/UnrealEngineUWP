@@ -9,6 +9,7 @@
 #include "RigHierarchyCache.generated.h"
 
 class URigHierarchy;
+struct FModularRigConnections;
 
 USTRUCT(BlueprintType)
 struct CONTROLRIG_API FCachedRigElement
@@ -168,6 +169,7 @@ public:
 
 	FRigElementKeyRedirector(const TMap<FRigElementKey, FRigElementKey>& InMap, const URigHierarchy* InHierarchy);
 	FRigElementKeyRedirector(const FRigElementKeyRedirector& InOther, const URigHierarchy* InHierarchy);
+	FRigElementKeyRedirector(const FModularRigConnections& InOther, const URigHierarchy* InHierarchy);
 
 	bool Contains(const FRigElementKey& InKey) const { return InternalKeyToExternalKey.Contains(InKey); }
 	const FCachedRigElement* Find(const FRigElementKey& InKey) const { return InternalKeyToExternalKey.Find(InKey); }

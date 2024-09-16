@@ -1194,9 +1194,9 @@ void SModularRigModel::HandleConnectorResolved(const FRigElementKey& InConnector
 		UModularRigController* Controller = ControlRigBlueprint->GetModularRigController();
 		check(Controller);
 
-		if (ControlRigBeingDebuggedPtr.IsValid())
+		if (const UModularRig* ModularRig = GetModularRig())
 		{
-			Controller->ConnectConnectorToElement(InConnector, InTarget, true, ControlRigBeingDebuggedPtr->GetModularRigSettings().bAutoResolve);
+			Controller->ConnectConnectorToElement(InConnector, InTarget, true, ModularRig->GetModularRigSettings().bAutoResolve);
 		}
 	}
 }
@@ -1347,6 +1347,10 @@ UModularRig* SModularRigModel::GetModularRig() const
 	if (ControlRigBlueprint.IsValid())
 	{
 		if (UControlRig* DebuggedRig = ControlRigBeingDebuggedPtr.Get())
+		{
+			return Cast<UModularRig>(DebuggedRig);
+		}
+		if(UControlRig* DebuggedRig = ControlRigBlueprint->GetDebuggedControlRig())
 		{
 			return Cast<UModularRig>(DebuggedRig);
 		}

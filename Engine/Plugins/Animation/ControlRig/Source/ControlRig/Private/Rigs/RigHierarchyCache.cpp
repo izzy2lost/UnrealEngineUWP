@@ -2,6 +2,7 @@
 
 #include "Rigs/RigHierarchyCache.h"
 #include "Rigs/RigHierarchy.h"
+#include "ModularRigModel.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigHierarchyCache)
 
@@ -105,6 +106,21 @@ FRigElementKeyRedirector::FRigElementKeyRedirector(const FRigElementKeyRedirecto
 	{
 		check(Pair.Key.IsValid());
 		Add(Pair.Key, Pair.Value.GetKey(), InHierarchy);
+	}
+}
+
+FRigElementKeyRedirector::FRigElementKeyRedirector(const FModularRigConnections& InOther, const URigHierarchy* InHierarchy)
+{
+	check(InHierarchy);
+	InternalKeyToExternalKey.Reserve(InOther.Num());
+	ExternalKeys.Reserve(InOther.Num());
+
+	Hash = 0;
+	for(const FModularRigSingleConnection& Connection : InOther)
+	{
+		check(Connection.Connector.IsValid());
+		check(Connection.Target.IsValid());
+		Add(Connection.Connector, Connection.Target, InHierarchy);
 	}
 }
 

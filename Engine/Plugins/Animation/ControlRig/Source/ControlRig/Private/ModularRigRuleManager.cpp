@@ -25,7 +25,16 @@ FModularRigResolveResult UModularRigRuleManager::FindMatches(FWorkData& InWorkDa
 	{
 		if (ControlRig->IsConstructionRequired())
 		{
+			const FRigElementKey ConnectorKey = InWorkData.Connector ? InWorkData.Connector->GetKey() : FRigElementKey();
+			
 			ControlRig->Execute(FRigUnit_PrepareForExecution::EventName);
+
+			// restore the connector. executing the control rig may have destroyed the previous connector element
+			InWorkData.Connector = Hierarchy->Find<FRigConnectorElement>(ConnectorKey);
+			if(ConnectorKey.IsValid() && InWorkData.Connector == nullptr)
+			{
+				return Result;
+			}
 		}
 	}
 

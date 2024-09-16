@@ -243,7 +243,8 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 
 #if WITH_EDITOR
 	FName TargetModulePathName = NAME_None;
-	if (UModularRig* ModularRig = Cast<UModularRig>(Blueprint->GetObjectBeingDebugged()))
+	UModularRig* ModularRig = Cast<UModularRig>(Blueprint->GetObjectBeingDebugged());
+	if(ModularRig)
 	{
 		if (URigHierarchy* Hierarchy = ModularRig->GetHierarchy())
 		{
@@ -260,19 +261,34 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 #endif 
 
 	// First disconnect before connecting to anything else. This might disconnect other secondary/optional connectors.
+	TMap<FRigElementKey, FRigElementKey> PreviousConnections;
 	if (CurrentTarget.IsValid())
 	{
 		const TGuardValue<bool> DisableAutomaticReparenting(bAutomaticReparenting, false);
-		DisconnectConnector(InConnectorKey, false, bSetupUndo);
+		DisconnectConnector_Internal(InConnectorKey, false, &PreviousConnections, bSetupUndo);
 	}
 	
 	Model->Connections.AddConnection(InConnectorKey, InTargetKey);
+
+	// restore previous connections if possible
+	for(const TPair<FRigElementKey, FRigElementKey>& PreviousConnection : PreviousConnections)
+	{
+		if(!Model->Connections.HasConnection(PreviousConnection.Key))
+		{
+			FText ErrorMessageForPreviousConnection;
+			if(CanConnectConnectorToElement(PreviousConnection.Key, PreviousConnection.Value, ErrorMessageForPreviousConnection))
+			{
+				(void)ConnectConnectorToElement(PreviousConnection.Key, PreviousConnection.Value, bSetupUndo, false, false);
+			}
+		}
+	}
+	
 	Notify(EModularRigNotification::ConnectionChanged, Module);
 
 #if WITH_EDITOR
 	if (UControlRig* RigCDO = Module->Class->GetDefaultObject<UControlRig>())
 	{
-		if (UModularRig* ModularRig = Cast<UModularRig>(Blueprint->GetObjectBeingDebugged()))
+		if (ModularRig)
 		{
 			if (URigHierarchy* Hierarchy = ModularRig->GetHierarchy())
 			{
@@ -320,6 +336,12 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 }
 
 bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnectorKey, bool bDisconnectSubModules, bool bSetupUndo)
+{
+	return DisconnectConnector_Internal(InConnectorKey, bDisconnectSubModules, nullptr, bSetupUndo);
+};
+
+bool UModularRigController::DisconnectConnector_Internal(const FRigElementKey& InConnectorKey, bool bDisconnectSubModules,
+	TMap<FRigElementKey, FRigElementKey>* OutRemovedConnections, bool bSetupUndo)
 {
 	FString ConnectorModulePath, ConnectorName;
 	if (!URigHierarchy::SplitNameSpace(InConnectorKey.Name.ToString(), &ConnectorModulePath, &ConnectorName))
@@ -369,6 +391,10 @@ bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnecto
 	}
 #endif 
 
+	if(OutRemovedConnections)
+	{
+		OutRemovedConnections->Add(InConnectorKey, Model->Connections.FindTargetFromConnector(InConnectorKey));
+	}
 	Model->Connections.RemoveConnection(InConnectorKey);
 
 	if (ModuleConnector->IsPrimary())
@@ -384,6 +410,10 @@ bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnecto
 		}
 		for (const FRigElementKey& ToRemove : ConnectionsToRemove)
 		{
+			if(OutRemovedConnections)
+			{
+				OutRemovedConnections->Add(ToRemove, Model->Connections.FindTargetFromConnector(ToRemove));
+			}
 			Model->Connections.RemoveConnection(ToRemove);
 		}
 	}
@@ -402,6 +432,10 @@ bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnecto
 		}
 		for (const FRigElementKey& ToRemove : ConnectionsToRemove)
 		{
+			if(OutRemovedConnections)
+			{
+				OutRemovedConnections->Add(ToRemove, Model->Connections.FindTargetFromConnector(ToRemove));
+			}
 			Model->Connections.RemoveConnection(ToRemove);
 		}
 	}
