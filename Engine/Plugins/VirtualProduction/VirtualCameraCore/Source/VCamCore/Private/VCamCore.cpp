@@ -32,6 +32,7 @@ namespace UE::VCamCore
 
 	void FVCamCoreModule::ShutdownModule()
 	{
+		FCoreUObjectDelegates::GetPostGarbageCollect().RemoveAll(this);
 		UnregisterSettings();
 	}
 

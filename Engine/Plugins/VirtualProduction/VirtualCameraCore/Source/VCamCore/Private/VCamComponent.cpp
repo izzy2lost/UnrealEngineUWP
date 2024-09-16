@@ -1302,9 +1302,11 @@ void UVCamComponent::Initialize()
 	RegisterInputComponent();
 
 	// 2. Should register VCam component before modifiers or output providers run since
-	// In case any user code decides to activate an output provider, this component must already be set up. 
-	UE::VCamCore::FViewportManager& ViewportManager = UE::VCamCore::FVCamCoreModule::Get().GetViewportManager();
-	ViewportManager.RegisterVCamComponent(*this);
+	UE::VCamCore::FVCamCoreModule& VCamModule = UE::VCamCore::FVCamCoreModule::Get();
+	// In case any user code (widgets, output, modifiers) decides to activate an output provider, this component must already be set up. 
+	VCamModule.GetViewportManager().RegisterVCamComponent(*this);
+	// User code (widgets, output, modifiers) may create deferred resources which need to be cleaned up.
+	VCamModule.GetDeferredCleanup().OnInitializeVCam(*this);
 	
 	// 3. Output provider overlay widgets will access the modifiers, so let's init them first
 	const bool bInitModifiers = ShouldEvaluateModifierStack() && CanUpdate(); 
@@ -1362,9 +1364,11 @@ void UVCamComponent::Deinitialize()
 		}
 	}
 
+	UE::VCamCore::FVCamCoreModule& VCamModule = UE::VCamCore::FVCamCoreModule::Get();
 	// Viewports may be manipulated by output providers or modifiers
-	UE::VCamCore::FViewportManager& ViewportManager = UE::VCamCore::FVCamCoreModule::Get().GetViewportManager();
-	ViewportManager.UnregisterVCamComponent(*this);
+	VCamModule.GetViewportManager().UnregisterVCamComponent(*this);
+	// Clean up any deferred resources
+	VCamModule.GetDeferredCleanup().OnDeinitializeVCam(*this);
 	
 	UnregisterInputComponent();
 	SubsystemCollection.Deinitialize();

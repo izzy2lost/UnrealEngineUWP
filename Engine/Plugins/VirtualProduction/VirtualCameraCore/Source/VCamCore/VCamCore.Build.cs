@@ -30,6 +30,7 @@ public class VCamCore : ModuleRules
 				"LiveLinkInterface",
 				"MediaIOCore",
 				"InputCore",
+				"RenderCore",
 				"Slate",
 				"SlateCore",
 				"VPRoles",
