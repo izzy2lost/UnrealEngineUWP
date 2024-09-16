@@ -2606,7 +2606,8 @@ namespace VulkanRHI
 		const bool bIsAccelerationStructureBuffer = VKHasAnyFlags(BufferUsageFlags, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR);
 		const bool bIsUniformBuffer = VKHasAnyFlags(BufferUsageFlags, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
-		uint32 Alignment = 1;
+		// Buffers are sometimes directly cast into classes with 16byte alignment expectations (like FVector3f)
+		uint32 Alignment = 16u;
 
 		if (bIsTexelBuffer || bIsStorageBuffer)
 		{
