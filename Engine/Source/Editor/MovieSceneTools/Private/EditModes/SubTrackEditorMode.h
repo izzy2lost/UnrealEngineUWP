@@ -57,5 +57,5 @@ private:
 	/** Used to tell if the gizmo as moved, and if the editor hit proxies need to be invalidated as a result */
 	mutable TOptional<FVector> CachedLocation;
 
-	const TArray<FName> IncompatibleEditorModes = TArray<FName>({ "EditMode.ControlRig" });
+	const TArray<FName> IncompatibleEditorModes = TArray<FName>({ "EditMode.ControlRig", "EM_Landscape" });
 };

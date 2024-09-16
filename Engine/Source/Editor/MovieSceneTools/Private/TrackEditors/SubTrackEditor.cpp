@@ -656,7 +656,7 @@ void FSubTrackEditor::OnInitialize()
 	{
 		EditorMode->SetSequencer(GetSequencer());
 		EditorMode->GetOnOriginValueChanged().RemoveAll(this);
-		EditorMode->GetOnOriginValueChanged().AddRaw(this, &FSubTrackEditor::UpdateOrigin);
+		EditorMode->GetOnOriginValueChanged().AddSP(this, &FSubTrackEditor::UpdateOrigin);
 	}
 	GetSequencer()->GetViewModel()->GetSelection()->TrackArea.OnChanged.AddSP(this, &FSubTrackEditor::UpdateActiveMode);
 
