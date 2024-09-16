@@ -362,7 +362,7 @@ public:
 			return false;
 		}
 
-		FMemoryReader Reader(InputModel.Data);
+		FMemoryReader Reader(InputModel.Data, /*bIsPersitent =*/ true);
 		Reader.SetIsPersistent(true);
 
 		Format.Serialize(Reader);

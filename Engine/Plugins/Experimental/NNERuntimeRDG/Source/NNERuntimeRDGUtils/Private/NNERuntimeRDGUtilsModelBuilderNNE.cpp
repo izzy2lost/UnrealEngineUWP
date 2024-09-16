@@ -44,7 +44,7 @@ public:
 
 	virtual bool End(TArray<uint8>& Data) override
 	{
-		FMemoryWriter Writer(Data, true);
+		FMemoryWriter Writer(Data, /*bIsPersitent =*/ true);
 		
 		Format.Serialize(Writer);
 
