@@ -383,6 +383,9 @@ void UHierarchicalInstancedStaticMeshComponent::FClusterBuilder::BuildTreeAndBuf
 	BuildInstanceBuffer();
 }
 
+// TODO [luc.eygasier/chris.tchou] : REMOVE THIS ONCE WE FIGURE OUT WHY IT CRASHES IN SHIPPING BUILDS (FORT-789465)
+UE_DISABLE_OPTIMIZATION_SHIP
+
 void UHierarchicalInstancedStaticMeshComponent::FClusterBuilder::BuildTree()
 {
 	Init();
@@ -641,6 +644,8 @@ void UHierarchicalInstancedStaticMeshComponent::FClusterBuilder::BuildTree()
 		Result->Nodes[0].MaxInstanceScale = FVector3f::OneVector;
 	}
 }
+
+UE_ENABLE_OPTIMIZATION_SHIP
 
 bool UHierarchicalInstancedStaticMeshComponent::FClusterTree::PrintLevel(int32 NodeIndex, int32 Level, int32 CurrentLevel, int32 Parent)
 {
