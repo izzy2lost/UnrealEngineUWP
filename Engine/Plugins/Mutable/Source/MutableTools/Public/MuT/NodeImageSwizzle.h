@@ -42,11 +42,11 @@ namespace mu
 		void SetFormat(EImageFormat);
 
 		//!
-		NodeImagePtr GetSource( int ) const;
-		int GetSourceChannel( int ) const;
+		NodeImagePtr GetSource( int32 ) const;
+		int GetSourceChannel( int32 ) const;
 
-		void SetSource( int, NodeImagePtr );
-		void SetSourceChannel( int, int );
+		void SetSource( int32, NodeImagePtr );
+		void SetSourceChannel( int32 OutputChannel, int32 SourceChannel );
 
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern
