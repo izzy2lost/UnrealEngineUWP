@@ -1627,7 +1627,7 @@ const FMetasoundFrontendNode* FMetaSoundFrontendDocumentBuilder::DuplicateGraphO
 	return AddGraphOutput(ClassOutput, &PageID);
 }
 
-FMetasoundFrontendGraph& FMetaSoundFrontendDocumentBuilder::FindBuildGraphChecked()
+FMetasoundFrontendGraph& FMetaSoundFrontendDocumentBuilder::FindBuildGraphChecked() const
 {
 	return GetDocumentChecked().RootGraph.FindGraphChecked(BuildPageID);
 }
@@ -1688,7 +1688,51 @@ TArray<const FMetasoundFrontendEdge*> FMetaSoundFrontendDocumentBuilder::FindEdg
 	return EdgeCache.FindEdges(InNodeID, InVertexID);
 }
 
-#if WITH_EDITOR
+#if WITH_EDITORONLY_DATA
+const FMetasoundFrontendEdgeStyle* FMetaSoundFrontendDocumentBuilder::FindConstEdgeStyle(const FGuid& InNodeID, FName OutputName, const FGuid* InPageID) const
+{
+	auto IsEdgeStyle = [&InNodeID, &OutputName](const FMetasoundFrontendEdgeStyle& EdgeStyle)
+	{
+		return EdgeStyle.NodeID == InNodeID && EdgeStyle.OutputName == OutputName;
+	};
+
+	const FGuid& PageID = InPageID ? *InPageID : BuildPageID;
+	const FMetasoundFrontendDocument& Document = GetConstDocumentChecked();
+	const FMetasoundFrontendGraph& Graph = Document.RootGraph.FindConstGraphChecked(PageID);
+	return Graph.Style.EdgeStyles.FindByPredicate(IsEdgeStyle);
+}
+
+FMetasoundFrontendEdgeStyle* FMetaSoundFrontendDocumentBuilder::FindEdgeStyle(const FGuid& InNodeID, FName OutputName, const FGuid* InPageID)
+{
+	auto IsEdgeStyle = [&InNodeID, &OutputName](const FMetasoundFrontendEdgeStyle& EdgeStyle)
+	{
+		return EdgeStyle.NodeID == InNodeID && EdgeStyle.OutputName == OutputName;
+	};
+
+	const FGuid& PageID = InPageID ? *InPageID : BuildPageID;
+	FMetasoundFrontendDocument& Document = GetDocumentChecked();
+	FMetasoundFrontendGraph& Graph = Document.RootGraph.FindGraphChecked(PageID);
+	return Graph.Style.EdgeStyles.FindByPredicate(IsEdgeStyle);
+}
+
+FMetasoundFrontendEdgeStyle& FMetaSoundFrontendDocumentBuilder::FindOrAddEdgeStyle(const FGuid& InNodeID, FName OutputName, const FGuid* InPageID)
+{
+	if (FMetasoundFrontendEdgeStyle* Style = FindEdgeStyle(InNodeID, OutputName, InPageID))
+	{
+		return *Style;
+	}
+
+	const FGuid& PageID = InPageID ? *InPageID : BuildPageID;
+	FMetasoundFrontendDocument& Document = GetDocumentChecked();
+	FMetasoundFrontendGraph& Graph = Document.RootGraph.FindGraphChecked(PageID);
+	FMetasoundFrontendEdgeStyle& EdgeStyle = Graph.Style.EdgeStyles.AddDefaulted_GetRef();
+
+	checkf(ContainsNode(InNodeID), TEXT("Cannot add edge style for node that does not exist"));
+	EdgeStyle.NodeID = InNodeID;
+	EdgeStyle.OutputName = OutputName;
+	return EdgeStyle;
+}
+
 const FMetaSoundFrontendGraphComment* FMetaSoundFrontendDocumentBuilder::FindGraphComment(const FGuid& InCommentID, const FGuid* InPageID) const
 {
 	check(InCommentID.IsValid());
@@ -1705,7 +1749,7 @@ FMetaSoundFrontendGraphComment* FMetaSoundFrontendDocumentBuilder::FindGraphComm
 	TMap<FGuid, FMetaSoundFrontendGraphComment>& Comments = Document.RootGraph.FindGraphChecked(PageID).Style.Comments;
 	return Comments.Find(InCommentID);
 }
-#endif // WITH_EDITOR
+#endif // WITH_EDITORONLY_DATA
 
 bool FMetaSoundFrontendDocumentBuilder::FindInterfaceInputNodes(FName InterfaceName, TArray<const FMetasoundFrontendNode*>& OutInputs, const FGuid* InPageID) const
 {
@@ -2087,7 +2131,7 @@ const FMetasoundFrontendVertex* FMetaSoundFrontendDocumentBuilder::FindNodeOutpu
 	return nullptr;
 }
 
-#if WITH_EDITOR
+#if WITH_EDITORONLY_DATA
 FMetaSoundFrontendGraphComment& FMetaSoundFrontendDocumentBuilder::FindOrAddGraphComment(const FGuid& InCommentID, const FGuid* InPageID)
 {
 	check(InCommentID.IsValid());
@@ -2096,7 +2140,7 @@ FMetaSoundFrontendGraphComment& FMetaSoundFrontendDocumentBuilder::FindOrAddGrap
 	TMap<FGuid, FMetaSoundFrontendGraphComment>& Comments = Document.RootGraph.FindGraphChecked(PageID).Style.Comments;
 	return Comments.FindOrAdd(InCommentID);
 }
-#endif // WITH_EDITOR
+#endif // WITH_EDITORONLY_DATA
 
 FMetasoundFrontendClassName FMetaSoundFrontendDocumentBuilder::GenerateNewClassName()
 {
@@ -2962,6 +3006,21 @@ bool FMetaSoundFrontendDocumentBuilder::RemoveEdge(const FMetasoundFrontendEdge&
 	return false;
 }
 
+#if WITH_EDITORONLY_DATA
+bool FMetaSoundFrontendDocumentBuilder::RemoveEdgeStyle(const FGuid& InNodeID, FName OutputName, const FGuid* InPageID)
+{
+	auto IsEdgeStyle = [&InNodeID, &OutputName](const FMetasoundFrontendEdgeStyle& EdgeStyle)
+	{
+		return EdgeStyle.NodeID == InNodeID && EdgeStyle.OutputName == OutputName;
+	};
+
+	const FGuid& PageID = InPageID ? *InPageID : BuildPageID;
+	FMetasoundFrontendDocument& Document = GetDocumentChecked();
+	FMetasoundFrontendGraph& Graph = Document.RootGraph.FindGraphChecked(PageID);
+	return Graph.Style.EdgeStyles.RemoveAllSwap(IsEdgeStyle) > 0;
+}
+#endif // WITH_EDITORONLY_DATA
+
 bool FMetaSoundFrontendDocumentBuilder::RemoveNamedEdges(const TSet<Metasound::Frontend::FNamedEdge>& InNamedEdgesToRemove, TArray<FMetasoundFrontendEdge>* OutRemovedEdges, const FGuid* InPageID)
 {
 	using namespace Metasound::Frontend;
@@ -3178,6 +3237,17 @@ bool FMetaSoundFrontendDocumentBuilder::RemoveEdgesFromNodeOutput(const FGuid& I
 		FEdgeModifyDelegates& EdgeDelegates = DocumentDelegates->FindEdgeDelegatesChecked(PageID);
 		for (int32 Index : IndicesCopy)
 		{
+#if WITH_EDITORONLY_DATA
+			if (const FMetasoundFrontendVertex* Vertex = FindNodeOutput(InNodeID, InVertexID))
+			{
+				auto IsEdgeStyle = [&InNodeID, OutputName = Vertex->Name](const FMetasoundFrontendEdgeStyle& EdgeStyle)
+				{
+					return EdgeStyle.NodeID == InNodeID && EdgeStyle.OutputName == OutputName;
+				};
+				Graph.Style.EdgeStyles.RemoveAllSwap(IsEdgeStyle);
+			}
+#endif // WITH_EDITORONLY_DATA
+
 			const int32 LastIndex = Graph.Edges.Num() - 1;
 			EdgeDelegates.OnRemoveSwappingEdge.Broadcast(Index, LastIndex);
 			Graph.Edges.RemoveAtSwap(Index, EAllowShrinking::No);
@@ -3198,8 +3268,20 @@ bool FMetaSoundFrontendDocumentBuilder::RemoveEdgeToNodeInput(const FGuid& InNod
 	if (const int32* IndexPtr = EdgeCache.FindEdgeIndexToNodeInput(InNodeID, InVertexID))
 	{
 		FMetasoundFrontendGraph& Graph = GetDocumentChecked().RootGraph.FindGraphChecked(PageID);
-		const FEdgeModifyDelegates& EdgeDelegates = DocumentDelegates->FindEdgeDelegatesChecked(PageID);
 		const int32 Index = *IndexPtr; // Copy off indices as the pointer may be modified when notifying the cache below
+
+#if WITH_EDITORONLY_DATA
+		if (const FMetasoundFrontendVertex* Vertex = FindNodeOutput(InNodeID, Graph.Edges[Index].FromVertexID))
+		{
+			auto IsEdgeStyle = [&InNodeID, OutputName = Vertex->Name](const FMetasoundFrontendEdgeStyle& EdgeStyle)
+			{
+				return EdgeStyle.NodeID == InNodeID && EdgeStyle.OutputName == OutputName;
+			};
+			Graph.Style.EdgeStyles.RemoveAllSwap(IsEdgeStyle);
+		}
+#endif // WITH_EDITORONLY_DATA
+
+		const FEdgeModifyDelegates& EdgeDelegates = DocumentDelegates->FindEdgeDelegatesChecked(PageID);
 		const int32 LastIndex = Graph.Edges.Num() - 1;
 		EdgeDelegates.OnRemoveSwappingEdge.Broadcast(Index, LastIndex);
 		Graph.Edges.RemoveAtSwap(Index, EAllowShrinking::No);
@@ -3214,23 +3296,21 @@ bool FMetaSoundFrontendDocumentBuilder::RemoveEdgeToNodeInput(const FGuid& InNod
 	return false;
 }
 
-#if WITH_EDITOR
+#if WITH_EDITORONLY_DATA
 bool FMetaSoundFrontendDocumentBuilder::RemoveGraphComment(const FGuid& InCommentID, const FGuid* InPageID)
 {
 	FMetasoundFrontendDocument& Document = GetDocumentChecked();
 	FMetasoundFrontendGraph& Graph = Document.RootGraph.FindGraphChecked(InPageID ? *InPageID : BuildPageID);
 	if (Graph.Style.Comments.Remove(InCommentID) > 0)
 	{
-#if WITH_EDITORONLY_DATA
 		Document.Metadata.ModifyContext.SetDocumentModified();
-#endif // WITH_EDITORONLY_DATA
 
 		return true;
 	}
 
 	return false;
 }
-#endif // WITH_EDITOR
+#endif // WITH_EDITORONLY_DATA
 
 bool FMetaSoundFrontendDocumentBuilder::RemoveGraphInput(FName InInputName)
 {
@@ -3478,7 +3558,7 @@ bool FMetaSoundFrontendDocumentBuilder::RemoveNode(const FGuid& InNodeID, const 
 	return false;
 }
 
-#if WITH_EDITOR
+#if WITH_EDITORONLY_DATA
 int32 FMetaSoundFrontendDocumentBuilder::RemoveNodeLocation(const FGuid& InNodeID, const FGuid* InLocationGuid, const FGuid* InPageID)
 {
 	using namespace Metasound;
@@ -3505,7 +3585,7 @@ int32 FMetaSoundFrontendDocumentBuilder::RemoveNodeLocation(const FGuid& InNodeI
 
 	return 0;
 }
-#endif // WITH_EDITOR
+#endif // WITH_EDITORONLY_DATA
 
 bool FMetaSoundFrontendDocumentBuilder::RemoveUnusedDependencies()
 {

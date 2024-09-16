@@ -361,7 +361,7 @@ namespace Metasound
 			return false;
 		}
 
-		bool FBaseInputController::Disconnect(IOutputController& InController) 
+		bool FBaseInputController::Disconnect(IOutputController& InController)
 		{
 			if (FMetasoundFrontendGraph* Graph = GraphPtr.Get())
 			{
@@ -396,14 +396,22 @@ namespace Metasound
 			if (FMetasoundFrontendGraph* Graph = GraphPtr.Get())
 			{
 				const FGuid NodeID = GetOwningNodeID();
+
+#if WITH_EDITORONLY_DATA
+				{
+					const FName OutputName = GetConnectedOutput()->GetName();
+					auto IsStyleForThisNode = [&](const FMetasoundFrontendEdgeStyle& EdgeStyle) { return EdgeStyle.NodeID == NodeID && OutputName == EdgeStyle.OutputName; };
+					Graph->Style.EdgeStyles.RemoveAllSwap(IsStyleForThisNode);
+				}
+#endif // WITH_EDITORONLY_DATA
+
 				FGuid VertexID = GetID();
 
 				auto EdgeHasMatchingDestination = [&](const FMetasoundFrontendEdge& Edge)
 				{
 					return (Edge.ToNodeID == NodeID) && (Edge.ToVertexID == VertexID);
 				};
-
-				int32 NumRemoved = Graph->Edges.RemoveAllSwap(EdgeHasMatchingDestination);
+				const int32 NumRemoved = Graph->Edges.RemoveAllSwap(EdgeHasMatchingDestination);
 				return NumRemoved > 0;
 			}
 
