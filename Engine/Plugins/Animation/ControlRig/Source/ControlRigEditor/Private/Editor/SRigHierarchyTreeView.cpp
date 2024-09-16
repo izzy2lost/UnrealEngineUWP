@@ -1396,7 +1396,7 @@ void SSearchableRigHierarchyTreeView::Construct(const FArguments& InArgs)
 		]
 	];
 
-	if (MaxHeight > 0)
+	if (MaxHeight > SMALL_NUMBER)
 	{
 		VerticalBox->GetSlot(1).SetMaxHeight(MaxHeight);
 	}

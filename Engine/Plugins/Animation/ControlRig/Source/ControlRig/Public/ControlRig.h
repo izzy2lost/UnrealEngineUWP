@@ -936,6 +936,7 @@ private:
 	friend class FRigTransformElementDetails;
 	friend class FControlRigEditorModule;
 	friend class UModularRig;
+	friend class UModularRigController;
 };
 
 class CONTROLRIG_API FControlRigBracketScope

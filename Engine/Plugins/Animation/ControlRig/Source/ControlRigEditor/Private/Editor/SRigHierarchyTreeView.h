@@ -387,7 +387,9 @@ class SSearchableRigHierarchyTreeView : public SCompoundWidget
 {
 public:
 
-	SLATE_BEGIN_ARGS(SSearchableRigHierarchyTreeView) {}
+	SLATE_BEGIN_ARGS(SSearchableRigHierarchyTreeView)
+		:_MaxHeight(0.f)
+	{}
 		SLATE_ARGUMENT(FRigTreeDelegates, RigTreeDelegates)
 		SLATE_ARGUMENT(FText, InitialFilterText)
 		SLATE_ARGUMENT(float, MaxHeight)

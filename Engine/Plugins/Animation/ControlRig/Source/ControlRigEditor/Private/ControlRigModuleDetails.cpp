@@ -365,12 +365,15 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 				{
 					return PerModuleInfos[0].GetModularRig()->GetHierarchy();
 				});
-				TreeDelegates.OnRigTreeIsItemVisible = FOnRigTreeIsItemVisible::CreateLambda([Matches](const FRigElementKey& InTarget)
+
+				TArray<FRigElementKey> MatchingKeys;
+				for(const FRigElementResolveResult& SingleMatch : Matches)
 				{
-					return Matches.ContainsByPredicate([InTarget](const FRigElementResolveResult& Match)
-					{
-						return Match.GetKey() == InTarget;
-					});
+					MatchingKeys.Add(SingleMatch.GetKey());
+				}
+				TreeDelegates.OnRigTreeIsItemVisible = FOnRigTreeIsItemVisible::CreateLambda([MatchingKeys](const FRigElementKey& InTarget)
+				{
+					return MatchingKeys.Contains(InTarget);
 				});
 				TreeDelegates.OnGetSelection.BindLambda([this, Connector]() -> TArray<FRigElementKey>
 				{
@@ -407,6 +410,7 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 				static const FSlateBrush* OptionalBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.ConnectorOptional");
 
 				const FSlateBrush* IconBrush = Connector.IsPrimary() ? PrimaryBrush : (Connector.IsOptional() ? OptionalBrush : SecondaryBrush);
+				TSharedPtr<SSearchableRigHierarchyTreeView>& SearchableTreeView = ConnectionListBox.FindOrAdd(Connector.Name);
 
 				ConnectionsCategory.AddCustomRow(Label)
 					.NameContent()
@@ -465,7 +469,7 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 								.Visibility(EVisibility::Visible)
 								.BorderImage(FAppStyle::GetBrush("Menu.Background"))
 								[
-									SAssignNew(ConnectionListBox.FindOrAdd(Connector.Name), SSearchableRigHierarchyTreeView)
+									SAssignNew(SearchableTreeView, SSearchableRigHierarchyTreeView)
 										.RigTreeDelegates(TreeDelegates)
 								]
 							]
