@@ -243,6 +243,11 @@ struct FNetworkPhysicsSettingsPredictiveInterpolation
 USTRUCT()
 struct FNetworkPhysicsSettingsResimulation
 {
+	FNetworkPhysicsSettingsResimulation()
+	: bOverrideResimulationErrorThreshold_DEPRECATED(0)
+	, ResimulationErrorThreshold_DEPRECATED(10.0f)
+	{};
+
 	GENERATED_BODY()
 
 	/** Deprecated UE 5.5 - bOverrideResimulationErrorThreshold has been renamed, please use bOverrideResimulationErrorPositionThreshold*/
