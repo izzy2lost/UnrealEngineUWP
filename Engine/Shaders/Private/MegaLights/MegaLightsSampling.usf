@@ -269,7 +269,7 @@ void GenerateLightSamplesCS(
 				const uint EyeIndex = 0;
 				const uint GridIndex = ComputeLightGridCellIndex(ScreenCoord - View.ViewRectMin.xy, SceneDepth, EyeIndex);
 				const FCulledLightsGridHeader CulledLightsGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
-				const uint NumLightsInGridCell = min(CulledLightsGridHeader.NumLights, GetMaxLightsPerCell(EyeIndex));
+				const uint NumLightsInGridCell = min(CulledLightsGridHeader.NumMegaLights, GetMaxLightsPerCell(EyeIndex));
 				const uint NumLocalLights = GetNumLocalLights(EyeIndex);
 
 				// Initialize random variables using Fast Blue Noise
