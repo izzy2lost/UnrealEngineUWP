@@ -182,7 +182,7 @@ bool RunRayTracingTestbed_RenderThread(const FString& Parameters)
 
 	FRayTracingSceneRHIRef RayTracingSceneRHI;
 	{
-		FRayTracingSceneInitializer2 Initializer;
+		FRayTracingSceneInitializer Initializer;
 		Initializer.DebugName = FName(TEXT("FRayTracingScene"));
 		Initializer.MaxNumInstances = RayTracingSceneInitializationData.NumNativeGPUSceneInstances + RayTracingSceneInitializationData.NumNativeCPUInstances;
 		Initializer.NumTotalSegments = RayTracingSceneInitializationData.TotalNumSegments;
@@ -191,7 +191,7 @@ bool RunRayTracingTestbed_RenderThread(const FString& Parameters)
 		RayTracingSceneRHI = RHICreateRayTracingScene(MoveTemp(Initializer));
 	}
 
-	const FRayTracingSceneInitializer2& SceneInitializer = RayTracingSceneRHI->GetInitializer();
+	const FRayTracingSceneInitializer& SceneInitializer = RayTracingSceneRHI->GetInitializer();
 
 	FRayTracingAccelerationStructureSize SceneSizeInfo = RHICalcRayTracingSceneSize(SceneInitializer);
 	FRHIResourceCreateInfo SceneBufferCreateInfo(TEXT("RayTracingTestBedSceneBuffer"));

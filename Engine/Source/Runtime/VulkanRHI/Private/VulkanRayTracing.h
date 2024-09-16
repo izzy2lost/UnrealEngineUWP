@@ -215,10 +215,10 @@ class FVulkanRayTracingScene : public FRHIRayTracingScene, public VulkanRHI::FDe
 	friend FVulkanCommandListContext;
 
 public:
-	FVulkanRayTracingScene(FRayTracingSceneInitializer2 Initializer, FVulkanDevice* InDevice);
+	FVulkanRayTracingScene(FRayTracingSceneInitializer Initializer, FVulkanDevice* InDevice);
 	~FVulkanRayTracingScene();
 
-	const FRayTracingSceneInitializer2& GetInitializer() const override final { return Initializer; }
+	const FRayTracingSceneInitializer& GetInitializer() const override final { return Initializer; }
 
 	void BindBuffer(FRHIBuffer* InBuffer, uint32 InBufferOffset);
 
@@ -239,7 +239,7 @@ public:
 
 	using FRHIRayTracingAccelerationStructure::SizeInfo;
 
-	const FRayTracingSceneInitializer2 Initializer;
+	const FRayTracingSceneInitializer Initializer;
 
 	// Unique list of geometries referenced by all instances in this scene.
 	// Any referenced geometry is kept alive while the scene is alive.

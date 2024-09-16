@@ -314,7 +314,7 @@ FRayTracingAccelerationStructureSize FMetalDynamicRHI::RHICalcRayTracingGeometry
 	return CalcRayTracingGeometrySize(AccelerationStructureDescriptor);
 }
 
-FRayTracingAccelerationStructureSize FMetalDynamicRHI::RHICalcRayTracingSceneSize(const FRayTracingSceneInitializer2& Initializer)
+FRayTracingAccelerationStructureSize FMetalDynamicRHI::RHICalcRayTracingSceneSize(const FRayTracingSceneInitializer& Initializer)
 {
 	// TODO: Do we need to take in account the flags provided by the function call?
 	// TODO: Can we get away with the instance count only? (works on AS; what about AMD?)
@@ -420,7 +420,7 @@ void FMetalRayTracingGeometry::RebuildDescriptors()
 	FillPrimitiveAccelerationStructureDesc(AccelerationStructureDescriptor, Initializer, GeomArray);
 }
 
-FMetalRayTracingScene::FMetalRayTracingScene(FRayTracingSceneInitializer2 InInitializer)
+FMetalRayTracingScene::FMetalRayTracingScene(FRayTracingSceneInitializer InInitializer)
 	: Initializer(MoveTemp(InInitializer))
 {
 	MTL::InstanceAccelerationStructureDescriptor* InstanceDescriptor;
@@ -805,7 +805,7 @@ void FMetalRHICommandContext::RHISetBindingsOnShaderBindingTable(
 	checkNoEntry();
 }
 
-FRayTracingSceneRHIRef FMetalDynamicRHI::RHICreateRayTracingScene(FRayTracingSceneInitializer2 Initializer)
+FRayTracingSceneRHIRef FMetalDynamicRHI::RHICreateRayTracingScene(FRayTracingSceneInitializer Initializer)
 {
     MTL_SCOPED_AUTORELEASE_POOL;
     return new FMetalRayTracingScene(MoveTemp(Initializer));

@@ -3306,7 +3306,7 @@ struct FRayTracingShaderBindingTableInitializer
 	uint32 NumCallableShaderSlots = 0;
 };
 
-struct FRayTracingSceneInitializer2
+struct FRayTracingSceneInitializer
 {
 	// Unique list of geometries referenced by all instances in this scene.
 	// Any referenced geometry is kept alive while the scene is alive.
@@ -3351,11 +3351,13 @@ struct FRayTracingSceneInitializer2
 	FName DebugName;
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	FRayTracingSceneInitializer2() = default;
-	FRayTracingSceneInitializer2(FRayTracingSceneInitializer2&&) = default;
-	FRayTracingSceneInitializer2& operator=(FRayTracingSceneInitializer2&&) = default;
+	FRayTracingSceneInitializer() = default;
+	FRayTracingSceneInitializer(FRayTracingSceneInitializer&&) = default;
+	FRayTracingSceneInitializer& operator=(FRayTracingSceneInitializer&&) = default;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
+
+using FRayTracingSceneInitializer2 UE_DEPRECATED(5.5, "Use FRayTracingSceneInitializer instead") = FRayTracingSceneInitializer;
 
 struct FRayTracingAccelerationStructureSize
 {
@@ -3414,7 +3416,7 @@ class FRHIRayTracingScene
 	: public FRHIRayTracingAccelerationStructure
 {
 public:
-	virtual const FRayTracingSceneInitializer2& GetInitializer() const = 0;
+	virtual const FRayTracingSceneInitializer& GetInitializer() const = 0;
 
 	UE_DEPRECATED(5.5, "Use GetOrCreateInlineBufferSRV on the FRHIShaderBindingTable instead of the Scene")
 	virtual FRHIShaderResourceView* GetOrCreateMetadataBufferSRV(FRHICommandListImmediate& RHICmdList)

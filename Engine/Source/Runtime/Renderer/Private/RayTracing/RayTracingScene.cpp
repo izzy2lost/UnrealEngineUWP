@@ -95,7 +95,7 @@ void FRayTracingScene::Create(FRDGBuilder& GraphBuilder, const FViewInfo& View, 
 			TArray<TRefCountPtr<FRHIRayTracingGeometry>> ReferencedGeometries;
 			TArray<FRHIRayTracingGeometry*> PerInstanceGeometries;
 
-			FRayTracingSceneInitializer2 Initializer;
+			FRayTracingSceneInitializer Initializer;
 			Initializer.DebugName = FName(TEXT("FRayTracingScene"));
 			Initializer.MaxNumInstances = Layer.InitializationData.NumNativeGPUSceneInstances + Layer.InitializationData.NumNativeCPUInstances;
 			Initializer.NumTotalSegments = Layer.InitializationData.TotalNumSegments;

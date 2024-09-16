@@ -19,7 +19,7 @@ static void DebugSerializeScene(const FD3D12RayTracingScene& Scene, FD3D12Buffer
 {
 	// #dxr_todo: this could potentially be generalized and moved to high-level code, to be reused for all RHIs if we implement instance desc structure decoding
 
-	const FRayTracingSceneInitializer2& SceneInitializer = Scene.GetInitializer();
+	const FRayTracingSceneInitializer& SceneInitializer = Scene.GetInitializer();
 
 	FString Name = SceneInitializer.DebugName.ToString();
 	FString Filename = FString::Printf(TEXT("Scene_%s"), *Name);
