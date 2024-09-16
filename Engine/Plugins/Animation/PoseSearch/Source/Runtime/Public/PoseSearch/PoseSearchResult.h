@@ -34,7 +34,7 @@ struct FSearchResult
 
 	bool IsValid() const { return PoseIdx != INDEX_NONE && Database != nullptr; }
 
-	void Reset();
+	void Reset() { PoseIdx = INDEX_NONE; Database = nullptr; AssetTime = 0.0f; bIsContinuingPoseSearch = false; }
 
 	POSESEARCH_API const FSearchIndexAsset* GetSearchIndexAsset(bool bMandatory = false) const;
 	

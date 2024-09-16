@@ -295,14 +295,16 @@ void UPoseSearchLibrary::TraceMotionMatching(UE::PoseSearch::FSearchContext& Sea
 
 	for (int32 AnimInstanceIndex = 0; AnimInstanceIndex < AnimInstancesNum; ++AnimInstanceIndex)
 	{
-		const UAnimInstance* AnimInstance = SearchContext.GetAnimInstances()[AnimInstanceIndex];
-		const UObject* SkeletalMeshComponent = AnimInstance->GetOuter();
+		if (const UAnimInstance* AnimInstance = SearchContext.GetAnimInstances()[AnimInstanceIndex])
+		{
+			const UObject* SkeletalMeshComponent = AnimInstance->GetOuter();
 
-		TRACE_OBJECT(AnimInstance);
+			TRACE_OBJECT(AnimInstance);
 
-		TraceState.SkeletalMeshComponentIds[AnimInstanceIndex] = FObjectTrace::GetObjectId(SkeletalMeshComponent);
+			TraceState.SkeletalMeshComponentIds[AnimInstanceIndex] = FObjectTrace::GetObjectId(SkeletalMeshComponent);
 
-		SearchId = HashCombineFast(SearchId, GetTypeHash(FObjectTrace::GetObjectId(AnimInstance)));
+			SearchId = HashCombineFast(SearchId, GetTypeHash(FObjectTrace::GetObjectId(AnimInstance)));
+		}
 	}
 
 	TraceState.Roles.SetNum(AnimInstancesNum);
@@ -863,7 +865,7 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 	TAssetsToSearchPerDatabaseMap AssetsToSearchPerDatabaseMap;
 	
 	// collecting all the possible continuing pose search (it could be multiple searches, but most likely only one)
-	const float DeltaSeconds = AnimInstances[0]->GetDeltaSeconds();
+	const float DeltaSeconds = AnimInstances[0] ? AnimInstances[0]->GetDeltaSeconds() : FiniteDelta;
 	if (const UObject* PlayingAnimationAsset = ContinuingProperties.PlayingAsset.Get())
 	{
 		AddToSearch(AssetsToSearchPerDatabaseMap, PlayingAnimationAsset);
@@ -1030,8 +1032,7 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 	FMotionMatchingState MotionMatchingState;
 	MotionMatchingState.CurrentSearchResult = SearchResult;
 	MotionMatchingState.ElapsedPoseSearchTime = 0.0f;
-	TraceMotionMatching(SearchContext, MotionMatchingState,
-		DeltaSeconds, true, FObjectTrace::GetWorldElapsedTime(AnimInstances[0]->GetWorld()));
+	TraceMotionMatching(SearchContext, MotionMatchingState, DeltaSeconds, true, FObjectTrace::GetWorldElapsedTime(AnimInstances[0] ? AnimInstances[0]->GetWorld() : nullptr));
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 
 	return SearchResult;

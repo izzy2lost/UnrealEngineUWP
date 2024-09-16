@@ -39,13 +39,6 @@ void FSearchResult::Update(float NewAssetTime)
 	}
 }
 
-void FSearchResult::Reset()
-{
-	PoseIdx = INDEX_NONE;
-	Database = nullptr;
-	AssetTime = 0.0f;
-}
-
 const FSearchIndexAsset* FSearchResult::GetSearchIndexAsset(bool bMandatory) const
 {
 	if (bMandatory)
