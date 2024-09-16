@@ -314,14 +314,14 @@ FRayTracingAccelerationStructureSize FMetalDynamicRHI::RHICalcRayTracingGeometry
 	return CalcRayTracingGeometrySize(AccelerationStructureDescriptor);
 }
 
-FRayTracingAccelerationStructureSize FMetalDynamicRHI::RHICalcRayTracingSceneSize(uint32 MaxInstances, ERayTracingAccelerationStructureFlags Flags)
+FRayTracingAccelerationStructureSize FMetalDynamicRHI::RHICalcRayTracingSceneSize(const FRayTracingSceneInitializer2& Initializer)
 {
 	// TODO: Do we need to take in account the flags provided by the function call?
 	// TODO: Can we get away with the instance count only? (works on AS; what about AMD?)
     MTL_SCOPED_AUTORELEASE_POOL;
     
     MTL::InstanceAccelerationStructureDescriptor InstanceDescriptor = MTL::InstanceAccelerationStructureDescriptor();
-    InstanceDescriptor.SetInstanceCount(MaxInstances);
+    InstanceDescriptor.SetInstanceCount(Initializer.MaxNumInstances);
 
     return CalcRayTracingGeometrySize(InstanceDescriptor);
 }

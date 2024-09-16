@@ -1230,9 +1230,9 @@ public:
 		return RHI->RHICreateRayTracingPipelineState(Initializer);
 	}
 
-	virtual FRayTracingAccelerationStructureSize RHICalcRayTracingSceneSize(uint32 MaxInstances, ERayTracingAccelerationStructureFlags Flags) override final
+	virtual FRayTracingAccelerationStructureSize RHICalcRayTracingSceneSize(const FRayTracingSceneInitializer2& Initializer) override final
 	{
-		return RHI->RHICalcRayTracingSceneSize(MaxInstances, Flags);
+		return RHI->RHICalcRayTracingSceneSize(Initializer);
 	}
 
 	virtual FRayTracingAccelerationStructureSize RHICalcRayTracingGeometrySize(const FRayTracingGeometryInitializer& Initializer) override final
