@@ -3032,7 +3032,7 @@ void FD3D12RayTracingGeometry::AllocateBufferSRVs(uint32 InGPUIndex)
 	// Procedural doesn't need any SRVs for index buffer
 	if (Initializer.IndexBuffer && Initializer.GeometryType == RTGT_Triangles)
 	{
-		check(Initializer.IndexBufferOffset == 0);
+		checkf((Initializer.IndexBufferOffset % 16) == 0, TEXT("The byte offset of raw views must be a multiple of 16 (specified offset: %d)."), Initializer.IndexBufferOffset);
 
 		FD3D12Buffer* IndexBuffer = FD3D12DynamicRHI::ResourceCast(Initializer.IndexBuffer.GetReference());
 
@@ -3041,7 +3041,7 @@ void FD3D12RayTracingGeometry::AllocateBufferSRVs(uint32 InGPUIndex)
 		SRVDesc.Format = DXGI_FORMAT_R32_TYPELESS;
 		SRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 		SRVDesc.Buffer.FirstElement = (Initializer.IndexBufferOffset + IndexBuffer->ResourceLocation.GetOffsetFromBaseOfResource()) >> 2u;
-		SRVDesc.Buffer.NumElements = IndexBuffer->GetSize() >> 2u;
+		SRVDesc.Buffer.NumElements = FMath::Max((uint32)1, Initializer.TotalPrimitiveCount * 3);
 		SRVDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
 		SRVDesc.Buffer.StructureByteStride = 0;
 
@@ -3066,7 +3066,7 @@ void FD3D12RayTracingGeometry::AllocateBufferSRVs(uint32 InGPUIndex)
 		}
 		else
 		{
-			SRVDesc.Buffer.NumElements = Segment.MaxVertices * Segment.VertexBufferStride / 4; //< NumElements in R32 size
+			SRVDesc.Buffer.NumElements = FMath::Max((uint32)1, Segment.MaxVertices * Segment.VertexBufferStride / 4); //< NumElements in R32 size
 		}
 		SRVDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
 		SRVDesc.Buffer.StructureByteStride = 0;

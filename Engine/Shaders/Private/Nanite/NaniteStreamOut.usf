@@ -124,17 +124,22 @@ bool Allocate(uint Size, uint BufferSize, uint AllocatorEntry, out uint OutOffse
 	return true;
 }
 
+uint Align16(uint Value)
+{
+	return (Value + 15) & ~15;
+}
+
 bool AllocateVertexAndIndexRanges(uint VertexSize, uint IndexSize, out uint OutVertexOffset, out uint OutIndexOffset)
 {
 	// allocate vertex range
-	if (!Allocate(VertexSize, VertexBufferSize, 0, OutVertexOffset))
+	if (!Allocate(Align16(VertexSize), VertexBufferSize, 0, OutVertexOffset))
 	{
 		OutIndexOffset = 0;
 		return false;
 	}
 
 	// allocate index range
-	if (!Allocate(IndexSize, IndexBufferSize, 1, OutIndexOffset))
+	if (!Allocate(Align16(IndexSize), IndexBufferSize, 1, OutIndexOffset))
 	{
 		return false;
 	}
