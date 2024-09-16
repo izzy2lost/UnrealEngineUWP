@@ -100,7 +100,7 @@ EDataValidationResult UAssetValidator_CustomizableObjects::IsCustomizableObjectV
 	}
 	
 	// Find out which is the root for this CO (it may be itself but that is OK)
-	UCustomizableObject* RootObject = GetRootObject(InCustomizableObject);
+	UCustomizableObject* RootObject = GraphTraversal::GetRootObject(InCustomizableObject);
 	check (RootObject);
 	
 	// Check that the object to be compiled has not already been compiled

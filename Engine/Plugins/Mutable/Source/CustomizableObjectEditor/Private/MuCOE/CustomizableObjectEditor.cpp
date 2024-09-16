@@ -1510,21 +1510,23 @@ void FCustomizableObjectEditor::CompileObject(bool bOnlySelectedParameters, bool
 	}
 
 	TSharedRef<FCompilationRequest> CompileRequest = MakeShared<FCompilationRequest>(*CustomizableObject, true);
-	CompileRequest->GetCompileOptions().bSilentCompilation = false;
-	CompileRequest->GetCompileOptions().bGatherReferences = bGatherReferences;
 
-	if (bOnlySelectedParameters && PreviewInstance)
+	FCompilationOptions& CompilationOptions = CompileRequest->GetCompileOptions();
+	CompilationOptions.bSilentCompilation = false;
+	CompilationOptions.bGatherReferences = bGatherReferences;
+
+	if (bOnlySelectedParameters)
 	{
-		const TArray<FCustomizableObjectIntParameterValue>& IntParameters = PreviewInstance->GetPrivate()->GetDescriptor().GetIntParameters();
-		TMap<FString, FString> ParamNamesToSelectedOptions;
-		ParamNamesToSelectedOptions.Reserve(IntParameters.Num());
+		UCustomizableObjectInstance* Instance = GetPreviewInstance();
+		check(Instance);
+		
+		const TArray<FCustomizableObjectIntParameterValue>& IntParameters = Instance->GetPrivate()->GetDescriptor().GetIntParameters();
+		CompilationOptions.ParamNamesToSelectedOptions.Reserve(IntParameters.Num());
 
 		for (const FCustomizableObjectIntParameterValue& IntParam : IntParameters)
 		{
-			ParamNamesToSelectedOptions.Add(IntParam.ParameterName, IntParam.ParameterValueName);
+			CompilationOptions.ParamNamesToSelectedOptions.Add(IntParam.ParameterName, IntParam.ParameterValueName);
 		}
-
-		CompileRequest->SetParameterNamesToSelectedOptions(ParamNamesToSelectedOptions);
 	}
 
 	ICustomizableObjectEditorModule::GetChecked().CompileCustomizableObject(CompileRequest);
@@ -2336,50 +2338,6 @@ UCustomizableObject* FCustomizableObjectEditor::GetAbsoluteCOParent(const UCusto
 	}
 
 	return nullptr;
-}
-
-
-void FCustomizableObjectEditor::AddCachedReferencers(const FName& PathName, TArray<FName>& ArrayReferenceNames, TArray<FAssetData>& ArrayAssetData)
-{
-	ArrayReferenceNames.Empty();
-	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-	AssetRegistryModule.Get().GetReferencers(PathName, ArrayReferenceNames);
-
-	FARFilter Filter;
-	for (const FName& ReferenceName : ArrayReferenceNames)
-	{
-		bool IsCachedInAssetData = false;
-
-		const int32 MaxIndex = ArrayAssetData.Num();
-
-		for (int32 i = 0; i < MaxIndex; ++i)
-		{
-			if (ArrayAssetData[i].PackageName.ToString() == ReferenceName.ToString())
-			{
-				IsCachedInAssetData = true;
-			}
-		}
-
-		if (!IsCachedInAssetData && !ReferenceName.ToString().StartsWith(TEXT("/TempAutosave")))
-		{
-			Filter.PackageNames.Add(ReferenceName);
-		}
-	}
-
-	Filter.bIncludeOnlyOnDiskAssets = false;
-
-	TArray<FAssetData> ArrayAssetDataTemp;
-	AssetRegistryModule.Get().GetAssets(Filter, ArrayAssetDataTemp);
-
-	// Store only those which have static class type Customizable Object, to avoid loading not needed elements
-	const int32 MaxIndex = ArrayAssetDataTemp.Num();
-	for (int32 i = 0; i < MaxIndex; ++i)
-	{
-		if (ArrayAssetDataTemp[i].GetClass() == UCustomizableObject::StaticClass())
-		{
-			ArrayAssetData.Add(ArrayAssetDataTemp[i]);
-		}
-	}
 }
 
 

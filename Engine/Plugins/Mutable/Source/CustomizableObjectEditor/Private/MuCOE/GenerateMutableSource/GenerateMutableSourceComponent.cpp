@@ -95,7 +95,7 @@ void GenerateMutableSourceComponentMesh(FMutableGraphGenerationContext& Generati
 				if (Cast<UCustomizableObjectNodeModifierBase>(ChildNodePin->GetOwningNode()))
 				{
 					FString Msg = FString::Printf(TEXT("The object has legacy modifier connections that cannot be generated. Their connections should be updated."));
-					GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), &TypedComponentMesh, EMessageSeverity::Warning);
+					GenerationContext.Log(FText::FromString(Msg), &TypedComponentMesh, EMessageSeverity::Warning);
 					continue;
 				}
 				
@@ -136,7 +136,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 		
 		if (TypedComponentMesh->ComponentName.IsNone())
 		{
-			GenerationContext.Compiler->CompilerLog(LOCTEXT("EmptyComponentNameError", "Error! Missing name in a component of the Customizable Object."), ActualRoot, EMessageSeverity::Error);
+			GenerationContext.Log(LOCTEXT("EmptyComponentNameError", "Error! Missing name in a component of the Customizable Object."), ActualRoot, EMessageSeverity::Error);
 			return nullptr;
 		}
 
@@ -145,7 +145,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 			return ComponentInfo.ComponentName == ComponentName;
 		}))
 		{
-			GenerationContext.Compiler->CompilerLog(FText::Format(LOCTEXT("RepeatedComponentName", "Error! Repeated name [{0}] used in more than one Component"),
+			GenerationContext.Log(FText::Format(LOCTEXT("RepeatedComponentName", "Error! Repeated name [{0}] used in more than one Component"),
 				FText::FromName(ComponentName)), ActualRoot, EMessageSeverity::Error);
 			return nullptr;
 		}
@@ -153,7 +153,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 		USkeletalMesh* RefSkeletalMesh = TypedComponentMesh->ReferenceSkeletalMesh;
 		if (!RefSkeletalMesh)
 		{
-			GenerationContext.Compiler->CompilerLog(LOCTEXT("NoReferenceMeshObjectTab", "Error! Missing reference Skeletal Mesh"), ActualRoot, EMessageSeverity::Error);
+			GenerationContext.Log(LOCTEXT("NoReferenceMeshObjectTab", "Error! Missing reference Skeletal Mesh"), ActualRoot, EMessageSeverity::Error);
 			return nullptr;
 		}
 
@@ -162,7 +162,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 		{
 			FText Msg = FText::Format(LOCTEXT("NoReferenceSkeleton", "Error! Missing skeleton in the reference mesh [{0}]"), FText::FromString(GenerationContext.CustomizableObjectWithCycle->GetPathName()));
 
-			GenerationContext.Compiler->CompilerLog(Msg, ActualRoot, EMessageSeverity::Error);
+			GenerationContext.Log(Msg, ActualRoot, EMessageSeverity::Error);
 			return nullptr;
 		}
 
@@ -180,7 +180,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 		// Ensure that the CO has a valid AutoLODStrategy on the ActualRoot.
 		if (TypedComponentMesh->AutoLODStrategy == ECustomizableObjectAutomaticLODStrategy::Inherited)
 		{
-			GenerationContext.Compiler->CompilerLog(LOCTEXT("RootInheritsFromParent", "Error! Component LOD Strategy can't be set to 'Inherit from parent object'"), TypedComponentMesh, EMessageSeverity::Error);
+			GenerationContext.Log(LOCTEXT("RootInheritsFromParent", "Error! Component LOD Strategy can't be set to 'Inherit from parent object'"), TypedComponentMesh, EMessageSeverity::Error);
 			return nullptr;
 		}
 		GenerationContext.CurrentAutoLODStrategy = TypedComponentMesh->AutoLODStrategy;
@@ -191,7 +191,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 		FGuid FinalGuid = GenerationContext.GetNodeIdUnique(TypedComponentMesh);
 		if (FinalGuid != TypedComponentMesh->NodeGuid)
 		{
-			GenerationContext.Compiler->CompilerLog(FText::FromString(TEXT("Warning: Node has a duplicated GUID. A new ID has been generated, but cooked data will not be deterministic.")), Node, EMessageSeverity::Warning);
+			GenerationContext.Log(FText::FromString(TEXT("Warning: Node has a duplicated GUID. A new ID has been generated, but cooked data will not be deterministic.")), Node, EMessageSeverity::Warning);
 		}
 		ObjectNode->SetUid(FinalGuid.ToString());
 
@@ -213,7 +213,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 			{
 				FString Msg = FString::Printf(TEXT("The object has %d LODs but the reference mesh only %d. Resulting objects will have %d LODs."),
 					NumLODs, MaxRefMeshLODs, MaxRefMeshLODs);
-				GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node, EMessageSeverity::Warning);
+				GenerationContext.Log(FText::FromString(Msg), Node, EMessageSeverity::Warning);
 				GenerationContext.NumLODsInRoot = MaxRefMeshLODs;
 			}
 			else
@@ -298,7 +298,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 			if (TypedComponentMeshExtend->NumLODs > TypedParentComponentMesh->NumLODs)
 			{
 				FText Msg = FText::Format(LOCTEXT("ExtendMeshComponentLODs", "Add To Mesh Component can not have more LODs than its parent Mesh Component [{0}]."), FText::FromName(TypedComponentMeshExtend->ParentComponentName));
-				GenerationContext.Compiler->CompilerLog(Msg, TypedComponentMeshExtend, EMessageSeverity::Warning);
+				GenerationContext.Log(Msg, TypedComponentMeshExtend, EMessageSeverity::Warning);
 			}
 
 			mu::Ptr<mu::NodeComponent> ParentNodeComponent = GenerateMutableSourceComponent(TypedParentComponentMesh->OutputPin.Get(), GenerationContext);
@@ -320,7 +320,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 		else
 		{
 			FText Msg = FText::Format(LOCTEXT("ExtendMeshComponent", "Can not find parent Mesh Component {0}."), FText::FromName(TypedComponentMeshExtend->ParentComponentName));
-			GenerationContext.Compiler->CompilerLog(Msg, TypedComponentMeshExtend, EMessageSeverity::Error);
+			GenerationContext.Log(Msg, TypedComponentMeshExtend, EMessageSeverity::Error);
 		}
 	}
 	
@@ -331,14 +331,14 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 		if (TypedComponentPassthroughMesh->ComponentName.IsNone())
 		{
 			FString Msg = FString::Printf(TEXT("Invalid Component Name."));
-			GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), TypedComponentPassthroughMesh, EMessageSeverity::Warning);
+			GenerationContext.Log(FText::FromString(Msg), TypedComponentPassthroughMesh, EMessageSeverity::Warning);
 			return nullptr;
 		}
 
 		if (!TypedComponentPassthroughMesh->Mesh.IsValid())
 		{
 			FString Msg = FString::Printf(TEXT("No mesh set for component node."));
-			GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), TypedComponentPassthroughMesh, EMessageSeverity::Warning);
+			GenerationContext.Log(FText::FromString(Msg), TypedComponentPassthroughMesh, EMessageSeverity::Warning);
 			return nullptr;
 		}
 
@@ -346,7 +346,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 		if (!SkeletalMesh)
 		{
 			FString Msg = FString::Printf(TEXT("Only SkeletalMeshes are supported in this node, for now."));
-			GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), TypedComponentPassthroughMesh, EMessageSeverity::Warning);
+			GenerationContext.Log(FText::FromString(Msg), TypedComponentPassthroughMesh, EMessageSeverity::Warning);
 			return nullptr;
 		}
 
@@ -427,7 +427,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 						if (EnumPin)
 						{
 							const FText Message = LOCTEXT("FailedToGenerateSwitchParam", "Could not generate switch enum parameter. Please refesh the switch node and connect an enum.");
-							GenerationContext.Compiler->CompilerLog(Message, Node);
+							GenerationContext.Log(Message, Node);
 						}
 
 						return Result;
@@ -436,7 +436,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 					if (SwitchParam->GetType() != mu::NodeScalarEnumParameter::GetStaticType())
 					{
 						const FText Message = LOCTEXT("WrongSwitchParamType", "Switch parameter of incorrect type.");
-						GenerationContext.Compiler->CompilerLog(Message, Node);
+						GenerationContext.Log(Message, Node);
 
 						return Result;
 					}
@@ -447,7 +447,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 					if (NumSwitchOptions != EnumParameter->GetValueCount())
 					{
 						const FText Message = LOCTEXT("MismatchedSwitch", "Switch enum and switch node have different number of options. Please refresh the switch node to make sure the outcomes are labeled properly.");
-						GenerationContext.Compiler->CompilerLog(Message, Node);
+						GenerationContext.Log(Message, Node);
 					}
 
 					mu::Ptr<mu::NodeComponentSwitch> SwitchNode = new mu::NodeComponentSwitch;
@@ -475,7 +475,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 				}
 				else
 				{
-					GenerationContext.Compiler->CompilerLog(LOCTEXT("NoEnumParamInSwitch", "Switch nodes must have an enum switch parameter. Please connect an enum and refesh the switch node."), Node);
+					GenerationContext.Log(LOCTEXT("NoEnumParamInSwitch", "Switch nodes must have an enum switch parameter. Please connect an enum and refesh the switch node."), Node);
 					return Result;
 				}
 			}(); // invoke lambda.
@@ -495,7 +495,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 			}
 			else
 			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("ComponentFailed", "Component generation failed."), Node);
+				GenerationContext.Log(LOCTEXT("ComponentFailed", "Component generation failed."), Node);
 			}
 		}
 
@@ -518,7 +518,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 					}
 					else
 					{
-						GenerationContext.Compiler->CompilerLog(LOCTEXT("ComponentFailed", "Component generation failed."), Node);
+						GenerationContext.Log(LOCTEXT("ComponentFailed", "Component generation failed."), Node);
 					}
 				}
 			}
@@ -527,7 +527,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 
 	else
 	{
-		GenerationContext.Compiler->CompilerLog(LOCTEXT("UnimplementedNode", "Node type not implemented yet."), Node);
+		GenerationContext.Log(LOCTEXT("UnimplementedNode", "Node type not implemented yet."), Node);
 		ensure(false);
 	}
 

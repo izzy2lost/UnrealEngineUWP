@@ -244,7 +244,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 			if (const UEdGraphPin* StaticMeshPin = FindMeshBaseSource(*ConnectedMaterialPin, true))
 			{
 				const UCustomizableObjectNode* StaticMeshNode = CastChecked<UCustomizableObjectNode>(StaticMeshPin->GetOwningNode());
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("UnsupportedStaticMeshes", "Static meshes are currently not supported as material meshes"), StaticMeshNode);
+				GenerationContext.Log(LOCTEXT("UnsupportedStaticMeshes", "Static meshes are currently not supported as material meshes"), StaticMeshNode);
 			}
 		}
 
@@ -333,7 +333,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 
 			if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeMat->GetMeshPin()))
 			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("MeshIgnored", "The mesh nodes connected to a material node will be ignored because it is part of an explicit mesh component."), Node);
+				GenerationContext.Log(LOCTEXT("MeshIgnored", "The mesh nodes connected to a material node will be ignored because it is part of an explicit mesh component."), Node);
 			}
 		}
 		else
@@ -385,7 +385,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 				}
 				else
 				{
-					GenerationContext.Compiler->CompilerLog(LOCTEXT("MeshFailed", "Mesh generation failed."), Node);
+					GenerationContext.Log(LOCTEXT("MeshFailed", "Mesh generation failed."), Node);
 				}
 			}
 		}
@@ -416,13 +416,13 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 					{
 						bTableMaterialPinLinked = false;
 
-						GenerationContext.Compiler->CompilerLog(LOCTEXT("DifferentParentMaterial", "The Deafult Material Instance of the Data Table must have the same Parent Material."), TypedNodeMat->GetMaterialNode());
+						GenerationContext.Log(LOCTEXT("DifferentParentMaterial", "The Deafult Material Instance of the Data Table must have the same Parent Material."), TypedNodeMat->GetMaterialNode());
 					}
 				}
 				else
 				{
 					FText Msg = FText::Format(LOCTEXT("DefaultValueNotFound", "Couldn't find a default value in the data table's struct for the column {0}. The default value is null or not a Material Instance."), FText::FromString(TableColumnName));
-					GenerationContext.Compiler->CompilerLog(Msg, Node);
+					GenerationContext.Log(Msg, Node);
 
 					bTableMaterialPinLinked = false;
 				}
@@ -575,14 +575,14 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 
 									FString msg = FString::Printf(TEXT("The Reference texture [%s] is using TEXTUREGROUP_UI which does not support streaming. Please set a different TEXTURE group."),
 										*ReferenceTexture->GetName(), *ImageName);
-									GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node, EMessageSeverity::Info);
+									GenerationContext.Log(FText::FromString(msg), Node, EMessageSeverity::Info);
 								}
 							}
 							else
 							{
 								// warning!
 								FString msg = FString::Printf(TEXT("The Reference texture for material image [%s] is not set and it couldn't be found automatically."), *ImageName);
-								GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node);
+								GenerationContext.Log(FText::FromString(msg), Node);
 							}
 						}
 
@@ -745,7 +745,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 										*GenerationContext.Options.TargetPlatform->PlatformName(),
 										*ReferenceTexture->GetName());
 									const FText ReplacedImageFormatText = FText::FromString(ReplacedImageFormatMsg);
-									GenerationContext.Compiler->CompilerLog(ReplacedImageFormatText, Node, EMessageSeverity::Info);
+									GenerationContext.Log(ReplacedImageFormatText, Node, EMessageSeverity::Info);
 									UE_LOG(LogMutable, Log, TEXT("%s"), *ReplacedImageFormatMsg);
 								}
 								else if (BuildSettingsPerFormatPerLayer.Num() > 1)
@@ -755,7 +755,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 										*GenerationContext.Options.TargetPlatform->PlatformName(),
 										*ReferenceTexture->GetName());
 									const FText ReplacedImageFormatText = FText::FromString(ReplacedImageFormatMsg);
-									GenerationContext.Compiler->CompilerLog(ReplacedImageFormatText, Node, EMessageSeverity::Info);
+									GenerationContext.Log(ReplacedImageFormatText, Node, EMessageSeverity::Info);
 									UE_LOG(LogMutable, Log, TEXT("%s"), *ReplacedImageFormatMsg);
 								}
 							}
@@ -815,7 +815,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 									{
 										const FString ReplacedImageFormatMsg = FString::Printf(TEXT("In object [%s] the unsupported image format %d is used, IF_RGBA_UBYTE will be used instead."), *GenerationContext.Object->GetName(), UnrealTargetPlatformFormat );
 										const FText ReplacedImageFormatText = FText::FromString(ReplacedImageFormatMsg);
-										GenerationContext.Compiler->CompilerLog(ReplacedImageFormatText, Node, EMessageSeverity::Info);
+										GenerationContext.Log(ReplacedImageFormatText, Node, EMessageSeverity::Info);
 										UE_LOG(LogMutable, Log, TEXT("%s"), *ReplacedImageFormatMsg);
 										MutableFormat = mu::EImageFormat::IF_RGBA_UBYTE;
 									}
@@ -823,7 +823,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 									{
 										const FString ReplacedImageFormatMsg = FString::Printf(TEXT("In object [%s] the unsupported image format %d is used, IF_RGBA_UBYTE will be used instead."), *GenerationContext.Object->GetName(), UnrealTargetPlatformFormatAlpha);
 										const FText ReplacedImageFormatText = FText::FromString(ReplacedImageFormatMsg);
-										GenerationContext.Compiler->CompilerLog(ReplacedImageFormatText, Node, EMessageSeverity::Info);
+										GenerationContext.Log(ReplacedImageFormatText, Node, EMessageSeverity::Info);
 										UE_LOG(LogMutable, Log, TEXT("%s"), *ReplacedImageFormatMsg);
 										MutableFormatIfAlpha = mu::EImageFormat::IF_RGBA_UBYTE;
 									}
@@ -1076,7 +1076,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 			}
 			else
 			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("SurfaceFailed", "Surface generation failed."), Node);
+				GenerationContext.Log(LOCTEXT("SurfaceFailed", "Surface generation failed."), Node);
 			}
 		}
 
@@ -1099,7 +1099,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 					}
 					else
 					{
-						GenerationContext.Compiler->CompilerLog(LOCTEXT("SurfaceModifierFailed", "Surface generation failed."), Node);
+						GenerationContext.Log(LOCTEXT("SurfaceModifierFailed", "Surface generation failed."), Node);
 					}
 				}
 			}
@@ -1125,7 +1125,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 					if (EnumPin)
 					{
 						const FText Message = LOCTEXT("FailedToGenerateSwitchParam", "Could not generate switch enum parameter. Please refesh the switch node and connect an enum.");
-						GenerationContext.Compiler->CompilerLog(Message, Node);
+						GenerationContext.Log(Message, Node);
 					}
 
 					return Result;
@@ -1134,7 +1134,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 				if (SwitchParam->GetType() != mu::NodeScalarEnumParameter::GetStaticType())
 				{
 					const FText Message = LOCTEXT("WrongSwitchParamType", "Switch parameter of incorrect type.");
-					GenerationContext.Compiler->CompilerLog(Message, Node);
+					GenerationContext.Log(Message, Node);
 
 					return Result;
 				}
@@ -1145,7 +1145,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 				if (NumSwitchOptions != EnumParameter->GetValueCount())
 				{
 					const FText Message = LOCTEXT("MismatchedSwitch", "Switch enum and switch node have different number of options. Please refresh the switch node to make sure the outcomes are labeled properly.");
-					GenerationContext.Compiler->CompilerLog(Message, Node);
+					GenerationContext.Log(Message, Node);
 				}
 
 				mu::Ptr<mu::NodeSurfaceSwitch> SwitchNode = new mu::NodeSurfaceSwitch;
@@ -1164,7 +1164,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 						else
 						{
 							// Probably ok
-							//GenerationContext.Compiler->CompilerLog(LOCTEXT("SurfaceModifierFailed", "Surface generation failed."), Node);
+							//GenerationContext.Log(LOCTEXT("SurfaceModifierFailed", "Surface generation failed."), Node);
 						}
 					}
 				}
@@ -1174,7 +1174,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 			}
 			else
 			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("NoEnumParamInSwitch", "Switch nodes must have an enum switch parameter. Please connect an enum and refesh the switch node."), Node);
+				GenerationContext.Log(LOCTEXT("NoEnumParamInSwitch", "Switch nodes must have an enum switch parameter. Please connect an enum and refesh the switch node."), Node);
 				return Result;
 			}
 		}(); // invoke lambda.
@@ -1182,7 +1182,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 
 	else
 	{
-		GenerationContext.Compiler->CompilerLog(LOCTEXT("UnimplementedNode", "Node type not implemented yet."), Node);
+		GenerationContext.Log(LOCTEXT("UnimplementedNode", "Node type not implemented yet."), Node);
 	}
 
 

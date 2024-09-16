@@ -577,14 +577,16 @@ private:
 	
 public:
 #if WITH_EDITORONLY_DATA
-	FPostCompileDelegate& GetPostCompileDelegate() const;
+	FPostCompileDelegate& GetPostCompileDelegate();
 #endif
 
 	/** Create a new instance of this object. The instance parameters will be initialized with the object default values. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	UCustomizableObjectInstance* CreateInstance();
 
-	UCustomizableObjectPrivate* GetPrivate() const;
+	const UCustomizableObjectPrivate* GetPrivate() const;
+
+	UCustomizableObjectPrivate* GetPrivate();
 
 	/** Check if the CustomizableObject asset has been compiled. This will always be true in a packaged game, but it could be false in the editor. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)

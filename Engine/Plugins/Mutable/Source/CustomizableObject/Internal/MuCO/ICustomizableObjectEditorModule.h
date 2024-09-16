@@ -18,6 +18,7 @@ class FExtensibilityManager;
 class FBakeOperationCompletedDelegate;
 struct FBakingConfiguration;
 struct FCompilationRequest;
+struct FCompilationOptions;
 
 extern const FName CustomizableObjectEditorAppIdentifier;
 extern const FName CustomizableObjectInstanceEditorAppIdentifier;
@@ -49,9 +50,13 @@ public:
 	
 	/** Return if the CO is not compiled or the ParticipatingObjects system has detected a change (participating objects dirty or re-saved since last compilation).
 	  * @param Object object to check.
+	  * @param bSkipIndirectReferences if true, do not check for added/removed indirect references.
 	  * @param OutOfDatePackages list of out of date packages.
-   	  * @return true if the compilation is out of date. */
-	virtual bool IsCompilationOutOfDate(const UCustomizableObject& Object, TArray<FName>* OutOfDatePackages = nullptr) const = 0;
+	  * @param AddedPackages list of added packages since the last compilation.
+	  * @param RemovedPackages list of removed packages since the last compilation.
+	  * @param bVersionDiff true if the Version Bridge has changed since the last compilation.
+	  * @return true if the compilation is out of date. */
+	virtual bool IsCompilationOutOfDate(const UCustomizableObject& Object, bool bSkipIndirectReferences, TArray<FName>& OutOfDatePackages, TArray<FName>& AddedPackages, TArray<FName>& RemovedPackages, bool& bVersionDiff) const = 0;
 
 	/** See GraphTraversal::IsRootObject(...) */
 	virtual bool IsRootObject(const UCustomizableObject& Object) const = 0;
@@ -60,6 +65,12 @@ public:
 	  * @return Current version as string. */
 	virtual FString GetCurrentContentVersionForObject(const UCustomizableObject& Object) const = 0;
 
+	/** See GraphTraversal::GetRootObject(...) */
+	virtual UCustomizableObject* GetRootObject(UCustomizableObject* ChildObject) const = 0;
+
+	/** See GraphTraversal::GetRootObject(...) */
+	virtual const UCustomizableObject* GetRootObject(const UCustomizableObject* ChildObject) const = 0;
+	
 	/**
 	 * Execute this method in order to bake the provided instance. It will schedule a special type of instance update before proceeding with the bake itself.
 	 * @param InTargetInstance The instance we want to bake
@@ -82,5 +93,9 @@ public:
 	virtual int32 GetNumCompileRequests() = 0;
 
 	virtual USkeletalMesh* GetReferenceSkeletalMesh(const UCustomizableObject& Object, const FName& Component) const = 0;
+	
+	/** Perform a fast compilation pass to get all participating objects.
+	 *  @param bLoadObjects Load any object. If false, no objects will load. If true, only objects strictly required to get the full list of participating objects will load. */
+	virtual TMap<FName, FGuid> GetParticipatingObjects(const UCustomizableObject* Object, bool bLoadObjects, const FCompilationOptions* Options = nullptr) const = 0;
 };
  

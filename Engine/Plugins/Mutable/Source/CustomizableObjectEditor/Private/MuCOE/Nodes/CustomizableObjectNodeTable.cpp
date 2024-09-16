@@ -1030,11 +1030,11 @@ bool UCustomizableObjectNodeTable::CheckPinUpdated(const FString& PinName, const
 }
 
 
-USkeletalMesh* UCustomizableObjectNodeTable::GetSkeletalMeshAt(const UEdGraphPin* Pin, const UDataTable* DataTable, const FName& RowName) const
+FSoftObjectPtr UCustomizableObjectNodeTable::GetSkeletalMeshAt(const UEdGraphPin* Pin, const UDataTable* DataTable, const FName& RowName) const
 {
 	if (!DataTable || !DataTable->GetRowStruct() || !Pin || !DataTable->GetRowNames().Contains(RowName))
 	{
-		return nullptr;
+		return {};
 	}
 	
 	const UScriptStruct* TableStruct = DataTable->GetRowStruct();
@@ -1047,7 +1047,7 @@ USkeletalMesh* UCustomizableObjectNodeTable::GetSkeletalMeshAt(const UEdGraphPin
 
 	if (!ColumnProperty)
 	{
-		return nullptr;
+		return {};
 	}
 
 	if (const FSoftObjectProperty* SoftObjectProperty = CastField<FSoftObjectProperty>(ColumnProperty))
@@ -1056,18 +1056,12 @@ USkeletalMesh* UCustomizableObjectNodeTable::GetSkeletalMeshAt(const UEdGraphPin
 		{
 			if (uint8* CellData = ColumnProperty->ContainerPtrToValuePtr<uint8>(RowData, 0))
 			{
-				if (UObject* Object = SoftObjectProperty->GetPropertyValue(CellData).LoadSynchronous())
-				{
-					if (USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Object))
-					{
-						return SkeletalMesh;
-					}
-				}
+				return SoftObjectProperty->GetPropertyValue(CellData);
 			}
 		}
 	}
 
-	return nullptr;
+	return {};
 }
 
 

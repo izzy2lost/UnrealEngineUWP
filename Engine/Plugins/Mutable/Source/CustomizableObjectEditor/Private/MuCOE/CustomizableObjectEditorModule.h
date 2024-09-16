@@ -23,7 +23,7 @@ class FBakeOperationCompletedDelegate;
   * List includes:
   * - Child UCustomizableObjects: Have inverted references.
   * - UDataTable: Data Tables used by Composite Data Tables are indirectly referenced by the UStruct and filtered by path. */
-void GetReferencingPackages(const UCustomizableObject& Object, TArray<FName>& ObjectNames);
+void GetReferencingPackages(const UCustomizableObject& Object, TArray<FAssetData>& ObjectNames);
 
 
 /**
@@ -38,12 +38,15 @@ public:
 
 	// ICustomizableObjectEditorModule interface
 	virtual FCustomizableObjectEditorLogger& GetLogger() override;
-	virtual bool IsCompilationOutOfDate(const UCustomizableObject& Object, TArray<FName>* OutOfDatePackages) const override;
+	virtual bool IsCompilationOutOfDate(const UCustomizableObject& Object, bool bSkipIndirectReferences, TArray<FName>& OutOfDatePackages, TArray<FName>& AddedPackages, TArray<FName>& RemovedPackages, bool& bVersionDiff) const override;
 	virtual bool IsRootObject(const UCustomizableObject& Object) const override;
 	virtual FString GetCurrentContentVersionForObject(const UCustomizableObject& Object) const override;
+	virtual UCustomizableObject* GetRootObject(UCustomizableObject* ChildObject) const override;
+	virtual const UCustomizableObject* GetRootObject(const UCustomizableObject* ChildObject) const override;
 	virtual void BakeCustomizableObjectInstance(UCustomizableObjectInstance* InTargetInstance, const FBakingConfiguration& InBakingConfig) override;
 	virtual USkeletalMesh* GetReferenceSkeletalMesh(const UCustomizableObject& Object, const FName& ComponentName) const override;
-	
+	virtual TMap<FName, FGuid> GetParticipatingObjects(const UCustomizableObject* Object, bool bLoadObjects, const FCompilationOptions* Options = nullptr) const override;
+
 	/** Request for a given customizable object to be compiled. Async compile requests will be queued and processed sequentially. 
 	 * @param InCompilationRequest - Request to compile an object. 
 	 * @param bForceRequest - Queue request even if already in the pending list. */

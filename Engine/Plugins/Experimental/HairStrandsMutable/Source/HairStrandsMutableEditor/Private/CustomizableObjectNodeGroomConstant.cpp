@@ -62,10 +62,12 @@ mu::Ptr<mu::NodeExtensionData> UCustomizableObjectNodeGroomConstant::GenerateMut
 	// an always-loaded constant.
 	UCustomizableObjectResourceDataContainer* Container = nullptr;
 	Result->SetValue(CompilerInterface.MakeStreamedExtensionData(Container));
-	check(Container);
 
-	// Populate instanced struct
-	Container->Data.Data.InitializeAs<FGroomPinData>(GroomData);
+	if (Container)
+	{
+		// Populate instanced struct
+		Container->Data.Data.InitializeAs<FGroomPinData>(GroomData);
+	}
 
 	return Result;
 }

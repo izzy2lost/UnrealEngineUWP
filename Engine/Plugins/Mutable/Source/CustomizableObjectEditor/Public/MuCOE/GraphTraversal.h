@@ -53,31 +53,34 @@ UEdGraphPin* FollowOutputPin(const UEdGraphPin& Pin, bool* CycleDetected = nullp
 TArray<UEdGraphPin*> ReverseFollowPinArray(const UEdGraphPin& Pin, bool bIgnoreOrphan = false, bool* bOutCycleDetected = nullptr);
 
 /** Returns the root Object Node of the Customizable Object's graph */
-UCustomizableObjectNodeObject* GetRootNode(UCustomizableObject* Object, bool& bOutMultipleBaseObjectsFound);
+UCustomizableObjectNodeObject* GetRootNode(const UCustomizableObject* Object, bool& bOutMultipleBaseObjectsFound);
 
 /** Return in ArrayNodeObject the roots nodes in each Customizable Object graph until the whole root node is found (i.e. the one with parent = nullptr)
  * return false if a cycle is found between Customizable Objects */
-bool GetParentsUntilRoot(UCustomizableObject* Object, TArray<UCustomizableObjectNodeObject*>& ArrayNodeObject, TArray<UCustomizableObject*>& ArrayCustomizableObject);
+bool GetParentsUntilRoot(const UCustomizableObject* Object, TArray<UCustomizableObjectNodeObject*>& ArrayNodeObject, TArray<const UCustomizableObject*>& ArrayCustomizableObject);
 
 /** Returns true if the Candidate is parent of the current Customizable Object */
 bool HasCandidateAsParent(UCustomizableObjectNodeObject* Node, UCustomizableObject* ParentCandidate);
 
 /** Return the full graph Customizable Object root of the given node. */
-UCustomizableObject* GetFullGraphRootObject(UCustomizableObjectNodeObject* Node, TArray<UCustomizableObject*>& VisitedObjects);
+UCustomizableObject* GetFullGraphRootObject(const UCustomizableObjectNodeObject* Node, TArray<UCustomizableObject*>& VisitedObjects);
 
 /** Return Customizable Object of the given node. */
 UCustomizableObject* GetRootObject(const UCustomizableObjectNode& Node);
 
-/** Provided a CO object it provides the root CO it is connected. In other words : it returns the root of the entire
-	 * mutable graph.
-	 * @param InObject Customizable object whose root CO we are asking for.
-	 * @return The CO that is the root of the provided Customizable Object. It can be equal to InObject if the provided
-	 * object does not have any parent.
-*/
-CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObject* GetRootObject(UCustomizableObject* ChildObject);
+namespace GraphTraversal
+{
+	/** Provided a CO object it provides the root CO it is connected. In other words : it returns the root of the entire
+		 * mutable graph.
+		 * @param InObject Customizable object whose root CO we are asking for.
+		 * @return The CO that is the root of the provided Customizable Object. It can be equal to InObject if the provided
+		 * object does not have any parent.	*/
+	CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObject* GetRootObject(UCustomizableObject* ChildObject);
+	CUSTOMIZABLEOBJECTEDITOR_API const UCustomizableObject* GetRootObject(const UCustomizableObject* ChildObject);
+}
 
 /** Return the full graph Customizable Object Node root of the node given as parameter */
-UCustomizableObjectNodeObject* GetFullGraphRootNodeObject(UCustomizableObjectNodeObject* Node, TArray<UCustomizableObject*>& VisitedObjects);
+UCustomizableObjectNodeObject* GetFullGraphRootNodeObject(const UCustomizableObjectNodeObject* Node, TArray<const UCustomizableObject*>& VisitedObjects);
 
 /** Given an output pin, return the output pin where the mesh is located. */
 const UEdGraphPin* FindMeshBaseSource(const UEdGraphPin& Pin, const bool bOnlyLookForStaticMesh);

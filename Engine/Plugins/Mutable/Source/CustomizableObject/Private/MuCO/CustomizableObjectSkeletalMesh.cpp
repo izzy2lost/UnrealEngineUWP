@@ -20,7 +20,7 @@ FName GenerateUniqueNameFromCOInstance(const UCustomizableObjectInstance& Instan
 
 
 UCustomizableObjectSkeletalMesh* UCustomizableObjectSkeletalMesh::CreateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& OperationData, 
-	const UCustomizableObjectInstance& Instance, const UCustomizableObject& CustomizableObject, const int32 InstanceComponentIndex)
+	const UCustomizableObjectInstance& Instance, UCustomizableObject& CustomizableObject, const int32 InstanceComponentIndex)
 {
 	FName SkeletalMeshName = GenerateUniqueNameFromCOInstance(Instance);
 	UCustomizableObjectSkeletalMesh* OutSkeletalMesh = NewObject<UCustomizableObjectSkeletalMesh>(GetTransientPackage(), SkeletalMeshName, RF_Transient);

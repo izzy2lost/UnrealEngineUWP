@@ -126,6 +126,9 @@ struct FCompilationOptions
 	 * This limit is before any pak or filesystem compression. This limit will be broken if a single piece of data is bigger because data is not fragmented for packaging purposes.
 	 */
 	uint64 DDCBytesLimit = 64 * 1024;
+	
+	/** Stores the only option of an Int Param that should be compiled. */
+	TMap<FString, FString> ParamNamesToSelectedOptions;
 };
 
 
@@ -170,10 +173,7 @@ struct CUSTOMIZABLEOBJECT_API FCompilationRequest
 
 	TArray<FText>& GetWarnings();
 	TArray<FText>& GetErrors();
-
-	void SetParameterNamesToSelectedOptions(const TMap<FString, FString>& InParamNamesToSelectedOptions);
-	const TMap<FString, FString>& GetParameterNamesToSelectedOptions() const;
-
+	
 	bool operator==(const FCompilationRequest& Other) const;
 
 private:
@@ -189,10 +189,7 @@ private:
 
 	UE::DerivedData::ECachePolicy DDCPolicy = UE::DerivedData::ECachePolicy::None;
 	UE::DerivedData::FCacheKey DDCKey;
-
-	// Stores the only option of an Int Param that should be compiled
-	TMap<FString, FString> ParamNamesToSelectedOptions;
-
+	
 	TArray<FText> Warnings;
 	TArray<FText> Errors;
 };

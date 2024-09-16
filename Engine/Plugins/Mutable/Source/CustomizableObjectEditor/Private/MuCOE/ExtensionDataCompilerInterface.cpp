@@ -18,30 +18,20 @@ mu::ExtensionDataPtrConst FExtensionDataCompilerInterface::MakeStreamedExtension
 	mu::ExtensionDataPtr Result = new mu::ExtensionData;
 	Result->Origin = mu::ExtensionData::EOrigin::ConstantStreamed;
 	Result->Index = GenerationContext.StreamedExtensionData.Num();
-
-	// Generate a deterministic name to help with deterministic cooking
-	const FString ContainerName = FString::Printf(TEXT("Streamed_%d"), Result->Index);
-
-	UObject* ExistingObject = FindObject<UObject>(GenerationContext.Object, *ContainerName);
-	if (ExistingObject)
+	
+	if (!GenerationContext.bParticipatingObjectsPass)
 	{
-		// This must have been left behind from a previous compilation and hasn't been deleted by 
-		// GC yet.
-		//
-		// Move it into the transient package to get it out of the way.
-		ExistingObject->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
+		// Generate a deterministic name to help with deterministic cooking
+		const FString ContainerName = FString::Printf(TEXT("Streamed_%d"), Result->Index);
 
-		check(!FindObject<UObject>(GenerationContext.Object, *ContainerName));
+		OutContainer = NewObject<UCustomizableObjectResourceDataContainer>(
+			GetTransientPackage(),
+			FName(*ContainerName),
+			RF_Public);
+
+		GenerationContext.StreamedExtensionData.Emplace(ContainerName, OutContainer);
 	}
-
-	check(GenerationContext.Object);
-	OutContainer = NewObject<UCustomizableObjectResourceDataContainer>(
-		GenerationContext.Object,
-		FName(*ContainerName),
-		RF_Public);
-
-	GenerationContext.StreamedExtensionData.Add(OutContainer);
-
+	
 	return Result;
 }
 
@@ -57,7 +47,7 @@ mu::ExtensionDataPtrConst FExtensionDataCompilerInterface::MakeAlwaysLoadedExten
 	return Result;
 }
 
-UObject* FExtensionDataCompilerInterface::GetOuterForAlwaysLoadedObjects()
+const UObject* FExtensionDataCompilerInterface::GetOuterForAlwaysLoadedObjects()
 {
 	check(GenerationContext.Object);
 	return GenerationContext.Object;
@@ -76,5 +66,11 @@ void FExtensionDataCompilerInterface::AddGeneratedNode(const UCustomizableObject
 
 void FExtensionDataCompilerInterface::CompilerLog(const FText& InLogText, const UCustomizableObjectNode* InNode)
 {
-	GenerationContext.Compiler->CompilerLog(InLogText, InNode);
+	GenerationContext.Log(InLogText, InNode);
 }
+
+void FExtensionDataCompilerInterface::AddParticipatingObject(const UObject& Object)
+{
+	GenerationContext.AddParticipatingObject(Object);
+}
+

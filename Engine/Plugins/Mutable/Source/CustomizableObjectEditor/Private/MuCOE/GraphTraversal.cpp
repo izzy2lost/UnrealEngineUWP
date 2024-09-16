@@ -244,7 +244,7 @@ TArray<UEdGraphPin*> ReverseFollowPinArray(const UEdGraphPin& Pin, bool bIgnoreO
 }
 
 
-UCustomizableObjectNodeObject* GetRootNode(UCustomizableObject* Object, bool& bOutMultipleBaseObjectsFound)
+UCustomizableObjectNodeObject* GetRootNode(const UCustomizableObject* Object, bool& bOutMultipleBaseObjectsFound)
 {
 	// Look for the base object node
 	UCustomizableObjectNodeObject* Root = nullptr;
@@ -273,7 +273,7 @@ UCustomizableObjectNodeObject* GetRootNode(UCustomizableObject* Object, bool& bO
 }
 
 
-bool GetParentsUntilRoot(UCustomizableObject* Object, TArray<UCustomizableObjectNodeObject*>& ArrayNodeObject, TArray<UCustomizableObject*>& ArrayCustomizableObject)
+bool GetParentsUntilRoot(const UCustomizableObject* Object, TArray<UCustomizableObjectNodeObject*>& ArrayNodeObject, TArray<const  UCustomizableObject*>& ArrayCustomizableObject)
 {
 	bool MultipleBaseObjectsFound;
 	UCustomizableObjectNodeObject* Root = GetRootNode(Object, MultipleBaseObjectsFound);
@@ -329,7 +329,7 @@ bool HasCandidateAsParent(UCustomizableObjectNodeObject* Node, UCustomizableObje
 }
 
 
-UCustomizableObject* GetFullGraphRootObject(UCustomizableObjectNodeObject* Node, TArray<UCustomizableObject*>& VisitedObjects)
+UCustomizableObject* GetFullGraphRootObject(const UCustomizableObjectNodeObject* Node, TArray<UCustomizableObject*>& VisitedObjects)
 {
 	if (Node->ParentObject != nullptr)
 	{
@@ -373,7 +373,14 @@ UCustomizableObject* GetRootObject(const UCustomizableObjectNode& Node)
 }
 
 
-UCustomizableObject* GetRootObject(UCustomizableObject* ChildObject)
+UCustomizableObject* GraphTraversal::GetRootObject(UCustomizableObject* ChildObject)
+{
+	const UCustomizableObject* ConstChildObject = ChildObject;
+	return const_cast<UCustomizableObject*>(GetRootObject(ConstChildObject));
+}
+
+
+const UCustomizableObject* GraphTraversal::GetRootObject(const UCustomizableObject* ChildObject)
 {
 	// Grab a node to start the search -> Get the root since it should be always present
 	bool bMultipleBaseObjectsFound = false;
@@ -391,7 +398,7 @@ UCustomizableObject* GetRootObject(UCustomizableObject* ChildObject)
 }
 
 
-UCustomizableObjectNodeObject* GetFullGraphRootNodeObject(UCustomizableObjectNodeObject* Node, TArray<UCustomizableObject*>& VisitedObjects)
+UCustomizableObjectNodeObject* GetFullGraphRootNodeObject(const UCustomizableObjectNodeObject* Node, TArray<const UCustomizableObject*>& VisitedObjects)
 {
 	if (Node->ParentObject != nullptr)
 	{
@@ -659,7 +666,7 @@ void GetAllObjectsInGraph(UCustomizableObject* Object, TSet<UCustomizableObject*
 	}
 
 	// Search the root of the CO's graph
-	UCustomizableObject* RootObject = GetRootObject(Object);
+	UCustomizableObject* RootObject = GraphTraversal::GetRootObject(Object);
 	TMultiMap<FGuid, UCustomizableObjectNodeObject*> DummyMap;
 
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");

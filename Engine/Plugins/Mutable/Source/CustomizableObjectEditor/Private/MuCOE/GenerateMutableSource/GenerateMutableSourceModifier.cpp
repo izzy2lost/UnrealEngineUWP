@@ -125,7 +125,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		else
 		{
 			FText ErrorMsg = LOCTEXT("ClipDeform mesh", "The clip deform node requires an input clip shape.");
-			GenerationContext.Compiler->CompilerLog(ErrorMsg, TypedNodeClipDeform, EMessageSeverity::Error);
+			GenerationContext.Log(ErrorMsg, TypedNodeClipDeform, EMessageSeverity::Error);
 			Result = nullptr;
 		}
 	
@@ -173,13 +173,13 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 				{
 					// TODO: We support the clip mesh not being constant. This message is not precise enough. It should say that it hasn't been 
 					// possible to check if the mesh is closed or not.
-					GenerationContext.Compiler->CompilerLog(LOCTEXT("UnimplementedNode", "Node type not implemented yet."), MeshData.Node);
+					GenerationContext.Log(LOCTEXT("UnimplementedNode", "Node type not implemented yet."), MeshData.Node);
 				}
 
 				if (!bClosed)
 				{
 					FText ErrorMsg = FText::Format(LOCTEXT("Clipping mesh", "Clipping mesh [{0}] not closed (i.e., it does not enclose a volume)."), FText::FromName(MeshData.Mesh->GetFName()));
-					GenerationContext.Compiler->CompilerLog(ErrorMsg, MeshData.Node, EMessageSeverity::Warning);
+					GenerationContext.Log(ErrorMsg, MeshData.Node, EMessageSeverity::Warning);
 				}
 			}
 
@@ -197,7 +197,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		else
 		{
 			FText ErrorMsg = LOCTEXT("Clipping mesh missing", "The clip mesh with mesh node requires an input clip mesh.");
-			GenerationContext.Compiler->CompilerLog(ErrorMsg, TypedNodeClipMesh, EMessageSeverity::Error);
+			GenerationContext.Log(ErrorMsg, TypedNodeClipMesh, EMessageSeverity::Error);
 			Result = nullptr;
 		}
 
@@ -234,7 +234,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		else
 		{
 			FText ErrorMsg = LOCTEXT("ClipUVMask mesh", "The clip mesh with UV Mask node requires an input texture mask.");
-			GenerationContext.Compiler->CompilerLog(ErrorMsg, TypedNodeClipUVMask, EMessageSeverity::Error);
+			GenerationContext.Log(ErrorMsg, TypedNodeClipUVMask, EMessageSeverity::Error);
 			Result = nullptr;
 		}
 
@@ -307,7 +307,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 				}
 				else
 				{
-					GenerationContext.Compiler->CompilerLog(LOCTEXT("ExtendMaterialLayoutMissing", "Skeletal Mesh without Layout Node linked to an Extend Material. A 4x4 layout will be added as default layout."), Node);
+					GenerationContext.Log(LOCTEXT("ExtendMaterialLayoutMissing", "Skeletal Mesh without Layout Node linked to an Extend Material. A 4x4 layout will be added as default layout."), Node);
 				}
 
 				mu::Ptr<mu::NodeMeshFormat> MeshFormat = new mu::NodeMeshFormat();
@@ -553,19 +553,19 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 				{
 					validStaticFactor = false;
 					FString msg = FString::Printf(TEXT("Mesh morph nodes only accept factors between -1.0 and 1.0 inclusive but the default value of the float parameter node is (%f). Factor will be ignored."), floatParameterNode->DefaultValue);
-					GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node);
+					GenerationContext.Log(FText::FromString(msg), Node);
 				}
 				if (floatParameterNode->ParamUIMetadata.MinimumValue < -1.0f)
 				{
 					validStaticFactor = false;
 					FString msg = FString::Printf(TEXT("Mesh morph nodes only accept factors between -1.0 and 1.0 inclusive but the minimum UI value for the input float parameter node is (%f). Factor will be ignored."), floatParameterNode->ParamUIMetadata.MinimumValue);
-					GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node);
+					GenerationContext.Log(FText::FromString(msg), Node);
 				}
 				if (floatParameterNode->ParamUIMetadata.MaximumValue > 1.0f)
 				{
 					validStaticFactor = false;
 					FString msg = FString::Printf(TEXT("Mesh morph nodes only accept factors between -1.0 and 1.0 inclusive but the maximum UI value for the input float parameter node is (%f). Factor will be ignored."), floatParameterNode->ParamUIMetadata.MaximumValue);
-					GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node);
+					GenerationContext.Log(FText::FromString(msg), Node);
 				}
 			}
 			else if (const UCustomizableObjectNodeFloatConstant* floatConstantNode = Cast<UCustomizableObjectNodeFloatConstant>(floatNode))
@@ -574,7 +574,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 				{
 					validStaticFactor = false;
 					FString msg = FString::Printf(TEXT("Mesh morph nodes only accept factors between -1.0 and 1.0 inclusive but the value of the float constant node is (%f). Factor will be ignored."), floatConstantNode->Value);
-					GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node);
+					GenerationContext.Log(FText::FromString(msg), Node);
 				}
 			}
 
@@ -590,7 +590,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 
 	else
 	{
-		GenerationContext.Compiler->CompilerLog(LOCTEXT("UnimplementedNode", "Node type not implemented yet."), Node);
+		GenerationContext.Log(LOCTEXT("UnimplementedNode", "Node type not implemented yet."), Node);
 	}
 
 	if (!bDoNotAddToGeneratedCache)

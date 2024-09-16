@@ -1096,6 +1096,10 @@ struct FModelResources
 	/** Name of all possible components. Index is the ObjectComponentIndex. */
 	UPROPERTY()
 	TArray<FName> ComponentNames;
+
+	/** Version Bridge. */
+	UPROPERTY()
+	FString CompiledVersionBridge;
 	
 #if WITH_EDITORONLY_DATA
 	void CUSTOMIZABLEOBJECT_API Serialize(FObjectAndNameAsStringProxyArchive& Ar, bool bIsCooking);
@@ -1187,17 +1191,16 @@ class CUSTOMIZABLEOBJECT_API UCustomizableObjectPrivate : public UObject
 #endif
 
 public:
-	UCustomizableObjectPrivate();
-
 	/** Must be called after unlocking the CustomizableObject. */
 	void SetModel(const TSharedPtr<mu::Model, ESPMode::ThreadSafe>& Model, const FGuid Identifier);
 	const TSharedPtr<mu::Model, ESPMode::ThreadSafe>& GetModel();
-	TSharedPtr<const mu::Model, ESPMode::ThreadSafe> GetModel() const;
+	const TSharedPtr<const mu::Model, ESPMode::ThreadSafe> GetModel() const;
 
 	const FModelResources& GetModelResources() const;
 
 #if WITH_EDITORONLY_DATA
 	FModelResources& GetModelResources(bool bIsCooking);
+	const FModelResources& GetModelResources(bool bIsCooking) const;
 
 	void SetModelStreamableBulkData(const TSharedPtr<FModelStreamableBulkData>& StreamableData, bool bIsCooking);
 #endif
@@ -1235,7 +1238,7 @@ public:
 	FString GetCompiledDataFileName(bool bIsModel, const ITargetPlatform* InTargetPlatform = nullptr, bool bIsDiskStreamer = false);
 
 	/** DDC helpers. BuildDerivedDataKey is expensive, try to cache it as much as possible. */
-	FString BuildDerivedDataKey(FCompilationOptions Options);
+	TArray<uint8> BuildDerivedDataKey(FCompilationOptions Options);
 	UE::DerivedData::FCacheKey GetDerivedDataCacheKeyForOptions(FCompilationOptions InOptions);
 
 	/** Attempts to load the compiled data from DDC. Builds key if not supplied. */
@@ -1295,7 +1298,7 @@ public:
 	
 #if WITH_EDITOR
 	/** See ICustomizableObjectEditorModule::IsCompilationOutOfDate. */
-	bool IsCompilationOutOfDate(TArray<FName>* OutOfDatePackages = nullptr) const;
+	bool IsCompilationOutOfDate(bool bSkipIndirectReferences, TArray<FName>& OutOfDatePackages, TArray<FName>& AddedPackages, TArray<FName>& RemovedPackages, bool& bVersionDiff) const;
 
 	void OnParticipatingObjectDirty(UPackage* Package, bool);
 #endif
@@ -1311,9 +1314,11 @@ public:
 #endif
 	
 	TArray<FCustomizableObjectResourceData>& GetAlwaysLoadedExtensionData();
+	const TArray<FCustomizableObjectResourceData>& GetAlwaysLoadedExtensionData() const;
 
 	TArray<FCustomizableObjectStreamedResourceData>& GetStreamedExtensionData();
-	
+	const TArray<FCustomizableObjectStreamedResourceData>& GetStreamedExtensionData() const;
+
 	const FCustomizableObjectResourceData* LoadStreamedResource(int32 ResourceIndex);
 	void UnloadStreamedResource(int32 ResourceIndex);
 
@@ -1342,10 +1347,7 @@ public:
 
 	/** Cook requests. */
 	TArray<TSharedRef<FCompilationRequest>> CompileRequests;
-
-	/** List of Participating Objects (packages) has been marked as dirty since the last compilation. */
-	TArray<FName> DirtyParticipatingObjects;
-
+	
 	ECompilationStatePrivate CompilationState = ECompilationStatePrivate::None;
 	ECompilationResultPrivate CompilationResult = ECompilationResultPrivate::Unknown;
 	
@@ -1472,9 +1474,14 @@ public:
 
 		AddedFaceCullStrategyToSomeOperations,
 
+		DDCParticipatingObjects,
+		
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion
 	};
+	
 	static constexpr int32 CurrentSupportedVersion = ECustomizableObjectVersions::LastCustomizableObjectVersion;
+	
+	static constexpr int32 DerivedDataVersion = 0;
 };
 

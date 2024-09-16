@@ -126,7 +126,7 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 					? LOCTEXT("NoEnumParamInSwitch", "Switch nodes must have an enum switch parameter. Please connect an enum and refesh the switch node.")
 					: LOCTEXT("InvalidEnumInSwitch", "Switch nodes must have a single enum with all the options inside. Please remove all the enums but one and refresh the switch node.");
 
-				GenerationContext.Compiler->CompilerLog(Message, Node);
+				GenerationContext.Log(Message, Node);
 				return nullptr;
 			}
 
@@ -140,7 +140,7 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 				if (EnumPin)
 				{
 					const FText Message = LOCTEXT("FailedToGenerateSwitchParam", "Could not generate switch enum parameter. Please refesh the switch node and connect an enum.");
-					GenerationContext.Compiler->CompilerLog(Message, Node);
+					GenerationContext.Log(Message, Node);
 				}
 
 				return nullptr;
@@ -149,7 +149,7 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 			if (SwitchParam->GetType() != mu::NodeScalarEnumParameter::GetStaticType())
 			{
 				const FText Message = LOCTEXT("WrongSwitchParamType", "Switch parameter of incorrect type.");
-				GenerationContext.Compiler->CompilerLog(Message, Node);
+				GenerationContext.Log(Message, Node);
 
 				return nullptr;
 			}
@@ -160,7 +160,7 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 			if (NumSwitchOptions != EnumParameter->GetValueCount())
 			{
 				const FText Message = LOCTEXT("MismatchedSwitch", "Switch enum and switch node have different number of options. Please refresh the switch node to make sure the outcomes are labeled properly.");
-				GenerationContext.Compiler->CompilerLog(Message, Node);
+				GenerationContext.Log(Message, Node);
 			}
 
 			mu::Ptr<mu::NodeScalarSwitch> SwitchNode = new mu::NodeScalarSwitch;
@@ -243,7 +243,7 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 			}
 			else
 			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("FloatFailed", "Float generation failed."), Node);
+				GenerationContext.Log(LOCTEXT("FloatFailed", "Float generation failed."), Node);
 			}
 		}
 
@@ -328,7 +328,7 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 			if (!Property)
 			{
 				FString Msg = FString::Printf(TEXT("Couldn't find the column [%s] in the data table's struct."), *ColumnName);
-				GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node);
+				GenerationContext.Log(FText::FromString(Msg), Node);
 
 				bSuccess = false;
 			}
@@ -359,7 +359,7 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 						if (!bSuccess)
 						{
 							FString Msg = FString::Printf(TEXT("Failed to generate the mutable table column [%s]"), *ColumnName);
-							GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node);
+							GenerationContext.Log(FText::FromString(Msg), Node);
 						}
 					}
 
@@ -377,19 +377,19 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 				else
 				{
 					FString Msg = FString::Printf(TEXT("Couldn't generate a mutable table."), *ColumnName);
-					GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node);
+					GenerationContext.Log(FText::FromString(Msg), Node);
 				}
 			}
 		}
 		else
 		{
-			GenerationContext.Compiler->CompilerLog(LOCTEXT("ScalarTableError", "Couldn't find the data table of the node."), Node);
+			GenerationContext.Log(LOCTEXT("ScalarTableError", "Couldn't find the data table of the node."), Node);
 		}
 	}
 
 	else
 	{
-		GenerationContext.Compiler->CompilerLog(LOCTEXT("UnimplementedNode", "Node type not implemented yet."), Node);
+		GenerationContext.Log(LOCTEXT("UnimplementedNode", "Node type not implemented yet."), Node);
 	}
 
 	if (!bDoNotAddToGeneratedCache)
