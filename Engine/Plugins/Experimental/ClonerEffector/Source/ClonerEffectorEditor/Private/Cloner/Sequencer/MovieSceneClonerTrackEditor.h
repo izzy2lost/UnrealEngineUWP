@@ -11,7 +11,7 @@ class ISequencer;
 class FMovieSceneClonerTrackEditor : public FMovieSceneTrackEditor
 {
 public:
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnAddClonerTrack, UCEClonerComponent* /** InCloner */)
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnAddClonerTrack, const TSet<UCEClonerComponent*>& /** InCloners */)
 	static FOnAddClonerTrack OnAddClonerTrack;
 
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnClonerTrackExists, UCEClonerComponent* /** InCloner */, uint32& /** OutTrackCount */)
@@ -36,7 +36,7 @@ private:
 	//~ End FMovieSceneTrackEditor
 
 	void BindDelegates();
-	void ExecuteAddTrack(UCEClonerComponent* InCloner);
+	void ExecuteAddTrack(const TSet<UCEClonerComponent*>& InCloners);
 	void ExecuteTrackExists(UCEClonerComponent* InCloner, uint32& OutCount) const;
 
 };

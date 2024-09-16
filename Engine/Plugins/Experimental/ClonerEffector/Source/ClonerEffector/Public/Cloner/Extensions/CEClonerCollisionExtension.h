@@ -148,11 +148,11 @@ protected:
 	FVector CollisionGridSize = FVector(5000.f);
 
 	/** Collision radius calculation mode */
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Collisions", meta=(EditCondition="bParticleCollisionEnabled", EditConditionHides))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Collisions", meta=(EditCondition="bSurfaceCollisionEnabled || bParticleCollisionEnabled", EditConditionHides))
 	ECEClonerCollisionRadiusMode CollisionRadiusMode = ECEClonerCollisionRadiusMode::ExtentLength;
 
 	/** Radius expected around each particle for collision, order matches attachment index */
-	UPROPERTY(EditInstanceOnly, Getter, Category="Collisions", EditFixedSize, meta=(ClampMin="0", EditFixedOrder, EditCondition="bParticleCollisionEnabled && CollisionRadiusMode == ECEClonerCollisionRadiusMode::Manual", EditConditionHides))
+	UPROPERTY(EditInstanceOnly, Getter, Category="Collisions", EditFixedSize, meta=(ClampMin="0", EditFixedOrder, EditCondition="(bSurfaceCollisionEnabled || bParticleCollisionEnabled) && CollisionRadiusMode == ECEClonerCollisionRadiusMode::Manual", EditConditionHides))
 	TArray<float> CollisionRadii;
 
 	/** Minimum particle mass, used for collisions to push apart */
