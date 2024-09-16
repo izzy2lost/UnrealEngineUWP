@@ -6204,7 +6204,7 @@ FGuid FSequencer::AddEmptyBinding()
 	{
 		PossessableNames.Add(*MovieScene->GetPossessable(i).GetName());
 	}
-	FName PossessableName = FSequencerUtilities::GetUniqueName(TEXT("Empty Binding"), PossessableNames);
+	FName PossessableName = FSequencerUtilities::GetUniqueName(TEXT("EmptyBinding"), PossessableNames);
 
 	UE::Sequencer::FCreateBindingParams CreateBindingParams;
 	CreateBindingParams.bAllowCustomBinding = false;

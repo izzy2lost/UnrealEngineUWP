@@ -2827,7 +2827,7 @@ FGuid CreateGenericBinding(TSharedPtr<ISequencer> Sequencer, UMovieSceneSequence
 	// Build up the list of child->parent bindings required for this object
 	if (!InObject)
 	{
-		ObjectsToPossess.Add(MakeTuple(InObject, InParams.BindingNameOverride.IsEmpty() ? TEXT("Empty Binding") : InParams.BindingNameOverride));
+		ObjectsToPossess.Add(MakeTuple(InObject, InParams.BindingNameOverride.IsEmpty() ? TEXT("EmptyBinding") : InParams.BindingNameOverride));
 	}
 	else
 	{
