@@ -28,6 +28,12 @@
 #include "Settings/LevelEditorMiscSettings.h"
 #endif
 
+// ENTRYPOINT
+// AudioDeviceManager PreInit Callback, fired from Engine Startup Phase.
+// This allows us to partially initialize early in the flow before assets start loading etc.
+static FDelayedAutoRegisterHelper GAudioDeviceManagerPreInit(
+	EDelayedRegisterRunPhase::IniSystemReady,
+	&FAudioDeviceManager::PreInitialize);
 
 static int32 GCVarEnableAudioThreadWait = 1;
 TAutoConsoleVariable<int32> CVarEnableAudioThreadWait(
@@ -70,6 +76,7 @@ static FAutoConsoleCommand GReportAudioDevicesCommand(
 		FAudioDeviceManager::Get()->LogListOfAudioDevices();
 	})
 );
+
 
 namespace AudioDeviceManagerUtils
 {
@@ -120,8 +127,6 @@ namespace AudioDeviceManagerUtils
 		return DeviceInfo;
 	}
 }
-
-
 FAudioDeviceManager* FAudioDeviceManager::Singleton = nullptr;
 
 // Some stress tests:
@@ -215,7 +220,7 @@ FAudioDeviceManager::~FAudioDeviceManager()
 
 	TMap<Audio::FDeviceId, FAudioDeviceContainer> DevicesToShutdown;
 	{
-		FScopeLock ScopeLock(&DeviceMapCriticalSection);		
+		FScopeLock ScopeLock(&DeviceMapCriticalSection);
 		DevicesToShutdown = MoveTemp(Devices);
 	}
 
@@ -228,6 +233,8 @@ FAudioDeviceManager::~FAudioDeviceManager()
 	MainAudioDeviceHandle.Reset();
 
 	FCoreDelegates::ApplicationWillEnterBackgroundDelegate.RemoveAll(this);
+
+	InitPhase = EInitPhase::Constructed;
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
@@ -371,38 +378,57 @@ void FAudioDeviceManager::RegisterAudioInfoFactories()
 	checkf(NumFailedFormats == 0, TEXT("Failed to find these required AudioFormats: [ %s]"), *FailedFormatsString);
 }
 
-
-bool FAudioDeviceManager::InitializeManager()
+bool FAudioDeviceManager::PreInitializeManager()
 {
-	if (LoadDefaultAudioDeviceModule())
+	if (InitPhase == EInitPhase::Constructed)
 	{
-		check(AudioDeviceModule);
-
-		UAudioSettings* AudioSettings = GetMutableDefault<UAudioSettings>();
-		check(AudioSettings);
-
-		AudioSettings->LoadDefaultObjects();
-		AudioSettings->RegisterParameterInterfaces();
-
 		// Register all formats
 		AudioFormatSettings = MakePimpl<Audio::FAudioFormatSettings>(GConfig, GEngineIni, FPlatformProperties::IniPlatformName());
 		RegisterAudioInfoFactories();
+		InitPhase = EInitPhase::PreInitialized;
+	}
+	return InitPhase >= EInitPhase::PreInitialized;
+}
 
-		FModuleManager::Get().LoadModuleChecked(TEXT("AudioMixer"));
-
-#if WITH_EDITOR
-		IAudioEditorModule* AudioEditorModule = &FModuleManager::LoadModuleChecked<IAudioEditorModule>("AudioEditor");
-		AudioEditorModule->RegisterAudioMixerAssetActions();
-		AudioEditorModule->RegisterEffectPresetAssetActions();
-#endif
-
-		FCoreDelegates::ApplicationWillEnterBackgroundDelegate.AddRaw(this, &FAudioDeviceManager::AppWillEnterBackground);
-
-		return true;
+bool FAudioDeviceManager::InitializeManager()
+{
+	// Do we also need to pre-init?
+	if (InitPhase < EInitPhase::PreInitialized)
+	{
+		if (!PreInitializeManager())
+		{
+			return false;
+		}
 	}
 
-	// Failed to initialize
-	return false;
+	// Initialize if we need to...
+	if (InitPhase == EInitPhase::PreInitialized )
+	{	
+		if (LoadDefaultAudioDeviceModule())
+		{
+			check(AudioDeviceModule);
+
+			UAudioSettings* AudioSettings = GetMutableDefault<UAudioSettings>();
+			check(AudioSettings);
+
+			AudioSettings->LoadDefaultObjects();
+			AudioSettings->RegisterParameterInterfaces();
+
+			FModuleManager::Get().LoadModuleChecked(TEXT("AudioMixer"));
+
+#if WITH_EDITOR
+			IAudioEditorModule* AudioEditorModule = &FModuleManager::LoadModuleChecked<IAudioEditorModule>("AudioEditor");
+			AudioEditorModule->RegisterAudioMixerAssetActions();
+			AudioEditorModule->RegisterEffectPresetAssetActions();
+#endif
+
+			FCoreDelegates::ApplicationWillEnterBackgroundDelegate.AddRaw(this, &FAudioDeviceManager::AppWillEnterBackground);
+
+			InitPhase = EInitPhase::Initialized;
+		}
+	}
+
+	return IsInitialized();
 }
 
 bool FAudioDeviceManager::CreateMainAudioDevice()
@@ -642,49 +668,83 @@ void FAudioDeviceManager::SetAudioDevice(UWorld& InWorld, Audio::FDeviceId InDev
 	}
 }
 
-bool FAudioDeviceManager::Initialize()
+bool FAudioDeviceManager::PreInitialize()
 {
-	if (!Singleton)
+	// (Optionally) Pre-Initialize the AudioDeviceManager.
+	// By pre-initialing the Audio Device Manager we can start up some low level services needed for IO ahead of the main init.
+	// NOTE: Calling Get() will still return null until the device is initialized fully.
+
+	if (FAudioDeviceManager* Adm = GetOrCreate())
 	{
-		bool bUseSound = FApp::CanEverRenderAudio();
-
-		if (bUseSound)
+		UE_LOG(LogAudio, Display, TEXT("Pre-Initializing Audio Device Manager..."));
+		if (Adm->PreInitializeManager())
 		{
-			UE_LOG(LogAudio, Display, TEXT("Initializing Audio Device Manager..."));
-			Singleton = new FAudioDeviceManager();
-
-			if (Singleton->InitializeManager())
-			{
-				UE_LOG(LogAudio, Display, TEXT("Audio Device Manager Initialized"));
-			}
-			else
-			{
-				UE_LOG(LogAudio, Warning, TEXT("Audio Device Manager Initialization Failed!"));
-				delete Singleton;
-				Singleton = nullptr;
-			}
+			UE_LOG(LogAudio, Display, TEXT("Audio Device Manager Pre-Initialized"));
 		}
 		else
 		{
-			Audio::Analytics::RecordEvent_Usage(TEXT("AllAudioDisabled"));
+			UE_LOG(LogAudio, Warning, TEXT("Audio Device Manager Pre-Initialization Failed!"));
+			delete Adm;
+			Singleton = nullptr;
 		}
 	}
+	return Singleton && Singleton->InitPhase >= EInitPhase::PreInitialized;
+}
 
-	return Singleton != nullptr;
+bool FAudioDeviceManager::Initialize()
+{
+	if (FAudioDeviceManager* Adm = GetOrCreate())
+	{
+		UE_LOG(LogAudio, Display, TEXT("Initializing Audio Device Manager..."));
+		if (Adm->InitializeManager())
+		{
+			UE_LOG(LogAudio, Display, TEXT("Audio Device Manager Initialized"));
+		}
+		else
+		{
+			UE_LOG(LogAudio, Warning, TEXT("Audio Device Manager Initialization Failed!"));			
+			delete Adm;
+			Singleton = nullptr;
+		}
+	}
+	return Singleton && Singleton->IsInitialized();
 }
 
 FAudioDeviceManager* FAudioDeviceManager::Get()
 {
-	return Singleton;
+	if (Singleton && Singleton->IsInitialized())
+	{
+		return Singleton;
+	}
+	return nullptr;
 }
 
+FAudioDeviceManager* FAudioDeviceManager::GetOrCreate()
+{
+	if (!Singleton)
+	{
+		if (FApp::CanEverRenderAudio())
+		{
+			Singleton = new FAudioDeviceManager();
+		}
+		else
+		{
+			static bool bDoOnce = false;
+			if (!bDoOnce)
+			{
+				Audio::Analytics::RecordEvent_Usage(TEXT("AllAudioDisabled"));
+				bDoOnce = true;
+			}
+		}
+	}
+	return Singleton;
+}
 void FAudioDeviceManager::Shutdown()
 {
 	if (Singleton)
 	{
 		delete Singleton;
 		Singleton = nullptr;
-
 		UE_LOG(LogAudio, Display, TEXT("Audio Device Manager Shutdown"));
 	}
 }
@@ -1019,12 +1079,12 @@ uint32 FAudioDeviceManager::GetNewDeviceID()
 	return ++DeviceIDCounter;
 }
 
-// deprecated
+// (deprecated)
 void FAudioDeviceManager::StopSourcesUsingBuffer(FSoundBuffer*)
 {
 }
 
-// deprecated
+// (deprecated)
 void FAudioDeviceManager::TrackResource(USoundWave* SoundWave, FSoundBuffer* Buffer)
 {
 	// Allocate new resource ID and assign to USoundWave. A value of 0 (default) means not yet registered.
@@ -1050,28 +1110,30 @@ void FAudioDeviceManager::FreeResource(USoundWave* SoundWave)
 	}
 }
 
-// deprecated
+// (deprecated)
 void FAudioDeviceManager::FreeBufferResource(FSoundBuffer* SoundBuffer)
 {
 	if (SoundBuffer)
 	{
 		// Make sure any realtime tasks are finished that are using this buffer
 		SoundBuffer->EnsureRealtimeTaskCompletion();
-
 		delete SoundBuffer;
 		SoundBuffer = nullptr;
 	}
 }
 
-// deprecated
+// (deprecated)
 FSoundBuffer* FAudioDeviceManager::GetSoundBufferForResourceID(uint32 ResourceID)
 {
+	// maxtodo: warn
 	return {};
 }
 
 // deprecated
 void FAudioDeviceManager::RemoveSoundBufferForResourceID(uint32)
 {
+	// maxtodo: warn
+	// WaveBufferMap.Remove(ResourceID);
 }
 
 void FAudioDeviceManager::RemoveSoundMix(USoundMix* SoundMix)

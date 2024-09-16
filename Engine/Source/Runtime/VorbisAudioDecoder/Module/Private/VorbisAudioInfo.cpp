@@ -863,7 +863,13 @@ public:
 	virtual void StartupModule() override
 	{
 		LoadVorbisLibraries();
-		Factory = MakeUnique<FSimpleAudioInfoFactory>([] { return new FVorbisAudioInfo(); }, Audio::NAME_OGG);
+
+		constexpr FSimpleAudioInfoFactory::FCapabilities Caps = 
+		{
+			/*bSupportsSeeking*/ true,				
+			/*bSupportsSeekableStreaming*/ false,	
+		};
+		Factory = MakeUnique<FSimpleAudioInfoFactory>([] { return new FVorbisAudioInfo(); }, Audio::NAME_OGG, Caps);
 	}
 
 	virtual void ShutdownModule() override {}
