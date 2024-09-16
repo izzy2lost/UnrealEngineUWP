@@ -32,6 +32,7 @@
 #include "Layers/LayersSubsystem.h"
 #include "LevelEditorViewport.h"
 #include "Logging/MessageLog.h"
+#include "Misc/CoreDelegates.h"
 #include "Misc/FeedbackContext.h"
 #include "Misc/FileHelper.h"
 #include "Misc/MessageDialog.h"
@@ -173,6 +174,8 @@ void UEditorActorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 	FEditorDelegates::OnDeleteActorsBegin.AddUObject(this, &UEditorActorSubsystem::BroadcastDeleteActorsBegin);
 	FEditorDelegates::OnDeleteActorsEnd.AddUObject(this, &UEditorActorSubsystem::BroadcastDeleteActorsEnd);
+
+	FCoreDelegates::OnActorLabelChanged.AddUObject(this, &UEditorActorSubsystem::BroadcastActorLabelChanged);
 }
 
 void UEditorActorSubsystem::Deinitialize()
@@ -189,7 +192,7 @@ void UEditorActorSubsystem::Deinitialize()
 	FEditorDelegates::OnDuplicateActorsEnd.RemoveAll(this);
 	FEditorDelegates::OnDeleteActorsBegin.RemoveAll(this);
 	FEditorDelegates::OnDeleteActorsEnd.RemoveAll(this);
-
+	FCoreDelegates::OnActorLabelChanged.RemoveAll(this);
 }
 
 /** To fire before an Actor is Dropped */
@@ -262,6 +265,12 @@ void UEditorActorSubsystem::BroadcastDeleteActorsBegin()
 void UEditorActorSubsystem::BroadcastDeleteActorsEnd()
 {
 	OnDeleteActorsEnd.Broadcast();
+}
+
+/** To fire after an Actor has changed label */
+void UEditorActorSubsystem::BroadcastActorLabelChanged(AActor* Actor)
+{
+	OnActorLabelChanged.Broadcast(Actor);
 }
 
 void UEditorActorSubsystem::DuplicateSelectedActors(UWorld* InWorld)

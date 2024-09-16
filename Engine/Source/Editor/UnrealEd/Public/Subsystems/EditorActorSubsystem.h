@@ -38,6 +38,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDuplicateActorsEnd);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeleteActorsBegin);
 /** delegate type for after delete actors is handled */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeleteActorsEnd);
+/** delegate type for when an actor changes its label. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnActorLabelChanged, AActor*, Actor);
 
 /**
 * UEditorActorUtilitiesSubsystem
@@ -50,7 +52,7 @@ class UEditorActorSubsystem : public UEditorSubsystem
 
 public:
 
-	UNREALED_API virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	UNREALED_API virtual void Deinitialize() override;
 
 	UPROPERTY(BlueprintAssignable, Category = "Editor Scripting | Level Utility")
@@ -88,6 +90,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Editor Scripting | Level Utility")
 	FOnDeleteActorsEnd OnDeleteActorsEnd;
+
+	UPROPERTY(BlueprintAssignable, Category = "Editor Scripting | Level Utility")
+	FOnActorLabelChanged OnActorLabelChanged;
 
 	struct FActorDuplicateParameters
 	{
@@ -404,5 +409,8 @@ private:
 
 	/** To fire after an Actor is Deleted */
 	void BroadcastDeleteActorsEnd();
+	
+	/** To fire after an Actor has changed label */
+	void BroadcastActorLabelChanged(AActor* Actor);
 };
 
