@@ -17,11 +17,17 @@ struct FPropertyChangedEvent;
 UCLASS()
 class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeModifierRemoveMeshBlocks : public UCustomizableObjectNodeModifierEditLayoutBlocks
 {
-public:
 	GENERATED_BODY()
+
+public:
 
 	UPROPERTY()
 	TArray<int32> Blocks_DEPRECATED;
+
+	UPROPERTY(EditAnywhere, Category = RemoveOptions)
+	EFaceCullStrategy FaceCullStrategy = EFaceCullStrategy::AllVerticesCulled;
+
+public:
 
 	// Begin EdGraphNode interface
 	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;

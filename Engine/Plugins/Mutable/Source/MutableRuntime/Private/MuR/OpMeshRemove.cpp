@@ -337,7 +337,7 @@ namespace mu
     //    MeshRemoveRecreateSurface(Result, UsedVertices, UsedFaces);
     //}
 
-    void MeshRemoveVerticesWithCullSet(Mesh* Result, const TBitArray<>& VerticesToCull)
+    void MeshRemoveVerticesWithCullSet(Mesh* Result, const TBitArray<>& VerticesToCull, bool bRemoveIfAllVerticesCulled)
     { 
         MUTABLE_CPUPROFILER_SCOPE(MeshRemoveVerticesWithCullSet);
 		
@@ -361,12 +361,26 @@ namespace mu
             {
                 const uint32* FaceIndicesData = reinterpret_cast<uint32*>((IndicesBegin + FaceIndex*3).ptr());
 
-                const bool bAllVertsRemoved = 
-                        VerticesToCull[FaceIndicesData[0]] & 
-                        VerticesToCull[FaceIndicesData[1]] & 
-                        VerticesToCull[FaceIndicesData[2]];
+				bool bRemoved = false;
 
-                if (!bAllVertsRemoved)
+				if (bRemoveIfAllVerticesCulled)
+				{
+					const bool bAllVertsRemoved =
+						VerticesToCull[FaceIndicesData[0]] &
+						VerticesToCull[FaceIndicesData[1]] &
+						VerticesToCull[FaceIndicesData[2]];
+					bRemoved = bAllVertsRemoved;
+				}
+				else
+				{
+					const bool bOneVertRemoved =
+						VerticesToCull[FaceIndicesData[0]] |
+						VerticesToCull[FaceIndicesData[1]] |
+						VerticesToCull[FaceIndicesData[2]];
+					bRemoved = bOneVertRemoved;
+				}
+
+                if (!bRemoved)
                 {
                     ++NumUsedFaces;
                     UsedFaces[FaceIndex] = true;
@@ -558,7 +572,7 @@ namespace mu
 		MeshRemoveRecreateSurface(Result, UsedVertices, UsedFaces);
     }
 
-	void MeshRemoveMask(Mesh* Result, const Mesh* Source, const Mesh* Mask, bool& bOutSuccess)
+	void MeshRemoveMask(Mesh* Result, const Mesh* Source, const Mesh* Mask, bool bRemoveIfAllVerticesCulled, bool& bOutSuccess)
     {
         MUTABLE_CPUPROFILER_SCOPE(MeshRemoveMask);
 		bOutSuccess = true;
@@ -595,6 +609,6 @@ namespace mu
             }
         }
 		
-        MeshRemoveVerticesWithCullSet(Result, RemovedVertices);
+        MeshRemoveVerticesWithCullSet(Result, RemovedVertices, bRemoveIfAllVerticesCulled);
 	}
 }

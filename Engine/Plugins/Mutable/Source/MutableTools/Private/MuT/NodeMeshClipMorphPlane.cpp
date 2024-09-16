@@ -51,7 +51,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void NodeMeshClipMorphPlane::SetVertexSelectionBox(FVector3f Center, FVector3f Radius)
 	{
-		Parameters.VertexSelectionType = FClipMorphPlaneParameters::VS_SHAPE;
+		Parameters.VertexSelectionType = EClipVertexSelectionType::Shape;
 		Parameters.SelectionBoxOrigin = Center;
 		Parameters.SelectionBoxRadius = Radius;
 	}
@@ -59,7 +59,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void NodeMeshClipMorphPlane::SetVertexSelectionBone(const FBoneName& BoneId, float maxEffectRadius)
 	{
-		Parameters.VertexSelectionType = FClipMorphPlaneParameters::VS_BONE_HIERARCHY;
+		Parameters.VertexSelectionType = EClipVertexSelectionType::BoneHierarchy;
 		Parameters.VertexSelectionBone = BoneId;
 		Parameters.MaxEffectRadius = maxEffectRadius;
 	}

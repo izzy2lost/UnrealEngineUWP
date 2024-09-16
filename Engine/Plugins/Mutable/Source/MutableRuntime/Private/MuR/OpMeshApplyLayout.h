@@ -12,18 +12,17 @@ namespace mu
 {
 
 
-	//---------------------------------------------------------------------------------------------
-    inline void MeshApplyLayout( Mesh* pApplied, const Layout* pLayout, int32 texCoordsSet )
+    inline void MeshApplyLayout( Mesh* Applied, const Layout* InLayout, int32 TexCoordsIndex )
 	{
 		MUTABLE_CPUPROFILER_SCOPE(MeshApplyLayout);
 
         int32 buffer = -1;
 		int32 channel = -1;
-		pApplied->GetVertexBuffers().FindChannel( MBS_TEXCOORDS, texCoordsSet, &buffer, &channel );
+		Applied->GetVertexBuffers().FindChannel( MBS_TEXCOORDS, TexCoordsIndex, &buffer, &channel );
 
         int32 layoutBuffer = -1;
         int32 layoutChannel = -1;
-        pApplied->GetVertexBuffers().FindChannel( MBS_LAYOUTBLOCK, texCoordsSet, &layoutBuffer, &layoutChannel );
+        Applied->GetVertexBuffers().FindChannel( MBS_LAYOUTBLOCK, TexCoordsIndex, &layoutBuffer, &layoutChannel );
 
 		if (buffer < 0 || layoutBuffer < 0)
 		{
@@ -36,12 +35,12 @@ namespace mu
 		EMeshBufferFormat format;
 		int32 components;
 		int32 offset;
-		pApplied->GetVertexBuffers().GetChannel( buffer, channel, &semantic, &semanticIndex, &format, &components, &offset );
+		Applied->GetVertexBuffers().GetChannel( buffer, channel, &semantic, &semanticIndex, &format, &components, &offset );
 		check( semantic == MBS_TEXCOORDS );
 
-        uint8* pData = pApplied->GetVertexBuffers().GetBufferData( buffer );
-		int32 elemSize = pApplied->GetVertexBuffers().GetElementSize( buffer );
-		int32 channelOffset = pApplied->GetVertexBuffers().GetChannelOffset( buffer, channel );
+        uint8* pData = Applied->GetVertexBuffers().GetBufferData( buffer );
+		int32 elemSize = Applied->GetVertexBuffers().GetElementSize( buffer );
+		int32 channelOffset = Applied->GetVertexBuffers().GetChannelOffset( buffer, channel );
 		pData += channelOffset;
 
 		struct Box
@@ -49,14 +48,14 @@ namespace mu
 			FVector2f min, size;
 		};
 		TArray< Box > transforms;
-		transforms.SetNum(pLayout->GetBlockCount());
-		for ( int b=0; b<pLayout->GetBlockCount(); ++b )
+		transforms.SetNum(InLayout->GetBlockCount());
+		for ( int b=0; b<InLayout->GetBlockCount(); ++b )
 		{
-			FIntPoint grid = pLayout->GetGridSize();
+			FIntPoint grid = InLayout->GetGridSize();
 
 			box< FIntVector2 > block;
-			block.min = pLayout->Blocks[b].Min;
-			block.size = pLayout->Blocks[b].Size;
+			block.min = InLayout->Blocks[b].Min;
+			block.size = InLayout->Blocks[b].Size;
 
 			Box rect;
 			rect.min[0] = ( (float)block.min[0] ) / (float) grid[0];
@@ -67,18 +66,18 @@ namespace mu
 		}
 
         check( layoutBuffer>=0 && layoutChannel>=0 );
-        check( pApplied->GetVertexBuffers().Buffers[layoutBuffer].Channels.Num()==1 );
-        check( pApplied->GetVertexBuffers().Buffers[layoutBuffer].Channels[layoutChannel].ComponentCount==1 );
+        check( Applied->GetVertexBuffers().Buffers[layoutBuffer].Channels.Num()==1 );
+        check( Applied->GetVertexBuffers().Buffers[layoutBuffer].Channels[layoutChannel].ComponentCount==1 );
 
-        const uint16* pLayoutData = reinterpret_cast<const uint16*>( pApplied->GetVertexBuffers().GetBufferData( layoutBuffer ) );
-		UntypedMeshBufferIterator ItLayoutData(pApplied->GetVertexBuffers(), MBS_LAYOUTBLOCK, texCoordsSet);
+        const uint16* InLayoutData = reinterpret_cast<const uint16*>( Applied->GetVertexBuffers().GetBufferData( layoutBuffer ) );
+		UntypedMeshBufferIterator ItLayoutData(Applied->GetVertexBuffers(), MBS_LAYOUTBLOCK, TexCoordsIndex);
 
 		// In some corner case involving automatic LODs and remove meshes behaving differently among them we may need to remove vertices that don't 
 		// have any block in the current layout. Track them here.
 		TArray<int32> VerticesToRemove;
 
         uint8* pVertices = pData;
-		for ( int32 v=0; v<pApplied->GetVertexBuffers().GetElementCount(); ++v )
+		for ( int32 v=0; v<Applied->GetVertexBuffers().GetElementCount(); ++v )
 		{
 			uint64 BlockId = 0;
 			if (ItLayoutData.GetFormat() == MBF_UINT16)
@@ -86,7 +85,7 @@ namespace mu
 				// Relative blocks.
 				const uint16* SourceIds = reinterpret_cast<const uint16*>(ItLayoutData.ptr());
 				BlockId = *SourceIds;
-				BlockId = BlockId | (uint64(pApplied->MeshIDPrefix) << 32);
+				BlockId = BlockId | (uint64(Applied->MeshIDPrefix) << 32);
 			}
 			else if (ItLayoutData.GetFormat() == MBF_UINT64)
 			{
@@ -102,7 +101,7 @@ namespace mu
 			++ItLayoutData;
 
 			// TODO: This could be optimised
-			int32 relBlock = pLayout->FindBlock(BlockId);
+			int32 relBlock = InLayout->FindBlock(BlockId);
 
 			// This may still happen with lower LOD and "remove meshes" in a corner case:
 			// Auto LODs with "Remove Meshes" that behave differently across LODs, and leave geometry in a block that has been removed in the higher LOD.
@@ -209,18 +208,19 @@ namespace mu
 		{
 			// Unpack vertices into a mask
 			TBitArray<> VertexMask;
-			VertexMask.SetNum(pApplied->GetVertexCount(), false);
+			VertexMask.SetNum(Applied->GetVertexCount(), false);
 			for (int32 VertexIndex : VerticesToRemove)
 			{
 				VertexMask[VertexIndex] = true;
 			}
 	
 			// Remove
-			MeshRemoveVerticesWithCullSet(pApplied, VertexMask);
+			bool bRemoveIfAllVerticesCulled = true;
+			MeshRemoveVerticesWithCullSet(Applied, VertexMask, bRemoveIfAllVerticesCulled);
 		}
 
 		//
-		pApplied->SetLayout( texCoordsSet, pLayout->Clone() );
+		Applied->SetLayout( TexCoordsIndex, InLayout->Clone() );
 
 	}
 

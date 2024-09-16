@@ -100,7 +100,7 @@ namespace mu
 		return true;
 	}
 
-	inline void MeshClipDeform(Mesh* Result, const Mesh* BaseMesh, const Mesh* ShapeMesh, const float ClipWeightThreshold, bool& bOutSuccess )
+	inline void MeshClipDeform(Mesh* Result, const Mesh* BaseMesh, const Mesh* ShapeMesh, const float ClipWeightThreshold, bool bRemoveIfAllVerticesCulled, bool& bOutSuccess )
 	{
 		MUTABLE_CPUPROFILER_SCOPE(ClipDeform);
 		bOutSuccess = true;
@@ -327,6 +327,6 @@ namespace mu
 			}
 		}
 
-		MeshRemoveVerticesWithCullSet(Result, VerticesToCull);
+		MeshRemoveVerticesWithCullSet(Result, VerticesToCull, bRemoveIfAllVerticesCulled);
 	}
 }

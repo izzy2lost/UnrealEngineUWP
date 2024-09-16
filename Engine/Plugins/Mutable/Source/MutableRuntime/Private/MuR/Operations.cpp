@@ -864,10 +864,14 @@ namespace mu
 
         case OP_TYPE::ME_REMOVEMASK:
         {
-            const uint8_t* data = program.GetOpArgsPointer(at);
+            const uint8* data = program.GetOpArgsPointer(at);
             mu::OP::ADDRESS source;
             FMemory::Memcpy( &source, data, sizeof(OP::ADDRESS) ); data+=sizeof(OP::ADDRESS);
             f(source);
+
+			EFaceCullStrategy FaceCullStrategy;
+			FMemory::Memcpy(&FaceCullStrategy, data, sizeof(EFaceCullStrategy));
+			data += sizeof(EFaceCullStrategy);
 
             uint16 removes = 0;
 			FMemory::Memcpy( &removes, data, sizeof(uint16) ); data+=sizeof(uint16);

@@ -7,6 +7,30 @@
 #include "Containers/Array.h"
 #include "Containers/UnrealString.h"
 
+#include "Types.generated.h"
+
+/** This type is used in some mesh clip operations. 
+* Warning: this type is used compiled COs. Any relevant change to the option order requires and update in the CustomizableObjectPrivate::ECustomizableObjectVersions
+*/
+UENUM()
+enum class EFaceCullStrategy : uint8
+{
+	AllVerticesCulled = 0 UMETA(DisplayName = "Remove face if all vertices removed"),
+	OneVertexCulled = 1 UMETA(DisplayName = "Remove face if one vertex removed"),
+};
+
+
+/** This type is used in some mesh clip operations.
+* Warning: this type is used compiled COs. Any relevant change to the option order requires and update in the CustomizableObjectPrivate::ECustomizableObjectVersions
+*/
+enum class EClipVertexSelectionType : uint8
+{
+	None = 0,
+	Shape = 1,
+	BoneHierarchy = 2,
+};
+
+
 namespace mu
 {
 	class OutputArchive;

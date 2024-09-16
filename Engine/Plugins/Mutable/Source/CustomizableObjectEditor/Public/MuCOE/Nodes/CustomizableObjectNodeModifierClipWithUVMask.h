@@ -24,10 +24,12 @@ public:
 	UPROPERTY()
 	TArray<FString> Tags_DEPRECATED;
 
-
 	/** UV channel index that will be used to get the UVs to apply the clipping mask to. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = MeshToClip)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = ClipOptions)
 	int32 UVChannelForMask = 0;
+
+	UPROPERTY(EditAnywhere, Category = ClipOptions)
+	EFaceCullStrategy FaceCullStrategy = EFaceCullStrategy::AllVerticesCulled;
 
 public:
 

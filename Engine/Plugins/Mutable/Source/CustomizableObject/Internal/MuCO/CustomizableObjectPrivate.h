@@ -1469,7 +1469,9 @@ public:
 		ComponentsArray,
 
 		FixComponentNames,
-		
+
+		AddedFaceCullStrategyToSomeOperations,
+
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion
 	};

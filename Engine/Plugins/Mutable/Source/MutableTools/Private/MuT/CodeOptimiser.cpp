@@ -1178,7 +1178,7 @@ namespace mu
 			case OP_TYPE::ME_CLIPMORPHPLANE:
 			{
 				ASTOpMeshClipMorphPlane* typedOp = static_cast<ASTOpMeshClipMorphPlane*>(node.get());
-				if (typedOp->vertexSelectionType == OP::MeshClipMorphPlaneArgs::VS_BONE_HIERARCHY)
+				if (typedOp->VertexSelectionType == EClipVertexSelectionType::BoneHierarchy)
 				{
 					// We need the skeleton for the source mesh
 					RecurseWithState( typedOp->source.child(), true );

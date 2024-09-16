@@ -4,6 +4,7 @@
 
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
+#include "MuR/Types.h"
 #include "MuT/Node.h"
 #include "MuT/NodeModifier.h"
 #include "MuT/NodeMesh.h"
@@ -16,8 +17,11 @@ namespace mu
 	{
 	public:
 
-		//! 
+		/** */
 		Ptr<NodeMesh> ClipMesh;
+
+		/** */
+		EFaceCullStrategy FaceCullStrategy = EFaceCullStrategy::AllVerticesCulled;
 
 	public:
 

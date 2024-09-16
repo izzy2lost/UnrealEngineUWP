@@ -12,9 +12,7 @@ namespace mu
 {
 	struct FProgram;
 
-	//---------------------------------------------------------------------------------------------
-	//! From a source mesh, remove a list of fragments with a condition.
-	//---------------------------------------------------------------------------------------------
+	/** Remove a list of mesh fragments with a condition from a source mesh. */
 	class ASTOpMeshRemoveMask final : public ASTOp
 	{
 	public:
@@ -24,6 +22,9 @@ namespace mu
 
 		//! Pairs of remove candidates: condition + mesh to remove
 		TArray< TPair<ASTChild, ASTChild> > removes;
+
+		/** Strategy to decide when to cull a face. */
+		EFaceCullStrategy FaceCullStrategy = EFaceCullStrategy::AllVerticesCulled;
 
 	public:
 

@@ -38,6 +38,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = ClipMesh)
 	FTransform Transform;
 
+	UPROPERTY(EditAnywhere, Category = ClipMesh)
+	EFaceCullStrategy FaceCullStrategy = EFaceCullStrategy::AllVerticesCulled;
+
 public:
 
 	UCustomizableObjectNodeModifierClipWithMesh();

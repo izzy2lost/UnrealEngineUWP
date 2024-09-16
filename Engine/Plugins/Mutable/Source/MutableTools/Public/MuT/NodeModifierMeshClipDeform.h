@@ -22,6 +22,9 @@ namespace mu
 
 		EShapeBindingMethod BindingMethod = EShapeBindingMethod::ClipDeformClosestProject;
 
+		/** */
+		EFaceCullStrategy FaceCullStrategy = EFaceCullStrategy::AllVerticesCulled;
+
 	public:
 
 		// Node interface
