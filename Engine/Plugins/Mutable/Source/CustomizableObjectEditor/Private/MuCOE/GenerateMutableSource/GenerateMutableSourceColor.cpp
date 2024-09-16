@@ -89,7 +89,7 @@ mu::Ptr<mu::NodeColour> GenerateMutableSourceColor(const UEdGraphPin* Pin, FMuta
 					? LOCTEXT("NoEnumParamInSwitch", "Switch nodes must have an enum switch parameter. Please connect an enum and refesh the switch node.")
 					: LOCTEXT("InvalidEnumInSwitch", "Switch nodes must have a single enum with all the options inside. Please remove all the enums but one and refresh the switch node.");
 
-				GenerationContext.Compiler->CompilerLog(Message, Node);
+				GenerationContext.Log(Message, Node);
 				return nullptr;
 			}
 
@@ -103,7 +103,7 @@ mu::Ptr<mu::NodeColour> GenerateMutableSourceColor(const UEdGraphPin* Pin, FMuta
 				if (EnumPin)
 				{
 					const FText Message = LOCTEXT("FailedToGenerateSwitchParam", "Could not generate switch enum parameter. Please refesh the switch node and connect an enum.");
-					GenerationContext.Compiler->CompilerLog(Message, Node);
+					GenerationContext.Log(Message, Node);
 				}
 
 				return nullptr;
@@ -112,7 +112,7 @@ mu::Ptr<mu::NodeColour> GenerateMutableSourceColor(const UEdGraphPin* Pin, FMuta
 			if (SwitchParam->GetType() != mu::NodeScalarEnumParameter::GetStaticType())
 			{
 				const FText Message = LOCTEXT("WrongSwitchParamType", "Switch parameter of incorrect type.");
-				GenerationContext.Compiler->CompilerLog(Message, Node);
+				GenerationContext.Log(Message, Node);
 
 				return nullptr;
 			}
@@ -123,7 +123,7 @@ mu::Ptr<mu::NodeColour> GenerateMutableSourceColor(const UEdGraphPin* Pin, FMuta
 			if (NumSwitchOptions != EnumParameter->GetValueCount())
 			{
 				const FText Message = LOCTEXT("MismatchedSwitch", "Switch enum and switch node have different number of options. Please refresh the switch node to make sure the outcomes are labeled properly.");
-				GenerationContext.Compiler->CompilerLog(Message, Node);
+				GenerationContext.Log(Message, Node);
 			}
 
 			mu::Ptr<mu::NodeColourSwitch> SwitchNode = new mu::NodeColourSwitch;
@@ -246,7 +246,7 @@ mu::Ptr<mu::NodeColour> GenerateMutableSourceColor(const UEdGraphPin* Pin, FMuta
 			}
 			else
 			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("ColorFailed", "Color generation failed."), Node);
+				GenerationContext.Log(LOCTEXT("ColorFailed", "Color generation failed."), Node);
 			}
 		}
 
@@ -285,7 +285,7 @@ mu::Ptr<mu::NodeColour> GenerateMutableSourceColor(const UEdGraphPin* Pin, FMuta
 			if (!Property)
 			{
 				FString Msg = FString::Printf(TEXT("Couldn't find the column [%s] in the data table's struct."), *ColumnName);
-				GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node);
+				GenerationContext.Log(FText::FromString(Msg), Node);
 
 				bSuccess = false;
 			}
@@ -310,7 +310,7 @@ mu::Ptr<mu::NodeColour> GenerateMutableSourceColor(const UEdGraphPin* Pin, FMuta
 						if (!bSuccess)
 						{
 							FString Msg = FString::Printf(TEXT("Failed to generate the mutable table column [%s]"), *ColumnName);
-							GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node);
+							GenerationContext.Log(FText::FromString(Msg), Node);
 						}
 					}
 
@@ -328,19 +328,19 @@ mu::Ptr<mu::NodeColour> GenerateMutableSourceColor(const UEdGraphPin* Pin, FMuta
 				else
 				{
 					FString Msg = FString::Printf(TEXT("Couldn't generate a mutable table."), *ColumnName);
-					GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node);
+					GenerationContext.Log(FText::FromString(Msg), Node);
 				}
 			}
 		}
 		else
 		{
-			GenerationContext.Compiler->CompilerLog(LOCTEXT("ColorTableError", "Couldn't find the data table of the node."), Node);
+			GenerationContext.Log(LOCTEXT("ColorTableError", "Couldn't find the data table of the node."), Node);
 		}
 	}
 
 	else
 	{
-		GenerationContext.Compiler->CompilerLog(LOCTEXT("UnimplementedNode", "Node type not implemented yet."), Node);
+		GenerationContext.Log(LOCTEXT("UnimplementedNode", "Node type not implemented yet."), Node);
 	}
 
 	FGeneratedData CacheData = FGeneratedData(Node, Result);

@@ -42,8 +42,6 @@ class UTexture2D;
 #define UE_MUTABLE_PRELOAD_REGION		TEXT("Mutable Preload")
 #define UE_MUTABLE_SAVEDD_REGION		TEXT("Mutable SaveDD")
 
-UCustomizableObjectNodeObject* GetRootNode(UCustomizableObject* Object, bool &bOutMultipleBaseObjectsFound);
-
 
 bool FCustomizableObjectCompiler::Tick(bool bBlocking)
 {
@@ -121,8 +119,12 @@ void FCustomizableObjectCompiler::PreloadingReferencerAssetsCallback(bool bAsync
 {
 	check(IsInGameThread());
 
-	UpdateArrayGCProtect();
-
+	check(ArrayGCProtect.IsEmpty());
+	for (FSoftObjectPath AssetToStream : ArrayAssetToStream)
+	{
+		ArrayGCProtect.Add(AssetToStream.TryLoad());
+	}
+	
 	if (AsynchronousStreamableHandlePtr)
 	{
 		AsynchronousStreamableHandlePtr.Reset();
@@ -168,7 +170,7 @@ void FCustomizableObjectCompiler::Compile(const TSharedRef<FCompilationRequest>&
 		return;
 	}
 
-	UCustomizableObject* RootObject = GetRootObject(CurrentObject);
+	UCustomizableObject* RootObject = GraphTraversal::GetRootObject(CurrentObject);
 	check(RootObject);
 
 	if (RootObject->VersionBridge && !RootObject->VersionBridge->GetClass()->ImplementsInterface(UCustomizableObjectVersionBridgeInterface::StaticClass()))
@@ -263,17 +265,15 @@ void FCustomizableObjectCompiler::Compile(const TSharedRef<FCompilationRequest>&
 	TRACE_BEGIN_REGION(UE_MUTABLE_PRELOAD_REGION);
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] Preload asynchronously assets start."), FPlatformTime::Seconds());
 
-	CleanCachedReferencers();
-	UpdateArrayGCProtect();
-	TArray<FName> ArrayReferenceNames;
-	AddCachedReferencers(*CurrentObject->GetOuter()->GetPathName(), ArrayReferenceNames);
+	TArray<FAssetData> ReferencingAssets;
+	GetReferencingPackages(*CurrentObject, ReferencingAssets);
 
 	ArrayAssetToStream.Empty();
-	for (FAssetData& Element : ArrayAssetData)
+	for (FAssetData& Element : ReferencingAssets)
 	{
 		ArrayAssetToStream.Add(Element.GetSoftObjectPath());
 	}
-
+	
 	bool bAssetsLoaded = true;
 
 	const bool bAsync = InCompileRequest->IsAsyncCompilation();
@@ -350,14 +350,8 @@ bool FCustomizableObjectCompiler::IsRequestQueued(const TSharedRef<FCompilationR
 
 void FCustomizableObjectCompiler::AddReferencedObjects(FReferenceCollector& Collector)
 {
-	// While compilation takes place, no COs involved can be garbage-collected
-	const int32 MaxIndex = ArrayGCProtect.Num();
-
-	for (int32 i = 0; i < MaxIndex; ++i)
-	{
-		Collector.AddReferencedObject(ArrayGCProtect[i]);
-	}
-
+	Collector.AddReferencedObjects(ArrayGCProtect);
+	
 	if (CurrentObject)
 	{
 		Collector.AddReferencedObject(CurrentObject);
@@ -365,45 +359,44 @@ void FCustomizableObjectCompiler::AddReferencedObjects(FReferenceCollector& Coll
 }
 
 
-void FCustomizableObjectCompiler::UpdateArrayGCProtect()
+void ProcessChildObjectsRecursively(const UCustomizableObject* ParentObject, FMutableGraphGenerationContext& GenerationContext)
 {
-	check(IsInGameThread());
+	TArray<FName> ReferencedObjectNames;
+	
+	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	AssetRegistryModule.Get().GetReferencers(*ParentObject->GetOuter()->GetPathName(), ReferencedObjectNames, UE::AssetRegistry::EDependencyCategory::Package, UE::AssetRegistry::EDependencyQuery::Hard);
 
-	const int32 MaxIndex = ArrayAssetData.Num();
-	ArrayGCProtect.SetNum(MaxIndex);
-
-	for (int i = 0; i < MaxIndex; ++i)
+	// Required to be deterministic.
+	ReferencedObjectNames.Sort([](const FName& A, const FName& B)
 	{
-		ArrayGCProtect[i] = Cast<UCustomizableObject>(ArrayAssetData[i].GetAsset());
-	}
-}
-
-
-void FCustomizableObjectCompiler::ProcessChildObjectsRecursively(UCustomizableObject* ParentObject, FMutableGraphGenerationContext& GenerationContext)
-{
-	TArray<FName> ArrayReferenceNames;
-	AddCachedReferencers(*ParentObject->GetOuter()->GetPathName(), ArrayReferenceNames);
-	UpdateArrayGCProtect();
-
+		return A.LexicalLess(B);
+	});
+	
 	bool bMultipleBaseObjectsFound = false;
+	
+	TArray<FAssetData> AssetDataArray;
 
-	for (const FName& ReferenceName : ArrayReferenceNames)
+	FARFilter Filter;
+	Filter.PackageNames = MoveTemp(ReferencedObjectNames);
+	Filter.ClassPaths = { UCustomizableObject::StaticClass()->GetClassPathName() };
+	AssetRegistryModule.Get().GetAssets(Filter, AssetDataArray);
+
+	for (FAssetData AssetData : AssetDataArray)
 	{
-		if (ArrayAlreadyProcessedChild.Contains(ReferenceName))
-		{
-			continue;
-		}
-
-		const FAssetData* AssetData = GetCachedAssetData(ReferenceName.ToString());
-
-		UCustomizableObject* ChildObject = AssetData ? Cast<UCustomizableObject>(AssetData->GetAsset()) : nullptr;
+		FSoftObjectPath SoftObjectPath = AssetData.GetSoftObjectPath();
+		
+		UCustomizableObject* ChildObject = Cast<UCustomizableObject>(SoftObjectPath.TryLoad());
 		if (!ChildObject || ChildObject->HasAnyFlags(RF_Transient))
 		{
-			ArrayAlreadyProcessedChild.Add(ReferenceName);
 			continue;
 		}
 
 		UCustomizableObjectNodeObject* Root = GetRootNode(ChildObject, bMultipleBaseObjectsFound);
+		if (!Root)
+		{
+			continue;
+		}
+		
 		if (Root->ParentObject != ParentObject)
 		{
 			continue;
@@ -433,9 +426,7 @@ void FCustomizableObjectCompiler::ProcessChildObjectsRecursively(UCustomizableOb
 				ensure(false);
 			}
 		}
-
-		ArrayAlreadyProcessedChild.Add(ReferenceName);
-
+		
 		if (!bMultipleBaseObjectsFound)
 		{
 			if (const FGroupNodeIdsTempData* GroupGuid = GenerationContext.DuplicatedGroupNodeIds.FindPair(ParentObject, FGroupNodeIdsTempData(Root->ParentObjectGroupId)))
@@ -444,6 +435,7 @@ void FCustomizableObjectCompiler::ProcessChildObjectsRecursively(UCustomizableOb
 			}
 
 			GenerationContext.GroupIdToExternalNodeMap.Add(Root->ParentObjectGroupId, Root);
+			GenerationContext.AddParticipatingObject(*ParentObject);
 
 			TArray<UCustomizableObjectNodeObjectGroup*> GroupNodes;
 			ChildObject->GetPrivate()->GetSource()->GetNodesOfClass<UCustomizableObjectNodeObjectGroup>(GroupNodes);
@@ -467,73 +459,17 @@ void FCustomizableObjectCompiler::ProcessChildObjectsRecursively(UCustomizableOb
 }
 
 
-void FCustomizableObjectCompiler::DisplayParameterWarning(FMutableGraphGenerationContext& GenerationContext)
+mu::Ptr<mu::NodeObject> GenerateMutableRoot( 
+	const UCustomizableObject* Object, 
+	FMutableGraphGenerationContext& GenerationContext)
 {
-	for (const TPair<FString, TArray<const UObject*>>& It : GenerationContext.ParameterNamesMap)
-	{
-		if (It.Key == "")
-		{
-			FText MessageWarning = LOCTEXT("NodeWithNoName", ". There is at least one node with no name.");
-			CompilerLog(MessageWarning, It.Value, EMessageSeverity::Warning, true);
-		}
-		else if (It.Value.Num() > 1)
-		{
-			FText MessageWarning = FText::Format(LOCTEXT("NodeWithRepeatedName", ". Several nodes have repeated name \"{0}\""), FText::FromString(It.Key));
-			CompilerLog(MessageWarning, It.Value, EMessageSeverity::Warning, true);
-		}
-	}
-}
+	MUTABLE_CPUPROFILER_SCOPE(GenerateMutableRoot)
 
-
-void FCustomizableObjectCompiler::DisplayDuplicatedNodeIdsWarning(FMutableGraphGenerationContext & GenerationContext)
-{
-	for (const TPair<FGuid, TArray<const UObject*>>& It : GenerationContext.NodeIdsMap)
-	{
-		if (It.Value.Num() > 1)
-		{
-			FText MessageWarning = LOCTEXT("NodeWithRepeatedIds", ". Several nodes have repeated NodeIds, reconstruct the nodes.");
-			CompilerLog(MessageWarning, It.Value, EMessageSeverity::Warning, true);
-		}
-	}
-}
-
-
-void FCustomizableObjectCompiler::DisplayUnnamedNodeObjectWarning(FMutableGraphGenerationContext& GenerationContext)
-{
-	FText Message = LOCTEXT("Unnamed Node Object", "Unnamed Node Object");
-	for (const UCustomizableObjectNode* It : GenerationContext.NoNameNodeObjectArray)
-	{
-		CompilerLog(Message, It, EMessageSeverity::Warning, true);
-	}
-}
-
-
-void FCustomizableObjectCompiler::DisplayOrphanNodesWarning(FMutableGraphGenerationContext& GenerationContext)
-{
-	for (const TPair<FGeneratedKey, FGeneratedData>& It : GenerationContext.Generated)
-	{
-		if (const UCustomizableObjectNode* Node = Cast<UCustomizableObjectNode>(It.Value.Source))
-		{
-			if (Node->GetAllOrphanPins().Num() > 0)
-			{
-				CompilerLog(LOCTEXT("OrphanPinsWarningCompiler", "Node contains deprecated pins"), Node, EMessageSeverity::Warning, false);
-			}
-		}
-	}
-}
-
-
-mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot( 
-	UCustomizableObject* Object, 
-	FMutableGraphGenerationContext& GenerationContext, 
-	FText& ErrorMsg, 
-	bool& bOutIsRootObject)
-{
 	check(Object);
 	
 	if (!Object->GetPrivate()->GetSource())
 	{
-		ErrorMsg = LOCTEXT("NoSource", "Object with no valid graph found. Object not build.");
+		GenerationContext.Log(LOCTEXT("NoSource", "Object with no valid graph found. Object not build."));
 
 		if (IsRunningCookCommandlet() || IsRunningCookOnTheFly())
 		{
@@ -548,19 +484,17 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 
 	if (bMultipleBaseObjectsFound)
 	{
-		ErrorMsg = LOCTEXT("MultipleBaseRoot","Multiple base object nodes found.");
+		GenerationContext.Log(LOCTEXT("MultipleBaseRoot","Multiple base object nodes found."));
 		return nullptr;
 	}
 
 	if (!Root)
 	{
-		ErrorMsg = LOCTEXT("NoRootBase","No base object node found. Object not built.");
+		GenerationContext.Log(LOCTEXT("NoRootBase","No base object node found. Object not built."));
 		return nullptr;
 	}
-
-	bOutIsRootObject = Root->ParentObject == nullptr;
-
-	UCustomizableObject* ActualRootObject = GetRootObject(Object);
+	
+	const UCustomizableObject* ActualRootObject = GraphTraversal::GetRootObject(Object);
 	check(ActualRootObject);
 
 	GenerationContext.RootVersionBridge = ActualRootObject->VersionBridge;
@@ -570,26 +504,24 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 	
 	if (bMultipleBaseObjectsFound)
 	{
-		ErrorMsg = LOCTEXT("MultipleBaseActualRoot", "Multiple base object nodes found.");
+		GenerationContext.Log(LOCTEXT("MultipleBaseActualRoot", "Multiple base object nodes found."));
 		return nullptr;
 	}
 
 	if (!ActualRoot)
 	{
-		ErrorMsg = LOCTEXT("NoActualRootBase", "No base object node found in root Customizable Object. Object not built.");
+		GenerationContext.Log(LOCTEXT("NoActualRootBase", "No base object node found in root Customizable Object. Object not built."));
 		return nullptr;
 	}
-
-	ArrayAlreadyProcessedChild.Empty();
-
+	
 	if (Root->ObjectName.IsEmpty())
 	{
 		GenerationContext.NoNameNodeObjectArray.AddUnique(Root);
 	}
 
-	if ((Object->MeshCompileType == EMutableCompileMeshType::Full) || CurrentOptions.bIsCooking)
+	if ((Object->MeshCompileType == EMutableCompileMeshType::Full) || GenerationContext.Options.bIsCooking)
 	{
-		if (Root->ParentObject!=nullptr && CurrentOptions.bIsCooking)
+		if (Root->ParentObject!=nullptr && GenerationContext.Options.bIsCooking)
 		{
 			// This happens while packaging.
 			return nullptr;
@@ -610,11 +542,11 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 	{
 		// Local, local with children and working set modes: add parents until whole CO graph root
 		TArray<UCustomizableObjectNodeObject*> ArrayNodeObject;
-		TArray<UCustomizableObject*> ArrayCustomizableObject;
+		TArray<const UCustomizableObject*> ArrayCustomizableObject;
 		
 		if (!GetParentsUntilRoot(Object, ArrayNodeObject, ArrayCustomizableObject))
 		{
-			CompilerLog(LOCTEXT("SkeletalMeshCycleFound", "Error! Cycle detected in the Customizable Object hierarchy."), Root);
+			GenerationContext.Log(LOCTEXT("SkeletalMeshCycleFound", "Error! Cycle detected in the Customizable Object hierarchy."), Root);
 			return nullptr;
 		}
 
@@ -624,13 +556,13 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 			const int32 MaxIndex = Object->WorkingSet.Num();
 			for (int32 i = 0; i < MaxIndex; ++i)
 			{
-				if (UCustomizableObject* WorkingSetObject = Object->WorkingSet[i].LoadSynchronous())
+				if (UCustomizableObject* WorkingSetObject = GenerationContext.LoadObject(Object->WorkingSet[i], true))
 				{
 					ArrayCustomizableObject.Reset();
 
 					if (!GetParentsUntilRoot(WorkingSetObject, ArrayNodeObject, ArrayCustomizableObject))
 					{
-						CompilerLog(LOCTEXT("NoReferenceMesh", "Error! Cycle detected in the Customizable Object hierarchy."), Root);
+						GenerationContext.Log(LOCTEXT("NoReferenceMesh", "Error! Cycle detected in the Customizable Object hierarchy."), Root);
 						return nullptr;
 					}
 				}
@@ -645,7 +577,6 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 
 			if (GroupNodes.Num() > 0) // Only graphs with group nodes should have child graphs
 			{
-				FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 				ProcessChildObjectsRecursively(Object, GenerationContext);
 			}
 		}
@@ -660,16 +591,16 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 	}
 	
 	// Find all component nodes
-	TSet<UCustomizableObject*> ParticipatingObjects; // All COs participating in the hierarchy
+	TSet<const UCustomizableObject*> CustomizableObjects; // All COs in the hierarchy
 	{
-		auto GetParents = [&ParticipatingObjects](UCustomizableObject* Object)
+		auto GetParents = [&CustomizableObjects](const UCustomizableObject* Object)
 		{
 			TArray<UCustomizableObjectNodeObject*> ArrayNodeObject;
-			TArray<UCustomizableObject*> ArrayCustomizableObject;
+			TArray<const UCustomizableObject*> ArrayCustomizableObject;
 
 			GetParentsUntilRoot(Object, ArrayNodeObject, ArrayCustomizableObject);
 
-			ParticipatingObjects.Append(ArrayCustomizableObject);
+			CustomizableObjects.Append(ArrayCustomizableObject);
 		};
 
 		// Parents
@@ -685,13 +616,18 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 		}
 
 		// Children
-		for (FAssetData& AssetData : ArrayAssetData)
+		TArray<FAssetData> ReferencingAssets;
+		GetReferencingPackages(*Object, ReferencingAssets);
+		for (FAssetData& AssetData : ReferencingAssets)
 		{
-			ParticipatingObjects.Add(Cast<UCustomizableObject>(AssetData.GetAsset()));
+			if (UCustomizableObject* ChildObject = Cast<UCustomizableObject>(AssetData.GetAsset()))
+			{
+				CustomizableObjects.Add(ChildObject);
+			}
 		}
 	}
 	
-	for (UCustomizableObject* ParticipatingObject : ParticipatingObjects)
+	for (const UCustomizableObject* ParticipatingObject : CustomizableObjects)
 	{
 		for (UEdGraphNode* Node : ParticipatingObject->GetPrivate()->GetSource()->Nodes)
 		{
@@ -707,7 +643,7 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 				check(NodeMeshComponent);
 				
 				FText Msg = FText::Format(LOCTEXT("ComponentNodeWithSameNameExists", "Already exists a Mesh Component node with the same name in Customizable Object [{0}]"), FText::FromString(GetRootObject(*NodeMeshComponent)->GetName()));
-				CompilerLog(Msg, Node, EMessageSeverity::Error);
+				GenerationContext.Log(Msg, Node, EMessageSeverity::Error);
 				return nullptr;
 			}
 
@@ -717,12 +653,12 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 	
     GenerationContext.RealTimeMorphTargetsOverrides = ActualRoot->RealTimeMorphSelectionOverrides;
 
-	if (!GenerationContext.ParamNamesToSelectedOptions.IsEmpty())
+	if (!GenerationContext.Options.ParamNamesToSelectedOptions.IsEmpty())
 	{
 		GenerationContext.TableToParamNames = Object->GetPrivate()->GetModelResources().TableToParamNames;
 	}
 
-	GenerationContext.bPartialCompilation = !bOutIsRootObject;
+	GenerationContext.bPartialCompilation = !Root->ParentObject;
 
 	// Generate the object expression
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] GenerateMutableSource start."), FPlatformTime::Seconds());
@@ -739,16 +675,40 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 	//	GenerationContext.CheckPhysicsAssetInSkeletalMesh(RefSkeletalMesh);
 	//}
 
-	DisplayParameterWarning( GenerationContext );
-	DisplayUnnamedNodeObjectWarning( GenerationContext );
-	DisplayDuplicatedNodeIdsWarning( GenerationContext );
-	//DisplayDiscardedPhysicsAssetSingleWarning( GenerationContext );
-	DisplayOrphanNodesWarning( GenerationContext );
+	// Display warnings for unnamed node objects
+	FText Message = LOCTEXT("Unnamed Node Object", "Unnamed Node Object");
+	for (const UCustomizableObjectNode* It : GenerationContext.NoNameNodeObjectArray)
+	{
+		GenerationContext.Log(Message, It, EMessageSeverity::Warning, true);
+	}
+
+	// If duplicated node ids are found, usually due to duplicating CustomizableObjects Assets, a warning
+	// for the nodes with repeated ids will be generated
+	for (const TPair<FGuid, TArray<const UObject*>>& It : GenerationContext.NodeIdsMap)
+	{
+		if (It.Value.Num() > 1)
+		{
+			FText MessageWarning = LOCTEXT("NodeWithRepeatedIds", "Several nodes have repeated NodeIds, reconstruct the nodes.");
+			GenerationContext.Log(MessageWarning, It.Value, EMessageSeverity::Warning, true);
+		}
+	}
+
+	// Display a warning for each node contains an orphan pin.
+	for (const TPair<FGeneratedKey, FGeneratedData>& It : GenerationContext.Generated)
+	{
+		if (const UCustomizableObjectNode* Node = Cast<UCustomizableObjectNode>(It.Value.Source))
+		{
+			if (Node->GetAllOrphanPins().Num() > 0)
+			{
+				GenerationContext.Log(LOCTEXT("OrphanPinsWarningCompiler", "Node contains deprecated pins"), Node, EMessageSeverity::Warning, false);
+			}
+		}
+	}
 
 	if (GenerationContext.CustomizableObjectWithCycle)
 	{
-		ErrorMsg = FText::Format(LOCTEXT("CycleDetected","Cycle detected in graph of CustomizableObject {0}. Object not built."),
-			FText::FromString(GenerationContext.CustomizableObjectWithCycle->GetPathName()));
+		GenerationContext.Log(FText::Format(LOCTEXT("CycleDetected","Cycle detected in graph of CustomizableObject {0}. Object not built."),
+			FText::FromString(GenerationContext.CustomizableObjectWithCycle->GetPathName())));
 
 		return nullptr;
 	}
@@ -783,83 +743,6 @@ void FCustomizableObjectCompiler::SaveCODerivedData()
 	FString ThreadName = FString::Printf(TEXT("MutableSDD-%03d"), ++SDDThreadCount);
 	SaveDDThread = MakeShareable(FRunnableThread::Create(SaveDDTask.Get(), *ThreadName));
 }
-
-
-void FCustomizableObjectCompiler::AddCachedReferencers(const FName& PathName, TArray<FName>& ArrayReferenceNames)
-{
-	ArrayReferenceNames.Empty();
-	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-	AssetRegistryModule.Get().GetReferencers(PathName, ArrayReferenceNames, UE::AssetRegistry::EDependencyCategory::Package, UE::AssetRegistry::EDependencyQuery::Hard);
-
-	// Required to make compilations deterministic within editor runs.
-	ArrayReferenceNames.Sort([](const FName& A, const FName& B)
-		{
-			return A.LexicalLess(B);
-		});
-
-	FARFilter Filter;
-	for (const FName& ReferenceName : ArrayReferenceNames)
-	{
-		if (!IsCachedInAssetData(ReferenceName.ToString()) && !ReferenceName.ToString().StartsWith(TEXT("/TempAutosave")))
-		{
-			Filter.PackageNames.Add(ReferenceName);
-		}
-	}
-
-	Filter.bIncludeOnlyOnDiskAssets = false;
-
-	TArray<FAssetData> ArrayAssetDataTemp;
-	AssetRegistryModule.Get().GetAssets(Filter, ArrayAssetDataTemp);
-
-	// Store only those which have static class type Customizable Object, to avoid loading not needed elements
-	const int32 MaxIndex = ArrayAssetDataTemp.Num();
-	for (int32 i = 0; i < MaxIndex; ++i)
-	{
-		if (ArrayAssetDataTemp[i].GetClass() == UCustomizableObject::StaticClass())
-		{
-			ArrayAssetData.Add(ArrayAssetDataTemp[i]);
-		}
-	}
-}
-
-
-void FCustomizableObjectCompiler::CleanCachedReferencers()
-{
-	ArrayAssetData.Empty();
-}
-
-
-bool FCustomizableObjectCompiler::IsCachedInAssetData(const FString& PackageName)
-{
-	const int32 MaxIndex = ArrayAssetData.Num();
-
-	for (int32 i = 0; i < MaxIndex; ++i)
-	{
-		if (ArrayAssetData[i].PackageName.ToString() == PackageName)
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
-
-FAssetData* FCustomizableObjectCompiler::GetCachedAssetData(const FString& PackageName)
-{
-	const int32 MaxIndex = ArrayAssetData.Num();
-
-	for (int32 i = 0; i < MaxIndex; ++i)
-	{
-		if (ArrayAssetData[i].PackageName.ToString() == PackageName)
-		{
-			return &ArrayAssetData[i];
-		}
-	}
-
-	return nullptr;
-}
-
 
 
 ECompilationResultPrivate FCustomizableObjectCompiler::GetCompilationResult() const
@@ -906,20 +789,19 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 	}
 
 	FMutableGraphGenerationContext GenerationContext(CurrentObject, this, CurrentOptions);
-	GenerationContext.ParamNamesToSelectedOptions = CurrentRequest->GetParameterNamesToSelectedOptions();
+
+	// Perform a first participating objects pass
+	GenerationContext.ParticipatingObjects = ICustomizableObjectEditorModule::GetChecked().GetParticipatingObjects(CurrentObject, true, &CurrentOptions);
 
 	// Clear Messages from previous Compilations
 	CompilationLogsContainer.ClearMessageCounters();
 	CompilationLogsContainer.ClearMessagesArray();
 
 	// Generate the mutable node expression
-	FText ErrorMessage = FText(LOCTEXT("FailedToGenerateRoot", "Failed to generate the mutable node graph. Object not built."));
-	bool bIsRootObject = false;
-	mu::NodeObjectPtr MutableRoot = GenerateMutableRoot(CurrentObject, GenerationContext, ErrorMessage, bIsRootObject);
-
+	mu::NodeObjectPtr MutableRoot = GenerateMutableRoot(CurrentObject, GenerationContext);
 	if (!MutableRoot)
 	{
-		CompilerLog(ErrorMessage);
+		CompilerLog(FText(LOCTEXT("FailedToGenerateRoot", "Failed to generate the mutable node graph. Object not built.")));
 		CompleteRequest(ECompilationStatePrivate::Completed, ECompilationResultPrivate::Errors);
 	}
 	else
@@ -1123,9 +1005,23 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 		CurrentObject->GetPrivate()->GetAlwaysLoadedExtensionData() = MoveTemp(GenerationContext.AlwaysLoadedExtensionData);
 
 		CurrentObject->GetPrivate()->GetStreamedExtensionData().Empty(GenerationContext.StreamedExtensionData.Num());
-		for (UCustomizableObjectResourceDataContainer* Container : GenerationContext.StreamedExtensionData)
+		for (const TPair<FName, UCustomizableObjectResourceDataContainer*>& Pair : GenerationContext.StreamedExtensionData)
 		{
-			CurrentObject->GetPrivate()->GetStreamedExtensionData().Emplace(Container);
+			const FName& ContainerName = Pair.Key;
+			UCustomizableObjectResourceDataContainer* Container = Pair.Value;
+
+			UCustomizableObjectResourceDataContainer* NewContainer = FindObject<UCustomizableObjectResourceDataContainer>(CurrentObject, *ContainerName.ToString());
+			if (!NewContainer)
+			{
+				NewContainer = NewObject<UCustomizableObjectResourceDataContainer>(
+					CurrentObject,
+					FName(*ContainerName.ToString()),
+					RF_Public);
+			}
+			
+			NewContainer->Data = Container->Data;
+			
+			CurrentObject->GetPrivate()->GetStreamedExtensionData().Emplace(NewContainer);
 		}
 
 #if WITH_EDITORONLY_DATA
@@ -1135,11 +1031,18 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 #endif
 
 		ModelResources.ComponentNames = MoveTemp(GenerationContext.ComponentNames);
+
+		if (ICustomizableObjectVersionBridgeInterface* VersionBridge = Cast<ICustomizableObjectVersionBridgeInterface>(GraphTraversal::GetRootObject(CurrentObject)->VersionBridge))
+		{
+			ModelResources.CompiledVersionBridge = VersionBridge->GetCurrentVersionAsString();
+		}
 		
 		ModelResources.NumLODs = GenerationContext.NumLODsInRoot;
 		ModelResources.NumLODsToStream = GenerationContext.bEnableLODStreaming ? GenerationContext.NumMaxLODsToStream : 0;
 		ModelResources.FirstLODAvailable = GenerationContext.FirstLODAvailable;
 
+		ModelResources.ParticipatingObjects = MoveTemp(GenerationContext.ParticipatingObjects);
+		
 		if (CurrentOptions.bGatherReferences)
 		{
 			CurrentObject->GetPrivate()->References = ModelResources;
@@ -1147,8 +1050,26 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 			CurrentObject->Modify();
 		}
 
-		ModelResources.StreamedResourceData = MoveTemp(GenerationContext.StreamedResourceData);
+		ModelResources.StreamedResourceData.Empty(GenerationContext.StreamedResourceData.Num());
+		for (TPair<FName, UCustomizableObjectResourceDataContainer*>& Pair : GenerationContext.StreamedResourceData)
+		{
+			const FName& ContainerName = Pair.Key;
+			UCustomizableObjectResourceDataContainer* Container = Pair.Value;
 
+			UCustomizableObjectResourceDataContainer* NewContainer = FindObject<UCustomizableObjectResourceDataContainer>(CurrentObject, *ContainerName.ToString());
+			if (!NewContainer)
+			{
+				NewContainer = NewObject<UCustomizableObjectResourceDataContainer>(
+					CurrentObject,
+					FName(*ContainerName.ToString()),
+					RF_Public);
+			}
+			
+			NewContainer->Data = Container->Data;
+			
+			ModelResources.StreamedResourceData.Emplace(NewContainer);
+		}
+		
 		// Pass-through textures
 		TArray<FMutableSourceTextureData> NewCompileTimeReferencedTextures;
 		for (const TPair<TSoftObjectPtr<const UTexture>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& Pair : GenerationContext.CompileTimeTextureMap)
@@ -1157,31 +1078,6 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 
 			FMutableSourceTextureData Tex(*Pair.Key.LoadSynchronous());
 			NewCompileTimeReferencedTextures.Add(Tex);
-		}
-
-		if (!CurrentRequest->GetParameterNamesToSelectedOptions().Num())
-		{
-			// Get possible objects used in the compilation that are not directly referenced.
-			// Due to this check being done also in PIE (to detect out of date compilations), it has to be performant. Therefore we are gathering a relaxed set.
-			// For example, a referencing Customizable Object may not be used if it is not assigned in any Group Node. In the relaxed set we include those regardless.
-			// Notice that, to avoid automatic compilations/warnings, the set of referencing objects set found here must coincide with the set found when loading the
-			// model (discard previous compilations) or when showing PIE warnings.
-			TArray<FName> ReferencingObjectNames;
-			GetReferencingPackages(*CurrentObject, ReferencingObjectNames);
-
-			for (const FName& ReferencingObjectName : ReferencingObjectNames)
-			{
-				const TSoftObjectPtr<UObject> SoftObjectPtr = TSoftObjectPtr<UObject>(FSoftObjectPath(ReferencingObjectName.ToString()));
-
-				if (const UObject* ReferencingObject = SoftObjectPtr.LoadSynchronous())
-				{
-					GenerationContext.AddParticipatingObject(*ReferencingObject);					
-				}
-			}
-			
-			// Copy final array of participating objects
-			ModelResources.ParticipatingObjects = MoveTemp(GenerationContext.ParticipatingObjects);
-			CurrentObject->GetPrivate()->DirtyParticipatingObjects.Empty();
 		}
 
 		CompileTask = MakeShareable(new FCustomizableObjectCompileRunnable(MutableRoot));
@@ -1264,8 +1160,7 @@ void FCustomizableObjectCompiler::CompleteRequest(ECompilationStatePrivate State
 	}
 
 	// Remove referenced objects
-	CleanCachedReferencers();
-	UpdateArrayGCProtect();
+	ArrayGCProtect.Empty();
 
 	// Notifications
 	RemoveCompileNotification();
@@ -1352,7 +1247,7 @@ bool FCustomizableObjectCompiler::TryLoadCompiledDataFromDDC(UCustomizableObject
 }
 
 
-mu::NodePtr FCustomizableObjectCompiler::Export(UCustomizableObject* Object, const FCompilationOptions& InCompilerOptions, 
+mu::Ptr<mu::Node> FCustomizableObjectCompiler::Export(UCustomizableObject* Object, const FCompilationOptions& InCompilerOptions, 
 	TArray<TSoftObjectPtr<const UTexture>>& OutRuntimeReferencedTextures,
 	TArray<FMutableSourceTextureData>& OutCompilerReferencedTextures )
 {
@@ -1374,26 +1269,12 @@ mu::NodePtr FCustomizableObjectCompiler::Export(UCustomizableObject* Object, con
 	CompilerOptions.bAnimBpPhysicsManipulationEnabled = Object->bEnableAnimBpPhysicsAssetsManipualtion;
 
 	FMutableGraphGenerationContext GenerationContext(Object, this, CompilerOptions);
-	if (CurrentRequest)
-	{
-		GenerationContext.ParamNamesToSelectedOptions = CurrentRequest->GetParameterNamesToSelectedOptions();
-	}
 
 	// Generate the mutable node expression
-	FText ErrorMsg;
-	bool bIsRootObject = false;
-	mu::NodeObjectPtr MutableRoot = GenerateMutableRoot(Object, GenerationContext, ErrorMsg, bIsRootObject);
-
+	mu::NodeObjectPtr MutableRoot = GenerateMutableRoot(Object, GenerationContext);
 	if (!MutableRoot)
 	{
-		if (!ErrorMsg.IsEmpty())
-		{
-			FCustomizableObjectCompiler::CompilerLog(ErrorMsg, nullptr);
-		}
-		else
-		{
-			FCustomizableObjectCompiler::CompilerLog(LOCTEXT("FailedToExport","Failed to generate the mutable node graph. Object not built."), nullptr);
-		}
+		CompilerLog(LOCTEXT("FailedToExport", "Failed to generate the mutable node graph. Object not built."), nullptr);
 		return nullptr;
 	}
 

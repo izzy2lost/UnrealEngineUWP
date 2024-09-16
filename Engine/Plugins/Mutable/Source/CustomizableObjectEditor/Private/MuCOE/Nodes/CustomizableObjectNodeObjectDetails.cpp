@@ -366,7 +366,7 @@ void FCustomizableObjectNodeObjectDetails::FillParameterNamesArray()
 	}
 
 	// Get full graph root customizable object
-	UCustomizableObject* RootObjet = GetRootObject(CustomizableObject);
+	UCustomizableObject* RootObjet = GraphTraversal::GetRootObject(CustomizableObject);
 
 	// Full tree graph of customizable objects
 	TSet<UCustomizableObject*> CustomObjectTree;

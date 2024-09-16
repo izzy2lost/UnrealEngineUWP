@@ -94,7 +94,7 @@ void SMutableTagListWidget::RefreshOptions()
 
 		// Scan all potential receivers
 		UCustomizableObject* ThisNodeObject = GetRootObject(*Node);
-		UCustomizableObject* RootObject = GetRootObject(ThisNodeObject);
+		UCustomizableObject* RootObject = GraphTraversal::GetRootObject(ThisNodeObject);
 
 		TSet<UCustomizableObject*> AllCustomizableObject;
 		GetAllObjectsInGraph(RootObject, AllCustomizableObject);

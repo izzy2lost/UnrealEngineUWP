@@ -329,7 +329,7 @@ void FCustomizableObjectInstanceEditor::InitCustomizableObjectInstanceEditor( co
 	// Clears selection highlight.
 	OnInstancePropertySelectionChanged(NULL);
 	
-	if (const UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject())
+	if (UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject())
 	{
 		UCustomizableObjectPrivate* CustomizableObjectPrivate = CustomizableObject->GetPrivate();
 

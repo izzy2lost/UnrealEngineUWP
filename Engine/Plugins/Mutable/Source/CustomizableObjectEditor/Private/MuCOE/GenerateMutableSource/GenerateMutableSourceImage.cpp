@@ -136,7 +136,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 		}
 		else
 		{
-			GenerationContext.Compiler->CompilerLog(LOCTEXT("MissingImage", "Missing image in texture node."), Node, EMessageSeverity::Warning);
+			GenerationContext.Log(LOCTEXT("MissingImage", "Missing image in texture node."), Node, EMessageSeverity::Warning);
 		}
 	}
 
@@ -193,7 +193,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 			if (MaxNodeTextureSize <= 0)
 			{
 				TextureSize.X = TextureSize.Y = 1;
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("TextureParameterSize0", "Texture size not specified. Add a reference texture or set a valid value to the Texture Size variables."), Node);
+				GenerationContext.Log(LOCTEXT("TextureParameterSize0", "Texture size not specified. Add a reference texture or set a valid value to the Texture Size variables."), Node);
 			}
 			else if (ReferenceTextureSize > 0 && ReferenceTextureSize < MaxNodeTextureSize)
 			{
@@ -293,13 +293,13 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 				case COTLE_ALPHA_OVERLAY: Type = mu::EBlendType::BT_LIGHTEN; break;
 				case COTLE_NORMAL_COMBINE: Type = mu::EBlendType::BT_NORMAL_COMBINE; break;
 				default:
-					GenerationContext.Compiler->CompilerLog(LOCTEXT("UnsupportedImageEffect", "Texture layer effect not supported. Setting to 'Blend'."), Node);
+					GenerationContext.Log(LOCTEXT("UnsupportedImageEffect", "Texture layer effect not supported. Setting to 'Blend'."), Node);
 					break;
 				}
 
 				if (Type == mu::EBlendType::BT_BLEND && !MaskNode)
 				{
-					GenerationContext.Compiler->CompilerLog(LOCTEXT("ModulateWithoutMask", "Texture layer effect uses Modulate without a mask. It will replace everything below it!"), Node);
+					GenerationContext.Log(LOCTEXT("ModulateWithoutMask", "Texture layer effect uses Modulate without a mask. It will replace everything below it!"), Node);
 				}
 				
 				if (OtherPin->PinType.PinCategory == Schema->PC_Image)
@@ -346,7 +346,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 				if (!SwitchParam)
 				{
 					const FText Message = LOCTEXT("FailedToGenerateSwitchParam", "Could not generate switch enum parameter. Please refesh the switch node and connect an enum.");
-					GenerationContext.Compiler->CompilerLog(Message, Node);
+					GenerationContext.Log(Message, Node);
 					
 					return Result;
 				}
@@ -354,7 +354,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 				if (SwitchParam->GetType() != mu::NodeScalarEnumParameter::GetStaticType())
 				{
 					const FText Message = LOCTEXT("WrongSwitchParamType", "Switch parameter of incorrect type.");
-					GenerationContext.Compiler->CompilerLog(Message, Node);
+					GenerationContext.Log(Message, Node);
 
 					return Result;
 				}
@@ -365,7 +365,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 				if (NumSwitchOptions != EnumParameter->GetValueCount())
 				{
 					const FText Message = LOCTEXT("MismatchedSwitch", "Switch enum and switch node have different number of options. Please refresh the switch node to make sure the outcomes are labeled properly.");
-					GenerationContext.Compiler->CompilerLog(Message, Node);
+					GenerationContext.Log(Message, Node);
 				}
 
 				mu::NodeImageSwitchPtr SwitchNode = new mu::NodeImageSwitch;
@@ -381,7 +381,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 					else
 					{
 						const FText Message = LOCTEXT("MissingTexture", "Unable to generate texture switch node. Required connection not found.");
-						GenerationContext.Compiler->CompilerLog(Message, Node);
+						GenerationContext.Log(Message, Node);
 						return Result;
 					}
 				}
@@ -391,7 +391,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 			}
 			else
 			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("NoEnumParamInSwitch", "Switch nodes must have an enum switch parameter. Please connect an enum and refesh the switch node."), Node);
+				GenerationContext.Log(LOCTEXT("NoEnumParamInSwitch", "Switch nodes must have an enum switch parameter. Please connect an enum and refesh the switch node."), Node);
 				return Result;
 			}
 		}(); // invoke lambda.
@@ -412,7 +412,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 			}
 			else
 			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("TextureFailed", "Texture generation failed."), Node);
+				GenerationContext.Log(LOCTEXT("TextureFailed", "Texture generation failed."), Node);
 			}
 		}
 
@@ -601,7 +601,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 
 		if (!FollowInputPin(*TypedNodeProject->MeshPin()))
 		{
-			GenerationContext.Compiler->CompilerLog(LOCTEXT("MissingMeshInProjector", "Texture projector does not have a Mesh. It will be ignored. "), Node, EMessageSeverity::Warning);
+			GenerationContext.Log(LOCTEXT("MissingMeshInProjector", "Texture projector does not have a Mesh. It will be ignored. "), Node, EMessageSeverity::Warning);
 			Result = nullptr;
 		}
 
@@ -895,7 +895,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 		}
 		else
 		{
-			GenerationContext.Compiler->CompilerLog(LOCTEXT("MissingImagePassThrough", "Missing image in pass-through texture node."), Node);
+			GenerationContext.Log(LOCTEXT("MissingImagePassThrough", "Missing image in pass-through texture node."), Node);
 		}
 	}
 
@@ -913,7 +913,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 				if (!SwitchParam)
 				{
 					const FText Message = LOCTEXT("FailedToGenerateSwitchParam", "Could not generate switch enum parameter. Please refesh the switch node and connect an enum.");
-					GenerationContext.Compiler->CompilerLog(Message, Node);
+					GenerationContext.Log(Message, Node);
 
 					return Result;
 				}
@@ -921,7 +921,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 				if (SwitchParam->GetType() != mu::NodeScalarEnumParameter::GetStaticType())
 				{
 					const FText Message = LOCTEXT("WrongSwitchParamType", "Switch parameter of incorrect type.");
-					GenerationContext.Compiler->CompilerLog(Message, Node);
+					GenerationContext.Log(Message, Node);
 
 					return Result;
 				}
@@ -932,7 +932,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 				if (NumSwitchOptions != EnumParameter->GetValueCount())
 				{
 					const FText Message = LOCTEXT("MismatchedSwitch", "Switch enum and switch node have different number of options. Please refresh the switch node to make sure the outcomes are labeled properly.");
-					GenerationContext.Compiler->CompilerLog(Message, Node);
+					GenerationContext.Log(Message, Node);
 				}
 
 				// TODO: Implement Mutable core pass-through switch nodes
@@ -950,7 +950,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 					else
 					{
 						const FText Message = LOCTEXT("MissingPassThroughTexture", "Unable to generate pass-through texture switch node. Required connection not found.");
-						GenerationContext.Compiler->CompilerLog(Message, Node);
+						GenerationContext.Log(Message, Node);
 						return Result;
 					}
 				}
@@ -960,7 +960,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 			}
 			else
 			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("NoEnumParamInSwitch", "Switch nodes must have an enum switch parameter. Please connect an enum and refesh the switch node."), Node);
+				GenerationContext.Log(LOCTEXT("NoEnumParamInSwitch", "Switch nodes must have an enum switch parameter. Please connect an enum and refesh the switch node."), Node);
 				return Result;
 			}
 		}(); // invoke lambda.
@@ -1013,7 +1013,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 				if (!Property)
 				{
 					FString Msg = FString::Printf(TEXT("Couldn't find the column [%s] in the data table's struct."), *ColumnName);
-					GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node);
+					GenerationContext.Log(FText::FromString(Msg), Node);
 
 					bSuccess = false;
 				}
@@ -1023,7 +1023,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 				if (bSuccess && Pin->PinType.PinCategory != Schema->PC_MaterialAsset && !DefaultTexture)
 				{
 					FString Msg = FString::Printf(TEXT("Couldn't find a default value in the data table's struct for the column [%s]. The default value is null or not a supported Texture"), *ColumnName);
-					GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node);
+					GenerationContext.Log(FText::FromString(Msg), Node);
 					
 					bSuccess = false;
 				}
@@ -1057,7 +1057,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 									Nodes.Add(GenerationContext.GeneratedTableImages[ImageDataIndex].TableNode);
 
 									FString Msg = FString::Printf(TEXT("Texture pin [%s] with different texture modes found in more than one table node. This will add multiple times the texture reseource in the final cook."), *ColumnName);
-									GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Nodes);
+									GenerationContext.Log(FText::FromString(Msg), Nodes);
 								}
 							}
 							else
@@ -1082,7 +1082,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 							if (!bSuccess)
 							{
 								FString Msg = FString::Printf(TEXT("Failed to generate the mutable table column [%s]"), *ColumnName);
-								GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node);
+								GenerationContext.Log(FText::FromString(Msg), Node);
 							}
 						}
 
@@ -1119,20 +1119,20 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 					else
 					{
 						FString Msg = FString::Printf(TEXT("Couldn't generate a mutable table."));
-						GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node);
+						GenerationContext.Log(FText::FromString(Msg), Node);
 					}
 				}
 			}
 			else
 			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("ImageTableError", "Couldn't find the data table of the node."), Node);
+				GenerationContext.Log(LOCTEXT("ImageTableError", "Couldn't find the data table of the node."), Node);
 			}
 		}
 	}
 
 	else
 	{
-		GenerationContext.Compiler->CompilerLog(LOCTEXT("UnimplementedNode", "Node type not implemented yet."), Node);
+		GenerationContext.Log(LOCTEXT("UnimplementedNode", "Node type not implemented yet."), Node);
 	}
 
 	if (!bDoNotAddToGeneratedCache)

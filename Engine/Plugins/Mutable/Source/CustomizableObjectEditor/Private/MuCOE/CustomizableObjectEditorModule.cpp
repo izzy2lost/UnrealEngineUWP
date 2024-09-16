@@ -77,6 +77,7 @@
 #include "MuCOE/GraphTraversal.h"
 #include "MuCOE/CustomizableObjectInstanceBaker.h"
 #include "Editor.h"
+#include "MuCO/CustomizableObjectSystemPrivate.h"
 #include "Nodes/CustomizableObjectNodeComponentMeshDetails.h"
 
 class AActor;
@@ -164,18 +165,19 @@ void ShowOnScreenCompileWarnings()
 		
 		const uint64 KeyCompiledOutOfDate = reinterpret_cast<uint64>(Object) + KEY_OFFSET_COMPILATION_OUT_OF_DATE; // Offset added to avoid collision with bIsCompiledWithOptimization warning
 		TArray<FName> OutOfDatePackages;
-		if (Object->GetPrivate()->IsCompilationOutOfDate(&OutOfDatePackages))
+		TArray<FName> AddedPackages;
+		TArray<FName> RemovedPackages;
+		bool bVersionDiff;
+		if (Object->GetPrivate()->IsCompilationOutOfDate(true, OutOfDatePackages, AddedPackages, RemovedPackages, bVersionDiff))
 		{
 			FString Msg = FString::Printf(TEXT("Customizable Object [%s] compilation out of date. See the Output Log for more information."), *Object->GetName());
 			GEngine->AddOnScreenDebugMessage(KeyCompiledOutOfDate, ShowOnScreenCompileWarningsTickerTime * 2.0f, FColor::Yellow, Msg);
 			
 			if (!GEngine->OnScreenDebugMessageExists(KeyCompiledOutOfDate))
 			{
-				UE_LOG(LogMutable, Verbose, TEXT("Warning: Customizable Object [%s] compilation out of date. Modified packages since last compilation:"), *Object->GetName());
-				for (const FName& OutOfDatePackage : OutOfDatePackages)
-				{
-					UE_LOG(LogMutable, Verbose, TEXT("%s"), *OutOfDatePackage.ToString());
-				}
+				UE_LOG(LogMutable, Display, TEXT("Customizable Object [%s] compilation out of date. Changes since last compilation:"), *Object->GetName());
+
+				PrintParticipatingPackagesDiff(OutOfDatePackages, AddedPackages, RemovedPackages, bVersionDiff);
 			}
 		}
 		else
@@ -474,7 +476,7 @@ void FCustomizableObjectEditorModule::RegisterFactory()
 
 
 /** Recursively get all Customizable Objects that reference the given Customizable Object. */
-void GetReferencingCustomizableObjects(FName CustomizableObjectName, TArray<FName>& VisitedObjectNames, TArray<FName>& ObjectNames)
+void GetReferencingCustomizableObjects(FName CustomizableObjectName, TArray<FName>& VisitedObjectNames, TArray<FAssetData>& ReferencingAssets)
 {
 	if (VisitedObjectNames.Contains(CustomizableObjectName))
 	{
@@ -488,11 +490,17 @@ void GetReferencingCustomizableObjects(FName CustomizableObjectName, TArray<FNam
 	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 	AssetRegistryModule.Get().GetReferencers(CustomizableObjectName, ReferencedObjectNames, UE::AssetRegistry::EDependencyCategory::Package, UE::AssetRegistry::EDependencyQuery::Hard);
 
+	// Required to be deterministic.
+	ReferencedObjectNames.Sort([](const FName& A, const FName& B)
+	{
+		return A.LexicalLess(B);
+	});
+	
 	TArray<FAssetData> AssetDataArray;
 
 	FARFilter Filter;
 	Filter.PackageNames = MoveTemp(ReferencedObjectNames);
-	
+
 	AssetRegistryModule.Get().GetAssets(Filter, AssetDataArray);
 
 	for (FAssetData AssetData : AssetDataArray)
@@ -501,25 +509,25 @@ void GetReferencingCustomizableObjects(FName CustomizableObjectName, TArray<FNam
 		{
 			FName ReferencedObjectName = AssetData.GetPackage()->GetFName();
 	
-			ObjectNames.Add(ReferencedObjectName);
+			ReferencingAssets.Add(AssetData);
 
-			GetReferencingCustomizableObjects(ReferencedObjectName, VisitedObjectNames, ObjectNames);
-		}			
+			GetReferencingCustomizableObjects(ReferencedObjectName, VisitedObjectNames, ReferencingAssets);
+		}
 	}
 }
 
 
-void GetReferencingPackages(const UCustomizableObject& Object, TArray<FName>& ObjectNames)
+void GetReferencingPackages(const UCustomizableObject& Object, TArray<FAssetData>& ReferencingAssets)
 {
 	// Gather all child CustomizableObjects
 	TArray<FName> VisitedObjectNames;
-	GetReferencingCustomizableObjects(Object.GetPackage()->GetFName(), VisitedObjectNames, ObjectNames);
+	GetReferencingCustomizableObjects(Object.GetPackage()->GetFName(), VisitedObjectNames, ReferencingAssets);
 
 	// Gather all tables which will composite the final tables
-	TArray<FName> CustomizableObjectNames = ObjectNames;
-	for (const FName& CustomizableObjectName : CustomizableObjectNames)
+	TArray<FAssetData> ReferencingCustomizableObjects = ReferencingAssets;
+	for (const FAssetData& ReferencingCustomizableObject : ReferencingCustomizableObjects)
 	{
-		const TSoftObjectPtr<UObject> SoftObjectPtr = TSoftObjectPtr<UObject>(FSoftObjectPath(CustomizableObjectName.ToString()));
+		const TSoftObjectPtr SoftObjectPtr(ReferencingCustomizableObject.ToSoftObjectPath());
 
 		const UCustomizableObject* ChildCustomizableObject = Cast<UCustomizableObject>(SoftObjectPtr.LoadSynchronous());
 		if (!ChildCustomizableObject)
@@ -541,7 +549,7 @@ void GetReferencingPackages(const UCustomizableObject& Object, TArray<FName>& Ob
 			{
 				if (DataTableAsset.IsValid())
 				{
-					ObjectNames.AddUnique(DataTableAsset.PackageName);
+					ReferencingAssets.AddUnique(DataTableAsset);
 				}
 			}
 		}		
@@ -549,26 +557,21 @@ void GetReferencingPackages(const UCustomizableObject& Object, TArray<FName>& Ob
 }
 
 
-bool FCustomizableObjectEditorModule::IsCompilationOutOfDate(const UCustomizableObject& Object, TArray<FName>* OutOfDatePackages) const
+bool FCustomizableObjectEditorModule::IsCompilationOutOfDate(const UCustomizableObject& Object, bool bSkipIndirectReferences, TArray<FName>& OutOfDatePackages, TArray<FName>& AddedPackages, TArray<FName>& RemovedPackages, bool& bVersionDiff) const
 {
-	if (!Object.GetPrivate()->DirtyParticipatingObjects.IsEmpty())
-	{
-		if (OutOfDatePackages)
-		{
-			OutOfDatePackages->Append(Object.GetPrivate()->DirtyParticipatingObjects);
-		}
-		else
-		{
-			return true;
-		}
-	}
+	MUTABLE_CPUPROFILER_SCOPE(FCustomizableObjectEditorModule::IsCompilationOutOfDate)
+	
+	// TODO CO Custom version
+	// TODO List of plugins and their custom versions
+	// Maybe use BuildDerivedDataKey? BuildDerivedDataKey should also consider bSkipIndirectReferences
 	
 	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 
-	const FModelResources& ModelResources = Object.GetPrivate()->GetModelResources();
-	for (const TTuple<FName, FGuid>& ParticipatingObject : ModelResources.ParticipatingObjects)
+	const TMap<FName, FGuid>& OldParticipatingObjects = Object.GetPrivate()->GetModelResources().ParticipatingObjects;
+	
+	for (const TTuple<FName, FGuid>& ParticipatingObject : OldParticipatingObjects)
 	{
-		TSoftObjectPtr<UObject> SoftObjectPtr = TSoftObjectPtr<UObject>(FSoftObjectPath(ParticipatingObject.Key.ToString()));
+		TSoftObjectPtr SoftObjectPtr(FSoftObjectPath(ParticipatingObject.Key.ToString()));
 		if (SoftObjectPtr) // If loaded
 		{
 			PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -577,14 +580,7 @@ bool FCustomizableObjectEditorModule::IsCompilationOutOfDate(const UCustomizable
 			
 			if (PackageGuid != ParticipatingObject.Value)
 			{
-				if (OutOfDatePackages)
-				{
-					OutOfDatePackages->AddUnique(ParticipatingObject.Key);
-				}
-				else
-				{
-					return true;
-				}
+				OutOfDatePackages.AddUnique(ParticipatingObject.Key);
 			}
 		}
 		else // Not loaded
@@ -594,14 +590,7 @@ bool FCustomizableObjectEditorModule::IsCompilationOutOfDate(const UCustomizable
 				
 			if (Result != UE::AssetRegistry::EExists::Exists)
 			{
-				if (OutOfDatePackages)
-				{
-					OutOfDatePackages->AddUnique(ParticipatingObject.Key);
-				}
-				else
-				{
-					return true;
-				}
+				OutOfDatePackages.AddUnique(ParticipatingObject.Key);
 			}
 
 			PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -610,47 +599,49 @@ bool FCustomizableObjectEditorModule::IsCompilationOutOfDate(const UCustomizable
 			
 			if (PackageGuid != ParticipatingObject.Value)
 			{
-				if (OutOfDatePackages)
-				{
-					OutOfDatePackages->AddUnique(ParticipatingObject.Key);
-				}
-				else
-				{
-					return true;
-				}
+				OutOfDatePackages.AddUnique(ParticipatingObject.Key);
 			}
 		}
 	}
-
-	TArray<FName> ReferencingObjectNames;
-	GetReferencingPackages(Object, ReferencingObjectNames);
 	
-	for (const FName& ObjectName : ReferencingObjectNames)
+	// Check that we have the exact same set of participating object as before. This can change due to indirect references and versioning.
+	if (!bSkipIndirectReferences)
 	{
-		TSoftObjectPtr<UObject> ReferencingObject = TSoftObjectPtr<UObject>(FSoftObjectPath(ObjectName.ToString())); 
-
-		if ((ReferencingObject && ReferencingObject->GetPackage()->IsDirty()) ||
-			!ModelResources.ParticipatingObjects.Contains(ObjectName)) // Must be in the participating objects, if not it means it did not exist when compiling the object.
+		// Due to performance issues, we will skip loading all objects. We can do that since loading/not loading objects do not affect the number of indirect objects discovered
+		// (e.g., we will traverse the same number of COs/Tables regardless if we do not load meshes/textures...). 
+		TMap<FName, FGuid> ParticipatingObjects = GetParticipatingObjects(&Object, false);
+		
+		for (const TTuple<FName, FGuid>& ParticipatingObject : ParticipatingObjects)
 		{
-			if (OutOfDatePackages)
+			// Since here we are if the smaller set (objects found now without loading all objects) is contained in the larger set (objects found in the compilation pass),
+			// there is no need to check if the asset is a indirect reference (CO or Table).
+			if (!OldParticipatingObjects.Contains(ParticipatingObject.Key))
 			{
-				OutOfDatePackages->AddUnique(ObjectName);
+				AddedPackages.AddUnique(ParticipatingObject.Key);
 			}
-			else
+		}
+
+		for (const TTuple<FName, FGuid>& OldParticipatingObject : OldParticipatingObjects)
+		{
+			FAssetData AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(FSoftObjectPath(OldParticipatingObject.Key.ToString()));
+			if (AssetData.AssetClassPath == UCustomizableObject::StaticClass()->GetClassPathName() ||
+				AssetData.AssetClassPath == UDataTable::StaticClass()->GetClassPathName())
 			{
-				return true;
+				if (!ParticipatingObjects.Contains(OldParticipatingObject.Key))
+				{
+					RemovedPackages.AddUnique(OldParticipatingObject.Key);
+				}
 			}
 		}
 	}
 
-	if (OutOfDatePackages)
+	bVersionDiff = false;
+	if (ICustomizableObjectVersionBridgeInterface* VersionBridge = Cast<ICustomizableObjectVersionBridgeInterface>(Object.VersionBridge))
 	{
-		return !OutOfDatePackages->IsEmpty();	
+		bVersionDiff = Object.GetPrivate()->GetModelResources().CompiledVersionBridge != VersionBridge->GetCurrentVersionAsString();
 	}
-	else
-	{
-		return false;
-	}
+
+	return bVersionDiff || !OutOfDatePackages.IsEmpty() || !AddedPackages.IsEmpty() || !RemovedPackages.IsEmpty();
 }
 
 
@@ -672,6 +663,18 @@ FString FCustomizableObjectEditorModule::GetCurrentContentVersionForObject(const
 	}
 
 	return FString();
+}
+
+
+UCustomizableObject* FCustomizableObjectEditorModule::GetRootObject(UCustomizableObject* ChildObject) const
+{
+	return GraphTraversal::GetRootObject(ChildObject);
+}
+
+
+const UCustomizableObject* FCustomizableObjectEditorModule::GetRootObject(const UCustomizableObject* ChildObject) const
+{
+	return GraphTraversal::GetRootObject(ChildObject);
 }
 
 
@@ -716,6 +719,22 @@ USkeletalMesh* FCustomizableObjectEditorModule::GetReferenceSkeletalMesh(const U
 	}
 
 	return {};
+}
+
+
+TMap<FName, FGuid> FCustomizableObjectEditorModule::GetParticipatingObjects(const UCustomizableObject* Object, bool bLoadObjects, const FCompilationOptions* InOptions) const
+{
+	MUTABLE_CPUPROFILER_SCOPE(FCustomizableObjectEditorModule::GetParticipatingObjects)
+
+	FCompilationOptions Options = InOptions ? *InOptions : Object->GetPrivate()->GetCompileOptions();
+		
+	FMutableGraphGenerationContext Context(Object, nullptr, Options);
+	Context.bParticipatingObjectsPass = true;
+	Context.bLoadObjects = bLoadObjects;
+
+	GenerateMutableRoot(Object, Context);
+
+	return Context.ParticipatingObjects;
 }
 
 

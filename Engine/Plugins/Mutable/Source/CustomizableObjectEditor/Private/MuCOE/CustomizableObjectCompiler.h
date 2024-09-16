@@ -11,6 +11,7 @@
 #include "MuCOE/CustomizableObjectEditorLogger.h"
 #include "UObject/GCObject.h"
 #include "TickableEditorObject.h"
+#include "MuR/Ptr.h"
 
 #include "Framework/Notifications/NotificationManager.h"
 
@@ -21,6 +22,17 @@ class FRunnableThread;
 class FText;
 class UCustomizableObject;
 class UCustomizableObjectNode;
+struct FMutableGraphGenerationContext;
+
+namespace mu
+{
+	class NodeObject;
+	class Node;
+}
+
+
+mu::Ptr<mu::NodeObject> GenerateMutableRoot(const UCustomizableObject* Object, FMutableGraphGenerationContext& GenerationContext);
+
 
 class FCustomizableObjectCompiler : public FTickableEditorObject, public FTickableCookObject, public FGCObject
 {
@@ -39,10 +51,9 @@ public:
 
 	// FTickableCookObject interface
 	virtual void TickCook(float DeltaTime, bool bCookCompete) override;
-
-
+	
 	/** Generate the Mutable Graph from the Unreal Graph. */
-	mu::NodePtr Export(UCustomizableObject* Object, const FCompilationOptions& Options, TArray<TSoftObjectPtr<const UTexture>>& OutRuntimeReferencedTextures, TArray<FMutableSourceTextureData>& OutCompilerReferencedTextures);
+	mu::Ptr<mu::Node> Export(UCustomizableObject* Object, const FCompilationOptions& Options, TArray<TSoftObjectPtr<const UTexture>>& OutRuntimeReferencedTextures, TArray<FMutableSourceTextureData>& OutCompilerReferencedTextures);
 
 	void CompilerLog(const FText& Message, const TArray<const UObject*>& UObject, const EMessageSeverity::Type MessageSeverity = EMessageSeverity::Warning, const bool bAddBaseObjectInfo = true, const ELoggerSpamBin SpamBin = ELoggerSpamBin::ShowAll);
 	void CompilerLog(const FText& Message, const UObject* Context = nullptr, const EMessageSeverity::Type MessageSeverity = EMessageSeverity::Warning, const bool bAddBaseObjectInfo = true, const ELoggerSpamBin SpamBin = ELoggerSpamBin::ShowAll);
@@ -72,9 +83,6 @@ public:
 		return TEXT("FCustomizableObjectCompiler");
 	}
 
-	/** Simply add CO elements from ArrayAssetData to ArrayGCProtect when they've been loaded from ArrayAssetData */
-	void UpdateArrayGCProtect();
-
 private:
 
 	// Object containing all error and warning logs raised during compilation.
@@ -91,29 +99,10 @@ private:
 
 	void PreloadingReferencerAssetsCallback(bool bAsync);
 	
-	void ProcessChildObjectsRecursively(UCustomizableObject* Object, FMutableGraphGenerationContext &GenerationContext);
-	
 	// Will output to Mutable Log the warning and error messages generated during the CO compilation
 	// and update the values of NumWarnings and NumErrors
 	void UpdateCompilerLogData();
-
-	/** If duplicated elements are found in each entry of ParameterNamesMap, a warning for
-	the parameters with repeated name will be generated */
-	void DisplayParameterWarning(FMutableGraphGenerationContext& GenerationContext);
 	
-	/** If duplicated node ids are found, usually due to duplicating CustomizableObjects Assets, a warning
-	for the nodes with repeated ids will be generated */
-	void DisplayDuplicatedNodeIdsWarning(FMutableGraphGenerationContext& GenerationContext);
-	
-	/** Display warnings for unnamed node objects */
-	void DisplayUnnamedNodeObjectWarning(FMutableGraphGenerationContext& GenerationContext);
-	
-	/** Display a warning for each node contains an orphan pin. */
-	void DisplayOrphanNodesWarning(FMutableGraphGenerationContext& GenerationContext);
-	
-	mu::NodeObjectPtr GenerateMutableRoot(UCustomizableObject* Object, FMutableGraphGenerationContext& GenerationContext, FText& ErrorMessage, bool& bOutIsRootObject);
-
-
 	/** Launches the compile task in another thread when compiling a CO in the editor
 	* @param bShowNotification [in] whether to show the compiling CO notification or not
 	* @return nothing */
@@ -124,28 +113,7 @@ private:
 	* @param bShowNotification [in] whether to show the saving DD notification or not
 	* @return nothing */
 	void SaveCODerivedData();
-
-	/** Add to ArrayAssetData the FAssetData information of all referencers of static class type UCustomizableObject::StaticClass()
-	* that reference the package given by the PathName parameter
-	* @param PathName            [in]  path to the CO to be analyzed (for instance, CO->GetOuter()->GetPathName())
-	* @param ArrayReferenceNames [out] array with the package names which are referenced by the CO with PathName given as parameter
-	* @return nothing */
-	void AddCachedReferencers(const FName& PathName, TArray<FName>& ArrayReferenceNames);
-
-	/** Just used to clean ArrayAssetData
-	* @return nothing */
-	void CleanCachedReferencers();
-
-	/** Will test if package path given by PackageName parameter is one of ArrayAssetData's elements FAssetData::PackageName value
-	* @param PackageName [in] package name to test
-	* @return true if cached, false otherwise */
-	bool IsCachedInAssetData(const FString& PackageName);
-
-	/** Find FAssetData ArrayAssetData with PackageName given by parameter
-	* @param PackageName [in] package name to find in ArrayAssetData
-	* @return pointer to element if any found, nullptr otherwise */
-	FAssetData* GetCachedAssetData(const FString& PackageName);
-
+	
 	ECompilationResultPrivate GetCompilationResult() const;
 
 	/** Pointer to the Asynchronous Preloading process call back */
@@ -159,15 +127,9 @@ private:
 	/** SaveDD task and thread. */
 	TSharedPtr<FCustomizableObjectSaveDDRunnable> SaveDDTask;
 	TSharedPtr<FRunnableThread> SaveDDThread;
-
-	/** Array where to put the names of the already processed child in ProcessChildObjectsRecursively */
-	TArray<FName> ArrayAlreadyProcessedChild;
-
-	/** Array with all the packages used to compile current Customizable Object */
-	TArray<FAssetData> ArrayAssetData;
-
+	
 	/** Array used to protect from garbage collection those COs loaded asynchronously */
-	TArray<TObjectPtr<UCustomizableObject>> ArrayGCProtect;
+	TArray<TObjectPtr<UObject>> ArrayGCProtect;
 
 	TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model;
 	TSharedPtr<FModelStreamableBulkData> ModelStreamableBulkData;

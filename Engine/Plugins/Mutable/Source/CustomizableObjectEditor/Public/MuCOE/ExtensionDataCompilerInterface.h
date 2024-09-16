@@ -59,7 +59,7 @@ public:
 	mu::ExtensionDataPtrConst MakeAlwaysLoadedExtensionData(FInstancedStruct&& Data);
 
 	/** The Outer to use for objects owned by always-loaded Extension Data constants. */
-	UObject* GetOuterForAlwaysLoadedObjects();
+	const UObject* GetOuterForAlwaysLoadedObjects();
 
 	/**
 	* Adds a node to the Generation Context list of generated nodes. This function is meant to be called
@@ -70,6 +70,8 @@ public:
 
 	/** Adds a compiler log message to be displayed at the end of the compilation process */
 	void CompilerLog(const FText& InLogText, const class UCustomizableObjectNode* InNode);
+
+	void AddParticipatingObject(const UObject& Object);
 
 	FMutableGraphGenerationContext& GenerationContext;
 };

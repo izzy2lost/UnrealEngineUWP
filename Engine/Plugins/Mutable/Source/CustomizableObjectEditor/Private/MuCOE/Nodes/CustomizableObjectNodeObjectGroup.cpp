@@ -52,7 +52,7 @@ void UCustomizableObjectNodeObjectGroup::PostEditChangeProperty(FPropertyChanged
 			{
 				if (CurrentRootNode->ParentObject)
 				{
-					TArray<UCustomizableObject*> VisitedObjects;
+					TArray<const UCustomizableObject*> VisitedObjects;
 					CurrentRootNode = GetFullGraphRootNodeObject(CurrentRootNode, VisitedObjects);
 				}
 				if (!CurrentRootNode->ParentObject)

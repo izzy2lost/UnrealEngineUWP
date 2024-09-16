@@ -332,3 +332,45 @@ void FCustomizableObjectModule::ToggleDGGUI(const TArray<FString>& Arguments)
 		UDGGUI::OpenDGGUI(SlotID, SelectedCustomizableObjectInstanceUsage, CurrentWorld, PlayerIndex);
 	}
 }
+
+
+void PrintParticipatingPackagesDiff(const TArray<FName>& OutOfDatePackages, const TArray<FName>& AddedPackages, const TArray<FName>& RemovedPackages, bool bVersionDiff)
+{
+	constexpr int32 MaxLogLines = 10;
+
+	if (bVersionDiff)
+	{
+		UE_LOG(LogMutable, Display, TEXT("Version Bridge changed."));
+	}
+	
+	if (OutOfDatePackages.Num())
+	{
+		UE_LOG(LogMutable, Display, TEXT("Packages out of date (%i):"), OutOfDatePackages.Num());
+	}
+				
+	for (int32 Index = 0; Index < FMath::Min(MaxLogLines, OutOfDatePackages.Num()); ++Index)
+	{
+		UE_LOG(LogMutable, Display, TEXT("%s"), *OutOfDatePackages[Index].ToString());
+	}
+
+	if (AddedPackages.Num())
+	{
+		UE_LOG(LogMutable, Display, TEXT("Added packages (%i):"), AddedPackages.Num());
+	}
+				
+	for (int32 Index = 0; Index < FMath::Min(MaxLogLines, AddedPackages.Num()); ++Index)
+	{
+		UE_LOG(LogMutable, Display, TEXT("%s"), *AddedPackages[Index].ToString());
+	}
+
+	if (RemovedPackages.Num())
+	{
+		UE_LOG(LogMutable, Display, TEXT("Removed packages (%i):"), RemovedPackages.Num());
+	}
+				
+	for (int32 Index = 0; Index < FMath::Min(MaxLogLines, RemovedPackages.Num()); ++Index)
+	{
+		UE_LOG(LogMutable, Display, TEXT("%s"), *RemovedPackages[Index].ToString());
+	}
+}
+

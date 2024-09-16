@@ -861,3 +861,4 @@ namespace impl
 
 /** Set OnlyLOD to -1 to generate all mips */
 CUSTOMIZABLEOBJECT_API FTexturePlatformData* MutableCreateImagePlatformData(mu::Ptr<const mu::Image> MutableImage, int32 OnlyLOD, uint16 FullSizeX, uint16 FullSizeY);
+

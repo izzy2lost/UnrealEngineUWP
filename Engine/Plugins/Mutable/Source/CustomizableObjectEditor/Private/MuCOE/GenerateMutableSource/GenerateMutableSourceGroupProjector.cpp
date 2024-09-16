@@ -116,7 +116,7 @@ mu::NodeImagePtr GenerateMutableGroupProjection(const int32 NodeLOD, const int32
 				}();
 				
 				FString msg = FString::Printf(TEXT("Material image [%s] is connected to an image but will be replaced by a Group Projector."), *ImageName);
-				GenerationContext.Compiler->CompilerLog(FText::FromString(msg), TypedNodeMat);
+				GenerationContext.Log(FText::FromString(msg), TypedNodeMat);
 				continue;
 			}
 			
@@ -138,7 +138,7 @@ mu::NodeImagePtr GenerateMutableGroupProjection(const int32 NodeLOD, const int32
 						!ProjectorTempData.bAlternateResStateNameWarningDisplayed)
 					{
 						FString msg = FString::Printf(TEXT("All 'Alternate Projection Resolution State Name' properties in Group Projector Parameter nodes connected to same Group node must have the same value or be blank. Only the value of the last connected node will be used."));
-						GenerationContext.Compiler->CompilerLog(FText::FromString(msg), ProjectorTempData.CustomizableObjectNodeGroupProjectorParameter);
+						GenerationContext.Log(FText::FromString(msg), ProjectorTempData.CustomizableObjectNodeGroupProjectorParameter);
 						ProjectorTempData.bAlternateResStateNameWarningDisplayed = true;
 					}
 
@@ -173,7 +173,7 @@ mu::NodeImagePtr GenerateMutableGroupProjection(const int32 NodeLOD, const int32
 					if (!NodeMeshApplyPose)
 					{
 						FString msg = FString::Printf(TEXT("Couldn't get bone transform information from a Pose Asset."));
-						GenerationContext.Compiler->CompilerLog(FText::FromString(msg), TypedNodeMat);
+						GenerationContext.Log(FText::FromString(msg), TypedNodeMat);
 					}
 
 					MeshSwitchNode->SetOption(SelectorIndex + 1, NodeMeshApplyPose);
@@ -353,7 +353,7 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 				(ProjParamNode->DataTableTextureColumnName.ToString().IsEmpty() || (ProjParamNode->DataTableTextureColumnName.ToString() == "None")))
 			{
 				FString msg = FString::Printf(TEXT("The group projection node has a table assigned to the Option Images Data Table property, but no column to read textures is specified at the Data Table Texture Column Name property."));
-				GenerationContext.Compiler->CompilerLog(FText::FromString(msg), ProjParamNode, EMessageSeverity::Error, true);
+				GenerationContext.Log(FText::FromString(msg), ProjParamNode, EMessageSeverity::Error, true);
 			}
 
 			GroupProjectorTempData.CustomizableObjectNodeGroupProjectorParameter = ProjParamNode;
@@ -411,7 +411,7 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 			if (ArrayOptionTexture.Num() == 0)
 			{
 				FString msg = FString::Printf(TEXT("The group projection node must have at least one option image connected to a texture or at least one valid element in Option Images Data Table."));
-				GenerationContext.Compiler->CompilerLog(FText::FromString(msg), ProjParamNode, EMessageSeverity::Error, true);
+				GenerationContext.Log(FText::FromString(msg), ProjParamNode, EMessageSeverity::Error, true);
 				return false;
 			}
 			
@@ -435,7 +435,7 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 					if (PoseAsset == nullptr) // Check if the slot has a selected pose. Could be left empty by the user
 					{
 						FString msg = FString::Printf(TEXT("The group projection node must have a pose assigned on each Option Poses element."));
-						GenerationContext.Compiler->CompilerLog(FText::FromString(msg), ProjParamNode, EMessageSeverity::Error, true);
+						GenerationContext.Log(FText::FromString(msg), ProjParamNode, EMessageSeverity::Error, true);
 						return false;
 					}
 
@@ -508,7 +508,7 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 				else
 				{
 					FString msg = FString::Printf(TEXT("The group projection node must have a texture for all the options. Please set a texture for all the options."));
-					GenerationContext.Compiler->CompilerLog(FText::FromString(msg), ProjParamNode);
+					GenerationContext.Log(FText::FromString(msg), ProjParamNode);
 				}
 			}
 
@@ -529,7 +529,7 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 		}
 		else
 		{
-			GenerationContext.Compiler->CompilerLog(FText::FromString(TEXT("Error getting group projection properties.")), ProjParamNode, EMessageSeverity::Error, true);
+			GenerationContext.Log(FText::FromString(TEXT("Error getting group projection properties.")), ProjParamNode, EMessageSeverity::Error, true);
 			return false;
 		}
 	}

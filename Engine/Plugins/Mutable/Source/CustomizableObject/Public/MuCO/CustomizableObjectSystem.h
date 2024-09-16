@@ -210,8 +210,8 @@ public:
 	// Lock a CustomizableObjects, preventing the generation or update of any of its instances
 	// Will return true if successful, false if it fails to lock because an update is already underway
 	// This is usually only used in the editor
-	bool LockObject(const UCustomizableObject*);
-	void UnlockObject(const UCustomizableObject*);
+	bool LockObject(UCustomizableObject*);
+	void UnlockObject(UCustomizableObject*);
 
 	/** Checks if there are any outstanding disk or mip update operations in flight for the parameter Customizable Object that may
 	* make it unsafe to compile at the moment.

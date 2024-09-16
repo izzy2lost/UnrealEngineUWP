@@ -151,7 +151,7 @@ void GenerateNewPackage(const FCustomizableObjectStreamedResourceData& StreamedD
 
 bool FCustomizableObjectCookPackageSplitter::ShouldSplit(UObject* SplitData)
 {
-	const UCustomizableObject* Object = CastChecked<UCustomizableObject>(SplitData);
+	UCustomizableObject* Object = CastChecked<UCustomizableObject>(SplitData);
 	const FModelResources& ModelResources = Object->GetPrivate()->GetModelResources(true);
 
 	return !Object->IsChildObject() && (ModelResources.StreamedResourceData.Num() > 0 || Object->GetPrivate()->GetStreamedExtensionData().Num() > 0);
@@ -165,7 +165,7 @@ TArray<ICookPackageSplitter::FGeneratedPackage> FCustomizableObjectCookPackageSp
 	StrongObject.Reset(OwnerObject);
 	
 	const UCustomizableObject* Object = CastChecked<UCustomizableObject>(OwnerObject);
-	FModelResources& ModelResources = Object->GetPrivate()->GetModelResources(true);
+	const FModelResources& ModelResources = Object->GetPrivate()->GetModelResources(true);
 
 	TArray<ICookPackageSplitter::FGeneratedPackage> Result;
 

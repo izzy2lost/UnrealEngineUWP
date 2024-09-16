@@ -122,7 +122,7 @@ void GetLODAndSectionForAutomaticLODs(const FMutableGraphGenerationContext& Cont
 			}
 			else
 			{
-				Context.Compiler->CompilerLog(FText::Format(LOCTEXT("MeshMultipleMaterialIndex", "Mesh {0} contains multiple sections with the same Material Index"), FText::FromString(SkeletalMesh.GetName())), &Node);
+				Context.Log(FText::Format(LOCTEXT("MeshMultipleMaterialIndex", "Mesh {0} contains multiple sections with the same Material Index"), FText::FromString(SkeletalMesh.GetName())), &Node);
 			}
 		}
 	}
@@ -425,7 +425,7 @@ void SetAndPropagatePoseBoneUsage(mu::Mesh& MutableMesh, int32 PoseIndex, mu::EB
 
 }
 
-TArray<TTuple<UPhysicsAsset*, int32>> GetPhysicsAssetsFromAnimInstance(const TSoftClassPtr<UAnimInstance>& AnimInstance)
+TArray<TTuple<UPhysicsAsset*, int32>> GetPhysicsAssetsFromAnimInstance(FMutableGraphGenerationContext& GenerationContext, const TSoftClassPtr<UAnimInstance>& AnimInstance)
 {
 	// TODO: Consider caching the result in the GenerationContext.
 	TArray<TTuple<UPhysicsAsset*, int32>> Result;
@@ -435,7 +435,7 @@ TArray<TTuple<UPhysicsAsset*, int32>> GetPhysicsAssetsFromAnimInstance(const TSo
 		return Result;
 	}
 
-	UClass* AnimInstanceClass = AnimInstance.LoadSynchronous();
+	UClass* AnimInstanceClass = GenerationContext.LoadClass(AnimInstance);
 	UAnimBlueprintGeneratedClass* AnimClass = Cast<UAnimBlueprintGeneratedClass>(AnimInstanceClass);
 
 	if (AnimClass)
@@ -700,7 +700,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 	if (!ImportedModel)
 	{
 		const FString Msg = FString::Printf(TEXT("The SkeletalMesh [%s] doesn't have an imported resource."), *InSkeletalMesh->GetName());
-		GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), CurrentNode);
+		GenerationContext.Log(FText::FromString(Msg), CurrentNode);
 
 		return nullptr;
 	}
@@ -719,7 +719,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 				InSkeletalMesh ? *InSkeletalMesh->GetName() : TEXT("none"),
 				LODIndex + 1,
 				ImportedModel->LODModels.Num());
-			GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), CurrentNode);
+			GenerationContext.Log(FText::FromString(Msg), CurrentNode);
 
 			return nullptr;
 		}
@@ -742,7 +742,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 				ImportedModel->LODModels.Num(),
 				SectionIndex + 1,
 				LODModel.Sections.Num());
-			GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), CurrentNode);
+			GenerationContext.Log(FText::FromString(Msg), CurrentNode);
 
 			return nullptr;
 		}
@@ -769,7 +769,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 		if (!InSkeleton)
 		{
 			FString Msg = FString::Printf(TEXT("No skeleton provided when converting SkeletalMesh [%s]."), *InSkeletalMesh->GetName());
-			GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), CurrentNode);
+			GenerationContext.Log(FText::FromString(Msg), CurrentNode);
 			return nullptr;
 		}
 
@@ -796,7 +796,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 			{
 				if (!ErrorMessage.IsEmpty())
 				{
-					GenerationContext.Compiler->CompilerLog(FText::FromString(ErrorMessage), CurrentNode, EMessageSeverity::Warning);
+					GenerationContext.Log(FText::FromString(ErrorMessage), CurrentNode, EMessageSeverity::Warning);
 				}
 				return nullptr;
 			}
@@ -838,7 +838,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 					TEXT("The Skeleton [%s] is missing bones that SkeletalMesh [%s] needs. The mesh will be discarded! Information about missing bones can be found in the Output Log."),
 					*InSkeleton->GetName(), *InSkeletalMesh->GetName());
 				
-				GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), CurrentNode, EMessageSeverity::Warning);
+				GenerationContext.Log(FText::FromString(Msg), CurrentNode, EMessageSeverity::Warning);
 
 				return nullptr;
 			}
@@ -2015,7 +2015,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 			PhysicsSetupsRemovedMsg += FString::Printf(TEXT("have been discarded because they are not present in the SkeletalMesh [%s] Skeleton."),
 				*InSkeletalMesh->GetName());
 					
-			GenerationContext.Compiler->CompilerLog(FText::FromString(PhysicsSetupsRemovedMsg), CurrentNode, EMessageSeverity::Warning);
+			GenerationContext.Log(FText::FromString(PhysicsSetupsRemovedMsg), CurrentNode, EMessageSeverity::Warning);
 		}
 
 		mu::Ptr<mu::PhysicsBody> PhysicsBody = new mu::PhysicsBody;
@@ -2170,7 +2170,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 	if (!bIgnorePhysics && !AnimBp.IsNull() && MutableMesh->GetSkeleton() && bAnimPhysicsManipulationEnabled)
 	{
 		using AnimPhysicsInfoType = TTuple<UPhysicsAsset*, int32>;
-		const TArray<AnimPhysicsInfoType> AnimPhysicsInfo = GetPhysicsAssetsFromAnimInstance(AnimBp);
+		const TArray<AnimPhysicsInfoType> AnimPhysicsInfo = GetPhysicsAssetsFromAnimInstance(GenerationContext, AnimBp);
 
 		for (const AnimPhysicsInfoType PropertyInfo : AnimPhysicsInfo)
 		{
@@ -2251,7 +2251,7 @@ mu::MeshPtr ConvertStaticMeshToMutable(const UStaticMesh* StaticMesh, int32 LODI
 		!StaticMesh->GetRenderData()->LODResources[LODIndex].Sections.IsValidIndex(SectionIndex))
 	{
 		FString Msg = FString::Printf(TEXT("Degenerated static mesh found for LOD %d Material %d. It will be ignored. "), LODIndex, SectionIndex);
-		GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), CurrentNode, EMessageSeverity::Warning);
+		GenerationContext.Log(FText::FromString(Msg), CurrentNode, EMessageSeverity::Warning);
 		return nullptr;
 	}
 
@@ -2494,7 +2494,7 @@ mu::Ptr<mu::Mesh> GenerateMutableMesh(UObject * Mesh, const TSoftClassPtr<UAnimI
 	}
 	else
 	{
-		GenerationContext.Compiler->CompilerLog(LOCTEXT("UnimplementedMesh", "Mesh type not implemented yet."), CurrentNode);
+		GenerationContext.Log(LOCTEXT("UnimplementedMesh", "Mesh type not implemented yet."), CurrentNode);
 	}
 
 	if (MutableMesh)
@@ -2576,7 +2576,7 @@ mu::Ptr<mu::Mesh> BuildMorphedMutableMesh(const UEdGraphPin* BaseSourcePin, cons
 
 	if (!BaseSourcePin)
 	{
-		GenerationContext.Compiler->CompilerLog(LOCTEXT("NULLBaseSourcePin", "Morph base not set."), nullptr);
+		GenerationContext.Log(LOCTEXT("NULLBaseSourcePin", "Morph base not set."), nullptr);
 		return nullptr;
 	}
 
@@ -2603,7 +2603,7 @@ mu::Ptr<mu::Mesh> BuildMorphedMutableMesh(const UEdGraphPin* BaseSourcePin, cons
 		if (DataTable)
 		{
 			TypedNodeTable->GetPinLODAndSection(BaseSourcePin, LODIndexConnected, SectionIndexConnected);
-			SkeletalMesh = TypedNodeTable->GetSkeletalMeshAt(BaseSourcePin, DataTable, RowName);
+			SkeletalMesh = Cast<USkeletalMesh>(GenerationContext.LoadObject(TypedNodeTable->GetSkeletalMeshAt(BaseSourcePin, DataTable, RowName)));
 		}
 	}
 
@@ -2639,19 +2639,19 @@ void GenerateMorphFactor(const UCustomizableObjectNode* Node, const UEdGraphPin&
 			{
 				validStaticFactor = false;
 				FString msg = FString::Printf(TEXT("Mesh morph nodes only accept factors between -1.0 and 1.0 inclusive but the default value of the float parameter node is (%f). Factor will be ignored."), floatParameterNode->DefaultValue);
-				GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node);
+				GenerationContext.Log(FText::FromString(msg), Node);
 			}
 			if (floatParameterNode->ParamUIMetadata.MinimumValue < -1.0f)
 			{
 				validStaticFactor = false;
 				FString msg = FString::Printf(TEXT("Mesh morph nodes only accept factors between -1.0 and 1.0 inclusive but the minimum UI value for the input float parameter node is (%f). Factor will be ignored."), floatParameterNode->ParamUIMetadata.MinimumValue);
-				GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node);
+				GenerationContext.Log(FText::FromString(msg), Node);
 			}
 			if (floatParameterNode->ParamUIMetadata.MaximumValue > 1.0f)
 			{
 				validStaticFactor = false;
 				FString msg = FString::Printf(TEXT("Mesh morph nodes only accept factors between -1.0 and 1.0 inclusive but the maximum UI value for the input float parameter node is (%f). Factor will be ignored."), floatParameterNode->ParamUIMetadata.MaximumValue);
-				GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node);
+				GenerationContext.Log(FText::FromString(msg), Node);
 			}
 		}
 		
@@ -2661,7 +2661,7 @@ void GenerateMorphFactor(const UCustomizableObjectNode* Node, const UEdGraphPin&
 			{
 				validStaticFactor = false;
 				FString msg = FString::Printf(TEXT("Mesh morph nodes only accept factors between -1.0 and 1.0 inclusive but the value of the float constant node is (%f). Factor will be ignored."), floatConstantNode->Value);
-				GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node);
+				GenerationContext.Log(FText::FromString(msg), Node);
 			}
 		}
 
@@ -2698,7 +2698,7 @@ TArray<TTuple<USkeletalMesh*, TSoftClassPtr<UAnimInstance>>> GetSkeletalMeshesIn
 		{
 			for (const FName& RowName : GetRowsToCompile(*DataTable, *TableNode, GenerationContext))
 			{
-				USkeletalMesh* SkeletalMesh = TableNode->GetSkeletalMeshAt(SourceMeshPin, DataTable, RowName);
+				USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(GenerationContext.LoadObject(TableNode->GetSkeletalMeshAt(SourceMeshPin, DataTable, RowName)));
 				TSoftClassPtr<UAnimInstance> MeshAnimInstance = TableNode->GetAnimInstanceAt(SourceMeshPin, DataTable, RowName);
 
 				if (SkeletalMesh)
@@ -2792,7 +2792,7 @@ bool GetAndValidateReshapeBonesToDeform(
 
 			if (Algo::AnyOf(MissingBones, [](const uint8& B) { return B; }))
 			{
-				GenerationContext.Compiler->CompilerLog(
+				GenerationContext.Log(
 					FText::FromString(
 						"Could not find the selected bones to deform " +
 						MakeCompactMissingBoneListMessage() +
@@ -2922,7 +2922,7 @@ bool GetAndValidateReshapePhysicsToDeform(
 			{
 				TSoftClassPtr<UAnimInstance> AnimInstance = Mesh.Get<TSoftClassPtr<UAnimInstance>>();
 
-				TArray<TTuple<UPhysicsAsset*, int32>> AnimInstanceOverridePhysicsAssets = GetPhysicsAssetsFromAnimInstance(AnimInstance);
+				TArray<TTuple<UPhysicsAsset*, int32>> AnimInstanceOverridePhysicsAssets = GetPhysicsAssetsFromAnimInstance(GenerationContext, AnimInstance);
 
 				for (const TTuple<UPhysicsAsset*, int32>& AnimPhysicsAssetInfo : AnimInstanceOverridePhysicsAssets)
 				{
@@ -3085,7 +3085,7 @@ bool GetAndValidateReshapePhysicsToDeform(
 
 		if (Algo::AnyOf(MissingBones, IsMissingBone))
 		{
-			GenerationContext.Compiler->CompilerLog(
+			GenerationContext.Log(
 				FText::FromString(
 					"Could not find the selected physics bodies bones to deform " +
 					MakeCompactMissingBoneListMessage(IsMissingBone) +
@@ -3097,7 +3097,7 @@ bool GetAndValidateReshapePhysicsToDeform(
 
 		if (Algo::AnyOf(MissingBones, IsMissingBody))
 		{
-			GenerationContext.Compiler->CompilerLog(
+			GenerationContext.Log(
 				FText::FromString(
 					"Selected Bones to deform " +
 					MakeCompactMissingBoneListMessage(IsMissingBody) +
@@ -3277,7 +3277,7 @@ mu::NodeMeshPtr GenerateMorphMesh(const UEdGraphPin* Pin,
 
 	if(!bSuccess)
 	{
-		GenerationContext.Compiler->CompilerLog(LOCTEXT("MorphGenerationFailed", "Failed to generate morph target."), MorphNode);
+		GenerationContext.Log(LOCTEXT("MorphGenerationFailed", "Failed to generate morph target."), MorphNode);
 	}
 
 	return Result;
@@ -3344,10 +3344,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 
 			if (!TypedNodeSkel->AnimInstance.IsNull())
 			{
-				if (UClass* AnimInstance = TypedNodeSkel->AnimInstance.LoadSynchronous())
-				{
-					GenerationContext.AddParticipatingObject(*AnimInstance);					
-				}
+				GenerationContext.AddParticipatingObject(TypedNodeSkel->AnimInstance);
 
 				FName SlotIndex = TypedNodeSkel->AnimBlueprintSlotName;
 				const int32 AnimInstanceIndex = GenerationContext.AnimBPAssets.AddUnique(TypedNodeSkel->AnimInstance);
@@ -3552,7 +3549,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 		}
 		else
 		{
-			GenerationContext.Compiler->CompilerLog(LOCTEXT("MissingskeletlMesh", "No Skeletal Mesh set in the SkeletalMesh node."), Node);
+			GenerationContext.Log(LOCTEXT("MissingskeletlMesh", "No Skeletal Mesh set in the SkeletalMesh node."), Node);
 		}
 	}
 
@@ -3561,14 +3558,14 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 		if (TypedNodeStatic->StaticMesh == nullptr)
 		{
 			FString Msg = FString::Printf(TEXT("The UCustomizableObjectNodeStaticMesh node %s has no static mesh assigned"), *Node->GetName());
-			GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node, EMessageSeverity::Warning);
+			GenerationContext.Log(FText::FromString(Msg), Node, EMessageSeverity::Warning);
 			return {};
 		}
 
 		if (TypedNodeStatic->StaticMesh->GetNumLODs() == 0)
 		{
 			FString Msg = FString::Printf(TEXT("The UCustomizableObjectNodeStaticMesh node %s has a static mesh assigned with no RenderData"), *Node->GetName());
-			GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node, EMessageSeverity::Warning);
+			GenerationContext.Log(FText::FromString(Msg), Node, EMessageSeverity::Warning);
 			return {};
 		}
 
@@ -3622,7 +3619,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 					/*if (bWasEmpty)
 					{
 						FString msg = "Layout without any block found. A grid sized block will be used instead.";
-						GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node, EMessageSeverity::Warning);
+						GenerationContext.Log(FText::FromString(msg), Node, EMessageSeverity::Warning);
 					}*/
 				}
 
@@ -3720,13 +3717,13 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 			}
 			else
 			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("MorphStackGenerationFailed", "Stack definition Generation failed."), Node);
+				GenerationContext.Log(LOCTEXT("MorphStackGenerationFailed", "Stack definition Generation failed."), Node);
 				Result = nullptr;
 			}
 		}
 		else
 		{
-			GenerationContext.Compiler->CompilerLog(LOCTEXT("MorphStackConnectionFailed", "Stack definition connection not found."), Node);
+			GenerationContext.Log(LOCTEXT("MorphStackConnectionFailed", "Stack definition connection not found."), Node);
 			Result = nullptr;
 		}
 	}
@@ -3750,7 +3747,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 					if (EnumPin)
 					{
 						const FText Message = LOCTEXT("FailedToGenerateSwitchParam", "Could not generate switch enum parameter. Please refesh the switch node and connect an enum.");
-						GenerationContext.Compiler->CompilerLog(Message, Node);
+						GenerationContext.Log(Message, Node);
 					}
 
 					return Result;
@@ -3759,7 +3756,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 				if (SwitchParam->GetType() != mu::NodeScalarEnumParameter::GetStaticType())
 				{
 					const FText Message = LOCTEXT("WrongSwitchParamType", "Switch parameter of incorrect type.");
-					GenerationContext.Compiler->CompilerLog(Message, Node);
+					GenerationContext.Log(Message, Node);
 
 					return Result;
 				}
@@ -3770,7 +3767,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 				if (NumSwitchOptions != EnumParameter->GetValueCount())
 				{
 					const FText Message = LOCTEXT("MismatchedSwitch", "Switch enum and switch node have different number of options. Please refresh the switch node to make sure the outcomes are labeled properly.");
-					GenerationContext.Compiler->CompilerLog(Message, Node);
+					GenerationContext.Log(Message, Node);
 				}
 
 				mu::NodeMeshSwitchPtr SwitchNode = new mu::NodeMeshSwitch;
@@ -3793,7 +3790,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 			}
 			else
 			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("NoEnumParamInSwitch", "Switch nodes must have an enum switch parameter. Please connect an enum and refesh the switch node."), Node);
+				GenerationContext.Log(LOCTEXT("NoEnumParamInSwitch", "Switch nodes must have an enum switch parameter. Please connect an enum and refesh the switch node."), Node);
 				return Result;
 			}
 		}(); // invoke lambda.
@@ -3815,7 +3812,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 			}
 			else
 			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("MeshFailed", "Mesh generation failed."), Node);
+				GenerationContext.Log(LOCTEXT("MeshFailed", "Mesh generation failed."), Node);
 			}
 		}
 
@@ -3853,13 +3850,13 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 			}
 			else
 			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("MeshGenerationFailed", "Mesh generation failed."), Node);
+				GenerationContext.Log(LOCTEXT("MeshGenerationFailed", "Mesh generation failed."), Node);
 			}
 		}
 		else
 		{
 			FText Text = FText::Format(LOCTEXT("MeshGeometryMissingDef", "Geometry Operation node requires the {0} value."), TypedNodeGeometry->MeshAPin()->PinFriendlyName);
-			GenerationContext.Compiler->CompilerLog(Text, Node);
+			GenerationContext.Log(Text, Node);
 		}
 
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeGeometry->MeshBPin()))
@@ -3873,7 +3870,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 			}
 			else
 			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("MeshGenerationFailed", "Mesh generation failed."), Node);
+				GenerationContext.Log(LOCTEXT("MeshGenerationFailed", "Mesh generation failed."), Node);
 			}
 		}
 
@@ -3886,7 +3883,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 			}
 			else
 			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("ScalarGenerationFailed", "Scalar generation failed."), Node);
+				GenerationContext.Log(LOCTEXT("ScalarGenerationFailed", "Scalar generation failed."), Node);
 			}
 		}
 
@@ -3899,7 +3896,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 			}
 			else
 			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("ScalarGenerationFailed", "Scalar generation failed."), Node);
+				GenerationContext.Log(LOCTEXT("ScalarGenerationFailed", "Scalar generation failed."), Node);
 			}
 		}
 	}
@@ -3920,12 +3917,12 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 			}
 			else
 			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("MeshFailed", "Mesh generation failed."), Node);
+				GenerationContext.Log(LOCTEXT("MeshFailed", "Mesh generation failed."), Node);
 			}
 		}
 		else
 		{
-			GenerationContext.Compiler->CompilerLog(LOCTEXT("MeshReshapeMissingDef", "Mesh reshape node requires a default value."), Node);
+			GenerationContext.Log(LOCTEXT("MeshReshapeMissingDef", "Mesh reshape node requires a default value."), Node);
 		}
 	
 		{
@@ -3964,7 +3961,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 						}
 					}
 
-					GenerationContext.Compiler->CompilerLog(
+					GenerationContext.Log(
 						LOCTEXT("MeshReshapeColorUsageMask", 
 								"Only one color channel with mask weight usage is allowed, multiple found. Reshape masking disabled."),
 						Node);
@@ -4049,7 +4046,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 			}
 			else
 			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("MeshFailed", "Mesh generation failed."), Node);
+				GenerationContext.Log(LOCTEXT("MeshFailed", "Mesh generation failed."), Node);
 			}
 		}
 
@@ -4066,7 +4063,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 			}
 			else
 			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("MeshFailed", "Mesh generation failed."), Node);
+				GenerationContext.Log(LOCTEXT("MeshFailed", "Mesh generation failed."), Node);
 			}
 		}
 
@@ -4084,7 +4081,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 			{
 				if (BaseShapeTriangleCount != TargetShapeTriangleCount || BaseShapeTriangleCount == -1 || TargetShapeTriangleCount == -1)
 				{
-					GenerationContext.Compiler->CompilerLog(LOCTEXT("ReshapeMeshShapeIncompatible",
+					GenerationContext.Log(LOCTEXT("ReshapeMeshShapeIncompatible",
 						"Base and Target Shapes might not be compatible. Don't have the same number of triangles."), Node, EMessageSeverity::Warning);
 				}
 			}
@@ -4115,7 +4112,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 					else
 					{
 						FString msg = FString::Printf(TEXT("Couldn't get bone transform information from a Pose Asset."));
-						GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node);
+						GenerationContext.Log(FText::FromString(msg), Node);
 
 						Result = nullptr;
 					}
@@ -4138,7 +4135,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 						if (!TypedNode->PoseAsset) // Check if the slot has a selected pose. Could be left empty by the user
 						{
 							FString msg = FString::Printf(TEXT("Found pose mesh node without a pose asset assigned."));
-							GenerationContext.Compiler->CompilerLog(FText::FromString(msg), TypedNode);
+							GenerationContext.Log(FText::FromString(msg), TypedNode);
 						}
 
 					Result = InputMeshNode;
@@ -4167,7 +4164,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 			if (!Property)
 			{
 				FString Msg = FString::Printf(TEXT("Couldn't find the column [%s] in the data table's struct."), *DataTableColumnName);
-				GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node);
+				GenerationContext.Log(FText::FromString(Msg), Node);
 
 				bSuccess = false;
 			}
@@ -4179,7 +4176,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 			if (bSuccess && !DefaultSkeletalMesh && !DefaultStaticMesh && !DefaultPoseAsset)
 			{
 				FString Msg = FString::Printf(TEXT("Couldn't find a default value in the data table's struct for the column [%s]."), *DataTableColumnName);
-				GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node);
+				GenerationContext.Log(FText::FromString(Msg), Node);
 
 				bSuccess = false;
 			}
@@ -4226,7 +4223,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 						if (!bSuccess)
 						{
 							FString Msg = FString::Printf(TEXT("Failed to generate the mutable table column [%s]"), *MutableColumnName);
-							GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node);
+							GenerationContext.Log(FText::FromString(Msg), Node);
 						}
 					}
 
@@ -4292,7 +4289,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 									if (bWasEmpty)
 									{
 										FString msg = "Mesh Column [" + MutableColumnName + "] Layout doesn't has any block. A grid sized block will be used instead.";
-										GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node, EMessageSeverity::Warning);
+										GenerationContext.Log(FText::FromString(msg), Node, EMessageSeverity::Warning);
 									}
 
 									MeshTableNode->SetLayout(i, LayoutNode);
@@ -4310,19 +4307,19 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 				else
 				{
 					FString Msg = FString::Printf(TEXT("Couldn't generate a mutable table."));
-					GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node);
+					GenerationContext.Log(FText::FromString(Msg), Node);
 				}
 			}
 		}
 		else
 		{
-			GenerationContext.Compiler->CompilerLog(LOCTEXT("ImageTableError", "Couldn't find the data table of the node."), Node);
+			GenerationContext.Log(LOCTEXT("ImageTableError", "Couldn't find the data table of the node."), Node);
 		}
 	}
 	
 	else
 	{
-		GenerationContext.Compiler->CompilerLog(LOCTEXT("UnimplementedMeshNode", "Mesh node type not implemented yet."), Node);
+		GenerationContext.Log(LOCTEXT("UnimplementedMeshNode", "Mesh node type not implemented yet."), Node);
 	}
 	
 	GenerationContext.Generated.Add(Key, FGeneratedData(Node, Result, &MeshData));

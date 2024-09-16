@@ -52,6 +52,7 @@
 #include "MuR/Mesh.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "PlatformInfo.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "Math/NumericLimits.h"
 #include "Hash/CityHash.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeCopyMaterial.h"
@@ -84,7 +85,7 @@ bool FGraphCycle::FoundCycle() const
 
 	if (const UCustomizableObject** Result = Context.VisitedPins.Find(Key))
 	{
-		Context.Compiler->CompilerLog(LOCTEXT("CycleFoundNode", "Cycle detected."), &Node, EMessageSeverity::Error, true);
+		Context.Log(LOCTEXT("CycleFoundNode", "Cycle detected."), &Node, EMessageSeverity::Error, true);
 		Context.CustomizableObjectWithCycle = *Result;
 		return true;
 	}
@@ -114,14 +115,14 @@ void CheckNumOutputs(const UEdGraphPin& Pin, const FMutableGraphGenerationContex
 
 			if (numOutLinks > 1)
 			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("MultipleOutgoing", "The node has several outgoing connections, but it should be limited to 1."), CastChecked<UCustomizableObjectNode>(Pin.GetOwningNode()));
+				GenerationContext.Log(LOCTEXT("MultipleOutgoing", "The node has several outgoing connections, but it should be limited to 1."), CastChecked<UCustomizableObjectNode>(Pin.GetOwningNode()));
 			}
 		}
 	}
 }
 
 
-FMutableGraphGenerationContext::FMutableGraphGenerationContext(UCustomizableObject* InObject, FCustomizableObjectCompiler* InCompiler, const FCompilationOptions& InOptions)
+FMutableGraphGenerationContext::FMutableGraphGenerationContext(const UCustomizableObject* InObject, FCustomizableObjectCompiler* InCompiler, const FCompilationOptions& InOptions)
 	: Object(InObject), Compiler(InCompiler), Options(InOptions)
 	, ExtensionDataCompilerInterface(*this)
 {
@@ -135,13 +136,56 @@ FMutableGraphGenerationContext::FMutableGraphGenerationContext(UCustomizableObje
 FMutableGraphGenerationContext::~FMutableGraphGenerationContext() = default;
 
 
+void FMutableGraphGenerationContext::AddParticipatingObject(const FSoftObjectPath& SoftPath)
+{
+	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+	FAssetPackageData AssetPackageData;
+	const UE::AssetRegistry::EExists Result = AssetRegistryModule.Get().TryGetAssetPackageData(SoftPath.GetLongPackageFName(), AssetPackageData);
+	if (Result != UE::AssetRegistry::EExists::Exists)
+	{
+		return;
+	}
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	const FGuid PackageGuid = AssetPackageData.PackageGuid;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		
+	AddParticipatingObjectChecked(SoftPath.GetLongPackageFName(), PackageGuid);
+}
+
+
+void FMutableGraphGenerationContext::AddParticipatingObject(const FSoftObjectPtr& SoftObject)
+{
+	AddParticipatingObject(SoftObject.ToSoftObjectPath());
+}
+
+
 void FMutableGraphGenerationContext::AddParticipatingObject(const UObject& InObject)
 {
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	const FGuid PackageGuid = InObject.GetPackage()->GetGuid();
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	ParticipatingObjects.Add(InObject.GetPackage()->GetFName(), PackageGuid);
+	AddParticipatingObjectChecked(InObject.GetPackage()->GetFName(), PackageGuid);
+}
+
+
+void FMutableGraphGenerationContext::Log(const FText& Message, const TArray<const UObject*>& Context, const EMessageSeverity::Type MessageSeverity, const bool bAddBaseObjectInfo, const ELoggerSpamBin SpamBin) const
+{
+	if (Compiler)
+	{
+		Compiler->CompilerLog(Message, Context, MessageSeverity, bAddBaseObjectInfo, SpamBin);
+	}
+}
+
+
+void FMutableGraphGenerationContext::Log(const FText& Message, const UObject* Context, const EMessageSeverity::Type MessageSeverity, const bool bAddBaseObjectInfo, const ELoggerSpamBin SpamBin) const
+{
+	if (!bParticipatingObjectsPass)
+	{
+		Compiler->CompilerLog(Message, Context, MessageSeverity, bAddBaseObjectInfo, SpamBin);
+	}
 }
 
 
@@ -161,6 +205,11 @@ mu::Ptr<mu::Mesh> FMutableGraphGenerationContext::FindGeneratedMesh( const FGene
 
 int32 FMutableGraphGenerationContext::AddStreamedResource(uint32 InResourceHash, UCustomizableObjectResourceDataContainer*& OutNewResource)
 {
+	if (bParticipatingObjectsPass)
+	{
+		return INDEX_NONE;	
+	}
+	
 	OutNewResource = nullptr;
 
 	// Return resource index if found.
@@ -168,17 +217,16 @@ int32 FMutableGraphGenerationContext::AddStreamedResource(uint32 InResourceHash,
 	{
 		return *ResourceIndex;
 	}
-
+	
 	int32 NewResourceIndex = StreamedResourceData.Num();
 	const FString ContainerName = GetNameSafe(Object) + FString::Printf(TEXT("_SR_%d"), NewResourceIndex);
 
-	UCustomizableObjectResourceDataContainer* ExistingContainer = FindObject<UCustomizableObjectResourceDataContainer>(Object, *ContainerName);
-	OutNewResource = ExistingContainer ? ExistingContainer : NewObject<UCustomizableObjectResourceDataContainer>(
-		Object,
+	OutNewResource = NewObject<UCustomizableObjectResourceDataContainer>(
+		GetTransientPackage(),
 		FName(*ContainerName),
 		RF_Public);
 
-	StreamedResourceData.Add(OutNewResource);
+	StreamedResourceData.Emplace(ContainerName, OutNewResource);
 	StreamedResourceIndices.Add({ InResourceHash, NewResourceIndex });
 
 	return NewResourceIndex;
@@ -202,7 +250,6 @@ int32 FMutableGraphGenerationContext::AddAssetUserDataToStreamedResources(UAsset
 		NewResource->Data.Data = FInstancedStruct::Make(ResourceData);
 	}
 
-	check(StreamedResourceData[ResourceIndex].GetLoadedData().Type == ECOResourceDataType::AssetUserData);
 	return ResourceIndex;
 }
 
@@ -403,6 +450,31 @@ FMutableComponentInfo* FMutableGraphGenerationContext::GetCurrentComponentInfo()
 	}
 
 	return CurrentComponentInfo;
+}
+
+
+UObject* FMutableGraphGenerationContext::LoadObject(const FSoftObjectPtr& SoftObject, bool bParticipatingObjectsPassLoad)
+{
+	return bLoadObjects && (!bParticipatingObjectsPass || bParticipatingObjectsPassLoad) ?
+		SoftObject.LoadSynchronous() :
+		nullptr;
+}
+
+
+void FMutableGraphGenerationContext::AddParticipatingObjectChecked(const FName& PackageName, const FGuid& PackageGuid)
+{
+	if (bParticipatingObjectsPass)
+	{
+		ParticipatingObjects.Emplace(PackageName, PackageGuid);
+	}
+	else
+	{
+		checkCode
+		(
+			FGuid* Result = ParticipatingObjects.Find(PackageName);
+			check(Result && *Result == PackageGuid); // If this check is hit it means that this Participating Object is not being discovered in the Participating Objects pass.
+		)
+	}
 }
 
 
@@ -798,7 +870,7 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 		FGuid FinalGuid = GenerationContext.GetNodeIdUnique(TypedNodeObj);
 		if (FinalGuid != TypedNodeObj->NodeGuid)
 		{
-			GenerationContext.Compiler->CompilerLog(FText::FromString(TEXT("Warning: Node has a duplicated GUID. A new ID has been generated, but cooked data will not be deterministic.")), Node, EMessageSeverity::Warning);
+			GenerationContext.Log(FText::FromString(TEXT("Warning: Node has a duplicated GUID. A new ID has been generated, but cooked data will not be deterministic.")), Node, EMessageSeverity::Warning);
 		}
 		ObjectNode->SetUid(FinalGuid.ToString());
 		
@@ -906,7 +978,7 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 				FString Msg = FString::Printf(TEXT("Extension input %s has multiple incoming connections but is only expecting one connection."),
 					*ExtensionInputPin.InputPin.DisplayName.ToString());
 
-				GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node, EMessageSeverity::Warning);
+				GenerationContext.Log(FText::FromString(Msg), Node, EMessageSeverity::Warning);
 			}
 
 			for (const UEdGraphPin* ConnectedPin : ConnectedPins)
@@ -966,7 +1038,7 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 		case ECustomizableObjectGroupType::COGT_ONE: Type = mu::NodeObjectGroup::CS_ALWAYS_ONE; break;
 		case ECustomizableObjectGroupType::COGT_ONE_OR_NONE: Type = mu::NodeObjectGroup::CS_ONE_OR_NONE; break;
 		default:
-			GenerationContext.Compiler->CompilerLog(LOCTEXT("UnsupportedGroupType", "Object Group Type not supported. Setting to 'ALL'."), Node);
+			GenerationContext.Log(LOCTEXT("UnsupportedGroupType", "Object Group Type not supported. Setting to 'ALL'."), Node);
 			break;
 		}
 		GroupNode->SetSelectionType(Type);
@@ -1002,7 +1074,7 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 
 			UCustomizableObjectNodeObject* CustomizableObjectNodeObject = Cast<UCustomizableObjectNodeObject>(ConnectedChildrenPins[ChildIndex]->GetOwningNode());
 
-			FString* SelectedOptionName = GenerationContext.ParamNamesToSelectedOptions.Find(TypedNodeGroup->GroupName); // If the param is in the map restrict to only the selected option
+			const FString* SelectedOptionName = GenerationContext.Options.ParamNamesToSelectedOptions.Find(TypedNodeGroup->GroupName); // If the param is in the map restrict to only the selected option
 			mu::NodeObjectPtr ChildNode = nullptr;
 
 			if (bConnectAtLeastTheLastChild || !SelectedOptionName || (CustomizableObjectNodeObject && *SelectedOptionName == CustomizableObjectNodeObject->ObjectName) )
@@ -1110,7 +1182,7 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 
 			UCustomizableObjectNodeObject* CustomizableObjectNodeObject = Cast<UCustomizableObjectNodeObject>(ExternalChildNode->OutputPin()->GetOwningNode());
 
-			FString* SelectedOptionName = GenerationContext.ParamNamesToSelectedOptions.Find(TypedNodeGroup->GroupName); // If the param is in the map restrict to only the selected option
+			const FString* SelectedOptionName = GenerationContext.Options.ParamNamesToSelectedOptions.Find(TypedNodeGroup->GroupName); // If the param is in the map restrict to only the selected option
 			mu::NodeObjectPtr ChildNode = nullptr;
 
 			if (bConnectAtLeastTheLastChild || !SelectedOptionName || (CustomizableObjectNodeObject  && *SelectedOptionName == CustomizableObjectNodeObject->ObjectName) )
@@ -1199,7 +1271,7 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 	}
 	else
 	{
-		GenerationContext.Compiler->CompilerLog(LOCTEXT("UnimplementedNode", "Node type not implemented yet."), Node);
+		GenerationContext.Log(LOCTEXT("UnimplementedNode", "Node type not implemented yet."), Node);
 	}
 
 	GenerationContext.Generated.Add(Key, FGeneratedData(Node, Result));
@@ -1364,9 +1436,11 @@ void PopulateReferenceSkeletalMeshesData(FMutableGraphGenerationContext& Generat
 				{
 					FMutableRefAssetUserData& MutAssetUserData = Data.AssetUserData.AddDefaulted_GetRef();
 					MutAssetUserData.AssetUserDataIndex = GenerationContext.AddAssetUserDataToStreamedResources(AssetUserData);
-					MutAssetUserData.AssetUserData = GenerationContext.StreamedResourceData[MutAssetUserData.AssetUserDataIndex].GetPath().Get();
-					check(MutAssetUserData.AssetUserData);
-					check(MutAssetUserData.AssetUserData->Data.Type == ECOResourceDataType::AssetUserData);
+					if (MutAssetUserData.AssetUserData != INDEX_NONE)
+					{
+						MutAssetUserData.AssetUserData = GenerationContext.StreamedResourceData[MutAssetUserData.AssetUserDataIndex].Value;
+						check(MutAssetUserData.AssetUserData->Data.Type == ECOResourceDataType::AssetUserData);
+					}
 				}
 			}
 		}
@@ -1586,6 +1660,8 @@ mu::Ptr<mu::Image> GenerateImageConstant(UTexture* Texture, FMutableGraphGenerat
 
 mu::Ptr<mu::Mesh> GenerateMeshConstant(USkeletalMesh* Mesh, FMutableGraphGenerationContext& GenerationContext, bool bIsReference)
 {
+	MUTABLE_CPUPROFILER_SCOPE(GenerateMeshConstant)
+
 	if (!Mesh)
 	{
 		return nullptr;

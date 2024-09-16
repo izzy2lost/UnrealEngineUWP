@@ -380,7 +380,6 @@ public:
 
 	// Helpers to get the absolute parent of a Customizable Object
 	static UCustomizableObject* GetAbsoluteCOParent(const UCustomizableObjectNodeObject* const Root);
-	static void AddCachedReferencers(const FName& PathName, TArray<FName>& ArrayReferenceNames, TArray<FAssetData>& ArrayAssetData);
 
 	/**	The tab ids for all the tabs used */
 	static const FName ViewportTabId;

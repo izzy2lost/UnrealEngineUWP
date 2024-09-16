@@ -74,7 +74,7 @@ void UCustomizableObjectNodeModifierBase::GetPossiblyModifiedNodes(TArray<UCusto
 {
 	// Scan all potential receivers
 	UCustomizableObject* ThisNodeObject = GetRootObject(*this);
-	UCustomizableObject* RootObject = GetRootObject(ThisNodeObject);
+	UCustomizableObject* RootObject = GraphTraversal::GetRootObject(ThisNodeObject);
 
 	TSet<UCustomizableObject*> AllCustomizableObject;
 	GetAllObjectsInGraph(RootObject, AllCustomizableObject);

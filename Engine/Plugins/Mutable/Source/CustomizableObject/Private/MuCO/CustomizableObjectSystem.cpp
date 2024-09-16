@@ -1354,7 +1354,7 @@ void UCustomizableObjectSystem::ClearResourceCacheProtected()
 
 
 #if WITH_EDITOR
-bool UCustomizableObjectSystem::LockObject(const class UCustomizableObject* InObject)
+bool UCustomizableObjectSystem::LockObject(UCustomizableObject* InObject)
 {
 	check(InObject != nullptr);
 	check(InObject->GetPrivate());
@@ -1440,7 +1440,7 @@ bool UCustomizableObjectSystem::LockObject(const class UCustomizableObject* InOb
 }
 
 
-void UCustomizableObjectSystem::UnlockObject(const class UCustomizableObject* Obj)
+void UCustomizableObjectSystem::UnlockObject(UCustomizableObject* Obj)
 {
 	check(Obj != nullptr);
 	check(Obj->GetPrivate());
@@ -3211,7 +3211,7 @@ namespace impl
 		UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstanceChecked();
 		UCustomizableObjectSystemPrivate* SystemPrivate = System->GetPrivate();
 
-		const UCustomizableObject* CustomizableObject = Operation->Instance->GetCustomizableObject();
+		UCustomizableObject* CustomizableObject = Operation->Instance->GetCustomizableObject();
 		UCustomizableObjectPrivate* CustomizableObjectPrivate = CustomizableObject->GetPrivate();
 		
 		for (const TArray<mu::FResourceID>& MeshId : Operation->MeshDescriptors)

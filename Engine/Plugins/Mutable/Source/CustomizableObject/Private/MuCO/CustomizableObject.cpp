@@ -315,6 +315,13 @@ void UCustomizableObject::PostLoad()
 {
 	Super::PostLoad();
 
+#if	WITH_EDITORONLY_DATA
+	if (Source)
+	{
+		Source->ConditionalPostLoad();
+	}
+#endif
+	
 	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
 
 #if WITH_EDITOR
@@ -743,6 +750,7 @@ void FModelResources::Serialize(FObjectAndNameAsStringProxyArchive& MemoryWriter
 	MemoryWriter << FirstLODAvailable;
 
 	MemoryWriter << ComponentNames;
+	MemoryWriter << CompiledVersionBridge;
 
 	// Editor Only data
 	if (!bIsCooking)
@@ -894,6 +902,7 @@ bool FModelResources::Unserialize(FObjectAndNameAsStringProxyArchive& MemoryRead
 	MemoryReader << FirstLODAvailable;
 
 	MemoryReader << ComponentNames;
+	MemoryReader << CompiledVersionBridge;
 
 	// Editor Only data
 	if (!bIsCooking)
@@ -967,18 +976,24 @@ void UCustomizableObjectPrivate::LoadCompiledDataFromDisk()
 				CompiledDataFileHandle->Read(CompiledDataBytes.GetData(), CompiledDataSize);
 
 				FMemoryReaderView MemoryReader(CompiledDataBytes);
-
-				DirtyParticipatingObjects.Empty();
-
-				TArray<FName> OutOfDatePackages;
-				if (LoadModelResources(MemoryReader, RunningPlatform) && !IsCompilationOutOfDate(&OutOfDatePackages))
+				
+				if (LoadModelResources(MemoryReader, RunningPlatform))
 				{
-					LoadModelStreamableBulk(MemoryReader, /* bIsCooking */false);
-					LoadModel(MemoryReader);
-				}
-				else if (!OutOfDatePackages.IsEmpty())
-				{
-					UE_LOG(LogMutable, Display, TEXT("Invalidating compiled data due to changes in %s."), *OutOfDatePackages[0].ToString());
+					TArray<FName> OutOfDatePackages;
+					TArray<FName> AddedPackages;
+					TArray<FName> RemovedPackages;
+					bool bVersionDiff;
+					const bool bOutOfDate = IsCompilationOutOfDate(false, OutOfDatePackages, AddedPackages, RemovedPackages, bVersionDiff);
+					if (!bOutOfDate)
+					{
+						LoadModelStreamableBulk(MemoryReader, /* bIsCooking */false);
+						LoadModel(MemoryReader);
+					}
+					else
+					{
+						UE_LOG(LogMutable, Display, TEXT("Invalidating compiled data due to changes in %s."), *OutOfDatePackages[0].ToString());
+						PrintParticipatingPackagesDiff(OutOfDatePackages, AddedPackages, RemovedPackages, bVersionDiff);
+					}
 				}
 			}
 		}
@@ -1193,7 +1208,14 @@ void UCustomizableObjectPrivate::LoadEmbeddedData(FArchive& Ar)
 }
 
 
-UCustomizableObjectPrivate* UCustomizableObject::GetPrivate() const
+const UCustomizableObjectPrivate* UCustomizableObject::GetPrivate() const
+{
+	check(Private);
+	return Private;
+}
+
+
+UCustomizableObjectPrivate* UCustomizableObject::GetPrivate()
 {
 	check(Private);
 	return Private;
@@ -1368,7 +1390,7 @@ UCustomizableObject* UCustomizableObjectPrivate::GetPublic() const
 }
 
 #if WITH_EDITORONLY_DATA
-FPostCompileDelegate& UCustomizableObject::GetPostCompileDelegate() const
+FPostCompileDelegate& UCustomizableObject::GetPostCompileDelegate()
 {
 	return GetPrivate()->PostCompileDelegate;
 }
@@ -1788,7 +1810,7 @@ float UCustomizableObject::GetFloatParameterDefaultValue(const FString& InParame
 		return FCustomizableObjectFloatParameterValue::DEFAULT_PARAMETER_VALUE;
 	}
 
-	const TSharedPtr<mu::Model> Model = GetPrivate()->GetModel();
+	const TSharedPtr<const mu::Model>& Model = GetPrivate()->GetModel();
 	if (!Model)
 	{
 		checkNoEntry();
@@ -1808,7 +1830,7 @@ int32 UCustomizableObject::GetIntParameterDefaultValue(const FString& InParamete
 		return FCustomizableObjectIntParameterValue::DEFAULT_PARAMETER_VALUE;
 	}
 
-	const TSharedPtr<mu::Model> Model = GetPrivate()->GetModel();
+	const TSharedPtr<const mu::Model>& Model = GetPrivate()->GetModel();
 	if (!Model)
 	{
 		checkNoEntry();
@@ -1828,7 +1850,7 @@ bool UCustomizableObject::GetBoolParameterDefaultValue(const FString& InParamete
 		return FCustomizableObjectBoolParameterValue::DEFAULT_PARAMETER_VALUE;
 	}
 
-	const TSharedPtr<mu::Model> Model = GetPrivate()->GetModel();
+	const TSharedPtr<const mu::Model>& Model = GetPrivate()->GetModel();
 	if (!Model)
 	{
 		checkNoEntry();
@@ -1848,7 +1870,7 @@ FLinearColor UCustomizableObject::GetColorParameterDefaultValue(const FString& I
 		return FCustomizableObjectVectorParameterValue::DEFAULT_PARAMETER_VALUE;
 	}
 
-	const TSharedPtr<mu::Model> Model = GetPrivate()->GetModel();
+	const TSharedPtr<const mu::Model>& Model = GetPrivate()->GetModel();
 	if (!Model)
 	{
 		checkNoEntry();
@@ -1886,7 +1908,7 @@ FCustomizableObjectProjector UCustomizableObject::GetProjectorParameterDefaultVa
 		return FCustomizableObjectProjectorParameterValue::DEFAULT_PARAMETER_VALUE;
 	}
 
-	const TSharedPtr<mu::Model> Model = GetPrivate()->GetModel();
+	const TSharedPtr<const mu::Model>& Model = GetPrivate()->GetModel();
 	if (!Model)
 	{
 		checkNoEntry();
@@ -1911,7 +1933,7 @@ FName UCustomizableObject::GetTextureParameterDefaultValue(const FString& InPara
 		return FCustomizableObjectTextureParameterValue::DEFAULT_PARAMETER_VALUE;
 	}
 
-	const TSharedPtr<mu::Model> Model = GetPrivate()->GetModel();
+	const TSharedPtr<const mu::Model>& Model = GetPrivate()->GetModel();
 	if (!Model)
 	{
 		checkNoEntry();
@@ -2185,14 +2207,6 @@ void UModelStreamableData::Serialize(FArchive& Ar)
 }
 
 
-UCustomizableObjectPrivate::UCustomizableObjectPrivate()
-{
-#if WITH_EDITOR
-	UPackage::PackageMarkedDirtyEvent.AddUObject(this, &UCustomizableObjectPrivate::OnParticipatingObjectDirty);
-#endif
-}
-
-
 void UCustomizableObjectPrivate::SetModel(const TSharedPtr<mu::Model, ESPMode::ThreadSafe>& Model, const FGuid Id)
 {
 	if (MutableModel == Model
@@ -2229,7 +2243,7 @@ const TSharedPtr<mu::Model, ESPMode::ThreadSafe>& UCustomizableObjectPrivate::Ge
 }
 
 
-TSharedPtr<const mu::Model, ESPMode::ThreadSafe> UCustomizableObjectPrivate::GetModel() const
+const TSharedPtr<const mu::Model, ESPMode::ThreadSafe> UCustomizableObjectPrivate::GetModel() const
 {
 	return MutableModel;
 }
@@ -2281,29 +2295,27 @@ const FModelResources& UCustomizableObjectPrivate::GetModelResources() const
 #if WITH_EDITORONLY_DATA
 FModelResources& UCustomizableObjectPrivate::GetModelResources(bool bIsCooking)
 {
+	const UCustomizableObjectPrivate* ConstThis = this;
+	return *const_cast<FModelResources*>(&ConstThis->GetModelResources(bIsCooking));
+}
+
+
+const FModelResources& UCustomizableObjectPrivate::GetModelResources(bool bIsCooking) const
+{
 	return bIsCooking ? ModelResources : ModelResourcesEditor;
 }
 #endif
 
 
 #if WITH_EDITOR
-bool UCustomizableObjectPrivate::IsCompilationOutOfDate(TArray<FName>* OutOfDatePackages) const
+bool UCustomizableObjectPrivate::IsCompilationOutOfDate(bool bSkipIndirectReferences, TArray<FName>& OutOfDatePackages, TArray<FName>& AddedPackages, TArray<FName>& RemovedPackages, bool& bVersionDiff) const
 {
 	if (const ICustomizableObjectEditorModule* Module = ICustomizableObjectEditorModule::Get())
 	{
-		return Module->IsCompilationOutOfDate(*GetPublic(), OutOfDatePackages);
+		return Module->IsCompilationOutOfDate(*GetPublic(), bSkipIndirectReferences, OutOfDatePackages, AddedPackages, RemovedPackages, bVersionDiff);
 	}
 
 	return false;		
-}
-
-
-void UCustomizableObjectPrivate::OnParticipatingObjectDirty(UPackage* Package, bool)
-{
-	if (GetModelResources().ParticipatingObjects.Contains(Package->GetFName()))
-	{
-		DirtyParticipatingObjects.AddUnique(Package->GetFName());
-	}
 }
 #endif
 
@@ -2339,8 +2351,19 @@ TArray<FCustomizableObjectResourceData>& UCustomizableObjectPrivate::GetAlwaysLo
 	return GetPublic()->AlwaysLoadedExtensionData;
 }
 
+const TArray<FCustomizableObjectResourceData>& UCustomizableObjectPrivate::GetAlwaysLoadedExtensionData() const
+{
+	return GetPublic()->AlwaysLoadedExtensionData;
+}
+
 
 TArray<FCustomizableObjectStreamedResourceData>& UCustomizableObjectPrivate::GetStreamedExtensionData()
+{
+	return GetPublic()->StreamedExtensionData;
+}
+
+
+const TArray<FCustomizableObjectStreamedResourceData>& UCustomizableObjectPrivate::GetStreamedExtensionData() const
 {
 	return GetPublic()->StreamedExtensionData;
 }
@@ -2425,7 +2448,7 @@ FCompilationOptions UCustomizableObjectPrivate::GetCompileOptions() const
 	Options.bPhysicsAssetMergeEnabled = GetPublic()->bEnablePhysicsAssetMerge;
 	Options.bAnimBpPhysicsManipulationEnabled = GetPublic()->bEnableAnimBpPhysicsAssetsManipualtion;
 	Options.ImageTiling = ImageTiling;
-	
+
 	return Options;
 }
 #endif
@@ -2792,59 +2815,76 @@ void SerializeCompilationOptionsForDDC(FArchive& Ar, FCompilationOptions& Option
 	Ar << Options.bPhysicsAssetMergeEnabled;
 	Ar << Options.bAnimBpPhysicsManipulationEnabled;
 	Ar << Options.ImageTiling;
+	Ar << Options.ParamNamesToSelectedOptions;
 }
 
 
-const FString& GetCustomizableObjectDerivedDataVersion()
+
+TArray<uint8> UCustomizableObjectPrivate::BuildDerivedDataKey(FCompilationOptions Options)
 {
-	static FString CachedVersionString = TEXT("53DD1D7C-C040-4A52-162B-A3F03E2E8320");
-	return CachedVersionString;
-}
-
-
-FString UCustomizableObjectPrivate::BuildDerivedDataKey(FCompilationOptions Options)
-{
-	FString KeySuffix;
-
-	TArray<uint8> TempBytes;
-	TempBytes.Reserve(160);
-
-	KeySuffix += FString::Printf(TEXT("%08x-"), (uint32)CurrentSupportedVersion);
+	MUTABLE_CPUPROFILER_SCOPE(UCustomizableObjectPrivate::BuildDerivedDataKey)
 
 	check(IsInGameThread());
+	
 	UCustomizableObject& CustomizableObject = *GetPublic();
 
+	TArray<uint8> Bytes;
+	FMemoryWriter Ar(Bytes, /*bIsPersistent=*/ true);
+	
+	{
+		uint32 Version = DerivedDataVersion;
+		Ar << Version;
+	}
+	
+	{
+		int32 CurrentVersion = CurrentSupportedVersion;
+		Ar << CurrentVersion;	
+	}
+
+	// Custom Version
+	{
+		int32 CustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
+		Ar << CustomVersion;
+	}
+	
+
 	// Customizable Object Ids
-	KeySuffix += GenerateIdentifier(CustomizableObject).ToString();
-	KeySuffix += CustomizableObject.VersionId.ToString();
+	{
+		FGuid Id = GenerateIdentifier(CustomizableObject);
+		Ar << Id;
+	}
+
+	{
+		FGuid Version = CustomizableObject.VersionId;
+		Ar << Version;
+	}
 
 	// Compile Options
 	{
-		TempBytes.Reset();
-		FMemoryWriter Ar(TempBytes, /*bIsPersistent=*/ true);
 		SerializeCompilationOptionsForDDC(Ar, Options);
-		KeySuffix += FString::Printf(TEXT("OPT_%016x"), CityHash64(reinterpret_cast<const char*>(TempBytes.GetData()), TempBytes.Num()));
 	}
 
-	// Content Version
+	// Version Bridge
 	if (const ICustomizableObjectEditorModule* Module = ICustomizableObjectEditorModule::Get())
 	{
-		KeySuffix += TEXT("VER_") + Module->GetCurrentContentVersionForObject(CustomizableObject);
+		FString Version = Module->GetCurrentContentVersionForObject(CustomizableObject);
+		Ar << Version;
 	}
 
 	// Participating objects hash
+	if (ICustomizableObjectEditorModule* Module = ICustomizableObjectEditorModule::Get())
 	{
-		TempBytes.Reset();
-		FMemoryWriter Ar(TempBytes, /*bIsPersistent=*/ true);
-		//Ar << CachedParticipatingObjectsHash; // TODO PERE: Build ParticipatingObjects Hash
-		KeySuffix += FString::FromBlob(TempBytes.GetData(), TempBytes.Num() * TempBytes.GetTypeSize());
+		TMap<FName, FGuid> ParticipatingObjects = Module->GetParticipatingObjects(GetPublic(), true, &Options);
+		for (TTuple<FName, FGuid>& Tuple : ParticipatingObjects)
+		{
+			Ar << Tuple.Get<0>();
+			Ar << Tuple.Get<1>();
+		}
 	}
 
-	return FDerivedDataCacheInterface::BuildCacheKey(
-		TEXT("CUSTOMIZABLEOBJECT"),
-		*GetCustomizableObjectDerivedDataVersion(),
-		*KeySuffix
-	);
+	// TODO List of plugins and their custom versions
+
+	return Bytes;
 }
 
 
@@ -2852,12 +2892,11 @@ UE::DerivedData::FCacheKey UCustomizableObjectPrivate::GetDerivedDataCacheKeyFor
 {
 	using namespace UE::DerivedData;
 
-	// Cache key as string
-	FString DerivedDataKey = BuildDerivedDataKey(InOptions);
+	TArray<uint8> DerivedDataKey = BuildDerivedDataKey(InOptions);
 
 	FCacheKey CacheKey;
 	CacheKey.Bucket = FCacheBucket(TEXT("CustomizableObject"));
-	CacheKey.Hash = FIoHashBuilder::HashBuffer(MakeMemoryView(FTCHARToUTF8(DerivedDataKey)));
+	CacheKey.Hash = FIoHashBuilder::HashBuffer(MakeMemoryView(DerivedDataKey));
 	return CacheKey;
 }
 
@@ -3538,18 +3577,6 @@ TArray<FText>& FCompilationRequest::GetWarnings()
 TArray<FText>& FCompilationRequest::GetErrors()
 {
 	return Errors;
-}
-
-
-void FCompilationRequest::SetParameterNamesToSelectedOptions(const TMap<FString, FString>& InParamNamesToSelectedOptions)
-{
-	ParamNamesToSelectedOptions = InParamNamesToSelectedOptions;
-}
-
-
-const TMap<FString, FString>& FCompilationRequest::GetParameterNamesToSelectedOptions() const
-{
-	return ParamNamesToSelectedOptions;
 }
 
 

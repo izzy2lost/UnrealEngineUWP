@@ -9,6 +9,7 @@
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectIdentifier.h"
 #include "MuCO/CustomizableObjectCompilerTypes.h"
+#include "MuCOE/CustomizableObjectEditorLogger.h"
 #include "MuCOE/ExtensionDataCompilerInterface.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterialBase.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObject.h"
@@ -542,36 +543,42 @@ private:
 
 struct FMutableGraphGenerationContext
 {
-	FMutableGraphGenerationContext(UCustomizableObject* CustomizableObject, class FCustomizableObjectCompiler* InCompiler, const FCompilationOptions& InOptions);
+	FMutableGraphGenerationContext(const UCustomizableObject* CustomizableObject, class FCustomizableObjectCompiler* InCompiler, const FCompilationOptions& InOptions);
 	~FMutableGraphGenerationContext();
 
 	/** See FCustomizableObjectPrivateData::ParticipatingObjects. */
-	void AddParticipatingObject(const UObject& Object);
+	void AddParticipatingObject(const FSoftObjectPath& SoftPath);
+	
+	/** See FCustomizableObjectPrivateData::ParticipatingObjects. */
+	void AddParticipatingObject(const FSoftObjectPtr& SoftObject);
 
 	/** See FCustomizableObjectPrivateData::ParticipatingObjects. */
-	template<typename Type>
-	void AddParticipatingObject(const TArray<Type>& InObjects)
+	template<typename T>
+	void AddParticipatingObject(const TSoftClassPtr<T>& SoftClass)
 	{
-		for (Type InObject : InObjects)
-		{
-			if (InObject)
-			{	
-				AddParticipatingObject(*InObject);
-			}
-		}
+		AddParticipatingObject(SoftClass.ToSoftObjectPath());
 	}
 	
-	UCustomizableObject* Object = nullptr;
+	/** See FCustomizableObjectPrivateData::ParticipatingObjects. */
+	void AddParticipatingObject(const UObject& Object);
+
+	void Log(const FText& Message, const TArray<const UObject*>& UObject, const EMessageSeverity::Type MessageSeverity = EMessageSeverity::Warning, const bool bAddBaseObjectInfo = true, const ELoggerSpamBin SpamBin = ELoggerSpamBin::ShowAll) const;
+
+	void Log(const FText& Message, const UObject* Context = nullptr, const EMessageSeverity::Type MessageSeverity = EMessageSeverity::Warning, const bool bAddBaseObjectInfo = true, const ELoggerSpamBin SpamBin = ELoggerSpamBin::ShowAll) const;
+	
+	const UCustomizableObject* Object = nullptr;
 
 	/** Full hierarchy root. */
 	UCustomizableObjectNodeObject* Root = nullptr;
-	
+
+private:
 	// Non-owned reference to the compiler object
 	FCustomizableObjectCompiler* Compiler = nullptr;
 
+public:
 	// Compilation options, including target platform
-	FCompilationOptions Options;
-
+	const FCompilationOptions& Options;
+	
 	// Cache of generated pins per LOD
 	TMap<FGeneratedKey, FGeneratedData> Generated;
 
@@ -753,6 +760,31 @@ struct FMutableGraphGenerationContext
 	/** Get the reference skeletal mesh associated to the current mesh component being generated */
 	FMutableComponentInfo* GetCurrentComponentInfo();
 
+	UObject* LoadObject(const FSoftObjectPtr& SoftObject, bool bParticipatingObjectsPassLoad = false);
+
+	template<typename T>
+	T* LoadObject(const TSoftObjectPtr<T>& SoftObject, bool bParticipatingObjectsPassLoad = false)
+	{
+		return bLoadObjects && (!bParticipatingObjectsPass || bParticipatingObjectsPassLoad) ?
+			SoftObject.LoadSynchronous() :
+			nullptr;
+	}
+
+	template<typename T>
+	UClass* LoadClass(const TSoftClassPtr<T>& SoftClass, bool bParticipatingObjectsPassLoad = false)
+	{
+		return bLoadObjects && (!bParticipatingObjectsPass || bParticipatingObjectsPassLoad) ?
+			SoftClass.LoadSynchronous() :
+			nullptr;
+	}
+
+private:
+	/** Two operation modes:
+	 * 1. bParticipatingObjectsPass = true, add the participating object.
+	 * 2. bParticipatingObjectsPass = false, check that the participating object was discovered in the participating object pass. */
+	void AddParticipatingObjectChecked(const FName& PackageName, const FGuid& PackageGuid);
+
+public:
 	TMap<FName, UCustomizableObjectNodeComponentMesh*> MeshComponents;
 
 	/** Only Mesh Components (no passthrough). */
@@ -827,6 +859,11 @@ struct FMutableGraphGenerationContext
 
 	bool bPartialCompilation = false;
 
+	bool bParticipatingObjectsPass = false;
+
+	/** Load any Soft Object/Class Pointers. */
+	bool bLoadObjects = true;
+	
 	// Based on the last object visited.
 	ECustomizableObjectAutomaticLODStrategy CurrentAutoLODStrategy = ECustomizableObjectAutomaticLODStrategy::Manual;
 
@@ -855,10 +892,7 @@ struct FMutableGraphGenerationContext
 	* It's a stack because group nodes are recursive
 	*/
 	TArray<int32> SocketPriorityStack;
-
-	// Stores the only option of an Int Param that should be compiled in a partial compilation
-	TMap<FString, FString> ParamNamesToSelectedOptions;
-
+	
 	// Stores what param names use a certain table as a table can be used from multiple table nodes, useful for partial compilations to restrict params
 	TMap<FString, FMutableParamNameSet> TableToParamNames;
 
@@ -898,12 +932,12 @@ struct FMutableGraphGenerationContext
 
 	/** Resource Data constants */
 	TMap<uint32, int32> StreamedResourceIndices;
-	TArray<FCustomizableObjectStreamedResourceData> StreamedResourceData;
+	TArray<TPair<FName, UCustomizableObjectResourceDataContainer*>> StreamedResourceData;
 
 	/** Extension Data constants are collected here */
 	FExtensionDataCompilerInterface ExtensionDataCompilerInterface;
 	TArray<FCustomizableObjectResourceData> AlwaysLoadedExtensionData;
-	TArray<UCustomizableObjectResourceDataContainer*> StreamedExtensionData;
+	TArray<TPair<FName, UCustomizableObjectResourceDataContainer*>> StreamedExtensionData;
 
 	/** See FCustomizableObjectPrivateData::ParticipatingObjects. */
 	TMap<FName, FGuid> ParticipatingObjects;

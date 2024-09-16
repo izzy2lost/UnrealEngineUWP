@@ -251,6 +251,8 @@ const TArray<FCustomizableObjectCompileRunnable::FError>& FCustomizableObjectCom
 
 void FCustomizableObjectCompileRunnable::Tick()
 {
+	MUTABLE_CPUPROFILER_SCOPE(FCustomizableObjectCompileRunnable::Tick);
+
 	check(IsInGameThread());
 
 	constexpr double MaxSecondsPerFrame = 0.4;

@@ -164,7 +164,7 @@ void FCustomizableObjectDetails::CustomizeDetails( IDetailLayoutBuilder& DetailB
 
 void FCustomizableObjectDetails::UpdateTree()
 {
-	UCustomizableObject* RootObject = GetRootObject(CustomizableObject);
+	UCustomizableObject* RootObject = GraphTraversal::GetRootObject(CustomizableObject);
 
 	if (RootObject && RootObject->GetPrivate()->GetModel() )
 	{
