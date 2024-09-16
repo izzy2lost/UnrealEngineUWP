@@ -20,8 +20,12 @@ struct ASSETDEFINITION_API FAssetCategoryPath
 	FText GetCategoryText() const { return CategoryPath[0].Value; }
 	
 	bool HasSubCategory() const { return CategoryPath.Num() > 1; }
+	int32 NumSubCategories() const { return HasSubCategory() ? (CategoryPath.Num() - 1) : 0; }
 	FName GetSubCategory() const { return HasSubCategory() ? CategoryPath[1].Key : NAME_None; }
 	FText GetSubCategoryText() const { return HasSubCategory() ? CategoryPath[1].Value : FText::GetEmpty(); }
+
+	void GetSubCategories(TArray<FName>& SubCategories) const;
+	void GetSubCategoriesText(TArray<FText>& SubCategories) const;
 	
 	FAssetCategoryPath operator / (const FText& SubCategory) const { return FAssetCategoryPath(*this, SubCategory); }
 	

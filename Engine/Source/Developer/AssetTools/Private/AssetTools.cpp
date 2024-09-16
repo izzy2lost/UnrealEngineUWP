@@ -218,7 +218,7 @@ public:
 	}
 
 private:
-	TArray<FText> SubMenus;
+	mutable TArray<FText> SubMenus;
 	mutable bool SubmenusInitialized = false;
 
 public:
@@ -233,10 +233,7 @@ public:
 			
 			for (const FAssetCategoryPath& Category : AssetDefinitionPtr.Get()->GetAssetCategories())
 			{
-				if (Category.HasSubCategory())
-				{
-					const_cast<FAssetDefinitionProxy*>(this)->SubMenus.Add(Category.GetSubCategoryText());
-				}
+				Category.GetSubCategoriesText(SubMenus);
 			}
 		}
     
