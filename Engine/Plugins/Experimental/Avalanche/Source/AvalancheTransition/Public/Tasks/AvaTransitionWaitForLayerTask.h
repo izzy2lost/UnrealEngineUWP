@@ -14,12 +14,9 @@ struct FAvaTransitionWaitForLayerTaskInstanceData : public FAvaTransitionLayerTa
 {
 	GENERATED_BODY()
 
+	/** Hide mode to use while the Wait is taking place */
 	UPROPERTY(EditAnywhere, Category="Transition Logic")
-	bool bHideSceneWhileWaiting = true;
-
-	/** Whether to hide level even if set to Re-use. Requires Hide Scene While Waiting to be enabled */
-	UPROPERTY(EditAnywhere, Category="Transition Logic", meta=(EditCondition="bHideSceneWhileWaiting", EditConditionHides))
-	bool bHideOnLevelReuse = false;
+	EAvaTransitionLevelHideMode HideMode = EAvaTransitionLevelHideMode::HideUnlessReuse;
 
 	TObjectKey<ULevel> HiddenLevel;
 };
