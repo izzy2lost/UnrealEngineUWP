@@ -35,7 +35,7 @@ int32 RunLiveLinkHub(const TCHAR* CommandLine)
 	// Needs to be initialized early for splash / mount points / plugin search paths.
 	FCommandLine::Set(CommandLine);
 
-	const FText AppName = NSLOCTEXT("LiveLinkHub", "SplashTextName", "LiveLink Hub");
+	const FText AppName = NSLOCTEXT("LiveLinkHub", "SplashTextName", "Live Link Hub");
 	FPlatformSplash::SetSplashText(SplashTextType::GameName, *AppName.ToString());
 
 #if !UE_BUILD_SHIPPING
@@ -59,8 +59,8 @@ int32 RunLiveLinkHub(const TCHAR* CommandLine)
 	bool bLauncherDistribution = false;
 
 #if !IS_PROGRAM
-	const TCHAR* const DevelopmentProjectPath = TEXT("../../Source/Programs/LiveLinkHubEditor/LiveLinkHubEditor.uproject");
-	const TCHAR* const StagedProjectPath = TEXT("../../../LiveLinkHubEditor/LiveLinkHubEditor.uproject");
+	const TCHAR* const DevelopmentProjectPath = TEXT("../../Source/Programs/LiveLinkHub/LiveLinkHub.uproject");
+	const TCHAR* const StagedProjectPath = TEXT("../../../LiveLinkHub/LiveLinkHub.uproject");
 
 	if (FPaths::FileExists(DevelopmentProjectPath))
 	{
@@ -80,7 +80,7 @@ int32 RunLiveLinkHub(const TCHAR* CommandLine)
 	}
 
 	// Used by Live Coding, among other things.
-	FPlatformMisc::SetUBTTargetName(TEXT("LiveLinkHubEditor"));
+	FPlatformMisc::SetUBTTargetName(TEXT("LiveLinkHub"));
 
 	// We need to specify this manually, because it isn't inferred from the command line.
 	// But we can't set it too early, because LaunchSetGameName clears it.

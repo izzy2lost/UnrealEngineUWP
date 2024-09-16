@@ -21,7 +21,7 @@ namespace AutomationTool
 				, NoClient: bIsCookedCooker
 				, OptionalContent: true
 				, ClientCookedTargets: new ParamList<string>() // Prevent AutodetectSettings from looking for a game target
-				, EditorTargets: new ParamList<string>("LiveLinkHubEditor")
+				, EditorTargets: new ParamList<string>("LiveLinkHub")
 				, UbtArgs: "-SingleModulePlatform"
 			);
 		}
