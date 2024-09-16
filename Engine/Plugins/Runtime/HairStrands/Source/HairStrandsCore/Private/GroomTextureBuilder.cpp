@@ -31,9 +31,6 @@
 #define DEBUG_TEXTURE_GENERATION 0
 #define DEBUG_TEXTURE_RENDERDOC 0
 
-static int32 GHairStrandsTextureDilationPassCount = 8;
-static FAutoConsoleVariableRef CVarHairStrandsTextureDilationPassCount(TEXT("r.HairStrands.Textures.DilationCount"), GHairStrandsTextureDilationPassCount, TEXT("Number of dilation pass run onto the generated hair strands textures (Default:8)."));
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_LOG_CATEGORY_STATIC(LogGroomTextureBuilder, Log, All);
@@ -1242,7 +1239,7 @@ static bool TraceTextures(
 	return true;
 }
 
-static FHairStrandsRDGTextures DilateTextures(FRDGBuilder& GraphBuilder, FGlobalShaderMap* ShaderMap, FHairStrandsRDGTextures& In)
+static FHairStrandsRDGTextures DilateTextures(FRDGBuilder& GraphBuilder, FGlobalShaderMap* ShaderMap, FHairStrandsRDGTextures& In, uint32 Dilation)
 {
 	const FIntPoint OutputResolution = In.Texture->Desc.Extent;
 
@@ -1256,8 +1253,7 @@ static FHairStrandsRDGTextures DilateTextures(FRDGBuilder& GraphBuilder, FGlobal
 
 	uint32 SourceIndex = 0;
 	uint32 TargetIndex = 0;
-	const uint32 DilationPassCount = FMath::Max(0, GHairStrandsTextureDilationPassCount);
-	for (uint32 DilationIt=0; DilationIt< DilationPassCount; ++DilationIt)
+	for (uint32 DilationIt=0; DilationIt < Dilation; ++DilationIt)
 	{
 		TargetIndex = (SourceIndex + 1) % 2;
 
@@ -1400,7 +1396,7 @@ void RunHairStrandsTexturesQueries(FRDGBuilder& GraphBuilder, FGlobalShaderMap* 
 			#if !DEBUG_TEXTURE_GENERATION
 				if (Textures.IsCompleted())
 				{
-					Textures = DilateTextures(GraphBuilder, ShaderMap, Textures);
+					Textures = DilateTextures(GraphBuilder, ShaderMap, Textures, R->Info.Dilation);
 					CopyTextures(GraphBuilder, ShaderMap, R->Info.Layout, Textures, R->Readback);
 					GStrandsTexturesReadbacks.Enqueue(R);
 				}
@@ -1460,7 +1456,7 @@ void RunHairStrandsTexturesQueries(FRDGBuilder& GraphBuilder, FGlobalShaderMap* 
 
 			if (Textures.IsCompleted())
 			{
-				Textures = DilateTextures(GraphBuilder, ShaderMap, Textures);
+				Textures = DilateTextures(GraphBuilder, ShaderMap, Textures, R->Info.Dilation);
 				CopyTextures(GraphBuilder, ShaderMap, R->Info.Layout, Textures, R->Readback);
 				GStrandsTexturesReadbacks.Enqueue(R);
 			}

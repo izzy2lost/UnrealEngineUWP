@@ -44,6 +44,7 @@ struct FStrandsTexturesInfo
 	uint32 UVChannelIndex = 0;
 	float MaxTracingDistance = 1;
 	int32 TracingDirection = 1;
+	uint32 Dilation = 0;
 	TArray<int32> GroupIndices;
 };
 
