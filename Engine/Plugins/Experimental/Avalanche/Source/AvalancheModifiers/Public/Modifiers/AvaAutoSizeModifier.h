@@ -4,7 +4,6 @@
 
 #include "AvaDefs.h"
 #include "AvaGeometryBaseModifier.h"
-#include "AvaModifiersActorUtils.h"
 #include "Extensions/AvaRenderStateUpdateModifierExtension.h"
 #include "Extensions/AvaSceneTreeUpdateModifierExtension.h"
 #include "Extensions/AvaTransformUpdateModifierExtension.h"
@@ -23,7 +22,7 @@ enum class EAvaAutoSizeFitMode : uint8
 };
 
 /**
- * Adapts the modified actor geometry size/scale and position so that it acts as a background for a specified actor
+ * Adapts the modified actor geometry size/scale to match reference actor bounds and act as a background
  */
 UCLASS(MinimalAPI, BlueprintType)
 class UAvaAutoSizeModifier : public UAvaGeometryBaseModifier
@@ -44,23 +43,21 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|AutoSize")
-	AVALANCHEMODIFIERS_API void SetFollowedAxis(int32 InFollowedAxis);
+	AVALANCHEMODIFIERS_API void SetPaddingHorizontal(double InPadding);
 
 	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|AutoSize")
-	int32 GetFollowedAxis() const
+	double GetPaddingHorizontal() const
 	{
-		return FollowedAxis;
+		return PaddingHorizontal;
 	}
 
-	/** Sets the actor affecting the modifier. This is user selectable if the Reference Container is set to "Other". */
 	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|AutoSize")
-	AVALANCHEMODIFIERS_API void SetPadding(const FMargin& InPadding);
+	AVALANCHEMODIFIERS_API void SetPaddingVertical(double InPadding);
 
-	/** Gets the actor affecting the modifier. This is user selectable if the Reference Container is set to "Other". */
 	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|AutoSize")
-	const FMargin& GetPadding() const
+	double GetPaddingVertical() const
 	{
-		return Padding;
+		return PaddingVertical;
 	}
 
 	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|AutoSize")
@@ -133,16 +130,13 @@ protected:
 	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage="Use ReferenceActor instead"))
 	bool bIgnoreHiddenActors_DEPRECATED = false;
 
-	/** Which axis should we follow, if none selected, it will not follow */
-	UPROPERTY(EditInstanceOnly, Setter="SetFollowedAxis", Getter="GetFollowedAxis", Category="AutoSize", meta=(Bitmask, BitmaskEnum="/Script/AvalancheModifiers.EAvaModifiersAxis", AllowPrivateAccess="true"))
-	int32 FollowedAxis = static_cast<int32>(
-		EAvaModifiersAxis::Y |
-		EAvaModifiersAxis::Z
-	);
+	/** Padding for top and bottom side */
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Interp, Category="AutoSize", meta=(AllowPrivateAccess="true"))
+	double PaddingVertical = 0.f;
 
-	/* Padding around reference bounds */
-	UPROPERTY(EditInstanceOnly, Setter="SetPadding", Getter="GetPadding", Interp, Category="AutoSize", meta=(AllowPrivateAccess="true"))
-	FMargin Padding = FMargin(0.f);
+	/** Padding for left and right side */
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Interp, Category="AutoSize", meta=(AllowPrivateAccess="true"))
+	double PaddingHorizontal = 0.f;
 
 	UPROPERTY(EditInstanceOnly, Setter="SetFitMode", Getter="GetFitMode", Category="AutoSize", meta=(AllowPrivateAccess="true"))
 	EAvaAutoSizeFitMode FitMode = EAvaAutoSizeFitMode::WidthAndHeight;
@@ -152,6 +146,10 @@ protected:
 	bool bIncludeChildren = true;
 
 private:
+	/** Padding added around reference actor bounds for geometry */
+	UPROPERTY()
+	FMargin Padding = FMargin(0.f);
+
 	UPROPERTY()
 	FVector2D PreModifierShapeDynMesh2DSize;
 

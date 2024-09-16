@@ -20,24 +20,24 @@ bool UAvaAutoFollowModifier::IsModifierDirtyable() const
 	{
 		return Super::IsModifierDirtyable();
 	}
-	
+
 	const FBox ReferenceActorLocalBounds = FAvaModifiersActorUtils::GetActorsBounds(FollowedActor, true);
 	const FBox ModifiedActorLocalBounds = FAvaModifiersActorUtils::GetActorsBounds(ActorModified, true);
-	
+
 	// Compare bounds/center to detect changes
 	if (ReferenceActorLocalBounds.Equals(CachedReferenceBounds, 0.01)
 		&& ModifiedActorLocalBounds.Equals(CachedModifiedBounds, 0.01))
 	{
 		return Super::IsModifierDirtyable();
 	}
-	
+
 	return true;
 }
 
 void UAvaAutoFollowModifier::OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata)
 {
 	Super::OnModifierCDOSetup(InMetadata);
-	
+
 	InMetadata.AllowTick(true);
 	InMetadata.SetName(TEXT("AutoFollow"));
 	InMetadata.SetCategory(TEXT("Layout"));
@@ -87,7 +87,7 @@ void UAvaAutoFollowModifier::OnModifiedActorTransformed()
 {
 	const AActor* const FollowedActor = ReferenceActor.ReferenceActorWeak.Get();
 	const AActor* const ActorModified = GetModifiedActor();
-	
+
 	if (!FollowedActor || !ActorModified)
 	{
 		return;
@@ -98,14 +98,14 @@ void UAvaAutoFollowModifier::OnModifiedActorTransformed()
 	{
 		return;
 	}
-	
+
 	MarkModifierDirty();
 }
 
 void UAvaAutoFollowModifier::Apply()
 {
 	AActor* const ModifyActor = GetModifiedActor();
-	
+
 	AActor* const FollowedActor = ReferenceActor.ReferenceActorWeak.Get();
 	if (!IsValid(FollowedActor))
 	{
@@ -137,10 +137,10 @@ void UAvaAutoFollowModifier::Apply()
 	const bool bReferenceActorZeroSizeBounds = CachedReferenceBounds.GetSize().IsNearlyZero();
 	const bool bModifyActorZeroSizeBounds = CachedModifiedBounds.GetSize().IsNearlyZero();
 
-	// Get actors location 
+	// Get actors location
 	const FVector ReferenceActorLocation = FollowedActor->GetActorLocation();
 	const FVector ModifyActorLocation = ModifyActor->GetActorLocation();
-	
+
 	// Get bounds center (pivot)
 	const FVector ReferenceActorCenter = !bReferenceActorZeroSizeBounds ? CachedReferenceBounds.GetCenter() : ReferenceActorLocation;
 	const FVector ModifierActorCenter = !bModifyActorZeroSizeBounds ? CachedModifiedBounds.GetCenter() : ModifyActorLocation;
@@ -148,15 +148,15 @@ void UAvaAutoFollowModifier::Apply()
 	// Get bounds extents
 	const FVector ReferenceActorExtent = CachedReferenceBounds.GetExtent();
 	const FVector ModifierActorExtent = CachedModifiedBounds.GetExtent();
-	
+
 	// using world space extents so that the modified actor is moved also taking into account reference actor rotation
 	const FVector ReferenceActorLocalOffset = ReferenceActorExtent * OffsetAxis;
 	const FVector ModifierActorLocalOffset = ModifierActorExtent * OffsetAxis;
-	
+
 	// Use user alignments for followed and modify actors
     const FVector ReferenceActorBoundsOffset = FollowedAlignment.LocalBoundsOffset(FBox(-ReferenceActorExtent, ReferenceActorExtent));
     const FVector ModifierActorBoundsOffset = LocalAlignment.LocalBoundsOffset(FBox(-ModifierActorExtent, ModifierActorExtent));
-	
+
 	// this offset can be non-zero when the actor pivot and bounds origin do not coincide: we need to take this into account
 	const FVector ReferenceActorPivotToBoundsOffset = ReferenceActorLocation - ReferenceActorCenter;
 	const FVector ModifiedActorPivotToBoundsOffset = ModifyActorLocation - ModifierActorCenter;
@@ -173,9 +173,9 @@ void UAvaAutoFollowModifier::Apply()
 
 	// target location needs to start from reference actor bounds location + proper location offset
 	CachedFollowLocation = ModifyActorLocation + (ReferenceActorLocation - ModifyActorLocation + OffsetLocation) * FollowAxisVector;
-	
+
 	ModifyActor->SetActorLocation(CachedFollowLocation);
-	
+
 	Next();
 }
 
@@ -188,10 +188,10 @@ void UAvaAutoFollowModifier::PostLoad()
 		ReferenceActor.ReferenceContainer = ReferenceContainer_DEPRECATED;
 		ReferenceActor.ReferenceActorWeak = ReferenceActorWeak_DEPRECATED;
 		ReferenceActor.bSkipHiddenActors = bIgnoreHiddenActors_DEPRECATED;
-		
+
 		bDeprecatedPropertiesMigrated = true;
 	}
-	
+
 	Super::PostLoad();
 }
 
@@ -210,7 +210,7 @@ void UAvaAutoFollowModifier::PostEditChangeProperty(FPropertyChangedEvent& Prope
 	static const FName LocalAlignmentPropertyName = GET_MEMBER_NAME_CHECKED(UAvaAutoFollowModifier, LocalAlignment);
 	static const FName OffsetAxisPropertyName = GET_MEMBER_NAME_CHECKED(UAvaAutoFollowModifier, OffsetAxis);
 	static const FName FollowedAxisPropertyName = GET_MEMBER_NAME_CHECKED(UAvaAutoFollowModifier, FollowedAxis);
-	
+
 	if (MemberName == ReferenceActorPropertyName)
 	{
 		OnReferenceActorChanged();
@@ -226,14 +226,14 @@ void UAvaAutoFollowModifier::PostEditChangeProperty(FPropertyChangedEvent& Prope
 	}
 	else if (MemberName == FollowedAxisPropertyName)
 	{
-		OnFollowedAxisChanged();	
+		OnFollowedAxisChanged();
 	}
 }
 
 void UAvaAutoFollowModifier::PostTransacted(const FTransactionObjectEvent& TransactionEvent)
 {
 	OnReferenceActorChanged();
-	
+
 	Super::PostTransacted(TransactionEvent);
 }
 #endif // WITH_EDITOR
@@ -244,7 +244,7 @@ void UAvaAutoFollowModifier::SetReferenceActor(const FAvaSceneTreeActor& InRefer
 	{
 		return;
 	}
-	
+
 	ReferenceActor = InReferenceActor;
 	OnReferenceActorChanged();
 }
@@ -320,11 +320,11 @@ void UAvaAutoFollowModifier::OnTransformUpdated(AActor* InActor, bool bInParentM
 	{
 		return;
 	}
-	
+
 	const AActor* FollowedActor = ReferenceActor.ReferenceActorWeak.Get();
 	const bool bIsAttachedToReferenceActor = InActor->IsAttachedTo(FollowedActor);
 	const bool bIsReferenceActor = InActor == FollowedActor;
-	
+
 	if (!bInParentMoved && IsValid(FollowedActor) && (bIsAttachedToReferenceActor || bIsReferenceActor))
 	{
 		MarkModifierDirty();
@@ -341,7 +341,7 @@ void UAvaAutoFollowModifier::OnRenderStateUpdated(AActor* InActor, UActorCompone
 
 	const AActor* FollowedActor = ReferenceActor.ReferenceActorWeak.Get();
 	const UAvaTransformModifierShared* LayoutShared = GetShared<UAvaTransformModifierShared>(false);
-	
+
 	if (!InActor || !FollowedActor || !LayoutShared)
 	{
 		return;
@@ -397,7 +397,7 @@ void UAvaAutoFollowModifier::OnSceneTreeTrackedActorChildrenChanged(int32 InIdx,
 	}
 
 	ChildrenActorsWeak = InNewChildrenActors;
-	
+
 	MarkModifierDirty();
 }
 
