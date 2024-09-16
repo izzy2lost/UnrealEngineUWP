@@ -1377,13 +1377,15 @@ public:
 	ENGINE_API bool IsStreaming(const TCHAR* PlatformName = nullptr) const;
 	ENGINE_API bool IsStreaming(const FPlatformAudioCookOverrides& Overrides) const;
 
-	/** Returns whether the sound is seekable. */
+	/**
+	 * Queries if Seeking is supported by the Decoder for this Wave.
+	 * @return true if Seeking is supported, false otherwise.
+	 */
 	ENGINE_API virtual bool IsSeekable() const;
 
 	/**
 	 * Checks whether we should use the load on demand cache.
 	 */
-
 	ENGINE_API bool ShouldUseStreamCaching() const;
 
 	/**
@@ -1631,6 +1633,13 @@ private:
 	ENGINE_API void DiscardZerothChunkData();
 
 	ENGINE_API FName FindRuntimeFormat(const USoundWave&) const;
+
+	/**
+	 * Cache state that depends on the RuntimeFormat, like things that are dependent on
+	 * the decoder implementation on this platform.
+	 * @param InFormatName Factory Name of the Formats Decoder "ADPCM" etc.
+	 **/
+	ENGINE_API void CacheRuntimeFormatDependentState(const FName InFormatName);
 
 	/** Zeroth Chunk of audio for sources that use Load On Demand. */
 	FBulkDataBuffer<uint8> ZerothChunkData;

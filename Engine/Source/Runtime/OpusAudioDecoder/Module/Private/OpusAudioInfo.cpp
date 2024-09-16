@@ -387,7 +387,12 @@ public:
 
 	virtual void StartupModule() override
 	{
-		Factory = MakeUnique<FSimpleAudioInfoFactory>([] { return new FOpusAudioInfo(); }, Audio::NAME_OPUS);
+		constexpr FSimpleAudioInfoFactory::FCapabilities Caps = 
+		{
+			/*bSupportsSeeking*/ true,				
+			/*bSupportsSeekableStreaming*/ false,	
+		};
+		Factory = MakeUnique<FSimpleAudioInfoFactory>([] { return new FOpusAudioInfo(); }, Audio::NAME_OPUS, Caps);
 	}
 
 	virtual void ShutdownModule() override {}

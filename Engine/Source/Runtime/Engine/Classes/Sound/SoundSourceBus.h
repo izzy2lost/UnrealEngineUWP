@@ -70,6 +70,7 @@ public:
 	virtual void FinishCachePlatformData() override {};	
 #endif	//WITH_EDITOR_ONLY_DATA
 	virtual void SerializeCookedPlatformData(FArchive& Ar) override {}
+	virtual bool IsSeekable() const override { return false; }
 	//~ End USoundWave Interface
 
 	//~ Begin USoundBase Interface.

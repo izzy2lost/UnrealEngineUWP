@@ -99,6 +99,7 @@ inline FArchive& operator<<(FArchive& Ar, FSoundWaveCuePoint& CuePoint)
 	return Ar;
 }
 
+
 namespace SoundWave_Private
 {
 	static const TCHAR* GetDefaultLoadingBehaviorCVarName()
@@ -178,6 +179,24 @@ FSoundWaveData::~FSoundWaveData()
 	ResourceData.Empty();
 }
 
+void FSoundWaveData::CacheRuntimeFormatDependentState(const FName InFormatName)
+{
+	check(!InFormatName.IsNone());
+	if (!InFormatName.IsNone())
+	{
+		// Save format.
+		RuntimeFormat = InFormatName;
+
+		// Query the factory for the decoder.
+		const IAudioInfoFactory* Factory = IAudioInfoFactoryRegistry::Get().Find(InFormatName);
+		ensureMsgf(Factory, TEXT("Decoder for AudioFormat '%s' not found"), *InFormatName.ToString());
+		if (Factory)
+		{
+			bIsSeekable = Factory->IsSeekingSupported(bIsStreaming);	// bStreaming should be set before calling this.
+		}
+	}
+}
+
 void FSoundWaveData::InitializeDataFromSoundWave(USoundWave& InWave)
 {
 	LLM_SCOPE(ELLMTag::AudioSoundWaves);
@@ -189,14 +208,6 @@ void FSoundWaveData::InitializeDataFromSoundWave(USoundWave& InWave)
 	{
 		PackageNameCached = Package->GetFName();
 	}
-
-	// cache the runtime format for the wave
-	// note if this fails, it will ensure, and keep the "FSoundWaveProxy_InvalidFormat" as its value.
-	const FName FoundFormat = FindRuntimeFormat(InWave);
-	if (ensure(!FoundFormat.IsNone()))
-	{
-		RuntimeFormat = FoundFormat;
-	}
 	
 	SoundWaveKeyCached = FObjectKey(&InWave);
 	SampleRate = InWave.GetSampleRateForCurrentPlatform();
@@ -207,12 +218,16 @@ void FSoundWaveData::InitializeDataFromSoundWave(USoundWave& InWave)
 	WaveGuid = InWave.CompressedDataGuid;
 
 	// update shared flags
+	bIsStreaming = InWave.IsStreaming();
 	bIsLooping = InWave.IsLooping();
 	bIsTemplate = InWave.IsTemplate();
-	bIsStreaming = InWave.IsStreaming(nullptr);
-	bIsSeekable = InWave.IsSeekable();
+	bIsSeekable = false; // This is determined by the decoder in CacheRuntimeFormatDependentState.
 	SoundAssetCompressionType = InWave.GetSoundAssetCompressionType();
 	bShouldUseStreamCaching = InWave.ShouldUseStreamCaching();
+
+	// Cache the decoder and any dependent state.
+	const FName FoundFormat = FindRuntimeFormat(InWave);
+	CacheRuntimeFormatDependentState(FoundFormat);
 
 #if WITH_EDITOR
 	bLoadedFromCookedData = InWave.IsLoadedFromCookedData();
@@ -227,7 +242,7 @@ void FSoundWaveData::InitializeDataFromSoundWave(USoundWave& InWave)
 
 void FSoundWaveData::OverrideRuntimeFormat(const FName& InRuntimeFormat)
 {
-	RuntimeFormat = InRuntimeFormat;
+	CacheRuntimeFormatDependentState(InRuntimeFormat);
 }
 
 static FName GetBaseFormatFromSuffixedFormat(const FName& InFormat)
@@ -1407,8 +1422,9 @@ void USoundWave::SetSoundAssetCompressionType(ESoundAssetCompressionType InSound
 	{
 		SoundAssetCompressionType = InSoundAssetCompressionType;
 	}
-	SoundWaveDataPtr->bIsSeekable = IsSeekable();
-	SoundWaveDataPtr->RuntimeFormat = SoundWaveDataPtr->FindRuntimeFormat(*this);
+
+	SoundWaveDataPtr->CacheRuntimeFormatDependentState(SoundWaveDataPtr->FindRuntimeFormat(*this));
+
 	UpdateAsset(bMarkDirty);
 #endif // #if WITH_EDITOR
 }
@@ -3792,16 +3808,14 @@ TArrayView<const uint8> USoundWave::GetZerothChunk(bool bForImmediatePlayback)
 
 bool USoundWave::IsSeekable() const
 {
-	bool Result = true;
-
-	// Non-streaming codecs are seekable
-	// Streaming platform-specific codecs do not seek. Neither do source buses or procedural sources.
-	if (bIsSourceBus || bProcedural || (IsStreaming() && SoundAssetCompressionType == ESoundAssetCompressionType::PlatformSpecific))
+	// Note derived forms of SoundWave. (i.e. USoundWaveProcedural and USoundSourceBus)
+	// override this call to return false.
+	
+	if (SoundWaveDataPtr)
 	{
-		Result = false;
+		return SoundWaveDataPtr->bIsSeekable;
 	}
-
-	return Result;
+	return false;
 }
 
 bool USoundWave::GetSoundWavesWithCookedAnalysisData(TArray<USoundWave*>& OutSoundWaves)
