@@ -1070,15 +1070,7 @@ namespace AJA
 				}
 				if (UseVideo())
 				{
-					uint32 FrameIndex = BaseFrameIndex + Index;
-
-					if (NTV2_IS_4K_VIDEO_FORMAT(GetOptions().VideoFormatIndex))
-					{
-						// 4K Format uses a different indexing.
-						FrameIndex *= 4;
-					}
-					
-					AJA_CHECK(GetDevice().DMAWriteFrame(FrameIndex, reinterpret_cast<ULWord*>(CurrentFrame->VideoBuffer), CurrentFrame->CopiedVideoBufferSize));
+					AJA_CHECK(GetDevice().DMAWriteFrame(BaseFrameIndex + Index, reinterpret_cast<ULWord*>(CurrentFrame->VideoBuffer), CurrentFrame->CopiedVideoBufferSize, Channel));
 
 					if (TextureTransfer && GetOptions().bUseGPUDMA)
 					{
@@ -1211,14 +1203,7 @@ namespace AJA
 							TextureTransfer->BeginSync(AvailableReadingFrame->VideoBuffer, Direction);
 						}
 
-						uint32 FrameIndex = BaseFrameIndex + CurrentOutFrame;
-						if (NTV2_IS_4K_VIDEO_FORMAT(GetOptions().VideoFormatIndex))
-						{
-							// 4K Format uses a different indexing.
-							FrameIndex *= 4;
-						}
-
-						bRunning = bRunning && GetDevice().DMAWriteFrame(FrameIndex, reinterpret_cast<ULWord*>(AvailableReadingFrame->VideoBuffer), AvailableReadingFrame->CopiedVideoBufferSize);
+						bRunning = bRunning && GetDevice().DMAWriteFrame(BaseFrameIndex + CurrentOutFrame, reinterpret_cast<ULWord*>(AvailableReadingFrame->VideoBuffer), AvailableReadingFrame->CopiedVideoBufferSize, Channel);
 
 						if (TextureTransfer && GetOptions().bUseGPUDMA)
 						{
