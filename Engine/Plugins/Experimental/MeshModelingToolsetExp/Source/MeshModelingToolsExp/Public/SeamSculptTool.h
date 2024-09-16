@@ -40,6 +40,16 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = Options)
 	bool bHitBackFaces = false;
+
+	/**
+	 * Setting this above 0 will include a measure of path similarity to seam transfer, so that among
+	 *  similarly short paths, we pick one that lies closer to the edge. Useful in cases where the path
+	 *  is on the wrong diagonal to the triangulation, because it prefers a closely zigzagging path over
+	 *  a wider "up and over" path that has similar length. If set to 0, only path length is used.
+	 */
+	UPROPERTY(EditAnywhere, Category = Options, AdvancedDisplay, meta = (
+		ClampMin = 0, UIMax = 1000))
+	double PathSimilarityWeight = 200;
 };
 
 
@@ -122,4 +132,6 @@ protected:
 
 	UWorld* TargetWorld;
 
+private:
+	double MeshMaxDim = 0;
 };

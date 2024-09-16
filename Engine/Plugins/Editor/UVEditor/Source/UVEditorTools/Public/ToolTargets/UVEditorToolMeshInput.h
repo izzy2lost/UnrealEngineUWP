@@ -118,7 +118,7 @@ public:
 
 	// Additional needed information
 	TObjectPtr<UToolTarget> SourceTarget = nullptr;
-	int32 AssetID = -1;
+	int32 AssetID = -1; // Index into targets array
 	int32 UVLayerIndex = 0;
 
 	// Mappings used for generating and baking back the unwrap.
