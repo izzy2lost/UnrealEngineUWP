@@ -238,7 +238,7 @@ void FAnimationBudgetAllocator::QueueSortedComponentIndices(float InDeltaSeconds
 			{
 				auto ShouldComponentTick = [WorldTime](const USkeletalMeshComponentBudgeted* InComponent, const FAnimBudgetAllocatorComponentData& InComponentData)
 				{
-					return ((InComponent->GetLastRenderTime() > WorldTime) ||
+					return (((InComponent->bUseScreenRenderStateForUpdate ? InComponent->GetLastRenderTimeOnScreen() : InComponent->GetLastRenderTime()) > WorldTime) ||
 						(InComponent->GetShouldUseActorRenderedFlag() && InComponent->GetAttachmentRootActor() && InComponent->GetAttachmentRootActor()->WasRecentlyRendered())  ||
 							InComponentData.bTickEvenIfNotRendered ||
 							InComponent->ShouldTickPose() ||
@@ -264,7 +264,7 @@ void FAnimationBudgetAllocator::QueueSortedComponentIndices(float InDeltaSeconds
 				{
 					// Push into a separate limited list if we are 'tick even if not rendered'.
 					// Skip offscreen components with a significance of zero or less.
-					if(Component->GetLastRenderTime() <= WorldTime && ComponentData.bTickEvenIfNotRendered && ComponentData.Significance > 0.0f)
+					if((Component->bUseScreenRenderStateForUpdate ? Component->GetLastRenderTimeOnScreen() : Component->GetLastRenderTime()) <= WorldTime && ComponentData.bTickEvenIfNotRendered && ComponentData.Significance > 0.0f)
 					{
 						NonRenderedComponentData.Add(ComponentIndex);
 					}
