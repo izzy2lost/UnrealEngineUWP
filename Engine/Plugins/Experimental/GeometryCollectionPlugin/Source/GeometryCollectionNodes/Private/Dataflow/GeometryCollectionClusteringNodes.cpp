@@ -3,6 +3,7 @@
 #include "Dataflow/GeometryCollectionClusteringNodes.h"
 #include "Dataflow/DataflowCore.h"
 
+#include "ChaosLog.h"
 #include "Engine/StaticMesh.h"
 #include "GeometryCollection/GeometryCollectionObject.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
@@ -81,21 +82,29 @@ void FAutoClusterDataflowNode::Evaluate(Dataflow::FContext& Context, const FData
 			bool bInPreferConvexity = GetValue(Context, &bPreferConvexity);
 			float InConcavityTolerance = GetValue(Context, &ConcavityTolerance);
 
-			TArray<int32> SelectedBones;
-			InTransformSelection.AsArray(SelectedBones);
+			// only cluster if the selection matches 
+			if (InTransformSelection.Num() == GeomCollection->NumElements(FTransformCollection::TransformGroup))
+			{
+				TArray<int32> SelectedBones;
+				InTransformSelection.AsArray(SelectedBones);
 
-			FFractureEngineClustering::AutoCluster(*GeomCollection,
-				SelectedBones,
-				(EFractureEngineClusterSizeMethod)InClusterSizeMethod,
-				InClusterSites,
-				InClusterFraction,
-				InSiteSize,
-				InAutoCluster,
-				InAvoidIsolated, 
-				InEnforceSiteParameters,
-				InGridX, InGridY, InGridZ, InMinimumClusterSize, InKMeansIterations, 
-				bInPreferConvexity, InConcavityTolerance);
 
+				FFractureEngineClustering::AutoCluster(*GeomCollection,
+					SelectedBones,
+					(EFractureEngineClusterSizeMethod)InClusterSizeMethod,
+					InClusterSites,
+					InClusterFraction,
+					InSiteSize,
+					InAutoCluster,
+					InAvoidIsolated,
+					InEnforceSiteParameters,
+					InGridX, InGridY, InGridZ, InMinimumClusterSize, InKMeansIterations,
+					bInPreferConvexity, InConcavityTolerance);
+			}
+			else
+			{
+				UE_LOG(LogChaos, Warning, TEXT("Dataflow: AutoCluster Node input selection size does not match the collection size, skipping clustering"));
+			}
 			SetValue<const FManagedArrayCollection&>(Context, *GeomCollection, &Collection);
 		}
 	}
