@@ -112,7 +112,7 @@ void UAvaMask2DWriteModifier::OnModifierCDOSetup(FActorModifierCoreMetadata& InM
 	InMetadata.DisallowAfter(TEXT("MaskRead"));
 	InMetadata.DisallowBefore(TEXT("MaskRead"));
 #if WITH_EDITOR
-	InMetadata.SetDisplayName(FText::FromString(TEXT("Mask (Set)")));
+	InMetadata.SetDisplayName(FText::FromString(TEXT("Mask (Source)")));
 	InMetadata.SetDescription(LOCTEXT("ModifierDescription", "Allows to use a custom mask texture on attached actors materials"));
 #endif
 }
