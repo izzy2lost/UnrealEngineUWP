@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Containers/Array.h"
 #include "Containers/Set.h"
 #include "PrimitiveComponentId.h"
 #include "Subsystems/WorldSubsystem.h"
@@ -23,7 +24,11 @@ public:
 	void SetupView(FSceneView& InView);
 
 private:
-	TSet<TObjectKey<ULevel>> HiddenLevels;
+	/** List of levels that will be hidden. Same level can be repeated to indicate multiple places are actively trying to have the level hidden */
+	TArray<TObjectKey<ULevel>> HiddenLevels;
 
 	TSet<FPrimitiveComponentId> HiddenPrimitives;
+
+	/** Temporary Member Variable to keep Track of the Processed Levels when Iterating Hidden Levels */
+	TSet<TObjectKey<ULevel>> ProcessedLevels;
 };

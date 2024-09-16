@@ -8,7 +8,7 @@
 
 void UAvaTransitionRenderingSubsystem::ShowLevel(TObjectKey<ULevel> InLevel)
 {
-	HiddenLevels.Remove(InLevel);
+	HiddenLevels.RemoveSingle(InLevel);
 }
 
 void UAvaTransitionRenderingSubsystem::HideLevel(TObjectKey<ULevel> InLevel)
@@ -19,9 +19,18 @@ void UAvaTransitionRenderingSubsystem::HideLevel(TObjectKey<ULevel> InLevel)
 void UAvaTransitionRenderingSubsystem::SetupView(FSceneView& InView)
 {
 	HiddenPrimitives.Reset();
+	ProcessedLevels.Reset();
 
 	for (const TObjectKey<ULevel>& LevelKey : HiddenLevels)
 	{
+		bool bAlreadyProcessedLevel;
+		ProcessedLevels.Add(LevelKey, &bAlreadyProcessedLevel);
+
+		if (bAlreadyProcessedLevel)
+		{
+			continue;
+		}
+
 		const ULevel* Level = LevelKey.ResolveObjectPtr();
 		if (!Level)
 		{

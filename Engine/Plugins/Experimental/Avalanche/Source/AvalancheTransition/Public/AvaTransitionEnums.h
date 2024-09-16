@@ -68,3 +68,16 @@ enum class EAvaTransitionInstancingMode : uint8
 	/** If previous instance exists, reuse it for the entering behavior. */
 	Reuse
 };
+
+UENUM(BlueprintType, DisplayName="Motion Design Transition Level Hide Mode")
+enum class EAvaTransitionLevelHideMode : uint8
+{
+	/** Do not hide the Actors of the Level */
+	NoHide,
+
+	/** Hide the Level's Actors unless it's a Level that is re-used */
+	HideUnlessReuse,
+
+	/** Always hide the Level's Actors even if it's re-used */
+	AlwaysHide,
+};

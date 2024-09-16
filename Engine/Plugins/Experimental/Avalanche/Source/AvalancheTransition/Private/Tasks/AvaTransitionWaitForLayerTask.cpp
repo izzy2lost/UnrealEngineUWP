@@ -75,9 +75,9 @@ EStateTreeRunStatus FAvaTransitionWaitForLayerTask::WaitForLayer(FStateTreeExecu
 
 bool FAvaTransitionWaitForLayerTask::ShouldHideLevel(const FStateTreeExecutionContext& InContext, const FAvaTransitionWaitForLayerTask::FInstanceDataType& InInstanceData) const
 {
-	if (!InInstanceData.bHideSceneWhileWaiting)
+	if (InInstanceData.HideMode == EAvaTransitionLevelHideMode::NoHide)
 	{
-		return false;	
+		return false;
 	}
 
 	// If Hidden Level is non-null, it means the level has already been hidden / processed. Skip
@@ -90,7 +90,7 @@ bool FAvaTransitionWaitForLayerTask::ShouldHideLevel(const FStateTreeExecutionCo
 	const UAvaTransitionTree* TransitionTree = Cast<UAvaTransitionTree>(InContext.GetStateTree());
 	if (TransitionTree && TransitionTree->GetInstancingMode() == EAvaTransitionInstancingMode::Reuse)
 	{
-		return InInstanceData.bHideOnLevelReuse;
+		return InInstanceData.HideMode == EAvaTransitionLevelHideMode::AlwaysHide;
 	}
 
 	return true;

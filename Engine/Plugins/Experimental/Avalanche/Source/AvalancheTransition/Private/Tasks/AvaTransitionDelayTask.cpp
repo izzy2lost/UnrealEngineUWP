@@ -1,8 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Tasks/AvaTransitionDelayTask.h"
+#include "AvaTransitionContext.h"
+#include "AvaTransitionScene.h"
+#include "AvaTransitionTree.h"
 #include "AvaTransitionUtils.h"
+#include "Engine/Level.h"
+#include "Rendering/AvaTransitionRenderingSubsystem.h"
 #include "StateTreeExecutionContext.h"
+#include "StateTreeLinker.h"
 
 #define LOCTEXT_NAMESPACE "AvaTransitionDelayTask"
 
@@ -18,6 +24,13 @@ FText FAvaTransitionDelayTask::GetDescription(const FGuid& InId, FStateTreeDataV
 		: FText::Format(LOCTEXT("Desc", "Delay {0} seconds"), DurationDesc);
 }
 #endif
+
+bool FAvaTransitionDelayTask::Link(FStateTreeLinker& InLinker)
+{
+	Super::Link(InLinker);
+	InLinker.LinkExternalData(RenderingSubsystemHandle);
+	return true;
+}
 
 void FAvaTransitionDelayTask::PostLoad(FStateTreeDataView InInstanceDataView)
 {
@@ -38,26 +51,60 @@ EStateTreeRunStatus FAvaTransitionDelayTask::EnterState(FStateTreeExecutionConte
 {
 	FInstanceDataType& InstanceData = InContext.GetInstanceData(*this);
 	InstanceData.RemainingTime = InstanceData.Duration;
-
-	if (InstanceData.RemainingTime <= 0.f)
-	{
-		return EStateTreeRunStatus::Succeeded;
-	}
-
-	return EStateTreeRunStatus::Running;
+	return WaitForDelayCompletion(InContext, InstanceData);
 }
 
 EStateTreeRunStatus FAvaTransitionDelayTask::Tick(FStateTreeExecutionContext& InContext, const float InDeltaTime) const
 {
 	FInstanceDataType& InstanceData = InContext.GetInstanceData(*this);
-
 	InstanceData.RemainingTime -= InDeltaTime;
+	return WaitForDelayCompletion(InContext, InstanceData);
+}
 
-	if (InstanceData.RemainingTime <= 0.f)
+EStateTreeRunStatus FAvaTransitionDelayTask::WaitForDelayCompletion(FStateTreeExecutionContext& InContext, FInstanceDataType& InInstanceData) const
+{
+	UAvaTransitionRenderingSubsystem& RenderingSubsystem = InContext.GetExternalData(RenderingSubsystemHandle);
+
+	if (InInstanceData.RemainingTime <= 0.f)
 	{
+		// Restore Level Visibility
+		RenderingSubsystem.ShowLevel(InInstanceData.HiddenLevel);
 		return EStateTreeRunStatus::Succeeded;
 	}
+
+	if (ShouldHideLevel(InContext, InInstanceData))
+	{
+		if (const FAvaTransitionScene* TransitionScene = InContext.GetExternalData(TransitionContextHandle).GetTransitionScene())
+		{
+			InInstanceData.HiddenLevel = TransitionScene->GetLevel();
+			RenderingSubsystem.HideLevel(InInstanceData.HiddenLevel);
+		}
+	}
+
 	return EStateTreeRunStatus::Running;
+}
+
+bool FAvaTransitionDelayTask::ShouldHideLevel(const FStateTreeExecutionContext& InContext, const FInstanceDataType& InInstanceData) const
+{
+	if (InInstanceData.HideMode == EAvaTransitionLevelHideMode::NoHide)
+	{
+		return false;	
+	}
+
+	// If Hidden Level is non-null, it means the level has already been hidden / processed. Skip
+	if (InInstanceData.HiddenLevel != nullptr)
+	{
+		return false;
+	}
+
+	// If Instancing Mode is set to Reuse, and user set to Hide Level regardless, allow Hiding Reused Level
+	const UAvaTransitionTree* TransitionTree = Cast<UAvaTransitionTree>(InContext.GetStateTree());
+	if (TransitionTree && TransitionTree->GetInstancingMode() == EAvaTransitionInstancingMode::Reuse)
+	{
+		return InInstanceData.HideMode == EAvaTransitionLevelHideMode::AlwaysHide;
+	}
+
+	return true;
 }
 
 #undef LOCTEXT_NAMESPACE
