@@ -241,6 +241,7 @@ namespace UnrealBuildTool
 			Arguments.Add("-Wno-logical-not-parentheses");
 			Arguments.Add("-Wno-c++20-extensions");
 			Arguments.Add("-Wno-deprecated-declarations");
+			Arguments.Add("-Wno-shorten-64-to-32");
 		}
 
 		// TODO: Get valid checkers by calling clang -cc1 -analyzer-checker-help
