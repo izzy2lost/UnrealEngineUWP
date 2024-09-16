@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "SequencerFilterBarContext.h"
 #include "Templates/SharedPointer.h"
 #include "SequencerMenuContext.generated.h"
 
@@ -22,6 +23,8 @@ public:
 	{
 		return WeakSequencer.Pin();
 	}
+
+	FOnPopulateFilterBarMenu OnPopulateFilterBarMenu;
 
 protected:
 	TWeakPtr<FSequencer> WeakSequencer;
