@@ -804,6 +804,15 @@ public:
 	UPROPERTY(transient)
 	uint8 bCPUSkinning : 1;
 
+	/** 
+	 * If set, use the screen render flag instead of the default render flag when processing offscreen-rendering optimizations 
+	 * (such as VisibilityBasedAnimTickOption) that look to reduce animation work when the mesh is not rendered. 
+	 * Using this option can result in meshes that are occlusion culled ceasing to perform animation work.
+	 * Note that this can however result in shadows not being animated when meshes are not directly visible.
+	 */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category=Optimization)
+	uint8 bUseScreenRenderStateForUpdate:1;
+
 	// Update Rate
 	/** if TRUE, Owner will determine how often animation will be updated and evaluated. See AnimUpdateRateTick() 
 	 * This allows to skip frames for performance. (For example based on visibility and size on screen). */
