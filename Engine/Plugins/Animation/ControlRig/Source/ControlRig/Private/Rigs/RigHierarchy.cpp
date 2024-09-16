@@ -4880,6 +4880,15 @@ void URigHierarchy::SetCurveValue(FRigCurveElement* InCurveElement, float InValu
 		return;
 	}
 
+	// we need to record the no matter what since this may be in consecutive frames.
+	// if the client code desires to set the value we need to remember it as changed,
+	// even if the value matches with a previous set. the ChangedCurveIndices array
+	// represents a list of values that were changed by the client.
+	if(bRecordCurveChanges)
+	{
+		ChangedCurveIndices.Add(InCurveElement->GetIndex());
+	}
+
 	const bool bPreviousIsValueSet = InCurveElement->bIsValueSet; 
 	const float PreviousValue = InCurveElement->Get();
 	if(!bForce && InCurveElement->bIsValueSet && FMath::IsNearlyZero(PreviousValue - InValue))
@@ -4888,10 +4897,6 @@ void URigHierarchy::SetCurveValue(FRigCurveElement* InCurveElement, float InValu
 	}
 
 	InCurveElement->Set(InValue, bRecordCurveChanges);
-	if(bRecordCurveChanges)
-	{
-		ChangedCurveIndices.Add(InCurveElement->GetIndex());
-	}
 
 #if WITH_EDITOR
 	if(bSetupUndo || IsTracingChanges())

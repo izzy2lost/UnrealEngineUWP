@@ -1528,15 +1528,17 @@ void UControlRigComponent::TransferInputs()
 			}
 		}
 
-#if WITH_EDITOR
 		if(URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
 		{
+			Hierarchy->ResetChangedCurveIndices();
+			
+#if WITH_EDITOR
 			if(Hierarchy->IsTracingChanges())
 			{
 				Hierarchy->StorePoseForTrace(TEXT("UControlRigComponent::TransferInputs"));
 			}
-		}
 #endif
+		}
 	}
 }
 
