@@ -34,6 +34,15 @@ public class TextureGraphEngine : ModuleRules
         bUseRTTI = true;
         bEnableExceptions = true;
 
+		// Disable Clang analysis due to a crash in clang-cl
+		if (Target.StaticAnalyzer != StaticAnalyzer.None
+			&& Target.Platform.IsInGroup(UnrealPlatformGroup.Microsoft)
+			&& Target.WindowsPlatform.Compiler.IsClang())
+		{
+			// https://developercommunity.visualstudio.com/t/clang-cl---analyze-crash-with-thread-i/10746623
+			bDisableStaticAnalysis = true;
+		}
+
 		//PublicDefinitions.Add("WITH_MALLOC_STOMP=1");
 
 		PrivateDependencyModuleNames.AddRange(new string[] 
