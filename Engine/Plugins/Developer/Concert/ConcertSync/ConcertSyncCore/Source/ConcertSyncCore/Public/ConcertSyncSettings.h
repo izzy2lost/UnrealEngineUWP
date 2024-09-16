@@ -41,6 +41,18 @@ struct CONCERTSYNCCORE_API FPackageClassFilter
 	TArray<FString> ContentPaths;
 };
 
+UENUM()
+enum class EShowPresenceInGame
+{
+	/** The presence actor is not visible in game mode. */
+	NotVisibleInGame,
+
+	/** The presence actor is visible in game only in editor sessions. */
+	VisibleInGameOnlyEditor,
+
+	/** The presence actor is always visible in game including -game modes. This is equivalent to Concert.EnablePresenceInGame */
+	VisibleInGameAlways
+};
 
 UCLASS(config=ConcertSyncCore)
 class CONCERTSYNCCORE_API UConcertSyncConfig : public UObject
@@ -67,6 +79,12 @@ public:
 	 */
 	UPROPERTY(config, EditAnywhere, AdvancedDisplay, Category="Transaction Settings")
 	bool bShowPresenceInPIE;
+
+	/**
+	 * Should we show presence when we are in game mode when running the editor.
+	 */
+	UPROPERTY(config, EditAnywhere, AdvancedDisplay, Category="Transaction Settings")
+	EShowPresenceInGame ShowPresenceInGame = EShowPresenceInGame::NotVisibleInGame;
 
 	/**
 	 * Should we include object changes that have been generated via a transaction annotation
