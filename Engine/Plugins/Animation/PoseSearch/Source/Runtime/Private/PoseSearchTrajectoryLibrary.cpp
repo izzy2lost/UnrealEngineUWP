@@ -14,25 +14,30 @@ void FPoseSearchTrajectoryData::UpdateData(
 	FDerived& TrajectoryDataDerived,
 	FState& TrajectoryDataState) const
 {
-	UpdateData(DeltaTime, Cast<const UAnimInstance>(AnimInstanceProxy.GetAnimInstanceObject()), TrajectoryDataDerived, TrajectoryDataState);
+	UpdateData(DeltaTime, AnimInstanceProxy.GetAnimInstanceObject(), TrajectoryDataDerived, TrajectoryDataState);
 }
 
 void FPoseSearchTrajectoryData::UpdateData(
 	float DeltaTime,
-	const UAnimInstance* AnimInstance,
+	const UObject* Context,
 	FDerived& TrajectoryDataDerived,
 	FState& TrajectoryDataState) const
 {
 	// An AnimInstance might call this during an AnimBP recompile with 0 delta time.
-	if (DeltaTime <= 0.f || !AnimInstance)
+	if (DeltaTime <= 0.f)
 	{
 		return;
 	}
 
-	const ACharacter* Character = Cast<ACharacter>(AnimInstance->GetOwningActor());
+	const ACharacter* Character = Cast<ACharacter>(Context);
 	if (!Character)
 	{
-		return;
+		const UAnimInstance* AnimInstance = Cast<UAnimInstance>(Context);
+		Character = Cast<ACharacter>(AnimInstance->GetOwningActor());
+		if (!Character)
+		{
+			return;
+		}
 	}
 
 	if (const UCharacterMovementComponent* MoveComp = Character->GetCharacterMovement())
@@ -383,7 +388,7 @@ void UPoseSearchTrajectoryLibrary::UpdatePrediction_SimulateCharacterMovement(
 }
 
 void UPoseSearchTrajectoryLibrary::PoseSearchGenerateTrajectory(
-	const UAnimInstance* InAnimInstance, 
+	const UObject* Context, 
 	UPARAM(ref)	const FPoseSearchTrajectoryData& InTrajectoryData,
 	float InDeltaTime,
 	UPARAM(ref) FPoseSearchQueryTrajectory& InOutTrajectory,
@@ -404,7 +409,7 @@ void UPoseSearchTrajectoryLibrary::PoseSearchGenerateTrajectory(
 	TrajectoryDataState.DesiredControllerYawLastUpdate = InOutDesiredControllerYawLastUpdate;
 
 	FPoseSearchTrajectoryData::FDerived TrajectoryDataDerived;
-	InTrajectoryData.UpdateData(InDeltaTime, InAnimInstance, TrajectoryDataDerived, TrajectoryDataState);
+	InTrajectoryData.UpdateData(InDeltaTime, Context, TrajectoryDataDerived, TrajectoryDataState);
 	InitTrajectorySamples(InOutTrajectory, InTrajectoryData, TrajectoryDataDerived.Position, TrajectoryDataDerived.Facing, TrajectoryDataSampling, InDeltaTime);
 	UpdateHistory_TransformHistory(InOutTrajectory, InTrajectoryData, TrajectoryDataDerived.Position, TrajectoryDataDerived.Velocity, TrajectoryDataSampling, InDeltaTime);
 	UpdatePrediction_SimulateCharacterMovement(InOutTrajectory, InTrajectoryData, TrajectoryDataDerived, TrajectoryDataSampling, InDeltaTime);

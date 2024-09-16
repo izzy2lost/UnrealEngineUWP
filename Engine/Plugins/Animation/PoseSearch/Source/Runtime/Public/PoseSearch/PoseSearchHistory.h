@@ -98,7 +98,7 @@ struct POSESEARCH_API FArchivedPoseHistory : public IPoseHistory
 };
 FArchive& operator<<(FArchive& Ar, FArchivedPoseHistory& Entry);
 
-struct FPoseHistory : public IPoseHistory
+struct POSESEARCH_API FPoseHistory : public IPoseHistory
 {
 	FPoseHistory() = default;
 	FPoseHistory(const FPoseHistory& Other);
@@ -131,6 +131,9 @@ struct FPoseHistory : public IPoseHistory
 #endif
 	// End of IPoseHistory interface
 	
+	int32 GetMaxNumPoses() const { return MaxNumPoses; }
+	float GetSamplingInterval() const { return SamplingInterval; }
+
 private:
 
 	// caching MaxNumPoses, since FData::Entries.Max() is a padded number
@@ -176,7 +179,7 @@ private:
 #endif // ENABLE_ANIM_DEBUG
 };
 
-struct FMemStackPoseHistory : public IPoseHistory
+struct POSESEARCH_API FMemStackPoseHistory : public IPoseHistory
 {
 	void Init(const IPoseHistory* InPoseHistory);
 
