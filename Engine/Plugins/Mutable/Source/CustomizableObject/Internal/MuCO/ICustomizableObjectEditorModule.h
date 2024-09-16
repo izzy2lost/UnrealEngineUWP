@@ -54,16 +54,16 @@ public:
 	  * @param OutOfDatePackages list of out of date packages.
 	  * @param AddedPackages list of added packages since the last compilation.
 	  * @param RemovedPackages list of removed packages since the last compilation.
-	  * @param bVersionDiff true if the Version Bridge has changed since the last compilation.
+	  * @param bReleaseVersionDiff true if the Release Version has changed since the last compilation.
 	  * @return true if the compilation is out of date. */
-	virtual bool IsCompilationOutOfDate(const UCustomizableObject& Object, bool bSkipIndirectReferences, TArray<FName>& OutOfDatePackages, TArray<FName>& AddedPackages, TArray<FName>& RemovedPackages, bool& bVersionDiff) const = 0;
+	virtual bool IsCompilationOutOfDate(const UCustomizableObject& Object, bool bSkipIndirectReferences, TArray<FName>& OutOfDatePackages, TArray<FName>& AddedPackages, TArray<FName>& RemovedPackages, bool& bReleaseVersionDiff) const = 0;
 
 	/** See GraphTraversal::IsRootObject(...) */
 	virtual bool IsRootObject(const UCustomizableObject& Object) const = 0;
 
-	/** Get the current VersionBridge's version for Object. 
+	/** Get the current Release Version for the given Object. 
 	  * @return Current version as string. */
-	virtual FString GetCurrentContentVersionForObject(const UCustomizableObject& Object) const = 0;
+	virtual FString GetCurrentReleaseVersionForObject(const UCustomizableObject& Object) const = 0;
 
 	/** See GraphTraversal::GetRootObject(...) */
 	virtual UCustomizableObject* GetRootObject(UCustomizableObject* ChildObject) const = 0;
