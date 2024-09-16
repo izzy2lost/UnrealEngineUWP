@@ -144,7 +144,7 @@ FString UDMMaterialStage::GetComponentPathComponent() const
 {
 	if (UDMMaterialLayerObject* Layer = GetLayer())
 	{
-		FString TypeStr = "?";
+		FString TypeStr = TEXT("?");
 
 		switch (Layer->GetStageType(this))
 		{
@@ -162,7 +162,7 @@ FString UDMMaterialStage::GetComponentPathComponent() const
 		}
 
 		return FString::Printf(
-			TEXT("%s%hc%s%hc"),
+			TEXT("%s%c%s%c"),
 			*UDMMaterialLayerObject::StagesPathToken,
 			FDMComponentPath::ParameterOpen,
 			*TypeStr,

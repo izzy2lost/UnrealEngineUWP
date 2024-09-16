@@ -109,7 +109,7 @@ FString UDMMaterialStageInput::GetComponentPathComponent() const
 		}
 
 		return FString::Printf(
-			TEXT("%s%hc%i%hc"),
+			TEXT("%s%c%i%c"),
 			*UDMMaterialStage::InputsPathToken,
 			FDMComponentPath::ParameterOpen,
 			Index,

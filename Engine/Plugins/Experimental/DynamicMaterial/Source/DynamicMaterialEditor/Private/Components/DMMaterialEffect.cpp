@@ -94,7 +94,7 @@ UDMMaterialComponent* UDMMaterialEffect::GetParentComponent() const
 FString UDMMaterialEffect::GetComponentPathComponent() const
 {
 	return FString::Printf(
-		TEXT("%s%hc%i%hc"),
+		TEXT("%s%c%i%c"),
 		*UDMMaterialEffectStack::EffectsPathToken,
 		FDMComponentPath::ParameterOpen,
 		FindIndex(),

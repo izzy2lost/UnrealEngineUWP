@@ -744,7 +744,7 @@ UDMMaterialComponent* UDMMaterialLayerObject::GetParentComponent() const
 FString UDMMaterialLayerObject::GetComponentPathComponent() const
 {
 	return FString::Printf(
-		TEXT("%s%hc%i%hc"),
+		TEXT("%s%c%i%c"),
 		*UDMMaterialSlot::LayersPathToken,
 		FDMComponentPath::ParameterOpen,
 		FindIndex(),

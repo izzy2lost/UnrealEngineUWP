@@ -971,7 +971,7 @@ FString UDMMaterialSlot::GetComponentPathComponent() const
 			const FText Token = UE::DynamicMaterialEditor::Private::GetMaterialPropertyShortDisplayName(SlotProperties[0]);
 
 			return FString::Printf(
-				TEXT("%s%hc%s%hc"),
+				TEXT("%s%c%s%c"),
 				*UDynamicMaterialModelEditorOnlyData::SlotsPathToken,
 				FDMComponentPath::ParameterOpen,
 				*Token.ToString(),
@@ -981,7 +981,7 @@ FString UDMMaterialSlot::GetComponentPathComponent() const
 	}
 
 	return FString::Printf(
-		TEXT("%s%hc%i%hc"),
+		TEXT("%s%c%i%c"),
 		*UDynamicMaterialModelEditorOnlyData::SlotsPathToken,
 		FDMComponentPath::ParameterOpen,
 		Index,
