@@ -81,7 +81,6 @@ namespace UE::NearestNeighborModel
 		EOpFlag CheckNetwork();
 		EOpFlag UpdateNearestNeighborData();
 		EOpFlag UpdateMorphDeltas();
-		void ResetMorphTargets();
 		void UpdateNearestNeighborIds();
 
 		FNearestNeighborEditorModelActor* CreateNearestNeighborActor(UWorld* World) const;
