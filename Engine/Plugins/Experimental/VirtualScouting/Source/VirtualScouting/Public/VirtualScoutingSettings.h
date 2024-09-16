@@ -28,6 +28,9 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category="Virtual Scouting", meta=(DisplayName="Viewfinder Use AutoExposure"))
 	bool bViewfinderUseExposure = false;
 
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category="Virtual Scouting", meta=(DisplayName="Swap to Grab on Spawn Actor"))
+	bool bSwapToGrabToolOnSpawnNewActor = true;
+
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category="Virtual Scouting", meta=(DisplayName="Viewfinder ExposureCompensation", ClampMin=-15, ClampMax=15))
 	float ViewfinderExposureCompensation = 1;
 	
