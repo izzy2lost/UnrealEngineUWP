@@ -2796,8 +2796,10 @@ SSequencer::~SSequencer()
 		Window->DestroyWindowImmediately();
 		NodeGroupManager.Reset();
 	}
-}
 
+	// Ensure the FilterBarWidget destructor is called
+	FilterBarSplitterContainer->SetContent(SNullWidget::NullWidget);
+}
 
 void SSequencer::RegisterActiveTimerForPlayback()
 {
@@ -4267,12 +4269,6 @@ void SSequencer::ToggleFilterBarVisibility()
 	{
 		bNewFilterBarVisible = !SequencerSettings->IsFilterBarVisible();
 		SequencerSettings->SetFilterBarVisible(bNewFilterBarVisible);
-	}
-
-	if (FilterBarWidget.IsValid())
-	{
-		const EVisibility NewVisibility = bNewFilterBarVisible ? EVisibility::Visible : EVisibility::Collapsed;
-		FilterBarWidget->SetVisibility(NewVisibility);
 	}
 
 	RebuildFilterBarContent();
