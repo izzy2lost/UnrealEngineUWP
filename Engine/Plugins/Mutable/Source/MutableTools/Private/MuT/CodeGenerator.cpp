@@ -1092,15 +1092,26 @@ namespace mu
 					else if (pImageNode->GetType() == NodeImageSwizzle::GetStaticType())
 					{
 						NodeImageSwizzle* ts = static_cast<NodeImageSwizzle*>(pImageNode.get());
-						NodeImage* Source = ts->GetSource(0).get();
-						if (!swizzleNode && Source ==ts->GetSource(1) && Source==ts->GetSource(2) && Source==ts->GetSource(3))
+
+						if (!ts->GetPrivate()->m_sources.IsEmpty())
 						{
-							swizzleNode = ts;
-							pImageNode = Source;
-						}
-						else
-						{
-							bFound = true;
+							NodeImage* Source = ts->GetSource(0).get();
+							
+							bool bAllSourcesAreTheSame = true;
+							for (int32 SourceIndex=1; SourceIndex<ts->GetPrivate()->m_sources.Num(); ++SourceIndex)
+							{
+								bAllSourcesAreTheSame = bAllSourcesAreTheSame && (Source == ts->GetSource(SourceIndex));
+							}
+
+							if (!swizzleNode && bAllSourcesAreTheSame)
+							{
+								swizzleNode = ts;
+								pImageNode = Source;
+							}
+							else
+							{
+								bFound = true;
+							}
 						}
 					}
 					else
@@ -1323,14 +1334,12 @@ namespace mu
 							{
 								Ptr<ASTOpImageSwizzle> fop = new ASTOpImageSwizzle();
 								fop->Format = swizzleNode->GetPrivate()->m_format;
-								fop->Sources[0] = imageAd;
-								fop->Sources[1] = imageAd;
-								fop->Sources[2] = imageAd;
-								fop->Sources[3] = imageAd;
-								fop->SourceChannels[0] = swizzleNode->GetPrivate()->m_sourceChannels[0];
-								fop->SourceChannels[1] = swizzleNode->GetPrivate()->m_sourceChannels[1];
-								fop->SourceChannels[2] = swizzleNode->GetPrivate()->m_sourceChannels[2];
-								fop->SourceChannels[3] = swizzleNode->GetPrivate()->m_sourceChannels[3];
+
+								for (int32 ChannelIndex = 0; ChannelIndex < swizzleNode->GetPrivate()->m_sourceChannels.Num(); ++ChannelIndex)
+								{
+									fop->Sources[ChannelIndex] = imageAd;
+									fop->SourceChannels[ChannelIndex] = swizzleNode->GetPrivate()->m_sourceChannels[ChannelIndex];
+								}
 								check(fop->Format != EImageFormat::IF_NONE);
 								imageAd = fop;
 							}

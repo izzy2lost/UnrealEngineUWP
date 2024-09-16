@@ -39,41 +39,64 @@ namespace mu
 	{
 		m_pD->m_format = format;
 
-		int channelCount = GetImageFormatData( format ).Channels;
+		int32 channelCount = GetImageFormatData( format ).Channels;
 		m_pD->m_sources.SetNum( channelCount );
 		m_pD->m_sourceChannels.SetNum( channelCount );
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	NodeImagePtr NodeImageSwizzle::GetSource( int t ) const
+	NodeImagePtr NodeImageSwizzle::GetSource( int32 t ) const
 	{
-		check( t>=0 && t<(int)m_pD->m_sources.Num() );
-		return m_pD->m_sources[t].get();
+		if (m_pD->m_sources.IsValidIndex(t))
+		{
+			return m_pD->m_sources[t].get();
+		}
+		ensure(false);
+		return nullptr;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeImageSwizzle::SetSource( int t, NodeImagePtr pNode )
+	void NodeImageSwizzle::SetSource( int32 t, NodeImagePtr pNode )
 	{
-		check( t>=0 && t<(int)m_pD->m_sources.Num() );
-		m_pD->m_sources[t] = pNode;
+		if (m_pD->m_sources.IsValidIndex(t))
+		{
+			m_pD->m_sources[t] = pNode;
+		}
+		else
+		{
+			ensure(false);
+		}
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	int NodeImageSwizzle::GetSourceChannel( int t ) const
+	int32 NodeImageSwizzle::GetSourceChannel( int32 t ) const
 	{
-		check( t>=0 && t<(int)m_pD->m_sourceChannels.Num() );
-		return m_pD->m_sourceChannels[t];
+		if (m_pD->m_sourceChannels.IsValidIndex(t))
+		{
+			return m_pD->m_sourceChannels[t];
+		}
+		else
+		{
+			ensure(false);
+			return 0;
+		}
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeImageSwizzle::SetSourceChannel( int t, int channel )
+	void NodeImageSwizzle::SetSourceChannel( int32 OutputChannel, int32 SourceChannel )
 	{
-		check( t>=0 && t<(int)m_pD->m_sourceChannels.Num() );
-		m_pD->m_sourceChannels[t] = channel;
+		if (m_pD->m_sourceChannels.IsValidIndex(OutputChannel))
+		{
+			m_pD->m_sourceChannels[OutputChannel] = SourceChannel;
+		}
+		else
+		{
+			ensure(false);
+		}
 	}
 
 
