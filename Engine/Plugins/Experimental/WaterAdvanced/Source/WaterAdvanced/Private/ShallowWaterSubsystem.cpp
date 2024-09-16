@@ -368,12 +368,6 @@ void UShallowWaterSubsystem::InitializeShallowWater()
 
 bool UShallowWaterSubsystem::IsShallowWaterAllowedToInitialize() const
 {
-	TObjectPtr<UShallowWaterSettings> TmpSettings = GetMutableDefault<UShallowWaterSettings>();
-	if (TmpSettings)
-	{
-		return TmpSettings->UseDefaultShallowWaterSubsystem;
-	}
-
 	return false;
 }
 
