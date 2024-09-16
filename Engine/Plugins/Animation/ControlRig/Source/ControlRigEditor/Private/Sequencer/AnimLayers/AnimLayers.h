@@ -104,10 +104,10 @@ struct FAnimLayerState
 	FText AnimLayerTypeToText()const;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data")
-	mutable ECheckBoxState bKeyed;
+	mutable ECheckBoxState bKeyed = ECheckBoxState::Unchecked;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data")
-	mutable ECheckBoxState bSelected;
+	mutable ECheckBoxState bSelected = ECheckBoxState::Unchecked;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data")
 	mutable bool bActive;
