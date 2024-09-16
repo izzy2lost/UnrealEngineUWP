@@ -6,7 +6,7 @@ using UnrealBuildTool;
 
 
 [SupportedPlatforms(UnrealPlatformClass.Desktop)]
-public class LiveLinkHubEditorTarget : TargetRules
+public class LiveLinkHubTarget : TargetRules
 {
 	// Restrict OptedInModulePlatforms to the current Target.Platform.
 	// Used during staging, which otherwise fails in TargetPlatform-related restricted
@@ -22,7 +22,7 @@ public class LiveLinkHubEditorTarget : TargetRules
 	[CommandLine("-EnableMetaHumanLiveLinkPlugin=")]
 	public bool bEnableMetaHumanLiveLinkPlugin = false;
 
-	public LiveLinkHubEditorTarget(TargetInfo Target) : base(Target)
+	public LiveLinkHubTarget(TargetInfo Target) : base(Target)
 	{
 		Type = TargetType.Editor;
 		bExplicitTargetForType = true;
@@ -89,7 +89,7 @@ public class LiveLinkHubEditorTarget : TargetRules
 		bBuildAdditionalConsoleApp = false;
 
 		// Based loosely on the VCProject.cs logic to construct NMakePath.
-		string BaseExeName = "LiveLinkHubEditor";
+		string BaseExeName = "LiveLinkHub";
 		OutputFile = "Binaries/" + Platform.ToString() + "/" + BaseExeName;
 		if (Configuration != UndecoratedConfiguration)
 		{
@@ -109,7 +109,7 @@ public class LiveLinkHubEditorTarget : TargetRules
 		// project Binaries directory. So for now, we'll keep splitting the difference like this.
 		DirectoryReference ReceiptSrcDir = Unreal.EngineDirectory;
 		DirectoryReference ReceiptDestDir = DirectoryReference.Combine(
-			Unreal.EngineDirectory, "Source", "Programs", "LiveLinkHubEditor");
+			Unreal.EngineDirectory, "Source", "Programs", "LiveLinkHub");
 
 		FileReference ReceiptSrcPath = TargetReceipt.GetDefaultPath(ReceiptSrcDir, BaseExeName, Platform, Configuration, Architectures);
 		FileReference ReceiptDestPath = TargetReceipt.GetDefaultPath(ReceiptDestDir, BaseExeName, Platform, Configuration, Architectures);
