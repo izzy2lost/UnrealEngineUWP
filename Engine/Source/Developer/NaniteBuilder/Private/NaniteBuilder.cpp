@@ -609,7 +609,6 @@ bool FBuilderModule::Build(
 	for( FCluster& Cluster : Clusters )
 		SurfaceArea += Cluster.SurfaceArea;
 
-	int32 FallbackTargetNumTris = int32((float)Resources.NumInputTriangles * Settings.FallbackPercentTriangles);
 	float FallbackTargetError = Settings.FallbackRelativeError * 0.01f * FMath::Sqrt( FMath::Min( 2.0f * SurfaceArea, InputMeshData.VertexBounds.GetSurfaceArea() ) );
 
 	// NOTE: The fallback is reduced if the base Nanite mesh will also reduce the input
@@ -667,6 +666,8 @@ bool FBuilderModule::Build(
 
 		UE_LOG( LogStaticMesh, Log, TEXT("Trimmed to %u tris"), NumTris );
 	}
+
+	int32 FallbackTargetNumTris = int32((float)Resources.NumInputTriangles * Settings.FallbackPercentTriangles);
 
 	uint32 ReduceTime1 = FPlatformTime::Cycles();
 	UE_LOG( LogStaticMesh, Log, TEXT("Reduce [%.2fs]"), FPlatformTime::ToMilliseconds( ReduceTime1 - ReduceTime0 ) / 1000.0f );
