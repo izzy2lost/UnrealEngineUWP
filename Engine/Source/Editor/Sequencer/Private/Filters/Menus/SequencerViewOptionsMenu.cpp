@@ -5,6 +5,7 @@
 #include "Filters/SequencerTrackFilterCommands.h"
 #include "Sequencer.h"
 #include "SequencerCommands.h"
+#include "SequencerFilterBarContext.h"
 #include "SSequencer.h"
 #include "ToolMenu.h"
 #include "ToolMenus.h"
@@ -22,11 +23,18 @@ TSharedRef<SWidget> FSequencerViewOptionsMenu::CreateMenu(const TWeakPtr<FSequen
 	if (!UToolMenus::Get()->IsMenuRegistered(FilterMenuName))
 	{
 		UToolMenu* const Menu = UToolMenus::Get()->RegisterMenu(FilterMenuName);
-		Menu->AddDynamicSection(NAME_None, FNewToolMenuDelegate::CreateRaw(this, &FSequencerViewOptionsMenu::PopulateMenu));
+		Menu->AddDynamicSection(NAME_None, FNewToolMenuDelegate::CreateLambda([this](UToolMenu* const InMenu)
+			{
+				if (USequencerMenuContext* const Context = InMenu->FindContext<USequencerMenuContext>())
+				{
+					Context->OnPopulateFilterBarMenu.ExecuteIfBound(InMenu);
+				}
+			}));
 	}
 
 	USequencerMenuContext* const ContextObject = NewObject<USequencerMenuContext>();
 	ContextObject->Init(InSequencerWeak);
+	ContextObject->OnPopulateFilterBarMenu = FOnPopulateFilterBarMenu::CreateSP(this, &FSequencerViewOptionsMenu::PopulateMenu);
 
 	const FToolMenuContext MenuContext(InSequencerWeak.Pin()->GetFilterInterface()->GetCommandList(), nullptr, ContextObject);
 	return UToolMenus::Get()->GenerateWidget(FilterMenuName, MenuContext);
