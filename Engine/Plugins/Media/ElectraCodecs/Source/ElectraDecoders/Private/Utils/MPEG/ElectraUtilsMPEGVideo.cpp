@@ -119,6 +119,7 @@ namespace ElectraDecodersUtil
 						wr.PutBits(d[k], 8);
 					}
 				}
+				wr.PutBits(static_cast<uint32>(aPPS.NALUs.Num()), 8);
 				for(int32 j=0; j<aPPS.NALUs.Num(); ++j)
 				{
 					const TArray<uint8>& d(aPPS.NALUs[j]);
