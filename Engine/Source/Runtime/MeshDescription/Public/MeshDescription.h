@@ -1158,6 +1158,8 @@ public:
 	/** Generates triangles and internal edges for the given polygon */
 	MESHDESCRIPTION_API void ComputePolygonTriangulation(const FPolygonID PolygonID);
 
+	MESHDESCRIPTION_API void SplitPolygon(FPolygonID PolygonID);
+
 
 	//////////////////////////////////////////////////////////////////////
 	// Polygon group operations
