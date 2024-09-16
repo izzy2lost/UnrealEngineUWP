@@ -45,7 +45,7 @@ namespace NFORDenoise
 
 	TAutoConsoleVariable<float> CVarNFORPredivideAlbedoOffset(
 		TEXT("r.NFOR.PredivideAlbedo.Offset"),
-		1e-3,
+		0.1,
 		TEXT("Offset for albedo for regions other than full reflection and sky materials. Increase to get a smoother result."),
 		ECVF_RenderThreadSafe);
 
