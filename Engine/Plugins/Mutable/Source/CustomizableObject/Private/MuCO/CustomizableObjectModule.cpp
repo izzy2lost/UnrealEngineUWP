@@ -334,13 +334,13 @@ void FCustomizableObjectModule::ToggleDGGUI(const TArray<FString>& Arguments)
 }
 
 
-void PrintParticipatingPackagesDiff(const TArray<FName>& OutOfDatePackages, const TArray<FName>& AddedPackages, const TArray<FName>& RemovedPackages, bool bVersionDiff)
+void PrintParticipatingPackagesDiff(const TArray<FName>& OutOfDatePackages, const TArray<FName>& AddedPackages, const TArray<FName>& RemovedPackages, bool bReleaseVersion)
 {
 	constexpr int32 MaxLogLines = 10;
 
-	if (bVersionDiff)
+	if (bReleaseVersion)
 	{
-		UE_LOG(LogMutable, Display, TEXT("Version Bridge changed."));
+		UE_LOG(LogMutable, Display, TEXT("Release Version changed."));
 	}
 	
 	if (OutOfDatePackages.Num())

@@ -1034,7 +1034,7 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 
 		if (ICustomizableObjectVersionBridgeInterface* VersionBridge = Cast<ICustomizableObjectVersionBridgeInterface>(GraphTraversal::GetRootObject(CurrentObject)->VersionBridge))
 		{
-			ModelResources.CompiledVersionBridge = VersionBridge->GetCurrentVersionAsString();
+			ModelResources.ReleaseVersion = VersionBridge->GetCurrentVersionAsString();
 		}
 		
 		ModelResources.NumLODs = GenerationContext.NumLODsInRoot;

@@ -1097,9 +1097,8 @@ struct FModelResources
 	UPROPERTY()
 	TArray<FName> ComponentNames;
 
-	/** Version Bridge. */
 	UPROPERTY()
-	FString CompiledVersionBridge;
+	FString ReleaseVersion;
 	
 #if WITH_EDITORONLY_DATA
 	void CUSTOMIZABLEOBJECT_API Serialize(FObjectAndNameAsStringProxyArchive& Ar, bool bIsCooking);
@@ -1298,9 +1297,7 @@ public:
 	
 #if WITH_EDITOR
 	/** See ICustomizableObjectEditorModule::IsCompilationOutOfDate. */
-	bool IsCompilationOutOfDate(bool bSkipIndirectReferences, TArray<FName>& OutOfDatePackages, TArray<FName>& AddedPackages, TArray<FName>& RemovedPackages, bool& bVersionDiff) const;
-
-	void OnParticipatingObjectDirty(UPackage* Package, bool);
+	bool IsCompilationOutOfDate(bool bSkipIndirectReferences, TArray<FName>& OutOfDatePackages, TArray<FName>& AddedPackages, TArray<FName>& RemovedPackages, bool& bReleaseVersionDiff) const;
 #endif
 
 	TArray<FString>& GetCustomizableObjectClassTags();

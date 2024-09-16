@@ -742,7 +742,7 @@ void FModelResources::Serialize(FObjectAndNameAsStringProxyArchive& MemoryWriter
 	MemoryWriter << FirstLODAvailable;
 
 	MemoryWriter << ComponentNames;
-	MemoryWriter << CompiledVersionBridge;
+	MemoryWriter << ReleaseVersion;
 
 	// Editor Only data
 	if (!bIsCooking)
@@ -894,7 +894,7 @@ bool FModelResources::Unserialize(FObjectAndNameAsStringProxyArchive& MemoryRead
 	MemoryReader << FirstLODAvailable;
 
 	MemoryReader << ComponentNames;
-	MemoryReader << CompiledVersionBridge;
+	MemoryReader << ReleaseVersion;
 
 	// Editor Only data
 	if (!bIsCooking)
@@ -974,8 +974,8 @@ void UCustomizableObjectPrivate::LoadCompiledDataFromDisk()
 					TArray<FName> OutOfDatePackages;
 					TArray<FName> AddedPackages;
 					TArray<FName> RemovedPackages;
-					bool bVersionDiff;
-					const bool bOutOfDate = IsCompilationOutOfDate(false, OutOfDatePackages, AddedPackages, RemovedPackages, bVersionDiff);
+					bool bReleaseVersion;
+					const bool bOutOfDate = IsCompilationOutOfDate(false, OutOfDatePackages, AddedPackages, RemovedPackages, bReleaseVersion);
 					if (!bOutOfDate)
 					{
 						LoadModelStreamableBulk(MemoryReader, /* bIsCooking */false);
@@ -984,7 +984,7 @@ void UCustomizableObjectPrivate::LoadCompiledDataFromDisk()
 					else
 					{
 						UE_LOG(LogMutable, Display, TEXT("Invalidating compiled data due to changes in %s."), *OutOfDatePackages[0].ToString());
-						PrintParticipatingPackagesDiff(OutOfDatePackages, AddedPackages, RemovedPackages, bVersionDiff);
+						PrintParticipatingPackagesDiff(OutOfDatePackages, AddedPackages, RemovedPackages, bReleaseVersion);
 					}
 				}
 			}
@@ -2300,11 +2300,11 @@ const FModelResources& UCustomizableObjectPrivate::GetModelResources(bool bIsCoo
 
 
 #if WITH_EDITOR
-bool UCustomizableObjectPrivate::IsCompilationOutOfDate(bool bSkipIndirectReferences, TArray<FName>& OutOfDatePackages, TArray<FName>& AddedPackages, TArray<FName>& RemovedPackages, bool& bVersionDiff) const
+bool UCustomizableObjectPrivate::IsCompilationOutOfDate(bool bSkipIndirectReferences, TArray<FName>& OutOfDatePackages, TArray<FName>& AddedPackages, TArray<FName>& RemovedPackages, bool& bReleaseVersionDiff) const
 {
 	if (const ICustomizableObjectEditorModule* Module = ICustomizableObjectEditorModule::Get())
 	{
-		return Module->IsCompilationOutOfDate(*GetPublic(), bSkipIndirectReferences, OutOfDatePackages, AddedPackages, RemovedPackages, bVersionDiff);
+		return Module->IsCompilationOutOfDate(*GetPublic(), bSkipIndirectReferences, OutOfDatePackages, AddedPackages, RemovedPackages, bReleaseVersionDiff);
 	}
 
 	return false;		
@@ -2856,10 +2856,10 @@ TArray<uint8> UCustomizableObjectPrivate::BuildDerivedDataKey(FCompilationOption
 		SerializeCompilationOptionsForDDC(Ar, Options);
 	}
 
-	// Version Bridge
+	// Release Version
 	if (const ICustomizableObjectEditorModule* Module = ICustomizableObjectEditorModule::Get())
 	{
-		FString Version = Module->GetCurrentContentVersionForObject(CustomizableObject);
+		FString Version = Module->GetCurrentReleaseVersionForObject(CustomizableObject);
 		Ar << Version;
 	}
 

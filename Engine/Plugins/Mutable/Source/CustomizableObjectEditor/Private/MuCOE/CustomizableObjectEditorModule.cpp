@@ -167,8 +167,8 @@ void ShowOnScreenCompileWarnings()
 		TArray<FName> OutOfDatePackages;
 		TArray<FName> AddedPackages;
 		TArray<FName> RemovedPackages;
-		bool bVersionDiff;
-		if (Object->GetPrivate()->IsCompilationOutOfDate(true, OutOfDatePackages, AddedPackages, RemovedPackages, bVersionDiff))
+		bool bReleaseVersion;
+		if (Object->GetPrivate()->IsCompilationOutOfDate(true, OutOfDatePackages, AddedPackages, RemovedPackages, bReleaseVersion))
 		{
 			FString Msg = FString::Printf(TEXT("Customizable Object [%s] compilation out of date. See the Output Log for more information."), *Object->GetName());
 			GEngine->AddOnScreenDebugMessage(KeyCompiledOutOfDate, ShowOnScreenCompileWarningsTickerTime * 2.0f, FColor::Yellow, Msg);
@@ -177,7 +177,7 @@ void ShowOnScreenCompileWarnings()
 			{
 				UE_LOG(LogMutable, Display, TEXT("Customizable Object [%s] compilation out of date. Changes since last compilation:"), *Object->GetName());
 
-				PrintParticipatingPackagesDiff(OutOfDatePackages, AddedPackages, RemovedPackages, bVersionDiff);
+				PrintParticipatingPackagesDiff(OutOfDatePackages, AddedPackages, RemovedPackages, bReleaseVersion);
 			}
 		}
 		else
@@ -557,7 +557,7 @@ void GetReferencingPackages(const UCustomizableObject& Object, TArray<FAssetData
 }
 
 
-bool FCustomizableObjectEditorModule::IsCompilationOutOfDate(const UCustomizableObject& Object, bool bSkipIndirectReferences, TArray<FName>& OutOfDatePackages, TArray<FName>& AddedPackages, TArray<FName>& RemovedPackages, bool& bVersionDiff) const
+bool FCustomizableObjectEditorModule::IsCompilationOutOfDate(const UCustomizableObject& Object, bool bSkipIndirectReferences, TArray<FName>& OutOfDatePackages, TArray<FName>& AddedPackages, TArray<FName>& RemovedPackages, bool& bReleaseVersion) const
 {
 	MUTABLE_CPUPROFILER_SCOPE(FCustomizableObjectEditorModule::IsCompilationOutOfDate)
 	
@@ -635,13 +635,13 @@ bool FCustomizableObjectEditorModule::IsCompilationOutOfDate(const UCustomizable
 		}
 	}
 
-	bVersionDiff = false;
+	bReleaseVersion = false;
 	if (ICustomizableObjectVersionBridgeInterface* VersionBridge = Cast<ICustomizableObjectVersionBridgeInterface>(Object.VersionBridge))
 	{
-		bVersionDiff = Object.GetPrivate()->GetModelResources().CompiledVersionBridge != VersionBridge->GetCurrentVersionAsString();
+		bReleaseVersion = Object.GetPrivate()->GetModelResources().ReleaseVersion != VersionBridge->GetCurrentVersionAsString();
 	}
 
-	return bVersionDiff || !OutOfDatePackages.IsEmpty() || !AddedPackages.IsEmpty() || !RemovedPackages.IsEmpty();
+	return bReleaseVersion || !OutOfDatePackages.IsEmpty() || !AddedPackages.IsEmpty() || !RemovedPackages.IsEmpty();
 }
 
 
@@ -650,7 +650,7 @@ bool FCustomizableObjectEditorModule::IsRootObject(const UCustomizableObject& Ob
 	return GraphTraversal::IsRootObject(Object);
 }
 
-FString FCustomizableObjectEditorModule::GetCurrentContentVersionForObject(const UCustomizableObject& Object) const
+FString FCustomizableObjectEditorModule::GetCurrentReleaseVersionForObject(const UCustomizableObject& Object) const
 {
 	if (Object.VersionBridge && Object.VersionBridge->GetClass()->ImplementsInterface(UCustomizableObjectVersionBridgeInterface::StaticClass()))
 	{
