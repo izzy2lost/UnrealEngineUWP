@@ -542,7 +542,7 @@ public:
 #if WITH_EDITOR
 	/** Return the DataTables used by the given parameter and its value (if any). */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
-	TSet<TSoftObjectPtr<UDataTable>> GetIntParameterOptionDataTable(FString& ParamName, const FString& OptionName);
+	TArray<TSoftObjectPtr<UDataTable>> GetIntParameterOptionDataTable(const FString& ParamName, const FString& OptionName);
 #endif
 	
 private:
