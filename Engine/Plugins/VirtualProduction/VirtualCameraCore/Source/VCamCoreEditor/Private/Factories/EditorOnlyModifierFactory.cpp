@@ -3,6 +3,7 @@
 #include "EditorOnlyModifierFactory.h"
 
 #include "EditorOnlyVCamModifier.h"
+#include "EditorOnlyVCamModifierBlueprint.h"
 #include "Modifier/VCamModifier.h"
 
 #include "AssetToolsModule.h"
@@ -13,7 +14,7 @@
 
 UEditorOnlyModifierFactory::UEditorOnlyModifierFactory()
 {
-	SupportedClass = UBlueprint::StaticClass();
+	SupportedClass = UEditorOnlyVCamModifierBlueprint::StaticClass();
 	ParentClass = UEditorOnlyVCamModifier::StaticClass();
 
 	bCreateNew = true;
@@ -36,7 +37,15 @@ UObject* UEditorOnlyModifierFactory::FactoryCreateNew(UClass* Class, UObject* In
 	if (ensure(SupportedClass == Class))
 	{
 		ensure(0 != (RF_Public & Flags));
-		ModifierBlueprint = FKismetEditorUtilities::CreateBlueprint(ParentClass, InParent, Name, BPTYPE_Normal, UBlueprint::StaticClass(), UBlueprintGeneratedClass::StaticClass(), NAME_None);
+		ModifierBlueprint = FKismetEditorUtilities::CreateBlueprint(
+			ParentClass,
+			InParent,
+			Name,
+			BPTYPE_Normal,
+			UEditorOnlyVCamModifierBlueprint::StaticClass(),
+			UBlueprintGeneratedClass::StaticClass(),
+			NAME_None
+			);
 		if (TSubclassOf<UObject> GeneratedClass = ModifierBlueprint->GeneratedClass)
 		{
 			if (UEditorOnlyVCamModifier* DefaultSubject = GeneratedClass->GetDefaultObject<UEditorOnlyVCamModifier>())

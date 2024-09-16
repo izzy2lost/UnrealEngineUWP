@@ -16,6 +16,8 @@
 #include "Customizations/VCamViewportLockerTypeCustomization.h"
 #include "Customizations/WidgetReference/ChildWidgetReferenceCustomization.h"
 #include "Customizations/WidgetReference/VCamChildWidgetReferenceCustomization.h"
+#include "EditorOnlyVCamModifier.h"
+#include "EditorOnlyVCamModifierBlueprint.h"
 #include "Input/VCamInputDeviceConfig.h"
 #include "LogVCamEditor.h"
 #include "Modifier/VCamModifier.h"
@@ -31,6 +33,7 @@
 #include "ConcertTransactionEvents.h"
 #include "IConcertSyncClient.h"
 #include "IConcertSyncClientModule.h"
+#include "KismetCompilerModule.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
@@ -64,6 +67,10 @@ namespace UE::VCamCoreEditor
 		CompilationExtensionManager = MakeShared<FCompilationExtensionManager>();
 		CompilationExtensionManager->Init();
 
+		// Use a custom UBlueprint, so we can get the editor to show editor-only functions in it.
+		IKismetCompilerInterface& KismetCompilerModule = FModuleManager::LoadModuleChecked<IKismetCompilerInterface>("KismetCompiler");
+		KismetCompilerModule.OverrideBPTypeForClass(UEditorOnlyVCamModifier::StaticClass(), UEditorOnlyVCamModifierBlueprint::StaticClass());
+		
 		FCoreDelegates::OnPostEngineInit.AddRaw(this, &FVCamCoreEditorModule::RegisterMultiUserFilters);
 	}
 	
