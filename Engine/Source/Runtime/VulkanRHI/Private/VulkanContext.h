@@ -129,9 +129,9 @@ public:
 		return CommandBufferManager;
 	}
 
-	inline VulkanRHI::FTempFrameAllocationBuffer& GetTempFrameAllocationBuffer()
+	inline VulkanRHI::FTempBlockAllocator& GetTempBlockAllocator()
 	{
-		return TempFrameAllocationBuffer;
+		return *TempBlockAllocator;
 	}
 
 	inline FVulkanPendingGfxState* GetPendingGfxState()
@@ -173,11 +173,6 @@ public:
 		return FrameCounter;
 	}
 
-	inline FVulkanUniformBufferUploader* GetUniformBufferUploader()
-	{
-		return UniformBufferUploader;
-	}
-
 	inline FVulkanQueue* GetQueue()
 	{
 		return Queue;
@@ -216,12 +211,11 @@ protected:
 	FVulkanQueue* Queue;
 	bool bSubmitAtNextSafePoint;
 	bool bUniformBufferUploadRenderPassDirty = true;
-	FVulkanUniformBufferUploader* UniformBufferUploader;
 
 	void BeginOcclusionQueryBatch(FVulkanCmdBuffer* CmdBuffer, uint32 NumQueriesInBatch);
 	void EndOcclusionQueryBatch(FVulkanCmdBuffer* CmdBuffer);
 
-	VulkanRHI::FTempFrameAllocationBuffer TempFrameAllocationBuffer;
+	VulkanRHI::FTempBlockAllocator* TempBlockAllocator = nullptr;
 
 	TArray<FString> EventStack;
 

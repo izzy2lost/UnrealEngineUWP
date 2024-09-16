@@ -105,6 +105,16 @@ static TAutoConsoleVariable<bool> CVarEnableVulkanPSOFileCacheWhenPrecachingActi
 	TEXT("true: Allow both PSO file cache and precaching."),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
+int32 GVulkanTempBlockSize = 4 * 1024 * 1024;
+static FAutoConsoleVariableRef GCVarVulkanTempBlockSize(
+	TEXT("r.Vulkan.TempBlockSize"),
+	GVulkanTempBlockSize,
+	TEXT("Size of the temporary blocks allocate by contexts, used for single use ub allocs and copies (default: 4MB)."),
+	ECVF_ReadOnly
+);
+
+
+
 extern TAutoConsoleVariable<int32> GVulkanRayTracingCVar;
 
 // All shader stages supported by VK device - VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, FRAGMENT etc
@@ -416,8 +426,6 @@ FVulkanCommandListContext::FVulkanCommandListContext(FVulkanDynamicRHI* InRHI, F
 	, Device(InDevice)
 	, Queue(InQueue)
 	, bSubmitAtNextSafePoint(false)
-	, UniformBufferUploader(nullptr)
-	, TempFrameAllocationBuffer(InDevice)
 	, CommandBufferManager(nullptr)
 	, PendingGfxState(nullptr)
 	, PendingComputeState(nullptr)
@@ -453,7 +461,15 @@ FVulkanCommandListContext::FVulkanCommandListContext(FVulkanDynamicRHI* InRHI, F
 	PendingGfxState = new FVulkanPendingGfxState(Device, *this);
 	PendingComputeState = new FVulkanPendingComputeState(Device, *this);
 
-	UniformBufferUploader = new FVulkanUniformBufferUploader(Device);
+	// Currently used for UB and copies
+	{
+		const uint32 BlockAlignment = FMath::Max<uint32>(Device->GetLimits().minUniformBufferOffsetAlignment, 16u);
+		const VkBufferUsageFlags BufferUsageFlags = 
+			(Device->GetOptionalExtensions().HasBufferDeviceAddress ? VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT : 0) |
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+		TempBlockAllocator = new VulkanRHI::FTempBlockAllocator(InDevice, GVulkanTempBlockSize, BlockAlignment, BufferUsageFlags);
+	}
 
 	GlobalUniformBuffers.AddZeroed(FUniformBufferStaticSlotRegistry::Get().GetSlotCount());
 }
@@ -482,11 +498,9 @@ FVulkanCommandListContext::~FVulkanCommandListContext()
 	delete CommandBufferManager;
 	CommandBufferManager = nullptr;
 
-	delete UniformBufferUploader;
+	delete TempBlockAllocator;
 	delete PendingGfxState;
 	delete PendingComputeState;
-
-	TempFrameAllocationBuffer.Destroy();
 }
 
 
@@ -1129,6 +1143,7 @@ void FVulkanDynamicRHI::RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICm
 		Context.Device->GetPipelineStateCache()->TickLRU();
 
 		Context.Device->GetBindlessDescriptorManager()->UpdateUBAllocator();
+		Context.GetTempBlockAllocator().UpdateBlocks();
 
 		++Context.FrameCounter;
 	});

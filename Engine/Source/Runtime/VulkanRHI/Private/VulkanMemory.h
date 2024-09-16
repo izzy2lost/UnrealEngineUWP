@@ -1134,15 +1134,23 @@ namespace VulkanRHI
 			std::atomic<uint32> CurrentOffset = 0;
 		};
 
+		struct FInternalAlloc
+		{
+			FTempMemoryBlock* Block = nullptr;
+			uint32 Offset = 0;
+		};
+
 		FTempBlockAllocator(FVulkanDevice* InDevice, uint32 InBlockSize, uint32 InBlockAlignment, VkBufferUsageFlags InBufferUsage);
 		virtual ~FTempBlockAllocator();
 
 		uint8* Alloc(uint32 InSize, FVulkanCmdBuffer* CmdBuffer, VkDescriptorBufferBindingInfoEXT& OutBindingInfo, VkDeviceSize& OutOffset);
+		uint8* Alloc(uint32 InSize, uint32 InAlignment, FVulkanCmdBuffer* CmdBuffer, FVulkanAllocation& OutAllocation, VkDescriptorAddressInfoEXT* OutDescriptorAddressInfo = nullptr);
 
 		void UpdateBlocks();
 
 	protected:
 		FTempMemoryBlock* AllocBlock();
+		FInternalAlloc InternalAlloc(uint32 InSize, FVulkanCmdBuffer* CmdBuffer);
 
 		const uint32 BlockSize;
 		const uint32 BlockAlignment;
@@ -1154,65 +1162,6 @@ namespace VulkanRHI
 		FRWLock RWLock;
 	};
 
-
-	// Simple tape allocation per frame for a VkBuffer, used for Volatile allocations
-	class FTempFrameAllocationBuffer : public FDeviceChild
-	{
-		enum
-		{
-			ALLOCATION_SIZE = (4 * 1024 * 1024),
-		};
-
-	public:
-		FTempFrameAllocationBuffer(FVulkanDevice* InDevice);
-		virtual ~FTempFrameAllocationBuffer();
-		void Destroy();
-
-		struct FTempAllocInfo
-		{
-			FVulkanAllocation Allocation;
-			void* Data = 0;
-			uint32 CurrentOffset = 0;
-			uint32 Size = 0;
-			uint32 LockCounter = 0;
-
-			uint32 GetBindOffset()
-			{
-				checkNoEntry();
-				return 0;
-			}
-
-		};
-
-		void Alloc(uint32 InSize, uint32 InAlignment, FTempAllocInfo& OutInfo);
-		void Reset();
-
-	protected:
-		uint32 BufferIndex;
-
-		enum
-		{
-			NUM_BUFFERS = 3,
-		};
-
-		struct FFrameEntry
-		{
-			FVulkanAllocation Allocation;
-			TArray<FVulkanAllocation> PendingDeletionList;
-			uint8* MappedData = nullptr;
-			uint8* CurrentData = nullptr;
-			uint32 Size = 0;
-			uint32 PeakUsed = 0;
-
-			void InitBuffer(FVulkanDevice* InDevice, uint32 InSize);
-			void Reset(FVulkanDevice* Device);
-			bool TryAlloc(uint32 InSize, uint32 InAlignment, FTempAllocInfo& OutInfo);
-		};
-		FFrameEntry Entries[NUM_BUFFERS];
-		FCriticalSection CS;
-
-		friend class FVulkanCommandListContext;
-	};
 
 	class VULKANRHI_API FSemaphore : public FRefCount
 	{

@@ -291,28 +291,15 @@ protected:
 };
 
 template <bool bIsDynamic>
-static inline bool UpdatePackedUniformBuffers(VkDeviceSize UBOffsetAlignment, const FPackedUniformBuffers& PackedUniformBuffers,
-	FVulkanDescriptorSetWriter& DescriptorWriteSet, FVulkanUniformBufferUploader* UniformBufferUploader, uint8* RESTRICT CPURingBufferBase,
-	FVulkanCmdBuffer* InCmdBuffer)
+static inline bool SubmitPackedUniformBuffers(FVulkanDescriptorSetWriter& DescriptorWriteSet, const VulkanRHI::FVulkanAllocation& TempAllocation)
 {
-	const FPackedUniformBuffers::FPackedBuffer& StagedUniformBuffer = PackedUniformBuffers.GetBuffer();
-	const int32 BindingIndex = 0;  // Packed unifrom buffers are only used for globals at binding 0
-
-	const int32 UBSize = StagedUniformBuffer.Num();
-
-	// get offset into the RingBufferBase pointer
-	uint64 RingBufferOffset = UniformBufferUploader->AllocateMemory(UBSize, UBOffsetAlignment, InCmdBuffer);
-
-	// get location in the ring buffer to use
-	FMemory::Memcpy(CPURingBufferBase + RingBufferOffset, StagedUniformBuffer.GetData(), UBSize);
-
-	const VulkanRHI::FVulkanAllocation& Allocation = UniformBufferUploader->GetCPUBufferAllocation();
+	const int32 BindingIndex = 0;  // Packed uniform buffers are only used for globals at binding 0
 	if (bIsDynamic)
 	{
-		return DescriptorWriteSet.WriteDynamicUniformBuffer(BindingIndex, Allocation.GetBufferHandle(), Allocation.HandleId, UniformBufferUploader->GetCPUBufferOffset(), UBSize, RingBufferOffset);
+		return DescriptorWriteSet.WriteDynamicUniformBuffer(BindingIndex, TempAllocation.GetBufferHandle(), TempAllocation.HandleId, 0, TempAllocation.Size, TempAllocation.Offset);
 	}
 	else
 	{
-		return DescriptorWriteSet.WriteUniformBuffer(BindingIndex, Allocation.GetBufferHandle(), Allocation.HandleId, RingBufferOffset + UniformBufferUploader->GetCPUBufferOffset(), UBSize);
+		return DescriptorWriteSet.WriteUniformBuffer(BindingIndex, TempAllocation.GetBufferHandle(), TempAllocation.HandleId, TempAllocation.Offset, TempAllocation.Size);
 	}
 }

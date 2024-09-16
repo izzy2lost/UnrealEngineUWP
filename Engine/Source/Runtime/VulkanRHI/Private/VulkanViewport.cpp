@@ -1292,13 +1292,6 @@ void FVulkanDynamicRHI::RHIResizeViewport(FRHIViewport* ViewportRHI, uint32 Size
 void FVulkanDynamicRHI::RHITick(float DeltaTime)
 {
 	check(IsInGameThread());
-	FVulkanDevice* VulkanDevice = GetDevice();
-
-	ENQUEUE_RENDER_COMMAND(TempFrameReset)(
-		[VulkanDevice](FRHICommandListImmediate& RHICmdList)
-	{
-		VulkanDevice->GetImmediateContext().GetTempFrameAllocationBuffer().Reset();
-	});
 }
 
 FTextureRHIRef FVulkanDynamicRHI::RHIGetViewportBackBuffer(FRHIViewport* ViewportRHI)

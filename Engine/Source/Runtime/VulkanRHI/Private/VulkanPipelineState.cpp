@@ -155,6 +155,23 @@ void FVulkanCommonPipelineDescriptorState::CreateDescriptorWriteInfos()
 	DescriptorSetHandles.AddZeroed(MaxNumSets);
 }
 
+
+static inline VulkanRHI::FVulkanAllocation UpdatePackedUniformBuffers(const FPackedUniformBuffers& PackedUniformBuffers, FVulkanCommandListContext* InContext, FVulkanCmdBuffer* InCmdBuffer)
+{
+	const FPackedUniformBuffers::FPackedBuffer& StagedUniformBuffer = PackedUniformBuffers.GetBuffer();
+
+	const uint32 UBSize = (uint32)StagedUniformBuffer.Num();
+	const uint32 UBAlign = (uint32)InCmdBuffer->GetDevice()->GetLimits().minUniformBufferOffsetAlignment;
+
+	VulkanRHI::FVulkanAllocation TempAllocation;
+	uint8* MappedPointer = InContext->GetTempBlockAllocator().Alloc(UBSize, UBAlign, InCmdBuffer, TempAllocation);
+
+	FMemory::Memcpy(MappedPointer, StagedUniformBuffer.GetData(), UBSize);
+
+	return TempAllocation;
+}
+
+
 template<bool bUseDynamicGlobalUBs>
 bool FVulkanComputePipelineDescriptorState::InternalUpdateDescriptorSets(FVulkanCommandListContext* CmdListContext, FVulkanCmdBuffer* CmdBuffer)
 {
@@ -168,16 +185,12 @@ bool FVulkanComputePipelineDescriptorState::InternalUpdateDescriptorSets(FVulkan
 		return false;
 	}
 
-	FVulkanUniformBufferUploader* UniformBufferUploader = CmdListContext->GetUniformBufferUploader();
-	uint8* CPURingBufferBase = (uint8*)UniformBufferUploader->GetCPUMappedPointer();
-	const VkDeviceSize UBOffsetAlignment = Device->GetLimits().minUniformBufferOffsetAlignment;
-
 	if (PackedUniformBuffersDirty != 0)
 	{
 #if VULKAN_ENABLE_AGGRESSIVE_STATS
 		SCOPE_CYCLE_COUNTER(STAT_VulkanApplyPackedUniformBuffers);
 #endif
-		UpdatePackedUniformBuffers<bUseDynamicGlobalUBs>(UBOffsetAlignment, PackedUniformBuffers, DSWriter[ShaderStage::Compute], UniformBufferUploader, CPURingBufferBase, CmdBuffer);
+		SubmitPackedUniformBuffers<bUseDynamicGlobalUBs>(DSWriter[ShaderStage::Compute], UpdatePackedUniformBuffers(PackedUniformBuffers, CmdListContext, CmdBuffer));
 		PackedUniformBuffersDirty = 0;
 	}
 
@@ -218,10 +231,6 @@ void FVulkanComputePipelineDescriptorState::UpdateBindlessDescriptors(FVulkanCom
 	check(DSWriteContainer.DescriptorBufferInfo.Num() == DSWriteContainer.DescriptorWrites.Num());
 	check(DSWriteContainer.DescriptorImageInfo.Num() == 0);
 
-	FVulkanUniformBufferUploader* UniformBufferUploader = CmdListContext->GetUniformBufferUploader();
-	uint8* CPURingBufferBase = (uint8*)UniformBufferUploader->GetCPUMappedPointer();
-	const VkDeviceSize UBOffsetAlignment = Device->GetLimits().minUniformBufferOffsetAlignment;
-
 	FVulkanBindlessDescriptorManager::FUniformBufferDescriptorArrays StageUBs;
 
 	const FVulkanShaderHeader& Header = ComputePipeline->GetShaderCodeHeader();
@@ -237,19 +246,11 @@ void FVulkanComputePipelineDescriptorState::UpdateBindlessDescriptors(FVulkanCom
 		const FPackedUniformBuffers::FPackedBuffer& StagedUniformBuffer = PackedUniformBuffers.GetBuffer();
 		const int32 UBSize = StagedUniformBuffer.Num();
 		const int32 BindingIndex = 0;
+		const VkDeviceSize UBOffsetAlignment = Device->GetLimits().minUniformBufferOffsetAlignment;
 
-		// :todo-jn: Use PackedUniformBuffersDirty and cache last RingBufferOffset to avoid copy when there are no changes (while updating lifetime in UniformBufferUploader)
-		const uint64 RingBufferOffset = UniformBufferUploader->AllocateMemory(UBSize, UBOffsetAlignment, CmdBuffer);
-
-		// Make sure it wasn't written to already
-		VkDescriptorAddressInfoEXT& DescriptorAddressInfo = DescriptorAddressInfos[BindingIndex];
-		check(DescriptorAddressInfo.sType == 0);
-		DescriptorAddressInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT;
-		DescriptorAddressInfo.address = UniformBufferUploader->GetCPUBufferAddress() + RingBufferOffset;
-		DescriptorAddressInfo.range = UBSize;
-
-		// get location in the ring buffer to use
-		FMemory::Memcpy(CPURingBufferBase + RingBufferOffset, StagedUniformBuffer.GetData(), UBSize);
+		VulkanRHI::FVulkanAllocation TempAllocation;
+		uint8* MappedPointer = CmdListContext->GetTempBlockAllocator().Alloc(UBSize, UBOffsetAlignment, CmdBuffer, TempAllocation, &DescriptorAddressInfos[BindingIndex]);
+		FMemory::Memcpy(MappedPointer, StagedUniformBuffer.GetData(), UBSize);
 
 		PackedUniformBuffersDirty = 0;
 		++UBIndex;
@@ -343,10 +344,6 @@ bool FVulkanGraphicsPipelineDescriptorState::InternalUpdateDescriptorSets(FVulka
 		return false;
 	}
 
-	FVulkanUniformBufferUploader* UniformBufferUploader = CmdListContext->GetUniformBufferUploader();
-	uint8* CPURingBufferBase = (uint8*)UniformBufferUploader->GetCPUMappedPointer();
-	const VkDeviceSize UBOffsetAlignment = Device->GetLimits().minUniformBufferOffsetAlignment;
-
 	// Process updates
 	{
 #if VULKAN_ENABLE_AGGRESSIVE_STATS
@@ -356,7 +353,7 @@ bool FVulkanGraphicsPipelineDescriptorState::InternalUpdateDescriptorSets(FVulka
 		{
 			if (PackedUniformBuffersDirty[Stage] != 0)
 			{
-				MarkDirty(UpdatePackedUniformBuffers<bUseDynamicGlobalUBs>(UBOffsetAlignment, PackedUniformBuffers[Stage], DSWriter[Stage], UniformBufferUploader, CPURingBufferBase, CmdBuffer));
+				MarkDirty(SubmitPackedUniformBuffers<bUseDynamicGlobalUBs>(DSWriter[Stage], UpdatePackedUniformBuffers(PackedUniformBuffers[Stage], CmdListContext, CmdBuffer)));
 				PackedUniformBuffersDirty[Stage] = 0;
 			}
 		}
@@ -418,8 +415,6 @@ void FVulkanGraphicsPipelineDescriptorState::UpdateBindlessDescriptors(FVulkanCo
 	check(DSWriteContainer.DescriptorBufferInfo.Num() == DSWriteContainer.DescriptorWrites.Num());
 	check(DSWriteContainer.DescriptorImageInfo.Num() == 0);
 
-	FVulkanUniformBufferUploader* UniformBufferUploader = CmdListContext->GetUniformBufferUploader();
-	uint8* CPURingBufferBase = (uint8*)UniformBufferUploader->GetCPUMappedPointer();
 	const VkDeviceSize UBOffsetAlignment = Device->GetLimits().minUniformBufferOffsetAlignment;
 
 	FVulkanBindlessDescriptorManager::FUniformBufferDescriptorArrays StageUBs;
@@ -451,18 +446,9 @@ void FVulkanGraphicsPipelineDescriptorState::UpdateBindlessDescriptors(FVulkanCo
 				const int32 UBSize = StagedUniformBuffer.Num();
 				const int32 BindingIndex = 0;
 
-				// :todo-jn: Use PackedUniformBuffersDirty and cache last RingBufferOffset to avoid copy when there are no changes (while updating lifetime in UniformBufferUploader)
-				const uint64 RingBufferOffset = UniformBufferUploader->AllocateMemory(UBSize, UBOffsetAlignment, CmdBuffer);
-
-				// Make sure it wasn't written to already
-				VkDescriptorAddressInfoEXT& DescriptorAddressInfo = DescriptorAddressInfos[BindingIndex];
-				check(DescriptorAddressInfo.sType == 0);
-				DescriptorAddressInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT;
-				DescriptorAddressInfo.address = UniformBufferUploader->GetCPUBufferAddress() + RingBufferOffset;
-				DescriptorAddressInfo.range = UBSize;
-
-				// get location in the ring buffer to use
-				FMemory::Memcpy(CPURingBufferBase + RingBufferOffset, StagedUniformBuffer.GetData(), UBSize);
+				VulkanRHI::FVulkanAllocation TempAllocation;
+				uint8* MappedPointer = CmdListContext->GetTempBlockAllocator().Alloc(UBSize, UBOffsetAlignment, CmdBuffer, TempAllocation, &DescriptorAddressInfos[BindingIndex]);
+				FMemory::Memcpy(MappedPointer, StagedUniformBuffer.GetData(), UBSize);
 
 				PackedUniformBuffersDirty[Stage] = 0;
 				++UBIndex;

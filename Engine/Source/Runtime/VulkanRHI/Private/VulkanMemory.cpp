@@ -4973,19 +4973,10 @@ namespace VulkanRHI
 		return NewBlock;
 	}
 
-	uint8* FTempBlockAllocator::Alloc(uint32 InSize, FVulkanCmdBuffer* CmdBuffer, VkDescriptorBufferBindingInfoEXT& OutBindingInfo, VkDeviceSize& OutOffset)
+	FTempBlockAllocator::FInternalAlloc FTempBlockAllocator::InternalAlloc(uint32 InSize, FVulkanCmdBuffer* CmdBuffer)
 	{
 		const uint32 AlignedSize = Align(InSize, BlockAlignment);
 		checkfSlow(BlockAlignment < BlockSize, TEXT("Requested size of %d (%d aligned) is too large for block size of %d"), InSize, AlignedSize, BlockSize);
-
-		auto ReturnAllocationFromBlock = [AlignedSize, BufferUsageFlags=BufferUsage, &OutBindingInfo, &OutOffset](FTempMemoryBlock* Block, uint32 Offset)
-		{
-			ZeroVulkanStruct(OutBindingInfo, VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT);
-			OutBindingInfo.address = Block->BufferAddress;
-			OutBindingInfo.usage = BufferUsageFlags;
-			OutOffset = Offset;
-			return Block->MappedPointer + Offset;
-		};
 
 		// Parallel scope: allocate in existing block from existing command buffer
 		{
@@ -4998,7 +4989,7 @@ namespace VulkanRHI
 				const uint32 AllocOffset = CurrentBlock->CurrentOffset.fetch_add(AlignedSize);
 				if (AllocOffset + InSize < BlockSize)
 				{
-					return ReturnAllocationFromBlock(CurrentBlock, AllocOffset);
+					return FInternalAlloc{ CurrentBlock, AllocOffset };
 				}
 			}
 		}
@@ -5012,7 +5003,7 @@ namespace VulkanRHI
 			if (AllocOffset + InSize < BlockSize)
 			{
 				CurrentBlock->Fences.FindOrAdd(CmdBuffer) = CmdBuffer->GetFenceSignaledCounter();
-				return ReturnAllocationFromBlock(CurrentBlock, AllocOffset);
+				return FInternalAlloc{ CurrentBlock, AllocOffset };
 			}
 
 			// Get a new block
@@ -5031,8 +5022,41 @@ namespace VulkanRHI
 			AllocOffset = CurrentBlock->CurrentOffset.fetch_add(AlignedSize);
 			checkSlow(AllocOffset == 0);
 			checkSlow(AllocOffset + InSize < BlockSize);
-			return ReturnAllocationFromBlock(CurrentBlock, AllocOffset);
-		}	
+			return FInternalAlloc{ CurrentBlock, AllocOffset };
+		}
+	}
+
+	uint8* FTempBlockAllocator::Alloc(uint32 InSize, FVulkanCmdBuffer* CmdBuffer, VkDescriptorBufferBindingInfoEXT& OutBindingInfo, VkDeviceSize& OutOffset)
+	{
+		FInternalAlloc Alloc = InternalAlloc(InSize, CmdBuffer);
+
+		ZeroVulkanStruct(OutBindingInfo, VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT);
+		OutBindingInfo.address = Alloc.Block->BufferAddress;
+		OutBindingInfo.usage = BufferUsage;
+		OutOffset = Alloc.Offset;
+		return Alloc.Block->MappedPointer + Alloc.Offset;
+	}
+
+	uint8* FTempBlockAllocator::Alloc(uint32 InSize, uint32 InAlignment, FVulkanCmdBuffer* CmdBuffer, FVulkanAllocation& OutAllocation, VkDescriptorAddressInfoEXT* OutDescriptorAddressInfo)
+	{
+		const uint32 AlignedSize = Align(InSize, BlockAlignment);
+		checkfSlow(BlockAlignment < BlockSize, TEXT("Requested size of %d (%d aligned) is too large for block size of %d"), InSize, AlignedSize, BlockSize);
+
+		FInternalAlloc Alloc = InternalAlloc(InSize, CmdBuffer);
+
+		OutAllocation.Reference(Alloc.Block->Allocation);
+		OutAllocation.VulkanHandle = (uint64)Alloc.Block->Buffer;
+		OutAllocation.Size = InSize;
+		OutAllocation.Offset += Alloc.Offset;
+
+		if (OutDescriptorAddressInfo)
+		{
+			ZeroVulkanStruct(*OutDescriptorAddressInfo, VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT);
+			OutDescriptorAddressInfo->address = Alloc.Block->BufferAddress + Alloc.Offset;
+			OutDescriptorAddressInfo->range = InSize;
+		}
+
+		return Alloc.Block->MappedPointer + Alloc.Offset;
 	}
 
 	void FTempBlockAllocator::UpdateBlocks()
@@ -5066,118 +5090,6 @@ namespace VulkanRHI
 
 
 
-
-	FTempFrameAllocationBuffer::FTempFrameAllocationBuffer(FVulkanDevice* InDevice)
-		: FDeviceChild(InDevice)
-		, BufferIndex(0)
-	{
-		for (int32 Index = 0; Index < NUM_BUFFERS; ++Index)
-		{
-			INC_MEMORY_STAT_BY(STAT_VulkanTempFrameAllocationBuffer, ALLOCATION_SIZE);
-			Entries[Index].InitBuffer(Device, ALLOCATION_SIZE);
-		}
-	}
-
-	FTempFrameAllocationBuffer::~FTempFrameAllocationBuffer()
-	{
-		Destroy();
-	}
-
-	void FTempFrameAllocationBuffer::FFrameEntry::InitBuffer(FVulkanDevice* InDevice, uint32 InSize)
-	{
-		LLM_SCOPE_VULKAN(ELLMTagVulkan::VulkanFrameTemp);
-		Size = InSize;
-		PeakUsed = 0;
-		FMemoryManager& ResourceHeapManager = InDevice->GetMemoryManager();
-		check(Allocation.Type == EVulkanAllocationEmpty);
-		if(ResourceHeapManager.AllocateBufferPooled(Allocation, nullptr, InSize, 0,
-			VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
-			VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
-			VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			EVulkanAllocationMetaFrameTempBuffer,
-			__FILE__, __LINE__))
-		{
-			MappedData = (uint8*)Allocation.GetMappedPointer(InDevice);
-			CurrentData = MappedData;
-		}
-		else
-		{
-			ResourceHeapManager.HandleOOM(true);
-		}
-	}
-
-	void FTempFrameAllocationBuffer::Destroy()
-	{
-		FMemoryManager& MemoryManager = Device->GetMemoryManager();
-		for (int32 Index = 0; Index < NUM_BUFFERS; ++Index)
-		{
-			Entries[Index].Reset(Device);
-			MemoryManager.FreeVulkanAllocation(Entries[Index].Allocation); ;			
-		}
-	}
-
-	bool FTempFrameAllocationBuffer::FFrameEntry::TryAlloc(uint32 InSize, uint32 InAlignment, FTempAllocInfo& OutInfo)
-	{
-		uint8* AlignedData = (uint8*)Align((uintptr_t)CurrentData, (uintptr_t)InAlignment);
-		if (AlignedData + InSize <= MappedData + Size)
-		{
-			OutInfo.Data = AlignedData;
-			OutInfo.Allocation.Reference(Allocation);
-			OutInfo.CurrentOffset = (uint32)(AlignedData - MappedData);
-			OutInfo.Size = InSize;
-			CurrentData = AlignedData + InSize;
-			PeakUsed = FMath::Max(PeakUsed, (uint32)(CurrentData - MappedData));
-			return true;
-		}
-
-		return false;
-	}
-
-	void FTempFrameAllocationBuffer::Alloc(uint32 InSize, uint32 InAlignment, FTempAllocInfo& OutInfo)
-	{
-		FScopeLock ScopeLock(&CS);
-
-		if (Entries[BufferIndex].TryAlloc(InSize, InAlignment, OutInfo))
-		{
-			return;
-		}
-
-		// Couldn't fit in the current buffers; allocate a new bigger one and schedule the current one for deletion
-		uint32 NewSize = Align(ALLOCATION_SIZE + InSize + InAlignment, ALLOCATION_SIZE);
-		DEC_MEMORY_STAT_BY(STAT_VulkanTempFrameAllocationBuffer, Entries[BufferIndex].Allocation.Size);
-		INC_MEMORY_STAT_BY(STAT_VulkanTempFrameAllocationBuffer, NewSize);
-		FVulkanAllocation& PendingDelete = Entries[BufferIndex].PendingDeletionList.AddDefaulted_GetRef();
-		PendingDelete.Swap(Entries[BufferIndex].Allocation);
-		Entries[BufferIndex].InitBuffer(Device, NewSize);
-		if (!Entries[BufferIndex].TryAlloc(InSize, InAlignment, OutInfo))
-		{
-			checkf(0, TEXT("Internal Error trying to allocate %d Align %d on TempFrameBuffer, size %d"), InSize, InAlignment, NewSize);
-		}
-	}
-
-	void FTempFrameAllocationBuffer::Reset()
-	{
-		FScopeLock ScopeLock(&CS);
-		BufferIndex = (BufferIndex + 1) % NUM_BUFFERS;
-		Entries[BufferIndex].Reset(Device);
-	}
-
-	void FTempFrameAllocationBuffer::FFrameEntry::Reset(FVulkanDevice* InDevice)
-	{
-		CurrentData = MappedData;
-		FMemoryManager& MemoryManager = InDevice->GetMemoryManager();
-		for(FVulkanAllocation& Alloc : PendingDeletionList)
-		{
-			if(Alloc.HasAllocation())
-			{
-				MemoryManager.FreeVulkanAllocation(Alloc);
-			}
-			check(!Alloc.HasAllocation());
-
-		}
-		PendingDeletionList.SetNum(0);
-	}
 
 	FSemaphore::FSemaphore(FVulkanDevice& InDevice) :
 		Device(InDevice),
