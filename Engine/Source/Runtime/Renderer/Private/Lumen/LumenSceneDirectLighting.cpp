@@ -386,6 +386,7 @@ class FCalculateCardTileDepthRangesCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		RDG_BUFFER_ACCESS(IndirectArgBuffer, ERHIAccess::IndirectArgs)
+		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FLumenCardScene, LumenCardScene)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWCardTileDepthRanges)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CardTileAllocator)
@@ -1627,6 +1628,7 @@ static void CullDirectLightingTiles(
 	{
 		FCalculateCardTileDepthRangesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FCalculateCardTileDepthRangesCS::FParameters>();
 		PassParameters->IndirectArgBuffer = DispatchCardTilesIndirectArgs;
+		PassParameters->View = Views[0].ViewUniformBuffer;
 		PassParameters->LumenCardScene = LumenCardSceneUniformBuffer;
 		PassParameters->RWCardTileDepthRanges = GraphBuilder.CreateUAV(CardTileDepthRanges);
 		PassParameters->CardTileAllocator = GraphBuilder.CreateSRV(CardTileAllocator);
