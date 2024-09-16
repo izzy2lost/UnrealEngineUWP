@@ -22,11 +22,14 @@ namespace Chaos
 	 */
 	struct FMaterialHandle
 	{
+		// Get should be only called on the Game Thread, instead use GetInternal on Physics Thread
 		CHAOS_API FChaosPhysicsMaterial* Get() const;
+		CHAOS_API FChaosPhysicsMaterial* GetInternal(const THandleArray<FChaosPhysicsMaterial>* const SimMaterials) const;
 		FChaosMaterialHandle InnerHandle;
 
+		// IsValid should be only called on the Game Thread, instead use IsValidInternal on Physics Thread
 		bool IsValid() const { return Get() != nullptr; }
-
+		bool IsValidInternal(const THandleArray<FChaosPhysicsMaterial>* const SimMaterials) const { return GetInternal(SimMaterials) != nullptr; }
 		void Reset() { InnerHandle = FChaosMaterialHandle(); }
 
 		friend bool operator ==(const FMaterialHandle& A, const FMaterialHandle& B) { return A.InnerHandle == B.InnerHandle; }

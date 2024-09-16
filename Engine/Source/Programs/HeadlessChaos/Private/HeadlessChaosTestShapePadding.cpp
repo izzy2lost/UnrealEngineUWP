@@ -12,6 +12,7 @@
 #include "Chaos/Sphere.h"
 #include "Chaos/GJK.h"
 #include "Chaos/Pair.h"
+#include "Chaos/PhysicalMaterials.h"
 #include "Chaos/PBDCollisionConstraints.h"
 #include "Chaos/PBDRigidParticles.h"
 #include "Chaos/PBDRigidsEvolution.h"
@@ -352,6 +353,42 @@ namespace ChaosTest {
 		TestBoxRayCastsMargin(1, FVec3(100, 100, 100), FVec3(-200, 0, 0), FVec3(1, 0, 0), 500.0f, true, 150.0f, FVec3(-50, 0, 0), FVec3(-1, 0, 0));		// Small Margin
 		TestBoxRayCastsMargin(50, FVec3(100, 100, 100), FVec3(-200, 0, 0), FVec3(1, 0, 0), 500.0f, true, 150.0f, FVec3(-50, 0, 0), FVec3(-1, 0, 0));	// Max margin
 		TestBoxRayCastsMargin(70, FVec3(100, 100, 100), FVec3(-200, 0, 0), FVec3(1, 0, 0), 500.0f, true, 150.0f, FVec3(-50, 0, 0), FVec3(-1, 0, 0));	// Too much margin
+	}
+
+
+	TEST(ShapeInstanceTests, TestSingleMaterial)
+	{
+		{
+		FImplicitObjectPtr CollidingCubeGeom = MakeImplicitObjectPtr<TBox<FReal, 3>>(-FVec3(100.0), FVec3(100.0));
+		TUniquePtr<FShapeInstance> ShapeInstance1 = FShapeInstance::Make(0, CollidingCubeGeom);
+		EXPECT_EQ(ShapeInstance1->NumMaterials(), 0);
+
+		FMaterialHandle MaterialHandle = FPhysicalMaterialManager::Get().Create();
+		FMaterialData MaterialData;
+		MaterialData.Materials.Add(MaterialHandle);
+		ShapeInstance1->SetMaterialData(MaterialData); 
+
+		EXPECT_EQ(ShapeInstance1->NumMaterials(), 1);
+		EXPECT_TRUE(ShapeInstance1->GetMaterial(0).InnerHandle.IsValid());
+	}
+		{
+			THandleArray<FChaosPhysicsMaterial> SimMaterials;
+			FChaosMaterialHandle MaterialInnerHandle = SimMaterials.Create();
+			FMaterialHandle MaterialHandle = FPhysicalMaterialManager::Get().Create();
+			MaterialHandle.InnerHandle = MaterialInnerHandle;
+
+			FImplicitObjectPtr CollidingCubeGeom = MakeImplicitObjectPtr<TBox<FReal, 3>>(-FVec3(100.0), FVec3(100.0));
+			TUniquePtr<FShapeInstance> ShapeInstance1 = FShapeInstance::Make(0, CollidingCubeGeom);
+			EXPECT_EQ(ShapeInstance1->NumMaterialsInternal(&SimMaterials), 0);
+
+			
+			FMaterialData MaterialData;
+			MaterialData.Materials.Add(MaterialHandle);
+			ShapeInstance1->SetMaterialData(MaterialData);
+
+			EXPECT_EQ(ShapeInstance1->NumMaterialsInternal(&SimMaterials), 1);
+			EXPECT_TRUE(ShapeInstance1->GetMaterialInternal(0, &SimMaterials).InnerHandle.IsValid());
+		}
 	}
 
 }
