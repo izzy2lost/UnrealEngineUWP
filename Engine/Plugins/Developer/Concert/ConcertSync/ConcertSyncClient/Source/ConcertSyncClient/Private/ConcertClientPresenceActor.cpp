@@ -7,6 +7,7 @@
 #include "UObject/StructOnScope.h"
 #include "Engine/Scene.h"
 #include "ConcertPresenceEvents.h"
+#include "ConcertSyncSettings.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "ConcertAssetContainer.h"
@@ -31,9 +32,9 @@ AConcertClientPresenceActor::AConcertClientPresenceActor(const FObjectInitialize
 	: Super(ObjectInitializer)
 {
 	// Initialize if this actor will be editor only based the `EnablePresenceInGame` console variable.
-	bIsEditorOnlyActor = CVarEnablePresenceInGame.GetValueOnAnyThread() == 0;
+	UpdateVisibleInGameState();
 
-	// Set root component 
+	// Set root component
 	{
 		USceneComponent* SceneRootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 		AddOwnedComponent(SceneRootComponent);
@@ -62,6 +63,22 @@ AConcertClientPresenceActor::AConcertClientPresenceActor(const FObjectInitialize
 bool AConcertClientPresenceActor::ShouldTickIfViewportsOnly() const
 {
 	return true;
+}
+
+void AConcertClientPresenceActor::UpdateVisibleInGameState()
+{
+	EShowPresenceInGame PresenceInGame = GetDefault<UConcertSyncConfig>()->ShowPresenceInGame;
+	bIsEditorOnlyActor = CVarEnablePresenceInGame.GetValueOnAnyThread() == 0;
+
+	if (bIsEditorOnlyActor && GIsEditor &&
+		(PresenceInGame == EShowPresenceInGame::VisibleInGameOnlyEditor || PresenceInGame == EShowPresenceInGame::VisibleInGameAlways))
+	{
+		bIsEditorOnlyActor = false;
+	}
+	else if (!GIsEditor && bIsEditorOnlyActor && PresenceInGame == EShowPresenceInGame::VisibleInGameAlways)
+	{
+		bIsEditorOnlyActor = false;
+	}
 }
 
 bool AConcertClientPresenceActor::IsEditorOnly() const
