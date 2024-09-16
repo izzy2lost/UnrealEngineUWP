@@ -168,6 +168,7 @@ TSharedPtr<SWidget> SOperatorStackEditorStack::GenerateHeaderWidget()
 		[
 			SNew(SImage)
 			.Image(Icon)
+			.ToolTipText(HeaderBuilder.GetTooltip())
 		];
 	}
 
@@ -182,6 +183,7 @@ TSharedPtr<SWidget> SOperatorStackEditorStack::GenerateHeaderWidget()
 		[
 			SNew(STextBlock)
 			.Text(HeaderBuilder.GetLabel())
+			.ToolTipText(HeaderBuilder.GetTooltip())
 			.Justification(ETextJustify::Center)
 		];
 	}

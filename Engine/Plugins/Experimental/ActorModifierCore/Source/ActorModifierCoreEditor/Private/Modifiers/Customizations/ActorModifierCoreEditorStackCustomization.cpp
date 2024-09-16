@@ -2,11 +2,15 @@
 
 #include "Modifiers/Customizations/ActorModifierCoreEditorStackCustomization.h"
 
+#include "ActorModifierCoreEditorStyle.h"
+#include "Contexts/OperatorStackEditorMenuContext.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "IDetailTreeNode.h"
 #include "IPropertyRowGenerator.h"
+#include "Items/OperatorStackEditorGroupItem.h"
+#include "Items/OperatorStackEditorObjectItem.h"
 #include "JsonObjectConverter.h"
 #include "Modifiers/ActorModifierCoreBase.h"
 #include "Modifiers/ActorModifierCoreComponent.h"
@@ -16,10 +20,6 @@
 #include "Styling/SlateIconFinder.h"
 #include "Subsystems/ActorModifierCoreEditorSubsystem.h"
 #include "Subsystems/ActorModifierCoreSubsystem.h"
-#include "ActorModifierCoreEditorStyle.h"
-#include "Contexts/OperatorStackEditorMenuContext.h"
-#include "Items/OperatorStackEditorGroupItem.h"
-#include "Items/OperatorStackEditorObjectItem.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Widgets/Views/STableRow.h"
 
@@ -221,11 +221,13 @@ void UActorModifierCoreEditorStackCustomization::CustomizeItemHeader(const FOper
 
 		FSlateIcon ModifierIcon = FSlateIconFinder::FindIconForClass(UActorModifierCoreBase::StaticClass());
 		FLinearColor ModifierColor = FLinearColor::Transparent;
+		FText ModifierTooltip = FText::GetEmpty();
 
-		ModifierSubsystem->ProcessModifierMetadata(Modifier->GetModifierName(), [&ModifierIcon, &ModifierColor](const FActorModifierCoreMetadata& InMetadata)
+		ModifierSubsystem->ProcessModifierMetadata(Modifier->GetModifierName(), [&ModifierIcon, &ModifierColor, &ModifierTooltip](const FActorModifierCoreMetadata& InMetadata)
 		{
 			ModifierIcon = InMetadata.GetIcon();
 			ModifierColor = InMetadata.GetColor();
+			ModifierTooltip = InMetadata.GetDescription();
 			return true;
 		});
 
@@ -295,6 +297,7 @@ void UActorModifierCoreEditorStackCustomization::CustomizeItemHeader(const FOper
 			.SetExpandable(!bIsStack)
 			.SetIcon(ModifierIcon.GetIcon())
 			.SetLabel(FText::FromString(HeaderLabel))
+			.SetTooltip(ModifierTooltip)
 			.SetBorderColor(ModifierColor)
 			.SetProperty(ModifierEnableProperty)
 			.SetCommandList(Commands)

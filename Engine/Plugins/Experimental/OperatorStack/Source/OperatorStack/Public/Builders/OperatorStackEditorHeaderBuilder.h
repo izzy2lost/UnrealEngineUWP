@@ -34,6 +34,9 @@ struct OPERATORSTACKEDITOR_API FOperatorStackEditorHeaderBuilder
 	/** Set the label to display for this item header */
 	FOperatorStackEditorHeaderBuilder& SetLabel(const FText& InLabel);
 
+	/** Set the tooltip to display for this item header */
+	FOperatorStackEditorHeaderBuilder& SetTooltip(const FText& InTooltip);
+
 	/** Sets the border color surrounding the item */
 	FOperatorStackEditorHeaderBuilder& SetBorderColor(const FLinearColor& InColor);
 
@@ -84,6 +87,11 @@ struct OPERATORSTACKEDITOR_API FOperatorStackEditorHeaderBuilder
 	const FText& GetLabel() const
 	{
 		return Label;
+	}
+
+	const FText& GetTooltip() const
+	{
+		return Tooltip;
 	}
 
 	const FLinearColor& GetBorderColor() const
@@ -177,6 +185,9 @@ protected:
 
 	/** On the left, after to icon */
 	FText Label;
+
+	/** Shown on the header */
+	FText Tooltip;
 
 	/** The border color surrounding the item */
 	FLinearColor BorderColor = FLinearColor::Transparent;
