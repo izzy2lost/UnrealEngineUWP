@@ -265,6 +265,10 @@ FTransform ExtractRootTransformFromAnimationAsset(const UAnimationAsset* Animati
 			}	
 		}
 	}
+	else if (const UAnimComposite* AnimComposite = Cast<UAnimComposite>(Animation))
+	{
+		Result = AnimComposite->ExtractRootTrackTransform(Time, nullptr);
+	}
 	else if (const UAnimSequence* AnimSequence = Cast<UAnimSequence>(Animation))
 	{
 		Result = AnimSequence->ExtractRootTrackTransform(Time, nullptr);
