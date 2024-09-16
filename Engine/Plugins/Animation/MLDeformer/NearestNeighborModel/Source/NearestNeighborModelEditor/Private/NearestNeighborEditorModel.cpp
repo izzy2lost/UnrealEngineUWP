@@ -184,15 +184,9 @@ namespace UE::NearestNeighborModel
 
 	void FNearestNeighborEditorModel::OnPostTraining(ETrainingResult TrainingResult, bool bUsePartiallyTrainedWhenAborted)
 	{
-		UNearestNeighborModel* const NearestNeighborModel = GetCastModel();
-		if (TrainingResult == ETrainingResult::Aborted && !bUsePartiallyTrainedWhenAborted)
+		if (UNearestNeighborModel* const NearestNeighborModel = GetCastModel())
 		{
-			GetMorphModel()->SetMorphTargetDeltas(MorphTargetDeltasBackup);
-			GetMorphModel()->SetMorphTargetsMinMaxWeights(MorphTargetsMinMaxWeightsBackup);
-		}
-		else if (TrainingResult == ETrainingResult::Success || (TrainingResult == ETrainingResult::Aborted && bUsePartiallyTrainedWhenAborted))
-		{
-			if (NearestNeighborModel)
+			if (TrainingResult == ETrainingResult::Success || (TrainingResult == ETrainingResult::Aborted && bUsePartiallyTrainedWhenAborted))
 			{
 				NearestNeighborModel->InvalidateInference();
 				if (NearestNeighborModel->DoesUseFileCache())
@@ -200,10 +194,6 @@ namespace UE::NearestNeighborModel
 					NearestNeighborModel->UpdateFileCache();
 				}
 			}
-			ResetMorphTargets();
-		}
-		if (NearestNeighborModel)
-		{
 			NearestNeighborModel->UpdateForInference();
 		}
 		FMLDeformerMorphModelEditorModel::OnPostTraining(TrainingResult, bUsePartiallyTrainedWhenAborted);
@@ -763,19 +753,6 @@ namespace UE::NearestNeighborModel
 
 		GetCastModel()->SetMorphTargetDeltas(Deltas);
 		return Result;
-	}
-
-	void FNearestNeighborEditorModel::ResetMorphTargets()
-	{
-		const int32 NumLODs = GetMorphModel()->GetNumLODs();
-		for (int32 LOD = 0; LOD < NumLODs; ++LOD)
-		{
-			const TSharedPtr<FExternalMorphSet> MorphSet = GetMorphModel()->GetMorphTargetSet(LOD);
-			if (MorphSet.IsValid())
-			{
-				MorphSet->MorphBuffers = FMorphTargetVertexInfoBuffers();
-			}
-		}
 	}
 
 	void FNearestNeighborEditorModel::UpdateNearestNeighborIds()
