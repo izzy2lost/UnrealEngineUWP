@@ -90,18 +90,21 @@ namespace UE::RHICore
 		TArray<uint32> Memory;
 	};
 
+	inline FRHIBuffer* CreateResourceCollectionBuffer(FRHICommandListBase& RHICmdList, TConstArrayView<FRHIResourceCollectionMember> InMembers)
+	{
+		FResourceCollectionUpload UploadData(InMembers);
+
+		FRHIResourceCreateInfo CreateInfo(TEXT("ResourceCollection"), &UploadData);
+		return RHICmdList.CreateBuffer(UploadData.GetResourceDataSize(), EBufferUsageFlags::Static | EBufferUsageFlags::ByteAddressBuffer, sizeof(uint32), ERHIAccess::SRVMask, CreateInfo);
+	}
+
 	class FGenericResourceCollection : public FRHIResourceCollection
 	{
 	public:
 		FGenericResourceCollection(FRHICommandListBase& RHICmdList, TConstArrayView<FRHIResourceCollectionMember> InMembers)
 			: FRHIResourceCollection(InMembers)
+			, Buffer(CreateResourceCollectionBuffer(RHICmdList, InMembers))
 		{
-			FResourceCollectionUpload UploadData(InMembers);
-
-			const size_t BufferSize = UE::RHICore::CalculateResourceCollectionMemorySize(InMembers);
-			FRHIResourceCreateInfo CreateInfo(TEXT("ResourceCollection"), &UploadData);
-			Buffer = RHICmdList.CreateBuffer(BufferSize, EBufferUsageFlags::Static | EBufferUsageFlags::ByteAddressBuffer, sizeof(uint32), ERHIAccess::SRVMask, CreateInfo);
-
 			FRHIViewDesc::FBufferSRV::FInitializer ViewDesc = FRHIViewDesc::CreateBufferSRV().SetType(FRHIViewDesc::EBufferType::Raw);
 			ShaderResourceView = RHICmdList.CreateShaderResourceView(Buffer, ViewDesc);
 		}
