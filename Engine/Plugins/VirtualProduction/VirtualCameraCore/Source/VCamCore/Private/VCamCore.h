@@ -4,6 +4,7 @@
 
 #include "IVCamCoreModule.h"
 #include "Modules/ModuleManager.h"
+#include "Util/DeferredCleanupHandler.h"
 #include "Util/UnifiedActivationDelegateContainer.h"
 #include "Util/Viewport/ViewportManager.h"
 
@@ -32,6 +33,8 @@ namespace UE::VCamCore
 
 		/** @return Gets the object that manages locking and adjusting resolution of viewports. Keeps track of viewport ownership. */
 		FViewportManager& GetViewportManager() { return ViewportManager; }
+		/** @return The object responsible for cleaning up rendering resources created by VCams when UWorld is destroyed. */
+		FDeferredCleanupHandler& GetDeferredCleanup() { return DeferredCleanup; }
 		/** @return Gets the settings to use for snapshotting widgets in the VCam HUD. */
 		WidgetSnapshotUtils::FWidgetSnapshotSettings GetSnapshotSettings() const;
 		
@@ -45,6 +48,9 @@ namespace UE::VCamCore
 		 * Hence, we are forced to use the service-locator pattern for accessing the FViewportManager.
 		 */
 		FViewportManager ViewportManager;
+
+		/** Handles cleaning up rendering resources created by VCams when UWorld is destroyed. */
+		FDeferredCleanupHandler DeferredCleanup;
 		
 		/** The delegate container for determining whether an output provider can be activated. */
 		FUnifiedActivationDelegateContainer CanActivateDelegateContainer;
