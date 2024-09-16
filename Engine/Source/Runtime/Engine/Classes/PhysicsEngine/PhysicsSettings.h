@@ -172,7 +172,9 @@ struct FPhysicsPredictionSettings
 	FPhysicsReplicationResimulationSettings ResimulationSettings;
 
 	FPhysicsPredictionSettings()
-		: bEnablePhysicsPrediction(false)
+		: bEnablePhysicsResimulation_DEPRECATED(false)
+		, ResimulationErrorThreshold_DEPRECATED(10.0f)
+		, bEnablePhysicsPrediction(false)
 		, bEnablePhysicsHistoryCapture(false)
 		, MaxSupportedLatencyPrediction(1000)
 	{ }
