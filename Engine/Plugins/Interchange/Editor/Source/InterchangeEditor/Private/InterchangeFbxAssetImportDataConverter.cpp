@@ -721,7 +721,7 @@ namespace UE::Interchange::Private
 		InterchangeFbxTranslatorSettings->bConvertSceneUnit = FbxAssetImportData->bConvertSceneUnit;
 		InterchangeFbxTranslatorSettings->bKeepFbxNamespace = GetDefault<UEditorPerProjectUserSettings>()->bKeepFbxNamespace;
 		DestinationData->SetTranslatorSettings(InterchangeFbxTranslatorSettings);
-
+		bool bConvertToNewType = false;
 		if (const UFbxStaticMeshImportData* LegacyStaticMeshImportData = Cast<UFbxStaticMeshImportData>(FbxAssetImportData))
 		{
 			UInterchangeStaticMeshFactoryNode* MeshNode = NewObject<UInterchangeStaticMeshFactoryNode>(DestinationContainer);
@@ -729,8 +729,14 @@ namespace UE::Interchange::Private
 			DestinationContainer->AddNode(MeshNode);
 
 			GenericAssetPipeline->MeshPipeline->CommonMeshesProperties->ForceAllMeshAsType = EInterchangeForceMeshType::IFMT_StaticMesh;
-			check(Obj->IsA<UStaticMesh>());
-			FillInterchangeGenericAssetsPipelineFromFbxStaticMesh(GenericAssetPipeline, Cast<UStaticMesh>(Obj));
+			if (Obj->IsA<UStaticMesh>())
+			{
+				FillInterchangeGenericAssetsPipelineFromFbxStaticMesh(GenericAssetPipeline, Cast<UStaticMesh>(Obj));
+			}
+			else
+			{
+				bConvertToNewType = true;
+			}
 			FillInterchangeGenericAssetsPipelineFromFbxStaticMeshImportData(GenericAssetPipeline
 				, LegacyStaticMeshImportData);
 		}
@@ -741,9 +747,10 @@ namespace UE::Interchange::Private
 			DestinationContainer->AddNode(MeshNode);
 
 			GenericAssetPipeline->MeshPipeline->CommonMeshesProperties->ForceAllMeshAsType = EInterchangeForceMeshType::IFMT_SkeletalMesh;
-			check(Obj->IsA<USkeletalMesh>());
 			FillInterchangeGenericAssetsPipelineFromFbxSkeletalMeshImportData(GenericAssetPipeline
 				, LegacySkeletalMeshImportData);
+			
+			bConvertToNewType = (!Obj->IsA<USkeletalMesh>());
 		}
 		else if (const UFbxAnimSequenceImportData* LegacyAnimSequenceImportData = Cast<UFbxAnimSequenceImportData>(FbxAssetImportData))
 		{
@@ -751,9 +758,10 @@ namespace UE::Interchange::Private
 			AnimationNode->InitializeAnimSequenceNode(NodeUniqueId, NodeDisplayLabel);
 			DestinationContainer->AddNode(AnimationNode);
 
-			check(Obj->IsA<UAnimSequence>());
 			FillInterchangeGenericAssetsPipelineFromFbxAnimSequenceImportData(GenericAssetPipeline
 				, LegacyAnimSequenceImportData);
+
+			bConvertToNewType = (!Obj->IsA<UAnimSequence>());
 		}
 
 		if (UInterchangeFactoryBaseNode* DestinationFactoryNode = DestinationContainer->GetFactoryNode(NodeUniqueId))
@@ -763,6 +771,13 @@ namespace UE::Interchange::Private
 			DestinationData->SetNodeContainer(DestinationContainer);
 			DestinationData->NodeUniqueID = NodeUniqueId;
 		}
+#if WITH_EDITOR
+		//If the type of asset has change we must convert the options
+		if (bConvertToNewType)
+		{
+			DestinationData->ConvertAssetImportDataToNewOwner(Obj);
+		}
+#endif
 		return DestinationData;
 	}
 

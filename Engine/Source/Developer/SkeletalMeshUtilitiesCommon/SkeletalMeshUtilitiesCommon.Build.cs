@@ -18,6 +18,7 @@ namespace UnrealBuildTool.Rules
 					"CoreUObject",
 					"Engine",
 					"ImageCore",
+					"InterchangeCore",
 					"MeshDescription",
 					"MeshUtilitiesCommon",
 					"RenderCore",

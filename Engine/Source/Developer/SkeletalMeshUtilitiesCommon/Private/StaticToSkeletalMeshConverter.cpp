@@ -5,9 +5,11 @@
 #if WITH_EDITOR
 
 #include "Animation/Skeleton.h"
+#include "EditorFramework/AssetImportData.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAssetCommon.h"
 #include "Engine/StaticMesh.h"
+#include "InterchangeHelper.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "LODUtilities.h"
 #include "MeshDescription.h"
@@ -429,7 +431,8 @@ bool FStaticToSkeletalMeshConverter::InitializeSkeletalMeshFromStaticMesh(
 	{
 		FSkeletalMaterial Material(
 			StaticMaterial.MaterialInterface,
-			StaticMaterial.MaterialSlotName);
+			StaticMaterial.MaterialSlotName,
+			StaticMaterial.ImportedMaterialSlotName);
 		
 		Materials.Add(Material);
 	}
@@ -447,6 +450,14 @@ bool FStaticToSkeletalMeshConverter::InitializeSkeletalMeshFromStaticMesh(
 	InSkeletalMesh->SetPositiveBoundsExtension(InStaticMesh->GetPositiveBoundsExtension());
 	InSkeletalMesh->SetNegativeBoundsExtension(InStaticMesh->GetNegativeBoundsExtension());
 
+	//Create some import data so we can re-import this new skeletalmesh
+	UAssetImportData* OriginalAssetImportData = InStaticMesh->GetAssetImportData();
+	if (OriginalAssetImportData)
+	{
+		UAssetImportData* DuplicateAssetImportData = DuplicateObject<UAssetImportData>(OriginalAssetImportData, InSkeletalMesh);
+		DuplicateAssetImportData->ConvertAssetImportDataToNewOwner(InSkeletalMesh);
+		InSkeletalMesh->SetAssetImportData(DuplicateAssetImportData);
+	}
 	return true;
 }
 
