@@ -1026,6 +1026,48 @@ private:
 	VkPhysicalDeviceTimelineSemaphoreFeatures TimelineSemaphoreFeatures;
 };
 
+
+// ***** VK_EXT_mesh_shader
+class FVulkanEXTMeshShaderExtension : public FVulkanDeviceExtension
+{
+public:
+
+	FVulkanEXTMeshShaderExtension(FVulkanDevice* InDevice)
+		: FVulkanDeviceExtension(InDevice, VK_EXT_MESH_SHADER_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED)
+	{
+	}
+
+	virtual void PrePhysicalDeviceFeatures(VkPhysicalDeviceFeatures2KHR& PhysicalDeviceFeatures2) override final
+	{
+		ZeroVulkanStruct(MeshShaderFeatures, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT);
+		AddToPNext(PhysicalDeviceFeatures2, MeshShaderFeatures);
+	}
+
+	virtual void PostPhysicalDeviceFeatures(FOptionalVulkanDeviceExtensions& ExtensionFlags) override final
+	{
+		bRequirementsPassed = (MeshShaderFeatures.meshShader == VK_TRUE) && (MeshShaderFeatures.multiviewMeshShader == VK_TRUE);
+	}
+
+	virtual void PrePhysicalDeviceProperties(VkPhysicalDeviceProperties2KHR& PhysicalDeviceProperties2) override final
+	{
+		VkPhysicalDeviceMeshShaderPropertiesEXT& MeshShaderProperties = GetDeviceExtensionProperties().MeshShaderProperties;
+		ZeroVulkanStruct(MeshShaderProperties, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_PROPERTIES_EXT);
+		AddToPNext(PhysicalDeviceProperties2, MeshShaderProperties);
+	}
+
+	virtual void PreCreateDevice(VkDeviceCreateInfo& DeviceCreateInfo) override final
+	{
+		if (bRequirementsPassed)
+		{
+			AddToPNext(DeviceCreateInfo, MeshShaderFeatures);
+		}
+	}
+
+private:
+	VkPhysicalDeviceMeshShaderFeaturesEXT MeshShaderFeatures;
+};
+
+
 // ***** VK_AMD_buffer_marker (vendor)
 class FVulkanAMDBufferMarkerExtension : public FVulkanDeviceExtension
 {
@@ -1643,6 +1685,7 @@ FVulkanDeviceExtensionArray FVulkanDeviceExtension::GetUESupportedDeviceExtensio
 	ADD_CUSTOM_EXTENSION(FVulkanNVComputeShaderDerivatives);
 	ADD_CUSTOM_EXTENSION(FVulkanKHRSamplerYcbcrConversionExtension);
 	ADD_CUSTOM_EXTENSION(FVulkanKHRTimelineSemaphoreExtension);
+	ADD_CUSTOM_EXTENSION(FVulkanEXTMeshShaderExtension);
 
 	// Needed for Raytracing
 	ADD_CUSTOM_EXTENSION(FVulkanKHRBufferDeviceAddressExtension);

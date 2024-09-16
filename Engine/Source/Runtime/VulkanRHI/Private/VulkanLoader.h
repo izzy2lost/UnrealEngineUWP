@@ -224,6 +224,9 @@
 	EnumMacro(PFN_vkDeferredOperationJoinKHR, vkDeferredOperationJoinKHR) \
 	EnumMacro(PFN_vkGetDeferredOperationMaxConcurrencyKHR, vkGetDeferredOperationMaxConcurrencyKHR) \
 	EnumMacro(PFN_vkGetDeferredOperationResultKHR, vkGetDeferredOperationResultKHR) \
+	EnumMacro(PFN_vkCmdDrawMeshTasksEXT, vkCmdDrawMeshTasksEXT) \
+	EnumMacro(PFN_vkCmdDrawMeshTasksIndirectCountEXT, vkCmdDrawMeshTasksIndirectCountEXT) \
+	EnumMacro(PFN_vkCmdDrawMeshTasksIndirectEXT, vkCmdDrawMeshTasksIndirectEXT) \
 	EnumMacro(PFN_vkCmdWriteBufferMarkerAMD, vkCmdWriteBufferMarkerAMD) \
 	EnumMacro(PFN_vkCmdSetCheckpointNV, vkCmdSetCheckpointNV) \
 	EnumMacro(PFN_vkGetQueueCheckpointDataNV, vkGetQueueCheckpointDataNV) \

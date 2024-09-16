@@ -184,6 +184,10 @@ static inline FSHAHash GetShaderHashForStage(const FGraphicsPipelineStateInitial
 	{
 	case ShaderStage::Vertex:		return GetShaderHash<FRHIVertexShader, FVulkanVertexShader>(PSOInitializer.BoundShaderState.VertexShaderRHI);
 	case ShaderStage::Pixel:		return GetShaderHash<FRHIPixelShader, FVulkanPixelShader>(PSOInitializer.BoundShaderState.PixelShaderRHI);
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+	case ShaderStage::Mesh:			return GetShaderHash<FRHIMeshShader, FVulkanMeshShader>(PSOInitializer.BoundShaderState.GetMeshShader());
+	case ShaderStage::Task:			return GetShaderHash<FRHIAmplificationShader, FVulkanTaskShader>(PSOInitializer.BoundShaderState.GetAmplificationShader());
+#endif
 #if VULKAN_SUPPORTS_GEOMETRY_SHADERS
 	case ShaderStage::Geometry:		return GetShaderHash<FRHIGeometryShader, FVulkanGeometryShader>(PSOInitializer.BoundShaderState.GetGeometryShader());
 #endif
@@ -1182,6 +1186,16 @@ static FString GfxShaderHashesToString(FVulkanShader* Shaders[ShaderStage::NumGr
 	{
 		ShaderHashes += TEXT("PS: ") + static_cast<FVulkanPixelShader*>(Shaders[ShaderStage::Pixel])->GetHash().ToString() + TEXT("\n");
 	}
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+	if (Shaders[ShaderStage::Mesh])
+	{
+		ShaderHashes += TEXT("MS: ") + static_cast<FVulkanMeshShader*>(Shaders[ShaderStage::Mesh])->GetHash().ToString() + TEXT("\n");
+	}
+	if (Shaders[ShaderStage::Task])
+	{
+		ShaderHashes += TEXT("AS: ") + static_cast<FVulkanTaskShader*>(Shaders[ShaderStage::Task])->GetHash().ToString() + TEXT("\n");
+	}
+#endif
 #if VULKAN_SUPPORTS_GEOMETRY_SHADERS
 	if (Shaders[ShaderStage::Geometry])
 	{
@@ -1690,6 +1704,10 @@ FVulkanShaderHashes::FVulkanShaderHashes(const FGraphicsPipelineStateInitializer
 {
 	Stages[ShaderStage::Vertex] = GetShaderHash<FRHIVertexShader, FVulkanVertexShader>(PSOInitializer.BoundShaderState.VertexShaderRHI);
 	Stages[ShaderStage::Pixel] = GetShaderHash<FRHIPixelShader, FVulkanPixelShader>(PSOInitializer.BoundShaderState.PixelShaderRHI);
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+	Stages[ShaderStage::Mesh] = GetShaderHash<FRHIMeshShader, FVulkanMeshShader>(PSOInitializer.BoundShaderState.GetMeshShader());
+	Stages[ShaderStage::Task] = GetShaderHash<FRHIAmplificationShader, FVulkanTaskShader>(PSOInitializer.BoundShaderState.GetAmplificationShader());
+#endif
 #if VULKAN_SUPPORTS_GEOMETRY_SHADERS
 	Stages[ShaderStage::Geometry] = GetShaderHash<FRHIGeometryShader, FVulkanGeometryShader>(PSOInitializer.BoundShaderState.GetGeometryShader());
 #endif
@@ -1752,12 +1770,15 @@ void FVulkanPipelineStateCacheManager::CreateGfxEntry(const FGraphicsPipelineSta
 	{
 		const FBoundShaderStateInput& BSI = PSOInitializer.BoundShaderState;
 
-		const FVulkanShaderHeader& VSHeader = Shaders[ShaderStage::Vertex]->GetCodeHeader();
-		VertexInputState.Generate(ResourceCast(PSOInitializer.BoundShaderState.VertexDeclarationRHI), VSHeader.InOutMask);
-
 		FUniformBufferGatherInfo UBGatherInfo;
 
-		DescriptorSetLayoutInfo.ProcessBindingsForStage(VK_SHADER_STAGE_VERTEX_BIT, ShaderStage::Vertex, VSHeader, UBGatherInfo);
+		if (Shaders[ShaderStage::Vertex])
+		{
+			const FVulkanShaderHeader& VSHeader = Shaders[ShaderStage::Vertex]->GetCodeHeader();
+			VertexInputState.Generate(ResourceCast(PSOInitializer.BoundShaderState.VertexDeclarationRHI), VSHeader.InOutMask);
+
+			DescriptorSetLayoutInfo.ProcessBindingsForStage(VK_SHADER_STAGE_VERTEX_BIT, ShaderStage::Vertex, VSHeader, UBGatherInfo);
+		}
 
 		if (Shaders[ShaderStage::Pixel])
 		{
@@ -1771,6 +1792,20 @@ void FVulkanPipelineStateCacheManager::CreateGfxEntry(const FGraphicsPipelineSta
 				check(PSOInitializer.SubpassIndex != 0);
 			}
 		}
+
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+		if (Shaders[ShaderStage::Mesh])
+		{
+			const FVulkanShaderHeader& MSHeader = Shaders[ShaderStage::Mesh]->GetCodeHeader();
+			DescriptorSetLayoutInfo.ProcessBindingsForStage(VK_SHADER_STAGE_MESH_BIT_EXT, ShaderStage::Mesh, MSHeader, UBGatherInfo);
+		}
+
+		if (Shaders[ShaderStage::Task])
+		{
+			const FVulkanShaderHeader& TSHeader = Shaders[ShaderStage::Task]->GetCodeHeader();
+			DescriptorSetLayoutInfo.ProcessBindingsForStage(VK_SHADER_STAGE_TASK_BIT_EXT, ShaderStage::Task, TSHeader, UBGatherInfo);
+		}
+#endif
 
 #if VULKAN_SUPPORTS_GEOMETRY_SHADERS
 		if (Shaders[ShaderStage::Geometry])
@@ -1932,6 +1967,10 @@ FVulkanRHIGraphicsPipelineState::FVulkanRHIGraphicsPipelineState(FVulkanDevice* 
 
 	FMemory::Memset(VulkanShaders, 0, sizeof(VulkanShaders));
 	VulkanShaders[ShaderStage::Vertex] = static_cast<FVulkanVertexShader*>(PSOInitializer_.BoundShaderState.VertexShaderRHI);
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+	VulkanShaders[ShaderStage::Mesh] = static_cast<FVulkanMeshShader*>(PSOInitializer_.BoundShaderState.GetMeshShader());
+	VulkanShaders[ShaderStage::Task] = static_cast<FVulkanTaskShader*>(PSOInitializer_.BoundShaderState.GetAmplificationShader());
+#endif
 #if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
 	VulkanShaders[ShaderStage::Geometry] = static_cast<FVulkanGeometryShader*>(PSOInitializer_.BoundShaderState.GetGeometryShader());
 #endif
@@ -2092,10 +2131,13 @@ FGraphicsPipelineStateRHIRef FVulkanPipelineStateCacheManager::RHICreateGraphics
 				NewPSO->ShaderKeys[StageIdx] = GetShaderKeyForGfxStage(BSI, (ShaderStage::EStage)StageIdx);
 			}
 
-			check(BSI.VertexShaderRHI);
-			FVulkanVertexShader* VS = ResourceCast(BSI.VertexShaderRHI);
-			const FVulkanShaderHeader& VSHeader = VS->GetCodeHeader();
-			NewPSO->VertexInputState.Generate(ResourceCast(Initializer.BoundShaderState.VertexDeclarationRHI), VSHeader.InOutMask);
+			if (Initializer.BoundShaderState.VertexDeclarationRHI)
+			{
+				check(BSI.VertexShaderRHI);
+				FVulkanVertexShader* VS = ResourceCast(BSI.VertexShaderRHI);
+				const FVulkanShaderHeader& VSHeader = VS->GetCodeHeader();
+				NewPSO->VertexInputState.Generate(ResourceCast(Initializer.BoundShaderState.VertexDeclarationRHI), VSHeader.InOutMask);
+			}
 
 			if((!bIsPrecache || !LRUEvictImmediately()) 
 	#if !UE_BUILD_SHIPPING
@@ -2388,6 +2430,16 @@ void GetVulkanGfxShaders(const FBoundShaderStateInput& BSI, FVulkanShader* OutSh
 	if (BSI.PixelShaderRHI)
 	{
 		OutShaders[ShaderStage::Pixel] = ResourceCast(BSI.PixelShaderRHI);
+	}
+
+	if (BSI.GetMeshShader())
+	{
+		OutShaders[ShaderStage::Mesh] = ResourceCast(BSI.GetMeshShader());
+	}
+
+	if (BSI.GetAmplificationShader())
+	{
+		OutShaders[ShaderStage::Task] = ResourceCast(BSI.GetAmplificationShader());
 	}
 
 	if (BSI.GetGeometryShader())

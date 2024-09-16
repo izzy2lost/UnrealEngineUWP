@@ -297,10 +297,16 @@ FVulkanGraphicsPipelineDescriptorState::FVulkanGraphicsPipelineDescriptorState(F
 
 	const FVulkanShaderFactory& ShaderFactory = Device->GetShaderFactory();
 
-	const FVulkanVertexShader* VertexShader = ShaderFactory.LookupShader<FVulkanVertexShader>(InGfxPipeline->GetShaderKey(SF_Vertex));
-	check(VertexShader);
-	PackedUniformBuffers[ShaderStage::Vertex].Init(VertexShader->GetCodeHeader(), PackedUniformBuffersMask[ShaderStage::Vertex]);
-	UsedSetsMask |= VertexShader->GetCodeHeader().Bindings.Num() ? (1u << ShaderStage::Vertex) : 0u;
+
+	uint64 VertexShaderKey = InGfxPipeline->GetShaderKey(SF_Vertex);
+	if (VertexShaderKey)
+	{
+		const FVulkanVertexShader* VertexShader = ShaderFactory.LookupShader<FVulkanVertexShader>(InGfxPipeline->GetShaderKey(SF_Vertex));
+		check(VertexShader);
+
+		PackedUniformBuffers[ShaderStage::Vertex].Init(VertexShader->GetCodeHeader(), PackedUniformBuffersMask[ShaderStage::Vertex]);
+		UsedSetsMask |= VertexShader->GetCodeHeader().Bindings.Num() ? (1u << ShaderStage::Vertex) : 0u;
+	}
 
 	uint64 PixelShaderKey = InGfxPipeline->GetShaderKey(SF_Pixel);
 	if (PixelShaderKey)
@@ -311,6 +317,28 @@ FVulkanGraphicsPipelineDescriptorState::FVulkanGraphicsPipelineDescriptorState(F
 		PackedUniformBuffers[ShaderStage::Pixel].Init(PixelShader->GetCodeHeader(), PackedUniformBuffersMask[ShaderStage::Pixel]);
 		UsedSetsMask |= PixelShader->GetCodeHeader().Bindings.Num() ? (1u << ShaderStage::Pixel) : 0u;
 	}
+
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+	uint64 MeshShaderKey = InGfxPipeline->GetShaderKey(SF_Mesh);
+	if (MeshShaderKey)
+	{
+		const FVulkanMeshShader* MeshShader = ShaderFactory.LookupShader<FVulkanMeshShader>(MeshShaderKey);
+		check(MeshShader);
+
+		PackedUniformBuffers[ShaderStage::Mesh].Init(MeshShader->GetCodeHeader(), PackedUniformBuffersMask[ShaderStage::Mesh]);
+		UsedSetsMask |= MeshShader->GetCodeHeader().Bindings.Num() ? (1u << ShaderStage::Mesh) : 0u;
+	}
+
+	uint64 TaskShaderKey = InGfxPipeline->GetShaderKey(SF_Amplification);
+	if (TaskShaderKey)
+	{
+		const FVulkanTaskShader* TaskShader = ShaderFactory.LookupShader<FVulkanTaskShader>(TaskShaderKey);
+		check(TaskShader);
+
+		PackedUniformBuffers[ShaderStage::Task].Init(TaskShader->GetCodeHeader(), PackedUniformBuffersMask[ShaderStage::Task]);
+		UsedSetsMask |= TaskShader->GetCodeHeader().Bindings.Num() ? (1u << ShaderStage::Task) : 0u;
+	}
+#endif
 
 #if VULKAN_SUPPORTS_GEOMETRY_SHADERS
 	uint64 GeometryShaderKey = InGfxPipeline->GetShaderKey(SF_Geometry);
@@ -534,6 +562,10 @@ void FVulkanCommandListContext::RHISetGraphicsPipelineState(FRHIGraphicsPipeline
 	if (bApplyAdditionalState)
 	{
 		ApplyStaticUniformBuffers(static_cast<FVulkanVertexShader*>(Pipeline->VulkanShaders[ShaderStage::Vertex]));
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+		ApplyStaticUniformBuffers(static_cast<FVulkanMeshShader*>(Pipeline->VulkanShaders[ShaderStage::Mesh]));
+		ApplyStaticUniformBuffers(static_cast<FVulkanTaskShader*>(Pipeline->VulkanShaders[ShaderStage::Task]));
+#endif
 #if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
 		ApplyStaticUniformBuffers(static_cast<FVulkanGeometryShader*>(Pipeline->VulkanShaders[ShaderStage::Geometry]));
 #endif
