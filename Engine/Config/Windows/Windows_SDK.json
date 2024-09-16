@@ -30,9 +30,9 @@
 	"MinimumVisualCppVersion": "14.38.33130",
 
 	"PreferredIntelOneApiVersions": [
-		"2024.1.0-2024.9999"
+		"2024.2.0-2024.9999"
 	],
-	"MinimumIntelOneApiVersion": "2024.1.0",
+	"MinimumIntelOneApiVersion": "2024.2.0",
 
 	"VisualStudioSuggestedComponents": [
 		"Microsoft.Net.Component.4.6.2.TargetingPack",
