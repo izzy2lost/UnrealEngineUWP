@@ -29,7 +29,8 @@
             "extensions": {
                 "VK_EXT_shader_image_atomic_int64": 1,
 				"VK_EXT_descriptor_indexing": 1,
-				"VK_EXT_scalar_block_layout": 1
+				"VK_EXT_scalar_block_layout": 1,
+				"VK_EXT_mesh_shader": 1
 			},
 			
             "features": {
@@ -63,6 +64,11 @@
                 "VkPhysicalDeviceFeatures": {
                     "fragmentStoresAndAtomics": true,
                     "shaderInt64": true
+                },
+				"VkPhysicalDeviceMeshShaderFeaturesEXT": {
+                    "meshShader": true,
+                    "taskShader": true,
+                    "multiviewMeshShader": true
                 }
 			},
 			
@@ -71,7 +77,10 @@
                     "limits": {
                         "maxBoundDescriptorSets": 9                
 					}
-                }
+                },
+				"VkPhysicalDeviceMeshShaderPropertiesEXT": {
+					"maxMeshWorkGroupInvocations": 128
+				}
             },
             
             "formats": {
@@ -119,6 +128,9 @@
                 },
 				"VkPhysicalDeviceDescriptorBufferFeaturesEXT": {
 					"descriptorBuffer": true
+				},
+				"VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR": {
+					"rayTracingPositionFetch": true
 				}
 			},
             "properties": {
