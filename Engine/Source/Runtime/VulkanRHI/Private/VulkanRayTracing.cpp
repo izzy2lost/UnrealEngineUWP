@@ -708,7 +708,7 @@ FVulkanRayTracingScene::FVulkanRayTracingScene(FRayTracingSceneInitializer2 InIn
 {
 	INC_DWORD_STAT(STAT_VulkanRayTracingAllocatedTLAS);
 
-	SizeInfo = RHICalcRayTracingSceneSize(Initializer.MaxNumInstances, Initializer.BuildFlags);
+	SizeInfo = RHICalcRayTracingSceneSize(Initializer);
 }
 
 FVulkanRayTracingScene::~FVulkanRayTracingScene()
@@ -1138,11 +1138,11 @@ FRHIShaderBindingTable* FVulkanRayTracingScene::FindOrCreateShaderBindingTable(c
 	return CreatedShaderTable;
 }
 
-FRayTracingAccelerationStructureSize FVulkanDynamicRHI::RHICalcRayTracingSceneSize(uint32 MaxInstances, ERayTracingAccelerationStructureFlags Flags)
+FRayTracingAccelerationStructureSize FVulkanDynamicRHI::RHICalcRayTracingSceneSize(const FRayTracingSceneInitializer2& Initializer)
 {
 	FVkRtTLASBuildData BuildData;
 	const VkDeviceAddress InstanceBufferAddress = 0; // No device address available when only querying TLAS size
-	GetTLASBuildData(Device->GetInstanceHandle(), MaxInstances, InstanceBufferAddress, Flags, EAccelerationStructureBuildMode::Build, BuildData);
+	GetTLASBuildData(Device->GetInstanceHandle(), Initializer.MaxNumInstances, InstanceBufferAddress, Initializer.BuildFlags, EAccelerationStructureBuildMode::Build, BuildData);
 
 	FRayTracingAccelerationStructureSize Result;
 	Result.ResultSize = BuildData.SizesInfo.accelerationStructureSize;

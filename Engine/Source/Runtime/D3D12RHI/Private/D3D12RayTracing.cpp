@@ -2428,13 +2428,13 @@ static D3D12_RAYTRACING_INSTANCE_FLAGS TranslateRayTracingInstanceFlags(ERayTrac
 	return Result;
 }
 
-FRayTracingAccelerationStructureSize FD3D12DynamicRHI::RHICalcRayTracingSceneSize(uint32 MaxInstances, ERayTracingAccelerationStructureFlags Flags)
+FRayTracingAccelerationStructureSize FD3D12DynamicRHI::RHICalcRayTracingSceneSize(const FRayTracingSceneInitializer2& Initializer)
 {
 	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS BuildInputs = {};
 	BuildInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
 	BuildInputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-	BuildInputs.NumDescs = MaxInstances;
-	BuildInputs.Flags = TranslateRayTracingAccelerationStructureFlags(Flags);
+	BuildInputs.NumDescs = Initializer.MaxNumInstances;
+	BuildInputs.Flags = TranslateRayTracingAccelerationStructureFlags(Initializer.BuildFlags);
 
 	FD3D12Adapter& Adapter = GetAdapter();
 
@@ -3495,7 +3495,7 @@ FD3D12RayTracingScene::FD3D12RayTracingScene(FD3D12Adapter* Adapter, FRayTracing
 	checkf(Initializer.Lifetime == RTSL_SingleFrame, TEXT("Only single-frame ray tracing scenes are currently implemented."));
 
 	// Get maximum buffer sizes for all GPUs in the system
-	SizeInfo = RHICalcRayTracingSceneSize(Initializer.MaxNumInstances, Initializer.BuildFlags);
+	SizeInfo = RHICalcRayTracingSceneSize(Initializer);
 };
 
 FD3D12RayTracingScene::~FD3D12RayTracingScene()

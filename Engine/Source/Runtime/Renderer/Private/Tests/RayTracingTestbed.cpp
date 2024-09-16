@@ -193,7 +193,7 @@ bool RunRayTracingTestbed_RenderThread(const FString& Parameters)
 
 	const FRayTracingSceneInitializer2& SceneInitializer = RayTracingSceneRHI->GetInitializer();
 
-	FRayTracingAccelerationStructureSize SceneSizeInfo = RHICalcRayTracingSceneSize(NumInstances, SceneBuildFlags);
+	FRayTracingAccelerationStructureSize SceneSizeInfo = RHICalcRayTracingSceneSize(SceneInitializer);
 	FRHIResourceCreateInfo SceneBufferCreateInfo(TEXT("RayTracingTestBedSceneBuffer"));
 	FBufferRHIRef SceneBuffer = RHICmdList.CreateBuffer(
 		uint32(SceneSizeInfo.ResultSize),

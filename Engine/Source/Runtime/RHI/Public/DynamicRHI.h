@@ -949,7 +949,7 @@ public:
 
 	virtual uint16 RHIGetPlatformTextureMaxSampleCount() { return 8; };
 
-	virtual FRayTracingAccelerationStructureSize RHICalcRayTracingSceneSize(uint32 MaxInstances, ERayTracingAccelerationStructureFlags Flags)
+	virtual FRayTracingAccelerationStructureSize RHICalcRayTracingSceneSize(const FRayTracingSceneInitializer2& Initializer)
 	{
 		checkNoEntry();
 		return {};
@@ -1467,9 +1467,19 @@ FORCEINLINE bool RHIMatchPrecachePSOInitializers(const FGraphicsPipelineStateIni
 	return GDynamicRHI->RHIMatchPrecachePSOInitializers(LHS, RHS);
 }
 
+FORCEINLINE FRayTracingAccelerationStructureSize RHICalcRayTracingSceneSize(const FRayTracingSceneInitializer2& Initializer)
+{
+	return GDynamicRHI->RHICalcRayTracingSceneSize(Initializer);
+}
+
+UE_DEPRECATED(5.5, "Provide FRayTracingSceneInitializer2 instead.")
 FORCEINLINE FRayTracingAccelerationStructureSize RHICalcRayTracingSceneSize(uint32 MaxInstances, ERayTracingAccelerationStructureFlags Flags)
 {
-	return GDynamicRHI->RHICalcRayTracingSceneSize(MaxInstances, Flags);
+	FRayTracingSceneInitializer2 Initializer;
+	Initializer.MaxNumInstances = MaxInstances;
+	Initializer.BuildFlags = Flags;
+
+	return GDynamicRHI->RHICalcRayTracingSceneSize(Initializer);
 }
 
 FORCEINLINE FRayTracingSceneRHIRef RHICreateRayTracingScene(FRayTracingSceneInitializer2 Initializer)
