@@ -121,6 +121,7 @@ void SSequencerCustomTextFilterDialog::CloseWindow()
 	if (DialogInstance.IsValid())
 	{
 		DialogInstance->RequestDestroyWindow();
+		DialogInstance.Reset();
 	}
 }
 

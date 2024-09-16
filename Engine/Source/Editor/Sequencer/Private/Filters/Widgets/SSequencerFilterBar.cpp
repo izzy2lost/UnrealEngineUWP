@@ -21,7 +21,23 @@ using namespace UE::Sequencer;
 
 SSequencerFilterBar::~SSequencerFilterBar()
 {
+	if (const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin())
+	{
+		FilterBar->GetOnFiltersChanged().RemoveAll(this);
+	}
+
 	ContextMenu.Reset();
+
+	if (SSequencerCustomTextFilterDialog::IsOpen())
+	{
+		SSequencerCustomTextFilterDialog::CloseWindow();
+	}
+
+	if (TextExpressionHelpDialog.IsValid())
+	{
+		TextExpressionHelpDialog->RequestDestroyWindow();
+		TextExpressionHelpDialog.Reset();
+	}
 }
 
 void SSequencerFilterBar::Construct(const FArguments& InArgs, const TSharedRef<FSequencerFilterBar>& InFilterBar)
@@ -417,19 +433,19 @@ void SSequencerFilterBar::OnOpenTextExpressionHelp()
 		return;
 	}
 
-	if (TextExpressionHelpWindow.IsValid())
+	if (TextExpressionHelpDialog.IsValid())
 	{
-		TextExpressionHelpWindow->BringToFront();
+		TextExpressionHelpDialog->BringToFront();
 	}
 	else
 	{
-		const TSharedRef<SFilterExpressionHelpDialog> HelpDialog = SNew(SFilterExpressionHelpDialog)
+		TextExpressionHelpDialog = SNew(SFilterExpressionHelpDialog)
 			.DialogTitle(LOCTEXT("SequencerCustomTextFilterHelp", "Sequencer Custom Text Filter Help"))
 			.TextFilterExpressionContexts(FilterBar->GetTextFilter()->GetTextFilterExpressionContexts());
 
-		HelpDialog->GetOnWindowClosedEvent().AddLambda([this](const TSharedRef<SWindow>& InWindow)
+		TextExpressionHelpDialog->GetOnWindowClosedEvent().AddLambda([this](const TSharedRef<SWindow>& InWindow)
 			{
-				TextExpressionHelpWindow.Reset();
+				TextExpressionHelpDialog.Reset();
 			});
 
 		TSharedPtr<SWindow> ParentWindow;
@@ -441,11 +457,11 @@ void SSequencerFilterBar::OnOpenTextExpressionHelp()
 
 		if (ParentWindow.IsValid())
 		{
-			TextExpressionHelpWindow = FSlateApplication::Get().AddWindowAsNativeChild(HelpDialog, ParentWindow.ToSharedRef());
+			FSlateApplication::Get().AddWindowAsNativeChild(TextExpressionHelpDialog.ToSharedRef(), ParentWindow.ToSharedRef());
 		}
 		else
 		{
-			TextExpressionHelpWindow = FSlateApplication::Get().AddWindow(HelpDialog);
+			FSlateApplication::Get().AddWindow(TextExpressionHelpDialog.ToSharedRef());
 		}
 	}
 }

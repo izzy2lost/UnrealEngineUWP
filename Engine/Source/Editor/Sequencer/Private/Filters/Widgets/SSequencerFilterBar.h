@@ -10,6 +10,7 @@ class FSequencerFilterBarContextMenu;
 class FSequencerFilterBar;
 class FSequencerTrackFilter_CustomText;
 class SFilterBarClippingHorizontalBox;
+class SFilterExpressionHelpDialog;
 class SSequencerFilter;
 class UMovieSceneNodeGroup;
 enum class ESequencerFilterChange : uint8;
@@ -125,7 +126,7 @@ protected:
 
 	TArray<TSharedRef<SSequencerFilter>> FilterWidgets;
 
-	TSharedPtr<SWindow> TextExpressionHelpWindow;
+	TSharedPtr<SFilterExpressionHelpDialog> TextExpressionHelpDialog;
 
 	TSharedPtr<FSequencerFilterBarContextMenu> ContextMenu;
 };
