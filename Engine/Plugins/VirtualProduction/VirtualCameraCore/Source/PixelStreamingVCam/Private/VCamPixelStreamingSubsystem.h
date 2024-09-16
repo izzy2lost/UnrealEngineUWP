@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "LiveLink/LiveLinkManager.h"
 #include "Subsystems/EngineSubsystem.h"
 
 #include "Networking/SignalingServerLifecycle.h"
@@ -35,9 +36,14 @@ public:
 	void UnregisterActiveOutputProvider(UVCamPixelStreamingSession* OutputProvider);
 
 	/** Updates the live link source possibly updating its name to match the StreamerId. */
-	void UpdateLiveLinkSource(UVCamPixelStreamingSession* OutputProvider);
-	/** Get the LiveLinkSource if it already exists or attempt to create one.*/
-	TSharedPtr<FPixelStreamingLiveLinkSource> TryGetLiveLinkSource(UVCamPixelStreamingSession* OutputProvider);
+	void UpdateLiveLinkSource(const UVCamPixelStreamingSession& OutputProvider) const
+	{
+		LiveLinkManager->CreateOrRefreshSubjectFor(OutputProvider);
+	}
+	void PushTransformForSubject(const UVCamPixelStreamingSession& OutputProvider, const FTransform& Transform, double Timestamp) const
+	{
+		LiveLinkManager->PushTransformForSubject(OutputProvider, Transform, Timestamp);
+	}
 
 	void LaunchSignallingServerIfNeeded(UVCamPixelStreamingSession& Session);
 	void StopSignallingServerIfNeeded(UVCamPixelStreamingSession& Session);
@@ -46,7 +52,6 @@ public:
 	
 private:
 	
-	/** An associated Live Link Source shared by all output providers. */
 	TSharedPtr<FPixelStreamingLiveLinkSource> LiveLinkSource;
 
 	/** The active sessions. */
@@ -56,4 +61,7 @@ private:
 	TUniquePtr<UE::PixelStreamingVCam::FMissingSignallingServerNotifier> MissingSignallingServerNotifier;
 	/** Manages the lifecycle of the signalling server. */
 	TUniquePtr<UE::PixelStreamingVCam::FSignalingServerLifecycle> SignalingServerLifecycle;
+
+	/** Manages a Live Link Source shared by all output providers. */
+	TUniquePtr<UE::PixelStreamingVCam::FLiveLinkManager> LiveLinkManager;
 };
