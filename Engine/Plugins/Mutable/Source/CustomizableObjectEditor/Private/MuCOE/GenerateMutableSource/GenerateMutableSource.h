@@ -859,7 +859,11 @@ public:
 
 	bool bPartialCompilation = false;
 
+	/** true if performing the Participating Objects pass. */
 	bool bParticipatingObjectsPass = false;
+
+	/** true if the Participating Objects have been skipped. */
+	bool bSkipParticipatingObjectsPass = false;
 
 	/** Load any Soft Object/Class Pointers. */
 	bool bLoadObjects = true;
