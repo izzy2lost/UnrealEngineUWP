@@ -5,6 +5,9 @@
 #include "ConcertSyncSettings.h"
 #include "Algo/AnyOf.h"
 
+#include "CineCameraRigRail.h"
+#include "MovieSceneTracksComponentTypes.h"
+
 #define LOCTEXT_NAMESPACE "FCineCameraRigsModule"
 
 DEFINE_LOG_CATEGORY(LogCineSpline);
@@ -32,6 +35,22 @@ void FCineCameraRigsModule::StartupModule()
 		}
 
 	}
+
+	using namespace UE::MovieScene;
+	FMovieSceneTracksComponentTypes* TracksComponents = FMovieSceneTracksComponentTypes::Get();
+	TracksComponents->Accessors.Float.Add(
+		ACineCameraRigRail::StaticClass(), GET_MEMBER_NAME_CHECKED(ACineCameraRigRail, AbsolutePositionOnRail),
+		GetAbsolutePositionOnRail, SetAbsolutePositionOnRail);
+}
+
+float FCineCameraRigsModule::GetAbsolutePositionOnRail(const UObject* Object)
+{
+	return CastChecked<const ACineCameraRigRail>(Object)->AbsolutePositionOnRail;
+}
+
+void  FCineCameraRigsModule::SetAbsolutePositionOnRail(UObject* Object, float InNewValue)
+{
+	CastChecked<ACineCameraRigRail>(Object)->SetAbsolutePositionOnRail(InNewValue);
 }
 
 void FCineCameraRigsModule::ShutdownModule()
