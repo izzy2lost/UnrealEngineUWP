@@ -977,16 +977,16 @@ void FVulkanDynamicRHI::RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args)
 	for (IRHIPlatformCommandList* Ptr : Args.CommandLists)
 	{
 		FVulkanPlatformCommandList* PlatformCmdList = ResourceCast(Ptr);
+		FVulkanCommandListContext* CurrentContext = PlatformCmdList->CmdContext;
+		FVulkanCommandBufferManager* CmdBufMgr = CurrentContext->GetCommandBufferManager();
 
-		FVulkanCommandBufferManager* CmdBufMgr = PlatformCmdList->CmdContext->GetCommandBufferManager();
-
-		if (PlatformCmdList->CmdContext->IsImmediate())
+		if (CurrentContext->IsImmediate())
 		{
-			PlatformCmdList->CmdContext->RequestSubmitCurrentCommands();
+			CurrentContext->RequestSubmitCurrentCommands();
 			FVulkanCmdBuffer* CmdBuffer = CmdBufMgr->GetActiveCmdBuffer();
 			if (CmdBuffer && CmdBuffer->HasBegun() && CmdBuffer->IsOutsideRenderPass())
 			{
-				PlatformCmdList->CmdContext->SafePointSubmit();
+				CurrentContext->SafePointSubmit();
 			}
 			CmdBufMgr->RefreshFenceStatus();
 		}
@@ -997,7 +997,7 @@ void FVulkanDynamicRHI::RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args)
 			check(!CmdBuffer->IsInsideRenderPass());
 			CmdBufMgr->SubmitActiveCmdBuffer();
 
-			Device->ReleaseDeferredContext(PlatformCmdList->CmdContext);
+			Device->ReleaseDeferredContext(CurrentContext);
 		}
 
 		delete PlatformCmdList;
