@@ -218,6 +218,15 @@ void UMetaSoundSettings::ConformPageSettings(bool bNotifyDefaultRenamed)
 
 	TargetPageNameOverride.Reset();
 
+	for (int32 Index = PageSettings.Num() - 1; Index >= 0; --Index)
+	{
+		FMetaSoundPageSettings& PageSetting = PageSettings[Index];
+		if (PageSetting.UniqueId == Metasound::Frontend::DefaultPageID || PageSetting.Name == Metasound::Frontend::DefaultPageName)
+		{
+			PageSettings.RemoveAt(Index);
+		}
+	}
+
 	if (bNotifyDefaultRenamed && bInvalidDefaultRenamed)
 	{
 		OnDefaultRenamed.Broadcast();
