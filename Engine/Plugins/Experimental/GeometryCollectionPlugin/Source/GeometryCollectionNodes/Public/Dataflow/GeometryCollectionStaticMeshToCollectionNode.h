@@ -27,6 +27,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Asset", meta = (DataflowInput, DisplayName = "StaticMesh"));
 	TObjectPtr<UStaticMesh> StaticMesh;
 
+	/** Transform to apply to the mesh before converting it to a collection */
+	UPROPERTY(EditAnywhere, Category = "Asset", meta = (DataflowInput));
+	FTransform MeshTransform = FTransform::Identity;
+
 	/** Set the internal faces from material index */
 	UPROPERTY(EditAnywhere, Category = "Asset");
 	bool bSetInternalFromMaterialIndex = true;

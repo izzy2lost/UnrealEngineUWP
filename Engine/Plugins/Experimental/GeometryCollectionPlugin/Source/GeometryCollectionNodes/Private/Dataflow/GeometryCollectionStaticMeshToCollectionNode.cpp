@@ -17,6 +17,7 @@ FStaticMeshToCollectionDataflowNode::FStaticMeshToCollectionDataflowNode(const D
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&StaticMesh);
+	RegisterInputConnection(&MeshTransform);
 	RegisterOutputConnection(&Collection);
 	RegisterOutputConnection(&Materials);
 	RegisterOutputConnection(&MaterialInstances);
@@ -32,9 +33,10 @@ void FStaticMeshToCollectionDataflowNode::Evaluate(Dataflow::FContext& Context, 
 	TArray<FGeometryCollectionAutoInstanceMesh> OutInstancedMeshes;
 
 	TObjectPtr<UStaticMesh> StaticMeshVal = GetValue(Context, &StaticMesh, StaticMesh);
+	const FTransform& InMeshTransform = GetValue(Context, &MeshTransform, MeshTransform);
 	if (StaticMeshVal)
 	{
-		FGeometryCollectionEngineConversion::ConvertStaticMeshToGeometryCollection(StaticMeshVal, OutCollection, OutMaterialInstances, OutInstancedMeshes, bSetInternalFromMaterialIndex, bSplitComponents);
+		FGeometryCollectionEngineConversion::ConvertStaticMeshToGeometryCollection(StaticMeshVal, InMeshTransform, OutCollection, OutMaterialInstances, OutInstancedMeshes, bSetInternalFromMaterialIndex, bSplitComponents);
 	}
 
 	TArray<TObjectPtr<UMaterial>> OutMaterials;
