@@ -1167,7 +1167,7 @@ TSharedRef<SWidget> SAssetViewItem::CreateToolTipWidget() const
 							SNew(STextBlock)
 							.Font(FAppStyle::GetFontStyle("ContentBrowser.Tooltip.EntryFont"))
 							.ColorAndOpacity(FStyleColors::White)
-							.Text(LOCTEXT("FolderNameBracketed", " (Folder)"))
+							.Text(LOCTEXT("FolderNameBracketedLabel", " (Folder)"))
 						]
 					]
 				]
