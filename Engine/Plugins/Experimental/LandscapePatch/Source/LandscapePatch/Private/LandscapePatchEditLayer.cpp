@@ -280,7 +280,11 @@ void ULandscapePatchEditLayer::OnLayerRemoved()
 	// TODO: If we end up keeping this pointer, it should probably be reset in the base class implementation
 	// of OnLayerRemoved.
 	OwningLandscape.Reset();
-	for (TSoftObjectPtr<ULandscapePatchComponent> PatchSoft : RegisteredPatches)
+
+	// Iterate through a copy so that patches can deregister themselves in NotifyOfBoundLayerDeletion
+	//  without messing up our iteration.
+	TArray<TSoftObjectPtr<ULandscapePatchComponent>> PatchesCopy = RegisteredPatches;
+	for (TSoftObjectPtr<ULandscapePatchComponent> PatchSoft : PatchesCopy)
 	{
 		ULandscapePatchComponent* Patch = PatchSoft.Get();
 		if (ShouldPatchBeIncludedInList(Patch))

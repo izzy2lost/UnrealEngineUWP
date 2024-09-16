@@ -1064,14 +1064,9 @@ void ULandscapePatchComponent::FixBindings()
 void ULandscapePatchComponent::NotifyOfBoundLayerDeletion(ULandscapePatchEditLayer* LayerIn)
 {
 	// If we're getting this call, we are presumably bound through an edit layer, not patch manager
-	if (!ensure(!PatchManager.IsValid()))
-	{
-		ResetEditLayer();
-		return;
-	}
+	ensure(!PatchManager.IsValid());
 
-	// This should update our cached pointer and displayed layer name
-	BindToEditLayer(EditLayerGuid);
+	ResetEditLayer();
 }
 #endif
 
