@@ -1766,12 +1766,15 @@ FMutableStateUIMetadata UCustomizableObject::GetStateUIMetadata(const FString& S
 
 
 #if WITH_EDITOR
-TSet<TSoftObjectPtr<UDataTable>> UCustomizableObject::GetIntParameterOptionDataTable(FString& ParamName, const FString& OptionName)
+TArray<TSoftObjectPtr<UDataTable>> UCustomizableObject::GetIntParameterOptionDataTable(const FString& ParamName, const FString& OptionName)
 {
 	const FModelResources& ModelResources = GetPrivate()->GetModelResources();
-	const TSet<TSoftObjectPtr<UDataTable>>* Result = ModelResources.IntParameterOptionDataTable.Find(MakeTuple(ParamName, OptionName));
+	if (const TSet<TSoftObjectPtr<UDataTable>>* Result = ModelResources.IntParameterOptionDataTable.Find(MakeTuple(ParamName, OptionName)))
+	{
+		return Result->Array();
+	}
 	
-	return Result ? *Result : TSet<TSoftObjectPtr<UDataTable>>();
+	return {};
 }
 #endif
 
