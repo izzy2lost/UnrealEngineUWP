@@ -165,9 +165,12 @@ void CalculateCardTileDepthRangesCS(
 	
 	GroupMemoryBarrierWithGroupSync();
 
-	float MinTileDepth = SharedMinTileDepth == 0xFFFFFFFF ? 0.0f : asfloat(SharedMinTileDepth);
-	float MaxTileDepth = SharedMaxTileDepth == 0 ? 1.0f : asfloat(SharedMaxTileDepth);
-	RWCardTileDepthRanges[CardTileIndex] = f32tof16(MinTileDepth) | (f32tof16(MaxTileDepth) << 16);
+	if (GroupThreadId.x == 0 && GroupThreadId.y == 0)
+	{
+		float MinTileDepth = SharedMinTileDepth == 0xFFFFFFFF ? 0.0f : asfloat(SharedMinTileDepth);
+		float MaxTileDepth = SharedMaxTileDepth == 0 ? 1.0f : asfloat(SharedMaxTileDepth);
+		RWCardTileDepthRanges[CardTileIndex] = f32tof16(MinTileDepth) | (f32tof16(MaxTileDepth) << 16);
+	}
 }
 
 #endif
