@@ -642,13 +642,13 @@ namespace UnrealBuildTool
 
 		protected override IEnumerable<DirectoryItem> GetEnvironmentBasePaths(CppCompileEnvironment CompileEnvironment)
 		{
-			yield return DirectoryItem.GetItemByDirectoryReference(AnalyzerFile.Directory);
 			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.EngineDirectory);
 			if (ProjectFile != null && (!CompileEnvironment.bUseSharedBuildEnvironment || CompileEnvironment.AllIncludePath.Any(x => x.IsUnderDirectory(ProjectFile.Directory))))
 			{
 				yield return DirectoryItem.GetItemByDirectoryReference(ProjectFile.Directory);
 			}
 			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.RootDirectory);
+			yield return DirectoryItem.GetItemByDirectoryReference(AnalyzerFile.Directory);
 		}
   
 		public override void SetEnvironmentVariables()

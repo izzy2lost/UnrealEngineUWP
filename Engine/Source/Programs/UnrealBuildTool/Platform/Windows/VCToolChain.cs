@@ -1645,34 +1645,34 @@ namespace UnrealBuildTool
 
 		protected override IEnumerable<DirectoryItem> GetEnvironmentBasePaths(CppCompileEnvironment CompileEnvironment)
 		{
-			yield return DirectoryItem.GetItemByDirectoryReference(EnvVars.CompilerDir);
-			if (EnvVars.CompilerDir != EnvVars.ToolChainDir)
-			{
-				yield return DirectoryItem.GetItemByDirectoryReference(EnvVars.ToolChainDir);
-			}
-			yield return DirectoryItem.GetItemByDirectoryReference(EnvVars.WindowsSdkDir);
 			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.EngineDirectory);
 			if (Target.ProjectFile != null && (!CompileEnvironment.bUseSharedBuildEnvironment || CompileEnvironment.AllIncludePath.Any(x => x.IsUnderDirectory(Target.ProjectFile.Directory))))
 			{
 				yield return DirectoryItem.GetItemByDirectoryReference(Target.ProjectFile.Directory);
 			}
 			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.RootDirectory);
-		}
-
-		protected override IEnumerable<DirectoryItem> GetEnvironmentBasePaths(LinkEnvironment LinkEnvironment)
-		{
 			yield return DirectoryItem.GetItemByDirectoryReference(EnvVars.CompilerDir);
 			if (EnvVars.CompilerDir != EnvVars.ToolChainDir)
 			{
 				yield return DirectoryItem.GetItemByDirectoryReference(EnvVars.ToolChainDir);
 			}
 			yield return DirectoryItem.GetItemByDirectoryReference(EnvVars.WindowsSdkDir);
+		}
+
+		protected override IEnumerable<DirectoryItem> GetEnvironmentBasePaths(LinkEnvironment LinkEnvironment)
+		{
 			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.EngineDirectory);
 			if (Target.ProjectFile != null && LinkEnvironment.InputFiles.Any(x => x.Location.IsUnderDirectory(Target.ProjectFile.Directory)))
 			{
 				yield return DirectoryItem.GetItemByDirectoryReference(Target.ProjectFile.Directory);
 			}
 			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.RootDirectory);
+			yield return DirectoryItem.GetItemByDirectoryReference(EnvVars.CompilerDir);
+			if (EnvVars.CompilerDir != EnvVars.ToolChainDir)
+			{
+				yield return DirectoryItem.GetItemByDirectoryReference(EnvVars.ToolChainDir);
+			}
+			yield return DirectoryItem.GetItemByDirectoryReference(EnvVars.WindowsSdkDir);
 		}
 
 		private VCCompileAction CreateBaseCompileAction(CppCompileEnvironment CompileEnvironment)
