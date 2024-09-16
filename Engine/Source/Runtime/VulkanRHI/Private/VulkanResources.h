@@ -267,6 +267,8 @@ typedef TVulkanBaseShader<FRHIVertexShader, SF_Vertex>				FVulkanVertexShader;
 typedef TVulkanBaseShader<FRHIPixelShader, SF_Pixel>				FVulkanPixelShader;
 typedef TVulkanBaseShader<FRHIComputeShader, SF_Compute>			FVulkanComputeShader;
 typedef TVulkanBaseShader<FRHIGeometryShader, SF_Geometry>			FVulkanGeometryShader;
+typedef TVulkanBaseShader<FRHIMeshShader, SF_Mesh>					FVulkanMeshShader;
+typedef TVulkanBaseShader<FRHIAmplificationShader, SF_Amplification> FVulkanTaskShader;
 
 class FVulkanRayTracingShader : public FRHIRayTracingShader, public FVulkanShader
 {
@@ -355,6 +357,8 @@ public:
 
 	FORCEINLINE FVulkanVertexShader*   GetVertexShader() const { return (FVulkanVertexShader*)CacheLink.GetVertexShader(); }
 	FORCEINLINE FVulkanPixelShader*    GetPixelShader() const { return (FVulkanPixelShader*)CacheLink.GetPixelShader(); }
+	FORCEINLINE FVulkanMeshShader*     GetMeshShader() const { return (FVulkanMeshShader*)CacheLink.GetMeshShader(); }
+	FORCEINLINE FVulkanTaskShader*     GetTaskShader() const { return (FVulkanTaskShader*)CacheLink.GetAmplificationShader(); }
 	FORCEINLINE FVulkanGeometryShader* GetGeometryShader() const { return (FVulkanGeometryShader*)CacheLink.GetGeometryShader(); }
 
 	const FVulkanShader* GetShader(ShaderStage::EStage Stage) const
@@ -363,6 +367,10 @@ public:
 		{
 		case ShaderStage::Vertex:		return GetVertexShader();
 		case ShaderStage::Pixel:		return GetPixelShader();
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+		case ShaderStage::Mesh:			return GetMeshShader();
+		case ShaderStage::Task:			return GetTaskShader();
+#endif
 #if VULKAN_SUPPORTS_GEOMETRY_SHADERS
 		case ShaderStage::Geometry:	return GetGeometryShader();
 #endif
@@ -1261,6 +1269,16 @@ template<>
 struct TVulkanResourceTraits<FRHIVertexShader>
 {
 	typedef FVulkanVertexShader TConcreteType;
+};
+template<>
+struct TVulkanResourceTraits<FRHIMeshShader>
+{
+	typedef FVulkanMeshShader TConcreteType;
+};
+template<>
+struct TVulkanResourceTraits<FRHIAmplificationShader>
+{
+	typedef FVulkanTaskShader TConcreteType;
 };
 template<>
 struct TVulkanResourceTraits<FRHIGeometryShader>

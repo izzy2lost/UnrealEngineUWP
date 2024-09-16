@@ -20,8 +20,10 @@
 
 namespace ShaderStage
 {
-	// Adjusting these requires a full shader rebuild (ie modify the guid on VulkanCommon.usf)
-	// Keep the values in sync with EShaderFrequency
+	// There should be one value for each value in EShaderFrequency.
+	// These values are meant to be used as indices in contexts where values for different bind points can overlap (Graphics/Compute/RayTracing)
+	// like shader arrays in pipeline states or UB binding indices for Graphics (Vertex==0, Pixel==1) that can overlap with Compute (Compute==0). 
+	// IMPORTANT: Adjusting these requires a full shader rebuild (ie modify the GUID in VulkanCommon.usf)
 	enum EStage
 	{
 		Vertex = 0,

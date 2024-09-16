@@ -60,6 +60,8 @@ inline VkShaderStageFlagBits UEFrequencyToVKStageBit(EShaderFrequency InStage)
 	switch (InStage)
 	{
 	case SF_Vertex:			return VK_SHADER_STAGE_VERTEX_BIT;
+	case SF_Mesh:			return VK_SHADER_STAGE_MESH_BIT_EXT;
+	case SF_Amplification:	return VK_SHADER_STAGE_TASK_BIT_EXT;
 	case SF_Pixel:			return VK_SHADER_STAGE_FRAGMENT_BIT;
 	case SF_Geometry:		return VK_SHADER_STAGE_GEOMETRY_BIT;
 	case SF_Compute:		return VK_SHADER_STAGE_COMPUTE_BIT;
@@ -81,6 +83,8 @@ inline EShaderFrequency VkStageBitToUEFrequency(VkShaderStageFlagBits FlagBits)
 	{
 	case VK_SHADER_STAGE_VERTEX_BIT:					return SF_Vertex;
 	case VK_SHADER_STAGE_FRAGMENT_BIT:					return SF_Pixel;
+	case VK_SHADER_STAGE_MESH_BIT_EXT:					return SF_Mesh;
+	case VK_SHADER_STAGE_TASK_BIT_EXT:					return SF_Amplification;
 	case VK_SHADER_STAGE_GEOMETRY_BIT:					return SF_Geometry;
 	case VK_SHADER_STAGE_COMPUTE_BIT:					return SF_Compute;
 

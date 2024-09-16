@@ -60,6 +60,14 @@ static FORCEINLINE ShaderStage::EStage GetAndVerifyShaderStage(FRHIGraphicsShade
 	case SF_Vertex:
 		check(PendingGfxState->GetCurrentShaderKey(ShaderStage::Vertex) == GetShaderKey<FVulkanVertexShader>(ShaderRHI));
 		return ShaderStage::Vertex;
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+	case SF_Mesh:
+		check(PendingGfxState->GetCurrentShaderKey(ShaderStage::Mesh) == GetShaderKey<FVulkanMeshShader>(ShaderRHI));
+		return ShaderStage::Mesh;
+	case SF_Amplification:
+		check(PendingGfxState->GetCurrentShaderKey(ShaderStage::Task) == GetShaderKey<FVulkanTaskShader>(ShaderRHI));
+		return ShaderStage::Task;
+#endif
 	case SF_Geometry:
 #if VULKAN_SUPPORTS_GEOMETRY_SHADERS
 		check(PendingGfxState->GetCurrentShaderKey(ShaderStage::Geometry) == GetShaderKey<FVulkanGeometryShader>(ShaderRHI));
@@ -73,7 +81,7 @@ static FORCEINLINE ShaderStage::EStage GetAndVerifyShaderStage(FRHIGraphicsShade
 		check(PendingGfxState->GetCurrentShaderKey(ShaderStage::Pixel) == GetShaderKey<FVulkanPixelShader>(ShaderRHI));
 		return ShaderStage::Pixel;
 	default:
-		checkf(0, TEXT("Undefined FRHIShader Type %d!"), (int32)ShaderRHI->GetFrequency());
+		checkf(0, TEXT("Undefined FRHIShader Frequency %d!"), (int32)ShaderRHI->GetFrequency());
 		break;
 	}
 
@@ -88,6 +96,14 @@ static FORCEINLINE ShaderStage::EStage GetAndVerifyShaderStageAndVulkanShader(FR
 		//check(PendingGfxState->GetCurrentShaderKey(ShaderStage::Vertex) == GetShaderKey<FVulkanVertexShader>(ShaderRHI));
 		OutShader = static_cast<FVulkanVertexShader*>(static_cast<FRHIVertexShader*>(ShaderRHI));
 		return ShaderStage::Vertex;
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+	case SF_Mesh:
+		OutShader = static_cast<FVulkanMeshShader*>(static_cast<FRHIMeshShader*>(ShaderRHI));
+		return ShaderStage::Mesh;
+	case SF_Amplification:
+		OutShader = static_cast<FVulkanTaskShader*>(static_cast<FVulkanTaskShader*>(ShaderRHI));
+		return ShaderStage::Task;
+#endif
 	case SF_Geometry:
 #if VULKAN_SUPPORTS_GEOMETRY_SHADERS
 		//check(PendingGfxState->GetCurrentShaderKey(ShaderStage::Geometry) == GetShaderKey<FVulkanGeometryShader>(ShaderRHI));
@@ -103,7 +119,7 @@ static FORCEINLINE ShaderStage::EStage GetAndVerifyShaderStageAndVulkanShader(FR
 		OutShader = static_cast<FVulkanPixelShader*>(static_cast<FRHIPixelShader*>(ShaderRHI));
 		return ShaderStage::Pixel;
 	default:
-		checkf(0, TEXT("Undefined FRHIShader Type %d!"), (int32)ShaderRHI->GetFrequency());
+		checkf(0, TEXT("Undefined FRHIShader Frequency %d!"), (int32)ShaderRHI->GetFrequency());
 		break;
 	}
 
@@ -243,19 +259,19 @@ void FVulkanCommandListContext::CommitGraphicsResourceTables()
 	}
 
 #if PLATFORM_SUPPORTS_MESH_SHADERS
-	// :todo-jn: mesh shaders
-	//if (const FVulkanShader* Shader = PendingGfxState->GetCurrentShader(SF_Mesh))
-	//{
-	//  checkSlow(Shader->Frequency == SF_Mesh);
-	//	const FVulkanMeshShader* MeshShader = static_cast<const FVulkanMeshShader*>(Shader);
-	//	SetResourcesFromTables(MeshShader);
-	//}
-	//if (const FVulkanShader* Shader = PendingGfxState->GetCurrentShader(SF_Amplification))
-	//{
-	//  checkSlow(Shader->Frequency == SF_Amplification);
-	//	const FVulkanAmplificationShader* AmplificationShader = static_cast<const FVulkanAmplificationShader*>(Shader);
-	//	SetResourcesFromTables(AmplificationShader);
-	//}
+	if (const FVulkanShader* Shader = PendingGfxState->GetCurrentShader(SF_Mesh))
+	{
+		checkSlow(Shader->Frequency == SF_Mesh);
+		const FVulkanMeshShader* MeshShader = static_cast<const FVulkanMeshShader*>(Shader);
+		SetResourcesFromTables(MeshShader);
+	}
+
+	if (const FVulkanShader* Shader = PendingGfxState->GetCurrentShader(SF_Amplification))
+	{
+		checkSlow(Shader->Frequency == SF_Amplification);
+		const FVulkanTaskShader* AmplificationShader = static_cast<const FVulkanTaskShader*>(Shader);
+		SetResourcesFromTables(AmplificationShader);
+	}
 #endif
 
 #if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
@@ -744,6 +760,42 @@ void FVulkanCommandListContext::RHIDrawIndexedPrimitiveIndirect(FRHIBuffer* Inde
 		RegisterGPUWork(1); 
 	}
 }
+
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+void FVulkanCommandListContext::RHIDispatchMeshShader(uint32 ThreadGroupCountX, uint32 ThreadGroupCountY, uint32 ThreadGroupCountZ)
+{
+	CommitGraphicsResourceTables();
+
+	FVulkanCmdBuffer* Cmd = CommandBufferManager->GetActiveCmdBuffer();
+
+	PendingGfxState->PrepareForDraw(Cmd);
+
+	VulkanRHI::vkCmdDrawMeshTasksEXT(Cmd->GetHandle(), ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ);
+
+	if (FVulkanPlatform::RegisterGPUWork() && IsImmediate())
+	{
+		RegisterGPUWork(1);
+	}
+}
+
+void FVulkanCommandListContext::RHIDispatchIndirectMeshShader(FRHIBuffer* ArgumentBufferRHI, uint32 ArgumentOffset)
+{
+	CommitGraphicsResourceTables();
+
+	FVulkanCmdBuffer* Cmd = CommandBufferManager->GetActiveCmdBuffer();
+
+	PendingGfxState->PrepareForDraw(Cmd);
+
+	FVulkanResourceMultiBuffer* ArgumentBuffer = ResourceCast(ArgumentBufferRHI);
+
+	VulkanRHI::vkCmdDrawMeshTasksIndirectEXT(Cmd->GetHandle(), ArgumentBuffer->GetHandle(), ArgumentBuffer->GetOffset() + ArgumentOffset, 1, sizeof(VkDrawMeshTasksIndirectCommandEXT));
+
+	if (FVulkanPlatform::RegisterGPUWork() && IsImmediate())
+	{
+		RegisterGPUWork(1);
+	}
+}
+#endif
 
 void FVulkanCommandListContext::RHIClearMRT(bool bClearColor, int32 NumClearColors, const FLinearColor* ClearColorArray, bool bClearDepth, float Depth, bool bClearStencil, uint32 Stencil)
 {

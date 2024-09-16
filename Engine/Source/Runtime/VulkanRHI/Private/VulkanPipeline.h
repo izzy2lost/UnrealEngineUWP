@@ -43,9 +43,9 @@ inline uint64 GetShaderKeyForGfxStage(const FBoundShaderStateInput& BSI, ShaderS
 	case ShaderStage::Geometry:
 		return GetShaderKey<FVulkanGeometryShader>(BSI.GetGeometryShader());
 	case ShaderStage::Mesh:
-		return 0; // GetShaderKey<FVulkanMeshShader>(BSI.GetMeshShader());
+		return GetShaderKey<FVulkanMeshShader>(BSI.GetMeshShader());
 	case ShaderStage::Task:
-		return 0; // GetShaderKey<FVulkanTaskShader>(BSI.GetAmplificationShader());
+		return GetShaderKey<FVulkanTaskShader>(BSI.GetAmplificationShader());
 	default:
 		check(0);
 	}
@@ -733,6 +733,10 @@ public:
 		{
 		case SF_Vertex: return static_cast<FVulkanVertexShader*>(VulkanShaders[ShaderStage::Vertex]);
 		case SF_Pixel: return static_cast<FVulkanPixelShader*>(VulkanShaders[ShaderStage::Pixel]);
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+		case SF_Mesh: return static_cast<FVulkanGeometryShader*>(VulkanShaders[ShaderStage::Mesh]);
+		case SF_Amplification: return static_cast<FVulkanGeometryShader*>(VulkanShaders[ShaderStage::Task]);
+#endif
 #if VULKAN_SUPPORTS_GEOMETRY_SHADERS
 		case SF_Geometry: return static_cast<FVulkanGeometryShader*>(VulkanShaders[ShaderStage::Geometry]);
 #endif

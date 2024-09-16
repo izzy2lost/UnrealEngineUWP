@@ -139,6 +139,8 @@ struct FOptionalVulkanDeviceExtensionProperties
 
 	VkPhysicalDeviceFragmentShaderBarycentricPropertiesKHR FragmentShaderBarycentricProps;
 	VkPhysicalDeviceComputeShaderDerivativesFeaturesNV ComputeShaderDerivativesFeatures;
+
+	VkPhysicalDeviceMeshShaderPropertiesEXT MeshShaderProperties;
 };
 
 class FVulkanPhysicalDeviceFeatures
