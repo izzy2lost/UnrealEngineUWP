@@ -423,6 +423,11 @@ static int32 MacOSVersionCompare(const NSOperatingSystemVersion& VersionA, const
 	RunGameThread(self, @selector(runGameThread:));
 }
 
+- (BOOL)applicationSupportsSecureRestorableState:(NSApplication *)app
+{
+    return false;
+}
+
 @end
 
 extern bool GIsConsoleExecutable;
