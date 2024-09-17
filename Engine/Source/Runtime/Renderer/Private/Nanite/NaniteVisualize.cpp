@@ -783,7 +783,7 @@ void AddVisualizationPasses(
 
 						PassParameters->View = View.GetShaderParameters();
 						PassParameters->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
-						PassParameters->VirtualShadowMap = VirtualShadowMapArray.GetUniformBuffer();
+						PassParameters->VirtualShadowMap = VirtualShadowMapArray.GetUniformBuffer(ViewIndex);
 						PassParameters->ClusterPageData = Nanite::GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
 						PassParameters->VisualizeConfig = GetVisualizeConfig(Visualization.ModeID, Visualization.bCompositeScene, GNaniteVisualizeEdgeDetect != 0);
 						PassParameters->VisualizeScales = GetVisualizeScales(Visualization.ModeID, ShadingExportCount);

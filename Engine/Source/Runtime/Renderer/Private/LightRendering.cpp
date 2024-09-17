@@ -2179,7 +2179,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 						RenderLight(
 							GraphBuilder, Scene, View, SceneTextures, &LightSceneInfo, 
 							VirtualShadowMapId != INDEX_NONE ? nullptr : ScreenShadowMaskTexture, LightingChannelsTexture, false /*bRenderOverlap*/, true /*bCloudShadow*/, SortedLightInfo.bIsCompatibleWithLightFunctionAtlas,
-							VirtualShadowMapArray.GetUniformBuffer(), ShadowSceneRenderer->VirtualShadowMapMaskBits, VirtualShadowMapId);
+							VirtualShadowMapArray.GetUniformBuffer(ViewIndex), ShadowSceneRenderer->VirtualShadowMapMaskBits, VirtualShadowMapId);
 					}
 				}
 
@@ -2212,7 +2212,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 							}
 							else if (bDrawHairShadow)
 							{
-								TransmittanceMaskData = RenderHairStrandsTransmittanceMask(GraphBuilder, View, &LightSceneInfo, false, ScreenShadowMaskSubPixelTexture);
+								TransmittanceMaskData = RenderHairStrandsTransmittanceMask(GraphBuilder, View, ViewIndex, &LightSceneInfo, false, ScreenShadowMaskSubPixelTexture);
 								HairShadowMask = ScreenShadowMaskSubPixelTexture;
 							}
 							if (TransmittanceMaskData.TransmittanceMask == nullptr)
@@ -2226,7 +2226,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 								GraphBuilder, View, SceneTextures, &LightSceneInfo,
 								VirtualShadowMapId != INDEX_NONE ? nullptr : HairShadowMask, LightingChannelsTexture, TransmittanceMaskData, 
 								false /*bForwardRendering*/, SortedLightInfo.bIsCompatibleWithLightFunctionAtlas,
-								VirtualShadowMapArray.GetUniformBuffer(), ShadowSceneRenderer->VirtualShadowMapMaskBitsHairStrands, VirtualShadowMapId);
+								VirtualShadowMapArray.GetUniformBuffer(ViewIndex), ShadowSceneRenderer->VirtualShadowMapMaskBitsHairStrands, VirtualShadowMapId);
 						}
 					}
 				}
@@ -2996,7 +2996,7 @@ void FDeferredShadingSceneRenderer::RenderLightsForHair(
 					FHairStrandsTransmittanceMaskData TransmittanceMaskData = DummyTransmittanceMaskData;
 					if (bDrawHairShadow)
 					{
-						TransmittanceMaskData = RenderHairStrandsTransmittanceMask(GraphBuilder, View, &LightSceneInfo, true, ScreenShadowMaskSubPixelTexture);
+						TransmittanceMaskData = RenderHairStrandsTransmittanceMask(GraphBuilder, View, ViewIndex, &LightSceneInfo, true, ScreenShadowMaskSubPixelTexture);
 					}
 
 					RenderLightForHair(

@@ -527,7 +527,7 @@ void RenderWithLiveShading(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,
 	const FScene* Scene,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
 	const FVirtualShadowMapArray& VirtualShadowMapArray,
@@ -548,7 +548,7 @@ void RenderWithPreshading(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	FViewInfo& View,
+	FViewInfo& View, int32 ViewIndex,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
 	const FVirtualShadowMapArray& VirtualShadowMapArray,
@@ -791,7 +791,7 @@ void RenderLightingCacheWithPreshadingHardwareRayTracing(
 	FRDGBuilder& GraphBuilder,
 	// Scene data
 	const FScene* Scene,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	const FSceneTextures& SceneTextures,
 	// Light data
 	bool bApplyEmissionAndTransmittance,
@@ -817,7 +817,7 @@ void RenderSingleScatteringWithPreshadingHardwareRayTracing(
 	FRDGBuilder& GraphBuilder,
 	// Scene data
 	const FScene* Scene,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	const FSceneTextures& SceneTextures,
 	// Light data
 	bool bApplyEmissionAndTransmittance,

@@ -69,7 +69,7 @@ namespace MegaLights
 {
 	void RayTraceLightSamples(
 		const FSceneViewFamily& ViewFamily,
-		const FViewInfo& View,
+		const FViewInfo& View, int32 ViewIndex,
 		FRDGBuilder& GraphBuilder,
 		const FSceneTextures& SceneTextures,
 		const FVirtualShadowMapArray& VirtualShadowMapArray,

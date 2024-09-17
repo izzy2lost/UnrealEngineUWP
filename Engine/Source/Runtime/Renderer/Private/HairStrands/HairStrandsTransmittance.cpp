@@ -237,7 +237,7 @@ IMPLEMENT_GLOBAL_SHADER(FHairStrandsVoxelTransmittanceMaskCS, "/Engine/Private/H
 static FRDGBufferRef AddHairStrandsVoxelTransmittanceMaskPass(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextureParameters& SceneTextures,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	const EHairTransmittancePassType PassType,
 	const FHairStrandsTransmittanceLightParams& Params,
 	const uint32 NodeGroupSize,
@@ -259,7 +259,7 @@ static FRDGBufferRef AddHairStrandsVoxelTransmittanceMaskPass(
 	if (PassType == EHairTransmittancePassType::OnePass)
 	{
 		check(VirtualShadowMapArray != nullptr);
-		Parameters->VirtualShadowMap = VirtualShadowMapArray->GetSamplingParameters(GraphBuilder);
+		Parameters->VirtualShadowMap = VirtualShadowMapArray->GetSamplingParameters(GraphBuilder, ViewIndex);
 		Parameters->ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
 		Parameters->RayMarchMaskTexture = nullptr;
 		Parameters->ShadowMaskBitsTexture = ShadowMaskTexture ? ShadowMaskTexture : GSystemTextures.GetZeroUIntDummy(GraphBuilder);
@@ -754,7 +754,7 @@ static void AddHairStrandsDeepShadowMaskPass(
 
 static FHairStrandsTransmittanceMaskData InternalRenderHairStrandsTransmittanceMask(
 	FRDGBuilder& GraphBuilder,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	const FLightSceneInfo* LightSceneInfo,
 	const FHairStrandsVisibilityData& VisibilityData,
 	const FHairStrandsMacroGroupDatas& MacroGroupDatas,
@@ -842,7 +842,7 @@ static FHairStrandsTransmittanceMaskData InternalRenderHairStrandsTransmittanceM
 		Out.TransmittanceMask = AddHairStrandsVoxelTransmittanceMaskPass(
 			GraphBuilder,
 			SceneTextures,
-			View,
+			View, ViewIndex,
 			EHairTransmittancePassType::PerLight,
 			Params,
 			VisibilityData.NodeGroupSize,
@@ -855,7 +855,7 @@ static FHairStrandsTransmittanceMaskData InternalRenderHairStrandsTransmittanceM
 	
 FHairStrandsTransmittanceMaskData RenderHairStrandsOnePassTransmittanceMask(
 	FRDGBuilder& GraphBuilder,
-	const FViewInfo& View, 
+	const FViewInfo& View, int32 ViewIndex,
 	FRDGTextureRef ShadowMaskBits,
 	FVirtualShadowMapArray& VirtualShadowMapArray)
 {
@@ -875,7 +875,7 @@ FHairStrandsTransmittanceMaskData RenderHairStrandsOnePassTransmittanceMask(
 			Out.TransmittanceMask = AddHairStrandsVoxelTransmittanceMaskPass(
 				GraphBuilder,
 				SceneTextures,
-				View,
+				View, ViewIndex,
 				EHairTransmittancePassType::OnePass,
 				DummyParams,
 				View.HairStrandsViewData.VisibilityData.NodeGroupSize,
@@ -889,7 +889,7 @@ FHairStrandsTransmittanceMaskData RenderHairStrandsOnePassTransmittanceMask(
 
 FHairStrandsTransmittanceMaskData RenderHairStrandsTransmittanceMask(
 	FRDGBuilder& GraphBuilder,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	const FLightSceneInfo* LightSceneInfo,
 	const bool bProjectingForForwardShading,
 	FRDGTextureRef ScreenShadowMaskSubPixelTexture)
@@ -899,7 +899,7 @@ FHairStrandsTransmittanceMaskData RenderHairStrandsTransmittanceMask(
 	{
 		TransmittanceMaskData = InternalRenderHairStrandsTransmittanceMask(
 			GraphBuilder, 
-			View, 
+			View, ViewIndex,
 			LightSceneInfo, 
 			View.HairStrandsViewData.VisibilityData,
 			View.HairStrandsViewData.MacroGroupDatas,

@@ -2473,7 +2473,7 @@ void FSceneRenderer::RenderVolumetricCloudsInternal(FRDGBuilder& GraphBuilder, F
 		PassParameters->Scene = GetSceneUniformBufferRef(GraphBuilder);
 		if (bSampleVirtualShadowMap)
 		{
-			PassParameters->VirtualShadowMap = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
+			PassParameters->VirtualShadowMap = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, 0);
 		}
 		PassParameters->OutCloudColor0 = CloudColor0TextureUAV;
 		PassParameters->OutCloudColor1 = CloudColor1TextureUAV;
@@ -2542,7 +2542,7 @@ void FSceneRenderer::RenderVolumetricCloudsInternal(FRDGBuilder& GraphBuilder, F
 		RenderViewPassParameters->CloudShadowTexture1 = CloudRC.VolumetricCloudShadowTexture[1];
 		RenderViewPassParameters->View = ViewUniformBuffer;
 		RenderViewPassParameters->Scene = GetSceneUniformBufferRef(GraphBuilder);
-		RenderViewPassParameters->VirtualShadowMap = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
+		RenderViewPassParameters->VirtualShadowMap = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, 0);
 		RenderViewPassParameters->InstanceCulling = InstanceCullingManager.GetDummyInstanceCullingUniformBuffer();
 		RenderViewPassParameters->RenderTargets = CloudRC.RenderTargets;
 		

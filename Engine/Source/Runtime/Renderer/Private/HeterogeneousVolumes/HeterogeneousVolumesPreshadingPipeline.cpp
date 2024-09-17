@@ -425,7 +425,7 @@ void RenderLightingCacheWithPreshadingCompute(
 	FRDGBuilder& GraphBuilder,
 	// Scene data
 	const FScene* Scene,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	const FSceneTextures& SceneTextures,
 	// Light data
 	bool bApplyEmissionAndTransmittance,
@@ -505,7 +505,7 @@ void RenderLightingCacheWithPreshadingCompute(
 			SetVolumeShadowingDefaultShaderParametersGlobal(GraphBuilder, PassParameters->VolumeShadowingShaderParameters);
 			PassParameters->VirtualShadowMapId = -1;
 		}
-		PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
+		PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, ViewIndex);
 		PassParameters->AVSM = HeterogeneousVolumes::GetAdaptiveVolumetricShadowMapUniformBuffer(GraphBuilder, View.ViewState, LightSceneInfo);
 
 		// Output
@@ -549,7 +549,7 @@ void RenderSingleScatteringWithPreshadingCompute(
 	FRDGBuilder& GraphBuilder,
 	// Scene data
 	const FScene* Scene,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	const FSceneTextures& SceneTextures,
 	// Light data
 	bool bApplyEmissionAndTransmittance,
@@ -625,7 +625,7 @@ void RenderSingleScatteringWithPreshadingCompute(
 			SetVolumeShadowingDefaultShaderParametersGlobal(GraphBuilder, PassParameters->VolumeShadowingShaderParameters);
 			PassParameters->VirtualShadowMapId = -1;
 		}
-		PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
+		PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, ViewIndex);
 		PassParameters->AVSM = HeterogeneousVolumes::GetAdaptiveVolumetricShadowMapUniformBuffer(GraphBuilder, View.ViewState, LightSceneInfo);
 
 		TRDGUniformBufferRef<FFogUniformParameters> FogBuffer = CreateFogUniformBuffer(GraphBuilder, View);
@@ -712,7 +712,7 @@ void RenderWithInscatteringVolumePipelineWithPreshadingCompute(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	const FScene* Scene,
-	FViewInfo& View,
+	FViewInfo& View, int32 ViewIndex,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
 	const FVirtualShadowMapArray& VirtualShadowMapArray,
@@ -772,7 +772,7 @@ void RenderWithInscatteringVolumePipelineWithPreshadingCompute(
 			GraphBuilder,
 			// Scene data
 			Scene,
-			View,
+			View, ViewIndex,
 			SceneTextures,
 			// Light data
 			bApplyEmissionAndTransmittance,
@@ -812,7 +812,7 @@ void RenderWithInscatteringVolumePipelineWithPreshadingCompute(
 			GraphBuilder,
 			// Scene
 			Scene,
-			View,
+			View, ViewIndex,
 			SceneTextures,
 			// Light
 			bApplyEmissionAndTransmittance,
@@ -845,7 +845,7 @@ void RenderWithTransmittanceVolumePipelineWithPreshadingCompute(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	const FScene* Scene,
-	FViewInfo& View,
+	FViewInfo& View, int32 ViewIndex,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
 	const FVirtualShadowMapArray& VirtualShadowMapArray,
@@ -907,7 +907,7 @@ void RenderWithTransmittanceVolumePipelineWithPreshadingCompute(
 				GraphBuilder,
 				// Scene data
 				Scene,
-				View,
+				View, ViewIndex,
 				SceneTextures,
 				// Light data
 				bApplyEmissionAndTransmittance,
@@ -937,7 +937,7 @@ void RenderWithTransmittanceVolumePipelineWithPreshadingCompute(
 			GraphBuilder,
 			// Scene
 			Scene,
-			View,
+			View, ViewIndex,
 			SceneTextures,
 			// Light
 			bApplyEmissionAndTransmittance,
@@ -970,7 +970,7 @@ void RenderWithPreshadingCompute(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	const FScene* Scene,
-	FViewInfo& View,
+	FViewInfo& View, int32 ViewIndex,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
 	const FVirtualShadowMapArray& VirtualShadowMapArray,
@@ -1018,7 +1018,7 @@ void RenderWithPreshadingCompute(
 			// Scene data
 			SceneTextures,
 			Scene,
-			View,
+			View, ViewIndex,
 			// Shadow data
 			VisibleLightInfos,
 			VirtualShadowMapArray,
@@ -1044,7 +1044,7 @@ void RenderWithPreshadingCompute(
 			// Scene data
 			SceneTextures,
 			Scene,
-			View,
+			View, ViewIndex,
 			// Shadow data
 			VisibleLightInfos,
 			VirtualShadowMapArray,
@@ -1070,7 +1070,7 @@ void RenderWithInscatteringVolumePipelineWithPreshadingHardwareRayTracing(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	FViewInfo& View,
+	FViewInfo& View, int32 ViewIndex,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
 	const FVirtualShadowMapArray& VirtualShadowMapArray,
@@ -1130,7 +1130,7 @@ void RenderWithInscatteringVolumePipelineWithPreshadingHardwareRayTracing(
 			GraphBuilder,
 			// Scene data
 			Scene,
-			View,
+			View, ViewIndex,
 			SceneTextures,
 			// Light data
 			bApplyEmissionAndTransmittance,
@@ -1167,7 +1167,7 @@ void RenderWithInscatteringVolumePipelineWithPreshadingHardwareRayTracing(
 			GraphBuilder,
 			// Scene data
 			Scene,
-			View,
+			View, ViewIndex,
 			SceneTextures,
 			// Light data
 			bApplyEmissionAndTransmittance,
@@ -1199,7 +1199,7 @@ void RenderWithTransmittanceVolumePipelineWithPreshadingHardwareRayTracing(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	FViewInfo& View,
+	FViewInfo& View, int32 ViewIndex,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
 	const FVirtualShadowMapArray& VirtualShadowMapArray,
@@ -1261,7 +1261,7 @@ void RenderWithTransmittanceVolumePipelineWithPreshadingHardwareRayTracing(
 				GraphBuilder,
 				// Scene data
 				Scene,
-				View,
+				View, ViewIndex,
 				SceneTextures,
 				// Light data
 				bApplyEmissionAndTransmittance,
@@ -1288,7 +1288,7 @@ void RenderWithTransmittanceVolumePipelineWithPreshadingHardwareRayTracing(
 			GraphBuilder,
 			// Scene data
 			Scene,
-			View,
+			View, ViewIndex,
 			SceneTextures,
 			// Light data
 			bApplyEmissionAndTransmittance,
@@ -1320,7 +1320,7 @@ void RenderWithPreshadingHardwareRayTracing(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	FViewInfo& View,
+	FViewInfo& View, int32 ViewIndex,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
 	const FVirtualShadowMapArray& VirtualShadowMapArray,
@@ -1379,7 +1379,7 @@ void RenderWithPreshadingHardwareRayTracing(
 			GraphBuilder,
 			SceneTextures,
 			Scene,
-			View,
+			View, ViewIndex,
 			// Shadow data
 			VisibleLightInfos,
 			VirtualShadowMapArray,
@@ -1402,7 +1402,7 @@ void RenderWithPreshadingHardwareRayTracing(
 			GraphBuilder,
 			SceneTextures,
 			Scene,
-			View,
+			View, ViewIndex,
 			// Shadow data
 			VisibleLightInfos,
 			VirtualShadowMapArray,
@@ -1534,7 +1534,7 @@ void RenderWithPreshading(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	FViewInfo& View,
+	FViewInfo& View, int32 ViewIndex,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
 	const FVirtualShadowMapArray& VirtualShadowMapArray,
@@ -1689,7 +1689,7 @@ void RenderWithPreshading(
 			// Scene data
 			SceneTextures,
 			Scene,
-			View,
+			View, ViewIndex,
 			// Shadow data
 			VisibleLightInfos,
 			VirtualShadowMapArray,
@@ -1713,7 +1713,7 @@ void RenderWithPreshading(
 			// Scene data
 			SceneTextures,
 			Scene,
-			View,
+			View, ViewIndex,
 			// Shadow data
 			VisibleLightInfos,
 			VirtualShadowMapArray,

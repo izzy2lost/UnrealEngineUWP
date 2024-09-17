@@ -84,7 +84,7 @@ void CompositeVirtualShadowMapMask(
 void CompositeVirtualShadowMapFromMaskBits(
 	FRDGBuilder& GraphBuilder,
 	const FMinimalSceneTextures& SceneTextures,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	const FIntRect ScissorRect,
 	FVirtualShadowMapArray& VirtualShadowMapArray,
 	EVirtualShadowMapProjectionInputType InputType,

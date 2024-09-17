@@ -1192,8 +1192,8 @@ void FVirtualShadowMapArrayCacheManager::ExtractFrameData(
 			PrevUniformParameters.UncachedPageRectBounds = nullptr;
 			PrevUniformParameters.AllocatedPageRectBounds = nullptr;
 			PrevUniformParameters.PageFlags = nullptr;
-			PrevUniformParameters.LightGridData = nullptr;
-			PrevUniformParameters.NumCulledLightsGrid = nullptr;
+			PrevUniformParameters.PerViewData.LightGridData = nullptr;
+			PrevUniformParameters.PerViewData.NumCulledLightsGrid = nullptr;
 			PrevUniformParameters.CachePrimitiveAsDynamic = nullptr;
 		}
 
@@ -1588,8 +1588,8 @@ FVirtualShadowMapArrayCacheManager::FInvalidationPassCommon FVirtualShadowMapArr
 		// Unused in this path... may be a better way to handle this
 		UniformParameters->PhysicalPagePool = GSystemTextures.GetZeroUIntArrayAtomicCompatDummy(GraphBuilder);
 		FRDGBufferSRVRef Uint32SRVDummy = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(uint32)));
-		UniformParameters->LightGridData = Uint32SRVDummy;
-		UniformParameters->NumCulledLightsGrid = Uint32SRVDummy;
+		UniformParameters->PerViewData.LightGridData = Uint32SRVDummy;
+		UniformParameters->PerViewData.NumCulledLightsGrid = Uint32SRVDummy;
 	}
 	
 	FInvalidationPassCommon Result;
