@@ -796,7 +796,8 @@ void FPCGRuntimeGenScheduler::OnOriginalComponentUnregistered(UPCGComponent* InO
 		// Get the generated component for this key (might be a local component).
 		UPCGComponent* ComponentToCleanup = bIsOriginalComponent ? InOriginalComponent : ActorAndComponentMapping->GetLocalComponent(GridDescriptor, GenerationKey.GetGridCoords(), InOriginalComponent);
 
-		if (ensure(ComponentToCleanup))
+		// It is possible for a PartitionActor's LocalComponent to have been cleaned up by the APCGPartitionActor::EndPlay call depending on the order in which actors get called
+		if (ComponentToCleanup)
 		{
 			CleanupComponent(GenerationKey, ComponentToCleanup);
 		}
