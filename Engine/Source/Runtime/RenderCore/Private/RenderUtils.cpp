@@ -482,6 +482,16 @@ RENDERCORE_API bool MobileRequiresSceneDepthAux(const FStaticShaderPlatform Plat
 	return false;
 }
 
+RENDERCORE_API bool MobileAllowFramebufferFetch(const FStaticShaderPlatform Platform)
+{
+	if (Platform == SP_OPENGL_ES3_1_ANDROID)
+	{
+		const static IConsoleVariable* CVarAllowFramebufferFetchOpenGL = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Mobile.AllowFramebufferFetchOpenGL"));
+		return CVarAllowFramebufferFetchOpenGL->GetBool();
+	}
+	return true;
+}
+
 RENDERCORE_API bool SupportsTextureCubeArray(ERHIFeatureLevel::Type FeatureLevel)
 {
 	return FeatureLevel >= ERHIFeatureLevel::SM5 

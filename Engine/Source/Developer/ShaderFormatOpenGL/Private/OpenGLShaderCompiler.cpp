@@ -3012,10 +3012,8 @@ static bool CompileToGlslWithShaderConductor(
 		std::string GlslSource;
 
 		// Handle PLS and FBF in OpenGL
-
-		if (Input.Environment.GetCompileArgument(TEXT("SHADING_PATH_MOBILE"), false) &&
-			Input.Environment.GetCompileArgument(TEXT("MOBILE_DEFERRED_SHADING"), false) &&
-			Version == GLSL_ES3_1_ANDROID)
+		if (Version == GLSL_ES3_1_ANDROID &&
+			Input.Environment.GetCompileArgument(TEXT("USE_GLES_FBF_DEFERRED"), false))
 		{
 			bCompilationFailed = !GenerateDeferredMobileShaders(GlslSource, GLSLCompileParams, SourceData, ReflectData, true, false, bEmulatedUBs, BlendFlags);
 		}

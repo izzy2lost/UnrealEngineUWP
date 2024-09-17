@@ -300,6 +300,8 @@ RENDERCORE_API bool PlatformGPUSceneUsesUniformBufferView(const FStaticShaderPla
 
 RENDERCORE_API bool MobileRequiresSceneDepthAux(const FStaticShaderPlatform Platform);
 
+RENDERCORE_API bool MobileAllowFramebufferFetch(const FStaticShaderPlatform Platform);
+
 RENDERCORE_API bool SupportsTextureCubeArray(ERHIFeatureLevel::Type FeatureLevel);
 
 RENDERCORE_API bool MaskedInEarlyPass(const FStaticShaderPlatform Platform);

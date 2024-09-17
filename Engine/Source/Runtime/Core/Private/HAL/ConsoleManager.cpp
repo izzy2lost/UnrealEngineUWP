@@ -3685,6 +3685,13 @@ static TAutoConsoleVariable<int32> CVarMobileAllowDeferredShadingOpenGL(
 		 "1: Allow Deferred Shading on OpenGL"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
+static TAutoConsoleVariable<int32> CVarMobileAllowFramebufferFetchOpenGL(
+	TEXT("r.Mobile.AllowFramebufferFetchOpenGL"),
+	1,
+	TEXT("0: Use multi-pass rendering without FBF and PLS extensions\n"
+		"1: Allow use of framebuffer fetch and PLS extensions (default)"),
+	ECVF_RenderThreadSafe | ECVF_ReadOnly);
+
 static TAutoConsoleVariable<int32> CVarMobileEnableStaticAndCSMShadowReceivers(
 	TEXT("r.Mobile.EnableStaticAndCSMShadowReceivers"),
 	1,

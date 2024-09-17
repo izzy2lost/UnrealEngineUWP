@@ -3182,10 +3182,13 @@ void GlobalBeginCompileShader(
 		const bool bMobileDeferredShading = IsMobileDeferredShadingEnabled((EShaderPlatform)Target.Platform);
 		SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT(Input.Environment, MOBILE_DEFERRED_SHADING, bMobileDeferredShading);
 
+		const bool bAllowFramebufferFetch = MobileAllowFramebufferFetch((EShaderPlatform)Target.Platform);
+		SET_SHADER_DEFINE(Input.Environment, ALLOW_FRAMEBUFFER_FETCH, bAllowFramebufferFetch);
+	
 		if (bMobileDeferredShading)
 		{
-			bool bGLESDeferredShading = Target.Platform == SP_OPENGL_ES3_1_ANDROID;
-			SET_SHADER_DEFINE(Input.Environment, USE_GLES_FBF_DEFERRED, bGLESDeferredShading ? 1 : 0);
+			const bool bGLESDeferredShading = (Target.Platform == SP_OPENGL_ES3_1_ANDROID && bAllowFramebufferFetch);
+			SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT(Input.Environment, USE_GLES_FBF_DEFERRED, bGLESDeferredShading);
 			SET_SHADER_DEFINE(Input.Environment, MOBILE_EXTENDED_GBUFFER, MobileUsesExtenedGBuffer((EShaderPlatform)Target.Platform) ? 1 : 0);
 		}
 		else

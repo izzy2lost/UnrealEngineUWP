@@ -188,7 +188,7 @@ float4 CalcFullSceneColor(float2 ScreenUV)
 #endif
 
 // Special intrinsic to read from the current depth buffer
-#define MOBILE_DEPTHFECTH (IS_MOBILE_DEPTHREAD_SUBPASS || POST_PROCESS_AR_PASSTHROUGH) && PIXELSHADER
+#define MOBILE_DEPTHFECTH (IS_MOBILE_DEPTHREAD_SUBPASS || POST_PROCESS_AR_PASSTHROUGH) && PIXELSHADER && ALLOW_FRAMEBUFFER_FETCH
 
 #if MOBILE_DEPTHFECTH && VULKAN_PROFILE
 #include "/Engine/Public/Platform/Vulkan/VulkanSubpassSupport.ush"

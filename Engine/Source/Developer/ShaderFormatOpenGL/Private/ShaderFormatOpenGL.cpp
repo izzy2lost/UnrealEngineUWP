@@ -26,7 +26,7 @@ extern void CompileOpenGLShader(
 	GLSLVersion Version);
 
 /** Version for shader format, this becomes part of the DDC key. */
-static const FGuid UE_SHADER_GLSL_VER = FGuid("B1107259-7ED0-4122-848E-63140897A56F");
+static const FGuid UE_SHADER_GLSL_VER = FGuid("16563EF4-3474-4296-8DA3-AEFF2B0547F1");
 
 class FShaderFormatGLSL : public UE::ShaderCompilerCommon::FBaseShaderFormat 
 {

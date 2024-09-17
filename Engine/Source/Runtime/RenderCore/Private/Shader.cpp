@@ -1998,6 +1998,12 @@ void ShaderMapAppendKey(EShaderPlatform Platform, FShaderKeyGenerator& KeyGen)
 			KeyGen.AppendSeparator();
 			KeyGen.Append(TEXT("MobSSR"));
 		}
+
+		if (MobileAllowFramebufferFetch(Platform) == false)
+		{
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("NoFBF"));
+		}
 	}
 	else
 	{
