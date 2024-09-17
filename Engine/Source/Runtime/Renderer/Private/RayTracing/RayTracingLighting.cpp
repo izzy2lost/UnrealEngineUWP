@@ -32,6 +32,14 @@ TAutoConsoleVariable<int32> CVarRayTracingLightGridMaxCount(
 	ECVF_RenderThreadSafe
 );
 
+TAutoConsoleVariable<int32> CVarRayTracingLightGridAxis(
+	TEXT("r.RayTracing.LightGridAxis"),
+	-1,
+	TEXT("Choose the coordinate axis along which to project the light grid (default = -1, automatic)\n"),
+	ECVF_RenderThreadSafe
+);
+
+
 IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FRayTracingLightGrid, "RaytracingLightGridData");
 
 class FRayTracingBuildLightGridCS : public FGlobalShader
@@ -160,19 +168,23 @@ static void PrepareLightGrid(FRDGBuilder& GraphBuilder, FGlobalShaderMap* Shader
 	LightGridParameters->LightGridResolution = Resolution;
 	LightGridParameters->LightGridMaxCount = MaxCount;
 
-	// pick the shortest axis
-	FVector3f Diag = LightGridParameters->SceneLightsTranslatedBoundMax - LightGridParameters->SceneLightsTranslatedBoundMin;
-	if (Diag.X < Diag.Y && Diag.X < Diag.Z)
+	LightGridParameters->LightGridAxis = CVarRayTracingLightGridAxis.GetValueOnRenderThread();
+	if (LightGridParameters->LightGridAxis < 0 || LightGridParameters->LightGridAxis > 2)
 	{
-		LightGridParameters->LightGridAxis = 0;
-	}
-	else if (Diag.Y < Diag.Z)
-	{
-		LightGridParameters->LightGridAxis = 1;
-	}
-	else
-	{
-		LightGridParameters->LightGridAxis = 2;
+		// pick the shortest axis if user did not explicitly pick an axis
+		FVector3f Diag = LightGridParameters->SceneLightsTranslatedBoundMax - LightGridParameters->SceneLightsTranslatedBoundMin;
+		if (Diag.X < Diag.Y && Diag.X < Diag.Z)
+		{
+			LightGridParameters->LightGridAxis = 0;
+		}
+		else if (Diag.Y < Diag.Z)
+		{
+			LightGridParameters->LightGridAxis = 1;
+		}
+		else
+		{
+			LightGridParameters->LightGridAxis = 2;
+		}
 	}
 
 
