@@ -178,6 +178,31 @@ void FGeometryCollection::SetDefaults(FName Group, uint32 StartSize, uint32 NumE
 	}
 }
 
+void FGeometryCollection::Append(const FManagedArrayCollection& InCollection)
+{	
+	/* InCollection data is appended to the front*/
+	Super::Append(InCollection);
+	if (const FGeometryCollection* InTypedCollection = InCollection.Cast<FGeometryCollection>())
+	{
+		const int32 Offset = InTypedCollection->NumElements(GeometryGroup);
+		const int32 OtherSize = InTypedCollection->NumElements(TransformGroup);
+		const int32 Size = NumElements(TransformGroup);
+		/*TransformToGeometryIndex does not have GeometryGroup dependency, update manually*/
+		for (int32 Idx = OtherSize; Idx < Size; ++Idx)
+		{
+			if (TransformToGeometryIndex[Idx] != INDEX_NONE)
+			{
+				TransformToGeometryIndex[Idx] += Offset;
+			}
+		}
+	}
+}
+
+void FGeometryCollection::AppendCollection(const FGeometryCollection& InCollection)
+{
+	Append(InCollection);
+}
+
 // MaterialIDOffset is based on the number of materials added by this append geometry call
 int32 FGeometryCollection::AppendGeometry(const FGeometryCollection & Element, int32 MaterialIDOffset, bool ReindexAllMaterials, const FTransform& TransformRoot)
 {
@@ -757,7 +782,10 @@ void FGeometryCollection::ReorderTransformElements(const TArray<int32>& NewOrder
 	Pairs.Reserve(NumGeometries);
 	for (int32 GeomIdx = 0; GeomIdx < NumGeometries; ++GeomIdx)
 	{
-		Pairs.Emplace(NewOrder[TransformIndex[GeomIdx]], GeomIdx);
+		if (TransformIndex[GeomIdx] != INDEX_NONE)
+		{
+			Pairs.Emplace(NewOrder[TransformIndex[GeomIdx]], GeomIdx);
+		}
 	}
 	Pairs.Sort();
 

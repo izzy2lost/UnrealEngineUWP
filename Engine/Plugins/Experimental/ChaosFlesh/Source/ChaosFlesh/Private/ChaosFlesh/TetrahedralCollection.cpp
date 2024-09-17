@@ -37,7 +37,7 @@ void FTetrahedralCollection::Construct()
 
 	// Geometry Group
 	AddExternalAttribute<int32>(FTetrahedralCollection::TetrahedronStartAttribute, FGeometryCollection::GeometryGroup, TetrahedronStart, TetrahedronDependency);
-	AddExternalAttribute<int32>(FTetrahedralCollection::TetrahedronCountAttribute, FGeometryCollection::GeometryGroup, TetrahedronCount, TetrahedronDependency);
+	AddExternalAttribute<int32>(FTetrahedralCollection::TetrahedronCountAttribute, FGeometryCollection::GeometryGroup, TetrahedronCount);
 	AddExternalAttribute<FString>(FTetrahedralCollection::GuidAttribute, FGeometryCollection::GeometryGroup, Guid);
 	for (FString& g : Guid) { g = FGuid::NewGuid().ToString(); }
 }
@@ -135,6 +135,29 @@ void FTetrahedralCollection::UpdateBoundingBox()
 			}
 		}
 	}
+}
+
+void FTetrahedralCollection::Append(const FManagedArrayCollection& InCollection)
+{
+	Super::Append(InCollection);
+	// InCollection data is appended to the front
+	const int32 Offset = InCollection.NumElements(TetrahedralGroup);
+	const int32 OtherSize = InCollection.NumElements(VerticesGroup);
+	const int32 Size = NumElements(VerticesGroup);
+	// IncidentElements does not have TetrahedralGroup dependency, update manually
+	for (int32 Idx = OtherSize; Idx < Size; Idx++)
+	{
+		for (int32& TetIdx: IncidentElements[Idx])
+		{
+			// Offset by the number of tets of the second collection
+			TetIdx += Offset;
+		}
+	}
+}
+
+void FTetrahedralCollection::AppendCollection(const FTetrahedralCollection& InCollection)
+{
+	Append(InCollection);
 }
 
 int32 FTetrahedralCollection::AppendGeometry(

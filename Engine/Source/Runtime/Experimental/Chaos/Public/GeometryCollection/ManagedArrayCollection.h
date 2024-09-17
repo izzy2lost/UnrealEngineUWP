@@ -272,7 +272,6 @@ public:
 	*/
 	CHAOS_API int32 InsertElements(int32 NumberElements, int32 Position, FName Group);
 
-
 	/**
 	* Append Collection and reindex dependencies on this collection. 
 	* @param InCollection : Collection to add. 
@@ -617,6 +616,15 @@ private:
 		FValueType NewAttribute = FValueType::MakeManaged(MoveTemp(ArrayPtr), InitialSize, GroupIndexDependency, Parameters.Saved);
 		Map.Add({ Name, Group }, MoveTemp(NewAttribute));
 	}
+
+	/**
+	* Insert elements to a group without reordering elements
+	* @param NumberElements - The number of array entries to add
+	* @param Position - The position in the managed array where to insert entries.
+	* @param Group - The group to append entries to.
+	* @return new order after insertion.
+	*/
+	TArray<int32> InsertElementsNoReorder(int32 NumberElements, int32 Position, FName Group);
 
 	/****
 	*  Mapping Key/Value

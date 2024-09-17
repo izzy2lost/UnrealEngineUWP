@@ -232,6 +232,32 @@ int32 FManagedArrayCollection::InsertElements(int32 NumberElements, int32 Positi
 	return Position;
 }
 
+TArray<int32> FManagedArrayCollection::InsertElementsNoReorder(int32 NumberElements, int32 Position, FName Group)
+{
+	const int32 OldGroupSize = AddElements(NumberElements, Group);
+	const int32 NewGroupSize = OldGroupSize + NumberElements;
+	check(Position <= OldGroupSize);
+	const int32 NumberElementsToMove = OldGroupSize - Position;
+	const int32 MoveToPosition = Position + NumberElements;
+
+	TArray<int32> NewOrder;
+	NewOrder.SetNumUninitialized(NewGroupSize);
+
+	for (int32 Idx = 0; Idx < Position; ++Idx)
+	{
+		NewOrder[Idx] = Idx;
+	}
+	for (int32 Idx = Position; Idx < MoveToPosition; ++Idx)
+	{
+		NewOrder[Idx] = Idx + NumberElementsToMove;
+	}
+	for (int32 Idx = MoveToPosition; Idx < NewGroupSize; ++Idx)
+	{
+		NewOrder[Idx] = Idx - NumberElements;
+	}
+	return NewOrder;
+}
+
 void FManagedArrayCollection::Append(const FManagedArrayCollection& InCollection)
 {
 	bool bMatchingAttributes = true;
@@ -253,18 +279,23 @@ void FManagedArrayCollection::Append(const FManagedArrayCollection& InCollection
 	}
 	if (bMatchingAttributes)
 	{
+		TMap<FName, TArray<int32>> GroupNewOrder;
 		// make space first. 
 		for (const FName& Group : InCollection.GroupNames())
 		{
-			if (HasGroup(Group) && NumElements(Group))
+			if (HasGroup(Group) && InCollection.NumElements(Group))
 			{
-				InsertElements(InCollection.NumElements(Group), 0, Group);
+				GroupNewOrder.Add(Group, InsertElementsNoReorder(InCollection.NumElements(Group), 0, Group));
 			}
 			else if (!HasGroup(Group))
 			{
 				AddGroup(Group);
 				AddElements(InCollection.NumElements(Group), Group);
 			}
+		}
+		for (TTuple<FName, TArray<int32>>& Pair : GroupNewOrder)
+		{
+			FManagedArrayCollection::ReorderElements(Pair.Key, Pair.Value);
 		}
 
 		// copy values
@@ -280,6 +311,7 @@ void FManagedArrayCollection::Append(const FManagedArrayCollection& InCollection
 			else
 			{
 				FValueType NewAttribute(Entry.Value);
+				NewAttribute.Resize(NumElements(GroupName));
 				Map.Add(Entry.Key, MoveTemp(NewAttribute));
 			}
 		}

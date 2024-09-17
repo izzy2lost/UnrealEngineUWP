@@ -70,9 +70,15 @@ public:
 
 	/**
 	* Append Collection and reindex dependencies on this collection.
-	* @param InCollection : Collection to add.
+	* @param InCollection : FManagedArrayCollection to add.
 	*/
-	CHAOS_API virtual void Append(const FManagedArrayCollection& Collection);
+	CHAOS_API virtual void Append(const FManagedArrayCollection& Collection) override;
+
+	/**
+	* Append Collection and reindex dependencies on this collection.
+	* @param InCollection : FTransformCollection to add.
+	*/
+	CHAOS_API void AppendCollection(const FTransformCollection& Collection);
 
 	/*
 	* AppendTransform:
