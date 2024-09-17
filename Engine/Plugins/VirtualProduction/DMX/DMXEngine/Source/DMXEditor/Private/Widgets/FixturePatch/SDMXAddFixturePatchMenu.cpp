@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SAddFixturePatchMenu.h"
+#include "SDMXAddFixturePatchMenu.h"
 
 #include "Algo/Copy.h"
 #include "Algo/Find.h"
@@ -24,41 +24,41 @@
 #include "Widgets/SDMXEntityDropdownMenu.h"
 
 
-#define LOCTEXT_NAMESPACE "SAddFixturePatchMenu"
+#define LOCTEXT_NAMESPACE "SDMXAddFixturePatchMenu"
 
 namespace UE::DMXEditor::FixturePatchEditor
 {
-	SAddFixturePatchMenu::~SAddFixturePatchMenu()
+	SDMXAddFixturePatchMenu::~SDMXAddFixturePatchMenu()
 	{
 		UDMXAddFixturePatchMenuData* MenuData = GetMutableDefault<UDMXAddFixturePatchMenuData>();
 		MenuData->SoftFixtureType = WeakFixtureType.Get();
 	}
 
-	void SAddFixturePatchMenu::Construct(const FArguments& InArgs, TWeakPtr<FDMXEditor> InWeakDMXEditor)
+	void SDMXAddFixturePatchMenu::Construct(const FArguments& InArgs, TWeakPtr<FDMXEditor> InWeakDMXEditor)
 	{
 		WeakDMXEditor = InWeakDMXEditor;
 
 		SharedData = WeakDMXEditor.IsValid() ? WeakDMXEditor.Pin()->GetFixturePatchSharedData() : nullptr;
 		if (SharedData.IsValid())
 		{
-			UDMXLibrary::GetOnEntitiesAdded().AddSP(this, &SAddFixturePatchMenu::OnEntityAddedOrRemoved);
-			UDMXLibrary::GetOnEntitiesRemoved().AddSP(this, &SAddFixturePatchMenu::OnEntityAddedOrRemoved);
+			UDMXLibrary::GetOnEntitiesAdded().AddSP(this, &SDMXAddFixturePatchMenu::OnEntityAddedOrRemoved);
+			UDMXLibrary::GetOnEntitiesRemoved().AddSP(this, &SDMXAddFixturePatchMenu::OnEntityAddedOrRemoved);
 
 			Refresh();
 		}
 	}
 
-	void SAddFixturePatchMenu::RequestRefresh()
+	void SDMXAddFixturePatchMenu::RequestRefresh()
 	{
 		RequestRefreshModeComboBoxTimerHandle.Invalidate();
 
 		if (!RequestRefreshModeComboBoxTimerHandle.IsValid())
 		{
-			RequestRefreshModeComboBoxTimerHandle = GEditor->GetTimerManager()->SetTimerForNextTick(FTimerDelegate::CreateSP(this, &SAddFixturePatchMenu::Refresh));
+			RequestRefreshModeComboBoxTimerHandle = GEditor->GetTimerManager()->SetTimerForNextTick(FTimerDelegate::CreateSP(this, &SDMXAddFixturePatchMenu::Refresh));
 		}
 	}
 
-	void SAddFixturePatchMenu::Refresh()
+	void SDMXAddFixturePatchMenu::Refresh()
 	{
 		RequestRefreshModeComboBoxTimerHandle.Invalidate();
 
@@ -67,7 +67,6 @@ namespace UE::DMXEditor::FixturePatchEditor
 		{
 			return;
 		}
-
 
 		// Mend the fixture type
 		if (!WeakFixtureType.IsValid())
@@ -87,6 +86,15 @@ namespace UE::DMXEditor::FixturePatchEditor
 
 
 		// Create the combo box source and an intial selection
+		ModeSources.Reset();
+		if (UDMXEntityFixtureType* FixtureType = WeakFixtureType.Get())
+		{
+			for (int32 ModeIndex = 0; ModeIndex < FixtureType->Modes.Num(); ModeIndex++)
+			{
+				ModeSources.Add(MakeShared<uint32>(ModeIndex));
+			}
+		}
+
 		const TArray<UDMXEntityFixtureType*> FixtureTypes = DMXLibrary->GetEntitiesTypeCast<UDMXEntityFixtureType>();
 		UDMXEntityFixtureType* const* SelectedFixtureTypePtr = Algo::FindByPredicate(FixtureTypes, [MenuData](const UDMXEntityFixtureType* FixtureType)
 			{
@@ -131,7 +139,7 @@ namespace UE::DMXEditor::FixturePatchEditor
 				.VAlign(VAlign_Center)
 				[
 					SNew(STextBlock)
-					.IsEnabled(this, &SAddFixturePatchMenu::HasValidFixtureTypeAndMode)
+					.IsEnabled(this, &SDMXAddFixturePatchMenu::HasValidFixtureTypeAndMode)
 					.Text(LOCTEXT("SelectModeLabel", "Mode"))
 					.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
 				]
@@ -147,7 +155,7 @@ namespace UE::DMXEditor::FixturePatchEditor
 				.VAlign(VAlign_Center)
 				[
 					SNew(STextBlock)
-					.IsEnabled(this, &SAddFixturePatchMenu::HasValidFixtureTypeAndMode)
+					.IsEnabled(this, &SDMXAddFixturePatchMenu::HasValidFixtureTypeAndMode)
 					.Text(LOCTEXT("UniverseDotChannelLabel", "Universe.Channel"))
 					.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
 				]
@@ -179,7 +187,7 @@ namespace UE::DMXEditor::FixturePatchEditor
 				.VAlign(VAlign_Center)
 				[
 					SNew(STextBlock)
-					.IsEnabled(this, &SAddFixturePatchMenu::HasValidFixtureTypeAndMode)
+					.IsEnabled(this, &SDMXAddFixturePatchMenu::HasValidFixtureTypeAndMode)
 					.Text(LOCTEXT("NumPatchesLabel", "Num Patches"))
 					.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
 				]
@@ -201,7 +209,7 @@ namespace UE::DMXEditor::FixturePatchEditor
 		];
 	}
 
-	TSharedRef<SWidget> SAddFixturePatchMenu::MakeFixtureTypeSelectWidget()
+	TSharedRef<SWidget> SDMXAddFixturePatchMenu::MakeFixtureTypeSelectWidget()
 	{
 		return
 			SNew(SBox)
@@ -210,51 +218,51 @@ namespace UE::DMXEditor::FixturePatchEditor
 				SAssignNew(FixtureTypeSelector, SDMXEntityPickerButton<UDMXEntityFixtureType>)
 				.DMXEditor(WeakDMXEditor)
 				.CurrentEntity_Lambda([this] { return WeakFixtureType.Get(); })
-				.OnEntitySelected(this, &SAddFixturePatchMenu::OnFixtureTypeSelected)
+				.OnEntitySelected(this, &SDMXAddFixturePatchMenu::OnFixtureTypeSelected)
 			];
 	}
 
-	TSharedRef<SWidget> SAddFixturePatchMenu::MakeModeSelectWidget()
+	TSharedRef<SWidget> SDMXAddFixturePatchMenu::MakeModeSelectWidget()
 	{
 		return
 			SAssignNew(ModeComboBox, SComboBox<TSharedPtr<uint32>>)
-			.IsEnabled(this, &SAddFixturePatchMenu::HasValidFixtureTypeAndMode)
+			.IsEnabled(this, &SDMXAddFixturePatchMenu::HasValidFixtureTypeAndMode)
 			.OptionsSource(&ModeSources)
-			.OnGenerateWidget(this, &SAddFixturePatchMenu::GenerateModeComboBoxEntry)
-			.OnSelectionChanged(this, &SAddFixturePatchMenu::OnModeSelected)
+			.OnGenerateWidget(this, &SDMXAddFixturePatchMenu::GenerateModeComboBoxEntry)
+			.OnSelectionChanged(this, &SDMXAddFixturePatchMenu::OnModeSelected)
 			.InitiallySelectedItem(0)
 			[
 				SNew(STextBlock)
 				.MinDesiredWidth(50.0f)
-				.Text(this, &SAddFixturePatchMenu::GetActiveModeText)
+				.Text(this, &SDMXAddFixturePatchMenu::GetActiveModeText)
 				.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
 			];
 	}
 
-	TSharedRef<SWidget> SAddFixturePatchMenu::MakeUniverseChannelSelectWidget()
+	TSharedRef<SWidget> SDMXAddFixturePatchMenu::MakeUniverseChannelSelectWidget()
 	{
 		return
 			SNew(SBox)
 			.HAlign(HAlign_Left)
 			[
 				SAssignNew(UniverseChannelEditableTextBox, SEditableTextBox)
-				.IsEnabled(this, &SAddFixturePatchMenu::HasValidFixtureTypeAndMode)
+				.IsEnabled(this, &SDMXAddFixturePatchMenu::HasValidFixtureTypeAndMode)
 				.MinDesiredWidth(60.f)
 				.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
 				.SelectAllTextWhenFocused(true)
 				.ClearKeyboardFocusOnCommit(true)
 				.RevertTextOnEscape(true)
-				.Text(this, &SAddFixturePatchMenu::GetUniverseChannelText)
-				.OnTextChanged(this, &SAddFixturePatchMenu::OnUniverseChannelTextChanged)
-				.OnTextCommitted(this, &SAddFixturePatchMenu::OnUniverseChannelTextCommitted)
+				.Text(this, &SDMXAddFixturePatchMenu::GetUniverseChannelText)
+				.OnTextChanged(this, &SDMXAddFixturePatchMenu::OnUniverseChannelTextChanged)
+				.OnTextCommitted(this, &SDMXAddFixturePatchMenu::OnUniverseChannelTextCommitted)
 			];
 	}
 
-	TSharedRef<SWidget> SAddFixturePatchMenu::MakeAutoIncrementChannelCheckBox()
+	TSharedRef<SWidget> SDMXAddFixturePatchMenu::MakeAutoIncrementChannelCheckBox()
 	{
 		return 
 			SNew(SCheckBox)
-			.IsEnabled(this, &SAddFixturePatchMenu::HasValidFixtureTypeAndMode)
+			.IsEnabled(this, &SDMXAddFixturePatchMenu::HasValidFixtureTypeAndMode)
 			.IsChecked_Lambda([]()
 				{
 					const UDMXAddFixturePatchMenuData* MenuData = GetDefault<UDMXAddFixturePatchMenuData>();
@@ -274,14 +282,14 @@ namespace UE::DMXEditor::FixturePatchEditor
 			];
 	}
 
-	TSharedRef<SWidget> SAddFixturePatchMenu::MakeNumFixturePatchesEditableTextBox()
+	TSharedRef<SWidget> SDMXAddFixturePatchMenu::MakeNumFixturePatchesEditableTextBox()
 	{
 		return
 			SNew(SBox)
 			.HAlign(HAlign_Left)
 			[
 				SNew(SEditableTextBox)
-				.IsEnabled(this, &SAddFixturePatchMenu::HasValidFixtureTypeAndMode)
+				.IsEnabled(this, &SDMXAddFixturePatchMenu::HasValidFixtureTypeAndMode)
 				.MinDesiredWidth(60.f)
 				.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
 				.SelectAllTextWhenFocused(true)
@@ -309,7 +317,7 @@ namespace UE::DMXEditor::FixturePatchEditor
 			];
 	}
 
-	TSharedRef<SWidget> SAddFixturePatchMenu::MakeAddFixturePatchesButton()
+	TSharedRef<SWidget> SDMXAddFixturePatchMenu::MakeAddFixturePatchesButton()
 	{
 		return
 			SNew(SBox)
@@ -317,11 +325,11 @@ namespace UE::DMXEditor::FixturePatchEditor
 			.MinDesiredWidth(120.f)
 			[
 				SNew(SButton)
-				.IsEnabled(this, &SAddFixturePatchMenu::HasValidFixtureTypeAndMode)
+				.IsEnabled(this, &SDMXAddFixturePatchMenu::HasValidFixtureTypeAndMode)
 				.ContentPadding(FMargin(4.0f, 4.0f))
 				.ButtonStyle(FAppStyle::Get(), "FlatButton.Success")
 				.ForegroundColor(FLinearColor::White)
-				.OnClicked(this, &SAddFixturePatchMenu::OnAddFixturePatchButtonClicked)
+				.OnClicked(this, &SDMXAddFixturePatchMenu::OnAddFixturePatchButtonClicked)
 				[
 					SNew(STextBlock)
 					.Text_Lambda([this]()
@@ -333,7 +341,7 @@ namespace UE::DMXEditor::FixturePatchEditor
 			];
 	}
 
-	TSharedRef<SWidget> SAddFixturePatchMenu::GenerateModeComboBoxEntry(const TSharedPtr<uint32> InModeIndex) const
+	TSharedRef<SWidget> SDMXAddFixturePatchMenu::GenerateModeComboBoxEntry(const TSharedPtr<uint32> InModeIndex) const
 	{
 		UDMXEntityFixtureType* FixtureType = Cast<UDMXEntityFixtureType>(WeakFixtureType);
 		if (!FixtureType)
@@ -361,12 +369,12 @@ namespace UE::DMXEditor::FixturePatchEditor
 			.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")));
 	}
 
-	void SAddFixturePatchMenu::OnEntityAddedOrRemoved(UDMXLibrary* DMXLibrary, TArray<UDMXEntity*> Entities)
+	void SDMXAddFixturePatchMenu::OnEntityAddedOrRemoved(UDMXLibrary* DMXLibrary, TArray<UDMXEntity*> Entities)
 	{
 		RequestRefresh();
 	}
 
-	void SAddFixturePatchMenu::OnFixtureTypeSelected(UDMXEntity* InSelectedFixtureType)
+	void SDMXAddFixturePatchMenu::OnFixtureTypeSelected(UDMXEntity* InSelectedFixtureType)
 	{
 		UDMXEntityFixtureType* SelectedFixtureType = Cast<UDMXEntityFixtureType>(InSelectedFixtureType);
 		WeakFixtureType = SelectedFixtureType;
@@ -378,14 +386,14 @@ namespace UE::DMXEditor::FixturePatchEditor
 		RequestRefresh();
 	}
 
-	void SAddFixturePatchMenu::OnModeSelected(TSharedPtr<uint32> InSelectedMode, ESelectInfo::Type SelectInfo)
+	void SDMXAddFixturePatchMenu::OnModeSelected(TSharedPtr<uint32> InSelectedMode, ESelectInfo::Type SelectInfo)
 	{
 		UDMXAddFixturePatchMenuData* MenuData = GetMutableDefault<UDMXAddFixturePatchMenuData>();
 		MenuData->ActiveModeIndex = InSelectedMode.IsValid() ? *InSelectedMode : 0;
 		MenuData->SaveConfig();
 	}
 
-	FText SAddFixturePatchMenu::GetUniverseChannelText() const
+	FText SDMXAddFixturePatchMenu::GetUniverseChannelText() const
 	{
 		if (!Universe.IsSet() && !Channel.IsSet())
 		{
@@ -402,7 +410,7 @@ namespace UE::DMXEditor::FixturePatchEditor
 		}
 	}
 
-	void SAddFixturePatchMenu::OnUniverseChannelTextChanged(const FText& Text)
+	void SDMXAddFixturePatchMenu::OnUniverseChannelTextChanged(const FText& Text)
 	{		
 		if (!UniverseChannelEditableTextBox.IsValid())
 		{
@@ -449,7 +457,7 @@ namespace UE::DMXEditor::FixturePatchEditor
 		UniverseChannelEditableTextBox->SetError(ErrorMessage);
 	}
 
-	void SAddFixturePatchMenu::OnUniverseChannelTextCommitted(const FText& Text, ETextCommit::Type CommitType)
+	void SDMXAddFixturePatchMenu::OnUniverseChannelTextCommitted(const FText& Text, ETextCommit::Type CommitType)
 	{
 		if (!UniverseChannelEditableTextBox.IsValid())
 		{
@@ -500,7 +508,7 @@ namespace UE::DMXEditor::FixturePatchEditor
 		UniverseChannelEditableTextBox->SetError(FText::GetEmpty());
 	}
 
-	FReply SAddFixturePatchMenu::OnAddFixturePatchButtonClicked()
+	FReply SDMXAddFixturePatchMenu::OnAddFixturePatchButtonClicked()
 	{
 		FSlateApplication::Get().DismissAllMenus();
 
@@ -589,7 +597,7 @@ namespace UE::DMXEditor::FixturePatchEditor
 		return FReply::Handled();
 	}
 
-	FText SAddFixturePatchMenu::GetActiveModeText() const
+	FText SDMXAddFixturePatchMenu::GetActiveModeText() const
 	{
 		UDMXEntityFixtureType* FixtureType = Cast<UDMXEntityFixtureType>(WeakFixtureType);
 		if (!FixtureType)
@@ -613,7 +621,7 @@ namespace UE::DMXEditor::FixturePatchEditor
 		}
 	}
 
-	bool SAddFixturePatchMenu::HasValidFixtureTypeAndMode() const
+	bool SDMXAddFixturePatchMenu::HasValidFixtureTypeAndMode() const
 	{
 		return WeakFixtureType.IsValid() && !WeakFixtureType->Modes.IsEmpty();
 	}

@@ -49,6 +49,9 @@ public:
 	/** Sets the Mode Index for the MVR */
 	void SetModeIndex(int32 ModeIndex);
 
+	/** Gets the name of the active mode. Returns false if there is no active mode for this patch. */
+	bool GetActiveModeName(FString& OutModeName) const;
+
 	/** Returns the Universe the MVR Fixture resides in */
 	int32 GetUniverse() const;
 
@@ -67,6 +70,9 @@ public:
 	/** Returns the DMX Library in which the MVR Fixture resides */
 	UDMXLibrary* GetDMXLibrary() const;
 
+	/** Returns true if this item is changing its Fixture Patch */
+	bool IsChangingFixturePatch() const { return bChangingFixturePatch; }
+
 	/** Warning Status Text of the Item */
 	FText WarningStatusText;
 
@@ -76,6 +82,9 @@ public:
 private:
 	/** True if this is in an even group */
 	bool bIsEvenGroup = false;
+
+	/** True while this item is changing the DMX Library */
+	bool bChangingFixturePatch = false;
 
 	/** The fixture patch the MVR Fixture UUID is assigned to */
 	TWeakObjectPtr<UDMXEntityFixturePatch> WeakFixturePatch;

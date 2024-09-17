@@ -2,6 +2,7 @@
 
 #include "SDMXFixturePatchList.h"
 
+#include "Algo/AnyOf.h"
 #include "Algo/Copy.h"
 #include "Algo/MaxElement.h"
 #include "Algo/MinElement.h"
@@ -581,34 +582,6 @@ void SDMXFixturePatchList::Construct(const FArguments& InArgs, TWeakPtr<FDMXEdit
 	// Handle Shared Data selection changes
 	FixturePatchSharedData->OnFixturePatchSelectionChanged.AddSP(this, &SDMXFixturePatchList::OnFixturePatchSharedDataSelectedFixturePatches);
 
-	static const FTableViewStyle TableViewStyle = FAppStyle::Get().GetWidgetStyle<FTableViewStyle>("TreeView");
-
-	ChildSlot
-	[
-		SNew(SVerticalBox)
-
-		+ SVerticalBox::Slot()
-		.HAlign(HAlign_Fill)
-		.AutoHeight()
-		[
-			SAssignNew(Toolbar, SDMXFixturePatchListToolbar, WeakDMXEditor)
-			.OnSearchChanged(this, &SDMXFixturePatchList::OnSearchChanged)
-		]
-
-		+ SVerticalBox::Slot()
-		.HAlign(HAlign_Fill)
-		.FillHeight(1.f)
-		[
-			SAssignNew(ListView, SDMXFixturePatchListType)
-			.ListViewStyle(&TableViewStyle)
-			.HeaderRow(GenerateHeaderRow())
-			.ListItemsSource(&ListSource)
-			.OnGenerateRow(this, &SDMXFixturePatchList::OnGenerateRow)
-			.OnSelectionChanged(this, &SDMXFixturePatchList::OnSelectionChanged)
-			.OnContextMenuOpening(this, &SDMXFixturePatchList::OnContextMenuOpening)
-		]
-	];
-
 	RegisterCommands();
 	RefreshList();
 
@@ -623,12 +596,20 @@ void SDMXFixturePatchList::Construct(const FArguments& InArgs, TWeakPtr<FDMXEdit
 
 void SDMXFixturePatchList::RequestListRefresh()
 {
-	if (RequestListRefreshTimerHandle.IsValid())
-	{
-		return;
-	}
+	if (!RequestListRefreshTimerHandle.IsValid())
+	{	
+		// If a fixture patch item is changing a fixture patch, don't refresh. Instead let the rows update themselves.
+		const bool bAnyItemIsChangingFixturePatch = Algo::AnyOf(ListSource, [](const TSharedPtr<FDMXFixturePatchListItem>& Item)
+			{
+				return Item->IsChangingFixturePatch();
+			});
+		if (bAnyItemIsChangingFixturePatch)
+		{
+			return;
+		}
 
-	RequestListRefreshTimerHandle = GEditor->GetTimerManager()->SetTimerForNextTick(FTimerDelegate::CreateSP(this, &SDMXFixturePatchList::RefreshList));
+		RequestListRefreshTimerHandle = GEditor->GetTimerManager()->SetTimerForNextTick(FTimerDelegate::CreateSP(this, &SDMXFixturePatchList::RefreshList));
+	}
 }
 
 void SDMXFixturePatchList::EnterFixturePatchNameEditingMode()
@@ -671,23 +652,27 @@ void SDMXFixturePatchList::OnSearchChanged()
 }
 
 void SDMXFixturePatchList::RefreshList()
-{	
+{
 	RequestListRefreshTimerHandle.Invalidate();
-
-	// Clear cached data
-	Rows.Reset();
-	ListSource.Reset();
 
 	const TSharedPtr<FDMXEditor> DMXEditor = WeakDMXEditor.Pin();
 	UDMXLibrary* DMXLibrary = DMXEditor.IsValid() ? DMXEditor->GetDMXLibrary() : nullptr;
 	if (!DMXLibrary)
 	{
+		ChildSlot
+		[
+			SNullWidget::NullWidget
+		];
+
 		return;
 	}
 
-	// Remove all that are no longer a patch
-	const TArray<UDMXEntityFixturePatch*> FixturePatches = DMXLibrary->GetEntitiesTypeCast<UDMXEntityFixturePatch>();
+	// Clear cached data
+	Rows.Reset();
+	ListSource.Reset();
 
+	// Make a new list source
+	const TArray<UDMXEntityFixturePatch*> FixturePatches = DMXLibrary->GetEntitiesTypeCast<UDMXEntityFixturePatch>();
 	Algo::TransformIf(FixturePatches, ListSource,
 		[](const UDMXEntityFixturePatch* FixturePatch)
 		{
@@ -699,17 +684,40 @@ void SDMXFixturePatchList::RefreshList()
 		});
 	SortListSource(EColumnSortPriority::Max, SortedByColumnID, SortMode);
 
+	Toolbar =
+		SNew(SDMXFixturePatchListToolbar, WeakDMXEditor)
+		.OnSearchChanged(this, &SDMXFixturePatchList::OnSearchChanged);
+
+	// Apply search filters. Relies on up-to-date status to find conflicts.
+	ListSource = Toolbar->FilterItems(ListSource);
+
 	// Generate status texts
 	GenereateStatusText();
 
-	// Apply search filters. Relies on up-to-date status to find conflicts.
-	if (Toolbar.IsValid())
-	{
-		ListSource = Toolbar->FilterItems(ListSource);
-	}
-	
-	// Update and sort the list and its widgets
-	ListView->RebuildList();
+	ChildSlot
+	[
+		SNew(SVerticalBox)
+
+		+ SVerticalBox::Slot()
+		.HAlign(HAlign_Fill)
+		.AutoHeight()
+		[
+			Toolbar.ToSharedRef()
+		]
+
+		+ SVerticalBox::Slot()
+		.HAlign(HAlign_Fill)
+		.FillHeight(1.f)
+		[
+			SAssignNew(ListView, SDMXFixturePatchListType)
+			.ListViewStyle(&FAppStyle::Get().GetWidgetStyle<FTableViewStyle>("TreeView"))
+			.HeaderRow(GenerateHeaderRow())
+			.ListItemsSource(&ListSource)
+			.OnGenerateRow(this, &SDMXFixturePatchList::OnGenerateRow)
+			.OnSelectionChanged(this, &SDMXFixturePatchList::OnSelectionChanged)
+			.OnContextMenuOpening(this, &SDMXFixturePatchList::OnContextMenuOpening)
+		]
+	];
 
 	AdoptSelectionFromFixturePatchSharedData();
 }
@@ -781,21 +789,11 @@ void SDMXFixturePatchList::OnSelectionChanged(TSharedPtr<FDMXFixturePatchListIte
 
 void SDMXFixturePatchList::OnEntityAddedOrRemoved(UDMXLibrary* DMXLibrary, TArray<UDMXEntity*> Entities)
 {
-	if (bChangingDMXLibrary)
-	{
-		return;
-	}
-
 	RequestListRefresh();
 }
 
 void SDMXFixturePatchList::OnFixturePatchChanged(const UDMXEntityFixturePatch* FixturePatch)
 {
-	if (bChangingDMXLibrary)
-	{
-		return;
-	}
-
 	// Refresh only if the fixture patch is in the library this editor handles
 	const UDMXLibrary* DMXLibrary = WeakDMXEditor.IsValid() ? WeakDMXEditor.Pin()->GetDMXLibrary() : nullptr;
 	if (FixturePatch && FixturePatch->GetParentLibrary() == DMXLibrary)
@@ -806,11 +804,6 @@ void SDMXFixturePatchList::OnFixturePatchChanged(const UDMXEntityFixturePatch* F
 
 void SDMXFixturePatchList::OnFixtureTypeChanged(const UDMXEntityFixtureType* FixtureType)
 {
-	if (bChangingDMXLibrary)
-	{
-		return;
-	}
-
 	// Refresh only if the fixture type is in the library this editor handles
 	const UDMXLibrary* DMXLibrary = WeakDMXEditor.IsValid() ? WeakDMXEditor.Pin()->GetDMXLibrary() : nullptr;
 	if (FixtureType && FixtureType->GetParentLibrary() == DMXLibrary)
@@ -821,32 +814,29 @@ void SDMXFixturePatchList::OnFixtureTypeChanged(const UDMXEntityFixtureType* Fix
 
 void SDMXFixturePatchList::OnFixturePatchSharedDataSelectedFixturePatches()
 {
-	if (!bChangingDMXLibrary)
+	TArray<TWeakObjectPtr<UDMXEntityFixturePatch>> SelectedFixturePatches = FixturePatchSharedData->GetSelectedFixturePatches();
+	SelectedFixturePatches.RemoveAll([](TWeakObjectPtr<UDMXEntityFixturePatch> FixturePatch)
+		{
+			return !FixturePatch.IsValid();
+		});
+
+	TArray<TSharedPtr<FDMXFixturePatchListItem>> NewSelection;
+	for (const TSharedPtr<FDMXFixturePatchListItem>& Item : ListSource)
 	{
-		TArray<TWeakObjectPtr<UDMXEntityFixturePatch>> SelectedFixturePatches = FixturePatchSharedData->GetSelectedFixturePatches();
-		SelectedFixturePatches.RemoveAll([](TWeakObjectPtr<UDMXEntityFixturePatch> FixturePatch)
-			{
-				return !FixturePatch.IsValid();
-			});
+		if (SelectedFixturePatches.Contains(Item->GetFixturePatch()))
+		{
+			NewSelection.Add(Item);
+		}
+	}
 
-		TArray<TSharedPtr<FDMXFixturePatchListItem>> NewSelection;
-		for (const TSharedPtr<FDMXFixturePatchListItem>& Item : ListSource)
-		{
-			if (SelectedFixturePatches.Contains(Item->GetFixturePatch()))
-			{
-				NewSelection.Add(Item);
-			}
-		}
-
-		if (NewSelection.Num() > 0)
-		{
-			ListView->ClearSelection();
-			ListView->SetItemSelection(NewSelection, true, ESelectInfo::OnMouseClick);
-		}
-		else
-		{
-			ListView->ClearSelection();
-		}
+	if (NewSelection.Num() > 0)
+	{
+		ListView->ClearSelection();
+		ListView->SetItemSelection(NewSelection, true, ESelectInfo::OnMouseClick);
+	}
+	else
+	{
+		ListView->ClearSelection();
 	}
 }
 
@@ -1255,7 +1245,6 @@ void SDMXFixturePatchList::OnPasteItems()
 		return;
 	}
 
-	TGuardValue Guard(bChangingDMXLibrary, true);
 	const FText TransactionText = LOCTEXT("PasteFixturePatchesTransaction", "Paste Fixture Patches");
 	const FScopedTransaction PasteTransaction(TransactionText);
 
@@ -1277,8 +1266,6 @@ void SDMXFixturePatchList::OnPasteItems()
 
 		FixturePatchSharedData->SelectUniverse(AssignedToUniverse);
 		FixturePatchSharedData->SelectFixturePatches(WeakPastedFixturePatches);
-	
-		RequestListRefresh();
 	}
 }
 
@@ -1295,8 +1282,6 @@ void SDMXFixturePatchList::OnDuplicateItems()
 	{
 		return;
 	}
-
-	TGuardValue Guard(bChangingDMXLibrary, true);
 
 	const FText TransactionText = LOCTEXT("DuplicateFixturePatchesTransaction", "Duplicate Fixture Patches");
 	const FScopedTransaction PasteTransaction(TransactionText);
@@ -1342,8 +1327,6 @@ void SDMXFixturePatchList::OnDuplicateItems()
 	Algo::Copy(NewFixturePatches, NewWeakFixturePatches);
 	FixturePatchSharedData->SelectFixturePatches(NewWeakFixturePatches);
 	FixturePatchSharedData->SelectUniverse(AssignedToUniverse);
-
-	RequestListRefresh();
 }
 
 bool SDMXFixturePatchList::CanDeleteItems() const
@@ -1353,8 +1336,6 @@ bool SDMXFixturePatchList::CanDeleteItems() const
 
 void SDMXFixturePatchList::OnDeleteItems()
 {
-	TGuardValue Guard(bChangingDMXLibrary, true);
-
 	const TArray<TSharedPtr<FDMXFixturePatchListItem>> SelectedItems = ListView->GetSelectedItems();
 
 	if (SelectedItems.Num() == 0)
@@ -1403,8 +1384,6 @@ void SDMXFixturePatchList::OnDeleteItems()
 	{
 		ListView->SetSelection(NewSelection, ESelectInfo::OnMouseClick);
 	}
-
-	RequestListRefresh();
 }
 
 #undef LOCTEXT_NAMESPACE

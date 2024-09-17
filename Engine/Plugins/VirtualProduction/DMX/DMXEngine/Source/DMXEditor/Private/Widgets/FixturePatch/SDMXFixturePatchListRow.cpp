@@ -25,77 +25,58 @@
 class SDMXFixturePatchFixtureTypePicker
 	: public SCompoundWidget
 {
-	DECLARE_DELEGATE_OneParam(FDMXFixturePatchListRowOnFixtureTypeSelectedDelegate, UDMXEntityFixtureType* /** Selected Fixture Type */);
-
 public:
 	SLATE_BEGIN_ARGS(SDMXFixturePatchFixtureTypePicker)
 	{}
-		/** Called when the combo box selection changed */
-		SLATE_EVENT(FDMXFixturePatchListRowOnFixtureTypeSelectedDelegate, OnFixtureTypeSelected)
 
 	SLATE_END_ARGS()
 
 	/** Constructs this widget */
-	void Construct(const FArguments& InArgs, UDMXLibrary* InDMXLibrary)
+	void Construct(const FArguments& InArgs, const TSharedPtr<FDMXFixturePatchListItem>& InItem)
 	{
-		if (!InDMXLibrary)
+		if (!ensureMsgf(InItem.IsValid(), TEXT("Invalid Fixture Patch List Item, cannot draw Fixture Type Picker for patch")))
 		{
 			return;
 		}
+		Item = InItem;
 
-		WeakDMXLibrary = InDMXLibrary;
-		OnFixtureTypeSelectedDelegate = InArgs._OnFixtureTypeSelected;
+		UDMXLibrary* DMXLibrary = Item->GetDMXLibrary();
+		const TArray<UDMXEntityFixtureType*> FixtureTypes = DMXLibrary ? DMXLibrary->GetEntitiesTypeCast<UDMXEntityFixtureType>() : TArray<UDMXEntityFixtureType*>{};
 
-
-		InDMXLibrary->GetOnEntitiesAdded().AddSP(this, &SDMXFixturePatchFixtureTypePicker::OnEntitiesAddedOrRemoved);
-		InDMXLibrary->GetOnEntitiesRemoved().AddSP(this, &SDMXFixturePatchFixtureTypePicker::OnEntitiesAddedOrRemoved);
-		UDMXEntityFixtureType::GetOnFixtureTypeChanged().AddSP(this, &SDMXFixturePatchFixtureTypePicker::OnFixtureTypeChanged);
-
-		ChildSlot
-			[
-				SAssignNew(ComboBox, SSearchableComboBox)
-				.OptionsSource(&FixtureTypeNames)
-				.OnGenerateWidget(this, &SDMXFixturePatchFixtureTypePicker::OnGenerateWidget)
-				.OnSelectionChanged(this, &SDMXFixturePatchFixtureTypePicker::OnSelectionChanged)
-				.Content()						
-				[
-					SNew(STextBlock)
-					.Text(this, &SDMXFixturePatchFixtureTypePicker::GetSelectedItemText)
-					.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-				]
-			];
-
-		RefreshInternal();
-	}
-
-	/** Sets the currently selected Fixture Type */
-	void SetSelection(UDMXEntityFixtureType* FixtureType)
-	{
-		if (FixtureType)
+		for (UDMXEntityFixtureType* FixtureType : FixtureTypes)
 		{
-			TSharedPtr<FString> const* FixtureTypeNameToSelectPtr = FixtureTypeNames.FindByPredicate([FixtureType](const TSharedPtr<FString>& FixtureTypeName)
+			const TSharedPtr<FString> FixtureTypeName = MakeShared<FString>(FixtureType->Name);
+
+			ComboBoxSource.Add(FixtureTypeName);
+		}
+
+		// Find an initial selection
+		const TSharedPtr<FString>* InitialSelectionPtr = Algo::FindByPredicate(ComboBoxSource, 
+			[this](const TSharedPtr<FString>& FixtureTypeName)
+			{
+				if (const UDMXEntityFixtureType* FixtureType = Item->GetFixtureType())
 				{
 					return *FixtureTypeName == FixtureType->Name;
-				});
-			if (ensureAlwaysMsgf(FixtureTypeNameToSelectPtr, TEXT("Trying to select a fixture type but Fixture Type %s is not present."), *FixtureType->Name))
-			{
-				ComboBox->SetSelectedItem(*FixtureTypeNameToSelectPtr);
-			}
-		}
-		else
-		{
-			checkf(FixtureTypeNames.Num() > 0, TEXT("Expected at least a 'None' entry in FitureTypesName, but the array is empty."));
-			ComboBox->SetSelectedItem(FixtureTypeNames[0]);
-		}
-	}
+				}
 
-	/** Requests to refresh the widget on the next tick */
-	void RequestRefresh()
-	{
-		if (!RefreshTimerHandle.IsValid())
-		{
-			RefreshTimerHandle = GEditor->GetTimerManager()->SetTimerForNextTick(FTimerDelegate::CreateSP(this, &SDMXFixturePatchFixtureTypePicker::RefreshInternal));
-		}
+				return false;
+			});
+
+		const TSharedPtr<FString> InitialSelection = InitialSelectionPtr ? *InitialSelectionPtr : nullptr;
+
+		ChildSlot
+		[
+			SNew(SSearchableComboBox)
+			.OptionsSource(&ComboBoxSource)
+			.InitiallySelectedItem(InitialSelection)
+			.OnGenerateWidget(this, &SDMXFixturePatchFixtureTypePicker::OnGenerateWidget)
+			.OnSelectionChanged(this, &SDMXFixturePatchFixtureTypePicker::OnSelectionChanged)
+			[
+				SNew(STextBlock)
+				.Text(this, &SDMXFixturePatchFixtureTypePicker::GetSelectedItemText)
+				.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
+			]
+		];
 	}
 
 private:
@@ -110,127 +91,31 @@ private:
 	/** Called when the combo box selection changed */
 	void OnSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo)
 	{
-		if (SelectInfo == ESelectInfo::Direct)
-		{
-			return;
-		}
+		UDMXLibrary* DMXLibrary = Item->GetDMXLibrary();
+		const TArray<UDMXEntityFixtureType*> FixtureTypes = DMXLibrary ? DMXLibrary->GetEntitiesTypeCast<UDMXEntityFixtureType>() : TArray<UDMXEntityFixtureType*>{};
 
-		if (UDMXEntityFixtureType* SelectedFixtureType = GetSelectedFixtureType())
-		{
-			OnFixtureTypeSelectedDelegate.ExecuteIfBound(SelectedFixtureType);
-		}
-	}
-
-	UDMXEntityFixtureType* GetSelectedFixtureType() const
-	{
-		UDMXEntityFixtureType* SelectedFixtureType = nullptr;
-		const TSharedPtr<FString> SelectedItem = ComboBox->GetSelectedItem();
-		if (TWeakObjectPtr<UDMXEntityFixtureType> const* FixtureTypePtr = FixtureTypeNameToFixtureTypeMap.Find(SelectedItem))
-		{
-			SelectedFixtureType = FixtureTypePtr->Get();
-		}
-
-		return SelectedFixtureType;
+		UDMXEntityFixtureType* const* FixtureTypePtr = Algo::FindBy(FixtureTypes, *NewSelection, &UDMXEntityFixtureType::Name);
+		UDMXEntityFixtureType* FixtureType = FixtureTypePtr ? *FixtureTypePtr : nullptr;
+		
+		Item->SetFixtureType(FixtureType);
 	}
 
 	/** Returns the text of the selected item */
 	FText GetSelectedItemText() const
 	{
-		if (ComboBox.IsValid())
+		if (UDMXEntityFixtureType* FixtureType = Item->GetFixtureType())
 		{
-			if (const TSharedPtr<FString> SelectedItem = ComboBox->GetSelectedItem())
-			{
-				return FText::FromString(*SelectedItem);
-			}
+			return FText::FromString(FixtureType->Name);
 		}
 
-		return FText::GetEmpty();
-	}
-
-	/** Refreshes the Combo Box */
-	void RefreshInternal()
-	{
-		RefreshTimerHandle.Invalidate();
-
-		FixtureTypeNames.Reset();
-		const UDMXLibrary* DMXLibrary = WeakDMXLibrary.Get();
-		if (!DMXLibrary)
-		{
-			return;
-		}
-
-		const TArray<UDMXEntityFixtureType*> FixtureTypes = DMXLibrary->GetEntitiesTypeCast<UDMXEntityFixtureType>();
-
-		if (FixtureTypes.IsEmpty())
-		{
-			const TSharedRef<FString> NoneItem = MakeShared<FString>(TEXT("None"));
-			FixtureTypeNames.Add(NoneItem);
-			ComboBox->SetSelectedItem(NoneItem);
-		}
-		else
-		{
-			for (UDMXEntityFixtureType* FixtureType : FixtureTypes)
-			{
-				const TSharedPtr<FString> FixtureTypeName = MakeShared<FString>(FixtureType->Name);
-
-				FixtureTypeNames.Add(FixtureTypeName);
-				FixtureTypeNameToFixtureTypeMap.Add(FixtureTypeName, FixtureType);
-			}
-		}
-
-		if (!ensureMsgf(!FixtureTypeNames.IsEmpty(), TEXT("No combo box option for Fixture Type.")))
-		{
-			return;
-		}
-
-		const FString SelectedFixtureTypeName = ComboBox->GetSelectedItem() ? *ComboBox->GetSelectedItem() : TEXT("");
-		const TSharedPtr<FString>* SelectionPtr = Algo::FindByPredicate(FixtureTypeNames, [SelectedFixtureTypeName](const TSharedPtr<FString>& FixtureTypeName)
-			{
-				return *FixtureTypeName == SelectedFixtureTypeName;
-			});
-		if (!SelectionPtr)
-		{
-			ComboBox->SetSelectedItem(FixtureTypeNames[0], ESelectInfo::Direct);
-		}
-
-		ComboBox->RefreshOptions();
-	}
-
-	/** Called when the Entities in the DMX Library were added or removed */
-	void OnEntitiesAddedOrRemoved(UDMXLibrary* DMXLibrary, TArray<UDMXEntity*> AddedOrRemovedEntities)
-	{
-		if (DMXLibrary == WeakDMXLibrary)
-		{
-			RequestRefresh();
-		}
-	}
-
-	/** Called when a Fixture Type changed */
-	void OnFixtureTypeChanged(const UDMXEntityFixtureType* ChangedFixtureType)
-	{
-		if (ChangedFixtureType && ChangedFixtureType->GetParentLibrary() == WeakDMXLibrary)
-		{
-			RequestRefresh();
-		}
+		return LOCTEXT("NoFixtureType", "None");
 	}
 
 	/** Names of Fixture Types in the Combo Box */
-	TArray<TSharedPtr<FString>> FixtureTypeNames;
+	TArray<TSharedPtr<FString>> ComboBoxSource;
 
-	/** Map from the Fixture Type Name to the actual Fixture Type object */
-	TMap<TSharedPtr<FString>, TWeakObjectPtr<UDMXEntityFixtureType>> FixtureTypeNameToFixtureTypeMap;
-
-	/** The combo box widget in use */
-	TSharedPtr<SSearchableComboBox> ComboBox;
-
-	/** The DMX Library from which to select fixture types */
-	TWeakObjectPtr<UDMXLibrary> WeakDMXLibrary;
-
-	/** Timer handle used for the RequestRefresh method */
-	FTimerHandle RefreshTimerHandle;
-
-	// Slate args
-	FDMXFixturePatchListRowOnFixtureTypeSelectedDelegate OnFixtureTypeSelectedDelegate;
+	/** The Fixture Patch Item for which this Fixture Type Picker is displayed */
+	TSharedPtr<FDMXFixturePatchListItem> Item;
 };
 
 
@@ -241,166 +126,137 @@ private:
 class SDMXFixturePatchModePicker
 	: public SCompoundWidget
 {
-	DECLARE_DELEGATE_OneParam(FDMXFixturePatchListRowOnModeSelectedDelegate, int32 /** Selected Mode Index */);
-
 public:
 	SLATE_BEGIN_ARGS(SDMXFixturePatchModePicker)
 	{}
-		/** Called when the combo box selection changed */
-		SLATE_EVENT(FDMXFixturePatchListRowOnModeSelectedDelegate, OnModeSelected)
 
 	SLATE_END_ARGS()
 
 	/** Constructs this widget */
-	void Construct(const FArguments& InArgs)
+	void Construct(const FArguments& InArgs, const TSharedPtr<FDMXFixturePatchListItem>& InItem)
 	{
-		OnModeSelectedDelegate = InArgs._OnModeSelected;
+		if (!ensureMsgf(InItem.IsValid(), TEXT("Invalid Fixture Patch List Item, cannot draw Mode Picker for patch")))
+		{
+			return;
+		}
+		Item = InItem;
 
-		UDMXEntityFixtureType::GetOnFixtureTypeChanged().AddSP(this, &SDMXFixturePatchModePicker::OnFixtureTypeChanged);
+		UpdateComboBoxSource();
 
 		ChildSlot
-			[
-				SNew(SVerticalBox)
-				.IsEnabled_Lambda([this]
-					{
-						return bEnabled;
-					})
+		[
+			SNew(SVerticalBox)
+			.IsEnabled_Lambda([this]
+				{
+					return !ComboBoxSource.IsEmpty();
+				})
 				
-				+ SVerticalBox::Slot()
-				[
-					SAssignNew(ComboBox, STextComboBox)
-					.Visibility_Lambda([this]()
-						{
-							return WeakFixtureType.IsValid() ? EVisibility::Visible : EVisibility::Hidden;
-						})
-					.OptionsSource(&ModeNames)
-					.OnSelectionChanged(this, &SDMXFixturePatchModePicker::OnSelectionChanged)
-					.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-				]
+			+ SVerticalBox::Slot()
+			[
+				SAssignNew(ComboBox, STextComboBox)
+				.Visibility_Lambda([this]()
+					{
+						return Item->GetFixtureType() ? EVisibility::Visible : EVisibility::Collapsed;
+					})
+				.OptionsSource(&ComboBoxSource)
+				.OnSelectionChanged(this, &SDMXFixturePatchModePicker::OnSelectionChanged)
+				.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
+			]
 
-				+ SVerticalBox::Slot()
-				[
-					SNew(STextBlock)
-					.Visibility_Lambda([this]()
-						{
-							return WeakFixtureType.IsValid() ? EVisibility::Collapsed : EVisibility::Visible;
-						})
-					.Text(LOCTEXT("NoModeBecauseNoFixtureTypeSelectedInfo", "No Fixture Type Selected"))
-					.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-				]
-			];
+			+ SVerticalBox::Slot()
+			[
+				SNew(STextBlock)
+				.Visibility_Lambda([this]()
+					{
+						return Item->GetFixtureType() ? EVisibility::Collapsed : EVisibility::Visible;
+					})
+				.Text(LOCTEXT("NoModeBecauseNoFixtureTypeSelectedInfo", "No Fixture Type Selected"))
+				.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
+			]
+		];
 
-		RefreshOptions();
-	}
+		AdoptSelectionFromFixturePatch();
 
-	/** Sets the selection */
-	void SetSelection(UDMXEntityFixtureType* FixtureType, int32 ModeIndex)
-	{
-		WeakFixtureType = FixtureType;		
-		RefreshOptions();
-
-		if (FixtureType && FixtureType->Modes.IsValidIndex(ModeIndex))
-		{
-			if (ensureAlwaysMsgf(ModeNames.IsValidIndex(ModeIndex), TEXT("Trying to select a Mode but its index is not valid.")))
-			{
-				ComboBox->SetSelectedItem(ModeNames[ModeIndex]);
-			}
-		}
+		UDMXEntityFixturePatch::GetOnFixturePatchChanged().AddSP(this, &SDMXFixturePatchModePicker::OnFixturePatchChanged);
 	}
 
 private:
 	/** Called when the combo box selection changed */
 	void OnSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo)
 	{
-		UDMXEntityFixtureType* FixtureType = WeakFixtureType.Get();
-		if (ensureAlwaysMsgf(FixtureType, TEXT("Tried to select Mode, but Fixture Type is no longer valid.")))
+		if (const UDMXEntityFixtureType* FixtureType = Item->GetFixtureType())
 		{
-			const TSharedPtr<FString> SelectedItem = ComboBox->GetSelectedItem();
-			int32 const* ModeIndexPtr = ModeNameToModeIndexMap.Find(SelectedItem);
-			if (ensureAlwaysMsgf(ModeIndexPtr, TEXT("Tried to select Mode, but the Mode Index is no longer valid.")))
-			{
-				OnModeSelectedDelegate.ExecuteIfBound(*ModeIndexPtr);
-			}
+			const int32 ModeIndex = FixtureType->Modes.IndexOfByPredicate([&NewSelection](const FDMXFixtureMode& Mode)
+				{
+					return Mode.ModeName == *NewSelection;
+				});
+
+			Item->SetModeIndex(ModeIndex);
 		}
 	}
-
-	/** Returns the text of the selected item */
-	FText GetSelectedItemText() const
+	
+	/** Updates the combo box source */
+	void UpdateComboBoxSource()
 	{
-		const TSharedPtr<FString> SelectedItem = ComboBox->GetSelectedItem();
-		return FText::FromString(*SelectedItem);
-	}
-
-	/** Refreshes the Combo Box */
-	void RefreshOptions()
-	{
-		// Remember selection
-		const FString PreviousSelectedModeName = ComboBox->GetSelectedItem().IsValid() ? *ComboBox->GetSelectedItem() : FString();
-
-		ModeNames.Reset();
-
-		if (UDMXEntityFixtureType* FixtureType = WeakFixtureType.Get())
+		if (UDMXEntityFixtureType* FixtureType = Item->GetFixtureType())
 		{
 			for (int32 ModeIndex = 0; ModeIndex < FixtureType->Modes.Num(); ModeIndex++)
 			{
 				const TSharedPtr<FString> ModeName = MakeShared<FString>(FixtureType->Modes[ModeIndex].ModeName);
 
-				ModeNames.Add(ModeName);
-				ModeNameToModeIndexMap.Add(ModeName, ModeIndex);
+				ComboBoxSource.Add(ModeName);
+			}
+		}
+	}
+
+	/** Adopts the currently selected Item from the Mode of the Fixture Patch */
+	void AdoptSelectionFromFixturePatch()
+	{
+		FString ActiveModeName;
+		if (Item->GetActiveModeName(ActiveModeName))
+		{
+			const TSharedPtr<FString>* SelectionPtr = Algo::FindByPredicate(ComboBoxSource,
+				[this](const TSharedPtr<FString>& ModeName)
+				{
+					FString ActiveModeName;
+					if (Item->GetActiveModeName(ActiveModeName))
+					{
+						return *ModeName == ActiveModeName;
+					}
+
+					return false;
+				});
+
+			if (SelectionPtr)
+			{
+				ComboBox->SetSelectedItem(*SelectionPtr);
+				return;
 			}
 		}
 
-		if (ModeNames.Num() == 0)
-		{
-			const FText NoModeAvailableText = LOCTEXT("NoModeAvailableInModeComboBoxText", "No Mode available");
-			ModeNames.Add(MakeShared<FString>(NoModeAvailableText.ToString()));
-
-			bEnabled = false;
-		}
-		else
-		{
-			bEnabled = true;
-		}
-
-		ComboBox->RefreshOptions();
-
-		// Restore selection
-		TSharedPtr<FString>* PreviousSelectionPtr = Algo::FindByPredicate(ModeNames, [PreviousSelectedModeName](const TSharedPtr<FString>& ModeName)
-			{
-				return ModeName.IsValid() && *ModeName == PreviousSelectedModeName;
-			});
-		if (PreviousSelectionPtr)
-		{
-			ComboBox->SetSelectedItem(*PreviousSelectionPtr);
-		}
+		ComboBox->ClearSelection();
 	}
 
-	/** Called when the Entities in the DMX Library were added or removed */
-	void OnFixtureTypeChanged(const UDMXEntityFixtureType* ChangedFixtureType)
+	/** Called when the fixture patch for which modes are displayed changed */
+	void OnFixturePatchChanged(const UDMXEntityFixturePatch* FixturePatch)
 	{
-		if (ChangedFixtureType == WeakFixtureType)
+		if (Item->GetFixturePatch() == FixturePatch)
 		{
-			RefreshOptions();
+			UpdateComboBoxSource();
+			ComboBox->RefreshOptions();
+
+			AdoptSelectionFromFixturePatch();
 		}
 	}
 
-	/** True if the Combo Box should be enabled */
-	bool bEnabled = true;
-
-	/** Names of Modes in the Combo Box */
-	TArray<TSharedPtr<FString>> ModeNames;
-
-	/** Map from the Fixture Type Name to the actual Mode Index */
-	TMap<TSharedPtr<FString>, int32> ModeNameToModeIndexMap;
-
-	/** The combo box widget in use */
+	/** The combo box to select a mode */
 	TSharedPtr<STextComboBox> ComboBox;
 
-	/** The Fixture Type for which the Modes are currently displayed */
-	TWeakObjectPtr<UDMXEntityFixtureType> WeakFixtureType;
+	/** Names of Fixture Types in the Combo Box */
+	TArray<TSharedPtr<FString>> ComboBoxSource;
 
-	// Slate args
-	FDMXFixturePatchListRowOnModeSelectedDelegate OnModeSelectedDelegate;
+	/** The Fixture Patch Item for which this Fixture Type Picker is displayed */
+	TSharedPtr<FDMXFixturePatchListItem> Item;
 };
 
 
@@ -623,19 +479,6 @@ void SDMXFixturePatchListRow::OnFixtureIDCommitted(const FText& InNewText, EText
 
 TSharedRef<SWidget> SDMXFixturePatchListRow::GenerateFixtureTypeWidget()
 {
-	UDMXLibrary* DMXLibrary = Item->GetDMXLibrary();
-	if (!ensureAlwaysMsgf(DMXLibrary, TEXT("Tried to set fixture type for MVR Fixture, but fixture type is invalid.")))
-	{
-		return SNullWidget::NullWidget;
-	}
-
-	const TSharedRef<SDMXFixturePatchFixtureTypePicker> FixtureTypePicker =
-		SNew(SDMXFixturePatchFixtureTypePicker, DMXLibrary)
-		.OnFixtureTypeSelected(this, &SDMXFixturePatchListRow::OnFixtureTypeSelected);
-
-	UDMXEntityFixtureType* SelectedFixtureType = Item->GetFixtureType();
-	FixtureTypePicker->SetSelection(SelectedFixtureType);
-		
 	return 
 		SNew(SBorder)
 		.HAlign(HAlign_Fill)
@@ -643,26 +486,12 @@ TSharedRef<SWidget> SDMXFixturePatchListRow::GenerateFixtureTypeWidget()
 		.Padding(4.f)
 		.BorderImage(FAppStyle::GetBrush("NoBorder"))
 		[
-			FixtureTypePicker
+			SNew(SDMXFixturePatchFixtureTypePicker, Item)
 		];
-}
-
-void SDMXFixturePatchListRow::OnFixtureTypeSelected(UDMXEntityFixtureType* SelectedFixtureType)
-{
-	Item->SetFixtureType(SelectedFixtureType);
 }
 
 TSharedRef<SWidget> SDMXFixturePatchListRow::GenerateModeWidget()
 {
-	const TSharedRef<SDMXFixturePatchModePicker> ModePicker =
-		SNew(SDMXFixturePatchModePicker)
-		.OnModeSelected(this, &SDMXFixturePatchListRow::OnModeSelected);
-
-	UDMXEntityFixtureType* SelectedFixtureType = Item->GetFixtureType();
-	const int32 SelectedModeIndex = Item->GetModeIndex();
-
-	ModePicker->SetSelection(SelectedFixtureType, SelectedModeIndex);
-
 	return
 		SNew(SBorder)
 		.HAlign(HAlign_Fill)
@@ -670,13 +499,8 @@ TSharedRef<SWidget> SDMXFixturePatchListRow::GenerateModeWidget()
 		.Padding(4.f)
 		.BorderImage(FAppStyle::GetBrush("NoBorder"))
 		[
-			ModePicker
+			SNew(SDMXFixturePatchModePicker, Item)
 		];
-}
-
-void SDMXFixturePatchListRow::OnModeSelected(int32 SelectedModeIndex)
-{
-	Item->SetModeIndex(SelectedModeIndex);
 }
 
 TSharedRef<SWidget> SDMXFixturePatchListRow::GeneratePatchWidget()
@@ -709,7 +533,7 @@ TSharedRef<SWidget> SDMXFixturePatchListRow::GeneratePatchWidget()
 						}
 					})
 				.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-				.OnTextCommitted(this, &SDMXFixturePatchListRow::OnPatchCommitted)
+				.OnTextCommitted(this, &SDMXFixturePatchListRow::OnPatchNameCommitted)
 				.IsSelected(IsSelected)
 			]
 		];
@@ -728,7 +552,7 @@ FReply SDMXFixturePatchListRow::OnPatchBorderDoubleClicked(const FGeometry& InMy
 	return FReply::Handled();
 }
 
-void SDMXFixturePatchListRow::OnPatchCommitted(const FText& InNewText, ETextCommit::Type InTextCommit)
+void SDMXFixturePatchListRow::OnPatchNameCommitted(const FText& InNewText, ETextCommit::Type InTextCommit)
 {
 	const FString PatchString = InNewText.ToString();
 	static const TCHAR* ParamDelimiters[] =

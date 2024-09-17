@@ -20,15 +20,15 @@ class UDMXLibrary;
 namespace UE::DMXEditor::FixturePatchEditor
 {
 	/** Editor for Fixture Patches */
-	class SAddFixturePatchMenu final
+	class SDMXAddFixturePatchMenu final
 		: public SCompoundWidget
 	{
 	public:
-		SLATE_BEGIN_ARGS(SAddFixturePatchMenu)
+		SLATE_BEGIN_ARGS(SDMXAddFixturePatchMenu)
 		{}
 		SLATE_END_ARGS()
 
-		virtual ~SAddFixturePatchMenu();
+		virtual ~SDMXAddFixturePatchMenu();
 
 		/** Constructs this widget */
 		void Construct(const FArguments& InArgs, TWeakPtr<FDMXEditor> InWeakDMXEditor);

@@ -71,14 +71,8 @@ private:
 	/** Generates the Widget that displays the Fixture Type */
 	TSharedRef<SWidget> GenerateFixtureTypeWidget();
 
-	/** Called when a Fixture Type was selected */
-	void OnFixtureTypeSelected(UDMXEntityFixtureType* SelectedFixtureType);
-
 	/** Generates the Widget that displays the Mode */
 	TSharedRef<SWidget> GenerateModeWidget();
-
-	/** Called when a Mode was selected */
-	void OnModeSelected(int32 SelectedModeIndex);
 
 	/** Generates the Widget that displays the Patch */
 	TSharedRef<SWidget> GeneratePatchWidget();
@@ -87,7 +81,7 @@ private:
 	FReply OnPatchBorderDoubleClicked(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent);
 
 	/** Called when a Patch was committed */
-	void OnPatchCommitted(const FText& InNewText, ETextCommit::Type InTextCommit);
+	void OnPatchNameCommitted(const FText& InNewText, ETextCommit::Type InTextCommit);
 
 	/** The Edit Mode the Widget should present */
 	EDMXFixturePatchListEditMode EditMode;
