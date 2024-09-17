@@ -2,13 +2,16 @@
 
 #include "SRemoteControlDMXPresetUserData.h"
 
+#include "AssetToolsModule.h"
 #include "Customizations/RemoteControlProtocolDMXPresetUserDataDetails.h"
 #include "DetailsViewArgs.h"
 #include "DMXEditorModule.h"
 #include "DMXEditorStyle.h"
+#include "Factories/DMXLibraryFactory.h"
 #include "IDetailsView.h"
 #include "IRCProtocolBindingList.h"
 #include "IRemoteControlProtocolWidgetsModule.h"
+#include "Library/DMXLibrary.h"
 #include "Library/DMXLibrary.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
@@ -17,6 +20,7 @@
 #include "ScopedTransaction.h"
 #include "Styling/AppStyle.h"
 #include "ToolMenus.h"
+#include "UObject/GarbageCollection.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Layout/SSeparator.h"
@@ -124,16 +128,15 @@ namespace UE::RemoteControl::DMX
 					.Orientation(Orient_Vertical)
 				]
 
-				// Export as MVR button
-				+ SHorizontalBox::Slot()
+				// Create DMX Libary button
+				+SHorizontalBox::Slot()
 				.Padding(FMargin(8.f, 0.f))
 				.VAlign(VAlign_Center)
 				.FillWidth(1.f)
 				[
-					GenerateExportAsMVRButton()
+					GenerateActionsMenu()
 				]
 
-					
 				// DMXLibrary
 				+ SHorizontalBox::Slot()
 				.Padding(FMargin(8.f, 0.f))
@@ -155,33 +158,42 @@ namespace UE::RemoteControl::DMX
 		return TEXT("SRemoteControlDMXPresetUserData");
 	}
 	
-	TSharedRef<SWidget> SRemoteControlDMXPresetUserData::GenerateExportAsMVRButton()
+	TSharedRef<SWidget> SRemoteControlDMXPresetUserData::GenerateActionsMenu()
 	{
-		constexpr const TCHAR* MenuName = TEXT("RemoteControlPresetDMXUserDataMenu");
+		constexpr const TCHAR* MenuName = TEXT("RemoteControlProtocolDMXMenu");
 
 		UToolMenus* ToolMenus = UToolMenus::Get();
+		check(ToolMenus);
+
 		if (!ToolMenus->IsMenuRegistered(MenuName))
 		{
 			const FName NoParentToolbar = NAME_None;
-			const FName NoNameOverride = NAME_None;
-			const FText NoLabel;
-
-			UToolMenu* Menu = ToolMenus->RegisterMenu(MenuName, NoParentToolbar, EMultiBoxType::SlimHorizontalToolBar);
-			FToolMenuSection& Section = Menu->AddSection("DMXPresetUserDataMenu", NoLabel);
-
-			Section.AddMenuEntry
-			(
-				NoNameOverride,
-				LOCTEXT("ExportAsMVRLabel", "Export as MVR"),
-				LOCTEXT("ExportAsMVRTooltip", "Exports the Remote Control DMX Library as MVR file"),
-				FSlateIcon(FDMXEditorStyle::Get().GetStyleSetName(), "Icons.DMXLibraryToolbar.Export"),
-				FUIAction(FExecuteAction::CreateSP(this, &SRemoteControlDMXPresetUserData::OnExportAsMVRClicked)),
-				EUserInterfaceActionType::Button
-			);
+			ToolMenus->RegisterMenu(MenuName, NoParentToolbar, EMultiBoxType::SlimHorizontalToolBar);
 		}
+		
+		UToolMenu* Menu = UToolMenus::Get()->ExtendMenu(MenuName);
+		check(Menu);
 
-		const FToolMenuContext Context(DMXUserData);
-		UToolMenu* Menu = ToolMenus->GenerateMenu(MenuName, Context);
+		const FText NoLabel;
+		FToolMenuSection& ActionsSection = Menu->AddSection("Actions", NoLabel);
+
+		FToolMenuEntry ExportMVREntry = FToolMenuEntry::InitToolBarButton(
+			"ExportMVR",
+			FUIAction(FExecuteAction::CreateSP(this, &SRemoteControlDMXPresetUserData::OnExportAsMVRClicked)),
+			LOCTEXT("ExportAsMVRLabel", "Export as MVR"),
+			LOCTEXT("ExportAsMVRTooltip", "Exports the Remote Control DMX Library as MVR file"),
+			FSlateIcon(FDMXEditorStyle::Get().GetStyleSetName(), "Icons.DMXLibraryToolbar.Export"));
+
+		ActionsSection.AddEntry(ExportMVREntry);
+
+		FToolMenuEntry GenerateDMXLibraryEntry = FToolMenuEntry::InitToolBarButton(
+			"GenerateDMXLibrary",
+			FUIAction(FExecuteAction::CreateSP(this, &SRemoteControlDMXPresetUserData::OnCreateDMXLibraryClicked)),
+			LOCTEXT("GenerateDMXLibraryLabel", "Create DMX Library"),
+			LOCTEXT("GenerateDMXLibraryTooltip", "Creates a new DMX Library asset from this Remote Control Preset"),
+			FSlateIcon(FDMXEditorStyle::Get().GetStyleSetName(), "ClassIcon.DMXLibrary"));
+
+		ActionsSection.AddEntry(GenerateDMXLibraryEntry);
 
 		return ToolMenus->GenerateWidget(Menu);
 	}
@@ -196,6 +208,26 @@ namespace UE::RemoteControl::DMX
 
 			const FDMXEditorModule& DMXEditorModule = FModuleManager::GetModuleChecked<FDMXEditorModule>("DMXEditor");
 			DMXEditorModule.ExportDMXLibraryAsMVRFile(DMXLibrary, DesiredFileName);
+		}
+	}
+
+	void SRemoteControlDMXPresetUserData::OnCreateDMXLibraryClicked()
+	{
+		if (DMXUserData)
+		{
+			UDMXLibraryFactory* DMXLibraryFactory = NewObject<UDMXLibraryFactory>();
+
+			// Ensure this object is not GC for the duration of CreateAssetWithDialog
+			FGCScopeGuard GCGuard;
+
+			FAssetToolsModule& AssetToolsModule = FAssetToolsModule::GetModule();
+			UObject* NewDMXLibraryObject = AssetToolsModule.Get().CreateAssetWithDialog(DMXLibraryFactory->GetSupportedClass(), DMXLibraryFactory);
+
+			// Set the DMX Library 
+			if (UDMXLibrary* NewDMXLibrary = Cast<UDMXLibrary>(NewDMXLibraryObject))
+			{
+				DMXUserData->SetDMXLibrary(NewDMXLibrary);
+			}
 		}
 	}
 
