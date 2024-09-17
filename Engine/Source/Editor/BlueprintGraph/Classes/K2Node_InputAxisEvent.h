@@ -61,6 +61,7 @@ class BLUEPRINTGRAPH_API UK2Node_InputAxisEvent : public UK2Node_Event
 	virtual void GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const override;
 	virtual FText GetMenuCategory() const override;
 	virtual FBlueprintNodeSignature GetSignature() const override;
+	virtual void ExpandNode(class FKismetCompilerContext& CompilerContext, UEdGraph* SourceGraph) override;
 	//~ End UK2Node Interface
 
 	void Initialize(const FName AxisName);
