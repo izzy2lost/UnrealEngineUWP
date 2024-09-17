@@ -243,6 +243,16 @@ void APCGPartitionActor::BeginPlay()
 
 void APCGPartitionActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	// It is possible for a PA to get called EndPlay before its original volume actor so make sure to cleanup properly here
+	if (IsRuntimeGenerated())
+	{
+		TMap<TObjectPtr<UPCGComponent>, TObjectPtr<UPCGComponent>> OriginalToLocalCopy(OriginalToLocal);
+		for (const TTuple<TObjectPtr<UPCGComponent>, TObjectPtr<UPCGComponent>>& OriginalToLocalItem : OriginalToLocalCopy)
+		{
+			RemoveGraphInstance(OriginalToLocalItem.Key.Get());
+		}
+	}
+
 	UnregisterPCG();
 
 	Super::EndPlay(EndPlayReason);
