@@ -250,6 +250,8 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 			FStructuredArchive::FArray ReplacedArray = Record.EnterArray(TEXT("Replaced"), NumReplaced);
 			if (NumReplaced != INDEX_NONE)
 			{
+				FSerializedPropertyScope SerializedProperty(UnderlyingArchive, Inner, this);
+
 				ArrayHelper.EmptyAndAddValues(NumReplaced);
 				for (int32 i = 0; i < NumReplaced; i++)
 				{
