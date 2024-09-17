@@ -1475,6 +1475,13 @@ void SMoviePipelineQueueEditor::Construct(const FArguments& InArgs)
 		.OnGenerateRow(this, &SMoviePipelineQueueEditor::OnGenerateRow)
 		.OnGetChildren(this, &SMoviePipelineQueueEditor::OnGetChildren)
 		.OnContextMenuOpening(this, &SMoviePipelineQueueEditor::GetContextMenuContent)
+		.IsEnabled_Lambda([]()
+		{
+			const UMoviePipelineQueueSubsystem* Subsystem = GEditor->GetEditorSubsystem<UMoviePipelineQueueSubsystem>();
+			check(Subsystem);
+			
+			return !Subsystem->IsRendering();
+		})
 		.HeaderRow
 		(
 			SNew(SHeaderRow)
