@@ -536,7 +536,10 @@ const uint8* FHairStreamingRequest::FChunk::GetData() const
 void FHairStreamingRequest::FChunk::Release() 
 { 
 #if !WITH_EDITORONLY_DATA
+	// Take ownership of the buffer
 	TIoStatusOr<uint8*> Out = Data_IO.Release();
+	// Free the buffer
+	FMemory::Free(Out.ConsumeValueOrDie());
 #else
 	Data_DDC.Reset(); 
 #endif
