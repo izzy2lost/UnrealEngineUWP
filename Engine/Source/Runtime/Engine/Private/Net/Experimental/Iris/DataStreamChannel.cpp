@@ -23,7 +23,7 @@
 #include "Net/Core/Trace/NetTrace.h"
 #include "Net/Core/Connection/NetResult.h"
 #include "Net/DataChannel.h"
-#include "Net/Iris/ReplicationSystem/ActorReplicationBridge.h"
+#include "Net/Iris/ReplicationSystem/EngineReplicationBridge.h"
 #include "Net/Iris/ReplicationSystem/ReplicationSystemUtil.h"
 
 
@@ -152,7 +152,7 @@ void UDataStreamChannel::ReceivedBunch(FInBunch& Bunch)
 			TNetResult<ENetCloseResult> NetResult(ENetCloseResult::IrisNetRefHandleError, FString::Printf(TEXT("IrisNetRefHandleError=%s"), *SerializationContext.GetErrorHandleContext().ToString()));
 			AddToChainResultPtr(Bunch.ExtendedError, MoveTemp(NetResult));
 
-			UActorReplicationBridge* ActorBridge = FReplicationSystemUtil::GetActorReplicationBridge(Connection);
+			UEngineReplicationBridge* ActorBridge = FReplicationSystemUtil::GetActorReplicationBridge(Connection);
 			if (ActorBridge)
 			{
 				ActorBridge->SendErrorWithNetRefHandle(UE::Net::ENetRefHandleError::BitstreamCorrupted, SerializationContext.GetErrorHandleContext(), Connection->GetConnectionId());

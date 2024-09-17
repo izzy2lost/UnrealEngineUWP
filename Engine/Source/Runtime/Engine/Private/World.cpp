@@ -131,7 +131,7 @@
 
 #if UE_WITH_IRIS
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
-#include "Net/Iris/ReplicationSystem/ActorReplicationBridge.h"
+#include "Net/Iris/ReplicationSystem/EngineReplicationBridge.h"
 #endif // UE_WITH_IRIS
 
 #include "ChaosSolversModule.h"

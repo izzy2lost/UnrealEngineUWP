@@ -25,7 +25,7 @@
 
 #include "Net/DataBunch.h"
 
-#include "Net/Iris/ReplicationSystem/ActorReplicationBridge.h"
+#include "Net/Iris/ReplicationSystem/EngineReplicationBridge.h"
 
 #include "ProfilingDebugging/AssetMetadataTrace.h"
 
@@ -184,7 +184,7 @@ TUniquePtr<UE::Net::FNetObjectCreationHeader> UNetActorFactory::CreateAndFillHea
 		return nullptr;
 	}
 
-	UActorReplicationBridge* ActorBridge = CastChecked<UActorReplicationBridge>(Bridge);
+	UEngineReplicationBridge* ActorBridge = CastChecked<UEngineReplicationBridge>(Bridge);
 
 	TUniquePtr<FBaseActorNetCreationHeader> BaseHeader;
 
@@ -334,7 +334,7 @@ UNetObjectFactory::FInstantiateResult UNetActorFactory::InstantiateReplicatedObj
 	LLM_SCOPE(ELLMTag::EngineMisc);
 	IRIS_PROFILER_SCOPE(NetActorFactory_InstantiateReplicatedObjectFromHeader);
 
-	UActorReplicationBridge* ActorBridge = CastChecked<UActorReplicationBridge>(Bridge);
+	UEngineReplicationBridge* ActorBridge = CastChecked<UEngineReplicationBridge>(Bridge);
 	UNetDriver* NetDriver = ActorBridge->GetNetDriver();
 
 	const FBaseActorNetCreationHeader* BaseHeader = static_cast<const FBaseActorNetCreationHeader*>(Header);
@@ -447,7 +447,7 @@ void UNetActorFactory::PostInstantiation(const FPostInstantiationContext& Contex
 		return;
 	}
 
-	UActorReplicationBridge* ActorBridge = CastChecked<UActorReplicationBridge>(Bridge);
+	UEngineReplicationBridge* ActorBridge = CastChecked<UEngineReplicationBridge>(Bridge);
 	UNetDriver* NetDriver = ActorBridge->GetNetDriver();
 
 	const FBaseActorNetCreationHeader* BaseHeader = static_cast<const FBaseActorNetCreationHeader*>(Context.Header);
