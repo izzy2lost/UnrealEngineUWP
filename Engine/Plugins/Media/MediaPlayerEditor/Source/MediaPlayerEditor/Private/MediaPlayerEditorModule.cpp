@@ -54,7 +54,6 @@
 
 DEFINE_LOG_CATEGORY(LogMediaPlayerEditor);
 
-
 /**
  * Implements the MediaPlayerEditor module.
  */
@@ -89,9 +88,15 @@ public:
 		return Style;
 	}
 
-	virtual TSharedRef<IMediaPlayerSlider> CreateMediaPlayerSliderWidget(UMediaPlayer* InMediaPlayer, const FSliderStyle& InStyle) override
+	TSharedRef<IMediaPlayerSlider> CreateMediaPlayerSliderWidget(UMediaPlayer* InMediaPlayer, const FSliderStyle& InStyle)
 	{
-		return SNew(SMediaPlayerSlider, InMediaPlayer)
+		TWeakObjectPtr<UMediaPlayer> MediaPlayerWeak = InMediaPlayer;
+		return CreateMediaPlayerSliderWidget(MakeArrayView(&MediaPlayerWeak, 1), InStyle);
+	}
+
+	virtual TSharedRef<IMediaPlayerSlider> CreateMediaPlayerSliderWidget(const TArrayView<TWeakObjectPtr<UMediaPlayer>> InMediaPlayers, const FSliderStyle& InStyle) override
+	{
+		return SNew(SMediaPlayerSlider, InMediaPlayers)
 		.Style(&InStyle);
 	}
 
