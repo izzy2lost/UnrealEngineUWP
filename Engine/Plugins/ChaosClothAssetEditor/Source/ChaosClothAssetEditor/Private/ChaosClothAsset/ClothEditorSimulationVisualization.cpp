@@ -115,37 +115,42 @@ struct FVisualizationOption
 	FText ToolTip;             // Text for menu tooltips.
 	bool bDisablesSimulation;  // Whether or not this option requires the simulation to be disabled.
 	bool bHidesClothSections;  // Hides the cloth section to avoid zfighting with the debug geometry.
+	bool bDefaultFlagValue = false;
 
-	FVisualizationOption(const FClothVisualizationDebugDraw& InClothVisualizationDebugDraw, const FText& InDisplayName, const FText& InToolTip, bool bInDisablesSimulation = false, bool bInHidesClothSections = false, const FAdditionalMenus& InAdditionalMenus = FAdditionalMenus())
+	FVisualizationOption(const FClothVisualizationDebugDraw& InClothVisualizationDebugDraw, const FText& InDisplayName, const FText& InToolTip, bool bInDisablesSimulation = false, bool bInHidesClothSections = false, bool bInDefaultFlagValue = false, const FAdditionalMenus& InAdditionalMenus = FAdditionalMenus())
 		: ClothVisualizationDebugDraw(InClothVisualizationDebugDraw)
 		, AdditionalMenus(InAdditionalMenus)
 		, DisplayName(InDisplayName)
 		, ToolTip(InToolTip)
 		, bDisablesSimulation(bInDisablesSimulation)
 		, bHidesClothSections(bInHidesClothSections)
+		, bDefaultFlagValue(bInDefaultFlagValue)
 	{}
 
-	FVisualizationOption(const FLocalDebugDisplayString& InLocalDebugDisplayString, const FText& InDisplayName, const FText& InToolTip, bool bInDisablesSimulation = false, bool bInHidesClothSections = false)
+	FVisualizationOption(const FLocalDebugDisplayString& InLocalDebugDisplayString, const FText& InDisplayName, const FText& InToolTip, bool bInDisablesSimulation = false, bool bInHidesClothSections = false, bool bInDefaultFlagValue = false)
 		: LocalDebugDisplayString(InLocalDebugDisplayString)
 		, DisplayName(InDisplayName)
 		, ToolTip(InToolTip)
 		, bDisablesSimulation(bInDisablesSimulation)
 		, bHidesClothSections(bInHidesClothSections)
+		, bDefaultFlagValue(bInDefaultFlagValue)
 	{}
 
-	FVisualizationOption(const FClothVisualizationDebugDrawTexts& InClothVisualizationDebugDrawTexts, const FText & InDisplayName, const FText & InToolTip, bool bInDisablesSimulation = false, bool bInHidesClothSections = false)
+	FVisualizationOption(const FClothVisualizationDebugDrawTexts& InClothVisualizationDebugDrawTexts, const FText & InDisplayName, const FText & InToolTip, bool bInDisablesSimulation = false, bool bInHidesClothSections = false, bool bInDefaultFlagValue = false)
 		: ClothVisualizationDebugDrawTexts(InClothVisualizationDebugDrawTexts)
 		, DisplayName(InDisplayName)
 		, ToolTip(InToolTip)
 		, bDisablesSimulation(bInDisablesSimulation)
 		, bHidesClothSections(bInHidesClothSections)
+		, bDefaultFlagValue(bInDefaultFlagValue)
 	{}
 	
-	FVisualizationOption(const FText & InDisplayName, const FText & InToolTip, bool bInDisablesSimulation = false, bool bInHidesClothSections = false)
+	FVisualizationOption(const FText & InDisplayName, const FText & InToolTip, bool bInDisablesSimulation = false, bool bInHidesClothSections = false, bool bInDefaultFlagValue = false)
 		: DisplayName(InDisplayName)
 		, ToolTip(InToolTip)
 		, bDisablesSimulation(bInDisablesSimulation)
 		, bHidesClothSections(bInHidesClothSections)
+		, bDefaultFlagValue(bInDefaultFlagValue)
 	{}
 
 	~FVisualizationOption()
@@ -155,6 +160,14 @@ struct FVisualizationOption
 
 const FVisualizationOption FVisualizationOption::OptionData[] =
 {
+	FVisualizationOption(
+		FLocalDebugDisplayString::CreateLambda([](const FClothEditorSimulationVisualization&,const FClothSimulationProxy& Proxy)
+		{
+			return GetSimulationStatisticsString(Proxy);
+		}),
+		LOCTEXT("ChaosVisName_SimulationStatistics", "Simulation Statistics"),
+		LOCTEXT("ChaosVisName_SimulationStatistics_Tooltip", "Displays simulation statistics"),
+		/*bDisablesSimulation =*/false, /*bHidesClothSections=*/true, /*bDefaultFlagValue=*/true),
 	FVisualizationOption(
 		FClothVisualizationDebugDraw::CreateLambda([](const FClothEditorSimulationVisualization&, const ::Chaos::FClothVisualizationNoGC& Visualization, FPrimitiveDrawInterface* PDI)
 		{
@@ -202,7 +215,7 @@ const FVisualizationOption FVisualizationOption::OptionData[] =
 		}),
 		LOCTEXT("ChaosVisName_PointNormals", "Physical Mesh Normals"), 
 		LOCTEXT("ChaosVisName_PointNormals_ToolTip", "Draws the current point normals for the simulation mesh"),
-		/*bDisablesSimulation =*/false, /*bHidesClothSections=*/false,
+		/*bDisablesSimulation =*/false, /*bHidesClothSections=*/false, /*bDefaultFlagValue=*/false, 
 		FAdditionalMenus::CreateLambda([](FClothEditorSimulationVisualization& EditorVisualization, FMenuBuilder& MenuBuilder, TSharedRef<FChaosClothAssetEditor3DViewportClient> ViewportClient)
 		{
 			EditorVisualization.ExtendViewportShowMenuPointNormalsLength(MenuBuilder);
@@ -221,7 +234,7 @@ const FVisualizationOption FVisualizationOption::OptionData[] =
 		}),
 		LOCTEXT("ChaosVisName_AnimNormals", "Animated Mesh Normals"), 
 		LOCTEXT("ChaosVisName_AnimNormals_ToolTip", "Draws the current point normals for the animated mesh"),
-		/*bDisablesSimulation =*/false, /*bHidesClothSections=*/false,
+		/*bDisablesSimulation =*/false, /*bHidesClothSections=*/false, /*bDefaultFlagValue=*/false,
 		FAdditionalMenus::CreateLambda([](FClothEditorSimulationVisualization& EditorVisualization, FMenuBuilder& MenuBuilder, TSharedRef<FChaosClothAssetEditor3DViewportClient> ViewportClient)
 		{
 			EditorVisualization.ExtendViewportShowMenuAnimatedNormalsLength(MenuBuilder);
@@ -291,12 +304,17 @@ const FVisualizationOption FVisualizationOption::OptionData[] =
 		LOCTEXT("ChaosVisName_LongRangeConstraint" , "Long Range Constraint"), 
 		LOCTEXT("ChaosVisName_LongRangeConstraint_Tooltip", "Draws the long range attachment constraint distances")),
 	FVisualizationOption(
-		FClothVisualizationDebugDraw::CreateLambda([](const FClothEditorSimulationVisualization&, const ::Chaos::FClothVisualizationNoGC& Visualization, FPrimitiveDrawInterface* PDI)
+		FClothVisualizationDebugDraw::CreateLambda([](const FClothEditorSimulationVisualization& EditorVisualization, const ::Chaos::FClothVisualizationNoGC& Visualization, FPrimitiveDrawInterface* PDI)
 		{
-			Visualization.DrawWindAndPressureForces(PDI);
+			Visualization.DrawWindAndPressureForces(PDI, EditorVisualization.GetAerodynamicsLengthScale());
 		}),
 		LOCTEXT("ChaosVisName_WindAndPressureForces", "Wind Aerodynamic And Pressure Forces"), 
-		LOCTEXT("ChaosVisName_WindAndPressure_Tooltip", "Draws the Wind drag and lift and pressure forces")),
+		LOCTEXT("ChaosVisName_WindAndPressure_Tooltip", "Draws the Wind drag and lift and pressure forces"),
+		/*bDisablesSimulation =*/false, /*bHidesClothSections=*/false, /*bDefaultFlagValue=*/false,
+		FAdditionalMenus::CreateLambda([](FClothEditorSimulationVisualization& EditorVisualization, FMenuBuilder& MenuBuilder, TSharedRef<FChaosClothAssetEditor3DViewportClient> ViewportClient)
+		{
+			EditorVisualization.ExtendViewportShowMenuAerodynamicsLengthScale(MenuBuilder);
+		})),
 	FVisualizationOption(
 		FClothVisualizationDebugDraw::CreateLambda([](const FClothEditorSimulationVisualization&, const ::Chaos::FClothVisualizationNoGC& Visualization, FPrimitiveDrawInterface* PDI)
 		{
@@ -369,13 +387,6 @@ const FVisualizationOption FVisualizationOption::OptionData[] =
 		LOCTEXT("ChaosVisName_DrawMultiResConstraint", "Draw Multi Res Constraint"), 
 		LOCTEXT("ChaosVisName_DrawMultiResConstraint_Tooltip", "Draw multi res constraint coarse mesh and targets.")),
 	FVisualizationOption(
-		FLocalDebugDisplayString::CreateLambda([](const FClothEditorSimulationVisualization&,const FClothSimulationProxy& Proxy)
-		{
-			return GetSimulationStatisticsString(Proxy);
-		}),
-		LOCTEXT("ChaosVisName_SimulationStatistics", "Simulation Statistics"), 
-		LOCTEXT("ChaosVisName_SimulationStatistics_Tooltip", "Displays simulation statistics")),
-	FVisualizationOption(
 		FClothVisualizationDebugDraw::CreateLambda([](const FClothEditorSimulationVisualization& EditorVisualization, const ::Chaos::FClothVisualizationNoGC& Visualization, FPrimitiveDrawInterface* PDI)
 		{
 			const FString* const WeightMap = EditorVisualization.GetCurrentlySelectedWeightMap();
@@ -383,7 +394,7 @@ const FVisualizationOption FVisualizationOption::OptionData[] =
 		}),
 		LOCTEXT("ChaosVisName_DrawWeightMap", "Weight Map"), 
 		LOCTEXT("ChaosVisName_DrawWeightMap_ToolTip", "Draw the weight map for the simulation mesh. You can control the name of the map to be visualized by setting the p.ChaosClothVisualization.WeightMapName console variable."), 
-		/*bDisablesSimulation =*/false, /*bHidesClothSections=*/true,
+		/*bDisablesSimulation =*/false, /*bHidesClothSections=*/true, /*bDefaultFlagValue=*/false,
 		FAdditionalMenus::CreateLambda([](FClothEditorSimulationVisualization& EditorVisualization, FMenuBuilder& MenuBuilder, TSharedRef<FChaosClothAssetEditor3DViewportClient> ViewportClient)
 		{
 			EditorVisualization.ExtendViewportShowMenuWeightMapSelector(MenuBuilder, ViewportClient);
@@ -406,6 +417,10 @@ const uint32 FVisualizationOption::Count = sizeof(OptionData) / sizeof(FVisualiz
 FClothEditorSimulationVisualization::FClothEditorSimulationVisualization()
 	: Flags(false, Private::FVisualizationOption::Count)
 {
+	for (uint32 OptionIndex = 0; OptionIndex < Private::FVisualizationOption::Count; ++OptionIndex)
+	{
+		Flags[OptionIndex] = Private::FVisualizationOption::OptionData[OptionIndex].bDefaultFlagValue;
+	}
 }
 
 void FClothEditorSimulationVisualization::ExtendViewportShowMenu(FMenuBuilder& MenuBuilder, TSharedRef<FChaosClothAssetEditor3DViewportClient> ViewportClient)
@@ -445,6 +460,7 @@ void FClothEditorSimulationVisualization::ExtendViewportShowMenu(FMenuBuilder& M
 
 			const FUIAction Action(ExecuteAction, FCanExecuteAction(), IsActionChecked);
 
+			// Add menu entry
 			MenuBuilder.AddMenuEntry(Private::FVisualizationOption::OptionData[OptionIndex].DisplayName, Private::FVisualizationOption::OptionData[OptionIndex].ToolTip, FSlateIcon(), Action, NAME_None, EUserInterfaceActionType::ToggleButton);
 			Private::FVisualizationOption::OptionData[OptionIndex].AdditionalMenus.ExecuteIfBound(*this, MenuBuilder, ViewportClient);
 		}

@@ -405,6 +405,18 @@ void FVelocityAndPressureField::SetMultipliers(
 	Pressure = FPBDFlatWeightMap(PressureValues, PressureMultipliers, TConstArrayView<TVec3<int32>>(Elements), Offset, NumParticles);
 }
 
+FSolverVec3 FVelocityAndPressureField::CalculateForce(const TConstArrayView<FSolverVec3>& Xs, const TConstArrayView<FSolverVec3>& Vs, int32 ElementIndex) const
+{
+	if (Private::VelocityFieldMaxVelocity <= 0.f)
+	{
+		return CalculateForce(Xs, Vs, ElementIndex, Velocity, Drag.GetValue(ElementIndex), OuterDrag.GetValue(ElementIndex), Lift.GetValue(ElementIndex), OuterLift.GetValue(ElementIndex), Pressure.GetValue(ElementIndex));
+	}
+	else
+	{
+		return CalculateForce(Xs, Vs, ElementIndex, Velocity, Drag.GetValue(ElementIndex), OuterDrag.GetValue(ElementIndex), Lift.GetValue(ElementIndex), OuterLift.GetValue(ElementIndex), Pressure.GetValue(ElementIndex), FMath::Square((FSolverReal)Private::VelocityFieldMaxVelocity));
+	}
+}
+
 void FVelocityAndPressureField::UpdateForces(const FSolverParticles& InParticles, const FSolverReal /*Dt*/)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FVelocityAndPressureField_UpdateForces);
@@ -644,7 +656,7 @@ void FVelocityAndPressureField::Apply(FSolverParticlesRange& InParticles, const 
 			{
 				for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ++ElementIndex)
 				{
-					const FSolverVec3 Force = CalculateForce(InParticles, ElementIndex, Velocity,
+					const FSolverVec3 Force = CalculateForce(InParticles.XArray(), InParticles.GetV(), ElementIndex, Velocity,
 						(FSolverReal)Drag,
 						(FSolverReal)OuterDrag,
 						(FSolverReal)Lift,
@@ -659,7 +671,7 @@ void FVelocityAndPressureField::Apply(FSolverParticlesRange& InParticles, const 
 			{
 				for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ++ElementIndex)
 				{
-					const FSolverVec3 Force = CalculateForce(InParticles, ElementIndex, Velocity,
+					const FSolverVec3 Force = CalculateForce(InParticles.XArray(), InParticles.GetV(), ElementIndex, Velocity,
 						(FSolverReal)Drag,
 						(FSolverReal)OuterDrag,
 						(FSolverReal)Lift,
@@ -757,7 +769,7 @@ void FVelocityAndPressureField::Apply(FSolverParticlesRange& InParticles, const 
 					const FSolverReal ClO = OuterLift.GetValue(ElementIndex);
 					const FSolverReal Cp = Pressure.GetValue(ElementIndex);
 
-					const FSolverVec3 Force = CalculateForce(InParticles, ElementIndex, Velocity, CdI, CdO, ClI, ClO, Cp);
+					const FSolverVec3 Force = CalculateForce(InParticles.XArray(), InParticles.GetV(), ElementIndex, Velocity, CdI, CdO, ClI, ClO, Cp);
 					InParticles.Acceleration(Elements[ElementIndex][0]) += InParticles.InvM(Elements[ElementIndex][0]) * Force;
 					InParticles.Acceleration(Elements[ElementIndex][1]) += InParticles.InvM(Elements[ElementIndex][1]) * Force;
 					InParticles.Acceleration(Elements[ElementIndex][2]) += InParticles.InvM(Elements[ElementIndex][2]) * Force;
@@ -773,7 +785,7 @@ void FVelocityAndPressureField::Apply(FSolverParticlesRange& InParticles, const 
 					const FSolverReal ClO = OuterLift.GetValue(ElementIndex);
 					const FSolverReal Cp = Pressure.GetValue(ElementIndex);
 
-					const FSolverVec3 Force = CalculateForce(InParticles, ElementIndex, Velocity, CdI, CdO, ClI, ClO, Cp, MaxVelocitySquared);
+					const FSolverVec3 Force = CalculateForce(InParticles.XArray(), InParticles.GetV(), ElementIndex, Velocity, CdI, CdO, ClI, ClO, Cp, MaxVelocitySquared);
 					InParticles.Acceleration(Elements[ElementIndex][0]) += InParticles.InvM(Elements[ElementIndex][0]) * Force;
 					InParticles.Acceleration(Elements[ElementIndex][1]) += InParticles.InvM(Elements[ElementIndex][1]) * Force;
 					InParticles.Acceleration(Elements[ElementIndex][2]) += InParticles.InvM(Elements[ElementIndex][2]) * Force;

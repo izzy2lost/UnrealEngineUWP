@@ -195,6 +195,9 @@ public:
 	TConstArrayView<TVector<int32, 3>> GetElements() const { return TConstArrayView<TVector<int32, 3>>(Elements); }
 	TConstArrayView<FSolverVec3> GetForces() const { return TConstArrayView<FSolverVec3>(Forces); }
 
+	// This method is currently used for debug drawing.
+	CHAOS_API FSolverVec3 CalculateForce(const TConstArrayView<FSolverVec3>& Xs, const TConstArrayView<FSolverVec3>& Vs, int32 ElementIndex) const;
+
 private:
 	bool AreAerodynamicsEnabled() const { return QuarterRho > (FSolverReal)0.; }
 
@@ -214,22 +217,21 @@ private:
 		const TConstArrayView<FRealSingle>& PressureMultipliers);
 
 
-	template<typename SolverParticlesOrRange>
-	FSolverVec3 CalculateForce(const SolverParticlesOrRange& InParticles, int32 ElementIndex, const FSolverVec3& InVelocity, const FSolverReal CdI, const FSolverReal CdO, const FSolverReal ClI, const FSolverReal ClO, const FSolverReal Cp) const 
+	FSolverVec3 CalculateForce(const TConstArrayView<FSolverVec3>& Xs, const TConstArrayView<FSolverVec3>& Vs, int32 ElementIndex, const FSolverVec3& InVelocity, const FSolverReal CdI, const FSolverReal CdO, const FSolverReal ClI, const FSolverReal ClO, const FSolverReal Cp) const
 	{
 		const TVec3<int32>& Element = Elements[ElementIndex];
 
 		// Calculate the normal and the area of the surface exposed to the flow
 		FSolverVec3 N = FSolverVec3::CrossProduct(
-			InParticles.GetX(Element[2]) - InParticles.GetX(Element[0]),
-			InParticles.GetX(Element[1]) - InParticles.GetX(Element[0]));
+			Xs[Element[2]] - Xs[Element[0]],
+			Xs[Element[1]] - Xs[Element[0]]);
 		const FSolverReal DoubleArea = N.SafeNormalize();
 
 		// Calculate the direction and the relative velocity of the triangle to the flow
 		const FSolverVec3& SurfaceVelocity = (FSolverReal)(1. / 3.) * (
-			InParticles.V(Element[0]) +
-			InParticles.V(Element[1]) +
-			InParticles.V(Element[2]));
+			Vs[Element[0]] +
+			Vs[Element[1]] +
+			Vs[Element[2]]);
 		const FSolverVec3 V = InVelocity - SurfaceVelocity;
 
 		// Set the aerodynamic forces
@@ -243,11 +245,10 @@ private:
 
 	void UpdateField(const FSolverParticles& InParticles, int32 ElementIndex, const FSolverVec3& InVelocity, const FSolverReal CdI, const FSolverReal CdO, const FSolverReal ClI, const FSolverReal ClO, const FSolverReal Cp)
 	{
-		Forces[ElementIndex] = CalculateForce(InParticles, ElementIndex, InVelocity, CdI, CdO, ClI, ClO, Cp);
+		Forces[ElementIndex] = CalculateForce(TConstArrayView<FSolverVec3>(InParticles.XArray()), TConstArrayView<FSolverVec3>(InParticles.GetV()), ElementIndex, InVelocity, CdI, CdO, ClI, ClO, Cp);
 	}
 
-	template<typename SolverParticlesOrRange>
-	FSolverVec3 CalculateForce(const SolverParticlesOrRange& InParticles, int32 ElementIndex, const FSolverVec3& InVelocity, const FSolverReal CdI, const FSolverReal CdO, const FSolverReal ClI, const FSolverReal ClO, const FSolverReal Cp, const FSolverReal MaxVelocitySquared) const
+	FSolverVec3 CalculateForce(const TConstArrayView<FSolverVec3>& Xs, const TConstArrayView<FSolverVec3>& Vs, int32 ElementIndex, const FSolverVec3& InVelocity, const FSolverReal CdI, const FSolverReal CdO, const FSolverReal ClI, const FSolverReal ClO, const FSolverReal Cp, const FSolverReal MaxVelocitySquared) const
 	{
 		checkSlow(MaxVelocitySquared > (FSolverReal)0);
 
@@ -255,15 +256,15 @@ private:
 
 		// Calculate the normal and the area of the surface exposed to the flow
 		FSolverVec3 N = FSolverVec3::CrossProduct(
-			InParticles.GetX(Element[2]) - InParticles.GetX(Element[0]),
-			InParticles.GetX(Element[1]) - InParticles.GetX(Element[0]));
+			Xs[Element[2]] - Xs[Element[0]],
+			Xs[Element[1]] - Xs[Element[0]]);
 		const FSolverReal DoubleArea = N.SafeNormalize();
 
 		// Calculate the direction and the relative velocity of the triangle to the flow
 		const FSolverVec3& SurfaceVelocity = (FSolverReal)(1. / 3.) * (
-			InParticles.V(Element[0]) +
-			InParticles.V(Element[1]) +
-			InParticles.V(Element[2]));
+			Vs[Element[0]] +
+			Vs[Element[1]] +
+			Vs[Element[2]]);
 		FSolverVec3 V = InVelocity - SurfaceVelocity;
 
 		// Clamp the velocity
@@ -284,7 +285,7 @@ private:
 
 	void UpdateField(const FSolverParticles& InParticles, int32 ElementIndex, const FSolverVec3& InVelocity, const FSolverReal CdI, const FSolverReal CdO, const FSolverReal ClI, const FSolverReal ClO, const FSolverReal Cp, const FSolverReal MaxVelocitySquared)
 	{
-		Forces[ElementIndex] = CalculateForce(InParticles, ElementIndex, InVelocity, CdI, CdO, ClI, ClO, Cp, MaxVelocitySquared);
+		Forces[ElementIndex] = CalculateForce(TConstArrayView<FSolverVec3>(InParticles.XArray()), TConstArrayView<FSolverVec3>(InParticles.GetV()), ElementIndex, InVelocity, CdI, CdO, ClI, ClO, Cp, MaxVelocitySquared);
 	}
 
 private:
