@@ -1844,7 +1844,11 @@ void CAstPackage::VisitImmediates(SAstVisitor& Visitor) const
 
 bool CAstPackage::CanSeeDefinition(const CDefinition& Definition) const
 {
-    if (const CModule* Module = Definition.AsNullable<CModule>())
+    if (Definition.IsBuiltIn())
+    {
+        return true;
+    }
+    else if (const CModule* Module = Definition.AsNullable<CModule>())
     {
         for (const CModulePart* Part : Module->GetParts())
         {

@@ -69,6 +69,11 @@ bool CDefinition::IsNative() const
     return GetNativeSpecifierExpression() != nullptr;
 }
 
+bool CDefinition::IsBuiltIn() const
+{
+    return _EnclosingScope.IsBuiltInScope();
+}
+
 CUTF8String GetQualifiedNameString(const CDefinition& Definition)
 {
     return CUTF8String("(%s:)%s", Definition._EnclosingScope.GetScopePath('/', CScope::EPathMode::PrefixSeparator).AsCString(), Definition.AsNameCString());

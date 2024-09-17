@@ -218,6 +218,9 @@ public:
     // Returns whether this is a native definition.
     bool IsNative() const;
 
+    // Returns whether this is a built-in definition.
+    bool IsBuiltIn() const;
+
     // If this definition has a corresponding scope, yield it.
     virtual const CLogicalScope* DefinitionAsLogicalScopeNullable() const { return nullptr; }
 

@@ -1361,7 +1361,7 @@ private:
     {
         // Allow the built-in attributes so the attribute scope attributes used to define attributes
         // that *aren't* epic_internal are preserved.
-        if (&AttributeClass._EnclosingScope == _Program._BuiltinSnippet)
+        if (AttributeClass.IsBuiltIn())
         {
             return false;
         }
@@ -1987,7 +1987,7 @@ private:
             && !_bIncludeEpicInternalDefinitions
             // Don't cull inheriting from epic_internal definitions in the intrinsically defined
             // built-in snippet (e.g.attribute).
-            && !Definition._EnclosingScope.IsSameOrChildOf(_Program._BuiltinSnippet)
+            && !Definition.IsBuiltIn()
             && !bSpecialException)
         {
             return false;
@@ -2208,7 +2208,7 @@ private:
 
         // Don't generate digest definitions for the intrinsically defined built-in snippet, or definitions outside the current package.
         const CAstPackage* Package = Definition._EnclosingScope.GetPackage();
-        if (Definition._EnclosingScope.IsSameOrChildOf(_Program._BuiltinSnippet)
+        if (Definition.IsBuiltIn()
             || (bCheckPackage && Package && Package != &_Package))
         {
             return false;
