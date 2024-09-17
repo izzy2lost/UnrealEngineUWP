@@ -830,7 +830,9 @@ bool FSectionContextMenu::CanSetSectionToKey() const
 	for (UMovieSceneSection* Section : Sequencer->GetViewModel()->GetSelection()->GetSelectedSections())
 	{
 		UMovieSceneTrack* Track = Section->GetTypedOuter<UMovieSceneTrack>();
-		if (Track && Section->GetBlendType().IsValid() && (Section->GetBlendType().Get() == EMovieSceneBlendType::Absolute || Section->GetBlendType().Get() == EMovieSceneBlendType::Additive))
+		if (Track && Section->GetBlendType().IsValid() && (Section->GetBlendType().Get() == EMovieSceneBlendType::Absolute 
+			|| Section->GetBlendType().Get() == EMovieSceneBlendType::Additive 
+			|| Section->GetBlendType().Get() == EMovieSceneBlendType::Override))
 		{
 			return true;
 		}

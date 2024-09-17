@@ -443,6 +443,12 @@ public:
 	MOVIESCENE_API FMovieSceneBlendTypeField GetSupportedBlendTypes() const;
 
 	/**
+	 * Get the optional order for the blending of this section that may or may not be used by the blending system
+	 * Lower values blend first, value of INDEX_NONE means no order is set
+	 */
+	MOVIESCENE_API int32 GetBlendingOrder() const;
+
+	/**
 	 * Moves the section by a specific amount of time
 	 *
 	 * @param DeltaTime	The distance in time to move the curve

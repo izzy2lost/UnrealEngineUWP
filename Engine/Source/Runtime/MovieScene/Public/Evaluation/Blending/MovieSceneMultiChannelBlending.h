@@ -138,6 +138,15 @@ namespace MovieScene
 			Mask |= (1 << Index);
 		}
 
+		/** Do weighted blend with current value, this is an override*/
+		void WeightedBlend(uint8 Index, T Value, float Weight)
+		{
+			check(Index < N);
+
+			Channels[Index] = IsSet(Index) ? ((1.0 - Weight)*Channels[Index]) + (Value * Weight) : Value;
+			Mask |= (1 << Index);
+		}
+
 	private:
 
 		/** Channel data */
@@ -182,6 +191,9 @@ namespace MovieScene
 		/** Per-channel additive values to apply, pre-multiplied by their weight */
 		TMultiChannelValue<DataType, N> Additive;
 
+		/** Per-channel override values to apply, when set this will override the default absolute/additive set */
+		TMultiChannelValue<DataType, N> Override;
+
 		/** Cached initial value for this blendable in multi-channel form */
 		TOptional<TMultiChannelValue<DataType, N>> InitialValue;
 
@@ -197,27 +209,34 @@ namespace MovieScene
 			for (uint8 Channel = 0; Channel < N; ++Channel)
 			{
 				// Any animated channels with a weight of 0 should match the object's *initial* position. Exclusively additive channels are based implicitly off the initial value
-				const bool bUseInitialValue = (Absolute.IsSet(Channel) && AbsoluteWeights[Channel] == 0.f) || (!Absolute.IsSet(Channel) && Additive.IsSet(Channel));
-				if (bUseInitialValue)
+				if (Override.IsSet(Channel)) //if override then we override
 				{
-					if (!InitialValue.IsSet())
+					Result.Set(Channel, Override[Channel]);
+				}
+				else
+				{
+					const bool bUseInitialValue = (Absolute.IsSet(Channel) && AbsoluteWeights[Channel] == 0.f) || (!Absolute.IsSet(Channel) && Additive.IsSet(Channel));
+					if (bUseInitialValue)
 					{
-						InitialValue.Emplace();
-						MultiChannelFromData(InitialValueStore.GetInitialValue(), InitialValue.GetValue());
+						if (!InitialValue.IsSet())
+						{
+							InitialValue.Emplace();
+							MultiChannelFromData(InitialValueStore.GetInitialValue(), InitialValue.GetValue());
+						}
+
+						Result.Set(Channel, InitialValue.GetValue()[Channel]);
+					}
+					else if (Absolute.IsSet(Channel))
+					{
+						// If it has a non-zero weight, divide by it, and apply the absolute total to the result
+						Result.Set(Channel, Absolute[Channel] / AbsoluteWeights[Channel]);
 					}
 
-					Result.Set(Channel, InitialValue.GetValue()[Channel]);
-				}
-				else if (Absolute.IsSet(Channel))
-				{
-					// If it has a non-zero weight, divide by it, and apply the absolute total to the result
-					Result.Set(Channel, Absolute[Channel] / AbsoluteWeights[Channel]);
-				}
-
-				// If it has any additive values in the channel, add those on
-				if (Additive.IsSet(Channel))
-				{
-					Result.Increment(Channel, Additive[Channel]);
+					// If it has any additive values in the channel, add those on
+					if (Additive.IsSet(Channel))
+					{
+						Result.Increment(Channel, Additive[Channel]);
+					}
 				}
 
 				// If the channel has not been animated at all, set it to the *current* value
@@ -242,7 +261,7 @@ namespace MovieScene
 	};
 
 	template<typename OutputType, typename InputType, typename ActualValueType, uint8 ChannelSize>
-	void BlendValue(TMaskedBlendable<OutputType, ChannelSize>& OutBlend, InputType InValue, int32 ChannelIndex, float Weight, EMovieSceneBlendType BlendType, TMovieSceneInitialValueStore<ActualValueType>& InitialValueStore)
+	void BlendValue(TMaskedBlendable<OutputType, ChannelSize>& OutBlend, InputType InValue, int32 ChannelIndex, float Weight, EMovieSceneBlendType BlendType, int32 BlendingOrder, TMovieSceneInitialValueStore<ActualValueType>& InitialValueStore)
 	{
 		if (BlendType == EMovieSceneBlendType::Absolute || BlendType == EMovieSceneBlendType::Relative)
 		{
@@ -266,6 +285,29 @@ namespace MovieScene
 			// Accumulate total weights
 			OutBlend.AbsoluteWeights[ChannelIndex] += Weight;
 		}
+		else if (BlendingOrder != INDEX_NONE)
+		{
+			//If there is a blending order set we use the additive to contain
+			//the full blended value consiting of absolute + overrides + additives
+			//This will already be sorted so we just need to accumulate the values
+			if (OutBlend.Override.IsSet(ChannelIndex) == false)
+			{
+				if (OutBlend.Absolute.IsSet(ChannelIndex))
+				{
+					// If it has a non-zero weight, divide by it, and apply the absolute total to the result
+					OutputType AbsoluteWeight = (OutBlend.AbsoluteWeights[ChannelIndex] != 0.f) ? OutBlend.AbsoluteWeights[ChannelIndex] : 1.0;
+					OutBlend.Override.Set(ChannelIndex, OutBlend.Absolute[ChannelIndex] / AbsoluteWeight);
+				}
+			}
+			if (BlendType == EMovieSceneBlendType::Additive)
+			{
+				OutBlend.Override.Increment(ChannelIndex, OutputType(InValue) * Weight);
+			}
+			else if (BlendType == EMovieSceneBlendType::Override)
+			{
+				OutBlend.Override.WeightedBlend(ChannelIndex, OutputType(InValue), Weight);
+			}
+		}
 		else if (BlendType == EMovieSceneBlendType::Additive)
 		{
 			// Additive animation just increments the additive channel
@@ -276,19 +318,19 @@ namespace MovieScene
 	}
 
 	template<typename OutputType, typename InputType, typename ActualValueType>
-	void BlendValue(TMaskedBlendable<OutputType, 1>& OutBlend, InputType InValue, float Weight, EMovieSceneBlendType BlendType, TMovieSceneInitialValueStore<ActualValueType>& InitialValueStore)
+	void BlendValue(TMaskedBlendable<OutputType, 1>& OutBlend, InputType InValue, float Weight, EMovieSceneBlendType BlendType, int32 BlendingOrder, TMovieSceneInitialValueStore<ActualValueType>& InitialValueStore)
 	{
-		BlendValue(OutBlend, InValue, 0, Weight, BlendType, InitialValueStore);
+		BlendValue(OutBlend, InValue, 0, Weight, BlendType, BlendingOrder, InitialValueStore);
 	}
 
 	template<typename OutputType, typename ActualValueType, uint8 ChannelSize>
-	void BlendValue(TMaskedBlendable<OutputType, ChannelSize>& OutBlend, const TMultiChannelValue<OutputType, ChannelSize>& InValue, float Weight, EMovieSceneBlendType BlendType, TMovieSceneInitialValueStore<ActualValueType>& InitialValueStore)
+	void BlendValue(TMaskedBlendable<OutputType, ChannelSize>& OutBlend, const TMultiChannelValue<OutputType, ChannelSize>& InValue, float Weight, EMovieSceneBlendType BlendType, int32 BlendingOrder, TMovieSceneInitialValueStore<ActualValueType>& InitialValueStore)
 	{
 		for (int32 Index = 0; Index < ChannelSize; ++Index)
 		{
 			if (InValue.IsSet(Index))
 			{
-				BlendValue(OutBlend, InValue[Index], Index, Weight, BlendType, InitialValueStore);
+				BlendValue(OutBlend, InValue[Index], Index, Weight, BlendType, BlendingOrder, InitialValueStore);
 			}
 		}
 	}

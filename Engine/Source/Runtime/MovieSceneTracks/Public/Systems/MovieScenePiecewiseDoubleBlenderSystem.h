@@ -24,6 +24,28 @@ struct FBlendResult
 	float Weight = 0.f;
 };
 
+/* Data for each additive/override section, we don't accumulate until we recieve all of the data*/
+struct FAdditveAndOverrideData
+{
+	/** If Additive, if not then override*/
+	bool bIsAdditive;
+	/** Section Value*/
+	double Value;
+	/** Section Weight*/
+	float Weight;
+	/** Section Blending Order*/
+	int32 BlendingOrder;
+	bool operator<(const FAdditveAndOverrideData& RHS) const
+	{
+		return BlendingOrder < RHS.BlendingOrder;
+	}
+};
+/** Structure for holding the sorted blending order data for the additive and override data*/
+struct FAdditiveAndOverrides
+{
+	mutable TSortedMap<int32, FAdditveAndOverrideData> Data;
+};
+
 /** Structure for holding the blend results of each blend type */
 struct FAccumulationResult
 {
@@ -31,10 +53,11 @@ struct FAccumulationResult
 	const FBlendResult* Relatives = nullptr;
 	const FBlendResult* Additives = nullptr;
 	const FBlendResult* AdditivesFromBase = nullptr;
-
+	const FAdditiveAndOverrides* Overrides = nullptr;
 	bool IsValid() const
 	{
-		return Absolutes || Relatives || Additives || AdditivesFromBase;
+		return Absolutes || Relatives || Additives || AdditivesFromBase
+			|| Overrides;
 	}
 
 	FBlendResult GetAbsoluteResult(uint16 BlendID) const
@@ -53,6 +76,16 @@ struct FAccumulationResult
 	{
 		return AdditivesFromBase ? AdditivesFromBase[BlendID] : FBlendResult{};
 	}
+	FAdditiveAndOverrides GetAdditiveAndOverrideResult(uint16 BlendID)  const
+	{
+		return Overrides? Overrides[BlendID] : FAdditiveAndOverrides{};
+	}
+};
+
+/** Bufffer used for additive/override values*/
+struct FAdditiveAndOverrideBuffer
+{
+	TArray<FAdditiveAndOverrides> Values;
 };
 
 /** Buffer used for accumulating additive-from-base values */
@@ -79,6 +112,9 @@ struct FAccumulationBuffers
 	TSortedMap<FComponentTypeID, TArray<FBlendResult>> Additive;
 	/** Map from value result component type -> Additive From Base blend accumulation buffer for that channel type */
 	TSortedMap<FComponentTypeID, FAdditiveFromBaseBuffer> AdditiveFromBase;
+	/** Map from value result component type -> Additive and Override blending order blneds for that channel type */
+	TSortedMap<FComponentTypeID, FAdditiveAndOverrideBuffer> AdditiveAndOverrides;
+
 };
 
 } // namespace MovieScene

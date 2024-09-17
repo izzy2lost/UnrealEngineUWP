@@ -44,10 +44,10 @@ struct FMovieSceneBlendingAccumulator
 		UnboundBlendState.Add(InActuatorTypeID, MoveTemp(InToken));
 	}
 	template<typename ActuatorDataType>
-	void BlendToken(FMovieSceneBlendingActuatorID InActuatorTypeID, const FMovieSceneEvaluationScope& InScope, const FMovieSceneContext& InContext, ActuatorDataType&& InInputValue, EMovieSceneBlendType InBlendType, float InWeight = 1.f)
+	void BlendToken(FMovieSceneBlendingActuatorID InActuatorTypeID, const FMovieSceneEvaluationScope& InScope, const FMovieSceneContext& InContext, ActuatorDataType&& InInputValue, EMovieSceneBlendType InBlendType, float InWeight = 1.f, int32 InBlendingPriority = INDEX_NONE)
 	{
 		check(FindActuator<ActuatorDataType>(InActuatorTypeID));
-		UnboundBlendState.Add(InActuatorTypeID, TBlendableToken<ActuatorDataType>(Forward<ActuatorDataType>(InInputValue), InScope, InContext, InBlendType, InWeight));
+		UnboundBlendState.Add(InActuatorTypeID, TBlendableToken<ActuatorDataType>(Forward<ActuatorDataType>(InInputValue), InScope, InContext, InBlendType, InWeight, InBlendingPriority));
 	}
 
 	/**
@@ -69,10 +69,10 @@ struct FMovieSceneBlendingAccumulator
 		OperandToBlendState.FindOrAdd(InOperand).Add(InActuatorTypeID, MoveTemp(InToken));
 	}
 	template<typename ActuatorDataType>
-	void BlendToken(const FMovieSceneEvaluationOperand& InOperand, FMovieSceneBlendingActuatorID InActuatorTypeID, const FMovieSceneEvaluationScope& InScope, const FMovieSceneContext& InContext, ActuatorDataType&& InInputValue, EMovieSceneBlendType InBlendType, float InWeight = 1.f)
+	void BlendToken(const FMovieSceneEvaluationOperand& InOperand, FMovieSceneBlendingActuatorID InActuatorTypeID, const FMovieSceneEvaluationScope& InScope, const FMovieSceneContext& InContext, ActuatorDataType&& InInputValue, EMovieSceneBlendType InBlendType, float InWeight = 1.f, int32 InBlendingPriority = INDEX_NONE)
 	{
 		check(FindActuator<ActuatorDataType>(InActuatorTypeID));
-		OperandToBlendState.FindOrAdd(InOperand).Add(InScope, InActuatorTypeID, TBlendableToken<ActuatorDataType>(Forward<ActuatorDataType>(InInputValue), InScope, InContext, InBlendType, InWeight));
+		OperandToBlendState.FindOrAdd(InOperand).Add(InScope, InActuatorTypeID, TBlendableToken<ActuatorDataType>(Forward<ActuatorDataType>(InInputValue), InScope, InContext, InBlendType, InWeight, InBlendingPriority));
 	}
 
 	/**
