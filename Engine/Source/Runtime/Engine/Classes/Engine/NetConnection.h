@@ -1056,7 +1056,7 @@ public:
 	 *
 	 * @param CloseReason	Specifies the reason for the Close
 	 */
-	void GracefulClose(FNetCloseResult&& CloseReason)
+	virtual void GracefulClose(FNetCloseResult&& CloseReason)
 	{
 		GracefulClose(static_cast<FNetResult&&>(MoveTemp(CloseReason)));
 	}

@@ -1499,6 +1499,14 @@ void UChildConnection::InitChildConnection(UNetDriver* InDriver, UNetConnection*
 	InitChannelData();
 }
 
+void UChildConnection::GracefulClose(FNetCloseResult&& CloseReason)
+{
+	if (Parent)
+	{
+		Parent->GracefulClose(MoveTemp(CloseReason));
+	}
+}
+
 void UNetConnection::FinishDestroy()
 {
 	if ( !HasAnyFlags(RF_ClassDefaultObject) )

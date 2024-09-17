@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "Engine/NetConnection.h"
+#include "Net/Core/Connection/NetCloseResult.h"
 #include "ChildConnection.generated.h"
 
 /**
@@ -15,7 +16,7 @@ class UChildConnection
 	: public UNetConnection
 {
 	GENERATED_UCLASS_BODY()
-
+	using FNetCloseResult = UE::Net::FNetCloseResult;
 	UPROPERTY(transient)
 	TObjectPtr<class UNetConnection> Parent;
 
@@ -73,7 +74,7 @@ public:
 	{
 		SetConnectionState(Parent->GetConnectionState());
 	}
-
+	virtual void GracefulClose(FNetCloseResult&& CloseReason) override;
 	virtual void HandleClientPlayer(class APlayerController* PC, class UNetConnection* NetConnection) override;
 	virtual void CleanUp() override;
 
