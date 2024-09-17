@@ -20,10 +20,14 @@ FDynamicSkelMeshObjectDataNanite::FDynamicSkelMeshObjectDataNanite(
 	USkinnedMeshComponent* InComponent,
 	FSkeletalMeshRenderData* InRenderData,
 	int32 InLODIndex,
-	EPreviousBoneTransformUpdateMode InPreviousBoneTransformUpdateMode
+	EPreviousBoneTransformUpdateMode InPreviousBoneTransformUpdateMode,
+	FSkeletalMeshObjectNanite* InMeshObject
 )
 :	LODIndex(InLODIndex)
 {
+#if RHI_RAYTRACING
+	RayTracingLODIndex = FMath::Clamp(FMath::Max(LODIndex, InMeshObject->RayTracingMinLOD), LODIndex, InRenderData->LODRenderData.Num() - 1);
+#endif
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	ComponentSpaceTransforms = InComponent->GetComponentSpaceTransforms();
@@ -35,6 +39,12 @@ FDynamicSkelMeshObjectDataNanite::FDynamicSkelMeshObjectDataNanite(
 #endif
 
 	UpdateRefToLocalMatrices(ReferenceToLocal, InComponent, InRenderData, LODIndex, nullptr, LeaderBoneMappedMeshComponentSpaceTransforms);
+#if RHI_RAYTRACING
+	if (RayTracingLODIndex != LODIndex)
+	{
+		UpdateRefToLocalMatrices(ReferenceToLocalForRayTracing, InComponent, InRenderData, RayTracingLODIndex, nullptr);
+	}
+#endif
 	UpdateBonesRemovedByLOD(ReferenceToLocal, InComponent, ETransformsToUpdate::Current);
 
 	CurrentBoneTransforms.SetNumUninitialized(ReferenceToLocal.Num());
@@ -54,12 +64,24 @@ FDynamicSkelMeshObjectDataNanite::FDynamicSkelMeshObjectDataNanite(
 		// TODO: Nanite-Skinning, optimize scene extension upload to keep cached GPU representation using PreviousBoneTransformRevisionNumber
 		// For now we'll just redundantly update and upload previous transforms
 		UpdatePreviousRefToLocalMatrices(PrevReferenceToLocal, InComponent, InRenderData, LODIndex);
+#if RHI_RAYTRACING
+		if (RayTracingLODIndex != LODIndex)
+		{
+			UpdatePreviousRefToLocalMatrices(PrevReferenceToLocalForRayTracing, InComponent, InRenderData, RayTracingLODIndex);
+		}
+#endif
 		UpdateBonesRemovedByLOD(PrevReferenceToLocal, InComponent, ETransformsToUpdate::Previous);
 		bUpdatePrevious = true;
 		break;
 
 	case EPreviousBoneTransformUpdateMode::UpdatePrevious:
 		UpdatePreviousRefToLocalMatrices(PrevReferenceToLocal, InComponent, InRenderData, LODIndex);
+#if RHI_RAYTRACING
+		if (RayTracingLODIndex != LODIndex)
+		{
+			UpdatePreviousRefToLocalMatrices(PrevReferenceToLocalForRayTracing, InComponent, InRenderData, RayTracingLODIndex);
+		}
+#endif
 		UpdateBonesRemovedByLOD(PrevReferenceToLocal, InComponent, ETransformsToUpdate::Previous);
 		bUpdatePrevious = true;
 		break;
@@ -68,6 +90,12 @@ FDynamicSkelMeshObjectDataNanite::FDynamicSkelMeshObjectDataNanite(
 		// TODO: Nanite-Skinning likely possible we can just return ReferenceToLocal here rather than cloning it into previous
 		// Need to make sure it's safe when next update mode = None
 		PrevReferenceToLocal = ReferenceToLocal;
+#if RHI_RAYTRACING
+		if (RayTracingLODIndex != LODIndex)
+		{
+			PrevReferenceToLocalForRayTracing = ReferenceToLocalForRayTracing;
+		}
+#endif
 		PreviousBoneTransforms = CurrentBoneTransforms;
 		break;
 	}
@@ -309,7 +337,7 @@ void FSkeletalMeshObjectNanite::Update(
 	{
 		// Create the new dynamic data for use by the rendering thread
 		// this data is only deleted when another update is sent
-		FDynamicSkelMeshObjectDataNanite* NewDynamicData = new FDynamicSkelMeshObjectDataNanite(InComponent, SkeletalMeshRenderData, LODIndex, PreviousBoneTransformUpdateMode);
+		FDynamicSkelMeshObjectDataNanite* NewDynamicData = new FDynamicSkelMeshObjectDataNanite(InComponent, SkeletalMeshRenderData, LODIndex, PreviousBoneTransformUpdateMode, this);
 
 		uint64 FrameNumberToPrepare = GFrameCounter;
 		uint32 RevisionNumber = 0;
@@ -360,11 +388,14 @@ void FSkeletalMeshObjectNanite::UpdateDynamicData_RenderThread(FRHICommandList& 
 
 	if (bGPUSkinCacheEnabled && SkeletalMeshRenderData->bSupportRayTracing)
 	{
-		FSkeletalMeshObjectLOD& LOD = LODs[LODIndex];		
+		const bool bShouldUseSeparateMatricesForRayTracing = DynamicData->RayTracingLODIndex != DynamicData->LODIndex;
 
-		const FSkeletalMeshLODRenderData& LODData = SkeletalMeshRenderData->LODRenderData[LODIndex];
-		const TArray<FSkelMeshRenderSection>& Sections = GetRenderSections(LODIndex);
-		const FName OwnerName = GetAssetPathName(LODIndex);
+		const int32 RayTracingLODIndex = DynamicData->RayTracingLODIndex;
+		FSkeletalMeshObjectLOD& LOD = LODs[RayTracingLODIndex];
+
+		const FSkeletalMeshLODRenderData& LODData = SkeletalMeshRenderData->LODRenderData[RayTracingLODIndex];
+		const TArray<FSkelMeshRenderSection>& Sections = GetRenderSections(RayTracingLODIndex);
+		const FName OwnerName = GetAssetPathName(RayTracingLODIndex);
 
 		for (int32 SectionIdx = 0; SectionIdx < Sections.Num(); SectionIdx++)
 		{
@@ -375,13 +406,13 @@ void FSkeletalMeshObjectNanite::UpdateDynamicData_RenderThread(FRHICommandList& 
 
 			if (DynamicData->PrevReferenceToLocal.Num() > 0)
 			{
-				TArray<FMatrix44f>& PreviousReferenceToLocalMatrices = DynamicData->PrevReferenceToLocal;
+				TArray<FMatrix44f>& PreviousReferenceToLocalMatrices = bShouldUseSeparateMatricesForRayTracing ? DynamicData->PrevReferenceToLocalForRayTracing : DynamicData->PrevReferenceToLocal;
 				ShaderData.UpdateBoneData(RHICmdList, PreviousReferenceToLocalMatrices, Section.BoneMap, PreviousRevisionNumber, FeatureLevel, OwnerName);
 			}
 
 			// Create a uniform buffer from the bone transforms.
 			{
-				TArray<FMatrix44f>& ReferenceToLocalMatrices = DynamicData->ReferenceToLocal;
+				TArray<FMatrix44f>& ReferenceToLocalMatrices = bShouldUseSeparateMatricesForRayTracing ? DynamicData->ReferenceToLocalForRayTracing : DynamicData->ReferenceToLocal;
 				ShaderData.UpdateBoneData(RHICmdList, ReferenceToLocalMatrices, Section.BoneMap, RevisionNumber, FeatureLevel, OwnerName);
 				ShaderData.UpdatedFrameNumber = FrameNumberToPrepare;
 			}
@@ -405,7 +436,7 @@ void FSkeletalMeshObjectNanite::UpdateDynamicData_RenderThread(FRHICommandList& 
 					(FVector3f)FVector::OneVector, // (FVector3f)WorldScale,
 					RevisionNumber,
 					SectionIdx,
-					LODIndex,
+					RayTracingLODIndex,
 					bRecreating,
 					SkinCacheEntryForRayTracing);
 			}			
