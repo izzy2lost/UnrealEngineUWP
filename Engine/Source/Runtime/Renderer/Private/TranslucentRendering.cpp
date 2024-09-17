@@ -1290,7 +1290,7 @@ END_SHADER_PARAMETER_STRUCT()
 static void RenderTranslucencyViewInner(
 	FRDGBuilder& GraphBuilder,
 	const FSceneRenderer& SceneRenderer,
-	FViewInfo& View,
+	FViewInfo& View, int32 ViewIndex,
 	FScreenPassTextureViewport Viewport,
 	float ViewportScale,
 	FRDGTextureMSAA SceneColorTexture,
@@ -1318,7 +1318,7 @@ static void RenderTranslucencyViewInner(
 	PassParameters->View = GetSeparateTranslucencyViewParameters(View, Viewport.Extent, ViewportScale, TranslucencyPass);
 	PassParameters->ReflectionCapture = View.ReflectionCaptureUniformBuffer;
 	PassParameters->BasePass = BasePassParameters;
-	PassParameters->VirtualShadowMapSamplingParameters = SceneRenderer.VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
+	PassParameters->VirtualShadowMapSamplingParameters = SceneRenderer.VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, ViewIndex);
 	PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneColorTexture.Target, ERenderTargetLoadAction::ELoad);
 	if (TranslucencyPass != ETranslucencyPass::TPT_TranslucencyAfterMotionBlur)
 	{
@@ -1534,7 +1534,7 @@ void FDeferredShadingSceneRenderer::RenderTranslucencyInner(
 			RenderTranslucencyViewInner(
 				GraphBuilder,
 				*this,
-				View,
+				View, ViewIndex,
 				SeparateTranslucencyViewport,
 				SeparateTranslucencyDimensions.Scale,
 				SeparateTranslucencyColorTexture,
@@ -1665,7 +1665,7 @@ void FDeferredShadingSceneRenderer::RenderTranslucencyInner(
 			RenderTranslucencyViewInner(
 				GraphBuilder,
 				*this,
-				View,
+				View, ViewIndex,
 				SeparateTranslucencyViewport,
 				ViewportScale,
 				SeparateTranslucencyColorTexture,
@@ -1744,7 +1744,7 @@ void FDeferredShadingSceneRenderer::RenderTranslucencyInner(
 			RenderTranslucencyViewInner(
 				GraphBuilder,
 				*this,
-				View,
+				View, ViewIndex,
 				Viewport,
 				ViewportScale,
 				SceneTextures.Color,

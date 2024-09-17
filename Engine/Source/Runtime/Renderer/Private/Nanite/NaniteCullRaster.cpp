@@ -5919,7 +5919,7 @@ void FRenderer::DrawGeometry(
 
 	if (VirtualShadowMapArray != nullptr)
 	{
-		VirtualTargetParameters.VirtualShadowMap = VirtualShadowMapArray->GetUniformBuffer();
+		VirtualTargetParameters.VirtualShadowMap = VirtualShadowMapArray->GetUniformBuffer(0); // This pass does not require per-view VSM data
 		
 		// HZB (if provided) comes from the previous frame, so we need last frame's page table
 		// Dummy data, but matches the expected format

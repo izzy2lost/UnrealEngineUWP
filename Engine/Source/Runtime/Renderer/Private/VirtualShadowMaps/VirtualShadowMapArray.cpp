@@ -636,8 +636,8 @@ void FVirtualShadowMapArray::Initialize(
 	UniformParameters.PageFlags = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(uint32)));
 	UniformParameters.UncachedPageRectBounds = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(FIntVector4)));
 	UniformParameters.AllocatedPageRectBounds = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(FIntVector4)));
-	UniformParameters.LightGridData = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(uint32)));
-	UniformParameters.NumCulledLightsGrid = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(uint32)));
+	UniformParameters.PerViewData.LightGridData = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(uint32)));
+	UniformParameters.PerViewData.NumCulledLightsGrid = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(uint32)));
 	UniformParameters.CachePrimitiveAsDynamic = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(uint32)));
 
 	if (bEnabled)
@@ -742,7 +742,7 @@ void FVirtualShadowMapArray::Initialize(
 		HZBPhysicalArrayRDG = nullptr;
 	}
 
-	UpdateCachedUniformBuffer(GraphBuilder);
+	UpdateCachedUniformBuffers(GraphBuilder);
 }
 
 int32 FVirtualShadowMapArray::Allocate(bool bSinglePageShadowMap, int32 Count)
@@ -820,9 +820,30 @@ TRDGUniformBufferRef<FVirtualShadowMapUniformParameters> FVirtualShadowMapArray:
 	return GraphBuilder.CreateUniformBuffer(VersionedParameters);
 }
 
-void FVirtualShadowMapArray::UpdateCachedUniformBuffer(FRDGBuilder& GraphBuilder)
+void FVirtualShadowMapArray::UpdateCachedUniformBuffers(FRDGBuilder& GraphBuilder)
 {
-	CachedUniformBuffer = GetUncachedUniformBuffer(GraphBuilder);
+	CachedUniformBuffers.Reset();
+
+	// If we haven't yet initialized per-view parameters and are still using dummy data
+	if (PerViewParameters.Num() == 0)
+	{
+		CachedUniformBuffers.Add(GetUncachedUniformBuffer(GraphBuilder));
+	}
+	// If per-view parameters are initialized
+	else
+	{
+		CachedUniformBuffers.SetNum(PerViewParameters.Num());
+
+		for (int i = 0; i < PerViewParameters.Num(); i++)
+		{
+			FVirtualShadowMapUniformParameters* VersionedParameters = GraphBuilder.AllocParameters<FVirtualShadowMapUniformParameters>();
+			*VersionedParameters = UniformParameters;
+
+			VersionedParameters->PerViewData = PerViewParameters[i];
+
+			CachedUniformBuffers[i] = GraphBuilder.CreateUniformBuffer(VersionedParameters);
+		}
+	}
 }
 
 void FVirtualShadowMapArray::SetShaderDefines(FShaderCompilerEnvironment& OutEnvironment)
@@ -833,7 +854,7 @@ void FVirtualShadowMapArray::SetShaderDefines(FShaderCompilerEnvironment& OutEnv
 	OutEnvironment.SetDefine(TEXT("INDEX_NONE"), INDEX_NONE);
 }
 
-FVirtualShadowMapSamplingParameters FVirtualShadowMapArray::GetSamplingParameters(FRDGBuilder& GraphBuilder) const
+FVirtualShadowMapSamplingParameters FVirtualShadowMapArray::GetSamplingParameters(FRDGBuilder& GraphBuilder, int32 ViewIndex) const
 {
 	// Sanity check: either VSMs are disabled and it's expected to be relying on dummy data, or we should have valid data
 	// If this fires, it is likely because the caller is trying to sample VSMs before they have been rendered by the ShadowDepths pass
@@ -843,7 +864,7 @@ FVirtualShadowMapSamplingParameters FVirtualShadowMapArray::GetSamplingParameter
 	//	TEXT("Attempt to use Virtual Shadow Maps before they have been rendered by ShadowDepths."));
 
 	FVirtualShadowMapSamplingParameters Parameters;
-	Parameters.VirtualShadowMap = GetUniformBuffer();
+	Parameters.VirtualShadowMap = GetUniformBuffer(ViewIndex);
 	return Parameters;
 }
 
@@ -1652,7 +1673,7 @@ void FVirtualShadowMapArray::UpdatePhysicalPageAddresses(FRDGBuilder& GraphBuild
 	RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
 
 	FUpdatePhysicalPageAddresses::FParameters* PassParameters = GraphBuilder.AllocParameters<FUpdatePhysicalPageAddresses::FParameters>();
-	PassParameters->VirtualShadowMap		= GetUniformBuffer();
+	PassParameters->VirtualShadowMap		= GetUniformBuffer(0);
 	PassParameters->OutPhysicalPageMetaData = GraphBuilder.CreateUAV(PhysicalPageMetaDataRDG);
 
 	// Upload our prev -> next shadow data mapping (FNextVirtualShadowMapData) to the GPU
@@ -1724,6 +1745,9 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 
 	VisualizeLight.Reset();
 	VisualizeLight.AddDefaulted(Views.Num());
+
+	PerViewParameters.Reset();
+	PerViewParameters.AddDefaulted(Views.Num());
 
 #if !UE_BUILD_SHIPPING
 	if (GDumpVSMLightNames)
@@ -1949,8 +1973,14 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 					FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("PruneLightGrid"), ComputeShader, PassParameters, FComputeShaderUtils::GetGroupCount(NumLightGridCells, FPruneLightGridCS::DefaultCSGroupX));
 				};
 
-				UniformParameters.LightGridData = GraphBuilder.CreateSRV(PrunedLightGridDataRDG);
-				UniformParameters.NumCulledLightsGrid = GraphBuilder.CreateSRV(PrunedNumCulledLightsGridRDG);
+				PerViewParameters[ViewIndex].LightGridData = GraphBuilder.CreateSRV(PrunedLightGridDataRDG);
+				PerViewParameters[ViewIndex].NumCulledLightsGrid = GraphBuilder.CreateSRV(PrunedNumCulledLightsGridRDG);
+
+				// These will be used for subsequent shaders in this view loop
+				// But because they will be overwritten on each loop, any other shaders that want to access
+				// per-view VSM light grid data need to use the cached uniform buffers generated in UpdateCachedUniformBuffers()
+				UniformParameters.PerViewData.LightGridData = PerViewParameters[ViewIndex].LightGridData;
+				UniformParameters.PerViewData.NumCulledLightsGrid = PerViewParameters[ViewIndex].NumCulledLightsGrid;
 			}
 
 			// Mark pages based on projected depth buffer pixels
@@ -2325,7 +2355,7 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 	// NOTE: Must do this *after* feedback status pass
 	AppendPhysicalPageList(GraphBuilder, false);
 
-	UpdateCachedUniformBuffer(GraphBuilder);
+	UpdateCachedUniformBuffers(GraphBuilder);
 
 #if !UE_BUILD_SHIPPING
 	// Only dump one frame of light data
@@ -2387,7 +2417,7 @@ void FVirtualShadowMapArray::RenderDebugInfo(FRDGBuilder& GraphBuilder, TArrayVi
 		FIntPoint DebugTargetExtent = DebugVisualizationOutput[ViewIndex]->Desc.Extent;
 
 		FDebugVisualizeVirtualSmCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FDebugVisualizeVirtualSmCS::FParameters>();
-		PassParameters->ProjectionParameters = GetSamplingParameters(GraphBuilder);
+		PassParameters->ProjectionParameters = GetSamplingParameters(GraphBuilder, ViewIndex);
 		PassParameters->PhysicalPageMetaData = GraphBuilder.CreateSRV(PhysicalPageMetaDataRDG);
 
 		PassParameters->DebugTargetWidth = DebugTargetExtent.X;
@@ -2870,7 +2900,7 @@ static FCullingResult AddCullingPasses(FRDGBuilder& GraphBuilder,
 	{
 		FCullPerPageDrawCommandsCs::FParameters* PassParameters = GraphBuilder.AllocParameters<FCullPerPageDrawCommandsCs::FParameters>();
 
-		PassParameters->VirtualShadowMap = VirtualShadowMapArray.GetUniformBuffer();
+		PassParameters->VirtualShadowMap = VirtualShadowMapArray.GetUniformBuffer(0);
 		PassParameters->Scene = SceneUniformBuffer.GetBuffer(GraphBuilder);
 
 		PassParameters->OutDirtyPageFlags = GraphBuilder.CreateUAV(VirtualShadowMapArray.DirtyPageFlagsRDG, ERDGUnorderedAccessViewFlags::SkipBarrier);
@@ -3020,7 +3050,7 @@ static void AddRasterPass(
 	PassParameters->View = ShadowDepthView->ViewUniformBuffer;
 	PassParameters->ShadowDepthPass = ShadowDepthPassUniformBuffer;
 
-	PassParameters->VirtualShadowMap = VirtualShadowMapArray.GetUniformBuffer();
+	PassParameters->VirtualShadowMap = VirtualShadowMapArray.GetUniformBuffer(0);
 	PassParameters->InViews = GraphBuilder.CreateSRV(VirtualShadowViewsRDG);
 	PassParameters->InstanceCullingDrawParams.DrawIndirectArgsBuffer = CullingResult.DrawIndirectArgsRDG;
 	PassParameters->InstanceCullingDrawParams.InstanceIdOffsetBuffer = CullingResult.InstanceIdOffsetBufferRDG;
@@ -3450,7 +3480,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 				PassParameters->View = ShadowDepthView->ViewUniformBuffer;
 				PassParameters->ShadowDepthPass = ShadowDepthPassUniformBuffer;
 
-				PassParameters->VirtualShadowMap = GetUniformBuffer();
+				PassParameters->VirtualShadowMap = GetUniformBuffer(0);
 				PassParameters->InViews = GraphBuilder.CreateSRV(VirtualShadowViewsRDG);
 				PassParameters->InstanceCullingDrawParams.DrawIndirectArgsBuffer = CullingResult.DrawIndirectArgsRDG;
 				PassParameters->InstanceCullingDrawParams.InstanceIdOffsetBuffer = CullingResult.InstanceIdOffsetBufferRDG;

@@ -119,6 +119,13 @@ struct FVirtualShadowMapHZBMetadata
 	uint32		  TargetLayerIndex = INDEX_NONE;
 };
 
+BEGIN_SHADER_PARAMETER_STRUCT(FVirtualShadowMapPerViewParameters, )
+	// Light grid with only the lights that have VSMs present
+	// Still references the original indices from the global light grid
+	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, LightGridData)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, NumCulledLightsGrid)
+END_SHADER_PARAMETER_STRUCT()
+
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FVirtualShadowMapUniformParameters, )
 	SHADER_PARAMETER(uint32, NumFullShadowMaps)
 	SHADER_PARAMETER(uint32, NumSinglePageShadowMaps)
@@ -177,10 +184,7 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FVirtualShadowMapUniformParameters, )
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CachePrimitiveAsDynamic)
 
-	// Light grid with only the lights that have VSMs present
-	// Still references the original indices from the global light grid
-	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< uint >, LightGridData)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< uint >, NumCulledLightsGrid)
+	SHADER_PARAMETER_STRUCT_INCLUDE(FVirtualShadowMapPerViewParameters, PerViewData)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
 BEGIN_SHADER_PARAMETER_STRUCT(FVirtualShadowMapSamplingParameters, )
@@ -361,10 +365,10 @@ public:
 	// Get shader parameters necessary to sample virtual shadow maps
 	// It is safe to bind this buffer even if VSMs are disabled, but the sampling should be branched around in the shader.
 	// This data becomes valid after the shadow depths pass if VSMs are enabled
-	FVirtualShadowMapSamplingParameters GetSamplingParameters(FRDGBuilder& GraphBuilder) const;
-	TRDGUniformBufferRef<FVirtualShadowMapUniformParameters> GetUniformBuffer() const
+	FVirtualShadowMapSamplingParameters GetSamplingParameters(FRDGBuilder& GraphBuilder, int32 ViewIndex) const;
+	TRDGUniformBufferRef<FVirtualShadowMapUniformParameters> GetUniformBuffer(int32 ViewIndex) const
 	{
-		return CachedUniformBuffer;
+		return ViewIndex < CachedUniformBuffers.Num() ? CachedUniformBuffers[ViewIndex] : nullptr;
 	}
 
 	bool HasAnyShadowData() const { return PhysicalPagePoolRDG != nullptr;  }
@@ -393,6 +397,7 @@ public:
 	FVirtualShadowMapArrayCacheManager* CacheManager = nullptr;
 
 	FVirtualShadowMapUniformParameters UniformParameters;
+	TArray<FVirtualShadowMapPerViewParameters> PerViewParameters;
 
 	// Physical page pool shadow data and associated HZB and metadata
 	// NOTE: The underlying textures are owned by FVirtualShadowMapCacheManager.
@@ -451,7 +456,7 @@ private:
 	uint32 AddRenderViews(const TSharedPtr<FVirtualShadowMapClipmap>& Clipmap, const FViewInfo* CullingView, float LODScaleFactor, bool bSetHzbParams, bool bUpdateHZBMetaData, TArray<Nanite::FPackedView, SceneRenderingAllocator>& OutVirtualShadowViews);
 
 	TRDGUniformBufferRef<FVirtualShadowMapUniformParameters> GetUncachedUniformBuffer(FRDGBuilder& GraphBuilder) const;
-	void UpdateCachedUniformBuffer(FRDGBuilder& GraphBuilder);
+	void UpdateCachedUniformBuffers(FRDGBuilder& GraphBuilder);
 			
 	// Track mapping of previous VSM data -> current frame VSM data
 	// This is primarily an indirection that allows us to reallocate/repack VirtualShadowMapIds each frame
@@ -460,9 +465,8 @@ private:
 	int32 NumShadowMapSlots = 0;
 	int32 NumSinglePageShadowMaps = 0;
 
-	// Cached copy of the latest uniform parameters
 	// Gets created in dummy form at initialization time, then updated after VSM data is computed
-	TRDGUniformBufferRef<FVirtualShadowMapUniformParameters> CachedUniformBuffer;
+	TArray<TRDGUniformBufferRef<FVirtualShadowMapUniformParameters>> CachedUniformBuffers;
 
 	FScene &Scene;
 	//

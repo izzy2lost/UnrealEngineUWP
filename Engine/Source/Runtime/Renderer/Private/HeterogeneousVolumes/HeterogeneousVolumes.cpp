@@ -1003,7 +1003,7 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumes(
 							GraphBuilder,
 							SceneTextures,
 							Scene,
-							View,
+							View, ViewIndex,
 							// Shadow Data
 							VisibleLightInfos,
 							VirtualShadowMapArray,
@@ -1025,7 +1025,7 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumes(
 							GraphBuilder,
 							SceneTextures,
 							Scene,
-							View,
+							View, ViewIndex,
 							// Shadow Data
 							VisibleLightInfos,
 							VirtualShadowMapArray,

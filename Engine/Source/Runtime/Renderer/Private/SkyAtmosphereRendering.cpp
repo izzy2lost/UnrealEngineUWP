@@ -1661,7 +1661,7 @@ void FSceneRenderer::RenderSkyAtmosphereLookUpTables(FRDGBuilder& GraphBuilder, 
 			PassParameters->SkyViewLutUAV = SkyAtmosphereViewLutTextureUAV;
 			PassParameters->Light0Shadow = LightShadowShaderParams0UniformBuffer;
 			PassParameters->Light1Shadow = LightShadowShaderParams1UniformBuffer;
-			PassParameters->VirtualShadowMap = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
+			PassParameters->VirtualShadowMap = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, ViewIndex);
 			PassParameters->VirtualShadowMapId0 = LightShadowData.VirtualShadowMapId0;
 			PassParameters->VirtualShadowMapId1 = LightShadowData.VirtualShadowMapId1;
 			if (bShouldSampleCloudShadow || CloudShadowAOData.bShouldSampleCloudSkyAO)
@@ -1710,7 +1710,7 @@ void FSceneRenderer::RenderSkyAtmosphereLookUpTables(FRDGBuilder& GraphBuilder, 
 			PassParameters->RealTimeReflection360Mode = 0.0f;
 			PassParameters->Light0Shadow = LightShadowShaderParams0UniformBuffer;
 			PassParameters->Light1Shadow = LightShadowShaderParams1UniformBuffer;
-			PassParameters->VirtualShadowMap = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
+			PassParameters->VirtualShadowMap = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, ViewIndex);
 			PassParameters->VirtualShadowMapId0 = LightShadowData.VirtualShadowMapId0;
 			PassParameters->VirtualShadowMapId1 = LightShadowData.VirtualShadowMapId1;
 			if (bShouldSampleCloudShadow || CloudShadowAOData.bShouldSampleCloudSkyAO)
@@ -1880,7 +1880,7 @@ void FSceneRenderer::RenderSkyAtmosphereInternal(
 		PsPassParameters->Light0Shadow = SkyRC.LightShadowShaderParams0UniformBuffer;
 		PsPassParameters->Light1Shadow = SkyRC.LightShadowShaderParams1UniformBuffer;
 
-		PsPassParameters->VirtualShadowMap = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
+		PsPassParameters->VirtualShadowMap = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, 0);
 		PsPassParameters->VirtualShadowMapId0 = SkyRC.VirtualShadowMapId0;
 		PsPassParameters->VirtualShadowMapId1 = SkyRC.VirtualShadowMapId1;
 

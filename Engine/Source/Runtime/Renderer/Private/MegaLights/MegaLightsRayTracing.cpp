@@ -916,7 +916,7 @@ MegaLights::FCompactedTraceParameters MegaLights::CompactMegaLightsVolumeTraces(
  */
 void MegaLights::RayTraceLightSamples(
 	const FSceneViewFamily& ViewFamily,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,
 	const FVirtualShadowMapArray& VirtualShadowMapArray,
@@ -944,7 +944,7 @@ void MegaLights::RayTraceLightSamples(
 		PassParameters->CompactedTraceParameters = CompactedTraceParameters;
 		PassParameters->MegaLightsParameters = MegaLightsParameters;
 		PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
-		PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
+		PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, ViewIndex);
 
 		FVirtualShadowMapTraceLightSamplesCS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FVirtualShadowMapTraceLightSamplesCS::FDebugMode>(bDebug);

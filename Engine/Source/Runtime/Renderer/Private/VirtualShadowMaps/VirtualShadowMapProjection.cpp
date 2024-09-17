@@ -220,7 +220,7 @@ static void RenderVirtualShadowMapProjectionCommon(
 	const bool bHasHairStrandsData = HairStrands::HasViewHairStrandsData(View);
 
 	FVirtualShadowMapProjectionCS::FParameters* PassParameters = GraphBuilder.AllocParameters< FVirtualShadowMapProjectionCS::FParameters >();
-	PassParameters->SamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
+	PassParameters->SamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, ViewIndex);
 	PassParameters->SceneTexturesStruct = SceneTextures.UniformBuffer;
 	PassParameters->View = View.ViewUniformBuffer;
 	PassParameters->ProjectionRect = FIntVector4(ProjectionRect.Min.X, ProjectionRect.Min.Y, ProjectionRect.Max.X, ProjectionRect.Max.Y);
@@ -642,7 +642,7 @@ IMPLEMENT_GLOBAL_SHADER(FVirtualShadowMapProjectionCompositeFromMaskBitsPS, "/En
 void CompositeVirtualShadowMapFromMaskBits(
 	FRDGBuilder& GraphBuilder,
 	const FMinimalSceneTextures& SceneTextures,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	const FIntRect ScissorRect,
 	FVirtualShadowMapArray& VirtualShadowMapArray,
 	EVirtualShadowMapProjectionInputType InputType,
@@ -653,7 +653,7 @@ void CompositeVirtualShadowMapFromMaskBits(
 	FIntRect ProjectionRect = View.ViewRect;
 
 	FVirtualShadowMapProjectionCompositeFromMaskBitsPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FVirtualShadowMapProjectionCompositeFromMaskBitsPS::FParameters>();
-	PassParameters->SamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
+	PassParameters->SamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, ViewIndex);
 	PassParameters->SceneTexturesStruct = SceneTextures.UniformBuffer;
 	PassParameters->ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
 	PassParameters->View = View.ViewUniformBuffer;

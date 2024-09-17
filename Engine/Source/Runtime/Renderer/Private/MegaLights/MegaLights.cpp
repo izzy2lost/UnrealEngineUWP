@@ -1456,7 +1456,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 
 		MegaLights::RayTraceLightSamples(
 			ViewFamily,
-			View,
+			View, ViewIndex,
 			GraphBuilder,
 			SceneTextures,
 			VirtualShadowMapArray,

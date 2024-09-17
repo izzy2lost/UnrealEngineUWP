@@ -1304,7 +1304,7 @@ static void InjectTranslucencyLightingVolumeBatch(
 	auto* PassParameters = GraphBuilder.AllocParameters<FTranslucentLightingInjectBatchPS::FParameters>();
 	if (bSupportVirtualShadowMaps)
 	{
-		PassParameters->VirtualShadowMapSamplingParameters = Renderer.VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
+		PassParameters->VirtualShadowMapSamplingParameters = Renderer.VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, ViewIndex);
 	}
 	PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 	PassParameters->ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
@@ -1433,7 +1433,7 @@ void InjectTranslucencyLightingVolume(
 				PassParameters->TransmittanceLutTexture = TransmittanceLutTexture;
 				PassParameters->ShadowDepthTexture = ShadowDepthTexture;
 				PassParameters->CloudShadowAO = CloudShadowAOParameters;
-				PassParameters->PS.VirtualShadowMapSamplingParameters = Renderer.VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
+				PassParameters->PS.VirtualShadowMapSamplingParameters = Renderer.VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, ViewIndex);
 				PassParameters->RenderTargets[0] = FRenderTargetBinding(VolumeAmbientTexture, ERenderTargetLoadAction::ELoad);
 				PassParameters->RenderTargets[1] = FRenderTargetBinding(VolumeDirectionalTexture, ERenderTargetLoadAction::ELoad);
 
