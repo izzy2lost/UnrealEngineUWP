@@ -1013,7 +1013,7 @@ void UDaySequenceModifierComponent::EmptyVolumeShapeComponents()
 
 void UDaySequenceModifierComponent::AddVolumeShapeComponent(const FComponentReference& InShapeReference)
 {
-	VolumeShapeComponents.Add(InShapeReference);
+	VolumeShapeComponents.AddUnique(InShapeReference);
 	bCachedExternalShapesInvalid = true;
 }
 
