@@ -150,7 +150,7 @@ float3 ComposeLightCardUnderColor(float4 InColor, OutputVS IN, float2 OverlayUV)
 		return ComposeOverlayColor(InColor, LightCardUnderColor);
 	}
 	
-	return InColor;
+	return InColor.xyz;
 }
 
 float3 ComposeLightCardOverColor(float4 InColor, OutputVS IN, float2 OverlayUV)
@@ -162,7 +162,7 @@ float3 ComposeLightCardOverColor(float4 InColor, OutputVS IN, float2 OverlayUV)
 		return ComposeOverlayColor(InColor, LightCardOverColor);
 	}
 	
-	return InColor;
+	return InColor.xyz;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
