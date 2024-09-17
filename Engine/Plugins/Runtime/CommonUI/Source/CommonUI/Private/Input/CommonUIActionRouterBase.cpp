@@ -332,6 +332,10 @@ void UCommonUIActionRouterBase::SetIsActivatableTreeEnabled(bool bInIsTreeEnable
 	{
 		SetActiveRoot(nullptr);
 	}
+	else
+	{
+		RefreshActionDomainLeafNodeConfig();
+	}
 }
 
 void UCommonUIActionRouterBase::RegisterScrollRecipient(const UWidget& ScrollableWidget)
