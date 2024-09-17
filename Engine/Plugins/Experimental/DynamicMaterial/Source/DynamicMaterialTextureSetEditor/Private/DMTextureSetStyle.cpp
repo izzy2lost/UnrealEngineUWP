@@ -21,4 +21,8 @@ FDMTextureSetStyle::FDMTextureSetStyle()
 	Set("TextureSetConfig.Cell.Background", new FSlateRoundedBoxBrush(
 		FStyleColors::Recessed.GetSpecifiedColor(), 6.0f,
 		FStyleColors::Header.GetSpecifiedColor(), 2.0f));
+
+	Set("TextureSetConfig.TextureNameHighlight.Background", new FSlateColorBrush(FStyleColors::Black.GetSpecifiedColor()));
+
+	Set("TextureSetConfig.TextureNameHighlight.Color", FStyleColors::AccentWhite);
 }
