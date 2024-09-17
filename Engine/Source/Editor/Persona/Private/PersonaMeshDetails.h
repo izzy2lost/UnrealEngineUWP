@@ -447,6 +447,8 @@ private:
 	TSharedRef<SWidget> OnGenerateLodMenuForLodPicker();
 	FText GetCurrentLodName() const;
 	FText GetCurrentLodTooltip() const;
+	static bool GetAutoLod(USkeletalMeshComponent* InMeshComponent);
+	static int32 GetCurrentDisplayLODIndex(USkeletalMeshComponent* InMeshComponent);
 
 	void SetCurrentLOD(int32 NewLodIndex);
 

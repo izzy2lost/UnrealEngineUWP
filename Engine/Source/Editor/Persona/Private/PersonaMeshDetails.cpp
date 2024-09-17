@@ -344,42 +344,49 @@ private:
 		{
 			USkeletalMesh* SkeletalMesh = SharedToolkit->GetMesh();
 
-			if (!SkeletalMesh || SkeletalMesh->IsCompiling())
-			{
-				return false;
-			}
-			FSkeletalMeshLODInfo* LODInfo = SkeletalMesh->GetLODInfo(LODIndex);
-			if (LODInfo == nullptr)
-			{
-				return false;
-			}
-			bool bValidLODSettings = false;
-			if (SkeletalMesh->GetLODSettings() != nullptr)
-			{
-				const int32 NumSettings = FMath::Min(SkeletalMesh->GetLODSettings()->GetNumberOfSettings(), SkeletalMesh->GetLODNum());
-				if (LODIndex < NumSettings)
-				{
-					bValidLODSettings = true;
-				}
-			}
-			
-			const FSkeletalMeshLODGroupSettings* SkeletalMeshLODGroupSettings = bValidLODSettings ? &SkeletalMesh->GetLODSettings()->GetSettingsForLODLevel(LODIndex) : nullptr;
-
-			FGuid BuildGUID = LODInfo->ComputeDeriveDataCacheKey(SkeletalMeshLODGroupSettings);
-			if (LODInfo->BuildGUID != BuildGUID)
-			{
-				return true;
-			}
-			else if(!SkeletalMesh->GetImportedModel() || !(SkeletalMesh->GetImportedModel()->LODModels.IsValidIndex(LODIndex)))
-			{
-				//If there is no valid LODIndex imported model we want to return false to force a build to happen
-				return false;
-			}
-			return SkeletalMesh->GetImportedModel()->LODModels[LODIndex].BuildStringID != SkeletalMesh->GetImportedModel()->LODModels[LODIndex].GetLODModelDeriveDataKey();
+			return LODSettingsChanged(SkeletalMesh, LODIndex);
 		}
 		return false;
 	}
 
+public:
+	static bool LODSettingsChanged(USkeletalMesh* SkeletalMesh, int32 LODIndex)
+	{
+		if (!SkeletalMesh || SkeletalMesh->IsCompiling())
+		{
+			return false;
+		}
+		FSkeletalMeshLODInfo* LODInfo = SkeletalMesh->GetLODInfo(LODIndex);
+		if (LODInfo == nullptr)
+		{
+			return false;
+		}
+		bool bValidLODSettings = false;
+		if (SkeletalMesh->GetLODSettings() != nullptr)
+		{
+			const int32 NumSettings = FMath::Min(SkeletalMesh->GetLODSettings()->GetNumberOfSettings(), SkeletalMesh->GetLODNum());
+			if (LODIndex < NumSettings)
+			{
+				bValidLODSettings = true;
+			}
+		}
+
+		const FSkeletalMeshLODGroupSettings* SkeletalMeshLODGroupSettings = bValidLODSettings ? &SkeletalMesh->GetLODSettings()->GetSettingsForLODLevel(LODIndex) : nullptr;
+
+		FGuid BuildGUID = LODInfo->ComputeDeriveDataCacheKey(SkeletalMeshLODGroupSettings);
+		if (LODInfo->BuildGUID != BuildGUID)
+		{
+			return true;
+		}
+		else if (!SkeletalMesh->GetImportedModel() || !(SkeletalMesh->GetImportedModel()->LODModels.IsValidIndex(LODIndex)))
+		{
+			//If there is no valid LODIndex imported model we want to return false to force a build to happen
+			return false;
+		}
+		return SkeletalMesh->GetImportedModel()->LODModels[LODIndex].BuildStringID != SkeletalMesh->GetImportedModel()->LODModels[LODIndex].GetLODModelDeriveDataKey();
+	}
+
+private:
 	// Incoming arg data
 	int32 LODIndex;
 	TWeakPtr<IPersonaToolkit> PersonaToolkit;
@@ -4151,6 +4158,11 @@ FReply FPersonaMeshDetails::ApplyLODChanges(int32 LODIndex)
 	{
 		GetPersonaToolkit()->GetPreviewScene()->BroadcastOnMorphTargetsChanged();
 	}
+
+	// Update mesh required bones to match the new LOD settings
+	GetPersonaToolkit()->GetPreviewScene()->GetPreviewMeshComponent()->RecalcRequiredBones(LODIndex);
+	// Force an update (this will update the Skeleton Tree to match the bones in the preview skeletal mesh required bones)
+	GetPersonaToolkit()->GetPreviewScene()->BroadcastOnLODChanged();
 	
 	return FReply::Handled();
 }
@@ -4361,6 +4373,10 @@ void FPersonaMeshDetails::ApplyChanges()
 	USkeletalMesh* SkelMesh = GetPersonaToolkit()->GetMesh();
 	check(SkelMesh);
 
+	const int32 CurrentDisplayLOD = GetCurrentDisplayLODIndex(GetPersonaToolkit()->GetPreviewMeshComponent());
+	// Check if there are any LOD changes before we regenerate, as we will have to send a LOD update event to fully refresh the bone tree state
+	const bool bRequiresLODChangeUpdate = SSkeletalLODActions::LODSettingsChanged(SkelMesh, CurrentDisplayLOD);
+
 	if (NaniteSettings.IsValid())
 	{
 		NaniteSettings->ApplyChanges();
@@ -4418,6 +4434,14 @@ void FPersonaMeshDetails::ApplyChanges()
 	if (SkelMesh->GetMorphTargets().Num() > 0)
 	{
 		GetPersonaToolkit()->GetPreviewScene()->BroadcastOnMorphTargetsChanged();
+	}
+
+	// Update preview mesh required bones, in case LOD settings have changed
+	if (bRequiresLODChangeUpdate)
+	{
+		GetPersonaToolkit()->GetPreviewScene()->GetPreviewMeshComponent()->RecalcRequiredBones(CurrentDisplayLOD);
+		// Force an update (this will update the Skeleton Tree to match the bones in the preview skeletal mesh required bones)
+		GetPersonaToolkit()->GetPreviewScene()->BroadcastOnLODChanged();
 	}
 
 	// We need to rebuild the layout to ensure all the LOD details are up-to-date.
@@ -5756,13 +5780,23 @@ void FPersonaMeshDetails::UpdateLODCategoryVisibility() const
 
 FText FPersonaMeshDetails::GetCurrentLodName() const
 {
-	bool bAutoLod = false;
-	if (GetPersonaToolkit()->GetPreviewMeshComponent() != nullptr)
+	const int32 CurrentDisplayLOD = GetCurrentDisplayLODIndex(GetPersonaToolkit()->GetPreviewMeshComponent());
+	return FText::FromString(GetAutoLod(GetPersonaToolkit()->GetPreviewMeshComponent()) ? FString(TEXT("Auto (LOD0)")) : (FString(TEXT("LOD")) + FString::FromInt(CurrentDisplayLOD)));
+}
+
+bool FPersonaMeshDetails::GetAutoLod(USkeletalMeshComponent* InMeshComponent)
+{
+	return (InMeshComponent != nullptr) ? InMeshComponent->GetForcedLOD() == 0 : false;
+}
+
+int32 FPersonaMeshDetails::GetCurrentDisplayLODIndex(USkeletalMeshComponent* InMeshComponent)
+{
+	int32 CurrentDisplayLOD = 0;
+	if (InMeshComponent != nullptr)
 	{
-		bAutoLod = GetPersonaToolkit()->GetPreviewMeshComponent()->GetForcedLOD() == 0;
+		CurrentDisplayLOD = GetAutoLod(InMeshComponent) ? 0 : InMeshComponent->GetForcedLOD() - 1;
 	}
-	int32 CurrentDisplayLOD = bAutoLod ? 0 : GetPersonaToolkit()->GetPreviewMeshComponent()->GetForcedLOD() - 1;
-	return FText::FromString(bAutoLod ? FString(TEXT("Auto (LOD0)")) : (FString(TEXT("LOD")) + FString::FromInt(CurrentDisplayLOD)));
+	return CurrentDisplayLOD;
 }
 
 FText FPersonaMeshDetails::GetCurrentLodTooltip() const
