@@ -715,6 +715,10 @@ void FWidgetBlueprintCompilerContext::CopyTermDefaultsToDefaultObject(UObject* D
 		{
 			DefaultWidget->bHasScriptImplementedPaint = false;
 		}
+
+		// Reset the value of this flag, which is set on PostCDOCompiled if there are any input nodes
+		// in the widget graphs.
+		DefaultWidget->bAutomaticallyRegisterInputOnConstruction = false;
 	}
 
 
