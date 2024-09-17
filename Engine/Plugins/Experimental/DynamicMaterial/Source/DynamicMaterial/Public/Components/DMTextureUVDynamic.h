@@ -15,7 +15,7 @@ class UMaterialInstanceDynamic;
 /**
  * A texture uv used inside a instanced material instance. Links to the original texture uv in the parent material.
  */
-UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Texture UV Dynamic"))
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Texture UV Instance"))
 class UDMTextureUVDynamic : public UDMMaterialComponentDynamic
 {
 	GENERATED_BODY()

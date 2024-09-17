@@ -61,7 +61,7 @@ TArray<FDMObjectMaterialProperty> UDMMaterialModelFunctionLibrary::GetActorMater
 	return ActorProperties;
 }
 
-UDynamicMaterialModel* UDMMaterialModelFunctionLibrary::CreateDynamicMaterialInObject(FDMObjectMaterialProperty& InMaterialProperty)
+UDynamicMaterialModel* UDMMaterialModelFunctionLibrary::CreateMaterialInObject(FDMObjectMaterialProperty& InMaterialProperty)
 {
 	if (!InMaterialProperty.IsValid())
 	{
@@ -108,7 +108,7 @@ UDynamicMaterialModel* UDMMaterialModelFunctionLibrary::CreateDynamicMaterialInO
 	return nullptr;
 }
 
-UDynamicMaterialInstance* UDMMaterialModelFunctionLibrary::ExportMaterialInstance(UDynamicMaterialModelBase* InMaterialModelBase)
+UDynamicMaterialInstance* UDMMaterialModelFunctionLibrary::ExportMaterial(UDynamicMaterialModelBase* InMaterialModelBase)
 {
 	if (!IsValid(InMaterialModelBase))
 	{
@@ -158,10 +158,10 @@ UDynamicMaterialInstance* UDMMaterialModelFunctionLibrary::ExportMaterialInstanc
 		return nullptr;
 	}
 
-	return ExportMaterialInstance(MaterialInstance->GetMaterialModelBase(), SaveObjectPath);
+	return ExportMaterial(MaterialInstance->GetMaterialModelBase(), SaveObjectPath);
 }
 
-UDynamicMaterialInstance* UDMMaterialModelFunctionLibrary::ExportMaterialInstance(UDynamicMaterialModelBase* InMaterialModel, const FString& InSavePath)
+UDynamicMaterialInstance* UDMMaterialModelFunctionLibrary::ExportMaterial(UDynamicMaterialModelBase* InMaterialModel, const FString& InSavePath)
 {
 	if (!IsValid(InMaterialModel))
 	{
@@ -178,7 +178,7 @@ UDynamicMaterialInstance* UDMMaterialModelFunctionLibrary::ExportMaterialInstanc
 	UDynamicMaterialInstance* Instance = InMaterialModel->GetDynamicMaterialInstance();
 	if (!Instance)
 	{
-		UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to find a Material Designer Instance to export."), true, InMaterialModel);
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to find a Material Designer Material to export."), true, InMaterialModel);
 		return nullptr;
 	}
 
@@ -187,7 +187,7 @@ UDynamicMaterialInstance* UDMMaterialModelFunctionLibrary::ExportMaterialInstanc
 	UPackage* Package = CreatePackage(*PackagePath);
 	if (!Package)
 	{
-		UE::DynamicMaterialEditor::Private::LogError(FString::Printf(TEXT("Failed to create package for Material Designer Instance (%s)."), *PackagePath));
+		UE::DynamicMaterialEditor::Private::LogError(FString::Printf(TEXT("Failed to create package for Material Designer Material (%s)."), *PackagePath));
 		return nullptr;
 	}
 
@@ -199,7 +199,7 @@ UDynamicMaterialInstance* UDMMaterialModelFunctionLibrary::ExportMaterialInstanc
 	UObject* NewAsset = StaticDuplicateObjectEx(Params);
 	if (!NewAsset)
 	{
-		UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to create new Material Designer Instance asset."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to create new Material Designer Material asset."));
 		return nullptr;
 	}
 
@@ -230,7 +230,7 @@ UDynamicMaterialInstance* UDMMaterialModelFunctionLibrary::ExportMaterialInstanc
 
 	if (FEngineAnalytics::IsAvailable())
 	{
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner"), TEXT("Action"), TEXT("ExportedMaterialInstance"));
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner"), TEXT("Action"), TEXT("ExportedMaterial"));
 	}
 
 	return NewInstance;
@@ -384,7 +384,7 @@ UDynamicMaterialModel* UDMMaterialModelFunctionLibrary::ExportToTemplateMaterial
 	return NewModel;
 }
 
-UDynamicMaterialInstance* UDMMaterialModelFunctionLibrary::ExportToTemplateMaterialInstance(UDynamicMaterialModelDynamic* InMaterialModelDynamic)
+UDynamicMaterialInstance* UDMMaterialModelFunctionLibrary::ExportToTemplateMaterial(UDynamicMaterialModelDynamic* InMaterialModelDynamic)
 {
 	UDynamicMaterialModel* ParentModel = InMaterialModelDynamic->GetParentModel();
 
@@ -431,10 +431,10 @@ UDynamicMaterialInstance* UDMMaterialModelFunctionLibrary::ExportToTemplateMater
 		return nullptr;
 	}
 
-	return ExportToTemplateMaterialInstance(InMaterialModelDynamic, SaveObjectPath);	
+	return ExportToTemplateMaterial(InMaterialModelDynamic, SaveObjectPath);	
 }
 
-UDynamicMaterialInstance* UDMMaterialModelFunctionLibrary::ExportToTemplateMaterialInstance(UDynamicMaterialModelDynamic* InMaterialModelDynamic, const FString& InSavePath)
+UDynamicMaterialInstance* UDMMaterialModelFunctionLibrary::ExportToTemplateMaterial(UDynamicMaterialModelDynamic* InMaterialModelDynamic, const FString& InSavePath)
 {
 	UDynamicMaterialModel* ParentModel = InMaterialModelDynamic->GetParentModel();
 
@@ -486,7 +486,7 @@ UDynamicMaterialInstance* UDMMaterialModelFunctionLibrary::ExportToTemplateMater
 
 	if (FEngineAnalytics::IsAvailable())
 	{
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner"), TEXT("Action"), TEXT("ExportToTemplateMaterialInstance"));
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner"), TEXT("Action"), TEXT("ExportToTemplateMaterial"));
 	}
 
 	return NewInstance;
@@ -534,7 +534,7 @@ bool UDMMaterialModelFunctionLibrary::IsModelValid(UDynamicMaterialModelBase* In
 	return true;
 }
 
-bool UDMMaterialModelFunctionLibrary::DuplicateModelBetweenInstances(UDynamicMaterialModel* InFromModel, UDynamicMaterialInstance* InToInstance)
+bool UDMMaterialModelFunctionLibrary::DuplicateModelBetweenMaterials(UDynamicMaterialModel* InFromModel, UDynamicMaterialInstance* InToInstance)
 {
 	if (!InFromModel || !InToInstance)
 	{
@@ -583,7 +583,7 @@ bool UDMMaterialModelFunctionLibrary::DuplicateModelBetweenInstances(UDynamicMat
 	return true;
 }
 
-bool UDMMaterialModelFunctionLibrary::CreateDynamicModelInInstance(UDynamicMaterialModel* InFromModel, UDynamicMaterialInstance* InToInstance)
+bool UDMMaterialModelFunctionLibrary::CreateModelInstanceInMaterial(UDynamicMaterialModel* InFromModel, UDynamicMaterialInstance* InToInstance)
 {
 	if (!InFromModel || !InToInstance)
 	{
@@ -607,7 +607,7 @@ bool UDMMaterialModelFunctionLibrary::CreateDynamicModelInInstance(UDynamicMater
 
 	if (!NewModelDynamic)
 	{
-		UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to make Dynamic Material."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to make Material Designer Model Instance."));
 
 		// Put back the original model
 		CurrentModel->Rename(CurrentName.IsEmpty() ? nullptr : *CurrentName, InToInstance, UE::DynamicMaterial::RenameFlags);

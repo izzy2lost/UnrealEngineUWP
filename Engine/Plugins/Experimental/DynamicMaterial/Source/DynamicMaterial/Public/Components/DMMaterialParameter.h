@@ -8,7 +8,7 @@
 class UDynamicMaterialModel;
 
 /**
- * A parameter on a Material Designer Instance.
+ * A parameter on a Material Designer Material.
  */
 UCLASS(MinimalAPI, BlueprintType, meta = (DisplayName = "Material Designer Parameter"))
 class UDMMaterialParameter : public UDMMaterialLinkedComponent

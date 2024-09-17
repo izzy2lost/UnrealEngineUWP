@@ -1198,7 +1198,7 @@ void UAvaShapeDynamicMeshBase::OnMaterialTypeChanged(int32 MaterialIndex)
 
 #if WITH_EDITOR
 					const IDynamicMaterialEditorModule& MaterialDesignerModule = IDynamicMaterialEditorModule::Get();
-					MaterialDesignerModule.OpenMaterialInstance(NewInstance, GetWorld(), /* Invoke Tab */ true);
+					MaterialDesignerModule.OpenMaterial(NewInstance, GetWorld(), /* Invoke Tab */ true);
 #endif
 				}
 				break;

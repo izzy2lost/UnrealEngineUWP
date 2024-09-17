@@ -10,7 +10,6 @@
 #include "Engine/World.h"
 #include "IDynamicMaterialEditorModule.h"
 #include "Material/DynamicMaterialInstance.h"
-#include "Material/DynamicMaterialInstanceFactory.h"
 #include "MaterialList.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBox.h"
@@ -71,7 +70,7 @@ UObject* SDMMaterialListExtensionWidget::GetAsset() const
 	return MaterialInterface;
 }
 
-UDynamicMaterialInstance* SDMMaterialListExtensionWidget::GetDynamicMaterialInstance() const
+UDynamicMaterialInstance* SDMMaterialListExtensionWidget::GetMaterialDesignerMaterial() const
 {
 	return Cast<UDynamicMaterialInstance>(GetAsset());
 }
@@ -99,7 +98,7 @@ void SDMMaterialListExtensionWidget::SetAsset(UObject* NewAsset)
 	MaterialItemView->ReplaceMaterial(MaterialInterface);
 }
 
-void SDMMaterialListExtensionWidget::SetDynamicMaterialInstance(UDynamicMaterialInstance* NewInstance)
+void SDMMaterialListExtensionWidget::SetMaterialDesignerMaterial(UDynamicMaterialInstance* InMaterial)
 {
 	if (MaterialItemViewWeak.IsValid())
 	{
@@ -116,7 +115,7 @@ void SDMMaterialListExtensionWidget::SetDynamicMaterialInstance(UDynamicMaterial
 							const FMaterialListItem& ListItem = MaterialItemViewWeak.Pin()->GetMaterialListItem();
 							const FDMObjectMaterialProperty MaterialProperty(CurrentComponent, ListItem.SlotIndex);
 
-							if (WorldSubsystem->ExecuteMaterialValueSetterDelegate(MaterialProperty, NewInstance))
+							if (WorldSubsystem->ExecuteMaterialValueSetterDelegate(MaterialProperty, InMaterial))
 							{
 								return;
 							}
@@ -127,12 +126,12 @@ void SDMMaterialListExtensionWidget::SetDynamicMaterialInstance(UDynamicMaterial
 		}
 	}
 
-	SetAsset(NewInstance);
+	SetAsset(InMaterial);
 }
 
 FText SDMMaterialListExtensionWidget::GetButtonText() const
 {
-	if (GetDynamicMaterialInstance())
+	if (GetMaterialDesignerMaterial())
 	{
 		return LOCTEXT("OpenMaterialDesignerModel", "Edit with Material Designer");
 	}
@@ -142,20 +141,20 @@ FText SDMMaterialListExtensionWidget::GetButtonText() const
 
 FReply SDMMaterialListExtensionWidget::OnButtonClicked()
 {
-	if (GetDynamicMaterialInstance())
+	if (GetMaterialDesignerMaterial())
 	{
-		return OpenDynamicMaterialInstanceTab();
+		return OpenMaterialDesignerTab();
 	}
 
-	return CreateDynamicMaterialInstance();
+	return CreateMaterialDesignerMaterial();
 }
 
-FReply SDMMaterialListExtensionWidget::CreateDynamicMaterialInstance()
+FReply SDMMaterialListExtensionWidget::CreateMaterialDesignerMaterial()
 {
-	UDynamicMaterialInstance* Instance = GetDynamicMaterialInstance();
+	UDynamicMaterialInstance* Material = GetMaterialDesignerMaterial();
 
 	// We already have an instance, so we don't need to create one
-	if (Instance)
+	if (Material)
 	{
 		return FReply::Handled();
 	}
@@ -184,22 +183,22 @@ FReply SDMMaterialListExtensionWidget::CreateDynamicMaterialInstance()
 	return FReply::Handled();
 }
 
-FReply SDMMaterialListExtensionWidget::ClearDynamicMaterialInstance()
+FReply SDMMaterialListExtensionWidget::ClearMaterialDesignerMaterial()
 {
-	UDynamicMaterialInstance* Instance = GetDynamicMaterialInstance();
+	UDynamicMaterialInstance* Material = GetMaterialDesignerMaterial();
 
 	// We don't have an instance, so we don't need to clear it (or any other asset in its place)
-	if (!Instance)
+	if (!Material)
 	{
 		return FReply::Handled();
 	}
 
-	SetDynamicMaterialInstance(nullptr);
+	SetMaterialDesignerMaterial(nullptr);
 
 	return FReply::Handled();
 }
 
-FReply SDMMaterialListExtensionWidget::OpenDynamicMaterialInstanceTab()
+FReply SDMMaterialListExtensionWidget::OpenMaterialDesignerTab()
 {
 	UPrimitiveComponent* CurrentComponent = CurrentComponentWeak.Get();
 	if (!ensure(CurrentComponent))

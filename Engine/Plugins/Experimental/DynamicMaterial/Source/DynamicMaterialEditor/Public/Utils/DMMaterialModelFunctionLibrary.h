@@ -16,7 +16,7 @@ class UMaterial;
 struct FDMObjectMaterialProperty;
 
 /**
- * Material Model / Instance Function Library
+ * Material / Model Function Library
  */
 UCLASS()
 class UDMMaterialModelFunctionLibrary : public UBlueprintFunctionLibrary
@@ -26,11 +26,11 @@ class UDMMaterialModelFunctionLibrary : public UBlueprintFunctionLibrary
 public:
 	DYNAMICMATERIALEDITOR_API static TArray<FDMObjectMaterialProperty> GetActorMaterialProperties(AActor* InActor);
 
-	DYNAMICMATERIALEDITOR_API static UDynamicMaterialModel* CreateDynamicMaterialInObject(FDMObjectMaterialProperty& InMaterialProperty);
+	DYNAMICMATERIALEDITOR_API static UDynamicMaterialModel* CreateMaterialInObject(FDMObjectMaterialProperty& InMaterialProperty);
 
-	DYNAMICMATERIALEDITOR_API static UDynamicMaterialInstance* ExportMaterialInstance(UDynamicMaterialModelBase* InMaterialModelBase);
+	DYNAMICMATERIALEDITOR_API static UDynamicMaterialInstance* ExportMaterial(UDynamicMaterialModelBase* InMaterialModelBase);
 
-	DYNAMICMATERIALEDITOR_API static UDynamicMaterialInstance* ExportMaterialInstance(UDynamicMaterialModelBase* InMaterialModel, const FString& InSavePath);
+	DYNAMICMATERIALEDITOR_API static UDynamicMaterialInstance* ExportMaterial(UDynamicMaterialModelBase* InMaterialModel, const FString& InSavePath);
 
 	DYNAMICMATERIALEDITOR_API static UMaterial* ExportGeneratedMaterial(UDynamicMaterialModelBase* InMaterialModelBase);
 
@@ -40,15 +40,15 @@ public:
 
 	DYNAMICMATERIALEDITOR_API static UDynamicMaterialModel* ExportToTemplateMaterialModel(UDynamicMaterialModelDynamic* InMaterialModelDynamic, const FString& InSavePath);
 
-	DYNAMICMATERIALEDITOR_API static UDynamicMaterialInstance* ExportToTemplateMaterialInstance(UDynamicMaterialModelDynamic* InMaterialModelDynamic);
+	DYNAMICMATERIALEDITOR_API static UDynamicMaterialInstance* ExportToTemplateMaterial(UDynamicMaterialModelDynamic* InMaterialModelDynamic);
 
-	DYNAMICMATERIALEDITOR_API static UDynamicMaterialInstance* ExportToTemplateMaterialInstance(UDynamicMaterialModelDynamic* InMaterialModelDynamic, const FString& InSavePath);
+	DYNAMICMATERIALEDITOR_API static UDynamicMaterialInstance* ExportToTemplateMaterial(UDynamicMaterialModelDynamic* InMaterialModelDynamic, const FString& InSavePath);
 
 	DYNAMICMATERIALEDITOR_API static bool IsModelValid(UDynamicMaterialModelBase* InMaterialModelBase);
 
-	DYNAMICMATERIALEDITOR_API static bool DuplicateModelBetweenInstances(UDynamicMaterialModel* InFromModel, UDynamicMaterialInstance* InToInstance);
+	DYNAMICMATERIALEDITOR_API static bool DuplicateModelBetweenMaterials(UDynamicMaterialModel* InFromModel, UDynamicMaterialInstance* InToInstance);
 
-	DYNAMICMATERIALEDITOR_API static bool CreateDynamicModelInInstance(UDynamicMaterialModel* InFromModel, UDynamicMaterialInstance* InToInstance);
+	DYNAMICMATERIALEDITOR_API static bool CreateModelInstanceInMaterial(UDynamicMaterialModel* InFromModel, UDynamicMaterialInstance* InToInstance);
 
 
 };

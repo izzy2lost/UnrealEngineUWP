@@ -69,28 +69,28 @@ void FDMContentBrowserIntegration::Disintegrate()
 void FDMContentBrowserIntegration::ExtendMenu(FMenuBuilder& InMenuBuilder, const TArray<FAssetData>& InSelectedAssets)
 {
 	InMenuBuilder.AddMenuEntry(
-		LOCTEXT("CreateMaterialDesignerInstanceFromTextureSet", "Create Material Designer Instance"),
-		LOCTEXT("CreateMaterialDesignerInstanceFromTextureSetTooltip", "Creates a Material Designer Instance in the content browser using a Texture Set."),
+		LOCTEXT("CreateMaterialDesignerMaterialFromTextureSet", "Create Material Designer Material"),
+		LOCTEXT("CreateMaterialDesignerInstanceFromTextureSetTooltip", "Creates a Material Designer Material in the content browser using a Texture Set."),
 		FSlateIconFinder::FindIconForClass(UMaterial::StaticClass()),
-		FUIAction(FExecuteAction::CreateStatic(&FDMContentBrowserIntegration::CreateMaterialDesignerInstanceFromTextureSet, InSelectedAssets))
+		FUIAction(FExecuteAction::CreateStatic(&FDMContentBrowserIntegration::CreateMaterialDesignerMaterialFromTextureSet, InSelectedAssets))
 	);
 
 	InMenuBuilder.AddMenuEntry(
-		LOCTEXT("UpdateMaterialDesignerInstanceFromTextureSetAdd", "Update Material Designer Instance (Add)"),
-		LOCTEXT("UpdateMaterialDesignerInstanceFromTextureAddSetTooltip", "Updates the opened Material Designer Instance using a Texture Set, adding new layers to the Model."),
+		LOCTEXT("UpdateMaterialDesignerInstanceFromTextureSetAdd", "Update Material Designer Material (Add)"),
+		LOCTEXT("UpdateMaterialDesignerInstanceFromTextureAddSetTooltip", "Updates the opened Material Designer Material using a Texture Set, adding new layers to the Material Model."),
 		FSlateIconFinder::FindIconForClass(UMaterial::StaticClass()),
-		FUIAction(FExecuteAction::CreateStatic(&FDMContentBrowserIntegration::UpdateMaterialDesignerInstanceFromTextureSet, InSelectedAssets, /* Replace */ false))
+		FUIAction(FExecuteAction::CreateStatic(&FDMContentBrowserIntegration::UpdateMaterialDesignerMaterialFromTextureSet, InSelectedAssets, /* Replace */ false))
 	);
 
 	InMenuBuilder.AddMenuEntry(
-		LOCTEXT("UpdateMaterialDesignerInstanceFromTextureSetReplace", "Update Material Designer Instance (Replace)"),
-		LOCTEXT("UpdateMaterialDesignerInstanceFromTextureSetReplaceTooltip", "Updates the opened Material Designer Instance using a Texture Set, replacing slots in the Model."),
+		LOCTEXT("UpdateMaterialDesignerInstanceFromTextureSetReplace", "Update Material Designer Material (Replace)"),
+		LOCTEXT("UpdateMaterialDesignerInstanceFromTextureSetReplaceTooltip", "Updates the opened Material Designer Material using a Texture Set, replacing layers in the Material Model."),
 		FSlateIconFinder::FindIconForClass(UMaterial::StaticClass()),
-		FUIAction(FExecuteAction::CreateStatic(&FDMContentBrowserIntegration::UpdateMaterialDesignerInstanceFromTextureSet, InSelectedAssets, /* Replace */ true))
+		FUIAction(FExecuteAction::CreateStatic(&FDMContentBrowserIntegration::UpdateMaterialDesignerMaterialFromTextureSet, InSelectedAssets, /* Replace */ true))
 	);
 }
 
-void FDMContentBrowserIntegration::CreateMaterialDesignerInstanceFromTextureSet(TArray<FAssetData> InSelectedAssets)
+void FDMContentBrowserIntegration::CreateMaterialDesignerMaterialFromTextureSet(TArray<FAssetData> InSelectedAssets)
 {
 	if (InSelectedAssets.IsEmpty())
 	{
@@ -100,13 +100,13 @@ void FDMContentBrowserIntegration::CreateMaterialDesignerInstanceFromTextureSet(
 	UDMTextureSetBlueprintFunctionLibrary::CreateTextureSetFromAssetsInteractive(
 		InSelectedAssets,
 		FDMTextureSetBuilderOnComplete::CreateStatic(
-			&FDMContentBrowserIntegration::OnCreateMaterialDesignerInstanceFromTextureSetComplete,
+			&FDMContentBrowserIntegration::OnCreateMaterialDesignerMaterialFromTextureSetComplete,
 			InSelectedAssets[0].PackagePath.ToString()
 		)
 	);
 }
 
-void FDMContentBrowserIntegration::OnCreateMaterialDesignerInstanceFromTextureSetComplete(UDMTextureSet* InTextureSet, bool bInAccepted,
+void FDMContentBrowserIntegration::OnCreateMaterialDesignerMaterialFromTextureSetComplete(UDMTextureSet* InTextureSet, bool bInAccepted,
 	FString InPath)
 {
 	if (!InTextureSet || !bInAccepted)
@@ -131,7 +131,7 @@ void FDMContentBrowserIntegration::OnCreateMaterialDesignerInstanceFromTextureSe
 	ON_SCOPE_EXIT
 	{
 		const IDynamicMaterialEditorModule& MaterialDesignerModule = IDynamicMaterialEditorModule::Get();
-		MaterialDesignerModule.OpenMaterialInstance(NewInstance, nullptr, /* Invoke Tab */ true);
+		MaterialDesignerModule.OpenMaterial(NewInstance, nullptr, /* Invoke Tab */ true);
 	};
 
 	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(NewInstance);
@@ -169,7 +169,7 @@ void FDMContentBrowserIntegration::OnCreateMaterialDesignerInstanceFromTextureSe
 	FAssetRegistryModule::AssetCreated(NewInstance);
 }
 
-void FDMContentBrowserIntegration::UpdateMaterialDesignerInstanceFromTextureSet(TArray<FAssetData> InSelectedAssets, bool bInReplace)
+void FDMContentBrowserIntegration::UpdateMaterialDesignerMaterialFromTextureSet(TArray<FAssetData> InSelectedAssets, bool bInReplace)
 {
 	if (InSelectedAssets.IsEmpty())
 	{
@@ -179,13 +179,13 @@ void FDMContentBrowserIntegration::UpdateMaterialDesignerInstanceFromTextureSet(
 	UDMTextureSetBlueprintFunctionLibrary::CreateTextureSetFromAssetsInteractive(
 		InSelectedAssets,
 		FDMTextureSetBuilderOnComplete::CreateStatic(
-			&FDMContentBrowserIntegration::OnUpdateMaterialDesignerInstanceFromTextureSetComplete,
+			&FDMContentBrowserIntegration::OnUpdateMaterialDesignerMaterialFromTextureSetComplete,
 			bInReplace
 		)
 	);
 }
 
-void FDMContentBrowserIntegration::OnUpdateMaterialDesignerInstanceFromTextureSetComplete(UDMTextureSet* InTextureSet, bool bInAccepted,
+void FDMContentBrowserIntegration::OnUpdateMaterialDesignerMaterialFromTextureSetComplete(UDMTextureSet* InTextureSet, bool bInAccepted,
 	bool bInReplace)
 {
 	if (!InTextureSet || !bInAccepted)
@@ -250,10 +250,10 @@ TSharedRef<FExtender> FDMContentBrowserIntegration::OnExtendContentBrowserAssetS
 			[InSelectedAssets](FMenuBuilder& InMenuBuilder)
 			{
 				InMenuBuilder.AddMenuEntry(
-					LOCTEXT("CreateDynamic", "Create Material Designer Dynamic"),
-					LOCTEXT("CreateDynamicooltip", "Create a dynamic instance from a Material Designer Instance or Model."),
+					LOCTEXT("CreateInstance", "Create Material Designer Instance"),
+					LOCTEXT("CreateInstanceTooltip", "Create a Material Designer Instance from a Material Designer Material."),
 					FSlateIconFinder::FindIconForClass(UMaterial::StaticClass()),
-					FUIAction(FExecuteAction::CreateStatic(&FDMContentBrowserIntegration::CreateDynamic, InSelectedAssets))
+					FUIAction(FExecuteAction::CreateStatic(&FDMContentBrowserIntegration::CreateInstance, InSelectedAssets))
 				);
 			}
 		)
@@ -262,7 +262,7 @@ TSharedRef<FExtender> FDMContentBrowserIntegration::OnExtendContentBrowserAssetS
 	return Extender;
 }
 
-void FDMContentBrowserIntegration::CreateDynamic(TArray<FAssetData> InSelectedAssets)
+void FDMContentBrowserIntegration::CreateInstance(TArray<FAssetData> InSelectedAssets)
 {
 	for (const FAssetData& SelectedAsset : InSelectedAssets)
 	{
@@ -270,20 +270,20 @@ void FDMContentBrowserIntegration::CreateDynamic(TArray<FAssetData> InSelectedAs
 		{
 			if (AssetClass->IsChildOf<UDynamicMaterialModel>())
 			{
-				CreateModelDynamic(Cast<UDynamicMaterialModel>(SelectedAsset.GetAsset()));
+				CreateModelInstance(Cast<UDynamicMaterialModel>(SelectedAsset.GetAsset()));
 				break;
 			}
 
 			if (AssetClass->IsChildOf<UDynamicMaterialInstance>())
 			{
-				CreateInstanceDynamic(Cast<UDynamicMaterialInstance>(SelectedAsset.GetAsset()));
+				CreateMaterialInstance(Cast<UDynamicMaterialInstance>(SelectedAsset.GetAsset()));
 				break;
 			}
 		}
 	}
 }
 
-void FDMContentBrowserIntegration::CreateModelDynamic(UDynamicMaterialModel* InModel)
+void FDMContentBrowserIntegration::CreateModelInstance(UDynamicMaterialModel* InModel)
 {
 	if (!InModel)
 	{
@@ -302,7 +302,7 @@ void FDMContentBrowserIntegration::CreateModelDynamic(UDynamicMaterialModel* InM
 		const EAppReturnType::Type Result = FMessageDialog::Open(
 			EAppMsgType::YesNo,
 			LOCTEXT("ExportMaterialFromModel", 
-				"Generating a Material Designer Dynamic requires that the generated material be exported from its package.\n\n"
+				"Generating a Material Designer Instance requires that the Generated Material be exported from its package.\n\n"
 				"The package containing the material will be saved. This may be a level.\n\n"
 				"Continue?")
 		);
@@ -366,7 +366,7 @@ void FDMContentBrowserIntegration::CreateModelDynamic(UDynamicMaterialModel* InM
 	FAssetRegistryModule::AssetCreated(ModelDynamic);
 }
 
-void FDMContentBrowserIntegration::CreateInstanceDynamic(UDynamicMaterialInstance* InInstance)
+void FDMContentBrowserIntegration::CreateMaterialInstance(UDynamicMaterialInstance* InInstance)
 {
 	if (!InInstance)
 	{
@@ -392,7 +392,7 @@ void FDMContentBrowserIntegration::CreateInstanceDynamic(UDynamicMaterialInstanc
 		const EAppReturnType::Type Result = FMessageDialog::Open(
 			EAppMsgType::YesNo,
 			LOCTEXT("ExportMaterialFromInstance",
-				"Generating a Material Designer Dynamic requires that the generated material and material model be exported from this package.\n\n"
+				"Generating a Material Designer Instance requires that the Generated Material and Material Model be exported from this package.\n\n"
 				"The package containing the material will be saved. This may be a level.\n\n"
 				"Continue?")
 		);

@@ -30,7 +30,7 @@ void SDMDetailsPanelMaterialInterfaceWidget::Construct(const FArguments& InArgs,
 	UObject* Value = nullptr;
 	InPropertyHandle->GetValue(Value);
 
-	UDynamicMaterialInstance* Instance = GetDynamicMaterialInstance();
+	UDynamicMaterialInstance* Material = GetMaterialDesignerMaterial();
 
 	FObjectPropertyBase* const ObjectProperty = CastField<FObjectPropertyBase>(PropertyHandle->GetProperty());
 
@@ -95,7 +95,7 @@ UObject* SDMDetailsPanelMaterialInterfaceWidget::GetAsset() const
 	return Value;
 }
 
-UDynamicMaterialInstance* SDMDetailsPanelMaterialInterfaceWidget::GetDynamicMaterialInstance() const
+UDynamicMaterialInstance* SDMDetailsPanelMaterialInterfaceWidget::GetMaterialDesignerMaterial() const
 {
 	return Cast<UDynamicMaterialInstance>(GetAsset());
 }
@@ -113,14 +113,14 @@ void SDMDetailsPanelMaterialInterfaceWidget::SetAsset(UObject* NewAsset)
 	PropertyHandle->SetValueFromFormattedString(NewAsset ? NewAsset->GetPathName() : "");
 }
 
-void SDMDetailsPanelMaterialInterfaceWidget::SetDynamicMaterialInstance(UDynamicMaterialInstance* NewInstance)
+void SDMDetailsPanelMaterialInterfaceWidget::SetMaterialDesignerMaterial(UDynamicMaterialInstance* InMaterial)
 {
-	SetAsset(NewInstance);
+	SetAsset(InMaterial);
 }
 
 FText SDMDetailsPanelMaterialInterfaceWidget::GetButtonText() const
 {
-	if (GetDynamicMaterialInstance())
+	if (GetMaterialDesignerMaterial())
 	{
 		return LOCTEXT("OpenMaterialDesignerModel", "Edit with Material Designer");
 	}
@@ -130,17 +130,17 @@ FText SDMDetailsPanelMaterialInterfaceWidget::GetButtonText() const
 
 FReply SDMDetailsPanelMaterialInterfaceWidget::OnButtonClicked()
 {
-	if (GetDynamicMaterialInstance())
+	if (GetMaterialDesignerMaterial())
 	{
-		return OpenDynamicMaterialInstanceTab();
+		return OpenMaterialDesignerTab();
 	}
 
-	return CreateDynamicMaterialInstance();
+	return CreateMaterialDesignerMaterial();
 }
 
-FReply SDMDetailsPanelMaterialInterfaceWidget::CreateDynamicMaterialInstance()
+FReply SDMDetailsPanelMaterialInterfaceWidget::CreateMaterialDesignerMaterial()
 {
-	UDynamicMaterialInstance* Instance = GetDynamicMaterialInstance();
+	UDynamicMaterialInstance* Instance = GetMaterialDesignerMaterial();
 
 	// We already have an instance, so we don't need to create one
 	if (Instance)
@@ -170,9 +170,9 @@ FReply SDMDetailsPanelMaterialInterfaceWidget::CreateDynamicMaterialInstance()
 	return FReply::Handled();
 }
 
-FReply SDMDetailsPanelMaterialInterfaceWidget::ClearDynamicMaterialInstance()
+FReply SDMDetailsPanelMaterialInterfaceWidget::ClearMaterialDesignerMaterial()
 {
-	UDynamicMaterialInstance* Instance = GetDynamicMaterialInstance();
+	UDynamicMaterialInstance* Instance = GetMaterialDesignerMaterial();
 
 	// We don't have an instance, so we don't need to clear it (and don't clear non-MDIs)
 	if (!Instance)
@@ -180,14 +180,14 @@ FReply SDMDetailsPanelMaterialInterfaceWidget::ClearDynamicMaterialInstance()
 		return FReply::Handled();
 	}
 
-	SetDynamicMaterialInstance(nullptr);
+	SetMaterialDesignerMaterial(nullptr);
 
 	return FReply::Handled();
 }
 
-FReply SDMDetailsPanelMaterialInterfaceWidget::OpenDynamicMaterialInstanceTab()
+FReply SDMDetailsPanelMaterialInterfaceWidget::OpenMaterialDesignerTab()
 {
-	UDynamicMaterialInstance* Instance = GetDynamicMaterialInstance();
+	UDynamicMaterialInstance* Instance = GetMaterialDesignerMaterial();
 
 	// We don't have a MDI, so don't try to open it.
 	if (!Instance)

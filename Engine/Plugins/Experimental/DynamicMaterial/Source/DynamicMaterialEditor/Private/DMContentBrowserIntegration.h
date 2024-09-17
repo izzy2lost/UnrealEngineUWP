@@ -20,7 +20,7 @@ public:
 
 	static void Disintegrate();
 
-	static void UpdateMaterialDesignerInstanceFromTextureSet(TArray<FAssetData> InSelectedAssets, bool bInReplace);
+	static void UpdateMaterialDesignerMaterialFromTextureSet(TArray<FAssetData> InSelectedAssets, bool bInReplace);
 
 protected:
 	static FDelegateHandle TextureSetPopulateHandle;
@@ -28,17 +28,17 @@ protected:
 
 	static void ExtendMenu(FMenuBuilder& InMenuBuilder, const TArray<FAssetData>& InSelectedAssets);
 
-	static void CreateMaterialDesignerInstanceFromTextureSet(TArray<FAssetData> InSelectedAssets);
+	static void CreateMaterialDesignerMaterialFromTextureSet(TArray<FAssetData> InSelectedAssets);
 
-	static void OnCreateMaterialDesignerInstanceFromTextureSetComplete(UDMTextureSet* InTextureSet, bool bInAccepted, FString InPath);
+	static void OnCreateMaterialDesignerMaterialFromTextureSetComplete(UDMTextureSet* InTextureSet, bool bInAccepted, FString InPath);
 
-	static void OnUpdateMaterialDesignerInstanceFromTextureSetComplete(UDMTextureSet* InTextureSet, bool bInAccepted, bool bInReplace);
+	static void OnUpdateMaterialDesignerMaterialFromTextureSetComplete(UDMTextureSet* InTextureSet, bool bInAccepted, bool bInReplace);
 
 	static TSharedRef<FExtender> OnExtendContentBrowserAssetSelectionMenu(const TArray<FAssetData>& InSelectedAssets);
 
-	static void CreateDynamic(TArray<FAssetData> InSelectedAssets);
+	static void CreateInstance(TArray<FAssetData> InSelectedAssets);
 
-	static void CreateModelDynamic(UDynamicMaterialModel* InModel);
+	static void CreateModelInstance(UDynamicMaterialModel* InModel);
 
-	static void CreateInstanceDynamic(UDynamicMaterialInstance* InInstance);
+	static void CreateMaterialInstance(UDynamicMaterialInstance* InInstance);
 };

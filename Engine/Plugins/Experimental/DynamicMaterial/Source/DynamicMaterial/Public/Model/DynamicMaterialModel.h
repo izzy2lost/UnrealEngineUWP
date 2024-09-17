@@ -187,10 +187,10 @@ public:
 	bool ConditionalFreeParameter(UDMMaterialParameter* InParameter);
 #endif
 
-	/** Called by the value when it updates. Updates Material Designer Instance and triggers the delegate. */
+	/** Called by the value when it updates. Updates Material Designer Material and triggers the delegate. */
 	void OnValueUpdated(UDMMaterialValue* InValue, EDMUpdateType InUpdateType);
 
-	/** Called by the texture uv when it updates. Updates Material Designer Instance and triggers the delegate. */
+	/** Called by the texture uv when it updates. Updates Material Designer Material and triggers the delegate. */
 	void OnTextureUVUpdated(UDMTextureUV* InTextureUV);
 
 	/** Returns the value update delegate to (un)subscribe. */
@@ -240,7 +240,7 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, Instanced, BlueprintReadOnly, TextExportTransient, Category = "Material Designer")
 	TObjectPtr<UMaterial> DynamicMaterial = nullptr;
 
-	/** Material Designer Instance representing the MID for this Model. */
+	/** Material Designer Material representing the MID for this Model. */
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, TextExportTransient, Category = "Material Designer")
 	TObjectPtr<UDynamicMaterialInstance> DynamicMaterialInstance;
 

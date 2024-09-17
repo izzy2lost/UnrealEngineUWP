@@ -10,7 +10,7 @@ class UDynamicMaterialModelDynamic;
 /**
  * Base version of a dynamic material component. Links to the original in the parent material model.
  */
-UCLASS(MinimalAPI, BlueprintType, Abstract, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Value Dynamic"))
+UCLASS(MinimalAPI, BlueprintType, Abstract, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Value Instance"))
 class UDMMaterialComponentDynamic : public UDMMaterialComponent
 {
 	GENERATED_BODY()

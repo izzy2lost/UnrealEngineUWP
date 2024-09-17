@@ -95,17 +95,17 @@ void FDMToolBarMenus::AddExportMenu(UToolMenu* InMenu)
 		return;
 	}
 
-	UDynamicMaterialInstance* Instance = MaterialModelBase->GetDynamicMaterialInstance();
+	UDynamicMaterialInstance* Material = MaterialModelBase->GetDynamicMaterialInstance();
 
-	if (!Instance)
+	if (!Material)
 	{
 		return;
 	}
 
-	const bool bAllowInstanceExport = IsValid(Instance->GetOuter()) && !Instance->GetOuter()->IsA<UPackage>();
-	const bool bAllowMaterialExport = IsValid(MaterialModelBase->GetGeneratedMaterial());
+	const bool bAllowMaterialExport = IsValid(Material->GetOuter()) && !Material->GetOuter()->IsA<UPackage>();
+	const bool bAllowGeneratedMaterialExport = IsValid(MaterialModelBase->GetGeneratedMaterial());
 
-	if (!bAllowInstanceExport && !bAllowMaterialExport)
+	if (!bAllowMaterialExport && !bAllowGeneratedMaterialExport)
 	{
 		return;
 	}
@@ -114,8 +114,8 @@ void FDMToolBarMenus::AddExportMenu(UToolMenu* InMenu)
 
 	NewSection.AddMenuEntry(
 		NAME_None,
-		LOCTEXT("OpenInUEMaterialEditor", "Open in Standard Material Editor"),
-		LOCTEXT("OpenInUEMaterialEditorTooltip", "Opens the currently editing generated Material Designer Instance material in the standard material editor."),
+		LOCTEXT("OpenInUEMaterialEditor", "Open Generated Material"),
+		LOCTEXT("OpenInUEMaterialEditorTooltip", "Opens the Generated Material in the standard Material Editor."),
 		FSlateIcon(),
 		FUIAction(FExecuteAction::CreateStatic(
 			&OpenMaterialEditorFromContext,
@@ -123,16 +123,16 @@ void FDMToolBarMenus::AddExportMenu(UToolMenu* InMenu)
 		))
 	);
 
-	if (bAllowInstanceExport)
+	if (bAllowGeneratedMaterialExport)
 	{
 		NewSection.AddMenuEntry(
 			NAME_None,
-			LOCTEXT("ExportMaterialInstance", "Export Material Designer Instance"),
-			LOCTEXT("ExportMaterialInstanceTooltip", "Export the material instance to an asset."),
+			LOCTEXT("ExportGeneratedMaterial", "Export Generated Material"),
+			LOCTEXT("ExportGeneratedMaterialTooltip", "Export the Generated Material as an asset."),
 			FSlateIcon(),
 			FUIAction(FExecuteAction::CreateStatic(
-				&FDMToolBarMenus::ExportMaterialInstanceFromInstance,
-				TWeakObjectPtr<UDynamicMaterialInstance>(Instance)
+				&FDMToolBarMenus::ExportMaterialModel,
+				TWeakObjectPtr<UDynamicMaterialModelBase>(MaterialModelBase)
 			))
 		);
 	}
@@ -141,20 +141,20 @@ void FDMToolBarMenus::AddExportMenu(UToolMenu* InMenu)
 	{
 		NewSection.AddMenuEntry(
 			NAME_None,
-			LOCTEXT("ExportGeneratedMaterial", "Export Generated Material"),
-			LOCTEXT("ExportGeneratedMaterialTooltip", "Export the generated material to an asset."),
+			LOCTEXT("ExportMaterial", "Export Material Designer Material"),
+			LOCTEXT("ExportMaterialInstanceTooltip", "Export the Material Designer Material as an asset."),
 			FSlateIcon(),
 			FUIAction(FExecuteAction::CreateStatic(
-				&FDMToolBarMenus::ExportMaterialModelFromModel,
-				TWeakObjectPtr<UDynamicMaterialModelBase>(MaterialModelBase)
+				&FDMToolBarMenus::ExportMaterial,
+				TWeakObjectPtr<UDynamicMaterialInstance>(Material)
 			))
 		);
 	}
 
 	NewSection.AddSubMenu(
 		NAME_None,
-		LOCTEXT("SnapshotMaterial", "Snapshop Material"),
-		LOCTEXT("SnapshotMaterialTooltip", "Take a snapshot of the material with the current settings and export it as a texture."),
+		LOCTEXT("SnapshotMaterial", "Snapshop Material Designer Material"),
+		LOCTEXT("SnapshotMaterialTooltip", "Take a snapshot of the Material Designer Material with the current values and export it as a Texture asset."),
 		FNewToolMenuChoice(FNewToolMenuDelegate::CreateStatic(
 			&FDMToolBarMenus::CreateSnapshotMaterialMenu
 		))
@@ -291,13 +291,13 @@ void FDMToolBarMenus::OpenMaterialEditorFromContext(UDMMenuContext* InMenuContex
 	}
 }
 
-void FDMToolBarMenus::ExportMaterialInstanceFromInstance(TWeakObjectPtr<UDynamicMaterialInstance> InMaterialInstanceWeak)
+void FDMToolBarMenus::ExportMaterial(TWeakObjectPtr<UDynamicMaterialInstance> InMaterialInstanceWeak)
 {
-	if (UDynamicMaterialInstance* MaterialInstance = InMaterialInstanceWeak.Get())
+	if (UDynamicMaterialInstance* Material = InMaterialInstanceWeak.Get())
 	{
 		IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
 		FString PackageName, AssetName;
-		AssetTools.CreateUniqueAssetName(MaterialInstance->GetName(), TEXT(""), PackageName, AssetName);
+		AssetTools.CreateUniqueAssetName(Material->GetName(), TEXT(""), PackageName, AssetName);
 
 		IContentBrowserSingleton& ContentBrowser = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser").Get();
 		const FContentBrowserItemPath CurrentPath = ContentBrowser.GetCurrentPath();
@@ -314,17 +314,17 @@ void FDMToolBarMenus::ExportMaterialInstanceFromInstance(TWeakObjectPtr<UDynamic
 
 		if (!SaveObjectPath.IsEmpty())
 		{
-			UDMMaterialModelFunctionLibrary::ExportMaterialInstance(MaterialInstance->GetMaterialModelBase(), SaveObjectPath);
+			UDMMaterialModelFunctionLibrary::ExportMaterial(Material->GetMaterialModelBase(), SaveObjectPath);
 
 			if (FEngineAnalytics::IsAvailable())
 			{
-				FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner"), TEXT("Action"), TEXT("ExportedMaterialInstance"));
+				FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner"), TEXT("Action"), TEXT("ExportedMaterial"));
 			}
 		}
 	}
 }
 
-void FDMToolBarMenus::ExportMaterialModelFromModel(TWeakObjectPtr<UDynamicMaterialModelBase> InMaterialModelBaseWeak)
+void FDMToolBarMenus::ExportMaterialModel(TWeakObjectPtr<UDynamicMaterialModelBase> InMaterialModelBaseWeak)
 {
 	UDynamicMaterialModelBase* MaterialModelBase = InMaterialModelBaseWeak.Get();
 
@@ -382,7 +382,7 @@ void FDMToolBarMenus::SnapshotMaterial(TWeakObjectPtr<UDynamicMaterialModelBase>
 	{
 		if (!IsValid(MaterialInstance->Parent.Get()))
 		{
-			UE_LOG(LogDynamicMaterialEditor, Warning, TEXT("Unable to find world to find material instance parent."));
+			UE_LOG(LogDynamicMaterialEditor, Warning, TEXT("Unable to find world to find material parent."));
 			return;
 		}
 
@@ -502,53 +502,31 @@ void FDMToolBarMenus::CreateSnapshotMaterialMenu(UToolMenu* InMenu)
 	TWeakObjectPtr<UDynamicMaterialModelBase> MaterialModelWeak = MaterialModelBase;
 	FToolMenuSection& NewSection = InMenu->AddSection("SnapshotMaterial", LOCTEXT("SnapshotMaterial", "Snapshop Material"));
 
-	NewSection.AddMenuEntry(
-		NAME_None,
-		LOCTEXT("SnapshotMaterial512", "512x512"),
-		LOCTEXT("SnapshotMaterial512Tooltip", "Take a snapshot of the material with the current settings and export it as a texture with a resolution of 512x512 pixels."),
-		FSlateIcon(),
-		FUIAction(FExecuteAction::CreateStatic(
-			&FDMToolBarMenus::SnapshotMaterial,
-			MaterialModelWeak,
-			FIntPoint(512, 512)
-		))
+	const FText SnapshotNameFormat = LOCTEXT("SnapshotName", "{0}x{0}");
+
+	const FText SnapshotTooltipFormat = LOCTEXT(
+		"SnapshotMaterialTooltip",
+		"Take a snapshot of the Material Designer Material with the current values and export it as a Texture asset with a resolution of {0} pixels."
 	);
 
-	NewSection.AddMenuEntry(
-		NAME_None,
-		LOCTEXT("SnapshotMaterial1024", "1024x1024"),
-		LOCTEXT("SnapshotMaterial1024Tooltip", "Take a snapshot of the material with the current settings and export it as a texture with a resolution of 1024x1024 pixels."),
-		FSlateIcon(),
-		FUIAction(FExecuteAction::CreateStatic(
-			&FDMToolBarMenus::SnapshotMaterial,
-			MaterialModelWeak,
-			FIntPoint(1024, 1024)
-		))
-	);
+	const TArray<int32> SnapshotTypeResolutions = {512, 1024, 2048, 4096};
 
-	NewSection.AddMenuEntry(
-		NAME_None,
-		LOCTEXT("SnapshotMaterial2048", "2048x2048"),
-		LOCTEXT("SnapshotMaterial2048Tooltip", "Take a snapshot of the material with the current settings and export it as a texture with a resolution of 2048x2048 pixels."),
-		FSlateIcon(),
-		FUIAction(FExecuteAction::CreateStatic(
-			&FDMToolBarMenus::SnapshotMaterial,
-			MaterialModelWeak,
-			FIntPoint(2048, 2048)
-		))
-	);
+	for (int32 SnapshotTypeResolution : SnapshotTypeResolutions)
+	{
+		const FText Name = FText::Format(SnapshotNameFormat, FText::AsNumber(SnapshotTypeResolution));
 
-	NewSection.AddMenuEntry(
-		NAME_None,
-		LOCTEXT("SnapshotMaterial4096", "4096x4096"),
-		LOCTEXT("SnapshotMaterial4096Tooltip", "Take a snapshot of the material with the current settings and export it as a texture with a resolution of 4096x4096 pixels."),
-		FSlateIcon(),
-		FUIAction(FExecuteAction::CreateStatic(
-			&FDMToolBarMenus::SnapshotMaterial,
-			MaterialModelWeak,
-			FIntPoint(4096, 4096)
-		))
-	);
+		NewSection.AddMenuEntry(
+			NAME_None,
+			Name,
+			FText::Format(SnapshotTooltipFormat, Name),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateStatic(
+				&FDMToolBarMenus::SnapshotMaterial,
+				MaterialModelWeak,
+				FIntPoint(SnapshotTypeResolution, SnapshotTypeResolution)
+			))
+		);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

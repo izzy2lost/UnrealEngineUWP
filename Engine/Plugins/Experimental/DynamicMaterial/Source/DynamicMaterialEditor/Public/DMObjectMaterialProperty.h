@@ -16,7 +16,7 @@ class UObject;
 class UPrimitiveComponent;
 
 /**
- * Defines a material property slot that can be a Material Designer Instance.
+ * Defines a material property slot that can be a Material Designer Material.
  */
 USTRUCT()
 struct FDMObjectMaterialProperty
