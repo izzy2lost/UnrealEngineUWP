@@ -21,6 +21,7 @@
 #include "StateTreeModuleImpl.h"
 #include "StructUtils/UserDefinedStruct.h"
 #include "StructUtilsDelegates.h"
+#include "Templates/GuardValueAccessors.h"
 #include "UObject/LinkerLoad.h"
 #endif
 
@@ -443,25 +444,9 @@ void UStateTree::PostLoad()
 		// Make sure all the fix up logic in the editor data has had chance to happen.
 		EditorData->ConditionalPostLoad();
 	}
-
-	if (CurrentVersion < FStateTreeCustomVersion::LatestVersion)
 	{
-		// Compiled data is in older format, try to compile the StateTree.
-		if (UE::StateTree::Delegates::OnRequestCompile.IsBound())
-		{
-			LOG_SCOPE_VERBOSITY_OVERRIDE(LogStateTree, ELogVerbosity::Log);
-			UE_LOG(LogStateTree, Log, TEXT("%s: compiled data is in older format. Trying to compile the asset..."), *GetFullName());
-			UE::StateTree::Delegates::OnRequestCompile.Execute(*this);
-		}
-		else
-		{
-			ResetCompiled();
-			UE_LOG(LogStateTree, Warning, TEXT("%s: compiled data is in older format. Please resave the StateTree asset."), *GetFullName());
-		}
-	}
-	else
-	{
-		CompileIfChanged();
+		TGuardValueAccessors<bool> IsEditorLoadingPackageGuard(UE::GetIsEditorLoadingPackage, UE::SetIsEditorLoadingPackage, true);
+		Compile();
 	}
 #else
 	if (CurrentVersion < FStateTreeCustomVersion::LatestVersion)
@@ -1178,6 +1163,25 @@ void UStateTree::CompileIfChanged()
 			UE_LOG(LogStateTree, Log, TEXT("%s: Editor data has changed. Recompiling state tree."), *GetFullName());
 			UE::StateTree::Delegates::OnRequestCompile.Execute(*this);
 		}
+	}
+	else
+	{
+		ResetCompiled();
+		UE_LOG(LogStateTree, Warning, TEXT("%s: could not compile. Please resave the StateTree asset."), *GetFullName());
+	}
+}
+
+void UStateTree::Compile()
+{
+	if (UE::StateTree::Delegates::OnRequestCompile.IsBound())
+	{
+		UE_LOG(LogStateTree, Log, TEXT("%s: Editor data has changed. Recompiling state tree."), *GetFullName());
+		UE::StateTree::Delegates::OnRequestCompile.Execute(*this);
+	}
+	else
+	{
+		ResetCompiled();
+		UE_LOG(LogStateTree, Warning, TEXT("%s: could not compile. Please resave the StateTree asset."), *GetFullName());
 	}
 }
 #endif //WITH_EDITOR
