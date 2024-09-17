@@ -1627,8 +1627,16 @@ bool ULevelInstanceSubsystem::BreakLevelInstance(ILevelInstanceInterface* LevelI
 	ON_SCOPE_EXIT { GetMutableDefault<ULevelEditorMiscSettings>()->bAvoidRelabelOnPasteSelected = bAvoidRelabelOnPasteSelected; };
 	GetMutableDefault<ULevelEditorMiscSettings>()->bAvoidRelabelOnPasteSelected = 1;
 
+	ULevel* OldCurrentLevel = GetWorld()->GetCurrentLevel();
+	if (AActor* LevelInstanceActor = CastChecked<AActor>(LevelInstance))
+	{
+		GetWorld()->SetCurrentLevel(LevelInstanceActor->GetLevel());
+	}
+
 	TArray<AActor*> MovedActors;
 	BreakLevelInstance_Impl(LevelInstance, Levels, MovedActors, Flags);
+
+	GetWorld()->SetCurrentLevel(OldCurrentLevel);
 
 	USelection* ActorSelection = GEditor->GetSelectedActors();
 	ActorSelection->BeginBatchSelectOperation();
