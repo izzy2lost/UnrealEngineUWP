@@ -650,6 +650,8 @@ bool FSwitchboardAuthHelper::Initialize(const FSwitchboardAuthHelper::FSettings&
 	// Mutable copy.
 	FSettings Settings = InSettings;
 
+	// At the time of writing, our Windows OpenSSL binaries appear to be built with OPENSSL_NO_SECURE_MEMORY.
+#if !PLATFORM_WINDOWS
 	// Try to ensure OpenSSL secure heap is initialized.
 	// Not strictly required, but without it, credentials may
 	// get swapped to disk, be included in core dumps, etc.
@@ -666,6 +668,7 @@ bool FSwitchboardAuthHelper::Initialize(const FSwitchboardAuthHelper::FSettings&
 			bSecureHeapNeedsShutdown = true;
 		}
 	}
+#endif // #if !PLATFORM_WINDOWS
 
 	// If the user didn't specify key pair, check the default path,
 	// and possibly generate a new self-signed key pair.
