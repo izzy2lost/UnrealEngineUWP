@@ -148,6 +148,9 @@ namespace CEF3Utils
 		return DllPath;
 #elif PLATFORM_MAC
 		return FrameworkPath;
+#elif PLATFORM_LINUX
+		return FString();
+#else
 #endif
 	}
 
