@@ -36,6 +36,17 @@ class USkeleton;
 class UCustomizableObjectExtension;
 
 
+// Log texts
+extern const FString MULTILAYER_PROJECTOR_PARAMETERS_INVALID;
+
+	
+// Parameters encoding
+CUSTOMIZABLEOBJECT_API extern const FString NUM_LAYERS_PARAMETER_POSTFIX;
+CUSTOMIZABLEOBJECT_API extern const FString OPACITY_PARAMETER_POSTFIX;
+CUSTOMIZABLEOBJECT_API extern const FString IMAGE_PARAMETER_POSTFIX;
+CUSTOMIZABLEOBJECT_API extern const FString POSE_PARAMETER_POSTFIX;
+
+
 /** \param OnlyLOD: If not 0, extract and convert only one single LOD from the source image.
   * \param ExtractChannel: If different than -1, extract a single-channel image with the specified source channel data. */
 CUSTOMIZABLEOBJECT_API void ConvertImage(UTexture2D* Texture, mu::Ptr<const mu::Image> MutableImage, const FMutableModelImageProperties& Props, int32 OnlyLOD = -1, int32 ExtractChannel = -1);

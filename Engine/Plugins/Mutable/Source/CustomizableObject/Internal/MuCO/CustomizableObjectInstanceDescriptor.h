@@ -291,36 +291,6 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectInstanceDescriptor
 	/** Updates the parameters of the layer at Index from the multilayer projector with name ParamName. */
 	void UpdateLayer(const FName& ParamName, int32 Index, const FMultilayerProjectorLayer& Layer);
 
-
-	// Virtual layers
-
-	/** Given Multilayer Projector name, create a new Multilayer Projector Helper (if non-existent) for virtual layers. See FMultilayerProjector.
-	 *
-	 * @return ture if successfully created (or was already created).
-	 */
-	bool CreateMultiLayerProjector(const FName& ProjectorParamName);
-
-	/** Given Multilayer Projector name, remove a Multilayer Projector Helper. See FMultilayerProjector. */
-	void RemoveMultilayerProjector(const FName& ProjectorParamName);
-
-	/** See FMultilayerProjector::GetVirtualLayers. */
-	TArray<FName> MultilayerProjectorGetVirtualLayers(const FName& ProjectorParamName) const;
-	
-	/** See FMultilayerProjector::VirtualLayer. */
-	void MultilayerProjectorCreateVirtualLayer(const FName& ProjectorParamName, const FName& Id);
-
-	/** See FMultilayerProjector::FindOrCreateVirtualLayer. */
-	FMultilayerProjectorVirtualLayer MultilayerProjectorFindOrCreateVirtualLayer(const FName& ProjectorParamName, const FName& Id);
-
-	/** See FMultilayerProjector::RemoveVirtualLayer. */
-	void MultilayerProjectorRemoveVirtualLayer(const FName& ProjectorParamName, const FName& Id);
-
-	/** See FMultilayerProjector::GetVirtualLayer. */
-	FMultilayerProjectorVirtualLayer MultilayerProjectorGetVirtualLayer(const FName& ProjectorParamName, const FName& Id) const;
-
-	/** See FMultilayerProjector::UpdateVirtualLayer. */
-	void MultilayerProjectorUpdateVirtualLayer(const FName& ProjectorParamName, const FName& Id, const FMultilayerProjectorVirtualLayer& Layer);
-
 	/** Return a Mutable Core object containing all parameters. */
 	mu::Ptr<mu::Parameters> GetParameters() const;
 
@@ -361,10 +331,6 @@ private:
 
 	/** Array of RequestedLODs per component to generate, they MUST NOT be used in an update (Mutable thread). */
 	TArray<uint16> RequestedLODLevels;
-	
-	/** Multilayer Projector helpers. See FMultilayerProjector.*/
-	UPROPERTY()
-	TMap<FName, FMultilayerProjector> MultilayerProjectors;
 	
 	// Friends
 	friend FDescriptorHash;
