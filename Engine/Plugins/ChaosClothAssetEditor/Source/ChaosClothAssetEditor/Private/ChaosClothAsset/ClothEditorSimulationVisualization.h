@@ -44,8 +44,13 @@ public:
 	{
 		ExtendViewportShowMenuSpinBox(MenuBuilder, AnimatedNormalLength, 0.f, FLT_MAX, 0.f, 40.f);
 	}
+	void ExtendViewportShowMenuAerodynamicsLengthScale(FMenuBuilder& MenuBuilder)
+	{
+		ExtendViewportShowMenuSpinBox(MenuBuilder, AerodynamicsLengthScale, 0.f, FLT_MAX, 0.f, 40.f);
+	}
 	float GetPointNormalLength() const { return PointNormalLength; }
 	float GetAnimatedNormalLength() const { return AnimatedNormalLength; }
+	float GetAerodynamicsLengthScale() const { return AerodynamicsLengthScale; }
 private:
 	/** Return whether or not - given the current enabled options - the simulation should be disabled. */
 	bool ShouldDisableSimulation() const;
@@ -62,6 +67,7 @@ private:
 	TSharedPtr<FString> CurrentlySelectedWeightMap;
 	float PointNormalLength = 20.f;
 	float AnimatedNormalLength = 20.f;
+	float AerodynamicsLengthScale = 10.f;
 	
 };
 } // namespace UE::Chaos::ClothAsset

@@ -210,7 +210,9 @@ namespace Chaos
 			FVector2D PixelLocation;
 			if (SceneView->WorldToPixel(Pos, PixelLocation))
 			{
-				FCanvasTextItem TextItem(PixelLocation, Text, GEngine->GetSmallFont(), Color);
+				// WorldToPixel doesn't account for DPIScale
+				const float DPIScale = Canvas->GetDPIScale();
+				FCanvasTextItem TextItem(PixelLocation / DPIScale, Text, GEngine->GetSmallFont(), Color);
 				TextItem.Scale = FVector2D::UnitVector  * Scale;
 				TextItem.EnableShadow(FLinearColor::Black);
 				TextItem.Draw(Canvas);
@@ -2262,14 +2264,12 @@ namespace Chaos
 		}
 	}
 
-	void FClothVisualizationNoGC::DrawWindAndPressureForces(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawWindAndPressureForces(FPrimitiveDrawInterface* PDI, const FReal ForceLength) const
 	{
 		if (!Solver)
 		{
 			return;
 		}
-
-		constexpr FReal ForceLength = (FReal)10.;
 
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
@@ -2297,10 +2297,11 @@ namespace Chaos
 			// Constraints are locally indexed for new solver
 			const TConstArrayView<Softs::FSolverVec3> Positions = Solver->IsLegacySolver() ? TConstArrayView<Softs::FSolverVec3>(Solver->GetParticleXs()) : Solver->GetParticleXsView(ParticleRangeId);
 			const TConstArrayView<Softs::FSolverReal> InvMasses = Solver->IsLegacySolver() ? TConstArrayView<Softs::FSolverReal>(Solver->GetParticleInvMasses()) : Solver->GetParticleInvMassesView(ParticleRangeId);
+			const TConstArrayView<Softs::FSolverVec3> Velocities = Solver->IsLegacySolver() ? TConstArrayView<Softs::FSolverVec3>(Solver->GetParticleVs()) : Solver->GetParticleVsView(ParticleRangeId);
 
 			const TConstArrayView<TVec3<int32>>& Elements = VelocityField->GetElements();
-			const TConstArrayView<Softs::FSolverVec3> Forces = VelocityField->GetForces();
 			check(InvMasses.Num() == Positions.Num());
+			check(InvMasses.Num() == Velocities.Num());
 
 			for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ++ElementIndex)
 			{
@@ -2315,7 +2316,7 @@ namespace Chaos
 				const bool bIsKinematic2 = !InvMasses[Element.Z];
 				const bool bIsKinematic = bIsKinematic0 || bIsKinematic1 || bIsKinematic2;
 
-				const FVec3 Force = GetWorldVector(*Solver, FVec3(Forces[ElementIndex]) * ForceLength);
+				const FVec3 Force = GetWorldVector(*Solver, FVec3(VelocityField->CalculateForce(Positions, Velocities, ElementIndex)) * ForceLength);
 				DrawLine(PDI, Position, Position + Force, bIsKinematic ? FColor::Cyan : FColor::Green);
 			}
 		}
