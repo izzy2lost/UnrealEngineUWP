@@ -3410,18 +3410,13 @@ DEFINE_FUNCTION(UKismetSystemLibrary::execSetEditorProperty)
 	*(bool*)RESULT_PARAM = bResult;
 }
 
-bool UKismetSystemLibrary::ResetEditorProperty(UObject* Object, const FName PropertyName, const EPropertyAccessChangeNotifyMode ChangeNotifyMode)
+namespace UE::Blueprint::Private
 {
-	if (!Object)
-	{
-		LogRuntimeError(NSLOCTEXT("KismetSystemLibrary", "ResetEditorProperty_AccessNone", "Accessed None attempting to call ResetEditorProperty."));
-		return false;
-	}
-
-	auto FindArchetypeValue = [Object, PropertyName](const FProperty*& OutArchetypeProperty, const void*& OutArchetypeValuePtr)
+	void FindArchetypeValue(UObject* Object, const FName PropertyName, const FProperty*& OutArchetypeProperty, const void*& OutArchetypeValuePtr, bool& OutIsSparseData)
 	{
 		OutArchetypeProperty = nullptr;
 		OutArchetypeValuePtr = nullptr;
+		OutIsSparseData = false;
 
 		const FProperty* ObjectProp = PropertyAccessUtil::FindPropertyByName(PropertyName, Object->GetClass());
 		if ((!ObjectProp || ObjectProp->HasAnyPropertyFlags(CPF_Deprecated)) && Object->HasAllFlags(RF_ClassDefaultObject))
@@ -3434,6 +3429,7 @@ bool UKismetSystemLibrary::ResetEditorProperty(UObject* Object, const FName Prop
 				{
 					if (UScriptStruct* SparseDataArchetypeStruct = Object->GetClass()->GetSparseClassDataArchetypeStruct())
 					{
+						OutIsSparseData = true;
 						OutArchetypeProperty = SparseProp;
 						OutArchetypeValuePtr = SparseProp->ContainerPtrToValuePtrForDefaults<const void>(SparseDataArchetypeStruct, Object->GetClass()->GetArchetypeForSparseClassData());
 					}
@@ -3450,11 +3446,21 @@ bool UKismetSystemLibrary::ResetEditorProperty(UObject* Object, const FName Prop
 				OutArchetypeValuePtr = ObjectProp->ContainerPtrToValuePtrForDefaults<const void>(ObjectArchetype->GetClass(), ObjectArchetype);
 			}
 		}
-	};
+	}
+}
+
+bool UKismetSystemLibrary::ResetEditorProperty(UObject* Object, const FName PropertyName, const EPropertyAccessChangeNotifyMode ChangeNotifyMode)
+{
+	if (!Object)
+	{
+		LogRuntimeError(NSLOCTEXT("KismetSystemLibrary", "ResetEditorProperty_AccessNone", "Accessed None attempting to call ResetEditorProperty."));
+		return false;
+	}
 
 	const FProperty* ArchetypeProperty = nullptr;
 	const void* ArchetypeValuePtr = nullptr;
-	FindArchetypeValue(ArchetypeProperty, ArchetypeValuePtr);
+	bool bIsSparseData = false;
+	UE::Blueprint::Private::FindArchetypeValue(Object, PropertyName, ArchetypeProperty, ArchetypeValuePtr, bIsSparseData);
 	if (!ArchetypeValuePtr)
 	{
 		FFrame::KismetExecutionMessage(*FString::Printf(TEXT("Property '%s' on '%s' (%s) had no archetype value to reset to"), *PropertyName.ToString(), *Object->GetPathName(), *Object->GetClass()->GetName()), ELogVerbosity::Warning, UE::Blueprint::Private::PropertySetFailedWarning);
@@ -3462,6 +3468,67 @@ bool UKismetSystemLibrary::ResetEditorProperty(UObject* Object, const FName Prop
 	}
 
 	return Generic_SetEditorProperty(Object, PropertyName, ArchetypeValuePtr, ArchetypeProperty, ChangeNotifyMode);
+}
+
+EEditorPropertyValueState UKismetSystemLibrary::IsEditorPropertyOverridden(UObject* Object, const FName PropertyName)
+{
+	if (!Object)
+	{
+		LogRuntimeError(NSLOCTEXT("KismetSystemLibrary", "IsEditorPropertyOverridden_AccessNone", "Accessed None attempting to call IsEditorPropertyOverridden."));
+		return EEditorPropertyValueState::NotFound;
+	}
+
+	const FProperty* ArchetypeProperty = nullptr;
+	const void* ArchetypeValuePtr = nullptr;
+	bool bIsSparseData = false;
+	UE::Blueprint::Private::FindArchetypeValue(Object, PropertyName, ArchetypeProperty, ArchetypeValuePtr, bIsSparseData);
+	if (!ArchetypeValuePtr)
+	{
+		FFrame::KismetExecutionMessage(*FString::Printf(TEXT("Property '%s' on '%s' (%s) had no archetype value to query against"), *PropertyName.ToString(), *Object->GetPathName(), *Object->GetClass()->GetName()), ELogVerbosity::Warning, UE::Blueprint::Private::PropertyGetFailedWarning);
+		return EEditorPropertyValueState::NotFound;
+	}
+
+	if (EPropertyAccessResultFlags AccessResult = PropertyAccessUtil::CanGetPropertyValue(ArchetypeProperty);
+		EnumHasAnyFlags(AccessResult, EPropertyAccessResultFlags::PermissionDenied))
+	{
+		if (EnumHasAnyFlags(AccessResult, EPropertyAccessResultFlags::AccessProtected))
+		{
+			FFrame::KismetExecutionMessage(*FString::Printf(TEXT("Property '%s' on '%s' (%s) is protected and cannot be read"), *PropertyName.ToString(), *Object->GetPathName(), *Object->GetClass()->GetName()), ELogVerbosity::Warning, UE::Blueprint::Private::PropertyGetFailedWarning);
+			return EEditorPropertyValueState::AccessDenied;
+		}
+
+		FFrame::KismetExecutionMessage(*FString::Printf(TEXT("Property '%s' on '%s' (%s) cannot be read"), *PropertyName.ToString(), *Object->GetPathName(), *Object->GetClass()->GetName()), ELogVerbosity::Warning, UE::Blueprint::Private::PropertyGetFailedWarning);
+		return EEditorPropertyValueState::AccessDenied;
+	}
+
+	auto GetPropertyValueForDiff = [Object, ArchetypeProperty](const void* PropertyValuePtr) -> FString
+	{
+		uint32 PortFlags = PPF_ForDiff;
+		if (!Object->IsTemplate())
+		{
+			PortFlags |= PPF_ForDiffInstanceOnly;
+		}
+		if (ArchetypeProperty->ContainsInstancedObjectProperty())
+		{
+			PortFlags |= PPF_DeepComparison;
+		}
+
+		FString DefaultValue;
+		ArchetypeProperty->ExportTextItem_Direct(DefaultValue, PropertyValuePtr, PropertyValuePtr, nullptr, PortFlags);
+		return DefaultValue;
+	};
+
+	const void* ObjectValuePtr = bIsSparseData
+		? ArchetypeProperty->ContainerPtrToValuePtr<const void>(Object->GetClass()->GetOrCreateSparseClassData())
+		: ArchetypeProperty->ContainerPtrToValuePtr<const void>(Object);
+
+	const FString ObjectValue = GetPropertyValueForDiff(ObjectValuePtr);
+	const FString ArchetypeValue = GetPropertyValueForDiff(ArchetypeValuePtr);
+	const bool bIsIdentical = ObjectValue.Equals(ArchetypeValue, ESearchCase::CaseSensitive);
+
+	return bIsIdentical
+		? EEditorPropertyValueState::Default
+		: EEditorPropertyValueState::Overridden;
 }
 
 #endif	// WITH_EDITOR

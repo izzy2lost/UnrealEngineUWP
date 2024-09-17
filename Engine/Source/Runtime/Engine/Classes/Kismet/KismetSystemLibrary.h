@@ -71,6 +71,20 @@ namespace EQuitPreference
 	};
 }
 
+/** States a property value queried by IsEditorPropertyOverridden can be in */
+UENUM()
+enum class EEditorPropertyValueState
+{
+	/** This property is in a default state */
+	Default,
+	/** This property is in an overridden state */
+	Overridden,
+	/** The property was not found on the object or its archetype; its state is unknown */
+	NotFound,
+	/** The property could not be accessed to query its state; its state is unknown */
+	AccessDenied,
+};
+
 USTRUCT(BlueprintInternalUseOnly)
 struct FGenericStruct
 {
@@ -1988,6 +2002,17 @@ class UKismetSystemLibrary : public UBlueprintFunctionLibrary
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Utilities", meta=(ScriptMethod))
 	static ENGINE_API bool ResetEditorProperty(UObject* Object, const FName PropertyName, const EPropertyAccessChangeNotifyMode ChangeNotifyMode = EPropertyAccessChangeNotifyMode::Default);
+
+	/**
+	 * Attempts to query whether the value of a named property on the given object overrides the value of its archetype (ie, would ResetEditorProperty do anything?).
+	 *
+	 * @param Object The object you want to query a property value on.
+	 * @param PropertyName The name of the object property to query the value of.
+	 *
+	 * @return What state the requested property is in.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Utilities", meta=(ScriptMethod))
+	static ENGINE_API EEditorPropertyValueState IsEditorPropertyOverridden(UObject* Object, const FName PropertyName);
 #endif
 
 	// --- Transactions ------------------------------
