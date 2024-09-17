@@ -5,7 +5,7 @@
 #include "Types/SlateEnums.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SEditableTextBox.h"
-#include "Widgets/Views/SListView.h"
+#include "Widgets/Views/STreeView.h"
 #include "Widgets/Views/ITableRow.h"
 
 namespace ESelectInfo { enum Type : int; }
@@ -23,13 +23,15 @@ public:
 	{
 		FString ActualOption;
 		FString DisplayOption;
+
+		TSharedPtr<FFilteredOption> Parent;
 	};
 
 	/** Type of list used for showing menu options. */
-	typedef SListView< TSharedPtr<FFilteredOption> > SComboListType;
+	typedef STreeView< TSharedRef<FFilteredOption> > SComboTreeType;
 
 	/** Delegate type used to generate widgets that represent Options */
-	typedef typename TSlateDelegates< TSharedPtr<FString> >::FOnGenerateWidget FOnGenerateWidget;
+	typedef typename TSlateDelegates< TSharedRef<FString> >::FOnGenerateWidget FOnGenerateWidget;
 
 	SLATE_BEGIN_ARGS(SMutableSearchComboBox)
 		: _Content()
@@ -40,7 +42,6 @@ public:
 		, _ForegroundColor(FSlateColor::UseStyle())
 		, _OptionsSource()
 		, _OnSelectionChanged()
-		, _OnGenerateWidget()
 		, _MenuButtonBrush(nullptr)
 		, _Method()
 		, _AllowAddNewOptions(false)
@@ -61,9 +62,8 @@ public:
 		SLATE_ATTRIBUTE(FMargin, ContentPadding)
 		SLATE_ATTRIBUTE(FSlateColor, ForegroundColor)
 
-		SLATE_ARGUMENT(const TArray< TSharedPtr<FString> >*, OptionsSource)
+		SLATE_ARGUMENT(const TArray< TSharedRef<FFilteredOption> >*, OptionsSource)
 		SLATE_EVENT(FOnTextChanged, OnSelectionChanged)
-		SLATE_EVENT(FOnGenerateWidget, OnGenerateWidget)
 
 		SLATE_ARGUMENT(const FSlateBrush*, MenuButtonBrush)
 
@@ -94,7 +94,10 @@ public:
 private:
 
 	/** Generate a row for the InItem in the combo box's list (passed in as OwnerTable). Do this by calling the user-specified OnGenerateWidget */
-	TSharedRef<ITableRow> GenerateMenuItemRow(TSharedPtr<FFilteredOption> InItem, const TSharedRef<STableViewBase>& OwnerTable);
+	TSharedRef<ITableRow> GenerateMenuItemRow(TSharedRef<FFilteredOption> InItem, const TSharedRef<STableViewBase>& OwnerTable);
+
+	/**  */
+	void OnGetChildren(TSharedRef<FFilteredOption> InItem, TArray<TSharedRef<FFilteredOption>>& OutChildren);
 
 	/** Called if the menu is closed */
 	void OnMenuOpenChanged(bool bOpen);
@@ -122,20 +125,19 @@ private:
 	/** The search field used for the combox box's contents */
 	TSharedPtr<SEditableTextBox> SearchField;
 	/** The ListView that we pop up; visualized the available options. */
-	TSharedPtr< SComboListType > ComboListView;
+	TSharedPtr< SComboTreeType > ComboTreeView;
 	/** The Scrollbar used in the ListView. */
 	TSharedPtr< SScrollBar > CustomScrollbar;
-	/** Delegate to invoke when we need to visualize an option as a widget. */
-	FOnGenerateWidget OnGenerateWidget;
 
 	/** Updated whenever search text is changed */
 	FText SearchText;
 
 	/** Source data for this combo box */
-	const TArray< TSharedPtr<FString> >* OptionsSource;
+	const TArray< TSharedRef<FFilteredOption> >* OptionsSource;
 
 	/** Filtered list that is actually displayed */
-	TArray< TSharedPtr<FFilteredOption> > FilteredOptionsSource;
+	TArray< TSharedRef<FFilteredOption> > FilteredOptionsSource;
+	TArray< TSharedRef<FFilteredOption> > FilteredRootOptionsSource;
 
 	/** Copied to replace the image. */
 	FComboButtonStyle OurComboButtonStyle;
