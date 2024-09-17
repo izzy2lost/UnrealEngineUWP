@@ -397,7 +397,7 @@ void UWeightToolMeshSelector::InitialSetup(
 	PolygonSelectionMechanic = NewObject<UPolygonSelectionMechanic>(this);
 	PolygonSelectionMechanic->bAddSelectionFilterPropertiesToParentTool = false;
 	PolygonSelectionMechanic->Setup(InParentTool);
-	PolygonSelectionMechanic->SetIsEnabled(false);
+	PolygonSelectionMechanic->SetIsEnabled(false, false);
 	PolygonSelectionMechanic->OnSelectionChanged.AddLambda(OnSelectionChangedFunc );
 
 	// set up style of vertex selection
@@ -506,7 +506,7 @@ void UWeightToolMeshSelector::SetIsEnabled(bool bIsEnabled)
 	// force off if there's no preview mesh
 	bIsEnabled = PreviewMesh ? bIsEnabled : false; 
 	
-	PolygonSelectionMechanic->SetIsEnabled(bIsEnabled);
+	PolygonSelectionMechanic->SetIsEnabled(bIsEnabled, bIsEnabled);
 }
 
 void UWeightToolMeshSelector::SetComponentSelectionMode(EComponentSelectionMode InMode)
