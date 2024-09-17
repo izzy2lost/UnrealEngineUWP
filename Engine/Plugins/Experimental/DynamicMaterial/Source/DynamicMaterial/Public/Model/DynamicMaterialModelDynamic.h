@@ -22,7 +22,7 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FDMOnTextureUVDynamicUpdated, UDynamicMater
 /**
  * Represents a MID-like version of a Material Designer Model. Uses dynamic values/texture uvs to link to the original model.
  */
-UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Model Dynamic"))
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Model Instance"))
 class UDynamicMaterialModelDynamic : public UDynamicMaterialModelBase
 {
 	GENERATED_BODY()
@@ -33,9 +33,9 @@ public:
 
 #if WITH_EDITOR
 	/**
-	 * Create a new Material Model Dynamic based on a parent model.
-	 * @param InOuter Could be the transient package, an asset package or a Material Designer Instance.
-	 * @return A new Dynamic Model with its components already initialized.
+	 * Create a new Material Designer Model Instance based on a parent Model.
+	 * @param InOuter Could be the transient package, an asset package or a Material Designer Material.
+	 * @return A new Material Designer Model Instance with its components already initialized.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Motion Design")
 	static DYNAMICMATERIAL_API UDynamicMaterialModelDynamic* Create(UObject* InOuter, UDynamicMaterialModel* InParentModel);
@@ -71,10 +71,10 @@ public:
 	DYNAMICMATERIAL_API void EnsureComponents();
 #endif
 
-	/** Called when a value changes so that the Material Designer Instance can be updated and the event broadcast */
+	/** Called when a value changes so that the Material Designer Material can be updated and the event broadcast */
 	void OnValueUpdated(UDMMaterialValueDynamic* InValueDynamic);
 
-	/** Called when a texture uv changes so that the Material Designer Instance can be updated and the event broadcast */
+	/** Called when a texture uv changes so that the Material Designer Material can be updated and the event broadcast */
 	void OnTextureUVUpdated(UDMTextureUVDynamic* InTextureUVDynamic);
 
 	/** Returns the on value update method so it can (un)subscribed to. */
@@ -137,7 +137,7 @@ protected:
 	UDynamicMaterialModel* EnsureParentModel();
 
 #if WITH_EDITOR
-	/** Scans the parent model and adds all the components from there as Dynamic Components. Should not be called twice. */
+	/** Scans the parent Material Model and adds all the components from there as Instance Components. Should not be called twice. */
 	void InitComponents();
 #endif
 };

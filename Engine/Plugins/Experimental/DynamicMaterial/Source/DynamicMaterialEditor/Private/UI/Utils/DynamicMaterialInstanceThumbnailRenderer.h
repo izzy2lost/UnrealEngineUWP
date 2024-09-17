@@ -11,7 +11,7 @@ class FDynamicMaterialInstanceThumbnailScene;
 class FRenderTarget;
 
 /**
- * This thumbnail renderer displays a given Material Designer Instance.
+ * This thumbnail renderer displays a given Material Designer Material.
  */
 UCLASS(config = Editor)
 class UDynamicMaterialInstanceThumbnailRenderer : public UDefaultSizedThumbnailRenderer

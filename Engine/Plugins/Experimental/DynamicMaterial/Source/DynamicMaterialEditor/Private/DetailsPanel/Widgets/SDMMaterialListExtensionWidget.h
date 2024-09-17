@@ -32,13 +32,13 @@ protected:
 	UObject* GetAsset() const;
 	void SetAsset(UObject* NewAsset);
 
-	UDynamicMaterialInstance* GetDynamicMaterialInstance() const;
-	void SetDynamicMaterialInstance(UDynamicMaterialInstance* NewInstance);
+	UDynamicMaterialInstance* GetMaterialDesignerMaterial() const;
+	void SetMaterialDesignerMaterial(UDynamicMaterialInstance* InMaterial);
 
 	FReply OnButtonClicked();
-	FReply CreateDynamicMaterialInstance();
-	FReply ClearDynamicMaterialInstance();
-	FReply OpenDynamicMaterialInstanceTab();
+	FReply CreateMaterialDesignerMaterial();
+	FReply ClearMaterialDesignerMaterial();
+	FReply OpenMaterialDesignerTab();
 
 	FText GetButtonText() const;
 };

@@ -42,9 +42,9 @@ private:
 
 	static void OpenMaterialEditorFromContext(UDMMenuContext* InMenuContext);
 
-	static void ExportMaterialInstanceFromInstance(TWeakObjectPtr<UDynamicMaterialInstance> InMaterialInstanceWeak);
+	static void ExportMaterial(TWeakObjectPtr<UDynamicMaterialInstance> InMaterialInstanceWeak);
 
-	static void ExportMaterialModelFromModel(TWeakObjectPtr<UDynamicMaterialModelBase> InMaterialModelBaseWeak);
+	static void ExportMaterialModel(TWeakObjectPtr<UDynamicMaterialModelBase> InMaterialModelBaseWeak);
 
 	static void SnapshotMaterial(TWeakObjectPtr<UDynamicMaterialModelBase> InMaterialModelBaseWeak, FIntPoint InTextureSize);
 

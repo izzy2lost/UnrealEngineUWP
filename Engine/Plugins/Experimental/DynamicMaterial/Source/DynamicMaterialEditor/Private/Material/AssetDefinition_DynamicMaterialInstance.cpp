@@ -12,12 +12,12 @@
 
 FText UAssetDefinition_DynamicMaterialInstance::GetAssetDisplayName() const
 {
-	return LOCTEXT("DynamicMaterialInstance", "Dynamic Material Instance");
+	return LOCTEXT("MaterialDesigner", "Material Designer Material");
 }
 
 FText UAssetDefinition_DynamicMaterialInstance::GetAssetDisplayName(const FAssetData& InAssetData) const
 {
-	return LOCTEXT("MaterialDesignerInstance", "Material Designer Instance");
+	return GetAssetDisplayName();
 }
 
 TSoftClassPtr<> UAssetDefinition_DynamicMaterialInstance::GetAssetClass() const

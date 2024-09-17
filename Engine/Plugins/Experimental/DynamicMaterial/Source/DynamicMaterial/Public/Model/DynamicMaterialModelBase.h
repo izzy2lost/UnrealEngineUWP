@@ -23,16 +23,16 @@ public:
 	/**
 	 * Returns the Material Designer Model that is the base for this Model.
 	 * It will be this object for a Model.
-	 * It will be the parent Model for a Dynamic Model.
+	 * It will be the parent Model for a Model Instance.
 	 */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	virtual UDynamicMaterialModel* ResolveMaterialModel() PURE_VIRTUAL(UDynamicMaterialModelBase::ResolveMaterialModel, return nullptr;)
 
-	/** Returns the Material Designer Instance that contains this Model, if there is one. */
+	/** Returns the Material Designer Material that contains this Model, if there is one. */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	virtual UDynamicMaterialInstance* GetDynamicMaterialInstance() const PURE_VIRTUAL(UDynamicMaterialModelBase::GetDynamicMaterialInstance, return nullptr;)
 
-	/** Sets the Material Designer Instance for this Model. */
+	/** Sets the Material Designer Material for this Model. */
 	virtual void SetDynamicMaterialInstance(UDynamicMaterialInstance* InDynamicMaterialInstance) PURE_VIRTUAL(UDynamicMaterialModelBase::SetDynamicMaterialInstance)
 
 	/** Returns the UMaterial from the resolved Material Model. */

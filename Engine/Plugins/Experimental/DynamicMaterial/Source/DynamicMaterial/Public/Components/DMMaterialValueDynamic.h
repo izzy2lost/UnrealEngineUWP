@@ -16,7 +16,7 @@ class UMaterialInstanceDynamic;
 /**
  * A value used inside an instanced material instance. Links to the original value in the parent material.
  */
-UCLASS(MinimalAPI, BlueprintType, Abstract, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Value Dynamic"))
+UCLASS(MinimalAPI, BlueprintType, Abstract, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Value Instance"))
 class UDMMaterialValueDynamic : public UDMMaterialComponentDynamic, public IDMJsonSerializable
 {
 	GENERATED_BODY()

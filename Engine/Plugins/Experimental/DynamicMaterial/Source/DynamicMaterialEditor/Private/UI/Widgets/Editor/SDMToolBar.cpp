@@ -117,7 +117,7 @@ TSharedRef<SWidget> SDMToolBar::CreateToolBarEntries()
 					SNew(SButton)
 					.ContentPadding(LargeIconToolBarButtonContentPadding)
 					.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
-					.ToolTipText(LOCTEXT("ExportMaterialInstance", "Save As"))
+					.ToolTipText(LOCTEXT("ExportMaterial", "Save As"))
 					.OnClicked(this, &SDMToolBar::OnExportMaterialInstanceButtonClicked)
 					[
 						SNew(SImage)
@@ -134,7 +134,7 @@ TSharedRef<SWidget> SDMToolBar::CreateToolBarEntries()
 					.Visibility(EVisibility::Collapsed)
 					.ContentPadding(LargeIconToolBarButtonContentPadding)
 					.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
-					.ToolTipText(LOCTEXT("MaterialDesignerOpenParentTooltip", "Open the parent of this Material Designer Dynamic."))
+					.ToolTipText(LOCTEXT("MaterialDesignerOpenParentTooltip", "Open the parent of this Material Designer Instance."))
 					.OnClicked(this, &SDMToolBar::OnOpenParentClicked)
 					[
 						SNew(SImage)
@@ -151,7 +151,7 @@ TSharedRef<SWidget> SDMToolBar::CreateToolBarEntries()
 					.Visibility(EVisibility::Collapsed)
 					.ContentPadding(LargeIconToolBarButtonContentPadding)
 					.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
-					.ToolTipText(LOCTEXT("MaterialDesignerConvertToEditableTooltip", "Convert this Material Designer Dyanmic to a fully editable material (and create a new shader)."))
+					.ToolTipText(LOCTEXT("MaterialDesignerConvertToEditableTooltip", "Convert this Material Designer Instance to a fully editable Material (and create a new shader)."))
 					.OnClicked(this, &SDMToolBar::OnConvertToEditableClicked)
 					[
 						SNew(SImage)
@@ -487,7 +487,7 @@ void SDMToolBar::OnMaterialSlotChanged(TSharedPtr<FDMObjectMaterialProperty> InS
 	}
 	else if (InSelectedSlot->GetOuter())
 	{
-		if (UDynamicMaterialModel* NewModel = UDMMaterialModelFunctionLibrary::CreateDynamicMaterialInObject(*InSelectedSlot.Get()))
+		if (UDynamicMaterialModel* NewModel = UDMMaterialModelFunctionLibrary::CreateMaterialInObject(*InSelectedSlot.Get()))
 		{
 			DesignerWidget->OpenObjectMaterialProperty(*InSelectedSlot);
 		}
@@ -565,7 +565,7 @@ FReply SDMToolBar::OnExportMaterialInstanceButtonClicked()
 		return FReply::Handled();
 	}
 
-	UDynamicMaterialInstance* NewInstance = UDMMaterialModelFunctionLibrary::ExportMaterialInstance(MaterialModelBase);
+	UDynamicMaterialInstance* NewInstance = UDMMaterialModelFunctionLibrary::ExportMaterial(MaterialModelBase);
 
 	if (!NewInstance)
 	{
@@ -894,7 +894,7 @@ FReply SDMToolBar::OnConvertToEditableClicked()
 
 	if (OldInstance)
 	{
-		NewInstance = UDMMaterialModelFunctionLibrary::ExportToTemplateMaterialInstance(CurrentModelDynamic);
+		NewInstance = UDMMaterialModelFunctionLibrary::ExportToTemplateMaterial(CurrentModelDynamic);
 
 		if (NewInstance)
 		{

@@ -216,7 +216,7 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateModeSelector()
 						.Padding(FMargin(10.f, 6.f))
 						.IsChecked(this, &SDMMaterialWizard::IsModeSelected, EDMMaterialWizardMode::Instance)
 						.OnCheckStateChanged(this, &SDMMaterialWizard::SetMode, EDMMaterialWizardMode::Instance)
-						.ToolTipText(LOCTEXT("TemplateModeToolTip", "Create a new Dynamic Material Instance based on a template."))
+						.ToolTipText(LOCTEXT("TemplateModeToolTip", "Create a new Material Designer Instance based on a template."))
 						.Content()
 						[
 							SNew(STextBlock)
@@ -779,7 +779,7 @@ void SDMMaterialWizard::CreateDynamicMaterialInInstance(UDynamicMaterialModel* I
 		return;
 	}
 
-	if (!UDMMaterialModelFunctionLibrary::CreateDynamicModelInInstance(InTemplateModel, InToInstance))
+	if (!UDMMaterialModelFunctionLibrary::CreateModelInstanceInMaterial(InTemplateModel, InToInstance))
 	{
 		UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to create new dynamic model in existing instance."));
 		return;
@@ -821,7 +821,7 @@ void SDMMaterialWizard::CreateNewDynamicInstanceInActor(UDynamicMaterialModel* I
 		return;
 	}
 
-	if (!UDMMaterialModelFunctionLibrary::CreateDynamicModelInInstance(InFromModel, NewInstance))
+	if (!UDMMaterialModelFunctionLibrary::CreateModelInstanceInMaterial(InFromModel, NewInstance))
 	{
 		UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to create new dynamic model in new instance."));
 		return;

@@ -13,7 +13,7 @@ class UDMMaterialStageInputTextureUV;
 class UDMMaterialValue;
 #endif
 
-/** A Material Instance Dynamic with its own integrated Material Designer Model that generates the based Material. */
+/** A Material Designer Material with its own integrated Material Designer Model that generates the base Material. */
 UCLASS(MinimalAPI, ClassGroup = "Material Designer", DefaultToInstanced, BlueprintType, meta = (DisplayThumbnail = "true"))
 class UDynamicMaterialInstance : public UMaterialInstanceDynamic
 {
@@ -22,7 +22,7 @@ class UDynamicMaterialInstance : public UMaterialInstanceDynamic
 public:
 	UDynamicMaterialInstance();
 
-	/** Returns the Material Model associated with this Material Designer Instance. */
+	/** Returns the Material Model associated with this Material Designer Material. */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	DYNAMICMATERIAL_API UDynamicMaterialModelBase* GetMaterialModelBase();
 

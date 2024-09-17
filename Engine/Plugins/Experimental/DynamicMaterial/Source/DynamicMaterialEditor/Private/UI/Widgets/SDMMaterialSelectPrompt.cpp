@@ -25,7 +25,7 @@ void SDMMaterialSelectPrompt::Construct(const FArguments& InArgs)
 		[
 			SNew(STextBlock)
 			.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
-			.Text(LOCTEXT("NoActiveMaterial", "No active Material Designer Instance."))
+			.Text(LOCTEXT("NoActiveMaterial", "No active Material Designer Material."))
 		]
 	];
 }

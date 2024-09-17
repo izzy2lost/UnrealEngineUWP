@@ -208,7 +208,7 @@ FReply SDMActorMaterialSelector::OnCreateMaterialButtonClicked(int32 InActorProp
 		return FReply::Handled();
 	}
 
-	UDynamicMaterialModel* NewMaterialModel = UDMMaterialModelFunctionLibrary::CreateDynamicMaterialInObject(ActorProperties[InActorPropertyIndex]);
+	UDynamicMaterialModel* NewMaterialModel = UDMMaterialModelFunctionLibrary::CreateMaterialInObject(ActorProperties[InActorPropertyIndex]);
 
 	if (NewMaterialModel)
 	{

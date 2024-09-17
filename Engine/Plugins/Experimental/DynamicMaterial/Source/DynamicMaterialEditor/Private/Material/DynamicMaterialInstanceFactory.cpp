@@ -88,14 +88,12 @@ UObject* UDynamicMaterialInstanceFactory::FactoryCreateNew(UClass* Class, UObjec
 
 FText UDynamicMaterialInstanceFactory::GetDisplayName() const
 {
-	static const FText DisplayName = LOCTEXT("MaterialDesignerInstance", "Material Designer Instance");
-	return DisplayName;
+	return LOCTEXT("MaterialDesignerInstance", "Material Designer Material");
 }
 
 FText UDynamicMaterialInstanceFactory::GetToolTip() const
 {
-	static const FText Tooltip = LOCTEXT("MaterialDesignerInstanceTooltip", "The Material Designer Instance is a combination of a Material Instance Dyanmic and a Material Designer Model.");
-	return Tooltip;
+	return LOCTEXT("MaterialDesignerInstanceTooltip", "The Material Designer Material is a combination of a Material Instance Dyanmic and a Material Designer Model.");
 }
 
 #undef LOCTEXT_NAMESPACE

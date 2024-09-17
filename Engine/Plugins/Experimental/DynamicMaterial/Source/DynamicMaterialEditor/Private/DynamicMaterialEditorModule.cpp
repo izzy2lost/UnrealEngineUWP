@@ -352,12 +352,12 @@ void FDynamicMaterialEditorModule::OpenMaterialObjectProperty(const FDMObjectMat
 	}
 }
 
-void FDynamicMaterialEditorModule::OpenMaterialInstance(UDynamicMaterialInstance* InInstance, UWorld* InWorld, 
+void FDynamicMaterialEditorModule::OpenMaterial(UDynamicMaterialInstance* InMaterial, UWorld* InWorld, 
 	bool bInInvokeTab) const
 {
-	if (IsValid(InInstance))
+	if (IsValid(InMaterial))
 	{
-		if (UDynamicMaterialModel* InstanceModel = InInstance->GetMaterialModel())
+		if (UDynamicMaterialModel* InstanceModel = InMaterial->GetMaterialModel())
 		{
 			OpenMaterialModel(InstanceModel, InWorld, bInInvokeTab);
 		}

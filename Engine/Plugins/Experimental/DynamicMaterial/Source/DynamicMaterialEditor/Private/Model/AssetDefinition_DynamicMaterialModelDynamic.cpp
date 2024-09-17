@@ -10,7 +10,7 @@
 
 FText UAssetDefinition_DynamicMaterialModelDynamic::GetAssetDisplayName() const
 {
-	return LOCTEXT("DynamicMaterialModel", "Dynamic Material Model Dynamic");
+	return LOCTEXT("DynamicMaterialModel", "Dynamic Material Model Instance");
 }
 
 FText UAssetDefinition_DynamicMaterialModelDynamic::GetAssetDisplayName(const FAssetData& InAssetData) const
