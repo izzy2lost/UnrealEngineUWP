@@ -748,39 +748,39 @@ FGBufferData MobileDecodeGBuffer(half4 InGBufferA, half4 InGBufferB, half4 InGBu
 	return GBuffer;
 }
 
-#if MOBILE_DEFERRED_SHADING && PIXELSHADER
+#if MOBILE_DEFERRED_SHADING
 
-#if METAL_PROFILE
+#define	FRAMEBUFFER_FETCH_ACCESS (IS_MOBILE_DEFERREDSHADING_SUBPASS && PIXELSHADER && ALLOW_FRAMEBUFFER_FETCH)
+
+#if (METAL_PROFILE && FRAMEBUFFER_FETCH_ACCESS)
 #include "/Engine/Public/Platform/Metal/MetalSubpassSupport.ush"
-#elif VULKAN_PROFILE
+#elif (VULKAN_PROFILE && FRAMEBUFFER_FETCH_ACCESS)
 #include "/Engine/Public/Platform/Vulkan/VulkanSubpassSupport.ush"
-#elif COMPILER_GLSL_ES3_1
+#elif (USE_GLES_FBF_DEFERRED && FRAMEBUFFER_FETCH_ACCESS)
 #include "/Engine/Public/Platform/GL/GLSubpassSupport.ush"
 #endif
 
 void MobileFetchGBuffer(in float2 UV, out half4 GBufferA, out half4 GBufferB, out half4 GBufferC, out half4 GBufferD, out float SceneDepth)
 {
-	GBufferD = 0;
-
-#if VULKAN_PROFILE
+#if (VULKAN_PROFILE && FRAMEBUFFER_FETCH_ACCESS)
 	GBufferA = VulkanSubpassFetch1(); 
 	GBufferB = VulkanSubpassFetch2(); 
 	GBufferC = VulkanSubpassFetch3();
-#if MOBILE_EXTENDED_GBUFFER
-	GBufferD = VulkanSubpassFetch4();
-#endif
+	#if MOBILE_EXTENDED_GBUFFER
+		GBufferD = VulkanSubpassFetch4();
+	#endif
 	SceneDepth = ConvertFromDeviceZ(VulkanSubpassDepthFetch());
-#elif (METAL_PROFILE && !MAC)
+#elif (METAL_PROFILE && !MAC && FRAMEBUFFER_FETCH_ACCESS)
 	GBufferA = SubpassFetchRGBA_1(); 
 	GBufferB = SubpassFetchRGBA_2(); 
 	GBufferC = SubpassFetchRGBA_3(); 
-#if MOBILE_EXTENDED_GBUFFER
-	GBufferD = SubpassFetchRGBA_4();
-	SceneDepth = ConvertFromDeviceZ(SubpassFetchR_5());
-#else
-	SceneDepth = ConvertFromDeviceZ(SubpassFetchR_4());
-#endif
-#elif USE_GLES_FBF_DEFERRED
+	#if MOBILE_EXTENDED_GBUFFER
+		GBufferD = SubpassFetchRGBA_4();
+		SceneDepth = ConvertFromDeviceZ(SubpassFetchR_5());
+	#else
+		SceneDepth = ConvertFromDeviceZ(SubpassFetchR_4());
+	#endif
+#elif (USE_GLES_FBF_DEFERRED && FRAMEBUFFER_FETCH_ACCESS)
 	GBufferA = GLSubpassFetch1(); 
 	GBufferB = GLSubpassFetch2(); 
 	GBufferC = GLSubpassFetch3();  
@@ -790,13 +790,9 @@ void MobileFetchGBuffer(in float2 UV, out half4 GBufferA, out half4 GBufferB, ou
 	GBufferA = Texture2DSampleLevel(MobileSceneTextures.GBufferATexture, MobileSceneTextures.GBufferATextureSampler, UV, 0); 
 	GBufferB = Texture2DSampleLevel(MobileSceneTextures.GBufferBTexture, MobileSceneTextures.GBufferBTextureSampler, UV, 0);
 	GBufferC = Texture2DSampleLevel(MobileSceneTextures.GBufferCTexture, MobileSceneTextures.GBufferCTextureSampler, UV, 0);
-#if MOBILE_EXTENDED_GBUFFER
-	GBufferD = Texture2DSampleLevel(MobileSceneTextures.GBufferDTexture, MobileSceneTextures.GBufferDTextureSampler, UV, 0);
-#endif
-	SceneDepth = ConvertFromDeviceZ(Texture2DSampleLevel(MobileSceneTextures.SceneDepthTexture, MobileSceneTextures.SceneDepthTextureSampler, UV, 0).r);
-#endif
-
-#if FORCE_DEPTH_TEXTURE_READS || PLATFORM_NEEDS_DEPTH_TEXTURE_READS
+	#if MOBILE_EXTENDED_GBUFFER
+		GBufferD = Texture2DSampleLevel(MobileSceneTextures.GBufferDTexture, MobileSceneTextures.GBufferDTextureSampler, UV, 0);
+	#endif
 	SceneDepth = ConvertFromDeviceZ(Texture2DSampleLevel(MobileSceneTextures.SceneDepthTexture, MobileSceneTextures.SceneDepthTextureSampler, UV, 0).r);
 #endif
 }
@@ -805,7 +801,7 @@ void MobileFetchGBuffer(in float2 UV, out half4 GBufferA, out half4 GBufferB, ou
 FGBufferData MobileFetchAndDecodeGBuffer(in float2 UV, in float2 PixelPos, uint ViewId)
 {
 	FGBufferData GBuffer = (FGBufferData)0;
-#if (MOBILE_DEFERRED_SHADING && IS_MOBILE_DEFERREDSHADING_SUBPASS && PIXELSHADER)
+#if MOBILE_DEFERRED_SHADING
 	float SceneDepth = 0; 
 	half4 GBufferA = 0;
 	half4 GBufferB = 0;
