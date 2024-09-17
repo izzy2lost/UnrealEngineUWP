@@ -875,6 +875,11 @@ bool UNiagaraSimCache::EndWrite(bool bAllowAnalytics)
 bool UNiagaraSimCache::CanRead(UNiagaraSystem* NiagaraSystem)
 {
 	check(IsInGameThread());
+	
+	if ( !NiagaraSystem )
+    {
+    	return false;
+    }
 
 	if ( NiagaraSystem != SoftNiagaraSystem.Get() )
 	{
