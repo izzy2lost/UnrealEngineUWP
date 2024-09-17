@@ -224,20 +224,15 @@ void FAvaEditor::ForEachExtension(TFunctionRef<void(const TSharedRef<IAvaEditorE
 	}
 }
 
-void FAvaEditor::RecordActivationChangedEvent()
+void FAvaEditor::NotifySceneActivationEvent()
 {
-	if (!FEngineAnalytics::IsAvailable())
-	{
-		return;
-	}
-
 	if (bIsActive)
 	{
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.Activated"));
+		Provider->OnSceneActivated();
 	}
 	else
 	{
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.Deactivated"));
+		Provider->OnSceneDeactivated();
 	}
 }
 
@@ -252,7 +247,7 @@ void FAvaEditor::Activate(TSharedPtr<IToolkitHost> InOverrideToolkitHost)
 
 	bIsActive = true;
 
-	RecordActivationChangedEvent();
+	NotifySceneActivationEvent();
 
 	BindDelegates();
 
@@ -306,7 +301,7 @@ void FAvaEditor::Deactivate()
 
 	bIsActive = false;
 
-	RecordActivationChangedEvent();
+	NotifySceneActivationEvent();
 
 	UnbindDelegates();
 

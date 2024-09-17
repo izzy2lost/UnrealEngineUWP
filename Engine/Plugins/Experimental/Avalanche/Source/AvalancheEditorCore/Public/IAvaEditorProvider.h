@@ -27,4 +27,8 @@ public:
 
 	/** Optional: Add/Remove from the Actor array when performing operations such as Copy/Cut */
 	virtual void GetActorsToEdit(TArray<AActor*>& InOutActorsToEdit) const {}
+
+	virtual void OnSceneActivated() {}
+
+	virtual void OnSceneDeactivated() {}
 };

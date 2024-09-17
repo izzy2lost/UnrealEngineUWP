@@ -28,9 +28,17 @@ class AAvaScene : public AActor, public IAvaSequenceProvider, public IAvaSceneIn
 {
 	GENERATED_BODY()
 
-	static void OnSceneCreated(FString&& InCreationType);
-
 public:
+#if WITH_EDITOR
+	enum class ESceneAction : uint8
+	{
+		Created,
+		Activated,
+		Deactivated,
+	};
+	AVALANCHE_API static void NotifySceneEvent(ESceneAction InAction);
+#endif
+
 	AVALANCHE_API static AAvaScene* GetScene(ULevel* InLevel, bool bInCreateSceneIfNotFound);
 
 	AAvaScene();

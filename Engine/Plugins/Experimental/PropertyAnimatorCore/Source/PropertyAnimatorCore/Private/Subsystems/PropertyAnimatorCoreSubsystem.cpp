@@ -361,8 +361,10 @@ TSet<UPropertyAnimatorCoreBase*> UPropertyAnimatorCoreSubsystem::CreateAnimators
 	if (FEngineAnalytics::IsAvailable())
 	{
 		TArray<FAnalyticsEventAttribute> Attributes;
-		Attributes.Emplace(TEXT("Class"), InAnimatorClass->GetName());
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.PropertyAnimator.CreateAnimator"), Attributes);
+		Attributes.Reserve(2);
+		Attributes.Emplace(TEXT("Action"), TEXT("Created"));
+		Attributes.Emplace(TEXT("Class"), GetNameSafe(InAnimatorClass));
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.PropertyAnimator.Animator"), Attributes);
 	}
 #endif
 

@@ -230,7 +230,7 @@ UDynamicMaterialInstance* UDMMaterialModelFunctionLibrary::ExportMaterialInstanc
 
 	if (FEngineAnalytics::IsAvailable())
 	{
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner.ExportedMaterialInstance"));
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner"), TEXT("Action"), TEXT("ExportedMaterialInstance"));
 	}
 
 	return NewInstance;
@@ -292,7 +292,7 @@ UMaterial* UDMMaterialModelFunctionLibrary::ExportGeneratedMaterial(UDynamicMate
 
 	if (FEngineAnalytics::IsAvailable())
 	{
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner.ExportedGeneratedMaterial"));
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner"), TEXT("Action"), TEXT("ExportedGeneratedMaterial"));
 	}
 
 	return Cast<UMaterial>(NewAsset);
@@ -378,7 +378,7 @@ UDynamicMaterialModel* UDMMaterialModelFunctionLibrary::ExportToTemplateMaterial
 
 	if (FEngineAnalytics::IsAvailable())
 	{
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner.ExportToTemplateMaterialModel"));
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner"), TEXT("Action"), TEXT("ExportToTemplateMaterialModel"));
 	}
 
 	return NewModel;
@@ -486,7 +486,7 @@ UDynamicMaterialInstance* UDMMaterialModelFunctionLibrary::ExportToTemplateMater
 
 	if (FEngineAnalytics::IsAvailable())
 	{
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner.ExportToTemplateMaterialInstance"));
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner"), TEXT("Action"), TEXT("ExportToTemplateMaterialInstance"));
 	}
 
 	return NewInstance;

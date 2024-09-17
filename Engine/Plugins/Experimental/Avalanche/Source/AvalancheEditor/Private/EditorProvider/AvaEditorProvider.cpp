@@ -30,3 +30,13 @@ void FAvaEditorProvider::GetActorsToEdit(TArray<AActor*>& InOutActorsToEdit) con
 {
 	FAvaEditorActorUtils::GetActorsToEdit(InOutActorsToEdit);
 }
+
+void FAvaEditorProvider::OnSceneActivated()
+{
+	AAvaScene::NotifySceneEvent(AAvaScene::ESceneAction::Activated);
+}
+
+void FAvaEditorProvider::OnSceneDeactivated()
+{
+	AAvaScene::NotifySceneEvent(AAvaScene::ESceneAction::Deactivated);
+}

@@ -101,10 +101,10 @@ void UAvaShapeFactory::PostPlaceAsset(TArrayView<const FTypedElementHandle> InHa
 	if (!InPlacementOptions.bIsCreatingPreviewElements && FEngineAnalytics::IsAvailable())
 	{
 		TArray<FAnalyticsEventAttribute> Attributes;
-		if (MeshClass)
-		{
-			Attributes.Emplace(TEXT("MeshClass"), MeshClass->GetName());
-		}
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.PlaceShape"), Attributes);
+		Attributes.Reserve(3);
+		Attributes.Emplace(TEXT("ToolClass"), GetNameSafe(GetClass()));
+		Attributes.Emplace(TEXT("ActorClass"), GetNameSafe(NewActorClass));
+		Attributes.Emplace(TEXT("SubobjectClass"), GetNameSafe(MeshClass));
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.PlaceActor"), Attributes);
 	}
 }

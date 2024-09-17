@@ -76,12 +76,11 @@ UObject* UDynamicMaterialInstanceFactory::FactoryCreateNew(UClass* Class, UObjec
 		static const FString AssetType = TEXT("Asset");
 		static const FString SubobjectType = TEXT("Subobject");
 
-		TArray<FAnalyticsEventAttribute> Attribs;
-		const bool bIsAsset = NewInstance->IsAsset();
-
-		Attribs.Add(FAnalyticsEventAttribute(TEXT("Type"), bIsAsset ? AssetType : SubobjectType));
-
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner.InstanceCreated"), Attribs);
+		TArray<FAnalyticsEventAttribute> Attributes;
+		Attributes.Reserve(2);
+		Attributes.Add(FAnalyticsEventAttribute(TEXT("Action"), TEXT("InstanceCreated")));
+		Attributes.Add(FAnalyticsEventAttribute(TEXT("ActionDetails"), NewInstance->IsAsset() ? AssetType : SubobjectType));
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner"), Attributes);
 	}
 
 	return NewInstance;
