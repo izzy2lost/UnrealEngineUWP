@@ -37,6 +37,11 @@ void UImageSequenceTimecodeUtils::SetTimecodeInfoString(const FString& InTimecod
 
 TOptional<FTimecode> UImageSequenceTimecodeUtils::GetTimecode(UImgMediaSource* InImageSequence)
 {
+	if (!InImageSequence)
+	{
+		return {};
+	}
+
 	TOptional<FString> TimecodeOpt = GetTimecodeString(InImageSequence);
 
 	if (!TimecodeOpt.IsSet())
@@ -49,6 +54,11 @@ TOptional<FTimecode> UImageSequenceTimecodeUtils::GetTimecode(UImgMediaSource* I
 
 TOptional<FFrameRate> UImageSequenceTimecodeUtils::GetFrameRate(UImgMediaSource* InImageSequence)
 {
+	if (!InImageSequence)
+	{
+		return {};
+	}
+
 	TOptional<FString> TimecodeRateOpt = GetFrameRateString(InImageSequence);
 
 	if (!TimecodeRateOpt.IsSet())
@@ -72,6 +82,11 @@ TOptional<FString> UImageSequenceTimecodeUtils::GetTimecodeString(UImgMediaSourc
 	}
 
 	FString Timecode = EditorAssetSubsystem->GetMetadataTag(InImageSequence, UImageSequenceTimecodeUtils::TimecodeTagName);
+
+	if (Timecode.IsEmpty())
+	{
+		return {};
+	}
 
 	return Timecode;
 #else
