@@ -21,6 +21,7 @@ public:
 	virtual EMovieGraphBranchRestriction GetBranchRestriction() const override;
 	virtual TArray<FMovieGraphPropertyInfo> GetOverrideablePropertyInfo() const override;
 	virtual TArray<FPropertyBagPropertyDesc> GetDynamicPropertyDescriptions() const override;
+	virtual bool GetDynamicPropertyValue(const FName PropertyName, FString& OutValue) override;
 	virtual void TogglePromotePropertyToPin(const FName& PropertyName) override;
 	virtual void PrepareForFlattening(const UMovieGraphSettingNode* InSourceNode) override;
 

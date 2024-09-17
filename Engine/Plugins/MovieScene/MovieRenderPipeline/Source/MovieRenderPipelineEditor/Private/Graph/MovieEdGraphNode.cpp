@@ -10,6 +10,7 @@
 #include "Misc/TransactionObjectEvent.h"
 #include "MovieEdGraph.h"
 #include "MovieGraphSchema.h"
+#include "ScopedTransaction.h"
 #include "ToolMenu.h"
 #include "EdGraph/EdGraphSchema.h"
 #include "GraphEditorActions.h"
@@ -274,6 +275,9 @@ void UMoviePipelineEdGraphNode::GetNodeContextMenuActions(UToolMenu* Menu, UGrap
 
 void UMoviePipelineEdGraphNode::GetPropertyPromotionContextMenuActions(UToolMenu* Menu, const UGraphNodeContextMenuContext* Context) const
 {
+	// Before fetching the overrideable properties, update dynamic properties (dynamic properties may be included in overrideable properties)
+	RuntimeNode->UpdateDynamicProperties();
+	
 	const TArray<FMovieGraphPropertyInfo>& OverrideablePropertyInfo = RuntimeNode->GetOverrideablePropertyInfo();
 	
 	FToolMenuSection& PinActionsSection = Menu->FindOrAddSection("EdGraphSchemaPinActions");
@@ -348,6 +352,8 @@ void UMoviePipelineEdGraphNode::GetPropertyPromotionContextMenuActions(UToolMenu
 
 void UMoviePipelineEdGraphNode::PromotePropertyToVariable(const FMovieGraphPropertyInfo& TargetProperty) const
 {
+	FScopedTransaction ScopedTransaction(LOCTEXT("PromotePropertyToVariable_Transaction", "Promote Property to Variable"));
+	
 	const FName PromotedVariableName = TargetProperty.PromotionName.IsNone() ? TargetProperty.Name : TargetProperty.PromotionName;
 	
 	// Note: AddVariable() will take care of determining a unique name if there is already a variable with the property's name
@@ -389,6 +395,8 @@ void UMoviePipelineEdGraphNode::PromotePropertyToVariable(const FMovieGraphPrope
 
 void UMoviePipelineEdGraphNode::TogglePromotePropertyToPin(const FName PropertyName) const
 {
+	FScopedTransaction ScopedTransaction(LOCTEXT("PromotePropertyToPin_Transaction", "Promote Property to Pin"));
+	
 	RuntimeNode->TogglePromotePropertyToPin(PropertyName);
 }
 
