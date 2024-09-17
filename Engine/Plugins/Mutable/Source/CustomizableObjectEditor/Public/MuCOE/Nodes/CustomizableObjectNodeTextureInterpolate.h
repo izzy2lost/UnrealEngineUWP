@@ -57,7 +57,7 @@ public:
 		return Count;
 	}
 
-	UPROPERTY(EditAnywhere, Category=CustomizableObject)
+	UPROPERTY(EditAnywhere, Category=CustomizableObject, meta = (ClampMin = 2))
 	int32 NumTargets;
 };
 
