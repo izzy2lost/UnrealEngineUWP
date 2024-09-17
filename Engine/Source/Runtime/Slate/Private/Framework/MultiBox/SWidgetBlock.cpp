@@ -87,8 +87,12 @@ void SWidgetBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, const FNam
 	TSharedPtr< const FMultiBox > MultiBox = OwnerMultiBoxWidgetPinned->GetMultiBox();
 	const TSharedRef<const FWidgetBlock> WidgetBlock = StaticCastSharedRef<const FWidgetBlock>(MultiBlock.ToSharedRef());
 
+	const bool bHasLabel = !WidgetBlock->Label.IsEmpty();
+
+	// Initially use default behavior
+	EVerticalAlignment ContentVerticalAlignment = bHasLabel ? VAlign_Center : VAlign_Fill;
+
 	// Support menus which do not have a defined widget style yet
-	bool bHasLabel = !WidgetBlock->Label.IsEmpty();
 	FMargin Padding;
 	const FTextBlockStyle* LabelStyle = nullptr;
 	if(StyleSet->HasWidgetStyle<FToolBarStyle>(StyleName))
@@ -97,11 +101,21 @@ void SWidgetBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, const FNam
 
 		Padding = WidgetBlock->StyleParams.bNoIndent ? ToolBarStyle.BlockPadding : ToolBarStyle.IndentedBlockPadding;
 		LabelStyle = &ToolBarStyle.LabelStyle;
+
+		if (ToolBarStyle.VerticalAlignmentOverride.IsSet())
+		{
+			ContentVerticalAlignment = ToolBarStyle.VerticalAlignmentOverride.GetValue();
+		}
 	}
 	else
 	{
 		Padding = WidgetBlock->StyleParams.bNoIndent ? StyleSet->GetMargin(StyleName, ".Block.Padding") : StyleSet->GetMargin(StyleName, ".Block.IndentedPadding");
 		LabelStyle = &StyleSet->GetWidgetStyle<FTextBlockStyle>(ISlateStyle::Join(StyleName, ".Label"));
+	}
+
+	if (WidgetBlock->StyleParams.VerticalAlignment.IsSet())
+	{
+		ContentVerticalAlignment = WidgetBlock->StyleParams.VerticalAlignment.GetValue();
 	}
 
 	if(OwnerMultiBoxWidgetPinned->GetMultiBox()->GetType() == EMultiBoxType::Menu)
@@ -176,7 +190,7 @@ void SWidgetBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, const FNam
 			]
 		]
 		+SHorizontalBox::Slot()
-		.VAlign(bHasLabel ? VAlign_Center : VAlign_Fill)
+		.VAlign(ContentVerticalAlignment)
 		.FillWidth(1.f)
 		[
 			WidgetBlock->ContentWidget
