@@ -81,7 +81,7 @@ void UMoviePipelineBurnInSetting::RenderSample_GameThreadImpl(const FMoviePipeli
 			// Update the Widget with the latest frame information
 			CurrentWidget->OnOutputFrameStarted(GetPipeline());
 
-			// Draw the widget to the render target
+			// Draw the widget to the render target. This leaves the texture in SRV state so no transition is needed.
 			WidgetRenderer->DrawWindow(RenderTarget, VirtualWindow->GetHittestGrid(), VirtualWindow.ToSharedRef(), 1.f, OutputResolution, InSampleState.OutputState.TimeData.FrameDeltaTime);
 
 			FRenderTarget* BackbufferRenderTarget = RenderTarget->GameThread_GetRenderTargetResource();
@@ -90,9 +90,6 @@ void UMoviePipelineBurnInSetting::RenderSample_GameThreadImpl(const FMoviePipeli
 			ENQUEUE_RENDER_COMMAND(BurnInRenderTargetResolveCommand)(
 				[InSampleState, PassIdentifierForCurrentCamera, bComposite = bCompositeOntoFinalImage, BackbufferRenderTarget, OutputBuilder](FRHICommandListImmediate& RHICmdList)
 				{
-					// Transition our render target from a render target view to a shader resource view to allow a shader to read from this Render Target.
-					RHICmdList.Transition(FRHITransitionInfo(BackbufferRenderTarget->GetRenderTargetTexture(), ERHIAccess::RTV, ERHIAccess::SRVGraphicsPixel));
-
 					FIntRect SourceRect = FIntRect(0, 0, BackbufferRenderTarget->GetSizeXY().X, BackbufferRenderTarget->GetSizeXY().Y);
 
 					// Read the data back to the CPU

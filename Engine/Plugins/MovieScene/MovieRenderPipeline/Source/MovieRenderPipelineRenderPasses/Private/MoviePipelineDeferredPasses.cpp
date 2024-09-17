@@ -577,6 +577,13 @@ void UMoviePipelineDeferredPassBase::RenderSample_GameThreadImpl(const FMoviePip
 
 			FCanvas Canvas = FCanvas(RenderTarget, nullptr, GetPipeline()->GetWorld(), View->GetFeatureLevel(), FCanvas::CDM_DeferDrawing, 1.0f);
 			GetRendererModule().BeginRenderingViewFamily(&Canvas, ViewFamily.Get());
+			
+			ENQUEUE_RENDER_COMMAND(TransitionTextureSRVState)(
+			[RenderTarget](FRHICommandListImmediate& RHICmdList) mutable
+			{
+				// Transition our render target from a render target view to a shader resource view to allow the UMG preview material to read from this Render Target.
+				RHICmdList.Transition(FRHITransitionInfo(RenderTarget->GetRenderTargetTexture(), ERHIAccess::RTV, ERHIAccess::SRVGraphicsPixel));
+			});
 
 			// Readback + Accumulate.
 			PostRendererSubmission(InOutSampleState, PassIdentifierForCurrentCamera, GetOutputFileSortingOrder(), Canvas);
@@ -704,6 +711,13 @@ void UMoviePipelineDeferredPassBase::RenderSample_GameThreadImpl(const FMoviePip
 
 						FCanvas Canvas = FCanvas(RenderTarget, nullptr, GetPipeline()->GetWorld(), View->GetFeatureLevel(), FCanvas::CDM_DeferDrawing, 1.0f);
 						GetRendererModule().BeginRenderingViewFamily(&Canvas, ViewFamily.Get());
+						
+						ENQUEUE_RENDER_COMMAND(TransitionTextureSRVState)(
+						[RenderTarget](FRHICommandListImmediate& RHICmdList) mutable
+						{
+							// Transition our render target from a render target view to a shader resource view to allow the UMG preview material to read from this Render Target.
+							RHICmdList.Transition(FRHITransitionInfo(RenderTarget->GetRenderTargetTexture(), ERHIAccess::RTV, ERHIAccess::SRVGraphicsPixel));
+						});
 
 						// Readback + Accumulate.
 						PostRendererSubmission(InOutSampleState, LayerPassIdentifier, GetOutputFileSortingOrder() + 1, Canvas);
@@ -1003,9 +1017,6 @@ void UMoviePipelineDeferredPassBase::PostRendererSubmission(const FMoviePipeline
 	ENQUEUE_RENDER_COMMAND(CanvasRenderTargetResolveCommand)(
 		[LocalSurfaceQueue, FramePayload, Callback, RenderTarget](FRHICommandListImmediate& RHICmdList) mutable
 		{
-			// Transition our render target from a render target view to a shader resource view to allow a shader to read from this Render Target.
-			RHICmdList.Transition(FRHITransitionInfo(RenderTarget->GetRenderTargetTexture(), ERHIAccess::RTV, ERHIAccess::SRVGraphicsPixel));
-
 			// Enqueue a encode for this frame onto our worker thread.
 			LocalSurfaceQueue->OnRenderTargetReady_RenderThread(RenderTarget->GetRenderTargetTexture(), FramePayload, MoveTemp(Callback));
 		});
