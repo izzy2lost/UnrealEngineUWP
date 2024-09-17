@@ -900,61 +900,144 @@ bool UMovieSceneControlRigParameterSection::RenameParameterName(const FName& Old
 	return bWasReplaced;
 }
 
+//make sure to zero out Scale values if getting to Additive or use the current values if getting set to Override
 void UMovieSceneControlRigParameterSection::SetBlendType(EMovieSceneBlendType InBlendType)
 {
 	if (GetSupportedBlendTypes().Contains(InBlendType))
 	{
+		Modify();
 		BlendType = InBlendType;
 		if (ControlRig)
 		{
-			const FChannelMapInfo* ChannelInfo = nullptr;
-
 			// Set Defaults based upon Type
 			TArrayView<FMovieSceneFloatChannel*> FloatChannels = GetChannelProxy().GetChannels<FMovieSceneFloatChannel>();
 			TArray<FRigControlElement*> Controls = ControlRig->AvailableControls();
 
 			for (FRigControlElement* ControlElement : Controls)
 			{
+				if (!ControlRig->GetHierarchy()->IsAnimatable(ControlElement))
+				{
+					continue;
+				}
+				FChannelMapInfo* pChannelIndex = ControlChannelMap.Find(ControlElement->GetFName());
+				if (pChannelIndex == nullptr)
+				{
+					continue;
+				}
+				int32 ChannelIndex = pChannelIndex->ChannelIndex;
+
 				switch (ControlElement->Settings.ControlType)
 				{
+				case ERigControlType::Float:
+				case ERigControlType::ScaleFloat:
+				{
+					if (InBlendType == EMovieSceneBlendType::Override)
+					{
+						float Val = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<float>();
+						FloatChannels[ChannelIndex]->SetDefault(Val);
+					}
+					break;
+				}
+				case ERigControlType::Vector2D:
+				{
+					if (InBlendType == EMovieSceneBlendType::Override)
+					{
+						FVector3f Val = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
+						FloatChannels[ChannelIndex]->SetDefault(Val.X);
+						FloatChannels[ChannelIndex + 1]->SetDefault(Val.Y);
+					}
+					break;
+				}
+				case ERigControlType::Position:
+				case ERigControlType::Rotator:
+				{
+					if (InBlendType == EMovieSceneBlendType::Override)
+					{
+						FVector3f Val = (ControlElement->Settings.ControlType == ERigControlType::Rotator)
+							? FVector3f(ControlRig->GetHierarchy()->GetControlSpecifiedEulerAngle(ControlElement)) : ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
 
+						FloatChannels[ChannelIndex]->SetDefault(Val.X);
+						FloatChannels[ChannelIndex + 1]->SetDefault(Val.Y);
+						FloatChannels[ChannelIndex + 2]->SetDefault(Val.Z);
+					}
+					break;
+				}
 				case ERigControlType::Scale:
 				{
-					ChannelInfo = ControlChannelMap.Find(ControlElement->GetFName());
-					if (ChannelInfo)
+					if (InBlendType == EMovieSceneBlendType::Absolute)
 					{
-						if (InBlendType == EMovieSceneBlendType::Absolute)
-						{
-							FloatChannels[ChannelInfo->ChannelIndex]->SetDefault(1.0f);
-							FloatChannels[ChannelInfo->ChannelIndex+1]->SetDefault(1.0f);
-							FloatChannels[ChannelInfo->ChannelIndex+2]->SetDefault(1.0f);
-						}
-						else
-						{
-							FloatChannels[ChannelInfo->ChannelIndex]->SetDefault(0.0f);
-							FloatChannels[ChannelInfo->ChannelIndex + 1]->SetDefault(0.0f);
-							FloatChannels[ChannelInfo->ChannelIndex + 2]->SetDefault(0.0f);
-						}
+						FloatChannels[ChannelIndex]->SetDefault(1.0f);
+						FloatChannels[ChannelIndex + 1]->SetDefault(1.0f);
+						FloatChannels[ChannelIndex + 2]->SetDefault(1.0f);
+					}
+					else if (InBlendType == EMovieSceneBlendType::Additive)
+					{
+						FloatChannels[ChannelIndex]->SetDefault(0.0f);
+						FloatChannels[ChannelIndex + 1]->SetDefault(0.0f);
+						FloatChannels[ChannelIndex + 2]->SetDefault(0.0f);
+					}
+					else if (InBlendType == EMovieSceneBlendType::Override)
+					{
+						FVector3f Val = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
+						FloatChannels[ChannelIndex]->SetDefault(Val.X);
+						FloatChannels[ChannelIndex + 1]->SetDefault(Val.Y);
+						FloatChannels[ChannelIndex + 2]->SetDefault(Val.Z);
 					}
 				}
 				break;
 				case ERigControlType::Transform:
 				case ERigControlType::EulerTransform:
+				case ERigControlType::TransformNoScale:
 				{
-					ChannelInfo = ControlChannelMap.Find(ControlElement->GetFName());
-					if (ChannelInfo)
+					FTransform Val = FTransform::Identity;
+					if (ControlElement->Settings.ControlType == ERigControlType::TransformNoScale)
+					{
+						FTransformNoScale NoScale =
+							ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FTransformNoScale_Float>().ToTransform();
+						Val = NoScale;
+					}
+					else if (ControlElement->Settings.ControlType == ERigControlType::EulerTransform)
+					{
+						FEulerTransform Euler =
+							ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FEulerTransform_Float>().ToTransform();
+						Val = Euler.ToFTransform();
+					}
+					else
+					{
+						Val = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FTransform_Float>().ToTransform();
+					}
+					if (InBlendType == EMovieSceneBlendType::Override)
+					{
+						FVector CurrentVector = Val.GetTranslation();
+						FloatChannels[ChannelIndex]->SetDefault(CurrentVector.X);
+						FloatChannels[ChannelIndex + 1]->SetDefault(CurrentVector.Y);
+						FloatChannels[ChannelIndex + 2]->SetDefault(CurrentVector.Z);
+
+						CurrentVector = ControlRig->GetHierarchy()->GetControlSpecifiedEulerAngle(ControlElement);
+						FloatChannels[ChannelIndex + 3]->SetDefault(CurrentVector.X);
+						FloatChannels[ChannelIndex + 4]->SetDefault(CurrentVector.Y);
+						FloatChannels[ChannelIndex + 5]->SetDefault(CurrentVector.Z);
+					}
+					if (ControlElement->Settings.ControlType != ERigControlType::TransformNoScale)
 					{
 						if (InBlendType == EMovieSceneBlendType::Absolute)
 						{
-							FloatChannels[ChannelInfo->ChannelIndex + 6]->SetDefault(1.0f);
-							FloatChannels[ChannelInfo->ChannelIndex + 7]->SetDefault(1.0f);
-							FloatChannels[ChannelInfo->ChannelIndex + 8]->SetDefault(1.0f);
+							FloatChannels[ChannelIndex + 6]->SetDefault(1.0f);
+							FloatChannels[ChannelIndex + 7]->SetDefault(1.0f);
+							FloatChannels[ChannelIndex + 8]->SetDefault(1.0f);
 						}
-						else
+						else if (InBlendType == EMovieSceneBlendType::Additive)
 						{
-							FloatChannels[ChannelInfo->ChannelIndex + 6]->SetDefault(0.0f);
-							FloatChannels[ChannelInfo->ChannelIndex + 7]->SetDefault(0.0f);
-							FloatChannels[ChannelInfo->ChannelIndex + 8]->SetDefault(0.0f);
+							FloatChannels[ChannelIndex + 6]->SetDefault(0.0f);
+							FloatChannels[ChannelIndex + 7]->SetDefault(0.0f);
+							FloatChannels[ChannelIndex + 8]->SetDefault(0.0f);
+						}
+						else if (InBlendType == EMovieSceneBlendType::Override)
+						{
+							FVector CurrentVector = Val.GetScale3D();
+							FloatChannels[ChannelIndex + 6]->SetDefault(CurrentVector.X);
+							FloatChannels[ChannelIndex + 7]->SetDefault(CurrentVector.Y);
+							FloatChannels[ChannelIndex + 8]->SetDefault(CurrentVector.Z);
 						}
 					}
 				}

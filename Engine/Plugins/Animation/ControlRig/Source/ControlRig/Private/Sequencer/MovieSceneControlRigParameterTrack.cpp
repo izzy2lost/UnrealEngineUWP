@@ -44,7 +44,7 @@ UMovieSceneControlRigParameterTrack::UMovieSceneControlRigParameterTrack(const F
 	SupportedBlendTypes = FMovieSceneBlendTypeField::None();
 	SupportedBlendTypes.Add(EMovieSceneBlendType::Additive);
 	SupportedBlendTypes.Add(EMovieSceneBlendType::Absolute);
-
+	SupportedBlendTypes.Add(EMovieSceneBlendType::Override);
 }
 
 void UMovieSceneControlRigParameterTrack::BeginDestroy()

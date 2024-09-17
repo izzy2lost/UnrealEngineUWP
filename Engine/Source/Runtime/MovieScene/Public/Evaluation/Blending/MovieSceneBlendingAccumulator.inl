@@ -17,6 +17,7 @@ void TBlendableTokenStack<DataType>::ComputeAndActuate(UObject* InObject, FMovie
 	TMovieSceneInitialValueStore<DataType> InitialValues(*Actuator, *this, InObject, &Player);
 
 	typename TBlendableTokenTraits<DataType>::WorkingDataType WorkingTotal{};
+	Tokens.Sort();
 	for (const TBlendableToken<DataType>* Token : Tokens)
 	{
 		Token->AddTo(WorkingTotal, InitialValues);

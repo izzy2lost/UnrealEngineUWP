@@ -204,12 +204,108 @@ private:
 	}
 };
 
+/** Task to gather all of the additives and overrides that need to get blended in order.
+ *
+ *  Only used by entities with the specified blending order.
+ */
+struct FAdditiveAndOverridesTask
+{
+	TSortedMap<FComponentTypeID, FAdditiveAndOverrideBuffer>* AccumulationBuffers;
+
+	void ForEachAllocation(FEntityAllocationIteratorItem InItem, TRead<FMovieSceneBlendChannelID> BlendIDs, TRead<int32> BlendingOrder, TReadOptional<double> EasingAndWeightResults) const
+	{
+		FEntityAllocation* Allocation = InItem;
+		const FComponentMask& AllocationType = InItem;
+
+		for (const FComponentHeader& ComponentHeader : Allocation->GetComponentHeaders())
+		{
+			if (FAdditiveAndOverrideBuffer* Buffer = AccumulationBuffers->Find(ComponentHeader.ComponentType))
+			{
+				TComponentReader<double> Results(&ComponentHeader, Allocation->GetCurrentLockMode());
+
+				AccumulateResults(Allocation, Results.AsPtr(), BlendingOrder, BlendIDs, EasingAndWeightResults, Buffer->Values);
+			}
+		}
+	}
+
+
+private:
+
+	void AccumulateResults(const FEntityAllocation* InAllocation, const double* Results, const int32* BlendingOrder, const FMovieSceneBlendChannelID* BlendIDs, const double* OptionalEasingAndWeights, TArray<FAdditiveAndOverrides>& OutOverrides) const
+	{
+		static const FMovieSceneBlenderSystemID BlenderSystemID = UMovieSceneBlenderSystem::GetBlenderSystemID<UMovieScenePiecewiseDoubleBlenderSystem>();
+
+		const int32 Num = InAllocation->Num();
+		const bool bAdditive = InAllocation->HasComponent(FBuiltInComponentTypes::Get()->Tags.AdditiveBlend);
+		const bool bOverride = InAllocation->HasComponent(FBuiltInComponentTypes::Get()->Tags.OverrideBlend);
+		if (!bAdditive && !bOverride)
+		{
+			return;
+		}
+		if (OptionalEasingAndWeights)
+		{
+			for (int32 Index = 0; Index < Num; ++Index)
+			{
+				const FMovieSceneBlendChannelID& BlendID(BlendIDs[Index]);
+				ensureMsgf(BlendID.SystemID == BlenderSystemID, TEXT("Overriding the standard blender system of standard types isn't supported."));
+
+				FAdditiveAndOverrides& Result = OutOverrides[BlendID.ChannelID];
+				FAdditveAndOverrideData Data;
+				Data.bIsAdditive = bAdditive;
+				Data.Value = Results[Index];
+				Data.Weight = OptionalEasingAndWeights[Index];
+				Data.BlendingOrder = BlendingOrder[Index];
+				Result.Data.Add(Data.BlendingOrder, Data);
+			}
+		}
+		else
+		{
+			// Faster path for when there's no weight to multiply values with.
+			for (int32 Index = 0; Index < Num; ++Index)
+			{
+				const FMovieSceneBlendChannelID& BlendID(BlendIDs[Index]);
+				ensureMsgf(BlendID.SystemID == BlenderSystemID, TEXT("Overriding the standard blender system of standard types isn't supported."));
+				FAdditiveAndOverrides& Result = OutOverrides[BlendID.ChannelID];
+				FAdditveAndOverrideData Data;
+				Data.bIsAdditive = bAdditive;
+				Data.Value = Results[Index];
+				Data.Weight = 1.0;
+				Data.BlendingOrder = BlendingOrder[Index];
+				Result.Data.Add(Data.BlendingOrder, Data);
+			}
+		}
+	}
+};
+
+void AddOverrideResults(const FAdditiveAndOverrides& Overrides, double& OutFinalBlendValue)
+{
+	for (const TPair<int32,FAdditveAndOverrideData>& Data : Overrides.Data)
+	{
+		if (Data.Value.bIsAdditive)
+		{
+			OutFinalBlendValue += (Data.Value.Value * Data.Value.Weight);
+		}
+		else //override do weighted blend
+		{
+			if (Data.Value.Weight >= 1.0)
+			{
+				OutFinalBlendValue = Data.Value.Value;
+			}
+			else
+			{
+				OutFinalBlendValue =(OutFinalBlendValue *(1.0 - Data.Value.Weight)) +
+					(Data.Value.Value * Data.Value.Weight);
+			}
+		}
+	}
+}
+
 void BlendResults(const FAccumulationResult& Results, uint16 BlendID, double& OutFinalBlendResult)
 {
 	FBlendResult AbsoluteResult = Results.GetAbsoluteResult(BlendID);
 	FBlendResult AdditiveResult = Results.GetAdditiveResult(BlendID);
 	FBlendResult AdditiveFromBaseResult = Results.GetAdditiveFromBaseResult(BlendID);
-
+	FAdditiveAndOverrides Overrides = Results.GetAdditiveAndOverrideResult(BlendID);
 #if DO_GUARD_SLOW
 	ensureMsgf(AbsoluteResult.Weight != 0.f, TEXT("Default blend combine being used for an entity that has no absolute weight. This should have an initial value and should be handled by each system, and excluded by default with UMovieSceneBlenderSystem::FinalCombineExclusionFilter ."));
 #endif
@@ -220,6 +316,10 @@ void BlendResults(const FAccumulationResult& Results, uint16 BlendID, double& Ou
 		const double Value = AbsoluteResult.Total / AbsoluteResult.Weight + AdditiveResult.Total + AdditiveFromBaseResult.Total;
 		OutFinalBlendResult = Value;
 	}
+	if (Overrides.Data.Num() > 0)
+	{
+		AddOverrideResults(Overrides, OutFinalBlendResult);
+	}
 }
 
 void BlendResultsWithInitial(const FAccumulationResult& Results, uint16 BlendID, const double InitialValue, double& OutFinalBlendResult)
@@ -228,6 +328,7 @@ void BlendResultsWithInitial(const FAccumulationResult& Results, uint16 BlendID,
 	FBlendResult RelativeResult = Results.GetRelativeResult(BlendID);
 	FBlendResult AdditiveResult = Results.GetAdditiveResult(BlendID);
 	FBlendResult AdditiveFromBaseResult = Results.GetAdditiveFromBaseResult(BlendID);
+	FAdditiveAndOverrides Overrides = Results.GetAdditiveAndOverrideResult(BlendID);
 
 	if (RelativeResult.Weight != 0)
 	{
@@ -235,7 +336,6 @@ void BlendResultsWithInitial(const FAccumulationResult& Results, uint16 BlendID,
 	}
 
 	FBlendResult TotalAdditiveResult = { AdditiveResult.Total + AdditiveFromBaseResult.Total, AdditiveResult.Weight + AdditiveFromBaseResult.Weight };
-
 	const float TotalWeight = AbsoluteResult.Weight + RelativeResult.Weight;
 	if (TotalWeight != 0)
 	{
@@ -261,6 +361,10 @@ void BlendResultsWithInitial(const FAccumulationResult& Results, uint16 BlendID,
 	else
 	{
 		OutFinalBlendResult = InitialValue;
+	}
+	if (Overrides.Data.Num() > 0)
+	{
+		AddOverrideResults(Overrides, OutFinalBlendResult);
 	}
 }
 
@@ -458,7 +562,8 @@ private:
 
 bool FAccumulationBuffers::IsEmpty() const
 {
-	return Absolute.Num() == 0 && Relative.Num() == 0 && Additive.Num() == 0 && AdditiveFromBase.Num() == 0;
+	return Absolute.Num() == 0 && Relative.Num() == 0 && Additive.Num() == 0 && AdditiveFromBase.Num() == 0
+		&& AdditiveAndOverrides.Num() == 0;
 }
 
 void FAccumulationBuffers::Reset()
@@ -467,6 +572,7 @@ void FAccumulationBuffers::Reset()
 	Relative.Empty();
 	Additive.Empty();
 	AdditiveFromBase.Empty();
+	AdditiveAndOverrides.Empty();
 }
 
 FAccumulationResult FAccumulationBuffers::FindResults(FComponentTypeID InComponentType) const
@@ -487,6 +593,10 @@ FAccumulationResult FAccumulationBuffers::FindResults(FComponentTypeID InCompone
 	if (const FAdditiveFromBaseBuffer* AdditivesFromBase = AdditiveFromBase.Find(InComponentType))
 	{
 		Result.AdditivesFromBase = AdditivesFromBase->Buffer.GetData();
+	}
+	if (const FAdditiveAndOverrideBuffer* AandOs = AdditiveAndOverrides.Find(InComponentType))
+	{
+		Result.Overrides = AandOs->Values.GetData();
 	}
 	return Result;
 }
@@ -615,6 +725,23 @@ void UMovieScenePiecewiseDoubleBlenderSystem::OnSchedulePersistentTasks(UE::Movi
 
 		TaskScheduler->AddPrerequisite(ResetWeightsTask, AdditiveFromBaseTask);
 		TaskScheduler->AddPrerequisite(AdditiveFromBaseTask, SyncTask);
+	}
+
+	if (AccumulationBuffers.AdditiveAndOverrides.Num() != 0)
+	{
+		FTaskID OverrideTask = FEntityTaskBuilder()
+			.Read(BuiltInComponents->BlendChannelInput)
+			.Read(BuiltInComponents->BlendingOrder)
+			.ReadOptional(BuiltInComponents->WeightAndEasingResult)
+			.FilterAll({ GetBlenderTypeTag() })
+			.FilterAny({ BlendedResultMask | BuiltInComponents->Tags.AdditiveBlend |
+					BuiltInComponents->Tags.OverrideBlend }).FilterNone({ BuiltInComponents->Tags.Ignored })
+			.AddDynamicReadDependency(BlendedResultMask)
+			.SetStat(BlendValuesStatId)
+			.Schedule_PerAllocation<FAdditiveAndOverridesTask>(&EntityManager, TaskScheduler, &AccumulationBuffers.AdditiveAndOverrides);
+
+		TaskScheduler->AddPrerequisite(ResetWeightsTask, OverrideTask);
+		TaskScheduler->AddPrerequisite(OverrideTask, SyncTask);
 	}
 
 	// Combine blends for all blend outputs on properties
@@ -756,6 +883,29 @@ void UMovieScenePiecewiseDoubleBlenderSystem::OnRun(FSystemTaskPrerequisites& In
 		}
 	}
 
+	if (AccumulationBuffers.AdditiveAndOverrides.Num() != 0)
+	{
+		for (TPair<FComponentTypeID, FAdditiveAndOverrideBuffer>& Pair : AccumulationBuffers.AdditiveAndOverrides)
+		{
+			FGraphEventRef Task = FEntityTaskBuilder()
+				.Read(BuiltInComponents->BlendChannelInput)
+				.Read(BuiltInComponents->BlendingOrder)
+				.ReadOptional(BuiltInComponents->WeightAndEasingResult)
+				.FilterAll({ GetBlenderTypeTag() })
+				.FilterAny({ BlendedResultMask | BuiltInComponents->Tags.AdditiveBlend |
+					 BuiltInComponents->Tags.OverrideBlend })
+				.FilterNone({ BuiltInComponents->Tags.Ignored })
+				.AddDynamicReadDependency(BlendedResultMask)
+				.SetStat(BlendValuesStatId)
+				.Dispatch_PerAllocation<FAdditiveAndOverridesTask>(&EntityManager, InPrerequisites, nullptr, &AccumulationBuffers.AdditiveAndOverrides);
+
+			if (Task)
+			{
+				Prereqs.AddRootTask(Task);
+			}
+		}
+	}
+
 	if (AccumulationBuffers.AdditiveFromBase.Num() != 0)
 	{
 		FGraphEventRef Task = FEntityTaskBuilder()
@@ -808,6 +958,9 @@ void UMovieScenePiecewiseDoubleBlenderSystem::ReinitializeAccumulationBuffers()
 
 	TArrayView<TComponentTypeID<double>> BaseComponents(FBuiltInComponentTypes::Get()->BaseDouble);
 	TArrayView<TComponentTypeID<double>> ResultComponents(FBuiltInComponentTypes::Get()->DoubleResult);
+
+	TComponentTypeID<int32> BlendingOrder(FBuiltInComponentTypes::Get()->BlendingOrder);
+
 	check(BaseComponents.Num() == ResultComponents.Num());
 
 	// Recompute which result types are blended
@@ -828,6 +981,7 @@ void UMovieScenePiecewiseDoubleBlenderSystem::ReinitializeAccumulationBuffers()
 				BuiltInComponents->Tags.AbsoluteBlend, 
 				BuiltInComponents->Tags.RelativeBlend, 
 				BuiltInComponents->Tags.AdditiveBlend, 
+				BuiltInComponents->Tags.OverrideBlend,
 				BuiltInComponents->Tags.AdditiveFromBaseBlend });
 
 		AnyCompositeAllocationsMask.Reset();
@@ -836,6 +990,7 @@ void UMovieScenePiecewiseDoubleBlenderSystem::ReinitializeAccumulationBuffers()
 		const bool bHasAbsolutes         = AnyCompositeAllocationsMask.Contains(BuiltInComponents->Tags.AbsoluteBlend);
 		const bool bHasRelatives         = AnyCompositeAllocationsMask.Contains(BuiltInComponents->Tags.RelativeBlend);
 		const bool bHasAdditives         = AnyCompositeAllocationsMask.Contains(BuiltInComponents->Tags.AdditiveBlend);
+		const bool bHasOverrides		 = AnyCompositeAllocationsMask.Contains(BuiltInComponents->Tags.OverrideBlend);
 		const bool bHasAdditivesFromBase = AnyCompositeAllocationsMask.Contains(BuiltInComponents->Tags.AdditiveFromBaseBlend);
 
 		if (!(bHasAbsolutes || bHasRelatives || bHasAdditives || bHasAdditivesFromBase))
@@ -855,7 +1010,7 @@ void UMovieScenePiecewiseDoubleBlenderSystem::ReinitializeAccumulationBuffers()
 			TArray<FBlendResult>& Buffer = AccumulationBuffers.Relative.Add(Component);
 			Buffer.SetNum(MaximumNumBlends);
 		}
-		if (bHasAdditives)
+		if (bHasAdditives && !bHasOverrides) //if it has overrides we use additives with them
 		{
 			TArray<FBlendResult>& Buffer = AccumulationBuffers.Additive.Add(Component);
 			Buffer.SetNum(MaximumNumBlends);
@@ -866,8 +1021,13 @@ void UMovieScenePiecewiseDoubleBlenderSystem::ReinitializeAccumulationBuffers()
 			Buffer.Buffer.SetNum(MaximumNumBlends);
 			Buffer.BaseComponent = BaseComponents[Index];
 		}
+		if (bHasOverrides)
+		{
+			FAdditiveAndOverrideBuffer& Buffer = AccumulationBuffers.AdditiveAndOverrides.Add(Component);
+			Buffer.Values.SetNum(MaximumNumBlends);
+		}
 	}
-
+	
 	// Update property relevancy
 	CachedRelevantProperties.Empty();
 
@@ -951,12 +1111,14 @@ FGraphEventRef UMovieScenePiecewiseDoubleBlenderSystem::DispatchDecomposeTask(co
 		uint16 DecomposeBlendChannel;
 		FComponentTypeID AdditiveBlendTag;
 		FComponentTypeID AdditiveFromBaseBlendTag;
+		FComponentTypeID OverrideTag;
 
 		explicit FChannelResultTask(const FValueDecompositionParams& Params, FAlignedDecomposedValue* InResult)
 			: Result(InResult)
 			, DecomposeBlendChannel(Params.DecomposeBlendChannel)
 			, AdditiveBlendTag(FBuiltInComponentTypes::Get()->Tags.AdditiveBlend)
 			, AdditiveFromBaseBlendTag(FBuiltInComponentTypes::Get()->Tags.AdditiveFromBaseBlend)
+			, OverrideTag(FBuiltInComponentTypes::Get()->Tags.OverrideBlend)
 		{
 			EntitiesToDecompose.Append(Params.Query.Entities.GetData(), Params.Query.Entities.Num());
 		}
@@ -964,14 +1126,16 @@ FGraphEventRef UMovieScenePiecewiseDoubleBlenderSystem::DispatchDecomposeTask(co
 		void ForEachAllocation(
 				const FEntityAllocation* Allocation, TRead<FMovieSceneEntityID> EntityToDecomposeIDs, 
 				TRead<FMovieSceneBlendChannelID> BlendChannels, TRead<double> ValueResultComponent, 
-				TReadOptional<double> OptionalBaseValueComponent, TReadOptional<double> OptionalWeightComponent)
+				TReadOptional<int32> OptionalBlendingOrder, TReadOptional<double> OptionalBaseValueComponent, TReadOptional<double> OptionalWeightComponent)
 		{
 			static const FMovieSceneBlenderSystemID BlenderSystemID = UMovieSceneBlenderSystem::GetBlenderSystemID<UMovieScenePiecewiseDoubleBlenderSystem>();
 
+			const bool bOverride = Allocation->HasComponent(OverrideTag);
 			const bool bAdditive = Allocation->HasComponent(AdditiveBlendTag);
 			const bool bAdditiveFromBase = Allocation->HasComponent(AdditiveFromBaseBlendTag);
-
+			
 			const int32 Num = Allocation->Num();
+			
 			for (int32 EntityIndex = 0; EntityIndex < Num; ++EntityIndex)
 			{
 				const FMovieSceneBlendChannelID& BlendChannel(BlendChannels[EntityIndex]);
@@ -987,10 +1151,19 @@ FGraphEventRef UMovieScenePiecewiseDoubleBlenderSystem::DispatchDecomposeTask(co
 				const double              ValueResult       = ValueResultComponent[EntityIndex];
 				const double              BaseValue         = OptionalBaseValueComponent ? OptionalBaseValueComponent[EntityIndex] : 0.f;
 				const float               Weight            = OptionalWeightComponent ? OptionalWeightComponent[EntityIndex] : 1.f;
-
+				const int32				  BlendingOrder		= OptionalBlendingOrder ? OptionalBlendingOrder[EntityIndex] : INDEX_NONE;
+				
+				if (BlendingOrder != INDEX_NONE && (bAdditive || bOverride))
+				{
+					Result->Value.AllDecomposedOverrides.Add(FWeightedValue{ ValueResult, Weight, 0.0, BlendingOrder, bAdditive });
+				}
 				if (EntitiesToDecompose.Contains(EntityToDecompose))
 				{
-					if (bAdditive)
+					if (BlendingOrder != INDEX_NONE && (bAdditive || bOverride))
+					{
+						Result->Value.DecomposedOverrides.Add(MakeTuple(EntityToDecompose, FWeightedValue{ ValueResult, Weight, 0.0, BlendingOrder, bAdditive }));
+					}
+					else if (bAdditive)
 					{
 						Result->Value.DecomposedAdditives.Add(MakeTuple(EntityToDecompose, FWeightedValue{ ValueResult, Weight }));
 					}
@@ -1026,6 +1199,7 @@ FGraphEventRef UMovieScenePiecewiseDoubleBlenderSystem::DispatchDecomposeTask(co
 			.Read(BuiltInComponents->ParentEntity)
 			.Read(BuiltInComponents->BlendChannelInput)
 			.Read(ResultComponentType)
+			.ReadOptional(BuiltInComponents->BlendingOrder)
 			.ReadOptional(BaseValueComponentType)
 			.ReadOptional(BuiltInComponents->WeightAndEasingResult)
 			.FilterAll({ Params.PropertyTag, GetBlenderTypeTag() })
@@ -1037,6 +1211,7 @@ FGraphEventRef UMovieScenePiecewiseDoubleBlenderSystem::DispatchDecomposeTask(co
 			.ReadEntityIDs()
 			.Read(BuiltInComponents->BlendChannelInput)
 			.Read(ResultComponentType)
+			.ReadOptional(BuiltInComponents->BlendingOrder)
 			.ReadOptional(BaseValueComponentType)
 			.ReadOptional(BuiltInComponents->WeightAndEasingResult)
 			.FilterAll({ Params.PropertyTag, GetBlenderTypeTag() })

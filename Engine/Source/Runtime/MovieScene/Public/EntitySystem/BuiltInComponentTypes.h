@@ -710,6 +710,9 @@ public:
 	/** A blender type that should be used for blending this entity */
 	TComponentTypeID<TSubclassOf<UMovieSceneBlenderSystem>> BlenderType;
 
+	/** Value that is used to sort blending order */
+	TComponentTypeID<int32> BlendingOrder;
+
 	// An FMovieSceneTrackInstanceComponent that defines the track instance to use
 	TComponentTypeID<FMovieSceneTrackInstanceComponent> TrackInstance;
 
@@ -745,6 +748,7 @@ public:
 		FComponentTypeID RelativeBlend;
 		FComponentTypeID AdditiveBlend;
 		FComponentTypeID AdditiveFromBaseBlend;
+		FComponentTypeID OverrideBlend;
 
 		FComponentTypeID NeedsLink;
 		FComponentTypeID NeedsUnlink;

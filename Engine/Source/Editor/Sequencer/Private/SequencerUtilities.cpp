@@ -318,17 +318,24 @@ void FSequencerUtilities::PopulateMenu_CreateNewSection(FMenuBuilder& MenuBuilde
 		FQualifiedFrameTime CurrentTime = Sequencer->GetLocalTime();
 		FFrameNumber PlaybackEnd = UE::MovieScene::DiscreteExclusiveUpper(Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene()->GetPlaybackRange());
 
+		int32 SpecifiedRowIndex = RowIndex;
+
 		FScopedTransaction Transaction(LOCTEXT("AddSectionTransactionText", "Add Section"));
 		if (UMovieSceneSection* NewSection = Track->CreateNewSection())
 		{
 			int32 OverlapPriority = 0;
 			TMap<int32, int32> NewToOldRowIndices;
+			//if creating with an override force the row index to be last
+			if (Track->GetSupportedBlendTypes().Contains(EMovieSceneBlendType::Override))
+			{
+				SpecifiedRowIndex = Track->GetMaxRowIndex() + 1;
+			}
 			for (UMovieSceneSection* Section : Track->GetAllSections())
 			{
 				OverlapPriority = FMath::Max(Section->GetOverlapPriority() + 1, OverlapPriority);				
 
 				// Move existing sections on the same row or beyond so that they don't overlap with the new section
-				if (Section != NewSection && Section->GetRowIndex() >= RowIndex)
+				if (Section != NewSection && Section->GetRowIndex() >= SpecifiedRowIndex)
 				{
 					int32 OldRowIndex = Section->GetRowIndex();
 					int32 NewRowIndex = Section->GetRowIndex() + 1;
@@ -360,7 +367,7 @@ void FSequencerUtilities::PopulateMenu_CreateNewSection(FMenuBuilder& MenuBuilde
 			}
 
 			NewSection->SetOverlapPriority(OverlapPriority);
-			NewSection->SetRowIndex(RowIndex);			
+			NewSection->SetRowIndex(SpecifiedRowIndex);
 			NewSection->SetBlendType(BlendType);
 
 			Track->AddSection(*NewSection);
@@ -368,13 +375,10 @@ void FSequencerUtilities::PopulateMenu_CreateNewSection(FMenuBuilder& MenuBuilde
 
 			if (UMovieSceneNameableTrack* NameableTrack = Cast<UMovieSceneNameableTrack>(Track))
 			{
-				NameableTrack->SetTrackRowDisplayName(FText::GetEmpty(), RowIndex);
+				NameableTrack->SetTrackRowDisplayName(FText::GetEmpty(), SpecifiedRowIndex);
 			}
 
 			Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
-			Sequencer->EmptySelection();
-			Sequencer->SelectSection(NewSection);
-			Sequencer->ThrobSectionSelection();
 		}
 		else
 		{
