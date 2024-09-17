@@ -1973,7 +1973,7 @@ bool SStateTreeViewRow::HandleVerifyNodeLabelTextChanged(const FText& InText, FT
 				OutErrorMessage = LOCTEXT("VerifyNodeLabelFailed_MaxLength", "Max length exceeded");
 				return false;
 			}
-			return NewName.Len() > 0 && FName::IsValidXName(NewName, INVALID_NAME_CHARACTERS, &OutErrorMessage);
+			return NewName.Len() > 0;
 		}
 	}
 	OutErrorMessage = LOCTEXT("VerifyNodeLabelFailed", "Invalid State Tree");
@@ -1987,7 +1987,7 @@ void SStateTreeViewRow::HandleNodeLabelTextCommitted(const FText& NewLabel, ETex
 		if (UStateTreeState* State = WeakState.Get())
 		{
 			const FString NewName = FText::TrimPrecedingAndTrailing(NewLabel).ToString();
-			if (NewName.Len() > 0 && FName::IsValidXName(NewName, INVALID_NAME_CHARACTERS) && NewName.Len() < NAME_SIZE)
+			if (NewName.Len() > 0 && NewName.Len() < NAME_SIZE)
 			{
 				StateTreeViewModel->RenameState(State, FName(NewName));
 			}
