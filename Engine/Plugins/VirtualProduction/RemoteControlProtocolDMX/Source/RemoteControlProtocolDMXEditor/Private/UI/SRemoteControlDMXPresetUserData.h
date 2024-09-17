@@ -29,11 +29,14 @@ namespace UE::RemoteControl::DMX
 		// End FGCObject interface
 
 	private:
-		/** Generates the Export as MVR button */
-		TSharedRef<SWidget> GenerateExportAsMVRButton();
+		/** Generates an Actions menu (e.g Export as MVR) */
+		TSharedRef<SWidget> GenerateActionsMenu();
 
 		/** Called when the export as MVR button was clicked */
 		void OnExportAsMVRClicked();
+
+		/** Called when the Create DMX Library button was clicked */
+		void OnCreateDMXLibraryClicked();
 
 		/** Returns true if the auto patch option is checked */
 		ECheckBoxState GetAutoPatchCheckState() const;

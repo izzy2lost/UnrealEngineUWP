@@ -91,6 +91,17 @@ URemoteControlDMXUserData* URemoteControlDMXUserData::GetOrCreateDMXUserData(URe
 	return DMXUserData;
 }
 
+void URemoteControlDMXUserData::SetDMXLibrary(UDMXLibrary* NewDMXLibrary)
+{
+	if (ensureMsgf(NewDMXLibrary, TEXT("URemoteControlDMXUserData::SetDMXLibrary should not be called with null DMX Libraries. Ignoring call")))
+	{
+		DMXLibrary = NewDMXLibrary;
+
+		check(DMXLibraryProxy);
+		DMXLibraryProxy->RequestRefresh();
+	}
+}
+
 URemoteControlPreset* URemoteControlDMXUserData::GetPreset() const
 {
 	return Cast<URemoteControlPreset>(GetOuter());

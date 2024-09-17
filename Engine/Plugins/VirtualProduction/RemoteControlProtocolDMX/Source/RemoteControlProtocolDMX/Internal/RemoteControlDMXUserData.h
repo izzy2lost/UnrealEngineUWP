@@ -45,11 +45,14 @@ public:
 	virtual void BeginDestroy() override;
 	//~ End UObject interface 
 
-	/** Gets or creates DMX User Data in specified preset */
+	/** Gets or creates DMX User Data in specified preset. */
 	static URemoteControlDMXUserData* GetOrCreateDMXUserData(URemoteControlPreset* InPreset);
 
 	/** Returns the DMX Library held with this user data */
 	UDMXLibrary* GetDMXLibrary() const { return DMXLibrary; }
+
+	/** Sets the DMX Library held with this user data. Only valid DMX Libraries can be set. */
+	void SetDMXLibrary(UDMXLibrary* NewDMXLibrary);
 
 	/** Returns the DMX Library Proxy */
 	URemoteControlDMXLibraryProxy* GetDMXLibraryProxy() const { return DMXLibraryProxy; }
