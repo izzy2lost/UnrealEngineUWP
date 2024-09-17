@@ -139,10 +139,10 @@ private:
 	int32 PreviousForceLOD;
 	int32 PreviousSkeletalMeshBias;
 	int32 PreviousParticleLODBias;
-	int32 PreviousShadowDistanceScale;
+	float PreviousShadowDistanceScale;
 	int32 PreviousShadowQuality;
 	float PreviousShadowRadiusThreshold;
-	int32 PreviousViewDistanceScale;
+	float PreviousViewDistanceScale;
 	int32 PreviousGPUTimeout;
 	int32 PreviousAnimationUROEnabled;
 	int32 PreviousFoliageDitheredLOD;
