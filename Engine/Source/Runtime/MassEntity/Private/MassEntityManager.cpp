@@ -755,7 +755,7 @@ void FMassEntityManager::BuildEntity(FMassEntityHandle Entity, TConstArrayView<F
 	FMassArchetypeCompositionDescriptor Composition(FragmentInstanceList, FMassTagBitSet(), FMassChunkFragmentBitSet(), FMassSharedFragmentBitSet(), FMassConstSharedFragmentBitSet());
 	for (const FConstSharedStruct& SharedFragment : SharedFragmentValues.GetConstSharedFragments())
 	{
-		Composition.SharedFragments.Add(*SharedFragment.GetScriptStruct());
+		Composition.ConstSharedFragments.Add(*SharedFragment.GetScriptStruct());
 	}
 	for (const FSharedStruct& SharedFragment : SharedFragmentValues.GetSharedFragments())
 	{
