@@ -1399,7 +1399,7 @@ private:
 	void BackwardsCompatibilityInputConversion();
 	void BackwardsCompatibilityVirtualTextureOutputConversion();
 	void BackwardsCompatibilityDecalConversion();
-	void ConvertMaterialToSubstrateMaterial();
+	bool ConvertMaterialToSubstrateMaterial();
 
 	/** Marks the material's package dirty in order to make a material usage change set during map load persistent. 
 	  * This couldn't be done during map load as loading cannot mark packages dirty. Invoked manually by the user 
