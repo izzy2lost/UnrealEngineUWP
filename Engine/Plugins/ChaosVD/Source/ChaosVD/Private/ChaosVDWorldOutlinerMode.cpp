@@ -9,10 +9,20 @@
 #include "ChaosVDScene.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
 
-static FAutoConsoleVariable CVarChaosVDQueueAndCombineSceneOutlinerEvents(
+namespace Chaos::VisualDebugger::Cvars
+{
+static bool bQueueAndCombineSceneOutlinerEvent = true;
+static FAutoConsoleVariableRef CVarChaosVDQueueAndCombineSceneOutlinerEvents(
 	TEXT("p.Chaos.VD.Tool.QueueAndCombineSceneOutlinerEvents"),
-	true,
+	bQueueAndCombineSceneOutlinerEvent,
 	TEXT("If set to true, scene outliner events will be queued and sent once per frame. If there was a unprocessed event for an item, the las queued event will replace it"));
+
+static bool bPurgeInvalidOutlinerItemsBeforeBroadcast = true;
+static FAutoConsoleVariableRef CVarChaosVDPurgeInvalidOutlinerItemsBeforeBroadcast(
+	TEXT("p.Chaos.VD.Tool.PurgeInvalidOutlinerItemsBeforeBroadcast"),
+	bPurgeInvalidOutlinerItemsBeforeBroadcast,
+	TEXT("If set to true, scene outliner events will evaluated and any invalid outliner event in them will be removed before broadcasting the hierarchy change."));
+}
 
 const FSceneOutlinerTreeItemType FChaosVDActorTreeItem::Type(&FActorTreeItem::Type);
 
@@ -212,7 +222,17 @@ void FChaosVDWorldOutlinerMode::ProcessPendingHierarchyEvents()
 			CurrentTimeSpentSeconds += FPlatformTime::Seconds() - StartTimeSeconds;
 		}
 
-		Hierarchy->OnHierarchyChanged().Broadcast(RemoveIterator.Value());
+		FSceneOutlinerHierarchyChangedData& HierarchyChangedData = RemoveIterator->Value;
+
+		if (Chaos::VisualDebugger::Cvars::bPurgeInvalidOutlinerItemsBeforeBroadcast && HierarchyChangedData.Type == FSceneOutlinerHierarchyChangedData::Added)
+		{ 
+			HierarchyChangedData.Items.RemoveAllSwap([](const FSceneOutlinerTreeItemPtr& SceneOutlinerItemPtr)
+			{
+				return !SceneOutlinerItemPtr || !SceneOutlinerItemPtr->IsValid();
+			});
+		}
+
+		Hierarchy->OnHierarchyChanged().Broadcast(HierarchyChangedData);
 		RemoveIterator.RemoveCurrent();
 		CurrentEventProcessedNum++;
 	}
@@ -310,7 +330,7 @@ void FChaosVDWorldOutlinerMode::HandleActorActiveStateChanged(AChaosVDParticleAc
 		// (UE-193877). As our current use case is fairly simple, as a workaround we can just queue the events and process them once per frame
 		// Only taking into account only the last requested event for each item.
 		// Keeping this behind a cvar enabled by default so when the Scene Outliner bug is fixed, we can test it easily.
-		if (CVarChaosVDQueueAndCombineSceneOutlinerEvents->GetBool())
+		if (Chaos::VisualDebugger::Cvars::bQueueAndCombineSceneOutlinerEvent)
 		{
 			EnqueueAndCombineHierarchyEvent(ChangedActor, EventData);
 		}
