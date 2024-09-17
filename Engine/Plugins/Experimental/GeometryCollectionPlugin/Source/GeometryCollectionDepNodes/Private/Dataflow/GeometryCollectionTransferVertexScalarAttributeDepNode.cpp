@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Dataflow/GeometryCollectionTransferVertexScalarAttributeNode.h"
+#include "Dataflow/GeometryCollectionTransferVertexScalarAttributeDepNode.h"
 
 #include "Chaos/Triangle.h"
 #include "Chaos/TriangleMesh.h"
@@ -8,12 +8,10 @@
 #include "Chaos/TriangleCollisionPoint.h"
 #include "Dataflow/DataflowInputOutput.h"
 #include "GeometryCollection/GeometryCollectionAlgo.h"
-#include "GeometryCollection/TransformCollection.h"
-#include "GeometryCollection/GeometryCollection.h"
 #include "GeometryCollection/ManagedArrayAccessor.h"
 
-#include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionTransferVertexScalarAttributeNode)
-#define LOCTEXT_NAMESPACE "FGeometryCollectionTransferVertexScalarAttributeNode"
+#include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionTransferVertexScalarAttributeDepNode)
+#define LOCTEXT_NAMESPACE "FGeometryCollectionTransferVertexScalarAttributeDepNode"
 
 namespace UE::Private {
 

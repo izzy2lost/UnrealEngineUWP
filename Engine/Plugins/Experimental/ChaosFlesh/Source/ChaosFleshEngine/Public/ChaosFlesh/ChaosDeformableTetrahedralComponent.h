@@ -143,6 +143,10 @@ public:
 	virtual TOptional<TArray<int32>> GetMeshImportVertexMap(const USkinnedAsset& SkinnedMeshAsset) const override;
 	//~ End IDataflowGeometryCachable Interface
 
+	virtual void SetMaterial(int32 Index, UMaterialInterface* InMaterial) override
+	{
+		Material = InMaterial;
+	}
 	/**
 	* Get the current positions of the transformation hierarchy from \c TargetDeformationSkeleton,
 	* deformed by the tetrahedral mesh.  Results can be in world space postions/deltas, component space
@@ -164,6 +168,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Rendering")
 	TObjectPtr<UProceduralMeshComponent> Mesh;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Rendering")
+	TObjectPtr<UMaterialInterface> Material = nullptr;
 
 	UPROPERTY(EditAnywhere, Category = "Rendering")
 	TArray<int32> HideTetrahedra;

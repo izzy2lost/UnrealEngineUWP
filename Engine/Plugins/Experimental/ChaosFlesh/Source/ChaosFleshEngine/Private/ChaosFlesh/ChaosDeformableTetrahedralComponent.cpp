@@ -496,7 +496,7 @@ void UDeformableTetrahedralComponent::RenderProceduralMesh()
 								RenderMesh = new FFleshRenderMesh;
 								TArray<FVector3f> Vertex;
 								Flesh.ComponentSpaceVertices(Vertex);
-
+								const TManagedArray<FLinearColor>* Color = FleshCollection->FindAttributeTyped<FLinearColor>(FGeometryCollection::ColorAttribute, FGeometryCollection::VerticesGroup);
 								for (int i = 0; i < NumFaces; ++i)
 								{
 									const auto& P1 = Vertex[Flesh.Indices[i][0]];
@@ -506,10 +506,18 @@ void UDeformableTetrahedralComponent::RenderProceduralMesh()
 									RenderMesh->Vertices.Add(FVector(P1));
 									RenderMesh->Vertices.Add(FVector(P2));
 									RenderMesh->Vertices.Add(FVector(P3));
-
-									RenderMesh->Colors.Add(FLinearColor::White);
-									RenderMesh->Colors.Add(FLinearColor::White);
-									RenderMesh->Colors.Add(FLinearColor::White);
+									if (Color)
+									{
+										RenderMesh->Colors.Add((*Color)[Flesh.Indices[i][0]]);
+										RenderMesh->Colors.Add((*Color)[Flesh.Indices[i][1]]);
+										RenderMesh->Colors.Add((*Color)[Flesh.Indices[i][2]]);
+									}
+									else
+									{
+										RenderMesh->Colors.Add(FLinearColor::White);
+										RenderMesh->Colors.Add(FLinearColor::White);
+										RenderMesh->Colors.Add(FLinearColor::White);
+									}
 
 									RenderMesh->UVs.Add(FVector2D(0, 0));
 									RenderMesh->UVs.Add(FVector2D(0, 0));
@@ -531,7 +539,10 @@ void UDeformableTetrahedralComponent::RenderProceduralMesh()
 									Tangent = (P1 - P3).GetSafeNormal();
 									RenderMesh->Tangents.Add(FProcMeshTangent(Tangent[0], Tangent[1], Tangent[2]));
 								}
-
+								if (Material)
+								{
+									Mesh->SetMaterial(0, Material);
+								}
 								Mesh->SetRelativeTransform(GetComponentTransform());
 								Mesh->CreateMeshSection_LinearColor(0, RenderMesh->Vertices, RenderMesh->Triangles, RenderMesh->Normals, RenderMesh->UVs, RenderMesh->Colors, RenderMesh->Tangents, false);
 							}
@@ -575,7 +586,7 @@ void UDeformableTetrahedralComponent::RenderProceduralMesh()
 								if (!Mesh->GetComponentTransform().Equals(GetComponentTransform())) {
 									Mesh->SetRelativeTransform(GetComponentTransform());
 								}
-								Mesh->UpdateMeshSection_LinearColor(0, RenderMesh->Vertices, RenderMesh->Normals, RenderMesh->UVs, RenderMesh->Colors, RenderMesh->Tangents);
+								Mesh->UpdateMeshSection_LinearColor(0, RenderMesh->Vertices, RenderMesh->Normals, RenderMesh->UVs, RenderMesh->Colors, RenderMesh->Tangents, false);
 							}
 
 							bCanRender = true;
