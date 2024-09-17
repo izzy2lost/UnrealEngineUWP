@@ -8,6 +8,21 @@
 #include "ImageSequenceTimecodeUtils.generated.h"
 
 UCLASS(BlueprintType, Blueprintable)
+class UImageSequenceTimecodeInfo
+	: public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ExposeOnSpawn), Category = "ImageSequenceInfo")
+	FTimecode Timecode;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ExposeOnSpawn), Category = "ImageSequenceInfo")
+	FFrameRate FrameRate;
+};
+
+UCLASS(BlueprintType, Blueprintable)
 class CAPTUREDATAUTILS_API UImageSequenceTimecodeUtils
 	: public UObject
 {
@@ -25,14 +40,19 @@ public:
 	static void SetTimecodeInfoString(const FString& InTimecode, const FString& InFrameRate, UImgMediaSource* InImageSequence);
 
 	UFUNCTION(BlueprintCallable, Category = "ImageSequence")
-	static TOptional<FTimecode> GetTimecode(UImgMediaSource* InImageSequence);
+	static FTimecode GetTimecode(UImgMediaSource* InImageSequence);
 
 	UFUNCTION(BlueprintCallable, Category = "ImageSequence")
-	static TOptional<FFrameRate> GetFrameRate(UImgMediaSource* InImageSequence);
+	static FFrameRate GetFrameRate(UImgMediaSource* InImageSequence);
 
 	UFUNCTION(BlueprintCallable, Category = "ImageSequence")
-	static TOptional<FString> GetTimecodeString(UImgMediaSource* InImageSequence);
+	static FString GetTimecodeString(UImgMediaSource* InImageSequence);
 
 	UFUNCTION(BlueprintCallable, Category = "ImageSequence")
-	static TOptional<FString> GetFrameRateString(UImgMediaSource* InImageSequence);
+	static FString GetFrameRateString(UImgMediaSource* InImageSequence);
+
+	static TOptional<FTimecode> TryGetTimecode(UImgMediaSource* InImageSequence);
+	static TOptional<FFrameRate> TryGetFrameRate(UImgMediaSource* InImageSequence);
+	static TOptional<FString> TryGetTimecodeString(UImgMediaSource* InImageSequence);
+	static TOptional<FString> TryGetFrameRateString(UImgMediaSource* InImageSequence);
 };
