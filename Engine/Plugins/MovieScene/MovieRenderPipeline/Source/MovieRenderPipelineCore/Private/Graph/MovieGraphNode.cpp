@@ -141,6 +141,8 @@ void UMovieGraphNode::TogglePromotePropertyToPin(const FName& PropertyName)
 			return OverrideablePropertyInfo.IsSamePropertyAs(ExposedInfo);
 		});
 
+		Modify();
+
 		if (!bFoundExposedPropertyInfo)
 		{
 			ExposedPropertyInfo.Add(MoveTemp(OverrideablePropertyInfo));

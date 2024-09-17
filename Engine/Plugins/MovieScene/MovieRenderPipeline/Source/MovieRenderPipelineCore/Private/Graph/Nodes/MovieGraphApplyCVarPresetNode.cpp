@@ -77,6 +77,27 @@ TArray<FPropertyBagPropertyDesc> UMovieGraphApplyCVarPresetNode::GetDynamicPrope
 	return CvarDescs;
 }
 
+bool UMovieGraphApplyCVarPresetNode::GetDynamicPropertyValue(const FName PropertyName, FString& OutValue)
+{
+	// This node uses dynamic properties to enable cvars within the preset to be promoted to pins. However, the DynamicProperties property bag does
+	// not track the value of the cvars within the preset (that would be a syncing nightmare). Instead, resolve the value of the cvar on-demand here.
+
+	constexpr bool bOnlyIncludeChecked = true;
+	TArray<TTuple<FString, FString>> ConsoleVariables;
+	ConsoleVariablePreset->GetConsoleVariablesForTrack(bOnlyIncludeChecked, ConsoleVariables);
+
+	for (const TPair<FString, FString>& CVarPair : ConsoleVariables)
+	{
+		if (CVarPair.Key == PropertyName)
+		{
+			OutValue = CVarPair.Value;
+			return true;
+		}
+	}
+
+	return false;
+}
+
 void UMovieGraphApplyCVarPresetNode::TogglePromotePropertyToPin(const FName& PropertyName)
 {
 	Super::TogglePromotePropertyToPin(PropertyName);

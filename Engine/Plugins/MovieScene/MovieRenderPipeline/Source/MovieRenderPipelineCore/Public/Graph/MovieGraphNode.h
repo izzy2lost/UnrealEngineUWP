@@ -185,7 +185,7 @@ public:
 	 * Gets the value of the dynamic property with the specified name. Provides the serialized value of the property in
 	 * "OutValue". Returns true if "OutValue" was set and there were no errors, else returns false.
 	 */
-	bool GetDynamicPropertyValue(const FName PropertyName, FString& OutValue);
+	virtual bool GetDynamicPropertyValue(const FName PropertyName, FString& OutValue);
 
 	/** Gets the override property for the specified dynamic property. If one does not exist, returns nullptr. */
 	const FBoolProperty* FindOverridePropertyForDynamicProperty(const FName& InPropertyName) const;
