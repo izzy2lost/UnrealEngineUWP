@@ -534,15 +534,6 @@ public:
 	// Multilayer Projectors
 	// ------------------------------------------------------------
 	
-	/** Given Multilayer Projector name, create a new Multilayer Projector Helper (if non-existent). See FMultilayerProjector.
-	  * @return true if successfully created (or was already created). */
-	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
-	bool CreateMultiLayerProjector(const FName& ProjectorParamName);
-	
-	/** Given Multilayer Projector name, remove a Multilayer Projector Helper. See FMultilayerProjector. */
-	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
-	void RemoveMultilayerProjector(const FName& ProjectorParamName);
-	
 	// Layers
 
 	/** See FMultilayerProjector::NumLayers. */
@@ -564,32 +555,6 @@ public:
 	/** See FMultilayerProjector::UpdateLayer. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	void MultilayerProjectorUpdateLayer(const FName& ProjectorParamName, int32 Index, const FMultilayerProjectorLayer& Layer);
-
-	// Virtual layers
-
-	/** See FMultilayerProjector::GetVirtualLayers. */
-	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
-	TArray<FName> MultilayerProjectorGetVirtualLayers(const FName& ProjectorParamName) const;
-	
-	/** See FMultilayerProjector::VirtualLayer. */
-	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
-	void MultilayerProjectorCreateVirtualLayer(const FName& ProjectorParamName, const FName& Id);
-
-	/** See FMultilayerProjector::FindOrCreateVirtualLayer. */
-	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
-	FMultilayerProjectorVirtualLayer MultilayerProjectorFindOrCreateVirtualLayer(const FName& ProjectorParamName, const FName& Id);
-
-	/** See FMultilayerProjector::RemoveVirtualLayer. */
-	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
-	void MultilayerProjectorRemoveVirtualLayer(const FName& ProjectorParamName, const FName& Id);
-
-	/** See FMultilayerProjector::GetVirtualLayer. */
-	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
-	FMultilayerProjectorVirtualLayer MultilayerProjectorGetVirtualLayer(const FName& ProjectorParamName, const FName& Id) const;
-
-	/** See FMultilayerProjector::UpdateVirtualLayer. */
-	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
-	void MultilayerProjectorUpdateVirtualLayer(const FName& ProjectorParamName, const FName& Id, const FMultilayerProjectorVirtualLayer& Layer);
 	
 	// ------------------------------------------------------------
 	
@@ -715,9 +680,6 @@ private:
 	UPROPERTY()
 	TArray<FCustomizableObjectProjectorParameterValue> ProjectorParameters_DEPRECATED;
 	
-   	UPROPERTY()
-   	TMap<FName, FMultilayerProjector> MultilayerProjectors_DEPRECATED;
-
 	bool bBuildParameterRelevancy_DEPRECATED = false;
 };
 

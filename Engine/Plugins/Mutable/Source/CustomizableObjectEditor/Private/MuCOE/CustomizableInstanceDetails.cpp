@@ -815,10 +815,10 @@ bool FCustomizableInstanceDetails::IsVisible(int32 ParamIndexInObject)
 	FMutableParamUIMetadata UIMetadata = CustomizableObject->GetParameterUIMetadata(ParamName);
 	const FString* ParentName = UIMetadata.ExtraInformation.Find(FString("__ParentParamName"));
 
-	const bool IsAProjectorParam = ParamName.EndsWith(FMultilayerProjector::NUM_LAYERS_PARAMETER_POSTFIX)
-		|| (ParamName.EndsWith(FMultilayerProjector::IMAGE_PARAMETER_POSTFIX) && CustomizableObject->IsParameterMultidimensional(ParamIndexInObject))
-		|| (ParamName.EndsWith(FMultilayerProjector::OPACITY_PARAMETER_POSTFIX) && CustomizableObject->IsParameterMultidimensional(ParamIndexInObject))
-		|| (ParamName.EndsWith(FMultilayerProjector::POSE_PARAMETER_POSTFIX));
+	const bool IsAProjectorParam = ParamName.EndsWith(NUM_LAYERS_PARAMETER_POSTFIX)
+		|| (ParamName.EndsWith(IMAGE_PARAMETER_POSTFIX) && CustomizableObject->IsParameterMultidimensional(ParamIndexInObject))
+		|| (ParamName.EndsWith(OPACITY_PARAMETER_POSTFIX) && CustomizableObject->IsParameterMultidimensional(ParamIndexInObject))
+		|| (ParamName.EndsWith(POSE_PARAMETER_POSTFIX));
 
 	if (!IsAProjectorParam && ParentName && CustomInstance->GetPrivate()->bShowOnlyRelevantParameters)
 	{
@@ -1598,7 +1598,7 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateMultidimensionalProjec
 	check(ProjectorParamIndex < ProjectorParameters.Num());
 
 	// Selected Pose UI
-	const FString PoseSwitchEnumParamName = ParamName + FMultilayerProjector::POSE_PARAMETER_POSTFIX;
+	const FString PoseSwitchEnumParamName = ParamName + POSE_PARAMETER_POSTFIX;
 	const int32 PoseSwitchEnumParamIndexInObject = CustomizableObject.FindParameter(PoseSwitchEnumParamName);
 	TSharedPtr<SVerticalBox> ProjectorBox = SNew(SVerticalBox);
 
@@ -1681,8 +1681,8 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateMultidimensionalProjec
 		];
 	}
 
-	const FString TextureSwitchEnumParamName = ParamName + FMultilayerProjector::IMAGE_PARAMETER_POSTFIX;
-	const FString OpacitySliderParamName = ParamName + FMultilayerProjector::OPACITY_PARAMETER_POSTFIX;
+	const FString TextureSwitchEnumParamName = ParamName + IMAGE_PARAMETER_POSTFIX;
+	const FString OpacitySliderParamName = ParamName + OPACITY_PARAMETER_POSTFIX;
 
 	IDetailGroup* ProjectorGroup = *ParentsGroups.Find(ParamName);
 

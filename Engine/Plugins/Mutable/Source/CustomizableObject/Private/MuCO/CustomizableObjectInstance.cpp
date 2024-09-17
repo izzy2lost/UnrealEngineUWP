@@ -80,6 +80,13 @@ static FAutoConsoleVariableRef CVarDisableClothingPhysicsEditsPropagation(
 }
 
 
+const FString MULTILAYER_PROJECTOR_PARAMETERS_INVALID = TEXT("Invalid Multilayer Projector Parameters.");
+
+const FString NUM_LAYERS_PARAMETER_POSTFIX = FString("_NumLayers");
+const FString OPACITY_PARAMETER_POSTFIX = FString("_Opacity");
+const FString IMAGE_PARAMETER_POSTFIX = FString("_SelectedImages");
+const FString POSE_PARAMETER_POSTFIX = FString("_SelectedPoses");
+
 
 // Struct used by BuildMaterials() to identify common materials between LODs
 struct FMutableMaterialPlaceholder
@@ -531,10 +538,10 @@ void UCustomizableObjectInstance::Serialize(FArchive& Ar)
 		// Find the num layer parameters that were int enums
 		for (int32 i = 0; i < IntParameters_DEPRECATED.Num(); ++i)
 		{
-			if (IntParameters_DEPRECATED[i].ParameterName.EndsWith(FMultilayerProjector::NUM_LAYERS_PARAMETER_POSTFIX, ESearchCase::CaseSensitive))
+			if (IntParameters_DEPRECATED[i].ParameterName.EndsWith(NUM_LAYERS_PARAMETER_POSTFIX, ESearchCase::CaseSensitive))
 			{
 				FString ParameterNamePrefix, Aux;
-				const bool bSplit = IntParameters_DEPRECATED[i].ParameterName.Split(FMultilayerProjector::NUM_LAYERS_PARAMETER_POSTFIX, &ParameterNamePrefix, &Aux);
+				const bool bSplit = IntParameters_DEPRECATED[i].ParameterName.Split(NUM_LAYERS_PARAMETER_POSTFIX, &ParameterNamePrefix, &Aux);
 				check(bSplit);
 
 				// Confirm this is actually a multilayer param by finding the corresponding pose param
@@ -543,7 +550,7 @@ void UCustomizableObjectInstance::Serialize(FArchive& Ar)
 					if (i != j)
 					{
 						if (IntParameters_DEPRECATED[j].ParameterName.StartsWith(ParameterNamePrefix, ESearchCase::CaseSensitive) &&
-							IntParameters_DEPRECATED[j].ParameterName.EndsWith(FMultilayerProjector::POSE_PARAMETER_POSTFIX, ESearchCase::CaseSensitive))
+							IntParameters_DEPRECATED[j].ParameterName.EndsWith(POSE_PARAMETER_POSTFIX, ESearchCase::CaseSensitive))
 						{
 							IntParametersToMove.Add(i);
 							break;
@@ -579,11 +586,6 @@ void UCustomizableObjectInstance::Serialize(FArchive& Ar)
 		Descriptor.TextureParameters = TextureParameters_DEPRECATED;
 		Descriptor.VectorParameters = VectorParameters_DEPRECATED;
 		Descriptor.ProjectorParameters = ProjectorParameters_DEPRECATED;
-	}
-
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::DescriptorMultilayerProjectors)
-	{
-		Descriptor.MultilayerProjectors = MultilayerProjectors_DEPRECATED;
 	}
 }
 
@@ -2449,18 +2451,6 @@ int32 UCustomizableObjectInstance::RemoveValueFromProjectorRange(const FString& 
 }
 
 
-bool UCustomizableObjectInstance::CreateMultiLayerProjector(const FName& ProjectorParamName)
-{
-	return Descriptor.CreateMultiLayerProjector(ProjectorParamName);
-}
-
-
-void UCustomizableObjectInstance::RemoveMultilayerProjector(const FName& ProjectorParamName)
-{
-	Descriptor.RemoveMultilayerProjector(ProjectorParamName);
-}
-
-
 int32 UCustomizableObjectInstance::MultilayerProjectorNumLayers(const FName& ProjectorParamName) const
 {
 	return Descriptor.NumProjectorLayers(ProjectorParamName);
@@ -2488,42 +2478,6 @@ FMultilayerProjectorLayer UCustomizableObjectInstance::MultilayerProjectorGetLay
 void UCustomizableObjectInstance::MultilayerProjectorUpdateLayer(const FName& ProjectorParamName, int32 Index, const FMultilayerProjectorLayer& Layer)
 {
 	Descriptor.UpdateLayer(ProjectorParamName, Index, Layer);
-}
-
-
-TArray<FName> UCustomizableObjectInstance::MultilayerProjectorGetVirtualLayers(const FName& ProjectorParamName) const
-{
-	return Descriptor.MultilayerProjectorGetVirtualLayers(ProjectorParamName);
-}
-
-
-void UCustomizableObjectInstance::MultilayerProjectorCreateVirtualLayer(const FName& ProjectorParamName, const FName& Id)
-{
-	Descriptor.MultilayerProjectorCreateVirtualLayer(ProjectorParamName, Id);
-}
-
-
-FMultilayerProjectorVirtualLayer UCustomizableObjectInstance::MultilayerProjectorFindOrCreateVirtualLayer(const FName& ProjectorParamName, const FName& Id)
-{
-	return Descriptor.MultilayerProjectorFindOrCreateVirtualLayer(ProjectorParamName, Id);
-}
-
-
-void UCustomizableObjectInstance::MultilayerProjectorRemoveVirtualLayer(const FName& ProjectorParamName, const FName& Id)
-{
-	Descriptor.MultilayerProjectorRemoveVirtualLayer(ProjectorParamName, Id);
-}
-
-
-FMultilayerProjectorVirtualLayer UCustomizableObjectInstance::MultilayerProjectorGetVirtualLayer(const FName& ProjectorParamName, const FName& Id) const
-{
-	return Descriptor.MultilayerProjectorGetVirtualLayer(ProjectorParamName, Id);
-}
-
-
-void UCustomizableObjectInstance::MultilayerProjectorUpdateVirtualLayer(const FName& ProjectorParamName, const FName& Id, const FMultilayerProjectorVirtualLayer& Layer)
-{
-	Descriptor.MultilayerProjectorUpdateVirtualLayer(ProjectorParamName, Id, Layer);
 }
 
 
