@@ -1142,7 +1142,7 @@ FReply SGraphActionMenu::OnItemDragDetected( const FGeometry& MyGeometry, const 
 bool SGraphActionMenu::OnMouseButtonDownEvent( TWeakPtr<FEdGraphSchemaAction> InAction )
 {
 	bool bResult = false;
-	if( (!bIgnoreUIUpdate) && InAction.IsValid() )
+	if( (!bIgnoreUIUpdate) && InAction.IsValid() && OnActionSelected.IsBound())
 	{
 		OnActionSelected.Execute({InAction.Pin()}, ESelectInfo::OnMouseClick);
 		bResult = true;
