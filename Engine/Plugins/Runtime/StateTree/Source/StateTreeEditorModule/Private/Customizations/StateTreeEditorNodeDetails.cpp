@@ -1473,7 +1473,7 @@ bool FStateTreeEditorNodeDetails::HandleVerifyNameChanged(const FText& InText, F
 		OutErrorMessage = LOCTEXT("VerifyNodeLabelFailed_MaxLength", "Max length exceeded");
 		return false;
 	}
-	return NewName.Len() > 0 && FName::IsValidXName(NewName, INVALID_NAME_CHARACTERS, &OutErrorMessage);
+	return NewName.Len() > 0;
 }
 
 void FStateTreeEditorNodeDetails::HandleNameCommitted(const FText& NewText, ETextCommit::Type InTextCommit) const
@@ -1484,7 +1484,7 @@ void FStateTreeEditorNodeDetails::HandleNameCommitted(const FText& NewText, ETex
 	{
 		// Remove excess whitespace and prevent categories with just spaces
 		const FString NewName = FText::TrimPrecedingAndTrailing(NewText).ToString();
-		if (NewName.Len() > 0 && FName::IsValidXName(NewName, INVALID_NAME_CHARACTERS) && NewName.Len() < NAME_SIZE)
+		if (NewName.Len() > 0 && NewName.Len() < NAME_SIZE)
 		{
 			if (GEditor)
 			{
