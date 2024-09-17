@@ -688,10 +688,25 @@ void FToolBarBuilder::AddWidget(
 	FMenuEntryStyleParams StyleParams;
 	StyleParams.HorizontalAlignment = Alignment;
 
-	AddWidget(InWidget, StyleParams, InTutorialHighlightName, bSearchable, InCustomMenuDelegate, InVisibilityOverride);
+	AddWidgetInternal(InWidget, StyleParams, InTutorialHighlightName, bSearchable, InCustomMenuDelegate, InVisibilityOverride);
 }
 
 void FToolBarBuilder::AddWidget(
+	TSharedRef<SWidget> InWidget,
+	const FMenuEntryStyleParams& InStyleParams,
+	FName InTutorialHighlightName,
+	bool bInSearchable,
+	FNewMenuDelegate InCustomMenuDelegate,
+	TAttribute<EVisibility> InVisibilityOverride
+)
+{
+	FMenuEntryStyleParams StyleParams = InStyleParams;
+	StyleParams.VerticalAlignment = VAlign_Center; // Default to centered, versions prior to 5.5 decide alignment based on label presence
+
+	AddWidgetInternal(InWidget, InStyleParams, InTutorialHighlightName, bInSearchable, InCustomMenuDelegate, InVisibilityOverride);
+}
+
+void FToolBarBuilder::AddWidgetInternal(
 	TSharedRef<SWidget> InWidget,
 	const FMenuEntryStyleParams& InStyleParams,
 	FName InTutorialHighlightName,

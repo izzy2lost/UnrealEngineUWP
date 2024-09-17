@@ -414,10 +414,6 @@ protected:
 	SLATE_API virtual void ApplySectionBeginning() override;
 
 public:
-	// These classes need access to the AddWrapperSubMenu() methods
-	//friend class FWidgetBlock;
-	//friend class FToolBarComboButtonBlock;
-
 	/**
 	 * Adds a sub-menu which is a menu within a menu
 	 * 
@@ -739,6 +735,16 @@ protected:
 	SLATE_API virtual void ApplySectionBeginning() override;
 
 	SLATE_API void InitializeToolBarButtonBlock(TSharedPtr<FToolBarButtonBlock> ButtonRowBlock, const FButtonArgs& ButtonArgs);
+
+	/** Handles AddWidget calls */
+	void AddWidgetInternal(
+		TSharedRef<SWidget> InWidget,
+		const FMenuEntryStyleParams& InStyleParams,
+		FName InTutorialHighlightName = NAME_None,
+		bool bInSearchable = true,
+		FNewMenuDelegate InCustomMenuDelegate = FNewMenuDelegate(),
+		TAttribute<EVisibility> InVisibilityOverride = TAttribute<EVisibility>()
+	);
 
 private:
 	/** Current extension hook name for sections to determine where sections begin and end */
