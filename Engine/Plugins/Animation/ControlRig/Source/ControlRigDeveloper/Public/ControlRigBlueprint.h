@@ -397,6 +397,8 @@ private:
 	virtual void HandleConfigureRigVMController(const FRigVMClient* InClient, URigVMController* InControllerToConfigure) override;
 #endif
 
+	void UpdateConnectionMapAfterRename(const FString& InOldNameSpace);
+
 	// Class used to temporarily cache all 
 	// current control values and reapply them
 	// on destruction
