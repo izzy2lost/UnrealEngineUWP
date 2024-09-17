@@ -69,8 +69,9 @@ public:
 	void CheckAssignedActorsValidity(AColorCorrectRegion* Region);
 
 	/** Resets all stencils and re-assigns for each CCR in the scene. */
+	UE_DEPRECATED(5.5, "Refreshing stencil IDs per tick no longer necessary as we check validity.")
 	UFUNCTION(BlueprintCallable, meta = (Category = "Color Correct Regions"))
-	void RefreshStenciIdAssignmentForAllCCR();
+	void RefreshStenciIdAssignmentForAllCCR() {};
 
 public:
 #if WITH_EDITOR

@@ -367,23 +367,6 @@ void UColorCorrectRegionsSubsystem::CheckAssignedActorsValidity(AColorCorrectReg
 	FColorCorrectRegionsStencilManager::CheckAssignedActorsValidity(Region);
 }
 
-void UColorCorrectRegionsSubsystem::RefreshStenciIdAssignmentForAllCCR()
-{
-	for (TActorIterator<AColorCorrectRegion> It(GetWorld()); It; ++It)
-	{
-		AColorCorrectRegion* AsRegion = *It;
-		if (IsRegionValid(AsRegion, GetWorld()))
-		{
-			// Uncoment this if you want the invalid actors to be removed automatically.
-			// However after removal, undo/redo will not re-assign this actor back to CCR.
-			//FColorCorrectRegionsStencilManager::ClearInvalidActorsForSelectedRegion(AsRegion);
-			AsRegion->PerAffectedActorStencilData.Empty();
-			FColorCorrectRegionsStencilManager::AssignStencilIdsToAllActorsForCCR(GetWorld(), AsRegion, true, true);
-			FColorCorrectRegionsStencilManager::RemoveStencilNumberForSelectedRegion(GetWorld(), AsRegion);
-		}
-	}
-}
-
 void UColorCorrectRegionsSubsystem::RefreshRegions()
 {
 	RegionsPriorityBased.Reset();
@@ -403,8 +386,6 @@ void UColorCorrectRegionsSubsystem::RefreshRegions()
 			}
 		}
 	}
-
-	RefreshStenciIdAssignmentForAllCCR();
 }
 
 #undef LOCTEXT_NAMESPACE
