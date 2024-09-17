@@ -365,19 +365,32 @@ void UFootageCaptureData::GetFrameRanges(const FFrameRate& InTargetRate, ETimeco
 
 	for (int32 Index = 0; Index < ImageSequences.Num(); ++Index)
 	{
-		OutMediaFrameRanges.Add(ImageSequences[Index], GetFrameRange(InTargetRate, ImageSequences[Index], GetEffectiveImageTimecode(Index), GetEffectiveImageTimecodeRate(Index), InTimecodeAlignment == ETimecodeAlignment::None));
+		const TObjectPtr<UImgMediaSource>& ImageSequence = ImageSequences[Index];
+
+		if (ImageSequence)
+		{
+			OutMediaFrameRanges.Add(ImageSequence, GetFrameRange(InTargetRate, ImageSequence, GetEffectiveImageTimecode(Index), GetEffectiveImageTimecodeRate(Index), InTimecodeAlignment == ETimecodeAlignment::None));
+		}
 	}
 
 	for (int32 Index = 0; Index < DepthSequences.Num(); ++Index)
 	{
-		OutMediaFrameRanges.Add(DepthSequences[Index], GetFrameRange(InTargetRate, DepthSequences[Index], GetEffectiveDepthTimecode(Index), GetEffectiveDepthTimecodeRate(Index), InTimecodeAlignment == ETimecodeAlignment::None));
+		const TObjectPtr<UImgMediaSource>& DepthSequence = DepthSequences[Index];
+
+		if (DepthSequence)
+		{
+			OutMediaFrameRanges.Add(DepthSequence, GetFrameRange(InTargetRate, DepthSequence, GetEffectiveDepthTimecode(Index), GetEffectiveDepthTimecodeRate(Index), InTimecodeAlignment == ETimecodeAlignment::None));
+		}
 	}
 
 	if (bInIncludeAudio)
 	{
 		for (TObjectPtr<class USoundWave> Audio : Audios)
 		{
-			OutMediaFrameRanges.Add(Audio, GetFrameRange(InTargetRate, Audio, GetEffectiveAudioTimecode(), GetEffectiveAudioTimecodeRate(), InTimecodeAlignment == ETimecodeAlignment::None));
+			if (Audio)
+			{
+				OutMediaFrameRanges.Add(Audio, GetFrameRange(InTargetRate, Audio, GetEffectiveAudioTimecode(), GetEffectiveAudioTimecodeRate(), InTimecodeAlignment == ETimecodeAlignment::None));
+			}
 		}
 	}
 
@@ -651,8 +664,6 @@ void UFootageCaptureData::PostLoad()
 void UFootageCaptureData::PopulateCameraNames(UFootageCaptureData* InFootageCaptureData, FString& InOutCamera, TArray<TSharedPtr<FString>>& OutCameraNames)
 {
 	OutCameraNames.Reset();
-
-
 
 	if (InFootageCaptureData && !InFootageCaptureData->CameraCalibrations.IsEmpty())
 	{
