@@ -25,6 +25,13 @@ public:
 	virtual void SetRGBA(const FLinearColor& InColor) override;
 	//~ End DMXPixelMappingColorSpace interface
 
+	/** 
+	 * Output gamma of the Luminance, computed in xyY space whereas Y = Pow(Y, 1 / OutputGamma).
+	 * CIE 1931 XYZ is linear gamma so typically no gamma should be applied.
+	 */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Color Space")
+	float CustomGamma = 1.f;
+
 	/** Attribute sent for X */
 	UPROPERTY(EditAnywhere, Category = "XYZ", Meta = (DisplayName = "X Attribute"))
 	FDMXAttributeName XAttribute;

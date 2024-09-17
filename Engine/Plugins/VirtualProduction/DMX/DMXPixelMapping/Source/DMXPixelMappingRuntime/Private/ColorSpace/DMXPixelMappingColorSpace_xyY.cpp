@@ -19,8 +19,15 @@ void UDMXPixelMappingColorSpace_xyY::SetRGBA(const FLinearColor& InColor)
 	// Convert RGB to CIE XYZ
 	const FMatrix44d& Matrix = InputColorSpace.GetRgbToXYZ();
 	const FVector4 XYZW = Matrix.TransformVector(FVector(InColor));
-	const FVector3d xyY = UE::Color::XYZToxyY(XYZW);
+	FVector3d xyY = UE::Color::XYZToxyY(XYZW);
 
+	// Apply gamma to Y (the Z-Component of the vector)
+	if (!FMath::IsNearlyEqual(CustomGamma, 1.f))
+	{
+		xyY.Z = FMath::Pow(xyY.Z, 1.f / CustomGamma);
+	}
+
+	// Buffer DMX values
 	if (!ensureMsgf(ColorSpaceRange != 0.0, TEXT("Coversion in PixelMapping Color Space xyY failed. Color space range is 0.")))
 	{
 		return;

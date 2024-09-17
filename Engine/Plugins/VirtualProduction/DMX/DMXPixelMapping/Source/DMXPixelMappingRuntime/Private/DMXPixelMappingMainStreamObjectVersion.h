@@ -28,6 +28,9 @@ struct FDMXPixelMappingMainStreamObjectVersion
 		// The renderer component now holds the layout rect, so its children can be layout out relative to the current texture size
 		RendererComponentHoldsLayoutRect,
 
+		// 5.5: Color spaces now apply a gamma correction
+		DMXOutputAppliesGammaCorrection,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

@@ -17,8 +17,18 @@ void UDMXPixelMappingColorSpace_XYZ::SetRGBA(const FLinearColor& InColor)
 
 	// Convert RGB to CIEXYZ
 	const FMatrix44d Matrix = InputColorSpace.GetRgbToXYZ();
-	const FVector4 XYZW = Matrix.TransformVector(FVector(InColor));
+	FVector4 XYZW = Matrix.TransformVector(FVector(InColor));
+	
+	// Apply gamma to Y (the Z-Component of the vector)
+	if (!FMath::IsNearlyEqual(CustomGamma, 1.f))
+	{
+		FVector3d xyY = UE::Color::XYZToxyY(XYZW);
+		xyY.Z = FMath::Pow(xyY.Z, 1.f / CustomGamma);
+		
+		XYZW = UE::Color::xyYToXYZ(xyY);
+	}
 
+	// Buffer DMX values
 	if (XAttribute.IsValid())
 	{
 		SetAttributeValue(XAttribute, XYZW.X);
