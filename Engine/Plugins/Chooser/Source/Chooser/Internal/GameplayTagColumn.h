@@ -54,7 +54,7 @@ struct CHOOSER_API FGameplayTagColumn : public FChooserColumnBase
 	public:
 	FGameplayTagColumn();
 	
-	UPROPERTY(EditAnywhere, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ChooserParameterGameplayTagBase"), Category = "Data")
+	UPROPERTY(EditAnywhere, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ChooserParameterGameplayTagBase", ToolTip="The GameplayTagCollection property this column will filter based on"), Category = "Data")
 	FInstancedStruct InputValue;
 
 	UPROPERTY(EditAnywhere, Category="Data")
@@ -73,11 +73,11 @@ struct CHOOSER_API FGameplayTagColumn : public FChooserColumnBase
 	bool bInvertMatchingLogic = false;
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(EditAnywhere, Category=Runtime)
+	UPROPERTY(EditAnywhere, Category=Data, meta=(ToolTip="DefaultRowValue will be assigned to cells when new rows are created"));
 	FGameplayTagContainer DefaultRowValue;
 #endif
 	
-	UPROPERTY(EditAnywhere, Category=Runtime)
+	UPROPERTY()
 	// array of results (cells for this column for each row in the table)
 	// should match the length of the Results array 
 	TArray<FGameplayTagContainer> RowValues;

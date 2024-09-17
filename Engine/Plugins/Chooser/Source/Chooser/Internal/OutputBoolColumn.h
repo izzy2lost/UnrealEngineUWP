@@ -18,7 +18,7 @@ struct CHOOSER_API FOutputBoolColumn : public FChooserColumnBase
 	virtual bool HasOutputs() const override { return true; }
 	virtual void SetOutputs(FChooserEvaluationContext& Context, int RowIndex) const override;
 	
-	UPROPERTY(EditAnywhere, NoClear, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ChooserParameterBoolBase"), Category = "Hidden")
+	UPROPERTY(EditAnywhere, NoClear, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ChooserParameterBoolBase", ToolTip="The Bool property this column will write to"), Category = "Hidden")
 	FInstancedStruct InputValue;
 
 #if WITH_EDITOR
@@ -40,15 +40,15 @@ struct CHOOSER_API FOutputBoolColumn : public FChooserColumnBase
 	}
 	
 	// FallbackValue will be used as the output value if the all rows in the chooser fail, and the FallbackResult from the chooser is used.
-	UPROPERTY(EditAnywhere, Category=Data);
+	UPROPERTY()
 	bool bFallbackValue = false;
 	
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(EditAnywhere, Category=Data);
+	UPROPERTY(EditAnywhere, Category=Data, meta=(ToolTip="DefaultRowValue will be assigned to cells when new rows are created"));
 	bool DefaultRowValue = false;
 #endif
 	
-	UPROPERTY(EditAnywhere, Category=Data);
+	UPROPERTY()
 	TArray<bool> RowValues; 
 
 	CHOOSER_COLUMN_BOILERPLATE(FChooserParameterBoolBase);

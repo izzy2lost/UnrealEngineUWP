@@ -34,21 +34,21 @@ public:
 	virtual bool HasOutputs() const override { return true; }
 	virtual void SetOutputs(FChooserEvaluationContext& Context, int RowIndex) const override;
 
-	UPROPERTY(EditAnywhere, NoClear, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ChooserParameterEnumBase"), Category = "Data")
+	UPROPERTY(EditAnywhere, NoClear, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ChooserParameterEnumBase", ToolTip="The Enum property this column will write to"), Category = "Data")
 	FInstancedStruct InputValue;
 
 	// FallbackValue will be used as the output value if the all rows in the chooser fail, and the FallbackResult from the chooser is used.
-	UPROPERTY(EditAnywhere, Category = "Data")
+	UPROPERTY()
 	FChooserOutputEnumRowData FallbackValue;
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(EditAnywhere, Category = "Data")
+	UPROPERTY(EditAnywhere, Category=Data, meta=(ToolTip="DefaultRowValue will be assigned to cells when new rows are created"));
 	FChooserOutputEnumRowData DefaultRowValue;
 
 	virtual void PostLoad() override;
 #endif
 	
-	UPROPERTY(EditAnywhere, Category = "Data")
+	UPROPERTY()
 	// array of results (cells for this column for each row in the table)
 	// should match the length of the Results array
 	TArray<FChooserOutputEnumRowData> RowValues;

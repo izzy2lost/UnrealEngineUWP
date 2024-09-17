@@ -41,15 +41,15 @@ struct CHOOSER_API FObjectClassColumn : public FChooserColumnBase
 
 	FObjectClassColumn();
 
-	UPROPERTY(EditAnywhere, NoClear, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ChooserParameterObjectBase"), Category = "Data")
+	UPROPERTY(EditAnywhere, NoClear, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ChooserParameterObjectBase", ToolTip="The Object reference property this column will filter based on"), Category = "Data")
 	FInstancedStruct InputValue;
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(EditAnywhere, Category = "Data")
+	UPROPERTY(EditAnywhere, Category = "Data", Meta =(ToolTip="DefaultRowValue will be assigned to cells when new rows are created"))
 	FChooserObjectClassRowData DefaultRowValue;
 #endif
 
-	UPROPERTY(EditAnywhere, Category = "Data")
+	UPROPERTY()
 	// array of results (cells for this column for each row in the table)
 	// should match the length of the Results array
 	TArray<FChooserObjectClassRowData> RowValues;
