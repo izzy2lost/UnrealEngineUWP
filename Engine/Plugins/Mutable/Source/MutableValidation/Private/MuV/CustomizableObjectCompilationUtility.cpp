@@ -2,6 +2,7 @@
 
 #include "CustomizableObjectCompilationUtility.h"
 
+#include "ScopedLogSection.h"
 #include "Commandlets/Commandlet.h"
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectPrivate.h"
@@ -16,7 +17,7 @@
 bool FCustomizableObjectCompilationUtility::CompileCustomizableObject(UCustomizableObject* InCustomizableObject, const bool bShouldLogMutableLogs /* = true */, const FCompilationOptions* InCompilationOptionsOverride  /* nullptr */)
 {
 	LLM_SCOPE_BYNAME(TEXT("FCustomizableObjectCompilationUtility/Compile"));
-	
+	const FScopedLogSection CompilationSection (EMutableLogSection::Compilation);	
 	check(InCustomizableObject);
 	
 	CustomizableObject = TStrongObjectPtr(InCustomizableObject);
@@ -173,7 +174,7 @@ bool FCustomizableObjectCompilationUtility::CompileCustomizableObject(UCustomiza
 		}
 #endif
 	}
-	
+
 	// Return the success state of the operation
 	return bCompilationSuccess;
 }

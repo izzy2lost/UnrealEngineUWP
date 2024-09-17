@@ -7,12 +7,15 @@
 #include "MuCO/CustomizableObjectSystem.h"
 #include "Engine/TextureStreamingTypes.h"
 #include "SceneTypes.h"
+#include "ScopedLogSection.h"
+#include "ValidationUtils.h"
 #include "Components/SkeletalMeshComponent.h"
 
 
 bool FCustomizableObjectInstanceUpdateUtility::UpdateInstance(UCustomizableObjectInstance* InInstance)
 {
 	LLM_SCOPE_BYNAME(TEXT("FCustomizableObjectInstanceUpdateUtility/UpdateInstance"));
+	const FScopedLogSection UpdateSection (EMutableLogSection::Update);	
 	
 	check (InInstance);
 	check (ComponentsBeingUpdated.IsEmpty());

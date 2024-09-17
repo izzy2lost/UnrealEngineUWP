@@ -3,6 +3,7 @@
 #include "../../Public/MuV/COIBakingTestCommandlet.h"
 
 #include "CustomizableObjectCompilationUtility.h"
+#include "ScopedLogSection.h"
 #include "ValidationUtils.h"
 #include "AssetRegistry/AssetData.h"
 #include "HAL/FileManager.h"
@@ -105,6 +106,8 @@ int32 UCOIBakingTestCommandlet::Main(const FString& Params)
 	
 	// Update the instance
 	{
+		const FScopedLogSection UpdateSection (EMutableLogSection::Update);
+		
 		// If this fail something is very wrong
 		check(TargetInstance);
 
@@ -132,15 +135,16 @@ int32 UCOIBakingTestCommandlet::Main(const FString& Params)
 		// Check the end status of the instance update
 		if (!bWasInstanceUpdateSuccessful)
 		{
-			UE_LOG(LogMutable,Error,TEXT("Failed to succesfully update the target COI. Exitting commandlet."));
+			UE_LOG(LogMutable,Error,TEXT("Failed to successfully update the target COI. Exiting commandlet."));
 			return 1;
 		}
 	}
-	
 
 	// Bake the instance
 	bool bWasBakingSuccessful = false;
 	{
+		const FScopedLogSection InstanceBakeSection (EMutableLogSection::Bake);
+		
 		const FString BakedResourcesFileName = "MuBakedInstances";
 		
 		// If this fail something is very wrong
@@ -195,7 +199,7 @@ int32 UCOIBakingTestCommandlet::Main(const FString& Params)
 			return 1;
 		}
 	}
-
+	
 	if (bWasBakingSuccessful)
 	{
 		UE_LOG(LogMutable, Display, TEXT("Instance Baking operation has been completed succesfully."));
