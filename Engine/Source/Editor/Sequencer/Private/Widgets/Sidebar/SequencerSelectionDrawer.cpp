@@ -293,19 +293,48 @@ void FSequencerSelectionDrawer::BuildKeySelectionDetails(const TSharedRef<FSeque
 
 void FSequencerSelectionDrawer::BuildTrackAreaDetails(const TSharedRef<FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder)
 {
-	TArray<TWeakObjectPtr<>> AllSectionObjects;
+	TArray<TWeakObjectPtr<>> AllSectionObjects; 
+	TArray<TWeakObjectPtr<>> WeakTrackObjects;
+	TArray<TPair<TWeakObjectPtr<UMovieSceneTrack>, int32>> SelectedTrackRows;
 
 	for (const FViewModelPtr TrackAreaItem : InSelection->TrackArea)
 	{
 		if (const TViewModelPtr<FSectionModel> SectionModel = TrackAreaItem.ImplicitCast())
 		{
-			AllSectionObjects.Add(SectionModel->GetSection());
+			if (UMovieSceneSection* Section = SectionModel->GetSection())
+			{
+				AllSectionObjects.Add(SectionModel->GetSection());
+
+				if (UMovieSceneTrack* Track = Section->GetTypedOuter<UMovieSceneTrack>())
+				{
+					WeakTrackObjects.Add(Track);
+					if (Track->SupportsMultipleRows())
+					{
+						SelectedTrackRows.Add(TPair<TWeakObjectPtr<UMovieSceneTrack>, int32>(Track, Section->GetRowIndex()));
+					}
+				}
+			}
 		}
 	}
 
 	if (!AllSectionObjects.IsEmpty())
 	{
 		SequencerHelpers::BuildEditSectionMenu(WeakSequencer, AllSectionObjects, MenuBuilder, false);
+	}
+
+	if (!SelectedTrackRows.IsEmpty() && !Algo::AnyOf(SelectedTrackRows, [](const TPair<TWeakObjectPtr<UMovieSceneTrack>, int32> TrackRow) {
+		return TrackRow.Key.IsValid() && !TrackRow.Key->SupportsMultipleRows();
+		}))
+	{
+		MenuBuilder.BeginSection(TEXT("TrackRowMetadata"), LOCTEXT("TrackRowMetadata", "Track Row Metadata"));
+		{
+			// Empty here, will be implemented by extension.
+		}
+		MenuBuilder.EndSection();
+	}
+	if (!WeakTrackObjects.IsEmpty())
+	{
+		SequencerHelpers::BuildEditTrackMenu(WeakSequencer, WeakTrackObjects, MenuBuilder, false);
 	}
 }
 
@@ -339,7 +368,16 @@ void FSequencerSelectionDrawer::BuildOutlinerDetails(const TSharedRef<FSequencer
 			if (IsValid(Track))
 			{
 				WeakTrackObjects.Add(Track);
-				SelectedTrackRows.Add(TPair<TWeakObjectPtr<UMovieSceneTrack>, int32>(Track, TrackExtension->GetRowIndex()));
+				// Only add a 'track row' as selected if either we have an actual 'track row' selected, or else we have a track selected and there's only a single
+				// track row, and the track allows multiple rows.
+				if (TViewModelPtr<FTrackRowModel> TrackRowModel = TrackExtension.ImplicitCast())
+				{
+					SelectedTrackRows.Add(TPair<TWeakObjectPtr<UMovieSceneTrack>, int32>(Track, TrackExtension->GetRowIndex()));
+				}
+				else if (Track->SupportsMultipleRows() && Track->GetMaxRowIndex() == 0)
+				{
+					SelectedTrackRows.Add(TPair<TWeakObjectPtr<UMovieSceneTrack>, int32>(Track, TrackExtension->GetRowIndex()));
+				}
 			}
 		}
 		else if (const TViewModelPtr<FObjectBindingModel> ObjectBindingModel = OutlinerItem.ImplicitCast())
@@ -378,6 +416,7 @@ void FSequencerSelectionDrawer::BuildOutlinerDetails(const TSharedRef<FSequencer
 	{
 		BuildExtensionDetails(ChannelGroups, MenuBuilder);
 	}
+	
 
 	if (!SelectedTrackRows.IsEmpty() && !Algo::AnyOf(SelectedTrackRows, [](const TPair<TWeakObjectPtr<UMovieSceneTrack>, int32> TrackRow) {
 		return TrackRow.Key.IsValid() && !TrackRow.Key->SupportsMultipleRows();
@@ -390,15 +429,21 @@ void FSequencerSelectionDrawer::BuildOutlinerDetails(const TSharedRef<FSequencer
 		MenuBuilder.EndSection();
 	}
 
-
 	if (!WeakTrackObjects.IsEmpty())
 	{
 		SequencerHelpers::BuildEditTrackMenu(Sequencer, WeakTrackObjects, MenuBuilder, false);
 	}
 
-	if (!WeakSectionObjects.IsEmpty())
+	// Only show section details for a selected track/trackrow if a single infinite section on the row
+	if (WeakSectionObjects.Num() == 1 && WeakSectionObjects[0].IsValid())
 	{
-		SequencerHelpers::BuildEditSectionMenu(WeakSequencer, WeakSectionObjects, MenuBuilder, false);
+		if (UMovieSceneSection* Section = Cast<UMovieSceneSection>(WeakSectionObjects[0].Get()))
+		{
+			if (!Section->GetRange().HasLowerBound() && !Section->GetRange().HasUpperBound())
+			{
+				SequencerHelpers::BuildEditSectionMenu(WeakSequencer, WeakSectionObjects, MenuBuilder, false);
+			}
+		}
 	}
 }
 

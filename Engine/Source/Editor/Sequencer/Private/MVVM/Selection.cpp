@@ -268,6 +268,18 @@ TSet<TPair<UMovieSceneTrack*, int32>> FSequencerSelection::GetSelectedTrackRows(
 		}
 	}
 
+	TSet<UMovieSceneSection*> SelectedSections = GetSelectedSections();
+	for (UMovieSceneSection* Section : SelectedSections)
+	{
+		if (UMovieSceneTrack* Track = Section->GetTypedOuter<UMovieSceneTrack>())
+		{
+			if (Track->SupportsMultipleRows())
+			{
+				SelectedTrackRows.Add(TPair<UMovieSceneTrack*, int32>(Track, Section->GetRowIndex()));
+			}
+		}
+	}
+
 	return SelectedTrackRows;
 }
 
