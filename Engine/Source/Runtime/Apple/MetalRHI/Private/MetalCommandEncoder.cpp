@@ -1054,12 +1054,18 @@ void FMetalCommandEncoder::SetShaderBuffer(MTL::FunctionType const FunctionType,
 	FenceResource(Buffer->GetMTLBuffer(), FunctionType);
 	check(index < ML_MaxBuffers);
     
-    if(Device.SupportsFeature(EMetalFeaturesSetBufferOffset) && Buffer && (ShaderBuffers[uint32(FunctionType)].Bound & (1 << index)) && ShaderBuffers[uint32(FunctionType)].Buffers[index] == Buffer)
+    if(Device.SupportsFeature(EMetalFeaturesSetBufferOffset) &&
+	   Buffer && (ShaderBuffers[uint32(FunctionType)].Bound & (1 << index)) &&
+	   ShaderBuffers[uint32(FunctionType)].Buffers[index] == Buffer)
     {
-		SetShaderBufferOffset(FunctionType, Offset, Length, index);
-		ShaderBuffers[uint32(FunctionType)].Usage[index] = Usage;
-		ShaderBuffers[uint32(FunctionType)].ReferencedResources[index] = ReferencedResources;
-		ShaderBuffers[uint32(FunctionType)].SetBufferMetaData(index, Length, GMetalBufferFormats[Format].DataFormat, ElementRowPitch);
+		if(ShaderBuffers[uint32(FunctionType)].Offsets[index] != Offset ||
+		   ShaderBuffers[uint32(FunctionType)].Usage[index] != Usage)
+		{
+			SetShaderBufferOffset(FunctionType, Offset, Length, index);
+			ShaderBuffers[uint32(FunctionType)].Usage[index] = Usage;
+			ShaderBuffers[uint32(FunctionType)].ReferencedResources[index] = ReferencedResources;
+			ShaderBuffers[uint32(FunctionType)].SetBufferMetaData(index, Length, GMetalBufferFormats[Format].DataFormat, ElementRowPitch);
+		}
 	}
     else
     {
@@ -1191,6 +1197,7 @@ void FMetalCommandEncoder::SetShaderBufferOffset(MTL::FunctionType FunctionType,
 	check(Device.SupportsFeature(EMetalFeaturesSetBufferOffset));
 	ShaderBuffers[uint32(FunctionType)].Offsets[index] = Offset;
 	ShaderBuffers[uint32(FunctionType)].SetBufferMetaData(index, Length, GMetalBufferFormats[PF_Unknown].DataFormat, 0);
+	
 	switch (FunctionType)
 	{
 		case MTL::FunctionTypeVertex:

@@ -186,7 +186,6 @@ public:
 	uint32 GetVertexBufferSize(uint32 const Index);
 	uint32 GetRenderTargetArraySize() const { return RenderTargetArraySize; }
 	FMetalQueryBuffer* GetVisibilityResultsBuffer() const { return VisibilityResults; }
-	bool GetScissorRectEnabled() const { return bScissorRectEnabled; }
 	bool NeedsToSetRenderTarget(const FRHIRenderPassInfo& RenderPassInfo);
 	bool HasValidDepthStencilSurface() const { return IsValidRef(DepthStencilSurface); }
 
@@ -204,6 +203,8 @@ public:
 	void DiscardRenderTargets(bool Depth, bool Stencil, uint32 ColorBitMask);
 	
 	void ReleaseDescriptor(MTL::RenderPassDescriptor* Desc);
+	void ClearPreviousComputeState();
+	
 private:
 	void ConditionalUpdateBackBuffer(FMetalSurface& Surface);
 	
@@ -331,6 +332,8 @@ private:
 	TRefCountPtr<FMetalRasterizerState> RasterizerState;
 	TRefCountPtr<FMetalGraphicsPipelineState> GraphicsPSO;
 	TRefCountPtr<FMetalComputeShader> ComputeShader;
+	TRefCountPtr<FMetalComputeShader> PreviousComputeShader;
+	
 	uint32 StencilRef;
 	
 	FLinearColor BlendFactor;
@@ -356,7 +359,6 @@ private:
 	bool bIsRenderTargetActive;
 	bool bHasValidRenderTarget;
 	bool bHasValidColorTarget;
-	bool bScissorRectEnabled;
     bool bImmediate;
 };
 

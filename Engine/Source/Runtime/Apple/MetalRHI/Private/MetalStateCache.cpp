@@ -134,7 +134,6 @@ FMetalStateCache::FMetalStateCache(FMetalDevice& MetalDevice, bool const bInImme
 , bIsRenderTargetActive(false)
 , bHasValidRenderTarget(false)
 , bHasValidColorTarget(false)
-, bScissorRectEnabled(false)
 , bImmediate(bInImmediate)
 {
 	FMemory::Memzero(Viewport);
@@ -232,7 +231,6 @@ void FMetalStateCache::Reset()
 	bIsRenderTargetActive = false;
 	bHasValidRenderTarget = false;
 	bHasValidColorTarget = false;
-	bScissorRectEnabled = false;
 	
 	FMemory::Memzero(DirtyUniformBuffers);
 	FMemory::Memzero(BoundUniformBuffers);
@@ -285,6 +283,7 @@ void FMetalStateCache::Reset()
 	RasterizerState.SafeRelease();
 	GraphicsPSO.SafeRelease();
 	ComputeShader.SafeRelease();
+	PreviousComputeShader.SafeRelease();
 	DepthStencilSurface.SafeRelease();
 	StencilRef = 0;
 	
@@ -353,29 +352,30 @@ static bool MTLScissorRectEqual(MTL::ScissorRect const& Left, MTL::ScissorRect c
 
 void FMetalStateCache::SetScissorRect(bool const bEnable, MTL::ScissorRect const& Rect)
 {
-	if (bScissorRectEnabled != bEnable || !MTLScissorRectEqual(Scissor[0], Rect))
+	if (bEnable)
 	{
-		bScissorRectEnabled = bEnable;
-		if (bEnable)
-		{
-			Scissor[0] = Rect;
-		}
-		else
-		{
-			Scissor[0].x = Viewport[0].originX;
-			Scissor[0].y = Viewport[0].originY;
-			Scissor[0].width = Viewport[0].width;
-			Scissor[0].height = Viewport[0].height;
-		}
-		
-		// Clamp to framebuffer size - Metal doesn't allow scissor to be larger.
-		Scissor[0].x = Scissor[0].x;
-		Scissor[0].y = Scissor[0].y;
+		Scissor[0] = Rect;
+	}
+	else
+	{
+		Scissor[0].x = Viewport[0].originX;
+		Scissor[0].y = Viewport[0].originY;
+		Scissor[0].width = Viewport[0].width;
+		Scissor[0].height = Viewport[0].height;
+	}
+	
+	// Clamp to framebuffer size - Metal doesn't allow scissor to be larger.
+	Scissor[0].x = Scissor[0].x;
+	Scissor[0].y = Scissor[0].y;
+	
+	// FrameBufferSize will be 0 if using RT-less rasterization, so ignore
+	if(FrameBufferSize.width != 0 && FrameBufferSize.height != 0)
+	{
 		Scissor[0].width = FMath::Max((Scissor[0].x + Scissor[0].width <= FMath::RoundToInt32(FrameBufferSize.width)) ? Scissor[0].width : FMath::RoundToInt32(FrameBufferSize.width) - Scissor[0].x, (NS::UInteger)1u);
 		Scissor[0].height = FMath::Max((Scissor[0].y + Scissor[0].height <= FMath::RoundToInt32(FrameBufferSize.height)) ? Scissor[0].height : FMath::RoundToInt32(FrameBufferSize.height) - Scissor[0].y, (NS::UInteger)1u);
-		
-		RasterBits |= EMetalRenderFlagScissorRect;
 	}
+	
+	RasterBits |= EMetalRenderFlagScissorRect;
 	
 	ActiveScissors = 1;
 }
@@ -1038,7 +1038,6 @@ void FMetalStateCache::SetViewport(const MTL::Viewport& InViewport)
 	
 	ActiveViewports = 1;
 	
-	bScissorRectEnabled = false;
 	MTL::ScissorRect Rect;
 	
 	Rect.x = InViewport.originX;
@@ -1046,7 +1045,7 @@ void FMetalStateCache::SetViewport(const MTL::Viewport& InViewport)
 	Rect.width = InViewport.width;
 	Rect.height = InViewport.height;
 	
-	SetScissorRect(bScissorRectEnabled, Rect);
+	SetScissorRect(false, Rect);
 }
 
 void FMetalStateCache::SetViewport(uint32 Index, const MTL::Viewport& InViewport)
@@ -2690,11 +2689,15 @@ void FMetalStateCache::SetComputePipelineState(FMetalCommandEncoder& CommandEnco
 {
 	if ((PipelineBits & EMetalPipelineFlagComputeMask) != 0)
 	{
-		FMetalShaderPipelinePtr Pipeline = ComputeShader->GetPipeline();
-	    check(Pipeline);
-	    CommandEncoder.SetComputePipelineState(Pipeline);
-        
-        PipelineBits &= EMetalPipelineFlagRasterMask;
+		if(PreviousComputeShader != ComputeShader)
+		{
+			FMetalShaderPipelinePtr Pipeline = ComputeShader->GetPipeline();
+			check(Pipeline);
+			CommandEncoder.SetComputePipelineState(Pipeline);
+			
+			PipelineBits &= EMetalPipelineFlagRasterMask;
+			PreviousComputeShader = ComputeShader;
+		}
     }
 	
 	if (Device.GetRuntimeDebuggingLevel() >= EMetalDebugLevelFastValidation)
@@ -2880,4 +2883,9 @@ void FMetalStateCache::DiscardRenderTargets(bool Depth, bool Stencil, uint32 Col
 void FMetalStateCache::ReleaseDescriptor(MTL::RenderPassDescriptor* Desc)
 {
 	FMetalRenderPassDescriptorPool::Get().ReleaseDescriptor(Desc);
+}
+
+void FMetalStateCache::ClearPreviousComputeState() 
+{
+	PreviousComputeShader.SafeRelease();
 }

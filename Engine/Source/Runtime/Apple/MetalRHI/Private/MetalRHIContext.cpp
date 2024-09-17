@@ -79,6 +79,7 @@ void FMetalRHICommandContext::BeginComputeEncoder()
 	
 	if(!CurrentEncoder.IsComputeCommandEncoderActive())
 	{
+		StateCache.ClearPreviousComputeState();
 		if(CurrentEncoder.IsAnyCommandEncoderActive())
 		{
 			CurrentEncoderFence = CurrentEncoder.EndEncoding();
