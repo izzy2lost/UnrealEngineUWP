@@ -3,6 +3,8 @@
 #pragma once
 
 #include <stddef.h>
+#include <strsafe.h>
+#include <string>
 
 #include "IDatasmithSceneElements.h"
 #include "DatasmithSceneFactory.h"
