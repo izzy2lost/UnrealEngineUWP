@@ -1348,29 +1348,37 @@ FGuid UCustomizableObjectNodeTable::GetColumnIdByName(const FName& ColumnName) c
 
 TArray<FAssetData> UCustomizableObjectNodeTable::GetParentTables() const
 {
-	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-	IAssetRegistry& AssetRegistry = AssetRegistryModule.GetRegistry();
-	
-	TArray<FName> ReferencedTables;
-	AssetRegistry.Get()->GetReferencers(Structure.GetPackage().GetFName(), ReferencedTables, UE::AssetRegistry::EDependencyCategory::Package, UE::AssetRegistry::EDependencyQuery::NoRequirements);
-	
-	FARFilter Filter;
-	Filter.ClassPaths.Add(FTopLevelAssetPath(UDataTable::StaticClass()));
-
-	for (const FName& ReferencedTable : ReferencedTables)
-	{
-		Filter.PackageNames.Add(ReferencedTable);
-	}
-
-	for (int32 PathIndex = 0; PathIndex < FilterPaths.Num(); ++PathIndex)
-	{
-		Filter.PackagePaths.Add(FilterPaths[PathIndex]);
-	}
-
-	Filter.bRecursivePaths = true;
-
 	TArray<FAssetData> DataTableAssets;
-	AssetRegistry.Get()->GetAssets(Filter, DataTableAssets);
+	if (TableDataGatheringMode == ETableDataGatheringSource::ETDGM_AssetRegistry)
+	{
+		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+		IAssetRegistry& AssetRegistry = AssetRegistryModule.GetRegistry();
+
+		FARFilter Filter;
+		Filter.ClassPaths.Add(FTopLevelAssetPath(UDataTable::StaticClass()));
+		Filter.bRecursivePaths = true;
+
+		if (Structure)
+		{
+			TArray<FName> ReferencedTables;
+			AssetRegistry.Get()->GetReferencers(Structure.GetPackage().GetFName(), ReferencedTables, UE::AssetRegistry::EDependencyCategory::Package, UE::AssetRegistry::EDependencyQuery::NoRequirements);
+
+			for (const FName& ReferencedTable : ReferencedTables)
+			{
+				Filter.PackageNames.Add(ReferencedTable);
+			}
+		}
+
+		for (int32 PathIndex = 0; PathIndex < FilterPaths.Num(); ++PathIndex)
+		{
+			Filter.PackagePaths.Add(FilterPaths[PathIndex]);
+		}
+
+		if (!Filter.IsEmpty())
+		{
+			AssetRegistry.Get()->GetAssets(Filter, DataTableAssets);
+		}
+	}
 
 	return DataTableAssets;
 }
