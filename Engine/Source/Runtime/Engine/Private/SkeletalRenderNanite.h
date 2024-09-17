@@ -20,6 +20,7 @@
 class FPrimitiveDrawInterface;
 class UMorphTarget;
 class FRayTracingSkinnedGeometryUpdateQueue;
+class FSkeletalMeshObjectNanite;
 
 /** 
 * Stores the updated matrices needed to skin the verts.
@@ -32,16 +33,19 @@ public:
 		USkinnedMeshComponent* InComponent,
 		FSkeletalMeshRenderData* InRenderData,
 		int32 InLODIndex,
-		EPreviousBoneTransformUpdateMode InPreviousBoneTransformUpdateMode
+		EPreviousBoneTransformUpdateMode InPreviousBoneTransformUpdateMode,
+		FSkeletalMeshObjectNanite* InMeshObject
 	);
 
 	ENGINE_API virtual ~FDynamicSkelMeshObjectDataNanite();
 
 	// Current reference pose to local space transforms
 	TArray<FMatrix44f> ReferenceToLocal;
+	TArray<FMatrix44f> ReferenceToLocalForRayTracing;
 
 	// Previous reference pose to local space transforms
 	TArray<FMatrix44f> PrevReferenceToLocal;
+	TArray<FMatrix44f> PrevReferenceToLocalForRayTracing;
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) 
 	// Component space bone transforms
@@ -53,6 +57,7 @@ public:
 
 	// Current LOD for bones being updated
 	int32 LODIndex;
+	int32 RayTracingLODIndex;
 
 	// Returns the size of memory allocated by render data
 	ENGINE_API void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize);
@@ -134,7 +139,7 @@ public:
 	{
 		if (DynamicData)
 		{
-			return DynamicData->LODIndex;
+			return DynamicData->RayTracingLODIndex;
 		}
 		else
 		{
