@@ -35,14 +35,57 @@ void UImageSequenceTimecodeUtils::SetTimecodeInfoString(const FString& InTimecod
 #endif
 }
 
-TOptional<FTimecode> UImageSequenceTimecodeUtils::GetTimecode(UImgMediaSource* InImageSequence)
+FTimecode UImageSequenceTimecodeUtils::GetTimecode(UImgMediaSource* InImageSequence)
 {
-	if (!InImageSequence)
+	TOptional<FTimecode> TimecodeOpt = TryGetTimecode(InImageSequence);
+
+	if (TimecodeOpt.IsSet())
 	{
-		return {};
+		return TimecodeOpt.GetValue();
 	}
 
-	TOptional<FString> TimecodeOpt = GetTimecodeString(InImageSequence);
+	return FTimecode();
+}
+
+FFrameRate UImageSequenceTimecodeUtils::GetFrameRate(UImgMediaSource* InImageSequence)
+{
+	TOptional<FFrameRate> FrameRateOpt = TryGetFrameRate(InImageSequence);
+
+	if (FrameRateOpt.IsSet())
+	{
+		return FrameRateOpt.GetValue();
+	}
+
+	return FFrameRate();
+}
+
+FString UImageSequenceTimecodeUtils::GetTimecodeString(UImgMediaSource* InImageSequence)
+{
+	TOptional<FString> TimecodeOpt = TryGetTimecodeString(InImageSequence);
+
+	if (TimecodeOpt.IsSet())
+	{
+		return TimecodeOpt.GetValue();
+	}
+
+	return FString();
+}
+
+FString UImageSequenceTimecodeUtils::GetFrameRateString(UImgMediaSource* InImageSequence)
+{
+	TOptional<FString> FrameRateOpt = TryGetFrameRateString(InImageSequence);
+
+	if (FrameRateOpt.IsSet())
+	{
+		return FrameRateOpt.GetValue();
+	}
+
+	return FString();
+}
+
+TOptional<FTimecode> UImageSequenceTimecodeUtils::TryGetTimecode(UImgMediaSource* InImageSequence)
+{
+	TOptional<FString> TimecodeOpt = TryGetTimecodeString(InImageSequence);
 
 	if (!TimecodeOpt.IsSet())
 	{
@@ -52,14 +95,9 @@ TOptional<FTimecode> UImageSequenceTimecodeUtils::GetTimecode(UImgMediaSource* I
 	return ParseTimecode(TimecodeOpt.GetValue());
 }
 
-TOptional<FFrameRate> UImageSequenceTimecodeUtils::GetFrameRate(UImgMediaSource* InImageSequence)
+TOptional<FFrameRate> UImageSequenceTimecodeUtils::TryGetFrameRate(UImgMediaSource* InImageSequence)
 {
-	if (!InImageSequence)
-	{
-		return {};
-	}
-
-	TOptional<FString> TimecodeRateOpt = GetFrameRateString(InImageSequence);
+	TOptional<FString> TimecodeRateOpt = TryGetFrameRateString(InImageSequence);
 
 	if (!TimecodeRateOpt.IsSet())
 	{
@@ -71,9 +109,14 @@ TOptional<FFrameRate> UImageSequenceTimecodeUtils::GetFrameRate(UImgMediaSource*
 	return ConvertFrameRate(TimecodeRate);
 }
 
-TOptional<FString> UImageSequenceTimecodeUtils::GetTimecodeString(UImgMediaSource* InImageSequence)
+TOptional<FString> UImageSequenceTimecodeUtils::TryGetTimecodeString(UImgMediaSource* InImageSequence)
 {
 #if WITH_EDITOR
+	if (!InImageSequence)
+	{
+		return {};
+	}
+
 	UEditorAssetSubsystem* EditorAssetSubsystem = GEditor ? GEditor->GetEditorSubsystem<UEditorAssetSubsystem>() : nullptr;
 
 	if (!EditorAssetSubsystem)
@@ -94,9 +137,14 @@ TOptional<FString> UImageSequenceTimecodeUtils::GetTimecodeString(UImgMediaSourc
 #endif
 }
 
-TOptional<FString> UImageSequenceTimecodeUtils::GetFrameRateString(UImgMediaSource* InImageSequence)
+TOptional<FString> UImageSequenceTimecodeUtils::TryGetFrameRateString(UImgMediaSource* InImageSequence)
 {
 #if WITH_EDITOR
+	if (!InImageSequence)
+	{
+		return {};
+	}
+
 	UEditorAssetSubsystem* EditorAssetSubsystem = GEditor ? GEditor->GetEditorSubsystem<UEditorAssetSubsystem>() : nullptr;
 
 	if (!EditorAssetSubsystem)
