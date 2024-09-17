@@ -1402,11 +1402,8 @@ void UMovieGraphPipeline::TransitionToState(const EMovieRenderPipelineState InNe
 			// This is called once notifying our export step that they can begin the export.
 			PipelineState = EMovieRenderPipelineState::Export;
 
-			// Restore the sequence so that the export processes can operate on the original sequence. 
-			// This is also done in the finished state because it's not guaranteed that the Export state 
-			// will be set when the render is canceled early
-			// LevelSequenceActor->GetSequencePlayer()->Stop();
-			// RestoreTargetSequenceToOriginalState();
+			// Stop playing the data source once export begins. Audio issues may happen if this is not done.
+			GetDataSourceInstance()->StopDataSource();
 
 			// Ensure all of our Futures have been converted to the GeneratedOutputData. This has to happen
 			// after finalize finishes, because the futures won't be available until actually written to disk.
