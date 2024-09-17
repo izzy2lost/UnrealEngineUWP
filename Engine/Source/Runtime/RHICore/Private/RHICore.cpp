@@ -5,17 +5,6 @@
 #include "RHICoreNvidiaAftermath.h"
 #include "Misc/CommandLine.h"
 
-class FRHICoreModule : public IModuleInterface
-{
-	virtual void StartupModule() override
-	{
-	#if NV_AFTERMATH
-		UE::RHICore::Nvidia::Aftermath::StartupModule();
-	#endif
-	}
-};
-
-IMPLEMENT_MODULE(FRHICoreModule, RHICore);
 DEFINE_LOG_CATEGORY(LogRHICore);
 
 namespace UE
