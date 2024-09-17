@@ -186,9 +186,9 @@ void SampleLight(uint2 ScreenCoord, float3 TranslatedWorldPosition, const FMegaL
 		Print(Debug.Context, LightData.IESAtlasIndex, Select(LightData.IESAtlasIndex != -1, FontWhite, FontGrey));
 		Print(Debug.Context, bWasVisibleInLastFrame ? 1u : 0u, Select(bWasVisibleInLastFrame, FontWhite, FontGrey));
 
-		if (DebugVisualizeLight != 0 && LocalLightData.LightSceneId == DebugLightId)
+		if ((DebugVisualizeLight != 0 && LocalLightData.LightSceneId == DebugLightId) || DebugVisualizeLight == 2)
 		{
-			AddSphereTWS(Debug.Context, LightData.TranslatedWorldPosition, 100.0f, float4(0, 1, 0, 1));
+			AddSphereTWS(Debug.Context, LightData.TranslatedWorldPosition, 10.0f, float4(0, 1, 0, 1));
 			AddLineTWS(Debug.Context, TranslatedWorldPosition, LightData.TranslatedWorldPosition, float4(0, 1, 0, 1));
 		}
 	}
