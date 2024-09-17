@@ -7,6 +7,7 @@
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Framework/TypedElementMetaData.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
+#include "Features/IModularFeature.h"
 #include "Templates/UnrealTypeTraits.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/Interface.h"
@@ -202,16 +203,8 @@ struct TStructOpsTypeTraits<FTypedElementWidgetConstructor> : public TStructOpsT
 	};
 };
 
-UINTERFACE(MinimalAPI)
-class UEditorDataStorageUiProvider : public UInterface
+class IEditorDataStorageUiProvider : public IModularFeature
 {
-	GENERATED_BODY()
-};
-
-class IEditorDataStorageUiProvider
-{
-	GENERATED_BODY()
-
 	using RowHandle = UE::Editor::DataStorage::RowHandle;
 
 public:

@@ -13,14 +13,13 @@
 #include "Elements/Common/TypedElementQueryTypes.h"
 #include "Elements/Framework/TypedElementColumnUtils.h"
 #include "Elements/Interfaces/TypedElementQueryStorageInterfaces.h"
+#include "Features/IModularFeature.h"
 #include "Math/NumericLimits.h"
 #include "Misc/EnumClassFlags.h"
 #include "Templates/Function.h"
 #include "UObject/Interface.h"
 #include "UObject/NameTypes.h"
 #include "UObject/ObjectMacros.h"
-
-#include "TypedElementDataStorageInterface.generated.h"
 
 class UClass;
 class USubsystem;
@@ -30,12 +29,6 @@ class UEditorDataStorageFactory;
 using FTypedElementOnDataStorageCreation = FSimpleMulticastDelegate;
 using FTypedElementOnDataStorageDestruction = FSimpleMulticastDelegate;
 using FTypedElementOnDataStorageUpdate = FSimpleMulticastDelegate;
-
-UINTERFACE(MinimalAPI)
-class UEditorDataStorageProvider : public UInterface
-{
-	GENERATED_BODY()
-};
 
 /**
  * Convenience structure that can be used to pass a list of columns to functions that don't
@@ -51,10 +44,8 @@ struct TTypedElementColumnTypeList
 	operator TConstArrayView<const UScriptStruct*>() const { return ColumnTypes; }
 };
 
-class IEditorDataStorageProvider
+class IEditorDataStorageProvider : public IModularFeature
 {
-	GENERATED_BODY()
-
 	using RowCreationCallbackRef = UE::Editor::DataStorage::RowCreationCallbackRef;
 	using ColumnCreationCallbackRef = UE::Editor::DataStorage::ColumnCreationCallbackRef;
 	using ColumnListCallbackRef = UE::Editor::DataStorage::ColumnListCallbackRef;
@@ -318,6 +309,11 @@ public:
 	 * The TemplateType may be a typed derived from either UE::Editor::DataStorage::FColumn or UE::Editor::DataStorage::FTag
 	 */
 	virtual const UScriptStruct* GenerateDynamicColumn(const UE::Editor::DataStorage::FDynamicColumnDescription& Description) = 0;
+
+	/**
+	 * Outputs the registered query callbacks to the given output device for debugging purposes.
+	 */
+	virtual void DebugPrintQueryCallbacks(FOutputDevice& Output) = 0;
 	
 	/**
 	 * @section Query

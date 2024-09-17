@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
+#include "Features/IModularFeature.h"
 #include "Templates/Function.h"
 #include "UObject/Interface.h"
 #include "UObject/ObjectKey.h"
@@ -11,22 +12,12 @@
 #include "UObject/StrongObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
-#include "TypedElementDataStorageCompatibilityInterface.generated.h"
-
-UINTERFACE(MinimalAPI)
-class UEditorDataStorageCompatibilityProvider : public UInterface
-{
-	GENERATED_BODY()
-};
-
 /**
  * Interface to provide compatibility with existing systems that don't directly
  * support the data storage.
  */
-class IEditorDataStorageCompatibilityProvider
+class IEditorDataStorageCompatibilityProvider : public IModularFeature
 {
-	GENERATED_BODY()
-
 public:
 	using ObjectRegistrationFilter = TFunction<bool(const IEditorDataStorageCompatibilityProvider&, const UObject*)>;
 	using ObjectToRowDealiaser = TFunction<UE::Editor::DataStorage::RowHandle(const IEditorDataStorageCompatibilityProvider&, const UObject*)>;
