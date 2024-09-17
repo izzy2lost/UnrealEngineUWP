@@ -6,17 +6,30 @@
 #include "IAssetTools.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Model/DynamicMaterialModel.h"
+#include "Model/DynamicMaterialModelDynamic.h"
 #include "ThumbnailRendering/SceneThumbnailInfoWithPrimitive.h"
 
 #define LOCTEXT_NAMESPACE "AssetDefinition_DynamicMaterialInstance"
 
 FText UAssetDefinition_DynamicMaterialInstance::GetAssetDisplayName() const
 {
-	return LOCTEXT("MaterialDesigner", "Material Designer Material");
+	return LOCTEXT("MaterialDesigner", "Material Designer");
 }
 
 FText UAssetDefinition_DynamicMaterialInstance::GetAssetDisplayName(const FAssetData& InAssetData) const
 {
+	const FString ModelTypeTag = UDynamicMaterialInstance::GetMaterialTypeTag(InAssetData);
+
+	if (ModelTypeTag == UDynamicMaterialInstance::ModelTypeTag_Material)
+	{
+		return LOCTEXT("MaterialDesignerMaterial", "MD Material");
+	}
+
+	if (ModelTypeTag == UDynamicMaterialInstance::ModelTypeTag_Instance)
+	{
+		return LOCTEXT("MaterialDesignerInstance", "MD Instance");
+	}
+
 	return GetAssetDisplayName();
 }
 
@@ -32,7 +45,7 @@ FLinearColor UAssetDefinition_DynamicMaterialInstance::GetAssetColor() const
 
 TConstArrayView<FAssetCategoryPath> UAssetDefinition_DynamicMaterialInstance::GetAssetCategories() const
 {
-	static const TArray<FAssetCategoryPath> Categories = {EAssetCategoryPaths::Material};
+	static TArray<FAssetCategoryPath> Categories = {EAssetCategoryPaths::Material};
 	return Categories;
 }
 

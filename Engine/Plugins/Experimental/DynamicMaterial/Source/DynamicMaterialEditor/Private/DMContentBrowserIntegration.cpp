@@ -23,6 +23,7 @@
 #include "PackageTools.h"
 #include "ScopedTransaction.h"
 #include "Styling/SlateIconFinder.h"
+#include "Utils/DMMaterialModelFunctionLibrary.h"
 
 #define LOCTEXT_NAMESPACE "FDMContentBrowserIntegration"
 
@@ -153,7 +154,7 @@ void FDMContentBrowserIntegration::OnCreateMaterialDesignerMaterialFromTextureSe
 	FString UniquePackageName;
 	FString UniqueAssetName;
 
-	const FString BasePackageName = InPath / TEXT("MDI_NewMaterial");
+	const FString BasePackageName = InPath / TEXT("MD_NewMaterial");
 	AssetToolsModule.Get().CreateUniqueAssetName(BasePackageName, TEXT(""), UniquePackageName, UniqueAssetName);
 
 	UPackage* Package = CreatePackage(*UniquePackageName);
@@ -327,9 +328,11 @@ void FDMContentBrowserIntegration::CreateModelInstance(UDynamicMaterialModel* In
 		return;
 	}
 
+	const FString CurrentName = TEXT("MDM_") + UDMMaterialModelFunctionLibrary::RemoveAssetPrefix(InModel->GetName());
+
 	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
 	FString PackageName, AssetName;
-	AssetTools.CreateUniqueAssetName(InModel->GetName(), TEXT(""), PackageName, AssetName);
+	AssetTools.CreateUniqueAssetName(CurrentName, TEXT(""), PackageName, AssetName);
 
 	IContentBrowserSingleton& ContentBrowser = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser").Get();
 	const FContentBrowserItemPath CurrentPath = ContentBrowser.GetCurrentPath();
@@ -430,10 +433,7 @@ void FDMContentBrowserIntegration::CreateMaterialInstance(UDynamicMaterialInstan
 	ModelDynamic->SetDynamicMaterialInstance(Instance);
 	Instance->InitializeMIDPublic();
 
-	FString CurrentName = InInstance->GetName();
-	CurrentName = CurrentName.StartsWith(TEXT("MDI_"))
-		? (TEXT("MDD_") + CurrentName.RightChop(4))
-		: (TEXT("MDD_") + CurrentName);
+	const FString CurrentName = TEXT("MDI_") + UDMMaterialModelFunctionLibrary::RemoveAssetPrefix(InInstance->GetName());
 
 	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
 	FString PackageName, AssetName;
