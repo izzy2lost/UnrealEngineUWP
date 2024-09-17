@@ -3289,7 +3289,7 @@ EBlendMode ConvertLegacyBlendMode(EBlendMode InBlendMode, FMaterialShadingModelF
 
 #if WITH_EDITOR
 
-void UMaterial::ConvertMaterialToSubstrateMaterial()
+bool UMaterial::ConvertMaterialToSubstrateMaterial()
 {
 	/*
 	* The data flow for legacy material conversion node that can be used in isolation is as such:
@@ -3309,7 +3309,7 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 	*/
 	if (!Substrate::IsSubstrateEnabled())
 	{
-		return;
+		return false;
 	}
 
 	// Store current node post from the root node.
@@ -3953,6 +3953,8 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 		// We might have moved connections above so update the CachedExpressionData from the EditorOnly connection data (ground truth).
 		UpdateCachedExpressionData();
 	}
+
+	return bInvalidateShader;
 }
 #endif // WITH_EDITOR
 
@@ -4262,9 +4264,16 @@ void UMaterial::PostLoad()
 #endif
 
 #if WITH_EDITOR
-	// Substrate materials conversion needs to be done after expressions are cached, otherwise material function won't have 
-	// valid inputs in certain cases
-	ConvertMaterialToSubstrateMaterial();
+	if (Substrate::IsSubstrateEnabled())
+	{
+		// Substrate materials conversion needs to be done after expressions are cached, otherwise material function won't have 
+		// valid inputs in certain cases
+		if (ConvertMaterialToSubstrateMaterial())
+		{
+			// Call PropagateDataToMaterialProxy in order to propagate Subsurface profiles and specular profiles data to the material proxy
+			PropagateDataToMaterialProxy();
+		}
+	}
 #endif // WITH_EDITOR
 
 	checkf(CachedExpressionData, TEXT("Missing cached expression data for material, should have been either serialized or created during PostLoad"));

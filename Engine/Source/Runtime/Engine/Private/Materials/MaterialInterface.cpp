@@ -1601,6 +1601,7 @@ void UMaterialInterface::UpdateMaterialRenderProxy(FMaterialRenderProxy& Proxy)
 	{
 		FMaterialRenderProxy* InProxy = &Proxy;
 
+		// Specular profiles
 		{
 			struct FEntry
 			{
@@ -1625,21 +1626,25 @@ void UMaterialInterface::UpdateMaterialRenderProxy(FMaterialRenderProxy& Proxy)
 				}
 			}
 
-			ENQUEUE_RENDER_COMMAND(UpdateMaterialRenderProxySpecular)(
-			[InProxy, Entries](FRHICommandListImmediate& RHICmdList)
+			if (Entries.Num() > 0)
 			{
-				for (const FEntry& Entry : Entries)
+				ENQUEUE_RENDER_COMMAND(UpdateMaterialRenderProxySpecular)(
+				[InProxy, Entries](FRHICommandListImmediate& RHICmdList)
 				{
-					if (Entry.Profile)
+					for (const FEntry& Entry : Entries)
 					{
-						const uint32 AllocationId = SpecularProfile::AddOrUpdateProfile(Entry.Profile, Entry.Guid, Entry.Settings, Entry.Texture);
-						check(AllocationId >= 0 && AllocationId < MAX_SPECULAR_PROFILE_COUNT);
+						if (Entry.Profile)
+						{
+							const uint32 AllocationId = SpecularProfile::AddOrUpdateProfile(Entry.Profile, Entry.Guid, Entry.Settings, Entry.Texture);
+							check(AllocationId >= 0 && AllocationId < MAX_SPECULAR_PROFILE_COUNT);
+						}
+						InProxy->AddSpecularProfileRT(Entry.Profile);
 					}
-					InProxy->AddSpecularProfileRT(Entry.Profile);
-				}
-			});
+				});
+			}
 		}
 
+		// Subsurface profiles
 		{
 			struct FEntry
 			{
