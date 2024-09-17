@@ -107,16 +107,6 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 	// 4. Initialize and parse incoming data for data sizes, attributes, etc that will drive buffer allocations and dispatch thread counts.
 	if (!Context->DataBinding)
 	{
-		for (TWeakObjectPtr<const UPCGNode> Node : Graph->KernelToNode)
-		{
-			const UPCGSettings* Settings = Node.Get() ? Node->GetSettings() : nullptr;
-
-			if (!Settings || !Settings->IsKernelValid(Context, /*bQuiet=*/false))
-			{
-				return true;
-			}
-		}
-
 		// When attribute table was built at compile time, some attribute types may not be known. Fill them out now.
 		Graph->FillInMissingAttributeTableTypes(Context->InputData);
 
@@ -140,6 +130,17 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 		}
 
 		DataForGPU.InputPinLabelAliases = Graph->InputPinLabelAliases;
+
+		// Perform validation after input data is initialized.
+		for (TWeakObjectPtr<const UPCGNode> Node : Graph->KernelToNode)
+		{
+			const UPCGSettings* Settings = Node.Get() ? Node->GetSettings() : nullptr;
+
+			if (!Settings || !Settings->IsKernelValid(Context, /*bQuiet=*/false))
+			{
+				return true;
+			}
+		}
 
 		const bool bAnyComponentsSetup = SetupProceduralISMComponents(InContext, DataBindingObject);
 
