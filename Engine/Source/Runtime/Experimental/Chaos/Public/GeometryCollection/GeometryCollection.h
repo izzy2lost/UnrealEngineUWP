@@ -152,10 +152,10 @@ public:
 		const TManagedArray<int32>& RawStatusFlagsArray,
 		FGeometryCollectionDefaults InDefaults = FGeometryCollectionDefaults());
 
-	//
-	//
-	//
-
+	/**
+	* Append a FGeometryCollection to a FGeometryCollection
+	*/
+	CHAOS_API void AppendCollection(const FGeometryCollection& InCollection);
 
 	/** 
 	* Append a single geometric object to a FGeometryCollection 
@@ -388,6 +388,7 @@ protected:
 		return 10;
 	}
 
+	CHAOS_API virtual void Append(const FManagedArrayCollection& InCollection) override;
 
 public:
 	/* Backwards compatibility */

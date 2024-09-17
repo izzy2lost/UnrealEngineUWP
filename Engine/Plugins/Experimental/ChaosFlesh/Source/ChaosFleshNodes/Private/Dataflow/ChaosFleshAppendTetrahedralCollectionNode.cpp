@@ -18,7 +18,7 @@ void FAppendTetrahedralCollectionDataflowNode::Evaluate(Dataflow::FContext& Cont
 		}
 		if (InCollection2)
 		{
-			InCollection1->AppendGeometry(*InCollection2);
+			InCollection1->AppendCollection(*InCollection2);
 		}		
 		if (const TManagedArray<FString>* GuidArray2 = InCollection2->FindAttribute<FString>("Guid", FGeometryCollection::GeometryGroup))
 		{
