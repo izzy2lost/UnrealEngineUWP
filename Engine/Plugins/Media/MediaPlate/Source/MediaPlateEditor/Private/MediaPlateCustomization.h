@@ -186,4 +186,6 @@ private:
 	void StopMediaPlates();
 
 	UMediaPlayer* GetMediaPlayer() const;
+
+	TArray<TWeakObjectPtr<UMediaPlayer>> GetMediaPlayers() const;
 };

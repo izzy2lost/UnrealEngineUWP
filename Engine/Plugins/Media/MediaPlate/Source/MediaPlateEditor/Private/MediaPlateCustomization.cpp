@@ -94,7 +94,7 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 	if (IMediaPlayerEditorModule* MediaPlayerEditorModule = FModuleManager::LoadModulePtr<IMediaPlayerEditorModule>("MediaPlayerEditor"))
 	{
 		const TSharedRef<IMediaPlayerSlider> MediaPlayerSlider =
-			MediaPlayerEditorModule->CreateMediaPlayerSliderWidget(GetMediaPlayer());
+			MediaPlayerEditorModule->CreateMediaPlayerSliderWidget(GetMediaPlayers());
 
 		MediaPlayerSlider->SetSliderHandleColor(FSlateColor(EStyleColor::AccentBlue));
 		MediaPlayerSlider->SetVisibleWhenInactive(EVisibility::Visible);
@@ -1010,6 +1010,24 @@ UMediaPlayer* FMediaPlateCustomization::GetMediaPlayer() const
 	}
 
 	return nullptr;
+}
+
+TArray<TWeakObjectPtr<UMediaPlayer>> FMediaPlateCustomization::GetMediaPlayers() const
+{
+	TArray<TWeakObjectPtr<UMediaPlayer>> MediaPlayers;
+	MediaPlayers.Reserve(MediaPlatesList.Num());
+	
+	for (const TWeakObjectPtr<UMediaPlateComponent>& MediaPlateWeak : MediaPlatesList)
+	{
+		if (UMediaPlateComponent* MediaPlate = MediaPlateWeak.Get())
+		{
+			if (UMediaPlayer* MediaPlayer = MediaPlate->GetMediaPlayer())
+			{
+				MediaPlayers.Add(MediaPlayer);
+			}
+		}
+	}
+	return MediaPlayers;
 }
 
 void FMediaPlateCustomization::CustomizeCategories(IDetailLayoutBuilder& InDetailBuilder)

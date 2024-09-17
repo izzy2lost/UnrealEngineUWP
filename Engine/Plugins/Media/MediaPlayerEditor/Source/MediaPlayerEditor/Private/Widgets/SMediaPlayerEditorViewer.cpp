@@ -74,6 +74,8 @@ void SMediaPlayerEditorViewer::Construct(const FArguments& InArgs, UMediaPlayer&
 	MediaPlayer->OnMediaEvent().AddSP(this, &SMediaPlayerEditorViewer::HandleMediaPlayerMediaEvent);
 	MediaPlayer->SetDesiredPlayerName(NAME_None);
 
+	TWeakObjectPtr<UMediaPlayer> MediaPlayerWeak(&InMediaPlayer);
+	
 	FName DesiredPlayerName = GetDefault<UMediaPlayerEditorSettings>()->DesiredPlayerName;
 
 	if (DesiredPlayerName != NAME_None)
@@ -374,7 +376,7 @@ void SMediaPlayerEditorViewer::Construct(const FArguments& InArgs, UMediaPlayer&
 											.VAlign(VAlign_Top)
 											[
 												// time slider
-												SNew(SMediaPlayerSlider, MediaPlayer)
+												SNew(SMediaPlayerSlider, MakeArrayView(&MediaPlayerWeak, 1))
 												.ToolTipText( LOCTEXT("PlaybackPosition", "Current Playback Position"))
 												.Style(&InStyle->GetWidgetStyle<FSliderStyle>("MediaPlayerEditor.Scrubber"))
 											]
