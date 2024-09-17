@@ -97,7 +97,7 @@ public:
 
 	/** Specifies what attribute to write the component reference to. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, PCG_DiscardPropertySelection, PCG_DiscardExtraSelection))
-	FPCGAttributePropertyOutputSelector ComponentReferenceAttribute;
+	FPCGAttributePropertyOutputNoSourceSelector ComponentReferenceAttribute;
 
 protected:
 #if WITH_EDITOR
