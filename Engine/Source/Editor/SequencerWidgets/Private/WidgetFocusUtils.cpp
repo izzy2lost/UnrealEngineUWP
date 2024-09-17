@@ -21,17 +21,23 @@ FPendingWidgetFocus FPendingWidgetFocus::MakeNoTextEdit()
 FPendingWidgetFocus::~FPendingWidgetFocus()
 {
 	PendingFocusFunction.Reset();
+	
+	FSlateApplication& SlateApplication = FSlateApplication::Get();
 	if (PreInputKeyDownHandle.IsValid())
 	{
-		FSlateApplication& SlateApplication = FSlateApplication::Get();
 		SlateApplication.OnApplicationPreInputKeyDownListener().Remove(PreInputKeyDownHandle);
 		PreInputKeyDownHandle.Reset();
+	}
+	if (PreInputButtonDownHandle.IsValid())
+	{
+		SlateApplication.OnApplicationMousePreInputButtonDownListener().Remove(PreInputButtonDownHandle);
+		PreInputButtonDownHandle.Reset();
 	}
 }
 
 void FPendingWidgetFocus::SetPendingFocusIfNeeded(const TWeakPtr<SWidget>& InWidget)
 {
-	if (!PreInputKeyDownHandle.IsValid())
+	if (!IsEnabled())
 	{
 		return;
 	}
@@ -68,18 +74,24 @@ void FPendingWidgetFocus::Enable(const bool InEnabled)
 		SlateApplication.OnApplicationPreInputKeyDownListener().Remove(PreInputKeyDownHandle);
 		PreInputKeyDownHandle.Reset();
 	}
+	if (PreInputButtonDownHandle.IsValid())
+	{
+		SlateApplication.OnApplicationMousePreInputButtonDownListener().Remove(PreInputButtonDownHandle);
+		PreInputButtonDownHandle.Reset();
+	}
 	
 	PendingFocusFunction.Reset();
 	
 	if (InEnabled)
 	{
 		PreInputKeyDownHandle = SlateApplication.OnApplicationPreInputKeyDownListener().AddRaw(this, &FPendingWidgetFocus::OnPreInputKeyDown);
+		PreInputButtonDownHandle = SlateApplication.OnApplicationMousePreInputButtonDownListener().AddRaw(this, &FPendingWidgetFocus::OnPreInputButtonDown);
 	}
 }
 
 bool FPendingWidgetFocus::IsEnabled() const
 {
-	return PreInputKeyDownHandle.IsValid();
+	return PreInputKeyDownHandle.IsValid() && PreInputButtonDownHandle.IsValid();
 }
 	
 void FPendingWidgetFocus::OnPreInputKeyDown(const FKeyEvent&)
@@ -89,6 +101,13 @@ void FPendingWidgetFocus::OnPreInputKeyDown(const FKeyEvent&)
 		PendingFocusFunction();
 		PendingFocusFunction.Reset();
 	}
+}
+
+void FPendingWidgetFocus::OnPreInputButtonDown(const FPointerEvent&)
+{
+	// remove any pending focus as clicking a mouse button will set the focus
+	// so this pending function should not interfere.
+	PendingFocusFunction.Reset();
 }
 
 bool FPendingWidgetFocus::CanFocusBeStolen() const

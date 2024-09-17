@@ -8,6 +8,7 @@
 
 class SWidget;
 struct FKeyEvent;
+struct FPointerEvent;
 
 /**
  * FPendingWidgetFocus is a utility class that stores a pending focus function when a SWidget is hovered over.
@@ -36,10 +37,12 @@ public:
 private:
 	
 	void OnPreInputKeyDown(const FKeyEvent&);
+	void OnPreInputButtonDown(const FPointerEvent&);
 	bool CanFocusBeStolen() const;
 
 	TFunction<void()> PendingFocusFunction;
 	FDelegateHandle PreInputKeyDownHandle;
+	FDelegateHandle PreInputButtonDownHandle;
 
 	TArray<FName> KeepingFocus;
 };
