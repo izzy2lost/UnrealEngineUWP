@@ -1191,8 +1191,17 @@ FNaniteGeometryCollectionSceneProxy::FNaniteGeometryCollectionSceneProxy(UGeomet
 
 	CollisionResponse = Component->GetCollisionResponseToChannels();
 
-	FGeometryCollectionDynamicData* DynamicData = Component->InitDynamicData(true);
-	SetDynamicData_RenderThread(DynamicData, Component->GetRenderMatrix());
+	FGeometryCollectionDynamicData* InitDynamicData = Component->InitDynamicData(true);
+	SetDynamicData_RenderThread(InitDynamicData, Component->GetRenderMatrix());
+}
+
+FNaniteGeometryCollectionSceneProxy::~FNaniteGeometryCollectionSceneProxy()
+{
+	if (DynamicData != nullptr)
+	{
+		GDynamicDataPool.Release(DynamicData);
+		DynamicData = nullptr;
+	}
 }
 
 void FNaniteGeometryCollectionSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
@@ -1266,6 +1275,9 @@ uint32 FNaniteGeometryCollectionSceneProxy::GetMemoryFootprint() const
 
 void FNaniteGeometryCollectionSceneProxy::OnTransformChanged(FRHICommandListBase& RHICmdList)
 {
+	Super::OnTransformChanged(RHICmdList);
+
+	SetDynamicData_RenderThread(DynamicData, GetLocalToWorld());
 }
 
 void FNaniteGeometryCollectionSceneProxy::GetNaniteResourceInfo(uint32& ResourceID, uint32& HierarchyOffset, uint32& ImposterIndex) const
@@ -1298,6 +1310,16 @@ Nanite::FResourceMeshInfo FNaniteGeometryCollectionSceneProxy::GetResourceMeshIn
 
 void FNaniteGeometryCollectionSceneProxy::SetDynamicData_RenderThread(FGeometryCollectionDynamicData* NewDynamicData, const FMatrix &PrimitiveLocalToWorld)
 {
+	if (NewDynamicData != DynamicData)
+	{
+		if (DynamicData)
+		{
+			GDynamicDataPool.Release(DynamicData);
+			DynamicData = nullptr;
+		}
+		DynamicData = NewDynamicData;
+	}
+
 	// Are we currently simulating?
 	if (NewDynamicData->IsDynamic)
 	{
@@ -1369,8 +1391,6 @@ void FNaniteGeometryCollectionSceneProxy::SetDynamicData_RenderThread(FGeometryC
 		// Rendering base geometry, use rest transforms rather than simulated transforms.
 		// ...
 	}
-
-	GDynamicDataPool.Release(NewDynamicData);
 }
 
 void FNaniteGeometryCollectionSceneProxy::ResetPreviousTransforms_RenderThread()

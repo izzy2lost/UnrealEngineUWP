@@ -336,7 +336,7 @@ public:
 	using Super = Nanite::FSceneProxyBase;
 	
 	FNaniteGeometryCollectionSceneProxy(UGeometryCollectionComponent* Component);
-	virtual ~FNaniteGeometryCollectionSceneProxy() = default;
+	virtual ~FNaniteGeometryCollectionSceneProxy();
 
 public:
 	// FPrimitiveSceneProxy interface.
@@ -415,6 +415,8 @@ protected:
 #endif
 
 	FInstanceSceneDataBuffers InstanceSceneDataBuffersImpl;
+
+	FGeometryCollectionDynamicData* DynamicData = nullptr;
 
 	// Geometry collection doesn't currently support baked light maps, so we use this simple empty light cache info for all nanite geometry collection proxies
 	class FEmptyLightCacheInfo : public FLightCacheInterface
