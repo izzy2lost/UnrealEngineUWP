@@ -17,9 +17,12 @@ namespace UE::Editor::DataStorage
 				{
 					return DynamicColumn;
 				}
+
+				// The dynamic column wasn't found on this row
+				return nullptr;
 			}
 
-			// If we weren't provided a dynamic column identifier, or the dynamic column could not be found simply fallback to the non-dynamic column
+			// If we weren't provided a dynamic column identifier, we are looking for the regular non-dynamic column
 			return DataStorage->GetColumn<ColumnType>(Row);
 		}
 		
