@@ -974,6 +974,17 @@ FLinearColor SPCGEditorGraphNode::GetGridLabelColor(EPCGHiGenGrid NodeGrid)
 	{
 	case EPCGHiGenGrid::Unbounded:
 		return FColor(255, 255, 255, 255);
+	case EPCGHiGenGrid::Grid4194304: // fall-through
+	case EPCGHiGenGrid::Grid2097152: // fall-through
+	case EPCGHiGenGrid::Grid1048576: // fall-through
+	case EPCGHiGenGrid::Grid524288: // fall-through
+	case EPCGHiGenGrid::Grid262144: // fall-through
+	case EPCGHiGenGrid::Grid131072: // fall-through
+	case EPCGHiGenGrid::Grid65536: // fall-through
+	case EPCGHiGenGrid::Grid32768: // fall-through
+	case EPCGHiGenGrid::Grid16384: // fall-through
+	case EPCGHiGenGrid::Grid8192: // fall-through
+	case EPCGHiGenGrid::Grid4096: // fall-through
 	case EPCGHiGenGrid::Grid2048:
 		return FColor(53, 60, 171, 255);
 	case EPCGHiGenGrid::Grid1024:

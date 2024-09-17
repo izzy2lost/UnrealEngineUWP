@@ -1093,7 +1093,7 @@ double UPCGComponent::GetGenerationRadiusFromGrid(EPCGHiGenGrid Grid) const
 	const UPCGGraph* Graph = GetGraph();
 	if (ensure(Graph))
 	{
-		return Graph->GenerationRadii.GetGenerationRadiusFromGrid(Grid);
+		return Graph->GetGridGenerationRadiusFromGrid(Grid);
 	}
 
 	return 0;
@@ -1109,7 +1109,7 @@ double UPCGComponent::GetCleanupRadiusFromGrid(EPCGHiGenGrid Grid) const
 	const UPCGGraph* Graph = GetGraph();
 	if (ensure(Graph))
 	{
-		return Graph->GenerationRadii.GetCleanupRadiusFromGrid(Grid);
+		return Graph->GetGridCleanupRadiusFromGrid(Grid);
 	}
 
 	return 0;

@@ -236,9 +236,20 @@ enum class EPCGHiGenGrid : uint32
 	Grid512 = 512 UMETA(DisplayName = "51200"),
 	Grid1024 = 1024 UMETA(DisplayName = "102400"),
 	Grid2048 = 2048 UMETA(DisplayName = "204800"),
-	
+	Grid4096 = 4096 UMETA(Hidden),
+	Grid8192 = 8192 UMETA(Hidden),
+	Grid16384 = 16384 UMETA(Hidden),
+	Grid32768 = 32768 UMETA(Hidden),
+	Grid65536 = 65536 UMETA(Hidden),
+	Grid131072 = 131072 UMETA(Hidden),
+	Grid262144 = 262144 UMETA(Hidden),
+	Grid524288 = 524288 UMETA(Hidden),
+	Grid1048576 = 1048576 UMETA(Hidden),
+	Grid2097152 = 2097152 UMETA(Hidden),
+	Grid4194304 = 4194304 UMETA(Hidden),
+
 	GridMin = Grid4 UMETA(Hidden),
-	GridMax = Grid2048 UMETA(Hidden),
+	GridMax = Grid4194304 UMETA(Hidden),
 
 	// Should execute once rather than executing on any grid
 	Unbounded = 1u << 31,

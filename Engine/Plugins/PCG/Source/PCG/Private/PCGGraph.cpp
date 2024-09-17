@@ -530,7 +530,7 @@ void UPCGGraph::AddReferencedObjects(UObject* InThis, FReferenceCollector& Colle
 uint32 UPCGGraph::GetDefaultGridSize() const
 {
 	ensure(IsHierarchicalGenerationEnabled());
-	return PCGHiGenGrid::IsValidGrid(HiGenGridSize) ? PCGHiGenGrid::GridToGridSize(HiGenGridSize) : PCGHiGenGrid::UnboundedGridSize();
+	return PCGHiGenGrid::IsValidGrid(HiGenGridSize) ? (PCGHiGenGrid::GridToGridSize(HiGenGridSize) * (1 << HiGenExponential)) : PCGHiGenGrid::UnboundedGridSize();
 }
 
 UPCGNode* UPCGGraph::AddNodeOfType(TSubclassOf<class UPCGSettings> InSettingsClass, UPCGSettings*& OutDefaultNodeSettings)
@@ -1087,6 +1087,46 @@ void UPCGGraph::GetGridSizes(PCGHiGenGrid::FSizeArray& OutGridSizes, bool& bOutH
 	return;
 }
 
+double UPCGGraph::GetGridGenerationRadiusFromGrid(EPCGHiGenGrid Grid) const
+{
+	if (Grid == EPCGHiGenGrid::Unbounded || Grid == EPCGHiGenGrid::Uninitialized)
+	{
+		return GenerationRadii.GetGenerationRadiusFromGrid(Grid);
+	}
+	// If the queried grid is smaller than the min grid including the exponent, we'll take the min grid and scale it down
+	else if (static_cast<uint32>(Grid) < (static_cast<uint32>(EPCGHiGenGrid::GridMin) << HiGenExponential))
+	{
+		check(static_cast<uint32>(Grid) >= static_cast<uint32>(EPCGHiGenGrid::GridMin));
+		uint32 Multiplier = static_cast<uint32>(Grid) / static_cast<uint32>(EPCGHiGenGrid::GridMin);
+		return GenerationRadii.GetGenerationRadiusFromGrid(EPCGHiGenGrid::GridMin) * Multiplier;
+	}
+	else
+	{
+		EPCGHiGenGrid AdjustedGrid = static_cast<EPCGHiGenGrid>(static_cast<uint32>(Grid) >> HiGenExponential);
+		return GenerationRadii.GetGenerationRadiusFromGrid(AdjustedGrid) * (1ULL << HiGenExponential);
+	}
+}
+
+double UPCGGraph::GetGridCleanupRadiusFromGrid(EPCGHiGenGrid Grid) const
+{
+	if (Grid == EPCGHiGenGrid::Unbounded || Grid == EPCGHiGenGrid::Uninitialized)
+	{
+		return GenerationRadii.GetGenerationRadiusFromGrid(Grid);
+	}
+	// If the queried grid is smaller than the min grid including the exponent, we'll take the min grid and scale it down
+	else if (static_cast<uint32>(Grid) < (static_cast<uint32>(EPCGHiGenGrid::GridMin) << HiGenExponential))
+	{
+		check(static_cast<uint32>(Grid) >= static_cast<uint32>(EPCGHiGenGrid::GridMin));
+		uint32 Multiplier = static_cast<uint32>(Grid) / static_cast<uint32>(EPCGHiGenGrid::GridMin);
+		return GenerationRadii.GetCleanupRadiusFromGrid(EPCGHiGenGrid::GridMin) * Multiplier;
+	}
+	else
+	{
+		EPCGHiGenGrid AdjustedGrid = static_cast<EPCGHiGenGrid>(static_cast<uint32>(Grid) >> HiGenExponential);
+		return GenerationRadii.GetCleanupRadiusFromGrid(AdjustedGrid) * (1ULL << HiGenExponential);
+	}
+}
+
 #if WITH_EDITOR
 void UPCGGraph::DisableNotificationsForEditor()
 {
@@ -1452,7 +1492,8 @@ void UPCGGraph::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEve
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(UPCGGraph, HiGenGridSize)
 		|| PropertyName == GET_MEMBER_NAME_CHECKED(UPCGGraph, bUseHierarchicalGeneration)
-		|| PropertyName == GET_MEMBER_NAME_CHECKED(UPCGGraph, bUse2DGrid))
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UPCGGraph, bUse2DGrid)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UPCGGraph, HiGenExponential))
 	{
 		// The higen settings change the structure of the graph (presence or absence of links between grid levels).
 		NotifyGraphChanged(EPCGChangeType::Structural | EPCGChangeType::GenerationGrid);

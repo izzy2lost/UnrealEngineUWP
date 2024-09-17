@@ -254,7 +254,7 @@ public:
 	bool bIgnoreLandscapeTracking = false;
 #endif
 
-	UPROPERTY(EditAnywhere, Category = Settings)
+	UPROPERTY(EditAnywhere, Category = "Settings|Advanced")
 	bool bLandscapeUsesMetadata = true;
 
 	/** Creates a node using the given settings interface. Does not manage ownership - done outside of this method. */
@@ -329,6 +329,15 @@ public:
 
 	/** Determine the relevant grid sizes by inspecting all HiGenGridSize nodes. */
 	void GetGridSizes(PCGHiGenGrid::FSizeArray& OutGridSizes, bool& bOutHasUnbounded) const;
+
+	/** Returns exponential on grid size, which represents a shift in the grid */
+	uint32 GetGridExponential() const { return HiGenExponential; }
+
+	/** Gets generation radius from grid, considering grid exponential. */
+	double GetGridGenerationRadiusFromGrid(EPCGHiGenGrid Grid) const;
+
+	/** Gets cleanup radius from grid, considering grid exponential. */
+	double GetGridCleanupRadiusFromGrid(EPCGHiGenGrid Grid) const;
 
 #if WITH_EDITOR
 	void DisableNotificationsForEditor();
@@ -423,6 +432,10 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (DisplayName = "HiGen Default Grid Size", EditCondition = "bUseHierarchicalGeneration"))
 	EPCGHiGenGrid HiGenGridSize = EPCGHiGenGrid::Grid256;
+
+	/** Shifts the grid sizes upwards based on the value, which allows to use larger grids. A value of 1 will effectively use the graph's Grid-400 values x 2 for the actual Grid-800 sizes and so on. */
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (ClampMax = "10", DisplayName = "HiGen Grid Size Exponential", EditCondition = "bUseHierarchicalGeneration"))
+	uint32 HiGenExponential = 0;
 
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (DisplayName = "2D Grid"))
 	bool bUse2DGrid = true;

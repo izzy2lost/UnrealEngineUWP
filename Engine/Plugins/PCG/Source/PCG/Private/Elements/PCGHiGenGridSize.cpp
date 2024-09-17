@@ -18,6 +18,24 @@ namespace PCGHiGenGridSizeConstants
 	const FName CellVolumeOutputLabel = TEXT("Grid Cell Volume");
 }
 
+EPCGHiGenGrid UPCGHiGenGridSizeSettings::GetGrid() const
+{
+	if (GetOuter() && GetOuter()->GetOuter() && GetOuter()->GetOuter()->IsA<UPCGGraph>())
+	{
+		UPCGGraph* Graph = Cast<UPCGGraph>(GetOuter()->GetOuter());
+		return static_cast<EPCGHiGenGrid>(static_cast<uint32>(HiGenGridSize) << Graph->GetGridExponential());
+	}
+	else
+	{
+		return HiGenGridSize;
+	}
+}
+
+uint32 UPCGHiGenGridSizeSettings::GetGridSize() const
+{
+	return (HiGenGridSize == EPCGHiGenGrid::Unbounded) ? PCGHiGenGrid::UnboundedGridSize() : PCGHiGenGrid::GridToGridSize(GetGrid());
+}
+
 #if WITH_EDITOR
 FName UPCGHiGenGridSizeSettings::GetDefaultNodeName() const
 {
