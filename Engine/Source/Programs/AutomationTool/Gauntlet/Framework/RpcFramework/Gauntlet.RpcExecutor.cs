@@ -744,7 +744,6 @@ namespace Gauntlet
 			// We might timeout calling CallRpc on a client that's closing - we do not want this to be a fail;
 			try
 			{
-				ExecutorClient.Timeout = new TimeSpan(0, 0, 0, 0, Timeout);
 				HttpResponseMessage RpcResponse = ExecutorClient.Send(RpcRequest);
 				return RpcResponse;
 			}
@@ -800,8 +799,7 @@ namespace Gauntlet
         	// We might timeout calling CallRpc on a client that's closing - we do not want this to be a fail;
         	try
         	{
-				ExecutorClient.Timeout = new TimeSpan(0, 0, 0, 0, Timeout);
-				HttpResponseMessage RpcResponse = ExecutorClient.Send(RpcRequest);
+        		HttpResponseMessage RpcResponse = ExecutorClient.Send(RpcRequest);
         		return RpcResponse;
         	}
         	catch (Exception e)
