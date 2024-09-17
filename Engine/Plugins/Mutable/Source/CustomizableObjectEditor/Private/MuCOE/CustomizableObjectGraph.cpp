@@ -21,9 +21,6 @@ void UCustomizableObjectGraph::PostLoad()
 	Super::PostLoad();
 
 	// TODO UE-222779 If compatibility code has to be executed, loaded the full hierarchy and in sync the BackwardsCompatibleFixup 
-	
-	// Make sure the Object has executed its compatibility code.
-	GetOuter()->ConditionalPostLoad();
 
 	// Make sure all nodes have finished loading.
 	for (UEdGraphNode* Node : Nodes)
@@ -44,38 +41,41 @@ void UCustomizableObjectGraph::PostLoad()
 			Pin->LinkedTo.RemoveAll([](UEdGraphPin* Other) { return Other == nullptr; });
 		}
 	}
+}
 
-	// Execute backwards compatible code for all nodes. It requires all nodes to be loaded.
-	for (int32 Version = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID) + 1; Version <= FCustomizableObjectCustomVersion::LatestVersion; ++Version)
+
+void UCustomizableObjectGraph::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
+{
+	TArray<TObjectPtr<UEdGraphNode>> NodesCopy = Nodes; // Copy to be able to remove nodes inside the BackwardsCompatibleFixup.
+	for (UEdGraphNode* Node : NodesCopy)
 	{
-		TArray<TObjectPtr<UEdGraphNode>> NodesCopy = Nodes; // Copy to be able to remove nodes inside the BackwardsCompatibleFixup.
-		for (UEdGraphNode* Node : NodesCopy)
+		if (UCustomizableObjectNode* CustomizableObjectNode = Cast<UCustomizableObjectNode>(Node))
 		{
-			if (UCustomizableObjectNode* CustomizableObjectNode = Cast<UCustomizableObjectNode>(Node))
+			TArray<UEdGraphPin*> PinsCopy = CustomizableObjectNode->GetAllPins(); // Copy to be able to remove pins inside the BackwardsCompatibleFixup.
+			for (UEdGraphPin* Pin : PinsCopy)
 			{
-				TArray<UEdGraphPin*> PinsCopy = CustomizableObjectNode->GetAllPins(); // Copy to be able to remove pins inside the BackwardsCompatibleFixup.
-				for (UEdGraphPin* Pin : PinsCopy)
+				if (!Pin)
 				{
-					if (!Pin)
-					{
-						continue;
-					}
-					
-					UCustomizableObjectNodePinData* PinData = CustomizableObjectNode->GetPinData(*Pin);
-					if (!PinData)
-					{
-						continue;
-					}
-					
-					PinData->BackwardsCompatibleFixup(Version);
+					continue;
 				}
-				
-				CustomizableObjectNode->BackwardsCompatibleFixup(Version);
+					
+				UCustomizableObjectNodePinData* PinData = CustomizableObjectNode->GetPinData(*Pin);
+				if (!PinData)
+				{
+					continue;
+				}
+					
+				PinData->BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
 			}
+				
+			CustomizableObjectNode->BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
 		}
 	}
+}
 
 
+void UCustomizableObjectGraph::PostBackwardsCompatibleFixup()
+{
 	// Do any additional work which require nodes to be valid (i.e., have executed BackwardsCompatibleFixup).
 	TArray<TObjectPtr<UEdGraphNode>> NodesCopy = Nodes; // Copy to be able to remove nodes inside the PostBackwardsCompatibleFixup.
 	for (UEdGraphNode* Node : NodesCopy)

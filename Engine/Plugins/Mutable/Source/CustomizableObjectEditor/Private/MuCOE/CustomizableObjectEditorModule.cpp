@@ -78,6 +78,7 @@
 #include "MuCOE/CustomizableObjectInstanceBaker.h"
 #include "Editor.h"
 #include "MuCO/CustomizableObjectSystemPrivate.h"
+#include "MuCOE/CustomizableObjectGraph.h"
 #include "Nodes/CustomizableObjectNodeComponentMeshDetails.h"
 
 class AActor;
@@ -735,6 +736,24 @@ TMap<FName, FGuid> FCustomizableObjectEditorModule::GetParticipatingObjects(cons
 	GenerateMutableRoot(Object, Context);
 
 	return Context.ParticipatingObjects;
+}
+
+
+void FCustomizableObjectEditorModule::BackwardsCompatibleFixup(UEdGraph& Graph, int32 CustomizableObjectCustomVersion)
+{
+	if (UCustomizableObjectGraph* COGraph = Cast<UCustomizableObjectGraph>(&Graph))
+	{
+		COGraph->BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
+	}
+}
+
+
+void FCustomizableObjectEditorModule::PostBackwardsCompatibleFixup(UEdGraph& Graph)
+{
+	if (UCustomizableObjectGraph* COGraph = Cast<UCustomizableObjectGraph>(&Graph))
+	{
+		COGraph->PostBackwardsCompatibleFixup();
+	}
 }
 
 
