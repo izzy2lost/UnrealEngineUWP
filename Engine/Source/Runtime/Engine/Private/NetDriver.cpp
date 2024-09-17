@@ -60,7 +60,7 @@
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/ReplicationView.h"
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilter.h"
-#include "Net/Iris/ReplicationSystem/ActorReplicationBridge.h"
+#include "Net/Iris/ReplicationSystem/EngineReplicationBridge.h"
 #include "Net/Iris/ReplicationSystem/ReplicationSystemUtil.h"
 #endif // UE_WITH_IRIS
 
@@ -3925,7 +3925,7 @@ void UNetDriver::NotifyActorDestroyed(AActor* ThisActor, bool IsSeamlessTravel)
 
 			if (bShouldCreateDestructionInfoForInitiallyDormantActor)
 			{
-				if (UActorReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridgeAs<UActorReplicationBridge>())
+				if (UEngineReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridgeAs<UEngineReplicationBridge>())
 				{
 					const UE::Net::FNetObjectReference Reference = Bridge->GetOrCreateObjectReference(ThisActor);
 					if (Reference.GetRefHandle().IsValid() && Reference.GetRefHandle().IsStatic())
@@ -4048,7 +4048,7 @@ void UNetDriver::DeleteSubObjectOnClients(AActor* Actor, UObject* SubObject)
 #if UE_WITH_IRIS
 	if (ReplicationSystem)
 	{
-		if (UActorReplicationBridge* Bridge = Cast<UActorReplicationBridge>(ReplicationSystem->GetReplicationBridge()))
+		if (UEngineReplicationBridge* Bridge = Cast<UEngineReplicationBridge>(ReplicationSystem->GetReplicationBridge()))
 		{
 			constexpr EEndReplicationFlags EndReplicationFlags = EEndReplicationFlags::Destroy | EEndReplicationFlags::DestroyNetHandle | EEndReplicationFlags::ClearNetPushId;
 			Bridge->StopReplicatingNetObject(SubObject, EndReplicationFlags);
@@ -4068,7 +4068,7 @@ void UNetDriver::TearOffSubObjectOnClients(AActor* Actor, UObject* SubObject)
 #if UE_WITH_IRIS
 	if (ReplicationSystem)
 	{
-		if (UActorReplicationBridge* Bridge = Cast<UActorReplicationBridge>(ReplicationSystem->GetReplicationBridge()))
+		if (UEngineReplicationBridge* Bridge = Cast<UEngineReplicationBridge>(ReplicationSystem->GetReplicationBridge()))
 		{
 			Bridge->StopReplicatingNetObject(SubObject, EEndReplicationFlags::TearOff);
 		}
@@ -4143,7 +4143,7 @@ void UNetDriver::NotifyActorRenamed(AActor* ThisActor, UObject* PreviousOuter, F
 #if UE_WITH_IRIS
 				if (ReplicationSystem)
 				{
-					if (UActorReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridgeAs<UActorReplicationBridge>())
+					if (UEngineReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridgeAs<UEngineReplicationBridge>())
 					{
 						Bridge->ActorChangedLevel(ThisActor, Cast<ULevel>(PreviousOuter));
 					}
@@ -6563,7 +6563,7 @@ void UNetDriver::CreateReplicatedStaticActorDestructionInfo(ULevel* Level, const
 #if UE_WITH_IRIS
 	if (ReplicationSystem)
 	{
-		if (UActorReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridgeAs<UActorReplicationBridge>())
+		if (UEngineReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridgeAs<UEngineReplicationBridge>())
 		{			
 			// Add explicit destruction info for this object
 			UReplicationBridge::FEndReplicationParameters Params;
@@ -6988,7 +6988,7 @@ bool UNetDriver::InitReplicationBridgeClass()
 	else
 	{
 		// Fall back on ActorReplicationBridge
-		ReplicationBridgeClass = UActorReplicationBridge::StaticClass();
+		ReplicationBridgeClass = UEngineReplicationBridge::StaticClass();
 	}
 
 	return ReplicationBridgeClass != nullptr;
@@ -7095,7 +7095,7 @@ void UNetDriver::CreateReplicationSystem(bool bInitAsClient)
 		return;
 	}
 
-	UActorReplicationBridge* ReplicationBridge = NewObject<UActorReplicationBridge>(GetTransientPackage(), ReplicationBridgeClass);
+	UEngineReplicationBridge* ReplicationBridge = NewObject<UEngineReplicationBridge>(GetTransientPackage(), ReplicationBridgeClass);
 	if (ReplicationBridge)
 	{
 		ReplicationBridge->SetNetDriver(this);

@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#include "Net/Iris/ReplicationSystem/ActorReplicationBridge.h"
+#include "Net/Iris/ReplicationSystem/EngineReplicationBridge.h"
 
-#include UE_INLINE_GENERATED_CPP_BY_NAME(ActorReplicationBridge)
+#include UE_INLINE_GENERATED_CPP_BY_NAME(EngineReplicationBridge)
 
 #if UE_WITH_IRIS
 
@@ -90,7 +90,7 @@ bool IsActorValidForIrisReplication(const AActor* Actor)
 
 void ActorReplicationBridgePreUpdateFunction(TArrayView<UObject*> Instances, const UReplicationBridge* Bridge)
 {
-	UNetDriver* NetDriver = CastChecked<const UActorReplicationBridge>(Bridge)->GetNetDriver();
+	UNetDriver* NetDriver = CastChecked<const UEngineReplicationBridge>(Bridge)->GetNetDriver();
 	for (UObject* Instance : Instances)
 	{
 		AActor* Actor = Cast<AActor>(Instance);
@@ -119,7 +119,7 @@ bool ShouldIncludeActorInLevelGroups(const AActor* Actor)
 
 } // end namespace UE::Net::Private
 
-UActorReplicationBridge::UActorReplicationBridge()
+UEngineReplicationBridge::UEngineReplicationBridge()
 : UObjectReplicationBridge()
 , ActorFactoryId(UE::Net::InvalidNetObjectFactoryId)
 , SubObjectFactoryId(UE::Net::InvalidNetObjectFactoryId)
@@ -128,7 +128,7 @@ UActorReplicationBridge::UActorReplicationBridge()
 	SetInstanceGetWorldObjectInfoFunction(UE::Net::Private::ActorReplicationBridgeGetActorWorldObjectInfo);
 }
 
-void UActorReplicationBridge::Initialize(UReplicationSystem* InReplicationSystem)
+void UEngineReplicationBridge::Initialize(UReplicationSystem* InReplicationSystem)
 {
 	using namespace UE::Net;
 
@@ -185,11 +185,11 @@ void UActorReplicationBridge::Initialize(UReplicationSystem* InReplicationSystem
 	ObjectReferencePackageMap = NewObject<UIrisObjectReferencePackageMap>();
 }
 
-UActorReplicationBridge::~UActorReplicationBridge()
+UEngineReplicationBridge::~UEngineReplicationBridge()
 {
 }
 
-void UActorReplicationBridge::Deinitialize()
+void UEngineReplicationBridge::Deinitialize()
 {
 	if (NetDriver)
 	{
@@ -201,7 +201,7 @@ void UActorReplicationBridge::Deinitialize()
 	ObjectReferencePackageMap = nullptr;
 }
 
-UE::Net::FNetRefHandle UActorReplicationBridge::StartReplicatingActor(AActor* Actor, const FActorReplicationParams& Params)
+UE::Net::FNetRefHandle UEngineReplicationBridge::StartReplicatingActor(AActor* Actor, const FActorReplicationParams& Params)
 {
 	using namespace UE::Net;
 
@@ -380,7 +380,7 @@ UE::Net::FNetRefHandle UActorReplicationBridge::StartReplicatingActor(AActor* Ac
 	return ActorRefHandle;
 }
 
-UE::Net::FNetRefHandle UActorReplicationBridge::StartReplicatingComponent(FNetRefHandle RootObjectHandle, UActorComponent* SubObject)
+UE::Net::FNetRefHandle UEngineReplicationBridge::StartReplicatingComponent(FNetRefHandle RootObjectHandle, UActorComponent* SubObject)
 {
 	using namespace UE::Net;
 
@@ -458,12 +458,12 @@ UE::Net::FNetRefHandle UActorReplicationBridge::StartReplicatingComponent(FNetRe
 	return ReplicatedComponentHandle;
 }
 
-UE::Net::FNetRefHandle UActorReplicationBridge::StartReplicatingSubObject(UObject* SubObject, const FSubObjectReplicationParams& Params)
+UE::Net::FNetRefHandle UEngineReplicationBridge::StartReplicatingSubObject(UObject* SubObject, const FSubObjectReplicationParams& Params)
 {
 	return Super::StartReplicatingSubObject(SubObject, Params, SubObjectFactoryId);
 }
 
-void UActorReplicationBridge::StopReplicatingActor(AActor* Actor, EEndPlayReason::Type EndPlayReason)
+void UEngineReplicationBridge::StopReplicatingActor(AActor* Actor, EEndPlayReason::Type EndPlayReason)
 {
 	using namespace UE::Net;
 
@@ -510,7 +510,7 @@ void UActorReplicationBridge::StopReplicatingActor(AActor* Actor, EEndPlayReason
 	StopReplicatingNetRefHandle(RefHandle, Flags);
 }
 
-void UActorReplicationBridge::StopReplicatingComponent(UActorComponent* ActorComponent, EEndReplicationFlags EndReplicationFlags)
+void UEngineReplicationBridge::StopReplicatingComponent(UActorComponent* ActorComponent, EEndReplicationFlags EndReplicationFlags)
 {
 	using namespace UE::Net;
 
@@ -524,7 +524,7 @@ void UActorReplicationBridge::StopReplicatingComponent(UActorComponent* ActorCom
 	}
 }
 
-void UActorReplicationBridge::EndInstantiateFromRemote(FNetRefHandle Handle)
+void UEngineReplicationBridge::EndInstantiateFromRemote(FNetRefHandle Handle)
 {
 	if (AActor* Actor = Cast<AActor>(GetReplicatedObject(Handle)))
 	{
@@ -536,7 +536,7 @@ void UActorReplicationBridge::EndInstantiateFromRemote(FNetRefHandle Handle)
 }
 
 //$IRIS todo: move this to be a factory callback
-void UActorReplicationBridge::OnSubObjectCreatedFromReplication(FNetRefHandle SubObjectHandle)
+void UEngineReplicationBridge::OnSubObjectCreatedFromReplication(FNetRefHandle SubObjectHandle)
 {
 	AActor* RootObject = Cast<AActor>(GetReplicatedObject(GetRootObjectOfSubObject(SubObjectHandle)));
 	UObject* SubObject = GetReplicatedObject(SubObjectHandle);
@@ -546,7 +546,7 @@ void UActorReplicationBridge::OnSubObjectCreatedFromReplication(FNetRefHandle Su
 	}
 }
 
-void UActorReplicationBridge::DestroyInstanceFromRemote(const FDestroyInstanceParams& Params)
+void UEngineReplicationBridge::DestroyInstanceFromRemote(const FDestroyInstanceParams& Params)
 {
 	if (Params.DestroyReason == EReplicationBridgeDestroyInstanceReason::DoNotDestroy)
 	{
@@ -580,7 +580,7 @@ void UActorReplicationBridge::DestroyInstanceFromRemote(const FDestroyInstancePa
 		}
 
 		AActor* Owner = Cast<AActor>(Params.RootObject);
-		if (ensureMsgf(IsValid(Owner) && !Owner->IsUnreachable(), TEXT("UActorReplicationBridge::DestroyInstanceFromRemote Destroyed subobject: %s has an invalid owner: %s"), *GetNameSafe(Params.Instance), *GetPathNameSafe(Params.RootObject)))
+		if (ensureMsgf(IsValid(Owner) && !Owner->IsUnreachable(), TEXT("UEngineReplicationBridge::DestroyInstanceFromRemote Destroyed subobject: %s has an invalid owner: %s"), *GetNameSafe(Params.Instance), *GetPathNameSafe(Params.RootObject)))
 		{
 			Owner->OnSubobjectDestroyFromReplication(Params.Instance);
 		}
@@ -590,7 +590,7 @@ void UActorReplicationBridge::DestroyInstanceFromRemote(const FDestroyInstancePa
 	}
 }
 
-void UActorReplicationBridge::GetInitialDependencies(FNetRefHandle Handle, FNetDependencyInfoArray& OutDependencies) const
+void UEngineReplicationBridge::GetInitialDependencies(FNetRefHandle Handle, FNetDependencyInfoArray& OutDependencies) const
 {
 	using namespace UE::Net;
 
@@ -657,7 +657,7 @@ void UActorReplicationBridge::GetInitialDependencies(FNetRefHandle Handle, FNetD
 	}
 }
 
-void UActorReplicationBridge::SetNetDriver(UNetDriver* const InNetDriver)
+void UEngineReplicationBridge::SetNetDriver(UNetDriver* const InNetDriver)
 {
 	if (NetDriver)
 	{
@@ -670,8 +670,8 @@ void UActorReplicationBridge::SetNetDriver(UNetDriver* const InNetDriver)
 	{
 		SetMaxTickRate(static_cast<float>(FPlatformMath::Max(InNetDriver->GetNetServerMaxTickRate(), 0)));
 
-		InNetDriver->OnNetServerMaxTickRateChanged.AddUObject(this, &UActorReplicationBridge::OnMaxTickRateChanged);
-		InNetDriver->GetOnNetUpdateFrequencyChanged().AddUObject(this, &UActorReplicationBridge::OnNetUpdateFrequencyChanged);
+		InNetDriver->OnNetServerMaxTickRateChanged.AddUObject(this, &UEngineReplicationBridge::OnMaxTickRateChanged);
+		InNetDriver->GetOnNetUpdateFrequencyChanged().AddUObject(this, &UEngineReplicationBridge::OnNetUpdateFrequencyChanged);
 
 		const FName RequiredChannelName = UObjectReplicationBridgeConfig::GetConfig()->GetRequiredNetDriverChannelClassName();
 		
@@ -687,14 +687,14 @@ void UActorReplicationBridge::SetNetDriver(UNetDriver* const InNetDriver)
 	}
 }
 
-void UActorReplicationBridge::OnMaxTickRateChanged(UNetDriver* InNetDriver, int32 NewMaxTickRate, int32 OldMaxTickRate)
+void UEngineReplicationBridge::OnMaxTickRateChanged(UNetDriver* InNetDriver, int32 NewMaxTickRate, int32 OldMaxTickRate)
 {
 	SetMaxTickRate(static_cast<float>(FPlatformMath::Max(InNetDriver->GetNetServerMaxTickRate(), 0)));
 
 	ReinitPollFrequency();
 }
 
-bool UActorReplicationBridge::RemapPathForPIE(uint32 ConnectionId, FString& Str, bool bReading) const
+bool UEngineReplicationBridge::RemapPathForPIE(uint32 ConnectionId, FString& Str, bool bReading) const
 {
 	if (ConnectionId == UE::Net::InvalidConnectionId)
 	{
@@ -708,7 +708,7 @@ bool UActorReplicationBridge::RemapPathForPIE(uint32 ConnectionId, FString& Str,
 	}
 }
 
-bool UActorReplicationBridge::ObjectLevelHasFinishedLoading(UObject* Object) const
+bool UEngineReplicationBridge::ObjectLevelHasFinishedLoading(UObject* Object) const
 {
 	const UWorld* DriverWorld = Object && NetDriver ? NetDriver->GetWorld() : nullptr;
 	if (DriverWorld)
@@ -725,7 +725,7 @@ bool UActorReplicationBridge::ObjectLevelHasFinishedLoading(UObject* Object) con
 	return true;
 }
 
-bool UActorReplicationBridge::IsAllowedToDestroyInstance(const UObject* Instance) const
+bool UEngineReplicationBridge::IsAllowedToDestroyInstance(const UObject* Instance) const
 {
 	if (AActor* Actor = const_cast<AActor*>(Cast<AActor>(Instance)))
 	{
@@ -735,15 +735,15 @@ bool UActorReplicationBridge::IsAllowedToDestroyInstance(const UObject* Instance
 	return true;
 }
 
-UActorReplicationBridge* UActorReplicationBridge::Create(UNetDriver* NetDriver)
+UEngineReplicationBridge* UEngineReplicationBridge::Create(UNetDriver* NetDriver)
 {
-	UActorReplicationBridge* Bridge = NewObject<UActorReplicationBridge>(GetTransientPackage(), UActorReplicationBridge::StaticClass());
+	UEngineReplicationBridge* Bridge = NewObject<UEngineReplicationBridge>(GetTransientPackage(), UEngineReplicationBridge::StaticClass());
 	Bridge->SetNetDriver(NetDriver);
 
 	return Bridge;
 }
 
-float UActorReplicationBridge::GetPollFrequencyOfRootObject(const UObject* ReplicatedObject) const
+float UEngineReplicationBridge::GetPollFrequencyOfRootObject(const UObject* ReplicatedObject) const
 {
 	const AActor* ReplicatedActor = CastChecked<AActor>(ReplicatedObject);
 	float PollFrequency = ReplicatedActor->GetNetUpdateFrequency();
@@ -751,7 +751,7 @@ float UActorReplicationBridge::GetPollFrequencyOfRootObject(const UObject* Repli
 	return PollFrequency;
 }
 
-void UActorReplicationBridge::WakeUpObjectInstantiatedFromRemote(AActor* Actor) const
+void UEngineReplicationBridge::WakeUpObjectInstantiatedFromRemote(AActor* Actor) const
 {
 	// If the actor is already awake or can't be woken up then return immediately.
 	if (Actor->NetDormancy <= DORM_Awake)
@@ -779,7 +779,7 @@ void UActorReplicationBridge::WakeUpObjectInstantiatedFromRemote(AActor* Actor) 
 	}
 }
 
-void UActorReplicationBridge::OnProtocolMismatchDetected(FNetRefHandle ObjectHandle)
+void UEngineReplicationBridge::OnProtocolMismatchDetected(FNetRefHandle ObjectHandle)
 {
 	Super::OnProtocolMismatchDetected(ObjectHandle);
 
@@ -791,7 +791,7 @@ void UActorReplicationBridge::OnProtocolMismatchDetected(FNetRefHandle ObjectHan
 	}
 }
 
-void UActorReplicationBridge::OnProtocolMismatchReported(FNetRefHandle RefHandle, uint32 ConnectionId)
+void UEngineReplicationBridge::OnProtocolMismatchReported(FNetRefHandle RefHandle, uint32 ConnectionId)
 {
 	Super::OnProtocolMismatchReported(RefHandle, ConnectionId);
 
@@ -826,7 +826,7 @@ void UActorReplicationBridge::OnProtocolMismatchReported(FNetRefHandle RefHandle
 	}
 }
 
-void UActorReplicationBridge::SendErrorWithNetRefHandle(UE::Net::ENetRefHandleError ErrorType, FNetRefHandle RefHandle, uint32 ConnectionId)
+void UEngineReplicationBridge::SendErrorWithNetRefHandle(UE::Net::ENetRefHandleError ErrorType, FNetRefHandle RefHandle, uint32 ConnectionId)
 {
 	if (NetDriver)
 	{
@@ -837,12 +837,12 @@ void UActorReplicationBridge::SendErrorWithNetRefHandle(UE::Net::ENetRefHandleEr
 		}
 		else
 		{
-			UE_LOG(LogIrisBridge, Error, TEXT("UActorReplicationBridge::SendErrorWithNetRefHandle could not find Connection for id:%u"), ConnectionId);
+			UE_LOG(LogIrisBridge, Error, TEXT("UEngineReplicationBridge::SendErrorWithNetRefHandle could not find Connection for id:%u"), ConnectionId);
 		}
 	}
 }
 
-void UActorReplicationBridge::ActorChangedLevel(const AActor* Actor, const ULevel* PreviousLevel)
+void UEngineReplicationBridge::ActorChangedLevel(const AActor* Actor, const ULevel* PreviousLevel)
 {
 	if (!UE::Net::Private::bEnableActorLevelChanges)
 	{
@@ -880,7 +880,7 @@ void UActorReplicationBridge::ActorChangedLevel(const AActor* Actor, const ULeve
 	AddActorToLevelGroup(Actor);
 }
 
-void UActorReplicationBridge::OnNetUpdateFrequencyChanged(const AActor* Actor)
+void UEngineReplicationBridge::OnNetUpdateFrequencyChanged(const AActor* Actor)
 {
 	if (UE::Net::Private::bEnableDynamicNetUpdateFrequency)
 	{
@@ -893,7 +893,7 @@ void UActorReplicationBridge::OnNetUpdateFrequencyChanged(const AActor* Actor)
 	}
 }
 
-void UActorReplicationBridge::AddActorToLevelGroup(const AActor* Actor)
+void UEngineReplicationBridge::AddActorToLevelGroup(const AActor* Actor)
 {
 	if (!UE::Net::Private::ShouldIncludeActorInLevelGroups(Actor))
 	{
@@ -927,7 +927,7 @@ void UActorReplicationBridge::AddActorToLevelGroup(const AActor* Actor)
 	}
 }
 
-FString UActorReplicationBridge::PrintConnectionInfo(uint32 ConnectionId) const
+FString UEngineReplicationBridge::PrintConnectionInfo(uint32 ConnectionId) const
 {
 	if (NetDriver)
 	{
@@ -946,7 +946,7 @@ FString UActorReplicationBridge::PrintConnectionInfo(uint32 ConnectionId) const
 	}
 }
 
-void UActorReplicationBridge::ConsumeNetMetrics(TArray<FAnalyticsEventAttribute>& OutAttrs)
+void UEngineReplicationBridge::ConsumeNetMetrics(TArray<FAnalyticsEventAttribute>& OutAttrs)
 {
 	using namespace UE::Net;
 
@@ -994,7 +994,7 @@ void UActorReplicationBridge::ConsumeNetMetrics(TArray<FAnalyticsEventAttribute>
 
 #else //!UE_WITH_IRIS
 
-UActorReplicationBridge::UActorReplicationBridge() = default;
-UActorReplicationBridge::~UActorReplicationBridge() = default;
+UEngineReplicationBridge::UEngineReplicationBridge() = default;
+UEngineReplicationBridge::~UEngineReplicationBridge() = default;
 
 #endif

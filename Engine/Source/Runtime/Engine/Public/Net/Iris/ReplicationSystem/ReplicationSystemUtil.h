@@ -13,7 +13,7 @@
 class AActor;
 class UActorComponent;
 struct FActorReplicationParams;
-class UActorReplicationBridge;
+class UEngineReplicationBridge;
 class UObject;
 class FRepChangedPropertyTracker;
 class UReplicationSystem;
@@ -38,11 +38,11 @@ struct FReplicationSystemUtil
 	/** Returns the UReplicationSystem for a specific NetDriver. May return null. */
 	ENGINE_API static UReplicationSystem* GetReplicationSystem(const UNetDriver* NetDriver);
 
-	/** Returns the UActorReplicationBridge of the UReplicationSystem belogning to the main NetDriver assigned to the Actor. May return null. */
-	ENGINE_API static UActorReplicationBridge* GetActorReplicationBridge(const AActor* Actor);
+	/** Returns the UEngineReplicationBridge of the UReplicationSystem belogning to the main NetDriver assigned to the Actor. May return null. */
+	ENGINE_API static UEngineReplicationBridge* GetActorReplicationBridge(const AActor* Actor);
 
 	/** Returns the UReplicationSystem of the UNetDriver the UNetConnection belongs to. */
-	ENGINE_API static UActorReplicationBridge* GetActorReplicationBridge(const UNetConnection* NetConnection);
+	ENGINE_API static UEngineReplicationBridge* GetActorReplicationBridge(const UNetConnection* NetConnection);
 
 	/** Returns the NetHandle for the actor. The returned handle may be invalid. */
 	ENGINE_API static FNetHandle GetNetHandle(const AActor* Actor);

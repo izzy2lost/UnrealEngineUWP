@@ -5,7 +5,7 @@
 #include "Iris/ReplicationSystem/ObjectReplicationBridge.h"
 #include "Engine/EngineTypes.h"
 #include "UObject/ObjectPtr.h"
-#include "ActorReplicationBridge.generated.h"
+#include "EngineReplicationBridge.generated.h"
 
 class UNetDriver;
 class UIrisObjectReferencePackageMap;
@@ -19,13 +19,6 @@ class UWorld;
 namespace UE::Net
 {
 	enum class ENetRefHandleError : uint32;
-
-	namespace Private
-	{
-		struct FActorReplicationBridgeCreationHeader;
-		struct FActorCreationHeader;
-		struct FSubObjectCreationHeader;
-	}
 }
 
 namespace UE::Net
@@ -48,17 +41,17 @@ struct FActorReplicationParams
 #endif // UE_WITH_IRIS
 
 UCLASS(Transient, MinimalAPI)
-class UActorReplicationBridge final : public UObjectReplicationBridge
+class UEngineReplicationBridge final : public UObjectReplicationBridge
 {
 	GENERATED_BODY()
 
 public:
-	ENGINE_API UActorReplicationBridge();
-	virtual ENGINE_API ~UActorReplicationBridge() override;
+	ENGINE_API UEngineReplicationBridge();
+	virtual ENGINE_API ~UEngineReplicationBridge() override;
 
 #if UE_WITH_IRIS
 
-	ENGINE_API static UActorReplicationBridge* Create(UNetDriver* NetDriver);
+	ENGINE_API static UEngineReplicationBridge* Create(UNetDriver* NetDriver);
 
 	/** Sets the net driver for the bridge. */
 	ENGINE_API void SetNetDriver(UNetDriver* const InNetDriver);

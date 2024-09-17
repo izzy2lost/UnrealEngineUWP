@@ -30,7 +30,7 @@
 #include "Net/PerfCountersHelpers.h"
 #if UE_WITH_IRIS
 #include "Net/Iris/ReplicationSystem/ReplicationSystemUtil.h"
-#include "Net/Iris/ReplicationSystem/ActorReplicationBridge.h"
+#include "Net/Iris/ReplicationSystem/EngineReplicationBridge.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #endif
 
@@ -8861,7 +8861,7 @@ static UIrisObjectReferencePackageMap* GetIrisPackageMapToCaptureReferences(UNet
 {
 	using namespace UE::Net;
 
-	if (const UActorReplicationBridge* Bridge = FReplicationSystemUtil::GetActorReplicationBridge(NetConnection))
+	if (const UEngineReplicationBridge* Bridge = FReplicationSystemUtil::GetActorReplicationBridge(NetConnection))
 	{
 		if (UIrisObjectReferencePackageMap* ObjectReferencePackageMap = Bridge->GetObjectReferencePackageMap())
 		{
@@ -8881,7 +8881,7 @@ static UIrisObjectReferencePackageMap* GetIrisPackageMapToCaptureReferences(UNet
 static UIrisObjectReferencePackageMap* GetIrisPackageMapToReadReferences(const UNetConnection* NetConnection, const FCharacterNetworkSerializationPackedBits& PackedBits)
 {
 	using namespace UE::Net;
-	if (const UActorReplicationBridge* Bridge = FReplicationSystemUtil::GetActorReplicationBridge(NetConnection))
+	if (const UEngineReplicationBridge* Bridge = FReplicationSystemUtil::GetActorReplicationBridge(NetConnection))
 	{
 		if (UIrisObjectReferencePackageMap* ObjectReferencePackageMap = Bridge->GetObjectReferencePackageMap())
 		{
