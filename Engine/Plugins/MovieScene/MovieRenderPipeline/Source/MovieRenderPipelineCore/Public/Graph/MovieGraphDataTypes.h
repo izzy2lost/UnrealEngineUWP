@@ -229,6 +229,9 @@ public:
 	/** Called by the Time Step system when the external data source should pause playback. */
 	virtual void PauseDataSource() {}
 
+	/** Called by the Time Step system when the external data source should stop playback (typically at the end of rendering). */
+	virtual void StopDataSource() {}
+
 	/** Called by the Time Step system when the external data source should jump to the given time. Time is in TickResolution scale. */
 	virtual void JumpDataSource(const FFrameTime& InTimeToJumpTo) {}
 

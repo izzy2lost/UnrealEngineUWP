@@ -332,6 +332,14 @@ void UMovieGraphSequenceDataSource::PauseDataSource()
 	}
 }
 
+void UMovieGraphSequenceDataSource::StopDataSource()
+{
+	if (LevelSequenceActor && LevelSequenceActor->GetSequencePlayer())
+	{
+		LevelSequenceActor->GetSequencePlayer()->Stop();
+	}
+}
+
 void UMovieGraphSequenceDataSource::JumpDataSource(const FFrameTime& InTimeToJumpTo) 
 {
 	if(LevelSequenceActor && LevelSequenceActor->GetSequencePlayer())

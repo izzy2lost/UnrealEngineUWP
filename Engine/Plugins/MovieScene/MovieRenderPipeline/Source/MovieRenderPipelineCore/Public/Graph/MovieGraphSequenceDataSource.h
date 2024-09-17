@@ -46,6 +46,7 @@ public:
 	virtual void SyncDataSourceTime(const FFrameTime& InTime) override;
 	virtual void PlayDataSource() override;
 	virtual void PauseDataSource() override;
+	virtual void StopDataSource() override;
 	virtual void JumpDataSource(const FFrameTime& InTimeToJumpTo) override;
 	virtual void CacheHierarchyForShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot) override;
 	virtual void RestoreHierarchyForShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot) override;
