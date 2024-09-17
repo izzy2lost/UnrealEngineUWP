@@ -60,6 +60,7 @@
 #include "ChaosClothAsset/TransformPositionsNode.h"
 #include "ChaosClothAsset/TransformUVsNode.h"
 #include "ChaosClothAsset/USDImportNode.h"
+#include "ChaosClothAsset/USDImportNode_v2.h"
 #include "ChaosClothAsset/WeightMapNode.h"
 #include "ChaosClothAsset/WeightedValueCustomization.h"
 
@@ -135,7 +136,7 @@ namespace UE::Chaos::ClothAsset
 			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetTransferSkinWeightsNode);
 			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetTransformPositionsNode);
 			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetTransformUVsNode);
-			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetUSDImportNode);
+			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetUSDImportNode_v2);
 			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetWeightMapToSelectionNode);
 			// Deprecated nodes
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -148,6 +149,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetSkeletalMeshImportNode);
 			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetStaticMeshImportNode);
 			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetTerminalNode);
+			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetUSDImportNode);
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 

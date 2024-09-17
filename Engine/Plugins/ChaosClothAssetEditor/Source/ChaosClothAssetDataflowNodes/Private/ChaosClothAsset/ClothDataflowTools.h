@@ -45,6 +45,17 @@ namespace UE::Chaos::ClothAsset
 			return static_cast<FDataflowNode*>(GetPropertyOwnerDataflowNode(PropertyHandle, T::StaticStruct()));
 		}
 
+		static bool RemoveDegenerateTriangles(
+			const TArray<FIntVector3>& TriangleToVertexIndex,
+			const TArray<FVector2f>& RestPositions2D,
+			const TArray<FVector3f>& DrapedPositions3D,
+			TArray<FIntVector3>& OutTriangleToVertexIndex,
+			TArray<FVector2f>& OutRestPositions2D,
+			TArray<FVector3f>& OutDrapedPositions3D,
+			TArray<int32>& OutIndices);  // Old to new vertices lookup
+		static bool RemoveDuplicateTriangles(TArray<FIntVector3>& TriangleToVertexIndex);
+		static bool RemoveDuplicateStitches(TArray<TArray<FIntVector2>>& SeamStitches);
+
 	private:
 		/** Return the Dataflow node owning by this property. */
 		static FDataflowNode* GetPropertyOwnerDataflowNode(const TSharedPtr<IPropertyHandle>& PropertyHandle, const UStruct* DataflowNodeStruct);

@@ -27,8 +27,8 @@ namespace UE::Chaos::ClothAsset
 		FString HandleFilePathPickerFilePath() const;
 		void HandleFilePathPickerPathPicked(const FString& PickedPath);
 
+		TSharedPtr<IPropertyHandle> StructProperty;
 		TSharedPtr<IPropertyHandle> PathStringProperty;
-		TSharedPtr<IPropertyHandle> ForceReimport;
 		bool bLongPackageName;
 		bool bRelativeToGameDir;
 	};

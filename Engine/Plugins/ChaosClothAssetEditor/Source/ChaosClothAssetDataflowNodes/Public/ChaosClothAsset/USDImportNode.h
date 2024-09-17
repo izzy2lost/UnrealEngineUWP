@@ -8,8 +8,8 @@
 #include "USDImportNode.generated.h"
 
 /** Import a USD file from a third party garment construction software. */
-USTRUCT(meta = (DataflowCloth))
-struct FChaosClothAssetUSDImportNode : public FDataflowTerminalNode
+USTRUCT(Meta = (DataflowCloth, Deprecated = "5.5"))
+struct UE_DEPRECATED(5.5, "Use the newer version of this node instead.") FChaosClothAssetUSDImportNode : public FDataflowTerminalNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetUSDImportNode, "USDImport", "Cloth", "Cloth USD Import")
@@ -26,13 +26,22 @@ public:
 	FChaosClothAssetUSDImportNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
+	friend struct FChaosClothAssetUSDImportNode_v2;  // For ImportFromFile
+
+	static bool ImportFromFile(
+		const FString& UsdPath,
+		const FString& AssetPath,
+		const bool bImportSimMesh,
+		const TSharedRef<FManagedArrayCollection>&OutClothCollection,
+		FString& OutPackagePath,
+		class FText& OutErrorText);
+
 	//~ Begin FDataflowNode interface
 	virtual void SetAssetValue(TObjectPtr<UObject> Asset, Dataflow::FContext& Context) const override;
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 	virtual void Serialize(FArchive& Archive) override;
 	//~ End FDataflowNode interface
 
-	bool ImportFromFile(const FString& UsdPath, const FString& AssetPath, class FText& OutErrorText);
 	bool ImportFromCache(const TSharedRef<FManagedArrayCollection>& ClothCollection, class FText& OutErrorText) const;
 	void UpdateImportedAssets();
 

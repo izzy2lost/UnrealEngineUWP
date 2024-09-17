@@ -44,7 +44,7 @@ public:
 
 	FDataflowFunctionProperty() = default;
 
-	explicit FDataflowFunctionProperty(FSimpleDelegate&& InDelegate) { Delegate = MoveTemp(InDelegate); }
+	explicit FDataflowFunctionProperty(FSimpleDelegate&& InDelegate) : Delegate(MoveTemp(InDelegate)) {}
 
 	void Execute() const { Delegate.ExecuteIfBound(); }
 
