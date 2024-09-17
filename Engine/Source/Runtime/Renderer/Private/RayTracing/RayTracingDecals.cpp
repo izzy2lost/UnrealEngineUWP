@@ -27,6 +27,14 @@ TAutoConsoleVariable<int32> CVarDecalGridMaxCount(
 	ECVF_RenderThreadSafe
 );
 
+TAutoConsoleVariable<int32> CVarDecalGridAxis(
+	TEXT("r.RayTracing.DecalGrid.Axis"),
+	-1,
+	TEXT("Choose the coordinate axis along which to project the decal grid (default = -1, automatic)\n"),
+	ECVF_RenderThreadSafe
+);
+
+
 enum class EDecalsWriteFlags : uint32
 {
 	None						= 0,
@@ -395,20 +403,24 @@ void BuildDecalGrid(FRDGBuilder& GraphBuilder, uint32 NumDecals, FRDGBufferSRVRe
 		const uint32 MaxCount = FMath::Clamp(CVarDecalGridMaxCount.GetValueOnRenderThread(), 1, FMath::Min((int32)NumDecals, RAY_TRACING_DECAL_COUNT_MAXIMUM));
 		OutParameters.GridResolution = Resolution;
 		OutParameters.GridMaxCount = MaxCount;
+		OutParameters.GridAxis = CVarDecalGridAxis.GetValueOnRenderThread();
 
-		// pick the shortest axis
-		FVector3f Diag = OutParameters.TranslatedBoundMax - OutParameters.TranslatedBoundMin;
-		if (Diag.X < Diag.Y && Diag.X < Diag.Z)
+		if (OutParameters.GridAxis < 0 || OutParameters.GridAxis > 2)
 		{
-			OutParameters.GridAxis = 0;
-		}
-		else if (Diag.Y < Diag.Z)
-		{
-			OutParameters.GridAxis = 1;
-		}
-		else
-		{
-			OutParameters.GridAxis = 2;
+			// pick the shortest axis if user did not explicitly pick an axis
+			FVector3f Diag = OutParameters.TranslatedBoundMax - OutParameters.TranslatedBoundMin;
+			if (Diag.X < Diag.Y && Diag.X < Diag.Z)
+			{
+				OutParameters.GridAxis = 0;
+			}
+			else if (Diag.Y < Diag.Z)
+			{
+				OutParameters.GridAxis = 1;
+			}
+			else
+			{
+				OutParameters.GridAxis = 2;
+			}
 		}
 
 		FRDGTextureDesc DecalGridDesc = FRDGTextureDesc::Create2D(
