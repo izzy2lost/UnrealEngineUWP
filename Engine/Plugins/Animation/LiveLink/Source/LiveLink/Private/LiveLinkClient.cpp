@@ -1436,7 +1436,7 @@ FText FLiveLinkClient::GetSubjectDisplayName(const FLiveLinkSubjectKey& InSubjec
 		}
 		else if (ULiveLinkVirtualSubject* VirtualSubject = Cast<ULiveLinkVirtualSubject>(Settings))
 		{
-			VirtualSubject->GetDisplayName();
+			DisplayName = VirtualSubject->GetDisplayName();
 		}
 	}
 
@@ -1649,13 +1649,21 @@ FLiveLinkSubjectTimeSyncData FLiveLinkClient::GetTimeSyncData(FLiveLinkSubjectNa
 
 FName FLiveLinkClient::GetRebroadcastName(const FLiveLinkSubjectKey& InSubjectKey) const
 {
-	if (ULiveLinkSubjectSettings* Settings = Cast<ULiveLinkSubjectSettings>(GetSubjectSettings(InSubjectKey)))
+	FName RebroadcastName = InSubjectKey.SubjectName.Name;
+
+	if (UObject* Settings = GetSubjectSettings(InSubjectKey))
 	{
-		FName RebroadcastName = Settings->GetRebroadcastName();
-		return RebroadcastName.IsNone() ? InSubjectKey.SubjectName.Name : RebroadcastName;
+		if (ULiveLinkSubjectSettings* SubjectSettings = Cast<ULiveLinkSubjectSettings>(Settings))
+		{
+			RebroadcastName = SubjectSettings->GetRebroadcastName();
+		}
+		else if (ULiveLinkVirtualSubject* VSubject = Cast<ULiveLinkVirtualSubject>(Settings))
+		{
+			RebroadcastName = VSubject->GetRebroadcastName();
+		}
 	}
 
-	return InSubjectKey.SubjectName;
+	return RebroadcastName;
 }
 
 void FLiveLinkClient::PushPendingSubject_AnyThread(FPendingSubjectStatic&& PendingSubject)
