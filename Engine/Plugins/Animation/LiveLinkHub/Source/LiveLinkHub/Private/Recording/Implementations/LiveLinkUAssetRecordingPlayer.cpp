@@ -105,8 +105,9 @@ private:
 	}
 };
 
-void FLiveLinkPlaybackTrack::GetFramesUntil(double InPlayhead, TArray<FLiveLinkRecordedFrame>& OutFrames)
+void FLiveLinkPlaybackTrack::GetFramesUntil(const FQualifiedFrameTime& InFrameTime, TArray<FLiveLinkRecordedFrame>& OutFrames)
 {
+	const double InTimeSeconds = InFrameTime.AsSeconds();
 	for (FLiveLinkPlaybackTrackForwardIterator It = FLiveLinkPlaybackTrackForwardIterator(*this, GetRelativeIndex(LastReadAbsoluteIndex)); It; ++It)
 	{
 		const double FrameTimestamp = It.FrameTimestamp();
@@ -118,7 +119,7 @@ void FLiveLinkPlaybackTrack::GetFramesUntil(double InPlayhead, TArray<FLiveLinkR
 			continue;
 		}
 		
-		if (FrameTimestamp > InPlayhead)
+		if (FrameTimestamp > InTimeSeconds)
 		{
 			break;
 		}
@@ -137,7 +138,7 @@ void FLiveLinkPlaybackTrack::GetFramesUntil(double InPlayhead, TArray<FLiveLinkR
 	}
 }
 
-void FLiveLinkPlaybackTrack::GetFramesUntilReverse(double InPlayhead, TArray<FLiveLinkRecordedFrame>& OutFrames)
+void FLiveLinkPlaybackTrack::GetFramesUntilReverse(const FQualifiedFrameTime& InFrameTime, TArray<FLiveLinkRecordedFrame>& OutFrames)
 {
 	if (LastReadRelativeIndex == INDEX_NONE)
 	{
@@ -148,7 +149,9 @@ void FLiveLinkPlaybackTrack::GetFramesUntilReverse(double InPlayhead, TArray<FLi
 	// We need to look up what the last frame would be if this was running forward, and then end on that frame.
 	// Since we iterate in reverse, but all other operations like GoToFrame use forward look ahead, it's possible the time stamp comparison
 	// will differ by a frame with a reverse look up. There's probably a better way of handling this.
-	const int32 FinalFrameIndex = PlayheadToFrameIndex(InPlayhead);
+	const int32 FinalFrameIndex = ConvertFrameTimeToFrameIndex(InFrameTime);
+
+	const double InTimeSeconds = InFrameTime.AsSeconds();
 	
 	for (FLiveLinkPlaybackTrackReverseIterator It = FLiveLinkPlaybackTrackReverseIterator(*this, GetRelativeIndex(LastReadAbsoluteIndex)); It; ++It)
 	{
@@ -161,7 +164,7 @@ void FLiveLinkPlaybackTrack::GetFramesUntilReverse(double InPlayhead, TArray<FLi
 			continue;
 		}
 		
-		if (FrameTimestamp < InPlayhead || FinalFrameIndex == LastReadRelativeIndex + StartIndexOffset)
+		if (FrameTimestamp < InTimeSeconds || FinalFrameIndex == LastReadRelativeIndex + StartIndexOffset)
 		{
 			break;
 		}
@@ -182,20 +185,7 @@ void FLiveLinkPlaybackTrack::GetFramesUntilReverse(double InPlayhead, TArray<FLi
 
 bool FLiveLinkPlaybackTrack::TryGetFrame(const FQualifiedFrameTime& InFrameTime, FLiveLinkRecordedFrame& OutFrame)
 {
-	int32 LocalizedIndex;
-	if (LocalFrameRate.IsValid())
-	{
-		// Localize the frame time relative to this track's framerate.
-		const FFrameTime LocalizedFrameTime = InFrameTime.ConvertTo(LocalFrameRate);
-		LocalizedIndex = LocalizedFrameTime.GetFrame().Value;
-	}
-	else
-	{
-		LocalizedIndex = InFrameTime.Time.GetFrame().Value;
-	}
-	
-	const int32 RelativeIndex = GetRelativeIndex(LocalizedIndex);
-	
+	const int32 RelativeIndex = ConvertFrameTimeToFrameIndex(InFrameTime);
 	if (RelativeIndex >= 0 && RelativeIndex < FrameData.Num())
 	{
 		LastReadRelativeIndex = RelativeIndex;
@@ -216,13 +206,44 @@ bool FLiveLinkPlaybackTrack::TryGetFrame(const FQualifiedFrameTime& InFrameTime,
 	return false;
 }
 
-int32 FLiveLinkPlaybackTrack::PlayheadToFrameIndex(double InPlayhead)
+int32 FLiveLinkPlaybackTrack::ConvertFrameTimeToFrameIndex(const FQualifiedFrameTime& InFrameTime)
 {
-	int32 CurrentIndex = 0;
-
-	for (int32 Idx = 0; Idx < Timestamps.Num(); ++Idx)
+	const double InTimeSeconds = InFrameTime.AsSeconds();
+	
+	// Start by localizing the index based on the framerate. It's possible this is either exact, or closer to the desired position.
+	int32 LocalizedIndex;
+	if (LocalFrameRate.IsValid())
 	{
-		if (Timestamps[Idx] > InPlayhead)
+		// Localize the frame time relative to this track's framerate.
+		const FFrameTime LocalizedFrameTime = InFrameTime.ConvertTo(LocalFrameRate);
+		LocalizedIndex = LocalizedFrameTime.GetFrame().Value;
+	}
+	else
+	{
+		LocalizedIndex = InFrameTime.Time.GetFrame().Value;
+	}
+
+	int32 CurrentIndex = GetRelativeIndex(LocalizedIndex);
+
+	// Now find the closest timestamp without going over. The calculated CurrentIndex should be close to the desired location.
+	if (Timestamps.IsValidIndex(CurrentIndex))
+	{
+		// Check if we're ahead of the desired time, iterate backwards if needed.
+		while (CurrentIndex > 0 && Timestamps[CurrentIndex] > InTimeSeconds)
+		{
+			--CurrentIndex;
+		}
+	}
+	else
+	{
+		// Fall back to full linear search.
+		CurrentIndex = 0;
+	}
+
+	// If we're behind the desired time, iterate forward as needed.
+	for (int32 Idx = CurrentIndex; Idx < Timestamps.Num(); ++Idx)
+	{
+		if (Timestamps[Idx] > InTimeSeconds)
 		{
 			break;
 		}
@@ -230,21 +251,10 @@ int32 FLiveLinkPlaybackTrack::PlayheadToFrameIndex(double InPlayhead)
 		CurrentIndex = Idx;
 	}
 
-	return CurrentIndex + StartIndexOffset;
+	return CurrentIndex;
 }
 
-double FLiveLinkPlaybackTrack::FrameIndexToPlayhead(int32 InIndex)
-{
-	InIndex = GetRelativeIndex(InIndex);
-	if (InIndex >= 0 && InIndex < Timestamps.Num())
-	{
-		return Timestamps[InIndex];
-	}
-
-	return INDEX_NONE;
-}
-
-TArray<FLiveLinkRecordedFrame> FLiveLinkPlaybackTracks::FetchNextFrames(double Playhead)
+TArray<FLiveLinkRecordedFrame> FLiveLinkPlaybackTracks::FetchNextFrames(const FQualifiedFrameTime& InFrameTime)
 {
 	TArray<FLiveLinkRecordedFrame> NextFrames;
 
@@ -254,14 +264,14 @@ TArray<FLiveLinkRecordedFrame> FLiveLinkPlaybackTracks::FetchNextFrames(double P
 		for (TTuple<FLiveLinkSubjectKey, FLiveLinkPlaybackTrack>& TrackKeyVal : Tracks)
 		{
 			FLiveLinkPlaybackTrack& Track = TrackKeyVal.Value;
-			Track.GetFramesUntil(Playhead, NextFrames);
+			Track.GetFramesUntil(InFrameTime, NextFrames);
 		}
 	}
 
 	return NextFrames;
 }
 
-TArray<FLiveLinkRecordedFrame> FLiveLinkPlaybackTracks::FetchPreviousFrames(double Playhead)
+TArray<FLiveLinkRecordedFrame> FLiveLinkPlaybackTracks::FetchPreviousFrames(const FQualifiedFrameTime& InFrameTime)
 {
 	TArray<FLiveLinkRecordedFrame> PreviousFrames;
 
@@ -271,7 +281,7 @@ TArray<FLiveLinkRecordedFrame> FLiveLinkPlaybackTracks::FetchPreviousFrames(doub
 		for (TTuple<FLiveLinkSubjectKey, FLiveLinkPlaybackTrack>& TrackKeyVal : Tracks)
 		{
 			FLiveLinkPlaybackTrack& Track = TrackKeyVal.Value;
-			Track.GetFramesUntilReverse(Playhead, PreviousFrames);
+			Track.GetFramesUntilReverse(InFrameTime, PreviousFrames);
 		}
 	}
 
@@ -293,36 +303,6 @@ TArray<FLiveLinkRecordedFrame> FLiveLinkPlaybackTracks::FetchNextFramesAtIndex(c
 	}
 
 	return NextFrames;
-}
-
-int32 FLiveLinkPlaybackTracks::PlayheadToFrameIndex(double InPlayhead)
-{
-	for (TTuple<FLiveLinkSubjectKey, FLiveLinkPlaybackTrack>& TrackKeyVal : Tracks)
-	{
-		FLiveLinkPlaybackTrack& Track = TrackKeyVal.Value;
-		// todo: Is this the best way to determine if this is keyframe data and not static data?
-		if (Track.LiveLinkRole == nullptr)
-		{
-			return Track.PlayheadToFrameIndex(InPlayhead);
-		}
-	}
-
-	return INDEX_NONE;
-}
-
-double FLiveLinkPlaybackTracks::FrameIndexToPlayhead(int32 InIndex)
-{
-	for (TTuple<FLiveLinkSubjectKey, FLiveLinkPlaybackTrack>& TrackKeyVal : Tracks)
-	{
-		FLiveLinkPlaybackTrack& Track = TrackKeyVal.Value;
-		// todo: Is this the best way to determine if this is keyframe data and not static data?
-		if (Track.LiveLinkRole == nullptr)
-		{
-			return Track.FrameIndexToPlayhead(InIndex);
-		}
-	}
-
-	return INDEX_NONE;
 }
 
 void FLiveLinkPlaybackTracks::Restart(int32 InIndex)
