@@ -3358,7 +3358,7 @@ void FMaterialShaderMap::Register(EShaderPlatform InShaderPlatform)
 	} MaterialShaderMapInnerLazyInitializer;
 
 	extern int32 GCreateShadersOnLoad;
-	if (GCreateShadersOnLoad && GetShaderPlatform() == InShaderPlatform)
+	if (GCreateShadersOnLoad && GMaxRHIShaderPlatform == InShaderPlatform)
 	{
 		FShaderMapResource* ShaderResource = GetResource();
 		if (ShaderResource)
