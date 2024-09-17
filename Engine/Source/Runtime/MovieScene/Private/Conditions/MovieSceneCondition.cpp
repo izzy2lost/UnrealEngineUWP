@@ -76,9 +76,15 @@ bool UMovieSceneCondition::CanCacheResult(TSharedRef<const UE::MovieScene::FShar
 #if WITH_EDITOR
 	// Specifically in editor worlds we don't cache condition results- this is because it's too difficult to know
 	// what sort of things the user might change to invalidate the cached results.
-	if (SharedPlaybackState->GetPlaybackContext() && SharedPlaybackState->GetPlaybackContext()->GetWorld()->IsEditorWorld())
+	if (UObject* Context = SharedPlaybackState->GetPlaybackContext())
 	{
-		return false;
+		if (UWorld* World = Context->GetWorld())
+		{
+			if (World->IsEditorWorld() && !World->IsPlayInEditor())
+			{
+				return false;
+			}
+		}
 	}
 #endif
 	
