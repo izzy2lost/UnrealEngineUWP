@@ -43,7 +43,7 @@ const FRegionLane* FRegionProvider::GetLane(int32 index) const
 	}
 	return nullptr;
 }
-	
+
 void FRegionProvider::AppendRegionBegin(const TCHAR* Name, double Time)
 {
 	EditAccessCheck();
@@ -51,7 +51,7 @@ void FRegionProvider::AppendRegionBegin(const TCHAR* Name, double Time)
 	check(Name)
 
 	FTimeRegion** OpenRegion = OpenRegionsByName.Find(Name);
-	
+
 	if (OpenRegion)
 	{
 		++NumWarnings;
@@ -68,19 +68,19 @@ void FRegionProvider::AppendRegionBegin(const TCHAR* Name, double Time)
 	OpenRegionsByName.Add(NewRegion->Text, NewRegion);
 }
 
-void FRegionProvider::AppendRegionBeginWithId(const TCHAR* Name, uint64_t Id, double Time)
+void FRegionProvider::AppendRegionBeginWithId(const TCHAR* Name, uint64 Id, double Time)
 {
 	EditAccessCheck();
 
 	check(Name && Id)
 	FTimeRegion** OpenRegion = OpenRegionsById.Find(Id);
-	
+
 	if (OpenRegion)
 	{
 		++NumWarnings;
 		if (NumWarnings <= MaxWarningMessages)
 		{
-			UE_LOG(LogTraceServices, Warning, TEXT("[Regions] A region begin event (BeginTime=%f, Name=\"%s\", Id=\"%llu\") was encountered while a region with same name is already open."), Time, Name, Id)
+			UE_LOG(LogTraceServices, Warning, TEXT("[Regions] A region begin event (BeginTime=%f, Name=\"%s\", Id=%llu) was encountered while a region with same name is already open."), Time, Name, Id)
 		}
 
 		// Automatically end the previous region.
@@ -90,14 +90,14 @@ void FRegionProvider::AppendRegionBeginWithId(const TCHAR* Name, uint64_t Id, do
 	FTimeRegion* NewRegion = InsertNewRegion(Time, Name, Id);
 	OpenRegionsById.Add(Id, NewRegion);
 }
-	
+
 void FRegionProvider::AppendRegionEnd(const TCHAR* Name, double Time)
 {
 	EditAccessCheck();
 
 	check(Name)
 	FTimeRegion** OpenRegionPos = OpenRegionsByName.Find(Name);
-	
+
 	if (!OpenRegionPos)
 	{
 		++NumWarnings;
@@ -105,15 +105,15 @@ void FRegionProvider::AppendRegionEnd(const TCHAR* Name, double Time)
 		{
 			UE_LOG(LogTraceServices, Warning, TEXT("[Regions] A region end event (EndTime=%f, Name=\"%s\") was encountered without having seen a matching region begin event first."), Time, Name)
 		}
-		
+
 		AppendRegionBegin(Name, Time);
 		OpenRegionPos = OpenRegionsByName.Find(Name);
 		check(OpenRegionPos);
 	}
-	
+
 	FTimeRegion* OpenRegion = *OpenRegionPos;
 	check(OpenRegion);
-	
+
 	OpenRegion->EndTime = Time;
 
 	OpenRegionsByName.Remove(OpenRegion->Text);
@@ -126,32 +126,32 @@ void FRegionProvider::AppendRegionEnd(const TCHAR* Name, double Time)
 	}
 }
 
-void FRegionProvider::AppendRegionEndWithId(uint64_t Id, double Time)
+void FRegionProvider::AppendRegionEndWithId(uint64 Id, double Time)
 {
 	EditAccessCheck();
 
 	check(Id)
 	FTimeRegion** OpenRegionPos = OpenRegionsById.Find(Id);
-	
+
 	if (!OpenRegionPos)
 	{
 		++NumWarnings;
 		if (NumWarnings <= MaxWarningMessages)
 		{
-			UE_LOG(LogTraceServices, Warning, TEXT("[Regions] A region end event (EndTime=%f, Id=\"%llu\") was encountered without having seen a matching region begin event first."), Time, Id)
+			UE_LOG(LogTraceServices, Warning, TEXT("[Regions] A region end event (EndTime=%f, Id=%llu) was encountered without having seen a matching region begin event first."), Time, Id)
 		}
 
 		// Automatically create a new region.
 		// Generates a display name if we're missing a begin and are closing by ID
-		FString GeneratedName = FString::Printf(TEXT("Unknown Region (missing begin, Id=\"%llu\")"), Id);
+		FString GeneratedName = FString::Printf(TEXT("Unknown Region (missing begin, Id=%llu)"), Id);
 		AppendRegionBeginWithId(*GeneratedName, Id, Time);
 		OpenRegionPos = OpenRegionsById.Find(Id);
 		check(OpenRegionPos);
 	}
-	
+
 	FTimeRegion* OpenRegion = *OpenRegionPos;
 	check(OpenRegion);
-	
+
 	OpenRegion->EndTime = Time;
 
 	OpenRegionsById.Remove(OpenRegion->Id);
@@ -163,7 +163,7 @@ void FRegionProvider::AppendRegionEndWithId(uint64_t Id, double Time)
 		Session.UpdateDurationSeconds(Time);
 	}
 }
-	
+
 void FRegionProvider::OnAnalysisSessionEnded()
 {
 	EditAccessCheck();
@@ -175,15 +175,19 @@ void FRegionProvider::OnAnalysisSessionEnded()
 		++NumWarnings;
 		if (NumWarnings <= MaxWarningMessages)
 		{
-			UE_LOG(LogTraceServices, Warning, TEXT("[Regions] A region (BeginTime=%f, Name=\"%s\", Id=\"%llu\") was never closed."), Region->BeginTime, Region->Text, Region->Id)
+			UE_LOG(LogTraceServices, Warning, TEXT("[Regions] A region (BeginTime=%f, Name=\"%s\", Id=%llu) was never closed."), Region->BeginTime, Region->Text, Region->Id)
 		}
 	};
 	Algo::ForEach(OpenRegionsById, printOpenRegionMessage);
 	Algo::ForEach(OpenRegionsByName, printOpenRegionMessage);
 
-	if (NumWarnings > 0 || NumErrors > 0)
+	if (NumWarnings > 0)
 	{
-		UE_LOG(LogTraceServices, Error, TEXT("[Regions] %u warnings; %u errors"), NumWarnings, NumErrors);
+		UE_LOG(LogTraceServices, Warning, TEXT("[Regions] %u warnings"), NumWarnings);
+	}
+	if (NumErrors > 0)
+	{
+		UE_LOG(LogTraceServices, Error, TEXT("[Regions] %u errors"), NumErrors);
 	}
 
 	uint64 TotalRegionCount = GetRegionCount();
@@ -217,7 +221,7 @@ int32 FRegionProvider::CalculateRegionDepth(const FTimeRegion& Region) const
 	return NewDepth;
 }
 
-FTimeRegion* FRegionProvider::InsertNewRegion(double BeginTime, const TCHAR* Name, uint64_t Id)
+FTimeRegion* FRegionProvider::InsertNewRegion(double BeginTime, const TCHAR* Name, uint64 Id)
 {
 	FTimeRegion Region;
 	Region.BeginTime = BeginTime;
