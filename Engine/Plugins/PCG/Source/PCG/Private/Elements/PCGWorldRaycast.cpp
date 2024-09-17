@@ -348,7 +348,7 @@ bool FPCGWorldRaycastElement::ExecuteInternal(FPCGContext* InContext) const
 				OutPoint.Density = 1.f;
 				UPCGBlueprintHelpers::SetSeedFromPosition(OutPoint);
 
-				bAttributeSuccess &= PCGWorldQueryHelpers::ApplyRayHitMetadata(Hit, WorldQueryParams, OutputPoints.Last(), OutMetadata, World, /*bShouldCreateAttributes=*/false);
+				bAttributeSuccess &= PCGWorldQueryHelpers::ApplyRayHitMetadata(Hit, WorldQueryParams, Direction, OutputPoints.Last(), OutMetadata, World, /*bShouldCreateAttributes=*/false);
 			}
 			else if (Settings->bKeepOriginalPointOnMiss)
 			{

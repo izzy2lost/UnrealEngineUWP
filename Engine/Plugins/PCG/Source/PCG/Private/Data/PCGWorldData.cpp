@@ -238,7 +238,7 @@ bool UPCGWorldRayHitData::SamplePoint(const FTransform& InTransform, const FBox&
 			const FHitResult& Hit = HitResult.GetValue();
 			OutPoint = FPCGPoint(PCGWorldQueryHelpers::GetOrthonormalImpactTransform(Hit), 1.0f, UPCGBlueprintHelpers::ComputeSeedFromPosition(Hit.Location));
 			// TODO: Pre-create attributes within caller or find a better solution than per point
-			PCGWorldQueryHelpers::ApplyRayHitMetadata(Hit, QueryParams, OutPoint, OutMetadata, World, /*bShouldCreateAttributes=*/true);
+			PCGWorldQueryHelpers::ApplyRayHitMetadata(Hit, QueryParams, QueryParams.RayDirection, OutPoint, OutMetadata, World, /*bShouldCreateAttributes=*/true);
 			return true;
 		}
 	}

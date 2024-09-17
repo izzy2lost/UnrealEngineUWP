@@ -114,6 +114,10 @@ struct FPCGWorldRaycastQueryParams : public FPCGWorldCommonQueryParams
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data|Attributes", meta = (PCG_Overridable))
 	uint8 bGetImpactNormal : 1 = false;
 
+	/** Create an attribute for the reflection vector based on the ray incoming direction and the impact normal. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data|Attributes", meta = (PCG_Overridable))
+	uint8 bGetReflection : 1 = false;
+
 	/** Create an attribute for the distance between the ray origin and the impact point. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data|Attributes", meta = (PCG_Overridable))
 	uint8 bGetDistance : 1 = false;

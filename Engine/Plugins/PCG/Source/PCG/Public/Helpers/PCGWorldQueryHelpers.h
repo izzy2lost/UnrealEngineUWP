@@ -30,6 +30,7 @@ namespace PCGWorldQueryConstants
 	const FName ImpactAttribute = TEXT("ImpactResult");
 	const FName ImpactPointAttribute = TEXT("ImpactPoint");
 	const FName ImpactNormalAttribute = TEXT("ImpactNormal");
+	const FName ImpactReflectionAttribute = TEXT("ImpactReflection");
 	const FName ImpactDistanceAttribute = TEXT("ImpactDistance");
 	const FName LocalImpactPointAttribute = TEXT("ImpactLocalPoint");
 	const FName PhysicalMaterialReferenceAttribute = TEXT("PhysicalMaterial");
@@ -71,6 +72,7 @@ namespace PCGWorldQueryHelpers
 	/** Applies common world ray hit results to attributes. */
 	bool ApplyRayHitMetadata(const FHitResult& HitResult,
 		const FPCGWorldRaycastQueryParams& QueryParams,
+		const FVector& RayDirection,
 		FPCGPoint& OutPoint,
 		UPCGMetadata* OutMetadata,
 		TWeakObjectPtr<UWorld> World,
