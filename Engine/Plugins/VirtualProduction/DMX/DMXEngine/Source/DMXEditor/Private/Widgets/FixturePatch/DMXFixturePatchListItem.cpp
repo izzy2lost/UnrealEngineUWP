@@ -49,6 +49,8 @@ FString FDMXFixturePatchListItem::GetFixturePatchName() const
 
 void FDMXFixturePatchListItem::SetFixturePatchName(const FString& InDesiredName, FString& OutNewName)
 {
+	const TGuardValue<bool> ChangeFixturePatchGuard(bChangingFixturePatch, true);
+
 	if (UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get())
 	{
 		if (FixturePatch->Name == InDesiredName)
@@ -74,6 +76,8 @@ FString FDMXFixturePatchListItem::GetFixtureID() const
 
 void FDMXFixturePatchListItem::SetFixtureID(int32 InFixtureID)
 {
+	const TGuardValue<bool> ChangeFixturePatchGuard(bChangingFixturePatch, true);
+
 	if (UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get())
 	{
 		const FScopedTransaction SetFixturePatchNameTransaction(LOCTEXT("SetFixturePatchFixtureIDTransaction", "Set Fixture ID"));
@@ -97,6 +101,8 @@ UDMXEntityFixtureType* FDMXFixturePatchListItem::GetFixtureType() const
 
 void FDMXFixturePatchListItem::SetFixtureType(UDMXEntityFixtureType* FixtureType)
 {
+	const TGuardValue<bool> ChangeFixturePatchGuard(bChangingFixturePatch, true);
+
 	UDMXLibrary* DMXLibrary = GetDMXLibrary();
 	UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get();
 
@@ -128,6 +134,14 @@ int32 FDMXFixturePatchListItem::GetModeIndex() const
 
 void FDMXFixturePatchListItem::SetModeIndex(int32 ModeIndex)
 {
+	// Don't handle other's transactions
+	if (GIsTransacting)
+	{
+		return;
+	}
+
+	const TGuardValue<bool> ChangeFixturePatchGuard(bChangingFixturePatch, true);
+
 	UDMXLibrary* DMXLibrary = GetDMXLibrary();
 	UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get();
 
@@ -146,6 +160,20 @@ void FDMXFixturePatchListItem::SetModeIndex(int32 ModeIndex)
 			
 		FixturePatch->PostEditChange();
 	}
+}
+
+bool FDMXFixturePatchListItem::GetActiveModeName(FString& OutModeName) const
+{
+	const UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get();
+	const FDMXFixtureMode* ActiveModePtr = FixturePatch ? FixturePatch->GetActiveMode() : nullptr;
+
+	if (ActiveModePtr)
+	{
+		OutModeName = ActiveModePtr->ModeName;
+		return true;
+	}
+
+	return false;
 }
 
 int32 FDMXFixturePatchListItem::GetUniverse() const
@@ -170,6 +198,8 @@ int32 FDMXFixturePatchListItem::GetAddress() const
 
 void FDMXFixturePatchListItem::SetAddresses(int32 Universe, int32 Address)
 {
+	const TGuardValue<bool> ChangeFixturePatchGuard(bChangingFixturePatch, true);
+
 	UDMXLibrary* DMXLibrary = GetDMXLibrary();
 	UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get();
 	const TSharedPtr<FDMXEditor> DMXEditor = WeakDMXEditor.Pin();

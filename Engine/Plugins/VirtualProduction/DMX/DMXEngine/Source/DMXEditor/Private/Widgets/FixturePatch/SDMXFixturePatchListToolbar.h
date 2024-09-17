@@ -11,7 +11,7 @@ class FDMXFixturePatchListItem;
 template<typename TEntityType> class SDMXEntityDropdownMenu;
 class UDMXEntity;
 class UDMXEntityFixtureType;
-namespace UE::DMXEditor::FixturePatchEditor { class SAddFixturePatchMenu; }
+namespace UE::DMXEditor::FixturePatchEditor { class SDMXAddFixturePatchMenu; }
 
 
 /** Search bar for the MVR Fixture List */
@@ -50,7 +50,7 @@ private:
 	bool bShowConfictsOnly = false;
 
 	/** Menu displayed to add fixture patches */
-	TSharedPtr<UE::DMXEditor::FixturePatchEditor::SAddFixturePatchMenu> AddFixturePatchMenu;
+	TSharedPtr<UE::DMXEditor::FixturePatchEditor::SDMXAddFixturePatchMenu> AddFixturePatchMenu;
 
 	/** The DMX Editor that owns this widget */
 	TWeakPtr<FDMXEditor> WeakDMXEditor;

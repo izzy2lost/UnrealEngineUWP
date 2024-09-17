@@ -12,8 +12,8 @@
 #include "FixturePatchAutoAssignUtility.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXEntityFixtureType.h"
-#include "SAddFixturePatchMenu.h"
 #include "ScopedTransaction.h"
+#include "SDMXAddFixturePatchMenu.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/SSearchBox.h"
@@ -201,7 +201,7 @@ TSharedRef<SWidget> SDMXFixturePatchListToolbar::GenerateFixtureTypeDropdownMenu
 				.Padding(4.f)
 				.MinDesiredWidth(460.f)
 				[
-					SAssignNew(AddFixturePatchMenu, UE::DMXEditor::FixturePatchEditor::SAddFixturePatchMenu, WeakDMXEditor)
+					SAssignNew(AddFixturePatchMenu, UE::DMXEditor::FixturePatchEditor::SDMXAddFixturePatchMenu, WeakDMXEditor)
 				]
 			]
 			.IsFocusable(true)
