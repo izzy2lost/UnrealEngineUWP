@@ -167,6 +167,9 @@ public:
 		return InTrajectorySample.GetTransform();
 	};
 	
+	UFUNCTION(BlueprintCallable, Category="Animation|PoseSearch|Experimental", meta=(WorldContext="WorldContextObject"))
+	static void DrawTrajectory(const UObject* WorldContextObject, UPARAM(ref) const FPoseSearchQueryTrajectory& InTrajectory, const float DebugThickness, float HeightOffset);
+
 private:
 	static FVector RemapVectorMagnitudeWithCurve(const FVector& Vector, bool bUseCurve, const FRuntimeFloatCurve& Curve);
 };

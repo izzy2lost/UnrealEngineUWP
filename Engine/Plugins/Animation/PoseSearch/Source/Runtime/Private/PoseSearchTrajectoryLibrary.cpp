@@ -628,3 +628,13 @@ void UPoseSearchTrajectoryLibrary::GetTrajectoryAngularVelocity(const FPoseSearc
 		FMath::RadiansToDegrees(AngularVelocityInRadians.Y),
 		FMath::RadiansToDegrees(AngularVelocityInRadians.Z));
 }
+
+void UPoseSearchTrajectoryLibrary::DrawTrajectory(const UObject* WorldContextObject, const FPoseSearchQueryTrajectory& InTrajectory, const float DebugThickness, float HeightOffset)
+{
+#if ENABLE_ANIM_DEBUG
+	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
+	{
+		InTrajectory.DebugDrawTrajectory(World, DebugThickness, HeightOffset);
+	}
+#endif // ENABLE_ANIM_DEBUG
+}

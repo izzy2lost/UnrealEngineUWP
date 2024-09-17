@@ -672,8 +672,6 @@ void FPoseHistory::PreUpdate()
 	CheckThreadSafetyWrite(ReadPoseDataThreadSafeCounter);
 	CheckThreadSafetyWrite(WritePoseDataThreadSafeCounter);
 
-	check(IsInGameThread());
-
 	ReadPoseDataIndex = GetWritePoseDataIndex();
 }
 
