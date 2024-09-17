@@ -160,11 +160,6 @@ const UPCGPointData* UPCGDynamicMeshData::ToPointData(FPCGContext* Context, cons
 	UGeometryScriptLibrary_MeshQueryFunctions::GetAllVertexPositions(DynamicMesh, VerticesList, /*bSkipGaps=*/false, /*bHasVertexIDGaps=*/Dummy);
 
 	TArray<FVector>& Vertices = *VerticesList.List.Get();
-
-	if (Vertices.IsEmpty())
-	{
-		return nullptr;
-	}
 	
 	UPCGPointData* Data = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 	TArray<FPCGPoint>& Points = Data->GetMutablePoints();
