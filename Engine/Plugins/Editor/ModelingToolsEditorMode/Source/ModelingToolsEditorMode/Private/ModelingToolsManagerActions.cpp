@@ -366,7 +366,7 @@ void FModelingToolsManagerCommands::RegisterCommands()
 	else
 	{
 		REGISTER_MODELING_TOOL_COMMAND(BeginPolyModelTool_PolyEd, "PolyGroup Edit", "Select / Edit the current Mesh via PolyGroups");
-		REGISTER_MODELING_TOOL_COMMAND(BeginPolyModelTool_TriSel, "Triangle Edit", "Select / Edit the current Mesh via Triangles");
+		REGISTER_MODELING_TOOL_COMMAND(BeginPolyModelTool_TriSel, "Tri Select", "Select / Edit the current Mesh triangles with a brush interface");
 	}
 
 
