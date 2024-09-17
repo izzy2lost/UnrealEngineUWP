@@ -29,7 +29,7 @@ struct POSESEARCH_API FPoseSearchQueryTrajectorySample
 };
 POSESEARCH_API FArchive& operator<<(FArchive& Ar, FPoseSearchQueryTrajectorySample& TrajectorySample);
 
-USTRUCT(BlueprintType, Category = "Motion Trajectory")
+USTRUCT(BlueprintType, Category = "Pose Search Trajectory")
 struct POSESEARCH_API FPoseSearchQueryTrajectory
 {
 	GENERATED_BODY()
