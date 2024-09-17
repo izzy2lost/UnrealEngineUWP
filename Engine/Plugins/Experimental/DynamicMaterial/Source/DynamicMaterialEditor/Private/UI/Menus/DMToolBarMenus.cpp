@@ -295,9 +295,11 @@ void FDMToolBarMenus::ExportMaterial(TWeakObjectPtr<UDynamicMaterialInstance> In
 {
 	if (UDynamicMaterialInstance* Material = InMaterialInstanceWeak.Get())
 	{
+		const FString CurrentName = TEXT("MD_") + UDMMaterialModelFunctionLibrary::RemoveAssetPrefix(Material->GetName());
+
 		IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
 		FString PackageName, AssetName;
-		AssetTools.CreateUniqueAssetName(Material->GetName(), TEXT(""), PackageName, AssetName);
+		AssetTools.CreateUniqueAssetName(CurrentName, TEXT(""), PackageName, AssetName);
 
 		IContentBrowserSingleton& ContentBrowser = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser").Get();
 		const FContentBrowserItemPath CurrentPath = ContentBrowser.GetCurrentPath();
@@ -341,6 +343,10 @@ void FDMToolBarMenus::ExportMaterialModel(TWeakObjectPtr<UDynamicMaterialModelBa
 		return;
 	}
 
+	UDynamicMaterialInstance* Material = MaterialModelBase->GetDynamicMaterialInstance();
+
+	const FString CurrentName = TEXT("M_") + UDMMaterialModelFunctionLibrary::RemoveAssetPrefix(Material ? Material->GetName() : MaterialModelBase->GetName());
+
 	IContentBrowserSingleton& ContentBrowser = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser").Get();
 	const FContentBrowserItemPath CurrentPath = ContentBrowser.GetCurrentPath();
 	const FString PathStr = CurrentPath.HasInternalPath() ? CurrentPath.GetInternalPathString() : TEXT("/Game");
@@ -348,7 +354,7 @@ void FDMToolBarMenus::ExportMaterialModel(TWeakObjectPtr<UDynamicMaterialModelBa
 	FSaveAssetDialogConfig SaveAssetDialogConfig;
 	SaveAssetDialogConfig.DialogTitleOverride = LOCTEXT("SaveAssetDialogTitle", "Save Asset As");
 	SaveAssetDialogConfig.DefaultPath = PathStr;
-	SaveAssetDialogConfig.DefaultAssetName = GeneratedMaterial->GetName();
+	SaveAssetDialogConfig.DefaultAssetName = CurrentName;
 	SaveAssetDialogConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::Disallow;
 
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
@@ -377,8 +383,9 @@ void FDMToolBarMenus::SnapshotMaterial(TWeakObjectPtr<UDynamicMaterialModelBase>
 	}
 
 	UMaterialInterface* Material = MaterialModelBase->GetGeneratedMaterial();
+	UDynamicMaterialInstance* MaterialInstance = MaterialModelBase->GetDynamicMaterialInstance();
 
-	if (UDynamicMaterialInstance* MaterialInstance = MaterialModelBase->GetDynamicMaterialInstance())
+	if (MaterialInstance)
 	{
 		if (!IsValid(MaterialInstance->Parent.Get()))
 		{
@@ -395,6 +402,13 @@ void FDMToolBarMenus::SnapshotMaterial(TWeakObjectPtr<UDynamicMaterialModelBase>
 		return;
 	}
 
+	const FString CurrentName = TEXT("T_")
+		+ UDMMaterialModelFunctionLibrary::RemoveAssetPrefix(MaterialInstance ? MaterialInstance->GetName() : MaterialModelBase->GetName())
+		+ TEXT("_")
+		+ FString::FromInt(InTextureSize.X)
+		+ TEXT("x")
+		+ FString::FromInt(InTextureSize.Y);
+
 	// Choose asset location
 	IContentBrowserSingleton& ContentBrowser = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser").Get();
 	const FContentBrowserItemPath CurrentPath = ContentBrowser.GetCurrentPath();
@@ -404,7 +418,7 @@ void FDMToolBarMenus::SnapshotMaterial(TWeakObjectPtr<UDynamicMaterialModelBase>
 	SaveAssetDialogConfig.DialogTitleOverride = LOCTEXT("ExportMaterialTo", "Export Material To");
 	SaveAssetDialogConfig.DefaultPath = PathStr;
 	SaveAssetDialogConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::Disallow;
-	SaveAssetDialogConfig.DefaultAssetName = TEXT("T_MD_") + Material->GetName();
+	SaveAssetDialogConfig.DefaultAssetName = CurrentName;
 
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
 	FString SaveObjectPath = ContentBrowserModule.Get().CreateModalSaveAssetDialog(SaveAssetDialogConfig);

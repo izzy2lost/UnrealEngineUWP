@@ -132,7 +132,7 @@ void FDMTextureSetContentBrowserIntegrationPrivate::OnCreateTextureSetComplete(U
 	FString UniquePackageName;
 	FString UniqueAssetName;
 
-	const FString BasePackageName = InPath / TEXT("NewTextureSet");
+	const FString BasePackageName = InPath / TEXT("MDTS_NewTextureSet");
 	AssetToolsModule.Get().CreateUniqueAssetName(BasePackageName, TEXT(""), UniquePackageName, UniqueAssetName);
 
 	UPackage* Package = CreatePackage(*UniquePackageName);

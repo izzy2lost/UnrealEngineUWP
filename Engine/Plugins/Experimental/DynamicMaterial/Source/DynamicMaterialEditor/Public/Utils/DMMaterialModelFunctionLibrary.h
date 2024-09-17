@@ -50,5 +50,5 @@ public:
 
 	DYNAMICMATERIALEDITOR_API static bool CreateModelInstanceInMaterial(UDynamicMaterialModel* InFromModel, UDynamicMaterialInstance* InToInstance);
 
-
+	DYNAMICMATERIALEDITOR_API static FString RemoveAssetPrefix(const FString& InAssetName);
 };

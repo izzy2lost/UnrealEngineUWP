@@ -78,7 +78,7 @@ UObject* UDynamicMaterialInstanceFactory::FactoryCreateNew(UClass* Class, UObjec
 
 		TArray<FAnalyticsEventAttribute> Attributes;
 		Attributes.Reserve(2);
-		Attributes.Add(FAnalyticsEventAttribute(TEXT("Action"), TEXT("InstanceCreated")));
+		Attributes.Add(FAnalyticsEventAttribute(TEXT("Action"), TEXT("MaterialCreated")));
 		Attributes.Add(FAnalyticsEventAttribute(TEXT("ActionDetails"), NewInstance->IsAsset() ? AssetType : SubobjectType));
 		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner"), Attributes);
 	}

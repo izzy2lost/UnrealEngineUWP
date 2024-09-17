@@ -122,20 +122,7 @@ UDynamicMaterialInstance* UDMMaterialModelFunctionLibrary::ExportMaterial(UDynam
 		return nullptr;
 	}
 
-	FString CurrentName = MaterialInstance->GetName();
-
-	if (InMaterialModelBase->IsA<UDynamicMaterialModel>())
-	{
-		CurrentName = CurrentName.StartsWith(TEXT("MDI_"))
-			? CurrentName
-			: (TEXT("MDI_") + CurrentName);
-	}
-	else
-	{
-		CurrentName = CurrentName.StartsWith(TEXT("MDD_"))
-			? CurrentName
-			: (TEXT("MDD_") + CurrentName);
-	}
+	const FString CurrentName = (InMaterialModelBase->IsA<UDynamicMaterialModel>() ? TEXT("MD_") : TEXT("MDI_")) + RemoveAssetPrefix(MaterialInstance->GetName());
 
 	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
 	FString PackageName, AssetName;
@@ -309,11 +296,7 @@ UDynamicMaterialModel* UDMMaterialModelFunctionLibrary::ExportToTemplateMaterial
 	}
 
 	// Where should we save it? (Always export to CB)
-	FString CurrentName = InMaterialModelDynamic->GetName();
-
-	CurrentName = CurrentName.StartsWith(TEXT("MDD_"))
-		? (TEXT("MDM_") + CurrentName.RightChop(4))
-		: (TEXT("MDM_") + CurrentName);
+	const FString CurrentName = TEXT("MDM_") + RemoveAssetPrefix(InMaterialModelDynamic->GetName());
 
 	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
 	FString PackageName, AssetName;
@@ -403,11 +386,7 @@ UDynamicMaterialInstance* UDMMaterialModelFunctionLibrary::ExportToTemplateMater
 	}
 
 	// Where should we save it? (Always export to CB)
-	FString CurrentName = OldInstance ? OldInstance->GetName() : InMaterialModelDynamic->GetName();
-
-	CurrentName = CurrentName.StartsWith(TEXT("MDD_"))
-		? (TEXT("MDI_") + CurrentName.RightChop(4))
-		: (TEXT("MDI_") + CurrentName);
+	const FString CurrentName = TEXT("MD_") + RemoveAssetPrefix(OldInstance ? OldInstance->GetName() : InMaterialModelDynamic->GetName());
 
 	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
 	FString PackageName, AssetName;
@@ -622,6 +601,26 @@ bool UDMMaterialModelFunctionLibrary::CreateModelInstanceInMaterial(UDynamicMate
 	InToInstance->InitializeMIDPublic();
 
 	return true;
+}
+
+FString UDMMaterialModelFunctionLibrary::RemoveAssetPrefix(const FString& InAssetName)
+{
+	if (InAssetName.StartsWith(TEXT("MD_"))) // Material Designer asset
+	{
+		return InAssetName.RightChop(3);
+	}
+	else if (InAssetName.StartsWith(TEXT("MDI_")) // Material Designer Instance
+		|| InAssetName.StartsWith(TEXT("MDD_")) // Material Designer Dynamic (defunct)
+		|| InAssetName.StartsWith(TEXT("MDM_"))) // Material Designer Model
+	{
+		return InAssetName.RightChop(4);
+	}
+	else if (InAssetName.StartsWith(TEXT("MDMI_"))) // Material Designer Model Instance
+	{
+		return InAssetName.RightChop(5);
+	}
+
+	return InAssetName;
 }
 
 #undef LOCTEXT_NAMESPACE

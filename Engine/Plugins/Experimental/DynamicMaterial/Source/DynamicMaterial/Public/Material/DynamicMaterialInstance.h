@@ -20,6 +20,13 @@ class UDynamicMaterialInstance : public UMaterialInstanceDynamic
 	GENERATED_BODY()
 
 public:
+	DYNAMICMATERIAL_API static const FString ModelTypeTag_Material;
+	DYNAMICMATERIAL_API static const FString ModelTypeTag_Instance;
+
+#if WITH_EDITOR
+	DYNAMICMATERIAL_API static FString GetMaterialTypeTag(const FAssetData& InAssetData);
+#endif
+
 	UDynamicMaterialInstance();
 
 	/** Returns the Material Model associated with this Material Designer Material. */
@@ -29,6 +36,10 @@ public:
 	/** Resolves the base Material Model used with this Instance and returns it. */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	DYNAMICMATERIAL_API UDynamicMaterialModel* GetMaterialModel();
+
+	//~ Begin UObject
+	DYNAMICMATERIAL_API virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
+	//~ End UObject
 
 #if WITH_EDITOR
 	/** Sets the Material Model used for this Instance. */
@@ -43,6 +54,7 @@ public:
 	//~ Begin UObject
 	DYNAMICMATERIAL_API virtual void PostDuplicate(bool bInDuplicateForPIE) override;
 	DYNAMICMATERIAL_API virtual void PostEditImport() override;
+	DYNAMICMATERIAL_API virtual void GetAssetRegistryTagMetadata(TMap<FName, FAssetRegistryTagMetadata>& OutMetadata) const override;
 	//~ End UObject
 #endif
 
