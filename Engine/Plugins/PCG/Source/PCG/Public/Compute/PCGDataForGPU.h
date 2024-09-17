@@ -71,10 +71,10 @@ struct FPCGKernelAttributeIDAndType
 	{}
 
 	UPROPERTY()
-	int32 Id;
+	int32 Id = INDEX_NONE;
 
 	UPROPERTY()
-	EPCGKernelAttributeType Type;
+	EPCGKernelAttributeType Type = EPCGKernelAttributeType::Invalid;
 };
 
 struct FPCGKernelAttributeDesc
