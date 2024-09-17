@@ -158,7 +158,7 @@ FToolMenuEntry CreateSurfaceSnapCheckboxMenu()
 		MakeMenuDelegate
 	);
 
-	Entry.ToolbarLabelOverride = TAttribute<FText>::CreateLambda(
+	Entry.ToolBarData.LabelOverride = TAttribute<FText>::CreateLambda(
 		[]()
 		{
 			const ULevelEditorViewportSettings* const Settings = GetMutableDefault<ULevelEditorViewportSettings>();
@@ -355,7 +355,7 @@ FToolMenuEntry CreateLocationSnapCheckboxMenu()
 		);
 	}
 
-	Entry.ToolbarLabelOverride = TAttribute<FText>::Create(&UE::UnrealEd::GetLocationGridLabel);
+	Entry.ToolBarData.LabelOverride = TAttribute<FText>::Create(&UE::UnrealEd::GetLocationGridLabel);
 	Entry.Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.LocationGridSnap");
 
 	return Entry;
@@ -426,7 +426,7 @@ FToolMenuEntry CreateRotationSnapCheckboxMenu()
 		MakeMenuDelegate
 	);
 
-	Entry.ToolbarLabelOverride = TAttribute<FText>::Create(&UE::UnrealEd::GetRotationGridLabel);
+	Entry.ToolBarData.LabelOverride = TAttribute<FText>::Create(&UE::UnrealEd::GetRotationGridLabel);
 	Entry.Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.RotationGridSnap");
 
 	return Entry;
@@ -530,7 +530,7 @@ FToolMenuEntry CreateScaleSnapCheckboxMenu()
 		MakeMenuDelegate
 	);
 
-	Entry.ToolbarLabelOverride = TAttribute<FText>::Create(&UE::UnrealEd::GetScaleGridLabel);
+	Entry.ToolBarData.LabelOverride = TAttribute<FText>::Create(&UE::UnrealEd::GetScaleGridLabel);
 	Entry.Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.ScaleGridSnap");
 
 	return Entry;
@@ -675,7 +675,7 @@ FToolMenuEntry CreateViewportToolbarTransformsSection()
 								}
 							);
 						}
-						CoordianteSystemSubmenu.ToolbarLabelOverride = FText();
+						CoordianteSystemSubmenu.ToolBarData.LabelOverride = FText();
 						CoordianteSystemSubmenu.SetShowInToolbarTopLevel(true);
 					}
 				}
@@ -732,7 +732,7 @@ FToolMenuEntry CreateViewportToolbarTransformsSection()
 		)
 	);
 
-	Entry.ToolbarLabelOverride = FText();
+	Entry.ToolBarData.LabelOverride = FText();
 	Entry.Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.SelectMode");
 	return Entry;
 }
@@ -1081,7 +1081,7 @@ FToolMenuEntry CreateViewportToolbarSnappingSubmenu()
 		)
 	);
 
-	Entry.ToolbarLabelOverride = FText();
+	Entry.ToolBarData.LabelOverride = FText();
 	Entry.Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Snap");
 	return Entry;
 }

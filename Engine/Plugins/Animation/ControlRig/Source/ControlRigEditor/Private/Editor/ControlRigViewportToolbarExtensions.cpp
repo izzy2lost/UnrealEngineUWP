@@ -339,7 +339,7 @@ void UE::ControlRig::PopulateControlRigViewportToolbarShowSubmenu(
 				);
 				MotionPathsSubmenu.SetShowInToolbarTopLevel(true);
 				// Override the label when this item is raised to the top-level toolbar.
-				MotionPathsSubmenu.ToolbarLabelOverride = TAttribute<FText>::CreateLambda(
+				MotionPathsSubmenu.ToolBarData.LabelOverride = TAttribute<FText>::CreateLambda(
 					[Settings]() -> FText
 					{
 						// TODO: This only uses the FramesBefore value at the moment. It should be updated.

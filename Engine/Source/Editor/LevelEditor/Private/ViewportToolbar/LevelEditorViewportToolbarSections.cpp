@@ -1514,7 +1514,7 @@ FToolMenuEntry CreateViewportToolbarShowSubmenu()
 			}
 		)
 	);
-	Entry.ToolbarLabelOverride = FText();
+	Entry.ToolBarData.LabelOverride = FText();
 	Entry.Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "Level.VisibleHighlightIcon16x");
 	return Entry;
 }
@@ -1710,7 +1710,7 @@ FToolMenuEntry CreateViewportToolbarPerformanceAndScalabilitySubmenu()
 		)
 	);
 	Entry.Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Scalability");
-	Entry.ToolbarLabelOverride = FText();
+	Entry.ToolBarData.LabelOverride = FText();
 	return Entry;
 }
 
@@ -2053,7 +2053,7 @@ FToolMenuEntry CreateLevelEditorViewportToolbarSettingsSubmenu()
 		)
 	);
 	Entry.Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.GameSettings");
-	Entry.ToolbarLabelOverride = FText();
+	Entry.ToolBarData.LabelOverride = FText();
 	return Entry;
 }
 
@@ -2551,7 +2551,7 @@ void ExtendCameraSubmenu(FName InCameraOptionsSubmenuName)
 							FSlateIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.Speed"))
 						);
 
-						Entry.ToolbarLabelOverride = TAttribute<FText>::CreateLambda(
+						Entry.ToolBarData.LabelOverride = TAttribute<FText>::CreateLambda(
 							[LevelViewportWeak]()
 							{
 								return UE::UnrealEd::GetCameraSpeedLabel(LevelViewportWeak);
