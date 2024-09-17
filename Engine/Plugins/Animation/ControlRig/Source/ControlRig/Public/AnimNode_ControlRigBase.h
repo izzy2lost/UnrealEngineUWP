@@ -197,7 +197,7 @@ protected:
 	 * If this list is empty all bones will be transferred.
 	 */
 	UPROPERTY()
-	TArray<FBoneReference> InputBonesToTransfer_DEPRECATED;
+	TArray<FBoneReference> InputBonesToTransfer;
 
 	/**
 	 * An inclusive list of bones to transfer as part
@@ -205,7 +205,7 @@ protected:
 	 * If this list is empty all bones will be transferred.
 	 */
 	UPROPERTY()
-	TArray<FBoneReference> OutputBonesToTransfer_DEPRECATED;
+	TArray<FBoneReference> OutputBonesToTransfer;
 
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Settings)
 	TArray<TObjectPtr<UAssetUserData>> AssetUserData;
@@ -222,6 +222,20 @@ protected:
 	UPROPERTY(transient)
 	FControlRigIOSettings OutputSettings;
 
+	/** Complete mapping from skeleton to control rig bone index */
+	TArray<TPair<uint16, uint16>> ControlRigBoneInputMappingByIndex;
+	TArray<TPair<uint16, uint16>> ControlRigBoneOutputMappingByIndex;
+
+	/** Complete mapping from skeleton to curve name */
+	TArray<TPair<uint16, FName>> ControlRigCurveMappingByIndex;
+
+	/** Rig Hierarchy bone name to required array index mapping */
+	TMap<FName, uint16> ControlRigBoneInputMappingByName;
+	TMap<FName, uint16> ControlRigBoneOutputMappingByName;
+
+	/** Rig Curve name to Curve mapping */
+	TMap<FName, FName> ControlRigCurveMappingByName;
+	
 	TSharedPtr<FAnimNode_ControlRig_PoseAdapter> PoseAdapter;
 
 	UPROPERTY(transient)
@@ -251,6 +265,7 @@ protected:
 	void UpdateGetAssetUserDataDelegate(UControlRig* InControlRig) const;
 
 	bool bControlRigRequiresInitialization;
+	bool bEnablePoseAdapter;
 	uint16 LastBonesSerialNumberForCacheBones;
 	TWeakObjectPtr<const UAnimInstance> WeakAnimInstanceObject;
 
