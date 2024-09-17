@@ -195,6 +195,7 @@ namespace PCGWorldQueryHelpers
 		bResult &= CreateAttribute(PCGWorldQueryConstants::ImpactAttribute, QueryParams.bGetImpact, true);
 		bResult &= CreateAttribute(PCGWorldQueryConstants::ImpactPointAttribute, QueryParams.bGetImpactPoint, FVector::ZeroVector);
 		bResult &= CreateAttribute(PCGWorldQueryConstants::ImpactNormalAttribute, QueryParams.bGetImpactNormal, FVector::ZeroVector);
+		bResult &= CreateAttribute(PCGWorldQueryConstants::ImpactReflectionAttribute, QueryParams.bGetReflection, FVector::ZeroVector);
 		bResult &= CreateAttribute(PCGWorldQueryConstants::ImpactDistanceAttribute, QueryParams.bGetDistance, 0.0);
 		bResult &= CreateAttribute(PCGWorldQueryConstants::LocalImpactPointAttribute, QueryParams.bGetLocalImpactPoint, FVector::ZeroVector);
 		bResult &= CreateAttribute(PCGPointDataConstants::ActorReferenceAttribute, QueryParams.bGetReferenceToActorHit, FSoftObjectPath());
@@ -234,6 +235,7 @@ namespace PCGWorldQueryHelpers
 	bool ApplyRayHitMetadata(
 		const FHitResult& HitResult,
 		const FPCGWorldRaycastQueryParams& QueryParams,
+		const FVector& RayDirection,
 		FPCGPoint& OutPoint,
 		UPCGMetadata* OutMetadata,
 		TWeakObjectPtr<UWorld> World,
@@ -268,10 +270,18 @@ namespace PCGWorldQueryHelpers
 
 		const FHitResult& Hit = HitResult;
 
+		FVector ReflectionVector = FVector::ZeroVector;
+		if (QueryParams.bGetReflection)
+		{
+			ReflectionVector = RayDirection - 2.0 * (FVector(Hit.ImpactNormal) | RayDirection) * FVector(Hit.ImpactNormal);
+			ReflectionVector.Normalize();
+		}
+
 		bool bResult = true;
 		// Note: The T/F Impact attribute is true by default, so no need to set it directly.
 		bResult &= ApplyAttribute(PCGWorldQueryConstants::ImpactPointAttribute, FVector(Hit.ImpactPoint), QueryParams.bGetImpactPoint);
 		bResult &= ApplyAttribute(PCGWorldQueryConstants::ImpactNormalAttribute, FVector(Hit.ImpactNormal), QueryParams.bGetImpactNormal);
+		bResult &= ApplyAttribute(PCGWorldQueryConstants::ImpactReflectionAttribute, ReflectionVector, QueryParams.bGetReflection);
 		bResult &= ApplyAttribute(PCGWorldQueryConstants::ImpactDistanceAttribute, (Hit.ImpactPoint - Hit.TraceStart).Length(), QueryParams.bGetDistance);
 		bResult &= ApplyAttribute(PCGPointDataConstants::ActorReferenceAttribute, FSoftObjectPath(Hit.GetActor()), QueryParams.bGetReferenceToActorHit);
 		bResult &= ApplyAttribute(PCGWorldQueryConstants::PhysicalMaterialReferenceAttribute, FSoftObjectPath(Hit.PhysMaterial.Get()), QueryParams.bGetReferenceToPhysicalMaterial);
