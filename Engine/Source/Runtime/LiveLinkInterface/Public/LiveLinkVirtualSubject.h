@@ -82,6 +82,12 @@ public:
 	{
 		return FText::FromName(SubjectKey.SubjectName);
 	}
+
+	/** Get the name that should be used when the subject is rebroadcast. */
+	virtual FName GetRebroadcastName() const
+	{
+		return SubjectKey.SubjectName;
+	}
 	
 protected:
 

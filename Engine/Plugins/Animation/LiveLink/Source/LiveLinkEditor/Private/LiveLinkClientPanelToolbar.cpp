@@ -2,6 +2,7 @@
 
 #include "LiveLinkClientPanelToolbar.h"
 
+#include "Algo/Accumulate.h"
 #include "Algo/StableSort.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetToolsModule.h"
@@ -64,12 +65,24 @@ public:
 	void Construct(const FArguments& InArgs)
 	{
 		static const FName DefaultVirtualSubjectName = TEXT("Virtual");
+
 		bOkClicked = false;
 		VirtualSubjectClass = nullptr;
-		VirtualSubjectName = DefaultVirtualSubjectName;
 		LiveLinkClient = InArgs._LiveLinkClient;
 
 		check(LiveLinkClient);
+
+		int32 NumVirtualSubjects = Algo::TransformAccumulate(LiveLinkClient->GetSubjects(true, true), [this](const FLiveLinkSubjectKey& SubjectKey)
+			{
+				return LiveLinkClient->IsVirtualSubject(SubjectKey) ? 1 : 0;
+			}, 0);
+
+		VirtualSubjectName = DefaultVirtualSubjectName;
+
+		if (NumVirtualSubjects > 0)
+		{
+			VirtualSubjectName = *FString::Printf(TEXT("%s %d"), *DefaultVirtualSubjectName.ToString(), NumVirtualSubjects + 1);
+		}
 
 		//Default VirtualSubject Source should always exist
 		TArray<FGuid> Sources = LiveLinkClient->GetVirtualSources();

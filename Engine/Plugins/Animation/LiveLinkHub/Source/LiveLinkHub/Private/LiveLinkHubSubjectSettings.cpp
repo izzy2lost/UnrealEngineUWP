@@ -67,7 +67,10 @@ void ULiveLinkHubSubjectSettings::PostEditChangeProperty(FPropertyChangedEvent& 
 			{
 				OutboundName = PreviousOutboundName.ToString();
 			}
-			NotifyRename();
+			else
+			{
+				NotifyRename();
+			}
 		}
 	}
 	else if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(ULiveLinkHubSubjectSettings, Translators)
@@ -104,7 +107,7 @@ void ULiveLinkHubSubjectSettings::PostEditChangeProperty(FPropertyChangedEvent& 
 
 bool ULiveLinkHubSubjectSettings::ValidateOutboundName(const FString& InOutboundNameCandidate) const
 {
-	if (InOutboundNameCandidate.IsEmpty())
+	if (InOutboundNameCandidate.IsEmpty() || FName(InOutboundNameCandidate) == NAME_None)
 	{
 		return false;
 	}
