@@ -18,6 +18,7 @@ class IDetailLayoutBuilder;
 class IPropertyHandle;
 class UCustomizableObjectNode;
 class UCustomizableObjectNodeObject;
+class UEdGraphNode;
 
 /** */
 class SMutableTagListWidget : public SCompoundWidget
@@ -53,7 +54,7 @@ private:
 	FText EmptyListText;
 
 	TSharedPtr<SMutableSearchComboBox> TagCombo;
-	TArray< TSharedPtr<FString> > TagComboOptionsSource;
+	TArray< TSharedRef<SMutableSearchComboBox::FFilteredOption> > TagComboOptionsSource;
 	void OnTagComboBoxSelectionChanged(const FText& NewText);
 
 	struct FTagUIData
@@ -65,7 +66,10 @@ private:
 	TArray< TSharedPtr<FTagUIData> > CurrentTagsSource;
 
 	/** */
-	TSharedRef<ITableRow> GenerateTagMenuItemRow(TSharedPtr<FTagUIData> InItem, const TSharedRef<STableViewBase>& OwnerTable);
+	TSharedRef<ITableRow> GenerateTagListItemRow(TSharedPtr<FTagUIData> InItem, const TSharedRef<STableViewBase>& OwnerTable);
+
+	/** */
+	TSharedPtr<SMutableSearchComboBox::FFilteredOption> AddNodeHierarchyOptions(UEdGraphNode* Node, TMap<UEdGraphNode*, TSharedPtr<SMutableSearchComboBox::FFilteredOption>>& AddedOptions);
 
 };
 

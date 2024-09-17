@@ -6,6 +6,9 @@
 #include "MuCOE/CustomizableObjectEditorStyle.h"
 #include "MuCOE/GraphTraversal.h"
 #include "MuCOE/Nodes/CustomizableObjectNode.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeObject.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeObjectGroup.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeMaterial.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeModifierBase.h"
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
 #include "PropertyCustomizationHelpers.h"
@@ -17,9 +20,7 @@
 #include "Engine/SkeletalMesh.h"
 #include "Misc/Attribute.h"
 
-
 #define LOCTEXT_NAMESPACE "CustomizableObjectDetails"
-
 
 
 void SMutableTagListWidget::Construct(const FArguments& InArgs)
@@ -64,7 +65,7 @@ void SMutableTagListWidget::Construct(const FArguments& InArgs)
 		[
 			SAssignNew(this->TagListWidget, SListView<TSharedPtr<FTagUIData>>)
 				.ListItemsSource(&CurrentTagsSource)
-				.OnGenerateRow(this, &SMutableTagListWidget::GenerateTagMenuItemRow)
+				.OnGenerateRow(this, &SMutableTagListWidget::GenerateTagListItemRow)
 				.SelectionMode(ESelectionMode::None)
 		]
 
@@ -86,9 +87,116 @@ void SMutableTagListWidget::Construct(const FArguments& InArgs)
 }
 
 
+TSharedPtr<SMutableSearchComboBox::FFilteredOption> SMutableTagListWidget::AddNodeHierarchyOptions(UEdGraphNode* InNode, TMap<UEdGraphNode*, TSharedPtr<SMutableSearchComboBox::FFilteredOption>>& AddedOptions )
+{
+	TSharedPtr<SMutableSearchComboBox::FFilteredOption> Option;
+	if (TSharedPtr<SMutableSearchComboBox::FFilteredOption>* FoundCached = AddedOptions.Find(InNode))
+	{
+		Option = *FoundCached;
+	}
+
+	if (InNode && !Option)
+	{
+		// Add parents
+		TSharedPtr<SMutableSearchComboBox::FFilteredOption> ParentOption;
+		{
+			// Add this node as placeholder in the cache to prevent infinite loops because of graph loops.
+			AddedOptions.Add(InNode, Option);
+
+			// Pin traversal
+			for (const UEdGraphPin* Pin : InNode->Pins)
+			{
+				if (Pin && Pin->Direction == EEdGraphPinDirection::EGPD_Output
+					&& !Pin->LinkedTo.IsEmpty() && Pin->LinkedTo[0])
+				{
+					UEdGraphNode* ParentNode = Pin->LinkedTo[0]->GetOwningNode();
+
+					ParentOption = AddNodeHierarchyOptions(ParentNode, AddedOptions);
+
+					// We are ok with just one parent
+					if (ParentOption)
+					{
+						break;
+					}
+				}
+			}
+
+			// Node internal references
+			if (!ParentOption)
+			{
+				// Is it an object referencing an external group?
+				if (UCustomizableObjectNodeObject* ObjectNode = Cast<UCustomizableObjectNodeObject>(InNode))
+				{
+					if (ObjectNode->ParentObject)
+					{
+						UEdGraphNode* ExternalParentNode = GetCustomizableObjectExternalNode<UEdGraphNode>(ObjectNode->ParentObject, ObjectNode->ParentObjectGroupId);
+						ParentOption = AddNodeHierarchyOptions(ExternalParentNode, AddedOptions);
+					}
+				}
+			}
+
+			// TODO: Support import/export nodes
+		}
+
+		// Is it a relevant type that we want to show in the hierarchy?
+		if (UCustomizableObjectNodeMaterial* MeshSectionNode = Cast<UCustomizableObjectNodeMaterial>(InNode))
+		{
+			Option = MakeShared<SMutableSearchComboBox::FFilteredOption>();
+			Option->Parent = ParentOption;
+			UMaterialInterface* Material = MeshSectionNode->GetMaterial();
+			Option->DisplayOption = FString::Printf(TEXT("Mesh Section [%s]"), Material?*Material->GetName():TEXT("no-material"));
+			TagComboOptionsSource.Add(Option.ToSharedRef());
+		}
+
+		else if (UCustomizableObjectNodeObject* ObjectNode = Cast<UCustomizableObjectNodeObject>(InNode))
+		{
+			Option = MakeShared<SMutableSearchComboBox::FFilteredOption>();
+			Option->Parent = ParentOption;
+			Option->DisplayOption = ObjectNode->ObjectName;
+			if (Option->DisplayOption.IsEmpty())
+			{
+				Option->DisplayOption = "Unnamed Object";
+			}
+			TagComboOptionsSource.Add(Option.ToSharedRef());
+		}
+
+		else if (UCustomizableObjectNodeObjectGroup* GroupNode = Cast<UCustomizableObjectNodeObjectGroup>(InNode))
+		{
+			Option = MakeShared<SMutableSearchComboBox::FFilteredOption>();
+			Option->Parent = ParentOption;
+			Option->DisplayOption = GroupNode->GroupName;
+			if (Option->DisplayOption.IsEmpty())
+			{
+				Option->DisplayOption = "Unnamed Group";
+			}
+			TagComboOptionsSource.Add(Option.ToSharedRef());
+		}
+
+		else if (UCustomizableObjectNodeModifierBase* ModifierNode = Cast<UCustomizableObjectNodeModifierBase>(InNode))
+		{
+			Option = MakeShared<SMutableSearchComboBox::FFilteredOption>();
+			Option->Parent = ParentOption;
+			Option->DisplayOption = ModifierNode->GetNodeTitle(ENodeTitleType::ListView).ToString();
+			TagComboOptionsSource.Add(Option.ToSharedRef());
+		}
+
+		// Overwrite in to cache, to prevent loops
+		AddedOptions.Add(InNode, Option);
+
+		// If this node wasn't of interest, maybe its parent was.
+		if (!Option)
+		{
+			Option = ParentOption;
+		}
+	}
+
+	return Option;
+}
+
+
 void SMutableTagListWidget::RefreshOptions()
 {
-	// Tag combo options
+	// Collect all possible tags for the "add" combo menu
 	{
 		TagComboOptionsSource.SetNum(0, EAllowShrinking::No);
 
@@ -99,51 +207,56 @@ void SMutableTagListWidget::RefreshOptions()
 		TSet<UCustomizableObject*> AllCustomizableObject;
 		GetAllObjectsInGraph(RootObject, AllCustomizableObject);
 
+		TMap<UEdGraphNode*, TSharedPtr<SMutableSearchComboBox::FFilteredOption>> AddedOptions;
+
 		for (const UCustomizableObject* CustObject : AllCustomizableObject)
 		{
-			if (CustObject)
+			if (!CustObject)
 			{
-				for (const TObjectPtr<UEdGraphNode>& CandidateNode : CustObject->GetPrivate()->GetSource()->Nodes)
+				continue;
+			}
+
+
+			for (const TObjectPtr<UEdGraphNode>& CandidateNode : CustObject->GetPrivate()->GetSource()->Nodes)
+			{
+				UCustomizableObjectNode* Typed = Cast<UCustomizableObjectNode>(CandidateNode);
+				if (!Typed)
 				{
-					UCustomizableObjectNode* Typed = Cast<UCustomizableObjectNode>(CandidateNode);
-					if (Typed)
+					continue;
+				}
+
+				TArray<FString>* EnableTags = Typed->GetEnableTags();
+				if (EnableTags)
+				{
+					TSharedPtr<SMutableSearchComboBox::FFilteredOption> NodeOption = AddNodeHierarchyOptions(Typed,AddedOptions);
+
+					for (const FString& OneTag : *EnableTags)
 					{
-						TArray<FString>* EnableTags = Typed->GetEnableTags();
-						if (EnableTags)
+						if (!OneTag.IsEmpty())
 						{
-							for (const FString& OneTag : *EnableTags)
-							{
-								if (!OneTag.IsEmpty())
-								{
-									bool bContained = TagComboOptionsSource.ContainsByPredicate([&](const TSharedPtr<FString>& Candidate) 
-										{
-											return Candidate.IsValid() && *Candidate == OneTag;
-										});
-									if (!bContained)
-									{
-										TagComboOptionsSource.Add(MakeShared<FString>(OneTag));
-									}
-								}
-							}
+							TSharedRef Option = MakeShared<SMutableSearchComboBox::FFilteredOption>();
+							Option->ActualOption = OneTag;
+							Option->DisplayOption = OneTag;
+							Option->Parent = NodeOption;
+							TagComboOptionsSource.Add(Option);
 						}
 					}
+				}
 
-					UCustomizableObjectNodeModifierBase* TypedModifier = Cast<UCustomizableObjectNodeModifierBase>(CandidateNode);
-					if (TypedModifier)
+				UCustomizableObjectNodeModifierBase* TypedModifier = Cast<UCustomizableObjectNodeModifierBase>(CandidateNode);
+				if (TypedModifier)
+				{
+					for (const FString& OneTag : TypedModifier->RequiredTags)
 					{
-						for (const FString& OneTag : TypedModifier->RequiredTags)
+						TSharedPtr<SMutableSearchComboBox::FFilteredOption> NodeOption = AddNodeHierarchyOptions(Typed, AddedOptions);
+
+						if (!OneTag.IsEmpty())
 						{
-							if (!OneTag.IsEmpty())
-							{
-								bool bContained = TagComboOptionsSource.ContainsByPredicate([&](const TSharedPtr<FString>& Candidate)
-									{
-										return Candidate.IsValid() && *Candidate == OneTag;
-									});
-								if (!bContained)
-								{
-									TagComboOptionsSource.Add(MakeShared<FString>(OneTag));
-								}
-							}
+							TSharedRef Option = MakeShared<SMutableSearchComboBox::FFilteredOption>();
+							Option->ActualOption = OneTag;
+							Option->DisplayOption = OneTag;
+							Option->Parent = NodeOption;
+							TagComboOptionsSource.Add(Option);
 						}
 					}
 				}
@@ -185,7 +298,7 @@ void SMutableTagListWidget::OnTagComboBoxSelectionChanged(const FText& NewText)
 }
 
 
-TSharedRef<ITableRow> SMutableTagListWidget::GenerateTagMenuItemRow(TSharedPtr<FTagUIData> InItem, const TSharedRef<STableViewBase>& OwnerTable)
+TSharedRef<ITableRow> SMutableTagListWidget::GenerateTagListItemRow(TSharedPtr<FTagUIData> InItem, const TSharedRef<STableViewBase>& OwnerTable)
 {
 	if (!InItem)
 	{

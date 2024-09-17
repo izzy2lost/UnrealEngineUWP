@@ -36,7 +36,6 @@ void SMutableSearchComboBox::Construct(const FArguments& InArgs)
 	const FButtonStyle* const OurButtonStyle = InArgs._ButtonStyle ? InArgs._ButtonStyle : &OurComboButtonStyle.ButtonStyle;
 
 	this->OnSelectionChanged = InArgs._OnSelectionChanged;
-	this->OnGenerateWidget = InArgs._OnGenerateWidget;
 
 	OptionsSource = InArgs._OptionsSource;
 	RefreshOptions();
@@ -62,9 +61,10 @@ void SMutableSearchComboBox::Construct(const FArguments& InArgs)
 
 				+ SVerticalBox::Slot()
 				[
-					SAssignNew(this->ComboListView, SComboListType)
-						.ListItemsSource(&FilteredOptionsSource)
+					SAssignNew(this->ComboTreeView, SComboTreeType)
+						.TreeItemsSource(&FilteredRootOptionsSource)
 						.OnGenerateRow(this, &SMutableSearchComboBox::GenerateMenuItemRow)
+						.OnGetChildren(this, &SMutableSearchComboBox::OnGetChildren)
 						.OnSelectionChanged(this, &SMutableSearchComboBox::OnSelectionChanged_Internal)
 						.OnKeyDownHandler(this, &SMutableSearchComboBox::OnKeyDownHandler)
 						.SelectionMode(ESelectionMode::Single)
@@ -103,7 +103,7 @@ void SMutableSearchComboBox::Construct(const FArguments& InArgs)
 	}
 	else
 	{
-		SetMenuContentWidgetToFocus(ComboListView);
+		SetMenuContentWidgetToFocus(ComboTreeView);
 	}
 }
 
@@ -115,28 +115,19 @@ void SMutableSearchComboBox::RefreshOptions()
 
 	if (SearchText.IsEmpty())
 	{
-		for (const TSharedPtr<FString>& Option : *OptionsSource)
-		{
-			if (Option)
-			{
-				FFilteredOption Data;
-				Data.ActualOption = *Option;
-				Data.DisplayOption = *Option;
-				FilteredOptionsSource.Add(MakeShared<FFilteredOption>(Data));
-			}
-		}
+		FilteredOptionsSource = *OptionsSource;
 	}
 	else
 	{
 		TArray<FString> SearchTokens;
 		SearchText.ToString().ParseIntoArrayWS(SearchTokens);
 
-		for (const TSharedPtr<FString>& Option : *OptionsSource)
+		for (const TSharedRef<FFilteredOption>& Option : *OptionsSource)
 		{
 			bool bAllTokensMatch = true;
 			for (const FString& SearchToken : SearchTokens)
 			{
-				if (Option->Find(SearchToken, ESearchCase::Type::IgnoreCase) == INDEX_NONE)
+				if (Option->DisplayOption.Find(SearchToken, ESearchCase::Type::IgnoreCase) == INDEX_NONE)
 				{
 					bAllTokensMatch = false;
 					break;
@@ -145,62 +136,90 @@ void SMutableSearchComboBox::RefreshOptions()
 
 			if (bAllTokensMatch)
 			{
-				FFilteredOption Data;
-				Data.ActualOption = *Option;
-				Data.DisplayOption = *Option;
-				FilteredOptionsSource.Add(MakeShared<FFilteredOption>(Data));
+				FilteredOptionsSource.Add(Option);
 			}
 		}
 
 		bool bFullMatch = false;
 		FString SearchString = SearchText.ToString();
-		for (const TSharedPtr<FString>& Option : *OptionsSource)		
+		for (const TSharedPtr<FFilteredOption>& Option : *OptionsSource)
 		{
-			if (*Option == SearchString)
+			if (Option->DisplayOption == SearchString)
 			{
 				bFullMatch = true; 
 				break;
 			}
 		}
 
-		if ( bAllowAddNewOptions && !SearchText.IsEmpty() )
+		if ( bAllowAddNewOptions && !bFullMatch && !SearchText.IsEmpty() )
 		{
 			FFilteredOption Data;
 			Data.ActualOption = SearchString;
-			Data.DisplayOption = FString::Printf(TEXT("Add new (%s)"), *SearchString);
-			FilteredOptionsSource.Add(MakeShared<FFilteredOption>(Data));
+			Data.DisplayOption = FString::Printf(TEXT("Add new tag (%s)"), *SearchString);
+			FilteredOptionsSource.Insert(MakeShared<FFilteredOption>(Data),0);
+		}
+
+		// Ensure filtered options parents are added
+		for (int32 OptionIndex = 0; OptionIndex < FilteredOptionsSource.Num(); ++OptionIndex)
+		{
+			TSharedPtr<FFilteredOption> Parent = FilteredOptionsSource[OptionIndex]->Parent;
+			if (Parent)
+			{
+				FilteredOptionsSource.AddUnique(Parent.ToSharedRef());
+
+				while (Parent)
+				{
+					ComboTreeView->SetItemExpansion(Parent.ToSharedRef(), true);
+					Parent = Parent->Parent;
+				}
+			}
 		}
 	}
 
-	if (ComboListView)
+	FilteredRootOptionsSource.SetNum(0, EAllowShrinking::No);
+	FilteredRootOptionsSource.Reserve(FilteredOptionsSource.Num());
+	for (const TSharedRef<FFilteredOption>& Option : FilteredOptionsSource)
 	{
-		ComboListView->RequestListRefresh();
+		if (!Option->Parent.IsValid())
+		{
+			FilteredRootOptionsSource.Add(Option);
+		}
+	}
+
+	if (ComboTreeView)
+	{
+		ComboTreeView->RequestTreeRefresh();
 	}
 }
 
 
-TSharedRef<ITableRow> SMutableSearchComboBox::GenerateMenuItemRow(TSharedPtr<FFilteredOption> InItem, const TSharedRef<STableViewBase>& OwnerTable)
+TSharedRef<ITableRow> SMutableSearchComboBox::GenerateMenuItemRow(TSharedRef<FFilteredOption> InItem, const TSharedRef<STableViewBase>& OwnerTable)
 {
-	// TODO
-	//if (OnGenerateWidget.IsBound())
-	//{
-	//	return SNew(SComboRow<TSharedPtr<FString>>, OwnerTable)
-	//		.Style(ItemStyle)
-	//		.Padding(MenuRowPadding)
-	//		[
-	//			OnGenerateWidget.Execute(InItem)
-	//		];
-	//}
-	//else
+	FSlateColor LabelColor = InItem->ActualOption.IsEmpty() 
+		? FSlateColor::UseSubduedForeground() 
+		: FSlateColor::UseForeground();
+
+	return SNew(SComboRow<TSharedPtr<FString>>, OwnerTable)
+		[
+			SNew(STextBlock)
+				.Text(FText::FromString(InItem->DisplayOption))
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+				.ColorAndOpacity(LabelColor)
+		];
+}
+
+
+void SMutableSearchComboBox::OnGetChildren(TSharedRef<FFilteredOption> InItem, TArray<TSharedRef<FFilteredOption>>& OutChildren)
+{
+	// TODO: Optimize if necessary
+	for (const TSharedRef<FFilteredOption>& Option : FilteredOptionsSource)
 	{
-		// Just add the text
-		return SNew(SComboRow<TSharedPtr<FString>>, OwnerTable)
-			[
-				SNew(STextBlock)
-					.Text(FText::FromString(InItem ? InItem->DisplayOption : FString(TEXT("Invalid item."))))
-					.Font(IDetailLayoutBuilder::GetDetailFont())
-			];
+		if (Option->Parent==InItem)
+		{
+			OutChildren.Add(Option);
+		}
 	}
+
 }
 
 
@@ -212,7 +231,7 @@ void SMutableSearchComboBox::OnMenuOpenChanged(bool bOpen)
 		FSlateApplication::Get().ForEachUser([this](FSlateUser& User)
 			{
 				TSharedRef<SWidget> ThisRef = this->AsShared();
-				if (User.IsWidgetInFocusPath(this->ComboListView))
+				if (User.IsWidgetInFocusPath(this->ComboTreeView))
 				{
 					User.SetFocus(ThisRef);
 				}
@@ -229,10 +248,16 @@ void SMutableSearchComboBox::OnSelectionChanged_Internal(TSharedPtr<FFilteredOpt
 		return;
 	}
 
-	// close combo as long as the selection wasn't from navigation
+	// If the proposed selection is not a valid element (it is a hierarchy label)
+	if (ProposedSelection->ActualOption.IsEmpty())
+	{
+		return;
+	}
+
+	// Close combo as long as the selection wasn't from navigation
 	if (SelectInfo != ESelectInfo::OnNavigation)
 	{		
-		OnSelectionChanged.ExecuteIfBound(ProposedSelection ? FText::FromString(ProposedSelection->ActualOption) : FText());
+		OnSelectionChanged.ExecuteIfBound(FText::FromString(ProposedSelection->ActualOption));
 		this->SetIsOpen(false);
 	}
 }
@@ -250,7 +275,7 @@ void SMutableSearchComboBox::OnSearchTextCommitted(const FText& InText, ETextCom
 {
 	if ((InCommitType == ETextCommit::Type::OnEnter) && FilteredOptionsSource.Num() > 0)
 	{
-		ComboListView->SetSelection(FilteredOptionsSource[0], ESelectInfo::OnKeyPress);
+		ComboTreeView->SetSelection(FilteredOptionsSource[0], ESelectInfo::OnKeyPress);
 	}
 }
 
@@ -260,7 +285,7 @@ FReply SMutableSearchComboBox::OnKeyDownHandler(const FGeometry& MyGeometry, con
 	if (InKeyEvent.GetKey() == EKeys::Enter)
 	{
 		// Select the first selected item on hitting enter
-		TArray<TSharedPtr<FFilteredOption>> SelectedItems = ComboListView->GetSelectedItems();
+		TArray<TSharedRef<FFilteredOption>> SelectedItems = ComboTreeView->GetSelectedItems();
 		if (SelectedItems.Num() > 0)
 		{
 			OnSelectionChanged_Internal(SelectedItems[0], ESelectInfo::OnKeyPress);

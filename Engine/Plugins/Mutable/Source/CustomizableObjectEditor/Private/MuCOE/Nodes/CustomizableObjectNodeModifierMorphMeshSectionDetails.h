@@ -28,13 +28,27 @@ public:
 	// ILayoutDetails interface
 	void CustomizeDetails( IDetailLayoutBuilder& DetailBuilder ) override;
 
+protected:
+
+	// FCustomizableObjectNodeModifierBaseDetails interface
+	virtual void OnRequiredTagsPropertyChanged() override;
+
 private:
 
 	class UCustomizableObjectNodeModifierMorphMeshSection* Node = nullptr;
 
 	/** */
 	TSharedPtr<SMutableSearchComboBox> MorphCombo;
-	TArray< TSharedPtr<FString> > MorphOptionsSource;
+	TArray< TSharedRef<SMutableSearchComboBox::FFilteredOption> > MorphOptionsSource;
 	void OnMorphTargetComboBoxSelectionChanged(const FText& NewText);
+
+	/** */
+	void AddMorphsFromNode(UEdGraphNode* Candidate, TMap<UEdGraphNode*, TSharedPtr<SMutableSearchComboBox::FFilteredOption>>& AddedOptions);
+		
+	/** */
+	TSharedPtr<SMutableSearchComboBox::FFilteredOption> AddNodeHierarchyOptions(UEdGraphNode* Node, TMap<UEdGraphNode*, TSharedPtr<SMutableSearchComboBox::FFilteredOption>>& AddedOptions);
+
+	/** */
+	void RefreshMorphOptions();
 
 };
