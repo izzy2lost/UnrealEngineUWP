@@ -6,7 +6,7 @@
 #include "ChaosFlesh/Cmd/FleshAssetConversion.h"
 #include "ChaosFlesh/FleshAsset.h"
 #include "ChaosFlesh/FleshCollection.h"
-#include "ChaosFlesh/FleshCollectionUtility.h"
+#include "ChaosFlesh/FleshCollectionEngineUtility.h"
 #include "ChaosFlesh/ChaosDeformableTetrahedralComponent.h"
 
 #include "Chaos/CacheManagerActor.h"

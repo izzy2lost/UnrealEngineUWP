@@ -11,7 +11,7 @@
 #include "FleshGeneratorProperties.h"
 #include "Engine/SkeletalMesh.h"
 #include "Logging/LogMacros.h"
-#include "ChaosFlesh/FleshCollectionUtility.h"
+#include "ChaosFlesh/FleshCollectionEngineUtility.h"
 
 DEFINE_LOG_CATEGORY(LogChaosFleshGeneratorSimulation);
 

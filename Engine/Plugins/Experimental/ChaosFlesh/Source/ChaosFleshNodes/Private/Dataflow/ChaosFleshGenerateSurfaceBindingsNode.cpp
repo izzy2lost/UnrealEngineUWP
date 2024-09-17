@@ -8,7 +8,7 @@
 #include "Chaos/BoundingVolumeHierarchy.h"
 #include "Chaos/Tetrahedron.h"
 #include "Chaos/TriangleMesh.h"
-#include "ChaosFlesh/FleshCollectionUtility.h"
+#include "ChaosFlesh/FleshCollectionEngineUtility.h"
 #include "ChaosFlesh/TetrahedralCollection.h"
 #include "Containers/Map.h"
 #include "Engine/StaticMesh.h"
