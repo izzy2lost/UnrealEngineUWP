@@ -27,15 +27,23 @@ DEFINE_LOG_CATEGORY_STATIC(LogAvaScene, Log, All);
 
 #define LOCTEXT_NAMESPACE "AvaScene"
 
-void AAvaScene::OnSceneCreated(FString&& InCreationType)
-{
 #if WITH_EDITOR
+void AAvaScene::NotifySceneEvent(ESceneAction InAction)
+{
 	if (FEngineAnalytics::IsAvailable())
 	{
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.SceneCreated"), FAnalyticsEventAttribute(TEXT("CreationType"), MoveTemp(InCreationType)));
+		FString ActionName;
+		switch (InAction)
+		{
+		case ESceneAction::Created:     ActionName = TEXT("Created"); break;
+		case ESceneAction::Activated:   ActionName = TEXT("Activated"); break;
+		case ESceneAction::Deactivated: ActionName = TEXT("Deactivated"); break;
+		}
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.Scene")
+			, FAnalyticsEventAttribute(TEXT("Action"), MoveTemp(ActionName)));
 	}
-#endif
 }
+#endif
 
 AAvaScene* AAvaScene::GetScene(ULevel* InLevel, bool bInCreateSceneIfNotFound)
 {
@@ -65,7 +73,9 @@ AAvaScene* AAvaScene::GetScene(ULevel* InLevel, bool bInCreateSceneIfNotFound)
 #endif
 
 	AAvaScene* const NewScene = World->SpawnActor<AAvaScene>(SpawnParameters);
-	OnSceneCreated(/*CreationType*/TEXT("Spawned"));
+#if WITH_EDITOR
+	NotifySceneEvent(ESceneAction::Created);
+#endif
 	return NewScene;
 }
 
@@ -182,7 +192,7 @@ bool AAvaScene::AddSequence(UAvaSequence* InSequence)
 #if WITH_EDITOR
 		if (FEngineAnalytics::IsAvailable())
 		{
-			FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.AddedSequence"));
+			FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.Sequence"), TEXT("Action"), TEXT("AddedSequence"));
 		}
 #endif
 

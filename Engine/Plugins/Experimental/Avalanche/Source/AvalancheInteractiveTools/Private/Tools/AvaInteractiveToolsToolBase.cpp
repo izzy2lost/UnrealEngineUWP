@@ -603,12 +603,13 @@ void UAvaInteractiveToolsToolBase::OnComplete()
 	if (FEngineAnalytics::IsAvailable())
 	{
 		TArray<FAnalyticsEventAttribute> Attributes;
+		Attributes.Reserve(2);
 		Attributes.Emplace(TEXT("ToolClass"), GetClass()->GetName());
 		if (SpawnedActor)
 		{
-			Attributes.Emplace(TEXT("ActorClass"), SpawnedActor->GetClass()->GetName());	
+			Attributes.Emplace(TEXT("ActorClass"), GetNameSafe(SpawnedActor->GetClass()));
 		}
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.CompleteTool"), Attributes);
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.PlaceActor"), Attributes);
 	}
 }
 

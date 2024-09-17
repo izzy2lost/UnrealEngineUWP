@@ -11,5 +11,7 @@ public:
 	//~ Begin IAvaEditorProvider
 	virtual UObject* GetSceneObject(UWorld* InWorld, EAvaEditorObjectQueryType InQueryType) override;
 	virtual void GetActorsToEdit(TArray<AActor*>& InOutActorsToEdit) const override;
+	virtual void OnSceneActivated() override;
+	virtual void OnSceneDeactivated() override;
 	//~ End IAvaEditorProvider
 };

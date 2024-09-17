@@ -95,8 +95,10 @@ void UActorModifierCoreSubsystem::OnInsertModifier(const FActorModifierCoreStack
 	if (FEngineAnalytics::IsAvailable())
 	{
 		TArray<FAnalyticsEventAttribute> Attributes;
+		Attributes.Reserve(2);
+		Attributes.Emplace(TEXT("Action"), TEXT("Insert"));
 		Attributes.Emplace(TEXT("Name"), InInsertOp.NewModifierName.ToString());
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.ActorModifiers.InsertModifier"), Attributes);
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.ActorModifiers.Modifier"), Attributes);
 	}
 #endif
 }

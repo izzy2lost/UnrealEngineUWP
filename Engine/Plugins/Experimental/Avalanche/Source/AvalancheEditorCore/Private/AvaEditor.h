@@ -35,7 +35,7 @@ protected:
 
 	void ForEachExtension(TFunctionRef<void(const TSharedRef<IAvaEditorExtension>&)> InFunc) const;
 
-	void RecordActivationChangedEvent();
+	void NotifySceneActivationEvent();
 
 	//~ Begin IAvaEditor
 	virtual void Activate(TSharedPtr<IToolkitHost> InOverrideToolkitHost = nullptr) override;
