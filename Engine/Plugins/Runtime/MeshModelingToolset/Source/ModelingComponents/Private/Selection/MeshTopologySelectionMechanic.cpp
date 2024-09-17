@@ -124,9 +124,10 @@ void UMeshTopologySelectionMechanic::DisableBehaviors(UInteractiveTool* ParentTo
 	// TODO: Is it worth adding a way to remove the property watchers for marquee?
 }
 
-void UMeshTopologySelectionMechanic::SetIsEnabled(bool bOn)
+void UMeshTopologySelectionMechanic::SetIsEnabled(bool bBehaviorEnabledIn, bool bRenderTopologyIn)
 {
-	bIsEnabled = bOn;
+	bIsEnabled = bBehaviorEnabledIn;
+	bRenderTopology = bRenderTopologyIn;
 	UpdateMarqueeEnabled();
 }
 
@@ -167,16 +168,18 @@ TPair<FInputCapturePriority, FInputCapturePriority> UMeshTopologySelectionMechan
 
 void UMeshTopologySelectionMechanic::Render(IToolsContextRenderAPI* RenderAPI)
 {
-	if (!bIsEnabled)
+	// Cache the view camera state so we can use for snapping/etc.
+	GetParentTool()->GetToolManager()->GetContextQueriesAPI()->GetCurrentViewState(CameraState);
+	
+	if (bIsEnabled)
+	{
+		MarqueeMechanic->Render(RenderAPI);
+	}
+	
+	if (!bRenderTopology) 
 	{
 		return;
 	}
-	
-	MarqueeMechanic->Render(RenderAPI);
-
-	// Cache the view camera state so we can use for snapping/etc.
-	// This should not happen in Render() though...
-	GetParentTool()->GetToolManager()->GetContextQueriesAPI()->GetCurrentViewState(CameraState);
 
 	FViewCameraState RenderCameraState = RenderAPI->GetCameraState();
 
@@ -275,11 +278,9 @@ bool UMeshTopologySelectionMechanic::TopologyHitTest(const FRay& WorldRay, FHitR
 
 bool UMeshTopologySelectionMechanic::TopologyHitTest(const FRay& WorldRay, FHitResult& OutHit, FGroupTopologySelection& OutSelection, bool bUseOrthoSettings)
 {
-	if (!bIsEnabled)
-	{
-		return false;
-	}
-	
+	// Note: this function should remain callable even if the mechanic is disabled, though client
+	//  could reach in to use the TopoSelector directly.
+
 	FRay3d LocalRay(TargetTransform.InverseTransformPosition((FVector3d)WorldRay.Origin),
 		TargetTransform.InverseTransformVector((FVector3d)WorldRay.Direction));
 	UE::Geometry::Normalize(LocalRay.Direction);
@@ -838,6 +839,11 @@ FInputRayHit UMeshTopologySelectionMechanic::IsHitByClick(const FInputDeviceRay&
 
 void UMeshTopologySelectionMechanic::OnClicked(const FInputDeviceRay& ClickPos)
 {
+	if (!ensure(bIsEnabled))
+	{
+		return;
+	}
+
 	// update selection
 	ParentTool->GetToolManager()->BeginUndoTransaction(LOCTEXT("SelectionChange", "Selection"));
 	BeginChange();
@@ -865,6 +871,11 @@ void UMeshTopologySelectionMechanic::OnBeginHover(const FInputDeviceRay& DeviceP
 
 bool UMeshTopologySelectionMechanic::OnUpdateHover(const FInputDeviceRay& DevicePos)
 {
+	if (!bIsEnabled)
+	{
+		return false;
+	}
+
 	UpdateHighlight(DevicePos.WorldRay);
 	return true;
 }
