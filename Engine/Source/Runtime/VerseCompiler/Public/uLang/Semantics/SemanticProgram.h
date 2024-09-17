@@ -242,9 +242,11 @@ public:
     TSPtr<CCompatConstraintRoot> _PersistenceCompatConstraintRoot;
     TSPtr<CCompatConstraintRoot> _PersistenceSoftCompatConstraintRoot;
 
-    // Core module
+    // The notional package that is created to contain the built-in definitions.
+    TSPtr<CAstPackage> _BuiltInPackage;
+
+    // The /Verse.org/Verse module.
     CModule* _VerseModule{nullptr};
-    CSnippet* _BuiltinSnippet{nullptr};
 
     // Global types for the program.
     CFalseType          _falseType         {*this};

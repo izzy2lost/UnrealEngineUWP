@@ -70,7 +70,7 @@ CUTF8String CScope::GetScopePath(uLang::UTF8Char SeparatorChar, EPathMode Mode) 
         {
             // This can happen for the built-in Verse definitions. Just use the module as the
             // package root.
-            ULANG_ASSERTF(IsSameOrChildOf(GetProgram()._BuiltinSnippet),
+            ULANG_ASSERTF(IsBuiltInScope(),
                 "Did not expect null package for %s",
                 GetScopePath('/', EPathMode::PrefixSeparator).AsCString());
             PackageRootScope = GetModule();
@@ -251,6 +251,12 @@ bool CScope::IsInsideTypeScope() const
         Scope = Scope->_Parent;
     }
     return Scope && Scope->_Kind == EKind::Type;
+}
+
+bool CScope::IsBuiltInScope() const
+{
+    const CAstPackage* Package = GetPackage();
+    return Package && Package == GetProgram()._BuiltInPackage;
 }
 
 CModule& CScope::CreateModule(const CSymbol& ModuleName)

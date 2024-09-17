@@ -1241,8 +1241,8 @@ public:
     // Creates an error if the referencing scope's package doesn't explicitly declare a dependency on the definition's package.
     void RequirePackageDependencyIsDeclared(const Vst::Node* ReferencingVstNode, const CScope& ReferencingScope, const CDefinition& Definition)
     {
-        // An explicit dependency on Verse.org/Verse is not required.
-        if (Definition._EnclosingScope.IsSameOrChildOf(_Program->_BuiltinSnippet))
+        // An explicit dependency is not required for built-in definitions.
+        if (Definition.IsBuiltIn())
         {
             return;
         }

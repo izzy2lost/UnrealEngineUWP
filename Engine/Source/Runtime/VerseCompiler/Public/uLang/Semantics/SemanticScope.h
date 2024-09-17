@@ -135,6 +135,9 @@ public:
     // Determines if this is a module or snippet scope.
     bool IsModuleOrSnippet() const { return GetKind() == EKind::Module || GetKind() == EKind::ModulePart || GetKind() == EKind::Snippet; }
 
+    // Determines if the definitions in this scope are built-in.
+    bool IsBuiltInScope() const;
+
     CModule& CreateModule(const CSymbol& ModuleName);
     CClassDefinition& CreateClass(const CSymbol& ClassName, CClass* Superclass = nullptr, TArray<CInterface*>&& SuperInterfaces = {}, EStructOrClass StructOrClass = EStructOrClass::Class);
     CEnumeration& CreateEnumeration(const CSymbol& EnumerationName);

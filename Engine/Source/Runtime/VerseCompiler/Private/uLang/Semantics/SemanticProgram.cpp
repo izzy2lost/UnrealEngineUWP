@@ -4,11 +4,13 @@
 
 #include "uLang/Common/Algo/AllOf.h"
 #include "uLang/Common/Text/FilePathUtils.h"
+#include "uLang/Semantics/Expression.h"
 #include "uLang/Semantics/MemberOrigin.h"
 #include "uLang/Semantics/SmallDefinitionArray.h"
 #include "uLang/Semantics/TypeAlias.h"
 #include "uLang/Semantics/TypeVariable.h"
 #include "uLang/Semantics/VisitStamp.h"
+#include "uLang/SourceProject/VerseVersion.h"
 
 #include <initializer_list>
 
@@ -655,19 +657,46 @@ void CSemanticProgram::PopulateCoreAPI()
     _PersistenceCompatConstraintRoot = TSRef<CCompatConstraintRoot>::New(*this);
     _PersistenceSoftCompatConstraintRoot = TSRef<CCompatConstraintRoot>::New(*this);
 
+    _BuiltInPackage = TSRef<CAstPackage>::New(
+        "$BuiltIn",
+        "/Verse.org",
+        EVerseScope::PublicAPI,
+        EPackageRole::External,
+        Verse::Version::LatestStable,
+        VerseFN::UploadedAtFNVersion::Latest,
+        false, // bAllowNative
+        false, // bTreatDefinitionsAsImplicit
+        true   // bAllowExperimental
+        );
+
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // Create and cache built-in types
-    _typeType = &GetOrCreateTypeType(&_falseType, &_anyType);
-    CModule& VerseDotOrgModule = CreateModule(GetSymbols()->AddChecked("Verse.org"));
-    VerseDotOrgModule.SetAccessLevel({SAccessLevel::EKind::Public});
-    _VerseModule = &VerseDotOrgModule.CreateModule(GetSymbols()->AddChecked("Verse"));
-    _VerseModule->SetAccessLevel({SAccessLevel::EKind::Public});
-    _BuiltinSnippet = &GetOrCreateSnippet(GetSymbols()->AddChecked(""), _VerseModule);
+
+    auto MakeBuiltInModule = [&](const char* Name, CModulePart* ParentScope) -> CModulePart&
+    {
+        CScope* ModuleParentScope = ParentScope ? static_cast<CScope*>(ParentScope->GetModule()) : this;
+        CModule& Module = ModuleParentScope->CreateModule(GetSymbols()->AddChecked(Name));
+        Module.SetAccessLevel({ SAccessLevel::EKind::Public });
+
+        CModulePart& ModulePart = Module.CreatePart(ParentScope, true);
+        ModulePart.SetAstPackage(_BuiltInPackage.Get());
+        return ModulePart;
+    };
+
+    CModulePart& VerseDotOrgModuleBuiltInPart = MakeBuiltInModule("Verse.org", nullptr);
+    CModulePart& VerseModuleBuiltInPart = MakeBuiltInModule("Verse", &VerseDotOrgModuleBuiltInPart);
+    CModulePart& NativeModuleBuiltInPart = MakeBuiltInModule("Native", &VerseDotOrgModuleBuiltInPart);
+
+    _BuiltInPackage->_RootModule = &VerseDotOrgModuleBuiltInPart;
+    _VerseModule = VerseModuleBuiltInPart.GetModule();
+
     AddUsingScope(_VerseModule);
 
     _GeneralCompatConstraintRoot->AddUsingScope(_VerseModule);
     _PersistenceCompatConstraintRoot->AddUsingScope(_VerseModule);
     _PersistenceSoftCompatConstraintRoot->AddUsingScope(_VerseModule);
+
+    _typeType = &GetOrCreateTypeType(&_falseType, &_anyType);
 
     _intType = &GetOrCreateConstrainedIntType(INT64_MIN, INT64_MAX);
     _floatType = &GetOrCreateConstrainedFloatType(-INFINITY, NAN);
@@ -676,7 +705,7 @@ void CSemanticProgram::PopulateCoreAPI()
     auto CreateGlobalTypeAlias = [&](const CTypeBase* Type, const char* NameOverride = nullptr) -> CTypeAlias*
     {
         CSymbol Name = _Symbols->AddChecked(NameOverride ? NameOverride : Type->AsCode());
-        CTypeAlias* TypeAlias = _BuiltinSnippet->CreateTypeAlias(Name);
+        CTypeAlias* TypeAlias = VerseModuleBuiltInPart.CreateTypeAlias(Name);
         TypeAlias->InitType(Type, Type);
         TypeAlias->SetAccessLevel({SAccessLevel::EKind::Public});
         return TypeAlias;
@@ -696,7 +725,7 @@ void CSemanticProgram::PopulateCoreAPI()
 
     _typeAlias = CreateGlobalTypeAlias(_typeType);
 
-    _DefaultUnknownType.SetNew(_Symbols->AddChecked("unknown"), *_BuiltinSnippet);
+    _DefaultUnknownType.SetNew(_Symbols->AddChecked("unknown"), VerseModuleBuiltInPart);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // Populate attributes
@@ -704,39 +733,39 @@ void CSemanticProgram::PopulateCoreAPI()
     // TODO-Verse: Consider - C# attributes have `Attribute` suffix though allow just the root. So `nativeAttribute` class would allow `[native]`.
     // Could use prefix which would ensure starting with capital: `Attr_native`
     
-    auto CreateAttributeClass = [&](const char* Name, CClass* SuperClass = nullptr, SAccessLevel AccessLevel = SAccessLevel::EKind::Public) -> CClassDefinition*
+    auto CreateAttributeClass = [&](CModulePart& ParentScope, const char* Name, CClass* SuperClass = nullptr, SAccessLevel AccessLevel = SAccessLevel::EKind::Public) -> CClassDefinition*
     {
-        CClassDefinition* Class = &_BuiltinSnippet->CreateClass(_Symbols->AddChecked(Name), SuperClass);
+        CClassDefinition* Class = &ParentScope.CreateClass(_Symbols->AddChecked(Name), SuperClass);
         Class->_ConstructorEffects = EffectSets::Computes;
         Class->_bHasCyclesBroken = true;
         Class->SetAccessLevel(AccessLevel);
         return Class;
     };
-    _attributeClass  = CreateAttributeClass("attribute", nullptr, SAccessLevel::EKind::EpicInternal);
+    _attributeClass  = CreateAttributeClass(VerseModuleBuiltInPart, "attribute", nullptr, SAccessLevel::EKind::EpicInternal);
     {
-        _attributeScopeAttribute      = CreateAttributeClass("attribscope_attribute", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeSpecifier      = CreateAttributeClass("attribscope_specifier", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeModule         = CreateAttributeClass("attribscope_module", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeClass          = CreateAttributeClass("attribscope_class", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeStruct         = CreateAttributeClass("attribscope_struct", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeData           = CreateAttributeClass("attribscope_data", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeFunction       = CreateAttributeClass("attribscope_function", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeEnum           = CreateAttributeClass("attribscope_enum", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeEnumerator     = CreateAttributeClass("attribscope_enumerator", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeAttributeClass = CreateAttributeClass("attribscope_attribclass", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeInterface      = CreateAttributeClass("attribscope_interface", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeIdentifier     = CreateAttributeClass("attribscope_identifier", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeExpression     = CreateAttributeClass("attribscope_expression", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeClassMacro     = CreateAttributeClass("attribscope_classmacro", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeStructMacro    = CreateAttributeClass("attribscope_structmacro", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeInterfaceMacro = CreateAttributeClass("attribscope_interfacemacro", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeEnumMacro      = CreateAttributeClass("attribscope_enummacro", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeVar            = CreateAttributeClass("attribscope_var", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeName           = CreateAttributeClass("attribscope_name", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeEffect         = CreateAttributeClass("attribscope_effect", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeTypeDefinition = CreateAttributeClass("attribscope_typedefinition", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeScopedDefinition = CreateAttributeClass("attribscope_scopeddefinition", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _customAttributeHandler       = CreateAttributeClass("customattribhandler", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeAttribute      = CreateAttributeClass(VerseModuleBuiltInPart, "attribscope_attribute", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeSpecifier      = CreateAttributeClass(VerseModuleBuiltInPart, "attribscope_specifier", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeModule         = CreateAttributeClass(VerseModuleBuiltInPart, "attribscope_module", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeClass          = CreateAttributeClass(VerseModuleBuiltInPart, "attribscope_class", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeStruct         = CreateAttributeClass(VerseModuleBuiltInPart, "attribscope_struct", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeData           = CreateAttributeClass(VerseModuleBuiltInPart, "attribscope_data", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeFunction       = CreateAttributeClass(VerseModuleBuiltInPart, "attribscope_function", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeEnum           = CreateAttributeClass(VerseModuleBuiltInPart, "attribscope_enum", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeEnumerator     = CreateAttributeClass(VerseModuleBuiltInPart, "attribscope_enumerator", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeAttributeClass = CreateAttributeClass(VerseModuleBuiltInPart, "attribscope_attribclass", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeInterface      = CreateAttributeClass(VerseModuleBuiltInPart, "attribscope_interface", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeIdentifier     = CreateAttributeClass(VerseModuleBuiltInPart, "attribscope_identifier", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeExpression     = CreateAttributeClass(VerseModuleBuiltInPart, "attribscope_expression", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeClassMacro     = CreateAttributeClass(VerseModuleBuiltInPart, "attribscope_classmacro", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeStructMacro    = CreateAttributeClass(VerseModuleBuiltInPart, "attribscope_structmacro", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeInterfaceMacro = CreateAttributeClass(VerseModuleBuiltInPart, "attribscope_interfacemacro", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeEnumMacro      = CreateAttributeClass(VerseModuleBuiltInPart, "attribscope_enummacro", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeVar            = CreateAttributeClass(VerseModuleBuiltInPart, "attribscope_var", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeName           = CreateAttributeClass(VerseModuleBuiltInPart, "attribscope_name", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeEffect         = CreateAttributeClass(VerseModuleBuiltInPart, "attribscope_effect", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeTypeDefinition = CreateAttributeClass(VerseModuleBuiltInPart, "attribscope_typedefinition", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeScopedDefinition = CreateAttributeClass(VerseModuleBuiltInPart, "attribscope_scopeddefinition", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _customAttributeHandler       = CreateAttributeClass(VerseModuleBuiltInPart, "customattribhandler", _attributeClass, SAccessLevel::EKind::EpicInternal);
 
         auto AddAttribScopeAttributes = [&](CClass* Class) -> void
         {
@@ -767,13 +796,13 @@ void CSemanticProgram::PopulateCoreAPI()
         AddAttribScopeAttributes(_attributeScopeScopedDefinition);
         AddAttribScopeAttributes(_customAttributeHandler);
     }
-    _abstractClass = CreateAttributeClass("abstract", _attributeClass);
+    _abstractClass = CreateAttributeClass(VerseModuleBuiltInPart, "abstract", _attributeClass);
     {
         _abstractClass->_Definition->AddAttributeClass(_attributeScopeClassMacro);
         _abstractClass->_Definition->AddAttributeClass(_attributeScopeClass);
         _abstractClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
-    _finalClass = CreateAttributeClass("final", _attributeClass);
+    _finalClass = CreateAttributeClass(VerseModuleBuiltInPart, "final", _attributeClass);
     {
         // It's a bit of a hack that the classmacro scope needs to be used together with the name scope. This is to deal with the
         // fact that final is otherwise used with names.
@@ -784,7 +813,7 @@ void CSemanticProgram::PopulateCoreAPI()
         _finalClass->_Definition->AddAttributeClass(_attributeScopeName);
         _finalClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
-    _concreteClass = CreateAttributeClass("concrete", _attributeClass);
+    _concreteClass = CreateAttributeClass(VerseModuleBuiltInPart, "concrete", _attributeClass);
     {
         _concreteClass->_Definition->AddAttributeClass(_attributeScopeClass);
         _concreteClass->_Definition->AddAttributeClass(_attributeScopeClassMacro);
@@ -792,7 +821,7 @@ void CSemanticProgram::PopulateCoreAPI()
         _concreteClass->_Definition->AddAttributeClass(_attributeScopeStructMacro);
         _concreteClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
-    _uniqueClass = CreateAttributeClass("unique", _attributeClass);
+    _uniqueClass = CreateAttributeClass(VerseModuleBuiltInPart, "unique", _attributeClass);
     {
         _uniqueClass->_Definition->AddAttributeClass(_attributeScopeClass);
         _uniqueClass->_Definition->AddAttributeClass(_attributeScopeClassMacro);
@@ -800,12 +829,12 @@ void CSemanticProgram::PopulateCoreAPI()
         _uniqueClass->_Definition->AddAttributeClass(_attributeScopeInterfaceMacro);
         _uniqueClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
-    _intrinsicClass = CreateAttributeClass("intrinsic", _attributeClass, SAccessLevel::EKind::Private);
+    _intrinsicClass = CreateAttributeClass(VerseModuleBuiltInPart, "intrinsic", _attributeClass, SAccessLevel::EKind::Private);
     {
         _intrinsicClass->_Definition->AddAttributeClass(_attributeScopeFunction);
         _intrinsicClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
-    _nativeClass = CreateAttributeClass("native", _attributeClass, SAccessLevel::EKind::EpicInternal);
+    _nativeClass = CreateAttributeClass(VerseModuleBuiltInPart, "native", _attributeClass, SAccessLevel::EKind::EpicInternal);
     {
         _nativeClass->_Definition->AddAttributeClass(_attributeScopeClass);
         _nativeClass->_Definition->AddAttributeClass(_attributeScopeStruct);
@@ -819,20 +848,20 @@ void CSemanticProgram::PopulateCoreAPI()
         _nativeClass->_Definition->AddAttributeClass(_attributeScopeTypeDefinition);
         _nativeClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
-    _nativeCallClass = CreateAttributeClass("native_callable", _attributeClass, SAccessLevel::EKind::EpicInternal);
+    _nativeCallClass = CreateAttributeClass(VerseModuleBuiltInPart, "native_callable", _attributeClass, SAccessLevel::EKind::EpicInternal);
     {
         _nativeCallClass->_Definition->AddAttributeClass(_attributeScopeFunction);
         _nativeCallClass->_Definition->AddAttributeClass(_attributeScopeName);
         _nativeCallClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
-    _constructorClass = CreateAttributeClass("constructor", _attributeClass);
+    _constructorClass = CreateAttributeClass(VerseModuleBuiltInPart, "constructor", _attributeClass);
     {
         _constructorClass->_Definition->AddAttributeClass(_attributeScopeFunction);
         _constructorClass->_Definition->AddAttributeClass(_attributeScopeName);
         _constructorClass->_Definition->AddAttributeClass(_attributeScopeIdentifier);
         _constructorClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
-    _overrideClass = CreateAttributeClass("override", _attributeClass);
+    _overrideClass = CreateAttributeClass(VerseModuleBuiltInPart, "override", _attributeClass);
     {
         _overrideClass->_Definition->AddAttributeClass(_attributeScopeFunction);
         _overrideClass->_Definition->AddAttributeClass(_attributeScopeData);
@@ -842,7 +871,7 @@ void CSemanticProgram::PopulateCoreAPI()
 
     auto MakeEffectAttributeClass = [&](const char* Name) -> CClassDefinition*
     {
-        CClassDefinition* Result = CreateAttributeClass(Name, _attributeClass);
+        CClassDefinition* Result = CreateAttributeClass(VerseModuleBuiltInPart, Name, _attributeClass);
         Result->AddAttributeClass(_attributeScopeFunction);
         Result->AddAttributeClass(_attributeScopeClass);
         Result->AddAttributeClass(_attributeScopeStruct);
@@ -853,7 +882,7 @@ void CSemanticProgram::PopulateCoreAPI()
     };
     auto MakeAccessLevelAttributeClass = [&](const char* Name, SAccessLevel AccessLevel = SAccessLevel::EKind::Public) -> CClassDefinition*
     {
-        CClassDefinition* Result = CreateAttributeClass(Name, _attributeClass, AccessLevel);
+        CClassDefinition* Result = CreateAttributeClass(VerseModuleBuiltInPart, Name, _attributeClass, AccessLevel);
         AddStandardAccessLevelAttributes(Result);
         return Result;
     };
@@ -877,7 +906,7 @@ void CSemanticProgram::PopulateCoreAPI()
 
     PopulateEffectDescriptorTable();
 
-    _localizes = CreateAttributeClass("localizes", _attributeClass, SAccessLevel::EKind::Public);
+    _localizes = CreateAttributeClass(VerseModuleBuiltInPart, "localizes", _attributeClass, SAccessLevel::EKind::Public);
     {
         _localizes->_Definition->AddAttributeClass(_attributeScopeName);
         _localizes->_Definition->AddAttributeClass(_attributeScopeData);
@@ -885,13 +914,13 @@ void CSemanticProgram::PopulateCoreAPI()
         _localizes->_Definition->AddAttributeClass(_attributeScopeFunction);
     }
 
-    _ignore_unreachable = CreateAttributeClass("ignore_unreachable", _attributeClass, SAccessLevel::EKind::EpicInternal);
+    _ignore_unreachable = CreateAttributeClass(VerseModuleBuiltInPart, "ignore_unreachable", _attributeClass, SAccessLevel::EKind::EpicInternal);
     {
         _ignore_unreachable->_Definition->AddAttributeClass(_attributeScopeExpression);
         _ignore_unreachable->_Definition->AddAttributeClass(_attributeScopeAttribute);
     }
 
-    _availableClass = CreateAttributeClass("available", _attributeClass, SAccessLevel::EKind::EpicInternal);
+    _availableClass = CreateAttributeClass(NativeModuleBuiltInPart, "available", _attributeClass, SAccessLevel::EKind::EpicInternal);
     {
         _availableClass->_Definition->AddAttributeClass(_attributeScopeClass);
         _availableClass->_Definition->AddAttributeClass(_attributeScopeStruct);
@@ -913,7 +942,7 @@ void CSemanticProgram::PopulateCoreAPI()
         availableMinUploadedAtFNVersion->SetHasInitializer();
     }
 
-    _deprecatedClass = CreateAttributeClass("deprecated", _attributeClass, SAccessLevel::EKind::EpicInternal);
+    _deprecatedClass = CreateAttributeClass(VerseModuleBuiltInPart, "deprecated", _attributeClass, SAccessLevel::EKind::EpicInternal);
     {
         _deprecatedClass->_Definition->AddAttributeClass(_attributeScopeClass);
         _deprecatedClass->_Definition->AddAttributeClass(_attributeScopeStruct);
@@ -926,7 +955,7 @@ void CSemanticProgram::PopulateCoreAPI()
         _deprecatedClass->_Definition->AddAttributeClass(_attributeScopeTypeDefinition);
     }
 
-    _experimentalClass = CreateAttributeClass("experimental", _attributeClass, SAccessLevel::EKind::EpicInternal);
+    _experimentalClass = CreateAttributeClass(VerseModuleBuiltInPart, "experimental", _attributeClass, SAccessLevel::EKind::EpicInternal);
     {
         _experimentalClass->_Definition->AddAttributeClass(_attributeScopeClass);
         _experimentalClass->_Definition->AddAttributeClass(_attributeScopeStruct);
@@ -939,7 +968,7 @@ void CSemanticProgram::PopulateCoreAPI()
         _experimentalClass->_Definition->AddAttributeClass(_attributeScopeAttribute);
     }
 
-    _persistentClass = CreateAttributeClass("persistent", _attributeClass, SAccessLevel::EKind::EpicInternal);
+    _persistentClass = CreateAttributeClass(VerseModuleBuiltInPart, "persistent", _attributeClass, SAccessLevel::EKind::EpicInternal);
     {
         _persistentClass->_Definition->AddAttributeClass(_attributeScopeClass);
         _persistentClass->_Definition->AddAttributeClass(_attributeScopeClassMacro);
@@ -948,7 +977,7 @@ void CSemanticProgram::PopulateCoreAPI()
         _persistentClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
 
-    _persistableClass = CreateAttributeClass("persistable", _attributeClass, SAccessLevel::EKind::Public);
+    _persistableClass = CreateAttributeClass(VerseModuleBuiltInPart, "persistable", _attributeClass, SAccessLevel::EKind::Public);
     {
         _persistableClass->_Definition->AddAttributeClass(_attributeScopeClass);
         _persistableClass->_Definition->AddAttributeClass(_attributeScopeClassMacro);
@@ -959,20 +988,20 @@ void CSemanticProgram::PopulateCoreAPI()
         _persistableClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
 
-    _moduleScopedVarWeakMapKeyClass = CreateAttributeClass("module_scoped_var_weak_map_key", _attributeClass, SAccessLevel::EKind::EpicInternal);
+    _moduleScopedVarWeakMapKeyClass = CreateAttributeClass(VerseModuleBuiltInPart, "module_scoped_var_weak_map_key", _attributeClass, SAccessLevel::EKind::EpicInternal);
     {
         _moduleScopedVarWeakMapKeyClass->_Definition->AddAttributeClass(_attributeScopeClass);
         _moduleScopedVarWeakMapKeyClass->_Definition->AddAttributeClass(_attributeScopeClassMacro);
         _moduleScopedVarWeakMapKeyClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
 
-    _getterClass = CreateAttributeClass("getter_attribute", _attributeClass, SAccessLevel::EKind::EpicInternal);
+    _getterClass = CreateAttributeClass(VerseModuleBuiltInPart, "getter_attribute", _attributeClass, SAccessLevel::EKind::EpicInternal);
     {
         _getterClass->_Definition->AddAttributeClass(_attributeScopeData);
         _getterClass->_Definition->AddAttributeClass(_attributeScopeName);
         _getterClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
-    _setterClass = CreateAttributeClass("setter_attribute", _attributeClass, SAccessLevel::EKind::EpicInternal);
+    _setterClass = CreateAttributeClass(VerseModuleBuiltInPart, "setter_attribute", _attributeClass, SAccessLevel::EKind::EpicInternal);
     {
         _setterClass->_Definition->AddAttributeClass(_attributeScopeData);
         _setterClass->_Definition->AddAttributeClass(_attributeScopeName);
@@ -995,9 +1024,9 @@ void CSemanticProgram::PopulateCoreAPI()
         const CTypeBase* Type;
     };
 
-    auto CreateFunction = [this](CSymbol FunctionName, std::initializer_list<STypedName> Params, auto&&... Args) -> CFunction*
+    auto CreateFunction = [this, &VerseModuleBuiltInPart](CSymbol FunctionName, std::initializer_list<STypedName> Params, auto&&... Args) -> CFunction*
     {
-        TSRef<CFunction> NewFunction = _BuiltinSnippet->CreateFunction(FunctionName);
+        TSRef<CFunction> NewFunction = VerseModuleBuiltInPart.CreateFunction(FunctionName);
         const CTypeBase* ParamsType;
         std::size_t NumParams = Params.size();
         if (NumParams == 1)
@@ -1048,9 +1077,9 @@ void CSemanticProgram::PopulateCoreAPI()
     SEffectSet TransactsDecidesEffectSet      = ConvertEffectClassesToEffectSet({ _transactsClass, _decidesClass },              EffectSets::FunctionDefault).GetValue();
 
     // `FunctionName`(`LhsName`:t, `RhsName`:comparable where t:subtype(comparable)):t
-    auto ComparableOp = [this, LhsName, RhsName, ConvergesDecidesEffectSet](CSymbol FunctionName)
+    auto ComparableOp = [this, LhsName, RhsName, ConvergesDecidesEffectSet, &VerseModuleBuiltInPart](CSymbol FunctionName)
     {
-        TSRef<CFunction> NewFunction = _BuiltinSnippet->CreateFunction(FunctionName);
+        TSRef<CFunction> NewFunction = VerseModuleBuiltInPart.CreateFunction(FunctionName);
         TSRef<CTypeVariable> Type = NewFunction->CreateTypeVariable(
             _Symbols->AddChecked("t"),
             &GetOrCreateTypeType(&_falseType, &_comparableType));
@@ -1172,7 +1201,7 @@ void CSemanticProgram::PopulateCoreAPI()
     //
 
     {
-        _ArrayAddOp = _BuiltinSnippet->CreateFunction(_IntrinsicSymbols._OpNameAdd);
+        _ArrayAddOp = VerseModuleBuiltInPart.CreateFunction(_IntrinsicSymbols._OpNameAdd);
         TSRef<CTypeVariable> ElementType = _ArrayAddOp->CreateTypeVariable(
             _Symbols->AddChecked("t"),
             _typeType);
@@ -1193,7 +1222,7 @@ void CSemanticProgram::PopulateCoreAPI()
     }
 
     {
-        _ArrayAddAssignOp = _BuiltinSnippet->CreateFunction(_IntrinsicSymbols._OpNameAddRMW);
+        _ArrayAddAssignOp = VerseModuleBuiltInPart.CreateFunction(_IntrinsicSymbols._OpNameAddRMW);
         TSRef<CTypeVariable> ElementType = _ArrayAddAssignOp->CreateTypeVariable(
             _Symbols->AddChecked("t"),
             _typeType);
@@ -1224,7 +1253,7 @@ void CSemanticProgram::PopulateCoreAPI()
     }
 
     {
-        _ArrayCallOp = _BuiltinSnippet->CreateFunction(_IntrinsicSymbols._OpNameCall);
+        _ArrayCallOp = VerseModuleBuiltInPart.CreateFunction(_IntrinsicSymbols._OpNameCall);
         TSRef<CTypeVariable> ElementType = _ArrayCallOp->CreateTypeVariable(
             _Symbols->AddChecked("t"),
             _typeType);
@@ -1245,7 +1274,7 @@ void CSemanticProgram::PopulateCoreAPI()
     }
 
     {
-        _ArrayRefCallOp = _BuiltinSnippet->CreateFunction(_IntrinsicSymbols._OpNameCall);
+        _ArrayRefCallOp = VerseModuleBuiltInPart.CreateFunction(_IntrinsicSymbols._OpNameCall);
         TSRef<CTypeVariable> ElementType = _ArrayRefCallOp->CreateTypeVariable(
             _Symbols->AddChecked("t"),
             _typeType);
@@ -1272,7 +1301,7 @@ void CSemanticProgram::PopulateCoreAPI()
     // Map generics
     //
     {
-        _MapRefCallOp = _BuiltinSnippet->CreateFunction(_IntrinsicSymbols._OpNameCall);
+        _MapRefCallOp = VerseModuleBuiltInPart.CreateFunction(_IntrinsicSymbols._OpNameCall);
         TSRef<CTypeVariable> KeyType = _MapRefCallOp->CreateTypeVariable(
             _Symbols->AddChecked("t"),
             &ComparableSubtypeType);
@@ -1308,7 +1337,7 @@ void CSemanticProgram::PopulateCoreAPI()
     }
 
     {
-        _MapConcatenateMaps = _BuiltinSnippet->CreateFunction(_Symbols->AddChecked("ConcatenateMaps"));
+        _MapConcatenateMaps = VerseModuleBuiltInPart.CreateFunction(_Symbols->AddChecked("ConcatenateMaps"));
         TSRef<CTypeVariable> KeyType = _MapConcatenateMaps->CreateTypeVariable(
             _Symbols->AddChecked("t"),
             &ComparableSubtypeType);
@@ -1336,7 +1365,7 @@ void CSemanticProgram::PopulateCoreAPI()
     // Weak map generics
     //
     {
-        _WeakMapCallOp = _BuiltinSnippet->CreateFunction(_IntrinsicSymbols._OpNameCall);
+        _WeakMapCallOp = VerseModuleBuiltInPart.CreateFunction(_IntrinsicSymbols._OpNameCall);
         TSRef<CTypeVariable> KeyType = _WeakMapCallOp->CreateTypeVariable(
             _Symbols->AddChecked("t"),
             &ComparableSubtypeType);
@@ -1361,7 +1390,7 @@ void CSemanticProgram::PopulateCoreAPI()
     }
 
     {
-        _WeakMapRefCallOp = _BuiltinSnippet->CreateFunction(_IntrinsicSymbols._OpNameCall);
+        _WeakMapRefCallOp = VerseModuleBuiltInPart.CreateFunction(_IntrinsicSymbols._OpNameCall);
         TSRef<CTypeVariable> KeyType = _WeakMapRefCallOp->CreateTypeVariable(
             _Symbols->AddChecked("t"),
             &ComparableSubtypeType);
@@ -1390,7 +1419,7 @@ void CSemanticProgram::PopulateCoreAPI()
         // @code
         // weak_map(t:subtype(comparable), u:type) := intrinsic{}
         // @endcode
-        _WeakMapOp = _BuiltinSnippet->CreateFunction(_IntrinsicSymbols._FuncNameWeakMap);
+        _WeakMapOp = VerseModuleBuiltInPart.CreateFunction(_IntrinsicSymbols._FuncNameWeakMap);
         
         auto [ExplicitKeyType, KeyType, NegativeKeyType] = CreateExplicitTypeParam(
             _WeakMapOp,
@@ -1430,7 +1459,7 @@ void CSemanticProgram::PopulateCoreAPI()
     //
 
     {
-        _OptionQueryOp = _BuiltinSnippet->CreateFunction(_IntrinsicSymbols._OpNameQuery);
+        _OptionQueryOp = VerseModuleBuiltInPart.CreateFunction(_IntrinsicSymbols._OpNameQuery);
         TSRef<CTypeVariable> ValueType = _OptionQueryOp->CreateTypeVariable(
             _Symbols->AddChecked("t"),
             _typeType);
@@ -1455,7 +1484,7 @@ void CSemanticProgram::PopulateCoreAPI()
     //
     {
         const CTypeType& PersistableSubtypeType = GetOrCreateTypeType(&_falseType, &_persistableType);
-        _FitsInPlayerMap = _BuiltinSnippet->CreateFunction(_IntrinsicSymbols._FuncNameFitsInPlayerMap);
+        _FitsInPlayerMap = VerseModuleBuiltInPart.CreateFunction(_IntrinsicSymbols._FuncNameFitsInPlayerMap);
         TSRef<CTypeVariable> ValType = _FitsInPlayerMap->CreateTypeVariable(
             _Symbols->AddChecked("t"),
             &PersistableSubtypeType);
@@ -1491,7 +1520,7 @@ void CSemanticProgram::PopulateCoreAPI()
 
     {
         // UnsafeCast(X:any, t:type):t = intrinsic{}
-        _UnsafeCast = _BuiltinSnippet->CreateFunction(_Symbols->AddChecked("UnsafeCast"));
+        _UnsafeCast = VerseModuleBuiltInPart.CreateFunction(_Symbols->AddChecked("UnsafeCast"));
         auto [ExplicitType, ResultType, NegativeResultType] = CreateExplicitTypeParam(
             _UnsafeCast,
             _Symbols->AddChecked("T"),
@@ -1527,7 +1556,7 @@ void CSemanticProgram::PopulateCoreAPI()
 
     {
         const CFloatType& InfType = GetOrCreateConstrainedFloatType(INFINITY, INFINITY);
-        _InfDefinition = _BuiltinSnippet->CreateDataDefinition(_IntrinsicSymbols._Inf, &InfType);
+        _InfDefinition = VerseModuleBuiltInPart.CreateDataDefinition(_IntrinsicSymbols._Inf, &InfType);
         _InfDefinition->_NegativeType = &InfType;
         _InfDefinition->SetAccessLevel({SAccessLevel::EKind::Public});
         _InfDefinition->AddAttributeClass(_intrinsicClass);
@@ -1535,7 +1564,7 @@ void CSemanticProgram::PopulateCoreAPI()
 
     {
         const CFloatType& NaNType = GetOrCreateConstrainedFloatType(NAN, NAN);
-        _NaNDefinition = _BuiltinSnippet->CreateDataDefinition(_IntrinsicSymbols._NaN, &NaNType);
+        _NaNDefinition = VerseModuleBuiltInPart.CreateDataDefinition(_IntrinsicSymbols._NaN, &NaNType);
         _NaNDefinition->_NegativeType = &NaNType;
         _NaNDefinition->SetAccessLevel({SAccessLevel::EKind::Public});
         _NaNDefinition->AddAttributeClass(_intrinsicClass);
