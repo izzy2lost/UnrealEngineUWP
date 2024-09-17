@@ -175,7 +175,7 @@ public:
 
 	FMassArchetypeHandle LookupArchetype(TableHandle InTableHandle) const;
 
-	void DebugPrintQueryCallbacks(FOutputDevice& Output);
+	void DebugPrintQueryCallbacks(FOutputDevice& Output) override;
 
 	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 

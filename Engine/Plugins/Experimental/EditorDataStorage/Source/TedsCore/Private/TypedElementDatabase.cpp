@@ -34,7 +34,7 @@ FAutoConsoleCommandWithOutputDevice PrintQueryCallbacksConsoleCommand(
 		{
 			if (UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance())
 			{
-				if (UEditorDataStorage* DataStorage = Cast<UEditorDataStorage>(Registry->GetMutableDataStorage()))
+				if (IEditorDataStorageProvider* DataStorage = Registry->GetMutableDataStorage())
 				{
 					DataStorage->DebugPrintQueryCallbacks(Output);
 				}
@@ -46,7 +46,7 @@ FAutoConsoleCommandWithOutputDevice PrintSupportedColumnsConsoleCommand(
 	TEXT("Prints out a list of available Data Storage columns."),
 	FConsoleCommandWithOutputDeviceDelegate::CreateLambda([](FOutputDevice& Output)
 		{
-			Output.Log(TEXT("The Typed Elements Data Storage supports the following columns:"));
+			Output.Log(TEXT("The Editor Data Storage supports the following columns:"));
 			
 			UScriptStruct* FragmentTypeInfo = FMassFragment::StaticStruct();
 			UScriptStruct* TagTypeInfo = FMassTag::StaticStruct();

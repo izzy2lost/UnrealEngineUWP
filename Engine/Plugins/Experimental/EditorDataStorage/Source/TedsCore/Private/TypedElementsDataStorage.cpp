@@ -4,8 +4,10 @@
 
 #include "EditorDataStorageSettings.h"
 #include "Elements/Common/TypedElementDataStorageLog.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Interfaces/TypedElementDataStorageFactory.h"
+#include "Features/IModularFeatures.h"
 #include "ISettingsModule.h"
 #include "MassEntityTypes.h"
 #include "Misc/CoreDelegates.h"
@@ -76,6 +78,8 @@ void FEditorDataStorageModule::StartupModule()
 		{
 			if (!bInitialized)
 			{
+				using namespace UE::Editor::DataStorage;
+
 				UE_LOG(LogEditorDataStorage, Log, TEXT("Initializing"));
 				
 				DataStorage = NewObject<UEditorDataStorage>();
@@ -91,12 +95,10 @@ void FEditorDataStorageModule::StartupModule()
 				ObjectReinstancingManager->Initialize(*DataStorage, *DataStorageCompatibility);
 
 				// Register the various DataStorage instances.
-				UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-				checkf(Registry, TEXT(
-					"FEditorDataStorageModule tried to register itself, but there was no Typed Element Registry to register to."));
-				Registry->SetDataStorage(DataStorage.Get());
-				Registry->SetDataStorageCompatibility(DataStorageCompatibility.Get());
-				Registry->SetDataStorageUi(DataStorageUi.Get());
+				IModularFeatures::Get().RegisterModularFeature(StorageFeatureName, DataStorage.Get());
+				IModularFeatures::Get().RegisterModularFeature(CompatibilityFeatureName, DataStorageCompatibility.Get());
+				IModularFeatures::Get().RegisterModularFeature(UiFeatureName, DataStorageUi.Get());
+				OnEditorDataStorageFeaturesEnabled().Broadcast();
 
 				// Allow any factories to register their content.
 				TArray<UClass*> FactoryClasses;
@@ -142,15 +144,12 @@ void FEditorDataStorageModule::ShutdownModule()
 	{
 		UE_LOG(LogEditorDataStorage, Log, TEXT("Deinitializing"));
 
+		using namespace UE::Editor::DataStorage;
 		DataStorage->ResetFactories();
 
-		UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-		if (Registry) // If the registry has already been destroyed there's no point in clearing the reference.
-		{
-			Registry->SetDataStorage(nullptr);
-			Registry->SetDataStorageCompatibility(nullptr);
-			Registry->SetDataStorageUi(nullptr);
-		}
+		IModularFeatures::Get().UnregisterModularFeature(UiFeatureName, DataStorageUi.Get());
+		IModularFeatures::Get().UnregisterModularFeature(CompatibilityFeatureName, DataStorageCompatibility.Get());
+		IModularFeatures::Get().UnregisterModularFeature(StorageFeatureName, DataStorage.Get());
 
 		if (UObjectInitialized())
 		{
