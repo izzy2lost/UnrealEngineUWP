@@ -348,7 +348,7 @@ bool FPCGAddComponentElement::ExecuteInternal(FPCGContext* InContext) const
 		UPCGData* OutputData = OriginalData->DuplicateData(Context);
 
 		// Add component reference attribute
-		FPCGAttributePropertyOutputSelector ComponentReferenceSelector = Settings->ComponentReferenceAttribute; // No copy source here because there's no 1:1 mapping
+		FPCGAttributePropertyOutputNoSourceSelector ComponentReferenceSelector = Settings->ComponentReferenceAttribute; // No copy source here because there's no 1:1 mapping
 
 		// Create attribute if needed
 		if (ComponentReferenceSelector.IsBasicAttribute())
