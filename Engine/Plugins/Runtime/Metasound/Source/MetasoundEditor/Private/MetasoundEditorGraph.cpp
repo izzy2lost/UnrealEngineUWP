@@ -317,10 +317,15 @@ void UMetasoundEditorGraphVertex::SetMemberName(const FName& InNewName, bool bPo
 		return;
 	}
 
-	FNodeHandle NodeHandle = GetNodeHandle();
-	if (NodeHandle->GetNodeName() == InNewName)
+	FMetaSoundFrontendDocumentBuilder& DocBuilder = GetFrontendBuilderChecked();
+	FName OldName;
+	if (const FMetasoundFrontendNode* Node = DocBuilder.FindNode(NodeID); ensure(Node))
 	{
-		return;
+		if (Node->Name == InNewName)
+		{
+			return;
+		}
+		OldName = Node->Name;
 	}
 
 	const FText TransactionLabel = FText::Format(LOCTEXT("RenameGraphVertexMemberNameFormat", "Set Metasound {0} MemberName"), GetGraphMemberLabel());
@@ -329,7 +334,7 @@ void UMetasoundEditorGraphVertex::SetMemberName(const FName& InNewName, bool bPo
 	Graph->Modify();
 	Graph->GetMetasoundChecked().Modify();
 
-	NodeHandle->SetNodeName(InNewName);
+	RenameFrontendMemberInternal(DocBuilder, OldName, InNewName);
 
 	const TArray<UMetasoundEditorGraphMemberNode*> Nodes = GetNodes();
 	for (UMetasoundEditorGraphMemberNode* Node : Nodes)
@@ -345,7 +350,6 @@ void UMetasoundEditorGraphVertex::SetMemberName(const FName& InNewName, bool bPo
 	}
 
 	Graph->RegisterGraphWithFrontend();
-	FGraphBuilder::GetOutermostMetaSoundChecked(*Graph).GetModifyContext().AddMemberIDsModified({ GetMemberID() });
 }
 
 FText UMetasoundEditorGraphVertex::GetDisplayName() const
@@ -1003,6 +1007,11 @@ void UMetasoundEditorGraphInput::SetMemberName(const FName& InNewName, bool bPos
 	Super::SetMemberName(InNewName, bPostTransaction);
 }
 
+bool UMetasoundEditorGraphInput::RenameFrontendMemberInternal(FMetaSoundFrontendDocumentBuilder& Builder, FName OldName, FName InNewName) const
+{
+	return Builder.SetGraphInputName(OldName, InNewName);
+}
+
 bool UMetasoundEditorGraphInput::Synchronize()
 {
 	bool bModified = Super::Synchronize();
@@ -1348,6 +1357,11 @@ bool UMetasoundEditorGraphOutput::Synchronize()
 	}
 
 	return bModified;
+}
+
+bool UMetasoundEditorGraphOutput::RenameFrontendMemberInternal(FMetaSoundFrontendDocumentBuilder& Builder, FName OldName, FName InNewName) const
+{
+	return Builder.SetGraphOutputName(OldName, InNewName);
 }
 
 void UMetasoundEditorGraphVariable::InitMember(FName InDataType, const FMetasoundFrontendLiteral& InDefaultLiteral, FGuid InVariableID)

@@ -12,7 +12,7 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FOnMetaSoundFrontendDocumentMutateInterfaceA
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnMetaSoundFrontendDocumentRemoveSwappingArray, int32 /* Index */, int32 /* LastIndex */);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnMetaSoundFrontendDocumentRenameClass, const int32 /* Index */, const FMetasoundFrontendClassName& /* NewName */);
 DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnMetaSoundFrontendDocumentMutateNodeInputLiteralArray, int32 /* NodeIndex */, int32 /* VertexIndex */, int32 /* LiteralIndex */);
-
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnMetaSoundFrontendDocumentRenameVertex, FName /* OldName */, FName /* NewName */);
 
 namespace Metasound::Frontend
 {
@@ -39,9 +39,11 @@ namespace Metasound::Frontend
 
 		FOnMetaSoundFrontendDocumentMutateArray OnInputAdded;
 		FOnMetaSoundFrontendDocumentMutateArray OnInputDefaultChanged;
+		FOnMetaSoundFrontendDocumentRenameVertex OnInputNameChanged;
 		FOnMetaSoundFrontendDocumentMutateArray OnRemovingInput;
 
 		FOnMetaSoundFrontendDocumentMutateArray OnOutputAdded;
+		FOnMetaSoundFrontendDocumentRenameVertex OnOutputNameChanged;
 		FOnMetaSoundFrontendDocumentMutateArray OnRemovingOutput;
 	};
 

@@ -438,6 +438,9 @@ public:
 	bool SetGraphInputDefault(FName InputName, FMetasoundFrontendLiteral InDefaultLiteral, const FGuid* InPageID = nullptr);
 	bool SetGraphInputDefaults(FName InputName, TArray<FMetasoundFrontendClassInputDefault> Defaults);
 
+	// Sets a given graph input's name to a new name. Succeeds if the graph output exists and the new name is set (or is the same as the old name).
+	bool SetGraphInputName(FName InputName, FName InName);
+
 #if WITH_EDITORONLY_DATA
 	// Sets the given output`s IsAdvancedDisplay state. AdvancedDisplay pins are hidden in the node by default.
 	// returns true if state was changed.
@@ -453,6 +456,9 @@ public:
 	// are removed.  Returns true if either DataType was successfully set to new value or if DataType is
 	// already the given DataType.
 	bool SetGraphOutputDataType(FName OutputName, FName DataType);
+
+	// Sets a given graph output's name to a new name. Succeeds if the graph output exists and the new name is set (or is the same as the old name).
+	bool SetGraphOutputName(FName InputName, FName InName);
 
 	// Sets the given graph variable's default.
 	bool SetGraphVariableDefault(FName VariableName, FMetasoundFrontendLiteral InDefaultLiteral, const FGuid* InPageID = nullptr);

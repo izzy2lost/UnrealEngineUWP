@@ -407,6 +407,8 @@ namespace Metasound::Frontend
 		OutDelegates.OnOutputAdded.AddSP(this, &FDocumentGraphInterfaceCache::OnOutputAdded);
 		OutDelegates.OnRemovingInput.AddSP(this, &FDocumentGraphInterfaceCache::OnRemovingInput);
 		OutDelegates.OnRemovingOutput.AddSP(this, &FDocumentGraphInterfaceCache::OnRemovingOutput);
+		OutDelegates.OnInputNameChanged.AddSP(this, &FDocumentGraphInterfaceCache::OnInputNameChanged);
+		OutDelegates.OnOutputNameChanged.AddSP(this, &FDocumentGraphInterfaceCache::OnOutputNameChanged);
 	}
 
 	void FDocumentGraphInterfaceCache::OnInputAdded(int32 NewIndex)
@@ -424,12 +426,32 @@ namespace Metasound::Frontend
 		++TransactionCount;
 	}
 
+	void FDocumentGraphInterfaceCache::OnInputNameChanged(FName OldName, FName NewName)
+	{
+		int32* Index = InputNameToIndex.Find(OldName);
+		check(Index);
+		InputNameToIndex.Remove(OldName);
+		InputNameToIndex.Add(NewName, *Index);
+
+		++TransactionCount;
+	}
+
 	void FDocumentGraphInterfaceCache::OnOutputAdded(int32 NewIndex)
 	{
 		const FMetasoundFrontendDocument& Document = Parent->GetDocument();
 		const FMetasoundFrontendGraphClass& GraphClass = Document.RootGraph;
 		const FMetasoundFrontendClassOutput& Output = GraphClass.Interface.Outputs[NewIndex];
 		OutputNameToIndex.Add(Output.Name, NewIndex);
+
+		++TransactionCount;
+	}
+
+	void FDocumentGraphInterfaceCache::OnOutputNameChanged(FName OldName, FName NewName)
+	{
+		int32* Index = OutputNameToIndex.Find(OldName);
+		check(Index);
+		OutputNameToIndex.Remove(OldName);
+		OutputNameToIndex.Add(NewName, *Index);
 
 		++TransactionCount;
 	}
@@ -450,8 +472,6 @@ namespace Metasound::Frontend
 		const FMetasoundFrontendGraphClass& GraphClass = Document.RootGraph;
 		const FMetasoundFrontendClassOutput& Output = GraphClass.Interface.Outputs[IndexBeingRemoved];
 		OutputNameToIndex.Remove(Output.Name);
-
-		++TransactionCount;
 	}
 
 	FDocumentGraphNodeCache::FDocumentGraphNodeCache()
