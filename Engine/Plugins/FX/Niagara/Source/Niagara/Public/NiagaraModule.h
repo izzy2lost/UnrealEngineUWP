@@ -292,6 +292,8 @@ public:
 	static NIAGARA_API bool bUseGlobalFXBudget;
 	static NIAGARA_API bool bDataChannelsEnabled;
 
+	static const FNiagaraAssetTagDefinition LightweightTagDefinition;
+
 	static const FNiagaraAssetTagDefinition TemplateTagDefinition;
 	static const FNiagaraAssetTagDefinition LearningContentTagDefinition;
 	static NIAGARA_API const FNiagaraAssetTagDefinition HiddenAssetTagDefinition;
