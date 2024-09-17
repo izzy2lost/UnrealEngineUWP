@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "OutputStructColumn.h"
 #include "ChooserPropertyAccess.h"
-#include "OutputStructColumn.h"
 
 #if WITH_EDITOR
 #include "IPropertyAccessEditor.h"
@@ -91,7 +90,7 @@ void FOutputStructColumn::SetFromDetails(FInstancedPropertyBag& PropertyBag, int
 			TValueOrError<FStructView, EPropertyBagResult> Result = PropertyBag.GetValueStruct(PropertyName, Value.GetScriptStruct());
 			if (FStructView* StructView = Result.TryGetValue())
 			{
-				RowValues[RowIndex].GetScriptStruct()->CopyScriptStruct(Value.GetMutableMemory(), StructView->GetMemory());
+				GetValueForIndex(RowIndex).GetScriptStruct()->CopyScriptStruct(Value.GetMutableMemory(), StructView->GetMemory());
 			}
 		}
 	}

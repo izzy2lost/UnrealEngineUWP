@@ -53,14 +53,14 @@ struct CHOOSER_API FBoolColumn : public FChooserColumnBase
 	public:
 	FBoolColumn();
 	
-	UPROPERTY(EditAnywhere, NoClear, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ChooserParameterBoolBase"), Category = "Data")
+	UPROPERTY(EditAnywhere, NoClear, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ChooserParameterBoolBase", ToolTip="The bool property this column will filter based on" ), Category = "Data")
 	FInstancedStruct InputValue;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	TArray<bool> RowValues_DEPRECATED;
 
-	UPROPERTY(EditAnywhere, Category= "Data", DisplayName="DefaultRowValue");
+	UPROPERTY(EditAnywhere, Category=Data, meta=(ToolTip="DefaultRowValue will be assigned to cells when new rows are created"));
 	EBoolColumnCellValue DefaultRowValue = EBoolColumnCellValue::MatchAny;
 #endif
 	

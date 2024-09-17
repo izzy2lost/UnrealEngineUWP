@@ -42,7 +42,7 @@ struct CHOOSER_API FFloatDistanceColumn : public FChooserColumnBase
 	public:
 	FFloatDistanceColumn();
 		
-	UPROPERTY(EditAnywhere, NoClear, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ChooserParameterFloatBase"), Category = "Data")
+	UPROPERTY(EditAnywhere, NoClear, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ChooserParameterFloatBase", ToolTip="The Float column this fillter will Score based on"), Category = "Data")
 	FInstancedStruct InputValue;
 
 	// Maximum Distance used for normalizing scoring (greater distances will be considered equal to the max)
@@ -69,7 +69,7 @@ struct CHOOSER_API FFloatDistanceColumn : public FChooserColumnBase
 	double MaxValue = 180;
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(EditAnywhere, Category="Data")
+	UPROPERTY(EditAnywhere, Category=Data, meta=(ToolTip="DefaultRowValue will be assigned to cells when new rows are created"));
 	FChooserFloatDistanceRowData DefaultRowValue;
 
 	// Optional class to auto populate column data based on the result asset
@@ -77,7 +77,7 @@ struct CHOOSER_API FFloatDistanceColumn : public FChooserColumnBase
 	TSubclassOf<UFloatAutoPopulator> AutoPopulator;
 #endif
 	
-	UPROPERTY(EditAnywhere, Category="Data")
+	UPROPERTY()
 	// array of results (cells for this column for each row in the table)
 	// should match the length of the Results array 
 	TArray<FChooserFloatDistanceRowData> RowValues;

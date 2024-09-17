@@ -144,12 +144,12 @@ public:
 	TObjectPtr<UChooserTable> RootChooser;
 	
 	// FallbackResult will be used as the Result if there are no rows in the chooser which pass all filters.  If FallbackResult is not assigned, then the Chooser will return null in that case.
-	UPROPERTY(EditAnywhere, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ObjectChooserBase"), Category = "Fallback")
+	UPROPERTY()
 	FInstancedStruct FallbackResult;
 
 #if WITH_EDITORONLY_DATA
 	// Each possible Result (Rows of chooser table)
-	UPROPERTY(EditAnywhere, NoClear, DisplayName = "Results", Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ObjectChooserBase"), Category = "Hidden")
+	UPROPERTY()
 	TArray<FInstancedStruct> ResultsStructs;
 
 	UPROPERTY()
@@ -177,14 +177,18 @@ public:
 	TArray<FInstancedStruct> CookedResults;
 
 	// Columns which filter Results
-	UPROPERTY(EditAnywhere, NoClear, DisplayName = "Columns", Category = Hidden, meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ChooserColumnBase"))
+	UPROPERTY(EditAnywhere, NoClear, DisplayName = "Results", Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ObjectChooserBase"), Category = "Hidden")
 	TArray<FInstancedStruct> ColumnsStructs;
+	
+	// The kind of output this chooser has (Object or Class)
+    UPROPERTY(EditAnywhere, DisplayName = "Result Type", Category="Result")
+    EObjectChooserResultType ResultType = EObjectChooserResultType::ObjectResult;
 
+	// The Class of Object this Chooser returns when ResultType is set to ObjectOfType, or the Parent Class of the Classes returned by this chooser when ResultType is set to ClassOfType
 	UPROPERTY(EditAnywhere, DisplayName= "Result Class", Category="Result", Meta = (AllowAbstract=true))
 	TObjectPtr<UClass> OutputObjectType;
-	UPROPERTY(EditAnywhere, DisplayName = "Result Type", Category="Result")
-	EObjectChooserResultType ResultType = EObjectChooserResultType::ObjectResult;
-
+	
+	// Parameter Objects or Structs from which the chooser can read or write properties 
 	UPROPERTY(EditAnywhere, NoClear, DisplayName = "Parameters", Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ContextObjectTypeBase"), Category = "Parameters")
 	TArray<FInstancedStruct> ContextData;
 

@@ -23,12 +23,16 @@ struct FGenericChooserInitializer : public FChooserInitializer
 
 	virtual void Initialize(UChooserTable* Chooser) const override;
 	
-	UPROPERTY(EditAnywhere, DisplayName= "Result Class", Category="Result", Meta = (AllowAbstract=true))
-	TObjectPtr<UClass> OutputObjectType;
-	
+	// The kind of output this chooser has (Object or Class)
 	UPROPERTY(EditAnywhere, DisplayName = "Result Type", Category="Result")
 	EObjectChooserResultType ResultType = EObjectChooserResultType::ObjectResult;
 	
+	
+	// The Class of Object this Chooser returns when ResultType is set to ObjectOfType, or the Parent Class of the Classes returned by this chooser when ResultType is set to ClassOfType
+	UPROPERTY(EditAnywhere, DisplayName= "Result Class", Category="Result", Meta = (AllowAbstract=true))
+	TObjectPtr<UClass> OutputObjectType;
+	
+    // Parameter Objects or Structs from which the chooser can read or write properties 
 	UPROPERTY(EditAnywhere, DisplayName = "Parameters", NoClear, Meta = (ExpandByDefault, ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ContextObjectTypeBase"), Category = "Parameters")
 	TArray<FInstancedStruct> ContextData;
 };

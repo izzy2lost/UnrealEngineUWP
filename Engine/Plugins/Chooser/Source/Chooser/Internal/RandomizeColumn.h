@@ -33,7 +33,7 @@ struct CHOOSER_API FRandomizeColumn : public FChooserColumnBase
 	public:
 	FRandomizeColumn();
 	
-	UPROPERTY(EditAnywhere, NoClear, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.RandomizeContextProperty"), Category = "Data")
+	UPROPERTY(EditAnywhere, NoClear, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.RandomizeContextProperty", ToolTip="Optional reference to a ChooserRandomizationContext struct. If bound, this is used to store the most recent selection (for each Choosers referencing it - you only need to create one variable per Character or context), for use with RepateProbabilityMultiplier to reduce the chance of selecting the same entry twice."), Category = "Data")
 	FInstancedStruct InputValue;
 	
 	
@@ -44,11 +44,11 @@ struct CHOOSER_API FRandomizeColumn : public FChooserColumnBase
 	float EqualCostThreshold = 0.001f;
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(EditAnywhere, Category= "Data", DisplayName="DefaultRowValue");
+	UPROPERTY(EditAnywhere, Category=Data, meta=(ToolTip="DefaultRowValue will be assigned to cells when new rows are created"));
 	float DefaultRowValue = 1.0f;
 #endif
 	
-	UPROPERTY(EditAnywhere, Category= "Data", DisplayName="RowValues");
+	UPROPERTY()
 	TArray<float> RowValues; 
 	
 	virtual void Filter(FChooserEvaluationContext& Context, const FChooserIndexArray& IndexListIn, FChooserIndexArray& IndexListOut) const override;
