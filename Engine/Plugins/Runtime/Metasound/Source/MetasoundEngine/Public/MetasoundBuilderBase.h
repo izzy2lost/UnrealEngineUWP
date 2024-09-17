@@ -409,6 +409,11 @@ public:
 	// Sets the input node's default value, overriding the default provided by the referenced graph if the graph is a preset.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
 	void SetGraphInputDefault(FName InputName, const FMetasoundFrontendLiteral& Literal, EMetaSoundBuilderResult& OutResult);
+	
+	// Sets the given graph input's name to the new name. 
+	// Result succeeds if the name was successfully changed or the new name is the same as the old name, and fails if the given input name doesn't exist.
+	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
+	void SetGraphInputName(FName InputName, FName NewName, EMetaSoundBuilderResult& OutResult);
 
 	// Disconnects the given graph output's respective template nodes and sets the graph output's AccessType should it not match the current AccessType.
 	// Result succeeds if the AccessType was successfully changed or if the provided AccessType is already the output's current AccessType.
@@ -419,6 +424,11 @@ public:
 	// Result succeeds if the DataType was successfully changed or if the provided DataType is already the output's current DataType.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
 	void SetGraphOutputDataType(FName OutputName, FName DataType, EMetaSoundBuilderResult& OutResult);
+
+	// Sets the given graph output's name to the new name. 
+	// Result succeeds if the name was successfully changed or the new name is the same as the old name, and fails if the given output name doesn't exist.
+	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
+	void SetGraphOutputName(FName OutputName, FName NewName, EMetaSoundBuilderResult& OutResult);
 
 	void SetMemberMetadata(UMetaSoundFrontendMemberMetadata& NewMetadata);
 

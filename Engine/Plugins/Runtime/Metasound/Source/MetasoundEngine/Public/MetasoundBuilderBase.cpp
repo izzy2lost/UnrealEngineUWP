@@ -1032,6 +1032,12 @@ void UMetaSoundBuilderBase::SetGraphInputDefault(FName InputName, const FMetasou
 	OutResult = bSet ? EMetaSoundBuilderResult::Succeeded : EMetaSoundBuilderResult::Failed;
 }
 
+void UMetaSoundBuilderBase::SetGraphInputName(FName InputName, FName NewName, EMetaSoundBuilderResult& OutResult)
+{
+	const bool bSet = Builder.SetGraphInputName(InputName, NewName);
+	OutResult = bSet ? EMetaSoundBuilderResult::Succeeded : EMetaSoundBuilderResult::Failed;
+}
+
 void UMetaSoundBuilderBase::SetGraphOutputAccessType(FName OutputName, EMetasoundFrontendVertexAccessType AccessType, EMetaSoundBuilderResult& OutResult)
 {
 	const bool bSet = Builder.SetGraphOutputAccessType(OutputName, AccessType);
@@ -1041,6 +1047,11 @@ void UMetaSoundBuilderBase::SetGraphOutputAccessType(FName OutputName, EMetasoun
 void UMetaSoundBuilderBase::SetGraphOutputDataType(FName OutputName, FName DataType, EMetaSoundBuilderResult& OutResult)
 {
 	const bool bSet = Builder.SetGraphOutputDataType(OutputName, DataType);
+}
+
+void UMetaSoundBuilderBase::SetGraphOutputName(FName OutputName, FName NewName, EMetaSoundBuilderResult& OutResult)
+{
+	const bool bSet = Builder.SetGraphOutputName(OutputName, NewName);
 	OutResult = bSet ? EMetaSoundBuilderResult::Succeeded : EMetaSoundBuilderResult::Failed;
 }
 

@@ -134,9 +134,13 @@ namespace Metasound::Frontend
 
 	private:
 		void Init(FInterfaceModifyDelegates& OutDelegates);
+
 		void OnInputAdded(int32 NewIndex);
 		void OnInputDefaultChanged(int32 NewIndex);
+		void OnInputNameChanged(FName OldName, FName NewName);
+
 		void OnOutputAdded(int32 NewIndex);
+		void OnOutputNameChanged(FName OldName, FName NewName);
 		void OnRemovingInput(int32 IndexBeingRemoved);
 		void OnRemovingOutput(int32 IndexBeingRemoved);
 
