@@ -126,9 +126,6 @@ UObject* UStateTreeFactory::FactoryCreateNew(UClass* Class, UObject* InParent, F
 	
 	NewStateTree->EditorData = EditorData;
 
-	// Compile the StateTree asset, so that it is valid initially.
-	UStateTreeEditingSubsystem::ValidateStateTree(NewStateTree);
-
 	FStateTreeCompilerLog Log;
 	FStateTreeCompiler Compiler(Log);
 

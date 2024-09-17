@@ -24,7 +24,7 @@ void UStateTreeEditingSubsystem::BeginDestroy()
 	Super::BeginDestroy();
 }
 
-bool UStateTreeEditingSubsystem::CompileStateTree(const TNonNullPtr<UStateTree> InStateTree, FStateTreeCompilerLog& InOutLog)
+bool UStateTreeEditingSubsystem::CompileStateTree(const gsl::not_null<UStateTree*> InStateTree, FStateTreeCompilerLog& InOutLog)
 {
 	ValidateStateTree(InStateTree);
 	const uint32 EditorDataHash = CalculateStateTreeHash(InStateTree);
@@ -52,7 +52,7 @@ bool UStateTreeEditingSubsystem::CompileStateTree(const TNonNullPtr<UStateTree> 
 	return bCompilationResult;
 }
 
-TSharedRef<FStateTreeViewModel> UStateTreeEditingSubsystem::FindOrAddViewModel(const TNonNullPtr<UStateTree> InStateTree)
+TSharedRef<FStateTreeViewModel> UStateTreeEditingSubsystem::FindOrAddViewModel(const gsl::not_null<UStateTree*> InStateTree)
 {
 	const FObjectKey StateTreeKey = InStateTree;
 	TSharedPtr<FStateTreeViewModel> ViewModelPtr = StateTreeViewModels.FindRef(StateTreeKey);
@@ -112,7 +112,7 @@ TSharedRef<SWidget> UStateTreeEditingSubsystem::GetStateTreeView(TSharedRef<FSta
 	return SNew(SStateTreeView, InViewModel, TreeViewCommandList);
 }
 
-void UStateTreeEditingSubsystem::ValidateStateTree(const TNonNullPtr<UStateTree> InStateTree)
+void UStateTreeEditingSubsystem::ValidateStateTree(const gsl::not_null<UStateTree*> InStateTree)
 {
 	auto FixChangedStateLinkName = [](FStateTreeStateLink& StateLink, const TMap<FGuid, FName>& IDToName) -> bool
 	{
@@ -142,7 +142,8 @@ void UStateTreeEditingSubsystem::ValidateStateTree(const TNonNullPtr<UStateTree>
 			return;
 		}
 
-		TreeData->Modify();
+		constexpr bool bMarkDirty = false;
+		TreeData->Modify(bMarkDirty);
 
 		// Make sure all state links are valid and update the names if needed.
 
@@ -158,7 +159,8 @@ void UStateTreeEditingSubsystem::ValidateStateTree(const TNonNullPtr<UStateTree>
 		// Fix changed names.
 		TreeData->VisitHierarchy([&IDToName, FixChangedStateLinkName](UStateTreeState& State, UStateTreeState* /*ParentState*/)
 		{
-			State.Modify();
+			constexpr bool bMarkDirty = false;
+			State.Modify(bMarkDirty);
 			if (State.Type == EStateTreeStateType::Linked)
 			{
 				FixChangedStateLinkName(State.LinkedSubtree, IDToName);
@@ -181,7 +183,8 @@ void UStateTreeEditingSubsystem::ValidateStateTree(const TNonNullPtr<UStateTree>
 			return;
 		}
 
-		TreeData->Modify();
+		constexpr bool bMarkDirty = false;
+		TreeData->Modify(bMarkDirty);
 		TreeData->ReparentStates();
 	};
 
@@ -199,7 +202,8 @@ void UStateTreeEditingSubsystem::ValidateStateTree(const TNonNullPtr<UStateTree>
 			return;
 		}
 
-		TreeData->Modify();
+		constexpr bool bMarkDirty = false;
+		TreeData->Modify(bMarkDirty);
 		
 		// Clear evaluators if not allowed.
 		if (Schema->AllowEvaluators() == false && TreeData->Evaluators.Num() > 0)
@@ -211,7 +215,8 @@ void UStateTreeEditingSubsystem::ValidateStateTree(const TNonNullPtr<UStateTree>
 
 		TreeData->VisitHierarchy([&StateTree, Schema](UStateTreeState& State, UStateTreeState* /*ParentState*/)
 		{
-			State.Modify();
+			constexpr bool bMarkDirty = false;
+			State.Modify(bMarkDirty);
 
 			// Clear enter conditions if not allowed.
 			if (Schema->AllowEnterConditions() == false && State.EnterConditions.Num() > 0)
@@ -266,7 +271,8 @@ void UStateTreeEditingSubsystem::ValidateStateTree(const TNonNullPtr<UStateTree>
 
 		TMap<FGuid, const FStateTreeDataView> AllStructValues;
 		TreeData->GetAllStructValues(AllStructValues);
-		TreeData->Modify();
+		constexpr bool bMarkDirty = false;
+		TreeData->Modify(bMarkDirty);
 		TreeData->GetPropertyEditorBindings()->RemoveUnusedBindings(AllStructValues);
 	};
 
@@ -278,7 +284,8 @@ void UStateTreeEditingSubsystem::ValidateStateTree(const TNonNullPtr<UStateTree>
 			return;
 		}
 
-		TreeData->Modify();
+		constexpr bool bMarkDirty = false;
+		TreeData->Modify(bMarkDirty);
 
 		const EStateTreeVisitor Result = TreeData->VisitHierarchy([](UStateTreeState& State, UStateTreeState* /*ParentState*/)
 		{
@@ -300,7 +307,7 @@ void UStateTreeEditingSubsystem::ValidateStateTree(const TNonNullPtr<UStateTree>
 	UpdateLinkedStateParameters(*InStateTree);
 }
 
-uint32 UStateTreeEditingSubsystem::CalculateStateTreeHash(const TNonNullPtr<const UStateTree> InStateTree)
+uint32 UStateTreeEditingSubsystem::CalculateStateTreeHash(const gsl::not_null<const UStateTree*> InStateTree)
 {
 	uint32 EditorDataHash = 0;
 	if (InStateTree->EditorData != nullptr)
