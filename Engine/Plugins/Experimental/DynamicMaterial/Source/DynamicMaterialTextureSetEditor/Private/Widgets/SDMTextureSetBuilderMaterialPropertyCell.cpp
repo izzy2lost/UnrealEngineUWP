@@ -127,8 +127,10 @@ void SDMTextureSetBuilderMaterialPropertyCell::Construct(const FArguments& InArg
 						.WrappingPolicy(ETextWrappingPolicy::AllowPerCharacterWrapping)
 						.WrapTextAt(110.f)
 						.Font(FAppStyle::GetFontStyle("TinyText"))
-						.HighlightText(this, &SDMTextureSetBuilderMaterialPropertyCell::GetTextureName)
 						.Visibility(this, &SDMTextureSetBuilderMaterialPropertyCell::GetTextureNameVisibility)
+						.HighlightText(this, &SDMTextureSetBuilderMaterialPropertyCell::GetTextureName)
+						.HighlightColor(FDMTextureSetStyle::Get().GetColor(TEXT("TextureSetConfig.TextureNameHighlight.Color")))
+						.HighlightShape(FDMTextureSetStyle::Get().GetBrush(TEXT("TextureSetConfig.TextureNameHighlight.Background")))
 					]
 				]
 			]

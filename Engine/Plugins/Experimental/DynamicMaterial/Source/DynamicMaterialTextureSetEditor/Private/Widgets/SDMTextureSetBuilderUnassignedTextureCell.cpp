@@ -3,6 +3,7 @@
 #include "Widgets/SDMTextureSetBuilderUnassignedTextureCell.h"
 
 #include "AssetRegistry/AssetData.h"
+#include "DMTextureSetStyle.h"
 #include "Engine/Texture.h"
 #include "SDMTextureSetBuilder.h"
 #include "Widgets/Images/SImage.h"
@@ -69,7 +70,11 @@ void SDMTextureSetBuilderUnassignedTextureCell::Construct(const FArguments& InAr
 				SNew(STextBlock)
 				.Text(this, &SDMTextureSetBuilderUnassignedTextureCell::GetTextureName)
 				.WrappingPolicy(ETextWrappingPolicy::AllowPerCharacterWrapping)
-				.WrapTextAt(90.f)
+				.WrapTextAt(110.f)
+				.Font(FAppStyle::GetFontStyle("TinyText"))
+				.HighlightText(this, &SDMTextureSetBuilderUnassignedTextureCell::GetTextureName)
+				.HighlightColor(FDMTextureSetStyle::Get().GetColor(TEXT("TextureSetConfig.TextureNameHighlight.Color")))
+				.HighlightShape(FDMTextureSetStyle::Get().GetBrush(TEXT("TextureSetConfig.TextureNameHighlight.Background")))
 			]
 		]
 	];
