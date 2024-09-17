@@ -3,7 +3,7 @@
 #include "ChaosFleshGeneratorPrivate.h"
 
 #include "Chaos/Vector.h"
-#include "ChaosFlesh/FleshCollectionUtility.h"
+#include "ChaosFlesh/FleshCollectionEngineUtility.h"
 #include "FleshGeneratorComponent.h"
 #include "FileHelpers.h"
 #include "GeometryCollection/Facades/CollectionTetrahedralBindingsFacade.h"
