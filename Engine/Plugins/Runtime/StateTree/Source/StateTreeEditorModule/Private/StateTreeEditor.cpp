@@ -356,7 +356,7 @@ void FillDeveloperMenu(UToolMenu* InMenu)
 	const FStateTreeEditorCommands& Commands = FStateTreeEditorCommands::Get();
 	{
 		FToolMenuSection& Section = InMenu->AddSection("FileDeveloperCompilerSettings", LOCTEXT("CompileOptionsHeading", "Compiler Settings"));
-		Section.AddMenuEntry(Commands.LogResultOnCompileSuccess);
+		Section.AddMenuEntry(Commands.LogCompilationResult);
 	}
 }
 void FillDynamicDeveloperMenu(FToolMenuSection& Section)

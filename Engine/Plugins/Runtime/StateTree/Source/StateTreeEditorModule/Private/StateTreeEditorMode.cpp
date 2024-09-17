@@ -304,24 +304,24 @@ static bool IsSaveOnCompileOptionSet(const EStateTreeSaveOnCompile Option)
 	return (Settings->SaveOnCompile == Option);
 }
 
-static IConsoleVariable* GetLogResultOnSuccessCVar()
+static IConsoleVariable* GetLogCompilationResultCVar()
 {
 	static IConsoleVariable* FoundVariable = IConsoleManager::Get().FindConsoleVariable(TEXT("StateTree.Compiler.LogResultOnCompilationCompleted"));
 	return FoundVariable;
 }
 
-static void ToggleLogResultOnCompileSuccess()
+static void ToggleLogCompilationResult()
 {
-	IConsoleVariable* LogResultCVar = GetLogResultOnSuccessCVar();
+	IConsoleVariable* LogResultCVar = GetLogCompilationResultCVar();
 	if (ensure(LogResultCVar))
 	{
 		LogResultCVar->Set(!LogResultCVar->GetBool(), ECVF_SetByConsole);
 	}
 }
 
-static bool IsLogResultOnCompileSuccess()
+static bool IsLogCompilationResult()
 {
-	IConsoleVariable* LogResultCVar = GetLogResultOnSuccessCVar();
+	IConsoleVariable* LogResultCVar = GetLogCompilationResultCVar();
 	return LogResultCVar ? LogResultCVar->GetBool() : false;
 }
 }
@@ -360,10 +360,10 @@ void UStateTreeEditorMode::BindToolkitCommands(const TSharedRef<FUICommandList>&
 		FIsActionButtonVisible::CreateUObject(this, &UStateTreeEditorMode::HasValidStateTree)
 	);
 	ToolkitCommands->MapAction(
-		FStateTreeEditorCommands::Get().LogResultOnCompileSuccess,
-		FExecuteAction::CreateStatic(&UE::StateTree::Editor::Internal::ToggleLogResultOnCompileSuccess),
+		FStateTreeEditorCommands::Get().LogCompilationResult,
+		FExecuteAction::CreateStatic(&UE::StateTree::Editor::Internal::ToggleLogCompilationResult),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateStatic(&UE::StateTree::Editor::Internal::IsLogResultOnCompileSuccess)
+		FIsActionChecked::CreateStatic(&UE::StateTree::Editor::Internal::IsLogCompilationResult)
 	);
 }
 

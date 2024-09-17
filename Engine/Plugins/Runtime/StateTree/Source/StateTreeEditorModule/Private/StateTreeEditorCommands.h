@@ -20,7 +20,7 @@ public:
 	TSharedPtr<FUICommandInfo> SaveOnCompile_Never;
 	TSharedPtr<FUICommandInfo> SaveOnCompile_SuccessOnly;
 	TSharedPtr<FUICommandInfo> SaveOnCompile_Always;
-	TSharedPtr<FUICommandInfo> LogResultOnCompileSuccess;
+	TSharedPtr<FUICommandInfo> LogCompilationResult;
 
 	TSharedPtr<FUICommandInfo> AddSiblingState;
 	TSharedPtr<FUICommandInfo> AddChildState;
