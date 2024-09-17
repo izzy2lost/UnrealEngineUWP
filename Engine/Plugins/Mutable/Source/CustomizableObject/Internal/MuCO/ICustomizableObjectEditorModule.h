@@ -16,6 +16,7 @@ class UCustomizableObjectInstance;
 class USkeletalMesh;
 class FExtensibilityManager;
 class FBakeOperationCompletedDelegate;
+class UEdGraph;
 struct FBakingConfiguration;
 struct FCompilationRequest;
 struct FCompilationOptions;
@@ -97,5 +98,9 @@ public:
 	/** Perform a fast compilation pass to get all participating objects.
 	 *  @param bLoadObjects Load any object. If false, no objects will load. If true, only objects strictly required to get the full list of participating objects will load. */
 	virtual TMap<FName, FGuid> GetParticipatingObjects(const UCustomizableObject* Object, bool bLoadObjects, const FCompilationOptions* Options = nullptr) const = 0;
+
+	virtual void BackwardsCompatibleFixup(UEdGraph& Graph, int32 CustomizableObjectCustomVersion) = 0;
+	
+	virtual void PostBackwardsCompatibleFixup(UEdGraph& Graph) = 0;
 };
  

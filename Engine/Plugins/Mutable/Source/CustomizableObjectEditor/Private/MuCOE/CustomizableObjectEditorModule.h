@@ -46,6 +46,8 @@ public:
 	virtual void BakeCustomizableObjectInstance(UCustomizableObjectInstance* InTargetInstance, const FBakingConfiguration& InBakingConfig) override;
 	virtual USkeletalMesh* GetReferenceSkeletalMesh(const UCustomizableObject& Object, const FName& ComponentName) const override;
 	virtual TMap<FName, FGuid> GetParticipatingObjects(const UCustomizableObject* Object, bool bLoadObjects, const FCompilationOptions* Options = nullptr) const override;
+	virtual void BackwardsCompatibleFixup(UEdGraph& Graph, int32 CustomizableObjectCustomVersion) override;
+	virtual void PostBackwardsCompatibleFixup(UEdGraph& Graph) override;
 
 	/** Request for a given customizable object to be compiled. Async compile requests will be queued and processed sequentially. 
 	 * @param InCompilationRequest - Request to compile an object. 

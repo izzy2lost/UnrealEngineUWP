@@ -1324,6 +1324,8 @@ public:
 
 	FCompilationOptions GetCompileOptions() const;
 #endif
+
+	void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion);
 	
 	/** Cache of generated SkeletalMeshes */
 	FMeshCache MeshCache;

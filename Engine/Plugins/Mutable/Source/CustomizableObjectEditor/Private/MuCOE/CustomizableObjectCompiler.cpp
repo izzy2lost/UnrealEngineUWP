@@ -366,6 +366,11 @@ void ProcessChildObjectsRecursively(const UCustomizableObject* ParentObject, FMu
 	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 	AssetRegistryModule.Get().GetReferencers(*ParentObject->GetOuter()->GetPathName(), ReferencedObjectNames, UE::AssetRegistry::EDependencyCategory::Package, UE::AssetRegistry::EDependencyQuery::Hard);
 
+	if (ReferencedObjectNames.IsEmpty())
+	{
+		return;
+	}
+	
 	// Required to be deterministic.
 	ReferencedObjectNames.Sort([](const FName& A, const FName& B)
 	{

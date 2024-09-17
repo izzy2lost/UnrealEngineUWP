@@ -314,44 +314,36 @@ bool UCustomizableObjectPrivate::TryLoadCompiledCookDataForPlatform(const ITarge
 void UCustomizableObject::PostLoad()
 {
 	Super::PostLoad();
-	
-	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
 
 #if WITH_EDITOR
-	if (ReferenceSkeletalMesh_DEPRECATED)
+	if (Source)
 	{
-		ReferenceSkeletalMeshes_DEPRECATED.Add(ReferenceSkeletalMesh_DEPRECATED);
-		ReferenceSkeletalMesh_DEPRECATED = nullptr;
+		Source->ConditionalPostLoad();
 	}
-
-#if WITH_EDITORONLY_DATA
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::CompilationOptions)
+	
+	for (int32 Version = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID) + 1; Version <= FCustomizableObjectCustomVersion::LatestVersion; ++Version)
 	{
-		GetPrivate()->OptimizationLevel = CompileOptions_DEPRECATED.OptimizationLevel;
-		GetPrivate()->TextureCompression = CompileOptions_DEPRECATED.TextureCompression;
-		GetPrivate()->bUseDiskCompilation = CompileOptions_DEPRECATED.bUseDiskCompilation;
-		GetPrivate()->EmbeddedDataBytesLimit = CompileOptions_DEPRECATED.EmbeddedDataBytesLimit;
-		GetPrivate()->PackagedDataBytesLimit = CompileOptions_DEPRECATED.PackagedDataBytesLimit;
-	}
-
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::NewComponentOptions)
-	{
-		if (GetPrivate()->MutableMeshComponents_DEPRECATED.IsEmpty())
+		GetPrivate()->BackwardsCompatibleFixup(Version);
+		
+		if (Source)
 		{
-			for (int32 SkeletalMeshIndex = 0; SkeletalMeshIndex < ReferenceSkeletalMeshes_DEPRECATED.Num(); ++SkeletalMeshIndex)
+			if (ICustomizableObjectEditorModule* Module = ICustomizableObjectEditorModule::Get())
 			{
-				FMutableMeshComponentData NewComponent;
-				NewComponent.Name = FName(FString::FromInt(SkeletalMeshIndex));
-				NewComponent.ReferenceSkeletalMesh = ReferenceSkeletalMeshes_DEPRECATED[SkeletalMeshIndex];
-
-				GetPrivate()->MutableMeshComponents_DEPRECATED.Add(NewComponent);
+				// Execute backwards compatible code for all nodes. It requires all nodes to be loaded.
+			
+				Module->BackwardsCompatibleFixup(*Source, Version);
 			}
-
-			ReferenceSkeletalMeshes_DEPRECATED.Empty();
 		}
 	}
-#endif
 
+	if (Source)
+	{
+		if (ICustomizableObjectEditorModule* Module = ICustomizableObjectEditorModule::Get())
+		{
+			Module->PostBackwardsCompatibleFixup(*Source);
+		}
+	}
+	
 	// Register to dirty delegate so we update derived data version ID each time that the package is marked as dirty.
 	if (UPackage* Package = GetOutermost())
 	{
@@ -367,10 +359,7 @@ void UCustomizableObject::PostLoad()
 	if (!IsRunningCookCommandlet())
 	{
 		GetPrivate()->Status.NextState(FCustomizableObjectStatusTypes::EState::Loading);
-
-		ITargetPlatformManagerModule& TargetPlatformManager = GetTargetPlatformManagerRef();
-		const ITargetPlatform* RunningPlatform = TargetPlatformManager.GetRunningTargetPlatform();
-
+	
 		const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 		if (AssetRegistryModule.Get().IsLoadingAssets())
 		{
@@ -384,6 +373,45 @@ void UCustomizableObject::PostLoad()
 #endif
 }
 
+
+void UCustomizableObjectPrivate::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
+{
+#if WITH_EDITOR
+	if (GetPublic()->ReferenceSkeletalMesh_DEPRECATED)
+	{
+		GetPublic()->ReferenceSkeletalMeshes_DEPRECATED.Add(GetPublic()->ReferenceSkeletalMesh_DEPRECATED);
+		GetPublic()->ReferenceSkeletalMesh_DEPRECATED = nullptr;
+	}
+
+#if WITH_EDITORONLY_DATA
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::CompilationOptions)
+	{
+		OptimizationLevel = GetPublic()->CompileOptions_DEPRECATED.OptimizationLevel;
+		TextureCompression = GetPublic()->CompileOptions_DEPRECATED.TextureCompression;
+		bUseDiskCompilation = GetPublic()->CompileOptions_DEPRECATED.bUseDiskCompilation;
+		EmbeddedDataBytesLimit = GetPublic()->CompileOptions_DEPRECATED.EmbeddedDataBytesLimit;
+		PackagedDataBytesLimit = GetPublic()->CompileOptions_DEPRECATED.PackagedDataBytesLimit;
+	}
+
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::NewComponentOptions)
+	{
+		if (MutableMeshComponents_DEPRECATED.IsEmpty())
+		{
+			for (int32 SkeletalMeshIndex = 0; SkeletalMeshIndex < GetPublic()->ReferenceSkeletalMeshes_DEPRECATED.Num(); ++SkeletalMeshIndex)
+			{
+				FMutableMeshComponentData NewComponent;
+				NewComponent.Name = FName(FString::FromInt(SkeletalMeshIndex));
+				NewComponent.ReferenceSkeletalMesh = GetPublic()->ReferenceSkeletalMeshes_DEPRECATED[SkeletalMeshIndex];
+
+				MutableMeshComponents_DEPRECATED.Add(NewComponent);
+			}
+
+			GetPublic()->ReferenceSkeletalMeshes_DEPRECATED.Empty();
+		}
+	}
+#endif
+#endif
+}
 
 bool UCustomizableObjectPrivate::IsLocked() const
 {

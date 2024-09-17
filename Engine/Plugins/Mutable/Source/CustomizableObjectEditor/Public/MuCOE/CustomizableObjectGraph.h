@@ -31,6 +31,10 @@ public:
 	/** Adds the necessary nodes for a CO to work */
 	void AddEssentialGraphNodes();
 
+	void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion);
+
+	void PostBackwardsCompatibleFixup();
+	
 private:
 
 	// Request Node Id Update Map
