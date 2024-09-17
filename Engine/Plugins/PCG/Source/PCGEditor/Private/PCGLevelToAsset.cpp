@@ -19,6 +19,7 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Package.h"
+#include "WorldPartition/WorldPartition.h"
 
 void UPCGLevelToAsset::CreateOrUpdatePCGAssets(const TArray<FAssetData>& WorldAssets, const FPCGAssetExporterParameters& InParameters, TSubclassOf<UPCGLevelToAsset> ExporterSubclass)
 {
@@ -206,6 +207,14 @@ bool UPCGLevelToAsset::BP_ExportWorld_Implementation(UWorld* World, const FStrin
 
 		PointMetadata->InitializeOnSet(RootPoint.MetadataEntry);
 		ActorIndexAttribute->SetValue(RootPoint.MetadataEntry, 0);
+	}
+
+
+	// Make sure all actors are loaded
+	TArray<FWorldPartitionReference> ActorReferences;
+	if (UWorldPartition* WorldPartition = World->GetWorldPartition())
+	{
+		WorldPartition->LoadAllActors(ActorReferences);
 	}
 
 	// Build actor-index map
