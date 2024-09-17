@@ -48,6 +48,9 @@ namespace uba
 
 			logFileStr = si.logFile;
 			logFile = logFileStr.c_str();
+
+			breadcrumbsStr = si.breadcrumbs;
+			breadcrumbs = breadcrumbsStr.c_str();
 		}
 
 		void Write(BinaryWriter& writer)
@@ -57,6 +60,7 @@ namespace uba
 			writer.WriteString(argumentsStr);
 			writer.WriteString(workingDirStr);
 			writer.WriteString(logFileStr);
+			// ignore breadcrumbs here
 			writer.WriteU32(*(u32*)&weight);
 			writer.WriteBool(trackInputs);
 			writer.WriteBool(writeOutputFilesOnFail);
@@ -70,6 +74,7 @@ namespace uba
 			argumentsStr = reader.ReadString();
 			workingDirStr = reader.ReadString();
 			logFileStr = reader.ReadString();
+			// ignore breadcrumbs here
 
 			Replace(applicationStr.data(), '/', PathSeparator); // TODO: Is this needed?
 
@@ -106,6 +111,8 @@ namespace uba
 			description = descriptionStr.c_str();
 			logFileStr = o.logFileStr;
 			logFile = logFileStr.c_str();
+			breadcrumbsStr = o.breadcrumbsStr;
+			breadcrumbs = breadcrumbsStr.c_str();
 
 			weight = o.weight;
 		}
@@ -117,6 +124,7 @@ namespace uba
 		TString argumentsStr;
 		TString workingDirStr;
 		TString logFileStr;
+		TString breadcrumbsStr;
 		float weight = 1.0f;
 	};
 }

@@ -25,6 +25,7 @@ struct FTaskCommandData
 	FString InputFileName;
 	FString OutputFileName;
 	FString ExtraCommandArgs;
+	FString Description; // Optional string describing the task. Shows up in UBA trace files for each job.
 	uint32 DispatcherPID = 0;
 	TArray<FString> Dependencies;
 };

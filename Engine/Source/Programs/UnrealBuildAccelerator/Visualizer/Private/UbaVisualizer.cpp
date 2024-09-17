@@ -1767,6 +1767,37 @@ namespace uba
 			if (hasExited && process.exitCode != 0)
 				logger.Info(L"  ExitCode: %7u", process.exitCode);
 
+			const auto& breadcrumbs = process.breadcrumbs;
+			if (!breadcrumbs.empty())
+			{
+				constexpr TString::size_type maxLineLen = 37;
+				logger.Info(L"");
+				logger.Info(L"  ------------ Breadcrumbs ------------");
+				for (TString::size_type lineStart = 0, lineEnd = 0; lineEnd < breadcrumbs.size(); lineStart = lineEnd + 1)
+				{
+					// Log each individual line
+					lineEnd = breadcrumbs.find(L'\n', lineStart);
+					TString line = (lineEnd == TString::npos ? breadcrumbs.substr(lineStart) : breadcrumbs.substr(lineStart, lineEnd - lineStart));
+
+					// Break each line down into smaller section if they are longer than the maximum allowed length
+					if (line.size() > maxLineLen)
+					{
+						for (TString::size_type sectionStart = 0, sectionEnd = 0; sectionStart < line.size(); sectionStart = sectionEnd)
+						{
+							const TString::size_type maxSectionLen = sectionStart == 0 ? maxLineLen : maxLineLen - 2;
+							sectionEnd = std::min<TString::size_type>(sectionEnd + maxSectionLen, line.size());
+							TString section = (sectionStart == 0 ? L"  " : L"    ") + line.substr(sectionStart, sectionEnd - sectionStart);
+							logger.Info(section.c_str());
+						}
+					}
+					else
+					{
+						line = L"  " + line;
+						logger.Info(line.c_str());
+					}
+				}
+			}
+
 			if (process.stop != ~u64(0) && !process.stats.empty())
 			{
 				BinaryReader reader(process.stats.data(), 0, process.stats.size());
@@ -2978,7 +3009,7 @@ namespace uba
 			{
 				m_trace.ReadFile(m_traceView, m_fileName.data, m_replay != 0);
 				m_traceView.finished = m_replay == 0;
-				PostNewTitle(GetTitlePrefix(title).Append(m_fileName));
+				PostNewTitle(GetTitlePrefix(title).Appendf(L"%s (v%u)", m_fileName.data, m_traceView.version));
 			}
 			else
 			{

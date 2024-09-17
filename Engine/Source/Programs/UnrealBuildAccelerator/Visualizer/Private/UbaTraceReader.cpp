@@ -601,6 +601,11 @@ namespace uba
 			process.stats.resize(dataEnd - dataStart);
 			memcpy(process.stats.data(), dataStart, dataEnd - dataStart);
 
+			if (out.version >= 34)
+			{
+				process.breadcrumbs = reader.ReadString();
+			}
+
 			process.createFilesTime = processStats.createFile.time;
 			process.writeFilesTime = Max(processStats.writeFiles.time, processStats.sendFiles.time);
 

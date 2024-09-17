@@ -261,6 +261,7 @@ void FUbaJobProcessor::RunTaskWithUba(FTask* Task)
 	FStringToUbaStringConversion UbaParametersStr(*Parameters);
 	FStringToUbaStringConversion UbaInputFileNameStr(*InputFileName);
 	FStringToUbaStringConversion UbaWorkingDirStr(*AppDir);
+	FStringToUbaStringConversion UbaTaskDescription(*Data.Description);
 
 	uba::ProcessStartInfo ProcessInfo;
 	ProcessInfo.application = UbaCommandStr.Get();
@@ -268,6 +269,7 @@ void FUbaJobProcessor::RunTaskWithUba(FTask* Task)
 	ProcessInfo.description = UbaInputFileNameStr.Get();
 	ProcessInfo.workingDir = UbaWorkingDirStr.Get();
 	ProcessInfo.writeOutputFilesOnFail = true;
+	ProcessInfo.breadcrumbs = UbaTaskDescription.Get();
 
 	if (UbaJobProcessorOptions::bProcessLogEnabled)
 	{
