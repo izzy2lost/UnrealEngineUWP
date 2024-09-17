@@ -17,7 +17,7 @@ struct TRACESERVICES_API FTimeRegion
 	double EndTime = std::numeric_limits<double>::infinity();
 	const TCHAR* Text = nullptr;
 	// Id will be zero if the region is identified by Name only
-	uint64_t Id = 0;
+	uint64 Id = 0;
 	int32 Depth = -1;
 };
 
@@ -100,7 +100,7 @@ public:
 	 * @param Time		The time in seconds of the begin event of this region.
 	 */
 	virtual void AppendRegionBegin(const TCHAR* Name, double Time) = 0;
-	
+
 	/**
 	 * Append a new begin event of a region from the trace session.
 	 * Id will be used to uniquely identify the new region.
@@ -109,8 +109,8 @@ public:
 	 * @param Id		The Id of the region. Used to uniquely identify regions with the same name.
 	 * @param Time		The time in seconds of the begin event of this region.
 	 */
-	virtual void AppendRegionBeginWithId(const TCHAR* Name, uint64_t Id, double Time) = 0;
-	
+	virtual void AppendRegionBeginWithId(const TCHAR* Name, uint64 Id, double Time) = 0;
+
 	/**
 	 * Append a new end event of a region from the trace session.
 	 * Prefer opening/closing regions with an Id, since string names are not unique.
@@ -119,15 +119,15 @@ public:
 	 * @param Time		The time in seconds of the end event of this region.
 	 */
 	virtual void AppendRegionEnd(const TCHAR* Name, double Time) = 0;
-	
+
 	/**
 	 * Append a new end event of a region from the trace session.
 	 * The region is identified by Id.
 	 * @param Id		The Id of the region.
 	 * @param Time		The time in seconds of the end event of this region.
 	 */
-	virtual void AppendRegionEndWithId(const uint64_t Id, double Time) = 0;
-	
+	virtual void AppendRegionEndWithId(const uint64 Id, double Time) = 0;
+
 	/**
 	 * Called from the analyzer once all events have been processed.
 	 * Allows post-processing and error reporting for regions that were never closed.

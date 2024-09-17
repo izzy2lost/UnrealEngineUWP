@@ -74,10 +74,10 @@ struct FMiscTrace
 	}
 
 	CORE_API static void OutputBeginRegion(const TCHAR* RegionName);
-	[[nodiscard]] CORE_API static uint64_t OutputBeginRegionWithId(const TCHAR* RegionName);
+	[[nodiscard]] CORE_API static uint64 OutputBeginRegionWithId(const TCHAR* RegionName);
 	CORE_API static void OutputEndRegion(const TCHAR* RegionName);
-	CORE_API static void OutputEndRegionWithId(uint64_t RegionId);
-	
+	CORE_API static void OutputEndRegionWithId(uint64 RegionId);
+
 	CORE_API static void OutputBeginFrame(ETraceFrameType FrameType);
 	CORE_API static void OutputEndFrame(ETraceFrameType FrameType);
 
