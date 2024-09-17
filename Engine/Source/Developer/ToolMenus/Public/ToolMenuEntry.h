@@ -51,6 +51,9 @@ public:
 	{
 	}
 
+	/** Optional override label to use when the entry appears in a toolbar. */
+	TAttribute<FText> LabelOverride;
+
 	/** Delegate that generates a widget for this combo button's menu content. Called when the menu is summoned. */
 	FNewToolMenuChoice ComboButtonContextMenuGenerator;
 
@@ -229,9 +232,6 @@ public:
 	TAttribute<FText> ToolTip;
 	TAttribute<FSlateIcon> Icon;
 	TAttribute<FText> InputBindingLabel;
-
-	/** Optional override label to use when the entry appears in a toolbar. */
-	TAttribute<FText> ToolbarLabelOverride;
 
 private:
 

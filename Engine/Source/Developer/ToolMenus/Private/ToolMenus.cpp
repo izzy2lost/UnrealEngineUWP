@@ -1678,9 +1678,9 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(
 	const FUIAction UIAction = UToolMenus::ConvertUIAction(Block, MenuData->Context);
 
 	TAttribute<FText> ToolbarLabelOverride;
-	if (Block.ToolbarLabelOverride.IsSet())
+	if (Block.ToolBarData.LabelOverride.IsSet())
 	{
-		ToolbarLabelOverride = Block.ToolbarLabelOverride;
+		ToolbarLabelOverride = Block.ToolBarData.LabelOverride;
 	}
 	else if (const bool bHasIcon = Block.Icon.IsSet() || (Block.Command.IsValid() && Block.Command->GetIcon().IsSet());
 			 bHasIcon && bIsRaisingToTopLevel)
