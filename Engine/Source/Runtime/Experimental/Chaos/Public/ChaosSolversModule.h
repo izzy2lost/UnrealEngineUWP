@@ -87,6 +87,11 @@ public:
 		return 0;
 	}
 
+	virtual float GetPhysicsHistoryTimeLength() const
+	{
+		return 0;
+	}
+
 	virtual int32 GetPhysicsHistoryCount() const
 	{
 		return 0;

@@ -397,8 +397,7 @@ void UNetworkPhysicsSystem::OnWorldPostInit(UWorld* World, const UWorld::Initial
 				{
 					if (Solver->GetRewindData() == nullptr)
 					{
-						const int32 NumFrames = UPhysicsSettings::Get()->GetPhysicsHistoryCount();
-						Solver->EnableRewindCapture(NumFrames, true);
+						Solver->EnableRewindCapture();
 					}
 				}
 			}
@@ -1193,7 +1192,7 @@ void FAsyncNetworkPhysicsComponent::ConsumeAsyncInput(const int32 PhysicsStep)
 						PhysicsData = nullptr;
 
 #if DEBUG_NETWORK_PHYSICS
-						AsyncInput->InputData->DebugData(FString::Printf(TEXT("SERVER | PT | Failed to extract | LatestFrame: %d | Name: %s"), AsyncInput->InputData->GetLatestFrame(), *GetActorName()));
+						AsyncInput->InputData->DebugData(FString::Printf(TEXT("SERVER | PT | Failed to extract LatestInputReceiveData | LatestFrame: %d | Name: %s"), AsyncInput->InputData->GetLatestFrame(), *GetActorName()));
 #endif
 					}
 				}
@@ -1307,14 +1306,14 @@ void FAsyncNetworkPhysicsComponent::OnPreProcessInputs_Internal(const int32 Phys
 			{
 				PhysicsData->ApplyData(ActorComponent.Get());
 #if DEBUG_NETWORK_PHYSICS
-				UE_LOG(LogChaos, Log, TEXT("		Applying extracted state from history | bExactFrame = %d | LocalFrame = %d | ServerFrame = %d | InputFrame = %d | Data: %s")
+				UE_LOG(LogChaos, Log, TEXT("			Applying extracted state from history | bExactFrame = %d | LocalFrame = %d | ServerFrame = %d | InputFrame = %d | Data: %s")
 					, bExactFrame, PhysicsData->LocalFrame, PhysicsData->ServerFrame, PhysicsData->InputFrame, *PhysicsData->DebugData());
 #endif
 			}
 #if DEBUG_NETWORK_PHYSICS
 			else if (PhysicsStep <= StateHistory->GetLatestFrame())
 			{
-				UE_LOG(LogChaos, Log, TEXT("		FAILED to extract and apply state from history | bExactFrame = %d | -- Printing history --"), bExactFrame);
+				UE_LOG(LogChaos, Log, TEXT("		Non-Determinism: FAILED to extract and apply state from history | bExactFrame = %d | -- Printing history --"), bExactFrame);
 				StateHistory->DebugData(FString::Printf(TEXT("StateHistory | Component = %s"), *GetActorName()));
 			}
 #endif
@@ -1333,7 +1332,7 @@ void FAsyncNetworkPhysicsComponent::OnPreProcessInputs_Internal(const int32 Phys
 				if (ComponentSettings.GetApplyDataInsteadOfMergeData())
 				{
 #if DEBUG_NETWORK_PHYSICS
-					UE_LOG(LogChaos, Log, TEXT("	Reapplying multiple data due to receiving an important data that was previously missed. FromFrame: %d | ToFrame: %d | IsLocallyControlled = %d"), NewImportantInputFrame, (NextExpectedLocalFrame - 1), IsLocallyControlled());
+					UE_LOG(LogChaos, Log, TEXT("		Non-Determinism: Reapplying multiple data due to receiving an important data that was previously missed. FromFrame: %d | ToFrame: %d | IsLocallyControlled = %d"), NewImportantInputFrame, (NextExpectedLocalFrame - 1), IsLocallyControlled());
 #endif
 					// Apply all inputs in range
 					InputHistory->ApplyDataRange(NewImportantInputFrame, NextExpectedLocalFrame - 1, ActorComponent.Get(), /*bOnlyImportant*/false);
@@ -1343,7 +1342,7 @@ void FAsyncNetworkPhysicsComponent::OnPreProcessInputs_Internal(const int32 Phys
 					// Merge all inputs from earliest new important
 					NextExpectedLocalFrame = NewImportantInputFrame;
 #if DEBUG_NETWORK_PHYSICS
-					UE_LOG(LogChaos, Log, TEXT("	Prepare to reapply multiple data through MergeData due to receiving an important data that was previously missed. FromFrame: %d | ToFrame: %d | IsLocallyControlled = %d"), NewImportantInputFrame, (NextExpectedLocalFrame - 1), IsLocallyControlled());
+					UE_LOG(LogChaos, Log, TEXT("		Non-Determinism: Prepare to reapply multiple data through MergeData due to receiving an important data that was previously missed. FromFrame: %d | ToFrame: %d | IsLocallyControlled = %d"), NewImportantInputFrame, (NextExpectedLocalFrame - 1), IsLocallyControlled());
 #endif
 				}
 			}
@@ -1365,7 +1364,7 @@ void FAsyncNetworkPhysicsComponent::OnPreProcessInputs_Internal(const int32 Phys
 					if (ComponentSettings.GetApplyDataInsteadOfMergeData())
 					{
 #if DEBUG_NETWORK_PHYSICS
-						UE_LOG(LogChaos, Log, TEXT("	Applying multiple data instead of merging, from LocalFrame %d into LocalFrame %d | IsLocallyControlled = %d"), NextExpectedLocalFrame, PhysicsData->LocalFrame, IsLocallyControlled());
+						UE_LOG(LogChaos, Log, TEXT("		Non-Determinism: Applying multiple data instead of merging, from LocalFrame %d into LocalFrame %d | IsLocallyControlled = %d"), NextExpectedLocalFrame, PhysicsData->LocalFrame, IsLocallyControlled());
 #endif
 						// Iterate over each input and call ApplyData, except on the last, it will get handled by the normal ApplyData call further down
 						const int32 LastFrame = PhysicsData->LocalFrame;
@@ -1380,7 +1379,7 @@ void FAsyncNetworkPhysicsComponent::OnPreProcessInputs_Internal(const int32 Phys
 					else
 					{
 #if DEBUG_NETWORK_PHYSICS
-						UE_LOG(LogChaos, Log, TEXT("	Merging inputs from LocalFrame %d into LocalFrame %d | IsLocallyControlled = %d"), NextExpectedLocalFrame, PhysicsData->LocalFrame, IsLocallyControlled());
+						UE_LOG(LogChaos, Log, TEXT("		Non-Determinism: Merging inputs from LocalFrame %d into LocalFrame %d | IsLocallyControlled = %d"), NextExpectedLocalFrame, PhysicsData->LocalFrame, IsLocallyControlled());
 #endif
 						// Merge all inputs since last used input
 						InputHistory->MergeData(NextExpectedLocalFrame, PhysicsData);
@@ -1393,7 +1392,7 @@ void FAsyncNetworkPhysicsComponent::OnPreProcessInputs_Internal(const int32 Phys
 #if DEBUG_NETWORK_PHYSICS
 					if (PhysicsStep > InputHistory->GetLatestFrame())
 					{
-						UE_LOG(LogChaos, Log, TEXT("	Input buffer is empty, input for frame %d was extrapolated from frame: %d"), PhysicsStep, PhysicsData->LocalFrame);
+						UE_LOG(LogChaos, Log, TEXT("		Non-Determinism: Input buffer Empty, input for frame %d was extrapolated from frame: %d"), PhysicsStep, PhysicsData->LocalFrame);
 					}
 #endif
 					PhysicsData->bReceivedData = true; // Mark the input data as received so that it doesn't get overwritten by incoming client inputs
@@ -1406,7 +1405,7 @@ void FAsyncNetworkPhysicsComponent::OnPreProcessInputs_Internal(const int32 Phys
 
 #if DEBUG_NETWORK_PHYSICS
 				{
-					UE_LOG(LogChaos, Log, TEXT("		Applying extracted input from history | LocalFrame = %d | ServerFrame = %d | InputFrame = %d | IsResim = %d | IsLocallyControlled = %d | InputDecay = %f | Data: %s")
+					UE_LOG(LogChaos, Log, TEXT("			Applying extracted input from history | LocalFrame = %d | ServerFrame = %d | InputFrame = %d | IsResim = %d | IsLocallyControlled = %d | InputDecay = %f | Data: %s")
 						, PhysicsData->LocalFrame, PhysicsData->ServerFrame, PhysicsData->InputFrame, bIsSolverResim, IsLocallyControlled(), GetCurrentInputDecay(PhysicsData), *PhysicsData->DebugData());
 				}
 #endif
@@ -1414,7 +1413,7 @@ void FAsyncNetworkPhysicsComponent::OnPreProcessInputs_Internal(const int32 Phys
 #if DEBUG_NETWORK_PHYSICS
 			else if (PhysicsStep <= InputHistory->GetLatestFrame())
 			{
-				UE_LOG(LogChaos, Log, TEXT("		FAILED to extract and apply input from history | IsResim = %d | IsLocallyControlled = %d | -- Printing history --"), bIsSolverResim, IsLocallyControlled());
+				UE_LOG(LogChaos, Log, TEXT("		Non-Determinism: FAILED to extract and apply input from history | IsResim = %d | IsLocallyControlled = %d | -- Printing history --"), bIsSolverResim, IsLocallyControlled());
 				InputHistory->DebugData(FString::Printf(TEXT("InputHistory | Name = %s"), *GetActorName()));
 			}
 #endif
@@ -1742,14 +1741,19 @@ const int32 FAsyncNetworkPhysicsComponent::SetupRewindData()
 
 	if (Chaos::FPBDRigidsSolver* RigidSolver = GetRigidSolver())
 	{
-		NumFrames = RigidSolver->GetPhysicsHistoryCount();
+		NumFrames = FMath::Max<int32>(1, FMath::CeilToInt32((0.001f * Chaos::FPBDRigidsSolver::GetPhysicsHistoryTimeLength()) / RigidSolver->GetAsyncDeltaTime()));
+
+		if (IsServer())
+		{
+			return NumFrames;
+		}
 
 		// Don't let this actor initialize RewindData if not using resimulation
 		if (GetPhysicsReplicationMode() == EPhysicsReplicationMode::Resimulation)
 		{
 			if (RigidSolver->IsNetworkPhysicsPredictionEnabled() && RigidSolver->GetRewindData() == nullptr)
 			{
-				RigidSolver->EnableRewindCapture(NumFrames, true);
+				RigidSolver->EnableRewindCapture();
 			}
 		}
 

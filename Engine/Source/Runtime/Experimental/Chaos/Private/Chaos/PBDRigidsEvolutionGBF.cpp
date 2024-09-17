@@ -672,12 +672,8 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 		SCOPE_CYCLE_COUNTER(STAT_Evolution_BuildGroups);
 		CSV_SCOPED_TIMING_STAT(PhysicsVerbose, StepSolver_BuildGroups);
 
-		// If we are resimming and if we have a particle cache we only build the island the groups 
-		// for islands that required to be simulated based of desynced particles
-		FEvolutionResimCache* ResimCache = GetCurrentStepResimCache();
-		const bool bIsResimming = (ResimCache != nullptr) && ResimCache->IsResimming();
-
-		NumGroups = IslandGroupManager.BuildGroups(bIsResimming);
+		// If we are resimulating, only build island groups for islands that require to be simulated based of particles sync state and resim type
+		NumGroups = IslandGroupManager.BuildGroups(bIsResim);
 	}
 
 

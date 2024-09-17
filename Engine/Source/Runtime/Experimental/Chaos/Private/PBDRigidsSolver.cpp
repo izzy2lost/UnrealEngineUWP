@@ -1101,28 +1101,40 @@ namespace Chaos
 
 	void FPBDRigidsSolver::EnableRewindCapture(int32 NumFrames, bool InUseCollisionResimCache)
 	{
+		SetUseCollisionResimCache(InUseCollisionResimCache);
+		EnableRewindCapture(NumFrames);
+	}
+
+	void FPBDRigidsSolver::EnableRewindCapture(int32 NumFrames)
+	{
 		//TODO: this function calls both internal and external - sort of assumed during initialization. Should decide what thread it's called on and mark it as either external or internal
 		if (MRewindData.IsValid())
 		{
-			MRewindData->Init(((FPBDRigidsSolver*)this), NumFrames, InUseCollisionResimCache, ((FPBDRigidsSolver*)this)->GetCurrentFrame());
+			MRewindData->Init(((FPBDRigidsSolver*)this), NumFrames, GetCurrentFrame());
 		}
 		else
 		{
-			MRewindData = MakeUnique<FRewindData>(((FPBDRigidsSolver*)this), NumFrames, InUseCollisionResimCache, ((FPBDRigidsSolver*)this)->GetCurrentFrame()); // FIXME
+			MRewindData = MakeUnique<FRewindData>(((FPBDRigidsSolver*)this), NumFrames, GetCurrentFrame());
 		}
-		bUseCollisionResimCache = InUseCollisionResimCache;
+
 		const int32 NumFramesSet = GetRewindData() != nullptr ? GetRewindData()->Capacity() : NumFrames;
 		MarshallingManager.SetHistoryLength_Internal(NumFramesSet);
 		MEvolution->SetRewindData(GetRewindData());
-		
-		if (MRewindCallback) 
+
+		if (MRewindCallback)
 		{
 			MRewindCallback->RewindData = GetRewindData();
 		}
-		
+
 		UpdateIsDeterministic();
 
-		UE_LOG(LogChaos, Log, TEXT("PBDRigidsSolver::EnableRewindCapture - Starting physics data history caching for rewind / resimulation. History Size: %d"), NumFramesSet);
+		UE_LOG(LogChaos, Log, TEXT("PBDRigidsSolver::EnableRewindCapture - Starting physics data history caching for rewind / resimulation. History Size: %d. Supported Latency: %f. TickRate: %d. "), NumFramesSet, FPBDRigidsSolver::GetPhysicsHistoryTimeLength(), FMath::RoundToInt32(1.0f / GetAsyncDeltaTime()));
+	}
+
+	void FPBDRigidsSolver::EnableRewindCapture()
+	{
+		int32 NumFrames = FMath::Max<int32>(1, FMath::CeilToInt32((0.001f * FPBDRigidsSolver::GetPhysicsHistoryTimeLength()) / GetAsyncDeltaTime()));
+		EnableRewindCapture(NumFrames);
 	}
 
 	void FPBDRigidsSolver::Reset()
@@ -1142,11 +1154,9 @@ namespace Chaos
 		//todo: do we need this?
 		//MarshallingManager.Reset();
 
-		const int32 PhysicsHistoryLength = FChaosSolversModule::GetModule()->GetSettingsProvider().GetPhysicsHistoryCount();
-
-		if (bUseCollisionResimCache && PhysicsHistoryLength >= 0)
+		if (bUseCollisionResimCache)
 		{
-			EnableRewindCapture(PhysicsHistoryLength, true);
+			EnableRewindCapture(true);
 		}
 
 		MEvolution->SetCaptureRewindDataFunction([this](const TParticleView<TPBDRigidParticles<FReal,3>>& ActiveParticles)
@@ -1952,6 +1962,11 @@ namespace Chaos
 					{
 						if ((LastStep - Step) < RecordedPushData.Num())
 						{
+							if (!bFirst && !bUseCollisionResimCache)
+							{
+								MRewindData->StepNonResimParticles(Step);
+							}
+
 							if (PhysicsReplicationCVars::ResimulationCVars::bApplyTargetsWhileResimulating || bFirst)
 							{
 								// Update all the particles having received a target from the server

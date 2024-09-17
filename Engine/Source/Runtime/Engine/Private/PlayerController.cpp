@@ -6274,9 +6274,24 @@ void APlayerController::ServerSendLatestAsyncPhysicsTimestamp_Implementation(FAs
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+	// Get the fixed timestep from project settings
+	float AsyncFixedTimeStepSize = UPhysicsSettings::Get()->AsyncFixedTimeStepSize;
+
+	if (UWorld* World = GetWorld())
+	{
+		if (FPhysScene* PhysScene = World->GetPhysicsScene())
+		{
+			if (Chaos::FPhysicsSolver* Solver = PhysScene->GetSolver())
+			{
+				// Get fixed timestep from solver since it can have been altered
+				AsyncFixedTimeStepSize = Solver->GetAsyncDeltaTime();
+			}
+		}
+	}
+
 	// Get current server timestamp and add the frame buffer to the ServerFrame
 	FAsyncPhysicsTimestamp ActualTimestamp = GetPhysicsTimestamp();
-	const int32 BufferTickSize = FMath::CeilToInt((NetworkPhysicsCvars::TickOffsetBufferTime / 1000.f) / UPhysicsSettings::Get()->AsyncFixedTimeStepSize);
+	const int32 BufferTickSize = FMath::CeilToInt((NetworkPhysicsCvars::TickOffsetBufferTime / 1000.f) / AsyncFixedTimeStepSize);
 	ActualTimestamp.ServerFrame += BufferTickSize;
 
 	// Mark offset as assigned when we get a valid predicted server frame.
@@ -6285,7 +6300,7 @@ void APlayerController::ServerSendLatestAsyncPhysicsTimestamp_Implementation(FAs
 
 	const float CurrentTime = GetWorld()->GetTimeSeconds();
 	const int32 TimestampDiff = FMath::Abs(PredictedServerFrame - ActualTimestamp.ServerFrame);
-	const float TimestampTimeDiff = TimestampDiff * UPhysicsSettings::Get()->AsyncFixedTimeStepSize;
+	const float TimestampTimeDiff = TimestampDiff * AsyncFixedTimeStepSize;
 	NetworkPhysicsTickOffsetDesyncAccumulatedTime = (TimestampDiff == 0) ? CurrentTime : NetworkPhysicsTickOffsetDesyncAccumulatedTime;
 
 	// Send update to client if offset is not assigned or over correction limits
@@ -6295,8 +6310,13 @@ void APlayerController::ServerSendLatestAsyncPhysicsTimestamp_Implementation(FAs
 		|| CurrentTime - NetworkPhysicsTickOffsetDesyncAccumulatedTime > (NetworkPhysicsCvars::TickOffsetCorrectionTimeLimit / 1000.0f))
 	{
 		Timestamp.ServerFrame = ActualTimestamp.ServerFrame;
-		NetworkPhysicsTickOffset = Timestamp.ServerFrame - Timestamp.LocalFrame;
 		NetworkPhysicsTickOffsetDesyncAccumulatedTime = CurrentTime;
+
+#if DEBUG_NETWORK_PHYSICS
+		UE_LOG(LogPlayerController, Log, TEXT("APlayerController::ServerSendLatestAsyncPhysicsTimestamp_Implementation. Sync physics tick with client. ClientFrame: %d, ServerFrame: %d, BufferSize: %d, PredictedFrame: %d)")
+			, Timestamp.LocalFrame, Timestamp.ServerFrame, BufferTickSize, PredictedServerFrame);
+#endif
+
 		ClientSetupNetworkPhysicsTimestamp(Timestamp); /* Reliable RPC */
 	}
 
@@ -6370,6 +6390,11 @@ void APlayerController::ClientSetupNetworkPhysicsTimestamp_Implementation(FAsync
 	// Assign async physics tick offset
 	bNetworkPhysicsTickOffsetAssigned = true;
 	NetworkPhysicsTickOffset = Timestamp.ServerFrame - Timestamp.LocalFrame;
+
+#if DEBUG_NETWORK_PHYSICS
+	UE_LOG(LogPlayerController, Log, TEXT("APlayerController::ClientSetupNetworkPhysicsTimestamp_Implementation. ClientFrame: %d, ServerFrame: %d, NetworkPhysicsTickOffset: %d)")
+		, Timestamp.LocalFrame, Timestamp.ServerFrame, NetworkPhysicsTickOffset);
+#endif
 }
 
 void APlayerController::ClientAckTimeDilation_Implementation(float TimeDilation, int32 ServerStep)

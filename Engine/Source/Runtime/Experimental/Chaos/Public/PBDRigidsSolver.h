@@ -229,6 +229,8 @@ namespace Chaos
 
 		CHAOS_API void EnableRewindCapture(int32 NumFrames, bool InUseCollisionResimCache, TUniquePtr<IRewindCallback>&& RewindCallback);
 		CHAOS_API void EnableRewindCapture(int32 NumFrames, bool InUseCollisionResimCache);
+		CHAOS_API void EnableRewindCapture(int32 NumFrames);
+		CHAOS_API void EnableRewindCapture();
 
 		/**/
 		FPBDRigidsEvolution* GetEvolution() { return MEvolution.Get(); }
@@ -289,8 +291,10 @@ namespace Chaos
 		/** Copy the simulation material list to the query material list, to be done when the SQ commits an update */
 		CHAOS_API void SyncQueryMaterials_External();
 
+		UE_DEPRECATED(5.5, "Deprecated, use GetUseCollisionResimCache() instead")
+		bool RewindUsesCollisionResimCache() const { return GetUseCollisionResimCache(); }
+
 		CHAOS_API void FinalizeRewindData(const TParticleView<FPBDRigidParticles>& DirtyParticles);
-		bool RewindUsesCollisionResimCache() const { return bUseCollisionResimCache; }
 
 		FPerSolverFieldSystem& GetPerSolverField() { return *PerSolverField; }
 		const FPerSolverFieldSystem& GetPerSolverField() const { return *PerSolverField; }

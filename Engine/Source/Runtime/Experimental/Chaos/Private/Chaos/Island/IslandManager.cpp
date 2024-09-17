@@ -146,9 +146,9 @@ namespace Chaos::Private
 		return !bIsStationary;
 	}
 
-	bool IsParticleNeedsResim(const FGeometryParticleHandle* Particle)
+	bool ParticlesIslandNeedsResim(const FGeometryParticleHandle* Particle)
 	{
-		return (Particle != nullptr) && (Particle->SyncState() != ESyncState::InSync);
+		return (Particle != nullptr) && (Particle->SyncState() != ESyncState::InSync || Particle->ResimType() == EResimType::FullResim);
 	}
 
 	bool GetIslandParticleSleepThresholds(
@@ -1061,7 +1061,7 @@ namespace Chaos::Private
 			Node->Flags.bIsDynamic = IsParticleDynamic(Particle);
 			Node->Flags.bIsSleeping = IsParticleSleeping(Particle);
 			Node->Flags.bIsMoving = IsParticleMoving(Particle);
-			Node->Flags.bNeedsResim = IsParticleNeedsResim(Particle);
+			Node->Flags.bNeedsResim = ParticlesIslandNeedsResim(Particle);
 			UpdateGraphNodeSleepSettings(Node);
 
 			return Node;
@@ -1222,7 +1222,7 @@ namespace Chaos::Private
 		const bool bIsDynamic = IsParticleDynamic(Node->Particle);
 		const bool bIsMoving = IsParticleMoving(Node->Particle);
 		const bool bIsSleeping = IsParticleSleeping(Node->Particle);
-		const bool bNeedsResim = IsParticleNeedsResim(Node->Particle);
+		const bool bNeedsResim = ParticlesIslandNeedsResim(Node->Particle);
 
 		Node->Flags.bIsDynamic = bIsDynamic;
 		Node->Flags.bIsMoving = bIsMoving;
