@@ -79,6 +79,14 @@ public:
 		OnLODChanged.RemoveAll(Thing);
 	}
 
+	virtual void BroadcastOnLODChanged() override
+	{
+		if (OnLODChanged.IsBound())
+		{
+			OnLODChanged.Broadcast();
+		}
+	}
+
 	virtual void RegisterOnMorphTargetsChanged(const FSimpleDelegate& Delegate) override
 	{
 		OnMorphTargetsChanged.Add(Delegate);
