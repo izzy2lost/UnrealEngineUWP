@@ -1020,7 +1020,8 @@ void USkinnedMeshComponent::CreateRenderState_Concurrent(FRegisterComponentConte
 					}
 					else
 					{
-						delete NaniteMeshObject;
+						NaniteMeshObject->ReleaseResources();
+						BeginCleanup(NaniteMeshObject);
 					}
 				}
 
