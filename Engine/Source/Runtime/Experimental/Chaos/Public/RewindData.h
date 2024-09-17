@@ -210,7 +210,7 @@ public :
 		}
 		else if(!bExactFrame)
 		{
-#if DEBUG_REWIND_DATA
+#if DEBUG_NETWORK_PHYSICS
 			if (bResetSolver)
 			{
 				UE_LOG(LogChaos, Warning, TEXT("		Unable to extract data at frame %d while rewinding the simulation"), ExtractFrame);
@@ -239,7 +239,7 @@ public :
 				ExtractedData.InputFrame = INDEX_NONE; // Clear InputFrame since this history entry is now altered and doesn't correspond to the source entry with the same InputFrame
 
 #if DEBUG_NETWORK_PHYSICS
-				UE_LOG(LogChaos, Log, TEXT("		Smoothing data between frame %d and %d - > [%d %d]"), DataHistory[MinFrameIndex].LocalFrame, DataHistory[MaxFrameIndex].LocalFrame, static_cast<DataType*>(HistoryData)->InputFrame, static_cast<DataType*>(HistoryData)->ServerFrame);
+				UE_LOG(LogChaos, Log, TEXT("		Interpolating data between frame %d and %d - > [%d %d]"), DataHistory[MinFrameIndex].LocalFrame, DataHistory[MaxFrameIndex].LocalFrame, static_cast<DataType*>(HistoryData)->InputFrame, static_cast<DataType*>(HistoryData)->ServerFrame);
 #endif
 				return true;
 			}
@@ -1504,25 +1504,24 @@ class FPBDRigidsSolver;
 class FRewindData
 {
 public:
-	FRewindData(FPBDRigidsSolver* InSolver, int32 NumFrames, bool InResimOptimization, int32 InCurrentFrame)
-	: Managers(NumFrames+1)	//give 1 extra for saving at head
-	, Solver(InSolver)
-	, CurFrame(InCurrentFrame)
-	, LatestFrame(InCurrentFrame)
-	, FramesSaved(0)
-	, DataIdxOffset(0)
-	, bNeedsSave(false)
-	, bResimOptimization(InResimOptimization)
-	, LatestTargetFrame(0)
-	{
-	}
+	FRewindData(FPBDRigidsSolver* InSolver, int32 NumFrames, bool InRewindDataOptimization, int32 InCurrentFrame);
+	FRewindData(FPBDRigidsSolver* InSolver, int32 NumFrames, int32 InCurrentFrame);
 
-	void Init(FPBDRigidsSolver* InSolver, int32 NumFrames, bool InResimOptimization, int32 InCurrentFrame)
+	void Init(FPBDRigidsSolver* InSolver, int32 NumFrames, bool InRewindDataOptimization, int32 InCurrentFrame)
 	{
 		Solver = InSolver;
 		CurFrame = InCurrentFrame;
 		LatestFrame = InCurrentFrame;
-		bResimOptimization = InResimOptimization;
+		bRewindDataOptimization = InRewindDataOptimization;
+		LatestTargetFrame = 0;
+		Managers = TCircularBuffer<FFrameManagerInfo>(NumFrames + 1);
+	}
+
+	void Init(FPBDRigidsSolver* InSolver, int32 NumFrames, int32 InCurrentFrame)
+	{
+		Solver = InSolver;
+		CurFrame = InCurrentFrame;
+		LatestFrame = InCurrentFrame;
 		LatestTargetFrame = 0;
 		Managers = TCircularBuffer<FFrameManagerInfo>(NumFrames + 1);
 	}
@@ -1595,11 +1594,13 @@ public:
 
 	IResimCacheBase* GetCurrentStepResimCache() const
 	{
-		const bool PhysicsPredictionEnabled = FPhysicsSolverBase::IsNetworkPhysicsPredictionEnabled();
-		return PhysicsPredictionEnabled && bResimOptimization ? Managers[CurFrame].ExternalResimCache.Get() : nullptr;
+		return Managers[CurFrame].ExternalResimCache.Get();
 	}
 
 	void CHAOS_API DumpHistory_Internal(const int32 FramePrintOffset, const FString& Filename = FString(TEXT("Dump")));
+
+	/** Check if a resim cache based on IResimCacheBase (FEvolutionResimCache by default) is being used. Read FPhysicsSolverBase.SetUseCollisionResimCache() for more info. */
+	bool GetUseCollisionResimCache() const;
 
 	template <typename CreateCache>
 	void AdvanceFrame(FReal DeltaTime, const CreateCache& CreateCacheFunc)
@@ -1609,7 +1610,7 @@ public:
 		Managers[CurFrame].FrameCreatedFor = CurFrame;
 		TUniquePtr<IResimCacheBase>& ResimCache = Managers[CurFrame].ExternalResimCache;
 
-		if (bResimOptimization)
+		if (GetUseCollisionResimCache())
 		{
 			if (IsResim())
 			{
@@ -1718,6 +1719,10 @@ public:
 
 	/** Get the latest frame resim has been blocked from rewinding past */
 	int32 GetBlockedResimFrame() { return BlockResimFrame; }
+
+	/** Set if RewindData optimizations should be enabled or not. 
+	* Effect: Only alter the minimum required properties during a resim for particles not marked for FullResim */
+	void SetRewindDataOptimization(bool InRewindDataOptimization) { bRewindDataOptimization = InRewindDataOptimization; }
 
 	/** Check if we have received targets already for the last frame simulated,
 	* if so compare those with the result of the simulation and if they desync return the frame value to request a rewind for to correct the desync
@@ -1888,6 +1893,9 @@ private:
 	/** Apply targets positions and velocities while resimulating */
 	void ApplyTargets(const int32 Frame, const bool bResetSimulation);
 
+	/** Apply resim data for objects not simulating during resimlation */
+	void StepNonResimParticles(const int32 Frame);
+
 	template <typename TDirtyInfo>
 	static void DesyncObject(TDirtyInfo& Info, const FFrameAndPhase FrameAndPhase)
 	{
@@ -1911,7 +1919,7 @@ private:
 	int32 FramesSaved;
 	int32 DataIdxOffset;
 	bool bNeedsSave;	//Indicates that some data is pointing at head and requires saving before a rewind
-	bool bResimOptimization;
+	bool bRewindDataOptimization;
 	int32 ResimFrame = INDEX_NONE;
 	int32 LatestTargetFrame;
 

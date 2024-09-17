@@ -2415,8 +2415,9 @@ public:
 private:
 
 	/** The static offset between the local async physics tick frame number and the server's, kept in sync via time-dilation
-	*	This is used to synchronize events that happen in the async physics tick */
-	int32 NetworkPhysicsTickOffset = INDEX_NONE;
+	* This is used to synchronize events that happen in the async physics tick 
+	* This is 0 on the server */
+	int32 NetworkPhysicsTickOffset = 0;
 	bool bNetworkPhysicsTickOffsetAssigned = false;
 
 	/** Tick Offset sync interval timer */

@@ -95,6 +95,11 @@ public:
 		return GetSettings()->PhysicsPrediction.ResimulationSettings.ResimulationErrorAngularVelocityThreshold;
 	}
 
+	virtual float GetPhysicsHistoryTimeLength() const
+	{
+		return GetSettings()->PhysicsPrediction.MaxSupportedLatencyPrediction;
+	}
+
 	virtual int32 GetPhysicsHistoryCount() const override
 	{
 		return GetSettings()->GetPhysicsHistoryCount();

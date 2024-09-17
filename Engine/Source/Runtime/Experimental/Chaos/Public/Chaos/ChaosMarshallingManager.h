@@ -259,6 +259,7 @@ struct FPushPhysicsData
 
 	void Reset();
 	void ResetForHistory();
+	void ResetDirtyProxiesBuffer();
 	void CopySubstepData(const FPushPhysicsData& FirstStepData);
 };
 

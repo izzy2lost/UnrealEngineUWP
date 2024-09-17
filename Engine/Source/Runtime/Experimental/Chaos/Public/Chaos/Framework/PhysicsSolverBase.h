@@ -445,6 +445,20 @@ namespace Chaos
 			return MRewindCallback.IsValid() && MRewindData.IsValid();
 		}
 
+		/** Enable or disable an additional resim cache based on IResimCacheBase (FEvolutionResimCache by default) that also caches particle collision constraints
+		* this is disabled by default since cached collisions will be wrong during a resimulation for particles that are desynced
+		* and particles that are in sync doesn't need collision data since we just step through their states in history." */
+		void SetUseCollisionResimCache(bool InUseCollisionResimCache)
+		{
+			bUseCollisionResimCache = InUseCollisionResimCache;
+		}
+
+		/** Check if an additional resim cache based on IResimCacheBase (FEvolutionResimCache by default) is being used. Read FPhysicsSolverBase.SetUseCollisionResimCache() for more info. */
+		bool GetUseCollisionResimCache() const
+		{
+			return bUseCollisionResimCache;
+		}
+
 		void SetPhysicsReplication(FPhysicsReplicationAsync* InPhysicsReplication)
 		{
 			PhysicsReplication = InPhysicsReplication;
@@ -737,6 +751,14 @@ namespace Chaos
 			const bool NetworkPhysicsEnabled = FChaosSolversModule::GetModule()->GetSettingsProvider().GetPhysicsPredictionEnabled();
 			return NetworkPhysicsEnabled;
 		}
+
+		/** Get the time length to cache physics history for, based on Project Settings -> Physics -> Physics Prediction -> MaxSupportedLatencyPrediction */
+		static float GetPhysicsHistoryTimeLength()
+		{
+			const float PhysicsHistoryTimeLength = FChaosSolversModule::GetModule()->GetSettingsProvider().GetPhysicsHistoryTimeLength();
+			return PhysicsHistoryTimeLength;
+		}
+
 
 		/** Get the number of physics history frames to cache */
 		static int32 GetPhysicsHistoryCount()
