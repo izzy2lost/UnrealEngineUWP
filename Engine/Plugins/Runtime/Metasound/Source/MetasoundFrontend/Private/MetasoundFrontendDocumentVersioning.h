@@ -16,7 +16,7 @@ namespace Metasound::Frontend
 {
 	static FMetasoundFrontendVersionNumber GetMaxDocumentVersion()
 	{
-		return FMetasoundFrontendVersionNumber { 1, 13 };
+		return FMetasoundFrontendVersionNumber { 1, 14 };
 	}
 
 	// Versions Frontend Document. Passed as AssetBase for backward compat to
