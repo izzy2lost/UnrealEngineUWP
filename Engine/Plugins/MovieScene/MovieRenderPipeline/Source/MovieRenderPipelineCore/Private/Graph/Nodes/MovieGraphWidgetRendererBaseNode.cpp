@@ -146,7 +146,7 @@ void UMovieGraphWidgetRendererBaseNode::FMovieGraphWidgetPass::Render(const FMov
 		// Put the widget in our window
 		VirtualWindow->SetContent(WidgetToRender.ToSharedRef());
 
-		// Draw the widget to the render target
+		// Draw the widget to the render target.  This leaves the texture in SRV state so no transition is needed.
 		NodeCDO->WidgetRenderer->DrawWindow(RenderTarget, VirtualWindow->GetHittestGrid(), VirtualWindow.ToSharedRef(),
 			1.f, OutputResolution, InTimeData.FrameDeltaTime);
 
@@ -155,9 +155,6 @@ void UMovieGraphWidgetRendererBaseNode::FMovieGraphWidgetPass::Render(const FMov
 			bComposite = ParentNodeThisFrame->bCompositeOntoFinalImage, CompositingSortOrder = GetCompositingSortOrder(),
 			BackbufferRenderTarget, OutputMerger, OutputResolution](FRHICommandListImmediate& RHICmdList)
 			{
-				// Transition our render target from a render target view to a shader resource view to allow a shader to read from this Render Target.
-				RHICmdList.Transition(FRHITransitionInfo(BackbufferRenderTarget->GetRenderTargetTexture(), ERHIAccess::RTV, ERHIAccess::SRVGraphicsPixel));
-
 				const FIntRect SourceRect = FIntRect(0, 0, BackbufferRenderTarget->GetSizeXY().X, BackbufferRenderTarget->GetSizeXY().Y);
 
 				// Read the data back to the CPU
