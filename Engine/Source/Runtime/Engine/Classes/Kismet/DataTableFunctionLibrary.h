@@ -154,5 +154,9 @@ class UDataTableFunctionLibrary : public UBlueprintFunctionLibrary
     UFUNCTION(BlueprintCallable, CustomThunk, Category = "Editor Scripting | DataTable", meta=(AutoCreateRefTerm="RowName", CustomStructureParam="RowData"))
 	static ENGINE_API void AddDataTableRow(UDataTable* const DataTable, const FName& RowName, const FTableRowBase& RowData);
     DECLARE_FUNCTION(execAddDataTableRow);
+
+	/** Removes the row with the provided name from a Data Table. */
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | DataTable", meta = (AutoCreateRefTerm = "RowName"))
+	static ENGINE_API void RemoveDataTableRow(UDataTable* DataTable, const FName& RowName);
 #endif //WITH_EDITOR
 };
