@@ -19,6 +19,7 @@ UMassCharacterMovementToMassTranslator::UMassCharacterMovementToMassTranslator()
 	ExecutionFlags = (int32)EProcessorExecutionFlags::AllNetModes;
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::SyncWorldToMass;
 	RequiredTags.Add<FMassCharacterMovementCopyToMassTag>();
+	bRequiresGameThreadExecution = true;
 }
 
 void UMassCharacterMovementToMassTranslator::ConfigureQueries()
@@ -61,6 +62,7 @@ UMassCharacterMovementToActorTranslator::UMassCharacterMovementToActorTranslator
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::UpdateWorldFromMass;
 	ExecutionOrder.ExecuteAfter.Add(UE::Mass::ProcessorGroupNames::Movement);
 	RequiredTags.Add<FMassCharacterMovementCopyToActorTag>();
+	bRequiresGameThreadExecution = true;
 }
 
 void UMassCharacterMovementToActorTranslator::ConfigureQueries()
@@ -98,6 +100,7 @@ UMassCharacterOrientationToMassTranslator::UMassCharacterOrientationToMassTransl
 	ExecutionFlags = (int32)EProcessorExecutionFlags::AllNetModes;
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::SyncWorldToMass;
 	RequiredTags.Add<FMassCharacterOrientationCopyToMassTag>();
+	bRequiresGameThreadExecution = true;
 }
 
 void UMassCharacterOrientationToMassTranslator::ConfigureQueries()
