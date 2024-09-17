@@ -74,15 +74,15 @@ struct FMovieSceneTrackEvalOptions
 	uint32 bCanEvaluateNearestSection : 1;
 
 	/** When evaluating empty space on a track, will evaluate the last position of the previous section (if possible), or the first position of the next section, in that order of preference. */
-	UPROPERTY(EditAnywhere, Category="General", DisplayName="Evaluate Nearest Section", meta=(EditCondition=bCanEvaluateNearestSection))
+	UPROPERTY(EditAnywhere, Category="Track", DisplayName="Evaluate Nearest Section", meta=(EditCondition=bCanEvaluateNearestSection, HideEditConditionToggle))
 	uint32 bEvalNearestSection : 1;
 
 	/** Evaluate this track as part of its parent sub-section's pre-roll, if applicable */
-	UPROPERTY(EditAnywhere, Category="General")
+	UPROPERTY(EditAnywhere, Category="Track")
 	uint32 bEvaluateInPreroll : 1;
 
 	/** Evaluate this track as part of its parent sub-section's post-roll, if applicable */
-	UPROPERTY(EditAnywhere, Category="General")
+	UPROPERTY(EditAnywhere, Category="Track")
 	uint32 bEvaluateInPostroll : 1;
 
 	UPROPERTY()
@@ -101,7 +101,7 @@ struct FMovieSceneTrackDisplayOptions
 	{}
 
 	/** Show bounds as vertical frames */
-	UPROPERTY(EditAnywhere, Category = "General")
+	UPROPERTY(EditAnywhere, Category = "Track")
 	uint32 bShowVerticalFrames : 1;
 };
 
@@ -197,17 +197,17 @@ public:
 public:
 
 	/** General evaluation options for a given track */
-	UPROPERTY(EditAnywhere, Category = "General", meta = (ShowOnlyInnerProperties))
+	UPROPERTY(EditAnywhere, Category = "Track", meta = (ShowOnlyInnerProperties))
 	FMovieSceneTrackEvalOptions EvalOptions;
 
 #if WITH_EDITORONLY_DATA
 	/** General display options for a given track */
-	UPROPERTY(EditAnywhere, Category = "General", meta = (ShowOnlyInnerProperties))
+	UPROPERTY(EditAnywhere, Category = "Track", meta = (ShowOnlyInnerProperties))
 	FMovieSceneTrackDisplayOptions DisplayOptions;
 #endif
 
 	/** Optional dynamic condition for whether this track/any of the sections on this track evaluates at runtime. */
-	UPROPERTY(EditAnywhere, Category = "General")
+	UPROPERTY(EditAnywhere, Category = "Track")
 	FMovieSceneConditionContainer ConditionContainer;
 
 	/**
@@ -576,7 +576,7 @@ protected:
 	FGuid ObjectBindingID;
 
 	/** This track's tint color */
-	UPROPERTY(EditAnywhere, Category=General, DisplayName=Color)
+	UPROPERTY(EditAnywhere, Category="Track", DisplayName = Color)
 	FColor TrackTint;
 
 	/** This folder's desired sorting order */
