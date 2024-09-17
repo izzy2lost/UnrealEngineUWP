@@ -69,8 +69,9 @@ void FMVVMListViewBaseExtensionCustomizationExtender::CustomizeDetails(IDetailLa
 					.NameContent()
 					[
 						SNew(STextBlock)
-						.Text(LOCTEXT("VMSupport", "Viewmodel Support"))
+						.Text(LOCTEXT("VMSupport", "Viewmodel Extension"))
 						.Font(IDetailLayoutBuilder::GetDetailFont())
+						.ToolTipText(LOCTEXT("VMExtensionToolTip", "Add or remove a Viewmodel Extension. This extension adds a widget to this list view for each entry that is provided to the Set List Items function via a binding."))
 					]
 					.ValueContent()
 					.HAlign(HAlign_Fill)
@@ -113,6 +114,7 @@ void FMVVMListViewBaseExtensionCustomizationExtender::CustomizeDetails(IDetailLa
 						SNew(STextBlock)
 						.Text(LOCTEXT("EntryVM", "Entry Viewmodel"))
 						.Font(IDetailLayoutBuilder::GetDetailFont())
+						.ToolTipText(LOCTEXT("EntryVMToolTip", "Each entry created by this Viewmodel Extension will be bound to this Viewmodel on the entry widget"))
 					]
 					.ValueContent()
 					.HAlign(HAlign_Fill)
@@ -127,6 +129,7 @@ void FMVVMListViewBaseExtensionCustomizationExtender::CustomizeDetails(IDetailLa
 							[
 								SNew(STextBlock)
 								.Text(this, &FMVVMListViewBaseExtensionCustomizationExtender::OnGetSelectedViewModel)
+								.ToolTipText(this, &FMVVMListViewBaseExtensionCustomizationExtender::OnGetSelectedViewModel)
 							]
 						]
 						+ SHorizontalBox::Slot()
