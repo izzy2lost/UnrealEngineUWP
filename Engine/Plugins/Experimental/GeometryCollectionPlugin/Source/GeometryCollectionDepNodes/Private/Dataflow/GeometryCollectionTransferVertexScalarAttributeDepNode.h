@@ -5,18 +5,17 @@
 #include "CoreMinimal.h"
 #include "Chaos/BoundingVolumeHierarchy.h"
 #include "Dataflow/DataflowNode.h"
-#include "Dataflow/DataflowCollectionAttributeKeyNodes.h"
-#include "GeometryCollection/ManagedArrayCollection.h"
+#include "Dataflow/DataflowConnectionTypes.h"
+#include "GeometryCollection/GeometryCollection.h"
 
-#include "GeometryCollectionTransferVertexScalarAttributeNode.generated.h"
+#include "GeometryCollectionTransferVertexScalarAttributeDepNode.generated.h"
 
 
-namespace UE::Private {
-
+namespace UE::Private 
+{
 	class FTransferFacade;
 	typedef Chaos::TBoundingVolumeHierarchy<TArray<Chaos::TSphere<Chaos::FReal, 3>*>, TArray<int32>, Chaos::FReal, 3> BVH;
 };
-
 
 UENUM(BlueprintType)
 enum class EDataflowTransferNodeFalloff : uint8
@@ -68,7 +67,7 @@ enum class EDataflowTransferNodeBoundingVolume : uint8
 /**
  * Transfer float properties from a sample collection to a target collection. 
  */
-USTRUCT(meta = (DataflowGeometryCollection))
+USTRUCT(meta = (Deprecated = "5.5"))
 struct FGeometryCollectionTransferVertexScalarAttributeNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()

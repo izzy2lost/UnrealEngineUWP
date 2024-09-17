@@ -5,16 +5,16 @@
 #include "CoreMinimal.h"
 
 #include "Dataflow/DataflowNodeFactory.h"
+#include "Dataflow/GeometryCollectionTransferVertexScalarAttributeDepNode.h"
 #include "Dataflow/SetVertexColorFromFloatArrayDepNode.h"
 #include "Dataflow/SetVertexColorFromVertexSelectionDepNode.h"
-
-
 
 #define LOCTEXT_NAMESPACE "DataflowNodes"
 
 
 void IGeometryCollectionDepNodesPlugin::StartupModule()
 {
+	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FGeometryCollectionTransferVertexScalarAttributeNode);
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FSetVertexColorInCollectionFromVertexSelectionDataflowNode);
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FSetVertexColorInCollectionFromFloatArrayDataflowNode);
 }
