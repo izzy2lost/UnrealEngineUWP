@@ -21,11 +21,12 @@ UPlayMontageCallbackProxy* UPlayMontageCallbackProxy::CreateProxyObjectForPlayMo
 	class UAnimMontage* MontageToPlay,
 	float PlayRate,
 	float StartingPosition,
-	FName StartingSection)
+	FName StartingSection,
+	bool bShouldStopAllMontages)
 {
 	UPlayMontageCallbackProxy* Proxy = NewObject<UPlayMontageCallbackProxy>();
 	Proxy->SetFlags(RF_StrongRefOnFrame);
-	Proxy->PlayMontage(InSkeletalMeshComponent, MontageToPlay, PlayRate, StartingPosition, StartingSection);
+	Proxy->PlayMontage(InSkeletalMeshComponent, MontageToPlay, PlayRate, StartingPosition, StartingSection, bShouldStopAllMontages);
 	return Proxy;
 }
 
@@ -34,14 +35,15 @@ bool UPlayMontageCallbackProxy::PlayMontage(class USkeletalMeshComponent* InSkel
 	class UAnimMontage* MontageToPlay, 
 	float PlayRate, 
 	float StartingPosition, 
-	FName StartingSection)
+	FName StartingSection,
+	bool bShouldStopAllMontages)
 {
 	bool bPlayedSuccessfully = false;
 	if (InSkeletalMeshComponent)
 	{
 		if (UAnimInstance* AnimInstance = InSkeletalMeshComponent->GetAnimInstance())
 		{
-			const float MontageLength = AnimInstance->Montage_Play(MontageToPlay, PlayRate, EMontagePlayReturnType::MontageLength, StartingPosition);
+			const float MontageLength = AnimInstance->Montage_Play(MontageToPlay, PlayRate, EMontagePlayReturnType::MontageLength, StartingPosition, bShouldStopAllMontages);
 			bPlayedSuccessfully = (MontageLength > 0.f);
 
 			if (bPlayedSuccessfully)

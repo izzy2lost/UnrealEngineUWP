@@ -40,7 +40,8 @@ class UPlayMontageCallbackProxy : public UObject
 		class UAnimMontage* MontageToPlay, 
 		float PlayRate = 1.f, 
 		float StartingPosition = 0.f, 
-		FName StartingSection = NAME_None);
+		FName StartingSection = NAME_None,
+		bool bShouldStopAllMontages = true);
 
 public:
 	//~ Begin UObject Interface
@@ -78,5 +79,6 @@ protected:
 		class UAnimMontage* MontageToPlay,
 		float PlayRate = 1.f,
 		float StartingPosition = 0.f,
-		FName StartingSection = NAME_None);
+		FName StartingSection = NAME_None,
+		bool bShouldStopAllMontages = true);
 };
