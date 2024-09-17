@@ -264,12 +264,13 @@ namespace uba
 		writer.WriteBytes(data, dataSize);
 	}
 
-	void Trace::ProcessExited(u32 processId, u32 exitCode, const u8* data, u64 dataSize, const Vector<ProcessLogLine>& logLines)
+	void Trace::ProcessExited(u32 processId, u32 exitCode, const u8* data, u64 dataSize, const Vector<ProcessLogLine>& logLines, const tchar* breadcrumbs)
 	{
 		BEGIN_TRACE_ENTRY(ProcessExited);
 		writer.WriteU32(processId);
 		writer.WriteU32(exitCode);
 		writer.WriteBytes(data, dataSize);
+		writer.WriteString(breadcrumbs);
 		u32 lineCounter = 0;
 		for (auto& line : logLines)
 		{

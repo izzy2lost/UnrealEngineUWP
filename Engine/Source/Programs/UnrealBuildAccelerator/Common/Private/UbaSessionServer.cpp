@@ -476,7 +476,7 @@ namespace uba
 		StackBinaryWriter<1024> statsWriter;
 		ProcessStats processStats;
 		processStats.Write(statsWriter);
-		m_trace.ProcessExited(id, exitCode, statsWriter.GetData(), statsWriter.GetPosition(), Vector<ProcessLogLine>());
+		m_trace.ProcessExited(id, exitCode, statsWriter.GetData(), statsWriter.GetPosition(), Vector<ProcessLogLine>(), TC(""));
 	}
 
 	void SessionServer::UpdateProgress(u32 processesTotal, u32 processesDone, u32 errorCount)
@@ -1239,7 +1239,7 @@ namespace uba
 		u32 id = process.m_processId;
 		Vector<ProcessLogLine> emptyLines;
 		auto& logLines = (exitCode != 0 || m_detailedTrace) ? process.m_logLines : emptyLines;
-		m_trace.ProcessExited(id, exitCode, reader.GetPositionData(), reader.GetLeft(), logLines);
+		m_trace.ProcessExited(id, exitCode, reader.GetPositionData(), reader.GetLeft(), logLines, process.GetStartInfo().breadcrumbs);
 
 		ProcessStats processStats;
 		processStats.Read(reader, ~0u);
@@ -1781,7 +1781,7 @@ namespace uba
 			SessionStats().Write(writer);
 			StorageStats().Write(writer);
 			KernelStats().Write(writer);
-			m_trace.ProcessExited(process->m_processId, process->m_exitCode, writer.GetData(), writer.GetPosition(), Vector<ProcessLogLine>());
+			m_trace.ProcessExited(process->m_processId, process->m_exitCode, writer.GetData(), writer.GetPosition(), Vector<ProcessLogLine>(), process->GetStartInfo().breadcrumbs);
 
 			m_logger.Warning(TC("Cancelling remote active processes has not been tested. Notify devs"));
 

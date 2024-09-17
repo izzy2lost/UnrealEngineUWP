@@ -1509,7 +1509,7 @@ namespace uba
 			u32 exitCode = process.GetExitCode();
 			Vector<ProcessLogLine> emptyLines;
 			auto& logLines = (exitCode != 0 || m_detailedTrace) ? process.m_logLines : emptyLines;
-			m_trace.ProcessExited(id, exitCode, writer.GetData(), writer.GetPosition(), logLines);
+			m_trace.ProcessExited(id, exitCode, writer.GetData(), writer.GetPosition(), logLines, process.GetStartInfo().breadcrumbs);
 			SCOPED_WRITE_LOCK(m_processStatsLock, lock);
 			m_processStats.Add(process.m_processStats);
 			m_stats.Add(process.m_sessionStats);

@@ -21,6 +21,7 @@ namespace uba
 			u64 stop = 0;
 			TString description;
 			TString returnedReason;
+			TString breadcrumbs;
 			HBITMAP bitmap = 0;
 			u32 bitmapOffset = 0;
 			bool bitmapDirty = true;
