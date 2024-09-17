@@ -66,11 +66,12 @@ static FAutoConsoleVariableRef CVarInterchangeEnableUSDImport(
 );
 
 static bool GInterchangeEnableUSDLevelImport = false;
-static FAutoConsoleVariableRef CVarInterchangeEnableUSDLevelImport(
-	TEXT("Interchange.FeatureFlags.Import.USD.ToLevel"),
-	GInterchangeEnableUSDLevelImport,
-	TEXT("Whether support for USD level import is enabled.")
-);
+// Import into level via USD Interchange is disabled for 5.5 as it's still a work in progress
+// static FAutoConsoleVariableRef CVarInterchangeEnableUSDLevelImport(
+// 	TEXT("Interchange.FeatureFlags.Import.USD.ToLevel"),
+// 	GInterchangeEnableUSDLevelImport,
+// 	TEXT("Whether support for USD level import is enabled.")
+// );
 
 namespace UE::InterchangeUsdTranslator::Private
 {
