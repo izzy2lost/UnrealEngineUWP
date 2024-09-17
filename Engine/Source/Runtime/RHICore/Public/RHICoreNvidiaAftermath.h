@@ -24,11 +24,6 @@
 		RHICORE_API bool AreMarkersEnabled();
 
 		//
-		// Called on RHICore module startup to load the Nvidia Aftermath library
-		//
-		RHICORE_API void StartupModule();
-
-		//
 		// Called by platform RHIs to activate Aftermath.
 		// The optional ResolveMarkerFunc is provided for platform RHIs to replace the default marker resolution with something custom.
 		//

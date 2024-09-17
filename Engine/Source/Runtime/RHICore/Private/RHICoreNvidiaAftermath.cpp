@@ -100,9 +100,15 @@ namespace UE::RHICore::Nvidia::Aftermath
 	static void GFSDK_AFTERMATH_CALL Callback_ResolveMarker   (const void* MarkerData, const uint32_t MarkerDataSize, void* UserData, void** ResolvedMarkerData, uint32_t* ResolvedMarkerDataSize);
 	static void GFSDK_AFTERMATH_CALL Callback_ShaderDebugInfo (const void* ShaderDebugInfo, const uint32 ShaderDebugInfoSize, void* UserData);
 
-
-	void StartupModule()
+	// Loads the Aftermath DLL unless Aftermath initialization is disabled.
+	void LoadAftermathDLL()
 	{
+		if (GDynamicRHI && GDynamicRHI->GetInterfaceType() == ERHIInterfaceType::D3D11)
+		{
+			UE_LOG(LogNvidiaAftermath, Log, TEXT("Nvidia Aftermath is disabled in D3D11 due to instability issues."));
+			return;
+		}
+
 		if (!AllowVendorDevice())
 		{
 			UE_LOG(LogNvidiaAftermath, Log, TEXT("Vendor devices disallowed. Aftermath initialization skipped."));
@@ -129,6 +135,8 @@ namespace UE::RHICore::Nvidia::Aftermath
 
 	RHICORE_API void InitializeBeforeDeviceCreation(FResolveMarkerFunc ResolveMarkerFunc)
 	{
+		LoadAftermathDLL();
+
 		GResolveMarkerFunc = MoveTemp(ResolveMarkerFunc);
 
 		if (!DllHandle)
