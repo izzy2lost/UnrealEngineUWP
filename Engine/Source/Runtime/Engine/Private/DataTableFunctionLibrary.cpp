@@ -434,4 +434,23 @@ DEFINE_FUNCTION(UDataTableFunctionLibrary::execAddDataTableRow)
 		FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
 	}
 }
+
+void UDataTableFunctionLibrary::RemoveDataTableRow(UDataTable* DataTable, const FName& RowName)
+{
+	if (!DataTable)
+	{
+		UE_LOG(LogDataTable, Error, TEXT("RemoveDataTableRow - The DataTable is invalid."));
+		return;
+	}
+
+	if (DataTable->FindRowUnchecked(RowName) != nullptr)
+	{
+		DataTable->Modify();
+		DataTable->RemoveRow(RowName);
+	}
+	else
+	{
+		UE_LOG(LogDataTable, Log, TEXT("RemoveDataTableRow - Row %s not found is %s"), *RowName.ToString(), *DataTable->GetName());
+	}
+}
 #endif //WITH_EDITOR
