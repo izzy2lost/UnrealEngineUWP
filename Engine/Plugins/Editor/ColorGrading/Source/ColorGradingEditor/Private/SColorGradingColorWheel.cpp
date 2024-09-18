@@ -54,7 +54,7 @@ void SColorGradingColorWheel::Construct(const FArguments& InArgs)
 	ChildSlot
 	[
 		SNew(SBox)
-		.Padding(16.f, 8.f)
+		.Padding(ColumnPadding.X, ColumnPadding.Y)
 		[
 			SNew(SVerticalBox)
 
@@ -66,20 +66,55 @@ void SColorGradingColorWheel::Construct(const FArguments& InArgs)
 			]
 
 			+ SVerticalBox::Slot()
-			.FillHeight(1.0f)
+			.FillHeight(1.0)
 			.HAlign(HAlign_Fill)
 			[
-				ColorPickerBox.ToSharedRef()
-			]
+				SNew(SOverlay)
 
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.HAlign(HAlign_Center)
-			[
-				SNew(SBox)
-				.Visibility(this, &SColorGradingColorWheel::GetSlidersVisibility)
+				// Standard/"short" layout
+				+ SOverlay::Slot()
+				.HAlign(HAlign_Fill)
+				.VAlign(VAlign_Fill)
 				[
-					ColorSlidersBox.ToSharedRef()
+					SNew(SVerticalBox)
+					.Visibility(this, &SColorGradingColorWheel::GetShortLayoutVisibility)
+
+					+ SVerticalBox::Slot()
+					.FillHeight(1.f)
+					[
+						ColorPickerBox.ToSharedRef()
+					]
+
+					+ SVerticalBox::Slot()
+					.AutoHeight()
+					[
+						SNew(SBox)
+						.Visibility(this, &SColorGradingColorWheel::GetSlidersVisibility)
+						[
+							ColorSlidersBox.ToSharedRef()
+						]
+					]
+				]
+
+				// Tall layout
+				+ SOverlay::Slot()
+				.HAlign(HAlign_Fill)
+				.VAlign(VAlign_Center)
+				[
+					SNew(SVerticalBox)
+					.Visibility(this, &SColorGradingColorWheel::GetTallLayoutVisibility)
+
+					+ SVerticalBox::Slot()
+					.AutoHeight()
+					[
+						ColorPickerBox.ToSharedRef()
+					]
+
+					+ SVerticalBox::Slot()
+					.AutoHeight()
+					[
+						ColorSlidersBox.ToSharedRef()
+					]
 				]
 			]
 		]
@@ -147,6 +182,7 @@ TSharedRef<SWidget> SColorGradingColorWheel::SColorGradingColorWheel::CreateColo
 	if (ColorPropertyHandle.IsValid() && ColorPropertyHandle.Pin()->IsValidHandle())
 	{
 		return SNew(UE::ColorGrading::SColorGradingPicker)
+			.DesiredWheelSize(this, &SColorGradingColorWheel::GetMaxWheelWidth)
 			.ValueMin(GetMetadataMinValue())
 			.ValueMax(GetMetadataMaxValue())
 			.SliderValueMin(GetMetadataSliderMinValue())
@@ -344,6 +380,33 @@ EVisibility SColorGradingColorWheel::GetSlidersVisibility() const
 	return GetTickSpaceGeometry().GetLocalSize().Y >= 294
 		? EVisibility::Visible
 		: EVisibility::Collapsed;
+}
+
+EVisibility SColorGradingColorWheel::GetShortLayoutVisibility() const
+{
+	return ShouldUseTallLayout()
+		? EVisibility::Collapsed
+		: EVisibility::Visible;
+}
+
+EVisibility SColorGradingColorWheel::GetTallLayoutVisibility() const
+{
+	return ShouldUseTallLayout()
+		? EVisibility::Visible
+		: EVisibility::Collapsed;
+}
+
+int32 SColorGradingColorWheel::GetMaxWheelWidth() const
+{
+	const float InnerWidth = GetTickSpaceGeometry().GetLocalSize().X - ColumnPadding.X * 2;
+	return FMath::FloorToInt32(FMath::Max(InnerWidth, 0.f));
+}
+
+bool SColorGradingColorWheel::ShouldUseTallLayout() const
+{
+	// Switch to tall layout when the column space not occupied by the wheel is above this size
+	const float RemainingSpaceThrehold = 450;
+	return GetTickSpaceGeometry().GetLocalSize().Y >= (RemainingSpaceThrehold + GetMaxWheelWidth());
 }
 
 bool SColorGradingColorWheel::GetColor(FVector4& OutCurrentColor)

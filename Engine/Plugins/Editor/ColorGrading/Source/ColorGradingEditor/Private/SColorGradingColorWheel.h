@@ -73,6 +73,10 @@ private:
 
 	bool IsPropertyEnabled() const;
 	EVisibility GetSlidersVisibility() const;
+	EVisibility GetShortLayoutVisibility() const;
+	EVisibility GetTallLayoutVisibility() const;
+	int32 GetMaxWheelWidth() const;
+	bool ShouldUseTallLayout() const;
 
 	bool GetColor(FVector4& OutCurrentColor);
 	void CommitColor(FVector4& NewValue, bool bShouldCommitValueChanges);
@@ -108,6 +112,9 @@ private:
 	bool GetMetadataSupportDynamicSliderMaxValue() const;
 
 private:
+	/** Padding applied to the whole column */
+	const FVector2f ColumnPadding = FVector2f(16.f, 8.f);
+
 	TSharedPtr<UE::ColorGrading::SColorGradingPicker> ColorGradingPicker;
 	TSharedPtr<SBox> HeaderBox;
 	TSharedPtr<SBox> ColorPickerBox;
