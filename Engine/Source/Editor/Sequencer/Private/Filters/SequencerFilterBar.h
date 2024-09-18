@@ -272,6 +272,8 @@ protected:
 	FSequencerFilterData FilterData;
 
 private:
+	static int32 InstanceCount;
+
 	/** Do not call directly! Should only be called by FilterNodes(). */
 	bool FilterNodesRecursive(const bool bInHasActiveFilter, const UE::Sequencer::TViewModelPtr<UE::Sequencer::IOutlinerExtension>& InStartNode);
 };

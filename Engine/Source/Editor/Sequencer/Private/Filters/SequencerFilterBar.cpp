@@ -39,6 +39,8 @@ using namespace UE::Sequencer;
 
 const FName FSequencerFilterBar::SharedIdentifier = TEXT("SharedSequencerTrackFilter");
 
+int32 FSequencerFilterBar::InstanceCount = 0;
+
 FSequencerFilterBar::FSequencerFilterBar(FSequencer& InSequencer)
 	: Sequencer(InSequencer)
 	, CommandList(MakeShared<FUICommandList>())
@@ -57,6 +59,8 @@ FSequencerFilterBar::FSequencerFilterBar(FSequencer& InSequencer)
 	, FilterMenu(MakeShared<FSequencerTrackFilterMenu>())
 	, FilterData(FString())
 {
+	InstanceCount++;
+
 	FSequencerTrackFilterCommands::Register();
 
 	CommonFilters->OnChanged().AddRaw(this, &FSequencerFilterBar::RequestFilterUpdate);
@@ -71,8 +75,13 @@ FSequencerFilterBar::FSequencerFilterBar(FSequencer& InSequencer)
 
 FSequencerFilterBar::~FSequencerFilterBar()
 {
-	FSequencerTrackFilterCommands::Unregister();
-	
+	InstanceCount--;
+
+	if (InstanceCount == 0)
+	{
+		FSequencerTrackFilterCommands::Unregister();
+	}
+
 	CommonFilters->OnChanged().RemoveAll(this);
     InternalFilters->OnChanged().RemoveAll(this);
     TextFilter->OnChanged().RemoveAll(this);
