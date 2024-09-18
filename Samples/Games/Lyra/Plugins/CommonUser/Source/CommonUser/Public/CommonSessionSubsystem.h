@@ -224,6 +224,15 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FCommonSessionOnCreateSessionComplete, const
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FCommonSessionOnCreateSessionComplete_Dynamic, const FOnlineResultInformation&, Result);
 
 /**
+ * Event triggered when the local user has requested to destroy a session from an external source, for example from a platform overlay.
+ * The game should transition the player out of the session.
+ * @param LocalPlatformUserId the local user id that made the destroy request. This is a platform user id because the user might not be signed in yet.
+ * @param SessionName the name identifier for the session.
+ */
+DECLARE_MULTICAST_DELEGATE_TwoParams(FCommonSessionOnDestroySessionRequested, const FPlatformUserId& /*LocalPlatformUserId*/, const FName& /*SessionName*/);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FCommonSessionOnDestroySessionRequested_Dynamic, const FPlatformUserId&, LocalPlatformUserId, const FName&, SessionName);
+
+/**
  * Event triggered when a session join has completed, after resolving the connect string and prior to the client traveling.
  * @param URL resolved connection string for the session with any additional arguments
  */
@@ -318,6 +327,12 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Events", meta = (DisplayName = "On Session Information Changed"))
 	FCommonSessionOnSessionInformationChanged_Dynamic K2_OnSessionInformationChangedEvent;
 
+	/** Native Delegate when a platform session destroy has been requested */
+	FCommonSessionOnDestroySessionRequested OnDestroySessionRequestedEvent;
+	/** Event broadcast when a platform session destroy has been requested */
+	UPROPERTY(BlueprintAssignable, Category = "Events", meta = (DisplayName = "On Leave Session Requested"))
+	FCommonSessionOnDestroySessionRequested_Dynamic K2_OnDestroySessionRequestedEvent;
+
 	/** Native Delegate for modifying the connect URL prior to a client travel */
 	FCommonSessionOnPreClientTravel OnPreClientTravelEvent;
 
@@ -368,6 +383,7 @@ protected:
 	void NotifyJoinSessionComplete(const FOnlineResultInformation& Result);
 	void NotifyCreateSessionComplete(const FOnlineResultInformation& Result);
 	void NotifySessionInformationUpdated(ECommonSessionInformationState SessionStatusStr, const FString& GameMode = FString(), const FString& MapName = FString());
+	void NotifyDestroySessionRequested(const FPlatformUserId& PlatformUserId, const FName& SessionName);
 	void SetCreateSessionError(const FText& ErrorText);
 
 #if COMMONUSER_OSSV1
@@ -385,6 +401,7 @@ protected:
 	void OnUpdateSessionComplete(FName SessionName, bool bWasSuccessful);
 	void OnEndSessionComplete(FName SessionName, bool bWasSuccessful);
 	void OnDestroySessionComplete(FName SessionName, bool bWasSuccessful);
+	void OnDestroySessionRequested(int32 LocalUserNum, FName SessionName);
 	void OnFindSessionsComplete(bool bWasSuccessful);
 	void OnJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result);
 	void OnRegisterJoiningLocalPlayerComplete(const FUniqueNetId& PlayerId, EOnJoinSessionCompleteResult::Type Result);

@@ -234,6 +234,8 @@ private:
 	FCallbackBase* LobbyInviteAcceptedCallback;
 	EOS_NotificationId JoinLobbyAcceptedId;
 	FCallbackBase* JoinLobbyAcceptedCallback;
+	EOS_NotificationId LeaveLobbyRequestedId;
+	FCallbackBase* LeaveLobbyRequestedCallback;
 
 	void OnLobbyUpdateReceived(const EOS_LobbyId& LobbyId);
 	void OnLobbyMemberUpdateReceived(const EOS_LobbyId& LobbyId, const EOS_ProductUserId& TargetUserId);
@@ -241,6 +243,7 @@ private:
 	void OnLobbyInviteReceived(const EOS_Lobby_LobbyInviteReceivedCallbackInfo* Data);
 	void OnLobbyInviteAccepted(const EOS_Lobby_LobbyInviteAcceptedCallbackInfo* Data);
 	void OnJoinLobbyAccepted(const EOS_Lobby_JoinLobbyAcceptedCallbackInfo* Data);
+	void OnLeaveLobbyRequested(const EOS_Lobby_LeaveLobbyRequestedCallbackInfo* Data);
 
 	// Methods to update an API Lobby from an OSS Lobby
 	void SetLobbyPermissionLevel(EOS_HLobbyModification LobbyModificationHandle, FNamedOnlineSession* Session);
@@ -267,6 +270,7 @@ private:
 	void OnSessionInviteReceived(const EOS_Sessions_SessionInviteReceivedCallbackInfo* Data);
 	void OnSessionInviteAccepted(const EOS_Sessions_SessionInviteAcceptedCallbackInfo* Data);
 	void OnJoinSessionAccepted(const EOS_Sessions_JoinSessionAcceptedCallbackInfo* Data);
+	void OnLeaveSessionRequested(const EOS_Sessions_LeaveSessionRequestedCallbackInfo* Data);
 
 	void RegisterLobbyNotifications();
 	FNamedOnlineSession* GetNamedSessionFromLobbyId(const FUniqueNetIdEOSLobby& LobbyId);
@@ -347,6 +351,8 @@ private:
 	FCallbackBase* SessionInviteAcceptedCallback;
 	EOS_NotificationId JoinSessionAcceptedId;
 	FCallbackBase* JoinSessionAcceptedCallback;
+	EOS_NotificationId LeaveSessionRequestedId;
+	FCallbackBase* LeaveSessionRequestedCallback;
 
 	bool bIsUsingP2PSockets;
 };
