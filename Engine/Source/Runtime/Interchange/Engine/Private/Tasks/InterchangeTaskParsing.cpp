@@ -313,7 +313,13 @@ void UE::Interchange::FTaskParsing::Execute()
 						//Translator not thread safe cannot get payloads asynchronously
 						bAsyncPayloads = false;
 					}
-					Factory->CreatePayloadTasks(ImportAssetObjectParams, bAsyncPayloads, PayloadTasks);
+
+					if (!AsyncHelper->bRuntimeOrPIE || FactoryNode->IsRuntimeImportAllowed())
+					{
+						//Only create payloads if it's allowed.
+						Factory->CreatePayloadTasks(ImportAssetObjectParams, bAsyncPayloads, PayloadTasks);
+					}
+					
 					if (!PayloadTasks.IsEmpty())
 					{
 						for (TSharedPtr<FInterchangeTaskBase> PayloadTask : PayloadTasks)

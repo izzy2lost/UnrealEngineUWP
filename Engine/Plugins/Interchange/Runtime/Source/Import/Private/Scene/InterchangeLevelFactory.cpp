@@ -82,13 +82,18 @@ namespace UE::Interchange::Private::InterchangeLevelFactory
 
 			constexpr bool bEnableWorldPartitionStreaming = false;
 			constexpr bool bInformEngineOfWorld = true;
+			bool bIsRuntimeOrPIE = false;
+			if (UInterchangeEditorUtilitiesBase* EditorUtilities = UInterchangeManager::GetInterchangeManager().GetEditorUtilities())
+			{
+				bIsRuntimeOrPIE = EditorUtilities->IsRuntimeOrPIE();
+			}
 
 			// Those are the init values taken from the default in UWorld::CreateWorld + CreateWorldPartition.
 			UWorld::InitializationValues InitValues = UWorld::InitializationValues()
 				.ShouldSimulatePhysics(false)
 				.EnableTraceCollision(true)
-				.CreateNavigation(!FApp::IsGame())
-				.CreateAISystem(!FApp::IsGame())
+				.CreateNavigation(!bIsRuntimeOrPIE)
+				.CreateAISystem(!bIsRuntimeOrPIE)
 				.CreateWorldPartition(bCreateWorldPartition)
 				.EnableWorldPartitionStreaming(bEnableWorldPartitionStreaming);
 
@@ -138,7 +143,8 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeLevelFactory::BeginImpor
 	}
 
 #if WITH_EDITOR
-	if (!FApp::IsGame() && WorldAsset)
+	UInterchangeEditorUtilitiesBase* EditorUtilities = UInterchangeManager::GetInterchangeManager().GetEditorUtilities();
+	if ((!EditorUtilities || !EditorUtilities->IsRuntimeOrPIE()) && WorldAsset)
 	{
 		WorldAsset->PreEditChange(nullptr);
 	}

@@ -361,6 +361,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node")
 	INTERCHANGECORE_API bool UnsetForceNodeReimport();
 
+	/**
+	 * Return if the import of the class is allowed at runtime.
+	 *
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node")
+	INTERCHANGECORE_API virtual bool IsRuntimeImportAllowed() const
+	{
+		return true;
+	}
+
 protected:
 	/**
 	 * Those dependencies are used by the Interchange parsing task to make sure the assets are created in the correct order.

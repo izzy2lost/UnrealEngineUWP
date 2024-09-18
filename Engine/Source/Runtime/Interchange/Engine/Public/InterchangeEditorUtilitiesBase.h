@@ -17,4 +17,13 @@ public:
 	{
 		return false;
 	}
+
+	INTERCHANGEENGINE_API virtual bool IsRuntimeOrPIE()
+	{
+#if WITH_EDITOR
+		return false;
+#else
+		return true;
+#endif
+	}
 };

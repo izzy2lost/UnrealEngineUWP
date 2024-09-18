@@ -1032,12 +1032,7 @@ void UInterchangeSkeletalMeshFactory::CreatePayloadTasks(const FImportAssetObjec
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeSkeletalMeshFactory::CreateAsset)
 
-#if !WITH_EDITOR || !WITH_EDITORONLY_DATA
-
-	UE_LOG(LogInterchangeImport, Error, TEXT("Cannot import SkeletalMesh asset at runtime. This is an editor-only feature."));
-	return;
-
-#else
+#if WITH_EDITOR && WITH_EDITORONLY_DATA
 	using namespace UE::Interchange;
 
 	if (!Arguments.AssetNode || !Arguments.AssetNode->GetObjectClass()->IsChildOf(GetFactoryClass()))
@@ -1293,12 +1288,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Beg
 
 	FImportAssetResult ImportAssetResult;
 
-#if !WITH_EDITOR || !WITH_EDITORONLY_DATA
-
-	UE_LOG(LogInterchangeImport, Error, TEXT("Cannot import SkeletalMesh asset at runtime. This is an editor-only feature."));
-	return ImportAssetResult;
-
-#else
+#if WITH_EDITOR && WITH_EDITORONLY_DATA
 	USkeletalMesh* SkeletalMesh = nullptr;
 	if (!Arguments.AssetNode || !Arguments.AssetNode->GetObjectClass()->IsChildOf(GetFactoryClass()))
 	{
@@ -1538,10 +1528,9 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Beg
 
 		CurrentLodIndex++;
 	}
+#endif
 
 	return ImportAssetResult;
-
-#endif //else !WITH_EDITOR || !WITH_EDITORONLY_DATA
 }
 
 UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::ImportAsset_Async(const FImportAssetObjectParams& Arguments)
@@ -1550,12 +1539,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Imp
 
 	FImportAssetResult ImportAssetResult;
 
-#if !WITH_EDITOR || !WITH_EDITORONLY_DATA
-
-	UE_LOG(LogInterchangeImport, Error, TEXT("Cannot import SkeletalMesh asset at runtime. This is an editor-only feature."));
-	return ImportAssetResult;
-
-#else
+#if WITH_EDITOR && WITH_EDITORONLY_DATA
 	if (!Arguments.AssetNode || !Arguments.AssetNode->GetObjectClass()->IsChildOf(GetFactoryClass()))
 	{
 		return ImportAssetResult;
@@ -1998,9 +1982,9 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Imp
 	Arguments.SourceData->GetFileContentHash();
 
 	ImportAssetResult.ImportedObject = SkeletalMeshObject;
-	return ImportAssetResult;
+#endif
 
-#endif //else !WITH_EDITOR || !WITH_EDITORONLY_DATA
+	return ImportAssetResult;
 }
 
 UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::EndImportAsset_GameThread(const FImportAssetObjectParams& Arguments)
@@ -2010,12 +1994,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::End
 	check(IsInGameThread());
 	FImportAssetResult ImportAssetResult;
 
-#if !WITH_EDITOR || !WITH_EDITORONLY_DATA
-
-	UE_LOG(LogInterchangeImport, Error, TEXT("Cannot import SkeletalMesh asset at runtime. This is an editor-only feature."));
-	return ImportAssetResult;
-
-#else
+#if WITH_EDITOR && WITH_EDITORONLY_DATA
 	if (!Arguments.AssetNode || !Arguments.AssetNode->GetObjectClass()->IsChildOf(GetFactoryClass()))
 	{
 		return ImportAssetResult;
@@ -2273,9 +2252,9 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::End
 	SkeletalMeshFactoryNode->SetCustomReferenceObject(FSoftObjectPath(SkeletalMesh));
 
 	ImportAssetResult.ImportedObject = SkeletalMesh;
-	return ImportAssetResult;
+#endif
 
-#endif //WITH_EDITOR
+	return ImportAssetResult;
 }
 
 void UInterchangeSkeletalMeshFactory::Cancel()

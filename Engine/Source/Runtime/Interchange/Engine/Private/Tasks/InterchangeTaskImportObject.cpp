@@ -114,12 +114,22 @@ namespace UE::Interchange::Private
 
 
 
-	bool CanImportClass(UE::Interchange::FImportAsyncHelper& AsyncHelper, UInterchangeFactoryBaseNode& FactoryNode, int32 SourceIndex)
+	bool CanImportClass(UE::Interchange::FImportAsyncHelper& AsyncHelper, UInterchangeFactoryBaseNode& FactoryNode, int32 SourceIndex, bool bLogError = false)
 	{
+		if (AsyncHelper.bRuntimeOrPIE && !FactoryNode.IsRuntimeImportAllowed())
+		{
+			if (bLogError)
+			{
+				UE_LOG(LogInterchangeEngine, Error, TEXT("Cannot import %s asset at runtime. This is an editor-only feature."), *FactoryNode.GetTypeName());
+			}
+			return false;
+		}
+
 		if (UClass* Class = FactoryNode.GetObjectClass())
 		{
 			return AsyncHelper.IsClassImportAllowed(Class);
 		}
+		
 		return false;
 	}
 
@@ -264,8 +274,8 @@ void UE::Interchange::FTaskImportObject_GameThread::Execute()
 		}
 	};
 	
-	//Verify if the task was cancel or class to import is denied
-	if (AsyncHelper->bCancel || !FactoryNode || !Private::CanImportClass(*AsyncHelper, *FactoryNode, SourceIndex))
+	//Verify if the task was cancel
+	if (AsyncHelper->bCancel || !FactoryNode)
 	{
 		return;
 	}
@@ -284,7 +294,6 @@ void UE::Interchange::FTaskImportObject_GameThread::Execute()
 	FString PackageName;
 	FString AssetName;
 	Private::InternalGetPackageName(*AsyncHelper, SourceIndex, PackageBasePath, FactoryNode, PackageName, AssetName);
-
 	UObject* ObjectToReimport = FFactoryCommon::GetObjectToReimport(Factory, AsyncHelper->TaskData.ReimportObject, *FactoryNode, PackageName, AssetName);
 	if (!ensure(!IsGarbageCollecting()))
 	{
@@ -310,6 +319,13 @@ void UE::Interchange::FTaskImportObject_GameThread::Execute()
 		return;
 	}
 	UInterchangeBaseNodeContainer* NodeContainer = AsyncHelper->BaseNodeContainers[SourceIndex].Get();
+	bool bShouldReimportFactoryNode = ObjectToReimport && Private::ShouldReimportFactoryNode(FactoryNode, NodeContainer, ObjectToReimport);
+
+	//Check if class Import is allowed or not.
+	if (!Private::CanImportClass(*AsyncHelper, *FactoryNode, SourceIndex, !ObjectToReimport || bShouldReimportFactoryNode))
+	{
+		return;
+	}
 
 	bool bSkipObjectNoReplace = false;
 	UObject* ExistingAsset = nullptr;
@@ -377,7 +393,7 @@ void UE::Interchange::FTaskImportObject_GameThread::Execute()
 	//If we do a reimport no need to create a package
 	if (ObjectToReimport)
 	{
-		if (Private::ShouldReimportFactoryNode(FactoryNode, NodeContainer, ObjectToReimport))
+		if (bShouldReimportFactoryNode)
 		{
 			FactoryNode->SetDisplayLabel(ObjectToReimport->GetName());
 			FactoryNode->SetAssetName(ObjectToReimport->GetName());
