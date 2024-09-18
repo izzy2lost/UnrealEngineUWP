@@ -4,6 +4,9 @@
 #include "Widgets/Input/SSpinBox.h"
 #include "MaskProfile/HierarchyTableTypeMask.h"
 #include "HierarchyTable.h"
+#include "Editor.h"
+
+#define LOCTEXT_NAMESPACE "FHierarchyTableMaskWidgetConstructor_Value"
 
 TSharedRef<SWidget> FHierarchyTableMaskWidgetConstructor_Value::CreateInternalWidget(UHierarchyTable* HierarchyTable, int32 EntryIndex)
 {
@@ -19,5 +22,16 @@ TSharedRef<SWidget> FHierarchyTableMaskWidgetConstructor_Value::CreateInternalWi
 		.OnValueChanged_Lambda([HierarchyTable, EntryIndex](float NewValue)
 			{
 				HierarchyTable->TableData[EntryIndex].GetMutableValue<FHierarchyTableType_Mask>()->Value = NewValue;
+			})
+		.OnBeginSliderMovement_Lambda([HierarchyTable]()
+			{
+				GEditor->BeginTransaction(LOCTEXT("SetMaskValue", "Set Mask Value"));
+				HierarchyTable->Modify();
+			})
+		.OnEndSliderMovement_Lambda([](float)
+			{
+				GEditor->EndTransaction();
 			});
 }
+
+#undef LOCTEXT_NAMESPACE
