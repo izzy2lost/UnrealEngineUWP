@@ -68,7 +68,7 @@ public:
 	{
 		FSequencerFilterData& FilterData = FilterInterface.GetFilterData();
 
-		const UObject* const BoundObject = ResolveTrackBoundObject(InItem, FilterData);
+		const UObject* const BoundObject = FilterData.ResolveTrackBoundObject(GetSequencer(), InItem);
 		if (IsValid(BoundObject))
 		{
 			if (BoundObject->IsA(UMovieSceneNiagaraTrack::StaticClass())

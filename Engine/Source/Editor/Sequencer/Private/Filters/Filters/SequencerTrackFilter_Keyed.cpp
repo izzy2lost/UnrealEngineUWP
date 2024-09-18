@@ -40,18 +40,8 @@ bool FSequencerTrackFilter_Keyed::SupportsSequence(UMovieSceneSequence* const In
 
 bool FSequencerTrackFilter_Keyed::PassesFilter(FSequencerTrackFilterType InItem) const
 {
-	FSequencerFilterData& FilterData = FilterInterface.GetFilterData();
-
-	for (const TViewModelPtr<IOutlinerExtension>& ChildNode : InItem->GetDescendantsOfType<IOutlinerExtension>(true))
-	{
-		const UMovieSceneTrack* const TrackObject = ResolveMovieSceneTrackObject(InItem, FilterData);
-		if (DoesMovieSceneTrackHaveKeys(TrackObject))
-		{
-			return true;
-		}
-	}
-
-	return false;
+	const TWeakViewModelPtr<ITrackExtension> Track = FilterInterface.GetFilterData().ResolveTrack(InItem);
+	return DoesTrackExtensionHaveKeys(Track);
 }
 
 FText FSequencerTrackFilter_Keyed::GetDisplayName() const
@@ -69,24 +59,36 @@ FString FSequencerTrackFilter_Keyed::GetName() const
 	return TEXT("Keyed");
 }
 
-bool FSequencerTrackFilter_Keyed::DoesMovieSceneTrackHaveKeys(const UMovieSceneTrack* const InTrackObject)
+bool FSequencerTrackFilter_Keyed::DoesTrackExtensionHaveKeys(const TWeakViewModelPtr<ITrackExtension>& InTrack)
 {
-	if (!IsValid(InTrackObject))
+	const TViewModelPtr<ITrackExtension> Track = InTrack.Pin();
+	if (!Track.IsValid())
 	{
 		return false;
 	}
 
-	for (const UMovieSceneSection* const Section : InTrackObject->GetAllSections())
+	UMovieSceneTrack* const TrackObject = Track->GetTrack();
+	if (!IsValid(TrackObject))
 	{
-		for (const FMovieSceneChannelEntry& ChannelEntry : Section->GetChannelProxy().GetAllEntries())
+		return false;
+	}
+
+	const int32 RowIndex = Track->GetRowIndex();
+
+	for (const UMovieSceneSection* const Section : TrackObject->GetAllSections())
+	{
+		if (Section->GetRowIndex() == RowIndex)
 		{
-			const TConstArrayView<FMovieSceneChannel*> Channels = ChannelEntry.GetChannels();
-			for (int32 ChannelIndex = 0; ChannelIndex < Channels.Num(); ++ChannelIndex)
+			for (const FMovieSceneChannelEntry& ChannelEntry : Section->GetChannelProxy().GetAllEntries())
 			{
-				const FMovieSceneChannel* const Channel = Channels[ChannelIndex];
-				if (Channel && Channel->GetNumKeys() > 0)
+				const TConstArrayView<FMovieSceneChannel*> Channels = ChannelEntry.GetChannels();
+				for (int32 ChannelIndex = 0; ChannelIndex < Channels.Num(); ++ChannelIndex)
 				{
-					return true;
+					const FMovieSceneChannel* const Channel = Channels[ChannelIndex];
+					if (Channel && Channel->GetNumKeys() > 0)
+					{
+						return true;
+					}
 				}
 			}
 		}

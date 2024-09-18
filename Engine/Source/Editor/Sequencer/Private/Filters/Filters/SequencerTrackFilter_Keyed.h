@@ -7,7 +7,7 @@
 class FSequencerTrackFilter_Keyed : public FSequencerTrackFilter
 {
 public:
-	static bool DoesMovieSceneTrackHaveKeys(const UMovieSceneTrack* const InTrackObject);
+	static bool DoesTrackExtensionHaveKeys(const UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::ITrackExtension>& InTrack);
 
 	FSequencerTrackFilter_Keyed(ISequencerTrackFilters& InFilterInterface, TSharedPtr<FFilterCategory> InCategory = nullptr);
 

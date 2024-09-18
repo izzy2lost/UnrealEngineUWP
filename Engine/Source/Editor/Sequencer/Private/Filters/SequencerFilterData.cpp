@@ -1,7 +1,10 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Filters/SequencerFilterData.h"
+#include "ISequencer.h"
+#include "MVVM/Extensions/IObjectBindingExtension.h"
 #include "MVVM/Extensions/IOutlinerExtension.h"
+#include "MVVM/Extensions/ITrackExtension.h"
 #include "MVVM/ViewModels/ViewModelIterators.h"
 
 using namespace UE::Sequencer;
@@ -125,4 +128,150 @@ bool FSequencerFilterData::ContainsFilterInNodes(const FSequencerFilterData& InO
 bool FSequencerFilterData::IsFilteredOut(const TViewModelPtr<IOutlinerExtension>& InNode) const
 {
 	return !FilterInNodes.Contains(InNode);
+}
+
+TWeakViewModelPtr<ITrackExtension> FSequencerFilterData::ResolveTrack(FSequencerTrackFilterType InNode)
+{
+	if (!InNode.IsValid())
+	{
+		return nullptr;
+	}
+
+	const TWeakViewModelPtr<IOutlinerExtension> WeakOutlinerNode = InNode.ImplicitCast();
+
+	// Use cache version if it exists, otherwise resolve below
+	if (ResolvedTracks.Contains(WeakOutlinerNode))
+	{
+		if (const TViewModelPtr<ITrackExtension> ResolvedTrack = ResolvedTracks[WeakOutlinerNode].Pin())
+		{
+			return ResolvedTrack;
+		}
+
+		ResolvedTracks.Remove(WeakOutlinerNode);
+	}
+
+	// Resolve and cache
+	if (const TViewModelPtr<ITrackExtension> AncestorTrack = InNode->FindAncestorOfType<ITrackExtension>(true))
+	{
+		ResolvedTracks.Add(WeakOutlinerNode, AncestorTrack);
+		return AncestorTrack;
+	}
+
+	return nullptr;
+}
+
+TWeakViewModelPtr<IObjectBindingExtension> FSequencerFilterData::ResolveTrackObjectBinding(FSequencerTrackFilterType InNode)
+{
+	if (!InNode.IsValid())
+	{
+		return nullptr;
+	}
+
+	const TWeakViewModelPtr<IOutlinerExtension> WeakOutlinerNode = InNode.ImplicitCast();
+
+	// Use cache version if it exists, otherwise resolve below
+	if (ResolvedObjectBindings.Contains(WeakOutlinerNode))
+	{
+		if (const TViewModelPtr<IObjectBindingExtension> ResolvedObjectBinding = ResolvedObjectBindings[WeakOutlinerNode].Pin())
+		{
+			return ResolvedObjectBinding;
+		}
+
+		ResolvedObjectBindings.Remove(WeakOutlinerNode);
+	}
+
+	// Resolve and cache
+	if (const TViewModelPtr<IObjectBindingExtension> ObjectBindingModel = InNode->FindAncestorOfType<IObjectBindingExtension>(true))
+	{
+		ResolvedObjectBindings.Add(WeakOutlinerNode, ObjectBindingModel);
+		return ObjectBindingModel;
+	}
+
+	return nullptr;
+}
+
+UMovieSceneTrack* FSequencerFilterData::ResolveMovieSceneTrackObject(FSequencerTrackFilterType InNode)
+{
+	if (!InNode.IsValid())
+	{
+		return nullptr;
+	}
+
+	const TWeakViewModelPtr<IOutlinerExtension> WeakOutlinerNode = InNode.ImplicitCast();
+
+	// Use cache version if it exists, otherwise resolve below
+	if (ResolvedTracks.Contains(WeakOutlinerNode))
+	{
+		if (const TViewModelPtr<ITrackExtension> ResolvedTrack = ResolvedTracks[WeakOutlinerNode].Pin())
+		{
+			return ResolvedTrack->GetTrack();
+		}
+
+		ResolvedTracks.Remove(WeakOutlinerNode);
+	}
+
+	// Resolve and cache
+	if (const TViewModelPtr<ITrackExtension> AncestorTrackModel = InNode->FindAncestorOfType<ITrackExtension>(true))
+	{
+		UMovieSceneTrack* const TrackObject = AncestorTrackModel->GetTrack();
+		if (IsValid(TrackObject))
+		{
+			ResolvedObjects.Add(WeakOutlinerNode, TrackObject);
+			return TrackObject;
+		}
+	}
+
+	return nullptr;
+}
+
+UObject* FSequencerFilterData::ResolveTrackBoundObject(ISequencer& InSequencer, const TViewModelPtr<FViewModel> InNode)
+{
+	if (!InNode.IsValid())
+	{
+		return nullptr;
+	}
+
+	const TWeakViewModelPtr<IOutlinerExtension> WeakOutlinerNode = InNode.ImplicitCast();
+
+	// Use cache version if it exists, otherwise resolve below
+	if (ResolvedObjects.Contains(WeakOutlinerNode))
+	{
+		UObject* const ResolvedObject = ResolvedObjects[WeakOutlinerNode].Get();
+		if (IsValid(ResolvedObject))
+		{
+			return ResolvedObject;
+		}
+
+		ResolvedObjects.Remove(WeakOutlinerNode);
+	}
+
+	if (ResolvedObjectBindings.Contains(WeakOutlinerNode))
+	{
+		if (const TViewModelPtr<IObjectBindingExtension> ResolvedObjectBinding = ResolvedObjectBindings[WeakOutlinerNode].Pin())
+		{
+			UObject* const BoundObject = InSequencer.FindSpawnedObjectOrTemplate(ResolvedObjectBinding->GetObjectGuid());
+			if (IsValid(BoundObject))
+			{
+				ResolvedObjects.Add(WeakOutlinerNode, BoundObject);
+				return BoundObject;
+			}
+		}
+
+		ResolvedObjectBindings.Remove(WeakOutlinerNode);
+	}
+
+	// Resolve and cache
+	if (const TViewModelPtr<IObjectBindingExtension> ObjectBindingModel = InNode->FindAncestorOfType<IObjectBindingExtension>(true))
+	{
+		ResolvedObjectBindings.Add(WeakOutlinerNode, ObjectBindingModel);
+
+		UObject* const BoundObject = InSequencer.FindSpawnedObjectOrTemplate(ObjectBindingModel->GetObjectGuid());
+		if (IsValid(BoundObject))
+		{
+			ResolvedObjects.Add(WeakOutlinerNode, BoundObject);
+			return BoundObject;
+		}
+	}
+
+	return nullptr;
 }

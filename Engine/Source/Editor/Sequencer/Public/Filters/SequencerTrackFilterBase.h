@@ -8,6 +8,7 @@
 #include "Misc/IFilter.h"
 #include "MovieSceneTrack.h"
 #include "MovieSceneTrackEditor.h"
+#include "SequencerFilterData.h"
 #include "MVVM/ViewModelPtr.h"
 #include "Textures/SlateIcon.h"
 
@@ -48,9 +49,6 @@ public:
 			: ETrackSupport::NotSupported;
 		return Support == ETrackSupport::Supported;
 	}
-
-	SEQUENCER_API static UMovieSceneTrack* ResolveMovieSceneTrackObject(FSequencerTrackFilterType InNode, FSequencerFilterData& FilterData);
-	SEQUENCER_API static UObject* ResolveTrackBoundObject(ISequencer& InSequencer, FSequencerTrackFilterType InNode, FSequencerFilterData& FilterData);
 
 	SEQUENCER_API static FText BuildTooltipTextForCommand(const FText& InBaseText, const TSharedPtr<FUICommandInfo>& InCommand);
 
@@ -109,8 +107,6 @@ protected:
 	UMovieSceneSequence* GetFocusedMovieSceneSequence() const;
 	UMovieScene* GetFocusedGetMovieScene() const;
 
-	SEQUENCER_API UObject* ResolveTrackBoundObject(FSequencerTrackFilterType InNode, FSequencerFilterData& FilterData) const;
-
 	ISequencerTrackFilters& FilterInterface;
 
 private:
@@ -137,7 +133,6 @@ public:
 	{
 		const UE::Sequencer::TViewModelPtr<InModelType> Model = InItem->FindAncestorOfType<InModelType>();
 		return Model.IsValid(); // show child tracks
-		//return InItem->IsA<InModelType>(); // don't show child tracks
 	}
 	//~ End IFilter
 };
@@ -158,7 +153,7 @@ public:
 	virtual bool PassesFilter(FSequencerTrackFilterType InItem) const override
 	{
 		FSequencerFilterData& FilterData = FilterInterface.GetFilterData();
-		const UMovieSceneTrack* const TrackObject = ResolveMovieSceneTrackObject(InItem, FilterData);
+		const UMovieSceneTrack* const TrackObject = FilterData.ResolveMovieSceneTrackObject(InItem);
 		return IsValid(TrackObject) && TrackObject->IsA(InClassType::StaticClass());
 	}
 	//~ End IFilter
@@ -188,13 +183,13 @@ public:
 	{
 		FSequencerFilterData& FilterData = FilterInterface.GetFilterData();
 
-		const UMovieSceneTrack* const TrackObject = ResolveMovieSceneTrackObject(InItem, FilterData);
+		const UMovieSceneTrack* const TrackObject = FilterData.ResolveMovieSceneTrackObject(InItem);
 		if (IsValid(TrackObject) && TrackObject->IsA(InComponentType::StaticClass()))
 		{
 			return true;
 		}
 
-		const TWeakObjectPtr<> BoundObject = ResolveTrackBoundObject(GetSequencer(), InItem, FilterData);
+		const TWeakObjectPtr<> BoundObject = FilterData.ResolveTrackBoundObject(GetSequencer(), InItem);
 		if (BoundObject.IsValid() && BoundObject->IsA(InComponentType::StaticClass()))
 		{
 			return true;
