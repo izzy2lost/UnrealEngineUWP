@@ -15,9 +15,9 @@ class IOutlinerColumn;
 class ISequencerTreeViewRow;
 
 /**
-* Interface for sequencer decorator outliner item.
+* Interface for building sequencer decorator outliner items.
 */
-class IOutlinerDecorator : public TSharedFromThis<IOutlinerDecorator>
+class IOutlinerDecoratorBuilder : public TSharedFromThis<IOutlinerDecoratorBuilder>
 {
 
 public:
@@ -34,7 +34,7 @@ public:
 public:
 
 	/** Virtual destructor. */
-	virtual ~IOutlinerDecorator() { }
+	virtual ~IOutlinerDecoratorBuilder() { }
 
 };
 

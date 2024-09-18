@@ -131,7 +131,7 @@
 #include "ISequencerChannelInterface.h"
 #include "IMovieRendererInterface.h"
 #include "MVVM/ViewModels/OutlinerColumns/IOutlinerColumn.h"
-#include "MVVM/ViewModels/OutlinerDecorators/IOutlinerDecorator.h"
+#include "MVVM/ViewModels/OutlinerDecorators/IOutlinerDecoratorBuilder.h"
 #include "SequencerKeyCollection.h"
 #include "CurveEditor.h"
 #include "CurveEditorScreenSpace.h"
@@ -534,7 +534,7 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams
 	for (int32 DelegateIndex = 0; DelegateIndex < OutlinerDecoratorDelegates.Num(); ++DelegateIndex)
 	{
 		check(OutlinerDecoratorDelegates[DelegateIndex].IsBound());
-		TSharedRef<IOutlinerDecorator> OutlinerDecorator = OutlinerDecoratorDelegates[DelegateIndex].Execute();
+		TSharedRef<IOutlinerDecoratorBuilder> OutlinerDecorator = OutlinerDecoratorDelegates[DelegateIndex].Execute();
 
 		if (OutlinerDecorator->SupportsSequence(InitParams.RootSequence))
 		{

@@ -9,7 +9,7 @@ namespace UE::Sequencer
 
 class IOutlinerColumn;
 class IOutlinerDecorator;
-class FTimeWarpOutlinerDecorator;
+class FTimeWarpOutlinerDecoratorBuilder;
 
 /**
  * A widget that shows an decorator based on the presence of time warp on a row
@@ -21,7 +21,7 @@ public:
 	SLATE_BEGIN_ARGS(STimeWarpDecoratorWidget) {}
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, const TWeakPtr<IOutlinerColumn> InWeakOutlinerColumn, const TWeakPtr<FTimeWarpOutlinerDecorator>& OutlinerDecorator, const FCreateOutlinerColumnParams& InParams);
+	void Construct(const FArguments& InArgs, const TWeakPtr<IOutlinerColumn> InWeakOutlinerColumn, const FCreateOutlinerColumnParams& InParams);
 
 	/** Get the color and opacity of the column toggle widget. */
 	virtual FSlateColor GetImageColorAndOpacity() const override;
@@ -55,7 +55,7 @@ protected:
 
 private:
 
-	TWeakPtr<FTimeWarpOutlinerDecorator> WeakOutlinerDecorator;
+	TWeakPtr<FTimeWarpOutlinerDecoratorBuilder> WeakOutlinerDecorator;
 };
 
 } // namespace UE::Sequencer

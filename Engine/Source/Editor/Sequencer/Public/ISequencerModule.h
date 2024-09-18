@@ -29,7 +29,7 @@ namespace UE::Sequencer
 	class FTrackModel;
 	class IObjectSchema;
 	class IOutlinerColumn;
-	class IOutlinerDecorator;
+	class IOutlinerDecoratorBuilder;
 } // namespace UE::Sequencer
 
 enum class ECurveEditorTreeFilterType : uint32;
@@ -65,7 +65,7 @@ DECLARE_DELEGATE_RetVal_OneParam(TSharedPtr<UE::Sequencer::FTrackModel>, FOnCrea
 DECLARE_DELEGATE_RetVal(TSharedRef<UE::Sequencer::IOutlinerColumn>, FOnCreateOutlinerColumn);
 
 /** A delegate which will create an outliner decorator item */
-DECLARE_DELEGATE_RetVal(TSharedRef<UE::Sequencer::IOutlinerDecorator>, FOnCreateOutlinerDecorator);
+DECLARE_DELEGATE_RetVal(TSharedRef<UE::Sequencer::IOutlinerDecoratorBuilder>, FOnCreateOutlinerDecorator);
 
 /** A delegate that is executed when adding menu content. */
 DECLARE_DELEGATE_OneParam(FOnGetContextMenuContent, FMenuBuilder& /*MenuBuilder*/);

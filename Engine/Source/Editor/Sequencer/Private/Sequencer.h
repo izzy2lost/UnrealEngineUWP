@@ -317,7 +317,7 @@ public:
 	/**
 	* @return Outliner Decorator Items registered to the sequencer by column name
 	*/
-	const TMap<FName, TSharedPtr<UE::Sequencer::IOutlinerDecorator>>& GetOutlinerDecorators() const
+	const TMap<FName, TSharedPtr<UE::Sequencer::IOutlinerDecoratorBuilder>>& GetOutlinerDecorators() const
 	{
 		return OutlinerDecorators;
 	}
@@ -1278,7 +1278,7 @@ private:
 	TMap<FName, TSharedPtr<UE::Sequencer::IOutlinerColumn>> OutlinerColumns;
 
 	/** List of Outliner decorator item creators that are supported by the Sequencer. */
-	TMap<FName, TSharedPtr<UE::Sequencer::IOutlinerDecorator>> OutlinerDecorators;
+	TMap<FName, TSharedPtr<UE::Sequencer::IOutlinerDecoratorBuilder>> OutlinerDecorators;
 
 	/** List of object bindings we can use */
 	TArray<TSharedPtr<ISequencerEditorObjectBinding>> ObjectBindings;

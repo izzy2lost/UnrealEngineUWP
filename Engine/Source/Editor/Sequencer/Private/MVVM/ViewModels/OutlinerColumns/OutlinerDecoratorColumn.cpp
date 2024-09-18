@@ -5,7 +5,7 @@
 #include "Sequencer.h"
 #include "MVVM/Extensions/IConditionableExtension.h"
 #include "MVVM/SharedViewModelData.h"
-#include "MVVM/ViewModels/OutlinerDecorators/IOutlinerDecorator.h"
+#include "MVVM/ViewModels/OutlinerDecorators/IOutlinerDecoratorBuilder.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/OutlinerDecorators/SConditionDecoratorWidget.h"
@@ -38,7 +38,7 @@ bool FOutlinerDecoratorColumn::IsItemCompatibleWithColumn(const FCreateOutlinerC
 		return false;
 	}
 
-	for (const TTuple< FName, TSharedPtr<IOutlinerDecorator> >& OutlinerDecorator : Sequencer->GetOutlinerDecorators())
+	for (const TTuple< FName, TSharedPtr<IOutlinerDecoratorBuilder> >& OutlinerDecorator : Sequencer->GetOutlinerDecorators())
 	{
 		if (OutlinerDecorator.Value.Get()->IsItemCompatibleWithDecorator(InParams))
 		{
@@ -65,11 +65,11 @@ TSharedPtr<SWidget> FOutlinerDecoratorColumn::CreateColumnWidget(const FCreateOu
 
 	ColumnWidget = SNew(SHorizontalBox);
 
-	TArray<TSharedPtr<IOutlinerDecorator> > CompatibleDecorators;
+	TArray<TSharedPtr<IOutlinerDecoratorBuilder> > CompatibleDecorators;
 
-	for (const TTuple< FName, TSharedPtr<IOutlinerDecorator> >& OutlinerDecorator : Sequencer->GetOutlinerDecorators())
+	for (const TTuple< FName, TSharedPtr<IOutlinerDecoratorBuilder> >& OutlinerDecorator : Sequencer->GetOutlinerDecorators())
 	{
-		TSharedPtr<IOutlinerDecorator> Decorator = OutlinerDecorator.Value;
+		TSharedPtr<IOutlinerDecoratorBuilder> Decorator = OutlinerDecorator.Value;
 
 		if (Decorator->IsItemCompatibleWithDecorator(InParams))
 		{
@@ -79,7 +79,7 @@ TSharedPtr<SWidget> FOutlinerDecoratorColumn::CreateColumnWidget(const FCreateOu
 
 	const int32 NumCompatibleDecorators = CompatibleDecorators.Num();
 
-	for (TSharedPtr<IOutlinerDecorator>& Decorator : CompatibleDecorators)
+	for (TSharedPtr<IOutlinerDecoratorBuilder>& Decorator : CompatibleDecorators)
 	{
 		ColumnWidget->AddSlot()
 		[
