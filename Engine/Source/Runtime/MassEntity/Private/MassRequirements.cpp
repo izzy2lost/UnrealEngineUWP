@@ -86,6 +86,16 @@ FMassFragmentRequirements::FMassFragmentRequirements(TConstArrayView<const UScri
 	}
 }
 
+FMassFragmentRequirements& FMassFragmentRequirements::ClearTagRequirements(const FMassTagBitSet& TagsToRemoveBitSet)
+{
+	RequiredAllTags.Remove(TagsToRemoveBitSet);
+	RequiredAnyTags.Remove(TagsToRemoveBitSet);
+	RequiredNoneTags.Remove(TagsToRemoveBitSet);
+	RequiredOptionalTags.Remove(TagsToRemoveBitSet);
+
+	return *this;
+}
+
 void FMassFragmentRequirements::SortRequirements()
 {
 	// we're sorting the Requirements the same way ArchetypeData's FragmentConfig is sorted (see FMassArchetypeData::Initialize)

@@ -284,6 +284,9 @@ public:
 		return *this;
 	}
 
+	/** Clears given tags out of all collected requirements, including negative ones */
+	FMassFragmentRequirements& ClearTagRequirements(const FMassTagBitSet& TagsToRemoveBitSet);
+
 	template<typename T>
 	FMassFragmentRequirements& AddChunkRequirement(const EMassFragmentAccess AccessMode, const EMassFragmentPresence Presence = EMassFragmentPresence::All)
 	{
