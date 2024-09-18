@@ -103,11 +103,6 @@ bool FAjaMediaPlayer::Open(const FString& Url, const IMediaOptions* Options)
 	const bool bAutoDetectTimecode = Timecode == EMediaIOAutoDetectableTimecodeFormat::Auto;
 	const bool bAutoDetectVideoFormat = bAutoDetect;
 
-	bOverrideSourceEncoding = Options->GetMediaOption(UE::CaptureCardMediaSource::OverrideSourceEncoding, true);
-	OverrideSourceEncoding = (ETextureSourceEncoding) Options->GetMediaOption(UE::CaptureCardMediaSource::SourceEncoding, (int64) ETextureSourceEncoding::TSE_Linear);
-	bOverrideSourceColorSpace = Options->GetMediaOption(UE::CaptureCardMediaSource::OverrideSourceColorSpace, true);
-	OverrideSourceColorSpace =  (ETextureColorSpace) Options->GetMediaOption(UE::CaptureCardMediaSource::SourceColorSpace, (int64) ETextureColorSpace::TCS_None);
-
 	if (!bAutoDetectTimecode)
 	{
 		TimecodeFormat = UE::MediaIO::FromAutoDetectableTimecodeFormat(Timecode);

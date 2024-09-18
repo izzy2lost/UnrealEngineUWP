@@ -77,6 +77,9 @@ struct MEDIAIOCORE_API FMediaIOCoreSampleJITRConfigurationArgs
 
 	/** Sample converter to process this sample */
 	TSharedPtr<FMediaIOCoreTextureSampleConverter> Converter;
+	
+	/** Frame rate of the current sample. */
+	FFrameRate FrameRate;
 };
 
 
@@ -211,10 +214,8 @@ public:
 	/**
 	 * Set the OCIO settings used for color conversion.
 	 */
-	void SetColorConversionSettings(TSharedPtr<struct FOpenColorIOColorConversionSettings> InColorConversionSettings)
-	{
-		ColorConversionSettings = InColorConversionSettings;
-	}
+	void SetColorConversionSettings(TSharedPtr<struct FOpenColorIOColorConversionSettings> InColorConversionSettings);
+
 	/**
 	 * Request an uninitialized sample buffer.
 	 * Should be used when the buffer could be filled by something else.
@@ -224,6 +225,7 @@ public:
 	 */
 	virtual void* RequestBuffer(uint32 InBufferSize);
 
+
 	/**
 	 * Configure this sample for JITR
 	 *
@@ -232,9 +234,9 @@ public:
 	virtual bool InitializeJITR(const FMediaIOCoreSampleJITRConfigurationArgs& Args);
 
 	/** Marks this sample as one that is ready and awaiting for fast GPUDirect texture transfer */
-	void SetAwaitingForGPUTransfer()
+	void SetAwaitingForGPUTransfer(bool bIsAwaitingGPUTransfer = true)
 	{
-		bIsAwaitingForGPUTransfer = true;
+		bIsAwaitingForGPUTransfer = bIsAwaitingGPUTransfer;
 	}
 
 	/** Returns whether it's ready for GPUDirect texture transfer */
@@ -254,6 +256,11 @@ public:
 
 	/** Copies all neccessary data from a source sample to render JIT */
 	virtual void CopyConfiguration(const TSharedPtr<FMediaIOCoreTextureSampleBase>& SourceSample);
+protected:
+	/**
+	* Method that caches color conversion settings on Game thread.
+	*/
+	void CacheColorCoversionSettings_GameThread();
 
 public:
 	//~ IMediaTextureSample interface
@@ -339,6 +346,30 @@ public:
 		return Buffer.GetData();
 	}
 
+	/**
+	 * Attemps to get the initialized buffer.
+	 * If buffer isn't initialized or of a different size, requests a new one.
+	 *
+	 * @param InBufferSize The size of the required video buffer.
+	 */
+	virtual void* GetOrRequestBuffer(uint32 InBufferSize);
+
+
+	virtual uint32 GetFrameNumber() const
+	{
+		return FrameNumber;
+	}
+
+	virtual void SetTime(const FTimespan& InTime)
+	{
+		Time = InTime;
+	}
+
+	virtual void SetFrameNumber(uint32 InFrameNumber)
+	{
+		FrameNumber = InFrameNumber;
+	}
+
 	//~ IMediaTextureSampleColorConverter interface
 	virtual bool ApplyColorConversion(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InSrcTexture, FTextureRHIRef& InDstTexture) override;
 
@@ -409,6 +440,9 @@ protected:
 	/** Sample timecode. */
 	TOptional<FTimecode> Timecode;
 
+	/** Which engine frame number this sample corresponds to. */
+	uint32 FrameNumber = 0;
+
 	/** Image dimensions */
 	uint32 Stride = 0;
 	uint32 Width  = 0;
@@ -433,13 +467,13 @@ protected:
 	/** Color space structure of the incoming texture. Used for retrieving chromaticities. */
 	UE::Color::FColorSpace ColorSpaceStruct = UE::Color::FColorSpace(UE::Color::EColorSpace::sRGB);
 
-private:
 	/** The player that created this sample */
 	TWeakPtr<FMediaIOCorePlayerBase> Player;
 
 	/** Custom converter that will be the one checking back with the player for just in time sample render purposes */
 	TSharedPtr<FMediaIOCoreTextureSampleConverter> Converter;
 
+private:
 	/**
 	 * A reference to the original sample that was chosen during JITR. The idea of this member is to keep
 	 * the original sample alive, prevent any of its resources from being released while this proxy sample is in use.
