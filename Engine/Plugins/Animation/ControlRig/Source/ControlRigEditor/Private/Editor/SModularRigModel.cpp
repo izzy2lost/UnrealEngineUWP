@@ -1006,7 +1006,7 @@ void SModularRigModel::HandleReresolveModules(const TArray<FString>& InPaths)
 		{
 			FString ModulePath = PathAndConnector;
 			FString ConnectorName;
-			(void)PathAndConnector.Split(TEXT("|"), &ModulePath, &ConnectorName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+			(void)PathAndConnector.Split(TEXT("|"), &ModulePath, &ConnectorName, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
 
 			const FRigModuleReference* Module = Controller->Model->FindModule(ModulePath);
 			if (!Module)
@@ -1020,7 +1020,7 @@ void SModularRigModel::HandleReresolveModules(const TArray<FString>& InPaths)
 				// if we are executing this on a primary connector we want to re-resolve all secondaries
 				const FRigConnectorElement* PrimaryConnector = Module->FindPrimaryConnector(Hierarchy);
 				const FName DesiredName = Hierarchy->GetNameMetadata(PrimaryConnector->GetKey(), URigHierarchy::DesiredNameMetadataName, NAME_None);
-				if(!DesiredName.IsNone() && DesiredName.ToString().Equals(ConnectorName, ESearchCase::CaseSensitive))
+				if(!DesiredName.IsNone() && DesiredName.ToString().Equals(ConnectorName, ESearchCase::IgnoreCase))
 				{
 					ConnectorName.Reset();
 				}
@@ -1038,7 +1038,7 @@ void SModularRigModel::HandleReresolveModules(const TArray<FString>& InPaths)
 					else
 					{
 						const FName DesiredName = Hierarchy->GetNameMetadata(Connector->GetKey(), URigHierarchy::DesiredNameMetadataName, NAME_None);
-						if(!DesiredName.IsNone() && DesiredName.ToString().Equals(ConnectorName, ESearchCase::CaseSensitive))
+						if(!DesiredName.IsNone() && DesiredName.ToString().Equals(ConnectorName, ESearchCase::IgnoreCase))
 						{
 							ConnectorKeys.AddUnique(Connector->GetKey());
 							break;

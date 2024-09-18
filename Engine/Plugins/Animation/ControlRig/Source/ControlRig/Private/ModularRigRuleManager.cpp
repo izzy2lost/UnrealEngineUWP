@@ -225,12 +225,12 @@ void UModularRigRuleManager::FilterInvalidNameSpaces(FWorkData& InOutWorkData)
 		if(!MatchNameSpace.IsNone())
 		{
 			const FString MatchNameSpaceString = MatchNameSpace.ToString();
-			if(MatchNameSpaceString.Equals(NameSpaceString, ESearchCase::CaseSensitive))
+			if(MatchNameSpaceString.Equals(NameSpaceString, ESearchCase::IgnoreCase))
 			{
 				static const FText CannotConnectWithinNameSpaceMessage = LOCTEXT("CannotConnectWithinNameSpace", "Cannot connect within the same namespace.");
 				Result.SetInvalidTarget(CannotConnectWithinNameSpaceMessage);
 			}
-			else if(MatchNameSpaceString.StartsWith(NameSpaceString, ESearchCase::CaseSensitive))
+			else if(MatchNameSpaceString.StartsWith(NameSpaceString, ESearchCase::IgnoreCase))
 			{
 				static const FText CannotConnectBelowNameSpaceMessage = LOCTEXT("CannotConnectBelowNameSpace", "Cannot connect to element below the connector's namespace.");
 				Result.SetInvalidTarget(CannotConnectBelowNameSpaceMessage);

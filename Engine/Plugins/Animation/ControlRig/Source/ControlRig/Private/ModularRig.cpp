@@ -187,7 +187,7 @@ const FRigConnectorElement* FRigModuleInstance::FindPrimaryConnector() const
 					const FString ModulePath = Hierarchy->GetModulePath(Connector->GetKey());
 					if(!ModulePath.IsEmpty())
 					{
-						if(ModulePath.Equals(MyModulePath, ESearchCase::CaseSensitive))
+						if(ModulePath.Equals(MyModulePath, ESearchCase::IgnoreCase))
 						{
 							PrimaryConnector = Connector;
 							return PrimaryConnector;
@@ -214,7 +214,7 @@ TArray<const FRigConnectorElement*> FRigModuleInstance::FindConnectors() const
 				const FString ModulePath = Hierarchy->GetModulePath(Connector->GetKey());
 				if(!ModulePath.IsEmpty())
 				{
-					if(ModulePath.Equals(MyModulePath, ESearchCase::CaseSensitive))
+					if(ModulePath.Equals(MyModulePath, ESearchCase::IgnoreCase))
 					{
 						Connectors.Add(Connector);
 					}
