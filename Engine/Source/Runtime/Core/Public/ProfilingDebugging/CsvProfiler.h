@@ -124,7 +124,7 @@ struct FCsvDeclaredStat;
 
 	#define CSV_SCOPED_SET_WAIT_STAT(StatName) \
 		TRACE_CSV_PROFILER_INLINE_STAT_EXCLUSIVE("EventWait/"#StatName); \
-		FScopedCsvSetWaitStat _ScopedCsvSetWaitStat ## StatName("EventWait/"#StatName);
+		FScopedCsvSetWaitStat _ScopedCsvSetWaitStat ## StatName("EventWait/"#StatName, "CsvEventWait/"#StatName, "CsvEventWait/"#StatName" (Non-CP)");
 
 	#define CSV_SCOPED_SET_WAIT_STAT_IGNORE()						FScopedCsvSetWaitStat _ScopedCsvSetWaitStat ## StatName();
 
@@ -408,7 +408,7 @@ public:
 		RecordEventfInternal(CategoryIndex, (const TCHAR*)Fmt, Args...);
 	}
 
-	CORE_API static void BeginSetWaitStat(const char * StatName);
+	CORE_API static void BeginSetWaitStat(const char* StatName, const char* FormattedStatName, const char* FormattedStatNameNonCP);
 	CORE_API static void EndSetWaitStat();
 
 	CORE_API static void BeginWait();
@@ -707,17 +707,25 @@ public:
 class FScopedCsvSetWaitStat
 {
 public:
-	FScopedCsvSetWaitStat(const char * InStatName = nullptr)
+	FScopedCsvSetWaitStat(
+		const char* InStatName = nullptr,
+		const char* InFormattedStatName = nullptr,
+		const char* InFormattedStatNameNonCP = nullptr)
 		: StatName(InStatName)
+		, FormattedStatName(InFormattedStatName)
+		, FormattedStatNameNonCP(InFormattedStatNameNonCP)
 	{
-		FCsvProfiler::BeginSetWaitStat(StatName);
+		FCsvProfiler::BeginSetWaitStat(StatName, FormattedStatName, FormattedStatNameNonCP);
 	}
 
 	~FScopedCsvSetWaitStat()
 	{
 		FCsvProfiler::EndSetWaitStat();
 	}
-	const char * StatName;
+
+	const char* StatName;
+	const char* FormattedStatName;
+	const char* FormattedStatNameNonCP;
 };
 
 struct FCsvCategory
