@@ -500,6 +500,18 @@ private:
 
 	/** Whether Initialize was called but not Deinitialize yet. */
 	bool bIsInitialized = false;
+	/**
+	 * Whether we've already iterated through all modifiers once and initialized them.
+	 * True does not mean that all modifiers are actually initialized since the user can add objects through the details panel,
+	 * which are initialized later by Update.
+	 */
+	bool bHasInitedModifiers = false;
+	/**
+	 * Whether we've already iterated through all output providers  once and initialized them.
+	 * True does not mean that all output providers are actually initialized since the user can add objects through the details panel,
+	 * which are initialized later by Update.
+	 */
+	bool bHasInitedOutputProviders = false;
 
 	/**
 	 * Creates the InputComponent and binds global delegates.
@@ -508,10 +520,18 @@ private:
 	void SetupVCamSystemsIfNeeded();
 	void CleanupRegisteredDelegates();
 
+	/** Runs initialization logic for construction script created VCams. */
+	void LateInitForBlueprintCreatedVCam();
+	
 	/** Calls Initialize if not already initialized and this component is enabled. */
 	void EnsureInitializedIfAllowed();
 	/** Initializes the input system, modifiers, output providers, and locks the viewport if needed. */
 	virtual void Initialize();
+	/** Calls Initialize on all modifiers if this has not yet been done previously. */
+	void InitModifiers();
+	/** Calls Initialize on all output providers if this has not yet been done previously. */
+	void InitOutputProviders();
+	
 	/** De-initializes all systems initialized in Initialize(). */
 	virtual void Deinitialize();
 

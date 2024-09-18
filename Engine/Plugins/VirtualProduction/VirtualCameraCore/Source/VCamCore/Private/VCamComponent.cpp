@@ -66,11 +66,17 @@ namespace UE::VCamCore
 			const FName NewTrashName = MakeUniqueObjectName(NewOuter, Class, *BaseName);
 			ExistingOutputProvider->Rename(*NewTrashName.ToString());
 		}
-
+		
 		if (Subobject->GetOuter() != NewOuter)
 		{
 			Subobject->Rename(nullptr, NewOuter);
 		}
+	}
+
+	static void ModifyAndMarkTransactional(UObject* Subobject)
+	{
+		Subobject->SetFlags(RF_Transactional);
+		Subobject->Modify();
 	}
 
 	static bool IsBlueprintCreated(UVCamComponent* Component)
@@ -149,6 +155,7 @@ void UVCamComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
 	{
 		// GetComponentInstanceData has saved our internal state and ApplyComponentInstanceData will steal it later. For safety, let's not reference the to be stolen objects anymore.
 		OutputProviders.Empty();
+		ModifierStack.Empty();
 	}
 	else
 	{
@@ -197,9 +204,18 @@ void UVCamComponent::ApplyComponentInstanceData(FVCamComponentInstanceData& Comp
 	{
 		UE::VCamCore::ReparentSubobjectToVCam(this, StoredOutputProvider);
 	}
+	for (const FModifierStackEntry& Entry : ComponentInstanceData.StolenModifiers)
+	{
+		UE::VCamCore::ReparentSubobjectToVCam(this, Entry.GeneratedModifier.Get());
+	}
 	
 	OutputProviders = ComponentInstanceData.StolenOutputProviders;
+	ModifierStack = ComponentInstanceData.StolenModifiers;
 	LiveLinkSubject = ComponentInstanceData.LiveLinkSubject;
+	// Avoid double initializing
+	bIsInitialized = ComponentInstanceData.bWasInitialized;
+	bHasInitedModifiers = ComponentInstanceData.bWereModifiersInitialized;
+	bHasInitedOutputProviders = ComponentInstanceData.bWereOutputProvidersInitialized;
 	
 	// Don't run further logic for certain VCams, e.g. those that are being dragged into the editor window.
 	if (UE::VCamCore::CanInitVCamInstance(this))
@@ -250,6 +266,31 @@ bool UVCamComponent::CanUpdate() const
 	return bShouldUpdate && bIsSupportedWorld && bHasValidComponent;
 }
 
+void UVCamComponent::LateInitForBlueprintCreatedVCam()
+{
+	const auto Init = [this]
+	{
+		InitModifiers();
+		InitOutputProviders();
+	};
+	
+	// Some systems, such as Multi-User Editing or Level Snapshots, may allocate this VCam and then update it with serialized data.
+	// To handle this scenario, we defer the initialization of the VCam until the next frame, after it and its associated output providers 
+	// and modifiers have been fully updated with the new values. If an Initialize call is made this frame, e.g. by PostEditChange, then the
+	// next frame delegate will detect this VCam is already initialized and skip it.
+	// However, if a transaction is being recorded, we want all changes to be applied immediately, so initialization should not be deferred.
+#if WITH_EDITOR
+	if (GUndo)
+	{
+		Init();
+	}
+	else
+#endif
+	{
+		UE::VCamCore::ExecuteNextTick(this, Init);
+	}
+}
+
 void UVCamComponent::OnAttachmentChanged()
 {
 	Super::OnAttachmentChanged();
@@ -261,18 +302,24 @@ void UVCamComponent::OnAttachmentChanged()
 	}
 
 	UCineCameraComponent* TargetCamera = GetTargetCamera();
-
 	// This flag must be false on the attached CameraComponent or the UMG will not render correctly if the aspect ratios are mismatched
 	if (TargetCamera)
 	{
 		TargetCamera->bConstrainAspectRatio = false;
 	}
 
-	for (UVCamOutputProviderBase* Provider : OutputProviders)
+	if (IsInitialized())
 	{
-		if (Provider)
+		// If this VCam was created by the construction script, then OnAttachmentChanged is called right after OnComponentCreated.
+		// Now is the earliest possible time to initialize ourselves.
+		LateInitForBlueprintCreatedVCam();
+		
+		for (UVCamOutputProviderBase* Provider : OutputProviders)
 		{
-			Provider->OnSetTargetCamera(TargetCamera);
+			if (Provider && Provider->IsInitialized())
+			{
+				Provider->OnSetTargetCamera(TargetCamera);
+			}
 		}
 	}
 
@@ -1357,33 +1404,59 @@ void UVCamComponent::Initialize()
 	VCamModule.GetDeferredCleanup().OnInitializeVCam(*this);
 	
 	// 3. Output provider overlay widgets will access the modifiers, so let's init them first
-	const bool bInitModifiers = ShouldEvaluateModifierStack() && CanUpdate(); 
-	if (bInitModifiers)
-	{
-		for (FModifierStackEntry& ModifierStackEntry : ModifierStack)
-		{
-			if (UVCamModifier* Modifier = ModifierStackEntry.GeneratedModifier
-				; IsValid(Modifier) && ModifierStackEntry.bEnabled && !Modifier->IsInitialized())
-			{
-				Modifier->Initialize(ModifierContext, InputComponent);
-				AddInputMappingContext(Modifier);
-			}
-		}
-	}
-
+	InitModifiers();
 	// 4. Safe to override input actions with custom player mappings now that all modifiers have been registered.
 	ApplyInputProfile();
-
 	// 5. Output providers
-	const bool bInitOutputProviders = bInitModifiers && ShouldUpdateOutputProviders();
-	if (bInitOutputProviders)
+	InitOutputProviders();
+}
+
+void UVCamComponent::InitModifiers()
+{
+	if (bHasInitedModifiers || !ShouldEvaluateModifierStack() || !CanUpdate())
 	{
-		for (UVCamOutputProviderBase* Provider : OutputProviders)
+		return;
+	}
+
+	// Our VCam may be construction script constructed - in that case bIsRunningConstructionScript is true.
+	// However, some modifiers may want to spawn actors, which is prevented with this flag.
+	const bool bIsRunningConstructionScript = GetWorld()->bIsRunningConstructionScript;
+	GetWorld()->bIsRunningConstructionScript = false;
+	ON_SCOPE_EXIT{ GetWorld()->bIsRunningConstructionScript = bIsRunningConstructionScript; };
+	
+	bHasInitedModifiers = true;
+	for (FModifierStackEntry& ModifierStackEntry : ModifierStack)
+	{
+		if (UVCamModifier* Modifier = ModifierStackEntry.GeneratedModifier
+			; IsValid(Modifier) && ModifierStackEntry.bEnabled && !Modifier->IsInitialized())
 		{
-			if (IsValid(Provider))
-			{
-				Provider->Initialize();
-			}
+			// Any changes made to the modifer should be transacted (if recording). If this VCam was created by a construction script,
+			// the modifier is not marked transactional - we want this to happen though so its properties are transacted correctly over Multi User.
+			UE::VCamCore::ModifyAndMarkTransactional(Modifier);
+			
+			Modifier->Initialize(ModifierContext, InputComponent);
+			AddInputMappingContext(Modifier);
+		}
+	}
+}
+
+void UVCamComponent::InitOutputProviders()
+{
+	if (bHasInitedOutputProviders || !ShouldEvaluateModifierStack() || !CanUpdate() || !ShouldUpdateOutputProviders())
+	{
+		return;
+	}
+	
+	bHasInitedOutputProviders = true;
+	for (UVCamOutputProviderBase* Provider : OutputProviders)
+	{
+		if (IsValid(Provider))
+		{
+			// Any changes made to the provider should be transacted (if recording). If this VCam was created by a construction script,
+			// the provider is not marked transactional - we want this to happen though so its properties are transacted correctly over Multi User.
+			UE::VCamCore::ModifyAndMarkTransactional(Provider);
+			
+			Provider->Initialize();
 		}
 	}
 }
@@ -1395,10 +1468,12 @@ void UVCamComponent::Deinitialize()
 		return;
 	}
 	bIsInitialized = false;
+	bHasInitedModifiers = false;
+	bHasInitedOutputProviders = false;
 
 	for (UVCamOutputProviderBase* Provider : OutputProviders)
 	{
-		if (IsValid(Provider))
+		if (IsValid(Provider) && Provider->IsInitialized())
 		{
 			Provider->Deinitialize();
 		}
@@ -1406,9 +1481,10 @@ void UVCamComponent::Deinitialize()
 
 	for (FModifierStackEntry& ModifierEntry : ModifierStack)
 	{
-		if (IsValid(ModifierEntry.GeneratedModifier))
+		UVCamModifier* Modifier = ModifierEntry.GeneratedModifier;
+		if (IsValid(Modifier) && Modifier->IsInitialized())
 		{
-			ModifierEntry.GeneratedModifier->Deinitialize();
+			Modifier->Deinitialize();
 		}
 	}
 
