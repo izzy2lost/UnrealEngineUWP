@@ -219,6 +219,8 @@ struct FGameplayTag
 
 protected:
 
+	bool NetSerialize_ForReplayUsingFastReplication(FArchive& Ar, class UPackageMapClient& PackageMapClient);
+
 	/** Intentionally private so only the tag manager can use */
 	GAMEPLAYTAGS_API explicit FGameplayTag(const FName& InTagName);
 

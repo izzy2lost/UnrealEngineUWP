@@ -10,8 +10,9 @@
 #include "Iris/Serialization/NetReferenceCollector.h"
 #include "Iris/Serialization/NetSerializerArrayStorage.h"
 #include "Iris/Serialization/IrisObjectReferencePackageMap.h"
-#include "Iris/ReplicationSystem/NetTokenStore.h"
+#include "Net/Core/NetToken/NetToken.h"
 #include "Net/Core/Trace/NetTrace.h"
+#include "NetExportContext.h"
 
 namespace UE::Net
 {
@@ -62,27 +63,12 @@ void FIrisPackageMapExportsUtil::Serialize(FNetSerializationContext& Context, co
 		}
 	}
 
-	// For NetTokens
+	// We now serialize NetTokens directly in the data but we still need to append exports.
+	if (UE::Net::Private::FNetExportContext* ExportContext = Context.GetExportContext())
 	{
-		UE_NET_TRACE_SCOPE(NetTokens, *Writer, Context.GetTraceCollector(), ENetTraceVerbosity::VeryVerbose);
-		// $TODO: For asymmetrical data like nettokens we will need to do something special to support validating the default state hash as the local quantized state will differ
-		// For now we ignore this in default state hash
-		if (Context.IsInitializingDefaultState())
+		for (const FNetToken& NetToken : MakeArrayView(Value.NetTokenStorage.GetData(), Value.NetTokenStorage.Num()))
 		{
-			return;
-		}
-
-		const uint32 NumNetTokens = Value.NetTokenStorage.Num();
-		if (Writer->WriteBool(NumNetTokens != 0))
-		{
-			UE::Net::WritePackedUint32(Writer, NumNetTokens);
-			for (const FNetToken& NetToken : MakeArrayView(Value.NetTokenStorage.GetData(), NumNetTokens))
-			{
-				// Always write the token
-				WriteNetToken(Context, NetToken);
-				// Export or add to pending exports for later export
-				FNetTokenStore::AppendExportOrWriteInlinedExportData(Context, NetToken);
-			}
+			ExportContext->AddPendingExport(NetToken);
 		}
 	}
 }
@@ -157,47 +143,10 @@ void FIrisPackageMapExportsUtil::Deserialize(FNetSerializationContext& Context, 
 		}
 	}
 
-	// Read any exported nettokens
-	{
-		UE_NET_TRACE_SCOPE(NetTokens, *Reader, Context.GetTraceCollector(), ENetTraceVerbosity::VeryVerbose);
-		const bool bHasNetTokens = Reader->ReadBool();
-		if (bHasNetTokens)
-		{
-			const uint32 NumNetTokens = UE::Net::ReadPackedUint32(Reader);
-
-			if (NumNetTokens > MaxExports)
-			{
-				UE_LOG(LogIris, Error, TEXT("FIrisPackageMapExportsUtil::Received too many NetToken exports %u > max:%u"), NumNetTokens, MaxExports);
-				Context.SetError(GNetError_ArraySizeTooLarge);
-				return;
-			}
-
-			Value.NetTokenStorage.AdjustSize(Context, NumNetTokens);
-
-			for (FNetToken& TargetToken : MakeArrayView(Value.NetTokenStorage.GetData(), Value.NetTokenStorage.Num()))
-			{
-				// Always Read the token
-				FNetToken NetToken = ReadNetToken(Context);
-
-				if (Reader->IsOverflown())
-				{
-					return;
-				}
-
-				// Read inlined exports if there are any
-				FNetTokenStore::ReadInlinedExportData(Context, NetToken);
-
-				TargetToken = NetToken;
-			}
-		}
-		else
-		{
-			Value.NetTokenStorage.Free(Context);
-		}
-	}
+	Value.NetTokenStorage.Free(Context);
 }
 
-void FIrisPackageMapExportsUtil::Quantize(FNetSerializationContext& Context, const UE::Net::FIrisPackageMapExports& PackageMapExports, QuantizedType& Value)
+void FIrisPackageMapExportsUtil::Quantize(FNetSerializationContext& Context, const UE::Net::FIrisPackageMapExports& PackageMapExports, TArrayView<const UE::Net::FNetToken> NetTokensPendingExport, QuantizedType& Value)
 {
 	// Quantize captured references
 	{
@@ -243,27 +192,20 @@ void FIrisPackageMapExportsUtil::Quantize(FNetSerializationContext& Context, con
 		}
 	}
 
-	// Just store captured nettokens
+	// Just store captured NetTokenExports they will be added as pending exports during serialization.
 	{
-		const FIrisPackageMapExports::FNetTokensArray& NetTokens = PackageMapExports.NetTokens;
-		const uint32 NumNetTokens = NetTokens.Num();
+		const uint32 NumNetTokens = NetTokensPendingExport.Num();
 		Value.NetTokenStorage.AdjustSize(Context, NumNetTokens);
-		if (NumNetTokens > 0)
+		FNetToken* TargetTokens = Value.NetTokenStorage.GetData();
+		for (uint32 Index = 0; Index < NumNetTokens; ++Index)
 		{
-			const FNetToken* SourceTokens = NetTokens.GetData();
-			FNetToken* TargetTokens = Value.NetTokenStorage.GetData();
-			for (uint32 ReferenceIndex = 0; ReferenceIndex < NumNetTokens; ++ReferenceIndex)
-			{
-				TargetTokens[ReferenceIndex] = SourceTokens[ReferenceIndex];
-			}
+			TargetTokens[Index] = NetTokensPendingExport[Index];
 		}
 	}
 }
 
 void FIrisPackageMapExportsUtil::Dequantize(FNetSerializationContext& Context, const QuantizedType& Source, UE::Net::FIrisPackageMapExports& PackageMapExports)
 {
-	Private::FInternalNetSerializationContext* InternalContext = Context.GetInternalContext();
-
 	// References
 	{
 		UE::Net::FIrisPackageMapExports::FObjectReferenceArray& ObjectReferences = PackageMapExports.References;
@@ -310,24 +252,6 @@ void FIrisPackageMapExportsUtil::Dequantize(FNetSerializationContext& Context, c
 			}
 		}
 	}
-
-	// NetTokens
-	{
-		UE::Net::FIrisPackageMapExports::FNetTokensArray& NetTokens = PackageMapExports.NetTokens;
-
-		const uint32 NumNetTokens = Source.NetTokenStorage.Num();
-		if (NumNetTokens > 0U)
-		{		
-			NetTokens.SetNumUninitialized(NumNetTokens);
-
-			const FNetToken* SourceTokens = Source.NetTokenStorage.GetData();
-			FNetToken* TargetTokens = NetTokens.GetData();
-			for (uint32 ReferenceIndex = 0; ReferenceIndex < NumNetTokens; ++ReferenceIndex)
-			{
-				TargetTokens[ReferenceIndex] = SourceTokens[ReferenceIndex];
-			}
-		}
-	}
 }
 
 bool FIrisPackageMapExportsUtil::IsEqual(FNetSerializationContext& Context, const QuantizedType& Value0, const QuantizedType& Value1)
@@ -343,13 +267,6 @@ bool FIrisPackageMapExportsUtil::IsEqual(FNetSerializationContext& Context, cons
 	}
 
 	if (Value0.NameStorage.Num() > 0 && FMemory::Memcmp(Value0.NameStorage.GetData(), Value1.NameStorage.GetData(), sizeof(FName) * Value0.NameStorage.Num()) != 0)
-	{
-		return false;
-	}
-
-	// Note: this can be improved by implementing a resolved token compare. Currently this is pessimistic and does not allow compare between auth and non-auth tokens even if they would
-	// resolve to same value.
-	if (Value0.NetTokenStorage.Num() > 0 && FMemory::Memcmp(Value0.NetTokenStorage.GetData(), Value1.NetTokenStorage.GetData(), sizeof(FNetToken) * Value0.NetTokenStorage.Num()) != 0)
 	{
 		return false;
 	}
@@ -383,7 +300,7 @@ void FIrisPackageMapExportsUtil::CollectNetReferences(FNetSerializationContext& 
 
 bool FIrisPackageMapExportsUtil::Validate(FNetSerializationContext& Context, const QuantizedType& SourceValue)
 {
-	if ((SourceValue.ObjectReferenceStorage.Num() > MaxExports) || (SourceValue.NameStorage.Num() > MaxExports) || (SourceValue.NetTokenStorage.Num() > MaxExports))
+	if ((SourceValue.ObjectReferenceStorage.Num() > MaxExports) || (SourceValue.NameStorage.Num() > MaxExports))
 	{
 		return false;
 	}

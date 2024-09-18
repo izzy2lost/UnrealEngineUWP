@@ -438,6 +438,8 @@ void FObjectReplicator::InitRecentProperties(uint8* Source)
 		for (uint16 CustomDeltaProperty = 0; CustomDeltaProperty < NumLifetimeCustomDeltaProperties; ++CustomDeltaProperty)
 		{
 			FOutBunch DeltaState(Connection->PackageMap);
+			UE::Net::FNetTokenExportScope NetTokenExportScope(DeltaState, ConnectionDriver->GetNetTokenStore(), DeltaState.NetTokensPendingExport, "SendPropertiesForRPC");
+
 			TSharedPtr<INetDeltaBaseState>& NewState = SendingRepState->RecentCustomDeltaState[CustomDeltaProperty];
 			NewState.Reset();
 
@@ -1609,6 +1611,9 @@ void FObjectReplicator::ReplicateCustomDeltaProperties( FNetBitWriter & Bunch, F
 	
 	const bool bIsConnectionInternalAck = Connection->IsInternalAck();
 
+	// We must forward the current NetToken export context from the bunch to the temporary NetBitWriter into which this data will be written
+	TempBitWriter.NetTokenExportContext.Set(Bunch.NetTokenExportContext.Get());
+	
 	// Replicate those properties.
 	for (uint16 CustomDeltaProperty = 0; CustomDeltaProperty < NumLifetimeCustomDeltaProperties; ++CustomDeltaProperty)
 	{
@@ -1833,11 +1838,11 @@ bool FObjectReplicator::ReplicateProperties(FOutBunch& Bunch, FReplicationFlags 
 }
 
 /** Replicates properties to the Bunch. Returns true if it wrote anything */
-bool FObjectReplicator::ReplicateProperties_r( FOutBunch & Bunch, FReplicationFlags RepFlags, FNetBitWriter& Writer)
+bool FObjectReplicator::ReplicateProperties_r(FOutBunch& Bunch, FReplicationFlags RepFlags, FNetBitWriter& Writer)
 {
 	UObject* Object = GetObject();
 
-	if ( Object == nullptr )
+	if (Object == nullptr)
 	{
 		UE_LOG(LogRep, Verbose, TEXT("ReplicateProperties: Object == nullptr"));
 		return false;
@@ -1856,11 +1861,22 @@ bool FObjectReplicator::ReplicateProperties_r( FOutBunch & Bunch, FReplicationFl
 
 	UNetConnection* OwningChannelConnection = OwningChannel->Connection;
 
+	// Pass on NetTokenExportContext
+	Writer.NetTokenExportContext.Set(Bunch.NetTokenExportContext.Get());
+
 #if UE_NET_TRACE_ENABLED
 	// Create trace collector if tracing is enabled for the target bunch
 	SetTraceCollector(Writer, GetTraceCollector(Bunch) ? UE_NET_TRACE_CREATE_COLLECTOR(ENetTraceVerbosity::Trace) : nullptr);
-    ON_SCOPE_EXIT { UE_NET_TRACE_DESTROY_COLLECTOR(GetTraceCollector(Writer)); };
 #endif
+
+    ON_SCOPE_EXIT 
+	{
+#if UE_NET_TRACE_ENABLED		
+		UE_NET_TRACE_DESTROY_COLLECTOR(GetTraceCollector(Writer)); 
+#endif
+		// Just to be safe, restore context on exit as we technically do not own the Writer.
+		Writer.NetTokenExportContext.Set(nullptr);
+	};
  
 	// TODO: Maybe ReplicateProperties could just take the RepState, Changelist Manger, Writer, and OwningChannel
 	//		and all the work could just be done in a single place.
@@ -1983,6 +1999,11 @@ bool FObjectReplicator::ReplicateProperties_r( FOutBunch & Bunch, FReplicationFl
 		}
 
 		Writer.SerializeBits( RemoteFunctions->GetData(), RemoteFunctions->GetNumBits() );
+
+		// Append potential NetToken exports from queued remote functions.
+		Writer.NetTokenExportContext.Get()->AppendNetTokensPendingExport(RemoteFunctions->NetTokensPendingExport);		
+		RemoteFunctions->NetTokensPendingExport.Reset();
+
 		RemoteFunctions->Reset();
 		RemoteFuncInfo.Empty();
 
@@ -2219,6 +2240,10 @@ void FObjectReplicator::QueueRemoteFunctionBunch( UFunction* Func, FOutBunch &Bu
 
 	RemoteFunctions->SerializeBits(Bunch.GetData(), Bunch.GetNumBits());
 
+	// Save potential NetToken exports for export when we actually commit the RemoteFunctions
+	RemoteFunctions->NetTokensPendingExport.Append(Bunch.NetTokensPendingExport);
+	Bunch.NetTokensPendingExport.Reset();
+
 	if (Connection->PackageMap != nullptr)
 	{
 		UPackageMapClient* PackageMapClient = CastChecked<UPackageMapClient>(Connection->PackageMap);
@@ -2232,8 +2257,9 @@ void FObjectReplicator::QueueRemoteFunctionBunch( UFunction* Func, FOutBunch &Bu
 
 		if (!Connection->IsInternalAck())
 		{
-			// Copy over any exported bunches
-			PackageMapClient->AppendExportBunches(OwningChannel->QueuedExportBunches);
+			// Copy over any additionally required bunches
+			TArray<FOutBunch*> AdditionalBunches = PackageMapClient->GetAdditionalRequiredBunches(Bunch, EChannelGetAdditionalRequiredBunchesFlags::None);
+			OwningChannel->QueuedExportBunches.Append(MoveTemp(AdditionalBunches));
 		}
 	}
 }

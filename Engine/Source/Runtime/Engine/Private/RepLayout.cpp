@@ -8,6 +8,7 @@
 #include "Containers/StaticBitArray.h"
 #include "Misc/MemStack.h"
 #include "Net/Core/PropertyConditions/RepChangedPropertyTracker.h"
+#include "Net/Core/NetToken/NetTokenExportContext.h"
 #include "Net/Serialization/FastArraySerializer.h"
 #include "EngineStats.h"
 #include "Engine/PackageMapClient.h"
@@ -2117,7 +2118,8 @@ bool FRepLayout::ReplicateProperties(
 		// if no shared serialization info exists, build it
 		if (!RepChangelistState->SharedSerialization.IsValid())
 		{
-			BuildSharedSerialization(Data, Changed, true, RepChangelistState->SharedSerialization);
+			UE::Net::FNetTokenStore* NetTokenStore = OwningChannel->Connection->GetDriver()->GetNetTokenStore();
+			BuildSharedSerialization(Data, Changed, true, RepChangelistState->SharedSerialization, NetTokenStore);
 		}
 	}
 
@@ -2151,6 +2153,12 @@ bool FRepLayout::ReplicateProperties(
 	else if (Changed.Num() > 0)
 	{
 		SendProperties(RepState, ChangeTracker, Data, ObjectClass, Writer, Changed, RepChangelistState->SharedSerialization, RepFlags.bSerializePropertyNames ? ESerializePropertyType::Name : ESerializePropertyType::Handle);
+
+		if (UE::Net::FNetTokenExportContext* NetTokenExportContext = RepChangelistState->SharedSerialization.IsValid() ? Writer.NetTokenExportContext.Get() : nullptr)
+		{
+			// For now just append all potential exports, we can be smarter about it if necessary
+			NetTokenExportContext->AppendNetTokensPendingExport(RepChangelistState->SharedSerialization.NetTokensPendingExport);
+		}
 	}
 
 	// See if something actually sent (this may be false due to conditional checks inside the send properties function
@@ -6629,6 +6637,7 @@ void FRepLayout::SerializeProperties_r(
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 			if ((GNetVerifyShareSerializedData != 0) && Ar.IsSaving())
 			{
+				// TODO: Is this actually a NetBitWriter?
 				FBitWriter& Writer = static_cast<FBitWriter&>(Ar);
 
 				FBitWriterMark BitWriterMark(Writer);
@@ -6746,7 +6755,8 @@ void FRepLayout::BuildSharedSerialization(
 	const FConstRepObjectDataBuffer Data,
 	TArray<uint16>& Changed,
 	const bool bWriteHandle,
-	FRepSerializationSharedInfo& SharedInfo) const
+	FRepSerializationSharedInfo& SharedInfo,
+	UE::Net::FNetTokenStore* NetTokenStore) const
 {
 #ifdef ENABLE_PROPERTY_CHECKSUMS
 	const bool bDoChecksum = (GDoPropertyChecksum == 1);
@@ -6758,6 +6768,9 @@ void FRepLayout::BuildSharedSerialization(
 	FRepHandleIterator HandleIterator(Owner, ChangelistIterator, Cmds, BaseHandleToCmdIndex, 0, 1, 0, Cmds.Num() - 1);
 
 	SharedInfo.Init();
+
+	// Create scope to export NetTokens, storing pending exports in SharedInfoRPC.NetTokensPendingExport
+	UE::Net::FNetTokenExportScope NetTokenExportScope(*SharedInfo.SerializedProperties, NetTokenStore, SharedInfo.NetTokensPendingExport, "BuildSharedSerialization");
 
 	BuildSharedSerialization_r(HandleIterator, Data, bWriteHandle, bDoChecksum, 0, SharedInfo);
 
@@ -6870,12 +6883,15 @@ void FRepLayout::BuildSharedSerializationForRPC_r(
 	}
 }
 
-void FRepLayout::BuildSharedSerializationForRPC(const FConstRepObjectDataBuffer Data)
+void FRepLayout::BuildSharedSerializationForRPC(const FConstRepObjectDataBuffer Data, UE::Net::FNetTokenStore* NetTokenStore)
 {
 	if ((GNetSharedSerializedData != 0) && !SharedInfoRPC.IsValid())
 	{
 		SharedInfoRPC.Init();
 		SharedInfoRPCParentsChanged.Init(false, Parents.Num());
+
+		// Create scope to export NetTokens, storing pending exports in SharedInfoRPC.NetTokensPendingExport
+		UE::Net::FNetTokenExportScope ExportScope(*SharedInfoRPC.SerializedProperties, NetTokenStore, SharedInfoRPC.NetTokensPendingExport, "BuildSharedSerializationForRPC");
 
 		for (int32 i = 0; i < Parents.Num(); i++)
 		{
@@ -6941,6 +6957,7 @@ void FRepLayout::SendPropertiesForRPC(
 		}
 		else
 		{
+			bool bAppendNetTokenExports = false;
 			for (int32 i = 0; i < Parents.Num(); i++)
 			{
 				bool Send = true;
@@ -6965,9 +6982,15 @@ void FRepLayout::SendPropertiesForRPC(
 
 				if (Send)
 				{
+					bAppendNetTokenExports = true;
 					bool bHasUnmapped = false;
 					SerializeProperties_r(Writer, Writer.PackageMap, Parents[i].CmdStart, Parents[i].CmdEnd, const_cast<uint8*>(Data.Data), bHasUnmapped, 0, 0, SharedInfoRPC, GetTraceCollector(Writer), nullptr);
 				}
+			}
+			// Append potential exports from shared serialization			
+			if (UE::Net::FNetTokenExportContext* NetTokenExportContext = bAppendNetTokenExports && SharedInfoRPC.IsValid() ? Writer.NetTokenExportContext.Get() : nullptr)
+			{
+				NetTokenExportContext->AppendNetTokensPendingExport(SharedInfoRPC.NetTokensPendingExport);
 			}
 		}	
 	}

@@ -311,14 +311,13 @@ void NetObjectStateToString(FStringBuilderBase& StringBuilder, FNetRefHandle Ref
 	// If this is a client handle we assume that we only have a single connections and use the first valid connection to get the remote token store.
 	FReplicationConnections& Connections = ReplicationSystemInternal->GetConnections();
 	const uint32 FirstValidConnectionId = Connections.GetValidConnections().FindFirstOne();
-	FNetTokenStoreState* TokenStoreState = (bIsServer || (FirstValidConnectionId == FNetBitArray::InvalidIndex)) ? ReplicationSystemInternal->GetNetTokenStore().GetLocalNetTokenStoreState() : &Connections.GetRemoteNetTokenStoreState(FirstValidConnectionId);
 
 	// Setup Context
 	FInternalNetSerializationContext InternalContext;
 	FInternalNetSerializationContext::FInitParameters InternalContextInitParams;
 	InternalContextInitParams.ReplicationSystem = ReplicationSystem;
 	InternalContextInitParams.PackageMap = ReplicationSystemInternal->GetIrisObjectReferencePackageMap();
-	InternalContextInitParams.ObjectResolveContext.RemoteNetTokenStoreState = TokenStoreState;
+	InternalContextInitParams.ObjectResolveContext.RemoteNetTokenStoreState = FirstValidConnectionId == FNetBitArray::InvalidIndex ? nullptr :ReplicationSystem->GetNetTokenStore()->GetRemoteNetTokenStoreState(FirstValidConnectionId);
 	InternalContextInitParams.ObjectResolveContext.ConnectionId = (FirstValidConnectionId == FNetBitArray::InvalidIndex ? InvalidConnectionId : FirstValidConnectionId);
 	InternalContext.Init(InternalContextInitParams);
 

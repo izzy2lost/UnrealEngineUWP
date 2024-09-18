@@ -104,5 +104,10 @@ FNetTokenStore* FNetSerializationContext::GetNetTokenStore()
 	return ReplicationSystem ? ReplicationSystem->GetNetTokenStore() : nullptr;
 }
 
+const UE::Net::FNetTokenStoreState* FNetSerializationContext::GetRemoteNetTokenStoreState() const
+{
+	return InternalContext ? InternalContext->ResolveContext.RemoteNetTokenStoreState : nullptr;
+}
+
 
 }

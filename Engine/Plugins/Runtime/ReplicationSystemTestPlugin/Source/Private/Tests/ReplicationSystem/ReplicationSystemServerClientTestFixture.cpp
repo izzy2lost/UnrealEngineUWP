@@ -75,6 +75,21 @@ FReplicationSystemTestNode::FReplicationSystemTestNode(FReplicationSystemTestNod
 
 void FReplicationSystemTestNode::Setup(bool bIsServer, const TCHAR* Name, FReplicationSystemTestNode::FReplicationSystemParamsOverride* ParamsOverride)
 {
+	// Init NetTokenStore
+	{
+		using namespace UE::Net;
+
+		NetTokenStore = MakeUnique<FNetTokenStore>();
+
+		FNetTokenStore::FInitParams NetTokenStoreInitParams;
+		NetTokenStoreInitParams.Authority = bIsServer ? FNetToken::ENetTokenAuthority::Authority : FNetToken::ENetTokenAuthority::None;
+		NetTokenStore->Init(NetTokenStoreInitParams);
+
+		// Register data stores for supported types, $TODO: make this configurable.
+		NetTokenDataStores.Add(MakeUnique<FStringTokenStore>(*NetTokenStore));
+		NetTokenDataStores.Add(MakeUnique<FNameTokenStore>(*NetTokenStore));	
+	}
+
 	ReplicationBridge = NewObject<UReplicatedTestObjectBridge>();
 	check(ReplicationBridge != nullptr);
 
@@ -84,6 +99,7 @@ void FReplicationSystemTestNode::Setup(bool bIsServer, const TCHAR* Name, FRepli
 	Params.ReplicationBridge = ReplicationBridge;
 	Params.bIsServer = bIsServer;
 	Params.bAllowObjectReplication = bIsServer;
+	Params.NetTokenStore = NetTokenStore.Get();
 
 	if (ParamsOverride)
 	{
@@ -226,6 +242,10 @@ uint32 FReplicationSystemTestNode::AddConnection()
 	Connection.DataStreamManager = DataStreamManager;
 	CreatedObjects.Add(TStrongObjectPtr<UObject>(Connection.DataStreamManager));
 
+	// Init and store RemoteNetTokenStoreState
+	ReplicationSystem->GetNetTokenStore()->InitRemoteNetTokenStoreState(Connection.ConnectionId);
+	Connection.RemoteNetTokenStoreState = ReplicationSystem->GetNetTokenStore()->GetRemoteNetTokenStoreState(Connection.ConnectionId);
+
 	// Streams created based on config
 	Connection.DataStreamManager->CreateStream("NetToken");
 	Connection.NetTokenDataStream = StaticCast<UNetTokenDataStream*>(Connection.DataStreamManager->GetStream("NetToken"));
@@ -241,9 +261,6 @@ uint32 FReplicationSystemTestNode::AddConnection()
 	// Initialize Streams
 	ReplicationSystem->InitDataStreams(Connection.ConnectionId, Connection.DataStreamManager);
 	ReplicationSystem->SetReplicationEnabledForConnection(Connection.ConnectionId, true);
-
-	// Store RemoteNetTokenStoreState
-	Connection.RemoteNetTokenStoreState = &ReplicationSystem->GetReplicationSystemInternal()->GetConnections().GetRemoteNetTokenStoreState(Connection.ConnectionId);
 
 	// Add view
 	FReplicationView View;

@@ -559,6 +559,12 @@ public:
 		return bUseFastReplication;
 	}
 
+	/** Should use dynamic replication (Gameplay Tags need not match between client/server) */
+	bool ShouldUseDynamicReplication() const
+	{
+		return !bUseFastReplication && bUseDynamicReplication;
+	}
+
 	/** If we are allowed to unload tags */
 	GAMEPLAYTAGS_API bool ShouldUnloadTags() const;
 
@@ -904,6 +910,9 @@ private:
 
 	/** Cached runtime value for whether we are using fast replication or not. Initialized from config setting. */
 	bool bUseFastReplication;
+
+	/** Cached runtime value for whether we are using dynamic replication or not. Initialized from the config setting. */
+	bool bUseDynamicReplication;
 
 	/** Cached runtime value for whether we should warn when loading invalid tags */
 	bool bShouldWarnOnInvalidTags;

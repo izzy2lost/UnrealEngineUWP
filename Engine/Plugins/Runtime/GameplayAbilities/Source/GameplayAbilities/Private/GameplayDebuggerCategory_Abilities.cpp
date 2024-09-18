@@ -84,10 +84,14 @@ void FGameplayDebuggerCategory_Abilities::OnShowGameplayAttributesToggle()
 
 void FGameplayDebuggerCategory_Abilities::FRepData::Serialize(FArchive& Ar)
 {
-	bool bSuccess;
-	OwnedTags.NetSerialize(Ar, nullptr, bSuccess);
-
 	Ar << TagCounts;
+
+	FString StrOwnedTags = OwnedTags.ToString();
+	Ar << StrOwnedTags;
+	if (Ar.IsLoading())
+	{
+		OwnedTags.FromExportString(StrOwnedTags);
+	}
 
 	int32 NumAbilities = Abilities.Num();
 	Ar << NumAbilities;

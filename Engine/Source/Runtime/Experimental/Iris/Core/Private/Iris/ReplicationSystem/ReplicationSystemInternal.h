@@ -20,7 +20,7 @@
 #include "Iris/ReplicationSystem/Prioritization/ReplicationPrioritization.h"
 #include "Iris/ReplicationSystem/ReplicationProtocolManager.h"
 #include "Iris/ReplicationSystem/NetBlob/NetBlobManager.h"
-#include "Iris/ReplicationSystem/NetTokenStore.h"
+#include "Net/Core/NetToken/NetToken.h"
 #include "Iris/ReplicationSystem/StringTokenStore.h"
 #include "Iris/ReplicationSystem/NameTokenStore.h"
 #include "Iris/ReplicationSystem/WorldLocations.h"
@@ -49,8 +49,6 @@ public:
 	, DirtyNetObjectTracker()
 	, ReplicationBridge(nullptr)
 	, IrisObjectReferencePackageMap(nullptr)
-	, StringTokenStore(NetTokenStore)
-	, NameTokenStore(NetTokenStore)
 	, Id(Params.ReplicationSystemId)
 	{}
 
@@ -92,14 +90,6 @@ public:
 	FNetBlobManager& GetNetBlobManager() { return NetBlobManager; }
 	FNetBlobHandlerManager& GetNetBlobHandlerManager() { return NetBlobManager.GetNetBlobHandlerManager(); }
 	const FNetBlobHandlerManager& GetNetBlobHandlerManager() const { return NetBlobManager.GetNetBlobHandlerManager(); }
-
-	const FStringTokenStore& GetStringTokenStore() const { return StringTokenStore; }
-	FStringTokenStore& GetStringTokenStore() { return StringTokenStore; }
-
-	const FNameTokenStore& GetNameTokenStore() const { return NameTokenStore; }
-	FNameTokenStore& GetNameTokenStore() { return NameTokenStore; }
-
-	FNetTokenStore& GetNetTokenStore() { return NetTokenStore; }
 
 	FNetCullDistanceOverrides& GetNetCullDistanceOverrides() { return NetCullDistanceOverrides; }
 
@@ -143,9 +133,6 @@ private:
 	FReplicationPrioritization Prioritization;
 	FObjectReferenceCache ObjectReferenceCache;
 	FNetBlobManager NetBlobManager;
-	FNetTokenStore NetTokenStore;
-	FStringTokenStore StringTokenStore;
-	FNameTokenStore NameTokenStore;
 	FNetCullDistanceOverrides NetCullDistanceOverrides;
 	FWorldLocations WorldLocations;
 	FDeltaCompressionBaselineManager DeltaCompressionBaselineManager;

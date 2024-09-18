@@ -30,7 +30,6 @@ void FReplicationConnections::InitDataStreams(uint32 ReplicationSystemId, uint32
 		UNetTokenDataStream::FInitParameters Params;
 		Params.ConnectionId = ConnectionId;
 		Params.ReplicationSystemId = ReplicationSystemId;
-		Params.RemoteTokenStoreState = &RemoteNetTokenStoreStates[ConnectionId];
 		Params.NetExports = &DataStreamManager->GetNetExports();
 
 		NetTokenDataStream->Init(Params);
@@ -38,7 +37,6 @@ void FReplicationConnections::InitDataStreams(uint32 ReplicationSystemId, uint32
 
 	// Init ReplicationDataStream
 	Connection->ReplicationWriter->SetNetExports(DataStreamManager->GetNetExports());
-	Connection->ReplicationReader->SetRemoteNetTokenStoreState(&RemoteNetTokenStoreStates[ConnectionId]);
 
 	UReplicationDataStream* ReplicationDataStream = StaticCast<UReplicationDataStream*>(DataStreamManager->GetStream(FName("Replication")));
 	if (ReplicationDataStream != nullptr) 
@@ -58,7 +56,6 @@ void FReplicationConnections::RemoveConnection(uint32 ConnectionId)
 {
 	check(ValidConnections.GetBit(ConnectionId));
 	SetReplicationView(ConnectionId, FReplicationView());
-	RemoteNetTokenStoreStates[ConnectionId] = FNetTokenStoreState();
 	DestroyReplicationReaderAndWriter(ConnectionId);
 
 	Connections[ConnectionId] = FReplicationConnection();

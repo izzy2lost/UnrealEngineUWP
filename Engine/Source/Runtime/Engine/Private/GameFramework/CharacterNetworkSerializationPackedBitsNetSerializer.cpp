@@ -18,6 +18,7 @@
 #include "Iris/Serialization/NetReferenceCollector.h"
 #include "Iris/Serialization/NetSerializerArrayStorage.h"
 #include "Iris/Serialization/IrisPackageMapExportUtil.h"
+#include "Containers/ArrayView.h"
 
 namespace UE::Net::Private
 {
@@ -101,6 +102,12 @@ FCharacterNetworkSerializationPackedBitsNetSerializer::FNetSerializerRegistryDel
 
 void FCharacterNetworkSerializationPackedBitsNetSerializer::Serialize(FNetSerializationContext& Context, const FNetSerializeArgs& Args)
 {
+	// For now we ignore this in default state hash due to complications with asymmetrically serialized state.
+	if (Context.IsInitializingDefaultState())
+	{
+		return;
+	}
+
 	const QuantizedType& Value = *reinterpret_cast<QuantizedType*>(Args.Source);
 	
 	FNetBitStreamWriter* Writer = Context.GetBitStreamWriter();
@@ -128,6 +135,12 @@ void FCharacterNetworkSerializationPackedBitsNetSerializer::FreeDynamicState(FNe
 
 void FCharacterNetworkSerializationPackedBitsNetSerializer::Deserialize(FNetSerializationContext& Context, const FNetDeserializeArgs& Args)
 {
+	// For consistency, we should never get here. For now we ignore this in default state hash due to complications with asymmetrically serialized state.
+	if (Context.IsInitializingDefaultState())
+	{
+		return;
+	}
+
 	const ConfigType* Config = static_cast<const ConfigType*>(Args.NetSerializerConfig);
 	QuantizedType& TargetValue = *reinterpret_cast<QuantizedType*>(Args.Target);
 	
@@ -169,7 +182,7 @@ void FCharacterNetworkSerializationPackedBitsNetSerializer::Quantize(FNetSeriali
 	QuantizedType& TargetValue = *reinterpret_cast<QuantizedType*>(Args.Target);
 
 	// Quantize captured references and exports
-	FIrisPackageMapExportsUtil::Quantize(Context, SourceValue.PackageMapExports, TargetValue.QuantizedExports);
+	FIrisPackageMapExportsUtil::Quantize(Context, SourceValue.PackageMapExports, MakeArrayView(SourceValue.NetTokensPendingExport), TargetValue.QuantizedExports);
 
 	uint32 NumDataBits = SourceValue.DataBits.Num();
 

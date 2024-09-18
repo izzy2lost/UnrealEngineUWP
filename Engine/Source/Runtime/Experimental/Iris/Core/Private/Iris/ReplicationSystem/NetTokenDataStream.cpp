@@ -60,11 +60,11 @@ void UNetTokenDataStream::Init(const FInitParameters& Params)
 
 	ReplicationSystemId = Params.ReplicationSystemId;
 	ConnectionId = Params.ConnectionId;
-	RemoteNetTokenStoreState = Params.RemoteTokenStoreState;
 	NetExports = Params.NetExports;
 
 	UReplicationSystem* ReplicationSystem = UE::Net::GetReplicationSystem(ReplicationSystemId);
-	NetTokenStore = &ReplicationSystem->GetReplicationSystemInternal()->GetNetTokenStore();
+	NetTokenStore = ReplicationSystem->GetNetTokenStore();
+	RemoteNetTokenStoreState = NetTokenStore->GetRemoteNetTokenStoreState(Params.ConnectionId);
 
 	// $IRIS $TODO: if we want to make this into a real feature we need to expose some sort of api to mark tokens for pre-export
 	if (Private::bIrisPreExportExistingNetTokensOnConnect)

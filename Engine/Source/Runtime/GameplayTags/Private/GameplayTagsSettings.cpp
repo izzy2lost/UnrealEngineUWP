@@ -64,6 +64,7 @@ UGameplayTagsSettings::UGameplayTagsSettings(const FObjectInitializer& ObjectIni
 	ImportTagsFromConfig = true;
 	WarnOnInvalidTags = true;
 	FastReplication = false;
+	bDynamicReplication = true;
 	AllowEditorTagUnloading = true;
 	AllowGameTagUnloading = false;
 	InvalidTagCharacters = ("\"',");

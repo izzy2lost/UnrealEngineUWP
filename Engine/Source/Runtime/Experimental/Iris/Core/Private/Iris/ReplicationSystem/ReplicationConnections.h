@@ -6,7 +6,6 @@
 #include "Containers/Array.h"
 #include "Net/Core/NetBitArray.h"
 #include "Iris/ReplicationSystem/ReplicationView.h"
-#include "Iris/ReplicationSystem/NetTokenStoreState.h"
 #include "UObject/ObjectPtr.h"
 #include "UObject/WeakObjectPtr.h"
 
@@ -37,7 +36,6 @@ public:
 	{
 		Connections.SetNumZeroed(MaxConnections);
 		ReplicationViews.SetNum(MaxConnections);
-		RemoteNetTokenStoreStates.SetNum(MaxConnections);
 	}
 
 	void Deinit();
@@ -92,9 +90,6 @@ public:
 	void SetReplicationView(uint32 ConnectionId, const FReplicationView& ViewInfo);
 	const FReplicationView& GetReplicationView(uint32 ConnectionId) const { return ReplicationViews[ConnectionId]; }
 
-	const FNetTokenStoreState& GetRemoteNetTokenStoreState(uint32 ConnectionId) const { return RemoteNetTokenStoreStates[ConnectionId]; }
-	FNetTokenStoreState& GetRemoteNetTokenStoreState(uint32 ConnectionId) { return RemoteNetTokenStoreStates[ConnectionId]; }
-
 	// Flag a connection as being in a graceful-close state meant to flush pending reliable data.
 	void SetConnectionIsClosing(uint32 ConnectionId)
 	{
@@ -108,7 +103,6 @@ private:
 private:
 	TArray<FReplicationConnection> Connections;
 	TArray<FReplicationView> ReplicationViews;
-	TArray<FNetTokenStoreState> RemoteNetTokenStoreStates;
 	FNetBitArray ValidConnections;
 };
 

@@ -15,8 +15,7 @@
 #include "Iris/Core/IrisProfiler.h"
 #include "Iris/Core/NetObjectReference.h"
 #include "Iris/Core/IrisMemoryTracker.h"
-
-#include "Iris/ReplicationSystem/NetToken.h"
+#include "Net/Core/NetToken/NetToken.h"
 #include "Iris/ReplicationSystem/ObjectReplicationBridgeConfig.h"
 #include "Iris/ReplicationSystem/StringTokenStore.h"
 #include "Iris/ReplicationSystem/ReplicationOperations.h"

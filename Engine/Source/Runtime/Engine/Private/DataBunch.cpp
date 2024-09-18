@@ -34,6 +34,7 @@ FInBunch::FInBunch( UNetConnection* InConnection, uint8* Src, int64 CountBits )
 ,	bPartialFinal ( 0 )
 ,	bHasPackageMapExports ( 0 )
 ,	bHasMustBeMappedGUIDs ( 0 )
+,	bPartialCustomExportsFinal( 0 )
 ,	bIgnoreRPCs ( 0 )
 ,	CloseReason( EChannelCloseReason::Destroyed )
 {
@@ -60,6 +61,7 @@ FInBunch::FInBunch( FInBunch &InBunch, bool CopyBuffer )
 	bPartialFinal =	InBunch.bPartialFinal;
 	bHasPackageMapExports = InBunch.bHasPackageMapExports;
 	bHasMustBeMappedGUIDs =	InBunch.bHasMustBeMappedGUIDs;
+	bPartialCustomExportsFinal = InBunch.bPartialCustomExportsFinal;
 	bIgnoreRPCs = InBunch.bIgnoreRPCs;
 	CloseReason = InBunch.CloseReason;
 	PackageMap = InBunch.PackageMap;
@@ -135,6 +137,7 @@ FOutBunch::FOutBunch( UChannel* InChannel, bool bInClose )
 ,	bPartialFinal			( 0 )
 ,	bHasPackageMapExports	( 0 )
 ,	bHasMustBeMappedGUIDs	( 0 )
+,	bPartialCustomExportsFinal	( 0 )
 ,	CloseReason( EChannelCloseReason::Destroyed )
 {
 	checkSlow(!Channel->Closing);
@@ -169,6 +172,7 @@ FOutBunch::FOutBunch( UPackageMap *InPackageMap, int64 MaxBits )
 ,	bPartialFinal	( 0 )
 ,	bHasPackageMapExports	( 0 )
 ,	bHasMustBeMappedGUIDs	( 0 )
+,	bPartialCustomExportsFinal	( 0 )
 ,	CloseReason( EChannelCloseReason::Destroyed )
 {
 }
@@ -177,6 +181,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 FOutBunch::FOutBunch(int64 InMaxBits)
 : FOutBunch(static_cast<UPackageMap*>(nullptr), InMaxBits)
 {
+}
+
+void FOutBunch::Reset()
+{
+	FNetBitWriter::Reset();
+	NetTokensPendingExport.Reset();
 }
 
 void FOutBunch::CountMemory(FArchive& Ar) const

@@ -5,18 +5,15 @@
 #include "CoreTypes.h"
 #include "Containers/Map.h"
 #include "Iris/ReplicationSystem/NetTokenStore.h"
-#include "Misc/MemStack.h"
 
 namespace UE::Net
 {
 
-// Simple token store used to store string tokens
-// When the PackageMapRefactor is complete we will most likely rely on NetTagManager for persistent storage
 class FNameTokenStore : public FNetTokenDataStore
 {
 	UE_NONCOPYABLE(FNameTokenStore);
 public:
-	explicit FNameTokenStore(FNetTokenStore& TokenStore);
+	IRISCORE_API explicit FNameTokenStore(FNetTokenStore& TokenStore);
 
 	// Create a NetToken for the provided name
 	IRISCORE_API FNetToken GetOrCreateToken(FName Name);
@@ -28,12 +25,14 @@ public:
 
 protected:
 	// Serialize data for a token, note there is not validation in this function
-	virtual void WriteTokenData(FNetSerializationContext& Context, FNetTokenStoreKey TokenStoreKey) const override;
+	IRISCORE_API virtual void WriteTokenData(FNetSerializationContext& Context, FNetTokenStoreKey TokenStoreKey) const override;
+	IRISCORE_API virtual void WriteTokenData(FArchive& Archive, FNetTokenStoreKey TokenStoreKey) const override;
 
 	// Read data for a token, returns a valid StoreKey if successful read
-	virtual FNetTokenStoreKey ReadTokenData(FNetSerializationContext& Context, const FNetToken& NetToken) override;
+	IRISCORE_API virtual FNetTokenStoreKey ReadTokenData(FNetSerializationContext& Context, const FNetToken& NetToken) override;
+	IRISCORE_API virtual FNetTokenStoreKey ReadTokenData(FArchive& Archive, const FNetToken& NetToken) override;
 
-	// Create a persistent string
+	// Create and store data for Token
 	FNetTokenStoreKey GetOrCreateTokenStoreKey(FName Name);
 
 private:

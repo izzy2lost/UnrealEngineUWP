@@ -195,6 +195,9 @@ enum class ENetCloseResult : uint32
 	/** ReceiveNetGUIDBunch serialization failed */
 	ReceivedNetGUIDBunchFail,
 
+	/** ReceiveNetExtBunch serialization failed */
+	ReceivedNetExtBunchFail,
+
 	/** Too many reliable bunches queued */
 	MaxReliableExceeded,
 

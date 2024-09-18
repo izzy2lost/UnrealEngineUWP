@@ -93,7 +93,7 @@ void FObjectReferenceCache::Init(UReplicationSystem* InReplicationSystem)
 {
 	ReplicationSystem = InReplicationSystem;
 	ReplicationBridge = InReplicationSystem->GetReplicationBridgeAs<UObjectReplicationBridge>();
-	NetTokenStore =  &InReplicationSystem->GetReplicationSystemInternal()->GetNetTokenStore();
+	NetTokenStore =  InReplicationSystem->GetNetTokenStore();
 	StringTokenStore = NetTokenStore->GetDataStore<FStringTokenStore>();
 	NetRefHandleManager = &InReplicationSystem->GetReplicationSystemInternal()->GetNetRefHandleManager();
 	bIsAuthority = InReplicationSystem->IsServer();

@@ -5,9 +5,14 @@
 #include "NetworkAutomationTest.h"
 #include "NetworkAutomationTestMacros.h"
 #include "ReplicatedTestObject.h"
+#include "Containers/Array.h"
+#include "Templates/UniquePtr.h"
 #include "Iris/Core/IrisLog.h"
 #include "Iris/ReplicationSystem/ReplicationProtocolManager.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
+#include "Iris/ReplicationSystem/StringTokenStore.h"
+#include "Iris/ReplicationSystem/NameTokenStore.h"
+#include "Net/Core/NetToken/NetToken.h"
 
 namespace UE::Net
 {
@@ -25,13 +30,30 @@ public:
 protected:
 	virtual void SetUp() override
 	{
+		const bool bIsServer = true;
+		// Init NetTokenStore
+		{
+			using namespace UE::Net;
+
+			NetTokenStore = MakeUnique<FNetTokenStore>();
+
+			FNetTokenStore::FInitParams NetTokenStoreInitParams;
+			NetTokenStoreInitParams.Authority = bIsServer ? FNetToken::ENetTokenAuthority::Authority : FNetToken::ENetTokenAuthority::None;
+			NetTokenStore->Init(NetTokenStoreInitParams);
+
+			// Register data stores for supported types, $TODO: make this configurable.
+			NetTokenDataStores.Add(MakeUnique<FStringTokenStore>(*NetTokenStore));
+			NetTokenDataStores.Add(MakeUnique<FNameTokenStore>(*NetTokenStore));	
+		}
+
 		ReplicationBridge = NewObject<UReplicatedTestObjectBridge>();
 		CreatedObjects.Add(TStrongObjectPtr<UObject>(ReplicationBridge));
 
 		UReplicationSystem::FReplicationSystemParams Params;
 		Params.ReplicationBridge = ReplicationBridge;
-		Params.bIsServer = true;
+		Params.bIsServer = bIsServer;
 		Params.bAllowObjectReplication = true;
+		Params.NetTokenStore =  NetTokenStore.Get();
 
 		// In a testing environment without configs the creation of the ReplicationSystem can be quite spammy
 		ELogVerbosity::Type IrisLogVerbosity = UE_GET_LOG_VERBOSITY(LogIris);
@@ -102,6 +124,8 @@ protected:
 		return CreatedObject;
 	}
 
+	TUniquePtr<UE::Net::FNetTokenStore> NetTokenStore;
+	TArray<TUniquePtr<UE::Net::FNetTokenDataStore>> NetTokenDataStores;
 	UReplicationSystem* ReplicationSystem;
 	UReplicatedTestObjectBridge* ReplicationBridge;
 	

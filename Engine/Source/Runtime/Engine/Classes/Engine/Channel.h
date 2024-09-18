@@ -42,8 +42,14 @@ enum class EChannelCreateFlags : uint32
 	None			= (1 << 0),
 	OpenedLocally	= (1 << 1)
 };
-
 ENUM_CLASS_FLAGS(EChannelCreateFlags);
+
+enum class EChannelGetAdditionalRequiredBunchesFlags : uint32
+{
+	None				= 0U,
+	SkipNetGUIDExports	= 1U
+};
+ENUM_CLASS_FLAGS(EChannelGetAdditionalRequiredBunchesFlags);
 
 // The channel index to use for voice
 #define VOICE_CHANNEL_INDEX 1
@@ -137,9 +143,13 @@ public:
 	 * The bunch is sure not to be discarded.
 	 */
 	ENGINE_API void ReceivedRawBunch( FInBunch & Bunch, bool & bOutSkipAck );
-	
+
 	/** Append any export bunches */
-	ENGINE_API virtual void AppendExportBunches( TArray< FOutBunch* >& OutExportBunches );
+	UE_DEPRECATED(5.5, "Use GetAdditionalRequiredBunches")
+	ENGINE_API virtual void AppendExportBunches(TArray< FOutBunch* >& OutExportBunches);
+
+	/** Returns any additional bunches (such as exports) needed by the passed-in OutgoingBunch */
+	ENGINE_API virtual TArray<FOutBunch*> GetAdditionalRequiredBunches(const FOutBunch& OutgoingBunch, EChannelGetAdditionalRequiredBunchesFlags Flags = EChannelGetAdditionalRequiredBunchesFlags::None);
 
 	/** Append any "must be mapped" guids to front of bunch. These are guids that the client will wait on before processing this bunch. */
 	ENGINE_API virtual void AppendMustBeMappedGuids( FOutBunch* Bunch );

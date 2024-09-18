@@ -20,6 +20,7 @@ namespace UnrealBuildTool.Rules
 				new string[]
 				{
 					"Projects",
+					"NetCore",
 					"Json",
 					"JsonUtilities"
 				}

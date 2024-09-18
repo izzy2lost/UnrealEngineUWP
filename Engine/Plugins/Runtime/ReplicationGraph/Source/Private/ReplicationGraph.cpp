@@ -2030,6 +2030,11 @@ int64 UReplicationGraph::ReplicateSingleActor_FastShared(AActor* Actor, FConnect
 
 	ensureAlwaysMsgf(OutBunch.bHasMustBeMappedGUIDs == 0, TEXT("FastShared bHasMustBeMappedGUIDs! %s"), *Actor->GetPathName());
 
+	// Need to reset flags set on bunch send as we are re-using the bunch for more than one connection
+	OutBunch.bPartial = 0;
+	OutBunch.bPartialInitial = 0;
+	OutBunch.bPartialFinal = 0;
+
 	return OutBunch.GetNumBits();
 #else
 	return 0;
@@ -2339,6 +2344,7 @@ bool UReplicationGraph::ProcessRemoteFunction(class AActor* Actor, UFunction* Fu
 		{
 			// Reset the bunch here. It will be reused and we should only reset it right before we actually write to it.
 			FastSharedReplicationBunch->Reset();
+			FastSharedReplicationBunch->NetTokensPendingExport.Reset();
 
 			// It sucks we have to a temp writer like this, but we don't know how big the payload will be until we serialize it
 			FNetBitWriter TempWriter(nullptr, 0);
@@ -2359,6 +2365,9 @@ bool UReplicationGraph::ProcessRemoteFunction(class AActor* Actor, UFunction* Fu
 			// We use the collector from the shared bunch
 			SetTraceCollector(TempWriter, Collector);
 #endif // UE_NET_TRACE_ENABLED
+
+			// Create export scope, storing NetTokens pending export in FastSharedReplicationBunch->NetTokensPendingExport
+			UE::Net::FNetTokenExportScope NetTokenExportScope(TempWriter, NetDriver->GetNetTokenStore(), FastSharedReplicationBunch->NetTokensPendingExport, "SendPropertiesForRPC");
 
 			TSharedPtr<FRepLayout> RepLayout = NetDriver->GetFunctionRepLayout( Function );
 			RepLayout->SendPropertiesForRPC(Function, FastSharedReplicationChannel, TempWriter, Parameters);
@@ -2416,7 +2425,7 @@ bool UReplicationGraph::ProcessRemoteFunction(class AActor* Actor, UFunction* Fu
 			}
 		}
 
-		RepLayout->BuildSharedSerializationForRPC(Parameters);
+		RepLayout->BuildSharedSerializationForRPC(Parameters, NetDriver->GetNetTokenStore());
 		FGlobalActorReplicationInfo& GlobalInfo = GlobalActorReplicationInfoMap.Get(Actor);
 
 		bool ForceFlushNetDormancy = false;

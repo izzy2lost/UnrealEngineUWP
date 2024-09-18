@@ -5,10 +5,14 @@
 #include "CoreTypes.h"
 #include "Containers/UnrealString.h"
 #include "Templates/TypeHash.h"
+#include "Logging/LogMacros.h"
+
+NETCORE_API DECLARE_LOG_CATEGORY_EXTERN(LogNetToken, Log, All);
 
 namespace UE::Net
 {
-	class FNetSerializationContext;
+	class FNetTokenStore;
+	class FNetTokenStoreState;
 }
 
 namespace UE::Net
@@ -23,8 +27,13 @@ public:
 
 	enum : uint32 { InvalidTokenTypeId = ~FTypeId(0) };
 	enum : uint32 { InvalidTokenIndex = 0U };
-	enum : uint32 { TokenTypeIdBits = 2U };
+
+	/** How many bits we use to express the TypeId for NetTokens, Increasing this value will break network compatibility and might need versioning for replays. */
+	enum : uint32 { TokenTypeIdBits = 3U };
+
+	/** How many bits we use to express the index part of NetTokens */
 	enum : uint32 { TokenBits = 20U };
+
 	enum : uint32 { MaxTypeIdCount = 1U << TokenTypeIdBits };
 	enum : uint32 { MaxNetTokenCount = 1U << TokenBits };
 
@@ -46,14 +55,13 @@ public:
 	{
 		return ::GetTypeHash(Token.Value);
 	}
-
+	
 	static FNetToken MakeNetToken(uint32 Index, ENetTokenAuthority Authority) { check(Index < MaxNetTokenCount); return FNetToken(Index, Authority); }
+	
+private:
+	explicit FNetToken(uint32 InIndex, ENetTokenAuthority Authority) { Padding = 0U, Index = InIndex, bIsAssignedByAuthority = Authority == ENetTokenAuthority::Authority ? 1U : 0U; }
 
 private:
-	explicit FNetToken(uint32 InIndex, ENetTokenAuthority Authority) { Index = InIndex, bIsAssignedByAuthority = Authority == ENetTokenAuthority::Authority ? 1U : 0U; }
-
-private:
-	friend IRISCORE_API FNetToken ReadNetToken(UE::Net::FNetSerializationContext&);
 
 	union 
 	{
@@ -61,6 +69,7 @@ private:
 		{
 			uint32 Index : TokenBits;
 			uint32 bIsAssignedByAuthority : 1U;
+			uint32 Padding : 32 - TokenBits - 1U;
 		};
 		uint32 Value;
 	};
@@ -95,16 +104,20 @@ private:
 
 static_assert(sizeof(FNetTokenStoreKey) == sizeof(uint32), "FNetTokenKey should fit in a uint32");
 
+// Contains necessary context to resolve NetTokens
+class FNetTokenResolveContext
+{
+public:
+	FNetTokenStore* NetTokenStore = nullptr;
+	const FNetTokenStoreState* RemoteNetTokenStoreState = nullptr;
+};
+
 inline FString FNetToken::ToString() const
 {
 	FString Result;
 	Result = FString::Printf(TEXT("NetToken (Auth:%u Index=%u)"), IsAssignedByAuthority(), Index);
 	return Result;
 }
-
-// Read and write tokens
-IRISCORE_API FNetToken ReadNetToken(UE::Net::FNetSerializationContext& Context);
-IRISCORE_API void WriteNetToken(UE::Net::FNetSerializationContext& Context, FNetToken Token);
 
 }
 

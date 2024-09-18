@@ -62,6 +62,10 @@
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilter.h"
 #include "Net/Iris/ReplicationSystem/EngineReplicationBridge.h"
 #include "Net/Iris/ReplicationSystem/ReplicationSystemUtil.h"
+
+#include "Iris/ReplicationSystem/NameTokenStore.h"
+#include "Iris/ReplicationSystem/StringTokenStore.h"
+#include "GameplayTagTokenStore.h"
 #endif // UE_WITH_IRIS
 
 #if USE_SERVER_PERF_COUNTERS
@@ -1574,6 +1578,29 @@ bool UNetDriver::InitBase(bool bInitAsClient, FNetworkNotify* InNotify, const FU
 	Notify = InNotify;
 
 #if UE_WITH_IRIS
+	// At the time being using NetTokens and NetTokenStore is only available when compiling with iris.
+	// Init NetToken stores
+	if (!GetNetTokenStore())
+	{
+		using namespace UE::Net;
+
+		NetTokenStore = MakeUnique<FNetTokenStore>();
+
+		FNetTokenStore::FInitParams NetTokenStoreInitParams;
+		NetTokenStoreInitParams.Authority = !bInitAsClient ? FNetToken::ENetTokenAuthority::Authority : FNetToken::ENetTokenAuthority::None;
+		NetTokenStoreInitParams.MaxConnections = ConnectionIdHandler.GetMaxConnectionIdCount();
+		NetTokenStore->Init(NetTokenStoreInitParams);
+
+		// TODO: make this configurable from config so that users can provide their own custom NetTokenStores
+		// Order is important, changing order will require new netversion
+		// When we move it to the config TypeId will be made explicit
+		NetTokenStore->CreateAndRegisterDataStore<FStringTokenStore>();
+		NetTokenStore->CreateAndRegisterDataStore<FNameTokenStore>();
+		NetTokenStore->CreateAndRegisterDataStore<FGameplayTagTokenStore>();
+	}
+#endif
+	
+#if UE_WITH_IRIS
 	if (IsUsingIrisReplication() && !ReplicationSystem)
 	{
 		CreateReplicationSystem(bInitAsClient);
@@ -2833,6 +2860,9 @@ void UNetDriver::ProcessRemoteFunctionForChannelPrivate(
 
 	FNetBitWriter TempWriter( Bunch.PackageMap, 0 );
 
+	// Create NetToken export scope for TempBitWriter, appending exports to Bunch.NetTokensPendingExport
+	UE::Net::FNetTokenExportScope ExportScope(TempWriter, GetNetTokenStore(), Bunch.NetTokensPendingExport, "ProcessRemoteFunctionForChannelPrivate");
+	
 #if UE_NET_TRACE_ENABLED
 	// Create trace collector if tracing is enabled for the target bunch
 	SetTraceCollector(TempWriter, GetTraceCollector(Bunch) ? UE_NET_TRACE_CREATE_COLLECTOR(ENetTraceVerbosity::Trace) : nullptr);
@@ -7117,6 +7147,7 @@ void UNetDriver::CreateReplicationSystem(bool bInitAsClient)
 		Params.bAllowObjectReplication = !bInitAsClient;
 		Params.ForwardNetRPCCallDelegate.BindUObject(this, &UNetDriver::ForwardRemoteFunction);
 		UE::Net::Private::ApplyReplicationSystemConfig(RepSystemConfig, Params);
+		Params.NetTokenStore = NetTokenStore.Get();
 
 		SetReplicationSystem(UE::Net::FReplicationSystemFactory::CreateReplicationSystem(Params));
 	}
@@ -7668,7 +7699,7 @@ void UNetDriver::ProcessRemoteFunction(
 					{
 						// We don't want to call this unless necessary, and it will internally handle being called multiple times before a clear
 						// Builds any shared serialization state for this rpc
-						RepLayout->BuildSharedSerializationForRPC(Parameters);
+						RepLayout->BuildSharedSerializationForRPC(Parameters, GetNetTokenStore());
 
 						InternalProcessRemoteFunctionPrivate(Actor, SubObject, Connection, Function, Parameters, OutParms, Stack, bIsServer, RemoteFunctionFlags);
 					}

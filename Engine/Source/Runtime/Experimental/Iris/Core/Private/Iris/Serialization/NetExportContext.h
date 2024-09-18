@@ -6,7 +6,7 @@
 #include "Containers/Array.h"
 #include "Containers/Set.h"
 #include "Iris/ReplicationSystem/NetRefHandle.h"
-#include "Iris/ReplicationSystem/NetToken.h"
+#include "Net/Core/NetToken/NetToken.h"
 #include "Iris/Serialization/NetSerializationContext.h"
 #include "Iris/Core/NetObjectReference.h"
 
