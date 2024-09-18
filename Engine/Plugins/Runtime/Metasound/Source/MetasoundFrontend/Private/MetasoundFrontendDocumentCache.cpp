@@ -472,6 +472,8 @@ namespace Metasound::Frontend
 		const FMetasoundFrontendGraphClass& GraphClass = Document.RootGraph;
 		const FMetasoundFrontendClassOutput& Output = GraphClass.Interface.Outputs[IndexBeingRemoved];
 		OutputNameToIndex.Remove(Output.Name);
+
+		++TransactionCount;
 	}
 
 	FDocumentGraphNodeCache::FDocumentGraphNodeCache()
