@@ -11,13 +11,3 @@ FCustomizableObjectIdPair::FCustomizableObjectIdPair(FString ObjectGroupName, FS
 {
 }
 
-FCustomizableObjectIdentifier::FCustomizableObjectIdentifier()
-{
-}
-
-FCustomizableObjectIdentifier::FCustomizableObjectIdentifier(FString ObjectGroupName, FString ObjectName)
-	: CustomizableObjectGroupName(ObjectGroupName)
-	, CustomizableObjectName(ObjectName)
-{
-}
-
