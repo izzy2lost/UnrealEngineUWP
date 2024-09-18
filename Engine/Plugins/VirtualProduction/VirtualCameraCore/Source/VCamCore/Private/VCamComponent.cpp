@@ -95,11 +95,6 @@ namespace UE::VCamCore
 void UVCamComponent::OnComponentCreated()
 {
 	Super::OnComponentCreated();
-
-	if (!UE::VCamCore::CanInitVCamInstance(this))
-	{
-		return;
-	}
 	
 	// After creation, the InputProfile should be initialized to the project setting's default mappings
 	const UVCamInputSettings* VCamInputSettings = GetDefault<UVCamInputSettings>();
@@ -191,9 +186,7 @@ TStructOnScope<FActorComponentInstanceData> UVCamComponent::GetComponentInstance
 
 void UVCamComponent::ApplyComponentInstanceData(FVCamComponentInstanceData& ComponentInstanceData, ECacheApplyPhase CacheApplyPhase)
 {
-	if (CacheApplyPhase != ECacheApplyPhase::PostUserConstructionScript
-		// Don't run this logic for certain VCams, e.g. those that are being dragged into the editor window.
-		|| UE::VCamCore::CanInitVCamInstance(this))
+	if (CacheApplyPhase != ECacheApplyPhase::PostUserConstructionScript)
 	{
 		return;
 	}
@@ -208,12 +201,18 @@ void UVCamComponent::ApplyComponentInstanceData(FVCamComponentInstanceData& Comp
 	OutputProviders = ComponentInstanceData.StolenOutputProviders;
 	LiveLinkSubject = ComponentInstanceData.LiveLinkSubject;
 	
+	// Don't run further logic for certain VCams, e.g. those that are being dragged into the editor window.
+	if (UE::VCamCore::CanInitVCamInstance(this))
+	{
+		return;
+	}
+	
 	// All modifiers were duplicated by the standard component cache system. Some modifiers references components, such as the cine camera component: the component cache system
 	// replaced the old referenced with reconstructed components (except for those properties marked as transient!).
 	// However, input must be manually re-initialized since the modifiers were duplicated and the input system is still pointing at the old modifier instances.
 	// AppliedInputContext was nulled by the cache because is marked Transient, so we have to restore it manually.
 	ReinitializeInput(ComponentInstanceData.AppliedInputContexts);
-
+	
 	// Some systems, such as Multi-User Editing or Level Snapshots, may allocate this VCam and then update it with serialized data.
 	// To handle this scenario, we defer the initialization of the VCam until the next frame, after it and its associated output providers 
 	// and modifiers have been fully updated with the new values. If an Initialize call is made this frame, e.g. by PostEditChange, then the
