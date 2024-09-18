@@ -31,7 +31,7 @@ bool FMediaIOCoreTextureSampleConverter::Convert(FRHICommandListImmediate& RHICm
 	}
 
 	// Let the player pick a proper sample and render it into this proxy's texture (JITR)
-	return PlayerPtr->JustInTimeSampleRender_RenderThread(RHICmdList, SamplePtr);
+	return PlayerPtr->JustInTimeSampleRender_RenderThread(RHICmdList, InDestinationTexture, SamplePtr);
 }
 
 uint32 FMediaIOCoreTextureSampleConverter::GetConverterInfoFlags() const

@@ -2,6 +2,7 @@
 
 #include "MediaIOCoreTextureSampleBase.h"
 
+#include "Async/Async.h"
 #include "MediaIOCoreTextureSampleConverter.h"
 
 #include "OpenColorIOConfiguration.h"
@@ -13,7 +14,6 @@
 #include "RHI.h"
 #include "RHIResources.h"
 #include "ScreenPass.h"
-
 DECLARE_GPU_STAT(MediaIO_ColorConversion);
 
 FMediaIOCoreTextureSampleBase::FMediaIOCoreTextureSampleBase()
@@ -150,10 +150,29 @@ bool FMediaIOCoreTextureSampleBase::SetBufferWithEvenOddLine(bool bUseEvenLine, 
 	return true;
 }
 
+void FMediaIOCoreTextureSampleBase::SetColorConversionSettings(TSharedPtr<struct FOpenColorIOColorConversionSettings> InColorConversionSettings)
+{
+	ColorConversionSettings = InColorConversionSettings;
+
+	AsyncTask(ENamedThreads::GameThread, [this]() {
+		CacheColorCoversionSettings_GameThread();
+	});
+}
+
 void* FMediaIOCoreTextureSampleBase::RequestBuffer(uint32 InBufferSize)
 {
 	FreeSample();
 	Buffer.SetNumUninitialized(InBufferSize); // Reset the array without shrinking (Does not destruct items, does not de-allocate memory).
+	return Buffer.GetData();
+}
+
+void* FMediaIOCoreTextureSampleBase::GetOrRequestBuffer(uint32 InBufferSize)
+{
+	if (Buffer.Num() != InBufferSize)
+	{
+		RequestBuffer(InBufferSize);
+	}
+
 	return Buffer.GetData();
 }
 
@@ -174,6 +193,8 @@ bool FMediaIOCoreTextureSampleBase::InitializeJITR(const FMediaIOCoreSampleJITRC
 	Height = Args.Height;
 	Time   = Args.Time;
 	Timecode = Args.Timecode;
+	FrameNumber = GFrameNumber;
+	Duration = FTimespan(ETimespan::TicksPerSecond * Args.FrameRate.AsInterval());
 
 	// JITR data
 	Player    = Args.Player;
@@ -207,44 +228,20 @@ void FMediaIOCoreTextureSampleBase::CopyConfiguration(const TSharedPtr<FMediaIOC
 	OriginalSample = SourceSample;
 }
 
+void FMediaIOCoreTextureSampleBase::CacheColorCoversionSettings_GameThread()
+{
+	if (ColorConversionSettings.IsValid() && ColorConversionSettings->IsValid())
+	{
+		CachedOCIOResources = MakeShared<FOpenColorIORenderPassResources>();
+
+		FOpenColorIORenderPassResources Resources = FOpenColorIORendering::GetRenderPassResources(*ColorConversionSettings, GMaxRHIFeatureLevel);
+		CachedOCIOResources->ShaderResource = Resources.ShaderResource;
+		CachedOCIOResources->TextureResources = Resources.TextureResources;
+	}
+}
+
 bool FMediaIOCoreTextureSampleBase::ApplyColorConversion(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InSrcTexture, FTextureRHIRef& InDstTexture)
 {
-	if (!CachedOCIOResources.IsValid())
-	{
-		if (ColorConversionSettings.IsValid() && ColorConversionSettings->IsValid())
-		{
-			CachedOCIOResources = MakeShared<FOpenColorIORenderPassResources>();
-
-			FOpenColorIOTransformResource* ShaderResource = nullptr;
-			TSortedMap<int32, TWeakObjectPtr<UTexture>> TransformTextureResources;
-
-			if (ColorConversionSettings->ConfigurationSource != nullptr)
-			{
-				const bool bFoundTransform = ColorConversionSettings->ConfigurationSource->GetRenderResources(
-					GMaxRHIFeatureLevel
-					, *ColorConversionSettings
-					, ShaderResource
-					, TransformTextureResources);
-
-				if (bFoundTransform)
-				{
-					// Transform was found, so shader must be there but doesn't mean the actual shader is available
-					check(ShaderResource);
-					if (ShaderResource->GetShader<FOpenColorIOPixelShader>().IsNull())
-					{
-						ensureMsgf(false, TEXT("Can't apply display look - Shader was invalid for Resource %s"), *ShaderResource->GetFriendlyName());
-
-						//Invalidate shader resource
-						ShaderResource = nullptr;
-					}
-				}
-			}
-
-			CachedOCIOResources->ShaderResource = ShaderResource;
-			CachedOCIOResources->TextureResources = TransformTextureResources;
-		}
-	}
-
 	if (CachedOCIOResources)
 	{
 		FRDGBuilder GraphBuilder(RHICmdList);

@@ -559,11 +559,6 @@ bool FBlackmagicMediaPlayer::Open(const FString& Url, const IMediaOptions* Optio
 	
 	const EMediaIOAutoDetectableTimecodeFormat TimecodeFormat = (EMediaIOAutoDetectableTimecodeFormat)(Options->GetMediaOption(BlackmagicMediaOption::TimecodeFormat, (int64)EMediaIOAutoDetectableTimecodeFormat::None));
 	const bool bAutoDetectTimecode = TimecodeFormat == EMediaIOAutoDetectableTimecodeFormat::Auto;
-
-	bOverrideSourceEncoding = Options->GetMediaOption(UE::CaptureCardMediaSource::OverrideSourceEncoding, true);
-	OverrideSourceEncoding = (ETextureSourceEncoding) Options->GetMediaOption(UE::CaptureCardMediaSource::SourceEncoding, (int64) ETextureSourceEncoding::TSE_Linear);
-	bOverrideSourceColorSpace = Options->GetMediaOption(UE::CaptureCardMediaSource::OverrideSourceColorSpace, true);
-	OverrideSourceColorSpace =  (ETextureColorSpace) Options->GetMediaOption(UE::CaptureCardMediaSource::SourceColorSpace, (int64) ETextureColorSpace::TCS_None);
 	
 	BlackmagicDesign::FChannelInfo ChannelInfo;
 	ChannelInfo.DeviceIndex = Options->GetMediaOption(BlackmagicMediaOption::DeviceIndex, (int64)0);

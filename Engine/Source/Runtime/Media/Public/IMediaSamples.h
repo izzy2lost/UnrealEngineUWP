@@ -116,6 +116,9 @@ public:
 		// override in child classes, if supported
 	}
 
+	/** Sets the number of samples to be stored in sample container. */
+	virtual void SetSampleBufferSize(int32 BufferSize) {};
+
 	enum class EFetchBestSampleResult
 	{
 		Ok = 0,
