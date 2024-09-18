@@ -162,6 +162,6 @@ void SolveVelocitiesAndForces_Simulate(inout FStatelessParticle Particle)
 	SolveVelocitiesAndForces_IntegratePosition(ModuleData, Particle.Age, Particle.Position);
 	SolveVelocitiesAndForces_IntegratePosition(ModuleData, Particle.PreviousAge, Particle.PreviousPosition);
 		
-	Particle.Velocity = Particle.Position - Particle.PreviousPosition;
+	Particle.Velocity = (Particle.Position - Particle.PreviousPosition) * Particle.InvDeltaTime;
 	Particle.PreviousVelocity = Particle.Velocity;
 }
