@@ -132,7 +132,7 @@ UMovieSceneSubSection::UMovieSceneSubSection(const FObjectInitializer& ObjInitia
 
 	SetBlendType(EMovieSceneBlendType::Absolute);
 	
-	OriginOverrideMask = EMovieSceneTransformChannel::AllTransform;
+	OriginOverrideMask = EMovieSceneTransformChannel::None;
 
 #if WITH_EDITOR
 	ResetKeyPreviewRotationAndLocation();
@@ -683,6 +683,17 @@ FMovieSceneSubSequenceData UMovieSceneSubSection::GenerateSubSequenceData(const 
 {
 	return FMovieSceneSubSequenceData(*this);
 }
+
+#if WITH_EDITOR
+bool UMovieSceneSubSection::IsTransformOriginEditable() const
+{
+	const EMovieSceneTransformChannel SectionTransformChannels = OriginOverrideMask.GetChannels();
+
+	const bool bChannelsActive = EnumHasAnyFlags(SectionTransformChannels, EMovieSceneTransformChannel::Translation) || EnumHasAnyFlags(SectionTransformChannels, EMovieSceneTransformChannel::Rotation);
+	
+	return IsActive() && !IsLocked() && bChannelsActive;
+}
+#endif
 
 FFrameNumber UMovieSceneSubSection::MapTimeToSectionFrame(FFrameTime InPosition) const
 {

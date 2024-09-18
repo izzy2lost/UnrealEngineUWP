@@ -262,8 +262,11 @@ UMovieSceneSubSection* FSubTrackEditorMode::GetSelectedSection() const
 	{
 		if(UMovieSceneSubSection* SubSection = Cast<UMovieSceneSubSection>(Section))
 		{
-			// Mirror behavior when multiple actors are selected in the level editor, and pick the last selected item.
-			SelectedSection = SubSection;
+			// Mirror behavior when multiple actors are selected in the level editor, and pick the last selected item that can still be edited.
+			if(SubSection->IsTransformOriginEditable())
+			{
+				SelectedSection = SubSection;
+			}
 		}
 	}
 
@@ -281,12 +284,26 @@ UMovieSceneSubSection* FSubTrackEditorMode::GetSelectedSection() const
 		{
 			if(SubTrack->GetSectionToKey())
 			{
-				SelectedSection = Cast<UMovieSceneSubSection>(SubTrack->GetSectionToKey());
+				UMovieSceneSubSection* SubSection = Cast<UMovieSceneSubSection>(SubTrack->GetSectionToKey());
+				if(SubSection && SubSection->IsTransformOriginEditable())
+				{
+					SelectedSection = SubSection;
+				}
 			}
 			else if(SubTrack->GetAllSections().Num())
 			{
 				// Since the first section is the section that will be keyed by default, select the first section from the track.
-				SelectedSection = Cast<UMovieSceneSubSection>(SubTrack->FindSection(PinnedSequencer.Get()->GetLocalTime().Time.FrameNumber));
+				for(UMovieSceneSection* Section : SubTrack->FindAllSections(PinnedSequencer.Get()->GetLocalTime().Time.FrameNumber))
+				{
+					if(UMovieSceneSubSection* SubSection = Cast<UMovieSceneSubSection>(Section))
+					{
+						if(SubSection->IsTransformOriginEditable())
+						{
+							SelectedSection = SubSection;
+							break;
+						}
+					}
+				}
 			}
 		}
 			
