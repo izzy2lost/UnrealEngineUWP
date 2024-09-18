@@ -41,8 +41,14 @@ namespace UE::VCamCore
 			ClearActorLock(ViewportID, LockInfo);
 		}
 		
-		for (const TWeakObjectPtr<UVCamComponent>& VCamComponent : RegisteredVCams)
+		for (const TWeakObjectPtr<UVCamComponent>& WeakVCamComponent : RegisteredVCams)
 		{
+			UVCamComponent* VCamComponent = WeakVCamComponent.Get();
+			if (!VCamComponent)
+			{
+				continue;
+			}
+			
 			for (UVCamOutputProviderBase* OutputProvider : VCamComponent->GetOutputProviders())
 			{
 				if (ensure(OutputProvider) && OutputProvider->GetTargetViewport() == ViewportID)
