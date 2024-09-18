@@ -329,6 +329,13 @@ struct CHAOSVDDATA_API FChaosVDRecording
 	int32 GetLowestGameFrameNumberAtCycle(uint64 Cycle);
 
 	/**
+	 * Searches and returns the lowest game frame number at the specified cycle
+	 * @param Time Platform Time to be used in the search as lower bound
+	 * @return Found Game frame number. INDEX_NONE if no frame is found for the specified cycle
+	 */
+	int32 GetLowestGameFrameNumberAtTime(double Time);
+
+	/**
      * Gathers all available solvers IDs at the given Game frame number
      * @param FrameNumber Game Frame number to evaluate
      * @param OutSolversID Solver's ID array to be filled with any IDs found

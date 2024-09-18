@@ -19,4 +19,5 @@ public:
 	static const FName SceneQueryDataDetails;
 	static const FName ConstraintsInspector;
 	static const FName SceneQueryBrowser;
+	static const FName RecordedOutputLog;
 };

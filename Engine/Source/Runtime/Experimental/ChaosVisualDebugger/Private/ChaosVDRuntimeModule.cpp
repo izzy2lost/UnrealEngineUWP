@@ -171,6 +171,7 @@ void FChaosVDRuntimeModule::StartRecording(TConstArrayView<FString> Args)
 
 	UE::Trace::ToggleChannel(TEXT("ChaosVDChannel"), true); 
 	UE::Trace::ToggleChannel(TEXT("Frame"), true);
+	UE::Trace::ToggleChannel(TEXT("Log"), true);
 
 	FTraceAuxiliary::FOptions TracingOptions;
 	TracingOptions.bExcludeTail = true;

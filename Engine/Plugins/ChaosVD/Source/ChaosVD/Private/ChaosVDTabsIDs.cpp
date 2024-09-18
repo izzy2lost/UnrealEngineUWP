@@ -14,3 +14,4 @@ const FName FChaosVDTabID::CollisionDataDetails = TEXT("CollisionDataDetails");
 const FName FChaosVDTabID::SceneQueryDataDetails = TEXT("SceneQueryDataDetails");
 const FName FChaosVDTabID::ConstraintsInspector = TEXT("ConstraintsDetails");
 const FName FChaosVDTabID::SceneQueryBrowser = TEXT("SceneQueryBrowser");
+const FName FChaosVDTabID::RecordedOutputLog = TEXT("RecordedOutputLog");

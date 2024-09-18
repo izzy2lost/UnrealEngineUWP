@@ -15,6 +15,7 @@
 #include "ChaosVDConstraintDataInspectorTab.h"
 #include "ChaosVDParticleActor.h"
 #include "ChaosVDParticleActorCustomization.h"
+#include "ChaosVDRecordedLogTab.h"
 #include "ChaosVDSceneQueryDataInspectorTab.h"
 #include "ChaosVDStyle.h"
 #include "ChaosVDTabsIDs.h"
@@ -96,6 +97,7 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 	RegisterTabSpawner<FChaosVDSceneQueryDataInspectorTab>(FChaosVDTabID::SceneQueryDataDetails);
 	RegisterTabSpawner<FChaosVDConstraintDataInspectorTab>(FChaosVDTabID::ConstraintsInspector);
 	RegisterTabSpawner<FChaosVDSceneQueryBrowserTab>(FChaosVDTabID::SceneQueryBrowser);
+	RegisterTabSpawner<FChaosVDRecordedLogTab>(FChaosVDTabID::RecordedOutputLog);
 
 	StatusBarID = FName(FChaosVDTabID::StatusBar.ToString() + InChaosVDEngine->GetInstanceGuid().ToString());
 	
@@ -284,6 +286,7 @@ TSharedRef<FTabManager::FLayout> SChaosVDMainTab::GenerateMainLayout()
 					FTabManager::NewStack()
 					->SetSizeCoefficient(0.3f)
 					->AddTab(FChaosVDTabID::SolversTrack, ETabState::OpenedTab)
+					->AddTab(FChaosVDTabID::RecordedOutputLog, ETabState::OpenedTab)
 					->AddTab(FChaosVDTabID::OutputLog, ETabState::OpenedTab)
 				)
 			)

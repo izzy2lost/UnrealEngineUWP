@@ -361,6 +361,12 @@ int32 FChaosVDRecording::GetLowestGameFrameNumberAtCycle(uint64 Cycle)
 	return Algo::LowerBoundBy(GameFrames, Cycle, &FChaosVDGameFrameData::FirstCycle);
 }
 
+int32 FChaosVDRecording::GetLowestGameFrameNumberAtTime(double Time)
+{
+	FReadScopeLock ReadLock(RecordingDataLock);
+	return Algo::LowerBoundBy(GameFrames, Time, &FChaosVDGameFrameData::StartTime);
+}
+
 void FChaosVDRecording::CollapseSolverFramesRange_AssumesLocked(int32 SolverID, int32 StartFrame, int32 EndFrame, FChaosVDSolverFrameData& OutCollapsedFrameData)
 {
 	// Make sure we start with a clear map
