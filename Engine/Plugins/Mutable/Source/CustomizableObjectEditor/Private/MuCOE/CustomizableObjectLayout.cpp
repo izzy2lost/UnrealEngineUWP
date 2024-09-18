@@ -102,6 +102,7 @@ void UCustomizableObjectLayout::GenerateAutomaticBlocksFromUVs()
 	FCompilationOptions Options = Object->GetPrivate()->GetCompileOptions();
 
 	FMutableGraphGenerationContext GenerationContext(Object, &Compiler, Options);
+	GenerationContext.bSkipParticipatingObjectsPass = true;
 
 	bool bOutWasEmpty = false;
 	mu::Ptr<mu::NodeLayout> LayoutNode = CreateMutableLayoutNode(GenerationContext, this, false, bOutWasEmpty );
