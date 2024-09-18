@@ -52,14 +52,6 @@ static FAutoConsoleVariableRef CVarRayTracingEnableOnDemand(
 	TEXT(" 1: on"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
-static int32 GRayTracingRequireSM6 = 1;
-static FAutoConsoleVariableRef CVarRayTracingRequireSM6(
-	TEXT("r.RayTracing.RequireSM6"),
-	GRayTracingRequireSM6,
-	TEXT("Whether ray tracing shaders and features should only be available when targetting and running SM6. If disabled, ray tracing shaders will also be available when running in SM5 mode. (default = 1, allow only SM6)"),
-	ECVF_RenderThreadSafe | ECVF_ReadOnly
-);
-
 const uint16 GCubeIndices[12*3] =
 {
 	0, 2, 3,
@@ -1610,9 +1602,7 @@ bool ShouldCompileRayTracingShadersForProject(EShaderPlatform ShaderPlatform)
 {
 	if (RHISupportsRayTracingShaders(ShaderPlatform))
 	{
-		const bool bRayTracingRequireSM6 = (GRayTracingRequireSM6 != 0);
-
-		return IsRayTracingEnabledForProject(ShaderPlatform) && AreRayTracingShadersEnabledForProject(ShaderPlatform) && (IsFeatureLevelSupported(ShaderPlatform, ERHIFeatureLevel::SM6) || !bRayTracingRequireSM6);
+		return IsRayTracingEnabledForProject(ShaderPlatform) && AreRayTracingShadersEnabledForProject(ShaderPlatform) && IsFeatureLevelSupported(ShaderPlatform, ERHIFeatureLevel::SM6);
 	}
 	else
 	{
@@ -1656,9 +1646,7 @@ bool IsRayTracingAllowed()
 
 bool IsRayTracingEnabled(EShaderPlatform ShaderPlatform)
 {
-	const bool bRayTracingRequireSM6 = (GRayTracingRequireSM6 != 0);
-
-	return IsRayTracingEnabled() && RHISupportsRayTracing(ShaderPlatform) && (IsFeatureLevelSupported(ShaderPlatform, ERHIFeatureLevel::SM6) || !bRayTracingRequireSM6);
+	return IsRayTracingEnabled() && RHISupportsRayTracing(ShaderPlatform) && IsFeatureLevelSupported(ShaderPlatform, ERHIFeatureLevel::SM6);
 }
 
 ERayTracingMode GetRayTracingMode()

@@ -997,10 +997,7 @@ void FD3D12Adapter::InitializeDevices()
 			D3D12_FEATURE_DATA_D3D12_OPTIONS5 D3D12Caps5 = {};
 			if (SUCCEEDED(RootDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &D3D12Caps5, sizeof(D3D12Caps5))))
 			{
-				static IConsoleVariable* RequireSM6CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.RayTracing.RequireSM6"));
-				const bool bRequireSM6 = RequireSM6CVar && RequireSM6CVar->GetBool();
-
-				const bool bRayTracingAllowedOnCurrentShaderPlatform = (bRequireSM6 == false) || (GMaxRHIShaderPlatform == SP_PCD3D_SM6);
+				const bool bRayTracingAllowedOnCurrentShaderPlatform = (GMaxRHIShaderPlatform == SP_PCD3D_SM6);
 
 				if (D3D12Caps5.RaytracingTier >= D3D12_RAYTRACING_TIER_1_0
 					&& GetResourceBindingTier() >= D3D12_RESOURCE_BINDING_TIER_2
@@ -1024,7 +1021,7 @@ void FD3D12Adapter::InitializeDevices()
 						}
 						else
 						{
- 							UE_LOG(LogD3D12RHI, Log, TEXT("Ray tracing is disabled because SM6 shader platform is required (r.RayTracing.RequireSM6=1)."));
+ 							UE_LOG(LogD3D12RHI, Log, TEXT("Ray tracing is disabled because SM6 shader platform is required."));
 						}
 					}
 					else if (GRHIBindlessSupport == ERHIBindlessSupport::Unsupported)

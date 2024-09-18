@@ -497,10 +497,7 @@ void URendererSettings::CheckForMissingShaderModels()
 {
 	// Don't show the SM6 toasts on non-Windows/Linux platforms to avoid confusion around platform requirements.
 #if PLATFORM_WINDOWS || PLATFORM_LINUX
-	static IConsoleVariable* RayTracingRequireSM6CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.RayTracing.RequireSM6"));
-	const bool bRayTracingRequireSM6 = bEnableRayTracing && RayTracingRequireSM6CVar && RayTracingRequireSM6CVar->GetBool();
-
-	if (GIsEditor && (ShadowMapMethod == EShadowMapMethod::VirtualShadowMaps || bRayTracingRequireSM6))
+	if (GIsEditor && (ShadowMapMethod == EShadowMapMethod::VirtualShadowMaps || bEnableRayTracing))
 	{
 		auto CopySM6Format = [](const TCHAR* ShaderFormatName, const TArray<FString>& SrcArray, TArray<FString>& DstArray)
 		{
@@ -593,7 +590,7 @@ void URendererSettings::CheckForMissingShaderModels()
 				LOCTEXT("VirtualShadowMapsAndRayTracingNeedsSM6", "Shader Model 6 (SM6) is required to use Virtual Shadow Maps and Ray Tracing.")
 			};
 
-			const uint32 FeatureNeedsSM6Index = (ShadowMapMethod == EShadowMapMethod::VirtualShadowMaps && bRayTracingRequireSM6) ? 2 : (bRayTracingRequireSM6 ? 1 : 0);
+			const uint32 FeatureNeedsSM6Index = (ShadowMapMethod == EShadowMapMethod::VirtualShadowMaps && bEnableRayTracing) ? 2 : (bEnableRayTracing ? 1 : 0);
 
 			if (bProjectMissingD3DSM6)
 			{
