@@ -523,17 +523,6 @@ void UEngineReplicationBridge::StopReplicatingComponent(UActorComponent* ActorCo
 	}
 }
 
-void UEngineReplicationBridge::EndInstantiateFromRemote(FNetRefHandle Handle)
-{
-	if (AActor* Actor = Cast<AActor>(GetReplicatedObject(Handle)))
-	{
-		// Optional
-		//Actor->NetHandle = Handle;
-
-		Actor->PostNetInit();
-	}
-}
-
 //$IRIS todo: move this to be a factory callback
 void UEngineReplicationBridge::OnSubObjectCreatedFromReplication(FNetRefHandle SubObjectHandle)
 {

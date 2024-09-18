@@ -178,3 +178,10 @@ UNetObjectFactory::FInstantiateResult UReplicatedTestObjectFactory::InstantiateR
 	InstantiateResult.Flags |= EReplicationBridgeCreateNetRefHandleResultFlags::AllowDestroyInstanceFromRemote;
 	return InstantiateResult;
 }
+
+void UReplicatedTestObjectFactory::PostInit(const FPostInitContext& Context)
+{
+	UReplicatedTestObject* Instance = CastChecked<UReplicatedTestObject>(Context.Instance);
+
+	Instance->NetRefHandle = Context.Handle;
+}

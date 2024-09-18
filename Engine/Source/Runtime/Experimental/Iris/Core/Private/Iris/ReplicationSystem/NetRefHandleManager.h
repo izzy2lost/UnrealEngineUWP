@@ -153,7 +153,7 @@ public:
 	FNetRefHandle CreateNetObject(FNetRefHandle WantedHandle, FNetHandle GlobalHandle, const FReplicationProtocol* ReplicationProtocol);
 
 	// Create NetObject on request from remote
-	FNetRefHandle CreateNetObjectFromRemote(FNetRefHandle WantedHandle, const FReplicationProtocol* ReplicationProtocol);
+	FNetRefHandle CreateNetObjectFromRemote(FNetRefHandle WantedHandle, const FReplicationProtocol* ReplicationProtocol, FNetObjectFactoryId FactoryId);
 
 	// Attach Instance protocol to handle
 	// Instance can be null, we only track the Instance for legacy support

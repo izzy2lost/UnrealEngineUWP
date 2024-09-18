@@ -121,6 +121,8 @@ public:
 
 	virtual void PostInstantiation(const FPostInstantiationContext& Context) override;
 
+	virtual void PostInit(const FPostInitContext& Context) override;
+
 protected:
 
 	virtual TUniquePtr<UE::Net::FNetObjectCreationHeader> CreateAndFillHeader(UE::Net::FNetRefHandle Handle) override;

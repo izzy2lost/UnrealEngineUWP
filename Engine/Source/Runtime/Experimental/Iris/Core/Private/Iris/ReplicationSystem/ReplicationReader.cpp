@@ -1800,16 +1800,15 @@ void FReplicationReader::DispatchStateData(FNetSerializationContext& Context)
 			}
 		}
 
-		// In the last pass, RPC`s and cleanup cached data
+		// In the last pass, RPC's and cleanup cached data
 		for (FPostDispatchObjectInfo& PostDispatchObjectInfo : MakeArrayView(PostDispatchObjectInfos, NumObjectsPendingPostDistpatch))
 		{
 			FDispatchObjectInfo& Info = *PostDispatchObjectInfo.Info;
 
-			// If object was created this frame it`s initial state is now applied
+			// If the object was created this frame it's initial state is now applied
 			if (Info.bHasState && Info.bIsInitialState)
 			{
-				const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(Info.InternalIndex);
-				ReplicationBridge->CallPostApplyInitialState(ObjectData.RefHandle);
+				ReplicationBridge->CallPostApplyInitialState(Info.InternalIndex);
 			}
 
 			// Dispatch attachment and enqueue for later resolving

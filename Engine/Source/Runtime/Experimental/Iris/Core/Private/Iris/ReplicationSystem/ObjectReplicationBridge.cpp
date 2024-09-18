@@ -918,7 +918,7 @@ FReplicationBridgeCreateNetRefHandleResult UObjectReplicationBridge::CreateNetRe
 	else
 	{
 		// Create NetHandle
-		FNetRefHandle Handle = InternalCreateNetObjectFromRemote(WantedNetHandle, ReplicationProtocol);
+		FNetRefHandle Handle = InternalCreateNetObjectFromRemote(WantedNetHandle, ReplicationProtocol, FactoryId);
 		CreateResult.NetRefHandle = Handle;
 		if (Handle.IsValid())
 		{
@@ -939,9 +939,20 @@ void UObjectReplicationBridge::SubObjectCreatedFromReplication(FNetRefHandle Han
 	OnSubObjectCreatedFromReplication(Handle);
 }
 
-void UObjectReplicationBridge::PostApplyInitialState(FNetRefHandle Handle)
+void UObjectReplicationBridge::PostApplyInitialState(UE::Net::Private::FInternalNetRefIndex InternalObjectIndex)
 {
-	EndInstantiateFromRemote(Handle);
+	using namespace UE::Net;
+	using namespace UE::Net::Private;
+
+	const FNetObjectFactoryId FactoryId = NetRefHandleManager->GetReplicatedObjectDataNoCheck(InternalObjectIndex).NetFactoryId;
+	UNetObjectFactory* Factory = GetNetFactory(FactoryId);
+
+	const UNetObjectFactory::FPostInitContext Context 
+	{ 
+		.Instance = NetRefHandleManager->GetReplicatedObjectInstance(InternalObjectIndex),
+		.Handle = NetRefHandleManager->GetNetRefHandleFromInternalIndex(InternalObjectIndex)
+	};
+	Factory->PostInit(Context);
 }
 
 void UObjectReplicationBridge::PreSendUpdateSingleHandle(FNetRefHandle RefHandle)

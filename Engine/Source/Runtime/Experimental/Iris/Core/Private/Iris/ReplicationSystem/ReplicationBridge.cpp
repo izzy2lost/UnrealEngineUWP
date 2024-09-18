@@ -97,10 +97,6 @@ void UReplicationBridge::SubObjectCreatedFromReplication(FNetRefHandle SubObject
 {
 }
 
-void UReplicationBridge::PostApplyInitialState(FNetRefHandle Handle)
-{
-}
-
 void UReplicationBridge::DetachInstanceFromRemote(FNetRefHandle Handle, EReplicationBridgeDestroyInstanceReason DestroyReason, EReplicationBridgeDestroyInstanceFlags DestroyFlags)
 {
 }
@@ -316,9 +312,9 @@ void UReplicationBridge::CallSubObjectCreatedFromReplication(FNetRefHandle SubOb
 	SubObjectCreatedFromReplication(SubObjectHandle);
 }
 
-void UReplicationBridge::CallPostApplyInitialState(FNetRefHandle Handle)
+void UReplicationBridge::CallPostApplyInitialState(UE::Net::Private::FInternalNetRefIndex InternalObjectIndex)
 {
-	PostApplyInitialState(Handle);
+	PostApplyInitialState(InternalObjectIndex);
 }
 
 UReplicationBridge::~UReplicationBridge()
@@ -413,9 +409,9 @@ UE::Net::FNetRefHandle UReplicationBridge::InternalCreateNetObject(FNetRefHandle
 	return InternalCreateNetObject(AllocatedHandle, FNetHandle(), ReplicationProtocol);
 }
 
-UE::Net::FNetRefHandle UReplicationBridge::InternalCreateNetObjectFromRemote(FNetRefHandle WantedNetHandle, const UE::Net::FReplicationProtocol* ReplicationProtocol)
+UE::Net::FNetRefHandle UReplicationBridge::InternalCreateNetObjectFromRemote(FNetRefHandle WantedNetHandle, const UE::Net::FReplicationProtocol* ReplicationProtocol, UE::Net::FNetObjectFactoryId FactoryId)
 {
-	FNetRefHandle Handle = NetRefHandleManager->CreateNetObjectFromRemote(WantedNetHandle, ReplicationProtocol);
+	FNetRefHandle Handle = NetRefHandleManager->CreateNetObjectFromRemote(WantedNetHandle, ReplicationProtocol, FactoryId);
 
 	if (Handle.IsValid())
 	{
