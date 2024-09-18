@@ -4,6 +4,7 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Input/STextComboBox.h"
 #include "Widgets/SToolTip.h"
@@ -31,96 +32,108 @@
 //////////////////////////////////////////////////////////////////////////
 // SPreviewSceneProfileSelector
 
-SPreviewSceneProfileSelector::~SPreviewSceneProfileSelector()
-{
-	if (PreviewProfileController)
-	{
-		PreviewProfileController->OnPreviewProfileListChanged().RemoveAll(this);
-		PreviewProfileController->OnPreviewProfileChanged().RemoveAll(this);
-	}
-}
-
 void SPreviewSceneProfileSelector::Construct(const FArguments& InArgs)
 {
 	PreviewProfileController = InArgs._PreviewProfileController;
-	if (PreviewProfileController)
-	{
-		PreviewProfileController->OnPreviewProfileListChanged().AddRaw(this, &SPreviewSceneProfileSelector::UpdateAssetViewerProfileList);
-		PreviewProfileController->OnPreviewProfileChanged().AddRaw(this, &SPreviewSceneProfileSelector::UpdateAssetViewerProfileSelection);
-		UpdateAssetViewerProfileList();
-	}
-	
+
+	// clang-format off
+	TSharedRef<SHorizontalBox> ButtonContent = 
+		SNew(SHorizontalBox)
+		+SHorizontalBox::Slot()
+		.VAlign(VAlign_Center)
+		.HAlign(HAlign_Center)
+		.AutoWidth()
+		.Padding(4.0f, 0.0f, 4.f, 0.0f)
+		[
+			SNew(SImage)
+			.Image(FAppStyle::GetBrush("AssetEditor.PreviewSceneSettings"))
+			.ColorAndOpacity(FSlateColor::UseForeground())
+		]
+		+SHorizontalBox::Slot()
+		.Padding(0.0f, 0.0f, 4.f, 0.0f)
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		[
+			SNew(STextBlock)
+			.Margin(FMargin(0))
+			.Text_Lambda(
+				[this]() -> FText
+				{
+					return FText::FromString(PreviewProfileController->GetActiveProfile());
+				}
+			)
+		];
+	// clang-format on
+
+	// clang-format off
 	ChildSlot
 	[
 		SNew(SVerticalBox)
 		+SVerticalBox::Slot()
 		.AutoHeight()
 		[
-			SAssignNew(AssetViewerProfileComboBox, STextComboBox)//SComboBox<TSharedPtr<FString>>)
-			.OptionsSource(&AssetViewerProfileNames)
+			SAssignNew(AssetViewerProfileComboButton, SComboButton)
 			.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("EditorViewportToolBar.Button"))
-			.ContentPadding(FMargin(2, 0))
-			.ToolTipText(LOCTEXT("AssetViewerProfile_ToolTip", "Select the Preview Scene Profile for this viewport."))
-			.OnSelectionChanged(this, &SPreviewSceneProfileSelector::OnSelectionChanged)
-			.Visibility_Lambda([this]() { return AssetViewerProfileNames.Num() > 1 ? EVisibility::Visible : EVisibility::Collapsed; })
+			.ContentPadding(FMargin(0))
+			.HasDownArrow(false)
+			.OnGetMenuContent(this, &SPreviewSceneProfileSelector::BuildComboMenu)
+			.ButtonContent()
+			[
+				ButtonContent
+			]
 		]
 	];
-
-	UpdateAssetViewerProfileSelection();
+	// clang-format on
 }
 
-void SPreviewSceneProfileSelector::OnSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo)
+TSharedRef<SWidget> SPreviewSceneProfileSelector::BuildComboMenu()
 {
-	int32 NewSelectionIndex;
-	if (AssetViewerProfileNames.Find(NewSelection, NewSelectionIndex))
+	const bool bShouldCloseWindowAfterMenuSelection = true;
+	TSharedPtr<const FUICommandList> CommandList = nullptr;
+	FMenuBuilder MenuBuilder(bShouldCloseWindowAfterMenuSelection, CommandList);
+
+	MenuBuilder.BeginSection(NAME_None, LOCTEXT("PreviewSceneProfilesSectionLabel", "Preview Scene Profiles"));
+
+	int32 UnusedActiveIndex;
+	const FName UnusedExtensionHook = NAME_None;
+	const TArray<FString> PreviewProfiles = PreviewProfileController->GetPreviewProfiles(UnusedActiveIndex);
+	for (const FString& ProfileName : PreviewProfiles)
 	{
-		// If that's the user changing the combo box, not an update coming from code to reflect a change that already occurred.
-		if (SelectInfo != ESelectInfo::Direct)
-		{
-			PreviewProfileController->SetActiveProfile(*NewSelection);
-		}
+		MenuBuilder.AddMenuEntry(
+			FText::FromString(ProfileName),
+			FText(),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateLambda(
+					[this, WeakController = PreviewProfileController.ToWeakPtr(), ProfileName]()
+					{
+						if (TSharedPtr<IPreviewProfileController> PinnedController = WeakController.Pin())
+						{
+							PinnedController->SetActiveProfile(ProfileName);
+						}
+					}
+				),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateLambda(
+					[WeakController = PreviewProfileController.ToWeakPtr(), ProfileName]()
+					{
+						if (TSharedPtr<IPreviewProfileController> PinnedController = WeakController.Pin())
+						{
+							return ProfileName == PinnedController->GetActiveProfile();
+						}
+
+						return false;
+					}
+				)
+			),
+			UnusedExtensionHook,
+			EUserInterfaceActionType::RadioButton
+		);
 	}
-}
 
-void SPreviewSceneProfileSelector::UpdateAssetViewerProfileList()
-{
-	if (PreviewProfileController)
-	{
-		// Pull the latest profile list.
-		int32 CurrProfileIndex = 0;
-		TArray<FString> ProfileNames = PreviewProfileController->GetPreviewProfiles(CurrProfileIndex);
+	MenuBuilder.EndSection();
 
-		// Rebuild the combo box list.
-		AssetViewerProfileNames.Empty();
-		for (const FString& Profile : ProfileNames)
-		{
-			AssetViewerProfileNames.Add(MakeShared<FString>(Profile));
-		}
-
-		// Select the current profile item.
-		if (AssetViewerProfileComboBox)
-		{
-			AssetViewerProfileComboBox->RefreshOptions();
-			AssetViewerProfileComboBox->SetSelectedItem(AssetViewerProfileNames[CurrProfileIndex]);
-		}
-	}
-}
-
-void SPreviewSceneProfileSelector::UpdateAssetViewerProfileSelection()
-{
-	if (PreviewProfileController)
-	{
-		FString ActiveProfileName = PreviewProfileController->GetActiveProfile();
-		if (TSharedPtr<FString>* Match = AssetViewerProfileNames.FindByPredicate(
-			[&ActiveProfileName](const TSharedPtr<FString>& Candidate) { return *Candidate == ActiveProfileName; }))
-		{
-			AssetViewerProfileComboBox->SetSelectedItem(*Match);
-		}
-		else // The profile was likely renamed.
-		{
-			UpdateAssetViewerProfileList();
-		}
-	}
+	return MenuBuilder.MakeWidget();
 }
 
 //////////////////////////////////////////////////////////////////////////
