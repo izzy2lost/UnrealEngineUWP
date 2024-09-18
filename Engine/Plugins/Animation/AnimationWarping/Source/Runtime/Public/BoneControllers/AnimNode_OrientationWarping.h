@@ -221,6 +221,7 @@ private:
 	
 	// Internal current frame root motion delta direction
 	FVector RootMotionDeltaDirection = FVector::ZeroVector;
+	FQuat RootMotionDeltaRotation = FQuat::Identity;
 
 	// Internal orientation warping angle
 	float ActualOrientationAngleRad = 0.f;
