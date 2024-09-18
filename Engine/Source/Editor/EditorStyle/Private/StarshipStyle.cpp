@@ -1215,6 +1215,8 @@ void FStarshipEditorStyle::FStyle::SetupGeneralStyles()
 		Set( "AssetEditor.ReadOnlyBorder", new FSlateRoundedBoxBrush(FStyleColors::Foreground, 10.0f));
 		Set("AssetEditor.ReadOnlyOpenable", new IMAGE_BRUSH_SVG("Starship/AssetEditors/LockEye", Icon16x16));
 
+		Set("AssetEditor.PreviewSceneSettings",
+			new IMAGE_BRUSH_SVG("Starship/AssetEditors/PreviewSceneSettings_16", Icon16x16));
 	}
 		
 	// Asset Thumbnail

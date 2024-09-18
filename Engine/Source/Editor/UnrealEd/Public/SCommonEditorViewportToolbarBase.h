@@ -10,10 +10,13 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "SViewportToolBar.h"
 #include "IPreviewProfileController.h"
+#include "Templates/SharedPointer.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
 
 #include "SCommonEditorViewportToolbarBase.generated.h"
+
+class SComboButton;
 
 // This is the interface that the host of a SCommonEditorViewportToolbarBase must implement
 class ICommonEditorViewportToolbarInfoProvider
@@ -79,9 +82,10 @@ public:
 class UNREALED_API SPreviewSceneProfileSelector : public SCompoundWidget
 {
 public:
+	virtual ~SPreviewSceneProfileSelector() override
+	{
+	}
 
-	virtual ~SPreviewSceneProfileSelector() override;
-	
 	SLATE_BEGIN_ARGS(SPreviewSceneProfileSelector)
 	{}
 	SLATE_ARGUMENT(TSharedPtr<IPreviewProfileController>, PreviewProfileController)
@@ -90,13 +94,20 @@ public:
 	void Construct(const FArguments& InArgs);
 
 protected:
-	
-	/** Update the list of asset viewer profiles displayed by the combo box. */
-	void UpdateAssetViewerProfileList();
-	void UpdateAssetViewerProfileSelection();
+	UE_DEPRECATED(5.5, "Unused")
+	void UpdateAssetViewerProfileList()
+	{
+	}
 
-	/** Invoked when the asset viewer profile combo box selection changes. */
-	void OnSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type /*SelectInfo*/);
+	UE_DEPRECATED(5.5, "Unused")
+	void UpdateAssetViewerProfileSelection()
+	{
+	}
+
+	UE_DEPRECATED(5.5, "Unused")
+	void OnSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type /*SelectInfo*/)
+	{
+	}
 
 	/** Creates and returns the asset viewer profile combo box.*/
 	TSharedRef<SWidget> MakeAssetViewerProfileComboBox();
@@ -105,11 +116,11 @@ private:
 	/** Interface to set/get/list the preview profiles. */
 	TSharedPtr<IPreviewProfileController> PreviewProfileController;
 
-	/** List of advanced preview profiles to fill up the Profiles combo box. */
-	TArray<TSharedPtr<FString>> AssetViewerProfileNames;
-
 	/** Displays/Selects the active advanced viewer profile. */
-	TSharedPtr<STextComboBox> AssetViewerProfileComboBox;
+	TSharedPtr<SComboButton> AssetViewerProfileComboButton;
+
+	/** Builds the drop-down list for selecting a viewer profile. */
+	TSharedRef<SWidget> BuildComboMenu();
 };
 
 /**
