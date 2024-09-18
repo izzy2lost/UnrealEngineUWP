@@ -35,5 +35,5 @@ private:
 	class IDetailLayoutBuilder* DetailBuilderPtr;
 
 	void OnBoneComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo, TSharedRef<IPropertyHandle> BoneProperty);
-	void OnReferenceSkeletonIndexChanged();
+	void OnReferenceSkeletonComponentChanged();
 };

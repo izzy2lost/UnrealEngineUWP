@@ -174,6 +174,11 @@ void UCustomizableObjectNodeModifierClipMorph::BackwardsCompatibleFixup(int32 Cu
 		RequiredTags = Tags_DEPRECATED;
 		Tags_DEPRECATED.Empty();
 	}
+
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::SnapToBoneComponentIndexToName)
+	{
+		ReferenceSkeletonComponent = FName(FString::FromInt(ReferenceSkeletonIndex_DEPRECATED));
+	}
 }
 
 

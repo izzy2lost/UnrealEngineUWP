@@ -48,6 +48,11 @@ void UCustomizableObjectNodeProjectorParameter::BackwardsCompatibleFixup(int32 C
 	{
 		DefaultValue.ProjectionType = ProjectionType_DEPRECATED;
 	}
+
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::SnapToBoneComponentIndexToName)
+	{
+		ReferenceSkeletonComponent = FName(FString::FromInt(ReferenceSkeletonIndex_DEPRECATED));
+	}
 }
 
 

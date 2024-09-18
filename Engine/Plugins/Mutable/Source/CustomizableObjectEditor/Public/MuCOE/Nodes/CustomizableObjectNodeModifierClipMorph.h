@@ -28,8 +28,10 @@ public:
 	UPROPERTY()
 	TArray<FString> Tags_DEPRECATED;
 
+	uint32 ReferenceSkeletonIndex_DEPRECATED = 0;
+
 	UPROPERTY(EditAnywhere, Category = MeshToClipAndMorph)
-	uint32 ReferenceSkeletonIndex = 0;
+	FName ReferenceSkeletonComponent;
 
 	UPROPERTY(EditAnywhere, Category = MeshClipParameters, meta = (DisplayName="Morph Start Offset", ToolTip="Offset from the origin of the selected bone to the actual start of the morph."))
 	FVector StartOffset;
