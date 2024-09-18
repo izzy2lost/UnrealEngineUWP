@@ -672,7 +672,10 @@ void UFootageCaptureData::PopulateCameraNames(UFootageCaptureData* InFootageCapt
 		{
 			for (const FExtendedLensFile& LensFile : CameraCalibration->CameraCalibrations)
 			{
-				OutCameraNames.Add(MakeShared<FString>(LensFile.Name));
+				if (!LensFile.IsDepthCamera)
+				{
+					OutCameraNames.Add(MakeShared<FString>(LensFile.Name));
+				}
 			}
 		}
 	}
