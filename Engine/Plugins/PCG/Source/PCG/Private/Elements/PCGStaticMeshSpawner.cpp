@@ -49,6 +49,8 @@ TCHAR const* UPCGStaticMeshSpawnerSettings::TemplateFilePath = TEXT("/Plugin/PCG
 
 bool UPCGStaticMeshSpawnerSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGStaticMeshSpawnerSettings::IsKernelValid);
+
 	if (!Super::IsKernelValid(InContext, bQuiet))
 	{
 		return false;

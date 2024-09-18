@@ -254,6 +254,7 @@ void UPCGLandscapeDataInterface::GetHLSL(FString& OutHLSL, FString const& InData
 
 UComputeDataProvider* UPCGLandscapeDataInterface::CreateDataProvider(TObjectPtr<UObject> InBinding, uint64 InInputMask, uint64 InOutputMask) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGLandscapeDataInterface::CreateDataProvider);
 	UPCGDataBinding* Binding = CastChecked<UPCGDataBinding>(InBinding);
 	check(Binding->SourceComponent.IsValid() && Binding->SourceComponent.Get());
 
@@ -313,6 +314,7 @@ UComputeDataProvider* UPCGLandscapeDataInterface::CreateDataProvider(TObjectPtr<
 
 void UPCGLandscapeDataProvider::Initialize(ALandscape* InLandscape, const FBox& Bounds)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGLandscapeDataProvider::Initialize);
 	check(IsInGameThread());
 
 	const ULandscapeInfo* LandscapeInfo = InLandscape ? InLandscape->GetLandscapeInfo() : nullptr;

@@ -16,6 +16,7 @@ void UPCGDataBinding::Initialize(
 	const FPCGDataCollection& InComputeGraphElementInputData,
 	const TMap<FName, FPCGKernelAttributeIDAndType>& InStaticAttributeTable)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGDataBinding::Initialize);
 	check(InComputeGraph);
 
 	Graph = InComputeGraph;
@@ -36,6 +37,8 @@ void UPCGDataBinding::Initialize(
 
 void UPCGDataBinding::InitializeInputData(const FPCGDataCollection& InComputeGraphElementInputData)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGDataBinding::InitializeInputData);
+
 	DataForGPU.InputDataCollection = InComputeGraphElementInputData;
 
 	// Link each input pin to the data collection, so that data providers can find the data.
@@ -54,6 +57,8 @@ void UPCGDataBinding::InitializeInputData(const FPCGDataCollection& InComputeGra
 
 void UPCGDataBinding::BuildStringTable()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGDataBinding::BuildStringTable);
+
 	for (const FPCGTaggedData& Data : DataForGPU.InputDataCollection.TaggedData)
 	{
 		const UPCGMetadata* Metadata = Data.Data ? Data.Data->ConstMetadata() : nullptr;
