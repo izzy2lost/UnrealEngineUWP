@@ -92,6 +92,18 @@ void FDisplayClusterConfiguratorKismetCompilerContext::PreCompile()
 	ValidateConfiguration();
 }
 
+void FDisplayClusterConfiguratorKismetCompilerContext::PostCompile()
+{
+	Super::PostCompile();
+
+	UDisplayClusterBlueprint* DCBlueprint = CastChecked<UDisplayClusterBlueprint>(Blueprint);
+	check(DCBlueprint->GeneratedClass);
+
+	// The parent class (DCRA) may have NotPlaceable flag set. This prevents the child blueprints from
+	// placing into a world. To avoid this limitation, we explicitly clear it because we know it's safe.
+	DCBlueprint->GeneratedClass->ClassFlags &= ~CLASS_NotPlaceable;
+}
+
 void FDisplayClusterConfiguratorKismetCompilerContext::SaveSubObjectsFromCleanAndSanitizeClass(
 	FSubobjectCollection& SubObjectsToSave, UBlueprintGeneratedClass* ClassToClean)
 {
