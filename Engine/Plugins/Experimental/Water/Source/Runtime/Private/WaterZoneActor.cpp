@@ -134,7 +134,7 @@ void AWaterZone::GetAllDynamicWaterInfoBounds(TArray<FBox>& OutBounds) const
 	{
 		const FWaterViewExtension::FWaterZoneInfo* WaterZoneInfo = WaterViewExtension->WaterZoneInfos.Find(this);
 
-		if (ensure(WaterZoneInfo != nullptr))
+		if (WaterZoneInfo != nullptr)
 		{
 			for (const FWaterViewExtension::FWaterZoneInfo::FWaterZoneViewInfo& ViewInfo : WaterZoneInfo->ViewInfos)
 			{
@@ -150,6 +150,10 @@ void AWaterZone::GetAllDynamicWaterInfoBounds(TArray<FBox>& OutBounds) const
 				OutBounds.Emplace(FBox(Center - HalfExtent, Center + HalfExtent));
 			}
 		}
+		else
+		{
+			UE_LOG(LogWater, Verbose, TEXT("AWaterZone (%s) GetAllDynamicWaterInfoBounds did not find any WaterZoneInfo associated to this WaterZone in FWaterViewExtension"), *GetNameSafe(this));
+		}
 	}
 }
 
@@ -159,7 +163,7 @@ void AWaterZone::GetAllDynamicWaterInfoCenters(TArray<FVector>& OutCenters) cons
 	{
 		const FWaterViewExtension::FWaterZoneInfo* WaterZoneInfo = WaterViewExtension->WaterZoneInfos.Find(this);
 
-		if (ensure(WaterZoneInfo != nullptr))
+		if (WaterZoneInfo != nullptr)
 		{
 			for (const FWaterViewExtension::FWaterZoneInfo::FWaterZoneViewInfo& ViewInfo : WaterZoneInfo->ViewInfos)
 			{
@@ -172,6 +176,10 @@ void AWaterZone::GetAllDynamicWaterInfoCenters(TArray<FVector>& OutCenters) cons
 
 				OutCenters.Emplace(Center);
 			}
+		}
+		else
+		{
+			UE_LOG(LogWater, Verbose, TEXT("AWaterZone (%s) GetAllDynamicWaterInfoCenters did not find any WaterZoneInfo associated to this WaterZone in FWaterViewExtension"), *GetNameSafe(this));
 		}
 	}
 }
