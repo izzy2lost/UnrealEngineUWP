@@ -20,6 +20,7 @@ public:
 	virtual TSet<FName> GetKeys() const override;
 	virtual ESequencerTextFilterValueType GetValueType() const override;
 	virtual FText GetDescription() const override;
+	virtual TArray<FSequencerTextFilterKeyword> GetValueKeywords() const override;
 	//~ End FSequencerTextFilterExpressionContext
 
 	//~ Begin ITextFilterExpressionContext

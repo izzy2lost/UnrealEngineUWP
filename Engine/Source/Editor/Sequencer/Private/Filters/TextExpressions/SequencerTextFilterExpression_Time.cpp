@@ -18,7 +18,7 @@ FSequencerTextFilterExpression_Time::FSequencerTextFilterExpression_Time(ISequen
 
 TSet<FName> FSequencerTextFilterExpression_Time::GetKeys() const
 {
-	return { TEXT("TIME") };
+	return { TEXT("Time") };
 }
 
 ESequencerTextFilterValueType FSequencerTextFilterExpression_Time::GetValueType() const
@@ -29,6 +29,15 @@ ESequencerTextFilterValueType FSequencerTextFilterExpression_Time::GetValueType(
 FText FSequencerTextFilterExpression_Time::GetDescription() const
 {
 	return LOCTEXT("ExpressionDescription_Time", "Filter by time range (frame number)");
+}
+
+TArray<FSequencerTextFilterKeyword> FSequencerTextFilterExpression_Time::GetValueKeywords() const
+{
+	return {
+		{ TEXT("Now"), LOCTEXT("NowKeywordDescription", "Use the current playhead time value") },
+		{ TEXT("Start"), LOCTEXT("StartKeywordDescription", "Use the start time of the sequence") },
+		{ TEXT("End"), LOCTEXT("EndKeywordDescription", "Use the end time of the sequence") }
+	};
 }
 
 bool FSequencerTextFilterExpression_Time::TestComplexExpression(const FName& InKey

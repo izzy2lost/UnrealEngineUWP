@@ -16,6 +16,12 @@ enum class SEQUENCER_API ESequencerTextFilterValueType : uint8
 	Integer
 };
 
+struct SEQUENCER_API FSequencerTextFilterKeyword
+{
+	FString Keyword;
+	FText Description;
+};
+
 /** Text expression context to test the given asset data against the current text filter */
 class FSequencerTextFilterExpressionContext : public ITextFilterExpressionContext
 { 
@@ -25,9 +31,11 @@ public:
 	void SetFilterItem(FSequencerTrackFilterType InFilterItem, UMovieSceneTrack* const InTrackObject);
 
 	//~ Begin FSequencerTextFilterExpressionContext
-	virtual TSet<FName> GetKeys() const = 0;
-	virtual ESequencerTextFilterValueType GetValueType() const = 0;
-	virtual FText GetDescription() const = 0;
+	SEQUENCER_API virtual TSet<FName> GetKeys() const = 0;
+	SEQUENCER_API virtual ESequencerTextFilterValueType GetValueType() const = 0;
+	SEQUENCER_API virtual FText GetDescription() const = 0;
+	SEQUENCER_API virtual FText GetCategory() const { return FText::GetEmpty(); }
+	SEQUENCER_API virtual TArray<FSequencerTextFilterKeyword> GetValueKeywords() const { return {}; }
 	//~ End FSequencerTextFilterExpressionContext
 
 	//~ Begin ITextFilterExpressionContext
@@ -43,12 +51,12 @@ public:
 	//~ End ITextFilterExpressionContext
 
 protected:
-	UMovieSceneSequence* GetFocusedMovieSceneSequence() const;
-	UMovieScene* GetFocusedGetMovieScene() const;
+	SEQUENCER_API UMovieSceneSequence* GetFocusedMovieSceneSequence() const;
+	SEQUENCER_API UMovieScene* GetFocusedGetMovieScene() const;
 
-	bool CompareFStringForExactBool(const FTextFilterString& InValue, const bool bInPassedFilter) const;
+	SEQUENCER_API bool CompareFStringForExactBool(const FTextFilterString& InValue, const bool bInPassedFilter) const;
 
-	bool CompareFStringForExactBool(const FTextFilterString& InValue
+	SEQUENCER_API bool CompareFStringForExactBool(const FTextFilterString& InValue
 		, const ETextFilterComparisonOperation InComparisonOperation
 		, const bool bInPassedFilter) const;
 

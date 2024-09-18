@@ -39,7 +39,7 @@ void FSequencerTextFilterExpression_Selected::UnbindSelectionChanged()
 
 TSet<FName> FSequencerTextFilterExpression_Selected::GetKeys() const
 {
-	return { TEXT("SELECTED"), TEXT("VIEWPORT") };
+	return { TEXT("Selected"), TEXT("Viewport") };
 }
 
 ESequencerTextFilterValueType FSequencerTextFilterExpression_Selected::GetValueType() const

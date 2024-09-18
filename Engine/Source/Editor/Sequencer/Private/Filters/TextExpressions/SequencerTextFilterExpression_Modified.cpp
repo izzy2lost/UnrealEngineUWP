@@ -14,7 +14,7 @@ FSequencerTextFilterExpression_Modified::FSequencerTextFilterExpression_Modified
 
 TSet<FName> FSequencerTextFilterExpression_Modified::GetKeys() const
 {
-	return { TEXT("MODIFIED"), TEXT("CHANGED"), TEXT("DIRTY") };
+	return { TEXT("Modified"), TEXT("Changed"), TEXT("Dirty") };
 }
 
 ESequencerTextFilterValueType FSequencerTextFilterExpression_Modified::GetValueType() const

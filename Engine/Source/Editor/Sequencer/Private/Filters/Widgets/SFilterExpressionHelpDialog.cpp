@@ -174,7 +174,7 @@ TSharedRef<SWidget> SFilterExpressionHelpDialog::ConstructKeysWidget(const TSet<
 				.AutoWidth()
 				[
 					SNew(STextBlock)
-					.Text(LOCTEXT("KeySeperator", " | "))
+					.Text(LOCTEXT("KeySeparator", " | "))
 				];
 		}
 
@@ -218,14 +218,14 @@ TSharedRef<SWidget> SFilterExpressionHelpDialog::ConstructValueWidget(const ESeq
 	{
 	case ESequencerTextFilterValueType::String:
 		AddValueTypeSlot(LessThanText);
-		AddValueTypeSlot(LOCTEXT("StringValue", "STRING"), ValueColor);
+		AddValueTypeSlot(LOCTEXT("StringValue", "String"), ValueColor);
 		AddValueTypeSlot(GreaterThanText);
 		break;
 	case ESequencerTextFilterValueType::Boolean:
 		AddValueTypeSlot(LessThanText);
-		AddValueTypeSlot(LOCTEXT("TrueValue", "TRUE"), ValueColor);
+		AddValueTypeSlot(LOCTEXT("TrueValue", "True"), ValueColor);
 		AddValueTypeSlot(LOCTEXT("Slash", "/"));
-		AddValueTypeSlot(LOCTEXT("FalseValue", "FALSE"), ValueColor);
+		AddValueTypeSlot(LOCTEXT("FalseValue", "False"), ValueColor);
 		AddValueTypeSlot(GreaterThanText);
 		break;
 	case ESequencerTextFilterValueType::Integer:

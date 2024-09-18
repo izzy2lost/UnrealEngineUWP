@@ -17,7 +17,7 @@ FSequencerTextFilterExpression_ConditionClass::FSequencerTextFilterExpression_Co
 
 TSet<FName> FSequencerTextFilterExpression_ConditionClass::GetKeys() const
 {
-	return { TEXT("CONDITIONCLASS"), TEXT("CONDITIONTYPE") };
+	return { TEXT("ConditionClass"), TEXT("ConditionType") };
 }
 
 ESequencerTextFilterValueType FSequencerTextFilterExpression_ConditionClass::GetValueType() const
@@ -27,7 +27,7 @@ ESequencerTextFilterValueType FSequencerTextFilterExpression_ConditionClass::Get
 
 FText FSequencerTextFilterExpression_ConditionClass::GetDescription() const
 {
-	return LOCTEXT("ExpressionDescription_ConditionClass", "Filters based on the presence of a condition with the given type");
+	return LOCTEXT("ExpressionDescription_ConditionClass", "Filter by presence of a condition with the given type");
 }
 
 bool FSequencerTextFilterExpression_ConditionClass::TestComplexExpression(const FName& InKey

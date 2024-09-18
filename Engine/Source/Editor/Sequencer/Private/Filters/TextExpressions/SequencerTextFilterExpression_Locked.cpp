@@ -15,7 +15,7 @@ FSequencerTextFilterExpression_Locked::FSequencerTextFilterExpression_Locked(ISe
 
 TSet<FName> FSequencerTextFilterExpression_Locked::GetKeys() const
 {
-	return { TEXT("LOCK"), TEXT("LOCKED") };
+	return { TEXT("Lock"), TEXT("Locked") };
 }
 
 ESequencerTextFilterValueType FSequencerTextFilterExpression_Locked::GetValueType() const

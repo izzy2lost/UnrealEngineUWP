@@ -14,7 +14,7 @@ FSequencerTextFilterExpression_Keyed::FSequencerTextFilterExpression_Keyed(ISequ
 
 TSet<FName> FSequencerTextFilterExpression_Keyed::GetKeys() const
 {
-	return { TEXT("KEYED"), TEXT("KEYS"), TEXT("ANIMATED") };
+	return { TEXT("Keyed"), TEXT("Keys"), TEXT("Animated") };
 }
 
 ESequencerTextFilterValueType FSequencerTextFilterExpression_Keyed::GetValueType() const
@@ -24,7 +24,7 @@ ESequencerTextFilterValueType FSequencerTextFilterExpression_Keyed::GetValueType
 
 FText FSequencerTextFilterExpression_Keyed::GetDescription() const
 {
-	return LOCTEXT("ExpressionDescription_Keys", "Filter by keys");
+	return LOCTEXT("ExpressionDescription_Keys", "Filter by presence of keys");
 }
 
 bool FSequencerTextFilterExpression_Keyed::TestComplexExpression(const FName& InKey
