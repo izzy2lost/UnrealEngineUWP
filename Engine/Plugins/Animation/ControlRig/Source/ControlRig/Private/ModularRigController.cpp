@@ -403,7 +403,7 @@ bool UModularRigController::DisconnectConnector_Internal(const FRigElementKey& I
 		TArray<FRigElementKey> ConnectionsToRemove;
 		for (const FModularRigSingleConnection& Connection : Model->Connections)
 		{
-			if (Connection.Connector.Name.ToString().StartsWith(ConnectorModulePath, ESearchCase::CaseSensitive))
+			if (Connection.Connector.Name.ToString().StartsWith(ConnectorModulePath, ESearchCase::IgnoreCase))
 			{
 				ConnectionsToRemove.Add(Connection.Connector);
 			}
@@ -425,7 +425,7 @@ bool UModularRigController::DisconnectConnector_Internal(const FRigElementKey& I
 		{
 			FString OtherConnectorModulePath, OtherConnectorName;
 			(void)URigHierarchy::SplitNameSpace(Connection.Connector.Name.ToString(), &OtherConnectorModulePath, &OtherConnectorName);
-			if (OtherConnectorModulePath.StartsWith(ConnectorModulePath, ESearchCase::CaseSensitive) && OtherConnectorModulePath.Len() > ConnectorModulePath.Len())
+			if (OtherConnectorModulePath.StartsWith(ConnectorModulePath, ESearchCase::IgnoreCase) && OtherConnectorModulePath.Len() > ConnectorModulePath.Len())
 			{
 				ConnectionsToRemove.Add(Connection.Connector);
 			}
@@ -828,7 +828,7 @@ TArray<FString> UModularRigController::GetPossibleBindings(const FString& InModu
 	Model->ForEachModule([this, &PossibleBindings, InModulePath, InVariableName, InvalidModulePrefix](const FRigModuleReference* InModule) -> bool
 	{
 		const FString CurModulePath = InModule->GetPath();
-		if (InModulePath != CurModulePath && !CurModulePath.StartsWith(InvalidModulePrefix, ESearchCase::CaseSensitive))
+		if (InModulePath != CurModulePath && !CurModulePath.StartsWith(InvalidModulePrefix, ESearchCase::IgnoreCase))
 		{
 			if (!InModule->Class.IsValid())
 			{
@@ -895,7 +895,7 @@ bool UModularRigController::CanBindModuleVariable(const FString& InModulePath, c
 			return false;
 		}
 
-		if (SourceModulePath.StartsWith(InModulePath, ESearchCase::CaseSensitive))
+		if (SourceModulePath.StartsWith(InModulePath, ESearchCase::IgnoreCase))
 		{
 			OutErrorMessage = FText::FromString(FString::Printf(TEXT("Cannot bind variable of module %s to a variable of module %s because the source module is a child of the target module"), *InModulePath, *SourceModulePath));
 			return false;
@@ -1179,11 +1179,11 @@ FString UModularRigController::RenameModule(const FString& InModulePath, const F
 		const FString NewNamespace = NewPath + TEXT(":");
 		for (FModularRigSingleConnection& Connection : Model->Connections)
 		{
-			if (Connection.Connector.Name.ToString().StartsWith(OldNamespace, ESearchCase::CaseSensitive))
+			if (Connection.Connector.Name.ToString().StartsWith(OldNamespace, ESearchCase::IgnoreCase))
 			{
 				Connection.Connector.Name = *FString::Printf(TEXT("%s%s"), *NewNamespace, *Connection.Connector.Name.ToString().RightChop(OldNamespace.Len()));
 			}
-			if (Connection.Target.Name.ToString().StartsWith(OldNamespace, ESearchCase::CaseSensitive))
+			if (Connection.Target.Name.ToString().StartsWith(OldNamespace, ESearchCase::IgnoreCase))
 			{
 				Connection.Target.Name = *FString::Printf(TEXT("%s%s"), *NewNamespace, *Connection.Target.Name.ToString().RightChop(OldNamespace.Len()));
 			}
@@ -1263,7 +1263,7 @@ FString UModularRigController::ReparentModule(const FString& InModulePath, const
 	const FRigModuleReference* NewParentModule = FindModule(InNewParentModulePath);
 	const FString PreviousParentPath = Module->ParentPath;
 	const FString ParentPath = (NewParentModule) ? NewParentModule->GetPath() : FString();
-	if(PreviousParentPath.Equals(ParentPath, ESearchCase::CaseSensitive))
+	if(PreviousParentPath.Equals(ParentPath, ESearchCase::IgnoreCase))
 	{
 		return Module->GetPath();
 	}
@@ -1310,11 +1310,11 @@ FString UModularRigController::ReparentModule(const FString& InModulePath, const
 	{
 		for (FModularRigSingleConnection& Connection : Model->Connections)
 		{
-			if (Connection.Connector.Name.ToString().StartsWith(OldPath, ESearchCase::CaseSensitive))
+			if (Connection.Connector.Name.ToString().StartsWith(OldPath, ESearchCase::IgnoreCase))
 			{
 				Connection.Connector.Name = *FString::Printf(TEXT("%s%s"), *NewPath, *Connection.Connector.Name.ToString().RightChop(OldPath.Len()));
 			}
-			if (Connection.Target.Name.ToString().StartsWith(OldPath, ESearchCase::CaseSensitive))
+			if (Connection.Target.Name.ToString().StartsWith(OldPath, ESearchCase::IgnoreCase))
 			{
 				Connection.Target.Name = *FString::Printf(TEXT("%s%s"), *NewPath, *Connection.Target.Name.ToString().RightChop(OldPath.Len()));
 			}
@@ -2089,7 +2089,7 @@ void UModularRigController::UpdateShortNames()
 				}
 			}
 
-			if(!Module.ShortName.Equals(ShortPath, ESearchCase::CaseSensitive))
+			if(!Module.ShortName.Equals(ShortPath, ESearchCase::IgnoreCase))
 			{
 				Module.ShortName = ShortPath;
 				Notify(EModularRigNotification::ModuleShortNameChanged, &Module);

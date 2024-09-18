@@ -764,7 +764,7 @@ FText FRigModuleInstanceDetails::GetName() const
 		{
 			if(const FRigModuleInstance* Module = PerModuleInfos[i].GetModule())
 			{
-				if (!Module->Name.IsEqual(FirstValue, ENameCase::CaseSensitive))
+				if (!Module->Name.IsEqual(FirstValue, ENameCase::IgnoreCase))
 				{
 					bSame = false;
 					break;
@@ -843,7 +843,7 @@ FText FRigModuleInstanceDetails::GetShortName() const
 		{
 			if(const FRigModuleInstance* Module = PerModuleInfos[i].GetModule())
 			{
-				if (!Module->GetShortName().Equals(FirstValue, ESearchCase::CaseSensitive))
+				if (!Module->GetShortName().Equals(FirstValue, ESearchCase::IgnoreCase))
 				{
 					bSame = false;
 					break;
@@ -915,7 +915,7 @@ FText FRigModuleInstanceDetails::GetLongName() const
 		{
 			if(const FRigModuleInstance* Module = PerModuleInfos[i].GetModule())
 			{
-				if (!Module->GetLongName().Equals(FirstValue, ESearchCase::CaseSensitive))
+				if (!Module->GetLongName().Equals(FirstValue, ESearchCase::IgnoreCase))
 				{
 					bSame = false;
 					break;
