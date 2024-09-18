@@ -12,6 +12,13 @@
 #include "Misc/OutputDeviceNull.h"
 #include "JsonObjectConverter.h"
 
+// For dynamic serialization support
+#if UE_WITH_IRIS
+#include "Net/Core/NetToken/NetTokenExportContext.h"
+#include "GameplayTagTokenStore.h"
+#endif
+#include <Net/Core/Trace/NetTrace.h>
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GameplayTagContainer)
 
 const FGameplayTag FGameplayTag::EmptyTag;
@@ -36,6 +43,9 @@ DECLARE_CYCLE_STAT(TEXT("FGameplayTag::NetSerialize"), STAT_FGameplayTag_NetSeri
 
 static bool GEnableGameplayTagDetailedStats = false;
 static FAutoConsoleVariableRef CVarGameplayTagDetailedStats(TEXT("GameplayTags.EnableDetailedStats"), GEnableGameplayTagDetailedStats, TEXT("Runtime toggle for verbose CPU profiling stats"), ECVF_Default);
+
+static bool GOldReplaysUseGameplayTagFastReplication = true;
+static FAutoConsoleVariableRef CVarOldReplaysUseGameplayTagFastReplication(TEXT("GameplayTags.OldReplaysUseFastReplication"), GOldReplaysUseGameplayTagFastReplication, TEXT("When loading an outdated replay (before dynamic replication), do we assume it used fast replication?"), ECVF_Default);
 
 /**
  *	Replicates a tag in a packed format:
@@ -1213,88 +1223,292 @@ static TSharedPtr<FNetFieldExportGroup> CreateNetfieldExportGroupForNetworkGamep
 	return NetFieldExportGroup;
 }
 
-bool FGameplayTag::NetSerialize_Packed(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
+bool FGameplayTag::NetSerialize_ForReplayUsingFastReplication(FArchive& Ar, UPackageMapClient& PackageMapClient)
 {
-	CONDITIONAL_SCOPE_CYCLE_COUNTER(STAT_FGameplayTag_NetSerialize, GEnableGameplayTagDetailedStats);
-
 	UGameplayTagsManager& TagManager = UGameplayTagsManager::Get();
+	FGameplayTagNetIndex NetIndex = INVALID_TAGNETINDEX;
 
-	if (TagManager.ShouldUseFastReplication())
+	// For replays, use a net field export group to guarantee we can send the name reliably (without having to rely on the client having a deterministic NetworkGameplayTagNodeIndex array)
+	const TCHAR* NetFieldExportGroupName = TEXT("NetworkGameplayTagNodeIndex");
+
+	// Find this net field export group
+	TSharedPtr<FNetFieldExportGroup> NetFieldExportGroup = PackageMapClient.GetNetFieldExportGroup(NetFieldExportGroupName);
+
+	if (Ar.IsSaving())
 	{
-		FGameplayTagNetIndex NetIndex = INVALID_TAGNETINDEX;
-
-		UPackageMapClient* PackageMapClient = Cast<UPackageMapClient>(Map);
-		const bool bIsReplay = PackageMapClient && PackageMapClient->GetConnection() && PackageMapClient->GetConnection()->IsInternalAck();
-
-		TSharedPtr<FNetFieldExportGroup> NetFieldExportGroup;
-
-		if (bIsReplay)
+		// If we didn't find it, we need to create it (only when saving though, it should be here on load since it was exported at save time)
+		if (!NetFieldExportGroup.IsValid())
 		{
-			// For replays, use a net field export group to guarantee we can send the name reliably (without having to rely on the client having a deterministic NetworkGameplayTagNodeIndex array)
-			const TCHAR* NetFieldExportGroupName = TEXT("NetworkGameplayTagNodeIndex");
+			NetFieldExportGroup = CreateNetfieldExportGroupForNetworkGameplayTags(TagManager, NetFieldExportGroupName);
+			PackageMapClient.AddNetFieldExportGroup(NetFieldExportGroupName, NetFieldExportGroup);
+		}
 
-			// Find this net field export group
-			NetFieldExportGroup = PackageMapClient->GetNetFieldExportGroup(NetFieldExportGroupName);
+		NetIndex = TagManager.GetNetIndexFromTag(*this);
 
-			if (Ar.IsSaving())
+		if (NetIndex != TagManager.GetInvalidTagNetIndex() && NetIndex != INVALID_TAGNETINDEX)
+		{
+			PackageMapClient.TrackNetFieldExport(NetFieldExportGroup.Get(), NetIndex);
+		}
+		else
+		{
+			NetIndex = INVALID_TAGNETINDEX;		// We can't save InvalidTagNetIndex, since the remote side could have a different value for this
+		}
+	}
+
+	uint32 NetIndex32 = NetIndex;
+	Ar.SerializeIntPacked(NetIndex32);
+	NetIndex = IntCastChecked<uint16, uint32>(NetIndex32);
+
+	if (Ar.IsLoading())
+	{
+		// Get the tag name from the net field export group entry
+		if (NetIndex != INVALID_TAGNETINDEX && ensure(NetFieldExportGroup.IsValid()) && ensure(NetIndex < NetFieldExportGroup->NetFieldExports.Num()))
+		{
+			TagName = NetFieldExportGroup->NetFieldExports[NetIndex].ExportName;
+
+			// Validate the tag name
+			const FGameplayTag Tag = TagManager.RequestGameplayTag(TagName, false);
+
+			// Warn (once) if the tag isn't found
+			if (!Tag.IsValid() && !NetFieldExportGroup->NetFieldExports[NetIndex].bIncompatible)
+			{ 
+				UE_LOG(LogGameplayTags, Warning, TEXT( "Gameplay tag not found (marking incompatible): %s"), *TagName.ToString());
+				NetFieldExportGroup->NetFieldExports[NetIndex].bIncompatible = true;
+			}
+
+			TagName = Tag.TagName;
+		}
+		else
+		{
+			TagName = NAME_None;
+		}
+	}
+
+	return true;
+}
+
+// DynamicSerialization currently relies on experimental code only available when compiling with Iris.
+namespace UE::GameplayTags::GameplayTagDynamicSerialization
+{
+#if UE_WITH_IRIS
+	// Can we make this generic and handle arbitrary export payloads? Probably something that should be handled in PackageMapClient
+	static bool NetSerialize_ForReplay(FGameplayTag& GameplayTag, FArchive& Ar, UPackageMapClient& PackageMapClient)
+	{
+		using namespace UE::Net;
+
+		const FNetTokenResolveContext* NetTokenResolveContext = PackageMapClient.GetNetTokenResolveContext();
+		FGameplayTagTokenStore* TagTokenDataStore = NetTokenResolveContext ? NetTokenResolveContext->NetTokenStore->GetDataStore<UE::Net::FGameplayTagTokenStore>() : nullptr;
+		if (!TagTokenDataStore)
+		{
+			return false;
+		}
+
+		const TCHAR* NetFieldExportGroupName = TEXT("NetworkGameplayTagDynamicIndex");
+		TSharedPtr<FNetFieldExportGroup> NetFieldExportGroup = PackageMapClient.GetNetFieldExportGroup(NetFieldExportGroupName);
+		FNetToken TagToken;
+
+		if (Ar.IsSaving())
+		{
+			TagToken = TagTokenDataStore->GetOrCreateToken(GameplayTag);
+
+			// Write token
+			WriteNetToken(Ar, TagToken);
+
+			// Register replay export if needed
+			if (TagToken.IsValid())
 			{
 				// If we didn't find it, we need to create it (only when saving though, it should be here on load since it was exported at save time)
 				if (!NetFieldExportGroup.IsValid())
 				{
-					NetFieldExportGroup = CreateNetfieldExportGroupForNetworkGameplayTags(TagManager, NetFieldExportGroupName);
-
-					PackageMapClient->AddNetFieldExportGroup(NetFieldExportGroupName, NetFieldExportGroup);
+					NetFieldExportGroup = TSharedPtr<FNetFieldExportGroup>(new FNetFieldExportGroup());
+					NetFieldExportGroup->PathName = NetFieldExportGroupName;
+					PackageMapClient.AddNetFieldExportGroup(NetFieldExportGroupName, NetFieldExportGroup);
 				}
 
-				NetIndex = TagManager.GetNetIndexFromTag(*this);
-
-				if (NetIndex != TagManager.GetInvalidTagNetIndex() && NetIndex != INVALID_TAGNETINDEX)
+				// Make sure we have enough room in the NetFieldExports to hold this entry...
+				const uint32 TagTokenIndex = TagToken.GetIndex();
+				if (!NetFieldExportGroup->NetFieldExports.IsValidIndex(TagTokenIndex))
 				{
-					PackageMapClient->TrackNetFieldExport(NetFieldExportGroup.Get(), NetIndex);
+					NetFieldExportGroup->NetFieldExports.SetNum(TagTokenIndex + 1, EAllowShrinking::No);
+					NetFieldExportGroup->bDirtyForReplay = true;
 				}
-				else
+				ensure(NetFieldExportGroup->NetFieldExports.IsValidIndex(TagTokenIndex));
+				FNetFieldExport& NetFieldExport = NetFieldExportGroup->NetFieldExports[TagTokenIndex];
+
+				// If it's not yet exported, export it now
+				if (!NetFieldExport.bExported)
 				{
-					NetIndex = INVALID_TAGNETINDEX;		// We can't save InvalidTagNetIndex, since the remote side could have a different value for this
+					NetFieldExport = FNetFieldExport(TagTokenIndex, 0, GameplayTag.GetTagName());
+					UE_LOG(LogGameplayTags, Log, TEXT("Replay> Exported Tag %s as NetFieldIndex %u"), *NetFieldExport.ExportName.ToString(), TagTokenIndex);
 				}
+
+				// Track the export so that it gets added to the replay index
+				PackageMapClient.TrackNetFieldExport(NetFieldExportGroup.Get(), TagTokenIndex);
 			}
-
-			uint32 NetIndex32 = NetIndex;
-			Ar.SerializeIntPacked(NetIndex32);
-			NetIndex = IntCastChecked<uint16, uint32>(NetIndex32);
-
-			if (Ar.IsLoading())
-			{
-				// Get the tag name from the net field export group entry
-				if (NetIndex != INVALID_TAGNETINDEX && ensure(NetFieldExportGroup.IsValid()) && ensure(NetIndex < NetFieldExportGroup->NetFieldExports.Num()))
-				{
-					TagName = NetFieldExportGroup->NetFieldExports[NetIndex].ExportName;
-
-					// Validate the tag name
-					const FGameplayTag Tag = TagManager.RequestGameplayTag(TagName, false);
-
-					// Warn (once) if the tag isn't found
-					if (!Tag.IsValid() && !NetFieldExportGroup->NetFieldExports[NetIndex].bIncompatible)
-					{ 
-						UE_LOG(LogGameplayTags, Warning, TEXT( "Gameplay tag not found (marking incompatible): %s"), *TagName.ToString());
-						NetFieldExportGroup->NetFieldExports[NetIndex].bIncompatible = true;
-					}
-
-					TagName = Tag.TagName;
-				}
-				else
-				{
-					TagName = NAME_None;
-				}
-			}
-
-			bOutSuccess = true;
 			return true;
 		}
+		else if (Ar.IsLoading())
+		{
+			// Read TagNetToken
+			TagToken = ReadNetToken(Ar);
+			if (Ar.IsError())
+			{
+				return false;
+			}
 
+			if (TagToken.IsValid())
+			{
+				const uint32 TagTokenIndex = TagToken.GetIndex();
+				if (ensure(NetFieldExportGroup.IsValid()) && ensure(TagTokenIndex < (uint32)NetFieldExportGroup->NetFieldExports.Num()))
+				{
+					FName TagName = NetFieldExportGroup->NetFieldExports[TagTokenIndex].ExportName;
+
+					// Validate the tag name
+					// TODO: Should we be able to add tags through this?
+					UGameplayTagsManager& TagManager = UGameplayTagsManager::Get();
+					GameplayTag = TagManager.RequestGameplayTag(TagName, false);
+
+					// Warn (once) if the tag isn't found
+					if (!GameplayTag.IsValid() && !NetFieldExportGroup->NetFieldExports[TagTokenIndex].bIncompatible)
+					{ 
+						UE_LOG(LogGameplayTags, Warning, TEXT( "Gameplay tag not found (marking incompatible): %s"), *TagName.ToString());
+						NetFieldExportGroup->NetFieldExports[TagTokenIndex].bIncompatible = true;
+					}
+					return true;
+				}
+				else
+				{
+					GameplayTag = FGameplayTag();
+					return false;
+				}
+			}
+			GameplayTag = FGameplayTag();
+			return true;
+		}
+		return false;
+	}
+
+	bool NetSerialize(FGameplayTag& GameplayTag, FArchive& Ar, UPackageMap* Map)
+	{
+		using namespace UE::Net;
+
+		// For now special case replays
+		UPackageMapClient* PackageMapClient = Cast<UPackageMapClient>(Map);
+		if (const bool bIsReplay = PackageMapClient && PackageMapClient->GetConnection() && PackageMapClient->GetConnection()->IsInternalAck())
+		{
+			return NetSerialize_ForReplay(GameplayTag, Ar, *PackageMapClient);
+		}
+	
+		if (Ar.IsSaving())
+		{
+			UE::Net::FNetTokenExportContext* ExportContext = FNetTokenExportContext::GetNetTokenExportContext(Ar);
+			UE::Net::FNetTokenStore* NetTokenStore = ExportContext ? ExportContext->GetNetTokenStore() : nullptr;
+			if (ensure(NetTokenStore))
+			{
+				FNetToken TagToken;
+
+				if (GameplayTag.IsValid())
+				{
+					if (FGameplayTagTokenStore* TagTokenStore = NetTokenStore->GetDataStore<UE::Net::FGameplayTagTokenStore>())
+					{
+						TagToken = TagTokenStore->GetOrCreateToken(GameplayTag);
+					}
+					else
+					{
+						UE_LOG(LogGameplayTags, Error, TEXT("FGameplayTag::NetSerialize::Could not find required FGameplayTagTokenStore"));
+						ensure(false);
+					}
+				}
+
+				UE_NET_TRACE_DYNAMIC_NAME_SCOPE(*TagToken.ToString(), static_cast<FNetBitWriter&>(Ar), GetTraceCollector(static_cast<FNetBitWriter&>(Ar)), ENetTraceVerbosity::VeryVerbose);
+
+				// Write token
+				WriteNetToken(Ar, TagToken);
+
+				// Should we append export from WriteNetToken method?
+				if (TagToken.IsValid())
+				{
+					ExportContext->AddNetTokenPendingExport(TagToken);
+				}
+				return true;
+			}
+		}
+		else if (Ar.IsLoading())
+		{
+			// When reading data we always have a PackageMap so we can get the necessary resolve context from here.
+			const FNetTokenResolveContext* NetTokenResolveContext = Map ? Map->GetNetTokenResolveContext() : nullptr;
+			if (ensure(NetTokenResolveContext && NetTokenResolveContext->NetTokenStore))
+			{
+				FNetToken TagToken = ReadNetToken(Ar);
+				if (Ar.IsError())
+				{
+					return false;
+				}
+				if (FGameplayTagTokenStore* TagTokenStore = NetTokenResolveContext->NetTokenStore->GetDataStore<UE::Net::FGameplayTagTokenStore>())
+				{
+					GameplayTag = TagTokenStore->ResolveToken(TagToken, NetTokenResolveContext->RemoteNetTokenStoreState);
+				}
+				else
+				{
+					UE_LOG(LogGameplayTags, Error, TEXT("FGameplayTag::NetSerialize::Could not find required FGameplayTagTokenStore"));	
+					ensure(false);
+					Ar.SetError();
+					return false;
+				}
+				return true;
+			}
+		}
+		return false;
+	}
+#else
+	bool NetSerialize(FGameplayTag& GameplayTag, FArchive& Ar, UPackageMap* Map)
+	{
+		LowLevelFatalError(TEXT("Cannot use dynamic serialization without compiling with Iris."));
+		return false;
+	}
+#endif
+}
+
+
+bool FGameplayTag::NetSerialize_Packed(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
+{
+	CONDITIONAL_SCOPE_CYCLE_COUNTER(STAT_FGameplayTag_NetSerialize, GEnableGameplayTagDetailedStats);
+	UGameplayTagsManager& TagManager = UGameplayTagsManager::Get();
+
+	// We now save off which method we're using (below)
+	bool bUseFastReplication = TagManager.ShouldUseFastReplication();
+	bool bUseDynamicReplication = TagManager.ShouldUseDynamicReplication();
+
+	Ar.UsingCustomVersion(FEngineNetworkCustomVersion::Guid);
+	const bool bSerializeReplicationMethod = (Ar.EngineNetVer() >= FEngineNetworkCustomVersion::CustomExports);
+	if (bSerializeReplicationMethod)
+	{
+		Ar.SerializeBits(&bUseFastReplication, 1);
+		if (!bUseFastReplication)
+		{
+			Ar.SerializeBits(&bUseDynamicReplication, 1);
+		}
+	}
+	else
+	{
+		bUseFastReplication = GOldReplaysUseGameplayTagFastReplication;
+		bUseDynamicReplication = false; // this didn't exist in prior versions
+	}
+
+	if (bUseFastReplication)
+	{
+		UPackageMapClient* PackageMapClient = Cast<UPackageMapClient>(Map);
+
+		const bool bIsReplay = PackageMapClient && PackageMapClient->GetConnection() && PackageMapClient->GetConnection()->IsInternalAck();
+		if (bIsReplay)
+		{
+			return NetSerialize_ForReplayUsingFastReplication(Ar, *PackageMapClient);
+		}
+
+		FGameplayTagNetIndex NetIndex = INVALID_TAGNETINDEX;
 		if (Ar.IsSaving())
 		{
 			NetIndex = TagManager.GetNetIndexFromTag(*this);
-			
 			SerializeTagNetIndexPacked(Ar, NetIndex, TagManager.GetNetIndexFirstBitSegment(), TagManager.GetNetIndexTrueBitNum());
 		}
 		else
@@ -1302,6 +1516,10 @@ bool FGameplayTag::NetSerialize_Packed(FArchive& Ar, class UPackageMap* Map, boo
 			SerializeTagNetIndexPacked(Ar, NetIndex, TagManager.GetNetIndexFirstBitSegment(), TagManager.GetNetIndexTrueBitNum());
 			TagName = TagManager.GetTagNameFromNetIndex(NetIndex);
 		}
+	}
+	else if (bUseDynamicReplication)
+	{
+		UE::GameplayTags::GameplayTagDynamicSerialization::NetSerialize(*this, Ar, Map);
 	}
 	else
 	{

@@ -7,6 +7,7 @@
 #include "Engine/NetSerialization.h"
 #include "Serialization/BitWriter.h"
 #include "Containers/BitArray.h"
+#include "Net/Core/NetToken/NetTokenExportContext.h"
 #if UE_WITH_IRIS
 #include "Iris/Serialization/IrisObjectReferencePackageMap.h"
 #endif
@@ -63,6 +64,9 @@ struct FCharacterNetworkSerializationPackedBits
 	// This is managed by the use of a custom packagemap.
 	UE::Net::FIrisPackageMapExports PackageMapExports;
 #endif
+
+	// Since we capturing data outside of the normal serialization path we also need to store exports to inject when actually sending the data.
+	UE::Net::FNetTokenExportContext::FNetTokenExports NetTokensPendingExport;
 
 private:
 	UPackageMap* SavedPackageMap;

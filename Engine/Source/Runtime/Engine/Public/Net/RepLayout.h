@@ -21,6 +21,7 @@
 #include "UObject/GCObject.h"
 #include "Containers/StaticBitArray.h"
 #include "Net/Core/Misc/GuidReferences.h"
+#include "Net/Core/NetToken/NetTokenExportContext.h"
 #include "Net/Core/PushModel/PushModel.h"
 #include "Net/Core/PropertyConditions/RepChangedPropertyTracker.h"
 #include "Templates/CopyQualifiersFromTo.h"
@@ -274,6 +275,7 @@ struct FRepSerializationSharedInfo
 		{
 			SharedPropertyInfo.Reset();
 			SerializedProperties->Reset();
+			NetTokensPendingExport.Reset();
 
 			bIsValid = false;
 		}
@@ -304,6 +306,9 @@ struct FRepSerializationSharedInfo
 
 	/** Binary blob of net serialized data to be shared */
 	TUniquePtr<FNetBitWriter> SerializedProperties;
+
+	/** NetTokenExports for this RepLayout, will need to index to avoid adding exports that we do not want to use. */
+	UE::Net::FNetTokenExportContext::FNetTokenExports NetTokensPendingExport;
 
 	void CountBytes(FArchive& Ar) const;
 
@@ -1411,7 +1416,7 @@ public:
 		TSet<FNetworkGUID>& UnmappedGuids) const;
 
 	/** Builds shared serialization state for a multicast rpc */
-	void ENGINE_API BuildSharedSerializationForRPC(const FConstRepObjectDataBuffer Data);
+	void ENGINE_API BuildSharedSerializationForRPC(const FConstRepObjectDataBuffer Data, UE::Net::FNetTokenStore* NetTokenStore = nullptr);
 
 	/** Clears shared serialization state for a multicast rpc */
 	void ENGINE_API ClearSharedSerializationForRPC();
@@ -1648,7 +1653,8 @@ private:
 		const FConstRepObjectDataBuffer Data,
 		TArray<uint16>& Changed,
 		const bool bWriteHandle,
-		FRepSerializationSharedInfo& SharedInfo) const;
+		FRepSerializationSharedInfo& SharedInfo, 
+		UE::Net::FNetTokenStore* NetTokenStore = nullptr) const;
 
 	void BuildSharedSerialization_r(
 		FRepHandleIterator& RepHandleIterator,

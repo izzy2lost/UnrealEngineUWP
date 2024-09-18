@@ -500,6 +500,12 @@ void UDataStreamChannel::AppendExportBunches(TArray<FOutBunch*>& OutExportBunche
 {
 }
 
+TArray<FOutBunch*> UDataStreamChannel::GetAdditionalRequiredBunches(const FOutBunch& OutgoingBunch, EChannelGetAdditionalRequiredBunchesFlags Flags)
+{
+	// Base version assumed we have a UPackageMapClient, so override it
+	return TArray<FOutBunch*>{};
+}
+
 void UDataStreamChannel::AppendMustBeMappedGuids(FOutBunch* Bunch)
 {
 }

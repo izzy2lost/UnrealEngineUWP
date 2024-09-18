@@ -11,6 +11,7 @@
 #include "Net/Core/Trace/NetTrace.h"
 #include "Net/Core/Misc/NetConditionGroupManager.h"
 #include "Net/Core/Connection/NetEnums.h"
+#include "Net/Core/NetToken/NetToken.h"
 
 #include "Iris/ReplicationState/ReplicationStateUtil.h"
 #include "Iris/ReplicationSystem/ChangeMaskCache.h"
@@ -56,6 +57,7 @@ class FReplicationSystemImpl
 public:
 	TMap<FObjectKey, ENetObjectAttachmentSendPolicyFlags> AttachmentSendPolicyFlags;
 	UReplicationSystem* ReplicationSystem;
+	FNetTokenStore* NetTokenStore;
 	FReplicationSystemInternal ReplicationSystemInternal;
 	uint64 IrisDebugHelperDummy = 0U;
 	FNetObjectGroupHandle NotReplicatedNetObjectGroupHandle;
@@ -69,6 +71,7 @@ public:
 
 	explicit FReplicationSystemImpl(UReplicationSystem* InReplicationSystem, const UReplicationSystem::FReplicationSystemParams& Params)
 	: ReplicationSystem(InReplicationSystem)
+	, NetTokenStore(Params.NetTokenStore)
 	, ReplicationSystemInternal(
 		FReplicationSystemInternalInitParams(
 		{ 
@@ -107,11 +110,15 @@ public:
 #endif
 		const uint32 ReplicationSystemId = ReplicationSystem->GetId();
 
-		FNetTokenStore& NetTokenStore = ReplicationSystemInternal.GetNetTokenStore();
+		// Verify that we got a NetTokenStore and that it is configured as we expect.
+		bool bHasValidNetTokenStore = ensureAlwaysMsgf(Params.NetTokenStore, TEXT("ReplicationSystem cannot be initialized without a valid NetTokenStore"));
+		bHasValidNetTokenStore = bHasValidNetTokenStore && ensureAlwaysMsgf(Params.NetTokenStore->GetDataStore<FStringTokenStore>(), TEXT("ReplicationSystem cannot be initialized without a StringTokenStore"));
+		bHasValidNetTokenStore = bHasValidNetTokenStore && ensureAlwaysMsgf(Params.NetTokenStore->GetDataStore<FNameTokenStore>(), TEXT("ReplicationSystem cannot be initialized without a NameTokenStore"));
+
+		if (!bHasValidNetTokenStore)
 		{
-			FNetTokenStore::FInitParams NetTokenStoreInitParams;
-			NetTokenStoreInitParams.Authority = Params.bIsServer ? FNetToken::ENetTokenAuthority::Authority : FNetToken::ENetTokenAuthority::None;
-			NetTokenStore.Init(NetTokenStoreInitParams);
+			LowLevelFatalError(TEXT("Cannot initialize ReplicationSystem with invalid NetTokenStore"));
+			return;
 		}
 
 		FNetRefHandleManager& NetRefHandleManager = ReplicationSystemInternal.GetNetRefHandleManager();
@@ -1025,18 +1032,24 @@ UNetObjectPrioritizer* UReplicationSystem::GetPrioritizer(const FName Prioritize
 
 const UE::Net::FNetTokenStore* UReplicationSystem::GetNetTokenStore() const
 {
-	return &Impl->ReplicationSystemInternal.GetNetTokenStore();
+	return Impl->NetTokenStore;
 }
 
 UE::Net::FNetTokenStore* UReplicationSystem::GetNetTokenStore()
 {
-	return &Impl->ReplicationSystemInternal.GetNetTokenStore();
+	return Impl->NetTokenStore;
 }
 
-void UReplicationSystem::InitNetTokenExportContext(UE::Net::FNetTokenExportContext& Context, uint32 ConnectionId)
+UE::Net::FNetTokenResolveContext UReplicationSystem::GetNetTokenResolveContext(uint32 ConnectionId) const
 {
-	Context.TokenStore = &Impl->ReplicationSystemInternal.GetNetTokenStore();
-	Context.RemoteState = &Impl->ReplicationSystemInternal.GetConnections().GetRemoteNetTokenStoreState(ConnectionId);
+	using namespace UE::Net;
+
+	UE::Net::FNetTokenResolveContext NetTokenResolveContext;
+
+	NetTokenResolveContext.NetTokenStore = Impl->NetTokenStore;
+	NetTokenResolveContext.RemoteNetTokenStoreState = Impl->NetTokenStore->GetRemoteNetTokenStoreState(ConnectionId);
+
+	return NetTokenResolveContext;
 }
 
 bool UReplicationSystem::RegisterNetBlobHandler(UNetBlobHandler* Handler)

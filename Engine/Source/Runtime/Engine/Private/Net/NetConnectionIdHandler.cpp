@@ -34,3 +34,9 @@ void FNetConnectionIdHandler::Free(uint32 Id)
 	UsedIds[Id] = (Id == 0U);
 	IdHint = FMath::Min(IdHint, Id);
 }
+
+uint32 FNetConnectionIdHandler::GetMaxConnectionIdCount() const
+{
+	return UsedIds.Num();
+}
+

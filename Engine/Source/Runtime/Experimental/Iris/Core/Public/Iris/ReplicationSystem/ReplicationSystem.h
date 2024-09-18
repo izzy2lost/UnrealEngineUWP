@@ -36,6 +36,7 @@ namespace UE::Net
 	class FStringTokenStore;
 	class FNameTokenStore;
 	class FWorldLocations;
+	class FNetTokenResolveContext;
 
 	struct FReplicationSystemUtil;
 	struct FReplicationView;
@@ -47,8 +48,6 @@ namespace UE::Net
 	enum class ENetObjectDeltaCompressionStatus : unsigned;
 	enum class ENetRefHandleError : uint32;
 	enum class EReplicationCondition : uint32;
-
-	struct FNetTokenExportContext;
 
 	namespace Private
 	{
@@ -127,6 +126,9 @@ public:
 
 		/** Delegate that receives every RPC executed locally. */
 		UE::Net::FForwardNetRPCCallDelegate ForwardNetRPCCallDelegate;
+
+		/** NetTokenStore */
+		UE::Net::FNetTokenStore* NetTokenStore = nullptr;
 	};
 
 	/** @return The unique ID of the ReplicationSystem. */
@@ -345,10 +347,10 @@ public:
 	IRISCORE_API const UE::Net::FNetTokenStore* GetNetTokenStore() const;
 
 	/**
-	 * Init NetTokenExportContext required to quantize and resolve NetTokens
+	 * Get NetTokenResolveContext resolve NetTokens
 	 * @see UE::Net::FNetTokenStore
 	 */
-	IRISCORE_API void InitNetTokenExportContext(UE::Net::FNetTokenExportContext& NetTokenExportContext, uint32 ConnectionId);
+	IRISCORE_API UE::Net::FNetTokenResolveContext GetNetTokenResolveContext(uint32 ConnectionId) const;
 
 	/**
 	 * Check whether a FNetRefHandle is still associated with a replicated object.

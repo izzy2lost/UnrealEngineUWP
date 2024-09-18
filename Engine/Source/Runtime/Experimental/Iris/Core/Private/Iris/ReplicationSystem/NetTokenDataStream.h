@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Iris/DataStream/DataStream.h"
-#include "Iris/ReplicationSystem/NetToken.h"
+#include "Net/Core/NetToken/NetToken.h"
 #include "Containers/RingBuffer.h"
 
 #include "NetTokenDataStream.generated.h"
@@ -32,7 +32,6 @@ public:
 	{
 		uint32 ReplicationSystemId;
 		uint32 ConnectionId;
-		UE::Net::FNetTokenStoreState* RemoteTokenStoreState;
 		UE::Net::Private::FNetExports* NetExports;
 	};
 

@@ -432,12 +432,10 @@ void FTestPolymorphicArrayStructNetSerializerFixture::SetUp()
 	// Init default serialization context
 	InternalNetSerializationContext.ReplicationSystem = Server->ReplicationSystem;
 
-	FReplicationSystemInternal* ReplicationSystemInternal = Server->GetReplicationSystem()->GetReplicationSystemInternal();
-
 	FInternalNetSerializationContext TempInternalNetSerializationContext;
 	FInternalNetSerializationContext::FInitParameters TempInternalNetSerializationContextInitParams;
 	TempInternalNetSerializationContextInitParams.ReplicationSystem = Server->ReplicationSystem;
-	TempInternalNetSerializationContextInitParams.ObjectResolveContext.RemoteNetTokenStoreState = ReplicationSystemInternal->GetNetTokenStore().GetLocalNetTokenStoreState();
+	TempInternalNetSerializationContextInitParams.ObjectResolveContext.RemoteNetTokenStoreState = Server->ReplicationSystem->GetNetTokenStore()->GetLocalNetTokenStoreState();
 	TempInternalNetSerializationContext.Init(TempInternalNetSerializationContextInitParams);
 
 	InternalNetSerializationContext = MoveTemp(TempInternalNetSerializationContext);
@@ -833,12 +831,10 @@ void FTestPolymorphicArrayStructNetSerializerDeltaSerializationFixture::SetUp()
 	Server = new FReplicationSystemTestServer(GetName());
 
 	// Init NetSerializationContext
-	FReplicationSystemInternal* ReplicationSystemInternal = Server->GetReplicationSystem()->GetReplicationSystemInternal();
-
 	FInternalNetSerializationContext TempInternalNetSerializationContext;
 	FInternalNetSerializationContext::FInitParameters TempInternalNetSerializationContextInitParams;
 	TempInternalNetSerializationContextInitParams.ReplicationSystem = Server->ReplicationSystem;
-	TempInternalNetSerializationContextInitParams.ObjectResolveContext.RemoteNetTokenStoreState = ReplicationSystemInternal->GetNetTokenStore().GetLocalNetTokenStoreState();
+	TempInternalNetSerializationContextInitParams.ObjectResolveContext.RemoteNetTokenStoreState = Server->ReplicationSystem->GetNetTokenStore()->GetLocalNetTokenStoreState();
 	TempInternalNetSerializationContext.Init(TempInternalNetSerializationContextInitParams);
 
 	InternalNetSerializationContext = MoveTemp(TempInternalNetSerializationContext);

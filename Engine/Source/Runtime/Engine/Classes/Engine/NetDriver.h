@@ -355,6 +355,8 @@ namespace UE::Net
 
 namespace UE::Net
 {
+	class FNetTokenStore;
+
 	class FScopedIgnoreStaticActorDestruction
 	{
 	public:
@@ -1915,7 +1917,16 @@ public:
 	inline UReplicationSystem* GetReplicationSystem() const { return ReplicationSystem; }
 
 	void UpdateGroupFilterStatusForLevel(const ULevel* Level, UE::Net::FNetObjectGroupHandle LevelGroupHandle);
+
+	/** Returns NetTokenStore that is required to create and serialize NetTokens */
+	const UE::Net::FNetTokenStore* GetNetTokenStore() const { return NetTokenStore.Get(); }
+	UE::Net::FNetTokenStore* GetNetTokenStore() { return NetTokenStore.Get(); }
+#else
+	/** Returns NetTokenStore that is required to create and serialize NetTokens */
+	const UE::Net::FNetTokenStore* GetNetTokenStore() const { return nullptr; }
+	UE::Net::FNetTokenStore* GetNetTokenStore() { return nullptr; }
 #endif // UE_WITH_IRIS
+
 
 	ENGINE_API void RemoveClientConnection(UNetConnection* ClientConnectionToRemove);
 
@@ -2276,6 +2287,8 @@ private:
 	TObjectPtr<UReplicationDriver> ReplicationDriver;
 
 #if UE_WITH_IRIS
+	TUniquePtr<UE::Net::FNetTokenStore> NetTokenStore;
+
 	UReplicationSystem* ReplicationSystem = nullptr;
 
 	/** When set this will skip registering all the network relevant actors when setting the World */

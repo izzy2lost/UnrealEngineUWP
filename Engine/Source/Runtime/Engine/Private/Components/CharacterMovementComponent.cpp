@@ -8867,10 +8867,6 @@ static UIrisObjectReferencePackageMap* GetIrisPackageMapToCaptureReferences(UNet
 		{
 			ObjectReferencePackageMap->InitForWrite(&PackedBits.PackageMapExports);
 
-			// $IRIS: $TODO: figure out how this should be done
-			//UReplicationSystem* ReplicationSystem = UE::Net::FReplicationSystemUtil::GetReplicationSystem(NetConnection->GetDriver());
-			//ReplicationSystem->InitNetTokenExportContext(*ObjectReferencePackageMap->GetNetTokenExportContext(), NetConnection->GetConnectionId());
-
 			return ObjectReferencePackageMap;
 		}
 	}
@@ -8885,11 +8881,8 @@ static UIrisObjectReferencePackageMap* GetIrisPackageMapToReadReferences(const U
 	{
 		if (UIrisObjectReferencePackageMap* ObjectReferencePackageMap = Bridge->GetObjectReferencePackageMap())
 		{
-			ObjectReferencePackageMap->InitForRead(&PackedBits.PackageMapExports);
-
-			// $IRIS: $TODO: figure out how this should be done
-			//UReplicationSystem* ReplicationSystem = UE::Net::FReplicationSystemUtil::GetReplicationSystem(NetConnection->GetDriver());
-			//ReplicationSystem->InitNetTokenExportContext(*ObjectReferencePackageMap->GetNetTokenExportContext(), NetConnection->GetConnectionId());
+			const UReplicationSystem* ReplicationSystem = UE::Net::FReplicationSystemUtil::GetReplicationSystem(NetConnection->GetDriver());
+			ObjectReferencePackageMap->InitForRead(&PackedBits.PackageMapExports, ReplicationSystem->GetNetTokenResolveContext(NetConnection->GetConnectionId()));
 
 			return ObjectReferencePackageMap;
 		}
@@ -8932,6 +8925,10 @@ void UCharacterMovementComponent::CallServerMovePacked(const FSavedMove_Characte
 		UE_LOG(LogNetPlayerMovement, Error, TEXT("CallServerMovePacked: Failed to find a NetConnection/PackageMap for data serialization!"));
 		return;
 	}
+
+	// Reset captured exports stored in PackedBits
+	PackedBits.NetTokensPendingExport.Reset();
+	UE::Net::FNetTokenExportScope NetTokenExportScope(ServerMoveBitWriter, NetConnection->GetDriver()->GetNetTokenStore(), PackedBits.NetTokensPendingExport, "CallServerMovePacked");
 
 	// Serialize move struct into a bit stream
 	if (!MoveDataContainer.Serialize(*this, ServerMoveBitWriter, ServerMoveBitWriter.PackageMap) || ServerMoveBitWriter.IsError())
@@ -9472,6 +9469,15 @@ bool FCharacterNetworkSerializationPackedBits::NetSerialize(FArchive& Ar, class 
 	if (Ar.IsLoading())
 	{
 		DataBits.Init(0, NumBits);
+	}
+	else if (Ar.IsSaving() && NetTokensPendingExport.Num())
+	{
+		// As we now support exporting NetTokens from shared serialization and FCharacterNetworkSerializationPackedBits serializes data outside of the normal flow
+		// we explicitly capture exports which we needs to be inject during actual serialization.
+		if (UE::Net::FNetTokenExportContext* ExportContext = UE::Net::FNetTokenExportContext::GetNetTokenExportContext(Ar))
+		{
+			ExportContext->AppendNetTokensPendingExport(NetTokensPendingExport);
+		}		
 	}
 
 	// Array data
@@ -10570,6 +10576,10 @@ void UCharacterMovementComponent::ServerSendMoveResponse(const FClientAdjustment
 		UE_LOG(LogNetPlayerMovement, Error, TEXT("ServerSendMoveResponse: Failed to find a NetConnection/PackageMap for data serialization!"));
 		return;
 	}
+
+	// Reset NetTokensPendingExport as PackedBits is reused
+	PackedBits.NetTokensPendingExport.Reset();
+	UE::Net::FNetTokenExportScope NetTokenExportsScope(MoveResponseBitWriter, NetConnection->GetDriver()->GetNetTokenStore(), PackedBits.NetTokensPendingExport, "ServerSendMoveResponse");
 
 	// Serialize move struct into a bit stream
 	if (!ResponseDataContainer.Serialize(*this, MoveResponseBitWriter, MoveResponseBitWriter.PackageMap) || MoveResponseBitWriter.IsError())

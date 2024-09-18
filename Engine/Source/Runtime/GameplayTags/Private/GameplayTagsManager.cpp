@@ -547,6 +547,7 @@ void UGameplayTagsManager::ConstructGameplayTagTree()
 			}
 
 			bUseFastReplication = MutableDefault->FastReplication;
+			bUseDynamicReplication = MutableDefault->bDynamicReplication;
 			bShouldWarnOnInvalidTags = MutableDefault->WarnOnInvalidTags;
 			NumBitsForContainerSize = MutableDefault->NumBitsForContainerSize;
 			NetIndexFirstBitSegment = MutableDefault->NetIndexFirstBitSegment;

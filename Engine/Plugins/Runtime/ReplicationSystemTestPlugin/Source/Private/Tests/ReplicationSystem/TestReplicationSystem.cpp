@@ -5,7 +5,7 @@
 #include "Iris/Serialization/NetBitStreamWriter.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
-#include "Iris/ReplicationSystem/NetTokenStore.h"
+#include "Net/Core/NetToken/NetToken.h"
 #include "Iris/Core/IrisLog.h"
 #include "Iris/Metrics/NetMetrics.h"
 #include "Misc/ScopeExit.h"

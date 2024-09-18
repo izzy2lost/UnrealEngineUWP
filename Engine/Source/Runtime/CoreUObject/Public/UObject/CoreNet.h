@@ -53,6 +53,9 @@ namespace UE::Net
 	struct FReplicationStateDescriptor;
 	typedef FReplicationFragment* (*CreateAndRegisterReplicationFragmentFunc)(UObject* Owner, const FReplicationStateDescriptor* Descriptor, FFragmentRegistrationContext& Context);
 #endif
+	
+	class FNetTokenExportContext;
+	class FNetTokenResolveContext;
 
 	namespace Private
 	{
@@ -232,6 +235,9 @@ class UPackageMap : public UObject
 
 	COREUOBJECT_API virtual void Serialize(FArchive& Ar) override;
 
+	// Provides access to the context required to resolve received NetTokens.
+	virtual const UE::Net::FNetTokenResolveContext* GetNetTokenResolveContext() const { return nullptr; }
+
 	COREUOBJECT_API UPackageMap();
 	COREUOBJECT_API virtual ~UPackageMap();
 
@@ -346,26 +352,27 @@ template <> struct TIsZeroConstructType<FLifetimeProperty> { enum { Value = true
 
 GENERATE_MEMBER_FUNCTION_CHECK(GetLifetimeReplicatedProps, void, const, TArray<FLifetimeProperty>&)
 
-#if UE_TRACE_ENABLED
 /**
- * We pass a NetTraceCollector along with the NetBitWriter in order avoid modifying all API`s where we want to be able to collect Network stats
- * Since the pointer to the collector is temporary we need to avoid copying it around by accident
+ * Used to pass in temporary pointers to NetBitWriter which we absolutely need to avoid copying by acciden.
+ * Used by NetTraceCollector and NetTokenExport scope
  */
-class FNetTraceCollectorDoNotCopyWrapper
+template<typename T>
+class TNetDoNotCopyPtr
 {
 public:
-	FNetTraceCollectorDoNotCopyWrapper() : Collector(nullptr) {}
-	FNetTraceCollectorDoNotCopyWrapper(const FNetTraceCollectorDoNotCopyWrapper&) : Collector(nullptr) {}
-    FNetTraceCollectorDoNotCopyWrapper(FNetTraceCollectorDoNotCopyWrapper&&) { Collector = nullptr; }
-	FNetTraceCollectorDoNotCopyWrapper& operator=(const FNetTraceCollectorDoNotCopyWrapper& Other) { Collector = nullptr; return *this; }
-    FNetTraceCollectorDoNotCopyWrapper& operator=(FNetTraceCollectorDoNotCopyWrapper&&) { Collector = nullptr; return *this; }
-
-	void Set(FNetTraceCollector* InCollector) { Collector = InCollector; }
-	FNetTraceCollector* Get() const { return Collector; }
-
+	TNetDoNotCopyPtr() : Ptr(nullptr) {}
+	TNetDoNotCopyPtr(const TNetDoNotCopyPtr&) : Ptr(nullptr) {}
+    TNetDoNotCopyPtr(TNetDoNotCopyPtr&&) { Ptr = nullptr; }
+	TNetDoNotCopyPtr& operator=(const TNetDoNotCopyPtr& Other) { Ptr = nullptr; return *this; }
+    TNetDoNotCopyPtr& operator=(TNetDoNotCopyPtr&&) { Ptr = nullptr; return *this; }
+	void Set(T* InPtr) { Ptr = InPtr; }
+	T* Get() const { return Ptr; }
 private:
-	FNetTraceCollector* Collector;
+	T* Ptr;
 };
+
+#if UE_TRACE_ENABLED
+using FNetTraceCollectorDoNotCopyWrapper = TNetDoNotCopyPtr<FNetTraceCollector>;
 #endif
 
 /**
@@ -376,8 +383,8 @@ private:
 class FNetBitWriter : public FBitWriter
 {
 public:
-	COREUOBJECT_API FNetBitWriter( UPackageMap * InPackageMap, int64 InMaxBits );
-	COREUOBJECT_API FNetBitWriter( int64 InMaxBits );
+	COREUOBJECT_API FNetBitWriter(UPackageMap* InPackageMap, int64 InMaxBits);
+	COREUOBJECT_API FNetBitWriter(int64 InMaxBits);
 	COREUOBJECT_API FNetBitWriter();
 
 	class UPackageMap * PackageMap;
@@ -394,8 +401,10 @@ public:
 	COREUOBJECT_API virtual FArchive& operator<<(struct FWeakObjectPtr& Value) override;
 
 	COREUOBJECT_API virtual void CountMemory(FArchive& Ar) const override;
-};
 
+	/* Context allowing exports of NetTokens from NetSerialize(), the context will not be copied when copying NetBitWriter */
+	TNetDoNotCopyPtr<UE::Net::FNetTokenExportContext> NetTokenExportContext;
+};
 
 /**
  * FNetBitReader
@@ -428,6 +437,18 @@ public:
 
 	COREUOBJECT_API virtual void CountMemory(FArchive& Ar) const override;
 };
+
+/** Helper methods to allow us to instrument different type of BitStreams */
+inline uint32 GetBitStreamPositionForNetTrace(const FBitWriter& Stream) { return (uint32)Stream.GetNumBits(); }
+inline uint32 GetBitStreamPositionForNetTrace(const FBitReader& Stream) { return (uint32)Stream.GetPosBits(); }
+
+#if UE_TRACE_ENABLED
+inline FNetTraceCollector* GetTraceCollector(const FNetBitWriter& BitWriter) { return BitWriter.TraceCollector.Get(); }
+inline void SetTraceCollector(FNetBitWriter& BitWriter, FNetTraceCollector* Collector) { BitWriter.TraceCollector.Set(Collector); }
+#else
+inline FNetTraceCollector* GetTraceCollector(const FNetBitWriter& BitWriter) { return nullptr; }
+inline void SetTraceCollector(FNetBitWriter& BitWriter, FNetTraceCollector* Collector) {}
+#endif
 
 bool FORCEINLINE NetworkGuidSetsAreSame( const TSet< FNetworkGUID >& A, const TSet< FNetworkGUID >& B )
 {

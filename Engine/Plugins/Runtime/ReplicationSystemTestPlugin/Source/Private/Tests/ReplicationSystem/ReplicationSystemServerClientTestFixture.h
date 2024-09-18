@@ -167,6 +167,8 @@ public:
 	float ConvertPollPeriodIntoFrequency(uint32 PollPeriod) const;
 
 public:
+	TUniquePtr<UE::Net::FNetTokenStore> NetTokenStore;
+	TArray<TUniquePtr<UE::Net::FNetTokenDataStore>> NetTokenDataStores;
 	UReplicationSystem* ReplicationSystem;
 	UReplicatedTestObjectBridge* ReplicationBridge;
 	TArray<TStrongObjectPtr<UObject>> CreatedObjects;

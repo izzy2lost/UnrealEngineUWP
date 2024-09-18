@@ -49,6 +49,7 @@
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilter.h"
 #include "Net/Iris/ReplicationSystem/EngineReplicationBridge.h"
+#include "Iris/ReplicationSystem/NetTokenStore.h"
 #endif // UE_WITH_IRIS
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NetConnection)
@@ -555,6 +556,15 @@ void UNetConnection::InitBase(UNetDriver* InDriver,class FSocket* InSocket, cons
 	{
 		CurrentNetSpeed = FMath::Max<int32>(CurrentNetSpeed, 1800);
 	}
+
+	// For now, NetToken are only enabled if we compile with iris.
+#if UE_WITH_IRIS
+	// Init RemoteNetTokenState.
+	if (Driver->GetNetTokenStore())
+	{
+		Driver->GetNetTokenStore()->InitRemoteNetTokenStoreState(GetConnectionId());
+	}
+#endif
 
 	// Create package map.
 	UPackageMapClient* PackageMapClient = NewObject<UPackageMapClient>(this, PackageMapClass);
@@ -3292,6 +3302,9 @@ void UNetConnection::DispatchPacket( FBitReader& Reader, int32 PacketId, bool& b
 
 	const FEngineNetworkCustomVersion::Type PacketEngineNetVer = static_cast<FEngineNetworkCustomVersion::Type>(Reader.EngineNetVer());
 
+	// We want to be able to read replays that do not support export extentions.
+	const bool bHasPartialCustomExportsFinalBit = !(IsInternalAck() && PacketEngineNetVer < FEngineNetworkCustomVersion::CustomExports);
+
 	// Disassemble and dispatch all bunches in the packet.
 	while( !Reader.AtEnd() && GetConnectionState()!=USOCK_Closed )
 	{
@@ -3380,6 +3393,10 @@ void UNetConnection::DispatchPacket( FBitReader& Reader, int32 PacketId, bool& b
 							if (bPartial)
 							{
 								Reader.ReadBit(); // bPartialInitial
+								if (bHasPartialCustomExportsFinalBit)
+								{
+									Reader.ReadBit(); // bPartialCustomExportsFinal
+								}
 								Reader.ReadBit(); // bPartialFinal
 							}
 
@@ -3410,9 +3427,9 @@ void UNetConnection::DispatchPacket( FBitReader& Reader, int32 PacketId, bool& b
 			Bunch.bHasMustBeMappedGUIDs	= Reader.ReadBit();
 			Bunch.bPartial				= Reader.ReadBit();
 
-			if ( Bunch.bReliable )
+			if (Bunch.bReliable)
 			{
-				if ( IsInternalAck() )
+				if (IsInternalAck())
 				{
 					// We can derive the sequence for 100% reliable connections
 					Bunch.ChSequence = InReliable[Bunch.ChIndex] + 1;
@@ -3420,10 +3437,10 @@ void UNetConnection::DispatchPacket( FBitReader& Reader, int32 PacketId, bool& b
 				else
 				{
 					// If this is a reliable bunch, use the last processed reliable sequence to read the new reliable sequence
-					Bunch.ChSequence = MakeRelative( Reader.ReadInt( MAX_CHSEQUENCE ), InReliable[Bunch.ChIndex], MAX_CHSEQUENCE );
+					Bunch.ChSequence = MakeRelative(Reader.ReadInt(MAX_CHSEQUENCE), InReliable[Bunch.ChIndex], MAX_CHSEQUENCE);
 				}
 			} 
-			else if ( Bunch.bPartial )
+			else if (Bunch.bPartial)
 			{
 				// If this is an unreliable partial bunch, we simply use packet sequence since we already have it
 				Bunch.ChSequence = PacketId;
@@ -3434,6 +3451,7 @@ void UNetConnection::DispatchPacket( FBitReader& Reader, int32 PacketId, bool& b
 			}
 
 			Bunch.bPartialInitial = Bunch.bPartial ? Reader.ReadBit() : 0;
+			Bunch.bPartialCustomExportsFinal = Bunch.bPartial && bHasPartialCustomExportsFinalBit ? Reader.ReadBit() : 0;
 			Bunch.bPartialFinal = Bunch.bPartial ? Reader.ReadBit() : 0;
 
 			if (PacketEngineNetVer < FEngineNetworkCustomVersion::ChannelNames)
@@ -3502,7 +3520,7 @@ void UNetConnection::DispatchPacket( FBitReader& Reader, int32 PacketId, bool& b
 
 			const int32 HeaderPos = Reader.GetPosBits();
 
-			if( Reader.IsError() )
+			if(Reader.IsError())
 			{
 				UE_LOG(LogNet, Warning, TEXT("Bunch header overflowed"));
 
@@ -4217,6 +4235,7 @@ int32 UNetConnection::SendRawBunch(FOutBunch& Bunch, bool InAllowMerge, const FN
 	if (Bunch.bPartial)
 	{
 		SendBunchHeader.WriteBit(Bunch.bPartialInitial);
+		SendBunchHeader.WriteBit(Bunch.bPartialCustomExportsFinal);
 		SendBunchHeader.WriteBit(Bunch.bPartialFinal);
 	}
 
@@ -4278,7 +4297,7 @@ int32 UNetConnection::SendRawBunch(FOutBunch& Bunch, bool InAllowMerge, const FN
 
 	UE_LOG(LogNetTraffic, Verbose, TEXT("UNetConnection::SendRawBunch. ChIndex: %d. Bits: %d. PacketId: %d"), Bunch.ChIndex, Bunch.GetNumBits(), Bunch.PacketId);
 
-	if (PackageMap && Bunch.bHasPackageMapExports)
+	if (PackageMap && (Bunch.bHasPackageMapExports || Bunch.bPartialCustomExportsFinal))
 	{
 		PackageMap->NotifyBunchCommit(Bunch.PacketId, &Bunch);
 	}

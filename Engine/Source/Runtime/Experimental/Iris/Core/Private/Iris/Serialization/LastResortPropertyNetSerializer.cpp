@@ -12,6 +12,7 @@
 #include "Iris/Serialization/IrisObjectReferencePackageMap.h"
 #include "Iris/Serialization/IrisPackageMapExportUtil.h"
 #include "Iris/Serialization/NetExportContext.h"
+#include "Net/Core/NetToken/NetTokenExportContext.h"
 #include "Net/Core/Trace/NetTrace.h"
 
 namespace UE::Net
@@ -81,6 +82,12 @@ void FLastResortPropertyNetSerializer::Serialize(FNetSerializationContext& Conte
 	const QuantizedType& Value = *reinterpret_cast<const QuantizedType*>(Args.Source);
 	FNetBitStreamWriter* Writer = Context.GetBitStreamWriter();
 
+	// For now we ignore this in default state hash if it has exported NetTokens as they will differ
+	if (Context.IsInitializingDefaultState() && (Value.QuantizedExports.NetTokenStorage.Num() > 0U))
+	{
+		return;
+	}
+
 	UE_NET_TRACE_DYNAMIC_NAME_SCOPE(Config->Property.Get()->GetName(), *Writer, Context.GetTraceCollector(), ENetTraceVerbosity::VeryVerbose);
 
 	// If we have any captured exports, serialize them.
@@ -96,6 +103,12 @@ void FLastResortPropertyNetSerializer::Serialize(FNetSerializationContext& Conte
 
 void FLastResortPropertyNetSerializer::Deserialize(FNetSerializationContext& Context, const FNetDeserializeArgs& Args)
 {
+	// For consistency, we should never get here. For now we ignore this in default state hash due to complications with asymmetrically serialized state.
+	if (Context.IsInitializingDefaultState())
+	{
+		return;
+	}
+
 	const ConfigType* Config = static_cast<const ConfigType*>(Args.NetSerializerConfig);
 	QuantizedType& Value = *reinterpret_cast<QuantizedType*>(Args.Target);
 	const uint32 CurrentBitCount = Value.BitCount;
@@ -130,22 +143,18 @@ void FLastResortPropertyNetSerializer::Quantize(FNetSerializationContext& Contex
 	Private::FInternalNetSerializationContext* InternalContext = Context.GetInternalContext();
 	UIrisObjectReferencePackageMap* PackageMap = InternalContext ? InternalContext->PackageMap : nullptr;
 
+	// Since this struct uses custom serialization path we need to explicitly capture exports in order to forward them to iris
 	UE::Net::FIrisPackageMapExports PackageMapExports;
+	UE::Net::FNetTokenExportContext::FNetTokenExports NetTokensPendingExport;
 
 	if (PackageMap)
 	{
 		PackageMap->InitForWrite(&PackageMapExports);
-
-		// $IRIS: $TODO: TBD: how to propagate context
-		//{
-		//	UE::Net::FNetTokenExportContext* NetTokenExportContext = PackageMap->GetNetTokenExportContext();
-		//	NetTokenExportContext->TokenStore = Context.GetNetTokenStore();
-		//	NetTokenExportContext->RemoteState = Context.GetInternalContext()->ResolveContext.RemoteNetTokenStoreState;
-		//}
 	}
 
 	// Use the Property serialization and store as binary blob.
-	FNetBitWriter Archive(PackageMap, 8192);
+	FNetBitWriter Archive(PackageMap, 8192);	
+	FNetTokenExportScope NetTokenExportScope(Archive, Context.GetNetTokenStore(), NetTokensPendingExport);
 	Property->NetSerializeItem(Archive, PackageMap, reinterpret_cast<void*>(Args.Source));
 
 	const uint64 BitCount = Archive.GetNumBits();
@@ -156,7 +165,7 @@ void FLastResortPropertyNetSerializer::Quantize(FNetSerializationContext& Contex
 	}
 
 	// Quantize captured exports
-	FIrisPackageMapExportsUtil::Quantize(Context, PackageMapExports, Value.QuantizedExports);
+	FIrisPackageMapExportsUtil::Quantize(Context, PackageMapExports, NetTokensPendingExport, Value.QuantizedExports);
 
 	// Deal with serialized data
 	AdjustStorageSize(Context, Value, static_cast<uint16>(BitCount));
@@ -176,19 +185,16 @@ void FLastResortPropertyNetSerializer::Dequantize(FNetSerializationContext& Cont
 	// Dequantize and inject exports
 	Private::FInternalNetSerializationContext* InternalContext = Context.GetInternalContext();
 	UIrisObjectReferencePackageMap* PackageMap = InternalContext ? InternalContext->PackageMap : nullptr;
-
 	UE::Net::FIrisPackageMapExports PackageMapExports;
 
 	FIrisPackageMapExportsUtil::Dequantize(Context, Source.QuantizedExports, PackageMapExports);	
 
-	PackageMap->InitForRead(&PackageMapExports);
+	// Setup resolve context for call into NetSerialize
+	UE::Net::FNetTokenResolveContext ResolveContext;
+	ResolveContext.RemoteNetTokenStoreState = Context.GetRemoteNetTokenStoreState();
+	ResolveContext.NetTokenStore = Context.GetNetTokenStore();
 
-	// $IRIS: $TODO: TBD: how to propagate context
-	//{
-	//	UE::Net::FNetTokenExportContext* NetTokenExportContext = PackageMap->GetNetTokenExportContext();
-	//	NetTokenExportContext->TokenStore = Context.GetNetTokenStore();
-	//	NetTokenExportContext->RemoteState = Context.GetInternalContext()->ResolveContext.RemoteNetTokenStoreState;
-	//}
+	PackageMap->InitForRead(&PackageMapExports, ResolveContext);
 
 	// Read data
 	if (Source.BitCount)

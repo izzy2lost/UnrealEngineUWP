@@ -14,6 +14,7 @@ namespace UE::Net
 	class FNetBitStreamReader;
 	class FNetBitStreamWriter;
 	class FNetTokenStore;
+	class FNetTokenStoreState;
 
 	namespace Private
 	{
@@ -91,6 +92,7 @@ public:
 
 	IRISCORE_API const UE::Net::FNetTokenStore* GetNetTokenStore() const;
 	IRISCORE_API UE::Net::FNetTokenStore* GetNetTokenStore();
+	IRISCORE_API const UE::Net::FNetTokenStoreState* GetRemoteNetTokenStoreState() const;
 
 	void SetInternalContext(Private::FInternalNetSerializationContext* InInternalContext) { InternalContext = InInternalContext; }
 	Private::FInternalNetSerializationContext* GetInternalContext() { return InternalContext; }

@@ -16,7 +16,7 @@ class FStringTokenStore : public FNetTokenDataStore
 {
 	UE_NONCOPYABLE(FStringTokenStore);
 public:
-	explicit FStringTokenStore(FNetTokenStore& TokenStore);
+	IRISCORE_API explicit FStringTokenStore(FNetTokenStore& TokenStore);
 
 	// Create a string token for the provided string
 	IRISCORE_API FNetToken GetOrCreateToken(const FString& String);
@@ -33,9 +33,11 @@ public:
 protected:
 	// Serialize data for a token, note there is not validation in this function
 	virtual void WriteTokenData(FNetSerializationContext& Context, FNetTokenStoreKey TokenStoreKey) const override;
+	virtual void WriteTokenData(FArchive& Archive, FNetTokenStoreKey TokenStoreKey) const override;
 
 	// Read data for a token, returns a valid StoreKey if successful read
 	virtual FNetTokenStoreKey ReadTokenData(FNetSerializationContext& Context, const FNetToken& NetToken) override;
+	virtual FNetTokenStoreKey ReadTokenData(FArchive& Archive, const FNetToken& NetToken) override;
 
 	// Create a persistent string
 	FNetTokenStoreKey GetOrCreatePersistentString(const TCHAR* Name, uint32 Length);

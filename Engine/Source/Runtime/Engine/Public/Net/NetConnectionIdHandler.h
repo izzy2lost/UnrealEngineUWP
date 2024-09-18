@@ -16,6 +16,8 @@ public:
 	ENGINE_API uint32 Allocate();
 	ENGINE_API void Free(uint32 Id);
 
+	ENGINE_API uint32 GetMaxConnectionIdCount() const;
+
 private:
 	TBitArray<> UsedIds;
 	uint32 IdHint;

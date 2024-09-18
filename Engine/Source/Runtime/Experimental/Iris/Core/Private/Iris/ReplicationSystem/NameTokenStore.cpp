@@ -8,16 +8,17 @@
 #include "Iris/Serialization/NetSerializationContext.h"
 #include "Hash/CityHash.h"
 #include "Net/Core/Trace/NetTrace.h"
+#include "UObject/CoreNet.h"
 
 #define UE_NET_ENABLE_FNAME_TOKEN_LOG 1
 
 #if UE_NET_ENABLE_FNAME_TOKEN_LOG
-#	define UE_LOG_FNAMETOKEN(Format, ...)  UE_LOG(LogIris, Verbose, Format, ##__VA_ARGS__)
+#	define UE_LOG_FNAMETOKEN(Format, ...)  UE_LOG(LogNetToken, Verbose, Format, ##__VA_ARGS__)
 #else
 #	define UE_LOG_FNAMETOKEN(...)
 #endif
 
-#define UE_LOG_FNAMETOKEN_WARNING(Format, ...)  UE_LOG(LogIris, Warning, Format, ##__VA_ARGS__)
+#define UE_LOG_FNAMETOKEN_WARNING(Format, ...)  UE_LOG(LogNetToken, Warning, Format, ##__VA_ARGS__)
 
 namespace UE::Net
 {
@@ -75,9 +76,6 @@ FNameTokenStore::FNameTokenStore(FNetTokenStore& InTokenStore)
 	// Reserve 0
 	StoredFNames.Add(FName());
 	StoredTokens.Add(FNetToken());
-
-	// Register
-	TokenStore.RegisterDataStore(this, FNameTokenStore::GetTokenStoreName());
 }
 
 FName FNameTokenStore::ResolveToken(FNetToken Token, const FNetTokenStoreState* NetTokenStoreState) const
@@ -98,8 +96,17 @@ FName FNameTokenStore::ResolveToken(FNetToken Token, const FNetTokenStoreState* 
 void FNameTokenStore::WriteTokenData(FNetSerializationContext& Context, FNetTokenStoreKey TokenStoreKey) const
 {
 	UE_NET_TRACE_DYNAMIC_NAME_SCOPE(StoredFNames[TokenStoreKey.GetKeyValue()], *Context.GetBitStreamWriter(), Context.GetTraceCollector(), ENetTraceVerbosity::VeryVerbose);
+	UE_LOG_FNAMETOKEN(TEXT("FNameTokenStore::WriteTokenData %s %s"), *(StoredTokens[TokenStoreKey.GetKeyValue()].ToString()), *(StoredFNames[TokenStoreKey.GetKeyValue()].ToString()));
 	// $TODO: $IRIS: We can be a bit smarter here and utilize the string-number split of FNames to export less data.. JIRA: UE-221753
 	WriteString(Context.GetBitStreamWriter(), StoredFNames[TokenStoreKey.GetKeyValue()].ToString());
+}
+
+void FNameTokenStore::WriteTokenData(FArchive& Ar, FNetTokenStoreKey TokenStoreKey) const
+{
+	UE_NET_TRACE_DYNAMIC_NAME_SCOPE(StoredFNames[TokenStoreKey.GetKeyValue()], static_cast<FNetBitWriter&>(Ar), GetTraceCollector(static_cast<FNetBitWriter&>(Ar)), ENetTraceVerbosity::VeryVerbose);
+	UE_LOG_FNAMETOKEN(TEXT("FNameTokenStore::WriteTokenData %s %s"), *(StoredTokens[TokenStoreKey.GetKeyValue()].ToString()), *(StoredFNames[TokenStoreKey.GetKeyValue()].ToString()));
+	FName Name = StoredFNames[TokenStoreKey.GetKeyValue()];
+	UPackageMap::StaticSerializeName(Ar, Name);
 }
 
 FNetTokenStoreKey FNameTokenStore::ReadTokenData(FNetSerializationContext& Context, const FNetToken& NetToken)
@@ -123,6 +130,32 @@ FNetTokenStoreKey FNameTokenStore::ReadTokenData(FNetSerializationContext& Conte
 		if (Key.IsValid() && NetToken.IsAssignedByAuthority() && !TokenStore.IsAuthority())
 		{
 			UE_LOG_FNAMETOKEN(TEXT("NameTokenStore::ReadTokenData - Replaced local key %s with %s for name %s"), *StoredTokens[Key.GetKeyValue()].ToString(), *NetToken.ToString(), *Temp);	
+
+			// This way the next time we lookup this key during assignment use the imported authoritative key which we do not have to export
+			StoredTokens[Key.GetKeyValue()] = NetToken;
+		}
+
+		return Key;
+	}
+	else
+	{
+		return FNetTokenStoreKey();
+	}
+}
+
+FNetTokenStoreKey FNameTokenStore::ReadTokenData(FArchive& Ar, const FNetToken& NetToken)
+{
+	FName Name;
+	UPackageMap::StaticSerializeName(Ar, Name);
+
+	if (!Ar.IsError())
+	{
+		FNetTokenStoreKey Key = GetOrCreateTokenStoreKey(Name);
+
+		// If this is an authtoken and we are not the authority, update the stored key
+		if (Key.IsValid() && NetToken.IsAssignedByAuthority() && !TokenStore.IsAuthority())
+		{
+			UE_LOG_FNAMETOKEN(TEXT("NameTokenStore::ReadTokenData - Replaced local key %s with %s for name %s"), *StoredTokens[Key.GetKeyValue()].ToString(), *NetToken.ToString(), *Name.ToString());	
 
 			// This way the next time we lookup this key during assignment use the imported authoritative key which we do not have to export
 			StoredTokens[Key.GetKeyValue()] = NetToken;

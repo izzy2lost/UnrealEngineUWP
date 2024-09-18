@@ -233,6 +233,10 @@ void FPacketContentViewDrawStateBuilder::AddEvent(const TraceServices::FNetProfi
 				{
 					Builder.Append(TEXT(" | HasPackageMapExports"));
 				}
+				if (Event.BunchInfo.bPartialCustomExportsFinal)
+				{
+					Builder.Append(TEXT(" | HasCustomExports"));
+				}
 
 				Builder.Append(TEXT(", "));
 			}

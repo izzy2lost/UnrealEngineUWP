@@ -279,8 +279,6 @@ void FReplicationReader::Init(const FReplicationParameters& InParameters)
 	// Store copy of parameters
 	Parameters = InParameters;
 
-	ResolveContext.ConnectionId = InParameters.ConnectionId;
-
 	// Cache internal systems
 	ReplicationSystemInternal = Parameters.ReplicationSystem->GetReplicationSystemInternal();
 	NetRefHandleManager = &ReplicationSystemInternal->GetNetRefHandleManager();
@@ -288,6 +286,10 @@ void FReplicationReader::Init(const FReplicationParameters& InParameters)
 	NetBlobHandlerManager = &ReplicationSystemInternal->GetNetBlobHandlerManager();
 	ObjectReferenceCache = &ReplicationSystemInternal->GetObjectReferenceCache();
 	ReplicationBridge = Parameters.ReplicationSystem->GetReplicationBridge();
+
+	// Init resolve context
+	ResolveContext.ConnectionId = InParameters.ConnectionId;
+	ResolveContext.RemoteNetTokenStoreState = Parameters.ReplicationSystem->GetNetTokenStore()->GetRemoteNetTokenStoreState(InParameters.ConnectionId);
 
 	// Find out if there's a PartialNetObjectAttachmentHandler so we can re-assemble split blobs
 	if (const UPartialNetObjectAttachmentHandler* Handler = ReplicationSystemInternal->GetNetBlobManager().GetPartialNetObjectAttachmentHandler())
@@ -2658,11 +2660,6 @@ void FReplicationReader::ResolveAndDispatchAttachments(FNetSerializationContext&
 		ObjectsWithAttachmentPendingResolve.RemoveSwap(InternalIndex);
 	}
 	ReplicationInfo->bHasAttachments = bHasUnresolvedReferences;
-}
-
-void FReplicationReader::SetRemoteNetTokenStoreState(FNetTokenStoreState* InRemoteTokenStoreState)
-{
-	ResolveContext.RemoteNetTokenStoreState = InRemoteTokenStoreState;
 }
 
 } // end namespace UE::Net::Private

@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Iris/ReplicationSystem/NetToken.h"
+#include "Net/Core/NetToken/NetToken.h"
 
 namespace UE::Net
 {

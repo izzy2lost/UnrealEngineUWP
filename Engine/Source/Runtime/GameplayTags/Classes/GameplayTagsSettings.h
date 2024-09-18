@@ -124,6 +124,10 @@ class UGameplayTagsSettings : public UGameplayTagsList
 	UPROPERTY(config, EditAnywhere, Category = "Advanced Replication")
 	bool FastReplication;
 
+	/** If true, will replicate gameplay tags dynamically by index per connection. Slightly higher cost than FastReplication, but tags can differ between client and server */
+	UPROPERTY(config, EditAnywhere, Category = "Advanced Replication", meta=(EditCondition="!FastReplication"))
+	bool bDynamicReplication;
+
 	/** These characters cannot be used in gameplay tags, in addition to special ones like newline*/
 	UPROPERTY(config, EditAnywhere, Category = GameplayTags)
 	FString InvalidTagCharacters;

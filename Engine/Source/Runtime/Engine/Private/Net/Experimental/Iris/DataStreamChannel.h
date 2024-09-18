@@ -51,6 +51,8 @@ private:
 
 	/** We do not want to append orphaned exportbunches from other channels */
 	ENGINE_API virtual void AppendExportBunches(TArray<FOutBunch *>& OutExportBunches) override;
+	virtual TArray<FOutBunch*> GetAdditionalRequiredBunches(const FOutBunch& OutgoingBunch, EChannelGetAdditionalRequiredBunchesFlags Flags) override;
+
 	ENGINE_API virtual void AppendMustBeMappedGuids(FOutBunch* Bunch) override;
 
 

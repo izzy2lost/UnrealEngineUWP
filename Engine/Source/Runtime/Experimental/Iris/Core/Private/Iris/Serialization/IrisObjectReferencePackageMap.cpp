@@ -114,59 +114,10 @@ bool UIrisObjectReferencePackageMap::SerializeName(FArchive& Ar, FName& InName)
 	return true;
 }
 
-bool UIrisObjectReferencePackageMap::SerializeNetToken(FArchive& Ar, UE::Net::FNetToken& InNetToken)
-{
-	if (!PackageMapExports)
-	{
-		return false;
-	}
-
-	UE::Net::FIrisPackageMapExports::FNetTokensArray* NetTokens = &PackageMapExports->NetTokens;
-	constexpr uint8 MaxNumNetTokens = 255U;
-
-	if (Ar.IsSaving())
-	{
-		int32 Index = MaxNumNetTokens;
-		if (!NetTokens->Find(InNetToken, Index) && NetTokens->Num() < MaxNumNetTokens)
-		{
-			Index = NetTokens->Add(InNetToken);
-		}
-
-		if (NetTokens->IsValidIndex(Index))
-		{
-			uint8 IndexByte = static_cast<uint8>(Index);
-			Ar << IndexByte;
-		}
-		else
-		{
-			ensureMsgf(false, TEXT("UIrisObjectReferencePackageMap::SerializeNetToken, failed to serialize NetToken with Index %u (%s). A Maximum of %u nettokens are currently supported by this PackageMap"),
-				Index, *InNetToken.ToString(), MaxNumNetTokens);
-			uint8 IndexByte = MaxNumNetTokens;
-			Ar << IndexByte;
-			return false;
-		}
-	}
-	else
-	{
-		uint8 IndexByte = MaxNumNetTokens;
-		Ar << IndexByte;
-		if (NetTokens->IsValidIndex(IndexByte) && IndexByte < MaxNumNetTokens)
-		{
-			InNetToken = (*NetTokens)[IndexByte];
-		}
-		else
-		{
-			ensureMsgf(false, TEXT("UIrisObjectReferencePackageMap::SerializeName, failed to read name index %u is out of bounds. Current Name num: %u"), IndexByte, NetTokens->Num());
-			return false;
-		}
-	}
-
-	return true;
-}
-
-void UIrisObjectReferencePackageMap::InitForRead(const UE::Net::FIrisPackageMapExports* InPackageMapExports)
+void UIrisObjectReferencePackageMap::InitForRead(const UE::Net::FIrisPackageMapExports* InPackageMapExports, const UE::Net::FNetTokenResolveContext& InNetTokenResolveContext)
 { 
 	PackageMapExports = const_cast<UE::Net::FIrisPackageMapExports*>(InPackageMapExports);
+	NetTokenResolveContext = InNetTokenResolveContext;
 }
 
 void UIrisObjectReferencePackageMap::InitForWrite(UE::Net::FIrisPackageMapExports* InPackageMapExports)

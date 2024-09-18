@@ -55,8 +55,6 @@ public:
 
 	// Read incoming replication data
 	void Read(FNetSerializationContext& Context);
-
-	void SetRemoteNetTokenStoreState(FNetTokenStoreState* RemoteTokenStoreState);
 	
 	// Mark objects pending destroy as unresolvable.
 	void UpdateUnresolvableReferenceTracking();

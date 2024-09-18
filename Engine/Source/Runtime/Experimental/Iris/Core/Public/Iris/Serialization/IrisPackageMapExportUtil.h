@@ -6,7 +6,7 @@
 #include "NetSerializer.h"
 #include "UObject/ObjectMacros.h"
 #include "Iris/Core/NetObjectReference.h"
-#include "Iris/ReplicationSystem/NetToken.h"
+#include "Net/Core/NetToken/NetToken.h"
 #include "Iris/Serialization/NetSerializerArrayStorage.h"
 #include "Iris/Serialization/StringNetSerializers.h"
 
@@ -54,7 +54,7 @@ struct FIrisPackageMapExportsUtil
 	// Matches NetSerializer functions
 	IRISCORE_API static void Serialize(FNetSerializationContext& Context, const QuantizedType& Value);
 	IRISCORE_API static void Deserialize(FNetSerializationContext& Context, QuantizedType& Value);
-	IRISCORE_API static void Quantize(FNetSerializationContext& Context, const UE::Net::FIrisPackageMapExports& PackageMapExport, QuantizedType& Target);
+	IRISCORE_API static void Quantize(FNetSerializationContext& Context, const UE::Net::FIrisPackageMapExports& PackageMapExport, TArrayView<const UE::Net::FNetToken> NetTokensPendingExport, QuantizedType& Target);
 	IRISCORE_API static void Dequantize(FNetSerializationContext& Context, const QuantizedType& Source, UE::Net::FIrisPackageMapExports& PackageMapExports);
 	IRISCORE_API static bool IsEqual(FNetSerializationContext& Context, const QuantizedType& Value0, const QuantizedType& Value1);
 	IRISCORE_API static void CloneDynamicState(FNetSerializationContext& Context, QuantizedType& Target, const QuantizedType& Source);
