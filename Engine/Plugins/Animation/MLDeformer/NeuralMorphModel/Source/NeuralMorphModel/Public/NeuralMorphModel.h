@@ -147,7 +147,7 @@ public:
 	/** 
 	 * The number of iterations to train the model for. 
 	 * If you are quickly iterating then around 1000 to 3000 iterations should be enough.
-	 * If you want to generate final assets you might want to use a higher number of iterations, like 10k to 100k.
+	 * If you want to generate final assets you might want to use a higher number of iterations, like 10k to 100k or even up to one million.
 	 * Once the loss doesn't go down anymore, you know that more iterations most likely won't help much.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Settings", meta = (ClampMin = "1", ClampMax = "1000000"))
