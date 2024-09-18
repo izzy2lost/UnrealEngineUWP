@@ -253,7 +253,7 @@ namespace InternationalizationUtilities
 				);
 
 				NameTag = SanitizedName.Left(NameTagEndIndex);
-				NameTag.ReplaceInline(TEXT("_"), TEXT("-"), ESearchCase::CaseSensitive);
+				NameTag.ReplaceCharInline(TEXT('_'), TEXT('-'), ESearchCase::CaseSensitive);
 
 				if (NameKeywordsSplitIndex != INDEX_NONE)
 				{
