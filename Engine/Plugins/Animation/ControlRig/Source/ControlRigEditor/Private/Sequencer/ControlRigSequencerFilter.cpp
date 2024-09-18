@@ -73,7 +73,7 @@ public:
 	virtual bool PassesFilter(FSequencerTrackFilterType InItem) const override
 	{
 		FSequencerFilterData& FilterData = FilterInterface.GetFilterData();
-		const UMovieSceneTrack* const TrackObject = ResolveMovieSceneTrackObject(InItem, FilterData);
+		const UMovieSceneTrack* const TrackObject = FilterData.ResolveMovieSceneTrackObject(InItem);
 		const UMovieSceneControlRigParameterTrack* const Track = Cast<UMovieSceneControlRigParameterTrack>(TrackObject);
 		return IsValid(Track);
 	}
@@ -158,7 +158,7 @@ public:
 	{
 		FSequencerFilterData& FilterData = FilterInterface.GetFilterData();
 
-		UMovieSceneTrack* const TrackObject = ResolveMovieSceneTrackObject(InItem, FilterData);
+		UMovieSceneTrack* const TrackObject = FilterData.ResolveMovieSceneTrackObject(InItem);
 		URigHierarchy* const ControlRigHierarchy = GetControlRigHierarchyFromTrackObject(TrackObject);
 
 		if (!IsValid(ControlRigHierarchy))

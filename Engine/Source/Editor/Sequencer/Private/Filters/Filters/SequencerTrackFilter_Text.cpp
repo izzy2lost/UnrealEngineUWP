@@ -99,7 +99,7 @@ bool FSequencerTrackFilter_Text::PassesFilter(FSequencerTrackFilterType InItem) 
 
 	for (const TSharedRef<FSequencerTextFilterExpressionContext>& TextFilterExpressionContext : TextFilterExpressionContexts)
 	{
-		UMovieSceneTrack* const TrackObject = ResolveMovieSceneTrackObject(InItem, FilterData);
+		UMovieSceneTrack* const TrackObject = FilterData.ResolveMovieSceneTrackObject(InItem);
 		TextFilterExpressionContext->SetFilterItem(InItem, TrackObject);
 
 		if (!TextFilterExpressionEvaluator.TestTextFilter(*TextFilterExpressionContext))

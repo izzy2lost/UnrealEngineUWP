@@ -119,7 +119,7 @@ bool FSequencerTrackFilter_Selected::PassesFilter(FSequencerTrackFilterType InIt
 
 	FSequencerFilterData& FilterData = FilterInterface.GetFilterData();
 
-	const UObject* const TrackObject = ResolveTrackBoundObject(InItem, FilterData);
+	const UObject* const TrackObject = FilterData.ResolveTrackBoundObject(GetSequencer(), InItem);
 	if (!IsValid(TrackObject))
 	{
 		return false;

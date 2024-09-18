@@ -223,7 +223,7 @@ public:
 	virtual bool PassesFilter(FSequencerTrackFilterType InItem) const override
 	{
 		FSequencerFilterData& FilterData = FilterInterface.GetFilterData();
-		const UMovieSceneTrack* const TrackObject = ResolveMovieSceneTrackObject(InItem, FilterData);
+		const UMovieSceneTrack* const TrackObject = FilterData.ResolveMovieSceneTrackObject(InItem);
 		return IsValid(TrackObject)
 			&& TrackObject->IsA(UMovieSceneSubTrack::StaticClass())
 			&& !TrackObject->IsA(UMovieSceneCinematicShotTrack::StaticClass());

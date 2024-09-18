@@ -39,7 +39,7 @@ bool FSequencerTextFilterExpression_ObjectClass::TestComplexExpression(const FNa
 
 	ISequencer& Sequencer = FilterInterface.GetSequencer();
 
-	UObject* const BoundObject = FSequencerTrackFilter::ResolveTrackBoundObject(Sequencer, FilterItem, FilterInterface.GetFilterData());
+	UObject* const BoundObject = FilterInterface.GetFilterData().ResolveTrackBoundObject(Sequencer, FilterItem);
 	if (IsValid(BoundObject))
 	{
 		const FString BoundObjectClassName = BoundObject->GetClass()->GetName();

@@ -5,10 +5,16 @@
 #include "MovieSceneTrack.h"
 #include "MVVM/ViewModelPtr.h"
 
+class ISequencer;
+
 namespace UE::Sequencer
 {
+	class IObjectBindingExtension;
 	class IOutlinerExtension;
+	class ITrackExtension;
 }
+
+using FSequencerTrackFilterType = UE::Sequencer::FViewModelPtr;
 
 /** Represents a cache between nodes for a filter operation. */
 struct SEQUENCER_API FSequencerFilterData
@@ -42,8 +48,15 @@ struct SEQUENCER_API FSequencerFilterData
 
 	bool IsFilteredOut(const UE::Sequencer::TViewModelPtr<UE::Sequencer::IOutlinerExtension>& InNode) const;
 
-	TMap<UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::IOutlinerExtension>, TWeakObjectPtr<UMovieSceneTrack>> ResolvedTrackObjects;
-	TMap<UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::IOutlinerExtension>, TWeakObjectPtr<>> ResolvedBoundObjects;
+	UMovieSceneTrack* ResolveMovieSceneTrackObject(FSequencerTrackFilterType InNode);
+	UObject* ResolveTrackBoundObject(ISequencer& InSequencer, FSequencerTrackFilterType InNode);
+
+	UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::ITrackExtension> ResolveTrack(FSequencerTrackFilterType InNode);
+	UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::IObjectBindingExtension> ResolveTrackObjectBinding(FSequencerTrackFilterType InNode);
+
+	TMap<UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::IOutlinerExtension>, UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::ITrackExtension>> ResolvedTracks;
+	TMap<UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::IOutlinerExtension>, UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::IObjectBindingExtension>> ResolvedObjectBindings;
+	TMap<UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::IOutlinerExtension>, TWeakObjectPtr<>> ResolvedObjects;
 
 protected:
 	FString RawFilterText;

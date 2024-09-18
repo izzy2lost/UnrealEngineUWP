@@ -46,7 +46,7 @@ bool FSequencerTrackFilter_Modified::PassesFilter(FSequencerTrackFilterType InIt
 {
 	FSequencerFilterData& FilterData = FilterInterface.GetFilterData();
 
-	UMovieSceneTrack* const TrackObject = ResolveMovieSceneTrackObject(InItem, FilterData);
+	const UMovieSceneTrack* const TrackObject = FilterData.ResolveMovieSceneTrackObject(InItem);
 	if (!IsValid(TrackObject))
 	{
 		return true;
