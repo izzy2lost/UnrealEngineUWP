@@ -346,6 +346,7 @@ void UCommonSessionSubsystem::BindOnlineDelegatesOSSv1()
 	SessionInterface->AddOnUpdateSessionCompleteDelegate_Handle(FOnUpdateSessionCompleteDelegate::CreateUObject(this, &ThisClass::OnUpdateSessionComplete));
 	SessionInterface->AddOnEndSessionCompleteDelegate_Handle(FOnEndSessionCompleteDelegate::CreateUObject(this, &ThisClass::OnEndSessionComplete));
 	SessionInterface->AddOnDestroySessionCompleteDelegate_Handle(FOnDestroySessionCompleteDelegate::CreateUObject(this, &ThisClass::OnDestroySessionComplete));
+	SessionInterface->AddOnDestroySessionRequestedDelegate_Handle(FOnDestroySessionRequestedDelegate::CreateUObject(this, &ThisClass::OnDestroySessionRequested));
 
 //	SessionInterface->AddOnMatchmakingCompleteDelegate_Handle(FOnMatchmakingCompleteDelegate::CreateUObject(this, &ThisClass::OnMatchmakingComplete));
 //	SessionInterface->AddOnCancelMatchmakingCompleteDelegate_Handle(FOnCancelMatchmakingCompleteDelegate::CreateUObject(this, &ThisClass::OnCancelMatchmakingComplete));
@@ -701,6 +702,13 @@ void UCommonSessionSubsystem::OnDestroySessionComplete(FName SessionName, bool b
 {
 	UE_LOG(LogCommonSession, Log, TEXT("OnDestroySessionComplete(SessionName: %s, bWasSuccessful: %s)"), *SessionName.ToString(), bWasSuccessful ? TEXT("true") : TEXT("false"));
 	bWantToDestroyPendingSession = false;
+}
+
+void UCommonSessionSubsystem::OnDestroySessionRequested(int32 LocalUserNum, FName SessionName)
+{
+	FPlatformUserId PlatformUserId = IPlatformInputDeviceMapper::Get().GetPlatformUserForUserIndex(LocalUserNum);
+
+	NotifyDestroySessionRequested(PlatformUserId, SessionName);
 }
 #endif // COMMONUSER_OSSV1
 
@@ -1444,6 +1452,12 @@ void UCommonSessionSubsystem::NotifySessionInformationUpdated(ECommonSessionInfo
 {
 	OnSessionInformationChangedEvent.Broadcast(SessionStatus, GameMode, MapName);
 	K2_OnSessionInformationChangedEvent.Broadcast(SessionStatus, GameMode, MapName);
+}
+
+void UCommonSessionSubsystem::NotifyDestroySessionRequested(const FPlatformUserId& PlatformUserId, const FName& SessionName)
+{
+	OnDestroySessionRequestedEvent.Broadcast(PlatformUserId, SessionName);
+	K2_OnDestroySessionRequestedEvent.Broadcast(PlatformUserId, SessionName);
 }
 
 void UCommonSessionSubsystem::SetCreateSessionError(const FText& ErrorText)

@@ -412,6 +412,7 @@ void FOnlineSessionInfoEOS::InitLAN(FOnlineSubsystemEOS* Subsystem)
 typedef TEOSGlobalCallback<EOS_Sessions_OnSessionInviteReceivedCallback, EOS_Sessions_SessionInviteReceivedCallbackInfo, FOnlineSessionEOS> FSessionInviteReceivedCallback;
 typedef TEOSGlobalCallback<EOS_Sessions_OnSessionInviteAcceptedCallback, EOS_Sessions_SessionInviteAcceptedCallbackInfo, FOnlineSessionEOS> FSessionInviteAcceptedCallback;
 typedef TEOSGlobalCallback<EOS_Sessions_OnJoinSessionAcceptedCallback, EOS_Sessions_JoinSessionAcceptedCallbackInfo, FOnlineSessionEOS> FJoinSessionAcceptedCallback;
+typedef TEOSGlobalCallback<EOS_Sessions_OnLeaveSessionRequestedCallback, EOS_Sessions_LeaveSessionRequestedCallbackInfo, FOnlineSessionEOS> FLeaveSessionRequestedCallback;
 
 // Lobby session callbacks
 typedef TEOSCallback<EOS_Lobby_OnCreateLobbyCallback, EOS_Lobby_CreateLobbyCallbackInfo, FOnlineSessionEOS> FLobbyCreatedCallback;
@@ -430,23 +431,28 @@ typedef TEOSGlobalCallback<EOS_Lobby_OnLobbyMemberStatusReceivedCallback, EOS_Lo
 typedef TEOSGlobalCallback<EOS_Lobby_OnLobbyInviteReceivedCallback, EOS_Lobby_LobbyInviteReceivedCallbackInfo, FOnlineSessionEOS> FLobbyInviteReceivedCallback;
 typedef TEOSGlobalCallback<EOS_Lobby_OnLobbyInviteAcceptedCallback, EOS_Lobby_LobbyInviteAcceptedCallbackInfo, FOnlineSessionEOS> FLobbyInviteAcceptedCallback;
 typedef TEOSGlobalCallback<EOS_Lobby_OnJoinLobbyAcceptedCallback, EOS_Lobby_JoinLobbyAcceptedCallbackInfo, FOnlineSessionEOS> FJoinLobbyAcceptedCallback;
+typedef TEOSGlobalCallback<EOS_Lobby_OnLeaveLobbyRequestedCallback, EOS_Lobby_LeaveLobbyRequestedCallbackInfo, FOnlineSessionEOS> FLeaveLobbyRequestedCallback;
 
 FOnlineSessionEOS::~FOnlineSessionEOS()
 {
 	EOS_Sessions_RemoveNotifySessionInviteAccepted(EOSSubsystem->SessionsHandle, SessionInviteAcceptedId);
+	EOS_Sessions_RemoveNotifyLeaveSessionRequested(EOSSubsystem->SessionsHandle, LeaveSessionRequestedId);
 	delete SessionInviteAcceptedCallback;
+	delete LeaveSessionRequestedCallback;
 
 	EOS_Lobby_RemoveNotifyLobbyUpdateReceived(LobbyHandle, LobbyUpdateReceivedId);
 	EOS_Lobby_RemoveNotifyLobbyMemberUpdateReceived(LobbyHandle, LobbyMemberUpdateReceivedId);
 	EOS_Lobby_RemoveNotifyLobbyMemberStatusReceived(LobbyHandle, LobbyMemberStatusReceivedId);
 	EOS_Lobby_RemoveNotifyLobbyInviteAccepted(LobbyHandle, LobbyInviteAcceptedId);
 	EOS_Lobby_RemoveNotifyJoinLobbyAccepted(LobbyHandle, JoinLobbyAcceptedId);
+	EOS_Lobby_RemoveNotifyLeaveLobbyRequested(LobbyHandle, LeaveLobbyRequestedId);
 
 	delete LobbyUpdateReceivedCallback;
 	delete LobbyMemberUpdateReceivedCallback;
 	delete LobbyMemberStatusReceivedCallback;
 	delete LobbyInviteAcceptedCallback;
 	delete JoinLobbyAcceptedCallback;
+	delete LeaveLobbyRequestedCallback;
 }
 
 void FOnlineSessionEOS::Init()
@@ -629,6 +635,20 @@ void FOnlineSessionEOS::RegisterSessionNotifications()
 	AddNotifyJoinSessionAcceptedOptions.ApiVersion = 1;
 	UE_EOS_CHECK_API_MISMATCH(EOS_SESSIONS_ADDNOTIFYJOINSESSIONACCEPTED_API_LATEST, 1);
 	SessionInviteAcceptedId = EOS_Sessions_AddNotifyJoinSessionAccepted(EOSSubsystem->SessionsHandle, &AddNotifyJoinSessionAcceptedOptions, JoinSessionAcceptedCallbackObj, JoinSessionAcceptedCallbackObj->GetCallbackPtr());
+
+	// Requested session leave notifications
+	EOS_Sessions_AddNotifyLeaveSessionRequestedOptions AddNotifyLeaveSessionRequestedOptions = { 0 };
+	AddNotifyLeaveSessionRequestedOptions.ApiVersion = 1;
+	UE_EOS_CHECK_API_MISMATCH(EOS_SESSIONS_ADDNOTIFYLEAVESESSIONREQUESTED_API_LATEST, 1);
+
+	FLeaveSessionRequestedCallback* LeaveSessionRequestedCallbackObj = new FLeaveSessionRequestedCallback(FOnlineSessionEOSWeakPtr(AsShared()));
+	LeaveSessionRequestedCallback = LeaveSessionRequestedCallbackObj;
+	LeaveSessionRequestedCallbackObj->CallbackLambda = [this](const EOS_Sessions_LeaveSessionRequestedCallbackInfo* Data)
+		{
+			OnLeaveSessionRequested(Data);
+		};
+
+	LeaveSessionRequestedId = EOS_Sessions_AddNotifyLeaveSessionRequested(EOSSubsystem->SessionsHandle, &AddNotifyLeaveSessionRequestedOptions, LeaveSessionRequestedCallbackObj, LeaveSessionRequestedCallbackObj->GetCallbackPtr());
 }
 
 
@@ -737,6 +757,26 @@ void FOnlineSessionEOS::OnJoinSessionAccepted(const EOS_Sessions_JoinSessionAcce
 		});
 }
 
+void FOnlineSessionEOS::OnLeaveSessionRequested(const EOS_Sessions_LeaveSessionRequestedCallbackInfo* Data)
+{
+	const int32 LocalUserNum = EOSSubsystem->UserManager->GetLocalUserNumFromProductUserId(Data->LocalUserId);
+	if (LocalUserNum == INVALID_LOCAL_USER)
+	{
+		UE_LOG_ONLINE_SESSION(Warning, TEXT("Cannot process leave session request due to unknown local user (%s)"), *LexToString(Data->LocalUserId));
+		return;
+	}
+
+	FName SessionName = UTF8_TO_TCHAR(Data->SessionName);
+	const FNamedOnlineSession* Session = GetNamedSession(SessionName);
+	if (Session == nullptr)
+	{
+		UE_LOG_ONLINE_SESSION(Warning, TEXT("Cannot process leave session request due to unknown session with name (%s)"), *SessionName.ToString());
+		return;
+	}
+
+	TriggerOnDestroySessionRequestedDelegates(LocalUserNum, SessionName);
+}
+
 void FOnlineSessionEOS::RegisterLobbyNotifications()
 {
 	// Lobby data updates
@@ -822,6 +862,20 @@ void FOnlineSessionEOS::RegisterLobbyNotifications()
 	};
 
 	JoinLobbyAcceptedId = EOS_Lobby_AddNotifyJoinLobbyAccepted(LobbyHandle, &AddNotifyJoinLobbyAcceptedOptions, JoinLobbyAcceptedCallbackObj, JoinLobbyAcceptedCallbackObj->GetCallbackPtr());
+
+	// Requested lobby leave notifications
+	EOS_Lobby_AddNotifyLeaveLobbyRequestedOptions AddNotifyLeaveLobbyRequestedOptions = { 0 };
+	AddNotifyLeaveLobbyRequestedOptions.ApiVersion = 1;
+	UE_EOS_CHECK_API_MISMATCH(EOS_LOBBY_ADDNOTIFYLEAVELOBBYREQUESTED_API_LATEST, 1);
+
+	FLeaveLobbyRequestedCallback* LeaveLobbyRequestedCallbackObj = new FLeaveLobbyRequestedCallback(FOnlineSessionEOSWeakPtr(AsShared()));
+	LeaveLobbyRequestedCallback = LeaveLobbyRequestedCallbackObj;
+	LeaveLobbyRequestedCallbackObj->CallbackLambda = [this](const EOS_Lobby_LeaveLobbyRequestedCallbackInfo* Data)
+	{
+		OnLeaveLobbyRequested(Data);
+	};
+
+	LeaveLobbyRequestedId = EOS_Lobby_AddNotifyLeaveLobbyRequested(LobbyHandle, &AddNotifyLeaveLobbyRequestedOptions, LeaveLobbyRequestedCallbackObj, LeaveLobbyRequestedCallbackObj->GetCallbackPtr());
 }
 
 void FOnlineSessionEOS::OnLobbyUpdateReceived(const EOS_LobbyId& LobbyId)
@@ -1119,6 +1173,27 @@ void FOnlineSessionEOS::OnJoinLobbyAccepted(const EOS_Lobby_JoinLobbyAcceptedCal
 				TriggerOnSessionUserInviteAcceptedDelegates(false, LocalUserNum, ResolvedUniqueNetId, FOnlineSessionSearchResult());
 			}
 		});
+}
+
+void FOnlineSessionEOS::OnLeaveLobbyRequested(const EOS_Lobby_LeaveLobbyRequestedCallbackInfo* Data)
+{
+	const int32 LocalUserNum = EOSSubsystem->UserManager->GetLocalUserNumFromProductUserId(Data->LocalUserId);
+	if (LocalUserNum == INVALID_LOCAL_USER)
+	{
+		UE_LOG_ONLINE_SESSION(Warning, TEXT("Cannot process leave lobby request due to unknown local user (%s)"), *LexToString(Data->LocalUserId));
+		return;
+	}
+
+	FString LobbyIdStr = UTF8_TO_TCHAR(Data->LobbyId);
+	const FUniqueNetIdEOSLobbyRef LobbyNetId = FUniqueNetIdEOSLobby::Create(*LobbyIdStr);
+	const FNamedOnlineSession* Session = GetNamedSessionFromLobbyId(*LobbyNetId);
+	if (Session == nullptr)
+	{
+		UE_LOG_ONLINE_SESSION(Warning, TEXT("Cannot process leave lobby request due to unknown lobby with id (%s)"), *LobbyIdStr);
+		return;
+	}
+
+	TriggerOnDestroySessionRequestedDelegates(LocalUserNum, Session->SessionName);
 }
 
 bool FOnlineSessionEOS::CreateSession(int32 HostingPlayerNum, FName SessionName, const FOnlineSessionSettings& NewSessionSettings)

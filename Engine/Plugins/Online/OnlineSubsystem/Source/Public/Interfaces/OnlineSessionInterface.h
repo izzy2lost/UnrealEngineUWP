@@ -273,6 +273,16 @@ inline const TCHAR* LexToString(const ESessionFailure::Type Value)
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnSessionFailure, const FUniqueNetId&, ESessionFailure::Type);
 typedef FOnSessionFailure::FDelegate FOnSessionFailureDelegate;
 
+/**
+ * Delegate called when the service requests that we destroy the session.
+ * The game should react by cleaning up any state associated with the session (leaving the match, etc), and calling DestroySession.
+ *
+ * @param LocalUserNum The index for the player that made the request
+ * @param SessionName The identifier for the session to be destroyed
+ */
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnDestroySessionRequested, int32 /*LocalUserNum*/, FName /*SessionName*/);
+typedef FOnDestroySessionRequested::FDelegate FOnDestroySessionRequestedDelegate;
+
 /** Attributes for a matchmaking user */
 struct FSessionMatchmakingUser
 {
@@ -948,6 +958,8 @@ public:
 	 * @param FailureType What kind of failure occured 
 	 */
 	DEFINE_ONLINE_DELEGATE_TWO_PARAM(OnSessionFailure, const FUniqueNetId&, ESessionFailure::Type);
+
+	DEFINE_ONLINE_DELEGATE_TWO_PARAM(OnDestroySessionRequested, int32 /*LocalUserNum*/, FName /*SessionName*/);
 
 	/**
 	 * Gets the number of known sessions registered with the interface
