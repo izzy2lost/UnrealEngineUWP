@@ -301,6 +301,9 @@ protected:
 	/** Override in child classes to provide encryption data for party beacon connections. */
 	virtual bool InitializeBeaconEncryptionData(AOnlineBeaconClient& BeaconClient, const FString& SessionId);
 
+	/** The list of party members to send the request for joining in progress. */
+	virtual TArray<UPartyMember*> GetLocalPartyMembersForJoinInProgress() const;
+
 	bool IsInviteRateLimited(const USocialUser& User, ESocialSubsystem SubsystemType) const;
 
 	bool ApplyCrossplayRestriction(FPartyJoinApproval& JoinApproval, const FUserPlatform& Platform, const FOnlinePartyData& JoinData) const;
@@ -335,7 +338,7 @@ protected:
 
 	/** Spectator beacon class for getting server approval for new spectators while in a game */
 	UPROPERTY()
-		TSubclassOf<ASpectatorBeaconClient> SpectatorBeaconClientClass;
+	TSubclassOf<ASpectatorBeaconClient> SpectatorBeaconClientClass;
 
 	/** Apply local party configuration to the OSS party, optionally resetting the access key to the party in the process */
 	void UpdatePartyConfig(bool bResetAccessKey = false);
