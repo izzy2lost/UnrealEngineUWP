@@ -108,9 +108,9 @@ TSharedPtr<SWidget> FTypedElementWidgetConstructor::ConstructFinalWidget(
 		bool bConstructWidget = DataStorage->IsRowAssigned(RowReference->Row);
 
 		// If the original row matches this widgets query conditions currently, create the actual internal widget
-		if (QueryConditions)
+		if (const UE::Editor::DataStorage::Queries::FConditions* MatchedQueryConditions = GetQueryConditions())
 		{
-			bConstructWidget &= DataStorage->MatchesColumns(RowReference->Row, *QueryConditions);
+			bConstructWidget &= DataStorage->MatchesColumns(RowReference->Row, *MatchedQueryConditions);
 		}
 		
 		if (bConstructWidget)

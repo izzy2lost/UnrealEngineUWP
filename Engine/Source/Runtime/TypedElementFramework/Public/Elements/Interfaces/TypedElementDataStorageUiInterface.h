@@ -66,7 +66,7 @@ public:
 	 *	Construct() can be called later to (re)create the internal widget if ever required.
 	 *	@see Construct
 	 */
-	TYPEDELEMENTFRAMEWORK_API TSharedPtr<SWidget> ConstructFinalWidget(
+	TYPEDELEMENTFRAMEWORK_API virtual TSharedPtr<SWidget> ConstructFinalWidget(
 		RowHandle Row, /** The row the widget will be stored in. */
 		IEditorDataStorageProvider* DataStorage,
 		IEditorDataStorageUiProvider* DataStorageUi,

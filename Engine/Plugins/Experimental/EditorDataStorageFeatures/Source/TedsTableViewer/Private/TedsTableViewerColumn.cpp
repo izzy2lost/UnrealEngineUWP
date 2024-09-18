@@ -34,8 +34,14 @@ namespace UE::Editor::DataStorage
 			StorageCompatibility = Registry->GetMutableDataStorageCompatibility();
 		}
 
-		RegisterQueries();
+		// Store the matched columns as a query condition that requires all of them (i.e AND's them)
+		for(const TWeakObjectPtr<const UScriptStruct>& Column : MatchedColumns)
+		{
+			MatchedColumnConditions = MatchedColumnConditions && Queries::TColumn(Column);
+		}
+		MatchedColumnConditions.Compile(Queries::FEditorStorageQueryConditionCompileContext(Storage));
 
+		RegisterQueries();
 	}
 	
 	FTedsTableViewerColumn::~FTedsTableViewerColumn()
@@ -257,7 +263,19 @@ namespace UE::Editor::DataStorage
 			}
 			
 			// Check if the row now matches the query conditions for this widget
-			const bool bMatchesQueryConditions = CellWidgetConstructor->GetQueryConditions() && Storage->MatchesColumns(Pair.Key, *CellWidgetConstructor->GetQueryConditions());
+			bool bMatchesQueryConditions = true;
+
+			// First we try to match against the conditions provided by the widget constructor if possible
+			const Queries::FConditions* WidgetConstructorConditions = CellWidgetConstructor->GetQueryConditions();
+			if(WidgetConstructorConditions && WidgetConstructorConditions->IsCompiled())
+			{
+				bMatchesQueryConditions = bMatchesQueryConditions && Storage->MatchesColumns(Pair.Key, *WidgetConstructorConditions);
+			}
+			// If the widget constructor didn't provide any conditions, try to match against the columns we were provided on init
+			else
+			{
+				bMatchesQueryConditions = bMatchesQueryConditions && Storage->MatchesColumns(Pair.Key, MatchedColumnConditions);
+			}
 			
 			// If we are adding a column that we are monitoring and it now matches, or if we are removing a column that we are monitoring and it now
 			// stops matching, there is a potential need for widget update
