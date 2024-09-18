@@ -197,7 +197,7 @@ struct STimeWarpScrubber : public SLeafWidget
 			FSlateDrawElement::MakeBox(
 				OutDrawElements,
 				LayerId++,
-				AllottedGeometry.ToPaintGeometry(),
+				AllottedGeometry.ToPaintGeometry(AllottedGeometry.Size - FVector2f(0.f, 1.f), FSlateLayoutTransform(FVector2f(0.f, 1.f))),
 				Brush,
 				ESlateDrawEffect::None,
 				TimeWarpColor

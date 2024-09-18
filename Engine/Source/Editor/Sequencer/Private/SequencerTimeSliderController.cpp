@@ -536,7 +536,9 @@ int32 FSequencerTimeSliderController::OnPaintTimeSlider( bool bMirrorLabels, con
 		const float         HandleEnd     = ScrubMetrics.HandleRangePx.GetUpperBoundValue();
 
 		const int32 ArrowLayer = LayerId + 2;
-		FPaintGeometry MyGeometry =	AllottedGeometry.ToPaintGeometry( FVector2f( HandleEnd - HandleStart, AllottedGeometry.Size.Y ), FSlateLayoutTransform(FVector2f( HandleStart, 0.f )) );
+		FPaintGeometry MyGeometry =	AllottedGeometry.ToPaintGeometry(
+			FVector2f( HandleEnd - HandleStart, AllottedGeometry.Size.Y-1.f ),
+			FSlateLayoutTransform(FVector2f( HandleStart, 1.f )) );
 
 		FTimeWarpTrackExtension*   TimeWarpExtension   = Sequencer->GetViewModel()->GetRootSequenceModel()->GetSharedData()->CastDynamic<FTimeWarpTrackExtension>();
 		const FTimeWarpTrackModel* ActiveTimeWarpTrack = TimeWarpExtension ? TimeWarpExtension->GetActiveTimeWarpTrack() : nullptr;
@@ -545,6 +547,11 @@ int32 FSequencerTimeSliderController::OnPaintTimeSlider( bool bMirrorLabels, con
 		FLinearColor ScrubColor = bIsWarped
 			? FStyleColors::AccentOrange.GetSpecifiedColor()
 			: FStyleColors::AccentRed.GetSpecifiedColor();
+
+		if (!bIsEvaluating)
+		{
+			ScrubColor = FStyleColors::AccentYellow.GetSpecifiedColor().CopyWithNewOpacity(.7f);
+		}
 
 		const FSlateBrush* Brush = ScrubMetrics.Style == ESequencerScrubberStyle::Vanilla
 			? VanillaScrubHandleDownBrush
