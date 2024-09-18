@@ -2,31 +2,28 @@
 
 #include "SDMXFixtureTypeTree.h"
 
+#include "Algo/Transform.h"
+#include "Commands/DMXEditorCommands.h"
+#include "Dialogs/Dialogs.h"
 #include "DMXEditor.h"
 #include "DMXEditorUtils.h"
 #include "DMXFixturePatchSharedData.h"
 #include "DMXFixtureTypeSharedData.h"
 #include "DMXRuntimeUtils.h"
-#include "SDMXFixtureTypeTreeCategoryRow.h"
-#include "SDMXFixtureTypeTreeFixtureTypeRow.h"
-#include "Commands/DMXEditorCommands.h"
+#include "Framework/Commands/GenericCommands.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXEntityFixtureType.h"
 #include "Library/DMXLibrary.h"
-#include "Widgets/DMXEntityTreeNode.h"
-
-#include "ScopedTransaction.h"
-#include "Dialogs/Dialogs.h"
-#include "Framework/Application/SlateApplication.h"
-#include "Framework/Commands/GenericCommands.h"
-#include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Misc/MessageDialog.h"
-#include "Widgets/SBoxPanel.h"
-#include "Widgets/Input/SButton.h"
+#include "ScopedTransaction.h"
+#include "SDMXFixtureTypeTreeCategoryRow.h"
+#include "SDMXFixtureTypeTreeFixtureTypeRow.h"
+#include "Widgets/DMXEntityTreeNode.h"
 #include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SButton.h"
+#include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
-#include "Widgets/Views/STreeView.h"
-
 
 #define LOCTEXT_NAMESPACE "SDMXFixtureTypeTree"
 
@@ -468,9 +465,26 @@ void SDMXFixtureTypeTree::OnDeleteNodes()
 			FixtureTypeSharedData->SelectFixtureTypes(TArray<TWeakObjectPtr<UDMXEntityFixtureType>>());
 		}
 
-		// Remove the Fixture Types from the DMX Library
 		const FScopedTransaction Transaction(EntitiesToDelete.Num() > 1 ? LOCTEXT("RemoveEntities", "Remove Entities") : LOCTEXT("RemoveEntity", "Remove Entity"));
 
+		// Modify affected fixture patches
+		const TArray<UDMXEntityFixturePatch*> FixturePatches = DMXLibrary->GetEntitiesTypeCast<UDMXEntityFixturePatch>();
+		TArray<UDMXEntityFixturePatch*> AffectedFixturePatches;
+		Algo::TransformIf(FixturePatches, AffectedFixturePatches,
+			[&FixtureTypesToDelete](const UDMXEntityFixturePatch* FixturePatch)
+			{
+				return FixturePatch && FixtureTypesToDelete.Contains(FixturePatch->GetFixtureType());
+			},
+			[&FixtureTypesToDelete](UDMXEntityFixturePatch* FixturePatch)
+			{
+				return FixturePatch;
+			});
+		for (UDMXEntityFixturePatch* FixturePatch : AffectedFixturePatches)
+		{
+			FixturePatch->Modify();
+		}
+
+		// Remove the Fixture Types from the DMX 
 		DMXLibrary->PreEditChange(UDMXLibrary::StaticClass()->FindPropertyByName(UDMXLibrary::GetEntitiesPropertyName()));
 		for (UDMXEntityFixtureType* FixtureType : FixtureTypesToDelete)
 		{
@@ -479,7 +493,6 @@ void SDMXFixtureTypeTree::OnDeleteNodes()
 			UDMXEntityFixtureType::RemoveFixtureTypeFromLibrary(FixtureTypeRef);
 		}
 		DMXLibrary->PostEditChange();
-
 
 		UpdateTree();
 	}

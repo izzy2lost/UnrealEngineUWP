@@ -517,9 +517,13 @@ bool UDMXEntityFixturePatch::IsValidEntity(FText& OutReason) const
 
 void UDMXEntityFixturePatch::ValidateActiveMode()
 {
-	if (ParentFixtureTypeTemplate != nullptr)
+	if (ParentFixtureTypeTemplate && !ParentFixtureTypeTemplate->Modes.IsEmpty())
 	{
 		ActiveMode = FMath::Clamp(ActiveMode, 0, ParentFixtureTypeTemplate->Modes.Num() - 1);
+	}
+	else
+	{
+		ActiveMode = INDEX_NONE;
 	}
 }
 

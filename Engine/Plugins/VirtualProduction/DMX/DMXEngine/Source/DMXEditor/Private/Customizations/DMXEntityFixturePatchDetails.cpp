@@ -59,20 +59,6 @@ void FDMXEntityFixturePatchDetails::CustomizeDetails(IDetailLayoutBuilder& Detai
 	TSharedPtr<uint32> DefaultSelectedActiveMode = nullptr;
 	GenerateActiveModesSource();
 
-	int32 ActiveMode;
-	if (ActiveModeHandle->GetValue(ActiveMode) == FPropertyAccess::Success)
-	{
-		const bool bActiveModeExists = ActiveModesSource.ContainsByPredicate([ActiveMode](TSharedPtr<uint32> Option) 
-			{
-				return Option.IsValid() && *Option == ActiveMode;
-			});
-
-		if (!bActiveModeExists)
-		{
-			SetActiveMode(0);
-		}
-	}
-
 	DetailBuilder.EditDefaultProperty(ActiveModeHandle)->CustomWidget(false)
 		.NameContent()
 		[
@@ -125,21 +111,7 @@ void FDMXEntityFixturePatchDetails::OnParentFixtureTypeChanged(UDMXEntity* NewTe
 
 void FDMXEntityFixturePatchDetails::OnFixtureTypeChanged(const UDMXEntityFixtureType* FixtureType)
 {
-	if (IsValid(FixtureType))
-	{
-		// Keep the active mode valid
-		int32 ActiveMode;
-		if (ActiveModeHandle->GetValue(ActiveMode) == FPropertyAccess::Success)
-		{
-			if (!FixtureType->Modes.IsValidIndex(ActiveMode))
-			{
-				const int32 NewActiveMode = FixtureType->Modes.Num() > 0 ? 0 : INDEX_NONE;
-				ActiveModeHandle->SetValue(NewActiveMode);
-			}
-		}
-	
-		PropertyUtilities->RequestRefresh();
-	}
+	PropertyUtilities->RequestRefresh();
 }
 
 void FDMXEntityFixturePatchDetails::OnUniverseIDChanged()

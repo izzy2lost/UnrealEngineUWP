@@ -582,16 +582,30 @@ void SDMXFixturePatchList::Construct(const FArguments& InArgs, TWeakPtr<FDMXEdit
 	// Handle Shared Data selection changes
 	FixturePatchSharedData->OnFixturePatchSelectionChanged.AddSP(this, &SDMXFixturePatchList::OnFixturePatchSharedDataSelectedFixturePatches);
 
-	RegisterCommands();
+	ChildSlot
+	[
+		SNew(SVerticalBox)
+
+		+ SVerticalBox::Slot()
+		.HAlign(HAlign_Fill)
+		.AutoHeight()
+		[
+			SAssignNew(Toolbar, SDMXFixturePatchListToolbar, WeakDMXEditor)
+			.OnSearchChanged(this, &SDMXFixturePatchList::OnSearchChanged)
+		]
+
+		+ SVerticalBox::Slot()
+		.HAlign(HAlign_Fill)
+		.FillHeight(1.f)
+		[
+			SAssignNew(ListContentBorder, SBorder)
+			.BorderImage(FAppStyle::GetBrush("NoBorder"))
+		]
+	];
+
 	RefreshList();
 
-	AdoptSelectionFromFixturePatchSharedData();
-
-	// Make an initial selection if nothing was selected from Fixture Patch Shared Data, as if the user clicked it
-	if (ListView->GetSelectedItems().IsEmpty() && !ListSource.IsEmpty())
-	{
-		ListView->SetSelection(ListSource[0], ESelectInfo::OnMouseClick);
-	}
+	RegisterCommands();
 }
 
 void SDMXFixturePatchList::RequestListRefresh()
@@ -614,19 +628,16 @@ void SDMXFixturePatchList::RequestListRefresh()
 
 void SDMXFixturePatchList::EnterFixturePatchNameEditingMode()
 {
-	if (ListView.IsValid())
+	const TArray<TSharedPtr<FDMXFixturePatchListItem>> SelectedItems = ListView->GetSelectedItems();
+	if (SelectedItems.Num() == 0)
 	{
-		const TArray<TSharedPtr<FDMXFixturePatchListItem>> SelectedItems = ListView->GetSelectedItems();
-		if (SelectedItems.Num() == 0)
-		{
-			const TSharedPtr<SDMXFixturePatchListRow>* SelectedRowPtr = Rows.FindByPredicate([&SelectedItems](const TSharedPtr<SDMXFixturePatchListRow>& Row)
-				{
-					return Row->GetItem() == SelectedItems[0];
-				});
-			if (SelectedRowPtr)
+		const TSharedPtr<SDMXFixturePatchListRow>* SelectedRowPtr = Rows.FindByPredicate([&SelectedItems](const TSharedPtr<SDMXFixturePatchListRow>& Row)
 			{
-				(*SelectedRowPtr)->EnterFixturePatchNameEditingMode();
-			}
+				return Row->GetItem() == SelectedItems[0];
+			});
+		if (SelectedRowPtr)
+		{
+			(*SelectedRowPtr)->EnterFixturePatchNameEditingMode();
 		}
 	}
 }	
@@ -684,40 +695,20 @@ void SDMXFixturePatchList::RefreshList()
 		});
 	SortListSource(EColumnSortPriority::Max, SortedByColumnID, SortMode);
 
-	Toolbar =
-		SNew(SDMXFixturePatchListToolbar, WeakDMXEditor)
-		.OnSearchChanged(this, &SDMXFixturePatchList::OnSearchChanged);
-
 	// Apply search filters. Relies on up-to-date status to find conflicts.
 	ListSource = Toolbar->FilterItems(ListSource);
 
 	// Generate status texts
 	GenereateStatusText();
 
-	ChildSlot
-	[
-		SNew(SVerticalBox)
-
-		+ SVerticalBox::Slot()
-		.HAlign(HAlign_Fill)
-		.AutoHeight()
-		[
-			Toolbar.ToSharedRef()
-		]
-
-		+ SVerticalBox::Slot()
-		.HAlign(HAlign_Fill)
-		.FillHeight(1.f)
-		[
-			SAssignNew(ListView, SDMXFixturePatchListType)
-			.ListViewStyle(&FAppStyle::Get().GetWidgetStyle<FTableViewStyle>("TreeView"))
-			.HeaderRow(GenerateHeaderRow())
-			.ListItemsSource(&ListSource)
-			.OnGenerateRow(this, &SDMXFixturePatchList::OnGenerateRow)
-			.OnSelectionChanged(this, &SDMXFixturePatchList::OnSelectionChanged)
-			.OnContextMenuOpening(this, &SDMXFixturePatchList::OnContextMenuOpening)
-		]
-	];
+	ListContentBorder->SetContent(
+		SAssignNew(ListView, SDMXFixturePatchListType)
+		.ListViewStyle(&FAppStyle::Get().GetWidgetStyle<FTableViewStyle>("TreeView"))
+		.HeaderRow(GenerateHeaderRow())
+		.ListItemsSource(&ListSource)
+		.OnGenerateRow(this, &SDMXFixturePatchList::OnGenerateRow)
+		.OnSelectionChanged(this, &SDMXFixturePatchList::OnSelectionChanged)
+		.OnContextMenuOpening(this, &SDMXFixturePatchList::OnContextMenuOpening));
 
 	AdoptSelectionFromFixturePatchSharedData();
 }
@@ -842,11 +833,6 @@ void SDMXFixturePatchList::OnFixturePatchSharedDataSelectedFixturePatches()
 
 void SDMXFixturePatchList::AdoptSelectionFromFixturePatchSharedData()
 {
-	if (!ListView.IsValid())
-	{
-		return;
-	}
-
 	const TArray<TWeakObjectPtr<UDMXEntityFixturePatch>> SelectedFixturePatches = FixturePatchSharedData->GetSelectedFixturePatches();
 
 	TArray<TSharedPtr<FDMXFixturePatchListItem>> NewSelection;
@@ -870,6 +856,11 @@ void SDMXFixturePatchList::AdoptSelectionFromFixturePatchSharedData()
 		constexpr bool bSelected = true;
 		ListView->SetItemSelection(NewSelection, bSelected, ESelectInfo::OnMouseClick);
 		ListView->RequestScrollIntoView(NewSelection[0]);
+	}
+	else if (ListView->GetSelectedItems().IsEmpty() && !ListSource.IsEmpty())
+	{	
+		// Make an initial selection if nothing was selected from Fixture Patch Shared Data, as if the user clicked it
+		ListView->SetSelection(ListSource[0], ESelectInfo::OnMouseClick);
 	}
 }
 
@@ -1095,10 +1086,7 @@ void SDMXFixturePatchList::SortList(const EColumnSortPriority::Type SortPriority
 {
 	SortListSource(SortPriority, ColumnId, InSortMode);
 
-	if (ListView.IsValid())
-	{
-		ListView->RequestListRefresh();
-	}
+	ListView->RequestListRefresh();
 
 	UDMXEditorSettings* EditorSettings = GetMutableDefault<UDMXEditorSettings>();
 	EditorSettings->MVRFixtureListSettings.SortByCollumnID = SortedByColumnID;
@@ -1109,11 +1097,6 @@ void SDMXFixturePatchList::SortList(const EColumnSortPriority::Type SortPriority
 
 TSharedPtr<SWidget> SDMXFixturePatchList::OnContextMenuOpening()
 {
-	if (!ListView.IsValid())
-	{
-		return SNullWidget::NullWidget;
-	}
-
 	const bool bCloseWindowAfterMenuSelection = true;
 	FMenuBuilder MenuBuilder(bCloseWindowAfterMenuSelection, CommandList);
 	MenuBuilder.BeginSection("BasicOperationsSection", LOCTEXT("BasicOperationsSection", "Basic Operations"));
