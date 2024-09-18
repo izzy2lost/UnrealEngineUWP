@@ -3,6 +3,7 @@
 #pragma once
 #include "Elements/Common/TypedElementHandles.h"
 #include "Elements/Framework/TypedElementMetaData.h"
+#include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/NameTypes.h"
 #include "Widgets/Views/SHeaderRow.h"
@@ -65,6 +66,9 @@ namespace UE::Editor::DataStorage
 
 		// Teds Columns this widget constructor matched with
 		TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumns;
+
+		// The matched columns stored as a query condition for quick access
+		Queries::FConditions MatchedColumnConditions;
 		
 		// The Metadata used to create widgets
 		FMetaDataView WidgetMetaData;

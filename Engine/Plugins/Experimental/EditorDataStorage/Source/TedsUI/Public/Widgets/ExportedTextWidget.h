@@ -39,6 +39,12 @@ public:
 	virtual FString CreateWidgetDisplayName(
 		IEditorDataStorageProvider* DataStorage, UE::Editor::DataStorage::RowHandle Row) const override;
 
+	virtual TSharedPtr<SWidget> ConstructFinalWidget(
+		RowHandle Row, /** The row the widget will be stored in. */
+		IEditorDataStorageProvider* DataStorage,
+		IEditorDataStorageUiProvider* DataStorageUi,
+		const UE::Editor::DataStorage::FMetaDataView& Arguments) override;
+	
 protected:
 	virtual TSharedPtr<SWidget> CreateWidget(const UE::Editor::DataStorage::FMetaDataView& Arguments) override;
 	virtual bool FinalizeWidget(

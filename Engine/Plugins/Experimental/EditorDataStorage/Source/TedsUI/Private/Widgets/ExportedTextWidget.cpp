@@ -142,7 +142,12 @@ TConstArrayView<const UScriptStruct*> FExportedTextWidgetConstructor::GetAdditio
 const UE::Editor::DataStorage::Queries::FConditions* FExportedTextWidgetConstructor::GetQueryConditions() const
 {
 	// For the exported text widget, the query condition we are matched against is the column we are exporting text for
-	return &MatchedColumn;
+	if(MatchedColumn.IsCompiled() && !MatchedColumn.IsEmpty())
+	{
+		return &MatchedColumn;
+	}
+
+	return nullptr;
 }
 
 FString FExportedTextWidgetConstructor::CreateWidgetDisplayName(IEditorDataStorageProvider* DataStorage,
@@ -158,6 +163,21 @@ FString FExportedTextWidgetConstructor::CreateWidgetDisplayName(IEditorDataStora
 	}
 }
 
+TSharedPtr<SWidget> FExportedTextWidgetConstructor::ConstructFinalWidget(RowHandle Row, IEditorDataStorageProvider* DataStorage,
+	IEditorDataStorageUiProvider* DataStorageUi, const UE::Editor::DataStorage::FMetaDataView& Arguments)
+{
+	FTypedElementScriptStructTypeInfoColumn& TypeInfoColumn = *DataStorage->GetColumn<FTypedElementScriptStructTypeInfoColumn>(Row);
+
+	using namespace UE::Editor::DataStorage::Queries;
+	
+	// NOTE: We are currently assuming that an instance of FExportedTextWidgetConstructor will only be used to show the same type info for all rows
+	// matched with it. This isn't ideal but it's better than nothing since we need some sort of matched conditions for column based virtualization to work.
+	// TEDS UI TODO: We should work around it by refactoring this into an STedsWidget in the future so it can store the column conditions per instance
+	MatchedColumn = FConditions(TColumn(TypeInfoColumn.TypeInfo)).Compile(FEditorStorageQueryConditionCompileContext(DataStorage));
+
+	return FTypedElementWidgetConstructor::ConstructFinalWidget(Row, DataStorage, DataStorageUi, Arguments);
+}
+
 TSharedPtr<SWidget> FExportedTextWidgetConstructor::CreateWidget(const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
 	return SNew(STextBlock);
@@ -171,11 +191,6 @@ bool FExportedTextWidgetConstructor::FinalizeWidget(
 {
 	using namespace UE::Editor;
 	FTypedElementScriptStructTypeInfoColumn& TypeInfoColumn = *DataStorage->GetColumn<FTypedElementScriptStructTypeInfoColumn>(Row);
-
-	// NOTE: We are currently assuming that an instance of FExportedTextWidgetConstructor will only be used to show the same type info
-	// which isn't ideal but it's better than nothing since we need some sort of matched conditions for column based virtualization to work.
-	// TEDS UI TODO: We should work around it by refactoring this into an STedsWidget in the future so it can store the column conditions per instance
-	MatchedColumn = DataStorage::Queries::FConditions(DataStorage::Queries::TColumn(TypeInfoColumn.TypeInfo));
 
 	if (TypeInfoColumn.TypeInfo->IsChildOf(DataStorage::FTag::StaticStruct()))
 	{
