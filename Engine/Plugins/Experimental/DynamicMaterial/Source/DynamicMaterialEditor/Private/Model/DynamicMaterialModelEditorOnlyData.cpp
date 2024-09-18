@@ -49,8 +49,8 @@
 #include "Misc/Guid.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DynamicMaterialModel.h"
-#include "Model/DynamicMaterialModelEditorOnlyDataVersion.h"
 #include "UObject/Package.h"
+#include "Utils/DMBuildRequestSubsystem.h"
 #include "Utils/DMUtils.h"
 
 #define LOCTEXT_NAMESPACE "MaterialDesignerModel"
@@ -582,9 +582,9 @@ void UDynamicMaterialModelEditorOnlyData::RequestMaterialBuild(bool bInImmediate
 		{
 			BuildMaterial(/* Dirty Assets */ false);
 		}
-		else
+		else if (UDMBuildRequestSubsystem* BuildRequestSubsystem = UDMBuildRequestSubsystem::Get())
 		{
-			FDynamicMaterialEditorModule::Get().AddBuildRequest(this, /* Dirty Packages */ !UE::GetIsEditorLoadingPackage());
+			BuildRequestSubsystem->AddBuildRequest(this, /* Dirty Packages */ !UE::GetIsEditorLoadingPackage());
 		}
 	}
 }

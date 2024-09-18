@@ -246,8 +246,6 @@ void FDynamicMaterialEditorModule::StartupModule()
 	RegisterComponentPropertyRowGeneratorDelegate<UDMMaterialEffectFunction,       FDMMaterialEffectFunctionPropertyRowGenerator>();
 	RegisterComponentPropertyRowGeneratorDelegate<UDMMaterialStageInputFunction,   FDMMaterialStageFunctionPropertyRowGenerator>();
 
-	BuildRequestList.Empty();
-
 	UDMMaterialValueTexture::GetDefaultRGBTexture.BindLambda([]()
 		{
 			const FDMDefaultMaterialPropertySlotValue& DefaultValue = UDynamicMaterialEditorSettings::Get()->GetDefaultSlotValue(EDMMaterialPropertyType::BaseColor);
@@ -287,8 +285,6 @@ void FDynamicMaterialEditorModule::ShutdownModule()
 	FDMLevelEditorIntegration::Shutdown();
 
 	FDMMaterialModelDefaults::UnregsiterDefaultsDelegates();
-
-	BuildRequestList.Empty();
 
 	UDMMaterialValueTexture::GetDefaultRGBTexture.Unbind();
 
@@ -431,81 +427,6 @@ TSharedRef<SWidget> FDynamicMaterialEditorModule::CreateEditor(UDynamicMaterialM
 	return NewDesigner;
 }
 
-void FDynamicMaterialEditorModule::Tick(float DeltaTime)
-{
-	if (UDMMaterialComponent::CanClean() == false)
-	{
-		return;
-	}
-
-	for (const FDMBuildRequestEntry& ToBuild : BuildRequestList)
-	{
-		if (UObject* Object = FindObject<UObject>(nullptr, *ToBuild.AssetPath, false))
-		{
-			ProcessBuildRequest(Object, ToBuild.bDirtyAssets);
-		}
-	}
-
-	BuildRequestList.Empty();
-}
-
-TStatId FDynamicMaterialEditorModule::GetStatId() const
-{
-	RETURN_QUICK_DECLARE_CYCLE_STAT(FDynamicMaterialEditorModule, STATGROUP_Tickables);
-}
-
-void FDynamicMaterialEditorModule::AddBuildRequest(UObject* InToBuild, bool bInDirtyAssets)
-{
-	if (!IsValid(InToBuild))
-	{
-		return;
-	}
-
-	FDynamicMaterialEditorModule::Get().BuildRequestList.Add({InToBuild->GetPathName(), bInDirtyAssets});
-	
-	static const double VeryShortTime = 0.0001;
-
-	// Make sure we don't spam updates on a single tick.
-	UDMMaterialComponent::PreventClean(VeryShortTime);
-}
-
-void FDynamicMaterialEditorModule::RemoveBuildRequest(UObject* InToNotBuild)
-{
-	if (!InToNotBuild)
-	{
-		return;
-	}
-
-	FDynamicMaterialEditorModule::Get().BuildRequestList.Remove({InToNotBuild->GetPathName(), false});
-}
-
-void FDynamicMaterialEditorModule::RemoveBuildRequestForOuter(UObject* InOuter)
-{
-	if (!InOuter)
-	{
-		return;
-	}
-
-	const FString ObjectPath = InOuter->GetPathName();
-	const int32 ObjectPathLength = ObjectPath.Len();
-
-	for (TSet<FDMBuildRequestEntry>::TIterator Iter(FDynamicMaterialEditorModule::Get().BuildRequestList); Iter; ++Iter)
-	{
-		if (Iter->AssetPath.Len() > ObjectPathLength && Iter->AssetPath.StartsWith(ObjectPath))
-		{
-			// Make sure it's a path separator after the parent path.
-			switch (Iter->AssetPath[ObjectPathLength])
-			{
-				case '.':
-				case '/':
-				case ':':
-					Iter.RemoveCurrent();
-					break;
-			}
-		}
-	}
-}
-
 void FDynamicMaterialEditorModule::OpenEditor(UWorld* InWorld) const
 {
 	if (!IsValid(InWorld))
@@ -534,21 +455,6 @@ UDynamicMaterialModelBase* FDynamicMaterialEditorModule::GetOpenedMaterialModel(
 	}
 
 	return nullptr;
-}
-
-void FDynamicMaterialEditorModule::ProcessBuildRequest(UObject* InToBuild, bool bInDirtyAssets)
-{
-	if (!IsValid(InToBuild))
-	{
-		return;
-	}
-
-	if (InToBuild->GetClass()->ImplementsInterface(UDMBuildable::StaticClass()) == false)
-	{
-		return;
-	}
-
-	IDMBuildable::Execute_DoBuild(InToBuild, bInDirtyAssets);
 }
 
 void FDynamicMaterialEditorModule::MapCommands()
