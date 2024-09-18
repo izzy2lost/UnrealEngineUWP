@@ -1,11 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-// Static mesh spawner kernel. Selects a primitive using a primitive cumulative distribution function (CDF) and packs attributes in custom floats.
+// Static mesh spawner kernel. Selects a primitive either using a primitive cumulative distribution function (CDF) or by an attribute, and packs attributes in custom floats.
 // Passes through points to output.
+
+// When spawning by attribute, we don't know in advance how many instances of each mesh will be spawned, so the worst case NumPoints * NumPrims is allocated in the GPU Scene,
+// and NumPoints * NumPrims threads are dispatched here, hence the adjustments to ThreadIndex below and usage of bWriteOutput.
 
 #include "/Engine/Private/ComputeShaderUtils.ush"
 #include "/Engine/Private/Quaternion.ush"
 #include "/Plugin/PCG/Private/PCGShaderUtils.ush"
+
+// TODO: should be code-gen'd from PCGComputeCommon.h
+#define MAX_NUM_ATTRS 128
+#define NUM_RESERVED_ATTRS 32
+
+void CopyAttributesToOuput(uint In_DataIndex, uint In_ElementIndex, uint Out_DataIndex, uint Out_ElementIndex);
 
 [numthreads(64, 1, 1)]
 void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
@@ -23,9 +32,12 @@ void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 		return;
 	}
 
-	// Break out thread index into DataIndex and ElementIndex
-	uint DataIndex, ElementIndex;
-	if (!In_GetThreadData(ThreadIndex, DataIndex, ElementIndex))
+	// Break out thread index into DataIndex and In_ElementIndex. For spawning by attribute we spawn NumPoints * NumPrims threads.
+	const uint NumInputPoints = In_GetNumElements();
+	const uint PointIndex = ThreadIndex % NumInputPoints;
+
+	uint In_DataIndex, In_ElementIndex;
+	if (!In_GetThreadData(PointIndex, In_DataIndex, In_ElementIndex))
 	{
 		return;
 	}
@@ -36,17 +48,34 @@ void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 
 	if (NumPrimitives > 1)
 	{
-		// Randomly select a primitive by inverting the cumulative distribution function.
-		uint Seed = In_GetSeed(DataIndex, ElementIndex);
-		const float RandomDraw = FRand(Seed);
-
-		for (; PrimitiveIndex < uint(NumPrimitives) - 1; ++PrimitiveIndex)
+		const uint SelectorAttributeId = SMSpawner_GetSelectorAttributeId();
+		
+		if (SelectorAttributeId != (uint)-1)
 		{
-			if (RandomDraw < SMSpawner_GetPrimitiveSelectionCDF(PrimitiveIndex))
+			// Select using string key
+			const int MeshPathStringKey = In_GetStringKey(In_DataIndex, In_ElementIndex, SelectorAttributeId);
+			PrimitiveIndex = SMSpawner_GetPrimitiveIndexFromStringKey(MeshPathStringKey);
+		}
+		else
+		{
+			// Randomly select a primitive by inverting the cumulative distribution function.
+			uint Seed = In_GetSeed(In_DataIndex, In_ElementIndex);
+			const float RandomDraw = FRand(Seed);
+
+			for (; PrimitiveIndex < uint(NumPrimitives) - 1; ++PrimitiveIndex)
 			{
-				break;
+				if (RandomDraw < SMSpawner_GetPrimitiveSelectionCDF(PrimitiveIndex))
+				{
+					break;
+				}
 			}
 		}
+	}
+
+	if (PrimitiveIndex >= NumPrimitives)
+	{
+		// Should never happen.
+		return;
 	}
 
 	const int InstanceIndexInt = InstanceData_GetIndexToWriteTo(PrimitiveIndex);
@@ -56,8 +85,10 @@ void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 		return;
 	}
 
+	// We run NumPoints x NumPrimitives threads. The output points only have to be written for the first NumPoints threads, not the rest.
+	const bool bWriteOutput = ThreadIndex < NumInputPoints;
 	uint Out_DataIndex, Out_ElementIndex;
-	if (!Out_GetThreadData(ThreadIndex, Out_DataIndex, Out_ElementIndex))
+	if (bWriteOutput && !Out_GetThreadData(ThreadIndex, Out_DataIndex, Out_ElementIndex))
 	{
 		// Should never happen.
 		return;
@@ -65,23 +96,26 @@ void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 
 	const uint InstanceIndex = InstanceIndexInt;
 
-	if (In_IsPointRemoved(DataIndex, ElementIndex))
+	if (In_IsPointRemoved(In_DataIndex, In_ElementIndex))
 	{
 		// Cull the instance by setting the transform to 0.
 		InstanceData_WriteInstanceLocalToWorld(InstanceIndex, (float4x4)0);
 		
 		// Propagate the 'Removed' status to the output point if either source or target point is removed. Otherwise, this point will not be culled.
-		Out_RemovePoint(Out_DataIndex, Out_ElementIndex);
+		if (bWriteOutput)
+		{
+			Out_RemovePoint(Out_DataIndex, Out_ElementIndex);
+		}
 
 		return;
 	}
 
 	// Write instance transform.
-	const float4x4 Transform = In_GetPointTransform(DataIndex, ElementIndex);
+	const float4x4 Transform = In_GetPointTransform(In_DataIndex, In_ElementIndex);
 	InstanceData_WriteInstanceLocalToWorld(InstanceIndex, transpose(Transform));
 
 	// Write instance custom float data.
-	const uint DataAddress = In_GetDataAddress(DataIndex);
+	const uint DataAddress = In_GetDataAddress(In_DataIndex);
 	const uint AttributeHeadersAddress = In_GetDataAttributeHeadersAddress(DataAddress);
 	const uint NumAttributes = SMSpawner_GetNumAttributes();
 	for (uint AttributeIndex = 0; AttributeIndex < NumAttributes; ++AttributeIndex)
@@ -96,7 +130,7 @@ void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 
 		for (uint FloatIndex = 0; FloatIndex < AttributeStride; ++FloatIndex)
 		{
-			const uint AttributeValueAddress = AttributeAddress + ElementIndex * AttributeStride * 4;
+			const uint AttributeValueAddress = AttributeAddress + In_ElementIndex * AttributeStride * 4;
 			
 			// Assumes floating point data. TODO add type information and deal with different types in different ways?
 			InstanceData_WriteCustomFloatRaw(InstanceIndex, AttributeOffset + FloatIndex, In_LoadBufferInternal(AttributeValueAddress));
@@ -105,13 +139,62 @@ void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 
 	// Write output point data (pass through).
 	// TODO - support writing mesh bounds.
-	Out_SetPosition(Out_DataIndex, Out_ElementIndex, In_GetPosition(DataIndex, ElementIndex));
-	Out_SetRotation(Out_DataIndex, Out_ElementIndex, In_GetRotation(DataIndex, ElementIndex));
-	Out_SetScale(Out_DataIndex, Out_ElementIndex, In_GetScale(DataIndex, ElementIndex));
-	Out_SetBoundsMin(Out_DataIndex, Out_ElementIndex, In_GetBoundsMin(DataIndex, ElementIndex));
-	Out_SetBoundsMax(Out_DataIndex, Out_ElementIndex, In_GetBoundsMax(DataIndex, ElementIndex));
-	Out_SetColor(Out_DataIndex, Out_ElementIndex, In_GetColor(DataIndex, ElementIndex));
-	Out_SetSeed(Out_DataIndex, Out_ElementIndex, In_GetSeed(DataIndex, ElementIndex));
-	Out_SetDensity(Out_DataIndex, Out_ElementIndex, In_GetDensity(DataIndex, ElementIndex));
-	Out_SetSteepness(Out_DataIndex, Out_ElementIndex, In_GetSteepness(DataIndex, ElementIndex));
+	if (bWriteOutput)
+	{
+		Out_SetPosition(Out_DataIndex, Out_ElementIndex, In_GetPosition(In_DataIndex, In_ElementIndex));
+		Out_SetRotation(Out_DataIndex, Out_ElementIndex, In_GetRotation(In_DataIndex, In_ElementIndex));
+		Out_SetScale(Out_DataIndex, Out_ElementIndex, In_GetScale(In_DataIndex, In_ElementIndex));
+		Out_SetBoundsMin(Out_DataIndex, Out_ElementIndex, In_GetBoundsMin(In_DataIndex, In_ElementIndex));
+		Out_SetBoundsMax(Out_DataIndex, Out_ElementIndex, In_GetBoundsMax(In_DataIndex, In_ElementIndex));
+		Out_SetColor(Out_DataIndex, Out_ElementIndex, In_GetColor(In_DataIndex, In_ElementIndex));
+		Out_SetSeed(Out_DataIndex, Out_ElementIndex, In_GetSeed(In_DataIndex, In_ElementIndex));
+		Out_SetDensity(Out_DataIndex, Out_ElementIndex, In_GetDensity(In_DataIndex, In_ElementIndex));
+		Out_SetSteepness(Out_DataIndex, Out_ElementIndex, In_GetSteepness(In_DataIndex, In_ElementIndex));
+
+		CopyAttributesToOuput(In_DataIndex, In_ElementIndex, Out_DataIndex, Out_ElementIndex);
+	}
+}
+
+// TODO pass in attribute IDs to copy.
+void CopyAttributesToOuput(uint In_DataIndex, uint In_ElementIndex, uint Out_DataIndex, uint Out_ElementIndex)
+{
+	const uint In_DataAddress = In_GetDataAddress(In_DataIndex);
+	const uint In_HeadersAddress = In_GetDataAttributeHeadersAddress(In_DataAddress);
+
+	const uint Out_DataAddress = Out_GetDataAddress(Out_DataIndex);
+	const uint Out_HeadersAddress = Out_GetDataAttributeHeadersAddress(Out_DataAddress);
+
+	const uint NumAttributes = In_GetDataNumAttributes(In_DataAddress);
+	uint NumAttributesProcessed = 0;
+	
+	// Loop over all attribute headers, if the address is non-zero, then copy it from pin Source to pin Out.
+	for (int AttributeIndex = NUM_RESERVED_ATTRS; AttributeIndex < MAX_NUM_ATTRS; ++AttributeIndex)
+	{
+		const uint In_HeaderAddress = In_GetAttributeHeaderAddress(In_HeadersAddress, AttributeIndex);
+		const uint In_Address = In_GetAttributeAddress(In_HeaderAddress);
+
+		const uint OutHeaderAddress = Out_GetAttributeHeaderAddress(Out_HeadersAddress, AttributeIndex);
+		const uint Out_Address = Out_GetAttributeAddress(OutHeaderAddress);
+
+		const uint Stride = In_GetAttributeStride(In_HeaderAddress);
+
+		if (In_Address != 0 && Out_Address != 0)
+		{
+			const uint In_BaseElementAddress = In_Address + In_ElementIndex * Stride;
+			const uint Out_BaseElementAddress = Out_Address + Out_ElementIndex * Stride;
+
+			for (int I = 0; I < Stride; I += 4)
+			{
+				const uint In_ElementAddress = In_BaseElementAddress + I;
+				const uint Out_ElementAddress = Out_BaseElementAddress + I;
+				Out_StoreBufferInternal(Out_ElementAddress, In_LoadBufferInternal(In_ElementAddress));
+			}
+
+			// We can early-out when we've looked at all the possible attributes
+			if (++NumAttributesProcessed >= NumAttributes)
+			{
+				break;
+			}
+		}
+	}
 }

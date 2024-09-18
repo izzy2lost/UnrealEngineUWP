@@ -528,6 +528,7 @@ public:
 	virtual int ComputeKernelThreadCount(const UPCGDataBinding* Binding) const { return 0; };
 
 	/** Compute a description of all data arriving on InputPin. */
+	FPCGDataCollectionDesc ComputeInputPinDataDesc(const FName& InputPinLabel, const UPCGDataBinding* Binding) const;
 	FPCGDataCollectionDesc ComputeInputPinDataDesc(const UPCGPin* InputPin, const UPCGDataBinding* Binding) const;
 
 	/** Compute a description of data that will be output from OutputPinLabel/OutputPin. */
@@ -550,15 +551,19 @@ public:
 	bool bExecuteOnGPU = false;
 
 	/** Dump the cooked HLSL into the log after it is generated. */
-	UPROPERTY(EditAnywhere, Category = "GPU", meta = (EditCondition = "bExecuteOnGPU", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = "GPU", AdvancedDisplay, meta = (EditCondition = "bExecuteOnGPU", EditConditionHides))
 	bool bDumpCookedHLSL = false;
 
+	/** Dump the data descriptions of input/output pins to the log. */
+	UPROPERTY(EditAnywhere, Category = "GPU", AdvancedDisplay, meta = (EditCondition = "bExecuteOnGPU", EditConditionHides))
+	bool bDumpDataDescriptions = false;
+
 	/** Enable use of 'WriteDebugValue(uint Index, float Value)' function in your kernel. Allows you to write float values to a buffer for logging on the CPU. */
-	UPROPERTY(EditAnywhere, Category = "GPU", meta = (EditCondition = "bExecuteOnGPU", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = "GPU", AdvancedDisplay, meta = (EditCondition = "bExecuteOnGPU", EditConditionHides))
 	bool bPrintShaderDebugValues = false;
 
 	/** Size (in number of floats) of the shader debug print buffer. */
-	UPROPERTY(EditAnywhere, Category = "GPU", meta = (EditCondition="bExecuteOnGPU && bPrintShaderDebugValues", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = "GPU", AdvancedDisplay, meta = (EditCondition="bExecuteOnGPU && bPrintShaderDebugValues", EditConditionHides))
 	int DebugBufferSize = 16;
 
 private:

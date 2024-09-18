@@ -108,10 +108,7 @@ protected:
 class FPCGDataCollectionDataProviderProxy : public FComputeDataProviderRenderProxy
 {
 public:
-	FPCGDataCollectionDataProviderProxy(
-		TWeakObjectPtr<UPCGDataBinding> InBinding,
-		const FPCGDataCollectionDesc& InPinDesc,
-		EPCGReadbackMode InReadbackMode);
+	FPCGDataCollectionDataProviderProxy(const FPCGDataCollectionDesc& InPinDesc, EPCGReadbackMode InReadbackMode);
 
 	//~ Begin FComputeDataProviderRenderProxy Interface
 	bool IsValid(FValidationData const& InValidationData) const override;
@@ -130,7 +127,6 @@ protected:
 
 	using FParameters = FPCGDataCollectionDataInterfaceParameters;
 
-	TWeakObjectPtr<UPCGDataBinding> Binding;
 	FPCGDataCollectionDesc PinDesc;
 
 	FRDGBufferRef Buffer = nullptr;

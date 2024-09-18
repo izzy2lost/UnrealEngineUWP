@@ -20,6 +20,7 @@
 #define MAX_NUM_ATTRS 128
 #define NUM_RESERVED_ATTRS 32
 
+// TODO pass in attribute IDs to copy.
 void CopyAttributesFromSource(uint SourceDataIndex, uint SourceElemIndex, uint OutDataIndex, uint OutElemIndex)
 {
 	const uint SourceDataAddress = Source_GetDataAddress(SourceDataIndex);
@@ -63,6 +64,7 @@ void CopyAttributesFromSource(uint SourceDataIndex, uint SourceElemIndex, uint O
 	}
 }
 
+// TODO pass in attribute IDs to copy.
 void CopyAttributesFromTarget(uint TargetDataIndex, uint TargetElemIndex, uint OutDataIndex, uint OutElemIndex)
 {
 	const uint TargetDataAddress = Target_GetDataAddress(TargetDataIndex);

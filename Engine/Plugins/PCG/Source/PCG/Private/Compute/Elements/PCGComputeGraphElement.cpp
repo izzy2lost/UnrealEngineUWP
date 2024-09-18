@@ -12,6 +12,7 @@
 #include "Elements/PCGStaticMeshSpawner.h"
 #include "Engine/StaticMesh.h"
 #include "InstanceDataPackers/PCGInstanceDataPackerBase.h"
+#include "MeshSelectors/PCGMeshSelectorByAttribute.h"
 #include "MeshSelectors/PCGMeshSelectorWeighted.h"
 
 #include "ComputeWorkerInterface.h"
@@ -107,29 +108,10 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 	// 4. Initialize and parse incoming data for data sizes, attributes, etc that will drive buffer allocations and dispatch thread counts.
 	if (!Context->DataBinding)
 	{
-		// When attribute table was built at compile time, some attribute types may not be known. Fill them out now.
-		Graph->FillInMissingAttributeTableTypes(Context->InputData);
+		UPCGDataBinding* DataBinding = FPCGContext::NewObject_AnyThread<UPCGDataBinding>(Context);
+		Context->DataBinding.Reset(DataBinding);
 
-		UPCGDataBinding* DataBindingObject = FPCGContext::NewObject_AnyThread<UPCGDataBinding>(Context);
-		Context->DataBinding.Reset(DataBindingObject);
-
-		DataBindingObject->SourceComponent = Context->SourceComponent;
-		DataBindingObject->Graph = Graph.Get();
-
-		FPCGDataForGPU& DataForGPU = DataBindingObject->DataForGPU;
-
-		DataForGPU.InputDataCollection = Context->InputData;
-
-		// Link each input pin to the data collection, so that data providers can find the data.
-		for (TWeakObjectPtr<const UPCGPin>& InputPinPtr : Graph->PinsReceivingDataFromCPU)
-		{
-			if (const UPCGPin* InputPin = InputPinPtr.Get())
-			{
-				DataForGPU.InputPins.Add(InputPin);
-			}
-		}
-
-		DataForGPU.InputPinLabelAliases = Graph->InputPinLabelAliases;
+		Context->DataBinding->Initialize(Graph.Get(), Context->SourceComponent, Context->InputData, Graph->GetAttributeLookupTable());
 
 		// Perform validation after input data is initialized.
 		for (TWeakObjectPtr<const UPCGNode> Node : Graph->KernelToNode)
@@ -142,7 +124,7 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 			}
 		}
 
-		const bool bAnyComponentsSetup = SetupProceduralISMComponents(InContext, DataBindingObject);
+		const bool bAnyComponentsSetup = SetupProceduralISMComponents(Context, DataBinding);
 
 		Context->ComputeGraphInstance.CreateDataProviders(Graph.Get(), 0, Context->DataBinding.Get());
 
@@ -247,8 +229,12 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 	}
 }
 
-bool FPCGComputeGraphElement::SetupProceduralISMComponents(FPCGContext* InContext, UPCGDataBinding* Binding) const
+bool FPCGComputeGraphElement::SetupProceduralISMComponents(FPCGContext* InContext, UPCGDataBinding* InBinding) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGComputeGraphElement::SetupProceduralISMComponents);
+	check(InContext);
+	check(InBinding);
+
 	bool bAnyComponentsSetup = false;
 
 	for (const UPCGSettings* Settings : Graph->StaticMeshSpawners)
@@ -259,60 +245,144 @@ bool FPCGComputeGraphElement::SetupProceduralISMComponents(FPCGContext* InContex
 			continue;
 		}
 
-		const UPCGMeshSelectorWeighted* Selector = Cast<UPCGMeshSelectorWeighted>(SpawnerSettings->MeshSelectorParameters);
 		AActor* TargetActor = SpawnerSettings->TargetActor.Get() ? SpawnerSettings->TargetActor.Get() : InContext->GetTargetActor(nullptr);
-		if (!ensure(Selector) || !ensure(TargetActor))
+		if (!ensure(SpawnerSettings->MeshSelectorParameters) || !ensure(TargetActor))
 		{
 			continue;
 		}
 
-		const UPCGNode* Node = Cast<const UPCGNode>(SpawnerSettings->GetOuter());
-		const UPCGPin* Pin = Node ? Node->GetInputPin(PCGPinConstants::DefaultInputLabel) : nullptr;
-		if (!ensure(Pin))
-		{
-			continue;
-		}
+		const FPCGDataCollectionDesc InputDataDesc = SpawnerSettings->ComputeInputPinDataDesc(PCGPinConstants::DefaultInputLabel, InBinding);
 
-		const FPCGDataCollectionDesc InputDataDesc = SpawnerSettings->ComputeInputPinDataDesc(Pin, Binding);
+		const uint32 InputPointCount = InputDataDesc.ComputeDataElementCount(EPCGDataType::Point);
+		const FBox LocalBounds = InContext->SourceComponent->GetGridBounds().ShiftBy(-InContext->SourceComponent->GetOwner()->GetActorLocation());
 
-		const uint32 PointCount = InputDataDesc.ComputeDataElementCount(EPCGDataType::Point);
-		
 		uint32 CustomFloatCount = 0;
+
 		TArray<FUint32Vector4> AttributeIdOffsetStrides;
 		if (SpawnerSettings->InstanceDataPackerParameters && SpawnerSettings->InstanceDataPackerParameters->GetAttributeNames(/*OutNames=*/nullptr))
 		{
 			TArray<FName> AttributeNames;
 			SpawnerSettings->InstanceDataPackerParameters->GetAttributeNames(&AttributeNames);
 
-			PCGDataForGPUHelpers::ComputeCustomFloatPacking(AttributeNames, Binding, InputDataDesc, CustomFloatCount, AttributeIdOffsetStrides);
+			PCGDataForGPUHelpers::ComputeCustomFloatPacking(AttributeNames, InBinding, InputDataDesc, CustomFloatCount, AttributeIdOffsetStrides);
 		}
 
-		bool AttributeSetupDone = false;
+		TArray<float> PrimitiveSelectionCDF;
+		int32 SelectorAttributeId = -1;
+		TArray<uint32> PrimitiveStringKeys; // ok index is just array index! TODO
+		TArray<FPCGProceduralISMComponentDescriptor> ComponentsToCreate;
 
-		float TotalWeight = 0.0f;
-		for (const FPCGMeshSelectorWeightedEntry& Entry : Selector->MeshEntries)
+		if (const UPCGMeshSelectorByAttribute* SelectorByAttribute = Cast<UPCGMeshSelectorByAttribute>(SpawnerSettings->MeshSelectorParameters))
 		{
-			TotalWeight += Entry.Weight;
+			const FName SelectedName = SelectorByAttribute->AttributeName;
+			if (SelectedName == NAME_None)
+			{
+				UE_LOG(LogPCG, Error, TEXT("Invalid mesh selector attribute specified '%s'."), *SelectedName.ToString());
+				continue;
+			}
+
+			const FPCGKernelAttributeIDAndType* FoundAttribute = InBinding->GetAttributeLookupTable().Find(SelectedName);
+			if (!FoundAttribute)
+			{
+				UE_LOG(LogPCG, Error, TEXT("Mesh selector attribute '%s' not found."), *SelectedName.ToString());
+				continue;
+			}
+
+			SelectorAttributeId = FoundAttribute->Id;
+
+			// Compute how many unique incoming values we will receive.
+			TSet<int32> UniqueStringKeys;
+			for (const FPCGDataDesc& Desc : InputDataDesc.DataDescs)
+			{
+				for (const FPCGKernelAttributeDesc& AttributeDesc : Desc.AttributeDescs)
+				{
+					if (AttributeDesc.Name == SelectedName)
+					{
+						UniqueStringKeys.Append(AttributeDesc.UniqueStringKeys);
+					}
+				}
+			}
+
+			for (int32 StringKey : UniqueStringKeys)
+			{
+				if (!ensure(InBinding->GetStringTable().IsValidIndex(StringKey)))
+				{
+					continue;
+				}
+
+				const FString& MeshPathString = InBinding->GetStringTable()[StringKey];
+				
+				FPCGProceduralISMComponentDescriptor Descriptor;
+				Descriptor = SelectorByAttribute->TemplateDescriptor;
+				Descriptor.NumInstances = InputPointCount;
+				Descriptor.LocalBounds = LocalBounds;
+				Descriptor.NumCustomFloats = CustomFloatCount;
+				
+				Descriptor.StaticMesh = Cast<UStaticMesh>(FSoftObjectPath(MeshPathString).TryLoad());
+				if (!Descriptor.StaticMesh)
+				{
+					UE_LOG(LogPCG, Error, TEXT("Could not load static mesh from path '%s'."), *MeshPathString);
+					continue;
+				}
+
+				PrimitiveStringKeys.Emplace(static_cast<uint32>(StringKey));
+				ComponentsToCreate.Add(MoveTemp(Descriptor));
+			}
+
+			PrimitiveSelectionCDF.SetNumZeroed(ComponentsToCreate.Num());
+		}
+		else if (const UPCGMeshSelectorWeighted* SelectorWeighted = Cast<UPCGMeshSelectorWeighted>(SpawnerSettings->MeshSelectorParameters))
+		{
+			if (SelectorWeighted->MeshEntries.IsEmpty())
+			{
+				UE_LOG(LogPCG, Error, TEXT("No mesh entries provided."));
+				continue;
+			}
+
+			float CumulativeWeight = 0.0f;
+
+			float TotalWeight = 0.0f;
+			for (const FPCGMeshSelectorWeightedEntry& Entry : SelectorWeighted->MeshEntries)
+			{
+				TotalWeight += Entry.Weight;
+			}
+
+			if (!ensure(TotalWeight > UE_SMALL_NUMBER))
+			{
+				continue;
+			}
+
+			PrimitiveSelectionCDF.Reserve(SelectorWeighted->MeshEntries.Num());
+
+			for (const FPCGMeshSelectorWeightedEntry& Entry : SelectorWeighted->MeshEntries)
+			{
+				UStaticMesh* StaticMesh = Entry.Descriptor.StaticMesh.LoadSynchronous();
+
+				const float Weight = float(Entry.Weight) / TotalWeight;
+				CumulativeWeight += Weight;
+				PrimitiveSelectionCDF.Add(CumulativeWeight);
+
+				FPCGProceduralISMComponentDescriptor Descriptor;
+				Descriptor = Entry.Descriptor;
+				Descriptor.NumInstances = FMath::CeilToInt(InputPointCount * Weight);
+				Descriptor.LocalBounds = LocalBounds;
+				Descriptor.NumCustomFloats = CustomFloatCount;
+				Descriptor.StaticMesh = StaticMesh;
+				ComponentsToCreate.Add(MoveTemp(Descriptor));
+			}
 		}
 
-		if (!ensure(TotalWeight > UE_SMALL_NUMBER))
+		FPCGSpawnerPrimitives& Primitives = InBinding->MeshSpawnersToPrimitives.FindOrAdd(SpawnerSettings);
+		Primitives.NumCustomFloats = CustomFloatCount;
+		Primitives.AttributeIdOffsetStrides = MoveTemp(AttributeIdOffsetStrides);
+		Primitives.SelectorAttributeId = SelectorAttributeId;
+		Primitives.SelectionCDF = MoveTemp(PrimitiveSelectionCDF);
+		Primitives.PrimitiveStringKeys = MoveTemp(PrimitiveStringKeys);
+
+		for (const FPCGProceduralISMComponentDescriptor& Desc : ComponentsToCreate)
 		{
-			continue;
-		}
-
-		float CumulativeWeight = 0.0f;
-
-		for (const FPCGMeshSelectorWeightedEntry& Entry : Selector->MeshEntries)
-		{
-			UStaticMesh* StaticMesh = Entry.Descriptor.StaticMesh.LoadSynchronous();
-			const float Weight = float(Entry.Weight) / TotalWeight;
-			CumulativeWeight += Weight;
-
 			FPCGProceduralISMCBuilderParameters Params;
-			Params.Descriptor.NumInstances = FMath::CeilToInt(PointCount * Weight);
-			Params.Descriptor.LocalBounds = InContext->SourceComponent->GetGridBounds().ShiftBy(-InContext->SourceComponent->GetOwner()->GetActorLocation());
-			Params.Descriptor.NumCustomFloats = CustomFloatCount;
-			Params.Descriptor = Entry.Descriptor;
+			Params.Descriptor = Desc;
 			Params.bAllowDescriptorChanges = false;
 
 			UPCGManagedProceduralISMComponent* MISMC = PCGManagedProceduralISMComponent::GetOrCreateManagedProceduralISMC(TargetActor, InContext->SourceComponent.Get(), SpawnerSettings->UID, Params);
@@ -323,15 +393,7 @@ bool FPCGComputeGraphElement::SetupProceduralISMComponents(FPCGContext* InContex
 			// Don't bother registering the resource change as we're transient anyway.
 			//InContext->TouchedResources.Emplace(MISMC);
 
-			FPCGSpawnerPrimitives& Primitives = Binding->MeshSpawnersToPrimitives.FindOrAdd(SpawnerSettings);
 			Primitives.Primitives.Add(MISMC->GetComponent());
-			Primitives.SelectionCDF.Add(CumulativeWeight);
-			if (!AttributeSetupDone)
-			{
-				Primitives.NumCustomFloats = CustomFloatCount;
-				Primitives.AttributeIdOffsetStrides = MoveTemp(AttributeIdOffsetStrides);
-				AttributeSetupDone = true;
-			}
 
 			bAnyComponentsSetup = true;
 

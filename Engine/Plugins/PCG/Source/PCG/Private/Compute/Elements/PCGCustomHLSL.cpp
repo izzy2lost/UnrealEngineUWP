@@ -31,7 +31,7 @@ namespace PCGHLSLElement
 	/** Second capture: Function name (Get or Set) */
 	constexpr int AttributeFunctionCaptureGroup = 2;
 
-	/** Third capture: Attribute type (e.g.Int, Float, Rotator, etc.) */
+	/** Third capture: Attribute type (e.g. Int, Float, Rotator, etc.) */
 	constexpr int AttributeTypeCaptureGroup = 3;
 
 	/** Fourth capture: Attribute name (supports a-z, A-Z, 0-9, ' ', '-', '_', and '/') */
@@ -282,6 +282,7 @@ int UPCGCustomHLSLSettings::ComputeKernelThreadCount(const UPCGDataBinding* Bind
 FPCGDataCollectionDesc UPCGCustomHLSLSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding) const
 {
 	check(OutputPin);
+	check(Binding);
 	FPCGDataCollectionDesc PinDesc;
 
 	const FPCGPinPropertiesGPU* Properties = GetOutputPinPropertiesGPU(OutputPin->Properties.Label);
@@ -306,28 +307,118 @@ FPCGDataCollectionDesc UPCGCustomHLSLSettings::ComputeOutputPinDataDesc(const UP
 		PCGComputeHelpers::ComputeOutputPinDataDesc(*Properties, this, Binding, PinDesc);
 	}
 
-	if (const TMap<FName, FPCGKernelAttributeIDAndType>* GlobalAttributeLookupTable = ensure(Binding && Binding->Graph) ? &Binding->Graph->GetAttributeLookupTable() : nullptr)
-	{
-		for (const FPCGKernelAttributeKey& AttributeKey : KernelAttributeKeys)
-		{
-			// Add attributes that will be created for this pin on the GPU.
-			if (const TArray<TTuple<FPCGKernelAttributeKey, bool>>* Keys = PinToAttributeKeys.Find(OutputPin->Properties.Label))
-			{
-				const TTuple<FPCGKernelAttributeKey, bool>* Pair = Keys->FindByPredicate([AttributeKey](const TTuple<FPCGKernelAttributeKey, bool>& Pair) { return Pair.Key == AttributeKey; });
-				const bool bCreatedOnGPU = Pair && Pair->Value;
+	const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable = Binding->GetAttributeLookupTable();
 
-				if (bCreatedOnGPU)
+	for (const FPCGKernelAttributeKey& AttributeKey : KernelAttributeKeys)
+	{
+		// Add attributes that will be created for this pin on the GPU.
+		if (const TArray<TTuple<FPCGKernelAttributeKey, bool>>* Keys = PinToAttributeKeys.Find(OutputPin->Properties.Label))
+		{
+			const TTuple<FPCGKernelAttributeKey, bool>* Pair = Keys->FindByPredicate([AttributeKey](const TTuple<FPCGKernelAttributeKey, bool>& Pair) { return Pair.Key == AttributeKey; });
+			if (!Pair || !Pair->Value)
+			{
+				// Not created on GPU.
+				continue;
+			}
+
+			for (FPCGDataDesc& DataDesc : PinDesc.DataDescs)
+			{
+				if (const FPCGKernelAttributeIDAndType* IDAndType = GlobalAttributeLookupTable.Find(AttributeKey.Name))
 				{
-					for (FPCGDataDesc& DataDesc : PinDesc.DataDescs)
+					const FPCGKernelAttributeDesc AttributeDesc(IDAndType->Id, IDAndType->Type, AttributeKey.Name);
+					DataDesc.AttributeDescs.AddUnique(AttributeDesc);
+				}
+			}
+		}
+	}
+
+	// Try to propagate string keys across node. Not trivial because there could be one or more string key attributes on input pins and on output pins,
+	// and it is in general hard to determine from source which string keys from input are being written to outputs. Try first collecting all string keys
+	// from matching attribute names (across all input pins), and then fall back to collecting keys from all string key attributes across all inputs.
+	if (const UPCGNode* Node = Cast<UPCGNode>(GetOuter()))
+	{
+		TArray<FPCGDataCollectionDesc> RelevantInputDataDescs;
+
+		// Collect descriptions of input data items that have string key attributes.
+		for (const UPCGPin* InputPin : Node->GetInputPins())
+		{
+			const FPCGDataCollectionDesc InputPinDesc = ComputeInputPinDataDesc(InputPin, Binding);
+
+			bool bFoundStringKeyAttribute = false;
+
+			for (FPCGDataDesc& DataDesc : PinDesc.DataDescs)
+			{
+				for (FPCGKernelAttributeDesc& AttributeDesc : DataDesc.AttributeDescs)
+				{
+					bFoundStringKeyAttribute |= (AttributeDesc.Type == EPCGKernelAttributeType::StringKey);
+				}
+			}
+
+			if (bFoundStringKeyAttribute)
+			{
+				RelevantInputDataDescs.Add(InputPinDesc);
+			}
+		}
+
+		if (!RelevantInputDataDescs.IsEmpty())
+		{
+			for (FPCGDataDesc& DataDesc : PinDesc.DataDescs)
+			{
+				for (FPCGKernelAttributeDesc& AttributeDesc : DataDesc.AttributeDescs)
+				{
+					if (AttributeDesc.Type != EPCGKernelAttributeType::StringKey)
 					{
-						if (const FPCGKernelAttributeIDAndType* IDAndType = GlobalAttributeLookupTable->Find(AttributeKey.Name))
+						continue;
+					}
+
+					bool bFoundMatchingAttribute = false;
+
+					for (const FPCGDataCollectionDesc& InputPinDataDesc : RelevantInputDataDescs)
+					{
+						// Try to find string keys for matching attributes on inputs. E.g. if we are processing an output attribute named 'MeshPath',
+						// look at data on all input pins for an attribute named MeshPath and assume we could use any of its values - copy the string keys.
+						for (const FPCGDataDesc& InputDataDesc : InputPinDataDesc.DataDescs)
 						{
-							const FPCGKernelAttributeDesc AttributeDesc(IDAndType->Id, IDAndType->Type, AttributeKey.Name);
-							DataDesc.AttributeDescs.AddUnique(AttributeDesc);
+							for (const FPCGKernelAttributeDesc& InputAttributeDesc : InputDataDesc.AttributeDescs)
+							{
+								if (InputAttributeDesc.Type == EPCGKernelAttributeType::StringKey && InputAttributeDesc.Name == AttributeDesc.Name)
+								{
+									AttributeDesc.UniqueStringKeys.Append(InputAttributeDesc.UniqueStringKeys);
+									bFoundMatchingAttribute = true;
+									break;
+								}
+							}
+						}
+					}
+
+					if (!bFoundMatchingAttribute)
+					{
+						// We didn't find an exact attribute. Fall back to finding any and all string keys. This is concerning and perhaps we can
+						// have additional hinting mechanisms in the kernel source or in the node UI.
+						for (const FPCGDataCollectionDesc& InputPinDataDesc : RelevantInputDataDescs)
+						{
+							// Try to find string keys for matching attributes on inputs. E.g. if we are processing an output attribute named 'MeshPath',
+							// look at data on all input pins for an attribute named MeshPath and assume we could use any of its values - copy the string keys.
+							for (const FPCGDataDesc& InputDataDesc : InputPinDataDesc.DataDescs)
+							{
+								for (const FPCGKernelAttributeDesc& InputAttributeDesc : InputDataDesc.AttributeDescs)
+								{
+									if (InputAttributeDesc.Type == EPCGKernelAttributeType::StringKey)
+									{
+										AttributeDesc.UniqueStringKeys.Append(InputAttributeDesc.UniqueStringKeys);
+									}
+								}
+							}
 						}
 					}
 				}
 			}
+		}
+		else
+		{
+			// If there were no string keys found on any input pin then we are in a bad place. String values cannot be built on the GPU, they must
+			// come in through an input.
+			UE_LOG(LogPCG, Warning, TEXT("No incoming attributes to obtain string keys from."));
 		}
 	}
 
@@ -475,11 +566,15 @@ FString UPCGCustomHLSLSettings::GetShaderText() const
 void UPCGCustomHLSLSettings::SetShaderFunctionsText(const FString& NewFunctionsText)
 {
 	ShaderFunctions = NewFunctionsText;
+
+	UpdateAttributeKeys();
 }
 
 void UPCGCustomHLSLSettings::SetShaderText(const FString& NewText)
 {
 	ShaderSource = NewText;
+
+	UpdateAttributeKeys();
 }
 
 bool UPCGCustomHLSLSettings::IsShaderTextReadOnly() const
@@ -598,7 +693,7 @@ void UPCGCustomHLSLSettings::UpdateInputDeclarations()
 			"uint {0}_GetNumData();\n"
 			"uint {0}_GetNumElements();\n"
 			"\n"
-			"// Valid types: bool, int, float, float2, float3, float4, Rotator (float3), Quat (float4), Transform (float4x4)\n"
+			"// Valid types: bool, int, float, float2, float3, float4, Rotator (float3), Quat (float4), Transform (float4x4), StringKey (int)\n"
 			"\n"
 			"<type> {0}_Get<type>(uint DataIndex, uint ElementIndex, uint AttributeId);\n"
 			"<type> {0}_Get<type>(uint DataIndex, uint ElementIndex, 'AttributeName');\n"),
@@ -732,7 +827,7 @@ void UPCGCustomHLSLSettings::UpdateOutputDeclarations()
 		}
 
 		OutputDeclarations += FString::Format(TEXT(
-			"// Valid types: bool, int, float, float2, float3, float4, Rotator (float3), Quat (float4), Transform (float4x4)\n"
+			"// Valid types: bool, int, float, float2, float3, float4, Rotator (float3), Quat (float4), Transform (float4x4), StringKey (int)\n"
 			"\n"
 			"void {0}_Set<type>(uint DataIndex, uint ElementIndex, uint AttributeId, <type> Value);\n"
 			"void {0}_Set<type>(uint DataIndex, uint ElementIndex, 'AttributeName', <type> Value);\n"),

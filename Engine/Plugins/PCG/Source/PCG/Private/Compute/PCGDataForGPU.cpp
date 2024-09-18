@@ -58,6 +58,10 @@ namespace PCGDataForGPUHelpers
 			return EPCGKernelAttributeType::Quat;
 		case EPCGMetadataTypes::Transform:
 			return EPCGKernelAttributeType::Transform;
+		case EPCGMetadataTypes::SoftObjectPath:
+		case EPCGMetadataTypes::String:
+			return EPCGKernelAttributeType::StringKey;
+		case EPCGMetadataTypes::SoftClassPath:
 		default:
 			return EPCGKernelAttributeType::Invalid;
 		}
@@ -70,6 +74,7 @@ namespace PCGDataForGPUHelpers
 		case EPCGKernelAttributeType::Bool:
 		case EPCGKernelAttributeType::Int:
 		case EPCGKernelAttributeType::Float:
+		case EPCGKernelAttributeType::StringKey:
 			return 4;
 		case EPCGKernelAttributeType::Float2:
 			return 8;
@@ -87,7 +92,7 @@ namespace PCGDataForGPUHelpers
 		}
 	}
 
-	bool PackAttributeHelper(const FPCGMetadataAttributeBase* InAttributeBase, const FPCGKernelAttributeDesc& InAttributeDesc, PCGMetadataEntryKey InEntryKey, TArray<uint32>& OutPackedDataCollection, uint32 ElementIndex)
+	bool PackAttributeHelper(const FPCGMetadataAttributeBase* InAttributeBase, const FPCGKernelAttributeDesc& InAttributeDesc, PCGMetadataEntryKey InEntryKey, const TArray<FString>& InStringTable, TArray<uint32>& OutPackedDataCollection, uint32 ElementIndex)
 	{
 		check(InAttributeBase);
 
@@ -212,6 +217,24 @@ namespace PCGDataForGPUHelpers
 			OutPackedDataCollection[ElementIndex + 15] = FMath::AsUInt(static_cast<float>(Matrix.M[3][3]));
 			break;
 		}
+		case PCG::Private::MetadataTypes<FString>::Id:
+		{
+			// String stored as an integer for reading/writing in kernel, and accompanying string table in data description.
+			const FPCGMetadataAttribute<FString>* Attribute = static_cast<const FPCGMetadataAttribute<FString>*>(InAttributeBase);
+			const int32 Value = InStringTable.IndexOfByKey(Attribute->GetValue(ValueKey));
+			check(StrideBytes == 4);
+			OutPackedDataCollection[ElementIndex] = Value;
+			break;
+		}
+		case PCG::Private::MetadataTypes<FSoftObjectPath>::Id:
+		{
+			// SOP path string stored as an integer for reading/writing in kernel, and accompanying string table in data description.
+			const FPCGMetadataAttribute<FSoftObjectPath>* Attribute = static_cast<const FPCGMetadataAttribute<FSoftObjectPath>*>(InAttributeBase);
+			const int32 Value = InStringTable.IndexOfByKey(Attribute->GetValue(ValueKey).ToString());
+			check(StrideBytes == 4);
+			OutPackedDataCollection[ElementIndex] = Value;
+			break;
+		}
 		default:
 			return false;
 		}
@@ -259,17 +282,21 @@ namespace PCGDataForGPUHelpers
 		{
 			return Metadata->FindOrCreateAttribute<FTransform>(AttributeDesc.Name);
 		}
+		case EPCGKernelAttributeType::StringKey:
+		{
+			return Metadata->FindOrCreateAttribute<FString>(AttributeDesc.Name);
+		}
 		default:
 			return nullptr;
 		}
 	}
 
-	bool UnpackAttributeHelper(const void* InPackedData, uint32 ElementIndex, FPCGMetadataAttributeBase* AttributeBase, const FPCGKernelAttributeDesc& AttributeDesc, PCGMetadataEntryKey EntryKey)
+	bool UnpackAttributeHelper(const void* InPackedData, const TArray<FString>& InStringTable, uint32 ElementIndex, FPCGMetadataAttributeBase* AttributeBase, const FPCGKernelAttributeDesc& AttributeDesc, PCGMetadataEntryKey EntryKey)
 	{
 		check(InPackedData && AttributeBase);
 
 		const float* DataAsFloat = static_cast<const float*>(InPackedData);
-		const int* DataAsInt = static_cast<const int*>(InPackedData);
+		const int32* DataAsInt = static_cast<const int32*>(InPackedData);
 
 		switch (AttributeDesc.Type)
 		{
@@ -285,7 +312,7 @@ namespace PCGDataForGPUHelpers
 		{
 			FPCGMetadataAttribute<int>* Attribute = static_cast<FPCGMetadataAttribute<int>*>(AttributeBase);
 
-			const int Value = DataAsInt[ElementIndex];
+			const int32 Value = DataAsInt[ElementIndex];
 			Attribute->SetValue(EntryKey, Value);
 			break;
 		}
@@ -379,6 +406,22 @@ namespace PCGDataForGPUHelpers
 			Attribute->SetValue(EntryKey, Value);
 			break;
 		}
+		case EPCGKernelAttributeType::StringKey:
+		{
+			FPCGMetadataAttribute<FString>* Attribute = static_cast<FPCGMetadataAttribute<FString>*>(AttributeBase);
+			
+			const int32 StringKey = DataAsInt[ElementIndex];
+			if (InStringTable.IsValidIndex(StringKey))
+			{
+				Attribute->SetValue(EntryKey, InStringTable[StringKey]);
+			}
+			else
+			{
+				UE_LOG(LogPCG, Error, TEXT("String retrieval failed for string key %d. String table size is %d."), StringKey, InStringTable.Num());
+				ensure(false);
+			}
+			break;
+		}
 		default:
 			return false;
 		}
@@ -395,7 +438,7 @@ namespace PCGDataForGPUHelpers
 	{
 		check(InBinding);
 		check(InBinding->Graph);
-		const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable = InBinding->Graph->GetAttributeLookupTable();
+		const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable = InBinding->GetAttributeLookupTable();
 
 		uint32 OffsetFloats = 0;
 
@@ -404,12 +447,16 @@ namespace PCGDataForGPUHelpers
 			const FPCGKernelAttributeIDAndType* FoundAttribute = GlobalAttributeLookupTable.Find(AttributeName);
 			if (!FoundAttribute)
 			{
-				ensure(false);
+				continue;
+			}
+
+			const EPCGKernelAttributeType AttributeType = FoundAttribute->Type;
+			if (AttributeType == EPCGKernelAttributeType::None)
+			{
 				continue;
 			}
 
 			const uint32 AttributeId = static_cast<uint32>(FoundAttribute->Id);
-			const EPCGKernelAttributeType AttributeType = FoundAttribute->Type;
 			const uint32 StrideFloats = GetAttributeTypeStrideBytes(AttributeType) / sizeof(float);
 
 			OutAttributeIdOffsetStrides.Emplace(AttributeId, OffsetFloats, StrideFloats, /*Unused*/0);
@@ -440,17 +487,18 @@ FPCGDataDesc::FPCGDataDesc(EPCGDataType InType, int InElementCount)
 	: Type(InType)
 	, ElementCount(InElementCount)
 {
-	InitializeAttributeDescs(nullptr);
+	TArray<FString> StringTableDummy;
+	InitializeAttributeDescs(nullptr, {}, StringTableDummy);
 }
 
-FPCGDataDesc::FPCGDataDesc(const UPCGData* Data, const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable)
+FPCGDataDesc::FPCGDataDesc(const UPCGData* InData, const TMap<FName, FPCGKernelAttributeIDAndType>& InGlobalAttributeLookupTable, const TArray<FString>& InStringTable)
 {
-	check(Data);
+	check(InData);
 
-	Type = Data->GetDataType();
-	ElementCount = PCGComputeHelpers::GetElementCount(Data);
+	Type = InData->GetDataType();
+	ElementCount = PCGComputeHelpers::GetElementCount(InData);
 
-	InitializeAttributeDescs(Data->ConstMetadata(), GlobalAttributeLookupTable);
+	InitializeAttributeDescs(InData, InGlobalAttributeLookupTable, InStringTable);
 }
 
 uint32 FPCGDataDesc::ComputePackedSize() const
@@ -479,21 +527,23 @@ uint32 FPCGDataDesc::ComputePackedSize() const
 	return DataSizeBytes;
 }
 
-void FPCGDataDesc::InitializeAttributeDescs(const UPCGMetadata* Metadata, const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable)
+void FPCGDataDesc::InitializeAttributeDescs(const UPCGData* InData, const TMap<FName, FPCGKernelAttributeIDAndType>& InGlobalAttributeLookupTable, const TArray<FString>& InStringTable)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDataDesc::InitializeAttributeDescs);
+
 	if (Type == EPCGDataType::Point)
 	{
 		AttributeDescs.Append(PCGDataForGPUConstants::PointPropertyDescs, NUM_POINT_PROPERTIES);
 	}
 	else { /* TODO: More types! */ }
 
-	if (Metadata)
+	if (const UPCGMetadata* Metadata = InData ? InData->ConstMetadata() : nullptr)
 	{
 		TArray<FName> AttributeNames;
 		TArray<EPCGMetadataTypes> AttributeTypes;
 		Metadata->GetAttributes(AttributeNames, AttributeTypes);
 
-		TArray<FPCGKernelAttributeKey> DelayedAttributeKeys; // Attribute keys that don't exist in the global lookup table must be delayed so we can append them at the end.
+		TArray<TPair<FPCGKernelAttributeKey, TArray<int32>>> DelayedAttributeKeysAndStringKeys; // Attribute keys that don't exist in the global lookup table must be delayed so we can append them at the end.
 		int NumAttributesFromLUT = 0; // Keep track of how many attributes come from the LUT. This will help give us the starting index for our delayed attributes.
 
 		for (int CustomAttributeIndex = 0; CustomAttributeIndex < AttributeNames.Num(); ++CustomAttributeIndex)
@@ -528,21 +578,92 @@ void FPCGDataDesc::InitializeAttributeDescs(const UPCGMetadata* Metadata, const 
 				continue;
 			}
 
-			if (const FPCGKernelAttributeIDAndType* AttributeIdAndType = GlobalAttributeLookupTable.Find(AttributeName))
+			TArray<int32> UniqueStringKeys;
+
+			if (AttributeType == EPCGKernelAttributeType::StringKey)
 			{
-				AttributeDescs.Emplace(AttributeIdAndType->Id, AttributeType, AttributeName);
+				const FPCGMetadataAttributeBase* AttributeBase = Metadata->GetConstAttribute(AttributeName);
+				check(AttributeBase);
+
+				if (Type == EPCGDataType::Point && ensure(InData->IsA<UPCGPointData>()))
+				{
+					const UPCGPointData* PointData = CastChecked<UPCGPointData>(InData);
+
+					for (int32 PointIndex = 0; PointIndex < PointData->GetPoints().Num(); ++PointIndex)
+					{
+						const PCGMetadataValueKey ValueKey = AttributeBase->GetValueKey(PointData->GetPoints()[PointIndex].MetadataEntry);
+
+						int StringTableIndex = INDEX_NONE;
+
+						if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FSoftObjectPath>::Id)
+						{
+							StringTableIndex = InStringTable.IndexOfByKey(static_cast<const FPCGMetadataAttribute<FSoftObjectPath>*>(AttributeBase)->GetValue(ValueKey).ToString());
+						}
+						else if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FString>::Id)
+						{
+							StringTableIndex = InStringTable.IndexOfByKey(static_cast<const FPCGMetadataAttribute<FString>*>(AttributeBase)->GetValue(ValueKey));
+						}
+						else
+						{
+							// Should not get here if attribute type is string key.
+							checkNoEntry();
+						}
+
+						if (StringTableIndex != INDEX_NONE)
+						{
+							UniqueStringKeys.AddUnique(StringTableIndex);
+						}
+					}
+				}
+				else if (Type == EPCGDataType::Param && ensure(InData->IsA<UPCGParamData>()))
+				{
+					const int32 NumElements = Metadata->GetItemCountForChild();
+
+					for (int64 MetadataKey = 0; MetadataKey < NumElements; ++MetadataKey)
+					{
+						int StringTableIndex = INDEX_NONE;
+
+						if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FSoftObjectPath>::Id)
+						{
+							StringTableIndex = InStringTable.IndexOfByKey(static_cast<const FPCGMetadataAttribute<FSoftObjectPath>*>(AttributeBase)->GetValue(MetadataKey).ToString());
+						}
+						else if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FString>::Id)
+						{
+							StringTableIndex = InStringTable.IndexOfByKey(static_cast<const FPCGMetadataAttribute<FString>*>(AttributeBase)->GetValue(MetadataKey));
+						}
+						else
+						{
+							// Should not get here if attribute type is string key.
+							checkNoEntry();
+						}
+
+						if (StringTableIndex != INDEX_NONE)
+						{
+							UniqueStringKeys.AddUnique(StringTableIndex);
+						}
+					}
+				}
+				else { /* TODO: More types! */ }
+			}
+
+			if (const FPCGKernelAttributeIDAndType* AttributeIdAndType = InGlobalAttributeLookupTable.Find(AttributeName))
+			{
+				AttributeDescs.Emplace(AttributeIdAndType->Id, AttributeType, AttributeName, MoveTemp(UniqueStringKeys));
 				++NumAttributesFromLUT;
 			}
 			else
 			{
-				DelayedAttributeKeys.Emplace(AttributeName, AttributeType);
+				TPair<FPCGKernelAttributeKey, TArray<int32>> AttributeAndStringKeys;
+				AttributeAndStringKeys.Get<0>() = FPCGKernelAttributeKey(AttributeName, AttributeType);
+				AttributeAndStringKeys.Get<1>() = MoveTemp(UniqueStringKeys);
+				DelayedAttributeKeysAndStringKeys.Add(MoveTemp(AttributeAndStringKeys));
 			}
 		}
 
-		for (int DelayedAttributeIndex = 0; DelayedAttributeIndex < DelayedAttributeKeys.Num(); ++DelayedAttributeIndex)
+		for (int DelayedAttributeIndex = 0; DelayedAttributeIndex < DelayedAttributeKeysAndStringKeys.Num(); ++DelayedAttributeIndex)
 		{
-			const FPCGKernelAttributeKey& AttributeKey = DelayedAttributeKeys[DelayedAttributeIndex];
-			AttributeDescs.Emplace(NUM_RESERVED_ATTRS + DelayedAttributeIndex + NumAttributesFromLUT, AttributeKey.Type, AttributeKey.Name);
+			const FPCGKernelAttributeKey& AttributeKey = DelayedAttributeKeysAndStringKeys[DelayedAttributeIndex].Get<0>();
+			AttributeDescs.Emplace(NUM_RESERVED_ATTRS + DelayedAttributeIndex + NumAttributesFromLUT, AttributeKey.Type, AttributeKey.Name, MoveTemp(DelayedAttributeKeysAndStringKeys[DelayedAttributeIndex].Get<1>()));
 		}
 	}
 }
@@ -550,9 +671,10 @@ void FPCGDataDesc::InitializeAttributeDescs(const UPCGMetadata* Metadata, const 
 FPCGDataCollectionDesc FPCGDataCollectionDesc::BuildFromInputDataCollectionAndInputPinLabel(
 	const FPCGDataCollection& InDataCollection,
 	FName InputPinLabel,
-	const TMap<FName, FPCGKernelAttributeIDAndType>& InAttributeLookupTable)
+	const TMap<FName, FPCGKernelAttributeIDAndType>& InAttributeLookupTable,
+	const TArray<FString>& InStringTable)
 {
-	FPCGDataCollectionDesc Desc;
+	FPCGDataCollectionDesc CollectionDesc;
 	TArray<FPCGTaggedData> DataForPin = InDataCollection.GetInputsByPin(InputPinLabel);
 
 	for (const FPCGTaggedData& Data : DataForPin)
@@ -562,10 +684,10 @@ FPCGDataCollectionDesc FPCGDataCollectionDesc::BuildFromInputDataCollectionAndIn
 			continue;
 		}
 
-		Desc.DataDescs.Emplace(Data.Data, InAttributeLookupTable);
+		CollectionDesc.DataDescs.Emplace(Data.Data, InAttributeLookupTable, InStringTable);
 	}
 
-	return Desc;
+	return CollectionDesc;
 }
 
 uint32 FPCGDataCollectionDesc::ComputePackedSize(TArray<uint32>* OutDataAddresses) const
@@ -598,7 +720,7 @@ uint32 FPCGDataCollectionDesc::ComputePackedSize(TArray<uint32>* OutDataAddresse
 	return TotalCollectionSizeBytes;
 }
 
-void FPCGDataCollectionDesc::PackDataCollection(const FPCGDataCollection& InDataCollection, FName InPin, TArray<uint32>& OutPackedDataCollection) const
+void FPCGDataCollectionDesc::PackDataCollection(const FPCGDataCollection& InDataCollection, FName InPin, const TArray<FString>& InStringTable, TArray<uint32>& OutPackedDataCollection) const
 {
 	const TArray<FPCGTaggedData> InputData = InDataCollection.GetInputsByPin(InPin);
 	const uint32 NumData = InputData.Num();
@@ -659,7 +781,7 @@ void FPCGDataCollectionDesc::PackDataCollection(const FPCGDataCollection& InData
 
 					if (AttributeBase) // Pack attribute
 					{
-						ensure(PCGDataForGPUHelpers::PackAttributeHelper(AttributeBase, AttributeDesc, Points[ElementIndex].MetadataEntry, OutPackedDataCollection, PackedDataElementIndex));
+						ensure(PCGDataForGPUHelpers::PackAttributeHelper(AttributeBase, AttributeDesc, Points[ElementIndex].MetadataEntry, InStringTable, OutPackedDataCollection, PackedDataElementIndex));
 					}
 					else // Pack property
 					{
@@ -772,6 +894,12 @@ void FPCGDataCollectionDesc::PackDataCollection(const FPCGDataCollection& InData
 
 			for (const FPCGKernelAttributeDesc& AttributeDesc : AttributeDescs)
 			{
+				const FPCGMetadataAttributeBase* AttributeBase = Metadata->GetConstAttribute(AttributeDesc.Name);
+				if (!AttributeBase)
+				{
+					continue;
+				}
+
 				const uint32 AttributeId = AttributeDesc.Index;
 				const uint32 AttributeStrideBytes = PCGDataForGPUHelpers::GetAttributeTypeStrideBytes(AttributeDesc.Type);
 				const uint32 AttributeNumComponents = AttributeStrideBytes / sizeof(uint32); // E.g. float3 has 3 components
@@ -784,17 +912,13 @@ void FPCGDataCollectionDesc::PackDataCollection(const FPCGDataCollection& InData
 				OutPackedDataCollection[AttributeHeaderIndex + 0] = PackedIdAndStride;
 				OutPackedDataCollection[AttributeHeaderIndex + 1] = CurrentAttributeAddress;
 
-				const FPCGMetadataAttributeBase* AttributeBase = Metadata->GetConstAttribute(AttributeDesc.Name);
-
 				for (uint32 ElementIndex = 0; ElementIndex < NumElements; ++ElementIndex)
 				{
 					const uint32 PackedDataElementIndex = AttributeIndex + (ElementIndex * AttributeNumComponents);
 					const int64 MetadataKey = ElementIndex;
 
-					if (AttributeBase) // Pack attribute
-					{
-						ensure(PCGDataForGPUHelpers::PackAttributeHelper(AttributeBase, AttributeDesc, MetadataKey, OutPackedDataCollection, PackedDataElementIndex));
-					}
+					// Pack attribute
+					ensure(PCGDataForGPUHelpers::PackAttributeHelper(AttributeBase, AttributeDesc, MetadataKey, InStringTable, OutPackedDataCollection, PackedDataElementIndex));
 				}
 
 				CurrentAttributeAddress += NumElements * AttributeNumComponents * 4;
@@ -889,12 +1013,12 @@ void FPCGDataCollectionDesc::PrepareBufferForKernelOutput(TArray<uint32>& OutPac
 	}
 }
 
-EPCGUnpackDataCollectionResult FPCGDataCollectionDesc::UnpackDataCollection(const TArray<uint8>& InPackedData, FName InPin, FPCGDataCollection& OutDataCollection) const
+EPCGUnpackDataCollectionResult FPCGDataCollectionDesc::UnpackDataCollection(const TArray<uint8>& InPackedData, FName InPin, const TArray<FString>& InStringTable, FPCGDataCollection& OutDataCollection) const
 {
 	const void* PackedData = InPackedData.GetData();
 	const float* DataAsFloat = static_cast<const float*>(PackedData);
 	const uint32* DataAsUint = static_cast<const uint32*>(PackedData);
-	const int* DataAsInt = static_cast<const int*>(PackedData);
+	const int32* DataAsInt = static_cast<const int32*>(PackedData);
 
 	const uint32 NumPackedFloats = InPackedData.Num() / 4;
 
@@ -972,7 +1096,7 @@ EPCGUnpackDataCollectionResult FPCGDataCollectionDesc::UnpackDataCollection(cons
 					if (AttributeBase) // Unpack attribute
 					{
 						Metadata->InitializeOnSet(OutPoints[ElementIndex].MetadataEntry);
-						ensure(PCGDataForGPUHelpers::UnpackAttributeHelper(PackedData, PackedDataElementIndex, AttributeBase, AttributeDesc, OutPoints[ElementIndex].MetadataEntry));
+						ensure(PCGDataForGPUHelpers::UnpackAttributeHelper(PackedData, InStringTable, PackedDataElementIndex, AttributeBase, AttributeDesc, OutPoints[ElementIndex].MetadataEntry));
 					}
 					else // Unpack property
 					{
@@ -1063,7 +1187,7 @@ EPCGUnpackDataCollectionResult FPCGDataCollectionDesc::UnpackDataCollection(cons
 						}
 						case POINT_SEED_ATTRIBUTE_ID:
 						{
-							const int Seed = DataAsInt[PackedDataElementIndex];
+							const int32 Seed = DataAsInt[PackedDataElementIndex];
 
 							OutPoints[ElementIndex].Seed = Seed;
 							break;
@@ -1136,7 +1260,7 @@ EPCGUnpackDataCollectionResult FPCGDataCollectionDesc::UnpackDataCollection(cons
 						const uint32 PackedDataElementIndex = AttributeIndex + ElementIndex * AttributeNumComponents;
 						check(PackedDataElementIndex + AttributeNumComponents <= NumPackedFloats);
 
-						ensure(PCGDataForGPUHelpers::UnpackAttributeHelper(PackedData, PackedDataElementIndex, AttributeBase, AttributeDesc, ElementIndex));
+						ensure(PCGDataForGPUHelpers::UnpackAttributeHelper(PackedData, InStringTable, PackedDataElementIndex, AttributeBase, AttributeDesc, ElementIndex));
 					}
 				});
 			}

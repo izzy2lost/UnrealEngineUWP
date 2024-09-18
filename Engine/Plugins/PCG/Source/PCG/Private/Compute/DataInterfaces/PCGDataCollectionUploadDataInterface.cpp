@@ -25,7 +25,8 @@ UComputeDataProvider* UPCGDataCollectionUploadDataInterface::CreateDataProvider(
 	Provider->PinDesc = FPCGDataCollectionDesc::BuildFromInputDataCollectionAndInputPinLabel(
 		Binding->DataForGPU.InputDataCollection,
 		DownstreamInputPinLabelAliases[0],
-		Binding->Graph->GetAttributeLookupTable());
+		Binding->GetAttributeLookupTable(),
+		Binding->GetStringTable());
 
 	Provider->DownstreamInputPinLabels = DownstreamInputPinLabelAliases;
 
@@ -34,31 +35,24 @@ UComputeDataProvider* UPCGDataCollectionUploadDataInterface::CreateDataProvider(
 
 FComputeDataProviderRenderProxy* UPCGDataProviderDataCollectionUpload::GetRenderProxy()
 {
-	return new FPCGDataProviderDataCollectionUploadProxy(Binding, PinDesc, DownstreamInputPinLabels);
-}
-
-FPCGDataProviderDataCollectionUploadProxy::FPCGDataProviderDataCollectionUploadProxy(
-	TWeakObjectPtr<UPCGDataBinding> InBinding,
-	const FPCGDataCollectionDesc& InPinDesc,
-	const TArray<FName>& InDownstreamInputPinLabels)
-	: FPCGDataCollectionDataProviderProxy(InBinding, InPinDesc, EPCGReadbackMode::None)
-{
-	DownstreamInputPinLabels = InDownstreamInputPinLabels;
-}
-
-void FPCGDataProviderDataCollectionUploadProxy::AllocateResources(FRDGBuilder& GraphBuilder, FAllocationData const& InAllocationData)
-{
-	if (!ensure(Binding.IsValid()))
-	{
-		return;
-	}
-
 	TArray<uint32> PackedDataCollection;
 
 	// Use any downstream input pin label to grab data from the collection.
 	check(!DownstreamInputPinLabels.IsEmpty());
-	PinDesc.PackDataCollection(Binding->DataForGPU.InputDataCollection, DownstreamInputPinLabels[0], PackedDataCollection);
-	
+	PinDesc.PackDataCollection(Binding->DataForGPU.InputDataCollection, DownstreamInputPinLabels[0], Binding->GetStringTable(), PackedDataCollection);
+
+	return new FPCGDataProviderDataCollectionUploadProxy(PinDesc, MoveTemp(PackedDataCollection), DownstreamInputPinLabels);
+}
+
+FPCGDataProviderDataCollectionUploadProxy::FPCGDataProviderDataCollectionUploadProxy(const FPCGDataCollectionDesc& InPinDesc, TArray<uint32>&& InPackedDataCollection, const TArray<FName>& InDownstreamInputPinLabels)
+	: FPCGDataCollectionDataProviderProxy(InPinDesc, EPCGReadbackMode::None)
+	, PackedDataCollection(MoveTemp(InPackedDataCollection))
+	, DownstreamInputPinLabels(InDownstreamInputPinLabels)
+{
+}
+
+void FPCGDataProviderDataCollectionUploadProxy::AllocateResources(FRDGBuilder& GraphBuilder, FAllocationData const& InAllocationData)
+{
 	const FRDGBufferDesc Desc = FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), PackedDataCollection.Num());
 	Buffer = GraphBuilder.CreateBuffer(Desc, TEXT("PCGDataCollectionUploadBuffer"));
 	BufferUAV = GraphBuilder.CreateUAV(Buffer);

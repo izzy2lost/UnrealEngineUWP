@@ -39,11 +39,13 @@ public:
 class FPCGDataProviderDataCollectionUploadProxy : public FPCGDataCollectionDataProviderProxy
 {
 public:
-	FPCGDataProviderDataCollectionUploadProxy(TWeakObjectPtr<UPCGDataBinding> InBinding, const FPCGDataCollectionDesc& InPinDesc, const TArray<FName>& InDownstreamInputPinLabels);
+	FPCGDataProviderDataCollectionUploadProxy(const FPCGDataCollectionDesc& InPinDesc, TArray<uint32>&& PackedDataCollection, const TArray<FName>& InDownstreamInputPinLabels);
 
 	//~ Begin FComputeDataProviderRenderProxy Interface
 	void AllocateResources(FRDGBuilder& GraphBuilder, FAllocationData const& InAllocationData) override;
 	//~ End FComputeDataProviderRenderProxy Interface
+
+	TArray<uint32> PackedDataCollection;
 
 	TArray<FName> DownstreamInputPinLabels;
 };

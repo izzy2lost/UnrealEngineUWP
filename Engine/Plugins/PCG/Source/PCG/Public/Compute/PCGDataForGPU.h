@@ -32,6 +32,7 @@ enum class EPCGKernelAttributeType : uint8
 	Rotator,
 	Quat,
 	Transform,
+	StringKey,
 
 	Invalid = std::numeric_limits<uint8>::max()
 };
@@ -86,9 +87,20 @@ struct FPCGKernelAttributeDesc
 	{
 	}
 
+	explicit FPCGKernelAttributeDesc(int32 InIndex, EPCGKernelAttributeType InType, FName InName, TArray<int32>&& InUniqueStringKeys)
+		: Index(InIndex)
+		, Type(InType)
+		, Name(InName)
+		, UniqueStringKeys(MoveTemp(InUniqueStringKeys))
+	{
+	}
+
 	int32 Index = INDEX_NONE;
 	EPCGKernelAttributeType Type = EPCGKernelAttributeType::Float;
 	FName Name = NAME_None;
+
+	/* All possible string keys arriving on this attribute (string keys are indices into the string table in the data binding). */
+	TArray<int32> UniqueStringKeys;
 
 	bool operator==(const FPCGKernelAttributeDesc& Other) const;
 };
@@ -96,7 +108,7 @@ struct FPCGKernelAttributeDesc
 struct FPCGDataDesc
 {
 	FPCGDataDesc(EPCGDataType InType, int32 InElementCount);
-	FPCGDataDesc(const UPCGData* Data, const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable);
+	FPCGDataDesc(const UPCGData* InData, const TMap<FName, FPCGKernelAttributeIDAndType>& InGlobalAttributeLookupTable, const TArray<FString>& InStringTable);
 
 	uint32 ComputePackedSize() const;
 
@@ -105,7 +117,7 @@ struct FPCGDataDesc
 	int32 ElementCount = 0;
 
 private:
-	void InitializeAttributeDescs(const UPCGMetadata* Metadata, const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable = {});
+	void InitializeAttributeDescs(const UPCGData* InData, const TMap<FName, FPCGKernelAttributeIDAndType>& InGlobalAttributeLookupTable, const TArray<FString>& InStringTable);
 };
 
 struct FPCGDataCollectionDesc
@@ -113,19 +125,20 @@ struct FPCGDataCollectionDesc
 	static FPCGDataCollectionDesc BuildFromInputDataCollectionAndInputPinLabel(
 		const FPCGDataCollection& InDataCollection,
 		FName InputPinLabel,
-		const TMap<FName, FPCGKernelAttributeIDAndType>& InAttributeLookupTable);
+		const TMap<FName, FPCGKernelAttributeIDAndType>& InAttributeLookupTable,
+		const TArray<FString>& InStringTable);
 
 	/** Computes the size (in bytes) of the data collection after packing. Also produces the offset (in bytes) for each data in the packed collection. */
 	uint32 ComputePackedSize(TArray<uint32>* OutDataAddresses = nullptr) const;
 
 	/** Pack a data collection into the GPU data format. DataDescs defines which attributes are packed. */
-	void PackDataCollection(const FPCGDataCollection& InDataCollection, FName InPin, TArray<uint32>& OutPackedDataCollection) const;
+	void PackDataCollection(const FPCGDataCollection& InDataCollection, FName InPin, const TArray<FString>& InStringTable, TArray<uint32>& OutPackedDataCollection) const;
 
 	/** Allocates the correct size and sets up header. Initializes data count to 0, which kernel will then overwrite if it executes at least one thread. */
 	void PrepareBufferForKernelOutput(TArray<uint32>& OutPackedDataCollection);
 
 	/** Unpack a buffer of 8-bit uints to a data collection. */
-	EPCGUnpackDataCollectionResult UnpackDataCollection(const TArray<uint8>& InPackedData, FName InPin, FPCGDataCollection& OutDataCollection) const;
+	EPCGUnpackDataCollectionResult UnpackDataCollection(const TArray<uint8>& InPackedData, FName InPin, const TArray<FString>& InStringTable, FPCGDataCollection& OutDataCollection) const;
 
 	/** Compute total number of processing elements of the given type. */
 	uint32 ComputeDataElementCount(EPCGDataType InDataType) const;
@@ -136,13 +149,20 @@ struct FPCGDataCollectionDesc
 	TArray<FPCGDataDesc> DataDescs;
 };
 
+USTRUCT()
 struct FPCGDataForGPU
 {
+	GENERATED_BODY()
+
 	// All the node input pins that have edges that cross from CPU to GPU.
-	TSet<const UPCGPin*> InputPins;
+	UPROPERTY()
+	TSet<TObjectPtr<const UPCGPin>> InputPins;
+
+	UPROPERTY()
 	TMap<TObjectPtr<const UPCGPin>, FName> InputPinLabelAliases;
 
 	// Since the compute graph is collapsed to a single element, all data crossing from CPU to GPU is in a single collection.
+	UPROPERTY()
 	FPCGDataCollection InputDataCollection;
 };
 
