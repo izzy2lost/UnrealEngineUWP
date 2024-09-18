@@ -3,7 +3,6 @@
 #pragma once
 
 #include "Core/CameraNode.h"
-#include "Core/CameraParameters.h"
 
 #include "TargetRayCastCameraNode.generated.h"
 
@@ -21,10 +20,6 @@ public:
 	/** Trace channel to use for the ray-cast. */
 	UPROPERTY(EditAnywhere, Category="Ray-Cast")
 	TEnumAsByte<ECollisionChannel> TraceChannel = ECollisionChannel::ECC_Camera;
-
-	/** Whether to set the focus distance to the ray-cast hit result. */
-	UPROPERTY(EditAnywhere, Category="Auto-Focus")
-	FBooleanCameraParameter AutoFocus = true;
 
 protected:
 

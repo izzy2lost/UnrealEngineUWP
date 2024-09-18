@@ -5,7 +5,6 @@
 #include "CollisionQueryParams.h"
 #include "Core/CameraEvaluationContext.h"
 #include "Core/CameraNodeEvaluator.h"
-#include "Core/CameraParameterReader.h"
 #include "Debug/CameraDebugBlock.h"
 #include "Debug/CameraDebugBlockBuilder.h"
 #include "Debug/CameraDebugRenderer.h"
@@ -33,7 +32,6 @@ class FTargetRayCastCameraNodeEvaluator : public FCameraNodeEvaluator
 protected:
 
 	// FCameraNodeEvaluator interface.
-	virtual void OnInitialize(const FCameraNodeEvaluatorInitializeParams& Params, FCameraNodeEvaluationResult& OutResult) override;
 	virtual void OnRun(const FCameraNodeEvaluationParams& Params, FCameraNodeEvaluationResult& OutResult) override;
 #if UE_GAMEPLAY_CAMERAS_DEBUG
 	virtual void OnBuildDebugBlocks(const FCameraDebugBlockBuildParams& Params, FCameraDebugBlockBuilder& Builder) override;
@@ -44,8 +42,6 @@ private:
 	void RunLineTrace(UWorld* World, APlayerController* PlayerController, FCameraNodeEvaluationResult& OutResult);
 
 private:
-
-	TCameraParameterReader<bool> AutoFocusReader;
 
 	double LastHitResultDistance = 1000.0; // Same as the default CameraPose target distance.
 
@@ -66,12 +62,6 @@ UE_DECLARE_CAMERA_DEBUG_BLOCK_START(GAMEPLAYCAMERAS_API, FTargetRayCastCameraDeb
 UE_DECLARE_CAMERA_DEBUG_BLOCK_END()
 
 UE_DEFINE_CAMERA_DEBUG_BLOCK_WITH_FIELDS(FTargetRayCastCameraDebugBlock)
-
-void FTargetRayCastCameraNodeEvaluator::OnInitialize(const FCameraNodeEvaluatorInitializeParams& Params, FCameraNodeEvaluationResult& OutResult)
-{
-	const UTargetRayCastCameraNode* RayCastNode = GetCameraNodeAs<UTargetRayCastCameraNode>();
-	AutoFocusReader.Initialize(RayCastNode->AutoFocus);
-}
 
 void FTargetRayCastCameraNodeEvaluator::OnRun(const FCameraNodeEvaluationParams& Params, FCameraNodeEvaluationResult& OutResult)
 {
@@ -142,11 +132,6 @@ void FTargetRayCastCameraNodeEvaluator::RunLineTrace(UWorld* World, APlayerContr
 	else
 	{
 		CameraPose.SetTargetDistance(GTargetRayCastLength);
-	}
-
-	if (AutoFocusReader.Get(OutResult.VariableTable))
-	{
-		CameraPose.SetFocusDistance(CameraPose.GetTargetDistance());
 	}
 }
 
