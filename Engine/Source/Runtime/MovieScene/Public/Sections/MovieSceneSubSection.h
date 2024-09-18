@@ -201,6 +201,8 @@ public:
 
 	/** Delegate to fire when our sequence is changed in the property editor */
 	FOnSequenceChanged& OnSequenceChanged() { return OnSequenceChangedDelegate; }
+
+	MOVIESCENE_API bool IsTransformOriginEditable() const;
 #endif
 
 	MOVIESCENE_API FFrameNumber MapTimeToSectionFrame(FFrameTime InPosition) const;

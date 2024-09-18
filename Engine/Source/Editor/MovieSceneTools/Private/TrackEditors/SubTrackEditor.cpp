@@ -1120,7 +1120,10 @@ void FSubTrackEditor::UpdateOrigin(FVector InPosition, FRotator InRotation)
 	{
 		if(UMovieSceneSubSection* SubSection = Cast<UMovieSceneSubSection>(Section))
 		{
-			SectionsToKey.AddUnique(SubSection);
+			if(SubSection->IsTransformOriginEditable())
+			{
+				SectionsToKey.AddUnique(SubSection);
+			}
 		}
 	}
 	
@@ -1150,7 +1153,10 @@ void FSubTrackEditor::UpdateOrigin(FVector InPosition, FRotator InRotation)
 				{
 					if(UMovieSceneSubSection* SubSection = Cast<UMovieSceneSubSection>(Section))
 					{
-						SectionsToKey.AddUnique(SubSection);
+						if(SubSection->IsTransformOriginEditable())
+						{
+							SectionsToKey.AddUnique(SubSection);
+						}
 					}
 				}
 			}
