@@ -9,7 +9,7 @@ namespace UE::Sequencer
 
 class IOutlinerColumn;
 class IOutlinerDecorator;
-class FConditionOutlinerDecorator;
+class FConditionOutlinerDecoratorBuilder;
 class FConditionStateCacheExtension;
 
 /**
@@ -22,10 +22,13 @@ public:
 	SLATE_BEGIN_ARGS(SConditionDecoratorWidget) {}
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, const TWeakPtr<IOutlinerColumn> InWeakOutlinerColumn, const TWeakPtr<FConditionOutlinerDecorator>& OutlinerDecorator, const FCreateOutlinerColumnParams& InParams);
+	void Construct(const FArguments& InArgs, const TWeakPtr<IOutlinerColumn> InWeakOutlinerColumn, const FCreateOutlinerColumnParams& InParams);
 
 	/** Get the color and opacity of the column toggle widget. */
 	virtual FSlateColor GetImageColorAndOpacity() const override;
+
+	/* Gets the color and opacity of the decorator background. */
+	FSlateColor GetDecoratorBackgroundColorAndOpacity() const;
 
 protected:
 
@@ -58,8 +61,6 @@ private:
 
 	/** Weak cache extension ptr (can be null). */
 	TWeakViewModelPtr<FConditionStateCacheExtension> WeakConditionStateCacheExtension;
-
-	TWeakPtr<FConditionOutlinerDecorator> WeakOutlinerDecorator;
 };
 
 } // namespace UE::Sequencer

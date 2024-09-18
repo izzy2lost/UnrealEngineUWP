@@ -305,7 +305,15 @@ public:
 	{
 		if (const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin())
 		{
-			Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::TrackValueChanged);
+			if (PropertyThatChanged && PropertyThatChanged->GetName() == TEXT("Condition"))
+			{
+				// Rebuild hierarchy on changing a condition so the indicators have a chance to refresh
+				Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
+			}
+			else
+			{
+				Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::TrackValueChanged);
+			}
 		}
 	}
 

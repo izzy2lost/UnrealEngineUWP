@@ -6,23 +6,21 @@
 #include "MVVM/ViewModels/ViewModelIterators.h"
 #include "MVVM/ViewModels/EditorViewModel.h"
 #include "MVVM/ViewModels/OutlinerColumns/IOutlinerColumn.h"
-#include "MVVM/ViewModels/OutlinerDecorators/IOutlinerDecorator.h"
-#include "MVVM/ViewModels/OutlinerDecorators/TimeWarpOutlinerDecorator.h"
+#include "MVVM/ViewModels/OutlinerDecorators/IOutlinerDecoratorBuilder.h"
+#include "MVVM/ViewModels/OutlinerDecorators/TimeWarpOutlinerDecoratorBuilder.h"
 #include "MVVM/Selection/SequencerCoreSelection.h"
 #include "MVVM/Selection/SequencerOutlinerSelection.h"
 
 namespace UE::Sequencer
 {
 
-void STimeWarpDecoratorWidget::Construct(const FArguments& InArgs, const TWeakPtr<IOutlinerColumn> InWeakOutlinerColumn, const TWeakPtr<FTimeWarpOutlinerDecorator>& InWeakOutlinerDecorator, const FCreateOutlinerColumnParams& InParams)
+void STimeWarpDecoratorWidget::Construct(const FArguments& InArgs, const TWeakPtr<IOutlinerColumn> InWeakOutlinerColumn, const FCreateOutlinerColumnParams& InParams)
 {
 	SColumnToggleWidget::Construct(
 		SColumnToggleWidget::FArguments(),
 		InWeakOutlinerColumn,
 		InParams
 	);
-
-	WeakOutlinerDecorator = InWeakOutlinerDecorator;
 }
 
 bool STimeWarpDecoratorWidget::IsActive() const
@@ -38,16 +36,7 @@ const FSlateBrush* STimeWarpDecoratorWidget::GetActiveBrush() const
 
 FSlateColor STimeWarpDecoratorWidget::GetImageColorAndOpacity() const
 {
-	FLinearColor OutColor = FLinearColor::Black;
-	float Opacity = 1.0f;
-	////OutColor.A = Opacity; // The background should be at the specified opacity and the icon should stay 100% black.
-
-	if (WeakOutlinerDecorator.IsValid())
-	{
-		WeakOutlinerDecorator.Pin()->Opacity = Opacity;
-	}
-
-	return OutColor;
+	return FLinearColor::Black;
 }
 
 } // namespace UE::Sequencer

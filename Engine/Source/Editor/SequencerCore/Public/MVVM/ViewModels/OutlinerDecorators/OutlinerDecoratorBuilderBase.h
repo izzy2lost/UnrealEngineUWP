@@ -2,17 +2,17 @@
 
 #pragma once
 
-#include "MVVM/ViewModels/OutlinerDecorators/IOutlinerDecorator.h"
+#include "MVVM/ViewModels/OutlinerDecorators/IOutlinerDecoratorBuilder.h"
 
 namespace UE::Sequencer
 {
 
-class FOutlinerDecoratorBase
-	: public IOutlinerDecorator
+class FOutlinerDecoratorBuilderBase
+	: public IOutlinerDecoratorBuilder
 {
 public:
 
-	FOutlinerDecoratorBase()
+	FOutlinerDecoratorBuilderBase()
 	{
 	}
 	

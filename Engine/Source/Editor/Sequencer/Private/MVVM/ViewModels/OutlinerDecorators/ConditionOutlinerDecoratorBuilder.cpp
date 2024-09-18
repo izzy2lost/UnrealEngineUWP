@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "MVVM/ViewModels/OutlinerDecorators/ConditionOutlinerDecorator.h"
+#include "MVVM/ViewModels/OutlinerDecorators/ConditionOutlinerDecoratorBuilder.h"
 
 #include "MVVM/ViewModels/OutlinerColumns/IOutlinerColumn.h"
 #include "MVVM/ViewModels/OutlinerColumns/OutlinerColumnTypes.h"
@@ -9,22 +9,21 @@
 #include "MVVM/SharedViewModelData.h"
 #include "Widgets/Layout/SBorder.h"
 
-#define LOCTEXT_NAMESPACE "FConditionOutlinerDecorator"
+#define LOCTEXT_NAMESPACE "FConditionOutlinerDecoratorBuilder"
 
 namespace UE::Sequencer
 {
 
-FConditionOutlinerDecorator::FConditionOutlinerDecorator()
+FConditionOutlinerDecoratorBuilder::FConditionOutlinerDecoratorBuilder()
 {
-	Opacity = 1.f;
 }
 
-FName FConditionOutlinerDecorator::GetDecoratorName() const
+FName FConditionOutlinerDecoratorBuilder::GetDecoratorName() const
 {
 	return FCommonOutlinerNames::Condition;
 }
 
-bool FConditionOutlinerDecorator::IsItemCompatibleWithDecorator(const FCreateOutlinerColumnParams& InParams) const
+bool FConditionOutlinerDecoratorBuilder::IsItemCompatibleWithDecorator(const FCreateOutlinerColumnParams& InParams) const
 {
 	if (FConditionStateCacheExtension* ConditionStateCache = InParams.OutlinerExtension.AsModel()->GetSharedData()->CastThis<FConditionStateCacheExtension>())
 	{
@@ -34,10 +33,11 @@ bool FConditionOutlinerDecorator::IsItemCompatibleWithDecorator(const FCreateOut
 	return false;
 }
 
-TSharedPtr<SWidget> FConditionOutlinerDecorator::CreateDecoratorWidget(const FCreateOutlinerColumnParams& InParams, const TSharedRef<ISequencerTreeViewRow>& TreeViewRow, const TSharedRef<IOutlinerColumn>& OutlinerColumn, const int32 NumCompatibleDecorators)
+TSharedPtr<SWidget> FConditionOutlinerDecoratorBuilder::CreateDecoratorWidget(const FCreateOutlinerColumnParams& InParams, const TSharedRef<ISequencerTreeViewRow>& TreeViewRow, const TSharedRef<IOutlinerColumn>& OutlinerColumn, const int32 NumCompatibleDecorators)
 {
 	static const FLinearColor ConditionColor = FLinearColor::FromSRGBColor(FColor(92, 220, 205));
 
+	TSharedRef<SConditionDecoratorWidget> ConditionDecoratorWidget = SNew(SConditionDecoratorWidget, OutlinerColumn, InParams);
 	if (NumCompatibleDecorators > 1)
 	{
 		return SNew(SBorder)
@@ -45,7 +45,7 @@ TSharedPtr<SWidget> FConditionOutlinerDecorator::CreateDecoratorWidget(const FCr
 			.HAlign(HAlign_Fill)
 			.Padding(0.0f)
 			.BorderImage(FAppStyle::GetBrush("WhiteBrush"))
-			.BorderBackgroundColor_Lambda([this]() -> FLinearColor { FLinearColor BackgroundColor = ConditionColor; BackgroundColor.A = Opacity; return BackgroundColor; });
+			.BorderBackgroundColor(ConditionColor);
 	}
 
 	return SNew(SOverlay)
@@ -56,7 +56,14 @@ TSharedPtr<SWidget> FConditionOutlinerDecorator::CreateDecoratorWidget(const FCr
 				.HAlign(HAlign_Fill)
 				.Padding(0.0f)
 				.BorderImage(FAppStyle::GetBrush("WhiteBrush"))
-				.BorderBackgroundColor_Lambda([this]() -> FLinearColor { FLinearColor BackgroundColor = ConditionColor; BackgroundColor.A = Opacity; return BackgroundColor; })
+				.BorderBackgroundColor_Lambda([WeakWidget = ConditionDecoratorWidget.ToWeakPtr()]() -> FLinearColor
+					{
+						if (WeakWidget.IsValid())
+						{
+							return WeakWidget.Pin()->GetDecoratorBackgroundColorAndOpacity().GetSpecifiedColor();
+						}
+						return FLinearColor(0, 0, 0, 0);
+					})
 		]
 
 		+ SOverlay::Slot()
@@ -67,7 +74,7 @@ TSharedPtr<SWidget> FConditionOutlinerDecorator::CreateDecoratorWidget(const FCr
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
 				[
-					SAssignNew(DecoratorWidget, SConditionDecoratorWidget, OutlinerColumn, SharedThis(this), InParams)
+					ConditionDecoratorWidget
 				]
 		];
 }

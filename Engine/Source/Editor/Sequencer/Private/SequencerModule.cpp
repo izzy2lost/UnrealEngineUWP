@@ -45,8 +45,8 @@
 #include "MVVM/ViewModels/OutlinerColumns/KeyFrameOutlinerColumn.h"
 #include "MVVM/ViewModels/OutlinerColumns/ColorPickerOutlinerColumn.h"
 
-#include "MVVM/ViewModels/OutlinerDecorators/ConditionOutlinerDecorator.h"
-#include "MVVM/ViewModels/OutlinerDecorators/TimeWarpOutlinerDecorator.h"
+#include "MVVM/ViewModels/OutlinerDecorators/ConditionOutlinerDecoratorBuilder.h"
+#include "MVVM/ViewModels/OutlinerDecorators/TimeWarpOutlinerDecoratorBuilder.h"
 
 #include "ToolMenus.h"
 #include "ContentBrowserMenuContexts.h"
@@ -512,8 +512,8 @@ public:
 			ColorPickerOutlinerColumnHandle  = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([]{ return TSharedRef<IOutlinerColumn>(MakeShared<FColorPickerOutlinerColumn>()); }));
 
 			// Register outliner decorator items
-			ConditionOutlinerDecoratorHandle = RegisterOutlinerDecorator(FOnCreateOutlinerDecorator::CreateStatic([] { return TSharedRef<IOutlinerDecorator>(MakeShared<FConditionOutlinerDecorator>()); }));
-			TimeWarpOutlinerDecoratorHandle = RegisterOutlinerDecorator(FOnCreateOutlinerDecorator::CreateStatic([] { return TSharedRef<IOutlinerDecorator>(MakeShared<FTimeWarpOutlinerDecorator>()); }));
+			ConditionOutlinerDecoratorHandle = RegisterOutlinerDecorator(FOnCreateOutlinerDecorator::CreateStatic([] { return TSharedRef<IOutlinerDecoratorBuilder>(MakeShared<FConditionOutlinerDecoratorBuilder>()); }));
+			TimeWarpOutlinerDecoratorHandle = RegisterOutlinerDecorator(FOnCreateOutlinerDecorator::CreateStatic([] { return TSharedRef<IOutlinerDecoratorBuilder>(MakeShared<FTimeWarpOutlinerDecoratorBuilder>()); }));
 
 			RegisterObjectSchemas();
 		}

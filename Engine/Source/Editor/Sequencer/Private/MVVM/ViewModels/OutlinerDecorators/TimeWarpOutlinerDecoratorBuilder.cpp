@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "MVVM/ViewModels/OutlinerDecorators/TimeWarpOutlinerDecorator.h"
+#include "MVVM/ViewModels/OutlinerDecorators/TimeWarpOutlinerDecoratorBuilder.h"
 
 #include "MovieSceneSection.h"
 #include "MVVM/Extensions/ITrackExtension.h"
@@ -13,21 +13,21 @@
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/OutlinerDecorators/STimeWarpDecoratorWidget.h"
 
-#define LOCTEXT_NAMESPACE "FTimeWarpOutlinerDecorator"
+#define LOCTEXT_NAMESPACE "FTimeWarpOutlinerDecoratorBuilder"
 
 namespace UE::Sequencer
 {
 
-FTimeWarpOutlinerDecorator::FTimeWarpOutlinerDecorator()
+FTimeWarpOutlinerDecoratorBuilder::FTimeWarpOutlinerDecoratorBuilder()
 {
 }
 
-FName FTimeWarpOutlinerDecorator::GetDecoratorName() const
+FName FTimeWarpOutlinerDecoratorBuilder::GetDecoratorName() const
 {
 	return FCommonOutlinerNames::TimeWarp;
 }
 
-bool FTimeWarpOutlinerDecorator::IsItemCompatibleWithDecorator(const FCreateOutlinerColumnParams& InParams) const
+bool FTimeWarpOutlinerDecoratorBuilder::IsItemCompatibleWithDecorator(const FCreateOutlinerColumnParams& InParams) const
 {
 	if (InParams.OutlinerExtension.AsModel()->IsA<ITrackExtension>())
 	{
@@ -54,7 +54,7 @@ bool FTimeWarpOutlinerDecorator::IsItemCompatibleWithDecorator(const FCreateOutl
 	return false;
 }
 
-TSharedPtr<SWidget> FTimeWarpOutlinerDecorator::CreateDecoratorWidget(const FCreateOutlinerColumnParams& InParams, const TSharedRef<ISequencerTreeViewRow>& TreeViewRow, const TSharedRef<IOutlinerColumn>& OutlinerColumn, const int32 NumCompatibleDecorators)
+TSharedPtr<SWidget> FTimeWarpOutlinerDecoratorBuilder::CreateDecoratorWidget(const FCreateOutlinerColumnParams& InParams, const TSharedRef<ISequencerTreeViewRow>& TreeViewRow, const TSharedRef<IOutlinerColumn>& OutlinerColumn, const int32 NumCompatibleDecorators)
 {
 	static const FLinearColor ConditionColor = FLinearColor::FromSRGBColor(FColor(212, 147, 20));
 
@@ -65,7 +65,7 @@ TSharedPtr<SWidget> FTimeWarpOutlinerDecorator::CreateDecoratorWidget(const FCre
 			.HAlign(HAlign_Fill)
 			.Padding(0.0f)
 			.BorderImage(FAppStyle::GetBrush("WhiteBrush"))
-			.BorderBackgroundColor_Lambda([this]() -> FLinearColor { FLinearColor BackgroundColor = ConditionColor; BackgroundColor.A = Opacity; return BackgroundColor; });
+			.BorderBackgroundColor_Lambda([this]() -> FLinearColor {  return ConditionColor; });
 	}
 
 	return SNew(SOverlay)
@@ -76,7 +76,7 @@ TSharedPtr<SWidget> FTimeWarpOutlinerDecorator::CreateDecoratorWidget(const FCre
 				.HAlign(HAlign_Fill)
 				.Padding(0.0f)
 				.BorderImage(FAppStyle::GetBrush("WhiteBrush"))
-				.BorderBackgroundColor_Lambda([this]() -> FLinearColor { FLinearColor BackgroundColor = ConditionColor; BackgroundColor.A = Opacity; return BackgroundColor; })
+				.BorderBackgroundColor_Lambda([this]() -> FLinearColor { return ConditionColor; })
 		]
 
 		+ SOverlay::Slot()
@@ -87,7 +87,7 @@ TSharedPtr<SWidget> FTimeWarpOutlinerDecorator::CreateDecoratorWidget(const FCre
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
 				[
-					SAssignNew(DecoratorWidget, STimeWarpDecoratorWidget, OutlinerColumn, SharedThis(this), InParams)
+					SNew(STimeWarpDecoratorWidget, OutlinerColumn, InParams)
 				]
 		];
 }

@@ -678,27 +678,26 @@ const UMovieSceneCondition* FTrackModel::GetCondition() const
 
 EConditionableConditionState FTrackModel::GetConditionState() const
 {
-	UMovieSceneTrack* const Track = GetTrack();
-	if (IsValid(Track))
+	TSharedPtr<FSequenceModel> SequenceModel = FindAncestorOfType<FSequenceModel>();
+	TSharedPtr<ISequencer> Sequencer = SequenceModel ? SequenceModel->GetSequencer() : nullptr;
+	if (Sequencer)
 	{
-		if (Track->ConditionContainer.Condition)
+		FGuid BindingID;
+
+		if (TSharedPtr<IObjectBindingExtension> ParentBinding = FindAncestorOfType<IObjectBindingExtension>())
 		{
-			if (Track->ConditionContainer.Condition->bEditorForceTrue)
+			BindingID = ParentBinding->GetObjectGuid();
+		}
+		UMovieSceneTrack* const Track = GetTrack();
+		if (IsValid(Track))
+		{
+			if (Track->ConditionContainer.Condition)
 			{
-				return EConditionableConditionState::HasConditionEditorForceTrue;
-			}
-
-			TSharedPtr<FSequenceModel> SequenceModel = FindAncestorOfType<FSequenceModel>();
-			TSharedPtr<ISequencer> Sequencer = SequenceModel ? SequenceModel->GetSequencer() : nullptr;
-			if (Sequencer)
-			{
-				FGuid BindingID;
-
-				if (TSharedPtr<IObjectBindingExtension> ParentBinding = FindAncestorOfType<IObjectBindingExtension>())
+				if (Track->ConditionContainer.Condition->bEditorForceTrue)
 				{
-					BindingID = ParentBinding->GetObjectGuid();
+					return EConditionableConditionState::HasConditionEditorForceTrue;
 				}
-				
+
 				if (MovieSceneHelpers::EvaluateSequenceCondition(BindingID, Sequencer->GetFocusedTemplateID(), Track->ConditionContainer.Condition, Track, Sequencer->GetSharedPlaybackState()))
 				{
 					return EConditionableConditionState::HasConditionEvaluatingTrue;
@@ -706,6 +705,29 @@ EConditionableConditionState FTrackModel::GetConditionState() const
 				else
 				{
 					return EConditionableConditionState::HasConditionEvaluatingFalse;
+				}
+			}
+		
+			// Special case. If we support multiple rows, and there is only a single row, then we must also check track row metadata for a condition here, as there will be no track row model.
+			if (Track->SupportsMultipleRows() && Track->GetMaxRowIndex() == 0)
+			{
+				if (const FMovieSceneTrackRowMetadata* TrackRowMetadata = Track->FindTrackRowMetadata(GetRowIndex()))
+				{
+					if (TrackRowMetadata->ConditionContainer.Condition)
+					{
+						if (TrackRowMetadata->ConditionContainer.Condition->bEditorForceTrue)
+						{
+							return EConditionableConditionState::HasConditionEditorForceTrue;
+						}
+						else if (MovieSceneHelpers::EvaluateSequenceCondition(BindingID, Sequencer->GetFocusedTemplateID(), TrackRowMetadata->ConditionContainer.Condition, Track, Sequencer->GetSharedPlaybackState()))
+						{
+							return EConditionableConditionState::HasConditionEvaluatingTrue;
+						}
+						else
+						{
+							return EConditionableConditionState::HasConditionEvaluatingFalse;
+						}
+					}
 				}
 			}
 		}
