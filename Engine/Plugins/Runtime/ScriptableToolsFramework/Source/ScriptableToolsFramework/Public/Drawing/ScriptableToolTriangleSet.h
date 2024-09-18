@@ -77,8 +77,10 @@ protected:
 	UPROPERTY(Transient, DuplicateTransient, NonTransactional, SkipSerialization)
 	TObjectPtr<UTriangleSetComponent> TriangleSet = nullptr;
 
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional, SkipSerialization)
 	TArray<TObjectPtr<UScriptableToolTriangle>> TriangleComponents;
 
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional, SkipSerialization)
 	TArray < TObjectPtr < UScriptableToolQuad>> QuadComponents;
 
 };
