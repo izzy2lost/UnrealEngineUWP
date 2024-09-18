@@ -117,12 +117,13 @@ void UScriptableModularBehaviorTool::AddMultiClickSequenceBehavior(
 	FOnTerminateClickSequenceDelegate OnTerminateClickSequenceFuncIn,
 	FRequestAbortClickSequenceDelegate RequestAbortClickSequenceFuncIn,
 	FMouseBehaviorModiferCheckDelegate ModifierCheckFuncIn,
+	FMouseBehaviorModiferCheckDelegate HoverModifierCheckFuncIn,
 	int CapturePriority,
 	EScriptableToolMouseButton MouseButtonIn
 )
 {
 	TObjectPtr<UScriptableToolClickSequenceBehavior> BehaviorContainer = NewObject<UScriptableToolClickSequenceBehavior>();
-	BehaviorContainer->Init(this, ModifierCheckFuncIn, OnBeginSequencePreviewFuncIn, CanBeginClickSequenceFuncIn, OnBeginClickSequenceFuncIn, OnNextSequencePreviewFuncIn,
+	BehaviorContainer->Init(this, ModifierCheckFuncIn, HoverModifierCheckFuncIn, OnBeginSequencePreviewFuncIn, CanBeginClickSequenceFuncIn, OnBeginClickSequenceFuncIn, OnNextSequencePreviewFuncIn,
 		                    OnNextSequenceClickFuncIn, OnTerminateClickSequenceFuncIn, RequestAbortClickSequenceFuncIn, MouseButtonIn);
 	BehaviorContainer->SetDefaultPriority(FInputCapturePriority(CapturePriority));
 
@@ -137,11 +138,12 @@ void UScriptableModularBehaviorTool::AddMouseHoverBehavior(
 	FOnBeginHoverDelegate OnBeginHoverFuncIn,
 	FOnUpdateHoverDelegate OnUpdateHoverFuncIn,
 	FOnEndHoverDelegate OnEndHoverFuncIn,
+	FMouseBehaviorModiferCheckDelegate HoverModifierCheckFuncIn,
 	int CapturePriority
 )
 {
 	TObjectPtr<UScriptableToolMouseHoverBehavior> BehaviorContainer = NewObject<UScriptableToolMouseHoverBehavior>();
-	BehaviorContainer->Init(this, BeginHoverSequenceHitTestFuncIn, OnBeginHoverFuncIn, OnUpdateHoverFuncIn, OnEndHoverFuncIn);
+	BehaviorContainer->Init(this, HoverModifierCheckFuncIn, BeginHoverSequenceHitTestFuncIn, OnBeginHoverFuncIn, OnUpdateHoverFuncIn, OnEndHoverFuncIn);
 	BehaviorContainer->SetDefaultPriority(FInputCapturePriority(CapturePriority));
 
 	MouseHoverBehaviors.Add(BehaviorContainer);

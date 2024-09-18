@@ -22,6 +22,7 @@ public:
 
 	void Init(TObjectPtr<UScriptableModularBehaviorTool> BehaviorHostIn,
 		FMouseBehaviorModiferCheckDelegate ModifierCheckFuncIn,
+		FMouseBehaviorModiferCheckDelegate HoverModifierCheckFuncIn,
 		FOnBeginSequencePreviewDelegate OnBeginSequencePreviewFuncIn,
 		FCanBeginClickSequenceDelegate CanBeginClickSequenceFuncIn,
 		FOnBeginClickSequenceDelegate OnBeginClickSequenceFuncIn,
@@ -52,6 +53,9 @@ private:
 
 	UPROPERTY()
 	FMouseBehaviorModiferCheckDelegate ModifierCheckFunc;
+
+	UPROPERTY()
+	FMouseBehaviorModiferCheckDelegate HoverModifierCheckFunc;
 
 	UPROPERTY()
 	FOnBeginSequencePreviewDelegate OnBeginSequencePreviewFunc;
