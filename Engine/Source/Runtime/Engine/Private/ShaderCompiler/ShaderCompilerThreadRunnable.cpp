@@ -113,11 +113,18 @@ struct FShaderCompileWorkerInfo
 		TerminateWorkerProcess();
 	}
 
-	void TerminateWorkerProcess()
+	void TerminateWorkerProcess(bool bAsynchronous = false)
 	{
 		if (WorkerProcess.IsValid())
 		{
 			FPlatformProcess::TerminateProc(WorkerProcess);
+			if (!bAsynchronous)
+			{
+				while (FPlatformProcess::IsProcRunning(WorkerProcess))
+				{
+					FPlatformProcess::Sleep(0.01f);
+				}
+			}
 			FPlatformProcess::CloseProc(WorkerProcess);
 			WorkerProcess = FProcHandle();
 		}
