@@ -58,7 +58,8 @@ enum class ECalibrationFlags : uint32
 	FixExtrinsics = 1 << 4,      /** The solver will not optimize the camera extrinsics */
 	FixDistortion = 1 << 5,      /** The solver will fix all distortion values at 0 */
 	FixAspectRatio = 1 << 6,     /** The solver will respect the input aspect ratio when solving for Fx and Fy */
-	SolveTargetOffset = 1 << 7   /** The solver will solve for an offset for each image's input 3D object points */
+	SolveTargetOffset = 1 << 7,  /** The solver will solve for an offset for each image's input 3D object points */
+	GroupCameraPoses = 1 << 8    /** The solver will group sets of images together that share the same camera pose */
 };
 
 /** 
