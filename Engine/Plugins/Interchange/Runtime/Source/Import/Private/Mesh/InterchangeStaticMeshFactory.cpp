@@ -39,6 +39,7 @@
 #include "StaticMeshAttributes.h"
 #include "StaticMeshCompiler.h"
 #include "StaticMeshOperations.h"
+#include "InterchangeManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeStaticMeshFactory)
 
@@ -308,9 +309,13 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::Begin
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeStaticMeshFactory::BeginImportAsset_GameThread);
 
-	//We must ensure we use the same settings until the import is finish, FApp::IsGame() can return a different
+	//We must ensure we use the same settings until the import is finish, EditorUtilities->IsRuntimeOrPIE() can return a different
 	//value during an asynchronous import
-	ImportAssetObjectData.bIsAppGame = FApp::IsGame();
+	ImportAssetObjectData.bIsAppGame = false;
+	if (UInterchangeEditorUtilitiesBase* EditorUtilities = UInterchangeManager::GetInterchangeManager().GetEditorUtilities())
+	{
+		ImportAssetObjectData.bIsAppGame = EditorUtilities->IsRuntimeOrPIE();
+	}
 
 	FImportAssetResult ImportAssetResult;
 	UStaticMesh* StaticMesh = nullptr;

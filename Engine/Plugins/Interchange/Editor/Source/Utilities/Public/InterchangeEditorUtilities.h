@@ -16,4 +16,6 @@ public:
 protected:
 
 	virtual bool SaveAsset(UObject* Asset) override;
+
+	virtual bool IsRuntimeOrPIE() override;
 };

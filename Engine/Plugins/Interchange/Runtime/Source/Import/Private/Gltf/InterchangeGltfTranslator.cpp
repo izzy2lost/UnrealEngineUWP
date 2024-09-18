@@ -792,9 +792,9 @@ bool UInterchangeGLTFTranslator::Translate( UInterchangeBaseNodeContainer& NodeC
 
 	// Variants
 	// Note: Variants are not supported yet in game play mode
-	if ( !FApp::IsGame() && bHasVariants )
+	if (bHasVariants)
 	{
-		HandleGltfVariants( NodeContainer, FileName );
+		HandleGltfVariants(NodeContainer, FileName);
 	}
 
 	// Add glTF errors and warnings to the Interchange results

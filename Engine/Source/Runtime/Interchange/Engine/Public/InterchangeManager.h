@@ -224,6 +224,7 @@ namespace UE
 			}
 
 			bool bRunSynchronous = false;
+			bool bRuntimeOrPIE = false;
 
 			/** Unique ID for this async helper. */
 			int32 UniqueId;

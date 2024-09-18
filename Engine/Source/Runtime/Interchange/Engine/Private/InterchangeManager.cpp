@@ -2542,6 +2542,8 @@ TSharedRef<UE::Interchange::FImportAsyncHelper, ESPMode::ThreadSafe> UInterchang
 
 	AsyncHelper->AssetImportResult->SetInProgress();
 
+	AsyncHelper->bRuntimeOrPIE = GetEditorUtilities() ? GetEditorUtilities()->IsRuntimeOrPIE() : false;
+
 	return AsyncHelper;
 }
 

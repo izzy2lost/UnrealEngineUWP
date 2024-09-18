@@ -8,6 +8,7 @@
 #include "InterchangeShaderGraphNode.h"
 #include "InterchangeMaterialInstanceNode.h"
 #include "InterchangeMaterialFactoryNode.h"
+#include "InterchangeManager.h"
 
 #include "Gltf/InterchangeGLTFMaterial.h"
 
@@ -225,7 +226,8 @@ void UGLTFPipelineSettings::BuildMaterialInstance(const UInterchangeShaderGraphN
 
 	MaterialInstanceFactoryNode->SetCustomParent(Parent);
 
-	const UClass* MaterialClass = FApp::IsGame() ? UMaterialInstanceDynamic::StaticClass() : UMaterialInstanceConstant::StaticClass();
+	UInterchangeEditorUtilitiesBase* EditorUtilities = UInterchangeManager::GetInterchangeManager().GetEditorUtilities();
+	const UClass* MaterialClass = (EditorUtilities && EditorUtilities->IsRuntimeOrPIE()) ? UMaterialInstanceDynamic::StaticClass() : UMaterialInstanceConstant::StaticClass();
 	MaterialInstanceFactoryNode->SetCustomInstanceClassName(MaterialClass->GetPathName());
 
 	for (const TPair<FString, UE::Interchange::FAttributeKey>& GltfAttributeKey : GltfAttributeKeys)
