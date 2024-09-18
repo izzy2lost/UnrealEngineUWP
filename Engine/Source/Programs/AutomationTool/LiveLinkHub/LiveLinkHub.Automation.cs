@@ -1,7 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
+using Microsoft.Extensions.Logging;
+using System.Collections.Generic;
 using System.Linq;
+
 
 
 namespace AutomationTool
@@ -10,20 +13,22 @@ namespace AutomationTool
 	{
 		protected override ProjectParams MakeParams(string DLCName, string BasedOnReleaseVersion)
 		{
-			return new ProjectParams(
+			ProjectParams Params = new ProjectParams(
 				Command: this
 				, RawProjectPath: ProjectFile
-
 				, NoBootstrapExe: true
 				, DLCName: DLCName
 				, BasedOnReleaseVersion: BasedOnReleaseVersion
 				, DedicatedServer: bIsCookedCooker
+				, SkipBuildClient: true
 				, NoClient: bIsCookedCooker
 				, OptionalContent: true
 				, ClientCookedTargets: new ParamList<string>() // Prevent AutodetectSettings from looking for a game target
 				, EditorTargets: new ParamList<string>("LiveLinkHub")
 				, UbtArgs: "-SingleModulePlatform"
 			);
+
+			return Params;
 		}
 
 		protected override void ModifyParams(ProjectParams BuildParams)
@@ -80,6 +85,19 @@ namespace AutomationTool
 
 			// Remove any files from NonUFS that were also added to Debug
 			SC.FilesToStage.NonUFSFiles = SC.FilesToStage.NonUFSFiles.Where(x => !SC.FilesToStage.NonUFSDebugFiles.ContainsKey(x.Key)).ToDictionary(x => x.Key, x => x.Value);
+			
+			// Make sure there are no restricted folders in the output
+			HashSet<StagedFileReference> RestrictedFiles = new HashSet<StagedFileReference>();
+
+			foreach (string RestrictedName in SC.RestrictedFolderNames)
+			{
+				RestrictedFiles.UnionWith(SC.FilesToStage.NonUFSDebugFiles.Keys.Where(x => x.ContainsName(RestrictedName)));
+			}
+
+			foreach (StagedFileReference StagedFileReference in RestrictedFiles)
+			{
+				SC.FilesToStage.NonUFSDebugFiles.Remove(StagedFileReference);
+			}
 		}
 	}
 }
