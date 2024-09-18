@@ -12,7 +12,6 @@
 #include "Rendering/DrawElements.h"
 #include "Rendering/RenderingPolicy.h"
 #include "Layout/Clipping.h"
-#include "SlateElementIndexBuffer.h"
 #include "SlateElementVertexBuffer.h"
 #include "SlateRHIResourceManager.h"
 #include "Shader.h"
