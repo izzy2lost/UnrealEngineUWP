@@ -1460,6 +1460,11 @@ bool USocialParty::InitializeBeaconEncryptionData(AOnlineBeaconClient& BeaconCli
 	return true;
 }
 
+TArray<UPartyMember*> USocialParty::GetLocalPartyMembersForJoinInProgress() const
+{
+	return { &GetOwningLocalMember() };
+}
+
 void USocialParty::HandlePartyStateChanged(const FUniqueNetId& LocalUserId, const FOnlinePartyId& PartyId, EPartyState PartyState, EPartyState PreviousPartyState)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_SocialParty_HandlePartyStateChanged);
@@ -1934,7 +1939,13 @@ void USocialParty::RequestJoinInProgress(const UPartyMember& TargetMember, const
 	Request.Time = FDateTime::UtcNow().ToUnixTimestamp();
 
 	UE_LOG(LogParty, Verbose, TEXT("RequestJoinInProgress: Sending request Target=%s Time=%d"), *Request.Target.ToDebugString(), Request.Time);
-	GetOwningLocalMember().GetMutableRepData().SetJoinInProgressDataRequest(Request);
+	for (UPartyMember* RequestingMember : GetLocalPartyMembersForJoinInProgress())
+	{
+		if (RequestingMember && ensure(RequestingMember->IsLocalPlayer()))
+		{
+			RequestingMember->GetMutableRepData().SetJoinInProgressDataRequest(Request);
+		}	
+	}
 	RunJoinInProgressTimer();
 }
 
@@ -2060,40 +2071,46 @@ void USocialParty::RunJoinInProgressTimer()
 	const int64 Now = FDateTime::UtcNow().ToUnixTimestamp();
 	int64 NextTimer = 0;
 
-	FPartyMemberJoinInProgressRequest Request = GetOwningLocalMember().GetRepData().GetJoinInProgressDataRequest();
-	if (Request.Time > 0)
+	for (UPartyMember* RequestingMember : GetLocalPartyMembersForJoinInProgress())
 	{
-		const int64 Expires = Request.Time + JoinInProgressRequestTimeout;
-		if (Expires <= Now)
+		if (RequestingMember && ensure(RequestingMember->IsLocalPlayer()))
 		{
-			UE_LOG(LogParty, Verbose, TEXT("RunJoinInProgressTimer: Removing request data"));
-			CallJoinInProgressComplete(EPartyJoinDenialReason::JoinAttemptAborted);
-			Request.Target = FUniqueNetIdRepl::Invalid();
-			Request.Time = 0;
-			GetOwningLocalMember().GetMutableRepData().SetJoinInProgressDataRequest(Request);
-		}
-		else
-		{
-			NextTimer = Expires - Now;
-		}
-	}
+			FPartyMemberJoinInProgressRequest Request = RequestingMember->GetRepData().GetJoinInProgressDataRequest();
+			if (Request.Time > 0)
+			{
+				const int64 Expires = Request.Time + JoinInProgressRequestTimeout;
+				if (Expires <= Now)
+				{
+					UE_LOG(LogParty, Verbose, TEXT("RunJoinInProgressTimer: Removing request data"));
+					CallJoinInProgressComplete(EPartyJoinDenialReason::JoinAttemptAborted);
+					Request.Target = FUniqueNetIdRepl::Invalid();
+					Request.Time = 0;
+					RequestingMember->GetMutableRepData().SetJoinInProgressDataRequest(Request);
+				}
+				else
+				{
+					NextTimer = Expires - Now;
+				}
+			}
 
-	const TArray<FPartyMemberJoinInProgressResponse>& Responses = GetOwningLocalMember().GetRepData().GetJoinInProgressDataResponses();
-	TArray<FPartyMemberJoinInProgressResponse> ResponsesToKeep;
-	for (const FPartyMemberJoinInProgressResponse& Response : Responses)
-	{
-		const int64 Expires = Response.ResponseTime + JoinInProgressResponseTimeout;
-		if (Expires > Now)
-		{
-			ResponsesToKeep.Add(Response);
-			NextTimer = NextTimer ? FMath::Min(NextTimer, Expires - Now) : Expires - Now;
-		}
-	}
+			const TArray<FPartyMemberJoinInProgressResponse>& Responses = RequestingMember->GetRepData().GetJoinInProgressDataResponses();
+			TArray<FPartyMemberJoinInProgressResponse> ResponsesToKeep;
+			for (const FPartyMemberJoinInProgressResponse& Response : Responses)
+			{
+				const int64 Expires = Response.ResponseTime + JoinInProgressResponseTimeout;
+				if (Expires > Now)
+				{
+					ResponsesToKeep.Add(Response);
+					NextTimer = NextTimer ? FMath::Min(NextTimer, Expires - Now) : Expires - Now;
+				}
+			}
 
-	if (Responses.Num() != ResponsesToKeep.Num())
-	{
-		UE_LOG(LogParty, Verbose, TEXT("RunJoinInProgressTimer: Removing response data, %d remaining"), ResponsesToKeep.Num());
-		GetOwningLocalMember().GetMutableRepData().SetJoinInProgressDataResponses(ResponsesToKeep);
+			if (Responses.Num() != ResponsesToKeep.Num())
+			{
+				UE_LOG(LogParty, Verbose, TEXT("RunJoinInProgressTimer: Removing response data, %d remaining"), ResponsesToKeep.Num());
+				RequestingMember->GetMutableRepData().SetJoinInProgressDataResponses(ResponsesToKeep);
+			}
+		}
 	}
 
 	if (NextTimer > 0)
