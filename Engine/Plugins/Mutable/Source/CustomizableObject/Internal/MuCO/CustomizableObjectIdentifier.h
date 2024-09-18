@@ -33,24 +33,3 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectIdPair
 	}
 };
 
-
-USTRUCT(BlueprintType)
-struct CUSTOMIZABLEOBJECT_API FCustomizableObjectIdentifier
-{
-	GENERATED_USTRUCT_BODY()
-
-private:
-	UPROPERTY()
-	FString CustomizableObjectGroupName; // Deprecated
-
-	UPROPERTY()
-	FString CustomizableObjectName; // Deprecated
-
-public:
-	UPROPERTY(Category = CustomizableObject, BlueprintReadOnly, EditDefaultsOnly)
-	FString Guid;
-
-	FCustomizableObjectIdentifier();
-	FCustomizableObjectIdentifier(FString ObjectGroupName, FString ObjectName);
-};
-
