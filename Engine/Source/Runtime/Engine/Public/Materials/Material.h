@@ -400,6 +400,13 @@ public:
 	/** Controls where this parameter group is displayed in a material instance parameter list.  The lower the number the higher up in the parameter list. */
 	UPROPERTY(EditAnywhere, EditFixedSize, Category = "Group Sorting")
 	TArray<FParameterGroupData> ParameterGroupData;
+
+	/** Store the version of the Substrate's auto-conversion applied to this material if any (default, no conversion =-1). */
+	UPROPERTY()
+	int32 SubstrateConversionVersion;
+
+	/** Reset the version of the Substrate's auto-conversion applied to this material */
+	ENGINE_API void ResetSubstrateConversionVersion();
 };
 
 /**
