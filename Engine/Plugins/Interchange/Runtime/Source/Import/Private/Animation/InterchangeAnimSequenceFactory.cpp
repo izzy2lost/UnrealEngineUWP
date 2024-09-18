@@ -521,22 +521,16 @@ namespace UE::Interchange::Private
 				for (int32 BakeIndex = 0; BakeIndex < BakeKeyCountForAnimationPayload; BakeIndex++, CurrentTime += BakeInterval)
 				{
 					FTransform3f AnimKeyTransform = FTransform3f(AnimationTransformPayload.Transforms[BakeIndex]);
-					if (bApplyGlobalOffset)
+					if (bApplyGlobalOffset && bBakeMeshes)
 					{
-						if (bBakeMeshes)
+ 						if (const UInterchangeSceneNode* RootJointNode = Cast<UInterchangeSceneNode>(NodeContainer->GetNode(SkeletonRootUid)))
 						{
-							const UInterchangeSceneNode* RootJointNode = Cast<UInterchangeSceneNode>(NodeContainer->GetNode(SkeletonRootUid));
-							if (RootJointNode)
+							FString RootJointParentNodeUid = RootJointNode->GetParentUid();
+							if (const UInterchangeSceneNode* RootJointParentNode = Cast<UInterchangeSceneNode>(NodeContainer->GetNode(RootJointParentNodeUid)))
 							{
-								FString RootJointParentNodeUid = RootJointNode->GetParentUid();
-
-								const UInterchangeSceneNode* RootJointParentNode = Cast<UInterchangeSceneNode>(NodeContainer->GetNode(RootJointParentNodeUid));
-								if (RootJointParentNode)
-								{
-									FTransform GlobalTransform;
-									RootJointParentNode->GetCustomGlobalTransform(NodeContainer, GlobalOffsetTransform, GlobalTransform);
-									AnimKeyTransform = AnimKeyTransform * FTransform3f(GlobalTransform);
-								}
+								FTransform GlobalTransform;
+								RootJointParentNode->GetCustomGlobalTransform(NodeContainer, GlobalOffsetTransform, GlobalTransform);
+								AnimKeyTransform = AnimKeyTransform * FTransform3f(GlobalTransform);
 							}
 						}
 					}
