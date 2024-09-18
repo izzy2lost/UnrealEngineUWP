@@ -5,9 +5,11 @@
 #include "Delegates/Delegate.h"
 #include "ImportFilePath.generated.h"
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS  // For bForceReimport
 USTRUCT()
 struct FChaosClothAssetImportFilePath
 {
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	GENERATED_USTRUCT_BODY()
 
 public:
