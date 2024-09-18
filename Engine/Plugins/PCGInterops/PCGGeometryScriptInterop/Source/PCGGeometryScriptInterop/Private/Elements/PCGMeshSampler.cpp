@@ -403,30 +403,6 @@ bool FPCGMeshSamplerElement::PrepareDataInternal(FPCGContext* InContext) const
 
 	UGeometryScriptDebug* Debug = FPCGContext::NewObject_AnyThread<UGeometryScriptDebug>(Context);
 
-	// Make sure the LOD is valid, and make the conversion.
-	UE::Conversion::EMeshLODType RequestedLODType;
-
-	switch (Settings->RequestedLODType)
-	{
-	case EGeometryScriptLODType::MaxAvailable:
-		RequestedLODType = UE::Conversion::EMeshLODType::MaxAvailable;
-		break;
-	case EGeometryScriptLODType::HiResSourceModel:
-		RequestedLODType = UE::Conversion::EMeshLODType::HiResSourceModel;
-		break;
-	case EGeometryScriptLODType::SourceModel:
-		RequestedLODType = UE::Conversion::EMeshLODType::SourceModel;
-		break;
-	case EGeometryScriptLODType::RenderData:
-		RequestedLODType = UE::Conversion::EMeshLODType::RenderData;
-		break;
-	default:
-	{
-		PCGLog::LogErrorOnGraph(LOCTEXT("InvalidLOD", "Requested LOD is invalid."), Context);
-		return true;
-	}
-	}
-
 	for (const auto& [Path, DummyIndex, DummyIndex2] : Context->PathsToObjectsAndDataIndex)
 	{
 		UObject* Object = Path.ResolveObject();
@@ -454,7 +430,7 @@ bool FPCGMeshSamplerElement::PrepareDataInternal(FPCGContext* InContext) const
 			FText ErrorMessage;
 			UE::Conversion::FToMeshOptions Options{};
 			Options.bWantInstanceColors = true;
-			Options.LODType = RequestedLODType;
+			Options.LODType = PCGGeometryHelpers::SafeConversionLODType(Settings->RequestedLODType);
 			Options.LODIndex = Settings->RequestedLODIndex;
 
 			UE::Geometry::FDynamicMesh3 TempDynMesh{};

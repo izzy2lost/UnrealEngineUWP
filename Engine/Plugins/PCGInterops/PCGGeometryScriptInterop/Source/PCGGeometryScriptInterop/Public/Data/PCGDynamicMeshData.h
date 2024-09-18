@@ -4,8 +4,8 @@
 
 #include "Data/PCGSpatialData.h"
 
-#include "DynamicMesh/DynamicMesh3.h"
 #include "DynamicMesh/DynamicMeshOctree3.h"
+#include "DynamicMesh/MeshIndexMappings.h"
 
 #include "Misc/SpinLock.h"
 
@@ -13,6 +13,8 @@
 
 struct FPCGContext;
 class UDynamicMesh;
+class UDynamicMeshComponent;
+class UMaterialInterface;
 
 UCLASS(BlueprintType, ClassGroup = (Procedural))
 class PCGGEOMETRYSCRIPTINTEROP_API UPCGDynamicMeshData : public UPCGSpatialData
@@ -22,11 +24,17 @@ class PCGGEOMETRYSCRIPTINTEROP_API UPCGDynamicMeshData : public UPCGSpatialData
 public:
 	UPCGDynamicMeshData(const FObjectInitializer& ObjectInitializer);
 	
-	void Initialize(UDynamicMesh* InMesh, FPCGContext* Context = nullptr, bool bCanTakeOwnership = false);
-	void Initialize(UE::Geometry::FDynamicMesh3&& InMesh, FPCGContext* Context = nullptr);
-	
-	UFUNCTION(BlueprintCallable, Category="DynamicMesh", meta = (DisplayName = "Initialize"))
-	void K2_Initialize(UDynamicMesh* InMesh, FPCGContext& Context) { Initialize(InMesh, &Context); }
+	void Initialize(UDynamicMesh* InMesh, bool bCanTakeOwnership = false, const TArray<UMaterialInterface*>& InOptionalMaterials = {});
+	void Initialize(UE::Geometry::FDynamicMesh3&& InMesh, const TArray<UMaterialInterface*>& InOptionalMaterials = {});
+
+	/**
+	 * Initialize the dynamic mesh data from an input dynamic mesh object.
+	 * If the input dynamic mesh is not meant to be re-used after this initialization, you can set Can Take Ownership to true. Be careful as it
+	 * will put the previous object in an invalid state.
+	 * You can also pass an array of materials that correspond to the referenced materials in the dynamic mesh.
+	 */
+	UFUNCTION(BlueprintCallable, Category="DynamicMesh", meta = (DisplayName = "Initialize", AutoCreateRefTerm = "InMaterials"))
+	void K2_Initialize(UDynamicMesh* InMesh, const TArray<UMaterialInterface*>& InMaterials, bool bCanTakeOwnership = false) { Initialize(InMesh, bCanTakeOwnership, InMaterials); }
 	
 	// ~Begin UPCGData interface
 	virtual EPCGDataType GetDataType() const override { return EPCGDataType::DynamicMesh; }
@@ -46,6 +54,15 @@ public:
 	UDynamicMesh* GetMutableDynamicMesh() { bDynamicMeshBoundsAreDirty = true; bDynamicMeshOctreeIsDirty = true; return DynamicMesh; }
 	const UDynamicMesh* GetDynamicMesh() const { return DynamicMesh; }
 
+	UFUNCTION(BlueprintCallable, Category="DynamicMesh")
+	void SetMaterials(const TArray<UMaterialInterface*>& InMaterials);
+	
+	TArray<TObjectPtr<UMaterialInterface>>& GetMutableMaterials() { return Materials; }
+	const TArray<TObjectPtr<UMaterialInterface>>& GetMaterials() const { return Materials; }
+
+	// Copy the mesh of the data into the component and set the materials.
+	void InitializeDynamicMeshComponentFromData(UDynamicMeshComponent* InComponent) const;
+
 protected:
 	// ~Begin UPCGSpatialData interface
 	virtual UPCGSpatialData* CopyInternal(FPCGContext* Context) const override;
@@ -60,6 +77,9 @@ private:
 protected:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Instanced, Category="DynamicMesh")
 	TObjectPtr<UDynamicMesh> DynamicMesh;
+	
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Instanced, Category="DynamicMesh")
+	TArray<TObjectPtr<UMaterialInterface>> Materials;
 
 	mutable UE::Geometry::FDynamicMeshOctree3 DynamicMeshOctree;
 	mutable bool bDynamicMeshOctreeIsDirty = true;

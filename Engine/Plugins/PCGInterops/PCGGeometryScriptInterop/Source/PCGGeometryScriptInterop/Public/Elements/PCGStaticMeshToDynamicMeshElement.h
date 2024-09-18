@@ -38,11 +38,19 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Settings", meta = (PCG_Overridable))
 	TSoftObjectPtr<UStaticMesh> StaticMesh;
 
-	/** LOD type to use when creating DynamicMesh from specified StaticMesh. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|LODSettings", meta = (EditCondition = "Mode!=EPCGAppendMeshesFromPointsMode::DynamicMesh", EditConditionHides, PCG_Overridable))
-	EGeometryScriptLODType RequestedLODType = EGeometryScriptLODType::RenderData;
+	/** Allows to extract materials from the static mesh and store them in the PCG Dynamic Mesh Data. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Settings", meta = (PCG_Overridable))
+	bool bExtractMaterials = true;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|LODSettings", meta = (EditCondition = "Mode!=EPCGAppendMeshesFromPointsMode::DynamicMesh", EditConditionHides, PCG_Overridable))
+	/** If it extracts materials, we can specify override materials. It needs to have the same number of material overrides than there are materials on the static mesh. */
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (EditCondition = "bExtractMaterials", EditConditionHides))
+	TArray<TSoftObjectPtr<UMaterialInterface>> OverrideMaterials;
+
+	/** LOD type to use when creating DynamicMesh from specified StaticMesh. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|LODSettings", meta = (PCG_Overridable))
+	EGeometryScriptLODType RequestedLODType = EGeometryScriptLODType::MaxAvailable;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|LODSettings", meta = (PCG_Overridable))
 	int32 RequestedLODIndex = 0;
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Debug")

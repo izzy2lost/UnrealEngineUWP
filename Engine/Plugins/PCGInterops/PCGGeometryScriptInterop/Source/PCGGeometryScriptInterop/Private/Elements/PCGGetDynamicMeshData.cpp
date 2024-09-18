@@ -5,9 +5,12 @@
 #include "PCGContext.h"
 #include "Data/PCGDynamicMeshData.h"
 #include "Data/PCGGetDataFunctionRegistry.h"
+#include "Helpers/PCGGeometryHelpers.h"
 #include "Helpers/PCGHelpers.h"
 
 #include "DynamicMeshActor.h"
+#include "ConversionUtils/SceneComponentToDynamicMesh.h"
+#include "Materials/MaterialInterface.h"
 
 #define LOCTEXT_NAMESPACE "PCGGetDynamicMeshDataElement"
 
@@ -49,7 +52,8 @@ bool PCGGetDynamicMeshData::GetDynamicMeshDataFromActor(FPCGContext* InContext, 
 	
 	if (ADynamicMeshActor* DynMeshActor = Cast<ADynamicMeshActor>(InActor))
 	{
-		if (!DynMeshActor->GetDynamicMeshComponent() || !DynMeshActor->GetDynamicMeshComponent()->GetDynamicMesh())
+		UDynamicMeshComponent* Component = DynMeshActor->GetDynamicMeshComponent();
+		if (!Component || !Component->GetDynamicMesh())
 		{
 			return false;
 		}
@@ -59,7 +63,7 @@ bool PCGGetDynamicMeshData::GetDynamicMeshDataFromActor(FPCGContext* InContext, 
 		Algo::Transform(InActor->Tags, ActorTags, NameTagsToStringTags);
 		
 		UPCGDynamicMeshData* Data = FPCGContext::NewObject_AnyThread<UPCGDynamicMeshData>(InContext);
-		Data->Initialize(DynMeshActor->GetDynamicMeshComponent()->GetDynamicMesh(), InContext, /*bCanTakeOwnership=*/ false);
+		Data->Initialize(Component->GetDynamicMesh(), /*bCanTakeOwnership=*/false, Component->GetMaterials());
 
 		FPCGTaggedData& TaggedData = Output.Collection.TaggedData.Emplace_GetRef();
 		TaggedData.Data = Data;
@@ -95,15 +99,28 @@ bool PCGGetDynamicMeshData::GetDynamicMeshDataFromComponent(FPCGContext* InConte
 		check(NewDynamicMesh);
 
 		const UPCGGetDynamicMeshDataSettings* Settings = InContext ? InContext->GetInputSettings<UPCGGetDynamicMeshDataSettings>() : nullptr;
-		FGeometryScriptCopyMeshFromComponentOptions Options = Settings ? Settings->Options : FGeometryScriptCopyMeshFromComponentOptions{};
-
-		// TODO: Might want to store the transform on the data?
+		
+		// Adaptation of UGeometryScriptLibrary_SceneUtilityFunctions::CopyMeshFromComponent, since we don't have access to the Material list with this one.
 		FTransform Transform;
-		EGeometryScriptOutcomePins Outcome;
-		UGeometryScriptLibrary_SceneUtilityFunctions::CopyMeshFromComponent(SceneComponent, NewDynamicMesh, Options, /*bTransformToWorld=*/ false, Transform, Outcome);
-
-		if (Outcome == EGeometryScriptOutcomePins::Success)
+		FText ErrorMessage;
+		UE::Conversion::FToMeshOptions Options{};
+		if (Settings)
 		{
+			Options.bWantNormals = Settings->Options.bWantNormals;
+			Options.bWantTangents = Settings->Options.bWantTangents;
+			Options.bWantInstanceColors = Settings->Options.bWantInstanceColors;
+			Options.LODType = PCGGeometryHelpers::SafeConversionLODType(Settings->Options.RequestedLOD.LODType);
+			Options.LODIndex = Settings->Options.RequestedLOD.LODIndex;
+		}
+
+		TArray<UMaterialInterface*> ComponentMaterialList;
+		TArray<UMaterialInterface*> AssetMaterialList;
+
+		const bool bSuccess = UE::Conversion::SceneComponentToDynamicMesh(SceneComponent, Options, /*bTransformToWorld=*/false, NewDynamicMesh->GetMeshRef(), Transform, ErrorMessage, &ComponentMaterialList, &AssetMaterialList);
+		if (bSuccess)
+		{
+			OutputData->SetMaterials(!ComponentMaterialList.IsEmpty() ? ComponentMaterialList : AssetMaterialList);
+			
 			auto NameTagsToStringTags = [](const FName& InName) { return InName.ToString(); };
 
 			FPCGTaggedData& TaggedData = Output.Collection.TaggedData.Emplace_GetRef();
@@ -117,6 +134,11 @@ bool PCGGetDynamicMeshData::GetDynamicMeshDataFromComponent(FPCGContext* InConte
 				Algo::Transform(SceneComponent->GetOwner()->Tags, ActorTags, NameTagsToStringTags);
 				TaggedData.Tags.Append(ActorTags);
 			}
+		}
+		else
+		{
+			// If it fails, we still return true so we don't falloff on default getter behavior. 
+			PCGLog::LogErrorOnGraph(ErrorMessage, InContext);
 		}
 
 		return true;

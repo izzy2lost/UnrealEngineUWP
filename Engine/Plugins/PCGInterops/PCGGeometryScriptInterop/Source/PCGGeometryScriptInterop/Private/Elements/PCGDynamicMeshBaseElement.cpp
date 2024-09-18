@@ -37,6 +37,8 @@ TArray<FPCGPinProperties> UPCGDynamicMeshBaseSettings::OutputPinProperties() con
 
 UPCGDynamicMeshData* IPCGDynamicMeshBaseElement::CopyOrSteal(const FPCGTaggedData& InTaggedData, FPCGContext* InContext)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(IPCGDynamicMeshBaseElement::CopyOrSteal);
+	
 	check(InContext);
 	
 	const UPCGDynamicMeshData* InData = Cast<const UPCGDynamicMeshData>(InTaggedData.Data);
