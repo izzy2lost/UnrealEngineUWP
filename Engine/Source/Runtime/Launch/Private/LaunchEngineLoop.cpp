@@ -217,9 +217,11 @@
 	#include "ShaderCodeLibrary.h"
 	#include "ShaderPipelineCache.h"
 
-#if !UE_BUILD_SHIPPING
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	#include "ProfileVisualizerModule.h"
+#if UE_DEPRECATED_PROFILER_ENABLED
 	#include "IProfilerServiceModule.h"
+#endif // UE_DEPRECATED_PROFILER_ENABLED
 #endif
 
 #if WITH_AUTOMATION_WORKER
@@ -4344,11 +4346,13 @@ int32 FEngineLoop::PreInitPostStartupScreen(const TCHAR* CmdLine)
 	// Initialize profile visualizers.
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	FModuleManager::Get().LoadModule(TEXT("ProfileVisualizer"));
+#if UE_DEPRECATED_PROFILER_ENABLED
 	if (FPlatformProcess::SupportsMultithreading())
 	{
 		FModuleManager::Get().LoadModule(TEXT("ProfilerService"));
 		FModuleManager::Get().GetModuleChecked<IProfilerServiceModule>("ProfilerService").CreateProfilerServiceManager();
 	}
+#endif // UE_DEPRECATED_PROFILER_ENABLED
 #endif
 
 	// Init HighRes screenshot system, unless running on server
