@@ -64,6 +64,7 @@ protected:
 	UPROPERTY(Transient, DuplicateTransient, NonTransactional, SkipSerialization)
 	TObjectPtr<ULineSetComponent> LineSet = nullptr;
 
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional, SkipSerialization)
 	TArray<TObjectPtr<UScriptableToolLine>> LineComponents;
 
 };

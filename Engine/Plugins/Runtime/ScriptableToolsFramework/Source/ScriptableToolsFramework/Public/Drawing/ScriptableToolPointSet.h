@@ -63,6 +63,7 @@ protected:
 	UPROPERTY(Transient, DuplicateTransient, NonTransactional, SkipSerialization)
 	TObjectPtr<UPointSetComponent> PointSet = nullptr;
 
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional, SkipSerialization)
 	TArray<TObjectPtr<UScriptableToolPoint>> PointComponents;
 
 };
