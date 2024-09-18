@@ -857,6 +857,7 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 			// extracting 2 poses to be able to calculate velocities
 			FCSPose<FCompactPose> ComponentSpacePose;
 			FCompactPose Pose;
+			FBlendedCurve Curves;
 			Pose.SetBoneContainer(&AnimInstances[RoleIndex]->GetRequiredBonesOnAnyThread());
 
 			// @todo: add input BlendParameters to support sampling FutureAnimation blendspaces and support for multi character
@@ -879,7 +880,7 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 				const float FuturePoseExtractionTime = FutureAnimationTime + (i - 1) * FiniteDelta;
 				const float FuturePoseAnimationTime = FutureIntervalTime + (i - 1) * FiniteDelta;
 
-				Sampler.ExtractPose(FuturePoseExtractionTime, Pose);
+				Sampler.ExtractPose(FuturePoseExtractionTime, Pose, Curves);
 				ComponentSpacePose.InitPose(Pose);
 				MemStackPoseHistories[RoleIndex].AddFuturePose(FuturePoseAnimationTime, ComponentSpacePose);
 			}

@@ -25,6 +25,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = Settings)
 	TArray<FBoneReference> CollectedBones;
 
+	UPROPERTY(EditAnywhere, Category = Settings)
+	TArray<FName> CollectedCurves;
+
 	// if true, the pose history will be initialized with a ref pose at the location and orientation of the AnimInstance.
 	UPROPERTY(EditAnywhere, Category = Settings)
 	bool bInitializeWithRefPose = false;

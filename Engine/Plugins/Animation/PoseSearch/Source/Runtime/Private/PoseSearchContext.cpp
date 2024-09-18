@@ -507,7 +507,7 @@ float FSearchContext::GetSampleCurveValueInternal(float SampleTime, const FName&
 	{
 		if (ensure(PoseHistory))
 		{
-			// @TODO: Add curve support to the pose history node.
+			PoseHistory->GetCurveValueAtTime(SampleTime, CurveName, OutCurveValue);
 			return OutCurveValue;
 		}
 	}
