@@ -413,7 +413,11 @@ bool FChooserPropertyBinding::SetValue(FChooserEvaluationContext& Context, const
 	{\
 		Binding.Compile(Owner, bForce);\
 	};\
-	\
+	virtual bool HasCompileErrors(FText& Message) override\
+	{\
+		Message = Binding.CompileMessage; \
+		return !Message.IsEmpty(); \
+	}\
 	virtual void AddSearchNames(FStringBuilderBase& Builder) const override\
 	{\
 		for (const FName& Entry : Binding.PropertyBindingChain)\
@@ -458,11 +462,26 @@ bool FChooserPropertyBinding::SetValue(FChooserEvaluationContext& Context, const
 			}\
 		}\
 	}
+#elif WITH_EDITORONLY_DATA
+#define CHOOSER_PARAMETER_BOILERPLATE() \
+	virtual void Compile(IHasContextClass* Owner, bool bForce) override\
+	{\
+		Binding.Compile(Owner, bForce);\
+	}\
+	virtual bool HasCompileErrors(FText& Message) override\
+	{\
+		Message = Binding.CompileMessage; \
+		return !Message.IsEmpty(); \
+	}
 #else
 #define CHOOSER_PARAMETER_BOILERPLATE() \
 	virtual void Compile(IHasContextClass* Owner, bool bForce) override\
 	{\
 		Binding.Compile(Owner, bForce);\
+	}\
+	virtual bool HasCompileErrors(FText& Message) override\
+	{\
+		return false;\
 	}
 #endif
 

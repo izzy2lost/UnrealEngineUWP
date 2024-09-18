@@ -103,6 +103,7 @@ public:
 	DECLARE_DELEGATE_RetVal_OneParam( EIteratorStatus, FObjectChooserIteratorCallback, UObject*);
 
 	virtual void Compile(class IHasContextClass* HasContext, bool bForce) {};
+	virtual bool HasCompileErrors(FText& Message) { return false; }
 
 	virtual UObject* ChooseObject(FChooserEvaluationContext& Context) const { return nullptr; };
 	virtual EIteratorStatus ChooseMulti(FChooserEvaluationContext& ContextData, FObjectChooserIteratorCallback Callback) const
