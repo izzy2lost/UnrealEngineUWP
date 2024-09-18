@@ -2,7 +2,6 @@
 
 #include "LevelEditor/DMLevelEditorIntegration.h"
 
-#include "DynamicMaterialEditorModule.h"
 #include "LevelEditor.h"
 #include "LevelEditor/DMLevelEditorIntegrationInstance.h"
 #include "Model/DynamicMaterialModelBase.h"
@@ -10,6 +9,7 @@
 #include "Modules/ModuleManager.h"
 #include "Templates/SharedPointer.h"
 #include "UI/Widgets/SDMMaterialDesigner.h"
+#include "Utils/DMBuildRequestSubsystem.h"
 
 namespace UE::DynamicMaterialEditor::Private
 {
@@ -138,7 +138,10 @@ TSharedPtr<SDockTab> FDMLevelEditorIntegration::InvokeTabForWorld(UWorld* InWorl
 
 void FDMLevelEditorIntegration::OnMapTearDown(UWorld* InWorld)
 {
-	FDynamicMaterialEditorModule::Get().RemoveBuildRequestForOuter(InWorld);
+	if (UDMBuildRequestSubsystem* BuildRequestSubsystem = UDMBuildRequestSubsystem::Get())
+	{
+		BuildRequestSubsystem->RemoveBuildRequestForOuter(InWorld);
+	}
 
 	FDMLevelEditorIntegrationInstance* Instance = FDMLevelEditorIntegrationInstance::GetMutableIntegrationForWorld(InWorld);
 
@@ -213,7 +216,10 @@ void FDMLevelEditorIntegration::OnMapLoad(UWorld* InWorld)
 
 			if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
 			{
-				FDynamicMaterialEditorModule::Get().AddBuildRequest(EditorOnlyData, /* Dirty Assets */ false);
+				if (UDMBuildRequestSubsystem* BuildRequestSubsystem = UDMBuildRequestSubsystem::Get())
+				{
+					BuildRequestSubsystem->AddBuildRequest(EditorOnlyData, /* Dirty Assets */ false);
+				}				
 			}
 		}
 	}
