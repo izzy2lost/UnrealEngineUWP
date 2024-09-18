@@ -144,6 +144,7 @@ public:
 
 		const float* AgeData			= ParticleSimulationContext.GetParticleAge();
 		const float* PreviousAgeData	= ParticleSimulationContext.GetParticlePreviousAge();
+		const float InvDeltaTime		= ParticleSimulationContext.GetInvDeltaTime();
 
 		for (uint32 i = 0; i < ParticleSimulationContext.GetNumInstances(); ++i)
 		{
@@ -195,7 +196,7 @@ public:
 			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->PositionVariableOffset, i, Position);
 			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->PreviousPositionVariableOffset, i, PreviousPosition);
 
-			const FVector3f Velocity = Position - PreviousPosition;
+			const FVector3f Velocity = (Position - PreviousPosition) * InvDeltaTime;
 			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->VelocityVariableOffset, i, Velocity);
 			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->PreviousVelocityVariableOffset, i, Velocity);
 		}
