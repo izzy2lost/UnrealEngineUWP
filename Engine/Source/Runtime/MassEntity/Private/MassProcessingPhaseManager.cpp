@@ -175,9 +175,13 @@ void FMassPhaseProcessorConfigurationHelper::Configure(TArrayView<UMassProcessor
 	if (TmpPipeline.Num())
 	{
 		UE_VLOG_UELOG(&PhaseProcessor, LogMass, Verbose, TEXT("Discarding processors due to not having anything to do (no relevant Archetypes):"));
-		for (const UMassProcessor* Processor : TmpPipeline.GetProcessors())
+		for (UMassProcessor* Processor : TmpPipeline.GetProcessors())
 		{
 			UE_VLOG_UELOG(&PhaseProcessor, LogMass, Verbose, TEXT("\t%s"), *Processor->GetProcessorName());
+			if (Processor->IsDynamic() == false)
+			{
+				Processor->MarkAsGarbage();
+			}
 		}
 	}
 #endif // WITH_MASSENTITY_DEBUG
@@ -455,6 +459,7 @@ FString FMassProcessingPhaseManager::GetName() const
 void FMassProcessingPhaseManager::RegisterDynamicProcessor(UMassProcessor& Processor)
 {
 	DynamicProcessors.Add(&Processor);
+	Processor.MarkAsDynamic();
 	ProcessingGraphBuildStates[uint32(Processor.GetProcessingPhase())].bProcessorsNeedRebuild = true;
 }
 
