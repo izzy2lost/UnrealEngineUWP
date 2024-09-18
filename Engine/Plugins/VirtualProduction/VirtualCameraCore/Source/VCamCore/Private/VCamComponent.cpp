@@ -21,11 +21,12 @@
 #include "EnhancedInputSubsystemInterface.h"
 #include "Features/IModularFeatures.h"
 #include "GameFramework/InputSettings.h"
-#include "ILiveLinkClient.h"
 #include "InputMappingContext.h"
-#include "VCamCore.h"
+#include "ILiveLinkClient.h"
 #include "Roles/LiveLinkCameraRole.h"
 #include "Roles/LiveLinkTransformRole.h"
+#include "TimerManager.h"
+#include "VCamCore.h"
 #include "UserSettings/EnhancedInputUserSettings.h"
 
 #if WITH_EDITOR
@@ -77,11 +78,28 @@ namespace UE::VCamCore
 		return Component->CreationMethod == EComponentCreationMethod::SimpleConstructionScript
 			|| Component->CreationMethod == EComponentCreationMethod::UserConstructionScript;
 	}
+
+	static void ExecuteNextTick(UVCamComponent* Component, TFunction<void()> Callback)
+	{
+		Component->GetWorld()->GetTimerManager().SetTimerForNextTick(
+			FTimerDelegate::CreateLambda([WeakThis = TWeakObjectPtr(Component), Callback = MoveTemp(Callback)]
+			{
+				if (LIKELY(WeakThis.IsValid()))
+				{
+					Callback();
+				}
+			}));
+	}
 }
 
 void UVCamComponent::OnComponentCreated()
 {
 	Super::OnComponentCreated();
+
+	if (!UE::VCamCore::CanInitVCamInstance(this))
+	{
+		return;
+	}
 	
 	// After creation, the InputProfile should be initialized to the project setting's default mappings
 	const UVCamInputSettings* VCamInputSettings = GetDefault<UVCamInputSettings>();
@@ -96,7 +114,22 @@ void UVCamComponent::OnComponentCreated()
 	if (!bIsBlueprintCreatedComponent || !GIsReconstructingBlueprintInstances)
 	{
 		SetupVCamSystemsIfNeeded();
-		EnsureInitializedIfAllowed();
+		
+		// Some systems, such as Multi-User Editing or Level Snapshots, may allocate this VCam and then update it with serialized data.
+		// To handle this scenario, we defer the initialization of the VCam until the next frame, after it and its associated output providers 
+		// and modifiers have been fully updated with the new values. If an Initialize call is made this frame, e.g. by PostEditChange, then the
+		// next frame delegate will detect this VCam is already initialized and skip it.
+		// However, if a transaction is being recorded, we want all changes to be applied immediately, so initialization should not be deferred.
+#if WITH_EDITOR
+		if (GUndo)
+		{
+			EnsureInitializedIfAllowed();
+		}
+		else
+#endif
+		{
+			UE::VCamCore::ExecuteNextTick(this, [this]{ EnsureInitializedIfAllowed(); });
+		}
 	}
 
 #if WITH_EDITOR
@@ -158,7 +191,9 @@ TStructOnScope<FActorComponentInstanceData> UVCamComponent::GetComponentInstance
 
 void UVCamComponent::ApplyComponentInstanceData(FVCamComponentInstanceData& ComponentInstanceData, ECacheApplyPhase CacheApplyPhase)
 {
-	if (CacheApplyPhase != ECacheApplyPhase::PostUserConstructionScript)
+	if (CacheApplyPhase != ECacheApplyPhase::PostUserConstructionScript
+		// Don't run this logic for certain VCams, e.g. those that are being dragged into the editor window.
+		|| UE::VCamCore::CanInitVCamInstance(this))
 	{
 		return;
 	}
@@ -179,7 +214,21 @@ void UVCamComponent::ApplyComponentInstanceData(FVCamComponentInstanceData& Comp
 	// AppliedInputContext was nulled by the cache because is marked Transient, so we have to restore it manually.
 	ReinitializeInput(ComponentInstanceData.AppliedInputContexts);
 
-	RefreshInitializationState();
+	// Some systems, such as Multi-User Editing or Level Snapshots, may allocate this VCam and then update it with serialized data.
+	// To handle this scenario, we defer the initialization of the VCam until the next frame, after it and its associated output providers 
+	// and modifiers have been fully updated with the new values. If an Initialize call is made this frame, e.g. by PostEditChange, then the
+	// next frame delegate will detect this VCam is already initialized and skip it.
+	// However, if a transaction is being recorded, we want all changes to be applied immediately, so initialization should not be deferred.
+#if WITH_EDITOR
+	if (GUndo)
+	{
+		EnsureInitializedIfAllowed();
+	}
+	else
+#endif
+	{
+		UE::VCamCore::ExecuteNextTick(this, [this]{ RefreshInitializationState(); });
+	}
 }
 
 bool UVCamComponent::CanUpdate() const
@@ -1661,15 +1710,12 @@ void UVCamComponent::OnEndPIE(const bool bInIsSimulating)
 	{
 		// Next tick because there is still some pending clean up happening this frame after OnEndPIE finishes.
 		// In particular, viewports may still be associated with PIE which will cause UVPFullScreenUserWidget to not know where to add itself.
-		World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda([WeakThis = TWeakObjectPtr<UVCamComponent>(this)]()
+		UE::VCamCore::ExecuteNextTick(this, [this]
 		{
-			if (LIKELY(WeakThis.IsValid()))
-			{
-				// The flag is updated next tick because otherwise OnUpdate might call EnsureInitialized too early
-				WeakThis->PIEMode = EPIEState::Normal;
-				WeakThis->Initialize();
-			}
-		}));
+			// The flag is updated next tick because otherwise OnUpdate might call EnsureInitialized too early
+			PIEMode = EPIEState::Normal;
+			Initialize();
+		});
 	}
 	else
 	{

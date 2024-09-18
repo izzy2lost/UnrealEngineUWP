@@ -39,7 +39,10 @@ namespace UE::VCamCore
 		 *		1.2 The preview one (which I assume is displayed in the viewport) - this one is RF_Transient.
 		 *	2. When you drag-create an actor, level editor creates a RF_Transient template actor. After you release the mouse, a real one is created (not RF_Transient).
 		 */
-		return !Component->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject | RF_Transient)
+		constexpr EObjectFlags ForbiddenFlags = RF_ClassDefaultObject | RF_ArchetypeObject | RF_Transient; 
+		return !Component->HasAnyFlags(ForbiddenFlags)
+			// VCams that are created by BP construction script are not marked transient while drag-dropping, but the owning actor is. 
+			&& Component->GetOuter() && !Component->GetOuter()->HasAnyFlags(ForbiddenFlags)
 			&& !GIsCookerLoadingPackage
 			&& bIsInValidWorld
 			&& !IsRunningCommandlet();
