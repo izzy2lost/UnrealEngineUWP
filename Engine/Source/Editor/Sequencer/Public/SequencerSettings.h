@@ -56,6 +56,15 @@ enum ESequencerLoopMode : int
 	SLM_LoopSelectionRange UMETA(DisplayName="Loop Selection Range"),
 };
 
+UENUM()
+enum class ESequencerTimeWarpDisplay : uint8
+{
+	UnwarpedTime = 1 UMETA(DisplayName="Unwarped Time"),
+	WarpedTime = 2 UMETA(DisplayName="Warped Time"),
+	Both = UnwarpedTime | WarpedTime UMETA(DisplayName="Both"),
+};
+ENUM_CLASS_FLAGS(ESequencerTimeWarpDisplay)
+
 /** Empty class used to house multiple named USequencerSettings */
 UCLASS()
 class SEQUENCER_API USequencerSettingsContainer
@@ -314,6 +323,11 @@ public:
 	FFrameNumber GetJumpFrameIncrement() const;
 	/** Set the number of frames to increment when jumping forwards/backwards */
 	void SetJumpFrameIncrement(FFrameNumber InJumpFrameIncrement);
+
+	/** Get the time-warp display mode */
+	ESequencerTimeWarpDisplay GetTimeWarpDisplayMode() const;
+	/** Set the time-warp display mode */
+	void SetTimeWarpDisplayMode(ESequencerTimeWarpDisplay InTimeWarpDisplay);
 
 	/** @return true if showing layer bars */
 	bool GetShowLayerBars() const;
@@ -685,6 +699,10 @@ protected:
 	/** The number of frames to jump by when jumping forward or backwards. */
 	UPROPERTY( config, EditAnywhere, Category=Timeline )
 	FFrameNumber JumpFrameIncrement;
+
+	/** Controls how time-warped time is displayed on the timeline. */
+	UPROPERTY( config, EditAnywhere, Category=Timeline )
+	ESequencerTimeWarpDisplay TimeWarpDisplay;
 
 	/** Enable or disable the layer bars to edit keyframes in bulk. */
 	UPROPERTY( config, EditAnywhere, Category=Timeline )

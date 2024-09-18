@@ -73,6 +73,7 @@ template <typename NumericType> struct INumericTypeInterface;
 
 enum class EMapChangeType : uint8;
 enum class EPropertyKeyedStatus : uint8;
+enum class ENearestKeyOption : uint8;
 class FCurveEditor;
 class FCurveModel;
 class IToolkitHost;
@@ -85,8 +86,10 @@ namespace UE
 namespace Sequencer
 {
 
+enum class ETimeDomain : uint8;
 class FSequencerEditorViewModel;
 struct FCreateBindingParams;
+struct FTimeDomainOverride;
 
 } // namespace Sequencer
 } // namespace UE
@@ -262,6 +265,12 @@ public:
 	/**@return Returns the time transform from the focused sequence back to the root*/
 	virtual FMovieSceneSequenceTransform GetFocusedMovieSceneSequenceTransform() const = 0;
 
+	/**@return Returns the timewrap transform that local time to warped-local-time */
+	virtual FMovieSceneSequenceTransform GetLocalTimeWarpTransform() const = 0;
+
+	/**@return Returns the timewrap transform that applies to global playback */
+	virtual FMovieSceneSequenceTransform GetGlobalPlaybackWarpTransform() const = 0;
+
 	/** @return The root movie scene being used */
 	virtual FMovieSceneSequenceIDRef GetRootTemplateID() const = 0;
 	virtual FMovieSceneSequenceIDRef GetFocusedTemplateID() const = 0;
@@ -435,6 +444,16 @@ public:
 	 * @see SetGlobalTime
 	 */
 	virtual FQualifiedFrameTime GetGlobalTime() const = 0;
+
+	/**
+	 * Retrieve the current local time in unwarped space. This is usually only required for time-warp operations. Prefer GetLocalTime.
+	 */
+	virtual FQualifiedFrameTime GetUnwarpedLocalTime() const = 0;
+
+	/**
+	 * Temporarily override the behavior of a call to one of the SetLocalTime or OnScrubPositionChanged functions to operate in a specific time-domain
+	 */
+	[[nodiscard]] virtual UE::Sequencer::FTimeDomainOverride OverrideTimeDomain(UE::Sequencer::ETimeDomain NewDomain) = 0;
 
 	virtual TOptional<int32> GetLocalLoopIndex() const = 0;
 
@@ -645,6 +664,8 @@ public:
 	virtual void GetKeysFromSelection(TUniquePtr<FSequencerKeyCollection>& KeyCollection, float DuplicateThresoldTime) = 0;
 	virtual FSequencerKeyCollection* GetKeyCollection() = 0;
 
+	virtual FFrameNumber OnGetNearestKey(FFrameTime InTime, ENearestKeyOption NearestKeyOption) = 0;
+
 	virtual TArray<FMovieSceneMarkedFrame> GetMarkedFrames() const = 0;
 
 	/** Gets the currently selected tracks. */
@@ -695,6 +716,10 @@ public:
 	/** Throb key or section selection */
 	virtual void ThrobKeySelection() = 0;
 	virtual void ThrobSectionSelection() = 0;
+
+	virtual void OnScrubPositionChanged(FFrameTime NewScrubPosition, bool bScrubbing, bool bEvaluate) = 0;
+	virtual void OnBeginScrubbing() = 0;
+	virtual void OnEndScrubbing() = 0;
 
 	/** Gets a multicast delegate which is executed whenever the global time changes. */
 	virtual FOnGlobalTimeChanged& OnGlobalTimeChanged() = 0;

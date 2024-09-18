@@ -3,6 +3,12 @@
 #include "SequencerTimeSliderController.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "MVVM/Selection/Selection.h"
+#include "MVVM/SharedViewModelData.h"
+#include "MVVM/Views/SOutlinerView.h"
+#include "TrackEditors/TimeWarpTrackEditor.h"
+#include "Channels/MovieSceneTimeWarpChannel.h"
+#include "SequencerTimeDomainOverride.h"
+#include "SSequencer.h"
 #include "Fonts/SlateFontInfo.h"
 #include "Rendering/DrawElements.h"
 #include "Misc/Paths.h"
@@ -56,6 +62,15 @@ namespace ScrubConstants
 	const int32 MarkLabelBoxWideMargin = 4;
 }
 
+bool GSequencerShowTimeWarpScrubberLink = false;
+FAutoConsoleVariableRef CVarSequencerShowTimeWarpScrubberLink(
+	TEXT("Sequencer.ShowTimeWarpScrubberLink"),
+	GSequencerShowTimeWarpScrubberLink,
+	TEXT("(Default: false) When enabled, shows a dashed link to link warped and unwarped time scrubbers."),
+	ECVF_Default
+);
+
+
 FSequencerTimeSliderController::FSequencerTimeSliderController( const FTimeSliderArgs& InArgs, TWeakPtr<FSequencer> InWeakSequencer )
 	: WeakSequencer(InWeakSequencer)
 	, TimeSliderArgs( InArgs )
@@ -66,10 +81,8 @@ FSequencerTimeSliderController::FSequencerTimeSliderController( const FTimeSlide
 	, HoverMarkIndex( INDEX_NONE )
 {
 	ScrubFillBrush              = FAppStyle::GetBrush( TEXT( "Sequencer.Timeline.ScrubFill" ) );
-	FrameBlockScrubHandleUpBrush   = FAppStyle::GetBrush( TEXT( "Sequencer.Timeline.FrameBlockScrubHandleUp" ) ); 
-	FrameBlockScrubHandleDownBrush = FAppStyle::GetBrush( TEXT( "Sequencer.Timeline.FrameBlockScrubHandleDown" ) );
-	VanillaScrubHandleUpBrush      = FAppStyle::GetBrush( TEXT( "Sequencer.Timeline.VanillaScrubHandleUp" ) ); 
-	VanillaScrubHandleDownBrush    = FAppStyle::GetBrush( TEXT( "Sequencer.Timeline.VanillaScrubHandleDown" ) );
+	FrameBlockScrubHandleDownBrush = FAppStyle::GetBrush( TEXT( "Sequencer.Timeline.FrameBlockScrubHandle" ) );
+	VanillaScrubHandleDownBrush    = FAppStyle::GetBrush( TEXT( "Sequencer.Timeline.ScrubHandle" ) );
 
 	FontMeasureService = FSlateApplication::Get().GetRenderer()->GetFontMeasureService().ToSharedPtr();
 	SmallLayoutFont = FCoreStyle::GetDefaultFontStyle("Regular", 10);
@@ -464,6 +477,8 @@ int32 FSequencerTimeSliderController::DrawVerticalFrames(const FGeometry& Allott
 
 int32 FSequencerTimeSliderController::OnPaintTimeSlider( bool bMirrorLabels, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled ) const
 {
+	using namespace UE::Sequencer;
+
 	TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
 	if (!Sequencer.IsValid())
 	{
@@ -522,26 +537,29 @@ int32 FSequencerTimeSliderController::OnPaintTimeSlider( bool bMirrorLabels, con
 
 		const int32 ArrowLayer = LayerId + 2;
 		FPaintGeometry MyGeometry =	AllottedGeometry.ToPaintGeometry( FVector2f( HandleEnd - HandleStart, AllottedGeometry.Size.Y ), FSlateLayoutTransform(FVector2f( HandleStart, 0.f )) );
-		FLinearColor ScrubColor = InWidgetStyle.GetColorAndOpacityTint();
-		if(bIsEvaluating)
-		{
-			// @todo Sequencer this color should be specified in the style
-			ScrubColor.A = ScrubColor.A * 0.75f;
-			ScrubColor.B *= 0.1f;
-			ScrubColor.G *= 0.2f;
-		}
-		else
-		{
-			ScrubColor.A = ScrubColor.A * 0.75f;
-			ScrubColor.R = 0.7f;
-			ScrubColor.B = 0.1f;
-			ScrubColor.G = 0.7f;
-		}
-		const FSlateBrush* Brush = ScrubMetrics.Style == ESequencerScrubberStyle::Vanilla
-			? ( bMirrorLabels ? VanillaScrubHandleUpBrush    : VanillaScrubHandleDownBrush )
-			: ( bMirrorLabels ? FrameBlockScrubHandleUpBrush : FrameBlockScrubHandleDownBrush );
 
-		
+		FTimeWarpTrackExtension*   TimeWarpExtension   = Sequencer->GetViewModel()->GetRootSequenceModel()->GetSharedData()->CastDynamic<FTimeWarpTrackExtension>();
+		const FTimeWarpTrackModel* ActiveTimeWarpTrack = TimeWarpExtension ? TimeWarpExtension->GetActiveTimeWarpTrack() : nullptr;
+
+		const bool bIsWarped = (Sequencer->GetSequencerSettings()->GetTimeWarpDisplayMode() == ESequencerTimeWarpDisplay::WarpedTime && ActiveTimeWarpTrack != nullptr);
+		FLinearColor ScrubColor = bIsWarped
+			? FStyleColors::AccentOrange.GetSpecifiedColor()
+			: FStyleColors::AccentRed.GetSpecifiedColor();
+
+		const FSlateBrush* Brush = ScrubMetrics.Style == ESequencerScrubberStyle::Vanilla
+			? VanillaScrubHandleDownBrush
+			: FrameBlockScrubHandleDownBrush;
+
+		if (bMirrorLabels)
+		{
+			FSlateRenderTransform FlipTransform(FScale2f(1.f, -1.f), FVector2f(0.f, AllottedGeometry.Size.Y));
+			MyGeometry.SetRenderTransform(
+				Concatenate(
+					FlipTransform,
+					MyGeometry.GetAccumulatedRenderTransform()
+				)
+			);
+		}
 		FSlateDrawElement::MakeBox(
 			OutDrawElements,
 			ArrowLayer,
@@ -550,7 +568,7 @@ int32 FSequencerTimeSliderController::OnPaintTimeSlider( bool bMirrorLabels, con
 			DrawEffects,
 			ScrubColor
 		);
-		
+
 		LayerId = DrawMarkedFrames(AllottedGeometry, RangeToScreen, OutDrawElements, LayerId, DrawEffects, InWidgetStyle, true);
 
 		{
@@ -563,7 +581,7 @@ int32 FSequencerTimeSliderController::OnPaintTimeSlider( bool bMirrorLabels, con
 			}
 			else
 			{
-				FrameString = TimeSliderArgs.NumericTypeInterface->ToString(TimeSliderArgs.ScrubPosition.Get().GetFrame().Value);
+				FrameString = TimeSliderArgs.NumericTypeInterface->ToString(ScrubPosition.Time.GetFrame().Value);
 			}
 
 			if (TimeSliderArgs.ScrubPositionParent.Get() != MovieSceneSequenceID::Invalid)
@@ -606,11 +624,24 @@ int32 FSequencerTimeSliderController::OnPaintTimeSlider( bool bMirrorLabels, con
 			float RangePosX = MouseStartPosX < MouseEndPosX ? MouseStartPosX : MouseEndPosX;
 			float RangeSizeX = FMath::Abs(MouseStartPosX - MouseEndPosX);
 
+			FPaintGeometry PaintGeom = AllottedGeometry.ToPaintGeometry( FVector2f(RangeSizeX, AllottedGeometry.Size.Y), FSlateLayoutTransform(FVector2f(RangePosX, 0.f)) );
+
+			if (bMirrorLabels)
+			{
+				FSlateRenderTransform FlipTransform(FScale2f(1.f, -1.f), FVector2f(0.f, AllottedGeometry.Size.Y));
+				PaintGeom.SetRenderTransform(
+					Concatenate(
+						FlipTransform,
+						PaintGeom.GetAccumulatedRenderTransform()
+					)
+				);
+			}
+
 			FSlateDrawElement::MakeBox(
 				OutDrawElements,
 				LayerId+1,
-				AllottedGeometry.ToPaintGeometry( FVector2f(RangeSizeX, AllottedGeometry.Size.Y), FSlateLayoutTransform(FVector2f(RangePosX, 0.f)) ),
-				bMirrorLabels ? VanillaScrubHandleDownBrush : VanillaScrubHandleUpBrush,
+				PaintGeom,
+				VanillaScrubHandleDownBrush,
 				DrawEffects,
 				MouseStartPosX < MouseEndPosX ? FLinearColor(0.5f, 0.5f, 0.5f) : FLinearColor(0.25f, 0.3f, 0.3f)
 			);
@@ -1253,31 +1284,39 @@ FReply FSequencerTimeSliderController::OnMouseMoveImpl( SWidget& WidgetOwner, co
 
 void FSequencerTimeSliderController::CommitScrubPosition( FFrameTime NewValue, bool bIsScrubbing, bool bEvaluate)
 {
+	using namespace UE::Sequencer;
+
 	bIsEvaluating = bEvaluate;
+
 	// The user can scrub past the viewing range of the time slider controller, so we clamp it to the view range.
 	TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
-	if(Sequencer.IsValid())
+	if(!Sequencer.IsValid())
 	{
-		Sequencer->SnapSequencerTime(NewValue);
+		return;
+	}
 
-		if (bIsScrubbing)
+	const bool bIsWarped = Sequencer->GetSequencerSettings()->GetTimeWarpDisplayMode() == ESequencerTimeWarpDisplay::WarpedTime;
+	FTimeDomainOverride TimeDomainOverride = Sequencer->OverrideTimeDomain(bIsWarped ? ETimeDomain::Warped : ETimeDomain::Unwarped);
+
+	Sequencer->SnapSequencerTime(NewValue);
+
+	if (bIsScrubbing)
+	{
+		FAnimatedRange ViewRange = GetViewRange();
+	
+		FFrameRate DisplayRate = Sequencer->GetFocusedDisplayRate();
+		FFrameRate TickResolution = Sequencer->GetFocusedTickResolution();
+
+		FFrameTime LowerBound = (ViewRange.GetLowerBoundValue() * TickResolution).CeilToFrame();
+		FFrameTime UpperBound = (ViewRange.GetUpperBoundValue() * TickResolution).FloorToFrame();
+
+		if (Sequencer->GetSequencerSettings()->GetIsSnapEnabled() && Sequencer->GetSequencerSettings()->GetSnapPlayTimeToInterval())
 		{
-			FAnimatedRange ViewRange = GetViewRange();
-		
-			FFrameRate DisplayRate = Sequencer->GetFocusedDisplayRate();
-			FFrameRate TickResolution = Sequencer->GetFocusedTickResolution();
-
-			FFrameTime LowerBound = (ViewRange.GetLowerBoundValue() * TickResolution).CeilToFrame();
-			FFrameTime UpperBound = (ViewRange.GetUpperBoundValue() * TickResolution).FloorToFrame();
-
-			if (Sequencer->GetSequencerSettings()->GetIsSnapEnabled() && Sequencer->GetSequencerSettings()->GetSnapPlayTimeToInterval())
-			{
-				LowerBound = FFrameRate::Snap(LowerBound, TickResolution, DisplayRate);
-				UpperBound = FFrameRate::Snap(UpperBound, TickResolution, DisplayRate);
-			}
-
-			NewValue = FMath::Clamp(NewValue, LowerBound, UpperBound);
+			LowerBound = FFrameRate::Snap(LowerBound, TickResolution, DisplayRate);
+			UpperBound = FFrameRate::Snap(UpperBound, TickResolution, DisplayRate);
 		}
+
+		NewValue = FMath::Clamp(NewValue, LowerBound, UpperBound);
 	}
 
 	// Manage the scrub position ourselves if its not bound to a delegate
@@ -1375,6 +1414,9 @@ FCursorReply FSequencerTimeSliderController::OnCursorQuery( TSharedRef<const SWi
 
 int32 FSequencerTimeSliderController::OnPaintViewArea( const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, bool bEnabled, const FPaintViewAreaArgs& Args ) const
 {
+	using namespace UE::MovieScene;
+	using namespace UE::Sequencer;
+
 	TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
 	if (!Sequencer.IsValid())
 	{
@@ -1425,44 +1467,184 @@ int32 FSequencerTimeSliderController::OnPaintViewArea( const FGeometry& Allotted
 
 	LayerId = DrawVerticalFrames(AllottedGeometry, RangeToScreen, OutDrawElements, LayerId, DrawEffects);
 
-	if( Args.bDisplayScrubPosition )
+	FTimeWarpTrackExtension*   TimeWarpExtension   = Sequencer->GetViewModel()->GetRootSequenceModel()->GetSharedData()->CastDynamic<FTimeWarpTrackExtension>();
+	const FTimeWarpTrackModel* ActiveTimeWarpTrack = TimeWarpExtension ? TimeWarpExtension->GetActiveTimeWarpTrack() : nullptr;
+
+	FLinearColor TimeWarpColor = FStyleColors::AccentOrange.GetSpecifiedColor();
+
+	// If we have no active timewarp track, just draw the single scrub position
+	if (ActiveTimeWarpTrack == nullptr || Sequencer->GetSequencerSettings()->GetTimeWarpDisplayMode() != ESequencerTimeWarpDisplay::Both)
 	{
+		const bool bIsWarped = (Sequencer->GetSequencerSettings()->GetTimeWarpDisplayMode() == ESequencerTimeWarpDisplay::WarpedTime && ActiveTimeWarpTrack != nullptr);
+		FLinearColor ScrubColor = bIsWarped ? TimeWarpColor : FLinearColor::White;
+
 		FQualifiedFrameTime ScrubPosition = FQualifiedFrameTime(TimeSliderArgs.ScrubPosition.Get(), GetTickResolution());
-		FScrubberMetrics    ScrubMetrics = GetScrubPixelMetrics(ScrubPosition, RangeToScreen);
+		FScrubberMetrics    ScrubMetrics  = GetScrubPixelMetrics(ScrubPosition, RangeToScreen);
 
 		if (ScrubMetrics.bDrawExtents)
 		{
-			// Draw a box for the scrub position
 			FSlateDrawElement::MakeBox(
 				OutDrawElements,
 				LayerId + 1,
-				AllottedGeometry.ToPaintGeometry(FVector2f(ScrubMetrics.FrameExtentsPx.Size<float>(), AllottedGeometry.Size.Y), FSlateLayoutTransform(FVector2f(ScrubMetrics.FrameExtentsPx.GetLowerBoundValue(), 0.0f))),
+				AllottedGeometry.ToPaintGeometry(
+					FVector2f(ScrubMetrics.FrameExtentsPx.Size<float>(), AllottedGeometry.Size.Y),
+					FSlateLayoutTransform(FVector2f(ScrubMetrics.FrameExtentsPx.GetLowerBoundValue(), 0.f))),
+				ScrubFillBrush,
+				DrawEffects,
+				ScrubColor.CopyWithNewOpacity(0.5f)
+			);
+		}
+
+		if (Args.bDisplayScrubPosition)
+		{
+			const float ScrubPixelX = RangeToScreen.InputToLocalX(ScrubPosition.AsSeconds());
+
+			TArray<FVector2f> LinePoints;
+			LinePoints.AddUninitialized(2);
+			LinePoints[0] = FVector2f( ScrubPixelX, 0.f );
+			LinePoints[1] = FVector2f( ScrubPixelX, AllottedGeometry.Size.Y );
+
+			// Draw a white line for the unwarped scrub position
+			FSlateDrawElement::MakeLines(
+				OutDrawElements,
+				LayerId+1,
+				AllottedGeometry.ToPaintGeometry(),
+				LinePoints,
+				DrawEffects,
+				ScrubColor,
+				false
+			);
+		}
+	}
+	else
+	{
+		// Handle timewarp by drawing the white (unwarped) position up to the bottom of the active timewarp track,
+		//     then draw the orange (warped) time from there
+		FVirtualGeometry Geometry = ActiveTimeWarpTrack->GetVirtualGeometry();
+		const float UnwarpedScrubVerticalClip = StaticCastSharedRef<SSequencer>(Sequencer->GetSequencerWidget())->GetPinnedTreeView()->VirtualToPhysical(Geometry.GetTop() + Geometry.GetNestedHeight());
+
+		FQualifiedFrameTime UnwarpedScrubPosition = Sequencer->GetUnwarpedLocalTime();
+
+		FQualifiedFrameTime WarpedScrubPosition   = Sequencer->GetLocalTime();
+		FScrubberMetrics    UnwarpedScrubMetrics  = GetScrubPixelMetrics(UnwarpedScrubPosition, RangeToScreen);
+		FScrubberMetrics    WarpedScrubMetrics    = GetScrubPixelMetrics(WarpedScrubPosition, RangeToScreen);
+
+		if (UnwarpedScrubMetrics.bDrawExtents)
+		{
+			// Draw a box for the unwarped scrub position
+			FSlateDrawElement::MakeBox(
+				OutDrawElements,
+				LayerId+1,
+				AllottedGeometry.ToPaintGeometry(
+					FVector2f(UnwarpedScrubMetrics.FrameExtentsPx.Size<float>(), UnwarpedScrubVerticalClip - 1.f),
+					FSlateLayoutTransform(FVector2f(UnwarpedScrubMetrics.FrameExtentsPx.GetLowerBoundValue(), 0.f))),
 				ScrubFillBrush,
 				DrawEffects,
 				FLinearColor::White.CopyWithNewOpacity(0.5f)
 			);
+
+			// Draw a box for the warped scrub position
+			FSlateDrawElement::MakeBox(
+				OutDrawElements,
+				LayerId + 1,
+				AllottedGeometry.ToPaintGeometry(
+					FVector2f(WarpedScrubMetrics.FrameExtentsPx.Size<float>(), AllottedGeometry.Size.Y - UnwarpedScrubVerticalClip),
+					FSlateLayoutTransform(FVector2f(WarpedScrubMetrics.FrameExtentsPx.GetLowerBoundValue(), UnwarpedScrubVerticalClip))),
+				ScrubFillBrush,
+				DrawEffects,
+				TimeWarpColor.CopyWithNewOpacity(0.75f)
+			);
 		}
 
-			// Draw a line for the scrub position
-			TArray<FVector2D> LinePoints;
-			{
-			float LinePos = RangeToScreen.InputToLocalX(ScrubPosition.AsSeconds());
+		if (Args.bDisplayScrubPosition)
+		{
+			const float UnwarpedScrubPixelX = RangeToScreen.InputToLocalX(UnwarpedScrubPosition.AsSeconds());
+			const float WarpedScrubPixelX   = RangeToScreen.InputToLocalX(WarpedScrubPosition.AsSeconds());
+			const float OriginPixelX        = RangeToScreen.InputToLocalX(0.f);
 
-				LinePoints.AddUninitialized(2);
-			LinePoints[0] = FVector2D( LinePos, 0.0f );
-			LinePoints[1] = FVector2D( LinePos, FMath::FloorToFloat( AllottedGeometry.Size.Y ) );
-			}
+			TArray<FVector2f> LinePoints;
+			LinePoints.AddUninitialized(2);
+			LinePoints[0] = FVector2f( UnwarpedScrubPixelX, 0.f );
+			LinePoints[1] = FVector2f( UnwarpedScrubPixelX, UnwarpedScrubVerticalClip-1.f );
 
+			// Draw a white line for the unwarped scrub position
 			FSlateDrawElement::MakeLines(
 				OutDrawElements,
 				LayerId+1,
-			AllottedGeometry.ToPaintGeometry(),
+				AllottedGeometry.ToPaintGeometry(),
 				LinePoints,
 				DrawEffects,
 				FLinearColor(1.f, 1.f, 1.f, .5f),
 				false
 			);
+
+			LinePoints[0] = FVector2f( WarpedScrubPixelX, UnwarpedScrubVerticalClip );
+			LinePoints[1] = FVector2f( WarpedScrubPixelX, AllottedGeometry.Size.Y );
+
+			// Draw a line for the warped scrub position
+			FSlateDrawElement::MakeLines(
+				OutDrawElements,
+				LayerId+1,
+				AllottedGeometry.ToPaintGeometry(),
+				LinePoints,
+				DrawEffects,
+				TimeWarpColor,
+				false
+			);
+
+			// Optional cvar for drawing the dashed line
+			if (GSequencerShowTimeWarpScrubberLink)
+			{
+				const float StartLine = WarpedScrubPixelX < UnwarpedScrubPixelX ? WarpedScrubPixelX : UnwarpedScrubPixelX;
+				const float EndLine   = WarpedScrubPixelX < UnwarpedScrubPixelX ? UnwarpedScrubPixelX : WarpedScrubPixelX;
+
+				const float HalfPos = (EndLine + StartLine)*.5f;
+
+				// Draw a dashed line to connect them
+				LinePoints[0] = FVector2f( StartLine,   UnwarpedScrubVerticalClip-1.f );
+				LinePoints[1] = FVector2f( FMath::Max(HalfPos - 10.f, StartLine), UnwarpedScrubVerticalClip-1.f );
+
+				FSlateDrawElement::MakeDashedLines(
+					OutDrawElements,
+					LayerId++,
+					AllottedGeometry.ToPaintGeometry(),
+					CopyTemp(LinePoints),
+					DrawEffects,
+					FColor(212, 147, 20),
+					2.f,
+					5.f,
+					StartLine - OriginPixelX
+				);
+
+				LinePoints[0] = FVector2f( FMath::Min(HalfPos + 10.f, EndLine),   UnwarpedScrubVerticalClip-1.f );
+				LinePoints[1] = FVector2f( EndLine, UnwarpedScrubVerticalClip-1.f );
+
+				FSlateDrawElement::MakeDashedLines(
+					OutDrawElements,
+					LayerId++,
+					AllottedGeometry.ToPaintGeometry(),
+					CopyTemp(LinePoints),
+					DrawEffects,
+					FColor(212, 147, 20),
+					2.f,
+					5.f,
+					StartLine - OriginPixelX
+				);
+
+				FSlateDrawElement::MakeBox(
+					OutDrawElements,
+					LayerId + 1,
+					AllottedGeometry.ToPaintGeometry(
+						FVector2f(12.f, 12.f),
+						FSlateLayoutTransform(FVector2f( HalfPos-6.f, UnwarpedScrubVerticalClip-6.f ))
+					),
+					FAppStyle::GetBrush( TEXT( "Sequencer.Tracks.TimeWarp" ) ),
+					DrawEffects,
+					TimeWarpColor.CopyWithNewOpacity(0.75f)
+				);
+			}
 		}
+	}
 
 	return LayerId;
 }

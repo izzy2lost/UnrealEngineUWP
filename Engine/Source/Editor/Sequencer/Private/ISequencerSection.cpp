@@ -24,6 +24,7 @@
 #include "ISequencerModule.h"
 #include "Modules/ModuleManager.h"
 #include "MVVM/ViewModels/ViewDensity.h"
+#include "Widgets/SOverlay.h"
 
 struct FMovieSceneChannel;
 
@@ -198,6 +199,18 @@ void ISequencerSection::GenerateSectionLayout( ISectionLayoutBuilder& LayoutBuil
 		{
 			LayoutBuilder.PopCategory();
 		}
+	}
+}
+
+void ISequencerSection::CreateViewWidgets(const UE::Sequencer::FCreateSectionViewWidgetParams& Params)
+{
+	TSharedRef<SWidget> LegacyGeneratedWidget = GenerateSectionWidget();
+	if (LegacyGeneratedWidget != SNullWidget::NullWidget)
+	{
+		Params.Overlay->AddSlot(UE::Sequencer::FCreateSectionViewWidgetParams::DefaultWidgetOrder)
+		[
+			LegacyGeneratedWidget
+		];
 	}
 }
 

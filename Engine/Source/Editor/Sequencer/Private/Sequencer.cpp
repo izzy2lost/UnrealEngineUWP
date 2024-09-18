@@ -45,6 +45,7 @@
 #include "Editor.h"
 #include "BlueprintActionDatabase.h"
 #include "Channels/MovieSceneChannelProxy.h"
+#include "Channels/MovieSceneTimeWarpChannel.h"
 #include "MovieScenePossessable.h"
 #include "MovieScene.h"
 #include "Compilation/MovieSceneCompiledDataManager.h"
@@ -604,7 +605,7 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams
 		.OnMarkEndDrag(this, &FSequencer::OnMarkEndDrag)
 		.IsPlaybackRangeLocked( this, &FSequencer::IsPlaybackRangeLocked )
 		.OnTogglePlaybackRangeLocked( this, &FSequencer::TogglePlaybackRangeLocked )
-		.ScrubPosition( this, &FSequencer::GetLocalFrameTime )
+		.ScrubPosition( this, &FSequencer::GetScrubPosition )
 		.ScrubPositionText( this, &FSequencer::GetFrameTimeText )
 		.ScrubPositionParent( this, &FSequencer::GetScrubPositionParent)
 		.ScrubPositionParentChain( this, &FSequencer::GetScrubPositionParentChain)
@@ -767,6 +768,8 @@ FSequencer::FSequencer()
 	// Exposes the sequencer and curve editor command lists to subscribers from other systems
 	FInputBindingManager::Get().RegisterCommandList(FSequencerCommands::Get().GetContextName(), SequencerCommandBindings);
 	FInputBindingManager::Get().RegisterCommandList(FCurveEditorCommands::Get().GetContextName(), CurveEditorSharedBindings);
+
+	TimeOperationDomain = UE::Sequencer::ETimeDomain::Warped;
 }
 
 
@@ -881,6 +884,7 @@ TSharedPtr<ISequencerTrackEditor> FSequencer::GetTrackEditor(UMovieSceneTrack* I
 
 void FSequencer::Tick(float InDeltaTime)
 {
+	using namespace UE::MovieScene;
 	using namespace UE::Sequencer;
 
 	static bool bEnableRefCountCheck = true;
@@ -919,6 +923,11 @@ void FSequencer::Tick(float InDeltaTime)
 	{
 		if (CompiledDataManager->IsDirty(RootSequencePtr))
 		{
+			// Try and preserve the current local time across compilations.
+			//     When a modification results in a change of transform or time-warp,
+			//     this helps to stop the play head from jumping around
+			FFrameTime OldLocalTime = GetUnwarpedLocalTime().Time;
+
 			CompiledDataManager->Compile(RootSequencePtr);
 
 			// Reset to the root sequence if the focused sequence no longer exists. This can happen if either the subsequence has been deleted or the hierarchy has changed.
@@ -942,6 +951,9 @@ void FSequencer::Tick(float InDeltaTime)
 					bNeedsEvaluate = true;
 				}
 			}
+
+			FTimeDomainOverride TimeDomain = OverrideTimeDomain(ETimeDomain::Unwarped);
+			SetLocalTime(OldLocalTime, ESnapTimeMode::STM_None, false /* bEvaluate */);
 
 			SuppressAutoEvalSignature.Reset();
 
@@ -1010,10 +1022,10 @@ void FSequencer::Tick(float InDeltaTime)
 		FFrameTime NewGlobalTime = TimeController->RequestCurrentTime(GlobalTime, PlaybackSpeed * Dilation, GetFocusedDisplayRate());
 
 		// Put the time into clamped local space
-		FFrameTime LocalTime;
 		FMovieSceneTransformBreadcrumbs Breadcrumbs;
-		CalculateLocalTimeClamped(NewGlobalTime, RootToLocalTransform, LocalTime, Breadcrumbs);
+		FFrameTime LocalTime = RootToUnwarpedLocalTransform.TransformTime(NewGlobalTime, FTransformTimeParams().HarvestBreadcrumbs(Breadcrumbs).IgnoreClamps());
 
+		FTimeDomainOverride DomainOverride = OverrideTimeDomain(ETimeDomain::Unwarped);
 		SetLocalTimeLooped(LocalTime, Breadcrumbs);
 
 		if (GetPlaybackStatus() == EMovieScenePlayerStatus::Playing)
@@ -1024,7 +1036,7 @@ void FSequencer::Tick(float InDeltaTime)
 	}
 	else
 	{
-		PlayPosition.Reset(GlobalTime.ConvertTo(PlayPosition.GetInputRate()));
+		PlayPosition.Reset(GetGlobalTime().ConvertTo(PlayPosition.GetInputRate()));
 	}
 
 	if (AutoScrubTarget.IsSet())
@@ -1059,7 +1071,8 @@ void FSequencer::Tick(float InDeltaTime)
 	if (PendingScrubPosition.IsSet())
 	{
 		const bool bEvaluate = false;
-		SetLocalTimeDirectly(PendingScrubPosition.GetValue(), bEvaluate);
+		FTimeDomainOverride DomainOverride = OverrideTimeDomain(PendingScrubPosition->Get<1>());
+		SetLocalTimeDirectly(PendingScrubPosition->Get<0>(), bEvaluate);
 		PendingScrubPosition.Reset();
 
 		bNeedsEvaluate = true;
@@ -1119,9 +1132,19 @@ UMovieSceneSequence* FSequencer::GetRootMovieSceneSequence() const
 	return RootSequence.Get();
 }
 
+FMovieSceneSequenceTransform FSequencer::GetLocalTimeWarpTransform() const
+{
+	return LocalToWarpedLocalTransform;
+}
+
+FMovieSceneSequenceTransform FSequencer::GetGlobalPlaybackWarpTransform() const
+{
+	return GlobalPlaybackWarpTransform;
+}
+
 FMovieSceneSequenceTransform FSequencer::GetFocusedMovieSceneSequenceTransform() const
 {
-	return RootToLocalTransform;
+	return RootToWarpedLocalTransform;
 }
 
 UMovieSceneSequence* FSequencer::GetFocusedMovieSceneSequence() const
@@ -1204,15 +1227,7 @@ void FSequencer::ResetToNewRootSequence(UMovieSceneSequence& NewSequence)
 	RootTemplateInstance.Initialize(NewSequence, *this, CompiledDataManager);
 	RootTemplateInstance.EnableGlobalPreAnimatedStateCapture();
 
-	const FMovieSceneSequenceHierarchy* Hierarchy = CompiledDataManager->FindHierarchy(RootTemplateInstance.GetCompiledDataID());
-	if (Hierarchy)
-	{
-		RootToLocalTransform = Hierarchy->GetRootTransform();
-	}
-	else
-	{
-		RootToLocalTransform = FMovieSceneSequenceTransform();
-	}
+	UpdateSubSequenceData();
 
 	CurrentTimeBreadcrumbs.Reset();
 
@@ -1220,7 +1235,7 @@ void FSequencer::ResetToNewRootSequence(UMovieSceneSequence& NewSequence)
 	SequencerWidget->ResetBreadcrumbs();
 
 	PlayPosition.Reset(ConvertFrameTime(GetPlaybackRange().GetLowerBoundValue(), GetRootTickResolution(), PlayPosition.GetInputRate()));
-	TimeController->Reset(FQualifiedFrameTime(PlayPosition.GetCurrentPosition(), GetRootTickResolution()));
+	TimeController->Reset(GetGlobalTime());
 
 	UpdateSequencerCustomizations(PreviousRootSequence);
 
@@ -1517,13 +1532,18 @@ void FSequencer::UpdateSubSequenceData()
 	SubSequenceRange = TRange<FFrameNumber>::Empty();
 
 	const FMovieSceneSequenceHierarchy* Hierarchy = CompiledDataManager->FindHierarchy(RootTemplateInstance.GetCompiledDataID());
-	if (Hierarchy)
+
+	// If the root transform for the whole sequence is in the Play Rate domain, we assign a GlobalPlaybackWarpTransform
+	//     that mutates the evaluation ranges as we evaluate. This is not necessary for Time domain transforms since that is handled
+	//     by the sequence updaters themselves
+	FMovieSceneSequenceTransform RootTransform = Hierarchy ? Hierarchy->GetRootTransform() : FMovieSceneSequenceTransform();;
+	if (Hierarchy && Hierarchy->GetRootTransform().FindFirstWarpDomain() == ETimeWarpChannelDomain::PlayRate)
 	{
-		RootToLocalTransform = RootTransform = Hierarchy->GetRootTransform();
+		GlobalPlaybackWarpTransform = Hierarchy->GetRootTransform();
 	}
 	else
 	{
-		RootToLocalTransform = RootTransform = FMovieSceneSequenceTransform();
+		GlobalPlaybackWarpTransform = FMovieSceneSequenceTransform();
 	}
 
 	// Find the parent sub section and set up the sub sequence range, if necessary
@@ -1531,34 +1551,46 @@ void FSequencer::UpdateSubSequenceData()
 	{
 		// Ensure in this case we also reset the CurrentTimeBreadcrumbs.
 		CurrentTimeBreadcrumbs.Reset();
+
+		// Reset everything first
+		RootToUnwarpedLocalTransform = RootToWarpedLocalTransform = LocalToWarpedLocalTransform = FMovieSceneSequenceTransform();
+
+		if (Hierarchy)
+		{
+			LocalToWarpedLocalTransform = Hierarchy->GetRootTransform();
+		}
+		RootToWarpedLocalTransform = LocalToWarpedLocalTransform;
 		return;
 	}
 
 	check(Hierarchy);
 
-	const FMovieSceneSubSequenceData*   SubSequenceData = Hierarchy->FindSubData(ActiveTemplateIDs.Top());
+	const FMovieSceneSubSequenceData* SubSequenceData = Hierarchy->FindSubData(ActiveTemplateIDs.Top());
 
 	if (SubSequenceData)
 	{
 		SubSequenceRange = SubSequenceData->PlayRange.Value;
-		RootToLocalTransform = SubSequenceData->RootToSequenceTransform;
+
+		RootToUnwarpedLocalTransform = SubSequenceData->RootToUnwarpedLocalTransform * RootTransform;
+		RootToWarpedLocalTransform   = SubSequenceData->RootToSequenceTransform * RootTransform;
+		LocalToWarpedLocalTransform  = SubSequenceData->LocalToWarpedLocalTransform;
 
 		const bool bIsScrubbing = GetPlaybackStatus() == EMovieScenePlayerStatus::Scrubbing;
 
-		CurrentTimeBreadcrumbs.Reset();
-		RootToLocalTransform.TransformTime(GetGlobalTime().Time, FTransformTimeParams().HarvestBreadcrumbs(CurrentTimeBreadcrumbs).IgnoreClamps());
+		FFrameTime CurrentTime = GetGlobalTime().Time;
 
-		// Inner play range
+		CurrentTimeBreadcrumbs.Reset();
+		RootToWarpedLocalTransform.TransformTime(CurrentTime, FTransformTimeParams().HarvestBreadcrumbs(CurrentTimeBreadcrumbs).IgnoreClamps());
+
+		// Inner play range in unwarped space
 		UMovieSceneSequence* SubSequence   = SubSequenceData->GetSequence();
 		TRange<FFrameNumber> PlaybackRange = SubSequence->GetMovieScene()->GetPlaybackRange();
 
-		FMovieSceneInverseSequenceTransform LocalToRootTransform = RootToLocalTransform.Inverse();
+		FMovieSceneInverseSequenceTransform LocalToRootTransform = RootToUnwarpedLocalTransform.Inverse();
 		const int32 PlaybackSize = UE::MovieScene::DiscreteSize(PlaybackRange);
 
 		TOptional<FFrameTime> PlayStart = LocalToRootTransform.TryTransformTime(PlaybackRange.GetLowerBoundValue(), CurrentTimeBreadcrumbs, EInverseEvaluateFlags::Backwards | EInverseEvaluateFlags::Cycle);
 		TOptional<FFrameTime> PlayEnd   = LocalToRootTransform.TryTransformTime(PlaybackRange.GetUpperBoundValue(), CurrentTimeBreadcrumbs, EInverseEvaluateFlags::Forwards  | EInverseEvaluateFlags::Cycle);
-
-		FFrameTime CurrentTime = GetGlobalTime().Time;
 
 		TRange<FFrameTime> ValidRange = TRange<FFrameTime>::All();
 		if (PlayStart)
@@ -3242,13 +3274,12 @@ FQualifiedFrameTime FSequencer::GetLocalTime() const
 {
 	using namespace UE::MovieScene;
 
-	const FFrameRate FocusedResolution = GetFocusedTickResolution();
-	const FFrameTime CurrentPosition   = PlayPosition.GetCurrentPosition();
+	const FFrameRate    FocusedResolution = GetFocusedTickResolution();
+	FQualifiedFrameTime CurrentPosition   = GetGlobalTime();
 
-	FFrameTime RootTime  = ConvertFrameTime(CurrentPosition, PlayPosition.GetInputRate(), PlayPosition.GetOutputRate());
+	CurrentPosition.Time = RootToWarpedLocalTransform.TransformTime(CurrentPosition.Time, FTransformTimeParams().IgnoreClamps());
 
-	const FFrameTime LocalTime = RootToLocalTransform.TransformTime(RootTime, FTransformTimeParams().IgnoreClamps());
-	return FQualifiedFrameTime(LocalTime, FocusedResolution);
+	return CurrentPosition;
 }
 
 
@@ -3257,7 +3288,7 @@ TOptional<int32> FSequencer::GetLocalLoopIndex() const
 	using namespace UE::MovieScene;
 
 	TOptional<int32> LoopIndex;
-	RootToLocalTransform.TransformTime(GetGlobalTime().Time, FTransformTimeParams().TrackCycleCounts(&LoopIndex));
+	RootToUnwarpedLocalTransform.TransformTime(GetGlobalTime().Time, FTransformTimeParams().TrackCycleCounts(&LoopIndex));
 	return LoopIndex;
 }
 
@@ -3268,9 +3299,34 @@ FQualifiedFrameTime FSequencer::GetGlobalTime() const
 	return FQualifiedFrameTime(RootTime, PlayPosition.GetOutputRate());
 }
 
+FQualifiedFrameTime FSequencer::GetUnwarpedLocalTime() const
+{
+	using namespace UE::MovieScene;
+
+	const FFrameRate    FocusedResolution = GetFocusedTickResolution();
+	FQualifiedFrameTime CurrentPosition   = GetGlobalTime();
+
+	CurrentPosition.Time = RootToUnwarpedLocalTransform.TransformTime(CurrentPosition.Time, FTransformTimeParams().IgnoreClamps());
+	return CurrentPosition;
+}
+
+FFrameTime FSequencer::GetScrubPosition() const
+{
+	if (Settings->GetTimeWarpDisplayMode() == ESequencerTimeWarpDisplay::WarpedTime)
+	{
+		return GetLocalTime().Time;
+	}
+	return GetUnwarpedLocalTime().Time;
+}
+
 FFrameTime FSequencer::GetLastEvaluatedLocalTime() const 
 {
 	return LastEvaluatedLocalTime;
+}
+
+UE::Sequencer::FTimeDomainOverride FSequencer::OverrideTimeDomain(UE::Sequencer::ETimeDomain NewDomain)
+{
+	return UE::Sequencer::FTimeDomainOverride(&TimeOperationDomain, NewDomain);
 }
 
 void FSequencer::SetLocalTime( FFrameTime NewTime, ESnapTimeMode SnapTimeMode, bool bEvaluate)
@@ -3319,23 +3375,15 @@ void FSequencer::SetLocalTime( FFrameTime NewTime, ESnapTimeMode SnapTimeMode, b
 void FSequencer::SetLocalTimeDirectly(FFrameTime NewTime, bool bEvaluate)
 {
 	using namespace UE::MovieScene;
-
-	if (ActiveTemplateIDs.Num() <= 1)
-	{
-		if (!RootToLocalTransform.IsLinear())
-		{
-			NewTime = RootToLocalTransform.Inverse().TryTransformTime(NewTime).Get(NewTime);
-		}
-		SetGlobalTime(NewTime, bEvaluate);
-		return;
-	}
-
-
-	FMovieSceneInverseSequenceTransform LocalToRootTransform = RootToLocalTransform.Inverse();
+	using namespace UE::Sequencer;
 
 	const FMovieSceneTransformBreadcrumbs& Breadcrumbs = GetPlaybackStatus() == EMovieScenePlayerStatus::Scrubbing
 		? ScrubStartBreadcrumbs
 		: CurrentTimeBreadcrumbs;
+
+	FMovieSceneInverseSequenceTransform LocalToRootTransform = TimeOperationDomain == ETimeDomain::Warped
+		? RootToWarpedLocalTransform.Inverse()
+		: RootToUnwarpedLocalTransform.Inverse();
 
 	// Transform the time to the root time-space
 	TOptional<FFrameTime> NewGlobalTime = LocalToRootTransform.TryTransformTime(NewTime + ScrubLinearOffset, Breadcrumbs,
@@ -3344,6 +3392,7 @@ void FSequencer::SetLocalTimeDirectly(FFrameTime NewTime, bool bEvaluate)
 	// If we still didn't find a time there's nothing we can do
 	if (NewGlobalTime.IsSet())
 	{
+		FTimeDomainOverride DomainOverride = OverrideTimeDomain(ETimeDomain::Unwarped);
 		SetGlobalTime(NewGlobalTime.GetValue(), bEvaluate);
 	}
 }
@@ -3352,6 +3401,7 @@ void FSequencer::SetLocalTimeDirectly(FFrameTime NewTime, bool bEvaluate)
 void FSequencer::SetGlobalTime(FFrameTime NewTime, bool bEvaluate)
 {
 	using namespace UE::MovieScene;
+	using namespace UE::Sequencer;
 
 	NewTime = ConvertFrameTime(NewTime, GetRootTickResolution(), PlayPosition.GetInputRate());
 	if (PlayPosition.GetEvaluationType() == EMovieSceneEvaluationType::FrameLocked)
@@ -3364,7 +3414,7 @@ void FSequencer::SetGlobalTime(FFrameTime NewTime, bool bEvaluate)
 	if (PlayPosition.GetCurrentPosition() != NewTime)
 	{
 		// Make sure breadcrumbs are up to date
-		RootToLocalTransform.TransformTime(PlayPosition.GetCurrentPosition(), FTransformTimeParams().HarvestBreadcrumbs(CurrentTimeBreadcrumbs).IgnoreClamps());
+		RootToWarpedLocalTransform.TransformTime(PlayPosition.GetCurrentPosition(), FTransformTimeParams().HarvestBreadcrumbs(CurrentTimeBreadcrumbs).IgnoreClamps());
 
 		FMovieSceneEvaluationRange EvalRange = PlayPosition.JumpTo(NewTime);
 		if (bEvaluate)
@@ -3461,7 +3511,13 @@ void FSequencer::EvaluateInternal(FMovieSceneEvaluationRange InRange, bool bHasJ
 	using namespace UE::MovieScene;
 
 	// Ensure breadcrumbs are up to date
-	RootToLocalTransform.TransformTime(InRange.GetTime(), FTransformTimeParams().HarvestBreadcrumbs(CurrentTimeBreadcrumbs).IgnoreClamps());
+	RootToUnwarpedLocalTransform.TransformTime(InRange.GetTime(), FTransformTimeParams().HarvestBreadcrumbs(CurrentTimeBreadcrumbs).IgnoreClamps());
+
+	if (!GlobalPlaybackWarpTransform.IsIdentity())
+	{
+		TRange<FFrameTime> NewRange = GlobalPlaybackWarpTransform.ComputeTraversedHull(InRange.GetRange());
+		InRange = FMovieSceneEvaluationRange(NewRange, InRange.GetFrameRate(), InRange.GetDirection());
+	}
 
 	LastEvaluatedLocalTime = GetLocalTime().Time;
 
@@ -4798,8 +4854,10 @@ FReply FSequencer::OnPlay(bool bTogglePlay)
 
 		FFrameNumber MinInclusiveTime = UE::MovieScene::DiscreteInclusiveLower(RootTimeBounds);
 		FFrameNumber MaxInclusiveTime = UE::MovieScene::DiscreteExclusiveUpper(RootTimeBounds) - 1;
+		
+		FFrameTime GlobalTime = GlobalPlaybackWarpTransform.TransformTime(GetGlobalTime().Time);
 
-		if (GetGlobalTime().Time <= MinInclusiveTime || GetGlobalTime().Time >= MaxInclusiveTime)
+		if (GlobalTime <= MinInclusiveTime || GlobalTime >= MaxInclusiveTime)
 		{
 			SetGlobalTime(PlaybackSpeed > 0 ? MinInclusiveTime : MaxInclusiveTime);
 		}
@@ -4860,12 +4918,16 @@ FReply FSequencer::OnPlayBackward(bool bTogglePlay)
 
 FReply FSequencer::OnStepForward(FFrameNumber Increment)
 {
+	using namespace UE::Sequencer;
+
 	SetPlaybackStatus(EMovieScenePlayerStatus::Stepping);
 
 	FFrameRate          DisplayRate = GetFocusedDisplayRate();
-	FQualifiedFrameTime CurrentTime = GetLocalTime();
+	FQualifiedFrameTime CurrentTime = GetUnwarpedLocalTime();
 
-	FFrameTime NewPosition = FFrameRate::TransformTime(CurrentTime.ConvertTo(DisplayRate).FloorToFrame() + Increment, DisplayRate, CurrentTime.Rate);
+	FFrameTime NewPosition = FFrameRate::TransformTime((CurrentTime.ConvertTo(DisplayRate) + Increment).FloorToFrame(), DisplayRate, CurrentTime.Rate);
+
+	FTimeDomainOverride TimeDomain = OverrideTimeDomain(ETimeDomain::Unwarped);
 	SetLocalTime(NewPosition, ESnapTimeMode::STM_Interval);
 	return FReply::Handled();
 }
@@ -4873,13 +4935,16 @@ FReply FSequencer::OnStepForward(FFrameNumber Increment)
 
 FReply FSequencer::OnStepBackward(FFrameNumber Increment)
 {
+	using namespace UE::Sequencer;
+
 	SetPlaybackStatus(EMovieScenePlayerStatus::Stepping);
 
 	FFrameRate          DisplayRate = GetFocusedDisplayRate();
-	FQualifiedFrameTime CurrentTime = GetLocalTime();
+	FQualifiedFrameTime CurrentTime = GetUnwarpedLocalTime();
 
-	FFrameTime NewPosition = FFrameRate::TransformTime(CurrentTime.ConvertTo(DisplayRate).FloorToFrame() - Increment, DisplayRate, CurrentTime.Rate);
+	FFrameTime NewPosition = FFrameRate::TransformTime((CurrentTime.ConvertTo(DisplayRate) - Increment).FloorToFrame(), DisplayRate, CurrentTime.Rate);
 
+	FTimeDomainOverride TimeDomain = OverrideTimeDomain(ETimeDomain::Unwarped);
 	SetLocalTime(NewPosition, ESnapTimeMode::STM_Interval);
 	return FReply::Handled();
 }
@@ -5031,10 +5096,13 @@ ESequencerLoopMode FSequencer::GetLoopMode() const
 void FSequencer::SetLocalTimeLooped(FFrameTime NewLocalTime, const FMovieSceneTransformBreadcrumbs& Breadcrumbs)
 {
 	using namespace UE::MovieScene;
+	using namespace UE::Sequencer;
 
 	TOptional<EMovieScenePlayerStatus::Type> NewPlaybackStatus;
 
-	FMovieSceneInverseSequenceTransform LocalToRootTransform = ActiveTemplateIDs.Num() > 1 ? RootToLocalTransform.Inverse() : FMovieSceneInverseSequenceTransform();
+	FMovieSceneInverseSequenceTransform LocalToRootTransform = TimeOperationDomain == ETimeDomain::Unwarped
+		? RootToUnwarpedLocalTransform.Inverse()
+		: RootToWarpedLocalTransform.Inverse();
 
 	// Default to the CurrentTimeBreadcrumbs
 	const FMovieSceneTransformBreadcrumbs& BreadcrumbsToUse = Breadcrumbs.Num() == 0 ? CurrentTimeBreadcrumbs : Breadcrumbs;
@@ -5063,7 +5131,13 @@ void FSequencer::SetLocalTimeLooped(FFrameTime NewLocalTime, const FMovieSceneTr
 		FFrameNumber MinInclusiveTime = UE::MovieScene::DiscreteInclusiveLower(TimeBounds);
 		FFrameNumber MaxInclusiveTime = UE::MovieScene::DiscreteExclusiveUpper(TimeBounds) - 1;
 
-		if (NewLocalTime < MinInclusiveTime || NewLocalTime > MaxInclusiveTime)
+		FFrameTime LoopTime = NewLocalTime;
+		if (TimeOperationDomain == ETimeDomain::Unwarped && LocalToWarpedLocalTransform.FindFirstWarpDomain() == ETimeWarpChannelDomain::PlayRate)
+		{
+			LoopTime = LocalToWarpedLocalTransform.TransformTime(LoopTime);
+		}
+
+		if (LoopTime < MinInclusiveTime || LoopTime > MaxInclusiveTime)
 		{
 			NewGlobalTime = LocalToRootTransform.TryTransformTime((PlaybackSpeed > 0 ? MinInclusiveTime : MaxInclusiveTime), BreadcrumbsToUse);
 			if (NewGlobalTime)
@@ -5083,23 +5157,26 @@ void FSequencer::SetLocalTimeLooped(FFrameTime NewLocalTime, const FMovieSceneTr
 
 		if (NewGlobalTime)
 		{
+			FFrameTime NewWarpedGlobalTime = GlobalPlaybackWarpTransform.TransformTime(NewGlobalTime.GetValue());
+			FFrameTime OldWarpedGlobalTime = GlobalPlaybackWarpTransform.TransformTime(GetGlobalTime().Time);
+
 			TRange<FFrameNumber> RootTimeBounds = GetRootTimeBounds();
 			FFrameNumber MinInclusiveTime = UE::MovieScene::DiscreteInclusiveLower(RootTimeBounds);
 			FFrameNumber MaxInclusiveTime = UE::MovieScene::DiscreteExclusiveUpper(RootTimeBounds) - 1;
 			bool bReachedEnd = false;
 			if (PlaybackSpeed > 0)
 			{
-				bReachedEnd = GetGlobalTime().Time <= MaxInclusiveTime && NewGlobalTime.GetValue() >= MaxInclusiveTime;
+				bReachedEnd = OldWarpedGlobalTime <= MaxInclusiveTime && NewWarpedGlobalTime >= MaxInclusiveTime;
 			}
 			else
 			{
-				bReachedEnd = GetGlobalTime().Time >= MinInclusiveTime && NewGlobalTime.GetValue() <= MinInclusiveTime;
+				bReachedEnd = OldWarpedGlobalTime >= MinInclusiveTime && NewWarpedGlobalTime <= MinInclusiveTime;
 			}
 
 			// Stop if we hit the playback range end
 			if (bReachedEnd)
 			{
-				NewGlobalTime = PlaybackSpeed > 0 ? MaxInclusiveTime : MinInclusiveTime;
+				NewGlobalTime = GlobalPlaybackWarpTransform.Inverse().TryTransformTime(PlaybackSpeed > 0 ? MaxInclusiveTime : MinInclusiveTime);
 				NewPlaybackStatus = EMovieScenePlayerStatus::Stopped;
 			}
 		}
@@ -5110,15 +5187,15 @@ void FSequencer::SetLocalTimeLooped(FFrameTime NewLocalTime, const FMovieSceneTr
 		NewGlobalTime = LocalToRootTransform.TryTransformTime(NewLocalTime, BreadcrumbsToUse);
 	}
 
-	if (!NewGlobalTime && RootToLocalTransform.NestedTransforms.Num() > 0)
+	if (!NewGlobalTime && RootToUnwarpedLocalTransform.NestedTransforms.Num() > 0)
 	{
 		// If we couldn't transform the time, we try one last-ditch attempt to guess a cycling or looping
 		//     transformation based on the linear transformation between each of the breadcrumbs.
 		FMovieSceneTransformBreadcrumbs DenseBreadcrumbs;
-		FFrameTime CurrentLocalTime = RootToLocalTransform.TransformTime(GetGlobalTime().Time, FTransformTimeParams().HarvestBreadcrumbs(DenseBreadcrumbs));
+		FFrameTime CurrentLocalTime = RootToUnwarpedLocalTransform.TransformTime(GetGlobalTime().Time, FTransformTimeParams().HarvestBreadcrumbs(DenseBreadcrumbs));
 
 		FFrameTime LocalDeltaGuess   = NewLocalTime - CurrentLocalTime;
-		FFrameTime NewLocalTimeGuess = RootToLocalTransform.NestedTransforms.Last().TransformTime(LocalDeltaGuess);
+		FFrameTime NewLocalTimeGuess = RootToUnwarpedLocalTransform.NestedTransforms.Last().TransformTime(LocalDeltaGuess);
 
 		NewGlobalTime = LocalToRootTransform.TryTransformTime(NewLocalTimeGuess, DenseBreadcrumbs);
 	}
@@ -5133,7 +5210,7 @@ void FSequencer::SetLocalTimeLooped(FFrameTime NewLocalTime, const FMovieSceneTr
 	UMovieScene* MovieScene = GetFocusedMovieSceneSequence()->GetMovieScene();
 	if (IsAutoScrollEnabled())
 	{
-		ScrollIntoView((NewGlobalTime.GetValue() * RootToLocalTransform) / RootTickResolution);
+		ScrollIntoView((NewGlobalTime.GetValue() * RootToUnwarpedLocalTransform) / RootTickResolution);
 	}
 
 	FFrameTime NewPlayPosition = ConvertFrameTime(NewGlobalTime.GetValue(), RootTickResolution, PlayPosition.GetInputRate());
@@ -5142,11 +5219,11 @@ void FSequencer::SetLocalTimeLooped(FFrameTime NewLocalTime, const FMovieSceneTr
 	if (bResetPosition)
 	{
 		PlayPosition.Reset(NewPlayPosition);
-		TimeController->Reset(FQualifiedFrameTime(NewGlobalTime.GetValue(), RootTickResolution));
+		TimeController->Reset(FQualifiedFrameTime(NewPlayPosition, RootTickResolution));
 	}
 
 	// Ensure breadcrumbs are up to date
-	RootToLocalTransform.TransformTime(NewPlayPosition, FTransformTimeParams().HarvestBreadcrumbs(CurrentTimeBreadcrumbs).IgnoreClamps());
+	RootToUnwarpedLocalTransform.TransformTime(NewGlobalTime.GetValue(), FTransformTimeParams().HarvestBreadcrumbs(CurrentTimeBreadcrumbs).IgnoreClamps());
 
 	// Evaluate the sequence
 	FMovieSceneEvaluationRange EvalRange = PlayPosition.PlayTo(NewPlayPosition);
@@ -5182,20 +5259,6 @@ void FSequencer::RestorePlaybackSpeedAfterPlay()
 	// was playing.
 	CurrentSpeedIndex = SpeedIndexBeforePlay;
 	PlaybackSpeed = PlaybackSpeedBeforePlay;
-}
-
-void FSequencer::CalculateLocalTimeClamped(FFrameTime RootTime, const FMovieSceneSequenceTransform& RootToParentChainTransform, FFrameTime& OutLocalTime, FMovieSceneTransformBreadcrumbs& OutBreadcrumbs) const
-{
-	using namespace UE::MovieScene;
-
-	if (ActiveTemplateIDs.Num() > 1)
-	{
-		OutLocalTime = RootToLocalTransform.TransformTime(RootTime, FTransformTimeParams().HarvestBreadcrumbs(OutBreadcrumbs).IgnoreClamps());
-	}
-	else
-	{
-		OutLocalTime = RootTime;
-	}
 }
 
 EPlaybackMode::Type FSequencer::GetPlaybackMode() const
@@ -5286,17 +5349,7 @@ TRange<FFrameNumber> FSequencer::GetRootTimeBounds() const
 		return TRange<FFrameNumber>(-100000, 100000);
 	}
 
-	TRange<FFrameNumber> RootTimeBounds = RootMovieSceneSequence->GetMovieScene()->GetPlaybackRange();
-
-	TOptional<FFrameTime> Lower = RootTransform.Inverse().TryTransformTime(RootTimeBounds.GetLowerBoundValue());
-	TOptional<FFrameTime> Upper = RootTransform.Inverse().TryTransformTime(RootTimeBounds.GetUpperBoundValue());
-
-	if (Lower && Upper)
-	{
-		return TRange<FFrameNumber>(Lower->FrameNumber, Upper->FrameNumber);
-	}
-
-	return RootTimeBounds;
+	return RootMovieSceneSequence->GetMovieScene()->GetPlaybackRange();
 }
 
 void FSequencer::RefreshSupportedCustomBindingTypes()
@@ -5528,7 +5581,7 @@ void FSequencer::OnScrubPositionChanged( FFrameTime NewScrubPosition, bool bScru
 	{
 		// Evaluation can be expensive and we may receive multiple OnScrubPositionChanged events in
 		// a frame, so defer the evaluation until the next tick
-		PendingScrubPosition = NewScrubPosition;
+		PendingScrubPosition = MakeTuple(NewScrubPosition, TimeOperationDomain);
 	}
 	else
 	{
@@ -5607,37 +5660,32 @@ void FSequencer::OnMarkEndDrag()
 
 FString FSequencer::GetFrameTimeText() const
 {
-	FMovieSceneSequenceTransform RootToParentChainTransform = RootToLocalTransform;
+	using namespace UE::MovieScene;
 
-	if (ScrubPositionParent.IsSet())
+	const bool bWarpedTime = Settings->GetTimeWarpDisplayMode() == ESequencerTimeWarpDisplay::WarpedTime;
+
+	const FMovieSceneSequenceTransform* RootToParentChainTransform = bWarpedTime
+		? &RootToWarpedLocalTransform
+		: &RootToUnwarpedLocalTransform;
+
+	if (ScrubPositionParent.IsSet() && ScrubPositionParent.GetValue() != MovieSceneSequenceID::Root)
 	{
-		if (ScrubPositionParent.GetValue() == MovieSceneSequenceID::Root)
-		{
-			RootToParentChainTransform = FMovieSceneSequenceTransform();
-		}
-		else if (const FMovieSceneSequenceHierarchy* Hierarchy = CompiledDataManager->FindHierarchy(RootTemplateInstance.GetCompiledDataID()))
+		if (const FMovieSceneSequenceHierarchy* Hierarchy = CompiledDataManager->FindHierarchy(RootTemplateInstance.GetCompiledDataID()))
 		{
 			for (const TTuple<FMovieSceneSequenceID, FMovieSceneSubSequenceData>& Pair : Hierarchy->AllSubSequenceData())
 			{
 				if (Pair.Key == ScrubPositionParent.GetValue())
 				{
-					RootToParentChainTransform = Pair.Value.RootToSequenceTransform;
+					RootToParentChainTransform = bWarpedTime 
+						? &Pair.Value.RootToSequenceTransform
+						: &Pair.Value.RootToUnwarpedLocalTransform;
 					break;
 				}
 			}
 		}
 	}
 
-	const FFrameRate FocusedResolution = GetFocusedTickResolution();
-	const FFrameTime CurrentPosition   = PlayPosition.GetCurrentPosition();
-
-	const FFrameTime RootTime = ConvertFrameTime(CurrentPosition, PlayPosition.GetInputRate(), PlayPosition.GetOutputRate());
-	
-	FFrameTime LocalTime;
-	FMovieSceneTransformBreadcrumbs LoopCounter;
-
-	CalculateLocalTimeClamped(RootTime, RootToParentChainTransform, LocalTime, LoopCounter);
-
+	FFrameTime LocalTime = RootToParentChainTransform->TransformTime(GetGlobalTime().Time, FTransformTimeParams().IgnoreClamps());
 	return GetNumericTypeInterface()->ToString(LocalTime.GetFrame().Value);
 }
 
@@ -9406,11 +9454,11 @@ void FSequencer::Pause()
 	// When stopping a sequence, we always evaluate a non-empty range if possible. This ensures accurate paused motion blur effects.
 	if (Settings->GetIsSnapEnabled())
 	{
-		FQualifiedFrameTime LocalTime          = GetLocalTime();
+		FQualifiedFrameTime LocalTime          = GetUnwarpedLocalTime();
 		FFrameRate          FocusedDisplayRate = GetFocusedDisplayRate();
 
 		// Snap to the focused play rate
-		TOptional<FFrameTime> RootPosition  = RootToLocalTransform.Inverse().TryTransformTime(
+		TOptional<FFrameTime> RootPosition  = RootToUnwarpedLocalTransform.Inverse().TryTransformTime(
 			FFrameRate::Snap(LocalTime.Time, LocalTime.Rate, FocusedDisplayRate), CurrentTimeBreadcrumbs);
 
 		if (RootPosition)

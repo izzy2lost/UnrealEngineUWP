@@ -11,6 +11,9 @@ UMovieSceneTimeWarpTrack::UMovieSceneTimeWarpTrack(const FObjectInitializer& Obj
 {
 #if WITH_EDITORONLY_DATA
 	bSupportsConditions = false;
+
+	// Timewarp should always exist at the top
+	SortingOrder = -10000;
 #endif
 }
 

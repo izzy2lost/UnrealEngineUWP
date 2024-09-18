@@ -19,6 +19,7 @@
 #include "MVVM/Extensions/ISnappableExtension.h"
 #include "MVVM/Extensions/IBindingLifetimeExtension.h"
 #include "MVVM/Extensions/IConditionableExtension.h"
+#include "MVVM/Extensions/ITimeDomainExtension.h"
 
 #include "MVVM/ViewModels/SequencerOutlinerViewModel.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
@@ -79,6 +80,7 @@ UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(FTrackRowModelStorageExtension);
 UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(ICurveEditorTreeItemExtension);
 UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(IObjectBindingExtension);
 UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(ISnappableExtension);
+UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(ITimeDomainExtension);
 UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(IBindingLifetimeExtension);
 UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(FOutlinerCacheExtension);
 UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(FConditionStateCacheExtension);

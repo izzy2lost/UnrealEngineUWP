@@ -48,6 +48,7 @@ USequencerSettings::USequencerSettings( const FObjectInitializer& ObjectInitiali
 	bLeftMouseDragDoesMarquee = false;
 	ZeroPadFrames = 0;
 	JumpFrameIncrement = FFrameNumber(5);
+	TimeWarpDisplay = ESequencerTimeWarpDisplay::Both;
 	bShowLayerBars = true;
 	bShowKeyBars = true;
 	bInfiniteKeyAreas = false;
@@ -580,6 +581,20 @@ void USequencerSettings::SetJumpFrameIncrement(FFrameNumber InJumpFrameIncrement
 	if (JumpFrameIncrement != InJumpFrameIncrement)
 	{
 		JumpFrameIncrement = InJumpFrameIncrement;
+		SaveConfig();
+	}
+}
+
+ESequencerTimeWarpDisplay USequencerSettings::GetTimeWarpDisplayMode() const
+{
+	return TimeWarpDisplay;
+}
+
+void USequencerSettings::SetTimeWarpDisplayMode(ESequencerTimeWarpDisplay InTimeWarpDisplay)
+{
+	if (TimeWarpDisplay != InTimeWarpDisplay)
+	{
+		TimeWarpDisplay = InTimeWarpDisplay;
 		SaveConfig();
 	}
 }

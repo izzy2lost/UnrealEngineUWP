@@ -13,7 +13,7 @@
 UMovieScenePlayRateCurve::UMovieScenePlayRateCurve()
 {
 	PlayRate.Owner = nullptr;
-	PlayRate.Domain = ETimeWarpChannelDomain::PlayRate;
+	PlayRate.Domain = UE::MovieScene::ETimeWarpChannelDomain::PlayRate;
 
 	OnSignatureChanged().AddUObject(this, &UMovieScenePlayRateCurve::InvalidateTimeWarp);
 }
@@ -170,5 +170,10 @@ void UMovieScenePlayRateCurve::ScaleBy(double UnwarpedScaleFactor)
 	Modify();
 	Dilate(&PlayRate, 0, UnwarpedScaleFactor);
 	bUpToDate = false;
+}
+
+UE::MovieScene::ETimeWarpChannelDomain UMovieScenePlayRateCurve::GetDomain() const
+{
+	return UE::MovieScene::ETimeWarpChannelDomain::PlayRate;
 }
 

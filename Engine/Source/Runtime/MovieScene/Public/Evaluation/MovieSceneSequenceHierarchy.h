@@ -100,6 +100,14 @@ struct FMovieSceneSubSequenceData
 
 #if WITH_EDITORONLY_DATA
 
+	/** Transform that turns local space into warped local space based on a timewarp track that exists in this sequence. */
+	UPROPERTY()
+	FMovieSceneSequenceTransform LocalToWarpedLocalTransform;
+
+	/** The transform from root space to this sub-sequence's unwarped local space. */
+	UPROPERTY()
+	FMovieSceneSequenceTransform RootToUnwarpedLocalTransform;
+
 	UPROPERTY()
 	FMovieSceneTransformBreadcrumbs StartTimeBreadcrumbs;
 

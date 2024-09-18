@@ -12,7 +12,7 @@
 UMovieSceneTimeWarpCurve::UMovieSceneTimeWarpCurve()
 {
 	Channel.Owner = nullptr;
-	Channel.Domain = ETimeWarpChannelDomain::Time;
+	Channel.Domain = UE::MovieScene::ETimeWarpChannelDomain::Time;
 }
 
 void UMovieSceneTimeWarpCurve::InitializeDefaults()
@@ -200,4 +200,9 @@ void UMovieSceneTimeWarpCurve::ScaleBy(double UnwarpedScaleFactor)
 {
 	Modify();
 	Dilate(&Channel, 0, UnwarpedScaleFactor);
+}
+
+UE::MovieScene::ETimeWarpChannelDomain UMovieSceneTimeWarpCurve::GetDomain() const
+{
+	return UE::MovieScene::ETimeWarpChannelDomain::Time;
 }

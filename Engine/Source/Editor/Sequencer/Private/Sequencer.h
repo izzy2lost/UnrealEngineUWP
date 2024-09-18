@@ -11,6 +11,7 @@
 #include "UObject/WeakInterfacePtr.h"
 #include "Widgets/SWidget.h"
 #include "SequencerNodeTree.h"
+#include "SequencerTimeDomainOverride.h"
 #include "UObject/GCObject.h"
 #include "MovieSceneMarkedFrame.h"
 #include "MovieSceneSequenceID.h"
@@ -713,6 +714,8 @@ public:
 	virtual UMovieSceneSequence* GetRootMovieSceneSequence() const override;
 	virtual UMovieSceneSequence* GetFocusedMovieSceneSequence() const override;
 	virtual FMovieSceneSequenceTransform GetFocusedMovieSceneSequenceTransform() const override;
+	virtual FMovieSceneSequenceTransform GetLocalTimeWarpTransform() const override;
+	virtual FMovieSceneSequenceTransform GetGlobalPlaybackWarpTransform() const override;
 	virtual FMovieSceneRootEvaluationTemplateInstance& GetEvaluationTemplate() override { return RootTemplateInstance; }
 	virtual void ResetToNewRootSequence(UMovieSceneSequence& NewSequence) override;
 	virtual void FocusSequenceInstance(UMovieSceneSubSection& InSubSection) override;
@@ -732,7 +735,9 @@ public:
 	virtual bool GetAutoSetTrackDefaults() const override;
 	virtual FQualifiedFrameTime GetLocalTime() const override;
 	virtual FQualifiedFrameTime GetGlobalTime() const override;
+	virtual FQualifiedFrameTime GetUnwarpedLocalTime() const override;
 	virtual TOptional<int32> GetLocalLoopIndex() const override;
+	virtual UE::Sequencer::FTimeDomainOverride OverrideTimeDomain(UE::Sequencer::ETimeDomain NewDomain) override;
 	virtual void SetLocalTime(FFrameTime Time, ESnapTimeMode SnapTimeMode = ESnapTimeMode::STM_None, bool bEvaluate = true) override;
 	virtual void SetLocalTimeDirectly(FFrameTime NewTime, bool bEvaluate = true) override;
 	virtual FFrameTime GetLastEvaluatedLocalTime() const override;
@@ -913,7 +918,7 @@ protected:
 	 * @param NearestKeyOption (ie. search keys/markers/all tracks)
 	 * @return NearestKey
 	 */
-	FFrameNumber OnGetNearestKey(FFrameTime InTime, ENearestKeyOption NearestKeyOption);
+	virtual FFrameNumber OnGetNearestKey(FFrameTime InTime, ENearestKeyOption NearestKeyOption) override;
 
 	/**
 	 * Called when the scrub position is changed by the user
@@ -923,13 +928,12 @@ protected:
 	 * @param bScrubbing If scrubbing
 	 * @param bEvaluate  Do evaluate sequencer after changing time
 	 */
-	void OnScrubPositionChanged( FFrameTime NewScrubPosition, bool bScrubbing, bool bEvaluate);
+	void OnScrubPositionChanged( FFrameTime NewScrubPosition, bool bScrubbing, bool bEvaluate) override;
 
-	/** Called when the user has begun scrubbing */
-	void OnBeginScrubbing();
+	void OnBeginScrubbing() override;
 
 	/** Called when the user has finished scrubbing */
-	void OnEndScrubbing();
+	void OnEndScrubbing() override;
 
 	/** Called when the user has begun dragging the playback range */
 	void OnPlaybackRangeBeginDrag();
@@ -949,8 +953,8 @@ protected:
 	/** Called when the user has finished dragging a mark */
 	void OnMarkEndDrag();
 
-	/** Get the unqualified local time */
-	FFrameTime GetLocalFrameTime() const { return GetLocalTime().Time; }
+	/** Get the current scrub position based on settings */
+	FFrameTime GetScrubPosition() const;
 
 	/** Get the frame time text */
 	FString GetFrameTimeText() const;
@@ -1162,8 +1166,6 @@ private:
 	void RestorePlaybackSpeedAfterPlay();
 
 	FGuid FindUnspawnedObjectGuid(UObject& InObject);
-	// Given the root sequence time, returns the local time and loop counter clamped to the maximum number of loops
-	void CalculateLocalTimeClamped(FFrameTime RootTime, const FMovieSceneSequenceTransform& RootToParentChainTransform, FFrameTime& OutTime, FMovieSceneTransformBreadcrumbs& OutBreadcrumbs) const;
 
 public:
 
@@ -1322,8 +1324,10 @@ private:
 	TArray<bool> ActiveTemplateStates;
 
 	/** Time transformation from the root sequence to the currently edited sequence. */
-	FMovieSceneSequenceTransform RootToLocalTransform;
-	FMovieSceneSequenceTransform RootTransform;
+	FMovieSceneSequenceTransform GlobalPlaybackWarpTransform;
+	FMovieSceneSequenceTransform RootToUnwarpedLocalTransform;
+	FMovieSceneSequenceTransform RootToWarpedLocalTransform;
+	FMovieSceneSequenceTransform LocalToWarpedLocalTransform;
 
 	/** Breadcrumbs to the current local time from the root sequence. */
 	FMovieSceneTransformBreadcrumbs CurrentTimeBreadcrumbs;
@@ -1367,7 +1371,7 @@ private:
 	TOptional<FAutoScrubTarget> AutoScrubTarget;
 
 	/** The latest scrub position request, to be applied in the next tick */
-	TOptional<FFrameTime> PendingScrubPosition;
+	TOptional<TTuple<FFrameTime, UE::Sequencer::ETimeDomain>> PendingScrubPosition;
 
 	/** Zoom smoothing curves */
 	FCurveSequence ZoomAnimation;
@@ -1519,6 +1523,8 @@ private:
 
 	/** Event contexts retrieved from the above attribute once per frame */
 	TArray<TWeakObjectPtr<UObject>> CachedEventContexts;
+
+	UE::Sequencer::ETimeDomain TimeOperationDomain;
 
 	/** When true, sequence will be forcefully evaluated on the next tick */
 	bool bNeedsEvaluate;

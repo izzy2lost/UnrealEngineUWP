@@ -8,12 +8,14 @@
 
 class UMovieScene;
 
-
-enum class ETimeWarpChannelDomain : uint8
+namespace UE::MovieScene
 {
-	Time,
-	PlayRate,
-};
+	enum class ETimeWarpChannelDomain : uint8
+	{
+		Time,
+		PlayRate,
+	};
+}
 
 
 USTRUCT()
@@ -24,7 +26,7 @@ struct FMovieSceneTimeWarpChannel : public FMovieSceneDoubleChannel
 	UPROPERTY(transient)
 	TObjectPtr<UMovieScene> Owner;
 
-	ETimeWarpChannelDomain Domain;
+	UE::MovieScene::ETimeWarpChannelDomain Domain;
 };
 
 MOVIESCENE_API void Dilate(FMovieSceneTimeWarpChannel* InChannel, FFrameNumber Origin, double DilationFactor);

@@ -324,9 +324,6 @@ private:
 
 	/** Brush for drawingthe fill area on the scrubber */
 	const FSlateBrush* ScrubFillBrush;
-
-	/** Brush for drawing an upwards facing scrub handles */
-	const FSlateBrush* FrameBlockScrubHandleUpBrush, *VanillaScrubHandleUpBrush;
 	
 	/** Brush for drawing a downwards facing scrub handle */
 	const FSlateBrush* FrameBlockScrubHandleDownBrush, *VanillaScrubHandleDownBrush;

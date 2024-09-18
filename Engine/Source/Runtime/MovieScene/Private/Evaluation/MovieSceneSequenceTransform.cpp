@@ -397,6 +397,20 @@ bool FMovieSceneNestedSequenceTransform::SupportsBoundaries() const
 	}
 }
 
+TOptional<UE::MovieScene::ETimeWarpChannelDomain> FMovieSceneNestedSequenceTransform::GetWarpDomain() const
+{
+	UMovieSceneTimeWarpGetter* Getter = TimeScale.GetType() == EMovieSceneTimeWarpType::Custom
+		? TimeScale.AsCustom()
+		: nullptr;
+
+	if (Getter)
+	{
+		return Getter->GetDomain();
+	}
+
+	return TOptional<UE::MovieScene::ETimeWarpChannelDomain>();
+}
+
 FMovieSceneInverseNestedSequenceTransform FMovieSceneNestedSequenceTransform::Inverse() const
 {
 	if (TimeScale.GetType() == EMovieSceneTimeWarpType::FixedPlayRate)
@@ -974,6 +988,20 @@ bool FMovieSceneSequenceTransform::ExtractBoundariesWithinRange(FFrameTime Start
 	return false;
 }
 
+TOptional<UE::MovieScene::ETimeWarpChannelDomain> FMovieSceneSequenceTransform::FindFirstWarpDomain() const
+{
+	for (const FMovieSceneNestedSequenceTransform& NestedTransform : NestedTransforms)
+	{
+		TOptional<UE::MovieScene::ETimeWarpChannelDomain> Domain = NestedTransform.GetWarpDomain();
+		if (Domain)
+		{
+			return Domain;
+		}
+	}
+
+	return TOptional<UE::MovieScene::ETimeWarpChannelDomain>();
+}
+
 void FMovieSceneSequenceTransform::AddLoop(FFrameNumber InStart, FFrameNumber InEnd)
 {
 	check(InStart < InEnd);
@@ -1028,6 +1056,23 @@ FMovieSceneInverseSequenceTransform FMovieSceneSequenceTransform::Inverse() cons
 	return Result;
 }
 
+
+void FMovieSceneSequenceTransform::Append(const FMovieSceneSequenceTransform& Tail)
+{
+	if (IsLinear())
+	{
+		if (!Tail.LinearTransform.IsIdentity())
+		{
+			LinearTransform = Tail.LinearTransform * LinearTransform;
+		}
+	}
+	else if (!Tail.LinearTransform.IsIdentity())
+	{
+		NestedTransforms.Add(Tail.LinearTransform);
+	}
+
+	NestedTransforms.Append(Tail.NestedTransforms);
+}
 
 FMovieSceneSequenceTransform FMovieSceneSequenceTransform::operator*(const FMovieSceneSequenceTransform& RHS) const
 {

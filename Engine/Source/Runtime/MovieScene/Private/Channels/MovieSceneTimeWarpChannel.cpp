@@ -4,7 +4,7 @@
 
 void Dilate(FMovieSceneTimeWarpChannel* InChannel, FFrameNumber Origin, double DilationFactor)
 {
-	if (InChannel->Domain == ETimeWarpChannelDomain::PlayRate)
+	if (InChannel->Domain == UE::MovieScene::ETimeWarpChannelDomain::PlayRate)
 	{
 		// Inverse dilate the values if we are in the play-rate domain
 		for (FMovieSceneDoubleValue& Value : InChannel->GetData().GetValues())

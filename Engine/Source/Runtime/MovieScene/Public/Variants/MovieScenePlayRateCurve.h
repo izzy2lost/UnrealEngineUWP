@@ -30,6 +30,7 @@ public:
 	EMovieSceneChannelProxyType PopulateChannelProxy(FMovieSceneChannelProxyData& OutProxyData, EAllowTopLevelChannels AllowTopLevel) override;
 	bool DeleteChannel(FMovieSceneTimeWarpVariant& OutVariant, FName ChannelName) override;
 	void ScaleBy(double UnwarpedScaleFactor) override;
+	UE::MovieScene::ETimeWarpChannelDomain GetDomain() const override;
 	/* End UMovieSceneTimeWarpGetter Implementation */
 
 #if WITH_EDITOR

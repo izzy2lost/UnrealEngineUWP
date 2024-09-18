@@ -125,6 +125,9 @@ private:
 	/** The current time cursor position within the sequence, between 0 and Duration */
 	FFrameTime TimeCursorPosition;
 
+	/** Unwarped position. Only different from TimeCursorPosition if there is a global playback transform. */
+	FFrameTime UnwarpedPosition;
+
 	/** The duration of the sequence */
 	int32 Duration;
 

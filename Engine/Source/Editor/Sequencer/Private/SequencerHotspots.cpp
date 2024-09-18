@@ -2,6 +2,7 @@
 
 #include "SequencerHotspots.h"
 #include "MVVM/Extensions/IObjectBindingExtension.h"
+#include "MVVM/Extensions/ITimeDomainExtension.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "MVVM/Selection/Selection.h"
 #include "SequencerCommonHelpers.h"
@@ -215,6 +216,40 @@ void FKeyHotspot::HandleMouseSelection(FHotspotSelectionManager& SelectionManage
 void FKeyHotspot::UpdateOnHover(FTrackAreaViewModel& InTrackArea) const
 {
 	InTrackArea.AttemptToActivateTool(FSequencerEditTool_Movement::Identifier);
+}
+
+TOptional<ETimeDomain> FKeyHotspot::GetDomain() const
+{
+	TOptional<ETimeDomain> Domain;
+
+	TSet<const FChannelModel*> VisitedChannels;
+	for (const FSequencerSelectedKey& Key : Keys)
+	{
+		TSharedPtr<FChannelModel> Channel = Key.WeakChannel.Pin();
+		if (!Channel || VisitedChannels.Contains(Channel.Get()))
+		{
+			continue;
+		}
+
+		VisitedChannels.Add(Channel.Get());
+
+		TViewModelPtr<ITimeDomainExtension> TimeDomain = Channel->FindAncestorOfType<ITimeDomainExtension>(true);
+		if (TimeDomain)
+		{
+			if (Domain && Domain != TimeDomain->GetDomain())
+			{
+				return TOptional<ETimeDomain>();
+			}
+
+			Domain = TimeDomain->GetDomain();
+		}
+	}
+
+	if (!Domain)
+	{
+		Domain = ETimeDomain::Warped;
+	}
+	return Domain;
 }
 
 TOptional<FFrameNumber> FKeyHotspot::GetTime() const
