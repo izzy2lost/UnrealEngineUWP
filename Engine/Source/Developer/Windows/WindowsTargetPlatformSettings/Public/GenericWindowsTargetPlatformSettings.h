@@ -190,13 +190,6 @@ public:
 
 			// We always support ray tracing shaders when cooking for D3D12 SM6, however we may skip them for SM5 based on project settings.
 			OutFormats.AddUnique(FName(TEXT("PCD3D_SM6")));
-
-			static IConsoleVariable* RequireSM6CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.RayTracing.RequireSM6"));
-			const bool bRequireSM6 = RequireSM6CVar && RequireSM6CVar->GetBool();
-			if (!bRequireSM6)
-			{
-				OutFormats.AddUnique(FName(TEXT("PCD3D_SM5")));
-			}
 		}
 	}
 
