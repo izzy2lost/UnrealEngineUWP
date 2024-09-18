@@ -238,7 +238,7 @@ void FChaosSimModuleManager::ParallelUpdateVehicles(float DeltaSeconds)
 	}
 
 	// Since we are in pre-physics, delta seconds is not accounted for in external time yet
-	const float ResultsTime = AsyncCallback->GetSolver()->GetPhysicsResultsTime_External() + DeltaSeconds;
+	const float ResultsTime = AsyncCallback->GetSolver()->GetPhysicsResultsTime_External();
 
 	// Find index of first non-consumable output (first one after current time)
 	int32 LastOutputIdx = 0;
