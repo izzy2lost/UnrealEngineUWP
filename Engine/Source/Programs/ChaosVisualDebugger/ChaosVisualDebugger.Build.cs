@@ -30,7 +30,6 @@ public class ChaosVisualDebugger : ModuleRules
 				"SlateCore",
 				"StandaloneRenderer",
 				"TraceLog",
-				"ProfilerService",
 				"ProfileVisualizer",
 				"PropertyAccessEditor"
 			}

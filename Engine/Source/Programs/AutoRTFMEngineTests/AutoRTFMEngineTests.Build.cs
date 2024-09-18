@@ -12,26 +12,25 @@ public class AutoRTFMEngineTests : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
- 				"ApplicationCore",
- 				"AutomationController",
- 				"AutomationWorker",
-                "Core",
+				"ApplicationCore",
+				"AutomationController",
+				"AutomationWorker",
+				"Core",
 				"Projects",
 				"Engine",
 				"HeadMountedDisplay",
 				"InstallBundleManager",
-                "MediaUtils",
+				"MediaUtils",
 				"MRMesh",
 				"MoviePlayer",
 				"MoviePlayerProxy",
 				"MovieScene",
 				"PreLoadScreen",
-				"ProfilerService",
 				"SessionServices",
 				"SlateNullRenderer",
 				"SlateRHIRenderer",
 				"ProfileVisualizer",
- 			}
+			}
 		);
 	}
 }
