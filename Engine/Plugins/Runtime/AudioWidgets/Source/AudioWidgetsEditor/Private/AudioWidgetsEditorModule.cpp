@@ -3,7 +3,7 @@
 #include "AudioWidgetsEditorModule.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
-#include "SoundbaseDetails.h"
+#include "SoundBaseDetails.h"
 
 void FAudioWidgetsEditorModule::StartupModule()
 {
