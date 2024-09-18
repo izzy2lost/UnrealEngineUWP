@@ -92,6 +92,10 @@ ESpawnRequestStatus UServerInstancedActorsSpawnerSubsystem::SpawnActor(FConstStr
 		{
 			// No existing UInstancedActorsComponent class or subclass, add a new UInstancedActorsComponent
 			InstancedActorComponent = NewObject<UInstancedActorsComponent>(OutSpawnedActor);
+			if (OutSpawnedActor->GetIsReplicated() == false)
+			{
+				OutSpawnedActor->SetReplicates(true);
+			}
 			InstancedActorComponent->SetIsReplicated(true);
 			InstancedActorComponent->RegisterComponent();
 		}
