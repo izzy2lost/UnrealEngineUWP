@@ -158,8 +158,8 @@ void FInsightsTestRunner::RunTests()
 			bIsRunningTestsLocal = false;
 		});
 
-	StaticExec(NULL, *CommandToExecute);
 	bIsRunningTests = true;
+	StaticExec(NULL, *CommandToExecute);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

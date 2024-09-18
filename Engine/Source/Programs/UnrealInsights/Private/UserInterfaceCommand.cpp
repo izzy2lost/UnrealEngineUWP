@@ -291,6 +291,7 @@ void FUserInterfaceCommand::InitializeSlateApplication(bool bFrontendMode, const
 		Params.bInitializeTesting = FParse::Param(FCommandLine::Get(), TEXT("InsightsTest"));
 		Params.bStartProcessWithStompMalloc = FParse::Param(FCommandLine::Get(), TEXT("stompmalloc"));
 		Params.bDisableFramerateThrottle = FParse::Param(FCommandLine::Get(), TEXT("DisableFramerateThrottle"));
+		Params.bAutoQuit = FParse::Param(FCommandLine::Get(), TEXT("AutoQuit"));
 		TraceInsightsFrontendModule.CreateFrontendWindow(Params);
 
 		if (bRunAutomationTests)

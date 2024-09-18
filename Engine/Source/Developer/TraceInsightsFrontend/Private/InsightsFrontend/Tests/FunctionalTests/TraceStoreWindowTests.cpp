@@ -164,6 +164,7 @@ void FAutomationDriverUnrealInsightsSessionBrowserTest::Define()
 		Driver.Reset();
 		IAutomationDriverModule::Get().Disable();
 		AutomationWindow->Restore();
+		AutomationWindow.Reset();
 	});
 }
 

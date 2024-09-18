@@ -338,11 +338,15 @@ void SScreenShotBrowser::Construct( const FArguments& InArgs,  IScreenShotManage
 
 SScreenShotBrowser::~SScreenShotBrowser()
 {
-	FDirectoryWatcherModule& DirectoryWatcherModule = FModuleManager::LoadModuleChecked<FDirectoryWatcherModule>(TEXT("DirectoryWatcher"));
-
-	if ( DirectoryWatchingHandle.IsValid() )
+	// Do not load the module if it was already unloaded.
+	if (FModuleManager::Get().IsModuleLoaded(TEXT("DirectoryWatcher")))
 	{
-		DirectoryWatcherModule.Get()->UnregisterDirectoryChangedCallback_Handle(ComparisonRoot, DirectoryWatchingHandle);
+		FDirectoryWatcherModule& DirectoryWatcherModule = FModuleManager::LoadModuleChecked<FDirectoryWatcherModule>(TEXT("DirectoryWatcher"));
+
+		if (DirectoryWatchingHandle.IsValid())
+		{
+			DirectoryWatcherModule.Get()->UnregisterDirectoryChangedCallback_Handle(ComparisonRoot, DirectoryWatchingHandle);
+		}
 	}
 }
 
