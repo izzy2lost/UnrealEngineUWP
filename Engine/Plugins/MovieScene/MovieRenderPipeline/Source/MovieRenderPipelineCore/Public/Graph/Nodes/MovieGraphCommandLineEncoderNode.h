@@ -159,8 +159,11 @@ private:
 	/** Returns true if there should be one export per shot, else false. */
 	bool NeedsPerShotFlushing() const;
 
-	/** Generates encoder parameters for each render layer. */
-	TMap<FMovieGraphRenderDataIdentifier, FEncoderParams> GenerateRenderLayerEncoderParams(TArray<FMovieGraphRenderOutputData>& InGeneratedData) const;
+	/**
+	 * Generates encoder parameters for each shot (using only the first render layer that's found within the shot). Will only generate one set of
+	 * params if bInIsShotEncode is set to false (ie, this is a sequence encode).
+	 */
+	TMap<FMovieGraphRenderDataIdentifier, FEncoderParams> GenerateRenderLayerEncoderParams(TArray<FMovieGraphRenderOutputData>& InGeneratedData, const bool bInIsShotEncode) const;
 
 	/** Gets the path to the file that the encode process should write to. */
 	FString GetResolvedOutputFilename(const FMovieGraphRenderDataIdentifier& RenderIdentifier, const TWeakObjectPtr<UMoviePipelineExecutorShot>& Shot, const FString& FileNameFormatString) const;
