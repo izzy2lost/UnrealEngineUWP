@@ -164,7 +164,7 @@ private:
 	int32 ActiveInstanceIndex = INDEX_NONE;
 
 	/** Load parents materials to create instance materials */
-	void LoadDefaultMaterials();
+	void LoadDefaultMaterials() const;
 
 	/** Create an instance material based on the current active parent */
 	UMaterialInstanceDynamic* CreateMaterialInstance(UObject* InOuter);
