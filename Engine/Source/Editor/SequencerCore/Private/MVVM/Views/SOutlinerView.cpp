@@ -838,15 +838,18 @@ void SOutlinerView::Refresh()
 		}
 
 		// Only add pinned nodes if this is showing pinned only
-		bool bIsPinned = false;
+		bool bIsPinned = Extension->ShouldAnchorToTop();
 
 		constexpr bool bIncludeThis = true;
-		for (const TViewModelPtr<IPinnableExtension>& Pinnable : Extension.AsModel()->GetAncestorsOfType<IPinnableExtension>(bIncludeThis))
+		if (!bIsPinned)
 		{
-			if (Pinnable->IsPinned())
+			for (const TViewModelPtr<IPinnableExtension>& Pinnable : Extension.AsModel()->GetAncestorsOfType<IPinnableExtension>(bIncludeThis))
 			{
-				bIsPinned = true;
-				break;
+				if (Pinnable->IsPinned())
+				{
+					bIsPinned = true;
+					break;
+				}
 			}
 		}
 
@@ -875,7 +878,6 @@ void SOutlinerView::Refresh()
 	}
 
 	RebuildList();
-	//RequestTreeRefresh();
 
 	for (TSharedPtr<SOutlinerView> PinnedTreeView : PinnedTreeViews)
 	{

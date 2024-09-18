@@ -5,7 +5,9 @@
 #include "UMGPrivate.h"
 #include "Animation/WidgetAnimation.h"
 #include "MovieSceneTimeHelpers.h"
+#include "Evaluation/MovieSceneSequenceHierarchy.h"
 #include "Evaluation/MovieScenePlayback.h"
+#include "Channels/MovieSceneTimeWarpChannel.h"
 #include "EntitySystem/MovieSceneEntitySystemRunner.h"
 #include "EntitySystem/MovieSceneEntitySystemLinker.h"
 #include "Animation/UMGSequenceTickManager.h"
@@ -38,7 +40,7 @@ UUMGSequencePlayer::UUMGSequencePlayer(const FObjectInitializer& ObjectInitializ
 	: Super(ObjectInitializer)
 {
 	PlayerStatus = EMovieScenePlayerStatus::Stopped;
-	TimeCursorPosition = FFrameTime(0);
+	TimeCursorPosition = UnwarpedPosition = FFrameTime(0);
 	PlaybackSpeed = 1;
 	bRestoreState = false;
 	Animation = nullptr;
@@ -101,8 +103,18 @@ void UUMGSequencePlayer::Tick(float DeltaTime)
 	{
 		FFrameTime DeltaFrameTime = (bIsPlayingForward ? DeltaTime * PlaybackSpeed : -DeltaTime * PlaybackSpeed) * AnimationResolution;
 
+		UnwarpedPosition += DeltaFrameTime;
+
 		FFrameTime LastTimePosition = TimeCursorPosition;
-		TimeCursorPosition += DeltaFrameTime;
+
+		const FMovieSceneSequenceHierarchy* Hierarchy = RootTemplateInstance.GetHierarchy();
+		FMovieSceneSequenceTransform RootTransform;
+		if (Hierarchy && Hierarchy->GetRootTransform().FindFirstWarpDomain() == UE::MovieScene::ETimeWarpChannelDomain::PlayRate)
+		{
+			RootTransform = Hierarchy->GetRootTransform();
+		}
+
+		TimeCursorPosition = RootTransform.TransformTime(UnwarpedPosition);
 
 		// Check if we crossed over bounds
 		const bool bCrossedLowerBound = TimeCursorPosition < FFrameTime(0);
@@ -127,7 +139,7 @@ void UUMGSequencePlayer::Tick(float DeltaTime)
 		{
 			if (bCompleted)
 			{
-				TimeCursorPosition = FFrameTime(0);
+				TimeCursorPosition = UnwarpedPosition = FFrameTime(0);
 			}
 			else
 			{
@@ -175,6 +187,11 @@ void UUMGSequencePlayer::Tick(float DeltaTime)
 			{
 				TimeCursorPosition = EndTime;
 			}
+		}
+
+		if (bCrossedLowerBound || bCrossedUpperBound || bCrossedEndTime)
+		{
+			UnwarpedPosition = RootTransform.Inverse().TryTransformTime(TimeCursorPosition).Get(TimeCursorPosition);
 		}
 
 		bCompleteOnPostEvaluation = bCompleted;
@@ -260,6 +277,17 @@ void UUMGSequencePlayer::PlayInternal(double StartAtTime, double EndAtTime, int3
 
 	// Clamp the start time and end time to be within the bounds
 	TimeCursorPosition = FMath::Clamp(TimeCursorPosition, FFrameTime(0), LastValidFrame);
+
+	const FMovieSceneSequenceHierarchy* Hierarchy = RootTemplateInstance.GetHierarchy();
+	if (Hierarchy && Hierarchy->GetRootTransform().FindFirstWarpDomain() == UE::MovieScene::ETimeWarpChannelDomain::PlayRate)
+	{
+		UnwarpedPosition = Hierarchy->GetRootTransform().Inverse().TryTransformTime(TimeCursorPosition).Get(TimeCursorPosition);
+	}
+	else
+	{
+		UnwarpedPosition = TimeCursorPosition;
+	}
+
 	EndTime = FMath::Clamp(EndAtTime * AnimationResolution, FFrameTime(0), LastValidFrame);
 
 	if ( PlayMode == EUMGSequencePlayMode::PingPong )
@@ -381,7 +409,7 @@ void UUMGSequencePlayer::Stop()
 	UUserWidget* Widget = UserWidget.Get();
 	UUMGSequenceTickManager* TickManager = Widget ? ToRawPtr(Widget->AnimationTickManager) : nullptr;
 
-	TimeCursorPosition = FFrameTime(0);
+	TimeCursorPosition = UnwarpedPosition = FFrameTime(0);
 
 	if (!TickManager || !RootTemplateInstance.IsValid())
 	{

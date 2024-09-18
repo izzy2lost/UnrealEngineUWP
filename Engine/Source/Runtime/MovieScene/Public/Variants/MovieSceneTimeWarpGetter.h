@@ -8,6 +8,7 @@
 #include "Misc/FrameTime.h"
 #include "Misc/Optional.h"
 #include "Channels/IMovieSceneChannelOwner.h"
+#include "Channels/MovieSceneTimeWarpChannel.h"
 #include "Variants/MovieSceneNumericVariantGetter.h"
 #include "MovieSceneTimeWarpGetter.generated.h"
 
@@ -114,6 +115,12 @@ public:
 	 */
 	virtual bool InverseRemapTimeWithinRange(FFrameTime InTime, FFrameTime RangeStart, FFrameTime RangeEnd, const TFunctionRef<bool(FFrameTime)>& VisitorCallback) const
 		PURE_VIRTUAL(UMovieSceneTimeWarpGetter::InverseRemapTimeWithinRange, return true; )
+
+	/**
+	 * Retrieve the time domain that this time warp getter operates within
+	 */
+	virtual UE::MovieScene::ETimeWarpChannelDomain GetDomain() const
+		PURE_VIRTUAL(UMovieSceneTimeWarpGetter::GetDomain, return UE::MovieScene::ETimeWarpChannelDomain::Time; )
 
 	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	 *            End abstract API

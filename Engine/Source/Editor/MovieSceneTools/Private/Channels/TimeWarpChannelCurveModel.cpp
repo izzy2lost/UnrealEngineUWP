@@ -19,7 +19,7 @@ void FTimeWarpChannelCurveModel::SetCurveAttributes(const FCurveAttributes& InCu
 	const FMovieSceneTimeWarpChannel* Channel = static_cast<const FMovieSceneTimeWarpChannel*>(GetChannelHandle().Get());
 
 	// Disallow certain extrapolation modes for play rate curves.
-	if (Channel && Channel->Domain == ETimeWarpChannelDomain::PlayRate)
+	if (Channel && Channel->Domain == UE::MovieScene::ETimeWarpChannelDomain::PlayRate)
 	{
 		FCurveAttributes ExistingAttributes;
 		GetCurveAttributes(ExistingAttributes);
@@ -82,7 +82,7 @@ void FTimeWarpChannelCurveModel::AllocateAxes(FCurveEditor* InCurveEditor, TShar
 {
 	FMovieSceneTimeWarpChannel* Channel = static_cast<FMovieSceneTimeWarpChannel*>(GetChannelHandle().Get());
 
-	if (Channel && Channel->Domain == ETimeWarpChannelDomain::Time)
+	if (Channel && Channel->Domain == UE::MovieScene::ETimeWarpChannelDomain::Time)
 	{
 		OutVerticalAxis = InCurveEditor->FindAxis("FocusedSequenceTime");
 	}

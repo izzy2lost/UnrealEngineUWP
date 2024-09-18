@@ -12,6 +12,7 @@
 #include "Sections/MovieSceneSubSection.h"
 #include "Tracks/MovieSceneSubTrack.h"
 #include "Tracks/MovieSceneTimeWarpTrack.h"
+#include "Channels/MovieSceneTimeWarpChannel.h"
 #include "IMovieSceneModule.h"
 #include "MovieSceneTimeHelpers.h"
 #include "MovieSceneTransformTypes.h"
@@ -1595,7 +1596,14 @@ bool UMovieSceneCompiledDataManager::CompileHierarchy(UMovieSceneSequence* Seque
 		for (UMovieSceneTrack* Track : MovieScene->GetTracks())
 		{
 			UMovieSceneTimeWarpTrack* TimeWarpTrack = Cast<UMovieSceneTimeWarpTrack>(Track);
-			if (TimeWarpTrack && !TimeWarpTrack->IsEvalDisabled())
+			if (!TimeWarpTrack)
+			{
+				continue;
+			}
+
+			TimeWarpTrack->bIsActiveTimeWarp = false;
+
+			if (!bContainsTimeWarp && !TimeWarpTrack->IsEvalDisabled())
 			{
 				FMovieSceneNestedSequenceTransform TimeWarpTransform = TimeWarpTrack->GenerateTransform();
 
@@ -1604,10 +1612,9 @@ bool UMovieSceneCompiledDataManager::CompileHierarchy(UMovieSceneSequence* Seque
 				{
 					InOutHierarchy->SetRootTransform(FMovieSceneSequenceTransform(MoveTemp(TimeWarpTransform)));
 					bContainsTimeWarp = true;
-				}
 
-				// Only 1 time-warp track supported
-				break;
+					TimeWarpTrack->bIsActiveTimeWarp = true;
+				}
 			}
 		}
 	}

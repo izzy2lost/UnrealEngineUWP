@@ -70,6 +70,7 @@ struct FKeyHotspot
 	SEQUENCER_API FKeyHotspot(const TArray<FSequencerSelectedKey>& InKeys, TWeakPtr<FSequencer> InWeakSequencer);
 
 	virtual void UpdateOnHover(FTrackAreaViewModel& InTrackArea) const override;
+	virtual TOptional<ETimeDomain> GetDomain() const;
 	virtual TOptional<FFrameNumber> GetTime() const override;
 	virtual bool PopulateContextMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, FFrameTime MouseDownTime) override;
 

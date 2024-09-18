@@ -505,7 +505,7 @@ public:
 
 	//~ Begin FFilterBase
 	virtual FText GetDisplayName() const override { return LOCTEXT("SequencerTrackFilter_TimeWarp", "Time Warp"); }
-	virtual FSlateIcon GetIcon() const override { return FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("Sequencer.Tracks.Slomo")); }
+	virtual FSlateIcon GetIcon() const override { return FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("Sequencer.Tracks.TimeWarp")); }
 	//~ End FFilterBase
 
 	//~ Begin FSequencerTrackFilter

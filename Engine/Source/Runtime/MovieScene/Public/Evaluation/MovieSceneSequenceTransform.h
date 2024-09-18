@@ -24,6 +24,8 @@ namespace UE::MovieScene
 {
 	struct FInverseTransformTimeParams;
 	struct FTransformTimeParams;
+
+	enum class ETimeWarpChannelDomain : uint8;
 }
 
 
@@ -503,6 +505,12 @@ public:
 
 
 	/**
+	 * Retrieve this nested transform's time-warp domain, if it has one
+	 */
+	MOVIESCENE_API TOptional<UE::MovieScene::ETimeWarpChannelDomain> GetWarpDomain() const;
+
+
+	/**
 	 * Extract all the boundaries for this transform within the specified untransformed start and end time,
 	 * invoking Visitor for every boundary that is present within the range. Iteration will continue until
 	 * Visitor returns false, at which point this function itself will return false.
@@ -739,6 +747,12 @@ struct FMovieSceneSequenceTransform
 	MOVIESCENE_API TRange<FFrameTime> ComputeTraversedHull(const TRange<FFrameNumber>& Range) const;
 
 
+	/**
+	 * Retrieve the first active timewarp domain that is present in this transform, if any is present at all
+	 */
+	MOVIESCENE_API TOptional<UE::MovieScene::ETimeWarpChannelDomain> FindFirstWarpDomain() const;
+
+
 public:
 
 
@@ -762,6 +776,14 @@ public:
 	 * @param End       The ending frame number of the loop
 	 */
 	MOVIESCENE_API void AddLoop(FFrameNumber Start, FFrameNumber End);
+
+
+	/**
+	 * Append another transform to this one, resulting in a transform that effectively goes from this -> Tail
+	 * 
+	 * @param Tail      The transform to append
+	 */
+	MOVIESCENE_API void Append(const FMovieSceneSequenceTransform& Tail);
 
 
 	/**

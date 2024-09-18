@@ -521,11 +521,12 @@ TSharedRef<SWidget> CreateKeyEditor(const TMovieSceneChannelHandle<FMovieSceneTi
 		Params.ObjectBindingID, Channel,
 		Params.OwningSection, Params.Sequencer, Params.PropertyBindings, ExternalValue
 		);
-
+	
+	KeyEditor.SetApplyInUnwarpedLocalSpace(true);
 	KeyEditor.SetOwningObject(Cast<UMovieSceneSignedObject>(Params.OwningObject));
 
 	const FMovieSceneTimeWarpChannel* ChannelPtr = Channel.Get();
-	if (ChannelPtr && ChannelPtr->Domain == ETimeWarpChannelDomain::Time)
+	if (ChannelPtr && ChannelPtr->Domain == UE::MovieScene::ETimeWarpChannelDomain::Time)
 	{
 		// Set the numeric type interface for frame numbers if the channel is in the time domain
 		KeyEditor.SetNumericTypeInterface(Params.Sequencer->GetNumericTypeInterface());

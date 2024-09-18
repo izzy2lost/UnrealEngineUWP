@@ -6,6 +6,7 @@
 #include "MovieSceneTimeHelpers.h"
 #include "MovieSceneSequence.h"
 #include "MovieSceneSequenceTickManager.h"
+#include "Channels/MovieSceneTimeWarpChannel.h"
 #include "Engine/Engine.h"
 #include "UObject/Stack.h"
 #include "Internationalization/Text.h"
@@ -1194,6 +1195,18 @@ void UMovieSceneSequencePlayer::UpdateTimeCursorPosition_Internal(FFrameTime New
 	{
 		OnStartedPlaying();
 		bPendingOnStartedPlaying = false;
+	}
+
+	if (Method == EUpdatePositionMethod::Play)
+	{
+		const FMovieSceneSequenceHierarchy* Hierarchy = RootTemplateInstance.GetHierarchy();
+
+		if (Hierarchy && Hierarchy->GetRootTransform().FindFirstWarpDomain() == UE::MovieScene::ETimeWarpChannelDomain::PlayRate)
+		{
+			NewPosition = ConvertFrameTime(NewPosition, PlayPosition.GetInputRate(), PlayPosition.GetOutputRate());
+			NewPosition = Hierarchy->GetRootTransform().TransformTime(NewPosition);
+			NewPosition = ConvertFrameTime(NewPosition, PlayPosition.GetOutputRate(), PlayPosition.GetInputRate());
+		}
 	}
 
 	// If we should pause during this evaluation, we'll handle that below.

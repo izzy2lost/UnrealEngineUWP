@@ -112,7 +112,8 @@ struct TSequencerKeyEditor
 
 		if (Channel && ChannelMetaData && Sequencer && OwningSection)
 		{
-			const FFrameTime CurrentTime = UE::MovieScene::ClampToDiscreteRange(Sequencer->GetLocalTime().Time, OwningSection->GetRange()) - ChannelMetaData->GetOffsetTime(OwningSection);
+			FFrameTime LocalTime = GetCurrentTime();
+			const FFrameTime CurrentTime = UE::MovieScene::ClampToDiscreteRange(LocalTime, OwningSection->GetRange()) - ChannelMetaData->GetOffsetTime(OwningSection);
 
 			//If we have no keys and no default, key with the external value if it exists
 			if (!EvaluateChannel(OwningSection, Channel, CurrentTime, Result))
@@ -214,7 +215,8 @@ struct TSequencerKeyEditor
 		}
 		else
 		{
-			const FFrameNumber CurrentTime = Sequencer->GetLocalTime().Time.RoundToFrame() - ChannelMetaData->GetOffsetTime(OwningSection);
+			FFrameTime LocalTime = GetCurrentTime();
+			const FFrameNumber CurrentTime = LocalTime.RoundToFrame() - ChannelMetaData->GetOffsetTime(OwningSection);
 
 			EMovieSceneKeyInterpolation Interpolation = GetInterpolationMode(Channel, CurrentTime, Sequencer->GetKeyInterpolation());
 
@@ -274,6 +276,11 @@ struct TSequencerKeyEditor
 		}
 	}
 
+	void SetApplyInUnwarpedLocalSpace(bool bInApplyInUnwarpedLocalSpace)
+	{
+		bApplyInUnwarpedLocalSpace = bInApplyInUnwarpedLocalSpace;
+	}
+
 	const FGuid& GetObjectBindingID() const
 	{
 		return ObjectBindingID;
@@ -315,6 +322,18 @@ struct TSequencerKeyEditor
 		return FString();
 	}
 
+	FFrameTime GetCurrentTime() const
+	{
+		ISequencer* Sequencer = GetSequencer();
+		if (Sequencer)
+		{
+			// @todo: Really bApplyInUnwarpedLocalSpace should be looking for an ITimeDomainExtension on a view model, but we don't
+			//        have that information here because all these mechanisms pre-date the MVVM framework.
+			return bApplyInUnwarpedLocalSpace ? Sequencer->GetUnwarpedLocalTime().Time : Sequencer->GetLocalTime().Time;
+		}
+		return 0;
+	}
+
 private:
 
 	FGuid ObjectBindingID;
@@ -325,6 +344,7 @@ private:
 	TWeakPtr<FTrackInstancePropertyBindings> WeakPropertyBindings;
 	TFunction<TOptional<ValueType>(UObject&, FTrackInstancePropertyBindings*)> OnGetExternalValue;
 	TSharedPtr<INumericTypeInterface<ValueType>> NumericTypeInterface;
+	bool bApplyInUnwarpedLocalSpace = false;
 };
 
 

@@ -67,7 +67,14 @@ FMovieSceneSubSequenceData::FMovieSceneSubSequenceData(const UMovieSceneSubSecti
 	// being truly the full transform.
 	OuterToInnerTransform = InSubSection.OuterToInnerTransform_NoInnerTimeWarp();
 
+#if WITH_EDITORONLY_DATA
+	RootToUnwarpedLocalTransform = OuterToInnerTransform;
+	InSubSection.AppendInnerTimeWarpTransform(LocalToWarpedLocalTransform);
+	OuterToInnerTransform.Append(LocalToWarpedLocalTransform);
+#else
 	InSubSection.AppendInnerTimeWarpTransform(OuterToInnerTransform);
+#endif
+
 	RootToSequenceTransform = OuterToInnerTransform;
 
 	PlayRange.Value = UE::MovieScene::ConvertToDiscreteRange(OuterToInnerTransform.ComputeTraversedHull(ParentPlayRange.Value));

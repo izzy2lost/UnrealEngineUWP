@@ -39,6 +39,10 @@ public:
 
 public:
 
+	/** True if this track is the active timewarp in its sequence. Assigned as part of compilation */
+	UPROPERTY()
+	bool bIsActiveTimeWarp = true;
+
 	// UMovieSceneTrack interface
 
 	virtual void RemoveAllAnimationData() override;

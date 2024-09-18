@@ -149,6 +149,7 @@ private:
 	FDelegateHandle CameraCutTrackModelHandle;
 	FDelegateHandle CinematicShotTrackModelHandle;
 	FDelegateHandle BindingLifetimeTrackModelHandle;
+	FDelegateHandle TimeWarpTrackModelHandle;
 
 	FDelegateHandle GenerateEventEntryPointsHandle;
 	FDelegateHandle FixupDynamicBindingPayloadParameterNameHandle;

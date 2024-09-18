@@ -21,6 +21,7 @@
 #include "Evaluation/MovieSceneRootOverridePath.h"
 
 #include "MovieSceneTimeHelpers.h"
+#include "Channels/MovieSceneTimeWarpChannel.h"
 
 #include "Algo/IndexOf.h"
 #include "Algo/Transform.h"
@@ -294,7 +295,7 @@ void FSequenceUpdater_Flat::PopulateUpdateFlags(TSharedRef<const FSharedPlayback
 	}
 
 	const FMovieSceneSequenceHierarchy* Hierarchy = SharedPlaybackState->GetCompiledDataManager()->FindHierarchy(CompiledDataID);
-	if (Hierarchy && !Hierarchy->GetRootTransform().IsIdentity())
+	if (Hierarchy && Hierarchy->GetRootTransform().FindFirstWarpDomain() == ETimeWarpChannelDomain::Time)
 	{
 		// Time-warped root transforms require dissection to manipulate the evaluation range
 		OutUpdateFlags |= ESequenceInstanceUpdateFlags::NeedsDissection;
@@ -500,7 +501,7 @@ void FSequenceUpdater_Hierarchical::PopulateUpdateFlags(TSharedRef<const FShared
 
 	if (const FMovieSceneSequenceHierarchy* Hierarchy = CompiledDataManager->FindHierarchy(CompiledDataID))
 	{
-		if (!Hierarchy->GetRootTransform().IsLinear())
+		if (Hierarchy->GetRootTransform().FindFirstWarpDomain() == ETimeWarpChannelDomain::Time)
 		{
 			OutUpdateFlags |= ESequenceInstanceUpdateFlags::NeedsDissection;
 		}
@@ -541,7 +542,7 @@ void FSequenceUpdater_Hierarchical::DissectContext(TSharedRef<const FSharedPlayb
 			RootContext = Context.Transform(SubData->RootToSequenceTransform, SubData->TickResolution);
 		}
 	}
-	else if (!RootHierarchy->GetRootTransform().IsIdentity())
+	else if (RootHierarchy->GetRootTransform().FindFirstWarpDomain() == ETimeWarpChannelDomain::Time)
 	{
 		RootContext = Context.Transform(RootHierarchy->GetRootTransform(), Context.GetFrameRate());
 	}
@@ -634,7 +635,7 @@ void FSequenceUpdater_Hierarchical::DissectContext(TSharedRef<const FSharedPlayb
 		}
 		UE::MovieScene::DissectRange(RootDissectionTimes, RootContext.GetRange(), OutDissections);
 	}
-	else if (!RootHierarchy->GetRootTransform().IsIdentity())
+	else if (RootHierarchy->GetRootTransform().FindFirstWarpDomain() == ETimeWarpChannelDomain::Time)
 	{
 		OutDissections.Add(RootContext.GetRange());
 	}

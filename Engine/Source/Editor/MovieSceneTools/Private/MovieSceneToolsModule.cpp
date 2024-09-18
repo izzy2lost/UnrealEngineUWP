@@ -207,6 +207,7 @@ void FMovieSceneToolsModule::StartupModule()
 		CameraCutTrackModelHandle = SequencerModule.RegisterTrackModel(FOnCreateTrackModel::CreateStatic(&FCameraCutTrackModel::CreateTrackModel));
 		CinematicShotTrackModelHandle = SequencerModule.RegisterTrackModel(FOnCreateTrackModel::CreateStatic(&FCinematicShotTrackModel::CreateTrackModel));
 		BindingLifetimeTrackModelHandle = SequencerModule.RegisterTrackModel(FOnCreateTrackModel::CreateStatic(&FBindingLifetimeTrackModel::CreateTrackModel));
+		TimeWarpTrackModelHandle = SequencerModule.RegisterTrackModel(FOnCreateTrackModel::CreateStatic(&FTimeWarpTrackEditor::CreateTrackModel));
 
 		RegisterClipboardConversions();
 
@@ -395,6 +396,8 @@ void FMovieSceneToolsModule::ShutdownModule()
 	// unregister track models
 	SequencerModule.UnregisterTrackModel( CameraCutTrackModelHandle );
 	SequencerModule.UnregisterTrackModel( CinematicShotTrackModelHandle );
+	SequencerModule.UnregisterTrackModel( BindingLifetimeTrackModelHandle );
+	SequencerModule.UnregisterTrackModel( TimeWarpTrackModelHandle );
 
 	if (FModuleManager::Get().IsModuleLoaded("PropertyEditor"))
 	{	
