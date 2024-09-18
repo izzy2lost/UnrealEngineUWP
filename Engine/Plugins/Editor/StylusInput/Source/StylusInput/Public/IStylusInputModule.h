@@ -85,6 +85,7 @@ public:
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// FTickableEditorObject implementation
+	virtual bool IsTickable() const override;
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override { RETURN_QUICK_DECLARE_CYCLE_STAT(UStylusInputSubsystem, STATGROUP_Tickables); }
 
