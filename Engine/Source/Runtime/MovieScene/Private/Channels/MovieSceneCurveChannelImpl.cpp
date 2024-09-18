@@ -1030,10 +1030,12 @@ FKeyHandle TMovieSceneCurveChannelImpl<ChannelType>::AddKeyToChannel(ChannelType
 			{
 				const double DeltaTime = 0.1;
 				// Left
-				TangentData.ArriveTangent = -GetTangentValue(InChannel, InFrameNumber, InValue, -DeltaTime);
+				const float ArriveTangent = -GetTangentValue(InChannel, InFrameNumber, InValue, -DeltaTime);
 
 				// Right
-				TangentData.LeaveTangent = GetTangentValue(InChannel, InFrameNumber, InValue, DeltaTime);
+				const float LeaveTangent = GetTangentValue(InChannel, InFrameNumber, InValue, DeltaTime);
+
+				TangentData.ArriveTangent = TangentData.LeaveTangent = (ArriveTangent + LeaveTangent) * 0.5f;
 			}
 			
 
