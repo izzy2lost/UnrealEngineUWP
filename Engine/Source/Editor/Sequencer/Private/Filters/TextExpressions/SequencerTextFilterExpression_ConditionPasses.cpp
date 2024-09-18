@@ -17,7 +17,7 @@ FSequencerTextFilterExpression_ConditionPasses::FSequencerTextFilterExpression_C
 
 TSet<FName> FSequencerTextFilterExpression_ConditionPasses::GetKeys() const
 {
-	return { TEXT("CONDITIONPASSES"), TEXT("CONDITIONEVALUATES") };
+	return { TEXT("ConditionPasses"), TEXT("ConditionEvaluates") };
 }
 
 ESequencerTextFilterValueType FSequencerTextFilterExpression_ConditionPasses::GetValueType() const

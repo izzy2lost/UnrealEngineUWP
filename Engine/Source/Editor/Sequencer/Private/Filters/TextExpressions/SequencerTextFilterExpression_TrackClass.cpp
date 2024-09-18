@@ -15,7 +15,7 @@ FSequencerTextFilterExpression_TrackClass::FSequencerTextFilterExpression_TrackC
 
 TSet<FName> FSequencerTextFilterExpression_TrackClass::GetKeys() const
 {
-	return { TEXT("TRACKCLASS"), TEXT("TRACKTYPE") };
+	return { TEXT("TrackClass"), TEXT("TrackType") };
 }
 
 ESequencerTextFilterValueType FSequencerTextFilterExpression_TrackClass::GetValueType() const
@@ -25,7 +25,7 @@ ESequencerTextFilterValueType FSequencerTextFilterExpression_TrackClass::GetValu
 
 FText FSequencerTextFilterExpression_TrackClass::GetDescription() const
 {
-	return LOCTEXT("ExpressionDescription_Class", "Filter by track class name");
+	return LOCTEXT("ExpressionDescription_TrackClass", "Filter by track class name");
 }
 
 bool FSequencerTextFilterExpression_TrackClass::TestComplexExpression(const FName& InKey

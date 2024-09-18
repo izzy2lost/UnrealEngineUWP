@@ -16,7 +16,7 @@ FSequencerTextFilterExpression_Level::FSequencerTextFilterExpression_Level(ISequ
 
 TSet<FName> FSequencerTextFilterExpression_Level::GetKeys() const
 {
-	return { TEXT("LEVEL"), TEXT("MAP") };
+	return { TEXT("Level"), TEXT("Map") };
 }
 
 ESequencerTextFilterValueType FSequencerTextFilterExpression_Level::GetValueType() const

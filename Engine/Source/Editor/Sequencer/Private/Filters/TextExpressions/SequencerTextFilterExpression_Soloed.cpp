@@ -15,7 +15,7 @@ FSequencerTextFilterExpression_Soloed::FSequencerTextFilterExpression_Soloed(ISe
 
 TSet<FName> FSequencerTextFilterExpression_Soloed::GetKeys() const
 {
-	return { TEXT("SOLO"), TEXT("SOLOED") };
+	return { TEXT("Solo"), TEXT("Soloed") };
 }
 
 ESequencerTextFilterValueType FSequencerTextFilterExpression_Soloed::GetValueType() const

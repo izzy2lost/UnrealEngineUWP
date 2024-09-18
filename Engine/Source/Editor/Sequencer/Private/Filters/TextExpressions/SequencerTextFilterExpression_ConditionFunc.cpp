@@ -18,7 +18,7 @@ FSequencerTextFilterExpression_ConditionFunc::FSequencerTextFilterExpression_Con
 
 TSet<FName> FSequencerTextFilterExpression_ConditionFunc::GetKeys() const
 {
-	return { TEXT("CONDITIONFUNC"), TEXT("CONDITIONENDPOINT") };
+	return { TEXT("ConditionFunc"), TEXT("ConditionEndpoint") };
 }
 
 ESequencerTextFilterValueType FSequencerTextFilterExpression_ConditionFunc::GetValueType() const
@@ -28,7 +28,7 @@ ESequencerTextFilterValueType FSequencerTextFilterExpression_ConditionFunc::GetV
 
 FText FSequencerTextFilterExpression_ConditionFunc::GetDescription() const
 {
-	return LOCTEXT("ExpressionDescription_ConditionFunc", "Filters by the presence of a director blueprint condition with the given function/endpoint name");
+	return LOCTEXT("ExpressionDescription_ConditionFunc", "Filter by presence of director blueprint condition with the given function/endpoint name");
 }
 
 bool FSequencerTextFilterExpression_ConditionFunc::TestComplexExpression(const FName& InKey

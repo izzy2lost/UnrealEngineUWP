@@ -15,7 +15,7 @@ FSequencerTextFilterExpression_Muted::FSequencerTextFilterExpression_Muted(ISequ
 
 TSet<FName> FSequencerTextFilterExpression_Muted::GetKeys() const
 {
-	return { TEXT("MUTE"), TEXT("MUTED") };
+	return { TEXT("Mute"), TEXT("Muted") };
 }
 
 ESequencerTextFilterValueType FSequencerTextFilterExpression_Muted::GetValueType() const

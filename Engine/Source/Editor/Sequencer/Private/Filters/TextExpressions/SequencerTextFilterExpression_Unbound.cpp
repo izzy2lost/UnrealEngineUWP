@@ -18,7 +18,7 @@ FSequencerTextFilterExpression_Unbound::FSequencerTextFilterExpression_Unbound(I
 
 TSet<FName> FSequencerTextFilterExpression_Unbound::GetKeys() const
 {
-	return { TEXT("UNBOUND"), TEXT("MISSING") };
+	return { TEXT("Unbound"), TEXT("Missing") };
 }
 
 ESequencerTextFilterValueType FSequencerTextFilterExpression_Unbound::GetValueType() const
@@ -28,7 +28,7 @@ ESequencerTextFilterValueType FSequencerTextFilterExpression_Unbound::GetValueTy
 
 FText FSequencerTextFilterExpression_Unbound::GetDescription() const
 {
-	return LOCTEXT("ExpressionDescription_Locked", "Filter by track unbound or missing objects");
+	return LOCTEXT("ExpressionDescription_Unbound", "Filter by track unbound or missing objects");
 }
 
 bool FSequencerTextFilterExpression_Unbound::TestComplexExpression(const FName& InKey

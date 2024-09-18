@@ -16,7 +16,7 @@ FSequencerTextFilterExpression_Group::FSequencerTextFilterExpression_Group(ISequ
 
 TSet<FName> FSequencerTextFilterExpression_Group::GetKeys() const
 {
-	return { TEXT("GROUP") };
+	return { TEXT("Group") };
 }
 
 ESequencerTextFilterValueType FSequencerTextFilterExpression_Group::GetValueType() const

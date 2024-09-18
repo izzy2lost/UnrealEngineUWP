@@ -14,7 +14,7 @@ FSequencerTextFilterExpression_ObjectClass::FSequencerTextFilterExpression_Objec
 
 TSet<FName> FSequencerTextFilterExpression_ObjectClass::GetKeys() const
 {
-	return { TEXT("OBJECTCLASS"), TEXT("OBJECTTYPE") };
+	return { TEXT("ObjectClass"), TEXT("ObjectType") };
 }
 
 ESequencerTextFilterValueType FSequencerTextFilterExpression_ObjectClass::GetValueType() const
@@ -24,7 +24,7 @@ ESequencerTextFilterValueType FSequencerTextFilterExpression_ObjectClass::GetVal
 
 FText FSequencerTextFilterExpression_ObjectClass::GetDescription() const
 {
-	return LOCTEXT("ExpressionDescription_Class", "Filter by bound object class name");
+	return LOCTEXT("ExpressionDescription_ObjectClass", "Filter by bound object class name");
 }
 
 bool FSequencerTextFilterExpression_ObjectClass::TestComplexExpression(const FName& InKey

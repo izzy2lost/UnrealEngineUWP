@@ -16,7 +16,7 @@ FSequencerTextFilterExpression_Tag::FSequencerTextFilterExpression_Tag(ISequence
 
 TSet<FName> FSequencerTextFilterExpression_Tag::GetKeys() const
 {
-	return { TEXT("TAG") };
+	return { TEXT("Tag") };
 }
 
 ESequencerTextFilterValueType FSequencerTextFilterExpression_Tag::GetValueType() const
