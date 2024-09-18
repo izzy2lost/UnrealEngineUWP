@@ -95,6 +95,7 @@ FCultureRef FCulture::Create(TUniquePtr<FCultureImplementation>&& InImplementati
 FCulture::FCulture(TUniquePtr<FCultureImplementation>&& InImplementation)
 	: Implementation(MoveTemp(InImplementation))
 	, CachedName(Implementation->GetName())
+	, CachedVerseIdentifier(FCulture::CultureNameToVerseIdentifier(CachedName))
 	, CachedUnrealLegacyThreeLetterISOLanguageName(Implementation->GetUnrealLegacyThreeLetterISOLanguageName())
 	, CachedThreeLetterISOLanguageName(Implementation->GetThreeLetterISOLanguageName())
 	, CachedTwoLetterISOLanguageName(Implementation->GetTwoLetterISOLanguageName())
@@ -202,9 +203,30 @@ FString FCulture::GetCanonicalName(const FString& Name)
 	return FCultureImplementation::GetCanonicalName(Name, FInternationalization::Get());
 }
 
+FString FCulture::CultureNameToVerseIdentifier(const FString& Name)
+{
+	// Verse uses "en_US" style while UE uses "en-US"
+	FString Result = Name;
+	Result.ReplaceCharInline(TEXT('-'), TEXT('_'), ESearchCase::CaseSensitive);
+	return Result;
+}
+
+FString FCulture::CultureNameFromVerseIdentifier(const FString& VerseIdentifer)
+{
+	// UE uses "en-US" style while Verse uses "en_US"
+	FString Result = VerseIdentifer;
+	Result.ReplaceCharInline(TEXT('_'), TEXT('-'), ESearchCase::CaseSensitive);
+	return Result;
+}
+
 const FString& FCulture::GetName() const
 {
 	return CachedName;
+}
+
+const FString& FCulture::GetVerseIdentifier() const
+{
+	return CachedVerseIdentifier;
 }
 
 const FString& FCulture::GetNativeName() const

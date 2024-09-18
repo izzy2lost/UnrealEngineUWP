@@ -252,8 +252,9 @@ FString FICUCultureImplementation::GetCanonicalName(const FString& Name, FIntern
 
 FString FICUCultureImplementation::GetName() const
 {
+	// UE uses "en-US" style while ICU uses "en_US"
 	FString Result = ICULocale.getName();
-	Result.ReplaceInline(TEXT("_"), TEXT("-"), ESearchCase::IgnoreCase);
+	Result.ReplaceCharInline(TEXT('_'), TEXT('-'), ESearchCase::CaseSensitive);
 	return Result;
 }
 
