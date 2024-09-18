@@ -57,6 +57,7 @@ struct FOptionalVulkanDeviceExtensions
 			uint64 HasEXTDescriptorBuffer : 1;
 			uint64 HasEXTDeviceFault : 1;
 			uint64 HasEXTLoadStoreOpNone : 1;
+			uint64 HasEXTMeshShader : 1;
 
 			// Vendor specific
 			uint64 HasAMDBufferMarker : 1;
