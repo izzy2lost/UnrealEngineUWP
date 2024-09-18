@@ -32,6 +32,7 @@
 #include "LevelEditor.h"
 #include "Modules/ModuleManager.h"
 #include "Sequencer/ControlRigParameterTrackEditor.h"
+#include "Algo/IndexOf.h"
 
 #define LOCTEXT_NAMESPACE "AnimLayers"
 
@@ -62,6 +63,7 @@ public:
 	void RemoveSelected() const;
 	void Duplicate() const;
 	void DeleteAnimLayer() const;
+	void SetPassthroughKey() const;
 
 	ECheckBoxState GetKeyed() const;
 	void SetKeyed();
@@ -183,6 +185,26 @@ void FAnimLayerSourceUIEntry::Duplicate() const
 		ClearCaches();
 	}
 }
+
+void FAnimLayerSourceUIEntry::SetPassthroughKey() const
+{
+	if (AnimLayer)
+	{
+		if (TSharedPtr<ISequencer> SequencerPtr = UAnimLayers::GetSequencerFromAsset())
+		{
+			if (UAnimLayers* AnimLayers = UAnimLayers::GetAnimLayers(SequencerPtr.Get()))
+			{
+				int32 Index = AnimLayers->GetAnimLayerIndex(AnimLayer);
+				if (Index != INDEX_NONE)
+				{
+					AnimLayers->SetPassthroughKey(SequencerPtr.Get(), Index);
+				}
+			}
+		}
+		ClearCaches();
+	}
+}
+
 
 ECheckBoxState FAnimLayerSourceUIEntry::GetKeyed() const
 {
@@ -433,13 +455,13 @@ private:
 
 	mutable int32  FocusOnIndex = INDEX_NONE;
 
-
 	void AddSelected();
 	void RemoveSelected();
 	void SelectObjects();
 	void Duplicate();
 	void MergeLayers();
 	void AdjustmentBlend();
+	void SetPassthroughKey();
 	void DeleteAnimLayer();
 	void Rename();
 
@@ -897,10 +919,10 @@ void FAnimLayerSourcesView::CreateSourcesListView()
 			.FillWidth(120.f)
 			.DefaultLabel(LOCTEXT("LayerColumnName", "Name"))
 			+ SHeaderRow::Column(AnimLayerSourceListUI::StatusColumnName)
-			.FillWidth(20.f)
+			.FillWidth(40.f)
 			.DefaultLabel(LOCTEXT("StatusColumnName", "Status"))
 			+ SHeaderRow::Column(AnimLayerSourceListUI::WeightColumnName)
-			.FillWidth(60.f)
+			.FillWidth(80.f)
 			.DefaultLabel(LOCTEXT("WeightColumnName", "Weight"))
 			+ SHeaderRow::Column(AnimLayerSourceListUI::TypeColumnName)
 			.FillWidth(80.f)
@@ -1021,6 +1043,16 @@ void FAnimLayerSourcesView::MergeLayers()
 	}
 }
 
+void FAnimLayerSourcesView::SetPassthroughKey()
+{
+	TArray<FAnimLayerSourceUIEntryPtr> Selected;
+	SourcesListView->GetSelectedItems(Selected);
+	for (const FAnimLayerSourceUIEntryPtr& Ptr : Selected)
+	{
+		Ptr->SetPassthroughKey();
+	}
+}
+
 void FAnimLayerSourcesView::Rename()
 {
 	TArray<FAnimLayerSourceUIEntryPtr> Selected;
@@ -1049,7 +1081,27 @@ TSharedPtr<SWidget> FAnimLayerSourcesView::OnSourceConstructContextMenu()
 
 			TArray<FAnimLayerSourceUIEntryPtr> Selected;
 			SourcesListView->GetSelectedItems(Selected);
-			if (Selected.Num() > 0)
+			int32 BaseLayerIndex = Algo::IndexOfByPredicate(Selected, [AnimLayers](const FAnimLayerSourceUIEntryPtr& Key)
+				{
+					return (Key.IsValid() && Key->GetAnimLayerIndex(AnimLayers) == 0);
+				});
+			//if we have a base layer selected only show Merge 
+			if (BaseLayerIndex != INDEX_NONE)
+			{
+				if (Selected.Num() > 1)
+				{
+					MenuBuilder.BeginSection("AnimLayerContextMenuLayer", LOCTEXT("AnimLayerContextMenuLayer", "Layer"));
+
+					FUIAction Action = FUIAction(FExecuteAction::CreateRaw((this), &FAnimLayerSourcesView::MergeLayers));
+					const FText Label = LOCTEXT("MergeLayers", "Merge Layers");
+					const FText ToolTipText = LOCTEXT("MergeLayerstooltip", "Merge selected layers");
+					MenuBuilder.AddMenuEntry(Label, ToolTipText, FSlateIcon(), Action);
+				}
+				MenuBuilder.AddMenuSeparator();
+				return MenuBuilder.MakeWidget();
+
+			}
+			else if (Selected.Num() > 0)
 			{
 				MenuBuilder.BeginSection("AnimLayerContextMenuLayer", LOCTEXT("AnimLayerContextMenuLayer", "Layer"));
 				{
@@ -1084,6 +1136,12 @@ TSharedPtr<SWidget> FAnimLayerSourcesView::OnSourceConstructContextMenu()
 					FUIAction Action = FUIAction(FExecuteAction::CreateRaw((this), &FAnimLayerSourcesView::MergeLayers));
 					const FText Label = LOCTEXT("MergeLayers", "Merge Layers");
 					const FText ToolTipText = LOCTEXT("MergeLayerstooltip", "Merge selected layers");
+					MenuBuilder.AddMenuEntry(Label, ToolTipText, FSlateIcon(), Action);
+				}
+				{
+					FUIAction Action = FUIAction(FExecuteAction::CreateRaw((this), &FAnimLayerSourcesView::SetPassthroughKey));
+					const FText Label = LOCTEXT("SetPassthroughKey", "Passthrough Key");
+					const FText ToolTipText = LOCTEXT("SetPassthroughKeytooltip", "Set zero key(Additive) or previous value(Override)");
 					MenuBuilder.AddMenuEntry(Label, ToolTipText, FSlateIcon(), Action);
 				}
 				/* adjustment blending not in yet

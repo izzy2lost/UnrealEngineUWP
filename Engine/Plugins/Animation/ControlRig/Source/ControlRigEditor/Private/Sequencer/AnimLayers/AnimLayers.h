@@ -278,7 +278,8 @@ public:
 	int32 AddAnimLayerFromSelection(ISequencer* InSequencer);
 	void GetAnimLayerStates(TArray<FAnimLayerState>& OutStates);
 	bool MergeAnimLayers(ISequencer* InSequencer, const TArray<int32>& Indices, const FBakingAnimationKeySettings* InSettings);
-	
+	bool SetPassthroughKey(ISequencer* InSequencer, int32 Index);
+
 	//will always blend to base fo rnow
 	bool AdjustmentBlendLayers(ISequencer* InSequencer, int32 LayerIndex);
 

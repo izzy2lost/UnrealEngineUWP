@@ -5055,106 +5055,75 @@ bool MovieSceneToolHelpers::OptimizeSection(const FKeyDataOptimizationParams& In
 	}
 	return true;
 }
+void MovieSceneToolHelpers::SplitSectionsByBlendType(EMovieSceneBlendType BlendType, const TArray<UMovieSceneSection*>& InSections, TArray<UMovieSceneSection*>& Sections, TArray<UMovieSceneSection*>& OutBlendSections)
+{
+	for (UMovieSceneSection* InSection : InSections)
+	{
+		if (InSection &&
+			InSection->IsActive() &&
+			InSection->GetBlendType().IsValid())
+		{
+			if (InSection->GetBlendType().Get() == BlendType)
+			{
+				OutBlendSections.Add(InSection);
+			}
+			else 
+			{
+				Sections.Add(InSection);
+			}
+		}
+	}
+}
 
 bool MovieSceneToolHelpers::CollapseSection(TSharedPtr<ISequencer>& SequencerPtr, UMovieSceneTrack* OwnerTrack, TArray<UMovieSceneSection*> Sections,
 	const FBakingAnimationKeySettings& InSettings)
 {
-	if (SequencerPtr.IsValid() && Sections.Num() > 1)
+	if (SequencerPtr.IsValid() && Sections.Num() > 1 && OwnerTrack)
 	{
 		TRange<FFrameNumber> Range(InSettings.StartFrame, InSettings.EndFrame);
 		//we get the  first absolute section or if no absolute sections, first additive,
 		// that's the one we collapse onto
 		UMovieSceneSection* BaseSection = nullptr;
-		//get first absolute
-		for (UMovieSceneSection* Section: Sections)
-		{
-			if (Section->IsActive() == false)
-			{
-				continue;
-			}
-			if (Section->GetBlendType().Get() == EMovieSceneBlendType::Absolute)
-			{
-				BaseSection = Section;
-				break;
-			}
-			else if (Section->GetBlendType().Get() == EMovieSceneBlendType::Additive)
-			{
-				if (BaseSection == nullptr)
-				{
-					BaseSection = Section; //don't stop though may have an absolute later
-				}
-			}
-		}
-		if (BaseSection == nullptr)
-		{
-			UE_LOG(LogMovieScene, Warning, TEXT("CollapseSection:: Invalid section(s) to collapse"));
-			return false;
-		}
-		//now find other sections.
-		TArray<UMovieSceneSection*> AbsoluteSections;
-		TArray<UMovieSceneSection*> AdditiveSections;
-		for (UMovieSceneSection* Section : Sections)
-		{
-			if (Section != BaseSection && Section->IsActive())
-			{
-				if (Section->GetBlendType().Get() == EMovieSceneBlendType::Absolute)
-				{
-					AbsoluteSections.Add(Section);
-				}
-				else if (Section->GetBlendType().Get() == EMovieSceneBlendType::Additive)
-				{
-					AdditiveSections.Add(Section);
-				}
-			}
-		}
-		//now make sure we have sections to blend with and if so add base section to them
-		if (AbsoluteSections.Num() > 0 || AdditiveSections.Num() > 0)
-		{
-			if (AbsoluteSections.Num() > 0)
-			{
-				AbsoluteSections.Insert(BaseSection, 0);
-			}
-			if (AdditiveSections.Num() > 0)
-			{
-				AdditiveSections.Insert(BaseSection, 0);
-			}
-		}
-		else
-		{
-			UE_LOG(LogMovieScene, Warning, TEXT("CollapseSection:: Invalid section(s) to collapse"));
-			return false;
-		}
-
+		
 		FScopedTransaction Transaction(NSLOCTEXT("MovieSceneTools", "CollapseAllSections", "Collapse All Sections"));
+		for (int32 SectionIndex = Sections.Num() - 1; SectionIndex > 0; --SectionIndex)
+		{
+			BaseSection = Sections[SectionIndex - 1];
+			UMovieSceneSection* Section = Sections[SectionIndex];
+			if (BaseSection && Section && BaseSection->GetBlendType().IsValid() && Section->GetBlendType().IsValid())
+			{
+				OwnerTrack->Modify();
 
-		TArrayView<FMovieSceneFloatChannel*> BaseFloatChannels = BaseSection->GetChannelProxy().GetChannels<FMovieSceneFloatChannel>();
-		TArrayView<FMovieSceneDoubleChannel*> BaseDoubleChannels = BaseSection->GetChannelProxy().GetChannels<FMovieSceneDoubleChannel>();
-		if (BaseDoubleChannels.Num() > 0) //transforms
-		{
-			if (MovieSceneToolHelpers::MergeSections<FMovieSceneDoubleChannel>(BaseSection, AbsoluteSections, AdditiveSections, Range, false /*bSkipLastChannel*/) == false)
-			{
-				Transaction.Cancel();
-				return false;
-			}
-		}
-		else if(BaseFloatChannels.Num() > 0) //control rig
-		{
-			//skip weight channel for control rig
-			if (MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(BaseSection,  AbsoluteSections, AdditiveSections, Range, true /*bSkipLastChannel*/) == false)
-			{
-				Transaction.Cancel();
-				return false;
-			}
-		}
-		//delete other sections
-		OwnerTrack->Modify();
-		for (int32 SectionIndex = Sections.Num() - 1; SectionIndex >= 0; --SectionIndex)
-		{
-			if (Sections[SectionIndex] != BaseSection)
-			{
+				if (Section->IsActive())//active sections merge them
+				{
+					TArrayView<FMovieSceneFloatChannel*> BaseFloatChannels = BaseSection->GetChannelProxy().GetChannels<FMovieSceneFloatChannel>();
+					TArrayView<FMovieSceneDoubleChannel*> BaseDoubleChannels = BaseSection->GetChannelProxy().GetChannels<FMovieSceneDoubleChannel>();
+					if (BaseDoubleChannels.Num() > 0)
+					{
+						const int StartIndex = 0;
+						const int EndIndex = BaseDoubleChannels.Num() - 1;
+						MovieSceneToolHelpers::MergeSections<FMovieSceneDoubleChannel>(BaseSection,
+							Section, StartIndex, EndIndex, Range);
+
+					}
+					else if (BaseFloatChannels.Num() > 0)
+					{
+						const int StartIndex = 0;
+						const int EndIndex = BaseFloatChannels.Num() - 1;
+						MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(BaseSection,
+							Section,StartIndex, EndIndex, Range);
+					}
+				}
+
+				//if merging override onto an additive we change it to an additive
+				if (Section->GetBlendType().Get() == EMovieSceneBlendType::Override &&
+					(BaseSection->GetBlendType().Get() == EMovieSceneBlendType::Additive))
+				{
+					BaseSection->SetBlendType(EMovieSceneBlendType::Override);
+				}
 				TArray<UMovieSceneSection*> AllSections = OwnerTrack->GetAllSections();
 				int32 TrackSectionIndex = INDEX_NONE;
-				if (AllSections.Find(Sections[SectionIndex], TrackSectionIndex))
+				if (AllSections.Find(Section, TrackSectionIndex))
 				{
 					if (TrackSectionIndex != INDEX_NONE)
 					{
@@ -5163,7 +5132,7 @@ bool MovieSceneToolHelpers::CollapseSection(TSharedPtr<ISequencer>& SequencerPtr
 				}
 			}
 		}
-		if (InSettings.bReduceKeys)
+		if (InSettings.bReduceKeys && BaseSection)
 		{
 			FKeyDataOptimizationParams Params;
 			Params.bAutoSetInterpolation = true;

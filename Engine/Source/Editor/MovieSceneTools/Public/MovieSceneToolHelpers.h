@@ -22,7 +22,6 @@
 #include "Channels/MovieSceneChannelProxy.h"
 #include "MovieSceneSection.h"
 
-class ISequencer;
 class UMovieScene;
 class UMovieSceneSequence;
 struct FMovieSceneObjectBindingID;
@@ -111,7 +110,9 @@ enum class FChannelMergeAlgorithm : uint8
 	/**Average values together*/
 	Average,
 	/**Add values together*/
-	Add
+	Add,
+	/** Override values together*/
+	Override,
 };
 
 class MOVIESCENETOOLS_API MovieSceneToolHelpers
@@ -668,20 +669,150 @@ public:
 	 */
 	static bool IsValidAsset(UMovieSceneSequence* Sequence, const FAssetData& InAssetData);
 
-	static bool CollapseSection(TSharedPtr<ISequencer>& SequencerPtr, UMovieSceneTrack* OwnerTrack, TArray<UMovieSceneSection*> Sections,
+	/*
+	* Collapse all of the sections specified onto the first one
+	* @param InSequencer  Sequencer we are collpasing at
+	* @param InOwnerTrack  The track that should be owning the sections we are collapsing
+	* @param InSections The sections we are collapsing. Sections[0] will remain, te otheer ones will be deleted
+	* @param InSettings Baking settings ussed
+	* @return Return true if succeeds false if it doesn't
+	*/
+	static bool CollapseSection(TSharedPtr<ISequencer>& InSequencer, UMovieSceneTrack* InOwnerTrack, TArray<UMovieSceneSection*> InSections,
 		const FBakingAnimationKeySettings& InSettings);
 
-	//merge the channels onto the first one using the passed in algorithm, we may skip the last channel also (since it may be weight).
-	template<typename ChannelType>
-	static bool MergeChannels(TArray<ChannelType*>& Channels, const  TArray<UMovieSceneSection*>& Sections, const TRange<FFrameNumber>& Range,
+	/*
+	* Split set of sections to one containing the BlendType the other not
+	* @param InSections The sections we are searching
+	* @param OutSections All non-BlendType sections
+	* @param OutAbsoluteSections All BlendType sections
+	*/
+	static void SplitSectionsByBlendType(EMovieSceneBlendType BlendType, const TArray<UMovieSceneSection*>& InSections, TArray<UMovieSceneSection*>& OutSections, TArray<UMovieSceneSection*>& OutBlendTypeSections);
+
+	/*
+	* Get the channel values at the specified time with the specified sections, will get
+	* the channels from within the specified start and end indices
+	* @param StartIndex Start Index to get values from
+	* @param EndIndex End Index to get values from, should be no greater than the number of channels -1
+	* @param Sections List of non-absolute(additive and override) sections to evaluate. Note this may not be all of the sections in the track,
+	* but just a subset, which allows us to evaluate up to a certain point in the track.
+	* @param AbsoluteSections List of absolute channels to evaluate
+	* @param FrameTime Frame to evaluate
+	* @return Returns the total channel value of those sections for each channel. Remember if OverrideChannelIndex is set this will just be one channel.
+	*/
+	template<typename ChannelType, typename CurveValueType>
+	static TArray<CurveValueType> GetChannelValues(const int32 StartIndex, const int32 EndIndex, const TArray<UMovieSceneSection*>& Sections, const TArray<UMovieSceneSection*>& AbsoluteSections, const FFrameNumber& FrameTime)
+	{
+		TArray<CurveValueType> Values;
+		int32 NumChannels = 0;
+		if (Sections.Num() > 0)
+		{
+			TArrayView<ChannelType*>Channels = Sections[0]->GetChannelProxy().GetChannels<ChannelType>();
+			NumChannels = Channels.Num();
+		}
+		else if(AbsoluteSections.Num() > 0)
+		{
+			TArrayView<ChannelType*>Channels = AbsoluteSections[0]->GetChannelProxy().GetChannels<ChannelType>();
+			NumChannels = Channels.Num();
+		}
+		else
+		{
+			UE_LOG(LogMovieScene, Warning, TEXT("GetChannelValues:: Invalid number of channels"));
+			return Values;
+		}
+		if (StartIndex < 0 || EndIndex >= NumChannels || EndIndex < StartIndex)
+		{
+			UE_LOG(LogMovieScene, Warning, TEXT("GetChannelValues:: Invalid Start/End indices"));
+			return Values;
+		}
+		
+		for (int32 ChannelIndex = StartIndex; ChannelIndex <= EndIndex; ++ChannelIndex)
+		{
+			CurveValueType Value = 0.0;
+			if (AbsoluteSections.Num() > 0)
+			{
+				for (UMovieSceneSection* AbsoluteSection : AbsoluteSections)
+				{
+					TArrayView<ChannelType*>Channels = AbsoluteSection->GetChannelProxy().GetChannels<ChannelType>();
+					float Weight = AbsoluteSection->GetTotalWeightValue(FrameTime);
+					CurveValueType WeightedValue = 0.0;
+					ChannelType* Channel = Channels[ChannelIndex];
+					Channel->Evaluate(FrameTime, WeightedValue);
+					WeightedValue *= ((double)Weight);
+					Value += WeightedValue;
+				}
+
+				Value /= (double)AbsoluteSections.Num();		
+			}
+
+			for (UMovieSceneSection* Section : Sections)
+			{
+				TArrayView<ChannelType*> Channels = Section->GetChannelProxy().GetChannels<ChannelType>();
+				float Weight = Section->GetTotalWeightValue(FrameTime);
+				CurveValueType WeightedValue = 0.0;
+				ChannelType* Channel = Channels[ChannelIndex];
+				Channel->Evaluate(FrameTime, WeightedValue);
+				if (Section->GetBlendType().Get() == EMovieSceneBlendType::Additive)
+				{
+					WeightedValue *= Weight;
+					Value += WeightedValue;
+				}
+				else if (Section->GetBlendType().Get() == EMovieSceneBlendType::Override)
+				{
+					Value = (Value * (1.0 - Weight)) +
+						(Value * Weight);
+				}
+			}
+			Values.Add(Value);
+		}
+		return Values;
+	}
+
+	/*
+	* Merge the set of passed in channels from each section at the specified section channel index.
+	* For the algorithm to be relaible it should be done per section blending type.
+	* @param SectionChannelIndex  The index of the channel of this type in the sections.
+	* @param Channels  Set of channels of this type that we will merge together onto the first specified one.
+	* @param Sections Set of corresponding sections for each channel specified.
+	* @param Range Range of time over which we will merge
+	* @param MergeAlgorithm The algorithm to use to blend the channels together
+	* @return Returns true if successful
+	*/	template<typename ChannelType>
+	static bool MergeChannels(int32 SectionChannelIndex, TArray<ChannelType*>& Channels, const  TArray<UMovieSceneSection*>& Sections, const TRange<FFrameNumber>& Range,
 		FChannelMergeAlgorithm MergeAlgorithm)
 	{
-		if (Channels.Num() < 2 && Channels.Num() != Sections.Num())
+		if (Channels.Num() < 2 || Channels.Num() != Sections.Num())
 		{
+			UE_LOG(LogMovieScene, Warning, TEXT("MergeChannels:: Invalid number of channels"));
+			return false;
+		}
+		//for overrides since the need to evaluate the full value we only support 2 sections
+		if (MergeAlgorithm == FChannelMergeAlgorithm::Override && Sections.Num() != 2)
+		{
+			UE_LOG(LogMovieScene, Warning, TEXT("MergeChannels:: Can only do Override Blend with two sections"));
 			return false;
 		}
 		using ChannelValueType = typename ChannelType::ChannelValueType;
 		using CurveValueType = typename ChannelType::CurveValueType;
+
+		TArray<UMovieSceneSection*> OtherSections;
+		TArray<UMovieSceneSection*> AbsoluteSections;
+		int32 OverrideChannelIndex = SectionChannelIndex;
+		int32 NumChannelsInSection = INDEX_NONE;
+		if (MergeAlgorithm == FChannelMergeAlgorithm::Override) //if we are overriding we need to get the absolute value at the frame!
+		{
+			if (UMovieSceneTrack* OwnerTrack = Sections[1]->GetTypedOuter<UMovieSceneTrack>())
+			{
+				TArray<UMovieSceneSection*> TrackSections = OwnerTrack->GetAllSections();
+				int32 SectionIndex = TrackSections.Find(Sections[1]);
+				if (SectionIndex != INDEX_NONE)
+				{
+					TrackSections.SetNum(SectionIndex + 1); //this wil make sure we include the current sections
+					MovieSceneToolHelpers::SplitSectionsByBlendType(EMovieSceneBlendType::Absolute,TrackSections, OtherSections, AbsoluteSections);
+					TArrayView<ChannelType*> OverrideChannels = Sections[1]->GetChannelProxy().GetChannels<ChannelType>();
+					NumChannelsInSection = OverrideChannels.Num();
+				}
+			}
+		}
 
 		//base channel we set values on
 		ChannelType* BaseChannel = Channels[0];
@@ -750,92 +881,20 @@ public:
 						}
 					}
 				}
-				KeysToSet.Add(TPair<FFrameNumber, ChannelValueType>(Frame, Value));
-			}
-		}
-		for (TPair<FFrameNumber, ChannelValueType>& KeyToSet : KeysToSet)
-		{
-			MovieSceneToolHelpers::SetOrAddKey(BaseChannelData, KeyToSet.Key, KeyToSet.Value);
-		}
-
-		return true;
-	}
-
-	template<typename ChannelType>
-	static bool MergeNonWeightedChannels(TArray<ChannelType*>& Channels, const  TArray<UMovieSceneSection*>& Sections, const TRange<FFrameNumber>& Range,
-		FChannelMergeAlgorithm MergeAlgorithm)
-	{
-		if (Channels.Num() < 2 && Channels.Num() != Sections.Num())
-		{
-			return false;
-		}
-		using ChannelValueType = typename ChannelType::ChannelValueType;
-		using CurveValueType = typename ChannelType::CurveValueType;
-
-		//base channel we set values on
-		ChannelType* BaseChannel = Channels[0];
-		TMovieSceneChannelData<ChannelValueType> BaseChannelData = BaseChannel->GetData();
-		//iterate over each key
-		TArray<FFrameNumber> KeyTimes;
-		TArray<FKeyHandle> Handles;
-		//cached set that we set at the end
-		TArray<TPair< FFrameNumber, ChannelValueType>> KeysToSet;
-		for (int32 ChannelIndex = 0; ChannelIndex < Channels.Num(); ++ChannelIndex)
-		{
-			KeyTimes.Reset();
-			Handles.Reset();
-			ChannelType* Channel = Channels[ChannelIndex];
-			Channel->GetKeys(Range, &KeyTimes, &Handles);
-			for (int32 FrameIndex = 0; FrameIndex < KeyTimes.Num(); ++FrameIndex)
-			{
-				const FFrameNumber& Frame = KeyTimes[FrameIndex];
-				if (Sections[0]->GetRange().Contains(Frame) == false)  //frame is outside base range so skip
+				else if (MergeAlgorithm == FChannelMergeAlgorithm::Override)
 				{
-					continue;
-				}
-				const FFrameTime FrameTime(Frame);
-				int32 KeyIndex = Channel->GetData().GetIndex(Handles[FrameIndex]);
-				ChannelValueType Value = Channel->GetData().GetValues()[KeyIndex];
-				//got value with tangents and times, now we perform the operation
-				Value.Value = 0.0; //zero out the value we calculate it 
-				if (MergeAlgorithm == FChannelMergeAlgorithm::Average)
-				{
-					double DNumChannels = 0.0;
-					for (int32 WeightIndex = 0; WeightIndex < Sections.Num(); ++WeightIndex)
+					if (Sections[1]->GetRange().Contains(Frame))
 					{
-						if (Sections[WeightIndex]->GetRange().Contains(Frame))
+						float Weight = Sections[1]->GetTotalWeightValue(FrameTime);
+						TArray<CurveValueType> ChannelValues = MovieSceneToolHelpers::GetChannelValues<ChannelType,
+							CurveValueType>(OverrideChannelIndex, OverrideChannelIndex, OtherSections, AbsoluteSections, Frame);
+						if (ChannelValues.Num() == 1)
 						{
-							float Weight = Sections[WeightIndex]->GetTotalWeightValue(FrameTime);
 							CurveValueType WeightedValue = 0.0;
-							ChannelType* EachChannel = Channels[WeightIndex];
-							EachChannel->Evaluate(FrameTime, WeightedValue);
-							WeightedValue *= ((double)Weight);
-							Value.Value += WeightedValue;
-							DNumChannels += 1.0;
-						}
-					}
-					if (DNumChannels > 0.0) //should always happen since base(0) at least be here
-					{
-						Value.Value /= DNumChannels;
-					}
-				}
-				else if (MergeAlgorithm == FChannelMergeAlgorithm::Add)
-				{
-					for (int32 WeightIndex = 0; WeightIndex < Sections.Num(); ++WeightIndex)
-					{
-						if (Sections[WeightIndex]->GetRange().Contains(Frame))
-						{
-							float Weight = Sections[WeightIndex]->GetTotalWeightValue(FrameTime);
-							if (Sections[WeightIndex]->GetBlendType().IsValid() == false ||
-								Sections[WeightIndex]->GetBlendType().Get() != EMovieSceneBlendType::Additive)
-							{
-								Weight = 1.0;
-							}
-							CurveValueType WeightedValue = 0.0;
-							ChannelType* EachChannel = Channels[WeightIndex];
+							ChannelType* EachChannel = Channels[1];
 							EachChannel->Evaluate(FrameTime, WeightedValue);
 							WeightedValue *= Weight;
-							Value.Value += WeightedValue;
+							Value.Value = WeightedValue + (1.0 - Weight) * ChannelValues[0];
 						}
 					}
 				}
@@ -846,15 +905,98 @@ public:
 		{
 			MovieSceneToolHelpers::SetOrAddKey(BaseChannelData, KeyToSet.Key, KeyToSet.Value);
 		}
-
 		return true;
 	}
 
+	/*
+	* Merge the TopSection onto the BaseSection. This function should be used when merging
+	* a mix of Override/Additive and Absolute section Blend Types.
+	* @param BaseSection  The section to merge onto
+	* @param TopSection  The section we will merge from
+	* @param StartIndex Start Index of the channels we are merging
+	* @param EndIndex End Index of the channels we are merging, should be no greater than the number of channels -1
+	* @param Range Range of time over which we will merge
+	* Control Rig sections and don't want to merge the last weight float channel
+	* @return Returns true if successful
+	*/	
 	template<typename ChannelType>
-	static bool MergeSections(UMovieSceneSection* BaseSection, TArray<UMovieSceneSection*>& AbsoluteSections, TArray<UMovieSceneSection*>& AdditiveSections,
-		const TRange<FFrameNumber>& Range, bool bSkipLastChannel)
+	static bool MergeSections(UMovieSceneSection* BaseSection, UMovieSceneSection* TopSection,
+		int32 StartIndex, int32 EndIndex, const TRange<FFrameNumber>& Range)
 	{
 		TArrayView<ChannelType*> BaseChannels = BaseSection->GetChannelProxy().GetChannels<ChannelType>();
+		TArrayView<ChannelType*> TopChannels = TopSection->GetChannelProxy().GetChannels<ChannelType>();
+		if (TopChannels.Num() != BaseChannels.Num())
+		{
+			UE_LOG(LogMovieScene, Warning, TEXT("MergeSections:: Invalid number of channels"));
+			return false;
+		}
+		if (StartIndex < 0 || EndIndex >= BaseChannels.Num() || EndIndex < StartIndex)
+		{
+			UE_LOG(LogMovieScene, Warning, TEXT("MergeSections:: Invalid Start/End indices"));
+			return false;
+		}
+
+		BaseSection->Modify();
+
+		TArray<ChannelType*> Channels;
+		int32 ChannelIndex = 0;
+		TArray<UMovieSceneSection*> Sections;
+		Sections.Add(BaseSection);
+		Sections.Add(TopSection);
+		FChannelMergeAlgorithm MergeAlgorithm = FChannelMergeAlgorithm::Add;
+		if (TopSection->GetBlendType().IsValid() && TopSection->GetBlendType().Get() == EMovieSceneBlendType::Absolute)
+		{
+			MergeAlgorithm = FChannelMergeAlgorithm::Average;
+		}
+		else if (TopSection->GetBlendType().IsValid() && TopSection->GetBlendType().Get() == EMovieSceneBlendType::Override)
+		{
+			MergeAlgorithm = FChannelMergeAlgorithm::Override;
+		}
+
+		for (ChannelIndex = StartIndex; ChannelIndex <= EndIndex; ++ChannelIndex)
+		{
+			Channels.Reset();
+			Channels.Add(BaseChannels[ChannelIndex]);
+			Channels.Add(TopChannels[ChannelIndex]);
+
+			if (MergeChannels(ChannelIndex, Channels, Sections, Range,
+				MergeAlgorithm) == false)
+			{
+				UE_LOG(LogMovieScene, Warning, TEXT("MergeSections:: Could not merge channels"));
+				return false;
+			}
+		}
+		
+		for (ChannelType* Channel : BaseChannels)
+		{
+			Channel->AutoSetTangents();
+		}
+		
+		return true;
+	}
+
+	/*
+	* Merge the following set of sections. Should be used when blending just Absolute with additive sections. If Merging with
+	* overrides, use the above MergeSections function
+	* @param BaseSection  The section to merge onto
+	* @param AbsoluteSections  Set of absolute functions to merge
+	* @param AddditveSections  Set of Additive functions to merge
+	* @param StartIndex Start Index of the channels we are merging
+	* @param EndIndex End Index of the channels we are merging, should be no greater than the number of channels -1
+	* @param Range Range of time over which we will merge
+	* Control Rig sections and don't want to merge the last weight float channel
+	* @return Returns true if successful
+	*/	
+	template<typename ChannelType>
+	static bool MergeSections(UMovieSceneSection* BaseSection, TArray<UMovieSceneSection*>& AbsoluteSections, TArray<UMovieSceneSection*>& AdditiveSections,
+		int32 StartIndex, int32 EndIndex, const TRange<FFrameNumber>& Range)
+	{
+		TArrayView<ChannelType*> BaseChannels = BaseSection->GetChannelProxy().GetChannels<ChannelType>();
+		if (StartIndex < 0 || EndIndex >= BaseChannels.Num() || EndIndex < StartIndex)
+		{
+			UE_LOG(LogMovieScene, Warning, TEXT("MergeSections:: Invalid Start/End indices"));
+			return false;
+		}
 		if (BaseChannels.Num() > 0)
 		{
 			int32 SectionIndex = 0;
@@ -880,10 +1022,7 @@ public:
 			BaseSection->Modify();
 
 			TArray<ChannelType*> Channels;
-			int32 ChannelIndex = 0;
-			bSkipLastChannel = false;
-			int32 BaseChannelsNum = bSkipLastChannel ? BaseChannels.Num() - 1 : BaseChannels.Num();
-			for (ChannelIndex = 0; ChannelIndex < BaseChannels.Num(); ++ChannelIndex)
+			for (int32 ChannelIndex = StartIndex; ChannelIndex <= EndIndex; ++ChannelIndex)
 			{
 				if (AbsoluteSections.Num() > 0)
 				{
@@ -894,7 +1033,7 @@ public:
 						Channels.Add(OurChannels[ChannelIndex]);
 					}
 					//now blend them
-					if (MergeChannels(Channels, AbsoluteSections, Range,
+					if (MergeChannels(ChannelIndex, Channels, AbsoluteSections, Range,
 						FChannelMergeAlgorithm::Average) == false)
 					{
 						UE_LOG(LogMovieScene, Warning, TEXT("MergeSections:: Could not merge channels"));
@@ -911,7 +1050,7 @@ public:
 						Channels.Add(OurChannels[ChannelIndex]);
 					}
 					//now blend them
-					if (MergeChannels(Channels, AdditiveSections, Range,
+					if (MergeChannels(ChannelIndex,Channels, AdditiveSections, Range,
 						FChannelMergeAlgorithm::Add) == false)
 					{
 						UE_LOG(LogMovieScene, Warning, TEXT("MergeSections:: Could not merge channels"));
@@ -926,6 +1065,7 @@ public:
 		}
 		else
 		{
+			UE_LOG(LogMovieScene, Warning, TEXT("MergeSections:: Invalid number of channels"));
 			return false;
 		}
 		return true;
