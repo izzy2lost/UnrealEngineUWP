@@ -90,6 +90,9 @@ public:
 		, _ClearKeyboardFocusOnCommit(false)
 		, _SelectAllTextOnCommit(true)
 		, _MinDesiredWidth(0.0f)
+		, _Justification(ETextJustify::Left)
+		, _KeyboardType(Keyboard_Default)
+		, _PreventThrottling(true)
 	{}
 
 	/** The style used to draw this spinbox */
