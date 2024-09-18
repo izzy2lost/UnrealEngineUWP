@@ -38,8 +38,9 @@ public:
 	void SetSequencerAndDetails(TWeakPtr<ISequencer> InWeakSequencer, SControlRigDetails* InControlRigDetails);
 	TMap<UObject*, FArrayOfPropertyTracks>& GetObjectsTracked() { return ObjectsTracked; }
 private:
-	void UpdateSequencerBindings(const TArray<FGuid>& SequencerBindings);
-	FDelegateHandle OnSelectionChangedHandle;
+
+	void RemoveDelegates();
+	void UpdateSequencerBindings(TArray<FGuid> SequencerBindings);
 	TWeakPtr<ISequencer> WeakSequencer;
 	TMap<UObject*, FArrayOfPropertyTracks> ObjectsTracked;
 	SControlRigDetails* ControlRigDetails = nullptr;
