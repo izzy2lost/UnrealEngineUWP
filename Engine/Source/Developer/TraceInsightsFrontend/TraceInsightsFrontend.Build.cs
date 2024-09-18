@@ -36,8 +36,8 @@ public class TraceInsightsFrontend : ModuleRules
 			);
 		}
 
-		// Modules required for running automation in stand alone Insights
-		if (Target.Configuration != UnrealTargetConfiguration.Shipping && !Target.bBuildEditor)
+		// Modules required for running automation
+		if (!Target.bBuildEditor)
 		{
 			PrivateDependencyModuleNames.AddRange(
 				new string[] {

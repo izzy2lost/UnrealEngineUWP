@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Containers/Ticker.h"
 #include "Framework/Docking/TabManager.h"
 
 // TraceInsightsFrontend
@@ -13,6 +14,7 @@ namespace UE::Trace { class FStoreConnection; }
 namespace UE::Insights
 {
 
+class FInsightsAutomationController;
 class STraceStoreWindow;
 class SConnectionWindow;
 
@@ -70,6 +72,8 @@ private:
 	/** An instance of the main settings. */
 	FInsightsFrontendSettings Settings;
 
+	FCreateFrontendWindowParams CreateWindowParams;
+
 	TSharedPtr<FTabManager::FLayout> PersistentLayout;
 	static FString LayoutIni;
 
@@ -82,6 +86,14 @@ private:
 	TWeakPtr<SConnectionWindow> ConnectionWindow;
 
 	bool bIsMainTabSet = false;
+
+	TSharedPtr<UE::Insights::FInsightsAutomationController> InsightsAutomationController;
+
+	/** The delegate to be invoked when this ticks. */
+	FTickerDelegate OnTick;
+
+	/** Handle to the registered OnTick. */
+	FTSTicker::FDelegateHandle OnTickHandle;
 };
 
 } // UE::Insights

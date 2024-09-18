@@ -146,6 +146,7 @@ void FAutomationDriverUnrealInsightsHubMemoryInsightsTest::Define()
 		Driver.Reset();
 		IAutomationDriverModule::Get().Disable();
 		AutomationWindow->Restore();
+		AutomationWindow.Reset();
 	});
 }
 

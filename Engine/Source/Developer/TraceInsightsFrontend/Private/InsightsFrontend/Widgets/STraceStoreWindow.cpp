@@ -2237,20 +2237,6 @@ TSharedRef<SWidget> STraceStoreWindow::MakeTraceListMenu()
 
 	MenuBuilder.BeginSection("DebugOptions", LOCTEXT("TraceListMenu_Section_DebugOptions", "Debug Options"));
 
-	if (FGlobalTabmanager::Get()->HasTabSpawner(FInsightsFrontendTabs::AutomationWindowTabId))
-	{
-		MenuBuilder.AddMenuEntry(
-			LOCTEXT("Automation", "Automation"),
-			TAttribute<FText>(), // no tooltip
-			FSlateIcon(FInsightsCoreStyle::GetStyleSetName(), "Icons.TestAutomation"),
-			FUIAction(FExecuteAction::CreateLambda([this]()
-				{
-					FGlobalTabmanager::Get()->TryInvokeTab(FInsightsFrontendTabs::AutomationWindowTabId);
-				})),
-			NAME_None,
-			EUserInterfaceActionType::Button);
-	}
-
 	// Enable Automation Tests Option.
 	{
 		FUIAction ToogleAutomationTestsAction;

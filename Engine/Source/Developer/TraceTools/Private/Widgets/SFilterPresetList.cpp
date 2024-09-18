@@ -143,6 +143,11 @@ FReply SFilterPresetList::OnMouseButtonUp( const FGeometry& MyGeometry, const FP
 
 void SFilterPresetList::SaveSettings(const FString& IniFilename) const
 {
+	if (GConfig == nullptr)
+	{
+		return;
+	}
+
 	FStringView IniSectionName = TEXTVIEW("Trace.FilterPresetList");
 	FStringView IniActivePresetsKey = TEXTVIEW("ActivePresets");
 

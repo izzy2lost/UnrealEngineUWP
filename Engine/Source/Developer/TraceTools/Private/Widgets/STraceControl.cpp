@@ -92,6 +92,24 @@ void STraceControl::SetInstanceId(const FGuid& Id)
 	{
 		TraceController->SendDiscoveryRequest(FGuid(), Id);
 	}
+
+#if !WITH_EDITOR
+	if (Id == FApp::GetInstanceId())
+	{
+		TraceDataFilterWidget->SetWarningBannerText(LOCTEXT("SessionCannotBeControlledWarning", "Unreal Session Frontend cannot be controlled by this tool. Please select another active instance from the Session Browser."));
+	}
+	else
+	{
+		if (bAutoDetectSelectedSession)
+		{
+			TraceDataFilterWidget->SetWarningBannerText(LOCTEXT("NoSessionSelectedWarning", "Please select an active instance from the Session Browser."));
+		}
+		else
+		{
+			TraceDataFilterWidget->SetWarningBannerText(FText::GetEmpty());
+		}
+	}
+#endif
 }
 
 void STraceControl::OnInstanceSelectionChanged(const TSharedPtr<ISessionInstanceInfo>& InstanceInfo, bool bSelected)

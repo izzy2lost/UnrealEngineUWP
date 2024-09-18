@@ -7,6 +7,8 @@
 #include "Modules/ModuleInterface.h"
 #include "Templates/SharedPointer.h"
 
+#define INSIGHTS_ENABLE_AUTOMATION !WITH_EDITOR
+
 namespace UE::Insights
 {
 
@@ -17,13 +19,13 @@ struct FCreateFrontendWindowParams
 	bool bInitializeTesting = false;
 	bool bStartProcessWithStompMalloc = false;
 	bool bDisableFramerateThrottle = false;
+	bool bAutoQuit = false;
 };
 
 struct FInsightsFrontendTabs
 {
 	static const FName TraceStoreTabId;
 	static const FName ConnectionTabId;
-	static const FName AutomationWindowTabId;
 };
 
 class STraceStoreWindow;

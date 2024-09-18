@@ -12,7 +12,7 @@
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
 
-// TarceAnalysis
+// TraceAnalysis
 #include "Trace/StoreConnection.h"
 
 // TraceInsightsCore
@@ -21,7 +21,8 @@
 
 // TraceInsightsFrontend
 #include "InsightsFrontend/Common/InsightsFrontendStyle.h"
-#include "InsightsFrontend/Tests/TestRunner.h"
+#include "InsightsFrontend/Common/InsightsAutomationController.h"
+#include "InsightsFrontend/Common/Log.h"
 #include "InsightsFrontend/Widgets/SConnectionWindow.h"
 #include "InsightsFrontend/Widgets/STraceStoreWindow.h"
 
@@ -34,7 +35,6 @@ namespace UE::Insights
 
 const FName FInsightsFrontendTabs::TraceStoreTabId("TraceStore");
 const FName FInsightsFrontendTabs::ConnectionTabId("Connection");
-const FName FInsightsFrontendTabs::AutomationWindowTabId("Automation");
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -76,6 +76,8 @@ void FTraceInsightsFrontendModule::ShutdownModule()
 	FInsightsFrontendStyle::Shutdown();
 
 	TraceStoreConnection.Reset();
+
+	InsightsAutomationController.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -127,6 +129,11 @@ void FTraceInsightsFrontendModule::RegisterTabSpawners()
 			WorkspaceMenu::GetMenuStructure().GetDeveloperToolsProfilingCategory();
 		TabSpawnerEntry.SetGroup(Group);
 	}
+
+	InsightsAutomationController = MakeShared<FInsightsAutomationController>();
+
+	InsightsAutomationController->Initialize();
+	InsightsAutomationController->SetAutoQuit(CreateWindowParams.bAutoQuit);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -139,8 +146,10 @@ void FTraceInsightsFrontendModule::UnregisterTabSpawners()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTraceInsightsFrontendModule::CreateFrontendWindow(const FCreateFrontendWindowParams& Params)
+void FTraceInsightsFrontendModule::CreateFrontendWindow(const FCreateFrontendWindowParams& InParams)
 {
+	CreateWindowParams = InParams;
+
 	RegisterTabSpawners();
 
 	//////////////////////////////////////////////////
@@ -203,7 +212,7 @@ void FTraceInsightsFrontendModule::CreateFrontendWindow(const FCreateFrontendWin
 		->SetWindow(FVector2D(10.0f * DPIScaleFactor, 10.0f * DPIScaleFactor), false)
 		->Split
 		(
-			FTabManager::NewStack()->AddTab(FTabId("WidgetReflector"), Params.bAllowDebugTools ? ETabState::OpenedTab : ETabState::ClosedTab)
+			FTabManager::NewStack()->AddTab(FTabId("WidgetReflector"), InParams.bAllowDebugTools ? ETabState::OpenedTab : ETabState::ClosedTab)
 		)
 	);
 
@@ -229,10 +238,10 @@ void FTraceInsightsFrontendModule::CreateFrontendWindow(const FCreateFrontendWin
 	TSharedPtr<STraceStoreWindow> TraceStoreWnd = GetTraceStoreWindow();
 	if (TraceStoreWnd.IsValid())
 	{
-		TraceStoreWnd->SetEnableAutomaticTesting(Params.bInitializeTesting);
-		TraceStoreWnd->SetEnableDebugTools(Params.bAllowDebugTools);
-		TraceStoreWnd->SetStartProcessWithStompMalloc(Params.bStartProcessWithStompMalloc);
-		TraceStoreWnd->SetDisableFramerateThrottle(Params.bDisableFramerateThrottle);
+		TraceStoreWnd->SetEnableAutomaticTesting(InParams.bInitializeTesting);
+		TraceStoreWnd->SetEnableDebugTools(InParams.bAllowDebugTools);
+		TraceStoreWnd->SetStartProcessWithStompMalloc(InParams.bStartProcessWithStompMalloc);
+		TraceStoreWnd->SetDisableFramerateThrottle(InParams.bDisableFramerateThrottle);
 	}
 }
 
@@ -324,20 +333,20 @@ void FTraceInsightsFrontendModule::OnConnectionTabClosed(TSharedRef<SDockTab> Ta
 
 void FTraceInsightsFrontendModule::RunAutomationTests(const FString& InCmd)
 {
-#if !UE_BUILD_SHIPPING && !WITH_EDITOR
+#if INSIGHTS_ENABLE_AUTOMATION
+
 	FString ActualCmd = InCmd;
 	ActualCmd.TrimCharInline(TEXT('\"'), nullptr);
 	ActualCmd.TrimCharInline(TEXT('\''), nullptr);
 
 	if (ActualCmd.StartsWith(TEXT("Automation RunTests")))
 	{
-		FTestRunner TestRunner;
-		TestRunner.Run(ActualCmd);
+		InsightsAutomationController->RunTests(InCmd);
 	}
-#endif
+#else
+	UE_LOG(LogInsightsFrontend, Error, TEXT("Automated test could not execute because INSIGHTS_ENABLE_AUTOMATION is disabled."));
+#endif // INSIGHTS_ENABLE_AUTOMATION
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 } // namespace UE::Insights
 
