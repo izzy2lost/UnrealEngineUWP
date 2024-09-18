@@ -105,11 +105,12 @@ static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingMaxIterations(
 
 static TAutoConsoleVariable<int32> CVarLumenRadiosityHardwareRayTracingAvoidSelfIntersections(
 	TEXT("r.Lumen.HardwareRayTracing.AvoidSelfIntersections"),
-	2,
+	3,
 	TEXT("Whether to skip back face hits for a small distance in order to avoid self-intersections when BLAS mismatches rasterized geometry.\n")
 	TEXT("0 - Disabled. May have extra leaking, but it's the fastest mode.\n")
-	TEXT("1 - Enabled. This mode retraces to skip first backface hit up to r.Lumen.HardwareRayTracing.SkipBackFaceHitDistance. Faster on platforms without inline AHS.\n")
-	TEXT("2 - Enabled. This mode uses AHS to skip any backface hits up to r.Lumen.HardwareRayTracing.SkipBackFaceHitDistance. Faster on platforms with inline AHS."),
+	TEXT("1 - Enabled. This mode retraces to skip first backface hit up to r.Lumen.HardwareRayTracing.SkipBackFaceHitDistance. Good default on most platforms.\n")
+	TEXT("2 - Enabled. This mode uses AHS to skip any backface hits up to r.Lumen.HardwareRayTracing.SkipBackFaceHitDistance. Faster on platforms with inline AHS support.\n")
+	TEXT("3 - Enabled. Automatically chooses between mode 1 and 2 depending on platform for best performance."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
@@ -170,8 +171,16 @@ bool LumenHardwareRayTracing::IsRayGenSupported()
 
 LumenHardwareRayTracing::EAvoidSelfIntersectionsMode LumenHardwareRayTracing::GetAvoidSelfIntersectionsMode()
 {
-	return (LumenHardwareRayTracing::EAvoidSelfIntersectionsMode)
-		FMath::Clamp(CVarLumenRadiosityHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread(), 0, (uint32)LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::MAX - 1);
+	int32 Mode = CVarLumenRadiosityHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread();
+
+	if (Mode == 3)
+	{
+		return GRHIGlobals.RayTracing.SupportsInlinedCallbacks ? LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::AHS : LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::Retrace;
+	}
+	else
+	{
+		return (LumenHardwareRayTracing::EAvoidSelfIntersectionsMode)FMath::Clamp(Mode, 0, (uint32)LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::MAX - 1);
+	}
 }
 
 bool LumenHardwareRayTracing::UseSurfaceCacheAlphaMasking()
