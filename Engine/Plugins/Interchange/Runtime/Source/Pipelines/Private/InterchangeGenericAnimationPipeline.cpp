@@ -517,30 +517,30 @@ void UInterchangeGenericAnimationPipeline::CreateAnimSequenceFactoryNode(UInterc
 	//base on the specified skeleton
 	if(bImportOnlyAnimation && !SkeletonFactoryNode && CommonSkeletalMeshesAndAnimationsProperties->Skeleton.IsValid())
 	{
-		const FReferenceSkeleton& ReferenceSkeleton = CommonSkeletalMeshesAndAnimationsProperties->Skeleton->GetReferenceSkeleton();
-		TArray<FString> SkeletonRootNodeUids;
-		BaseNodeContainer->IterateNodesOfType<UInterchangeSceneNode>([&SkeletonRootNodeUids, BaseNodeContainerClosure = BaseNodeContainer, &ReferenceSkeleton](const FString& NodeUid, UInterchangeSceneNode* Node)
+		TWeakObjectPtr<USkeleton> Skeleton = CommonSkeletalMeshesAndAnimationsProperties->Skeleton;
+		TPair<int32, FString> SkeletonRootNodeUidAndBoneIndex = TPair<int32, FString>(INDEX_NONE, FString());
+		BaseNodeContainer->IterateNodesOfType<UInterchangeSceneNode>([&SkeletonRootNodeUidAndBoneIndex, BaseNodeContainerClosure = BaseNodeContainer, Skeleton](const FString& NodeUid, UInterchangeSceneNode* Node)
 		{
-			if (Node->IsSpecializedTypeContains(UE::Interchange::FSceneNodeStaticData::GetJointSpecializeTypeString()))
+			if (Skeleton.IsValid() && Node->IsSpecializedTypeContains(UE::Interchange::FSceneNodeStaticData::GetJointSpecializeTypeString()))
 			{
-				if(ReferenceSkeleton.FindBoneIndex(FName(*Node->GetDisplayLabel())) != INDEX_NONE)
+				const FReferenceSkeleton& ReferenceSkeleton = Skeleton->GetReferenceSkeleton();
+				int32 RefBoneIndex = ReferenceSkeleton.FindBoneIndex(FName(*Node->GetDisplayLabel()));
+				if(RefBoneIndex != INDEX_NONE)
 				{
-					const FString ParentUid = Node->GetParentUid();
-					if (const UInterchangeSceneNode* ParentNode = Cast<UInterchangeSceneNode>(BaseNodeContainerClosure->GetNode(ParentUid)))
+					if (SkeletonRootNodeUidAndBoneIndex.Key == INDEX_NONE || RefBoneIndex < SkeletonRootNodeUidAndBoneIndex.Key)
 					{
-						if (!ParentNode->IsSpecializedTypeContains(UE::Interchange::FSceneNodeStaticData::GetJointSpecializeTypeString()))
-						{
-							SkeletonRootNodeUids.Add(NodeUid);
-						}
+						SkeletonRootNodeUidAndBoneIndex = TPair<int32, FString>(RefBoneIndex, NodeUid);
 					}
 				}
 			}
 		});
 		FString SkeletonRootUid;
-		if (SkeletonRootNodeUids.Num() > 0)
+		//Use the lower uid we found
+		if (SkeletonRootNodeUidAndBoneIndex.Key != INDEX_NONE && !SkeletonRootNodeUidAndBoneIndex.Value.IsEmpty())
 		{
-			SkeletonRootUid = SkeletonRootNodeUids[0];
+			SkeletonRootUid = SkeletonRootNodeUidAndBoneIndex.Value;
 		}
+
 		if(!SkeletonRootUid.IsEmpty())
 		{
 			//Create a skeleton node from all the joint in the translated nodes
