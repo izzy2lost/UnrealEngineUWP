@@ -125,7 +125,7 @@ static FString BuildCompactTaskDescription(const TArray<FShaderCommonCompileJobP
 		}
 		if (JobsToSerialize.Num() > NumJobsInDescription)
 		{
-			Description += FString::Printf(TEXT("%d more shaders ...\n"), JobsToSerialize.Num() - NumJobsInDescription);
+			Description += FString::Printf(TEXT("\n%d more shaders ...\n"), JobsToSerialize.Num() - NumJobsInDescription);
 		}
 	}
 
