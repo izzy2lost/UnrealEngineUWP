@@ -171,15 +171,15 @@ int32 SColorGradingWheel::OnPaint(const FPaintArgs& Args, const FGeometry& Allot
 	const bool bIsEnabled = ShouldBeEnabled(bParentEnabled);
 	const ESlateDrawEffect DrawEffects = bIsEnabled ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect;
 
-	FVector2f AllottedGeometrySize;
+	FVector2f AllottedGeometrySize = AllottedGeometry.GetLocalSize();
+
 	if (bIsAttributeDesiredWheelSizeSet)
 	{
+		// Even if a desired size is provided, make sure the wheel is painted within the allotted geometry
 		int32 CachedDesiredWheelSize = DesiredWheelSizeAttribute.Get();
-		AllottedGeometrySize = FVector2f(CachedDesiredWheelSize, CachedDesiredWheelSize);
-	}
-	else
-	{
-		AllottedGeometrySize = AllottedGeometry.GetLocalSize();
+		float ActualSize = FMath::Min(CachedDesiredWheelSize, AllottedGeometrySize.GetMin());
+
+		AllottedGeometrySize = FVector2f(ActualSize, ActualSize);
 	}
 
 	const FVector2f SelectorSize = SelectorImage->ImageSize;

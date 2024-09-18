@@ -35,6 +35,7 @@ public:
 		: _AllowSpin(true)
 		, _SupportDynamicSliderMaxValue(false)
 		, _SupportDynamicSliderMinValue(false)
+		, _DesiredWheelSize()
 		, _MainDelta(0.01f)
 		, _MainShiftMultiplier(10.f)
 		, _MainCtrlMultiplier(0.1f)
@@ -53,6 +54,8 @@ public:
 		SLATE_ATTRIBUTE(bool, SupportDynamicSliderMaxValue)
 		/** Tell us if we want to support dynamically changing of the min value using ctrl */
 		SLATE_ATTRIBUTE(bool, SupportDynamicSliderMinValue)
+
+		SLATE_ATTRIBUTE(int32, DesiredWheelSize)
 
 		SLATE_ARGUMENT(float, MainDelta)
 

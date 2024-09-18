@@ -73,6 +73,7 @@ void SColorGradingPicker::Construct(const FArguments& InArgs)
 						.MaxAspectRatio(1.0f)
 						[
 							SNew(SColorGradingWheel)
+								.DesiredWheelSize(InArgs._DesiredWheelSize)
 								.SelectedColor(TAttribute<FLinearColor>::Create(TAttribute<FLinearColor>::FGetter::CreateSP(this, &SColorGradingPicker::GetCurrentLinearColor)))
 								.ExponentDisplacement(ColorGradingWheelExponent)
 								.OnValueChanged(this, &SColorGradingPicker::HandleCurrentColorValueChanged, false)
