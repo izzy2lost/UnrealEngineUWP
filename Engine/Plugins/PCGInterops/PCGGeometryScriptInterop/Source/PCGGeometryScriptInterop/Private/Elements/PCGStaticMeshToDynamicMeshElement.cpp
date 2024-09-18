@@ -9,6 +9,7 @@
 #include "UDynamicMesh.h"
 #include "ConversionUtils/SceneComponentToDynamicMesh.h"
 #include "Engine/StaticMesh.h"
+#include "GeometryScript/MeshAssetFunctions.h"
 
 #define LOCTEXT_NAMESPACE "PCGStaticMeshToDynamicMeshElementElement"
 
@@ -71,8 +72,16 @@ bool FPCGStaticMeshToDynamicMeshElement::PrepareDataInternal(FPCGContext* InCont
 	{
 		return true;
 	}
+
+	TArray<FSoftObjectPath> ObjectsToLoad;
+	if (Settings->bExtractMaterials)
+	{
+		Algo::Transform(Settings->OverrideMaterials, ObjectsToLoad, [](const TSoftObjectPtr<UMaterialInterface>& MaterialSoftPtr) { return MaterialSoftPtr.ToSoftObjectPath(); });
+	}
+
+	ObjectsToLoad.Add(Settings->StaticMesh.ToSoftObjectPath());
 	
-	return Context->RequestResourceLoad(Context, {Settings->StaticMesh.ToSoftObjectPath()}, !Settings->bSynchronousLoad);
+	return Context->RequestResourceLoad(Context, std::move(ObjectsToLoad), !Settings->bSynchronousLoad);
 }
 
 bool FPCGStaticMeshToDynamicMeshElement::ExecuteInternal(FPCGContext* InContext) const
@@ -94,6 +103,20 @@ bool FPCGStaticMeshToDynamicMeshElement::ExecuteInternal(FPCGContext* InContext)
 		
 		return true;
 	}
+
+	if (Settings->bExtractMaterials && !Settings->OverrideMaterials.IsEmpty())
+	{
+		if (StaticMesh->GetStaticMaterials().Num() != Settings->OverrideMaterials.Num())
+		{
+			PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("MismatchMaterials", "Mismatch number between Static mesh materials ({0}) and override materials ({1})"), StaticMesh->GetStaticMaterials().Num(), Settings->OverrideMaterials.Num()));
+			return true;
+		}
+		else if (const TSoftObjectPtr<UMaterialInterface>* UnloadedMaterial = Settings->OverrideMaterials.FindByPredicate([](const TSoftObjectPtr<UMaterialInterface>& MaterialSoftPtr) -> bool { return !MaterialSoftPtr.Get(); }))
+		{
+			PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("UnloadedMaterial", "Material {0} failed to load."), FText::FromString(UnloadedMaterial->ToSoftObjectPath().ToString())));
+			return true;
+		}
+	}
 	
 	UE::Conversion::EMeshLODType LODType = static_cast<UE::Conversion::EMeshLODType>(Settings->RequestedLODType);
 	int32 LODIndex = Settings->RequestedLODIndex;
@@ -105,8 +128,24 @@ bool FPCGStaticMeshToDynamicMeshElement::ExecuteInternal(FPCGContext* InContext)
 
 	if (bSuccess)
 	{
+		TArray<UMaterialInterface*> Materials;
+
+		if (Settings->bExtractMaterials)
+		{
+			if (!Settings->OverrideMaterials.IsEmpty())
+			{
+				Algo::Transform(Settings->OverrideMaterials, Materials, [](const TSoftObjectPtr<UMaterialInterface>& MaterialSoftPtr) { return MaterialSoftPtr.Get(); });
+			}
+			else
+			{
+				TArray<FName> MaterialSlotNames;
+				UGeometryScriptLibrary_StaticMeshFunctions::GetMaterialListFromStaticMesh(StaticMesh, Materials, MaterialSlotNames);
+			}
+		}
+		
 		UPCGDynamicMeshData* DynMeshData = FPCGContext::NewObject_AnyThread<UPCGDynamicMeshData>(InContext);
-		DynMeshData->Initialize(std::move(NewMesh), InContext);
+		DynMeshData->Initialize(std::move(NewMesh), Materials);
+
 		InContext->OutputData.TaggedData.Emplace_GetRef().Data = DynMeshData;
 	}
 	else

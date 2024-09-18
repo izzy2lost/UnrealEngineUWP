@@ -8,6 +8,7 @@
 #include "Elements/PCGVolumeSampler.h"
 
 #include "UDynamicMesh.h"
+#include "Components/DynamicMeshComponent.h"
 #include "GeometryScript/MeshQueryFunctions.h"
 #include "Helpers/PCGHelpers.h"
 #include "Serialization/ArchiveCrc32.h"
@@ -18,27 +19,29 @@ UPCGDynamicMeshData::UPCGDynamicMeshData(const FObjectInitializer& ObjectInitial
 	DynamicMesh = ObjectInitializer.CreateDefaultSubobject<UDynamicMesh>(this, TEXT("DynamicMesh"));
 }
 
-void UPCGDynamicMeshData::Initialize(UDynamicMesh* InMesh, FPCGContext* Context, bool bCanTakeOwnership)
+void UPCGDynamicMeshData::Initialize(UDynamicMesh* InMesh, bool bCanTakeOwnership, const TArray<UMaterialInterface*>& InMaterials)
 {
 	check(DynamicMesh);
 	if (bCanTakeOwnership)
 	{
-		Initialize(std::move(InMesh->GetMeshRef()));
+		Initialize(std::move(InMesh->GetMeshRef()), InMaterials);
 	}
 	else
 	{
 		// Make a copy
-		Initialize(UE::Geometry::FDynamicMesh3(InMesh->GetMeshRef()));
+		Initialize(UE::Geometry::FDynamicMesh3(InMesh->GetMeshRef()), InMaterials);
 	}
 }
 
-void UPCGDynamicMeshData::Initialize(UE::Geometry::FDynamicMesh3&& InMesh, FPCGContext* Context)
+void UPCGDynamicMeshData::Initialize(UE::Geometry::FDynamicMesh3&& InMesh, const TArray<UMaterialInterface*>& InMaterials)
 {
 	check(DynamicMesh);
 	DynamicMesh->SetMesh(std::move(InMesh));
 	ResetBounds();
 	
 	bDynamicMeshOctreeIsDirty = true;
+	
+	SetMaterials(InMaterials);
 }
 
 void UPCGDynamicMeshData::ResetBounds() const
@@ -181,11 +184,29 @@ const UPCGPointData* UPCGDynamicMeshData::ToPointData(FPCGContext* Context, cons
 	return Data;
 }
 
+void UPCGDynamicMeshData::SetMaterials(const TArray<UMaterialInterface*>& InMaterials)
+{
+	Materials.Reset(InMaterials.Num());
+	Materials.Append(InMaterials);
+}
+
+void UPCGDynamicMeshData::InitializeDynamicMeshComponentFromData(UDynamicMeshComponent* InComponent) const
+{
+	check(InComponent);
+
+	InComponent->SetMesh(UE::Geometry::FDynamicMesh3(DynamicMesh->GetMeshRef()));
+	for (int32 i = 0; i < Materials.Num(); ++i)
+	{
+		InComponent->SetMaterial(i, Materials[i]);
+	}
+}
+
 UPCGSpatialData* UPCGDynamicMeshData::CopyInternal(FPCGContext* Context) const
 {
 	UPCGDynamicMeshData* NewDynamicMeshData = FPCGContext::NewObject_AnyThread<UPCGDynamicMeshData>(Context);
 	
-	NewDynamicMeshData->Initialize(DynamicMesh, Context, /*bCanTakeOwnership=*/false);
+	NewDynamicMeshData->Initialize(DynamicMesh, /*bCanTakeOwnership=*/false);
+	NewDynamicMeshData->Materials = Materials;
 
 	return NewDynamicMeshData;
 }

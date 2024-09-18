@@ -23,11 +23,11 @@ void FPCGDynamicMeshDataVisualization::ExecuteDebugDisplay(FPCGContext* Context,
 
 	// We force debug resources to be transient.
 	UPCGDynamicMeshManagedComponent* ManagedComponent = PCGDynamicMeshManagedComponent::GetOrCreateDynamicMeshManagedComponent(Context, SettingsInterface, DynMeshData, TargetActor, EPCGEditorDirtyMode::Preview);
+	UDynamicMeshComponent* Component = ManagedComponent ? ManagedComponent->GetComponent() : nullptr;
 	
-	if (ManagedComponent && ManagedComponent->GetComponent())
+	if (Component)
 	{
-		// Needs to be a copy.
-		ManagedComponent->GetComponent()->SetMesh(UE::Geometry::FDynamicMesh3(DynMeshData->GetDynamicMesh()->GetMeshRef()));
+		DynMeshData->InitializeDynamicMeshComponentFromData(Component);
 	}
 }
 

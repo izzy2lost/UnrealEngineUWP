@@ -6,6 +6,7 @@
 #include "Data/PCGDynamicMeshData.h"
 #include "Data/PCGPointData.h"
 #include "Elements/Metadata/PCGMetadataElementCommon.h"
+#include "Helpers/PCGGeometryHelpers.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 
 #include "DynamicMeshEditor.h"
@@ -13,6 +14,7 @@
 #include "ConversionUtils/SceneComponentToDynamicMesh.h"
 #include "DynamicMesh/MeshIndexMappings.h"
 #include "Engine/StaticMesh.h"
+#include "GeometryScript/MeshAssetFunctions.h"
 
 #define LOCTEXT_NAMESPACE "PCGAppendMeshesFromPointsElement"
 
@@ -205,23 +207,32 @@ bool FPCGAppendMeshesFromPointsElement::ExecuteInternal(FPCGContext* InContext) 
 
 	TMap<FSoftObjectPath, UE::Geometry::FDynamicMesh3> StaticMeshToDynMesh;
 
-	auto ConvertStaticMesh = [Settings, &StaticMeshToDynMesh, InContext](const FSoftObjectPath& InPath) -> bool
+	auto ConvertStaticMesh = [Settings, &StaticMeshToDynMesh, InContext, &OutDynMeshData](const FSoftObjectPath& InPath) -> bool
 	{
 		UE::Conversion::FStaticMeshConversionOptions ConversionOptions{};
 		FText ErrorMessage;
 		UE::Conversion::EMeshLODType LODType = static_cast<UE::Conversion::EMeshLODType>(Settings->RequestedLODType);
 		
 		UE::Geometry::FDynamicMesh3& NewMesh = StaticMeshToDynMesh.Add(InPath);
+		UStaticMesh* StaticMesh = Settings->StaticMesh.Get();
 	
-		if (!UE::Conversion::StaticMeshToDynamicMesh(Settings->StaticMesh.Get(), NewMesh, ErrorMessage, ConversionOptions, LODType, Settings->RequestedLODIndex))
+		if (!UE::Conversion::StaticMeshToDynamicMesh(StaticMesh, NewMesh, ErrorMessage, ConversionOptions, LODType, Settings->RequestedLODIndex))
 		{
 			PCGLog::LogErrorOnGraph(ErrorMessage, InContext);
 			return false;
 		}
-		else
+
+		// Then do the remapping if needed
+		TArray<UMaterialInterface*> StaticMeshMaterials;
+		TArray<FName> MaterialSlotNames;
+		UGeometryScriptLibrary_StaticMeshFunctions::GetMaterialListFromStaticMesh(StaticMesh, StaticMeshMaterials, MaterialSlotNames);
+
+		if (!StaticMeshMaterials.IsEmpty() && StaticMeshMaterials != OutDynMeshData->GetMaterials())
 		{
-			return true;
+			PCGGeometryHelpers::RemapMaterials(NewMesh, StaticMeshMaterials, OutDynMeshData->GetMutableMaterials());
 		}
+
+		return true;
 	};
 
 	switch (Settings->Mode)
@@ -255,6 +266,17 @@ bool FPCGAppendMeshesFromPointsElement::ExecuteInternal(FPCGContext* InContext) 
 		{
 			PCGLog::InputOutput::LogTypedDataNotFoundWarning(EPCGDataType::DynamicMesh, PCGAppendMeshesFromPoints::InAppendMeshPinLabel, Context);
 			return true;
+		}
+
+		// Remap materials if needed
+		const TArray<TObjectPtr<UMaterialInterface>>& InputMaterials = InAppendDynMeshData->GetMaterials();
+		TArray<TObjectPtr<UMaterialInterface>>& OutputMaterials = OutDynMeshData->GetMutableMaterials();
+		if (!InputMaterials.IsEmpty() && OutputMaterials != InputMaterials)
+		{
+			// If we have a remap to do, we will need to copy or steal the append mesh.
+			UPCGDynamicMeshData* InAppendDynamicMeshDataMutable = CopyOrSteal(InputAppendDynMesh[0], InContext);
+			PCGGeometryHelpers::RemapMaterials(InAppendDynamicMeshDataMutable->GetMutableDynamicMesh()->GetMeshRef(), InputMaterials, OutputMaterials);
+			InAppendDynMeshData = InAppendDynamicMeshDataMutable;
 		}
 
 		break;

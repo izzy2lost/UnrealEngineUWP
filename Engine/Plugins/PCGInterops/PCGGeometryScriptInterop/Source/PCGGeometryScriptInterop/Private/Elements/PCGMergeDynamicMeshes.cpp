@@ -8,6 +8,7 @@
 #include "DynamicMeshEditor.h"
 #include "UDynamicMesh.h"
 #include "GeometryScript/MeshBasicEditFunctions.h"
+#include "Helpers/PCGGeometryHelpers.h"
 
 #define LOCTEXT_NAMESPACE "PCGMergeDynamicMeshesElement"
 
@@ -68,8 +69,21 @@ bool FPCGMergeDynamicMeshesElement::ExecuteInternal(FPCGContext* InContext) cons
 		else
 		{
 			UE::Geometry::FMeshIndexMappings MeshIndexMappings;
-			UE::Geometry::FDynamicMeshEditor Editor(OutputData->GetMutableDynamicMesh()->GetMeshPtr());
-			Editor.AppendMesh(InputData->GetDynamicMesh()->GetMeshPtr(), MeshIndexMappings);
+			
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMergeDynamicMeshesElement::Execute::AppendMesh);
+				
+				UE::Geometry::FDynamicMeshEditor Editor(OutputData->GetMutableDynamicMesh()->GetMeshPtr());
+				Editor.AppendMesh(InputData->GetDynamicMesh()->GetMeshPtr(), MeshIndexMappings);
+			}
+
+			// It's also important to re-map the materials, but it's needed only if we do not have the same materials
+			const TArray<TObjectPtr<UMaterialInterface>>& InputMaterials = InputData->GetMaterials();
+			TArray<TObjectPtr<UMaterialInterface>>& OutputMaterials = OutputData->GetMutableMaterials();
+			if (!InputMaterials.IsEmpty() && InputMaterials != OutputMaterials)
+			{
+				PCGGeometryHelpers::RemapMaterials(OutputData->GetMutableDynamicMesh()->GetMeshRef(), InputMaterials, OutputMaterials, &MeshIndexMappings);
+			}
 		}
 	}
 	

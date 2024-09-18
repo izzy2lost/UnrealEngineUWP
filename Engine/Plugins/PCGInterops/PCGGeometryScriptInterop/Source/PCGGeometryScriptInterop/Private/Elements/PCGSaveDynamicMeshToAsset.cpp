@@ -88,6 +88,13 @@ bool FPCGSaveDynamicMeshToAssetElement::ExecuteInternal(FPCGContext* InContext) 
 		AssetOptions.bEmitTransaction = false;
 		AssetOptions.bDeferMeshPostEditChange = false;
 
+		// Force the option to replace materials if the dynamic mesh data has materials
+		if (!AssetOptions.bReplaceMaterials && !DynamicMeshData->GetMaterials().IsEmpty())
+		{
+			AssetOptions.bReplaceMaterials = true;
+			AssetOptions.NewMaterials = DynamicMeshData->GetMaterials();
+		}
+
 		// Convert merged mesh to static mesh, const_cast because GeometryScript API is not nice with constness, but it will not be modified.
 		EGeometryScriptOutcomePins OutResult;
 		UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshToStaticMesh(const_cast<UDynamicMesh*>(DynamicMeshData->GetDynamicMesh()), CastChecked<UStaticMesh>(Asset), AssetOptions, Settings->MeshWriteLOD, OutResult);

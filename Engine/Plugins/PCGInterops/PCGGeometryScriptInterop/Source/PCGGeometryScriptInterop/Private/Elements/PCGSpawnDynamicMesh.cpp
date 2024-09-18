@@ -67,7 +67,7 @@ bool FPCGSpawnDynamicMeshElement::ExecuteInternal(FPCGContext* InContext) const
 		}
 
 		// Needs to be a copy.
-		Component->SetMesh(UE::Geometry::FDynamicMesh3(DynMeshData->GetDynamicMesh()->GetMeshRef()));
+		DynMeshData->InitializeDynamicMeshComponentFromData(Component);
 
 		for (const FString& Tag : Input.Tags)
 		{
