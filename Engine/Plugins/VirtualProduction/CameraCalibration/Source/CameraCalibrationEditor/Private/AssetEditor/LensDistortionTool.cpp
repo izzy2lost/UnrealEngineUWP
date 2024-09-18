@@ -253,10 +253,38 @@ bool ULensDistortionTool::DetectCheckerboardPattern(TArray<FColor>& Pixels, FInt
 		return false;
 	}
 
-	OutRow->CheckerboardDimensions = FIntPoint(Checkerboard->NumCornerCols, Checkerboard->NumCornerRows);
+	const FIntPoint CheckerboardDimensions = FIntPoint(Checkerboard->NumCornerCols, Checkerboard->NumCornerRows);
+	OutRow->CheckerboardDimensions = CheckerboardDimensions;
+
+	// Launch an async task to perform the opencv checkerboard detection to prevent the game thread from being blocked in the rare cases when detection takes a very long time
+	UE::Tasks::TTask<TArray<FVector2f>> DetectionTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [Pixels, Size, CheckerboardDimensions]() mutable
+	{
+		TArray<FVector2f> Corners;
+		FOpenCVHelper::IdentifyCheckerboard(Pixels, Size, CheckerboardDimensions, Corners);
+		return Corners;
+	});
 
 	TArray<FVector2f> DetectedCorners;
-	const bool bCornersFound = FOpenCVHelper::IdentifyCheckerboard(Pixels, Size, OutRow->CheckerboardDimensions, DetectedCorners);
+	bool bCornersFound = false;
+
+	const FDateTime StartTime = FDateTime::Now();
+
+	const float Timeout = GetDefault<UCameraCalibrationSettings>()->GetCheckerboardDetectionTimeout();
+
+	// If the detection has not completed before a set timeout, abandon this task. The user will be informed of the detection failure.
+	while ((FDateTime::Now() - StartTime).GetSeconds() < Timeout)
+	{
+		if (DetectionTask.IsValid() && DetectionTask.IsCompleted())
+		{
+			// Extract the return value from the task
+			DetectedCorners = DetectionTask.GetResult();
+			bCornersFound = DetectedCorners.Num() > 0;
+			break;
+		}
+	}
+
+	// Release the task resource handle
+	DetectionTask = {};
 
 	if (!bCornersFound || DetectedCorners.IsEmpty())
 	{
