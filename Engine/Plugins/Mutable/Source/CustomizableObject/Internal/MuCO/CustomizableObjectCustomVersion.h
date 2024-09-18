@@ -162,6 +162,8 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectCustomVersion
 		
 		FixAutomaticBlocksStrategyLegacyNodes,
 
+		SnapToBoneComponentIndexToName,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

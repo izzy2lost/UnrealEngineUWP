@@ -32,8 +32,11 @@ public:
 	UPROPERTY(EditAnywhere, Category = CustomizableObject, Meta = (DisplayName = "Projection Angle (degrees)"))
 	float ProjectionAngle;
 
+	UPROPERTY()
+	uint32 ReferenceSkeletonIndex_DEPRECATED = 0;
+
 	UPROPERTY(EditAnywhere, Category = ProjectorSnapToBone)
-	uint32 ReferenceSkeletonIndex = 0;
+	FName ReferenceSkeletonComponent;
 
 	UPROPERTY(EditAnywhere, Category = ProjectorSnapToBone)
 	FName ProjectorBone;

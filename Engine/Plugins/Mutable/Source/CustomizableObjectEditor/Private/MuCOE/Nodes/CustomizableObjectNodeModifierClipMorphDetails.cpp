@@ -46,10 +46,10 @@ void FCustomizableObjectNodeModifierClipMorphDetails::CustomizeDetails(IDetailLa
 	IDetailCategoryBuilder& MeshClipParametersCategory = DetailBuilder.EditCategory("MeshClipParameters");
 	DetailBuilder.HideProperty("bInvertNormal");
 
-	TSharedPtr<IPropertyHandle> ReferenceSkeletonIndexPropertyHandle = DetailBuilder.GetProperty("ReferenceSkeletonIndex");
-	const FSimpleDelegate OnReferenceSkeletonIndexChangedDelegate = 
-		FSimpleDelegate::CreateSP(this, &FCustomizableObjectNodeModifierClipMorphDetails::OnReferenceSkeletonIndexChanged);
-	ReferenceSkeletonIndexPropertyHandle->SetOnPropertyValueChanged(OnReferenceSkeletonIndexChangedDelegate);
+	TSharedPtr<IPropertyHandle> ReferenceSkeletonIndexPropertyHandle = DetailBuilder.GetProperty("ReferenceSkeletonComponent");
+	const FSimpleDelegate OnReferenceSkeletonComponentChangedDelegate = 
+			FSimpleDelegate::CreateSP(this, &FCustomizableObjectNodeModifierClipMorphDetails::OnReferenceSkeletonComponentChanged);
+	ReferenceSkeletonIndexPropertyHandle->SetOnPropertyValueChanged(OnReferenceSkeletonComponentChangedDelegate);
 
 	if (Node)
 	{
@@ -60,26 +60,8 @@ void FCustomizableObjectNodeModifierClipMorphDetails::CustomizeDetails(IDetailLa
 
 		if (CustomizableObject)
 		{
-			if (CustomizableObject->IsChildObject())
-			{
-				bool bMultipleBaseObjects;
-				UCustomizableObjectNodeObject* RootNode = GetRootNode(CustomizableObject, bMultipleBaseObjects);
-
-				if (RootNode && !bMultipleBaseObjects)
-				{
-					TArray<UCustomizableObject*> VisitedObjects;
-					UCustomizableObject* Parent = GetFullGraphRootObject(RootNode, VisitedObjects);
-
-					if (Parent)
-					{
-						SkeletalMesh = VisitedObjects.Last()->GetRefSkeletalMesh(Node->ReferenceSkeletonIndex);
-					}
-				}
-			}
-			else
-			{
-				SkeletalMesh = CustomizableObject->GetRefSkeletalMesh(Node->ReferenceSkeletonIndex);
-			}
+			const FName ReferenceComponentName = Node->ReferenceSkeletonComponent;
+			SkeletalMesh = CustomizableObject->GetComponentMeshReferenceSkeletalMesh(ReferenceComponentName);
 		}
 
 		if (SkeletalMesh)
@@ -339,7 +321,7 @@ ECheckBoxState FCustomizableObjectNodeModifierClipMorphDetails::GetInvertNormalC
 }
 
 
-void FCustomizableObjectNodeModifierClipMorphDetails::OnReferenceSkeletonIndexChanged()
+void FCustomizableObjectNodeModifierClipMorphDetails::OnReferenceSkeletonComponentChanged()
 {
 	if (Node)
 	{

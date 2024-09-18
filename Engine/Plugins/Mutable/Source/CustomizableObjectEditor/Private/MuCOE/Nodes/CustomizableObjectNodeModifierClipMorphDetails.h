@@ -36,5 +36,5 @@ private:
 	void OnInvertNormalCheckboxChanged(ECheckBoxState CheckBoxState);
 	ECheckBoxState GetInvertNormalCheckBoxState() const;
 
-	void OnReferenceSkeletonIndexChanged();
+	void OnReferenceSkeletonComponentChanged();
 };

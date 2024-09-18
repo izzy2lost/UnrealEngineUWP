@@ -87,10 +87,10 @@ void FCustomizableObjectNodeProjectorParameterDetails::CustomizeDetails( IDetail
 		];
 	}
 
-	TSharedPtr<IPropertyHandle> ReferenceSkeletonIndexPropertyHandle = DetailBuilder.GetProperty("ReferenceSkeletonIndex");
-	const FSimpleDelegate OnReferenceSkeletonIndexChangedDelegate =
-		FSimpleDelegate::CreateSP(this, &FCustomizableObjectNodeProjectorParameterDetails::OnReferenceSkeletonIndexChanged);
-	ReferenceSkeletonIndexPropertyHandle->SetOnPropertyValueChanged(OnReferenceSkeletonIndexChangedDelegate);
+	TSharedPtr<IPropertyHandle> ReferenceSkeletonIndexPropertyHandle = DetailBuilder.GetProperty("ReferenceSkeletonComponent");
+	const FSimpleDelegate OnReferenceSkeletonComponentChangedDelegate =
+		FSimpleDelegate::CreateSP(this, &FCustomizableObjectNodeProjectorParameterDetails::OnReferenceSkeletonComponentChanged);
+	ReferenceSkeletonIndexPropertyHandle->SetOnPropertyValueChanged(OnReferenceSkeletonComponentChangedDelegate);
 
 	IDetailCategoryBuilder& SnapToBoneCategory = DetailBuilder.EditCategory("ProjectorSnapToBone");
 	DetailBuilder.HideProperty("ProjectorBone");
@@ -100,26 +100,26 @@ void FCustomizableObjectNodeProjectorParameterDetails::CustomizeDetails( IDetail
 
 	UCustomizableObject* CustomizableObject = nullptr;
 	FName ProjectorBoneName;
-	int32 ReferenceIndex = 0;
+	FName ReferenceComponent;
 
 	if (NodeConstant != nullptr)
 	{
 		CustomizableObject = Cast<UCustomizableObject>(NodeConstant->GetCustomizableObjectGraph()->GetOuter());
 		ProjectorBoneName = NodeConstant->ProjectorBone;
-		ReferenceIndex = NodeConstant->ReferenceSkeletonIndex;
+		ReferenceComponent = NodeConstant->ReferenceSkeletonComponent;
 	}
 	else if (NodeParameter != nullptr)
 	{
 		CustomizableObject = Cast<UCustomizableObject>(NodeParameter->GetCustomizableObjectGraph()->GetOuter());
 		ProjectorBoneName = NodeParameter->ProjectorBone;
-		ReferenceIndex = NodeParameter->ReferenceSkeletonIndex;
+		ReferenceComponent = NodeParameter->ReferenceSkeletonComponent;
 	}
 
 	//UCustomizableObject* CustomizableObject = Cast<UCustomizableObject>(Node->GetCustomizableObjectGraph()->GetOuter());
 
 	if (CustomizableObject)
 	{
-		SkeletalMesh = CustomizableObject->GetRefSkeletalMesh(ReferenceIndex);
+		SkeletalMesh = CustomizableObject->GetComponentMeshReferenceSkeletalMesh(ReferenceComponent);
 	}
 
 	if (SkeletalMesh)
@@ -294,7 +294,7 @@ void FCustomizableObjectNodeProjectorParameterDetails::OnBoneComboBoxSelectionCh
 }
 
 
-void FCustomizableObjectNodeProjectorParameterDetails::OnReferenceSkeletonIndexChanged()
+void FCustomizableObjectNodeProjectorParameterDetails::OnReferenceSkeletonComponentChanged()
 {
 	if (NodeConstant != nullptr)
 	{
