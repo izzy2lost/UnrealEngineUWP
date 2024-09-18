@@ -79,13 +79,6 @@ namespace Gauntlet
 
 	}
 
-	public interface IWithUnfilteredStdOut
-	{
-		string UnfilteredStdOut { get; }
-	}
-
-
-
 	/// <summary>
 	/// Interface used by IAppInstance if they support Suspend/Resume
 	/// </summary>
