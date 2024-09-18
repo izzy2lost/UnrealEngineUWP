@@ -42,8 +42,8 @@ protected:
 			NetTokenStore->Init(NetTokenStoreInitParams);
 
 			// Register data stores for supported types, $TODO: make this configurable.
-			NetTokenDataStores.Add(MakeUnique<FStringTokenStore>(*NetTokenStore));
-			NetTokenDataStores.Add(MakeUnique<FNameTokenStore>(*NetTokenStore));	
+			NetTokenStore->CreateAndRegisterDataStore<FStringTokenStore>();
+			NetTokenStore->CreateAndRegisterDataStore<FNameTokenStore>();
 		}
 
 		ReplicationBridge = NewObject<UReplicatedTestObjectBridge>();
@@ -125,7 +125,6 @@ protected:
 	}
 
 	TUniquePtr<UE::Net::FNetTokenStore> NetTokenStore;
-	TArray<TUniquePtr<UE::Net::FNetTokenDataStore>> NetTokenDataStores;
 	UReplicationSystem* ReplicationSystem;
 	UReplicatedTestObjectBridge* ReplicationBridge;
 	
