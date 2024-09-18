@@ -130,6 +130,7 @@ public:
 	/** Called when sequence playback updates to revert preview data on modified secitons */
 	void ResetSectionPreviews();
 	void ResetSectionPreviews(FMovieSceneSequenceIDRef IDRef) { ResetSectionPreviews(); }
+	void ResetSectionPreviews(const FMovieSceneChannelMetaData* MetaData, UMovieSceneSection* InSection) { ResetSectionPreviews(); }
 
 	/** Query's the channel data directly (does not take parent transforms into account). Used for setting keyframes. */
 	FTransform GetTransformOriginDataForSubSection(const UMovieSceneSubSection* SubSection) const;

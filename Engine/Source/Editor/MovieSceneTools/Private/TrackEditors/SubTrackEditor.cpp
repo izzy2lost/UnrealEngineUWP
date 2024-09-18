@@ -664,6 +664,7 @@ void FSubTrackEditor::OnInitialize()
 	GetSequencer()->OnPlayEvent().AddSP(this, &FSubTrackEditor::ResetSectionPreviews);
 	GetSequencer()->OnBeginScrubbingEvent().AddSP(this, &FSubTrackEditor::ResetSectionPreviews);
 	GetSequencer()->OnActivateSequence().AddSP(this, &FSubTrackEditor::ResetSectionPreviews);
+	GetSequencer()->OnChannelChanged().AddSP(this, &FSubTrackEditor::ResetSectionPreviews);
 }
 
 void FSubTrackEditor::OnRelease()
@@ -679,6 +680,7 @@ void FSubTrackEditor::OnRelease()
 	GetSequencer()->OnPlayEvent().RemoveAll(this);
 	GetSequencer()->OnBeginScrubbingEvent().RemoveAll(this);
 	GetSequencer()->OnActivateSequence().RemoveAll(this);
+	GetSequencer()->OnChannelChanged().RemoveAll(this);
 }
 
 void FSubTrackEditor::Resize(float NewSize, UMovieSceneTrack* InTrack)
