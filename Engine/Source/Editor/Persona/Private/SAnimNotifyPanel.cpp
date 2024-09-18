@@ -4021,9 +4021,6 @@ void SAnimNotifyPanel::Construct(const FArguments& InArgs, const TSharedRef<FAni
 		.ColorAndOpacity(FLinearColor::White)
 	];
 
-	OnPropertyChangedHandle = FCoreUObjectDelegates::FOnObjectPropertyChanged::FDelegate::CreateSP(this, &SAnimNotifyPanel::OnPropertyChanged);
-	OnPropertyChangedHandleDelegateHandle = FCoreUObjectDelegates::OnObjectPropertyChanged.Add(OnPropertyChangedHandle);
-
 	// Base notify classes used to search asset data for children.
 	NotifyClassNames.Add(TEXT("Class'/Script/Engine.AnimNotify'"));
 	NotifyStateClassNames.Add(TEXT("Class'/Script/Engine.AnimNotifyState'"));
@@ -4037,8 +4034,6 @@ void SAnimNotifyPanel::Construct(const FArguments& InArgs, const TSharedRef<FAni
 SAnimNotifyPanel::~SAnimNotifyPanel()
 {
 	Sequence->UnregisterOnNotifyChanged(this);
-
-	FCoreUObjectDelegates::OnObjectPropertyChanged.Remove(OnPropertyChangedHandleDelegateHandle);
 
 	if(GEditor)
 	{
@@ -4816,32 +4811,6 @@ void SAnimNotifyPanel::OnPasteNodes(SAnimNotifyTrack* RequestTrack, float ClickT
 	}
 }
 
-void SAnimNotifyPanel::OnPropertyChanged(UObject* ChangedObject, FPropertyChangedEvent& PropertyEvent)
-{
-	// Bail if it isn't a notify
-	if(!ChangedObject->GetClass()->IsChildOf(UAnimNotify::StaticClass()) &&
-	   !ChangedObject->GetClass()->IsChildOf(UAnimNotifyState::StaticClass()))
-	{
-		return;
-	}
-
-	const FName PropertyName = PropertyEvent.GetPropertyName();
-	
-	// Don't process if it's an interactive change; wait till we receive the final event.
-	// Skip notify color as otherwise we will end up refreshing the details panel before any edits are applied (e.g. with the tab key)
-	if(PropertyEvent.ChangeType != EPropertyChangeType::Interactive && PropertyName != GET_MEMBER_NAME_CHECKED(UAnimNotify, NotifyColor) && PropertyName != GET_MEMBER_NAME_CHECKED(UAnimNotifyState, NotifyColor))
-	{
-		for(FAnimNotifyEvent& Event : Sequence->Notifies)
-		{
-			if(Event.Notify == ChangedObject || Event.NotifyStateClass == ChangedObject)
-			{
-				// If we've changed a notify present in the sequence, refresh our tracks.
-				RequestUpdate();
-			}
-		}
-	}
-}
-
 void SAnimNotifyPanel::BindCommands()
 {
 	// This should not be called twice on the same instance
@@ -5107,17 +5076,20 @@ void SAnimNotifyPanel::OnGetNativeNotifyData(TArray<UClass*>& OutClasses, UClass
 
 void SAnimNotifyPanel::OnNotifyObjectChanged(UObject* EditorBaseObj, bool bRebuild)
 {
-	if(UEditorNotifyObject* NotifyObject = Cast<UEditorNotifyObject>(EditorBaseObj))
+	if(bRebuild)
 	{
-		FScopedSavedNotifySelection ScopedSelection(*this);
-
-		for(FAnimNotifyEvent& Notify : Sequence->Notifies)
+		if(UEditorNotifyObject* NotifyObject = Cast<UEditorNotifyObject>(EditorBaseObj))
 		{
-			if(Notify.Guid == NotifyObject->Event.Guid)
+			FScopedSavedNotifySelection ScopedSelection(*this);
+
+			for(FAnimNotifyEvent& Notify : Sequence->Notifies)
 			{
-				if(NotifyAnimTracks.IsValidIndex(Notify.TrackIndex))
+				if(Notify.Guid == NotifyObject->Event.Guid)
 				{
-					NotifyAnimTracks[Notify.TrackIndex]->Update();
+					if(NotifyAnimTracks.IsValidIndex(Notify.TrackIndex))
+					{
+						NotifyAnimTracks[Notify.TrackIndex]->Update();
+					}
 				}
 			}
 		}

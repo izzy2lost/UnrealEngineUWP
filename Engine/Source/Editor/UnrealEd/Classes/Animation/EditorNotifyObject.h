@@ -25,6 +25,7 @@ class UEditorNotifyObject : public UEditorAnimBaseObj
 	
 	/** Copy changes made to the event object back to the montage asset */
 	virtual bool ApplyChangesToMontage() override;
+	virtual bool PropertyChangeRequiresRebuild(FPropertyChangedEvent& PropertyChangedEvent) override;
 
 	/** The notify event to modify */
 	UPROPERTY(EditAnywhere, Category=Event)
