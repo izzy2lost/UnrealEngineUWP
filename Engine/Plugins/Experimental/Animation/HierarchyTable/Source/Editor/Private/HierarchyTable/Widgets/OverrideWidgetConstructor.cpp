@@ -8,6 +8,9 @@
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "HierarchyTable.h"
+#include "Columns/UIPropertiesColumns.h"
+
+#define LOCTEXT_NAMESPACE "FTypedElementWidgetConstructor_Override"
 
 FTypedElementWidgetConstructor_Override::FTypedElementWidgetConstructor_Override()
 	: Super(StaticStruct())
@@ -108,3 +111,35 @@ bool FTypedElementWidgetConstructor_Override::FinalizeWidget(
 
 	return true;
 }
+
+//
+// FTypedElementWidgetHeaderConstructor_Override
+//
+
+FTypedElementWidgetHeaderConstructor_Override::FTypedElementWidgetHeaderConstructor_Override()
+	: Super(StaticStruct())
+{
+}
+
+TSharedPtr<SWidget> FTypedElementWidgetHeaderConstructor_Override::CreateWidget(
+	const UE::Editor::DataStorage::FMetaDataView& Arguments)
+{
+	return SNew(SImage)
+		.DesiredSizeOverride(FVector2D(16.f, 16.f))
+		.ColorAndOpacity(FSlateColor::UseForeground())
+		.Image(FAppStyle::GetBrush("DetailsView.OverrideHere"))
+		.ToolTipText(FText(LOCTEXT("OverrideColumnHeader", "Overrides")));
+}
+
+bool FTypedElementWidgetHeaderConstructor_Override::FinalizeWidget(IEditorDataStorageProvider* DataStorage, 
+	IEditorDataStorageUiProvider* DataStorageUi, UE::Editor::DataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
+{
+	DataStorage->AddColumn(Row, FUIHeaderPropertiesColumn
+		{
+			.ColumnSizeMode = EColumnSizeMode::Fixed,
+			.Width = 24.0f
+		});
+	return true;
+}
+
+#undef LOCTEXT_NAMESPACE
