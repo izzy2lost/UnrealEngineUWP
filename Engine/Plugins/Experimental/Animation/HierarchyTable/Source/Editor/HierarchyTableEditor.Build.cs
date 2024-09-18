@@ -22,7 +22,8 @@ public class HierarchyTableEditor : ModuleRules
 			"TypedElementFramework",
 			"SceneOutliner",
 			"ToolMenus",
-			"Persona"
+			"Persona",
+			"TedsTableViewer"
 		);
 	}
 }

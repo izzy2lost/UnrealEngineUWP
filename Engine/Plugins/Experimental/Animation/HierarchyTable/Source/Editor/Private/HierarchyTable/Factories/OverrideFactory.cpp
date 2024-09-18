@@ -9,5 +9,9 @@ void UHierarchyTableOverrideFactory::RegisterWidgetConstructors(IEditorDataStora
 {
 	using namespace UE::Editor::DataStorage::Queries;
 
-	DataStorageUi.RegisterWidgetFactory<FTypedElementWidgetConstructor_Override>(FName(TEXT("General.Cell")), TColumn<FTypedElementOverrideColumn>());
+	DataStorageUi.RegisterWidgetFactory<FTypedElementWidgetConstructor_Override>(FName(TEXT("General.Cell")), 
+		TColumn<FTypedElementOverrideColumn>());
+
+	DataStorageUi.RegisterWidgetFactory<FTypedElementWidgetHeaderConstructor_Override>(FName(TEXT("General.Header")),
+		TColumn<FTypedElementOverrideColumn>());
 }
