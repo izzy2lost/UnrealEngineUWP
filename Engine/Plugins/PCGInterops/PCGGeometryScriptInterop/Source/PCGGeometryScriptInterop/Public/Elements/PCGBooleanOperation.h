@@ -16,8 +16,16 @@ enum class EPCGBooleanOperationTagInheritanceMode : uint8
 	B,
 };
 
+UENUM(Blueprintable)
+enum class EPCGBooleanOperationMode : uint8
+{
+	EachAWithEachB UMETA(DisplayName="Each A With Each B", Tooltip="Each input in A is boolean'd with its associated input in B (A1 with B1, A2 with B2, etc...). Produces N outputs."),
+	EachAWithEachBSequentially UMETA(DisplayName="Each A With Each B Sequentially", Tooltip="Each input in A is boolean'd with every input in B sequentially. (A1 with B1 then with B2, A2 with B1 then B2, etc...). Produces N outputs."),
+	EachAWithEveryB UMETA(DisplayName="Each A With Every B", Tooltip="Each input in A is boolean'd with input in B individually (Cartesian product: A1 with B1, A1 with B2, A2 with B1, A2 with B2, etc...). Produces N * M outputs.")
+};
+
 /**
-* Do a boolean operation between 2 dynamic meshes.
+* Do a boolean operation between dynamic meshes.
 */
 UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
 class UPCGBooleanOperationSettings : public UPCGDynamicMeshBaseSettings
@@ -47,9 +55,8 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	EPCGBooleanOperationTagInheritanceMode TagInheritanceMode;
 	
-	/** Each dynamic mesh in input A will be boolean'd with every dyn mesh in input B (cartesian product), producing N * M dyn meshes. Otherwise, will do a N:N (or N:1 or 1:N) operation, producing N dynamic meshes. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, DisplayName = "Bool Each A With Every B"))
-	bool bBoolEachAWithEveryB = false;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	EPCGBooleanOperationMode Mode = EPCGBooleanOperationMode::EachAWithEachB;
 };
 
 class FPCGBooleanOperationElement : public IPCGDynamicMeshBaseElement
