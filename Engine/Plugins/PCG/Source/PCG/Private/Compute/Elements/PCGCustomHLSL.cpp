@@ -1129,6 +1129,8 @@ TArray<FName> UPCGCustomHLSLSettings::GetInputPinNamesAndNone() const
 
 bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGCustomHLSLSettings::IsKernelValid);
+
 	if (OutputPins.IsEmpty())
 	{
 		PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, LOCTEXT("NoOutputs", "Custom HLSL nodes must have at least one output."));
@@ -1388,6 +1390,8 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 
 bool UPCGCustomHLSLSettings::AreKernelAttributesValid(FPCGContext* InContext, FText* OutErrorText) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGCustomHLSLSettings::AreKernelAttributesValid);
+
 	// The context can either be a compute graph element context (if the compute graph was successfully created), otherwise
 	// it will be the original CPU node context. We need the former to run the following validation.
 	if (!InContext || !InContext->IsComputeContext())

@@ -57,6 +57,8 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 	// 7. Execution is complete when any async readbacks are complete.
 	if (Context->bAllAsyncOperationsDone)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(Context->bAllAsyncOperationsDone);
+
 		Context->bExecutionSuccess = true;
 
 		for (UComputeDataProvider* DataProvider : Context->ComputeGraphInstance.GetDataProviders())
@@ -126,7 +128,10 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 
 		const bool bAnyComponentsSetup = SetupProceduralISMComponents(Context, DataBinding);
 
-		Context->ComputeGraphInstance.CreateDataProviders(Graph.Get(), 0, Context->DataBinding.Get());
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(ComputeGraphInstance.CreateDataProviders);
+			Context->ComputeGraphInstance.CreateDataProviders(Graph.Get(), 0, Context->DataBinding.Get());
+		}
 
 		// Register all providers running async operations. TODO review if we should have a general API like "RunsAsyncOperations()"?
 		for (UComputeDataProvider* DataProvider : Context->ComputeGraphInstance.GetDataProviders())
@@ -168,6 +173,8 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 	// 1. Prepare render resources. In editor, this will trigger shader compile if not compiled already.
 	if (!Graph->GetRenderProxy())
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(Graph->UpdateResources);
+
 		Graph->UpdateResources();
 
 		SleepUntilNextFrame();
@@ -197,12 +204,16 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 	}
 
 	// 5. Enqueue work to be executed when the GPU processes the current frame.
-	Context->bGraphEnqueued = Context->ComputeGraphInstance.EnqueueWork(
-		Graph.Get(),
-		InContext->SourceComponent->GetScene(),
-		ComputeTaskExecutionGroup::EndOfFrameUpdate,
-		InContext->SourceComponent->GetOwner()->GetFName(),
-		FSimpleDelegate());
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(ComputeGraphInstance.EnqueueWork);
+
+		Context->bGraphEnqueued = Context->ComputeGraphInstance.EnqueueWork(
+			Graph.Get(),
+			InContext->SourceComponent->GetScene(),
+			ComputeTaskExecutionGroup::EndOfFrameUpdate,
+			InContext->SourceComponent->GetOwner()->GetFName(),
+			FSimpleDelegate());
+	}
 
 	if (ensure(Context->bGraphEnqueued))
 	{

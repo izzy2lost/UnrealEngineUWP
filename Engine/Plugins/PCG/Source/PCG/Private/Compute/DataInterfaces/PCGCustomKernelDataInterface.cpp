@@ -69,6 +69,7 @@ void UPCGCustomKernelDataInterface::GetHLSL(FString& OutHLSL, FString const& InD
 
 UComputeDataProvider* UPCGCustomKernelDataInterface::CreateDataProvider(TObjectPtr<UObject> InBinding, uint64 InInputMask, uint64 InOutputMask) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGCustomKernelDataInterface::CreateDataProvider);
 	check(Settings);
 
 	UPCGDataBinding* Binding = CastChecked<UPCGDataBinding>(InBinding);

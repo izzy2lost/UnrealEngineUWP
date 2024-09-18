@@ -111,6 +111,7 @@ void UPCGInstanceDataInterface::GetHLSL(FString& OutHLSL, FString const& InDataI
 
 UComputeDataProvider* UPCGInstanceDataInterface::CreateDataProvider(TObjectPtr<UObject> InBinding, uint64 InInputMask, uint64 InOutputMask) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGInstanceDataInterface::CreateDataProvider);
 	UPCGDataBinding* Binding = CastChecked<UPCGDataBinding>(InBinding);
 
 	FPCGSpawnerPrimitives* FoundPrimitives = Binding->MeshSpawnersToPrimitives.Find(ProducerSettings);
@@ -144,6 +145,7 @@ UComputeDataProvider* UPCGInstanceDataInterface::CreateDataProvider(TObjectPtr<U
 
 FComputeDataProviderRenderProxy* UPCGInstanceDataProvider::GetRenderProxy()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGInstanceDataProvider::GetRenderProxy);
 	TArray<FPrimitiveSceneProxy*> PrimitiveProxies;
 	PrimitiveProxies.Reserve(Primitives.Num());
 	
@@ -240,6 +242,8 @@ void FPCGInstanceDataProviderProxy::GatherDispatchData(FDispatchData const& InDi
 
 void FPCGInstanceDataProviderProxy::PostGraphDispatch(FRDGBuilder& GraphBuilder) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGInstanceDataProviderProxy::PostGraphDispatch);
+
 	if (NumInstancesAllPrimitives == 0)
 	{
 		return;
