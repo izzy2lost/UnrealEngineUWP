@@ -351,7 +351,22 @@ void AddDrawDynamicMeshPass(
 	FRDGEventName&& EventName,
 	const ParameterStructType* PassParameters,
 	const FSceneView& View,
-	FIntRect ViewRect,
+	FIntRect ViewportRect,
+	const LambdaType& BuildPassProcessorLambda,
+	bool bForceStereoInstancingOff = false,
+	bool bForceParallelSetupOff = false)
+{
+	AddDrawDynamicMeshPass(GraphBuilder, MoveTemp(EventName), PassParameters, View, ViewportRect, ViewportRect, BuildPassProcessorLambda, bForceStereoInstancingOff, bForceParallelSetupOff);
+}
+
+template <typename ParameterStructType, typename LambdaType>
+void AddDrawDynamicMeshPass(
+	FRDGBuilder& GraphBuilder,
+	FRDGEventName&& EventName,
+	const ParameterStructType* PassParameters,
+	const FSceneView& View,
+	FIntRect ViewportRect,
+	FIntRect ScissorRect,
 	const LambdaType& BuildPassProcessorLambda,
 	bool bForceStereoInstancingOff = false,
 	bool bForceParallelSetupOff = false)
@@ -381,10 +396,11 @@ void AddDrawDynamicMeshPass(
 		MoveTemp(EventName),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[&Context, &View, ViewRect, InstanceFactor](FRDGAsyncTask, FRHICommandList& RHICmdList)
+		[&Context, &View, ViewportRect, ScissorRect, InstanceFactor](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(SetupDynamicMeshPass);
-		RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
+		RHICmdList.SetViewport(ViewportRect.Min.X, ViewportRect.Min.Y, 0.0f, ViewportRect.Max.X, ViewportRect.Max.Y, 1.0f);
+		RHICmdList.SetScissorRect(true, ScissorRect.Min.X, ScissorRect.Min.Y, ScissorRect.Max.X, ScissorRect.Max.Y);
 		DrawDynamicMeshPassPrivate(View, RHICmdList, Context.VisibleMeshDrawCommands, Context.DynamicMeshDrawCommandStorage, Context.GraphicsMinimalPipelineStateSet, Context.NeedsShaderInitialisation, InstanceFactor);
 	});
 }
