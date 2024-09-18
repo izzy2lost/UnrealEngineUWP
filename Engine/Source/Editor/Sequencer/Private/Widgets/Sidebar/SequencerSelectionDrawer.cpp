@@ -326,7 +326,7 @@ void FSequencerSelectionDrawer::BuildTrackAreaDetails(const TSharedRef<FSequence
 		return TrackRow.Key.IsValid() && !TrackRow.Key->SupportsMultipleRows();
 		}))
 	{
-		MenuBuilder.BeginSection(TEXT("TrackRowMetadata"), LOCTEXT("TrackRowMetadata", "Track Row Metadata"));
+		MenuBuilder.BeginSection(TEXT("TrackRowMetadata"));
 		{
 			// Empty here, will be implemented by extension.
 		}
@@ -422,7 +422,7 @@ void FSequencerSelectionDrawer::BuildOutlinerDetails(const TSharedRef<FSequencer
 		return TrackRow.Key.IsValid() && !TrackRow.Key->SupportsMultipleRows();
 		}))
 	{
-		MenuBuilder.BeginSection(TEXT("TrackRowMetadata"), LOCTEXT("TrackRowMetadata", "Track Row Metadata"));
+		MenuBuilder.BeginSection(TEXT("TrackRowMetadata"));
 		{
 			// Empty here, will be implemented by extension.
 		}

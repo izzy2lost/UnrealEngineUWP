@@ -762,7 +762,7 @@ void FOutlinerItemModelMixin::BuildTrackRowOptionsMenu(FMenuBuilder& MenuBuilder
 		return;
 	}
 
-	MenuBuilder.BeginSection(TEXT("TrackRowMetadata"), LOCTEXT("TrackRowMetadata", "Track Row Metadata"));
+	MenuBuilder.BeginSection(TEXT("TrackRowMetadata"));
 	{
 		// Empty here, will be implemented by extension.
 	}

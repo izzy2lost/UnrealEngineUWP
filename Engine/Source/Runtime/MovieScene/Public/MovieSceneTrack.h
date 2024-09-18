@@ -176,7 +176,7 @@ struct MOVIESCENE_API FMovieSceneTrackRowMetadata
 	GENERATED_BODY()
 	
 	/* Optional dynamic conditions tied to specific track rows. */
-	UPROPERTY(EditAnywhere, Category="Track Row Metadata", meta=(ShowOnlyInnerProperties))
+	UPROPERTY(EditAnywhere, Category="Track Row", meta=(ShowOnlyInnerProperties))
 	FMovieSceneConditionContainer ConditionContainer;
 };
 
