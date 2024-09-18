@@ -120,6 +120,11 @@ TSharedRef<SWidget> SDMActorMaterialSelector::CreateSelectorLayout()
 			];
 	}
 
+	if (ListOuter->NumSlots() == 1)
+	{
+		return CreateNoPropertiesLayout();
+	}
+
 	return SNew(SScrollBox)
 		.Orientation(EOrientation::Orient_Vertical)
 		+ SScrollBox::Slot()
