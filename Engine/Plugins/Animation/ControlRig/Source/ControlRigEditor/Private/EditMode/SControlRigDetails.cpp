@@ -504,15 +504,20 @@ bool SControlRigDetails::IsReadOnlyPropertyOnDetailCustomization(const FProperty
 
 FSequencerTracker::~FSequencerTracker()
 {
-	TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
-	if (Sequencer)
+	RemoveDelegates();
+}
+
+void FSequencerTracker::RemoveDelegates()
+{
+	if (TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin())
 	{
-		Sequencer->GetSelectionChangedObjectGuids().Remove(OnSelectionChangedHandle);
+		Sequencer->GetSelectionChangedObjectGuids().RemoveAll(this);
 	}
 }
 
 void FSequencerTracker::SetSequencerAndDetails(TWeakPtr<ISequencer> InWeakSequencer, SControlRigDetails* InControlRigDetails)
 {
+	RemoveDelegates();
 	WeakSequencer = InWeakSequencer;
 	ControlRigDetails = InControlRigDetails;
 	if (WeakSequencer.IsValid() == false || InControlRigDetails == nullptr)
@@ -525,15 +530,11 @@ void FSequencerTracker::SetSequencerAndDetails(TWeakPtr<ISequencer> InWeakSequen
 	Sequencer->GetSelectedObjects(SequencerSelectedObjects);
 	UpdateSequencerBindings(SequencerSelectedObjects);
 
-	OnSelectionChangedHandle = Sequencer->GetSelectionChangedObjectGuids().AddLambda([this](TArray<FGuid> NewSelection)
-	{
-		UpdateSequencerBindings(NewSelection);
-
-	});
-
+	Sequencer->GetSelectionChangedObjectGuids().AddRaw(this, &FSequencerTracker::UpdateSequencerBindings);
+	
 }
 
-void FSequencerTracker::UpdateSequencerBindings(const TArray<FGuid>& SequencerBindings)
+void FSequencerTracker::UpdateSequencerBindings(TArray<FGuid> SequencerBindings)
 {
 	const FDateTime StartTime = FDateTime::Now();
 
