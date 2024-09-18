@@ -3289,6 +3289,11 @@ EBlendMode ConvertLegacyBlendMode(EBlendMode InBlendMode, FMaterialShadingModelF
 
 #if WITH_EDITOR
 
+static int32 GetSubstrateConversionVersion()
+{ 
+	return 0;
+}
+
 bool UMaterial::ConvertMaterialToSubstrateMaterial()
 {
 	/*
@@ -3308,6 +3313,16 @@ bool UMaterial::ConvertMaterialToSubstrateMaterial()
 	*     Overridden from the HLSLTranslator when detected by comparing base and instanced materials.
 	*/
 	if (!Substrate::IsSubstrateEnabled())
+	{
+		return false;
+	}
+
+	UMaterialEditorOnlyData* EditorOnly = GetEditorOnlyData();
+
+	// * If the current material has already been converted, skip the conversion
+	// * Store the current version of Subtrate's auto-conversion
+	//   This allows to version the conversion, and safely update auto-converted materials if they have been saved.
+	if (EditorOnly->SubstrateConversionVersion == GetSubstrateConversionVersion())
 	{
 		return false;
 	}
@@ -3405,8 +3420,6 @@ bool UMaterial::ConvertMaterialToSubstrateMaterial()
 		}
 	};
 
-	UMaterialEditorOnlyData* EditorOnly = GetEditorOnlyData();
-
 	bool bCustomNodesGathered = false;
 	UMaterialExpressionThinTranslucentMaterialOutput* ThinTranslucentOutput = nullptr;
 	UMaterialExpressionSingleLayerWaterMaterialOutput* SingleLayerWaterOutput = nullptr;
@@ -3459,6 +3472,7 @@ bool UMaterial::ConvertMaterialToSubstrateMaterial()
 	const bool bRequireNoSubsurfaceProfile	= !bHasShadingModelMixture && (ShadingModel == MSM_Subsurface || ShadingModel == MSM_PreintegratedSkin); // Insure there is no profile, as this would take priority otherwise
 
 	bool bInvalidateShader = false;
+	bool bEmptyShader = false;
 	bool bRelinkCustomOutputNodes = false;
 	UMaterialExpressionSubstrateShadingModels* ConvertNode = nullptr;
 	// Connect all the legacy pin into the conversion node
@@ -3646,6 +3660,7 @@ bool UMaterial::ConvertMaterialToSubstrateMaterial()
 			}
 			bRelinkCustomOutputNodes = false;
 			bInvalidateShader = true;
+			bEmptyShader = true;
 		}
 		else if (!bUseMaterialAttributes && !EditorOnly->FrontMaterial.IsConnected() && !bHasAnySubstrateNodes)
 		{
@@ -3952,6 +3967,12 @@ bool UMaterial::ConvertMaterialToSubstrateMaterial()
 
 		// We might have moved connections above so update the CachedExpressionData from the EditorOnly connection data (ground truth).
 		UpdateCachedExpressionData();
+	}
+
+	// Store the conversion version, only for converted shaders
+	if (bInvalidateShader && !bEmptyShader)
+	{
+		EditorOnly->SubstrateConversionVersion = GetSubstrateConversionVersion();
 	}
 
 	return bInvalidateShader;
@@ -4895,13 +4916,23 @@ void UMaterial::PostEditChangePropertyInternal(FPropertyChangedEvent& PropertyCh
 
 	const UMaterialEditorOnlyData* EditorOnly = GetEditorOnlyData();
 
-	// Apply Substrate material conversion if needed.
-	// For imported materials, the conversion won't happen during the PostLoad() phase. 
-	// Usually material importers create material by code, and then calls PostEditChange(), which calls PostEditChangeProperty()
-	// This late conversion ensures that imported materials are converted properly with Substrate.
-	if (Substrate::IsSubstrateEnabled() && !IsMaterialAlreadyConvertedToSubstrate(this, EditorOnly))
+	if (Substrate::IsSubstrateEnabled())
 	{
-		ConvertMaterialToSubstrateMaterial();
+		// If a modification is made to the material, revert the auto-conversion version, to mark the material as 'edited'
+		const bool bResetConversionVersion = PropertyThatChanged != nullptr || PropertyChangedEvent.ChangeType != EPropertyChangeType::Unspecified;
+		if (bResetConversionVersion && EditorOnly)
+		{
+			GetEditorOnlyData()->ResetSubstrateConversionVersion();
+		}
+
+		// Apply Substrate material conversion if needed.
+		// For imported materials, the conversion won't happen during the PostLoad() phase. 
+		// Usually material importers create material by code, and then calls PostEditChange(), which calls PostEditChangeProperty()
+		// This late conversion ensures that imported materials are converted properly with Substrate.
+		if (!IsMaterialAlreadyConvertedToSubstrate(this, EditorOnly))
+		{
+			ConvertMaterialToSubstrateMaterial();
+		}
 	}
 
 	// Check for distortion in material 
@@ -7646,6 +7677,11 @@ UMaterialEditorOnlyData::UMaterialEditorOnlyData()
 	AmbientOcclusion.Constant = FMaterialAttributeDefinitionMap::GetDefaultValue(MP_AmbientOcclusion).X;
 	Refraction.Constant = FMaterialAttributeDefinitionMap::GetDefaultValue(MP_Refraction).X;
 	SurfaceThickness.Constant = FMaterialAttributeDefinitionMap::GetDefaultValue(MP_SurfaceThickness).X;
+	ResetSubstrateConversionVersion();
 }
 
+void UMaterialEditorOnlyData::ResetSubstrateConversionVersion()
+{
+	SubstrateConversionVersion = -1; // Invalid version
+}
 #undef LOCTEXT_NAMESPACE

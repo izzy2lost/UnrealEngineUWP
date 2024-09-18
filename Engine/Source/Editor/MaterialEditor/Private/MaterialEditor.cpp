@@ -201,6 +201,18 @@ TAutoConsoleVariable<bool> CVarMaterialEdAllowIgnoringCompilationErrors(
 	true,
 	TEXT("Allow ignoring compilation errors of platform shaders and derived materials."));
 
+static void InvalidateSubstrateConversionVersion(UMaterial* Material)
+{
+	// The material has been updated, invalid the AutoConversion version
+	if (Substrate::IsSubstrateEnabled())
+	{
+		if (UMaterialEditorOnlyData* WritableEditorOnly = Material->GetEditorOnlyData())
+		{
+			WritableEditorOnly->ResetSubstrateConversionVersion();
+		}
+	}
+}
+
 ///////////////////////////
 // FMatExpressionPreview //
 ///////////////////////////
@@ -6778,6 +6790,7 @@ void FMaterialEditor::CreateDerivedMaterialInstancesPreviews()
 void FMaterialEditor::UpdateMaterialAfterGraphChange()
 {
 	FlushRenderingCommands();
+	InvalidateSubstrateConversionVersion(Material);
 	Material->MaterialGraph->LinkMaterialExpressionsFromGraph();
 
 	// Update the current preview material.
@@ -7374,6 +7387,7 @@ void FMaterialEditor::NotifyPostChange( const FPropertyChangedEvent& PropertyCha
 		&& PropertyName != GET_MEMBER_NAME_CHECKED(UMaterialExpressionTextureSampleParameter, ChannelNames))
 		{
 			// Update the current preview material.
+			InvalidateSubstrateConversionVersion(Material);
 			UpdatePreviewMaterial();
 			RefreshExpressionPreviews();
 			RegenerateCodeView();
