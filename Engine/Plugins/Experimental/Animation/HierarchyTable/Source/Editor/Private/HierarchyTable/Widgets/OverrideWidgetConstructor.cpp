@@ -9,6 +9,7 @@
 #include "Widgets/SBoxPanel.h"
 #include "HierarchyTable.h"
 #include "Columns/UIPropertiesColumns.h"
+#include "ScopedTransaction.h"
 
 #define LOCTEXT_NAMESPACE "FTypedElementWidgetConstructor_Override"
 
@@ -69,6 +70,8 @@ bool FTypedElementWidgetConstructor_Override::FinalizeWidget(
 			.IsEnabled(bHasParent)
 			.OnClicked_Lambda([HierarchyTable, EntryIndex]()
 				{
+					const FScopedTransaction Transaction(LOCTEXT("ToggleOverride", "Toggle Override"));
+					HierarchyTable->Modify();
 					HierarchyTable->TableData[EntryIndex].ToggleOverridden();
 					return FReply::Handled();
 				})
