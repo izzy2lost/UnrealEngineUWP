@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using UnrealBuildTool;
+using System;
 using System.IO;
+using System.Linq;
+using UnrealBuildTool;
 
 public class Launch : ModuleRules
 {
@@ -166,13 +168,16 @@ public class Launch : ModuleRules
 
 		if (Target.Configuration != UnrealTargetConfiguration.Shipping)
 		{
-			PublicIncludePathModuleNames.Add("ProfilerService");
-
 			DynamicallyLoadedModuleNames.AddRange(new string[] {
 				"ProfileVisualizer",
 				"RealtimeProfiler",
-				"ProfilerService"
 			});
+
+			if (Target.GlobalDefinitions.Contains("UE_DEPRECATED_PROFILER_ENABLED=1"))
+			{
+				PublicIncludePathModuleNames.Add("ProfilerService");
+				DynamicallyLoadedModuleNames.Add("ProfilerService");
+			}
 		}
 
 		// The engine can use AutomationController in any connfiguration besides shipping.  This module is loaded
@@ -184,7 +189,11 @@ public class Launch : ModuleRules
 
 		if (Target.bBuildEditor == true)
 		{
-			PublicIncludePathModuleNames.Add("ProfilerClient");
+			if (Target.GlobalDefinitions.Contains("UE_DEPRECATED_PROFILER_ENABLED=1"))
+			{
+				PublicIncludePathModuleNames.Add("ProfilerClient");
+				DynamicallyLoadedModuleNames.Add("ProfilerClient");
+			}
 
 			PrivateDependencyModuleNames.AddRange(new string[] {
 					"SourceControl",
@@ -194,11 +203,9 @@ public class Launch : ModuleRules
 					"PIEPreviewDeviceProfileSelector",
 			});
 
-
 			// ExtraModules that are loaded when WITH_EDITOR=1 is true
 			DynamicallyLoadedModuleNames.AddRange(new string[] {
 					"AutomationWindow",
-					"ProfilerClient",
 					"OutputLog",
 					"TextureCompressor",
 					"MeshUtilities",
