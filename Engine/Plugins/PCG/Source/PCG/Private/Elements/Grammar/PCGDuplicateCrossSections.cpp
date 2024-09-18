@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Elements/Grammar/PCGVolumeSlicer.h"
+#include "Elements/Grammar/PCGDuplicateCrossSections.h"
 
 #include "PCGContext.h"
 #include "PCGParamData.h"
@@ -11,26 +11,26 @@
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 #include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
 
-#define LOCTEXT_NAMESPACE "PCGVolumeSlicerElement"
+#define LOCTEXT_NAMESPACE "PCGDuplicateCrossSectionsElement"
 
 #if WITH_EDITOR
-FName UPCGVolumeSlicerSettings::GetDefaultNodeName() const
+FName UPCGDuplicateCrossSectionsSettings::GetDefaultNodeName() const
 {
-	return FName(TEXT("VolumeSlicer"));
+	return FName(TEXT("DuplicateCrossSections"));
 }
 
-FText UPCGVolumeSlicerSettings::GetDefaultNodeTitle() const
+FText UPCGDuplicateCrossSectionsSettings::GetDefaultNodeTitle() const
 {
-	return LOCTEXT("NodeTitle", "Volume Slicer");
+	return LOCTEXT("NodeTitle", "Duplicate Cross-Sections");
 }
 #endif // WITH_EDITOR
 
-FPCGElementPtr UPCGVolumeSlicerSettings::CreateElement() const
+FPCGElementPtr UPCGDuplicateCrossSectionsSettings::CreateElement() const
 {
-	return MakeShared<FPCGVolumeSlicerElement>();
+	return MakeShared<FPCGDuplicateCrossSectionsElement>();
 }
 
-TArray<FPCGPinProperties> UPCGVolumeSlicerSettings::InputPinProperties() const
+TArray<FPCGPinProperties> UPCGDuplicateCrossSectionsSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> Result;
 	FPCGPinProperties& InputPin = Result.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::Spline);
@@ -38,14 +38,14 @@ TArray<FPCGPinProperties> UPCGVolumeSlicerSettings::InputPinProperties() const
 
 	if (bModuleInfoAsInput)
 	{
-		FPCGPinProperties& ModuleInfoPin = Result.Emplace_GetRef(PCGSlicingBaseConstants::ModulesInfoPinLabel, EPCGDataType::Param);
+		FPCGPinProperties& ModuleInfoPin = Result.Emplace_GetRef(PCGSubdivisionBase::Constants::ModulesInfoPinLabel, EPCGDataType::Param);
 		ModuleInfoPin.SetRequiredPin();
 	}
 
 	return Result;
 }
 
-TArray<FPCGPinProperties> UPCGVolumeSlicerSettings::OutputPinProperties() const
+TArray<FPCGPinProperties> UPCGDuplicateCrossSectionsSettings::OutputPinProperties() const
 {
 	TArray<FPCGPinProperties> Result;
 	Result.Emplace_GetRef(PCGPinConstants::DefaultOutputLabel, EPCGDataType::Spline);
@@ -53,20 +53,20 @@ TArray<FPCGPinProperties> UPCGVolumeSlicerSettings::OutputPinProperties() const
 	return Result;
 }
 
-bool FPCGVolumeSlicerElement::ExecuteInternal(FPCGContext* InContext) const
+bool FPCGDuplicateCrossSectionsElement::ExecuteInternal(FPCGContext* InContext) const
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGVolumeSlicerElement::Execute);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDuplicateCrossSectionsElement::Execute);
 
 	check(InContext);
 
-	const UPCGVolumeSlicerSettings* Settings = InContext->GetInputSettings<UPCGVolumeSlicerSettings>();
+	const UPCGDuplicateCrossSectionsSettings* Settings = InContext->GetInputSettings<UPCGDuplicateCrossSectionsSettings>();
 	check(Settings);
 
 	const TArray<FPCGTaggedData> Inputs = InContext->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
 	TArray<FPCGTaggedData>& Outputs = InContext->OutputData.TaggedData;
 
 	const UPCGParamData* ModuleInfoParamData = nullptr;
-	PCGSlicingBase::FPCGModulesInfoMap ModulesInfo = GetModulesInfoMap(InContext, Settings, ModuleInfoParamData);
+	PCGSubdivisionBase::FModuleInfoMap ModulesInfo = GetModulesInfoMap(InContext, Settings, ModuleInfoParamData);
 
 	const bool bMatchAndSetAttributes = Settings->bForwardAttributesFromModulesInfo && ModuleInfoParamData;
 
@@ -145,9 +145,9 @@ bool FPCGVolumeSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 			continue;
 		}
 
-		TArray<PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>> Instances;
+		TArray<PCGSubdivisionBase::TModuleInstance<PCGGrammar::FTokenizedModule>> Instances;
 		double RemainingLength = 0.0;
-		const bool bHeightSubdivideSuccess = PCGSlicingBase::Subdivide(*TokenizedGrammar.ModuleGrammar, ExtrudeLength, Instances, RemainingLength, InContext, AdditionalSeed);
+		const bool bHeightSubdivideSuccess = PCGSubdivisionBase::Subdivide(*TokenizedGrammar.ModuleGrammar, ExtrudeLength, Instances, RemainingLength, InContext, AdditionalSeed);
 
 		if (!bHeightSubdivideSuccess)
 		{
@@ -158,10 +158,10 @@ bool FPCGVolumeSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 		FVector CurrentDisplacement = FVector::ZeroVector;
 		int32 SplineIndex = 0;
 
-		for (const PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>& Instance : Instances)
+		for (const PCGSubdivisionBase::TModuleInstance<PCGGrammar::FTokenizedModule>& Instance : Instances)
 		{
 			const FName Symbol = Instance.Module->Descriptor->Symbol;
-			const FPCGSlicingSubmodule& CurrentBlock = ModulesInfo[Symbol];
+			const FPCGSubdivisionSubmodule& CurrentBlock = ModulesInfo[Symbol];
 			const FVector Size = ExtrudeDirection * CurrentBlock.Size * (FVector::OneVector + Instance.ExtraScale);
 			
 			FPCGSplineStruct NewSpline = InputSplineData->SplineStruct;
