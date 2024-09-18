@@ -21,6 +21,7 @@ public:
 	UScriptableToolMouseHoverBehavior() {};
 
 	void Init(TObjectPtr<UScriptableModularBehaviorTool> BehaviorHostIn,
+		FMouseBehaviorModiferCheckDelegate HoverModifierCheckFuncIn,
 		FBeginHoverSequenceHitTestDelegate BeginHoverSequenceHitTestFuncIn,
 		FOnBeginHoverDelegate OnBeginHoverFuncIn,
 		FOnUpdateHoverDelegate OnUpdateHoverFuncIn,
@@ -41,6 +42,9 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UMouseHoverBehavior> Behavior;
+
+	UPROPERTY()
+	FMouseBehaviorModiferCheckDelegate HoverModifierCheckFunc;
 
 	UPROPERTY()
 	FBeginHoverSequenceHitTestDelegate BeginHoverSequenceHitTestFunc;

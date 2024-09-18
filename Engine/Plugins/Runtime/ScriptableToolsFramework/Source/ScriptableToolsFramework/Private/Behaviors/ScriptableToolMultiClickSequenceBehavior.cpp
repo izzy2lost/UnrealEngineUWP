@@ -7,6 +7,7 @@
 
 void UScriptableToolClickSequenceBehavior::Init(TObjectPtr<UScriptableModularBehaviorTool> BehaviorHostIn,
 	FMouseBehaviorModiferCheckDelegate ModifierCheckFuncIn,
+	FMouseBehaviorModiferCheckDelegate HoverModifierCheckFuncIn,
 	FOnBeginSequencePreviewDelegate OnBeginSequencePreviewFuncIn,
 	FCanBeginClickSequenceDelegate CanBeginClickSequenceFuncIn,
 	FOnBeginClickSequenceDelegate OnBeginClickSequenceFuncIn,
@@ -19,6 +20,7 @@ void UScriptableToolClickSequenceBehavior::Init(TObjectPtr<UScriptableModularBeh
 	BehaviorHost = BehaviorHostIn;
 	Behavior = NewObject<UMultiClickSequenceInputBehavior>();
 	ModifierCheckFunc = ModifierCheckFuncIn;
+	HoverModifierCheckFunc = HoverModifierCheckFuncIn;
 	OnBeginSequencePreviewFunc = OnBeginSequencePreviewFuncIn;
 	CanBeginClickSequenceFunc = CanBeginClickSequenceFuncIn;
 	OnBeginClickSequenceFunc = OnBeginClickSequenceFuncIn;
@@ -38,6 +40,14 @@ void UScriptableToolClickSequenceBehavior::Init(TObjectPtr<UScriptableModularBeh
 		return bResult;
 	};
 
+	Behavior->HoverModifierCheckFunc = [this](const FInputDeviceState& InputDeviceState) {
+		bool bResult = true;
+		if (HoverModifierCheckFunc.IsBound())
+		{
+			bResult = HoverModifierCheckFunc.Execute(InputDeviceState);
+		}
+		return bResult;
+	};
 
 	BehaviorHost->AddInputBehavior(Behavior);
 

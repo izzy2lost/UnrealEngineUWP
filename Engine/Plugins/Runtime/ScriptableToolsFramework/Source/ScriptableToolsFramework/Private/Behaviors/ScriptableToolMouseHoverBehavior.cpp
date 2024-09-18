@@ -7,6 +7,7 @@
 
 
 void UScriptableToolMouseHoverBehavior::Init(TObjectPtr<UScriptableModularBehaviorTool> BehaviorHostIn,
+	FMouseBehaviorModiferCheckDelegate HoverModifierCheckFuncIn,
 	FBeginHoverSequenceHitTestDelegate BeginHoverSequenceHitTestFuncIn,
 	FOnBeginHoverDelegate OnBeginHoverFuncIn,
 	FOnUpdateHoverDelegate OnUpdateHoverFuncIn,
@@ -14,6 +15,7 @@ void UScriptableToolMouseHoverBehavior::Init(TObjectPtr<UScriptableModularBehavi
 {
 	BehaviorHost = BehaviorHostIn;
 	Behavior = NewObject<UMouseHoverBehavior>();
+	HoverModifierCheckFunc = HoverModifierCheckFuncIn;
 	BeginHoverSequenceHitTestFunc = BeginHoverSequenceHitTestFuncIn;
 	OnBeginHoverFunc = OnBeginHoverFuncIn;
 	OnUpdateHoverFunc = OnUpdateHoverFuncIn;
@@ -21,6 +23,15 @@ void UScriptableToolMouseHoverBehavior::Init(TObjectPtr<UScriptableModularBehavi
 
 	Behavior->Initialize(this);
 
+	Behavior->HoverModifierCheckFunc = [this](const FInputDeviceState& InputDeviceState)
+	{
+		bool bResult = true;
+		if (HoverModifierCheckFunc.IsBound())
+		{
+			bResult = HoverModifierCheckFunc.Execute(InputDeviceState);
+		}
+		return bResult;
+	};
 
 	BehaviorHost->AddInputBehavior(Behavior);
 

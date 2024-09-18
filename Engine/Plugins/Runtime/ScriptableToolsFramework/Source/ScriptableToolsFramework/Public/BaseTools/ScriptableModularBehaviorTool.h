@@ -193,10 +193,11 @@ public:
 	*	@param OnTerminateClickSequence Notify Target that click sequence has been explicitly terminated (eg by escape key, cancel tool, etc).
 	*	@param RequestAbortClickSequence Target overrides this and returns true if it wants to abort click sequence, checked every update
 	*	@param CaptureCheck Only enable capture if returns true
+	*   @param HoverCaptureCheck  Only enable hover capture if returns true
 	*	@param CapturePriority The priority is used to resolve situations where multiple behaviors want the same capture
 	*	@param MouseButton Determines which mouse button the behavior captures on
 	*/
-	UFUNCTION(BlueprintCallable, Category = "ScriptableTool|Input", meta = (AdvancedDisplay = "CaptureCheck, CapturePriority, MouseButton"))
+	UFUNCTION(BlueprintCallable, Category = "ScriptableTool|Input", meta = (AdvancedDisplay = "CaptureCheck, HoverCaptureCheck, CapturePriority, MouseButton"))
 	void AddMultiClickSequenceBehavior(		
 		FOnBeginSequencePreviewDelegate OnBeginSequencePreview,
 		FCanBeginClickSequenceDelegate CanBeginClickSequence,
@@ -206,6 +207,7 @@ public:
 		FOnTerminateClickSequenceDelegate OnTerminateClickSequence,
 		FRequestAbortClickSequenceDelegate RequestAbortClickSequence,
 		FMouseBehaviorModiferCheckDelegate CaptureCheck,
+		const FMouseBehaviorModiferCheckDelegate HoverCaptureCheck,
 		int CapturePriority = 100,
 		EScriptableToolMouseButton MouseButton = EScriptableToolMouseButton::LeftButton
 	);
@@ -215,14 +217,16 @@ public:
 	*	@param OnBeginHover Initialize hover sequence at given position
 	*	@param OnUpdateHover Update active hover sequence with new input position
 	*	@param OnEndHover Terminate active hover sequence
+	*   @param HoverCaptureCheck  Only enable hover capture if returns true
 	*	@param CapturePriority The priority is used to resolve situations where multiple behaviors want the same capture
 	*/
-	UFUNCTION(BlueprintCallable, Category = "ScriptableTool|Input", meta = (AdvancedDisplay = "CapturePriority"))
+	UFUNCTION(BlueprintCallable, Category = "ScriptableTool|Input", meta = (AdvancedDisplay = "CaptureCheck, CapturePriority"))
 	void AddMouseHoverBehavior(
 		FBeginHoverSequenceHitTestDelegate BeginHoverSequenceHitTest,
 		FOnBeginHoverDelegate OnBeginHover,
 		FOnUpdateHoverDelegate OnUpdateHover,
 		FOnEndHoverDelegate OnEndHover,
+		const FMouseBehaviorModiferCheckDelegate HoverCaptureCheck,
 		int CapturePriority = 100
 	);
 
