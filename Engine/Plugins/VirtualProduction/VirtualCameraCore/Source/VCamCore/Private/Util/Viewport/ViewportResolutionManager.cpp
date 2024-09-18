@@ -30,11 +30,17 @@ namespace UE::VCamCore
 
 	void FViewportResolutionManager::UpdateViewport(TConstArrayView<TWeakObjectPtr<UVCamComponent>> RegisteredVCams, EVCamTargetViewportID ViewportID)
 	{
-		for (const TWeakObjectPtr<UVCamComponent>& VCamComponent : RegisteredVCams)
+		for (const TWeakObjectPtr<UVCamComponent>& WeakVCamComponent : RegisteredVCams)
 		{
+			UVCamComponent* VCamComponent = WeakVCamComponent.Get();
+			if (!VCamComponent)
+			{
+				continue;
+			}
+			
 			for (UVCamOutputProviderBase* OutputProvider : VCamComponent->GetOutputProviders())
 			{
-				if (ensure(OutputProvider)
+				if (OutputProvider
 					&& OutputProvider->GetTargetViewport() == ViewportID
 					&& HasViewportOwnershipDelegate.Execute(*OutputProvider))
 				{
