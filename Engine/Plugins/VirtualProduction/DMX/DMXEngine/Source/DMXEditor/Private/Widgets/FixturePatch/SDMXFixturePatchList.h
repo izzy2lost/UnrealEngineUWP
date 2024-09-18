@@ -158,6 +158,9 @@ private:
 	/** Rows of Mode widgets in the List */
 	TArray<TSharedPtr<SDMXFixturePatchListRow>> Rows;
 
+	/** The border that holds the list */
+	TSharedPtr<SBorder> ListContentBorder;
+
 	/** Timer handle for the Request List Refresh method */
 	FTimerHandle RequestListRefreshTimerHandle;
 

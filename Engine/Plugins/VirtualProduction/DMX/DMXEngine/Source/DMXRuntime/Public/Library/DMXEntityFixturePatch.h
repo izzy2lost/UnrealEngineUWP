@@ -280,7 +280,7 @@ protected:
 
 	/** The Index of the Mode in the Fixture Type the Patch uses */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (DisplayName = "Active Mode Index"), Category = "Fixture Patch")
-	int32 ActiveMode;
+	int32 ActiveMode = INDEX_NONE;
 
 #if WITH_EDITORONLY_DATA
 	/** 

@@ -184,7 +184,11 @@ private:
 	/** Called when the combo box selection changed */
 	void OnSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo)
 	{
-		if (const UDMXEntityFixtureType* FixtureType = Item->GetFixtureType())
+		if (!NewSelection.IsValid())
+		{
+			Item->SetModeIndex(INDEX_NONE);
+		}
+		else if (const UDMXEntityFixtureType* FixtureType = Item->GetFixtureType())
 		{
 			const int32 ModeIndex = FixtureType->Modes.IndexOfByPredicate([&NewSelection](const FDMXFixtureMode& Mode)
 				{
