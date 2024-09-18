@@ -4,12 +4,12 @@
 
 #include "PCGSettings.h"
 #include "Metadata/PCGAttributePropertySelector.h"
-#include "Elements/Grammar/PCGSlicingBase.h"
+#include "Elements/Grammar/PCGSubdivisionBase.h"
 
-#include "PCGVolumeSlicer.generated.h"
+#include "PCGDuplicateCrossSections.generated.h"
 
 UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
-class UPCGVolumeSlicerSettings : public UPCGSlicingBaseSettings
+class UPCGDuplicateCrossSectionsSettings : public UPCGSubdivisionBaseSettings
 {
 	GENERATED_BODY()
 
@@ -46,9 +46,8 @@ public:
 	FName SplineIndexAttributeName = TEXT("SplineIndex");
 };
 
-class FPCGVolumeSlicerElement : public FPCGSlicingBaseElement
+class FPCGDuplicateCrossSectionsElement : public FPCGSubdivisionBaseElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* InContext) const override;
 };
-

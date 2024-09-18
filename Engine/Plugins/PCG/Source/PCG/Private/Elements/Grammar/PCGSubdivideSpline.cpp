@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Elements/Grammar/PCGSplineSlicer.h"
+#include "Elements/Grammar/PCGSubdivideSpline.h"
 
 #include "PCGContext.h"
 #include "Data/PCGPointData.h"
@@ -10,17 +10,17 @@
 #include "Kismet/KismetMathLibrary.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 
-#define LOCTEXT_NAMESPACE "PCGSplineSlicerElement"
+#define LOCTEXT_NAMESPACE "PCGSubdivideSplineElement"
 
-namespace PCGSplineSlicerHelpers
+namespace PCGSubdivideSplineHelpers
 {
 	struct FParameters
 	{
 		FPCGContext* Context = nullptr;
 
-		PCGSlicingBase::FPCGModulesInfoMap ModulesInfo;
+		PCGSubdivisionBase::FModuleInfoMap ModulesInfo;
 		TMap<FString, PCGGrammar::FTokenizedGrammar> CachedModules;
-		bool bAcceptIncompleteSlicing = false;
+		bool bAcceptIncompleteSubdivision = false;
 		double ModuleHeight = 0.0;
 		int32 AdditionalSeed = 0;
 
@@ -89,7 +89,7 @@ namespace PCGSplineSlicerHelpers
 		if (!InOutParameters.CachedModules.Contains(InGrammar))
 		{
 			double MinSize;
-			InOutParameters.CachedModules.Emplace(InGrammar, PCGSlicingBase::GetTokenizedGrammar(InOutParameters.Context, InGrammar, InOutParameters.ModulesInfo, MinSize));
+			InOutParameters.CachedModules.Emplace(InGrammar, PCGSubdivisionBase::GetTokenizedGrammar(InOutParameters.Context, InGrammar, InOutParameters.ModulesInfo, MinSize));
 		}
 
 		const PCGGrammar::FTokenizedGrammar& CurrentTokenizedGrammar = InOutParameters.CachedModules[InGrammar];
@@ -104,16 +104,16 @@ namespace PCGSplineSlicerHelpers
 		/* Implementation Note: Subdivided spline length will always be equal or greater than discretized linear length, depending on the curvature of the spline.
 		 * For extremely long or curvy splines, this can result in the tokenized grammar being cut short. Alternative subdivision solutions may need to be explored.
 		 */
-		TArray<PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>> ModulesInstances;
+		TArray<PCGSubdivisionBase::TModuleInstance<PCGGrammar::FTokenizedModule>> ModulesInstances;
 		double RemainingSubdivide;
 		if (!Subdivide(*CurrentTokenizedGrammar.ModuleGrammar, SplineLength, ModulesInstances, RemainingSubdivide, InOutParameters.Context, InOutParameters.AdditionalSeed))
 		{
 			return;
 		}
 
-		if (!InOutParameters.bAcceptIncompleteSlicing && !FMath::IsNearlyZero(RemainingSubdivide))
+		if (!InOutParameters.bAcceptIncompleteSubdivision && !FMath::IsNearlyZero(RemainingSubdivide))
 		{
-			PCGLog::LogWarningOnGraph(LOCTEXT("FailSliceFullLength", "The spline has an incomplete slicing (grammar doesn't fit the whole segment)."), InOutParameters.Context);
+			PCGLog::LogWarningOnGraph(LOCTEXT("FailSubdivisionFullLength", "The spline has an incomplete subdivision (grammar doesn't fit the whole segment)."), InOutParameters.Context);
 			return;
 		}
 
@@ -127,11 +127,11 @@ namespace PCGSplineSlicerHelpers
 		constexpr double OvershootToleranceFactor = 0.02; // 2%
 		constexpr double OvershootToleranceMax = 5.0; // 5 cm
 		double MinimumModuleSize = std::numeric_limits<double>::max();
-		for (const PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>& ModuleInstance : ModulesInstances)
+		for (const PCGSubdivisionBase::TModuleInstance<PCGGrammar::FTokenizedModule>& ModuleInstance : ModulesInstances)
 		{
 			const FName Symbol = ModuleInstance.Module->Descriptor->Symbol;
-			const FPCGSlicingSubmodule& SlicingSubmodule = InOutParameters.ModulesInfo[Symbol];
-			MinimumModuleSize = FMath::Min(MinimumModuleSize, SlicingSubmodule.Size);
+			const FPCGSubdivisionSubmodule& SubdivisionSubmodule = InOutParameters.ModulesInfo[Symbol];
+			MinimumModuleSize = FMath::Min(MinimumModuleSize, SubdivisionSubmodule.Size);
 		}
 
 		const double OvershootTolerance = FMath::Min(MinimumModuleSize * OvershootToleranceFactor, OvershootToleranceMax);
@@ -145,16 +145,16 @@ namespace PCGSplineSlicerHelpers
 			double OvershootDistance = 0.0;
 			bool bAtSplineEnd = false;
 
-			for (const PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>& ModuleInstance : ModulesInstances)
+			for (const PCGSubdivisionBase::TModuleInstance<PCGGrammar::FTokenizedModule>& ModuleInstance : ModulesInstances)
 			{
 				const FName Symbol = ModuleInstance.Module->Descriptor->Symbol;
-				const FPCGSlicingSubmodule& SlicingSubmodule = InOutParameters.ModulesInfo[Symbol];
-				const double SubmoduleSize = SlicingSubmodule.Size * (1.0 + ModuleInstance.ExtraScale);
+				const FPCGSubdivisionSubmodule& SubdivisionSubmodule = InOutParameters.ModulesInfo[Symbol];
+				const double SubmoduleSize = SubdivisionSubmodule.Size * (1.0 + ModuleInstance.ExtraScale);
 
 				// TODO: modules that can be deformed can also have extra scale, but the move in spline space (so their real length needs to be measured)
 				if (ModuleInstance.ExtraScale > 0)
 				{
-					ScaledLength += SlicingSubmodule.Size * ModuleInstance.ExtraScale;
+					ScaledLength += SubdivisionSubmodule.Size * ModuleInstance.ExtraScale;
 				}
 
 				if (!bAtSplineEnd)
@@ -202,7 +202,7 @@ namespace PCGSplineSlicerHelpers
 					check(UpdateExtraScaleFactor >= 0.0 && UpdateExtraScaleFactor <= 1.0);
 				}
 
-				for (PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>& ModuleInstance : ModulesInstances)
+				for (PCGSubdivisionBase::TModuleInstance<PCGGrammar::FTokenizedModule>& ModuleInstance : ModulesInstances)
 				{
 					if (ModuleInstance.ExtraScale > 0)
 					{
@@ -223,11 +223,10 @@ namespace PCGSplineSlicerHelpers
 		const int32 NumIterations = FMath::Min(ModulesInstances.Num(), ModuleAlphas.Num() - 1);
 		for (int32 ModuleInstanceIndex = 0; ModuleInstanceIndex < NumIterations; ModuleInstanceIndex++)
 		{
-			const PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>& ModuleInstance = ModulesInstances[ModuleInstanceIndex];
+			const PCGSubdivisionBase::TModuleInstance<PCGGrammar::FTokenizedModule>& ModuleInstance = ModulesInstances[ModuleInstanceIndex];
 			const FName Symbol = ModuleInstance.Module->Descriptor->Symbol;
 
-			const FPCGSlicingSubmodule& SlicingSubmodule = InOutParameters.ModulesInfo[Symbol];
-			const double SubmoduleSize = SlicingSubmodule.Size * (1.0 + ModuleInstance.ExtraScale);
+			const FPCGSubdivisionSubmodule& SubdivisionSubmodule = InOutParameters.ModulesInfo[Symbol];
 
 			const double& PreviousAlpha = ModuleAlphas[ModuleInstanceIndex];
 			const double& SplineAlpha = ModuleAlphas[ModuleInstanceIndex + 1];
@@ -236,19 +235,19 @@ namespace PCGSplineSlicerHelpers
 			const FVector SegmentStartPoint = PreviousSegmentEndPoint;
 			const FVector SegmentEndPoint = InOutParameters.PolyLineData->GetLocationAtAlpha(SplineAlpha);
 			PreviousSegmentEndPoint = SegmentEndPoint;
-			const FVector SliceVector = SegmentEndPoint - SegmentStartPoint;
-			const FVector SliceDirection = SliceVector.GetSafeNormal();
+			const FVector SubdivisionVector = SegmentEndPoint - SegmentStartPoint;
+			const FVector SubdivisionDirection = SubdivisionVector.GetSafeNormal();
 
 			// Since its discretized, we won't take the transform's position, but we'll use the up vector--to create the module rotation--and the scale
 			FTransform CenterPointTransform = InOutParameters.PolyLineData->GetTransformAtAlpha((SplineAlpha + PreviousAlpha) * 0.5);
 
-			const FVector Position = SegmentStartPoint + (SliceVector * 0.5) + FVector(0, 0, InOutParameters.ModuleHeight * 0.5);
-			const FRotator Rotation = FRotationMatrix::MakeFromXZ(SliceDirection, CenterPointTransform.GetRotation().GetUpVector()).Rotator();
+			const FVector Position = SegmentStartPoint + (SubdivisionVector * 0.5) + FVector(0, 0, InOutParameters.ModuleHeight * 0.5);
+			const FRotator Rotation = FRotationMatrix::MakeFromXZ(SubdivisionDirection, CenterPointTransform.GetRotation().GetUpVector()).Rotator();
 			const FVector Scale = FVector(1.0 + ModuleInstance.ExtraScale, 1.0, 1.0);
 
 			FPCGPoint& OutPoint = InOutParameters.OutPoints->Emplace_GetRef(FTransform(Rotation, Position, Scale), /*InDensity=*/1, PCGHelpers::ComputeSeedFromPosition(Position));
 
-			const double HalfSubmoduleSize = SlicingSubmodule.Size * 0.5;
+			const double HalfSubmoduleSize = SubdivisionSubmodule.Size * 0.5;
 			OutPoint.SetLocalBounds(FBox(FVector(-HalfSubmoduleSize, 0, 0), FVector(HalfSubmoduleSize, 1, InOutParameters.ModuleHeight)));
 
 			// Now, handle the metadata attributes
@@ -265,7 +264,7 @@ namespace PCGSplineSlicerHelpers
 
 			if (InOutParameters.DebugColorAttribute)
 			{
-				InOutParameters.DebugColorAttribute->SetValue(OutPoint.MetadataEntry, FVector4(SlicingSubmodule.DebugColor, 1.0));
+				InOutParameters.DebugColorAttribute->SetValue(OutPoint.MetadataEntry, FVector4(SubdivisionSubmodule.DebugColor, 1.0));
 			}
 
 			if (InOutParameters.ModuleIndexAttribute)
@@ -288,12 +287,12 @@ namespace PCGSplineSlicerHelpers
 	}
 }
 
-FPCGElementPtr UPCGSplineSlicerSettings::CreateElement() const
+FPCGElementPtr UPCGSubdivideSplineSettings::CreateElement() const
 {
-	return MakeShared<FPCGSplineSlicerElement>();
+	return MakeShared<FPCGSubdivideSplineElement>();
 }
 
-TArray<FPCGPinProperties> UPCGSplineSlicerSettings::InputPinProperties() const
+TArray<FPCGPinProperties> UPCGSubdivideSplineSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
 	FPCGPinProperties& InputPin = PinProperties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::PolyLine);
@@ -301,38 +300,38 @@ TArray<FPCGPinProperties> UPCGSplineSlicerSettings::InputPinProperties() const
 
 	if (bModuleInfoAsInput)
 	{
-		FPCGPinProperties& ModuleInfoPin = PinProperties.Emplace_GetRef(PCGSlicingBaseConstants::ModulesInfoPinLabel, EPCGDataType::Param);
+		FPCGPinProperties& ModuleInfoPin = PinProperties.Emplace_GetRef(PCGSubdivisionBase::Constants::ModulesInfoPinLabel, EPCGDataType::Param);
 		ModuleInfoPin.SetRequiredPin();
 	}
 
 	return PinProperties;
 }
 
-TArray<FPCGPinProperties> UPCGSplineSlicerSettings::OutputPinProperties() const
+TArray<FPCGPinProperties> UPCGSubdivideSplineSettings::OutputPinProperties() const
 {
 	return Super::DefaultPointOutputPinProperties();
 }
 
-bool FPCGSplineSlicerElement::ExecuteInternal(FPCGContext* InContext) const
+bool FPCGSubdivideSplineElement::ExecuteInternal(FPCGContext* InContext) const
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSplineSlicerElement::Execute);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSubdivideSplineElement::Execute);
 
-	const UPCGSplineSlicerSettings* Settings = InContext->GetInputSettings<UPCGSplineSlicerSettings>();
+	const UPCGSubdivideSplineSettings* Settings = InContext->GetInputSettings<UPCGSubdivideSplineSettings>();
 	check(Settings);
 
 	const TArray<FPCGTaggedData> Inputs = InContext->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
 	TArray<FPCGTaggedData>& Outputs = InContext->OutputData.TaggedData;
 
 	const UPCGParamData* ModuleInfoParamData = nullptr;
-	const FPCGModulesInfoMap ModulesInfo = GetModulesInfoMap(InContext, Settings, ModuleInfoParamData);
+	const FModuleInfoMap ModulesInfo = GetModulesInfoMap(InContext, Settings, ModuleInfoParamData);
 
 	double ModuleHeight = Settings->bModuleHeightAsAttribute ? 0.0 : Settings->ModuleHeight;
 
-	PCGSplineSlicerHelpers::FParameters Parameters
+	PCGSubdivideSplineHelpers::FParameters Parameters
 	{
 		.Context = InContext,
 		.ModulesInfo = ModulesInfo,
-		.bAcceptIncompleteSlicing = Settings->bAcceptIncompleteSlicing
+		.bAcceptIncompleteSubdivision = Settings->bAcceptIncompleteSubdivision
 	};
 
 	for (const FPCGTaggedData& Input : Inputs)
@@ -428,14 +427,14 @@ bool FPCGSplineSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 
 			auto Process = [&Parameters](const FString& InGrammar, int32 Index) -> void
 			{
-				PCGSplineSlicerHelpers::Process(Parameters, InGrammar);
+				PCGSubdivideSplineHelpers::Process(Parameters, InGrammar);
 			};
 
 			PCGMetadataElementCommon::ApplyOnAccessor<FString>(Keys, *GrammarAccessor, Process);
 		}
 		else
 		{
-			PCGSplineSlicerHelpers::Process(Parameters, Settings->GrammarSelection.GrammarString);
+			PCGSubdivideSplineHelpers::Process(Parameters, Settings->GrammarSelection.GrammarString);
 		}
 	}
 

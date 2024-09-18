@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Elements/Grammar/PCGSlicingBase.h"
+#include "Elements/Grammar/PCGSubdivisionBase.h"
 
 #include "PCGContext.h"
 #include "PCGParamData.h"
@@ -12,14 +12,14 @@
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 #include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
 
-#define LOCTEXT_NAMESPACE "PCGSlicingBaseElement"
+#define LOCTEXT_NAMESPACE "PCGSubdivisionBaseElement"
 
-namespace PCGSlicingBase
+namespace PCGSubdivisionBase
 {
 	static const FText DuplicatedSymbolText = LOCTEXT("SymbolDuplicate", "Symbol {0} is duplicated, ignored.");
 }
 
-void UPCGSlicingBaseSettings::PostLoad()
+void UPCGSubdivisionBaseSettings::PostLoad()
 {
 	Super::PostLoad();
 
@@ -40,32 +40,32 @@ void UPCGSlicingBaseSettings::PostLoad()
 #endif // WITH_EDITOR
 }
 
-FPCGSlicingBaseElement::FPCGModulesInfoMap FPCGSlicingBaseElement::GetModulesInfoMap(FPCGContext* InContext, const TArray<FPCGSlicingSubmodule>& SubmodulesInfo, const UPCGParamData*& OutModuleInfoParamData) const
+FPCGSubdivisionBaseElement::FModuleInfoMap FPCGSubdivisionBaseElement::GetModulesInfoMap(FPCGContext* InContext, const TArray<FPCGSubdivisionSubmodule>& SubmodulesInfo, const UPCGParamData*& OutModuleInfoParamData) const
 {
-	PCGSlicingBase::FPCGModulesInfoMap ModulesInfo;
+	PCGSubdivisionBase::FModuleInfoMap ModulesInfo;
 	OutModuleInfoParamData = nullptr;
 
 	ModulesInfo.Reserve(SubmodulesInfo.Num());
-	for (const FPCGSlicingSubmodule& SlicingModule : SubmodulesInfo)
+	for (const FPCGSubdivisionSubmodule& SubdivisionModule : SubmodulesInfo)
 	{
-		if (ModulesInfo.Contains(SlicingModule.Symbol))
+		if (ModulesInfo.Contains(SubdivisionModule.Symbol))
 		{
-			PCGLog::LogWarningOnGraph(FText::Format(PCGSlicingBase::DuplicatedSymbolText, FText::FromName(SlicingModule.Symbol)), InContext);
+			PCGLog::LogWarningOnGraph(FText::Format(PCGSubdivisionBase::DuplicatedSymbolText, FText::FromName(SubdivisionModule.Symbol)), InContext);
 			continue;
 		}
 
-		ModulesInfo.Emplace(SlicingModule.Symbol, SlicingModule);
+		ModulesInfo.Emplace(SubdivisionModule.Symbol, SubdivisionModule);
 	}
 
 	return ModulesInfo;
 }
 
-FPCGSlicingBaseElement::FPCGModulesInfoMap FPCGSlicingBaseElement::GetModulesInfoMap(FPCGContext* InContext, const FPCGSlicingModuleAttributeNames& InSlicingModuleAttributeNames, const UPCGParamData*& OutModuleInfoParamData) const
+FPCGSubdivisionBaseElement::FModuleInfoMap FPCGSubdivisionBaseElement::GetModulesInfoMap(FPCGContext* InContext, const FPCGSubdivisionModuleAttributeNames& InSubdivisionModuleAttributeNames, const UPCGParamData*& OutModuleInfoParamData) const
 {
-	PCGSlicingBase::FPCGModulesInfoMap ModulesInfo;
+	PCGSubdivisionBase::FModuleInfoMap ModulesInfo;
 	OutModuleInfoParamData = nullptr;
 
-	const TArray<FPCGTaggedData> ModulesInfoInputs = InContext->InputData.GetInputsByPin(PCGSlicingBaseConstants::ModulesInfoPinLabel);
+	const TArray<FPCGTaggedData> ModulesInfoInputs = InContext->InputData.GetInputsByPin(PCGSubdivisionBase::Constants::ModulesInfoPinLabel);
 
 	if (ModulesInfoInputs.IsEmpty())
 	{
@@ -81,12 +81,12 @@ FPCGSlicingBaseElement::FPCGModulesInfoMap FPCGSlicingBaseElement::GetModulesInf
 	}
 
 	TMap<FName, TTuple<FName, bool>> PropertyNameMapping;
-	PropertyNameMapping.Emplace(GET_MEMBER_NAME_CHECKED(FPCGSlicingSubmodule, Symbol), {InSlicingModuleAttributeNames.SymbolAttributeName, /*bCanBeDefaulted=*/false});
-	PropertyNameMapping.Emplace(GET_MEMBER_NAME_CHECKED(FPCGSlicingSubmodule, Size), {InSlicingModuleAttributeNames.SizeAttributeName, /*bCanBeDefaulted=*/false});
-	PropertyNameMapping.Emplace(GET_MEMBER_NAME_CHECKED(FPCGSlicingSubmodule, bScalable), {InSlicingModuleAttributeNames.ScalableAttributeName, /*bCanBeDefaulted=*/!InSlicingModuleAttributeNames.bProvideScalable});
-	PropertyNameMapping.Emplace(GET_MEMBER_NAME_CHECKED(FPCGSlicingSubmodule, DebugColor), {InSlicingModuleAttributeNames.DebugColorAttributeName, /*bCanBeDefaulted=*/!InSlicingModuleAttributeNames.bProvideDebugColor});
+	PropertyNameMapping.Emplace(GET_MEMBER_NAME_CHECKED(FPCGSubdivisionSubmodule, Symbol), {InSubdivisionModuleAttributeNames.SymbolAttributeName, /*bCanBeDefaulted=*/false});
+	PropertyNameMapping.Emplace(GET_MEMBER_NAME_CHECKED(FPCGSubdivisionSubmodule, Size), {InSubdivisionModuleAttributeNames.SizeAttributeName, /*bCanBeDefaulted=*/false});
+	PropertyNameMapping.Emplace(GET_MEMBER_NAME_CHECKED(FPCGSubdivisionSubmodule, bScalable), {InSubdivisionModuleAttributeNames.ScalableAttributeName, /*bCanBeDefaulted=*/!InSubdivisionModuleAttributeNames.bProvideScalable});
+	PropertyNameMapping.Emplace(GET_MEMBER_NAME_CHECKED(FPCGSubdivisionSubmodule, DebugColor), {InSubdivisionModuleAttributeNames.DebugColorAttributeName, /*bCanBeDefaulted=*/!InSubdivisionModuleAttributeNames.bProvideDebugColor});
 
-	const TArray<FPCGSlicingSubmodule> AllModules = PCGPropertyHelpers::ExtractAttributeSetAsArrayOfStructs<FPCGSlicingSubmodule>(ParamData, &PropertyNameMapping, InContext);
+	const TArray<FPCGSubdivisionSubmodule> AllModules = PCGPropertyHelpers::ExtractAttributeSetAsArrayOfStructs<FPCGSubdivisionSubmodule>(ParamData, &PropertyNameMapping, InContext);
 
 	ModulesInfo.Reserve(AllModules.Num());
 
@@ -94,7 +94,7 @@ FPCGSlicingBaseElement::FPCGModulesInfoMap FPCGSlicingBaseElement::GetModulesInf
 	{
 		if (ModulesInfo.Contains(AllModules[i].Symbol))
 		{
-			PCGLog::LogWarningOnGraph(FText::Format(PCGSlicingBase::DuplicatedSymbolText, FText::FromName(AllModules[i].Symbol)), InContext);
+			PCGLog::LogWarningOnGraph(FText::Format(PCGSubdivisionBase::DuplicatedSymbolText, FText::FromName(AllModules[i].Symbol)), InContext);
 			continue;
 		}
 
@@ -106,7 +106,7 @@ FPCGSlicingBaseElement::FPCGModulesInfoMap FPCGSlicingBaseElement::GetModulesInf
 	return ModulesInfo;
 }
 
-PCGSlicingBase::FPCGModulesInfoMap FPCGSlicingBaseElement::GetModulesInfoMap(FPCGContext* InContext, const UPCGSlicingBaseSettings* InSettings, const UPCGParamData*& OutModuleInfoParamData) const
+PCGSubdivisionBase::FModuleInfoMap FPCGSubdivisionBaseElement::GetModulesInfoMap(FPCGContext* InContext, const UPCGSubdivisionBaseSettings* InSettings, const UPCGParamData*& OutModuleInfoParamData) const
 {
 	if (InSettings->bModuleInfoAsInput)
 	{
@@ -118,7 +118,7 @@ PCGSlicingBase::FPCGModulesInfoMap FPCGSlicingBaseElement::GetModulesInfoMap(FPC
 	}
 }
 
-PCGGrammar::FTokenizedGrammar FPCGSlicingBaseElement::GetTokenizedGrammar(FPCGContext* InContext, const UPCGData* InputData, const UPCGSlicingBaseSettings* InSettings, const FPCGModulesInfoMap& InModulesInfo, double& OutMinSize) const
+PCGGrammar::FTokenizedGrammar FPCGSubdivisionBaseElement::GetTokenizedGrammar(FPCGContext* InContext, const UPCGData* InputData, const UPCGSubdivisionBaseSettings* InSettings, const FModuleInfoMap& InModulesInfo, double& OutMinSize) const
 {
 	FString Grammar = InSettings->GrammarSelection.GrammarString;
 
@@ -139,10 +139,10 @@ PCGGrammar::FTokenizedGrammar FPCGSlicingBaseElement::GetTokenizedGrammar(FPCGCo
 		}
 	}
 
-	return PCGSlicingBase::GetTokenizedGrammar(InContext, Grammar, InModulesInfo, OutMinSize);
+	return PCGSubdivisionBase::GetTokenizedGrammar(InContext, Grammar, InModulesInfo, OutMinSize);
 }
 
-PCGGrammar::FTokenizedGrammar PCGSlicingBase::GetTokenizedGrammar(FPCGContext* InContext, const FString& InGrammar, const FPCGModulesInfoMap& InModulesInfo, double& OutMinSize)
+PCGGrammar::FTokenizedGrammar PCGSubdivisionBase::GetTokenizedGrammar(FPCGContext* InContext, const FString& InGrammar, const FModuleInfoMap& InModulesInfo, double& OutMinSize)
 {
 	FPCGGrammarResult Result = PCGGrammar::Parse(InGrammar);
 
@@ -181,7 +181,7 @@ PCGGrammar::FTokenizedGrammar PCGSlicingBase::GetTokenizedGrammar(FPCGContext* I
 	{
 		if(Descriptor.Type == PCGGrammar::EModuleType::Literal)
 		{
-			if (const FPCGSlicingSubmodule* It = InModulesInfo.Find(Descriptor.Symbol))
+			if (const FPCGSubdivisionSubmodule* It = InModulesInfo.Find(Descriptor.Symbol))
 			{
 				Module.UnitSize = It->Size;
 				Module.ConcreteUnitSize = It->Size;
@@ -272,7 +272,7 @@ PCGGrammar::FTokenizedGrammar PCGSlicingBase::GetTokenizedGrammar(FPCGContext* I
 	return TokenizedGrammar;
 }
 
-TMap<FString, PCGGrammar::FTokenizedGrammar> FPCGSlicingBaseElement::GetTokenizedGrammarForPoints(FPCGContext* InContext, const UPCGPointData* InputData, const UPCGSlicingBaseSettings* InSettings, const FPCGModulesInfoMap& InModulesInfo, double& OutMinSize) const
+TMap<FString, PCGGrammar::FTokenizedGrammar> FPCGSubdivisionBaseElement::GetTokenizedGrammarForPoints(FPCGContext* InContext, const UPCGPointData* InputData, const UPCGSubdivisionBaseSettings* InSettings, const FModuleInfoMap& InModulesInfo, double& OutMinSize) const
 {
 	TMap<FString, PCGGrammar::FTokenizedGrammar> Result;
 
@@ -308,13 +308,13 @@ TMap<FString, PCGGrammar::FTokenizedGrammar> FPCGSlicingBaseElement::GetTokenize
 
 	for (auto& [Grammar, TokenizeGrammar] : Result)
 	{
-		TokenizeGrammar = PCGSlicingBase::GetTokenizedGrammar(InContext, Grammar, InModulesInfo, OutMinSize);
+		TokenizeGrammar = PCGSubdivisionBase::GetTokenizedGrammar(InContext, Grammar, InModulesInfo, OutMinSize);
 	}
 
 	return Result;
 }
 
-bool FPCGSlicingBaseElement::MatchAndSetAttributes(const TArray<FPCGTaggedData>& InputData, TArray<FPCGTaggedData>& OutputData, const UPCGParamData* InModuleInfoParamData, const UPCGSlicingBaseSettings* InSettings) const
+bool FPCGSubdivisionBaseElement::MatchAndSetAttributes(const TArray<FPCGTaggedData>& InputData, TArray<FPCGTaggedData>& OutputData, const UPCGParamData* InModuleInfoParamData, const UPCGSubdivisionBaseSettings* InSettings) const
 {
 	check(InModuleInfoParamData && InModuleInfoParamData->Metadata);
 
@@ -324,7 +324,7 @@ bool FPCGSlicingBaseElement::MatchAndSetAttributes(const TArray<FPCGTaggedData>&
 	// Build the Symbol -> EntryKey mapping
 	// Since we don't know if it is a Name or a String, we need to get both.
 	TMap<FName, PCGMetadataEntryKey> SymbolToEntryKeyMapping;
-	if (const FPCGMetadataAttribute<FName>* InSymbolNameAttribute = InputMetadata->GetConstTypedAttribute<FName>(PCGSlicingBaseConstants::SymbolAttributeName))
+	if (const FPCGMetadataAttribute<FName>* InSymbolNameAttribute = InputMetadata->GetConstTypedAttribute<FName>(PCGSubdivisionBase::Constants::SymbolAttributeName))
 	{
 		for (PCGMetadataEntryKey EntryKey = InputMetadata->GetItemKeyCountForParent(); EntryKey < InputMetadata->GetItemCountForChild(); ++EntryKey)
 		{
@@ -335,7 +335,7 @@ bool FPCGSlicingBaseElement::MatchAndSetAttributes(const TArray<FPCGTaggedData>&
 			}
 		}
 	}
-	else if (const FPCGMetadataAttribute<FString>* InSymbolStrAttribute = InputMetadata->GetConstTypedAttribute<FString>(PCGSlicingBaseConstants::SymbolAttributeName))
+	else if (const FPCGMetadataAttribute<FString>* InSymbolStrAttribute = InputMetadata->GetConstTypedAttribute<FString>(PCGSubdivisionBase::Constants::SymbolAttributeName))
 	{
 		for (PCGMetadataEntryKey EntryKey = InputMetadata->GetItemKeyCountForParent(); EntryKey < InputMetadata->GetItemCountForChild(); ++EntryKey)
 		{
@@ -389,7 +389,7 @@ bool FPCGSlicingBaseElement::MatchAndSetAttributes(const TArray<FPCGTaggedData>&
 			for (const FName AttributeName : AttributeNames)
 			{
 				// Skip the symbol, it already exists, but perhaps with a different attribute name.
-				if (AttributeName == PCGSlicingBaseConstants::SymbolAttributeName)
+				if (AttributeName == PCGSubdivisionBase::Constants::SymbolAttributeName)
 				{
 					continue;
 				}
@@ -451,7 +451,7 @@ bool FPCGSlicingBaseElement::MatchAndSetAttributes(const TArray<FPCGTaggedData>&
 			for (int32 i = 0; i < AttributeNames.Num(); ++i)
 			{
 				// Skip the symbol attribute, as it is already in the OutData (with perhaps a different name)
-				if (AttributeNames[i] == PCGSlicingBaseConstants::SymbolAttributeName)
+				if (AttributeNames[i] == PCGSubdivisionBase::Constants::SymbolAttributeName)
 				{
 					continue;
 				}

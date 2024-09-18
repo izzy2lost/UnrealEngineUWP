@@ -7,13 +7,13 @@
 #include "Grammar/PCGGrammar.h"
 #include "Utils/PCGLogErrors.h"
 
-#include "PCGSlicingBase.generated.h"
+#include "PCGSubdivisionBase.generated.h"
 
 class UPCGData;
 class UPCGPointData;
 
 USTRUCT(BlueprintType)
-struct FPCGSlicingSubmodule
+struct FPCGSubdivisionSubmodule
 {
 	GENERATED_BODY()
 
@@ -34,7 +34,7 @@ struct FPCGSlicingSubmodule
 	FVector4 DebugColor = FVector4::One();
 };
 
-namespace PCGSlicingBaseConstants
+namespace PCGSubdivisionBase::Constants
 {
 	const FName ModulesInfoPinLabel = TEXT("ModulesInfo");
 	const FName SymbolAttributeName = TEXT("Symbol");
@@ -44,36 +44,36 @@ namespace PCGSlicingBaseConstants
 }
 
 USTRUCT(BlueprintType)
-struct FPCGSlicingModuleAttributeNames
+struct FPCGSubdivisionModuleAttributeNames
 {
 	GENERATED_BODY()
 
 public:
 	/** Mandatory. Expected type: FName. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "")
-	FName SymbolAttributeName = PCGSlicingBaseConstants::SymbolAttributeName;
+	FName SymbolAttributeName = PCGSubdivisionBase::Constants::SymbolAttributeName;
 
 	/** Mandatory. Expected type: double. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "")
-	FName SizeAttributeName = PCGSlicingBaseConstants::SizeAttributeName;
+	FName SizeAttributeName = PCGSubdivisionBase::Constants::SizeAttributeName;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "", meta = (InlineEditConditionToggle))
 	bool bProvideScalable = false;
 
 	/** Optional. Expected type: bool. If disabled, default value will be false. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "", meta = (EditCondition = "bProvideScalable"))
-	FName ScalableAttributeName = PCGSlicingBaseConstants::ScalableAttributeName;
+	FName ScalableAttributeName = PCGSubdivisionBase::Constants::ScalableAttributeName;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "", meta = (InlineEditConditionToggle))
 	bool bProvideDebugColor = false;
 
 	/** Optional. Expected type: Vector4. If disabled, default value will be (1.0, 1.0, 1.0, 1.0). */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "", meta = (EditCondition = "bProvideDebugColor"))
-	FName DebugColorAttributeName = PCGSlicingBaseConstants::DebugColorAttributeName;
+	FName DebugColorAttributeName = PCGSubdivisionBase::Constants::DebugColorAttributeName;
 };
 
 UCLASS(MinimalAPI, Abstract, ClassGroup = (Procedural))
-class UPCGSlicingBaseSettings : public UPCGSettings
+class UPCGSubdivisionBaseSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
@@ -93,19 +93,19 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	bool bModuleInfoAsInput = false;
 
-	/** Fixed array of modules used for the slicing. */
+	/** Fixed array of modules used for the subdivision. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "!bModuleInfoAsInput", EditConditionHides, DisplayAfter = bModuleInfoAsInput))
-	TArray<FPCGSlicingSubmodule> ModulesInfo;
+	TArray<FPCGSubdivisionSubmodule> ModulesInfo;
 
-	/** Fixed array of modules used for the slicing. */
+	/** Fixed array of modules used for the subdivision. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bModuleInfoAsInput", EditConditionHides, DisplayAfter = bModuleInfoAsInput, DisplayName = "Attribute Names for Module Info"))
-	FPCGSlicingModuleAttributeNames ModulesInfoAttributeNames;
+	FPCGSubdivisionModuleAttributeNames ModulesInfoAttributeNames;
 
 	/** An encoded string that represents how to apply a set of rules to a series of defined modules. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (ShowOnlyInnerProperties))
 	FPCGGrammarSelection GrammarSelection;
 
-	/** Attribute to be taken from the input spline containing the grammar to use for the slicing. */
+	/** Attribute to be taken from the input spline containing the grammar to use for the subdivision. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bGrammarAsAttribute", EditConditionHides, DisplayAfter = bGrammarAsAttribute, PCG_Overridable))
 	FPCGAttributePropertyInputSelector GrammarAttribute;
 
@@ -123,28 +123,28 @@ public:
 
 	/** Name of the Symbol output attribute name. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable))
-	FName SymbolAttributeName = PCGSlicingBaseConstants::SymbolAttributeName;
+	FName SymbolAttributeName = PCGSubdivisionBase::Constants::SymbolAttributeName;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, InlineEditConditionToggle))
 	bool bOutputSizeAttribute = true;
 
 	/** Name of the Size output attribute name, ignored if match and set from module info is true. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, EditCondition = "bOutputSizeAttribute"))
-	FName SizeAttributeName = PCGSlicingBaseConstants::SizeAttributeName;
+	FName SizeAttributeName = PCGSubdivisionBase::Constants::SizeAttributeName;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, InlineEditConditionToggle))
 	bool bOutputScalableAttribute = true;
 
 	/** Name of the Scalable output attribute name, ignored if match and set from module info is true. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, EditCondition = "bOutputScalableAttribute"))
-	FName ScalableAttributeName = PCGSlicingBaseConstants::ScalableAttributeName;
+	FName ScalableAttributeName = PCGSubdivisionBase::Constants::ScalableAttributeName;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, InlineEditConditionToggle))
 	bool bOutputDebugColorAttribute = false;
 
 	/** Name of the Debug Color output attribute name, ignored if match and set from module info is true. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, EditCondition = "bOutputDebugColorAttribute"))
-	FName DebugColorAttributeName = PCGSlicingBaseConstants::DebugColorAttributeName;
+	FName DebugColorAttributeName = PCGSubdivisionBase::Constants::DebugColorAttributeName;
 
 private:
 #if WITH_EDITORONLY_DATA
@@ -158,16 +158,16 @@ private:
 #endif // WITH_EDITORONLY_DATA
 };
 
-namespace PCGSlicingBase
+namespace PCGSubdivisionBase
 {
-	using FPCGModulesInfoMap = TMap<FName, FPCGSlicingSubmodule>;
+	using FModuleInfoMap = TMap<FName, FPCGSubdivisionSubmodule>;
 
 	// Materialized modules created from a tokenized grammar.
-	template<typename T>
-	struct TPCGSubDivModuleInstance
+	template <typename T>
+	struct TModuleInstance
 	{
-		TPCGSubDivModuleInstance() = default;
-		explicit TPCGSubDivModuleInstance(const T* InModule) : Module(InModule) {}
+		TModuleInstance() = default;
+		explicit TModuleInstance(const T* InModule) : Module(InModule) {}
 
 		const T* Module = nullptr;
 		double ExtraScale = 0.0;
@@ -175,10 +175,10 @@ namespace PCGSlicingBase
 		bool bSkipExpansion = false;
 	};
 
-	PCGGrammar::FTokenizedGrammar GetTokenizedGrammar(FPCGContext* InContext, const FString& InGrammar, const FPCGModulesInfoMap& InModulesInfo, double& OutMinSize);
+	PCGGrammar::FTokenizedGrammar GetTokenizedGrammar(FPCGContext* InContext, const FString& InGrammar, const FModuleInfoMap& InModulesInfo, double& OutMinSize);
 
-	template<typename T>
-	bool Subdivide(const T& Root, double Length, TArray<TPCGSubDivModuleInstance<T>>& OutModuleInstances, double& RemainingLength, FPCGContext* InOptionalContext = nullptr, int32 InOptionalAdditionalSeed = 0)
+	template <typename T>
+	bool Subdivide(const T& Root, double Length, TArray<TModuleInstance<T>>& OutModuleInstances, double& RemainingLength, FPCGContext* InOptionalContext = nullptr, int32 InOptionalAdditionalSeed = 0)
 	{
 		OutModuleInstances.Reset();
 		RemainingLength = Length;
@@ -189,7 +189,7 @@ namespace PCGSlicingBase
 		}
 
 		FRandomStream RandomStream((InOptionalContext ? InOptionalContext->GetSeed() : 42) + InOptionalAdditionalSeed);
-		TArray<TPCGSubDivModuleInstance<T>> CurrentModules;
+		TArray<TModuleInstance<T>> CurrentModules;
 
 		// Start with root
 		CurrentModules.Emplace(&Root);
@@ -197,16 +197,16 @@ namespace PCGSlicingBase
 
 		if (RemainingLength < 0)
 		{
-			PCGLog::LogErrorOnGraph(NSLOCTEXT("PCGSlicingBase", "SegmentCutFail", "Grammar doesn't fit for this segment."), InOptionalContext);
+			PCGLog::LogErrorOnGraph(NSLOCTEXT("PCGSubdivisionBase", "SegmentCutFail", "Grammar doesn't fit for this segment."), InOptionalContext);
 			return false;
 		}
 
 		// Working data sets
-		TArray<TPCGSubDivModuleInstance<T>*> PriorityModules;
-		TArray<TPCGSubDivModuleInstance<T>*> StochasticModules;
-		TArray<TPCGSubDivModuleInstance<T>> ExpandedModules;
-		TArray<TPCGSubDivModuleInstance<T>> PreviousModules;
-		
+		TArray<TModuleInstance<T>*> PriorityModules;
+		TArray<TModuleInstance<T>*> StochasticModules;
+		TArray<TModuleInstance<T>> ExpandedModules;
+		TArray<TModuleInstance<T>> PreviousModules;
+
 		bool bNotDone = true;
 		while (bNotDone)
 		{
@@ -218,7 +218,7 @@ namespace PCGSlicingBase
 			ExpandedModules.Reserve(CurrentModules.Num());
 			bool bHasPriorityOrStochasticModules = false;
 
-			for (TPCGSubDivModuleInstance<T>& CurrentModule : CurrentModules)
+			for (TModuleInstance<T>& CurrentModule : CurrentModules)
 			{
 				if (!CurrentModule.bIsValid)
 				{
@@ -231,7 +231,7 @@ namespace PCGSlicingBase
 					if (CurrentModule.bSkipExpansion)
 					{
 						// Copy module as-is, but remove the expansion limitation so we break it down next iteration
-						TPCGSubDivModuleInstance<T>& ExpandedModule = ExpandedModules.Add_GetRef(CurrentModule);
+						TModuleInstance<T>& ExpandedModule = ExpandedModules.Add_GetRef(CurrentModule);
 						ExpandedModule.bSkipExpansion = false;
 					}
 					else
@@ -247,7 +247,7 @@ namespace PCGSlicingBase
 								{
 									NumRepeats = 1;
 								}
-								else if(NumRepeats == PCGGrammar::InfiniteRepetition && RemainingLength >= Submodule.GetMinConcreteSize())
+								else if (NumRepeats == PCGGrammar::InfiniteRepetition && RemainingLength >= Submodule.GetMinConcreteSize())
 								{
 									NumRepeats = 1;
 									RemainingLength -= Submodule.GetMinConcreteSize();
@@ -255,9 +255,9 @@ namespace PCGSlicingBase
 
 								for (int R = 0; R < NumRepeats; ++R)
 								{
-									TPCGSubDivModuleInstance<T>& ExpandedModule = ExpandedModules.Emplace_GetRef(&Submodule);
+									TModuleInstance<T>& ExpandedModule = ExpandedModules.Emplace_GetRef(&Submodule);
 								}
-							
+
 								if (NumRepeats > 0)
 								{
 									bNotDone = true;
@@ -272,13 +272,13 @@ namespace PCGSlicingBase
 					bHasPriorityOrStochasticModules = true;
 
 					// Copy module as-is, but remove the expansion limitation so we break it down next iteration
-					TPCGSubDivModuleInstance<T>& ExpandedModule = ExpandedModules.Add_GetRef(CurrentModule);
+					TModuleInstance<T>& ExpandedModule = ExpandedModules.Add_GetRef(CurrentModule);
 					ExpandedModule.bSkipExpansion = false;
 				}
 				else
 				{
 					// Copy module as-is, but do NOT remove the expansion limitation, otherwise we will have issues with literals with repetitions.
-					TPCGSubDivModuleInstance<T>& ExpandedModule = ExpandedModules.Add_GetRef(CurrentModule);
+					TModuleInstance<T>& ExpandedModule = ExpandedModules.Add_GetRef(CurrentModule);
 				}
 			}
 
@@ -294,7 +294,7 @@ namespace PCGSlicingBase
 				PriorityModules.Reset();
 				StochasticModules.Reset();
 
-				for (TPCGSubDivModuleInstance<T>& CurrentModule : CurrentModules)
+				for (TModuleInstance<T>& CurrentModule : CurrentModules)
 				{
 					check(CurrentModule.Module);
 					if (CurrentModule.Module->GetType() == PCGGrammar::EModuleType::Priority)
@@ -310,7 +310,7 @@ namespace PCGSlicingBase
 				bNotDone |= (!PriorityModules.IsEmpty() || !StochasticModules.IsEmpty());
 
 				// 3.2 - Apply priority choices first (from left to right)
-				for (TPCGSubDivModuleInstance<T>* PriorityModule : PriorityModules)
+				for (TModuleInstance<T>* PriorityModule : PriorityModules)
 				{
 					bool bWasReplaced = false;
 					// Replace current module by the first of its childen that has a min size that fits in with the remaining length
@@ -341,7 +341,7 @@ namespace PCGSlicingBase
 
 				// 3.3 Process stochastic modules
 				// TODO random pick order of stochastic modules
-				for (TPCGSubDivModuleInstance<T>* StochasticModule : StochasticModules)
+				for (TModuleInstance<T>* StochasticModule : StochasticModules)
 				{
 					// Replace current module by a random pick according to total weights of "valid" choices we can still make
 					int TotalWeight = 0;
@@ -379,7 +379,7 @@ namespace PCGSlicingBase
 
 						const double DeltaMinSize = (StochasticSubmodule.GetMinConcreteSize() - StochasticModule->Module->GetConcreteUnitSize());
 						check(DeltaMinSize >= 0);
-						if(DeltaMinSize <= RemainingLength)
+						if (DeltaMinSize <= RemainingLength)
 						{
 							if (StochasticSubmodule.GetWeight() > WeightPick)
 							{
@@ -406,7 +406,7 @@ namespace PCGSlicingBase
 
 			for (int ModuleIndex = 0; ModuleIndex < PreviousModules.Num(); ++ModuleIndex)
 			{
-				TPCGSubDivModuleInstance<T>& PreviousModule = PreviousModules[ModuleIndex];
+				TModuleInstance<T>& PreviousModule = PreviousModules[ModuleIndex];
 				if (!PreviousModule.bSkipExpansion && PreviousModule.Module->GetNumRepeat() < 0 && PreviousModule.Module->GetMinConcreteSize() <= RemainingLength)
 				{
 					// Mark the module to skip expansion, otherwise we can't chain for repeats
@@ -423,7 +423,7 @@ namespace PCGSlicingBase
 #if WITH_EDITOR
 		// Perform some early validation and see if there's a mismatch on the reported size and the one actually placed
 		double CountedLength = RemainingLength;
-		for (TPCGSubDivModuleInstance<T>& CurrentModule : CurrentModules)
+		for (TModuleInstance<T>& CurrentModule : CurrentModules)
 		{
 			CountedLength += CurrentModule.Module->GetUnitSize();
 		}
@@ -437,7 +437,7 @@ namespace PCGSlicingBase
 		{
 			int32 NumScalableModules = 0;
 			double ScalableLength = 0;
-			for (TPCGSubDivModuleInstance<T>& CurrentModule : CurrentModules)
+			for (TModuleInstance<T>& CurrentModule : CurrentModules)
 			{
 				if (CurrentModule.Module->IsScalable())
 				{
@@ -449,7 +449,7 @@ namespace PCGSlicingBase
 
 			if (ScalableLength > 0)
 			{
-				for (TPCGSubDivModuleInstance<T>& CurrentModule : CurrentModules)
+				for (TModuleInstance<T>& CurrentModule : CurrentModules)
 				{
 					if (CurrentModule.Module->IsScalable())
 					{
@@ -467,15 +467,15 @@ namespace PCGSlicingBase
 	}
 }
 
-class FPCGSlicingBaseElement : public IPCGElement
+class FPCGSubdivisionBaseElement : public IPCGElement
 {
 protected:
-	using FPCGModulesInfoMap = PCGSlicingBase::FPCGModulesInfoMap;
+	using FModuleInfoMap = PCGSubdivisionBase::FModuleInfoMap;
 
-	FPCGModulesInfoMap GetModulesInfoMap(FPCGContext* InContext, const TArray<FPCGSlicingSubmodule>& SubmodulesInfo, const UPCGParamData*& OutModuleInfoParamData) const;
-	FPCGModulesInfoMap GetModulesInfoMap(FPCGContext* InContext, const FPCGSlicingModuleAttributeNames& InSlicingModuleAttributeNames, const UPCGParamData*& OutModuleInfoParamData) const;
-	FPCGModulesInfoMap GetModulesInfoMap(FPCGContext* InContext, const UPCGSlicingBaseSettings* InSettings, const UPCGParamData*& OutModuleInfoParamData) const;
-	PCGGrammar::FTokenizedGrammar GetTokenizedGrammar(FPCGContext* InContext, const UPCGData* InputData, const UPCGSlicingBaseSettings* InSettings, const FPCGModulesInfoMap& InModulesInfo, double& OutMinSize) const;
-	TMap<FString, PCGGrammar::FTokenizedGrammar> GetTokenizedGrammarForPoints(FPCGContext* InContext, const UPCGPointData* InputData, const UPCGSlicingBaseSettings* InSettings, const FPCGModulesInfoMap& InModulesInfo, double& OutMinSize) const;
-	bool MatchAndSetAttributes(const TArray<FPCGTaggedData>& InputData, TArray<FPCGTaggedData>& OutputData, const UPCGParamData* InModuleInfoParamData, const UPCGSlicingBaseSettings* InSettings) const;
+	FModuleInfoMap GetModulesInfoMap(FPCGContext* InContext, const TArray<FPCGSubdivisionSubmodule>& SubmodulesInfo, const UPCGParamData*& OutModuleInfoParamData) const;
+	FModuleInfoMap GetModulesInfoMap(FPCGContext* InContext, const FPCGSubdivisionModuleAttributeNames& InSubdivisionModuleAttributeNames, const UPCGParamData*& OutModuleInfoParamData) const;
+	FModuleInfoMap GetModulesInfoMap(FPCGContext* InContext, const UPCGSubdivisionBaseSettings* InSettings, const UPCGParamData*& OutModuleInfoParamData) const;
+	PCGGrammar::FTokenizedGrammar GetTokenizedGrammar(FPCGContext* InContext, const UPCGData* InputData, const UPCGSubdivisionBaseSettings* InSettings, const FModuleInfoMap& InModulesInfo, double& OutMinSize) const;
+	TMap<FString, PCGGrammar::FTokenizedGrammar> GetTokenizedGrammarForPoints(FPCGContext* InContext, const UPCGPointData* InputData, const UPCGSubdivisionBaseSettings* InSettings, const FModuleInfoMap& InModulesInfo, double& OutMinSize) const;
+	bool MatchAndSetAttributes(const TArray<FPCGTaggedData>& InputData, TArray<FPCGTaggedData>& OutputData, const UPCGParamData* InModuleInfoParamData, const UPCGSubdivisionBaseSettings* InSettings) const;
 };

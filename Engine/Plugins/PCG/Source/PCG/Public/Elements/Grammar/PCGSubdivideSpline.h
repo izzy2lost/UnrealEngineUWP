@@ -4,20 +4,20 @@
 
 #include "PCGSettings.h"
 
-#include "Elements/Grammar/PCGSlicingBase.h"
+#include "Elements/Grammar/PCGSubdivisionBase.h"
 
-#include "PCGSplineSlicer.generated.h"
+#include "PCGSubdivideSpline.generated.h"
 
 UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
-class UPCGSplineSlicerSettings : public UPCGSlicingBaseSettings
+class UPCGSubdivideSplineSettings : public UPCGSubdivisionBaseSettings
 {
 	GENERATED_BODY()
 
 public:
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
-	virtual FName GetDefaultNodeName() const override { return FName(TEXT("SplineSlicer")); }
-	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGSplineSlicerElement", "NodeTitle", "Spline Slicer"); }
+	virtual FName GetDefaultNodeName() const override { return FName(TEXT("SubdivideSpline")); }
+	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGSubdivideSplineElement", "NodeTitle", "Subdivide Spline"); }
 #endif // WITH_EDITOR
 
 protected:
@@ -27,9 +27,9 @@ protected:
 	//~End UPCGSettings interface
 
 public:
-	/** If the slicing with a given grammar doesn't fill the entire spline, setting it to true makes it a valid case. */
+	/** If the subdivision with a given grammar doesn't fill the entire spline, setting it to true makes it a valid case. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
-	bool bAcceptIncompleteSlicing = false;
+	bool bAcceptIncompleteSubdivision = false;
 
 	/** Select the module height from an attribute. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
@@ -50,7 +50,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, EditCondition = "bOutputModuleIndexAttribute"))
 	FName ModuleIndexAttributeName = TEXT("ModuleIndex");
 
-	/** Output attributes labeling the first and final points after slicing. */
+	/** Output attributes labeling the first and final points after subdivision. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable))
 	bool bOutputExtremityAttributes = false;
 
@@ -63,7 +63,7 @@ public:
 	FName IsFinalAttributeName = TEXT("IsFinal");
 };
 
-class FPCGSplineSlicerElement : public FPCGSlicingBaseElement
+class FPCGSubdivideSplineElement : public FPCGSubdivisionBaseElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* InContext) const override;

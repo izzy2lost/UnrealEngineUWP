@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Elements/Grammar/PCGSegmentSlicer.h"
+#include "Elements/Grammar/PCGSubdivideSegment.h"
 
 #include "PCGContext.h"
 #include "PCGParamData.h"
@@ -11,9 +11,9 @@
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 #include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
 
-#define LOCTEXT_NAMESPACE "PCGSegmentSlicerElement"
+#define LOCTEXT_NAMESPACE "PCGSubdivideSegmentElement"
 
-class PCGSegmentSlicerHelpers
+class PCGSubdivideSegmentHelpers
 {
 public:
 	struct FParameters
@@ -25,15 +25,15 @@ public:
 		FPCGMetadataAttribute<bool>* IsFinalPointAttribute = nullptr;
 		FPCGMetadataAttribute<int32>* ExtremityNeighborIndexAttribute = nullptr;
 
-		PCGSlicingBase::FPCGModulesInfoMap ModulesInfo;
+		PCGSubdivisionBase::FModuleInfoMap ModulesInfo;
 		TMap<FString, PCGGrammar::FTokenizedGrammar> CachedModules;
 		TArray<int32> CornerIndexes;
 
-		FVector SlicingDirection;
-		FVector PerpendicularSlicingDirection;
+		FVector SubdivisionDirection;
+		FVector PerpendicularSubdivisionDirection;
 		int32 AdditionalSeed = 0;
 
-		const UPCGSegmentSlicerSettings* Settings = nullptr;
+		const UPCGSubdivideSegmentSettings* Settings = nullptr;
 		FPCGContext* Context = nullptr;
 		const TArray<FPCGPoint>* InPoints = nullptr;
 		TArray<FPCGPoint>* OutPoints = nullptr;
@@ -45,7 +45,7 @@ public:
 		if (!InOutParameters.CachedModules.Contains(InGrammar))
 		{
 			double MinSize;
-			InOutParameters.CachedModules.Emplace(InGrammar, PCGSlicingBase::GetTokenizedGrammar(InOutParameters.Context, InGrammar, InOutParameters.ModulesInfo, MinSize));
+			InOutParameters.CachedModules.Emplace(InGrammar, PCGSubdivisionBase::GetTokenizedGrammar(InOutParameters.Context, InGrammar, InOutParameters.ModulesInfo, MinSize));
 		}
 
 		const PCGGrammar::FTokenizedGrammar& CurrentTokenizedGrammar = InOutParameters.CachedModules[InGrammar];
@@ -65,30 +65,30 @@ public:
 		FVector PointScaledSize = Point.GetScaledLocalSize();
 		if (bFlipAxis)
 		{
-			// Swap coordinates on the slicing direction
+			// Swap coordinates on the subdivision direction
 			const FVector PreviousMin = Segment.Min;
-			Segment.Min = Segment.Min * InOutParameters.PerpendicularSlicingDirection + Segment.Max * InOutParameters.SlicingDirection;
-			Segment.Max = Segment.Max * InOutParameters.PerpendicularSlicingDirection + PreviousMin * InOutParameters.SlicingDirection;
-			PointScaledSize *= (InOutParameters.PerpendicularSlicingDirection - InOutParameters.SlicingDirection);
+			Segment.Min = Segment.Min * InOutParameters.PerpendicularSubdivisionDirection + Segment.Max * InOutParameters.SubdivisionDirection;
+			Segment.Max = Segment.Max * InOutParameters.PerpendicularSubdivisionDirection + PreviousMin * InOutParameters.SubdivisionDirection;
+			PointScaledSize *= (InOutParameters.PerpendicularSubdivisionDirection - InOutParameters.SubdivisionDirection);
 		}
 
-		const FVector Direction = TransformNoTranslation.TransformVectorNoScale(InOutParameters.SlicingDirection).GetSafeNormal();
-		const FVector OtherDirection = TransformNoTranslation.TransformVectorNoScale(PointScaledSize * InOutParameters.PerpendicularSlicingDirection) * 0.5;
-		const FVector HalfExtents2D = PointScaledSize * InOutParameters.PerpendicularSlicingDirection * 0.5;
-		const double Size = PointScaledSize.Dot(InOutParameters.SlicingDirection);
+		const FVector Direction = TransformNoTranslation.TransformVectorNoScale(InOutParameters.SubdivisionDirection).GetSafeNormal();
+		const FVector OtherDirection = TransformNoTranslation.TransformVectorNoScale(PointScaledSize * InOutParameters.PerpendicularSubdivisionDirection) * 0.5;
+		const FVector HalfExtents2D = PointScaledSize * InOutParameters.PerpendicularSubdivisionDirection * 0.5;
+		const double Size = PointScaledSize.Dot(InOutParameters.SubdivisionDirection);
 
-		TArray<PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>> ModulesInstances;
+		TArray<PCGSubdivisionBase::TModuleInstance<PCGGrammar::FTokenizedModule>> ModulesInstances;
 		double RemainingSubdivide;
-		const bool bSubdivideSuccess = PCGSlicingBase::Subdivide(*CurrentTokenizedGrammar.ModuleGrammar, Size, ModulesInstances, RemainingSubdivide, InOutParameters.Context, InOutParameters.AdditionalSeed);
+		const bool bSubdivideSuccess = PCGSubdivisionBase::Subdivide(*CurrentTokenizedGrammar.ModuleGrammar, Size, ModulesInstances, RemainingSubdivide, InOutParameters.Context, InOutParameters.AdditionalSeed);
 
 		if (!bSubdivideSuccess)
 		{
 			return;
 		}
 
-		if (!InOutParameters.Settings->bAcceptIncompleteSlicing && !FMath::IsNearlyZero(RemainingSubdivide))
+		if (!InOutParameters.Settings->bAcceptIncompleteSubdivision && !FMath::IsNearlyZero(RemainingSubdivide))
 		{
-			PCGLog::LogWarningOnGraph(LOCTEXT("FailSliceFullLength", "One segment has an incomplete slicing (grammar doesn't fit the whole segment)."), InOutParameters.Context);
+			PCGLog::LogWarningOnGraph(LOCTEXT("FailSubdivisionFullLength", "One segment has an incomplete subdivision (grammar doesn't fit the whole segment)."), InOutParameters.Context);
 			return;
 		}
 
@@ -99,18 +99,18 @@ public:
 
 		for (int32 ModuleInstanceIndex = 0; ModuleInstanceIndex < ModulesInstances.Num(); ModuleInstanceIndex++)
 		{
-			const PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>& ModuleInstance = ModulesInstances[ModuleInstanceIndex];
+			const PCGSubdivisionBase::TModuleInstance<PCGGrammar::FTokenizedModule>& ModuleInstance = ModulesInstances[ModuleInstanceIndex];
 
 			const FName Symbol = ModuleInstance.Module->Descriptor->Symbol;
-			const FVector Scale = FVector::OneVector + (InOutParameters.SlicingDirection * ModuleInstance.ExtraScale);
-			const FPCGSlicingSubmodule& SlicingSubmodule = InOutParameters.ModulesInfo[Symbol];
+			const FVector Scale = FVector::OneVector + (InOutParameters.SubdivisionDirection * ModuleInstance.ExtraScale);
+			const FPCGSubdivisionSubmodule& SubdivisionSubmodule = InOutParameters.ModulesInfo[Symbol];
 			const bool bIsFirstModule = (ModuleInstanceIndex == 0);
 			const bool bIsFinalModule = (ModuleInstanceIndex == ModulesInstances.Num() - 1);
 
-			const double HalfDisplacement = SlicingSubmodule.Size * 0.5;
-			const double HalfScaledDisplacement = Scale.Dot(InOutParameters.SlicingDirection) * HalfDisplacement;
+			const double HalfDisplacement = SubdivisionSubmodule.Size * 0.5;
+			const double HalfScaledDisplacement = Scale.Dot(InOutParameters.SubdivisionDirection) * HalfDisplacement;
 
-			const FVector LocalBoundsExtents = InOutParameters.SlicingDirection * HalfDisplacement + HalfExtents2D;
+			const FVector LocalBoundsExtents = InOutParameters.SubdivisionDirection * HalfDisplacement + HalfExtents2D;
 			const FVector HalfStep = HalfScaledDisplacement * Direction;
 			const FVector Position = CurrentPos + HalfStep;
 			CurrentPos = Position + HalfStep;
@@ -126,7 +126,7 @@ public:
 
 			if (InOutParameters.DebugColorAttribute)
 			{
-				InOutParameters.DebugColorAttribute->SetValue(OutPoint.MetadataEntry, FVector4(SlicingSubmodule.DebugColor, 1.0));
+				InOutParameters.DebugColorAttribute->SetValue(OutPoint.MetadataEntry, FVector4(SubdivisionSubmodule.DebugColor, 1.0));
 			}
 
 			if (InOutParameters.ModuleIndexAttribute)
@@ -159,23 +159,23 @@ public:
 };
 
 #if WITH_EDITOR
-FName UPCGSegmentSlicerSettings::GetDefaultNodeName() const
+FName UPCGSubdivideSegmentSettings::GetDefaultNodeName() const
 {
-	return FName(TEXT("SegmentSlicer"));
+	return FName(TEXT("SubdivideSegment"));
 }
 
-FText UPCGSegmentSlicerSettings::GetDefaultNodeTitle() const
+FText UPCGSubdivideSegmentSettings::GetDefaultNodeTitle() const
 {
-	return LOCTEXT("NodeTitle", "Segment Slicer");
+	return LOCTEXT("NodeTitle", "Subdivide Segment");
 }
 #endif // WITH_EDITOR
 
-FPCGElementPtr UPCGSegmentSlicerSettings::CreateElement() const
+FPCGElementPtr UPCGSubdivideSegmentSettings::CreateElement() const
 {
-	return MakeShared<FPCGSegmentSlicerElement>();
+	return MakeShared<FPCGSegmentSubdivisionElement>();
 }
 
-TArray<FPCGPinProperties> UPCGSegmentSlicerSettings::InputPinProperties() const
+TArray<FPCGPinProperties> UPCGSubdivideSegmentSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> Result;
 	FPCGPinProperties& InputPin = Result.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::Point);
@@ -183,51 +183,51 @@ TArray<FPCGPinProperties> UPCGSegmentSlicerSettings::InputPinProperties() const
 
 	if (bModuleInfoAsInput)
 	{
-		FPCGPinProperties& ModuleInfoPin = Result.Emplace_GetRef(PCGSlicingBaseConstants::ModulesInfoPinLabel, EPCGDataType::Param);
+		FPCGPinProperties& ModuleInfoPin = Result.Emplace_GetRef(PCGSubdivisionBase::Constants::ModulesInfoPinLabel, EPCGDataType::Param);
 		ModuleInfoPin.SetRequiredPin();
 	}
 
 	return Result;
 }
 
-TArray<FPCGPinProperties> UPCGSegmentSlicerSettings::OutputPinProperties() const
+TArray<FPCGPinProperties> UPCGSubdivideSegmentSettings::OutputPinProperties() const
 {
 	return Super::DefaultPointOutputPinProperties();
 }
 
-bool FPCGSegmentSlicerElement::ExecuteInternal(FPCGContext* InContext) const
+bool FPCGSegmentSubdivisionElement::ExecuteInternal(FPCGContext* InContext) const
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSegmentSlicerElement::Execute);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSubdivideSegmentElement::Execute);
 
 	check(InContext);
 
-	const UPCGSegmentSlicerSettings* Settings = InContext->GetInputSettings<UPCGSegmentSlicerSettings>();
+	const UPCGSubdivideSegmentSettings* Settings = InContext->GetInputSettings<UPCGSubdivideSegmentSettings>();
 	check(Settings);
 
 	const TArray<FPCGTaggedData> Inputs = InContext->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
 	TArray<FPCGTaggedData>& Outputs = InContext->OutputData.TaggedData;
 
-	PCGSegmentSlicerHelpers::FParameters Parameters{};
+	PCGSubdivideSegmentHelpers::FParameters Parameters{};
 
-	Parameters.SlicingDirection = FVector::ZeroVector;
+	Parameters.SubdivisionDirection = FVector::ZeroVector;
 
-	switch (Settings->SlicingAxis)
+	switch (Settings->SubdivisionAxis)
 	{
 	case EPCGSplitAxis::X:
-		Parameters.SlicingDirection = FVector::XAxisVector;
+		Parameters.SubdivisionDirection = FVector::XAxisVector;
 		break;
 	case EPCGSplitAxis::Y:
-		Parameters.SlicingDirection = FVector::YAxisVector;
+		Parameters.SubdivisionDirection = FVector::YAxisVector;
 		break;
 	case EPCGSplitAxis::Z:
-		Parameters.SlicingDirection = FVector::ZAxisVector;
+		Parameters.SubdivisionDirection = FVector::ZAxisVector;
 		break;
 	default:
-		PCGLog::LogErrorOnGraph(LOCTEXT("InvalidAxis", "Invalid Slicing Axis enum value."), InContext);
+		PCGLog::LogErrorOnGraph(LOCTEXT("InvalidAxis", "Invalid Subdivision Axis enum value."), InContext);
 		return true;
 	}
 
-	Parameters.PerpendicularSlicingDirection = FVector::OneVector - Parameters.SlicingDirection;
+	Parameters.PerpendicularSubdivisionDirection = FVector::OneVector - Parameters.SubdivisionDirection;
 
 	const UPCGParamData* ModuleInfoParamData = nullptr;
 	Parameters.ModulesInfo = GetModulesInfoMap(InContext, Settings, ModuleInfoParamData);
@@ -333,7 +333,7 @@ bool FPCGSegmentSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 		{
 			auto Process = [&Parameters](const FString& InGrammar, const bool bFlipAxis, int32 Index) -> void
 			{
-				PCGSegmentSlicerHelpers::Process(Parameters, InGrammar, bFlipAxis, Index);
+				PCGSubdivideSegmentHelpers::Process(Parameters, InGrammar, bFlipAxis, Index);
 			};
 
 			PCGMetadataElementCommon::ApplyOnMultiAccessors<FString, bool>(*Keys, { GrammarAccessor.Get(), FlipAxisAccessor.Get() }, Process);
@@ -342,7 +342,7 @@ bool FPCGSegmentSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 		{
 			auto Process = [&Parameters, bShouldFlipAxis = Settings->bShouldFlipAxis](const FString& InGrammar, int32 Index) -> void
 			{
-				PCGSegmentSlicerHelpers::Process(Parameters, InGrammar, bShouldFlipAxis, Index);
+				PCGSubdivideSegmentHelpers::Process(Parameters, InGrammar, bShouldFlipAxis, Index);
 			};
 
 			PCGMetadataElementCommon::ApplyOnAccessor<FString>(*Keys, *GrammarAccessor, Process);
@@ -351,7 +351,7 @@ bool FPCGSegmentSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 		{
 			auto Process = [&Parameters, Grammar = Settings->GrammarSelection.GrammarString](const bool bFlipAxis, int32 Index) -> void
 			{
-				PCGSegmentSlicerHelpers::Process(Parameters, Grammar, bFlipAxis, Index);
+				PCGSubdivideSegmentHelpers::Process(Parameters, Grammar, bFlipAxis, Index);
 			};
 
 			PCGMetadataElementCommon::ApplyOnAccessor<bool>(*Keys, *FlipAxisAccessor, Process);
@@ -360,7 +360,7 @@ bool FPCGSegmentSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 		{
 			for (int32 SegmentIndex = 0; SegmentIndex < Parameters.InPoints->Num(); ++SegmentIndex)
 			{
-				PCGSegmentSlicerHelpers::Process(Parameters, Settings->GrammarSelection.GrammarString, Settings->bShouldFlipAxis, SegmentIndex);
+				PCGSubdivideSegmentHelpers::Process(Parameters, Settings->GrammarSelection.GrammarString, Settings->bShouldFlipAxis, SegmentIndex);
 			}
 		}
 

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "PCGSettings.h"
-#include "PCGSlicingBase.h"
+#include "PCGSubdivisionBase.h"
 
 #include "PCGSelectGrammar.generated.h"
 
@@ -142,7 +142,7 @@ public:
 };
 
 // TODO: For V2, this element could be async and/or timesliced
-class FPCGSelectGrammarElement : public FPCGSlicingBaseElement
+class FPCGSelectGrammarElement : public FPCGSubdivisionBaseElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* InContext) const override;

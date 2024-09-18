@@ -4,15 +4,15 @@
 
 #include "PCGSettings.h"
 
-#include "Elements/Grammar/PCGSlicingBase.h"
+#include "Elements/Grammar/PCGSubdivisionBase.h"
 
 #include "Elements/PCGSplitPoints.h"
 #include "Metadata/PCGAttributePropertySelector.h"
 
-#include "PCGSegmentSlicer.generated.h"
+#include "PCGSubdivideSegment.generated.h"
 
 UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
-class UPCGSegmentSlicerSettings : public UPCGSlicingBaseSettings
+class UPCGSubdivideSegmentSettings : public UPCGSubdivisionBaseSettings
 {
 	GENERATED_BODY()
 
@@ -30,9 +30,9 @@ protected:
 	//~End UPCGSettings interface
 
 public:
-	/** Slicing direction in point local space. */
+	/** Subdivision direction in point local space. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
-	EPCGSplitAxis SlicingAxis = EPCGSplitAxis::X;
+	EPCGSplitAxis SubdivisionAxis = EPCGSplitAxis::X;
 
 	/** Use an attribute to determine whether we should flip axis. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
@@ -46,9 +46,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "bFlipAxisAsAttribute", EditConditionHides, ShowAfter="bFlipAxisAsAttribute"))
 	FPCGAttributePropertyInputSelector FlipAxisAttribute;
 
-	/** If the slicing with a given grammar doesn't fill the entire segment, setting it to true makes it a valid case. */
+	/** If the subdivision with a given grammar doesn't fill the entire segment, setting it to true makes it a valid case. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
-	bool bAcceptIncompleteSlicing = false;
+	bool bAcceptIncompleteSubdivision = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, InlineEditConditionToggle))
 	bool bOutputModuleIndexAttribute = false;
@@ -57,7 +57,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, EditCondition = "bOutputModuleIndexAttribute"))
 	FName ModuleIndexAttributeName = TEXT("ModuleIndex");
 
-	/** Output attributes labeling the first and final points after slicing. */
+	/** Output attributes labeling the first and final points after subdivision. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable))
 	bool bOutputExtremityAttributes = false;
 
@@ -78,12 +78,12 @@ public:
 
 };
 
-class PCGSegmentSlicerHelpers;
+class PCGSubdivideSegmentHelpers;
 
-class FPCGSegmentSlicerElement : public FPCGSlicingBaseElement
+class FPCGSegmentSubdivisionElement : public FPCGSubdivisionBaseElement
 {
 public:
-	friend class PCGSegmentSlicerHelpers;
+	friend class PCGSubdivideSegmentHelpers;
 protected:
 	virtual bool ExecuteInternal(FPCGContext* InContext) const override;
 };
