@@ -224,6 +224,14 @@ bool UPCGSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) const
 	return true;
 }
 
+FPCGDataCollectionDesc UPCGSettings::ComputeInputPinDataDesc(const FName& InputPinLabel, const UPCGDataBinding* Binding) const
+{
+	const UPCGNode* Node = Cast<UPCGNode>(GetOuter());
+	const UPCGPin* InputPin = Node ? Node->GetInputPin(InputPinLabel) : nullptr;
+	check(InputPin);
+	return ComputeInputPinDataDesc(InputPin, Binding);
+}
+
 FPCGDataCollectionDesc UPCGSettings::ComputeInputPinDataDesc(const UPCGPin* InputPin, const UPCGDataBinding* Binding) const
 {
 	check(InputPin && Binding);
@@ -265,7 +273,8 @@ FPCGDataCollectionDesc UPCGSettings::ComputeOutputPinDataDesc(const UPCGPin* Out
 		return FPCGDataCollectionDesc::BuildFromInputDataCollectionAndInputPinLabel(
 			Binding->DataForGPU.InputDataCollection,
 			*FoundPinAlias,
-			Binding->Graph->GetAttributeLookupTable());
+			Binding->GetAttributeLookupTable(),
+			Binding->GetStringTable());
 	}
 
 	ensure(false);

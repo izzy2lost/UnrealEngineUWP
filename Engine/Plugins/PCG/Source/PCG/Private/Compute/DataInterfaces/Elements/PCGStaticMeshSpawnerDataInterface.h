@@ -49,15 +49,27 @@ public:
 	TArray<FUintVector4> AttributeIdOffsetStrides;
 
 	UPROPERTY()
+	TArray<uint32> PrimitiveStringKeys;
+
+	UPROPERTY()
 	TArray<float> SelectionCDF;
+
+	UPROPERTY()
+	int32 SelectorAttributeId = -1;
+
+	UPROPERTY()
+	int32 NumInputPoints = 0;
 };
 
 class FPCGStaticMeshSpawnerDataProviderProxy : public FComputeDataProviderRenderProxy
 {
 public:
-	FPCGStaticMeshSpawnerDataProviderProxy(TArray<FUintVector4>& InAttributeIdOffsetStrides, TArray<float> InSelectionCDF)
-		: AttributeIdOffsetStrides(InAttributeIdOffsetStrides)
+	FPCGStaticMeshSpawnerDataProviderProxy(int32 InNumInputPoints, TArray<FUintVector4>& InAttributeIdOffsetStrides, int32 InSelectorAttributeId, TArray<uint32>& InPrimitiveStringKeys, TArray<float> InSelectionCDF)
+		: NumInputPoints(InNumInputPoints)
+		, AttributeIdOffsetStrides(InAttributeIdOffsetStrides)
 		, SelectionCDF(InSelectionCDF)
+		, SelectorAttributeId(InSelectorAttributeId)
+		, PrimitiveStringKeys(InPrimitiveStringKeys)
 	{}
 
 	//~ Begin FComputeDataProviderRenderProxy Interface
@@ -68,6 +80,11 @@ public:
 protected:
 	using FParameters = FPCGStaticMeshSpawnerDataInterfaceParameters;
 
+	int32 NumInputPoints = 0;
+
 	TArray<FUintVector4> AttributeIdOffsetStrides;
 	TArray<float> SelectionCDF;
+
+	int32 SelectorAttributeId = -1;
+	TArray<uint32> PrimitiveStringKeys;
 };

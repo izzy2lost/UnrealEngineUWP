@@ -227,6 +227,13 @@ void UPCGDataCollectionDataInterface::GetSupportedInputs(TArray<FShaderFunctionD
 			.AddParam(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint);
+
+		OutFunctions.AddDefaulted_GetRef()
+			.SetName(TEXT("GetStringKey"))
+			.AddReturnType(EShaderFundamentalType::Int) // String key represented by int
+			.AddParam(EShaderFundamentalType::Uint) // DataIndex
+			.AddParam(EShaderFundamentalType::Uint) // ElementIndex
+			.AddParam(EShaderFundamentalType::Uint); // AttributeId
 	}
 
 	// Attribute Setters
@@ -293,6 +300,13 @@ void UPCGDataCollectionDataInterface::GetSupportedInputs(TArray<FShaderFunctionD
 			.AddParam(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Float, 4, 4);
+
+		OutFunctions.AddDefaulted_GetRef()
+			.SetName(TEXT("SetStringKey"))
+			.AddParam(EShaderFundamentalType::Uint) // DataIndex
+			.AddParam(EShaderFundamentalType::Uint) // ElementIndex
+			.AddParam(EShaderFundamentalType::Uint) // AttributeId
+			.AddParam(EShaderFundamentalType::Int); // String key represented by int
 	}
 
 	// Point Attribute Getters
@@ -519,7 +533,7 @@ bool UPCGDataCollectionDataInterface::GetRequiresReadback() const
 
 FComputeDataProviderRenderProxy* UPCGDataCollectionDataProvider::GetRenderProxy()
 {
-	FPCGDataCollectionDataProviderProxy* Proxy = new FPCGDataCollectionDataProviderProxy(Binding, PinDesc, ReadbackMode);
+	FPCGDataCollectionDataProviderProxy* Proxy = new FPCGDataCollectionDataProviderProxy(PinDesc, ReadbackMode);
 
 	if (ReadbackMode != EPCGReadbackMode::None)
 	{
@@ -579,7 +593,7 @@ bool UPCGDataCollectionDataProvider::ProcessReadBackData(FPCGComputeGraphContext
 	}
 
 	FPCGDataCollection DataFromGPU;
-	const EPCGUnpackDataCollectionResult Result = PinDesc.UnpackDataCollection(RawReadbackData, OutputPinLabelAlias, DataFromGPU);
+	const EPCGUnpackDataCollectionResult Result = PinDesc.UnpackDataCollection(RawReadbackData, OutputPinLabelAlias, InContext->DataBinding->GetStringTable(), DataFromGPU);
 
 	if (Result == EPCGUnpackDataCollectionResult::DataMismatch)
 	{
@@ -640,12 +654,8 @@ bool UPCGDataCollectionDataProvider::ProcessReadBackData(FPCGComputeGraphContext
 	return true;
 }
 
-FPCGDataCollectionDataProviderProxy::FPCGDataCollectionDataProviderProxy(
-	TWeakObjectPtr<UPCGDataBinding> InBinding,
-	const FPCGDataCollectionDesc& InPinDesc,
-	EPCGReadbackMode InReadbackMode)
+FPCGDataCollectionDataProviderProxy::FPCGDataCollectionDataProviderProxy(const FPCGDataCollectionDesc& InPinDesc, EPCGReadbackMode InReadbackMode)
 	: ReadbackMode(InReadbackMode)
-	, Binding(InBinding)
 	, PinDesc(InPinDesc)
 {
 	SizeBytes = PinDesc.ComputePackedSize();
@@ -655,12 +665,6 @@ bool FPCGDataCollectionDataProviderProxy::IsValid(FValidationData const& InValid
 {
 	if (InValidationData.ParameterStructSize != sizeof(FParameters))
 	{
-		return false;
-	}
-
-	if (!Binding.IsValid())
-	{
-		UE_LOG(LogPCG, Error, TEXT("Proxy invalid due to missing data binding."));
 		return false;
 	}
 

@@ -130,11 +130,14 @@ UComputeDataProvider* UPCGInstanceDataInterface::CreateDataProvider(TObjectPtr<U
 	DataProvider->Primitives = FoundPrimitives->Primitives;
 	DataProvider->NumCustomFloatsPerInstance = FoundPrimitives->NumCustomFloats;
 	
-	const UPCGNode* Node = ProducerSettings ? Cast<UPCGNode>(ProducerSettings->GetOuter()) : nullptr;
-	const UPCGPin* InputPin = Node ? Node->GetInputPin(InputPinProvidingData) : nullptr;
-	check(ProducerSettings && InputPin);
-	const FPCGDataCollectionDesc InputDataDesc = ProducerSettings->ComputeInputPinDataDesc(InputPin, Binding);
+	check(ProducerSettings);
+	const FPCGDataCollectionDesc InputDataDesc = ProducerSettings->ComputeInputPinDataDesc(InputPinProvidingData, Binding);
 	DataProvider->NumInstancesAllPrimitives = InputDataDesc.ComputeDataElementCount(EPCGDataType::Point);
+	if (FoundPrimitives->SelectorAttributeId != -1)
+	{
+		// When selecting primitives dynamically (by attribute), we don't know statically how many instances will end up in each primitive, so run worst case.
+		DataProvider->NumInstancesAllPrimitives *= FoundPrimitives->Primitives.Num();
+	}
 
 	return DataProvider;
 }

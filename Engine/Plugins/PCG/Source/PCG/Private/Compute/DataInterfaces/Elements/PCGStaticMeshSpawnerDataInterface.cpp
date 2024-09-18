@@ -16,8 +16,20 @@
 void UPCGStaticMeshSpawnerDataInterface::GetSupportedInputs(TArray<FShaderFunctionDefinition>& OutFunctions) const
 {
 	OutFunctions.AddDefaulted_GetRef()
+		.SetName(TEXT("SMSpawner_GetSelectorAttributeId"))
+		.AddReturnType(EShaderFundamentalType::Uint); // Attribute id to get mesh path string key from, or invalid if we should use CDF instead.
+
+	OutFunctions.AddDefaulted_GetRef()
 		.SetName(TEXT("SMSpawner_GetNumAttributes"))
-		.AddReturnType(EShaderFundamentalType::Uint);
+		.AddReturnType(EShaderFundamentalType::Uint); // Num attributes
+
+	OutFunctions.AddDefaulted_GetRef()
+		.SetName(TEXT("SMSpawner_GetNumPrimitives"))
+		.AddReturnType(EShaderFundamentalType::Uint); // Num primitives
+
+	OutFunctions.AddDefaulted_GetRef()
+		.SetName(TEXT("SMSpawner_GetNumInputPoints"))
+		.AddReturnType(EShaderFundamentalType::Uint); // Num input points
 
 	OutFunctions.AddDefaulted_GetRef()
 		.SetName(TEXT("SMSpawner_GetAttributeIdOffsetStride"))
@@ -25,20 +37,24 @@ void UPCGStaticMeshSpawnerDataInterface::GetSupportedInputs(TArray<FShaderFuncti
 		.AddParam(EShaderFundamentalType::Uint); // InAttributeIndex
 
 	OutFunctions.AddDefaulted_GetRef()
-		.SetName(TEXT("SMSpawner_GetNumPrimitives"))
-		.AddReturnType(EShaderFundamentalType::Uint);
+		.SetName(TEXT("SMSpawner_GetPrimitiveIndexFromStringKey"))
+		.AddReturnType(EShaderFundamentalType::Uint) // Primitive index
+		.AddParam(EShaderFundamentalType::Uint); // InMeshPathStringKey
 
 	OutFunctions.AddDefaulted_GetRef()
 		.SetName(TEXT("SMSpawner_GetPrimitiveSelectionCDF"))
-		.AddReturnType(EShaderFundamentalType::Float)
+		.AddReturnType(EShaderFundamentalType::Float) // CDF value
 		.AddParam(EShaderFundamentalType::Uint); // InPrimitiveIndex
 }
 
 BEGIN_SHADER_PARAMETER_STRUCT(FPCGStaticMeshSpawnerDataInterfaceParameters,)
-	SHADER_PARAMETER(uint32, NumAttributes)
 	SHADER_PARAMETER_ARRAY(FUintVector4, AttributeIdOffsetStrides, [UPCGStaticMeshSpawnerDataInterface::MAX_ATTRIBUTES])
-	SHADER_PARAMETER(uint32, NumPrimitives)
+	SHADER_PARAMETER_ARRAY(FUintVector4, PrimitiveStringKeys, [PCGComputeConstants::MAX_PRIMITIVE_COMPONENTS_PER_SPAWNER])
 	SHADER_PARAMETER_SCALAR_ARRAY(float, SelectionCDF, [PCGComputeConstants::MAX_PRIMITIVE_COMPONENTS_PER_SPAWNER])
+	SHADER_PARAMETER(uint32, NumAttributes)
+	SHADER_PARAMETER(uint32, NumPrimitives)
+	SHADER_PARAMETER(uint32, SelectorAttributeId)
+	SHADER_PARAMETER(uint32, NumInputPoints)
 END_SHADER_PARAMETER_STRUCT()
 
 void UPCGStaticMeshSpawnerDataInterface::GetShaderParameters(TCHAR const* UID, FShaderParametersMetadataBuilder& InOutBuilder, FShaderParametersMetadataAllocations& InOutAllocations) const
@@ -56,15 +72,37 @@ void UPCGStaticMeshSpawnerDataInterface::GetHLSL(FString& OutHLSL, FString const
 	};
 
 	OutHLSL += FString::Format(TEXT(
+		"uint {DataInterfaceName}_SelectorAttributeId;\n"
+		"uint SMSpawner_GetSelectorAttributeId_{DataInterfaceName}() { return {DataInterfaceName}_SelectorAttributeId; }\n"
+		"\n"
+		"uint {DataInterfaceName}_NumInputPoints;\n"
+		"uint SMSpawner_GetNumInputPoints_{DataInterfaceName}() { return {DataInterfaceName}_NumInputPoints; }\n"
+		"\n"
 		"uint {DataInterfaceName}_NumAttributes;\n"
 		"uint4 {DataInterfaceName}_AttributeIdOffsetStrides[{MaxAttributes}];\n"
 		"uint SMSpawner_GetNumAttributes_{DataInterfaceName}() { return {DataInterfaceName}_NumAttributes; }\n"
 		"uint4 SMSpawner_GetAttributeIdOffsetStride_{DataInterfaceName}(uint InAttributeIndex) { return {DataInterfaceName}_AttributeIdOffsetStrides[InAttributeIndex]; }\n"
 		"\n"
 		"uint {DataInterfaceName}_NumPrimitives;\n"
+		"uint4 {DataInterfaceName}_PrimitiveStringKeys[{MaxPrimitives}];"
 		"DECLARE_SCALAR_ARRAY(float, {DataInterfaceName}_SelectionCDF, {MaxPrimitives});\n"
 		"uint SMSpawner_GetNumPrimitives_{DataInterfaceName}() { return {DataInterfaceName}_NumPrimitives; }\n"
+		"\n"
+		"uint SMSpawner_GetPrimitiveIndexFromStringKey_{DataInterfaceName}(uint InMeshPathStringKey)\n"
+		"{\n"
+		"	for (uint Index = 0; Index < {DataInterfaceName}_NumPrimitives; ++Index)\n"
+		"	{\n"
+		"		if ({DataInterfaceName}_PrimitiveStringKeys[Index][0] == InMeshPathStringKey)\n"
+		"		{\n"
+		"			return Index;\n"
+		"		}\n"
+		"	}\n"
+		"	\n"
+		"	return (uint)-1;\n"
+		"}\n"
+		"\n"
 		"float SMSpawner_GetPrimitiveSelectionCDF_{DataInterfaceName}(uint InPrimitiveIndex) { return GET_SCALAR_ARRAY_ELEMENT({DataInterfaceName}_SelectionCDF, InPrimitiveIndex); }\n"
+		"\n"
 		), TemplateArgs);
 }
 
@@ -85,13 +123,14 @@ UComputeDataProvider* UPCGStaticMeshSpawnerDataInterface::CreateDataProvider(TOb
 	DataProvider->Settings = Cast<UPCGStaticMeshSpawnerSettings>(Settings);
 	DataProvider->AttributeIdOffsetStrides = Primitives->AttributeIdOffsetStrides;
 	DataProvider->SelectionCDF = Primitives->SelectionCDF;
-
+	DataProvider->SelectorAttributeId = Primitives->SelectorAttributeId;
+	DataProvider->PrimitiveStringKeys = Primitives->PrimitiveStringKeys;
 	return DataProvider;
 }
 
 FComputeDataProviderRenderProxy* UPCGStaticMeshSpawnerDataProvider::GetRenderProxy()
 {
-	return new FPCGStaticMeshSpawnerDataProviderProxy(AttributeIdOffsetStrides, SelectionCDF);
+	return new FPCGStaticMeshSpawnerDataProviderProxy(NumInputPoints, AttributeIdOffsetStrides, SelectorAttributeId, PrimitiveStringKeys, SelectionCDF);
 }
 
 bool FPCGStaticMeshSpawnerDataProviderProxy::IsValid(FValidationData const& InValidationData) const
@@ -112,12 +151,19 @@ void FPCGStaticMeshSpawnerDataProviderProxy::GatherDispatchData(FDispatchData co
 		FParameters& Parameters = ParameterArray[InvocationIndex];
 
 		Parameters.NumAttributes = AttributeIdOffsetStrides.Num();
+		Parameters.NumPrimitives = SelectionCDF.Num();
+		Parameters.SelectorAttributeId = (uint32)SelectorAttributeId;
+
 		for (int32 Index = 0; Index < AttributeIdOffsetStrides.Num(); ++Index)
 		{
 			Parameters.AttributeIdOffsetStrides[Index] = AttributeIdOffsetStrides[Index];
 		}
 
-		Parameters.NumPrimitives = SelectionCDF.Num();
+		for (int32 Index = 0; Index < PrimitiveStringKeys.Num(); ++Index)
+		{
+			Parameters.PrimitiveStringKeys[Index] = FUintVector4(PrimitiveStringKeys[Index], /*Unused*/0, /*Unused*/0, /*Unused*/0);
+		}
+
 		for (int32 Index = 0; Index < SelectionCDF.Num(); ++Index)
 		{
 			GET_SCALAR_ARRAY_ELEMENT(Parameters.SelectionCDF, Index) = SelectionCDF[Index];

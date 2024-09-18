@@ -865,6 +865,8 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 			OutputDataInterfaceIndexAndPin.Emplace(DebugDIIndex, NAME_None);
 		}
 
+		ComputeGraph->bLogDataDescriptions |= Settings->bDumpDataDescriptions;
+
 		// Now that all data interfaces added, create the (trivial) binding mapping. All map to primary binding, index 0.
 		ComputeGraph->DataInterfaceToBinding.SetNumZeroed(ComputeGraph->DataInterfaces.Num());
 

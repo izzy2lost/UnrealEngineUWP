@@ -270,6 +270,12 @@ float4 GetQuat_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint Attri
 	return asfloat({DataInterfaceName}_DataCollectionBuffer.Load4(AttributeAddress + ElementIndex * 4 * 4));
 }
 
+int GetStringKey_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId)
+{
+	// String keys are represented as ints.
+	return GetInt_{DataInterfaceName}(DataIndex, ElementIndex, AttributeId);
+}
+
 // #################### ATTRIBUTE SETTERS ##########################
 
 void SetBool_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId, bool Value)
@@ -324,6 +330,12 @@ void SetQuat_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint Attribu
 {
 	const uint AttributeAddress = ComputeAddressHelper_{DataInterfaceName}(DataIndex, ElementIndex, AttributeId);
 	{DataInterfaceName}_DataCollectionBuffer.Store4(AttributeAddress + ElementIndex * 4 * 4, asuint(Value));
+}
+
+void SetStringKey_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId, int Value)
+{
+	// String keys are represented as ints.
+	SetInt_{DataInterfaceName}(DataIndex, ElementIndex, AttributeId, Value);
 }
 
 // #################### POINT ATTRIBUTE GETTERS ##########################

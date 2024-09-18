@@ -24,10 +24,7 @@ public:
 	void OnKernelCompilationComplete(int32 InKernelIndex, FComputeKernelCompileResults const& InCompileResults) override;
 	//~End UComputeGraph interface
 
-	/** Some attributes in table may be missing type information that we could not infer statically. Fill in missing types from the execution-time data. */
-	void FillInMissingAttributeTableTypes(const FPCGDataCollection& InComputeGraphElementInputData);
-
-	/** Get the global attribute indices. */
+	/** Get the global attribute information collated during compilation. */
 	const TMap<FName, FPCGKernelAttributeIDAndType>& GetAttributeLookupTable() const { return GlobalAttributeLookupTable; }
 
 public:
@@ -52,6 +49,9 @@ public:
 	/** List of settings for all nodes that spawn static meshes, so we can do required primitive & DI setup when compute graph element executes. */
 	UPROPERTY()
 	TArray<TObjectPtr<const UPCGSettings>> StaticMeshSpawners;
+
+	UPROPERTY()
+	bool bLogDataDescriptions = false;
 
 protected:
 	UPROPERTY()
