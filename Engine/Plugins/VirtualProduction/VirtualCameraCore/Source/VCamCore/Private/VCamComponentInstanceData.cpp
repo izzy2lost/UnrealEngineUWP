@@ -7,6 +7,9 @@
 
 FVCamComponentInstanceData::FVCamComponentInstanceData(const UVCamComponent* SourceComponent)
 	: FSceneComponentInstanceData(SourceComponent)
+	, bWasInitialized(SourceComponent->bIsInitialized)
+	, bWereModifiersInitialized(SourceComponent->bHasInitedModifiers)
+	, bWereOutputProvidersInitialized(SourceComponent->bHasInitedOutputProviders)
 {
 	// Only Blueprint components would deactivate their output providers when the construction script is re-run.
 	// Hence, we only need to apply instance cache for Blueprint created components.
@@ -15,6 +18,7 @@ FVCamComponentInstanceData::FVCamComponentInstanceData(const UVCamComponent* Sou
 	if (bIsBlueprintCreatedComponent)
 	{
 		SourceComponent->GetAllOutputProviders(MutableView(StolenOutputProviders));
+		StolenModifiers = SourceComponent->GetModifierStack();
 		AppliedInputContexts = SourceComponent->AppliedInputContexts;
 		LiveLinkSubject = SourceComponent->GetLiveLinkSubobject();
 	}
