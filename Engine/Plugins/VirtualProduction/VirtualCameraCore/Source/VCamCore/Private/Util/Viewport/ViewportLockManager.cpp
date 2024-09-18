@@ -51,7 +51,7 @@ namespace UE::VCamCore
 			
 			for (UVCamOutputProviderBase* OutputProvider : VCamComponent->GetOutputProviders())
 			{
-				if (ensure(OutputProvider) && OutputProvider->GetTargetViewport() == ViewportID)
+				if (OutputProvider && OutputProvider->GetTargetViewport() == ViewportID)
 				{
 					UpdateLockStateFor(*OutputProvider);
 				}
