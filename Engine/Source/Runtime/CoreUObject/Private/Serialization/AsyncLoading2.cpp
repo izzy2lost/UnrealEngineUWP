@@ -2533,9 +2533,7 @@ public:
 		}
 	}
 
-	~FAsyncLoadingSyncLoadContext()
-	{
-	}
+	~FAsyncLoadingSyncLoadContext();
 
 	void AddRef()
 	{
@@ -7956,6 +7954,13 @@ void FAsyncLoadingThread2::UpdateSyncLoadContext(FAsyncLoadingThreadState2& Thre
 			}
 			else if (FAsyncPackage2* RequestedPackage = RequestIdToPackageMap.FindRef(RequestID))
 			{
+				// Make sure the package we found is not queued for deletion by trying to add a ref to it. 
+				// RequestIdToPackageMap is only manipulated from ALT so we can't race between FindRef, TryAddRef and the actual deletion of the package.
+				if (!RequestedPackage->TryAddRef())
+				{
+					continue;
+				}
+
 				// Set RequestedPackage before setting bHasFoundRequestedPackage so that another thread looking at RequestedPackage
 				// after validating that bHasFoundRequestedPackage is true would see the proper value.
 				SyncLoadContext->RequestedPackages[i] = RequestedPackage;
@@ -10081,6 +10086,17 @@ EAsyncPackageState::Type FAsyncLoadingThread2::ProcessLoadingUntilCompleteFromGa
 void FGlobalImportStore::FlushDeferredDeletePackagesQueue()
 {
 	AsyncLoadingThread.ProcessDeferredDeletePackagesQueue();
+}
+
+FAsyncLoadingSyncLoadContext::~FAsyncLoadingSyncLoadContext()
+{
+	for (FAsyncPackage2* AsyncPackage : RequestedPackages)
+	{
+		if (AsyncPackage)
+		{
+			AsyncPackage->ReleaseRef();
+		}
+	}
 }
 
 #if !UE_BUILD_SHIPPING
