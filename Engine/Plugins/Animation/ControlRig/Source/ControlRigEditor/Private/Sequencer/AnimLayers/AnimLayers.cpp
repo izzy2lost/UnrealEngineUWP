@@ -36,6 +36,7 @@
 #include "ISequencerPropertyKeyedStatus.h"
 #include "BakingAnimationKeySettings.h"
 #include "Algo/Accumulate.h"
+#include "MovieSceneToolHelpers.h"
 
 #define LOCTEXT_NAMESPACE "AnimLayers"
 
@@ -1035,7 +1036,7 @@ double UAnimLayer::GetWeight() const
 							const FFrameNumber CurrentTime = SequencerPtr->GetLocalTime().Time.FloorToFrame();
 							float Value = 0.f;
 							FloatChannel->Evaluate(CurrentTime, Value);
-							if (State.Weight != Value)
+							if (State.Weight != Value || WeightProxy->Weight != Value)
 							{
 								DifferentWeightValue = Value;
 							}
@@ -1191,7 +1192,6 @@ void UAnimLayerWeightProxy::PostEditUndo()
 	}
 }
 #endif
-
 EAnimLayerType UAnimLayer::GetType() const
 {
 	TOptional<EMovieSceneBlendType> CurrentVal;
@@ -1235,6 +1235,64 @@ EAnimLayerType UAnimLayer::GetType() const
 	return (EAnimLayerType)(State.Type);
 }
 
+static void SetDefaultsForOverride(UMovieSceneSection* InSection)
+{
+	if (InSection->IsA<UMovieSceneControlRigParameterSection>())
+	{
+		return; //control rig sections already handle this
+	}
+	TSharedPtr<ISequencer> SequencerPtr = UAnimLayers::GetSequencerFromAsset();
+	if (SequencerPtr.IsValid() == false)
+	{
+		return;
+	}
+	FFrameNumber FrameNumber = SequencerPtr->GetLocalTime().Time.GetFrame();
+	if (UMovieSceneTrack* OwnerTrack = InSection->GetTypedOuter<UMovieSceneTrack>())
+	{
+		TArray<UMovieSceneSection*> TrackSections = OwnerTrack->GetAllSections();
+		int32 SectionIndex = TrackSections.Find((InSection));
+		if (SectionIndex != INDEX_NONE)
+		{
+			InSection->Modify();
+			TrackSections.SetNum(SectionIndex); //this will gives us up to the section 
+			TArray<UMovieSceneSection*> Sections;
+			TArray<UMovieSceneSection*> AbsoluteSections;
+			MovieSceneToolHelpers::SplitSectionsByBlendType(EMovieSceneBlendType::Absolute, TrackSections, Sections, AbsoluteSections);
+			TArrayView<FMovieSceneFloatChannel*> BaseFloatChannels = InSection->GetChannelProxy().GetChannels<FMovieSceneFloatChannel>();
+			TArrayView<FMovieSceneDoubleChannel*> BaseDoubleChannels = InSection->GetChannelProxy().GetChannels<FMovieSceneDoubleChannel>();
+			if (BaseDoubleChannels.Num() > 0)
+			{
+				int32 NumChannels = BaseDoubleChannels.Num();
+				const int32 StartIndex = 0;
+				const int32 EndIndex = NumChannels - 1;
+				TArray<double> ChannelValues = MovieSceneToolHelpers::GetChannelValues<FMovieSceneDoubleChannel,
+					double>(StartIndex,EndIndex, Sections, AbsoluteSections, FrameNumber);
+				for (int32 Index = 0; Index < NumChannels; ++Index)
+				{
+					FMovieSceneDoubleChannel* DoubleChannel = BaseDoubleChannels[Index];
+					const double Value = ChannelValues[Index];
+					DoubleChannel->SetDefault(Value);
+				}
+			}
+			else if (BaseFloatChannels.Num() > 0)
+			{
+				int32 NumChannels = BaseFloatChannels.Num();
+				const int32 StartIndex = 0;
+				const int32 EndIndex = NumChannels - 1;
+				TArray<float> ChannelValues = MovieSceneToolHelpers::GetChannelValues<FMovieSceneFloatChannel,
+					float>(StartIndex, EndIndex, Sections, AbsoluteSections, FrameNumber);
+				for (int32 Index = 0; Index < NumChannels; ++Index)
+				{
+					FMovieSceneFloatChannel* FloatChannel = BaseFloatChannels[Index];
+					const float Value = ChannelValues[Index];
+					FloatChannel->SetDefault(Value);
+				}
+			}
+			SequencerPtr->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::TrackValueChanged);
+		}
+	}
+}
+
 void UAnimLayer::SetType(EAnimLayerType LayerType)
 {
 	const FScopedTransaction Transaction(LOCTEXT("SetType_Transaction", "Set Type"), !GIsTransacting);
@@ -1256,6 +1314,7 @@ void UAnimLayer::SetType(EAnimLayerType LayerType)
 						break;
 					case EAnimLayerType::Override:
 						SectionItem.Section.Get()->SetBlendType(EMovieSceneBlendType::Override);
+						SetDefaultsForOverride(SectionItem.Section.Get());
 						break;
 					case EAnimLayerType::Base:
 						SectionItem.Section.Get()->SetBlendType(EMovieSceneBlendType::Absolute);
@@ -1263,7 +1322,6 @@ void UAnimLayer::SetType(EAnimLayerType LayerType)
 					}
 				}
 			}
-
 		}
 	}
 }
@@ -1387,46 +1445,30 @@ static void CopySectionIntoAnother(UMovieSceneSection* ToSection, UMovieSceneSec
 	TArray<UMovieSceneSection*> AbsoluteSections;
 	TArray<UMovieSceneSection*> AdditiveSections;
 
-	if (ToSection && ToSection->GetBlendType().Get() == EMovieSceneBlendType::Additive)
+	AdditiveSections.Add(ToSection);
+	AdditiveSections.Add(FromSection);
+	
+
+	FMovieSceneChannelProxy& ChannelProxy = ToSection->GetChannelProxy();
+	for (const FMovieSceneChannelEntry& Entry : ToSection->GetChannelProxy().GetAllEntries())
 	{
-		AdditiveSections.Add(ToSection);
-	}
-	else if (ToSection && ToSection->GetBlendType().Get() == EMovieSceneBlendType::Absolute)
-	{
-		AbsoluteSections.Add(ToSection);
-	}
-	if (FromSection && FromSection->GetBlendType().Get() == EMovieSceneBlendType::Additive)
-	{
-		AdditiveSections.Add(FromSection);
-	}
-	else if (FromSection && FromSection->GetBlendType().Get() == EMovieSceneBlendType::Absolute)
-	{
-		AbsoluteSections.Add(FromSection);
-	}
-	//if CR or transform we just do certain channels so we avoid baking in the weight channel
-	//if not we do it by property type
-	if (ToSection && ToSection->IsA<UMovieSceneControlRigParameterSection>())
-	{
-		MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(ToSection, AbsoluteSections, AdditiveSections, Range, true /*bSkipLastChannel*/);
-	}
-	else if (ToSection && ToSection->IsA<UMovieScene3DTransformSection>())
-	{
-		MovieSceneToolHelpers::MergeSections<FMovieSceneDoubleChannel>(ToSection, AbsoluteSections, AdditiveSections, Range, false /*bSkipLastChannel*/);
-	}
-	else if(ToSection && FromSection)
-	{
-		FMovieSceneChannelProxy& ChannelProxy = ToSection->GetChannelProxy();
-		for (const FMovieSceneChannelEntry& Entry : ToSection->GetChannelProxy().GetAllEntries())
+		const FName ChannelTypeName = Entry.GetChannelTypeName();
+
+		if (ChannelTypeName == FMovieSceneFloatChannel::StaticStruct()->GetFName())
 		{
-			const FName ChannelTypeName = Entry.GetChannelTypeName();
-			if (ChannelTypeName == FMovieSceneFloatChannel::StaticStruct()->GetFName())
-			{
-				MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(ToSection, AbsoluteSections, AdditiveSections, Range, false /*bSkipLastChannel*/);
-			}
-			else if (ChannelTypeName == FMovieSceneDoubleChannel::StaticStruct()->GetFName())
-			{
-				MovieSceneToolHelpers::MergeSections<FMovieSceneDoubleChannel>(ToSection, AbsoluteSections, AdditiveSections, Range, false /*bSkipLastChannel*/);
-			}
+			TArrayView<FMovieSceneFloatChannel*> BaseFloatChannels = ToSection->GetChannelProxy().GetChannels<FMovieSceneFloatChannel>();
+			const int StartIndex = 0;
+			const int EndIndex = BaseFloatChannels.Num() - 1;
+			MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(ToSection, AbsoluteSections, AdditiveSections, 
+				StartIndex, EndIndex, Range);
+		}
+		else if (ChannelTypeName == FMovieSceneDoubleChannel::StaticStruct()->GetFName())
+		{
+			TArrayView<FMovieSceneDoubleChannel*> BaseDoubleChannels = ToSection->GetChannelProxy().GetChannels<FMovieSceneDoubleChannel>();
+			const int StartIndex = 0;
+			const int EndIndex = BaseDoubleChannels.Num() - 1;
+			MovieSceneToolHelpers::MergeSections<FMovieSceneDoubleChannel>(ToSection, AbsoluteSections, AdditiveSections, 
+				StartIndex, EndIndex, Range);
 		}
 	}
 }
@@ -1446,6 +1488,7 @@ int32 UAnimLayers::DuplicateAnimLayer(ISequencer* SequencerPtr, int32 Index)
 			const FScopedTransaction Transaction(LOCTEXT("DuplicateAnimLayer_Transaction", "Duplicate Anim Layer"), !GIsTransacting);
 			Modify();
 			UAnimLayer* NewAnimLayer = NewObject<UAnimLayer>(this, NAME_None, RF_Transactional);
+			NewAnimLayer->SetType(ExistingAnimLayer->GetType());
 			bool bItemAdded = false;
 			for (const TPair<TWeakObjectPtr<UObject>,FAnimLayerItem>& Pair : ExistingAnimLayer->AnimLayerItems)
 			{
@@ -1486,6 +1529,7 @@ int32 UAnimLayers::DuplicateAnimLayer(ISequencer* SequencerPtr, int32 Index)
 												AnimLayerItem.SectionItems.Add(NewSectionItem);
 												NewAnimLayer->AnimLayerItems.Add(ControlRig, AnimLayerItem);
 												SetUpSectionDefaults(SequencerPtr, NewAnimLayer, Track, NewSection, FloatChannel);
+												NewSection->SetBlendType(Section->GetBlendType().Get());
 												TArray<FName> ControlNames;
 												NewSectionItem.AnimLayerSet.Names.GetKeys(ControlNames);
 												SetUpControlRigSection(NewSection, ControlNames);
@@ -1521,8 +1565,9 @@ int32 UAnimLayers::DuplicateAnimLayer(ISequencer* SequencerPtr, int32 Index)
 										AnimLayerItem.SectionItems.Add(NewSectionItem);
 										NewAnimLayer->AnimLayerItems.Add(Pair.Key, AnimLayerItem);
 										SetUpSectionDefaults(SequencerPtr, NewAnimLayer, Track, NewSection, FloatChannel);
+										NewSection->SetBlendType(SectionItem.Section->GetBlendType().Get());
 										//current copy keys
-										CopySectionIntoAnother(NewSection, Section);
+										CopySectionIntoAnother(NewSection, SectionItem.Section.Get());
 									}
 								}
 							}
@@ -1532,9 +1577,11 @@ int32 UAnimLayers::DuplicateAnimLayer(ISequencer* SequencerPtr, int32 Index)
 			}
 			if (bItemAdded)
 			{
-				FString LayerName = FString::Printf(TEXT("Anim Layer %d"), AnimLayers.Num());
+				FString ExistingName = ExistingAnimLayer->GetName().ToString();
+				FString NewLayerName = FString::Printf(TEXT("%s_Duplicate"), *ExistingName);
+
 				FText LayerText;
-				LayerText = LayerText.FromString(LayerName);
+				LayerText = LayerText.FromString(NewLayerName);
 				NewAnimLayer->SetName(LayerText); //need items/sections to be added so we can change their track row names
 				NewIndex = AnimLayers.Add(NewAnimLayer);
 				NewAnimLayer->SetKeyed();
@@ -1586,22 +1633,150 @@ FAnimLayerSectionItem* FAnimLayerItem::FindMatchingSectionItem(UMovieSceneSectio
 	return nullptr;
 }
 
+template<typename ChannelType>
+void AddKeyToChannel(ChannelType* Channel, EMovieSceneKeyInterpolation DefaultInterpolation, const FFrameNumber& FrameNumber, double Value)
+{
+	switch (DefaultInterpolation)
+	{
+	case EMovieSceneKeyInterpolation::Linear:
+		Channel->AddLinearKey(FrameNumber, Value);
+		break;
+	case EMovieSceneKeyInterpolation::Constant:
+		Channel->AddConstantKey(FrameNumber, Value);
+		break;
+	case  EMovieSceneKeyInterpolation::Auto:
+		Channel->AddCubicKey(FrameNumber, Value, ERichCurveTangentMode::RCTM_Auto);
+		break;
+	case  EMovieSceneKeyInterpolation::SmartAuto:
+	default:
+		Channel->AddCubicKey(FrameNumber, Value, ERichCurveTangentMode::RCTM_SmartAuto);
+		break;
+	}
+}
+
+bool UAnimLayers::SetPassthroughKey(ISequencer* InSequencer, int32 InIndex)
+{
+	if (InSequencer == nullptr || InIndex <= 0 || InIndex >= AnimLayers.Num())
+	{
+		return false;
+	}
+	FFrameNumber FrameNumber = InSequencer->GetLocalTime().Time.GetFrame();
+	EMovieSceneKeyInterpolation DefaultInterpolation = InSequencer->GetKeyInterpolation();
+	if (UAnimLayer* AnimLayer = AnimLayers[InIndex].Get())
+	{
+		for (TPair<TWeakObjectPtr<UObject>, FAnimLayerItem>& Pair : AnimLayer->AnimLayerItems)
+		{
+			if (Pair.Key != nullptr)
+			{
+				for (FAnimLayerSectionItem& SectionItem : Pair.Value.SectionItems)
+				{
+					if (SectionItem.Section.IsValid())
+					{
+						if (UMovieSceneTrack* OwnerTrack = SectionItem.Section->GetTypedOuter<UMovieSceneTrack>())
+						{
+							TArray<UMovieSceneSection*> TrackSections = OwnerTrack->GetAllSections();
+							int32 SectionIndex = TrackSections.Find((SectionItem.Section.Get()));
+							if (SectionIndex != INDEX_NONE)
+							{
+								SectionItem.Section->Modify();
+								TrackSections.SetNum(SectionIndex); //this will gives us up to the section 
+								TArray<UMovieSceneSection*> Sections;
+								TArray<UMovieSceneSection*> AbsoluteSections;
+								MovieSceneToolHelpers::SplitSectionsByBlendType(EMovieSceneBlendType::Absolute, TrackSections, Sections, AbsoluteSections);
+								TArrayView<FMovieSceneFloatChannel*> BaseFloatChannels = SectionItem.Section->GetChannelProxy().GetChannels<FMovieSceneFloatChannel>();
+								TArrayView<FMovieSceneDoubleChannel*> BaseDoubleChannels = SectionItem.Section->GetChannelProxy().GetChannels<FMovieSceneDoubleChannel>();
+								if (BaseDoubleChannels.Num() > 0)
+								{
+									if (SectionItem.Section->GetBlendType().IsValid() &&
+										SectionItem.Section->GetBlendType() == EMovieSceneBlendType::Additive)
+									{
+										const double Value = 0.0;
+										for (FMovieSceneDoubleChannel* DoubleChannel : BaseDoubleChannels)
+										{
+											AddKeyToChannel(DoubleChannel, FrameNumber, Value, DefaultInterpolation);
+										}
+									}
+									else if (SectionItem.Section->GetBlendType().IsValid() &&
+										SectionItem.Section->GetBlendType() == EMovieSceneBlendType::Override)
+									{
+										int32 NumChannels = BaseDoubleChannels.Num();
+										const int32 StartIndex = 0;
+										const int32 EndIndex = NumChannels - 1;
+										TArray<double> ChannelValues = MovieSceneToolHelpers::GetChannelValues<FMovieSceneDoubleChannel,
+											double>(StartIndex, EndIndex, Sections,AbsoluteSections,FrameNumber);
+										for (int32 Index = 0; Index < NumChannels; ++Index)
+										{
+											FMovieSceneDoubleChannel* DoubleChannel = BaseDoubleChannels[Index];
+											const double Value = ChannelValues[Index];
+											AddKeyToChannel(DoubleChannel, FrameNumber, Value, DefaultInterpolation);
+										}
+									}
+								}
+								else if (BaseFloatChannels.Num() > 0)
+								{
+									int32 NumChannels = SectionItem.Section->IsA<UMovieSceneControlRigParameterSection>() ?
+										BaseFloatChannels.Num() - 1 : BaseFloatChannels.Num();// skip weight if CR section
+									const int32 StartIndex = 0;
+									const int32 EndIndex = NumChannels - 1;
+									if (SectionItem.Section->GetBlendType().IsValid() &&
+										SectionItem.Section->GetBlendType() == EMovieSceneBlendType::Additive)
+									{
+										const float Value = 0.0;
+										for (int32 Index = 0; Index < NumChannels; ++Index)
+										{
+											FMovieSceneFloatChannel* FloatChannel = BaseFloatChannels[Index];
+											AddKeyToChannel(FloatChannel, FrameNumber, Value, DefaultInterpolation);
+										}
+									}
+									else if (SectionItem.Section->GetBlendType().IsValid() &&
+										SectionItem.Section->GetBlendType() == EMovieSceneBlendType::Override)
+									{
+										TArray<float> ChannelValues = MovieSceneToolHelpers::GetChannelValues<FMovieSceneFloatChannel,
+											float>(StartIndex,EndIndex, Sections,AbsoluteSections, FrameNumber);
+										for (int32 Index = 0; Index < NumChannels; ++Index)
+										{
+											FMovieSceneFloatChannel* FloatChannel = BaseFloatChannels[Index];
+											const float Value = ChannelValues[Index];
+											AddKeyToChannel(FloatChannel, FrameNumber, Value, DefaultInterpolation);
+										}
+									}
+								}
+								InSequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::TrackValueChanged);
+
+							}
+						}
+						else
+						{
+							return false;
+						}
+					}
+				}
+			}
+		}
+	}
+	else
+	{
+		return false;
+	}
+	return true;
+}
+
 bool UAnimLayers::MergeAnimLayers(ISequencer* InSequencer, const TArray<int32>& Indices, const FBakingAnimationKeySettings* InSettings)
 {
 	if (InSequencer == nullptr)
 	{
 		return false;
 	}
-	UAnimLayer* BaseLayer = nullptr;
 	TArray<UAnimLayer*> LayersToMerge;
 	const FFrameNumber Min = InSettings ? InSettings->StartFrame : TNumericLimits<FFrameNumber>::Lowest();
-	const FFrameNumber Max = InSettings ? InSettings->EndFrame :  TNumericLimits<FFrameNumber>::Max();
-	TRange<FFrameNumber> Range(Min,Max);
+	const FFrameNumber Max = InSettings ? InSettings->EndFrame : TNumericLimits<FFrameNumber>::Max();
+	TRange<FFrameNumber> Range(Min, Max);
 	FScopedTransaction Transaction(LOCTEXT("Merge Anim Layers", "Merge Anim Layers"), !GIsTransacting);
 
 	TArray<int32> SortedIndices = Indices;
+	//we go backwards to the first one
 	SortedIndices.Sort([](const int32& Index1, const int32& Index2) {
-		return  Index1 < Index2; 
+		return  Index1 > Index2;
 		});
 
 	for (int32 Index : SortedIndices)
@@ -1610,27 +1785,22 @@ bool UAnimLayers::MergeAnimLayers(ISequencer* InSequencer, const TArray<int32>& 
 		{
 			if (UAnimLayer* AnimLayer = AnimLayers[Index].Get())
 			{
-				if (BaseLayer == nullptr)
-				{
-					BaseLayer = AnimLayer;
-				}
-				else
-				{
-					LayersToMerge.Add(AnimLayer);
-				}
+				LayersToMerge.Add(AnimLayer);
 			}
 		}
 	}
-	if (BaseLayer == nullptr || LayersToMerge.Num() < 1)
+	if (LayersToMerge.Num() < 1)
 	{
-		return false; 
+		return false;
 	}
 	Modify();
-	BaseLayer->Modify();
 
-	for (UAnimLayer* AnimLayer : LayersToMerge)
+	for (int32 Index = 0; Index < LayersToMerge.Num() -1; ++Index)
 	{
-		for (TPair<TWeakObjectPtr<UObject>,FAnimLayerItem>& Pair : AnimLayer->AnimLayerItems)
+		UAnimLayer* BaseLayer = LayersToMerge[Index + 1];
+		UAnimLayer* AnimLayer = LayersToMerge[Index];
+		BaseLayer->Modify();
+		for (TPair<TWeakObjectPtr<UObject>, FAnimLayerItem>& Pair : AnimLayer->AnimLayerItems)
 		{
 			if (Pair.Key != nullptr)
 			{
@@ -1644,36 +1814,30 @@ bool UAnimLayers::MergeAnimLayers(ISequencer* InSequencer, const TArray<int32>& 
 							BaseSectionItem = Owner->FindMatchingSectionItem(SectionItem.Section.Get());
 
 						}
-						if(BaseSectionItem && BaseSectionItem->Section.IsValid())
+						if (BaseSectionItem && BaseSectionItem->Section.IsValid())
 						{
 							if (SectionItem.Section->IsActive())//active sections merge them
 							{
-								TArray<UMovieSceneSection*> AbsoluteSections;
-								TArray<UMovieSceneSection*> AdditiveSections;
-								//base section get's added to both
-								AdditiveSections.Add(BaseSectionItem->Section.Get());
-								AbsoluteSections.Add(BaseSectionItem->Section.Get());
-
-								if (SectionItem.Section->GetBlendType().Get() == EMovieSceneBlendType::Additive)
-								{
-									AdditiveSections.Add(SectionItem.Section.Get());
-								}
-								else if (SectionItem.Section->GetBlendType().Get() == EMovieSceneBlendType::Absolute)
-								{
-									AbsoluteSections.Add(SectionItem.Section.Get());
-								}
+								
 								TArrayView<FMovieSceneFloatChannel*> BaseFloatChannels = BaseSectionItem->Section->GetChannelProxy().GetChannels<FMovieSceneFloatChannel>();
 								TArrayView<FMovieSceneDoubleChannel*> BaseDoubleChannels = BaseSectionItem->Section->GetChannelProxy().GetChannels<FMovieSceneDoubleChannel>();
 								if (BaseDoubleChannels.Num() > 0)
 								{
-									MovieSceneToolHelpers::MergeSections<FMovieSceneDoubleChannel>(BaseSectionItem->Section.Get(), AbsoluteSections, AdditiveSections, Range, false /*bSkipLastChannel*/);
+									int32 StartIndex = 0;
+									int32 EndIndex = BaseDoubleChannels.Num() - 1;
+									MovieSceneToolHelpers::MergeSections<FMovieSceneDoubleChannel>(BaseSectionItem->Section.Get(),
+										SectionItem.Section.Get(), StartIndex, EndIndex, Range);
 
 								}
 								else if (BaseFloatChannels.Num() > 0)
 								{
-									MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(BaseSectionItem->Section.Get(), AbsoluteSections, AdditiveSections, Range, true /*bSkipLastChannel*/);
+									int32 StartIndex = 0;
+									int32 EndIndex = BaseFloatChannels.Num() - 1;
+									MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(BaseSectionItem->Section.Get(),
+										SectionItem.Section.Get(), StartIndex, EndIndex, Range);
 								}
 							}
+			
 							if (UMovieSceneControlRigParameterSection* CRSection = Cast<UMovieSceneControlRigParameterSection>(BaseSectionItem->Section))
 							{
 								if (SectionItem.AnimLayerSet.Names.Num() > 0)
@@ -1686,7 +1850,6 @@ bool UAnimLayers::MergeAnimLayers(ISequencer* InSequencer, const TArray<int32>& 
 										UAnimLayers::SetUpControlRigSection(CRSection, AllControls);
 									}
 								}
-								
 							}
 						}
 						else //okay this object doesn't exist in the first layer we are merging into so we need to move it to the other one 
@@ -1711,14 +1874,28 @@ bool UAnimLayers::MergeAnimLayers(ISequencer* InSequencer, const TArray<int32>& 
 						}
 					}
 				}
-				int32 Index = GetAnimLayerIndex(AnimLayer);
-				if (Index != INDEX_NONE)
-				{
-					DeleteAnimLayer(InSequencer, Index);
-				}
 			}
 		}
-		//we now delete the layer that was merged, this will delete sections, etc..
+		if (AnimLayer->GetType() == EAnimLayerType::Override &&
+			(BaseLayer->GetType() == EAnimLayerType::Additive))
+		{
+			BaseLayer->SetType(EAnimLayerType::Override);
+		}
+		int32 LayerIndex = GetAnimLayerIndex(AnimLayer);
+		if (LayerIndex != INDEX_NONE)
+		{
+			DeleteAnimLayer(InSequencer, LayerIndex);
+		}
+	}
+	UAnimLayer* BaseLayer = LayersToMerge[LayersToMerge.Num() - 1];
+	FString Merged(TEXT("Merged"));
+	FString ExistingName = BaseLayer->GetName().ToString();
+	if (ExistingName.Contains(Merged) == false)
+	{
+		FString NewLayerName = FString::Printf(TEXT("%s_Merged"), *ExistingName);
+		FText LayerText;
+		LayerText = LayerText.FromString(NewLayerName);
+		BaseLayer->SetName(LayerText); //need items/sections to be added so we can change their track row names
 	}
 	InSequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
 	return true;
@@ -1728,7 +1905,6 @@ void UAnimLayers::AnimLayerListChangedBroadcast()
 {
 	OnAnimLayerListChanged.Broadcast(this);
 }
-
 
 TArray<UMovieSceneSection*> UAnimLayers::GetSelectedLayerSections() const
 {
@@ -2080,6 +2256,7 @@ void UAnimLayers::SetUpSectionDefaults(ISequencer* SequencerPtr, UAnimLayer* Lay
 		break;
 	case EAnimLayerType::Override:
 		NewSection->SetBlendType(EMovieSceneBlendType::Override);
+		SetDefaultsForOverride(NewSection);
 		break;
 	case EAnimLayerType::Base:
 		NewSection->SetBlendType(EMovieSceneBlendType::Absolute);
@@ -2188,26 +2365,7 @@ TArray<TPair<FFrameNumber, double>>& PercentageDifferences)
 		PercentageDifferences.SetNum(0);
 	}
 }
-template<typename ChannelType>
-void AddKeyToChannel(ChannelType* Channel, EMovieSceneKeyInterpolation DefaultInterpolation, const FFrameNumber& FrameNumber, double Value)
-{
-	switch (DefaultInterpolation)
-	{
-	case EMovieSceneKeyInterpolation::Linear:
-		Channel->AddLinearKey(FrameNumber, Value);
-		break;
-	case EMovieSceneKeyInterpolation::Constant:
-		Channel->AddConstantKey(FrameNumber, Value);
-		break;
-	case  EMovieSceneKeyInterpolation::Auto:
-		Channel->AddCubicKey(FrameNumber, Value, ERichCurveTangentMode::RCTM_Auto);
-		break;
-	case  EMovieSceneKeyInterpolation::SmartAuto:
-	default:
-		Channel->AddCubicKey(FrameNumber, Value, ERichCurveTangentMode::RCTM_SmartAuto);
-		break;
-	}
-}
+
 template<typename ChannelType>
 void AdjustmentBlend(UMovieSceneSection* Section, TArrayView<ChannelType*>& BaseChannels, 
 	TArrayView<ChannelType*>& LayerChannels,ISequencer* InSequencer)

@@ -1306,8 +1306,8 @@ void SControlRigEditModeTools::CustomizeToolBarPalette(FToolBarBuilder& ToolBarB
 	ToolBarBuilder.AddToolBarButton(
 		FExecuteAction::CreateRaw(OwningToolkit.Pin().Get(), &FControlRigEditModeToolkit::TryInvokeToolkitUI, FControlRigEditModeToolkit::AnimLayerTabName),
 		NAME_None,
-		LOCTEXT("AnimLayers", "Anim Layers"),
-		LOCTEXT("AnimLayersTooltip", "Display anim layers"),
+		LOCTEXT("Layers", "Layers"),
+		LOCTEXT("AnimLayersTooltip", "Display animation layers"),
 		FSlateIcon(TEXT("ControlRigEditorStyle"), TEXT("ControlRig.AnimLayers")),
 		EUserInterfaceActionType::Button
 	);
