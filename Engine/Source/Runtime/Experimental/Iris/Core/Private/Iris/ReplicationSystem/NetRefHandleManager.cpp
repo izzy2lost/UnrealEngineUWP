@@ -360,12 +360,14 @@ FNetRefHandle FNetRefHandleManager::CreateNetObject(FNetRefHandle WantedHandle, 
 }
 
 // Create NetRefHandle not owned by us
-FNetRefHandle FNetRefHandleManager::CreateNetObjectFromRemote(FNetRefHandle WantedHandle, const FReplicationProtocol* ReplicationProtocol)
+FNetRefHandle FNetRefHandleManager::CreateNetObjectFromRemote(FNetRefHandle WantedHandle, const FReplicationProtocol* ReplicationProtocol,  UE::Net::FNetObjectFactoryId FactoryId)
 {
 	if (!ensureMsgf(WantedHandle.IsValid() && !WantedHandle.IsCompleteHandle(), TEXT("FNetRefHandleManager::CreateNetObjectFromRemote Expected WantedHandle %s to be valid and incomplete"), *WantedHandle.ToString()))
 	{
 		return FNetRefHandle();
 	}
+
+	check(FactoryId != UE::Net::InvalidNetObjectFactoryId);
 
 	FNetRefHandle NetRefHandle = MakeNetRefHandle(WantedHandle.GetId(), ReplicationSystemId);
 
@@ -373,6 +375,8 @@ FNetRefHandle FNetRefHandleManager::CreateNetObjectFromRemote(FNetRefHandle Want
 	if (InternalIndex != InvalidInternalIndex)
 	{
 		FReplicatedObjectData& Data = ReplicatedObjectData[InternalIndex];
+
+		Data.NetFactoryId = FactoryId;
 
 		// Allocate storage for incoming data
 		Data.ReceiveStateBuffer = (uint8*)FMemory::Malloc(ReplicationProtocol->InternalTotalSize, ReplicationProtocol->InternalTotalAlignment);

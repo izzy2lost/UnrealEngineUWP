@@ -23,15 +23,18 @@ class UNetDriver;
 namespace UE::Net
 {
 	enum class ENetRefHandleError : uint32;
+	typedef uint8 FNetObjectFactoryId;
 
 	struct FNetDependencyInfo;
-	class FNetTokenStoreState;
-	class FReplicationFragment;
 	struct FReplicationInstanceProtocol;
 	struct FReplicationProtocol;
-	class FNetSerializationContext;
+
 	class FNetBitStreamReader;
 	class FNetBitStreamWriter;
+	class FNetSerializationContext;
+	class FNetTokenStoreState;	
+	class FReplicationFragment;
+
 	namespace Private
 	{
 		typedef uint32 FInternalNetRefIndex;
@@ -165,8 +168,8 @@ protected:
 	/** Invoked right before we apply the state for a new received subobject but after we have applied state for owning/root object in order to behave like old replication system */
 	IRISCORE_API virtual void SubObjectCreatedFromReplication(FNetRefHandle SubObjectRefHandle);
 
-	/** Invoke after we have applied the initial state for an object.*/
-	IRISCORE_API virtual void PostApplyInitialState(FNetRefHandle Handle);
+	/** Invoked after we have applied the initial state for an object.*/
+	virtual void PostApplyInitialState(UE::Net::Private::FInternalNetRefIndex InternalObjectIndex) {}
 
 	/**
 	 * Called when the instance is detached from the protocol on request by the remote. 
@@ -195,7 +198,7 @@ protected:
 	IRISCORE_API FNetRefHandle InternalCreateNetObject(FNetRefHandle AllocatedHandle, const UE::Net::FReplicationProtocol* ReplicationProtocol);
 
 	/** Create a NetRefHandle / NetObject on request from the authoritative end. */
-	IRISCORE_API FNetRefHandle InternalCreateNetObjectFromRemote(FNetRefHandle WantedNetHandle, const UE::Net::FReplicationProtocol* ReplicationProtocol);
+	IRISCORE_API FNetRefHandle InternalCreateNetObjectFromRemote(FNetRefHandle WantedNetHandle, const UE::Net::FReplicationProtocol* ReplicationProtocol,  UE::Net::FNetObjectFactoryId FactoryId);
 
 	/** Attach instance to NetRefHandle. */
 	IRISCORE_API void InternalAttachInstanceToNetRefHandle(FNetRefHandle RefHandle, bool bBindInstanceProtocol, UE::Net::FReplicationInstanceProtocol* InstanceProtocol, UObject* Instance, FNetHandle NetHandle);
@@ -257,7 +260,7 @@ private:
 	bool CallWriteNetRefHandleCreationInfo(FReplicationBridgeSerializationContext& Context, FNetRefHandle Handle);
 	bool CallWriteNetRefHandleDestructionInfo(FReplicationBridgeSerializationContext& Context, FNetRefHandle Handle);
 	void CallSubObjectCreatedFromReplication(FNetRefHandle SubObjectHandle);
-	void CallPostApplyInitialState(FNetRefHandle Handle);
+	void CallPostApplyInitialState(UE::Net::Private::FInternalNetRefIndex InternalObjectIndex);
 	void CallPruneStaleObjects();
 	void CallGetInitialDependencies(FNetRefHandle Handle, FNetDependencyInfoArray& OutDependencies) const;
 	void CallDetachInstance(FNetRefHandle Handle);

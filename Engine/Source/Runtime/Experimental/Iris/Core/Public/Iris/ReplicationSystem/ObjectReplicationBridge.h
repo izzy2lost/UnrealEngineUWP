@@ -243,7 +243,7 @@ protected:
 	IRISCORE_API virtual bool CacheNetRefHandleCreationInfo(FNetRefHandle Handle) override;
 	IRISCORE_API virtual FReplicationBridgeCreateNetRefHandleResult CreateNetRefHandleFromRemote(FNetRefHandle RootObjectNetHandle, FNetRefHandle WantedNetHandle, FReplicationBridgeSerializationContext& Context) override;
 	IRISCORE_API virtual void SubObjectCreatedFromReplication(FNetRefHandle SubObjectHandle) override;
-	IRISCORE_API virtual void PostApplyInitialState(FNetRefHandle Handle) override;
+	IRISCORE_API virtual void PostApplyInitialState(UE::Net::Private::FInternalNetRefIndex InternalObjectIndex) final;
 	IRISCORE_API virtual void DetachInstanceFromRemote(FNetRefHandle Handle, EReplicationBridgeDestroyInstanceReason DestroyReason, EReplicationBridgeDestroyInstanceFlags DestroyFlags) override;
 	IRISCORE_API virtual void DetachInstance(FNetRefHandle Handle) override;
 	IRISCORE_API virtual void OnProtocolMismatchReported(FNetRefHandle RefHandle, uint32 ConnectionId) override;
@@ -253,9 +253,6 @@ protected:
 	
 	/** Invoked for new replicated SubObjects after state has been applied to owner */
 	virtual void OnSubObjectCreatedFromReplication(FNetRefHandle SubObjectHandle) {};
-
-	/** Invoked after remote NetHandle has been created and initial state is applied. */
-	virtual void EndInstantiateFromRemote(FNetRefHandle Handle) {};
 
 	struct FDestroyInstanceParams
 	{

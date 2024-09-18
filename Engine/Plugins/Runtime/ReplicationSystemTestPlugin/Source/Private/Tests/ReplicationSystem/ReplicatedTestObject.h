@@ -583,7 +583,6 @@ protected:
 
 	friend FSupressCreateInstanceFailedEnsureScope;
 
-	virtual void EndInstantiateFromRemote(FNetRefHandle Handle) override;
 	virtual void DestroyInstanceFromRemote(const FDestroyInstanceParams& Params) override;
 	virtual bool IsAllowedToDestroyInstance(const UObject* Instance) const override;
 

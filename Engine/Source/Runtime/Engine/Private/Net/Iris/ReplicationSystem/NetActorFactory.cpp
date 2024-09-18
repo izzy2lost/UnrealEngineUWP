@@ -470,6 +470,11 @@ void UNetActorFactory::PostInstantiation(const FPostInstantiationContext& Contex
 	ActorBridge->WakeUpObjectInstantiatedFromRemote(Actor);
 }
 
+void UNetActorFactory::PostInit(const FPostInitContext& Context)
+{
+	AActor* Actor = CastChecked<AActor>(Context.Instance);
+	Actor->PostNetInit();
+}
 
  namespace UE::Net
  {

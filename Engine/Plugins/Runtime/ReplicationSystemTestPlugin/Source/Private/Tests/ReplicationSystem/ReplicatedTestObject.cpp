@@ -109,13 +109,6 @@ void UReplicatedTestObjectBridge::EndReplication(UReplicatedTestObject* Instance
 	StopReplicatingNetObject(Instance, Flags);
 }
 
-void UReplicatedTestObjectBridge::EndInstantiateFromRemote(FNetRefHandle Handle)
-{
-	UReplicatedTestObject* Instance = CastChecked<UReplicatedTestObject>(GetReplicatedObject(Handle));
-
-	Instance->NetRefHandle = Handle;
-}
-
 void UReplicatedTestObjectBridge::DestroyInstanceFromRemote(const FDestroyInstanceParams& Params)
 {
 	if (!Params.Instance)

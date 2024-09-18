@@ -84,6 +84,7 @@ public:
 	struct FInstantiateResult;
 	struct FInstantiateContext;
 	struct FPostInstantiationContext;
+	struct FPostInitContext;
 
 	/**
 	 * Creates the header containing all information required to instantiate a remote version of the object represented by the handle.
@@ -124,6 +125,13 @@ public:
 	 */
 	virtual void PostInstantiation(const FPostInstantiationContext& Context) {}
 
+	/**
+	 * Optional callback triggered after we applied the initial replicated properties to the instantiated object.
+	 * From here the remote object is ready to be used by the game engine.
+	 * @param Context Gives you access to the new object.
+	 */
+	virtual void PostInit(const FPostInitContext& Context) {}
+
 public:
 
 	/** Result of the instantiate request */
@@ -162,6 +170,15 @@ public:
 		const UE::Net::FNetObjectCreationHeader* Header = nullptr;
 		/** The connection that owns the replicated object */
 		uint32 ConnectionId = 0;
+	};
+
+	/** Contextual information to use in the PostInit callback */
+	struct FPostInitContext
+	{
+		/** The object instantiated */
+		UObject* Instance = nullptr;
+		/** The handle of the object */
+		UE::Net::FNetRefHandle Handle;
 	};
 
 protected:
