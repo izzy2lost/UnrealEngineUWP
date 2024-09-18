@@ -36,7 +36,6 @@ public class LiveLinkHubLauncher : ModuleRules
 				"MoviePlayer",
 				"MoviePlayerProxy",
 				"ProfileVisualizer",
-				"ProfilerService",
 				"Projects",
 				"PreLoadScreen",
 				"PIEPreviewDeviceProfileSelector",
