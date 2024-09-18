@@ -1774,8 +1774,6 @@ void FNiagaraRendererMeshes::GetDynamicRayTracingInstances(FRayTracingInstanceCo
 #endif
 
 			RayTracingInstance.Materials.Add(MoveTemp(MeshBatch));
-
-			Collector.AddMesh(ViewIndex, RayTracingInstance.Materials.Last());
 		}
 
 		if (RayTracingInstance.Materials.Num() == 0 || LODModel.Sections.Num() != RayTracingInstance.Materials.Num())
@@ -1861,6 +1859,15 @@ void FNiagaraRendererMeshes::GetDynamicRayTracingInstances(FRayTracingInstanceCo
 		{
 			// only set number of transforms so actual transform data is copied from GPU Scene
 			RayTracingInstance.NumTransforms = NumInstances;
+		}
+
+		// Add MeshBatches to FMeshElementCollector so they're added to GPUScene if necessary
+		// TODO: should probably do it automatically in Collector.AddRayTracingInstance(...)
+		// Currently this will cache pointers to entries in RayTracingInstance.Materials
+		// so extra care must be taken to avoid reallocs that would invalidate those pointers
+		for (FMeshBatch& MeshBatch : RayTracingInstance.Materials)
+		{
+			Collector.AddMesh(ViewIndex, MeshBatch);
 		}
 
 		Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
