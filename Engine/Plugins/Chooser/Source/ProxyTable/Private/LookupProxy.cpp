@@ -98,6 +98,37 @@ void FLookupProxy::Compile(IHasContextClass* HasContext, bool bForce)
 	}
 }
 
+bool FLookupProxy::HasCompileErrors(FText& Message)
+{
+	if (Proxy)
+	{
+		if (FChooserParameterBase* ProxyTableParam = ProxyTable.GetMutablePtr<FChooserParameterBase>())
+		{
+			FText BindingMessage;
+			if (ProxyTableParam->HasCompileErrors(BindingMessage))
+			{
+				Message = FText::Format(NSLOCTEXT("LookupProxy", "LookupProxyBinding", "LookupProxy: ProxyTable Reference - {0}"), BindingMessage);
+				return true;
+			}
+			else
+			{
+				return false;
+			}
+		}
+		else
+		{
+			Message = NSLOCTEXT("LookupProxy", "NoParameter", "LookupProxy: No Proxy Table parameter bound");
+        	return true;
+		}
+	}
+	else
+	{
+		Message = NSLOCTEXT("LookupProxy", "NoProxy", "LookupProxy: Proxy Asset is not set");
+		return true;
+	}
+}
+
+
 void FLookupProxy::GetDebugName(FString& OutName) const
 {
 	if (Proxy)

@@ -53,6 +53,27 @@ FText UAnimGraphNode_ChooserPlayer::GetMenuCategory() const
 	return LOCTEXT("NodeCategory", "Animation|Sequences");
 }
 
+void UAnimGraphNode_ChooserPlayer::ValidateAnimNodeDuringCompilation(USkeleton* ForSkeleton, FCompilerResultsLog& MessageLog)
+{
+	Super::ValidateAnimNodeDuringCompilation(ForSkeleton, MessageLog);
+
+	if (FObjectChooserBase* ChooserBase = Node.Chooser.GetMutablePtr<FObjectChooserBase>())
+	{
+		ChooserBase->Compile(this, true);
+		FText Message;
+		if (ChooserBase->HasCompileErrors(Message))
+		{
+			FText NodeMessage = FText::Format(LOCTEXT("error in node", "{0} in @@"), Message);
+			MessageLog.Error(*NodeMessage.ToString(), this);
+		}
+	}
+	else
+	{
+		MessageLog.Error(TEXT("No Chooser set in @@"), this);
+	}
+	
+}
+
 void UAnimGraphNode_ChooserPlayer::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
 	Super::CustomizeDetails(DetailBuilder);

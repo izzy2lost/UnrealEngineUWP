@@ -27,6 +27,7 @@ struct FChooserParameterBase
 
 	virtual void PostLoad() {};
 	virtual void Compile(IHasContextClass* Owner, bool bForce) {};
+	virtual bool HasCompileErrors(FText& OutMessage) { return false; }
 
 	virtual ~FChooserParameterBase() {}
 };

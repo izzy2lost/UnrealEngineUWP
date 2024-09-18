@@ -35,6 +35,7 @@ struct PROXYTABLE_API FLookupProxy : public FObjectChooserBase
 	FLookupProxy();
 	
 	virtual void Compile(IHasContextClass* HasContext, bool bForce) override;
+	virtual bool HasCompileErrors(FText& Message) override;
 
 	virtual void GetDebugName(FString& OutName) const override;
 	
