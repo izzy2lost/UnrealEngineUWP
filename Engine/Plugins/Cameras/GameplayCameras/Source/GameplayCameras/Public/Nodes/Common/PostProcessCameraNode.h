@@ -25,5 +25,8 @@ public:
 
 	UPROPERTY(EditAnywhere, Category="Rendering")
 	FPostProcessSettings PostProcessSettings;
+
+	UPROPERTY(EditAnywhere, Category="Rendering")
+	FFloatCameraParameter PostProcessBlendWeight = 1.f;
 };
 

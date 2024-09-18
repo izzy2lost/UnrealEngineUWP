@@ -26,7 +26,7 @@ FCameraNodeEvaluationResultDebugBlock::FCameraNodeEvaluationResultDebugBlock()
 
 void FCameraNodeEvaluationResultDebugBlock::Initialize(const FCameraNodeEvaluationResult& InResult, FCameraDebugBlockBuilder& Builder)
 {
-	bHasAnyPostProcessSettings = InResult.PostProcessSettings.HasAnyPostProcessSettings();
+	NumPostProcessSettings = InResult.PostProcessSettings.GetEntries().Num();
 	bIsCameraCut = InResult.bIsCameraCut;
 	bIsValid = InResult.bIsValid;
 
@@ -83,9 +83,9 @@ void FCameraNodeEvaluationResultDebugBlock::OnDebugDraw(const FCameraDebugBlockD
 		Renderer.AddText(TEXT("  {cam_warning}IsCameraCut"));
 	}
 
-	if (bHasAnyPostProcessSettings)
+	if (NumPostProcessSettings > 0)
 	{
-		Renderer.AddText(TEXT("  {cam_notice}post-FX set"));
+		Renderer.AddText(TEXT("  {cam_notice}%d post-FX"), NumPostProcessSettings);
 	}
 
 	Renderer.NewLine();
