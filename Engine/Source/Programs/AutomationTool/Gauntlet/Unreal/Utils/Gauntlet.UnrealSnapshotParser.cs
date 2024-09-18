@@ -241,7 +241,7 @@ namespace Gauntlet
 
 		public IEnumerable<TSnapshotClass> Snapshots;
 
-		public UnrealSnapshotSummary(string LogContents, string SnapshotTitles="")
+		public UnrealSnapshotSummary(ILogStreamReader LogReader, string SnapshotTitles="")
 		{
 			SampleCount = 0;
 			SessionTime = 0.0f;
@@ -260,12 +260,16 @@ namespace Gauntlet
 			DrawnPrims = new List<int>();
 			UnbuiltHLODs = new List<int>();
 
-			CreateFromLog(LogContents, SnapshotTitles);
+			CreateFromLog(LogReader, SnapshotTitles);
 		}
 
-		protected virtual void CreateFromLog(string LogContents, string InTitle)
+		public UnrealSnapshotSummary(string InContent, string SnapshotTitles = "")
+			: this(new DynamicStringReader(() => InContent), SnapshotTitles)
+		{ }
+
+		protected virtual void CreateFromLog(ILogStreamReader LogReader, string InTitle)
 		{
-			UnrealLogParser Parser = new UnrealLogParser(LogContents);
+			UnrealLogParser Parser = new UnrealLogParser(LogReader);
 
 			if (string.IsNullOrEmpty(InTitle))
 			{
