@@ -36,6 +36,8 @@ int32 UnrealVirtualizationToolMain(int32 ArgC, TCHAR* ArgV[])
 
 	FModuleManager::Get().StartProcessingNewlyLoadedObjects();
 
+	UE_LOG(LogVirtualizationTool, Display, TEXT("Running UnrealVirtualization Tool"));
+
 	EProcessResult ProcessResult = EProcessResult::Success;
 
 	FUnrealVirtualizationToolApp App;
