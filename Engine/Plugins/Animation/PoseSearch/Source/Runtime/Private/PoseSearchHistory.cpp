@@ -112,6 +112,43 @@ static FComponentSpaceTransformIndex GetRemappedComponentSpaceTransformIndex(con
 	return BoneTransformIndex;
 }
 
+static bool LerpEntries(float Time, bool bExtrapolate, const FPoseHistoryEntry& PrevEntry, const FPoseHistoryEntry& NextEntry, const FName& CurveName, const TConstArrayView<FName>& CollectedCurves, float& OutCurveValue)
+{
+	bool bSuccess = true;
+
+	const int32 CurveIndex = CollectedCurves.Find(CurveName);
+	if (CurveIndex == INDEX_NONE)
+	{
+		OutCurveValue = 0.0f;
+		bSuccess = false;
+	}
+	else
+	{
+		const float Denominator = NextEntry.AccumulatedSeconds - PrevEntry.AccumulatedSeconds;
+		float LerpValue = 0.f;
+		if (!FMath::IsNearlyZero(Denominator))
+		{
+			const float Numerator = Time - PrevEntry.AccumulatedSeconds;
+			LerpValue = bExtrapolate ? Numerator / Denominator : FMath::Clamp(Numerator / Denominator, 0.f, 1.f);
+		}
+
+		if (FMath::IsNearlyZero(LerpValue, ZERO_ANIMWEIGHT_THRESH))
+		{
+			OutCurveValue = PrevEntry.GetCurveValue(CurveIndex);
+		}
+		else if (FMath::IsNearlyZero(LerpValue - 1.f, ZERO_ANIMWEIGHT_THRESH))
+		{
+			OutCurveValue = NextEntry.GetCurveValue(CurveIndex);
+		}
+		else
+		{
+			OutCurveValue = FMath::Lerp(PrevEntry.GetCurveValue(CurveIndex), NextEntry.GetCurveValue(CurveIndex), LerpValue);
+		}
+	}
+
+	return bSuccess;
+}
+
 static bool LerpEntries(float Time, bool bExtrapolate, const FPoseHistoryEntry& PrevEntry, const FPoseHistoryEntry& NextEntry, const USkeleton* BoneIndexSkeleton, const USkeleton* LastUpdateSkeleton,
 	const FBoneToTransformMap& BoneToTransformMap, FBoneIndexType BoneIndexType, FBoneIndexType ReferenceBoneIndexType, FTransform& OutBoneTransform)
 {
@@ -240,7 +277,7 @@ static void CopyEntries(const TRingBuffer<FPoseHistoryEntry>& From, TRingBuffer<
 
 //////////////////////////////////////////////////////////////////////////
 // FPoseHistoryEntry
-void FPoseHistoryEntry::Update(float Time, FCSPose<FCompactPose>& ComponentSpacePose, const FBoneToTransformMap& BoneToTransformMap, bool bStoreScales)
+void FPoseHistoryEntry::Update(float Time, FCSPose<FCompactPose>& ComponentSpacePose, const FBoneToTransformMap& BoneToTransformMap, bool bStoreScales, const FBlendedCurve& Curves, const TConstArrayView<FName>& CollectedCurves)
 {
 	AccumulatedSeconds = Time;
 
@@ -270,6 +307,14 @@ void FPoseHistoryEntry::Update(float Time, FCSPose<FCompactPose>& ComponentSpace
 			const FCompactPoseBoneIndex CompactBoneIdx = BoneContainer.GetCompactPoseIndexFromSkeletonPoseIndex(SkeletonBoneIdx);
 			SetComponentSpaceTransform(BoneToTransformPair.Value, (CompactBoneIdx.IsValid() ? ComponentSpacePose.GetComponentSpaceTransform(CompactBoneIdx) : RefBonePose[SkeletonBoneIdx.GetInt()]));
 		}
+	}
+
+	const int32 NumCurves = CollectedCurves.Num();
+	CurveValues.SetNum(NumCurves);
+	for (int i = 0; i < NumCurves; ++i)
+	{
+		const FName& CurveName = CollectedCurves[i];
+		CurveValues[i] = Curves.Get(CurveName);
 	}
 }
 
@@ -314,11 +359,25 @@ FTransform FPoseHistoryEntry::GetComponentSpaceTransform(int32 Index) const
 	return FTransform(Quat, ComponentSpacePositions[Index], Scale);
 }
 
+float FPoseHistoryEntry::GetCurveValue(int32 Index) const
+{
+#if WITH_EDITOR
+	if (Index < 0 || Index >= CurveValues.Num())
+	{
+		UE_LOG(LogPoseSearch, Error, TEXT("FPoseHistoryEntry::GetCurveValue - Index %d out of bound [0, %d)"), Index, CurveValues.Num());
+		return 0.0f;
+	}
+#endif // WITH_EDITOR
+
+	return CurveValues[Index];
+}
+
 FArchive& operator<<(FArchive& Ar, FPoseHistoryEntry& Entry)
 {
 	Ar << Entry.ComponentSpaceRotations;
 	Ar << Entry.ComponentSpacePositions;
 	Ar << Entry.ComponentSpaceScales;
+	Ar << Entry.CurveValues;
 	Ar << Entry.AccumulatedSeconds;
 	return Ar;
 }
@@ -374,7 +433,7 @@ void FArchivedPoseHistory::InitFrom(const IPoseHistory* PoseHistory)
 	{
 		Trajectory = PoseHistory->GetTrajectory();
 		BoneToTransformMap = PoseHistory->GetBoneToTransformMap();
-			
+		CollectedCurves = PoseHistory->GetCollectedCurves();
 		const int32 NumEntries = PoseHistory->GetNumEntries();
 		Entries.SetNum(NumEntries);
 
@@ -432,6 +491,36 @@ bool FArchivedPoseHistory::GetTransformAtTime(float Time, FTransform& OutBoneTra
 	return bSuccess;
 }
 
+bool FArchivedPoseHistory::GetCurveValueAtTime(float Time, const FName& CurveName, float& OutCurveValue, bool bExtrapolate /*= false*/) const
+{
+	bool bSuccess = false;
+
+	const int32 NumEntries = Entries.Num();
+	if (NumEntries > 0)
+	{
+		int32 NextIdx = 0;
+		int32 PrevIdx = 0;
+
+		if (NumEntries > 1)
+		{
+			const int32 LowerBoundIdx = Algo::LowerBound(Entries, Time, [](const FPoseHistoryEntry& Entry, float Value) { return Value > Entry.AccumulatedSeconds; });
+			NextIdx = FMath::Clamp(LowerBoundIdx, 1, NumEntries - 1);
+			PrevIdx = NextIdx - 1;
+		}
+
+		const FPoseHistoryEntry& PrevEntry = Entries[PrevIdx];
+		const FPoseHistoryEntry& NextEntry = Entries[NextIdx];
+
+		bSuccess = LerpEntries(Time, bExtrapolate, PrevEntry, NextEntry, CurveName, GetCollectedCurves(), OutCurveValue);
+	}
+	else
+	{
+		OutCurveValue = 0.0f;
+	}
+
+	return bSuccess;
+}
+
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 void FArchivedPoseHistory::DebugDraw(const UWorld* World, FColor Color) const
 {
@@ -486,6 +575,7 @@ void FArchivedPoseHistory::DebugDraw(const UWorld* World, FColor Color) const
 FArchive& operator<<(FArchive& Ar, FArchivedPoseHistory& Entry)
 {
 	Ar << Entry.BoneToTransformMap;
+	Ar << Entry.CollectedCurves;
 	Ar << Entry.Entries;
 	Ar << Entry.Trajectory;
 	return Ar;
@@ -617,6 +707,38 @@ bool FPoseHistory::GetTransformAtTime(float Time, FTransform& OutBoneTransform, 
 	return bSuccess;
 }
 
+bool FPoseHistory::GetCurveValueAtTime(float Time, const FName& CurveName, float& OutCurveValue, bool bExtrapolate /*= false*/) const
+{
+	CheckThreadSafetyRead(ReadPoseDataThreadSafeCounter);
+
+	bool bSuccess = false;
+	const FPoseData& ReadPoseData = GetReadPoseData();
+	const int32 NumEntries = ReadPoseData.Entries.Num();
+	if (NumEntries > 0)
+	{
+		int32 NextIdx = 0;
+		int32 PrevIdx = 0;
+
+		if (NumEntries > 1)
+		{
+			const int32 LowerBoundIdx = LowerBound(ReadPoseData.Entries.begin(), ReadPoseData.Entries.end(), Time, [](const FPoseHistoryEntry& Entry, float Value) { return Value > Entry.AccumulatedSeconds; });
+			NextIdx = FMath::Clamp(LowerBoundIdx, 1, NumEntries - 1);
+			PrevIdx = NextIdx - 1;
+		}
+
+		const FPoseHistoryEntry& PrevEntry = ReadPoseData.Entries[PrevIdx];
+		const FPoseHistoryEntry& NextEntry = ReadPoseData.Entries[NextIdx];
+
+		bSuccess = LerpEntries(Time, bExtrapolate, PrevEntry, NextEntry, CurveName, ReadPoseData.CollectedCurves, OutCurveValue);
+	}
+	else
+	{
+		OutCurveValue = 0.0f;
+	}
+
+	return bSuccess;
+}
+
 const FPoseSearchQueryTrajectory& FPoseHistory::GetTrajectory() const
 {
 	CheckThreadSafetyRead(ReadPoseDataThreadSafeCounter);
@@ -639,6 +761,12 @@ const FBoneToTransformMap& FPoseHistory::GetBoneToTransformMap() const
 {
 	CheckThreadSafetyRead(ReadPoseDataThreadSafeCounter);
 	return GetReadPoseData().BoneToTransformMap;
+}
+
+const TConstArrayView<FName> FPoseHistory::GetCollectedCurves() const
+{
+	CheckThreadSafetyRead(ReadPoseDataThreadSafeCounter);
+	return MakeConstArrayView(GetReadPoseData().CollectedCurves);
 }
 
 int32 FPoseHistory::GetNumEntries() const
@@ -697,9 +825,9 @@ void FPoseHistory::SetTrajectory(const FPoseSearchQueryTrajectory& InTrajectory,
 	}
 }
 
-void FPoseHistory::EvaluateComponentSpace_AnyThread(float DeltaTime, FCSPose<FCompactPose>& ComponentSpacePose, bool bStoreScales,
-	float RootBoneRecoveryTime, float RootBoneTranslationRecoveryRatio, float RootBoneRotationRecoveryRatio,
-	bool bNeedsReset, bool bCacheBones, const TArray<FBoneIndexType>& RequiredBones)
+void FPoseHistory::EvaluateComponentSpace_AnyThread(float DeltaTime, FCSPose<FCompactPose>& ComponentSpacePose, bool bStoreScales, float RootBoneRecoveryTime,
+	float RootBoneTranslationRecoveryRatio, float RootBoneRotationRecoveryRatio, bool bNeedsReset, bool bCacheBones,
+	const TArray<FBoneIndexType>& RequiredBones, const FBlendedCurve& Curves, const TConstArrayView<FName>& CollectedCurves)
 {
 	CheckThreadSafetyWrite(WritePoseDataThreadSafeCounter);
 	CheckThreadSafetyRead(ReadPoseDataThreadSafeCounter);
@@ -717,6 +845,7 @@ void FPoseHistory::EvaluateComponentSpace_AnyThread(float DeltaTime, FCSPose<FCo
 	if (bCacheBones)
 	{
 		WritePoseData.BoneToTransformMap.Reset();
+		WritePoseData.CollectedCurves = CollectedCurves;
 		if (!RequiredBones.IsEmpty())
 		{
 			// making sure we always collect the root bone transform (by construction BoneToTransformMap[0] = 0)
@@ -788,7 +917,7 @@ void FPoseHistory::EvaluateComponentSpace_AnyThread(float DeltaTime, FCSPose<FCo
 
 	// Regardless of the retention policy, we always update the most recent Entry
 	FPoseHistoryEntry& MostRecentEntry = WritePoseData.Entries.Last();
-	MostRecentEntry.Update(0.f, ComponentSpacePose, WritePoseData.BoneToTransformMap, bStoreScales);
+	MostRecentEntry.Update(0.f, ComponentSpacePose, WritePoseData.BoneToTransformMap, bStoreScales, Curves, WritePoseData.CollectedCurves);
 
 	if (RootBoneRecoveryTime > 0.f && !Trajectory.Samples.IsEmpty())
 	{
@@ -812,6 +941,16 @@ void FPoseHistory::EvaluateComponentSpace_AnyThread(float DeltaTime, FCSPose<FCo
 		FutureEntryTemp.AccumulatedSeconds = RootBoneRecoveryTime;
 		WritePoseData.Entries.Emplace(MoveTemp(FutureEntryTemp));
 	}
+}
+
+void FPoseHistory::EvaluateComponentSpace_AnyThread(float DeltaTime, FCSPose<FCompactPose>& ComponentSpacePose, bool bStoreScales,
+	float RootBoneRecoveryTime, float RootBoneTranslationRecoveryRatio, float RootBoneRotationRecoveryRatio,
+	bool bNeedsReset, bool bCacheBones, const TArray<FBoneIndexType>& RequiredBones)
+{
+	FBlendedCurve Curves;
+	EvaluateComponentSpace_AnyThread(DeltaTime, ComponentSpacePose, bStoreScales,
+		RootBoneRecoveryTime, RootBoneTranslationRecoveryRatio, RootBoneRotationRecoveryRatio, bNeedsReset, bCacheBones, 
+		RequiredBones, Curves, TConstArrayView<FName>());
 }
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
@@ -900,6 +1039,27 @@ bool FMemStackPoseHistory::GetTransformAtTime(float Time, FTransform& OutBoneTra
 	return PoseHistory->GetTransformAtTime(Time, OutBoneTransform, BoneIndexSkeleton, BoneIndexType, ReferenceBoneIndexType, bExtrapolate);
 }
 
+bool FMemStackPoseHistory::GetCurveValueAtTime(float Time, const FName& CurveName, float& OutCurveValue, bool bExtrapolate /*= false*/) const
+{
+	check(PoseHistory);
+	if (Time > 0.f)
+	{
+		const int32 Num = FutureEntries.Num();
+		if (Num > 0)
+		{
+			const int32 LowerBoundIdx = Algo::LowerBound(FutureEntries, Time, [](const FPoseHistoryEntry& Entry, float Value) { return Value > Entry.AccumulatedSeconds; });
+			const int32 NextIdx = FMath::Min(LowerBoundIdx, Num - 1);
+			const FPoseHistoryEntry& NextEntry = FutureEntries[NextIdx];
+			const FPoseHistoryEntry& PrevEntry = NextIdx > 0 ? FutureEntries[NextIdx - 1] : PoseHistory->GetNumEntries() > 0 ? PoseHistory->GetEntry(PoseHistory->GetNumEntries() - 1) : NextEntry;
+
+			const bool bSuccess = LerpEntries(Time, bExtrapolate, PrevEntry, NextEntry, CurveName, GetCollectedCurves(), OutCurveValue);
+			return bSuccess;
+		}
+	}
+
+	return PoseHistory->GetCurveValueAtTime(Time, CurveName, OutCurveValue, bExtrapolate);
+}
+
 void FMemStackPoseHistory::AddFutureRootBone(float Time, const FTransform& FutureRootBoneTransform, bool bStoreScales)
 {
 	// we don't allow to add "past" or "present" poses to FutureEntries
@@ -914,11 +1074,17 @@ void FMemStackPoseHistory::AddFutureRootBone(float Time, const FTransform& Futur
 
 void FMemStackPoseHistory::AddFuturePose(float Time, FCSPose<FCompactPose>& ComponentSpacePose)
 {
+	FBlendedCurve Curves;
+	AddFuturePose(Time, ComponentSpacePose, Curves);
+}
+
+void FMemStackPoseHistory::AddFuturePose(float Time, FCSPose<FCompactPose>& ComponentSpacePose, const FBlendedCurve& Curves)
+{
 	// we don't allow to add "past" or "present" poses to FutureEntries
 	check(Time > 0.f);
 	check(PoseHistory);	
 	const int32 LowerBoundIdx = Algo::LowerBound(FutureEntries, Time, [](const FPoseHistoryEntry& Entry, float Value) { return Value > Entry.AccumulatedSeconds; });
-	FutureEntries.InsertDefaulted_GetRef(LowerBoundIdx).Update(Time, ComponentSpacePose, GetBoneToTransformMap(), true);
+	FutureEntries.InsertDefaulted_GetRef(LowerBoundIdx).Update(Time, ComponentSpacePose, GetBoneToTransformMap(), true, Curves, MakeConstArrayView(GetCollectedCurves()));
 }
 
 int32 FMemStackPoseHistory::GetNumEntries() const
