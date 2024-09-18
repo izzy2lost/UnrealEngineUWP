@@ -86,10 +86,22 @@ FDistortionCalibrationResult ULensDistortionSolverOpenCV::Solve_Implementation(
 	// Reorganize the 3D and 2D points from the input arrays or arrays to be laid out linearly in memory in two cv::Mat objects
 	GatherPoints(ObjectPointArray, ImagePointArray, ObjectPointsMat, ImagePointsMat);
 
-	// Find the set of unique camera poses to reduce the number of poses we need to solve for
 	TArray<int32> CameraPoseIndices;
 	TArray<FTransform> UniqueCameraPoses;
-	FindUniqueCameraPoses(CameraPoses, UniqueCameraPoses, CameraPoseIndices);
+	if ((EnumHasAnyFlags(SolverFlags, ECalibrationFlags::GroupCameraPoses)))
+	{
+		// Find the set of unique camera poses to reduce the number of poses we need to solve for
+		FindUniqueCameraPoses(CameraPoses, UniqueCameraPoses, CameraPoseIndices);
+	}
+	else
+	{
+		// Do not group camera poses, and consider each one to be unique
+		for (int32 PoseIndex = 0; PoseIndex < CameraPoses.Num(); ++PoseIndex)
+		{
+			UniqueCameraPoses.Add(CameraPoses[PoseIndex]);
+			CameraPoseIndices.Add(PoseIndex);
+		}
+	}
 
 	double RMSE = 0.0;
 

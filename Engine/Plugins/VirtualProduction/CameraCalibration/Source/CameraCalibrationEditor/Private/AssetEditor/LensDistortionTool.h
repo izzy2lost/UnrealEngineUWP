@@ -246,6 +246,9 @@ private:
 	/** Adjust the 2D location of every input pixel to account for differences between the size of the captured image and the overlay texture */
 	void RescalePoints(TArray<FVector2D>& Points, FIntPoint DebugTextureSize, FIntPoint CameraFeedSize);
 
+	/** Replace tracked checkerboard calibration points with a set of dummy 3D points */
+	void GenerateDummyCheckerboardPoints(TArray<FObjectPoints>& Samples3d, int32 NumImages, FIntPoint CheckerboardDimensions);
+
 	/** Get the directory for the current session */
 	FString GetSessionSaveDir() const;
 

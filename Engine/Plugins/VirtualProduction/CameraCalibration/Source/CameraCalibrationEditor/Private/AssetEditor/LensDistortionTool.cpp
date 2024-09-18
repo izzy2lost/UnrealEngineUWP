@@ -543,10 +543,19 @@ void ULensDistortionTool::CalibrateLens()
 	{
 		EnumAddFlags(SolverFlags, ECalibrationFlags::UseExtrinsicGuess);
 	}
+	else if (CaptureSettings.CalibrationPattern == ECalibrationPattern::Checkerboard)
+	{
+		GenerateDummyCheckerboardPoints(Samples3d, Dataset.CalibrationRows.Num(), Dataset.CalibrationRows[0]->CheckerboardDimensions);
+	}
 
 	if (CaptureSettings.bIsCalibratorTracked && CaptureSettings.CalibrationPattern != ECalibrationPattern::Points)
 	{
 		EnumAddFlags(SolverFlags, ECalibrationFlags::SolveTargetOffset);
+	}
+
+	if (CaptureSettings.bIsCameraTracked && CaptureSettings.bIsCalibratorTracked)
+	{
+		EnumAddFlags(SolverFlags, ECalibrationFlags::GroupCameraPoses);
 	}
 
 	if (SolverSettings.bFixFocalLength)
@@ -826,6 +835,27 @@ void ULensDistortionTool::RescalePoints(TArray<FVector2D>& Points, FIntPoint Deb
 	for (FVector2D& Point : Points)
 	{
 		Point += TopLeftCorner;
+	}
+}
+
+void ULensDistortionTool::GenerateDummyCheckerboardPoints(TArray<FObjectPoints>& Samples3d, int32 NumImages, FIntPoint CheckerboardDimensions)
+{
+	// If the camera is not tracked, the distortion solver must initialize the camera pose for each image using linear algebra techniques.
+	// However, it struggles to do so when "real" tracking data is used for the calibrator. So in this case, we replace the tracked calibrator data 
+	// with a set of dummy points for the 3D checkerboard corners. The board is assumed to lie in the YZ plane with the TopLeft corner at (0, 0, 0) in world space.
+	Samples3d.Empty();
+	for (int32 ImageIndex = 0; ImageIndex < NumImages; ++ImageIndex)
+	{
+		FObjectPoints Points3d;
+		for (int32 RowIdx = 0; RowIdx < CheckerboardDimensions.Y; ++RowIdx)
+		{
+			for (int32 ColIdx = 0; ColIdx < CheckerboardDimensions.X; ++ColIdx)
+			{
+				Points3d.Points.Add(FVector(0, ColIdx, -RowIdx));
+			}
+		}
+
+		Samples3d.Add(Points3d);
 	}
 }
 
