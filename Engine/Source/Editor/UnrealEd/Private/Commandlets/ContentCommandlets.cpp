@@ -158,6 +158,8 @@ int32 UResavePackagesCommandlet::InitializeResaveParameters( const TArray<FStrin
 		}
 		else if( FParse::Value( *CurrentSwitch, TEXT( "PACKAGEFOLDER="), PackageFolder ) )
 		{
+			FPaths::NormalizeDirectoryName(PackageFolder);
+
 			TArray<FString> FilesInPackageFolder;
 			FPackageName::FindPackagesInDirectory(FilesInPackageFolder, PackageFolder);
 			for( int32 FileIndex = 0; FileIndex < FilesInPackageFolder.Num(); FileIndex++ )
@@ -166,6 +168,8 @@ int32 UResavePackagesCommandlet::InitializeResaveParameters( const TArray<FStrin
 				FPaths::MakeStandardFilename(PackageFile);
 				PackageNames.Add( *PackageFile );
 			}
+
+			UE_CLOG(PackageNames.IsEmpty(), LogContentCommandlet, Warning, TEXT("Failed to find any packages in folder: '%s'"), *PackageFolder);
 			bExplicitPackages = true;
 		}
 		else if (FParse::Value(*CurrentSwitch, TEXT("MAP="), Maps))
