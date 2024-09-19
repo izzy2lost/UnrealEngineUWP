@@ -115,13 +115,16 @@ float3 GetMegaLightsVolumeLighting(
 				SoftFade *= GetSpotLightVolumetricSoftFading(LightData, LightVolumetricSoftFadeDistance, ToLight);
 			}
 #endif
-
 			Lighting = SoftFade * IntegrateLight(Capsule, LightData.bInverseSquared);
-
 		}
 
+		FLightFunctionColor LightFunctionColor = 1.0f;
+#if USE_LIGHT_FUNCTION_ATLAS
+		LightFunctionColor = GetLocalLightFunctionCommon(TranslatedWorldPosition, LightData.LightFunctionAtlasLightIndex);
+#endif
+
 		float CombinedAttenuation = Lighting * LightMask;
-		LightScattering += LightData.Color * (HenyeyGreensteinPhase(VolumePhaseG, dot(L, -CameraVector)) * CombinedAttenuation * VolumetricScatteringIntensity);
+		LightScattering += LightData.Color * LightFunctionColor * (HenyeyGreensteinPhase(VolumePhaseG, dot(L, -CameraVector)) * CombinedAttenuation * VolumetricScatteringIntensity);
 	}
 
 	return LightScattering;
