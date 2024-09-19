@@ -31,6 +31,7 @@
 #include "Tracks/MovieSceneSlomoTrack.h"
 #include "Tracks/MovieSceneSpawnTrack.h"
 #include "Tracks/MovieSceneSubTrack.h"
+#include "Tracks/MovieSceneTimeWarpTrack.h"
 #include "UObject/AssetRegistryTagsContext.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DaySequence)
@@ -129,6 +130,7 @@ ETrackSupport UDaySequence::IsTrackSupportedImpl(TSubclassOf<class UMovieSceneTr
 		InTrackClass == UMovieSceneMaterialParameterCollectionTrack::StaticClass() ||
 		InTrackClass == UMovieSceneSlomoTrack::StaticClass() ||
 		InTrackClass == UMovieSceneSpawnTrack::StaticClass() ||
+		InTrackClass == UMovieSceneTimeWarpTrack::StaticClass() ||
 		InTrackClass == UMovieSceneCVarTrack::StaticClass() ||
 		InTrackClass == UDaySequenceTrack::StaticClass())
 	{

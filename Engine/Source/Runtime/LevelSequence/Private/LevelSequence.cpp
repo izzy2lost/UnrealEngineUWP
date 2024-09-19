@@ -39,6 +39,7 @@
 #include "Tracks/MovieSceneSlomoTrack.h"
 #include "Tracks/MovieSceneSpawnTrack.h"
 #include "Tracks/MovieSceneSubTrack.h"
+#include "Tracks/MovieSceneTimeWarpTrack.h"
 #include "Tracks/MovieSceneCVarTrack.h"
 #include "Tracks/MovieSceneBindingLifetimeTrack.h"
 #include "Modules/ModuleManager.h"
@@ -154,7 +155,8 @@ ETrackSupport ULevelSequence::IsTrackSupportedImpl(TSubclassOf<class UMovieScene
 		InTrackClass == UMovieSceneSpawnTrack::StaticClass() ||
 		InTrackClass == UMovieSceneSubTrack::StaticClass() ||
 		InTrackClass == UMovieSceneCVarTrack::StaticClass() ||
-		InTrackClass == UMovieSceneBindingLifetimeTrack::StaticClass())
+		InTrackClass == UMovieSceneBindingLifetimeTrack::StaticClass() ||
+		InTrackClass == UMovieSceneTimeWarpTrack::StaticClass())
 	{
 		return ETrackSupport::Supported;
 	}

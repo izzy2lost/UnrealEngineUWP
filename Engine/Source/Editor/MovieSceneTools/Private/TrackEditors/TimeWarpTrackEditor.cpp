@@ -368,6 +368,12 @@ TSharedRef<ISequencerSection> FTimeWarpTrackEditor::MakeSectionInterface(UMovieS
 	return MakeShared<UE::Sequencer::FTimeWarpSection>(SectionObject, GetSequencer());
 }
 
+bool FTimeWarpTrackEditor::SupportsSequence(UMovieSceneSequence* InSequence) const
+{
+	ETrackSupport TrackSupported = InSequence ? InSequence->IsTrackSupported(UMovieSceneTimeWarpTrack::StaticClass()) : ETrackSupport::NotSupported;
+	return TrackSupported == ETrackSupport::Supported;
+}
+
 void FTimeWarpTrackEditor::HandleAddTimeWarpTrack(TSubclassOf<UMovieSceneTimeWarpGetter> ClassType)
 {
 	UMovieScene* FocusedMovieScene = GetFocusedMovieScene();
