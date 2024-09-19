@@ -107,7 +107,6 @@ public:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 	void OnOutputProvidersEdited(FPropertyChangedChainEvent& PropertyChangedEvent);
-	void OnTargetViewportEdited();
 #endif // WITH_EDITOR
 
 	/** Applies the component instance cache */

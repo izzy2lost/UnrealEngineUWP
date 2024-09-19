@@ -214,13 +214,22 @@ namespace UE::PixelStreamingVCam
 
 	void FVCamPixelStreamingSessionLogic::PostReapplyViewport(DecoupledOutputProvider::IOutputProviderEvent& Args)
 	{
-		StopCapture();
-		
 		UVCamPixelStreamingSession* This = Cast<UVCamPixelStreamingSession>(&Args.GetOutputProvider());
-		check(This);
-		
-		SetupCapture(This);
-		SetupCustomInputHandling(This);
+		// We're called as part of UVCamOutputProviderBase::ReinitializeViewport, which has called FViewportManager::RequestResolutionRefresh.
+		// RequestResolutionRefresh may update the viewport resolution at the end of the tick. If that happens, and we called SetupCapture now,
+		// we'd get an EMediaCaptureState::Error in OnCaptureStateChanged (I don't know why).
+		// This restarts the capture when the viewport is ready for it.
+		This->GetWorld()->GetTimerManager().SetTimerForNextTick([this, WeakThis = TWeakObjectPtr(This)]
+		{
+			if (UVCamPixelStreamingSession* This = WeakThis.Get();
+				This && This->IsOutputting())
+			{
+				StopCapture();
+
+				SetupCapture(This);
+				SetupCustomInputHandling(This);
+			}
+		});
 	}
 
 	void FVCamPixelStreamingSessionLogic::StopCapture()

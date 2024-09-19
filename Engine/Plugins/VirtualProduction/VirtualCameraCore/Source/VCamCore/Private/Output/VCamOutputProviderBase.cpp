@@ -535,8 +535,6 @@ void UVCamOutputProviderBase::PostEditChangeProperty(FPropertyChangedEvent& Prop
 		static FName NAME_IsActive = GET_MEMBER_NAME_CHECKED(UVCamOutputProviderBase, bIsActive);
 		static FName NAME_UMGClass = GET_MEMBER_NAME_CHECKED(UVCamOutputProviderBase, UMGClass);
 		static FName NAME_TargetViewport = GET_MEMBER_NAME_CHECKED(UVCamOutputProviderBase, TargetViewport);
-		static FName NAME_OverrideResolution = GET_MEMBER_NAME_CHECKED(UVCamOutputProviderBase, OverrideResolution);
-		static FName NAME_bUseOverrideResolution = GET_MEMBER_NAME_CHECKED(UVCamOutputProviderBase, bUseOverrideResolution);
 
 		const FName PropertyName = Property->GetFName();
 		if (PropertyName == NAME_IsActive)
@@ -556,16 +554,14 @@ void UVCamOutputProviderBase::PostEditChangeProperty(FPropertyChangedEvent& Prop
 				SetActive(true);
 			}
 		}
-		else if (PropertyName == NAME_TargetViewport)
-		{
-			ReinitializeViewportIfNeeded();
-		}
-		else if (PropertyName == NAME_OverrideResolution || PropertyName == NAME_bUseOverrideResolution)
-		{
-			RequestResolutionRefresh();
-		}
 	}
-
+	
+	ReinitializeViewportIfNeeded();
+	
+	UE::VCamCore::FViewportManager& ViewportManager = UE::VCamCore::FVCamCoreModule::Get().GetViewportManager();
+	ViewportManager.RequestResolutionRefresh();
+	ViewportManager.RequestLockRefresh();
+	
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 
@@ -646,6 +642,11 @@ void UVCamOutputProviderBase::ReinitializeViewportIfNeeded()
 
 void UVCamOutputProviderBase::ReinitializeViewport()
 {
+	// We may change viewports - update at the end of the frame.
+	UE::VCamCore::FViewportManager& ViewportManager = UE::VCamCore::FVCamCoreModule::Get().GetViewportManager();
+	ViewportManager.RequestResolutionRefresh();
+	ViewportManager.RequestLockRefresh();
+	
 	// This new flow is introduced with 5.4.
 	// Before 5.4, changing the target viewport would reinitialize the output provider with the below SetActive(false) SetActive(true) flow.
 	// This is undesirable because SetActive(false) kills current resources, like a connection to an external device (e.g. pixel stream), and then re-initializes them with the new target settings in SetActive(true).

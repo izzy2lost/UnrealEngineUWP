@@ -475,10 +475,6 @@ void UVCamComponent::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pro
 			{
 				OnOutputProvidersEdited(PropertyChangedEvent);
 			}
-			else if (ActualProperty->GetFName() == NAME_TargetViewport)
-			{
-				OnTargetViewportEdited();
-			}
 
 			// We created this in PreEditChange, so we need to always get rid of it
 			SavedOutputProviders.Empty();
@@ -526,18 +522,6 @@ void UVCamComponent::OnOutputProvidersEdited(FPropertyChangedChainEvent& Propert
 		{
 			DestroyOutputProvider(ClearedProvider);
 		}
-	}
-}
-
-void UVCamComponent::OnTargetViewportEdited()
-{
-	if (bEnabled)
-	{
-		SetEnabled(false);
-		SetEnabled(true);
-
-		UE::VCamCore::FViewportManager& ViewportManager = UE::VCamCore::FVCamCoreModule::Get().GetViewportManager();
-		ViewportManager.RequestLockRefresh();
 	}
 }
 
