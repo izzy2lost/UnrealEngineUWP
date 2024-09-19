@@ -40,6 +40,26 @@ namespace Helpers
 		// Reverse to get it in the correct travel order.
 		Algo::Reverse(OutPath);
 	}
+
+	TTuple<const FPCGPoint*, double> GetNearestGoalToLocation(const FVector& Location, const TArray<FPCGPoint>& GoalPoints)
+	{
+		check(!GoalPoints.IsEmpty());
+
+		double MinSquaredDistanceToGoal = std::numeric_limits<double>::max();
+		int32 CurrentGoalIndex = INDEX_NONE;
+		for (int32 GoalIndex = 0; GoalIndex < GoalPoints.Num(); ++GoalIndex)
+		{
+			const double SquareDistanceToGoal = FVector::DistSquared(Location, GoalPoints[GoalIndex].Transform.GetLocation());
+			if (SquareDistanceToGoal < MinSquaredDistanceToGoal)
+			{
+				MinSquaredDistanceToGoal = SquareDistanceToGoal;
+				CurrentGoalIndex = GoalIndex;
+			}
+		}
+		check(CurrentGoalIndex != INDEX_NONE);
+
+		return MakeTuple(&GoalPoints[CurrentGoalIndex], MinSquaredDistanceToGoal);
+	}
 }
 
 namespace Cost
@@ -60,40 +80,44 @@ namespace Heuristic
 }
 
 /** Initialize the search state for AStar. Must be called before ExecuteSearchIteration. */
-void Initialize(const UPCGPointData* const PointData, const FSearchSettings& Settings, FSearchState& OutSearchState)
+void Initialize(const FPCGPoint* const StartPoint, FSearchState& OutSearchState)
 {
-	check(PointData && !PointData->IsEmpty());
+	check(StartPoint);
 
 	// Emplace the starting node on the open list. The costs will be 0 at the starting point.
 	OutSearchState.NodeList.Reset();
-	OutSearchState.NodeList.Emplace(&Settings.StartPoint, /*InParent=*/INDEX_NONE, /*InCost=*/0.0, /*HeuristicCost=*/0.0);
+	OutSearchState.NodeList.Emplace(StartPoint, /*InParent=*/INDEX_NONE, /*InCost=*/0.0, /*HeuristicCost=*/0.0);
 	OutSearchState.OpenIndexList.Reset();
 	// Okay to add the first index this way, since it will be "heapified" by default with one element.
 	OutSearchState.OpenIndexList.Add(0);
 	OutSearchState.ClosedIndexList.Reset();
+	OutSearchState.PointToNodeIndexMap.Reset();
 }
 
 /** Runs a single iteration of the A* algorithm. Intended to be called multiple times, whereupon it will return true when the algorithm is finished. */
-bool ExecuteSearchIteration(const FSearchSettings& SearchSettings, FSearchState& SearchState, TArray<FPCGPoint>& OutPath)
+ESearchResult ExecuteSearchIteration(const FSearchSettings& SearchSettings, FSearchState& SearchState, const TArray<FPCGPoint>& GoalPoints, TArray<FPCGPoint>& OutPath)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGPathfindingElement::Algorithm::AStar);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGPathfindingElement::Algorithm::ExecuteSearchIteration);
 	check(SearchState.OriginatingPointData);
 
-	// The starting node should be guaranteed by the caller.
-	if (!ensure(!SearchState.OpenIndexList.IsEmpty()))
+	// The goal points should be guaranteed by the caller. Must call Initialize first to create the open index list.
+	if (GoalPoints.IsEmpty() || !ensure(!SearchState.OpenIndexList.IsEmpty()))
 	{
-		return true;
+		return ESearchResult::Invalid;
 	}
 
 	TArray<FNode, TInlineAllocator<FSearchState::PreAllocNodeCount>>& NodeList = SearchState.NodeList;
+
+	auto HeapPredicate = [&SearchState](int32 Index1, int32 Index2) { return Helpers::CompareNodes(SearchState.NodeList[Index1], SearchState.NodeList[Index2]); };
+
 	// Get the lowest cost point on the list, which has been binary heap sorted.
 	int32 CurrentNodeIndex;
-	SearchState.OpenIndexList.HeapPop(CurrentNodeIndex, [&SearchState](int32 Index1, int32 Index2) { return Helpers::CompareNodes(SearchState.NodeList[Index1], SearchState.NodeList[Index2]); }, EAllowShrinking::No);
+	SearchState.OpenIndexList.HeapPop(CurrentNodeIndex, HeapPredicate, EAllowShrinking::No);
 	check(NodeList[CurrentNodeIndex].PCGPoint);
 
-	const double SquareDistanceToGoal = FVector::DistSquared(NodeList[CurrentNodeIndex].PCGPoint->Transform.GetLocation(), SearchSettings.Goal);
+	auto [CurrentGoal, MinSquaredDistanceToGoal] = Helpers::GetNearestGoalToLocation(NodeList[CurrentNodeIndex].PCGPoint->Transform.GetLocation(), GoalPoints);
 
-	auto PerPointProcessing = [&NodeList, CurrentNodeIndex, &SearchSettings, &SearchState](const FPCGPoint* Point, const double DistanceToPointSquared)
+	auto PerPointProcessing = [&NodeList, CurrentNodeIndex, CurrentGoal, &HeapPredicate, &SearchSettings, &SearchState, &GoalPoints](const FPCGPoint* Point, const double DistanceToPointSquared)
 	{
 		const bool bTrackedPoint = SearchState.PointToNodeIndexMap.Contains(Point);
 		// Node has already been ruled out.
@@ -110,13 +134,22 @@ bool ExecuteSearchIteration(const FSearchSettings& SearchSettings, FSearchState&
 			return;
 		}
 
+		/** Implementation Note: If there are multiple goals, a heuristic to a specific goal is not valid. The goal
+		 * can not be changed during the pathfinding process, as neighbor evaluation is tied to the heuristic to the
+		 * current goal at any point. Nodes may be ruled out and added to the Closed List
+		 */
+		auto GetHeuristicCost = [&SearchSettings, &SearchState, &GoalPoints](const FPCGPoint* CurrentPoint, const FPCGPoint* GoalPoint) -> double
+		{
+			return (GoalPoints.Num() > 1) ? 0.0 : SearchSettings.HeuristicWeight * SearchState.HeuristicFunction(CurrentPoint->Transform.GetLocation(), GoalPoint->Transform.GetLocation());
+		};
+
 		// Not tracking this point yet--add it to the node list and map it.
 		if (!bTrackedPoint)
 		{
-			const double HeuristicCost = SearchSettings.HeuristicWeight * SearchState.HeuristicFunction(Point->Transform.GetLocation(), SearchSettings.Goal);
+			const double HeuristicCost = GetHeuristicCost(Point, CurrentGoal);
 			NodeList.Emplace(Point, CurrentNodeIndex, TentativeNewLocalCost, TentativeNewLocalCost + HeuristicCost);
 			const int32 NewNodeIndex = NodeList.Num() - 1;
-			SearchState.OpenIndexList.HeapPush(NewNodeIndex, [&SearchState](int32 Index1, int32 Index2) { return Helpers::CompareNodes(SearchState.NodeList[Index1], SearchState.NodeList[Index2]); });
+			SearchState.OpenIndexList.HeapPush(NewNodeIndex, HeapPredicate);
 			SearchState.PointToNodeIndexMap.Emplace(Point, NewNodeIndex);
 
 			return;
@@ -127,25 +160,31 @@ bool ExecuteSearchIteration(const FSearchSettings& SearchSettings, FSearchState&
 		FNode& Neighbor = SearchState.NodeList[NeighborIndex];
 		if (TentativeNewLocalCost < Neighbor.LocalCost)
 		{
-			check(SearchState.OpenIndexList.Contains(NeighborIndex));
+			const int32 CurrentOpenListIndex = SearchState.OpenIndexList.Find(NeighborIndex);
+			check(CurrentOpenListIndex != INDEX_NONE);
 
-			const double HeuristicCost = SearchSettings.HeuristicWeight * SearchState.HeuristicFunction(Point->Transform.GetLocation(), SearchSettings.Goal);
+			// The priority may have changed, so remove the index and add it again.
+			SearchState.OpenIndexList.HeapRemoveAt(CurrentOpenListIndex, HeapPredicate, EAllowShrinking::No);
+
+			const double HeuristicCost = GetHeuristicCost(Point, CurrentGoal);
 			Neighbor.PreviousNodeIndex = CurrentNodeIndex;
 			Neighbor.LocalCost = TentativeNewLocalCost;
 			Neighbor.EstimatedGoalCost = TentativeNewLocalCost + HeuristicCost;
+
+			SearchState.OpenIndexList.HeapPush(NeighborIndex, HeapPredicate);
 		}
 	};
 
 	// Arrived at the goal.
-	if (FMath::IsNearlyZero(SquareDistanceToGoal))
+	if (FMath::IsNearlyZero(MinSquaredDistanceToGoal))
 	{
 		Helpers::BuildFinalPath(SearchState, SearchState.NodeList[CurrentNodeIndex], SearchSettings.bCopyOriginatingPoints, OutPath);
-		return true;
+		return ESearchResult::Complete;
 	}
 	// Close enough to the goal we need to add it as a possibility.
-	else if (SquareDistanceToGoal <= SearchSettings.SearchDistance * SearchSettings.SearchDistance)
+	else if (MinSquaredDistanceToGoal <= SearchSettings.SearchDistance * SearchSettings.SearchDistance)
 	{
-		PerPointProcessing(&SearchSettings.GoalPoint, SquareDistanceToGoal);
+		PerPointProcessing(CurrentGoal, MinSquaredDistanceToGoal);
 	}
 
 	// Gather neighbors within the search radius.
@@ -168,20 +207,29 @@ bool ExecuteSearchIteration(const FSearchSettings& SearchSettings, FSearchState&
 
 		if (SearchSettings.bAcceptPartialPath)
 		{
-			auto DistanceSquaredToGoal = [&NodeList = SearchState.NodeList, &Goal = SearchSettings.Goal](const int32 NodeIndex)
+			// Find the closest point to any goal and walk back the path from there.
+			int32 ClosestNodeIndex = INDEX_NONE;
+			double ClosestSquaredDistance = std::numeric_limits<double>::max();
+			for (const int32 NodeIndex : SearchState.ClosedIndexList)
 			{
-				return FVector::DistSquared(NodeList[NodeIndex].PCGPoint->Transform.GetLocation(), Goal);
-			};
-
-			if (const int32* MaxNodeIndex = Algo::MinElementBy(SearchState.ClosedIndexList, DistanceSquaredToGoal))
-			{
-				Helpers::BuildFinalPath(SearchState, SearchState.NodeList[*MaxNodeIndex], SearchSettings.bCopyOriginatingPoints, OutPath);
+				auto [Point, SquaredDistance] = Helpers::GetNearestGoalToLocation(SearchState.NodeList[NodeIndex].PCGPoint->Transform.GetLocation(), GoalPoints);
+				if (SquaredDistance < ClosestSquaredDistance)
+				{
+					ClosestSquaredDistance = SquaredDistance;
+					ClosestNodeIndex = NodeIndex;
+				}
 			}
-		}
 
-		return true;
+			Helpers::BuildFinalPath(SearchState, SearchState.NodeList[ClosestNodeIndex], SearchSettings.bCopyOriginatingPoints, OutPath);
+
+			return ESearchResult::Partial;
+		}
+		else
+		{
+			return ESearchResult::Invalid;
+		}
 	}
 
-	return false;
+	return ESearchResult::Processing;
 }
 } // namespace PCGSpatialAlgo::AStar
