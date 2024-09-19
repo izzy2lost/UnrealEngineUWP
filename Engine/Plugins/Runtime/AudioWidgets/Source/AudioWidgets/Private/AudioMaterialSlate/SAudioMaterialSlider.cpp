@@ -44,17 +44,16 @@ int32 SAudioMaterialSlider::OnPaint(const FPaintArgs& Args, const FGeometry& All
 		if (DynamicMaterial.IsValid())
 		{
 			const float Value = ValueAttribute.Get();
-			DynamicMaterial.Get()->SetVectorParameterValue(FName("BarColor"), AudioMaterialSliderStyle->BarMainColor);
-			DynamicMaterial.Get()->SetVectorParameterValue(FName("LedColor"), AudioMaterialSliderStyle->BarShadowColor);
-			DynamicMaterial.Get()->SetVectorParameterValue(FName("BarInnerShadow"), AudioMaterialSliderStyle->BarAccentColor);
-			DynamicMaterial.Get()->SetVectorParameterValue(FName("ValueColor"), AudioMaterialSliderStyle->HandleMainColor);
-			DynamicMaterial.Get()->SetVectorParameterValue(FName("DotBevel1"), AudioMaterialSliderStyle->HandleOutlineColor);
+			DynamicMaterial.Get()->SetVectorParameterValue(FName("BarColor"), AudioMaterialSliderStyle->SliderBackgroundColor);
+			DynamicMaterial.Get()->SetVectorParameterValue(FName("LedColor"), AudioMaterialSliderStyle->SliderValueMainColor);
+			DynamicMaterial.Get()->SetVectorParameterValue(FName("BarInnerShadow"), AudioMaterialSliderStyle->SliderBackgroundAccentColor);
+			DynamicMaterial.Get()->SetVectorParameterValue(FName("ValueColor"), AudioMaterialSliderStyle->SliderHandleMainColor);
+			DynamicMaterial.Get()->SetVectorParameterValue(FName("ValueColorEdge"), AudioMaterialSliderStyle->SliderHandleOutlineColor);
 			DynamicMaterial.Get()->SetScalarParameterValue(FName("VALUE"), FMath::Clamp(Value, 0.f, 1.f));
 			DynamicMaterial.Get()->SetScalarParameterValue(FName("LedInt"), FMath::GetMappedRangeValueClamped(FVector2D(0.f,1.f),FVector2D(0.7f,4.f), Value));
 
 			DynamicMaterial.Get()->SetScalarParameterValue(FName("LocalWidth"), AllottedGeometry.GetLocalSize().X);
 			DynamicMaterial.Get()->SetScalarParameterValue(FName("LocalHeigth"), AllottedGeometry.GetLocalSize().Y);
-
 
 			// We draw the slider as a vertical slider regardless of the orientation and apply a render transform to make it display in the correct orientation.
 			FGeometry SliderGeometry = AllottedGeometry;

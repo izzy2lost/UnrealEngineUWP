@@ -57,8 +57,8 @@ int32 SAudioMaterialMeter::OnPaint(const FPaintArgs& Args, const FGeometry& Allo
 				DynamicMaterial->SetVectorParameterValue(FName("A (V3)"), Style->MeterFillMinColor);
 				DynamicMaterial->SetVectorParameterValue(FName("B (V3)"), Style->MeterFillMidColor);
 				DynamicMaterial->SetVectorParameterValue(FName("C (V3)"), Style->MeterFillMaxColor);
-				DynamicMaterial->SetVectorParameterValue(FName("OffColor"), Style->MeterOffFillColor);
-				DynamicMaterial->SetVectorParameterValue(FName("DotsOffColor"), Style->MeterOffFillColor);
+				DynamicMaterial->SetVectorParameterValue(FName("OffColor"), Style->MeterFillBackgroundColor);
+				DynamicMaterial->SetVectorParameterValue(FName("DotsOffColor"), Style->MeterFillBackgroundColor);
 
 				float ChannelMeterValueDb = FMath::GetMappedRangeValueClamped(Style->ValueRangeDb,FVector2D(0.f,1.f),  ChannelInfos[ChannelIndex].MeterValue);
 				DynamicMaterial->SetScalarParameterValue(FName("VALUE"), ChannelMeterValueDb);
