@@ -221,7 +221,6 @@ public:
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, LightViewSpacePositionAndRadius)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, LightViewSpaceDirAndPreprocAngle)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, LightViewSpaceRectPlanes)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, ForwardLocalLightBuffer)
 
 		SHADER_PARAMETER(FIntVector, CulledGridSize)
 		SHADER_PARAMETER(uint32, NumReflectionCaptures)
@@ -963,7 +962,6 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 			PassParameters->RWNextCulledLightLink   = GraphBuilder.CreateUAV(NextCulledLightLinkBuffer);
 			PassParameters->RWStartOffsetGrid       = GraphBuilder.CreateUAV(StartOffsetGridBuffer);
 			PassParameters->RWCulledLightLinks      = GraphBuilder.CreateUAV(CulledLightLinksBuffer);
-			PassParameters->ForwardLocalLightBuffer = ForwardLightData->ForwardLocalLightBuffer;
 			PassParameters->CulledGridSize          = ForwardLightData->CulledGridSize;
 			PassParameters->LightGridZParams        = ForwardLightData->LightGridZParams;
 			PassParameters->NumReflectionCaptures   = ForwardLightData->NumReflectionCaptures;
