@@ -34,7 +34,6 @@ public:
 	virtual FName GetIconName() const override;
 
 	/** If true, the filter will be active in the FilterBar when it is inactive in the UI (i.e the filter pill is grayed out)
-	 * @See: FFrontendFilter_ShowOtherDevelopers in Content Browser
 	 */
 	virtual bool IsInverseFilter() const override;
 

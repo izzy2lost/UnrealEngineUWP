@@ -234,7 +234,7 @@ public:
 };
 
 /** An inverse filter that allows display of content in developer folders that are not the current user's */
-class UE_DEPRECATED(5.5, "This frontend filter has been deprecated and replaced with backend filtering. see FFilter_ShowOtherDevelopers.")
+class UE_DEPRECATED(5.5, "This frontend filter has been deprecated and replaced with backend filtering. see FFilter_HideOtherDevelopers.")
 CONTENTBROWSER_API FFrontendFilter_ShowOtherDevelopers : public FFrontendFilter
 {
 public:

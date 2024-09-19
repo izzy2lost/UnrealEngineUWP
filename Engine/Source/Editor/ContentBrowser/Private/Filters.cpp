@@ -60,19 +60,19 @@ void FFilter_ShowRedirectors::LoadSettings(const FString& IniFilename, const FSt
  * FFilter_OtherDevelopers 
  */
 
-FFilter_ShowOtherDevelopers::FFilter_ShowOtherDevelopers(TSharedPtr<FFrontendFilterCategory> InCategory, FName InFilterBarIdentifier)
+FFilter_HideOtherDevelopers::FFilter_HideOtherDevelopers(TSharedPtr<FFrontendFilterCategory> InCategory, FName InFilterBarIdentifier)
 	: FFrontendFilter(InCategory)
 	, FilterBarIdentifier(InFilterBarIdentifier)
 	, PathPermissionList(MakeShared<FPathPermissionList>())
 {
 	UContentBrowserDataSubsystem* ContentBrowserData = IContentBrowserDataModule::Get().GetSubsystem();
-	ItemDataUpdatedHandle = ContentBrowserData->OnItemDataUpdated().AddRaw(this, &FFilter_ShowOtherDevelopers::HandleItemDataUpdated);
-	ItemDataRefreshedHandle = ContentBrowserData->OnItemDataRefreshed().AddRaw(this, &FFilter_ShowOtherDevelopers::HandleItemDataRefreshed);
+	ItemDataUpdatedHandle = ContentBrowserData->OnItemDataUpdated().AddRaw(this, &FFilter_HideOtherDevelopers::HandleItemDataUpdated);
+	ItemDataRefreshedHandle = ContentBrowserData->OnItemDataRefreshed().AddRaw(this, &FFilter_HideOtherDevelopers::HandleItemDataRefreshed);
 
 	BuildFilter();
 }
 
-FFilter_ShowOtherDevelopers::~FFilter_ShowOtherDevelopers()
+FFilter_HideOtherDevelopers::~FFilter_HideOtherDevelopers()
 {
 	if (IContentBrowserDataModule* ContentBrowserModule = IContentBrowserDataModule::GetPtr())
 	{
@@ -84,12 +84,12 @@ FFilter_ShowOtherDevelopers::~FFilter_ShowOtherDevelopers()
 	}
 }
 
-TSharedRef<const FPathPermissionList> FFilter_ShowOtherDevelopers::GetPathPermissionList() 
+TSharedRef<const FPathPermissionList> FFilter_HideOtherDevelopers::GetPathPermissionList() 
 {
 	return PathPermissionList;
 }
 
-void FFilter_ShowOtherDevelopers::BuildFilter()
+void FFilter_HideOtherDevelopers::BuildFilter()
 {
 	static const FName NAME_OtherDevelopers{"OtherDevelopers"};
 	// Update list of other developer folders and put into permission list 
@@ -107,7 +107,7 @@ void FFilter_ShowOtherDevelopers::BuildFilter()
 	if (OtherDeveloperFolders.Num() != PreviousPaths.Num() || OtherDeveloperFolders.Difference(PreviousPaths).Num() != 0
 		|| PreviousPaths.Difference(OtherDeveloperFolders).Num() != 0)
 	{
-		UE_LOG(LogContentBrowser, Verbose, TEXT("[%s] FFilterShowOtherDevelopers rebuilt exclusion list: %s"), *FilterBarIdentifier.ToString(), 
+		UE_LOG(LogContentBrowser, Verbose, TEXT("[%s] FFilterHideOtherDevelopers rebuilt exclusion list: %s"), *FilterBarIdentifier.ToString(), 
 			*FString::JoinBy(OtherDeveloperFolders, TEXT(","), UE_PROJECTION_MEMBER(FName, ToString)));
 		
 		// Recreate the permission list so that the content browser can do pointer comparison to tell that the list has changed rather than tbinding the delegate
@@ -120,16 +120,16 @@ void FFilter_ShowOtherDevelopers::BuildFilter()
 	}
 	else
 	{
-		UE_LOG(LogContentBrowser, Verbose, TEXT("[%s] FFilterShowOtherDevelopers keeping previous exclusion list"), *FilterBarIdentifier.ToString());
+		UE_LOG(LogContentBrowser, Verbose, TEXT("[%s] FFilterHideOtherDevelopers keeping previous exclusion list"), *FilterBarIdentifier.ToString());
 	}
 }
 
-void FFilter_ShowOtherDevelopers::HandleItemDataRefreshed()
+void FFilter_HideOtherDevelopers::HandleItemDataRefreshed()
 {
 	BuildFilter();
 }
 
-void FFilter_ShowOtherDevelopers::HandleItemDataUpdated(TArrayView<const FContentBrowserItemDataUpdate> InUpdatedItems)
+void FFilter_HideOtherDevelopers::HandleItemDataUpdated(TArrayView<const FContentBrowserItemDataUpdate> InUpdatedItems)
 {
 	const bool bNeedsRebuild = Algo::AnyOf(InUpdatedItems, [](const FContentBrowserItemDataUpdate& Update){
 		FName InternalPath = Update.GetItemData().GetInternalPath();
@@ -149,43 +149,43 @@ void FFilter_ShowOtherDevelopers::HandleItemDataUpdated(TArrayView<const FConten
 }
 
 /** Returns the human readable name for this filter */
-FText FFilter_ShowOtherDevelopers::GetDisplayName() const
+FText FFilter_HideOtherDevelopers::GetDisplayName() const
 {
-	return LOCTEXT("FrontendFilter_ShowOtherDevelopers", "Other Developers"); 
+	return LOCTEXT("FrontendFilter_HideOtherDevelopers", "Hide Other Developers"); 
 }
 
 /** Returns the tooltip for this filter, shown in the filters menu */
-FText FFilter_ShowOtherDevelopers::GetToolTipText() const
+FText FFilter_HideOtherDevelopers::GetToolTipText() const
 { 
-	return LOCTEXT("FrontendFilter_ShowOtherDevelopersTooltip", "Allow display of assets in developer folders that aren't yours."); 
+	return LOCTEXT("FrontendFilter_HideOtherDevelopersTooltip", "Hide the display of assets in developer folders that aren't yours."); 
 }
 
 /** Returns the name of the icon to use in menu entries */
-FName FFilter_ShowOtherDevelopers::GetIconName() const
+FName FFilter_HideOtherDevelopers::GetIconName() const
 {
 	return NAME_None;
 }
 
 /** Notification that the filter became active or inactive */
-void FFilter_ShowOtherDevelopers::ActiveStateChanged(bool bActive)
+void FFilter_HideOtherDevelopers::ActiveStateChanged(bool bActive)
 {
 	if (bActive)
 	{
-		UE_LOG(LogContentBrowser, Verbose, TEXT("[%s] FFilterShowOtherDevelopers active, hiding content from other developers"), *FilterBarIdentifier.ToString());
+		UE_LOG(LogContentBrowser, Verbose, TEXT("[%s] FFilterHideOtherDevelopers active, hiding content from other developers"), *FilterBarIdentifier.ToString());
 	}
 	else
 	{
-		UE_LOG(LogContentBrowser, Verbose, TEXT("[%s] FFilterShowOtherDevelopers inactive, showing content from all developers"), *FilterBarIdentifier.ToString());
+		UE_LOG(LogContentBrowser, Verbose, TEXT("[%s] FFilterHideOtherDevelopers inactive, showing content from all developers"), *FilterBarIdentifier.ToString());
 	}
 }
 
 /** Can be overriden for custom FilterBar subclasses to save settings, currently not implemented in any gneeric Filter Bar */
-void FFilter_ShowOtherDevelopers::SaveSettings(const FString& IniFilename, const FString& IniSection, const FString& SettingsString) const
+void FFilter_HideOtherDevelopers::SaveSettings(const FString& IniFilename, const FString& IniSection, const FString& SettingsString) const
 {
 }
 
 /** Can be overriden for custom FilterBar subclasses to load settings, currently not implemented in any gneeric Filter Bar */
-void FFilter_ShowOtherDevelopers::LoadSettings(const FString& IniFilename, const FString& IniSection, const FString& SettingsString)
+void FFilter_HideOtherDevelopers::LoadSettings(const FString& IniFilename, const FString& IniSection, const FString& SettingsString)
 {
 }
 

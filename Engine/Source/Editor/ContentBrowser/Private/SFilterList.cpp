@@ -71,7 +71,7 @@ void SFilterList::Construct( const FArguments& InArgs )
 
 	TSharedPtr<FFrontendFilterCategory> DefaultCategory = MakeShareable( new FFrontendFilterCategory(LOCTEXT("FrontendFiltersCategory", "Other Filters"), LOCTEXT("FrontendFiltersCategoryTooltip", "Filter assets by all filters in this category.")) );
 	
-	TSharedRef<FFilter_ShowOtherDevelopers> OtherDevelopersFilter = MakeShared<FFilter_ShowOtherDevelopers>(DefaultCategory, InArgs._FilterBarIdentifier);
+	TSharedRef<FFilter_HideOtherDevelopers> OtherDevelopersFilter = MakeShared<FFilter_HideOtherDevelopers>(DefaultCategory, InArgs._FilterBarIdentifier);
 	// This filter affecst the backend query so we must perform a full refresh when it changes
 	OtherDevelopersFilter->OnChanged().Add(this->OnFilterChanged);
 
@@ -189,8 +189,8 @@ TSharedRef<SWidget> SFilterList::ExternalMakeAddFilterMenu()
 
 FARFilter SFilterList::GetCombinedBackendFilter(TArray<TSharedRef<const FPathPermissionList>>& OutPermissionLists) const
 {
-	TSharedPtr<FFilter_ShowOtherDevelopers> OtherDevelopersFilter = StaticCastSharedPtr<FFilter_ShowOtherDevelopers>(GetFrontendFilter("ShowOtherDevelopersBackend"));
-	if (!OtherDevelopersFilter->IsActive()) // Filter when inactive, because it's an inverse filter 
+	TSharedPtr<FFilter_HideOtherDevelopers> OtherDevelopersFilter = StaticCastSharedPtr<FFilter_HideOtherDevelopers>(GetFrontendFilter("HideOtherDevelopersBackend"));
+	if (OtherDevelopersFilter->IsActive())
 	{
 		OutPermissionLists.Add(OtherDevelopersFilter->GetPathPermissionList());
 	}
@@ -269,17 +269,8 @@ void SFilterList::DisableFiltersThatHideItems(TArrayView<const FContentBrowserIt
 			}
 		}
 
-		auto AddAndActivateInverseFilter = [this, &ExecuteOnFilterChanged](const TSharedRef<FFilterBase<FAssetFilterType>>& InFilter) 
-		{
-			int32 ExistingIndex = Filters.IndexOfByPredicate([InFilter](TSharedPtr<SFilter> Filter) { return Filter->GetFrontendFilter() == InFilter; });
-			TSharedRef<SFilter> FilterWidget = ExistingIndex == INDEX_NONE ? AddFilterToBar(InFilter) : Filters[ExistingIndex];
-			FilterWidget->SetEnabled(true, false);
-			SetFrontendFilterActive(InFilter, true);
-			ExecuteOnFilterChanged = true;
-		};
-		
-		TSharedPtr<FFilter_ShowOtherDevelopers> OtherDevelopersFilter = StaticCastSharedPtr<FFilter_ShowOtherDevelopers>(GetFrontendFilter("ShowOtherDevelopersBackend"));
-		// Special case: if item is hidden because of "other developers" filter, disable it
+		TSharedPtr<FFilter_HideOtherDevelopers> OtherDevelopersFilter = StaticCastSharedPtr<FFilter_HideOtherDevelopers>(GetFrontendFilter("HideOtherDevelopersBackend"));
+		// Special case: if item is hidden because of "hide other developers" filter, disable it
 		if (OtherDevelopersFilter.IsValid() && OtherDevelopersFilter->IsActive())
 		{
 			TSharedRef<const FPathPermissionList> PermissionList = OtherDevelopersFilter->GetPathPermissionList();	
@@ -287,11 +278,25 @@ void SFilterList::DisableFiltersThatHideItems(TArrayView<const FContentBrowserIt
 			{
 				if (PermissionList->PassesStartsWithFilter(WriteToString<256>(Item.GetInternalPath())))
 				{
-					AddAndActivateInverseFilter(OtherDevelopersFilter.ToSharedRef());
+					TSharedRef<FFilter_HideOtherDevelopers>	OtherDevelopersFilterAsRef = OtherDevelopersFilter.ToSharedRef();
+					int32 ExistingIndex = Filters.IndexOfByPredicate([OtherDevelopersFilterAsRef](TSharedPtr<SFilter> Filter) { return Filter->GetFrontendFilter() == OtherDevelopersFilterAsRef; });
+					TSharedRef<SFilter> FilterWidget = ExistingIndex == INDEX_NONE ? AddFilterToBar(OtherDevelopersFilterAsRef) : Filters[ExistingIndex];
+					FilterWidget->SetEnabled(false, false);
+					SetFrontendFilterActive(OtherDevelopersFilterAsRef, false);
+					ExecuteOnFilterChanged = true;
 					break;
 				}
 			}
 		}
+
+			auto AddAndActivateInverseFilter = [this, &ExecuteOnFilterChanged](const TSharedRef<FFilterBase<FAssetFilterType>>& InFilter) 
+		{
+			int32 ExistingIndex = Filters.IndexOfByPredicate([InFilter](TSharedPtr<SFilter> Filter) { return Filter->GetFrontendFilter() == InFilter; });
+			TSharedRef<SFilter> FilterWidget = ExistingIndex == INDEX_NONE ? AddFilterToBar(InFilter) : Filters[ExistingIndex];
+			FilterWidget->SetEnabled(true, false);
+			SetFrontendFilterActive(InFilter, true);
+			ExecuteOnFilterChanged = true;
+		};
 
 		// Special case: if the object is a redirector then enable the 'show redirectors' filter - this will also prevent
 		// folders that contain only redirectors from being hidden with the "hide empty folders" setting

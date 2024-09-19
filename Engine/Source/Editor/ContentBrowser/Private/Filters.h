@@ -35,7 +35,6 @@ public:
 	virtual FName GetIconName() const override;
 
 	/** If true, the filter will be active in the FilterBar when it is inactive in the UI (i.e the filter pill is grayed out)
-	 * @See: FFrontendFilter_ShowOtherDevelopers in Content Browser
 	 */
 	virtual bool IsInverseFilter() const 
 	{
@@ -99,12 +98,12 @@ private:
 };
 
 // Non-frontend filter which modifies content browser backend query to exclude folders belonging to other developers 
-class FFilter_ShowOtherDevelopers : public FFrontendFilter
+class FFilter_HideOtherDevelopers : public FFrontendFilter
 {
 public: 
-	FFilter_ShowOtherDevelopers(TSharedPtr<FFrontendFilterCategory> InCategory, FName FilterBarIdentifier);
-	FFilter_ShowOtherDevelopers& operator=(const FFilter_ShowOtherDevelopers&) = delete;
-	virtual ~FFilter_ShowOtherDevelopers();
+	FFilter_HideOtherDevelopers(TSharedPtr<FFrontendFilterCategory> InCategory, FName FilterBarIdentifier);
+	FFilter_HideOtherDevelopers& operator=(const FFilter_HideOtherDevelopers&) = delete;
+	virtual ~FFilter_HideOtherDevelopers();
 
 	/** Get the list of folders to be denied when this filter is active (visually disabled, becuase it's an inverse filter) */
 	TSharedRef<const FPathPermissionList> GetPathPermissionList();
@@ -114,7 +113,7 @@ public:
 	virtual bool PassesFilter(FAssetFilterType InItem) const override { return true; }
 
 	/** Returns the system name for this filter */
-	virtual FString GetName() const override { return TEXT("ShowOtherDevelopersBackend"); }
+	virtual FString GetName() const override { return TEXT("HideOtherDevelopersBackend"); }
 
 	/** Returns the human readable name for this filter */
 	virtual FText GetDisplayName() const override;
@@ -124,9 +123,6 @@ public:
 
 	/** Returns the name of the icon to use in menu entries */
 	virtual FName GetIconName() const override;
-
-	/** If true, the filter will be active in the FilterBar when it is inactive in the UI (i.e the filter pill is grayed out) */
-	virtual bool IsInverseFilter() const override { return true; }
 
 	/** Notification that the filter became active or inactive */
 	virtual void ActiveStateChanged(bool bActive) override;
