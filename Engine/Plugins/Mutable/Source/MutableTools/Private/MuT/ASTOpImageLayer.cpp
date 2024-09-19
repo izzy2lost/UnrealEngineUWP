@@ -181,9 +181,14 @@ namespace mu
 	{
 		Ptr<ASTOp> at;
 
-		auto baseAt = base.child();
-		auto blendAt = blend.child();
-		auto maskAt = mask.child();
+		Ptr<ASTOp> baseAt = base.child();
+		Ptr<ASTOp> blendAt = blend.child();
+		Ptr<ASTOp> maskAt = mask.child();
+
+		if (!baseAt)
+		{
+			return at;
+		}
 
 		// Convert to image layer color if blend is plain
 		if (!at && blendAt && blendAt->GetOpType() == OP_TYPE::IM_PLAINCOLOUR)
@@ -531,9 +536,14 @@ namespace mu
 
 		// Layer effects may be worth sinking down switches and conditionals, to be able
 		// to apply extra optimisations
-		auto baseAt = base.child();
-		auto blendAt = blend.child();
-		auto maskAt = mask.child();
+		Ptr<ASTOp> baseAt = base.child();
+		Ptr<ASTOp> blendAt = blend.child();
+		Ptr<ASTOp> maskAt = mask.child();
+
+		if (!baseAt)
+		{
+			return at;
+		}
 
 		// Promote conditions from the base
 		OP_TYPE baseType = baseAt->GetOpType();

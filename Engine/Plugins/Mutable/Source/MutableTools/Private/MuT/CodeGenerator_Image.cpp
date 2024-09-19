@@ -1840,7 +1840,12 @@ namespace mu
         }
 
         // Make sure all options are the same format and size
-        FImageDesc desc = currentOp->GetImageDesc( true );
+		FImageDesc desc;
+		if (currentOp)
+		{
+			desc = currentOp->GetImageDesc(true);
+		}
+
         if ( desc.m_format == EImageFormat::IF_NONE )
         {
             // TODO: Look for the most generic of the options?
