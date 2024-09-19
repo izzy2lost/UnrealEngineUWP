@@ -87,7 +87,8 @@ TScriptInterface<IMetaSoundDocumentInterface> UMetaSoundEditorSubsystem::BuildTo
 					// Only use referenced UObject's SoundWave settings for sources if not overridden 
 					if (TemplateSoundWave == nullptr && bIsSource)
 					{
-						if (const UObject* ReferencedObject = NewDocBuilder.GetReferencedPresetAsset())
+						const UObject* ReferencedObject = NewDocBuilder.GetReferencedPresetAsset();
+						if (ensureMsgf(ReferencedObject, TEXT("Preset builder %s does not have a referenced asset to apply soundwave settings from."), *NewDocBuilder.GetName()))
 						{
 							TemplateSoundWave = CastChecked<USoundWave>(ReferencedObject);
 						}

@@ -674,6 +674,10 @@ void UMetasoundEditorGraphMemberDefaultFloat::PostEditChangeChainProperty(FPrope
 		}
 
 		// If the widget type is changed to none, we need to refresh clamping the value or not, since if the widget was a slider before, the value was clamped
+		if (WidgetType == EMetasoundMemberDefaultWidget::None)
+		{
+			ClampDefault = true;
+		}
 		OnClampChanged.Broadcast(ClampDefault);
 	}
 	else if (PropertyName.IsEqual(GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultFloat, ClampDefault)))

@@ -326,7 +326,7 @@ private:
 public:
 	virtual ~UMetasoundEditorGraphMemberDefaultFloat() = default;
 
-	UPROPERTY(EditAnywhere, Category = DefaultValue, meta=(EditCondition = "WidgetType == EMetasoundMemberDefaultWidget::None", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = DefaultValue)
 	bool ClampDefault = false;
 
 	UPROPERTY(EditAnywhere, Category = DefaultValue)
