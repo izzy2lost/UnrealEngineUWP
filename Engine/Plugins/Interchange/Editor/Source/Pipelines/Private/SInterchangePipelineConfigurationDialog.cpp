@@ -60,6 +60,13 @@ static FAutoConsoleVariableRef CCvarInterchangeDefaultHideCardsView(
 	TEXT("Whether the import dialog should hide the basic cards view."),
 	ECVF_Default);
 
+static bool GInterchangeShowConflictWarningsOnCardsView = true;
+static FAutoConsoleVariableRef CCvarInterchangeShowConflictWarningOnCardsView(
+	TEXT("Interchange.FeatureFlags.Import.ShowConflictWarningsOnCardsView"),
+	GInterchangeShowConflictWarningsOnCardsView,
+	TEXT("Whether the import conflict warnings will be shown on cards view."),
+	ECVF_Default);
+
 constexpr double SplitterSize = 12.0;
 constexpr double AdvancedUIRatio = 1.2;
 
@@ -1016,6 +1023,7 @@ void SInterchangePipelineConfigurationDialog::Construct(const FArguments& InArgs
 							return bShowCards ? FMargin(8.0f, 0.0f, 0.0f, 0.0f) : FMargin(0.0f, 0.0f, 0.0f, 0.0f);
 						})
 					.Padding(8.0f, 0.0f, 0.0f, 0.0f)
+					.Clipping(EWidgetClipping::ClipToBounds)
 					[
 						MainBodyAdvanced
 					]
@@ -1114,7 +1122,7 @@ void SInterchangePipelineConfigurationDialog::Construct(const FArguments& InArgs
 		FString KeyName = CurrentStackName.ToString() + TEXT("_LastSelectedPipeline");
 		if (GConfig->GetString(TEXT("InterchangeSelectPipeline"), *KeyName, LastPipelineName, GEditorPerProjectIni))
 		{
-			for (TSharedPtr<FInterchangePipelineItemType> PipelineItem : PipelineListViewItems)
+			for (TSharedPtr<FInterchangePipelineItemType> PipelineItem: PipelineListViewItems)
 			{
 				FString PipelineItemName = PipelineItem->Pipeline->GetClass()->GetName();
 				if (PipelineItemName.Equals(LastPipelineName))
@@ -1128,6 +1136,11 @@ void SInterchangePipelineConfigurationDialog::Construct(const FArguments& InArgs
 		if (bSelectFirst)
 		{
 			PipelinesListView->SetSelection(PipelineListViewItems[0], ESelectInfo::Direct);
+		}
+
+		if (GInterchangeShowConflictWarningsOnCardsView)
+		{
+			RefreshCardsViewList();
 		}
 	}
 }
@@ -1145,14 +1158,17 @@ bool SInterchangePipelineConfigurationDialog::IsPropertyVisible(const FPropertyA
 const FSlateBrush* SInterchangePipelineConfigurationDialog::GetImportButtonIcon() const
 {
 	const FSlateBrush* TypeIcon = nullptr;
-	for (TSharedPtr<FInterchangePipelineItemType> PipelineItem : PipelineListViewItems)
+	if (bShowSettings || GInterchangeShowConflictWarningsOnCardsView)
 	{
-		if (PipelineItem.IsValid() && PipelineItem->Pipeline)
+		for (TSharedPtr<FInterchangePipelineItemType> PipelineItem : PipelineListViewItems)
 		{
-			if (PipelineItem->ConflictInfos.Num() > 0)
+			if (PipelineItem.IsValid() && PipelineItem->Pipeline)
 			{
-				const FSlateIcon SlateIcon = FSlateIconFinder::FindIcon("Icons.Warning");
-				return SlateIcon.GetOptionalIcon();
+				if (PipelineItem->ConflictInfos.Num() > 0)
+				{
+					const FSlateIcon SlateIcon = FSlateIconFinder::FindIcon("Icons.Warning");
+					return SlateIcon.GetOptionalIcon();
+				}
 			}
 		}
 	}
@@ -1405,16 +1421,26 @@ void SInterchangePipelineConfigurationDialog::RefreshStack(bool bStackSelectionC
 			}
 		}
 	}
-
-	if (bShowSettings)
+	//Select the first pipeline
+	if (PipelineListViewItems.Num() > 0)
 	{
-		//Select the first pipeline
-		if (PipelineListViewItems.Num() > 0)
+		CurrentPipelineIndex = PipelineListViewItems.IsValidIndex(CurrentPipelineIndex) ? CurrentPipelineIndex : 0;
+		if (bShowSettings)
 		{
-			CurrentPipelineIndex = PipelineListViewItems.IsValidIndex(CurrentPipelineIndex) ? CurrentPipelineIndex : 0;
 			PipelinesListView->SetSelection(PipelineListViewItems[CurrentPipelineIndex], ESelectInfo::Direct);
+			PipelinesListView->RequestListRefresh();
 		}
-		PipelinesListView->RequestListRefresh();
+		else
+		{
+			for (TSharedPtr<FInterchangePipelineItemType>& PiplineListViewItem : PipelineListViewItems)
+			{
+				PiplineListViewItem->ConflictInfos.Reset();
+				if (PiplineListViewItem->ReimportObject)
+				{
+					PiplineListViewItem->ConflictInfos = PiplineListViewItem->Pipeline->GetConflictInfos(PiplineListViewItem->ReimportObject, PiplineListViewItem->Container, PiplineListViewItem->SourceData);
+				}
+			}
+		}
 	}
 
 	//Update the cards
@@ -1570,6 +1596,17 @@ void SInterchangePipelineConfigurationDialog::FillAssetCardsList()
 							EnableDataPerFactoryNodeClass.FindChecked(FactoryNodeClass).bEnable = bNewEnabledValue;
 						});
 
+				if (GInterchangeShowConflictWarningsOnCardsView
+					&& PipelineListViewItems.Num() > 0)
+				{
+					for (TSharedPtr<FInterchangePipelineItemType>& PipelineListViewItem : PipelineListViewItems)
+					{
+						if (AssetCard->RefreshHasConflicts(PipelineListViewItem->ConflictInfos))
+						{
+							break;
+						}
+					}
+				}
 				AssetCards.Add(AssetCard);
 			}
 		}

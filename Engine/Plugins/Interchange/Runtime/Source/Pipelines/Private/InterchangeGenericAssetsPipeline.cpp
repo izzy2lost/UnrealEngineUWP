@@ -566,6 +566,7 @@ void UInterchangeGenericAssetsPipeline::CreateMaterialConflict(UStaticMesh* Stat
 		MaterialConflict.Description = TEXT("There is some unmatched materials");
 		MaterialConflict.Pipeline = this;
 		MaterialConflict.UniqueId = FGuid::NewGuid();
+		MaterialConflict.AffectedAssetClasses.Add(UMaterialInterface::StaticClass());
 
 		//Cache the data so we do not have to redo the works when we will show the conflict
 		MaterialConflictData.ConflictUniqueId = MaterialConflict.UniqueId;
@@ -975,6 +976,7 @@ void UInterchangeGenericAssetsPipeline::CreateSkeletonConflict(USkeleton* Specif
 	SkeletonConflict.Description = TEXT("Imported skeleton is incompatible with the asset skeleton");
 	SkeletonConflict.Pipeline = this;
 	SkeletonConflict.UniqueId = FGuid::NewGuid();
+	SkeletonConflict.AffectedAssetClasses.Add(USkeletalMesh::StaticClass());
 
 	SkeletonConflictData.ConflictUniqueId = SkeletonConflict.UniqueId;
 	SkeletonConflictData.ReimportObject = SkeletalMesh;

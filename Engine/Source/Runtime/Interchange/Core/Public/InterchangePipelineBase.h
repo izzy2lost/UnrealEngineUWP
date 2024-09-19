@@ -164,6 +164,7 @@ struct FInterchangeConflictInfo
 	FString Description;
 	FGuid UniqueId;
 	TObjectPtr<UInterchangePipelineBase> Pipeline = nullptr;
+	TSet<UClass*> AffectedAssetClasses;
 };
 
 class SInterchangeBaseConflictWidget : public SCompoundWidget
