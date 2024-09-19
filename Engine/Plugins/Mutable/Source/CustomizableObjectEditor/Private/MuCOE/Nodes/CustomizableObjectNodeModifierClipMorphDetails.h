@@ -33,7 +33,7 @@ private:
 
 	void OnBoneComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo, TSharedRef<IPropertyHandle> BoneProperty);
 
-	void OnInvertNormalCheckboxChanged(ECheckBoxState CheckBoxState);
+	void OnInvertNormalCheckboxChanged(ECheckBoxState CheckBoxState, TSharedRef<IPropertyHandle> InvertPlaneProperty);
 	ECheckBoxState GetInvertNormalCheckBoxState() const;
 
 	void OnReferenceSkeletonComponentChanged();

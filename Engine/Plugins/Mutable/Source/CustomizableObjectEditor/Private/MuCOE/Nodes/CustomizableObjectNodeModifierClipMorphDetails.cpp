@@ -114,6 +114,7 @@ void FCustomizableObjectNodeModifierClipMorphDetails::CustomizeDetails(IDetailLa
 				]
 			];
 
+			TSharedRef<IPropertyHandle> InvertPlaneProperty = DetailBuilder.GetProperty("bInvertNormal");
 			MeshClipParametersCategory.AddCustomRow(LOCTEXT("ClipMorphDetails_PlaneNormal", "Invert plane normal"))
 			[
 				SNew(SProperty, BoneProperty)
@@ -134,7 +135,7 @@ void FCustomizableObjectNodeModifierClipMorphDetails::CustomizeDetails(IDetailLa
 						+SHorizontalBox::Slot().HAlign(HAlign_Left)
 						[
 							SNew(SCheckBox)
-							.OnCheckStateChanged(this, &FCustomizableObjectNodeModifierClipMorphDetails::OnInvertNormalCheckboxChanged)
+							.OnCheckStateChanged(this, &FCustomizableObjectNodeModifierClipMorphDetails::OnInvertNormalCheckboxChanged, InvertPlaneProperty)
 							.IsChecked(this, &FCustomizableObjectNodeModifierClipMorphDetails::GetInvertNormalCheckBoxState)
 							.ToolTipText(LOCTEXT("ClipMorphDetails_InvertNormal_Tooltip", "Invert normal direction of the clip plane"))
 						]
@@ -263,14 +264,16 @@ void FCustomizableObjectNodeModifierClipMorphDetails::OnBoneComboBoxSelectionCha
 				Direction = (ChildLocation - Location).GetSafeNormal();
 			}
 			 
-			BoneProperty->SetValue(*BoneComboOptions[OptionIndex].Get());
-			
 			if (Node)
 			{
 				Node->Origin = Location;
 				Node->Normal = Direction;
 			}
 
+			// Set the bone property after Node Origin and Normal update, otherwise the 
+			// viewport gizmo will be constructed with the old values.
+			BoneProperty->SetValue(*BoneComboOptions[OptionIndex].Get());
+			
 			return;
 		}
 	}
@@ -279,34 +282,22 @@ void FCustomizableObjectNodeModifierClipMorphDetails::OnBoneComboBoxSelectionCha
 }
 
 
-void FCustomizableObjectNodeModifierClipMorphDetails::OnInvertNormalCheckboxChanged(ECheckBoxState CheckBoxState)
+void FCustomizableObjectNodeModifierClipMorphDetails::OnInvertNormalCheckboxChanged(ECheckBoxState CheckBoxState, TSharedRef<IPropertyHandle> InvertPlaneProperty)
 {
 	if (Node == nullptr)
 	{
 		return;
 	}
 
-	switch (CheckBoxState)
-	{
-		case ECheckBoxState::Checked:
-		{
-			Node->bInvertNormal = true;
-			Node->Normal *= -1.0f;
-			break;
-		}
-		case ECheckBoxState::Unchecked:
-		{
-			Node->bInvertNormal = false;
-			Node->Normal *= -1.0f;
-			break;
-		}
-	}
-
 	if (Node->bLocalStartOffset)
 	{
-		Node->StartOffset.Z *= -1;
-		Node->StartOffset.X *= -1;
+		Node->StartOffset.Z *= -1.0f;
+		Node->StartOffset.X *= -1.0f;
 	}
+
+	Node->Normal *= -1.0f;
+
+	InvertPlaneProperty->SetValue(CheckBoxState == ECheckBoxState::Checked);
 }
 
 
