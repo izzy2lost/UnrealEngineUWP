@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "../LightFunctionAtlas/LightFunctionAtlasCommon.usf"
+
 /** 
  * Returns sample jitter offset in the range [0, DOWNSAMPLE_FACTOR - 1]
  */

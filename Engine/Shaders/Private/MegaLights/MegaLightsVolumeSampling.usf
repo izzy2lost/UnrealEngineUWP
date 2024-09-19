@@ -10,7 +10,6 @@
 #include "MegaLights.ush"
 #include "MegaLightsVolume.ush"
 #include "MegaLightsRayTracing.ush"
-#include "../LightFunctionAtlas/LightFunctionAtlasCommon.usf"
 
 uint VolumeDebugMode;
 int VolumeDebugSliceIndex;
