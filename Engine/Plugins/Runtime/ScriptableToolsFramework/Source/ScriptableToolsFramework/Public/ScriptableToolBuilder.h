@@ -133,7 +133,7 @@ private:
 };
 
 UCLASS(Transient, Blueprintable, Abstract)
-class UToolTargetScriptableToolBuilder: public UCustomScriptableToolBuilderComponentBase, public ICustomScriptableToolBuilderBaseInterface
+class SCRIPTABLETOOLSFRAMEWORK_API UToolTargetScriptableToolBuilder: public UCustomScriptableToolBuilderComponentBase, public ICustomScriptableToolBuilderBaseInterface
 {
 	GENERATED_BODY()
 

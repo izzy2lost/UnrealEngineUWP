@@ -211,7 +211,9 @@ public:
 							if (BlueprintObject->GeneratedClass->IsChildOf(UScriptableToolGroupTag::StaticClass()))
 							{
 								TSubclassOf<UScriptableToolGroupTag> TagSubclass{ BlueprintObject->GeneratedClass };
-								ModeSettings->ToolRegistrationFilters.Groups.Add(TagSubclass);								
+								FScriptableToolGroupSet::FGroupSet  Groups = ModeSettings->ToolRegistrationFilters.GetGroups();
+								Groups.Add(TagSubclass);
+								ModeSettings->ToolRegistrationFilters.SetGroups(Groups);
 							}
 						}
 						ModeSettings->PostEditChange();
@@ -251,7 +253,7 @@ public:
 
 												TArray<FText> GroupNames;
 
-												for (UClass* GroupClass : ModeSettings->ToolRegistrationFilters.Groups)
+												for (UClass* GroupClass : ModeSettings->ToolRegistrationFilters.GetGroups())
 												{
 													if (GroupClass)
 													{
@@ -264,19 +266,20 @@ public:
 													}
 												}
 
-												if (ModeSettings->ToolRegistrationFilters.Groups.Num() == 1)
+												if (GroupNames.Num() == 0)
 												{
-													ensure(GroupNames.IsValidIndex(0));
+													return LOCTEXT("ScriptableToolsZeroGroupLabel", "Showing tools from no groups");
+												}
+												else if (GroupNames.Num() == 1)
+												{
 													return FText::Format(LOCTEXT("ScriptableToolsOneGroupLabel", "Showing tools from {0}"), GroupNames[0]);
 												}
-												else if (ModeSettings->ToolRegistrationFilters.Groups.Num() == 2)
+												else if (GroupNames.Num() == 2)
 												{
-													ensure(GroupNames.IsValidIndex(1));
 													return FText::Format(LOCTEXT("ScriptableToolsTwoGroupLabel", "Showing tools from {0} and {1}"), GroupNames[0], GroupNames[1]);
 												}
 												else
 												{
-													ensure(GroupNames.IsValidIndex(1));
 													return FText::Format(LOCTEXT("ScriptableToolsManyGroupLabel", "Showing tools from {0}, {1} and more..."), GroupNames[0], GroupNames[1]);
 												}
 											}
