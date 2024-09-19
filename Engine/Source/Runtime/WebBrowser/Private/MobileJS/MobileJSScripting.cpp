@@ -11,6 +11,7 @@
 #include "StructDeserializer.h"
 #include "UObject/UnrealType.h"
 #include "Async/Async.h"
+#include "Policies/CondensedJsonPrintPolicy.h"
 #include "JsonObjectConverter.h"
 
 // For UrlDecode/Encode
