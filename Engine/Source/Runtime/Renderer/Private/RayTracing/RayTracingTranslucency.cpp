@@ -138,7 +138,7 @@ bool ShouldRenderRayTracingTranslucency(const FViewInfo& View)
 		? bViewWithRaytracingTranslucency
 		: RayTracingTranslucencyMode != 0;
 
-	return ShouldRenderRayTracingEffect(bTranslucencyEnabled, ERayTracingPipelineCompatibilityFlags::FullPipeline, &View);
+	return ShouldRenderRayTracingEffect(bTranslucencyEnabled, ERayTracingPipelineCompatibilityFlags::FullPipeline, View);
 }
 #endif // RHI_RAYTRACING
 

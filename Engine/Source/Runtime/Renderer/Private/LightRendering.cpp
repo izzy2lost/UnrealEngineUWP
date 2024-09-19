@@ -213,26 +213,26 @@ static bool ShouldRenderRayTracingShadowsForLightType(ELightComponentType LightT
 	}	
 }
 
-bool ShouldRenderRayTracingShadows()
+bool ShouldRenderRayTracingShadows(const FSceneViewFamily& ViewFamily)
 {
 	const bool bIsStereo = GEngine->StereoRenderingDevice.IsValid() && GEngine->StereoRenderingDevice->IsStereoEnabled();
 	const bool bHairStrands = IsHairStrandsEnabled(EHairStrandsShaderType::Strands);
 
-	return ShouldRenderRayTracingEffect((CVarRayTracingOcclusion.GetValueOnRenderThread() > 0) && !(bIsStereo && bHairStrands), ERayTracingPipelineCompatibilityFlags::FullPipeline | ERayTracingPipelineCompatibilityFlags::Inline, nullptr);
+	return ShouldRenderRayTracingEffect((CVarRayTracingOcclusion.GetValueOnRenderThread() > 0) && !(bIsStereo && bHairStrands), ERayTracingPipelineCompatibilityFlags::FullPipeline | ERayTracingPipelineCompatibilityFlags::Inline, ViewFamily);
 }
 
-bool ShouldRenderRayTracingShadowsForLight(const FLightSceneProxy& LightProxy)
+bool ShouldRenderRayTracingShadowsForLight(const FSceneViewFamily& ViewFamily, const FLightSceneProxy& LightProxy)
 {
-	const bool bShadowRayTracingAllowed = ShouldRenderRayTracingEffect(true, ERayTracingPipelineCompatibilityFlags::FullPipeline | ERayTracingPipelineCompatibilityFlags::Inline, nullptr);
-	return (LightProxy.CastsRaytracedShadow() == ECastRayTracedShadow::Enabled || (ShouldRenderRayTracingShadows() && LightProxy.CastsRaytracedShadow() == ECastRayTracedShadow::UseProjectSetting))
+	const bool bShadowRayTracingAllowed = ShouldRenderRayTracingEffect(true, ERayTracingPipelineCompatibilityFlags::FullPipeline | ERayTracingPipelineCompatibilityFlags::Inline, ViewFamily);
+	return (LightProxy.CastsRaytracedShadow() == ECastRayTracedShadow::Enabled || (ShouldRenderRayTracingShadows(ViewFamily) && LightProxy.CastsRaytracedShadow() == ECastRayTracedShadow::UseProjectSetting))
 		&& ShouldRenderRayTracingShadowsForLightType((ELightComponentType)LightProxy.GetLightType())
 		&& bShadowRayTracingAllowed;
 }
 
-bool ShouldRenderRayTracingShadowsForLight(const FLightSceneInfoCompact& LightInfo)
+bool ShouldRenderRayTracingShadowsForLight(const FSceneViewFamily& ViewFamily, const FLightSceneInfoCompact& LightInfo)
 {
-	const bool bShadowRayTracingAllowed = ShouldRenderRayTracingEffect(true, ERayTracingPipelineCompatibilityFlags::FullPipeline | ERayTracingPipelineCompatibilityFlags::Inline, nullptr);
-	return (LightInfo.CastRaytracedShadow == ECastRayTracedShadow::Enabled || (ShouldRenderRayTracingShadows() && LightInfo.CastRaytracedShadow == ECastRayTracedShadow::UseProjectSetting))
+	const bool bShadowRayTracingAllowed = ShouldRenderRayTracingEffect(true, ERayTracingPipelineCompatibilityFlags::FullPipeline | ERayTracingPipelineCompatibilityFlags::Inline, ViewFamily);
+	return (LightInfo.CastRaytracedShadow == ECastRayTracedShadow::Enabled || (ShouldRenderRayTracingShadows(ViewFamily) && LightInfo.CastRaytracedShadow == ECastRayTracedShadow::UseProjectSetting))
 		&& ShouldRenderRayTracingShadowsForLightType((ELightComponentType)LightInfo.LightType)
 		&& bShadowRayTracingAllowed;
 }
@@ -582,7 +582,7 @@ FDeferredLightUniformStruct GetDeferredLightParameters(const FSceneView& View, c
 	LightSceneInfo.Proxy->GetLightShaderParameters(LightParameters, LightFlags);
 	LightParameters.MakeShaderParameters(View.ViewMatrices, View.GetLastEyeAdaptationExposure(), Out.LightParameters);
 
-	const bool bIsRayTracedLight = ShouldRenderRayTracingShadowsForLight(*LightSceneInfo.Proxy);
+	const bool bIsRayTracedLight = ShouldRenderRayTracingShadowsForLight(*View.Family, *LightSceneInfo.Proxy);
 
 	const FVector2D FadeParams = LightSceneInfo.Proxy->GetDirectionalLightDistanceFadeParameters(View.GetFeatureLevel(), !bIsRayTracedLight && LightSceneInfo.IsPrecomputedLightingValid(), View.MaxShadowCascades);
 	
@@ -706,7 +706,7 @@ FLightOcclusionType GetLightOcclusionType(const FLightSceneProxy& Proxy, const F
 {
 	bool bUseRaytracing = false;
 #if RHI_RAYTRACING
-	bUseRaytracing = ShouldRenderRayTracingShadowsForLight(Proxy);
+	bUseRaytracing = ShouldRenderRayTracingShadowsForLight(ViewFamily, Proxy);
 #endif
 	EMegaLightsMode MegaLightsMode = MegaLights::GetMegaLightsMode(ViewFamily, Proxy.GetLightType(), Proxy.AllowMegaLights(), Proxy.UseVirtualShadowMaps());
 
@@ -722,7 +722,7 @@ FLightOcclusionType GetLightOcclusionType(const FLightSceneInfoCompact& LightInf
 {
 	bool bUseRaytracing = false;
 #if RHI_RAYTRACING
-	bUseRaytracing = ShouldRenderRayTracingShadowsForLight(LightInfo);
+	bUseRaytracing = ShouldRenderRayTracingShadowsForLight(ViewFamily, LightInfo);
 #endif
 	EMegaLightsMode MegaLightsMode = MegaLights::GetMegaLightsMode(ViewFamily, LightInfo.LightType, LightInfo.bAllowMegaLights, LightInfo.bUseVirtualShadowMaps);
 
