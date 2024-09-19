@@ -373,12 +373,12 @@ void UDMMaterialStageThroughputLayerBlend::GenerateMainExpressions(const TShared
 
 					if (ModelEditorOnlyData)
 					{
-						if (UDMMaterialSlot* BaseColorSlot = ModelEditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::BaseColor))
+						if (UDMMaterialSlot* BaseColorSlot = ModelEditorOnlyData->GetSlotForEnabledMaterialProperty(EDMMaterialPropertyType::BaseColor))
 						{
 							RGBProperty = EDMMaterialPropertyType::BaseColor;
 							RGBSlot = BaseColorSlot;
 						}
-						else if (UDMMaterialSlot* EmissiveColorSlot = ModelEditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor))
+						else if (UDMMaterialSlot* EmissiveColorSlot = ModelEditorOnlyData->GetSlotForEnabledMaterialProperty(EDMMaterialPropertyType::EmissiveColor))
 						{
 							RGBProperty = EDMMaterialPropertyType::EmissiveColor;
 							RGBSlot = EmissiveColorSlot;
@@ -598,6 +598,7 @@ bool UDMMaterialStageThroughputLayerBlend::GenerateStagePreviewMaterial(UDMMater
 	UMaterialExpression* ComponentMask = SourceExpressions.Last();
 	OutputIndex = InputConnectionMap[InputMaskSource].Channels[0].OutputIndex;
 	int32 Channel;
+	bool bGenerateBitmask = true;
 
 	{
 		const UDMMaterialStageSource* Source = nullptr;
@@ -619,41 +620,52 @@ bool UDMMaterialStageThroughputLayerBlend::GenerateStagePreviewMaterial(UDMMater
 		if (Source && Source->GetOutputConnectors().IsValidIndex(OutputIndex))
 		{
 			OutputIndex = Source->GetOutputConnectors()[OutputIndex].Index;
+
+			const int32 InnateOutputIndex = Source->GetInnateMaskOutput(OutputIndex, InputConnectionMap[InputMaskSource].Channels[0].OutputChannel);
+
+			if (InnateOutputIndex != INDEX_NONE)
+			{
+				OutputIndex = InnateOutputIndex;
+				bGenerateBitmask = false;
+			}
 		}
 	}
 
-	// Pick the first selected channel - this is always a single channel.
-	if (InputConnectionMap[InputMaskSource].Channels[0].OutputChannel & FDMMaterialStageConnectorChannel::FIRST_CHANNEL)
+	if (bGenerateBitmask)
 	{
-		Channel = FDMMaterialStageConnectorChannel::FIRST_CHANNEL;
-	}
-	else if (InputConnectionMap[InputMaskSource].Channels[0].OutputChannel & FDMMaterialStageConnectorChannel::SECOND_CHANNEL)
-	{
-		Channel = FDMMaterialStageConnectorChannel::SECOND_CHANNEL;
-	}
-	else if (InputConnectionMap[InputMaskSource].Channels[0].OutputChannel & FDMMaterialStageConnectorChannel::THIRD_CHANNEL)
-	{
-		Channel = FDMMaterialStageConnectorChannel::THIRD_CHANNEL;
-	}
-	else if (InputConnectionMap[InputMaskSource].Channels[0].OutputChannel & FDMMaterialStageConnectorChannel::FOURTH_CHANNEL)
-	{
-		Channel = FDMMaterialStageConnectorChannel::FOURTH_CHANNEL;
-	}
-	else
-	{
-		Channel = FDMMaterialStageConnectorChannel::FIRST_CHANNEL;
-	}
+		// Pick the first selected channel - this is always a single channel.
+		if (InputConnectionMap[InputMaskSource].Channels[0].OutputChannel & FDMMaterialStageConnectorChannel::FIRST_CHANNEL)
+		{
+			Channel = FDMMaterialStageConnectorChannel::FIRST_CHANNEL;
+		}
+		else if (InputConnectionMap[InputMaskSource].Channels[0].OutputChannel & FDMMaterialStageConnectorChannel::SECOND_CHANNEL)
+		{
+			Channel = FDMMaterialStageConnectorChannel::SECOND_CHANNEL;
+		}
+		else if (InputConnectionMap[InputMaskSource].Channels[0].OutputChannel & FDMMaterialStageConnectorChannel::THIRD_CHANNEL)
+		{
+			Channel = FDMMaterialStageConnectorChannel::THIRD_CHANNEL;
+		}
+		else if (InputConnectionMap[InputMaskSource].Channels[0].OutputChannel & FDMMaterialStageConnectorChannel::FOURTH_CHANNEL)
+		{
+			Channel = FDMMaterialStageConnectorChannel::FOURTH_CHANNEL;
+		}
+		else
+		{
+			Channel = FDMMaterialStageConnectorChannel::FIRST_CHANNEL;
+		}
 
-	ComponentMask = BuildState->GetBuildUtils().CreateExpressionBitMask(
-		ComponentMask,
-		OutputIndex,
-		Channel
-	);
+		ComponentMask = BuildState->GetBuildUtils().CreateExpressionBitMask(
+			ComponentMask,
+			OutputIndex,
+			Channel
+		);
 
-	SourceExpressions.Add(ComponentMask);
+		SourceExpressions.Add(ComponentMask);
 
-	OutputIndex = 0;
-	Channel = FDMMaterialStageConnectorChannel::WHOLE_CHANNEL;
+		OutputIndex = 0;
+		Channel = FDMMaterialStageConnectorChannel::WHOLE_CHANNEL;
+	}
 
 	Layer->ApplyEffects(BuildState, InStage, SourceExpressions, Channel, OutputIndex);
 
