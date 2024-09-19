@@ -118,7 +118,7 @@ FStructureEditorUtils::EStructureError FStructureEditorUtils::IsStructureValid(c
 
 	if (const UUserDefinedStruct* UDStruct = Cast<const UUserDefinedStruct>(Struct))
 	{
-		if (UDStruct->Status != EUserDefinedStructureStatus::UDSS_UpToDate)
+		if (UDStruct->Status != EUserDefinedStructureStatus::UDSS_UpToDate && UDStruct->Status != EUserDefinedStructureStatus::UDSS_Error)
 		{
 			if (OutMsg)
 			{
