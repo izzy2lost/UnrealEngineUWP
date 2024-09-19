@@ -446,7 +446,7 @@ private:
 
 
 
-void SkinnedMeshComponentToDynamicMesh(USkinnedMeshComponent& SkinnedMeshComponent, Geometry::FDynamicMesh3& MeshOut, int32 RequestedLOD, bool bWantTangents)
+bool SkinnedMeshComponentToDynamicMesh(USkinnedMeshComponent& SkinnedMeshComponent, Geometry::FDynamicMesh3& MeshOut, int32 RequestedLOD, bool bWantTangents)
 {
 
 	MeshOut.Clear();
@@ -456,17 +456,17 @@ void SkinnedMeshComponentToDynamicMesh(USkinnedMeshComponent& SkinnedMeshCompone
 
 	if (!bIsValidSkinnedMeshComponent)
 	{
-		return;
+		return false;
 	}
 
 	if (RequestedLOD < 0 || RequestedLOD > NumLODs - 1)
 	{
-		return;
+		return false;
 	}
 
 	if (!SkinnedMeshComponent.GetSkinnedAsset())
 	{
-		return;
+		return false;
 	}
 
 
@@ -483,6 +483,7 @@ void SkinnedMeshComponentToDynamicMesh(USkinnedMeshComponent& SkinnedMeshCompone
 		SkinnedComponentConverter.Convert(MeshOut, SkinnedComponentWrapper, TriToGroupID, TriToMaterialID, bCopyTangents);
 	}
 
+	return true;
 }
 
 } // end namespace Conversion
