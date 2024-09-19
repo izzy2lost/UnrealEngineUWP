@@ -95,11 +95,6 @@ void FAvaRenderStateUpdateModifierExtension::OnExtensionDisabled(EActorModifierC
 
 void FAvaRenderStateUpdateModifierExtension::OnRenderStateDirty(UActorComponent& InComponent)
 {
-	if (!InComponent.IsA<UPrimitiveComponent>())
-	{
-		return;
-	}
-
 	const AActor* ModifierActor = GetModifierActor();
 	AActor* ActorDirty = InComponent.GetOwner();
 
