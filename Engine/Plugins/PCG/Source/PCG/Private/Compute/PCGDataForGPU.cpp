@@ -92,7 +92,7 @@ namespace PCGDataForGPUHelpers
 		}
 	}
 
-	bool PackAttributeHelper(const FPCGMetadataAttributeBase* InAttributeBase, const FPCGKernelAttributeDesc& InAttributeDesc, PCGMetadataEntryKey InEntryKey, const TArray<FString>& InStringTable, TArray<uint32>& OutPackedDataCollection, uint32 ElementIndex)
+	bool PackAttributeHelper(const FPCGMetadataAttributeBase* InAttributeBase, const FPCGKernelAttributeDesc& InAttributeDesc, PCGMetadataEntryKey InEntryKey, const TArray<FString>& InStringTable, TArray<uint32>& OutPackedDataCollection, uint32& InOutAddressUints)
 	{
 		check(InAttributeBase);
 
@@ -107,7 +107,7 @@ namespace PCGDataForGPUHelpers
 			const FPCGMetadataAttribute<bool>* Attribute = static_cast<const FPCGMetadataAttribute<bool>*>(InAttributeBase);
 			const bool Value = Attribute->GetValue(ValueKey);
 			check(StrideBytes == 4);
-			OutPackedDataCollection[ElementIndex + 0] = Value;
+			OutPackedDataCollection[InOutAddressUints++] = Value;
 			break;
 		}
 		case PCG::Private::MetadataTypes<float>::Id:
@@ -115,7 +115,7 @@ namespace PCGDataForGPUHelpers
 			const FPCGMetadataAttribute<float>* Attribute = static_cast<const FPCGMetadataAttribute<float>*>(InAttributeBase);
 			const float Value = Attribute->GetValue(ValueKey);
 			check(StrideBytes == 4);
-			OutPackedDataCollection[ElementIndex + 0] = FMath::AsUInt(Value);
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(Value);
 			break;
 		}
 		case PCG::Private::MetadataTypes<double>::Id:
@@ -123,7 +123,7 @@ namespace PCGDataForGPUHelpers
 			const FPCGMetadataAttribute<double>* Attribute = static_cast<const FPCGMetadataAttribute<double>*>(InAttributeBase);
 			const double Value = Attribute->GetValue(ValueKey);
 			check(StrideBytes == 4);
-			OutPackedDataCollection[ElementIndex + 0] = FMath::AsUInt(static_cast<float>(Value));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Value));
 			break;
 		}
 		case PCG::Private::MetadataTypes<int32>::Id:
@@ -131,7 +131,7 @@ namespace PCGDataForGPUHelpers
 			const FPCGMetadataAttribute<int32>* Attribute = static_cast<const FPCGMetadataAttribute<int32>*>(InAttributeBase);
 			const int32 Value = Attribute->GetValue(ValueKey);
 			check(StrideBytes == 4);
-			OutPackedDataCollection[ElementIndex + 0] = Value;
+			OutPackedDataCollection[InOutAddressUints++] = Value;
 			break;
 		}
 		case PCG::Private::MetadataTypes<int64>::Id:
@@ -139,7 +139,7 @@ namespace PCGDataForGPUHelpers
 			const FPCGMetadataAttribute<int64>* Attribute = static_cast<const FPCGMetadataAttribute<int64>*>(InAttributeBase);
 			const int64 Value = Attribute->GetValue(ValueKey);
 			check(StrideBytes == 4);
-			OutPackedDataCollection[ElementIndex + 0] = Value;
+			OutPackedDataCollection[InOutAddressUints++] = Value;
 			break;
 		}
 		case PCG::Private::MetadataTypes<FVector2D>::Id:
@@ -147,8 +147,8 @@ namespace PCGDataForGPUHelpers
 			const FPCGMetadataAttribute<FVector2D>* Attribute = static_cast<const FPCGMetadataAttribute<FVector2D>*>(InAttributeBase);
 			const FVector2D Value = Attribute->GetValue(ValueKey);
 			check(StrideBytes == 8);
-			OutPackedDataCollection[ElementIndex + 0] = FMath::AsUInt(static_cast<float>(Value.X));
-			OutPackedDataCollection[ElementIndex + 1] = FMath::AsUInt(static_cast<float>(Value.Y));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Value.X));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Value.Y));
 			break;
 		}
 		case PCG::Private::MetadataTypes<FRotator>::Id:
@@ -156,9 +156,9 @@ namespace PCGDataForGPUHelpers
 			const FPCGMetadataAttribute<FRotator>* Attribute = static_cast<const FPCGMetadataAttribute<FRotator>*>(InAttributeBase);
 			const FRotator Value = Attribute->GetValue(ValueKey);
 			check(StrideBytes == 12);
-			OutPackedDataCollection[ElementIndex + 0] = FMath::AsUInt(static_cast<float>(Value.Pitch));
-			OutPackedDataCollection[ElementIndex + 1] = FMath::AsUInt(static_cast<float>(Value.Yaw));
-			OutPackedDataCollection[ElementIndex + 2] = FMath::AsUInt(static_cast<float>(Value.Roll));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Value.Pitch));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Value.Yaw));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Value.Roll));
 			break;
 		}
 		case PCG::Private::MetadataTypes<FVector>::Id:
@@ -166,9 +166,9 @@ namespace PCGDataForGPUHelpers
 			const FPCGMetadataAttribute<FVector>* Attribute = static_cast<const FPCGMetadataAttribute<FVector>*>(InAttributeBase);
 			const FVector Value = Attribute->GetValue(ValueKey);
 			check(StrideBytes == 12);
-			OutPackedDataCollection[ElementIndex + 0] = FMath::AsUInt(static_cast<float>(Value.X));
-			OutPackedDataCollection[ElementIndex + 1] = FMath::AsUInt(static_cast<float>(Value.Y));
-			OutPackedDataCollection[ElementIndex + 2] = FMath::AsUInt(static_cast<float>(Value.Z));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Value.X));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Value.Y));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Value.Z));
 			break;
 		}
 		case PCG::Private::MetadataTypes<FVector4>::Id:
@@ -176,10 +176,10 @@ namespace PCGDataForGPUHelpers
 			const FPCGMetadataAttribute<FVector4>* Attribute = static_cast<const FPCGMetadataAttribute<FVector4>*>(InAttributeBase);
 			const FVector4 Value = Attribute->GetValue(ValueKey);
 			check(StrideBytes == 16);
-			OutPackedDataCollection[ElementIndex + 0] = FMath::AsUInt(static_cast<float>(Value.X));
-			OutPackedDataCollection[ElementIndex + 1] = FMath::AsUInt(static_cast<float>(Value.Y));
-			OutPackedDataCollection[ElementIndex + 2] = FMath::AsUInt(static_cast<float>(Value.Z));
-			OutPackedDataCollection[ElementIndex + 3] = FMath::AsUInt(static_cast<float>(Value.W));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Value.X));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Value.Y));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Value.Z));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Value.W));
 			break;
 		}
 		case PCG::Private::MetadataTypes<FQuat>::Id:
@@ -187,10 +187,10 @@ namespace PCGDataForGPUHelpers
 			const FPCGMetadataAttribute<FQuat>* Attribute = static_cast<const FPCGMetadataAttribute<FQuat>*>(InAttributeBase);
 			const FQuat Value = Attribute->GetValue(ValueKey);
 			check(StrideBytes == 16);
-			OutPackedDataCollection[ElementIndex + 0] = FMath::AsUInt(static_cast<float>(Value.X));
-			OutPackedDataCollection[ElementIndex + 1] = FMath::AsUInt(static_cast<float>(Value.Y));
-			OutPackedDataCollection[ElementIndex + 2] = FMath::AsUInt(static_cast<float>(Value.Z));
-			OutPackedDataCollection[ElementIndex + 3] = FMath::AsUInt(static_cast<float>(Value.W));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Value.X));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Value.Y));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Value.Z));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Value.W));
 			break;
 		}
 		case PCG::Private::MetadataTypes<FTransform>::Id:
@@ -199,22 +199,22 @@ namespace PCGDataForGPUHelpers
 			const FTransform Value = Attribute->GetValue(ValueKey);
 			const FMatrix Matrix = Value.ToMatrixWithScale();
 			check(StrideBytes == 64);
-			OutPackedDataCollection[ElementIndex + 0] = FMath::AsUInt(static_cast<float>(Matrix.M[0][0]));
-			OutPackedDataCollection[ElementIndex + 1] = FMath::AsUInt(static_cast<float>(Matrix.M[0][1]));
-			OutPackedDataCollection[ElementIndex + 2] = FMath::AsUInt(static_cast<float>(Matrix.M[0][2]));
-			OutPackedDataCollection[ElementIndex + 3] = FMath::AsUInt(static_cast<float>(Matrix.M[0][3]));
-			OutPackedDataCollection[ElementIndex + 4] = FMath::AsUInt(static_cast<float>(Matrix.M[1][0]));
-			OutPackedDataCollection[ElementIndex + 5] = FMath::AsUInt(static_cast<float>(Matrix.M[1][1]));
-			OutPackedDataCollection[ElementIndex + 6] = FMath::AsUInt(static_cast<float>(Matrix.M[1][2]));
-			OutPackedDataCollection[ElementIndex + 7] = FMath::AsUInt(static_cast<float>(Matrix.M[1][3]));
-			OutPackedDataCollection[ElementIndex + 8] = FMath::AsUInt(static_cast<float>(Matrix.M[2][0]));
-			OutPackedDataCollection[ElementIndex + 9] = FMath::AsUInt(static_cast<float>(Matrix.M[2][1]));
-			OutPackedDataCollection[ElementIndex + 10] = FMath::AsUInt(static_cast<float>(Matrix.M[2][2]));
-			OutPackedDataCollection[ElementIndex + 11] = FMath::AsUInt(static_cast<float>(Matrix.M[2][3]));
-			OutPackedDataCollection[ElementIndex + 12] = FMath::AsUInt(static_cast<float>(Matrix.M[3][0]));
-			OutPackedDataCollection[ElementIndex + 13] = FMath::AsUInt(static_cast<float>(Matrix.M[3][1]));
-			OutPackedDataCollection[ElementIndex + 14] = FMath::AsUInt(static_cast<float>(Matrix.M[3][2]));
-			OutPackedDataCollection[ElementIndex + 15] = FMath::AsUInt(static_cast<float>(Matrix.M[3][3]));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Matrix.M[0][0]));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Matrix.M[0][1]));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Matrix.M[0][2]));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Matrix.M[0][3]));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Matrix.M[1][0]));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Matrix.M[1][1]));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Matrix.M[1][2]));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Matrix.M[1][3]));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Matrix.M[2][0]));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Matrix.M[2][1]));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Matrix.M[2][2]));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Matrix.M[2][3]));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Matrix.M[3][0]));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Matrix.M[3][1]));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Matrix.M[3][2]));
+			OutPackedDataCollection[InOutAddressUints++] = FMath::AsUInt(static_cast<float>(Matrix.M[3][3]));
 			break;
 		}
 		case PCG::Private::MetadataTypes<FString>::Id:
@@ -223,7 +223,7 @@ namespace PCGDataForGPUHelpers
 			const FPCGMetadataAttribute<FString>* Attribute = static_cast<const FPCGMetadataAttribute<FString>*>(InAttributeBase);
 			const int32 Value = InStringTable.IndexOfByKey(Attribute->GetValue(ValueKey));
 			check(StrideBytes == 4);
-			OutPackedDataCollection[ElementIndex] = Value;
+			OutPackedDataCollection[InOutAddressUints++] = Value;
 			break;
 		}
 		case PCG::Private::MetadataTypes<FSoftObjectPath>::Id:
@@ -232,7 +232,7 @@ namespace PCGDataForGPUHelpers
 			const FPCGMetadataAttribute<FSoftObjectPath>* Attribute = static_cast<const FPCGMetadataAttribute<FSoftObjectPath>*>(InAttributeBase);
 			const int32 Value = InStringTable.IndexOfByKey(Attribute->GetValue(ValueKey).ToString());
 			check(StrideBytes == 4);
-			OutPackedDataCollection[ElementIndex] = Value;
+			OutPackedDataCollection[InOutAddressUints++] = Value;
 			break;
 		}
 		default:
@@ -690,209 +690,273 @@ FPCGDataCollectionDesc FPCGDataCollectionDesc::BuildFromInputDataCollectionAndIn
 	return CollectionDesc;
 }
 
-uint32 FPCGDataCollectionDesc::ComputePackedSize(TArray<uint32>* OutDataAddresses) const
+uint32 FPCGDataCollectionDesc::ComputePackedHeaderSizeBytes() const
+{
+	return PCGComputeConstants::DATA_COLLECTION_HEADER_SIZE_BYTES + PCGComputeConstants::DATA_HEADER_SIZE_BYTES * DataDescs.Num();
+}
+
+uint32 FPCGDataCollectionDesc::ComputePackedSizeBytes() const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDataCollectionDesc::ComputePackedSize);
 
-	const int NumData = DataDescs.Num();
-	// Calculation: sizeof(NumDatas) + (sizeof(DataAddress) * NumData)
-	const uint32 CollectionHeaderSizeBytes = sizeof(uint32) + (sizeof(uint32) * NumData);
-	uint32 TotalCollectionSizeBytes = CollectionHeaderSizeBytes;
+	uint32 TotalCollectionSizeBytes = ComputePackedHeaderSizeBytes();
 
-	if (OutDataAddresses)
+	for (const FPCGDataDesc& DataDesc : DataDescs)
 	{
-		OutDataAddresses->SetNumUninitialized(NumData);
-	}
-
-	for (int DataIndex = 0; DataIndex < NumData; ++DataIndex)
-	{
-		const FPCGDataDesc& DataDesc = DataDescs[DataIndex];
-		const uint32 DataSize = DataDesc.ComputePackedSize();
-
-		if (OutDataAddresses)
-		{
-			(*OutDataAddresses)[DataIndex] = TotalCollectionSizeBytes;
-		}
-
-		TotalCollectionSizeBytes += DataSize;
+		TotalCollectionSizeBytes += DataDesc.ComputePackedSize();
 	}
 
 	return TotalCollectionSizeBytes;
 }
 
+void FPCGDataCollectionDesc::WriteHeader(TArray<uint32>& OutPackedDataCollectionHeader) const
+{
+	const uint32 HeaderSizeBytes = ComputePackedHeaderSizeBytes();
+	const uint32 HeaderSizeUints = HeaderSizeBytes >> 2;
+
+	if (OutPackedDataCollectionHeader.Num() < static_cast<int32>(HeaderSizeUints))
+	{
+		OutPackedDataCollectionHeader.SetNumUninitialized(HeaderSizeUints);
+	}
+
+	// Zero-initialize header portion. We detect absent attributes using 0s.
+	for (uint32 Index = 0; Index < HeaderSizeUints; ++Index)
+	{
+		OutPackedDataCollectionHeader[Index] = 0;
+	}
+
+	uint32 WriteAddressUints = 0;
+
+	// Num data
+	OutPackedDataCollectionHeader[WriteAddressUints++] = DataDescs.Num();
+
+	for (int32 DataIndex = 0; DataIndex < DataDescs.Num(); ++DataIndex)
+	{
+		const FPCGDataDesc& DataDesc = DataDescs[DataIndex];
+
+		// Data i: type ID
+		if (DataDesc.Type == EPCGDataType::Param)
+		{
+			OutPackedDataCollectionHeader[WriteAddressUints++] = PARAM_DATA_TYPE_ID;
+		}
+		else
+		{
+			ensure(DataDesc.Type == EPCGDataType::Point);
+			OutPackedDataCollectionHeader[WriteAddressUints++] = POINT_DATA_TYPE_ID;
+		}
+
+		// Data i: attribute count (including intrinsic point properties)
+		OutPackedDataCollectionHeader[WriteAddressUints++] = DataDesc.AttributeDescs.Num();
+
+		// Data i: element count
+		OutPackedDataCollectionHeader[WriteAddressUints++] = DataDesc.ElementCount;
+
+		const uint32 DataAttributesHeaderStartAddressBytes = WriteAddressUints << 2;
+
+		for (int32 AttrIndex = 0; AttrIndex < DataDesc.AttributeDescs.Num(); ++AttrIndex)
+		{
+			const FPCGKernelAttributeDesc& AttributeDesc = DataDesc.AttributeDescs[AttrIndex];
+
+			// Scatter from attributes that are present into header which has slots for all possible attributes.
+			WriteAddressUints = (AttributeDesc.Index * ATTRIBUTE_HEADER_SIZE_BYTES + DataAttributesHeaderStartAddressBytes) >> 2;
+
+			// Data i element j: packed ID and stride
+			const uint32 AttributeId = AttributeDesc.Index;
+			const uint32 AttributeStride = PCGDataForGPUHelpers::GetAttributeTypeStrideBytes(AttributeDesc.Type);
+			const uint32 PackedIdAndStride = (AttributeId << 8) + AttributeStride;
+			OutPackedDataCollectionHeader[WriteAddressUints++] = PackedIdAndStride;
+
+			// Data i element j: data start address bytes
+			// TODO: Accumulate rather than calculate from scratch.
+			uint32 DataStartAddressBytes = HeaderSizeBytes; // Start at end of header
+			for (int32 PreviousDataIndex = 0; PreviousDataIndex < DataIndex; ++PreviousDataIndex) // Fast forward past previous data
+			{
+				for (const FPCGKernelAttributeDesc& AttrDesc : DataDescs[PreviousDataIndex].AttributeDescs)
+				{
+					DataStartAddressBytes += DataDescs[PreviousDataIndex].ElementCount * PCGDataForGPUHelpers::GetAttributeTypeStrideBytes(AttrDesc.Type);
+				}
+			}
+			for (int32 PreviousAttrIndex = 0; PreviousAttrIndex < AttrIndex; ++PreviousAttrIndex) // Fast forward past previous attributes
+			{
+				DataStartAddressBytes += DataDesc.ElementCount * PCGDataForGPUHelpers::GetAttributeTypeStrideBytes(DataDesc.AttributeDescs[PreviousAttrIndex].Type);
+			}
+			OutPackedDataCollectionHeader[WriteAddressUints++] = DataStartAddressBytes;
+		}
+
+		// After scattering in attribute headers, fast forward to end of section.
+		WriteAddressUints = (PCGComputeConstants::MAX_NUM_ATTRS * PCGComputeConstants::ATTRIBUTE_HEADER_SIZE_BYTES + DataAttributesHeaderStartAddressBytes) >> 2;
+	}
+
+	check(WriteAddressUints * 4 == HeaderSizeBytes);
+}
+
+static uint32 GetElementDataStartAddressUints(const uint32* InPackedDataCollection, uint32 InDataIndex, uint32 InAttributeId)
+{
+	uint32 ReadAddressBytes = PCGComputeConstants::DATA_COLLECTION_HEADER_SIZE_BYTES + InDataIndex * PCGComputeConstants::DATA_HEADER_SIZE_BYTES;
+	ReadAddressBytes += /*TypeId*/4 + /*Attribute Count*/4 + /*Element Count*/4;
+
+	ReadAddressBytes += InAttributeId * PCGComputeConstants::ATTRIBUTE_HEADER_SIZE_BYTES;
+	ReadAddressBytes += /*PackedIdAndStride*/4;
+
+	return InPackedDataCollection[ReadAddressBytes >> 2] >> 2;
+}
+
 void FPCGDataCollectionDesc::PackDataCollection(const FPCGDataCollection& InDataCollection, FName InPin, const TArray<FString>& InStringTable, TArray<uint32>& OutPackedDataCollection) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDataCollectionDesc::PackDataCollection);
+
 	const TArray<FPCGTaggedData> InputData = InDataCollection.GetInputsByPin(InPin);
-	const uint32 NumData = InputData.Num();
 
-	TArray<uint32> DataAddresses;
-	const uint32 PackedDataCollectionSizeBytes = ComputePackedSize(&DataAddresses);
+	const uint32 PackedDataCollectionSizeBytes = ComputePackedSizeBytes();
 
-	OutPackedDataCollection.SetNumZeroed(PackedDataCollectionSizeBytes / sizeof(uint32));
-	OutPackedDataCollection[0] = NumData;
+	// Uninitialized is fine, all data is initialized explicitly.
+	OutPackedDataCollection.SetNumUninitialized(PackedDataCollectionSizeBytes >> 2);
 
-	for (uint32 DataIndex = 0; DataIndex < NumData; ++DataIndex)
+	// Data addresses are written to the header and will be used during packing below.
+	WriteHeader(OutPackedDataCollection);
+
+	for (int32 DataIndex = 0; DataIndex < InputData.Num(); ++DataIndex)
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDataCollectionDesc::PackDataItem);
+		const FPCGDataDesc& DataDesc = DataDescs[DataIndex];
+		const UPCGMetadata* Metadata = InputData[DataIndex].Data ? InputData[DataIndex].Data->ConstMetadata() : nullptr;
+		if (!ensure(Metadata))
+		{
+			continue;
+		}
 
-		// Write the data addresses
-		const uint32 CurrentDataAddress = DataAddresses[DataIndex];
-		const uint32 CurrentDataIndex = CurrentDataAddress / sizeof(uint32);
-		OutPackedDataCollection[DataIndex + 1] = CurrentDataAddress;
-
-		// DataHeader: (TypeId, NumAttrs, AttrHeaderStartOffset, TypeInfo), Attr0 Header, Attr1 Header, ..., Attr255 Header
-		// Data: Attr0, Attr1, ...
 		if (const UPCGPointData* PointData = Cast<UPCGPointData>(InputData[DataIndex].Data))
 		{
-			const UPCGMetadata* Metadata = PointData->ConstMetadata();
 			const TArray<FPCGPoint>& Points = PointData->GetPoints();
 			const uint32 NumElements = Points.Num();
 
-			const TArray<FPCGKernelAttributeDesc>& AttributeDescs = DataDescs[DataIndex].AttributeDescs;
-			const uint32 NumAttributes = AttributeDescs.Num();
-
-			OutPackedDataCollection[CurrentDataIndex + 0] = /*PointDataTypeId=*/POINT_DATA_TYPE_ID;
-			OutPackedDataCollection[CurrentDataIndex + 1] = NumAttributes;
-			OutPackedDataCollection[CurrentDataIndex + 2] = POINT_DATA_HEADER_PREAMBLE_SIZE_BYTES;
-			OutPackedDataCollection[CurrentDataIndex + 3] = NumElements; // TypeInfo for PointData is just NumPoints
-
-			const uint32 BaseAttributeHeaderAddress = CurrentDataAddress + POINT_DATA_HEADER_PREAMBLE_SIZE_BYTES;
-			uint32 CurrentAttributeAddress = CurrentDataAddress + POINT_DATA_HEADER_SIZE_BYTES;
-
-			for (const FPCGKernelAttributeDesc& AttributeDesc : AttributeDescs)
+			for (const FPCGKernelAttributeDesc& AttributeDesc : DataDesc.AttributeDescs)
 			{
 				const uint32 AttributeId = AttributeDesc.Index;
 				const uint32 AttributeStrideBytes = PCGDataForGPUHelpers::GetAttributeTypeStrideBytes(AttributeDesc.Type);
-				const uint32 AttributeNumComponents = AttributeStrideBytes / sizeof(uint32); // E.g. float3 has 3 components
-
-				// Pack Position (24 bits for AttributeId, 8 bits for Stride)
-				const uint32 PackedIdAndStride = (AttributeId << 8) + AttributeStrideBytes;
-				const uint32 AttributeIndex = CurrentAttributeAddress / sizeof(uint32);
-
-				const uint32 AttributeHeaderIndex = (BaseAttributeHeaderAddress + AttributeId * ATTRIBUTE_HEADER_SIZE_BYTES) / sizeof(uint32);
-				OutPackedDataCollection[AttributeHeaderIndex + 0] = PackedIdAndStride;
-				OutPackedDataCollection[AttributeHeaderIndex + 1] = CurrentAttributeAddress;
 
 				const FPCGMetadataAttributeBase* AttributeBase = (AttributeId >= NUM_RESERVED_ATTRS) ? Metadata->GetConstAttribute(AttributeDesc.Name) : nullptr;
 
-				for (uint32 ElementIndex = 0; ElementIndex < NumElements; ++ElementIndex)
-				{
-					const uint32 PackedDataElementIndex = AttributeIndex + (ElementIndex * AttributeNumComponents);
+				uint32 AddressUints = GetElementDataStartAddressUints(OutPackedDataCollection.GetData(), DataIndex, AttributeId);
 
-					if (AttributeBase) // Pack attribute
+				if (AttributeId < NUM_RESERVED_ATTRS)
+				{
+					// Point property.
+					switch (AttributeId)
 					{
-						ensure(PCGDataForGPUHelpers::PackAttributeHelper(AttributeBase, AttributeDesc, Points[ElementIndex].MetadataEntry, InStringTable, OutPackedDataCollection, PackedDataElementIndex));
-					}
-					else // Pack property
+					case POINT_POSITION_ATTRIBUTE_ID:
 					{
-						switch (AttributeId)
-						{
-						case POINT_POSITION_ATTRIBUTE_ID:
+						for (uint32 ElementIndex = 0; ElementIndex < NumElements; ++ElementIndex)
 						{
 							const FVector Position = Points[ElementIndex].Transform.GetLocation();
-
-							OutPackedDataCollection[PackedDataElementIndex + 0] = FMath::AsUInt(static_cast<float>(Position.X));
-							OutPackedDataCollection[PackedDataElementIndex + 1] = FMath::AsUInt(static_cast<float>(Position.Y));
-							OutPackedDataCollection[PackedDataElementIndex + 2] = FMath::AsUInt(static_cast<float>(Position.Z));
-							break;
+							OutPackedDataCollection[AddressUints++] = FMath::AsUInt(static_cast<float>(Position.X));
+							OutPackedDataCollection[AddressUints++] = FMath::AsUInt(static_cast<float>(Position.Y));
+							OutPackedDataCollection[AddressUints++] = FMath::AsUInt(static_cast<float>(Position.Z));
 						}
-						case POINT_ROTATION_ATTRIBUTE_ID:
+						break;
+					}
+					case POINT_ROTATION_ATTRIBUTE_ID:
+					{
+						for (uint32 ElementIndex = 0; ElementIndex < NumElements; ++ElementIndex)
 						{
 							const FQuat Rotation = Points[ElementIndex].Transform.GetRotation();
-
-							OutPackedDataCollection[PackedDataElementIndex + 0] = FMath::AsUInt(static_cast<float>(Rotation.X));
-							OutPackedDataCollection[PackedDataElementIndex + 1] = FMath::AsUInt(static_cast<float>(Rotation.Y));
-							OutPackedDataCollection[PackedDataElementIndex + 2] = FMath::AsUInt(static_cast<float>(Rotation.Z));
-							OutPackedDataCollection[PackedDataElementIndex + 3] = FMath::AsUInt(static_cast<float>(Rotation.W));
-							break;
+							OutPackedDataCollection[AddressUints++] = FMath::AsUInt(static_cast<float>(Rotation.X));
+							OutPackedDataCollection[AddressUints++] = FMath::AsUInt(static_cast<float>(Rotation.Y));
+							OutPackedDataCollection[AddressUints++] = FMath::AsUInt(static_cast<float>(Rotation.Z));
+							OutPackedDataCollection[AddressUints++] = FMath::AsUInt(static_cast<float>(Rotation.W));
 						}
-						case POINT_SCALE_ATTRIBUTE_ID:
+						break;
+					}
+					case POINT_SCALE_ATTRIBUTE_ID:
+					{
+						for (uint32 ElementIndex = 0; ElementIndex < NumElements; ++ElementIndex)
 						{
 							const FVector Scale = Points[ElementIndex].Transform.GetScale3D();
-
-							OutPackedDataCollection[PackedDataElementIndex + 0] = FMath::AsUInt(static_cast<float>(Scale.X));
-							OutPackedDataCollection[PackedDataElementIndex + 1] = FMath::AsUInt(static_cast<float>(Scale.Y));
-							OutPackedDataCollection[PackedDataElementIndex + 2] = FMath::AsUInt(static_cast<float>(Scale.Z));
-							break;
+							OutPackedDataCollection[AddressUints++] = FMath::AsUInt(static_cast<float>(Scale.X));
+							OutPackedDataCollection[AddressUints++] = FMath::AsUInt(static_cast<float>(Scale.Y));
+							OutPackedDataCollection[AddressUints++] = FMath::AsUInt(static_cast<float>(Scale.Z));
 						}
-						case POINT_BOUNDS_MIN_ATTRIBUTE_ID:
+						break;
+					}
+					case POINT_BOUNDS_MIN_ATTRIBUTE_ID:
+					{
+						for (uint32 ElementIndex = 0; ElementIndex < NumElements; ++ElementIndex)
 						{
 							const FVector& BoundsMin = Points[ElementIndex].BoundsMin;
-
-							OutPackedDataCollection[PackedDataElementIndex + 0] = FMath::AsUInt(static_cast<float>(BoundsMin.X));
-							OutPackedDataCollection[PackedDataElementIndex + 1] = FMath::AsUInt(static_cast<float>(BoundsMin.Y));
-							OutPackedDataCollection[PackedDataElementIndex + 2] = FMath::AsUInt(static_cast<float>(BoundsMin.Z));
-							break;
+							OutPackedDataCollection[AddressUints++] = FMath::AsUInt(static_cast<float>(BoundsMin.X));
+							OutPackedDataCollection[AddressUints++] = FMath::AsUInt(static_cast<float>(BoundsMin.Y));
+							OutPackedDataCollection[AddressUints++] = FMath::AsUInt(static_cast<float>(BoundsMin.Z));
 						}
-						case POINT_BOUNDS_MAX_ATTRIBUTE_ID:
+						break;
+					}
+					case POINT_BOUNDS_MAX_ATTRIBUTE_ID:
+					{
+						for (uint32 ElementIndex = 0; ElementIndex < NumElements; ++ElementIndex)
 						{
 							const FVector& BoundsMax = Points[ElementIndex].BoundsMax;
-
-							OutPackedDataCollection[PackedDataElementIndex + 0] = FMath::AsUInt(static_cast<float>(BoundsMax.X));
-							OutPackedDataCollection[PackedDataElementIndex + 1] = FMath::AsUInt(static_cast<float>(BoundsMax.Y));
-							OutPackedDataCollection[PackedDataElementIndex + 2] = FMath::AsUInt(static_cast<float>(BoundsMax.Z));
-							break;
+							OutPackedDataCollection[AddressUints++] = FMath::AsUInt(static_cast<float>(BoundsMax.X));
+							OutPackedDataCollection[AddressUints++] = FMath::AsUInt(static_cast<float>(BoundsMax.Y));
+							OutPackedDataCollection[AddressUints++] = FMath::AsUInt(static_cast<float>(BoundsMax.Z));
 						}
-						case POINT_COLOR_ATTRIBUTE_ID:
+						break;
+					}
+					case POINT_COLOR_ATTRIBUTE_ID:
+					{
+						for (uint32 ElementIndex = 0; ElementIndex < NumElements; ++ElementIndex)
 						{
 							const FVector4& Color = Points[ElementIndex].Color;
-
-							OutPackedDataCollection[PackedDataElementIndex + 0] = FMath::AsUInt(static_cast<float>(Color.X));
-							OutPackedDataCollection[PackedDataElementIndex + 1] = FMath::AsUInt(static_cast<float>(Color.Y));
-							OutPackedDataCollection[PackedDataElementIndex + 2] = FMath::AsUInt(static_cast<float>(Color.Z));
-							OutPackedDataCollection[PackedDataElementIndex + 3] = FMath::AsUInt(static_cast<float>(Color.W));
-							break;
+							OutPackedDataCollection[AddressUints++] = FMath::AsUInt(static_cast<float>(Color.X));
+							OutPackedDataCollection[AddressUints++] = FMath::AsUInt(static_cast<float>(Color.Y));
+							OutPackedDataCollection[AddressUints++] = FMath::AsUInt(static_cast<float>(Color.Z));
+							OutPackedDataCollection[AddressUints++] = FMath::AsUInt(static_cast<float>(Color.W));
 						}
-						case POINT_DENSITY_ATTRIBUTE_ID:
+						break;
+					}
+					case POINT_DENSITY_ATTRIBUTE_ID:
+					{
+						for (uint32 ElementIndex = 0; ElementIndex < NumElements; ++ElementIndex)
 						{
 							const float Density = Points[ElementIndex].Density;
-
-							OutPackedDataCollection[PackedDataElementIndex + 0] = FMath::AsUInt(Density);
-							break;
+							OutPackedDataCollection[AddressUints++] = FMath::AsUInt(Density);
 						}
-						case POINT_SEED_ATTRIBUTE_ID:
+						break;
+					}
+					case POINT_SEED_ATTRIBUTE_ID:
+					{
+						for (uint32 ElementIndex = 0; ElementIndex < NumElements; ++ElementIndex)
 						{
 							const int Seed = Points[ElementIndex].Seed;
-
-							OutPackedDataCollection[PackedDataElementIndex + 0] = Seed;
-							break;
+							OutPackedDataCollection[AddressUints++] = Seed;
 						}
-						case POINT_STEEPNESS_ATTRIBUTE_ID:
+						break;
+					}
+					case POINT_STEEPNESS_ATTRIBUTE_ID:
+					{
+						for (uint32 ElementIndex = 0; ElementIndex < NumElements; ++ElementIndex)
 						{
 							const float Steepness = Points[ElementIndex].Steepness;
-
-							OutPackedDataCollection[PackedDataElementIndex + 0] = FMath::AsUInt(Steepness);
-							break;
+							OutPackedDataCollection[AddressUints++] = FMath::AsUInt(Steepness);
 						}
-						default:
-							checkNoEntry();
-							break;
-						}
+						break;
+					}
+					default:
+						checkNoEntry();
+						break;
 					}
 				}
-
-				CurrentAttributeAddress += NumElements * AttributeNumComponents * 4;
+				else
+				{
+					// Pack attribute. Validate first element only for perf.
+					ensure(PCGDataForGPUHelpers::PackAttributeHelper(AttributeBase, AttributeDesc, Points[0].MetadataEntry, InStringTable, OutPackedDataCollection, AddressUints));
+					for (uint32 ElementIndex = 1; ElementIndex < NumElements; ++ElementIndex)
+					{
+						PCGDataForGPUHelpers::PackAttributeHelper(AttributeBase, AttributeDesc, Points[ElementIndex].MetadataEntry, InStringTable, OutPackedDataCollection, AddressUints);
+					}
+				}
 			}
 		}
 		else if (const UPCGParamData* ParamData = Cast<UPCGParamData>(InputData[DataIndex].Data))
 		{
-			const UPCGMetadata* Metadata = ParamData->ConstMetadata();
-
-			const FPCGDataDesc& DataDesc = DataDescs[DataIndex];
-			const uint32 NumElements = DataDesc.ElementCount;
-
-			const TArray<FPCGKernelAttributeDesc>& AttributeDescs = DataDesc.AttributeDescs;
-			const uint32 NumAttributes = AttributeDescs.Num();
-
-			OutPackedDataCollection[CurrentDataIndex + 0] = /*ParamDataTypeId=*/PARAM_DATA_TYPE_ID;
-			OutPackedDataCollection[CurrentDataIndex + 1] = NumAttributes;
-			OutPackedDataCollection[CurrentDataIndex + 2] = PARAM_DATA_HEADER_PREAMBLE_SIZE_BYTES;
-			OutPackedDataCollection[CurrentDataIndex + 3] = NumElements; // TypeInfo for ParamData is # of elements
-
-			const uint32 BaseAttributeHeaderAddress = CurrentDataAddress + PARAM_DATA_HEADER_PREAMBLE_SIZE_BYTES;
-			uint32 CurrentAttributeAddress = CurrentDataAddress + PARAM_DATA_HEADER_SIZE_BYTES;
-
-			for (const FPCGKernelAttributeDesc& AttributeDesc : AttributeDescs)
+			for (const FPCGKernelAttributeDesc& AttributeDesc : DataDesc.AttributeDescs)
 			{
 				const FPCGMetadataAttributeBase* AttributeBase = Metadata->GetConstAttribute(AttributeDesc.Name);
 				if (!AttributeBase)
@@ -900,116 +964,17 @@ void FPCGDataCollectionDesc::PackDataCollection(const FPCGDataCollection& InData
 					continue;
 				}
 
-				const uint32 AttributeId = AttributeDesc.Index;
-				const uint32 AttributeStrideBytes = PCGDataForGPUHelpers::GetAttributeTypeStrideBytes(AttributeDesc.Type);
-				const uint32 AttributeNumComponents = AttributeStrideBytes / sizeof(uint32); // E.g. float3 has 3 components
+				uint32 AddressUints = GetElementDataStartAddressUints(OutPackedDataCollection.GetData(), DataIndex, AttributeDesc.Index);
 
-				// Pack Position (24 bits for AttributeId, 8 bits for Stride)
-				const uint32 PackedIdAndStride = (AttributeId << 8) + AttributeStrideBytes;
-				const uint32 AttributeIndex = CurrentAttributeAddress / sizeof(uint32);
-
-				const uint32 AttributeHeaderIndex = (BaseAttributeHeaderAddress + AttributeId * ATTRIBUTE_HEADER_SIZE_BYTES) / sizeof(uint32);
-				OutPackedDataCollection[AttributeHeaderIndex + 0] = PackedIdAndStride;
-				OutPackedDataCollection[AttributeHeaderIndex + 1] = CurrentAttributeAddress;
-
-				for (uint32 ElementIndex = 0; ElementIndex < NumElements; ++ElementIndex)
+				// Pack attribute. Validate first element only for perf.
+				ensure(PCGDataForGPUHelpers::PackAttributeHelper(AttributeBase, AttributeDesc, /*InEntryKey*/0, InStringTable, OutPackedDataCollection, AddressUints));
+				for (int32 ElementIndex = 1; ElementIndex < DataDesc.ElementCount; ++ElementIndex)
 				{
-					const uint32 PackedDataElementIndex = AttributeIndex + (ElementIndex * AttributeNumComponents);
-					const int64 MetadataKey = ElementIndex;
-
-					// Pack attribute
-					ensure(PCGDataForGPUHelpers::PackAttributeHelper(AttributeBase, AttributeDesc, MetadataKey, InStringTable, OutPackedDataCollection, PackedDataElementIndex));
+					PCGDataForGPUHelpers::PackAttributeHelper(AttributeBase, AttributeDesc, /*InEntryKey*/ElementIndex, InStringTable, OutPackedDataCollection, AddressUints);
 				}
-
-				CurrentAttributeAddress += NumElements * AttributeNumComponents * 4;
 			}
 		}
-		else { /* TODO: Support non-point data. */ }
-	}
-}
-
-void FPCGDataCollectionDesc::PrepareBufferForKernelOutput(TArray<uint32>& OutPackedDataCollection)
-{
-	const uint32 NumData = DataDescs.Num();
-
-	TArray<uint32> DataAddresses;
-	const uint32 PackedDataCollectionSizeBytes = ComputePackedSize(&DataAddresses);
-
-	OutPackedDataCollection.SetNumZeroed(PackedDataCollectionSizeBytes / sizeof(uint32));
-	OutPackedDataCollection[0] = NumData;
-
-	for (uint32 DataIndex = 0; DataIndex < NumData; ++DataIndex)
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDataCollectionDesc::PackDataItem);
-
-		// Write the data addresses
-		const uint32 CurrentDataAddress = DataAddresses[DataIndex];
-		const uint32 CurrentDataIndex = CurrentDataAddress / sizeof(uint32);
-		OutPackedDataCollection[DataIndex + 1] = CurrentDataAddress;
-
-		// DataHeader: (TypeId, NumAttrs, AttrHeaderStartOffset, TypeInfo), Attr0 Header, Attr1 Header, ..., Attr255 Header
-		// Data: Attr0, Attr1, ...
-		if (DataDescs[DataIndex].Type == EPCGDataType::Point)
-		{
-			const uint32 NumElements = DataDescs[DataIndex].ElementCount;
-
-			const TArray<FPCGKernelAttributeDesc>& AttributeDescs = DataDescs[DataIndex].AttributeDescs;
-			const uint32 NumAttributes = AttributeDescs.Num();
-
-			OutPackedDataCollection[CurrentDataIndex + 0] = /*PointDataTypeId=*/POINT_DATA_TYPE_ID;
-			OutPackedDataCollection[CurrentDataIndex + 1] = NumAttributes;
-			OutPackedDataCollection[CurrentDataIndex + 2] = POINT_DATA_HEADER_PREAMBLE_SIZE_BYTES;
-			OutPackedDataCollection[CurrentDataIndex + 3] = NumElements; // TypeInfo for PointData is just NumPoints
-
-			const uint32 BaseAttributeHeaderAddress = CurrentDataAddress + POINT_DATA_HEADER_PREAMBLE_SIZE_BYTES;
-			uint32 CurrentAttributeAddress = CurrentDataAddress + POINT_DATA_HEADER_SIZE_BYTES;
-
-			for (const FPCGKernelAttributeDesc& AttributeDesc : AttributeDescs)
-			{
-				const uint32 AttributeId = AttributeDesc.Index;
-				const uint32 AttributeStrideBytes = PCGDataForGPUHelpers::GetAttributeTypeStrideBytes(AttributeDesc.Type);
-				const uint32 AttributeNumComponents = AttributeStrideBytes / sizeof(uint32); // E.g. float3 has 3 components
-				const uint32 AttributeHeaderIndex = (BaseAttributeHeaderAddress + AttributeId * ATTRIBUTE_HEADER_SIZE_BYTES) / sizeof(uint32);
-
-				// Pack Position (24 bits for AttributeId, 8 bits for Stride)
-				const uint32 PackedIdAndStride = (AttributeId << 8) + AttributeStrideBytes;
-				OutPackedDataCollection[AttributeHeaderIndex + 0] = PackedIdAndStride;
-
-				OutPackedDataCollection[AttributeHeaderIndex + 1] = CurrentAttributeAddress;
-				CurrentAttributeAddress += NumElements * AttributeNumComponents * 4;
-			}
-		}
-		if (DataDescs[DataIndex].Type == EPCGDataType::Param)
-		{
-			const uint32 NumElements = DataDescs[DataIndex].ElementCount;
-
-			const TArray<FPCGKernelAttributeDesc>& AttributeDescs = DataDescs[DataIndex].AttributeDescs;
-			const uint32 NumAttributes = AttributeDescs.Num();
-
-			OutPackedDataCollection[CurrentDataIndex + 0] = /*ParamDataTypeId=*/PARAM_DATA_TYPE_ID;
-			OutPackedDataCollection[CurrentDataIndex + 1] = NumAttributes;
-			OutPackedDataCollection[CurrentDataIndex + 2] = PARAM_DATA_HEADER_PREAMBLE_SIZE_BYTES;
-			OutPackedDataCollection[CurrentDataIndex + 3] = NumElements; // TypeInfo for ParamData is # of elems
-
-			const uint32 BaseAttributeHeaderAddress = CurrentDataAddress + PARAM_DATA_HEADER_PREAMBLE_SIZE_BYTES;
-			uint32 CurrentAttributeAddress = CurrentDataAddress + PARAM_DATA_HEADER_SIZE_BYTES;
-
-			for (const FPCGKernelAttributeDesc& AttributeDesc : AttributeDescs)
-			{
-				const uint32 AttributeId = AttributeDesc.Index;
-				const uint32 AttributeStrideBytes = PCGDataForGPUHelpers::GetAttributeTypeStrideBytes(AttributeDesc.Type);
-				const uint32 AttributeNumComponents = AttributeStrideBytes / sizeof(uint32); // E.g. float3 has 3 components
-				const uint32 AttributeHeaderIndex = (BaseAttributeHeaderAddress + AttributeId * ATTRIBUTE_HEADER_SIZE_BYTES) / sizeof(uint32);
-
-				// Pack Position (24 bits for AttributeId, 8 bits for Stride)
-				const uint32 PackedIdAndStride = (AttributeId << 8) + AttributeStrideBytes;
-				OutPackedDataCollection[AttributeHeaderIndex + 0] = PackedIdAndStride;
-
-				OutPackedDataCollection[AttributeHeaderIndex + 1] = CurrentAttributeAddress;
-				CurrentAttributeAddress += NumElements * AttributeNumComponents * 4;
-			}
-		}
-		else { /* TODO: Support non-point data. */ }
+		else { /* TODO: Support additional data types. */ }
 	}
 }
 
@@ -1020,11 +985,13 @@ EPCGUnpackDataCollectionResult FPCGDataCollectionDesc::UnpackDataCollection(cons
 	const uint32* DataAsUint = static_cast<const uint32*>(PackedData);
 	const int32* DataAsInt = static_cast<const int32*>(PackedData);
 
-	const uint32 NumPackedFloats = InPackedData.Num() / 4;
+	uint32 ReadAddress = 0;
+
+	const uint32 PackedExecutionFlagAndNumData = DataAsUint[ReadAddress++];
 
 	// Most significant bit of NumData is reserved to flag whether or not the kernel executed.
-	ensureMsgf(DataAsUint[0] & PCGComputeConstants::KernelExecutedFlag, TEXT("Tried to unpack a GPU data collection, but the compute shader did not execute."));
-	const uint32 NumData = DataAsUint[0] & ~PCGComputeConstants::KernelExecutedFlag;
+	ensureMsgf(PackedExecutionFlagAndNumData & PCGComputeConstants::KernelExecutedFlag, TEXT("Tried to unpack a GPU data collection, but the compute shader did not execute."));
+	const uint32 NumData = PackedExecutionFlagAndNumData & ~PCGComputeConstants::KernelExecutedFlag;
 
 	if (NumData != DataDescs.Num())
 	{
@@ -1037,12 +1004,9 @@ EPCGUnpackDataCollectionResult FPCGDataCollectionDesc::UnpackDataCollection(cons
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDataCollectionDesc::UnpackDataItem);
 
-		const uint32 CurrentDataAddress = DataAsUint[DataIndex + 1];
-		const uint32 CurrentDataIndex = CurrentDataAddress / sizeof(uint32);
-		const uint32 TypeId =                      DataAsUint[CurrentDataIndex + 0];
-		const uint32 NumAttributes =               DataAsUint[CurrentDataIndex + 1];
-		const uint32 DataHeaderPreambleSizeBytes = DataAsUint[CurrentDataIndex + 2];
-		const uint32 NumElements =                 DataAsUint[CurrentDataIndex + 3];
+		const uint32 TypeId = DataAsUint[ReadAddress++];
+		const uint32 NumAttributes = DataAsUint[ReadAddress++];
+		const uint32 NumElements = DataAsUint[ReadAddress++];
 
 		const TArray<FPCGKernelAttributeDesc>& AttributeDescs = DataDescs[DataIndex].AttributeDescs;
 		check(NumAttributes == AttributeDescs.Num());
@@ -1072,139 +1036,143 @@ EPCGUnpackDataCollectionResult FPCGDataCollectionDesc::UnpackDataCollection(cons
 			OutTaggedData.Data = OutPointData;
 			OutTaggedData.Pin = InPin;
 
-			const uint32 AttributeHeadersIndex = CurrentDataIndex + POINT_DATA_HEADER_PREAMBLE_SIZE_BYTES / sizeof(uint32);
-
 			// Loop over attributes.
 			for (const FPCGKernelAttributeDesc& AttributeDesc : AttributeDescs)
 			{
-				TRACE_CPUPROFILER_EVENT_SCOPE(WriteAttribute);
+				TRACE_CPUPROFILER_EVENT_SCOPE(UnpackAttribute);
 
 				const uint32 AttributeId = AttributeDesc.Index;
-				const uint32 AttributeNumComponents = PCGDataForGPUHelpers::GetAttributeTypeStrideBytes(AttributeDesc.Type) / sizeof(uint32);
-				const uint32 AttributeHeaderIndex = AttributeHeadersIndex + AttributeDesc.Index * ATTRIBUTE_HEADER_SIZE_BYTES / sizeof(uint32);
-				const uint32 AttributeIndex = DataAsUint[AttributeHeaderIndex + 1] / sizeof(uint32);
+				const uint32 AttributeStrideUints = PCGDataForGPUHelpers::GetAttributeTypeStrideBytes(AttributeDesc.Type) >> 2;
 
-				FPCGMetadataAttributeBase* AttributeBase = (AttributeId >= NUM_RESERVED_ATTRS) ? PCGDataForGPUHelpers::CreateAttributeFromAttributeDesc(Metadata, AttributeDesc) : nullptr;
+				const uint32 AddressUints = GetElementDataStartAddressUints(DataAsUint, DataIndex, AttributeId);
 
-				// 2. Parse each element in the attribute.
-
-				ParallelFor(NumElements, [&](int32 ElementIndex)
+				if (AttributeId < NUM_RESERVED_ATTRS)
 				{
-					const uint32 PackedDataElementIndex = AttributeIndex + ElementIndex * AttributeNumComponents;
-					check(PackedDataElementIndex + AttributeNumComponents <= NumPackedFloats);
-
-					if (AttributeBase) // Unpack attribute
+					// We tried hoisting this decision to a lambda but it didn't appear to help.
+					switch (AttributeId)
 					{
-						Metadata->InitializeOnSet(OutPoints[ElementIndex].MetadataEntry);
-						ensure(PCGDataForGPUHelpers::UnpackAttributeHelper(PackedData, InStringTable, PackedDataElementIndex, AttributeBase, AttributeDesc, OutPoints[ElementIndex].MetadataEntry));
-					}
-					else // Unpack property
+					case POINT_POSITION_ATTRIBUTE_ID:
 					{
-						// We tried hoisting this decision to a lambda but it didn't appear to help.
-						switch (AttributeId)
+						ParallelFor(NumElements, [DataAsFloat, AddressUints, &OutPoints](int32 ElementIndex)
 						{
-						case POINT_POSITION_ATTRIBUTE_ID:
-						{
-							const FVector Location = FVector
-							(
-								DataAsFloat[PackedDataElementIndex + 0],
-								DataAsFloat[PackedDataElementIndex + 1],
-								DataAsFloat[PackedDataElementIndex + 2]
-							);
+							const FVector Location = FVector(
+								DataAsFloat[AddressUints + ElementIndex * 3 + 0],
+								DataAsFloat[AddressUints + ElementIndex * 3 + 1],
+								DataAsFloat[AddressUints + ElementIndex * 3 + 2]);
 
 							OutPoints[ElementIndex].Transform.SetLocation(Location);
-							break;
-						}
-						case POINT_ROTATION_ATTRIBUTE_ID:
+						});
+						break;
+					}
+					case POINT_ROTATION_ATTRIBUTE_ID:
+					{
+						ParallelFor(NumElements, [DataAsFloat, AddressUints, &OutPoints](int32 ElementIndex)
 						{
-							FQuat Rotation = FQuat
-							(
-								DataAsFloat[PackedDataElementIndex + 0],
-								DataAsFloat[PackedDataElementIndex + 1],
-								DataAsFloat[PackedDataElementIndex + 2],
-								DataAsFloat[PackedDataElementIndex + 3]
-							);
+							const FQuat Rotation = FQuat(
+								DataAsFloat[AddressUints + ElementIndex * 4 + 0],
+								DataAsFloat[AddressUints + ElementIndex * 4 + 1],
+								DataAsFloat[AddressUints + ElementIndex * 4 + 2],
+								DataAsFloat[AddressUints + ElementIndex * 4 + 3]);
 
 							// Normalize here with default tolerance (zero quat will return identity).
 							OutPoints[ElementIndex].Transform.SetRotation(Rotation.GetNormalized());
-							break;
-						}
-						case POINT_SCALE_ATTRIBUTE_ID:
+						});
+						break;
+					}
+					case POINT_SCALE_ATTRIBUTE_ID:
+					{
+						ParallelFor(NumElements, [DataAsFloat, AddressUints, &OutPoints](int32 ElementIndex)
 						{
 							const FVector Scale = FVector
 							(
-								DataAsFloat[PackedDataElementIndex + 0],
-								DataAsFloat[PackedDataElementIndex + 1],
-								DataAsFloat[PackedDataElementIndex + 2]
-							);
+								DataAsFloat[AddressUints + ElementIndex * 3 + 0],
+								DataAsFloat[AddressUints + ElementIndex * 3 + 1],
+								DataAsFloat[AddressUints + ElementIndex * 3 + 2]);
 
 							OutPoints[ElementIndex].Transform.SetScale3D(Scale);
-							break;
-						}
-						case POINT_BOUNDS_MIN_ATTRIBUTE_ID:
+						});
+						break;
+					}
+					case POINT_BOUNDS_MIN_ATTRIBUTE_ID:
+					{
+						ParallelFor(NumElements, [DataAsFloat, AddressUints, &OutPoints](int32 ElementIndex)
 						{
-							const FVector BoundsMin = FVector
-							(
-								DataAsFloat[PackedDataElementIndex + 0],
-								DataAsFloat[PackedDataElementIndex + 1],
-								DataAsFloat[PackedDataElementIndex + 2]
-							);
+							const FVector BoundsMin = FVector(
+								DataAsFloat[AddressUints + ElementIndex * 3 + 0],
+								DataAsFloat[AddressUints + ElementIndex * 3 + 1],
+								DataAsFloat[AddressUints + ElementIndex * 3 + 2]);
 
 							OutPoints[ElementIndex].BoundsMin = BoundsMin;
-							break;
-						}
-						case POINT_BOUNDS_MAX_ATTRIBUTE_ID:
+						});
+						break;
+					}
+					case POINT_BOUNDS_MAX_ATTRIBUTE_ID:
+					{
+						ParallelFor(NumElements, [DataAsFloat, AddressUints, &OutPoints](int32 ElementIndex)
 						{
-							const FVector BoundsMax = FVector
-							(
-								DataAsFloat[PackedDataElementIndex + 0],
-								DataAsFloat[PackedDataElementIndex + 1],
-								DataAsFloat[PackedDataElementIndex + 2]
-							);
+							const FVector BoundsMax = FVector(
+								DataAsFloat[AddressUints + ElementIndex * 3 + 0],
+								DataAsFloat[AddressUints + ElementIndex * 3 + 1],
+								DataAsFloat[AddressUints + ElementIndex * 3 + 2]);
 
 							OutPoints[ElementIndex].BoundsMax = BoundsMax;
-							break;
-						}
-						case POINT_COLOR_ATTRIBUTE_ID:
+						});
+						break;
+					}
+					case POINT_COLOR_ATTRIBUTE_ID:
+					{
+						ParallelFor(NumElements, [DataAsFloat, AddressUints, &OutPoints](int32 ElementIndex)
 						{
-							const FVector4 Color = FVector4
-							(
-								DataAsFloat[PackedDataElementIndex + 0],
-								DataAsFloat[PackedDataElementIndex + 1],
-								DataAsFloat[PackedDataElementIndex + 2],
-								DataAsFloat[PackedDataElementIndex + 3]
-							);
+							const FVector4 Color = FVector4(
+								DataAsFloat[AddressUints + ElementIndex * 4 + 0],
+								DataAsFloat[AddressUints + ElementIndex * 4 + 1],
+								DataAsFloat[AddressUints + ElementIndex * 4 + 2],
+								DataAsFloat[AddressUints + ElementIndex * 4 + 3]);
 
 							OutPoints[ElementIndex].Color = Color;
-							break;
-						}
-						case POINT_DENSITY_ATTRIBUTE_ID:
-						{
-							const float Density = DataAsFloat[PackedDataElementIndex];
-
-							OutPoints[ElementIndex].Density = Density;
-							break;
-						}
-						case POINT_SEED_ATTRIBUTE_ID:
-						{
-							const int32 Seed = DataAsInt[PackedDataElementIndex];
-
-							OutPoints[ElementIndex].Seed = Seed;
-							break;
-						}
-						case POINT_STEEPNESS_ATTRIBUTE_ID:
-						{
-							const float Steepness = DataAsFloat[PackedDataElementIndex];
-
-							OutPoints[ElementIndex].Steepness = Steepness;
-							break;
-						}
-						default:
-							checkNoEntry();
-							break;
-						}
+						});
+						break;
 					}
-				});
+					case POINT_DENSITY_ATTRIBUTE_ID:
+					{
+						ParallelFor(NumElements, [DataAsFloat, AddressUints, &OutPoints](int32 ElementIndex)
+						{
+							OutPoints[ElementIndex].Density = DataAsFloat[AddressUints + ElementIndex];
+						});
+						break;
+					}
+					case POINT_SEED_ATTRIBUTE_ID:
+					{
+						ParallelFor(NumElements, [DataAsInt, AddressUints, &OutPoints](int32 ElementIndex)
+						{
+							OutPoints[ElementIndex].Seed = DataAsInt[AddressUints + ElementIndex];
+						});
+						break;
+					}
+					case POINT_STEEPNESS_ATTRIBUTE_ID:
+					{
+						ParallelFor(NumElements, [DataAsFloat, AddressUints, &OutPoints](int32 ElementIndex)
+						{
+							OutPoints[ElementIndex].Steepness = DataAsFloat[AddressUints + ElementIndex];
+						});
+						break;
+					}
+					default:
+						checkNoEntry();
+						break;
+					}
+				}
+				else
+				{
+					FPCGMetadataAttributeBase* AttributeBase = PCGDataForGPUHelpers::CreateAttributeFromAttributeDesc(Metadata, AttributeDesc);
+					check(AttributeBase);
+
+					ParallelFor(NumElements, [PackedData, &InStringTable, &OutPoints, Metadata, AttributeBase, &AttributeDesc, AddressUints, AttributeStrideUints](int32 ElementIndex)
+					{
+						Metadata->InitializeOnSet(OutPoints[ElementIndex].MetadataEntry);
+						ensure(PCGDataForGPUHelpers::UnpackAttributeHelper(PackedData, InStringTable, AddressUints + ElementIndex * AttributeStrideUints, AttributeBase, AttributeDesc, OutPoints[ElementIndex].MetadataEntry));
+					});
+				}
 			}
 
 			// TODO: It may be more efficient to create a mapping from input point index to final output point index and do everything in one pass.
@@ -1230,8 +1198,6 @@ EPCGUnpackDataCollectionResult FPCGDataCollectionDesc::UnpackDataCollection(cons
 			OutTaggedData.Data = OutParamData;
 			OutTaggedData.Pin = InPin;
 
-			const uint32 AttributeHeadersIndex = CurrentDataIndex + PARAM_DATA_HEADER_PREAMBLE_SIZE_BYTES / sizeof(uint32);
-
 			TArray<TTuple</*EntryKey=*/int64, /*ParentEntryKey=*/int64>> AllMetadataEntries;
 			AllMetadataEntries.SetNumUninitialized(NumElements);
 
@@ -1247,25 +1213,24 @@ EPCGUnpackDataCollectionResult FPCGDataCollectionDesc::UnpackDataCollection(cons
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(WriteAttribute);
 
-				const uint32 AttributeNumComponents = PCGDataForGPUHelpers::GetAttributeTypeStrideBytes(AttributeDesc.Type) / sizeof(uint32);
-				const uint32 AttributeHeaderIndex = AttributeHeadersIndex + AttributeDesc.Index * ATTRIBUTE_HEADER_SIZE_BYTES / sizeof(uint32);
-				const uint32 AttributeIndex = DataAsUint[AttributeHeaderIndex + 1] / sizeof(uint32);
+				const uint32 AddressUints = GetElementDataStartAddressUints(DataAsUint, DataIndex, AttributeDesc.Index);
+				const uint32 AttributeStrideUints = PCGDataForGPUHelpers::GetAttributeTypeStrideBytes(AttributeDesc.Type) / sizeof(uint32);
 
-				FPCGMetadataAttributeBase* AttributeBase = PCGDataForGPUHelpers::CreateAttributeFromAttributeDesc(Metadata, AttributeDesc);
-
-				ParallelFor(NumElements, [&](int32 ElementIndex)
+				if (FPCGMetadataAttributeBase* AttributeBase = PCGDataForGPUHelpers::CreateAttributeFromAttributeDesc(Metadata, AttributeDesc))
 				{
-					if (AttributeBase)
+					const uint32 NumPackedUints = InPackedData.Num() / 4;
+
+					ParallelFor(NumElements, [PackedData, NumPackedUints, AddressUints, AttributeStrideUints, &AttributeDesc, AttributeBase, &InStringTable](int32 ElementIndex)
 					{
-						const uint32 PackedDataElementIndex = AttributeIndex + ElementIndex * AttributeNumComponents;
-						check(PackedDataElementIndex + AttributeNumComponents <= NumPackedFloats);
+						const uint32 PackedDataElementIndex = AddressUints + ElementIndex * AttributeStrideUints;
+						check(PackedDataElementIndex + AttributeStrideUints <= NumPackedUints);
 
 						ensure(PCGDataForGPUHelpers::UnpackAttributeHelper(PackedData, InStringTable, PackedDataElementIndex, AttributeBase, AttributeDesc, ElementIndex));
-					}
-				});
+					});
+				}
 			}
 		}
-		else { /* TODO: Support non-point data. */ }
+		else { /* TODO: Support additional data types. */ }
 	}
 
 	return EPCGUnpackDataCollectionResult::Success;

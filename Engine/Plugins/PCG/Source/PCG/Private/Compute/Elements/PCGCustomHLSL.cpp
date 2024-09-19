@@ -921,9 +921,8 @@ void UPCGCustomHLSLSettings::UpdateHelperDeclarations()
 					HelperDeclarations += TEXT("// Valid pins: ") + FString::Join(PinNames, TEXT(", ")) + TEXT("\n");
 				}
 
-				HelperDeclarations += FString::Format(TEXT(
-					"bool {0}_GetThreadData(uint ThreadIndex, out uint OutDataIndex, out uint OutElementIndex);\n"
-					"bool {0}_GetThreadData(uint ThreadIndex, out uint OutDataIndex, out uint OutDataAddress, out uint OutElementIndex);\n"),
+				HelperDeclarations += FString::Format(
+					TEXT("bool {0}_GetThreadData(uint ThreadIndex, out uint OutDataIndex, out uint OutElementIndex);\n"),
 					{ bMultiPin ? PCGHLSLElement::PinDeclTemplateStr : PinNames[0] });
 
 				HelperDeclarations += TEXT("\n");
@@ -1614,8 +1613,7 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FName, FPCGKern
 	{
 		KernelSpecificPreamble += FString::Format(TEXT(
 			"    uint {0}_DataIndex;\n"
-			"    uint {0}_DataAddress;\n"
-			"    if (!{0}_GetThreadData(ThreadIndex, {0}_DataIndex, {0}_DataAddress, ElementIndex)) return;\n"),
+			"    if (!{0}_GetThreadData(ThreadIndex, {0}_DataIndex, ElementIndex)) return;\n"),
 			{ PinLabel.ToString() });
 	};
 
@@ -1641,28 +1639,26 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FName, FPCGKern
 				{ InputPin->Properties.Label.ToString(), OutputPin->Properties.Label.ToString() });
 
 			// Automatically copy value of all attributes for this element.
+			// TODO pass in IDs of attributes that are actually present.
 			KernelSpecificPreamble += FString::Format(TEXT(
 				"\n"
-				"    // Loop over all attribute headers, if the address is non-zero, then copy it from pin {0} to pin {1}.\n"
+				"    // Initialize output data elements. Loop over all attribute headers, if the address is non-zero, then copy it from pin {0} to pin {1}.\n"
 				"    {\n"
-				"        const uint HeadersAddress = {0}_GetDataAttributeHeadersAddress({0}_DataAddress);\n"
-				"        const uint NumAttributes = {0}_GetDataNumAttributes({0}_DataAddress);\n"
+				"        const uint NumAttributes = {0}_GetDataNumAttributesInternal({0}_DataIndex);\n"
 				"        uint NumAttributesProcessed = 0;\n"
 				"\n"
 				"        for (int AttributeIndex = 0; AttributeIndex < 128; ++AttributeIndex)\n"
 				"        {\n"
-				"            const uint HeaderAddress = {0}_GetAttributeHeaderAddress(HeadersAddress, AttributeIndex);\n"
-				"            const uint Stride = {0}_GetAttributeStride(HeaderAddress);\n"
-				"            const uint Address = {0}_GetAttributeAddress(HeaderAddress);\n"
+				"            const uint Stride = {0}_GetAttributeStrideInternal({0}_DataIndex, AttributeIndex);\n"
 				"\n"
-				"            if (Address != 0)\n"
+				"            if (Stride != 0)\n"
 				"            {\n"
-				"                const uint BaseElementAddress = Address + ElementIndex * Stride;\n"
+				"                const uint {0}_ElementAddress = {0}_GetElementAddressInternal({0}_DataIndex, ElementIndex, AttributeIndex);\n"
+				"                const uint {1}_ElementAddress = {1}_GetElementAddressInternal({1}_DataIndex, ElementIndex, AttributeIndex);\n"
 				"\n"
-				"                for (int I = 0; I < Stride; I += 4)\n"
+				"                for (uint Address = 0; Address < Stride; Address += 4)\n"
 				"                {\n"
-				"                    const uint ElementAddress = BaseElementAddress + I;\n"
-				"                    {1}_StoreBufferInternal(ElementAddress, {0}_LoadBufferInternal(ElementAddress));\n"
+				"                    {1}_StoreBufferInternal({1}_ElementAddress + Address, {0}_LoadBufferInternal({0}_ElementAddress + Address));\n"
 				"                }\n"
 				"\n"
 				"                if (++NumAttributesProcessed >= NumAttributes) break; // We can early-out when we've looked at all the possible attributes\n"

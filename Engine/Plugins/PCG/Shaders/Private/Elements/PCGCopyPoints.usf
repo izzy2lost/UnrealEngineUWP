@@ -21,38 +21,25 @@
 #define NUM_RESERVED_ATTRS 32
 
 // TODO pass in attribute IDs to copy.
-void CopyAttributesFromSource(uint SourceDataIndex, uint SourceElemIndex, uint OutDataIndex, uint OutElemIndex)
+void CopyAttributesFromSource(uint Source_DataIndex, uint Source_ElementIndex, uint Out_DataIndex, uint Out_ElementIndex)
 {
-	const uint SourceDataAddress = Source_GetDataAddress(SourceDataIndex);
-	const uint SourceHeadersAddress = Source_GetDataAttributeHeadersAddress(SourceDataAddress);
-
-	const uint OutDataAddress = Out_GetDataAddress(OutDataIndex);
-	const uint OutHeadersAddress = Out_GetDataAttributeHeadersAddress(OutDataAddress);
-
-	const uint NumAttributes = Source_GetDataNumAttributes(SourceDataAddress);
+	const uint NumAttributes = Source_GetDataNumAttributesInternal(Source_DataIndex);
 	uint NumAttributesProcessed = 0;
 	
 	// Loop over all attribute headers, if the address is non-zero, then copy it from pin Source to pin Out.
 	for (int AttributeIndex = NUM_RESERVED_ATTRS; AttributeIndex < MAX_NUM_ATTRS; ++AttributeIndex)
 	{
-		const uint SourceHeaderAddress = Source_GetAttributeHeaderAddress(SourceHeadersAddress, AttributeIndex);
-		const uint SourceAddress = Source_GetAttributeAddress(SourceHeaderAddress);
+		const uint Source_Stride = Source_GetAttributeStrideInternal(Source_DataIndex, AttributeIndex);
+		const uint Out_Stride = Target_GetAttributeStrideInternal(Out_DataIndex, AttributeIndex);
 
-		const uint OutHeaderAddress = Out_GetAttributeHeaderAddress(OutHeadersAddress, AttributeIndex);
-		const uint OutAddress = Out_GetAttributeAddress(OutHeaderAddress);
-
-		const uint Stride = Source_GetAttributeStride(SourceHeaderAddress);
-
-		if (SourceAddress != 0 && OutAddress != 0)
+		if (Source_Stride != 0 && Source_Stride == Out_Stride)
 		{
-			const uint SourceBaseElementAddress = SourceAddress + SourceElemIndex * Stride;
-			const uint OutBaseElementAddress = OutAddress + OutElemIndex * Stride;
+			const uint Source_ElementAddress = Source_GetElementAddressInternal(Source_DataIndex, Source_ElementIndex, AttributeIndex);
+			const uint Out_ElementAddress = Out_GetElementAddressInternal(Out_DataIndex, Out_ElementIndex, AttributeIndex);
 
-			for (int I = 0; I < Stride; I += 4)
+			for (int Offset = 0; Offset < Out_Stride; Offset += 4)
 			{
-				const uint SourceElementAddress = SourceBaseElementAddress + I;
-				const uint OutElementAddress = OutBaseElementAddress + I;
-				Out_StoreBufferInternal(OutElementAddress, Source_LoadBufferInternal(SourceElementAddress));
+				Out_StoreBufferInternal(Out_ElementAddress + Offset, Source_LoadBufferInternal(Source_ElementAddress + Offset));
 			}
 
 			// We can early-out when we've looked at all the possible attributes
@@ -65,38 +52,25 @@ void CopyAttributesFromSource(uint SourceDataIndex, uint SourceElemIndex, uint O
 }
 
 // TODO pass in attribute IDs to copy.
-void CopyAttributesFromTarget(uint TargetDataIndex, uint TargetElemIndex, uint OutDataIndex, uint OutElemIndex)
+void CopyAttributesFromTarget(uint Target_DataIndex, uint Target_ElementIndex, uint Out_DataIndex, uint Out_ElementIndex)
 {
-	const uint TargetDataAddress = Target_GetDataAddress(TargetDataIndex);
-	const uint TargetHeadersAddress = Target_GetDataAttributeHeadersAddress(TargetDataAddress);
-
-	const uint OutDataAddress = Out_GetDataAddress(OutDataIndex);
-	const uint OutHeadersAddress = Out_GetDataAttributeHeadersAddress(OutDataAddress);
-
-	const uint NumAttributes = Target_GetDataNumAttributes(TargetDataAddress);
+	const uint NumAttributes = Target_GetDataNumAttributesInternal(Target_DataIndex);
 	uint NumAttributesProcessed = 0;
 	
 	// Loop over all attribute headers, if the address is non-zero, then copy it from pin Target to pin Out.
 	for (int AttributeIndex = NUM_RESERVED_ATTRS; AttributeIndex < MAX_NUM_ATTRS; ++AttributeIndex)
 	{
-		const uint TargetHeaderAddress = Target_GetAttributeHeaderAddress(TargetHeadersAddress, AttributeIndex);
-		const uint TargetAddress = Target_GetAttributeAddress(TargetHeaderAddress);
+		const uint Target_Stride = Target_GetAttributeStrideInternal(Target_DataIndex, AttributeIndex);
+		const uint Out_Stride = Out_GetAttributeStrideInternal(Out_DataIndex, AttributeIndex);
 
-		const uint OutHeaderAddress = Out_GetAttributeHeaderAddress(OutHeadersAddress, AttributeIndex);
-		const uint OutAddress = Out_GetAttributeAddress(OutHeaderAddress);
-
-		const uint Stride = Target_GetAttributeStride(TargetHeaderAddress);
-
-		if (TargetAddress != 0 && OutAddress != 0)
+		if (Target_Stride != 0 && Target_Stride == Out_Stride)
 		{
-			const uint TargetBaseElementAddress = TargetAddress + TargetElemIndex * Stride;
-			const uint OutBaseElementAddress = OutAddress + OutElemIndex * Stride;
+			const uint Target_ElementAddress = Target_GetElementAddressInternal(Target_DataIndex, Target_ElementIndex, AttributeIndex);
+			const uint Out_ElementAddress = Out_GetElementAddressInternal(Out_DataIndex, Out_ElementIndex, AttributeIndex);
 
-			for (int I = 0; I < Stride; I += 4)
+			for (int Offset = 0; Offset < Out_Stride; Offset += 4)
 			{
-				const uint TargetElementAddress = TargetBaseElementAddress + I;
-				const uint OutElementAddress = OutBaseElementAddress + I;
-				Out_StoreBufferInternal(OutElementAddress, Target_LoadBufferInternal(TargetElementAddress));
+				Out_StoreBufferInternal(Out_ElementAddress + Offset, Target_LoadBufferInternal(Target_ElementAddress + Offset));
 			}
 
 			// We can early-out when we've looked at all the possible attributes
@@ -163,11 +137,8 @@ void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 			SourceDataIndex = min(DataIndex, SourceNumData - 1);
 			TargetDataIndex = min(DataIndex, TargetNumData - 1);
 
-			const uint SourceDataAddress = Source_GetDataAddress(SourceDataIndex);
-			const uint TargetDataAddress = Target_GetDataAddress(TargetDataIndex);
-
-			const uint SourceElemCount = Source_GetDataInfo(SourceDataAddress);
-			const uint TargetElemCount = Target_GetDataInfo(TargetDataAddress);
+			const uint SourceElemCount = Source_GetDataNumElements(SourceDataIndex);
+			const uint TargetElemCount = Target_GetDataNumElements(TargetDataIndex);
 
 			const uint ElemCount = SourceElemCount * TargetElemCount;
 

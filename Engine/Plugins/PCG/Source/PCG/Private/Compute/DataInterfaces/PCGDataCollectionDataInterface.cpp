@@ -21,15 +21,18 @@
 
 void UPCGDataCollectionDataInterface::GetSupportedInputs(TArray<FShaderFunctionDefinition>& OutFunctions) const
 {
-	OutFunctions.AddDefaulted_GetRef()
-		.SetName(TEXT("LoadBufferInternal"))
-		.AddReturnType(EShaderFundamentalType::Uint)
-		.AddParam(EShaderFundamentalType::Uint);
+	// Internal direct access to buffer, used to optimize access.
+	{
+		OutFunctions.AddDefaulted_GetRef()
+			.SetName(TEXT("LoadBufferInternal"))
+			.AddReturnType(EShaderFundamentalType::Uint)
+			.AddParam(EShaderFundamentalType::Uint);
 
-	OutFunctions.AddDefaulted_GetRef()
-		.SetName(TEXT("StoreBufferInternal"))
-		.AddParam(EShaderFundamentalType::Uint)
-		.AddParam(EShaderFundamentalType::Uint);
+		OutFunctions.AddDefaulted_GetRef()
+			.SetName(TEXT("StoreBufferInternal"))
+			.AddParam(EShaderFundamentalType::Uint)
+			.AddParam(EShaderFundamentalType::Uint);
+	}
 
 	// Header Readers
 	{
@@ -38,42 +41,14 @@ void UPCGDataCollectionDataInterface::GetSupportedInputs(TArray<FShaderFunctionD
 			.AddReturnType(EShaderFundamentalType::Uint);
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("GetDataAddress"))
+			.SetName(TEXT("GetDataNumAttributesInternal"))
 			.AddReturnType(EShaderFundamentalType::Uint)
-			.AddParam(EShaderFundamentalType::Uint);
+			.AddParam(EShaderFundamentalType::Uint); // InDataIndex
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("GetDataId"))
+			.SetName(TEXT("GetDataNumElements"))
 			.AddReturnType(EShaderFundamentalType::Uint)
-			.AddParam(EShaderFundamentalType::Uint);
-
-		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("GetDataNumAttributes"))
-			.AddReturnType(EShaderFundamentalType::Uint)
-			.AddParam(EShaderFundamentalType::Uint);
-
-		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("GetDataPreambleSize"))
-			.AddReturnType(EShaderFundamentalType::Uint)
-			.AddParam(EShaderFundamentalType::Uint);
-
-		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("GetDataInfo"))
-			.AddReturnType(EShaderFundamentalType::Uint)
-			.AddParam(EShaderFundamentalType::Uint);
-
-		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("GetDataAttributeHeadersAddress"))
-			.AddReturnType(EShaderFundamentalType::Uint)
-			.AddParam(EShaderFundamentalType::Uint);
-
-		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("GetThreadData"))
-			.AddParam(EShaderFundamentalType::Uint) // InThreadIndex
-			.AddParam(EShaderFundamentalType::Uint, 0, 0, EShaderParamModifier::Out) // OutDataIndex
-			.AddParam(EShaderFundamentalType::Uint, 0, 0, EShaderParamModifier::Out) // OutDataAddress
-			.AddParam(EShaderFundamentalType::Uint, 0, 0, EShaderParamModifier::Out) // OutElementIndex
-			.AddReturnType(EShaderFundamentalType::Bool);
+			.AddParam(EShaderFundamentalType::Uint); // InDataIndex
 
 		OutFunctions.AddDefaulted_GetRef()
 			.SetName(TEXT("GetThreadData"))
@@ -87,80 +62,23 @@ void UPCGDataCollectionDataInterface::GetSupportedInputs(TArray<FShaderFunctionD
 			.AddReturnType(EShaderFundamentalType::Uint);
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("GetAttributeHeaderAddress"))
+			.SetName(TEXT("GetElementAddressInternal"))
 			.AddReturnType(EShaderFundamentalType::Uint)
-			.AddParam(EShaderFundamentalType::Uint)
-			.AddParam(EShaderFundamentalType::Uint);
+			.AddParam(EShaderFundamentalType::Uint) // InDataIndex
+			.AddParam(EShaderFundamentalType::Uint) // InElementIndex
+			.AddParam(EShaderFundamentalType::Uint); // InAttributeId
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("GetAttributeIdAndStride"))
+			.SetName(TEXT("GetAttributeStrideInternal"))
 			.AddReturnType(EShaderFundamentalType::Uint)
-			.AddParam(EShaderFundamentalType::Uint);
-
-		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("GetAttributeId"))
-			.AddReturnType(EShaderFundamentalType::Uint)
-			.AddParam(EShaderFundamentalType::Uint);
-
-		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("GetAttributeStride"))
-			.AddReturnType(EShaderFundamentalType::Uint)
-			.AddParam(EShaderFundamentalType::Uint);
-
-		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("GetAttributeAddress"))
-			.AddReturnType(EShaderFundamentalType::Uint)
-			.AddParam(EShaderFundamentalType::Uint);
-
-		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("GetAttributeAddress"))
-			.AddReturnType(EShaderFundamentalType::Uint)
-			.AddParam(EShaderFundamentalType::Uint)
-			.AddParam(EShaderFundamentalType::Uint);
+			.AddParam(EShaderFundamentalType::Uint) // InDataIndex
+			.AddParam(EShaderFundamentalType::Uint); // InAttributeId
 	}
 
 	// Header Writers
 	{
 		OutFunctions.AddDefaulted_GetRef()
 			.SetName(TEXT("SetAsExecutedInternal"));
-
-		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("SetDataAddressInternal"))
-			.AddParam(EShaderFundamentalType::Uint)
-			.AddParam(EShaderFundamentalType::Uint);
-
-		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("SetDataIdInternal"))
-			.AddParam(EShaderFundamentalType::Uint)
-			.AddParam(EShaderFundamentalType::Uint);
-
-		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("SetDataNumAttributesInternal"))
-			.AddParam(EShaderFundamentalType::Uint)
-			.AddParam(EShaderFundamentalType::Uint);
-
-		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("SetDataPreambleSizeInternal"))
-			.AddParam(EShaderFundamentalType::Uint)
-			.AddParam(EShaderFundamentalType::Uint);
-
-		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("SetDataInfoInternal"))
-			.AddParam(EShaderFundamentalType::Uint)
-			.AddParam(EShaderFundamentalType::Uint);
-
-		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("SetAttributeIdAndStrideInternal"))
-			.AddParam(EShaderFundamentalType::Uint)
-			.AddParam(EShaderFundamentalType::Uint);
-
-		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("SetAttributeAddressInternal"))
-			.AddParam(EShaderFundamentalType::Uint)
-			.AddParam(EShaderFundamentalType::Uint);
-
-		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("WriteHeader"));
 	}
 
 	// Attribute Getters
@@ -661,7 +579,7 @@ FPCGDataCollectionDataProviderProxy::FPCGDataCollectionDataProviderProxy(const F
 	: ReadbackMode(InReadbackMode)
 	, PinDesc(InPinDesc)
 {
-	SizeBytes = PinDesc.ComputePackedSize();
+	SizeBytes = PinDesc.ComputePackedSizeBytes();
 }
 
 bool FPCGDataCollectionDataProviderProxy::IsValid(FValidationData const& InValidationData) const
@@ -697,15 +615,14 @@ void FPCGDataCollectionDataProviderProxy::AllocateResources(FRDGBuilder& GraphBu
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDataCollectionDataProviderProxy::AllocateResources);
 	check(SizeBytes > 0);
 
-	// Initialize with an empty data collection. The kernel may not run, for example if indirect dispatch args end up being 0. Ensure
-	// there is something meaningful to readback.
-	// TODO could have a statically-allocated resource rather than allocating & uploading here.
-	TArray<uint32> PackedDataCollection;
-	PinDesc.PrepareBufferForKernelOutput(PackedDataCollection);
-
-	FRDGBufferDesc Desc = FRDGBufferDesc::CreateStructuredDesc(PackedDataCollection.GetTypeSize(), PackedDataCollection.Num());
+	FRDGBufferDesc Desc = FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), SizeBytes >> 2);
 	Buffer = GraphBuilder.CreateBuffer(Desc, TEXT("PCGDataCollectionBuffer"));
 	BufferUAV = GraphBuilder.CreateUAV(Buffer);
+
+	// Initialize with an empty data collection. The kernel may not run, for example if indirect dispatch args end up being 0. Ensure
+	// there is something meaningful to readback.
+	TArray<uint32> PackedDataCollection;
+	PinDesc.WriteHeader(PackedDataCollection);
 
 	GraphBuilder.QueueBufferUpload(Buffer, PackedDataCollection.GetData(), PackedDataCollection.Num() * PackedDataCollection.GetTypeSize(), ERDGInitialDataFlags::None);
 }
