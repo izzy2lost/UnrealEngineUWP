@@ -71,6 +71,11 @@ TSharedRef<SWidget> FDMMaterialSlotLayerMenus::GenerateSlotLayerMenu(const TShar
 
 	FToolMenuContext MenuContext(UDMMenuContext::CreateLayer(InSlotWidget->GetEditorWidget(), InLayer));
 
+	if (TSharedPtr<SDMMaterialEditor> EditorWidget = InSlotWidget->GetEditorWidget())
+	{
+		MenuContext.AppendCommandList(EditorWidget->GetCommandList());
+	}
+
 	return UToolMenus::Get()->GenerateWidget(SlotLayerMenuName, MenuContext);
 }
 
