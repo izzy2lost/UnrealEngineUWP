@@ -3,9 +3,12 @@
 #pragma once
 
 #include "RigVMObjectVersion.h"
+#include "HAL/IConsoleManager.h"
 #include "RigVMVariant.generated.h"
 
 struct FRigVMVariantRef;
+
+extern RIGVM_API TAutoConsoleVariable<bool> CVarRigVMEnableVariants;
 
 // User applied tag
 USTRUCT(BlueprintType)

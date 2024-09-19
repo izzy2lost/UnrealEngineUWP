@@ -20,6 +20,11 @@ class FUObjectToken;
 
 void FRigVMVariantDetailCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> InStructPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
 {
+	if(!CVarRigVMEnableVariants.GetValueOnAnyThread())
+	{
+		return;
+	}
+		
 	TArray<UObject*> Objects;
 	InStructPropertyHandle->GetOuterObjects(Objects);
 	ensure(Objects.Num() == 1); // This is in here to ensure we are only showing the modifier details in the blueprint editor
