@@ -65,7 +65,7 @@ struct FOutlinerColumnLayout
 
 struct FCommonOutlinerNames
 {
-	static SEQUENCERCORE_API FName Decorator;
+	static SEQUENCERCORE_API FName Indicator;
 	static SEQUENCERCORE_API FName Pin;
 	static SEQUENCERCORE_API FName Lock;
 	static SEQUENCERCORE_API FName Mute;

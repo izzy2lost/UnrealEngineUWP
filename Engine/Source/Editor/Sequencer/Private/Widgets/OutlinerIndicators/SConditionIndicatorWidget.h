@@ -8,18 +8,18 @@ namespace UE::Sequencer
 {
 
 class IOutlinerColumn;
-class IOutlinerDecorator;
-class FConditionOutlinerDecoratorBuilder;
+class IOutlinerIndicator;
+class FConditionOutlinerIndicatorBuilder;
 class FConditionStateCacheExtension;
 
 /**
- * A widget that shows an decorator based on the presence and state of conditions in a row
+ * A widget that shows an indicator based on the presence and state of conditions in a row
  */
-class SConditionDecoratorWidget
+class SConditionIndicatorWidget
 	: public SColumnToggleWidget
 {
 public:
-	SLATE_BEGIN_ARGS(SConditionDecoratorWidget) {}
+	SLATE_BEGIN_ARGS(SConditionIndicatorWidget) {}
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, const TWeakPtr<IOutlinerColumn> InWeakOutlinerColumn, const FCreateOutlinerColumnParams& InParams);
@@ -27,8 +27,8 @@ public:
 	/** Get the color and opacity of the column toggle widget. */
 	virtual FSlateColor GetImageColorAndOpacity() const override;
 
-	/* Gets the color and opacity of the decorator background. */
-	FSlateColor GetDecoratorBackgroundColorAndOpacity() const;
+	/* Gets the color and opacity of the indicator background. */
+	FSlateColor GetIndicatorBackgroundColorAndOpacity() const;
 
 protected:
 

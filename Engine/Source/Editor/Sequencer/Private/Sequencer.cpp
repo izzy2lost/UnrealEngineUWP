@@ -132,7 +132,7 @@
 #include "ISequencerChannelInterface.h"
 #include "IMovieRendererInterface.h"
 #include "MVVM/ViewModels/OutlinerColumns/IOutlinerColumn.h"
-#include "MVVM/ViewModels/OutlinerDecorators/IOutlinerDecoratorBuilder.h"
+#include "MVVM/ViewModels/OutlinerIndicators/IOutlinerIndicatorBuilder.h"
 #include "SequencerKeyCollection.h"
 #include "CurveEditor.h"
 #include "CurveEditorScreenSpace.h"
@@ -305,7 +305,7 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams
 	, const TArray<FOnCreateTrackEditor>& TrackEditorDelegates
 	, const TArray<FOnCreateEditorObjectBinding>& EditorObjectBindingDelegates
 	, const TArray<FOnCreateOutlinerColumn>& OutlinerColumnDelegates
-	, const TArray<FOnCreateOutlinerDecorator>& OutlinerDecoratorDelegates)
+	, const TArray<FOnCreateOutlinerIndicator>& OutlinerIndicatorDelegates)
 {
 	using namespace UE::MovieScene;
 	using namespace UE::Sequencer;
@@ -531,16 +531,16 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams
 		}
 	}
 
-	// OutlinerDecorators are registered to be provided to SOutlinerView by SSequencer
-	for (int32 DelegateIndex = 0; DelegateIndex < OutlinerDecoratorDelegates.Num(); ++DelegateIndex)
+	// OutlinerIndicators are registered to be provided to SOutlinerView by SSequencer
+	for (int32 DelegateIndex = 0; DelegateIndex < OutlinerIndicatorDelegates.Num(); ++DelegateIndex)
 	{
-		check(OutlinerDecoratorDelegates[DelegateIndex].IsBound());
-		TSharedRef<IOutlinerDecoratorBuilder> OutlinerDecorator = OutlinerDecoratorDelegates[DelegateIndex].Execute();
+		check(OutlinerIndicatorDelegates[DelegateIndex].IsBound());
+		TSharedRef<IOutlinerIndicatorBuilder> OutlinerIndicator = OutlinerIndicatorDelegates[DelegateIndex].Execute();
 
-		if (OutlinerDecorator->SupportsSequence(InitParams.RootSequence))
+		if (OutlinerIndicator->SupportsSequence(InitParams.RootSequence))
 		{
-			check(!OutlinerDecorators.Contains(OutlinerDecorator->GetDecoratorName()));
-			OutlinerDecorators.Add(OutlinerDecorator->GetDecoratorName(), OutlinerDecorator);
+			check(!OutlinerIndicators.Contains(OutlinerIndicator->GetIndicatorName()));
+			OutlinerIndicators.Add(OutlinerIndicator->GetIndicatorName(), OutlinerIndicator);
 		}
 	}
 

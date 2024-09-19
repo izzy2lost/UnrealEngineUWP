@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Widgets/OutlinerDecorators/SConditionDecoratorWidget.h"
+#include "Widgets/OutlinerIndicators/SConditionIndicatorWidget.h"
 
 #include "MVVM/SharedViewModelData.h"
 #include "MVVM/ViewModels/ViewModelIterators.h"
 #include "MVVM/ViewModels/EditorViewModel.h"
 #include "MVVM/ViewModels/OutlinerColumns/IOutlinerColumn.h"
-#include "MVVM/ViewModels/OutlinerDecorators/IOutlinerDecoratorBuilder.h"
-#include "MVVM/ViewModels/OutlinerDecorators/ConditionOutlinerDecoratorBuilder.h"
+#include "MVVM/ViewModels/OutlinerIndicators/IOutlinerIndicatorBuilder.h"
+#include "MVVM/ViewModels/OutlinerIndicators/ConditionOutlinerIndicatorBuilder.h"
 #include "MVVM/Extensions/IConditionableExtension.h"
 #include "MVVM/Selection/SequencerCoreSelection.h"
 #include "MVVM/Selection/SequencerOutlinerSelection.h"
@@ -15,7 +15,7 @@
 namespace UE::Sequencer
 {
 
-void SConditionDecoratorWidget::Construct(const FArguments& InArgs, const TWeakPtr<IOutlinerColumn> InWeakOutlinerColumn, const FCreateOutlinerColumnParams& InParams)
+void SConditionIndicatorWidget::Construct(const FArguments& InArgs, const TWeakPtr<IOutlinerColumn> InWeakOutlinerColumn, const FCreateOutlinerColumnParams& InParams)
 {
 	SColumnToggleWidget::Construct(
 		SColumnToggleWidget::FArguments(),
@@ -26,7 +26,7 @@ void SConditionDecoratorWidget::Construct(const FArguments& InArgs, const TWeakP
 	WeakConditionStateCacheExtension = CastViewModel<FConditionStateCacheExtension>(InParams.OutlinerExtension.AsModel()->GetSharedData());
 }
 
-bool SConditionDecoratorWidget::IsActive() const
+bool SConditionIndicatorWidget::IsActive() const
 {
 	if (TViewModelPtr<FConditionStateCacheExtension> StateCache = WeakConditionStateCacheExtension.Pin())
 	{
@@ -36,13 +36,13 @@ bool SConditionDecoratorWidget::IsActive() const
 	return false;
 }
 
-const FSlateBrush* SConditionDecoratorWidget::GetActiveBrush() const
+const FSlateBrush* SConditionIndicatorWidget::GetActiveBrush() const
 {
-	static const FName NAME_ConditionBrush = TEXT("Sequencer.Decorator.Condition");
+	static const FName NAME_ConditionBrush = TEXT("Sequencer.Indicator.Condition");
 	return FAppStyle::Get().GetBrush(NAME_ConditionBrush);
 }
 
-FSlateColor SConditionDecoratorWidget::GetImageColorAndOpacity() const
+FSlateColor SConditionIndicatorWidget::GetImageColorAndOpacity() const
 {
 	FLinearColor OutColor = FLinearColor::Black;
 	TSharedPtr<FEditorViewModel> Editor = WeakEditor.Pin();
@@ -80,7 +80,7 @@ FSlateColor SConditionDecoratorWidget::GetImageColorAndOpacity() const
 	return OutColor;
 }
 
-FSlateColor SConditionDecoratorWidget::GetDecoratorBackgroundColorAndOpacity() const
+FSlateColor SConditionIndicatorWidget::GetIndicatorBackgroundColorAndOpacity() const
 {
 	static const FLinearColor ConditionColor = FLinearColor::FromSRGBColor(FColor(92, 220, 205));
 	TSharedPtr<FEditorViewModel> Editor = WeakEditor.Pin();

@@ -33,7 +33,7 @@
 #include "MVVM/ViewModels/SequenceModel.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 
-#include "MVVM/ViewModels/OutlinerColumns/OutlinerDecoratorColumn.h"
+#include "MVVM/ViewModels/OutlinerColumns/OutlinerIndicatorColumn.h"
 #include "MVVM/ViewModels/OutlinerColumns/LockOutlinerColumn.h"
 #include "MVVM/ViewModels/OutlinerColumns/MuteOutlinerColumn.h"
 #include "MVVM/ViewModels/OutlinerColumns/PinOutlinerColumn.h"
@@ -45,8 +45,8 @@
 #include "MVVM/ViewModels/OutlinerColumns/KeyFrameOutlinerColumn.h"
 #include "MVVM/ViewModels/OutlinerColumns/ColorPickerOutlinerColumn.h"
 
-#include "MVVM/ViewModels/OutlinerDecorators/ConditionOutlinerDecoratorBuilder.h"
-#include "MVVM/ViewModels/OutlinerDecorators/TimeWarpOutlinerDecoratorBuilder.h"
+#include "MVVM/ViewModels/OutlinerIndicators/ConditionOutlinerIndicatorBuilder.h"
+#include "MVVM/ViewModels/OutlinerIndicators/TimeWarpOutlinerIndicatorBuilder.h"
 
 #include "ToolMenus.h"
 #include "ContentBrowserMenuContexts.h"
@@ -297,7 +297,7 @@ public:
 
 		OnPreSequencerInit.Broadcast(Sequencer, ObjectChangeListener, InitParams);
 
-		Sequencer->InitSequencer(InitParams, ObjectChangeListener, TrackEditorDelegates, EditorObjectBindingDelegates, OutlinerColumnDelegates, OutlinerDecoratorDelegates);
+		Sequencer->InitSequencer(InitParams, ObjectChangeListener, TrackEditorDelegates, EditorObjectBindingDelegates, OutlinerColumnDelegates, OutlinerIndicatorDelegates);
 
 		OnSequencerCreated.Broadcast(Sequencer);
 
@@ -360,13 +360,13 @@ public:
 		OutlinerColumnDelegates.RemoveAll([=](const FOnCreateOutlinerColumn& Delegate) { return Delegate.GetHandle() == InHandle; });
 	}
 
-	virtual FDelegateHandle RegisterOutlinerDecorator(FOnCreateOutlinerDecorator InCreator) override {
-		OutlinerDecoratorDelegates.Add(InCreator);
-		return OutlinerDecoratorDelegates.Last().GetHandle();
+	virtual FDelegateHandle RegisterOutlinerIndicator(FOnCreateOutlinerIndicator InCreator) override {
+		OutlinerIndicatorDelegates.Add(InCreator);
+		return OutlinerIndicatorDelegates.Last().GetHandle();
 	}
 
-	virtual void UnregisterOutlinerDecorator(FDelegateHandle InHandle) override {
-		OutlinerDecoratorDelegates.RemoveAll([=](const FOnCreateOutlinerDecorator& Delegate) { return Delegate.GetHandle() == InHandle; });
+	virtual void UnregisterOutlinerIndicator(FDelegateHandle InHandle) override {
+		OutlinerIndicatorDelegates.RemoveAll([=](const FOnCreateOutlinerIndicator& Delegate) { return Delegate.GetHandle() == InHandle; });
 	}
 
 	virtual FDelegateHandle RegisterOnSequencerCreated(FOnSequencerCreated::FDelegate InOnSequencerCreated) override
@@ -493,7 +493,7 @@ public:
 			OnGetGlobalRowExtensionHandle = EditModule.GetGlobalRowExtensionDelegate().AddStatic(&RegisterKeyframeExtensionHandler);
 
 			// Register far left gutter columns
-			OutlinerDecoratorColumnHandle = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([] { return TSharedRef<IOutlinerColumn>(MakeShared<FOutlinerDecoratorColumn>()); }));
+			OutlinerIndicatorColumnHandle = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([] { return TSharedRef<IOutlinerColumn>(MakeShared<FOutlinerIndicatorColumn>()); }));
 
 			// Register left gutter columns
 			PinOutlinerColumnHandle  = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([]{ return TSharedRef<IOutlinerColumn>(MakeShared<FPinOutlinerColumn>()); }));
@@ -511,9 +511,9 @@ public:
 			NavOutlinerColumnHandle          = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([]{ return TSharedRef<IOutlinerColumn>(MakeShared<FNavOutlinerColumn>()); }));
 			ColorPickerOutlinerColumnHandle  = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([]{ return TSharedRef<IOutlinerColumn>(MakeShared<FColorPickerOutlinerColumn>()); }));
 
-			// Register outliner decorator items
-			ConditionOutlinerDecoratorHandle = RegisterOutlinerDecorator(FOnCreateOutlinerDecorator::CreateStatic([] { return TSharedRef<IOutlinerDecoratorBuilder>(MakeShared<FConditionOutlinerDecoratorBuilder>()); }));
-			TimeWarpOutlinerDecoratorHandle = RegisterOutlinerDecorator(FOnCreateOutlinerDecorator::CreateStatic([] { return TSharedRef<IOutlinerDecoratorBuilder>(MakeShared<FTimeWarpOutlinerDecoratorBuilder>()); }));
+			// Register outliner indicator items
+			ConditionOutlinerIndicatorHandle = RegisterOutlinerIndicator(FOnCreateOutlinerIndicator::CreateStatic([] { return TSharedRef<IOutlinerIndicatorBuilder>(MakeShared<FConditionOutlinerIndicatorBuilder>()); }));
+			TimeWarpOutlinerIndicatorHandle = RegisterOutlinerIndicator(FOnCreateOutlinerIndicator::CreateStatic([] { return TSharedRef<IOutlinerIndicatorBuilder>(MakeShared<FTimeWarpOutlinerIndicatorBuilder>()); }));
 
 			RegisterObjectSchemas();
 		}
@@ -562,7 +562,7 @@ public:
 			FEditorModeRegistry::Get().UnregisterMode(FSequencerEdMode::EM_SequencerMode);
 
 			// unregister outliner columns
-			UnregisterOutlinerColumn(OutlinerDecoratorColumnHandle);
+			UnregisterOutlinerColumn(OutlinerIndicatorColumnHandle);
 			UnregisterOutlinerColumn(PinOutlinerColumnHandle);
 			UnregisterOutlinerColumn(MuteOutlinerColumnHandle);
 			UnregisterOutlinerColumn(LockOutlinerColumnHandle);
@@ -574,9 +574,9 @@ public:
 			UnregisterOutlinerColumn(NavOutlinerColumnHandle);
 			UnregisterOutlinerColumn(ColorPickerOutlinerColumnHandle);
 
-			// unregister outliner decorator items
-			UnregisterOutlinerDecorator(ConditionOutlinerDecoratorHandle);
-			UnregisterOutlinerDecorator(TimeWarpOutlinerDecoratorHandle);
+			// unregister outliner indicator items
+			UnregisterOutlinerIndicator(ConditionOutlinerIndicatorHandle);
+			UnregisterOutlinerIndicator(TimeWarpOutlinerIndicatorHandle);
 		}
 	}
 
@@ -724,8 +724,8 @@ private:
 	/** List of outliner column creators */
 	TArray<FOnCreateOutlinerColumn> OutlinerColumnDelegates;
 
-	/** List of outliner decorator item creators */
-	TArray<FOnCreateOutlinerDecorator> OutlinerDecoratorDelegates;
+	/** List of outliner indicator item creators */
+	TArray<FOnCreateOutlinerIndicator> OutlinerIndicatorDelegates;
 
 	TArray<TSharedPtr<UE::Sequencer::IObjectSchema>> ObjectSchemas;
 
@@ -766,7 +766,7 @@ private:
 	TArray<FMovieRendererEntry> MovieRenderers;
 
 	// Outliner Column Delegate Handles
-	FDelegateHandle OutlinerDecoratorColumnHandle;
+	FDelegateHandle OutlinerIndicatorColumnHandle;
 	FDelegateHandle PinOutlinerColumnHandle;
 	FDelegateHandle MuteOutlinerColumnHandle;
 	FDelegateHandle LockOutlinerColumnHandle;
@@ -778,9 +778,9 @@ private:
 	FDelegateHandle NavOutlinerColumnHandle;
 	FDelegateHandle ColorPickerOutlinerColumnHandle;
 
-	// Outliner Decorator Item Delegate Handles
-	FDelegateHandle ConditionOutlinerDecoratorHandle;
-	FDelegateHandle TimeWarpOutlinerDecoratorHandle;
+	// Outliner Indicator Item Delegate Handles
+	FDelegateHandle ConditionOutlinerIndicatorHandle;
+	FDelegateHandle TimeWarpOutlinerIndicatorHandle;
 };
 
 IMPLEMENT_MODULE(FSequencerModule, Sequencer);

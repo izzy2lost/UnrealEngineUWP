@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "MVVM/ViewModels/OutlinerDecorators/TimeWarpOutlinerDecoratorBuilder.h"
+#include "MVVM/ViewModels/OutlinerIndicators/TimeWarpOutlinerIndicatorBuilder.h"
 
 #include "MovieSceneSection.h"
 #include "MVVM/Extensions/ITrackExtension.h"
@@ -11,23 +11,23 @@
 #include "Variants/MovieSceneTimeWarpVariant.h"
 #include "Variants/MovieSceneTimeWarpGetter.h"
 #include "Widgets/Layout/SBorder.h"
-#include "Widgets/OutlinerDecorators/STimeWarpDecoratorWidget.h"
+#include "Widgets/OutlinerIndicators/STimeWarpIndicatorWidget.h"
 
-#define LOCTEXT_NAMESPACE "FTimeWarpOutlinerDecoratorBuilder"
+#define LOCTEXT_NAMESPACE "FTimeWarpOutlinerIndicatorBuilder"
 
 namespace UE::Sequencer
 {
 
-FTimeWarpOutlinerDecoratorBuilder::FTimeWarpOutlinerDecoratorBuilder()
+FTimeWarpOutlinerIndicatorBuilder::FTimeWarpOutlinerIndicatorBuilder()
 {
 }
 
-FName FTimeWarpOutlinerDecoratorBuilder::GetDecoratorName() const
+FName FTimeWarpOutlinerIndicatorBuilder::GetIndicatorName() const
 {
 	return FCommonOutlinerNames::TimeWarp;
 }
 
-bool FTimeWarpOutlinerDecoratorBuilder::IsItemCompatibleWithDecorator(const FCreateOutlinerColumnParams& InParams) const
+bool FTimeWarpOutlinerIndicatorBuilder::IsItemCompatibleWithIndicator(const FCreateOutlinerColumnParams& InParams) const
 {
 	if (InParams.OutlinerExtension.AsModel()->IsA<ITrackExtension>())
 	{
@@ -54,11 +54,11 @@ bool FTimeWarpOutlinerDecoratorBuilder::IsItemCompatibleWithDecorator(const FCre
 	return false;
 }
 
-TSharedPtr<SWidget> FTimeWarpOutlinerDecoratorBuilder::CreateDecoratorWidget(const FCreateOutlinerColumnParams& InParams, const TSharedRef<ISequencerTreeViewRow>& TreeViewRow, const TSharedRef<IOutlinerColumn>& OutlinerColumn, const int32 NumCompatibleDecorators)
+TSharedPtr<SWidget> FTimeWarpOutlinerIndicatorBuilder::CreateIndicatorWidget(const FCreateOutlinerColumnParams& InParams, const TSharedRef<ISequencerTreeViewRow>& TreeViewRow, const TSharedRef<IOutlinerColumn>& OutlinerColumn, const int32 NumCompatibleIndicators)
 {
 	static const FLinearColor ConditionColor = FLinearColor::FromSRGBColor(FColor(212, 147, 20));
 
-	if (NumCompatibleDecorators > 1)
+	if (NumCompatibleIndicators > 1)
 	{
 		return SNew(SBorder)
 			.VAlign(VAlign_Fill)
@@ -87,7 +87,7 @@ TSharedPtr<SWidget> FTimeWarpOutlinerDecoratorBuilder::CreateDecoratorWidget(con
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
 				[
-					SNew(STimeWarpDecoratorWidget, OutlinerColumn, InParams)
+					SNew(STimeWarpIndicatorWidget, OutlinerColumn, InParams)
 				]
 		];
 }
