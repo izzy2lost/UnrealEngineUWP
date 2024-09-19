@@ -15,6 +15,8 @@ namespace UE::NNERuntimeORT::Private
 
 	bool IsD3D12Available();
 
+	bool IsD3D12DeviceNPUAvailable();
+
 namespace OrtHelper
 {
 	TArray<uint32> GetShape(const Ort::Value& OrtTensor);
@@ -27,6 +29,8 @@ namespace OrtHelper
 	TUniquePtr<Ort::SessionOptions> CreateSessionOptionsDefault(const TSharedRef<FEnvironment> &Environment);
 
 	TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectML(const TSharedRef<FEnvironment> &Environment, bool bRHID3D12Required = true);
+
+	TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectMLNpu(const TSharedRef<FEnvironment>& Environment);
 
 	bool OptimizeModel(const TSharedRef<FEnvironment>& Environment, Ort::SessionOptions& SessionOptions, 
 		TConstArrayView64<uint8>& InputModel, TArray64<uint8>& OptimizedModel);

@@ -4,6 +4,7 @@
 
 #include "NNERuntime.h"
 #include "NNERuntimeCPU.h"
+#include "NNERuntimeNPU.h"
 #include "NNERuntimeGPU.h"
 #include "NNERuntimeRDG.h"
 #include "UObject/Class.h"
@@ -46,7 +47,7 @@ public:
 };
 
 UCLASS()
-class UNNERuntimeORTDml : public UObject, public INNERuntime, public INNERuntimeGPU, public INNERuntimeRDG
+class UNNERuntimeORTDml : public UObject, public INNERuntime, public INNERuntimeGPU, public INNERuntimeRDG, public INNERuntimeNPU
 {
 	GENERATED_BODY()
 
@@ -75,9 +76,13 @@ public:
 	virtual ECanCreateModelRDGStatus CanCreateModelRDG(TObjectPtr<UNNEModelData> ModelData) const override;
 	virtual TSharedPtr<UE::NNE::IModelRDG> CreateModelRDG(TObjectPtr<UNNEModelData> ModelData) override;
 
+	virtual ECanCreateModelNPUStatus CanCreateModelNPU(const TObjectPtr<UNNEModelData> ModelData) const override;
+	virtual TSharedPtr<UE::NNE::IModelNPU> CreateModelNPU(const TObjectPtr<UNNEModelData> ModelData) override;
+
 private:
 	ECanCreateModelCommonStatus CanCreateModelCommon(const TObjectPtr<UNNEModelData> ModelData, bool bRHID3D12Required = true) const;
 
 	bool bDirectMLAvailable = false;
 	bool bD3D12Available = false;
+	bool bD3D12DeviceNPUAvailable = false;
 };
