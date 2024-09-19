@@ -13552,6 +13552,7 @@ static EMaterialCommonBasis GetMaterialCommonBasis(EMaterialPositionTransformSou
 	static const EMaterialCommonBasis ConversionTable[TRANSFORMPOSSOURCE_MAX] = {
 		MCB_Local,						// TRANSFORMPOSSOURCE_Local
 		MCB_World,						// TRANSFORMPOSSOURCE_World
+		MCB_MAX,						// No match for TRANSFORMPOSSOURCE_PeriodicWorld
 		MCB_TranslatedWorld,			// TRANSFORMPOSSOURCE_TranslatedWorld
 		MCB_View,						// TRANSFORMPOSSOURCE_View
 		MCB_Camera,						// TRANSFORMPOSSOURCE_Camera
@@ -13564,21 +13565,48 @@ static EMaterialCommonBasis GetMaterialCommonBasis(EMaterialPositionTransformSou
 #if WITH_EDITOR
 int32 UMaterialExpressionTransformPosition::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
-	int32 Result=INDEX_NONE;
-	
-	if( !Input.GetTracedInput().Expression )
+	if(!Input.GetTracedInput().Expression)
 	{
-		Result = Compiler->Errorf(TEXT("Missing Transform Position input vector"));
+		return Compiler->Errorf(TEXT("Missing Transform Position input vector"));
+	}
+
+	int32 VecInputIdx = Input.Compile(Compiler);
+
+	// Periodic World Position (see TRANSFORMPOSSOURCE_PeriodicWorld) takes a different path as the transform depends on a user-specified tile scale
+	if (TransformSourceType == TRANSFORMPOSSOURCE_PeriodicWorld || TransformType == TRANSFORMPOSSOURCE_PeriodicWorld)
+	{
+		int32 PeriodicWorldTileSizeIdx;
+		if (PeriodicWorldTileSize.GetTracedInput().Expression)
+		{
+			PeriodicWorldTileSizeIdx = PeriodicWorldTileSize.Compile(Compiler);
+		}
+		else
+		{
+			PeriodicWorldTileSizeIdx = Compiler->Constant(ConstPeriodicWorldTileSize);
+		}
+
+		if (TransformSourceType == TRANSFORMPOSSOURCE_PeriodicWorld && TransformType == TRANSFORMPOSSOURCE_PeriodicWorld)
+		{
+			return VecInputIdx;
+		}
+		if (TransformSourceType == TRANSFORMPOSSOURCE_PeriodicWorld)
+		{
+			const auto TransformDestBasis = GetMaterialCommonBasis(TransformType);
+			return Compiler->TransformFromPeriodicWorldPosition(TransformDestBasis, PeriodicWorldTileSizeIdx, VecInputIdx);
+		}
+		else
+		{
+			const auto TransformSourceBasis = GetMaterialCommonBasis(TransformSourceType);
+			return Compiler->TransformToPeriodicWorldPosition(TransformSourceBasis, PeriodicWorldTileSizeIdx, VecInputIdx);
+		}
 	}
 	else
 	{
-		int32 VecInputIdx = Input.Compile(Compiler);
 		const auto TransformSourceBasis = GetMaterialCommonBasis(TransformSourceType);
 		const auto TransformDestBasis = GetMaterialCommonBasis(TransformType);
-		Result = Compiler->TransformPosition(TransformSourceBasis, TransformDestBasis, VecInputIdx);
-	}
 
-	return Result;
+		return Compiler->TransformPosition(TransformSourceBasis, TransformDestBasis, VecInputIdx);
+	}
 }
 
 void UMaterialExpressionTransformPosition::GetCaption(TArray<FString>& OutCaptions) const
@@ -13597,6 +13625,62 @@ void UMaterialExpressionTransformPosition::GetCaption(TArray<FString>& OutCaptio
 #endif
 	
 	OutCaptions.Add(TEXT("TransformPosition"));
+}
+
+TArrayView<FExpressionInput*> UMaterialExpressionTransformPosition::GetInputsView()
+{
+	CachedInputs.Empty();
+	uint32 InputIndex = 0;
+	while (FExpressionInput* Ptr = GetInput(InputIndex++))
+	{
+		CachedInputs.Add(Ptr);
+	}
+	return CachedInputs;
+}
+
+// this define is only used for the following function
+#define IF_INPUT_RETURN(Item) if(!InputIndex) return &Item; --InputIndex
+FExpressionInput* UMaterialExpressionTransformPosition::GetInput(int32 InputIndex)
+{
+	IF_INPUT_RETURN(Input);
+
+	if (bUsesPeriodicWorldPosition)
+	{
+		IF_INPUT_RETURN(PeriodicWorldTileSize);
+	}
+
+	return nullptr;
+}
+#undef IF_INPUT_RETURN
+
+FName UMaterialExpressionTransformPosition::GetInputName(int32 InputIndex) const
+{
+	const FExpressionInput* FoundInput = static_cast<const UMaterialExpression*>(this)->GetInput(InputIndex);
+
+	if (FoundInput == &PeriodicWorldTileSize)
+	{
+		return TEXT("Periodic World Tile Size");
+	}
+
+	return Super::GetInputName(InputIndex);
+}
+
+void UMaterialExpressionTransformPosition::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	if (PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(ThisClass, TransformSourceType) ||
+		PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(ThisClass, TransformType))
+	{
+		bUsesPeriodicWorldPosition = TransformSourceType == TRANSFORMPOSSOURCE_PeriodicWorld || TransformType == TRANSFORMPOSSOURCE_PeriodicWorld;
+		if (GraphNode)
+		{
+			GraphNode->ReconstructNode();
+		}
+	}
+
+	// Need to update expression properties before super call (which triggers recompile)
+	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 #endif // WITH_EDITOR
 

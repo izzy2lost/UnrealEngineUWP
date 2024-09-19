@@ -819,19 +819,6 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc1(FHLSLMaterialTranslato
 	return Ret;
 }
 
-bool FMaterialDerivativeAutogen::IsConstFloatOfPow2Expression(FHLSLMaterialTranslator& Translator, int32 ExpCode)
-{
-	FMaterialUniformExpression* ExpressionB = Translator.GetParameterUniformExpression(ExpCode);
-	FLinearColor ValueB;
-	bool bIsPow2 = false;
-	if (ExpressionB && Translator.GetConstParameterValue(ExpressionB, ValueB))
-	{
-		auto IsFloatPowerOfTwo = [](float Value) { return ((*reinterpret_cast<int*>(&Value)) & 0x007FFFFF) == 0; }; // zero mantisse
-		bIsPow2 = IsFloatPowerOfTwo(ValueB.R) && IsFloatPowerOfTwo(ValueB.G) && IsFloatPowerOfTwo(ValueB.B) && IsFloatPowerOfTwo(ValueB.A);
-	}
-	return bIsPow2;
-}
-
 int32 FMaterialDerivativeAutogen::GenerateExpressionFunc2(FHLSLMaterialTranslator& Translator, EFunc2 Op, int32 LhsCode, int32 RhsCode)
 {
 	if (LhsCode == INDEX_NONE || RhsCode == INDEX_NONE)
@@ -953,7 +940,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc2(FHLSLMaterialTranslato
 		case EFunc2::Mul:
 			if (bIsLWC)
 			{
-				if (IsConstFloatOfPow2Expression(Translator, RhsCode))
+				if (Translator.IsConstFloatOfPow2Expression(RhsCode))
 				{
 					//Translator.AddLWCFuncUsage(ELWCFunctionKind::MultiplyVectorVector);
 					DstToken = TEXT("WSMultiplyByPow2(") + LhsToken + TEXT(", ") + RhsToken + TEXT(")");
@@ -972,7 +959,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc2(FHLSLMaterialTranslato
 		case EFunc2::Div:
 			if (bIsLWC)
 			{
-				if (IsConstFloatOfPow2Expression(Translator, RhsCode))
+				if (Translator.IsConstFloatOfPow2Expression(RhsCode))
 				{
 					//Translator.AddLWCFuncUsage(ELWCFunctionKind::Divide);
 					DstToken = TEXT("WSDivideByPow2(") + LhsToken + TEXT(", ") + RhsToken + TEXT(")");

@@ -3574,6 +3574,41 @@ void FExpressionDefaultSubsurfaceColor::EmitValuePreshader(FEmitContext& Context
 	OutResult.Preshader.WriteOpcode(Shader::EPreshaderOpcode::Constant).Write(Value);
 }
 
+bool FExpressionPeriodicWorldOrigin::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float3);
+}
+
+static const bool IsConstFloatOfPow2Expression(FEmitContext& Context, FEmitScope& Scope, const UE::HLSLTree::FExpression* Expression)
+{
+	bool bIsConstPow2 = false;
+
+	const EExpressionEvaluation Evaluation = Context.GetPreparedType(Expression, Shader::EValueType::Float3).GetEvaluation(Scope);
+	if (Evaluation == EExpressionEvaluation::Constant || Evaluation == EExpressionEvaluation::ConstantZero)
+	{
+		UE::Shader::FFloatValue Value = Expression->GetValueConstant(Context, Scope, Shader::EValueType::Float3).AsFloat();
+		auto IsFloatPowerOfTwo = [](float Value) { return ((*reinterpret_cast<int*>(&Value)) & 0x007FFFFF) == 0; }; // zero mantisse
+		bIsConstPow2 = IsFloatPowerOfTwo(Value[0]) && IsFloatPowerOfTwo(Value[1]) && IsFloatPowerOfTwo(Value[2]) && IsFloatPowerOfTwo(Value[3]);
+	}
+
+	return bIsConstPow2;
+}
+
+void FExpressionPeriodicWorldOrigin::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitShaderExpression* EmitScaleExpression = Scale->GetValueShader(Context, Scope, Shader::EValueType::Float3);
+	bool bIsScalePow2 = IsConstFloatOfPow2Expression(Context, Scope, Scale);
+	const TCHAR* FuncName = bIsScalePow2 ? TEXT("GetPeriodicWorldOrigin_Pow2") : TEXT("GetPeriodicWorldOrigin");
+	OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float3, TEXT("%s(%s)"), FuncName, EmitScaleExpression);
+}
+
+void FExpressionPeriodicWorldOrigin::ComputeAnalyticDerivatives(FTree& Tree, FExpressionDerivatives& OutResult) const
+{
+	const Shader::FValue ZeroValue(Shader::EValueType::Float3);
+	OutResult.ExpressionDdx = Tree.NewConstant(ZeroValue);
+	OutResult.ExpressionDdy = OutResult.ExpressionDdx;
+}
+
 int32 FEmitData::FindInterpolatorIndex(const FExpression* Expression) const
 {
 	for (int32 Index = 0; Index < VertexInterpolators.Num(); ++Index)

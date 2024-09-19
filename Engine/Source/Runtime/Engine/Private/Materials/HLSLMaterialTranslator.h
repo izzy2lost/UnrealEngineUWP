@@ -848,6 +848,8 @@ protected:
 
 	int32 GenericSwitch(const TCHAR* Function, int32 IfTrue, int32 IfFalse);
 
+	bool IsConstFloatOfPow2Expression(int32 ExpressionCode);
+
 	FString SubstrateGetCastParameterCode(int32 Index, EMaterialValueType DestType);
 	FString SubstrateGetCastParameterCodeWithDeriv(int32 Index, EMaterialValueType DestType);
 
@@ -1158,6 +1160,9 @@ protected:
 	
 	virtual int32 TransformVector(EMaterialCommonBasis SourceCoordBasis, EMaterialCommonBasis DestCoordBasis, int32 A) override;
 	virtual int32 TransformPosition(EMaterialCommonBasis SourceCoordBasis, EMaterialCommonBasis DestCoordBasis, int32 A) override;
+	int32 CalculatePeriodicWorldPositionOrigin(int TileScaleIdx);
+	virtual int32 TransformFromPeriodicWorldPosition(EMaterialCommonBasis DestCoordBasis, int TileScaleIdx, int32 A) override;
+	virtual int32 TransformToPeriodicWorldPosition(EMaterialCommonBasis SourceCoordBasis, int TileScaleIdx, int32 A) override;
 	virtual int32 TransformNormalFromRequestedBasisToWorld(int32 NormalCodeChunk) override;
 	virtual int32 DynamicParameter(FLinearColor& DefaultValue, uint32 ParameterIndex = 0) override;
 	virtual int32 LightmapUVs() override;
