@@ -2,6 +2,7 @@
 
 #include "Data/PCGGetDataFunctionRegistry.h"
 
+#include "PCGCommon.h"
 #include "PCGComponent.h"
 #include "PCGContext.h"
 #include "PCGData.h"
@@ -137,13 +138,16 @@ int FPCGGetDataFunctionRegistry::DefaultDataFromActor(FPCGContext* InContext, co
 		{
 			VolumeData->Initialize(PartitionActor->GetFixedBounds());
 
-			UPCGComponent* OriginalComponent = Component ? PartitionActor->GetOriginalComponent(Component) : nullptr;
-			// Important note: we do NOT call the collection version here, as we want to have a union if that's the case
-			const UPCGSpatialData* OriginalComponentSpatialData = OriginalComponent ? Cast<const UPCGSpatialData>(OriginalComponent->GetActorPCGData()) : nullptr;
-
-			if (OriginalComponentSpatialData)
+			if (Component && PartitionActor->GetOriginalComponent(Component))
 			{
-				Result = Result->IntersectWith(nullptr, OriginalComponentSpatialData);
+				PCG_EXECUTION_CACHE_VALIDATION_CREATE_ORIGINAL_SCOPE(const_cast<UPCGComponent*>(Component));
+				// Important note: we do NOT call the collection version here, as we want to have a union if that's the case
+				const UPCGSpatialData* OriginalComponentSpatialData = Cast<const UPCGSpatialData>(Component->GetOriginalActorPCGData());
+
+				if (OriginalComponentSpatialData)
+				{
+					Result = Result->IntersectWith(nullptr, OriginalComponentSpatialData);
+				}
 			}
 		}
 

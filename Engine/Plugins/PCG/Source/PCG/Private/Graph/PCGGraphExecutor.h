@@ -81,6 +81,7 @@ struct FPCGGraphTask
 #endif
 
 	const FPCGStack* GetStack() const;
+	FPCGTaskId GetGraphExecutionTaskId() const;
 
 	TArray<FPCGGraphTaskInput> Inputs;
 	const UPCGNode* Node = nullptr;
@@ -259,6 +260,39 @@ public:
 	//~End FGCObject interface
 
 private:
+	friend UPCGSubsystem;
+
+	enum class EExecutionCacheDataType : int8
+	{
+		PCGData = 0,
+		InputData,
+		ActorData,
+		LandscapeData,
+		LandscapeHeightData,
+		OriginalActorData,
+		Count
+	};
+
+	static constexpr int8 ExecutionCacheSize = 6;
+
+	UPCGData* GetExecutionCacheData(FPCGTaskId InGraphExecutionTaskId, EExecutionCacheDataType InExecutionCacheDataType);
+
+	UPCGData* GetPCGData(FPCGTaskId InGraphExecutionTaskId) { return GetExecutionCacheData(InGraphExecutionTaskId, EExecutionCacheDataType::PCGData); }
+	UPCGData* GetInputPCGData(FPCGTaskId InGraphExecutionTaskId) { return GetExecutionCacheData(InGraphExecutionTaskId, EExecutionCacheDataType::InputData); }
+	UPCGData* GetActorPCGData(FPCGTaskId InGraphExecutionTaskId) { return GetExecutionCacheData(InGraphExecutionTaskId, EExecutionCacheDataType::ActorData); }
+	UPCGData* GetLandscapePCGData(FPCGTaskId InGraphExecutionTaskId) { return GetExecutionCacheData(InGraphExecutionTaskId, EExecutionCacheDataType::LandscapeData); }
+	UPCGData* GetLandscapeHeightPCGData(FPCGTaskId InGraphExecutionTaskId) { return GetExecutionCacheData(InGraphExecutionTaskId, EExecutionCacheDataType::LandscapeHeightData); }
+	UPCGData* GetOriginalActorPCGData(FPCGTaskId InGraphExecutionTaskId) { return GetExecutionCacheData(InGraphExecutionTaskId, EExecutionCacheDataType::OriginalActorData); }
+
+	void SetExecutionCacheData(FPCGTaskId InGraphExecutionTaskId, EExecutionCacheDataType InExecutionCacheDataType, UPCGData* InData);
+
+	void SetPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData) { SetExecutionCacheData(InGraphExecutionTaskId, EExecutionCacheDataType::PCGData, InData); }
+	void SetInputPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData) { SetExecutionCacheData(InGraphExecutionTaskId, EExecutionCacheDataType::InputData, InData); }
+	void SetActorPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData) { SetExecutionCacheData(InGraphExecutionTaskId, EExecutionCacheDataType::ActorData, InData); }
+	void SetLandscapePCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData) { SetExecutionCacheData(InGraphExecutionTaskId, EExecutionCacheDataType::LandscapeData, InData); }
+	void SetLandscapeHeightPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData) { SetExecutionCacheData(InGraphExecutionTaskId, EExecutionCacheDataType::LandscapeHeightData, InData); }
+	void SetOriginalActorPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData) { SetExecutionCacheData(InGraphExecutionTaskId, EExecutionCacheDataType::OriginalActorData, InData); }
+	
 	void ExecuteV1();
 	void ExecuteV2();
 	double GetTickBudgetInSeconds() const;
@@ -313,6 +347,7 @@ private:
 	static void GetPinIdsToDeactivate(FPCGTaskId TaskId, uint64 InactiveOutputPinBitmask, TArray<FPCGPinId>& InOutPinIds);
 
 	FPCGElementPtr GetFetchInputElement();
+	FPCGElementPtr GetPreGraphElement();
 
 	void LogTaskState() const;
 
@@ -335,7 +370,10 @@ private:
 	FPCGGraphCache GraphCache;
 
 	/** Input fetch element, stored here so we have only one */
-	FPCGElementPtr FetchInputElement;
+	FPCGElementPtr FetchInputElementPtr;
+
+	/** PreGraph element, stored here so we have only one */
+	FPCGElementPtr PreGraphElementPtr;
 
 	/** 
 	 * Define a Lock level for future reference. Rule is when we have a lock, we can't lock a lower or equal level lock to prevent deadlocks.
@@ -388,6 +426,21 @@ private:
 	/** Monotonically increasing id. Should be reset once all tasks are executed, should be protected by the ScheduleLock */
 	FPCGTaskId NextTaskId = 0;
 	
+	/** Struct holding different UPCGData caches that we want to compute only once per graph execution */
+	struct FGraphExecutionCache
+	{
+		FGraphExecutionCache();
+
+		void AddStructReferencedObjects(FReferenceCollector& Collector);
+
+		// Must be equal to 
+		TObjectPtr<UPCGData> Data[ExecutionCacheSize];
+	};
+
+	/** Per graph execution cache, gets emptied when executor has no more work to do */
+	UE::FSpinLock GraphExecutionCachesLock;
+	TMap<FPCGTaskId, FGraphExecutionCache> GraphExecutionCaches;
+
 	std::atomic<bool> bNeedToExecuteTasksEnded = false;
 
 	/** Runtime information */
@@ -434,6 +487,16 @@ public:
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return false; }
 	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override { return true; }
 
+protected:
+	virtual bool ExecuteInternal(FPCGContext* Context) const override;
+	virtual bool IsPassthrough(const UPCGSettings* InSettings) const override { return true; }
+};
+
+class FPCGPreGraphElement : public IPCGElement
+{
+public:
+	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return false; }
+	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override { return true; }
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 	virtual bool IsPassthrough(const UPCGSettings* InSettings) const override { return true; }

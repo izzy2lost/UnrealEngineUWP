@@ -117,12 +117,12 @@ protected:
 	//~End UActorComponent Interface
 
 public:
-	UPCGData* GetPCGData();
-	UPCGData* GetInputPCGData();
-	UPCGData* GetActorPCGData();
-	UPCGData* GetLandscapePCGData();
-	UPCGData* GetLandscapeHeightPCGData();
-	UPCGData* GetOriginalActorPCGData();
+	UPCGData* GetPCGData() const;
+	UPCGData* GetInputPCGData() const;
+	UPCGData* GetActorPCGData() const;
+	UPCGData* GetLandscapePCGData() const;
+	UPCGData* GetLandscapeHeightPCGData() const;
+	UPCGData* GetOriginalActorPCGData() const;
 
 	/** If this is a local component returns self, otherwise returns the original component. */
 	UPCGComponent* GetOriginalComponent();
@@ -501,11 +501,11 @@ private:
 	uint32 RuntimeGridDescriptorHash = 0;
 
 private:
-	UPCGData* CreatePCGData();
-	UPCGData* CreateInputPCGData();
-	UPCGData* CreateActorPCGData();
-	UPCGData* CreateActorPCGData(AActor* Actor, bool bParseActor = true);
-	UPCGData* CreateLandscapePCGData(bool bHeightOnly);
+	UPCGData* CreatePCGData() const;
+	UPCGData* CreateInputPCGData() const;
+	UPCGData* CreateActorPCGData() const;
+	UPCGData* CreateActorPCGData(AActor* Actor, bool bParseActor = true) const;
+	UPCGData* CreateLandscapePCGData(bool bHeightOnly) const;
 	bool IsLandscapeCachedDataDirty(const UPCGData* Data) const;
 
 	bool ShouldGenerate(bool bForce, EPCGComponentGenerationTrigger RequestedGenerationTrigger) const;
@@ -569,21 +569,6 @@ private:
 #endif
 
 	FBox GetGridBounds(const AActor* InActor) const;
-
-	UPROPERTY(Transient, NonPIEDuplicateTransient)
-	TObjectPtr<UPCGData> CachedPCGData = nullptr;
-
-	UPROPERTY(Transient, NonPIEDuplicateTransient)
-	TObjectPtr<UPCGData> CachedInputData = nullptr;
-
-	UPROPERTY(Transient, NonPIEDuplicateTransient)
-	TObjectPtr<UPCGData> CachedActorData = nullptr;
-
-	UPROPERTY(Transient, NonPIEDuplicateTransient)
-	TObjectPtr<UPCGData> CachedLandscapeData = nullptr;
-
-	UPROPERTY(Transient, NonPIEDuplicateTransient)
-	TObjectPtr<UPCGData> CachedLandscapeHeightData = nullptr;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
@@ -684,6 +669,11 @@ private:
 public:
 	mutable PCGUtils::FExtraCapture ExtraCapture;
 #endif // WITH_EDITOR
+
+public:
+#if PCG_EXECUTION_CACHE_VALIDATION_ENABLED
+	bool bCanCreateExecutionCache = false;
+#endif
 };
 
 /** Used to store generated resources data during RerunConstructionScripts */

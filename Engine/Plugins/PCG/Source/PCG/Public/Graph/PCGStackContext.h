@@ -86,6 +86,9 @@ public:
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif // WITH_EDITOR
 
+	/** Returns root graph execution id */
+	FPCGTaskId GetGraphExecutionTaskId() const { return GraphExecutionTaskId; }
+
 	/** Push frame onto top of stack. */
 	void PushFrame(const FPCGStackFrame& Frame) { StackFrames.Add(Frame); }
 	void PushFrame(const UObject* InFrameObject) { StackFrames.Emplace(InFrameObject); }
@@ -140,6 +143,7 @@ public:
 	}
 
 private:
+	FPCGTaskId GraphExecutionTaskId = InvalidPCGTaskId;
 	TArray<FPCGStackFrame> StackFrames;
 
 public:
@@ -153,6 +157,7 @@ public:
 /** A collection of call stacks. */
 class PCG_API FPCGStackContext
 {
+	friend class FPCGGraphExecutor;
 public:
 	int32 GetNumStacks() const { return Stacks.Num(); }
 	int32 GetCurrentStackIndex() const { return CurrentStackIndex; }
@@ -175,7 +180,13 @@ public:
 
 	bool operator==(const FPCGStackContext& Other) const;
 
+	FPCGTaskId GetGraphExecutionTaskId() const { return GraphExecutionTaskId; }
 private:
+	void SetGraphExecutionTaskId(FPCGTaskId InGraphExecutionTaskId);
+
+	/** Unique graph execution id of this stack */
+	FPCGTaskId GraphExecutionTaskId = InvalidPCGTaskId;
+
 	/** List of all stacks encountered top graph and all (nested) subgraphs. Order is simply order of encountering during compilation. */
 	TArray<FPCGStack> Stacks;
 

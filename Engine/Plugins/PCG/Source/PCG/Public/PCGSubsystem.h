@@ -54,6 +54,7 @@ class PCG_API UPCGSubsystem : public UTickableWorldSubsystem
 	GENERATED_BODY()
 
 public:
+	friend class UPCGComponent;
 	friend FPCGActorAndComponentMapping;
 	friend struct FPCGWorldPartitionBuilder;
 
@@ -359,6 +360,20 @@ private:
 #endif // WITH_EDITOR
 	
 private:
+	UPCGData* GetPCGData(FPCGTaskId InGraphExecutionTaskId);
+	UPCGData* GetInputPCGData(FPCGTaskId InGraphExecutionTaskId);
+	UPCGData* GetActorPCGData(FPCGTaskId InGraphExecutionTaskId);
+	UPCGData* GetLandscapePCGData(FPCGTaskId InGraphExecutionTaskId);
+	UPCGData* GetLandscapeHeightPCGData(FPCGTaskId InGraphExecutionTaskId);
+	UPCGData* GetOriginalActorPCGData(FPCGTaskId InGraphExecutionTaskId);
+
+	void SetPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData);
+	void SetInputPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData);
+	void SetActorPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData);
+	void SetLandscapePCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData);
+	void SetLandscapeHeightPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData);
+	void SetOriginalActorPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData);
+
 	void ExecuteBeginTickActions();
 
 	APCGWorldActor* PCGWorldActor = nullptr;
