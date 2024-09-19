@@ -1428,6 +1428,10 @@ bool UAnimLayers::DeleteAnimLayer(ISequencer* SequencerPtr, int32 Index)
 			AnimLayers.RemoveAt(Index);
 			SequencerPtr->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemRemoved);
 		}
+		if (UAnimLayer* BaseAnimLayer = AnimLayers[0]) //set base as keyed
+		{
+			BaseAnimLayer->SetKeyed();
+		}
 		AnimLayerListChangedBroadcast();
 	}
 	else
