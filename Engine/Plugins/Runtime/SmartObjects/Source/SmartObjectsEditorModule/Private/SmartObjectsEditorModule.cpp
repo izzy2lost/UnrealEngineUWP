@@ -59,7 +59,8 @@ void FSmartObjectsEditorModule::StartupModule()
 		FDoEditorBuildDelegate::CreateStatic(&UWorldPartitionSmartObjectCollectionBuilder::BuildCollections),
 		/*BuildAllExtensionPoint*/NAME_None,
 		/*MenuEntryLabel*/LOCTEXT("BuildCollections", "Build Smart Object Collections"),
-		/*MenuSectionLabel*/LOCTEXT("Gameplay", "Gameplay"));
+		/*MenuSectionLabel*/LOCTEXT("Gameplay", "Gameplay"),
+		/*bExternalProcess*/true);
 }
 
 void FSmartObjectsEditorModule::ShutdownModule()

@@ -88,7 +88,8 @@ void FPCGEditorModule::StartupModule()
 		FDoEditorBuildDelegate::CreateStatic(&UPCGWorldPartitionBuilder::Build),
 		/*BuildAllExtensionPoint*/NAME_None,
 		/*MenuEntryLabel*/LOCTEXT("BuildPCG", "Build PCG"),
-		/*MenuSectionLabel*/LOCTEXT("PCG", "PCG"));
+		/*MenuSectionLabel*/LOCTEXT("PCG", "PCG"),
+		/*bExternalProcess*/true);
 }
 
 void FPCGEditorModule::ShutdownModule()
