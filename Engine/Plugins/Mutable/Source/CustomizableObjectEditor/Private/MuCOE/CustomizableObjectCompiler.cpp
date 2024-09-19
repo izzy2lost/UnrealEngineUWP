@@ -663,7 +663,7 @@ mu::Ptr<mu::NodeObject> GenerateMutableRoot(
 		GenerationContext.TableToParamNames = Object->GetPrivate()->GetModelResources().TableToParamNames;
 	}
 
-	GenerationContext.bPartialCompilation = !Root->ParentObject;
+	GenerationContext.bPartialCompilation = Root->ParentObject != nullptr;
 
 	// Generate the object expression
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] GenerateMutableSource start."), FPlatformTime::Seconds());
