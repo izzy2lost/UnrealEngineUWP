@@ -438,6 +438,12 @@ public:
 	/** Query for if the baked simulations is valid for use */
 	bool UseBakedSimulationForQueriesAndPhysics() const { return bUseBakedSimForQueriesAndPhysics && BakedShallowWaterSim.IsValid() && BakedShallowWaterSim->SimulationData.IsValid(); }
 
+	/** 
+	 * Marks the owning water zone for rebuild. 
+	 * If bOnlyWithinWaterBodyBounds is set, updates to the water zone that aren't relevant within the bounds of the water body are suppressed.
+	 */
+	void MarkOwningWaterZoneForRebuild(EWaterZoneRebuildFlags InRebuildFlags, bool bInOnlyWithinWaterBodyBounds = true) const;
+
 protected:
 	//~ Begin UActorComponent interface.
 	virtual bool IsHLODRelevant() const override;
@@ -464,12 +470,6 @@ protected:
 	virtual void UpdateWaterBody(bool bWithExclusionVolumes);
 
 	virtual void OnUpdateBody(bool bWithExclusionVolumes) {}
-
-	/** 
-	 * Marks the owning water zone for rebuild. 
-	 * If bOnlyWithinWaterBodyBounds is set, updates to the water zone that aren't relevant within the bounds of the water body are suppressed.
-	 */
-	void MarkOwningWaterZoneForRebuild(EWaterZoneRebuildFlags InRebuildFlags, bool bInOnlyWithinWaterBodyBounds = true) const;
 
 	/** Called when the WaterBodyActor has had all its components registered. */
 	virtual void OnPostRegisterAllComponents();
