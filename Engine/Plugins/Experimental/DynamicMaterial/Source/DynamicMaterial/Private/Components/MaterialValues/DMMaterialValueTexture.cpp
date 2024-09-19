@@ -233,7 +233,7 @@ void UDMMaterialValueTexture::SetValue(UTexture* InValue)
 
 	Value = InValue;
 
-	OnValueChanged(EDMUpdateType::Value);
+	OnValueChanged(EDMUpdateType::Value | EDMUpdateType::AllowParentUpdate);
 }
 
 void UDMMaterialValueTexture::SetMIDParameter(UMaterialInstanceDynamic* InMID) const

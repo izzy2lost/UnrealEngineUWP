@@ -138,7 +138,7 @@ void UDMMaterialValueFloat4::SetValue(const FLinearColor& InValue)
  
 	Value = ValueClamped;
  
-	OnValueChanged(EDMUpdateType::Value);
+	OnValueChanged(EDMUpdateType::Value | EDMUpdateType::AllowParentUpdate);
 }
  
 #if WITH_EDITOR

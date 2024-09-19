@@ -409,11 +409,11 @@ void UDMMaterialStageExpressionTextureSampleBase::UpdateMask()
 								{
 									MaskStage->Modify();
 								}
-
-								// Set output to alpha
-								MaskStage->UpdateInputMap(2, MaskStageInputConnections[2].Channels[0].SourceIndex,
-									FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 1, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, EDMMaterialPropertyType::None);
 							}
+
+							// Set output to alpha
+							MaskStage->UpdateInputMap(2, MaskStageInputConnections[2].Channels[0].SourceIndex,
+								FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 1, FDMMaterialStageConnectorChannel::FOURTH_CHANNEL, EDMMaterialPropertyType::None);
 
 							return;
 						}
