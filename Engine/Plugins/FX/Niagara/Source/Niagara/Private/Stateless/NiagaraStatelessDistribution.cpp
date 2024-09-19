@@ -162,6 +162,43 @@ namespace NiagaraStatelessDistributionPrivate
 		return LUT;
 	}
 
+	void InternalCreateCurveFromValues(TConstArrayView<float> Values, TArray<FRichCurve>& ChannelCurves, TArray<float>& ChannelConstantsAndRanges, int NumChannels)
+	{
+		check((Values.Num() % NumChannels) == 0);
+
+		ChannelCurves.Reset(NumChannels);
+		ChannelCurves.AddDefaulted(NumChannels);
+
+		ChannelConstantsAndRanges = Values;
+
+		const int32 NumValues = Values.Num() / NumChannels;
+		if (NumValues > 0)
+		{
+			const float UInc = NumValues > 1 ? 1.0f / float(NumValues - 1) : 0.0f;
+			float U = 0.0f;
+
+			for (int32 iValueIndex = 0; iValueIndex < NumValues; ++iValueIndex)
+			{
+				for (int32 iChannel = 0; iChannel < NumChannels; ++iChannel)
+				{
+					ChannelCurves[iChannel].AddKey(U, Values[(iValueIndex * NumChannels) + iChannel]);
+				}
+
+				U += UInc;
+			}
+		}
+	}
+
+	void CreateCurveFromValues(TConstArrayView<float> Values, TArray<FRichCurve>& ChannelCurves, TArray<float>& ChannelConstantsAndRanges)
+	{
+		InternalCreateCurveFromValues(Values, ChannelCurves, ChannelConstantsAndRanges, 1);
+	}
+
+	void CreateCurveFromValues(TConstArrayView<FVector3f> Values, TArray<FRichCurve>& ChannelCurves, TArray<float>& ChannelConstantsAndRanges)
+	{
+		InternalCreateCurveFromValues(MakeArrayView<const float>(reinterpret_cast<const float*>(Values.GetData()), Values.Num() * 3), ChannelCurves, ChannelConstantsAndRanges, 3);
+	}
+
 	template<typename FValueContainerSetNum, typename FValueAndChannelAccessor>
 	void UpdateDistributionValues(ENiagaraDistributionMode InMode, const TArray<float>& InChannelConstantsAndRanges, const TArray<FRichCurve>& InChannelCurves, int32 InChannelCount, FVector2f& OutTimeRange, FValueContainerSetNum InContainerNum, FValueAndChannelAccessor InValueAndChannelAccessor, int32 MaxLutSampleCount)
 	{
@@ -326,6 +363,38 @@ void FNiagaraDistributionFloat::InitConstant(float Value)
 #endif
 }
 
+void FNiagaraDistributionFloat::InitCurve(std::initializer_list<float> CurvePoints)
+{
+	const int32 NumValues = CurvePoints.size();
+
+	Mode = ENiagaraDistributionMode::UniformCurve;
+	Values = CurvePoints;
+
+#if WITH_EDITORONLY_DATA
+	NiagaraStatelessDistributionPrivate::CreateCurveFromValues(Values, ChannelCurves, ChannelConstantsAndRanges);
+#endif
+}
+
+#if WITH_EDITORONLY_DATA
+void FNiagaraDistributionFloat::InitCurve(const TArray<FRichCurveKey>& CurveKeys)
+{
+	Mode = ENiagaraDistributionMode::UniformCurve;
+
+	ChannelCurves.Reset(1);
+	ChannelCurves.AddDefaulted_GetRef().SetKeys(CurveKeys);
+
+	Values.SetNumUninitialized(CurveKeys.Num());
+	ChannelConstantsAndRanges.SetNumUninitialized(CurveKeys.Num());
+
+	for (int32 iKey=0; iKey < CurveKeys.Num(); ++iKey)
+	{
+		const float KeyValue = CurveKeys[iKey].Value;
+		Values[iKey] = KeyValue;
+		ChannelConstantsAndRanges[iKey] = KeyValue;
+	}
+}
+#endif
+
 FNiagaraStatelessRangeFloat FNiagaraDistributionFloat::CalculateRange(const float Default) const
 {
 	FNiagaraStatelessRangeFloat Range(Default, Default);
@@ -391,6 +460,34 @@ void FNiagaraDistributionVector3::InitConstant(const FVector3f& Value)
 	Values = TArray<FVector3f>({ Value, Value });
 #if WITH_EDITORONLY_DATA
 	ChannelConstantsAndRanges = TArray<float>({ Value.X, Value.Y, Value.Z });
+#endif
+}
+
+void FNiagaraDistributionVector3::InitCurve(std::initializer_list<float> CurvePoints)
+{
+	const int32 NumValues = CurvePoints.size();
+
+	Mode = ENiagaraDistributionMode::UniformCurve;
+	Values.Reset(NumValues);
+	for (float Value : CurvePoints)
+	{
+		Values.Emplace(Value);
+	}
+
+#if WITH_EDITORONLY_DATA
+	NiagaraStatelessDistributionPrivate::CreateCurveFromValues(Values, ChannelCurves, ChannelConstantsAndRanges);
+#endif
+}
+
+void FNiagaraDistributionVector3::InitCurve(std::initializer_list<FVector3f> CurvePoints)
+{
+	const int32 NumValues = CurvePoints.size();
+
+	Mode = ENiagaraDistributionMode::NonUniformCurve;
+	Values = TArray<FVector3f>(CurvePoints);
+
+#if WITH_EDITORONLY_DATA
+	NiagaraStatelessDistributionPrivate::CreateCurveFromValues(Values, ChannelCurves, ChannelConstantsAndRanges);
 #endif
 }
 

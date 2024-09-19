@@ -215,6 +215,7 @@ struct FNiagaraDistributionFloat : public FNiagaraDistributionBase
 
 	FNiagaraDistributionFloat() = default;
 	explicit FNiagaraDistributionFloat(float ConstantValue) { InitConstant(ConstantValue); }
+	explicit FNiagaraDistributionFloat(std::initializer_list<float> CurvePoints) { InitCurve(CurvePoints); }
 
 	UPROPERTY(EditAnywhere, Category = "Parameters")
 	TArray<float> Values;
@@ -223,6 +224,10 @@ struct FNiagaraDistributionFloat : public FNiagaraDistributionBase
 	FVector2f ValuesTimeRange = FVector2f(0.0f, 1.0f);
 
 	NIAGARA_API void InitConstant(float Value);
+	NIAGARA_API void InitCurve(std::initializer_list<float> CurvePoints);
+#if WITH_EDITORONLY_DATA
+	NIAGARA_API void InitCurve(const TArray<FRichCurveKey>& CurveKeys);
+#endif
 	NIAGARA_API FNiagaraStatelessRangeFloat CalculateRange(const float Default = 0.0f) const;
 
 #if WITH_EDITORONLY_DATA
@@ -270,6 +275,8 @@ struct FNiagaraDistributionVector3 : public FNiagaraDistributionBase
 	FNiagaraDistributionVector3() = default;
 	explicit FNiagaraDistributionVector3(const float ConstantValue) { InitConstant(ConstantValue); }
 	explicit FNiagaraDistributionVector3(const FVector3f& ConstantValue) { InitConstant(ConstantValue); }
+	explicit FNiagaraDistributionVector3(std::initializer_list<float> CurvePoints) { InitCurve(CurvePoints); }
+	explicit FNiagaraDistributionVector3(std::initializer_list<FVector3f> CurvePoints) { InitCurve(CurvePoints); }
 
 	UPROPERTY(EditAnywhere, Category = "Parameters")
 	TArray<FVector3f> Values;
@@ -279,6 +286,8 @@ struct FNiagaraDistributionVector3 : public FNiagaraDistributionBase
 
 	NIAGARA_API void InitConstant(const float Value);
 	NIAGARA_API void InitConstant(const FVector3f& Value);
+	NIAGARA_API void InitCurve(std::initializer_list<float> CurvePoints);
+	NIAGARA_API void InitCurve(std::initializer_list<FVector3f> CurvePoints);
 	NIAGARA_API FNiagaraStatelessRangeVector3 CalculateRange(const FVector3f& Default = FVector3f::ZeroVector) const;
 
 #if WITH_EDITORONLY_DATA
