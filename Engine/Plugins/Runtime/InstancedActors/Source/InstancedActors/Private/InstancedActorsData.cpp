@@ -20,6 +20,7 @@
 #if UE_WITH_IRIS
 #include "Iris/ReplicationSystem/ReplicationFragmentUtil.h"
 #endif
+#include "InstancedActorsVisualizationProcessor.h"
 #include "MassActorSubsystem.h"
 #include "MassCommonFragments.h"
 #include "MassEntityConfigAsset.h"
@@ -313,7 +314,7 @@ void UInstancedActorsData::ModifyEntityTemplate(FMassEntityTemplateData& Modifie
 {
 	ModifiedTemplate.RemoveTag<FMassDistanceLODProcessorTag>();
 	ModifiedTemplate.RemoveTag<FMassCollectDistanceLODViewerInfoTag>();
-	ModifiedTemplate.RemoveTag<FMassVisualizationProcessorTag>();
+	ModifiedTemplate.RemoveTag<FInstancedActorsVisualizationProcessorTag>();
 	// not needed really, since we don't add it in any of the traits but leaving here for the reference
 	// ModifiedTemplate.RemoveTag<FMassStationaryISMSwitcherProcessorTag>();
 }

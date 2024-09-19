@@ -4,6 +4,7 @@
 #include "InstancedActorsData.h"
 #include "InstancedActorsSubsystem.h"
 #include "InstancedActorsSettingsTypes.h"
+#include "InstancedActorsVisualizationProcessor.h"
 #include "Delegates/Delegate.h"
 #include "MassEntitySubsystem.h"
 #include "MassActorSpawnerSubsystem.h"
@@ -201,7 +202,7 @@ AActor* UInstancedActorsRepresentationActorManagement::FindOrInstantlySpawnActor
 		// note that we do need to make the change synchronously since due to EntityManager.IsProcessing() == false
 		// any command we issue here might get called after LOD and Visualization processing, that could override the
 		// values we've just set
-		FMassTagBitSet TagsToRemove = UE::Mass::Utils::ConstructTagBitSet<EMassCommandCheckTime::CompileTimeCheck, FMassStationaryISMSwitcherProcessorTag, FMassVisualizationProcessorTag>();
+		FMassTagBitSet TagsToRemove = UE::Mass::Utils::ConstructTagBitSet<EMassCommandCheckTime::CompileTimeCheck, FMassStationaryISMSwitcherProcessorTag, FInstancedActorsVisualizationProcessorTag>();
 		EntityManager.RemoveCompositionFromEntity(EntityView.GetEntity(), FMassArchetypeCompositionDescriptor(MoveTemp(TagsToRemove)));
 	}
 
