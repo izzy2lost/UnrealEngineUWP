@@ -575,7 +575,7 @@ namespace Metasound::Editor
 				});
 				TSharedRef<SWidget> ExecImageWidget = SNew(SImage)
 					.Image(Style::CreateSlateIcon("MetasoundEditor.Page.Executing").GetIcon())
-					.ColorAndOpacity(FStyleColors::AccentGreen)
+					.ColorAndOpacity(Style::GetPageExecutingColor())
 					.Visibility(MoveTemp(Visibility));
 
 				EntryWidget->AddSlot()

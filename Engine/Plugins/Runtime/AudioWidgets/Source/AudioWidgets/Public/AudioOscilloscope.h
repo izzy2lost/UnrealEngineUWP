@@ -20,11 +20,12 @@ namespace AudioWidgets
 	{
 	public:
 		FAudioOscilloscope(Audio::FDeviceId InAudioDeviceId,
-			const uint32 InNumChannels, 
-			const float InTimeWindowMs, 
-			const float InMaxTimeWindowMs, 
-			const float InAnalysisPeriodMs, 
-			const EAudioPanelLayoutType InPanelLayoutType);
+			const uint32 InNumChannels,
+			const float InTimeWindowMs,
+			const float InMaxTimeWindowMs,
+			const float InAnalysisPeriodMs,
+			const EAudioPanelLayoutType InPanelLayoutType,
+			const FAudioOscilloscopePanelStyle* InOscilloscopePanelStyle = nullptr);
 
 		void CreateAudioBus(const uint32 InNumChannels);
 
@@ -34,7 +35,7 @@ namespace AudioWidgets
 			const float InAnalysisPeriodMs,
 			const EAudioPanelLayoutType InPanelLayoutType);
 
-		void CreateOscilloscopeWidget(const uint32 InNumChannels, const EAudioPanelLayoutType InPanelLayoutType);
+		void CreateOscilloscopeWidget(const uint32 InNumChannels, const EAudioPanelLayoutType InPanelLayoutType, const FAudioOscilloscopePanelStyle* InOscilloscopePanelStyle = nullptr);
 
 		void StartProcessing();
 		void StopProcessing();

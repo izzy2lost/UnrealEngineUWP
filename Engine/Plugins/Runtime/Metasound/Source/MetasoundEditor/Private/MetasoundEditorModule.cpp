@@ -2,6 +2,10 @@
 #include "MetasoundEditorModule.h"
 
 #include "AssetTypeActions_Base.h"
+#include "AudioMeter.h"
+#include "AudioOscilloscopePanelStyle.h"
+#include "AudioSpectrumPlotStyle.h"
+#include "AudioVectorscopePanelStyle.h"
 #include "Brushes/SlateImageBrush.h"
 #include "EdGraph/EdGraphNode.h"
 #include "EdGraph/EdGraphPin.h"
@@ -160,12 +164,16 @@ namespace Metasound
 
 					// Analyzers
 					Set("MetasoundEditor.Analyzers.BackgroundColor", FLinearColor(0.0075f, 0.0075f, 0.0075, 1.0f));
+					Set("MetasoundEditor.Analyzers.ForegroundColor", FLinearColor(0.025719f, 0.208333f, 0.069907f, 1.0f)); // "Audio" Green
 
 					// Misc
 					Set("MetasoundEditor.Audition", new IMAGE_BRUSH_SVG(TEXT("Icons/metasound_page"), Icon16));
 					Set("MetasoundEditor.Metasound.Icon", new IMAGE_BRUSH_SVG(TEXT("Icons/metasound_icon"), Icon16));
-					Set("MetasoundEditor.Page.Executing", new IMAGE_BRUSH_SVG(TEXT("Icons/metasound_page_exec"), Icon16));
 					Set("MetasoundEditor.Speaker", new FSlateImageBrush(RootToContentDir(TEXT("/Icons/speaker_144x.png")), FVector2D(144.0f, 144.0f)));
+
+					// Pages
+					Set("MetasoundEditor.Page.Executing.ForegroundColor", FStyleColors::AccentGreen.GetSpecifiedColor());
+					Set("MetasoundEditor.Page.Executing", new IMAGE_BRUSH_SVG(TEXT("Icons/metasound_page_exec"), Icon16));
 
 					// Class Icons
 					auto SetClassIcon = [this, InIcon16 = Icon16, InIcon64 = Icon64](const FString& ClassName)
@@ -201,6 +209,21 @@ namespace Metasound
 				return { "MetaSoundStyle", InName};
 			}
 
+			const FSlateColor& GetDefaultAnalyzerColor()
+			{
+				auto MakeColor = []() -> FSlateColor
+				{
+					if (const ISlateStyle* MetaSoundStyle = FSlateStyleRegistry::FindSlateStyle("MetaSoundStyle"))
+					{
+						return MetaSoundStyle->GetColor("MetasoundEditor.Analyzers.ForegroundColor");
+					}
+
+					return FStyleColors::AccentWhite;
+				};
+				static const FSlateColor AnalyzerColor = MakeColor();
+				return AnalyzerColor;
+			}
+
 			const FSlateBrush& GetSlateBrushSafe(FName InName)
 			{
 				const ISlateStyle* MetaSoundStyle = FSlateStyleRegistry::FindSlateStyle("MetaSoundStyle");
@@ -221,7 +244,77 @@ namespace Metasound
 				static const FSlateBrush NullBrush;
 				return NullBrush;
 			}
-		}
+
+			const FAudioMeterDefaultColorStyle& GetMeterDefaultColorStyle()
+			{
+				auto MakeStyle = []()
+				{
+					FAudioMeterDefaultColorStyle MeterStyle;
+					MeterStyle.MeterValueColor = GetDefaultAnalyzerColor().GetSpecifiedColor();
+					return MeterStyle;
+				};
+				static const FAudioMeterDefaultColorStyle ThisStyle = MakeStyle();
+				return ThisStyle;
+			}
+
+			const FAudioOscilloscopePanelStyle& GetOscilloscopeStyle()
+			{
+				auto MakeStyle = []()
+				{
+					FAudioOscilloscopePanelStyle OscStyle;
+					FSampledSequenceViewerStyle SampleView;
+					SampleView.SequenceColor = GetDefaultAnalyzerColor();
+					OscStyle.SetWaveViewerStyle(SampleView);
+
+					return OscStyle;
+				};
+				static FAudioOscilloscopePanelStyle ThisStyle = MakeStyle();
+				return ThisStyle;
+			}
+
+			const FSlateColor& GetPageExecutingColor()
+			{
+				auto MakeColor = []() -> FSlateColor
+				{
+					if (const ISlateStyle* MetaSoundStyle = FSlateStyleRegistry::FindSlateStyle("MetaSoundStyle"))
+					{
+						return MetaSoundStyle->GetColor("MetasoundEditor.Page.Executing.ForegroundColor");
+					}
+
+					return FStyleColors::AccentWhite;
+				};
+				static const FSlateColor AnalyzerColor = MakeColor();
+				return AnalyzerColor;
+			}
+
+			const FAudioSpectrumPlotStyle& GetSpectrumPlotStyle()
+			{
+				auto MakeStyle = []()
+				{
+					FAudioSpectrumPlotStyle PlotStyle;
+					const FSlateColor AnalyzerColor = GetDefaultAnalyzerColor();
+					PlotStyle.CrosshairColor = AnalyzerColor.UseSubduedForeground();
+					PlotStyle.SpectrumColor = AnalyzerColor;
+					return PlotStyle;
+				};
+				static FAudioSpectrumPlotStyle ThisStyle = MakeStyle();
+				return ThisStyle;
+			}
+
+			const FAudioVectorscopePanelStyle& GetVectorscopeStyle()
+			{
+				auto MakeStyle = []()
+				{
+					FAudioVectorscopePanelStyle PanelStyle;
+					FSampledSequenceVectorViewerStyle VectorViewStyle;
+					VectorViewStyle.LineColor = GetDefaultAnalyzerColor().GetSpecifiedColor();
+					PanelStyle.SetVectorViewerStyle(VectorViewStyle);
+					return PanelStyle;
+				};
+				static FAudioVectorscopePanelStyle ThisStyle = MakeStyle();
+				return ThisStyle;
+			}
+		} // namespace Style
 
 		// A structure that contains information about registered custom pin types. 
 		struct FGraphPinConfiguration

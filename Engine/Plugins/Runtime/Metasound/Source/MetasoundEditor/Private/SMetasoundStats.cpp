@@ -32,30 +32,40 @@ namespace Metasound::Editor
 	{
 		SVerticalBox::Construct(SVerticalBox::FArguments());
 
-		TSharedRef<SHorizontalBox> PageWidgetBox = SNew(SHorizontalBox);
-		PageWidgetBox->AddSlot()
-			.Padding(2.0f)
-			.HAlign(HAlign_Center)
-			[
-				SAssignNew(PageTextWidget, STextBlock)
-				.Visibility(EVisibility::HitTestInvisible)
+		AddSlot().HAlign(HAlign_Left)
+		[
+			SAssignNew(AuditionPageTextWidget, STextBlock)
+				.Visibility(EVisibility::Collapsed)
 				.TextStyle(FAppStyle::Get(), "Graph.ZoomText")
 				.ColorAndOpacity(StatsPrivate::BaseTextColor)
-			];
+		];
 
-		ExecImageWidget = SNew(SImage)
-			.Image(Style::CreateSlateIcon("MetasoundEditor.Page.Executing").GetIcon())
-			.DesiredSizeOverride(FVector2D(24.f, 24.f))
-			.ColorAndOpacity(FStyleColors::AccentGreen)
-			.Visibility(EVisibility::Collapsed);
+		AddSlot().HAlign(HAlign_Left)
+		[
+			SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.Padding(2.0f)
+				.HAlign(HAlign_Center)
+				[
+					SAssignNew(GraphPageTextWidget, STextBlock)
+					.Visibility(EVisibility::HitTestInvisible)
+					.TextStyle(FAppStyle::Get(), "Graph.ZoomText")
+					.ColorAndOpacity(StatsPrivate::BaseTextColor)
+				]
 
-		PageWidgetBox->AddSlot()
-			.Padding(2.0f)
-			.HAlign(HAlign_Center)
-			.VAlign(VAlign_Center)
-			.AutoWidth()[ ExecImageWidget.ToSharedRef()];
-
-		AddSlot().HAlign(HAlign_Left) [ PageWidgetBox ];
+				+ SHorizontalBox::Slot()
+				.Padding(2.0f)
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				[
+					SAssignNew(ExecImageWidget, SImage)
+						.Image(Style::CreateSlateIcon("MetasoundEditor.Page.Executing").GetIcon())
+						.DesiredSizeOverride(FVector2D(24.f, 24.f))
+						.ColorAndOpacity(Style::GetPageExecutingColor())
+						.Visibility(EVisibility::Collapsed)
+				]
+		];
 	}
 
 	void SPageStats::SetExecVisibility(TAttribute<EVisibility> InVisibility)
@@ -63,87 +73,151 @@ namespace Metasound::Editor
 		ExecImageWidget->SetVisibility(MoveTemp(InVisibility));
 	}
 
-	void SPageStats::Update(const FMetaSoundPageSettings* PageSettings, const FText& Header, const FSlateColor* ColorOverride)
+	void SPageStats::Update(const FMetaSoundPageSettings* AuditionPageSettings, const FMetaSoundPageSettings* GraphPageSettings, const FSlateColor* ActiveColor)
 	{
 		using namespace Engine;
 
-		FText PageInfo;
-		EVisibility Visibility = EVisibility::Collapsed;
-		if (PageTextWidget.IsValid() && PageSettings)
+		const FText PageStatsFormat = LOCTEXT("PageStatsFormat", "{0}: {1}");
+
 		{
-			PageInfo = FText::Format(LOCTEXT("PageStatsFormat", "{0}: {1}"), Header, FText::FromString(PageSettings->Name.ToString()));
-			Visibility = EVisibility::Visible;
+			FText PageInfo;
+			EVisibility Visibility = EVisibility::Collapsed;
+			if (AuditionPageTextWidget.IsValid() && AuditionPageSettings)
+			{
+				const FText Header = LOCTEXT("AuditionPageHeader", "Auditioning Page");
+				PageInfo = FText::Format(PageStatsFormat, Header, FText::FromString(AuditionPageSettings->Name.ToString()));
+				Visibility = EVisibility::Visible;
+			}
+			AuditionPageTextWidget->SetText(PageInfo);
 		}
 
-		PageTextWidget->SetText(PageInfo);
-		PageTextWidget->SetColorAndOpacity(ColorOverride ? *ColorOverride : StatsPrivate::BaseTextColor);
+		{
+			FText PageInfo;
+			EVisibility Visibility = EVisibility::Collapsed;
+			if (GraphPageTextWidget.IsValid() && GraphPageSettings)
+			{
+				const FText Header = LOCTEXT("GraphPageTargetHeader", "Graph Page");
+				PageInfo = FText::Format(PageStatsFormat, Header, FText::FromString(GraphPageSettings->Name.ToString()));
+				Visibility = EVisibility::Visible;
+			}
+			GraphPageTextWidget->SetText(PageInfo);
+			GraphPageTextWidget->SetColorAndOpacity(ActiveColor ? *ActiveColor : StatsPrivate::BaseTextColor);
+		}
 	}
 
 	void SRenderStats::Construct(const FArguments& InArgs)
 	{
 		SVerticalBox::Construct(SVerticalBox::FArguments());
-		AddSlot()
-		.HAlign(HAlign_Left)
-		.AutoHeight()
-		[
-			SAssignNew(RenderStatsCostWidget, STextBlock)
-			.Visibility(EVisibility::HitTestInvisible)
-			.TextStyle(FAppStyle::Get(), "Graph.ZoomText")
-			.ColorAndOpacity(FLinearColor(1, 1, 1, 0.30f))
-		];
 
-		AddSlot()
-		.HAlign(HAlign_Left)
-		.AutoHeight()
-		[
-			SAssignNew(RenderStatsCPUWidget, STextBlock)
-			.Visibility(EVisibility::HitTestInvisible)
-			.TextStyle(FAppStyle::Get(), "Graph.ZoomText")
-			.ColorAndOpacity(FLinearColor(1, 1, 1, 0.30f))
-		];
+		auto AddTextWidgetSlot = [this](TSharedPtr<STextBlock>& OutBlock)
+		{
+			AddSlot()
+			.HAlign(HAlign_Left)
+			.AutoHeight()
+			[
+				SAssignNew(OutBlock, STextBlock)
+				.Visibility(EVisibility::HitTestInvisible)
+				.TextStyle(FAppStyle::Get(), "GraphPreview.CornerText")
+				.ColorAndOpacity(FLinearColor(1, 1, 1, 0.30f))
+			];
+		};
+
+		AddTextWidgetSlot(PlayTimeWidget);
+		AddTextWidgetSlot(RenderStatsCostWidget);
+		AddTextWidgetSlot(RenderStatsCPUWidget);
+		AddTextWidgetSlot(AuditionPageWidget);
+		AddTextWidgetSlot(AuditionPlatformWidget);
 	}
 
-	void SRenderStats::Update(bool bIsPlaying, const UMetaSoundSource* InSource)
+
+	void SRenderStats::Update(bool bIsPlaying, double InDeltaTime, const UMetaSoundSource* InSource)
 	{
 		using namespace Metasound;
 
 		// Reset maximum values when play restarts
-		if (bIsPlaying && !bPreviousIsPlaying)
+		if (bIsPlaying)
 		{
-			MaxRelativeRenderCost = 0.f;
-			MaxCPUCoreUtilization = 0;
+			if (!bPreviousIsPlaying)
+			{
+				MaxRelativeRenderCost = 0.f;
+				MaxCPUCoreUtilization = 0;
+			}
+			PlayTime += InDeltaTime;
 		}
+		else
+		{
+			PlayTime = 0.0;
+		}
+
 		bPreviousIsPlaying = bIsPlaying;
 
-		if (RenderStatsCPUWidget.IsValid() && RenderStatsCostWidget.IsValid())
-		{
-			double CPUCoreUtilization = 0;
-			float RelativeRenderCost = 0.f;
-
-			// Find generator for playing preview component. 
-			if (bIsPlaying && InSource)
+		if (!RenderStatsCPUWidget.IsValid()
+			|| !RenderStatsCostWidget.IsValid()
+			|| !PlayTimeWidget.IsValid()
+			|| !AuditionPageWidget.IsValid()
+			|| !AuditionPlatformWidget.IsValid())
 			{
-				if (const UAudioComponent* PreviewComponent = GEditor->GetPreviewAudioComponent())
-				{
-					TSharedPtr<FMetasoundGenerator> Generator = InSource->GetGeneratorForAudioComponent(PreviewComponent->GetAudioComponentID()).Pin();
-					if (Generator.IsValid())
-					{
-						// Update render stats
-						CPUCoreUtilization = Generator->GetCPUCoreUtilization();
-						MaxCPUCoreUtilization = FMath::Max(MaxCPUCoreUtilization, CPUCoreUtilization);
+			return;
+		}
 
-						RelativeRenderCost = Generator->GetRelativeRenderCost();
-						MaxRelativeRenderCost = FMath::Max(MaxRelativeRenderCost, RelativeRenderCost);
+		double CPUCoreUtilization = 0;
+		float RelativeRenderCost = 0.f;
+
+		if (bIsPlaying && InSource)
+		{
+			if (const UAudioComponent* PreviewComponent = GEditor->GetPreviewAudioComponent())
+			{
+				TSharedPtr<FMetasoundGenerator> Generator = InSource->GetGeneratorForAudioComponent(PreviewComponent->GetAudioComponentID()).Pin();
+				if (Generator.IsValid())
+				{
+					// Update render stats
+					CPUCoreUtilization = Generator->GetCPUCoreUtilization();
+					MaxCPUCoreUtilization = FMath::Max(MaxCPUCoreUtilization, CPUCoreUtilization);
+
+					RelativeRenderCost = Generator->GetRelativeRenderCost();
+					MaxRelativeRenderCost = FMath::Max(MaxRelativeRenderCost, RelativeRenderCost);
+				}
+			}
+		}
+
+		// Display updated render stats.
+		FString PlayTimeString = FTimespan::FromSeconds(PlayTime).ToString();
+		PlayTimeString.ReplaceInline(TEXT("+"), TEXT(""));
+		PlayTimeWidget->SetText(FText::FromString(MoveTemp(PlayTimeString)));
+
+		FString RenderCostString = FString::Printf(TEXT("Relative Render Cost: %3.2f (%3.2f Max)"), RelativeRenderCost, MaxRelativeRenderCost);
+		RenderStatsCostWidget->SetText(FText::FromString(MoveTemp(RenderCostString)));
+
+		FString CPUCoreUtilizationString = FString::Printf(TEXT("CPU Core: %3.2f%% (%3.2f%% Max)"), 100. * CPUCoreUtilization, 100. * MaxCPUCoreUtilization);
+		RenderStatsCPUWidget->SetText(FText::FromString(MoveTemp(CPUCoreUtilizationString)));
+
+		if (bPreviousIsPlaying != bIsPlaying)
+		{
+			FText AuditionPage;
+			FText AuditionPlatform;
+
+			if (bIsPlaying)
+			{
+				if (const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>())
+				{
+					if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
+					{
+						if (!Settings->GetProjectPageSettings().IsEmpty())
+						{
+							const FText AuditionPageHeader = LOCTEXT("AuditionPageActive_DebugFormat", "Auditioning Page: {0}");
+							AuditionPage = FText::Format(AuditionPageHeader, FText::FromName(EditorSettings->AuditionPage));
+
+							if (EditorSettings->AuditionPlatform != "Editor")
+							{
+								const FText AuditionPlatformHeader = LOCTEXT("AuditionPlatformActive_DebugFormat", "Auditioning Platform: {0}");
+								AuditionPlatform = FText::Format(AuditionPlatformHeader, FText::FromName(EditorSettings->AuditionPlatform));
+							}
+						}
 					}
 				}
 			}
-
-			// Display updated render stats. 
-			FString CPUCoreUtilizationString = FString::Printf(TEXT("%3.2f%% (%3.2f%% Max) CPU Core"), 100. * CPUCoreUtilization, 100. * MaxCPUCoreUtilization);
-			RenderStatsCPUWidget->SetText(FText::FromString(CPUCoreUtilizationString));
-
-			FString RenderCostString = FString::Printf(TEXT("%3.2f (%3.2f Max) Relative Render Cost"), RelativeRenderCost, MaxRelativeRenderCost);
-			RenderStatsCostWidget->SetText(FText::FromString(RenderCostString));
+			AuditionPageWidget->SetText(AuditionPage);
+			AuditionPlatformWidget->SetText(AuditionPlatform);
 		}
 	}
 } // namespace Metasound::Editor

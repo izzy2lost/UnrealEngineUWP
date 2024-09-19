@@ -135,7 +135,6 @@ namespace Metasound::Editor
 		virtual void RegisterTabSpawners(const TSharedRef<FTabManager>& TabManager) override;
 		virtual void UnregisterTabSpawners(const TSharedRef<FTabManager>& TabManager) override;
 
-		double GetPlayTime() const;
 		TSharedPtr<SGraphEditor> GetGraphEditor() const;
 
 		/** Edits the specified Metasound object */
@@ -514,7 +513,7 @@ namespace Metasound::Editor
 		bool UpdatePlayTime(float InDeltaTime);
 
 		/** Updates the render info widget. */
-		void UpdateRenderInfo();
+		void UpdateRenderInfo(bool bIsPlaying, float InDeltaTime = 0.0f);
 
 		/** List of open tool panels; used to ensure only one exists at any one time */
 		TMap<FName, TWeakPtr<SDockableTab>> SpawnedToolPanels;
@@ -554,15 +553,8 @@ namespace Metasound::Editor
 		/** Palette of Node types */
 		TSharedPtr<SMetasoundPalette> Palette;
 
-		/** Widget showing playtime that overlays the graph when previewing */
-		TSharedPtr<STextBlock> PlayTimeWidget;
-		double PlayTime = 0.0;
-
-		/** Widget showing page info regarding the currently focused page that overlays the graph tab content */
-		TSharedPtr<SPageStats> FocusPageWidget;
-
-		/** Widget showing page info regarding the currently rendering page that overlays the analyzer tab content */
-		TSharedPtr<SPageStats> RenderPageWidget;
+		/** Widget showing page info regarding page info that overlays the graph tab content */
+		TSharedPtr<SPageStats> PageStatsWidget;
 
 		/** Widget showing render performance information that overlays the graph */
 		TSharedPtr<SRenderStats> RenderStatsWidget;
