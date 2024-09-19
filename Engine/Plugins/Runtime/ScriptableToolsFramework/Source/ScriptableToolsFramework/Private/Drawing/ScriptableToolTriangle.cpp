@@ -1,7 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Drawing/ScriptableToolTriangle.h"
+#include "Materials/Material.h"
+#include "MaterialDomain.h"
 
+UScriptableToolTriangle::UScriptableToolTriangle()
+{
+	TriangleDescription.Material = UMaterial::GetDefaultMaterial(EMaterialDomain::MD_Surface);
+}
 
 void UScriptableToolTriangle::SetTriangleID(int32 TriangleIDIn)
 {
@@ -65,7 +71,11 @@ void UScriptableToolTriangle::SetTriangleColors(FColor A, FColor B, FColor C)
 
 
 
-
+UScriptableToolQuad::UScriptableToolQuad()
+{
+	TriangleADescription.Material = UMaterial::GetDefaultMaterial(EMaterialDomain::MD_Surface);
+	TriangleBDescription.Material = UMaterial::GetDefaultMaterial(EMaterialDomain::MD_Surface);
+}
 
 
 void UScriptableToolQuad::SetTriangleAID(int32 TriangleIDIn)
