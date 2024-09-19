@@ -122,6 +122,7 @@ void UAddPrimitiveTool::Setup()
 	AddToolPropertySource(ShapeSettings);
 	
 	ShapeSettings->WatchProperty(ShapeSettings->TargetSurface, [this](EMakeMeshPlacementType){UpdateTargetSurface();});
+	ShapeSettings->PolygroupMode = GetDefaultPolygroupMode();
 	ShapeSettings->RestoreProperties(this);
 
 	MaterialProperties = NewObject<UNewMeshMaterialProperties>(this);
@@ -798,7 +799,10 @@ void UAddSpherePrimitiveTool::GenerateMesh(FDynamicMesh3* OutMesh) const
 		SphereGen.Radius = SphereSettings->Radius;
 		SphereGen.NumTheta = SphereSettings->VerticalSlices;
 		SphereGen.NumPhi = SphereSettings->HorizontalSlices + 1;
-		SphereGen.bPolygroupPerQuad = (ShapeSettings->PolygroupMode == EMakeMeshPolygroupMode::PerQuad);
+		// In FSphereGenerator, PerFace is effectively ignored, and does the same thing as 
+		//  PerShape, which is unlikely to be useful. So we might as well have PerFace do
+		//  the same thing as PerQuad.
+		SphereGen.bPolygroupPerQuad = (ShapeSettings->PolygroupMode != EMakeMeshPolygroupMode::PerShape);
 		SphereGen.Generate();
 		OutMesh->Copy(&SphereGen);
 		break;
