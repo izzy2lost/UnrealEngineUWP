@@ -21,6 +21,8 @@
 
 #define LOCTEXT_NAMESPACE	"DetailPropertyRow"
 
+static void TogglePropertyEditorEditCondition(bool bValue, TWeakPtr<FPropertyEditor> PropertyEditorWeak);
+
 FDetailPropertyRow::FDetailPropertyRow(TSharedPtr<FPropertyNode> InPropertyNode, TSharedRef<FDetailCategoryImpl> InParentCategory, TSharedPtr<FComplexPropertyNode> InExternalRootNode)
 	: PropertyNode( InPropertyNode )
 	, ParentCategory( InParentCategory )
@@ -380,6 +382,18 @@ void FDetailPropertyRow::OnItemNodeInitialized( TSharedRef<FDetailCategoryImpl> 
 		CustomPropertyWidget = MakeShared<FDetailWidgetRow>();
 
 		CustomTypeInterface->CustomizeHeader(PropertyHandle.ToSharedRef(), *CustomPropertyWidget, *this);
+
+		// set edit condition handlers - use customized if provided
+		TAttribute<bool> EditConditionValue = CustomEditConditionValue;
+		if (!EditConditionValue.IsSet() && PropertyEditor.IsValid())
+		{
+			EditConditionValue = TAttribute<bool>(PropertyEditor.ToSharedRef(), &FPropertyEditor::IsEditConditionMet);
+		}
+		
+		TWeakPtr<FPropertyEditor> PropertyEditorWeak = PropertyEditor;
+		FOnBooleanValueChanged OnEditConditionValueChanged = FOnBooleanValueChanged::CreateStatic(&TogglePropertyEditorEditCondition, PropertyEditorWeak);
+
+		CustomPropertyWidget->EditCondition(EditConditionValue, OnEditConditionValueChanged);
 
 		FixEmptyHeaderRowInContainers(PropertyHandle, CustomPropertyWidget);
 
