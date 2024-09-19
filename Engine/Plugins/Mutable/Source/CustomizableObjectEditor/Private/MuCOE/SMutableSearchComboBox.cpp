@@ -144,7 +144,7 @@ void SMutableSearchComboBox::RefreshOptions()
 		FString SearchString = SearchText.ToString();
 		for (const TSharedRef<FFilteredOption>& Option : *OptionsSource)
 		{
-			if (Option->DisplayOption == SearchString)
+			if (Option->DisplayOption == SearchString && !Option->ActualOption.IsEmpty())
 			{
 				bFullMatch = true; 
 				break;
