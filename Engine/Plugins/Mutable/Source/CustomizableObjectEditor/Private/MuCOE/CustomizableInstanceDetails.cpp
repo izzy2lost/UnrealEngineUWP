@@ -78,7 +78,7 @@ void FCustomizableInstanceDetails::CustomizeDetails(const TSharedPtr<IDetailLayo
 		CustomInstance->GetPrivate()->SaveParametersToProfile(CustomInstance->GetPrivate()->SelectedProfileIndex);
 	}
 
-	// Delegate to refresh the detils when the instance has finished the Update
+	// Delegate to refresh the details when the instance has finished the Update
 	CustomInstance->UpdatedNativeDelegate.AddSP(this, &FCustomizableInstanceDetails::InstanceUpdated);
 	CustomInstance->GetPrivate()->OnInstanceTransactedDelegate.AddSP(this, &FCustomizableInstanceDetails::OnInstanceTransacted);
 
@@ -101,6 +101,8 @@ void FCustomizableInstanceDetails::CustomizeDetails(const TSharedPtr<IDetailLayo
 
 		return;
 	}
+
+	CustomizableObject->GetPostCompileDelegate().AddSP(this, &FCustomizableInstanceDetails::ObjectCompiled);
 
 	TArray<UObject*> Private;
 	Private.Add(CustomInstance->GetPrivate());
@@ -296,6 +298,15 @@ void FCustomizableInstanceDetails::UpdateInstance()
 void FCustomizableInstanceDetails::InstanceUpdated(UCustomizableObjectInstance* Instance) const
 {
 	// Check the instance update context to aboid unecessary UI updates.
+	if (!bUpdatingSlider)
+	{
+		Refresh();
+	}
+}
+
+
+void FCustomizableInstanceDetails::ObjectCompiled()
+{
 	if (!bUpdatingSlider)
 	{
 		Refresh();
@@ -1174,7 +1185,7 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateFloatWidget(const UCus
 
 float FCustomizableInstanceDetails::GetFloatParameterValue(FString ParamName, int32 RangeIndex) const
 {
-	if (CustomInstance->GetCustomizableObject()->GetPrivate()->IsLocked())
+	if (CustomInstance->GetCustomizableObject()->GetPrivate()->IsLocked()) // TODO Move, if necessary, to GetFloatParameterSelectedOption. UE-224815
 	{
 		// Prevent crashing if polling the float value during CO compilation
 		return -1.f;

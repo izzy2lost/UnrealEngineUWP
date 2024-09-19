@@ -53,6 +53,8 @@ private:
 	// Callback to regenerate the details when the instance has finished an update
 	void InstanceUpdated(UCustomizableObjectInstance* Instance) const;
 
+	void ObjectCompiled();
+
 	// State Selector 
 	// Generates The StateSelector Widget
 	TSharedRef<SWidget> GenerateStateSelector();
