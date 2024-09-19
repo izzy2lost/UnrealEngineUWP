@@ -34,7 +34,7 @@ static TAutoConsoleVariable<float> CVarWaterMeshLODScaleBias(
 	TEXT("This value is added to the LOD Scale of each Mesh Component. Negative values will lower the overall density/resolution or the vertex grid and make the LODs smaller, higher values will increase the density/resolution and make the LODs larger. Smallest value is -0.5. That will make the inner LOD as tight and optimized as possible"),
 	ECVF_Scalability);
 
-static TAutoConsoleVariable<int32> CVarWaterMeshGPUQuadTree(
+TAutoConsoleVariable<int32> CVarWaterMeshGPUQuadTree(
 	TEXT("r.Water.WaterMesh.GPUQuadTree"),
 	0,
 	TEXT("Builds the water quadtree on the GPU and does indirect draws of water tiles, driven by the GPU."),
@@ -368,7 +368,7 @@ void UWaterMeshComponent::RebuildWaterMesh(float InTileSize, const FIntPoint& In
 						Boxes.Add(Box);
 					}
 				}
-
+				
 				for (const FBox& Box : Boxes)
 				{
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
