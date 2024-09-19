@@ -2547,7 +2547,7 @@ TSharedPtr<SWidget> SMyBlueprint::OnContextMenuOpening()
 				if (Schema->AllowsFunctionVariants())
 				{
 					MenuBuilder.AddMenuEntry(
-						LOCTEXT("MyBlueprint_Add_Func_Variant", "Add Variant"), FText(), FSlateIcon(),
+						LOCTEXT("MyBlueprint_Add_Func_Variant", "Add Variant (Experimental)"), FText(), FSlateIcon(),
 						FExecuteAction::CreateLambda([BlueprintEditor, Graph]()
 						{
 							BlueprintEditor->AddNewFunctionVariant(Graph->EdGraph);

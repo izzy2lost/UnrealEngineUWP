@@ -117,6 +117,15 @@ void SRigVMVariantWidget::Construct(
 		SNew(SVerticalBox)
 		+ SVerticalBox::Slot()
 		.AutoHeight()
+		.Padding(0, 8, 0, 8)
+		.HAlign(HAlign_Left)
+		[
+			SNew(STextBlock)
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+			.Text(LOCTEXT("Experimental", "Note: This is experimental"))
+		]
+		+ SVerticalBox::Slot()
+		.AutoHeight()
 		.Padding(0, 8, 0, 0)
 		.HAlign(HAlign_Left)
 		[

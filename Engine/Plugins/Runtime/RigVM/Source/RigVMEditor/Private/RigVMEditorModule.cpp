@@ -109,7 +109,7 @@ void FRigVMEditorModule::StartupModule()
 						if(CVarRigVMEnableVariants.GetValueOnAnyThread())
 						{
 							FSoftObjectPath SoftObjectPath = SelectedAssetData.GetSoftObjectPath();
-							InSection.AddMenuEntry("CreateVariant", LOCTEXT("CreateVariant", "Create variant"), LOCTEXT("CreateVariant_ToolTip", "Create a variant for this asset"), FSlateIcon(FRigVMEditorStyle::Get().GetStyleSetName(), "RigVM", "RigVM.Unit"), FExecuteAction::CreateLambda([SoftObjectPath]()
+							InSection.AddMenuEntry("CreateVariant", LOCTEXT("CreateVariant", "Create variant (Experimental)"), LOCTEXT("CreateVariant_ToolTip", "Create a variant for this asset"), FSlateIcon(FRigVMEditorStyle::Get().GetStyleSetName(), "RigVM", "RigVM.Unit"), FExecuteAction::CreateLambda([SoftObjectPath]()
 								{
 									// Perform the load from within our lambda since this can be expensive, and should not be done speculatively
 									UObject* SelectedObject = SoftObjectPath.TryLoad();
