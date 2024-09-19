@@ -597,7 +597,7 @@ void SDMMaterialEditor::Validate()
 
 		if (!UDMMaterialModelFunctionLibrary::IsModelValid(MaterialModelBaseFromProperty))
 		{
-			MaterialModelBase = nullptr;
+			MaterialModelBaseFromProperty = nullptr;
 		}
 
 		if (MaterialModelBase != MaterialModelBaseFromProperty)

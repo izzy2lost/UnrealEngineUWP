@@ -49,12 +49,12 @@ UDynamicMaterialInstance::UDynamicMaterialInstance()
 	bOutputTranslucentVelocity = true;
 }
 
-UDynamicMaterialModelBase* UDynamicMaterialInstance::GetMaterialModelBase()
+UDynamicMaterialModelBase* UDynamicMaterialInstance::GetMaterialModelBase() const
 {
 	return MaterialModelBase;
 }
 
-UDynamicMaterialModel* UDynamicMaterialInstance::GetMaterialModel()
+UDynamicMaterialModel* UDynamicMaterialInstance::GetMaterialModel() const
 {
 	if (IsValid(MaterialModelBase))
 	{
