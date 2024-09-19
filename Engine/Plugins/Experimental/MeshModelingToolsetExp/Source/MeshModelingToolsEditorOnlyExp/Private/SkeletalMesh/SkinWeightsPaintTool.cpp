@@ -744,13 +744,12 @@ void UWeightToolTransferManager::SetSourceMesh(USkeletalMesh* InSkeletalMesh)
 		{
 			MeshSelector->SetIsEnabled(false);
 		}
-
-		ToolProperties->SourceSkinWeightProfile = FSkeletalMeshAttributesShared::DefaultSkinWeightProfileName;
-		ToolProperties->SourceLOD = "LOD0";
 	}
 	
 	if (!InSkeletalMesh)
 	{
+		ToolProperties->SourceSkinWeightProfile = FSkeletalMeshAttributesShared::DefaultSkinWeightProfileName;
+		ToolProperties->SourceLOD = "LOD0";
 		UpdateSelectionAndVisibility();
 		return;
 	}
