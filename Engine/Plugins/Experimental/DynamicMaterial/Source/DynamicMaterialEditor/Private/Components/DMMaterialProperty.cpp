@@ -175,6 +175,11 @@ void UDMMaterialProperty::AddDefaultBaseStage(UDMMaterialLayerObject* InLayer)
 		return;
 	}
 
+	if (InLayer->GetMaterialProperty() == EDMMaterialPropertyType::None)
+	{
+		InLayer->SetMaterialProperty(MaterialProperty);
+	}
+
 	UDMMaterialStage* DefaultStage = UDMMaterialStageBlend::CreateStage(UDMMaterialStageBlendNormal::StaticClass());
 	check(DefaultStage);
 
