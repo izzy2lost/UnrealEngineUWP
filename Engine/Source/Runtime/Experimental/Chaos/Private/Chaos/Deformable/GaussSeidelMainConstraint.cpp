@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "Chaos/Deformable/GaussSeidelMainConstraint.h"
 #include "Chaos/Math/Krylov.h"
+#include "ChaosLog.h"
 
 namespace Chaos::Softs
 {
@@ -176,9 +177,9 @@ namespace Chaos::Softs
 
 		NewtonNorm = FMath::Sqrt(NewtonNorm);
 
-		UE_LOG(LogTemp, Warning, TEXT("Current Iteration: %d"), CurrentIt);
+		UE_LOG(LogChaos, Display, TEXT("Current Iteration: %d"), CurrentIt);
 
-		UE_LOG(LogTemp, Warning, TEXT("Newton Residual is %f"), NewtonNorm);
+		UE_LOG(LogChaos, Display, TEXT("Newton Residual is %f"), NewtonNorm);
 
 		PassedIters++;
 
