@@ -75,7 +75,6 @@ namespace FPCGAsync
 		const bool bIsInGameThread = IsInGameThread();
 		const bool bEnableTimeSlicing = bInEnableTimeSlicing && ((bIsInGameThread && !ConsoleVar::CVarDisableAsyncTimeSlicingOnGameThread.GetValueOnAnyThread()) || (!bIsInGameThread && !ConsoleVar::CVarDisableAsyncTimeSlicing.GetValueOnAnyThread()));
 				
-		const float OutOfTickBudgetInSeconds = ConsoleVar::CVarAsyncOutOfTickBudgetInMilliseconds.GetValueOnAnyThread() / 1000.f;
 
 		if (AsyncState.NumAvailableTasks == 0 || ChunkSize <= 0 || NumIterations <= 0)
 		{
@@ -97,17 +96,7 @@ namespace FPCGAsync
 
 			Initialize();
 
-			double EndTime = AsyncState.EndTime;
-			
-			if (AsyncState.bIsRunningOutOfTick && !AsyncState.bIsOutOfTickBudgetSet && bEnableTimeSlicing && OutOfTickBudgetInSeconds > 0.f)
-			{
-				EndTime = FPlatformTime::Seconds() + OutOfTickBudgetInSeconds;
-
-				// Prevent multiple AsyncProcessing calls in the same node execute to reset the budget
-				AsyncState.bIsOutOfTickBudgetSet = true;
-			}
-
-			AsyncState.SetStarted(EndTime);
+			AsyncState.bStarted = true;
 
 			// At the beginning, dispatch the chunks that each task needs to process.
 			// It will be stored on the AsyncState so that it can be reused.

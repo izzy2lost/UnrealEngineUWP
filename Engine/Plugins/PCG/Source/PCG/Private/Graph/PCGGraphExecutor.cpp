@@ -15,6 +15,7 @@
 #include "Compute/Elements/PCGComputeGraphElement.h"
 #include "Grid/PCGPartitionActor.h"
 #include "Helpers/PCGActorHelpers.h"
+#include "Helpers/PCGAsync.h"
 #include "Helpers/PCGHelpers.h"
 #include "Metadata/PCGMetadata.h"
 #include "Utils/PCGGraphExecutionLogging.h"
@@ -1536,14 +1537,16 @@ bool FPCGGraphExecutor::ExecuteScheduling(double EndTime, TSharedPtr<FPCGGraphAc
 						ActiveTask->Context->AsyncState.NumAvailableTasks = -1;
 						ActiveTask->Context->AsyncState.EndTime = EndTime;
 						ActiveTask->Context->AsyncState.bIsRunningOnMainThread = false;
-						ActiveTask->Context->AsyncState.bIsRunningOutOfTick = true;
-						ActiveTask->Context->AsyncState.bIsOutOfTickBudgetSet = false;
 
 						// Capture copy of SharedPtr so task stays valid while Async task is alive
 						ActiveTask->StartExecuting();
 						ActiveTask->ExecutingTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [this, ActiveTask]() -> bool
 						{
 							TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphExecutor::ExecuteAsyncTask);
+
+							// Set Out Of tick budget time (minimum 1ms)
+							const float OutOfTickBudgetInSeconds = FMath::Max(1.0f, FPCGAsync::ConsoleVar::CVarAsyncOutOfTickBudgetInMilliseconds.GetValueOnAnyThread()) / 1000.f;
+							ActiveTask->Context->AsyncState.EndTime = FPlatformTime::Seconds() + OutOfTickBudgetInSeconds;
 
 							const bool bIsDone = ActiveTask->bWasCancelled || ActiveTask->Element->Execute(ActiveTask->Context.Get());
 							const bool bIsPaused = ActiveTask->Context->bIsPaused;
