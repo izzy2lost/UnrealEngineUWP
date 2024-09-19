@@ -8,6 +8,7 @@
 #include "PCGBuilderSettings.generated.h"
 
 class UPCGGraphInterface;
+class UDataLayerAsset;
 
 UCLASS(hidecategories = Object)
 class UPCGBuilderSettings : public UObject
@@ -28,10 +29,22 @@ public:
 	/** Filter generated components by owner actor name. */
 	UPROPERTY(EditAnywhere, Category = Filter)
 	TArray<FString>  FilterByActorNames;
+		
+	/** Will load editor only data layers without having to specify them as included */
+	UPROPERTY(EditAnywhere, Category = DataLayers)
+	bool bLoadEditorOnlyDataLayers = true;
 
-	/** Call generate on each component and wait until completion and any async processes before generating the next. */
-	UPROPERTY(EditAnywhere, Category = Build, meta = (DisplayName = "One Component at a Time"))
-	bool bOneComponentAtATime = false;
+	/** Will load runtime data layers that are default activated without having to specify them as included */
+	UPROPERTY(EditAnywhere, Category = DataLayers)
+	bool bLoadActivatedRuntimeDataLayers = true;
+
+	/** Data layers that need to be loaded when running builder. */
+	UPROPERTY(EditAnywhere, Category = DataLayers)
+	TArray<TObjectPtr<UDataLayerAsset>> IncludedDataLayers;
+
+	/** Data layers that need to be unloaded when running builder. */
+	UPROPERTY(EditAnywhere, Category = DataLayers)
+	TArray<TObjectPtr<UDataLayerAsset>> ExcludedDataLayers;
 
 	/** Run builder iteratively loading cell regions instead of the whole map at once. Useful for large maps. */
 	UPROPERTY(EditAnywhere, Category = Advanced)
@@ -44,4 +57,8 @@ public:
 	/** Submit dirty files even if errors occurred during generation. */
 	UPROPERTY(EditAnywhere, Category = Advanced)
 	bool bIgnoreGenerationErrors = false;
+
+	/** Call generate on each component and wait until completion and any async processes before generating the next. */
+	UPROPERTY(EditAnywhere, Category = Advanced, meta = (DisplayName = "One Component at a Time"))
+	bool bOneComponentAtATime = false;
 };
