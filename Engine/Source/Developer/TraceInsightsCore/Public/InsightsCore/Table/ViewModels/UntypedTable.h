@@ -21,7 +21,7 @@ namespace UE::Insights
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FUntypedTable : public FTable
+class TRACEINSIGHTSCORE_API FUntypedTable : public FTable
 {
 public:
 	FUntypedTable();

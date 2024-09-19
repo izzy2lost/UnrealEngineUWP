@@ -18,6 +18,7 @@ public class TraceInsightsCore : ModuleRules
 				"Slate",
 				"SlateCore",
 				"ToolWidgets",
+				"TraceServices",
 			}
 		);
 	}

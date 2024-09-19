@@ -41,6 +41,8 @@ class FInsightsFrontendSettings;
 class FStoreBrowser;
 struct FStoreBrowserTraceInfo;
 
+class FTableImporter;
+
 struct FTraceViewModel;
 struct FTraceDirectoryModel;
 
@@ -466,6 +468,9 @@ private:
 #elif PLATFORM_MAC || PLATFORM_LINUX
 	sem_t* AutoConnectEvent = SEM_FAILED;
 #endif
+
+	static FName LogListingName;
+	TSharedRef<FTableImporter> TableImporter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

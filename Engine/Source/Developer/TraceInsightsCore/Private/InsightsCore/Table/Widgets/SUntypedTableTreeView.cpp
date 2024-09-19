@@ -1,17 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SUntypedTableTreeView.h"
+#include "InsightsCore/Table/Widgets/SUntypedTableTreeView.h"
 
 // TraceServices
 #include "TraceServices/Containers/Tables.h"
-#include "TraceServices/Model/Threads.h"
 
 // TraceInsightsCore
+#include "InsightsCore/Common/Log.h"
 #include "InsightsCore/Common/Stopwatch.h"
-
-// TraceInsights
-#include "Insights/Log.h"
-#include "Insights/Table/ViewModels/UntypedTable.h"
+#include "InsightsCore/Table/ViewModels/UntypedTable.h"
 
 #define LOCTEXT_NAMESPACE "UE::Insights::SUntypedTableTreeView"
 
@@ -136,7 +133,7 @@ void SUntypedTableTreeView::RebuildTree(bool bResync)
 	if (TotalTime > 0.01)
 	{
 		const double SyncTime = SyncStopwatch.GetAccumulatedTime();
-		UE_LOG(TraceInsights, Log, TEXT("[Table] Tree view rebuilt in %.4fs (sync: %.4fs + update: %.4fs) --> %d rows (%d added)"),
+		UE_LOG(LogInsights, Log, TEXT("[Table] Tree view rebuilt in %.4fs (sync: %.4fs + update: %.4fs) --> %d rows (%d added)"),
 			TotalTime, SyncTime, TotalTime - SyncTime, TableRowNodes.Num(), TableRowNodes.Num() - PreviousNodeCount);
 	}
 }
@@ -157,7 +154,7 @@ double SUntypedTableTreeView::GetAllOperationsDuration()
 		CurrentOperationStopwatch.Update();
 		return CurrentOperationStopwatch.GetAccumulatedTime();
 	}
-	
+
 	return STableTreeView::GetAllOperationsDuration();
 }
 

@@ -45,6 +45,7 @@
 #include "InsightsCore/Common/InsightsCoreStyle.h"
 #include "InsightsCore/Common/MiscUtils.h"
 #include "InsightsCore/Common/Stopwatch.h"
+#include "InsightsCore/Table/ViewModels/TableImporter.h"
 #include "InsightsCore/Version.h"
 
 // TraceInsightsFrontend
@@ -66,20 +67,19 @@
 #include "Windows/HideWindowsPlatformTypes.h"
 #endif
 
-#ifndef UE_INSIGHTS_TABLE_IMPORT_TOOL_ENABLED
-#define UE_INSIGHTS_TABLE_IMPORT_TOOL_ENABLED 0
-#endif
-
 #define LOCTEXT_NAMESPACE "UE::Insights::STraceStoreWindow"
 
 namespace UE::Insights
 {
+
+FName STraceStoreWindow::LogListingName(TEXT("InsightsFrontend"));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // STraceStoreWindow
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 STraceStoreWindow::STraceStoreWindow()
+	: TableImporter(MakeShared<FTableImporter>(LogListingName))
 {
 	SortColumn = FTraceListColumns::Date;
 	SortMode = EColumnSortMode::Ascending;
@@ -2002,13 +2002,12 @@ FReply STraceStoreWindow::OnDrop(const FGeometry& MyGeometry, const FDragDropEve
 					OpenTraceFile(Files[0]);
 					return FReply::Handled();
 				}
-#if UE_INSIGHTS_TABLE_IMPORT_TOOL_ENABLED
+
 				if (DraggedFileExtension == TEXT(".csv") || DraggedFileExtension == TEXT(".tsv"))
 				{
-					FTableImportTool::Get()->ImportFile(Files[0]);
+					TableImporter->ImportFile(Files[0]);
 					return FReply::Handled();
 				}
-#endif // UE_INSIGHTS_TABLE_IMPORT_TOOL_ENABLED
 			}
 		}
 	}
@@ -2168,22 +2167,22 @@ TSharedRef<SWidget> STraceStoreWindow::MakeTraceListMenu()
 			FUIAction(FExecuteAction::CreateSP(this, &STraceStoreWindow::OpenTraceFile)),
 			NAME_None,
 			EUserInterfaceActionType::Button);
-#if UE_INSIGHTS_TABLE_IMPORT_TOOL_ENABLED
+
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("ImportTableButtonLabel", "Import Table..."),
 			LOCTEXT("ImportTableButtonTooltip", "Opens .csv or .tsv file."),
-			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.FolderOpen"),
-			FUIAction(FExecuteAction::CreateLambda([]{ FTableImportTool::Get()->StartImportProcess(); })),
+			FSlateIcon(FInsightsCoreStyle::GetStyleSetName(), "Icons.ImportTable"),
+			FUIAction(FExecuteAction::CreateLambda([this]{ TableImporter->StartImportProcess(); })),
 			NAME_None,
 			EUserInterfaceActionType::Button);
+
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("DiffTablesButtonLabel", "Diff Tables..."),
 			LOCTEXT("DiffTablesButtonTooltip", "Opens two table files in diff mode."),
 			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.FolderOpen"),
-			FUIAction(FExecuteAction::CreateLambda([]{ FTableImportTool::Get()->StartDiffProcess(); })),
+			FUIAction(FExecuteAction::CreateLambda([this]{ TableImporter->StartDiffProcess(); })),
 			NAME_None,
 			EUserInterfaceActionType::Button);
-#endif // UE_INSIGHTS_TABLE_IMPORT_TOOL_ENABLED
 	}
 
 	MenuBuilder.EndSection();
@@ -2684,7 +2683,6 @@ FReply STraceStoreWindow::AddWatchDir_Clicked()
 			UE::Trace::FStoreClient* StoreClient = TraceStoreConnection->GetStoreClient();
 			if (!StoreClient || !StoreClient->SetStoreDirectories(nullptr, { (*SelectedDirectory) }, {}))
 			{
-				FName LogListingName(TEXT("UnrealInsights"));
 				FMessageLog(LogListingName).Error(LOCTEXT("StoreCommunicationFail", "Failed to change settings on the store service."));
 			}
 		}

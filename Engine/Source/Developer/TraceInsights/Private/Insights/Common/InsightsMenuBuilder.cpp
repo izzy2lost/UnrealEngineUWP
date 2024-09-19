@@ -62,19 +62,27 @@ void FInsightsMenuBuilder::PopulateMenu(FMenuBuilder& MenuBuilder)
 {
 #if !WITH_EDITOR
 	MenuBuilder.BeginSection("Insights");
+
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("ImportTable", "Import Table..."),
 		LOCTEXT("ImportTable_ToolTip", "Import CSV or TSV data from a file to an Insights Table."),
-		FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.ImportTable"),
+		FSlateIcon(FInsightsCoreStyle::GetStyleSetName(), "Icons.ImportTable"),
 		FUIAction(FExecuteAction::CreateLambda([] { Insights::FTableImportTool::Get()->StartImportProcess(); })));
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("DiffTables", "Diff Tables..."),
+		LOCTEXT("DiffTables_Tooltip", "Opens two table files in diff mode."),
+		FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.FolderOpen"),
+		FUIAction(FExecuteAction::CreateLambda([] { Insights::FTableImportTool::Get()->StartDiffProcess(); })));
 
 	MenuBuilder.AddSeparator();
 
 	MenuBuilder.AddMenuEntry(
-		LOCTEXT("OpenSessionBrowser", "Session Browser"),
-		LOCTEXT("OpenSessionBrowser_ToolTip", "Opens the Unreal Insights Session Browser window."),
+		LOCTEXT("OpenUnrealInsightsFrontend", "Unreal Insights Frontend"),
+		LOCTEXT("OpenUnrealInsightsFrontend_ToolTip", "Opens the Unreal Insights Frontend window."),
 		FSlateIcon(FInsightsStyle::GetStyleSetName(), "AppIcon.Small"),
 		FUIAction(FExecuteAction::CreateLambda([] { FMiscUtils::OpenUnrealInsights(); })));
+
 	MenuBuilder.AddSubMenu(
 		LOCTEXT("OpenTraceFile_SubMenu", "Open Trace File"),
 		LOCTEXT("OpenTraceFile_SubMenu_Desc", "Starts analysis for a specified trace file."),

@@ -11,12 +11,15 @@
 // TraceServices
 #include "TraceServices/Model/LoadTimeProfiler.h"
 
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/UntypedTable.h"
+#include "InsightsCore/Table/Widgets/SUntypedTableTreeView.h"
+
 // TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/LoadingProfiler/LoadingProfilerManager.h"
 #include "Insights/LoadingProfiler/Widgets/SLoadingProfilerToolbar.h"
-#include "Insights/Table/Widgets/SUntypedTableTreeView.h"
 #include "Insights/Widgets/STimingView.h"
 
 #define LOCTEXT_NAMESPACE "UE::Insights::LoadingProfiler"
