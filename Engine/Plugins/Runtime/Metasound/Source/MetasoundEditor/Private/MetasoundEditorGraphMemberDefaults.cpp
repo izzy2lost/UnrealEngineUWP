@@ -288,7 +288,13 @@ namespace Metasound::Editor
 									bModified = true;
 
 									LiteralType NewValue;
-									ensure(TestLiteral.TryGet(NewValue));
+									if (!TestLiteral.TryGet(NewValue))
+									{
+										UE_LOG(LogMetaSound, Warning, TEXT("Synchronizing Page Default of member '%s' (type '%s') was supplied literal value '%s' with mismatched type"),
+											*Member->GetMemberName().ToString(),
+											*Member->GetLiteral()->GetClass()->GetName(),
+											*TestLiteral.ToString());
+									}
 									Default.Value = LiteralToMember(NewValue);
 								}
 
