@@ -86,9 +86,8 @@ namespace UE::ToolWidgets::Private
 			check(InActionButtonStyle);
 
 			// Check for widget level override, then style override, otherwise unset
-			const TAttribute<const FSlateBrush*> Icon =
-				InIcon.IsSet()
-				? InIcon.Get()
+			const TAttribute<const FSlateBrush*> Icon = InIcon.IsSet()
+				? InIcon
 				: InActionButtonStyle->IconBrush.IsSet()
 				? &InActionButtonStyle->IconBrush.GetValue()
 				: nullptr;

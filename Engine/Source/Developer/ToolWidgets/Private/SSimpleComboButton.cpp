@@ -15,7 +15,7 @@ void SSimpleComboButton::Construct(const FArguments& InArgs)
 
 	// Check for widget level override, then style override, otherwise unset
 	const TAttribute<const FSlateBrush*> Icon = InArgs._Icon.IsSet()
-		? InArgs._Icon.Get()
+		? InArgs._Icon
 		: ActionButtonStyle->IconBrush.IsSet()
 		? &ActionButtonStyle->IconBrush.GetValue()
 		: nullptr;
