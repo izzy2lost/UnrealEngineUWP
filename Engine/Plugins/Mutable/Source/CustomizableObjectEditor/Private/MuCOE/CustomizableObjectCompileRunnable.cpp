@@ -506,7 +506,6 @@ void FCustomizableObjectSaveDDRunnable::StoreCachedPlatformDataInDDC(bool& bStor
 			});
 
 		RequestOwner.Wait();
-		check(bStoredSuccessfully);
 	}
 }
 
