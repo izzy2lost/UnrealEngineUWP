@@ -4,6 +4,7 @@
 
 #include "PCGSettings.h"
 
+#include "Data/PCGPointData.h"
 #include "Elements/PCGTimeSlicedElementBase.h"
 #include "Metadata/PCGMetadataAttributeTpl.h"
 #include "Metadata/Accessors/PCGPropertyAccessor.h"
@@ -86,7 +87,9 @@ namespace PCGCollapsePoints
 	struct FCollapsePointsState
 	{
 		// Current iterative state during merge
-		TArray<FVector> Positions;
+		TArray<FPCGPoint> Points;
+		UPCGPointData::PointOctree Octree;
+
 		TArray<double> Weights;
 		TArray<int> Merged;
 		
