@@ -34,7 +34,7 @@ namespace AudioWidgets
 	/**
 	 * Constructor parameters for the analyzer.
 	 */
-	struct AUDIOWIDGETS_API FAudioSpectrumAnalyzerParams
+	struct FAudioSpectrumAnalyzerParams
 	{
 		int32 NumChannels = 1;
 		Audio::FDeviceId AudioDeviceId = INDEX_NONE;
@@ -59,8 +59,6 @@ namespace AudioWidgets
 		FOnFrequencyAxisScaleMenuEntryClicked OnFrequencyAxisScaleMenuEntryClicked;
 		FOnDisplayAxisLabelsButtonToggled OnDisplayFrequencyAxisLabelsButtonToggled;
 		FOnDisplayAxisLabelsButtonToggled OnDisplaySoundLevelAxisLabelsButtonToggled;
-
-		const FAudioSpectrumPlotStyle* PlotStyle = nullptr;
 	};
 
 	/**

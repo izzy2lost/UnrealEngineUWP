@@ -28,12 +28,11 @@ namespace Metasound::Editor
 
 		void Construct(const FArguments& InArgs);
 		void SetExecVisibility(TAttribute<EVisibility> InVisibility);
-		void Update(const FMetaSoundPageSettings* AuditionPageSettings, const FMetaSoundPageSettings* GraphPageSettings, const FSlateColor* ActiveColor);
+		void Update(const FMetaSoundPageSettings* PageSettings, const FText& Header, const FSlateColor* TextColor);
 
 	private:
 		TSharedPtr<SImage> ExecImageWidget;
-		TSharedPtr<STextBlock> GraphPageTextWidget;
-		TSharedPtr<STextBlock> AuditionPageTextWidget;
+		TSharedPtr<STextBlock> PageTextWidget;
 	};
 
 
@@ -45,18 +44,14 @@ namespace Metasound::Editor
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs);
-		void Update(bool bIsPlaying, double InDeltaTime, const UMetaSoundSource* InSource);
+		void Update(bool bIsPlaying, const UMetaSoundSource* InSource);
 
 	private:
-		TSharedPtr<STextBlock> AuditionPageWidget;
-		TSharedPtr<STextBlock> AuditionPlatformWidget;
-		TSharedPtr<STextBlock> PlayTimeWidget;
 		TSharedPtr<STextBlock> RenderStatsCostWidget;
 		TSharedPtr<STextBlock> RenderStatsCPUWidget;
 
 		bool bPreviousIsPlaying = false;
-		double MaxCPUCoreUtilization = 0.0;
-		double PlayTime = 0.0;
+		double MaxCPUCoreUtilization = 0;
 		float MaxRelativeRenderCost = 0.f;
 	};
 } // namespace Metasound::Editor

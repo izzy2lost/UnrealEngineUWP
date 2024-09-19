@@ -47,7 +47,6 @@ namespace AudioWidgets
 		: SpectrumAnalysisSettings(NewObject<USynesthesiaSpectrumAnalysisSettings>())
 		, ConstantQSettings(NewObject<UConstantQSettings>())
 		, Widget(SNew(SAudioSpectrumPlot)
-			.Style(Params.PlotStyle ? Params.PlotStyle : &FAudioSpectrumPlotStyle::GetDefault())
 			.Clipping(EWidgetClipping::ClipToBounds)
 			.TiltExponent(Params.TiltExponent)
 			.DisplayCrosshair(true)
