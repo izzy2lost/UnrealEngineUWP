@@ -79,6 +79,17 @@ static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesIndirectLighting(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesStochasticFiltering(
+	TEXT("r.HeterogeneousVolumes.StochasticFiltering"),
+	3,
+	TEXT("Configures the stochastic filtering kernel (Default = 3)\n")
+	TEXT("0: Disabled\n")
+	TEXT("1: Constant\n")
+	TEXT("2: Linear\n")
+	TEXT("3: Cubic"),
+	ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesJitter(
 	TEXT("r.HeterogeneousVolumes.Jitter"),
 	1,
@@ -477,6 +488,11 @@ namespace HeterogeneousVolumes
 	EShadowMode GetShadowMode()
 	{
 		return static_cast<EShadowMode>(CVarHeterogeneousVolumesShadowMode.GetValueOnRenderThread());
+	}
+
+	EStochasticFilteringMode GetStochasticFilteringMode()
+	{
+		return static_cast<EStochasticFilteringMode>(CVarHeterogeneousVolumesStochasticFiltering.GetValueOnRenderThread());
 	}
 
 	bool UseSparseVoxelPipeline()

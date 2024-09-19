@@ -38,6 +38,10 @@
 #define APPLY_FOG_INSCATTERING APPLY_FOG_INSCATTERING_OFF
 #endif // APPLY_FOG_INSCATTERING
 
+#ifndef IS_OFFLINE_RENDER
+#define IS_OFFLINE_RENDER 0
+#endif // IS_OFFLINE_RENDER
+
 #if DIM_USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP
 #include "HeterogeneousVolumesAdaptiveVolumetricShadowMapSampling.ush"
 #include "HeterogeneousVolumesAdaptiveVolumetricShadowMapSampler.ush"
@@ -186,7 +190,7 @@ float3 ComputeTransmittance(
 	#if DIM_USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP
 		if (!AVSM.bIsEmpty)
 		{
-			float3 TranslatedWorldPosition = DFHackToFloat(DFFastAdd(WorldRayOrigin, PrimaryView.PreViewTranslation));
+			float3 TranslatedWorldPosition = DFFastAddDemote(WorldRayOrigin, PrimaryView.PreViewTranslation);
 			float3 LightTranslatedWorldPosition = TranslatedWorldPosition + ToLight;
 			Transmittance = AVSM_SampleTransmittance(TranslatedWorldPosition, LightTranslatedWorldPosition);
 		}
@@ -349,7 +353,14 @@ void RayMarchSingleScattering(
 		float WorldHitT = LocalHitT * RayMarchingContext.LocalToWorldScale;
 		float3 LocalPosition = RayMarchingContext.LocalRayOrigin + RayMarchingContext.LocalRayDirection * LocalHitT;
 		float3 WorldPosition = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection * WorldHitT;
+#if IS_OFFLINE_RENDER
+		float3 FilterWidth = 1.0;
+		float Rand = RandomSequence_GenerateSample1D(RayMarchingContext.RandSequence);
+		int StochasticFilteringMode = GetStochasticFilteringMode();
+		FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalPosition, WorldPosition, FilterWidth, RayMarchingContext.MipLevel, Rand, StochasticFilteringMode);
+#else
 		FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalPosition, WorldPosition, RayMarchingContext.MipLevel);
+#endif // IS_OFFLINE_RENDER
 
 		if (RayMarchingContext.bApplyEmissionAndTransmittance)
 		{

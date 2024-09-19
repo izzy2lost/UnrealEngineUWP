@@ -35,6 +35,7 @@
 #endif // SUPPORT_OVERLAPPING_VOLUMES
 
 #include "/Engine/Generated/Material.ush"
+#include "HeterogeneousVolumesStochasticFiltering.ush"
 #include "HeterogeneousVolumesLiveShadingUtils.ush"
 #include "HeterogeneousVolumesTracingUtils.ush"
 #include "HeterogeneousVolumesLightingUtils.ush"
@@ -93,6 +94,7 @@ float StepSize;
 float StepFactor;
 int MaxStepCount;
 int bJitter;
+int StochasticFilteringMode;
 
 // Dispatch data
 int3 GroupCount;
@@ -197,6 +199,11 @@ float GetMaxShadowTraceDistance()
 	return MaxShadowTraceDistance;
 }
 
+int GetStochasticFilteringMode()
+{
+	return StochasticFilteringMode;
+}
+
 int ShouldApplyHeightFog()
 {
 	return bApplyHeightFog;
@@ -228,6 +235,30 @@ FVolumeSampleContext CreateVolumeSampleContext(float3 LocalPosition, float3 Worl
 	CalcPixelMaterialInputs(VolumeSampleContext.MaterialParameters, VolumeSampleContext.PixelMaterialInputs);
 
 	return VolumeSampleContext;
+}
+
+FVolumeSampleContext CreateVolumeSampleContext(float3 LocalPosition, float3 WorldPosition, float3 FilterWidth, float MipLevel, float Rand, int StochasticFilteringMode)
+{
+	// TODO: Use FilterWidth determine MipLevel
+	//float3 WorldPosition_DDX = mul(float4(LocalPosition + float3(1.0, 0.0, 0.0), 1.0), GetLocalToWorld()).xyz;
+	//float3 WorldPosition_DDY = mul(float4(LocalPosition + float3(0.0, 1.0, 0.0), 1.0), GetLocalToWorld()).xyz;
+	//float3 WorldPosition_DDZ = mul(float4(LocalPosition + float3(0.0, 0.0, 1.0), 1.0), GetLocalToWorld()).xyz;
+
+	if (StochasticFilteringMode == STOCHASTIC_FILTERING_CONSTANT)
+	{
+		LocalPosition = StochasticFilteringConstant(LocalPosition, Rand);
+	}
+	else if (StochasticFilteringMode == STOCHASTIC_FILTERING_TRILINEAR)
+	{
+		LocalPosition = StochasticFilteringTrilinear(LocalPosition, Rand);
+	}
+	else if (StochasticFilteringMode == STOCHASTIC_FILTERING_TRICUBIC)
+	{
+		LocalPosition = StochasticFilteringTricubic(LocalPosition, Rand);
+	}
+
+	WorldPosition = mul(float4(LocalPosition, 1.0), GetLocalToWorld()).xyz;
+	return CreateVolumeSampleContext(LocalPosition, WorldPosition, MipLevel);
 }
 
 float3 SampleExtinction(inout FVolumeSampleContext Context)
@@ -283,15 +314,7 @@ void RenderLightingCacheWithLiveShadingCS(
 		return;
 	}
 
-	float3 VoxelJitter = 0.5;
-	if (bJitter)
-	{
-		uint3 Rand32Bits = Rand4DPCG32(uint4(VoxelIndex, View.StateFrameIndexMod8)).xyz;
-		VoxelJitter = float3(Rand32Bits) / float(uint(0xffffffff));
-	}
-	//float3 UVW = (VoxelIndex + VoxelJitter) / float3(GetLightingCacheResolution());
 	float3 UVW = (VoxelIndex + 0.5) / float3(GetLightingCacheResolution());
-
 	float3 LocalBoundsMin = GetLocalBoundsOrigin() - GetLocalBoundsExtent();
 	float3 LocalBoundsMax = GetLocalBoundsOrigin() + GetLocalBoundsExtent();
 	float3 LocalRayOrigin = UVW * GetLocalBoundsExtent() * 2.0 + LocalBoundsMin;
@@ -302,12 +325,32 @@ void RenderLightingCacheWithLiveShadingCS(
 #if USE_EXISTENCE_MASK
 	float Existence = ExistenceMaskTexture.SampleLevel(View.SharedBilinearClampedSampler, UVW, MipLevel).r;
 	if (Existence <= 0.0)
+	{
+#if DIM_LIGHTING_CACHE_MODE == LIGHTING_CACHE_TRANSMITTANCE
+		RWLightingCacheTexture[VoxelIndex] = 1.0f;
+
+#elif DIM_LIGHTING_CACHE_MODE == LIGHTING_CACHE_INSCATTERING
+		RWLightingCacheTexture[VoxelIndex] = 0.0f;
+#endif // DIM_LIGHTING_CACHE_MODE
+		return;
+	}
+#endif
+
+#if IS_OFFLINE_RENDER
+	float3 FilterWidth = 1.0;
+	RandomSequence RandSequence;
+	int LinearIndex = VoxelIndex.x * (GetLightingCacheResolution().y * GetLightingCacheResolution().z) + VoxelIndex.y * GetLightingCacheResolution().z + VoxelIndex.z;
+	RandomSequence_Initialize(RandSequence, LinearIndex, View.StateFrameIndex);
+	float Rand = RandomSequence_GenerateSample1D(RandSequence);
+	int StochasticFilteringMode = GetStochasticFilteringMode();
+	FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalRayOrigin, WorldRayOrigin, FilterWidth, MipLevel, Rand, StochasticFilteringMode);
 #else
 	FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalRayOrigin, WorldRayOrigin, MipLevel);
+#endif // IS_OFFLINE_RENDER
+
 	float3 Extinction = SampleExtinction(SampleContext);
 	float Epsilon = 1.0e-7;
 	if (all(Extinction < Epsilon))
-#endif
 	{
 #if DIM_LIGHTING_CACHE_MODE == LIGHTING_CACHE_TRANSMITTANCE
 		RWLightingCacheTexture[VoxelIndex] = 1.0f;
@@ -480,11 +523,12 @@ void RenderSingleScatteringWithLiveShading(
 	DeviceZ = ConvertToDeviceZ(SceneDepth);
 
 	float Jitter = bJitter ? BlueNoiseScalar(ViewPixelCoord, View.StateFrameIndexMod8) : 0.0;
+	float2 ScreenJitter = IS_OFFLINE_RENDER ? BlueNoiseVec2(ViewPixelCoord, View.StateFrameIndex) : View.TemporalAAJitter.xy;
 
 	// Intersect ray with bounding volume
 	// TODO: LWC integration..
-	float3 WorldRayOrigin = DFHackToFloat(DFFastSubtract(GetTranslatedWorldCameraPosFromView(ViewPixelCoord + View.TemporalAAJitter.xy), PrimaryView.PreViewTranslation));
-	float3 WorldRayEnd = DFHackToFloat(SvPositionToWorld(float4(ViewPixelCoord + View.TemporalAAJitter.xy, DeviceZ, 1)));
+	float3 WorldRayOrigin = DFHackToFloat(DFFastSubtract(GetTranslatedWorldCameraPosFromView(ViewPixelCoord + ScreenJitter), PrimaryView.PreViewTranslation));
+	float3 WorldRayEnd = DFHackToFloat(SvPositionToWorld(float4(ViewPixelCoord + ScreenJitter, DeviceZ, 1)));
 	float3 WorldRayDirection = WorldRayEnd - WorldRayOrigin;
 	float WorldRayLength = length(WorldRayDirection);
 	WorldRayDirection /= WorldRayLength;
@@ -521,6 +565,10 @@ void RenderSingleScatteringWithLiveShading(
 			bApplyDirectLighting,
 			bApplyShadowTransmittance
 		);
+
+		RandomSequence RandSequence;
+		RandomSequence_Initialize(RandSequence, LinearIndex, View.StateFrameIndex);
+		RayMarchingContext.RandSequence = RandSequence;
 
 		const FDeferredLightData LightData = InitDeferredLightFromUniforms(LightType, VolumetricScatteringIntensity);
 		uint StepCount = CalcStepCount(RayMarchingContext);

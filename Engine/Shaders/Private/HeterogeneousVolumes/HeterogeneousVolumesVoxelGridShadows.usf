@@ -5,6 +5,7 @@
 #include "../Common.ush"
 #include "../DeferredShadingCommon.ush"
 #include "../ComputeShaderUtils.ush"
+#include "HeterogeneousVolumesStochasticFiltering.ush"
 #include "HeterogeneousVolumesTracingUtils.ush"
 #include "HeterogeneousVolumesVoxelGridTraversal.ush"
 #include "HeterogeneousVolumesVoxelGridRenderingUtils.ush"
@@ -21,6 +22,7 @@ int3 GroupCount;
 int ShadowDebugTweak;
 
 int MaxStepCount;
+int StochasticFilteringMode;
 
 int NumShadowMatrices;
 float4x4 TranslatedWorldToShadow[6];
@@ -132,6 +134,11 @@ float GetShadowStepFactor()
 	return 1.0;
 }
 
+int GetStochasticFilteringMode()
+{
+	return StochasticFilteringMode;
+}
+
 uint3 GetVolumeResolution()
 {
 	return OrthoGridUniformBuffer.TopLevelGridResolution;
@@ -140,6 +147,32 @@ uint3 GetVolumeResolution()
 uint GetNumVoxels()
 {
 	return GetVolumeResolution().x * GetVolumeResolution().y * GetVolumeResolution().z;
+}
+
+FVolumeSampleContext CreateVolumeSampleContext(float3 LocalPosition, float3 WorldPosition, float3 FilterWidth, float MipLevel, float Rand, int StochasticFilteringMode)
+{
+	float3 WorldPosition_DDX = mul(float4(LocalPosition + float3(1.0, 0.0, 0.0), 1.0), GetLocalToWorld()).xyz;
+	float3 WorldPosition_DDY = mul(float4(LocalPosition + float3(0.0, 1.0, 0.0), 1.0), GetLocalToWorld()).xyz;
+	float3 WorldPosition_DDZ = mul(float4(LocalPosition + float3(0.0, 0.0, 1.0), 1.0), GetLocalToWorld()).xyz;
+
+	if (StochasticFilteringMode == STOCHASTIC_FILTERING_CONSTANT)
+	{
+		LocalPosition = StochasticFilteringConstant(LocalPosition, Rand);
+	}
+	else if (StochasticFilteringMode == STOCHASTIC_FILTERING_TRILINEAR)
+	{
+		LocalPosition = StochasticFilteringTrilinear(LocalPosition, Rand);
+	}
+	else if (StochasticFilteringMode == STOCHASTIC_FILTERING_TRICUBIC)
+	{
+		LocalPosition = StochasticFilteringTricubic(LocalPosition, Rand);
+	}
+
+	float3 WorldPosition2 = mul(float4(LocalPosition, 1.0), GetLocalToWorld()).xyz;
+
+	FVolumeSampleContext VolumeSampleContext;
+	VolumeSampleContext.WorldPosition = WorldPosition2;
+	return VolumeSampleContext;
 }
 
 FVolumeSampleContext CreateVolumeSampleContext(float3 LocalPosition, float3 WorldPosition, float MipLevel)

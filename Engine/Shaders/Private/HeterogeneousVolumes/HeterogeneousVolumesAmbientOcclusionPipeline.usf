@@ -5,6 +5,7 @@
 #define SUPPORT_CONTACT_SHADOWS 0
 
 #include "/Engine/Generated/Material.ush"
+#include "HeterogeneousVolumesStochasticFiltering.ush"
 #include "HeterogeneousVolumesLiveShadingUtils.ush"
 #include "HeterogeneousVolumesTracingUtils.ush"
 #include "HeterogeneousVolumesLightingUtils.ush"
@@ -49,6 +50,7 @@ float StepSize;
 float StepFactor;
 int MaxStepCount;
 int bJitter;
+int StochasticFilteringMode;
 
 Texture3D ExistenceMaskTexture;
 
@@ -120,6 +122,11 @@ float GetMaxShadowTraceDistance()
 	return MaxShadowTraceDistance;
 }
 
+int GetStochasticFilteringMode()
+{
+	return StochasticFilteringMode;
+}
+
 // Material sampling hooks..
 struct FVolumeSampleContext
 {
@@ -140,8 +147,31 @@ FVolumeSampleContext CreateVolumeSampleContext(float3 LocalPosition, float3 Worl
 
 	// Evaluate Material graph
 	CalcPixelMaterialInputs(VolumeSampleContext.MaterialParameters, VolumeSampleContext.PixelMaterialInputs);
-
 	return VolumeSampleContext;
+}
+
+FVolumeSampleContext CreateVolumeSampleContext(float3 LocalPosition, float3 WorldPosition, float3 FilterWidth, float MipLevel, float Rand, int StochasticFilteringMode)
+{
+	// TODO: Use FilterWidth determine MipLevel
+	//float3 WorldPosition_DDX = mul(float4(LocalPosition + float3(1.0, 0.0, 0.0), 1.0), GetLocalToWorld()).xyz;
+	//float3 WorldPosition_DDY = mul(float4(LocalPosition + float3(0.0, 1.0, 0.0), 1.0), GetLocalToWorld()).xyz;
+	//float3 WorldPosition_DDZ = mul(float4(LocalPosition + float3(0.0, 0.0, 1.0), 1.0), GetLocalToWorld()).xyz;
+
+	if (StochasticFilteringMode == STOCHASTIC_FILTERING_CONSTANT)
+	{
+		LocalPosition = StochasticFilteringConstant(LocalPosition, Rand);
+	}
+	else if (StochasticFilteringMode == STOCHASTIC_FILTERING_TRILINEAR)
+	{
+		LocalPosition = StochasticFilteringTrilinear(LocalPosition, Rand);
+	}
+	else if (StochasticFilteringMode == STOCHASTIC_FILTERING_TRICUBIC)
+	{
+		LocalPosition = StochasticFilteringTricubic(LocalPosition, Rand);
+	}
+
+	WorldPosition = mul(float4(LocalPosition, 1.0), GetLocalToWorld()).xyz;
+	return CreateVolumeSampleContext(LocalPosition, WorldPosition, MipLevel);
 }
 
 float3 SampleExtinction(inout FVolumeSampleContext Context)
@@ -292,7 +322,17 @@ void RenderExistenceMaskWithLiveShadingCS(
 	float3 WorldPosition = mul(float4(LocalPosition, 1.0), GetLocalToWorld()).xyz;
 
 	int MipLevel = 0;
+#if IS_OFFLINE_RENDER
+	float3 FilterWidth = 1.0;
+	RandomSequence RandSequence;
+	int LinearIndex = VoxelIndex.x * (VoxelResolution.y * VoxelResolution.z) + VoxelIndex.y * VoxelResolution.z + VoxelIndex.z;
+	RandomSequence_Initialize(RandSequence, LinearIndex, View.StateFrameIndex);
+	float Rand = RandomSequence_GenerateSample1D(RandSequence);
+	int StochasticFilteringMode = GetStochasticFilteringMode();
+	FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalPosition, WorldPosition, FilterWidth, MipLevel, Rand, StochasticFilteringMode);
+#else
 	FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalPosition, WorldPosition, MipLevel);
+#endif // IS_OFFLINE_RENDER
 	float3 Extinction = SampleExtinction(SampleContext);
 	RWExistenceMaskTexture[VoxelIndex] = any(Extinction > 0.0) ? 1.0 : 0.0;
 }

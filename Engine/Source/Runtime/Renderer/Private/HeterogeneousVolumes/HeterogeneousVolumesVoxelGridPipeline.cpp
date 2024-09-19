@@ -2946,7 +2946,8 @@ class FRenderVolumetricShadowMapForLightWithVoxelGridCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FRenderVolumetricShadowMapForLightWithVoxelGridCS, FGlobalShader);
 
 	class FUseAVSMCompression : SHADER_PERMUTATION_BOOL("USE_AVSM_COMPRESSION");
-	using FPermutationDomain = TShaderPermutationDomain<FUseAVSMCompression>;
+	class FIsOfflineRender : SHADER_PERMUTATION_INT("IS_OFFLINE_RENDER", 2);
+	using FPermutationDomain = TShaderPermutationDomain<FUseAVSMCompression, FIsOfflineRender>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		// Scene data
@@ -2962,6 +2963,7 @@ class FRenderVolumetricShadowMapForLightWithVoxelGridCS : public FGlobalShader
 		SHADER_PARAMETER(FVector3f, TranslatedWorldOrigin)
 		SHADER_PARAMETER(FIntPoint, ShadowResolution)
 		SHADER_PARAMETER(int, MaxSampleCount)
+		SHADER_PARAMETER(int, StochasticFilteringMode)
 		SHADER_PARAMETER(float, AbsoluteErrorThreshold)
 		SHADER_PARAMETER(float, RelativeErrorThreshold)
 
@@ -3496,6 +3498,7 @@ void RenderVolumetricShadowMapForLightWithVoxelGrid(
 		PassParameters->MaxTraceDistance = HeterogeneousVolumes::GetMaxTraceDistance();
 		PassParameters->MaxStepCount = HeterogeneousVolumes::GetMaxStepCount();
 		PassParameters->bJitter = HeterogeneousVolumes::ShouldJitter();
+		PassParameters->StochasticFilteringMode = static_cast<int32>(HeterogeneousVolumes::GetStochasticFilteringMode());
 
 		PassParameters->NumShadowMatrices = ProjectedShadowInfo->OnePassShadowViewProjectionMatrices.Num();
 		if (PassParameters->NumShadowMatrices > 0)
@@ -3619,6 +3622,7 @@ void RenderVolumetricShadowMapForLightWithVoxelGrid(
 
 	FRenderVolumetricShadowMapForLightWithVoxelGridCS::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FRenderVolumetricShadowMapForLightWithVoxelGridCS::FUseAVSMCompression>(HeterogeneousVolumes::UseAVSMCompression());
+	PermutationVector.Set<FRenderVolumetricShadowMapForLightWithVoxelGridCS::FIsOfflineRender>(View.bIsOfflineRender);
 	TShaderRef<FRenderVolumetricShadowMapForLightWithVoxelGridCS> ComputeShader = View.ShaderMap->GetShader<FRenderVolumetricShadowMapForLightWithVoxelGridCS>(PermutationVector);
 	FComputeShaderUtils::AddPass(
 		GraphBuilder,

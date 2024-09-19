@@ -440,7 +440,8 @@ class FRenderAmbientOcclusionWithLiveShadingCS : public FMeshMaterialShader
 	DECLARE_SHADER_TYPE(FRenderAmbientOcclusionWithLiveShadingCS, MeshMaterial);
 
 	class FUseExistenceMask : SHADER_PERMUTATION_INT("USE_EXISTENCE_MASK", 2);
-	using FPermutationDomain = TShaderPermutationDomain<FUseExistenceMask>;
+	class FIsOfflineRender : SHADER_PERMUTATION_INT("IS_OFFLINE_RENDER", 2);
+	using FPermutationDomain = TShaderPermutationDomain<FUseExistenceMask, FIsOfflineRender>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		// Scene data
@@ -466,6 +467,7 @@ class FRenderAmbientOcclusionWithLiveShadingCS : public FMeshMaterialShader
 		SHADER_PARAMETER(float, StepFactor)
 		SHADER_PARAMETER(int, MaxStepCount)
 		SHADER_PARAMETER(int, bJitter)
+		SHADER_PARAMETER(int, StochasticFilteringMode)
 
 		// Volume data
 		SHADER_PARAMETER(FIntVector, VoxelResolution)
@@ -595,6 +597,7 @@ void RenderAmbientOcclusionWithLiveShadingAsFixedPoint(
 		PassParameters->StepFactor = HeterogeneousVolumeInterface->GetStepFactor();
 		PassParameters->MaxStepCount = HeterogeneousVolumes::GetAmbientOcclusionMaxStepCount();
 		PassParameters->bJitter = 0;
+		PassParameters->StochasticFilteringMode = static_cast<int32>(HeterogeneousVolumes::GetStochasticFilteringMode());
 
 		FMatrix LocalToInstance = InstanceToLocal.Inverse();
 		FBoxSphereBounds InstanceBoxSphereBounds = LocalBoxSphereBounds.TransformBy(LocalToInstance);
@@ -626,6 +629,7 @@ void RenderAmbientOcclusionWithLiveShadingAsFixedPoint(
 
 	FRenderAmbientOcclusionWithLiveShadingCS::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FRenderAmbientOcclusionWithLiveShadingCS::FUseExistenceMask>(HeterogeneousVolumes::UseExistenceMask());
+	PermutationVector.Set<FRenderAmbientOcclusionWithLiveShadingCS::FIsOfflineRender>(View.bIsOfflineRender);
 	TShaderRef<FRenderAmbientOcclusionWithLiveShadingCS> ComputeShader = Material.GetShader<FRenderAmbientOcclusionWithLiveShadingCS>(&FLocalVertexFactory::StaticType, PermutationVector, false);
 	GraphBuilder.AddPass(
 		RDG_EVENT_NAME("AmbientOcclusion"),

@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "HeterogeneousVolumesStochasticFiltering.ush"
+
 float4x4 GetLocalToWorld()
 {
 	return SparseVoxelUniformBuffer.LocalToWorld;
@@ -50,6 +52,11 @@ float GetShadowStepFactor()
 	return SparseVoxelUniformBuffer.ShadowStepFactor;
 }
 
+int GetStochasticFilteringMode()
+{
+	return STOCHASTIC_FILTERING_TRILINEAR;
+}
+
 int ShouldApplyHeightFog()
 {
 	return SparseVoxelUniformBuffer.bApplyHeightFog;
@@ -91,6 +98,30 @@ FVolumeSampleContext CreateVolumeSampleContext(float3 LocalPosition, float3 Worl
 	VolumeSampleContext.MipLevel = MipLevel;
 
 	return VolumeSampleContext;
+}
+
+FVolumeSampleContext CreateVolumeSampleContext(float3 LocalPosition, float3 WorldPosition, float3 FilterWidth, float MipLevel, float Rand, int SamplingMethod)
+{
+	// TODO: Use FilterWidth determine MipLevel
+	//float3 WorldPosition_DDX = mul(float4(LocalPosition + float3(1.0, 0.0, 0.0), 1.0), GetLocalToWorld()).xyz;
+	//float3 WorldPosition_DDY = mul(float4(LocalPosition + float3(0.0, 1.0, 0.0), 1.0), GetLocalToWorld()).xyz;
+	//float3 WorldPosition_DDZ = mul(float4(LocalPosition + float3(0.0, 0.0, 1.0), 1.0), GetLocalToWorld()).xyz;
+
+	if (SamplingMethod == STOCHASTIC_FILTERING_CONSTANT)
+	{
+		LocalPosition = StochasticFilteringConstant(LocalPosition, Rand);
+	}
+	else if (SamplingMethod == STOCHASTIC_FILTERING_TRILINEAR)
+	{
+		LocalPosition = StochasticFilteringTrilinear(LocalPosition, Rand);
+	}
+	else if (SamplingMethod == STOCHASTIC_FILTERING_TRICUBIC)
+	{
+		LocalPosition = StochasticFilteringTricubic(LocalPosition, Rand);
+	}
+
+	WorldPosition = mul(float4(LocalPosition, 1.0), GetLocalToWorld()).xyz;
+	return CreateVolumeSampleContext(LocalPosition, WorldPosition, MipLevel);
 }
 
 float3 SampleExtinction(inout FVolumeSampleContext Context)
