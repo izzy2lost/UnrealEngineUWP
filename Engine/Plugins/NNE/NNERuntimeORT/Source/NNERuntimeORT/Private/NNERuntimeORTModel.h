@@ -7,6 +7,7 @@
 #include "NNEModelData.h"
 #include "NNEOnnxruntime.h"
 #include "NNERuntimeCPU.h"
+#include "NNERuntimeNPU.h"
 #include "NNERuntimeGPU.h"
 #include "NNERuntimeORTEnv.h"
 #include "NNERuntimeRDG.h"
@@ -75,28 +76,28 @@ private:
 class FModelORTCpu : public NNE::IModelCPU
 {
 public:
-	FModelORTCpu(TSharedRef<FEnvironment> InEnvironment, const TSharedPtr<UE::NNE::FSharedModelData>& InModelData);
+	FModelORTCpu(TSharedRef<FEnvironment> InEnvironment, TSharedRef<UE::NNE::FSharedModelData> InModelData);
 	virtual ~FModelORTCpu() = default;
 
 	virtual TSharedPtr<NNE::IModelInstanceCPU> CreateModelInstanceCPU() override;
 
 private:
 	TSharedRef<FEnvironment> Environment;
-	TSharedPtr<UE::NNE::FSharedModelData> ModelData;
+	TSharedRef<UE::NNE::FSharedModelData> ModelData;
 };
 
 #if PLATFORM_WINDOWS
 class FModelORTDmlGPU : public NNE::IModelGPU
 {
 public:
-	FModelORTDmlGPU(TSharedRef<FEnvironment> InEnvironment, const TSharedPtr<UE::NNE::FSharedModelData>& InModelData);
+	FModelORTDmlGPU(TSharedRef<FEnvironment> InEnvironment, TSharedRef<UE::NNE::FSharedModelData> InModelData);
 	virtual ~FModelORTDmlGPU() = default;
 
 	virtual TSharedPtr<NNE::IModelInstanceGPU> CreateModelInstanceGPU() override;
 
 private:
 	TSharedRef<FEnvironment> Environment;
-	TSharedPtr<UE::NNE::FSharedModelData> ModelData;
+	TSharedRef<UE::NNE::FSharedModelData> ModelData;
 };
 
 class FModelInstanceORTDmlGPU : public FModelInstanceORTBase<NNE::IModelInstanceGPU, NNE::FTensorBindingCPU>
@@ -167,6 +168,29 @@ protected:
 
 	TArray<NNE::Internal::FTensor> InputTensors;
 	TArray<NNE::Internal::FTensor> OutputTensors;
+};
+
+class FModelInstanceORTNpu : public FModelInstanceORTBase<NNE::IModelInstanceNPU, NNE::FTensorBindingCPU>
+{
+public:
+	FModelInstanceORTNpu(const FRuntimeConf& InRuntimeConf, TSharedRef<FEnvironment> InEnvironment) : FModelInstanceORTBase(InRuntimeConf, InEnvironment) {}
+	virtual ~FModelInstanceORTNpu() = default;
+
+private:
+	virtual bool InitializedAndConfigureMembers() override;
+};
+
+class FModelORTNpu : public NNE::IModelNPU
+{
+public:
+	FModelORTNpu(TSharedRef<FEnvironment> InEnvironment, TSharedRef<UE::NNE::FSharedModelData> InModelData);
+	virtual ~FModelORTNpu() = default;
+
+	virtual TSharedPtr<NNE::IModelInstanceNPU> CreateModelInstanceNPU() override;
+
+private:
+	TSharedRef<FEnvironment> Environment;
+	TSharedRef<UE::NNE::FSharedModelData> ModelData;
 };
 #endif //PLATFORM_WINDOWS
 	

@@ -11,16 +11,10 @@
 #include "NNERuntimeORTEnv.h"
 
 #if PLATFORM_WINDOWS
-#include <dxgi1_4.h>
+#include <dxcore_interface.h>
+#include <dxcore.h>
 #include "ID3D12DynamicRHI.h"
 #endif // PLATFORM_WINDOWS
-
-// DirectML is implemented using COM on all platforms
-#ifdef IID_GRAPHICS_PPV_ARGS
-#define DML_PPV_ARGS(x) __uuidof(*x), IID_PPV_ARGS_Helper(x)
-#else
-#define DML_PPV_ARGS(x) IID_PPV_ARGS(x)
-#endif
 
 static int32 ORTProfilingSessionNumber = 0;
 static TAutoConsoleVariable<bool> CVarNNERuntimeORTEnableProfiling(
@@ -34,10 +28,40 @@ static TAutoConsoleVariable<bool> CVarNNERuntimeORTEnableProfiling(
 
 namespace UE::NNERuntimeORT::Private
 {
+
+#if PLATFORM_WINDOWS
+Microsoft::WRL::ComPtr<ID3D12Device1> CreateD3D12Device(IUnknown* AdapterPtr)
+{
+	using Microsoft::WRL::ComPtr;
+
+	void* D3D12Module = FPlatformProcess::GetDllHandle(TEXT("d3d12.dll"));
+	if (!D3D12Module)
+	{
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to load module 'd3d12.dll'"));
+		return {};
+	}
+
+	decltype(&D3D12CreateDevice) D3D12CreateDeviceFun = reinterpret_cast<decltype(&D3D12CreateDevice)>(FPlatformProcess::GetDllExport(D3D12Module, TEXT("D3D12CreateDevice")));
+	if (!D3D12CreateDeviceFun)
+	{
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to get export 'D3D12CreateDevice' from module 'd3d12.dll'"));
+		return {};
+	}
+
+	ComPtr<ID3D12Device1> D3D12Device;
+	HRESULT Hr = D3D12CreateDeviceFun(AdapterPtr, D3D_FEATURE_LEVEL_1_0_CORE, IID_PPV_ARGS(&D3D12Device));
+	if (FAILED(Hr))
+	{
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to create D3D12 device, D3D12CreateDevice error code :%x"), Hr);
+		return {};
+	}
+
+	return D3D12Device;
+}
+#endif // PLATFORM_WINDOWS
+
 // Check for DirectX 12-compatible hardware.
-// Use DXGI to enumerate adapters and try to create a d3d12 device using the default adapter (will create dependency to dxgi.dll!)
-// DXGI 1.6 should be available since Windows 10, version 1809, which is newer than the minimum SDK version
-// specified in Engine\Config\Windows\Windows_SDK.json at the moment.
+// Use DXGI to enumerate adapters and try to create a d3d12 device using the default adapter
 bool IsD3D12Available()
 {
 #if PLATFORM_WINDOWS
@@ -45,23 +69,198 @@ bool IsD3D12Available()
 
 	const int32 DeviceIndex = 0;
 
-	ComPtr<IDXGIFactory4> Factory;
-	CreateDXGIFactory2(0, IID_PPV_ARGS(&Factory));
-	if (!Factory)
+	void* DxCoreModule = FPlatformProcess::GetDllHandle(TEXT("DXCore.dll"));
+	if (!DxCoreModule)
 	{
 		return false;
 	}
 
-	ComPtr<IDXGIAdapter1> Adapter;
-	Factory->EnumAdapters1(DeviceIndex, &Adapter);
+	using DXCoreCreateAdapterFactoryFunType = HRESULT __stdcall(REFIID, void**);
+
+	DXCoreCreateAdapterFactoryFunType* DxCoreCreateAdapterFactoryFun = reinterpret_cast<DXCoreCreateAdapterFactoryFunType*>(FPlatformProcess::GetDllExport(DxCoreModule, TEXT("DXCoreCreateAdapterFactory")));
+	if (!DxCoreCreateAdapterFactoryFun)
+	{
+		return false;
+	}
+
+	ComPtr<IDXCoreAdapterFactory> Factory;
+	HRESULT Hr = DxCoreCreateAdapterFactoryFun(IID_PPV_ARGS(&Factory));
+	if (FAILED(Hr))
+	{
+		return false;
+	}
+
+	const GUID DxGUIDs[] = { DXCORE_ADAPTER_ATTRIBUTE_D3D12_CORE_COMPUTE };
+
+	ComPtr<IDXCoreAdapterList> AdapterList;
+	Hr = Factory->CreateAdapterList(ARRAYSIZE(DxGUIDs), DxGUIDs, IID_PPV_ARGS(&AdapterList));
+	if (FAILED(Hr))
+	{
+		return false;
+	}
+
+	const uint32 AdapterCount = AdapterList->GetAdapterCount();
+	if (AdapterCount <= DeviceIndex)
+	{
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Invalid device index %d. Number of available devices is %d."), DeviceIndex, AdapterCount);
+		return false;
+	}
+
+	ComPtr<IDXCoreAdapter> Adapter;
+	Hr = AdapterList->GetAdapter(static_cast<uint32_t>(DeviceIndex), IID_PPV_ARGS(&Adapter));
+	if (FAILED(Hr))
+	{
+		return false;
+	}
+
+	ComPtr<ID3D12Device> Device = CreateD3D12Device(Adapter.Get());
+	if (!Device)
+	{
+		return false;
+	}
+
+	return true;
+#else
+	return false;
+#endif // PLATFORM_WINDOWS
+}
+
+#if PLATFORM_WINDOWS
+Microsoft::WRL::ComPtr<IUnknown> GetAdapterNpu(bool bVerbose)
+{
+	using Microsoft::WRL::ComPtr;
+
+	const bool bForceComputeOnlyDevice = true;
+
+	auto GetAdapterName = [](IDXCoreAdapter* Adapter) -> FString
+		{
+			DXCoreAdapterProperty DriverDescProperty = DXCoreAdapterProperty::DriverDescription;
+
+			if (!Adapter->IsPropertySupported(DriverDescProperty))
+			{
+				return TEXT("Unknown device");
+			}
+
+			size_t PropertySize = 0;
+			HRESULT Hr = Adapter->GetPropertySize(DriverDescProperty, &PropertySize);
+			if (FAILED(Hr))
+			{
+				return TEXT("Unknown device");
+			}
+
+			TArray<char> Buffer;
+			Buffer.Init(0, (int32)PropertySize);
+
+			Hr = Adapter->GetProperty(DriverDescProperty, PropertySize, Buffer.GetData());
+			if (FAILED(Hr))
+			{
+				return TEXT("Unknown device");
+			}
+			
+			return FString(ANSI_TO_TCHAR(Buffer.GetData()));
+		};
+
+	void* DxCoreModule = FPlatformProcess::GetDllHandle(TEXT("DXCore.dll"));
+	if (!DxCoreModule)
+	{
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to load module 'DXCore.dll'"));
+		return {};
+	}
+
+	using DXCoreCreateAdapterFactoryFunType = HRESULT __stdcall(REFIID, void**);
+
+	DXCoreCreateAdapterFactoryFunType* DxCoreCreateAdapterFactoryFun = reinterpret_cast<DXCoreCreateAdapterFactoryFunType*>(FPlatformProcess::GetDllExport(DxCoreModule, TEXT("DXCoreCreateAdapterFactory")));
+	if (!DxCoreCreateAdapterFactoryFun)
+	{
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to get export 'DXCoreCreateAdapterFactory' from module 'DXCore.dll'"));
+		return {};
+	}
+
+	ComPtr<IDXCoreAdapterFactory> Factory;
+	HRESULT Hr = DxCoreCreateAdapterFactoryFun(IID_PPV_ARGS(&Factory));
+	if (FAILED(Hr))
+	{
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to create DXCore Adapter Factory, DxCoreCreateAdapterFactory error code :%x"), Hr);
+		return {};
+	}
+
+	const GUID DxGUIDs[] = { DXCORE_ADAPTER_ATTRIBUTE_D3D12_CORE_COMPUTE };
+
+	ComPtr<IDXCoreAdapterList> AdapterList;
+	Hr = Factory->CreateAdapterList(ARRAYSIZE(DxGUIDs), DxGUIDs, IID_PPV_ARGS(&AdapterList));
+	if (FAILED(Hr))
+	{
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to create DXCore Adapter List, IDXCoreAdapterFactory::CreateAdapterList error code :%x"), Hr);
+		return {};
+	}
+
+	if (bVerbose)
+	{
+		UE_LOG(LogNNERuntimeORT, Log, TEXT("Available graphics and compute adapters:"));
+	}
+
+	ComPtr<IDXCoreAdapter> Adapter;
+	for (uint32_t i = 0, AdapterCount = AdapterList->GetAdapterCount(); i < AdapterCount; i++)
+	{
+		ComPtr<IDXCoreAdapter> CurrentAdapter;
+		Hr = AdapterList->GetAdapter(static_cast<uint32_t>(i), IID_PPV_ARGS(&CurrentAdapter));
+		if (FAILED(Hr))
+		{
+			UE_LOG(LogNNERuntimeORT, Warning, TEXT("%d: Failed to get adapter, IDXCoreAdapterList::GetAdapter error code: %x"), i, Hr);
+			continue;
+		}
+
+		const bool bIsGraphicsAdapter = CurrentAdapter->IsAttributeSupported(DXCORE_ADAPTER_ATTRIBUTE_D3D12_GRAPHICS);
+
+		if (bVerbose)
+		{
+			TArray<FString> SupportedAttributesStringList;
+			SupportedAttributesStringList.Add("Compute");
+			if (bIsGraphicsAdapter)
+			{
+				SupportedAttributesStringList.Add("Graphics");
+			}
+
+			FString SupportedAttributesString = FString::Join(SupportedAttributesStringList, TEXT(", "));
+
+			UE_LOG(LogNNERuntimeORT, Log, TEXT("%d: %s (%s)"), i, *(GetAdapterName(CurrentAdapter.Get())), *SupportedAttributesString);
+		}
+
+		if (!Adapter && (!bForceComputeOnlyDevice || !bIsGraphicsAdapter))
+		{
+			Adapter = std::move(CurrentAdapter);
+		}
+	}
+
 	if (!Adapter)
 	{
+		UE_LOG(LogNNERuntimeORT, Log, TEXT("No NPU adapter found!"));
+
+		return {};
+	}
+
+	if (bVerbose)
+	{
+		UE_LOG(LogNNERuntimeORT, Log, TEXT("Selecting NPU adapter: %s"), *(GetAdapterName(Adapter.Get())));
+	}
+
+	return Adapter;
+}
+#endif // PLATFORM_WINDOWS
+
+bool IsD3D12DeviceNPUAvailable()
+{
+#if PLATFORM_WINDOWS
+	using Microsoft::WRL::ComPtr;
+
+	ComPtr<IUnknown> AdapterNpu = GetAdapterNpu(true);
+	if (!AdapterNpu)
+	{
 		return false;
 	}
 
-	ComPtr<ID3D12Device> Device;
-	D3D12CreateDevice(Adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&Device));
-	if (!Device)
+	ComPtr<ID3D12Device1> D3D12Device = CreateD3D12Device(AdapterNpu.Get());
+	if (!D3D12Device)
 	{
 		return false;
 	}
@@ -94,11 +293,13 @@ static constexpr FGraphOptimizationLevels OrtCpuOptimizationLevels
 // note: optimize with DirectML EP enabled, but currently an offline optimized model can not be optimized again (only DML)!
 // Therefore, if one enables offline optimization, set it to ORT_ENABLE_ALL and disable any optimization in online mode (ORT_DISABLE_ALL).
 //
-// note: since cooked models contain only basic graph optimizations, we need full optimization in online mode.
-// Therefore, offline optimization in non-Editor can not be turned on.
+// note: since during cooking the DirectML Execution Provider might not be available, one can not optimize at all, because with Float16 
+// Cast operators would be inserted, since the optimizer prepares the model for execution on CPU (at the moment this can not be turned off)
+//
+// Therefore we only optimize online for now!
 static constexpr FGraphOptimizationLevels OrtDmlOptimizationLevels
 {
-	.Cooking = GraphOptimizationLevel::ORT_ENABLE_BASIC,
+	.Cooking = GraphOptimizationLevel::ORT_DISABLE_ALL,
 	.Offline = GraphOptimizationLevel::ORT_DISABLE_ALL,
 	.Online = GraphOptimizationLevel::ORT_ENABLE_ALL
 };
@@ -197,6 +398,8 @@ TUniquePtr<Ort::SessionOptions> CreateSessionOptionsDefault(const TSharedRef<FEn
 TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectML(const TSharedRef<FEnvironment> &Environment, bool bRHID3D12Required)
 {
 #if PLATFORM_WINDOWS
+	using Microsoft::WRL::ComPtr;
+
 	TUniquePtr<Ort::SessionOptions> SessionOptions = CreateSessionOptionsDefault(Environment);
 	if (!SessionOptions.IsValid())
 	{
@@ -237,7 +440,7 @@ TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectML(const TSharedRef
 
 	// In order to use DirectML we need D3D12
 	ID3D12DynamicRHI* RHI = nullptr;
-	if (IsRHID3D12() )
+	if (IsRHID3D12())
 	{
 		RHI = GetID3D12DynamicRHI();
 	}
@@ -258,8 +461,8 @@ TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectML(const TSharedRef
 	check(RHI);
 
 	const int32 DeviceIndex = 0;
-	ID3D12Device* D3D12Device = RHI->RHIGetDevice(DeviceIndex);
 
+	ID3D12Device* D3D12Device = RHI->RHIGetDevice(DeviceIndex);
 	if (!D3D12Device)
 	{
 		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to get D3D12 Device from RHI for device index %d"), DeviceIndex);
@@ -274,28 +477,101 @@ TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectML(const TSharedRef
 		DmlCreateFlags |= DML_CREATE_DEVICE_FLAG_DEBUG;
 	}
 
-	IDMLDevice* DmlDevice = nullptr;
-	HRESULT Res = DMLCreateDevice(D3D12Device, DmlCreateFlags, DML_PPV_ARGS(&DmlDevice));
-
-	if (FAILED(Res) || !DmlDevice)
+	ComPtr<IDMLDevice> DmlDevice;
+	HRESULT Hr = DMLCreateDevice(D3D12Device, DmlCreateFlags, IID_PPV_ARGS(&DmlDevice));
+	if (FAILED(Hr))
 	{
-		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to create DirectML device, DMLCreateDevice error code :%x"), Res);
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to create DirectML device, DMLCreateDevice error code :%x"), Hr);
 		return {};
 	}
 
-	ID3D12CommandQueue* CmdQ = RHI->RHIGetCommandQueue();
-
 	const OrtDmlApi* DmlApi = nullptr;
 	Ort::ThrowOnError(Ort::GetApi().GetExecutionProviderApi("DML", ORT_API_VERSION, reinterpret_cast<const void**>(&DmlApi)));
-
 	if (!DmlApi)
 	{
 		UE_LOG(LogNNERuntimeORT, Error, TEXT("Ort DirectML Api not available!"));
 		return {};
 	}
 
-	OrtStatusPtr Status = DmlApi->SessionOptionsAppendExecutionProvider_DML1(*SessionOptions, DmlDevice, CmdQ);
+	OrtStatusPtr Status = DmlApi->SessionOptionsAppendExecutionProvider_DML1(*SessionOptions, DmlDevice.Get(), RHI->RHIGetCommandQueue());
+	if (Status)
+	{
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to add DirectML execution provider to OnnxRuntime session options: %s"), ANSI_TO_TCHAR(Ort::GetApi().GetErrorMessage(Status)));
+		return {};
+	}
 
+	return SessionOptions;
+#else
+	return {};
+#endif // PLATFORM_WINDOWS
+}
+
+TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectMLNpu(const TSharedRef<FEnvironment>& Environment)
+{
+#if PLATFORM_WINDOWS
+	using Microsoft::WRL::ComPtr;
+
+	TUniquePtr<Ort::SessionOptions> SessionOptions = CreateSessionOptionsDefault(Environment);
+	if (!SessionOptions.IsValid())
+	{
+		return {};
+	}
+
+	// Configure for DirectML
+	SessionOptions->SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
+	SessionOptions->DisableMemPattern();
+
+	ComPtr<IUnknown> AdapterNpu = GetAdapterNpu(false);
+	if (!AdapterNpu)
+	{
+		// GetAdapterNpu() will already report any errors occured during adapter creation and...
+		// ...if there is no NPU we don't want to report an error.
+		return {};
+	}
+
+	ComPtr<ID3D12Device1> D3D12DeviceNpu = CreateD3D12Device(AdapterNpu.Get());
+	if (!D3D12DeviceNpu)
+	{
+		// CreateD3D12Device() will report any error.
+		return {};
+	}
+
+	DML_CREATE_DEVICE_FLAGS DmlCreateFlags = DML_CREATE_DEVICE_FLAG_NONE;
+
+	// Set debugging flags
+	if (GRHIGlobals.IsDebugLayerEnabled)
+	{
+		DmlCreateFlags |= DML_CREATE_DEVICE_FLAG_DEBUG;
+	}
+
+	ComPtr<IDMLDevice> DmlDeviceNpu;
+	HRESULT Hr = DMLCreateDevice(D3D12DeviceNpu.Get(), DmlCreateFlags, IID_PPV_ARGS(DmlDeviceNpu.GetAddressOf()));
+	if (FAILED(Hr))
+	{
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to create DirectML device, DMLCreateDevice error code :%x"), Hr);
+		return {};
+	}
+
+	D3D12_COMMAND_QUEUE_DESC CommandQueueDesc{};
+	CommandQueueDesc.Type = D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE;
+
+	ComPtr<ID3D12CommandQueue> CommandQueue;
+	Hr = D3D12DeviceNpu->CreateCommandQueue(&CommandQueueDesc, IID_PPV_ARGS(CommandQueue.GetAddressOf()));
+	if (FAILED(Hr))
+	{
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to create DirectML Command Queue, CreateCommandQueue error code :%x"), Hr);
+		return {};
+	}
+
+	const OrtDmlApi* DmlApi = nullptr;
+	Ort::ThrowOnError(Ort::GetApi().GetExecutionProviderApi("DML", ORT_API_VERSION, reinterpret_cast<const void**>(&DmlApi)));
+	if (!DmlApi)
+	{
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Ort DirectML Api not available!"));
+		return {};
+	}
+
+	OrtStatusPtr Status = DmlApi->SessionOptionsAppendExecutionProvider_DML1(*SessionOptions, DmlDeviceNpu.Get(), CommandQueue.Get());
 	if (Status)
 	{
 		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to add DirectML execution provider to OnnxRuntime session options: %s"), ANSI_TO_TCHAR(Ort::GetApi().GetErrorMessage(Status)));
