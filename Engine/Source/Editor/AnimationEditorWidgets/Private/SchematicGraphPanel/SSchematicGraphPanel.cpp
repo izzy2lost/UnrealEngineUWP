@@ -594,7 +594,15 @@ void SSchematicGraphPanel::Construct(const FArguments& InArgs)
 	
 	SNodePanel::Construct();
 
-	SetVisibility(bIsOverlay ? EVisibility::SelfHitTestInvisible : EVisibility::Visible);
+	if(InArgs._Visibility.IsBound() || InArgs._Visibility.IsSet())
+	{
+		SetVisibility(InArgs._Visibility);
+	}
+	else
+	{
+		SetVisibility(bIsOverlay ? EVisibility::SelfHitTestInvisible : EVisibility::Visible);
+	}
+	
 	if (GraphData)
 	{
 		GraphData->OnNodeAdded().AddSP(this, &SSchematicGraphPanel::AddNode);

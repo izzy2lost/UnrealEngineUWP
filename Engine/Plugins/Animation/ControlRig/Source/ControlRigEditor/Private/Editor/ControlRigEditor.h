@@ -258,6 +258,7 @@ private:
 	void OnToolbarAxesScaleChanged(float InValue);
 	void HandleToggleSchematicViewport();
 	bool IsSchematicViewportActive() const;
+	EVisibility GetSchematicOverlayVisibility() const;
 
 		/** Handle switching skeletal meshes */
 	void HandlePreviewMeshChanged(USkeletalMesh* InOldSkeletalMesh, USkeletalMesh* InNewSkeletalMesh);
