@@ -1623,15 +1623,15 @@ ALandscapeProxy::ALandscapeProxy(const FObjectInitializer& ObjectInitializer)
 		// Structure to hold one-time initialization
 		struct FConstructorStatics
 		{
-			ConstructorHelpers::FObjectFinderOptional<ULandscapeLayerInfoObject> DataLayer;
+			ConstructorHelpers::FObjectFinderOptional<ULandscapeLayerInfoObject> LandscapeVisibilityLayerInfoFinder;
 			FConstructorStatics()
-				: DataLayer(TEXT("LandscapeLayerInfoObject'/Engine/EditorLandscapeResources/DataLayer.DataLayer'"))
+				: LandscapeVisibilityLayerInfoFinder(TEXT("LandscapeLayerInfoObject'/Engine/EngineResources/LandscapeVisibilityLayerInfo.LandscapeVisibilityLayerInfo'"))
 			{
 			}
 		};
 		static FConstructorStatics ConstructorStatics;
 
-		VisibilityLayer = ConstructorStatics.DataLayer.Get();
+		VisibilityLayer = ConstructorStatics.LandscapeVisibilityLayerInfoFinder.Get();
 		check(VisibilityLayer);
 #if WITH_EDITORONLY_DATA
 		// This layer should be no weight blending
