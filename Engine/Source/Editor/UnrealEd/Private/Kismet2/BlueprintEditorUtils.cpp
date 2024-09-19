@@ -10040,6 +10040,21 @@ FText FBlueprintEditorUtils::GetDeprecatedMemberUsageNodeWarning(const FText& Me
 	return FText::Format(LOCTEXT("DeprecatedMemberUsageNodeWarning", "@@: Usage of '{MemberName}' has been deprecated. {DetailedMessage}"), Args);
 }
 
+EEdGraphNodeDeprecationMessageType FBlueprintEditorUtils::GetDeprecatedMessageType(const FString& TypeString)
+{
+	if (TypeString.Equals(TEXT("None"), ESearchCase::IgnoreCase))
+	{
+		return EEdGraphNodeDeprecationMessageType::None;
+	}
+	else if (TypeString.Equals(TEXT("Note"), ESearchCase::IgnoreCase))
+	{
+		return EEdGraphNodeDeprecationMessageType::Note;
+	}
+	
+	// Default to warning
+	return EEdGraphNodeDeprecationMessageType::Warning;
+}
+
 UK2Node_FunctionResult* FBlueprintEditorUtils::FindOrCreateFunctionResultNode(UK2Node_EditablePinBase* InFunctionEntryNode)
 {
 	UK2Node_FunctionResult* FunctionResult = nullptr;

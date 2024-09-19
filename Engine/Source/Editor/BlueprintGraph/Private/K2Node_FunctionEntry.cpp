@@ -665,6 +665,10 @@ FEdGraphNodeDeprecationResponse UK2Node_FunctionEntry::GetDeprecationResponse(EE
 			UFunction* const Function = FunctionReference.ResolveMember<UFunction>(GetBlueprintClassFromNode());
 			if (ensureMsgf(Function != nullptr, TEXT("This node should not be able to report having a deprecated reference if the override function cannot be resolved.")))
 			{
+				// Check the deprecation type to override the severity
+				FString MessageType = Function->GetMetaData(FBlueprintMetadata::MD_DeprecatedFunction);
+				Response.MessageType = FBlueprintEditorUtils::GetDeprecatedMessageType(MessageType);
+
 				FText FunctionName = FText::FromName(FunctionReference.GetMemberName());
 				FText DetailedMessage = FText::FromString(Function->GetMetaData(FBlueprintMetadata::MD_DeprecationMessage));
 				Response.MessageText = FBlueprintEditorUtils::GetDeprecatedMemberUsageNodeWarning(FunctionName, DetailedMessage);

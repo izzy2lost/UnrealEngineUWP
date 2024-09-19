@@ -556,19 +556,15 @@ FEdGraphNodeDeprecationResponse UK2Node_CallFunction::GetDeprecationResponse(EEd
 	FEdGraphNodeDeprecationResponse Response = Super::GetDeprecationResponse(DeprecationType);
 	if (DeprecationType == EEdGraphNodeDeprecationType::NodeHasDeprecatedReference)
 	{
-		// TEMP: Do not warn in the case of SpawnActor, as we have a special upgrade path for those nodes
-		if (FunctionReference.GetMemberName() == FName(TEXT("BeginSpawningActorFromBlueprint")))
+		UFunction* Function = GetTargetFunction();
+		if (ensureMsgf(Function != nullptr, TEXT("This node should not be able to report having a deprecated reference if the target function cannot be resolved.")))
 		{
-			Response.MessageType = EEdGraphNodeDeprecationMessageType::None;
-		}
-		else
-		{
-			UFunction* Function = GetTargetFunction();
-			if (ensureMsgf(Function != nullptr, TEXT("This node should not be able to report having a deprecated reference if the target function cannot be resolved.")))
-			{
-				FString DetailedMessage = Function->GetMetaData(FBlueprintMetadata::MD_DeprecationMessage);
-				Response.MessageText = FBlueprintEditorUtils::GetDeprecatedMemberUsageNodeWarning(ObjectTools::GetUserFacingFunctionName(Function), FText::FromString(DetailedMessage));
-			}
+			// Check the deprecation type to override the severity
+			FString MessageType = Function->GetMetaData(FBlueprintMetadata::MD_DeprecatedFunction);
+			Response.MessageType = FBlueprintEditorUtils::GetDeprecatedMessageType(MessageType);
+
+			FString DetailedMessage = Function->GetMetaData(FBlueprintMetadata::MD_DeprecationMessage);
+			Response.MessageText = FBlueprintEditorUtils::GetDeprecatedMemberUsageNodeWarning(ObjectTools::GetUserFacingFunctionName(Function), FText::FromString(DetailedMessage));
 		}
 	}
 	

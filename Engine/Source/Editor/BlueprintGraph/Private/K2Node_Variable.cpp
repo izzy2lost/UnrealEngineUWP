@@ -1165,6 +1165,10 @@ FEdGraphNodeDeprecationResponse UK2Node_Variable::GetDeprecationResponse(EEdGrap
 	{
 		if (FProperty* VariableProperty = VariableReference.ResolveMember<FProperty>(GetBlueprintClassFromNode()))
 		{
+			// Check the deprecation type to override the severity
+			FString MessageType = VariableProperty->GetMetaData(FBlueprintMetadata::MD_DeprecatedProperty);
+			Response.MessageType = FBlueprintEditorUtils::GetDeprecatedMessageType(MessageType);
+
 			FText MemberName = FText::FromName(VariableReference.GetMemberName());
 			FText DetailedMessage = FText::FromString(VariableProperty->GetMetaData(FBlueprintMetadata::MD_DeprecationMessage));
 			Response.MessageText = FBlueprintEditorUtils::GetDeprecatedMemberUsageNodeWarning(MemberName, DetailedMessage);
