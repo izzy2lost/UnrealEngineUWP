@@ -73,7 +73,9 @@ void FLandscapeEditorCommands::RegisterCommands()
 	UI_COMMAND(NoiseTool, "Noise", "Adds noise to the heightmap or blend layer", EUserInterfaceActionType::RadioButton, FInputChord());
 	NameToCommandMap.Add("Tool_Noise", NoiseTool);
 
-	UI_COMMAND(RetopologizeTool, "Retop", "Automatically adjusts landscape vertices with an X/Y offset map to improve vertex density on cliffs, reducing texture stretching.\nNote: An X/Y offset map makes the landscape slower to render and paint on with other tools, so only use if needed", EUserInterfaceActionType::RadioButton, FInputChord());
+	UI_COMMAND(RetopologizeTool, "Retop", "Automatically adjusts landscape vertices with an X/Y offset map to improve vertex density on cliffs, reducing texture stretching.\n"
+								 "Note: An X/Y offset map makes the landscape slower to render and paint on with other tools, so only use if needed.\n\n"
+							     "Retop is not available with the Landscape Edit Layer System and will be deprecated for all landscape types in UE5.6.  If not using Edit Layers, you can set the CVar landscape.EnableRetopologizeTool to True to enable it.", EUserInterfaceActionType::RadioButton, FInputChord());
 	NameToCommandMap.Add("Tool_Retopologize", RetopologizeTool);
 
 	UI_COMMAND(VisibilityTool, "Visibility", "Mask out individual quads in the landscape, leaving a hole.", EUserInterfaceActionType::RadioButton, FInputChord());

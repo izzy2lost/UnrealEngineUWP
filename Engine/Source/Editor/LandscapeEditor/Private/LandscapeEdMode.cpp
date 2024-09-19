@@ -4299,7 +4299,7 @@ bool FEdModeLandscape::CanEditLayer(FText* Reason /*=nullptr*/, const FLandscape
 			{
 				if (Reason)
 				{
-					*Reason = FText::Format(NSLOCTEXT("UnrealEd", "LandscapeLayersNoSupportForRetopologize", "{0} Tool is not available with the Landscape Edit Layer System."), CurrentTool->GetDisplayName());
+					*Reason = FText::Format(NSLOCTEXT("UnrealEd", "LandscapeLayersNoSupportForRetopologize", "{0} Tool is not available with the Landscape Edit Layer System and will be entirely deprecated for all landscape types in UE5.6."), CurrentTool->GetDisplayName());
 				}
 				return false;
 			}

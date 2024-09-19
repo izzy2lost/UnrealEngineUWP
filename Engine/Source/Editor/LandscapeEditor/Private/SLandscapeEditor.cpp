@@ -19,8 +19,19 @@
 #include "IDetailsView.h"
 #include "PropertyEditorModule.h"
 #include "LandscapeSettings.h"
+#include "HAL/IConsoleManager.h"
 
 #define LOCTEXT_NAMESPACE "LandscapeEditor"
+
+namespace UE::Landscape::Private {
+	static bool bEnableRetopoTool = false;
+	static FAutoConsoleVariableRef CVarEnableRetopoTool(
+		TEXT("landscape.EnableRetopologizeTool"),
+		bEnableRetopoTool,
+		TEXT("Enable the Retopologize tool.  The tool will be fully deprecated in UE5.6, but this cvar will enable it for 5.5"),
+		ECVF_Default
+	);
+}
 
 void SLandscapeAssetThumbnail::Construct(const FArguments& InArgs, UObject* Asset, TSharedRef<FAssetThumbnailPool> ThumbnailPool)
 {
@@ -376,6 +387,11 @@ bool FLandscapeToolKit::IsToolEnabled(FName ToolName) const
 		if (ToolName == "NewLandscape")
 		{
 			return true;
+		}
+
+		if (ToolName == "Retopologize")
+		{
+			return UE::Landscape::Private::bEnableRetopoTool && !LandscapeEdMode->CanHaveLandscapeLayersContent();
 		}
 
 		// Other tools are available if there is an existing landscape.
