@@ -58,6 +58,39 @@ namespace
 		}
 	}
 
+	static void VerifyCodecPreferenceSettings(UPixelStreaming2PluginSettings* This, FProperty* Property, IConsoleVariable* CVar, const FString& Value = TEXT(""))
+	{
+		TArray<FString> ValidStringArray;
+
+		if (Value != "")
+		{
+			TArray<FString> StringArray;
+			Value.ParseIntoArray(StringArray, TEXT(","));
+
+			for (const FString& CodecString : StringArray)
+			{
+				if (StaticEnum<EVideoCodec>()->GetIndexByNameString(CodecString) == INDEX_NONE)
+				{
+					UE_LOGFMT(LogPixelStreaming2Core, Warning, "Invalid value {0} received for enum of type {1}", CodecString, StaticEnum<EVideoCodec>()->GetName());
+					continue;
+				}
+
+				ValidStringArray.Add(CodecString);
+			}
+		}
+		else
+		{
+			FArrayProperty*		ArrayProperty = CastField<FArrayProperty>(Property);
+			TArray<EVideoCodec> CodecArray = *ArrayProperty->ContainerPtrToValuePtr<TArray<EVideoCodec>>(This);
+			for (EVideoCodec Codec : CodecArray)
+			{
+				ValidStringArray.Add(UE::PixelStreaming2::GetCVarStringFromEnum(Codec));
+			}
+		}
+
+		CVar->Set(*FString::Join(ValidStringArray, TEXT(",")), ECVF_SetByCommandline);
+	}
+
 	FString ConsoleVariableToCommandArgValue(const FString InCVarName)
 	{
 		// CVars are . deliminated by section. To get their equivilent commandline arg for parsing
@@ -331,6 +364,12 @@ TAutoConsoleVariable<bool> UPixelStreaming2PluginSettings::CVarWebRTCNegotiateCo
 	TEXT("Whether PS should send all its codecs during sdp handshake so peers can negotiate or just send a single selected codec."),
 	ECVF_Default);
 
+TAutoConsoleVariable<FString> UPixelStreaming2PluginSettings::CVarWebRTCCodecPreferences(
+	TEXT("PixelStreaming2.WebRTC.CodecPreferences"),
+	TEXT("AV1,H264,VP9,VP8"),
+	TEXT("A comma separated list of video codecs specifying the prefered order PS will signal during sdp handshake"),
+	ECVF_Default);
+
 TAutoConsoleVariable<float> UPixelStreaming2PluginSettings::CVarWebRTCAudioGain(
 	TEXT("PixelStreaming2.WebRTC.AudioGain"),
 	1.0f,
@@ -430,6 +469,27 @@ TAutoConsoleVariable<FString> UPixelStreaming2PluginSettings::CVarInputKeyFilter
 	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* Var) { Delegates()->OnInputKeyFilterChanged.Broadcast(Var); }),
 	ECVF_Default);
 // End Input CVars
+
+TArray<EVideoCodec> UPixelStreaming2PluginSettings::GetCodecPreferences()
+{
+	TArray<EVideoCodec> OutCodecPreferences;
+	FString				StringOptions = UPixelStreaming2PluginSettings::CVarWebRTCCodecPreferences.GetValueOnAnyThread();
+	if (StringOptions.IsEmpty())
+	{
+		return OutCodecPreferences;
+	}
+
+	TArray<FString> CodecArray;
+	StringOptions.ParseIntoArray(CodecArray, TEXT(","), true);
+	for (const FString& CodecString : CodecArray)
+	{
+		uint64 EnumIndex = StaticEnum<EVideoCodec>()->GetIndexByNameString(CodecString);
+		checkf(EnumIndex != INDEX_NONE, TEXT("CVar was not containing valid enum string"));
+		OutCodecPreferences.Add(static_cast<EVideoCodec>(StaticEnum<EVideoCodec>()->GetValueByIndex(EnumIndex)));
+	}
+
+	return OutCodecPreferences;
+}
 
 EPortAllocatorFlags UPixelStreaming2PluginSettings::GetPortAllocationFlags()
 {
@@ -684,6 +744,11 @@ void UPixelStreaming2PluginSettings::PostEditChangeProperty(FPropertyChangedEven
 				SetPortAllocationCVarFromProperty(this, PropertyChangedEvent.Property);
 			}
 		}
+		else if (PropertyChangedEvent.Property->GetNameCPP() == "WebRTCCodecPreferences")
+		{
+			IConsoleVariable* ConsoleVariable = IConsoleManager::Get().FindConsoleVariable(*PropertyChangedEvent.Property->GetMetaData(PixelStreaming2ConsoleVariableMetaFName));
+			VerifyCodecPreferenceSettings(this, PropertyChangedEvent.Property, ConsoleVariable);
+		}
 		// Codec and ScalabilityMode properties are updated in VerifyVideoSettings once we know all the settings are compatible
 		else if (PropertyChangedEvent.Property->GetNameCPP() != "Codec" && PropertyChangedEvent.Property->GetNameCPP() != "ScalabilityMode")
 		{
@@ -888,17 +953,24 @@ static const TMap<FString, FString> GetMappedCmdArg = {
 	{ "EditorSource", "PixelStreaming2.Editor.Source" }
 };
 
+//                                                                   Property,   CVar,              CommandLine value
+using FMappingFunc = TFunction<void(UPixelStreaming2PluginSettings*, FProperty*, IConsoleVariable*, const FString&)>;
+
+static const TMap<FString, TPair<FString, FMappingFunc>> GetCustomMappedCmdArg = {
+	{ "WebRTCCodecPreferences", { "PixelStreaming2.WebRTC.CodecPreferences", VerifyCodecPreferenceSettings } },
+};
+
 static const TArray<FString> GetLegacyCmdArg = {
 	"PixelStreaming2.Encoder.MinQp", // Renamed to MaxQuality
 	"PixelStreaming2.Encoder.MaxQp", // Renamed to MinQuality
-	"PixelStreaming2.IP", // Moved to URL
-	"PixelStreaming2.Port", // Moved to URL
-	"PixelStreaming2.URL", // Renamed to SignallingURL
-	"AllowPixelStreamingCommands", 
+	"PixelStreaming2.IP",			 // Moved to URL
+	"PixelStreaming2.Port",			 // Moved to URL
+	"PixelStreaming2.URL",			 // Renamed to SignallingURL
+	"AllowPixelStreamingCommands",
 	"PixelStreaming2.NegotiateCodecs", // Renamed to WebRTC.NegotiateCodecs
-	"PixelStreaming2.OnScreenStats", // CVar is removed but launch arg is used in stats.cpp
-	"PixelStreaming2.HudStats", // CVar is removed but launch arg is used in stats.cpp
-	"PixelStreaming2.EnableHMD" // Renamed to HMDEnable
+	"PixelStreaming2.OnScreenStats",   // CVar is removed but launch arg is used in stats.cpp
+	"PixelStreaming2.HudStats",		   // CVar is removed but launch arg is used in stats.cpp
+	"PixelStreaming2.EnableHMD"		   // Renamed to HMDEnable
 };
 
 void UPixelStreaming2PluginSettings::ValidateCommandLineArgs()
@@ -938,6 +1010,18 @@ void UPixelStreaming2PluginSettings::ValidateCommandLineArgs()
 			for (const TPair<FString, FString>& Pair : GetMappedCmdArg)
 			{
 				FString ValidCommandLineArg = ConsoleVariableToCommandArgParam(Pair.Value);
+				if (CurrentCommandLineArg == ValidCommandLineArg)
+				{
+					bValidArg = true;
+				}
+			}
+		}
+
+		if (!bValidArg)
+		{
+			for (const TPair<FString, TPair<FString, FMappingFunc>>& Pair : GetCustomMappedCmdArg)
+			{
+				FString ValidCommandLineArg = ConsoleVariableToCommandArgParam(Pair.Value.Key);
 				if (CurrentCommandLineArg == ValidCommandLineArg)
 				{
 					bValidArg = true;
@@ -991,7 +1075,7 @@ void UPixelStreaming2PluginSettings::ParseLegacyCommandlineArgs()
 	FString SignallingServerPort;
 	if (FParse::Value(FCommandLine::Get(), TEXT("PixelStreamingPort="), SignallingServerPort))
 	{
-		LegacyUrl += SignallingServerPort;
+		LegacyUrl += TEXT(":") + SignallingServerPort;
 	}
 
 	if (!LegacyUrl.IsEmpty())
@@ -1104,6 +1188,27 @@ void UPixelStreaming2PluginSettings::PostInitProperties()
 				{
 					checkNoEntry();
 				}
+			}
+		}
+
+		// Handle a commandline argument that needs custom mapping from string to some other type
+		// eg TArray to comma separate FString
+		if (GetCustomMappedCmdArg.Contains(Property->GetNameCPP()))
+		{
+			TPair<FString, FMappingFunc> CVarFuncPair = GetCustomMappedCmdArg[Property->GetNameCPP()];
+			FString						 CVarString = CVarFuncPair.Key;
+			FMappingFunc				 MappingFunc = CVarFuncPair.Value;
+
+			FString ConsoleString;
+			if (FParse::Value(FCommandLine::Get(), *ConsoleVariableToCommandArgValue(CVarString), ConsoleString, false))
+			{
+				// Pass in the console string value. This will set the CVar from what was on the command line
+				MappingFunc(this, Property, IConsoleManager::Get().FindConsoleVariable(*CVarString), ConsoleString);
+			}
+			else
+			{
+				// Pass in an empty value. This will set the CVar from the property's value
+				MappingFunc(this, Property, IConsoleManager::Get().FindConsoleVariable(*CVarString), TEXT(""));
 			}
 		}
 	}

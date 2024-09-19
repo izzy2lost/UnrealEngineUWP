@@ -236,7 +236,9 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = "EncoderSettings", meta = (
 		ConsoleVariable = "PixelStreaming2.Encoder.EnableSimulcast",
 		DisplayName = "Enable Simulcast",
-		ToolTip = "Enables simulcast. When enabled, the encoder will encode at full resolution, 1/2 resolution and 1/4 resolution simultaneously. Note: Simulcast is only supported with `H264` and `VP8` and you must use the SFU from the infrastructure to fully utilise this functionality."
+		ToolTip = "Enables simulcast. When enabled, the encoder will encode at full resolution, 1/2 resolution and 1/4 resolution simultaneously. Note: Simulcast is only supported with `H264` and `VP8` and you must use the SFU from the infrastructure to fully utilise this functionality.",
+		EditCondition="!WebRTCNegotiateCodecs",
+		EditConditionHides
 		))
 	bool EnableSimulcast = false;
 
@@ -245,7 +247,9 @@ public:
 		ConsoleVariable = "PixelStreaming2.Encoder.Codec",
 		DisplayName = "Preferred Encoder Codec",
 		ToolTip = "Preferred encoder codec signalled during connection establishment.",
-		GetOptions = "GetVideoCodecOptions"
+		GetOptions = "GetVideoCodecOptions",
+		EditCondition="!WebRTCNegotiateCodecs",
+		EditConditionHides
 		))
 	FString Codec = UE::PixelStreaming2::GetCVarStringFromEnum(EVideoCodec::H264);
 
@@ -254,7 +258,9 @@ public:
 		ConsoleVariable = "PixelStreaming2.Encoder.ScalabilityMode",
 		DisplayName = "Default Scalability Mode",
 		ToolTip = "Indicates number of spatial and temporal layers used, default: L1T1. For a full list of values refer to https://www.w3.org/TR/webrtc-svc/#scalabilitymodes*",
-		GetOptions = "GetScalabilityModeOptions"
+		GetOptions = "GetScalabilityModeOptions",
+		EditCondition="!WebRTCNegotiateCodecs",
+		EditConditionHides
 		))
 	FString ScalabilityMode = UE::PixelStreaming2::GetCVarStringFromEnum(EScalabilityMode::L1T1);
 
@@ -372,9 +378,22 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = "WebRtcSettings", meta = (
 		ConsoleVariable = "PixelStreaming2.WebRTC.NegotiateCodecs",
 		DisplayName = "WebRtc Negotiate Codecs",
-		ToolTip = "Whether PS should send all its codecs during sdp handshake so peers can negotiate or just send a single selected codec."
+		ToolTip = "Whether PixelStreaming should send all its codecs during sdp handshake so peers can negotiate or just send a single selected codec."
 		))
 	bool WebRTCNegotiateCodecs = false;
+
+	static TAutoConsoleVariable<FString> CVarWebRTCCodecPreferences;
+	UPROPERTY(config, EditAnywhere, Category = "WebRtcSettings", meta = (
+		ConsoleVariable = "PixelStreaming2.WebRTC.CodecPreferences",
+		DisplayName = "WebRtc Codec Preferences",
+		ToolTip = "The preference order PixelStreaming will specify during sdp handshake",
+		EditFixedSize,
+		EditCondition="WebRTCNegotiateCodecs",
+		EditConditionHides
+		))
+	TArray<EVideoCodec> WebRTCCodecPreferences = { EVideoCodec::AV1, EVideoCodec::H264, EVideoCodec::VP9, EVideoCodec::VP8 };
+
+	static TArray<EVideoCodec> GetCodecPreferences();
 
 	static TAutoConsoleVariable<float> CVarWebRTCAudioGain;
 	UPROPERTY(config, EditAnywhere, Category = "WebRtcSettings", meta = (
@@ -443,7 +462,6 @@ public:
 		ToolTip = "Enables the WebRTC-Video-Pacing field trial and sets the video pacing factor parameter. Larger values are more lenient on larger bitrates. Default: -1.0f (values below zero are discarded.)"
 		))
 	float WebRTCVideoPacingFactor = -1.0f;
-	// clang-format on
 
 	// End WebRTC CVars
 
@@ -463,8 +481,8 @@ public:
 		ToolTip = "Enables the use of a remote signalling server. Default: false"
 		))
 	bool EditorUseRemoteSignallingServer = false;
-	
-    static TAutoConsoleVariable<FString> CVarEditorSource;
+
+	static TAutoConsoleVariable<FString> CVarEditorSource;
 	UPROPERTY(config, EditAnywhere, Category = "EditorStreaming", meta = (
 		MappedConsoleVariable = "PixelStreaming2.Editor.Source",
 		DisplayName = "Source",
@@ -474,7 +492,7 @@ public:
 	// End EditorStreaming CVars
 
 	// Begin HMD CVars
-	static TAutoConsoleVariable<bool>  CVarHMDEnable;
+	static TAutoConsoleVariable<bool> CVarHMDEnable;
 	UPROPERTY(config, EditAnywhere, Category = "XR Streaming", meta = (
 		ConsoleVariable = "PixelStreaming2.HMD.Enable",
 		DisplayName = "Enable HMD",
@@ -482,15 +500,15 @@ public:
 		))
 	bool HMDEnable = false;
 
-	static TAutoConsoleVariable<bool>  CVarHMDMatchAspectRatio;
+	static TAutoConsoleVariable<bool> CVarHMDMatchAspectRatio;
 	UPROPERTY(config, EditAnywhere, Category = "XR Streaming", meta = (
 		ConsoleVariable = "PixelStreaming2.HMD.MatchAspectRatio",
 		DisplayName = "Match Aspect Ratio",
 		ToolTip = "If true automatically resize the rendering resolution to match the aspect ratio determined by the HFoV and VFoV. Default: true"
 		))
 	bool HMDMatchAspectRatio = true;
-	
-	static TAutoConsoleVariable<bool>  CVarHMDApplyEyePosition;
+
+	static TAutoConsoleVariable<bool> CVarHMDApplyEyePosition;
 	UPROPERTY(config, EditAnywhere, Category = "XR Streaming", meta = (
 		ConsoleVariable = "PixelStreaming2.HMD.ApplyEyePosition",
 		DisplayName = "Apply Eye Position",
@@ -498,7 +516,7 @@ public:
 		))
 	bool HMDAppleEyePosition = true;
 
-	static TAutoConsoleVariable<bool>  CVarHMDApplyEyeRotation;
+	static TAutoConsoleVariable<bool> CVarHMDApplyEyeRotation;
 	UPROPERTY(config, EditAnywhere, Category = "XR Streaming", meta = (
 		ConsoleVariable = "PixelStreaming2.HMD.ApplyEyeRotation",
 		DisplayName = "Apply Eye Position",
@@ -564,8 +582,9 @@ public:
 		))
 	FString InputKeyFilter = TEXT("");
 
-
 	// End Input CVars
+
+	// clang-format on
 
 	// Begin UDeveloperSettings Interface
 	virtual FName GetCategoryName() const override;
