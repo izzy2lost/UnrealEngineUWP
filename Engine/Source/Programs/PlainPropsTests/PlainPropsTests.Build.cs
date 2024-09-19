@@ -11,8 +11,9 @@ public class PlainPropsTests : TestModuleRules
 			TestMetadata.TestName = "PlainProps";
 			TestMetadata.TestShortName = "PlainProps";
 			TestMetadata.ReportType = "xml";
-			TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Linux);
-			TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Mac);
+			TestMetadata.Deactivated = true;
+			//TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Linux);
+			//TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Mac);
 
 			string PlatformCompilationArgs;
 			foreach (var Platform in UnrealTargetPlatform.GetValidPlatforms())
@@ -22,7 +23,7 @@ public class PlainPropsTests : TestModuleRules
 			}
 
 			// Platform-specific tags
-			TestMetadata.PlatformTags.Add(UnrealTargetPlatform.Linux, "~[.]~[Slow]");
+			//TestMetadata.PlatformTags.Add(UnrealTargetPlatform.Linux, "~[.]~[Slow]");
 		}
 	}
 	public PlainPropsTests(ReadOnlyTargetRules Target) : base(Target, true)

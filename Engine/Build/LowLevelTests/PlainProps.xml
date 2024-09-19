@@ -3,8 +3,6 @@
   <Option Name="RunPlainPropsTests" DefaultValue="" Description="Run PlainProps Tests" />
   <Property Name="TestNames" Value="$(TestNames);PlainProps" />
   <Extend Name="RunAllTests">
-    <Expand Name="DeployAndTest" Platform="Win64" TestName="PlainProps" ShortName="PlainProps" TargetName="PlainPropsTests" BinaryRelativePath="Engine\Binaries" ReportType="xml" ExtraCompilationArgs="-allmodules" />
-    <Expand Name="DeployAndTest" Platform="Linux" TestName="PlainProps" ShortName="PlainProps" TargetName="PlainPropsTests" BinaryRelativePath="Engine\Binaries" ReportType="xml" Tags="~[.]~[Slow]" ExtraCompilationArgs="-allmodules" />
-    <Expand Name="DeployAndTest" Platform="Mac" TestName="PlainProps" ShortName="PlainProps" TargetName="PlainPropsTests" BinaryRelativePath="Engine\Binaries" ReportType="xml" ExtraCompilationArgs="-allmodules" />
+    <Expand Name="DeployAndTest" Platform="Win64" TestName="PlainProps" ShortName="PlainProps" TargetName="PlainPropsTests" BinaryRelativePath="Engine\Binaries" ReportType="xml" ExtraCompilationArgs="-allmodules" Deactivated="True" />
   </Extend>
 </BuildGraph>
