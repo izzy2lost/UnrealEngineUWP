@@ -786,51 +786,34 @@ void FLightFunctionAtlas::RenderAtlasSlots(FRDGBuilder& GraphBuilder, const TArr
 	);
 }
 
-void FLightFunctionAtlas::RenderDebugInfo(FRDGBuilder& GraphBuilder, TArray<FViewInfo>& Views)
+bool FLightFunctionAtlas::IsOutOfSlots() 
+{
+#if !UE_BUILD_SHIPPING
+	return LightCountSkippedDueToMissingAtlasSlot > 0;
+#else
+	return false;
+#endif
+}
+
+FString FLightFunctionAtlas::GetOutOfSlotWarningMessage()
 {
 #if !UE_BUILD_SHIPPING
 	if (!IsLightFunctionAtlasEnabled() || !GAreScreenMessagesEnabled)
 	{
-		return;
+		return FString();
 	}
 
 	// In case we became out of budget, let's notify the game developers.
 	if (LightCountSkippedDueToMissingAtlasSlot > 0)
 	{
-		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
-		{
-			const FViewInfo& View = Views[ViewIndex];
-			const FMinimalSceneTextures& SceneTextures = View.GetSceneTextures();
+		FString Text = FString::Printf(TEXT("Light Functions Atlas:\n"));
+		Text += FString::Printf(TEXT("  - %d light(s) will skip light functions due to out of atlas slot (see r.LightFunctionAtlas.Size).\n"), LightCountSkippedDueToMissingAtlasSlot);
+		Text += FString::Printf(TEXT("  - %d light function material(s) have been skipped.\n"), SkippedLightFunctionsSet.Num());
 
-			AddDrawCanvasPass(GraphBuilder, {}, View, FScreenPassRenderTarget(SceneTextures.Color.Target, View.ViewRect, ERenderTargetLoadAction::ELoad),
-				[&View, this](FCanvas& Canvas)
-				{
-					FString Text;
-					const float DPIScale = Canvas.GetDPIScale();
-					Canvas.SetBaseTransform(FMatrix(FScaleMatrix(DPIScale) * Canvas.CalcBaseTransform2D(Canvas.GetViewRect().Width(), Canvas.GetViewRect().Height())));
-
-					const float ViewPortWidth = float(View.ViewRect.Width());
-					const float ViewPortHeight = float(View.ViewRect.Height());
-					FLinearColor TextColor(1.0f, 0.5f, 0.0f);
-
-					float DrawPosX = 40.0f;
-					float DrawPosY = 650.0f;
-
-					Text = FString::Printf(TEXT("Light Functions Atlas:"));
-					Canvas.DrawShadowedString(DrawPosX, DrawPosY, *Text, GetStatsFont(), TextColor);
-					DrawPosY += 20.0f;
-
-					Text = FString::Printf(TEXT("  - %d light(s) will skip light functions due to out of atlas slot (see r.LightFunctionAtlas.Size)."), LightCountSkippedDueToMissingAtlasSlot);
-					Canvas.DrawShadowedString(DrawPosX, DrawPosY, *Text, GetStatsFont(), TextColor);
-					DrawPosY += 20.0f;
-
-					Text = FString::Printf(TEXT("  - %d light function material(s) have been skipped."), SkippedLightFunctionsSet.Num());
-					Canvas.DrawShadowedString(DrawPosX, DrawPosY, *Text, GetStatsFont(), TextColor);
-					DrawPosY += 20.0f;
-				});
-		}
+		return Text;
 	}
 #endif // !UE_BUILD_SHIPPING
+	return FString();
 }
 
 FScreenPassTexture FLightFunctionAtlas::AddDebugVisualizationPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View, FScreenPassTexture& ScreenPassSceneColor) const

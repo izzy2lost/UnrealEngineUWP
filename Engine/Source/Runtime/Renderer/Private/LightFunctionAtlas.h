@@ -149,8 +149,6 @@ struct FLightFunctionAtlas
 
 	void RenderLightFunctionAtlas(FRDGBuilder& GraphBuilder, TArray<FViewInfo>& Views);
 
-	void RenderDebugInfo(FRDGBuilder& GraphBuilder, TArray<FViewInfo>& Views);
-
 
 	FScreenPassTexture AddDebugVisualizationPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View, FScreenPassTexture& ScreenPassSceneColor)  const;
 
@@ -159,6 +157,9 @@ struct FLightFunctionAtlas
 	
 	static FLightFunctionAtlasGlobalParameters*					GetDefaultLightFunctionAtlasGlobalParametersStruct(FRDGBuilder& GraphBuilder);
 	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters>	GetDefaultLightFunctionAtlasGlobalParameters(FRDGBuilder& GraphBuilder);
+
+	bool IsOutOfSlots();
+	FString GetOutOfSlotWarningMessage();
 
 private:
 
