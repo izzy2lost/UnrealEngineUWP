@@ -282,6 +282,12 @@ struct MODELINGCOMPONENTS_API FCreateTextureObjectParams
 	 */
 	UPROPERTY(Category = "CreateTextureObjectParams", EditAnywhere)
 	TObjectPtr<UTexture2D> GeneratedTransientTexture = nullptr;
+
+	/**
+	 * A full path location to save the asset out to. If this parameter is not null, it overrides other work done to find a path
+	 */
+	UPROPERTY(Category= "CreateTextureObjectParams", EditAnywhere)
+	FString FullAssetPath = "";
 };
 
 

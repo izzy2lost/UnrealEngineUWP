@@ -10,7 +10,6 @@
 #include "ModelingObjectsCreationAPI.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
-#include "TargetInterfaces/StaticMeshBackedTarget.h"
 #include "UVEditorUXSettings.h"
 #include "Drawing/MeshElementsVisualizer.h"
 
@@ -25,6 +24,7 @@ using namespace UE::Geometry;
  */
 bool UUVEditorUVSnapshotToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
 {
+	// ensure only one target is handled
 	return Targets && Targets->Num() == 1;
 }
 UInteractiveTool* UUVEditorUVSnapshotToolBuilder::BuildTool(const FToolBuilderState& SceneState) const
@@ -44,8 +44,12 @@ public:
 	// General bake settings
 	TSharedPtr<UE::Geometry::FDynamicMesh3, ESPMode::ThreadSafe> BaseMesh;
 	TUniquePtr<UE::Geometry::FMeshMapBaker> Baker;
-	UUVEditorUVSnapshotTool::FUVSnapshotBakeSettings BakeSettings;
 	TSharedPtr<UE::Geometry::FDynamicMeshAABBTree3, ESPMode::ThreadSafe> DetailSpatial;
+
+	TSharedPtr<FMeshUVShellMapEvaluator> UVShellEval = MakeShared<FMeshUVShellMapEvaluator>();
+
+	UE::Geometry::FImageDimensions BakerDimensions;
+	int BakerSamplesPerPixel = 4;
 
 	virtual void CalculateResult(FProgressCancel* Progress) override
 	{
@@ -54,19 +58,15 @@ public:
 			return Progress && Progress->Cancelled();
 		};
 		Baker->SetTargetMesh(BaseMesh.Get());
-		Baker->SetTargetMeshUVLayer(BakeSettings.UVLayer);
-		Baker->SetDimensions(BakeSettings.Dimensions);
-		Baker->SetSamplesPerPixel(BakeSettings.SamplesPerPixel);
+		Baker->SetTargetMeshUVLayer(UVShellEval->UVLayer);
+		Baker->SetDimensions(BakerDimensions);
+		Baker->SetSamplesPerPixel(BakerSamplesPerPixel);
 		
 		FMeshBakerDynamicMeshSampler DetailSampler(BaseMesh.Get(), DetailSpatial.Get(), nullptr);
 		Baker->SetDetailSampler(&DetailSampler);
-		const TSharedPtr<FMeshUVShellMapEvaluator> UVShellEval = MakeShared<FMeshUVShellMapEvaluator>();
-		UVShellEval->TexelSize = BakeSettings.Dimensions.GetTexelSize();
-		UVShellEval->UVLayer = BakeSettings.UVLayer;
-		UVShellEval->WireframeThickness = BakeSettings.WireframeThickness;
-		UVShellEval->WireframeColor = BakeSettings.WireframeColor;
-		UVShellEval->ShellColor = BakeSettings.ShellColor;
-		UVShellEval->BackgroundColor = BakeSettings.BackgroundColor;
+
+		UVShellEval->TexelSize = BakerDimensions.GetTexelSize();
+
 		Baker->AddEvaluator(UVShellEval);
 		Baker->Bake();
 		SetResult(MoveTemp(Baker));
@@ -88,20 +88,15 @@ void UUVEditorUVSnapshotTool::Setup()
 	// retrieve whatever UV Layer is currently being displayed in UV Editor
 	UVShellSettings->UVLayer = Target->UVLayerIndex;
 	
-	UVShellSettings->WatchProperty(UVShellSettings->SamplesPerPixel, [this](EBakeTextureSamplesPerPixel) { OpState |= EUVSnapshotBakeOpState::Evaluate; });
-	UVShellSettings->WatchProperty(UVShellSettings->Resolution, [this](EBakeTextureResolution) { OpState |= EUVSnapshotBakeOpState::Evaluate; });
-	UVShellSettings->WatchProperty(UVShellSettings->UVLayer, [this](int) { OpState |= EUVSnapshotBakeOpState::Evaluate; });
-	UVShellSettings->WatchProperty(UVShellSettings->WireframeThickness, [this](float) { OpState |= EUVSnapshotBakeOpState::Evaluate; });
-	UVShellSettings->WatchProperty(UVShellSettings->WireframeColor, [this](FLinearColor) { OpState |= EUVSnapshotBakeOpState::Evaluate; });
-	UVShellSettings->WatchProperty(UVShellSettings->ShellColor, [this](FLinearColor) { OpState |= EUVSnapshotBakeOpState::Evaluate; });
-	UVShellSettings->WatchProperty(UVShellSettings->BackgroundColor, [this](FLinearColor) { OpState |= EUVSnapshotBakeOpState::Evaluate; });
+	UVShellSettings->WatchProperty(UVShellSettings->SamplesPerPixel, [this](EBakeTextureSamplesPerPixel) { Compute->InvalidateResult(); });
+	UVShellSettings->WatchProperty(UVShellSettings->Resolution, [this](EBakeTextureResolution) { Compute->InvalidateResult(); });
+	UVShellSettings->WatchProperty(UVShellSettings->UVLayer, [this](int) { Compute->InvalidateResult(); });
+	UVShellSettings->WatchProperty(UVShellSettings->WireframeThickness, [this](float) { Compute->InvalidateResult(); });
+	UVShellSettings->WatchProperty(UVShellSettings->WireframeColor, [this](FLinearColor) { Compute->InvalidateResult(); });
+	UVShellSettings->WatchProperty(UVShellSettings->ShellColor, [this](FLinearColor) { Compute->InvalidateResult(); });
+	UVShellSettings->WatchProperty(UVShellSettings->BackgroundColor, [this](FLinearColor) {Compute->InvalidateResult(); });
+	UVShellSettings->Result = nullptr;
 	SetToolPropertySourceEnabled(UVShellSettings, true);
-	
-	ResultSettings = NewObject<UUVEditorBakeUVShellResultProperties>(this);
-	ResultSettings->RestoreProperties(this);
-	AddToolPropertySource(ResultSettings);
-	SetToolPropertySourceEnabled(ResultSettings, true);
-	ResultSettings->Result = nullptr;
 
 	// set up the detail mesh & spatial
 	FDynamicMesh3 DetailMeshGet;
@@ -111,18 +106,21 @@ void UUVEditorUVSnapshotTool::Setup()
 	DetailSpatial = MakeShared<FDynamicMeshAABBTree3, ESPMode::ThreadSafe>();
 	DetailSpatial->SetMesh(DetailMesh.Get(), true);
 
-	// mark for evaluation
-	OpState |= EUVSnapshotBakeOpState::Evaluate;
-
-	CachedBakeSettings = FUVSnapshotBakeSettings();
-
 	// set up UPreviewGeometry for visualization in Unwrap viewport
 	PreviewGeoBackgroundQuad = NewObject<UPreviewGeometry>(this);
 	PreviewGeoBackgroundQuad->CreateInWorld(Target->UnwrapPreview->GetWorld(), FTransform::Identity);
 	PreviewGeoBackgroundQuad->AddTriangleSet("UVShellMap");
-	PreviewGeoBackgroundQuad->SetAllVisible(true);
+	PreviewGeoBackgroundQuad->SetAllVisible(false);
 
-	// set up op factory
+	SetUpPreviewQuad();
+
+	// Initialize background compute
+	Compute = MakeUnique<TGenericDataBackgroundCompute<FMeshMapBaker>>();
+	Compute->Setup(this);
+	Compute->OnResultUpdated.AddLambda([this](const TUniquePtr<FMeshMapBaker>& NewResult) { OnMapUpdated(NewResult); });
+
+	Compute->InvalidateResult();
+
 	SetToolDisplayName(LOCTEXT("ToolNameLocal", "UV Snapshot"));
 	GetToolManager()->DisplayMessage(
 		LOCTEXT("OnStartUVSnapshotTool", "Export a texture asset of a UV Layout."),
@@ -133,10 +131,7 @@ void UUVEditorUVSnapshotTool::Shutdown(EToolShutdownType ShutdownType)
 {
 	if (ShutdownType == EToolShutdownType::Accept)
 	{
-		const IStaticMeshBackedTarget* StaticMeshTarget = Cast<IStaticMeshBackedTarget>(Target->SourceTarget);
-		UObject* SourceAsset = StaticMeshTarget ? StaticMeshTarget->GetStaticMesh() : nullptr;
-		const UPrimitiveComponent* SourceComponent = UE::ToolTarget::GetTargetComponent(Target->SourceTarget);
-		CreateTextureAsset(ResultSettings->Result, SourceComponent->GetWorld(), SourceAsset);
+		CreateTextureAsset(UVShellSettings->Result);
 	}
 	
 	UVShellSettings->SaveProperties(this);
@@ -149,8 +144,6 @@ void UUVEditorUVSnapshotTool::Shutdown(EToolShutdownType ShutdownType)
 	{
 		Compute->Shutdown();
 	}
-
-	Target->AppliedPreview->ClearOpFactory();
 
 	if (PreviewGeoBackgroundQuad)
 	{
@@ -168,131 +161,68 @@ void UUVEditorUVSnapshotTool::OnTick(float DeltaTime)
 		Compute->Tick(DeltaTime);
 	}
 }
-void UUVEditorUVSnapshotTool::Render(IToolsContextRenderAPI* RenderAPI)
-{
-	UpdateResult();
-}
+
 TUniquePtr<UE::Geometry::TGenericDataOperator<UE::Geometry::FMeshMapBaker>> UUVEditorUVSnapshotTool::MakeNewOperator()
 {
 	TUniquePtr<FMeshUVMapBakerOp> Op = MakeUnique<FMeshUVMapBakerOp>();
 	Op->DetailSpatial = DetailSpatial;
 	Op->BaseMesh = DetailMesh;
-	Op->BakeSettings = CachedBakeSettings;
+
+	const int32 ImageSize = (int32)UVShellSettings->Resolution;
+	const FImageDimensions ImgDimensions(ImageSize, ImageSize);
+	Op->BakerDimensions = ImgDimensions;
+	Op->BakerSamplesPerPixel = (int32)UVShellSettings->SamplesPerPixel;
+
+	Op->UVShellEval->UVLayer = UVShellSettings->UVLayer;
+	Op->UVShellEval->WireframeThickness = UVShellSettings->WireframeThickness;
+	Op->UVShellEval->WireframeColor = UVShellSettings->WireframeColor;
+	Op->UVShellEval->ShellColor = UVShellSettings->ShellColor;
+	Op->UVShellEval->BackgroundColor = UVShellSettings->BackgroundColor;
 	
 	return Op;
 }
-void UUVEditorUVSnapshotTool::UpdateResult()
-{
-	if (OpState == EUVSnapshotBakeOpState::Clean)
-	{
-		return;
-	}
-	// clear warning (ugh)
-	GetToolManager()->DisplayMessage(FText(), EToolMessageLevel::UserWarning);
 
-	const int32 ImageSize = (int32)UVShellSettings->Resolution;
-	const FImageDimensions Dimensions(ImageSize, ImageSize);
-	CachedBakeSettings.Dimensions = Dimensions;
-	
-	// Clear our invalid bitflag to check again for valid inputs.
-	OpState &= ~EUVSnapshotBakeOpState::Invalid;
-	OpState |= UpdateResult_UVShellMap();
-	
-	// Early exit if op input parameters are invalid.
-	if ((bool)(OpState & EUVSnapshotBakeOpState::Invalid))
-	{
-		InvalidateResults();
-		return;
-	}
-	// This should be the only point of compute invalidation to
-	// minimize synchronization issues.
-	InvalidateCompute();
-}
 void UUVEditorUVSnapshotTool::OnMapUpdated(const TUniquePtr<UE::Geometry::FMeshMapBaker>& NewResult)
 {
 	const FImageDimensions BakeDimensions = NewResult->GetDimensions();
-	constexpr bool bConvertToSRGB = true;
 	FTexture2DBuilder TextureBuilder;
 	TextureBuilder.Initialize(FTexture2DBuilder::ETextureType::Color, BakeDimensions);
-	TextureBuilder.Copy(*NewResult->GetBakeResults(0)[0], bConvertToSRGB);
+	TextureBuilder.Copy(*NewResult->GetBakeResults(0)[0], true);
 	TextureBuilder.Commit(false);
+
 	// Copy image to source data after commit. This will avoid incurring
 	// the cost of hitting the DDC for texture compile while iterating on
 	// bake settings. Since this dirties the texture, the next time the texture
 	// is used after accepting the final texture, the DDC will trigger and
 	// properly recompile the platform data.
-	constexpr bool bConvertSourceToSRGB = true;
-	// default should be ChannelBits8
-	constexpr ETextureSourceFormat SourceDataFormat = TSF_BGRA8;
-	TextureBuilder.CopyImageToSourceData(*NewResult->GetBakeResults(0)[0], SourceDataFormat, bConvertSourceToSRGB);
-	// The CachedUVMap can be thrown out of sync if updated during a background
-	// compute. Validate the computed type against our cached map.
+	constexpr ETextureSourceFormat SourceDataFormat = TSF_BGRA8; // default ChannelBits8
+	TextureBuilder.CopyImageToSourceData(*NewResult->GetBakeResults(0)[0], SourceDataFormat, true);
+	
 	CachedUVMap = TextureBuilder.GetTexture2D();
 	UpdateVisualization();
 	GetToolManager()->PostInvalidation();
-	
 }
-void UUVEditorUVSnapshotTool::InvalidateResults() const
-{
-	ResultSettings->Result = nullptr;
-}
-void UUVEditorUVSnapshotTool::InvalidateCompute()
-{
-	if (!Compute)
-	{
-		// Initialize background compute
-		Compute = MakeUnique<TGenericDataBackgroundCompute<FMeshMapBaker>>();
-		Compute->Setup(this);
-		Compute->OnResultUpdated.AddLambda([this](const TUniquePtr<FMeshMapBaker>& NewResult) { OnMapUpdated(NewResult); });
-	}
-	Compute->InvalidateResult();
-	OpState = EUVSnapshotBakeOpState::Clean;
-}
+
 void UUVEditorUVSnapshotTool::UpdateVisualization() 
 {
-	ResultSettings->Result = CachedUVMap;
-	UpdatePreviewMaterialBasedOnBackground();
+	UVShellSettings->Result = CachedUVMap;
+
+	UTriangleSetComponent* TriangleSet = PreviewGeoBackgroundQuad->FindTriangleSet("UVShellMap");
+	TriangleSet->SetAllTrianglesMaterial(GetMaterialForQuad());
+
+	// setting visibility here and not in setup to avoid brief moment between tool activation and initial result computation & display
+	// which showed default 'BackgroundBaseMap_Color' texture
+	PreviewGeoBackgroundQuad->SetAllVisible(true);
 }
-EUVSnapshotBakeOpState UUVEditorUVSnapshotTool::UpdateResult_UVShellMap()
+
+void UUVEditorUVSnapshotTool::SetUpPreviewQuad()
 {
-	EUVSnapshotBakeOpState ResultState = EUVSnapshotBakeOpState::Clean;
-	FUVSnapshotBakeSettings UVShellMapSettings;
-	UVShellMapSettings.UVLayer = UVShellSettings->UVLayer;
-	UVShellMapSettings.WireframeThickness = UVShellSettings->WireframeThickness;
-	UVShellMapSettings.WireframeColor = UVShellSettings->WireframeColor;
-	UVShellMapSettings.ShellColor = UVShellSettings->ShellColor;
-	UVShellMapSettings.BackgroundColor = UVShellSettings->BackgroundColor;
-
-	const int32 ImageSize = (int32)UVShellSettings->Resolution;
-	const FImageDimensions Dimensions(ImageSize, ImageSize);
-	UVShellMapSettings.Dimensions = Dimensions;
-	UVShellMapSettings.SamplesPerPixel = (int32)UVShellSettings->SamplesPerPixel;
-
-	// if our settings have changed
-	if (CachedBakeSettings != UVShellMapSettings)
-	{
-		CachedBakeSettings = UVShellMapSettings;
-		ResultState |= EUVSnapshotBakeOpState::Evaluate;
-	}
-	return ResultState;
-}
-void UUVEditorUVSnapshotTool::UpdatePreviewMaterialBasedOnBackground()
-{
-	// using this material so that we can set a texture
-	UMaterialInstanceDynamic* Mat = UMaterialInstanceDynamic::Create(LoadObject<UMaterial>(nullptr, TEXT("/UVEditor/Materials/UVEditorBackground")), this);
-	Mat->SetTextureParameterValue(TEXT("BackgroundBaseMap_Color"), ResultSettings->Result);
-	Mat->SetScalarParameterValue(TEXT("BackgroundPixelDepthOffset"), FUVEditorUXSettings::BackgroundQuadDepthOffset - 0.5);	
-
 	// temporarily disable wireframe overlay and unwrap preview; re-enabled on shutdown
 	Target->WireframeDisplay->Settings->bVisible = false;
 	Target->UnwrapPreview->SetVisibility(false);
 
-	// connect to existing Preview Geometry
-	UTriangleSetComponent* TriangleSet = PreviewGeoBackgroundQuad->FindTriangleSet("UVShellMap");
-	TriangleSet->Clear();
-
 	const FVector Normal(0, 0, 1);
-	const FColor BackgroundColor = FColor::Red;
+	const FColor BackgroundColor = FColor::Black;
 
 	// set up rendering of 2 triangles to make one 2d quad
 	FIndex2i UDimBlockToRender = FIndex2i(0,0);
@@ -311,12 +241,28 @@ void UUVEditorUVSnapshotTool::UpdatePreviewMaterialBasedOnBackground()
 	FRenderableTriangleVertex V11 = MakeQuadVert(1, 1);
 	FRenderableTriangleVertex V01 = MakeQuadVert(0,1);
 
+	// connect to existing Preview Geometry
+	UTriangleSetComponent* TriangleSet = PreviewGeoBackgroundQuad->FindTriangleSet("UVShellMap");
+	TriangleSet->Clear();
+
+	UMaterialInstanceDynamic* QuadMaterial = GetMaterialForQuad();
+
 	// add to TriangleSet in PreviewGeometry
-	TriangleSet->AddTriangle(FRenderableTriangle(Mat, V00, V10, V11));
-	TriangleSet->AddTriangle(FRenderableTriangle(Mat, V00, V11, V01));
-	
+	TriangleSet->AddTriangle(FRenderableTriangle(QuadMaterial, V00, V10, V11));
+	TriangleSet->AddTriangle(FRenderableTriangle(QuadMaterial, V00, V11, V01));
 }
-void UUVEditorUVSnapshotTool::CreateTextureAsset(const TObjectPtr<UTexture2D>& Texture, UWorld* SourceWorld, UObject* SourceAsset) const
+
+UMaterialInstanceDynamic* UUVEditorUVSnapshotTool::GetMaterialForQuad()
+{
+	// using this material so that we can set a texture
+	UMaterialInstanceDynamic* QuadMat = UMaterialInstanceDynamic::Create(LoadObject<UMaterial>(nullptr, TEXT("/UVEditor/Materials/UVEditorBackground")), this);
+	QuadMat->SetTextureParameterValue(TEXT("BackgroundBaseMap_Color"), UVShellSettings->Result);
+	QuadMat->SetScalarParameterValue(TEXT("BackgroundPixelDepthOffset"), FUVEditorUXSettings::BackgroundQuadDepthOffset - 1.0f);
+
+	return QuadMat;
+}
+
+void UUVEditorUVSnapshotTool::CreateTextureAsset(const TObjectPtr<UTexture2D>& Texture) const
 {
 	bool bCreatedAssetOK = true;
 	const FString ObjName = UE::ToolTarget::GetTargetActor(Target->SourceTarget)->GetActorNameOrLabel();
@@ -347,8 +293,10 @@ void UUVEditorUVSnapshotTool::CreateTextureAsset(const TObjectPtr<UTexture2D>& T
 			PackageNameOut, AssetNameOut);
 
 		// create the asset
-		bCreatedAssetOK = bCreatedAssetOK && UE::Modeling::CreateTextureObject( GetToolManager(),
-			FCreateTextureObjectParams{ 0, SourceWorld, SourceAsset, NewAssetName, Texture}).IsOK();
+		FCreateTextureObjectParams TexParams;
+		TexParams.FullAssetPath = PackageNameOut;
+		TexParams.GeneratedTransientTexture = Texture;
+		bCreatedAssetOK = bCreatedAssetOK && UE::Modeling::CreateTextureObject( GetToolManager(),FCreateTextureObjectParams(TexParams)).IsOK();
 	}
 		
 	ensure(bCreatedAssetOK);

@@ -13,20 +13,7 @@
 
 
 // Forward Declarations
-class UUVEditorBakeUVShellResultProperties;
 class UUVEditorBakeUVShellProperties;
-enum class EBakeMapType;
-
-/**
- * Bake compute state
- */
-enum class EUVSnapshotBakeOpState
-{
-	Clean              = 0,      // No-op - evaluation already launched/complete.
-	Evaluate           = 1 << 0, // Inputs are modified and valid, re-evaluate.
-	Invalid            = 1 << 1  // Inputs are modified and invalid - retry eval until valid.
-};
-ENUM_CLASS_FLAGS(EUVSnapshotBakeOpState);
 
 /**
  * ToolBuilder
@@ -59,7 +46,7 @@ public:
 	virtual void Shutdown(EToolShutdownType ShutdownType) override;
 	
 	virtual void OnTick(float DeltaTime) override;
-	virtual void Render(IToolsContextRenderAPI* RenderAPI) override;
+	virtual void Render(IToolsContextRenderAPI* RenderAPI) override { };
 	virtual bool HasCancel() const override { return true; }
 	virtual bool HasAccept() const override { return true; }
 	virtual bool CanAccept() const override { return true; }
@@ -76,7 +63,7 @@ public:
 	{
 		Target = TargetIn;
 	}
-protected:
+private:
 	//
 	// Mesh input to UV Editor
 	//
@@ -84,12 +71,10 @@ protected:
 	TObjectPtr<UUVEditorToolMeshInput> Target;
 
 	//
-	// Property sets for bake and result
+	// Property set for bake and result
 	//
 	UPROPERTY()
 	TObjectPtr<UUVEditorBakeUVShellProperties> UVShellSettings;
-	UPROPERTY()
-	TObjectPtr<UUVEditorBakeUVShellResultProperties> ResultSettings;
 
 	//
 	// Preview Geometry for display in Unwrapped viewport
@@ -102,43 +87,9 @@ protected:
 	//
 	TUniquePtr<TGenericDataBackgroundCompute<UE::Geometry::FMeshMapBaker>> Compute = nullptr;
 
-public:
-	// Bake settings
-	struct FUVSnapshotBakeSettings
-	{
-		UE::Geometry::FImageDimensions Dimensions;
-		int UVLayer = 0;
-		float WireframeThickness = 1.0f;
-		FLinearColor WireframeColor = FLinearColor::Blue;
-		FLinearColor ShellColor = FLinearColor::Gray;
-		FLinearColor BackgroundColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
-		int SamplesPerPixel = 4;
-		bool operator==(const FUVSnapshotBakeSettings& Other) const
-		{
-			return Dimensions == Other.Dimensions &&
-				UVLayer == Other.UVLayer &&
-				WireframeThickness == Other.WireframeThickness &&
-				WireframeColor == Other.WireframeColor &&
-				ShellColor == Other.ShellColor &&
-				BackgroundColor == Other.BackgroundColor &&
-				SamplesPerPixel == Other.SamplesPerPixel;
-		}
-	};
-protected:
-	FUVSnapshotBakeSettings CachedBakeSettings;
-	
-private:
-	EUVSnapshotBakeOpState OpState = EUVSnapshotBakeOpState::Evaluate;
-
 	// used in the bake
 	TSharedPtr<UE::Geometry::FDynamicMesh3, ESPMode::ThreadSafe> DetailMesh;
 	TSharedPtr<UE::Geometry::FDynamicMeshAABBTree3, ESPMode::ThreadSafe> DetailSpatial;
-
-	/**
-	 * Process OpState flags and update background compute
-	 * Invoked during render
-	 */
-	void UpdateResult();
 
 	/**
 	 * Retrieves the result of the FMeshMapBaker and generated UTexture2D into the CachedUVMap
@@ -148,28 +99,11 @@ private:
 	void OnMapUpdated(const TUniquePtr<UE::Geometry::FMeshMapBaker>& NewResult);
 
 	/**
-	 * Sets the result to a nullptr
-	 */
-	void InvalidateResults() const;
-
-	/**
-	 * Invalidates the background compute operator.
-	 */
-	void InvalidateCompute();
-
-	/**
-	 * Updates the preview material on the preview mesh with the
+	 * Updates the preview material on the preview quad with the
 	 * computed results. Invoked by OnMapsUpdated.
 	 * Also sets the result to what is currently in CachedUVMap
 	 */
 	void UpdateVisualization();
-
-	/**
-	 * Updates the FUVSnapshotBakeSettings and CachedBakeSettings
-	 *
-	 * @return current result state (Clean or Evaluate if Bake settings have changed)
-	 */
-	EUVSnapshotBakeOpState UpdateResult_UVShellMap();
 
 	/**
 	 * Internal cache of bake uv texture result
@@ -180,25 +114,18 @@ private:
 	/**
 	 * Uses Preview Geometry to draw a preview of the bake in the unwrap viewport
 	 */
-	void UpdatePreviewMaterialBasedOnBackground();
+	void SetUpPreviewQuad();
+
+	/**
+	 * Retrieves the Material for the preview quad, or the preview result
+	 */
+	UMaterialInstanceDynamic* GetMaterialForQuad();
 
 	/**
 	 * Create texture asset from our result Texture2D
 	 * @param Texture the result texture to create
-	 * @param SourceWorld the source world to define where the texture asset will be stored.
-	 * @param SourceAsset if not null, result texture will be stored adjacent to this asset.
 	 */
-	void CreateTextureAsset(const TObjectPtr<UTexture2D>& Texture, UWorld* SourceWorld, UObject* SourceAsset) const;
-};
-
-UCLASS()
-class UVEDITORTOOLS_API UUVEditorBakeUVShellResultProperties : public UInteractiveToolPropertySet
-{
-	GENERATED_BODY()
-public:
-	/** Bake */
-	UPROPERTY(VisibleAnywhere, Category = Results, meta = (DisplayName = "Result Texture", TransientToolProperty))
-	TObjectPtr<UTexture2D> Result;
+	void CreateTextureAsset(const TObjectPtr<UTexture2D>& Texture) const;
 };
 
 UCLASS()
@@ -237,4 +164,8 @@ public:
 	/** Saved path where last UVSnapshot was saved to. Empty if this is first save out */
 	UPROPERTY()
 	FString SavedPath = FString();
+
+	/** Bake */
+	UPROPERTY(VisibleAnywhere, Category = Results, meta = (DisplayName = "Result Texture", TransientToolProperty))
+	TObjectPtr<UTexture2D> Result;
 };
