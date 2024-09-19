@@ -330,3 +330,13 @@ bool UInterchangeSkeletalAnimationTrackNode::SetAnimationPayloadKeyForMorphTarge
 	bSuccess &= MorphTargetPayloadKeyTypeMap.SetKeyValue(MorphTargetNodeUid, (uint8)InType);
 	return bSuccess;
 }
+
+bool UInterchangeSkeletalAnimationTrackNode::IsNodeAnimatedWithBakedCurve(const FString& SceneNodeUid) const
+{
+	uint8 OutValue = 0;
+	if (SceneNodeAnimationPayloadKeyTypeMap.GetValue(SceneNodeUid, OutValue))
+	{
+		return (OutValue == static_cast<uint8>(EInterchangeAnimationPayLoadType::BAKED));
+	}
+	return false;
+}

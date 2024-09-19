@@ -806,7 +806,7 @@ namespace UE
 					else if (SkeletalAnimationTrackNode)
 					{
 						//Scene node transform can be animated, add the transform animation payload key.
-						if (FFbxAnimation::AddSkeletalTransformAnimation(SDKScene, Parser, Node, UnrealNode, PayloadContexts, SkeletalAnimationTrackNode, AnimationIndex)
+						if (FFbxAnimation::AddSkeletalTransformAnimation(NodeContainer, SDKScene, Parser, Node, UnrealNode, PayloadContexts, SkeletalAnimationTrackNode, AnimationIndex)
 							&& !SkeletalAnimationAddedToContainer)
 						{
 							SkeletalAnimationAddedToContainer = true;
