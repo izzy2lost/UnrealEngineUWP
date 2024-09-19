@@ -4843,11 +4843,14 @@ FReply SAnimNotifyPanel::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent&
 
 FReply SAnimNotifyPanel::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
-	SAnimTrackPanel::OnMouseButtonDown(MyGeometry, MouseEvent);
+	if (SAnimTrackPanel::OnMouseButtonDown(MyGeometry, MouseEvent).IsEventHandled())
+	{
+		return FReply::Handled();
+	}
 
-	bool bLeftButton = MouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton);
+	bool bCreateMarquee = MouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton) && (MouseEvent.IsAltDown());
 
-	if(bLeftButton)
+	if(bCreateMarquee)
 	{
 		TArray<TSharedPtr<SAnimNotifyNode>> SelectedNodes;
 		for(TSharedPtr<SAnimNotifyTrack> Track : NotifyAnimTracks)
