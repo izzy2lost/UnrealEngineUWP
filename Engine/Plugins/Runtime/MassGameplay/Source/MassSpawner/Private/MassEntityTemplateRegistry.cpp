@@ -222,7 +222,8 @@ bool FMassEntityTemplateBuildContext::ValidateBuildContext(const UWorld& World)
 				{
 					// check if it was removed
 					const UMassEntityTraitBase* RemovedByTrait = nullptr;
-					if (const int32 RemoverIndex = RemovedTags.Find(FRemovedType({TypeRequired})) != INDEX_NONE)
+					const int32 RemoverIndex = RemovedTags.Find(FRemovedType({TypeRequired}));
+					if (RemoverIndex != INDEX_NONE)
 					{
 						RemovedByTrait = RemovedTags[RemoverIndex].Remover;
 					}
