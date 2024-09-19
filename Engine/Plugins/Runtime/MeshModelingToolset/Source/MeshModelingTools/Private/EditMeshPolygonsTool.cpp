@@ -3074,7 +3074,7 @@ void UEditMeshPolygonsTool::ApplyBridgeEdges()
 	FGroupTopologySelection NewSelection;
 	for (int32 Tid : TrianglesToSelect)
 	{
-		NewSelection.SelectedGroupIDs.Add(Mesh->GetTriangleGroup(Tid));
+		NewSelection.SelectedGroupIDs.Add(Topology->GetGroupID(Tid));
 	}
 	if (ensure(!NewSelection.IsEmpty()))
 	{
