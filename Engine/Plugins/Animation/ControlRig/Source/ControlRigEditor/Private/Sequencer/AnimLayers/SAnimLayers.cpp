@@ -1166,7 +1166,7 @@ TSharedPtr<SWidget> FAnimLayerSourcesView::OnSourceConstructContextMenu()
 				}
 				{
 					FUIAction Action = FUIAction(FExecuteAction::CreateRaw((this), &FAnimLayerSourcesView::DeleteAnimLayer));
-					const FText Label = LOCTEXT("DeletaLayer", "DeleteLayer");
+					const FText Label = LOCTEXT("DeletaLayer", "Delete Layer");
 					const FText ToolTipText = LOCTEXT("DeleteLayertooltip", "Delete selected layers");
 					MenuBuilder.AddMenuEntry(Label, ToolTipText, FSlateIcon(), Action);
 				}
