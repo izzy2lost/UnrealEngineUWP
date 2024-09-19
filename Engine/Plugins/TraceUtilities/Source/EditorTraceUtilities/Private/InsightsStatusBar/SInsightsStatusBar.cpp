@@ -258,7 +258,7 @@ TSharedRef<SWidget> SInsightsStatusBarWidget::MakeTraceMenu()
 			FInsightsStatusBarWidgetCommands::Get().Command_TraceScreenshot,
 			NAME_None,
 			TAttribute<FText>(),
-			TAttribute<FText>(),
+			TAttribute<FText>::CreateSP(this, &SInsightsStatusBarWidget::GetTraceScreenshotTooltipText),
 			FSlateIcon(FEditorTraceUtilitiesStyle::Get().GetStyleSetName(), "Icons.Screenshot.Menu")
 		);
 
@@ -267,7 +267,7 @@ TSharedRef<SWidget> SInsightsStatusBarWidget::MakeTraceMenu()
 			FInsightsStatusBarWidgetCommands::Get().Command_TraceBookmark,
 			NAME_None,
 			TAttribute<FText>(),
-			TAttribute<FText>(),
+			TAttribute<FText>::CreateSP(this, &SInsightsStatusBarWidget::GetTraceBookmarkTooltipText),
 			FSlateIcon(FEditorTraceUtilitiesStyle::Get().GetStyleSetName(), "Icons.Bookmark.Menu")
 		);
 		
@@ -284,7 +284,7 @@ TSharedRef<SWidget> SInsightsStatusBarWidget::MakeTraceMenu()
 		
 		MenuBuilder.AddMenuEntry(
 			GetRegionSwitchLabelText(),
-			GetRegionSwitchDescText(),
+			TAttribute<FText>::CreateSP(this, &SInsightsStatusBarWidget::GetRegionSwitchDescText),
 			FSlateIcon(FEditorTraceUtilitiesStyle::Get().GetStyleSetName(), RegionIsActive() ? "Icons.EndRegion.Menu" : "Icons.BeginRegion.Menu"),
 			FUIAction(FExecuteAction::CreateSP(this, &SInsightsStatusBarWidget::ToggleRegion_Execute),
 					  FCanExecuteAction::CreateSP(this, &SInsightsStatusBarWidget::ToggleRegion_CanExecute)),
@@ -499,10 +499,22 @@ void SInsightsStatusBarWidget::Channels_BuildMenu(FMenuBuilder& MenuBuilder)
 			const FChannelData& Data = ChannelsInfo[Index];
 			FString ChannelDisplayName = Data.Name;
 			ChannelDisplayName.RemoveFromEnd(TEXT("Channel"), 7);
+			FText ChannelTooltip = FText::FromString(Data.Desc);
+			if (Data.bIsReadOnly)
+			{
+				if (Data.Desc.EndsWith("."))
+				{
+					ChannelTooltip = FText::Format(LOCTEXT("ChannelTooltipFmt1", "{0} This channel is readonly and can only be enabled from the command line."), FText::FromString(Data.Desc));
+				}
+				else
+				{
+					ChannelTooltip = FText::Format(LOCTEXT("ChannelTooltipFmt2", "{0}. This channel is readonly and can only be enabled from the command line."), FText::FromString(Data.Desc));
+				}
+			}
 
 			MenuBuilder.AddMenuEntry(
 				FText::FromString(ChannelDisplayName),
-				FText::Format(LOCTEXT("ChannelDesc", "Enable/disable the {0} channel"), FText::FromString(ChannelDisplayName)),
+				ChannelTooltip,
 				FSlateIcon(),
 				FUIAction(FExecuteAction::CreateSP(this, &SInsightsStatusBarWidget::ToggleChannel_Execute, Index),
 					FCanExecuteAction::CreateLambda([Value = !Data.bIsReadOnly]() { return Value; }),
@@ -944,6 +956,7 @@ void SInsightsStatusBarWidget::CreateChannelsInfo()
 
 		FChannelData NewChannelInfo;
 		NewChannelInfo.Name = Info.Name;
+		NewChannelInfo.Desc = Info.Desc;
 		NewChannelInfo.bIsEnabled = Info.bIsEnabled;
 		NewChannelInfo.bIsReadOnly = Info.bIsReadOnly;
 
@@ -1014,7 +1027,7 @@ bool SInsightsStatusBarWidget::ToggleChannel_IsChecked(int32 Index)
 }
 
 
-bool SInsightsStatusBarWidget::TraceScreenshot_CanExecute()
+bool SInsightsStatusBarWidget::TraceScreenshot_CanExecute() const
 {
 	return SHOULD_TRACE_SCREENSHOT();
 }
@@ -1026,7 +1039,7 @@ void SInsightsStatusBarWidget::TraceScreenshot_Execute()
 #endif
 }
 
-bool SInsightsStatusBarWidget::TraceBookmark_CanExecute()
+bool SInsightsStatusBarWidget::TraceBookmark_CanExecute() const
 {
 	return SHOULD_TRACE_BOOKMARK();
 }
@@ -1051,30 +1064,26 @@ void SInsightsStatusBarWidget::ToggleRegion_Execute()
 {
 	if(RegionIsActive())
 	{
-		TRACE_END_REGION(*GetTraceRegionName().ToString());	
+		TRACE_END_REGION_WITH_ID(RegionId);
+		RegionId = 0;
 	}
 	else
 	{
-		TRACE_BEGIN_REGION(*GetTraceRegionName().ToString());
+		RegionId = TRACE_BEGIN_REGION_WITH_ID(*GetTraceRegionName().ToString());
 	}
-	bIsRegionActive = !bIsRegionActive;
 }
 
 bool SInsightsStatusBarWidget::ToggleRegion_CanExecute() const
 {
-#if UE_TRACE_ENABLED
-	return  true;
-#else
-	return false;
-#endif
+	return SHOULD_TRACE_REGION();
 }
 
-bool SInsightsStatusBarWidget::RegionIsActive()
+bool SInsightsStatusBarWidget::RegionIsActive() const
 {
-	return bIsRegionActive;
+	return RegionId > 0;
 }
 
-FText SInsightsStatusBarWidget::GetRegionSwitchLabelText()
+FText SInsightsStatusBarWidget::GetRegionSwitchLabelText() const
 {
 	if(RegionIsActive())
 	{
@@ -1083,12 +1092,18 @@ FText SInsightsStatusBarWidget::GetRegionSwitchLabelText()
 	return LOCTEXT("TraceBeginRegionLabel", "Begin Region");
 }
 
-FText SInsightsStatusBarWidget::GetRegionSwitchDescText()
+FText SInsightsStatusBarWidget::GetRegionSwitchDescText() const
 {
+	if (!ToggleRegion_CanExecute())
+	{
+		LOCTEXT("TraceRegionDisabledDesc", "Regions can only be traced when the Region channel in enabled.");
+	}
+
 	if(RegionIsActive())
 	{
 		return LOCTEXT("TraceEndRegionDesc", "Marks the ending of a trace region with the name input above.");	
 	}
+
 	return LOCTEXT("TraceBeginRegionDesc", "Marks the beginning of a trace region with the name input above.");
 }
 
@@ -1146,6 +1161,30 @@ void SInsightsStatusBarWidget::OpenTrace(int32 Index)
 		}
 
 		FUnrealInsightsLauncher::Get()->TryOpenTraceFromDestination(Traces[Index]->FilePath);
+	}
+}
+
+FText SInsightsStatusBarWidget::GetTraceScreenshotTooltipText() const
+{
+	if (TraceScreenshot_CanExecute())
+	{
+		return LOCTEXT("TraceScreenshotTooltip1", "Takes a screenshot and sends it to the trace.");
+	}
+	else
+	{
+		return LOCTEXT("TraceScreenshotTooltip2", "Screenshots can only be traced when the Screenshot channel is enabled.");
+	}
+}
+
+FText SInsightsStatusBarWidget::GetTraceBookmarkTooltipText() const
+{
+	if (TraceBookmark_CanExecute())
+	{
+		return LOCTEXT("TraceBookmarkTooltip1", "Traces a bookmark.");
+	}
+	else
+	{
+		return LOCTEXT("TraceBookmarkTooltip2", "Bookmarks can only be traced when the Bookmark channel is enabled.");
 	}
 }
 

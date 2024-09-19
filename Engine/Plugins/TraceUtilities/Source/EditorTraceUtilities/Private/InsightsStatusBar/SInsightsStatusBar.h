@@ -38,6 +38,7 @@ class SInsightsStatusBarWidget : public SCompoundWidget
 	struct FChannelData
 	{
 		FString Name;
+		FString Desc;
 		bool bIsEnabled = false;
 		bool bIsReadOnly = false;
 	};
@@ -121,22 +122,23 @@ private:
 
 	void InitCommandList();
 
-	bool TraceScreenshot_CanExecute();
+	bool TraceScreenshot_CanExecute() const;
 	void TraceScreenshot_Execute();
+	FText GetTraceScreenshotTooltipText() const;
 
-	bool TraceBookmark_CanExecute();
+	bool TraceBookmark_CanExecute() const;
 	void TraceBookmark_Execute();
+	FText GetTraceBookmarkTooltipText() const;
 	
-	bool bIsRegionActive = false;
 	FText GetTraceRegionName();
 	FText TraceRegionName = FText();
 	FText GetTraceRegionNameDesc();
 
 	void ToggleRegion_Execute();
 	bool ToggleRegion_CanExecute() const;
-	bool RegionIsActive();
-	FText GetRegionSwitchLabelText();
-	FText GetRegionSwitchDescText();
+	bool RegionIsActive() const;
+	FText GetRegionSwitchLabelText() const;
+	FText GetRegionSwitchDescText() const;
 	
 	void PopulateRecentTracesList();
 
@@ -170,5 +172,7 @@ private:
 
 	TArray<TSharedPtr<FTraceFileInfo>> Traces;
 	FName LogListingName;
+
+	uint64 RegionId = 0;
 };
 }
