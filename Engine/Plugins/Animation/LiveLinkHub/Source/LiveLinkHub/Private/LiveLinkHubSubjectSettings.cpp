@@ -4,6 +4,7 @@
 
 #include "LiveLinkHubClient.h"
 #include "LiveLinkHubModule.h"
+#include "LiveLinkHubSubjectSettingsUtils.h"
 #include "Features/IModularFeatures.h"
 #include "Clients/LiveLinkHubProvider.h"
 
@@ -16,27 +17,6 @@ void ULiveLinkHubSubjectSettings::Initialize(FLiveLinkSubjectKey InSubjectKey)
 	OutboundName = SubjectName;
 
 	Source = LiveLinkClient->GetSourceType(InSubjectKey.Source).ToString();
-}
-
-void ULiveLinkHubSubjectSettings::NotifyRename()
-{
-	FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
-
-	if (TSharedPtr<FLiveLinkHubProvider> Provider = LiveLinkHubModule.GetLiveLinkProvider())
-	{
-		// Re-send the last static data with the new name.
-		TPair<UClass*, FLiveLinkStaticDataStruct*> StaticData = Provider->GetLastSubjectStaticDataStruct(PreviousOutboundName);
-		if (StaticData.Key && StaticData.Value)
-		{
-			FLiveLinkStaticDataStruct StaticDataCopy;
-			StaticDataCopy.InitializeWith(*StaticData.Value);
-
-			Provider->UpdateSubjectStaticData(*OutboundName, StaticData.Key, MoveTemp(StaticDataCopy));
-		}
-
-		// Then clear the old static data entry in the provider.
-		Provider->RemoveSubject(PreviousOutboundName);
-	}
 }
 
 void ULiveLinkHubSubjectSettings::PreEditChange(FProperty* PropertyAboutToChange)
@@ -63,13 +43,13 @@ void ULiveLinkHubSubjectSettings::PostEditChangeProperty(FPropertyChangedEvent& 
 	{
 		if (PreviousOutboundName != *OutboundName)
 		{
-			if (!ValidateOutboundName(OutboundName))
+			if (!FLiveLinkHubSubjectSettingsUtils::ValidateOutboundName(SubjectName, PreviousOutboundName, OutboundName))
 			{
 				OutboundName = PreviousOutboundName.ToString();
 			}
 			else
 			{
-				NotifyRename();
+				FLiveLinkHubSubjectSettingsUtils::NotifyRename(PreviousOutboundName, OutboundName);
 			}
 		}
 	}
@@ -103,22 +83,4 @@ void ULiveLinkHubSubjectSettings::PostEditChangeProperty(FPropertyChangedEvent& 
 		FLiveLinkHubClient* LiveLinkClient = static_cast<FLiveLinkHubClient*>(&IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName));
 		LiveLinkClient->CacheSubjectSettings(Key, this);
 	}
-}
-
-bool ULiveLinkHubSubjectSettings::ValidateOutboundName(const FString& InOutboundNameCandidate) const
-{
-	if (InOutboundNameCandidate.IsEmpty() || FName(InOutboundNameCandidate) == NAME_None)
-	{
-		return false;
-	}
-
-	if (InOutboundNameCandidate == SubjectName)
-	{
-		return true;
-	}
-
-	FLiveLinkHubClient* LiveLinkClient = static_cast<FLiveLinkHubClient*>(&IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName));
-
-	// Can't rename to an existing subject.
-	return !LiveLinkClient->IsSubjectValid(FLiveLinkSubjectName(*InOutboundNameCandidate));
 }

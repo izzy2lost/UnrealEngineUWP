@@ -9,6 +9,7 @@
 #include "ILiveLinkClient.h"
 #include "LiveLinkClient.h"
 #include "LiveLinkHubModule.h"
+#include "LiveLinkHubSubjectSettingsUtils.h"
 
 #include "LiveLinkHubAnimationVirtualSubject.generated.h"
 
@@ -101,55 +102,18 @@ public:
 		{
 			if (PreviousOutboundName != *OutboundName)
 			{
-				if (!ValidateOutboundName(OutboundName))
+				if (!FLiveLinkHubSubjectSettingsUtils::ValidateOutboundName(OutboundName, PreviousOutboundName, OutboundName))
 				{
 					OutboundName = PreviousOutboundName.ToString();
 				}
 				else
 				{
-					NotifyRename();
+					FLiveLinkHubSubjectSettingsUtils::NotifyRename(PreviousOutboundName, OutboundName);
 				}
 			}
 		}
 	}
 	//~ End UObject interface
-
-	bool ValidateOutboundName(const FString& InOutboundNameCandidate) const
-	{
-		if (InOutboundNameCandidate.IsEmpty() || FName(InOutboundNameCandidate) == NAME_None)
-		{
-			return false;
-		}
-
-		if (InOutboundNameCandidate == OutboundName)
-		{
-			return true;
-		}
-
-		// Can't rename to an existing subject.
-		return !LiveLinkClient->IsSubjectValid(FLiveLinkSubjectName(*InOutboundNameCandidate));
-	}
-
-	void NotifyRename()
-	{
-		FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
-
-		if (TSharedPtr<FLiveLinkHubProvider> Provider = LiveLinkHubModule.GetLiveLinkProvider())
-		{
-			// Re-send the last static data with the new name.
-			TPair<UClass*, FLiveLinkStaticDataStruct*> StaticData = Provider->GetLastSubjectStaticDataStruct(PreviousOutboundName);
-			if (StaticData.Key && StaticData.Value)
-			{
-				FLiveLinkStaticDataStruct StaticDataCopy;
-				StaticDataCopy.InitializeWith(*StaticData.Value);
-
-				Provider->UpdateSubjectStaticData(*OutboundName, StaticData.Key, MoveTemp(StaticDataCopy));
-			}
-
-			// Then clear the old static data entry in the provider.
-			Provider->RemoveSubject(PreviousOutboundName);
-		}
-	}
 
 public:
 	/** Name of the virtual subject. */

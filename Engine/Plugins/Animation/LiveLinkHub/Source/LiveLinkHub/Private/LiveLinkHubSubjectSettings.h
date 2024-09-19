@@ -25,17 +25,10 @@ public:
 	}
 	//~ End ULiveLinkSubjectSettings interface
 
-	/** Notify connected clients that this subject's name has changed. */
-	void NotifyRename();
-
 	//~ Begin UObject interface
 	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	//~ End UObject interface
-
-private:
-	/** Returns whether a new name candidate for the outbound name is valid. */
-	bool ValidateOutboundName(const FString& InOutboundNameCandidate) const;
 
 public:
 	/** Name of this subject. */
