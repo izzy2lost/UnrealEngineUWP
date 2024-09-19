@@ -10,6 +10,7 @@
 #include "NiagaraParameterCollection.h"
 #include "NiagaraScript.h"
 #include "NiagaraScriptSource.h"
+#include "UObject/UObjectGlobals.h"
 
 namespace NiagaraGraphDigestDatabaseImpl
 {
@@ -44,12 +45,17 @@ void FNiagaraDigestDatabase::Shutdown()
 FNiagaraDigestDatabase::FNiagaraDigestDatabase()
 	: CompilationGraphCache(NiagaraGraphDigestDatabaseImpl::GDigestGraphCacheSize)
 {
-
+	// we use GC as an opportunity to clear the cache, preventing the database from holding onto references and
+	// extending object lifetimes unnecessarily.  In particular the digested graphs contain duplicates of the DI
+	// which could be referencing real objects
+	FCoreUObjectDelegates::GetPreGarbageCollectDelegate().AddRaw(this, &FNiagaraDigestDatabase::ReleaseDatabase);
 }
 
 FNiagaraDigestDatabase::~FNiagaraDigestDatabase()
 {
 	ReleaseDatabase();
+
+	FCoreUObjectDelegates::GetPreGarbageCollectDelegate().RemoveAll(this);
 }
 
 void FNiagaraDigestDatabase::ReleaseDatabase()
