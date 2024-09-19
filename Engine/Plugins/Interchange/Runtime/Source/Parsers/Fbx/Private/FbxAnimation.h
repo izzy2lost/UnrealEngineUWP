@@ -10,6 +10,7 @@
 /** Forward declarations */
 struct FInterchangeCurve;
 struct FMeshDescription;
+class UInterchangeBaseNodeContainer;
 class UInterchangeMeshNode;
 class UInterchangeSceneNode;
 class UInterchangeSkeletalAnimationTrackNode;
@@ -98,7 +99,8 @@ namespace UE::Interchange::Private
 	{
 	public:
 		/** This function add the payload key if the scene node transform is animated. */
-		static bool AddSkeletalTransformAnimation(FbxScene* SDKScene
+		static bool AddSkeletalTransformAnimation(UInterchangeBaseNodeContainer& NodeContainer
+			, FbxScene* SDKScene
 			, FFbxParser& Parser
 			, FbxNode* Node
 			, UInterchangeSceneNode* UnrealNode

@@ -2,6 +2,7 @@
 
 #include "FbxAnimation.h"
 
+#include "Async/ParallelFor.h"
 #include "CoreMinimal.h"
 #include "FbxAPI.h"
 #include "FbxConvert.h"
@@ -9,6 +10,7 @@
 #include "FbxInclude.h"
 #include "FbxMesh.h"
 #include "Fbx/InterchangeFbxMessages.h"
+#include "InterchangeAnimationTrackSetNode.h"
 #include "InterchangeCommonAnimationPayload.h"
 #include "InterchangeMeshNode.h"
 #include "InterchangeResultsContainer.h"
@@ -16,12 +18,10 @@
 #include "MeshDescription.h"
 #include "Misc/FileHelper.h"
 #include "Misc/ScopeLock.h"
+#include "Nodes/InterchangeBaseNodeContainer.h"
 #include "Serialization/LargeMemoryWriter.h"
 #include "SkeletalMeshAttributes.h"
 #include "StaticMeshAttributes.h"
-#include "InterchangeAnimationTrackSetNode.h"
-#include "Nodes/InterchangeBaseNodeContainer.h"
-#include "Async/ParallelFor.h"
 
 #define LOCTEXT_NAMESPACE "InterchangeFbxMesh"
 
@@ -768,7 +768,8 @@ namespace UE::Interchange::Private
 		return ImportCurve(AnimCurve, ScaleCurve, InterchangeCurves.AddDefaulted_GetRef().Keys);
 	}
 
-	bool FFbxAnimation::AddSkeletalTransformAnimation(FbxScene* SDKScene
+	bool FFbxAnimation::AddSkeletalTransformAnimation(UInterchangeBaseNodeContainer& NodeContainer
+		, FbxScene* SDKScene
 		, FFbxParser& Parser
 		, FbxNode* Node
 		, UInterchangeSceneNode* SceneNode
@@ -778,6 +779,30 @@ namespace UE::Interchange::Private
 	{
 		FGetFbxTransformCurvesParameters Parameters(SDKScene, Node);
 		GetFbxTransformCurves(Parameters, AnimationIndex);
+		if (!Parameters.IsNodeAnimated)
+		{
+			//If we have a joint under the root skeleton and there is some animation in the parent hierarchy
+			//we have to enable IsNodeAnimated so it get bake correctly and generate the appropriate curves
+			FString RootSkeletonNodeUid;
+			if (SkeletalAnimationTrackNode->GetCustomSkeletonNodeUid(RootSkeletonNodeUid))
+			{
+				const UInterchangeSceneNode* ParentNode = Cast<UInterchangeSceneNode>(NodeContainer.GetNode(SceneNode->GetParentUid()));
+				//Search up the hierarchy if we found any animated parent we have to animate the children
+				while (ParentNode)
+				{
+					if (SkeletalAnimationTrackNode->IsNodeAnimatedWithBakedCurve(ParentNode->GetUniqueID()))
+					{
+						Parameters.IsNodeAnimated = true;
+						break;
+					}
+					if (ParentNode->GetUniqueID().Equals(RootSkeletonNodeUid))
+					{
+						break;
+					}
+					ParentNode = Cast<UInterchangeSceneNode>(NodeContainer.GetNode(ParentNode->GetParentUid()));
+				}
+			}
+		}
 
 		if (Parameters.IsNodeAnimated)
 		{
