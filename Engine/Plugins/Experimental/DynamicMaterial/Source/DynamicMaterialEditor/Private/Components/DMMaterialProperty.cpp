@@ -407,6 +407,11 @@ void UDMMaterialProperty::GenerateOpacityExpressions(const TSharedRef<FDMMateria
 		UDMMaterialStage* BaseStage = Layer->GetStage(EDMMaterialLayerStage::Base);
 		UDMMaterialStage* MaskStage = Layer->GetStage(EDMMaterialLayerStage::Mask);
 
+		if (!MaskStage->IsEnabled())
+		{
+			continue;
+		}
+
 		MaskStage->GenerateExpressions(InBuildState);
 		UDMMaterialStageThroughputLayerBlend* LayerBlend = Cast<UDMMaterialStageThroughputLayerBlend>(MaskStage->GetSource());
 
