@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "OperatorEditor/OperatorTreeElements.h"
+#include "OperatorViewer/OperatorTreeElements.h"
 
 #include "AnimGraphNode_RigidBodyWithControl.h"
 #include "BlueprintEditorModule.h"
@@ -15,7 +15,7 @@
 
 // UE_DISABLE_OPTIMIZATION;
 
-#define LOCTEXT_NAMESPACE "PhysicsControlEditor"
+#define LOCTEXT_NAMESPACE "PhysicsControlOperatorViewer"
 
 // class OperatorTreeItem //
 const EHorizontalAlignment OperatorTreeItem::HorizontalAlignment = HAlign_Left;

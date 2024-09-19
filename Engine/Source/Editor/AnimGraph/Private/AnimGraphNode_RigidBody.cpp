@@ -58,7 +58,7 @@ void UAnimGraphNode_RigidBody::Draw(FPrimitiveDrawInterface* PDI, USkeletalMeshC
 	{
 		if (UPhysicsAsset* const PhysicsAsset = RuntimeRigidBodyNode->GetPhysicsAsset())
 		{
-			IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>("PhysicsAssetRenderInterface");
+			IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>(IPhysicsAssetRenderInterface::GetModularFeatureName());
 
 			// Draw Bodies.
 			if (bIsSelected || (bIsPoseWatchEnabled && PoseWatchElementBodies.IsValid() && PoseWatchElementBodies->GetIsVisible()))
@@ -152,7 +152,7 @@ void UAnimGraphNode_RigidBody::PostEditChangeProperty(struct FPropertyChangedEve
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
-	IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>("PhysicsAssetRenderInterface");
+	IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>(IPhysicsAssetRenderInterface::GetModularFeatureName());
 	PhysicsAssetRenderInterface.SaveConfig();
 }
 
@@ -160,7 +160,7 @@ void UAnimGraphNode_RigidBody::ToggleBodyVisibility()
 {
 	FAnimNode_RigidBody* const RigidBodyNode = static_cast<FAnimNode_RigidBody*>(GetDebuggedAnimNode());
 	
-	IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>("PhysicsAssetRenderInterface");
+	IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>(IPhysicsAssetRenderInterface::GetModularFeatureName());
 
 	if (RigidBodyNode)
 	{
@@ -171,7 +171,7 @@ void UAnimGraphNode_RigidBody::ToggleBodyVisibility()
 void UAnimGraphNode_RigidBody::ToggleConstraintVisibility()
 {
 	FAnimNode_RigidBody* const RigidBodyNode = static_cast<FAnimNode_RigidBody*>(GetDebuggedAnimNode());
-	IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>("PhysicsAssetRenderInterface");
+	IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>(IPhysicsAssetRenderInterface::GetModularFeatureName());
 
 	if (RigidBodyNode)
 	{
@@ -182,7 +182,7 @@ void UAnimGraphNode_RigidBody::ToggleConstraintVisibility()
 bool UAnimGraphNode_RigidBody::AreAnyBodiesHidden() const
 {
 	FAnimNode_RigidBody* const RigidBodyNode = static_cast<FAnimNode_RigidBody*>(GetDebuggedAnimNode());
-	IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>("PhysicsAssetRenderInterface");
+	IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>(IPhysicsAssetRenderInterface::GetModularFeatureName());
 
 	if (RigidBodyNode)
 	{
@@ -195,7 +195,7 @@ bool UAnimGraphNode_RigidBody::AreAnyBodiesHidden() const
 bool UAnimGraphNode_RigidBody::AreAnyConstraintsHidden() const
 {
 	FAnimNode_RigidBody* const RigidBodyNode = static_cast<FAnimNode_RigidBody*>(GetDebuggedAnimNode());
-	IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>("PhysicsAssetRenderInterface");
+	IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>(IPhysicsAssetRenderInterface::GetModularFeatureName());
 
 	if (RigidBodyNode)
 	{

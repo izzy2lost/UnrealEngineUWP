@@ -9,11 +9,11 @@
 class SCompoundWidget;
 class SOperatorTreeWidget;
 
-class SOperatorEditorTabWidget : public SCompoundWidget
+class SOperatorViewerTabWidget : public SCompoundWidget
 {
 public:
 
-	SLATE_BEGIN_ARGS(SOperatorEditorTabWidget)
+	SLATE_BEGIN_ARGS(SOperatorViewerTabWidget)
 	{}
 
 	SLATE_END_ARGS()

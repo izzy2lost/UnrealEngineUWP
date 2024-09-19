@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "OperatorEditor/SOperatorTreeWidget.h"
+#include "OperatorViewer/SOperatorTreeWidget.h"
 
 #include "AnimGraphNode_RigidBodyWithControl.h"
 #include "BlueprintEditorModule.h"
@@ -13,7 +13,7 @@
 
 // UE_DISABLE_OPTIMIZATION;
 
-#define LOCTEXT_NAMESPACE "PhysicsControl"
+#define LOCTEXT_NAMESPACE "PhysicsControlOperatorViewer"
 
 template<typename TFilterItemType> bool PassesAnyFilters(const TFilterItemType InItem, const TSharedPtr<TFilterCollection<TFilterItemType>> FilterCollection)
 {

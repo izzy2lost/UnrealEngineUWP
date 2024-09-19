@@ -1,33 +1,34 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "OperatorEditor/OperatorEditor.h"
+#include "OperatorViewer/OperatorViewer.h"
+#include "OperatorViewer/SOperatorViewerTabWidget.h"
+#include "OperatorViewer/OperatorViewer.h"
 
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Layout/SBox.h"
 
-#include "OperatorEditor/SOperatorEditorTabWidget.h"
-#include "OperatorEditor/OperatorEditor.h"
 
 // UE_DISABLE_OPTIMIZATION;
 
 static const FName PhysicsControlEditorModule_OperatorNamesTabWidget("PhysicsControlEditorModule_OperatorNamesTabWidget");
 
-#define LOCTEXT_NAMESPACE "PhysicsControlEditor"
+#define LOCTEXT_NAMESPACE "PhysicsControlOperatorViewer"
 
-void FPhysicsControlOperatorEditor::Startup()
+void FPhysicsControlOperatorViewer::Startup()
 {
-	// Editor Physics Operator Names Tool
-	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(PhysicsControlEditorModule_OperatorNamesTabWidget, FOnSpawnTab::CreateRaw(this, &FPhysicsControlOperatorEditor::OnCreateTab))
+	// Physics Operator Names Tool
+	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(PhysicsControlEditorModule_OperatorNamesTabWidget, 
+		FOnSpawnTab::CreateRaw(this, &FPhysicsControlOperatorViewer::OnCreateTab))
 		.SetDisplayName(LOCTEXT("PhysicsAnimationEditor_OperatorNamesTabTitle", "Rigid Body With Control"))
 		.SetMenuType(ETabSpawnerMenuType::Hidden);
 }
 
-void FPhysicsControlOperatorEditor::Shutdown()
+void FPhysicsControlOperatorViewer::Shutdown()
 {
 	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(PhysicsControlEditorModule_OperatorNamesTabWidget);
 }
 
-void FPhysicsControlOperatorEditor::OpenOperatorNamesTab()
+void FPhysicsControlOperatorViewer::OpenOperatorNamesTab()
 {
 	OperatorNamesTab = FGlobalTabmanager::Get()->FindExistingLiveTab(PhysicsControlEditorModule_OperatorNamesTabWidget);
 
@@ -37,7 +38,7 @@ void FPhysicsControlOperatorEditor::OpenOperatorNamesTab()
 	}
 }
 
-void FPhysicsControlOperatorEditor::CloseOperatorNamesTab()
+void FPhysicsControlOperatorViewer::CloseOperatorNamesTab()
 {
 	if (!OperatorNamesTab)
 	{
@@ -48,7 +49,7 @@ void FPhysicsControlOperatorEditor::CloseOperatorNamesTab()
 	OperatorNamesTab.Reset();
 }
 
-void FPhysicsControlOperatorEditor::ToggleOperatorNamesTab()
+void FPhysicsControlOperatorViewer::ToggleOperatorNamesTab()
 {
 	if (IsOperatorNamesTabOpen())
 	{
@@ -60,12 +61,12 @@ void FPhysicsControlOperatorEditor::ToggleOperatorNamesTab()
 	}
 }
 
-bool FPhysicsControlOperatorEditor::IsOperatorNamesTabOpen()
+bool FPhysicsControlOperatorViewer::IsOperatorNamesTabOpen()
 {
 	return OperatorNamesTab.IsValid();
 }
 
-void FPhysicsControlOperatorEditor::RequestRefresh()
+void FPhysicsControlOperatorViewer::RequestRefresh()
 {
 	if (PersistantTabWidget)
 	{
@@ -73,11 +74,11 @@ void FPhysicsControlOperatorEditor::RequestRefresh()
 	}
 }
 
-TSharedRef<SDockTab> FPhysicsControlOperatorEditor::OnCreateTab(const FSpawnTabArgs& SpawnTabArgs)
+TSharedRef<SDockTab> FPhysicsControlOperatorViewer::OnCreateTab(const FSpawnTabArgs& SpawnTabArgs)
 {
 	const int TabIndex = 1;
 
-	PersistantTabWidget = SNew(SOperatorEditorTabWidget, TabIndex);
+	PersistantTabWidget = SNew(SOperatorViewerTabWidget, TabIndex);
 
 	return SNew(SDockTab)
 		.TabRole(ETabRole::NomadTab)
@@ -92,7 +93,7 @@ TSharedRef<SDockTab> FPhysicsControlOperatorEditor::OnCreateTab(const FSpawnTabA
 		];
 }
 
-void FPhysicsControlOperatorEditor::OnTabClosed(TSharedRef<SDockTab> DockTab)
+void FPhysicsControlOperatorViewer::OnTabClosed(TSharedRef<SDockTab> DockTab)
 {
 	OperatorNamesTab.Reset();
 	PersistantTabWidget.Reset();

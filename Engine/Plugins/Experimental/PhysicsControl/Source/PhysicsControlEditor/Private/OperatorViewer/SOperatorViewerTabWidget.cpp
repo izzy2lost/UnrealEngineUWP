@@ -1,16 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "OperatorEditor/SOperatorEditorTabWidget.h"
-#include "OperatorEditor/SOperatorTreeWidget.h"
+#include "OperatorViewer/SOperatorViewerTabWidget.h"
+#include "OperatorViewer/SOperatorTreeWidget.h"
 #include "Framework/Docking/TabManager.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SButton.h"
 
 // UE_DISABLE_OPTIMIZATION;
 
-#define LOCTEXT_NAMESPACE "PhysicsControlEditor"
+#define LOCTEXT_NAMESPACE "PhysicsControlOperatorViewer"
 
-void SOperatorEditorTabWidget::Construct(const FArguments& InArgs, int32 InTabIndex)
+void SOperatorViewerTabWidget::Construct(const FArguments& InArgs, int32 InTabIndex)
 {
 	TSharedPtr<SVerticalBox> TreeViewBox;
 
@@ -35,7 +35,7 @@ void SOperatorEditorTabWidget::Construct(const FArguments& InArgs, int32 InTabIn
 	}
 }
 
-void SOperatorEditorTabWidget::RequestRefresh()
+void SOperatorViewerTabWidget::RequestRefresh()
 {
 	if (TreeViewWidget.IsValid())
 	{
