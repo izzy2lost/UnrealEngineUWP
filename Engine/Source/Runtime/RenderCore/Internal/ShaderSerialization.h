@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "Memory/CompositeBuffer.h"
 #include "Memory/SharedBuffer.h"
 #include "Templates/Function.h"
 #include "Templates/UniquePtr.h"
@@ -10,7 +9,7 @@
 
 class FMemoryReaderView;
 class FMemoryWriter64;
-class FShaderCodeResource;
+struct FShaderCodeResource;
 
 #if WITH_EDITOR
 namespace UE::DerivedData
@@ -71,12 +70,12 @@ struct FShaderCacheSerializeContext : public FShaderSerializeContext
 	/* View on array of buffers which store the bytecode objects for the object, one per shader/stage.
 	 * Note that this may or may not point to the OwnedShaderCode array below, depending on usage.
 	 */
-	TArrayView<FCompositeBuffer> ShaderCode;
+	TArrayView<FSharedBuffer> ShaderCode;
 
 	/* Array of buffers actually owned by this context object; it is valid for this to be empty in cases
 	 * where the array of ShaderCode buffers is stored externally.
 	 */
-	TArray<FCompositeBuffer> OwnedShaderCode;
+	TArray<FSharedBuffer> OwnedShaderCode;
 
 	/* Get the total serialized size of data for this context; note that this will return 0 if called prior to the FSharedBuffers
 	 * being set (this is done in the derived implementations, see below).
@@ -88,7 +87,7 @@ struct FShaderCacheSerializeContext : public FShaderSerializeContext
 		{
 			Size += ShaderObjectData.GetSize();
 
-			for (FCompositeBuffer& CodeBuf : ShaderCode)
+			for (FSharedBuffer& CodeBuf : ShaderCode)
 			{
 				Size += CodeBuf.GetSize();
 			}
@@ -97,7 +96,7 @@ struct FShaderCacheSerializeContext : public FShaderSerializeContext
 	}
 
 	/* Populates the given code array (transfering ownership) and resets the internal view to point to the new owning array's data */
-	void MoveCode(TArray<FCompositeBuffer>& TargetCode)
+	void MoveCode(TArray<FSharedBuffer>& TargetCode)
 	{
 		TargetCode = MoveTemp(OwnedShaderCode);
 		ShaderCode = TargetCode;
@@ -143,7 +142,7 @@ struct FShaderCacheLoadContext : public FShaderCacheSerializeContext
 	/*	Default constructor, use when array of code buffers will be allocated via ReadFromRecord */
 	RENDERCORE_API FShaderCacheLoadContext();
 	/* Constructor which references buffers (and an array of code buffers) owned elsewhere, does not allocate the OwnedShaderCode array */
-	RENDERCORE_API FShaderCacheLoadContext(FSharedBuffer ShaderObjectData, TArrayView<FCompositeBuffer> CodeBuffers);
+	RENDERCORE_API FShaderCacheLoadContext(FSharedBuffer ShaderObjectData, TArrayView<FSharedBuffer> CodeBuffers);
 
 	/* Call to reset reader to start position so the same load context can be used to populate multiple objects. */
 	RENDERCORE_API void Reuse();
