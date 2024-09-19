@@ -185,12 +185,15 @@ UOnlineHotfixManager::UOnlineHotfixManager() :
 #endif
 	GameContentPath = FString() / FApp::GetProjectName() / TEXT("Content");
 
-	if (!UObject::IsGarbageEliminationEnabled())
+	if (this != GetClass()->GetDefaultObject())
 	{
-		FCoreUObjectDelegates::GetPreGarbageCollectDelegate().AddUObject(this, &UOnlineHotfixManager::StopTrackingInvalidHotfixedAssets);
-	}
+		if (!UObject::IsGarbageEliminationEnabled())
+		{
+			FCoreUObjectDelegates::GetPreGarbageCollectDelegate().AddUObject(this, &UOnlineHotfixManager::StopTrackingInvalidHotfixedAssets);
+		}
 
-	UE::DynamicConfig::HotfixBranch.AddUObject(this, &UOnlineHotfixManager::HotfixDynamicBranch);
+		UE::DynamicConfig::HotfixPluginForBranch.AddUObject(this, &UOnlineHotfixManager::HotfixDynamicBranch);
+	}
 }
 
 UOnlineHotfixManager::UOnlineHotfixManager(FVTableHelper& Helper)
@@ -1986,6 +1989,7 @@ void UOnlineHotfixManager::HotfixDynamicBranch(const FName& Tag, const FName& Br
 	FConfigBranch* BranchToHotfix = GConfig->FindBranch(Branch, FString());
 	if (BranchToHotfix)
 	{
+		// Check in dynamic hotfix contents that we can find a given ini file and apply it as a dynamic layer
 		const auto TryApplyHotfix = [&](const FString Prefix)
 		{
 			const FString HotfixFileName = Prefix + Tag.ToString() + Branch.ToString() + TEXT(".ini");
@@ -2002,8 +2006,11 @@ void UOnlineHotfixManager::HotfixDynamicBranch(const FName& Tag, const FName& Br
 		};
 
 		const FString PlatformName = FPlatformProperties::IniPlatformName();
+
+		// Valid hotfix filenames: $Plugin$Branch.ini, Default$Plugin$Branch.ini, $Platform$PluginBranch.ini
 		TryApplyHotfix(FString());
-		TryApplyHotfix(PlatformName + TEXT("_"));		
+		TryApplyHotfix("Default");
+		TryApplyHotfix(PlatformName);
 	}
 }
 

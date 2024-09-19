@@ -19,7 +19,7 @@
 
 namespace UE::DynamicConfig
 {
-TMulticastDelegate<void(const FName&, const FName&, class FConfigModificationTracker*)> HotfixBranch;
+TMulticastDelegate<void(const FName&, const FName&, class FConfigModificationTracker*)> HotfixPluginForBranch;
 TMulticastDelegate<void(const class FConfigModificationTracker* ChangeTracker)> ReloadObjects;
 TMulticastDelegate<void(const TSet<FString>&)> UpdateDeviceProfiles;
 
@@ -32,7 +32,7 @@ void PerformDynamicConfig(FName Tag, TFunction<void(class FConfigModificationTra
 	// run the callback
 	PerformModification(&ChangeTracker);
 	
-	// now update everything if anythign was read in!
+	// now update everything if anything was read in!
 	if (ChangeTracker.ModifiedSectionsPerBranch.Num() > 0)
 	{
 		// reload objects that had their configs changed
@@ -40,22 +40,16 @@ void PerformDynamicConfig(FName Tag, TFunction<void(class FConfigModificationTra
 		{
 			const FConfigModificationTracker::FCVarTracker& CVars = SectionPair.Value;
 			EConsoleVariableFlags Priority = (EConsoleVariableFlags)CVars.CVarPriority;
-	
+
 			// now walk over the updated cvars and set them based on the priority
 			for (const auto& BranchPair : CVars.CVarEntriesPerBranch)
 			{
 				const FConfigSection& Section = BranchPair.Value;
-	
+
 				for (const auto& CVarPair : Section)
 				{
-//					void OnSetCVarFromIniEntry(const TCHAR *IniFile, const TCHAR *Key, const TCHAR* Value, uint32 SetBy, bool bAllowCheating, bool bNoLogging)
-
-					UE::ConfigUtilities::OnSetCVarFromIniEntry(TEXT("DynamicLayer"), *CVarPair.Key.ToString(),*CVarPair.Value.GetValue(), Priority, false, false, Tag);
-//					IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(*CVarPair.Key.ToString());
-//					CVar->Set(*CVarPair.Value.GetValue(), Priority, Tag);
+					UE::ConfigUtilities::OnSetCVarFromIniEntry(TEXT("DynamicLayer"), *CVarPair.Key.ToString(), *CVarPair.Value.GetValue(), Priority, false, false, Tag);
 				}
-
-				HotfixBranch.Broadcast(Tag, BranchPair.Key, &ChangeTracker);
 			}
 		}
 

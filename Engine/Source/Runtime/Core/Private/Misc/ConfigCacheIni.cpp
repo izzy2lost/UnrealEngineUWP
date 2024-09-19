@@ -3255,7 +3255,8 @@ bool FConfigBranch::AddDynamicLayerStringToHierarchy(const FString& Filename, co
 			bInsertedAtEnd = true;
 		}
 	}
-	
+
+	DynamicLayer->Tag = Tag;
 	FillFileFromBuffer(DynamicLayer, Contents, true, Filename);
 
 	// track modified section names if desired
