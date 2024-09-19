@@ -1222,7 +1222,7 @@ namespace BlackmagicDesign
 
 		bool FOutputChannel::SetVideoFrameData(const FFrameDescriptor& InFrame)
 		{
-			const bool bIsProgressive = ChannelOptions.FormatInfo.FieldDominance != EFieldDominance::Interlaced;
+			const bool bIsProgressive = ChannelOptions.FormatInfo.FieldDominance != EFieldDominance::Interlaced || ChannelOptions.bOutputInterlaceAsProgressive;
 
 			if (InFrame.VideoBuffer == nullptr)
 			{
@@ -1258,7 +1258,7 @@ namespace BlackmagicDesign
 			}
 			else
 			{
-				// only write the even or odd frame
+				// Only write the even or odd frame
 				for (int32_t IndexY = bField1 ? 0 : 1; IndexY < InFrame.VideoHeight; IndexY += 2)
 				{
 					int8_t* Destination = reinterpret_cast<int8_t*>(DestinationBuffer) + (Stride*IndexY);
@@ -1295,7 +1295,7 @@ namespace BlackmagicDesign
 		bool FOutputChannel::SetVideoFrameData(FFrameDescriptor_GPUDMA& InFrame)
 		{
 #if PLATFORM_WINDOWS
-			const bool bIsProgressive = ChannelOptions.FormatInfo.FieldDominance != EFieldDominance::Interlaced;
+			const bool bIsProgressive = ChannelOptions.FormatInfo.FieldDominance != EFieldDominance::Interlaced || ChannelOptions.bOutputInterlaceAsProgressive;
 
 			if (!bIsProgressive)
 			{
@@ -1407,7 +1407,7 @@ namespace BlackmagicDesign
 		// For Interlaced, there is 2 options. Use Timecode to identify which is the odd and even field. Use FrameIdentifier which is even and odd field.
 		BlackmagicDesign::Private::FOutputChannel::FOutputFrame* FOutputChannel::FetchAvailableWritingFrame(const FBaseFrameData& InFrame)
 		{
-			const bool bIsProgressive = ChannelOptions.FormatInfo.FieldDominance != EFieldDominance::Interlaced;
+			const bool bIsProgressive = ChannelOptions.FormatInfo.FieldDominance != EFieldDominance::Interlaced || ChannelOptions.bOutputInterlaceAsProgressive;
 			return bIsProgressive ? FetchAvailableWritingFrameProgressive(InFrame) : FetchAvailableWritingFrameInterlaced(InFrame);
 		}
 

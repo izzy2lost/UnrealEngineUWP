@@ -103,6 +103,12 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Output")
 	bool bInterlacedFieldsTimecodeNeedToMatch;
+
+	/**
+	 * If this is enabled when outputting media in interlace format, frames will be treated as progressive and will be outputted as-is. (Experimental)
+	 */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Output")
+	bool bOutputInterlaceAsProgressive = false;
 	
 	/**
 	 * HDR Metadata of the video signal.
