@@ -1715,43 +1715,44 @@ FReply SDesignerView::OnMouseButtonDown(const FGeometry& MyGeometry, const FPoin
 
 	if (bFoundWidgetUnderCursor)
 	{
-		if (!IsSelectableInSequencer(PendingSelectedWidget.GetPreview()))
-		{
-			PendingSelectedWidget = FWidgetReference();
-			return FReply::Handled();
-		}
-
 		if ( MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton )
 		{
-			const TSet<FWidgetReference>& SelectedWidgets = GetSelectedWidgets();
-
-			bool bResolvePendingSelectionImmediately = true;
-
-			if (SelectedWidgets.Num() > 0)
+			if (IsSelectableInSequencer(PendingSelectedWidget.GetPreview()))
 			{
-				for (const auto& SelectedWidget : SelectedWidgets)
-				{
-					auto PendingTemplate = PendingSelectedWidget.GetTemplate();
-					auto SelectedTemplate = SelectedWidget.GetTemplate();
+				const TSet<FWidgetReference>& SelectedWidgets = GetSelectedWidgets();
 
-					if ( PendingSelectedWidget == SelectedWidget || ( PendingTemplate && SelectedTemplate && PendingTemplate->IsChildOf( SelectedTemplate ) ) )
+				bool bResolvePendingSelectionImmediately = true;
+
+				if (SelectedWidgets.Num() > 0)
+				{
+					for (const auto& SelectedWidget : SelectedWidgets)
 					{
-						bResolvePendingSelectionImmediately = false;
-						break;
+						auto PendingTemplate = PendingSelectedWidget.GetTemplate();
+						auto SelectedTemplate = SelectedWidget.GetTemplate();
+
+						if ( PendingSelectedWidget == SelectedWidget || ( PendingTemplate && SelectedTemplate && PendingTemplate->IsChildOf( SelectedTemplate ) ) )
+						{
+							bResolvePendingSelectionImmediately = false;
+							break;
+						}
 					}
 				}
-			}
 
-			// If the newly clicked item is a child of the active selection, add it to the pending set of selected 
-			// widgets, if they begin dragging we can just move the parent, but if it's not part of the parent set, 
-			// we want to immediately begin dragging it.  Also if the currently selected widget is the root widget, 
-			// we won't be moving it so just resolve immediately.
-			if ( bResolvePendingSelectionImmediately )
+				// If the newly clicked item is a child of the active selection, add it to the pending set of selected 
+				// widgets, if they begin dragging we can just move the parent, but if it's not part of the parent set, 
+				// we want to immediately begin dragging it.  Also if the currently selected widget is the root widget, 
+				// we won't be moving it so just resolve immediately.
+				if ( bResolvePendingSelectionImmediately )
+				{
+					ResolvePendingSelectedWidgets();
+				}
+
+				DraggingStartPositionScreenSpace = MouseEvent.GetScreenSpacePosition();
+			}
+			else
 			{
-				ResolvePendingSelectedWidgets();
+				PendingSelectedWidget = FWidgetReference();
 			}
-
-			DraggingStartPositionScreenSpace = MouseEvent.GetScreenSpacePosition();
 		}
 	}
 	else

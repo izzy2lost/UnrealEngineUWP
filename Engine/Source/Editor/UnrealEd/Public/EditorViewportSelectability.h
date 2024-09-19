@@ -80,10 +80,12 @@ public:
 	bool FrustumSelectWorldActors(const FConvexVolume& InFrustum, FEditorViewportClient* const InEditorViewportClient, const bool bInSelect);
 
 protected:
-	static bool IsActorInLevelHiddenLayer(AActor& InActor, FLevelEditorViewportClient* const InLevelEditorViewportClient);
+	static bool IsActorSelectableClass(const AActor& InActor);
 
-    static bool DoesActorIntersectBox(AActor& InActor, const FBox& InBox, FEditorViewportClient* const InEditorViewportClient, const bool bInUseStrictSelection);
-    static bool DoesActorIntersectFrustum(AActor& InActor, const FConvexVolume& InFrustum, FEditorViewportClient* const InEditorViewportClient, const bool bInUseStrictSelection);
+	static bool IsActorInLevelHiddenLayer(const AActor& InActor, FLevelEditorViewportClient* const InLevelEditorViewportClient);
+
+    static bool DoesActorIntersectBox(const AActor& InActor, const FBox& InBox, FEditorViewportClient* const InEditorViewportClient, const bool bInUseStrictSelection);
+    static bool DoesActorIntersectFrustum(const AActor& InActor, const FConvexVolume& InFrustum, FEditorViewportClient* const InEditorViewportClient, const bool bInUseStrictSelection);
 
 	/**
 	 * Selects or deselects actors in a world. If no actors are specified, uses all the actors in the level.

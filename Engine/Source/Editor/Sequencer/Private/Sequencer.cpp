@@ -12202,13 +12202,20 @@ bool FSequencer::IsObjectSelectableInViewport(UObject* const InObject)
 
 	const TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState = GetSharedPlaybackState();
 
+	FMovieSceneEvaluationState* const EvaluationState = SharedPlaybackState->FindCapability<FMovieSceneEvaluationState>();
+	if (!EvaluationState)
+	{
+		return true;
+	}
+
 	const UMovieSceneSequence* OutSequence = nullptr;
 
 	// Early out on first sequence the object is found in
 	ForEachSubSequenceRecursively(FocusedSequence,
-		[this, InObject, &SharedPlaybackState, &OutSequence](UMovieSceneSequence* const InCurrentSequence)
+		[this, InObject, &SharedPlaybackState, EvaluationState, &OutSequence](UMovieSceneSequence* const InCurrentSequence)
 		{
-			const FGuid ObjectGuid = InCurrentSequence->FindBindingFromObject(InObject, SharedPlaybackState);
+			const FMovieSceneSequenceID SequenceID = EvaluationState->FindSequenceId(InCurrentSequence);
+			const FGuid ObjectGuid = EvaluationState->FindCachedObjectId(*InObject, SequenceID, SharedPlaybackState);
 			if (ObjectGuid.IsValid())
 			{
 				OutSequence = InCurrentSequence;
