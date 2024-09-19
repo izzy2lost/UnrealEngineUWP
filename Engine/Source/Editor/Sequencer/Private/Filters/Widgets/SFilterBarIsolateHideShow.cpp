@@ -91,6 +91,7 @@ TSharedRef<SWidget> SFilterBarIsolateHideShow::ConstructLayeredImage(const FName
 {
 	const TSharedRef<SLayeredImage> LayeredImage = SNew(SLayeredImage)
 		.DesiredSizeOverride(FVector2D(16.f))
+		.ColorAndOpacity(FStyleColors::Foreground)
 		.Image(FAppStyle::Get().GetBrush(InBaseImageName));
 
 	LayeredImage->AddLayer(TAttribute<const FSlateBrush*>::CreateLambda([InShowBadge]() -> const FSlateBrush*
