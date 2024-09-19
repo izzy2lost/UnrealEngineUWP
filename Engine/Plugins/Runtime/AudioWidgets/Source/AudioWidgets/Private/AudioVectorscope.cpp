@@ -7,14 +7,13 @@
 namespace AudioWidgets
 {
 	FAudioVectorscope::FAudioVectorscope(Audio::FDeviceId InAudioDeviceId,
-		const uint32 InNumChannels,
-		const float InTimeWindowMs,
-		const float InMaxTimeWindowMs,
-		const float InAnalysisPeriodMs,
-		const EAudioPanelLayoutType InPanelLayoutType,
-		const FAudioVectorscopePanelStyle* InPanelStyle)
+		const uint32 InNumChannels, 
+		const float InTimeWindowMs, 
+		const float InMaxTimeWindowMs, 
+		const float InAnalysisPeriodMs, 
+		const EAudioPanelLayoutType InPanelLayoutType)
+		: VectorscopePanelStyle(FAudioVectorscopePanelStyle::GetDefault())
 	{
-		VectorscopePanelStyle = InPanelStyle ? *InPanelStyle : FAudioVectorscopePanelStyle::GetDefault();
 		CreateAudioBus(InNumChannels);
 		CreateDataProvider(InAudioDeviceId, InTimeWindowMs, InMaxTimeWindowMs, InAnalysisPeriodMs);
 		CreateVectorscopeWidget(InPanelLayoutType);
@@ -33,21 +32,15 @@ namespace AudioWidgets
 		AudioSamplesDataProvider = MakeShared<FWaveformAudioSamplesDataProvider>(InAudioDeviceId, AudioBus.Get(), AudioBus->GetNumChannels(), InTimeWindowMs, InMaxTimeWindowMs, InAnalysisPeriodMs);
 	}
 
-	void FAudioVectorscope::CreateVectorscopeWidget(const EAudioPanelLayoutType InPanelLayoutType, const FAudioVectorscopePanelStyle* PanelStyle)
+	void FAudioVectorscope::CreateVectorscopeWidget(const EAudioPanelLayoutType InPanelLayoutType)
 	{
 		check(AudioSamplesDataProvider);
 
 		const FFixedSampledSequenceView SequenceView = AudioSamplesDataProvider->GetDataView();
 
-		if (PanelStyle)
-		{
-			VectorscopePanelStyle = *PanelStyle;
-		}
-
 		if (!VectorscopePanelWidget.IsValid())
 		{
 			VectorscopePanelWidget = SNew(SAudioVectorscopePanelWidget, SequenceView)
-				.PanelStyle(PanelStyle ? PanelStyle : &FAudioVectorscopePanelStyle::GetDefault())
 				.PanelLayoutType(InPanelLayoutType)
 				.PanelStyle(&VectorscopePanelStyle);
 		}

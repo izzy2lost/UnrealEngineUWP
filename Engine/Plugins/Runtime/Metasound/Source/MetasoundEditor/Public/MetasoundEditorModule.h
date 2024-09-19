@@ -15,11 +15,6 @@
 #include "Templates/Function.h"
 
 // Forward Declarations
-struct FAudioMeterDefaultColorStyle;
-struct FAudioOscilloscopePanelStyle;
-struct FAudioSpectrumPlotStyle;
-struct FAudioVectorscopePanelStyle;
-
 class IDetailLayoutBuilder;
 class IDetailPropertyRow;
 class IPropertyHandle;
@@ -46,14 +41,6 @@ namespace Metasound
 		{
 			METASOUNDEDITOR_API FSlateIcon CreateSlateIcon(FName InName);
 			METASOUNDEDITOR_API const FSlateBrush& GetSlateBrushSafe(FName InName);
-
-			const FSlateColor& GetDefaultAnalyzerColor();
-			const FSlateColor& GetPageExecutingColor();
-
-			const FAudioMeterDefaultColorStyle& GetMeterDefaultColorStyle();
-			const FAudioOscilloscopePanelStyle& GetOscilloscopeStyle();
-			const FAudioSpectrumPlotStyle& GetSpectrumPlotStyle();
-			const FAudioVectorscopePanelStyle& GetVectorscopeStyle();
 		} // namespace Style
 
 		using EAssetScanStatus = Metasound::Engine::EAssetScanStatus;

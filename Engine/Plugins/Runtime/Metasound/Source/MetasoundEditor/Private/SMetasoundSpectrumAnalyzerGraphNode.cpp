@@ -5,7 +5,6 @@
 #include "Editor.h"
 #include "MetasoundEditorGraphBuilder.h"
 #include "MetasoundEditorGraphNode.h"
-#include "MetasoundEditorModule.h"
 #include "Widgets/Layout/SBox.h"
 
 namespace Metasound::Editor
@@ -57,17 +56,13 @@ namespace Metasound::Editor
 
 	void SMetaSoundSpectrumAnalyzerGraphNode::CreateBelowPinControls(TSharedPtr<SVerticalBox> MainBox)
 	{
-		using namespace AudioWidgets;
-
 		if (ensure(GEditor))
 		{
 			if (!SpectrumAnalyzer.IsValid())
 			{
-				FAudioSpectrumAnalyzerParams Params;
-				Params.NumChannels = 1;
-				Params.AudioDeviceId = GEditor->GetMainAudioDeviceID();
-				Params.PlotStyle = &Style::GetSpectrumPlotStyle();
-				SpectrumAnalyzer = MakeShared<FAudioSpectrumAnalyzer>(Params);
+				constexpr int32 NumChannels = 1;
+				const Audio::FDeviceId AudioDeviceId = GEditor->GetMainAudioDeviceID();
+				SpectrumAnalyzer = MakeShared<AudioWidgets::FAudioSpectrumAnalyzer>(NumChannels, AudioDeviceId);
 			}
 
 			MainBox->AddSlot()
