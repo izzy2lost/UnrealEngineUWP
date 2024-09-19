@@ -62,6 +62,11 @@ public:
 	void ConvertRangeToScaleBias(const FNiagaraStatelessRangeVector3& Range, FVector3f& OutScale, FVector3f& OutBias) const { OutScale = Range.GetScale(); GetRendererParameterValue(OutBias, Range.ParameterOffset, Range.Min); }
 	void ConvertRangeToScaleBias(const FNiagaraStatelessRangeColor& Range, FLinearColor& OutScale, FLinearColor& OutBias) const { OutScale = Range.GetScale(); GetRendererParameterValue(OutBias, Range.ParameterOffset, Range.Min); }
 
+	float ConvertRangeToValue(const FNiagaraStatelessRangeFloat& Range) const { float OutValue; GetRendererParameterValue(OutValue, Range.ParameterOffset, Range.Min); return OutValue; }
+	FVector2f ConvertRangeToValue(const FNiagaraStatelessRangeVector2& Range) const { FVector2f OutValue; GetRendererParameterValue(OutValue, Range.ParameterOffset, Range.Min); return OutValue; }
+	FVector3f ConvertRangeToValue(const FNiagaraStatelessRangeVector3& Range) const { FVector3f OutValue; GetRendererParameterValue(OutValue, Range.ParameterOffset, Range.Min); return OutValue; }
+	FLinearColor ConvertRangeToValue(const FNiagaraStatelessRangeColor& Range) const { FLinearColor OutValue; GetRendererParameterValue(OutValue, Range.ParameterOffset, Range.Min); return OutValue; }
+
 protected:
 #if DO_CHECK
 	void ValidateIncludeStructType(uint32 StructOffset, const FShaderParametersMetadata* StructMetaData) const;
