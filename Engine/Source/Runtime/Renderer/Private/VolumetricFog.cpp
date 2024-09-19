@@ -1806,7 +1806,7 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 			PermutationVector.Set< FVolumetricFogLightScatteringCS::FLumenGI >(bUseLumenGI);
 			PermutationVector.Set< FVolumetricFogLightScatteringCS::FVirtualShadowMap >(VirtualShadowMapArray.IsAllocated() );
 			PermutationVector.Set< FVolumetricFogLightScatteringCS::FRaytracedShadowsVolume >(bUseRaytracedShadowsVolume);
-			PermutationVector.Set< FVolumetricFogLightScatteringCS::FSampleLightFunctionAtlas >(PassParameters->DirectionalApplyLightFunctionFromAtlas>1);
+			PermutationVector.Set< FVolumetricFogLightScatteringCS::FSampleLightFunctionAtlas >(bUseLightFunctionAtlasEnabledAndSupported);
 			PermutationVector.Set< FVolumetricFogLightScatteringCS::FMegaLights>(bUseMegaLights);
 			PermutationVector.Set< FVolumetricFogLightScatteringCS::FLightSoftFading >(GetVolumetricFogLightSoftFading() > 0.0f);
 
