@@ -23,7 +23,7 @@ namespace UnrealBuildTool
 		private const string BUNDLETOOL_JAR = "bundletool-all-0.13.0.jar";
 
 		// classpath of default android build tools gradle plugin
-		private const string ANDROID_TOOLS_BUILD_GRADLE_VERSION = "com.android.tools.build:gradle:7.4.2";
+		private const string ANDROID_TOOLS_BUILD_GRADLE_VERSION = "com.android.tools.build:gradle:8.5.0";
 
 		// default NDK version if not set
 		private const string DEFAULT_NDK_VERSION = "25.1.8937393";
@@ -38,7 +38,7 @@ namespace UnrealBuildTool
 				new AliasedXMLNamespace { Alias = "tools", Url = "http://schemas.android.com/tools" } };
 
 		// Minimum Android SDK that must be used for Java compiling
-		readonly int MinimumSDKLevel = 30;
+		readonly int MinimumSDKLevel = 34;
 
 		// Minimum SDK version needed for App Bundles
 		readonly int MinimumSDKLevelForBundle = 21;
@@ -269,7 +269,7 @@ namespace UnrealBuildTool
 					SDKLevel = ToolChain.GetLargestApiLevel();
 				}
 
-				// make sure it is at least android-23
+				// make sure it is at least the minimum needed to compile
 				int SDKLevelInt = GetApiLevelInt(SDKLevel);
 				if (SDKLevelInt < MinimumSDKLevel)
 				{
@@ -387,7 +387,7 @@ namespace UnrealBuildTool
 
 			if (BestVersionString == null)
 			{
-				BestVersionString = "33.0.1";
+				BestVersionString = "34.0.0";
 				Logger.LogWarning("Failed to find %ANDROID_HOME%/build-tools subdirectory. Will attempt to use {BestVersionString}.", BestVersionString);
 			}
 
@@ -2719,9 +2719,6 @@ namespace UnrealBuildTool
 			bool bAllowIMU = true;
 			Ini.GetBool("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "bAllowIMU", out bAllowIMU);
 
-			bool bExtractNativeLibs = true;
-			Ini.GetBool("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "bExtractNativeLibs", out bExtractNativeLibs);
-
 			bool bPublicLogFiles = true;
 			Ini.GetBool("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "bPublicLogFiles", out bPublicLogFiles);
 			if (!bUseExternalFilesDir)
@@ -2860,13 +2857,6 @@ namespace UnrealBuildTool
 			Text.AppendLine("\t<application android:label=\"@string/app_name\"");
 			Text.AppendLine("\t             android:icon=\"@drawable/icon\"");
 
-			AndroidToolChain.ClangSanitizer Sanitizer = ToolChain.BuildWithSanitizer();
-			// hwasan on NDK r26b+ requires wrap.sh that needs to be unpacked
-			if ((Sanitizer != AndroidToolChain.ClangSanitizer.None && (Sanitizer != AndroidToolChain.ClangSanitizer.HwAddress || ToolChain.HasEmbeddedHWASanSupport())) || bEnableScudoMemoryTracing)
-			{
-				bExtractNativeLibs = true;
-			}
-
 			bool bRequestedLegacyExternalStorage = false;
 			if (ExtraApplicationNodeTags != null)
 			{
@@ -2880,7 +2870,6 @@ namespace UnrealBuildTool
 				}
 			}
 			Text.AppendLine("\t             android:hardwareAccelerated=\"true\"");
-			Text.AppendLine(String.Format("\t             android:extractNativeLibs=\"{0}\"", bExtractNativeLibs ? "true" : "false"));
 			Text.AppendLine("\t				android:name=\"com.epicgames.unreal.GameApplication\"");
 			if (!bIsForDistribution && SDKLevelInt >= 29 && !bRequestedLegacyExternalStorage)
 			{
@@ -5216,7 +5205,7 @@ popd
 					int CompileSDKVersionInt;
 					if (!Int32.TryParse(CompileSDKVersion, out CompileSDKVersionInt))
 					{
-						CompileSDKVersionInt = 23;
+						CompileSDKVersionInt = MinimumSDKLevel;
 					}
 
 					bool bUpdatedCompileSDK = false;
@@ -5287,7 +5276,7 @@ popd
 				// Create local.properties
 				string LocalPropertiesFilename = Path.Combine(UnrealBuildGradlePath, "local.properties");
 				StringBuilder LocalProperties = new StringBuilder();
-				//				LocalProperties.AppendLine(string.Format("ndk.dir={0}", Environment.GetEnvironmentVariable("NDKROOT")!.Replace("\\", "/")));
+//				LocalProperties.AppendLine(string.Format("ndk.dir={0}", Environment.GetEnvironmentVariable("NDKROOT")!.Replace("\\", "/")));
 				LocalProperties.AppendLine(String.Format("sdk.dir={0}", Environment.GetEnvironmentVariable("ANDROID_HOME")!.Replace("\\", "/")));
 				File.WriteAllText(LocalPropertiesFilename, LocalProperties.ToString());
 
@@ -6423,6 +6412,7 @@ import java.util.Collection;
 				StringBuilder BuildGradleContent = new StringBuilder();
 				BuildGradleContent.AppendLine("apply plugin: 'com.android.library'");
 				BuildGradleContent.AppendLine("android {");
+				BuildGradleContent.AppendLine("\tndkVersion = NDK_VERSION");
 				BuildGradleContent.AppendLine("\tndkPath = System.getenv(\"NDKROOT\")");
 				BuildGradleContent.AppendLine("\tcompileSdkVersion = COMPILE_SDK_VERSION.toInteger()");
 				BuildGradleContent.AppendLine("\tbuildToolsVersion = BUILD_TOOLS_VERSION");
