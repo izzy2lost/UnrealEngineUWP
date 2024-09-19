@@ -126,7 +126,7 @@ namespace mu
 		//bool isBlockFormat = GetImageFormatData( format ).PixelsPerBlockX!=0;
 
 		// The instruction can be sunk
-		OP_TYPE sourceType = sourceAt->GetOpType();
+		OP_TYPE sourceType = sourceAt ? sourceAt->GetOpType() : OP_TYPE::NONE;
 		switch (sourceType)
 		{
 		case OP_TYPE::IM_PIXELFORMAT:
@@ -260,7 +260,10 @@ namespace mu
 			}
 		}
 
-		res = Source.child()->GetImageDesc(returnBestOption, context);
+		if (Source.child())
+		{
+			res = Source.child()->GetImageDesc(returnBestOption, context);
+		}
 
 		if (FormatIfAlpha != EImageFormat::IF_NONE
 			&&
