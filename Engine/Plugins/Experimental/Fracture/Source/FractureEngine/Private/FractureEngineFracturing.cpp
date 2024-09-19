@@ -998,7 +998,7 @@ int32 FFractureEngineFracturing::MeshCutter(TArray<FTransform>& MeshTransforms,
 		for (const FTransform& ScatterTransform : MeshTransforms)
 		{
 			constexpr bool bSetDefaultInternalMaterialsFromCollection = true;
-			int32 Index = CutWithMesh(InDynCuttingMesh, ScatterTransform, InternalSurfaceMaterials, *GeomCollection, TransformSelectionArr, InCollisionSampleSpacing, InTransform, bSetDefaultInternalMaterialsFromCollection, nullptr, InSplitIslands);
+			int32 Index = CutWithMesh(InDynCuttingMesh, ScatterTransform, InternalSurfaceMaterials, *GeomCollection, TransformSelectionArr, InCollisionSampleSpacing, FTransform::Identity, bSetDefaultInternalMaterialsFromCollection, nullptr, InSplitIslands);
 
 			int32 NewLen = Algo::RemoveIf(TransformSelectionArr, [&](int32 Bone)
 				{

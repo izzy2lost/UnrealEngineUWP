@@ -32,6 +32,10 @@
 #include "Dataflow/DataflowSelection.h"
 #include "DynamicMesh/DynamicMesh3.h"
 #include "UDynamicMesh.h"
+#include "MeshDescription.h"
+#include "DynamicMeshToMeshDescription.h"
+#include "MeshDescriptionToDynamicMesh.h"
+#include "StaticMeshAttributes.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionFracturingNodes)
 
@@ -792,6 +796,7 @@ void FMeshCutterDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataf
 		Out->IsA(&TransformSelection) ||
 		Out->IsA(&NewGeometryTransformSelection))
 	{
+#if WITH_EDITORONLY_DATA
 		FDataflowTransformSelection InTransformSelection = GetValue(Context, &TransformSelection);
 		//
 		// If not connected select everything by default
@@ -828,96 +833,112 @@ void FMeshCutterDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataf
 		{
 			FManagedArrayCollection InCollection = GetValue(Context, &Collection);
 
-			if (TObjectPtr<UDynamicMesh> InCuttingMesh = GetValue(Context, &CuttingMesh))
+			if (TObjectPtr<UStaticMesh> InCuttingMesh = GetValue(Context, &CuttingStaticMesh))
 			{
-				const UE::Geometry::FDynamicMesh3& InDynCuttingMesh = InCuttingMesh->GetMeshRef();
-
-				if (InDynCuttingMesh.VertexCount() > 0)
+				if (FMeshDescription* MeshDescription = bUseHiRes ? InCuttingMesh->GetHiResMeshDescription() : InCuttingMesh->GetMeshDescription(LODLevel))
 				{
-					const int32 InRandomSeed = GetValue(Context, &RandomSeed);
-					const int32 InNumberToScatter = GetValue(Context, &NumberToScatter);
-					const int32 InGridX = GetValue(Context, &GridX);
-					const int32 InGridY = GetValue(Context, &GridY);
-					const int32 InGridZ = GetValue(Context, &GridZ);
-					const float InVariability = GetValue(Context, &Variability);
-					const float InMinScaleFactor = GetValue(Context, &MinScaleFactor);
-					const float InMaxScaleFactor = GetValue(Context, &MaxScaleFactor);
-					const float InRollRange = GetValue(Context, &RollRange);
-					const float InPitchRange = GetValue(Context, &PitchRange);
-					const float InYawRange = GetValue(Context, &YawRange);
-					const FTransform InTransform = GetValue(Context, &Transform);
-					const float InChanceToFracture = GetValue(Context, &ChanceToFracture);
-					const float InCollisionSampleSpacing = GetValue(Context, &CollisionSampleSpacing);
-
-					TArray<FTransform> MeshTransforms;
-
-					if (CutDistribution == EMeshCutterCutDistribution::SingleCut)
+					// If HiRes is empty then use LoRes
+					if (bUseHiRes && MeshDescription->Vertices().Num() == 0)
 					{
-						MeshTransforms.Add(InTransform);
-					}
-					else
-					{
-						FFractureEngineFracturing::GenerateMeshTransforms(MeshTransforms,
-							InBoundingBox,
-							InRandomSeed,
-							CutDistribution,
-							InNumberToScatter,
-							InGridX,
-							InGridY,
-							InGridZ,
-							InVariability,
-							InMinScaleFactor,
-							InMaxScaleFactor,
-							bRandomOrientation,
-							InRollRange,
-							InPitchRange,
-							InYawRange);
+						MeshDescription = InCuttingMesh->GetMeshDescription(LODLevel);
 					}
 
-					int32 ResultGeometryIndex = FFractureEngineFracturing::MeshCutter(MeshTransforms,
-						InCollection,
-						InTransformSelection,
-						InDynCuttingMesh,
-						InTransform,
-						InRandomSeed,
-						InChanceToFracture,
-						SplitIslands,
-						InCollisionSampleSpacing);
-
-					FDataflowTransformSelection NewSelection;
-					FDataflowTransformSelection OriginalSelection;
-
-					if (ResultGeometryIndex != INDEX_NONE)
+					if (MeshDescription->Vertices().Num() > 0)
 					{
-						if (InCollection.HasAttribute("TransformIndex", FGeometryCollection::GeometryGroup))
+						TObjectPtr<UDynamicMesh> NewMesh = NewObject<UDynamicMesh>();
+						NewMesh->Reset();
+
+						UE::Geometry::FDynamicMesh3& DynCuttingMesh = NewMesh->GetMeshRef();
 						{
-							const TManagedArray<int32>& TransformIndices = InCollection.GetAttribute<int32>("TransformIndex", FGeometryCollection::GeometryGroup);
+							FMeshDescriptionToDynamicMesh ConverterToDynamicMesh;
+							ConverterToDynamicMesh.Convert(MeshDescription, DynCuttingMesh);
+						}
 
-							NewSelection.Initialize(TransformIndices.Num(), false);
-							OriginalSelection.Initialize(TransformIndices.Num(), false);
+						const int32 InRandomSeed = GetValue(Context, &RandomSeed);
+						const int32 InNumberToScatter = GetValue(Context, &NumberToScatter);
+						const int32 InGridX = GetValue(Context, &GridX);
+						const int32 InGridY = GetValue(Context, &GridY);
+						const int32 InGridZ = GetValue(Context, &GridZ);
+						const float InVariability = GetValue(Context, &Variability);
+						const float InMinScaleFactor = GetValue(Context, &MinScaleFactor);
+						const float InMaxScaleFactor = GetValue(Context, &MaxScaleFactor);
+						const float InRollRange = GetValue(Context, &RollRange);
+						const float InPitchRange = GetValue(Context, &PitchRange);
+						const float InYawRange = GetValue(Context, &YawRange);
+						const FTransform InTransform = GetValue(Context, &Transform);
+						const float InChanceToFracture = GetValue(Context, &ChanceToFracture);
+						const float InCollisionSampleSpacing = GetValue(Context, &CollisionSampleSpacing);
 
-							// The newly fractured pieces are added to the end of the transform array (starting position is ResultGeometryIndex)
-							for (int32 Idx = ResultGeometryIndex; Idx < TransformIndices.Num(); ++Idx)
+						TArray<FTransform> MeshTransforms;
+
+						if (CutDistribution == EMeshCutterCutDistribution::SingleCut)
+						{
+							MeshTransforms.Add(InTransform);
+						}
+						else
+						{
+							FFractureEngineFracturing::GenerateMeshTransforms(MeshTransforms,
+								InBoundingBox,
+								InRandomSeed,
+								CutDistribution,
+								InNumberToScatter,
+								InGridX,
+								InGridY,
+								InGridZ,
+								InVariability,
+								InMinScaleFactor,
+								InMaxScaleFactor,
+								bRandomOrientation,
+								InRollRange,
+								InPitchRange,
+								InYawRange);
+						}
+
+						int32 ResultGeometryIndex = FFractureEngineFracturing::MeshCutter(MeshTransforms,
+							InCollection,
+							InTransformSelection,
+							DynCuttingMesh,
+							InTransform,
+							InRandomSeed,
+							InChanceToFracture,
+							SplitIslands,
+							InCollisionSampleSpacing);
+
+						FDataflowTransformSelection NewSelection;
+						FDataflowTransformSelection OriginalSelection;
+
+						if (ResultGeometryIndex != INDEX_NONE)
+						{
+							if (InCollection.HasAttribute("TransformIndex", FGeometryCollection::GeometryGroup))
 							{
-								int32 BoneIdx = TransformIndices[Idx];
-								NewSelection.SetSelected(BoneIdx);
-							}
+								const TManagedArray<int32>& TransformIndices = InCollection.GetAttribute<int32>("TransformIndex", FGeometryCollection::GeometryGroup);
 
-							for (int32 Idx = 0; Idx < InTransformSelection.Num(); ++Idx)
-							{
-								if (InTransformSelection.IsSelected(Idx))
+								NewSelection.Initialize(TransformIndices.Num(), false);
+								OriginalSelection.Initialize(TransformIndices.Num(), false);
+
+								// The newly fractured pieces are added to the end of the transform array (starting position is ResultGeometryIndex)
+								for (int32 Idx = ResultGeometryIndex; Idx < TransformIndices.Num(); ++Idx)
 								{
-									OriginalSelection.SetSelected(Idx);
+									int32 BoneIdx = TransformIndices[Idx];
+									NewSelection.SetSelected(BoneIdx);
+								}
+
+								for (int32 Idx = 0; Idx < InTransformSelection.Num(); ++Idx)
+								{
+									if (InTransformSelection.IsSelected(Idx))
+									{
+										OriginalSelection.SetSelected(Idx);
+									}
 								}
 							}
 						}
+
+						SetValue(Context, MoveTemp(InCollection), &Collection);
+						SetValue(Context, OriginalSelection, &TransformSelection);
+						SetValue(Context, NewSelection, &NewGeometryTransformSelection);
+
+						return;
 					}
-
-					SetValue(Context, MoveTemp(InCollection), &Collection);
-					SetValue(Context, OriginalSelection, &TransformSelection);
-					SetValue(Context, NewSelection, &NewGeometryTransformSelection);
-
-					return;
 				}
 			}
 		}
@@ -925,6 +946,9 @@ void FMeshCutterDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataf
 		SafeForwardInput(Context, &Collection, &Collection);
 		SetValue(Context, InTransformSelection, &TransformSelection);
 		SetValue(Context, FDataflowTransformSelection(), &NewGeometryTransformSelection);
+#else
+		ensureMsgf(false, TEXT("FMeshCutterDataflowNode is an editor only node."));
+#endif
 	}
 }
 
