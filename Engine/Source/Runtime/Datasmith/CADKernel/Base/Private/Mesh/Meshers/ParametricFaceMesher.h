@@ -153,7 +153,7 @@ private:
 	void Mesh(FTopologicalEdge& InEdge, bool bFinalMeshing = true);
 	void Mesh(FTopologicalVertex& Vertex);
 	void MeshVerticesOfFace(FTopologicalFace& Face);
-	void MeshPlanarFace();
+	bool MeshPlanarFace();
 
 	void MeshFaceLoops();
 
