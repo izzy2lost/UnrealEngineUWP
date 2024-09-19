@@ -111,7 +111,7 @@ public:
 	/*
 	* Checks to see whether we can currently import the requested entity, evaluating any conditions that may exist first.
 	*/
-	MOVIESCENE_API bool CanImportEntity(UMovieSceneEntitySystemLinker* Linker, const FEntityImportSequenceParams& ImportParams, const FMovieSceneEntityComponentField* EntityField, const FMovieSceneEvaluationFieldEntityQuery& Query, FMovieSceneEvaluationFieldEntitySet& OutPerTickConditionalEntities, TMap<uint32, bool>& ConditionResultCache, bool bCacheAllResults=false);
+	MOVIESCENE_API bool CanImportEntity(UMovieSceneEntitySystemLinker* Linker, const FEntityImportSequenceParams& ImportParams, const FMovieSceneEntityComponentField* EntityField, const FMovieSceneEvaluationFieldEntityQuery& Query, FMovieSceneEvaluationFieldEntitySet& OutPerTickConditionalEntities, TMap<uint32, bool>& ConditionResultCache, bool bUpdatingPerTickEntities=false);
 
 	
 	UE_DEPRECATED(5.5, "Please call the version that takes OutPerTickConditionalEntities and ConditionResultCache")

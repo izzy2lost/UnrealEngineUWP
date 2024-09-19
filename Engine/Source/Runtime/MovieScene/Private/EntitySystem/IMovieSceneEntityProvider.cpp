@@ -33,7 +33,8 @@ FMovieSceneEntityID FImportedEntity::Manufacture(const FEntityImportParams& Para
 	.AddTagConditional(Components->Tags.AlwaysCacheInitialValue, Params.Sequence.bDynamicWeighting)
 	.AddConditional(Components->SequenceID, Params.Sequence.SequenceID, Params.Sequence.SequenceID != MovieSceneSequenceID::Root)
 	.AddConditional(Components->RootInstanceHandle, Params.Sequence.RootInstanceHandle, Params.Sequence.RootInstanceHandle.IsValid())
-	.AddConditional(Components->InstanceHandle, Params.Sequence.InstanceHandle, Params.Sequence.InstanceHandle.IsValid());
+	.AddConditional(Components->InstanceHandle, Params.Sequence.InstanceHandle, Params.Sequence.InstanceHandle.IsValid())
+	.AddConditional(Components->Condition, Params.EntityMetaData ? Params.EntityMetaData->Condition : nullptr, Params.EntityMetaData && Params.EntityMetaData->Condition);
 
 	FEntityAllocationWriteContext WriteContext(*EntityManager);
 
