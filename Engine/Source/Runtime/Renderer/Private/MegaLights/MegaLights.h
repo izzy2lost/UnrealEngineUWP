@@ -21,6 +21,13 @@ public:
 	FRDGTextureRef Texture = nullptr;
 };
 
+enum class EMegaLightsMode
+{
+	Disabled,
+	EnabledRT,
+	EnabledVSM
+};
+
 // Public MegaLights interface
 namespace MegaLights
 {
@@ -32,8 +39,7 @@ namespace MegaLights
 	bool IsUsingGlobalSDF(const FSceneViewFamily& ViewFamily);
 	bool IsUsingLightFunctions(const FSceneViewFamily& ViewFamily);
 
-	bool IsLightSupported(const FSceneViewFamily& ViewFamily, uint8 LightType, ECastRayTracedShadow::Type CastRayTracedShadow, bool bVSMEnabled);
-	bool AllowShadowMaps(uint8 LightType, ECastRayTracedShadow::Type CastRayTracedShadow);
+	EMegaLightsMode GetMegaLightsMode(const FSceneViewFamily& ViewFamily, uint8 LightType, bool bLightAllowsMegaLights, bool bVSMEnabled);
 	bool UseHardwareRayTracing(const FSceneViewFamily& ViewFamily);
 	bool UseInlineHardwareRayTracing(const FSceneViewFamily& ViewFamily);
 	bool ShouldCompileShaders(EShaderPlatform ShaderPlatform);

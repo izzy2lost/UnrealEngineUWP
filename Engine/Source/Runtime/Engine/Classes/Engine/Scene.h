@@ -759,6 +759,9 @@ struct FPostProcessSettings
 	uint8 bOverride_ChromaticAberrationStartOffset:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint8 bOverride_bMegaLights:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
 	uint8 bOverride_AmbientCubemapTint:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
@@ -1722,6 +1725,15 @@ struct FPostProcessSettings
 	/** Until what roughness we fade the screen space reflections, 0.8 works well, smaller can run faster */
 	UPROPERTY(interp, BlueprintReadWrite, Category="Reflections|Screen Space Reflections", meta=(ClampMin = "0.01", ClampMax = "1.0", editcondition = "bOverride_ScreenSpaceReflectionMaxRoughness", DisplayName = "Max Roughness"))
 	float ScreenSpaceReflectionMaxRoughness;
+
+	/** 
+	 * Allows forcing MegaLights on or off for this volume, regardless of the project setting for MegaLights. 
+	 * MegaLights will stochastically sample lights, which allows many shadow casting lights to be rendered efficiently, with a consistent and low GPU cost.
+	 * When MegaLights is enabled, other direct lighting algorithms like Deferred Shading will no longer be used, and other shadowing methods like Ray Traced Shadows, Distance Field Shadows and Shadow Maps will no longer be used.
+	 * MegaLights requires Hardware Ray Tracing and Shader Model 6.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rendering Features", meta = (editcondition = "bOverride_bMegaLights", DisplayName = "MegaLights"))
+	uint8 bMegaLights : 1;
 
 	/** AmbientCubemap tint color */
 	UPROPERTY(interp, BlueprintReadWrite, Category="Rendering Features|Ambient Cubemap", meta=(editcondition = "bOverride_AmbientCubemapTint", DisplayName = "Tint", HideAlphaChannel))

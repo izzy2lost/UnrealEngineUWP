@@ -1622,6 +1622,7 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 		LERP_PP(BloomConvolutionPreFilterMin);
 		LERP_PP(BloomConvolutionPreFilterMax);
 		LERP_PP(BloomConvolutionPreFilterMult);
+		SET_PP(bMegaLights);
 		LERP_PP(AmbientCubemapIntensity);
 		LERP_PP(AmbientCubemapTint);
 		LERP_PP(CameraShutterSpeed);
@@ -1978,6 +1979,11 @@ void FSceneView::StartFinalPostprocessSettings(FVector InViewLocation)
 			{
 				FinalPostProcessSettings.AmbientOcclusionStaticFraction = 0.0f;
 			}
+		}
+
+		{
+			static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.MegaLights.EnableForProject"));
+			FinalPostProcessSettings.bMegaLights = CVar->GetValueOnGameThread() != 0;
 		}
 
 		{
