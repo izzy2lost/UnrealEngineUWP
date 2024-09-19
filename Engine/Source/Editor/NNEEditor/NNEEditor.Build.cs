@@ -41,17 +41,6 @@ public class NNEEditor : ModuleRules
 			PublicDefinitions.Add("NNEEDITORONNXTOOLS_SUPPORTED");
 			PublicDefinitions.Add("NNEEDITORONNXTOOLS_SHAREDLIB_FILENAME=" + SharedLibFileName);
 		}
-		else if (Target.Platform == UnrealTargetPlatform.Linux)
-		{
-			string SharedLibFileName = "libNNEEditorOnnxTools.so";
-
-			PublicDelayLoadDLLs.Add(SharedLibFileName);
-
-			RuntimeDependencies.Add("$(TargetOutputDir)/" + SharedLibFileName, Path.Combine(SharedLibPath, SharedLibFileName));
-
-			PublicDefinitions.Add("NNEEDITORONNXTOOLS_SUPPORTED");
-			PublicDefinitions.Add("NNEEDITORONNXTOOLS_SHAREDLIB_FILENAME=" + SharedLibFileName);
-		}
 		else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
 			string SharedLibFileName = "libNNEEditorOnnxTools.dylib";
