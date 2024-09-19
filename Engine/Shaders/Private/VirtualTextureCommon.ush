@@ -13,6 +13,10 @@
 #error NUM_VIRTUALTEXTURE_SAMPLES should be set to the number of VT samples that will be done before including this file (exluding any lightmap samples)
 #endif
 
+#ifndef NUM_VIRTUALTEXTURE_FEEDBACK_REQUESTS
+#define NUM_VIRTUALTEXTURE_FEEDBACK_REQUESTS NUM_VIRTUALTEXTURE_SAMPLES
+#endif
+
 #ifndef LIGHTMAP_VT_ENABLED
 #define LIGHTMAP_VT_ENABLED 0
 #endif
@@ -21,7 +25,7 @@
 struct FVirtualTextureFeedbackParams
 {
 	uint Request;	// The tile to request for this pixel
-#if (NUM_VIRTUALTEXTURE_SAMPLES + LIGHTMAP_VT_ENABLED) > 1	
+#if (NUM_VIRTUALTEXTURE_FEEDBACK_REQUESTS + LIGHTMAP_VT_ENABLED) > 1	
 	uint RequestId;	// The id of the VT texture sample this pixel will generate feedback for
 #endif	
 };
@@ -29,8 +33,8 @@ struct FVirtualTextureFeedbackParams
 /** Initializes the FVirtualTextureFeedbackParams for the pixel shader. */
 void InitializeVirtualTextureFeedback(in out FVirtualTextureFeedbackParams Params, uint2 SvPosition, uint FrameNumber)
 {
-#if (NUM_VIRTUALTEXTURE_SAMPLES + LIGHTMAP_VT_ENABLED) > 1
-	const uint NumVTSamplesInShader = NUM_VIRTUALTEXTURE_SAMPLES + LIGHTMAP_VT_ENABLED;
+#if (NUM_VIRTUALTEXTURE_FEEDBACK_REQUESTS + LIGHTMAP_VT_ENABLED) > 1
+	const uint NumVTSamplesInShader = NUM_VIRTUALTEXTURE_FEEDBACK_REQUESTS + LIGHTMAP_VT_ENABLED;
 	const uint2 PixelPos = SvPosition >> View.VirtualTextureFeedbackShift;
 	const uint FeedbackPos = PixelPos.y * View.VirtualTextureFeedbackStride + PixelPos.x;
 	Params.RequestId = (View.VirtualTextureFeedbackSampleOffset + FeedbackPos) % NumVTSamplesInShader;
@@ -43,7 +47,7 @@ void InitializeVirtualTextureFeedback(in out FVirtualTextureFeedbackParams Param
 /** Store feedback info for a VT request in the passed in FVirtualTextureFeedbackParams. */
 void StoreVirtualTextureFeedback(in out FVirtualTextureFeedbackParams Params, uint RequestId, uint Request)
 {
-#if (NUM_VIRTUALTEXTURE_SAMPLES + LIGHTMAP_VT_ENABLED) > 1
+#if (NUM_VIRTUALTEXTURE_FEEDBACK_REQUESTS + LIGHTMAP_VT_ENABLED) > 1
 	Params.Request = (RequestId == Params.RequestId) ? Request : Params.Request;
 #else
 	Params.Request = Request;	
