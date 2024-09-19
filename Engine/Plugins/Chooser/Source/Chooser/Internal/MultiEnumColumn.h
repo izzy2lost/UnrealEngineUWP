@@ -26,7 +26,6 @@ struct FChooserMultiEnumRowData
 	}
 };
 
-
 USTRUCT(DisplayName = "Enum (Or)", Meta = (Category = "Filter", Tooltip = "A column which filters rows using an Enum variable, where rows pass if the enum is one of any of the checked values."))
 struct CHOOSER_API FMultiEnumColumn : public FChooserColumnBase
 {

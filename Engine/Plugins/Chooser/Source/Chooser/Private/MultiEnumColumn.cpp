@@ -61,25 +61,45 @@ void FMultiEnumColumn::Filter(FChooserEvaluationContext& Context, const FChooser
 
 #if WITH_EDITOR
 	void FMultiEnumColumn::AddToDetails (FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex)
+{
+	FText DisplayName;
+	InputValue.Get<FChooserParameterBase>().GetDisplayName(DisplayName);
+	FName PropertyName("RowData",ColumnIndex);
+	if (const UEnum* Enum = InputValue.Get<FChooserParameterEnumBase>().GetEnum())
 	{
-		FText DisplayName;
-		InputValue.Get<FChooserParameterBase>().GetDisplayName(DisplayName);
-		FName PropertyName("RowData",ColumnIndex);
-
-		FPropertyBagPropertyDesc PropertyDesc(PropertyName,  EPropertyBagPropertyType::Struct, FChooserMultiEnumRowData::StaticStruct());
+		FPropertyBagPropertyDesc PropertyDesc(PropertyName,  EPropertyBagContainerType::Array, EPropertyBagPropertyType::Enum, Enum);
 		PropertyDesc.MetaData.Add(FPropertyBagPropertyDescMetaData("DisplayName", DisplayName.ToString()));
 		PropertyBag.AddProperties({PropertyDesc});
-		PropertyBag.SetValueStruct(PropertyName, RowValues[RowIndex]);
-	}
 	
-	void FMultiEnumColumn::SetFromDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex)
-	{
-		FName PropertyName("RowData",ColumnIndex);
+		FPropertyBagArrayRef ArrayRef = PropertyBag.GetMutableArrayRef(PropertyName).GetValue();
 
-		TValueOrError<FStructView, EPropertyBagResult> Result = PropertyBag.GetValueStruct(PropertyName, FChooserMultiEnumRowData::StaticStruct());
-		if (const FStructView* StructView = Result.TryGetValue())
+		int32 NumEnums = Enum->NumEnums();
+		for(int32 i=0; i<NumEnums; i++)
 		{
-			RowValues[RowIndex] = StructView->Get<FChooserMultiEnumRowData>();
+			if (RowValues[RowIndex].Value & (1 << Enum->GetValueByIndex(i)))
+			{
+				ArrayRef.AddValue();
+				ArrayRef.SetValueEnum(ArrayRef.Num()-1,Enum->GetValueByIndex(i), Enum);
+			}
 		}
 	}
+}
+	
+void FMultiEnumColumn::SetFromDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex)
+{
+	FName PropertyName("RowData",ColumnIndex);
+
+	if (const UEnum* Enum = InputValue.Get<FChooserParameterEnumBase>().GetEnum())
+	{
+		TValueOrError<const FPropertyBagArrayRef, EPropertyBagResult> Result = PropertyBag.GetArrayRef(PropertyName);
+		if (const FPropertyBagArrayRef* ArrayRef = Result.TryGetValue())
+		{
+			RowValues[RowIndex].Value = 0;
+			for(int32 i = 0; i<ArrayRef->Num(); i++)
+			{
+				RowValues[RowIndex].Value  |= (1 << ArrayRef->GetValueEnum(i, Enum).GetValue());
+			}
+		}
+	}
+}
 #endif
