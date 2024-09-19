@@ -1444,6 +1444,9 @@ public:
 	/** Sets whether the application is treating mouse events as imitating touch events.  Optional CursorLocation can be supplied to override the platform's belief of where the cursor is */
 	SLATE_API void SetGameIsFakingTouchEvents(const bool bIsFaking, FVector2D* CursorLocation = nullptr);
 
+	/** Sets whether the application is allowed to fake touches or not */
+	SLATE_API void SetGameAllowsFakingTouchEvents(const bool bAllowFaking);
+
 	/** Sets the handler for otherwise unhandled key down events. This is used by the editor to provide a global action list, if the key was not consumed by any widget. */
 	SLATE_API void SetUnhandledKeyDownEventHandler( const FOnKeyEvent& NewHandler );
 
@@ -2039,6 +2042,9 @@ private:
 
 	/**For desktop platforms that the touch move event be called when this variable is true */
 	bool bIsFakingTouched;
+
+	/** Restricts or allows the faking of touches. */
+	bool bAllowFakingTouch;
 
 	/** Force Mouse Pointer Capture to always occur even when the application is not active or widget is not a virtual window */
 	bool bHandleDeviceInputWhenApplicationNotActive;
