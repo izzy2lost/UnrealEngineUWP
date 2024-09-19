@@ -897,6 +897,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Interp, Category = Clothing, meta = (UIMin = 0.0, UIMax = 10.0, ClampMin = 0.0, ClampMax = 10000.0))
 	float ClothGeometryScale = 1.f;
 
+private:
+	/*
+	 * Max LOD level that post-process AnimBPs are evaluated. Overrides the setting of the same name on the skeletal mesh.
+	 * For example if you have the threshold set to 2, it will evaluate until including LOD 2 (based on 0 index). In case the LOD level gets set to 3, it will stop evaluating the post-process AnimBP.
+	 * Setting it to -1 will always evaluate it and disable LODing overrides for this component.
+	 */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category=Animation, meta= (DisplayName = "Post-Process AnimBP LOD Threshold", AllowPrivateAccess = "true"))
+	int32 PostProcessAnimBPLODThreshold = INDEX_NONE;
+
+public:
 	/** Notification when constraint is broken. */
 	UPROPERTY(BlueprintAssignable)
 	FConstraintBrokenSignature OnConstraintBroken;
@@ -1985,6 +1995,7 @@ public:
 	//~ End USkinnedMeshComponent Interface
 
 	// Conditions used to gate when post process events happen
+	ENGINE_API bool ShouldEvaluatePostProcessAnimBP() const;
 	ENGINE_API bool ShouldUpdatePostProcessInstance() const;
 	ENGINE_API bool ShouldPostUpdatePostProcessInstance() const;
 	ENGINE_API bool ShouldEvaluatePostProcessInstance() const;
