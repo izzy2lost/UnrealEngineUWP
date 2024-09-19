@@ -342,6 +342,10 @@ void UScriptableToolsEditorMode::Exit()
 		}
 	}
 
+	// Explicitly unload all tools from the set, just in case
+	ScriptableTools->UnloadAllTools();
+	ScriptableTools = nullptr;
+
 	// Call base Exit method to ensure proper cleanup
 	UEdMode::Exit();
 }
