@@ -603,15 +603,6 @@ void FControlRigEditMode::Tick(FEditorViewportClient* ViewportClient, float Delt
 	}
 	CheckMovieSceneSig();
 
-	if (bool* GameView = ViewportToGameView.Find(ViewportClient->Viewport))
-	{
-		*GameView = ViewportClient->IsInGameView();
-	} 
-	else
-	{
-		ViewportToGameView.Add(ViewportClient->Viewport, ViewportClient->IsInGameView());
-	}
-
 	if(DeferredItemsToFrame.Num() > 0)
 	{
 		TGuardValue<FEditorViewportClient*> ViewportGuard(CurrentViewportClient, ViewportClient);
@@ -843,7 +834,8 @@ void FControlRigEditMode::Render(const FSceneView* View, FViewport* Viewport, FP
 	DragToolHandler.Render3DDragTool(View, PDI);
 
 	const UControlRigEditModeSettings* Settings = GetDefault<UControlRigEditModeSettings>();
-	const bool bIsInGameView = !AreEditingControlRigDirectly() ? (ViewportToGameView.Find(Viewport) && ViewportToGameView[Viewport]) : false;
+	FEditorViewportClient* EditorViewportClient = (FEditorViewportClient*)Viewport->GetClient();
+	const bool bIsInGameView = !AreEditingControlRigDirectly() ? EditorViewportClient && EditorViewportClient->IsInGameView() : false;
 	bool bRender = !Settings->bHideControlShapes;
 	for (TWeakObjectPtr<UControlRig>& ControlRigPtr : RuntimeControlRigs)
 	{
