@@ -213,6 +213,13 @@ static TAutoConsoleVariable<int32> CVarMegaLightsVolumeStochasticSampleInterpola
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarMegaLightsVolumeLightFunctions(
+	TEXT("r.MegaLights.Volume.LightFunctions"),
+	1,
+	TEXT("Whether to support light functions inside the mega light translucency volume."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarMegaLightsVolumeDebug(
 	TEXT("r.MegaLights.Volume.Debug"),
 	0,
@@ -265,6 +272,11 @@ namespace MegaLights
 	bool UseVolume()
 	{
 		return CVarMegaLightsVolume.GetValueOnRenderThread() != 0;
+	}
+
+	bool VolumeUsesLightFunction()
+	{
+		return CVarMegaLightsVolumeLightFunctions.GetValueOnRenderThread() != 0;
 	}
 
 	bool IsUsingVirtualShadowMaps(const FSceneViewFamily& ViewFamily)
@@ -579,8 +591,9 @@ class FVolumeGenerateLightSamplesCS : public FGlobalShader
 
 	class FNumSamplesPerVoxel1d : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_VOXEL_1D", 2, 4);
 	class FLightSoftFading : SHADER_PERMUTATION_BOOL("USE_LIGHT_SOFT_FADING");
+	class FUseLightFunctionAtlas : SHADER_PERMUTATION_BOOL("USE_LIGHT_FUNCTION_ATLAS");
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FNumSamplesPerVoxel1d, FLightSoftFading, FDebugMode>;
+	using FPermutationDomain = TShaderPermutationDomain<FNumSamplesPerVoxel1d, FLightSoftFading, FUseLightFunctionAtlas, FDebugMode>;
 
 	static int32 GetGroupSize()
 	{
@@ -819,8 +832,9 @@ class FVolumeShadeLightSamplesCS : public FGlobalShader
 
 	class FNumSamplesPerVoxel1d : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_VOXEL_1D", 2, 4);
 	class FLightSoftFading : SHADER_PERMUTATION_BOOL("USE_LIGHT_SOFT_FADING");
+	class FUseLightFunctionAtlas : SHADER_PERMUTATION_BOOL("USE_LIGHT_FUNCTION_ATLAS");
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FNumSamplesPerVoxel1d, FLightSoftFading, FDebugMode>;
+	using FPermutationDomain = TShaderPermutationDomain<FNumSamplesPerVoxel1d, FLightSoftFading, FUseLightFunctionAtlas, FDebugMode>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -1440,6 +1454,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 				FVolumeGenerateLightSamplesCS::FPermutationDomain PermutationVector;
 				PermutationVector.Set<FVolumeGenerateLightSamplesCS::FNumSamplesPerVoxel1d>(NumSamplesPerVoxel3d.X * NumSamplesPerVoxel3d.Y * NumSamplesPerVoxel3d.Z);
 				PermutationVector.Set<FVolumeGenerateLightSamplesCS::FLightSoftFading >(GetVolumetricFogLightSoftFading() > 0.0f);
+				PermutationVector.Set<FVolumeGenerateLightSamplesCS::FUseLightFunctionAtlas >(bUseLightFunctionAtlas && MegaLights::VolumeUsesLightFunction());
 				PermutationVector.Set<FVolumeGenerateLightSamplesCS::FDebugMode>(bVolumeDebug);
 				auto ComputeShader = View.ShaderMap->GetShader<FVolumeGenerateLightSamplesCS>(PermutationVector);
 
@@ -1618,6 +1633,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			FVolumeShadeLightSamplesCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FVolumeShadeLightSamplesCS::FNumSamplesPerVoxel1d>(NumSamplesPerVoxel3d.X * NumSamplesPerVoxel3d.Y * NumSamplesPerVoxel3d.Z);
 			PermutationVector.Set<FVolumeShadeLightSamplesCS::FLightSoftFading>(GetVolumetricFogLightSoftFading() > 0.0f);
+			PermutationVector.Set<FVolumeShadeLightSamplesCS::FUseLightFunctionAtlas >(bUseLightFunctionAtlas && MegaLights::VolumeUsesLightFunction());
 			PermutationVector.Set<FVolumeShadeLightSamplesCS::FDebugMode>(bVolumeDebug);
 			auto ComputeShader = View.ShaderMap->GetShader<FVolumeShadeLightSamplesCS>(PermutationVector);
 
