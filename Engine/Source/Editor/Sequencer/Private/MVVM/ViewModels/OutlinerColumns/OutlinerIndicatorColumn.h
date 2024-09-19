@@ -12,12 +12,12 @@ namespace UE::Sequencer
 /**
  * A column for showing various decorators on the presence of features (e.g. conditions, time warp) on that row.
  */
-class FOutlinerDecoratorColumn
+class FOutlinerIndicatorColumn
 	: public FOutlinerColumnBase
 {
 public:
 
-	FOutlinerDecoratorColumn();
+	FOutlinerIndicatorColumn();
 
 	bool IsItemCompatibleWithColumn(const FCreateOutlinerColumnParams& InParams) const override;
 	TSharedPtr<SWidget> CreateColumnWidget(const FCreateOutlinerColumnParams& InParams, const TSharedRef<ISequencerTreeViewRow>& TreeViewRow) override;

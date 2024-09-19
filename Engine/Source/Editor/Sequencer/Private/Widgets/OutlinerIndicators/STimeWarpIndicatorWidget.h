@@ -8,17 +8,17 @@ namespace UE::Sequencer
 {	
 
 class IOutlinerColumn;
-class IOutlinerDecorator;
-class FTimeWarpOutlinerDecoratorBuilder;
+class IOutlinerIndicator;
+class FTimeWarpOutlinerIndicatorBuilder;
 
 /**
- * A widget that shows an decorator based on the presence of time warp on a row
+ * A widget that shows an indicator based on the presence of time warp on a row
  */
-class STimeWarpDecoratorWidget
+class STimeWarpIndicatorWidget
 	: public SColumnToggleWidget
 {
 public:
-	SLATE_BEGIN_ARGS(STimeWarpDecoratorWidget) {}
+	SLATE_BEGIN_ARGS(STimeWarpIndicatorWidget) {}
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, const TWeakPtr<IOutlinerColumn> InWeakOutlinerColumn, const FCreateOutlinerColumnParams& InParams);
@@ -55,7 +55,7 @@ protected:
 
 private:
 
-	TWeakPtr<FTimeWarpOutlinerDecoratorBuilder> WeakOutlinerDecorator;
+	TWeakPtr<FTimeWarpOutlinerIndicatorBuilder> WeakOutlinerIndicator;
 };
 
 } // namespace UE::Sequencer

@@ -37,7 +37,7 @@ FText FSequencerTrackFilter_Condition::GetDisplayName() const
 
 FSlateIcon FSequencerTrackFilter_Condition::GetIcon() const
 {
-	return FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("Sequencer.Decorator.Condition"));
+	return FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("Sequencer.Indicator.Condition"));
 }
 
 FString FSequencerTrackFilter_Condition::GetName() const

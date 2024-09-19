@@ -28,7 +28,7 @@ TSharedPtr<SWidget> FTimeWarpChannelModel::CreateOutlinerViewForColumn(const FCr
 	{
 		return MakeButton(
 			LOCTEXT("ChangeTimeWarpToolTip", "Change Time Warp to utilize a different curve type"),
-			FAppStyle::GetBrush("Sequencer.Outliner.Decorators.TimeWarp"),
+			FAppStyle::GetBrush("Sequencer.Outliner.Indicator.TimeWarp"),
 			FOnGetContent::CreateSP(this, &FTimeWarpChannelModel::BuildReplaceTimeWarpSubMenu),
 			OutlinerItem.AsModel());
 	}

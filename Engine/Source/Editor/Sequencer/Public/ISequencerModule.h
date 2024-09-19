@@ -29,7 +29,7 @@ namespace UE::Sequencer
 	class FTrackModel;
 	class IObjectSchema;
 	class IOutlinerColumn;
-	class IOutlinerDecoratorBuilder;
+	class IOutlinerIndicatorBuilder;
 } // namespace UE::Sequencer
 
 enum class ECurveEditorTreeFilterType : uint32;
@@ -64,8 +64,8 @@ DECLARE_DELEGATE_RetVal_OneParam(TSharedPtr<UE::Sequencer::FTrackModel>, FOnCrea
 /** A delegate which will create an outliner column */
 DECLARE_DELEGATE_RetVal(TSharedRef<UE::Sequencer::IOutlinerColumn>, FOnCreateOutlinerColumn);
 
-/** A delegate which will create an outliner decorator item */
-DECLARE_DELEGATE_RetVal(TSharedRef<UE::Sequencer::IOutlinerDecoratorBuilder>, FOnCreateOutlinerDecorator);
+/** A delegate which will create an outliner indicator item */
+DECLARE_DELEGATE_RetVal(TSharedRef<UE::Sequencer::IOutlinerIndicatorBuilder>, FOnCreateOutlinerIndicator);
 
 /** A delegate that is executed when adding menu content. */
 DECLARE_DELEGATE_OneParam(FOnGetContextMenuContent, FMenuBuilder& /*MenuBuilder*/);
@@ -275,19 +275,19 @@ public:
 	virtual void UnregisterOutlinerColumn(FDelegateHandle InHandle) = 0;
 
 	/**
-	 * Registers a delegate that will create an outliner decorator item
+	 * Registers a delegate that will create an outliner indicator item
 	 *
 	 * @param InCreator Delegate to register
 	 * @return A handle to the newly added delegate
 	 */
-	virtual FDelegateHandle RegisterOutlinerDecorator(FOnCreateOutlinerDecorator InCreator) = 0;
+	virtual FDelegateHandle RegisterOutlinerIndicator(FOnCreateOutlinerIndicator InCreator) = 0;
 
 	/**
-	 * Unregisters a previously registered delegate for creating an outliner decorator item
+	 * Unregisters a previously registered delegate for creating an outliner indicator item
 	 *
 	 * @param InHandle Handle to the delegate to unregister
 	 */
-	virtual void UnregisterOutlinerDecorator(FDelegateHandle InHandle) = 0;
+	virtual void UnregisterOutlinerIndicator(FDelegateHandle InHandle) = 0;
 
 	/**
 	 * Registers a delegate that will be called when a sequencer is created

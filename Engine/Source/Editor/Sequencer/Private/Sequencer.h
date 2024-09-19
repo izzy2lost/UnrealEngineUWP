@@ -141,7 +141,7 @@ public:
 	 * @param TrackEditorDelegates Delegates to call to create auto-key handlers for this sequencer.
 	 * @param EditorObjectBindingDelegates Delegates to call to create object bindings for this sequencer.
 	 */
-	void InitSequencer(const FSequencerInitParams& InitParams, const TSharedRef<ISequencerObjectChangeListener>& InObjectChangeListener, const TArray<FOnCreateTrackEditor>& TrackEditorDelegates, const TArray<FOnCreateEditorObjectBinding>& EditorObjectBindingDelegatess, const TArray<FOnCreateOutlinerColumn>& OutlinerColumnDelegates, const TArray<FOnCreateOutlinerDecorator>& OutlinerDecoratorDelegates);
+	void InitSequencer(const FSequencerInitParams& InitParams, const TSharedRef<ISequencerObjectChangeListener>& InObjectChangeListener, const TArray<FOnCreateTrackEditor>& TrackEditorDelegates, const TArray<FOnCreateEditorObjectBinding>& EditorObjectBindingDelegatess, const TArray<FOnCreateOutlinerColumn>& OutlinerColumnDelegates, const TArray<FOnCreateOutlinerIndicator>& OutlinerIndicatorDelegates);
 
 	/**
 	 * Reinitializes sequencer after the playback context has changed
@@ -316,11 +316,11 @@ public:
 	}
 
 	/**
-	* @return Outliner Decorator Items registered to the sequencer by column name
+	* @return Outliner Indicator Items registered to the sequencer by column name
 	*/
-	const TMap<FName, TSharedPtr<UE::Sequencer::IOutlinerDecoratorBuilder>>& GetOutlinerDecorators() const
+	const TMap<FName, TSharedPtr<UE::Sequencer::IOutlinerIndicatorBuilder>>& GetOutlinerIndicators() const
 	{
-		return OutlinerDecorators;
+		return OutlinerIndicators;
 	}
 
 public:
@@ -1279,8 +1279,8 @@ private:
 	/** List of Outliner column creators that are supported by the Sequencer. */
 	TMap<FName, TSharedPtr<UE::Sequencer::IOutlinerColumn>> OutlinerColumns;
 
-	/** List of Outliner decorator item creators that are supported by the Sequencer. */
-	TMap<FName, TSharedPtr<UE::Sequencer::IOutlinerDecoratorBuilder>> OutlinerDecorators;
+	/** List of Outliner indicator item creators that are supported by the Sequencer. */
+	TMap<FName, TSharedPtr<UE::Sequencer::IOutlinerIndicatorBuilder>> OutlinerIndicators;
 
 	/** List of object bindings we can use */
 	TArray<TSharedPtr<ISequencerEditorObjectBinding>> ObjectBindings;
