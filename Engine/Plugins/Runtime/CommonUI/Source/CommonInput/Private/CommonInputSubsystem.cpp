@@ -318,9 +318,12 @@ void UCommonInputSubsystem::SetCurrentInputType(ECommonInputType NewInputType)
 					{
 						SlateApplication.UsePlatformCursorForCursorUser(bEnableGamepadPlatformCursor);
 					}
+					SlateApplication.SetGameAllowsFakingTouchEvents(false);
 					break;
 				case ECommonInputType::Touch:
 					UE_LOG(LogCommonInput, Log, TEXT("UCommonInputSubsystem::SetCurrentInputType(): Using Touch"));
+					SlateApplication.SetGameAllowsFakingTouchEvents(true);
+					SlateApplication.SetGameIsFakingTouchEvents(LocalPlayer && LocalPlayer->ViewportClient && LocalPlayer->ViewportClient->GetUseMouseForTouch());
 					break;
 				case ECommonInputType::MouseAndKeyboard:
 				default:				
@@ -329,6 +332,7 @@ void UCommonInputSubsystem::SetCurrentInputType(ECommonInputType NewInputType)
 					{
 						SlateApplication.UsePlatformCursorForCursorUser(true);
 					}
+					SlateApplication.SetGameAllowsFakingTouchEvents(false);
 					break;
 				}
 

@@ -824,6 +824,7 @@ FSlateApplication::FSlateApplication()
 	, bIsFakingTouch(FParse::Param(FCommandLine::Get(), TEXT("simmobile")) || FParse::Param(FCommandLine::Get(), TEXT("faketouches")))
 	, bIsGameFakingTouch( false )
 	, bIsFakingTouched( false )
+	, bAllowFakingTouch( true )
 	, bHandleDeviceInputWhenApplicationNotActive(false)
 	, bTouchFallbackToMouse( true )
 	, bSoftwareCursorAvailable( false )	
@@ -5003,7 +5004,7 @@ void FSlateApplication::SetGameIsFakingTouchEvents(const bool bIsFaking, FVector
 	// the only place this is not guarded is in FPIEPreviewDeviceModule::OnWindowReady()
 	if ( bIsGameFakingTouch != bIsFaking )
 	{
-		if (bIsFakingTouched && !bIsFaking && bIsGameFakingTouch && !bIsFakingTouch)
+		if (bAllowFakingTouch && bIsFakingTouched && !bIsFaking && bIsGameFakingTouch && !bIsFakingTouch)
 		{
 			OnTouchEnded((CursorLocation ? *CursorLocation : PlatformApplication->Cursor->GetPosition()), 0, FSlateApplicationBase::SlateAppPrimaryPlatformUser, IPlatformInputDeviceMapper::Get().GetDefaultInputDevice());
 		}
@@ -5012,9 +5013,18 @@ void FSlateApplication::SetGameIsFakingTouchEvents(const bool bIsFaking, FVector
 	}
 }
 
+void FSlateApplication::SetGameAllowsFakingTouchEvents(const bool bAllowFaking)
+{
+	bAllowFakingTouch = bAllowFaking;
+	if(!bAllowFaking && IsFakingTouchEvents())
+	{
+		SetGameIsFakingTouchEvents(bAllowFaking);
+	}
+}
+
 bool FSlateApplication::IsFakingTouchEvents() const
 {
-	return bIsFakingTouch || bIsGameFakingTouch;
+	return bAllowFakingTouch && (bIsFakingTouch || bIsGameFakingTouch);
 }
 
 bool FSlateApplication::OnMouseDown(const TSharedPtr< FGenericWindow >& PlatformWindow, const EMouseButtons::Type Button)
