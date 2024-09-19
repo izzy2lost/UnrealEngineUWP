@@ -311,6 +311,7 @@ void UScriptableToolsEditorMode::OnBlueprintCompiled()
 void UScriptableToolsEditorMode::Exit()
 {
 	GEditor->OnBlueprintPreCompile().Remove(BlueprintPreCompileHandle);
+	GEditor->OnBlueprintCompiled().Remove(BlueprintCompiledHandle);
 
 	// exit any exclusive active tools w/ cancel
 	if (UInteractiveTool* ActiveTool = GetToolManager()->GetActiveTool(EToolSide::Left))
