@@ -2006,6 +2006,7 @@ void UNiagaraEmitterConversionContext::InternalFinalizeStackEntryAddActions()
 				UNiagaraMessageDataText* NewMessageDataText = NewObject<UNiagaraMessageDataText>(PastedFunctionCallNode);
 				const FName TopicName = Message.bIsVerbose ? FNiagaraConverterMessageTopics::VerboseConversionEventTopicName : FNiagaraConverterMessageTopics::ConversionEventTopicName;
 				NewMessageDataText->Init(FText::FromString(Message.Message), Message.MessageSeverity, TopicName);
+				NewMessageDataText->SetAllowDismissal(true);
 				OwningSystemViewModel->AddStackMessage(NewMessageDataText, PastedFunctionCallNode);
 			}
 			PastedFunctionCallNode = nullptr;
@@ -2059,6 +2060,7 @@ void UNiagaraEmitterConversionContext::InternalFinalizeStackEntryAddActions()
 		UNiagaraMessageDataText* NewMessageDataText = NewObject<UNiagaraMessageDataText>(Emitter.Emitter);
 		const FName TopicName = Message.bIsVerbose ? FNiagaraConverterMessageTopics::VerboseConversionEventTopicName : FNiagaraConverterMessageTopics::ConversionEventTopicName;
 		NewMessageDataText->Init(FText::FromString(Message.Message), Message.MessageSeverity, TopicName);
+		NewMessageDataText->SetAllowDismissal(true);
 		EmitterHandleViewModel->AddMessage(NewMessageDataText);
 	}
 }
