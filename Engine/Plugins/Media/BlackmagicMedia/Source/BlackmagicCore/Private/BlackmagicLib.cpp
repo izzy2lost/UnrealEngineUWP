@@ -110,6 +110,7 @@ namespace BlackmagicDesign
 		, bOutputVideo(true)
 		, bOutputAudio(false)
 		, bOutputInterlacedFieldsTimecodeNeedToMatch(false)
+		, bOutputInterlaceAsProgressive(false)
 		, bLogDropFrames(false)
 		, bUseGPUDMA(false)
 		, bScheduleInDifferentThread(false)

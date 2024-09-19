@@ -240,7 +240,7 @@ namespace AJA
 		// For Interlaced, there is 2 options. Use Timecode to identify which is the odd and even field.
 		OutputChannelThread::Frame* OutputChannelThread::FetchAvailableWritingFrame(const AJAOutputFrameBufferData& InFrameData)
 		{
-			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat);
+			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat) || Options.bOutputInterlaceAsProgressive;
 
 			Frame* AvailableWritingFrame = nullptr;
 			{
@@ -483,7 +483,7 @@ namespace AJA
 
 		bool OutputChannelThread::SetAncillaryFrameData(const AJAOutputFrameBufferData& InFrameData, uint8_t* InAncillaryBuffer, uint32_t InAncillaryBufferSize)
 		{
-			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat);
+			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat) || Options.bOutputInterlaceAsProgressive;
 
 			if (!UseAncillary())
 			{
@@ -578,7 +578,7 @@ namespace AJA
 
 		bool OutputChannelThread::SetVideoFrameData(const AJAOutputFrameBufferData& InFrameData, uint8_t* InVideoBuffer, uint32_t InVideoBufferSize)
 		{
-			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat);
+			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat) || Options.bOutputInterlaceAsProgressive;
 
 			if (!UseVideo())
 			{
@@ -650,7 +650,7 @@ namespace AJA
 
 		bool OutputChannelThread::SetVideoFrameData(const AJAOutputFrameBufferData& InFrameData, FRHITexture* RHITexture)
 		{
-			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat);
+			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat) || Options.bOutputInterlaceAsProgressive;
 
 			if (!bIsProgressive)
 			{
@@ -869,7 +869,7 @@ namespace AJA
 
 		void OutputChannelThread::Thread_AutoCirculateLoop()
 		{
-			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat);
+			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat) || Options.bOutputInterlaceAsProgressive;
 			bool bRunning = true;
 			bool bSleep = true;
 
@@ -1118,7 +1118,7 @@ namespace AJA
 		void OutputChannelThread::Thread_PingPongLoop()
 		{
 			bool bHaveOutputOnce = false;
-			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat);
+			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat) || Options.bOutputInterlaceAsProgressive;
 
 			uint32_t CurrentOutFrame = 0;
 			CurrentOutFrame ^= 1;

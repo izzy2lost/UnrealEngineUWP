@@ -263,6 +263,7 @@ namespace BlackmagicDesign
 		bool bOutputVideo;
 		bool bOutputAudio;
 		bool bOutputInterlacedFieldsTimecodeNeedToMatch;
+		bool bOutputInterlaceAsProgressive;
 		bool bLogDropFrames;
 		bool bUseGPUDMA;
 		bool bScheduleInDifferentThread;
