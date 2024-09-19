@@ -694,6 +694,26 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 #endif
 }
 
+void UPoseSearchLibrary::IsAnimationAssetLooping(const UObject* Asset, bool& bIsAssetLooping)
+{
+	if (const UAnimSequenceBase* SequenceBase = Cast<const UAnimSequenceBase>(Asset))
+	{
+		bIsAssetLooping = SequenceBase->bLoop;
+	}
+	else if (const UBlendSpace* BlendSpace = Cast<const UBlendSpace>(Asset))
+	{
+		bIsAssetLooping = BlendSpace->bLoop;
+	}
+	else if (const UMultiAnimAsset* MultiAnimAsset = Cast<const UMultiAnimAsset>(Asset))
+	{
+		bIsAssetLooping = MultiAnimAsset->IsLooping();
+	}
+	else
+	{
+		bIsAssetLooping = false;
+	}
+}
+
 void UPoseSearchLibrary::MotionMatch(
 	UAnimInstance* AnimInstance,
 	TArray<UObject*> AssetsToSearch,

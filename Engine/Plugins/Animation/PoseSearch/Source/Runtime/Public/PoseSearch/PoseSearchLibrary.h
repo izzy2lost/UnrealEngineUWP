@@ -285,5 +285,8 @@ public:
 	static const FAnimNode_PoseSearchHistoryCollector_Base* FindPoseHistoryNode(
 		const FName PoseHistoryName,
 		const UAnimInstance* AnimInstance);
+
+	UFUNCTION(BlueprintPure, Category = "Animation|Pose Search|Experimental", meta = (BlueprintThreadSafe))
+	static void IsAnimationAssetLooping(const UObject* Asset, bool& bIsAssetLooping);
 };
 
