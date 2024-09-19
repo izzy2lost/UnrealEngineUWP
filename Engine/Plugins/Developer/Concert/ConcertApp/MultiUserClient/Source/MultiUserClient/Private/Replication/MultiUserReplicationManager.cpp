@@ -295,6 +295,7 @@ namespace UE::MultiUserClient::Replication
 		, MuteManager(*InClient, QueryService.GetMuteStateQueryService(), OnlineClientManager.GetAuthorityCache())
 		, PresetManager(*InClient, OnlineClientManager, MuteManager.GetSynchronizer())
 		, PropertySelector(OnlineClientManager, OfflineClientManager)
+		, AutoPropertyOwnershipTaker(PropertySelector, OnlineClientManager.GetLocalClient(), OnlineClientManager.GetAuthorityCache())
 		, ChangeLevelHandler(OnlineClientManager.GetLocalClient().GetClientEditModel().Get())
 		, PreventReplicatedPropertyTransaction(*InClient, OnlineClientManager, MuteManager)
 		, UserNotifier(*InClient->GetConcertClient(), OnlineClientManager, MuteManager)

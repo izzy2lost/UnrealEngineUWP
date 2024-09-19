@@ -62,20 +62,22 @@ namespace UE::MultiUserClient::Replication
 		FCoreUObjectDelegates::OnObjectTransacted.RemoveAll(this);
 	}
 
-	void FUserPropertySelector::AddSelectedProperties(UObject* Object, TConstArrayView<FConcertPropertyChain> Properties)
+	void FUserPropertySelector::AddUserSelectedProperties(UObject* Object, TConstArrayView<FConcertPropertyChain> Properties)
 	{
 		const FScopedTransaction Transaction(LOCTEXT("AddSelectedProperties", "Select replicated property"));
 		PropertySelection->Modify();
 		
 		InternalAddSelectedProperties(Object, Properties);
+		OnPropertiesAddedByUserDelegate.Broadcast(Object, Properties);
 	}
 	
-	void FUserPropertySelector::RemoveSelectedProperties(UObject* Object, TConstArrayView<FConcertPropertyChain> Properties)
+	void FUserPropertySelector::RemoveUserSelectedProperties(UObject* Object, TConstArrayView<FConcertPropertyChain> Properties)
 	{
 		const FScopedTransaction Transaction(LOCTEXT("RemoveSelectedProperties", "Deselect replicated property"));
 		PropertySelection->Modify();
 		
 		InternalRemoveSelectedProperties(Object, Properties);
+		OnPropertiesRemovedByUserDelegate.Broadcast(Object, Properties);
 	}
 
 	bool FUserPropertySelector::IsPropertySelected(const FSoftObjectPath& Object, const FConcertPropertyChain& Property) const
