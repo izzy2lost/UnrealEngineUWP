@@ -454,6 +454,7 @@ public:
 protected:
 	// Basic "Update Component/Ticking"
 	void SetUpdatedComponent(USceneComponent* NewUpdatedComponent);
+	void FindDefaultUpdatedComponent();
 	void UpdateTickRegistration();
 
 	/** Called when a rollback occurs, before the simulation state has been restored */
