@@ -224,18 +224,14 @@ namespace Metasound::Editor
 			return SNullWidget::NullWidget;
 		}
 
-		const FGuid PageID = LiteralCustomizationPrivate::GetGuidPropertyValue(ElementProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMetasoundEditorMemberPageDefault, PageID)));
-		FName PageName;
-		PageNameProperty->GetValue(PageName);
-
 		TSharedRef<SHorizontalBox> NameBox = SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			.VAlign(VAlign_Center)
-			.Padding(2, 0)
-			[
-				PageNameProperty->CreatePropertyValueWidget()
-			];
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(2, 0)
+		[
+			PageNameProperty->CreatePropertyValueWidget()
+		];
 
 		const UMetasoundEditorGraphMember* Member = Literal.FindMember();
 		if (!ensure(Member))
@@ -243,43 +239,14 @@ namespace Metasound::Editor
 			return SNullWidget::NullWidget;
 		}
 
-		if (Member->IsDefaultPaged())
-		{
-			TAttribute<FText> ToolTip = LOCTEXT("MetaSound_ExecutingInputPageDefaultTooltip", "Initial default used upon executing preview.");
-			TAttribute<EVisibility> ExecVisibility = TAttribute<EVisibility>::CreateLambda([MemberPtr = TWeakObjectPtr<const UMetasoundEditorGraphMember>(Member), PageID]()
-			{
-				if (const UMetasoundEditorGraphMember* GraphMember = MemberPtr.Get())
-				{
-					const FMetaSoundFrontendDocumentBuilder& Builder = GraphMember->GetFrontendBuilderChecked();
-					if (const FMetasoundFrontendClassInput* ClassInput = Builder.FindGraphInput(GraphMember->GetMemberName()))
-					{
-						const bool bIsPreviewing = Editor::IsPreviewingPageInputDefault(Builder, *ClassInput, PageID);
-						return bIsPreviewing ? EVisibility::Visible : EVisibility::Collapsed;
-					}
-					return EVisibility::Collapsed;
-				}
-
-				return EVisibility::Collapsed;
-			});
-			TSharedRef<SWidget> ExecImageWidget = SNew(SImage)
-				.Image(Style::CreateSlateIcon("MetasoundEditor.Page.Executing").GetIcon())
-				.ColorAndOpacity(FStyleColors::AccentGreen)
-				.Visibility(MoveTemp(ExecVisibility));
-			NameBox->AddSlot()
-				.FillWidth(1)
-				.HAlign(HAlign_Left)
-				.VAlign(VAlign_Center)
-				.Padding(2, 0)
-				[
-					ExecImageWidget
-				];
-		}
-
 		// Can't delete the default page, so only show remove page field if non-default/project defined page.
+		const FGuid PageID = LiteralCustomizationPrivate::GetGuidPropertyValue(ElementProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMetasoundEditorMemberPageDefault, PageID)));
 		if (PageID != Frontend::DefaultPageID)
 		{
 			TWeakObjectPtr<UMetasoundEditorGraphMemberDefaultLiteral> LiteralPtr(&Literal);
 
+			FName PageName;
+			PageNameProperty->GetValue(PageName);
 			const FText RemoveDescription = FText::Format(LOCTEXT("RemovePageDefaultTransactionFormat", "Remove '{0}' Page '{1}' Default Value"), FText::FromName(Member->GetMemberName()), FText::FromName(PageName));
 			TSharedRef<SWidget> RemovePageDefaultButton = PropertyCustomizationHelpers::MakeDeleteButton(FSimpleDelegate::CreateLambda([this, RemoveDescription, PageID, LiteralPtr]()
 			{
@@ -326,6 +293,39 @@ namespace Metasound::Editor
 			.Padding(2, 0)
 			[
 				RemovePageDefaultButton
+			];
+		}
+
+		if (Member->IsDefaultPaged())
+		{
+			TAttribute<EVisibility> ExecVisibility = TAttribute<EVisibility>::CreateLambda([MemberPtr = TWeakObjectPtr<const UMetasoundEditorGraphMember>(Member), PageID]()
+			{
+				if (const UMetasoundEditorGraphMember* GraphMember = MemberPtr.Get())
+				{
+					const FMetaSoundFrontendDocumentBuilder& Builder = GraphMember->GetFrontendBuilderChecked();
+					if (const FMetasoundFrontendClassInput* ClassInput = Builder.FindGraphInput(GraphMember->GetMemberName()))
+					{
+						const bool bIsPreviewing = Editor::IsPreviewingPageInputDefault(Builder, *ClassInput, PageID);
+						return bIsPreviewing ? EVisibility::Visible : EVisibility::Collapsed;
+					}
+					return EVisibility::Collapsed;
+				}
+
+				return EVisibility::Collapsed;
+			});
+
+			TSharedRef<SWidget> ExecImageWidget = SNew(SImage)
+			.Image(Style::CreateSlateIcon("MetasoundEditor.Page.Executing").GetIcon())
+			.ColorAndOpacity(Style::GetPageExecutingColor())
+			.Visibility(MoveTemp(ExecVisibility));
+
+			NameBox->AddSlot()
+			.FillWidth(1)
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.Padding(2, 0)
+			[
+				ExecImageWidget
 			];
 		}
 

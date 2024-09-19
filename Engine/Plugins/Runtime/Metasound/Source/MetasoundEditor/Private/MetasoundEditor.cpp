@@ -928,50 +928,43 @@ namespace Metasound
 			InTabManager->RegisterTabSpawner(TabNamesPrivate::GraphCanvas, FOnSpawnTab::CreateLambda(
 				[
 					bShowPageTab = ShowPageGraphDetails(),
-					InFocusPageWidget = FocusPageWidget,
-					InPlayTimeWidget = PlayTimeWidget,
+					InPageStatsWidget = PageStatsWidget,
 					InMetasoundGraphEditor = MetasoundGraphEditor,
 					InRenderStatsWidget = RenderStatsWidget
 				](const FSpawnTabArgs& Args)
 			{
 				TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab).Label(LOCTEXT("MetasoundGraphCanvasTitle", "MetaSound Graph"));
 
-				TSharedPtr<SVerticalBox> StatsWidget = SNew(SVerticalBox)
-					+ SVerticalBox::Slot()
-					.HAlign(HAlign_Left)
-					.VAlign(VAlign_Center)
-					.Padding(2.f, 1.f)
-					[
-						InRenderStatsWidget.ToSharedRef()
-					];
-
-				if (bShowPageTab)
-				{
-					StatsWidget->AddSlot()
-						.HAlign(HAlign_Left)
-						.VAlign(VAlign_Center)
-						.AutoHeight()
-						[
-							InFocusPageWidget.ToSharedRef()
-						];
-				}
-
-				SpawnedTab->SetContent(SNew(SOverlay)
+				TSharedRef<SOverlay> Overlay = SNew(SOverlay)
 					+ SOverlay::Slot()
 					[
 						InMetasoundGraphEditor.ToSharedRef()
 					]
 					+ SOverlay::Slot()
+					.VAlign(VAlign_Top)
 					[
-						InPlayTimeWidget.ToSharedRef()
+						InRenderStatsWidget.ToSharedRef()
 					]
-					+ SOverlay::Slot()
+					.Padding(5.0f, 5.0f);
+
+				if (bShowPageTab && InPageStatsWidget.IsValid())
+				{
+					TSharedRef<SVerticalBox> GraphStatsWidget = SNew(SVerticalBox)
+						+ SVerticalBox::Slot()
+						.HAlign(HAlign_Left)
+						.VAlign(VAlign_Center)
+						.AutoHeight()
+						[
+							InPageStatsWidget.ToSharedRef()
+						];
+					Overlay->AddSlot()
 					.VAlign(VAlign_Bottom)
 					[
-						StatsWidget.ToSharedRef()
-					]
-					.Padding(5.0f, 5.0f)
-				);
+						GraphStatsWidget
+					];
+				}
+
+				SpawnedTab->SetContent(Overlay);
 				return SpawnedTab;
 			}))
 			.SetDisplayName(LOCTEXT("GraphCanvasTab", "Viewport"))
@@ -1087,20 +1080,6 @@ namespace Metasound
 				BackgroundColor = MetaSoundStyle->GetColor("MetasoundEditor.Analyzers.BackgroundColor");
 			}
 
-			TSharedRef<SVerticalBox> PageWidget = SNew(SVerticalBox)
-				.Visibility(TAttribute<EVisibility>::Create([this]()
-				{
-					const bool bMakeVisible = IsPlaying() && AssetEditorPrivate::EnablePageEditor;
-					return bMakeVisible ? EVisibility::Visible : EVisibility::Collapsed;
-				}))
-				+ SVerticalBox::Slot()
-				.HAlign(HAlign_Left)
-				.VAlign(VAlign_Center)
-				.AutoHeight()
-				[
-					RenderPageWidget.ToSharedRef()
-				];
-
 			return SNew(SOverlay)
 			+ SOverlay::Slot()
 			[
@@ -1111,11 +1090,6 @@ namespace Metasound
 			[
 				SNew(SSplitter)
 				.Orientation(Orient_Vertical)
-				+ SSplitter::Slot()
-					.Value(0.05f)
-					[
-						PageWidget
-					]
 				+ SSplitter::Slot()
 				.Value(0.5f)
 				[
@@ -1205,10 +1179,7 @@ namespace Metasound
 			Builder->AddTransactionListener(DocListener->AsShared());
 
 			// Stat widgets are potentially intractable with transaction listener, so create then here
-			SAssignNew(FocusPageWidget, SPageStats)
-				.Visibility(EVisibility::HitTestInvisible);
-
-			SAssignNew(RenderPageWidget, SPageStats)
+			SAssignNew(PageStatsWidget, SPageStats)
 				.Visibility(EVisibility::HitTestInvisible);
 
 			SAssignNew(RenderStatsWidget, SRenderStats)
@@ -1355,7 +1326,9 @@ namespace Metasound
 			}
 			else
 			{
-				UpdatePageInfo(false);
+				constexpr bool bIsPlaying = false;
+				UpdatePageInfo(bIsPlaying);
+				UpdateRenderInfo(bIsPlaying);
 			}
 
 			RefreshExecVisibility(Builder->GetConstBuilder().GetBuildPageID());
@@ -1770,7 +1743,7 @@ namespace Metasound
 
 					if (!OutputMeter.IsValid())
 					{
-						OutputMeter = MakeShared<AudioWidgets::FAudioMeter>(MetaSoundSource.NumChannels, AudioDeviceId, DefaultBus);
+						OutputMeter = MakeShared<AudioWidgets::FAudioMeter>(MetaSoundSource.NumChannels, AudioDeviceId, DefaultBus, &Style::GetMeterDefaultColorStyle());
 					}
 				}
 				else if (OutputMeter->GetAudioBus()->GetNumChannels() != MetaSoundSource.NumChannels)
@@ -1793,13 +1766,14 @@ namespace Metasound
 						OscilloscopeTimeWindowMs,
 						OscilloscopeMaxTimeWindowMs,
 						OscilloscopeAnalysisPeriodMs,
-						OscilloscopePanelLayoutType);
+						OscilloscopePanelLayoutType,
+						&Style::GetOscilloscopeStyle());
 				}
 				else if (OutputOscilloscope->GetAudioBus()->GetNumChannels() != MetaSoundSource.NumChannels)
 				{
 					OutputOscilloscope->CreateAudioBus(MetaSoundNumChannels);
 					OutputOscilloscope->CreateDataProvider(AudioDeviceId, OscilloscopeTimeWindowMs, OscilloscopeMaxTimeWindowMs, OscilloscopeAnalysisPeriodMs, OscilloscopePanelLayoutType);
-					OutputOscilloscope->CreateOscilloscopeWidget(MetaSoundNumChannels, OscilloscopePanelLayoutType);
+					OutputOscilloscope->CreateOscilloscopeWidget(MetaSoundNumChannels, OscilloscopePanelLayoutType, &Style::GetOscilloscopeStyle());
 				}
 
 				// Init Vectorscope
@@ -1815,13 +1789,14 @@ namespace Metasound
 						VectorscopeTimeWindowMs,
 						VectorscopeMaxTimeWindowMs,
 						VectorscopeAnalysisPeriodMs,
-						VectorscopePanelLayoutType);
+						VectorscopePanelLayoutType,
+						&Style::GetVectorscopeStyle());
 				}
 				else if (OutputVectorscope->GetAudioBus()->GetNumChannels() != MetaSoundSource.NumChannels)
 				{
 					OutputVectorscope->CreateAudioBus(MetaSoundNumChannels);
 					OutputVectorscope->CreateDataProvider(AudioDeviceId, VectorscopeTimeWindowMs, VectorscopeMaxTimeWindowMs, VectorscopeAnalysisPeriodMs);
-					OutputVectorscope->CreateVectorscopeWidget(VectorscopePanelLayoutType);
+					OutputVectorscope->CreateVectorscopeWidget(VectorscopePanelLayoutType, &Style::GetVectorscopeStyle());
 				}
 
 				if (!OutputSpectrumAnalyzer.IsValid())
@@ -1915,7 +1890,7 @@ namespace Metasound
 							SpectrumAnalyzerSettings.bDisplaySoundLevelAxisLabels = !SpectrumAnalyzerSettings.bDisplaySoundLevelAxisLabels;
 							GetMutableDefault<UMetasoundEditorSettings>()->SaveConfig();
 						});
-
+					Params.PlotStyle = &Style::GetSpectrumPlotStyle();
 					OutputSpectrumAnalyzer = MakeShared<AudioWidgets::FAudioSpectrumAnalyzer>(Params);
 				}
 				else if (OutputSpectrumAnalyzer->GetAudioBus()->GetNumChannels() != MetaSoundSource.NumChannels)
@@ -2580,7 +2555,7 @@ namespace Metasound
 				// Set the send to the audio bus that is used for analyzing the metasound output
 				check(GEditor);
 
-				PlayTime = 0.0;
+				UpdateRenderInfo(true /* bIsPlaying */);
 				UpdatePageInfo(true);
 
 				if (UMetaSoundSource* Source = Cast<UMetaSoundSource>(GetMetasoundObject()))
@@ -2616,8 +2591,8 @@ namespace Metasound
 				MetasoundGraphEditor->RegisterActiveTimer(0.0f,
 					FWidgetActiveTimerDelegate::CreateLambda([this](double InCurrentTime, float InDeltaTime)
 					{
-						const bool bIsPlaying = UpdatePlayTime(InDeltaTime);
-						UpdateRenderInfo();
+						const bool bIsPlaying = IsPlaying();
+						UpdateRenderInfo(bIsPlaying, InDeltaTime);
 
 						if (bIsPlaying)
 						{
@@ -2625,8 +2600,7 @@ namespace Metasound
 						}
 						else
 						{
-							PlayTime = 0.0;
-							UpdatePageInfo(false);
+							UpdatePageInfo(bIsPlaying);
 							GraphConnectionManager = RebuildConnectionManager();
 							return EActiveTimerReturnType::Stop;
 						}
@@ -2700,11 +2674,6 @@ namespace Metasound
 		bool FEditor::CanExecuteNode() const
 		{
 			return true;
-		}
-
-		double FEditor::GetPlayTime() const
-		{
-			return PlayTime;
 		}
 
 		TSharedPtr<SGraphEditor> FEditor::GetGraphEditor() const
@@ -3095,11 +3064,6 @@ namespace Metasound
 				.GraphToEdit(MetaSoundAsset->GetGraph())
 				.IsEditable(this, &FEditor::IsGraphEditable)
 				.ShowGraphStateOverlay(false);
-
-			SAssignNew(PlayTimeWidget, STextBlock)
-				.Visibility(EVisibility::HitTestInvisible)
-				.TextStyle(FAppStyle::Get(), "Graph.ZoomText")
-				.ColorAndOpacity(FLinearColor(1, 1, 1, 0.30f));
 		}
 
 		FGraphAppearanceInfo FEditor::GetGraphAppearance() const
@@ -4913,14 +4877,18 @@ namespace Metasound
 			const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
 			check(Settings)
 
-			if (FocusPageWidget.IsValid())
+			if (PageStatsWidget.IsValid())
 			{
 				const FSlateColor* Color = nullptr;
-				// For now, this is one and the same, but may change in the future to accommodate conflating
-				// the static nature of the active build graph ID with what the user is visualizing.
-				const FMetaSoundPageSettings* PageSettings = nullptr;
+				const FMetaSoundPageSettings* GraphPageSettings = nullptr;
+				const FMetaSoundPageSettings* AuditionPageSettings = nullptr;
 				if (Builder.IsValid())
 				{
+					if (const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>())
+					{
+						AuditionPageSettings = Settings->FindPageSettings(EditorSettings->AuditionPage);
+					}
+
 					const FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetConstBuilder();
 					const FGuid& PageID = DocBuilder.GetBuildPageID();
 					if (bIsPlaying)
@@ -4929,61 +4897,26 @@ namespace Metasound
 						const FGuid ResolvePageID = FDocumentBuilderRegistry::GetChecked().ResolveTargetPageID(GraphClass);
 						if (ResolvePageID == PageID)
 						{
-							Color = &FStyleColors::AccentGreen;
+							Color = &Style::GetPageExecutingColor();
 						}
 					}
-					PageSettings = Settings->FindPageSettings(PageID);
+					GraphPageSettings = Settings->FindPageSettings(PageID);
 				}
 
-				const FText GraphPageHeader = LOCTEXT("GraphPageTargetHeader", "Graph Page");
-				FocusPageWidget->Update(PageSettings, GraphPageHeader, Color);
-			}
-
-			if (RenderPageWidget.IsValid())
-			{
-				const FMetaSoundPageSettings* PageSettings = nullptr;
-				if (Builder.IsValid())
-				{
-					if (const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>())
-					{
-						PageSettings = Settings->FindPageSettings(EditorSettings->AuditionPage);
-					}
-				}
-
-				const FText RenderPageHeader = LOCTEXT("AuditionPageHeader", "Audition Page");
-				RenderPageWidget->Update(PageSettings, RenderPageHeader, &FStyleColors::AccentGreen);
+				PageStatsWidget->Update(AuditionPageSettings, GraphPageSettings, Color);
 			}
 		}
 
-		bool FEditor::UpdatePlayTime(float InDeltaTime)
+		void FEditor::UpdateRenderInfo(bool bIsPlaying, float InDeltaTime)
 		{
-			const bool bIsPlaying = IsPlaying();
-			if (bIsPlaying)
+			if (!bIsPlaying)
 			{
-				if (PlayTimeWidget.IsValid())
-				{
-					PlayTime += InDeltaTime;
-
-					FString PlayTimeString = FTimespan::FromSeconds(PlayTime).ToString();
-					PlayTimeString.ReplaceInline(TEXT("+"), TEXT(""));
-					PlayTimeWidget->SetText(FText::FromString(MoveTemp(PlayTimeString)));
-				}
-
-				return true;
+				SetPreviewID(INDEX_NONE);
 			}
 
-			SetPreviewID(INDEX_NONE);
-			PlayTime = 0.0;
-			PlayTimeWidget->SetText(FText::GetEmpty());
-			return false;
-		}
-
-		void FEditor::UpdateRenderInfo()
-		{
 			if (RenderStatsWidget.IsValid())
 			{
-				const bool bIsPlaying = IsPlaying();
-				RenderStatsWidget->Update(bIsPlaying, Cast<const UMetaSoundSource>(GetMetasoundObject()));
+				RenderStatsWidget->Update(bIsPlaying, InDeltaTime, Cast<const UMetaSoundSource>(GetMetasoundObject()));
 			}
 		}
 
@@ -5005,7 +4938,7 @@ namespace Metasound
 
 		void FEditor::RefreshExecVisibility(const FGuid& InPageID) const
 		{
-			if (FocusPageWidget.IsValid())
+			if (PageStatsWidget.IsValid())
 			{
 				TAttribute<EVisibility> ExecVisibility = TAttribute<EVisibility>::CreateLambda([this, InPageID]()
 				{
@@ -5014,12 +4947,12 @@ namespace Metasound
 					{
 						const FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetConstBuilder();
 						const bool bIsPreviewing = IsPreviewingPageGraph(DocBuilder, InPageID);
-						return bIsPreviewing ? EVisibility::Visible : EVisibility::Collapsed;
+						return bIsPreviewing ? EVisibility::HitTestInvisible : EVisibility::Collapsed;
 					}
 
 					return EVisibility::Collapsed;
 				});
-				FocusPageWidget->SetExecVisibility(MoveTemp(ExecVisibility));
+				PageStatsWidget->SetExecVisibility(MoveTemp(ExecVisibility));
 			}
 		}
 
@@ -5028,13 +4961,9 @@ namespace Metasound
 			if (MetasoundGraphEditor.IsValid())
 			{
 				UMetasoundEditorGraph& Graph = GetMetaSoundGraphChecked();
-
-				UEdGraphPin* TargetPin = MetasoundGraphEditor->GetGraphPinForMenu();
-				check(TargetPin);
-
-				if (TargetPin->Direction == EGPD_Input)
+				if (const UEdGraphPin* TargetPin = MetasoundGraphEditor->GetGraphPinForMenu(); ensure(TargetPin))
 				{
-					return true;
+					return TargetPin->Direction == EGPD_Input;
 				}
 			}
 			return false;
@@ -5062,13 +4991,9 @@ namespace Metasound
 			if (MetasoundGraphEditor.IsValid())
 			{
 				UMetasoundEditorGraph& Graph = GetMetaSoundGraphChecked();
-
-				UEdGraphPin* TargetPin = MetasoundGraphEditor->GetGraphPinForMenu();
-				check(TargetPin);
-
-				if (TargetPin->Direction == EGPD_Output)
+				if (const UEdGraphPin* TargetPin = MetasoundGraphEditor->GetGraphPinForMenu(); ensure(TargetPin))
 				{
-					return true;
+					return TargetPin->Direction == EGPD_Output;
 				}
 			}
 			return false;

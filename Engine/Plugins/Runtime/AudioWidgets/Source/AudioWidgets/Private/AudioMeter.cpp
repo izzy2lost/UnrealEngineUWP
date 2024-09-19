@@ -160,6 +160,12 @@ const FText UAudioMeter::GetPaletteCategory()
 }
 #endif
 
+const FAudioMeterDefaultColorStyle& FAudioMeterDefaultColorStyle::GetDefault()
+{
+	static FAudioMeterDefaultColorStyle Style;
+	return Style;
+}
+
 namespace AudioWidgets
 {
 	FAudioMeter::FAudioMeter(int32 InNumChannels, UWorld& InWorld, TObjectPtr<UAudioBus> InExternalAudioBus)
@@ -167,19 +173,18 @@ namespace AudioWidgets
 	{
 	}
 
-	FAudioMeter::FAudioMeter(const int32 InNumChannels, const Audio::FDeviceId InAudioDeviceId, const TObjectPtr<UAudioBus> InExternalAudioBus)
+	FAudioMeter::FAudioMeter(const int32 InNumChannels, const Audio::FDeviceId InAudioDeviceId, const TObjectPtr<UAudioBus> InExternalAudioBus, const FAudioMeterDefaultColorStyle* AudioMeterWidgetStyle)
 	{
+		const FAudioMeterDefaultColorStyle* WidgetStyle = AudioMeterWidgetStyle ? AudioMeterWidgetStyle : &FAudioMeterDefaultColorStyle::GetDefault();
 		Widget = SNew(SAudioMeter)
 			.Orientation(EOrientation::Orient_Vertical)
 			.BackgroundColor(FLinearColor::Transparent)
-
-			// TODO: Move to editor style
-			.MeterBackgroundColor(FLinearColor(0.031f, 0.031f, 0.031f, 1.0f))
-			.MeterValueColor(FLinearColor(0.025719f, 0.208333f, 0.069907f, 1.0f))
-			.MeterPeakColor(FLinearColor(0.24349f, 0.708333f, 0.357002f, 1.0f))
-			.MeterClippingColor(FLinearColor(1.0f, 0.0f, 0.112334f, 1.0f))
-			.MeterScaleColor(FLinearColor(0.017642f, 0.017642f, 0.017642f, 1.0f))
-			.MeterScaleLabelColor(FLinearColor(0.442708f, 0.442708f, 0.442708f, 1.0f));
+			.MeterBackgroundColor(WidgetStyle->MeterBackgroundColor)
+			.MeterValueColor(WidgetStyle->MeterValueColor)
+			.MeterPeakColor(WidgetStyle->MeterPeakColor)
+			.MeterClippingColor(WidgetStyle->MeterClippingColor)
+			.MeterScaleColor(WidgetStyle->MeterScaleColor)
+			.MeterScaleLabelColor(WidgetStyle->MeterScaleLabelColor);
 
 		Init(InNumChannels, InAudioDeviceId, InExternalAudioBus);
 	}
