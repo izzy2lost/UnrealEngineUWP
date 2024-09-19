@@ -91,3 +91,12 @@ URCController* FRCSignatureControllerAction::FindOrAddController(const FRCSignat
 
 	return Controller;
 }
+
+URCAction* FRCSignatureControllerAction::FindActionInBehavior(const FRCSignatureActionContext& InContext, const URCBehaviour& InBehavior) const
+{
+	if (InBehavior.ActionContainer)
+	{
+		return InBehavior.ActionContainer->FindActionByFieldId(InContext.Property->GetId());
+	}
+	return nullptr;
+}

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RCSignatureTreeSignatureItem.h"
+#include "Framework/Notifications/NotificationManager.h"
 #include "IRemoteControlUIModule.h"
 #include "RCSignatureRegistry.h"
 #include "RCSignatureTreeFieldItem.h"
@@ -8,6 +9,7 @@
 #include "ScopedTransaction.h"
 #include "UI/SRemoteControlPanel.h"
 #include "UI/Signature/SRCSignatureTree.h"
+#include "Widgets/Notifications/SNotificationList.h"
 
 #define LOCTEXT_NAMESPACE "RCSignatureTreeSignatureItem"
 
@@ -96,9 +98,19 @@ void FRCSignatureTreeSignatureItem::ApplySignature(TConstArrayView<TWeakObjectPt
 
 	FScopedTransaction Transaction(LOCTEXT("ApplySignature", "Apply Signature"));
 
-	int32 ExposedCount = Signature->ApplySignature(Preset, InObjects);
+	int32 AffectedCount = Signature->ApplySignature(Preset, InObjects);
 
-	if (ExposedCount == 0)
+	if (AffectedCount > 0)
+	{
+		const FText MessageFormat = LOCTEXT("SignatureAppliedMessage", "Signature applied to {0} property entities.");
+
+		FNotificationInfo NotificationInfo(FText::Format(MessageFormat, FText::AsNumber(AffectedCount)));
+		NotificationInfo.ExpireDuration = 3.f;
+		NotificationInfo.bFireAndForget = true;
+
+		FSlateNotificationManager::Get().AddNotification(NotificationInfo);
+	}
+	else
 	{
 		// Nothing was exposed, cancel transaction
 		Transaction.Cancel();

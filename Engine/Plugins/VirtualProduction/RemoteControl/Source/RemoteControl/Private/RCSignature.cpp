@@ -133,7 +133,7 @@ int32 FRCSignature::ApplySignature(URemoteControlPreset* InPreset, TConstArrayVi
 		return false;
 	}
 
-	int32 ExposeCount = 0;
+	int32 AffectedCount = 0;
 
 	FRemoteControlPresetExposeArgs ExposeArgs;
 
@@ -164,14 +164,21 @@ int32 FRCSignature::ApplySignature(URemoteControlPreset* InPreset, TConstArrayVi
 			FRCSignatureActionContext ActionContext;
 			ActionContext.Preset = InPreset;
 			ActionContext.Object = Object;
-			ActionContext.Property = InPreset->ExposeProperty(Context, Field.FieldPath, ExposeArgs).Pin();
+			ActionContext.Property = InPreset->FindExposedProperty(Context, Field.FieldPath);
+
+			// Expose the existing property if not existing already.
+			if (!ActionContext.Property.IsValid())
+			{
+				ActionContext.Property = InPreset->ExposeProperty(Context, Field.FieldPath, ExposeArgs).Pin();
+			}
+
 			if (!ActionContext.Property.IsValid())
 			{
 				continue;
 			}
 
-			// Property was exposed successfully, increase expose count
-			++ExposeCount;
+			// Property was exposed successfully, increase affected count
+			++AffectedCount;
 
 			// Execute the actions for the newly exposed property
 			for (const FRCSignatureActionInstance& Action : Field.Actions)
@@ -181,5 +188,5 @@ int32 FRCSignature::ApplySignature(URemoteControlPreset* InPreset, TConstArrayVi
 		}
 	}
 
-	return ExposeCount;
+	return AffectedCount;
 }
