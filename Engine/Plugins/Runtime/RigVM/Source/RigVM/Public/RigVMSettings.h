@@ -44,7 +44,7 @@ class RIGVM_API URigVMProjectSettings : public UDeveloperSettings
 
 public:
 
-	UPROPERTY(EditAnywhere, config, Category = Variants)
+	UPROPERTY(EditAnywhere, config, Category = Experimental)
 	TArray<FRigVMTag> VariantTags;
 
 	UFUNCTION(BlueprintPure, Category= Variants)
