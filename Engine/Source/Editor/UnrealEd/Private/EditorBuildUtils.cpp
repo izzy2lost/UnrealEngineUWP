@@ -466,8 +466,8 @@ bool FEditorBuildUtils::EditorBuild( UWorld* InWorld, FName Id, const bool bAllo
 		auto Result = CustomBuild.DoBuild.Execute(InWorld, Id);
 
 		bDoBuild = Result != EEditorBuildResult::Skipped;
-		bShouldMapCheck = Result == EEditorBuildResult::Success;
-		bDirtyPersistentLevel = Result == EEditorBuildResult::Success;
+		bShouldMapCheck = Result == EEditorBuildResult::Success && !CustomBuild.bExternalProcess;
+		bDirtyPersistentLevel = Result == EEditorBuildResult::Success && !CustomBuild.bExternalProcess;
 
 		if (Result == EEditorBuildResult::InProgress)
 		{
@@ -1147,10 +1147,11 @@ void FEditorBuildUtils::RegisterCustomBuildType(
 	const FDoEditorBuildDelegate& DoBuild,
 	const FName BuildAllExtensionPoint,
 	const FText& MenuEntryLabel,
-	const FText& MenuSectionLabel)
+	const FText& MenuSectionLabel,
+	bool bExternalProcess)
 {
 	check(!CustomBuildTypes.Contains(Id));
-	CustomBuildTypes.Add(Id, FCustomBuildType(DoBuild, BuildAllExtensionPoint, MenuEntryLabel, MenuSectionLabel));
+	CustomBuildTypes.Add(Id, FCustomBuildType(DoBuild, BuildAllExtensionPoint, MenuEntryLabel, MenuSectionLabel, bExternalProcess));
 
 	if (BuildAllExtensionPoint != NAME_None)
 	{
@@ -1167,10 +1168,11 @@ void FEditorBuildUtils::RegisterCustomBuildType(
 	const FDoEditorBuildDelegate& DoBuild,
 	const FName BuildAllExtensionPoint,
 	const FText& MenuEntryLabel,
-	const FText& MenuSectionLabel)
+	const FText& MenuSectionLabel,
+	bool bExternalProcess)
 {
 	check(!CustomBuildTypes.Contains(Id));
-	CustomBuildTypes.Add(Id, FCustomBuildType(CanDoBuild, DoBuild, BuildAllExtensionPoint, MenuEntryLabel, MenuSectionLabel));
+	CustomBuildTypes.Add(Id, FCustomBuildType(CanDoBuild, DoBuild, BuildAllExtensionPoint, MenuEntryLabel, MenuSectionLabel, bExternalProcess));
 
 	if (BuildAllExtensionPoint != NAME_None)
 	{
