@@ -558,6 +558,7 @@ void LightGridCompactCS(
 
 Texture2D<float4> DepthTexture;
 uint DebugMode;
+uint MaxThreshold;
 
 void DebugLightGridPS(
 	in float4 SVPos : SV_POSITION,
@@ -630,7 +631,7 @@ void DebugLightGridPS(
 	if (DebugNumLightsInGridCell > 0)
 	{
 		OutLuminanceTransmittance.a   = 0.0f;
-		OutLuminanceTransmittance.rgb = GetHSVDebugColor(float(DebugNumLightsInGridCell) / 8.0f);
+		OutLuminanceTransmittance.rgb = GetHSVDebugColor(float(DebugNumLightsInGridCell) / MaxThreshold);
 		PrintSmallUint(PixelPos, OutLuminanceTransmittance.rgb, float3(0.1, 0.1, 0.1), (TileTopLeftPixelCoord + TileSize/2) / View.ViewResolutionFraction, float(DebugNumLightsInGridCell));
 	}
 
