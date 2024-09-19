@@ -115,8 +115,6 @@ void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 	InstanceData_WriteInstanceLocalToWorld(InstanceIndex, transpose(Transform));
 
 	// Write instance custom float data.
-	const uint DataAddress = In_GetDataAddress(In_DataIndex);
-	const uint AttributeHeadersAddress = In_GetDataAttributeHeadersAddress(DataAddress);
 	const uint NumAttributes = SMSpawner_GetNumAttributes();
 	for (uint AttributeIndex = 0; AttributeIndex < NumAttributes; ++AttributeIndex)
 	{
@@ -125,15 +123,11 @@ void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 		const uint AttributeOffset = AttributeIdOffsetStride[1];
 		const uint AttributeStride = AttributeIdOffsetStride[2];
 
-		const uint AttributeHeaderAddress = In_GetAttributeHeaderAddress(AttributeHeadersAddress, AttributeId);
-		const uint AttributeAddress = In_GetAttributeAddress(AttributeHeaderAddress);
-
 		for (uint FloatIndex = 0; FloatIndex < AttributeStride; ++FloatIndex)
 		{
-			const uint AttributeValueAddress = AttributeAddress + In_ElementIndex * AttributeStride * 4;
-			
+			const uint AttributeValueAddress = In_GetElementAddressInternal(In_DataIndex, In_ElementIndex, AttributeId);
 			// Assumes floating point data. TODO add type information and deal with different types in different ways?
-			InstanceData_WriteCustomFloatRaw(InstanceIndex, AttributeOffset + FloatIndex, In_LoadBufferInternal(AttributeValueAddress));
+			InstanceData_WriteCustomFloatRaw(InstanceIndex, AttributeOffset + FloatIndex, In_LoadBufferInternal(AttributeValueAddress + 4 * FloatIndex));
 		}
 	}
 
@@ -158,36 +152,23 @@ void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 // TODO pass in attribute IDs to copy.
 void CopyAttributesToOuput(uint In_DataIndex, uint In_ElementIndex, uint Out_DataIndex, uint Out_ElementIndex)
 {
-	const uint In_DataAddress = In_GetDataAddress(In_DataIndex);
-	const uint In_HeadersAddress = In_GetDataAttributeHeadersAddress(In_DataAddress);
-
-	const uint Out_DataAddress = Out_GetDataAddress(Out_DataIndex);
-	const uint Out_HeadersAddress = Out_GetDataAttributeHeadersAddress(Out_DataAddress);
-
-	const uint NumAttributes = In_GetDataNumAttributes(In_DataAddress);
+	const uint NumAttributes = In_GetDataNumAttributesInternal(In_DataIndex);
 	uint NumAttributesProcessed = 0;
 	
 	// Loop over all attribute headers, if the address is non-zero, then copy it from pin Source to pin Out.
 	for (int AttributeIndex = NUM_RESERVED_ATTRS; AttributeIndex < MAX_NUM_ATTRS; ++AttributeIndex)
 	{
-		const uint In_HeaderAddress = In_GetAttributeHeaderAddress(In_HeadersAddress, AttributeIndex);
-		const uint In_Address = In_GetAttributeAddress(In_HeaderAddress);
+		const uint In_Stride = In_GetAttributeStrideInternal(In_DataIndex, AttributeIndex);
+		const uint Out_Stride = In_GetAttributeStrideInternal(In_DataIndex, AttributeIndex);
 
-		const uint OutHeaderAddress = Out_GetAttributeHeaderAddress(Out_HeadersAddress, AttributeIndex);
-		const uint Out_Address = Out_GetAttributeAddress(OutHeaderAddress);
-
-		const uint Stride = In_GetAttributeStride(In_HeaderAddress);
-
-		if (In_Address != 0 && Out_Address != 0)
+		if (In_Stride != 0 && In_Stride == Out_Stride)
 		{
-			const uint In_BaseElementAddress = In_Address + In_ElementIndex * Stride;
-			const uint Out_BaseElementAddress = Out_Address + Out_ElementIndex * Stride;
+			const uint In_ElementAddress = In_GetElementAddressInternal(In_DataIndex, In_ElementIndex, AttributeIndex);
+			const uint Out_ElementAddress = Out_GetElementAddressInternal(Out_DataIndex, Out_ElementIndex, AttributeIndex);
 
-			for (int I = 0; I < Stride; I += 4)
+			for (int Address = 0; Address < In_Stride; Address += 4)
 			{
-				const uint In_ElementAddress = In_BaseElementAddress + I;
-				const uint Out_ElementAddress = Out_BaseElementAddress + I;
-				Out_StoreBufferInternal(Out_ElementAddress, In_LoadBufferInternal(In_ElementAddress));
+				Out_StoreBufferInternal(Out_ElementAddress + Address, In_LoadBufferInternal(In_ElementAddress + Address));
 			}
 
 			// We can early-out when we've looked at all the possible attributes

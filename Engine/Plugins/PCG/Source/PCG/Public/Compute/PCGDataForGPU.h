@@ -95,7 +95,9 @@ struct FPCGKernelAttributeDesc
 	{
 	}
 
+	// Attribute Id
 	int32 Index = INDEX_NONE;
+
 	EPCGKernelAttributeType Type = EPCGKernelAttributeType::Float;
 	FName Name = NAME_None;
 
@@ -128,14 +130,16 @@ struct FPCGDataCollectionDesc
 		const TMap<FName, FPCGKernelAttributeIDAndType>& InAttributeLookupTable,
 		const TArray<FString>& InStringTable);
 
-	/** Computes the size (in bytes) of the data collection after packing. Also produces the offset (in bytes) for each data in the packed collection. */
-	uint32 ComputePackedSize(TArray<uint32>* OutDataAddresses = nullptr) const;
+	/** Computes the size (in bytes) of the header portion of the packed data collection buffer. */
+	uint32 ComputePackedHeaderSizeBytes() const;
+
+	/** Computes the size (in bytes) of the data collection after packing. */
+	uint32 ComputePackedSizeBytes() const;
+
+	void WriteHeader(TArray<uint32>& OutPackedDataCollectionHeader) const;
 
 	/** Pack a data collection into the GPU data format. DataDescs defines which attributes are packed. */
 	void PackDataCollection(const FPCGDataCollection& InDataCollection, FName InPin, const TArray<FString>& InStringTable, TArray<uint32>& OutPackedDataCollection) const;
-
-	/** Allocates the correct size and sets up header. Initializes data count to 0, which kernel will then overwrite if it executes at least one thread. */
-	void PrepareBufferForKernelOutput(TArray<uint32>& OutPackedDataCollection);
 
 	/** Unpack a buffer of 8-bit uints to a data collection. */
 	EPCGUnpackDataCollectionResult UnpackDataCollection(const TArray<uint8>& InPackedData, FName InPin, const TArray<FString>& InStringTable, FPCGDataCollection& OutDataCollection) const;

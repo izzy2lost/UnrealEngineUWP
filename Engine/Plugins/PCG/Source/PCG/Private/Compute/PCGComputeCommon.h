@@ -27,13 +27,16 @@ namespace PCGComputeConstants
 	constexpr int NUM_RESERVED_ATTRS = 32; // Reserved for point properties, spline accessors, etc.
 	constexpr int MAX_NUM_CUSTOM_ATTRS = MAX_NUM_ATTRS - NUM_RESERVED_ATTRS; // Reserved for custom attributes
 
+	constexpr int DATA_COLLECTION_HEADER_SIZE_BYTES = 4;
+	constexpr int DATA_HEADER_SIZE_BYTES = 1036;
 	constexpr int ATTRIBUTE_HEADER_SIZE_BYTES = 8;
 
 	constexpr int POINT_DATA_TYPE_ID = 0;
+	constexpr int PARAM_DATA_TYPE_ID = 1;
+
+	// TODO remove
 	constexpr int POINT_DATA_HEADER_PREAMBLE_SIZE_BYTES = 16; // 4 bytes for Type, 4 bytes for NumAttrs, 4 bytes for the address, 4 bytes for TypeInfo
 	constexpr int POINT_DATA_HEADER_SIZE_BYTES = POINT_DATA_HEADER_PREAMBLE_SIZE_BYTES + ATTRIBUTE_HEADER_SIZE_BYTES * MAX_NUM_ATTRS;
-
-	constexpr int PARAM_DATA_TYPE_ID = 1;
 	constexpr int PARAM_DATA_HEADER_PREAMBLE_SIZE_BYTES = 16; // 4 bytes for Type, 4 bytes for NumAttrs, 4 bytes for the address, 4 bytes for TypeInfo
 	constexpr int PARAM_DATA_HEADER_SIZE_BYTES = PARAM_DATA_HEADER_PREAMBLE_SIZE_BYTES + ATTRIBUTE_HEADER_SIZE_BYTES * MAX_NUM_ATTRS;
 
