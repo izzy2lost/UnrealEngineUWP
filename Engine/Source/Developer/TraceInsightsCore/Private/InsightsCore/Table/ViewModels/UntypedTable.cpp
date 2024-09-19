@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "UntypedTable.h"
+#include "InsightsCore/Table/ViewModels/UntypedTable.h"
 
 // TraceServices
 #include "TraceServices/Containers/Tables.h"

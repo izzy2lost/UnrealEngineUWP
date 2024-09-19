@@ -2,18 +2,22 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
+#include "Containers/UnrealString.h"
+#include "Input/Reply.h"
+#include "Internationalization/Text.h"
+#include "Templates/SharedPointer.h"
 
 // TraceInsights
-#include "Insights/Table/ViewModels/UntypedTable.h"
-#include "Insights/Table/Widgets/SUntypedTableTreeView.h"
+#include "InsightsCore/Table/ViewModels/UntypedTable.h"
+#include "InsightsCore/Table/Widgets/SUntypedTableTreeView.h"
 
 namespace UE::Insights
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class SUntypedDiffTableTreeView : public SUntypedTableTreeView
+class TRACEINSIGHTSCORE_API SUntypedDiffTableTreeView : public SUntypedTableTreeView
 {
 public:
 	void UpdateSourceTableA(const FString& Name, TSharedPtr<TraceServices::IUntypedTable> SourceTable);

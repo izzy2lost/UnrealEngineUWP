@@ -2,21 +2,28 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
+#include "Containers/UnrealString.h"
+#include "Input/Reply.h"
+#include "Internationalization/Text.h"
+#include "Templates/SharedPointer.h"
 
 // TraceInsightsCore
 #include "InsightsCore/Common/Stopwatch.h"
+#include "InsightsCore/Table/ViewModels/UntypedTable.h"
 #include "InsightsCore/Table/Widgets/STableTreeView.h"
 
-// TraceInsights
-#include "Insights/Table/ViewModels/UntypedTable.h"
+namespace TraceServices
+{
+	class IUntypedTable;
+}
 
 namespace UE::Insights
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class SUntypedTableTreeView : public STableTreeView
+class TRACEINSIGHTSCORE_API SUntypedTableTreeView : public STableTreeView
 {
 public:
 	SUntypedTableTreeView();

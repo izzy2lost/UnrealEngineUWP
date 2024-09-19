@@ -1,15 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SUntypedDiffTableTreeView.h"
+#include "InsightsCore/Table/Widgets/SUntypedDiffTableTreeView.h"
 
 #include "SlateOptMacros.h"
 #include "Logging/MessageLog.h"
 
 // TraceServices
 #include "TraceServices/Model/TableMerge.h"
-
-// TraceInsights
-#include "Insights/InsightsManager.h"
 
 #define LOCTEXT_NAMESPACE "UE::Insights::SUntypedDiffTableTreeView"
 
@@ -108,7 +105,8 @@ void SUntypedDiffTableTreeView::RequestMergeTables()
 			}
 			else
 			{
-				FMessageLog ReportMessageLog(FInsightsManager::Get()->GetLogListingName());
+				FName LogListingName(TEXT("Insights"));
+				FMessageLog ReportMessageLog(LogListingName);
 				ReportMessageLog.AddMessages(Params->Messages);
 				ReportMessageLog.Notify();
 			}

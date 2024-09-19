@@ -4,38 +4,13 @@
 
 #include "CoreTypes.h"
 
-// TraceServices
-#include "TraceServices/Model/TableImport.h"
-#include "TraceServices/Containers/Tables.h"
-
 // TraceInsights
 #include "Insights/IUnrealInsightsModule.h"
-
-class SDockTab;
-class FSpawnTabArgs;
-
-namespace TraceServices
-{
-	struct FTableImportCallbackParams;
-}
 
 namespace UE::Insights
 {
 
-class SUntypedTableTreeView;
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-struct FOpenImportedTableTabData
-{
-	TSharedPtr<SDockTab> Tab;
-	TSharedPtr<SUntypedTableTreeView> TableTreeView;
-
-	bool operator ==(const FOpenImportedTableTabData& Other) const
-	{
-		return Tab == Other.Tab && TableTreeView == Other.TableTreeView;
-	}
-};
+class FTableImporter;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -61,25 +36,12 @@ public:
 	void StartDiffProcess();
 	void DiffFiles(const FString& FilenameA, const FString& FilenameB);
 
-	void CloseAllOpenTabs();
-
-private:
-	TSharedRef<SDockTab> SpawnTab_TableImportTreeView(const FSpawnTabArgs& Args, FName TableViewID, FText InDisplayName);
-	TSharedRef<SDockTab> SpawnTab_TableDiffTreeView(const FSpawnTabArgs& Args, FName TableViewID, FText InDisplayName);
-	void OnTableImportTreeViewTabClosed(TSharedRef<SDockTab> TabBeingClosed);
-
-	void DisplayImportTable(FName TableViewID);
-	void DisplayDiffTable(FName TableViewID);
-	void TableImportServiceCallback(TSharedPtr<TraceServices::FTableImportCallbackParams> Params);
-
-	FName GetTableID(const FString& Path);
-
 private:
 	static TSharedPtr<FTableImportTool> Instance;
 
-	TMap<FName, FOpenImportedTableTabData> OpenTablesMap;
+	TSharedRef<FTableImporter> TableImporter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights
