@@ -231,6 +231,27 @@ FDynamicMesh3 UE::ToolTarget::GetDynamicMeshCopy(UToolTarget* Target, bool bWant
 	return GetDynamicMeshCopy(Target, GetMeshParams);
 }
 
+int32 UE::ToolTarget::GetTriangleCount(UToolTarget* Target)
+{
+	IPersistentDynamicMeshSource* DynamicMeshSource = Cast<IPersistentDynamicMeshSource>(Target);
+	if (DynamicMeshSource)
+	{
+		UDynamicMesh* DynamicMesh = DynamicMeshSource->GetDynamicMeshContainer();
+		return DynamicMesh->GetTriangleCount();
+	}
+
+	IMeshDescriptionProvider* MeshDescriptionProvider = Cast<IMeshDescriptionProvider>(Target);
+	if (MeshDescriptionProvider)
+	{
+		if (const FMeshDescription* MeshDescription = MeshDescriptionProvider->GetMeshDescription())
+		{
+			return MeshDescription->Triangles().Num();
+		}
+	}
+
+	return 0;
+}
+
 FDynamicMesh3 UE::ToolTarget::GetDynamicMeshCopy(UToolTarget* Target, const FGetMeshParameters& InGetMeshParams)
 {
 	IPersistentDynamicMeshSource* DynamicMeshSource = Cast<IPersistentDynamicMeshSource>(Target);

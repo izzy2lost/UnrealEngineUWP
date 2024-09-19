@@ -135,6 +135,7 @@ void UBaseMeshProcessingTool::Setup()
 	Preview = NewObject<UMeshOpPreviewWithBackgroundCompute>(this, "Preview");
 	Preview->Setup(GetTargetWorld(), this); // Adds the actual functional tool in the Preview object
 	Preview->PreviewMesh->SetTangentsMode(EDynamicMeshComponentTangentsMode::AutoCalculated);
+	Preview->SetMaxActiveBackgroundTasksFromMeshSizeHeuristic(InitialMesh.TriangleCount());
 	ToolSetupUtil::ApplyRenderingConfigurationToPreview(Preview->PreviewMesh, Target);
 
 	FComponentMaterialSet MaterialSet;

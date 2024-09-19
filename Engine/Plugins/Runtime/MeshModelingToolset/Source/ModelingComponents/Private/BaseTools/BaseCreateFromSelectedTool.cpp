@@ -89,6 +89,13 @@ void UBaseCreateFromSelectedTool::Setup()
 	Preview->Setup(GetTargetWorld(), this);
 	ToolSetupUtil::ApplyRenderingConfigurationToPreview(Preview->PreviewMesh, nullptr);
 
+	int32 SourcesTriCount = 0;
+	for (int32 ComponentIdx = 0; ComponentIdx < Targets.Num(); ComponentIdx++)
+	{
+		SourcesTriCount += UE::ToolTarget::GetTriangleCount(Targets[ComponentIdx]);
+	}
+	Preview->SetMaxActiveBackgroundTasksFromMeshSizeHeuristic(SourcesTriCount);
+
 	SetPreviewCallbacks();
 	Preview->OnMeshUpdated.AddLambda(
 		[this](const UMeshOpPreviewWithBackgroundCompute* UpdatedPreview)

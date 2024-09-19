@@ -155,6 +155,9 @@ MODELINGCOMPONENTS_API FMeshDescription GetMeshDescriptionCopy(
 		UToolTarget* Target,
 		const FGetMeshParameters& InGetMeshParams = FGetMeshParameters());
 
+/** @return The triangle count of Target's persistent dynamic mesh or its mesh description, if available, or 0 otherwise */
+MODELINGCOMPONENTS_API int32 GetTriangleCount(UToolTarget* Target);
+
 /**
  * EDynamicMeshUpdateResult is returned by functions below that update a ToolTarget with a new Mesh
  */
