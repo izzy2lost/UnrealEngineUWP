@@ -3504,8 +3504,9 @@ bool AnyRayTracingPassEnabled(const FScene* Scene, const FViewInfo& View)
 		return false;
 	}
 
-	// Path tracer and ray tracing visualization debug modes force ray tracing on, regardless of what the view says
-	if (HasRayTracedOverlay(*View.Family))
+	// Path tracer, ray tracing visualization debug modes, and sky light ray tracing force ray tracing on, regardless of what the view says
+	if (HasRayTracedOverlay(*View.Family)
+		|| ShouldRenderRayTracingSkyLight(Scene->SkyLight, View.GetShaderPlatform()))
 	{
 		return true;
 	}
@@ -3517,21 +3518,15 @@ bool AnyRayTracingPassEnabled(const FScene* Scene, const FViewInfo& View)
 
 	return ShouldRenderRayTracingAmbientOcclusion(View)
 		|| ShouldRenderRayTracingTranslucency(View)
-		|| ShouldRenderRayTracingSkyLight(Scene->SkyLight, View.GetShaderPlatform())
-		|| ShouldRenderRayTracingShadows()
+		|| ShouldRenderRayTracingShadows(*View.Family)
 		|| Scene->bHasLightsWithRayTracedShadows
 		|| ShouldRenderPluginRayTracingGlobalIllumination(View)
         || Lumen::AnyLumenHardwareRayTracingPassEnabled(Scene, View)
 		|| MegaLights::UseHardwareRayTracing(*View.Family);
 }
 
-bool ShouldRenderRayTracingEffect(bool bEffectEnabled, ERayTracingPipelineCompatibilityFlags CompatibilityFlags, const FSceneView* View)
+static bool ShouldRenderRayTracingEffectInternal(bool bEffectEnabled, ERayTracingPipelineCompatibilityFlags CompatibilityFlags)
 {
-	if (View ? !IsRayTracingEnabled(View->GetShaderPlatform()) || !View->IsRayTracingAllowedForView() : !IsRayTracingEnabled())
-	{
-		return false;
-	}
-
 	const bool bAllowPipeline = GRHISupportsRayTracingShaders && 
 								CVarRayTracingAllowPipeline.GetValueOnRenderThread() &&
 								EnumHasAnyFlags(CompatibilityFlags, ERayTracingPipelineCompatibilityFlags::FullPipeline);
@@ -3556,6 +3551,39 @@ bool ShouldRenderRayTracingEffect(bool bEffectEnabled, ERayTracingPipelineCompat
 	{
 		return bEffectEnabled;
 	}
+}
+
+bool ShouldRenderRayTracingEffect(bool bEffectEnabled, ERayTracingPipelineCompatibilityFlags CompatibilityFlags, const FSceneView& View)
+{
+	if (!IsRayTracingEnabled(View.GetShaderPlatform()) || !View.IsRayTracingAllowedForView())
+	{
+		return false;
+	}
+
+	return ShouldRenderRayTracingEffectInternal(bEffectEnabled, CompatibilityFlags);
+}
+
+bool ShouldRenderRayTracingEffect(bool bEffectEnabled, ERayTracingPipelineCompatibilityFlags CompatibilityFlags, const FSceneViewFamily& ViewFamily)
+{
+	// TODO:  Should this check if ALL views have ray tracing?  ANY views have ray tracing?  Assert that all are the same?  All or any depending
+	// on the specific feature or use case?  In practice, current examples (split screen or scene captures) will have ray tracing set the same
+	// for all views, so we'll just check the first view of given a family, but having it be a separate function lets us reconsider that approach
+	// in the future.
+	return ShouldRenderRayTracingEffect(bEffectEnabled, CompatibilityFlags, *ViewFamily.Views[0]);
+}
+
+// Most ray tracing effects can be enabled or disabled per view, but the ray tracing sky light effect specifically requires base pass shaders
+// in the FScene to be configured differently, and thus can't work if ray tracing is disabled.  There is logic in FScene::Update where
+// bCachedShouldRenderSkylightInBasePass is updated based on the result of ShouldRenderSkylightInBasePass(), which is affected by whether sky light
+// ray tracing is enabled.  When this value changes, bScenesPrimitivesNeedStaticMeshElementUpdate is set to true, forcing a rebuild of all static mesh
+// elements in the scene.  This can't be done per frame (never mind per view), which would be required to allow this setting to vary, at least with
+// the current implementation.  Sky light ray tracing is often used for cinematic capture, and not in games, so hopefully this isn't a big limitation.
+// 
+// This forces ray tracing on, but other ray tracing features are still disabled.  This is its own function to allow ShouldRenderRayTracingEffectInternal
+// to be kept private, as all other effects should provide a view or view family, to allow IsRayTracingAllowedForView to be tested.
+bool ShouldRenderRayTracingSkyLightEffect()
+{
+	return ShouldRenderRayTracingEffectInternal(true, ERayTracingPipelineCompatibilityFlags::FullPipeline);
 }
 
 bool HasRaytracingDebugViewModeRaytracedOverlay(const FSceneViewFamily& ViewFamily);

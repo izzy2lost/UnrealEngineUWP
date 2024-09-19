@@ -302,7 +302,15 @@ namespace MegaLights
 		{
 			const bool bUseVSM = IsUsingVirtualShadowMaps(ViewFamily) && bVSMEnabled;
 
-			return bUseVSM ? EMegaLightsMode::EnabledVSM : EMegaLightsMode::EnabledRT;
+			if (bUseVSM)
+			{
+				return EMegaLightsMode::EnabledVSM;
+			}
+			// Just check first view, assuming the ray tracing flag is the same for all views.  See comment in the ShouldRenderRayTracingEffect function that accepts a ViewFamily.
+			else if (ViewFamily.Views[0]->IsRayTracingAllowedForView())
+			{
+				return EMegaLightsMode::EnabledRT;
+			}
 		}
 
 		return EMegaLightsMode::Disabled;
