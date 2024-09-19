@@ -669,7 +669,7 @@ FShaderCompiledShaderInitializerType::FShaderCompiledShaderInitializerType(
 	: Type(InType)
 	, Parameters(InParameters)
 	, Target(CompilerOutput.Target)
-	, Code(CompilerOutput.ShaderCode.GetReadView())
+	, Code(CompilerOutput.ShaderCode.GetReadAccess())
 	, ParameterMap(CompilerOutput.ParameterMap)
 	, OutputHash(CompilerOutput.OutputHash)
 	, MaterialShaderMapHash(InMaterialShaderMapHash)

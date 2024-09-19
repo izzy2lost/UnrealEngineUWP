@@ -14,7 +14,10 @@ FShaderCacheSaveContext::FShaderCacheSaveContext()
 {
 	SerializeCodeFunc = [this](FShaderCodeResource& Res, int32 Index)
 		{
-			OwnedShaderCode.Add(Res.GetCacheBuffer());
+			TArray64<uint8> CodeData;
+			FMemoryWriter64 Ar(CodeData, true);
+			Ar << Res;
+			OwnedShaderCode.Add(MakeSharedBufferFromArray(MoveTemp(CodeData)));
 			// reset the array view any time an entry is added; we do this instead of calling Resize in the reserve delegate
 			// and setting it there since not all code paths (i.e. single job cache records) call reserve
 			ShaderCode = OwnedShaderCode;
@@ -55,14 +58,11 @@ UE::DerivedData::FCacheRecord FShaderCacheSaveContext::BuildCacheRecord(const UE
 	Finalize();
 
 	UE::DerivedData::FCacheRecordBuilder RecordBuilder(Key);
-	RecordBuilder.AddValue(ShaderObjectDataValue, ShaderObjectData);
+	RecordBuilder.AddValue(ShaderObjectDataValue, UE::DerivedData::FValue::Compress(ShaderObjectData));
 	int32 CodeIndex = 0;
-	// Code buffers are already compressed, don't waste cycles attempting (and failing) to recompress them
-	const ECompressedBufferCompressor CodeComp = ECompressedBufferCompressor::NotSet;
-	const ECompressedBufferCompressionLevel CodeCompLevel = ECompressedBufferCompressionLevel::None;
-	for (FCompositeBuffer& CodeBuf : ShaderCode)
+	for (FSharedBuffer& CodeBuf : ShaderCode)
 	{
-		RecordBuilder.AddValue(ShaderCodeDataValue.MakeIndexed(CodeIndex++), UE::DerivedData::FValue(FCompressedBuffer::Compress(CodeBuf, CodeComp, CodeCompLevel)));
+		RecordBuilder.AddValue(ShaderCodeDataValue.MakeIndexed(CodeIndex++), UE::DerivedData::FValue::Compress(CodeBuf));
 	}
 
 	TCbWriter<16> MetaWriter;
@@ -80,11 +80,12 @@ FShaderCacheLoadContext::FShaderCacheLoadContext()
 {
 	SerializeCodeFunc = [this](FShaderCodeResource& Res, int32 Index)
 		{
-			Res.PopulateFromComposite(ShaderCode[Index]);
+			FMemoryReaderView Ar(ShaderCode[Index]);
+			Ar << Res;
 		};
 }
 
-FShaderCacheLoadContext::FShaderCacheLoadContext(FSharedBuffer InShaderObjectData, TArrayView<FCompositeBuffer> InCodeBuffers) : FShaderCacheLoadContext()
+FShaderCacheLoadContext::FShaderCacheLoadContext(FSharedBuffer InShaderObjectData, TArrayView<FSharedBuffer> InCodeBuffers) : FShaderCacheLoadContext()
 {
 	ShaderObjectData = InShaderObjectData;
 	ShaderCode = InCodeBuffers;
@@ -112,8 +113,7 @@ void FShaderCacheLoadContext::ReadFromRecord(const UE::DerivedData::FCacheRecord
 	OwnedShaderCode.Reserve(CodeCount);
 	for (int32 CodeIndex = 0; CodeIndex < CodeCount; ++CodeIndex)
 	{
-		FSharedBuffer CombinedBuffer = Record.GetValue(ShaderCodeDataValue.MakeIndexed(CodeIndex)).GetData().Decompress();
-		OwnedShaderCode.Add(FShaderCodeResource::Unpack(CombinedBuffer));
+		OwnedShaderCode.Add(Record.GetValue(ShaderCodeDataValue.MakeIndexed(CodeIndex)).GetData().Decompress());
 	}
 	ShaderCode = OwnedShaderCode;
 }
