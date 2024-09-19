@@ -267,6 +267,7 @@ void FPCGStackContext::AppendStacks(const FPCGStackContext& InStacks)
 	for (const FPCGStack& SubgraphStack : InStacks.Stacks)
 	{
 		FPCGStack& NewStack = Stacks.Emplace_GetRef();
+		NewStack.GraphExecutionTaskId = GraphExecutionTaskId;
 		NewStack.StackFrames.Reserve(Stacks[CurrentStackIndex].StackFrames.Num() + SubgraphStack.StackFrames.Num());
 		
 		NewStack.StackFrames.Append(Stacks[CurrentStackIndex].StackFrames);
@@ -290,4 +291,15 @@ void FPCGStackContext::PrependParentStack(const FPCGStack* InParentStack)
 bool FPCGStackContext::operator==(const FPCGStackContext& Other) const
 {
 	return (CurrentStackIndex == Other.CurrentStackIndex) && (Stacks == Other.Stacks);
+}
+
+void FPCGStackContext::SetGraphExecutionTaskId(FPCGTaskId InGraphExecutionTaskId)
+{
+	check(GraphExecutionTaskId == InvalidPCGTaskId);
+	GraphExecutionTaskId = InGraphExecutionTaskId;
+
+	for (FPCGStack& Stack : Stacks)
+	{
+		Stack.GraphExecutionTaskId = GraphExecutionTaskId;
+	}
 }

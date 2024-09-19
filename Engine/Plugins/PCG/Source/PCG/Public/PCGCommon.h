@@ -428,3 +428,20 @@ enum class EPCGGenerationStatus : uint8
 	Completed,
 	Aborted
 };
+
+// Enable to debug if some PCG Elements are creating some data that should be pre-created by the graph PreGraph element
+#define PCG_EXECUTION_CACHE_VALIDATION_ENABLED 0
+
+#if PCG_EXECUTION_CACHE_VALIDATION_ENABLED
+
+#define PCG_EXECUTION_CACHE_VALIDATION_CREATE_SCOPE(PCGComponent) TGuardValue<bool> ValidationCreateScope(PCGComponent->bCanCreateExecutionCache, true);
+#define PCG_EXECUTION_CACHE_VALIDATION_CREATE_ORIGINAL_SCOPE(PCGComponent) TGuardValue<bool> ValidationCreateOriginalScope(PCGComponent->GetOriginalComponent()->bCanCreateExecutionCache, PCGComponent->bCanCreateExecutionCache);
+#define PCG_EXECUTION_CACHE_VALIDATION_CHECK(PCGComponent) ensureAlways(PCGComponent->bCanCreateExecutionCache || PCGComponent->CurrentGenerationTask == InvalidPCGTaskId);
+
+#else
+
+#define PCG_EXECUTION_CACHE_VALIDATION_CREATE_SCOPE(PCGComponent)
+#define PCG_EXECUTION_CACHE_VALIDATION_CREATE_ORIGINAL_SCOPE(PCGComponent)
+#define PCG_EXECUTION_CACHE_VALIDATION_CHECK(PCGComponent)
+
+#endif // PCG_EXECUTION_CACHE_VALIDATION_ENABLED

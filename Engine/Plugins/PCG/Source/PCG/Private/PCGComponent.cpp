@@ -2279,40 +2279,7 @@ void UPCGComponent::DirtyGenerated(EPCGComponentDirtyFlag DirtyFlag, const bool 
 	bDirtyGenerated = true;
 
 	ClearPerPinGeneratedOutput();
-
-	// Dirty data as a waterfall from basic values
-	if (!!(DirtyFlag & EPCGComponentDirtyFlag::Actor))
-	{
-		CachedActorData = nullptr;
-		// Since landscape data is related on the bounds of the current actor, when we dirty the actor data, we need to dirty the landscape data as well
-		CachedLandscapeData = nullptr;
-		CachedLandscapeHeightData = nullptr;
-		CachedInputData = nullptr;
-		CachedPCGData = nullptr;
-	}
 	
-	if (!!(DirtyFlag & EPCGComponentDirtyFlag::Landscape))
-	{
-		CachedLandscapeData = nullptr;
-		CachedLandscapeHeightData = nullptr;
-		if (InputType == EPCGComponentInput::Landscape)
-		{
-			CachedInputData = nullptr;
-			CachedPCGData = nullptr;
-		}
-	}
-
-	if (!!(DirtyFlag & EPCGComponentDirtyFlag::Input))
-	{
-		CachedInputData = nullptr;
-		CachedPCGData = nullptr;
-	}
-
-	if (!!(DirtyFlag & EPCGComponentDirtyFlag::Data))
-	{
-		CachedPCGData = nullptr;
-	}
-
 	// For partitioned graph, we must forward the call to the partition actor, if we need to
 	// TODO: Don't forward for None for now, as it could break some stuff
 	if (bActivated && IsPartitioned() && bDispatchToLocalComponents)
@@ -2759,97 +2726,139 @@ void UPCGComponent::OnRefresh(bool bForceRefresh)
 }
 #endif // WITH_EDITOR
 
-UPCGData* UPCGComponent::GetPCGData()
+UPCGData* UPCGComponent::GetPCGData() const
 {
-	if (!CachedPCGData)
+	UPCGData* Data = nullptr;
+	if (UPCGSubsystem* PCGSubsystem = GetSubsystem())
 	{
-		CachedPCGData = CreatePCGData();
-
-		if (GetSubsystem() && GetSubsystem()->IsGraphCacheDebuggingEnabled())
+		Data = PCGSubsystem->GetPCGData(CurrentGenerationTask);
+		if (!Data)
 		{
-			UE_LOG(LogPCG, Log, TEXT("         [%s] CACHE REFRESH CachedPCGData"), *GetOwner()->GetName());
+			Data = CreatePCGData();
+			PCGSubsystem->SetPCGData(CurrentGenerationTask, Data);
+			if (PCGSubsystem->IsGraphCacheDebuggingEnabled() && CurrentGenerationTask != InvalidPCGTaskId)
+			{
+				UE_LOG(LogPCG, Log, TEXT("         [%s] CACHE REFRESH CachedPCGData"), *GetOwner()->GetName());
+			}
 		}
 	}
 
-	return CachedPCGData;
+	return Data;
 }
 
-UPCGData* UPCGComponent::GetInputPCGData()
+UPCGData* UPCGComponent::GetInputPCGData() const
 {
-	if (!CachedInputData)
+	UPCGData* Data = nullptr;
+	if (UPCGSubsystem* PCGSubsystem = GetSubsystem())
 	{
-		CachedInputData = CreateInputPCGData();
-
-		if (GetSubsystem() && GetSubsystem()->IsGraphCacheDebuggingEnabled())
+		Data = PCGSubsystem->GetInputPCGData(CurrentGenerationTask);
+		if (!Data)
 		{
-			UE_LOG(LogPCG, Log, TEXT("         [%s] CACHE REFRESH CachedInputData"), *GetOwner()->GetName());
+			Data = CreateInputPCGData();
+			PCGSubsystem->SetInputPCGData(CurrentGenerationTask, Data);
+			if (PCGSubsystem->IsGraphCacheDebuggingEnabled() && CurrentGenerationTask != InvalidPCGTaskId)
+			{
+				UE_LOG(LogPCG, Log, TEXT("         [%s] CACHE REFRESH CachedInputData"), *GetOwner()->GetName());
+			}
 		}
 	}
 
-	return CachedInputData;
+	return Data;
 }
 
-UPCGData* UPCGComponent::GetActorPCGData()
+UPCGData* UPCGComponent::GetActorPCGData() const
 {
-	// Actor PCG Data can be a Landscape data too
-	if (!CachedActorData || IsLandscapeCachedDataDirty(CachedActorData))
+	UPCGData* Data = nullptr;
+	if (UPCGSubsystem* PCGSubsystem = GetSubsystem())
 	{
-		CachedActorData = CreateActorPCGData();
-
-		if (GetSubsystem() && GetSubsystem()->IsGraphCacheDebuggingEnabled())
+		Data = PCGSubsystem->GetActorPCGData(CurrentGenerationTask);
+		if (!Data)
 		{
-			UE_LOG(LogPCG, Log, TEXT("         [%s] CACHE REFRESH CachedActorData"), *GetOwner()->GetName());
+			PCG_EXECUTION_CACHE_VALIDATION_CHECK(this);
+			Data = CreateActorPCGData();
+			PCGSubsystem->SetActorPCGData(CurrentGenerationTask, Data);
+			if (PCGSubsystem->IsGraphCacheDebuggingEnabled() && CurrentGenerationTask != InvalidPCGTaskId)
+			{
+				UE_LOG(LogPCG, Log, TEXT("         [%s] CACHE REFRESH CachedActorData"), *GetOwner()->GetName());
+			}
 		}
 	}
 
-	return CachedActorData;
+	return Data;
 }
 
-UPCGData* UPCGComponent::GetLandscapePCGData()
+UPCGData* UPCGComponent::GetLandscapePCGData() const
 {
-	if (!CachedLandscapeData || IsLandscapeCachedDataDirty(CachedLandscapeData))
+	UPCGData* Data = nullptr;
+	if (UPCGSubsystem* PCGSubsystem = GetSubsystem())
 	{
-		CachedLandscapeData = CreateLandscapePCGData(/*bHeightOnly=*/false);
-
-		if (GetSubsystem() && GetSubsystem()->IsGraphCacheDebuggingEnabled())
+		Data = PCGSubsystem->GetLandscapePCGData(CurrentGenerationTask);
+		if (!Data)
 		{
-			UE_LOG(LogPCG, Log, TEXT("         [%s] CACHE REFRESH CachedLandscapeData"), *GetOwner()->GetName());
+			Data = CreateLandscapePCGData(/*bHeightOnly=*/false);
+			PCGSubsystem->SetLandscapePCGData(CurrentGenerationTask, Data);
+			if (PCGSubsystem->IsGraphCacheDebuggingEnabled() && CurrentGenerationTask != InvalidPCGTaskId)
+			{
+				UE_LOG(LogPCG, Log, TEXT("         [%s] CACHE REFRESH CachedLandscapeData"), *GetOwner()->GetName());
+			}
 		}
 	}
 
-	return CachedLandscapeData;
+	return Data;
 }
 
-UPCGData* UPCGComponent::GetLandscapeHeightPCGData()
+UPCGData* UPCGComponent::GetLandscapeHeightPCGData() const
 {
-	if (!CachedLandscapeHeightData || IsLandscapeCachedDataDirty(CachedLandscapeHeightData))
+	UPCGData* Data = nullptr;
+	if (UPCGSubsystem* PCGSubsystem = GetSubsystem())
 	{
-		CachedLandscapeHeightData = CreateLandscapePCGData(/*bHeightOnly=*/true);
-
-		if (GetSubsystem() && GetSubsystem()->IsGraphCacheDebuggingEnabled())
+		Data = PCGSubsystem->GetLandscapeHeightPCGData(CurrentGenerationTask);
+		if (!Data)
 		{
-			UE_LOG(LogPCG, Log, TEXT("         [%s] CACHE REFRESH CachedLandscapeHeightData"), *GetOwner()->GetName());
+			Data = CreateLandscapePCGData(/*bHeightOnly=*/true);
+			PCGSubsystem->SetLandscapeHeightPCGData(CurrentGenerationTask, Data);
+			if (PCGSubsystem->IsGraphCacheDebuggingEnabled() && CurrentGenerationTask != InvalidPCGTaskId)
+			{
+				UE_LOG(LogPCG, Log, TEXT("         [%s] CACHE REFRESH CachedLandscapeHeightData"), *GetOwner()->GetName());
+			}
 		}
 	}
 
-	return CachedLandscapeHeightData;
+	return Data;
 }
 
-UPCGData* UPCGComponent::GetOriginalActorPCGData()
+UPCGData* UPCGComponent::GetOriginalActorPCGData() const
 {
-	if (APCGPartitionActor* PartitionActor = Cast<APCGPartitionActor>(GetOwner()))
-	{
-		if (UPCGComponent* OriginalComponent = PartitionActor->GetOriginalComponent(this))
-		{
-			return OriginalComponent->GetActorPCGData();
-		}
-	}
-	else
+	APCGPartitionActor* PartitionActor = Cast<APCGPartitionActor>(GetOwner());
+	if (!PartitionActor)
 	{
 		return GetActorPCGData();
 	}
 
-	return nullptr;
+	UPCGData* Data = nullptr;
+	if (UPCGSubsystem* PCGSubsystem = GetSubsystem())
+	{
+		Data = PCGSubsystem->GetOriginalActorPCGData(CurrentGenerationTask);
+		if (!Data)
+		{
+			if (UPCGComponent* OriginalComponent = PartitionActor->GetOriginalComponent(this))
+			{
+				Data = OriginalComponent->GetActorPCGData();
+				if (!Data)
+				{
+					PCG_EXECUTION_CACHE_VALIDATION_CHECK(this);
+					Data = OriginalComponent->CreateActorPCGData();
+				}
+				PCGSubsystem->SetOriginalActorPCGData(CurrentGenerationTask, Data);
+				if (PCGSubsystem->IsGraphCacheDebuggingEnabled() && CurrentGenerationTask != InvalidPCGTaskId)
+				{
+					UE_LOG(LogPCG, Log, TEXT("         [%s] CACHE REFRESH CachedOriginalActorData"), *GetOwner()->GetName());
+				}
+			}
+		}
+	}
+
+	return Data;
 }
 
 UPCGComponent* UPCGComponent::GetOriginalComponent()
@@ -2863,12 +2872,12 @@ UPCGComponent* UPCGComponent::GetOriginalComponent()
 	return ensure(PartitionActor) ? PartitionActor->GetOriginalComponent(this) : this;
 }
 
-UPCGData* UPCGComponent::CreateActorPCGData()
+UPCGData* UPCGComponent::CreateActorPCGData() const
 {
 	return CreateActorPCGData(GetOwner(), bParseActorComponents);
 }
 
-UPCGData* UPCGComponent::CreateActorPCGData(AActor* Actor, bool bParseActor)
+UPCGData* UPCGComponent::CreateActorPCGData(AActor* Actor, bool bParseActor) const
 {
 	return CreateActorPCGData(Actor, this, bParseActor);
 }
@@ -2939,13 +2948,13 @@ void UPCGComponent::RefreshSchedulingPolicy()
 	}
 }
 
-UPCGData* UPCGComponent::CreatePCGData()
+UPCGData* UPCGComponent::CreatePCGData() const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGComponent::CreatePCGData);
 	return GetInputPCGData();
 }
 
-UPCGData* UPCGComponent::CreateLandscapePCGData(bool bHeightOnly)
+UPCGData* UPCGComponent::CreateLandscapePCGData(bool bHeightOnly) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGComponent::CreateLandscapePCGData);
 	AActor* Actor = GetOwner();
@@ -3009,7 +3018,7 @@ UPCGData* UPCGComponent::CreateLandscapePCGData(bool bHeightOnly)
 	return LandscapeData;
 }
 
-UPCGData* UPCGComponent::CreateInputPCGData()
+UPCGData* UPCGComponent::CreateInputPCGData() const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGComponent::CreateInputPCGData);
 	AActor* Actor = GetOwner();

@@ -109,6 +109,8 @@ struct PCG_API FPCGContext
 		return SettingsWithOverride ? Cast<SettingsType>(SettingsWithOverride) : GetOriginalSettings<SettingsType>();
 	}
 
+	FPCGTaskId GetGraphExecutionTaskId() const;
+
 	FString GetTaskName() const;
 	FString GetComponentName() const;
 	bool ShouldStop() const { return AsyncState.ShouldStop(); }

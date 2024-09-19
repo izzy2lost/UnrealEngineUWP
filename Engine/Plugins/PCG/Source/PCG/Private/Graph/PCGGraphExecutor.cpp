@@ -198,6 +198,11 @@ const FPCGStack* FPCGGraphTask::GetStack() const
 	return (StackContext && StackIndex != INDEX_NONE) ? StackContext->GetStack(StackIndex) : nullptr;
 }
 
+FPCGTaskId FPCGGraphTask::GetGraphExecutionTaskId() const
+{
+	return StackContext ? StackContext->GetGraphExecutionTaskId() : InvalidPCGTaskId;
+}
+
 #if WITH_EDITOR
 void FPCGGraphTask::LogVisual(ELogVerbosity::Type InVerbosity, const FText& InMessage) const
 {
@@ -333,6 +338,8 @@ FPCGGraphExecutor::FPCGGraphExecutor()
 FPCGGraphExecutor::FPCGGraphExecutor(UWorld* InWorld)
 	: World(InWorld)
 {
+	static_assert((int8)(EExecutionCacheDataType::Count) == ExecutionCacheSize);
+
 	GameThreadHandler = MakeShared<FGameThreadHandler>(this);
 }
 
@@ -361,7 +368,7 @@ FPCGTaskId FPCGGraphExecutor::Schedule(UPCGComponent* Component, const TArray<FP
 	check(Component);
 	UPCGGraph* Graph = Component->GetGraph();
 
-	return Schedule(Graph, Component, FPCGElementPtr(), GetFetchInputElement(), ExternalDependencies, InFromStack, /*bAllowHierarchicalGeneration=*/true);
+	return Schedule(Graph, Component, GetPreGraphElement(), GetFetchInputElement(), ExternalDependencies, InFromStack, /*bAllowHierarchicalGeneration=*/true);
 }
 
 FPCGTaskId FPCGGraphExecutor::Schedule(
@@ -436,6 +443,9 @@ FPCGTaskId FPCGGraphExecutor::Schedule(
 		FPCGGraphCompiler::OffsetNodeIds(ScheduledTask.Tasks, NextTaskId, InvalidPCGTaskId);
 		NextTaskId += ScheduledTask.Tasks.Num();
 		ScheduledId = NextTaskId - 1; // This is true because the last task is from the output node or is the post-execute task
+
+		const FPCGTaskId GraphExecutionTaskId = InFromStack ? InFromStack->GetGraphExecutionTaskId() : ScheduledId;
+		StackContextPtr->SetGraphExecutionTaskId(GraphExecutionTaskId);
 
 		// Push task (not data) dependencies on the pre-execute task
 		// Note must be done after the offset ids, otherwise we'll break the dependencies
@@ -762,6 +772,31 @@ bool FPCGGraphExecutor::IsAnyGraphCurrentlyExecuting() const
 int32 FPCGGraphExecutor::GetNonScheduledRemainingTaskCount() const
 {
 	return Tasks.Num() + ReadyTasks.Num() + ActiveTasks.Num() + ActiveTasksGameThreadOnly.Num() + SleepingTasks.Num();
+}
+
+UPCGData* FPCGGraphExecutor::GetExecutionCacheData(FPCGTaskId InGraphExecutionTaskId, EExecutionCacheDataType InExecutionCacheDataType)
+{
+	if (InGraphExecutionTaskId != InvalidPCGTaskId)
+	{
+		PCGGraphExecutor::TScopeLock ScopeLock(GraphExecutionCachesLock);
+		if (FGraphExecutionCache* GraphExecutionCache = GraphExecutionCaches.Find(InGraphExecutionTaskId))
+		{
+			return GraphExecutionCache->Data[(int8)InExecutionCacheDataType];
+		}
+	}
+
+	return nullptr;
+}
+
+void FPCGGraphExecutor::SetExecutionCacheData(FPCGTaskId InGraphExecutionTaskId, EExecutionCacheDataType InExecutionCacheDataType, UPCGData* InData)
+{
+	if (InGraphExecutionTaskId != InvalidPCGTaskId)
+	{
+		PCGGraphExecutor::TScopeLock ScopeLock(GraphExecutionCachesLock);
+		FGraphExecutionCache& GraphExecutionCache = GraphExecutionCaches.FindOrAdd(InGraphExecutionTaskId);
+		check(!GraphExecutionCache.Data[(int8)InExecutionCacheDataType]);
+		GraphExecutionCache.Data[(int8)InExecutionCacheDataType] = InData;
+	}
 }
 
 FPCGTaskId FPCGGraphExecutor::ScheduleGeneric(TFunction<bool()> InOperation, UPCGComponent* InSourceComponent, const TArray<FPCGTaskId>& TaskExecutionDependencies)
@@ -2353,6 +2388,9 @@ void FPCGGraphExecutor::ClearResults()
 		if (ScheduledTasks.IsEmpty())
 		{
 			NextTaskId = 0;
+
+			PCGGraphExecutor::TScopeLock ChildScopeLock(GraphExecutionCachesLock);
+			GraphExecutionCaches.Empty();
 		}
 	}
 
@@ -2585,16 +2623,50 @@ void FPCGGraphExecutor::AddReferencedObjects(FReferenceCollector& Collector)
 			}
 		});
 	}
+
+	{
+		PCGGraphExecutor::TScopeLock ScopeLock(GraphExecutionCachesLock);
+		for (TMap<FPCGTaskId, FGraphExecutionCache>::TIterator It = GraphExecutionCaches.CreateIterator(); It; ++It)
+		{
+			It.Value().AddStructReferencedObjects(Collector);
+		}
+	}
+}
+
+FPCGGraphExecutor::FGraphExecutionCache::FGraphExecutionCache()
+{
+	for (int32 i = 0; i < (int32)EExecutionCacheDataType::Count; ++i)
+	{
+		Data[i] = nullptr;
+	}
+}
+
+void FPCGGraphExecutor::FGraphExecutionCache::AddStructReferencedObjects(FReferenceCollector& Collector)
+{
+	for (int32 i = 0; i < (int32)EExecutionCacheDataType::Count; ++i)
+	{
+		Collector.AddReferencedObject(Data[i]);
+	}
 }
 
 FPCGElementPtr FPCGGraphExecutor::GetFetchInputElement()
 {
-	if (!FetchInputElement)
+	if (!FetchInputElementPtr)
 	{
-		FetchInputElement = MakeShared<FPCGFetchInputElement>();
+		FetchInputElementPtr = MakeShared<FPCGFetchInputElement>();
 	}
 
-	return FetchInputElement;
+	return FetchInputElementPtr;
+}
+
+FPCGElementPtr FPCGGraphExecutor::GetPreGraphElement()
+{
+	if (!PreGraphElementPtr)
+	{
+		PreGraphElementPtr = MakeShared<FPCGPreGraphElement>();
+	}
+
+	return PreGraphElementPtr;
 }
 
 void FPCGGraphExecutor::LogTaskState() const
@@ -2753,6 +2825,37 @@ FTextFormat FPCGGraphExecutor::GetNotificationTextFormat()
 
 #endif // WITH_EDITOR
 
+bool FPCGPreGraphElement::ExecuteInternal(FPCGContext* Context) const
+{
+	check(Context);
+
+	check(IsInGameThread());
+	UPCGComponent* Component = Context->SourceComponent.Get();
+
+	// Early out if the component has been deleted/is invalid
+	if (!Component)
+	{
+		// If the component should exist but it doesn't (which is all the time here, previously we checked for it), then this should be cancelled
+		Context->OutputData.bCancelExecution = true;
+		return true;
+	}
+
+#if WITH_EDITOR
+	Component->StartGenerationInProgress();
+#endif
+
+	check(Component->GetGenerationTaskId() != InvalidPCGTaskId);
+
+	{
+		PCG_EXECUTION_CACHE_VALIDATION_CREATE_SCOPE(Component);
+		
+		// Call getters which will create the data and cache it
+		Component->GetActorPCGData();
+		Component->GetOriginalActorPCGData();
+	}
+	return true;
+}
+
 bool FPCGFetchInputElement::ExecuteInternal(FPCGContext* Context) const
 {
 	check(Context);
@@ -2771,7 +2874,7 @@ bool FPCGFetchInputElement::ExecuteInternal(FPCGContext* Context) const
 	}
 
 #if WITH_EDITOR
-	Component->StartGenerationInProgress();
+	check(Component->IsGenerationInProgress());
 #endif
 
 	check(Context->Node);

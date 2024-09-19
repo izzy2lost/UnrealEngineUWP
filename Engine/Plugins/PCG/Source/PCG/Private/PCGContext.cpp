@@ -23,6 +23,11 @@
 
 #define LOCTEXT_NAMESPACE "PCGContext"
 
+FPCGTaskId FPCGContext::GetGraphExecutionTaskId() const
+{
+	return ensure(Stack) ? Stack->GetGraphExecutionTaskId() : InvalidPCGTaskId;
+}
+
 FString FPCGContext::GetTaskName() const
 {
 	if (Node)

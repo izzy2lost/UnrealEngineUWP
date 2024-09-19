@@ -69,7 +69,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 class FPCGCreatePointsElement : public IPCGElement
 {
 public:
-	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override;
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override;
 	virtual bool ShouldComputeFullOutputDataCrc(FPCGContext* Context) const override { return true; }
 

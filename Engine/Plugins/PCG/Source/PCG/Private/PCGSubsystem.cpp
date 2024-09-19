@@ -1828,6 +1828,84 @@ TSet<TObjectPtr<APCGPartitionActor>> UPCGSubsystem::GetPCGComponentPartitionActo
 
 #endif // WITH_EDITOR
 
+UPCGData* UPCGSubsystem::GetPCGData(FPCGTaskId InGraphExecutionTaskId)
+{
+	return GraphExecutor ? GraphExecutor->GetPCGData(InGraphExecutionTaskId) : nullptr;
+}
+
+UPCGData* UPCGSubsystem::GetInputPCGData(FPCGTaskId InGraphExecutionTaskId)
+{
+	return GraphExecutor ? GraphExecutor->GetInputPCGData(InGraphExecutionTaskId) : nullptr;
+}
+
+UPCGData* UPCGSubsystem::GetActorPCGData(FPCGTaskId InGraphExecutionTaskId)
+{
+	return GraphExecutor ? GraphExecutor->GetActorPCGData(InGraphExecutionTaskId) : nullptr;
+}
+
+UPCGData* UPCGSubsystem::GetLandscapePCGData(FPCGTaskId InGraphExecutionTaskId)
+{
+	return GraphExecutor ? GraphExecutor->GetLandscapePCGData(InGraphExecutionTaskId) : nullptr;
+}
+
+UPCGData* UPCGSubsystem::GetLandscapeHeightPCGData(FPCGTaskId InGraphExecutionTaskId)
+{
+	return GraphExecutor ? GraphExecutor->GetLandscapeHeightPCGData(InGraphExecutionTaskId) : nullptr;
+}
+
+UPCGData* UPCGSubsystem::GetOriginalActorPCGData(FPCGTaskId InGraphExecutionTaskId)
+{
+	return GraphExecutor ? GraphExecutor->GetOriginalActorPCGData(InGraphExecutionTaskId) : nullptr;
+}
+
+void UPCGSubsystem::SetPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData)
+{
+	if (GraphExecutor)
+	{
+		GraphExecutor->SetPCGData(InGraphExecutionTaskId, InData);
+	}
+}
+
+void UPCGSubsystem::SetInputPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData)
+{
+	if (GraphExecutor)
+	{
+		GraphExecutor->SetInputPCGData(InGraphExecutionTaskId, InData);
+	}
+}
+
+void UPCGSubsystem::SetActorPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData)
+{
+	if (GraphExecutor)
+	{
+		GraphExecutor->SetActorPCGData(InGraphExecutionTaskId, InData);
+	}
+}
+
+void UPCGSubsystem::SetLandscapePCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData)
+{
+	if (GraphExecutor)
+	{
+		GraphExecutor->SetLandscapePCGData(InGraphExecutionTaskId, InData);
+	}
+}
+
+void UPCGSubsystem::SetLandscapeHeightPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData)
+{
+	if (GraphExecutor)
+	{
+		GraphExecutor->SetLandscapeHeightPCGData(InGraphExecutionTaskId, InData);
+	}
+}
+
+void UPCGSubsystem::SetOriginalActorPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData)
+{
+	if (GraphExecutor)
+	{
+		GraphExecutor->SetOriginalActorPCGData(InGraphExecutionTaskId, InData);
+	}
+}
+
 void UPCGSubsystem::ExecuteBeginTickActions()
 {
 	TArray<FTickAction> Actions = MoveTemp(BeginTickActions);
