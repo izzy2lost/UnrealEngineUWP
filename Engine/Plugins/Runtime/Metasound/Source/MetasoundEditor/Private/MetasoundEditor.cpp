@@ -5215,7 +5215,8 @@ namespace Metasound
 					EMetaSoundBuilderResult Result = EMetaSoundBuilderResult::Failed;
 					FMetasoundFrontendLiteral Literal;
 					FGraphBuilder::GetPinLiteral(*Pin, Literal);
-					FMetaSoundBuilderNodeOutputHandle OutputHandle = Builder->AddGraphInputNode(Name, InputVertex->TypeName, Literal, Result, false);
+					bool bIsConstructorInput = DocBuilder.GetNodeInputAccessType(InputVertexHandle.NodeID, InputVertexHandle.VertexID) == EMetasoundFrontendVertexAccessType::Value;
+					FMetaSoundBuilderNodeOutputHandle OutputHandle = Builder->AddGraphInputNode(Name, InputVertex->TypeName, Literal, Result, bIsConstructorInput);
 					check(Result == EMetaSoundBuilderResult::Succeeded);
 
 					FVector2D Location = FVector2D(EdGraphNode->NodePosX, EdGraphNode->NodePosY);
@@ -5309,13 +5310,14 @@ namespace Metasound
 				FName PinName = Pair.Key.Key;
 				FName TypeName = Pair.Key.Value;
 				UEdGraphPin* SourcePin = Pair.Value[0];
-				
+				FMetasoundFrontendVertexHandle InputVertexHandle = FGraphBuilder::GetPinVertexHandle(DocBuilder, SourcePin);
 				FName InputName = FGraphBuilder::GenerateUniqueNameByClassType(ParentMetasound, EMetasoundFrontendClassType::Input, PinName.ToString());
 				
 				EMetaSoundBuilderResult Result = EMetaSoundBuilderResult::Failed;
 				FMetasoundFrontendLiteral Literal;
 				FGraphBuilder::GetPinLiteral(*SourcePin, Literal);
-				FMetaSoundBuilderNodeOutputHandle OutputHandle = Builder->AddGraphInputNode(InputName, TypeName, Literal, Result, false);
+				bool bIsConstructorInput = DocBuilder.GetNodeInputAccessType(InputVertexHandle.NodeID, InputVertexHandle.VertexID) == EMetasoundFrontendVertexAccessType::Value;
+				FMetaSoundBuilderNodeOutputHandle OutputHandle = Builder->AddGraphInputNode(InputName, TypeName, Literal, Result, bIsConstructorInput);
 				check(Result == EMetaSoundBuilderResult::Succeeded);
 
 				FVector2D* NodeOffset = NodeOffsets.Find(SourcePin->GetOwningNode()->NodeGuid);
