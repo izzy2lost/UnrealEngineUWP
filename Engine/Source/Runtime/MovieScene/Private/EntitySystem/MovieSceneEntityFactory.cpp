@@ -8,6 +8,7 @@
 #include "EntitySystem/MovieSceneEntitySystemTask.h"
 #include "EntitySystem/MovieSceneEntityFactoryTemplates.h"
 #include "MovieSceneFwd.h"
+#include "Conditions/MovieSceneCondition.h"
 
 namespace UE
 {
@@ -177,6 +178,8 @@ void FBoundObjectTask::ForEachAllocation(FEntityAllocationProxy AllocationProxy,
 	Batch.StaleEntitiesToPreserve = &StaleEntitiesToPreserve;
 
 	const int32 Num = Allocation->Num();
+	
+	TOptionalComponentReader<TObjectPtr<const UMovieSceneCondition>> Conditions = Allocation->TryReadComponents(FBuiltInComponentTypes::Get()->Condition);
 
 	FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
 
@@ -208,7 +211,8 @@ void FBoundObjectTask::ForEachAllocation(FEntityAllocationProxy AllocationProxy,
 
 		const FSequenceInstance&     SequenceInstance = InstanceRegistry->GetInstance(Instances[Index]);
 		TArrayView<TWeakObjectPtr<>> BoundObjects     = SequenceInstance.GetSharedPlaybackState()->FindBoundObjects(ObjectBindings[Index], SequenceInstance.GetSequenceID());
-
+		
+		bool bCheckedCondition = false;
 		for (TWeakObjectPtr<> WeakObject : BoundObjects)
 		{
 			UObject* Object = WeakObject.Get();
@@ -224,6 +228,19 @@ void FBoundObjectTask::ForEachAllocation(FEntityAllocationProxy AllocationProxy,
 				if (!ensureMsgf(!FBuiltInComponentTypes::IsBoundObjectGarbage(Object), TEXT("Attempting to bind an object that is garbage or unreachable")))
 				{
 					continue;
+				}
+
+				if (!bCheckedCondition && Conditions && Conditions[Index] && Conditions[Index]->GetConditionScope() != EMovieSceneConditionScope::Global)
+				{
+					// If this entity has a condition that could depend on a bound object, then it hasn't yet been tested, and we must test it here. \
+					// Note that it will only be tested once here, and then the entity ledger will take care of testing it again if it needs to
+					// and it is a per-tick condition.
+					bCheckedCondition = true;
+					if (!SequenceInstance.EvaluateCondition(ObjectBindings[Index], SequenceInstance.GetSequenceID(), Conditions[Index], Conditions[Index]->GetTypedOuter<UMovieSceneSignedObject>()))
+					{
+						// Condition has failed, don't add this entity to the batch
+						break;
+					}
 				}
 
 				// Make a child entity for this resolved binding

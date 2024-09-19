@@ -90,3 +90,8 @@ bool UMovieSceneCondition::CanCacheResult(TSharedRef<const UE::MovieScene::FShar
 	
 	return GetCheckFrequencyInternal() != EMovieSceneConditionCheckFrequency::OnTick; 
 }
+
+EMovieSceneConditionScope UMovieSceneCondition::GetConditionScope() const
+{
+	return GetScopeInternal();
+}

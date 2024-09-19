@@ -224,7 +224,7 @@ void FEntityLedger::FindImportedEntities(TWeakObjectPtr<UObject> EntityOwner, TA
 	}
 }
 
-bool FEntityLedger::CanImportEntity(UMovieSceneEntitySystemLinker* Linker, const FEntityImportSequenceParams& ImportParams, const FMovieSceneEntityComponentField* EntityField, const FMovieSceneEvaluationFieldEntityQuery& Query, FMovieSceneEvaluationFieldEntitySet& OutPerTickConditionalEntities, TMap<uint32, bool>& ConditionResultCache, bool bCacheAllResults)
+bool FEntityLedger::CanImportEntity(UMovieSceneEntitySystemLinker* Linker, const FEntityImportSequenceParams& ImportParams, const FMovieSceneEntityComponentField* EntityField, const FMovieSceneEvaluationFieldEntityQuery& Query, FMovieSceneEvaluationFieldEntitySet& OutPerTickConditionalEntities, TMap<uint32, bool>& ConditionResultCache, bool bUpdatingPerTickEntities)
 {
 	// If we don't have a condition, just return true
 	const FMovieSceneEvaluationFieldEntityMetaData* EntityMetadata = EntityField->FindMetaData(Query);
@@ -237,14 +237,30 @@ bool FEntityLedger::CanImportEntity(UMovieSceneEntitySystemLinker* Linker, const
 	const FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
 	const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(ImportParams.InstanceHandle);
 
+	bool bCanCacheResult = EntityMetadata->Condition->CanCacheResult(SequenceInstance.GetSharedPlaybackState());
+	if (!bCanCacheResult)
+	{
+		// If we can't cache the result, it will need to be checked again next tick
+		OutPerTickConditionalEntities.Add(Query);
+	}
+
 	FGuid BindingID;
 
-	if (const FMovieSceneEvaluationFieldSharedEntityMetaData * SharedMetadata = EntityField->FindSharedMetaData(Query))
+	if (const FMovieSceneEvaluationFieldSharedEntityMetaData* SharedMetadata = EntityField->FindSharedMetaData(Query))
 	{
 		BindingID = SharedMetadata->ObjectBindingID;
 	}
 
+	// If we have a valid binding ID, and the condition depends on object binding, then we must ensure the object binding is resolved
+	// before evaluating the condition. To ensure this, we always defer checking the condition for non-global conditions on bound objects to the bound object resolver.
+	// We don't do this for updating per-tick entities as the bound object resolver is only run once.
+	if (!bUpdatingPerTickEntities && BindingID.IsValid() && EntityMetadata->Condition->GetConditionScope() != EMovieSceneConditionScope::Global)
+	{
+		return true;
+	}
+
 	uint32 CacheKey = EntityMetadata->Condition->ComputeCacheKey(BindingID, ImportParams.SequenceID, SequenceInstance.GetSharedPlaybackState(), Query.Entity.Key.EntityOwner.Get());
+	
 	if (bool* CachedResult = ConditionResultCache.Find(CacheKey))
 	{
 		return *CachedResult;
@@ -252,14 +268,10 @@ bool FEntityLedger::CanImportEntity(UMovieSceneEntitySystemLinker* Linker, const
 	else
 	{
 		bool bResult = EntityMetadata->Condition->EvaluateCondition(BindingID, ImportParams.SequenceID, SequenceInstance.GetSharedPlaybackState());
-		if (bCacheAllResults || EntityMetadata->Condition->CanCacheResult(SequenceInstance.GetSharedPlaybackState()))
+		// We always cache the results for per tick entities as they get thrown away after the tick, and we might as well prevent the same condition from getting re-evaluated multiple times per tick.
+		if (bCanCacheResult || bUpdatingPerTickEntities)
 		{
 			ConditionResultCache.Add(CacheKey, bResult);
-		}
-		else
-		{
-			// If we can't cache the result, it will need to be checked again next tick
-			OutPerTickConditionalEntities.Add(Query);
 		}
 		return bResult;
 	}

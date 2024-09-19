@@ -724,6 +724,8 @@ public:
 
 	TComponentTypeID<FEvaluationHookFlags> EvaluationHookFlags;
 
+	TComponentTypeID<TObjectPtr<const UMovieSceneCondition>> Condition;
+
 public:
 
 	// 
