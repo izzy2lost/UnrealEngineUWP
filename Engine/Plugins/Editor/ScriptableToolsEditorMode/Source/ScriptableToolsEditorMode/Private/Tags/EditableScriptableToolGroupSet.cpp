@@ -13,12 +13,12 @@ UEditableScriptableToolGroupSet::UEditableScriptableToolGroupSet()
 
 void UEditableScriptableToolGroupSet::SetGroups(const FScriptableToolGroupSet::FGroupSet& InGroups)
 {
-	GroupSet.Groups = InGroups;
+	GroupSet.SetGroups(InGroups);
 }
 
 FScriptableToolGroupSet::FGroupSet& UEditableScriptableToolGroupSet::GetGroups()
 {
-	return GroupSet.Groups;
+	return GroupSet.GetGroups();
 }
 
 FString UEditableScriptableToolGroupSet::GetGroupSetExportText()

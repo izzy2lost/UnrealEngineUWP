@@ -29,6 +29,6 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = "Scriptable Tools Mode|Tool Registration", meta = (EditCondition = "!bRegisterAllTools"))
 	FScriptableToolGroupSet ToolRegistrationFilters;
 
-	bool RegisterAllTools() const {	return ToolRegistrationFilters.Groups.IsEmpty(); }
+	bool RegisterAllTools() const {	return ToolRegistrationFilters.GetGroups().IsEmpty(); }
 
 };

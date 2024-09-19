@@ -9,6 +9,7 @@ class UScriptableInteractiveTool;
 class UBaseScriptableToolBuilder;
 struct FScriptableToolGroupSet;
 class UClass;
+struct FCanDeleteAssetResult;
 
 DECLARE_DELEGATE(FPreToolsLoadedDelegate);
 DECLARE_DELEGATE(FToolsLoadedDelegate);
@@ -23,6 +24,10 @@ class EDITORSCRIPTABLETOOLSFRAMEWORK_API UScriptableToolSet : public UObject
 
 public:
 
+	UScriptableToolSet();
+
+	virtual ~UScriptableToolSet();
+
 	/**
 	 * Find all UScriptableInteractiveTool classes in the current project.
 	 * (Currently no support for filtering/etc)
@@ -35,15 +40,21 @@ public:
 	void ForEachScriptableTool(
 		TFunctionRef<void(UClass* ToolClass, UBaseScriptableToolBuilder* ToolBuilder)> ProcessToolFunc);
 
-protected:
+private:
+
+	void HandleAssetCanDelete(const TArray<UObject*>& InObjectsToDelete, FCanDeleteAssetResult& OutCanDelete);
 
 	void PostToolLoad(FToolsLoadedDelegate Delegate, TArray< FSoftObjectPath > ObjectsLoaded, TSharedPtr<FScriptableToolGroupSet> TagsToFilter);
 
 	bool bActiveLoading = false;
 	TSharedPtr<FStreamableHandle> AsyncLoadHandle;
 
+	FDelegateHandle AssetCanDeleteHandle;
+
 	struct FScriptableToolInfo
 	{
+		FString ToolPath;
+		FString BuilderPath;
 		TWeakObjectPtr<UClass> ToolClass = nullptr;
 		TWeakObjectPtr<UScriptableInteractiveTool> ToolCDO;
 		TWeakObjectPtr<UBaseScriptableToolBuilder> ToolBuilder;

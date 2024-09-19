@@ -168,7 +168,7 @@ FReply SScriptableToolGroupSetCombo::OnClearTagClicked(UClass* InGroup)
 	}
 	else if (StructPtr)
 	{
-		StructPtr->Groups = HelperGroupSet->GetGroups();
+		StructPtr->SetGroups(HelperGroupSet->GetGroups());
 	}
 
 	OnChanged.ExecuteIfBound();
@@ -217,7 +217,7 @@ void SScriptableToolGroupSetCombo::RefreshListView()
 	if(bValidData)
 	{
 		FScriptableToolGroupSet& GroupSet = *static_cast<FScriptableToolGroupSet*>(StructPointer);
-		FScriptableToolGroupSet::FGroupSet& Groups = GroupSet.Groups;
+		FScriptableToolGroupSet::FGroupSet Groups = GroupSet.GetGroups();
 
 		HelperGroupSet->SetGroups(Groups);
 

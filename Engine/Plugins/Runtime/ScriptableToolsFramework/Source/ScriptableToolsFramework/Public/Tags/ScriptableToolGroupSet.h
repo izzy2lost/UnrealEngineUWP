@@ -9,7 +9,7 @@
 #include "ScriptableToolGroupSet.generated.h"
 
 USTRUCT()
-struct FScriptableToolGroupSet
+struct SCRIPTABLETOOLSFRAMEWORK_API FScriptableToolGroupSet
 {
 	GENERATED_BODY()
 
@@ -18,13 +18,33 @@ struct FScriptableToolGroupSet
 	 */
 	typedef TSet<TSubclassOf<UScriptableToolGroupTag>> FGroupSet;
 
-	UPROPERTY(EditAnywhere, Category = "Groups")
-	TSet<TSubclassOf<UScriptableToolGroupTag>> Groups;
-
 public:
 
 	bool Matches(const FScriptableToolGroupSet& OtherSet) const
 	{
-		return !Groups.Intersect(OtherSet.Groups).IsEmpty();
+		return !GetGroups().Intersect(OtherSet.GetGroups()).IsEmpty();
 	}
+
+	void SetGroups(const FGroupSet& GroupsIn)
+	{
+		Groups = GroupsIn;
+		SanitizeGroups();
+	}
+
+	const FGroupSet& GetGroups() const
+	{
+		return Groups;
+	}
+
+	FGroupSet& GetGroups()
+	{
+		return Groups;
+	}
+
+private:
+
+	void  SanitizeGroups();
+
+	UPROPERTY()
+	TSet<TSubclassOf<UScriptableToolGroupTag>> Groups;
 };

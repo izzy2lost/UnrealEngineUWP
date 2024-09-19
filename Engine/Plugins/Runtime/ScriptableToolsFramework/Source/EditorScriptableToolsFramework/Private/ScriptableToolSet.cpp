@@ -7,10 +7,41 @@
 #include "Tags/ScriptableToolGroupSet.h"
 #include "Engine/AssetManager.h" // Singleton access to StreamableManager
 
+#include "Utility/ScriptableToolLogging.h"
 
 #include "Modules/ModuleManager.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 
+#if WITH_EDITOR
+	#include "Editor.h"
+#endif
+
+UScriptableToolSet::UScriptableToolSet()
+{
+	AssetCanDeleteHandle = FEditorDelegates::OnAssetsCanDelete.AddUObject(this, &UScriptableToolSet::HandleAssetCanDelete);
+}
+
+UScriptableToolSet::~UScriptableToolSet()
+{
+	FEditorDelegates::OnAssetsCanDelete.Remove(AssetCanDeleteHandle);
+}
+
+void UScriptableToolSet::HandleAssetCanDelete(const TArray<UObject*>& InObjectsToDelete, FCanDeleteAssetResult& OutCanDelete)
+{
+	OutCanDelete.Set(true);
+
+	for (UObject* Obj : InObjectsToDelete)
+	{
+		if (Tools.ContainsByPredicate([&Obj](const FScriptableToolInfo& ToolInfo) {
+			return ToolInfo.ToolPath == Obj->GetPathName() || ToolInfo.BuilderPath == Obj->GetPathName();
+			}))
+		{
+			UE_LOG(LogScriptableTools, Error, TEXT("Unable to delete asset. Asset is currently loaded as part of current scriptable tool palette: %s"), *Obj->GetPathName());
+
+			OutCanDelete.Set(false);
+		}
+	}
+}
 
 void UScriptableToolSet::ReinitializeScriptableTools(FPreToolsLoadedDelegate PreDelegate, FToolsLoadedDelegate PostDelegate, FToolsLoadingUpdateDelegate UpdateDelegate, FScriptableToolGroupSet* TagsToFilter)
 {
@@ -138,6 +169,7 @@ void UScriptableToolSet::PostToolLoad(FToolsLoadedDelegate Delegate, TArray< FSo
 		if (Class->IsChildOf(ScriptableToolClass))
 		{
 			FScriptableToolInfo ToolInfo;
+			ToolInfo.ToolPath = Class->GetPathName().LeftChop(2); // Remove the _C postfix - this lets us match against the asset later and we don't actually need it otherwise.
 			ToolInfo.ToolClass = Class;
 			ToolInfo.ToolCDO = Class->GetDefaultObject<UScriptableInteractiveTool>();
 
@@ -150,6 +182,22 @@ void UScriptableToolSet::PostToolLoad(FToolsLoadedDelegate Delegate, TArray< FSo
 			ToolBuilder->ToolClass = Class;
 			ToolBuilders.Add(ToolBuilder);
 
+			switch (ToolInfo.ToolCDO->ToolStartupRequirements)
+			{
+				// We need to get the path to the specific tool builder the tool is using. Despite appearances, this is how you do it.
+				// Trying to do this directly on the ToolBuilder variable will result in the wrong path.
+				case EScriptableToolStartupRequirements::ToolTarget:
+				{					
+					ToolInfo.BuilderPath = ToolInfo.ToolCDO->ToolTargetToolBuilderClass->GetPathName().LeftChop(2);
+					break;
+				}
+				case EScriptableToolStartupRequirements::Custom:
+				{
+					ToolInfo.BuilderPath = ToolInfo.ToolCDO->CustomToolBuilderClass->GetPathName().LeftChop(2);
+					break;
+				}
+			}
+			
 			ToolInfo.ToolBuilder = ToolBuilder;
 			Tools.Add(ToolInfo);
 		}
