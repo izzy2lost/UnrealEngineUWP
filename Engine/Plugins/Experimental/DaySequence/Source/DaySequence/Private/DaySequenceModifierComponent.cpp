@@ -830,11 +830,17 @@ void UDaySequenceModifierComponent::SetUserDaySequence(UDaySequence* InDaySequen
 		return;
 	}
 
+	// Prevents unnecessary & expensive subsequence reinitialization
+	if (InDaySequence == UserDaySequence)
+	{
+		return;
+	}
+
 	UserDaySequence = InDaySequence;
 	ReinitializeSubSequence(nullptr);
 }
 
-UDaySequence* UDaySequenceModifierComponent::GetUserDaySequence()
+UDaySequence* UDaySequenceModifierComponent::GetUserDaySequence() const
 {
 	return UserDaySequence;
 }
@@ -846,12 +852,18 @@ void UDaySequenceModifierComponent::SetTransientSequence(UDaySequence* InDaySequ
 		FFrame::KismetExecutionMessage(TEXT("SetTransientSequence called with a non-transient sequence, use SetUserDaySequence instead!"), ELogVerbosity::Error);
 		return;
 	}
+
+	// Prevents unnecessary & expensive subsequence reinitialization
+	if (InDaySequence == TransientSequence)
+	{
+		return;
+	}
 	
 	TransientSequence = InDaySequence;
 	ReinitializeSubSequence(nullptr);
 }
 	
-UDaySequence* UDaySequenceModifierComponent::GetTransientSequence()
+UDaySequence* UDaySequenceModifierComponent::GetTransientSequence() const
 {
 	return TransientSequence;
 }
