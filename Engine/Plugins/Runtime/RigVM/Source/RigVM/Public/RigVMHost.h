@@ -334,6 +334,11 @@ protected:
 	/** true if we should increase the AbsoluteTime */
 	bool bAccumulateTime;
 
+#if WITH_EDITOR
+	/** true if the instance is being debugged in an asset editor */
+	bool bIsBeingDebugged;
+#endif
+
 	UPROPERTY(Transient)
 	TObjectPtr<URigVM> VM;
 

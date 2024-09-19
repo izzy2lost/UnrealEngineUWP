@@ -2434,9 +2434,19 @@ void URigVMBlueprint::SetObjectBeingDebugged(UObject* NewObject)
 	{
 		PreviousRigBeingDebugged->DrawInterface.Reset();
 		PreviousRigBeingDebugged->RigVMLog = nullptr;
+#if WITH_EDITOR
+		PreviousRigBeingDebugged->bIsBeingDebugged = false;
+#endif
 	}
 
 	Super::SetObjectBeingDebugged(NewObject);
+
+#if WITH_EDITOR
+	if(URigVMHost* NewRigBeingDebugged = Cast<URigVMHost>(NewObject))
+	{
+		NewRigBeingDebugged->bIsBeingDebugged = true;
+	}
+#endif
 }
 
 void URigVMBlueprint::PostTransacted(const FTransactionObjectEvent& TransactionEvent)

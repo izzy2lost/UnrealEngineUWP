@@ -270,6 +270,9 @@ struct FRigVMExecuteContext
 		, DeltaTime(0.0)
 		, AbsoluteTime(0.0)
 		, FramesPerSecond(1.0 / 60.0)
+#if WITH_EDITOR
+		, bHostBeingDebugged(false)
+#endif
 		, RuntimeSettings()
 		, NameCache(nullptr)
 #if WITH_EDITOR
@@ -333,6 +336,11 @@ struct FRigVMExecuteContext
 
 	double GetFramesPerSecond() const { return FramesPerSecond; } 
 	void SetFramesPerSecond(double InFramesPerSecond) { FramesPerSecond = InFramesPerSecond; }
+
+#if WITH_EDITOR
+	bool IsHostBeingDebugged() const { return bHostBeingDebugged; }
+	void SetHostBeingDebugged(bool InIsHostBeingDebugged) { bHostBeingDebugged = InIsHostBeingDebugged; }
+#endif
 
 	/** The current transform going from rig (global) space to world space */
 	const FTransform& GetToWorldSpaceTransform() const { return ToWorldSpaceTransform; };
@@ -488,6 +496,10 @@ protected:
 	double AbsoluteTime;
 
 	double FramesPerSecond;
+
+#if WITH_EDITOR
+	bool bHostBeingDebugged;
+#endif
 
 	FRigVMRuntimeSettings RuntimeSettings;
 

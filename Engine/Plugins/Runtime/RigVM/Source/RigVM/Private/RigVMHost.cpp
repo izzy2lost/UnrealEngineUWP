@@ -32,6 +32,7 @@ URigVMHost::URigVMHost(const FObjectInitializer& ObjectInitializer)
 	, FramesPerSecond(0.0f)
 	, bAccumulateTime(true)
 #if WITH_EDITOR
+	, bIsBeingDebugged(false)
 	, RigVMLog(nullptr)
 	, bEnableLogging(true)
 #endif
@@ -526,6 +527,9 @@ bool URigVMHost::Execute(const FName& InEventName)
 	PublicContext.SetDeltaTime(DeltaTime);
 	PublicContext.SetAbsoluteTime(AbsoluteTime);
 	PublicContext.SetFramesPerSecond(GetCurrentFramesPerSecond());
+#if WITH_EDITOR
+	PublicContext.SetHostBeingDebugged(bIsBeingDebugged);
+#endif
 	PublicContext.SetOwningComponent(GetOwningSceneComponent());
 #if UE_RIGVM_DEBUG_EXECUTION
 	PublicContext.bDebugExecution = bDebugExecutionEnabled;
