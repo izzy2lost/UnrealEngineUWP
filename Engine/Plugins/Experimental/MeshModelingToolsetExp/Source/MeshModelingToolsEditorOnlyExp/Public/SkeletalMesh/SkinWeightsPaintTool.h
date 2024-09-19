@@ -561,9 +561,6 @@ public:
 	// update the mesh we are transferring from
 	void SetSourceMesh(USkeletalMesh* InSkeletalMesh = nullptr);
 
-	// change which mesh we are selecting (either source or target) and update visibilty
-	void UpdateSelectionAndVisibility() const;
-
 	// run the weight transfer
 	void TransferWeights();
 
@@ -734,7 +731,8 @@ public:
 
 	// toggle brush / selection mode
 	void ToggleEditingMode();
-	void UpdateComponentSelectionMode() const;
+	// update the state of the mesh selectors
+	void UpdateSelectorState() const;
 
 	// get access to the mesh selector for the main mesh
 	UWeightToolMeshSelector* GetMainMeshSelector();
