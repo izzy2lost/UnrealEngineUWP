@@ -16,8 +16,7 @@ class FDCConfiguratorBaseMediaCustomization
 public:
 
 	/** Abstract */
-	virtual ~FDCConfiguratorBaseMediaCustomization() = 0
-	{ }
+	virtual ~FDCConfiguratorBaseMediaCustomization() = default;
 
 protected:
 
