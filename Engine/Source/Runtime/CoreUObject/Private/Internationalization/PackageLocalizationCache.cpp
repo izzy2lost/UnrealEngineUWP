@@ -13,6 +13,17 @@ FPackageLocalizationCultureCache::FPackageLocalizationCultureCache(FPackageLocal
 	: OwnerCache(InOwnerCache)
 {
 	PrioritizedCultureNames = FInternationalization::Get().GetPrioritizedCultureNames(InCultureName);
+
+	// Query both UE style (eg, "en-US") and Verse style (eg, "en_US") localized assets
+	for (const FString& PrioritizedCultureName : PrioritizedCultureNames)
+	{
+		FString VerseIdentifier = FCulture::CultureNameToVerseIdentifier(PrioritizedCultureName);
+		if (PrioritizedCultureName != VerseIdentifier)
+		{
+			PrioritizedCultureNamesAndVerseIdentifiers.Add(MoveTemp(VerseIdentifier));
+		}
+		PrioritizedCultureNamesAndVerseIdentifiers.Add(PrioritizedCultureName);
+	}
 }
 
 void FPackageLocalizationCultureCache::ConditionalUpdateCache()
@@ -35,7 +46,7 @@ void FPackageLocalizationCultureCache::ConditionalUpdateCache_NoLock()
 	for (const FString& SourceRootPath : PendingSourceRootPathsToSearch)
 	{
 		TArray<FString>& LocalizedRootPaths = SourcePathsToLocalizedPaths.FindOrAdd(SourceRootPath);
-		for (const FString& PrioritizedCultureName : PrioritizedCultureNames)
+		for (const FString& PrioritizedCultureName : PrioritizedCultureNamesAndVerseIdentifiers)
 		{
 			const FString LocalizedRootPath = SourceRootPath / TEXT("L10N") / PrioritizedCultureName;
 			if (!LocalizedRootPaths.Contains(LocalizedRootPath))
