@@ -49,10 +49,10 @@ namespace UE::MultiUserClient::Replication
 			);
 		virtual ~FUserPropertySelector() override;
 
-		/** Add Properties from the user's selection for Object. */
-		void AddSelectedProperties(UObject* Object, TConstArrayView<FConcertPropertyChain> Properties);
-		/** Removes Properties from the user's selection for Object. */
-		void RemoveSelectedProperties(UObject* Object, TConstArrayView<FConcertPropertyChain> Properties);
+		/** Add Properties to the user's selection for Object. These properties were purposefully selected added by the user. */
+		void AddUserSelectedProperties(UObject* Object, TConstArrayView<FConcertPropertyChain> Properties);
+		/** Removes Properties from the user's selection for Object. These properties were purposefully selected added by the user. */
+		void RemoveUserSelectedProperties(UObject* Object, TConstArrayView<FConcertPropertyChain> Properties);
 		/** @return Whether Property is selected for Object. */
 		bool IsPropertySelected(const FSoftObjectPath& Object, const FConcertPropertyChain& Property) const;
 
@@ -61,6 +61,12 @@ namespace UE::MultiUserClient::Replication
 		DECLARE_MULTICAST_DELEGATE(FOnPropertySelectionChanged)
 		/** @return Event that broadcasts when the user property selection changes. */
 		FOnPropertySelectionChanged& OnPropertySelectionChanged() { return OnPropertySelectionChangedDelegate; }
+
+		DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPropertiesChangedByUser, UObject* /*Object*/, TConstArrayView<FConcertPropertyChain> /*Properties*/);
+		/** @return Event that broadcasts when the user adds a property manually (through UI). */
+		FOnPropertiesChangedByUser& OnPropertiesAddedByUser() { return OnPropertiesAddedByUserDelegate; }
+		/** @return Event that broadcasts when the user removes a property manually (through UI). */
+		FOnPropertiesChangedByUser& OnPropertiesRemovedByUser() { return OnPropertiesRemovedByUserDelegate; }
 		
 		//~ Begin FGCObject Interface
 		virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
@@ -87,6 +93,10 @@ namespace UE::MultiUserClient::Replication
 
 		/** Broadcasts when the user property selection changes. */
 		FOnPropertySelectionChanged OnPropertySelectionChangedDelegate;
+		/** Broadcasts when the user adds a property manually (through UI). */
+		FOnPropertiesChangedByUser OnPropertiesAddedByUserDelegate;
+		/** Broadcasts when the user removes a property manually (through UI). */
+		FOnPropertiesChangedByUser OnPropertiesRemovedByUserDelegate;
 
 		/** Called when a remote client joins. */
 		void OnClientAdded(FRemoteClient& Client);

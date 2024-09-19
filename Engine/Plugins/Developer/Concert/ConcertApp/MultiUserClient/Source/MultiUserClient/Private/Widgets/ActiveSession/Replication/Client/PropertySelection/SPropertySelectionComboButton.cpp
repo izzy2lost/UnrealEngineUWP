@@ -32,11 +32,11 @@ namespace UE::MultiUserClient::Replication
 				UObject* Object = SoftObjectPtr.Get();
 				if (bIsSelected)
 				{
-					UserSelection.RemoveSelectedProperties(Object, Property.PropertiesToAdd);
+					UserSelection.RemoveUserSelectedProperties(Object, Property.PropertiesToAdd);
 				}
 				else
 				{
-					UserSelection.AddSelectedProperties(Object, Property.PropertiesToAdd);
+					UserSelection.AddUserSelectedProperties(Object, Property.PropertiesToAdd);
 				}
 			}
 			
