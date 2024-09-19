@@ -24,7 +24,7 @@ enum class EPCGPathfindingCostFunctionMode : uint8
 {
 	Distance UMETA(Tooltip = "Pathfinding cost will be the distance only."),
 	FitnessScore UMETA(Tooltip = "Pathfinding cost will be driven by a fitness score (0-1 range), with a maximum penalty applied at fitness = 0."),
-	CostMultipler UMETA(Tooltip = "Pathfinding cost will be the distance multiplied by the provided factor. Note that multipliers below 1 will be clamped to 1.")
+	CostMultiplier UMETA(Tooltip = "Pathfinding cost will be the distance multiplied by the provided factor. Note that multipliers below 1 will be clamped to 1.")
 };
 
 /** Finds the optimal path across the points of a given point cloud--should one exist--when provided a start and goal
@@ -60,16 +60,28 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin = "0.01", PCG_Overridable))
 	double SearchDistance = 1000;
 
-	/** The path's starting location. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PCG_Overridable))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings)
+	bool bStartLocationsAsInput = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (EditCondition = "bStartLocationsAsInput", EditConditionHides, PCG_Overridable))
+	FPCGAttributePropertyInputSelector StartLocationAttribute;
+
+	/** The location the pathfinding should attempt to reach. Not used when using start locations from an input. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (EditCondition = "!bStartLocationsAsInput", EditConditionHides, PCG_Overridable))
 	FVector Start = FVector::ZeroVector;
 
-	/** The location the pathfinding should attempt to reach. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PCG_Overridable))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings)
+	bool bGoalLocationsAsInput = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (EditCondition = "bGoalLocationsAsInput", EditConditionHides, PCG_Overridable))
+	FPCGAttributePropertyInputSelector GoalLocationAttribute;
+
+	/** The location the pathfinding should attempt to reach. Not used when using goal locations from an input. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (EditCondition = "!bGoalLocationsAsInput", EditConditionHides, PCG_Overridable))
 	FVector Goal = FVector::ZeroVector;
 
-	/** The heuristic estimates a faster path to speed up processing. A lower heuristic weight can be faster, but it may cease being the optimal path. A weight of 0 is essentially flood fill. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (EditCondition = "Algorithm == EPCGPathfindingAlgorithm::AStar", PCG_Overridable))
+	/** The heuristic estimates a faster path to speed up processing. A higher than 1 heuristic weight can be faster, but it may cease being the optimal path. A weight of 0 is essentially flood fill. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin = "0.0", EditCondition = "Algorithm == EPCGPathfindingAlgorithm::AStar", PCG_Overridable))
 	double HeuristicWeight = 1.0;
 
 	/** Controls whether the cost function will use a given attribute as a scalar wrt to the distance. */
@@ -91,7 +103,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (EditCondition = "bUsePathTraces", EditConditionHides, PCG_Overridable, ShowOnlyInnerProperties))
 	FPCGWorldRaycastQueryParams PathTraceParams;
 
-	/** Even if the path is not complete, return the most optimal and viable partial path to the goal. */
+	/** Even if the path is not complete, return a viable partial path to the point closest to the goal. Output data will be tagged with "CompletePath" or "PartialPath", depending on the result, if enabled. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PCG_Overridable))
 	bool bAcceptPartialPath = true;
 
@@ -108,10 +120,32 @@ public:
 	bool bCopyOriginatingPoints = false;
 };
 
-class FPCGPathfindingElement : public TPCGTimeSlicedElementBase<PCGSpatialAlgo::AStar::FSearchSettings, PCGSpatialAlgo::AStar::FSearchState>
+namespace PCGPathfindingElement
+{
+	struct FExecutionState
+	{
+		/** The starting points of the paths to search. One search iteration will happen for each starting point. */
+		TArray<FPCGPoint> StartPoints;
+		/** The goal points of the paths to search for. If more than one goal exists, the heuristic will be ignored. */
+		TArray<FPCGPoint> GoalPoints;
+		PCGSpatialAlgo::AStar::FSearchSettings Settings;
+	};
+
+	struct FIterationState
+	{
+		/** Tracks which path this iteration should follow based on the start points. */
+		int32 PathIterationIndex = 0;
+		/** To compare against PathIterationIndex to know if the iteration has changed, for re-initialization of the search. */
+		int32 LastPathIterationIndex = INDEX_NONE;
+		PCGSpatialAlgo::AStar::FSearchState SearchState;
+	};
+}
+
+class FPCGPathfindingElement : public TPCGTimeSlicedElementBase<PCGPathfindingElement::FExecutionState, PCGPathfindingElement::FIterationState>
 {
 public:
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override;
+
 protected:
 	virtual bool PrepareDataInternal(FPCGContext* InContext) const override;
 	virtual bool ExecuteInternal(FPCGContext* InContext) const override;
