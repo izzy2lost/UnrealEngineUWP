@@ -37,6 +37,7 @@ public class WebBrowser : ModuleRules
 				{
 					"Engine",
 					"Launch",
+					"JsonUtilities",
 					"WebBrowserTexture"
 				}
 			);
