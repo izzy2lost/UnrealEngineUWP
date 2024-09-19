@@ -24,6 +24,21 @@ UScriptableToolSet::UScriptableToolSet()
 UScriptableToolSet::~UScriptableToolSet()
 {
 	FEditorDelegates::OnAssetsCanDelete.Remove(AssetCanDeleteHandle);
+
+	UnloadAllTools();
+}
+
+void  UScriptableToolSet::UnloadAllTools()
+{
+	if (bActiveLoading)
+	{
+		AsyncLoadHandle->CancelHandle();
+	}
+
+	Tools.Reset();
+	ToolBuilders.Reset();
+
+	bActiveLoading = false;
 }
 
 void UScriptableToolSet::HandleAssetCanDelete(const TArray<UObject*>& InObjectsToDelete, FCanDeleteAssetResult& OutCanDelete)
@@ -173,6 +188,12 @@ void UScriptableToolSet::PostToolLoad(FToolsLoadedDelegate Delegate, TArray< FSo
 			ToolInfo.ToolClass = Class;
 			ToolInfo.ToolCDO = Class->GetDefaultObject<UScriptableInteractiveTool>();
 
+			if(!ToolInfo.ToolCDO->bShowToolInEditor)
+			{
+				continue; // If the tool doesn't want to be shown in editor, we can skip loading it entirely,
+				          // preventing the deletion prevention from kicking in and spending cycles on tool builder tests
+			}
+
 			UBaseScriptableToolBuilder* ToolBuilder = ToolInfo.ToolCDO->GetNewCustomToolBuilderInstance(this);
 			if (ToolBuilder == nullptr)
 			{
@@ -198,7 +219,8 @@ void UScriptableToolSet::PostToolLoad(FToolsLoadedDelegate Delegate, TArray< FSo
 				}
 			}
 			
-			ToolInfo.ToolBuilder = ToolBuilder;
+			ToolInfo.ToolBuilder = ToolBuilder;			
+
 			Tools.Add(ToolInfo);
 		}
 	}

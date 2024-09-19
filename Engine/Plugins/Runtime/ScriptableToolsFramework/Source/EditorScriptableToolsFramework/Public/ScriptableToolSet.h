@@ -29,6 +29,11 @@ public:
 	virtual ~UScriptableToolSet();
 
 	/**
+	* Forces the unloading of all tools loaded
+	*/
+	void UnloadAllTools();
+
+	/**
 	 * Find all UScriptableInteractiveTool classes in the current project.
 	 * (Currently no support for filtering/etc)
 	 */
