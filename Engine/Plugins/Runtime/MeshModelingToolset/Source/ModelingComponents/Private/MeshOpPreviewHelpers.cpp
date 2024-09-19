@@ -3,7 +3,40 @@
 #include "MeshOpPreviewHelpers.h"
 #include "Engine/World.h"
 
+#if WITH_EDITOR
+#include "Widgets/Notifications/SNotificationList.h"
+#include "Framework/Notifications/NotificationManager.h"
+#endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MeshOpPreviewHelpers)
+
+
+#define LOCTEXT_NAMESPACE "MeshOpPreviewHelpers"
+
+namespace UE::Private::MeshOpPreviewLocal
+{
+	static void DisplayCriticalWarningMessage(const FText& InMessage, float ExpireDuration = 5.0f)
+	{
+#if WITH_EDITOR
+		FNotificationInfo Info(InMessage);
+		Info.ExpireDuration = ExpireDuration;
+		FSlateNotificationManager::Get().AddNotification(Info);
+#endif
+
+		UE_LOG(LogGeometry, Warning, TEXT("%s"), *InMessage.ToString());
+	}
+
+	static TAutoConsoleVariable<int32> CVarOverrideMaxBackgroundTasks(
+		TEXT("modeling.MaxBackgroundTasksOverride"), 0,
+		TEXT("Optional override for maximum allowed background tasks when generating preview results in tools. 0 to use default values. [def: 0]"));
+
+	int32 MaxActiveBackgroundTasksWithOverride(int32 MaxWithoutOverride)
+	{
+		int32 Override = CVarOverrideMaxBackgroundTasks.GetValueOnAnyThread();
+		return Override > 0 ? Override : MaxWithoutOverride;
+	}
+}
+
 
 using namespace UE::Geometry;
 
@@ -20,12 +53,14 @@ void UMeshOpPreviewWithBackgroundCompute::Setup(UWorld* InWorld, IDynamicMeshOpe
 {
 	Setup(InWorld);
 	BackgroundCompute = MakeUnique<FBackgroundDynamicMeshComputeSource>(OpGenerator);
+	BackgroundCompute->MaxActiveTaskCount = UE::Private::MeshOpPreviewLocal::MaxActiveBackgroundTasksWithOverride(MaxActiveBackgroundTasks);
 }
 
 void UMeshOpPreviewWithBackgroundCompute::ChangeOpFactory(IDynamicMeshOperatorFactory* OpGenerator)
 {
 	CancelCompute();
 	BackgroundCompute = MakeUnique<FBackgroundDynamicMeshComputeSource>(OpGenerator);
+	BackgroundCompute->MaxActiveTaskCount = UE::Private::MeshOpPreviewLocal::MaxActiveBackgroundTasksWithOverride(MaxActiveBackgroundTasks);
 	bResultValid = false;
 	bMeshInitialized = false;
 }
@@ -111,6 +146,16 @@ void UMeshOpPreviewWithBackgroundCompute::Tick(float DeltaTime)
 }
 
 
+void UMeshOpPreviewWithBackgroundCompute::SetMaxActiveBackgroundTasks(int32 InMaxActiveBackgroundTasks)
+{
+	MaxActiveBackgroundTasks = InMaxActiveBackgroundTasks;
+	if (BackgroundCompute)
+	{
+		BackgroundCompute->MaxActiveTaskCount = UE::Private::MeshOpPreviewLocal::MaxActiveBackgroundTasksWithOverride(MaxActiveBackgroundTasks);
+	}
+}
+
+
 void UMeshOpPreviewWithBackgroundCompute::UpdateResults()
 {
 	if (BackgroundCompute == nullptr)
@@ -143,6 +188,20 @@ void UMeshOpPreviewWithBackgroundCompute::UpdateResults()
 		ValidResultComputeTimeSeconds = Status.ElapsedTime;
 
 		OnMeshUpdated.Broadcast(this);
+
+		bWaitingForBackgroundTasks = false;
+	}
+	else if (int WaitingTaskCount; BackgroundCompute->IsWaitingForBackgroundTasks(WaitingTaskCount))
+	{
+		if (!bWaitingForBackgroundTasks)
+		{
+			UE::Private::MeshOpPreviewLocal::DisplayCriticalWarningMessage(LOCTEXT("TooManyBackgroundTasks", "Too many background tasks: Cancelling earlier tasks before generating new preview."));
+			bWaitingForBackgroundTasks = true;
+		}
+	}
+	else
+	{
+		bWaitingForBackgroundTasks = false;
 	}
 }
 
@@ -238,3 +297,4 @@ bool UMeshOpPreviewWithBackgroundCompute::IsUsingWorkingMaterial()
 		&& BackgroundCompute->GetElapsedComputeTime() > SecondsBeforeWorkingMaterial;
 }
 
+#undef LOCTEXT_NAMESPACE
