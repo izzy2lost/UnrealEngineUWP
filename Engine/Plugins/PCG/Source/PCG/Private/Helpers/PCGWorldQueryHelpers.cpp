@@ -181,7 +181,7 @@ namespace PCGWorldQueryHelpers
 
 			if (!OutMetadata->HasAttribute(AttributeName))
 			{
-				if (OutMetadata->CreateAttribute<Type>(AttributeName, DefaultValue, /*bAllowsInterpolation=*/true, /*bOverrideParent=*/false))
+				if (OutMetadata->FindOrCreateAttribute<Type>(AttributeName, DefaultValue, /*bAllowsInterpolation=*/true, /*bOverrideParent=*/false, /*bOverwriteIfTypeMismatch=*/true))
 				{
 					return true;
 				}
