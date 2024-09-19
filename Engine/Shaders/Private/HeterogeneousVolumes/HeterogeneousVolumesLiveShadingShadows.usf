@@ -11,6 +11,7 @@
 #define NO_TRANSLUCENCY_AVAILABLE
 
 #include "/Engine/Generated/Material.ush"
+#include "HeterogeneousVolumesStochasticFiltering.ush"
 #include "HeterogeneousVolumesLiveShadingUtils.ush"
 #include "HeterogeneousVolumesTracingUtils.ush"
 #include "HeterogeneousVolumesAdaptiveVolumetricShadowMapUtils.ush"
@@ -47,6 +48,7 @@ float ShadowStepSize;
 float ShadowStepFactor;
 int MaxStepCount;
 int bJitter;
+int StochasticFilteringMode;
 
 // Shadow data
 int NumShadowMatrices;
@@ -135,6 +137,11 @@ float GetMaxShadowTraceDistance()
 	return MaxShadowTraceDistance;
 }
 
+int GetStochasticFilteringMode()
+{
+	return StochasticFilteringMode;
+}
+
 struct FVolumeSampleContext
 {
 	FMaterialPixelParameters MaterialParameters;
@@ -156,6 +163,30 @@ FVolumeSampleContext CreateVolumeSampleContext(float3 LocalPosition, float3 Worl
 	CalcPixelMaterialInputs(VolumeSampleContext.MaterialParameters, VolumeSampleContext.PixelMaterialInputs);
 
 	return VolumeSampleContext;
+}
+
+FVolumeSampleContext CreateVolumeSampleContext(float3 LocalPosition, float3 WorldPosition, float3 FilterWidth, float MipLevel, float Rand, int StochasticFilteringMode)
+{
+	// TODO: Use FilterWidth determine MipLevel
+	//float3 WorldPosition_DDX = mul(float4(LocalPosition + float3(1.0, 0.0, 0.0), 1.0), GetLocalToWorld()).xyz;
+	//float3 WorldPosition_DDY = mul(float4(LocalPosition + float3(0.0, 1.0, 0.0), 1.0), GetLocalToWorld()).xyz;
+	//float3 WorldPosition_DDZ = mul(float4(LocalPosition + float3(0.0, 0.0, 1.0), 1.0), GetLocalToWorld()).xyz;
+
+	if (StochasticFilteringMode == STOCHASTIC_FILTERING_CONSTANT)
+	{
+		LocalPosition = StochasticFilteringConstant(LocalPosition, Rand);
+	}
+	else if (StochasticFilteringMode == STOCHASTIC_FILTERING_TRILINEAR)
+	{
+		LocalPosition = StochasticFilteringTrilinear(LocalPosition, Rand);
+	}
+	else if (StochasticFilteringMode == STOCHASTIC_FILTERING_TRICUBIC)
+	{
+		LocalPosition = StochasticFilteringTricubic(LocalPosition, Rand);
+	}
+
+	WorldPosition = mul(float4(LocalPosition, 1.0), GetLocalToWorld()).xyz;
+	return CreateVolumeSampleContext(LocalPosition, WorldPosition, MipLevel);
 }
 
 float3 SampleExtinction(inout FVolumeSampleContext Context)
@@ -313,8 +344,9 @@ void RenderVolumetricShadowMapForLightWithLiveShadingCS(
 	int PixelIndex = LinearIndex * MaxSampleCount;
 
 	// Generate a light ray
+	float2 ScreenJitter = IS_OFFLINE_RENDER ? BlueNoiseVec2(PixelCoord, View.StateFrameIndex) : View.TemporalAAJitter.xy;
 	//float2 ShadowUV = float2(PixelCoord + 0.5f) / float2(ShadowResolution);
-	float2 ShadowUV = float2(PixelCoord + View.TemporalAAJitter.xy) / float2(ShadowResolution);
+	float2 ShadowUV = float2(PixelCoord + ScreenJitter) / float2(ShadowResolution);
 
 	float WorldRayLength = GetMaxTraceDistance();
 #if USE_CAMERA_SCENE_DEPTH
@@ -363,7 +395,8 @@ void RenderVolumetricShadowMapForLightWithLiveShadingCS(
 	float HitSpan = HitT.y - HitT.x;
 	if (HitSpan > 0.0)
 	{
-		float Jitter = bJitter ? BlueNoiseScalar(PixelCoord, View.StateFrameIndexMod8) : 0.0;
+		//float Jitter = bJitter ? BlueNoiseScalar(PixelCoord, View.StateFrameIndexMod8) : 0.0;
+		float Jitter = IS_OFFLINE_RENDER ? BlueNoiseScalar(PixelCoord, View.StateFrameIndexMod8) : 0.0;
 		int bApplyEmissionAndTransmittance = 0;
 		int bApplyDirectLighting = 0;
 		int bApplyShadowTransmittance = 0;

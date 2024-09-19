@@ -100,6 +100,14 @@ namespace HeterogeneousVolumes
 	uint32 GetSparseVoxelMipBias();
 	int32 GetBottomLevelGridResolution();
 	int32 GetIndirectionGridResolution();
+	enum class EStochasticFilteringMode
+	{
+		Disabled,
+		Constant,
+		Linear,
+		Cubic
+	};
+	EStochasticFilteringMode GetStochasticFilteringMode();
 	
 	bool ShouldJitter();
 	bool ShouldRefineSparseVoxels();
