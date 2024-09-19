@@ -280,6 +280,10 @@ bool FPCGCollapseSubgraphCombinationOfCollapses::RunTest(const FString& Paramete
 		TestData.TestPCGComponent->GetGraphInstance()->SetGraphParameter<double>(TEXT("AnotherConstant"), SecondConstant);
 
 		const FPCGTaskId TaskId = GraphExecutor.Schedule(TestData.TestPCGComponent);
+
+		// TODO: Post-release GraphExecutor should be setting this on the Component
+		TestData.SetCurrentGenerationTask(TaskId);
+
 		const FPCGTaskId FinalTaskId = GraphExecutor.ScheduleGeneric([&OutputPoints, &GraphExecutor, TaskId, &bDone]() -> bool
 		{
 			FPCGDataCollection OutputData{};

@@ -77,6 +77,11 @@ enum class EPCGComponentDirtyFlag : uint8
 };
 ENUM_CLASS_FLAGS(EPCGComponentDirtyFlag);
 
+namespace PCGTestsCommon
+{
+	struct FTestData;
+}
+
 UCLASS(BlueprintType, ClassGroup = (Procedural), meta = (BlueprintSpawnableComponent, PrioritizeCategories = "PCG"))
 class PCG_API UPCGComponent : public UActorComponent
 {
@@ -113,6 +118,8 @@ public:
 
 protected:
 	friend struct FPCGComponentInstanceData;
+	friend struct PCGTestsCommon::FTestData;
+
 	virtual TStructOnScope<FActorComponentInstanceData> GetComponentInstanceData() const override;
 	//~End UActorComponent Interface
 

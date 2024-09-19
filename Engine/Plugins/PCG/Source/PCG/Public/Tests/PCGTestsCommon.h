@@ -41,6 +41,8 @@ namespace PCGTestsCommon
 		/** Initialize a context and set the number of tasks available to 1. */
 		TUniquePtr<FPCGContext> InitializeTestContext(const UPCGNode* InNode = nullptr) const;
 
+		void SetCurrentGenerationTask(FPCGTaskId InTaskId);
+
 		AActor* TestActor;
 		UPCGComponent* TestPCGComponent;
 		FPCGDataCollection InputData;
