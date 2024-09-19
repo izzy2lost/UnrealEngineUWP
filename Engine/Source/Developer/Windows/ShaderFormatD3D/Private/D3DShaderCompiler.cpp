@@ -581,25 +581,21 @@ static bool PatchHlslWithReorderedIOVariables(
 	};
 
 	auto BuildSortedStageVariableDeclSource = [&IsSemanticSystemValue, &FindSemanticDeclarationInSourceLine](
-		FString& OutStageVariableDeclSource, TArray<FString>& StageVariableDeclLines, const TArray<FString>& InVariables, bool bSystemValueSemanticsOnly)
+		FString& OutStageVariableDeclSource, TArray<FString>& StageVariableDeclLines, const TArray<FString>& InVariables)
 	{
 		for (const FString& Variable : InVariables)
 		{
-			// Are we only emitting source for system value semantics right now?
-			if (IsSemanticSystemValue(Variable) == bSystemValueSemanticsOnly)
+			for (FString& SourceLine : StageVariableDeclLines)
 			{
-				for (FString& SourceLine : StageVariableDeclLines)
+				// Search for semantic name (always case insensitive) in current stage variable source line
+				if (FindSemanticDeclarationInSourceLine(SourceLine, Variable))
 				{
-					// Search for semantic name (always case insensitive) in current stage variable source line
-					if (FindSemanticDeclarationInSourceLine(SourceLine, Variable))
-					{
-						// Append source line for current variable at the end of sorted declaration string.
-						// Then empty this source line to avoid unnecessary string comparisons for next variables.
-						OutStageVariableDeclSource += SourceLine;
-						OutStageVariableDeclSource += TEXT('\n');
-						SourceLine.Empty();
-						break;
-					}
+					// Append source line for current variable at the end of sorted declaration string.
+					// Then empty this source line to avoid unnecessary string comparisons for next variables.
+					OutStageVariableDeclSource += SourceLine;
+					OutStageVariableDeclSource += TEXT('\n');
+					SourceLine.Empty();
+					break;
 				}
 			}
 		}
@@ -608,8 +604,7 @@ static bool PatchHlslWithReorderedIOVariables(
 	// Re-arrange source lines of stage variable declarations and always emit system values last
 	FString SortedStageVariableDeclSource = TEXT("\n");
 
-	BuildSortedStageVariableDeclSource(SortedStageVariableDeclSource, StageVariableDeclSourceLines, Variables, /*bSystemValueSemanticsOnly:*/ false);
-	BuildSortedStageVariableDeclSource(SortedStageVariableDeclSource, StageVariableDeclSourceLines, Variables, /*bSystemValueSemanticsOnly:*/ true);
+	BuildSortedStageVariableDeclSource(SortedStageVariableDeclSource, StageVariableDeclSourceLines, Variables);
 
 	// Replace old declaration with sorted one
 	HlslSourceString.RemoveAt(StageVariableDelcarationBlockBegin + 1, StageVariableDelcarationBlockEnd - (StageVariableDelcarationBlockBegin + 1));
