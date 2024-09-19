@@ -312,6 +312,10 @@ FEdGraphNodeDeprecationResponse UK2Node_BaseMCDelegate::GetDeprecationResponse(E
 	{
 		if (FProperty* DelegateProperty = DelegateReference.ResolveMember<FProperty>(GetBlueprintClassFromNode()))
 		{
+			// Check the deprecation type to override the severity
+			FString MessageType = DelegateProperty->GetMetaData(FBlueprintMetadata::MD_DeprecatedProperty);
+			Response.MessageType = FBlueprintEditorUtils::GetDeprecatedMessageType(MessageType);
+
 			FString DetailedMessage = DelegateProperty->GetMetaData(FBlueprintMetadata::MD_DeprecationMessage);
 			Response.MessageText = FBlueprintEditorUtils::GetDeprecatedMemberUsageNodeWarning(GetPropertyDisplayName(), FText::FromString(DetailedMessage));
 		}

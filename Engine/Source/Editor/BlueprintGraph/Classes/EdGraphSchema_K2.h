@@ -138,6 +138,9 @@ public:
 	// [FunctionMetadata] Indicates that the function is deprecated
 	static const FName MD_DeprecatedFunction;
 
+	// [FunctionMetadata] Indicates that the property is deprecated
+	static const FName MD_DeprecatedProperty;
+
 	// [FunctionMetadata] Supplies the custom message to use for deprecation
 	static const FName MD_DeprecationMessage;
 

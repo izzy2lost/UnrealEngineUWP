@@ -1942,6 +1942,13 @@ public:
 	static UNREALED_API FText GetDeprecatedMemberUsageNodeWarning(const FText& MemberName, const FText& DetailedMessage);
 
 	/**
+	 * Returns the severity of a deprecation warning by parsing a string loaded from metadata like DeprecatedFunction="Note"
+	 *
+	 * @param TypeString		(Required) String to parse for a message type
+	 */
+	static UNREALED_API EEdGraphNodeDeprecationMessageType GetDeprecatedMessageType(const FString& TypeString);
+
+	/**
 	 * Remove overridden component templates from instance component handlers when a parent class disables editable when inherited boolean.
 	 */
 	static UNREALED_API void HandleDisableEditableWhenInherited(UObject* ModifiedObject, TArray<UObject*>& ArchetypeInstances);
