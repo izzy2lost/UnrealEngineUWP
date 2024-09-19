@@ -64,7 +64,7 @@ public:
 	 * The default looping behavior of this animation.
 	 * Asset players can override this
 	 */
-	UPROPERTY(EditAnywhere, Category=Animation, BlueprintReadOnly)
+	UPROPERTY(EditAnywhere, Category=Animation)
 	bool bLoop;
 #if WITH_EDITORONLY_DATA
 	// if you change Notifies array, this will need to be rebuilt
