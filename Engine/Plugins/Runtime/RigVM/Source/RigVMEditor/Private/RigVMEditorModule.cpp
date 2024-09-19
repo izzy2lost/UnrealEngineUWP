@@ -106,31 +106,34 @@ void FRigVMEditorModule::StartupModule()
 							return;
 						}
 
-						FSoftObjectPath SoftObjectPath = SelectedAssetData.GetSoftObjectPath();
-						InSection.AddMenuEntry("CreateVariant", LOCTEXT("CreateVariant", "Create variant"), LOCTEXT("CreateVariant_ToolTip", "Create a variant for this asset"), FSlateIcon(FRigVMEditorStyle::Get().GetStyleSetName(), "RigVM", "RigVM.Unit"), FExecuteAction::CreateLambda([SoftObjectPath]()
-							{
-								// Perform the load from within our lambda since this can be expensive, and should not be done speculatively
-								UObject* SelectedObject = SoftObjectPath.TryLoad();
-								if (!SelectedObject)
+						if(CVarRigVMEnableVariants.GetValueOnAnyThread())
+						{
+							FSoftObjectPath SoftObjectPath = SelectedAssetData.GetSoftObjectPath();
+							InSection.AddMenuEntry("CreateVariant", LOCTEXT("CreateVariant", "Create variant"), LOCTEXT("CreateVariant_ToolTip", "Create a variant for this asset"), FSlateIcon(FRigVMEditorStyle::Get().GetStyleSetName(), "RigVM", "RigVM.Unit"), FExecuteAction::CreateLambda([SoftObjectPath]()
 								{
-									return;
-								}
+									// Perform the load from within our lambda since this can be expensive, and should not be done speculatively
+									UObject* SelectedObject = SoftObjectPath.TryLoad();
+									if (!SelectedObject)
+									{
+										return;
+									}
 
-								const FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
-								FString PathName = SoftObjectPath.GetLongPackageName();
-								FString ObjectName = SelectedObject->GetName();
-								FString PackageName;
-								AssetToolsModule.Get().CreateUniqueAssetName(PathName, TEXT(""), PackageName, ObjectName);
+									const FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+									FString PathName = SoftObjectPath.GetLongPackageName();
+									FString ObjectName = SelectedObject->GetName();
+									FString PackageName;
+									AssetToolsModule.Get().CreateUniqueAssetName(PathName, TEXT(""), PackageName, ObjectName);
 
-								FString Extension;
-								FPaths::Split(PackageName, PathName, ObjectName, Extension);
+									FString Extension;
+									FPaths::Split(PackageName, PathName, ObjectName, Extension);
 
-								UObject* DuplicateAsset = AssetToolsModule.Get().DuplicateAsset(ObjectName, PathName, SelectedObject);
-								if (URigVMBlueprint* DuplicateBlueprint = Cast<URigVMBlueprint>(DuplicateAsset))
-								{
-									DuplicateBlueprint->AssetVariant = Cast<URigVMBlueprint>(SelectedObject)->AssetVariant;
-								}
-							}));
+									UObject* DuplicateAsset = AssetToolsModule.Get().DuplicateAsset(ObjectName, PathName, SelectedObject);
+									if (URigVMBlueprint* DuplicateBlueprint = Cast<URigVMBlueprint>(DuplicateAsset))
+									{
+										DuplicateBlueprint->AssetVariant = Cast<URigVMBlueprint>(SelectedObject)->AssetVariant;
+									}
+								}));
+						}
 					}
 				}));
 			}

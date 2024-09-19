@@ -991,38 +991,41 @@ void FRigVMGraphDetailCustomizationImpl::CustomizeDetails(IDetailLayoutBuilder& 
         ];
 
 		// variant
-		FRigVMVariantWidgetContext VariantContext;
-		if(const URigVMFunctionLibrary* FunctionLbirary = Model->GetTypedOuter<URigVMFunctionLibrary>())
+		if(CVarRigVMEnableVariants.GetValueOnAnyThread())
 		{
-			VariantContext.ParentPath = FunctionLbirary->GetPathName();
+			FRigVMVariantWidgetContext VariantContext;
+			if(const URigVMFunctionLibrary* FunctionLbirary = Model->GetTypedOuter<URigVMFunctionLibrary>())
+			{
+				VariantContext.ParentPath = FunctionLbirary->GetPathName();
+			}
+				
+			SettingsCategory.AddCustomRow(FText::GetEmpty())
+			.OverrideResetToDefault(FResetToDefaultOverride::Hide())
+			.Visibility(TAttribute<EVisibility>::CreateLambda([this]()
+			{
+				return IsValidFunction() ? EVisibility::Visible : EVisibility::Collapsed;
+			}))
+			.NameContent()
+			[
+				SNew(STextBlock)
+				.Text(FText::FromString(TEXT("Variant")))
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+			]
+			.ValueContent()
+			[
+				SNew(SRigVMVariantWidget)
+				.Context(VariantContext)
+				.Variant(this, &FRigVMGraphDetailCustomizationImpl::GetVariant)
+				.VariantRefs(this, &FRigVMGraphDetailCustomizationImpl::GetVariantRefs)
+				.OnVariantChanged(this, &FRigVMGraphDetailCustomizationImpl::OnVariantChanged)
+				.OnBrowseVariantRef(this, &FRigVMGraphDetailCustomizationImpl::OnBrowseVariantRef)
+				.OnGetTags(this, &FRigVMGraphDetailCustomizationImpl::OnGetAssignedTags)
+				.OnAddTag(this, &FRigVMGraphDetailCustomizationImpl::OnAddAssignedTag)
+				.OnRemoveTag(this, &FRigVMGraphDetailCustomizationImpl::OnRemoveAssignedTag)
+				.CanAddTags(true)
+				.EnableTagContextMenu(true)
+			];
 		}
-			
-		SettingsCategory.AddCustomRow(FText::GetEmpty())
-		.OverrideResetToDefault(FResetToDefaultOverride::Hide())
-		.Visibility(TAttribute<EVisibility>::CreateLambda([this]()
-		{
-			return IsValidFunction() ? EVisibility::Visible : EVisibility::Collapsed;
-		}))
-		.NameContent()
-		[
-			SNew(STextBlock)
-			.Text(FText::FromString(TEXT("Variant")))
-			.Font(IDetailLayoutBuilder::GetDetailFont())
-		]
-		.ValueContent()
-		[
-			SNew(SRigVMVariantWidget)
-			.Context(VariantContext)
-			.Variant(this, &FRigVMGraphDetailCustomizationImpl::GetVariant)
-			.VariantRefs(this, &FRigVMGraphDetailCustomizationImpl::GetVariantRefs)
-			.OnVariantChanged(this, &FRigVMGraphDetailCustomizationImpl::OnVariantChanged)
-			.OnBrowseVariantRef(this, &FRigVMGraphDetailCustomizationImpl::OnBrowseVariantRef)
-			.OnGetTags(this, &FRigVMGraphDetailCustomizationImpl::OnGetAssignedTags)
-			.OnAddTag(this, &FRigVMGraphDetailCustomizationImpl::OnAddAssignedTag)
-			.OnRemoveTag(this, &FRigVMGraphDetailCustomizationImpl::OnRemoveAssignedTag)
-			.CanAddTags(true)
-			.EnableTagContextMenu(true)
-		];
 	}
 
 	// node color
