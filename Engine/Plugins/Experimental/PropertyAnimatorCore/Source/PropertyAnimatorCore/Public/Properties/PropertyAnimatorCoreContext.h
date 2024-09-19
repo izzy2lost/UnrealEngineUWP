@@ -12,7 +12,7 @@
 struct FInstancedStruct;
 class UPropertyAnimatorCoreBase;
 class UPropertyAnimatorCoreConverterBase;
-class UPropertyAnimatorCoreGroupBase;
+class UPropertyAnimatorCoreResolver;
 class UScriptStruct;
 
 /** Mode supported for properties value */
@@ -47,11 +47,8 @@ public:
 	/** Get the handler responsible for this property type */
 	UPropertyAnimatorCoreHandlerBase* GetHandler() const;
 
-	/** Get the active group of this property */
-	UPropertyAnimatorCoreGroupBase* GetGroup() const
-	{
-		return Group;
-	}
+	/** Get the active resolver for this property if any */
+	UPropertyAnimatorCoreResolver* GetResolver() const;
 
 	PROPERTYANIMATORCORE_API void SetAnimated(bool bInAnimated);
 	bool IsAnimated() const
@@ -81,12 +78,6 @@ public:
 	TSubclassOf<UPropertyAnimatorCoreConverterBase> GetConverterClass() const
 	{
 		return ConverterClass;
-	}
-
-	PROPERTYANIMATORCORE_API void SetGroupName(FName InGroupName);
-	FName GetGroupName() const
-	{
-		return GroupName;
 	}
 
 	/** Get converter rule if any */
@@ -134,10 +125,10 @@ private:
 
 	void CheckEditMode();
 	void CheckEditConverterRule();
+	void CheckEditResolver();
 
 	void OnAnimatedChanged();
 	void OnModeChanged();
-	void OnGroupNameChanged();
 
 	/** Sets the evaluation result for the resolved property */
 	PROPERTYANIMATORCORE_API void CommitEvaluationResult(const FPropertyAnimatorCoreData& InResolvedProperty, const FInstancedPropertyBag& InEvaluatedValues);
@@ -151,14 +142,8 @@ private:
 	/** Allocate and save properties */
 	void Save();
 
-	void SetGroup(UPropertyAnimatorCoreGroupBase* InGroup);
-
 	bool IsResolvable() const;
 	bool IsConverted() const;
-
-	/** Get the supported group names that can manage this property */
-	UFUNCTION()
-	TArray<FName> GetSupportedGroupNames() const;
 
 	/** Animation is enabled for this property */
 	UPROPERTY(EditInstanceOnly, Setter="SetAnimated", Getter="IsAnimated", Category="Animator", meta=(AllowPrivateAccess="true"))
@@ -192,13 +177,13 @@ private:
 	UPROPERTY(EditInstanceOnly, Category="Animator", meta=(HideEditConditionToggle, EditCondition="bEditConverterRule", EditConditionHides, AllowPrivateAccess="true"))
 	FInstancedStruct ConverterRule;
 
-	/** The unique group name that manages this property */
-	UPROPERTY()
-	FName GroupName = NAME_None;
+	/** Edit condition for property resolver */
+	UPROPERTY(Transient)
+	bool bEditResolver = true;
 
-	/** Active group of this property */
-	UPROPERTY()
-	TObjectPtr<UPropertyAnimatorCoreGroupBase> Group;
+	/** Custom resolver for the property */
+	UPROPERTY(VisibleInstanceOnly, NoClear, Export, Instanced, DisplayName="Range", Category="Animator", meta=(EditCondition="bEditResolver", EditConditionHides, HideEditConditionToggle, AllowPrivateAccess="true"))
+	TObjectPtr<UPropertyAnimatorCoreResolver> Resolver;
 
 	/** Store original property values for resolved properties */
 	UPROPERTY(NonTransactional)

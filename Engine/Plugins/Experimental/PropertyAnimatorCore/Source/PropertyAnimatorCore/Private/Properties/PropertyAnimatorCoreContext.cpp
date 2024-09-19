@@ -6,7 +6,6 @@
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
 #include "StructUtils/InstancedStruct.h"
-#include "Properties/PropertyAnimatorCoreGroupBase.h"
 #include "Properties/PropertyAnimatorCoreResolver.h"
 #include "Properties/Converters/PropertyAnimatorCoreConverterBase.h"
 #include "Properties/Handlers/PropertyAnimatorCoreHandlerBase.h"
@@ -18,18 +17,13 @@ TArray<FPropertyAnimatorCoreData> UPropertyAnimatorCoreContext::ResolveProperty(
 {
 	TArray<FPropertyAnimatorCoreData> ResolvedProperties;
 
-	if (UPropertyAnimatorCoreResolver* Resolver = AnimatedProperty.GetPropertyResolver())
+	if (UPropertyAnimatorCoreResolver* PropertyResolver = GetResolver())
 	{
-		Resolver->ResolveProperties(AnimatedProperty, ResolvedProperties);
+		PropertyResolver->ResolveProperties(AnimatedProperty, ResolvedProperties, bInForEvaluation);
 	}
 	else
 	{
 		ResolvedProperties.Add(AnimatedProperty);
-	}
-
-	if (bInForEvaluation && Group)
-	{
-		Group->ManageProperties(this, ResolvedProperties);
 	}
 
 	return ResolvedProperties;
@@ -59,18 +53,14 @@ UPropertyAnimatorCoreHandlerBase* UPropertyAnimatorCoreContext::GetHandler() con
 	return HandlerWeak.Get();
 }
 
-void UPropertyAnimatorCoreContext::SetGroup(UPropertyAnimatorCoreGroupBase* InGroup)
+UPropertyAnimatorCoreResolver* UPropertyAnimatorCoreContext::GetResolver() const
 {
-	if (InGroup && InGroup->IsPropertySupported(this))
+	if (Resolver)
 	{
-		Group = InGroup;
-		GroupName = InGroup->GetFName();
+		return Resolver;
 	}
-	else
-	{
-		Group = nullptr;
-		GroupName = NAME_None;
-	}
+
+	return AnimatedProperty.GetPropertyResolver();
 }
 
 bool UPropertyAnimatorCoreContext::IsResolvable() const
@@ -130,35 +120,27 @@ void UPropertyAnimatorCoreContext::SetConverterClass(TSubclassOf<UPropertyAnimat
 	}
 }
 
-void UPropertyAnimatorCoreContext::SetGroupName(FName InGroupName)
-{
-	if (GroupName.IsEqual(InGroupName))
-	{
-		return;
-	}
-
-	const TArray<FName> GroupNames = GetSupportedGroupNames();
-	if (!GroupNames.Contains(InGroupName))
-	{
-		return;
-	}
-
-	GroupName = InGroupName;
-	OnGroupNameChanged();
-}
-
 void UPropertyAnimatorCoreContext::PostLoad()
 {
 	Super::PostLoad();
 
 	CheckEditMode();
 	CheckEditConverterRule();
+	CheckEditResolver();
 
 	FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateWeakLambda(this, [this](float InDelta)
 	{
 		// Restore before regenerating new property path
 		Restore();
+
+		if (AnimatedProperty.IsResolvable())
+		{
+			DeltaPropertyValues.Reset();
+			OriginalPropertyValues.Reset();
+		}
+
 		AnimatedProperty.GeneratePropertyPath();
+
 		return false;
 	}));
 }
@@ -195,10 +177,6 @@ void UPropertyAnimatorCoreContext::PostEditChangeProperty(FPropertyChangedEvent&
 	{
 		OnAnimatedChanged();
 	}
-	else if (MemberName == GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreContext, GroupName))
-	{
-		OnGroupNameChanged();
-	}
 }
 #endif
 
@@ -232,6 +210,14 @@ bool UPropertyAnimatorCoreContext::ImportPreset(const UPropertyAnimatorCorePrese
 		SetMode(static_cast<EPropertyAnimatorCoreMode>(JsonMode));
 	}
 
+	if (Resolver)
+	{
+		if ((*JsonObject)->HasTypedField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Resolver), EJson::Object))
+		{
+			Resolver->ImportPreset(InPreset, (*JsonObject)->TryGetField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Resolver)).ToSharedRef());
+		}
+	}
+
 	return true;
 }
 
@@ -255,12 +241,30 @@ bool UPropertyAnimatorCoreContext::ExportPreset(const UPropertyAnimatorCorePrese
 
 	JsonObject->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, AnimatedProperty), AnimatedProperty.GetPropertyLocatorPath());
 
+	if (Resolver)
+	{
+		TSharedPtr<FJsonValue> JsonValue;
+		if (Resolver->ExportPreset(InPreset, JsonValue) && JsonValue.IsValid())
+		{
+			JsonObject->SetField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Resolver), JsonValue);
+		}
+	}
+
 	return true;
 }
 
 void UPropertyAnimatorCoreContext::OnAnimatedPropertyLinked()
 {
 	bEditMagnitude = AnimatedProperty.IsA<FNumericProperty>() || AnimatedProperty.HasA<FNumericProperty>();
+
+	if (const UPropertyAnimatorCoreResolver* PropertyResolver = AnimatedProperty.GetPropertyResolver())
+	{
+		if (!PropertyResolver->GetClass()->HasAnyClassFlags(CLASS_Abstract | CLASS_Transient))
+		{
+			bEditResolver = true;
+			Resolver = NewObject<UPropertyAnimatorCoreResolver>(this, PropertyResolver->GetClass());
+		}
+	}
 }
 
 void UPropertyAnimatorCoreContext::OnModeChanged()
@@ -273,19 +277,6 @@ void UPropertyAnimatorCoreContext::OnModeChanged()
 		}
 
 		Save();
-	}
-}
-
-void UPropertyAnimatorCoreContext::OnGroupNameChanged()
-{
-	if (const UPropertyAnimatorCoreBase* Animator = GetAnimator())
-	{
-		const TObjectPtr<UPropertyAnimatorCoreGroupBase>* PropertyGroup = Animator->PropertyGroups.FindByPredicate([this](const UPropertyAnimatorCoreGroupBase* InGroup)
-		{
-			return InGroup && InGroup->GetFName() == GroupName;
-		});
-
-		SetGroup(PropertyGroup ? PropertyGroup->Get() : nullptr);
 	}
 }
 
@@ -396,6 +387,7 @@ void UPropertyAnimatorCoreContext::ConstructInternal(const FPropertyAnimatorCore
 	AnimatedProperty = InProperty;
 	CheckEditMode();
 	CheckEditConverterRule();
+	CheckEditResolver();
 	SetMode(EPropertyAnimatorCoreMode::Additive);
 	OnAnimatedPropertyLinked();
 }
@@ -430,6 +422,11 @@ void UPropertyAnimatorCoreContext::CheckEditMode()
 void UPropertyAnimatorCoreContext::CheckEditConverterRule()
 {
 	bEditConverterRule = ConverterRule.IsValid();
+}
+
+void UPropertyAnimatorCoreContext::CheckEditResolver()
+{
+	bEditResolver = AnimatedProperty.IsResolvable();
 }
 
 void* UPropertyAnimatorCoreContext::GetConverterRulePtr(const UScriptStruct* InStruct)
@@ -512,27 +509,6 @@ void UPropertyAnimatorCoreContext::Save()
 			DeltaPropertyValues.AddProperty(Name, Property);
 		}
 	}
-}
-
-TArray<FName> UPropertyAnimatorCoreContext::GetSupportedGroupNames() const
-{
-	TArray<FName> GroupNames
-	{
-		NAME_None
-	};
-
-	if (UPropertyAnimatorCoreBase* Animator = GetAnimator())
-	{
-		for (const UPropertyAnimatorCoreGroupBase* PropertyGroup : Animator->PropertyGroups)
-		{
-			if (PropertyGroup && PropertyGroup->IsPropertySupported(this))
-			{
-				GroupNames.Add(PropertyGroup->GetFName());
-			}
-		}
-	}
-
-	return GroupNames;
 }
 
 void UPropertyAnimatorCoreContext::OnAnimatedChanged()

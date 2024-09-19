@@ -87,7 +87,7 @@ FString FPropertyAnimatorCounterFormat::FormatNumber(double InNumber) const
 		IntegerPart.InsertAt(0, FString::ChrN(IntegerCount - IntegerPart.Len(), PaddingCharacter[0]));
 	}
 
-	if (!GroupingCharacter.IsEmpty())
+	if (!GroupingCharacter.IsEmpty() && GroupingSize > 0)
 	{
 		int32 ThousandsIndex = IntegerPart.Len() - 1;
 		int32 ThousandsCount = 0;
