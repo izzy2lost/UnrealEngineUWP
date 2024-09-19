@@ -292,6 +292,7 @@ struct FHLSLMaterialTranslator::FEnvironmentDefines
 	uint8 MaterialPathTracingBufferRead;
 	bool MaterialNeuralPostProcess;
 	uint32 NumVirtualTextureSamples;
+	uint32 NumVirtualTextureFeedbackRequests;
 	bool bMaterialVirtualTextureFeedback;
 	TArray<uint8> VirtualPageTypes;
 	bool bSingleLayerWaterShadingQuality;
@@ -387,6 +388,7 @@ struct FHLSLMaterialTranslator::FEnvironmentDefines
 		Ar << MaterialPathTracingBufferRead;
 		Ar << MaterialNeuralPostProcess;
 		Ar << NumVirtualTextureSamples;
+		Ar << NumVirtualTextureFeedbackRequests;
 		Ar << bMaterialVirtualTextureFeedback;
 		Ar << VirtualPageTypes;
 		Ar << bSingleLayerWaterShadingQuality;
@@ -2674,6 +2676,7 @@ void FHLSLMaterialTranslator::GetMaterialEnvironment(EShaderPlatform InPlatform,
 	OutEnvironment.SetDefine(TEXT("MATERIAL_NEURAL_POST_PROCESS"), EnvironmentDefines->MaterialNeuralPostProcess);
 
 	OutEnvironment.SetDefine(TEXT("NUM_VIRTUALTEXTURE_SAMPLES"), EnvironmentDefines->NumVirtualTextureSamples);
+	OutEnvironment.SetDefine(TEXT("NUM_VIRTUALTEXTURE_FEEDBACK_REQUESTS"), EnvironmentDefines->NumVirtualTextureFeedbackRequests);
 	OutEnvironment.SetDefine(TEXT("MATERIAL_VIRTUALTEXTURE_FEEDBACK"), EnvironmentDefines->bMaterialVirtualTextureFeedback);
 
 	for (int i = 0; i < EnvironmentDefines->VirtualPageTypes.Num(); ++i)
@@ -6861,9 +6864,23 @@ uint32 FHLSLMaterialTranslator::AcquireVTStackIndex(
 	// Select LoadVirtualPageTable function name for this context
 	FString BaseFunctionName = bAdaptive ? TEXT("TextureLoadVirtualPageTableAdaptive") : TEXT("TextureLoadVirtualPageTable");
 
+	// Count number of existing samples that generate feedback
+	int32 FeedbackRequestIndex = 0;
+	if (bGenerateFeedback)
+	{
+		const int32 NumStacks = VTStacks.Num() - 1; // Exclude current stack
+		for (int32 Index = 0; Index < NumStacks; ++Index)
+		{
+			if (VTStacks[Index].bGenerateFeedback)
+			{
+				++FeedbackRequestIndex;
+			}
+		}
+	}
+
 	// Optionally sample without virtual texture feedback but only for miplevel mode
 	check(bGenerateFeedback || MipValueMode == TMVM_MipLevel)
-	FString FeedbackParameter = bGenerateFeedback ? FString::Printf(TEXT(", %dU + LIGHTMAP_VT_ENABLED, Parameters.VirtualTextureFeedback"), StackIndex) : TEXT("");
+	FString FeedbackParameter = bGenerateFeedback ? FString::Printf(TEXT(", %dU + LIGHTMAP_VT_ENABLED, Parameters.VirtualTextureFeedback"), FeedbackRequestIndex) : TEXT("");
 
 	EDerivativeStatus UVDerivativeStatus = GetDerivativeStatus(CoordinateIndex);
 	const bool bHasValidDerivative = IsAnalyticDerivEnabled() && IsDerivativeValid(UVDerivativeStatus);
@@ -15579,12 +15596,16 @@ void FHLSLMaterialTranslator::PrepareEnvironmentDefines()
 	EnvironmentDefines->NumVirtualTextureSamples = VTStacks.Num();
 
 	// Check if any feedback slots are in use. We can simplify shader and remove EARLYZ optimizations if none are.
-	bool bGenerateFeedback = false;
-	for (int i = 0; i < VTStacks.Num() && !bGenerateFeedback; ++i)
+	uint32 NumVirtualTextureFeedbackRequests = 0;
+	for (int i = 0; i < VTStacks.Num(); ++i)
 	{
-		bGenerateFeedback |= VTStacks[i].bGenerateFeedback;
+		if (VTStacks[i].bGenerateFeedback)
+		{
+			++NumVirtualTextureFeedbackRequests;
+		}
 	}
-	EnvironmentDefines->bMaterialVirtualTextureFeedback = bGenerateFeedback;
+	EnvironmentDefines->NumVirtualTextureFeedbackRequests = NumVirtualTextureFeedbackRequests;
+	EnvironmentDefines->bMaterialVirtualTextureFeedback = NumVirtualTextureFeedbackRequests > 0;
 
 	// Setup defines to map each VT stack to either 1 or 2 page table textures, depending on how many layers it uses
 	EnvironmentDefines->VirtualPageTypes.SetNumUninitialized(VTStacks.Num());

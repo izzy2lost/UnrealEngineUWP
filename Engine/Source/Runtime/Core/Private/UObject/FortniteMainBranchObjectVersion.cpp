@@ -14,6 +14,6 @@ TMap<FGuid, FGuid> FFortniteMainBranchObjectVersion::GetSystemGuids()
 	SystemGuids.Add(DevGuids.Niagara_LatestScriptCompileVersion, FGuid("F8D995224324470E97ED718D33939A0E"));
 	SystemGuids.Add(DevGuids.SkeletalMeshDerivedDataVersion, FGuid("B9AEAA3EE7AC4FCFB3860E8F3E06DD75"));
 	SystemGuids.Add(DevGuids.STATICMESH_DERIVEDDATA_VER, FGuid("3231A08A87A248A09D959335B0F4060A"));
-	SystemGuids.Add(DevGuids.MaterialTranslationDDCVersion, FGuid("0F9C4453CDDC4B8BA1527D4942381ECA"));
+	SystemGuids.Add(DevGuids.MaterialTranslationDDCVersion, FGuid("C260AF26228241889456439BE5F5AF51"));
 	return SystemGuids;
 }
