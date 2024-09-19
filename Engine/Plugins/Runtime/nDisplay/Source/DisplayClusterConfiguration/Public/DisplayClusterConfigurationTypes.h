@@ -315,7 +315,7 @@ public:
 
 public:
 	/** IP address of this specific cluster Node */
-	UPROPERTY(EditAnywhere, BlueprintReadonly, Category = "Configuration", meta = (DisplayName = "Host IP Address"))
+	UPROPERTY(EditAnywhere, BlueprintReadonly, Category = "Network", meta = (DisplayName = "Host IP Address"))
 	FString Host;
 	
 	/** Enables or disables sound on nDisplay primary Node */

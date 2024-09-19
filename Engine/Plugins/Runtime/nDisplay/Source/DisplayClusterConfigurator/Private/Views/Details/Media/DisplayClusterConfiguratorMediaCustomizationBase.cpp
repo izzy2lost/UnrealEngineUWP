@@ -15,6 +15,10 @@
 #include "IDetailChildrenBuilder.h"
 #include "IPropertyUtilities.h"
 #include "PropertyHandle.h"
+#include "ScopedTransaction.h"
+
+
+#define LOCTEXT_NAMESPACE "FDisplayClusterConfiguratorMediaFullFrameCustomizationBase"
 
 
 FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::FDisplayClusterConfiguratorMediaFullFrameCustomizationBase()
@@ -81,7 +85,12 @@ void FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::ModifyMediaObje
 	{
 		if (Initializer && Initializer->IsMediaObjectSupported(NewMediaObject))
 		{
+			FScopedTransaction Transaction(LOCTEXT("ResetMediaSettings", "Reset Media Settings"));
+
+			NewMediaObject->Modify();
+
 			PerformMediaInitialization(Owner, NewMediaObject, Initializer);
+
 			break;
 		}
 	}
