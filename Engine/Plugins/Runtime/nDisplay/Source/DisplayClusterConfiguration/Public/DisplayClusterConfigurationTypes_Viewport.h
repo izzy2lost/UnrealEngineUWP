@@ -113,7 +113,7 @@ public:
 	FDisplayClusterConfigurationViewport_Overscan Overscan;
 
 	// Media settings
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration", meta = (DisplayName = "Media"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Media", ShowOnlyInnerProperties))
 	FDisplayClusterConfigurationMediaViewport Media;
 
 	// Experimental: Support special frame builder mode - merge viewports to single viewfamily by group num

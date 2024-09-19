@@ -2,8 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Views/Details/DisplayClusterConfiguratorBaseTypeCustomization.h"
+#include "Views/Details/Media/DCConfiguratorBaseMediaCustomization.h"
 
 #include "Input/Reply.h"
 
@@ -15,16 +14,22 @@ class UDisplayClusterConfigurationData;
 /**
  * Details panel customization for the FDisplayClusterConfigurationMediaICVFX struct.
  */
-class FDisplayClusterConfiguratorICVFXMediaCustomization
-	: public FDisplayClusterConfiguratorBaseTypeCustomization
+class FDCConfiguratorICVFXMediaCustomization
+	: public FDCConfiguratorBaseMediaCustomization
 {
+private:
+
+	using Super = FDCConfiguratorBaseMediaCustomization;
+
 public:
+
 	static TSharedRef<IPropertyTypeCustomization> MakeInstance()
 	{
-		return MakeShared<FDisplayClusterConfiguratorICVFXMediaCustomization>();
+		return MakeShared<FDCConfiguratorICVFXMediaCustomization>();
 	}
 
 protected:
+
 	//~ Begin IPropertyTypeCustomization
 	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils) override;
 	//~ End IPropertyTypeCustomization
@@ -34,20 +39,11 @@ private:
 	/** Builds the button widget for tiles configuration. */
 	void AddConfigureTilesButton(IDetailChildrenBuilder& ChildBuilder);
 
-	/** Builds reset button widget. */
-	void AddResetButton(IDetailChildrenBuilder& ChildBuilder);
-
 	/** Handles configure tiles button clicks. */
 	FReply OnConfigureTilesButtonClicked();
-
-	/** Handles reset button clicks. */
-	FReply OnResetButtonClicked();
 
 private:
 
 	/** Returns configuration of a DCRA owning the camera being edited. */
 	UDisplayClusterConfigurationData* GetConfig() const;
-
-	/** Marks package as dirty */
-	void MarkDirty();
 };

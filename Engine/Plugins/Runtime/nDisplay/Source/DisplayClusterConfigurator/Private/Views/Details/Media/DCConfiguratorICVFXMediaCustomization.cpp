@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Views/Details/Media/DisplayClusterConfiguratorICVFXMediaCustomization.h"
+#include "Views/Details/Media/DCConfiguratorICVFXMediaCustomization.h"
 #include "Views/Details/Media/DisplayClusterConfiguratorMediaUtils.h"
 #include "Views/Details/Media/SMediaTilesConfigurationDialog.h"
 
@@ -30,10 +30,10 @@
 #include "MediaSource.h"
 #include "MediaOutput.h"
 
-#define LOCTEXT_NAMESPACE "FDisplayClusterConfiguratorICVFXMediaCustomization"
+#define LOCTEXT_NAMESPACE "FDCConfiguratorICVFXMediaCustomization"
 
 
-void FDisplayClusterConfiguratorICVFXMediaCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> InPropertyHandle, IDetailChildrenBuilder& InChildBuilder, IPropertyTypeCustomizationUtils& InCustomizationUtils)
+void FDCConfiguratorICVFXMediaCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> InPropertyHandle, IDetailChildrenBuilder& InChildBuilder, IPropertyTypeCustomizationUtils& InCustomizationUtils)
 {
 	// SplitType property
 	TSharedPtr<IPropertyHandle> SplitTypeHandle = GET_CHILD_HANDLE(FDisplayClusterConfigurationMediaICVFX, SplitType);
@@ -128,11 +128,11 @@ void FDisplayClusterConfiguratorICVFXMediaCustomization::CustomizeChildren(TShar
 		}
 
 		// Create 'reset' button at the bottom
-		AddResetButton(InChildBuilder);
+		AddResetButton(InChildBuilder, LOCTEXT("ResetToDefaultButtonTitle", "Reset Media Input and Output to Default"));
 	}
 }
 
-void FDisplayClusterConfiguratorICVFXMediaCustomization::AddConfigureTilesButton(IDetailChildrenBuilder& InChildBuilder)
+void FDCConfiguratorICVFXMediaCustomization::AddConfigureTilesButton(IDetailChildrenBuilder& InChildBuilder)
 {
 	InChildBuilder.AddCustomRow(FText::GetEmpty())
 		.WholeRowContent()
@@ -142,7 +142,7 @@ void FDisplayClusterConfiguratorICVFXMediaCustomization::AddConfigureTilesButton
 			[
 				SNew(SButton)
 				.HAlign(HAlign_Center)
-				.OnClicked(this, &FDisplayClusterConfiguratorICVFXMediaCustomization::OnConfigureTilesButtonClicked)
+				.OnClicked(this, &FDCConfiguratorICVFXMediaCustomization::OnConfigureTilesButtonClicked)
 				[
 					SNew(STextBlock)
 					.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
@@ -152,27 +152,7 @@ void FDisplayClusterConfiguratorICVFXMediaCustomization::AddConfigureTilesButton
 		];
 }
 
-void FDisplayClusterConfiguratorICVFXMediaCustomization::AddResetButton(IDetailChildrenBuilder& InChildBuilder)
-{
-	InChildBuilder.AddCustomRow(FText::GetEmpty())
-		.WholeRowContent()
-		[
-			SNew(SBox)
-			.Padding(5.f)
-			[
-				SNew(SButton)
-				.HAlign(HAlign_Center)
-				.OnClicked(this, &FDisplayClusterConfiguratorICVFXMediaCustomization::OnResetButtonClicked)
-				[
-					SNew(STextBlock)
-					.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-					.Text(LOCTEXT("ResetToDefaultButtonTitle", "Reset Media Input and Output to Default"))
-				]
-			]
-		];
-}
-
-FReply FDisplayClusterConfiguratorICVFXMediaCustomization::OnConfigureTilesButtonClicked()
+FReply FDCConfiguratorICVFXMediaCustomization::OnConfigureTilesButtonClicked()
 {
 	// We're in camera tiles customization so let's get the camera component
 	UDisplayClusterICVFXCameraComponent* ICVFXCamera = Cast<UDisplayClusterICVFXCameraComponent>(EditingObject.Get());
@@ -233,21 +213,7 @@ FReply FDisplayClusterConfiguratorICVFXMediaCustomization::OnConfigureTilesButto
 	return FReply::Handled();
 }
 
-FReply FDisplayClusterConfiguratorICVFXMediaCustomization::OnResetButtonClicked()
-{
-	if (EditingObject.IsValid())
-	{
-		// Notify tile customizers to re-initialize their media objects
-		FDisplayClusterConfiguratorMediaUtils::Get().OnMediaResetToDefaults().Broadcast(EditingObject.Get());
-
-		// Set owning package dirty
-		MarkDirty();
-	}
-
-	return FReply::Handled();
-}
-
-UDisplayClusterConfigurationData* FDisplayClusterConfiguratorICVFXMediaCustomization::GetConfig() const
+UDisplayClusterConfigurationData* FDCConfiguratorICVFXMediaCustomization::GetConfig() const
 {
 	if (UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent = Cast<UDisplayClusterICVFXCameraComponent>(EditingObject))
 	{
@@ -264,23 +230,6 @@ UDisplayClusterConfigurationData* FDisplayClusterConfiguratorICVFXMediaCustomiza
 	}
 
 	return nullptr;
-}
-
-void FDisplayClusterConfiguratorICVFXMediaCustomization::MarkDirty()
-{
-	if (EditingObject.IsValid())
-	{
-		// Blueprint
-		if (EditingObject->IsInBlueprint())
-		{
-			ModifyBlueprint();
-		}
-		// Instance
-		else
-		{
-			EditingObject->MarkPackageDirty();
-		}
-	}
 }
 
 #undef LOCTEXT_NAMESPACE
