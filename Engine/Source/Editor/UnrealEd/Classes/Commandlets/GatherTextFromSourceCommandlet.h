@@ -287,8 +287,9 @@ private:
 		virtual const FString& GetToken() const = 0;
 		virtual void TryParse(const FString& Text, FSourceFileParseContext& Context) const = 0;
 
-		bool MatchesFileTypes(const EGatherTextSourceFileTypes InFileTypes) { return EnumHasAnyFlags(ApplicableFileTypes, InFileTypes); }
-		bool OverridesLongerTokens() { return bOverridesLongerTokens; }
+		virtual bool IsApplicableFile(const FString& InFilename) const { return true; }
+		bool IsApplicableFileType(const EGatherTextSourceFileTypes InFileTypes) const { return EnumHasAnyFlags(ApplicableFileTypes, InFileTypes); }
+		bool OverridesLongerTokens() const { return bOverridesLongerTokens; }
 
 	protected:
 		EGatherTextSourceFileTypes ApplicableFileTypes = EGatherTextSourceFileTypes::None;
@@ -464,6 +465,8 @@ private:
 
 		virtual void TryParse(const FString& Text, FSourceFileParseContext& Context) const override;
 
+		virtual bool IsApplicableFile(const FString& InFilename) const override;
+
 		static void TestNestedMacroDescriptorParseArgs();
 
 	private:
@@ -599,7 +602,7 @@ private:
 	static const FString MacroString_UI_COMMAND;
 	static const FString MacroString_UI_COMMAND_EXT;
 
-	void GetFilesToProcess(const TArray<FString>& SearchDirectoryPaths, TArray<FString>& IncludePathFilters, TArray<FString>& ExcludePathFilters, TArray<FString>& FilesToProcess, bool bAdditionalGatherPaths) const;
+	void GetFilesToProcess(const TArray<FString>& SearchDirectoryPaths, const TArray<FString>& FileNameFilters, TArray<FString>& IncludePathFilters, TArray<FString>& ExcludePathFilters, TArray<FString>& FilesToProcess, bool bAdditionalGatherPaths) const;
 	void GetParsables(TArray<FParsableDescriptor*>& Parsables, EGatherSourcePasses Pass, TArray<FParsedNestedMacro>& PrepassResults);
 	void RunPass(EGatherSourcePasses Pass, bool ShouldGatherFromEditorOnlyData, const TArray<FString>& FilesToProcess, const FString& GatheredSourceBasePath, TArray<FParsedNestedMacro>& PrepassResults);
 
@@ -620,7 +623,5 @@ public:
 	//~ End UGatherTextCommandletBase  Interface
 
 	static void LogStats();
-
-	TArray<FString> UniqueSourceFileSearchFilters;
 #undef LOC_DEFINE_REGION
 };
