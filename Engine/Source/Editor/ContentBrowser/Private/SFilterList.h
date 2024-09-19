@@ -23,7 +23,6 @@
 #include "UObject/NameTypes.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 
-class FFilter_ShowOtherDevelopers;
 class FFrontendFilter;
 class SWidget;
 class UClass;

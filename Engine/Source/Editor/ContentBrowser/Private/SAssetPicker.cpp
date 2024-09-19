@@ -273,12 +273,12 @@ void SAssetPicker::Construct( const FArguments& InArgs )
 		];
 
 		// Use the 'other developer' filter from the filter list widget. 
-		OtherDevelopersFilter = StaticCastSharedPtr<FFilter_ShowOtherDevelopers>(FilterListPtr->GetFrontendFilter(TEXT("ShowOtherDevelopersBackend")));
+		OtherDevelopersFilter = StaticCastSharedPtr<FFilter_HideOtherDevelopers>(FilterListPtr->GetFrontendFilter(TEXT("HideOtherDevelopersBackend")));
 	}
 	else
 	{
 		// Filter UI is off, but the 'other developer' filter is a built-in feature.
-		OtherDevelopersFilter = MakeShared<FFilter_ShowOtherDevelopers>(nullptr, FName(SaveSettingsName));
+		OtherDevelopersFilter = MakeShared<FFilter_HideOtherDevelopers>(nullptr, FName(SaveSettingsName));
 		OtherDevelopersFilter->SetActiveInCollection(OtherDevelopersFilter.ToSharedRef(), false, *FrontendFilters);
 	}
 
@@ -663,7 +663,7 @@ bool SAssetPicker::IsShowingOtherDevelopersContent() const
 {
 	if (FilterListPtr.IsValid())
 	{
-		return FilterListPtr->IsFrontendFilterActive(OtherDevelopersFilter);
+		return !FilterListPtr->IsFrontendFilterActive(OtherDevelopersFilter);
 	}
 	else
 	{
@@ -671,11 +671,10 @@ bool SAssetPicker::IsShowingOtherDevelopersContent() const
 		{
 			if (FrontendFilters->GetFilterAtIndex(i) == OtherDevelopersFilter)
 			{
-				// Inverse filter, so its presence in the list means "hide other developers content"
-				return false;
+				return true;
 			}
 		}
-		return true;
+		return false;
 	}
 }
 
@@ -703,11 +702,11 @@ void SAssetPicker::HandleShowOtherDevelopersCheckStateChanged( ECheckBoxState In
 	{
 		if (InCheckboxState == ECheckBoxState::Checked)
 		{
-			OtherDevelopersFilter->SetActiveInCollection(OtherDevelopersFilter.ToSharedRef(), /* do show other developers content*/ true, *FrontendFilters);
+			OtherDevelopersFilter->SetActiveInCollection(OtherDevelopersFilter.ToSharedRef(), /* do show other developers content*/ false, *FrontendFilters);
 		}
 		else
 		{
-			OtherDevelopersFilter->SetActiveInCollection(OtherDevelopersFilter.ToSharedRef(), /* do not show other developers content*/ false, *FrontendFilters);
+			OtherDevelopersFilter->SetActiveInCollection(OtherDevelopersFilter.ToSharedRef(), /* do not show other developers content*/ true, *FrontendFilters);
 		}
 	}
 }
