@@ -178,6 +178,8 @@ void FMassPhaseProcessorConfigurationHelper::Configure(TArrayView<UMassProcessor
 		for (UMassProcessor* Processor : TmpPipeline.GetProcessors())
 		{
 			UE_VLOG_UELOG(&PhaseProcessor, LogMass, Verbose, TEXT("\t%s"), *Processor->GetProcessorName());
+			// we're ignoring dynamic processors since these instances were explicitly created by the user, and we don't
+			// want to destroy them - the user would need to re-add them every time we recalculate the dependency graph
 			if (Processor->IsDynamic() == false)
 			{
 				Processor->MarkAsGarbage();

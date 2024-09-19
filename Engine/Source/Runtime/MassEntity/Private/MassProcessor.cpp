@@ -122,6 +122,11 @@ UMassProcessor::UMassProcessor()
 {
 }
 
+void UMassProcessor::Initialize(UObject& Owner)
+{
+	bInitialized = true;
+}
+
 void UMassProcessor::SetShouldAutoRegisterWithGlobalList(const bool bAutoRegister)
 {	
 	if (ensureMsgf(HasAnyFlags(RF_ClassDefaultObject), TEXT("Setting bAutoRegisterWithProcessingPhases for non-CDOs has no effect")))
@@ -221,6 +226,21 @@ void UMassProcessor::CallExecute(FMassEntityManager& EntityManager, FMassExecuti
 	}
 }
 
+bool UMassProcessor::ShouldAllowQueryBasedPruning(const bool bRuntimeMode) const
+{
+	return bRuntimeMode;
+}
+
+EMassProcessingPhase UMassProcessor::GetProcessingPhase() const
+{
+	return ProcessingPhase;
+}
+
+void UMassProcessor::SetProcessingPhase(EMassProcessingPhase Phase)
+{
+	ProcessingPhase = Phase;
+}
+
 void UMassProcessor::ExportRequirements(FMassExecutionRequirements& OutRequirements) const
 {
 	for (FMassEntityQuery* Query : OwnedQueries)
@@ -261,6 +281,11 @@ FGraphEventRef UMassProcessor::DispatchProcessorTasks(const TSharedPtr<FMassEnti
 		ReturnVal = TGraphTask<FMassProcessorTask>::CreateTask(&Prerequisites).ConstructAndDispatchWhenReady(EntityManager, ExecutionContext, *this);
 	}	
 	return ReturnVal;
+}
+
+FString UMassProcessor::GetProcessorName() const
+{
+	return GetName();
 }
 
 void UMassProcessor::DebugOutputDescription(FOutputDevice& Ar, int32 Indent) const
@@ -463,6 +488,11 @@ void UMassCompositeProcessor::UpdateProcessorsCollection(TArrayView<FMassProcess
 			}
 		}
 	}
+}
+
+FString UMassCompositeProcessor::GetProcessorName() const
+{
+	return GroupName.ToString();
 }
 
 void UMassCompositeProcessor::DebugOutputDescription(FOutputDevice& Ar, int32 Indent) const
