@@ -808,6 +808,10 @@ public:
 	UPROPERTY(EditAnywhere, Category=Animation)
 	bool bLoop = true;
 
+	/** Whether to allow marker based sync between the samples (it won't force sync if the markers don't exist) */
+	UPROPERTY(EditAnywhere, Category = Animation)
+	bool bAllowMarkerBasedSync = true;
+
 #if WITH_EDITORONLY_DATA
 	/** Preview Base pose for additive BlendSpace **/
 	UPROPERTY(EditAnywhere, Category = AdditiveSettings)
@@ -866,7 +870,7 @@ protected:
 	/** Track index to get marker data from. Samples are tested for the suitability of marker based sync
 	    during load and if we can use marker based sync we cache an index to a representative sample here */
 	UPROPERTY()
-	int32 SampleIndexWithMarkers;
+	int32 SampleIndexWithMarkers = INDEX_NONE;
 
 	/** Sample animation data */
 	UPROPERTY(EditAnywhere, Category=BlendSamples)
