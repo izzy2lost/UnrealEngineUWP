@@ -178,10 +178,26 @@ void UAvaVisibilityModifier::OnRenderStateUpdated(AActor* InActor, UActorCompone
 {
 	Super::OnRenderStateUpdated(InActor, InComponent);
 
-	const AActor* ActorModified = GetModifiedActor();
+	AActor* ActorModified = GetModifiedActor();
 
-	if (!IsValid(ActorModified)
-		|| !InActor->IsAttachedTo(ActorModified))
+	// Only handle what is linked to us
+	if (!IsValid(ActorModified))
+	{
+		return;
+	}
+
+	const bool bThisActorUpdated = InActor == ActorModified;
+	const bool bActorAttachedToThisUpdated = InActor->IsAttachedTo(ActorModified);
+
+	if (!bThisActorUpdated && !bActorAttachedToThisUpdated)
+	{
+		return;
+	}
+
+	// If no modifier is found above us, then we handle this case
+	const UAvaVisibilityModifier* Modifier = GetFirstModifierAbove(ActorModified);
+
+	if (bThisActorUpdated && Modifier)
 	{
 		return;
 	}
