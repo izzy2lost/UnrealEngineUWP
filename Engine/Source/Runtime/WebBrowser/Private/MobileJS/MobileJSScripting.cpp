@@ -200,7 +200,7 @@ namespace
 				WriteValue(Writer, Key, Param.IntValue);
 				break;
 			case FWebJSParam::PTYPE_STRING:
-				WriteValue(Writer, Key, Param.StringValue);
+				WriteValue(Writer, Key, *Param.StringValue);
 				break;
 			case FWebJSParam::PTYPE_OBJECT:
 			{
