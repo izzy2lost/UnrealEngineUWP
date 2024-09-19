@@ -117,6 +117,52 @@ DEFINE_FUNCTION(UDataRegistrySubsystem::execFindCachedItemBP)
 	}
 }
 
+
+//static void FindCachedItemFromLookupBP(FDataRegistryId ItemId, const FDataRegistryLookup& ResolvedLookup, EDataRegistrySubsystemGetItemResult& OutResult, FTableRowBase& OutItem) {}
+DEFINE_FUNCTION(UDataRegistrySubsystem::execFindCachedItemFromLookupBP)
+{
+	P_GET_STRUCT(FDataRegistryId, ItemId);
+	P_GET_STRUCT_REF(FDataRegistryLookup, ResolvedLookup);
+	P_GET_ENUM_REF(EDataRegistrySubsystemGetItemResult, OutResult)
+
+	Stack.MostRecentPropertyAddress = nullptr;
+	Stack.MostRecentPropertyContainer = nullptr;
+	Stack.StepCompiledIn<FStructProperty>(nullptr);
+
+	void* OutItemDataPtr = Stack.MostRecentPropertyAddress;
+	FStructProperty* OutItemProp = CastField<FStructProperty>(Stack.MostRecentProperty);
+	P_FINISH;
+
+	UDataRegistrySubsystem* SubSystem = UDataRegistrySubsystem::Get();
+	check(SubSystem);
+
+	const uint8* CacheData = nullptr;
+	const UScriptStruct* CacheStruct = nullptr;
+	FDataRegistryCacheGetResult CacheResult;
+	OutResult = EDataRegistrySubsystemGetItemResult::NotFound;
+
+	if (OutItemProp && OutItemDataPtr && SubSystem->IsConfigEnabled(true))
+	{
+		P_NATIVE_BEGIN;
+		CacheResult = SubSystem->GetCachedItemRawFromLookup(CacheData, CacheStruct, ItemId, ResolvedLookup);
+
+		if (CacheResult && CacheStruct && CacheData)
+		{
+			UScriptStruct* OutputStruct = OutItemProp->Struct;
+
+			const bool bCompatible = (OutputStruct == CacheStruct) ||
+				(OutputStruct->IsChildOf(CacheStruct) && FStructUtils::TheSameLayout(OutputStruct, CacheStruct));
+
+			if (bCompatible)
+			{
+				OutResult = EDataRegistrySubsystemGetItemResult::Found;
+				CacheStruct->CopyScriptStruct(OutItemDataPtr, CacheData);
+			}
+		}
+		P_NATIVE_END;
+	}
+}
+
 //static bool GetCachedItemFromLookupBP(FDataRegistryId ItemId, const FDataRegistryLookup& ResolvedLookup, UPARAM(ref) FTableRowBase& OutItem) { return false; }
 DEFINE_FUNCTION(UDataRegistrySubsystem::execGetCachedItemFromLookupBP)
 {
@@ -768,6 +814,27 @@ bool UDataRegistrySubsystem::AcquireItemBP(FDataRegistryId ItemId, FDataRegistry
 		{
 			AcquireCallback.ExecuteIfBound(Result.ItemId, Result.ResolvedLookup, Result.Status);
 		}));
+}
+
+void UDataRegistrySubsystem::GetPossibleDataRegistryIdList(FDataRegistryType RegistryType, TArray<FDataRegistryId>& OutIdList)
+{
+	OutIdList.Reset();
+
+	UDataRegistrySubsystem* SubSystem = UDataRegistrySubsystem::Get();
+	check(SubSystem);
+
+	if (!SubSystem->IsConfigEnabled(true))
+	{
+		return;
+	}
+
+	UDataRegistry* FoundRegistry = SubSystem->GetRegistryForType(RegistryType);
+
+	if (FoundRegistry)
+	{
+		// Don't sort by default
+		FoundRegistry->GetPossibleRegistryIds(OutIdList, false);
+	}
 }
 
 void UDataRegistrySubsystem::EvaluateDataRegistryCurve(FDataRegistryId ItemId, float InputValue, float DefaultValue, EDataRegistrySubsystemGetItemResult& OutResult, float& OutValue)
