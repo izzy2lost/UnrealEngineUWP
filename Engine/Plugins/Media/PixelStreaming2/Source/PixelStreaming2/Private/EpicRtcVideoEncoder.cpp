@@ -6,7 +6,6 @@
 #include "EpicRtcVideoBufferMultiFormat.h"
 #include "EpicRtcVideoBufferRHI.h"
 #include "EpicRtcVideoCommon.h"
-#include "HAL/PlatformFileManager.h"
 #include "Logging.h"
 #include "PixelCaptureBufferFormat.h"
 #include "PixelCaptureOutputFrameI420.h"
@@ -30,6 +29,16 @@ namespace UE::PixelStreaming2
 	{
 		EncoderConfig._simulcastStreams = nullptr;
 		EncoderConfig._spatialLayers = nullptr;
+
+		if (UPixelStreaming2PluginSettings::CVarEncoderDebugDumpFrame.GetValueOnAnyThread())
+		{
+			CreateDumpFile();
+		}
+
+		if (UPixelStreaming2PluginSettings::FDelegates* Delegates = UPixelStreaming2PluginSettings::Delegates())
+		{
+			DelegateHandle = Delegates->OnEncoderDebugDumpFrameChanged.AddRaw(this, &TEpicRtcVideoEncoder<TVideoResource>::OnEncoderDebugDumpFrameChanged);
+		}
 	}
 
 	template <std::derived_from<FVideoResource> TVideoResource>
@@ -43,6 +52,11 @@ namespace UE::PixelStreaming2
 		if (EncoderConfig._spatialLayers)
 		{
 			EncoderConfig._spatialLayers->Release();
+		}
+
+		if (UPixelStreaming2PluginSettings::FDelegates* Delegates = UPixelStreaming2PluginSettings::Delegates())
+		{
+			Delegates->OnEncoderDebugDumpFrameChanged.Remove(DelegateHandle);
 		}
 	}
 
@@ -671,24 +685,38 @@ namespace UE::PixelStreaming2
 	}
 
 	template <std::derived_from<FVideoResource> TVideoResource>
+	void TEpicRtcVideoEncoder<TVideoResource>::OnEncoderDebugDumpFrameChanged(IConsoleVariable* Var)
+	{
+		if (Var->GetBool())
+		{
+			CreateDumpFile();
+		}
+		else
+		{
+			FileHandle = nullptr;
+		}
+	}
+
+	template <std::derived_from<FVideoResource> TVideoResource>
+	void TEpicRtcVideoEncoder<TVideoResource>::CreateDumpFile()
+	{
+		IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+		FString		   TempFilePath = FPaths::CreateTempFilename(*FPaths::ProjectSavedDir(), TEXT("encoded_frame"), TEXT(".raw"));
+		FileHandle = PlatformFile.OpenWrite(*TempFilePath);
+	}
+
+	template <std::derived_from<FVideoResource> TVideoResource>
 	void TEpicRtcVideoEncoder<TVideoResource>::MaybeDumpFrame(EpicRtcEncodedVideoFrame const& EncodedImage)
 	{
 		// Dump encoded frames to file for debugging if CVar is turned on.
-		if (UPixelStreaming2PluginSettings::CVarEncoderDebugDumpFrame.GetValueOnAnyThread())
+		if (!FileHandle)
 		{
-			static IFileHandle* FileHandle = nullptr;
-			if (!FileHandle)
-			{
-				IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
-				FString		   TempFilePath = FPaths::CreateTempFilename(*FPaths::ProjectSavedDir(), TEXT("encoded_frame"), TEXT(".raw"));
-				FileHandle = PlatformFile.OpenWrite(*TempFilePath);
-				check(FileHandle);
-				// Note: To examine individual frames from this dump: ffmpeg -i "encoded_frame78134A5047638BB99AE1D88471E5E513.raw" "frames/out-%04d.jpg"
-			}
-
-			FileHandle->Write(EncodedImage._buffer->GetData(), EncodedImage._buffer->GetSize());
-			FileHandle->Flush();
+			return;
 		}
+
+		// Note: To examine individual frames from this dump: ffmpeg -i "encoded_frame78134A5047638BB99AE1D88471E5E513.raw" "frames/out-%04d.jpg"
+		FileHandle->Write(EncodedImage._buffer->GetData(), EncodedImage._buffer->GetSize());
+		FileHandle->Flush();
 	}
 
 	template <std::derived_from<FVideoResource> TVideoResource>

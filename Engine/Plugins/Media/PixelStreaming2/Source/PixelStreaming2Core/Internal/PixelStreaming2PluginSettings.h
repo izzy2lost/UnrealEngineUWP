@@ -624,6 +624,9 @@ public:
 
 		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnInputKeyFilterChanged, IConsoleVariable*);
 		FOnInputKeyFilterChanged OnInputKeyFilterChanged;
+
+		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnEncoderDebugDumpFrameChanged, IConsoleVariable*);
+		FOnEncoderDebugDumpFrameChanged OnEncoderDebugDumpFrameChanged;
 	};
 
 	static FDelegates* Delegates();

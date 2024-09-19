@@ -277,6 +277,7 @@ TAutoConsoleVariable<bool> UPixelStreaming2PluginSettings::CVarEncoderDebugDumpF
 	TEXT("PixelStreaming2.Encoder.DumpDebugFrames"),
 	false,
 	TEXT("Dumps frames from the encoder to a file on disk for debugging purposes."),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* Var) { Delegates()->OnEncoderDebugDumpFrameChanged.Broadcast(Var); }),
 	ECVF_Default);
 
 // Begin WebRTC CVars

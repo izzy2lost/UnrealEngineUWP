@@ -5,6 +5,7 @@
 #include "AVConstants.h"
 #include "EpicRtcMemory.h"
 #include "EpicRtcVideoCommon.h"
+#include "HAL/PlatformFileManager.h"
 #include "Video/Encoders/Configs/VideoEncoderConfigAV1.h"
 #include "Video/Encoders/Configs/VideoEncoderConfigH264.h"
 #include "Video/Encoders/Configs/VideoEncoderConfigVP8.h"
@@ -49,12 +50,19 @@ namespace UE::PixelStreaming2
 		// We store this so we can restore back to it if the user decides to use then stop using the PixelStreaming2.Encoder.TargetBitrate CVar.
 		uint32_t EpicRtcProposedTargetBitrate = 5000000;
 
+		// File handle used to save the encoded output to
+		IFileHandle* FileHandle = nullptr;
+
 	private:
 		bool	 LateInitEncoder();
 		void	 SetInitialSettings(const EpicRtcVideoEncoderConfig& CodecSettings, FVideoEncoderConfig& VideoConfig);
 		void	 UpdateConfig(uint32 Width, uint32 Height);
 		void	 MaybeDumpFrame(EpicRtcEncodedVideoFrame const& EncodedImage);
 		uint32_t SumAndResetBitrates();
+
+		void OnEncoderDebugDumpFrameChanged(IConsoleVariable* Var);
+		void CreateDumpFile();
+		FDelegateHandle DelegateHandle;
 
 	public:
 		/* Begin EpicRtcRefCountInterface */
