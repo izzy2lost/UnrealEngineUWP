@@ -43,30 +43,24 @@ namespace UE
 namespace Sequencer
 {
 
-static bool NodeMatchesTextFilterTerm(TSharedPtr<const UE::Sequencer::IOutlinerExtension> Node, const FCurveEditorTreeTextFilterTerm& Term)
+static bool NodeMatchesTextFilterTerm(TViewModelPtr<const UE::Sequencer::IOutlinerExtension> Node, const FCurveEditorTreeTextFilterTerm& Term)
 {
 	using namespace UE::Sequencer;
 
-	bool bMatched = false;
+	FCurveEditorTreeTextFilterTerm::FMatchResult Match(Term.ChildToParentTokens);
 
-	for (const FCurveEditorTreeTextFilterToken& Token : Term.ChildToParentTokens)
+	while (Node && Match.IsPartialMatch())
 	{
-		if (!Node)
+		FCurveEditorTreeTextFilterTerm::FMatchResult NewMatch = Match.Match(Node->GetLabel().ToString());
+		if (NewMatch.IsAnyMatch())
 		{
-			// No match - ran out of parents
-			return false;
+			// If we matched, keep searching parents using the remaining match result
+			Match = NewMatch;
 		}
-		else if (!Token.Match(*Node->GetIdentifier().ToString()))
-		{
-			return false;
-		}
-
-		bMatched = true;
-		//Node = Node->GetParent();
-		break;
+		Node = Node.AsModel()->FindAncestorOfType<const IOutlinerExtension>();
 	}
 
-	return bMatched;
+	return Match.IsTotalMatch();
 }
 
 void FOutlinerItemModelMixin::AddEvalOptionsPropertyMenuItem(FMenuBuilder& InMenuBuilder, const FBoolProperty* InProperty, TFunction<bool(UMovieSceneTrack*)> InValidator)
@@ -1101,16 +1095,18 @@ bool FOutlinerItemModelMixin::PassesFilter(const FCurveEditorTreeFilter* InFilte
 	{
 		const FCurveEditorTreeTextFilter* Filter = static_cast<const FCurveEditorTreeTextFilter*>(InFilter);
 
-		TSharedPtr<const IOutlinerExtension> This = AsViewModel()->CastThisShared<IOutlinerExtension>();
+		TViewModelPtr<const IOutlinerExtension> This = AsViewModel()->CastThisShared<IOutlinerExtension>();
+
+		// Must match all text tokens
 		for (const FCurveEditorTreeTextFilterTerm& Term : Filter->GetTerms())
 		{
-			if (NodeMatchesTextFilterTerm(This, Term))
+			if (!NodeMatchesTextFilterTerm(This, Term))
 			{
-				return true;
+				return false;
 			}
 		}
 
-		return false;
+		return true;
 	}
 	else if (InFilter->GetType() == ISequencerModule::GetSequencerSelectionFilterType())
 	{

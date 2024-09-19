@@ -108,6 +108,53 @@ struct FCurveEditorTreeTextFilterToken
 /** A text filter term containing >= 1 sparate tokens ordered from child to parent */
 struct FCurveEditorTreeTextFilterTerm
 {
+	/**
+	 * Struct representing the result of a match operation,
+	 *     including any remaining tokens that need to be matched recursively upwards
+	 */
+	struct FMatchResult
+	{
+		/** Default constructor to an empty result that did not match */
+		FMatchResult()
+			: bMatched(false)
+		{}
+
+		/** Constructor that creates a successful match with optional remaining tokens */
+		FMatchResult(TArrayView<const FCurveEditorTreeTextFilterToken> InRemainingTokens)
+			: RemainingTokens(InRemainingTokens)
+			, bMatched(true)
+		{}
+
+		/** Match another string against the remaining tokens for this result */
+		CURVEEDITOR_API FMatchResult Match(FStringView InString) const;
+
+		/** Check whether this result is a partial or total match. Returns false if any match has failed. */
+		bool IsAnyMatch() const
+		{
+			return bMatched;
+		}
+		/** Check whether this result matched, but still has tokens left to match */
+		bool IsPartialMatch() const
+		{
+			return bMatched && RemainingTokens.Num() > 0;
+		}
+		/** Check whether this result has completely matched all tokens */
+		bool IsTotalMatch() const
+		{
+			return bMatched && RemainingTokens.Num() == 0;
+		}
+
+	private:
+
+		TArrayView<const FCurveEditorTreeTextFilterToken> RemainingTokens;
+		bool bMatched;
+	};
+
+	/**
+	 * Match a string against these tokens
+	 */
+	CURVEEDITOR_API FMatchResult Match(FStringView InString) const;
+
 	TArray<FCurveEditorTreeTextFilterToken, TInlineAllocator<1>> ChildToParentTokens;
 };
 
