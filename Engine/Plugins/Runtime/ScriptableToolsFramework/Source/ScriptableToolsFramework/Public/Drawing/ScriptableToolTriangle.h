@@ -17,7 +17,7 @@ class SCRIPTABLETOOLSFRAMEWORK_API UScriptableToolTriangle : public UObject
 
 public:
 
-	//void Initialize();
+	UScriptableToolTriangle();
 
 	void SetTriangleID(int32 TriangleIDIn);
 	int32 GetTriangleID() const;
@@ -92,6 +92,8 @@ class SCRIPTABLETOOLSFRAMEWORK_API UScriptableToolQuad : public UObject
 	GENERATED_BODY()
 
 public:
+
+	UScriptableToolQuad();
 
 	void SetTriangleAID(int32 TriangleIDIn);
 	int32 GetTriangleAID() const;
