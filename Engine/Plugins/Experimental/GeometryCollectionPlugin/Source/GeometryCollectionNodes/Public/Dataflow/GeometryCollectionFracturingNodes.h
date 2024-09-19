@@ -11,7 +11,7 @@
 #include "GeometryCollectionFracturingNodes.generated.h"
 
 class FGeometryCollection;
-class UDynamicMesh;
+class UStaticMesh;
 
 USTRUCT(meta = (DataflowGeometryCollection, Deprecated = "5.5"))
 struct FUniformScatterPointsDataflowNode : public FDataflowNode
@@ -1041,8 +1041,16 @@ public:
 	FTransform Transform = FTransform::Identity;
 
 	/** Mesh to cut with */
-	UPROPERTY(meta = (DataflowInput, DataflowIntrinsic))
-	TObjectPtr<UDynamicMesh> CuttingMesh;
+	UPROPERTY(EditAnywhere, Category = "StaticMesh", meta = (DataflowInput, DataflowIntrinsic))
+	TObjectPtr<UStaticMesh> CuttingStaticMesh;
+
+	/** Output the HiRes representation, if set to true and HiRes doesn't exist it will output empty mesh */
+	UPROPERTY(EditAnywhere, Category = "StaticMesh", meta = (DisplayName = "Use HiRes"));
+	bool bUseHiRes = false;
+
+	/** Specifies the LOD level to use */
+	UPROPERTY(EditAnywhere, Category = "StaticMesh", meta = (DisplayName = "LOD Level"));
+	int32 LODLevel = 0;
 
 	/** How to arrange the mesh cuts in space */
 	UPROPERTY(EditAnywhere, Category = Distribution)
@@ -1131,7 +1139,7 @@ public:
 		RegisterInputConnection(&BoundingBox);
 		RegisterInputConnection(&TransformSelection);
 		RegisterInputConnection(&Transform);
-		RegisterInputConnection(&CuttingMesh);
+		RegisterInputConnection(&CuttingStaticMesh);
 		RegisterInputConnection(&NumberToScatter);
 		RegisterInputConnection(&GridX);
 		RegisterInputConnection(&GridY);
