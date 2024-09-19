@@ -13237,8 +13237,13 @@ void UCookOnTheFlyServer::GenerateLocalizationReferences()
 	{
 		for (const FString& CultureName : CookByTheBookOptions->AllCulturesToCook)
 		{
-			FString LocalizedPackagePath = RootPath / TEXT("L10N") / CultureName;
-			Filter.PackagePaths.Add(*LocalizedPackagePath);
+			// Cook both UE style (eg, "en-US") and Verse style (eg, "en_US") localized assets
+			const FString VerseIdentifier = FCulture::CultureNameToVerseIdentifier(CultureName);
+			if (CultureName != VerseIdentifier)
+			{
+				Filter.PackagePaths.Add(*(RootPath / TEXT("L10N") / VerseIdentifier));
+			}
+			Filter.PackagePaths.Add(*(RootPath / TEXT("L10N") / CultureName));
 		}
 	}
 

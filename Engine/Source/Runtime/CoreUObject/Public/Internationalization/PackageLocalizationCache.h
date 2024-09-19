@@ -94,6 +94,9 @@ private:
 	/** An array of culture names that should be scanned, sorted in priority order. */
 	TArray<FString> PrioritizedCultureNames;
 
+	/** An array of culture names and Verse identifiers that should be scanned, sorted in priority order. */
+	TArray<FString> PrioritizedCultureNamesAndVerseIdentifiers;
+
 	/** An array of source paths we should scan on the next call to ConditionalUpdateCache. */
 	TArray<FString> PendingSourceRootPathsToSearch;
 
