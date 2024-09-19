@@ -309,9 +309,9 @@ public:
 		{
 			// The asset color chip
 			LayeredImage = SNew(SLayeredImage)
-				.Image(FAppStyle::GetBrush("ContentBrowser.AssetTileViewWhiteChipBorder"))
+				.Image(FAppStyle::GetBrush(Style, ".AssetTileViewWhiteChipBorder"))
 				.ColorAndOpacity(FStyleColors::Secondary);
-			LayeredImage->AddLayer(FAppStyle::GetBrush("ContentBrowser.AssetTileViewWhiteChip"), AssetColor);
+			LayeredImage->AddLayer(FAppStyle::GetBrush(Style, ".AssetTileViewWhiteChip"), AssetColor);
 
 			OverlayWidget->AddSlot()
 				.HAlign(HAlign_Right)
@@ -320,8 +320,8 @@ public:
 					LayeredImage.ToSharedRef()
 				];
 
-			TSharedRef<SImage> OverlayBorder = SNew(SImage)
-				.Image(FAppStyle::GetBrush("ContentBrowser.AssetTileItem.AssetBorder"))
+			const TSharedRef<SImage> OverlayBorder = SNew(SImage)
+				.Image(FAppStyle::GetBrush(Style, ".AssetBorder"))
 				.Visibility(EVisibility::HitTestInvisible);
 			
 			OverlayWidget->AddSlot()
@@ -331,9 +331,9 @@ public:
 
 			if (AssetChipBorderImageOverride.IsSet())
 			{
-				TSharedRef<SBorder> ThumbnailWidgetBorder = SNew(SBorder)
+				const TSharedRef<SBorder> ThumbnailWidgetBorder = SNew(SBorder)
 					.Padding(0)
-					.BorderImage(FAppStyle::GetBrush("ContentBrowser.AssetTileItem.AssetBorder"))
+					.BorderImage(FAppStyle::GetBrush(Style, ".AssetBorder"))
 					[
 						OverlayWidget
 					];
@@ -407,7 +407,7 @@ public:
 			.Padding(StatusPadding)
 			[
 				SNew(SBorder)
-				.BorderImage(FAppStyle::Get().GetBrush("ContentBrowser.AssetTileItem.AssetThumbnailStatusBar"))
+				.BorderImage(FAppStyle::GetBrush(Style, ".AssetThumbnailStatusBar"))
 				.Visibility(this, &SAssetThumbnail::GetStatusBorderVisibility)
 				[
 					HorizontalBox
@@ -434,7 +434,7 @@ public:
 					.Padding(PaddingFromTopLeftBorder, PaddingFromTopLeftBorder, 0.f, 0.f)
 					[
 						SNew(SBorder)
-						.BorderImage(FAppStyle::GetBrush(TEXT("ContentBrowser.AssetTileItem.AssetThumbnailBar")))
+						.BorderImage(FAppStyle::GetBrush(Style, ".AssetThumbnailBar"))
 						.Visibility_Lambda([this] () { return IsHovered() ? EVisibility::Collapsed : EVisibility::Visible; })
 						[
 							SNew(SBox)
@@ -457,7 +457,7 @@ public:
 					.HAlign(HAlign_Center)
 					[
 						SNew(SBorder)
-						.BorderImage(FAppStyle::GetBrush(TEXT("ContentBrowser.AssetTileItem.AssetThumbnailBar")))
+						.BorderImage(FAppStyle::GetBrush(Style, ".AssetThumbnailBar"))
 						.Visibility_Lambda([this] () { return IsHovered() ? EVisibility::Visible : EVisibility::Collapsed; })
 						[
 							SNew(SBox)
@@ -642,7 +642,6 @@ public:
 					SNew(STextBlock)
 					.Text(NameText)
 					.ColorAndOpacity(FStyleColors::White)
-					.Font(FAppStyle::GetFontStyle("ContentBrowser.Tooltip.AssetNameFont"))
 				]
 
 				+ SVerticalBox::Slot()
@@ -669,7 +668,6 @@ public:
 					.VAlign(VAlign_Center)
 					[
 						SNew(STextBlock)
-						.Font(FAppStyle::GetFontStyle("ContentBrowser.Tooltip.EntryFont"))
 						.Text(ClassNameText)
 					]
 				]
@@ -716,7 +714,6 @@ public:
 						.VAlign(VAlign_Center)
 						[
 							SNew(STextBlock)
-							.Font(FAppStyle::GetFontStyle("ContentBrowser.Tooltip.EntryFont"))
 							.Text(AssetStatusInfo.StatusDescription)
 						]
 					];
@@ -743,7 +740,6 @@ public:
 						const FModifierKeysState ModifierKeys = FSlateApplication::Get().GetModifierKeys();
 						return ModifierKeys.IsAltDown() && ModifierKeys.IsControlDown() ? EVisibility::Collapsed : EVisibility::Visible;
 					})
-					// .Font(FAppStyle::GetFontStyle("ContentBrowser.Tooltip.MoreInfo"))
 					.Justification(ETextJustify::Center)
 					.Text(NSLOCTEXT("AssetThumbnail", "MoreInfoTooltip", "Hold <WrappedCommand/> for more"))
 					+ SRichTextBlock::WidgetDecorator( TEXT("WrappedCommand"), this, &SAssetThumbnail::OnCreateWidgetDecoratorWidget )
@@ -786,14 +782,13 @@ private:
 		TSharedRef<SWidget> CtrlAltWidget = SNew(SBorder)
 			.VAlign(VAlign_Center)
 			.HAlign(HAlign_Center)
-			.BorderImage(FAppStyle::GetBrush("ContentBrowser.ToolTip.CommandBorder"))
+			.BorderImage(FAppStyle::GetBrush(Style, ".ToolTip.CommandBorder"))
 			[
 				SNew(STextBlock)
-				.Font(FAppStyle::GetFontStyle("ContentBrowser.Tooltip.MoreInfo"))
 				.Text(NSLOCTEXT("AssetThumbnail", "CtrlAltLabel", " Ctrl + Alt "))
 			];
 		const TSharedRef<FSlateFontMeasure> FontMeasure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
-		const int16 Baseline = FontMeasure->GetBaseline(FAppStyle::GetFontStyle("ContentBrowser.Tooltip.MoreInfo"));
+		const int16 Baseline = FontMeasure->GetBaseline(FStyleDefaults::GetFontInfo());
 
 		return FSlateWidgetRun::FWidgetRunInfo(CtrlAltWidget, Baseline - 2);
 
@@ -826,7 +821,6 @@ private:
 			.Padding(0, 0, 4, 0)
 			[
 				SNew(STextBlock)
-				.Font(FAppStyle::GetFontStyle("ContentBrowser.Tooltip.EntryFont"))
 				.Text(FText::Format(NSLOCTEXT("AssetThumbnailToolTip", "AssetViewTooltipFormat", "{0}:"), Key))
 			]
 
@@ -834,7 +828,6 @@ private:
 			.AutoWidth()
 			[
 				SNew(STextBlock)
-				.Font(FAppStyle::GetFontStyle("ContentBrowser.Tooltip.EntryFont"))
 				.ColorAndOpacity(FStyleColors::White)
 				.Text(Value)
 			]
@@ -1401,7 +1394,7 @@ void SAssetThumbnailToolTip::Construct(const FArguments& InArgs)
 	SToolTip::Construct(
 		SToolTip::FArguments()
 		.TextMargin(FMargin(1.f, -3.f))
-		.BorderImage(FAppStyle::GetBrush("ContentBrowser.Tooltip.Border"))
+		.BorderImage(FAppStyle::GetBrush("AssetThumbnail.Tooltip.Border"))
 		);
 }
 
