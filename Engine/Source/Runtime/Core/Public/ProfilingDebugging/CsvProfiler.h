@@ -21,6 +21,7 @@
 #include "HAL/PreprocessorHelpers.h"
 #include "HAL/ThreadSafeCounter.h"
 #include "Misc/EnumClassFlags.h"
+#include "Misc/Guid.h"
 #include "ProfilingDebugging/CsvProfilerConfig.h"
 #include "ProfilingDebugging/CsvProfilerTrace.h"
 #include "ProfilingDebugging/MiscTrace.h"
@@ -423,6 +424,7 @@ public:
 	CORE_API int32 GetCaptureFrameNumber() const;
 	CORE_API int32 GetCaptureFrameNumberRT() const;
 	CORE_API int32 GetNumFrameToCaptureOnEvent() const;
+	CORE_API const FGuid& GetCsvID();
 
 	CORE_API bool EnableCategoryByString(const FString& CategoryName) const;
 	CORE_API void EnableCategoryByIndex(uint32 CategoryIndex, bool bEnable) const;
@@ -521,6 +523,8 @@ private:
 	int32 CaptureFrameNumber;
 	int32 CaptureFrameNumberRT;
 	int32 CaptureOnEventFrameCount;
+
+	FGuid CsvGUID;
 
 	bool bInsertEndFrameAtFrameStart;
 	bool bNamedEventsWasEnabled;

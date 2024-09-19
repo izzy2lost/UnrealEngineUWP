@@ -34,7 +34,6 @@
 #include "Misc/Compression.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/Fork.h"
-#include "Misc/Guid.h"
 #include "Misc/WildcardString.h"
 #include "Modules/ModuleManager.h"
 #include "HAL/PlatformMemoryHelpers.h"
@@ -3091,6 +3090,7 @@ FCsvProfiler::FCsvProfiler()
 	, CaptureFrameNumber(0)
 	, CaptureFrameNumberRT(0)
 	, CaptureOnEventFrameCount(-1)
+	, CsvGUID(FGuid(0, 0, 0, 0))
 	, bInsertEndFrameAtFrameStart(false)
 	, bNamedEventsWasEnabled(false)
 	, LastEndFrameTimestamp(0)
@@ -3323,9 +3323,10 @@ void FCsvProfiler::BeginCaptureInternal(const FCsvCaptureCommand& CurrentCommand
 	}
 
 	// Set the CSV ID and mirror it to the log
-	FString CsvId = FGuid::NewGuid().ToString();
-	SetMetadataInternal(TEXT("CsvID"), *CsvId);
-	UE_LOG(LogCsvProfiler, Display, TEXT("Capture started. CSV ID: %s"), *CsvId);
+	CsvGUID = FGuid::NewGuid();
+	FString CsvIdString = CsvGUID.ToString();
+	SetMetadataInternal(TEXT("CsvID"), *CsvIdString);
+	UE_LOG(LogCsvProfiler, Display, TEXT("Capture started. CSV ID: %s"), *CsvIdString);
 
 	int32 TargetFPS = FPlatformMisc::GetMaxRefreshRate();
 	static IConsoleVariable* CsvTargetFrameRateCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("csv.TargetFrameRateOverride"));
@@ -4345,6 +4346,11 @@ int32 FCsvProfiler::GetCaptureFrameNumberRT() const
 int32 FCsvProfiler::GetNumFrameToCaptureOnEvent() const
 {
 	return CaptureOnEventFrameCount;
+}
+
+const FGuid& FCsvProfiler::GetCsvID()
+{
+	return CsvGUID;
 }
 
 bool FCsvProfiler::EnableCategoryByString(const FString& CategoryName) const
