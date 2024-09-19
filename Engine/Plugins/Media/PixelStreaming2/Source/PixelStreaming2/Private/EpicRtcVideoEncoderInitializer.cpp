@@ -46,9 +46,6 @@ namespace
 
 namespace UE::PixelStreaming2
 {
-
-	TStaticArray<EVideoCodec, 4> FEpicRtcVideoEncoderInitializer::SupportedCodecList = { EVideoCodec::VP8, EVideoCodec::VP9, EVideoCodec::H264, EVideoCodec::AV1 };
-
 	void FEpicRtcVideoEncoderInitializer::CreateEncoder(EpicRtcVideoCodecInfoInterface* CodecInfo, EpicRtcVideoEncoderInterface** OutEncoder)
 	{
 		EpicRtcVideoEncoderInterface* Encoder = nullptr;
@@ -97,17 +94,18 @@ namespace UE::PixelStreaming2
 	EpicRtcVideoCodecInfoArrayInterface* FEpicRtcVideoEncoderInitializer::GetSupportedCodecs()
 	{
 		// static so we dont create the list every time this is called since the list will not change during runtime.
-		static const TMap<EVideoCodec, TArray<TRefCountPtr<EpicRtcVideoCodecInfoInterface>>> CodecMap = CreateSupportedEncoderMap();
+		static const TMap<EVideoCodec, TArray<TRefCountPtr<EpicRtcVideoCodecInfoInterface>>> SupportedCodecMap = CreateSupportedEncoderMap();
 
-		// Codecs that have been denied (e.g. a codec may be denied if all HW encoder instances are in use)
-		TSet<EVideoCodec> DenyListedCodecs;
+		EVideoCodec SelectedCodec = UE::PixelStreaming2::GetEnumFromCVar<EVideoCodec>(UPixelStreaming2PluginSettings::CVarEncoderCodec);
+		const bool	bNegotiateCodecs = UPixelStreaming2PluginSettings::CVarWebRTCNegotiateCodecs.GetValueOnAnyThread();
 
 		// This array of support codecs gets built up and returned in our preference order
 		TArray<TRefCountPtr<EpicRtcVideoCodecInfoInterface>> SupportedCodecs;
+		// Codecs that have been denied (e.g. a codec may be denied if all HW encoder instances are in use)
+		TSet<EVideoCodec> DenyListedCodecs;
 
-		EVideoCodec SelectedCodec = UE::PixelStreaming2::GetEnumFromCVar<EVideoCodec>(UPixelStreaming2PluginSettings::CVarEncoderCodec);
 #if PLATFORM_WINDOWS || PLATFORM_LINUX
-		if ((SelectedCodec == EVideoCodec::H264 || SelectedCodec == EVideoCodec::AV1) && IsRHIDeviceNVIDIA())
+		if ((SelectedCodec == EVideoCodec::H264 || SelectedCodec == EVideoCodec::AV1 || bNegotiateCodecs) && IsRHIDeviceNVIDIA())
 		{
 			int32 NumEncoderSessions = NvmlEncoder::GetEncoderSessionCount(0); // TODO we should probably actually figure out the GPU index rather than assume 0
 			int32 MaxCVarAllowedSessions = UPixelStreaming2PluginSettings::CVarEncoderMaxSessions.GetValueOnAnyThread();
@@ -146,51 +144,37 @@ namespace UE::PixelStreaming2
 #endif // PLATFORM_WINDOWS || PLATFORM_LINUX
 
 		// If we are not negotiating codecs simply return just the one codec that is selected in UE
-		if (!UPixelStreaming2PluginSettings::CVarWebRTCNegotiateCodecs.GetValueOnAnyThread())
+		if (!bNegotiateCodecs)
 		{
-			SupportedCodecs.Empty();
-
 			if (DenyListedCodecs.Contains(SelectedCodec))
 			{
 				UE_LOG(LogPixelStreaming2, Error, TEXT("Selected codec was denied - most like due to lack of hw encoder sessions."));
 			}
-			else if (CodecMap.Contains(SelectedCodec))
+			else if (SupportedCodecMap.Contains(SelectedCodec))
 			{
-				SupportedCodecs.Append(CodecMap[SelectedCodec]);
+				SupportedCodecs.Append(SupportedCodecMap[SelectedCodec]);
 			}
 			else
 			{
 				UE_LOG(LogPixelStreaming2, Error, TEXT("Selected codec was not a supported codec."));
 			}
-
-			return new FVideoCodecInfoArray(SupportedCodecs);
 		}
-
-		if (UPixelStreaming2PluginSettings::CVarEncoderEnableSimulcast.GetValueOnAnyThread())
+		else
 		{
-			// Only H264 and VP8 support simulcast in the way we do it
-			DenyListedCodecs.Add(EVideoCodec::VP9);
-			DenyListedCodecs.Add(EVideoCodec::AV1);
-			UE_LOG(LogPixelStreaming2, Warning, TEXT("Removing VP9 and AV1 from negotiable codecs due to simulcast being enabled"));
-		}
-
-		// order the codecs so the selected is first
-		TArray<EVideoCodec> OrderedCodecList;
-		OrderedCodecList.Add(SelectedCodec);
-		for (auto& SupportedCodec : SupportedCodecList)
-		{
-			if (SupportedCodec != SelectedCodec && !DenyListedCodecs.Contains(SupportedCodec))
+			if (UPixelStreaming2PluginSettings::CVarEncoderEnableSimulcast.GetValueOnAnyThread())
 			{
-				OrderedCodecList.Add(SupportedCodec);
+				// Only H264 and VP8 support simulcast in the way we do it
+				DenyListedCodecs.Add(EVideoCodec::VP9);
+				DenyListedCodecs.Add(EVideoCodec::AV1);
+				UE_LOG(LogPixelStreaming2, Warning, TEXT("Removing VP9 and AV1 from negotiable codecs due to simulcast being enabled"));
 			}
-		}
 
-		// now just add each of the formats in order
-		for (auto& Codec : OrderedCodecList)
-		{
-			if (CodecMap.Contains(Codec) && !DenyListedCodecs.Contains(Codec))
+			for (auto& Codec : UPixelStreaming2PluginSettings::GetCodecPreferences())
 			{
-				SupportedCodecs.Append(CodecMap[Codec]);
+				if (SupportedCodecMap.Contains(Codec) && !DenyListedCodecs.Contains(Codec))
+				{
+					SupportedCodecs.Append(SupportedCodecMap[Codec]);
+				}
 			}
 		}
 
@@ -200,7 +184,7 @@ namespace UE::PixelStreaming2
 	TMap<EVideoCodec, TArray<TRefCountPtr<EpicRtcVideoCodecInfoInterface>>> FEpicRtcVideoEncoderInitializer::CreateSupportedEncoderMap()
 	{
 		TMap<EVideoCodec, TArray<TRefCountPtr<EpicRtcVideoCodecInfoInterface>>> Codecs;
-		for (auto& Codec : SupportedCodecList)
+		for (auto& Codec : SupportedVideoCodecs)
 		{
 			Codecs.Add(Codec);
 		}

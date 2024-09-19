@@ -26,6 +26,9 @@ namespace UE::PixelStreaming2
 		}
 	};
 
+	// List of video codecs supported by PS2
+	const TStaticArray<EVideoCodec, 4> SupportedVideoCodecs = { EVideoCodec::H264, EVideoCodec::AV1, EVideoCodec::VP8, EVideoCodec::VP9 };
+
 	constexpr uint32_t NumSimulcastLayers = 3;
 	// Each subsequent layer is 1/ScalingFactor the size of the previous
 	constexpr uint32_t ScalingFactor = 2;

@@ -8,6 +8,7 @@
 #include "PixelStreaming2PluginSettings.h"
 #include "ToStringExtensions.h"
 #include "Utils.h"
+#include "VideoUtils.h"
 #include "Video/Decoders/Configs/VideoDecoderConfigAV1.h"
 #include "Video/Decoders/Configs/VideoDecoderConfigH264.h"
 #include "Video/Decoders/Configs/VideoDecoderConfigVP8.h"
@@ -43,9 +44,6 @@ namespace
 
 namespace UE::PixelStreaming2
 {
-
-	TStaticArray<EVideoCodec, 4> FEpicRtcVideoDecoderInitializer::SupportedCodecList = { EVideoCodec::VP8, EVideoCodec::VP9, EVideoCodec::H264, EVideoCodec::AV1 };
-
 	void FEpicRtcVideoDecoderInitializer::CreateDecoder(EpicRtcVideoCodecInfoInterface* CodecInfo, EpicRtcVideoDecoderInterface** OutDecoder)
 	{
 		EpicRtcVideoDecoderInterface* Decoder = nullptr;
@@ -92,11 +90,10 @@ namespace UE::PixelStreaming2
 	// doesnt support the video we are receiving then transport_cc is not enabled which leads to very low bitrate streams.
 	EpicRtcVideoCodecInfoArrayInterface* FEpicRtcVideoDecoderInitializer::GetSupportedCodecs()
 	{
-		// static so we dont create the list every time this is called since the list will not change during runtime.
-		static const TMap<EVideoCodec, TArray<TRefCountPtr<EpicRtcVideoCodecInfoInterface>>> CodecMap = CreateSupportedDecoderMap();
+		const TMap<EVideoCodec, TArray<TRefCountPtr<EpicRtcVideoCodecInfoInterface>>> SupportedCodecMap = CreateSupportedDecoderMap();
 
 		const EVideoCodec SelectedCodec = UE::PixelStreaming2::GetEnumFromCVar<EVideoCodec>(UPixelStreaming2PluginSettings::CVarEncoderCodec);
-		const bool		  NegotiateCodecs = UPixelStreaming2PluginSettings::CVarWebRTCNegotiateCodecs.GetValueOnAnyThread();
+		const bool		  bNegotiateCodecs = UPixelStreaming2PluginSettings::CVarWebRTCNegotiateCodecs.GetValueOnAnyThread();
 
 		// Build a list of supported codecs
 		TArray<TRefCountPtr<EpicRtcVideoCodecInfoInterface>> SupportedCodecs;
@@ -104,37 +101,25 @@ namespace UE::PixelStreaming2
 		// Todo: Check if all HW decoder sessions are used up.
 
 		// If we are not negotiating codecs simply return just the one codec that is selected in UE
-		if (!NegotiateCodecs)
+		if (!bNegotiateCodecs)
 		{
-			if (CodecMap.Contains(SelectedCodec))
+			if (SupportedCodecMap.Contains(SelectedCodec))
 			{
-				SupportedCodecs.Append(CodecMap[SelectedCodec]);
+				SupportedCodecs.Append(SupportedCodecMap[SelectedCodec]);
 			}
 			else
 			{
 				UE_LOG(LogPixelStreaming2, Error, TEXT("Selected codec was not a supported codec."));
 			}
-
-			return new FVideoCodecInfoArray(SupportedCodecs);
 		}
-
-		// Order the codecs so the "selected" codec is first
-		TArray<EVideoCodec> OrderedCodecList;
-		OrderedCodecList.Add(SelectedCodec);
-		for (auto& SupportedCodec : SupportedCodecList)
+		else
 		{
-			if (SupportedCodec != SelectedCodec)
+			for (auto& Codec : UPixelStreaming2PluginSettings::GetCodecPreferences())
 			{
-				OrderedCodecList.Add(SupportedCodec);
-			}
-		}
-
-		// Now attach each codec format to our support codecs list
-		for (auto& Codec : OrderedCodecList)
-		{
-			if (CodecMap.Contains(Codec))
-			{
-				SupportedCodecs.Append(CodecMap[Codec]);
+				if (SupportedCodecMap.Contains(Codec))
+				{
+					SupportedCodecs.Append(SupportedCodecMap[Codec]);
+				}
 			}
 		}
 
@@ -144,7 +129,7 @@ namespace UE::PixelStreaming2
 	TMap<EVideoCodec, TArray<TRefCountPtr<EpicRtcVideoCodecInfoInterface>>> FEpicRtcVideoDecoderInitializer::CreateSupportedDecoderMap()
 	{
 		TMap<EVideoCodec, TArray<TRefCountPtr<EpicRtcVideoCodecInfoInterface>>> Codecs;
-		for (auto& Codec : SupportedCodecList)
+		for (auto& Codec : SupportedVideoCodecs)
 		{
 			Codecs.Add(Codec);
 		}
