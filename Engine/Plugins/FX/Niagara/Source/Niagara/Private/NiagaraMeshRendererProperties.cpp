@@ -1325,10 +1325,9 @@ void UNiagaraMeshRendererProperties::OnMeshChanged()
 {
 	FNiagaraSystemUpdateContext ReregisterContext;
 
-	FVersionedNiagaraEmitter Outer = GetOuterEmitter();
-	if (Outer.Emitter)
+	if (UNiagaraSystem* NiagaraSystem = GetTypedOuter<UNiagaraSystem>())
 	{
-		ReregisterContext.Add(Outer, true);
+		ReregisterContext.Add(NiagaraSystem, true);
 	}
 
 	CheckMaterialUsage();
