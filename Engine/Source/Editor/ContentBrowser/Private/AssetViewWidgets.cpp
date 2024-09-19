@@ -300,7 +300,7 @@ public:
 			SToolTip::FArguments()
 #if UE_CONTENTBROWSER_NEW_STYLE
 			.TextMargin(FMargin(12.f, 8.f, 12.f, 2.f))
-			.BorderImage(FAppStyle::GetBrush("ContentBrowser.Tooltip.Border"))
+			.BorderImage(FAppStyle::GetBrush("AssetThumbnail.Tooltip.Border"))
 #else
 			.TextMargin(1.0f)
 			.BorderImage(UE::ContentBrowser::Private::FContentBrowserStyle::Get().GetBrush("ContentBrowser.TileViewTooltip.ToolTipBorder"))
@@ -1654,7 +1654,7 @@ void SAssetViewItem::CacheDisplayTags()
 const FSlateBrush* SAssetViewItem::GetBorderImage() const
 {
 #if UE_CONTENTBROWSER_NEW_STYLE
-	return bDraggedOver ? FAppStyle::GetBrush("ContentBrowser.AssetTileItem.AssetBorder") : FAppStyle::GetBrush("NoBorder");
+	return bDraggedOver ? FAppStyle::GetBrush("AssetThumbnail.AssetBorder") : FAppStyle::GetBrush("NoBorder");
 #else
 	return bDraggedOver ? FAppStyle::GetBrush("Menu.Background") : FAppStyle::GetBrush("NoBorder");
 #endif
@@ -2539,7 +2539,7 @@ const FSlateBrush* SAssetTileItem::GetAssetAreaOverlayBackgroundImage() const
 	}
 	else if (!IsFolder())
 	{
-		static const FLazyName Normal("ContentBrowser.AssetTileItem.AssetBorder");
+		static const FLazyName Normal("AssetThumbnail.AssetBorder");
 		return FAppStyle::Get().GetBrush(Normal);
 	}
 
