@@ -119,77 +119,88 @@ void UMassTraitRepository::OnDebugEvent(const FName EventName, FConstStructView 
 						, FText::FromName(TraitClassName))
 				));
 
-			UMassTraitRepository* TraitRepo = GEditor->GetEditorSubsystem<UMassTraitRepository>();
-			TConstArrayView<FName> SuggestedTraitNames = TraitRepo
-				? TraitRepo->GetTraitsNameAddingElements(MissingElement)
-				: TConstArrayView<FName>();
-
-			if (SuggestedTraitNames.Num())
+			// if the missing elements has been added but removed by some trait that's all we need to tell the user:
+			if (MissingTraitMessage->RemovedByTrait)
 			{
-				// The FixController will coordinate IFixer instances and the relevant FFixToken to
-				// ensure that only one of them can be applied. Once any of the fixes is applied
-				// the rest will become inactive (the FFixToken tokens will become grayed out and non-clickable).
-				// @todo at the moment FMutuallyExclusiveFixSet doesn't care whether fixing was successful. 
-				//		Should be relatively easy to address but needs to be coordinated with the author
-				TSharedRef<UE::DataValidation::FMutuallyExclusiveFixSet> FixController = MakeShareable(new UE::DataValidation::FMutuallyExclusiveFixSet());
+				IntroMessage->AddText(FText::FormatOrdered(LOCTEXT("MissingElementSuggestionRemoved"
+					, "has unsatisfied dependency of {0}. The type has been explicitly removed by {1}.")
+					, FText::FromName(MissingElement)
+					, FText::FromName(MissingTraitMessage->RemovedByTrait->GetFName())));
+			}
+			else
+			{
+				UMassTraitRepository* TraitRepo = GEditor->GetEditorSubsystem<UMassTraitRepository>();
+				TConstArrayView<FName> SuggestedTraitNames = TraitRepo
+					? TraitRepo->GetTraitsNameAddingElements(MissingElement)
+					: TConstArrayView<FName>();
 
-				IntroMessage->AddText(FText::FormatOrdered(LOCTEXT("MissingElementSuggestionOptions"
-					, "has unsatisfied dependency of {0}. The following actions can address it:")
-					, FText::FromName(MissingElement)));
-
-				for (const FName& SuggestedTraitName : SuggestedTraitNames)
+				if (SuggestedTraitNames.Num())
 				{
-					bool bFixable = false;
-					if (MissingTraitMessage->RequestingTrait)
+					// The FixController will coordinate IFixer instances and the relevant FFixToken to
+					// ensure that only one of them can be applied. Once any of the fixes is applied
+					// the rest will become inactive (the FFixToken tokens will become grayed out and non-clickable).
+					// @todo at the moment FMutuallyExclusiveFixSet doesn't care whether fixing was successful. 
+					//		Should be relatively easy to address but needs to be coordinated with the author
+					TSharedRef<UE::DataValidation::FMutuallyExclusiveFixSet> FixController = MakeShareable(new UE::DataValidation::FMutuallyExclusiveFixSet());
+
+					IntroMessage->AddText(FText::FormatOrdered(LOCTEXT("MissingElementSuggestionOptions"
+						, "has unsatisfied dependency of {0}. The following actions can address it:")
+						, FText::FromName(MissingElement)));
+
+					for (const FName& SuggestedTraitName : SuggestedTraitNames)
 					{
-						TWeakObjectPtr<UClass> WeakTraitClass = GetTraitClass(SuggestedTraitName);
-						UMassEntityConfigAsset* EntityConfigAsset = Cast<UMassEntityConfigAsset>(MissingTraitMessage->RequestingTrait->GetOuter());
-
-						if (EntityConfigAsset && WeakTraitClass.IsValid())
+						bool bFixable = false;
+						if (MissingTraitMessage->RequestingTrait)
 						{
-							bFixable = true;
+							TWeakObjectPtr<UClass> WeakTraitClass = GetTraitClass(SuggestedTraitName);
+							UMassEntityConfigAsset* EntityConfigAsset = Cast<UMassEntityConfigAsset>(MissingTraitMessage->RequestingTrait->GetOuter());
 
-							TWeakObjectPtr<UMassEntityConfigAsset> WeakConfig = EntityConfigAsset;
+							if (EntityConfigAsset && WeakTraitClass.IsValid())
+							{
+								bFixable = true;
+
+								TWeakObjectPtr<UMassEntityConfigAsset> WeakConfig = EntityConfigAsset;
 							
-							// capturing FixController to make sure it exists as long as the fixes are alive. The lambda will
-							// be destroyed once the Fixer tokens get destroyed, for example during MessageLog page clearing.
-							TFunction<FFixResult()> ApplyFix = [WeakConfig, WeakTraitClass, _ = FixController]()
+								// capturing FixController to make sure it exists as long as the fixes are alive. The lambda will
+								// be destroyed once the Fixer tokens get destroyed, for example during MessageLog page clearing.
+								TFunction<FFixResult()> ApplyFix = [WeakConfig, WeakTraitClass, _ = FixController]()
 								{
 									return UE::Mass::Private::AddTraitToConfigFix(WeakConfig, WeakTraitClass);
 								};
 
-							const TSharedRef<UE::DataValidation::IFixer> Fixer = UE::DataValidation::MakeFix(MoveTemp(ApplyFix));
+								const TSharedRef<UE::DataValidation::IFixer> Fixer = UE::DataValidation::MakeFix(MoveTemp(ApplyFix));
 
-							FixController->Add(FText::FormatOrdered(LOCTEXT("AddMissingTrait", "Add {0} trait to {1} entity config")
-										, FText::FromName(SuggestedTraitName)
-										, FText::FromName(EntityConfigAsset->GetFName()))
-									, Fixer);
+								FixController->Add(FText::FormatOrdered(LOCTEXT("AddMissingTrait", "Add {0} trait to {1} entity config")
+											, FText::FromName(SuggestedTraitName)
+											, FText::FromName(EntityConfigAsset->GetFName()))
+										, Fixer);
+							}
+						}
+					
+						if (bFixable == false)
+						{
+							// unfixable (since we're unable to determine the UMassEntityConfigAsset outer), so just report
+							Messages.Add_GetRef(FTokenizedMessage::Create(OVERRIDABLE_SEVERITY(EMessageSeverity::Info)))
+								->AddText(FText::FormatOrdered(LOCTEXT("MissingElementSuggestionUnfixable", "\t{0}")
+									, FText::FromName(SuggestedTraitName)));
 						}
 					}
-					
-					if (bFixable == false)
-					{
-						// unfixable (since we're unable to determine the UMassEntityConfigAsset outer), so just report
-						Messages.Add_GetRef(FTokenizedMessage::Create(OVERRIDABLE_SEVERITY(EMessageSeverity::Info)))
-							->AddText(FText::FormatOrdered(LOCTEXT("MissingElementSuggestionUnfixable", "\t{0}")
-								, FText::FromName(SuggestedTraitName)));
-					}
-				}
 
-				// for every IFixer instance we created in the loop above the call bellow will create a FFixToken
-				// related to that specific "fix". We attach all the tokens to the initial "here are your options" message
-				FixController->CreateTokens([IntroMessage](TSharedRef<FFixToken> FixToken)
-					{
-						IntroMessage->AddToken(FixToken);
-					}
-				);
-			}
-			else
-			{
-				IntroMessage->AddText(FText::FormatOrdered(LOCTEXT("MissingElementSuggestionNoOptions"
-					, "has unsatisfied dependency of {0}. There are no registered Traits that provide the type. Try using {1}.")
-					, FText::FromName(MissingElement)
-					, FText::FromName(UMassAssortedFragmentsTrait::StaticClass()->GetFName())));
+					// for every IFixer instance we created in the loop above the call bellow will create a FFixToken
+					// related to that specific "fix". We attach all the tokens to the initial "here are your options" message
+					FixController->CreateTokens([IntroMessage](TSharedRef<FFixToken> FixToken)
+						{
+							IntroMessage->AddToken(FixToken);
+						}
+					);
+				}
+				else
+				{
+					IntroMessage->AddText(FText::FormatOrdered(LOCTEXT("MissingElementSuggestionNoOptions"
+						, "has unsatisfied dependency of {0}. There are no registered Traits that provide the type. Try using {1}.")
+						, FText::FromName(MissingElement)
+						, FText::FromName(UMassAssortedFragmentsTrait::StaticClass()->GetFName())));
+				}
 			}
 
 			MessageLog.AddMessages(Messages);
