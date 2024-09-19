@@ -34,7 +34,7 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogPCGWorldPartitionBuilder, All, All);
 
-#define LOCTEXT_NAMESPACE "PCGWorldPartitionBulder"
+#define LOCTEXT_NAMESPACE "PCGWorldPartitionBuilder"
 
 struct FPCGWorldPartitionBuilder
 {
