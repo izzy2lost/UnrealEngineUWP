@@ -191,7 +191,7 @@ int32 UGatherTextFromSourceCommandlet::Main( const FString& Params )
 	}
 
 	// Ensure all filters are unique.
-	UniqueSourceFileSearchFilters.Reset();
+	TArray<FString> UniqueSourceFileSearchFilters;
 	for (const FString& SourceFileSearchFilter : FileNameFilters)
 	{
 		UniqueSourceFileSearchFilters.AddUnique(SourceFileSearchFilter);
@@ -199,25 +199,7 @@ int32 UGatherTextFromSourceCommandlet::Main( const FString& Params )
 
 	TArray<FString> IncludePathFilters;
 	TArray<FString> FilesToProcess;
-	GetFilesToProcess(SearchDirectoryPaths, IncludePathFilters, ExcludePathFilters, FilesToProcess, true);
-
-	const FFuzzyPathMatcher FuzzyPathMatcher = FFuzzyPathMatcher(IncludePathFilters, ExcludePathFilters);
-	FilesToProcess.RemoveAll([&FuzzyPathMatcher](const FString& FoundFile)
-	{
-		// Filter out assets whose package file paths do not pass the "fuzzy path" filters.
-		if (FuzzyPathMatcher.TestPath(FoundFile) != FFuzzyPathMatcher::EPathMatch::Included)
-		{
-			return true;
-		}
-
-		return false;
-	});
-	FilesToProcess.Sort([](const FString& LHS, const FString& RHS)
-	{
-		return (LHS < RHS);
-	});
-	// Remove duplicates
-	FilesToProcess.SetNum(Algo::Unique(FilesToProcess));
+	GetFilesToProcess(SearchDirectoryPaths, UniqueSourceFileSearchFilters, IncludePathFilters, ExcludePathFilters, FilesToProcess, true);
 	CountFileTypes(FilesToProcess, EGatherSourcePasses::Mainpass);
 	
 	// Return if no source files were found
@@ -274,15 +256,19 @@ int32 UGatherTextFromSourceCommandlet::Main( const FString& Params )
 
 		// We parse all files, since we do not have an include graph to know which are needed for main pass
 		TArray<FString> SearchDirectoryPathsPrepass;
-		SearchDirectoryPathsPrepass.Add(TEXT("../Engine"));
-		SearchDirectoryPathsPrepass.Add(TEXT("../FortniteGame"));
+		SearchDirectoryPathsPrepass.Add(TEXT("%LOCENGINEROOT%Source"));
+		SearchDirectoryPathsPrepass.Add(TEXT("%LOCENGINEROOT%Plugins"));
+		if (FApp::HasProjectName())
+		{
+			SearchDirectoryPathsPrepass.Add(TEXT("%LOCPROJECTROOT%Source"));
+			SearchDirectoryPathsPrepass.Add(TEXT("%LOCPROJECTROOT%Plugins"));
+		}
 		for (FString& Path : SearchDirectoryPathsPrepass)
 		{
 			ResolveLocalizationPath(Path);
 		}
 		TArray<FString> ExcludePathFiltersPrepass;
-		ExcludePathFiltersPrepass.Add(TEXT("../Engine/Source/ThirdParty/*"));
-		ExcludePathFiltersPrepass.Add(TEXT("../Engine/Restricted/NotForLicensees/Source/ThirdParty/*"));
+		ExcludePathFiltersPrepass.Add(TEXT("%LOCENGINEROOT%Source/ThirdParty/*"));
 		for (FString& Path : ExcludePathFiltersPrepass)
 		{
 			ResolveLocalizationPath(Path);
@@ -290,7 +276,8 @@ int32 UGatherTextFromSourceCommandlet::Main( const FString& Params )
 
 		TArray<FString> IncludePathFiltersPrepass;
 		TArray<FString> FilesToProcessPrepass;
-		GetFilesToProcess(SearchDirectoryPathsPrepass, IncludePathFiltersPrepass, ExcludePathFiltersPrepass, FilesToProcessPrepass, false);
+		TArray<FString> FileNameFiltersPrepass = { TEXT("*.cpp"), TEXT("*.h"), TEXT(".inl") };
+		GetFilesToProcess(SearchDirectoryPathsPrepass, FileNameFiltersPrepass, IncludePathFiltersPrepass, ExcludePathFiltersPrepass, FilesToProcessPrepass, false);
 		CountFileTypes(FilesToProcessPrepass, EGatherSourcePasses::Prepass);
 
 		RunPass(EGatherSourcePasses::Prepass, ShouldGatherFromEditorOnlyData, FilesToProcessPrepass, GatheredSourceBasePath, PrepassResults);
@@ -316,7 +303,7 @@ int32 UGatherTextFromSourceCommandlet::Main( const FString& Params )
 	return 0;
 }
 
-void UGatherTextFromSourceCommandlet::GetFilesToProcess(const TArray<FString>& SearchDirectoryPaths, TArray<FString>& IncludePathFilters, TArray<FString>& ExcludePathFilters, TArray<FString>& FilesToProcess, bool bAdditionalGatherPaths) const
+void UGatherTextFromSourceCommandlet::GetFilesToProcess(const TArray<FString>& SearchDirectoryPaths, const TArray<FString>& FileNameFilters, TArray<FString>& IncludePathFilters, TArray<FString>& ExcludePathFilters, TArray<FString>& FilesToProcess, bool bAdditionalGatherPaths) const
 {
 	// Build the final set of include/exclude paths to scan.
 	Algo::Transform(SearchDirectoryPaths, IncludePathFilters, [](const FString& SearchDirectoryPath)
@@ -355,9 +342,9 @@ void UGatherTextFromSourceCommandlet::GetFilesToProcess(const TArray<FString>& S
 				continue;
 			}
 
-			for (const FString& UniqueSourceFileSearchFilter : UniqueSourceFileSearchFilters)
+			for (const FString& FileNameFilter : FileNameFilters)
 			{
-				IFileManager::Get().FindFilesRecursive(RootSourceFiles, *SearchDirectoryPath, *UniqueSourceFileSearchFilter, true, false, false);
+				IFileManager::Get().FindFilesRecursive(RootSourceFiles, *SearchDirectoryPath, *FileNameFilter, true, false, false);
 
 				for (FString& RootSourceFile : RootSourceFiles)
 				{
@@ -372,6 +359,24 @@ void UGatherTextFromSourceCommandlet::GetFilesToProcess(const TArray<FString>& S
 			}
 		}
 	}
+
+	const FFuzzyPathMatcher FuzzyPathMatcher = FFuzzyPathMatcher(IncludePathFilters, ExcludePathFilters);
+	FilesToProcess.RemoveAll([&FuzzyPathMatcher](const FString& FoundFile)
+	{
+		// Filter out assets whose package file paths do not pass the "fuzzy path" filters.
+		if (FuzzyPathMatcher.TestPath(FoundFile) != FFuzzyPathMatcher::EPathMatch::Included)
+		{
+			return true;
+		}
+
+		return false;
+	});
+	FilesToProcess.Sort([](const FString& LHS, const FString& RHS)
+	{
+		return (LHS < RHS);
+	});
+	// Remove duplicates
+	FilesToProcess.SetNum(Algo::Unique(FilesToProcess));
 }
 
 void UGatherTextFromSourceCommandlet::GetParsables(TArray<FParsableDescriptor*>& Parsables, EGatherSourcePasses Pass, TArray<FParsedNestedMacro>& PrepassResults)
@@ -947,7 +952,7 @@ bool UGatherTextFromSourceCommandlet::ParseSourceText(const FString& Text, const
 	TArray<FString> ParsableTokensForFile;
 	for (FParsableDescriptor* Parsable : Parsables)
 	{
-		if (Parsable->MatchesFileTypes(ParseCtxt.FileTypes))
+		if (Parsable->IsApplicableFileType(ParseCtxt.FileTypes) && Parsable->IsApplicableFile(ParseCtxt.Filename))
 		{
 			ParsablesForFile.Add(Parsable);
 			ParsableTokensForFile.Add(Parsable->GetToken());
@@ -2312,11 +2317,6 @@ void UGatherTextFromSourceCommandlet::FNestedMacroPrepassDescriptor::TryParse(co
 		return;
 	}
 
-	if (EnumHasAnyFlags(Context.FileTypes, EGatherTextSourceFileTypes::Ini))
-	{
-		return;
-	}
-
 	++NestedMacroStats.PrepassEnd;
 
 	TArray<FString> TextLines;
@@ -2417,18 +2417,6 @@ void UGatherTextFromSourceCommandlet::FNestedMacroDescriptor::TryParse(const FSt
 	++NestedMacroStats.MainpassBegin;
 
 	if (Context.ExcludedRegion || Context.WithinBlockComment || Context.WithinLineComment || Context.WithinStringLiteral)
-	{
-		return;
-	}
-
-	if (EnumHasAnyFlags(Context.FileTypes, EGatherTextSourceFileTypes::Ini))
-	{
-		return;
-	}
-
-	// If this nested macro was found in a translation unit (.cpp) then it can only be used in the same file
-	if (Filename.EndsWith(TEXT(".cpp"), ESearchCase::IgnoreCase) &&
-		Filename != Context.Filename)
 	{
 		return;
 	}
@@ -2612,6 +2600,18 @@ void UGatherTextFromSourceCommandlet::FNestedMacroDescriptor::TryParse(const FSt
 	delete InnerDescriptor;
 
 	++NestedMacroStats.MainpassEnd;
+}
+
+bool UGatherTextFromSourceCommandlet::FNestedMacroDescriptor::IsApplicableFile(const FString& InFilename) const
+{
+	// If this nested macro was found in a translation unit (.cpp) then it can only be used in the same file
+	if (Filename.EndsWith(TEXT(".cpp"), ESearchCase::IgnoreCase) &&
+		Filename != InFilename)
+	{
+		return false;
+	}
+
+	return true;
 }
 
 void UGatherTextFromSourceCommandlet::FNestedMacroDescriptor::TryParseArgs(const FString& MacroInnerParams, FString& ParamsNewAll)
