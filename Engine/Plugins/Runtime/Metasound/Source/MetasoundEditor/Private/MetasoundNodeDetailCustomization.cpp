@@ -306,21 +306,28 @@ namespace Metasound
 				if (ensure(Row))
 				{
 					Row->Visibility(DefaultVisibility);
+					Row->IsEnabled(GetEnabled());
 				}
 				return Row;
 			};
 
 			if (IDetailPropertyRow* ClampRow = AddOptionPropRow(GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultFloat, ClampDefault)))
 			{
-				// Apply the clamp range to the default value if not using a widget and ClampDefault is true
+				// Apply the clamp range to the default value if using a widget or ClampDefault is otherwise true
+				// Only show clamp row if not using a widget (widgets always require a clamp and range)
+				// Presets are an exception, because they may have a widget inherited, but that doesn't apply and isn't editable
 				const bool bUsingWidget = FloatLiteral->WidgetType != EMetasoundMemberDefaultWidget::None;
-				const bool bShouldClampDefaultValue = bUsingWidget || (!bUsingWidget && FloatLiteral->ClampDefault);
-				ClampRow->Visibility(DefaultVisibility);
+				const UMetasoundEditorGraphMember* Member = FloatLiteral->FindMember();
+				const bool bIsPreset = Member ? Member->GetFrontendBuilderChecked().IsPreset() : false;
+				const bool bShowClampRow = !bUsingWidget || bIsPreset;
+				const bool bApplyRange = (bUsingWidget && !bIsPreset) || FloatLiteral->ClampDefault;
+
+				ClampRow->Visibility(bShowClampRow ? DefaultVisibility : EVisibility::Hidden);
 				for (TSharedPtr<IPropertyHandle>& DefaultValueHandle : DefaultProperties)
 				{
 					if (DefaultValueHandle.IsValid())
 					{
-						if (bShouldClampDefaultValue)
+						if (bApplyRange)
 						{
 							FVector2D Range = FloatLiteral->GetRange();
 							DefaultValueHandle->SetInstanceMetaData("ClampMin", FString::Printf(TEXT("%f"), Range.X));
@@ -348,7 +355,7 @@ namespace Metasound
 					}
 				});
 
-				if (bShouldClampDefaultValue)
+				if (bApplyRange)
 				{
 					AddOptionPropRow(GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultFloat, Range));
 				}
