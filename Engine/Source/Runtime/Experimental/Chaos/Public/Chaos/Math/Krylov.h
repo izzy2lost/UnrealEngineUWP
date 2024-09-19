@@ -278,11 +278,11 @@ void LanczosCG(
 
 	if (check_residual)
 	{
-		UE_LOG(LogChaos, Warning, TEXT("Lanczos used max iterations (%d). Residual = %g."), max_it, residual);
+		UE_LOG(LogChaos, Verbose, TEXT("Lanczos used max iterations (%d). Residual = %g."), max_it, residual);
 	}
 	else
 	{
-		UE_LOG(LogChaos, Warning, TEXT("Lanczos used max iterations (%d)."), max_it);
+		UE_LOG(LogChaos, Verbose, TEXT("Lanczos used max iterations (%d)."), max_it);
 	}
 }
 
