@@ -2,10 +2,13 @@
 
 #include "TraceChannel.h"
 
+#include "Internationalization/Internationalization.h"
 #include "Internationalization/Text.h"
 
 // TraceTools
 #include "Services/ISessionTraceFilterService.h"
+
+#define LOCTEXT_NAMESPACE "UE::TraceTools::FTraceChannel"
 
 namespace UE::TraceTools
 {
@@ -35,7 +38,20 @@ FText FTraceChannel::GetDisplayText() const
 
 FText FTraceChannel::GetTooltipText() const
 {
-	return FText::FromString(Description);
+	FText ChannelTooltip = FText::FromString(Description);
+	if (bReadOnly)
+	{
+		if (Description.EndsWith("."))
+		{
+			ChannelTooltip = FText::Format(LOCTEXT("ChannelTooltipFmt1", "{0} This channel is readonly and can only be enabled from the command line."), FText::FromString(Description));
+		}
+		else
+		{
+			ChannelTooltip = FText::Format(LOCTEXT("ChannelTooltipFmt2", "{0}. This channel is readonly and can only be enabled from the command line."), FText::FromString(Description));
+		}
+	}
+
+	return ChannelTooltip;
 }
 
 FString FTraceChannel::GetName() const
@@ -80,3 +96,5 @@ void FTraceChannel::GetSearchString(TArray<FString>& OutFilterStrings) const
 }
 
 } // namespace UE::TraceTools
+
+#undef LOCTEXT_NAMESPACE // UE::TraceTools::FTraceChannel

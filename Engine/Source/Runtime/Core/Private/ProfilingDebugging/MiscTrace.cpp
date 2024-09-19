@@ -203,4 +203,9 @@ bool FMiscTrace::ShouldTraceBookmark()
 {
 	return UE_TRACE_CHANNELEXPR_IS_ENABLED(BookmarkChannel);
 }
+
+bool FMiscTrace::ShouldTraceRegion()
+{
+	return UE_TRACE_CHANNELEXPR_IS_ENABLED(RegionChannel);
+}
 #endif
