@@ -9,6 +9,7 @@
 #include "InstancedActorsData.h"
 #include "InstancedActorsDebug.h"
 #include "InstancedActorsSubsystem.h"
+#include "InstancedActorsVisualizationProcessor.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "StaticMeshResources.h"
 
@@ -131,8 +132,8 @@ void UInstancedActorsStationaryLODBatchProcessor::Execute(FMassEntityManager& En
 {
 	SCOPE_CYCLE_COUNTER(STAT_InstancedActorsStationaryLODBatchProcessor_Execute);
 
-	using FAddRelevantTagsCommand = FMassCommandAddTags<FMassInActiveSmartObjectsRangeTag, FMassDistanceLODProcessorTag, FMassCollectDistanceLODViewerInfoTag, FMassStationaryISMSwitcherProcessorTag, FMassVisualizationProcessorTag>;
-	using FRemoveRelevantTagsCommand = FMassCommandRemoveTags<FMassInActiveSmartObjectsRangeTag, FMassDistanceLODProcessorTag, FMassCollectDistanceLODViewerInfoTag, FMassStationaryISMSwitcherProcessorTag, FMassVisualizationProcessorTag>;
+	using FAddRelevantTagsCommand = FMassCommandAddTags<FMassInActiveSmartObjectsRangeTag, FMassDistanceLODProcessorTag, FMassCollectDistanceLODViewerInfoTag, FMassStationaryISMSwitcherProcessorTag, FInstancedActorsVisualizationProcessorTag>;
+	using FRemoveRelevantTagsCommand = FMassCommandRemoveTags<FMassInActiveSmartObjectsRangeTag, FMassDistanceLODProcessorTag, FMassCollectDistanceLODViewerInfoTag, FMassStationaryISMSwitcherProcessorTag, FInstancedActorsVisualizationProcessorTag>;
 
 	// some of the code below assumes EInstancedActorsBulkLOD::Detailed == 0, we need to verify that's the case. If not the code below needs updating.
 	static_assert((uint8)EInstancedActorsBulkLOD::Detailed == 0, "Code below relies on the assumptions. Needs to be updated if the assumption is broken");
@@ -172,7 +173,8 @@ void UInstancedActorsStationaryLODBatchProcessor::Execute(FMassEntityManager& En
 			// We need to filter out the latter. 
 			// Note that we rely on UMassSubsystem::bUsePlayerPawnLocationInsteadOfCamera being true here. Without it there's no 
 			// reliable way to differentiate the cases.
-			checkSlow(LODSubsystem.IsUsingPlayerPawnLocationInsteadOfCamera());
+			UE_CLOG(LODSubsystem.IsUsingPlayerPawnLocationInsteadOfCamera() == false
+				, LogInstancedActors, Warning, TEXT("Using Player's camera location for instanced actors LOD calculations - this can skew the LOD calculations in non-FPP games."));
 			if (APlayerController* ViewerAsPlayerController = Viewers[ViewerIndex].GetPlayerController())
 			{
 				if (ViewerAsPlayerController->GetPawn() == nullptr)
@@ -442,7 +444,7 @@ void UInstancedActorsStationaryLODBatchProcessor::Execute(FMassEntityManager& En
 					{
 						// It's possible that we've only just switched to Non-Detailed this frame, the tag removal to prevent regular processing wouldn't have
 						// occurred yet and we would have performed a representation update this frame already.
-						if (!Context.DoesArchetypeHaveTag<FMassVisualizationProcessorTag>())
+						if (!Context.DoesArchetypeHaveTag<FInstancedActorsVisualizationProcessorTag>())
 						{
 							FMassRepresentationUpdateParams Params;
 							Params.bTestCollisionAvailibilityForActorVisualization = false;

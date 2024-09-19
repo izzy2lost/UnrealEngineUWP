@@ -7,6 +7,7 @@
 #include "InstancedActorsRepresentationSubsystem.h"
 #include "InstancedActorsSettingsTypes.h"
 #include "InstancedActorsTypes.h"
+#include "InstancedActorsVisualizationProcessor.h"
 #include "MassEntityTemplateRegistry.h"
 #include "MassCommonFragments.h"
 #include "MassActorSubsystem.h"
@@ -79,6 +80,9 @@ void UInstancedActorsVisualizationTrait::BuildTemplate(FMassEntityTemplateBuildC
 	check(InstanceData.IsValid());
 
 	Super::BuildTemplate(BuildContext, World);
+
+	// we need IAs to be processed by a dedicated visualization processor, configured a bit differently than the default one.
+	BuildContext.RemoveTag<FMassVisualizationProcessorTag>();
 
 	FMassEntityManager& EntityManager = UE::Mass::Utils::GetEntityManagerChecked(World);
 
