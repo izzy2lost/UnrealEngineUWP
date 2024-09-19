@@ -32,7 +32,7 @@ class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeVariation : public UCu
 {
 	GENERATED_BODY()
 
-protected:
+public:
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
 	TArray<FCustomizableObjectVariation> VariationsData; // The variable name can not be Variations due issues with the on to UObject Serialization system
 

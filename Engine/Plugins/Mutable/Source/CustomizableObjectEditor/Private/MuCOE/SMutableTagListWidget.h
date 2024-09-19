@@ -20,6 +20,41 @@ class UCustomizableObjectNode;
 class UCustomizableObjectNodeObject;
 class UEdGraphNode;
 
+
+/** */
+class SMutableTagComboBox : public SMutableSearchComboBox
+{
+public:
+
+	SLATE_BEGIN_ARGS(SMutableTagComboBox)
+		: _Node(nullptr)
+		{}
+		/** Slot for this button's content (optional) */
+		SLATE_DEFAULT_SLOT(FArguments, Content)
+		SLATE_ARGUMENT(UCustomizableObjectNode*, Node)
+		SLATE_ARGUMENT(const FSlateBrush*, MenuButtonBrush)
+		SLATE_EVENT(FOnTextChanged, OnSelectionChanged)
+
+	SLATE_END_ARGS()
+
+	/** */
+	void Construct(const FArguments& InArgs);
+
+	/** */
+	void RefreshOptions();
+
+private:
+
+	class UCustomizableObjectNode* Node = nullptr;
+
+	TArray< TSharedRef<SMutableSearchComboBox::FFilteredOption> > TagComboOptionsSource;
+
+	/** */
+	TSharedPtr<SMutableSearchComboBox::FFilteredOption> AddNodeHierarchyOptions(UEdGraphNode* Node, TMap<UEdGraphNode*, TSharedPtr<SMutableSearchComboBox::FFilteredOption>>& AddedOptions);
+
+};
+
+
 /** */
 class SMutableTagListWidget : public SCompoundWidget
 {
@@ -53,7 +88,7 @@ private:
 	TArray<FString>* TagArray = nullptr;
 	FText EmptyListText;
 
-	TSharedPtr<SMutableSearchComboBox> TagCombo;
+	TSharedPtr<SMutableTagComboBox> TagCombo;
 	TArray< TSharedRef<SMutableSearchComboBox::FFilteredOption> > TagComboOptionsSource;
 	void OnTagComboBoxSelectionChanged(const FText& NewText);
 
@@ -67,9 +102,6 @@ private:
 
 	/** */
 	TSharedRef<ITableRow> GenerateTagListItemRow(TSharedPtr<FTagUIData> InItem, const TSharedRef<STableViewBase>& OwnerTable);
-
-	/** */
-	TSharedPtr<SMutableSearchComboBox::FFilteredOption> AddNodeHierarchyOptions(UEdGraphNode* Node, TMap<UEdGraphNode*, TSharedPtr<SMutableSearchComboBox::FFilteredOption>>& AddedOptions);
 
 };
 

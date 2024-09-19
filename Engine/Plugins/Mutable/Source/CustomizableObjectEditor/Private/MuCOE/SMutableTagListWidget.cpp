@@ -10,6 +10,12 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeObjectGroup.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterial.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeModifierBase.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeVariation.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeTextureVariation.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeFloatVariation.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeColorVariation.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeMeshVariation.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeComponentVariation.h"
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
 #include "PropertyCustomizationHelpers.h"
 #include "Widgets/Input/STextComboBox.h"
@@ -23,71 +29,28 @@
 #define LOCTEXT_NAMESPACE "CustomizableObjectDetails"
 
 
-void SMutableTagListWidget::Construct(const FArguments& InArgs)
+void SMutableTagComboBox::Construct(const FArguments& InArgs)
 {
 	Node = InArgs._Node;
-	TagArray = InArgs._TagArray;
-	EmptyListText = InArgs._EmptyListText;
-
-	OnTagListChangedDelegate = InArgs._OnTagListChanged;
 
 	RefreshOptions();
 
-	ChildSlot
-	[
-		SNew(SVerticalBox)
-
-		// Header with the "add tag" UI
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.HAlign(HAlign_Fill)
+	SMutableSearchComboBox::Construct(
+		SMutableSearchComboBox::FArguments()
+		.OptionsSource(&TagComboOptionsSource)
+		.AllowAddNewOptions(true)
+		.ButtonStyle(FAppStyle::Get(), "NoBorder")
+		.MenuButtonBrush(InArgs._MenuButtonBrush)
+		.OnSelectionChanged(InArgs._OnSelectionChanged)
+		.Content()
 		[
-			SNew(SHorizontalBox)
-
-				+ SHorizontalBox::Slot()
-				.FillWidth(10.0f)
-				.HAlign(HAlign_Fill)
-				.VAlign(VAlign_Center)
-				[
-					SAssignNew(this->TagCombo, SMutableSearchComboBox)
-						.ButtonStyle(FAppStyle::Get(), "NoBorder")
-						.MenuButtonBrush(FAppStyle::GetBrush(TEXT("Icons.PlusCircle")))
-						.OptionsSource(&TagComboOptionsSource)
-						.AllowAddNewOptions(true)
-						.OnSelectionChanged(this, &SMutableTagListWidget::OnTagComboBoxSelectionChanged)
-				]
+			InArgs._Content.Widget
 		]
-
-		// List of tags
-		+ SVerticalBox::Slot()
-		.VAlign(VAlign_Fill)
-		.HAlign(HAlign_Fill)
-		[
-			SAssignNew(this->TagListWidget, SListView<TSharedPtr<FTagUIData>>)
-				.ListItemsSource(&CurrentTagsSource)
-				.OnGenerateRow(this, &SMutableTagListWidget::GenerateTagListItemRow)
-				.SelectionMode(ESelectionMode::None)
-		]
-
-		// Shown only if there are no tags defined
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.HAlign(HAlign_Fill)
-		[
-			SNew(STextBlock)
-				.Text(EmptyListText)
-				.AutoWrapText(true)
-				.Font(IDetailLayoutBuilder::GetDetailFont())
-				.Visibility_Lambda([&]()
-					{
-						return (!TagArray || TagArray->IsEmpty()) ? EVisibility::Visible : EVisibility::Collapsed;
-					})
-		]
-	];
+	);
 }
 
 
-TSharedPtr<SMutableSearchComboBox::FFilteredOption> SMutableTagListWidget::AddNodeHierarchyOptions(UEdGraphNode* InNode, TMap<UEdGraphNode*, TSharedPtr<SMutableSearchComboBox::FFilteredOption>>& AddedOptions )
+TSharedPtr<SMutableSearchComboBox::FFilteredOption> SMutableTagComboBox::AddNodeHierarchyOptions(UEdGraphNode* InNode, TMap<UEdGraphNode*, TSharedPtr<SMutableSearchComboBox::FFilteredOption>>& AddedOptions)
 {
 	TSharedPtr<SMutableSearchComboBox::FFilteredOption> Option;
 	if (TSharedPtr<SMutableSearchComboBox::FFilteredOption>* FoundCached = AddedOptions.Find(InNode))
@@ -144,7 +107,7 @@ TSharedPtr<SMutableSearchComboBox::FFilteredOption> SMutableTagListWidget::AddNo
 			Option = MakeShared<SMutableSearchComboBox::FFilteredOption>();
 			Option->Parent = ParentOption;
 			UMaterialInterface* Material = MeshSectionNode->GetMaterial();
-			Option->DisplayOption = FString::Printf(TEXT("Mesh Section [%s]"), Material?*Material->GetName():TEXT("no-material"));
+			Option->DisplayOption = FString::Printf(TEXT("Mesh Section [%s]"), Material ? *Material->GetName() : TEXT("no-material"));
 			TagComboOptionsSource.Add(Option.ToSharedRef());
 		}
 
@@ -194,67 +157,105 @@ TSharedPtr<SMutableSearchComboBox::FFilteredOption> SMutableTagListWidget::AddNo
 }
 
 
-void SMutableTagListWidget::RefreshOptions()
+void SMutableTagComboBox::RefreshOptions()
 {
-	// Collect all possible tags for the "add" combo menu
+	TagComboOptionsSource.SetNum(0, EAllowShrinking::No);
+
+	// Scan all potential receivers
+	UCustomizableObject* ThisNodeObject = GetRootObject(*Node);
+	UCustomizableObject* RootObject = GraphTraversal::GetRootObject(ThisNodeObject);
+
+	TSet<UCustomizableObject*> AllCustomizableObject;
+	GetAllObjectsInGraph(RootObject, AllCustomizableObject);
+
+	TMap<UEdGraphNode*, TSharedPtr<SMutableSearchComboBox::FFilteredOption>> AddedOptions;
+
+	for (const UCustomizableObject* CustObject : AllCustomizableObject)
 	{
-		TagComboOptionsSource.SetNum(0, EAllowShrinking::No);
-
-		// Scan all potential receivers
-		UCustomizableObject* ThisNodeObject = GetRootObject(*Node);
-		UCustomizableObject* RootObject = GraphTraversal::GetRootObject(ThisNodeObject);
-
-		TSet<UCustomizableObject*> AllCustomizableObject;
-		GetAllObjectsInGraph(RootObject, AllCustomizableObject);
-
-		TMap<UEdGraphNode*, TSharedPtr<SMutableSearchComboBox::FFilteredOption>> AddedOptions;
-
-		for (const UCustomizableObject* CustObject : AllCustomizableObject)
+		if (!CustObject)
 		{
-			if (!CustObject)
+			continue;
+		}
+
+		for (const TObjectPtr<UEdGraphNode>& CandidateNode : CustObject->GetPrivate()->GetSource()->Nodes)
+		{
+			UCustomizableObjectNode* Typed = Cast<UCustomizableObjectNode>(CandidateNode);
+			if (!Typed)
 			{
 				continue;
 			}
 
-
-			for (const TObjectPtr<UEdGraphNode>& CandidateNode : CustObject->GetPrivate()->GetSource()->Nodes)
+			TArray<FString>* EnableTags = Typed->GetEnableTags();
+			if (EnableTags)
 			{
-				UCustomizableObjectNode* Typed = Cast<UCustomizableObjectNode>(CandidateNode);
-				if (!Typed)
-				{
-					continue;
-				}
+				TSharedPtr<SMutableSearchComboBox::FFilteredOption> NodeOption = AddNodeHierarchyOptions(Typed, AddedOptions);
 
-				TArray<FString>* EnableTags = Typed->GetEnableTags();
-				if (EnableTags)
+				for (const FString& OneTag : *EnableTags)
 				{
-					TSharedPtr<SMutableSearchComboBox::FFilteredOption> NodeOption = AddNodeHierarchyOptions(Typed,AddedOptions);
-
-					for (const FString& OneTag : *EnableTags)
+					if (!OneTag.IsEmpty())
 					{
-						if (!OneTag.IsEmpty())
+						TSharedRef Option = MakeShared<SMutableSearchComboBox::FFilteredOption>();
+						Option->ActualOption = OneTag;
+						Option->DisplayOption = OneTag;
+						Option->Parent = NodeOption;
+						TagComboOptionsSource.Add(Option);
+					}
+				}
+			}
+
+			UCustomizableObjectNodeModifierBase* TypedModifier = Cast<UCustomizableObjectNodeModifierBase>(CandidateNode);
+			if (TypedModifier)
+			{
+				for (const FString& OneTag : TypedModifier->RequiredTags)
+				{
+					TSharedPtr<SMutableSearchComboBox::FFilteredOption> NodeOption = AddNodeHierarchyOptions(Typed, AddedOptions);
+
+					if (!OneTag.IsEmpty())
+					{
+						TSharedRef Option = MakeShared<SMutableSearchComboBox::FFilteredOption>();
+						Option->ActualOption = OneTag;
+						Option->DisplayOption = OneTag;
+						Option->Parent = NodeOption;
+						TagComboOptionsSource.Add(Option);
+					}
+				}
+			}
+
+			// Generic variation nodes
+			{
+				UCustomizableObjectNodeVariation* VariationNode = Cast<UCustomizableObjectNodeVariation>(CandidateNode);
+				if (VariationNode)
+				{
+					for (const FCustomizableObjectVariation& Var : VariationNode->VariationsData)
+					{
+						TSharedPtr<SMutableSearchComboBox::FFilteredOption> NodeOption = AddNodeHierarchyOptions(VariationNode, AddedOptions);
+
+						if (!Var.Tag.IsEmpty())
 						{
 							TSharedRef Option = MakeShared<SMutableSearchComboBox::FFilteredOption>();
-							Option->ActualOption = OneTag;
-							Option->DisplayOption = OneTag;
+							Option->ActualOption = Var.Tag;
+							Option->DisplayOption = Var.Tag;
 							Option->Parent = NodeOption;
 							TagComboOptionsSource.Add(Option);
 						}
 					}
 				}
+			}
 
-				UCustomizableObjectNodeModifierBase* TypedModifier = Cast<UCustomizableObjectNodeModifierBase>(CandidateNode);
-				if (TypedModifier)
+			// Texture variation nodes
+			{
+				UCustomizableObjectNodeTextureVariation* VariationNode = Cast<UCustomizableObjectNodeTextureVariation>(CandidateNode);
+				if (VariationNode)
 				{
-					for (const FString& OneTag : TypedModifier->RequiredTags)
+					for (const FCustomizableObjectTextureVariation& Var : VariationNode->Variations)
 					{
-						TSharedPtr<SMutableSearchComboBox::FFilteredOption> NodeOption = AddNodeHierarchyOptions(Typed, AddedOptions);
+						TSharedPtr<SMutableSearchComboBox::FFilteredOption> NodeOption = AddNodeHierarchyOptions(VariationNode, AddedOptions);
 
-						if (!OneTag.IsEmpty())
+						if (!Var.Tag.IsEmpty())
 						{
 							TSharedRef Option = MakeShared<SMutableSearchComboBox::FFilteredOption>();
-							Option->ActualOption = OneTag;
-							Option->DisplayOption = OneTag;
+							Option->ActualOption = Var.Tag;
+							Option->DisplayOption = Var.Tag;
 							Option->Parent = NodeOption;
 							TagComboOptionsSource.Add(Option);
 						}
@@ -262,8 +263,77 @@ void SMutableTagListWidget::RefreshOptions()
 				}
 			}
 		}
+	}
+}
 
-		// TODO: add material nodes and options to create tags for them, show hierarchy, ...
+
+void SMutableTagListWidget::Construct(const FArguments& InArgs)
+{
+	Node = InArgs._Node;
+	TagArray = InArgs._TagArray;
+	EmptyListText = InArgs._EmptyListText;
+
+	OnTagListChangedDelegate = InArgs._OnTagListChanged;
+
+	RefreshOptions();
+
+	ChildSlot
+	[
+		SNew(SVerticalBox)
+
+		// Header with the "add tag" UI
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.HAlign(HAlign_Fill)
+		[
+			SNew(SHorizontalBox)
+
+				+ SHorizontalBox::Slot()
+				.FillWidth(10.0f)
+				.HAlign(HAlign_Fill)
+				.VAlign(VAlign_Center)
+				[
+					SAssignNew(this->TagCombo, SMutableTagComboBox)
+						.Node(Node)
+						.MenuButtonBrush( FAppStyle::GetBrush(TEXT("Icons.PlusCircle")) )
+						.OnSelectionChanged(this, &SMutableTagListWidget::OnTagComboBoxSelectionChanged)
+				]
+		]
+
+		// List of tags
+		+ SVerticalBox::Slot()
+		.VAlign(VAlign_Fill)
+		.HAlign(HAlign_Fill)
+		[
+			SAssignNew(this->TagListWidget, SListView<TSharedPtr<FTagUIData>>)
+				.ListItemsSource(&CurrentTagsSource)
+				.OnGenerateRow(this, &SMutableTagListWidget::GenerateTagListItemRow)
+				.SelectionMode(ESelectionMode::None)
+		]
+
+		// Shown only if there are no tags defined
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.HAlign(HAlign_Fill)
+		[
+			SNew(STextBlock)
+				.Text(EmptyListText)
+				.AutoWrapText(true)
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+				.Visibility_Lambda([&]()
+					{
+						return (!TagArray || TagArray->IsEmpty()) ? EVisibility::Visible : EVisibility::Collapsed;
+					})
+		]
+	];
+}
+
+
+void SMutableTagListWidget::RefreshOptions()
+{
+	if (TagCombo)
+	{
+		TagCombo->RefreshOptions();
 	}
 
 	// Current Tags
