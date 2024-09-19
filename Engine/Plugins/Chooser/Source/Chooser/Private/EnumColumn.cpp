@@ -143,7 +143,7 @@ void FEnumColumn::Filter(FChooserEvaluationContext& Context, const FChooserIndex
 		FName PropertyName("RowData",ColumnIndex);
 
 		FInstancedPropertyBag Struct;
-		Struct.AddProperty("Value", EPropertyBagPropertyType::Enum, const_cast<UEnum*>(InputValue.Get<FChooserParameterEnumBase>().GetEnum()));
+		Struct.AddProperty("Value", EPropertyBagPropertyType::Enum, InputValue.Get<FChooserParameterEnumBase>().GetEnum());
 		Struct.AddProperty("Comparison", EPropertyBagPropertyType::Enum, StaticEnum<EEnumColumnCellValueComparison>());
 		
 		TValueOrError<FStructView, EPropertyBagResult> Result = PropertyBag.GetValueStruct(PropertyName, const_cast<UPropertyBag*>(Struct.GetPropertyBagStruct()));
