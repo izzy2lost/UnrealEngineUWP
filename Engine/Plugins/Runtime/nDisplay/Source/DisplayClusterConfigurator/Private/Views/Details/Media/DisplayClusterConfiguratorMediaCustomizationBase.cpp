@@ -338,3 +338,5 @@ void FDisplayClusterConfiguratorMediaTileCustomizationBase::OnTilePositionChange
 {
 	ModifyMediaObjectParameters();
 }
+
+#undef LOCTEXT_NAMESPACE
