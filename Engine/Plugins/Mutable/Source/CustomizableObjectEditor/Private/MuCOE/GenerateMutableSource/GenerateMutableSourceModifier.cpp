@@ -64,6 +64,10 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 			EMutableMeshConversionFlags::IgnorePhysics;
 		GenerationContext.MeshGenerationFlags.Push(ModifiersMeshFlags);
 
+		// This modifier can be connected to multiple nodes at the same time and, when that happens and if the cache is being used, only the first node to be processed does work. 
+		// By not caching the mutable node we avoid this from even happening
+		bDoNotAddToGeneratedCache = true;
+		
 		mu::Ptr<mu::NodeModifierMeshClipMorphPlane> ClipNode = new mu::NodeModifierMeshClipMorphPlane();
 		Result = ClipNode;
 
