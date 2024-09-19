@@ -24,7 +24,7 @@ namespace Conversion {
 	* @param RequestedLOD  - the LOD to be converted, if a non-existent LOD is requested the result mesh will be empty.
 	* @param bWantTangents - controls if tangents are transfered
 	*/
-	void MODELINGCOMPONENTS_API SkinnedMeshComponentToDynamicMesh(USkinnedMeshComponent& SkinnedMeshComponent, Geometry::FDynamicMesh3& MeshOut, int32 RequestedLOD,  bool bWantTangents);
+	bool MODELINGCOMPONENTS_API SkinnedMeshComponentToDynamicMesh(USkinnedMeshComponent& SkinnedMeshComponent, Geometry::FDynamicMesh3& MeshOut, int32 RequestedLOD,  bool bWantTangents);
 
 } // end namespace Geometry
 } // end namespace UE
