@@ -324,6 +324,14 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 		// Submit the renderer to be rendered
 		GetRendererModule().BeginRenderingViewFamily(&Canvas, ViewFamily.ToSharedPtr().Get());
 
+		ENQUEUE_RENDER_COMMAND(TransitionTextureSRVState)(
+			[RenderTargetResource](FRHICommandListImmediate& RHICmdList) mutable
+			{
+				// Transition our render target from a render target view to a shader resource view to allow the UMG preview material to read from this Render Target.
+				RHICmdList.Transition(FRHITransitionInfo(RenderTargetResource->GetRenderTargetTexture(), ERHIAccess::RTV, ERHIAccess::SRVGraphicsPixel));
+			});
+
+
 		// If this was just to contribute to the history buffer, no need to go any further. Never discard if we're writing individual samples, though.
 		bool bDiscardOutput = (InTimeData.bDiscardOutput || ShouldDiscardOutput(ViewFamily, CameraInfo)) && !SampleState.bWriteSampleToDisk;
 		if (bDiscardOutput)
