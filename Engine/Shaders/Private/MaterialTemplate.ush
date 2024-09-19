@@ -988,6 +988,23 @@ FWSVector3 GetPrevParticleWorldPosition(FMaterialPixelParameters Parameters)
 	return Parameters.LWCData.PrevParticleWorldPosition;
 }
 
+// Periodic World Position
+
+float3 GetPeriodicWorldOrigin(float3 Scale)
+{
+	// Following three lines can be replaced with `ScaledPos = DFDivide(ResolvedView.PreViewTranslation, Scale)` but this is faster and reasonably precise.
+	float3 InvScale = rcp(Scale);
+	FDFVector3 ScaledPos = DFTwoProduct(ResolvedView.PreViewTranslation.High, InvScale);
+	ScaledPos.Low += ResolvedView.PreViewTranslation.Low * InvScale;
+	
+	return DFFracDemote(ScaledPos) * Scale;
+}
+
+float3 GetPeriodicWorldOrigin_Pow2(float3 Scale)
+{
+	return DFFmodByPow2Demote(ResolvedView.PreViewTranslation, Scale);
+}
+
 // Local position
 
 float3 GetPositionPrimitiveSpace(FMaterialPixelParameters Parameters)

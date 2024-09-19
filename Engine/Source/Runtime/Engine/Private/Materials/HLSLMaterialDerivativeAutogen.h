@@ -178,8 +178,6 @@ private:
 	FString CoerceValueRaw(FHLSLMaterialTranslator& Translator, const FString& Token, const FDerivInfo& SrcInfo, EDerivativeType DstType);
 	FString CoerceValueDeriv(const FString& Token, const FDerivInfo& SrcInfo, EDerivativeType DstType);
 
-	bool IsConstFloatOfPow2Expression(FHLSLMaterialTranslator& Translator, int32 ExpressionCode);
-
 	void EnableGeneratedDepencencies();
 
 	// State to keep track of which derivative functions have been used and need to be generated.

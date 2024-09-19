@@ -3804,6 +3804,27 @@ bool UMaterialExpressionTransform::GenerateHLSLExpression(FMaterialHLSLGenerator
 	return true;
 }
 
+static const UE::HLSLTree::FExpression* TransformFromPeriodicWorldPosition(UE::HLSLTree::FTree& Tree, EMaterialCommonBasis DestCoordBasis, const UE::HLSLTree::FExpression* TileScaleExpression, const UE::HLSLTree::FExpression* PeriodicWorldPosition)
+{
+	using namespace UE::HLSLTree;
+	using namespace UE::HLSLTree::Material;
+
+	const FExpression* PeriodicWorldOrigin = Tree.NewExpression<FExpressionPeriodicWorldOrigin>(TileScaleExpression);
+	const FExpression* Result = Tree.NewAdd(PeriodicWorldPosition, PeriodicWorldOrigin);
+
+	return TransformBase(Tree, EMaterialCommonBasis::MCB_TranslatedWorld, DestCoordBasis, Result, true);
+}
+
+static const UE::HLSLTree::FExpression* TransformToPeriodicWorldPosition(UE::HLSLTree::FTree& Tree, EMaterialCommonBasis SourceCoordBasis, const UE::HLSLTree::FExpression* TileScaleExpression, const UE::HLSLTree::FExpression* Input)
+{
+	using namespace UE::HLSLTree;
+	using namespace UE::HLSLTree::Material;
+
+	const FExpression* TranslatedWorldPos = TransformBase(Tree, SourceCoordBasis, EMaterialCommonBasis::MCB_TranslatedWorld, Input, true);
+	const FExpression* PeriodicWorldOrigin = Tree.NewExpression<FExpressionPeriodicWorldOrigin>(TileScaleExpression);
+
+	return Tree.NewSub(TranslatedWorldPos, PeriodicWorldOrigin);
+}
 
 bool UMaterialExpressionTransformPosition::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
@@ -3812,6 +3833,7 @@ bool UMaterialExpressionTransformPosition::GenerateHLSLExpression(FMaterialHLSLG
 	static const EMaterialCommonBasis kTable[TRANSFORMPOSSOURCE_MAX] = {
 		MCB_Local,						// TRANSFORMPOSSOURCE_Local
 		MCB_World,						// TRANSFORMPOSSOURCE_World
+		MCB_MAX,						// No match for TRANSFORMPOSSOURCE_PeriodicWorld
 		MCB_TranslatedWorld,			// TRANSFORMPOSSOURCE_TranslatedWorld
 		MCB_View,						// TRANSFORMPOSSOURCE_View
 		MCB_Camera,						// TRANSFORMPOSSOURCE_Camera
@@ -3825,8 +3847,31 @@ bool UMaterialExpressionTransformPosition::GenerateHLSLExpression(FMaterialHLSLG
 		return false;
 	}
 
-	OutExpression = TransformBase(Generator.GetTree(), kTable[TransformSourceType], kTable[TransformType], ExpressionInput, true);
-	return true;
+	if (TransformSourceType == TRANSFORMPOSSOURCE_PeriodicWorld || TransformType == TRANSFORMPOSSOURCE_PeriodicWorld)
+	{
+		const FExpression* PeriodicWorldTileSizeExpression = PeriodicWorldTileSize.AcquireHLSLExpressionOrConstant(Generator, Scope, ConstPeriodicWorldTileSize);
+
+		if (TransformSourceType == TRANSFORMPOSSOURCE_PeriodicWorld && TransformType == TRANSFORMPOSSOURCE_PeriodicWorld)
+		{
+			OutExpression = ExpressionInput;
+			return true;
+		}
+		if (TransformSourceType == TRANSFORMPOSSOURCE_PeriodicWorld)
+		{
+			OutExpression = TransformFromPeriodicWorldPosition(Generator.GetTree(), kTable[TransformType], PeriodicWorldTileSizeExpression, ExpressionInput);
+			return true;
+		}
+		else
+		{
+			OutExpression = TransformToPeriodicWorldPosition(Generator.GetTree(), kTable[TransformSourceType], PeriodicWorldTileSizeExpression, ExpressionInput);
+			return true;
+		}
+	}
+	else
+	{
+		OutExpression = TransformBase(Generator.GetTree(), kTable[TransformSourceType], kTable[TransformType], ExpressionInput, true);
+		return true;
+	}
 }
 
 bool UMaterialExpressionIf::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
