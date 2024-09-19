@@ -503,6 +503,8 @@ public:
 
 
 protected:
+	virtual EMakeMeshPolygroupMode GetDefaultPolygroupMode() const { return EMakeMeshPolygroupMode::PerQuad; }
+
 	enum class EState
 	{
 		PlacingPrimitive,
@@ -658,6 +660,10 @@ class UAddSpherePrimitiveTool : public UAddPrimitiveTool
 public:
 	explicit UAddSpherePrimitiveTool(const FObjectInitializer& ObjectInitializer);
 protected:
+	virtual EMakeMeshPolygroupMode GetDefaultPolygroupMode() const override 
+	{ 
+		return EMakeMeshPolygroupMode::PerFace; 
+	}
 	virtual void GenerateMesh(FDynamicMesh3* OutMesh) const override;
 };
 
