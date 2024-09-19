@@ -1987,8 +1987,15 @@ TSharedRef<SWidget> UMovieGraphConditionGroupQuery_Sublevel::GetAddMenuContents(
 		SublevelPickerConfig.OnShouldFilterAsset = FOnShouldFilterAsset::CreateLambda([this](const FAssetData& InLevelAsset)
 		{
 			// Don't show sublevels which have already been picked
-			UWorld* Sublevel = Cast<UWorld>(InLevelAsset.GetAsset());
-			return !Sublevel || Sublevels.Contains(Sublevel);
+			for (const TSoftObjectPtr<UWorld>& Sublevel : Sublevels)
+			{
+				if (Sublevel.ToSoftObjectPath() == InLevelAsset.GetSoftObjectPath())
+				{
+					return true;
+				}
+			}
+
+			return false;
 		});
 	}
 
