@@ -958,13 +958,7 @@ static void InternalGenerateHairStrandsTextures(
 				RHICmdList.SetStreamSource(0, nullptr, 0);
 				RHICmdList.SetViewport(0, 0, 0.0f, OutputResolution.X, OutputResolution.Y, 1.0f);
 			
-				// Divide the rendering work into small batches to reduce risk of TDR as the texture projection implies heavy works 
-				// (i.e. long thread running due the the large amount of strands a groom can have)
-				const int32 TileSize = HairStrandsTextureTileSize;
-				if (OutputResolution.X > TileSize)
-				{
-					RHICmdList.SetScissorRect(true, TileOffsetInPixels.X, TileOffsetInPixels.Y, TileOffsetInPixels.X + TileSize, TileOffsetInPixels.Y + TileSize);
-				}
+				// The visibility pass is no longer tile in order to avoid issue at tile borde, preventing to compute derivative during the tracing step
 				RHICmdList.DrawIndexedPrimitive(InMeshIndexBuffer, VertexBaseIndex, 0, VertexCount, IndexBaseIndex, PrimitiveCount, 1);
 			});
 	}
