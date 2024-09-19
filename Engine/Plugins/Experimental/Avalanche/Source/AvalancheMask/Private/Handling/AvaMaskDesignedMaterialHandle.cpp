@@ -382,7 +382,7 @@ void FAvaMaskDesignedMaterialHandle::SetOutputProcessor(EBlendMode InBlendMode, 
 	}
 }
 #else
-UMaterialFunctionInterface* FAvaMaskDesignedMaterialHandle::GetOutputProcessor()
+UMaterialFunctionInterface* FAvaMaskDesignedMaterialHandle::GetOutputProcessor(EBlendMode InBlendMode)
 {
 	return nullptr;
 }
