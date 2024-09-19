@@ -53,6 +53,21 @@ enum class EText3DModifyFlags : uint8
 };
 ENUM_CLASS_FLAGS(EText3DModifyFlags)
 
+struct FText3DWordStatistics
+{
+	/** Actual range taking into account whitespaces */
+	FTextRange ActualRange;
+
+	/** Render range not taking into account whitespaces */
+	FTextRange RenderRange;
+};
+
+struct FText3DStatistics
+{
+	TArray<FText3DWordStatistics> Words;
+	int32 WhiteSpaces;
+};
+
 UCLASS(ClassGroup = (Text3D), PrioritizeCategories = "Text Layout Geometry Materials", meta = (BlueprintSpawnableComponent))
 class TEXT3D_API UText3DComponent : public USceneComponent
 {
@@ -299,6 +314,11 @@ public:
 	/** Manually update the geometry, ignoring RefreshOnChange (but still accounting for the Freeze flag) */
 	void Rebuild();
 
+	const FText3DStatistics& GetStatistics() const
+	{
+		return Statistics;
+	}
+
 protected:
 	/** Whether to allow automatic refresh/mesh generation */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter = "RefreshesOnChange", Setter = "SetRefreshOnChange", Category = "Text3D", AdvancedDisplay, meta = (AllowPrivateAccess = "true"))
@@ -475,6 +495,9 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UStaticMeshComponent>> CharacterMeshes;
 
+	/** Text statistics cached since last text generation */
+	FText3DStatistics Statistics;
+
 	/** Allocates, or shrinks existing components to match the input number. Returns false if nothing modified. */
 	bool AllocateGlyphs(int32 Num);
 
@@ -509,4 +532,6 @@ private:
 	bool IsTypefaceAvailable(FName InTypeface) const;
 	TArray<FTypefaceEntry> GetAvailableTypefaces() const;
 	void RefreshTypeface();
+
+	void UpdateStatistics();
 };

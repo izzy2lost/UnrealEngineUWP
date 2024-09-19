@@ -9,7 +9,6 @@
 #include "PropertyAnimatorCoreBase.generated.h"
 
 class UPropertyAnimatorCoreComponent;
-class UPropertyAnimatorCoreGroupBase;
 class UPropertyAnimatorCoreTimeSourceBase;
 
 UENUM(BlueprintType)
@@ -356,10 +355,6 @@ private:
 	/** Context for properties linked to this Animator */
 	UPROPERTY(EditInstanceOnly, NoClear, Export, Instanced, EditFixedSize, Category="Animator", meta=(EditFixedOrder))
 	TArray<TObjectPtr<UPropertyAnimatorCoreContext>> LinkedProperties;
-
-	/** Groups for properties linked to this Animator */
-	UPROPERTY()
-	TArray<TObjectPtr<UPropertyAnimatorCoreGroupBase>> PropertyGroups;
 
 	/** Use the global time source or override it on this animator */
 	UPROPERTY(EditInstanceOnly, Setter="SetOverrideTimeSource", Getter="GetOverrideTimeSource", Category="Animator", meta=(InlineEditConditionToggle))

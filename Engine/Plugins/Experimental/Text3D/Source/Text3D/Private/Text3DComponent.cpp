@@ -12,6 +12,7 @@
 #include "Fonts/SlateTextShaper.h"
 #include "Framework/Text/PlainTextLayoutMarshaller.h"
 #include "Glyph.h"
+#include "Internationalization/Regex.h"
 #include "Materials/Material.h"
 #include "MeshCreator.h"
 #include "Misc/ScopeExit.h"
@@ -275,6 +276,39 @@ void UText3DComponent::RefreshTypeface()
 		else
 		{
 			Typeface = TEXT("");
+		}
+	}
+}
+
+void UText3DComponent::UpdateStatistics()
+{
+	Statistics = FText3DStatistics();
+
+	const FString WordString = Text.ToString();
+
+	const FRegexPattern WordPattern(TEXT("\\S+"));
+	FRegexMatcher Matcher(WordPattern, WordString);
+
+	int32 PreviousEndIndex = 0;
+	int32 WhitespaceCount = 0;
+
+	while (Matcher.FindNext())
+	{
+		const FString Word = Matcher.GetCaptureGroup(0);
+
+		if (!Word.IsEmpty())
+		{
+			FText3DWordStatistics& WordStatistics = Statistics.Words.Add_GetRef(FText3DWordStatistics());
+			const int32 MatchBegin = Matcher.GetMatchBeginning();
+			const int32 MatchEnd = Matcher.GetMatchEnding();
+
+			WordStatistics.ActualRange = FTextRange(MatchBegin, MatchEnd);
+
+			WhitespaceCount += MatchBegin - PreviousEndIndex;
+
+			WordStatistics.RenderRange = FTextRange(MatchBegin - WhitespaceCount, MatchEnd - WhitespaceCount);
+
+			PreviousEndIndex = MatchEnd;
 		}
 	}
 }
@@ -1377,6 +1411,7 @@ void UText3DComponent::BuildTextMeshInternal(const bool& bCleanCache)
 	}
 
 	OnMaterialChanged();
+	UpdateStatistics();
 
 	TextGeneratedNativeDelegate.Broadcast();
 	TextGeneratedDelegate.Broadcast();

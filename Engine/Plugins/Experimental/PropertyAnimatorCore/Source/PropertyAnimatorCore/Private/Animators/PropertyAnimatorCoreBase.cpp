@@ -5,7 +5,6 @@
 #include "Components/PropertyAnimatorCoreComponent.h"
 #include "Dom/JsonObject.h"
 #include "GameFramework/Actor.h"
-#include "Properties/PropertyAnimatorCoreGroupBase.h"
 #include "Properties/PropertyAnimatorCoreResolver.h"
 #include "Properties/Handlers/PropertyAnimatorCoreHandlerBase.h"
 #include "Settings/PropertyAnimatorCoreSettings.h"
@@ -204,10 +203,6 @@ void UPropertyAnimatorCoreBase::PostEditChangeProperty(FPropertyChangedEvent& Pr
 		|| MemberName == GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreBase, bOverrideTimeSource))
 	{
 		OnTimeSourceNameChanged();
-	}
-	else if (MemberName == GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreBase, PropertyGroups))
-	{
-		OnPropertyGroupsChanged();
 	}
 }
 #endif
@@ -598,36 +593,6 @@ void UPropertyAnimatorCoreBase::OnObjectReplaced(const TMap<UObject*, UObject*>&
 		if (UObject* const* NewOwner = InReplacementMap.Find(Owner))
 		{
 			InContext->SetAnimatedPropertyOwner(*NewOwner);
-		}
-
-		return true;
-	}, bResolve);
-}
-
-void UPropertyAnimatorCoreBase::OnPropertyGroupsChanged()
-{
-	TSet<FName> CurrentGroupNames;
-
-	Algo::TransformIf(
-		PropertyGroups
-		, CurrentGroupNames
-		, [](const UPropertyAnimatorCoreGroupBase* InGroup)->bool
-		{
-			return !!InGroup;
-		}
-		, [](const UPropertyAnimatorCoreGroupBase* InGroup)->FName
-		{
-			return InGroup->GetFName();
-		}
-	);
-
-	// Remove assigned group in property context if removed from animator
-	constexpr bool bResolve = false;
-	ForEachLinkedProperty<UPropertyAnimatorCoreContext>([&CurrentGroupNames](UPropertyAnimatorCoreContext* InContext, const FPropertyAnimatorCoreData& InProperty)->bool
-	{
-		if (!CurrentGroupNames.Contains(InContext->GroupName))
-		{
-			InContext->SetGroup(nullptr);
 		}
 
 		return true;
