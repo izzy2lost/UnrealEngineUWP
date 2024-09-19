@@ -90,6 +90,7 @@ URendererSettings::URendererSettings(const FObjectInitializer& ObjectInitializer
 	GPUSimulationTextureSizeY = 1024;
 	bEnableRayTracing = 0;
 	bUseHardwareRayTracingForLumen = 0;
+	bEnableMegaLights = 0;
 	bEnableRayTracingShadows = 0;
 	bEnablePathTracing = 0;
 	bEnableRayTracingTextureLOD = 0;
@@ -451,6 +452,7 @@ bool URendererSettings::CanEditChange(const FProperty* InProperty) const
 
 	// the following settings can only be edited if ray tracing is enabled
 	if ((InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(URendererSettings, bEnablePathTracing)) ||
+		(InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(URendererSettings, bEnableMegaLights)) ||
 		(InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(URendererSettings, bEnableRayTracingShadows)) ||
 		(InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(URendererSettings, bEnableRayTracingTextureLOD)))
 	{

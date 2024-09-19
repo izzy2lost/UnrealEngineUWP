@@ -472,6 +472,7 @@ FPostProcessSettings::FPostProcessSettings()
 	BloomConvolutionBufferScale = 0.133f;
 	BloomDirtMaskIntensity = 0.0f;
 	BloomDirtMaskTint = FLinearColor(0.5f, 0.5f, 0.5f);
+	bMegaLights = true;
 	AmbientCubemapIntensity = 1.0f;
 	AmbientCubemapTint = FLinearColor(1, 1, 1);
 	CameraShutterSpeed = 60.f;

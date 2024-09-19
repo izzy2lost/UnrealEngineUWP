@@ -633,7 +633,17 @@ class URendererSettings : public UDeveloperSettings
 		ToolTip = "Whether to use Lumen refraction tracing from surfaces when using harware ray tracing and hit lighting. This will require shader recompilation to compile of translucent card capture Lumen shaders. Increases GPU cost when enabled."))
 	uint32 LumenRayTracedTranslucentRefractions : 1;
 
-	UPROPERTY(config, EditAnywhere, Category = Shadows, meta = (
+	UPROPERTY(config, EditAnywhere, Category = DirectLighting, meta = (
+		ConsoleVariable = "r.MegaLights.EnableForProject", DisplayName = "MegaLights",
+		ToolTip = "Whether to use MegaLights by default, but this can still be overridden by Post Process Volumes, or disabled per-light. MegaLights uses stochastic sampling to render many shadow casting lights efficiently, with a consistent low GPU cost. When MegaLights is enabled, other direct lighting algorithms like Deferred Shading will no longer be used, and other shadowing methods like Ray Traced Shadows, Distance Field Shadows and Shadow Maps will no longer be used. MegaLights requires Hardware Ray Tracing, and does not support Directional Lights. Experimental feature."))
+	uint32 bEnableMegaLights : 1;
+
+	UPROPERTY(config, EditAnywhere, Category = DirectLighting, meta = (
+		ConsoleVariable = "r.RayTracing.Shadows", DisplayName = "Ray Traced Shadows",
+		ToolTip = "Controls whether Ray Traced Shadows are used by default. Lights can still override and force Ray Traced shadows on or off. Requires Hardware Ray Tracing to be enabled."))
+	uint32 bEnableRayTracingShadows : 1;
+
+	UPROPERTY(config, EditAnywhere, Category = DirectLighting, meta = (
 		ConsoleVariable = "r.Shadow.Virtual.Enable", DisplayName = "Shadow Map Method",
 		ToolTip = "Select the primary shadow mapping method. Automatically uses 'Shadow Maps' when Forward Shading is enabled for the project as Virtual Shadow Maps are not supported."))
 	TEnumAsByte<EShadowMapMethod::Type> ShadowMapMethod;
@@ -646,11 +656,6 @@ class URendererSettings : public UDeveloperSettings
 		ToolTip = "Support Hardware Ray Tracing features.  Requires 'Support Compute Skin Cache' before project is allowed to set this.",
 		ConfigRestartRequired = true))
 		uint32 bEnableRayTracing : 1;
-
-	UPROPERTY(config, EditAnywhere, Category = HardwareRayTracing, meta = (
-		ConsoleVariable = "r.RayTracing.Shadows", DisplayName = "Ray Traced Shadows",
-		ToolTip = "Controls whether Ray Traced Shadows are used by default. Lights can still override and force Ray Traced shadows on or off. Requires Hardware Ray Tracing to be enabled."))
-		uint32 bEnableRayTracingShadows : 1;
 
 	UPROPERTY()
 		uint32 bEnableRayTracingSkylight_DEPRECATED : 1;

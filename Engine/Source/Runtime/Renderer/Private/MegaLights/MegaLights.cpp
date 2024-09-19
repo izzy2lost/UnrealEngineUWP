@@ -7,12 +7,16 @@
 #include "BasePassRendering.h"
 #include "VolumetricFogShared.h"
 
-static TAutoConsoleVariable<int32> CVarMegaLights(
-	TEXT("r.MegaLights"),
+static TAutoConsoleVariable<int32> CVarMegaLightsProjectSetting(
+	TEXT("r.MegaLights.EnableForProject"),
 	0,
-	TEXT("Whether to enable Mega Lights. Experimental feature leveraging ray tracing to stochastically importance sample lights.\n")
-	TEXT("1 - all lights using ray tracing shadows will be stochastically sampled\n")
-	TEXT("2 - all lights will be stochastically sampled"),
+	TEXT("Whether to use MegaLights by default, but this can still be overridden by Post Process Volumes, or disabled per-light. MegaLights uses stochastic sampling to render many shadow casting lights efficiently, with a consistent low GPU cost. MegaLights requires Hardware Ray Tracing, and does not support Directional Lights. Experimental feature."),
+	ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarMegaLightsAllowed(
+	TEXT("r.MegaLights.Allowed"),
+	1,
+	TEXT("Whether the MegaLights feature is allowed by scalability and device profiles."),
 	ECVF_Scalability | ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarMegaLightsNumSamplesPerPixel(
@@ -261,12 +265,10 @@ namespace MegaLights
 
 	bool IsEnabled(const FSceneViewFamily& ViewFamily)
 	{
-		return CVarMegaLights.GetValueOnRenderThread() != 0 && ViewFamily.EngineShowFlags.MegaLights && ShouldCompileShaders(ViewFamily.GetShaderPlatform());
-	}
-
-	bool IsUsingForcedRaytracing()
-	{
-		return CVarMegaLights.GetValueOnRenderThread() == 2;
+		return ViewFamily.Views[0]->FinalPostProcessSettings.bMegaLights 
+			&& CVarMegaLightsAllowed.GetValueOnRenderThread() != 0 
+			&& ViewFamily.EngineShowFlags.MegaLights 
+			&& ShouldCompileShaders(ViewFamily.GetShaderPlatform());
 	}
 
 	bool UseVolume()
@@ -289,16 +291,21 @@ namespace MegaLights
 		return IsEnabled(ViewFamily) && CVarMegaLightsLightFunctions.GetValueOnRenderThread() != 0;
 	}
 
-	bool IsLightSupported(const FSceneViewFamily& ViewFamily, uint8 LightType, ECastRayTracedShadow::Type CastRayTracedShadow, bool bVSMEnabled)
+	EMegaLightsMode GetMegaLightsMode(const FSceneViewFamily& ViewFamily, uint8 LightType, bool bLightAllowsMegaLights, bool bVSMEnabled)
 	{
-		if (MegaLights::IsEnabled(ViewFamily) && LightType != LightType_Directional)
+		if (LightType != LightType_Directional 
+			&& ViewFamily.EngineShowFlags.MegaLights 
+			&& ShouldCompileShaders(ViewFamily.GetShaderPlatform())
+			&& bLightAllowsMegaLights
+			&& ViewFamily.Views[0]->FinalPostProcessSettings.bMegaLights
+			&& CVarMegaLightsAllowed.GetValueOnRenderThread() != 0)
 		{
-			const bool bRayTracedShadows = (CastRayTracedShadow == ECastRayTracedShadow::Enabled || (ShouldRenderRayTracingShadows() && CastRayTracedShadow == ECastRayTracedShadow::UseProjectSetting));
-			const bool bVSMShadows = IsUsingVirtualShadowMaps(ViewFamily) && bVSMEnabled;
-			return IsUsingForcedRaytracing() || bRayTracedShadows || bVSMShadows;
+			const bool bUseVSM = IsUsingVirtualShadowMaps(ViewFamily) && bVSMEnabled;
+
+			return bUseVSM ? EMegaLightsMode::EnabledVSM : EMegaLightsMode::EnabledRT;
 		}
 
-		return false;
+		return EMegaLightsMode::Disabled;
 	}
 
 	uint32 GetStateFrameIndex(FSceneViewState* ViewState)

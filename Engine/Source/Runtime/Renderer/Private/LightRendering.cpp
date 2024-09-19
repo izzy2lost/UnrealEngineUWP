@@ -708,11 +708,11 @@ FLightOcclusionType GetLightOcclusionType(const FLightSceneProxy& Proxy, const F
 #if RHI_RAYTRACING
 	bUseRaytracing = ShouldRenderRayTracingShadowsForLight(Proxy);
 #endif
+	EMegaLightsMode MegaLightsMode = MegaLights::GetMegaLightsMode(ViewFamily, Proxy.GetLightType(), Proxy.AllowMegaLights(), Proxy.UseVirtualShadowMaps());
 
-	if (MegaLights::IsLightSupported(ViewFamily, Proxy.GetLightType(), Proxy.CastsRaytracedShadow(), Proxy.UseVirtualShadowMaps()))
+	if (MegaLightsMode != EMegaLightsMode::Disabled)
 	{
-		return (bUseRaytracing || MegaLights::IsUsingForcedRaytracing()) ?
-			FLightOcclusionType::MegaLights : FLightOcclusionType::MegaLightsVSM;
+		return MegaLightsMode == EMegaLightsMode::EnabledVSM ? FLightOcclusionType::MegaLightsVSM : FLightOcclusionType::MegaLights;
 	}
 
 	return bUseRaytracing ? FLightOcclusionType::Raytraced : FLightOcclusionType::Shadowmap;
@@ -724,11 +724,11 @@ FLightOcclusionType GetLightOcclusionType(const FLightSceneInfoCompact& LightInf
 #if RHI_RAYTRACING
 	bUseRaytracing = ShouldRenderRayTracingShadowsForLight(LightInfo);
 #endif
+	EMegaLightsMode MegaLightsMode = MegaLights::GetMegaLightsMode(ViewFamily, LightInfo.LightType, LightInfo.bAllowMegaLights, LightInfo.bUseVirtualShadowMaps);
 
-	if (MegaLights::IsLightSupported(ViewFamily, LightInfo.LightType, LightInfo.CastRaytracedShadow, LightInfo.bUseVirtualShadowMaps))
+	if (MegaLightsMode != EMegaLightsMode::Disabled)
 	{
-		return (bUseRaytracing || MegaLights::IsUsingForcedRaytracing()) ?
-			FLightOcclusionType::MegaLights : FLightOcclusionType::MegaLightsVSM;
+		return MegaLightsMode == EMegaLightsMode::EnabledVSM ? FLightOcclusionType::MegaLightsVSM : FLightOcclusionType::MegaLights;
 	}
 
 	return bUseRaytracing ? FLightOcclusionType::Raytraced : FLightOcclusionType::Shadowmap;
@@ -1262,7 +1262,7 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 					SortedLightInfo->SortKey.Fields.bIsNotSimpleLight = 1;
 
 					// Lights handled by Mega Lights
-					const bool bHandledByMegaLights = MegaLights::IsLightSupported(ViewFamily, LightSceneInfoCompact.LightType, LightSceneInfoCompact.CastRaytracedShadow, LightSceneInfoCompact.bUseVirtualShadowMaps);
+					const bool bHandledByMegaLights = MegaLights::GetMegaLightsMode(ViewFamily, LightSceneInfoCompact.LightType, LightSceneInfoCompact.bAllowMegaLights, LightSceneInfoCompact.bUseVirtualShadowMaps) != EMegaLightsMode::Disabled;
 
 					// NOTE: bClusteredDeferredSupported==false means "lights cannot be batched" (tiled or clustered). When false, light will go the slower unbatched render path.
 					// Tiled and clustered deferred lighting only support certain lights that don't use any additional features (like shadow or light function not compatible with the atlas.)

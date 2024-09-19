@@ -211,6 +211,7 @@ public:
 	inline bool HasStaticShadowing() const { return bStaticShadowing; }
 	inline bool CastsDynamicShadow() const { return bCastDynamicShadow; }
 	inline bool CastsStaticShadow() const { return bCastStaticShadow; }
+	inline bool AllowMegaLights() const { return bAllowMegaLights; }
 	inline bool CastsTranslucentShadows() const { return bCastTranslucentShadows; }
 	inline bool CastsVolumetricShadow() const { return bCastVolumetricShadow; }
 	inline bool CastsHairStrandsDeepShadow() const { return bCastHairStrandsDeepShadow; }
@@ -416,6 +417,9 @@ protected:
 
 	/** True if the light casts static shadows. */
 	const uint8 bCastStaticShadow : 1;
+
+	/** Whether the light should be rendered with MegaLights. */
+	const uint8 bAllowMegaLights : 1;
 
 	/** Whether the light is allowed to cast dynamic shadows from translucency. */
 	const uint8 bCastTranslucentShadows : 1;

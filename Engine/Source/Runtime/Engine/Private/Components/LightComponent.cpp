@@ -445,6 +445,7 @@ ULightComponent::ULightComponent(const FObjectInitializer& ObjectInitializer)
 	ContactShadowLengthInWS = false;
 	ContactShadowCastingIntensity = 1.0f;
 	ContactShadowNonCastingIntensity = 0.0f;
+	bAllowMegaLights = true;
 	bUseIESBrightness = false;
 	IESBrightnessScale = 1.0f;
 	IESTexture = NULL;
