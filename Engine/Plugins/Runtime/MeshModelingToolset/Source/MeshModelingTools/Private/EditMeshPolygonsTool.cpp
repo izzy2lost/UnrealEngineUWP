@@ -877,7 +877,8 @@ void UEditMeshPolygonsTool::Setup()
 		{
 			// Convert default (no corner) group topology -> triangle topology -> tool (w/ corner) group topology
 			ConvertedSelection.InitializeTypes(EGeometryElementType::Edge, EGeometryTopologyType::Polygroup);
-			FGeometrySelection TempTriSelection(EGeometryElementType::Edge, EGeometryTopologyType::Triangle);
+			FGeometrySelection TempTriSelection;
+			TempTriSelection.InitializeTypes(EGeometryElementType::Edge, EGeometryTopologyType::Triangle);
 			FGroupTopology GroupTopology(CurrentMesh.Get(), true);
 			bCanUseSelection = UE::Geometry::ConvertSelection(*CurrentMesh, &GroupTopology, CurSelection, TempTriSelection, EEnumerateSelectionConversionParams::ContainSelection);
 			bCanUseSelection = bCanUseSelection && UE::Geometry::ConvertSelection(*CurrentMesh, Topology.Get(), TempTriSelection, ConvertedSelection, EEnumerateSelectionConversionParams::ContainSelection);
