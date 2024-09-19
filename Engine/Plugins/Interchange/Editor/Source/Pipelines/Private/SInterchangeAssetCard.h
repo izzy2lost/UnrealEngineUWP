@@ -11,6 +11,7 @@
 #include "Widgets/Views/STableViewBase.h"
 
 class UInterchangeBaseNodeContainer;
+struct FInterchangeConflictInfo;
 
 DECLARE_DELEGATE_OneParam(FInterchangeCard_OnImportAssetTypeChanged, bool)
 DECLARE_DELEGATE_RetVal(bool, FInterchangeCard_ShouldImportAssetType)
@@ -38,12 +39,15 @@ public:
 
 	void RefreshCard(UInterchangeBaseNodeContainer* InPreviewNodeContainer);
 
+	bool RefreshHasConflicts(const TArray<FInterchangeConflictInfo>& InConflictInfos);
+
 protected:
 
 	int32 CardAssetCount = 0;
 	int32 CardAssetToImportCount = 0;
 	int32 CardAssetDisabledCount = 0;
 	FString CardTooltip;
+	bool bHasConflictWarnings = false;
 
 	/** The factory asset class so we can know which kind of Unreal asset this card is for. */
 	UClass* AssetClass = nullptr;
@@ -53,7 +57,6 @@ protected:
 
 	/** Delegate to invoke when should import asset type value change. */
 	FInterchangeCard_OnImportAssetTypeChanged OnImportAssetTypeChanged;
-
 };
 
 class SInterchangeAssetCardList : public SCompoundWidget

@@ -3,6 +3,7 @@
 
 #include "GameFramework/Actor.h"
 #include "InterchangeEditorPipelineStyle.h"
+#include "InterchangePipelineBase.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
 #include "Nodes/InterchangeFactoryBaseNode.h"
 #include "SSimpleButton.h"
@@ -14,6 +15,7 @@
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SSeparator.h"
+#include "Widgets/Layout/SSpacer.h"
 #include "Widgets/Layout/SSplitter.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
@@ -67,6 +69,21 @@ void SInterchangeAssetCard::RefreshCard(UInterchangeBaseNodeContainer* InPreview
 		});
 }
 
+bool SInterchangeAssetCard::RefreshHasConflicts(const TArray<FInterchangeConflictInfo>& InConflictInfos)
+{
+	for (const FInterchangeConflictInfo& ConflictInfo : InConflictInfos)
+	{
+		if (ConflictInfo.AffectedAssetClasses.Contains(AssetClass))
+		{
+			bHasConflictWarnings = true;
+			return true;
+		}
+	}
+
+	bHasConflictWarnings = false;
+	return false;
+}
+
 void SInterchangeAssetCard::Construct(const FArguments& InArgs)
 {
 	//Make sure we have a valid node container
@@ -90,7 +107,7 @@ void SInterchangeAssetCard::Construct(const FArguments& InArgs)
 
 	FText CardImportText = FText::Format(LOCTEXT("CardImportText", "Import {0}"), FText::FromString(AssetClass->GetName()));
 
-	FName IconWarningName = "InterchangeAssetCardIcon.Warning";
+	FName IconWarningName = "Icons.Alert.Solid";
 	const FSlateIcon IconWarning = FSlateIconFinder::FindIcon(IconWarningName);
 
 	const ISlateStyle* InterchangeEditorPipelineStyle = FSlateStyleRegistry::FindSlateStyle("InterchangeEditorPipelineStyle");
@@ -121,13 +138,17 @@ void SInterchangeAssetCard::Construct(const FArguments& InArgs)
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Center)
 				.AutoWidth()
 				.Padding(8.0f, 4.0f, 4.0f, 4.0f)
 				[
 					CardIconWidget.ToSharedRef()
 				]
 				+ SHorizontalBox::Slot()
-				.FillWidth(1.0f)
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Left)
+				.AutoWidth()
 				.Padding(4.0f, 4.0f, 8.0f, 4.0f)
 				[
 					SNew(STextBlock)
@@ -140,6 +161,39 @@ void SInterchangeAssetCard::Construct(const FArguments& InArgs)
 						{
 							return FText::FromString(CardTooltip);
 						})
+				]
+				+ SHorizontalBox::Slot()
+				.FillWidth(1.0f)
+				[
+					SNew(SSpacer)
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding(8.0f, 4.0f, 8.0f, 4.0f)
+				[
+					SNew(SHorizontalBox)
+					.Visibility_Lambda([this]() {return bHasConflictWarnings ? EVisibility::Visible : EVisibility::Collapsed; })
+					.ToolTipText(LOCTEXT("ConflictWarningTooltipText", "There are some conflicts generated while importing the source file. Go to Conflicts Section in Advanced Settings for more details."))	
+					+ SHorizontalBox::Slot()
+					.VAlign(VAlign_Center)
+					.HAlign(HAlign_Center)
+					.AutoWidth()
+					[
+						SNew(SImage)
+						.Image(IconWarning.GetOptionalIcon())
+						.ColorAndOpacity(FStyleColors::Warning)
+					]
+					+ SHorizontalBox::Slot()
+					.VAlign(VAlign_Center)
+					.HAlign(HAlign_Left)
+					.AutoWidth()
+					.Padding(4.0f, 4.0f, 8.0f, 4.0f)
+					[
+						SNew(STextBlock)
+						.Text(LOCTEXT("ConflictWarningText", "Conflict Warnings"))
+						.ColorAndOpacity(FStyleColors::Warning)
+					]
+					
 				]
 			]
 		]
@@ -181,17 +235,17 @@ void SInterchangeAssetCard::Construct(const FArguments& InArgs)
 					[
 						SNew(SCheckBox)
 						.IsChecked_Lambda([this]()
+						{
+							if (ShouldImportAssetType.Execute())
 							{
-								if (ShouldImportAssetType.Execute())
-								{
-									return ECheckBoxState::Checked;
-								}
-								return ECheckBoxState::Unchecked;
-							})
+								return ECheckBoxState::Checked;
+							}
+							return ECheckBoxState::Unchecked;
+						})
 						.OnCheckStateChanged_Lambda([this](ECheckBoxState CheckBoxState)
-							{
-								OnImportAssetTypeChanged.Execute(CheckBoxState == ECheckBoxState::Checked);
-							})
+						{
+							OnImportAssetTypeChanged.Execute(CheckBoxState == ECheckBoxState::Checked);
+						})
 					]
 				]
 			]
