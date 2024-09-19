@@ -177,11 +177,55 @@ namespace ExtrudeBoundaryEdgesLocals
 
 		if (ScalingLimit > 1)
 		{
-			FVector3d VectorToCompareAgainst = OutwardVector1.IsZero() ? OutwardVector2 : OutwardVector1;
-			double CosTheta = ExtrudeFrame.Frame.X().Dot(VectorToCompareAgainst);
-			if (FMath::Abs(CosTheta) > KINDA_SMALL_NUMBER)
+			// This means that we're going to be adjusting our extrude directions in an attempt to keep extruded
+			//  edges parallel. E.g. imagine extruding two edges at a 90 degree corner: the extrude directions
+			//  at the flat sides are directly outward, whereas the outward direction at the corner is at an angle.
+			//  If we extrude the same distance along each direction, the resulting corner is no longer 90 degrees
+			//  because the vertex would need to move further along the diagonal.
+			// The problem is made more complicated by the fact that we are not necessarily extruding in the plane
+			//  of the edges, and that the extrude frames at each vertex might be arbitrarily rotated depending on
+			//  the adjoining faces. So, having some in-frame adjustment that keeps edges parallel without knowledge 
+			//  of adjacent frames is impossible.
+			// Instead we'll try to do our best for some common use cases. In particular, imagine extruding some
+			//  edges on the boundary of a tesselated open-top box partially outward. We will adjust them such
+			//  that the projection onto the plane of the original boundary is parallel, and we will do it by
+			//  scaling only in the appropriate direction in the plane of the boundary. This will handle "tube"
+			//  extrusions and simple planar mesh extrusion, and for planar boundaries, the user can scale down
+			//  the result along the orthogonal axis to get parallel output even if incident faces made for
+			//  inconsistent frame rotations.
+
+			// Direction to scale is average of the two incoming edge vectors
+			FVector3d DirectionToScale = IncomingEdgeVector - OutgoingEdgeVector;
+			DirectionToScale.Normalize();
+
+			// If direction to scale is zero, that means we're along a flat section, where we don't need
+			//  to adjust.
+			if (!DirectionToScale.IsZero())
 			{
-				ExtrudeFrame.Scaling.X = FMath::Min(1 / FMath::Abs(CosTheta), ScalingLimit);
+
+				// We compare against an outward vector in the plane of the two vectors (rather than in the plane of
+				//  adjoining triangles, which we used when finding the extrude frame)
+				FVector3d NormalToEdges = IncomingEdgeVector.Cross(OutgoingEdgeVector); // Unnormalized
+				FVector3d OutwardVectorInEdgePlane = IncomingEdgeVector.Cross(NormalToEdges);
+				OutwardVectorInEdgePlane.Normalize();
+
+				// Figure out how far to scale, with an upper limit
+				double CosTheta = DirectionToScale.Dot(OutwardVectorInEdgePlane);
+				if (CosTheta == 0)
+				{
+					// Presumably this comes about from the edges doubling back onto themselves, but we'll double
+					//  check that we're not dealing with a straight edge to be safe.
+					if (IncomingEdgeVector.Dot(OutgoingEdgeVector) < 0)
+					{
+						ExtrudeFrame.InFrameScaleDirection = ExtrudeFrame.Frame.ToFrameVector(DirectionToScale);
+						ExtrudeFrame.Scaling = ScalingLimit;
+					}
+				}
+				else
+				{
+					ExtrudeFrame.InFrameScaleDirection = ExtrudeFrame.Frame.ToFrameVector(DirectionToScale);
+					ExtrudeFrame.Scaling = FMath::Min(1 / FMath::Abs(CosTheta), ScalingLimit);
+				}
 			}
 		}
 
@@ -664,6 +708,29 @@ bool FExtrudeBoundaryEdges::GetExtrudeFrame(const FDynamicMesh3& Mesh, int32 Vid
 		Normal2, EdgeVector2, ScalingLimit);
 
 	return true;
+}
+
+FVector3d FExtrudeBoundaryEdges::FExtrudeFrame::FromFramePoint(FVector3d FramePoint) const
+{
+	if (InFrameScaleDirection.IsSet() && Scaling != 1)
+	{
+		FVector3d Offset = FramePoint.Dot(InFrameScaleDirection.GetValue()) * (Scaling - 1) * InFrameScaleDirection.GetValue();
+		return Frame.FromFramePoint(FramePoint + Offset);
+	}
+	return Frame.FromFramePoint(FramePoint);
+}
+
+FVector3d UE::Geometry::FExtrudeBoundaryEdges::FExtrudeFrame::ToFramePoint(FVector3d WorldPoint) const
+{
+	FVector3d FramePoint = Frame.ToFramePoint(WorldPoint);
+	if (InFrameScaleDirection.IsSet() && Scaling != 1
+		// Can't undo zero scaling, but that shouldn't come up as a value
+		&& ensure(Scaling != 0))
+	{
+		double DotProduct = FramePoint.Dot(InFrameScaleDirection.GetValue());
+		return FramePoint - (1 - (1 / Scaling)) * DotProduct * InFrameScaleDirection.GetValue();
+	}
+	return FramePoint;
 }
 
 }//end UE::Geometry
