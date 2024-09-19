@@ -488,19 +488,22 @@ void UDMMaterialStageBlend::AddDefaultInput(int32 InInputIndex) const
 			}
 			else
 			{
-				EDMMaterialPropertyType DefaultProperty = EDMMaterialPropertyType::None;
+				EDMMaterialPropertyType DefaultProperty = StageProperty;
 
-				if (UDMMaterialSlot* Slot = Layer->GetSlot())
+				if (DefaultProperty != EDMMaterialPropertyType::None)
 				{
-					if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData())
+					if (UDMMaterialSlot* Slot = Layer->GetSlot())
 					{
-						if (ModelEditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::BaseColor))
+						if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData())
 						{
-							DefaultProperty = EDMMaterialPropertyType::BaseColor;
-						}
-						else if (ModelEditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor))
-						{
-							DefaultProperty = EDMMaterialPropertyType::EmissiveColor;
+							if (ModelEditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::BaseColor))
+							{
+								DefaultProperty = EDMMaterialPropertyType::BaseColor;
+							}
+							else if (ModelEditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor))
+							{
+								DefaultProperty = EDMMaterialPropertyType::EmissiveColor;
+							}
 						}
 					}
 				}
