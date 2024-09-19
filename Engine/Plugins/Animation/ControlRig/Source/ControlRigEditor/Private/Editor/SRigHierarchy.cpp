@@ -2227,11 +2227,12 @@ void SRigHierarchy::HandleNewItem(ERigElementType InElementType, bool bIsAnimati
 						
 						FRigConnectorSettings Settings;
 						Settings.Type = bIsPrimary ? EConnectorType::Primary : EConnectorType::Secondary;
-							if(!bIsPrimary)
-							{
-								Settings.Rules.Reset();
-								Settings.AddRule(FRigChildOfPrimaryConnectionRule());
-							}
+						if(!bIsPrimary)
+						{
+							Settings.Rules.Reset();
+							Settings.AddRule(FRigChildOfPrimaryConnectionRule());
+							Settings.bOptional = true;
+						}
 						NewItemKey = Controller->AddConnector(NewElementName, Settings, true);
 						(void)ResolveConnector(NewItemKey, ParentKey);
 						break;
