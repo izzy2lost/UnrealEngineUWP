@@ -362,6 +362,8 @@ private:
 	FCocoaWindow* WindowUnderCursor;
 
 	TSharedPtr<FMacWindow> ActiveWindow;
+    uint32 SystemResolutionX;
+    uint32 SystemResolutionY;
 
 	bool bSystemModalMode;
 
