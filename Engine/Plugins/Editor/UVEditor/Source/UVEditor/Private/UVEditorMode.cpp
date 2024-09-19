@@ -1069,15 +1069,6 @@ void UUVEditorMode::InitializeAssetEditorContexts(UContextObjectStore& ContextSt
 	FEditorViewportClient& LivePreviewViewportClient, FAssetEditorModeManager& LivePreviewModeManager,
 	UUVToolViewportButtonsAPI& ViewportButtonsAPI, UUVTool2DViewportAPI& UVTool2DViewportAPI)
 {
-	UInteractiveToolsContext* InteractiveToolsContext = Cast<UInteractiveToolsContext>(ContextStore.GetOuter());
-	InitializeAssetEditorContexts(ContextStore, AssetsIn, TransformsIn, LivePreviewViewportClient, LivePreviewModeManager,
-		ViewportButtonsAPI, UVTool2DViewportAPI, *InteractiveToolsContext);
-}
-void UUVEditorMode::InitializeAssetEditorContexts(UContextObjectStore& ContextStore,
-	const TArray<TObjectPtr<UObject>>& AssetsIn, const TArray<FTransform>& TransformsIn,
-	FEditorViewportClient& LivePreviewViewportClient, FAssetEditorModeManager& LivePreviewModeManager,
-	UUVToolViewportButtonsAPI& ViewportButtonsAPI, UUVTool2DViewportAPI& UVTool2DViewportAPI, UInteractiveToolsContext& ToolsContext)
-{
 	using namespace UVEditorModeLocals;
 
 	UUVToolAssetInputsContext* AssetInputsContext = ContextStore.FindContext<UUVToolAssetInputsContext>();
@@ -1091,7 +1082,7 @@ void UUVEditorMode::InitializeAssetEditorContexts(UContextObjectStore& ContextSt
 	UEditorModelingObjectsCreationAPI* ModelingObjectsCreationAPI = ContextStore.FindContext<UEditorModelingObjectsCreationAPI>();
 	if (!ModelingObjectsCreationAPI)
 	{
-		ModelingObjectsCreationAPI = NewObject<UEditorModelingObjectsCreationAPI>(&ToolsContext);
+		ModelingObjectsCreationAPI = NewObject<UEditorModelingObjectsCreationAPI>();
 		ContextStore.AddContextObject(ModelingObjectsCreationAPI);
 	}
 	

@@ -13,26 +13,26 @@ const float FUVEditorUXSettings::CameraNearPlaneProportionZ(0.8); // Top layer, 
 // Note: While these are floating point values, they represent percentages and should be separated
 // by at least integer amounts, as they serve double duty in certain cases for translucent primitive
 // sorting order.
-const float FUVEditorUXSettings::ToolLockedPathDepthBias(8.0);
-const float FUVEditorUXSettings::ToolExtendPathDepthBias(8.0);
-const float FUVEditorUXSettings::SewLineDepthOffset(7.0f);
-const float FUVEditorUXSettings::SelectionHoverWireframeDepthBias(6);
-const float FUVEditorUXSettings::SelectionHoverTriangleDepthBias(5);
-const float FUVEditorUXSettings::SelectionWireframeDepthBias(4.0);
-const float FUVEditorUXSettings::SelectionTriangleDepthBias(3.0);
-const float FUVEditorUXSettings::WireframeDepthOffset(2.0);
-const float FUVEditorUXSettings::UnwrapTriangleDepthOffset(1.0);
+const float FUVEditorUXSettings::ToolLockedPathDepthBias(9.0);
+const float FUVEditorUXSettings::ToolExtendPathDepthBias(9.0);
+const float FUVEditorUXSettings::SewLineDepthOffset(8.0f);
+const float FUVEditorUXSettings::SelectionHoverWireframeDepthBias(7);
+const float FUVEditorUXSettings::SelectionHoverTriangleDepthBias(6);
+const float FUVEditorUXSettings::SelectionWireframeDepthBias(5.0);
+const float FUVEditorUXSettings::SelectionTriangleDepthBias(4.0);
+const float FUVEditorUXSettings::WireframeDepthOffset(3.0);
+const float FUVEditorUXSettings::UnwrapTriangleDepthOffset(2.0);
 
-const float FUVEditorUXSettings::LivePreviewExistingSeamDepthBias(1.0);
+const float FUVEditorUXSettings::LivePreviewExistingSeamDepthBias(2.0);
 
 // Note: that this offset can only be applied when we use our own background material
 // for a user-supplied texture, and we can't use it for a user-provided material.
 // So for consistency this should stay at zero.
 
-const float FUVEditorUXSettings::BackgroundQuadDepthOffset(0.0); // Bottom layer
+const float FUVEditorUXSettings::BackgroundQuadDepthOffset(1.0); // Bottom layer
 
 // 3D Viewport Depth Offsets
-const float FUVEditorUXSettings::LivePreviewHighlightDepthOffset(0.5);
+const float FUVEditorUXSettings::LivePreviewHighlightDepthOffset(1.5);
 
 // Opacities
 const float FUVEditorUXSettings::UnwrapTriangleOpacity(1.0);

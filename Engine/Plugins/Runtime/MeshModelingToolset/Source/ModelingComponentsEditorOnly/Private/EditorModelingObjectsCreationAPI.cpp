@@ -414,28 +414,35 @@ FCreateMeshObjectResult UEditorModelingObjectsCreationAPI::CreateStaticMeshAsset
 
 FCreateTextureObjectResult UEditorModelingObjectsCreationAPI::CreateTextureObject(FCreateTextureObjectParams&& CreateTexParams)
 {
-	UE::AssetUtils::FTexture2DAssetOptions AssetOptions;
-
-	ECreateModelingObjectResult AssetPathResult = GetNewAssetPath(
-		AssetOptions.NewAssetPath,
-		CreateTexParams.BaseName,
-		CreateTexParams.StoreRelativeToObject,
-		CreateTexParams.TargetWorld);
-
-	if (AssetPathResult != ECreateModelingObjectResult::Ok)
-	{
-		return FCreateTextureObjectResult{ AssetPathResult };
-	}
-
 	// currently we cannot create a new texture without an existing generated texture to store
 	if (!ensure(CreateTexParams.GeneratedTransientTexture))
 	{
 		return FCreateTextureObjectResult{ ECreateModelingObjectResult::Failed_InvalidTexture };
 	}
-
+	UE::AssetUtils::FTexture2DAssetOptions AssetOptions;
 	UE::AssetUtils::FTexture2DAssetResults ResultData;
-	UE::AssetUtils::ECreateTexture2DResult AssetResult = UE::AssetUtils::SaveGeneratedTexture2DAsset(
-		CreateTexParams.GeneratedTransientTexture, AssetOptions, ResultData);
+	
+	if (CreateTexParams.FullAssetPath != "")
+	{
+		AssetOptions.NewAssetPath = CreateTexParams.FullAssetPath;
+	}
+	else
+	{
+		const ECreateModelingObjectResult AssetPathResult = GetNewAssetPath(
+			AssetOptions.NewAssetPath,
+			CreateTexParams.BaseName,
+			CreateTexParams.StoreRelativeToObject,
+			CreateTexParams.TargetWorld);
+
+		if (AssetPathResult != ECreateModelingObjectResult::Ok)
+		{
+			return FCreateTextureObjectResult{ AssetPathResult };
+		}
+
+	}
+	const UE::AssetUtils::ECreateTexture2DResult AssetResult = UE::AssetUtils::SaveGeneratedTexture2DAsset(
+			CreateTexParams.GeneratedTransientTexture, AssetOptions, ResultData);
+	
 
 	if (AssetResult != UE::AssetUtils::ECreateTexture2DResult::Ok)
 	{
