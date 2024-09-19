@@ -1254,7 +1254,7 @@ void FSkinWeightDetailCustomization::AddTransferUI(IDetailLayoutBuilder& DetailB
 			.OnValueChanged_Lambda([this](EMeshTransferOption Mode)
 			{
 				ToolSettings->MeshSelectMode = Mode;
-				ToolSettings->WeightTool->GetWeightTransferManager()->UpdateSelectionAndVisibility();
+				ToolSettings->WeightTool->UpdateSelectorState();
 			})
 			+ SSegmentedControl<EMeshTransferOption>::Slot(EMeshTransferOption::Source)
 			.Text(LOCTEXT("SourceMode", "Source"))
