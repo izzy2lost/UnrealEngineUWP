@@ -11095,6 +11095,91 @@ int32 FHLSLMaterialTranslator::TransformPosition(EMaterialCommonBasis SourceCoor
 	return TransformBase(SourceCoordBasis, DestCoordBasis, A, 1);
 }
 
+int32 FHLSLMaterialTranslator::CalculatePeriodicWorldPositionOrigin(int TileScaleIdx)
+{
+	// float3 PeriodicWorldOrigin = GetPeriodicWorldOrigin(Scale);
+	FString PeriodicWorldOrigin = CreateSymbolName(TEXT("PeriodicWorldOrigin"));
+	FString FuncName = IsConstFloatOfPow2Expression(TileScaleIdx) ? TEXT("GetPeriodicWorldOrigin_Pow2") : TEXT("GetPeriodicWorldOrigin");
+	FString Code = FString::Format(TEXT("	float3 {0} = {1}({2});{3}"), { PeriodicWorldOrigin, FuncName, *GetParameterCode(TileScaleIdx), HLSL_LINE_TERMINATOR });
+
+	AddInlinedCodeChunk(EMaterialValueType::MCT_VoidStatement, *Code);
+	return AddCodeChunk(MCT_Float3, *PeriodicWorldOrigin);
+}
+
+int32 FHLSLMaterialTranslator::TransformFromPeriodicWorldPosition(EMaterialCommonBasis DestCoordBasis, int TileScaleIdx, int32 PeriodicWorldPosition)
+{
+	const EDerivativeStatus InputDerivStatus = GetDerivativeStatus(PeriodicWorldPosition);
+
+	int32 PeriodicWorldOrigin = CalculatePeriodicWorldPositionOrigin(TileScaleIdx);
+	FString TranslatedWorldPositionCode = FString::Format(TEXT("(({0}) + ({1}))"), { GetParameterCode(PeriodicWorldPosition), GetParameterCode(PeriodicWorldOrigin) });
+
+	int32 Result;
+	if (IsAnalyticDerivEnabled() && IsDerivativeValid(InputDerivStatus))
+	{
+		if (InputDerivStatus == EDerivativeStatus::Valid)
+		{
+			FString PositionDerivCode = GetParameterCodeDeriv(PeriodicWorldPosition, CompiledPDV_Analytic);
+
+			FString AnalyticCode = DerivativeAutogen.ConstructDeriv(
+				*TranslatedWorldPositionCode, 
+				*(PositionDerivCode + TEXT(".Ddx")), 
+				*(PositionDerivCode + TEXT(".Ddy")), 
+				GetDerivType(MCT_Float3));
+			Result = AddCodeChunkInnerDeriv(*TranslatedWorldPositionCode, *AnalyticCode, MCT_Float3, false, EDerivativeStatus::Valid);
+		}
+		else
+		{
+			Result = AddCodeChunkZeroDeriv(MCT_Float3, *TranslatedWorldPositionCode);
+		}
+	}
+	else
+	{
+		Result = AddCodeChunk(MCT_Float3, *TranslatedWorldPositionCode);
+	}
+
+	return TransformBase(EMaterialCommonBasis::MCB_TranslatedWorld, DestCoordBasis, Result, 1);
+}
+
+int32 FHLSLMaterialTranslator::TransformToPeriodicWorldPosition(EMaterialCommonBasis SourceCoordBasis, int TileScaleIdx, int32 Input)
+{
+	int32 TranslatedWorldPos = TransformBase(SourceCoordBasis, EMaterialCommonBasis::MCB_TranslatedWorld, Input, 1);
+	if (TranslatedWorldPos == INDEX_NONE) // Transform failed
+	{
+		return INDEX_NONE;
+	}
+
+	const EDerivativeStatus InputDerivStatus = GetDerivativeStatus(TranslatedWorldPos);
+
+	int32 PeriodicWorldOrigin = CalculatePeriodicWorldPositionOrigin(TileScaleIdx);
+	FString PeriodicWorldPositionCode = FString::Format(TEXT("(({0}) - ({1}))"), { GetParameterCode(TranslatedWorldPos), GetParameterCode(PeriodicWorldOrigin) });
+
+	int32 Result;
+	if (IsAnalyticDerivEnabled() && IsDerivativeValid(InputDerivStatus))
+	{
+		if (InputDerivStatus == EDerivativeStatus::Valid)
+		{
+			FString TranslatedWorldPosDerivCode = GetParameterCodeDeriv(TranslatedWorldPos, CompiledPDV_Analytic);
+
+			FString AnalyticCode = DerivativeAutogen.ConstructDeriv(
+				*PeriodicWorldPositionCode, 
+				*(TranslatedWorldPosDerivCode + TEXT(".Ddx")), 
+				*(TranslatedWorldPosDerivCode + TEXT(".Ddy")), 
+				GetDerivType(MCT_Float3));
+			Result = AddCodeChunkInnerDeriv(*PeriodicWorldPositionCode, *AnalyticCode, MCT_Float3, false, EDerivativeStatus::Valid);
+		}
+		else
+		{
+			Result = AddCodeChunkZeroDeriv(MCT_Float3, *PeriodicWorldPositionCode);
+		}
+	}
+	else
+	{
+		Result = AddCodeChunk(MCT_Float3, *PeriodicWorldPositionCode);
+	}
+
+	return Result;
+}
+
 int32 FHLSLMaterialTranslator::TransformNormalFromRequestedBasisToWorld(int32 NormalCodeChunk)
 {
 	if (IsTangentSpaceNormal())
@@ -11222,6 +11307,19 @@ int32 FHLSLMaterialTranslator::GenericSwitch(const TCHAR* SwitchExpressionText, 
 	{
 		return AddCodeChunk(ResultType, TEXT("(%s ? (%s) : (%s))"), SwitchExpressionText, *IfTrueCode, *IfFalseCode);
 	}
+}
+
+bool FHLSLMaterialTranslator::IsConstFloatOfPow2Expression(int32 ExpCode)
+{
+	FMaterialUniformExpression* ExpressionB = GetParameterUniformExpression(ExpCode);
+	FLinearColor ValueB;
+	bool bIsPow2 = false;
+	if (ExpressionB && GetConstParameterValue(ExpressionB, ValueB))
+	{
+		auto IsFloatPowerOfTwo = [](float Value) { return ((*reinterpret_cast<int*>(&Value)) & 0x007FFFFF) == 0; }; // zero mantisse
+		bIsPow2 = IsFloatPowerOfTwo(ValueB.R) && IsFloatPowerOfTwo(ValueB.G) && IsFloatPowerOfTwo(ValueB.B) && IsFloatPowerOfTwo(ValueB.A);
+	}
+	return bIsPow2;
 }
 
 int32 FHLSLMaterialTranslator::GIReplace(int32 Direct, int32 StaticIndirect, int32 DynamicIndirect)
