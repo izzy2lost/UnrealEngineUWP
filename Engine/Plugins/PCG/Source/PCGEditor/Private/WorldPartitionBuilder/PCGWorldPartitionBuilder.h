@@ -79,6 +79,18 @@ struct FPCGWorldPartitionBuilderArgs
 	/** Cell size for iterative cell loading */
 	int32 IterativeCellSize = 25600;
 
+	/** Will load editor only data layers without having to specify them as included */
+	bool bLoadEditorOnlyDataLayers = true;
+
+	/** Will load runtime data layers that are default activated without having to specify them as included */
+	bool bLoadActivatedRuntimeDataLayers = true;
+
+	/** Data layers that need to be loaded when running builder. */
+	TArray<TObjectPtr<UDataLayerAsset>> IncludedDataLayers;
+
+	/** Data layers that need to be unloaded when running builder. */
+	TArray<TObjectPtr<UDataLayerAsset>> ExcludedDataLayers;
+
 	static FPCGWorldPartitionBuilderArgs InitializeFrom(const FPCGWorldPartitionCommandlineArgs& CommandlineArgs);
 };
 

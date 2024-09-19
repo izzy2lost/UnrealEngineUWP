@@ -30,6 +30,8 @@
 #include "WorldPartition/IWorldPartitionEditorModule.h"
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionHelpers.h"
+#include "WorldPartition/DataLayer/DataLayerAsset.h"
+#include "WorldPartition/DataLayer/DataLayerManager.h"
 #include "WorldPartition/LoaderAdapter/LoaderAdapterShape.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogPCGWorldPartitionBuilder, All, All);
@@ -241,6 +243,10 @@ FPCGWorldPartitionBuilderArgs FPCGWorldPartitionBuilderArgs::InitializeFrom(cons
 			BuilderArgs.IncludeGraphs = BuilderSettings->Graphs;
 			BuilderArgs.bIterativeCellLoading = BuilderSettings->bIterativeCellLoading;
 			BuilderArgs.IterativeCellSize = BuilderSettings->IterativeCellSize;
+			BuilderArgs.bLoadEditorOnlyDataLayers = BuilderSettings->bLoadEditorOnlyDataLayers;
+			BuilderArgs.bLoadActivatedRuntimeDataLayers = BuilderSettings->bLoadActivatedRuntimeDataLayers;
+			BuilderArgs.IncludedDataLayers = BuilderSettings->IncludedDataLayers;
+			BuilderArgs.ExcludedDataLayers = BuilderSettings->ExcludedDataLayers;
 
 			UE_LOG(LogPCGWorldPartitionBuilder, Display, TEXT("Loaded PCGBuilderSettings '%s'"), *SettingsPath.ToString());
 			bUsingBuilderSettings = true;
@@ -470,6 +476,37 @@ bool UPCGWorldPartitionBuilder::PreRun(UWorld* World, FPackageSourceControlHelpe
 
 	// If World doesn't have a World Partition do not use iterative cell loading
 	Args.bIterativeCellLoading &= World->IsPartitionedWorld();
+
+	// Setup DataLayers
+	if (UDataLayerManager* DataLayerManager = UDataLayerManager::GetDataLayerManager(World))
+	{
+		auto FillDataLayerShortNames = [DataLayerManager](const TArray<TObjectPtr<UDataLayerAsset>>& InDataLayerAssets, TSet<FName>& OutDataLayerShortNames)
+		{
+			for(const TObjectPtr<UDataLayerAsset>& DataLayer : InDataLayerAssets)
+			{
+				if (DataLayer != nullptr)
+				{
+					const UDataLayerInstance* DataLayerInstance = DataLayerManager->GetDataLayerInstance(DataLayer);
+					if (DataLayerInstance == nullptr)
+					{
+						UE_LOG(LogPCGWorldPartitionBuilder, Error, TEXT("Missing UDataLayerInstance for %s."), *DataLayer->GetName());
+					}
+					else
+					{
+						OutDataLayerShortNames.Add(FName(DataLayerInstance->GetDataLayerShortName()));
+					}
+				}
+			}
+		};
+
+		// Set Base Builder Class fields
+		bLoadNonDynamicDataLayers = Args.bLoadEditorOnlyDataLayers;
+		bLoadInitiallyActiveDataLayers = Args.bLoadActivatedRuntimeDataLayers;
+
+		FillDataLayerShortNames(Args.IncludedDataLayers, DataLayerShortNames);
+		FillDataLayerShortNames(Args.ExcludedDataLayers, ExcludedDataLayerShortNames);
+	}
+
 
 	if (GetLoadingMode() == ELoadingMode::IterativeCells2D)
 	{
