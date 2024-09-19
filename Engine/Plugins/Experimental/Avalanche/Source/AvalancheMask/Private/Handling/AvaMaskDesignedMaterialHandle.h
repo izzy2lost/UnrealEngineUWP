@@ -72,8 +72,8 @@ protected:
 #if WITH_EDITOR
 	void OnMaterialBuilt(UDynamicMaterialModelBase* InMaterialModel);
 	
-	UMaterialFunctionInterface* GetOutputProcessor();
-	void SetOutputProcessor(UMaterialFunctionInterface* InMaterialFunction);
+	UMaterialFunctionInterface* GetOutputProcessor(EBlendMode InBlendMode);
+	void SetOutputProcessor(EBlendMode InBlendMode, UMaterialFunctionInterface* InMaterialFunction);
 #else
 	// Dummy, returns nullptr
 	UMaterialFunctionInterface* GetOutputProcessor();

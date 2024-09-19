@@ -31,11 +31,11 @@ public:
 
 	/** Returns the Material Model associated with this Material Designer Material. */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	DYNAMICMATERIAL_API UDynamicMaterialModelBase* GetMaterialModelBase();
+	DYNAMICMATERIAL_API UDynamicMaterialModelBase* GetMaterialModelBase() const;
 
 	/** Resolves the base Material Model used with this Instance and returns it. */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	DYNAMICMATERIAL_API UDynamicMaterialModel* GetMaterialModel();
+	DYNAMICMATERIAL_API UDynamicMaterialModel* GetMaterialModel() const;
 
 	//~ Begin UObject
 	DYNAMICMATERIAL_API virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
