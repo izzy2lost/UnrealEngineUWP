@@ -77,7 +77,7 @@ void FunctionMapAddImpl(void* OldFunction, void* NewFunction)
             Map->KeyCount++;
             return;
         }
-        
+
         if (Entry->OldFunction == OldFunction) {
             Entry->NewFunction = NewFunction;
             return;
@@ -93,15 +93,8 @@ void FunctionMapAdd(void* OldFunction, void* NewFunction)
         return;
     }
 
-	// We first assert that we don't accidentally have the Magic Mike
-	// constant in the special location before the old function. This
-	// is to ensure that any functions added to the map are not jointly
-	// using the prefix data mechanism and the hashmap lookup.
-	const uint64 PrefixData = *(reinterpret_cast<uint64*>(OldFunction) - 1);
-	ASSERT(Constants::MagicMike != (PrefixData & 0xffff000000000000));
-
     InitializeGlobalDataIfNecessary();
-    
+
     TLockGuard<FFastLock> LockGuard(GlobalData->FunctionMapLock);
     TArray<void*> Functions;
     Functions.Push(OldFunction);
