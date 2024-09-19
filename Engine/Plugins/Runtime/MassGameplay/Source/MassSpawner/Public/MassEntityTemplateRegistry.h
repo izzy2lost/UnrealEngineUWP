@@ -21,12 +21,14 @@ struct MASSSPAWNER_API FMassMissingTraitMessage
 	GENERATED_BODY()
 
 #if WITH_EDITORONLY_DATA
-	explicit FMassMissingTraitMessage(const UMassEntityTraitBase* InRequestingTrait = nullptr, const UStruct* InMissingType = nullptr)
-		: RequestingTrait(InRequestingTrait), MissingType(InMissingType)
+	explicit FMassMissingTraitMessage(const UMassEntityTraitBase* InRequestingTrait = nullptr, const UStruct* InMissingType = nullptr, const UMassEntityTraitBase* InRemovedByTrait = nullptr)
+		: RequestingTrait(InRequestingTrait), MissingType(InMissingType), RemovedByTrait(InRemovedByTrait)
 	{}
 
 	const UMassEntityTraitBase* RequestingTrait = nullptr;
 	const UStruct* MissingType = nullptr;
+	// if set indicates that the missing type has been explicitly removed by given trait.
+	const UMassEntityTraitBase* RemovedByTrait = nullptr;
 #endif // WITH_EDITORONLY_DATA
 };
 
@@ -125,6 +127,28 @@ struct FMassEntityTemplateBuildContext
 		checkf(InSharedFragment.GetScriptStruct(), TEXT("Expecting a valide shared fragment type"));
 		TypeAdded(*InSharedFragment.GetScriptStruct());
 		TemplateData.AddSharedFragment(InSharedFragment);
+	}
+
+	/**
+	 * Removes given tag from collected data. More precisely: it will store the information and apply upon template creation (an optimization). 
+	 * WARNING: use with caution and only in cases where you know for certain what the given tag does and which processors rely on it.
+	 *		Using this functionality makes most sense for removing tags that specifically mean that entities having it are to be
+	 *		processed by a given processor.
+	 */
+	void RemoveTag(const UScriptStruct& TagType)
+	{
+		checkf(TagType.IsChildOf(FMassTag::StaticStruct()), TEXT("Given struct doesn't represent a valid mass tag type. Make sure to inherit from FMassTag or one of its child-types."));
+		RemovedTags.Add({&TagType
+#if WITH_EDITORONLY_DATA
+			, TraitsData.Last().Trait
+#endif // WITH_EDITORONLY_DATA
+		});
+	}
+
+	template<typename T>
+	void RemoveTag()
+	{
+		RemoveTag(*T::StaticStruct());
 	}
 
 	template<typename T>
@@ -294,6 +318,7 @@ protected:
 		TraitsData.Reset();
 		TraitsProcessed.Reset();
 		IgnoredTraits.Reset();
+		RemovedTags.Reset();
 		bBuildInProgress = false;
 	}
 
@@ -306,6 +331,24 @@ protected:
 	TArray<FTraitData> TraitsData;
 	TSet<const UMassEntityTraitBase*> TraitsProcessed;
 	TSet<const UMassEntityTraitBase*> IgnoredTraits;
+
+	struct FRemovedType
+	{
+		const UStruct* TypeRemoved = nullptr;
+#if WITH_EDITOR
+		const UMassEntityTraitBase* Remover = nullptr;
+#endif // WITH_EDITOR
+		bool operator==(const FRemovedType& Other) const
+		{
+			return TypeRemoved == Other.TypeRemoved;
+		}
+	};
+	/**
+	 * These tags will be removed from the resulting entity template
+	 * @see RemoveTag for more details
+	 */
+	TArray<FRemovedType> RemovedTags;
+
 	bool bBuildInProgress = false;
 
 	FMassEntityTemplateData& TemplateData;
@@ -356,12 +399,12 @@ struct MASSSPAWNER_API FMassEntityTemplateRegistry
 	UE_DEPRECATED(5.3, "We no longer support fething mutable templates from the TemplateRegistry. Stored templates are considered const.")
 	FMassEntityTemplate* FindMutableTemplateFromTemplateID(FMassEntityTemplateID TemplateID);
 
-	UE_DEPRECATED(5.3, "CreateTemplate is no longer available. Use AddTemplate instead.")
+	UE_DEPRECATED(5.3, "CreateTemplate is no longer available. Use FindOrAddTemplate instead.")
 	FMassEntityTemplate& CreateTemplate(const uint32 HashLookup, FMassEntityTemplateID TemplateID);
 
 	void DestroyTemplate(FMassEntityTemplateID TemplateID);
 
-	UE_DEPRECATED(5.3, "InitializeEntityTemplate is no longer available. Use AddTemplate instead.")
+	UE_DEPRECATED(5.3, "InitializeEntityTemplate is no longer available. Use FindOrAddTemplate instead.")
 	void InitializeEntityTemplate(FMassEntityTemplate& InOutTemplate) const;
 
 	FMassEntityManager& GetEntityManagerChecked() { check(EntityManager); return *EntityManager; }

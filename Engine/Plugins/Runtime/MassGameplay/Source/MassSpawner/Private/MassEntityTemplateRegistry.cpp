@@ -119,6 +119,14 @@ bool FMassEntityTemplateBuildContext::BuildFromTraits(TConstArrayView<UMassEntit
 			Trait->BuildTemplate(*this, World);
 		}
 	}
+	// now remove all that has been requested to be removed
+	// those are only tags for now, thus the shortcut of going directly for tags
+	for (FRemovedType& Removed : RemovedTags)
+	{
+		check(Removed.TypeRemoved);
+		TemplateData.RemoveTag(*CastChecked<UScriptStruct>(Removed.TypeRemoved));
+	}
+
 	bBuildInProgress = false;
 
 	const bool bTemplateValid = ValidateBuildContext(World);
@@ -207,12 +215,19 @@ bool FMassEntityTemplateBuildContext::ValidateBuildContext(const UWorld& World)
 		{
 			if (TypesAlreadyAdded.Contains(TypeRequired) == false)
 			{
-				UE_LOG(LogMass, Error, TEXT("%s: Missing required fragment of type %s")
+				UE_LOG(LogMass, Error, TEXT("%s: Missing required element of type %s")
 					, *GetNameSafe(TraitData.Trait), *GetNameSafe(TypeRequired));
 				++ErrorCount;
 				IF_MESSAGES(
 				{
-					FMassDebugger::DebugEvent<FMassMissingTraitMessage>(TraitData.Trait, TypeRequired);
+					// check if it was removed
+					const UMassEntityTraitBase* RemovedByTrait = nullptr;
+					if (const int32 RemoverIndex = RemovedTags.Find(FRemovedType({TypeRequired})) != INDEX_NONE)
+					{
+						RemovedByTrait = RemovedTags[RemoverIndex].Remover;
+					}
+
+					FMassDebugger::DebugEvent<FMassMissingTraitMessage>(TraitData.Trait, TypeRequired, RemovedByTrait);
 				});
 			}
 		}
