@@ -12,17 +12,10 @@ class IRemoteControlProtocol;
 struct FRemoteControlProtocolEntity;
 
 UENUM()
-enum class ERCSignatureProtocolActionMaskingType : uint8
-{
-	SingleChannel,
-	MultiChannel,
-};
-
-UENUM()
 enum class ERCSignatureProtocolActionMappingSpace : uint8
 {
 	Additive,
-	Scalar,
+	Multiply,
 	Absolute
 };
 
@@ -60,10 +53,11 @@ struct FRCSignatureProtocolAction : public FRCSignatureAction
 	TInstancedStruct<FRemoteControlProtocolEntity> ProtocolEntity;
 
 	UPROPERTY(EditAnywhere, Category="Protocol", meta=(EditCondition="PropertyDimension > 1", EditConditionHides))
-	ERCSignatureProtocolActionMaskingType MaskingType = ERCSignatureProtocolActionMaskingType::SingleChannel;
-
-	UPROPERTY(EditAnywhere, Category="Protocol", meta=(EditCondition="PropertyDimension > 1", EditConditionHides))
 	uint8 OverrideMask = 0xFF;
+
+	/** Whether to combine all the Masks into a Single Protocol Channel rather than each Mask bit assigned to their own channel */
+	UPROPERTY(EditAnywhere, Category="Protocol", meta=(EditCondition="PropertyDimension > 1", EditConditionHides))
+	bool bSingleProtocolChannel = false;
 
 	UPROPERTY(EditAnywhere, Category="Protocol")
 	ERCSignatureProtocolActionMappingSpace MappingSpace = ERCSignatureProtocolActionMappingSpace::Additive;

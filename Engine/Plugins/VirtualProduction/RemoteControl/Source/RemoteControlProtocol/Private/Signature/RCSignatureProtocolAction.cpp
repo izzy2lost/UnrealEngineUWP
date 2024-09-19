@@ -203,7 +203,7 @@ namespace UE::RemoteControlProtocol::Private
 				InOutMapping.SetMappingValueAsPrimitive(FRelativeOperation<InCppType>::CalculateAdditive(PropertyValue, MappingValue));
 				break;
 
-			case ERCSignatureProtocolActionMappingSpace::Scalar:
+			case ERCSignatureProtocolActionMappingSpace::Multiply:
 				InOutMapping.SetMappingValueAsPrimitive(FRelativeOperation<InCppType>::CalculateScalar(PropertyValue, MappingValue));
 				break;
 
@@ -268,13 +268,20 @@ bool FRCSignatureProtocolAction::Execute(const FRCSignatureActionContext& InCont
 
 	if (PropertyDimension == 1)
 	{
+		InContext.Property->ProtocolBindings.Empty(1);
 		CreateProtocolEntity(InContext, *Protocol, 0xFF);
 		return true;
 	}
 
-	switch (MaskingType)
+	if (bSingleProtocolChannel)
 	{
-	case ERCSignatureProtocolActionMaskingType::SingleChannel:
+		InContext.Property->ProtocolBindings.Empty(1);
+		CreateProtocolEntity(InContext, *Protocol, OverrideMask);
+	}
+	else
+	{
+		InContext.Property->ProtocolBindings.Empty(PropertyDimension);
+
 		// Add Mask Single Channel per Entity instead of all Channels
 		for (uint8 Dimension = 0; Dimension < PropertyDimension; ++Dimension)
 		{
@@ -284,15 +291,8 @@ bool FRCSignatureProtocolAction::Execute(const FRCSignatureActionContext& InCont
 				CreateProtocolEntity(InContext, *Protocol, Mask);
 			}
 		}
-		break;
-
-	case ERCSignatureProtocolActionMaskingType::MultiChannel:
-		CreateProtocolEntity(InContext, *Protocol, OverrideMask);
-		break;
-
-	default:
-		break;
 	}
+
 	return true;
 }
 
