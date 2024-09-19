@@ -275,7 +275,9 @@ bool FEditorViewportSelectability::SelectActorsByPredicate(UWorld* const InWorld
 
 	auto SelectIfPossible = [bInSelect, ActorSelection, &InPredicate, &bSomethingSelected](AActor* const InActor)
 	{
-		if (IsValid(InActor) && ActorSelection->IsSelected(InActor) != bInSelect && InPredicate(InActor) == bInSelect)
+		if (IsValid(InActor)
+			&& ActorSelection->IsSelected(InActor) != bInSelect
+			&& InPredicate(InActor))
 		{
 			bSomethingSelected = true;
 			GEditor->SelectActor(InActor, bInSelect, true);
@@ -309,7 +311,13 @@ bool FEditorViewportSelectability::SelectActorsByPredicate(UWorld* const InWorld
 	return bSomethingSelected;
 }
 
-bool FEditorViewportSelectability::IsActorInLevelHiddenLayer(AActor& InActor, FLevelEditorViewportClient* const InLevelEditorViewportClient)
+bool FEditorViewportSelectability::IsActorSelectableClass(const AActor& InActor)
+{
+	const bool bInvalidClass = InActor.IsA<AWorldSettings>() || InActor.IsA<ABrush>();
+	return !bInvalidClass;
+}
+
+bool FEditorViewportSelectability::IsActorInLevelHiddenLayer(const AActor& InActor, FLevelEditorViewportClient* const InLevelEditorViewportClient)
 {
 	if (!InLevelEditorViewportClient)
 	{
@@ -327,9 +335,9 @@ bool FEditorViewportSelectability::IsActorInLevelHiddenLayer(AActor& InActor, FL
 	return false;
 }
 
-bool FEditorViewportSelectability::DoesActorIntersectBox(AActor& InActor, const FBox& InBox, FEditorViewportClient* const InEditorViewportClient, const bool bInUseStrictSelection)
+bool FEditorViewportSelectability::DoesActorIntersectBox(const AActor& InActor, const FBox& InBox, FEditorViewportClient* const InEditorViewportClient, const bool bInUseStrictSelection)
 {
-	if (InActor.IsHiddenEd())
+	if (InActor.IsHiddenEd() || !IsActorSelectableClass(InActor))
 	{
 		return false;
 	}
@@ -345,22 +353,22 @@ bool FEditorViewportSelectability::DoesActorIntersectBox(AActor& InActor, const 
 	for (const UActorComponent* const Component : InActor.GetComponents())
 	{
 		const UPrimitiveComponent* const PrimitiveComponent = Cast<UPrimitiveComponent>(Component);
-		if (PrimitiveComponent && PrimitiveComponent->IsRegistered() && PrimitiveComponent->IsVisibleInEditor())
+		if (PrimitiveComponent
+			&& PrimitiveComponent->IsRegistered()
+			&& PrimitiveComponent->IsVisibleInEditor()
+			&& PrimitiveComponent->IsShown(InEditorViewportClient->EngineShowFlags)
+			&& PrimitiveComponent->ComponentIsTouchingSelectionBox(InBox, false, bInUseStrictSelection))
 		{
-			if (PrimitiveComponent->IsShown(InEditorViewportClient->EngineShowFlags)
-				&& PrimitiveComponent->ComponentIsTouchingSelectionBox(InBox, false, bInUseStrictSelection))
-			{
-				return true;
-			}
+			return true;
 		}
 	}
 
 	return false;
 }
 
-bool FEditorViewportSelectability::DoesActorIntersectFrustum(AActor& InActor, const FConvexVolume& InFrustum, FEditorViewportClient* const InEditorViewportClient, const bool bInUseStrictSelection)
+bool FEditorViewportSelectability::DoesActorIntersectFrustum(const AActor& InActor, const FConvexVolume& InFrustum, FEditorViewportClient* const InEditorViewportClient, const bool bInUseStrictSelection)
 {
-	if (InActor.IsHiddenEd())
+	if (InActor.IsHiddenEd() || !IsActorSelectableClass(InActor))
 	{
 		return false;
 	}
@@ -372,17 +380,16 @@ bool FEditorViewportSelectability::DoesActorIntersectFrustum(AActor& InActor, co
 		return false;
 	}
 
-	// Iterate over all actor components, selecting our primitive components
 	for (const UActorComponent* const Component : InActor.GetComponents())
 	{
 		const UPrimitiveComponent* const PrimitiveComponent = Cast<UPrimitiveComponent>(Component);
-		if (PrimitiveComponent && PrimitiveComponent->IsRegistered() && PrimitiveComponent->IsVisibleInEditor())
+		if (IsValid(PrimitiveComponent)
+			&& PrimitiveComponent->IsRegistered()
+			&& PrimitiveComponent->IsVisibleInEditor()
+			&& PrimitiveComponent->IsShown(InEditorViewportClient->EngineShowFlags)
+			&& PrimitiveComponent->ComponentIsTouchingSelectionFrustum(InFrustum, false, bInUseStrictSelection))
 		{
-			if (PrimitiveComponent->IsShown(InEditorViewportClient->EngineShowFlags)
-				&& PrimitiveComponent->ComponentIsTouchingSelectionFrustum(InFrustum, false, bInUseStrictSelection))
-			{
-				return true;
-			}
+			return true;
 		}
 	}
 
@@ -515,14 +522,15 @@ bool FEditorViewportSelectability::BoxSelectWorldActors(FBox& InBox, FEditorView
 
 	const auto Predicate = [this, &InBox, InEditorViewportClient, bUseStrictSelection](AActor* const InActor) -> bool
 	{
-		return IsObjectSelectableInViewport(InActor)
-			&& DoesActorIntersectBox(*InActor, InBox, InEditorViewportClient, bUseStrictSelection);
+		const bool bSelectable = IsObjectSelectableInViewport(InActor);
+		const bool bIntersects = DoesActorIntersectBox(*InActor, InBox, InEditorViewportClient, bUseStrictSelection);
+		return bSelectable && bIntersects;
 	};
 
 	const bool bShiftDown = InEditorViewportClient->Viewport->KeyState(EKeys::LeftShift)
 		|| InEditorViewportClient->Viewport->KeyState(EKeys::RightShift);
 
-	SelectActorsByPredicate(World, bInSelect, bShiftDown, Predicate);
+	SelectActorsByPredicate(World, bInSelect, !bShiftDown, Predicate);
 
 	return true;
 }
@@ -545,28 +553,29 @@ bool FEditorViewportSelectability::FrustumSelectWorldActors(const FConvexVolume&
 
 	const auto Predicate = [this, &InFrustum, InEditorViewportClient, bUseStrictSelection](AActor* const InActor) -> bool
 	{
-		return IsObjectSelectableInViewport(InActor)
-			&& DoesActorIntersectFrustum(*InActor, InFrustum, InEditorViewportClient, bUseStrictSelection);
+		const bool bSelectable = IsObjectSelectableInViewport(InActor);
+		const bool bIntersects = DoesActorIntersectFrustum(*InActor, InFrustum, InEditorViewportClient, bUseStrictSelection);
+		return bSelectable && bIntersects;
 	};
 
 	const bool bShiftDown = InEditorViewportClient->Viewport->KeyState(EKeys::LeftShift)
 		|| InEditorViewportClient->Viewport->KeyState(EKeys::RightShift);
 
-	SelectActorsByPredicate(World, bInSelect, bShiftDown, Predicate);
+	SelectActorsByPredicate(World, bInSelect, !bShiftDown, Predicate);
 
 	return true;
 }
 
 void FEditorViewportSelectability::DrawEnabledTextNotice(FCanvas* const InCanvas, const FText& InText)
 {
-	const FString HelpString = InText.ToString();
+	const FStringView HelpString = *InText.ToString();
 
 	FTextSizingParameters SizingParameters(GEngine->GetLargeFont(), 1.f, 1.f);
 	UCanvas::CanvasStringSize(SizingParameters, HelpString);
 
 	const float ViewWidth = InCanvas->GetViewRect().Width() / InCanvas->GetDPIScale();
 	const float DrawX = FMath::FloorToFloat((ViewWidth - SizingParameters.DrawXL) * 0.5f);
-	InCanvas->DrawShadowedString(DrawX, 34.f, *HelpString, GEngine->GetLargeFont(), FLinearColor::White);
+	InCanvas->DrawShadowedString(DrawX, 34.f, HelpString, GEngine->GetLargeFont(), FLinearColor::White);
 }
 
 FText FEditorViewportSelectability::GetLimitedSelectionText(const TSharedPtr<FUICommandInfo>& InToggleAction, const FText& InDefaultText)
