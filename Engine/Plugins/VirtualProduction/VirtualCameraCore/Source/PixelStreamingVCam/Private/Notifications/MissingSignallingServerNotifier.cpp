@@ -114,19 +114,36 @@ namespace UE::PixelStreamingVCam
 			);
 		const FString ClientList = FString::Join(DisplayNames, TEXT(", "));
 
+		const FNotificationButtonInfo::FVisibilityDelegate VisibilityDelegate =  FNotificationButtonInfo::FVisibilityDelegate::CreateLambda(
+			[this](auto){ return CurrentNotification.IsValid() ? EVisibility::Visible : EVisibility::Collapsed; }
+			);
 		FNotificationInfo NotificationInfo(LOCTEXT("SignallingServer.Title", "Signalling Server required"));
 		NotificationInfo.Hyperlink.BindStatic(&Private::ShowActorsInOutliner, SessionActors);
 		NotificationInfo.HyperlinkText = FText::Format(LOCTEXT("SelectActors", "Select in outliner: {0}"), FText::FromString(ClientList));
-		NotificationInfo.CheckBoxState = TAttribute<ECheckBoxState>::CreateLambda([this](){ return bAreNotificationsMuted ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; });
-		NotificationInfo.CheckBoxStateChanged.BindLambda([this](ECheckBoxState NewState){ bAreNotificationsMuted = NewState == ECheckBoxState::Checked; });
+		NotificationInfo.CheckBoxState = TAttribute<ECheckBoxState>::CreateLambda(
+			[this](){ return bAreNotificationsMuted ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }
+			);
+		NotificationInfo.CheckBoxStateChanged.BindLambda(
+			[this](ECheckBoxState NewState){ bAreNotificationsMuted = NewState == ECheckBoxState::Checked; }
+			);
 		NotificationInfo.CheckBoxText = LOCTEXT("StopShowing", "Do not remind again until next restart");
 		NotificationInfo.bFireAndForget = false;
 		NotificationInfo.FadeOutDuration = 4.f;
 		NotificationInfo.SubText = LOCTEXT("SignallingServer.SubTextFmt", "Some actors require a signalling server");
 		NotificationInfo.ButtonDetails =
 		{
-			FNotificationButtonInfo(LOCTEXT("Launch.Label", "Launch"), LOCTEXT("Launch.ToolTip", "Launches a local signalling server"), FSimpleDelegate::CreateRaw(this, &FMissingSignallingServerNotifier::OnClickLaunch), SNotificationItem::CS_None),
-			FNotificationButtonInfo(LOCTEXT("Skip.Label", "Skip"), LOCTEXT("Skip.ToolTip", "Do nothing about this"), FSimpleDelegate::CreateRaw(this, &FMissingSignallingServerNotifier::OnClickSkip), SNotificationItem::CS_None),
+			FNotificationButtonInfo(
+				LOCTEXT("Launch.Label", "Launch"),
+				LOCTEXT("Launch.ToolTip", "Launches a local signalling server"),
+				FSimpleDelegate::CreateRaw(this, &FMissingSignallingServerNotifier::OnClickLaunch),
+				VisibilityDelegate
+				),
+			FNotificationButtonInfo(
+				LOCTEXT("Skip.Label", "Skip"),
+				LOCTEXT("Skip.ToolTip", "Do nothing about this"),
+				FSimpleDelegate::CreateRaw(this, &FMissingSignallingServerNotifier::OnClickSkip),
+				VisibilityDelegate
+				),
 		};
 		CurrentNotification = FSlateNotificationManager::Get().AddNotification(NotificationInfo);
 	}
@@ -153,6 +170,10 @@ namespace UE::PixelStreamingVCam
 		const FText& Subtext
 		)
 	{
+		if (!ensure(CurrentNotification))
+		{
+			return;
+		}
 		NotificationState = ENotificationState::Displayed;
 
 		CurrentNotification->SetCompletionState(NewCompletionState);
