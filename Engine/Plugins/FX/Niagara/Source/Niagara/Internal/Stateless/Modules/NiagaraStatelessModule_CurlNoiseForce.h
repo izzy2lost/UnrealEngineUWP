@@ -20,7 +20,7 @@ enum class ENSM_NoiseMode
 	LUTJacobBicubic,
 };
 
-UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Curl Noise Force"))
+UCLASS(MinimalAPI, EditInlineNew, Experimental, meta = (DisplayName = "Curl Noise Force"))
 class UNiagaraStatelessModule_CurlNoiseForce : public UNiagaraStatelessModule
 {
 	GENERATED_BODY()
