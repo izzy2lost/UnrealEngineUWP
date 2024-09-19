@@ -5,6 +5,8 @@
 #include "RCSignatureAction.h"
 #include "RCSignatureControllerAction.generated.h"
 
+class URCAction;
+class URCBehaviour;
 class URCController;
 struct FPropertyBagPropertyDesc;
 
@@ -64,6 +66,8 @@ struct FRCSignatureControllerAction : public FRCSignatureAction
 	}
 
 	URCController* FindOrAddController(const FRCSignatureActionContext& InContext, bool* bOutControllerAdded = nullptr) const;
+
+	URCAction* FindActionInBehavior(const FRCSignatureActionContext& InContext, const URCBehaviour& InBehavior) const;
 
 	UPROPERTY(EditAnywhere, Category = "Controller")
 	FName ControllerName;

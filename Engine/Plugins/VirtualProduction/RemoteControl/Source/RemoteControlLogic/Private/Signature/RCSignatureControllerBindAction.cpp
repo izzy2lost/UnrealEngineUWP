@@ -114,7 +114,14 @@ bool FRCSignatureControllerBindAction::ExecuteControllerAction(const FRCSignatur
 		return false;
 	}
 
-	URCAction* BindAction = BindBehavior->AddPropertyBindAction(RCProperty);
+	URCAction* BindAction = FindActionInBehavior(InContext, *BindBehavior);
+	if (!BindAction)
+	{
+		BindAction = BindBehavior->AddPropertyBindAction(RCProperty);
+	}
+
+	check(BindAction);
 	BindAction->Execute();
+
 	return true;
 }

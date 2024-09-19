@@ -775,6 +775,27 @@ TWeakPtr<FRemoteControlActor> URemoteControlPreset::ExposeActor(AActor* Actor, F
 	return StaticCastSharedPtr<FRemoteControlActor>(Expose(MoveTemp(RCActor), FRemoteControlActor::StaticStruct(), Args.GroupId));
 }
 
+TSharedPtr<FRemoteControlProperty> URemoteControlPreset::FindExposedProperty(UObject* InOuterObject, const FRCFieldPathInfo& InFieldPath) const
+{
+	if (!InOuterObject || !Registry)
+	{
+		return nullptr;
+	}
+
+	const FString FieldPathStr = InFieldPath.ToString();
+
+	const TArray<UObject*> OuterObjects = { InOuterObject };
+
+	for (TSharedPtr<FRemoteControlProperty> Property : Registry->GetExposedEntities<FRemoteControlProperty>())
+	{
+		if (Property->FieldPathInfo.ToString() == FieldPathStr && Property->ContainsBoundObjects(OuterObjects))
+		{
+			return Property;
+		}
+	}
+
+	return nullptr;
+}
 
 FName URemoteControlPreset::GenerateUniqueLabel(const FName InDesiredName) const
 {

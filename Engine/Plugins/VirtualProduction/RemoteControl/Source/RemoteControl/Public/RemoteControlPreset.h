@@ -410,6 +410,14 @@ public:
 	TWeakPtr<FRemoteControlActor> ExposeActor(AActor* Actor, FRemoteControlPresetExposeArgs Args = FRemoteControlPresetExposeArgs());
 
 	/**
+	 * Gets a given object's property exposed property guid in this preset
+	 * @param InOuterObject the object to check
+	 * @param InFieldPath the path to the property
+	 * @return The exposed property if found, nullptr otherwise
+	 */
+	TSharedPtr<FRemoteControlProperty> FindExposedProperty(UObject* InOuterObject, const FRCFieldPathInfo& InFieldPath) const;
+
+	/**
 	 * Expose a property on this preset.
 	 * @param Object the object that holds the property.
 	 * @param FieldPath The name/path to the property.
