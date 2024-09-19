@@ -166,18 +166,12 @@ public:
 	DAYSEQUENCE_API void DisableComponent();
 
 	/** Sets the user day sequence. This must be a user created asset. */
-	UFUNCTION(BlueprintSetter, Category="Day Sequence")
 	DAYSEQUENCE_API void SetUserDaySequence(UDaySequence* InDaySequence);
-
-	UFUNCTION(BlueprintGetter, BlueprintPure, Category="Day Sequence")
-	DAYSEQUENCE_API UDaySequence* GetUserDaySequence();
+	DAYSEQUENCE_API UDaySequence* GetUserDaySequence() const;
 
 	/** Sets a user specified transient sequence. */
-	UFUNCTION(BlueprintSetter, Category="Day Sequence")
 	DAYSEQUENCE_API void SetTransientSequence(UDaySequence* InDaySequence);
-	
-	UFUNCTION(BlueprintGetter, BlueprintPure, Category="Day Sequence")
-	DAYSEQUENCE_API UDaySequence* GetTransientSequence();
+	DAYSEQUENCE_API UDaySequence* GetTransientSequence() const;
 	
 	UFUNCTION(BlueprintCallable, Category="Day Sequence")
 	DAYSEQUENCE_API void SetDayNightCycle(EDayNightCycleMode NewMode);
@@ -261,11 +255,11 @@ protected:
 	TWeakObjectPtr<APlayerController> WeakBlendTarget;
 
 	/** The user provided Day Sequence. */
-	UPROPERTY(EditAnywhere, Category="Day Sequence", BlueprintGetter = GetUserDaySequence, BlueprintSetter = SetUserDaySequence, meta=(EditCondition="!bUseCollection", EditConditionHides, DisplayAfter="bUseCollection"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Day Sequence", Setter, Getter, meta=(EditCondition="!bUseCollection", EditConditionHides, DisplayAfter="bUseCollection"))
 	TObjectPtr<UDaySequence> UserDaySequence;
 
 	/** The user provided Transient Day Sequence. */
-    UPROPERTY(Transient, Category="Day Sequence", BlueprintGetter = GetTransientSequence, BlueprintSetter = SetTransientSequence, meta=(EditCondition="!bUseCollection", EditConditionHides, DisplayAfter="bUseCollection"))
+    UPROPERTY(Transient, BlueprintReadWrite, Category="Day Sequence", Setter, Getter, meta=(EditCondition="!bUseCollection", EditConditionHides, DisplayAfter="bUseCollection"))
     TObjectPtr<UDaySequence> TransientSequence;
 	
 	/** The user provided collection. This is an alternative to UserDaySequence. */
