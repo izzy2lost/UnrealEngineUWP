@@ -15,7 +15,7 @@
 
 #include "AnimNode_RigidBodyWithControl.h"
 
-#include "OperatorEditor/OperatorTreeElements.h"
+#include "OperatorViewer/OperatorTreeElements.h"
 
 /**
  * class SOperatorTreeWidget

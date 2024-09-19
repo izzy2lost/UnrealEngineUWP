@@ -7,7 +7,7 @@
 
 
 
-class FPhysicsControlOperatorEditor;
+class FPhysicsControlOperatorViewer;
 class FPhysicsControlAssetActions;
 
 /**
@@ -26,6 +26,6 @@ private:
 	TArray<FName> VisualizersToUnregisterOnShutdown;
 	TSharedPtr<FPhysicsControlAssetActions> PhysicsControlAssetActions;
 
-	FPhysicsControlOperatorEditor* EditorInterface = nullptr;
+	FPhysicsControlOperatorViewer* EditorInterface = nullptr;
 };
 

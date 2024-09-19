@@ -3,14 +3,12 @@
 #include "PhysicsControlEditorModule.h"
 #include "PhysicsControlComponent.h"
 #include "PhysicsControlComponentVisualizer.h"
-#include "OperatorEditor/OperatorEditor.h"
+#include "OperatorViewer/OperatorViewer.h"
 #include "PhysicsControlAssetActions.h"
 #include "PhysicsControlAssetEditorEditMode.h"
 #include "UnrealEdGlobals.h"
 #include "Editor/UnrealEdEngine.h"
 #include "Features/IModularFeatures.h"
-
-static const FName PhysicsControlEditorModule_PhysicsControlEditorInterface("PhysicsControlEditorInterface");
 
 #define LOCTEXT_NAMESPACE "PhysicsControlModule"
 
@@ -38,13 +36,13 @@ void FPhysicsControlEditorModule::StartupModule()
 
 	if (!EditorInterface)
 	{
-		EditorInterface = new FPhysicsControlOperatorEditor;
+		EditorInterface = new FPhysicsControlOperatorViewer;
 	}
 
 	if (EditorInterface)
 	{
 		EditorInterface->Startup();
-		IModularFeatures::Get().RegisterModularFeature(PhysicsControlEditorModule_PhysicsControlEditorInterface, EditorInterface);
+		IModularFeatures::Get().RegisterModularFeature(IPhysicsControlOperatorViewerInterface::GetModularFeatureName(), EditorInterface);
 	}
 }
 
@@ -54,7 +52,7 @@ void FPhysicsControlEditorModule::ShutdownModule()
 	if (EditorInterface)
 	{
 		EditorInterface->Shutdown();
-		IModularFeatures::Get().UnregisterModularFeature(PhysicsControlEditorModule_PhysicsControlEditorInterface, EditorInterface);
+		IModularFeatures::Get().UnregisterModularFeature(IPhysicsControlOperatorViewerInterface::GetModularFeatureName(), EditorInterface);
 		delete EditorInterface;
 		EditorInterface = nullptr;
 	}

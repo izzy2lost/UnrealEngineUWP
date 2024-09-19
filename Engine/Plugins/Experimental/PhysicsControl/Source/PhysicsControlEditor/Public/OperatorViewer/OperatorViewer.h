@@ -3,18 +3,18 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "IPhysicsControlOperatorEditorInterface.h"
+#include "IPhysicsControlOperatorViewerInterface.h"
 #include "Containers/Ticker.h"
 
 class FSpawnTabArgs;
-class SOperatorEditorTabWidget;
+class SOperatorViewerTabWidget;
 class SDockTab;
 
-class FPhysicsControlOperatorEditor : public IPhysicsControlOperatorEditorInterface
+class FPhysicsControlOperatorViewer : public IPhysicsControlOperatorViewerInterface
 {
 public:
 
-	virtual ~FPhysicsControlOperatorEditor() {}
+	virtual ~FPhysicsControlOperatorViewer() {}
 
 	virtual void OpenOperatorNamesTab() override;
 	virtual void CloseOperatorNamesTab() override;
@@ -30,6 +30,6 @@ public:
 private:
 	TSharedRef<SDockTab> OnCreateTab(const FSpawnTabArgs& SpawnTabArgs);
 
-	TSharedPtr<SOperatorEditorTabWidget> PersistantTabWidget;
+	TSharedPtr<SOperatorViewerTabWidget> PersistantTabWidget;
 	TSharedPtr<SDockTab> OperatorNamesTab;
 };

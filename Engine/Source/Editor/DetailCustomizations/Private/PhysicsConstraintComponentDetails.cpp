@@ -1189,7 +1189,7 @@ void FPhysicsConstraintComponentDetails::ToggleDisplayConstraintTransformCompone
 {
 	if (ParentPhysicsAsset)
 	{
-		IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>("PhysicsAssetRenderInterface");
+		IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>(IPhysicsAssetRenderInterface::GetModularFeatureName());
 		const bool bCurrentState = IsDisplayingConstraintTransformComponentRelativeToDefault(ComponentFlags);
 		const EConstraintTransformComponentFlags ComponentFlagsToModify = (FSlateApplication::Get().GetModifierKeys().IsShiftDown()) ? EConstraintTransformComponentFlags::All : ComponentFlags;
 		PhysicsAssetRenderInterface.SetDisplayConstraintTransformComponentRelativeToDefault(ParentPhysicsAsset, ComponentFlagsToModify, !bCurrentState);
@@ -1201,7 +1201,7 @@ bool FPhysicsConstraintComponentDetails::IsConstraintTransformComponentEnabled(c
 {
 	if (ParentPhysicsAsset)
 	{
-		IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>("PhysicsAssetRenderInterface");
+		IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>(IPhysicsAssetRenderInterface::GetModularFeatureName());
 		const EConstraintTransformComponentFlags ComponentManipulationFlags = PhysicsAssetRenderInterface.GetConstraintViewportManipulationFlags(ParentPhysicsAsset);
 
 		return EnumHasAllFlags(ComponentManipulationFlags, ComponentFlags);
@@ -1219,7 +1219,7 @@ void FPhysicsConstraintComponentDetails::UpdateTransformProxyDisplayRelativeToDe
 {
 	if (ParentPhysicsAsset)
 	{
-		IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>("PhysicsAssetRenderInterface");
+		IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>(IPhysicsAssetRenderInterface::GetModularFeatureName());
 
 		ChildTransformProxy->SetPositionDisplayRelativeToDefault(PhysicsAssetRenderInterface.IsDisplayingConstraintTransformComponentRelativeToDefault(ParentPhysicsAsset, EConstraintTransformComponentFlags::ChildPosition));
 		ChildTransformProxy->SetRotationDisplayRelativeToDefault(PhysicsAssetRenderInterface.IsDisplayingConstraintTransformComponentRelativeToDefault(ParentPhysicsAsset, EConstraintTransformComponentFlags::ChildRotation));
@@ -1238,7 +1238,7 @@ bool FPhysicsConstraintComponentDetails::IsDisplayingConstraintTransformComponen
 {
 	if (ParentPhysicsAsset)
 	{
-		return IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>("PhysicsAssetRenderInterface").IsDisplayingConstraintTransformComponentRelativeToDefault(ParentPhysicsAsset, ComponentFlags);
+		return IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>(IPhysicsAssetRenderInterface::GetModularFeatureName()).IsDisplayingConstraintTransformComponentRelativeToDefault(ParentPhysicsAsset, ComponentFlags);
 	}
 
 	return false;

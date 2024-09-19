@@ -623,7 +623,8 @@ void UPhysicsAssetRenderUtilities::Initialise()
 			PhysicsAssetRenderUtilities->PhysicsAssetRenderInterface = new FPhysicsAssetRenderInterface;
 		}
 
-		IModularFeatures::Get().RegisterModularFeature("PhysicsAssetRenderInterface", PhysicsAssetRenderUtilities->PhysicsAssetRenderInterface);
+		IModularFeatures::Get().RegisterModularFeature(IPhysicsAssetRenderInterface::GetModularFeatureName(), 
+			PhysicsAssetRenderUtilities->PhysicsAssetRenderInterface);
 	}
 }
 

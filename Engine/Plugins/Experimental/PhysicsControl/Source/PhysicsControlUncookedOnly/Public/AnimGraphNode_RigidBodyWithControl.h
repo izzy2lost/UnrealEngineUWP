@@ -46,7 +46,7 @@ public:
 
 	void ToggleBodyVisibility();
 	void ToggleConstraintVisibility();
-	void ToggleControlEditorTab();
+	void ToggleControlSetViewerTab();
 
 	TArray<TPair<FName, TArray<FName>>> GenerateControlsAndBodyModifierNames() const;
 
@@ -60,7 +60,7 @@ protected:
 
 	bool AreAnyBodiesHidden() const;
 	bool AreAnyConstraintsHidden() const;
-	bool IsControlEditorTabOpen() const;
+	bool IsControlSetViewerTabOpen() const;
 
 	void PostChange();
 

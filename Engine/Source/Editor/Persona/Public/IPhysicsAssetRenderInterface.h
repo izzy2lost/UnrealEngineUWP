@@ -13,6 +13,11 @@ class IPhysicsAssetRenderInterface : public IModuleInterface, public IModularFea
 	// virtual ~IPhysicsAssetRenderInterface() = default;
 
 public:
+	static FName GetModularFeatureName()
+	{
+		static FName FeatureName = FName(TEXT("PhysicsAssetRenderInterface"));
+		return FeatureName;
+	}
 
 	virtual void DebugDraw(class USkeletalMeshComponent* const SkeletalMeshComponent, class UPhysicsAsset* const PhysicsAsset, class FPrimitiveDrawInterface* PDI) = 0;
 	virtual void DebugDrawBodies(class USkeletalMeshComponent* const SkeletalMeshComponent, class UPhysicsAsset* const PhysicsAsset, FPrimitiveDrawInterface* PDI, const FColor& PrimitiveColorOverride) = 0;

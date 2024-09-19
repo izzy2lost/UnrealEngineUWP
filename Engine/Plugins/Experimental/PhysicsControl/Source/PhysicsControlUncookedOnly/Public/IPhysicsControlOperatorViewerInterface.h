@@ -5,9 +5,14 @@
 #include "CoreMinimal.h"
 #include "Features/IModularFeature.h"
 
-class IPhysicsControlOperatorEditorInterface : public IModularFeature
+class IPhysicsControlOperatorViewerInterface : public IModularFeature
 {
 public:
+	static FName GetModularFeatureName()
+	{
+		static FName FeatureName = FName(TEXT("PhysicsControlViewerInterface"));
+		return FeatureName;
+	}
 
 	virtual void OpenOperatorNamesTab() = 0;
 	virtual void CloseOperatorNamesTab() = 0;
