@@ -35,13 +35,26 @@ public:
 	{
 		FExtrudeFrame() {}
 
-		FExtrudeFrame(const FFrame3d& FrameIn, const FVector3d& ScalingIn = FVector3d::One())
+		FExtrudeFrame(const FFrame3d& FrameIn)
 			: Frame(FrameIn)
+		{}
+		FExtrudeFrame(const FFrame3d& FrameIn, const FVector3d& InFrameScaleDirection, double ScalingIn)
+			: Frame(FrameIn)
+			, InFrameScaleDirection(InFrameScaleDirection)
 			, Scaling(ScalingIn)
 		{}
 
+		FVector3d FromFramePoint(FVector3d FramePoint) const;
+
+		FVector3d ToFramePoint(FVector3d WorldPoint) const;
+
 		FFrame3d Frame;
-		FVector3d Scaling = FVector3d::One();
+
+		// Extra scaling direction used to support adjusting extruded vertices when trying to keep
+		//  edges parallel. The input is scaled along this axis in frame space. See comment inside
+		//  ExtrudeBoundaryEdgesLocals::GetExtrudeFrameAtVertex.
+		TOptional<FVector3d> InFrameScaleDirection;
+		double Scaling = 1.0;
 	};
 
 	// Data needed to create a new vert and its extrude frame
@@ -74,7 +87,7 @@ public:
 	TFunction<FVector3d(const FVector3d& Position, const FExtrudeFrame& ExtrudeFrame, int32 SourceVid)> OffsetPositionFunc =
 		[this](const FVector3d& Position, const FExtrudeFrame& ExtrudeFrame, int32 SourceVid)
 	{
-		return ExtrudeFrame.Frame.FromFramePoint(FVector3d(this->DefaultOffsetDistance, 0, 0) * ExtrudeFrame.Scaling);
+		return ExtrudeFrame.FromFramePoint(FVector3d(this->DefaultOffsetDistance, 0, 0));
 	};
 
 	/** 
