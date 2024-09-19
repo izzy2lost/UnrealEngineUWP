@@ -7,7 +7,6 @@
 #include "Components/DMMaterialLayer.h"
 #include "Components/PrimitiveComponent.h"
 #include "ContentBrowserModule.h"
-#include "DMObjectMaterialProperty.h"
 #include "DMWorldSubsystem.h"
 #include "DynamicMaterialEditorModule.h"
 #include "Engine/Texture.h"
@@ -28,85 +27,6 @@
 #include "Utils/DMPrivate.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialModelFunctionLibrary"
-
-TArray<FDMObjectMaterialProperty> UDMMaterialModelFunctionLibrary::GetActorMaterialProperties(AActor* InActor)
-{
-	TArray<FDMObjectMaterialProperty> ActorProperties;
-
-	if (!IsValid(InActor))
-	{
-		return ActorProperties;
-	}
-
-	FDMGetObjectMaterialPropertiesDelegate PropertyGenerator = FDynamicMaterialEditorModule::GetCustomMaterialPropertyGenerator(InActor->GetClass());
-
-	if (PropertyGenerator.IsBound())
-	{
-		ActorProperties = PropertyGenerator.Execute(InActor);
-
-		if (!ActorProperties.IsEmpty())
-		{
-			return ActorProperties;
-		}
-	}
-
-	InActor->ForEachComponent<UPrimitiveComponent>(false, [&ActorProperties](UPrimitiveComponent* InComp)
-		{
-			for (int32 MaterialIdx = 0; MaterialIdx < InComp->GetNumMaterials(); ++MaterialIdx)
-			{
-				ActorProperties.Add({InComp, MaterialIdx});
-			}
-		});
-
-	return ActorProperties;
-}
-
-UDynamicMaterialModel* UDMMaterialModelFunctionLibrary::CreateMaterialInObject(FDMObjectMaterialProperty& InMaterialProperty)
-{
-	if (!InMaterialProperty.IsValid())
-	{
-		return nullptr;
-	}
-
-	UObject* const Outer = InMaterialProperty.GetOuter();
-
-	UDynamicMaterialInstanceFactory* const InstanceFactory = NewObject<UDynamicMaterialInstanceFactory>();
-	check(InstanceFactory);
-
-	UDynamicMaterialInstance* const NewInstance = Cast<UDynamicMaterialInstance>(InstanceFactory->FactoryCreateNew(UDynamicMaterialInstance::StaticClass(),
-		Outer, NAME_None, RF_Transactional, nullptr, GWarn));
-	check(NewInstance);
-
-	bool bSubsystemTakenOver = false;
-
-	if (const UWorld* const World = Outer->GetWorld())
-	{
-		if (IsValid(World))
-		{
-			if (UDMWorldSubsystem* const WorldSubsystem = World->GetSubsystem<UDMWorldSubsystem>())
-			{
-				bSubsystemTakenOver = WorldSubsystem->ExecuteMaterialValueSetterDelegate(InMaterialProperty, NewInstance);
-			}
-		}
-	}
-
-	if (!bSubsystemTakenOver)
-	{
-		InMaterialProperty.SetMaterial(NewInstance);
-	}
-
-	if (UDynamicMaterialModel* MaterialModel = NewInstance->GetMaterialModel())
-	{
-		if (IDynamicMaterialModelEditorOnlyDataInterface* EditorOnlyData = MaterialModel->GetEditorOnlyData())
-		{
-			EditorOnlyData->RequestMaterialBuild();
-		}
-
-		return MaterialModel;
-	}
-
-	return nullptr;
-}
 
 UDynamicMaterialInstance* UDMMaterialModelFunctionLibrary::ExportMaterial(UDynamicMaterialModelBase* InMaterialModelBase)
 {

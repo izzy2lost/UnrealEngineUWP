@@ -20,6 +20,7 @@
 #include "Styling/SlateTypes.h"
 #include "Styling/StyleColors.h"
 #include "UI/Widgets/SDMMaterialDesigner.h"
+#include "Utils/DMMaterialInstanceFunctionLibrary.h"
 #include "Utils/DMMaterialModelFunctionLibrary.h"
 #include "Utils/DMPrivate.h"
 #include "Widgets/Input/SButton.h"
@@ -853,7 +854,11 @@ void SDMMaterialWizard::CreateNewDynamicInstanceInActor(UDynamicMaterialModel* I
 		return;
 	}
 
-	InMaterialObjectProperty.SetMaterial(NewInstance);
+	if (!UDMMaterialInstanceFunctionLibrary::SetMaterialInObject(InMaterialObjectProperty, NewInstance))
+	{
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to set material instance on object."));
+		return;
+	}
 
 	DesignerWidget->OpenObjectMaterialProperty(InMaterialObjectProperty);
 }
@@ -927,7 +932,11 @@ void SDMMaterialWizard::CreateTemplateMaterialInActor(FName InChannelList, FDMOb
 		EditorOnlyData->OnWizardComplete();
 	}
 
-	InMaterialObjectProperty.SetMaterial(NewInstance);
+	if (!UDMMaterialInstanceFunctionLibrary::SetMaterialInObject(InMaterialObjectProperty, NewInstance))
+	{
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to set material template on object."));
+		return;
+	}
 
 	DesignerWidget->OpenMaterialModelBase(NewInstance->GetMaterialModelBase());
 }

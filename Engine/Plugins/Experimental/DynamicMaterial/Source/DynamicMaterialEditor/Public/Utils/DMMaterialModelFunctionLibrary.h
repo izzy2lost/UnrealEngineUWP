@@ -8,12 +8,10 @@
 
 #include "DMMaterialModelFunctionLibrary.generated.h"
 
-class AActor;
 class FString;
 class UDynamicMaterialModelBase;
 class UDynamicMaterialModelDynamic;
 class UMaterial;
-struct FDMObjectMaterialProperty;
 
 /**
  * Material / Model Function Library
@@ -24,10 +22,6 @@ class UDMMaterialModelFunctionLibrary : public UBlueprintFunctionLibrary
 	GENERATED_BODY()
 
 public:
-	DYNAMICMATERIALEDITOR_API static TArray<FDMObjectMaterialProperty> GetActorMaterialProperties(AActor* InActor);
-
-	DYNAMICMATERIALEDITOR_API static UDynamicMaterialModel* CreateMaterialInObject(FDMObjectMaterialProperty& InMaterialProperty);
-
 	DYNAMICMATERIALEDITOR_API static UDynamicMaterialInstance* ExportMaterial(UDynamicMaterialModelBase* InMaterialModelBase);
 
 	DYNAMICMATERIALEDITOR_API static UDynamicMaterialInstance* ExportMaterial(UDynamicMaterialModelBase* InMaterialModel, const FString& InSavePath);
