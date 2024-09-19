@@ -78,7 +78,7 @@ UE::MovieGraph::FMovieGraphRenderDataValidationInfo UE::MovieGraph::FMovieGraphO
 		// Figure out how many cameras exist for this branch
 		if (PassIdentifier.RootBranchName == ActiveBranchName)
 		{
-			if (CameraNameCounts.Contains(PassIdentifier.CameraName))
+			if (!CameraNameCounts.Contains(PassIdentifier.CameraName))
 			{
 				ValidationInfo.ActiveCameraCount++;
 			}
