@@ -72,12 +72,15 @@ protected:
 	TSharedRef<SWidget> CreateNewTemplate_ChannelList();
 	TSharedRef<SWidget> CreateNewTemplate_AcceptButton();
 	TSharedRef<SWidget> CreateNewInstanceLayout();
+	TSharedRef<SWidget> CreateNewInstance_SearchBox();
+	TSharedRef<SWidget> CreateNewInstance_Picker();
+	TSharedRef<SWidget> CreateNewInstance_AcceptButton();
 
 	/** Attributes and Events */
 	ECheckBoxState Preset_GetState(FName InPresetName) const;
 	void Preset_OnChange(ECheckBoxState InState, FName InPresetName);
 
-	FReply Accept_OnClick();
+	FReply NewTemplateAccept_OnClick();
 
 	void OnMaterialBuilt(UDynamicMaterialModelBase* InMaterialModel);
 
@@ -95,7 +98,11 @@ protected:
 
 	bool ShouldFilterOutAsset(const FAssetData& InAsset) const;
 
+	bool NewInstance_CanAccept() const;
+
 	void OnAssetsActivated(TArrayView<const FContentBrowserItem> InSelectedItems, EAssetTypeActivationMethod::Type InActivationMethod);
+
+	FReply NewInstanceAccept_OnClick();
 
 	void OnEnginePreExit();
 

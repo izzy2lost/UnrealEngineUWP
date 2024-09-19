@@ -7,6 +7,7 @@
 #include "Interfaces/IPluginManager.h"
 #include "Styling/SlateStyleMacros.h"
 #include "Styling/SlateStyleRegistry.h"
+#include "Styling/StarshipCoreStyle.h"
 #include "Styling/StyleColors.h"
 
 namespace UE::DynamicMaterialEditor::Private
@@ -123,6 +124,11 @@ void FDynamicMaterialEditorStyle::SetupGeneralStyles()
 		.SetPressed(FSlateRoundedBoxBrush(FLinearColor(1, 1, 1, 0.25f), 4.0f, FLinearColor(1, 1, 1, 0.5f), 1.0f))
 		.SetNormalPadding(FMargin(0, 0, 0, 1))
 		.SetPressedPadding(FMargin(0, 1, 0, 0)));
+
+	Set("DulledSectionButton", FCheckBoxStyle(FStarshipCoreStyle::GetCoreStyle().GetWidgetStyle<FCheckBoxStyle>("FilterBar.BasicFilterButton"))
+		.SetCheckedImage(FSlateRoundedBoxBrush(FStyleColors::AccentBrown, 4.0f, FStyleColors::Input, 1.0f))
+		.SetCheckedHoveredImage(FSlateRoundedBoxBrush(FStyleColors::AccentFolder, 4.0f, FStyleColors::Input, 1.0f))
+		.SetCheckedPressedImage(FSlateRoundedBoxBrush(FStyleColors::AccentFolder, 4.0f, FStyleColors::Input, 1.0f)));
 }
 
 void FDynamicMaterialEditorStyle::SetupStageStyles()
