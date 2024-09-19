@@ -138,7 +138,7 @@ struct FMassEntityTemplateBuildContext
 	void RemoveTag(const UScriptStruct& TagType)
 	{
 		checkf(TagType.IsChildOf(FMassTag::StaticStruct()), TEXT("Given struct doesn't represent a valid mass tag type. Make sure to inherit from FMassTag or one of its child-types."));
-		RemovedTags.Add({&TagType
+		RemovedTypes.Add({&TagType
 #if WITH_EDITORONLY_DATA
 			, TraitsData.Last().Trait
 #endif // WITH_EDITORONLY_DATA
@@ -318,7 +318,7 @@ protected:
 		TraitsData.Reset();
 		TraitsProcessed.Reset();
 		IgnoredTraits.Reset();
-		RemovedTags.Reset();
+		RemovedTypes.Reset();
 		bBuildInProgress = false;
 	}
 
@@ -347,7 +347,7 @@ protected:
 	 * These tags will be removed from the resulting entity template
 	 * @see RemoveTag for more details
 	 */
-	TArray<FRemovedType> RemovedTags;
+	TArray<FRemovedType> RemovedTypes;
 
 	bool bBuildInProgress = false;
 

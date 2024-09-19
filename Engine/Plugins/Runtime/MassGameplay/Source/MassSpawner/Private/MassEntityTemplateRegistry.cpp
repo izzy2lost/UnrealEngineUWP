@@ -121,7 +121,7 @@ bool FMassEntityTemplateBuildContext::BuildFromTraits(TConstArrayView<UMassEntit
 	}
 	// now remove all that has been requested to be removed
 	// those are only tags for now, thus the shortcut of going directly for tags
-	for (FRemovedType& Removed : RemovedTags)
+	for (FRemovedType& Removed : RemovedTypes)
 	{
 		check(Removed.TypeRemoved);
 		TemplateData.RemoveTag(*CastChecked<UScriptStruct>(Removed.TypeRemoved));
@@ -208,6 +208,15 @@ bool FMassEntityTemplateBuildContext::ValidateBuildContext(const UWorld& World)
 		}
 	}
 
+	// now to properly test if something required was removed we need to filter TypesAlreadyAdded first
+	for (const FRemovedType& RemovedElement : RemovedTypes)
+	{
+		if (RemovedElement.TypeRemoved)
+		{
+			TypesAlreadyAdded.Remove(RemovedElement.TypeRemoved);
+		}
+	}
+
 	// these are critical, we're going to fail the validation if anything here fails
 	for (const FTraitData& TraitData : TraitsData)
 	{
@@ -222,10 +231,10 @@ bool FMassEntityTemplateBuildContext::ValidateBuildContext(const UWorld& World)
 				{
 					// check if it was removed
 					const UMassEntityTraitBase* RemovedByTrait = nullptr;
-					const int32 RemoverIndex = RemovedTags.Find(FRemovedType({TypeRequired}));
+					const int32 RemoverIndex = RemovedTypes.Find(FRemovedType({TypeRequired}));
 					if (RemoverIndex != INDEX_NONE)
 					{
-						RemovedByTrait = RemovedTags[RemoverIndex].Remover;
+						RemovedByTrait = RemovedTypes[RemoverIndex].Remover;
 					}
 
 					FMassDebugger::DebugEvent<FMassMissingTraitMessage>(TraitData.Trait, TypeRequired, RemovedByTrait);
