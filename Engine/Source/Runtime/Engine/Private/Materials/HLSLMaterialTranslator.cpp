@@ -13133,8 +13133,17 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 			SubstrateMaterialComplexity.bIsComplexSpecial = false;
 			bool bIsFastWaterPath = false;
 			bool bCustomEncoding = false;
+			bool bMayHaveCoverageLessThan1 = false;
 			for (const auto& It : SubstrateMaterialExpressionRegisteredOperators)
 			{
+				if (It.IsDiscarded() && It.OperatorType == SUBSTRATE_OPERATOR_WEIGHT)
+				{
+					// If a BSDF modified by a weight operator, its weight will be < 1.0f, and it won't be a "single" material anymore.
+					// This is also the case if the operator is "discarded" due to parameter blending, because the resulting BSDF might not have a coverage of 1 in the end.
+					// For instance with a BSDF => Weight => Horizonal node with parameter blending is encountered and weight is less than 1.
+					bMayHaveCoverageLessThan1 |= true;
+				}
+
 				if (It.IsDiscarded())
 				{
 					continue; // ignore discarded operations in sub tree using parameter blending
@@ -13204,6 +13213,13 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 				}
 			}
 			SubstrateMaterialComplexity.bIsSingle = SubstrateMaterialComplexity.bIsSingle && !SubstrateMaterialComplexity.bIsSimple;
+
+			if (bMayHaveCoverageLessThan1)
+			{
+				// Material with coverage<1 can only be complex. It will be made simple or single at export time if possible.
+				SubstrateMaterialComplexity.bIsSimple = false;
+				SubstrateMaterialComplexity.bIsSingle = false;
+			}
 
 			// 2. Header
 
