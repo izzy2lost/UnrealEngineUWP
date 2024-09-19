@@ -28,7 +28,7 @@ public class NNEOnnxruntime : ModuleRules
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Linux)
 		{
-			SharedLibFileName = "libonnxruntime.so.1.14.1";
+			SharedLibFileName = "libonnxruntime.so.1.17.1";
 			string SharedLibFileNameWithoutVersion = "libonnxruntime.so";
 			
 			PublicDelayLoadDLLs.Add(Path.Combine(OrtPlatformPath, SharedLibFileNameWithoutVersion));
@@ -39,7 +39,7 @@ public class NNEOnnxruntime : ModuleRules
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
-			SharedLibFileName = "libonnxruntime.1.14.1.dylib";
+			SharedLibFileName = "libonnxruntime.1.17.1.dylib";
 			string SharedLibFileNameWithoutVersion = "libonnxruntime.dylib";
 
 			PublicDelayLoadDLLs.Add(Path.Combine(OrtPlatformPath, SharedLibFileNameWithoutVersion));
@@ -50,7 +50,7 @@ public class NNEOnnxruntime : ModuleRules
 		}
 
 		PublicDefinitions.Add("UE_ORT_USE_INLINE_NAMESPACE = 1");
-		PublicDefinitions.Add("UE_ORT_INLINE_NAMESPACE_NAME = Ort011401");
+		PublicDefinitions.Add("UE_ORT_INLINE_NAMESPACE_NAME = Ort011701");
 
 		if (Target.Type != TargetType.Editor)
 		{
