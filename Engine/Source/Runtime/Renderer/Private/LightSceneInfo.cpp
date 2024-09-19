@@ -53,7 +53,7 @@ void FLightSceneInfoCompact::Init(FLightSceneInfo* InLightSceneInfo)
 	bIsMovable = InLightSceneInfo->Proxy->IsMovable();
     CastRaytracedShadow = InLightSceneInfo->Proxy->CastsRaytracedShadow();
 	bAllowMegaLights = InLightSceneInfo->Proxy->AllowMegaLights();
-	bUseVirtualShadowMaps = InLightSceneInfo->Proxy->UseVirtualShadowMaps();
+	MegaLightsShadowMethod = InLightSceneInfo->Proxy->GetMegaLightsShadowMethod();
 }
 
 FLightSceneInfo::FLightSceneInfo(FLightSceneProxy* InProxy, bool InbVisible)

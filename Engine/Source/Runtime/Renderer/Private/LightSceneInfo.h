@@ -47,8 +47,8 @@ public:
 	uint32 bAffectReflection : 1;
 	uint32 bAffectGlobalIllumination : 1;
 	uint32 bIsMovable : 1;
-	uint32 bUseVirtualShadowMaps : 1;
 	uint32 bAllowMegaLights : 1;
+	TEnumAsByte<EMegaLightsShadowMethod::Type> MegaLightsShadowMethod;
     TEnumAsByte<ECastRayTracedShadow::Type> CastRaytracedShadow;
 
 	/** Initializes the compact scene info from the light's full scene info. */

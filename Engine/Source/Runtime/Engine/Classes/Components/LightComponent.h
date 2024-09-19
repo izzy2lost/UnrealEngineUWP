@@ -134,13 +134,6 @@ class ULightComponent : public ULightComponentBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Light, AdvancedDisplay, meta = (ClampMin = 0.0, ClampMax = 1.0))
 	float ContactShadowNonCastingIntensity;
 
-	/** 
-	 * Whether to allow this light to use MegaLights, if it is enabled in the project settings or Post Process Volume. 
-	 * When disabled, the renderer will no longer use stochastic sampling to solve this light's lighting, and will fall back to other shadowing methods, adding significant GPU cost.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Light, meta = (DisplayName = "Allow MegaLights"), AdvancedDisplay)
-	uint32 bAllowMegaLights : 1;
-
 	UPROPERTY()
 	uint32 InverseSquaredFalloff_DEPRECATED:1;
 
@@ -161,6 +154,16 @@ class ULightComponent : public ULightComponentBase
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Light, AdvancedDisplay)
 	uint32 bForceCachedShadowsForMovablePrimitives : 1;
+
+	/**
+	 * Whether to allow this light to use MegaLights, if it is enabled in the project settings or Post Process Volume.
+	 * When disabled, the renderer will no longer use stochastic sampling to solve this light's lighting, and will fall back to other shadowing methods, adding significant GPU cost.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Light, meta = (DisplayName = "Allow MegaLights"), AdvancedDisplay)
+	uint32 bAllowMegaLights : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Light, meta = (DisplayName = "MegaLights Shadow Method"), AdvancedDisplay)
+	TEnumAsByte<EMegaLightsShadowMethod::Type> MegaLightsShadowMethod;
 
 	/** 
 	 * Channels that this light should affect.  

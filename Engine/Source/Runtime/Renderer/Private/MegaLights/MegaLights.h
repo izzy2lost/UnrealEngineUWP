@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Engine/EngineTypes.h"
 
 class FSceneViewFamily;
 struct FGlobalShaderPermutationParameters;
@@ -32,14 +33,12 @@ enum class EMegaLightsMode
 namespace MegaLights
 {
 	bool IsEnabled(const FSceneViewFamily& ViewFamily);
-	bool IsUsingForcedRaytracing();
-	bool IsUsingVirtualShadowMaps(const FSceneViewFamily& ViewFamily);
 
 	bool IsUsingClosestHZB(const FSceneViewFamily& ViewFamily);
 	bool IsUsingGlobalSDF(const FSceneViewFamily& ViewFamily);
 	bool IsUsingLightFunctions(const FSceneViewFamily& ViewFamily);
 
-	EMegaLightsMode GetMegaLightsMode(const FSceneViewFamily& ViewFamily, uint8 LightType, bool bLightAllowsMegaLights, bool bVSMEnabled);
+	EMegaLightsMode GetMegaLightsMode(const FSceneViewFamily& ViewFamily, uint8 LightType, bool bLightAllowsMegaLights, TEnumAsByte<EMegaLightsShadowMethod::Type> ShadowMethod);
 	bool UseHardwareRayTracing(const FSceneViewFamily& ViewFamily);
 	bool UseInlineHardwareRayTracing(const FSceneViewFamily& ViewFamily);
 	bool ShouldCompileShaders(EShaderPlatform ShaderPlatform);

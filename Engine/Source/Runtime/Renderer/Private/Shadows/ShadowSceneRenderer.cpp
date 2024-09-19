@@ -139,6 +139,9 @@ struct FHeapPair
 
 void FShadowSceneRenderer::BeginRender(FRDGBuilder& GraphBuilder)
 {
+	bNeedVSMProjection = false;
+	bNeedMegaLightsProjection = false;
+
 	ViewDatas.Reserve(SceneRenderer.Views.Num());
 	for (const FViewInfo& View : SceneRenderer.Views)
 	{
@@ -370,8 +373,6 @@ TSharedPtr<FVirtualShadowMapPerLightCacheEntry> FShadowSceneRenderer::AddLocalLi
 	ProjectedShadowInfo->VirtualShadowMapPerLightCacheEntry = PerLightCacheEntry;
 	ProjectedShadowInfo->bShouldRenderVSM = !PerLightCacheEntry->IsFullyCached();
 
-
-
 	for (int32 Index = 0; Index < NumMaps; ++Index)
 	{
 		const int32 FaceVirtualShadowMapId = VirtualShadowMapId + Index;
@@ -380,6 +381,22 @@ TSharedPtr<FVirtualShadowMapPerLightCacheEntry> FShadowSceneRenderer::AddLocalLi
 		// Update projection data
 		VirtualSmCacheEntry.ProjectionData = GetLocalLightProjectionShaderData(ResolutionLODBiasLocal, ProjectedShadowInfo, Index);
 		VirtualSmCacheEntry.ProjectionData.MinMipLevel = MinMipLevel;
+	}
+
+	FLightOcclusionType OcclusionType = GetLightOcclusionType(*LightSceneInfo->Proxy, SceneRenderer.ViewFamily);
+	// Depending on which type of projection we're going to use, mark that we need to associated path for later
+	if (OcclusionType == FLightOcclusionType::Shadowmap)
+	{
+		bNeedVSMProjection = true;
+	}
+	else if (OcclusionType == FLightOcclusionType::MegaLightsVSM)
+	{
+		bNeedMegaLightsProjection = true;
+	}
+	else
+	{
+		// ??? Should not get into this path with other projection types
+		check(false);
 	}
 
 	return PerLightCacheEntry;
@@ -580,13 +597,8 @@ void FShadowSceneRenderer::RenderVirtualShadowMapProjectionMaskBits(
 {
 	bShouldUseVirtualShadowMapOnePassProjection =
 		VirtualShadowMapArray.IsAllocated() &&
-		IsVSMOnePassProjectionEnabled(SceneRenderer.ViewFamily.EngineShowFlags);
-
-	// One pass projection is only for local lights, so not needed if we don't have any
-	if (!VirtualShadowMapArray.HasAnyShadowData() || LocalLights.Num() == 0)
-	{
-		return;
-	}
+		IsVSMOnePassProjectionEnabled(SceneRenderer.ViewFamily.EngineShowFlags) &&
+		bNeedVSMProjection;
 
 	if (bShouldUseVirtualShadowMapOnePassProjection)
 	{

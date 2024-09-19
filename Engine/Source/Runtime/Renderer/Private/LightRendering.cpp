@@ -708,7 +708,7 @@ FLightOcclusionType GetLightOcclusionType(const FLightSceneProxy& Proxy, const F
 #if RHI_RAYTRACING
 	bUseRaytracing = ShouldRenderRayTracingShadowsForLight(ViewFamily, Proxy);
 #endif
-	EMegaLightsMode MegaLightsMode = MegaLights::GetMegaLightsMode(ViewFamily, Proxy.GetLightType(), Proxy.AllowMegaLights(), Proxy.UseVirtualShadowMaps());
+	EMegaLightsMode MegaLightsMode = MegaLights::GetMegaLightsMode(ViewFamily, Proxy.GetLightType(), Proxy.AllowMegaLights(), Proxy.GetMegaLightsShadowMethod());
 
 	if (MegaLightsMode != EMegaLightsMode::Disabled)
 	{
@@ -724,7 +724,7 @@ FLightOcclusionType GetLightOcclusionType(const FLightSceneInfoCompact& LightInf
 #if RHI_RAYTRACING
 	bUseRaytracing = ShouldRenderRayTracingShadowsForLight(ViewFamily, LightInfo);
 #endif
-	EMegaLightsMode MegaLightsMode = MegaLights::GetMegaLightsMode(ViewFamily, LightInfo.LightType, LightInfo.bAllowMegaLights, LightInfo.bUseVirtualShadowMaps);
+	EMegaLightsMode MegaLightsMode = MegaLights::GetMegaLightsMode(ViewFamily, LightInfo.LightType, LightInfo.bAllowMegaLights, LightInfo.MegaLightsShadowMethod);
 
 	if (MegaLightsMode != EMegaLightsMode::Disabled)
 	{
@@ -1262,7 +1262,7 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 					SortedLightInfo->SortKey.Fields.bIsNotSimpleLight = 1;
 
 					// Lights handled by Mega Lights
-					const bool bHandledByMegaLights = MegaLights::GetMegaLightsMode(ViewFamily, LightSceneInfoCompact.LightType, LightSceneInfoCompact.bAllowMegaLights, LightSceneInfoCompact.bUseVirtualShadowMaps) != EMegaLightsMode::Disabled;
+					const bool bHandledByMegaLights = MegaLights::GetMegaLightsMode(ViewFamily, LightSceneInfoCompact.LightType, LightSceneInfoCompact.bAllowMegaLights, LightSceneInfoCompact.MegaLightsShadowMethod) != EMegaLightsMode::Disabled;
 
 					// NOTE: bClusteredDeferredSupported==false means "lights cannot be batched" (tiled or clustered). When false, light will go the slower unbatched render path.
 					// Tiled and clustered deferred lighting only support certain lights that don't use any additional features (like shadow or light function not compatible with the atlas.)
@@ -1490,13 +1490,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 
 		if(ViewFamily.EngineShowFlags.DirectLighting)
 		{
-			// Currently we can skip this whole pass if ManyLights VSM is enabled, because this pass only
-			// handles local lights, but ManyLights will take over all of them. In the future we may want
-			// to allow some lights to go down each path.
-			if (!MegaLights::IsUsingVirtualShadowMaps(ViewFamily))
-			{
-				ShadowSceneRenderer->RenderVirtualShadowMapProjectionMaskBits(GraphBuilder, SceneTextures);
-			}
+			ShadowSceneRenderer->RenderVirtualShadowMapProjectionMaskBits(GraphBuilder, SceneTextures);
 
 			RDG_EVENT_SCOPE(GraphBuilder, "BatchedLights");
 			INC_DWORD_STAT_BY(STAT_NumBatchedLights, UnbatchedLightStart);
