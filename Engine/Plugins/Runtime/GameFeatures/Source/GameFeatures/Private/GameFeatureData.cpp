@@ -191,6 +191,13 @@ void UGameFeatureData::InitializeHierarchicalPluginIniFiles(const FString& Plugi
 
 				// apply plugin modifications from this plugin to the everything
 				FConfigCacheIni::AddPluginToAllBranches(PluginName, ChangeTracker);
+
+				// give hotfix a chance to run at that point
+				{
+#define HOTFIX_BRANCH(Ini) UE::DynamicConfig::HotfixPluginForBranch.Broadcast(PluginName, #Ini, ChangeTracker);
+					ENUMERATE_KNOWN_INI_FILES(HOTFIX_BRANCH);
+#undef HOTFIX_BRANCH
+				}
 			});
 
 		return;

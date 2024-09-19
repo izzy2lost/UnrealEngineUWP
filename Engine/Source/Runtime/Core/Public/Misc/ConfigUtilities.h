@@ -21,7 +21,8 @@ namespace UE::DynamicConfig
 {
 	extern CORE_API void PerformDynamicConfig(FName Tag, TFunction<void(class FConfigModificationTracker*)> PerformModification, TFunction<void(FConfigModificationTracker*)> PostModification=nullptr);
 
-	extern CORE_API TMulticastDelegate<void(const FName& Tag, const FName& Branch, class FConfigModificationTracker* ModificationTracker)> HotfixBranch;
+	// this isn't directly used in this module, but the OnlineHotfixManager and GameFeatures plugin use it to talk to each other
+	extern CORE_API TMulticastDelegate<void(const FName& Tag, const FName& Branch, class FConfigModificationTracker* ModificationTracker)> HotfixPluginForBranch;
 
 	// this calls the UObjectBaseUtility from code where object system is not linked (it also calls TSOnConfigSectionsChanged()!)
 	extern CORE_API TMulticastDelegate<void(const FConfigModificationTracker* ChangeTracker)> ReloadObjects;
