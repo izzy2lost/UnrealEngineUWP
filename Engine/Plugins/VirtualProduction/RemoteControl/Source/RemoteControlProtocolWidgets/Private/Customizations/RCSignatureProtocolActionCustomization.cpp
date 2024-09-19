@@ -60,13 +60,13 @@ void FRCSignatureProtocolActionCustomization::CustomizeDetails(IDetailLayoutBuil
 {
 	const TSharedRef<IPropertyHandle> ProtocolNameHandle = InDetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FRCSignatureProtocolAction, ProtocolName));
 	const TSharedRef<IPropertyHandle> ProtocolEntityHandle = InDetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FRCSignatureProtocolAction, ProtocolEntity));
-	const TSharedRef<IPropertyHandle> MaskingTypeHandle = InDetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FRCSignatureProtocolAction, MaskingType));
 	const TSharedRef<IPropertyHandle> OverrideMaskHandle = InDetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FRCSignatureProtocolAction, OverrideMask));
+	const TSharedRef<IPropertyHandle> SingleProtocolChannelHandle = InDetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FRCSignatureProtocolAction, bSingleProtocolChannel));
 
 	InDetailBuilder.HideProperty(ProtocolNameHandle);
 	InDetailBuilder.HideProperty(ProtocolEntityHandle);
-	InDetailBuilder.HideProperty(MaskingTypeHandle);
 	InDetailBuilder.HideProperty(OverrideMaskHandle);
+	InDetailBuilder.HideProperty(SingleProtocolChannelHandle);
 
 	IDetailCategoryBuilder& ProtocolCategory = InDetailBuilder.EditCategory(TEXT("Protocol"));
 
@@ -82,8 +82,6 @@ void FRCSignatureProtocolActionCustomization::CustomizeDetails(IDetailLayoutBuil
 		];
 
 	ProtocolCategory.AddProperty(ProtocolEntityHandle);
-	ProtocolCategory.AddProperty(MaskingTypeHandle);
-
 	ProtocolCategory.AddProperty(OverrideMaskHandle)
 		.CustomWidget()
 		.NameContent()
@@ -94,6 +92,7 @@ void FRCSignatureProtocolActionCustomization::CustomizeDetails(IDetailLayoutBuil
 		[
 			SNew(SRCSignatureProtocolMaskProperty, OverrideMaskHandle, GetProtocolActions(InDetailBuilder))
 		];
+	ProtocolCategory.AddProperty(SingleProtocolChannelHandle);
 }
 
 TArray<const FRCSignatureProtocolAction*, TInlineAllocator<1>> FRCSignatureProtocolActionCustomization::GetProtocolActions(IDetailLayoutBuilder& InDetailBuilder) const
