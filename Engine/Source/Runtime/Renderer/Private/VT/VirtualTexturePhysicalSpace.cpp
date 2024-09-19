@@ -121,6 +121,11 @@ static EPixelFormat GetUnorderedAccessViewFormat(EPixelFormat InFormat)
 		return GRHISupportsUAVFormatAliasing ? GetBlockCompressedFormatUAVAliasFormat(InFormat) : PF_Unknown;
 	}
 
+	if (InFormat == PF_B5G5R5A1_UNORM || InFormat == PF_R5G6B5_UNORM)
+	{
+		return PF_Unknown;
+	}
+
 	return InFormat;
 }
 
