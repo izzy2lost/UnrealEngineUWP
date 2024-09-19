@@ -610,6 +610,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, BlueprintSetter=SetEnableNanite, Category = "Nanite")
 	bool EnableNanite;
 
+	/**
+	 * Enable Non-Nanite fallback mesh when Nanite support is enabled.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Nanite", Meta = (EditCondition = "EnableNanite"))
+	bool bEnableNaniteFallback;
+
 	UFUNCTION(BlueprintCallable, Category = "Rendering")
 	GEOMETRYCOLLECTIONENGINE_API void SetConvertVertexColorsToSRGB(bool bValue);
 

@@ -113,6 +113,7 @@ UGeometryCollection::UGeometryCollection(const FObjectInitializer& ObjectInitial
 	, bStripOnCook(false)
 	, bStripRenderDataOnCook(false)
 	, EnableNanite(false)
+	, bEnableNaniteFallback(false)
 #if WITH_EDITORONLY_DATA
 	, CollisionType_DEPRECATED(ECollisionTypeEnum::Chaos_Volumetric)
 	, ImplicitType_DEPRECATED(EImplicitTypeEnum::Chaos_Implicit_Convex)
@@ -1458,7 +1459,7 @@ void UGeometryCollection::RebuildRenderData()
 	if (RenderDataGuid != StateGuid)
 	{
 		ReleaseResources();
-		RenderData = FGeometryCollectionRenderData::Create(*GetGeometryCollection(), EnableNanite, bUseFullPrecisionUVs, bConvertVertexColorsToSRGB);
+		RenderData = FGeometryCollectionRenderData::Create(*GetGeometryCollection(), EnableNanite, bEnableNaniteFallback, bUseFullPrecisionUVs, bConvertVertexColorsToSRGB);
 		InitResources();
 		PropagateMarkDirtyToComponents();
 		RenderDataGuid = StateGuid;
@@ -1812,6 +1813,11 @@ void UGeometryCollection::PostEditChangeProperty(struct FPropertyChangedEvent& P
 		FName PropertyName = PropertyChangedEvent.Property->GetFName();
 
 		if (PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UGeometryCollection, EnableNanite))
+		{
+			bDoInvalidateCollection = true;
+			bRebuildRenderData = true;
+		}
+		else if (PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UGeometryCollection, bEnableNaniteFallback))
 		{
 			bDoInvalidateCollection = true;
 			bRebuildRenderData = true;
