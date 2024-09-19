@@ -10,6 +10,7 @@
 #include "Tracks/MovieSceneAudioTrack.h"
 #include "Tracks/MovieSceneEventTrack.h"
 #include "Tracks/MovieSceneMaterialParameterCollectionTrack.h"
+#include "Tracks/MovieSceneTimeWarpTrack.h"
 #include "UObject/SequencerObjectVersion.h"
 
 #if WITH_EDITOR
@@ -116,7 +117,8 @@ ETrackSupport UWidgetAnimation::IsTrackSupportedImpl(TSubclassOf<class UMovieSce
 {
 	if (InTrackClass == UMovieSceneAudioTrack::StaticClass() ||
 		InTrackClass == UMovieSceneEventTrack::StaticClass() ||
-		InTrackClass == UMovieSceneMaterialParameterCollectionTrack::StaticClass())
+		InTrackClass == UMovieSceneMaterialParameterCollectionTrack::StaticClass() ||
+		InTrackClass == UMovieSceneTimeWarpTrack::StaticClass())
 	{
 		return ETrackSupport::Supported;
 	}
