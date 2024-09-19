@@ -16,9 +16,10 @@
 
 #define LOCTEXT_NAMESPACE "MetaHumanImportUI"
 
-namespace UE::MetaHumanImportUI::Private
+namespace UE::MetaHuman
 {
-	using namespace MetaHumanVersionService;
+namespace Private
+{
 	static const FText VersionUnavailable = LOCTEXT("VersionUnavailable", "Not Available");
 
 	// TODO: padding needs revisiting to make sure it works OK with High DPI scaling etc.
@@ -73,7 +74,7 @@ namespace UE::MetaHumanImportUI::Private
 	{
 		const FString* URL = Metadata.Find(TEXT("href"));
 
-		if(URL)
+		if (URL)
 		{
 			FPlatformProcess::LaunchURL(**URL, nullptr, nullptr);
 		}
@@ -105,7 +106,7 @@ namespace UE::MetaHumanImportUI::Private
 		virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& ColumnName) override
 		{
 			TSharedRef<SRichTextBlock> TextBlock = SNew(SRichTextBlock)
-			+ SRichTextBlock::HyperlinkDecorator(TEXT("browser"), FSlateHyperlinkRun::FOnClick::CreateStatic(&OnBrowserLinkClicked));
+				+ SRichTextBlock::HyperlinkDecorator(TEXT("browser"), FSlateHyperlinkRun::FOnClick::CreateStatic(&OnBrowserLinkClicked));
 			if (ColumnName == OverwriteDialogColumns::ReleaseNoteTitleColumnName)
 			{
 				TextBlock->SetText(RowData->Title);
@@ -353,7 +354,7 @@ namespace UE::MetaHumanImportUI::Private
 		{
 			const FText Title = LOCTEXT("BulkImportWarningTitle", "Proceed with import?");
 			const FText Message = LOCTEXT("BulkImportWarningBody", "Batch updating all MetaHumans in your project will take some time, and will also overwrite any local files that you have changed.\n\n"
-				"Clicking OK will import the current MetaHuman and then select and download the remaining MetaHumans. Once the download has completed, add the selected MetaHumans to your project by clicking the \"Add\" Button. Please do not close Bridge until this process has completed.");
+										"Clicking OK will import the current MetaHuman and then select and download the remaining MetaHumans. Once the download has completed, add the selected MetaHumans to your project by clicking the \"Add\" Button. Please do not close Bridge until this process has completed.");
 
 			const EAppReturnType::Type UpdateAssetsDialog = FMessageDialog::Open(EAppMsgType::OkCancel, Message, Title);
 			bShouldContinue = UpdateAssetsDialog == EAppReturnType::Ok;
@@ -368,15 +369,15 @@ namespace UE::MetaHumanImportUI::Private
 		TSharedRef<ITableRow> OnGenerateWidgetForFileList(TSharedRef<FFileChangeData> InItem, const TSharedRef<STableViewBase>& OwnerTable) const
 		{
 			return SNew(SFileChangeDataRow, OwnerTable)
-			.Item(InItem)
-			.ToolTipText(InItem->Filename);
+				.Item(InItem)
+				.ToolTipText(InItem->Filename);
 		}
 
 		TSharedRef<ITableRow> OnGenerateWidgetForReleaseNoteList(TSharedRef<FReleaseNoteData> InItem, const TSharedRef<STableViewBase>& OwnerTable) const
 		{
 			return SNew(SReleaseNoteDataRow, OwnerTable)
-			.Item(InItem)
-			.ToolTipText(InItem->Detail);
+				.Item(InItem)
+				.ToolTipText(InItem->Detail);
 		}
 
 		TSharedRef<ITableRow> OnGenerateWidgetForMetaHumanList(TSharedRef<FMetaHumanData> InItem, const TSharedRef<STableViewBase>& OwnerTable) const
@@ -649,9 +650,7 @@ namespace UE::MetaHumanImportUI::Private
 
 EImportOperationUserResponse DisplayUpgradeWarning(const FSourceMetaHuman& SourceMetaHuman, const TSet<FString>& IncompatibleCharacters, const TArray<FInstalledMetaHuman>& InstalledMetaHumans, const TSet<FString>& AvailableMetaHumans, const FAssetOperationPaths& AssetOperations)
 {
-	using namespace UE::MetaHumanImportUI::Private;
-	using namespace UE::MetaHumanVersionService;
-
+	using namespace UE::MetaHuman::Private;
 
 	FMetaHumanVersion TargetMetaHumanCurrentVersion{0, 5, 0};
 	TArray<TSharedRef<FMetaHumanData>> IncomingMetaHumans = {MakeShared<FMetaHumanData>(FromMetaHuman(SourceMetaHuman))};
@@ -678,9 +677,7 @@ EImportOperationUserResponse DisplayUpgradeWarning(const FSourceMetaHuman& Sourc
 	}
 
 	// Build the text and data structures representing the updated assets
-	const FText Header = IncompatibleCharacters.Num() == 1 ?
-		LOCTEXT("MainDialogTextSingleUpgrade", "You are importing a MetaHuman that has a Major version mismatch with the existing MetaHuman in your project."):
-		LOCTEXT("MainDialogText", "You are importing a MetaHuman that has a Major version mismatch with existing MetaHumans in your project. Continuing import will break functionality on these existing MetaHumans unless you update all MetaHumans in the project.");
+	const FText Header = IncompatibleCharacters.Num() == 1 ? LOCTEXT("MainDialogTextSingleUpgrade", "You are importing a MetaHuman that has a Major version mismatch with the existing MetaHuman in your project.") : LOCTEXT("MainDialogText", "You are importing a MetaHuman that has a Major version mismatch with existing MetaHumans in your project. Continuing import will break functionality on these existing MetaHumans unless you update all MetaHumans in the project.");
 	TArray<TSharedRef<FFileChangeData>> UpdateList;
 	for (int i = 0; i < AssetOperations.Update.Num(); i++)
 	{
@@ -765,7 +762,7 @@ bool DisplayQualityLevelChangeWarning(EMetaHumanQualityLevel Source, EMetaHumanQ
 
 	const EAppReturnType::Type UpdateAssetsDialog = FMessageDialog::Open(EAppMsgType::OkCancel, Message, Title);
 	return UpdateAssetsDialog == EAppReturnType::Ok;
-	
+}
 }
 
 #undef LOCTEXT_NAMESPACE

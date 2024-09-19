@@ -3,6 +3,8 @@
 
 #include "CoreMinimal.h"
 
+namespace UE::MetaHuman
+{
 class FSourceMetaHuman;
 class FInstalledMetaHuman;
 struct FAssetOperationPaths;
@@ -23,3 +25,4 @@ enum class EImportOperationUserResponse: int
 EImportOperationUserResponse DisplayUpgradeWarning(const FSourceMetaHuman& SourceMetaHuman, const TSet<FString>& IncompatibleCharacters, const TArray<FInstalledMetaHuman>& InstalledMetaHumans, const TSet<FString>& AvailableMetaHumans, const FAssetOperationPaths& AssetOperations);
 
 bool DisplayQualityLevelChangeWarning(EMetaHumanQualityLevel Source, EMetaHumanQualityLevel Target);
+}

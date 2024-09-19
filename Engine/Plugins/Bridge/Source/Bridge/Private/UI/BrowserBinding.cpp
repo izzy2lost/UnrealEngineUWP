@@ -151,7 +151,7 @@ TSharedRef<FAssetDragDropCustomOp> FAssetDragDropCustomOp::New(TArray<FAssetData
 
 ///////////////////////////////////////////////////////////////////////////////////
 
-class FBrowserBindingBulkImportHandler: public IMetaHumanBulkImportHandler
+class FBrowserBindingBulkImportHandler: public UE::MetaHuman::IMetaHumanBulkImportHandler
 {
 public:
   // MetaHumanIds is a list of the Quixel IDs of the MetaHumans to
@@ -174,7 +174,7 @@ public:
 UBrowserBinding::UBrowserBinding(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-  FMetaHumanProjectUtilities::SetBulkImportHandler(FBrowserBindingBulkImportHandler::Get());
+  UE::MetaHuman::FMetaHumanProjectUtilities::SetBulkImportHandler(FBrowserBindingBulkImportHandler::Get());
 }
 
 void UBrowserBinding::DialogSuccessCallback(FWebJSFunction DialogJSCallback)

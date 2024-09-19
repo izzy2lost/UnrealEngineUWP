@@ -11,7 +11,7 @@
 #include "Serialization/JsonSerializer.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMetaHumanVersionService, Log, All)
-namespace UE::MetaHumanVersionService
+namespace UE::MetaHuman
 {
 	namespace Private
 	{
@@ -98,7 +98,7 @@ namespace UE::MetaHumanVersionService
 				{
 					const FString& MHCVersion = ReleaseNoteEntry.Key;
 					const TSharedPtr<FJsonObject>& ReleaseNote = ReleaseNoteEntry.Value->AsObject();
-					ReleaseNotes.Add(MakeShared<MetaHumanVersionService::FReleaseNoteData>(MetaHumanVersionService::FReleaseNoteData{
+					ReleaseNotes.Add(MakeShared<FReleaseNoteData>(FReleaseNoteData{
 						FText::FromString(ReleaseNote->GetStringField(TEXT("title"))),
 						FMetaHumanVersion(MHCVersion),
 						FText::FromString(ReleaseNote->GetStringField(TEXT("description"))),

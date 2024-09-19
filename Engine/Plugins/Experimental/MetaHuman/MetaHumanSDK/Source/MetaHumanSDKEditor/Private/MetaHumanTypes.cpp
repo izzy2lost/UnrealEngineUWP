@@ -9,6 +9,8 @@
 #include "Serialization/JsonSerializer.h"
 #include "UObject/MetaData.h"
 
+namespace UE::MetaHuman
+{
 FImportPaths::FImportPaths(const FString& InSourceCommonFilePath, const FString& InSourceCharacterFilePath, const FString& InDestinationCommonAssetPath, const FString& InDestinationCharacterAssetPath)
 {
 	// The locations we are importing files from
@@ -106,4 +108,5 @@ TArray<FInstalledMetaHuman> FInstalledMetaHuman::GetInstalledMetaHumans(const FS
 		}
 	}
 	return FoundMetaHumans;
+}
 }

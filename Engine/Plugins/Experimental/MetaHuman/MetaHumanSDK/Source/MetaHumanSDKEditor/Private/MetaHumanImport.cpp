@@ -32,7 +32,9 @@
 #define LOCTEXT_NAMESPACE "MetaHumanImport"
 DEFINE_LOG_CATEGORY_STATIC(LogMetaHumanImport, Log, All)
 
-namespace UE::MetaHumanImport::Private
+namespace UE::MetaHuman
+{
+namespace Private
 {
 	// Helper functions *************************************
 
@@ -249,7 +251,7 @@ void FMetaHumanImport::SetBulkImportHandler(IMetaHumanBulkImportHandler* Handler
 
 void FMetaHumanImport::ImportAsset(const FMetaHumanAssetImportDescription& ImportDescription)
 {
-	using namespace UE::MetaHumanImport::Private;
+	using namespace UE::MetaHuman::Private;
 
 	// Determine the source and destination paths. There are two ways they can be updated from the standard /Game/MetaHumans
 	// location. In UEFN we can request that instead of installing to /Game we install to the content folder of the
@@ -283,7 +285,7 @@ void FMetaHumanImport::ImportAsset(const FMetaHumanAssetImportDescription& Impor
 	if (!(FPackageName::IsValidPath(DestinationCommonAssetPath) && FPackageName::IsValidPath(CharactersRootImportPath)))
 	{
 		FMessageDialog::Open(EAppMsgCategory::Error, EAppMsgType::Ok, LOCTEXT("InvalidImportRootError", "Attempting to import to an invalid root location. Please check your Import Paths in the MetaHuman SDK Project Settings."));
-		UE_LOG(LogMetaHumanImport, Error, TEXT("Invalid import root. Common files import root: \"%s\", character files import root: \"%s\""),  *DestinationCommonAssetPath, *CharactersRootImportPath);
+		UE_LOG(LogMetaHumanImport, Error, TEXT("Invalid import root. Common files import root: \"%s\", character files import root: \"%s\""), *DestinationCommonAssetPath, *CharactersRootImportPath);
 		return;
 	}
 
@@ -305,7 +307,7 @@ void FMetaHumanImport::ImportAsset(const FMetaHumanAssetImportDescription& Impor
 	if (ImportPaths.DestinationCharacterFilePath.Len() > MaxImportPathLength)
 	{
 		FMessageDialog::Open(EAppMsgCategory::Error, EAppMsgType::Ok, LOCTEXT("ImportPathLengthError", "The requested import path is too long. Please set the Import Path in the MetaHuman SDK Project Settings to a shorter path, or move your project to a file location with a shorter path."));
-		UE_LOG(LogMetaHumanImport, Error, TEXT("Import path \"%s\", exceeds maximum length of %d"),  *ImportPaths.DestinationCharacterFilePath, MaxImportPathLength);
+		UE_LOG(LogMetaHumanImport, Error, TEXT("Import path \"%s\", exceeds maximum length of %d"), *ImportPaths.DestinationCharacterFilePath, MaxImportPathLength);
 		return;
 	}
 
@@ -478,6 +480,7 @@ void FMetaHumanImport::ImportAsset(const FMetaHumanAssetImportDescription& Impor
 		// Remove Redirects
 		FCoreRedirects::RemoveRedirectList(Redirects, TEXT("MetaHumanImportTool"));
 	}
+}
 }
 
 #undef LOCTEXT_NAMESPACE
