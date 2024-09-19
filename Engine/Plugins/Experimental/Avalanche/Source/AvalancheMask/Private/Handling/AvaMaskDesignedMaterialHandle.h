@@ -76,7 +76,7 @@ protected:
 	void SetOutputProcessor(EBlendMode InBlendMode, UMaterialFunctionInterface* InMaterialFunction);
 #else
 	// Dummy, returns nullptr
-	UMaterialFunctionInterface* GetOutputProcessor();
+	UMaterialFunctionInterface* GetOutputProcessor(EBlendMode InBlendMode);
 #endif
 
 private:
