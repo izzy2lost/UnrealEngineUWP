@@ -132,9 +132,6 @@ private:
 	};
 	TArray<FDirectionalLightShadowFrameSetup, SceneRenderingAllocator> DirectionalLights;
 
-	// One pass projection stuff. Set up in RenderVitualShadowMapProjectionMaskBits
-	bool bShouldUseVirtualShadowMapOnePassProjection = false;
-
 	// Links to other systems etc.
 	FDeferredShadingSceneRenderer& SceneRenderer;
 	FScene& Scene;
@@ -145,4 +142,11 @@ private:
 	Nanite::FPackedViewArray* VirtualShadowMapViews = nullptr;
 	FSceneInstanceCullingQuery *SceneInstanceCullingQuery = nullptr;
 	TArray<FViewData, SceneRenderingAllocator> ViewDatas;
+
+	// One pass projection stuff. Set up in RenderVitualShadowMapProjectionMaskBits
+	bool bShouldUseVirtualShadowMapOnePassProjection = false;
+
+	// Base the distant light cutoff on the minimum mip level instead of the shadow resolution calculated through the old path.
+	bool bUseConservativeDistantLightThreshold = false;
+	int32 DistantLightMode = 0;
 };
