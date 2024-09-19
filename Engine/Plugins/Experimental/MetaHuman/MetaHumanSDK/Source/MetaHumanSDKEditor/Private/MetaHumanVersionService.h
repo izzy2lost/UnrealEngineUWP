@@ -5,7 +5,7 @@
 #include "Internationalization/Text.h"
 
 // Gets live data from the cloud about the current deployed versions of MetaHumans
-namespace UE::MetaHumanVersionService
+namespace UE::MetaHuman
 {
 	// Represents a Release Note
 	struct FReleaseNoteData

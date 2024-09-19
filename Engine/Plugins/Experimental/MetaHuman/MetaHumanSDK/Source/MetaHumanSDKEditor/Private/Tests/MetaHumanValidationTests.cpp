@@ -58,7 +58,18 @@
 // MetaHumanProjectUtilites
 #include "MetaHumanProjectUtilities.h"
 
-namespace MetaHumanTestUtils
+// Operator needed to use FIniStringValue in UTEST macros. There is no default equality operator for this type
+static bool operator== (const FIniStringValue& Value1, const FIniStringValue& Value2)
+{
+	return Value1.Section == Value2.Section &&
+		Value1.Key == Value2.Key &&
+		Value1.Value == Value2.Value &&
+		Value1.Filename == Value2.Filename;
+}
+
+namespace UE::MetaHuman
+{
+namespace TestUtils
 {
 	static const FString GetGamePath()
 	{
@@ -880,15 +891,6 @@ namespace MetaHumanTestUtils
 	}
 }
 
-// Operator needed to use FIniStringValue in UTEST macros. There is no default equality operator for this type
-static bool operator== (const FIniStringValue& Value1, const FIniStringValue& Value2)
-{
-	return Value1.Section == Value2.Section &&
-		Value1.Key == Value2.Key &&
-		Value1.Value == Value2.Value &&
-		Value1.Filename == Value2.Filename;
-}
-
 DEFINE_LATENT_AUTOMATION_COMMAND_TWO_PARAMETER(FValidateMetaHumanCommand, FString, Params, FMetaHumanAssetImportDescription, ImportDescription);
 bool FValidateMetaHumanCommand::Update()
 {
@@ -940,17 +942,17 @@ bool FValidateMetaHumanCommand::Update()
 		FString ManifestFilePath;
 		if (ImportDescription.CharacterPath.IsEmpty())
 		{
-			ManifestFilePath = MetaHumanTestUtils::GetExportManifestFilePath();
+			ManifestFilePath = TestUtils::GetExportManifestFilePath();
 		}
 		else
 		{
-			ManifestFilePath = ImportDescription.CharacterPath / TEXT("../..") / MetaHumanTestUtils::GetExportManifestFileName();
+			ManifestFilePath = ImportDescription.CharacterPath / TEXT("../..") / TestUtils::GetExportManifestFileName();
 		}
 
 		// Test if the Manifest file is valid
 		TEST_TRUE("Manifest Exists", FPaths::FileExists(ManifestFilePath));
 
-		TSharedPtr<FJsonObject> ManifestJson = MetaHumanTestUtils::ReadJsonFromFile(ManifestFilePath);
+		TSharedPtr<FJsonObject> ManifestJson = TestUtils::ReadJsonFromFile(ManifestFilePath);
 		TEST_TRUE("Read Manifest Json", ManifestJson.IsValid());
 
 		TEST_TRUE("Manifest has metaHumanNames field", ManifestJson->HasTypedField<EJson::Array>(TEXTVIEW("metaHumanNames")));
@@ -965,12 +967,12 @@ bool FValidateMetaHumanCommand::Update()
 		{
 			FString ExportAssetKindEntry;
 			TEST_TRUE("Manifest Export Asset Kind Entry is String", ExportAssetKindValue->TryGetString(ExportAssetKindEntry));
-			TEST_TRUE("Manifest Export Asset Kind is valid", MetaHumanTestUtils::GetExportAssetKindValues().Contains(ExportAssetKindEntry));
+			TEST_TRUE("Manifest Export Asset Kind is valid", TestUtils::GetExportAssetKindValues().Contains(ExportAssetKindEntry));
 		}
 
 		// Get the export quality from the manifest
 		ExportQuality = ManifestJson->GetStringField(TEXTVIEW("exportQuality"));
-		TEST_TRUE("Manifest Export Quality is valid", MetaHumanTestUtils::GetExportQualityLevels().Contains(ExportQuality));
+		TEST_TRUE("Manifest Export Quality is valid", TestUtils::GetExportQualityLevels().Contains(ExportQuality));
 	}
 
 	if (Params.StartsWith("MHAssetVersion."))
@@ -980,23 +982,23 @@ bool FValidateMetaHumanCommand::Update()
 		FString MHAssetVersionFilePath;
 		if (ImportDescription.CharacterName.IsEmpty())
 		{
-			MHAssetVersionFilePath = MetaHumanTestUtils::GetMHAssetVersionFilePath();
+			MHAssetVersionFilePath = TestUtils::GetMHAssetVersionFilePath();
 		}
 		else
 		{
-			MHAssetVersionFilePath = ImportDescription.CharacterPath / TEXT("..") / MetaHumanTestUtils::GetMHAssetVersionFileName();
+			MHAssetVersionFilePath = ImportDescription.CharacterPath / TEXT("..") / TestUtils::GetMHAssetVersionFileName();
 		}
 
 		// Test if the MHAssetVersion is valid
 		TEST_TRUE("MHAssetVersion exists", FPaths::FileExists(MHAssetVersionFilePath));
 
-		TSharedPtr<FJsonObject> MHAssetVersionJson = MetaHumanTestUtils::ReadJsonFromFile(MHAssetVersionFilePath);
+		TSharedPtr<FJsonObject> MHAssetVersionJson = TestUtils::ReadJsonFromFile(MHAssetVersionFilePath);
 		TEST_TRUE("Read MHAssetVersion json", MHAssetVersionJson.IsValid());
 
 		const TArray<TSharedPtr<FJsonValue>>* AssetVersionArray;
 		TEST_TRUE("MHAssetVersion has assets field", MHAssetVersionJson->TryGetArrayField(TEXTVIEW("assets"), AssetVersionArray))
 
-		TArray<MetaHumanTestUtils::FMetaHumanAssetVersion> MHAssetVersions;
+		TArray<TestUtils::FMetaHumanAssetVersion> MHAssetVersions;
 
 		// Get the list of exported assets from the MHAssetVersion file
 		for (TSharedPtr<FJsonValue> AssetVersionValue : *AssetVersionArray)
@@ -1004,7 +1006,7 @@ bool FValidateMetaHumanCommand::Update()
 			const TSharedPtr<FJsonObject>* AssetVersionObject;
 			TEST_TRUE("Asset Version is object", AssetVersionValue->TryGetObject(AssetVersionObject));
 
-			MetaHumanTestUtils::FMetaHumanAssetVersion& AssetVersion = MHAssetVersions.AddDefaulted_GetRef();
+			TestUtils::FMetaHumanAssetVersion& AssetVersion = MHAssetVersions.AddDefaulted_GetRef();
 
 			TEST_TRUE("Path is valid", (*AssetVersionObject)->TryGetStringField(TEXTVIEW("path"), AssetVersion.AssetFilePath));
 			TEST_TRUE("Version is valid", (*AssetVersionObject)->TryGetStringField(TEXTVIEW("version"), AssetVersion.Version));
@@ -1014,9 +1016,9 @@ bool FValidateMetaHumanCommand::Update()
 		if (Params == TEXT("MHAssetVersion.Metadata"))
 		{
 			// Check if we can load all assets from MHAssetVersion
-			for (const MetaHumanTestUtils::FMetaHumanAssetVersion& MHAssetVersion : MHAssetVersions)
+			for (const TestUtils::FMetaHumanAssetVersion& MHAssetVersion : MHAssetVersions)
 			{
-				UObject* Asset = MetaHumanTestUtils::GetAssetByPackageName<UObject>(MHAssetVersion.GetPackagePath().GetPackageName());
+				UObject* Asset = TestUtils::GetAssetByPackageName<UObject>(MHAssetVersion.GetPackagePath().GetPackageName());
 				TEST_NOT_NULL("Asset", Asset);
 
 				const FName MHAssetVersionTagName = TEXT("MHAssetVersion");
@@ -1033,12 +1035,12 @@ bool FValidateMetaHumanCommand::Update()
 
 	if (Params == TEXT("CommonDependencies"))
 	{
-	// Test if there are any references from Common to MetaHuman assets
-	IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
+		// Test if there are any references from Common to MetaHuman assets
+		IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
 
 		TArray<FAssetData> CommonAssets;
 		const bool bRecursive = true;
-		AssetRegistry.GetAssetsByPath(FName{ *MetaHumanTestUtils::GetMetaHumanCommonPath() }, CommonAssets, bRecursive);
+		AssetRegistry.GetAssetsByPath(FName{ *TestUtils::GetMetaHumanCommonPath() }, CommonAssets, bRecursive);
 
 		// Sanity check to fail if there are no common assets
 		TEST_FALSE("Has common assets", CommonAssets.IsEmpty());
@@ -1050,18 +1052,18 @@ bool FValidateMetaHumanCommand::Update()
 
 			TArray<FString> Dependencies;
 			Dependencies.Reserve(DependencyNames.Num());
-			Algo::Transform(DependencyNames, Dependencies, &MetaHumanTestUtils::ToString);
+			Algo::Transform(DependencyNames, Dependencies, &TestUtils::ToString);
 
 			for (const FString& DependencyName : Dependencies)
 			{
 				const FString DependencyTestName = FString::Format(TEXT("Common Asset '{0}' shouldn't depend on '{1}'"), { CommonAssetData.GetFullName(), DependencyName });
 
 				// TEXT("/Game/MetaHumans/Common")
-				if (DependencyName.StartsWith(MetaHumanTestUtils::GetMetaHumansPath()))
+				if (DependencyName.StartsWith(TestUtils::GetMetaHumansPath()))
 				{
 					// if the dependency starts with /Game/MetaHumans, it has to be a common asset
 					const FString CommonDependencyTestName = FString::Format(TEXT("Common Asset '{0}' depends on '{1}'"), { CommonAssetData.GetFullName(), DependencyName });
-					TEST_TRUE(CommonDependencyTestName, DependencyName.StartsWith(MetaHumanTestUtils::GetMetaHumanCommonPath()));
+					TEST_TRUE(CommonDependencyTestName, DependencyName.StartsWith(TestUtils::GetMetaHumanCommonPath()));
 				}
 			}
 		}
@@ -1076,7 +1078,7 @@ bool FValidateMetaHumanCommand::Update()
 	if (Params.StartsWith("MetaHuman."))
 	{
 		FString BaseTestName, MetaHumanName;
-		TEST_TRUE(TEXT("Get MetaHuman Name"), MetaHumanTestUtils::ParseTestName(Params, BaseTestName, MetaHumanName));
+		TEST_TRUE(TEXT("Get MetaHuman Name"), TestUtils::ParseTestName(Params, BaseTestName, MetaHumanName));
 
 		if (!ImportDescription.CharacterName.IsEmpty())
 		{
@@ -1088,7 +1090,7 @@ bool FValidateMetaHumanCommand::Update()
 			return FString::Format(TEXT("{0}: {1} {2}"), { MetaHumanName, ExportQuality, InTestName });
 		};
 
-		for (const FString& Quality : MetaHumanTestUtils::GetExportQualityLevels())
+		for (const FString& Quality : TestUtils::GetExportQualityLevels())
 		{
 			// If the MetaHuman name has the Quality suffix use it as the current export quality
 			if (MetaHumanName.EndsWith(Quality))
@@ -1098,8 +1100,8 @@ bool FValidateMetaHumanCommand::Update()
 			}
 		}
 
-		const FString MetaHumanBlueprintPackageName = MetaHumanTestUtils::GetMetaHumanBlueprintPackageName(MetaHumanName);
-		UBlueprint* MetaHumanBlueprint = MetaHumanTestUtils::GetAssetByPackageName<UBlueprint>(MetaHumanBlueprintPackageName);
+		const FString MetaHumanBlueprintPackageName = TestUtils::GetMetaHumanBlueprintPackageName(MetaHumanName);
+		UBlueprint* MetaHumanBlueprint = TestUtils::GetAssetByPackageName<UBlueprint>(MetaHumanBlueprintPackageName);
 		TEST_NOT_NULL(GetTestName(TEXT("MetaHuman blueprint is valid")), MetaHumanBlueprint);
 
 		// Check the export quality Metadata
@@ -1128,7 +1130,7 @@ bool FValidateMetaHumanCommand::Update()
 
 		if (BaseTestName == TEXT("MetaHumans.RootComponent"))
 		{
-			USceneComponent* RootComponent = MetaHumanTestUtils::GetComponentByName<USceneComponent>(MetaHumanActor, TEXT("Root"));
+			USceneComponent* RootComponent = TestUtils::GetComponentByName<USceneComponent>(MetaHumanActor, TEXT("Root"));
 			TEST_NOT_NULL(GetTestName(TEXT("Root Component")), RootComponent);
 
 			TEST_EQUAL(GetTestName(TEXT("Root Component Tick Group")), RootComponent->PrimaryComponentTick.TickGroup, ETickingGroup::TG_PrePhysics);
@@ -1142,7 +1144,7 @@ bool FValidateMetaHumanCommand::Update()
 		}
 
 		// Get the Body component here to test if the other components have it set as the leader pose component
-		USkeletalMeshComponent* BodyComponent = MetaHumanTestUtils::GetComponentByName<USkeletalMeshComponent>(MetaHumanActor, TEXT("Body"));
+		USkeletalMeshComponent* BodyComponent = TestUtils::GetComponentByName<USkeletalMeshComponent>(MetaHumanActor, TEXT("Body"));
 
 		if (BaseTestName == TEXT("MetaHuman.Body"))
 		{
@@ -1151,14 +1153,14 @@ bool FValidateMetaHumanCommand::Update()
 
 			USkeletalMesh* BodySkeletalMesh = BodyComponent->GetSkeletalMeshAsset();
 			TEST_NOT_NULL(GetTestName(TEXT("Body Skeletal Mesh")), BodySkeletalMesh);
-			TEST_EQUAL(GetTestName(TEXT("Body Num LODs")), BodySkeletalMesh->GetLODNum(), MetaHumanTestUtils::GetNumLODsForQuality(ExportQuality, BodyComponent->GetName()));
+			TEST_EQUAL(GetTestName(TEXT("Body Num LODs")), BodySkeletalMesh->GetLODNum(), TestUtils::GetNumLODsForQuality(ExportQuality, BodyComponent->GetName()));
 
 			UMaterialInterface* BodyMaterial = BodyComponent->GetMaterial(0);
 			TEST_NOT_NULL(GetTestName(TEXT("Body Material")), BodyMaterial);
-			TEST_EQUAL(GetTestName(TEXT("Body Material Name")), BodyMaterial->GetName(), MetaHumanTestUtils::GetBodyMaterialName(ExportQuality, MetaHumanName));
+			TEST_EQUAL(GetTestName(TEXT("Body Material Name")), BodyMaterial->GetName(), TestUtils::GetBodyMaterialName(ExportQuality, MetaHumanName));
 
 			FString BodyTypeName;
-			TEST_TRUE(GetTestName(TEXT("Body type name")), MetaHumanTestUtils::GetBodyTypeNameFromMeshName(BodySkeletalMesh->GetName(), BodyTypeName));
+			TEST_TRUE(GetTestName(TEXT("Body type name")), TestUtils::GetBodyTypeNameFromMeshName(BodySkeletalMesh->GetName(), BodyTypeName));
 
 			TEST_NOT_NULL(GetTestName(TEXT("Body Skeleton")), BodySkeletalMesh->GetSkeleton());
 			TEST_EQUAL(GetTestName(TEXT("Body Skeleton Name")), BodySkeletalMesh->GetSkeleton()->GetName(), TEXT("metahuman_base_skel"));
@@ -1185,7 +1187,7 @@ bool FValidateMetaHumanCommand::Update()
 			}
 
 			const FString RagDollPhysicaAssetPackageName = FPaths::GetPath(BodyPhysicsAsset->GetPackage()->GetName()) / FString::Format(TEXT("{0}_ragdoll"), { BodyTypeName });
-			UPhysicsAsset* RagDollPhysicsAsset = MetaHumanTestUtils::GetAssetByPackageName<UPhysicsAsset>(RagDollPhysicaAssetPackageName);
+			UPhysicsAsset* RagDollPhysicsAsset = TestUtils::GetAssetByPackageName<UPhysicsAsset>(RagDollPhysicaAssetPackageName);
 			TEST_NOT_NULL(GetTestName("Body RagDoll Physics Asset"), RagDollPhysicsAsset);
 
 			for (const USkeletalBodySetup* RagdollBodySetup : RagDollPhysicsAsset->SkeletalBodySetups)
@@ -1209,7 +1211,7 @@ bool FValidateMetaHumanCommand::Update()
 				UPhysicalMaterial* PhysMaterial = RagdollBodySetup->PhysMaterial;
 				UPhysicalMaterial* PhysMaterialOverride = nullptr;
 
-				TEST_TRUE(GetBodySetupTestName(TEXT("Ragdoll Get PhysMaterialOverride"), RagdollBodySetup), MetaHumanTestUtils::GetStructPropertyValue(RagdollBodySetup->DefaultInstance, TEXTVIEW("PhysMaterialOverride"), PhysMaterialOverride));
+				TEST_TRUE(GetBodySetupTestName(TEXT("Ragdoll Get PhysMaterialOverride"), RagdollBodySetup), TestUtils::GetStructPropertyValue(RagdollBodySetup->DefaultInstance, TEXTVIEW("PhysMaterialOverride"), PhysMaterialOverride));
 
 				if (ExpectedCollisionResponse == EBodyCollisionResponse::BodyCollision_Disabled)
 				{
@@ -1222,7 +1224,7 @@ bool FValidateMetaHumanCommand::Update()
 				}
 			}
 
-			const MetaHumanTestUtils::FBodyPostProcessAnimBPSettings& BodyPostProcessAnimBPSettings = MetaHumanTestUtils::GetBodyPostProcessAnimBPSettings(ExportQuality);
+			const TestUtils::FBodyPostProcessAnimBPSettings& BodyPostProcessAnimBPSettings = TestUtils::GetBodyPostProcessAnimBPSettings(ExportQuality);
 
 			TEST_EQUAL(GetTestName(TEXT("Body Post Process AnimBP LOD Threshold")), BodySkeletalMesh->GetPostProcessAnimBPLODThreshold(), BodyPostProcessAnimBPSettings.LODThreshold);
 
@@ -1249,33 +1251,33 @@ bool FValidateMetaHumanCommand::Update()
 			TEST_NOT_NULL(GetTestName(TEXT("Body Post Process Anim Instance")), BodyPostProcessAnimInstance);
 
 			bool bEnableBodyCorrectives = false;
-			TEST_TRUE(GetTestName(TEXT("Body Post Process AnimBP Enable Body Correctives Property")), MetaHumanTestUtils::GetPropertyValue(BodyPostProcessAnimInstance, TEXT("Enable Body Correctives"), bEnableBodyCorrectives));
+			TEST_TRUE(GetTestName(TEXT("Body Post Process AnimBP Enable Body Correctives Property")), TestUtils::GetPropertyValue(BodyPostProcessAnimInstance, TEXT("Enable Body Correctives"), bEnableBodyCorrectives));
 			TEST_EQUAL(GetTestName(TEXT("Body Post Process AnimBP Enable Body Correctives")), bEnableBodyCorrectives, BodyPostProcessAnimBPSettings.bEnableBodyCorrectives);
 
 			bool bEnableHeadMovementIK = false;
-			TEST_TRUE(GetTestName(TEXT("Body Post Process AnimBP Enable Head Movement IK Property")), MetaHumanTestUtils::GetPropertyValue(BodyPostProcessAnimInstance, TEXT("Enable Head Movement IK"), bEnableHeadMovementIK));
+			TEST_TRUE(GetTestName(TEXT("Body Post Process AnimBP Enable Head Movement IK Property")), TestUtils::GetPropertyValue(BodyPostProcessAnimInstance, TEXT("Enable Head Movement IK"), bEnableHeadMovementIK));
 			TEST_EQUAL(GetTestName(TEXT("Body Post Process AnimBP Enable Head Movement IK")), bEnableHeadMovementIK, BodyPostProcessAnimBPSettings.bEnableHeadMovementIK);
 
-			if (MetaHumanTestUtils::IsOptimizedExport(ExportQuality))
+			if (TestUtils::IsOptimizedExport(ExportQuality))
 			{
-				TEST_EQUAL(GetTestName(TEXT("Body BaseColor")), MetaHumanTestUtils::GetTextureResolution(BodyMaterial, TEXT("BaseColor")), MetaHumanTestUtils::GetTextureResolutionForQuality(TEXTVIEW("Body"), ExportQuality, TEXTVIEW("BaseColor")));
-				TEST_EQUAL(GetTestName(TEXT("Body Normal")), MetaHumanTestUtils::GetTextureResolution(BodyMaterial, TEXT("Normal")), MetaHumanTestUtils::GetTextureResolutionForQuality(TEXTVIEW("Body"), ExportQuality, TEXTVIEW("Normal")));
-				TEST_EQUAL(GetTestName(TEXT("Body Specular")), MetaHumanTestUtils::GetTextureResolution(BodyMaterial, TEXT("Specular")), MetaHumanTestUtils::GetTextureResolutionForQuality(TEXTVIEW("Body"), ExportQuality, TEXTVIEW("Specular")));
+				TEST_EQUAL(GetTestName(TEXT("Body BaseColor")), TestUtils::GetTextureResolution(BodyMaterial, TEXT("BaseColor")), TestUtils::GetTextureResolutionForQuality(TEXTVIEW("Body"), ExportQuality, TEXTVIEW("BaseColor")));
+				TEST_EQUAL(GetTestName(TEXT("Body Normal")), TestUtils::GetTextureResolution(BodyMaterial, TEXT("Normal")), TestUtils::GetTextureResolutionForQuality(TEXTVIEW("Body"), ExportQuality, TEXTVIEW("Normal")));
+				TEST_EQUAL(GetTestName(TEXT("Body Specular")), TestUtils::GetTextureResolution(BodyMaterial, TEXT("Specular")), TestUtils::GetTextureResolutionForQuality(TEXTVIEW("Body"), ExportQuality, TEXTVIEW("Specular")));
 			}
 			else
 			{
-				TEST_EQUAL(GetTestName(TEXT("Body Color_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(BodyMaterial, TEXT("Color_MAIN")), 4096);
-				TEST_EQUAL(GetTestName(TEXT("Body Color_UNDERWEAR")), MetaHumanTestUtils::GetTextureResolution(BodyMaterial, TEXT("Color_UNDERWEAR")), 8192);
-				TEST_EQUAL(GetTestName(TEXT("Body UnderwearMask")), MetaHumanTestUtils::GetTextureResolution(BodyMaterial, TEXT("UnderwearMask")), 8192);
-				TEST_EQUAL(GetTestName(TEXT("Body Normal_MAIN")), MetaHumanTestUtils::GetTextureResolution(BodyMaterial, TEXT("Normal_MAIN")), 8192);
-				TEST_EQUAL(GetTestName(TEXT("Body Roughness_MAIN")), MetaHumanTestUtils::GetTextureResolution(BodyMaterial, TEXT("Roughness_MAIN")), 8192);
-				TEST_EQUAL(GetTestName(TEXT("Body Cavity_MAIN")), MetaHumanTestUtils::GetTextureResolution(BodyMaterial, TEXT("Cavity_MAIN")), 8192);
+				TEST_EQUAL(GetTestName(TEXT("Body Color_MAIN Resolution")), TestUtils::GetTextureResolution(BodyMaterial, TEXT("Color_MAIN")), 4096);
+				TEST_EQUAL(GetTestName(TEXT("Body Color_UNDERWEAR")), TestUtils::GetTextureResolution(BodyMaterial, TEXT("Color_UNDERWEAR")), 8192);
+				TEST_EQUAL(GetTestName(TEXT("Body UnderwearMask")), TestUtils::GetTextureResolution(BodyMaterial, TEXT("UnderwearMask")), 8192);
+				TEST_EQUAL(GetTestName(TEXT("Body Normal_MAIN")), TestUtils::GetTextureResolution(BodyMaterial, TEXT("Normal_MAIN")), 8192);
+				TEST_EQUAL(GetTestName(TEXT("Body Roughness_MAIN")), TestUtils::GetTextureResolution(BodyMaterial, TEXT("Roughness_MAIN")), 8192);
+				TEST_EQUAL(GetTestName(TEXT("Body Cavity_MAIN")), TestUtils::GetTextureResolution(BodyMaterial, TEXT("Cavity_MAIN")), 8192);
 			}
 		}
 
 		if (BaseTestName == TEXT("MetaHuman.Face"))
 		{
-			USkeletalMeshComponent* FaceComponent = MetaHumanTestUtils::GetComponentByName<USkeletalMeshComponent>(MetaHumanActor, TEXT("Face"));
+			USkeletalMeshComponent* FaceComponent = TestUtils::GetComponentByName<USkeletalMeshComponent>(MetaHumanActor, TEXT("Face"));
 			TEST_NOT_NULL(GetTestName(TEXT("Face Component is valid")), FaceComponent);
 			TEST_EQUAL(GetTestName(TEXT("Face Only Tick when Rendered")), FaceComponent->VisibilityBasedAnimTickOption, EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered);
 			TEST_EQUAL(GetTestName(TEXT("Face is a child of Body")), FaceComponent->GetAttachParent()->GetName(), TEXT("Body"));
@@ -1283,7 +1285,7 @@ bool FValidateMetaHumanCommand::Update()
 			TEST_EQUAL(GetTestName(TEXT("Face Anim Class Name")), FaceComponent->AnimClass->GetName(), TEXT("Face_AnimBP_C"));
 
 			bool bEnableMaterialParameterCaching = false;
-			TEST_TRUE(GetTestName(TEXT("Face Enable Material Parameter Caching Property")), MetaHumanTestUtils::GetPropertyValue(FaceComponent, TEXT("bEnableMaterialParameterCaching"), bEnableMaterialParameterCaching));
+			TEST_TRUE(GetTestName(TEXT("Face Enable Material Parameter Caching Property")), TestUtils::GetPropertyValue(FaceComponent, TEXT("bEnableMaterialParameterCaching"), bEnableMaterialParameterCaching));
 
 			TEST_TRUE(GetTestName(TEXT("Enable Material Parameter Caching is enabled in Face")), bEnableMaterialParameterCaching);
 
@@ -1304,7 +1306,7 @@ bool FValidateMetaHumanCommand::Update()
 			TEST_NOT_NULL(GetTestName(TEXT("Face Physics Asset")), FaceSkelMesh->GetPhysicsAsset());
 			TEST_EQUAL(GetTestName(TEXT("Face Physics Asset Name")), FaceSkelMesh->GetPhysicsAsset()->GetName(), TEXT("Face_Archetype_Physics"));
 			TEST_TRUE(GetTestName(TEXT("Face Asset Import Data is Empty")), FaceSkelMesh->GetAssetImportData()->SourceData.SourceFiles.IsEmpty());
-			TEST_EQUAL(GetTestName(TEXT("Face Num LODs")), FaceSkelMesh->GetLODNum(), MetaHumanTestUtils::GetNumLODsForQuality(ExportQuality, FaceComponent->GetName()));
+			TEST_EQUAL(GetTestName(TEXT("Face Num LODs")), FaceSkelMesh->GetLODNum(), TestUtils::GetNumLODsForQuality(ExportQuality, FaceComponent->GetName()));
 
 			// Basic DNA Asset tests
 
@@ -1324,7 +1326,7 @@ bool FValidateMetaHumanCommand::Update()
 			TEST_EQUAL(GetTestName(TEXT("DNA Asset Descriptor Name")), BehaviourReader->GetName(), MetaHumanName);
 			TEST_EQUAL(GetTestName(TEXT("DNA Asset Descriptor Age")), BehaviourReader->GetAge(), 0);
 			TEST_EQUAL(GetTestName(TEXT("DNA Asset Descriptor Archetype")), BehaviourReader->GetArchetype(), EArchetype::Other);
-			TEST_EQUAL(GetTestName(TEXT("DNA Asset Descriptor Gender")), BehaviourReader->GetGender(), MetaHumanTestUtils::GetGenderFromIndex(BodyTypeIndex));
+			TEST_EQUAL(GetTestName(TEXT("DNA Asset Descriptor Gender")), BehaviourReader->GetGender(), TestUtils::GetGenderFromIndex(BodyTypeIndex));
 			TEST_EQUAL(GetTestName(TEXT("DNA Asset Descriptor")), BehaviourReader->GetMetaDataCount(), 0);
 
 			// Both readers should be valid, but the Geometry part should be mostly empty
@@ -1434,7 +1436,7 @@ bool FValidateMetaHumanCommand::Update()
 
 				ERigControlAxis ExpectedPrimaryAxis;
 				const FString PrimaryAxisTestName = FString::Format(TEXT("Face Board Control Rig Convert Primary Axis for Control '{0}'"), { GUIControlName });
-				TEST_TRUE(GetControlTestName(TEXT("Convert Primary Axis")), MetaHumanTestUtils::ConvertGUIHandleToControlRigAxis(GUIControlHandle, ExpectedPrimaryAxis));
+				TEST_TRUE(GetControlTestName(TEXT("Convert Primary Axis")), TestUtils::ConvertGUIHandleToControlRigAxis(GUIControlHandle, ExpectedPrimaryAxis));
 
 				const FRigControlElement* RigControlElement = *FoundControlElement;
 				if (RigControlElement->Settings.ControlType == ERigControlType::Float)
@@ -1501,7 +1503,7 @@ bool FValidateMetaHumanCommand::Update()
 				}
 			}
 
-			const MetaHumanTestUtils::FFacePostProcessAnimBPSettings& FacePostProcessAnimBPSettings = MetaHumanTestUtils::GetFacePostProcessAnimBPSettings(ExportQuality);
+			const TestUtils::FFacePostProcessAnimBPSettings& FacePostProcessAnimBPSettings = TestUtils::GetFacePostProcessAnimBPSettings(ExportQuality);
 
 			TEST_EQUAL(GetTestName(TEXT("Face Post Process AnimBP LOD Threshold")), FaceSkelMesh->GetPostProcessAnimBPLODThreshold(), FacePostProcessAnimBPSettings.LODThreshold);
 
@@ -1519,32 +1521,32 @@ bool FValidateMetaHumanCommand::Update()
 			TEST_NOT_NULL(GetTestName(TEXT("Face Post Process Anim Instance")), FacePostProcessAnimInstance);
 
 			int32 RigLogicLODThreshold = INDEX_NONE;
-			TEST_TRUE(GetTestName(TEXT("Rig Logic LOD Threshold Property")), MetaHumanTestUtils::GetPropertyValue(FacePostProcessAnimInstance, TEXT("Rig Logic LOD Threshold"), RigLogicLODThreshold));
+			TEST_TRUE(GetTestName(TEXT("Rig Logic LOD Threshold Property")), TestUtils::GetPropertyValue(FacePostProcessAnimInstance, TEXT("Rig Logic LOD Threshold"), RigLogicLODThreshold));
 			TEST_EQUAL(GetTestName(TEXT("Rig Logic LOD Threshold")), RigLogicLODThreshold, FacePostProcessAnimBPSettings.RigLogicLODTheshold);
 
 			bool bEnableNeckCorrectives = false;
-			TEST_TRUE(GetTestName(TEXT("Enable Neck Correctives Property")), MetaHumanTestUtils::GetPropertyValue(FacePostProcessAnimInstance, TEXT("Enable Neck Correctives"), bEnableNeckCorrectives));
+			TEST_TRUE(GetTestName(TEXT("Enable Neck Correctives Property")), TestUtils::GetPropertyValue(FacePostProcessAnimInstance, TEXT("Enable Neck Correctives"), bEnableNeckCorrectives));
 			TEST_EQUAL(GetTestName(TEXT("Enable Neck Correctives")), bEnableNeckCorrectives, FacePostProcessAnimBPSettings.bEnableNeckCorrectives);
 
 			int32 NeckCorrectivesLODThreshold = INDEX_NONE;
-			TEST_TRUE(GetTestName(TEXT("Neck Correctives LOD Threshold Property")), MetaHumanTestUtils::GetPropertyValue(FacePostProcessAnimInstance, TEXT("Neck Correctives LOD Threshold"), NeckCorrectivesLODThreshold));
+			TEST_TRUE(GetTestName(TEXT("Neck Correctives LOD Threshold Property")), TestUtils::GetPropertyValue(FacePostProcessAnimInstance, TEXT("Neck Correctives LOD Threshold"), NeckCorrectivesLODThreshold));
 			TEST_EQUAL(GetTestName(TEXT("Neck Correctives LOD Threshold")), NeckCorrectivesLODThreshold, FacePostProcessAnimBPSettings.NeckCorrectivesLODThreshold);
 
 			bool bEnableNeckProceduralControlRig = false;
-			TEST_TRUE(GetTestName(TEXT("Enable Neck Procedural Control Rig Property")), MetaHumanTestUtils::GetPropertyValue(FacePostProcessAnimInstance, TEXT("Enable Neck Procedural Control Rig"), bEnableNeckProceduralControlRig));
+			TEST_TRUE(GetTestName(TEXT("Enable Neck Procedural Control Rig Property")), TestUtils::GetPropertyValue(FacePostProcessAnimInstance, TEXT("Enable Neck Procedural Control Rig"), bEnableNeckProceduralControlRig));
 			TEST_EQUAL(GetTestName(TEXT("Enable Neck Procedural Control Rig")), bEnableNeckProceduralControlRig, FacePostProcessAnimBPSettings.bEnableNeckProceduralControlRig);
 
 			int32 NeckProceduralControlRigLODThreshold = INDEX_NONE;
-			TEST_TRUE(GetTestName(TEXT("Neck Procedural Control Rig LOD Threshold Property")), MetaHumanTestUtils::GetPropertyValue(FacePostProcessAnimInstance, TEXT("Neck Procedural Control Rig LOD Threshold"), NeckProceduralControlRigLODThreshold));
+			TEST_TRUE(GetTestName(TEXT("Neck Procedural Control Rig LOD Threshold Property")), TestUtils::GetPropertyValue(FacePostProcessAnimInstance, TEXT("Neck Procedural Control Rig LOD Threshold"), NeckProceduralControlRigLODThreshold));
 			TEST_EQUAL(GetTestName(TEXT("Neck Procedural Control Rig LOD Threshold")), NeckProceduralControlRigLODThreshold, FacePostProcessAnimBPSettings.NeckProceduralControlRigLODThreshold);
 
 			if (bEnableNeckCorrectives)
 			{
 				// If neck correctives are enabled by the exporter there should be a pose asset set
 				UPoseAsset* NeckCorrectivePoseAsset = nullptr;
-				TEST_TRUE(GetTestName(TEXT("Neck Corrective Pose Asset Property")), MetaHumanTestUtils::GetPropertyValue(FacePostProcessAnimInstance, TEXT("Neck Corrective Pose Asset"), NeckCorrectivePoseAsset));
+				TEST_TRUE(GetTestName(TEXT("Neck Corrective Pose Asset Property")), TestUtils::GetPropertyValue(FacePostProcessAnimInstance, TEXT("Neck Corrective Pose Asset"), NeckCorrectivePoseAsset));
 				TEST_NOT_NULL(GetTestName(TEXT("Neck Corrective Pose Asset")), NeckCorrectivePoseAsset);
-				TEST_EQUAL(GetTestName(TEXT("Neck Corrective Pose Asset Name")), NeckCorrectivePoseAsset->GetName(), FString::Format(TEXT("neckCorr_{0}_RBFSolver_pose"), { MetaHumanTestUtils::GetBodyTypeNameFromIndex(BodyTypeIndex) }));
+				TEST_EQUAL(GetTestName(TEXT("Neck Corrective Pose Asset Name")), NeckCorrectivePoseAsset->GetName(), FString::Format(TEXT("neckCorr_{0}_RBFSolver_pose"), { TestUtils::GetBodyTypeNameFromIndex(BodyTypeIndex) }));
 			}
 
 			for (int32 LODInfoIndex = 0; LODInfoIndex < FaceSkelMesh->GetLODNum(); ++LODInfoIndex)
@@ -1617,7 +1619,7 @@ bool FValidateMetaHumanCommand::Update()
 			TEST_TRUE(GetTestName(TEXT("Face Skeletal Mesh Asset Guideline has SkeletalMesh.UseExperimentalChuncking")), AssetGuideline->ProjectSettings.Contains(UseExperimentalChunkingGuideline));
 
 			// Check if texture resolutions match the export quality
-			if (MetaHumanTestUtils::IsOptimizedExport(ExportQuality))
+			if (TestUtils::IsOptimizedExport(ExportQuality))
 			{
 				if (ExportQuality == TEXT("High"))
 				{
@@ -1625,22 +1627,22 @@ bool FValidateMetaHumanCommand::Update()
 					TEST_NOT_NULL(GetTestName(TEXT("Head LOD1 Material")), HeadMaterialLOD1);
 
 					bool bUseAnimatedBaseColor = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD1 bUseAnimatedBaseColor Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD1, TEXT("bUseAnimatedBaseColor"), bUseAnimatedBaseColor));
+					TEST_TRUE(GetTestName(TEXT("Head LOD1 bUseAnimatedBaseColor Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD1, TEXT("bUseAnimatedBaseColor"), bUseAnimatedBaseColor));
 					TEST_TRUE(GetTestName(TEXT("Head LOD1 bUseAnimatedBaseColor")), bUseAnimatedBaseColor);
 
 					bool bUseAnimatedNormals = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD1 bUseAnimatedNormals Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD1, TEXT("bUseAnimatedNormals"), bUseAnimatedNormals));
+					TEST_TRUE(GetTestName(TEXT("Head LOD1 bUseAnimatedNormals Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD1, TEXT("bUseAnimatedNormals"), bUseAnimatedNormals));
 					TEST_TRUE(GetTestName(TEXT("Head LOD1 bUseAnimatedNormals")), bUseAnimatedNormals);
 
-					TEST_EQUAL(GetTestName(TEXT("Head LOD1 BaseColor Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("BaseColor")), 1024);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD1 BaseColor_CM1 Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("BaseColor_CM1")), 512);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD1 BaseColor_CM2 Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("BaseColor_CM2")), 512);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD1 BaseColor_CM3 Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("BaseColor_CM3")), 512);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Normal Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Normal")), 2048);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Normal_WM1 Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Normal_WM1")), 512);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Normal_WM2 Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Normal_WM2")), 512);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Normal_WM3 Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Normal_WM3")), 512);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Specular Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Specular")), 1024);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD1 BaseColor Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("BaseColor")), 1024);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD1 BaseColor_CM1 Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("BaseColor_CM1")), 512);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD1 BaseColor_CM2 Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("BaseColor_CM2")), 512);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD1 BaseColor_CM3 Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("BaseColor_CM3")), 512);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Normal Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Normal")), 2048);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Normal_WM1 Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Normal_WM1")), 512);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Normal_WM2 Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Normal_WM2")), 512);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Normal_WM3 Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Normal_WM3")), 512);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Specular Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Specular")), 1024);
 				}
 
 				if (ExportQuality == TEXT("High") || ExportQuality == TEXT("Medium"))
@@ -1649,16 +1651,16 @@ bool FValidateMetaHumanCommand::Update()
 					TEST_NOT_NULL(GetTestName(TEXT("Head LOD3 Material")), HeadMaterialLOD3);
 
 					bool bUseAnimatedBaseColor = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD3 bUseAnimatedBaseColor Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD3, TEXT("bUseAnimatedBaseColor"), bUseAnimatedBaseColor));
+					TEST_TRUE(GetTestName(TEXT("Head LOD3 bUseAnimatedBaseColor Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD3, TEXT("bUseAnimatedBaseColor"), bUseAnimatedBaseColor));
 					TEST_FALSE(GetTestName(TEXT("Head LOD3 bUseAnimatedBaseColor")), bUseAnimatedBaseColor);
 
 					bool bUseAnimatedNormals = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD3 bUseAnimatedNormals Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD3, TEXT("bUseAnimatedNormals"), bUseAnimatedNormals));
+					TEST_TRUE(GetTestName(TEXT("Head LOD3 bUseAnimatedNormals Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD3, TEXT("bUseAnimatedNormals"), bUseAnimatedNormals));
 					TEST_FALSE(GetTestName(TEXT("Head LOD3 bUseAnimatedNormals")), bUseAnimatedNormals);
 
-					TEST_EQUAL(GetTestName(TEXT("Head LOD3 BaseColor Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD3, TEXT("BaseColor")), 1024);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD3 Normal Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD3, TEXT("Normal")), 1024);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD3 Specular Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD3, TEXT("Specular")), 1024);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD3 BaseColor Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD3, TEXT("BaseColor")), 1024);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD3 Normal Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD3, TEXT("Normal")), 1024);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD3 Specular Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD3, TEXT("Specular")), 1024);
 				}
 
 				if (ExportQuality == TEXT("High") || ExportQuality == TEXT("Medium") || ExportQuality == TEXT("Low"))
@@ -1667,16 +1669,16 @@ bool FValidateMetaHumanCommand::Update()
 					TEST_NOT_NULL(GetTestName(TEXT("Head LOD57 Material")), HeadMaterialLOD5);
 
 					bool bUseAnimatedBaseColor = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD57 bUseAnimatedBaseColor Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD5, TEXT("bUseAnimatedBaseColor"), bUseAnimatedBaseColor));
+					TEST_TRUE(GetTestName(TEXT("Head LOD57 bUseAnimatedBaseColor Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD5, TEXT("bUseAnimatedBaseColor"), bUseAnimatedBaseColor));
 					TEST_FALSE(GetTestName(TEXT("Head LOD57 bUseAnimatedBaseColor")), bUseAnimatedBaseColor);
 
 					bool bUseAnimatedNormals = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD57 bUseAnimatedNormals Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD5, TEXT("bUseAnimatedNormals"), bUseAnimatedNormals));
+					TEST_TRUE(GetTestName(TEXT("Head LOD57 bUseAnimatedNormals Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD5, TEXT("bUseAnimatedNormals"), bUseAnimatedNormals));
 					TEST_FALSE(GetTestName(TEXT("Head LOD57 bUseAnimatedNormals")), bUseAnimatedNormals);
 
-					TEST_EQUAL(GetTestName(TEXT("Head LOD57 BaseColor Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD5, TEXT("BaseColor")), 512);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD57 Normal Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD5, TEXT("Normal")), 512);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD57 Specular Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD5, TEXT("Specular")), 512);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD57 BaseColor Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD5, TEXT("BaseColor")), 512);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD57 Normal Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD5, TEXT("Normal")), 512);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD57 Specular Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD5, TEXT("Specular")), 512);
 				}
 			}
 			else
@@ -1686,29 +1688,29 @@ bool FValidateMetaHumanCommand::Update()
 					TEST_NOT_NULL(GetTestName(TEXT("Head LOD0 Material")), HeadMaterialLOD0);
 
 					bool bAnimatedAlbedo = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD0 Animated Albedo Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD0, TEXT("Animated Albedo"), bAnimatedAlbedo));
+					TEST_TRUE(GetTestName(TEXT("Head LOD0 Animated Albedo Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD0, TEXT("Animated Albedo"), bAnimatedAlbedo));
 					TEST_TRUE(GetTestName(TEXT("Head LOD0 Animated Albedo")), bAnimatedAlbedo);
 
 					bool bAnimatedNormals = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD0 Animated Normals Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD0, TEXT("Animated Normals"), bAnimatedNormals));
+					TEST_TRUE(GetTestName(TEXT("Head LOD0 Animated Normals Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD0, TEXT("Animated Normals"), bAnimatedNormals));
 					TEST_TRUE(GetTestName(TEXT("Head LOD0 Animated Normals")), bAnimatedNormals);
 
 					bool bDetailNormals = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD0 Detail Normals Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD0, TEXT("Detail Normals"), bDetailNormals));
+					TEST_TRUE(GetTestName(TEXT("Head LOD0 Detail Normals Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD0, TEXT("Detail Normals"), bDetailNormals));
 					TEST_TRUE(GetTestName(TEXT("Head LOD0 Detail Normals")), bDetailNormals);
 
-					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Color_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Color_MAIN")), 2048);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Color_CM1 Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Color_CM1")), 2048);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Color_CM2 Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Color_CM2")), 2048);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Color_CM3 Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Color_CM3")), 2048);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Normal_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Normal_MAIN")), 8192);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Normal_WM1 Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Normal_WM1")), 8192);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Normal_WM2 Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Normal_WM2")), 8192);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Normal_WM3 Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Normal_WM3")), 8192);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Normal_BAKED Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Normal_BAKED")), 256);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Normal_MICRO Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Normal_MICRO")), 1024);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Roughness_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Roughness_MAIN")), 4096);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Cavity_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Cavity_MAIN")), 8192);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Color_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Color_MAIN")), 2048);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Color_CM1 Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Color_CM1")), 2048);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Color_CM2 Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Color_CM2")), 2048);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Color_CM3 Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Color_CM3")), 2048);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Normal_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Normal_MAIN")), 8192);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Normal_WM1 Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Normal_WM1")), 8192);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Normal_WM2 Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Normal_WM2")), 8192);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Normal_WM3 Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Normal_WM3")), 8192);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Normal_BAKED Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Normal_BAKED")), 256);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Normal_MICRO Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Normal_MICRO")), 1024);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Roughness_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Roughness_MAIN")), 4096);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD0 Cavity_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD0, TEXT("Cavity_MAIN")), 8192);
 				}
 
 				{
@@ -1716,28 +1718,28 @@ bool FValidateMetaHumanCommand::Update()
 					TEST_NOT_NULL(GetTestName(TEXT("Head LOD1 Material")), HeadMaterialLOD1);
 
 					bool bAnimatedAlbedo = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD1 Animated Albedo Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD1, TEXT("Animated Albedo"), bAnimatedAlbedo));
+					TEST_TRUE(GetTestName(TEXT("Head LOD1 Animated Albedo Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD1, TEXT("Animated Albedo"), bAnimatedAlbedo));
 					TEST_TRUE(GetTestName(TEXT("Head LOD1 Animated Albedo")), bAnimatedAlbedo);
 
 					bool bAnimatedNormals = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD1 Animated Normals Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD1, TEXT("Animated Normals"), bAnimatedNormals));
+					TEST_TRUE(GetTestName(TEXT("Head LOD1 Animated Normals Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD1, TEXT("Animated Normals"), bAnimatedNormals));
 					TEST_TRUE(GetTestName(TEXT("Head LOD1 Animated Normals")), bAnimatedNormals);
 
 					bool bDetailNormals = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD1 Detail Normals Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD1, TEXT("Detail Normals"), bDetailNormals));
+					TEST_TRUE(GetTestName(TEXT("Head LOD1 Detail Normals Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD1, TEXT("Detail Normals"), bDetailNormals));
 					TEST_FALSE(GetTestName(TEXT("Head LOD1 Detail Normals")), bDetailNormals);
 
-					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Color_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Color_MAIN")), 2048);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Color_CM1 Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Color_CM1")), 2048);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Color_CM2 Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Color_CM2")), 2048);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Color_CM3 Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Color_CM3")), 2048);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Normal_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Normal_MAIN")), 8192);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Normal_WM1 Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Normal_WM1")), 8192);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Normal_WM2 Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Normal_WM2")), 8192);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Normal_WM3 Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Normal_WM3")), 8192);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Normal_BAKED Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Normal_BAKED")), 256);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Roughness_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Roughness_MAIN")), 4096);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Cavity_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Cavity_MAIN")), 8192);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Color_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Color_MAIN")), 2048);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Color_CM1 Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Color_CM1")), 2048);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Color_CM2 Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Color_CM2")), 2048);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Color_CM3 Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Color_CM3")), 2048);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Normal_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Normal_MAIN")), 8192);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Normal_WM1 Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Normal_WM1")), 8192);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Normal_WM2 Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Normal_WM2")), 8192);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Normal_WM3 Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Normal_WM3")), 8192);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Normal_BAKED Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Normal_BAKED")), 256);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Roughness_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Roughness_MAIN")), 4096);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD1 Cavity_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD1, TEXT("Cavity_MAIN")), 8192);
 				}
 
 				{
@@ -1745,22 +1747,22 @@ bool FValidateMetaHumanCommand::Update()
 					TEST_NOT_NULL(GetTestName(TEXT("Head LOD2 Material")), HeadMaterialLOD2);
 
 					bool bAnimatedAlbedo = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD2 Animated Albedo Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD2, TEXT("Animated Albedo"), bAnimatedAlbedo));
+					TEST_TRUE(GetTestName(TEXT("Head LOD2 Animated Albedo Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD2, TEXT("Animated Albedo"), bAnimatedAlbedo));
 					TEST_FALSE(GetTestName(TEXT("Head LOD2 Animated Albedo")), bAnimatedAlbedo);
 
 					bool bAnimatedNormals = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD2 Animated Normals Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD2, TEXT("Animated Normals"), bAnimatedNormals));
+					TEST_TRUE(GetTestName(TEXT("Head LOD2 Animated Normals Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD2, TEXT("Animated Normals"), bAnimatedNormals));
 					TEST_FALSE(GetTestName(TEXT("Head LOD2 Animated Normals")), bAnimatedNormals);
 
 					bool bDetailNormals = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD2 Detail Normals Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD2, TEXT("Detail Normals"), bDetailNormals));
+					TEST_TRUE(GetTestName(TEXT("Head LOD2 Detail Normals Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD2, TEXT("Detail Normals"), bDetailNormals));
 					TEST_FALSE(GetTestName(TEXT("Head LOD2 Detail Normals")), bDetailNormals);
 
-					TEST_EQUAL(GetTestName(TEXT("Head LOD2 Color_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD2, TEXT("Color_MAIN")), 2048);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD2 Normal_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD2, TEXT("Normal_MAIN")), 8192);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD2 Normal_BAKED Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD2, TEXT("Normal_BAKED")), 256);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD2 Roughness_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD2, TEXT("Roughness_MAIN")), 4096);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD2 Cavity_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD2, TEXT("Cavity_MAIN")), 8192);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD2 Color_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD2, TEXT("Color_MAIN")), 2048);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD2 Normal_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD2, TEXT("Normal_MAIN")), 8192);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD2 Normal_BAKED Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD2, TEXT("Normal_BAKED")), 256);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD2 Roughness_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD2, TEXT("Roughness_MAIN")), 4096);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD2 Cavity_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD2, TEXT("Cavity_MAIN")), 8192);
 				}
 
 				{
@@ -1768,22 +1770,22 @@ bool FValidateMetaHumanCommand::Update()
 					TEST_NOT_NULL(GetTestName(TEXT("Cinematic Head LOD3 Material")), HeadMaterialLOD3);
 
 					bool bAnimatedAlbedo = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD 0 Animated Albedo Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD3, TEXT("Animated Albedo"), bAnimatedAlbedo));
+					TEST_TRUE(GetTestName(TEXT("Head LOD 0 Animated Albedo Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD3, TEXT("Animated Albedo"), bAnimatedAlbedo));
 					TEST_FALSE(GetTestName(TEXT("Head LOD 0 Animated Albedo")), bAnimatedAlbedo);
 
 					bool bAnimatedNormals = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD 0 Animated Normals Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD3, TEXT("Animated Normals"), bAnimatedNormals));
+					TEST_TRUE(GetTestName(TEXT("Head LOD 0 Animated Normals Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD3, TEXT("Animated Normals"), bAnimatedNormals));
 					TEST_FALSE(GetTestName(TEXT("Head LOD 0 Animated Normals")), bAnimatedNormals);
 
 					bool bDetailNormals = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD 0 Detail Normals Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD3, TEXT("Detail Normals"), bDetailNormals));
+					TEST_TRUE(GetTestName(TEXT("Head LOD 0 Detail Normals Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD3, TEXT("Detail Normals"), bDetailNormals));
 					TEST_FALSE(GetTestName(TEXT("Head LOD 0 Detail Normals")), bDetailNormals);
 
-					TEST_EQUAL(GetTestName(TEXT("Head LOD3 Color_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD3, TEXT("Color_MAIN")), 2048);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD3 Normal_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD3, TEXT("Normal_MAIN")), 8192);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD3 Normal_BAKED Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD3, TEXT("Normal_BAKED")), 256);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD3 Roughness_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD3, TEXT("Roughness_MAIN")), 4096);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD3 Cavity_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD3, TEXT("Cavity_MAIN")), 8192);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD3 Color_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD3, TEXT("Color_MAIN")), 2048);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD3 Normal_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD3, TEXT("Normal_MAIN")), 8192);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD3 Normal_BAKED Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD3, TEXT("Normal_BAKED")), 256);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD3 Roughness_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD3, TEXT("Roughness_MAIN")), 4096);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD3 Cavity_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD3, TEXT("Cavity_MAIN")), 8192);
 				}
 
 				{
@@ -1791,22 +1793,22 @@ bool FValidateMetaHumanCommand::Update()
 					TEST_NOT_NULL(GetTestName(TEXT("Head LOD4 Material")), HeadMaterialLOD4);
 
 					bool bAnimatedAlbedo = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD4 Animated Albedo Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD4, TEXT("Animated Albedo"), bAnimatedAlbedo));
+					TEST_TRUE(GetTestName(TEXT("Head LOD4 Animated Albedo Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD4, TEXT("Animated Albedo"), bAnimatedAlbedo));
 					TEST_FALSE(GetTestName(TEXT("Head LOD4 Animated Albedo")), bAnimatedAlbedo);
 
 					bool bAnimatedNormals = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD4 Animated Normals Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD4, TEXT("Animated Normals"), bAnimatedNormals));
+					TEST_TRUE(GetTestName(TEXT("Head LOD4 Animated Normals Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD4, TEXT("Animated Normals"), bAnimatedNormals));
 					TEST_FALSE(GetTestName(TEXT("Head LOD4 Animated Normals")), bAnimatedNormals);
 
 					bool bDetailNormals = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD4 Detail Normals Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD4, TEXT("Detail Normals"), bDetailNormals));
+					TEST_TRUE(GetTestName(TEXT("Head LOD4 Detail Normals Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD4, TEXT("Detail Normals"), bDetailNormals));
 					TEST_FALSE(GetTestName(TEXT("Head LOD4 Detail Normals")), bDetailNormals);
 
-					TEST_EQUAL(GetTestName(TEXT("Head LOD4 Color_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD4, TEXT("Color_MAIN")), 2048);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD4 Normal_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD4, TEXT("Normal_MAIN")), 8192);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD4 Normal_BAKED Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD4, TEXT("Normal_BAKED")), 256);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD4 Roughness_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD4, TEXT("Roughness_MAIN")), 4096);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD4 Cavity_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD4, TEXT("Cavity_MAIN")), 8192);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD4 Color_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD4, TEXT("Color_MAIN")), 2048);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD4 Normal_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD4, TEXT("Normal_MAIN")), 8192);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD4 Normal_BAKED Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD4, TEXT("Normal_BAKED")), 256);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD4 Roughness_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD4, TEXT("Roughness_MAIN")), 4096);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD4 Cavity_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD4, TEXT("Cavity_MAIN")), 8192);
 				}
 
 				{
@@ -1814,27 +1816,27 @@ bool FValidateMetaHumanCommand::Update()
 					TEST_NOT_NULL(GetTestName(TEXT("Head LOD57 Material")), HeadMaterialLOD57);
 
 					bool bAnimatedAlbedo = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD57 Animated Albedo Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD57, TEXT("Animated Albedo"), bAnimatedAlbedo));
+					TEST_TRUE(GetTestName(TEXT("Head LOD57 Animated Albedo Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD57, TEXT("Animated Albedo"), bAnimatedAlbedo));
 					TEST_FALSE(GetTestName(TEXT("Head LOD57 Animated Albedo")), bAnimatedAlbedo);
 
 					bool bAnimatedNormals = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD57 Animated Normals Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD57, TEXT("Animated Normals"), bAnimatedNormals));
+					TEST_TRUE(GetTestName(TEXT("Head LOD57 Animated Normals Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD57, TEXT("Animated Normals"), bAnimatedNormals));
 					TEST_FALSE(GetTestName(TEXT("Head LOD57 Animated Normals")), bAnimatedNormals);
 
 					bool bDetailNormals = false;
-					TEST_TRUE(GetTestName(TEXT("Head LOD57 Detail Normals Parameter")), MetaHumanTestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD57, TEXT("Detail Normals"), bDetailNormals));
+					TEST_TRUE(GetTestName(TEXT("Head LOD57 Detail Normals Parameter")), TestUtils::GetStaticSwitchFromMaterial(HeadMaterialLOD57, TEXT("Detail Normals"), bDetailNormals));
 					TEST_FALSE(GetTestName(TEXT("Head LOD57 Detail Normals")), bDetailNormals);
 
-					TEST_EQUAL(GetTestName(TEXT("Head LOD57 Color_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD57, TEXT("Color_MAIN")), 2048);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD57 Normal_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD57, TEXT("Normal_MAIN")), 8192);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD57 Normal_BAKED Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD57, TEXT("Normal_BAKED")), 256);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD57 Roughness_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD57, TEXT("Roughness_MAIN")), 4096);
-					TEST_EQUAL(GetTestName(TEXT("Head LOD57 Cavity_MAIN Resolution")), MetaHumanTestUtils::GetTextureResolution(HeadMaterialLOD57, TEXT("Cavity_MAIN")), 8192);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD57 Color_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD57, TEXT("Color_MAIN")), 2048);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD57 Normal_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD57, TEXT("Normal_MAIN")), 8192);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD57 Normal_BAKED Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD57, TEXT("Normal_BAKED")), 256);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD57 Roughness_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD57, TEXT("Roughness_MAIN")), 4096);
+					TEST_EQUAL(GetTestName(TEXT("Head LOD57 Cavity_MAIN Resolution")), TestUtils::GetTextureResolution(HeadMaterialLOD57, TEXT("Cavity_MAIN")), 8192);
 				}
 			}
 		}
 
-		auto TestClothingPostProcessAnimBP = [this, Test, &ExportQuality, &GetTestName](USkeletalMesh* InSkeletalMesh, FStringView InPartName, const MetaHumanTestUtils::FClothingPostProcessAnimBPSettings& PostProcessAnimBPSettings)
+		auto TestClothingPostProcessAnimBP = [this, Test, &ExportQuality, &GetTestName](USkeletalMesh* InSkeletalMesh, FStringView InPartName, const TestUtils::FClothingPostProcessAnimBPSettings& PostProcessAnimBPSettings)
 		{
 			auto GetPostProcessTestName = [InPartName, &GetTestName](const FString& InTest)
 			{
@@ -1850,7 +1852,7 @@ bool FValidateMetaHumanCommand::Update()
 				TEST_NOT_NULL(GetPostProcessTestName(TEXT("Valid")), PostProcessAnimBP);
 
 				FString BodyTypeName;
-				TEST_TRUE(GetPostProcessTestName(TEXT("Get Body Type Name")), MetaHumanTestUtils::GetBodyTypeNameFromMeshName(InSkeletalMesh->GetName(), BodyTypeName));
+				TEST_TRUE(GetPostProcessTestName(TEXT("Get Body Type Name")), TestUtils::GetBodyTypeNameFromMeshName(InSkeletalMesh->GetName(), BodyTypeName));
 
 				TEST_EQUAL(GetPostProcessTestName(TEXT("Parent Class")), UAnimBlueprint::GetParentAnimBlueprint(PostProcessAnimBP)->GetName(), TEXT("ABP_Clothing_PostProcess"));
 
@@ -1861,26 +1863,26 @@ bool FValidateMetaHumanCommand::Update()
 				TEST_NOT_NULL(GetPostProcessTestName(TEXT("Instance")), PostProcessAnimInstance);
 
 				bool bEnableRigidBodySimulation = false;
-				TEST_TRUE(GetPostProcessTestName(TEXT("Enable Rigid Body Property")), MetaHumanTestUtils::GetPropertyValue(PostProcessAnimInstance, MetaHumanTestUtils::FClothingPostProcessAnimBPSettings::bEnableRigidBodySimulationPropertyName, bEnableRigidBodySimulation));
+				TEST_TRUE(GetPostProcessTestName(TEXT("Enable Rigid Body Property")), TestUtils::GetPropertyValue(PostProcessAnimInstance, TestUtils::FClothingPostProcessAnimBPSettings::bEnableRigidBodySimulationPropertyName, bEnableRigidBodySimulation));
 				TEST_EQUAL(GetPostProcessTestName(TEXT("Enable Rigid Body")), bEnableRigidBodySimulation, PostProcessAnimBPSettings.bEnableRigidBodySimulation);
 
 				int32 RigidBodyLODThreshold = INDEX_NONE;
-				TEST_TRUE(GetPostProcessTestName(TEXT("Rigid Body LOD Threshold Property")), MetaHumanTestUtils::GetPropertyValue(PostProcessAnimInstance, MetaHumanTestUtils::FClothingPostProcessAnimBPSettings::RigidBodyLODThresholdPropertyName, RigidBodyLODThreshold));
+				TEST_TRUE(GetPostProcessTestName(TEXT("Rigid Body LOD Threshold Property")), TestUtils::GetPropertyValue(PostProcessAnimInstance, TestUtils::FClothingPostProcessAnimBPSettings::RigidBodyLODThresholdPropertyName, RigidBodyLODThreshold));
 				TEST_EQUAL(GetPostProcessTestName(TEXT("Rigid Body LOD Threshold")), RigidBodyLODThreshold, PostProcessAnimBPSettings.RigidBodyLODThreshold);
 
 				bool bEnableControlRig = false;
-				TEST_TRUE(GetPostProcessTestName(TEXT("Enable Control Rig Property")), MetaHumanTestUtils::GetPropertyValue(PostProcessAnimInstance, MetaHumanTestUtils::FClothingPostProcessAnimBPSettings::bEnableControlRigPropertyName, bEnableControlRig));
+				TEST_TRUE(GetPostProcessTestName(TEXT("Enable Control Rig Property")), TestUtils::GetPropertyValue(PostProcessAnimInstance, TestUtils::FClothingPostProcessAnimBPSettings::bEnableControlRigPropertyName, bEnableControlRig));
 				TEST_EQUAL(GetPostProcessTestName(TEXT("Enable Control Rig")), bEnableControlRig, PostProcessAnimBPSettings.bEnableControlRig);
 
 				int32 ControlRigLODThreshold = INDEX_NONE;
-				TEST_TRUE(GetPostProcessTestName(TEXT("Control Rig LOD Threshold Property")), MetaHumanTestUtils::GetPropertyValue(PostProcessAnimInstance, MetaHumanTestUtils::FClothingPostProcessAnimBPSettings::ControlRigLODThresholdPropertyName, ControlRigLODThreshold));
+				TEST_TRUE(GetPostProcessTestName(TEXT("Control Rig LOD Threshold Property")), TestUtils::GetPropertyValue(PostProcessAnimInstance, TestUtils::FClothingPostProcessAnimBPSettings::ControlRigLODThresholdPropertyName, ControlRigLODThreshold));
 				TEST_EQUAL(GetPostProcessTestName(TEXT("Control Rig LOD Threshold")), ControlRigLODThreshold, PostProcessAnimBPSettings.ControlRigLODThreshold);
 
 				TSubclassOf<UControlRig> ControlRigClass = nullptr;
-				TEST_TRUE(GetPostProcessTestName(TEXT("Control Rig Property")), MetaHumanTestUtils::GetPropertyValue(PostProcessAnimInstance, MetaHumanTestUtils::FClothingPostProcessAnimBPSettings::ControlRigClassPropertyName, ControlRigClass));
+				TEST_TRUE(GetPostProcessTestName(TEXT("Control Rig Property")), TestUtils::GetPropertyValue(PostProcessAnimInstance, TestUtils::FClothingPostProcessAnimBPSettings::ControlRigClassPropertyName, ControlRigClass));
 
 				UPhysicsAsset* OverridePhysicsAsset = nullptr;
-				TEST_TRUE(GetPostProcessTestName(TEXT("Override Physics Asset Property")), MetaHumanTestUtils::GetPropertyValue(PostProcessAnimInstance, MetaHumanTestUtils::FClothingPostProcessAnimBPSettings::OverridePhysicsAssetPropertyName, OverridePhysicsAsset));
+				TEST_TRUE(GetPostProcessTestName(TEXT("Override Physics Asset Property")), TestUtils::GetPropertyValue(PostProcessAnimInstance, TestUtils::FClothingPostProcessAnimBPSettings::OverridePhysicsAssetPropertyName, OverridePhysicsAsset));
 
 				if (ControlRigClass != nullptr)
 				{
@@ -1901,7 +1903,7 @@ bool FValidateMetaHumanCommand::Update()
 
 		if (BaseTestName == TEXT("MetaHuman.Torso"))
 		{
-			USkeletalMeshComponent* TorsoComponent = MetaHumanTestUtils::GetComponentByName<USkeletalMeshComponent>(MetaHumanActor, TEXT("Torso"));
+			USkeletalMeshComponent* TorsoComponent = TestUtils::GetComponentByName<USkeletalMeshComponent>(MetaHumanActor, TEXT("Torso"));
 			TEST_NOT_NULL(GetTestName(TEXT("Torso Component")), TorsoComponent);
 			TEST_EQUAL(GetTestName(TEXT("Torso Component Only Tick when Rendered")), TorsoComponent->VisibilityBasedAnimTickOption, EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered);
 			TEST_EQUAL(GetTestName(TEXT("Torso Component is a child of Body")), TorsoComponent->GetAttachParent()->GetName(), TEXT("Body"));
@@ -1909,10 +1911,10 @@ bool FValidateMetaHumanCommand::Update()
 			if (USkeletalMesh* TorsoSkelMesh = TorsoComponent->GetSkeletalMeshAsset())
 			{
 				// Torso mesh is optional
-				TEST_EQUAL(GetTestName(TEXT("Torso Skeletal Mesh Num LODs")), TorsoSkelMesh->GetLODNum(), MetaHumanTestUtils::GetNumLODsForQuality(ExportQuality, TorsoComponent->GetName()));
+				TEST_EQUAL(GetTestName(TEXT("Torso Skeletal Mesh Num LODs")), TorsoSkelMesh->GetLODNum(), TestUtils::GetNumLODsForQuality(ExportQuality, TorsoComponent->GetName()));
 				TEST_NULL(GetTestName(TEXT("Torso Skeletal Mesh Default Animating Rig")), TorsoSkelMesh->GetDefaultAnimatingRig().Get());
 
-				TEST_TRUE(GetTestName(TEXT("Torso Post Process AnimBP")), TestClothingPostProcessAnimBP(TorsoSkelMesh, TEXTVIEW("Torso"), MetaHumanTestUtils::GetClothingPostProcessAnimBPSettings(TEXTVIEW("Torso"), ExportQuality)));
+				TEST_TRUE(GetTestName(TEXT("Torso Post Process AnimBP")), TestClothingPostProcessAnimBP(TorsoSkelMesh, TEXTVIEW("Torso"), TestUtils::GetClothingPostProcessAnimBPSettings(TEXTVIEW("Torso"), ExportQuality)));
 
 				if (TorsoSkelMesh->GetPostProcessAnimBlueprint() == nullptr && TorsoComponent->GetAnimClass() == nullptr)
 				{
@@ -1928,24 +1930,24 @@ bool FValidateMetaHumanCommand::Update()
 				UMaterialInterface* TorsoMaterial = TorsoComponent->GetMaterial(0);
 				TEST_NOT_NULL(GetTestName(TEXT("Torso Material")), TorsoMaterial);
 
-				if (MetaHumanTestUtils::IsOptimizedExport(ExportQuality))
+				if (TestUtils::IsOptimizedExport(ExportQuality))
 				{
-					TEST_EQUAL(GetTestName(TEXT("Torso BaseColor")), MetaHumanTestUtils::GetTextureResolution(TorsoMaterial, TEXT("BaseColor")), MetaHumanTestUtils::GetTextureResolutionForQuality(TEXTVIEW("Torso"), ExportQuality, TEXTVIEW("BaseColor")));
-					TEST_EQUAL(GetTestName(TEXT("Torso Normal")), MetaHumanTestUtils::GetTextureResolution(TorsoMaterial, TEXT("Normal")), MetaHumanTestUtils::GetTextureResolutionForQuality(TEXTVIEW("Torso"), ExportQuality, TEXTVIEW("Normal")));
-					TEST_EQUAL(GetTestName(TEXT("Torso Specular")), MetaHumanTestUtils::GetTextureResolution(TorsoMaterial, TEXT("Specular")), MetaHumanTestUtils::GetTextureResolutionForQuality(TEXTVIEW("Torso"), ExportQuality, TEXTVIEW("Specular")));
+					TEST_EQUAL(GetTestName(TEXT("Torso BaseColor")), TestUtils::GetTextureResolution(TorsoMaterial, TEXT("BaseColor")), TestUtils::GetTextureResolutionForQuality(TEXTVIEW("Torso"), ExportQuality, TEXTVIEW("BaseColor")));
+					TEST_EQUAL(GetTestName(TEXT("Torso Normal")), TestUtils::GetTextureResolution(TorsoMaterial, TEXT("Normal")), TestUtils::GetTextureResolutionForQuality(TEXTVIEW("Torso"), ExportQuality, TEXTVIEW("Normal")));
+					TEST_EQUAL(GetTestName(TEXT("Torso Specular")), TestUtils::GetTextureResolution(TorsoMaterial, TEXT("Specular")), TestUtils::GetTextureResolutionForQuality(TEXTVIEW("Torso"), ExportQuality, TEXTVIEW("Specular")));
 				}
 				else
 				{
-					TEST_GREATER_EQUAL(GetTestName(TEXT("Torso AO Resolution")), MetaHumanTestUtils::GetTextureResolution(TorsoMaterial, TEXT("AO")), 2048);
-					TEST_GREATER_EQUAL(GetTestName(TEXT("Torso Masks Resolution")), MetaHumanTestUtils::GetTextureResolution(TorsoMaterial, TEXT("Masks")), 1024);
-					TEST_GREATER_EQUAL(GetTestName(TEXT("Torso normalmap Resolution")), MetaHumanTestUtils::GetTextureResolution(TorsoMaterial, TEXT("normalmap")), 4096);
+					TEST_GREATER_EQUAL(GetTestName(TEXT("Torso AO Resolution")), TestUtils::GetTextureResolution(TorsoMaterial, TEXT("AO")), 2048);
+					TEST_GREATER_EQUAL(GetTestName(TEXT("Torso Masks Resolution")), TestUtils::GetTextureResolution(TorsoMaterial, TEXT("Masks")), 1024);
+					TEST_GREATER_EQUAL(GetTestName(TEXT("Torso normalmap Resolution")), TestUtils::GetTextureResolution(TorsoMaterial, TEXT("normalmap")), 4096);
 				}
 			}
 		}
 
 		if (BaseTestName == TEXT("MetaHuman.Legs"))
 		{
-			USkeletalMeshComponent* LegsComponent = MetaHumanTestUtils::GetComponentByName<USkeletalMeshComponent>(MetaHumanActor, TEXT("Legs"));
+			USkeletalMeshComponent* LegsComponent = TestUtils::GetComponentByName<USkeletalMeshComponent>(MetaHumanActor, TEXT("Legs"));
 			TEST_NOT_NULL(GetTestName(TEXT("Legs Component")), LegsComponent);
 			TEST_EQUAL(GetTestName(TEXT("Legs Only Tick when Rendered")), LegsComponent->VisibilityBasedAnimTickOption, EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered);
 			TEST_EQUAL(GetTestName(TEXT("Legs are child of Body")), LegsComponent->GetAttachParent()->GetName(), TEXT("Body"));
@@ -1953,10 +1955,10 @@ bool FValidateMetaHumanCommand::Update()
 			if (USkeletalMesh* LegsSkelMesh = LegsComponent->GetSkeletalMeshAsset())
 			{
 				// Legs mesh is optional
-				TEST_EQUAL(GetTestName(TEXT("Legs Skeletal Mesh Num LODs")), LegsSkelMesh->GetLODNum(), MetaHumanTestUtils::GetNumLODsForQuality(ExportQuality, LegsComponent->GetName()));
+				TEST_EQUAL(GetTestName(TEXT("Legs Skeletal Mesh Num LODs")), LegsSkelMesh->GetLODNum(), TestUtils::GetNumLODsForQuality(ExportQuality, LegsComponent->GetName()));
 				TEST_NULL(GetTestName(TEXT("Legs Skeletal Mesh Default Animating Rig")), LegsSkelMesh->GetDefaultAnimatingRig().Get());
 
-				TEST_TRUE(GetTestName(TEXT("Legs Post Process AnimBP")), TestClothingPostProcessAnimBP(LegsSkelMesh, TEXTVIEW("Legs"), MetaHumanTestUtils::GetClothingPostProcessAnimBPSettings(TEXTVIEW("Legs"), ExportQuality)));
+				TEST_TRUE(GetTestName(TEXT("Legs Post Process AnimBP")), TestClothingPostProcessAnimBP(LegsSkelMesh, TEXTVIEW("Legs"), TestUtils::GetClothingPostProcessAnimBPSettings(TEXTVIEW("Legs"), ExportQuality)));
 
 				if (LegsSkelMesh->GetPostProcessAnimBlueprint() == nullptr && LegsComponent->GetAnimClass() == nullptr)
 				{
@@ -1972,26 +1974,26 @@ bool FValidateMetaHumanCommand::Update()
 				UMaterialInterface* LegsMaterial = LegsComponent->GetMaterial(0);
 				TEST_NOT_NULL(GetTestName(TEXT("Legs Material")), LegsMaterial);
 
-				if (MetaHumanTestUtils::IsOptimizedExport(ExportQuality))
+				if (TestUtils::IsOptimizedExport(ExportQuality))
 				{
-					TEST_EQUAL(GetTestName(TEXT("Legs BaseColor")), MetaHumanTestUtils::GetTextureResolution(LegsMaterial, TEXT("BaseColor")), MetaHumanTestUtils::GetTextureResolutionForQuality(TEXTVIEW("Legs"), ExportQuality, TEXTVIEW("BaseColor")));
-					TEST_EQUAL(GetTestName(TEXT("Legs Normal")), MetaHumanTestUtils::GetTextureResolution(LegsMaterial, TEXT("Normal")), MetaHumanTestUtils::GetTextureResolutionForQuality(TEXTVIEW("Legs"), ExportQuality, TEXTVIEW("Normal")));
-					TEST_EQUAL(GetTestName(TEXT("Legs Specular")), MetaHumanTestUtils::GetTextureResolution(LegsMaterial, TEXT("Specular")), MetaHumanTestUtils::GetTextureResolutionForQuality(TEXTVIEW("Legs"), ExportQuality, TEXTVIEW("Specular")));
+					TEST_EQUAL(GetTestName(TEXT("Legs BaseColor")), TestUtils::GetTextureResolution(LegsMaterial, TEXT("BaseColor")), TestUtils::GetTextureResolutionForQuality(TEXTVIEW("Legs"), ExportQuality, TEXTVIEW("BaseColor")));
+					TEST_EQUAL(GetTestName(TEXT("Legs Normal")), TestUtils::GetTextureResolution(LegsMaterial, TEXT("Normal")), TestUtils::GetTextureResolutionForQuality(TEXTVIEW("Legs"), ExportQuality, TEXTVIEW("Normal")));
+					TEST_EQUAL(GetTestName(TEXT("Legs Specular")), TestUtils::GetTextureResolution(LegsMaterial, TEXT("Specular")), TestUtils::GetTextureResolutionForQuality(TEXTVIEW("Legs"), ExportQuality, TEXTVIEW("Specular")));
 				}
 				else
 				{
 					if (LegsMaterial->GetName() == TEXT("M_btm_jeans_nrm"))
 					{
-						TEST_EQUAL(GetTestName(TEXT("Legs Diffuse Resolution")), MetaHumanTestUtils::GetTextureResolution(LegsMaterial, TEXT("Diffuse")), 4096);
-						TEST_EQUAL(GetTestName(TEXT("Legs AO Resolution")), MetaHumanTestUtils::GetTextureResolution(LegsMaterial, TEXT("AO")), 2048);
-						TEST_EQUAL(GetTestName(TEXT("Legs Mask Resolution")), MetaHumanTestUtils::GetTextureResolution(LegsMaterial, TEXT("Mask")), 4096);
-						TEST_EQUAL(GetTestName(TEXT("Legs Normal Resolution")), MetaHumanTestUtils::GetTextureResolution(LegsMaterial, TEXT("Normals")), 4096);
+						TEST_EQUAL(GetTestName(TEXT("Legs Diffuse Resolution")), TestUtils::GetTextureResolution(LegsMaterial, TEXT("Diffuse")), 4096);
+						TEST_EQUAL(GetTestName(TEXT("Legs AO Resolution")), TestUtils::GetTextureResolution(LegsMaterial, TEXT("AO")), 2048);
+						TEST_EQUAL(GetTestName(TEXT("Legs Mask Resolution")), TestUtils::GetTextureResolution(LegsMaterial, TEXT("Mask")), 4096);
+						TEST_EQUAL(GetTestName(TEXT("Legs Normal Resolution")), TestUtils::GetTextureResolution(LegsMaterial, TEXT("Normals")), 4096);
 					}
 					else
 					{
-						TEST_EQUAL(GetTestName(TEXT("Legs AO Resolution")), MetaHumanTestUtils::GetTextureResolution(LegsMaterial, TEXT("AO")), 2048);
-						TEST_EQUAL(GetTestName(TEXT("Legs Masks Resolution")), MetaHumanTestUtils::GetTextureResolution(LegsMaterial, TEXT("Masks")), 4096);
-						TEST_EQUAL(GetTestName(TEXT("Legs normalmap Resolution")), MetaHumanTestUtils::GetTextureResolution(LegsMaterial, TEXT("normalmap")), 8192);
+						TEST_EQUAL(GetTestName(TEXT("Legs AO Resolution")), TestUtils::GetTextureResolution(LegsMaterial, TEXT("AO")), 2048);
+						TEST_EQUAL(GetTestName(TEXT("Legs Masks Resolution")), TestUtils::GetTextureResolution(LegsMaterial, TEXT("Masks")), 4096);
+						TEST_EQUAL(GetTestName(TEXT("Legs normalmap Resolution")), TestUtils::GetTextureResolution(LegsMaterial, TEXT("normalmap")), 8192);
 					}
 				}
 			}
@@ -1999,7 +2001,7 @@ bool FValidateMetaHumanCommand::Update()
 
 		if (BaseTestName == TEXT("MetaHuman.Feet"))
 		{
-			USkeletalMeshComponent* FeetComponent = MetaHumanTestUtils::GetComponentByName<USkeletalMeshComponent>(MetaHumanActor, TEXT("Feet"));
+			USkeletalMeshComponent* FeetComponent = TestUtils::GetComponentByName<USkeletalMeshComponent>(MetaHumanActor, TEXT("Feet"));
 			TEST_NOT_NULL(GetTestName(TEXT("Feet Component is valid")), FeetComponent);
 			TEST_EQUAL(GetTestName(TEXT("Feet Only Tick when Rendered")), FeetComponent->VisibilityBasedAnimTickOption, EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered);
 			TEST_EQUAL(GetTestName(TEXT("Feet is a child of Body")), FeetComponent->GetAttachParent()->GetName(), TEXT("Body"));
@@ -2007,10 +2009,10 @@ bool FValidateMetaHumanCommand::Update()
 			if (USkeletalMesh* FeetSkelMesh = FeetComponent->GetSkeletalMeshAsset())
 			{
 				// Feet mesh is optional
-				TEST_EQUAL(GetTestName(TEXT("Feet Num LODs")), FeetSkelMesh->GetLODNum(), MetaHumanTestUtils::GetNumLODsForQuality(ExportQuality, FeetComponent->GetName()));
+				TEST_EQUAL(GetTestName(TEXT("Feet Num LODs")), FeetSkelMesh->GetLODNum(), TestUtils::GetNumLODsForQuality(ExportQuality, FeetComponent->GetName()));
 				TEST_NULL(GetTestName(TEXT("Feet Skeletal Mesh Default Animating Rig")), FeetSkelMesh->GetDefaultAnimatingRig().Get());
 
-				TEST_TRUE(GetTestName(TEXT("Feet Post Process AnimBP")), TestClothingPostProcessAnimBP(FeetSkelMesh, TEXTVIEW("Feet"), MetaHumanTestUtils::GetClothingPostProcessAnimBPSettings(TEXTVIEW("Feet"), ExportQuality)));
+				TEST_TRUE(GetTestName(TEXT("Feet Post Process AnimBP")), TestClothingPostProcessAnimBP(FeetSkelMesh, TEXTVIEW("Feet"), TestUtils::GetClothingPostProcessAnimBPSettings(TEXTVIEW("Feet"), ExportQuality)));
 
 				if (FeetSkelMesh->GetPostProcessAnimBlueprint() == nullptr && FeetComponent->GetAnimClass() == nullptr)
 				{
@@ -2026,24 +2028,24 @@ bool FValidateMetaHumanCommand::Update()
 				UMaterialInterface* FeetMaterial = FeetComponent->GetMaterial(0);
 				TEST_NOT_NULL(GetTestName(TEXT("Feet Material")), FeetMaterial);
 
-				if (MetaHumanTestUtils::IsOptimizedExport(ExportQuality))
+				if (TestUtils::IsOptimizedExport(ExportQuality))
 				{
-					TEST_EQUAL(GetTestName(TEXT("Feet BaseColor Resolution")), MetaHumanTestUtils::GetTextureResolution(FeetMaterial, TEXT("BaseColor")), MetaHumanTestUtils::GetTextureResolutionForQuality(TEXTVIEW("Feet"), ExportQuality, TEXTVIEW("BaseColor")));
-					TEST_EQUAL(GetTestName(TEXT("Feet Normal Resolution")), MetaHumanTestUtils::GetTextureResolution(FeetMaterial, TEXT("Normal")), MetaHumanTestUtils::GetTextureResolutionForQuality(TEXTVIEW("Feet"), ExportQuality, TEXTVIEW("Normal")));
-					TEST_EQUAL(GetTestName(TEXT("Feet Specular Resolution")), MetaHumanTestUtils::GetTextureResolution(FeetMaterial, TEXT("Specular")), MetaHumanTestUtils::GetTextureResolutionForQuality(TEXTVIEW("Feet"), ExportQuality, TEXTVIEW("Specular")));
+					TEST_EQUAL(GetTestName(TEXT("Feet BaseColor Resolution")), TestUtils::GetTextureResolution(FeetMaterial, TEXT("BaseColor")), TestUtils::GetTextureResolutionForQuality(TEXTVIEW("Feet"), ExportQuality, TEXTVIEW("BaseColor")));
+					TEST_EQUAL(GetTestName(TEXT("Feet Normal Resolution")), TestUtils::GetTextureResolution(FeetMaterial, TEXT("Normal")), TestUtils::GetTextureResolutionForQuality(TEXTVIEW("Feet"), ExportQuality, TEXTVIEW("Normal")));
+					TEST_EQUAL(GetTestName(TEXT("Feet Specular Resolution")), TestUtils::GetTextureResolution(FeetMaterial, TEXT("Specular")), TestUtils::GetTextureResolutionForQuality(TEXTVIEW("Feet"), ExportQuality, TEXTVIEW("Specular")));
 				}
 				else
 				{
-					TEST_EQUAL(GetTestName(TEXT("Feet AO Resolution")), MetaHumanTestUtils::GetTextureResolution(FeetMaterial, TEXT("AO")), 2048);
-					TEST_GREATER_EQUAL(GetTestName(TEXT("Feet Masks Resolution")), MetaHumanTestUtils::GetTextureResolution(FeetMaterial, TEXT("Masks")), 2048);
-					TEST_GREATER_EQUAL(GetTestName(TEXT("Feet normalmap Resolution")), MetaHumanTestUtils::GetTextureResolution(FeetMaterial, TEXT("normalmap")), 2048);
+					TEST_EQUAL(GetTestName(TEXT("Feet AO Resolution")), TestUtils::GetTextureResolution(FeetMaterial, TEXT("AO")), 2048);
+					TEST_GREATER_EQUAL(GetTestName(TEXT("Feet Masks Resolution")), TestUtils::GetTextureResolution(FeetMaterial, TEXT("Masks")), 2048);
+					TEST_GREATER_EQUAL(GetTestName(TEXT("Feet normalmap Resolution")), TestUtils::GetTextureResolution(FeetMaterial, TEXT("normalmap")), 2048);
 				}
 			}
 		}
 
 		if (BaseTestName == TEXT("MetaHumans.Grooms.Hair"))
 		{
-			UGroomComponent* HairComponent = MetaHumanTestUtils::GetComponentByName<UGroomComponent>(MetaHumanActor, TEXT("Hair"));
+			UGroomComponent* HairComponent = TestUtils::GetComponentByName<UGroomComponent>(MetaHumanActor, TEXT("Hair"));
 			TEST_NOT_NULL(GetTestName(TEXT("Hair Component")), HairComponent);
 			TEST_EQUAL(GetTestName(TEXT("Hair Component is child of Face")), HairComponent->GetAttachParent()->GetName(), TEXT("Face"));
 			TEST_EQUAL(GetTestName(TEXT("Hair Component Tick Group")), HairComponent->PrimaryComponentTick.TickGroup, ETickingGroup::TG_PrePhysics);
@@ -2061,7 +2063,7 @@ bool FValidateMetaHumanCommand::Update()
 
 		if (BaseTestName == TEXT("MetaHuman.Grooms.Beard"))
 		{
-			UGroomComponent* BeardComponent = MetaHumanTestUtils::GetComponentByName<UGroomComponent>(MetaHumanActor, TEXT("Beard"));
+			UGroomComponent* BeardComponent = TestUtils::GetComponentByName<UGroomComponent>(MetaHumanActor, TEXT("Beard"));
 			TEST_NOT_NULL(GetTestName(TEXT("Beard Component")), BeardComponent);
 			TEST_EQUAL(GetTestName(TEXT("Beard Component is child of Face")), BeardComponent->GetAttachParent()->GetName(), TEXT("Face"));
 			TEST_EQUAL(GetTestName(TEXT("Beard Component Tick Group")), BeardComponent->PrimaryComponentTick.TickGroup, ETickingGroup::TG_PrePhysics);
@@ -2078,7 +2080,7 @@ bool FValidateMetaHumanCommand::Update()
 
 		if (BaseTestName == TEXT("MetaHumans.Grooms.Eyebrows"))
 		{
-			UGroomComponent* EyebrowsComponent = MetaHumanTestUtils::GetComponentByName<UGroomComponent>(MetaHumanActor, TEXT("Eyebrows"));
+			UGroomComponent* EyebrowsComponent = TestUtils::GetComponentByName<UGroomComponent>(MetaHumanActor, TEXT("Eyebrows"));
 			TEST_NOT_NULL(GetTestName(TEXT("Eyebrows Component")), EyebrowsComponent);
 			TEST_EQUAL(GetTestName(TEXT("Eyebrows Component is child of Face")), EyebrowsComponent->GetAttachParent()->GetName(), TEXT("Face"));
 			TEST_EQUAL(GetTestName(TEXT("Eyebrows Component Tick Group")), EyebrowsComponent->PrimaryComponentTick.TickGroup, ETickingGroup::TG_PrePhysics);
@@ -2095,7 +2097,7 @@ bool FValidateMetaHumanCommand::Update()
 
 		if (BaseTestName == TEXT("MetaHuman.Grooms.Eyelahes"))
 		{
-			UGroomComponent* EyelashesComponent = MetaHumanTestUtils::GetComponentByName<UGroomComponent>(MetaHumanActor, TEXT("Eyelashes"));
+			UGroomComponent* EyelashesComponent = TestUtils::GetComponentByName<UGroomComponent>(MetaHumanActor, TEXT("Eyelashes"));
 			TEST_NOT_NULL(GetTestName(TEXT("Eyelashes Component")), EyelashesComponent);
 			TEST_EQUAL(GetTestName(TEXT("Eyelashes Component is child of Face")), EyelashesComponent->GetAttachParent()->GetName(), TEXT("Face"));
 			TEST_EQUAL(GetTestName(TEXT("Eyelashes Component Tick Group")), EyelashesComponent->PrimaryComponentTick.TickGroup, ETickingGroup::TG_PrePhysics);
@@ -2112,7 +2114,7 @@ bool FValidateMetaHumanCommand::Update()
 
 		if (BaseTestName == TEXT("MetaHuman.Grooms.Mustache"))
 		{
-			UGroomComponent* MustacheComponent = MetaHumanTestUtils::GetComponentByName<UGroomComponent>(MetaHumanActor, TEXT("Mustache"));
+			UGroomComponent* MustacheComponent = TestUtils::GetComponentByName<UGroomComponent>(MetaHumanActor, TEXT("Mustache"));
 			TEST_NOT_NULL(GetTestName(TEXT("Mustache Component")), MustacheComponent);
 			TEST_EQUAL(GetTestName(TEXT("Mustache Component is child of Face")), MustacheComponent->GetAttachParent()->GetName(), TEXT("Face"));
 			TEST_EQUAL(GetTestName(TEXT("Mustache Component Tick Group")), MustacheComponent->PrimaryComponentTick.TickGroup, ETickingGroup::TG_PrePhysics);
@@ -2129,7 +2131,7 @@ bool FValidateMetaHumanCommand::Update()
 
 		if (BaseTestName == TEXT("MetaHuman.Grooms.Fuzz"))
 		{
-			UGroomComponent* FuzzComponent = MetaHumanTestUtils::GetComponentByName<UGroomComponent>(MetaHumanActor, TEXT("Fuzz"));
+			UGroomComponent* FuzzComponent = TestUtils::GetComponentByName<UGroomComponent>(MetaHumanActor, TEXT("Fuzz"));
 			TEST_NOT_NULL(GetTestName(TEXT("Fuzz Component is valid")), FuzzComponent);
 			TEST_EQUAL(GetTestName(TEXT("Fuzz Component is child of Face")), FuzzComponent->GetAttachParent()->GetName(), TEXT("Face"));
 			TEST_EQUAL(GetTestName(TEXT("Fuzz Component Tick Group")), FuzzComponent->PrimaryComponentTick.TickGroup, ETickingGroup::TG_PrePhysics);
@@ -2138,7 +2140,7 @@ bool FValidateMetaHumanCommand::Update()
 
 			if (FuzzComponent->GroomAsset || FuzzComponent->BindingAsset)
 			{
-				TEST_FALSE(GetTestName(TEXT("Fuzz should not be in Optimized MetaHuman")), MetaHumanTestUtils::IsOptimizedExport(ExportQuality));
+				TEST_FALSE(GetTestName(TEXT("Fuzz should not be in Optimized MetaHuman")), TestUtils::IsOptimizedExport(ExportQuality));
 				TEST_NOT_NULL(GetTestName(TEXT("Fuzz GroomAsset")), FuzzComponent->GroomAsset.Get());
 				TEST_NOT_NULL(GetTestName(TEXT("Fuzz BindingAsset")), FuzzComponent->BindingAsset.Get());
 				TEST_TRUE(GetTestName(TEXT("Fuzz Groom Binding Name")), FuzzComponent->BindingAsset->GetName().StartsWith(FuzzComponent->GroomAsset->GetName()));
@@ -2150,10 +2152,10 @@ bool FValidateMetaHumanCommand::Update()
 			ULODSyncComponent* LODSyncComponent = MetaHumanActor->FindComponentByClass<ULODSyncComponent>();
 			TEST_NOT_NULL(GetTestName(TEXT("LOD Sync Component is valid")), LODSyncComponent);
 
-			const MetaHumanTestUtils::FLODSyncSettings& LODSyncSettings = MetaHumanTestUtils::GetLODSyncSettings(ExportQuality);
+			const TestUtils::FLODSyncSettings& LODSyncSettings = TestUtils::GetLODSyncSettings(ExportQuality);
 
 			// Should be the same as the number of Face LODs
-			TEST_EQUAL(GetTestName(TEXT("LOD Sync Num LODs")), LODSyncComponent->NumLODs, MetaHumanTestUtils::GetNumLODsForQuality(ExportQuality, TEXT("Face")));
+			TEST_EQUAL(GetTestName(TEXT("LOD Sync Num LODs")), LODSyncComponent->NumLODs, TestUtils::GetNumLODsForQuality(ExportQuality, TEXT("Face")));
 			TEST_EQUAL(GetTestName(TEXT("LOD Sync Forced LOD")), LODSyncComponent->ForcedLOD, INDEX_NONE);
 			TEST_EQUAL(GetTestName(TEXT("LOD Sync Min LOD")), LODSyncComponent->MinLOD, 0);
 			TEST_EQUAL(GetTestName(TEXT("LOD Sync Num Component to Sync")), LODSyncComponent->ComponentsToSync.Num(), LODSyncSettings.NumComponentsToSync);
@@ -2161,7 +2163,7 @@ bool FValidateMetaHumanCommand::Update()
 
 			for (const FComponentSync& CompSync : LODSyncComponent->ComponentsToSync)
 			{
-				UActorComponent* Component = MetaHumanTestUtils::GetComponentByName<UActorComponent>(MetaHumanActor, CompSync.Name);
+				UActorComponent* Component = TestUtils::GetComponentByName<UActorComponent>(MetaHumanActor, CompSync.Name);
 				TEST_NOT_NULL(GetTestName(TEXT("LOD Sync Component to sync is valid")), Component);
 
 				ESyncOption SyncOption = ESyncOption::Passive;
@@ -2178,7 +2180,7 @@ bool FValidateMetaHumanCommand::Update()
 	return true;
 }
 
-namespace MetaHumanTestUtils
+namespace TestUtils
 {
 	void AddValidateMetaHumanLatentCommands(const FMetaHumanAssetImportDescription& InImportDescription)
 	{
@@ -2195,7 +2197,7 @@ void FMetaHumanProjectUtilsExporterTest::GetTests(TArray<FString>& OutBeautified
 	const TArray<FInstalledMetaHuman> InstalledMetaHumans = FMetaHumanProjectUtilities::GetInstalledMetaHumans();
 	for (const FInstalledMetaHuman& InstalledMetaHuman : InstalledMetaHumans)
 	{
-		OutTestCommands += MetaHumanTestUtils::GenerateTestNames(InstalledMetaHuman.GetName());
+		OutTestCommands += TestUtils::GenerateTestNames(InstalledMetaHuman.GetName());
 	}
 
 	OutBeautifiedNames = OutTestCommands;
@@ -2206,6 +2208,7 @@ bool FMetaHumanProjectUtilsExporterTest::RunTest(const FString& InParams)
 	// All testing is done in FValidateMetaHumanCommand
 	ADD_LATENT_AUTOMATION_COMMAND(FValidateMetaHumanCommand(InParams, FMetaHumanAssetImportDescription{}));
 	return true;
+}
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -3,13 +3,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
-
+namespace UE::MetaHuman
+{
 class IMetaHumanProjectUtilitiesAutomationHandler;
 class IMetaHumanBulkImportHandler;
 struct FMetaHumanAssetImportDescription;
-/**
- * 
- */
+
 class METAHUMANSDKEDITOR_API FMetaHumanImport
 {
 public:
@@ -25,3 +24,4 @@ private:
 	IMetaHumanBulkImportHandler* BulkImportHandler{nullptr};
 	static TSharedPtr<FMetaHumanImport> MetaHumanImportInst;
 };
+}

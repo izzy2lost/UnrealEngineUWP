@@ -13,6 +13,8 @@
 
 #define LOCTEXT_NAMESPACE "MetaHumanProjectUtilities"
 
+namespace UE::MetaHuman
+{
 class FMetaHumanSDKEditorModule final
 	: public IModuleInterface
 {
@@ -79,7 +81,7 @@ void METAHUMANSDKEDITOR_API FMetaHumanProjectUtilities::ImportAsset(const FMetaH
 
 void METAHUMANSDKEDITOR_API FMetaHumanProjectUtilities::OverrideVersionServiceUrl(const FString& BaseUrl)
 {
-	UE::MetaHumanVersionService::SetServiceUrl(BaseUrl);
+	SetServiceUrl(BaseUrl);
 }
 
 TArray<FInstalledMetaHuman> METAHUMANSDKEDITOR_API FMetaHumanProjectUtilities::GetInstalledMetaHumans()
@@ -117,5 +119,5 @@ TArray<FInstalledMetaHuman> METAHUMANSDKEDITOR_API FMetaHumanProjectUtilities::G
 
 	return InstalledMetaHumans;
 }
-
+}
 #undef LOCTEXT_NAMESPACE

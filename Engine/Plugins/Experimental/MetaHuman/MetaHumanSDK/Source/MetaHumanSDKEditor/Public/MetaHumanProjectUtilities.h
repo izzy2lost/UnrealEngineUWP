@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 
+namespace UE::MetaHuman
+{
 struct FQuixelAccountMetaHumanEntry
 {
 	FString Name; // Character name
@@ -159,3 +161,4 @@ public:
 	// Returns a list of all MetaHumans in the project
 	static TArray<FInstalledMetaHuman> METAHUMANSDKEDITOR_API GetInstalledMetaHumans();
 };
+}

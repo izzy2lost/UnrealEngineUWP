@@ -8,6 +8,8 @@
 
 // Common data types used in various parts of the MetaHumanProjectUtilities module
 
+namespace UE::MetaHuman
+{
 struct FMetaHumanAssetImportDescription;
 
 struct FMetaHumanAssetVersion
@@ -170,7 +172,7 @@ public:
 		if (CharacterPath.Contains(TEXT("Tier0")))
 		{
 			// For UEFN Tier0 is High, for UE Tier0 is cinematic
-			if(!CharacterPath.Contains(TEXT("asset_uefn")))
+			if (!CharacterPath.Contains(TEXT("asset_uefn")))
 			{
 				return EMetaHumanQualityLevel::Cinematic;
 			}
@@ -197,3 +199,4 @@ private:
 	FString Name;
 	FMetaHumanVersion Version;
 };
+}
