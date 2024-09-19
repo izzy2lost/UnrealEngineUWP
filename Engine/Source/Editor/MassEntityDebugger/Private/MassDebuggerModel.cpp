@@ -58,7 +58,7 @@ namespace UE::Mass::Debugger::Private
 			&& Processor.HasAnyFlags(RF_ClassDefaultObject) == false
 			&& Processor.GetWorld() == ContextWorld 
 			// checking ContextWorld is a cheaper way of supporting the declared behavior, since if there is a world then
-			// the processors are definitelly not CDO owned (by design). Is there is no world we need to check specifically.
+			// the processors are definitely not CDO owned (by design). Is there is no world we need to check specifically.
 			&& (ContextWorld != nullptr || Processor.GetOuter()->HasAnyFlags(RF_ClassDefaultObject) == false);
 	}
 } // namespace UE::Mass::Debugger::Private
