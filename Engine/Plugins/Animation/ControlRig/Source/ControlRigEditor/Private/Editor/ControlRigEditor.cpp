@@ -2418,6 +2418,7 @@ void FControlRigEditor::HandleViewportCreated(const TSharedRef<class IPersonaVie
 																.PaddingTop(60)
 																.PaddingBottom(60)
 																.PaddingInterNode(5)
+																.Visibility(this, &FControlRigEditor::GetSchematicOverlayVisibility)
 				;
 				InViewport->AddOverlayWidget(SchematicViewport.ToSharedRef());
 
@@ -2546,6 +2547,22 @@ bool FControlRigEditor::IsSchematicViewportActive() const
 		return SchematicViewport->GetVisibility() != EVisibility::Hidden;
 	}
 	return false;
+}
+
+EVisibility FControlRigEditor::GetSchematicOverlayVisibility() const
+{
+	if(const URigHierarchy* Hierarchy = GetHierarchyBeingDebugged())
+	{
+		TArray<const FRigBaseElement*> SelectedElements = Hierarchy->GetSelectedElements();
+		if(SelectedElements.ContainsByPredicate([](const FRigBaseElement* InSelectedElement) -> bool
+		{
+			return InSelectedElement->IsA<FRigControlElement>();
+		}))
+		{
+			return EVisibility::Hidden;
+		}
+	}
+	return EVisibility::HitTestInvisible;
 }
 
 bool FControlRigEditor::GetToolbarDrawAxesOnSelection() const
