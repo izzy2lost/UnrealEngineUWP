@@ -531,6 +531,11 @@ private:
 	FVector SimSpacePreviousComponentAngularVelocity;
 	FVector SimSpacePreviousBoneLinearVelocity;
 	FVector SimSpacePreviousBoneAngularVelocity;
+
+#if ENABLE_LOW_LEVEL_MEM_TRACKER
+	FName OwningAssetPackageName;
+	FName OwningAssetName;
+#endif
 };
 
 #if WITH_EDITORONLY_DATA
