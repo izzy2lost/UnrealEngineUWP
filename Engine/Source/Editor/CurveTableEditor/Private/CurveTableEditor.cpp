@@ -249,21 +249,14 @@ class FCurveTableEditorItem : public ICurveEditorTreeItem,  public TSharedFromTh
 	{
 		if (InFilter->GetType() == ECurveEditorTreeFilterType::Text)
 		{
-			FString     DisplayNameAsString = DisplayName.ToString();
-			FStringView RemainingStringView = DisplayNameAsString;
+			FString DisplayNameAsString = DisplayName.ToString();
 
 			const FCurveEditorTreeTextFilter* Filter = static_cast<const FCurveEditorTreeTextFilter*>(InFilter);
 			for (const FCurveEditorTreeTextFilterTerm& Term : Filter->GetTerms())
 			{
-				for (const FCurveEditorTreeTextFilterToken& Token : Term.ChildToParentTokens)
+				if (!Term.Match(DisplayNameAsString).IsTotalMatch())
 				{
-					FStringView TokenView(Token.Token);
-					const int32 MatchPos = RemainingStringView.Find(TokenView, 0, ESearchCase::IgnoreCase);
-					if (MatchPos == INDEX_NONE)
-					{
-						return false;
-					}
-					RemainingStringView.LeftInline(MatchPos);
+					return false;
 				}
 			}
 
