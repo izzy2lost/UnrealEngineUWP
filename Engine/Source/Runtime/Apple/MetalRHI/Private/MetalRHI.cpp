@@ -1380,13 +1380,25 @@ bool FMetalDynamicRHI::RHIGetAvailableResolutions(FScreenResolutionArray& Resolu
 					for (int32 CheckIndex = 0; CheckIndex < Resolutions.Num(); CheckIndex++)
 					{
 						FScreenResolutionRHI& CheckResolution = Resolutions[CheckIndex];
-						if ((CheckResolution.Width == Width) &&
-							(CheckResolution.Height == Height))
-						{
-							// Already in the list...
-							bAddIt = false;
-							break;
-						}
+                        if ((CheckResolution.Width == Width) &&
+                            (CheckResolution.Height == Height))
+                        {
+                            // Already in the list...
+                            bAddIt = false;
+                            break;
+                        }
+                        // Filter out unusable resolutions on notched Macs
+                        else if ((CheckResolution.Width == Width) &&
+                                 (CheckResolution.Height != Height))
+                        {
+                            bAddIt = false;
+                            if (Height < CheckResolution.Height)
+                            {
+                                // Only use the shorter (below notch and padding) version
+                                CheckResolution.Height = Height;
+                            }
+                            break;
+                        }
 					}
 				}
 				

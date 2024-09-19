@@ -964,12 +964,16 @@ void SWindow::ReshapeWindow( UE::Slate::FDeprecateVector2DParameter NewPosition,
 	{
 		if ( NativeWindow.IsValid() )
 		{
+
+// The following hack with speculative position is messing up with Mac window position with notched display
+// The accurate position is calculated in FMacApplication::OnWindowDidMove
+#if !PLATFORM_MAC
 			// Slate code often expects cached screen position to be accurate immediately after the move.
 			// This expectation is generally invalid (see UE-1308) as there may be a delay before the OS reports it back.
 			// This hack sets the position speculatively, keeping Slate happy while also giving the OS chance to report it
 			// correctly after or even during the actual call.
 			SetCachedScreenPosition(NewPositionTruncated);
-
+#endif
 			NativeWindow->ReshapeWindow(NewPositionTruncated.X, NewPositionTruncated.Y, NewSizeRounded.X, NewSizeRounded.Y);
 		}
 		else
