@@ -22,6 +22,7 @@
 #include "UI/Widgets/SDMMaterialDesigner.h"
 #include "UI/Widgets/SDMMaterialEditor.h"
 #include "UObject/Object.h"
+#include "Utils/DMMaterialInstanceFunctionLibrary.h"
 #include "Utils/DMMaterialModelFunctionLibrary.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
@@ -305,7 +306,7 @@ void SDMToolBar::SetActorPropertySelected(AActor* InActor)
 		ActorNameWidget->SetText(GetActorName());
 		ActorRowWidget->SetVisibility(EVisibility::Visible);
 
-		TArray<FDMObjectMaterialProperty> ActorProperties = UDMMaterialModelFunctionLibrary::GetActorMaterialProperties(InActor);
+		TArray<FDMObjectMaterialProperty> ActorProperties = UDMMaterialInstanceFunctionLibrary::GetActorMaterialProperties(InActor);
 		UDynamicMaterialModelBase* MaterialModelBase = GetMaterialModelBase();
 
 		const int32 ActorPropertyCount = ActorProperties.Num();
@@ -487,7 +488,7 @@ void SDMToolBar::OnMaterialSlotChanged(TSharedPtr<FDMObjectMaterialProperty> InS
 	}
 	else if (InSelectedSlot->GetOuter())
 	{
-		if (UDynamicMaterialModel* NewModel = UDMMaterialModelFunctionLibrary::CreateMaterialInObject(*InSelectedSlot.Get()))
+		if (UDynamicMaterialModel* NewModel = UDMMaterialInstanceFunctionLibrary::CreateMaterialInObject(*InSelectedSlot.Get()))
 		{
 			DesignerWidget->OpenObjectMaterialProperty(*InSelectedSlot);
 		}
@@ -676,27 +677,18 @@ FReply SDMToolBar::OnUseClicked()
 		return FReply::Handled();
 	}
 
-	TSharedPtr<FDMObjectMaterialProperty> CurrentActorProperty = ActorMaterialProperties[SelectedMaterialElementIndex];
+	FDMObjectMaterialProperty& CurrentActorProperty = *ActorMaterialProperties[SelectedMaterialElementIndex];
 
-	if (DMSubsystem && DMSubsystem->GetMaterialValueSetterDelegate().IsBound())
+	if (!UDMMaterialInstanceFunctionLibrary::SetMaterialInObject(CurrentActorProperty, SelectedInstance))
 	{
-		if (!DMSubsystem->ExecuteIsValidDelegate(CurrentModelBase))
-		{
-			return FReply::Handled();
-		}
-
-		DMSubsystem->ExecuteMaterialValueSetterDelegate(*CurrentActorProperty, SelectedInstance);
-	}
-	else
-	{
-		ActorMaterialProperties[SelectedMaterialElementIndex]->SetMaterial(SelectedInstance);
+		return FReply::Handled();
 	}
 
 	if (TSharedPtr<SDMMaterialEditor> EditorWidget = GetEditorWidget())
 	{
 		if (TSharedPtr<SDMMaterialDesigner> DesignerWidget = EditorWidget->GetDesignerWidget())
 		{
-			DesignerWidget->OpenObjectMaterialProperty(*CurrentActorProperty);
+			DesignerWidget->OpenObjectMaterialProperty(CurrentActorProperty);
 		}
 	}
 
@@ -915,29 +907,8 @@ FReply SDMToolBar::OnConvertToEditableClicked()
 	// If it was in an actor, set it on the actor
 	if (NewInstance && CurrentActorProperty.IsValid())
 	{
-		if (DMSubsystem && DMSubsystem->GetMaterialValueSetterDelegate().IsBound())
-		{
-			if (DMSubsystem->ExecuteIsValidDelegate(CurrentModelDynamic))
-			{
-				DMSubsystem->ExecuteMaterialValueSetterDelegate(*CurrentActorProperty, NewInstance);
-			}
-			else
-			{
-				UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Asset is not valid for current world, not assigning to actor."));
-			}
-		}
-		else
-		{
-			ActorMaterialProperties[SelectedMaterialElementIndex]->SetMaterial(NewInstance);
-		}
-
-		if (TSharedPtr<SDMMaterialEditor> EditorWidget = GetEditorWidget())
-		{
-			if (TSharedPtr<SDMMaterialDesigner> DesignerWidget = EditorWidget->GetDesignerWidget())
-			{
-				DesignerWidget->OpenObjectMaterialProperty(*CurrentActorProperty);
-			}
-		}
+		// Setting it on the actor will automatically open it if the actor property is currently active.
+		UDMMaterialInstanceFunctionLibrary::SetMaterialInObject(*CurrentActorProperty, NewInstance);
 	}
 	else
 	{

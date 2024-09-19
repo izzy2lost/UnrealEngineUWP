@@ -113,7 +113,7 @@ UDynamicMaterialInstance* FDMObjectMaterialProperty::GetMaterial() const
 	return nullptr;
 }
 
-void FDMObjectMaterialProperty::SetMaterial(UDynamicMaterialInstance* DynamicMaterial)
+void FDMObjectMaterialProperty::SetMaterial(UDynamicMaterialInstance* InDynamicMaterial)
 {
 	UObject* Outer = OuterWeak.Get();
 
@@ -136,7 +136,7 @@ void FDMObjectMaterialProperty::SetMaterial(UDynamicMaterialInstance* DynamicMat
 
 				if (ArrayHelper.IsValidIndex(Index))
 				{
-					*reinterpret_cast<UMaterialInterface**>(ArrayHelper.GetRawPtr(Index)) = DynamicMaterial;
+					*reinterpret_cast<UMaterialInterface**>(ArrayHelper.GetRawPtr(Index)) = InDynamicMaterial;
 				}
 			}
 		}
@@ -146,7 +146,7 @@ void FDMObjectMaterialProperty::SetMaterial(UDynamicMaterialInstance* DynamicMat
 
 			if (ObjectProperty && ObjectProperty->PropertyClass->IsChildOf(UMaterialInterface::StaticClass()))
 			{
-				Property->SetValue_InContainer(Outer, &DynamicMaterial);
+				Property->SetValue_InContainer(Outer, &InDynamicMaterial);
 			}
 		}
 
@@ -159,7 +159,7 @@ void FDMObjectMaterialProperty::SetMaterial(UDynamicMaterialInstance* DynamicMat
 		{
 			if (Index >= 0 && Index < Component->GetNumMaterials())
 			{
-				Component->SetMaterial(Index, DynamicMaterial);
+				Component->SetMaterial(Index, InDynamicMaterial);
 			}
 		}
 	}

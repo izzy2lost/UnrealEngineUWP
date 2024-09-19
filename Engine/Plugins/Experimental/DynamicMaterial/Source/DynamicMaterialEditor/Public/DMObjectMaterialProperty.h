@@ -23,6 +23,8 @@ struct FDMObjectMaterialProperty
 {
 	GENERATED_BODY()
 
+	friend class UDMMaterialInstanceFunctionLibrary;
+
 	FDMObjectMaterialProperty();
 
 	/** UPrimitiveComponent Material Index */
@@ -40,8 +42,6 @@ struct FDMObjectMaterialProperty
 	DYNAMICMATERIALEDITOR_API UDynamicMaterialModelBase* GetMaterialModelBase() const;
 
 	DYNAMICMATERIALEDITOR_API UDynamicMaterialInstance* GetMaterial() const;
-
-	DYNAMICMATERIALEDITOR_API void SetMaterial(UDynamicMaterialInstance* DynamicMaterial);
 
 	DYNAMICMATERIALEDITOR_API bool IsValid() const;
 
@@ -80,4 +80,6 @@ protected:
 
 	/** Component or array property index. */
 	int32 Index = INDEX_NONE;
+
+	void SetMaterial(UDynamicMaterialInstance* InDynamicMaterial);
 };

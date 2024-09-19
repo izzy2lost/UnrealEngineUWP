@@ -16,14 +16,13 @@
 #include "SAssetDropTarget.h"
 #include "UI/Utils/DMDropTargetPrivateSetter.h"
 #include "UI/Widgets/Editor/EditorLayouts/SDMMaterialEditor_Left.h"
-#include "UI/Widgets/Editor/EditorLayouts/SDMMaterialEditor_LeftSlim.h"
-#include "UI/Widgets/Editor/EditorLayouts/SDMMaterialEditor_TopHorizontal.h"
 #include "UI/Widgets/Editor/EditorLayouts/SDMMaterialEditor_TopSlim.h"
 #include "UI/Widgets/Editor/EditorLayouts/SDMMaterialEditor_TopVertical.h"
 #include "UI/Widgets/SDMActorMaterialSelector.h"
 #include "UI/Widgets/SDMMaterialEditor.h"
 #include "UI/Widgets/SDMMaterialSelectPrompt.h"
 #include "UI/Widgets/SDMMaterialWizard.h"
+#include "Utils/DMMaterialInstanceFunctionLibrary.h"
 #include "Utils/DMMaterialModelFunctionLibrary.h"
 #include "Widgets/SNullWidget.h"
 
@@ -211,7 +210,7 @@ void SDMMaterialDesigner::OpenActor_Internal(AActor* InActor)
 {
 	SetWidget(SNullWidget::NullWidget, /* Include Drop Target */ true);
 
-	TArray<FDMObjectMaterialProperty> ActorProperties = UDMMaterialModelFunctionLibrary::GetActorMaterialProperties(InActor);
+	TArray<FDMObjectMaterialProperty> ActorProperties = UDMMaterialInstanceFunctionLibrary::GetActorMaterialProperties(InActor);
 
 	if (ActorProperties.IsEmpty())
 	{

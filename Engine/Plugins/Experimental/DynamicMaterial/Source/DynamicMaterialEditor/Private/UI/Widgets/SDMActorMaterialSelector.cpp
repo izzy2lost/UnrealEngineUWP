@@ -13,7 +13,7 @@
 #include "Styling/StyleColors.h"
 #include "ThumbnailRendering/ThumbnailManager.h"
 #include "UI/Widgets/SDMMaterialDesigner.h"
-#include "Utils/DMMaterialModelFunctionLibrary.h"
+#include "Utils/DMMaterialInstanceFunctionLibrary.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -213,7 +213,7 @@ FReply SDMActorMaterialSelector::OnCreateMaterialButtonClicked(int32 InActorProp
 		return FReply::Handled();
 	}
 
-	UDynamicMaterialModel* NewMaterialModel = UDMMaterialModelFunctionLibrary::CreateMaterialInObject(ActorProperties[InActorPropertyIndex]);
+	UDynamicMaterialModel* NewMaterialModel = UDMMaterialInstanceFunctionLibrary::CreateMaterialInObject(ActorProperties[InActorPropertyIndex]);
 
 	if (NewMaterialModel)
 	{
