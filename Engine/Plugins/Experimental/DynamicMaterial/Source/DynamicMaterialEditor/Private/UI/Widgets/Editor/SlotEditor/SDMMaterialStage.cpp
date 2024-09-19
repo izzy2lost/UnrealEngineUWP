@@ -31,6 +31,11 @@
 #include "Widgets/SToolTip.h"
 #include "Widgets/Text/STextBlock.h"
 
+#if UE_BUILD_DEBUG
+#include "AssetToolsModule.h"
+#include "IAssetTools.h"
+#endif
+
 #define LOCTEXT_NAMESPACE "SDMMaterialStage"
 
 void SDMMaterialStage::PrivateRegisterAttributes(FSlateAttributeDescriptor::FInitializer&)
@@ -175,6 +180,23 @@ FReply SDMMaterialStage::OnMouseButtonDown(const FGeometry& InMyGeometry, const 
 		OnMouseButtonDown_Left();
 		return FReply::Handled();
 	}
+
+#if UE_BUILD_DEBUG
+	else if (InMouseEvent.GetEffectingButton() == EKeys::RightMouseButton
+		&& InMouseEvent.IsShiftDown() && InMouseEvent.IsControlDown())
+	{
+		if (PreviewImage.IsValid())
+		{
+			if (UMaterial* PreviewMaterial = PreviewImage->GetPreviewMaterial())
+			{
+				IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
+				AssetTools.OpenEditorForAssets({PreviewMaterial});
+
+				return FReply::Handled();
+			}
+		}
+	}
+#endif
 
 	return FReply::Unhandled();
 }

@@ -845,7 +845,7 @@ void UDMMaterialStage::UpdateInputMap(int32 InInputIdx, int32 InSourceIndex, int
 
 	RemoveUnusedInputs();
 
-	Source->Update(this, EDMUpdateType::Structure);
+	Source->Update(this, EDMUpdateType::Structure | EDMUpdateType::AllowParentUpdate);
 }
 
 int32 UDMMaterialStage::FindIndex() const
