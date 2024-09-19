@@ -101,6 +101,11 @@ public:
 		return RendererSetupTask;
 	}
 
+	bool AreAnyLightsUsingMegaLightsVSM() const
+	{
+		return bNeedMegaLightsProjection;
+	}
+
 	UE::Renderer::Private::IShadowInvalidatingInstances *GetInvalidatingInstancesInterface(const FSceneView *SceneView);
 
 private:
@@ -149,4 +154,8 @@ private:
 	// Base the distant light cutoff on the minimum mip level instead of the shadow resolution calculated through the old path.
 	bool bUseConservativeDistantLightThreshold = false;
 	int32 DistantLightMode = 0;
+
+	// Tracking for a given frame/render of which passes we need - clear in BeginRender
+	bool bNeedVSMProjection = false;
+	bool bNeedMegaLightsProjection = false;
 };

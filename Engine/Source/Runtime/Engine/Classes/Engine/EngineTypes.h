@@ -501,6 +501,22 @@ namespace ECastRayTracedShadow
 	};
 }
 
+/** MegaLights Shadow type for a light component.
+*/
+UENUM()
+namespace EMegaLightsShadowMethod
+{
+	enum Type : int
+	{
+		/** Recommended. Uses the default MegaLights shadow method. */
+		Default,
+		/** Uses ray tracing for accurate, scalable shadows. */
+		RayTracing,
+		/** Uses Virtual Shadow Maps which is less accuate and scalable but can be preferable in some cases with low detail ray tracing geometry. */
+		VirtualShadowMap,
+	};
+}
+
 /** Specifies which component of the scene rendering should be output to the final render target. */
 UENUM()
 enum ESceneCaptureSource : int

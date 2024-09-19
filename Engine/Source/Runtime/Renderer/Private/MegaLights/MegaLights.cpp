@@ -6,6 +6,7 @@
 #include "PixelShaderUtils.h"
 #include "BasePassRendering.h"
 #include "VolumetricFogShared.h"
+#include "Shadows/ShadowSceneRenderer.h"
 
 static TAutoConsoleVariable<int32> CVarMegaLightsProjectSetting(
 	TEXT("r.MegaLights.EnableForProject"),
@@ -239,11 +240,15 @@ static TAutoConsoleVariable<int32> CVarMegaLightsVolumeDebugSliceIndex(
 	TEXT("Which volume slice to visualize."),
 	ECVF_RenderThreadSafe);
 
-static TAutoConsoleVariable<int32> CVarMegaLightsVSM(
-	TEXT("r.MegaLights.VSM"),
-	0,
-	TEXT("Whether to include local lights with VSMs."),
-	ECVF_Scalability | ECVF_RenderThreadSafe
+// Rendering project setting
+int32 GMegaLightsDefaultShadowMethod = 0;
+FAutoConsoleVariableRef CMegaLightsDefaultShadowMethod(
+	TEXT("r.MegaLights.DefaultShadowMethod"),
+	GMegaLightsDefaultShadowMethod,
+	TEXT("The default shadowing method for MegaLights, unless over-ridden on the light component.\n")
+	TEXT("0: Ray Tracing (Recommended). Accurate, scalable shadows.\n")
+	TEXT("1: Virtual Shadow Maps. Less accuate and scalable but can be preferable in some cases with low detail ray tracing geometry."),
+	ECVF_RenderThreadSafe
 );
 
 namespace MegaLights
@@ -281,17 +286,12 @@ namespace MegaLights
 		return CVarMegaLightsVolumeLightFunctions.GetValueOnRenderThread() != 0;
 	}
 
-	bool IsUsingVirtualShadowMaps(const FSceneViewFamily& ViewFamily)
-	{
-		return IsEnabled(ViewFamily) && CVarMegaLightsVSM.GetValueOnRenderThread() != 0;
-	}
-
 	bool IsUsingLightFunctions(const FSceneViewFamily& ViewFamily)
 	{
 		return IsEnabled(ViewFamily) && CVarMegaLightsLightFunctions.GetValueOnRenderThread() != 0;
 	}
 
-	EMegaLightsMode GetMegaLightsMode(const FSceneViewFamily& ViewFamily, uint8 LightType, bool bLightAllowsMegaLights, bool bVSMEnabled)
+	EMegaLightsMode GetMegaLightsMode(const FSceneViewFamily& ViewFamily, uint8 LightType, bool bLightAllowsMegaLights, TEnumAsByte<EMegaLightsShadowMethod::Type> ShadowMethod)
 	{
 		if (LightType != LightType_Directional 
 			&& ViewFamily.EngineShowFlags.MegaLights 
@@ -300,7 +300,20 @@ namespace MegaLights
 			&& ViewFamily.Views[0]->FinalPostProcessSettings.bMegaLights
 			&& CVarMegaLightsAllowed.GetValueOnRenderThread() != 0)
 		{
-			const bool bUseVSM = IsUsingVirtualShadowMaps(ViewFamily) && bVSMEnabled;
+			// Resolve  default
+			if (ShadowMethod == EMegaLightsShadowMethod::Default)
+			{
+				if (GMegaLightsDefaultShadowMethod == 1)
+				{
+					ShadowMethod = EMegaLightsShadowMethod::VirtualShadowMap;
+				}
+				else
+				{
+					ShadowMethod = EMegaLightsShadowMethod::RayTracing;
+				}
+			}
+
+			const bool bUseVSM = ShadowMethod == EMegaLightsShadowMethod::VirtualShadowMap;
 
 			if (bUseVSM)
 			{
@@ -1484,12 +1497,17 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			}
 		}
 
+		// Enable support for VSMs if there are any relevant local lights and the feature is enabled
+		const bool bUseVSM =
+			VirtualShadowMapArray.IsAllocated() &&
+			ShadowSceneRenderer->AreAnyLightsUsingMegaLightsVSM();
+
 		MegaLights::RayTraceLightSamples(
 			ViewFamily,
 			View, ViewIndex,
 			GraphBuilder,
 			SceneTextures,
-			VirtualShadowMapArray,
+			bUseVSM ? &VirtualShadowMapArray : nullptr,
 			SampleBufferSize,
 			LightSamples,
 			LightSampleUV,

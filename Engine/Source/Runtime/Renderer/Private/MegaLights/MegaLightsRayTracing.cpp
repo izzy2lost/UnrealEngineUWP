@@ -919,7 +919,7 @@ void MegaLights::RayTraceLightSamples(
 	const FViewInfo& View, int32 ViewIndex,
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,
-	const FVirtualShadowMapArray& VirtualShadowMapArray,
+	const FVirtualShadowMapArray* VirtualShadowMapArray,
 	const FIntPoint SampleBufferSize,
 	FRDGTextureRef LightSamples,
 	FRDGTextureRef LightSampleUV,
@@ -931,7 +931,7 @@ void MegaLights::RayTraceLightSamples(
 	const bool bDebug = MegaLights::GetDebugMode() != 0;
 	const bool bVolumeDebug = MegaLights::GetVolumeDebugMode() != 0;
 
-	if (VirtualShadowMapArray.IsEnabled() && MegaLights::IsUsingVirtualShadowMaps(ViewFamily))
+	if (VirtualShadowMapArray)
 	{
 		FCompactedTraceParameters CompactedTraceParameters = MegaLights::CompactMegaLightsTraces(
 			View,
@@ -944,7 +944,7 @@ void MegaLights::RayTraceLightSamples(
 		PassParameters->CompactedTraceParameters = CompactedTraceParameters;
 		PassParameters->MegaLightsParameters = MegaLightsParameters;
 		PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
-		PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, ViewIndex);
+		PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray->GetSamplingParameters(GraphBuilder, ViewIndex);
 
 		FVirtualShadowMapTraceLightSamplesCS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FVirtualShadowMapTraceLightSamplesCS::FDebugMode>(bDebug);
