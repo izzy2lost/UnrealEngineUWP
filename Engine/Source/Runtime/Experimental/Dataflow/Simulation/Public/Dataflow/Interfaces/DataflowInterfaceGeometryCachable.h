@@ -9,7 +9,7 @@
 #include "Math/MathFwd.h"
 #include "DataflowInterfaceGeometryCachable.generated.h"
 
-class USkeletalMeshComponent;
+class USkeletalMesh;
 class USkinnedAsset;
 
 UINTERFACE(meta = (CannotImplementInterfaceInBlueprint), MinimalAPI)
@@ -25,7 +25,7 @@ class IDataflowGeometryCachable
 
 public:
 	/** Computes skeletal mesh positions for geometry cache */
-	virtual TArray<FVector3f> GetGeometryCachePositions(USkeletalMeshComponent* SkeletalComponent) const = 0;
+	virtual TArray<FVector3f> GetGeometryCachePositions(const USkeletalMesh* SkeletalMesh) const = 0;
 
 	/** Get mapping from final mesh vertex index to raw import vertex index */
 	virtual TOptional<TArray<int32>> GetMeshImportVertexMap(const USkinnedAsset& SkinnedMeshAsset) const = 0;

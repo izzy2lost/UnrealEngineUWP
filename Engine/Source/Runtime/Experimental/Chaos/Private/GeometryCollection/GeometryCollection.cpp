@@ -2166,5 +2166,16 @@ void FGeometryCollection::UpdateOldAttributeNames()
 	this->RemoveGroup("Structure");
 }
 
-
+TArray<int32> FGeometryCollection::TransformSelectionToGeometryIndices(const TArray<int32>& Transforms)
+{
+	TArray<int32> Geometries;
+	for (const int32& TransformIdx : Transforms)
+	{
+		if (TransformToGeometryIndex.IsValidIndex(TransformIdx)	&& IsGeometry(TransformIdx))
+		{
+			Geometries.Add(TransformToGeometryIndex[TransformIdx]);
+		}
+	}
+	return Geometries;
+}
 

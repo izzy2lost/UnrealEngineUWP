@@ -53,12 +53,16 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Geometry", DisplayName="GeometryCache", meta=(EditCondition = "CacheAsset != nullptr"))
 	TObjectPtr<UGeometryCache> GeometryCacheAsset = nullptr;
 
+	/** SkeletalMesh interpolated from simulation. This should match the SkeletalMesh used in GenerateSurfaceBindings node */
+	UPROPERTY(EditAnywhere, Category = "Geometry", DisplayName = "EmbeddedSkeletalMesh", meta = (EditCondition = "CacheAsset != nullptr"))
+	TObjectPtr<USkeletalMesh> EmbeddedSkeletalMesh = nullptr;
+
 	/** Interpolates and saves geometry cache from Chaos cache */
-	UFUNCTION(CallInEditor, Category = "Geometry")
+	UFUNCTION(CallInEditor, Category = "Geometry", meta = (EditCondition = "CacheAsset != nullptr && GeometryCacheAsset != nullptr && EmbeddedSkeletalMesh != nullptr"))
 	void GenerateGeometryCache();
 
 	/** Creates a new geometry cache file */
-	UFUNCTION(CallInEditor, Category = "Geometry")
+	UFUNCTION(CallInEditor, Category = "Geometry", meta = (EditCondition = "CacheAsset != nullptr && GeometryCacheAsset != nullptr && EmbeddedSkeletalMesh != nullptr"))
 	void NewGeometryCache();
 
 private:

@@ -62,6 +62,7 @@ void FSetFleshDefaultPropertiesNode::Evaluate(Dataflow::FContext& Context, const
 				const TManagedArray<TArray<int32>>& IncidentElements = InCollection.GetAttribute<TArray<int32>>(FTetrahedralCollection::IncidentElementsAttribute, FGeometryCollection::VerticesGroup);
 				const TManagedArray<TArray<int32>>& IncidentElementsLocalIndex = InCollection.GetAttribute<TArray<int32>>(FTetrahedralCollection::IncidentElementsLocalIndexAttribute, FGeometryCollection::VerticesGroup);
 				
+				Mass.Fill(0.f);
 				float MinV = TNumericLimits<float>::Max();
 				float MaxV = -TNumericLimits<float>::Max();
 				double AvgV = 0.0;

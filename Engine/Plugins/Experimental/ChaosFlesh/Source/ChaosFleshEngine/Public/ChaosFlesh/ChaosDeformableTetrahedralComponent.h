@@ -20,7 +20,7 @@ class ADeformableSolverActor;
 class UDeformableSolverComponent;
 class FChaosDeformableTetrahedralSceneProxy;
 class USkinnedAsset;
-class USkeletalMeshComponent;
+class USkeletalMesh;
 
 /**
 *  Options for binding positions query.
@@ -138,7 +138,7 @@ public:
 	TArray<FVector> GetSkeletalMeshBindingPositions(const USkeletalMesh* InSkeletalMesh) const;
 	
 	//~ Begin IDataflowGeometryCachable Interface
-	virtual TArray<FVector3f> GetGeometryCachePositions(USkeletalMeshComponent* SkeletalComponent) const override;
+	virtual TArray<FVector3f> GetGeometryCachePositions(const USkeletalMesh* SkeletalMesh) const override;
 
 	virtual TOptional<TArray<int32>> GetMeshImportVertexMap(const USkinnedAsset& SkinnedMeshAsset) const override;
 	//~ End IDataflowGeometryCachable Interface

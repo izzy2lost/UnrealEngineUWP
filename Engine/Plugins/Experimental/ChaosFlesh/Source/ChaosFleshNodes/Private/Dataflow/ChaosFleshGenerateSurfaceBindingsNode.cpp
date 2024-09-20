@@ -21,6 +21,8 @@
 #include "Rendering/SkeletalMeshModel.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "UObject/PrimaryAssetId.h"
+#include "Dataflow/ChaosFleshNodesUtility.h"
+
 DEFINE_LOG_CATEGORY(LogMeshBindings);
 
 void
@@ -128,35 +130,34 @@ BuildVertexToVertexAdjacencyBuffer(
 void
 FGenerateSurfaceBindings::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
-	if (Out->IsA<DataType>(&Collection))
+	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
-		DataType OutCollection = GetValue<DataType>(Context, &Collection); // Deep copy
-
-		TManagedArray<FIntVector4>* Tetrahedron = 
-			OutCollection.FindAttribute<FIntVector4>(
+		TUniquePtr<FTetrahedralCollection> InCollection(GetValue<FManagedArrayCollection>(Context, &Collection).NewCopy<FTetrahedralCollection>());
+		const TManagedArray<FIntVector4>* Tetrahedron = 
+			InCollection->FindAttribute<FIntVector4>(
 				FTetrahedralCollection::TetrahedronAttribute, FTetrahedralCollection::TetrahedralGroup);
-		TManagedArray<int32>* TetrahedronStart =
-			OutCollection.FindAttribute<int32>(
+		const TManagedArray<int32>* TetrahedronStart =
+			InCollection->FindAttribute<int32>(
 				FTetrahedralCollection::TetrahedronStartAttribute, FGeometryCollection::GeometryGroup);
-		TManagedArray<int32>* TetrahedronCount =
-			OutCollection.FindAttribute<int32>(
+		const TManagedArray<int32>* TetrahedronCount =
+			InCollection->FindAttribute<int32>(
 				FTetrahedralCollection::TetrahedronCountAttribute, FGeometryCollection::GeometryGroup);
-		TManagedArray<TArray<int32>>* IncidentElements =
-			OutCollection.FindAttribute<TArray<int32>>(
+		const TManagedArray<TArray<int32>>* IncidentElements =
+			InCollection->FindAttribute<TArray<int32>>(
 				FTetrahedralCollection::IncidentElementsAttribute, FGeometryCollection::VerticesGroup);
 
-		TManagedArray<FIntVector>* Triangle =
-			OutCollection.FindAttribute<FIntVector>(
+		const TManagedArray<FIntVector>* Triangle =
+			InCollection->FindAttribute<FIntVector>(
 				"Indices", FGeometryCollection::FacesGroup);
-		TManagedArray<int32>* FacesStart =
-			OutCollection.FindAttribute<int32>(
+		const TManagedArray<int32>* FacesStart =
+			InCollection->FindAttribute<int32>(
 				"FaceStart", FGeometryCollection::GeometryGroup);
-		TManagedArray<int32>* FacesCount =
-			OutCollection.FindAttribute<int32>(
+		const TManagedArray<int32>* FacesCount =
+			InCollection->FindAttribute<int32>(
 				"FaceCount", FGeometryCollection::GeometryGroup);
 
-		TManagedArray<FVector3f>* Vertex = 
-			OutCollection.FindAttribute<FVector3f>(
+		const TManagedArray<FVector3f>* Vertex = 
+			InCollection->FindAttribute<FVector3f>(
 				"Vertex", "Vertices");
 
 		TObjectPtr<const USkeletalMesh> SkeletalMesh = GetValue<TObjectPtr<const USkeletalMesh>>(Context, &SkeletalMeshIn);
@@ -271,7 +272,7 @@ FGenerateSurfaceBindings::Evaluate(Dataflow::FContext& Context, const FDataflowO
 				}
 			}
 			TArray<FString> GeometryGroupGuidsLocal = GetValue<TArray<FString>>(Context, &GeometryGroupGuidsIn);
-			TManagedArray<FString>* Guids = OutCollection.FindAttribute<FString>("Guid", FGeometryCollection::GeometryGroup);
+			const TManagedArray<FString>* Guids = InCollection->FindAttribute<FString>("Guid", FGeometryCollection::GeometryGroup);
 
 			// Build Tetrahedra
 			TArray<Chaos::TTetrahedron<Chaos::FReal>> Tets;			// Index 0 == TetMeshStart
@@ -286,7 +287,20 @@ FGenerateSurfaceBindings::Evaluate(Dataflow::FContext& Context, const FDataflowO
 			TConstArrayView<Chaos::TVec3<Chaos::FRealDouble>> VertexDView(VertexD);
 			TArray<Chaos::FVec3> PointNormals;
 
-			for (int32 TetMeshIdx = 0; TetMeshIdx < TetrahedronStart->Num(); TetMeshIdx++)
+			TArray<int32> GeometryGroupSelected;
+			if (IsConnected(&TransformSelection))
+			{
+				FDataflowTransformSelection InTransformSelection = GetValue<FDataflowTransformSelection>(Context, &TransformSelection);
+				GeometryGroupSelected = InCollection->TransformSelectionToGeometryIndices(InTransformSelection.AsArray());
+			}
+			else
+			{
+				for (int32 TetMeshIdx = 0; TetMeshIdx < TetrahedronStart->Num(); ++TetMeshIdx)
+				{
+					GeometryGroupSelected.Add(TetMeshIdx);
+				}
+			}
+			for (const int32& TetMeshIdx: GeometryGroupSelected)
 			{
 				if (GeometryGroupGuidsLocal.Num() && Guids)
 				{
@@ -590,7 +604,7 @@ FGenerateSurfaceBindings::Evaluate(Dataflow::FContext& Context, const FDataflowO
 			} // end for all LOD
 
 			// Stash bindings in the geometry collection
-			GeometryCollection::Facades::FTetrahedralBindings TetBindings(OutCollection);
+			GeometryCollection::Facades::FTetrahedralBindings TetBindings(*InCollection);
 			TetBindings.DefineSchema();
 			FName MeshName(*MeshId, MeshId.Len());
 			for (int32 LOD = 0; LOD < MeshVertices.Num(); LOD++)
@@ -599,6 +613,6 @@ FGenerateSurfaceBindings::Evaluate(Dataflow::FContext& Context, const FDataflowO
 				TetBindings.SetBindingsData(Parents[LOD], Weights[LOD], Offsets[LOD], Masks[LOD]);
 			}
 		}
-		SetValue(Context, MoveTemp(OutCollection), &Collection);
+		SetValue<const FManagedArrayCollection&>(Context, *InCollection, &Collection);
 	}
 }
