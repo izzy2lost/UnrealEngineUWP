@@ -415,11 +415,6 @@ namespace PCGDataForGPUHelpers
 			{
 				Attribute->SetValue(EntryKey, InStringTable[StringKey]);
 			}
-			else
-			{
-				UE_LOG(LogPCG, Error, TEXT("String retrieval failed for string key %d. String table size is %d."), StringKey, InStringTable.Num());
-				ensure(false);
-			}
 			break;
 		}
 		default:

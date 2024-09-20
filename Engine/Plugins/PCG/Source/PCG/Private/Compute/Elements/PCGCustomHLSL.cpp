@@ -335,7 +335,19 @@ FPCGDataCollectionDesc UPCGCustomHLSLSettings::ComputeOutputPinDataDesc(const UP
 	// Try to propagate string keys across node. Not trivial because there could be one or more string key attributes on input pins and on output pins,
 	// and it is in general hard to determine from source which string keys from input are being written to outputs. Try first collecting all string keys
 	// from matching attribute names (across all input pins), and then fall back to collecting keys from all string key attributes across all inputs.
-	if (const UPCGNode* Node = Cast<UPCGNode>(GetOuter()))
+	bool bOutputHasStringKeys = false;
+
+	for (const FPCGDataDesc& DataDesc : PinDesc.DataDescs)
+	{
+		if (DataDesc.AttributeDescs.FindByPredicate([](const FPCGKernelAttributeDesc& InAttributeDesc) { return InAttributeDesc.Type == EPCGKernelAttributeType::StringKey; }))
+		{
+			bOutputHasStringKeys = true;
+			break;
+		}
+	}
+
+	const UPCGNode* Node = Cast<UPCGNode>(GetOuter());
+	if (bOutputHasStringKeys && Node)
 	{
 		TArray<FPCGDataCollectionDesc> RelevantInputDataDescs;
 
