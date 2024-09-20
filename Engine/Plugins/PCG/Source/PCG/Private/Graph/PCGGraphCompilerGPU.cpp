@@ -608,9 +608,11 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 								{
 									FoundEntry->Type = Key.Type;
 								}
-								else
+								else if (Key.Type != FoundEntry->Type)
 								{
-									ensure(Key.Type == FoundEntry->Type);
+									// TODO: This is more a limitation of the current system rather than an issue with the user's data. Log for bug reports etc but remove this
+									// later when we properly flow attribute table and string table down graph branches.
+									UE_LOG(LogPCG, Warning, TEXT("Attribute '%s' multiply defined with different types (existing: %d, new: %d)."), *Key.Name.ToString(), FoundEntry->Type, Key.Type);
 								}
 							}
 						}

@@ -171,7 +171,7 @@ void UPCGDataBinding::DebugLogDataDescriptions()
 	UE_LOG(LogPCG, Display, TEXT("\n### ATTRIBUTE TABLE ###"));
 	for (TPair<FName, FPCGKernelAttributeIDAndType>& AttributeEntry : GlobalAttributeLookupTable)
 	{
-		UE_LOG(LogPCG, Display, TEXT("\tName: %s\t\tID: %d\t\tType: %d)"), *AttributeEntry.Get<0>().ToString(), AttributeEntry.Get<1>().Id, AttributeEntry.Get<1>().Type);
+		UE_LOG(LogPCG, Display, TEXT("\tName: %s\t\tID: %d\t\tType: %d"), *AttributeEntry.Get<0>().ToString(), AttributeEntry.Get<1>().Id, AttributeEntry.Get<1>().Type);
 	}
 
 	UE_LOG(LogPCG, Display, TEXT("\n### STRING TABLE ###"));
