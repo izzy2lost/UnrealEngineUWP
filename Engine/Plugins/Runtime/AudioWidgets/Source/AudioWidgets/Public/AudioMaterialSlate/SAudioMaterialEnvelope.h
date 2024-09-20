@@ -40,7 +40,7 @@ public:
 	virtual FVector2D ComputeDesiredSize(float) const override;
 
 	/** Apply new material to be used to render the Slate.*/
-	UMaterialInstanceDynamic* ApplyNewMaterial();
+	void ApplyNewMaterial();
 
 private:
 
@@ -49,9 +49,6 @@ private:
 
 	// Holds the style for the Slate
 	const FAudioMaterialEnvelopeStyle* AudioMaterialEnvelopeStyle = nullptr;
-
-	// Holds the Modifiable Material that represent the Envelope
-	mutable TWeakObjectPtr<UMaterialInstanceDynamic> DynamicMaterial;
 
 	//Holds the current Envelope settings
 	const FAudioMaterialEnvelopeSettings* EnvelopeSettings = nullptr;

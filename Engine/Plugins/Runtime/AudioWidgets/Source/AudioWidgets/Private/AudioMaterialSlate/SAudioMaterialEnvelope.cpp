@@ -25,8 +25,10 @@ int32 SAudioMaterialEnvelope::OnPaint(const FPaintArgs& Args, const FGeometry& A
 {
 	if (AudioMaterialEnvelopeStyle && EnvelopeSettings)
 	{
-		if (DynamicMaterial.IsValid())
+		UMaterialInstanceDynamic* DynamicMaterial = AudioMaterialEnvelopeStyle->GetDynamicMaterial();
+		if (IsValid(DynamicMaterial))
 		{
+
 			DynamicMaterial->SetScalarParameterValue(FName("A_Curve"), EnvelopeSettings->AttackCurve);
 			DynamicMaterial->SetScalarParameterValue(FName("A_Int"), EnvelopeSettings->AttackValue);
 			DynamicMaterial->SetScalarParameterValue(FName("A_Time"), EnvelopeSettings->AttackTime);
@@ -48,23 +50,16 @@ int32 SAudioMaterialEnvelope::OnPaint(const FPaintArgs& Args, const FGeometry& A
 
 			DynamicMaterial->SetScalarParameterValue(FName("LocalWidth"), AllottedGeometry.GetLocalSize().X);
 			DynamicMaterial->SetScalarParameterValue(FName("LocalHeigth"), AllottedGeometry.GetLocalSize().Y);			
-			
-			const bool bEnabled = ShouldBeEnabled(bParentEnabled);
-			const ESlateDrawEffect DrawEffects = bEnabled ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect;
-
-			const FLinearColor FinalColorAndOpacity(InWidgetStyle.GetColorAndOpacityTint());
-
-			FSlateBrush Brush;
-			Brush.SetResourceObject(DynamicMaterial.Get());
-			FSlateDrawElement::MakeBox(OutDrawElements, LayerId++, AllottedGeometry.ToPaintGeometry(), &Brush, DrawEffects, FinalColorAndOpacity);
 		}
-		else
-		{
-			if (AudioMaterialEnvelopeStyle)
-			{
-				DynamicMaterial = AudioMaterialEnvelopeStyle->CreateDynamicMaterial(Owner.Get());
-			}
-		}
+
+		const bool bEnabled = ShouldBeEnabled(bParentEnabled);
+		const ESlateDrawEffect DrawEffects = bEnabled ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect;
+
+		const FLinearColor FinalColorAndOpacity(InWidgetStyle.GetColorAndOpacityTint());
+
+		FSlateBrush Brush;
+		Brush.SetResourceObject(DynamicMaterial);
+		FSlateDrawElement::MakeBox(OutDrawElements, LayerId++, AllottedGeometry.ToPaintGeometry(), &Brush, DrawEffects, FinalColorAndOpacity);
 	}
 
 	return LayerId;
@@ -80,12 +75,10 @@ FVector2D SAudioMaterialEnvelope::ComputeDesiredSize(float) const
 	return FVector2D::ZeroVector;
 }
 
-UMaterialInstanceDynamic* SAudioMaterialEnvelope::ApplyNewMaterial()
+void SAudioMaterialEnvelope::ApplyNewMaterial()
 {
 	if (AudioMaterialEnvelopeStyle)
 	{
-		DynamicMaterial = AudioMaterialEnvelopeStyle->CreateDynamicMaterial(Owner.Get());
+		AudioMaterialEnvelopeStyle->CreateDynamicMaterial(Owner.Get());
 	}
-
-	return DynamicMaterial.Get();
 }
