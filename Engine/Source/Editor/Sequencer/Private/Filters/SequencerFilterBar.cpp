@@ -336,6 +336,11 @@ void FSequencerFilterBar::SetTextFilterString(const FString& InText)
 	}
 }
 
+bool FSequencerFilterBar::DoesTextFilterStringContainExpressionPair(const FSequencerTextFilterExpressionContext& InExpression) const
+{
+	return TextFilter->DoesTextFilterStringContainExpressionPair(InExpression);
+}
+
 TSharedRef<FSequencerTrackFilter_Text> FSequencerFilterBar::GetTextFilter() const
 {
 	return TextFilter;

@@ -57,8 +57,6 @@ public:
 
 	TSharedPtr<ICustomTextFilter<FSequencerTrackFilterType>> CreateTextFilter();
 
-	virtual TSharedPtr<FUICommandList> GetCommandList() const override;
-
 	TSharedRef<SSequencerFilterBar> GenerateWidget(const TSharedPtr<SFilterSearchBox>& InSearchBox, const EFilterBarLayout InLayout);
 
 	bool AreFiltersMuted() const;
@@ -69,9 +67,6 @@ public:
 	bool CanResetFilters() const;
 
 	FSequencerFiltersChanged& GetOnFiltersChanged() { return FiltersChangedEvent; }
-
-	FString GetTextFilterString() const;
-	void SetTextFilterString(const FString& InText);
 
 	TSharedRef<FSequencerTrackFilter_Text> GetTextFilter() const;
 	FText GetFilterErrorText() const;
@@ -101,6 +96,13 @@ public:
 	virtual FName GetIdentifier() const override;
 
 	virtual FSequencer& GetSequencer() const override;
+
+	virtual TSharedPtr<FUICommandList> GetCommandList() const override;
+
+	virtual FString GetTextFilterString() const override;
+    virtual void SetTextFilterString(const FString& InText) override;
+
+	virtual bool DoesTextFilterStringContainExpressionPair(const FSequencerTextFilterExpressionContext& InExpression) const override;
 
 	virtual void RequestFilterUpdate() override;
 

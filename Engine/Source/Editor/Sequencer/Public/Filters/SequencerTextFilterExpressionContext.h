@@ -31,11 +31,15 @@ public:
 	void SetFilterItem(FSequencerTrackFilterType InFilterItem, UMovieSceneTrack* const InTrackObject);
 
 	//~ Begin FSequencerTextFilterExpressionContext
+
 	SEQUENCER_API virtual TSet<FName> GetKeys() const = 0;
+
 	SEQUENCER_API virtual ESequencerTextFilterValueType GetValueType() const = 0;
+	SEQUENCER_API virtual TArray<FSequencerTextFilterKeyword> GetValueKeywords() const { return {}; }
+
 	SEQUENCER_API virtual FText GetDescription() const = 0;
 	SEQUENCER_API virtual FText GetCategory() const { return FText::GetEmpty(); }
-	SEQUENCER_API virtual TArray<FSequencerTextFilterKeyword> GetValueKeywords() const { return {}; }
+
 	//~ End FSequencerTextFilterExpressionContext
 
 	//~ Begin ITextFilterExpressionContext

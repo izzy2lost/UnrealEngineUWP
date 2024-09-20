@@ -6804,8 +6804,6 @@ void FSequencer::SynchronizeSequencerSelectionWithExternalSelection()
 			}
 		}
 	}
-
-	FilterBar->RequestFilterUpdate();
 }
 
 void FSequencer::SelectNodesByPath(const TSet<FString>& NodePaths)

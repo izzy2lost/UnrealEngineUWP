@@ -101,7 +101,6 @@ bool FSequencerTrackFilter_Text::PassesFilter(FSequencerTrackFilterType InItem) 
 	{
 		UMovieSceneTrack* const TrackObject = FilterData.ResolveMovieSceneTrackObject(InItem);
 		TextFilterExpressionContext->SetFilterItem(InItem, TrackObject);
-
 		if (!TextFilterExpressionEvaluator.TestTextFilter(*TextFilterExpressionContext))
 		{
 			return false;
@@ -137,6 +136,95 @@ void FSequencerTrackFilter_Text::SetRawFilterText(const FText& InFilterText)
 const TArray<TSharedRef<FSequencerTextFilterExpressionContext>>& FSequencerTrackFilter_Text::GetTextFilterExpressionContexts() const
 {
 	return TextFilterExpressionContexts;
+}
+
+bool FSequencerTrackFilter_Text::DoesTextFilterStringContainExpressionPair(const FSequencerTextFilterExpressionContext& InExpression) const
+{
+	const TArray<FExpressionToken>& ExpressionTokens = TextFilterExpressionEvaluator.GetFilterExpressionTokens();
+	const int32 ExpressionCount = ExpressionTokens.Num();
+
+	// Need atleast three tokens: key, operator, and value
+	if (ExpressionTokens.Num() < 3)
+	{
+		return false;
+	}
+
+	const TSet<FName> Keys = InExpression.GetKeys();
+	const ESequencerTextFilterValueType ValueType = InExpression.GetValueType();
+	const TArray<FSequencerTextFilterKeyword> ValueKeywords = InExpression.GetValueKeywords();
+
+	for (int32 Index = 0; Index < ExpressionCount - 2; ++Index)
+	{
+		// Match key
+		const FExpressionToken& KeyToken = ExpressionTokens[Index];
+		const FString KeyTokenString = KeyToken.Context.GetString();
+
+		if (IsTokenKey(KeyToken, Keys))
+		{
+			// Match operator
+			const int32 OperatorIndex = Index + 1;
+			const FExpressionToken& OperatorToken = ExpressionTokens[OperatorIndex];
+			const FString OperatorTokenString = OperatorToken.Context.GetString();
+
+			if (IsTokenOperator(OperatorToken, ValueType))
+			{
+				// Match value
+				const int32 ValueIndex = Index + 2;
+				const FExpressionToken& ValueToken = ExpressionTokens[ValueIndex];
+				const FString ValueTokenString = ValueToken.Context.GetString();
+
+				if (IsTokenValueValid(ValueToken, ValueType))
+				{
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
+bool FSequencerTrackFilter_Text::IsTokenKey(const FExpressionToken& InToken, const TSet<FName>& InKeys)
+{
+	const FString KeyTokenString = InToken.Context.GetString();
+	
+	for (const FName& Key : InKeys)
+	{
+		if (KeyTokenString.Equals(Key.ToString(), ESearchCase::IgnoreCase))
+		{
+			return true;
+		}
+	}
+
+	return false;
+};
+
+bool FSequencerTrackFilter_Text::IsTokenOperator(const FExpressionToken& InToken, const ESequencerTextFilterValueType InValueType)
+{
+	if (InValueType == ESequencerTextFilterValueType::String)
+	{
+		return InToken.Node.Cast<TextFilterExpressionParser::FEqual>()
+			|| InToken.Node.Cast<TextFilterExpressionParser::FNotEqual>();
+	}
+
+	return InToken.Node.Cast<TextFilterExpressionParser::FEqual>()
+		|| InToken.Node.Cast<TextFilterExpressionParser::FNotEqual>()
+		|| InToken.Node.Cast<TextFilterExpressionParser::FLess>()
+		|| InToken.Node.Cast<TextFilterExpressionParser::FLessOrEqual>()
+		|| InToken.Node.Cast<TextFilterExpressionParser::FGreater>()
+		|| InToken.Node.Cast<TextFilterExpressionParser::FGreaterOrEqual>();
+}
+
+bool FSequencerTrackFilter_Text::IsTokenValueValid(const FExpressionToken& InToken, const ESequencerTextFilterValueType InValueType)
+{
+	if (!InToken.Node.Cast<TextFilterExpressionParser::FTextToken>())
+	{
+		return false;
+	}
+
+	// @TODO: better value checking?
+
+	return true;
 }
 
 #undef LOCTEXT_NAMESPACE

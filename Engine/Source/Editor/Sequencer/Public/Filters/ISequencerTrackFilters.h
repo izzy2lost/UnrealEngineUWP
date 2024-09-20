@@ -4,6 +4,7 @@
 
 #include "Framework/Commands/UICommandList.h"
 
+class FSequencerTextFilterExpressionContext;
 class FSequencerTrackFilter_CustomText;
 class FSequencer;
 class FString;
@@ -20,6 +21,13 @@ public:
 	SEQUENCER_API virtual FSequencer& GetSequencer() const = 0;
 
 	SEQUENCER_API virtual TSharedPtr<FUICommandList> GetCommandList() const = 0;
+
+	SEQUENCER_API virtual FString GetTextFilterString() const = 0;
+	SEQUENCER_API virtual void SetTextFilterString(const FString& InText) = 0;
+
+	/** Returns true if the current filter bar text filter string contains the specified text expression.
+	 * The text expression must have key, operator, and value tokens. */
+	SEQUENCER_API virtual bool DoesTextFilterStringContainExpressionPair(const FSequencerTextFilterExpressionContext& InExpression) const = 0;
 
 	SEQUENCER_API virtual bool HasAnyFilterActive(const bool bCheckTextFilter = true
 		, const bool bInCheckHideIsolateFilter = true

@@ -69,7 +69,10 @@ bool FSequencerTextFilterExpression_Selected::TestComplexExpression(const FName&
 
 void FSequencerTextFilterExpression_Selected::OnSelectionChanged(UObject* const InObject)
 {
-	FilterInterface.RequestFilterUpdate();
+	if (FilterInterface.DoesTextFilterStringContainExpressionPair(*this))
+	{
+		FilterInterface.RequestFilterUpdate();
+	}
 }
 
 #undef LOCTEXT_NAMESPACE
