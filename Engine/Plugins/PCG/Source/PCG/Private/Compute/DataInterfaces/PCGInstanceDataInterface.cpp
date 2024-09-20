@@ -114,30 +114,35 @@ UComputeDataProvider* UPCGInstanceDataInterface::CreateDataProvider(TObjectPtr<U
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGInstanceDataInterface::CreateDataProvider);
 	UPCGDataBinding* Binding = CastChecked<UPCGDataBinding>(InBinding);
 
-	FPCGSpawnerPrimitives* FoundPrimitives = Binding->MeshSpawnersToPrimitives.Find(ProducerSettings);
-	if (!FoundPrimitives || FoundPrimitives->Primitives.IsEmpty())
-	{
-		return nullptr;
-	}
-
-	if (!ensure(FoundPrimitives->Primitives.Num() <= PCGComputeConstants::MAX_PRIMITIVE_COMPONENTS_PER_SPAWNER))
-	{
-		// Last resort - should be clamped earlier during setup and not come to this.
-		FoundPrimitives->Primitives.SetNum(PCGComputeConstants::MAX_PRIMITIVE_COMPONENTS_PER_SPAWNER);
-	}
-
 	TObjectPtr<UPCGInstanceDataProvider> DataProvider = NewObject<UPCGInstanceDataProvider>();
-	
-	DataProvider->Primitives = FoundPrimitives->Primitives;
-	DataProvider->NumCustomFloatsPerInstance = FoundPrimitives->NumCustomFloats;
-	
+
 	check(ProducerSettings);
 	const FPCGDataCollectionDesc InputDataDesc = ProducerSettings->ComputeInputPinDataDesc(InputPinProvidingData, Binding);
 	DataProvider->NumInstancesAllPrimitives = InputDataDesc.ComputeDataElementCount(EPCGDataType::Point);
-	if (FoundPrimitives->SelectorAttributeId != -1)
+
+	FPCGSpawnerPrimitives* FoundPrimitives = Binding->MeshSpawnersToPrimitives.Find(ProducerSettings);
+
+	// If there were 0 input points for this execution, we will not have created any primitives, so check for null.
+	if (FoundPrimitives)
 	{
-		// When selecting primitives dynamically (by attribute), we don't know statically how many instances will end up in each primitive, so run worst case.
-		DataProvider->NumInstancesAllPrimitives *= FoundPrimitives->Primitives.Num();
+		if (!ensure(FoundPrimitives->Primitives.Num() <= PCGComputeConstants::MAX_PRIMITIVE_COMPONENTS_PER_SPAWNER))
+		{
+			// Last resort - should be clamped earlier during setup and not come to this.
+			FoundPrimitives->Primitives.SetNum(PCGComputeConstants::MAX_PRIMITIVE_COMPONENTS_PER_SPAWNER);
+		}
+
+		DataProvider->Primitives = FoundPrimitives->Primitives;
+		DataProvider->NumCustomFloatsPerInstance = FoundPrimitives->NumCustomFloats;
+
+		if (FoundPrimitives->SelectorAttributeId != -1)
+		{
+			// When selecting primitives dynamically (by attribute), we don't know statically how many instances will end up in each primitive, so run worst case.
+			DataProvider->NumInstancesAllPrimitives *= FoundPrimitives->Primitives.Num();
+		}
+	}
+	else
+	{
+		ensure(DataProvider->NumInstancesAllPrimitives == 0);
 	}
 
 	return DataProvider;
@@ -171,31 +176,13 @@ FPCGInstanceDataProviderProxy::FPCGInstanceDataProviderProxy(TArray<FPrimitiveSc
 
 bool FPCGInstanceDataProviderProxy::IsValid(FValidationData const& InValidationData) const
 {
-	if (InValidationData.ParameterStructSize != sizeof(FParameters))
-	{
-		return false;
-	}
-
-	if (PrimitiveSceneProxies.IsEmpty())
-	{
-		UE_LOG(LogPCG, Warning, TEXT("Proxy invalid due to missing primitive scene proxy."));
-		return false;
-	}
-
-	if (NumInstancesAllPrimitives == 0)
-	{
-		UE_LOG(LogPCG, Warning, TEXT("Proxy invalid due to 0 instance count."));
-		return false;
-	}
-
-	return true;
+	return InValidationData.ParameterStructSize == sizeof(FParameters);
 }
 
 void FPCGInstanceDataProviderProxy::AllocateResources(FRDGBuilder& GraphBuilder, FAllocationData const& InAllocationData)
 {
-	ensure(NumInstancesAllPrimitives > 0);
 	const uint32 StrideUint4s = 3;
-	InstanceData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FUintVector4) * StrideUint4s, NumInstancesAllPrimitives), TEXT("PCGInstanceDataBuffer"));
+	InstanceData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FUintVector4) * StrideUint4s, FMath::Max(1u, NumInstancesAllPrimitives)), TEXT("PCGInstanceDataBuffer"));
 	InstanceDataSRV = GraphBuilder.CreateSRV(InstanceData);
 	InstanceDataUAV = GraphBuilder.CreateUAV(InstanceData);
 
@@ -204,11 +191,12 @@ void FPCGInstanceDataProviderProxy::AllocateResources(FRDGBuilder& GraphBuilder,
 	InstanceCustomFloatDataSRV = GraphBuilder.CreateSRV(InstanceCustomFloatData);
 	InstanceCustomFloatDataUAV = GraphBuilder.CreateUAV(InstanceCustomFloatData);
 
-	WriteCounters = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), PrimitiveSceneProxies.Num()), TEXT("PCGWriteCounters"));
+	const int32 NumCountersRequired = FMath::Max(1, PrimitiveSceneProxies.Num());
+	WriteCounters = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), NumCountersRequired), TEXT("PCGWriteCounters"));
 	WriteCountersSRV = GraphBuilder.CreateSRV(WriteCounters);
 	WriteCountersUAV = GraphBuilder.CreateUAV(WriteCounters);
 	TArray<uint32> Zeros;
-	Zeros.SetNumZeroed(PrimitiveSceneProxies.Num());
+	Zeros.SetNumZeroed(NumCountersRequired);
 	GraphBuilder.QueueBufferUpload(WriteCounters, Zeros.GetData(), Zeros.Num() * Zeros.GetTypeSize());
 }
 

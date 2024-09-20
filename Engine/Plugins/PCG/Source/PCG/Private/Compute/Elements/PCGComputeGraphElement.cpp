@@ -265,6 +265,11 @@ bool FPCGComputeGraphElement::SetupProceduralISMComponents(FPCGContext* InContex
 		const FPCGDataCollectionDesc InputDataDesc = SpawnerSettings->ComputeInputPinDataDesc(PCGPinConstants::DefaultInputLabel, InBinding);
 
 		const uint32 InputPointCount = InputDataDesc.ComputeDataElementCount(EPCGDataType::Point);
+		if (InputPointCount == 0)
+		{
+			continue;
+		}
+
 		const FBox LocalBounds = InContext->SourceComponent->GetGridBounds().ShiftBy(-InContext->SourceComponent->GetOwner()->GetActorLocation());
 
 		uint32 CustomFloatCount = 0;

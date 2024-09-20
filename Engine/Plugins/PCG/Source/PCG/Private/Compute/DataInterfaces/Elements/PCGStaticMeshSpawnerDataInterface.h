@@ -64,9 +64,8 @@ public:
 class FPCGStaticMeshSpawnerDataProviderProxy : public FComputeDataProviderRenderProxy
 {
 public:
-	FPCGStaticMeshSpawnerDataProviderProxy(int32 InNumInputPoints, TArray<FUintVector4>& InAttributeIdOffsetStrides, int32 InSelectorAttributeId, TArray<uint32>& InPrimitiveStringKeys, TArray<float> InSelectionCDF)
-		: NumInputPoints(InNumInputPoints)
-		, AttributeIdOffsetStrides(InAttributeIdOffsetStrides)
+	FPCGStaticMeshSpawnerDataProviderProxy(TArray<FUintVector4>& InAttributeIdOffsetStrides, int32 InSelectorAttributeId, TArray<uint32>& InPrimitiveStringKeys, TArray<float> InSelectionCDF)
+		: AttributeIdOffsetStrides(InAttributeIdOffsetStrides)
 		, SelectionCDF(InSelectionCDF)
 		, SelectorAttributeId(InSelectorAttributeId)
 		, PrimitiveStringKeys(InPrimitiveStringKeys)
@@ -79,8 +78,6 @@ public:
 
 protected:
 	using FParameters = FPCGStaticMeshSpawnerDataInterfaceParameters;
-
-	int32 NumInputPoints = 0;
 
 	TArray<FUintVector4> AttributeIdOffsetStrides;
 	TArray<float> SelectionCDF;
