@@ -58,7 +58,10 @@ public:
 	UPROPERTY()
 	TArray<TObjectPtr<UPrimitiveComponent>> Primitives;
 
+	UPROPERTY()
 	uint32 NumInstancesAllPrimitives = 0;
+
+	UPROPERTY()
 	uint32 NumCustomFloatsPerInstance = 0;
 };
 

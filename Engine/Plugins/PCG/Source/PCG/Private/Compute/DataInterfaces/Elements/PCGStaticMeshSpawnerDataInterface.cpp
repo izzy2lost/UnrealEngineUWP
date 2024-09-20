@@ -28,10 +28,6 @@ void UPCGStaticMeshSpawnerDataInterface::GetSupportedInputs(TArray<FShaderFuncti
 		.AddReturnType(EShaderFundamentalType::Uint); // Num primitives
 
 	OutFunctions.AddDefaulted_GetRef()
-		.SetName(TEXT("SMSpawner_GetNumInputPoints"))
-		.AddReturnType(EShaderFundamentalType::Uint); // Num input points
-
-	OutFunctions.AddDefaulted_GetRef()
 		.SetName(TEXT("SMSpawner_GetAttributeIdOffsetStride"))
 		.AddReturnType(EShaderFundamentalType::Uint, 4)
 		.AddParam(EShaderFundamentalType::Uint); // InAttributeIndex
@@ -54,7 +50,6 @@ BEGIN_SHADER_PARAMETER_STRUCT(FPCGStaticMeshSpawnerDataInterfaceParameters,)
 	SHADER_PARAMETER(uint32, NumAttributes)
 	SHADER_PARAMETER(uint32, NumPrimitives)
 	SHADER_PARAMETER(uint32, SelectorAttributeId)
-	SHADER_PARAMETER(uint32, NumInputPoints)
 END_SHADER_PARAMETER_STRUCT()
 
 void UPCGStaticMeshSpawnerDataInterface::GetShaderParameters(TCHAR const* UID, FShaderParametersMetadataBuilder& InOutBuilder, FShaderParametersMetadataAllocations& InOutAllocations) const
@@ -74,9 +69,6 @@ void UPCGStaticMeshSpawnerDataInterface::GetHLSL(FString& OutHLSL, FString const
 	OutHLSL += FString::Format(TEXT(
 		"uint {DataInterfaceName}_SelectorAttributeId;\n"
 		"uint SMSpawner_GetSelectorAttributeId_{DataInterfaceName}() { return {DataInterfaceName}_SelectorAttributeId; }\n"
-		"\n"
-		"uint {DataInterfaceName}_NumInputPoints;\n"
-		"uint SMSpawner_GetNumInputPoints_{DataInterfaceName}() { return {DataInterfaceName}_NumInputPoints; }\n"
 		"\n"
 		"uint {DataInterfaceName}_NumAttributes;\n"
 		"uint4 {DataInterfaceName}_AttributeIdOffsetStrides[{MaxAttributes}];\n"
@@ -110,28 +102,25 @@ UComputeDataProvider* UPCGStaticMeshSpawnerDataInterface::CreateDataProvider(TOb
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGStaticMeshSpawnerDataInterface::CreateDataProvider);
 	UPCGDataBinding* Binding = CastChecked<UPCGDataBinding>(InBinding);
-	const FPCGSpawnerPrimitives* Primitives = Binding->MeshSpawnersToPrimitives.Find(Settings);
-	if (!ensure(Primitives))
-	{
-		return nullptr;
-	}
-	if (!ensure(!Primitives->Primitives.IsEmpty()))
-	{
-		return nullptr;
-	}
 
 	TObjectPtr<UPCGStaticMeshSpawnerDataProvider> DataProvider = NewObject<UPCGStaticMeshSpawnerDataProvider>();
 	DataProvider->Settings = Cast<UPCGStaticMeshSpawnerSettings>(Settings);
-	DataProvider->AttributeIdOffsetStrides = Primitives->AttributeIdOffsetStrides;
-	DataProvider->SelectionCDF = Primitives->SelectionCDF;
-	DataProvider->SelectorAttributeId = Primitives->SelectorAttributeId;
-	DataProvider->PrimitiveStringKeys = Primitives->PrimitiveStringKeys;
+	
+	// If there were 0 input points for this execution, we will not have created any primitives, so check for null.
+	if (const FPCGSpawnerPrimitives* Primitives = Binding->MeshSpawnersToPrimitives.Find(Settings))
+	{
+		DataProvider->AttributeIdOffsetStrides = Primitives->AttributeIdOffsetStrides;
+		DataProvider->SelectionCDF = Primitives->SelectionCDF;
+		DataProvider->SelectorAttributeId = Primitives->SelectorAttributeId;
+		DataProvider->PrimitiveStringKeys = Primitives->PrimitiveStringKeys;
+	}
+
 	return DataProvider;
 }
 
 FComputeDataProviderRenderProxy* UPCGStaticMeshSpawnerDataProvider::GetRenderProxy()
 {
-	return new FPCGStaticMeshSpawnerDataProviderProxy(NumInputPoints, AttributeIdOffsetStrides, SelectorAttributeId, PrimitiveStringKeys, SelectionCDF);
+	return new FPCGStaticMeshSpawnerDataProviderProxy(AttributeIdOffsetStrides, SelectorAttributeId, PrimitiveStringKeys, SelectionCDF);
 }
 
 bool FPCGStaticMeshSpawnerDataProviderProxy::IsValid(FValidationData const& InValidationData) const
