@@ -105,7 +105,7 @@ void UPCGDataBinding::BuildStringTable()
 				{
 					for (const FPCGPoint& Point : PointData->GetPoints())
 					{
-						AddEntryToStringTable(Point.MetadataEntry);
+						AddEntryToStringTable(AttributeBase->GetValueKey(Point.MetadataEntry));
 					}
 				}
 				else if (const UPCGParamData* ParamData = Cast<UPCGParamData>(Data.Data))
@@ -114,7 +114,7 @@ void UPCGDataBinding::BuildStringTable()
 
 					for (int64 MetadataKey = 0; MetadataKey < NumElements; ++MetadataKey)
 					{
-						AddEntryToStringTable(MetadataKey);
+						AddEntryToStringTable(AttributeBase->GetValueKey(MetadataKey));
 					}
 				}
 				else { /** TODO: More attribute types! */ }
