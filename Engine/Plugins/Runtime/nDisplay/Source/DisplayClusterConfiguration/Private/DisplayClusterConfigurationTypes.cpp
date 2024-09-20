@@ -350,15 +350,6 @@ void UDisplayClusterConfigurationClusterNode::Serialize(FArchive& Ar)
 	}
 }
 
-UDisplayClusterConfigurationClusterNode::UDisplayClusterConfigurationClusterNode()
-	: bIsSoundEnabled(false)
-#if WITH_EDITORONLY_DATA
-	, bIsVisible(true)
-	, bIsUnlocked(true)
-#endif
-{
-}
-
 UDisplayClusterConfigurationHostDisplayData::UDisplayClusterConfigurationHostDisplayData()
 	: bIsVisible(true)
 	, bIsUnlocked(true)

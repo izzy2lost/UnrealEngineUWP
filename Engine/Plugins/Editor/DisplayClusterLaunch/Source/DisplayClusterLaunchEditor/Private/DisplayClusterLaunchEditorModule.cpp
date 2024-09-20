@@ -520,6 +520,10 @@ void FDisplayClusterLaunchEditorModule::LaunchDisplayClusterProcess()
 				{
 					ConcatenatedCommandLineArguments += "-fullscreen ";
 				}
+				else if (NodePtr->bRenderHeadless)
+				{
+					ConcatenatedCommandLineArguments += "-RenderOffscreen ";
+				}
 				else
 				{
 					ConcatenatedCommandLineArguments +=
@@ -528,12 +532,6 @@ void FDisplayClusterLaunchEditorModule::LaunchDisplayClusterProcess()
 								NodePtr->WindowRect.X, NodePtr->WindowRect.Y,
 								NodePtr->WindowRect.W, NodePtr->WindowRect.H
 						);
-				}
-
-				// Headless
-				if (NodePtr->bRenderHeadless)
-				{
-					ConcatenatedCommandLineArguments += "-RenderOffscreen ";
 				}
 
 				// Graphics adapter
