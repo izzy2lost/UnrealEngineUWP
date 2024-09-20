@@ -16,7 +16,7 @@
 USTRUCT(BlueprintType)
 struct AUDIOWIDGETS_API FAudioMaterialWidgetStyle : public FSlateWidgetStyle
 {
-	GENERATED_BODY()
+	GENERATED_USTRUCT_BODY()
 
 public:
 
@@ -33,7 +33,12 @@ public:
 public:
 
 	UMaterialInstanceDynamic* CreateDynamicMaterial(UObject* InOuter) const;
+	TObjectPtr<UMaterialInstanceDynamic> GetDynamicMaterial() const;
 
+private:
+
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "keep the reference instead as a TWeakObjectPtr in the AudioMaterialSlates.  This will be removed when all AudioMaterialSlates are updated."))
+	mutable TObjectPtr<UMaterialInstanceDynamic> DynamicMaterial;
 };
 
 /**
@@ -42,7 +47,7 @@ public:
 USTRUCT(BlueprintType)
 struct AUDIOWIDGETS_API FAudioMaterialButtonStyle : public FAudioMaterialWidgetStyle
 {
-	GENERATED_BODY()
+	GENERATED_USTRUCT_BODY()
 
 	FAudioMaterialButtonStyle();
 
@@ -54,38 +59,27 @@ struct AUDIOWIDGETS_API FAudioMaterialButtonStyle : public FAudioMaterialWidgetS
 
 	FAudioMaterialButtonStyle& SetMaterial(UMaterialInterface* InMaterialInterface) { Material = InMaterialInterface; return *this; }
 
-	/** The button's Main color value. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Button")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor ButtonMainColor;
 	FAudioMaterialButtonStyle& SetButtonMainColor(const FLinearColor& InColor) { ButtonMainColor = InColor; return *this; }
 
-	/** The button color's Tint value covering one half of the gradient. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Button")
-	FLinearColor ButtonMainColorTint_1;
-	FAudioMaterialButtonStyle& SetButtonMainColorTint_1(const FLinearColor& InColor) { ButtonMainColorTint_1 = InColor; return *this; }
-
-	/** The button color's Tint value covering the other half of the gradient. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Button")
-	FLinearColor ButtonMainColorTint_2;
-	FAudioMaterialButtonStyle& SetButtonMainColorTint_2(const FLinearColor& InColor) { ButtonMainColorTint_2 = InColor; return *this; }	
-
-	/** The button's Accent color value. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Button")
-	FLinearColor ButtonAccentColor;	
-	FAudioMaterialButtonStyle& SetButtonAccentColor(const FLinearColor& InColor) { ButtonAccentColor = InColor; return *this; }
-
-	/** The button's Shadow color value. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Button")
-	FLinearColor ButtonShadowColor;	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
+	FLinearColor ButtonShadowColor;
 	FAudioMaterialButtonStyle& SetButtonShadowColor(const FLinearColor& InColor) { ButtonShadowColor = InColor; return *this; }
 
-	/** The button's Outline color value when Unpressed. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Button")
-	FLinearColor ButtonUnpressedOutlineColor;
-	FAudioMaterialButtonStyle& SetButtonUnpressedOutlineColor(const FLinearColor& InColor) { ButtonUnpressedOutlineColor = InColor; return *this; }
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
+	FLinearColor ButtonAccentColor;	
+	FAudioMaterialButtonStyle& SetButtonAccentColor(const FLinearColor& InColor) { ButtonShadowColor = InColor; return *this; }
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
+	FLinearColor ButtonPressedMainColor;	
+	FAudioMaterialButtonStyle& SetButtonPressedMainColor(const FLinearColor& InColor) { ButtonPressedMainColor = InColor; return *this; }
 
-	/** The button's Outline color value when Pressed. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Button")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
+	FLinearColor ButtonPressedShadowColor;	
+	FAudioMaterialButtonStyle& SetButtonPressedShadowColor(const FLinearColor& InColor) { ButtonPressedShadowColor = InColor; return *this; }
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor ButtonPressedOutlineColor;
 	FAudioMaterialButtonStyle& SetButtonPressedOutlineColor(const FLinearColor& InColor) { ButtonPressedOutlineColor = InColor; return *this; }
 
@@ -97,7 +91,7 @@ struct AUDIOWIDGETS_API FAudioMaterialButtonStyle : public FAudioMaterialWidgetS
 USTRUCT(BlueprintType)
 struct AUDIOWIDGETS_API FAudioMaterialSliderStyle : public FAudioMaterialWidgetStyle
 {
-	GENERATED_BODY()
+	GENERATED_USTRUCT_BODY()
 
 	FAudioMaterialSliderStyle();
 
@@ -109,33 +103,28 @@ struct AUDIOWIDGETS_API FAudioMaterialSliderStyle : public FAudioMaterialWidgetS
 
 	FAudioMaterialSliderStyle& SetMaterial(UMaterialInterface* InMaterialInterface) { Material = InMaterialInterface; return *this; }
 
-	/** The slider Bar's Background color value. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Slider")
-	FLinearColor SliderBackgroundColor;
-	FAudioMaterialSliderStyle& SetSliderBarBackgroundColor(const FLinearColor& InColor) { SliderBackgroundColor = InColor; return *this; }
-
-	/** The slider Bar's Background Accent color value. Can be thought as the slider's Inner Shadow color value. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Slider")
-	FLinearColor SliderBackgroundAccentColor;
-	FAudioMaterialSliderStyle& SetSliderBarBackgroundAccentColor(const FLinearColor& InColor) { SliderBackgroundAccentColor = InColor; return *this; }
-
-	/** The slider's Color value representing the slider's Output Value amount. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Slider")
-	FLinearColor SliderValueMainColor;
-	FAudioMaterialSliderStyle& SetSliderBarValueMainColor(const FLinearColor& InColor) { SliderValueMainColor = InColor; return *this; }
-
-	/** The slider Handle's Main color value. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Slider")
-	FLinearColor SliderHandleMainColor;
-	FAudioMaterialSliderStyle& SetSliderHandleMainColor(const FLinearColor& InColor) { SliderHandleMainColor = InColor; return *this; }
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
+	FLinearColor BarMainColor;
+	FAudioMaterialSliderStyle& SetSliderBarMainColor(const FLinearColor& InColor) { BarMainColor = InColor; return *this; }
 	
-	/** The slider Handle's Outline color value. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Slider")
-	FLinearColor SliderHandleOutlineColor;
-	FAudioMaterialSliderStyle& SetSliderHandleOutlineColor(const FLinearColor& InColor) { SliderHandleOutlineColor = InColor; return *this; }
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
+	FLinearColor BarShadowColor;	
+	FAudioMaterialSliderStyle& SetSliderBarShadowColor(const FLinearColor& InColor) { BarShadowColor = InColor; return *this; }
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
+	FLinearColor BarAccentColor;
+	FAudioMaterialSliderStyle& SetSliderBarAccentColor(const FLinearColor& InColor) { BarAccentColor = InColor; return *this; }
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
+	FLinearColor HandleMainColor;	
+	FAudioMaterialSliderStyle& SetSliderHandleMainColor(const FLinearColor& InColor) { HandleMainColor = InColor; return *this; }
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
+	FLinearColor HandleOutlineColor;
+	FAudioMaterialSliderStyle& SetSliderHandleOutlineColor(const FLinearColor& InColor) { HandleOutlineColor = InColor; return *this; }
 
 	/** The style to use for the audio text box widget. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Label")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FAudioTextBoxStyle TextBoxStyle;
 	FAudioMaterialSliderStyle& SetTextBoxStyle(const FAudioTextBoxStyle& InTextBoxStyle) { TextBoxStyle = InTextBoxStyle; return *this; }
 
@@ -147,7 +136,7 @@ struct AUDIOWIDGETS_API FAudioMaterialSliderStyle : public FAudioMaterialWidgetS
 USTRUCT(BlueprintType)
 struct AUDIOWIDGETS_API FAudioMaterialKnobStyle : public FAudioMaterialWidgetStyle
 {
-	GENERATED_BODY()
+	GENERATED_USTRUCT_BODY()
 
 	FAudioMaterialKnobStyle();
 
@@ -159,71 +148,46 @@ struct AUDIOWIDGETS_API FAudioMaterialKnobStyle : public FAudioMaterialWidgetSty
 
 	FAudioMaterialKnobStyle& SetMaterial(UMaterialInterface* InMaterialInterface) { Material = InMaterialInterface; return *this; }
 
-	/** The knob's Main color value. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Knob")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor KnobMainColor;
 	FAudioMaterialKnobStyle& SetKnobMainColor(const FLinearColor& InColor) { KnobMainColor = InColor; return *this; }
 
-	/** The knob's Accent color value. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Knob")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor KnobAccentColor;
 	FAudioMaterialKnobStyle& SetKnobAccentColor(const FLinearColor& InColor) { KnobAccentColor = InColor; return *this; }
 	
-	/** The knob's Shadow color value. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Knob")
-	FLinearColor KnobShadowColor;
-	FAudioMaterialKnobStyle& SetKnobShadowColor(const FLinearColor& InColor) { KnobShadowColor = InColor; return *this; }
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
+	FLinearColor KnobIndicatorColor;
+	FAudioMaterialKnobStyle& SetKnobIndicatorColor(const FLinearColor& InColor) {KnobIndicatorColor = InColor; return *this;}
 	
-	/** The knob's Smooth Bevel color value. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Knob")
-	FLinearColor KnobSmoothBevelColor;
-	FAudioMaterialKnobStyle& SetSmoothBevelColor(const FLinearColor& InColor) { KnobSmoothBevelColor = InColor; return *this; }
-	
-	/** The knob's Indicator Dot color value. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Knob")
-	FLinearColor KnobIndicatorDotColor;
-	FAudioMaterialKnobStyle& SetKnobIndicatorColor(const FLinearColor& InColor) { KnobIndicatorDotColor = InColor; return *this;}
-	
-	/* The knob's Edge Fill color value. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Knob")
-	FLinearColor KnobEdgeFillColor;
-	FAudioMaterialKnobStyle& SetKnobEdgeFillColor(const FLinearColor& InColor) { KnobEdgeFillColor = InColor; return *this;}
-	
-	/** The knob Bar's Color value. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Knob")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor KnobBarColor;
 	FAudioMaterialKnobStyle& SetKnobBarColor(const FLinearColor& InColor) { KnobBarColor = InColor; return *this; }
 	
-	/** The knob Bar's Shadow color value. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Knob")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor KnobBarShadowColor;
 	FAudioMaterialKnobStyle& SetKnobBarShadowColor(const FLinearColor& InColor) { KnobBarShadowColor = InColor; return *this; }
 
-	/** The knob Bar's Fill color value representing the Starting section of the fill. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Knob")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor KnobBarFillMinColor;
 	FAudioMaterialKnobStyle& SetKnobBarFillMinColor(const FLinearColor& InColor) { KnobBarFillMinColor = InColor; return *this; }
 	
-	/** The knob Bar's Fill color value representing the Middle section of the fill. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Knob")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor KnobBarFillMidColor;
 	FAudioMaterialKnobStyle& SetKnobFillMidColor(const FLinearColor& InColor) { KnobBarFillMidColor = InColor; return *this; }
 	
-	/** The knob Bar's Fill color value representing the Ending section of the fill. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Knob")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor KnobBarFillMaxColor;
 	FAudioMaterialKnobStyle& SetKnobBarFillMaxColor(const FLinearColor& InColor) { KnobBarFillMaxColor = InColor; return *this; }
 	
-	/** The knob Bar Fill color's Tint value. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Knob")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor KnobBarFillTintColor;
 	FAudioMaterialKnobStyle& SetKnobBarFillTintColor(const FLinearColor& InColor) { KnobBarFillTintColor = InColor; return *this; }
 
 	/** The style to use for the audio text box widget. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style | Label")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FAudioTextBoxStyle TextBoxStyle;
 	void SetTextBoxStyle(const FAudioTextBoxStyle& InTextBoxStyle) { TextBoxStyle = InTextBoxStyle; }
-
 };
 
 /**
@@ -232,7 +196,7 @@ struct AUDIOWIDGETS_API FAudioMaterialKnobStyle : public FAudioMaterialWidgetSty
 USTRUCT(BlueprintType)
 struct AUDIOWIDGETS_API FAudioMaterialMeterStyle : public FAudioMaterialWidgetStyle
 {
-	GENERATED_BODY()
+	GENERATED_USTRUCT_BODY()
 
 	FAudioMaterialMeterStyle();
 
@@ -244,25 +208,21 @@ struct AUDIOWIDGETS_API FAudioMaterialMeterStyle : public FAudioMaterialWidgetSt
 
 	FAudioMaterialMeterStyle& SetMaterial(UMaterialInterface* InMaterialInterface) { Material = InMaterialInterface; return *this; }
 
-	/** The meter's Fill color value representing the Starting section of the fill. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor MeterFillMinColor;
 	FAudioMaterialMeterStyle& SetMeterFillMinColor(const FLinearColor& InColor) { MeterFillMinColor = InColor; return *this; }
 
-	/** The meter's Fill color value representing the Middle section of the fill. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor MeterFillMidColor;
 	FAudioMaterialMeterStyle& SetMeterFillMidColor(const FLinearColor& InColor) { MeterFillMidColor = InColor; return *this; }
 
-	/** The meter's Fill color value representing the Ending section of the fill. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor MeterFillMaxColor;
 	FAudioMaterialMeterStyle& SetMeterFillMaxColor(const FLinearColor& InColor) { MeterFillMaxColor = InColor; return *this; }
 
-	/** The meter's Background Fill color value. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
-	FLinearColor MeterFillBackgroundColor;
-	FAudioMaterialMeterStyle& SetMeterOffFillColor(const FLinearColor& InColor) { MeterFillBackgroundColor = InColor; return *this; }
+	FLinearColor MeterOffFillColor;
+	FAudioMaterialMeterStyle& SetMeterOffFillColor(const FLinearColor& InColor) { MeterOffFillColor = InColor; return *this; }
 
 	// How much padding to add around the meter
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
@@ -329,7 +289,7 @@ struct AUDIOWIDGETS_API FAudioMaterialMeterStyle : public FAudioMaterialWidgetSt
 USTRUCT(BlueprintType)
 struct AUDIOWIDGETS_API FAudioMaterialEnvelopeStyle : public FAudioMaterialWidgetStyle
 {
-	GENERATED_BODY()
+	GENERATED_USTRUCT_BODY()
 
 	FAudioMaterialEnvelopeStyle();
 

@@ -15,56 +15,14 @@ namespace AudioWidgets
 {
 	namespace SlateTypesPrivate
 	{
-		// Button
-		static const FLinearColor ButtonMainColor(0.5f, 0.5f, 0.5f, 1.f);
-		static const FLinearColor ButtonAccentColor(0.96f, 0.96f, 0.96f, 1.f);
-		static const FLinearColor ButtonShadowColor(0.5f, 0.5f, 0.5f, 1.f);
-		static const FLinearColor ButtonUnpressedOutlineColor(0.0625f, 0.0625f, 0.0625f, 1.f);
-		static const FLinearColor ButtonPressedOutlineColor(0.96f, 0.96f, 0.96f, 1.f);
-		static const FLinearColor ButtonMainColorTint1(0.96f, 0.96f, 0.96f, 1.f);
-		static const FLinearColor ButtonMainColorTint2(0.06f, 0.06f, 0.06f, 1.f);
-		// End Button
+		static const FLinearColor ButtonMainColor(0.098958f, 0.098958f, 0.098958f, 1.f);
+		static const FLinearColor ButtonAccentColor(0.341146f, 0.341146f, 0.341146f, 1.f);
+		static const FLinearColor ButtonPressedShadowColor(0.126558f, 0.138653f, 0.15f, 1.f);
 
-		// Slider
-		static const FLinearColor SliderBackgroundColor(0.008f, 0.008f, 0.008f, 1.f);
-		static const FLinearColor SliderBackgroundAccentColor(0.005f, 0.005f, 0.005f, 1.f);
-		static const FLinearColor SliderHandleMainColor(1.f, 1.f, 1.f, 1.f);
-		static const FLinearColor SliderHandleOutlineColor(0.15f, 0.15f, 0.15f, 1.f);
-		static const FLinearColor SliderValueMainColor(0.008f, 0.008f, 0.008f, 1.f);
-		// End Slider
-
-		// Knob
-		static const FLinearColor KnobMainColor(0.140625f, 0.140625f, 0.140625f, 1.f);
-		static const FLinearColor KnobAccentColor(0.06f, 0.06f, 0.06f, 1.f);
-		static const FLinearColor KnobShadowColor(0.06f, 0.06f, 0.06f, 1.f);
-		static const FLinearColor KnobSmoothBevelColor(0.041667f, 0.041667f, 0.041667f, 1.f);
-		static const FLinearColor KnobIndicatorDotColor(1.0f, 0.0f, 0.0f, 1.f);
-		static const FLinearColor KnobEdgeFillColor(0.015625f, 0.015625f, 0.015625f, 1.f);
-		static const FLinearColor KnobBarColor(0.067f, 0.067f, 0.067f, 1.f);
-		static const FLinearColor KnobBarShadowColor(0.067f, 0.067f, 0.067f, 1.f);
-		static const FLinearColor KnobBarFillMinColor(0.96f, 0.96f, 0.96f, 1.f);
-		static const FLinearColor KnobBarFillMidColor(0.96f, 0.96f, 0.96f, 1.f);
-		static const FLinearColor KnobBarFillMaxColor(0.96f, 0.96f, 0.96f, 1.f);
-		static const FLinearColor KnobBarFillTintColor(0.96f, 0.96f, 0.96f, 1.f);
-		// End Knob
-
-		// Meter
-		static const FLinearColor MeterFillMinColor(0.96f, 0.96f, 0.96f, 1.f);
-		static const FLinearColor MeterFillMidColor(0.96f, 0.96f, 0.96f, 1.f);
-		static const FLinearColor MeterFillMaxColor(0.96f, 0.96f, 0.96f, 1.f);
-		static const FLinearColor MeterFillBackgroundColor(0.06f, 0.06f, 0.06f, 1.f);
-		static const FVector2D MeterPadding(FVector2D(10.0f, 5.0f));
-		static const FVector2D MeterValueRangeDb(FVector2D(-60, 10));
-		static const bool bShowMeterScale(true);
-		static const bool bScaleMeterSide(true);
-		static const float MeterScaleHashOffset(5.0f);
-		static const float MeterScaleHashWidth(10.0f);
-		static const float MeterScaleHashHeight(1.0f);
-		static const int32 MeterDecibelsPerHash(5);
-		// End Meter
-
-		static const FSlateFontInfo Font(FStyleDefaults::GetFontInfo(5));
-		static const FAudioTextBoxStyle TextBoxStyle(FAudioTextBoxStyle::GetDefault());
+		static const FLinearColor BarMainColor(0.008f, 0.008f, 0.008f, 1.f);
+		static const FLinearColor BarAccentColor(0.005f, 0.005f, 0.005f, 1.f);
+		static const FLinearColor HandleMainColor(1.f, 1.f, 1.f, 1.f);
+		static const FLinearColor HandleOutlineColor(0.15f, 0.15f, 0.15f, 1.f);
 	}
 }
 
@@ -75,21 +33,26 @@ FAudioMaterialWidgetStyle::FAudioMaterialWidgetStyle()
 {
 }
 
+TObjectPtr<UMaterialInstanceDynamic> FAudioMaterialWidgetStyle::GetDynamicMaterial() const
+{
+	return DynamicMaterial;
+}
+
 UMaterialInstanceDynamic* FAudioMaterialWidgetStyle::CreateDynamicMaterial(UObject* InOuter) const
 {
-	return UMaterialInstanceDynamic::Create(Material, InOuter);
+	DynamicMaterial = UMaterialInstanceDynamic::Create(Material, InOuter);
+	return DynamicMaterial;
 }
 
 FAudioMaterialButtonStyle::FAudioMaterialButtonStyle()
 	: ButtonMainColor(SlateTypesPrivate::ButtonMainColor)
-	, ButtonMainColorTint_1(SlateTypesPrivate::ButtonMainColorTint1)
-	, ButtonMainColorTint_2(SlateTypesPrivate::ButtonMainColorTint2)
+	, ButtonShadowColor(FLinearColor::Black)
 	, ButtonAccentColor(SlateTypesPrivate::ButtonAccentColor)
-	, ButtonShadowColor(SlateTypesPrivate::ButtonShadowColor)
-	, ButtonUnpressedOutlineColor(SlateTypesPrivate::ButtonUnpressedOutlineColor)
-	, ButtonPressedOutlineColor(SlateTypesPrivate::ButtonPressedOutlineColor)
+	, ButtonPressedMainColor(FLinearColor::White)
+	, ButtonPressedShadowColor(SlateTypesPrivate::ButtonPressedShadowColor)
+	, ButtonPressedOutlineColor(FLinearColor::Blue)
 {
-	FString Path = PLUGIN_BASE_DIR + "MI_AudioMaterialToggleButton.MI_AudioMaterialToggleButton";
+	FString Path = PLUGIN_BASE_DIR + "MI_AudioMaterialButton.MI_AudioMaterialButton";
 	Material = LoadObject<UMaterialInterface>(nullptr, *Path);
 
 	DesiredSize = FVector2f(128.f, 128.f);	
@@ -108,12 +71,12 @@ const FAudioMaterialButtonStyle& FAudioMaterialButtonStyle::GetDefault()
 }
 
 FAudioMaterialSliderStyle::FAudioMaterialSliderStyle()
-	: SliderBackgroundColor(SlateTypesPrivate::SliderBackgroundColor)
-	, SliderBackgroundAccentColor(SlateTypesPrivate::SliderBackgroundAccentColor)
-	, SliderValueMainColor(SlateTypesPrivate::SliderValueMainColor)
-	, SliderHandleMainColor(SlateTypesPrivate::SliderHandleMainColor)
-	, SliderHandleOutlineColor(SlateTypesPrivate::SliderHandleOutlineColor)
-	, TextBoxStyle(SlateTypesPrivate::TextBoxStyle)
+	: BarMainColor(SlateTypesPrivate::BarMainColor)
+	, BarShadowColor(FLinearColor::Black)
+	, BarAccentColor(SlateTypesPrivate::BarAccentColor)
+	, HandleMainColor(SlateTypesPrivate::HandleMainColor)
+	, HandleOutlineColor(SlateTypesPrivate::HandleOutlineColor)
+	, TextBoxStyle(FAudioTextBoxStyle::GetDefault())
 {
 	FString Path = PLUGIN_BASE_DIR + "MI_AudioMaterialRoundedSlider.MI_AudioMaterialRoundedSlider";
 	Material = LoadObject<UMaterialInterface>(nullptr, *Path);
@@ -135,18 +98,15 @@ const FAudioMaterialSliderStyle& FAudioMaterialSliderStyle::GetDefault()
 }
 
 FAudioMaterialKnobStyle::FAudioMaterialKnobStyle()
-	: KnobMainColor(SlateTypesPrivate::KnobMainColor)
-	, KnobAccentColor(SlateTypesPrivate::KnobAccentColor)
-	, KnobShadowColor(SlateTypesPrivate::KnobShadowColor)
-	, KnobSmoothBevelColor(SlateTypesPrivate::KnobSmoothBevelColor)
-	, KnobIndicatorDotColor(SlateTypesPrivate::KnobIndicatorDotColor)
-	, KnobEdgeFillColor(SlateTypesPrivate::KnobEdgeFillColor)
-	, KnobBarColor(SlateTypesPrivate::KnobBarColor)
-	, KnobBarShadowColor(SlateTypesPrivate::KnobBarShadowColor)
-	, KnobBarFillMinColor(SlateTypesPrivate::KnobBarFillMinColor)
-	, KnobBarFillMidColor(SlateTypesPrivate::KnobBarFillMidColor)
-	, KnobBarFillMaxColor(SlateTypesPrivate::KnobBarFillMaxColor)
-	, KnobBarFillTintColor(SlateTypesPrivate::KnobBarFillTintColor)
+	: KnobMainColor(FLinearColor::Black)
+	, KnobAccentColor(FLinearColor::Gray)
+	, KnobIndicatorColor(FLinearColor::Red)
+	, KnobBarColor(FLinearColor::Gray)
+	, KnobBarShadowColor(FLinearColor::Gray)
+	, KnobBarFillMinColor(FLinearColor::White)
+	, KnobBarFillMidColor(FLinearColor::White)
+	, KnobBarFillMaxColor(FLinearColor::White)
+	, KnobBarFillTintColor(FLinearColor::White)
 {
 	FString Path = PLUGIN_BASE_DIR + "MI_AudioMaterialKnob.MI_AudioMaterialKnob";
 	Material = LoadObject<UMaterialInterface>(nullptr, *Path);
@@ -168,19 +128,19 @@ void FAudioMaterialKnobStyle::GetResources(TArray<const FSlateBrush*>& OutBrushe
 }
 
 FAudioMaterialMeterStyle::FAudioMaterialMeterStyle()
-	: MeterFillMinColor(SlateTypesPrivate::MeterFillMinColor)
-	, MeterFillMidColor(SlateTypesPrivate::MeterFillMidColor)
-	, MeterFillMaxColor(SlateTypesPrivate::MeterFillMinColor)
-	, MeterFillBackgroundColor(SlateTypesPrivate::MeterFillBackgroundColor)
-	, MeterPadding(SlateTypesPrivate::MeterPadding)
-	, ValueRangeDb(SlateTypesPrivate::MeterValueRangeDb)
-	, bShowScale(SlateTypesPrivate::bShowMeterScale)
-	, bScaleSide(SlateTypesPrivate::bScaleMeterSide)
-	, ScaleHashOffset(SlateTypesPrivate::MeterScaleHashOffset)
-	, ScaleHashWidth(SlateTypesPrivate::MeterScaleHashWidth)
-	, ScaleHashHeight(SlateTypesPrivate::MeterScaleHashHeight)
-	, DecibelsPerHash(SlateTypesPrivate::MeterDecibelsPerHash)
-	, Font(SlateTypesPrivate::Font)
+	: MeterFillMinColor(FLinearColor::White)
+	, MeterFillMidColor(FLinearColor::White)
+	, MeterFillMaxColor(FLinearColor::White)
+	, MeterOffFillColor(FLinearColor::Black)
+	, MeterPadding(FVector2D(10.0f, 5.0f))
+	, ValueRangeDb(FVector2D(-60, 10))
+	, bShowScale(true)
+	, bScaleSide(true)
+	, ScaleHashOffset(5.0f)
+	, ScaleHashWidth(10.0f)
+	, ScaleHashHeight(1.0f)
+	, DecibelsPerHash(5)
+	, Font(FStyleDefaults::GetFontInfo(5))
 {
 	FString Path = PLUGIN_BASE_DIR + "MI_AudioMaterialMeter.MI_AudioMaterialMeter";
 	Material = LoadObject<UMaterialInterface>(nullptr, *Path);
