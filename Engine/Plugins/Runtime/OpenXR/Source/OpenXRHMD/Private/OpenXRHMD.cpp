@@ -39,6 +39,7 @@
 #include "StereoRenderUtils.h"
 #include "DefaultStereoLayers.h"
 #include "FBFoveationImageGenerator.h"
+#include "AnalyticsEventAttribute.h"
 
 #if PLATFORM_ANDROID
 #include "Android/AndroidApplication.h"
@@ -720,7 +721,7 @@ bool FOpenXRHMD::GetTrackingOriginTransform(TEnumAsByte<EHMDTrackingOrigin::Type
 
 FName FOpenXRHMD::GetHMDName() const
 {
-	return SystemProperties.systemName;
+	return UTF8_TO_TCHAR(SystemProperties.systemName);
 }
 
 FString FOpenXRHMD::GetVersionString() const
@@ -1630,6 +1631,7 @@ FOpenXRHMD::FOpenXRHMD(const FAutoRegister& AutoRegister, XrInstance InInstance,
 	, BasePosition(FVector::ZeroVector)
 	, LayerColorScale{ 1.0f, 1.0f, 1.0f, 1.0f }
 	, LayerColorBias{ 0.0f, 0.0f, 0.0f, 0.0f }
+	, bxrGetSystemPropertiesSuccessful(false)
 {
 	InstanceProperties = { XR_TYPE_INSTANCE_PROPERTIES, nullptr };
 	XR_ENSURE(xrGetInstanceProperties(Instance, &InstanceProperties));
@@ -2007,6 +2009,17 @@ void ShowRestartWarning(const FText& Title)
 }
 #endif
 
+bool FOpenXRHMD::PopulateAnalyticsAttributes(TArray<FAnalyticsEventAttribute>& EventAttributes)
+{
+	if (!FHeadMountedDisplayBase::PopulateAnalyticsAttributes(EventAttributes))
+	{
+		return false;
+	}
+
+	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("xrGetSystemPropertiesSuccessful"), bxrGetSystemPropertiesSuccessful));
+	return true;
+}
+
 bool FOpenXRHMD::OnStereoStartup()
 {
 	FWriteScopeLock Lock(SessionHandleMutex);
@@ -2028,7 +2041,9 @@ bool FOpenXRHMD::OnStereoStartup()
 	// Retrieve system properties and check for hand tracking support
 	XrSystemHandTrackingPropertiesEXT HandTrackingSystemProperties = { XR_TYPE_SYSTEM_HAND_TRACKING_PROPERTIES_EXT };
 	SystemProperties = XrSystemProperties{ XR_TYPE_SYSTEM_PROPERTIES, &HandTrackingSystemProperties };
-	XR_ENSURE(xrGetSystemProperties(Instance, System, &SystemProperties));
+	XrResult GetSystemPropsResult = xrGetSystemProperties(Instance, System, &SystemProperties);
+	XR_ENSURE(GetSystemPropsResult);
+	bxrGetSystemPropertiesSuccessful = (GetSystemPropsResult == XR_SUCCESS);
 	bSupportsHandTracking = HandTrackingSystemProperties.supportsHandTracking == XR_TRUE;
 
 	// Some runtimes aren't compliant with their number of layers supported.
