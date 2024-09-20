@@ -841,18 +841,23 @@ namespace GeometryCollection::Facades
 
 			for (int32 TransformIdx = 0; TransformIdx < NumTransforms; ++TransformIdx)
 			{
-				const FVector CentroidInBoneSpace(Centroids[TransformIdx]);
-
-				// Transform from BoneSpace to CollectionSpace
-				const FTransform CollectionSpaceTransform = TransformFacade.ComputeCollectionSpaceTransform(TransformIdx);
-				const FVector CentroidInCollectionSpace = CollectionSpaceTransform.TransformPosition(CentroidInBoneSpace);
-
-				// Transform with specified transform
-				const FVector CentroidInBoxSpace = InBoxTransform.InverseTransformPosition(CentroidInCollectionSpace);
-
-				if (InBox.IsInside(CentroidInBoxSpace))
+				const TManagedArray<int32>& TransformToGeometryIndices = TransformToGeometryIndexAttribute.Get();
+				const int32 GeometryIndex = TransformToGeometryIndices[TransformIdx];
+				if (Centroids.IsValidIndex(GeometryIndex))
 				{
-					OutSelection.Add(TransformIdx);
+					const FVector CentroidInBoneSpace(Centroids[GeometryIndex]);
+
+					// Transform from BoneSpace to CollectionSpace
+					const FTransform CollectionSpaceTransform = TransformFacade.ComputeCollectionSpaceTransform(TransformIdx);
+					const FVector CentroidInCollectionSpace = CollectionSpaceTransform.TransformPosition(CentroidInBoneSpace);
+
+					// Transform with specified transform
+					const FVector CentroidInBoxSpace = InBoxTransform.InverseTransformPosition(CentroidInCollectionSpace);
+
+					if (InBox.IsInside(CentroidInBoxSpace))
+					{
+						OutSelection.Add(TransformIdx);
+					}
 				}
 			}
 		}

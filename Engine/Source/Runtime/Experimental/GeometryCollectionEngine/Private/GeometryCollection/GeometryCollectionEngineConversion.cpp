@@ -1589,12 +1589,18 @@ void FGeometryCollectionEngineConversion::ConvertStaticMeshToGeometryCollection(
 		NewGeometryCollection->GeometrySource.Emplace(SourceSoftObjectPath, MeshTransform, SourceMaterials, bSplitComponents, bSetInternalFromMaterialIndex);
 		FGeometryCollectionEngineConversion::AppendStaticMesh(StaticMesh, SourceMaterials, MeshTransform, NewGeometryCollection, false, bAddInternalMaterials, bSplitComponents, bSetInternalFromMaterialIndex);
 
+		// make sure we have only one root if we split components
+		TSharedPtr<FGeometryCollection> OutCollectionPtr = NewGeometryCollection->GetGeometryCollection();
+		if (bSplitComponents && FGeometryCollectionClusteringUtility::ContainsMultipleRootBones(OutCollectionPtr.Get()))
+		{
+			FGeometryCollectionClusteringUtility::ClusterAllBonesUnderNewRoot(OutCollectionPtr.Get());
+		}
+
 		NewGeometryCollection->InitializeMaterials();
 
 		// Materials
 		OutMaterialInstances.Append(NewGeometryCollection->Materials);
 
-		TSharedPtr<FGeometryCollection> OutCollectionPtr = NewGeometryCollection->GetGeometryCollection();
 		OutCollectionPtr->CopyTo(&OutCollection);
 	}
 #endif //WITH_EDITORONLY_DATA
