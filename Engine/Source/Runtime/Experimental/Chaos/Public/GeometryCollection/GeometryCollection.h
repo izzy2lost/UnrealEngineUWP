@@ -394,7 +394,7 @@ public:
 	/* Backwards compatibility */
 	CHAOS_API void UpdateOldAttributeNames();
 
-
+	CHAOS_API TArray<int32> TransformSelectionToGeometryIndices(const TArray<int32>& Transforms);
 };
 
 FORCEINLINE Chaos::FChaosArchive& operator<<(Chaos::FChaosArchive& Ar, FGeometryCollection& Value)

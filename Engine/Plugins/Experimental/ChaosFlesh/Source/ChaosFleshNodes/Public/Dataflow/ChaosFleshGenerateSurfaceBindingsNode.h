@@ -5,10 +5,9 @@
 #include "CoreMinimal.h"
 #include "Dataflow/DataflowEngine.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
-
 #include "Engine/StaticMesh.h"
 #include "Engine/SkeletalMesh.h"
-
+#include "Dataflow/DataflowSelection.h"
 #include "ChaosFleshGenerateSurfaceBindingsNode.generated.h"
 
 class UStaticMesh;
@@ -25,8 +24,6 @@ struct FGenerateSurfaceBindings : public FDataflowNode
 	DATAFLOW_NODE_RENDER_TYPE("SurfaceRender", FGeometryCollection::StaticType(), "Collection")
 
 public:
-	typedef FManagedArrayCollection DataType;
-
 	/** Passthrough geometry collection. Bindings are stored as standalone groups in the \p Collection, keyed by the name of the input render mesh and all available LOD's. */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DisplayName = "Collection"))
 	FManagedArrayCollection Collection;
@@ -39,12 +36,17 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Dataflow", meta = (DataflowInput, DisplayName = "SkeletalMesh"))
 	TObjectPtr<const USkeletalMesh> SkeletalMeshIn = nullptr;
 
+	/** Only meshes with transforms in TransformSelection will be bound. */
+	UPROPERTY(meta = (DataflowInput, DisplayName = "(Optional) TransformSelection"))
+	FDataflowTransformSelection TransformSelection;
+
+	/** Only meshes with transforms in TransformSelection will be bound. */
+	UPROPERTY(meta = (DataflowInput, DisplayName = "(Optional) GeometryGroupGuids"))
+	TArray<FString> GeometryGroupGuidsIn;
+
 	/** Use the import geometry of the skeletal mesh. */
 	UPROPERTY(EditAnywhere, Category = "Dataflow", meta = (DisplayName = "UseSkeletalMeshImportModel"))
 	bool bUseSkeletalMeshImportModel = false;
-
-	UPROPERTY(meta = (DataflowInput, DisplayName = "(Optional)GeometryGroupGuidsIn"))
-	TArray<FString> GeometryGroupGuidsIn;
 
 	/** Enable binding to the exterior hull of the tetrahedron mesh. */
 	UPROPERTY(EditAnywhere, Category = "Dataflow", meta = (DisplayName = "DoSurfaceProjection"))
@@ -65,6 +67,7 @@ public:
 		RegisterOutputConnection(&Collection, &Collection);
 		RegisterInputConnection(&StaticMeshIn);
 		RegisterInputConnection(&SkeletalMeshIn);
+		RegisterInputConnection(&TransformSelection);
 		RegisterInputConnection(&GeometryGroupGuidsIn);
 	}
 

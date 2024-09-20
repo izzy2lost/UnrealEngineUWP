@@ -314,25 +314,17 @@ void UDataflowSimulationSceneDescription::GenerateGeometryCache()
 	float DeltaTime = (TimeRange[1] - TimeRange[0]) / NumFrames;
 	TObjectPtr<AActor> GetRootActor = SimulationScene->GetRootActor();
 	TObjectPtr<AActor> PreviewActor = SimulationScene->GetPreviewActor();
-	if (CacheAsset && GeometryCacheAsset && GetRootActor)
+	if (CacheAsset && GeometryCacheAsset && GetRootActor && EmbeddedSkeletalMesh)
 	{
 		IDataflowGeometryCachable* GeometryCachable = nullptr; //interface for ChaosDeformableTetrahedralComponent
 
 		RenderPositions.SetNum(NumFrames);
 		TInlineComponentArray<UPrimitiveComponent*> PrimComponents;
 		PreviewActor->GetComponents(PrimComponents);
-		USkeletalMeshComponent* SkeletalComponent = nullptr;
 		for (UPrimitiveComponent* PrimComponent : PrimComponents)
 		{
-			if (!GeometryCachable)
-			{
-				GeometryCachable = Cast<IDataflowGeometryCachable>(PrimComponent);
-			}
-			if (!SkeletalComponent)
-			{
-				SkeletalComponent = Cast<USkeletalMeshComponent>(PrimComponent);
-			}
-			if (GeometryCachable && SkeletalComponent)
+			GeometryCachable = Cast<IDataflowGeometryCachable>(PrimComponent);
+			if (GeometryCachable)
 			{
 				break;
 			}
@@ -342,12 +334,7 @@ void UDataflowSimulationSceneDescription::GenerateGeometryCache()
 			UE_LOG(LogChaosDataflow, Error, TEXT("No Flesh Component in the Preview Actor"));
 			return;
 		}
-		else if (!SkeletalComponent)
-		{
-			UE_LOG(LogChaosDataflow, Error, TEXT("No Skeletal Mesh Component in the Preview Actor"));
-			return;
-		}
-		TOptional<TArray<int32>> OptionalMap = GeometryCachable->GetMeshImportVertexMap(*SkeletalComponent->GetSkeletalMeshAsset());
+		TOptional<TArray<int32>> OptionalMap = GeometryCachable->GetMeshImportVertexMap(*EmbeddedSkeletalMesh);
 		if (!OptionalMap)
 		{
 			return;
@@ -358,9 +345,9 @@ void UDataflowSimulationSceneDescription::GenerateGeometryCache()
 		{
 			Time += DeltaTime;
 			Cast<AChaosCacheManager>(GetRootActor)->SetStartTime(Time);
-			RenderPositions[Frame] = GeometryCachable->GetGeometryCachePositions(SkeletalComponent);
+			RenderPositions[Frame] = GeometryCachable->GetGeometryCachePositions(EmbeddedSkeletalMesh);
 		}
-		DataflowSimulationGeometryCache::SaveGeometryCache(*GeometryCacheAsset, *SkeletalComponent->GetSkeletalMeshAsset(), ImportedVertexNumbers, RenderPositions);
+		DataflowSimulationGeometryCache::SaveGeometryCache(*GeometryCacheAsset, *EmbeddedSkeletalMesh, ImportedVertexNumbers, RenderPositions);
 		DataflowSimulationGeometryCache::SavePackage(*GeometryCacheAsset);
 	}
 }

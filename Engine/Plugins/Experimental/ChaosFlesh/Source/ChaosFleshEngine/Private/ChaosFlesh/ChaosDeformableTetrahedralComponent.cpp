@@ -639,13 +639,9 @@ TArray<FVector> UDeformableTetrahedralComponent::GetSkeletalMeshBindingPositions
 	return GetSkeletalMeshBindingPositionsInternal(InSkeletalMesh, nullptr);
 }
 
-TArray<FVector3f> UDeformableTetrahedralComponent::GetGeometryCachePositions(USkeletalMeshComponent* SkeletalComponent) const
+TArray<FVector3f> UDeformableTetrahedralComponent::GetGeometryCachePositions(const USkeletalMesh* SkeletalMesh) const
 {
-	check(SkeletalComponent);
-	SkeletalComponent->RecreateRenderState_Concurrent();
-
 	TArray<FVector3f> Positions;
-	const USkeletalMesh* SkeletalMesh = SkeletalComponent->GetSkeletalMeshAsset();
 	if (RestCollection && DynamicCollection && SkeletalMesh)
 	{
 		const FFleshCollection* FleshCollection = RestCollection->GetCollection();
