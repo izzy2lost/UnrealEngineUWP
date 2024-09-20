@@ -354,6 +354,8 @@ protected:
 	/** TStereoLayerManager<FOpenXRLayer> */
 	void UpdateLayer(FOpenXRLayer& ManagerLayer, uint32 LayerId, bool bIsValid) override;
 
+	virtual bool PopulateAnalyticsAttributes(TArray<struct FAnalyticsEventAttribute>& EventAttributes) override;
+
 public:
 	/** IXRTrackingSystem interface */
 	virtual bool DoesSupportLateProjectionUpdate() const override { return true; }
@@ -583,6 +585,7 @@ private:
 	XrColor4f				LayerColorScale;
 	XrColor4f				LayerColorBias;
 	bool					bCompositionLayerColorScaleBiasSupported;
+	bool					bxrGetSystemPropertiesSuccessful;
 };
 
 ENUM_CLASS_FLAGS(FOpenXRHMD::EOpenXRLayerStateFlags);

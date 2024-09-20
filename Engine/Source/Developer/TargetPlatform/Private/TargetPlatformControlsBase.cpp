@@ -11,14 +11,32 @@
 #include "DeviceBrowserDefaultPlatformWidgetCreator.h"
 #include "Features/IModularFeatures.h"
 #include "Misc/App.h"
+#include "HAL/IConsoleManager.h"
 
 #define LOCTEXT_NAMESPACE "TargetPlatform"
 
 void FTargetPlatformControlsBase::GetPlatformSpecificProjectAnalytics(TArray<FAnalyticsEventAttribute>& AnalyticsParamArray) const
 {
+	static IConsoleVariable* CVarDesktopForwardShading = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ForwardShading"));
+	const bool bRForwardShading = CVarDesktopForwardShading ? (CVarDesktopForwardShading->GetInt() != 0) : false;
+
+	static IConsoleVariable* CVarMobileHdr = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MobileHDR"));
+	const bool bRMobileHdr = CVarMobileHdr ? (CVarMobileHdr->GetInt() != 0) : false;
+
+	static IConsoleVariable* CVarInstancedStereo = IConsoleManager::Get().FindConsoleVariable(TEXT("vr.InstancedStereo"));
+	const bool bVrInstancedStereo = CVarInstancedStereo ? (CVarInstancedStereo->GetInt() != 0) : false;
+
+	static IConsoleVariable* CVarMobileMultiView = IConsoleManager::Get().FindConsoleVariable(TEXT("vr.MobileMultiView"));
+	const bool bVrMobileMultiView = CVarMobileMultiView ? (CVarMobileMultiView->GetInt() != 0) : false;
+
 	AppendAnalyticsEventAttributeArray(AnalyticsParamArray,
 		TEXT("UsesDistanceFields"), TargetPlatformSettings->UsesDistanceFields(),
-		TEXT("UsesForwardShading"), TargetPlatformSettings->UsesForwardShading()
+		TEXT("UsesForwardShading"), TargetPlatformSettings->UsesForwardShading(),
+		// TP settings sometimes take value from r.ForwardShading, but some platforms have their own settings, hence adding 
+		TEXT("RForwardShading"), bRForwardShading,
+		TEXT("RMobileHdr"), bRMobileHdr,
+		TEXT("VrInstancedStereo"), bVrInstancedStereo,
+		TEXT("VrMobileMultiView"), bVrMobileMultiView
 	);
 }
 

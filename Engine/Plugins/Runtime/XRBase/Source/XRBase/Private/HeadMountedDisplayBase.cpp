@@ -12,6 +12,7 @@
 #include "DefaultSpectatorScreenController.h"
 #include "DefaultXRCamera.h"
 #include "Engine/Engine.h"
+#include "HeadMountedDisplayFunctionLibrary.h"
 #if WITH_EDITOR
 #include "Editor/EditorEngine.h" // for UEditorEngine::IsHMDTrackingAllowed()
 #endif
@@ -48,6 +49,7 @@ bool FHeadMountedDisplayBase::PopulateAnalyticsAttributes(TArray<FAnalyticsEvent
 	GetHMDMonitorInfo(MonitorInfo);
 
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("DeviceName"), GetSystemName().ToString()));
+	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("VersionString"), UHeadMountedDisplayFunctionLibrary::GetVersionString()));
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("DisplayDeviceName"), *MonitorInfo.MonitorName));
 #if PLATFORM_WINDOWS
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("DisplayId"), MonitorInfo.MonitorId));
@@ -60,6 +62,7 @@ bool FHeadMountedDisplayBase::PopulateAnalyticsAttributes(TArray<FAnalyticsEvent
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("InterpupillaryDistance"), GetInterpupillaryDistance()));
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("ChromaAbCorrectionEnabled"), IsChromaAbCorrectionEnabled()));
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("MirrorToWindow"), IsSpectatorScreenActive()));
+	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("PixelDensity"), UHeadMountedDisplayFunctionLibrary::GetPixelDensity()));
 
 	return true;
 }
