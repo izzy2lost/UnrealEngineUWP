@@ -156,10 +156,7 @@ void UCameraAnimationSequenceCameraStandIn::Reset(const FMinimalViewInfo& ViewIn
 
 void UCameraAnimationSequenceCameraStandIn::ResetDefaultValues(const FMinimalViewInfo& ViewInfo)
 {
-	// Save the weighted blendables we want to apply to the camera.
-	TArray<FWeightedBlendable> WBBackup(MoveTemp(PostProcessSettings.WeightedBlendables.Array));
-
-	// We reset all the other properties to the current view's values because a lot of them, like 
+	// We reset all the properties to the current view's values because a lot of them, like 
 	// FieldOfView, don't have any "zero" value that makes sense. We'll figure out the delta in the
 	// update code.
 	bConstrainAspectRatio = ViewInfo.bConstrainAspectRatio;
@@ -170,23 +167,6 @@ void UCameraAnimationSequenceCameraStandIn::ResetDefaultValues(const FMinimalVie
 
 	// We've set the FieldOfView we have to update the CurrentFocalLength accordingly.
 	CurrentFocalLength = (Filmback.SensorWidth / 2.f) / FMath::Tan(FMath::DegreesToRadians(FieldOfView / 2.f));
-
-	// Restore weighted blendables.
-	// Either the camera animation did not add any blendables, in which case we just restore what
-	// was there before, or it did add some, in which case we restore anything *else* that was
-	// there before. This assumes that there can't be two instances of the same blendable object,
-	// but the AddBlendable method (which we use here) already makes this assumption anyway.
-	if (PostProcessSettings.WeightedBlendables.Array.Num() == 0)
-	{
-		PostProcessSettings.WeightedBlendables.Array = MoveTemp(WBBackup);
-	}
-	else
-	{
-		for (const FWeightedBlendable& WB : WBBackup)
-		{
-			PostProcessSettings.AddBlendable(WB.Object, WB.Weight);
-		}
-	}
 
 	RecalcDerivedData();
 }
