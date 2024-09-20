@@ -251,7 +251,7 @@ bool FPCGComputeGraphElement::SetupProceduralISMComponents(FPCGContext* InContex
 	for (const UPCGSettings* Settings : Graph->StaticMeshSpawners)
 	{
 		const UPCGStaticMeshSpawnerSettings* SpawnerSettings = Cast<UPCGStaticMeshSpawnerSettings>(Settings);
-		if (!ensure(SpawnerSettings))
+		if (!ensure(SpawnerSettings) || !SpawnerSettings->bEnabled)
 		{
 			continue;
 		}
