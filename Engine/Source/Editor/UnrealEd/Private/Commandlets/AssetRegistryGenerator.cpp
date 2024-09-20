@@ -1695,6 +1695,7 @@ bool FAssetRegistryGenerator::SaveAssetRegistry(const FString& SandboxPath, bool
 	// Write runtime registry, this can be excluded per game/platform
 	FAssetRegistrySerializationOptions SaveOptions;
 	AssetRegistry.InitializeSerializationOptions(SaveOptions, TargetPlatform->IniPlatformName());
+	SaveOptions.bKeepDevelopmentAssetRegistryTags = FParse::Param(FCommandLine::Get(), TEXT("ARKeepDevTags"));
 
 	if (bForceNoFilter)
 	{

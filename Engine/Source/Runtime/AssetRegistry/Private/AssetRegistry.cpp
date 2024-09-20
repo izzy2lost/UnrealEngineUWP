@@ -1530,7 +1530,8 @@ void InitializeSerializationOptionsFromIni(FAssetRegistrySerializationOptions& O
 			}
 		}
 
-		const bool bPassesDevOnlyRule = !bKeepInDevOnly || Options.bUseAssetRegistryTagsAllowListInsteadOfDenyList == bForDevelopment;
+		const bool bKeepDevelopmentTags = bForDevelopment || FParse::Param(FCommandLine::Get(), TEXT("ARKeepDevTags"));
+		const bool bPassesDevOnlyRule = !bKeepInDevOnly || Options.bUseAssetRegistryTagsAllowListInsteadOfDenyList == bKeepDevelopmentTags;
 		if (!ClassName.IsEmpty() && !TagName.IsEmpty() && bPassesDevOnlyRule)
 		{
 			FName TagFName = FName(*TagName);
