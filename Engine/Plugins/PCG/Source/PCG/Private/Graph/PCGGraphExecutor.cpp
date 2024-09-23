@@ -2999,6 +2999,7 @@ namespace PCGGraphExecutor
 		EPCGHiGenGrid InFromGrid,
 		EPCGHiGenGrid InToGrid,
 		const FString& InResourceKey,
+		FName InUpstreamPinLabel,
 		FPCGGridLinkageContext* InContext)
 	{
 		check(InContext);
@@ -3059,8 +3060,8 @@ namespace PCGGraphExecutor
 		{
 			FPCGDataCollection Data;
 
-			// Grid Linkages are assumed to have a single input pin with the default input label.
-			Data.TaggedData = InContext->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
+			// Grid linkages have a single virtual input pin with the label matching the upstream pin. A grid linkage is created for each edge.
+			Data.TaggedData = InContext->InputData.GetInputsByPin(InUpstreamPinLabel);
 
 			PCGGraphExecutionLogging::LogGridLinkageTaskExecuteStore(InContext, InGenerationGrid, FromGridSize, ToGridSize, InResourceKey, Data.TaggedData.Num());
 			
@@ -3118,12 +3119,12 @@ namespace PCGGraphExecutor
 				PCGGraphExecutionLogging::LogGridLinkageTaskExecuteRetrieveSuccess(InContext, ComponentWithData, InResourceKey, Data->TaggedData.Num());
 				InContext->OutputData = *Data;
 
-				// Grid Linkages are assumed to have a single output pin with the default output label.
+				// Grid Linkages have a single virtual output pin which forwards the same label as the upstream output pin. Apply the label now.
 				// The normal path in IPCGElement::CleanupAndValidateOutput() to fix up the output label does not run because Grid Linkages
-				// have no Settings. Therefore, we have to fix-up by hand here.
+				// have no Settings.
 				for (FPCGTaggedData& TaggedData : InContext->OutputData.TaggedData)
 				{
-					TaggedData.Pin = PCGPinConstants::DefaultOutputLabel;
+					TaggedData.Pin = InUpstreamPinLabel;
 				}
 
 				return true;
