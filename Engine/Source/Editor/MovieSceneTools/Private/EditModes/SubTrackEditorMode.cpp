@@ -2,6 +2,8 @@
 
 #include "SubTrackEditorMode.h"
 
+#include "EditorModeManager.h"
+#include "Engine/Selection.h"
 #include "EngineUtils.h"
 #include "UnrealClient.h"
 #include "EditorViewportClient.h"
@@ -169,11 +171,14 @@ FTransform FSubTrackEditorMode::GetTransformOriginForSequence(const TOptional<FM
 
 bool FSubTrackEditorMode::AreAnyActorsSelected() const
 {
-	FSelectedActorIterator SelectedActorIter(GetWorld());
-	if(SelectedActorIter)
+	if (Owner)
 	{
-		return true;
+		if (USelection* SelectedActors = Owner->GetSelectedActors())
+		{
+			return SelectedActors->Num() > 0;
+		}
 	}
+
 	return false;
 }
 
