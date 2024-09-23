@@ -596,5 +596,6 @@ namespace PCGGraphExecutor
 		EPCGHiGenGrid InFromGrid,
 		EPCGHiGenGrid InToGrid,
 		const FString& InResourceKey,
+		FName InUpstreamPinLabel,
 		FPCGGridLinkageContext* InContext);
 }
