@@ -4,6 +4,7 @@
 #include "EntitySystem/MovieSceneSharedPlaybackState.h"
 #include "Engine/World.h"
 #include "MovieSceneCommonHelpers.h"
+#include "Algo/AllOf.h"
 
 
 uint32 UMovieSceneGroupCondition::ComputeCacheKey(FGuid BindingGuid, FMovieSceneSequenceID SequenceID, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, UObject* EntityOwner) const
@@ -60,4 +61,9 @@ bool UMovieSceneGroupCondition::EvaluateConditionInternal(FGuid BindingGuid, FMo
 		}
 	}
 	return bResult;
+}
+
+bool UMovieSceneGroupCondition::CanCacheResult(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const
+{
+	return Algo::AllOf(SubConditions, [SharedPlaybackState](const FMovieSceneConditionContainer& SubCondition) { return !SubCondition.Condition || SubCondition.Condition->CanCacheResult(SharedPlaybackState);});
 }
