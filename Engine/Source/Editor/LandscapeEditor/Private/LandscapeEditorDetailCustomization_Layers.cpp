@@ -1250,8 +1250,7 @@ TSharedPtr<IToolTip> FLandscapeEditorCustomNodeBuilder_Layers::GetEditLayerTypeT
 {
 	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
 	const ULandscapeEditLayerBase* EditLayer = (LandscapeEdMode != nullptr) ? LandscapeEdMode->GetEditLayer(InLayerIndex) : nullptr;
-	check(EditLayer != nullptr);
-	return FEditorClassUtils::GetTooltip(EditLayer->GetClass());
+	return (EditLayer != nullptr) ? TSharedPtr<IToolTip>(FEditorClassUtils::GetTooltip(EditLayer->GetClass())) : nullptr;
 }
 
 const FSlateBrush* FLandscapeEditorCustomNodeBuilder_Layers::GetLockBrushForLayer(int32 InLayerIndex) const
@@ -1263,13 +1262,9 @@ const FSlateBrush* FLandscapeEditorCustomNodeBuilder_Layers::GetLockBrushForLaye
 
 const FSlateBrush* FLandscapeEditorCustomNodeBuilder_Layers::GetEditLayerIconBrush(int32 InLayerIndex) const
 {
-	if (FEdModeLandscape* LandscapeEdMode = GetEditorMode())
-	{
-		const ULandscapeEditLayerBase* EditLayer = LandscapeEdMode->GetEditLayer(InLayerIndex);
-		check(EditLayer != nullptr);
-		return FSlateIconFinder::FindIconBrushForClass(EditLayer->GetClass());
-	}
-	return nullptr;
+	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
+	const ULandscapeEditLayerBase* EditLayer = (LandscapeEdMode != nullptr) ? LandscapeEdMode->GetEditLayer(InLayerIndex) : nullptr;
+	return (EditLayer != nullptr) ? FSlateIconFinder::FindIconBrushForClass(EditLayer->GetClass()) : nullptr;
 }
 
 int32 FLandscapeEditorCustomNodeBuilder_Layers::SlotIndexToLayerIndex(int32 SlotIndex)
