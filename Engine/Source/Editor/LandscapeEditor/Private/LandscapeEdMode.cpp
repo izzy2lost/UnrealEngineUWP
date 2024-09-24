@@ -4069,6 +4069,7 @@ const ULandscapeEditLayerBase* FEdModeLandscape::GetEditLayer(int32 InLayerIndex
 	{
 		if (const FLandscapeLayer* EditLayer = Landscape->GetLayerConst(InLayerIndex))
 		{
+			check(EditLayer->EditLayer != nullptr);
 			return EditLayer->EditLayer;
 		}
 	}
