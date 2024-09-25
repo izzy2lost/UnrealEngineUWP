@@ -186,7 +186,7 @@ void FAnimNode_RigLogic::UpdateControlCurves(const FPoseContext& InputContext, c
 		{
 			if (InControlAttributeCurveElement.Index != INDEX_NONE)
  			{
-				RigInstance->SetRawControl(InControlAttributeCurveElement.Index, InCurveElement.Value);
+				RigInstance->SetRawControl(InControlAttributeCurveElement.Index, FMath::Clamp(InCurveElement.Value, 0.0, 1.0));
 			}
 		});
 
