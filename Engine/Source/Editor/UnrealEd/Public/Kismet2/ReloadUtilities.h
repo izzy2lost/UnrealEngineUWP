@@ -44,9 +44,15 @@ public:
 	UNREALED_API virtual void Reinstance() override;
 	UNREALED_API virtual UObject* GetReinstancedCDO(UObject* CDO) override;
 	UNREALED_API virtual const UObject* GetReinstancedCDO(const UObject* CDO) override;
-	UNREALED_API virtual const TMap<UClass*, UClass*>* GetReinstancedClasses() override
+
+	UNREALED_API virtual const TMap<UClass*, UClass*>& GetReinstancedClasses() override
 	{
-		return &ReinstancedClasses;
+		return ReinstancedClasses;
+	}
+
+	UNREALED_API const TArray<UClass*>& GetNewClasses() override
+	{
+		return NewClasses;
 	}
 
 	/**
@@ -152,6 +158,9 @@ private:
 
 	/** Map from old class to new class.  New class may be null */
 	TMap<UClass*, UClass*> ReinstancedClasses;
+
+	/** Array of new classes */
+	TArray<UClass*> NewClasses;
 
 	/** Map from old struct to new struct.  New struct may be null */
 	TMap<UScriptStruct*, UScriptStruct*> ReinstancedStructs;

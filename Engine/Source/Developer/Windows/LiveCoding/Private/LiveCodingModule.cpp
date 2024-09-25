@@ -139,10 +139,18 @@ public:
 		return CDO;
 	}
 
-	virtual const TMap<UClass*, UClass*>* GetReinstancedClasses() override
+	virtual const TMap<UClass*, UClass*>& GetReinstancedClasses() override
 	{
-		return nullptr;
+		static const TMap<UClass*, UClass*> Empty;
+		return Empty;
 	}
+
+	virtual const TArray<UClass*>& GetNewClasses() override
+	{
+		static const TArray<UClass*> Empty;
+		return Empty;
+	}
+
 
 	bool HasReinstancingOccurred() const
 	{
