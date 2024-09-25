@@ -1288,6 +1288,10 @@ bool FRigVMRegistry_NoLock::IsAllowedType_NoLock(const FProperty* InProperty) co
 	{
 		return IsAllowedType_NoLock(ObjectProperty->PropertyClass);
 	}
+	if(const FSoftObjectProperty* SoftObjectProperty = CastField<FSoftObjectProperty>(InProperty))
+	{
+		return IsAllowedType_NoLock(SoftObjectProperty->PropertyClass);
+	}
 	if(const FEnumProperty* EnumProperty = CastField<FEnumProperty>(InProperty))
 	{
 		return IsAllowedType_NoLock(EnumProperty->GetEnum());
