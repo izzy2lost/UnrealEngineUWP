@@ -672,56 +672,58 @@ void FNativeClassHierarchy::OnReloadReinstancingComplete()
 
 	if (IReload* ActiveReload = GetActiveReloadInterface())
 	{
-		if (const TMap<UClass*, UClass*>* ReinstancedClassesPtr = ActiveReload->GetReinstancedClasses())
+		const TMap<UClass*, UClass*>& ReinstancedClasses = ActiveReload->GetReinstancedClasses();
+		const TArray<UClass*>& NewClasses = ActiveReload->GetNewClasses();
+		if (!ReinstancedClasses.IsEmpty() || !NewClasses.IsEmpty())
 		{
-			const TMap<UClass*, UClass*>& ReinstancedClasses = *ReinstancedClassesPtr;
-			if (!ReinstancedClasses.IsEmpty())
+			FClassChanges ClassChanges;
+
+			TSet<FName> GameModules = GetGameModules();
+
+			// Add new classes
+			for (UClass* NewClass : NewClasses)
 			{
-				FClassChanges ClassChanges;
+				AddClass(NewClass, GameModules, ClassChanges);
+			}
 
-				TSet<FName> GameModules = GetGameModules();
-
-				// Add the new classes first
-				for (const TPair<UClass*, UClass*>& OldAndNew : ReinstancedClasses)
+			// Replace re-instanced classes
+			for (const TPair<UClass*, UClass*>& OldAndNew : ReinstancedClasses)
+			{
+				if (OldAndNew.Value)
 				{
-					
-
-					if (OldAndNew.Value)
-					{
-						// Adding the new class will replace old entry
-						AddClass(OldAndNew.Value, GameModules, ClassChanges);
-					}
+					// Adding the re-instanced class will replace old entry
+					AddClass(OldAndNew.Value, GameModules, ClassChanges);
 				}
+			}
 
-				if (!ClassChanges.FoldersModified.IsEmpty())
-				{
-					FoldersAddedDelegate.Broadcast(ClassChanges.FoldersModified);
-				}
-				if (!ClassChanges.ClassesModified.IsEmpty())
-				{
-					ClassesAddedDelegate.Broadcast(ClassChanges.ClassesModified);
-				}
+			if (!ClassChanges.FoldersModified.IsEmpty())
+			{
+				FoldersAddedDelegate.Broadcast(ClassChanges.FoldersModified);
+			}
+			if (!ClassChanges.ClassesModified.IsEmpty())
+			{
+				ClassesAddedDelegate.Broadcast(ClassChanges.ClassesModified);
+			}
 
-				// Reset the class changes tracking
-				ClassChanges.Reset();
+			// Reset the class changes tracking
+			ClassChanges.Reset();
 
-				// Then remove the old classes
-				for (const TPair<UClass*, UClass*>& OldAndNew : ReinstancedClasses)
+			// Then remove the old classes
+			for (const TPair<UClass*, UClass*>& OldAndNew : ReinstancedClasses)
+			{
+				if (OldAndNew.Key && !OldAndNew.Value)
 				{
-					if (OldAndNew.Key && !OldAndNew.Value)
-					{
-						RemoveClass(OldAndNew.Key, GameModules, ClassChanges);
-					}
-					}
+					RemoveClass(OldAndNew.Key, GameModules, ClassChanges);
+				}
+			}
 
-				if (!ClassChanges.ClassesModified.IsEmpty())
-				{
-					ClassesRemovedDelegate.Broadcast(ClassChanges.ClassesModified);
-				}
-				if (!ClassChanges.FoldersModified.IsEmpty())
-				{
-					FoldersRemovedDelegate.Broadcast(ClassChanges.FoldersModified);
-				}
+			if (!ClassChanges.ClassesModified.IsEmpty())
+			{
+				ClassesRemovedDelegate.Broadcast(ClassChanges.ClassesModified);
+			}
+			if (!ClassChanges.FoldersModified.IsEmpty())
+			{
+				FoldersRemovedDelegate.Broadcast(ClassChanges.FoldersModified);
 			}
 		}
 	}

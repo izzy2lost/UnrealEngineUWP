@@ -871,6 +871,7 @@ void FReload::Reset()
 	FunctionRemap.Empty();
 	ReconstructedCDOsMap.Empty();
 	ReinstancedClasses.Empty();
+	NewClasses.Empty();
 	ReinstancedEnums.Empty();
 	ReinstancedStructs.Empty();
 	Packages.Empty();
@@ -932,7 +933,6 @@ void FReload::NotifyChange(UClass* New, UClass* Old)
 		bHasReinstancingOccurred = true;
 	}
 
-	// Ignore new classes
 	if (Old != nullptr)
 	{
 		// Don't allow re-instancing of UEngine classes
@@ -947,6 +947,10 @@ void FReload::NotifyChange(UClass* New, UClass* Old)
 		{
 			Ar.Logf(ELogVerbosity::Warning, TEXT("Engine class '%s' has changed but will be ignored for reload"), *New->GetName());
 		}
+	}
+	else if (New != nullptr) // should always be the case, but protect against it
+	{
+		NewClasses.Add(New);
 	}
 }
 
