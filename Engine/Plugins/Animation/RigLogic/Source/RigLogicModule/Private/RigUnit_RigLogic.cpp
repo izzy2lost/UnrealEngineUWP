@@ -333,7 +333,7 @@ void FRigUnit_RigLogic_Data::CalculateRigLogic(const URigHierarchy* InHierarchy,
 	{
 		const uint32 CurveIndex = InputCurveIndices[ControlIndex];
 		const float Value = InHierarchy->GetCurveValue(CurveIndex);
-		RigInstance->SetRawControl(ControlIndex, Value);
+		RigInstance->SetRawControl(ControlIndex, FMath::Clamp(Value, 0.0, 1.0));
 	}
 
 	for (int32 MappingIndex = 0; MappingIndex < DriverJointsToControlAttributesMap.Num(); ++MappingIndex)
