@@ -144,7 +144,7 @@ UMetasoundEditorGraphMemberDefaultLiteral* UMetaSoundEditorSubsystem::CreateMemb
 				{
 					if (UMetaSoundFrontendMemberMetadata* ReferencedMemberMetadata = ReferencedBuilder.FindMemberMetadata(ClassInput->NodeID))
 					{
-						return NewObject<UMetasoundEditorGraphMemberDefaultLiteral>(&Builder.CastDocumentObjectChecked<UObject>(), LiteralClass, FName(), RF_Transactional, ReferencedMemberMetadata);
+						return NewObject<UMetasoundEditorGraphMemberDefaultLiteral>(&Builder.CastDocumentObjectChecked<UObject>(), ReferencedMemberMetadata->GetClass(), FName(), RF_Transactional, ReferencedMemberMetadata);
 					}
 				}
 			}
