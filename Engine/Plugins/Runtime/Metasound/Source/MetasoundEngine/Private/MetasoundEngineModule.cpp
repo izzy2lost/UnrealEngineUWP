@@ -191,7 +191,7 @@ namespace Metasound::Engine
 		{
 			if (UObject* AssetObject = InAssetData.GetAsset())
 			{
-				OnGraphRegister.ExecuteIfBound(*AssetObject, /*bInForceViewSynchronization=*/false);
+				OnGraphRegister.ExecuteIfBound(*AssetObject, ERegistrationAssetContext::None);
 			}
 		}
 		else
@@ -218,7 +218,7 @@ namespace Metasound::Engine
 					check(MetaSoundAsset);
 					if (!MetaSoundAsset->IsRegistered())
 					{
-						OnGraphRegister.ExecuteIfBound(*MetaSoundObj, /*bInForceViewSynchronization=*/false);
+						OnGraphRegister.ExecuteIfBound(*MetaSoundObj, ERegistrationAssetContext::None);
 					}
 				}
 
@@ -318,10 +318,8 @@ namespace Metasound::Engine
 			{
 				if (IsAssetMetaSound(Obj))
 				{
+					OnGraphUnregister.ExecuteIfBound(*Obj, ERegistrationAssetContext::Reloading);
 					IMetaSoundAssetManager::GetChecked().RemoveAsset(*Pair.Key);
-
-					// Use the editor version of UnregisterWithFrontend so it refreshes any open MetaSound editors
-					OnGraphUnregister.ExecuteIfBound(*Obj);
 				}
 			}
 
@@ -330,9 +328,7 @@ namespace Metasound::Engine
 				if (IsAssetMetaSound(Obj))
 				{
 					IMetaSoundAssetManager::GetChecked().AddOrUpdateAsset(*Pair.Value);
-
-					// Use the editor version of RegisterWithFrontend so it refreshes any open MetaSound editors
-					OnGraphRegister.ExecuteIfBound(*Obj, /*bInForceViewSynchronization=*/false);
+					OnGraphRegister.ExecuteIfBound(*Obj, ERegistrationAssetContext::Reloading);
 				}
 			}
 		}
@@ -377,7 +373,7 @@ namespace Metasound::Engine
 				// occurred on object destroy.
 				if (UObject* AssetObject = InAssetData.GetSoftObjectPath().ResolveObject())
 				{
-					OnGraphUnregister.ExecuteIfBound(*AssetObject);
+					OnGraphUnregister.ExecuteIfBound(*AssetObject, ERegistrationAssetContext::Removing);
 				}
 
 				IMetaSoundAssetManager::GetChecked().RemoveAsset(InAssetData);
@@ -407,15 +403,14 @@ namespace Metasound::Engine
 				bool bIsRegistered = AssetBase->IsRegistered();
 				if (bIsRegistered)
 				{
-					OnGraphUnregister.ExecuteIfBound(*AssetObject);
+					OnGraphUnregister.ExecuteIfBound(*AssetObject, ERegistrationAssetContext::Renaming);
 				}
 
 				IMetaSoundAssetManager::GetChecked().RenameAsset(InAssetData, InOldObjectPath);
 
 				if (bIsRegistered)
 				{
-					constexpr bool bForceViewSynchronization = true;
-					OnGraphRegister.ExecuteIfBound(*AssetObject, bForceViewSynchronization);
+					OnGraphRegister.ExecuteIfBound(*AssetObject, ERegistrationAssetContext::Renaming);
 				}
 			}
 		}

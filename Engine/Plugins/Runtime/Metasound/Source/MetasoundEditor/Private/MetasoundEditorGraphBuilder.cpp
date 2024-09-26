@@ -1780,36 +1780,6 @@ namespace Metasound
 			}
 		}
 
-		void FGraphBuilder::UnregisterGraphWithFrontend(UObject& InMetaSound)
-		{
-			FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InMetaSound);
-			if (!ensure(MetaSoundAsset))
-			{
-				return;
-			}
-
-			if (GEditor)
-			{
-				TArray<UObject*> EditedAssets = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->GetAllEditedAssets();
-				for (UObject* Asset : EditedAssets)
-				{
-					if (Asset != &InMetaSound)
-					{
-						if (FMetasoundAssetBase* EditedMetaSound = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(Asset))
-						{
-							EditedMetaSound->RebuildReferencedAssetClasses();
-							if (EditedMetaSound->IsReferencedAsset(*MetaSoundAsset))
-							{
-								EditedMetaSound->GetModifyContext().SetDocumentModified();
-							}
-						}
-					}
-				}
-			}
-
-			MetaSoundAsset->UnregisterGraphWithFrontend();
-		}
-
 		bool FGraphBuilder::IsMatchingInputHandleAndPin(const Frontend::FConstInputHandle& InInputHandle, const UEdGraphPin& InEditorPin)
 		{
 			if (InEditorPin.Direction != EGPD_Input)

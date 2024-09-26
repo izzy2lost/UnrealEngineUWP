@@ -782,13 +782,46 @@ namespace Metasound
 				IMetasoundEngineModule& MetaSoundEngineModule = FModuleManager::LoadModuleChecked<IMetasoundEngineModule>("MetasoundEngine");
 				
 				// Bind delegates for MetaSound registration in the asset registry
-				MetaSoundEngineModule.GetOnGraphRegisteredDelegate().BindLambda([](UObject& InMetaSound, bool bForceViewSynchronization)
+				MetaSoundEngineModule.GetOnGraphRegisteredDelegate().BindLambda([](UObject& InMetaSound, Engine::ERegistrationAssetContext AssetContext)
 				{
+					using namespace Engine;
+
+					// Use the editor version of RegisterWithFrontend so it refreshes any open MetaSound editors.
+					const bool bForceViewSynchronization = AssetContext == ERegistrationAssetContext::Renaming;
 					FGraphBuilder::RegisterGraphWithFrontend(InMetaSound, bForceViewSynchronization);
 				});
-				MetaSoundEngineModule.GetOnGraphUnregisteredDelegate().BindLambda([](UObject& InMetaSound)
+				MetaSoundEngineModule.GetOnGraphUnregisteredDelegate().BindLambda([](UObject& InMetaSound, Engine::ERegistrationAssetContext AssetContext)
 				{
-					FGraphBuilder::UnregisterGraphWithFrontend(InMetaSound);
+					using namespace Engine;
+
+					switch(AssetContext)
+					{
+						case ERegistrationAssetContext::Reloading:
+						case ERegistrationAssetContext::Removing:
+						case ERegistrationAssetContext::Renaming:
+						{
+							UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+							if (AssetEditorSubsystem)
+							{
+								// Close the editors so the internal reference to the builder doesn't suddenly 
+								// upon GC enter an invalid state (pointing to a null MetaSound asset)
+								AssetEditorSubsystem->CloseAllEditorsForAsset(&InMetaSound);
+							}
+							break;
+						}
+
+						case ERegistrationAssetContext::None:
+						default:
+						{
+							break;
+						}
+					}
+
+					Metasound::IMetasoundUObjectRegistry& UObjectRegistry = Metasound::IMetasoundUObjectRegistry::Get();
+					if (FMetasoundAssetBase* AssetBase = UObjectRegistry.GetObjectAsAssetBase(&InMetaSound))
+					{
+						AssetBase->UnregisterGraphWithFrontend();
+					}
 				});
 
 				// Required to ensure logic to order nodes for presets exclusive to
