@@ -81,9 +81,6 @@ namespace Metasound
 			// referencing graphs open in editors)
 			static void RegisterGraphWithFrontend(UObject& InMetaSound, bool bInForceViewSynchronization = false);
 
-			// Wraps RegisterGraphWithFrontend logic in Frontend with any additional logic required to refresh editor & respective editor object state.
-			static void UnregisterGraphWithFrontend(UObject& InMetaSound);
-
 			// Returns whether pin category is a custom MetaSound DataType
 			static bool IsPinCategoryMetaSoundCustomDataType(FName InPinCategoryName);
 

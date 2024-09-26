@@ -29,8 +29,16 @@ namespace Metasound::Engine
 		Canceled = 4
 	};
 
-	DECLARE_DELEGATE_TwoParams(FOnMetasoundGraphRegister, UObject&, bool)
-	DECLARE_DELEGATE_OneParam(FOnMetasoundGraphUnregister, UObject&)
+	enum class ERegistrationAssetContext
+	{
+		None, // No special asset context associated with this graph registration action
+		Removing, // Graph registration during asset removal
+		Renaming, // Graph registration during asset rename
+		Reloading, // Graph registration during asset reload
+	};
+
+	DECLARE_DELEGATE_TwoParams(FOnMetasoundGraphRegister, UObject&, ERegistrationAssetContext)
+	DECLARE_DELEGATE_TwoParams(FOnMetasoundGraphUnregister, UObject&, ERegistrationAssetContext)
 #endif // WITH_EDITOR
 
 	class IMetasoundEngineModule : public IModuleInterface
