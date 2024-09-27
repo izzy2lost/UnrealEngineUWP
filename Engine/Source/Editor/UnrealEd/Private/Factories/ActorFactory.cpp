@@ -935,8 +935,9 @@ UActorFactoryAnimationAsset::UActorFactoryAnimationAsset(const FObjectInitialize
 
 bool UActorFactoryAnimationAsset::CanCreateActorFrom( const FAssetData& AssetData, FText& OutErrorMsg )
 { 
-	if ( !AssetData.IsValid() || 
-		( !AssetData.GetClass()->IsChildOf( UAnimSequenceBase::StaticClass() ) )) 
+	if ( !AssetData.IsValid() 
+		|| !AssetData.GetClass()
+		|| !AssetData.GetClass()->IsChildOf(UAnimSequenceBase::StaticClass()))
 	{
 		OutErrorMsg = NSLOCTEXT("CanCreateActor", "NoAnimData", "A valid anim data must be specified.");
 		return false;
