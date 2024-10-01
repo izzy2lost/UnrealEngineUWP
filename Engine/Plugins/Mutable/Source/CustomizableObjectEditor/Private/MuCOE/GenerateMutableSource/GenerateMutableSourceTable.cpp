@@ -1084,7 +1084,7 @@ void GenerateTableParameterUIData(const UDataTable* DataTable, const UCustomizab
 									if (uint8* TagCellData = GetCellData(RowName, *DataTable, *TagColumnProperty))
 									{
 										FGameplayTagContainer* TagContainer = reinterpret_cast<FGameplayTagContainer*>(TagCellData);
-										IntegerMetadata.ParamUIMetadata.EditorGameplayTags.AppendTags(*TagContainer);
+										IntegerMetadata.ParamUIMetadata.GameplayTags.AppendTags(*TagContainer);
 									}
 								}
 							}
