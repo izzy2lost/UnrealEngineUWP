@@ -3,12 +3,12 @@
 #include "Tests/NetTestHelpers.h"
 
 #include "CoreGlobals.h"
-#include "Engine/NetDriver.h"
 #include "Engine/NetworkObjectList.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "Engine/GameViewportClient.h"
+#include "Engine/PackageMapClient.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
@@ -19,6 +19,11 @@
 
 #if WITH_EDITOR
 #include "Settings/LevelEditorPlaySettings.h"
+#endif
+
+#if UE_WITH_IRIS
+#include "Iris/ReplicationSystem/ReplicationSystem.h"
+#include "Iris/ReplicationSystem/ObjectReplicationBridge.h"
 #endif
 
 #include "UObject/UObjectGlobals.h"
@@ -158,6 +163,22 @@ int32 FTestWorldInstance::FindUnusedPIEInstance()
 	}
 
 	return MaxUsedPIEInstance + 1;
+}
+
+FTestWorldInstance::FContext FTestWorldInstance::GetTestContext() const
+{
+#if UE_WITH_IRIS
+	UReplicationSystem* RepSystem = GetNetDriver() ? GetNetDriver()->GetReplicationSystem() : nullptr;
+	UObjectReplicationBridge* RepBridge  = RepSystem ? RepSystem->GetReplicationBridgeAs<UObjectReplicationBridge>() : nullptr;
+#endif
+
+	return FContext
+	{ 
+		.World = GetWorld(),
+		.NetDriver = GetNetDriver(),
+		.IrisRepSystem = RepSystem,
+		.IrisRepBridge = RepBridge,
+	};
 }
 
 UWorld* FTestWorldInstance::GetWorld() const
@@ -392,6 +413,53 @@ void FTestWorlds::TickClientsAndDelay(uint32 NumFramesToDelay)
 	return nullptr;
 }
 
+UObject* FTestWorlds::FindReplicatedObjectOnClient(UObject* ServerObject, uint32 ClientIndex) const
+{
+	using namespace UE::Net;
+
+	if (!Clients.IsValidIndex(ClientIndex))
+	{
+		ensureMsgf(false, TEXT("FTestWorlds::FindReplicatedObjectOnClient received invalid ClientIndex: %u"), ClientIndex);
+		return nullptr;
+	}
+
+	if (ServerObject->GetWorld() != Server.GetWorld())
+	{
+		ensureMsgf(false, TEXT("FTestWorlds::FindReplicatedObjectOnClient received object %s not part of the Server world"), *GetFullNameSafe(ServerObject));
+		return nullptr;
+	}
+
+	const FTestWorldInstance::FContext ServerContext = Server.GetTestContext();
+	const FTestWorldInstance::FContext ClientContext = Clients[ClientIndex].GetTestContext();
+
+	if (ServerContext.NetDriver->IsUsingIrisReplication())
+	{
+#if UE_WITH_IRIS
+	const FNetRefHandle NetHandle = ServerContext.IrisRepBridge->GetReplicatedRefHandle(ServerObject);
+
+		if (!NetHandle.IsValid())
+		{
+			ensureMsgf(false, TEXT("FTestWorlds::FindReplicatedObjectOnClient ServerObject: %s is not replicated."), *GetFullNameSafe(ServerObject));
+			return nullptr;
+		}
+
+		return ClientContext.IrisRepBridge->GetReplicatedObject(NetHandle);
+
+#endif // UE_WITH_IRIS
+	}
+	else
+	{
+		const FNetworkGUID NetGUID = ServerContext.NetDriver->GuidCache->GetNetGUID(ServerObject);
+
+		if (!NetGUID.IsValid())
+		{
+			ensureMsgf(false, TEXT("FTestWorlds::FindReplicatedObjectOnClient ServerObject: %s is not replicated."), *GetFullNameSafe(ServerObject));
+		}
+
+		return ClientContext.NetDriver->GuidCache->GetObjectFromNetGUID(NetGUID, false);
+	}
+}
+
 //------------------------------------------------------------------------
 
 FScopedCVarOverrideInt::FScopedCVarOverrideInt(const TCHAR* VariableName, int32 Value)
@@ -412,25 +480,38 @@ FScopedCVarOverrideInt::~FScopedCVarOverrideInt()
 	}
 }
 
+//------------------------------------------------------------------------
+
 FScopedTestSettings::FScopedTestSettings()
 	: AddressResolutionDisabled(TEXT("net.IpConnectionDisableResolution"), 1)
 	, BandwidthThrottlingDisabled(TEXT("net.DisableBandwithThrottling"), 1)
 	, RepGraphBandwidthThrottlingDisabled(TEXT("Net.RepGraph.DisableBandwithLimit"), 1)
 	, RandomNetUpdateDelayDisabled(TEXT("net.DisableRandomNetUpdateDelay"), 1)
 	, GameplayDebuggerDisabled(TEXT("GameplayDebugger.AutoCreateGameplayDebuggerManager"), 0)
-	, OldGWorld(GWorld)
-	, OldPIEID(UE::GetPlayInEditorID())
-	, OldGIsPlayInEditorWorld(GIsPlayInEditorWorld)
 {
 }
 
 FScopedTestSettings::~FScopedTestSettings()
+{
+}
+
+//------------------------------------------------------------------------
+
+FScopedNetTestPIERestoration::FScopedNetTestPIERestoration()
+	: OldGWorld(GWorld)
+	, OldPIEID(UE::GetPlayInEditorID())
+	, OldGIsPlayInEditorWorld(GIsPlayInEditorWorld)
+{
+
+}
+
+FScopedNetTestPIERestoration::~FScopedNetTestPIERestoration()
 {
 	GWorld = OldGWorld;
 	UE::SetPlayInEditorID(OldPIEID);
 	GIsPlayInEditorWorld = OldGIsPlayInEditorWorld;
 }
 
-}
+} // end namespace UE::Net
 
 #endif // WITH_EDITOR
