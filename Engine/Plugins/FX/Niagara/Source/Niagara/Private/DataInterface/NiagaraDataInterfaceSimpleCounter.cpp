@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "NiagaraDataInterfaceSimpleCounter.h"
+#include "DataInterface/NiagaraDataInterfaceSimpleCounter.h"
 #include "NiagaraClearCounts.h"
 #include "NiagaraCompileHashVisitor.h"
 #include "NiagaraGpuComputeDispatchInterface.h"
