@@ -615,11 +615,6 @@ public:
 	}
 	virtual FGraphEventArray PrecachePSOs(const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const struct FPSOPrecacheParams& PreCacheParams, EPSOPrecachePriority Priority, TArray<FMaterialPSOPrecacheRequestID>& OutMaterialPSORequestIDs) { return FGraphEventArray(); }
 
-	/**
-	* Preload shaders which can be used for this material for the given vertex factory type and material parameters.
-	*/
-	virtual FGraphEventArray PreloadShaders(const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const struct FPSOPrecacheParams& PreCacheParams) { return FGraphEventArray(); }
-
 #if WITH_EDITORONLY_DATA
 	/**
 	* Builds a composited set of static parameters, including inherited and overridden values

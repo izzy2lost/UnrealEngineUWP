@@ -147,7 +147,7 @@ public:
 		const FMaterial& Material,
 		const FPSOPrecacheVertexFactoryData& VertexFactoryData,
 		const FPSOPrecacheParams& PreCacheParams, 
-		FPassProcessorPSOCollection& OutCollection) override final;
+		TArray<FPSOPrecacheData>& PSOInitializers) override final;
 
 private:
 	bool TryAddMeshBatch(
@@ -175,7 +175,7 @@ private:
 		const FMaterial& Material,
 		const FDecalBlendDesc DecalBlendDesc,
 		EDecalRenderStage DecalRenderStage,
-		FPassProcessorPSOCollection& OutCollection);
+		TArray<FPSOPrecacheData>& PSOInitializers);
 
 	FMeshPassProcessorRenderState PassDrawRenderState;
 	const EDecalRenderStage PassDecalStage;
@@ -348,7 +348,7 @@ void FMeshDecalMeshProcessor::CollectDeferredDecalMeshPSOInitializers(
 	const FMaterial& Material,
 	const FDecalBlendDesc DecalBlendDesc,
 	EDecalRenderStage DecalRenderStage,
-	FPassProcessorPSOCollection& OutCollection)
+	TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	EDecalRenderTargetMode LocalRenderTargetMode = DecalRendering::GetRenderTargetMode(DecalBlendDesc, DecalRenderStage);
 	PassDrawRenderState.SetBlendState(DecalRendering::GetDecalBlendState(DecalBlendDesc, DecalRenderStage, LocalRenderTargetMode));
@@ -384,12 +384,6 @@ void FMeshDecalMeshProcessor::CollectDeferredDecalMeshPSOInitializers(
 	Shaders.TryGetVertexShader(MeshDecalPassShaders.VertexShader);
 	Shaders.TryGetPixelShader(MeshDecalPassShaders.PixelShader);
 
-	if (OutCollection.IsCollectingShadersOnly())
-	{
-		OutCollection.Collect(MeshDecalPassShaders.GetUntypedShaders().GetValidShaders());
-		return;
-	}
-
 	FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
 	GetDeferredDecalRenderTargetsInfo(SceneTexturesConfig, LocalRenderTargetMode, RenderTargetsInfo);
 
@@ -416,7 +410,7 @@ void FMeshDecalMeshProcessor::CollectDeferredDecalMeshPSOInitializers(
 		SubpassIndex,
 		true /*bRequired*/,
 		PSOCollectorIndex,
-		OutCollection);
+		PSOInitializers);
 }
 
 void FMeshDecalMeshProcessor::CollectPSOInitializers(
@@ -424,7 +418,7 @@ void FMeshDecalMeshProcessor::CollectPSOInitializers(
 	const FMaterial& Material,
 	const FPSOPrecacheVertexFactoryData& VertexFactoryData,
 	const FPSOPrecacheParams& PreCacheParams, 
-	FPassProcessorPSOCollection& OutCollection)
+	TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	if (!Material.IsDeferredDecal())
 	{
@@ -445,13 +439,13 @@ void FMeshDecalMeshProcessor::CollectPSOInitializers(
 		}
 		
 		// Collect decal pass PSOs
-		CollectDeferredDecalPassPSOInitializers(PSOCollectorIndex, FeatureLevel, SceneTexturesConfig, Material, LocalDecalRenderStage, OutCollection);
+		CollectDeferredDecalPassPSOInitializers(PSOCollectorIndex, FeatureLevel, SceneTexturesConfig, Material, LocalDecalRenderStage, PSOInitializers);
 
 		// TODO: need to pass a correct vertex declaration for non-MVF platforms
 		if (RHISupportsManualVertexFetch(ShaderPlatform))
 		{
 			// Collect decal mesh PSOs
-			CollectDeferredDecalMeshPSOInitializers(SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, DecalBlendDesc, LocalDecalRenderStage, OutCollection);
+			CollectDeferredDecalMeshPSOInitializers(SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, DecalBlendDesc, LocalDecalRenderStage, PSOInitializers);
 		}
 	}
 }

@@ -90,7 +90,7 @@ protected:
 		const FMaterial& RESTRICT MaterialResource,
 		ERasterizerFillMode MeshFillMode,
 		ERasterizerCullMode MeshCullMode,
-		FPassProcessorPSOCollection& OutCollection);
+		TArray<FPSOPrecacheData>& PSOInitializers);
 
 protected:
 	EDepthDrawingMode EarlyZPassMode = DDM_None;
@@ -137,7 +137,7 @@ private:
 		const FMaterial& Material,
 		const FPSOPrecacheVertexFactoryData& VertexFactoryData,
 		const FPSOPrecacheParams& PreCacheParams,
-		FPassProcessorPSOCollection& OutCollection) override final;
+		TArray<FPSOPrecacheData>& PSOInitializers) override final;
 };
 
 /**
@@ -180,5 +180,5 @@ private:
 		const FMaterial& Material, 
 		const FPSOPrecacheVertexFactoryData& VertexFactoryData,
 		const FPSOPrecacheParams& PreCacheParams,
-		FPassProcessorPSOCollection& OutCollection) override final;
+		TArray<FPSOPrecacheData>& PSOInitializers) override final;
 };

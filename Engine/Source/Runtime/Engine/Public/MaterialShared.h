@@ -1502,11 +1502,6 @@ public:
 	 */
 	FPSOPrecacheDataArray CollectPSOPrecacheData(const FMaterialPSOPrecacheParams& PrecacheParams);
 
-	/**
-	 * Collect the shaders which can be used with this material shader map for given parameters
-	 */
-	TArray<FShaderPreloadData> CollectShaderPreloadData(const FMaterialPSOPrecacheParams& PrecacheParams);
-
 #if WITH_EDITOR
 	/** Attempts to load missing shaders from memory. */
 	void LoadMissingShadersFromMemory(const FMaterial* Material);
@@ -2070,11 +2065,6 @@ public:
 	 * Collect all possible PSO's  which can be used with this material for given parameters - PSOs will be async precached
 	 */
 	ENGINE_API FGraphEventArray CollectPSOs(ERHIFeatureLevel::Type InFeatureLevel, const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const FPSOPrecacheParams& PreCacheParams, EPSOPrecachePriority Priority, TArray<FMaterialPSOPrecacheRequestID>& OutMaterialPSORequestIDs);
-
-	/**
-	 * Collect all possible shaders which can be used with this material for given parameters. Shaders will be preloaded async.
-	 */
-	ENGINE_API FGraphEventArray CollectShaders(ERHIFeatureLevel::Type InFeatureLevel, const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const FPSOPrecacheParams& PreCacheParams);
 
 	/**
 	 * Collect all PSO request information already done for this material

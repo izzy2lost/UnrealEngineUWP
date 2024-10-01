@@ -533,17 +533,17 @@ void FNiagaraShaderScript::UpdateCachedData_PostCompile(bool bCalledFromSerializ
 			// Note: this function can be called for different shader platforms so only precache if it's for the platform we are running
 			if (GMaxRHIShaderPlatform == GameThreadShaderMap->GetShaderPlatform())
 			{
-				if (IsResourcePSOPrecachingEnabled() || IsComponentPSOPrecachingEnabled())
+				if (IsPSOShaderPreloadingEnabled())
+				{
+					FGraphEventArray PreloadEvent;
+					GameThreadShaderMap->GetResource()->PreloadShader(Shader->GetResourceIndex(), PreloadEvent);
+				}
+				else if (IsResourcePSOPrecachingEnabled() || IsComponentPSOPrecachingEnabled())
 				{
 					check(NiagaraShader->GetFrequency() == SF_Compute);
 					FRHIShader* RHIShader = GameThreadShaderMap->GetResource()->GetShader(Shader->GetResourceIndex());
 					FRHIComputeShader* RHIComputeShader = static_cast<FRHIComputeShader*>(RHIShader);
 					PipelineStateCache::PrecacheComputePipelineState(RHIComputeShader, TEXT("NiagaraCompute"));
-				}
-				else if (IsDynamicShaderPreloadingEnabled())
-				{
-					FGraphEventArray PreloadEvent;
-					GameThreadShaderMap->GetResource()->PreloadShader(Shader->GetResourceIndex(), PreloadEvent);
 				}
 			}
 		}

@@ -568,7 +568,7 @@ void FOpaqueVelocityMeshProcessor::AddMeshBatch(
 	}
 }
 
-void FOpaqueVelocityMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection)
+void FOpaqueVelocityMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	const EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(FeatureLevel);
 	bool bDrawsVelocity = (PreCacheParams.Mobility == EComponentMobility::Movable || PreCacheParams.Mobility == EComponentMobility::Stationary);
@@ -613,14 +613,14 @@ void FOpaqueVelocityMeshProcessor::CollectPSOInitializers(const FSceneTexturesCo
 		const FMeshDrawingPolicyOverrideSettings OverrideSettings = ComputeMeshOverrideSettings(PreCacheParams);
 		const ERasterizerFillMode MeshFillMode = ComputeMeshFillMode(Material, OverrideSettings);
 		const ERasterizerCullMode MeshCullMode = ComputeMeshCullMode(Material, OverrideSettings);
-		if (!CollectPSOInitializersInternal(SceneTexturesConfig, VertexFactoryData, *EffectiveMaterial, MeshFillMode, MeshCullMode, OutCollection))
+		if (!CollectPSOInitializersInternal(SceneTexturesConfig, VertexFactoryData, *EffectiveMaterial, MeshFillMode, MeshCullMode, PSOInitializers))
 		{
 			// try again with default material (should use fallback material proxy here but currently only have FMaterial during PSO precaching)
 			EMaterialQualityLevel::Type ActiveQualityLevel = GetCachedScalabilityCVars().MaterialQualityLevel;
 			const FMaterial* DefaultMaterial = UMaterial::GetDefaultMaterial(MD_Surface)->GetMaterialResource(FeatureLevel, ActiveQualityLevel);
 			if (DefaultMaterial != EffectiveMaterial)
 			{
-				CollectPSOInitializersInternal(SceneTexturesConfig, VertexFactoryData, *DefaultMaterial, MeshFillMode, MeshCullMode, OutCollection);
+				CollectPSOInitializersInternal(SceneTexturesConfig, VertexFactoryData, *DefaultMaterial, MeshFillMode, MeshCullMode, PSOInitializers);
 			}
 		}
 	}
@@ -709,7 +709,7 @@ void FTranslucentVelocityMeshProcessor::AddMeshBatch(
 	}
 }
 
-void FTranslucentVelocityMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection
+void FTranslucentVelocityMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers
 )
 {
 	const EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(FeatureLevel);
@@ -725,7 +725,7 @@ void FTranslucentVelocityMeshProcessor::CollectPSOInitializers(const FSceneTextu
 		const FMeshDrawingPolicyOverrideSettings OverrideSettings = ComputeMeshOverrideSettings(PreCacheParams);
 		const ERasterizerFillMode MeshFillMode = ComputeMeshFillMode(Material, OverrideSettings);
 		const ERasterizerCullMode MeshCullMode = ComputeMeshCullMode(Material, OverrideSettings);
-		CollectPSOInitializersInternal(SceneTexturesConfig, VertexFactoryData, Material, MeshFillMode, MeshCullMode, OutCollection);
+		CollectPSOInitializersInternal(SceneTexturesConfig, VertexFactoryData, Material, MeshFillMode, MeshCullMode, PSOInitializers);
 	}
 }
 
@@ -819,7 +819,7 @@ bool FVelocityMeshProcessor::CollectPSOInitializersInternal(
 	const FMaterial& RESTRICT MaterialResource, 
 	ERasterizerFillMode MeshFillMode, 
 	ERasterizerCullMode MeshCullMode,
-	FPassProcessorPSOCollection& OutCollection)
+	TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	TMeshProcessorShaders<
 		FVelocityVS,
@@ -833,12 +833,6 @@ bool FVelocityMeshProcessor::CollectPSOInitializersInternal(
 		VelocityPassShaders.PixelShader))
 	{
 		return false;
-	}
-
-	if (OutCollection.IsCollectingShadersOnly())
-	{
-		OutCollection.Collect(VelocityPassShaders.GetUntypedShaders().GetValidShaders());
-		return true;
 	}
 
 	EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(FeatureLevel);
@@ -863,7 +857,7 @@ bool FVelocityMeshProcessor::CollectPSOInitializersInternal(
 		PT_TriangleList,
 		EMeshPassFeatures::Default,
 		true /*bRequired*/,
-		OutCollection);
+		PSOInitializers);
 
 	return true;
 }

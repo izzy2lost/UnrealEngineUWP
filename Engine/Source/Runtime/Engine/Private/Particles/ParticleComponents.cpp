@@ -135,10 +135,6 @@ void UFXSystemAsset::LaunchPSOPrecaching(const FMaterialInterfacePSOPrecachePara
 	{
 		PrecacheMaterialPSOs(PSOPrecacheParamsList, MaterialPSOPrecacheRequestIDs, PrecachePSOsEvents);
 	} 
-	else if (IsDynamicShaderPreloadingEnabled())
-	{		
-		PreloadMaterialShaders(PSOPrecacheParamsList, PrecachePSOsEvents);
-	}
 
 	// Create task to signal that the PSO precache events are done by adding them as prerequisite to the task.
 	if (PrecachePSOsEvents.Num() > 0)
@@ -2710,7 +2706,7 @@ void UParticleSystem::PostLoad()
 
 void UParticleSystem::PrecachePSOs()
 {
-	if (HasLaunchedPSOPrecaching() || (!IsComponentPSOPrecachingEnabled() && !IsResourcePSOPrecachingEnabled() && !IsDynamicShaderPreloadingEnabled()))
+	if (HasLaunchedPSOPrecaching() || (!IsComponentPSOPrecachingEnabled() && !IsResourcePSOPrecachingEnabled()))
 	{
 		return;
 	}
@@ -3562,8 +3558,8 @@ bool UFXSystemComponent::RequiresLWCTileRecache(const FVector3f CurrentTile, con
 
 void UFXSystemComponent::PrecacheAssetPSOs(UFXSystemAsset* FXSystemAsset)
 {
-#if UE_WITH_PSO_PRECACHING || UE_WITH_DYNAMIC_SHADER_PRELOADING
-	if (!FApp::CanEverRender() || (!IsComponentPSOPrecachingEnabled() && !IsDynamicShaderPreloadingEnabled()) || FXSystemAsset == nullptr)
+#if UE_WITH_PSO_PRECACHING
+	if (!FApp::CanEverRender() || (!IsComponentPSOPrecachingEnabled()) || FXSystemAsset == nullptr)
 	{
 		return;
 	}
@@ -3589,7 +3585,7 @@ void UFXSystemComponent::PrecacheAssetPSOs(UFXSystemAsset* FXSystemAsset)
 
 	RequestRecreateRenderStateWhenPSOPrecacheFinished(Events);
 	bPSOPrecacheCalled = true;
-#endif // UE_WITH_PSO_PRECACHING || UE_WITH_DYNAMIC_SHADER_PRELOADING
+#endif // UE_WITH_PSO_PRECACHING
 }
 
 FOnSystemPreActivationChange UParticleSystemComponent::OnSystemPreActivationChange;

@@ -199,6 +199,14 @@ struct FShaderPreloadData
 	TArray<TShaderRef<FShader>, TInlineAllocator<3>> Shaders;
 };
 
+enum class EPSOPrecacheMode : uint8
+{
+	PSO = 0,
+	PreloadShader = 1,
+};
+
+extern ENGINE_API EPSOPrecacheMode GetPSOPrecacheMode();
+
 /**
  * Wrapper class around the initializer to collect some extra validation data during PSO collection on the different collectors
  */
@@ -229,6 +237,20 @@ struct FPSOPrecacheData
 		FGraphicsPipelineStateInitializer GraphicsPSOInitializer;
 		FRHIComputeShader* ComputeShader;
 	};
+
+	FShaderPreloadData ShaderPreloadData;
+
+	void SetComputeShader(const TShaderRef<FShader>& InComputeShader)
+	{
+		if (GetPSOPrecacheMode() == EPSOPrecacheMode::PreloadShader)
+		{
+			ShaderPreloadData.Shaders.Emplace(InComputeShader);
+		}
+		else
+		{
+			ComputeShader = InComputeShader.GetComputeShader();
+		}
+	}
 
 #if PSO_PRECACHING_VALIDATE
 	int32 PSOCollectorIndex : 31;
@@ -287,7 +309,7 @@ extern ENGINE_API bool ShouldBoostPSOPrecachePriorityOnDraw();
 /**
  * Dynamically preload shaders
  */
-extern ENGINE_API bool IsDynamicShaderPreloadingEnabled();
+extern ENGINE_API bool IsPSOShaderPreloadingEnabled();
 
 enum class EPSOPrecacheProxyCreationStrategy : uint8
 {

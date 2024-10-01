@@ -6947,7 +6947,7 @@ FPrimitiveSceneProxy* UParticleSystemComponent::CreateSceneProxy()
 	//@fixme Get non-instanced path working in ES!
 	if ((IsActive() == true)/** && (EmitterInstances.Num() > 0)*/ && Template)
 	{
-#if UE_WITH_PSO_PRECACHING || UE_WITH_DYNAMIC_SHADER_PRELOADING
+#if UE_WITH_PSO_PRECACHING
 		if (!bPSOPrecacheCalled)
 		{
 			if (GCascadePSOPrecachingTime == 3)
@@ -6962,7 +6962,7 @@ FPrimitiveSceneProxy* UParticleSystemComponent::CreateSceneProxy()
 			UE_LOG(LogParticles, Verbose, TEXT("Skipping CreateSceneProxy for UParticleSystemComponent %s (UParticleSystem PSOs are still compiling)"), *GetFullName());
 			return nullptr;
 		}
-#endif // UE_WITH_PSO_PRECACHING || UE_WITH_DYNAMIC_SHADER_PRELOADING
+#endif // UE_WITH_PSO_PRECACHING
 
 		FInGameScopedCycleCounter InGameCycleCounter(GetWorld(), EInGamePerfTrackers::VFXSignificance, EInGamePerfTrackerThreads::GameThread, bIsManagingSignificance);
 

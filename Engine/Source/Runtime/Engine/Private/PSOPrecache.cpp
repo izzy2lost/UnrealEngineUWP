@@ -15,7 +15,7 @@ static TAutoConsoleVariable<int32> CVarPrecacheGlobalComputeShaders(
 	0,
 	TEXT("Precache global shaders during startup (disable(0) - only compute shaders(1) - all global shaders(2).\n") 
 	TEXT("Note: r.PSOPrecache.GlobalShaders == 2 is only supported when IsDynamicShaderPreloadingEnabled is enabled."),
-	ECVF_SaveForNextBoot
+	ECVF_ReadOnly
 );
 
 int32 GPSOPrecacheComponents = 1;
@@ -64,27 +64,41 @@ static FAutoConsoleVariableRef CVarPSOComponentBoostStrategy(
 	ECVF_ReadOnly
 );
 
-static int32 GDynamicShaderPreloading = 0;
-static FAutoConsoleVariableRef CVarDynamicShaderPreloading(
-	TEXT("r.PSOPrecache.DynamicShaderPreloading"),	
-	GDynamicShaderPreloading,
-	TEXT("Preload shaders separately as a task before PSO collection and precaching (requires r.ShaderCodeLibrary.PreloadShaderMaps=0)."),
-	ECVF_SaveForNextBoot
+int32 GPSOPrecacheMode = 0;
+static FAutoConsoleVariableRef CVarPSOPrecacheMode(
+	TEXT("r.PSOPrecache.Mode"),
+	GPSOPrecacheMode,
+	TEXT(" 0: Full PSO (default)\n")
+	TEXT(" 1: Preload shaders\n"),
+	ECVF_Default
 );
 
-bool IsDynamicShaderPreloadingEnabled()
+EPSOPrecacheMode GetPSOPrecacheMode()
 {
-	return FApp::CanEverRender() && GDynamicShaderPreloading && !FShaderCodeLibrary::AreShaderMapsPreloadedAtLoadTime() && !GIsEditor && UMaterialInterface::IsDefaultMaterialInitialized();
+	switch (GPSOPrecacheMode)
+	{
+	case 1:
+		return EPSOPrecacheMode::PreloadShader;
+	case 0:
+		[[fallthrough]];
+	default:
+		return EPSOPrecacheMode::PSO;
+	}
+}
+
+bool IsPSOShaderPreloadingEnabled()
+{
+	return FApp::CanEverRender() && (GetPSOPrecacheMode() == EPSOPrecacheMode::PreloadShader) && !FShaderCodeLibrary::AreShaderMapsPreloadedAtLoadTime() && !GIsEditor && UMaterialInterface::IsDefaultMaterialInitialized();
 }
 
 bool IsComponentPSOPrecachingEnabled()
 {
-	return FApp::CanEverRender() && PipelineStateCache::IsPSOPrecachingEnabled() && GPSOPrecacheComponents && !GIsEditor;
+	return FApp::CanEverRender() && (PipelineStateCache::IsPSOPrecachingEnabled() || IsPSOShaderPreloadingEnabled()) && GPSOPrecacheComponents && !GIsEditor;
 }
 
 bool IsResourcePSOPrecachingEnabled()
 {
-	return FApp::CanEverRender() && PipelineStateCache::IsPSOPrecachingEnabled() && GPSOPrecacheResources && !GIsEditor;
+	return FApp::CanEverRender() && (PipelineStateCache::IsPSOPrecachingEnabled() || IsPSOShaderPreloadingEnabled()) && GPSOPrecacheResources && !GIsEditor;
 }
 
 bool ShouldBoostPSOPrecachePriorityOnDraw()
@@ -112,7 +126,7 @@ EPSOPrecacheProxyCreationStrategy GetPSOPrecacheProxyCreationStrategy()
 
 bool ProxyCreationWhenPSOReady()
 {
-	return FApp::CanEverRender() && PipelineStateCache::IsPSOPrecachingEnabled() && GPSOProxyCreationWhenPSOReady && !GIsEditor;
+	return FApp::CanEverRender() && (PipelineStateCache::IsPSOPrecachingEnabled() || IsPSOShaderPreloadingEnabled()) && GPSOProxyCreationWhenPSOReady && !GIsEditor;
 }
 
 FPSOPrecacheVertexFactoryData::FPSOPrecacheVertexFactoryData(

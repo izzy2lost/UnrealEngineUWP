@@ -2134,23 +2134,13 @@ void UCanvas::K2_DrawMaterial(UMaterialInterface* RenderMaterial, FVector2D Scre
 		RenderMaterial->EnsureIsComplete();
 
 		// TODO: need to pass a correct vertex declaration for non-MVF platforms
-		if (RHISupportsManualVertexFetch(GMaxRHIShaderPlatform) || IsDynamicShaderPreloadingEnabled())
+		if (RHISupportsManualVertexFetch(GMaxRHIShaderPlatform))
 		{
 			// Should be moved earlier
 			FPSOPrecacheParams PSOPrecacheParams;
 			PSOPrecacheParams.bCanvasMaterial = true;
 			PSOPrecacheParams.BasePassPixelFormat = (Canvas->GetRenderTarget() && Canvas->GetRenderTarget()->GetRenderTargetTexture()) ? Canvas->GetRenderTarget()->GetRenderTargetTexture()->GetDesc().Format : PF_Unknown;
-			
-			if(IsDynamicShaderPreloadingEnabled())
-			{
-				FPSOPrecacheVertexFactoryDataList VFDataList;
-				VFDataList.Add(FPSOPrecacheVertexFactoryData(&FLocalVertexFactory::StaticType));
-				RenderMaterial->PreloadShaders(VFDataList, PSOPrecacheParams);
-			}
-			else 
-			{
-				RenderMaterial->PrecachePSOs(&FLocalVertexFactory::StaticType, PSOPrecacheParams);
-			}
+			RenderMaterial->PrecachePSOs(&FLocalVertexFactory::StaticType, PSOPrecacheParams);
 		}
 
 		FCanvasTileItem TileItem(ScreenPosition, RenderMaterial->GetRenderProxy(), ScreenSize, CoordinatePosition, CoordinatePosition + CoordinateSize);

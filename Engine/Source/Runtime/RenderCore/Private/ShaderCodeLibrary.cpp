@@ -91,7 +91,7 @@ static FAutoConsoleVariableRef CVarShaderCodeLibraryPreloadShaderMaps(
 	TEXT("r.ShaderCodeLibrary.PreloadShaderMaps"),
 	GPreloadShaderMaps,
 	TEXT("If > 0, shader maps will be preloaded at package/resource load time."),
-	ECVF_SaveForNextBoot
+	ECVF_Default
 );
 
 bool GShaderMapResourceRef = false;
@@ -1072,6 +1072,7 @@ public:
 
 	void PreloadShader(int32 ShaderIndex, FGraphEventArray& OutCompletionEvents)
 	{
+		LLM_SCOPE(ELLMTag::Shaders);
 		SCOPED_LOADTIMER(FShaderLibraryInstance_PreloadShader);
 		
 		const int32 BucketIndex = ShaderIndex % NumShaderLocks;

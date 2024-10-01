@@ -1986,7 +1986,7 @@ void FShadowDepthPassMeshProcessor::CollectPSOInitializersInternal(
 	ERasterizerCullMode MeshCullMode,
 	bool bSupportsPositionAndNormalOnlyStream,
 	bool bRequired,
-	FPassProcessorPSOCollection& OutCollection)
+	TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	TMeshProcessorShaders<
 		FShadowDepthVS,
@@ -2001,12 +2001,6 @@ void FShadowDepthPassMeshProcessor::CollectPSOInitializersInternal(
 		ShadowDepthPassShaders.VertexShader,
 		ShadowDepthPassShaders.PixelShader))
 	{
-		return;
-	}
-
-	if (OutCollection.IsCollectingShadersOnly())
-	{
-		OutCollection.Collect(ShadowDepthPassShaders.GetUntypedShaders().GetValidShaders());
 		return;
 	}
 
@@ -2042,7 +2036,7 @@ void FShadowDepthPassMeshProcessor::CollectPSOInitializersInternal(
 		PT_TriangleList,
 		bUsePositionOnlyVS ? EMeshPassFeatures::PositionAndNormalOnly : EMeshPassFeatures::Default,
 		bRequired,
-		OutCollection);
+		PSOInitializers);
 }
 
 bool FShadowDepthPassMeshProcessor::Process(
@@ -2175,7 +2169,7 @@ void FShadowDepthPassMeshProcessor::AddMeshBatch(const FMeshBatch& RESTRICT Mesh
 	}
 }
 
-void FShadowDepthPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection)
+void FShadowDepthPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	// Early out if possible
 	if (!PreCacheParams.bDefaultMaterial && 
@@ -2195,9 +2189,9 @@ void FShadowDepthPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesC
 		bool bCastShadowsAsTwoSided = false;
 
 		// Collect for each possible mesh cull mode	
-		CollectPSOInitializersForEachShadowDepthType(VertexFactoryData, Material, MeshFillMode, CM_None, bCastShadowsAsTwoSided, OutCollection);
-		CollectPSOInitializersForEachShadowDepthType(VertexFactoryData, Material, MeshFillMode, CM_CW, bCastShadowsAsTwoSided, OutCollection);
-		CollectPSOInitializersForEachShadowDepthType(VertexFactoryData, Material, MeshFillMode, CM_CCW, bCastShadowsAsTwoSided, OutCollection);
+		CollectPSOInitializersForEachShadowDepthType(VertexFactoryData, Material, MeshFillMode, CM_None, bCastShadowsAsTwoSided, PSOInitializers);
+		CollectPSOInitializersForEachShadowDepthType(VertexFactoryData, Material, MeshFillMode, CM_CW, bCastShadowsAsTwoSided, PSOInitializers);
+		CollectPSOInitializersForEachShadowDepthType(VertexFactoryData, Material, MeshFillMode, CM_CCW, bCastShadowsAsTwoSided, PSOInitializers);
 	}
 	else if (PreCacheParams.bCastShadow)
 	{
@@ -2222,7 +2216,7 @@ void FShadowDepthPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesC
 			const FMeshDrawingPolicyOverrideSettings OverrideSettings = ComputeMeshOverrideSettings(PreCacheParams);
 			const ERasterizerFillMode MeshFillMode = ComputeMeshFillMode(Material, OverrideSettings);
 			const ERasterizerCullMode MeshCullMode = FMeshPassProcessor::ComputeMeshCullMode(Material, OverrideSettings);
-			CollectPSOInitializersForEachShadowDepthType(VertexFactoryData, *EffectiveMaterial, MeshFillMode, MeshCullMode, PreCacheParams.bCastShadowAsTwoSided, OutCollection);
+			CollectPSOInitializersForEachShadowDepthType(VertexFactoryData, *EffectiveMaterial, MeshFillMode, MeshCullMode, PreCacheParams.bCastShadowAsTwoSided, PSOInitializers);
 		}
 	}
 }
@@ -2233,7 +2227,7 @@ void FShadowDepthPassMeshProcessor::CollectPSOInitializersForEachShadowDepthType
 	ERasterizerFillMode MeshFillMode,
 	ERasterizerCullMode MeshCullMode,
 	bool bCastShadowAsTwoSided,
-	FPassProcessorPSOCollection& OutCollection)
+	TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	const EShadowDepthType ShadowDepthVSMBit = ShadowDepthType & EShadowDepthType::VSM;
 	bool bRequired = true;
@@ -2242,21 +2236,21 @@ void FShadowDepthPassMeshProcessor::CollectPSOInitializersForEachShadowDepthType
 	{
 		const EShadowDepthType LocalShadowDepthType = ShadowDepthVSMBit | EShadowDepthType::Directional;
 		ERasterizerCullMode FinalCullMode = SetupShadowCullMode(FeatureLevel, LocalShadowDepthType, Material, MeshCullMode, bCastShadowAsTwoSided);
-		CollectPSOInitializersForEachStreamSetup(VertexFactoryData, Material, LocalShadowDepthType, MeshFillMode, FinalCullMode, bRequired, OutCollection);
+		CollectPSOInitializersForEachStreamSetup(VertexFactoryData, Material, LocalShadowDepthType, MeshFillMode, FinalCullMode, bRequired, PSOInitializers);
 	}
 
 	// Collect for non-directional one pass point light shadows
 	{
 		const EShadowDepthType LocalShadowDepthType = ShadowDepthVSMBit | EShadowDepthType::OnePassPoint;
 		ERasterizerCullMode FinalCullMode = SetupShadowCullMode(FeatureLevel, LocalShadowDepthType, Material, MeshCullMode, bCastShadowAsTwoSided);
-		CollectPSOInitializersForEachStreamSetup(VertexFactoryData, Material, LocalShadowDepthType, MeshFillMode, FinalCullMode, bRequired, OutCollection);
+		CollectPSOInitializersForEachStreamSetup(VertexFactoryData, Material, LocalShadowDepthType, MeshFillMode, FinalCullMode, bRequired, PSOInitializers);
 	}
 
 	// Collect for non-directional non-one pass point light shadows
 	{
 		const EShadowDepthType LocalShadowDepthType = ShadowDepthVSMBit;
 		ERasterizerCullMode FinalCullMode = SetupShadowCullMode(FeatureLevel, LocalShadowDepthType, Material, MeshCullMode, bCastShadowAsTwoSided);
-		CollectPSOInitializersForEachStreamSetup(VertexFactoryData, Material, LocalShadowDepthType, MeshFillMode, FinalCullMode, bRequired, OutCollection);
+		CollectPSOInitializersForEachStreamSetup(VertexFactoryData, Material, LocalShadowDepthType, MeshFillMode, FinalCullMode, bRequired, PSOInitializers);
 	}
 }
 
@@ -2267,7 +2261,7 @@ void FShadowDepthPassMeshProcessor::CollectPSOInitializersForEachStreamSetup(
 	ERasterizerFillMode MeshFillMode,
 	ERasterizerCullMode MeshCullMode,
 	bool bRequired,
-	FPassProcessorPSOCollection& OutCollection)
+	TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	SetStateForShadowDepth(InShadowDepthType, PassDrawRenderState);
 
@@ -2276,12 +2270,12 @@ void FShadowDepthPassMeshProcessor::CollectPSOInitializersForEachStreamSetup(
 	bool SupportsPositionAndNormalOnlyStream = true;
 	if (VertexFactoryData.VertexFactoryType->SupportsPositionOnly())
 	{
-		CollectPSOInitializersInternal(VertexFactoryData, MaterialResource, InShadowDepthType, MeshFillMode, MeshCullMode, SupportsPositionAndNormalOnlyStream, bRequired, OutCollection);
+		CollectPSOInitializersInternal(VertexFactoryData, MaterialResource, InShadowDepthType, MeshFillMode, MeshCullMode, SupportsPositionAndNormalOnlyStream, bRequired, PSOInitializers);
 	}
 	
 	// Always precache with the default streams (non PositionOnly or PositionAndNormalOnly stream)
 	SupportsPositionAndNormalOnlyStream = false;
-	CollectPSOInitializersInternal(VertexFactoryData, MaterialResource, InShadowDepthType, MeshFillMode, MeshCullMode, SupportsPositionAndNormalOnlyStream, bRequired, OutCollection);
+	CollectPSOInitializersInternal(VertexFactoryData, MaterialResource, InShadowDepthType, MeshFillMode, MeshCullMode, SupportsPositionAndNormalOnlyStream, bRequired, PSOInitializers);
 }
 
 FShadowDepthPassMeshProcessor::FShadowDepthPassMeshProcessor(

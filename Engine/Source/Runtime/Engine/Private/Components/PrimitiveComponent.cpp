@@ -4768,21 +4768,19 @@ void UPrimitiveComponent::SetupPrecachePSOParams(FPSOPrecacheParams& Params)
 
 void UPrimitiveComponent::PrecachePSOs()
 {
-#if UE_WITH_PSO_PRECACHING || UE_WITH_DYNAMIC_SHADER_PRELOADING
+#if UE_WITH_PSO_PRECACHING
 	// Only request PSO precaching if app is rendering and per component PSO precaching is enabled
 	// Also only request PSOs from game thread because TStrongObjectPtr is used on the material to make
 	// it's not deleted via garbage collection when PSO precaching is still busy. TStrongObjectPtr can only
 	// be constructed on the GameThread
-	if (!FApp::CanEverRender() || (!IsComponentPSOPrecachingEnabled() && !IsDynamicShaderPreloadingEnabled()) || !IsInGameThread())
+	if (!FApp::CanEverRender() || !IsComponentPSOPrecachingEnabled() || !IsInGameThread())
 	{
 		return;
 	}
 
-#if UE_WITH_PSO_PRECACHING 
 	// clear the current request data
 	MaterialPSOPrecacheRequestIDs.Empty();
 	PSOPrecacheRequestPriority = EPSOPrecachePriority::Medium;
-#endif
 
 	// Collect the data from the derived classes
 	FPSOPrecacheParams PSOPrecacheParams;
@@ -4791,25 +4789,13 @@ void UPrimitiveComponent::PrecachePSOs()
 	CollectPSOPrecacheData(PSOPrecacheParams, PSOPrecacheDataArray);
 
 	FGraphEventArray GraphEvents;
+	PrecacheMaterialPSOs(PSOPrecacheDataArray, MaterialPSOPrecacheRequestIDs, GraphEvents);
 
-	if (IsComponentPSOPrecachingEnabled())
-	{
-#if UE_WITH_PSO_PRECACHING
-		PrecacheMaterialPSOs(PSOPrecacheDataArray, MaterialPSOPrecacheRequestIDs, GraphEvents);
-#else
-		check(false);
-#endif
-	}
-	else if (IsDynamicShaderPreloadingEnabled())
-	{
-		PreloadMaterialShaders(PSOPrecacheDataArray, GraphEvents);
-	}
-	
 	RequestRecreateRenderStateWhenPSOPrecacheFinished(GraphEvents);
 #endif
 }
 
-#if UE_WITH_PSO_PRECACHING || UE_WITH_DYNAMIC_SHADER_PRELOADING
+#if UE_WITH_PSO_PRECACHING
 struct FPSOPrecacheFinishedTask
 {
 	explicit FPSOPrecacheFinishedTask(UPrimitiveComponent* InPrimitiveComponent, int32 InJobSetThatJustCompleted)
@@ -4841,7 +4827,7 @@ struct FPSOPrecacheFinishedTask
 
 void UPrimitiveComponent::RequestRecreateRenderStateWhenPSOPrecacheFinished(const FGraphEventArray& PSOPrecacheCompileEvents)
 {
-#if UE_WITH_PSO_PRECACHING || UE_WITH_DYNAMIC_SHADER_PRELOADING
+#if UE_WITH_PSO_PRECACHING
 	// If the proxy creation strategy relies on knowing when the precached PSO has been compiled,
 	// schedule a task to mark the render state dirty when all PSOs are compiled so the proxy gets recreated.
 	if (UsePSOPrecacheRenderProxyDelay() && GetPSOPrecacheProxyCreationStrategy() != EPSOPrecacheProxyCreationStrategy::AlwaysCreate)
@@ -4858,12 +4844,12 @@ void UPrimitiveComponent::RequestRecreateRenderStateWhenPSOPrecacheFinished(cons
 		}
 	}
 	bPSOPrecacheCalled = true;
-#endif //UE_WITH_PSO_PRECACHING | UE_WITH_DYNAMIC_SHADER_PRELOADING
+#endif //UE_WITH_PSO_PRECACHING
 }
 
 bool UPrimitiveComponent::UsePSOPrecacheRenderProxyDelay() const
 {
-#if UE_WITH_PSO_PRECACHING || UE_WITH_DYNAMIC_SHADER_PRELOADING
+#if UE_WITH_PSO_PRECACHING
 	return true;
 #else
 	return false;
@@ -4872,7 +4858,7 @@ bool UPrimitiveComponent::UsePSOPrecacheRenderProxyDelay() const
 
 bool UPrimitiveComponent::IsPSOPrecaching() const
 {
-#if UE_WITH_PSO_PRECACHING || UE_WITH_DYNAMIC_SHADER_PRELOADING
+#if UE_WITH_PSO_PRECACHING
 	return LatestPSOPrecacheJobSetCompleted != LatestPSOPrecacheJobSet;
 #else
 	return false;
@@ -4881,7 +4867,7 @@ bool UPrimitiveComponent::IsPSOPrecaching() const
 
 bool UPrimitiveComponent::ShouldRenderProxyFallbackToDefaultMaterial() const
 {
-#if UE_WITH_PSO_PRECACHING || UE_WITH_DYNAMIC_SHADER_PRELOADING
+#if UE_WITH_PSO_PRECACHING
 	return IsPSOPrecaching() && GetPSOPrecacheProxyCreationStrategy() == EPSOPrecacheProxyCreationStrategy::UseDefaultMaterialUntilPSOPrecached;
 #else
 	return false;
@@ -4889,19 +4875,17 @@ bool UPrimitiveComponent::ShouldRenderProxyFallbackToDefaultMaterial() const
 }
 bool UPrimitiveComponent::CheckPSOPrecachingAndBoostPriority(EPSOPrecachePriority NewPSOPrecachePriority)
 {
-#if UE_WITH_PSO_PRECACHING || UE_WITH_DYNAMIC_SHADER_PRELOADING
+#if UE_WITH_PSO_PRECACHING
 	bool bPrecacheStillRunning = IsPSOPrecaching();
 
-#if UE_WITH_PSO_PRECACHING
 	ensure(!IsComponentPSOPrecachingEnabled() || bPSOPrecacheCalled);
 	check(NewPSOPrecachePriority == EPSOPrecachePriority::High || NewPSOPrecachePriority == EPSOPrecachePriority::Highest);
 
-	if (bPrecacheStillRunning && !IsDynamicShaderPreloadingEnabled() && PSOPrecacheRequestPriority < NewPSOPrecachePriority)
+	if (bPrecacheStillRunning && PSOPrecacheRequestPriority < NewPSOPrecachePriority)
 	{
 		BoostPSOPriority(NewPSOPrecachePriority, MaterialPSOPrecacheRequestIDs);
 		PSOPrecacheRequestPriority = NewPSOPrecachePriority;
 	}
-#endif
 	return bPrecacheStillRunning;
 #else
 	return false;

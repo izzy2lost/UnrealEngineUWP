@@ -875,7 +875,6 @@ public:
 	virtual ENGINE_API int32 GetBlendablePriority(const UMaterial* Base) const override;
 
 	virtual ENGINE_API FGraphEventArray PrecachePSOs(const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const FPSOPrecacheParams& PreCacheParams, EPSOPrecachePriority Priority, TArray<FMaterialPSOPrecacheRequestID>& OutMaterialPSORequestIDs) override;
-	virtual ENGINE_API FGraphEventArray PreloadShaders(const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const struct FPSOPrecacheParams& PreCacheParams) override;
 
 
 #if WITH_EDITOR

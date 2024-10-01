@@ -1698,7 +1698,7 @@ void UWaterBodyComponent::PostLoad()
 
 	DeprecateData();
 
-	if ((IsComponentPSOPrecachingEnabled() && RHISupportsManualVertexFetch(GMaxRHIShaderPlatform)) || IsDynamicShaderPreloadingEnabled())
+	if ((IsComponentPSOPrecachingEnabled() && RHISupportsManualVertexFetch(GMaxRHIShaderPlatform)))
 	{
 		FPSOPrecacheParams PrecachePSOParams;
 		SetupPrecachePSOParams(PrecachePSOParams);
@@ -1714,15 +1714,7 @@ void UWaterBodyComponent::PostLoad()
 			if(Mat)
 			{ 
 				Mat->ConditionalPostLoad();
-
-				if (IsDynamicShaderPreloadingEnabled())
-				{
-					Mat->PreloadShaders(VFDataList, PrecachePSOParams);
-				}
-				else
-				{
-					Mat->PrecachePSOs(VFType, PrecachePSOParams);
-				}
+				Mat->PrecachePSOs(VFType, PrecachePSOParams);
 			}
 		}
 	}

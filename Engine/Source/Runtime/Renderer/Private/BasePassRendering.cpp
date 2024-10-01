@@ -1669,7 +1669,7 @@ void FBasePassMeshProcessor::CollectPSOInitializersForLMPolicy(
 	ERasterizerFillMode MeshFillMode,
 	ERasterizerCullMode MeshCullMode,
 	EPrimitiveType PrimitiveType, 
-	FPassProcessorPSOCollection& OutCollection)
+	TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	// Get the shaders if possible for given vertex factory
 	TMeshProcessorShaders<
@@ -1688,12 +1688,6 @@ void FBasePassMeshProcessor::CollectPSOInitializersForLMPolicy(
 		bOITBasePass
 		))
 	{
-		return;
-	}
-
-	if (OutCollection.IsCollectingShadersOnly())
-	{
-		OutCollection.Collect(BasePassShaders.GetUntypedShaders().GetValidShaders());
 		return;
 	}
 
@@ -1755,7 +1749,7 @@ void FBasePassMeshProcessor::CollectPSOInitializersForLMPolicy(
 			PrimitiveType,
 			EMeshPassFeatures::Default,
 			true /*bRequired*/,
-			OutCollection);
+			PSOInitializers);
 
 		// Add another PSO when render in separate translucency because render target format could have changed
 		if (bRenderInSeparateTranslucency)
@@ -1775,7 +1769,7 @@ void FBasePassMeshProcessor::CollectPSOInitializersForLMPolicy(
 				PrimitiveType,
 				EMeshPassFeatures::Default,
 				true /*bRequired*/,
-				OutCollection);
+				PSOInitializers);
 		}
 	}
 	else
@@ -1804,7 +1798,7 @@ void FBasePassMeshProcessor::CollectPSOInitializersForLMPolicy(
 			PrimitiveType,
 			true /*bPrecacheAlphaColorChannel*/,
 			PSOCollectorIndex,
-			OutCollection);
+			PSOInitializers);
 	}	
 }
 
@@ -2401,7 +2395,7 @@ TArray<ELightMapPolicyType, TInlineAllocator<2>> FBasePassMeshProcessor::GetUnif
 	return UniformLightMapPolicyTypes;
 }
 
-void FBasePassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection)
+void FBasePassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	// Check if material should be rendered
 	bool bShouldDraw = ShouldDraw(Material)
@@ -2429,9 +2423,9 @@ void FBasePassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& 
 
 	{
 		bool bRenderSkyLight = true; // generate for both skylight enabled/disabled? Or can this be known already at this point?
-		CollectPSOInitializersForSkyLight(SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, bRenderSkyLight, bDitheredLODTransition, MeshFillMode, MeshCullMode, (EPrimitiveType)PreCacheParams.PrimitiveType, OutCollection);
+		CollectPSOInitializersForSkyLight(SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, bRenderSkyLight, bDitheredLODTransition, MeshFillMode, MeshCullMode, (EPrimitiveType)PreCacheParams.PrimitiveType, PSOInitializers);
 		bRenderSkyLight = false;
-		CollectPSOInitializersForSkyLight(SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, bRenderSkyLight, bDitheredLODTransition, MeshFillMode, MeshCullMode, (EPrimitiveType)PreCacheParams.PrimitiveType, OutCollection);
+		CollectPSOInitializersForSkyLight(SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, bRenderSkyLight, bDitheredLODTransition, MeshFillMode, MeshCullMode, (EPrimitiveType)PreCacheParams.PrimitiveType, PSOInitializers);
 	}
 }
 
@@ -2445,7 +2439,7 @@ void FBasePassMeshProcessor::CollectPSOInitializersForSkyLight(
 	ERasterizerFillMode MeshFillMode,
 	ERasterizerCullMode MeshCullMode,
 	EPrimitiveType PrimitiveType, 
-	FPassProcessorPSOCollection& OutCollection)
+	TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	const FMaterialShadingModelField ShadingModels = Material.GetShadingModels();
 
@@ -2467,19 +2461,19 @@ void FBasePassMeshProcessor::CollectPSOInitializersForSkyLight(
 		{
 			CollectPSOInitializersForLMPolicy< FSelfShadowedVolumetricLightmapPolicy >(
 				SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, ShadingModels, bRenderSkyLight, bDitheredLODTransition,
-				FSelfShadowedVolumetricLightmapPolicy(), MeshFillMode, MeshCullMode, PrimitiveType, OutCollection);
+				FSelfShadowedVolumetricLightmapPolicy(), MeshFillMode, MeshCullMode, PrimitiveType, PSOInitializers);
 		}
 
 		if (IsIndirectLightingCacheAllowed(FeatureLevel) && bAllowIndirectLightingCache)
 		{
 			CollectPSOInitializersForLMPolicy< FSelfShadowedCachedPointIndirectLightingPolicy >(
 				SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, ShadingModels, bRenderSkyLight, bDitheredLODTransition,
-				FSelfShadowedCachedPointIndirectLightingPolicy(), MeshFillMode, MeshCullMode, PrimitiveType, OutCollection);
+				FSelfShadowedCachedPointIndirectLightingPolicy(), MeshFillMode, MeshCullMode, PrimitiveType, PSOInitializers);
 		}
 
 		CollectPSOInitializersForLMPolicy< FSelfShadowedTranslucencyPolicy >(
 			SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, ShadingModels, bRenderSkyLight, bDitheredLODTransition,
-			FSelfShadowedTranslucencyPolicy(), MeshFillMode, MeshCullMode, PrimitiveType, OutCollection);
+			FSelfShadowedTranslucencyPolicy(), MeshFillMode, MeshCullMode, PrimitiveType, PSOInitializers);
 	}
 
 	TArray<ELightMapPolicyType, TInlineAllocator<2>> UniformLightMapPolicyTypes = GetUniformLightMapPolicyTypeForPSOCollection(FeatureLevel, Material);
@@ -2487,7 +2481,7 @@ void FBasePassMeshProcessor::CollectPSOInitializersForSkyLight(
 	{
 		CollectPSOInitializersForLMPolicy< FUniformLightMapPolicy >(
 			SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, ShadingModels, bRenderSkyLight, bDitheredLODTransition,
-			FUniformLightMapPolicy(LightMapPolicyType), MeshFillMode, MeshCullMode, PrimitiveType, OutCollection);
+			FUniformLightMapPolicy(LightMapPolicyType), MeshFillMode, MeshCullMode, PrimitiveType, PSOInitializers);
 	}
 }
 
