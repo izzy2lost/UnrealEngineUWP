@@ -284,14 +284,29 @@ void FNiagaraStatelessEmitterInstance::InitEmitterState()
 {
 	using namespace NiagaraStatelessEmitterInstancePrivate;
 
+
 	const FNiagaraEmitterStateData& EmitterState = EmitterData->EmitterState;
 	LoopCount			= 0;
-	CurrentLoopDuration = EvaluateDistribution(EmitterState.LoopDuration, RandomStream, RendererBindings, DefaultLoopDuration);
-	CurrentLoopDuration = FMath::Max(CurrentLoopDuration, DefaultLoopDuration);
-	CurrentLoopDelay	= EvaluateDistribution(EmitterState.LoopDelay, RandomStream, RendererBindings, DefaultLoopDelay);
-	CurrentLoopDelay	= FMath::Max(CurrentLoopDelay, 0.0f);
+
+	CurrentLoopDelay = 0.0f;
+	if (EmitterState.bLoopDelayEnabled)
+	{
+		CurrentLoopDelay = EvaluateDistribution(EmitterState.LoopDelay, RandomStream, RendererBindings, DefaultLoopDelay);
+		CurrentLoopDelay = FMath::Max(CurrentLoopDelay, 0.0f);
+	}
 	CurrentLoopAgeStart	= 0.0f;
-	CurrentLoopAgeEnd	= CurrentLoopAgeStart + CurrentLoopDelay + CurrentLoopDuration;
+
+	if (EmitterState.LoopBehavior == ENiagaraLoopBehavior::Once && EmitterState.LoopDurationMode == ENiagaraLoopDurationMode::Infinite)
+	{
+		CurrentLoopDuration	= FLT_MAX;
+		CurrentLoopAgeEnd	= FLT_MAX;
+	}
+	else
+	{
+		CurrentLoopDuration = EvaluateDistribution(EmitterState.LoopDuration, RandomStream, RendererBindings, DefaultLoopDuration);
+		CurrentLoopDuration = FMath::Max(CurrentLoopDuration, DefaultLoopDuration);
+		CurrentLoopAgeEnd	= CurrentLoopAgeStart + CurrentLoopDelay + CurrentLoopDuration;
+	}
 }
 
 void FNiagaraStatelessEmitterInstance::TickEmitterState()
@@ -421,14 +436,17 @@ void FNiagaraStatelessEmitterInstance::TickEmitterState()
 					CurrentLoopDuration = FMath::Max(CurrentLoopDuration, DefaultLoopDuration);
 				}
 
-				if (EmitterState.bDelayFirstLoopOnly)
+				if (EmitterState.bLoopDelayEnabled)
 				{
-					CurrentLoopDelay = 0.0f;
-				}
-				else if (EmitterState.bRecalculateDelayEachLoop)
-				{
-					CurrentLoopDelay = EvaluateDistribution(EmitterState.LoopDelay, RandomStream, RendererBindings, DefaultLoopDelay);
-					CurrentLoopDelay = FMath::Max(CurrentLoopDelay, 0.0f);
+					if (EmitterState.bDelayFirstLoopOnly)
+					{
+						CurrentLoopDelay = 0.0f;
+					}
+					else if (EmitterState.bRecalculateDelayEachLoop)
+					{
+						CurrentLoopDelay = EvaluateDistribution(EmitterState.LoopDelay, RandomStream, RendererBindings, DefaultLoopDelay);
+						CurrentLoopDelay = FMath::Max(CurrentLoopDelay, 0.0f);
+					}
 				}
 
 				CurrentLoopAgeStart = CurrentLoopAgeEnd;

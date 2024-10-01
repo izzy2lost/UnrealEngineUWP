@@ -133,10 +133,10 @@ protected:
 	UPROPERTY()
 	FString UniqueEmitterName;
 
-	UPROPERTY(EditAnywhere, Category = "General", meta = (AllowedClasses = "/Script/Niagara.NiagaraStatelessEmitterTemplate", HideInStack))
+	UPROPERTY(EditAnywhere, Category = "Emitter Properties", meta = (AllowedClasses = "/Script/Niagara.NiagaraStatelessEmitterTemplate", HideInStack))
 	TObjectPtr<UClass> EmitterTemplateClass;
 
-	UPROPERTY(EditAnywhere, Category = "General")
+	UPROPERTY(EditAnywhere, Category = "Emitter Properties")
 	uint32 bDeterministic : 1 = false;
 
 #if WITH_EDITORONLY_DATA
@@ -144,24 +144,24 @@ protected:
 	When enabled the emitter will output all available attributes.
 	You should not need to modify this with the exception of debugging / testing and as it will impact cooked performance and memory
 	*/
-	UPROPERTY(EditAnywhere, Category = "General", AdvancedDisplay)
+	UPROPERTY(EditAnywhere, Category = "Emitter Properties", AdvancedDisplay)
 	uint32 bForceOutputAllAttributes : 1 = false;
 
 	/**
 	When enabled the emitter will always include UniqueID in the output attributes.
 	You should not need to modify this with the exception of debugging / testing and as it will impact cooked performance and memory
 	*/
-	UPROPERTY(EditAnywhere, Category = "General", AdvancedDisplay, meta = (EditCondition = "!bForceOutputAllAttributes"))
+	UPROPERTY(EditAnywhere, Category = "Emitter Properties", AdvancedDisplay, meta = (EditCondition = "!bForceOutputAllAttributes"))
 	uint32 bForceOutputUniqueID : 1 = false;
 #endif
 
-	UPROPERTY(EditAnywhere, Category = "General", AdvancedDisplay, meta = (Bitmask, BitMaskEnum = "/Script/Niagara.ENiagaraStatelessFeatureMask"))
+	UPROPERTY(EditAnywhere, Category = "Emitter Properties", AdvancedDisplay, meta = (Bitmask, BitMaskEnum = "/Script/Niagara.ENiagaraStatelessFeatureMask"))
 	uint32 AllowedFeatureMask = uint32(ENiagaraStatelessFeatureMask::All);
 
-	UPROPERTY(EditAnywhere, Category = "General")
+	UPROPERTY(EditAnywhere, Category = "Emitter Properties")
 	int32 RandomSeed = 0;
 
-	UPROPERTY(EditAnywhere, Category = "General")
+	UPROPERTY(EditAnywhere, Category = "Emitter Properties")
 	FBox FixedBounds = FBox(FVector(-100), FVector(100));
 
 	UPROPERTY(EditAnywhere, Category = "Emitter State")
