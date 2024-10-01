@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#pragma once
-
 #include "Elements/Framework/TypedElementAttributeBindingText.h"
 
 namespace UE::Editor::DataStorage
