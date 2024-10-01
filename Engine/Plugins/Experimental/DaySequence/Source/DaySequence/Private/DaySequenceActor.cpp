@@ -1534,7 +1534,7 @@ void ADaySequenceActor::OnShowDebugInfo(AHUD* HUD, UCanvas* Canvas, const FDebug
 {
 	using namespace UE::DaySequence;
 	
-	if (!Canvas || !GEngine || HasAuthority())
+	if (!Canvas || !GEngine || GetNetMode() == NM_DedicatedServer)
 	{
 		return;
 	}
@@ -1543,19 +1543,18 @@ void ADaySequenceActor::OnShowDebugInfo(AHUD* HUD, UCanvas* Canvas, const FDebug
 		return !Category.Value.Key.IsEmpty();
 	});
 
-	auto RemoveStaleEntriesAndGetPinnedArray = [](FDebugEntryArray& WeakArray, TArray<TSharedPtr<TMap<FString, FString>>>& OutSharedArray)
+	auto RemoveStaleEntriesAndGetPinnedArray = [](FDebugEntryArray& InWeakArray, TArray<TSharedPtr<TMap<FString, FString>>>& OutSharedArray)
 	{
 		// Shouldn't reduce existing capacity, so in theory the total number
 		// of allocations here will be <= the size of the largest array in DebugEntries
 		OutSharedArray.Reset();
 		
-		WeakArray.RemoveAll([](const TWeakPtr<FDaySequenceDebugEntry>& Entry) 
-			{ return !Entry.IsValid(); });
+		auto RemovePredicate = [](const TWeakPtr<FDaySequenceDebugEntry>& Entry){ return !Entry.IsValid(); };
+		InWeakArray.RemoveAll(RemovePredicate);
 
-		for (TWeakPtr<FDaySequenceDebugEntry> Entry : WeakArray)
-		{
-			OutSharedArray.Push(Entry.Pin()->GetData());
-		}
+		auto TransformPredicate = [](const TWeakPtr<FDaySequenceDebugEntry>& Entry){ return Entry.Pin()->ShowCondition(); };
+		auto TransformFunction = [](const TWeakPtr<FDaySequenceDebugEntry>& Entry){ return Entry.Pin()->GetData(); };
+		Algo::TransformIf(InWeakArray, OutSharedArray, TransformPredicate, TransformFunction);
 	};
 	
 	TArray<TSharedPtr<TMap<FString, FString>>> EntriesToDraw;

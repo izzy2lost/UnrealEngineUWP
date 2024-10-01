@@ -1083,11 +1083,6 @@ void UDaySequenceModifierComponent::OnDebugLevelChanged(int32 InDebugLevel)
 
 bool UDaySequenceModifierComponent::ShouldShowDebugInfo() const
 {
-	if (GetOwner()->HasAuthority())
-	{
-		return false;
-	}
-	
 	switch (DebugLevel)
 	{
 	case 0: return false;
