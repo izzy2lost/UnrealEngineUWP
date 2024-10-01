@@ -45,7 +45,8 @@ enum EHairStrandsCommonPassType
 	TAAFastResolve,
 	GBuffer,
 	Blit,
-	Holdout
+	HoldoutScene,
+	HoldoutHair,
 };
 
 template<typename TPassParameter, typename TPixelShader>
@@ -114,9 +115,13 @@ void InternalCommonDrawPass(
 		{
 			GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero>::GetRHI();
 		}
-		else if (Type == EHairStrandsCommonPassType::Holdout)
+		else if (Type == EHairStrandsCommonPassType::HoldoutScene)
 		{
-			GraphicsPSOInit.BlendState = TStaticBlendState<CW_ALPHA, BO_Add, BF_Zero, BF_One, BO_Add, BF_One, BF_InverseSourceAlpha>::GetRHI();
+			GraphicsPSOInit.BlendState = TStaticBlendState<CW_ALPHA, BO_Add, BF_Zero, BF_One, BO_Add, BF_Zero, BF_InverseSourceAlpha>::GetRHI();
+		}
+		else if (Type == EHairStrandsCommonPassType::HoldoutHair)
+		{
+			GraphicsPSOInit.BlendState = TStaticBlendState<CW_ALPHA, BO_Add, BF_Zero, BF_One, BO_Add, BF_One, BF_One>::GetRHI();
 		}
 		else
 		{
@@ -125,7 +130,7 @@ void InternalCommonDrawPass(
 
 		GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
 
-		if (Type == EHairStrandsCommonPassType::Composition || Type == EHairStrandsCommonPassType::Holdout)
+		if (Type == EHairStrandsCommonPassType::Composition || Type == EHairStrandsCommonPassType::HoldoutScene || Type == EHairStrandsCommonPassType::HoldoutHair)
 		{
 			GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<true, CF_DepthNearOrEqual>::GetRHI();
 		}
@@ -185,6 +190,7 @@ class FHairHoldoutPS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(FHairStrandsTilePassVS::FParameters, TileData)
 		SHADER_PARAMETER(FIntPoint, OutputResolution)
 		SHADER_PARAMETER(uint32, bComposeDofDepth)
+		SHADER_PARAMETER(uint32, PassType)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FHairStrandsViewUniformParameters, HairStrands)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HairDOFDepthTexture)
 		RENDER_TARGET_BINDING_SLOTS()
@@ -211,28 +217,59 @@ static void AddHairHoldoutPass(
 {
 	const bool bDOFEnable = HairDOFDepthTexture != nullptr ? 1 : 0;
 
-	FHairHoldoutPS::FParameters* Parameters = GraphBuilder.AllocParameters<FHairHoldoutPS::FParameters>();
-	Parameters->bComposeDofDepth = bDOFEnable ? 1 : 0;
-	Parameters->HairDOFDepthTexture = bDOFEnable ? HairDOFDepthTexture : GSystemTextures.GetBlackDummy(GraphBuilder);
-	Parameters->OutputResolution = OutColorTexture->Desc.Extent;
-	Parameters->ViewUniformBuffer = View.ViewUniformBuffer;
-	Parameters->HairStrands = View.HairStrandsViewData.UniformBuffer;
-	Parameters->RenderTargets[0] = FRenderTargetBinding(OutColorTexture, ERenderTargetLoadAction::ELoad);
-	Parameters->RenderTargets.DepthStencil = FDepthStencilBinding(OutDepthTexture, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthWrite_StencilRead);
+	// Attenuate original scene's pixel alpha value
+	{
+		FHairHoldoutPS::FParameters* Parameters = GraphBuilder.AllocParameters<FHairHoldoutPS::FParameters>();
+		Parameters->bComposeDofDepth = bDOFEnable ? 1 : 0;
+		Parameters->PassType = 0;
+		Parameters->HairDOFDepthTexture = bDOFEnable ? HairDOFDepthTexture : GSystemTextures.GetBlackDummy(GraphBuilder);
+		Parameters->OutputResolution = OutColorTexture->Desc.Extent;
+		Parameters->ViewUniformBuffer = View.ViewUniformBuffer;
+		Parameters->HairStrands = View.HairStrandsViewData.UniformBuffer;
+		Parameters->RenderTargets[0] = FRenderTargetBinding(OutColorTexture, ERenderTargetLoadAction::ELoad);
+		Parameters->RenderTargets.DepthStencil = FDepthStencilBinding(OutDepthTexture, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthWrite_StencilRead);
 
-	FHairHoldoutPS::FPermutationDomain PermutationVector;
-	TShaderMapRef<FHairHoldoutPS> PixelShader(View.ShaderMap, PermutationVector);
-	InternalCommonDrawPass(
-		GraphBuilder,
-		RDG_EVENT_NAME("HairStrands::Holdout"),
-		View,
-		OutColorTexture->Desc.Extent,
-		EHairStrandsCommonPassType::Holdout,
-		false /*bWriteDepth*/,
-		true /*bHasHoldout*/,
-		VisibilityData.TileData,
-		PixelShader,
-		Parameters);
+		FHairHoldoutPS::FPermutationDomain PermutationVector;
+		TShaderMapRef<FHairHoldoutPS> PixelShader(View.ShaderMap, PermutationVector);
+		InternalCommonDrawPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("HairStrands::Holdout(Scene)"),
+			View,
+			OutColorTexture->Desc.Extent,
+			EHairStrandsCommonPassType::HoldoutScene,
+			false /*bWriteDepth*/,
+			true /*bHasHoldout*/,
+			VisibilityData.TileData,
+			PixelShader,
+			Parameters);
+	}
+
+	// Add hair's fog contribution
+	{
+		FHairHoldoutPS::FParameters* Parameters = GraphBuilder.AllocParameters<FHairHoldoutPS::FParameters>();
+		Parameters->bComposeDofDepth = bDOFEnable ? 1 : 0;
+		Parameters->PassType = 1;
+		Parameters->HairDOFDepthTexture = bDOFEnable ? HairDOFDepthTexture : GSystemTextures.GetBlackDummy(GraphBuilder);
+		Parameters->OutputResolution = OutColorTexture->Desc.Extent;
+		Parameters->ViewUniformBuffer = View.ViewUniformBuffer;
+		Parameters->HairStrands = View.HairStrandsViewData.UniformBuffer;
+		Parameters->RenderTargets[0] = FRenderTargetBinding(OutColorTexture, ERenderTargetLoadAction::ELoad);
+		Parameters->RenderTargets.DepthStencil = FDepthStencilBinding(OutDepthTexture, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthWrite_StencilRead);
+
+		FHairHoldoutPS::FPermutationDomain PermutationVector;
+		TShaderMapRef<FHairHoldoutPS> PixelShader(View.ShaderMap, PermutationVector);
+		InternalCommonDrawPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("HairStrands::Holdout(Hair)"),
+			View,
+			OutColorTexture->Desc.Extent,
+			EHairStrandsCommonPassType::HoldoutHair,
+			false /*bWriteDepth*/,
+			true /*bHasHoldout*/,
+			VisibilityData.TileData,
+			PixelShader,
+			Parameters);
+	}
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
