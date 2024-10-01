@@ -367,10 +367,6 @@ void UEdGraph_ReferenceViewer::RefreshReferencedPropertiesNode(const UEdGraphNod
 
 	TArray<FReferencingPropertyDescription> ReferencingPropertiesArray =
 		RetrieveReferencingProperties(ReferencingObject, ReferencedObject);
-	if (ReferencingPropertiesArray.IsEmpty())
-	{
-		return;
-	}
 
 	CreateReferencedPropertiesNode(ReferencingPropertiesArray, ReferencingNode, ReferencedNode);
 }
@@ -401,10 +397,15 @@ TArray<FReferencingPropertyDescription> UEdGraph_ReferenceViewer::RetrieveRefere
 	TArray<FReferencingPropertyDescription> ReferencingProperties;
 
 	// Registering referencing properties to the output array. Property type defaults to EReferencedPropertyType::Property
-	auto AddReferencingProperty = [&ReferencingProperties, &InReferencedAsset](const FString& InPropertyName, const FString& InReferencerName
-		, FReferencingPropertyDescription::EAssetReferenceType InPropertyType = FReferencingPropertyDescription::EAssetReferenceType::Property)
+	auto AddReferencingProperty = [&ReferencingProperties, &InReferencedAsset](const FString& InPropertyName, const FString& InReferencerName, const FString& InReferencedNodeName,
+									  FReferencingPropertyDescription::EAssetReferenceType InPropertyType =
+										  FReferencingPropertyDescription::EAssetReferenceType::Property,
+									  bool bInIndirectReference = false
+								  )
 	{
-		FReferencingPropertyDescription PropertyDescription(InPropertyName, InReferencerName, InPropertyType, InReferencedAsset->GetClass());
+		FReferencingPropertyDescription PropertyDescription(
+			InPropertyName, InReferencerName, InReferencedNodeName, InPropertyType, InReferencedAsset->GetClass(), bInIndirectReference
+		);
 
 		if (!ReferencingProperties.Contains(PropertyDescription))
 		{
@@ -438,7 +439,7 @@ TArray<FReferencingPropertyDescription> UEdGraph_ReferenceViewer::RetrieveRefere
 
 			if (bMatchFound)
 			{
-				AddReferencingProperty(CurrentStructProperty->GetDisplayNameText().ToString(), InReferencer->GetName());
+				AddReferencingProperty(CurrentStructProperty->GetDisplayNameText().ToString(), InReferencer->GetName(), InReferencedAsset->GetName());
 			}
 
 			CurrentStructProperty = CurrentStructProperty->PropertyLinkNext;
@@ -476,7 +477,7 @@ TArray<FReferencingPropertyDescription> UEdGraph_ReferenceViewer::RetrieveRefere
 				if (GeneratingBlueprintObject == InReferencedAsset)
 				{
 					// The blueprint used to generate the current CDO Component Node is the same as the referenced asset: add this to output properties names
-					AddReferencingProperty(*Node->GetVariableName().ToString(), InReferencer->GetName(), FReferencingPropertyDescription::EAssetReferenceType::Component);
+					AddReferencingProperty(*Node->GetVariableName().ToString(), InReferencer->GetName(), InReferencedAsset->GetName(), FReferencingPropertyDescription::EAssetReferenceType::Component);
 				}
 			}
 		}
@@ -539,7 +540,7 @@ TArray<FReferencingPropertyDescription> UEdGraph_ReferenceViewer::RetrieveRefere
 
 					if (bAddProperty)
 					{
-						AddReferencingProperty(BPVariableDescription.VarName.ToString(), InReferencer->GetName());
+						AddReferencingProperty(BPVariableDescription.VarName.ToString(), InReferencer->GetName(), InReferencedAsset->GetName());
 					}
 				}
 				// Other
@@ -552,7 +553,7 @@ TArray<FReferencingPropertyDescription> UEdGraph_ReferenceViewer::RetrieveRefere
 						if (Object == InReferencedAsset)
 						{
 							const FString ItemIndexString = "[" + FString::FromInt(ItemIndex) + "]";
-							AddReferencingProperty(ArrayProperty->GetFName().ToString() + ItemIndexString, InReferencer->GetName());
+							AddReferencingProperty(ArrayProperty->GetFName().ToString() + ItemIndexString, InReferencer->GetName(), InReferencedAsset->GetName());
 						}
 					}
 				}
@@ -567,7 +568,7 @@ TArray<FReferencingPropertyDescription> UEdGraph_ReferenceViewer::RetrieveRefere
 
 				if (!PropertyExportString.IsEmpty() && PropertyExportString.Contains(InReferencedAsset->GetPathName()))
 				{
-					AddReferencingProperty(PropertyIt->GetFName().ToString(), InReferencer->GetName());
+					AddReferencingProperty(PropertyIt->GetFName().ToString(), InReferencer->GetName(), InReferencedAsset->GetName());
 				}
 			}
 		}
@@ -577,7 +578,7 @@ TArray<FReferencingPropertyDescription> UEdGraph_ReferenceViewer::RetrieveRefere
 			PropertyIt->GetValue_InContainer(InReferencer, &Object);
 			if (Object == InReferencedAsset)
 			{
-				AddReferencingProperty(PropertyIt->GetDisplayNameText().ToString(), InReferencer->GetName(), FReferencingPropertyDescription::EAssetReferenceType::Value);
+				AddReferencingProperty(PropertyIt->GetDisplayNameText().ToString(), InReferencer->GetName(), InReferencedAsset->GetName(), FReferencingPropertyDescription::EAssetReferenceType::Value);
 			}
 		}
 		// Other property (should handle Struct Property and fields as well)
@@ -587,7 +588,7 @@ TArray<FReferencingPropertyDescription> UEdGraph_ReferenceViewer::RetrieveRefere
 
 			if (!PropertyExportString.IsEmpty() && PropertyExportString.Contains(InReferencedAsset->GetPathName()))
 			{
-				AddReferencingProperty(PropertyIt->GetDisplayNameText().ToString(), InReferencer->GetName());
+				AddReferencingProperty(PropertyIt->GetDisplayNameText().ToString(), InReferencer->GetName(), InReferencedAsset->GetName());
 			}
 		}
 	}
@@ -598,7 +599,7 @@ TArray<FReferencingPropertyDescription> UEdGraph_ReferenceViewer::RetrieveRefere
 	class FArchiveReferencingProperties : public FArchiveUObject
 	{
 	public:
-		FArchiveReferencingProperties(UObject* InReferencingObject, UObject* InReferencedObject, TArray<FString>* OutReferencingProperties)
+		FArchiveReferencingProperties(UObject* InReferencingObject, UObject* InReferencedObject, TArray<TTuple<FString, bool>>* OutReferencingProperties)
 			: ReferencingProperties(OutReferencingProperties)
 			, ReferencingObject(InReferencingObject)
 			, ReferencedObject(InReferencedObject)
@@ -625,10 +626,32 @@ TArray<FReferencingPropertyDescription> UEdGraph_ReferenceViewer::RetrieveRefere
 						if (const UObject* const PropertyOwner = Property->GetOwnerUObject())
 						{
 							// Make sure we are only showing properties which are part of the current package
-							// Which would add no real meaningful information to the properties list
+							// This skips properties which mostly add no real meaningful information to the properties list.
+							// Some might be nice to show, which will be taken care of in the future
 							if (PropertyOwner->IsInPackage(ReferencingObjectPackage))
 							{
-								ReferencingProperties->AddUnique(Property->GetName());
+								constexpr bool bIsIndirect = false;
+								ReferencingProperties->AddUnique(TTuple<FString, bool>(Property->GetName(), bIsIndirect));
+							}
+						}
+					}
+				}
+				else if (InSerializedObject->IsInPackage(ReferencingObjectPackage))
+				{
+					// Things like a Static Mesh referenced by a BP SM Component will generate what looks like a direct reference in the
+					// graph. Let's gather those properties as well
+					for (TFieldIterator<FObjectProperty> ObjectPropertyIt(InSerializedObject->GetClass()); ObjectPropertyIt;
+						 ++ObjectPropertyIt)
+					{
+						if (UObject* ObjectReference =
+								ObjectPropertyIt->GetObjectPropertyValue_InContainer(InSerializedObject))
+						{
+							if (ObjectReference == ReferencedObject)
+							{
+								FString PropertyName = InSerializedObject->GetFName().ToString();
+
+								constexpr bool bIsIndirect = true;
+								ReferencingProperties->AddUnique(TTuple<FString, bool>(PropertyName, bIsIndirect));
 							}
 						}
 					}
@@ -651,7 +674,7 @@ TArray<FReferencingPropertyDescription> UEdGraph_ReferenceViewer::RetrieveRefere
 
 	private:
 		/** Stored pointer to array of objects we add object references to */
-		TArray<FString>* ReferencingProperties;
+		TArray<TTuple<FString, bool>>* ReferencingProperties;
 
 		/** Tracks the objects which have been serialized by this archive, to prevent recursion */
 		TSet<UObject*> SerializedObjects;
@@ -661,13 +684,15 @@ TArray<FReferencingPropertyDescription> UEdGraph_ReferenceViewer::RetrieveRefere
 		UPackage* ReferencingObjectPackage;
 	};
 
-	TArray<FString> ReferencingPropertiesArray;
+	TArray<TTuple<FString, bool>> ReferencingPropertiesArray;
 	FArchiveReferencingProperties Mapper(InReferencer, InReferencedAsset, &ReferencingPropertiesArray);
-	for (const FString& Property : ReferencingPropertiesArray)
+	for (const TTuple<FString, bool>& Property : ReferencingPropertiesArray)
 	{
+		const FString& PropertyName = Property.Get<0>();
+		const bool bIsIndirect = Property.Get<1>();
 		AddReferencingProperty(
-			Property, InReferencer->GetName(), FReferencingPropertyDescription::EAssetReferenceType::Value
-		);
+				PropertyName, InReferencer->GetName(), InReferencedAsset->GetName(), FReferencingPropertyDescription::EAssetReferenceType::Value, bIsIndirect
+			);
 	}
 
 	return ReferencingProperties;

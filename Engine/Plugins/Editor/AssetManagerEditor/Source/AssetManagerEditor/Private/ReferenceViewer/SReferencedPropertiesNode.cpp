@@ -9,6 +9,8 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Images/SImage.h"
 
+#define LOCTEXT_NAMESPACE "ReferencedPropertyNode"
+
 /**
  * Widget representing a referencing property
  */
@@ -16,17 +18,19 @@ class SReferencedPropertyNode : public SCompoundWidget
 {
 public:
 	SLATE_BEGIN_ARGS(SReferencedPropertiesNode)
-	{
-	}
+		{
+		}
 
 	SLATE_END_ARGS()
-
 	void Construct(const FArguments& InArgs, const FReferencingPropertyDescription& InReferencingPropertyDescription);
 
 private:
 	FText GetPropertyDisplayName() const;
 	FText GetTooltipText() const;
+	FText GetIndirectReferenceTooltipText() const;
 	const FSlateBrush* GetIconBrush() const;
+	const FSlateBrush* GetIndirectReferenceIconBrush() const;
+	EVisibility GetIndirectReferenceVisibility() const;
 
 	FReferencingPropertyDescription PropertyDescription;
 };
@@ -34,7 +38,6 @@ private:
 void SReferencedPropertiesNode::Construct(const FArguments& InArgs, UEdGraphNode_ReferencedProperties* InReferencedPropertiesNode)
 {
 	GraphNode = InReferencedPropertiesNode;
-	SetCursor(EMouseCursor::CardinalCross);
 
 	if (InReferencedPropertiesNode)
 	{
@@ -80,12 +83,27 @@ void SReferencedPropertiesNode::UpdateGraphNode()
 
 	if (const UEdGraphNode_ReferencedProperties* ReferencedProperties = Cast<UEdGraphNode_ReferencedProperties>(GraphNode))
 	{
-		for (const FReferencingPropertyDescription& PropertyDescription : ReferencedProperties->GetReferencedPropertiesDescription())
+        TArray<FReferencingPropertyDescription> ReferencePropertiesDescription = ReferencedProperties->GetReferencedPropertiesDescription();
+
+		if (!ReferencePropertiesDescription.IsEmpty())
+		{
+			for (const FReferencingPropertyDescription& PropertyDescription : ReferencedProperties->GetReferencedPropertiesDescription())
+			{
+				PropertiesBox->AddSlot()
+				[
+					SNew(SReferencedPropertyNode, PropertyDescription)
+				];
+			}
+		}
+		else
 		{
 			PropertiesBox->AddSlot()
-			[
-				SNew(SReferencedPropertyNode, PropertyDescription)
-			];
+			.Padding(FMargin(6.0f, 4.0f, 6.0f, 4.0f))
+            [
+            	SNew(STextBlock)
+            	.TextStyle(FReferenceViewerStyle::Get(), "Graph.ReferencedPropertiesText")
+	            .Text(LOCTEXT("ReferencingPropertyDataUnavailable", "Impossible to retrieve at this time."))
+            ];
 		}
 	}
 }
@@ -107,6 +125,7 @@ void SReferencedPropertyNode::Construct(const FArguments& InArgs, const FReferen
 {
 	PropertyDescription = InReferencingPropertyDescription;
 
+	// clang-format off
 	ChildSlot
 	.Padding(FMargin(6.0f, 4.0f, 6.0f, 4.0f))
 	[
@@ -132,7 +151,22 @@ void SReferencedPropertyNode::Construct(const FArguments& InArgs, const FReferen
 				.Text(this, &SReferencedPropertyNode::GetPropertyDisplayName)
 			]
 		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(FMargin(6.f, 0.f, 0.f, 0.f))
+		[
+			SNew(SBox)
+			.ToolTipText(this, &SReferencedPropertyNode::GetIndirectReferenceTooltipText)
+			.Visibility(this, &SReferencedPropertyNode::GetIndirectReferenceVisibility)
+			[
+				SNew(SImage)
+				.Image(GetIndirectReferenceIconBrush())
+				.DesiredSizeOverride(FVector2D(10.0f, 10.0f))
+			]
+		]
 	];
+	// clang-format on
 }
 
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
@@ -144,12 +178,24 @@ FText SReferencedPropertyNode::GetPropertyDisplayName() const
 
 FText SReferencedPropertyNode::GetTooltipText() const
 {
-	return FText::FromString(TEXT("Reference used as ") + PropertyDescription.GetTypeAsString());
+	FFormatNamedArguments Arguments;
+	Arguments.Add(TEXT("0"), FText::FromString(PropertyDescription.GetReferencedNodeName()));
+	Arguments.Add(TEXT("1"), FText::FromString(PropertyDescription.GetTypeAsString()));
+
+	return FText::Format(LOCTEXT("ReferenceNameTooltip", "Reference to {0} used as {1}"), Arguments);
+}
+
+FText SReferencedPropertyNode::GetIndirectReferenceTooltipText() const
+{
+	FFormatNamedArguments Arguments;
+	Arguments.Add(TEXT("0"), FText::FromString(PropertyDescription.GetName()));
+	Arguments.Add(TEXT("1"), FText::FromString(PropertyDescription.GetReferencedNodeName()));
+
+	return FText::Format(LOCTEXT("IndirectReferenceTooltip", "Indirect reference: {0} is referencing {1}"), Arguments);
 }
 
 const FSlateBrush* SReferencedPropertyNode::GetIconBrush() const
 {
-
 	const UClass* Class = PropertyDescription.GetPropertyClass();
 
 	const FSlateBrush* ComponentIcon;
@@ -172,3 +218,15 @@ const FSlateBrush* SReferencedPropertyNode::GetIconBrush() const
 
 	return ComponentIcon;
 }
+
+const FSlateBrush* SReferencedPropertyNode::GetIndirectReferenceIconBrush() const
+{
+	return FAppStyle::GetBrush("ReferenceViewer.IndirectReference");
+}
+
+EVisibility SReferencedPropertyNode::GetIndirectReferenceVisibility() const
+{
+	return PropertyDescription.IsIndirect() ? EVisibility::Visible : EVisibility::Collapsed;
+}
+
+#undef LOCTEXT_NAMESPACE

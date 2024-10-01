@@ -489,6 +489,11 @@ void FStarshipEditorStyle::FStyle::SetupGeneralStyles()
 		Set("Icons.DemoteElements", new IMAGE_BRUSH_SVG("Starship/Common/convert", Icon20x20));
 	}
 
+	// Reference Viewer Icons
+	{
+		Set("ReferenceViewer.IndirectReference", new IMAGE_BRUSH_SVG("Starship/ReferenceViewer/IndirectRef", Icon16x16));
+	}
+
 	Set("UnrealDefaultThumbnail", new IMAGE_BRUSH("Starship/Common/Unreal_DefaultThumbnail", FVector2D(256, 256)));
 
 	Set( "WarningStripe", new IMAGE_BRUSH( "Common/WarningStripe", FVector2D(20,6), FLinearColor::White, ESlateBrushTileType::Horizontal ) );
