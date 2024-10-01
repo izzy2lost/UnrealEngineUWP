@@ -980,7 +980,7 @@ namespace UnrealBuildTool
 			{
 				foreach (FileReference GameUProjectFile in AllGameProjects)
 				{
-					NativeProjects.ConditionalMakeTempTargetForHybridProject(GameUProjectFile, PlatformProjectGenerators.GetRegisteredPlatforms(), Logger);
+					NativeProjects.ConditionalMakeTempTargetForHybridProject(GameUProjectFile, Logger);
 				}
 
 				// they are created in a temp location, which we need to scan
@@ -2897,7 +2897,7 @@ namespace UnrealBuildTool
 					ProjectFile.IsForeignProject = CheckProjectFile != null && !NativeProjects.IsNativeProject(CheckProjectFile, Logger);
 					ProjectFile.IsGeneratedProject = true;
 					ProjectFile.IsStubProject = Unreal.IsProjectInstalled();
-					ProjectFile.IsHybridContentOnlyProject = CheckProjectFile != null && NativeProjects.IsHybridContentOnlyProject(CheckProjectFile, Logger);
+					ProjectFile.IsHybridContentOnlyProject = CheckProjectFile != null && NativeProjects.IsHybridContentOnlyProject(CheckProjectFile, out _, Logger);
 					if (TargetRulesObject.bBuildInSolutionByDefault.HasValue)
 					{
 						ProjectFile.ShouldBuildByDefaultForSolutionTargets = TargetRulesObject.bBuildInSolutionByDefault.Value;

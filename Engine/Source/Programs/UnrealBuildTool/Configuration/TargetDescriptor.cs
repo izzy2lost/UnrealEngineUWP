@@ -579,7 +579,7 @@ namespace UnrealBuildTool
 						// make a temp target for hybrid content-as-code projects
 						if (TargetProjectFile != null)
 						{
-							NativeProjects.ConditionalMakeTempTargetForHybridProject(TargetProjectFile, new List<UnrealTargetPlatform>(1) { Platform }, Logger);
+							NativeProjects.ConditionalMakeTempTargetForHybridProject(TargetProjectFile, Logger);
 						}
 
 						if (ParamArchitectures != null)
