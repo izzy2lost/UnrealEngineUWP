@@ -203,6 +203,11 @@ FPCGTaskId FPCGGraphTask::GetGraphExecutionTaskId() const
 	return StackContext ? StackContext->GetGraphExecutionTaskId() : InvalidPCGTaskId;
 }
 
+bool FPCGGraphTask::CanExecuteOnlyOnMainThread() const
+{
+	return (Element && Element->CanExecuteOnlyOnMainThread(Context)) || (Context && Context->CanExecuteOnlyOnMainThread());
+}
+
 #if WITH_EDITOR
 void FPCGGraphTask::LogVisual(ELogVerbosity::Type InVerbosity, const FText& InMessage) const
 {
@@ -328,6 +333,11 @@ void FPCGGraphActiveTask::StopExecuting()
 
 		ExecutingReferences.Empty();
 	}
+}
+
+bool FPCGGraphActiveTask::CanExecuteOnlyOnMainThread() const
+{
+	return (Element && Element->CanExecuteOnlyOnMainThread(Context.Get())) || (Context && Context->CanExecuteOnlyOnMainThread());
 }
 
 FPCGGraphExecutor::FPCGGraphExecutor()
@@ -1062,7 +1072,7 @@ void FPCGGraphExecutor::PostTaskExecute(TSharedPtr<FPCGGraphActiveTask> ActiveTa
 				PCGGraphExecutor::AddToActiveTaskArrayNoLock(SleepingTasks, ActiveTaskPtr);
 				PCGGraphExecutor::RemoveAtFromActiveTaskArrayNoLock(ActiveTaskArrayToRemove, TaskRemoveIndex);
 			}
-			else if (ActiveTask.bIsGameThreadOnly != ActiveTask.Element->CanExecuteOnlyOnMainThread(ActiveTask.Context.Get()))
+			else if (ActiveTask.bIsGameThreadOnly != ActiveTask.CanExecuteOnlyOnMainThread())
 			{
 				ActiveTask.bIsGameThreadOnly = !ActiveTask.bIsGameThreadOnly;
 				TArray<TSharedPtr<FPCGGraphActiveTask>>& ActiveTaskArrayToAdd = ActiveTask.bIsGameThreadOnly ? ActiveTasksGameThreadOnly : ActiveTasks;
@@ -1182,7 +1192,7 @@ void FPCGGraphExecutor::OnTaskInputsReady(FPCGGraphTask& Task, TArray<FCachedRes
 		FCachedResult* CachedResult = nullptr;
 
 		// Query Cache if we can here, if not the Task will be pushed to ReadyTasks and PrepareForExecute will be called on MainThread if needed
-		if (bIsInGameThread || !Task.Element->CanExecuteOnlyOnMainThread(nullptr))
+		if (bIsInGameThread || !Task.CanExecuteOnlyOnMainThread())
 		{
 			PrepareForExecute(Task, CachedResult, /*bLiveTasksLockAlreadyLocked=*/false);
 		}
@@ -1440,7 +1450,7 @@ bool FPCGGraphExecutor::ExecuteScheduling(double EndTime, TSharedPtr<FPCGGraphAc
 						continue; // still sleeping
 					}
 
-					const bool bIsGameThreadOnly = SleepingTask->Element->CanExecuteOnlyOnMainThread(SleepingTask->Context.Get());
+					const bool bIsGameThreadOnly = SleepingTask->CanExecuteOnlyOnMainThread();
 					TArray<TSharedPtr<FPCGGraphActiveTask>>& ActiveTaskArray = bIsGameThreadOnly ? ActiveTasksGameThreadOnly : ActiveTasks;
 					SleepingTask->bIsGameThreadOnly = bIsGameThreadOnly;
 
@@ -1457,7 +1467,7 @@ bool FPCGGraphExecutor::ExecuteScheduling(double EndTime, TSharedPtr<FPCGGraphAc
 
 				if (!Task.bHasDonePrepareForExecute)
 				{
-					if (!bIsInGameThread && Task.Element->CanExecuteOnlyOnMainThread(nullptr))
+					if (!bIsInGameThread && Task.CanExecuteOnlyOnMainThread())
 					{
 						continue;
 					}
@@ -1482,7 +1492,7 @@ bool FPCGGraphExecutor::ExecuteScheduling(double EndTime, TSharedPtr<FPCGGraphAc
 				}
 
 				// Validate that we can start this task now
-				const bool bIsGameThreadOnly = Task.Element->CanExecuteOnlyOnMainThread(Task.Context);
+				const bool bIsGameThreadOnly = Task.CanExecuteOnlyOnMainThread();
 				TArray<TSharedPtr<FPCGGraphActiveTask>>& ActiveTaskArray = bIsGameThreadOnly ? ActiveTasksGameThreadOnly : ActiveTasks;
 
 				FPCGGraphActiveTask& ActiveTask = *ActiveTaskArray.Emplace_GetRef(MakeShared<FPCGGraphActiveTask>());
@@ -1567,7 +1577,7 @@ bool FPCGGraphExecutor::ExecuteScheduling(double EndTime, TSharedPtr<FPCGGraphAc
 					}
 
 					// Main thread only
-					if (ActiveTask->Element->CanExecuteOnlyOnMainThread(ActiveTask->Context.Get()))
+					if (ActiveTask->CanExecuteOnlyOnMainThread())
 					{
 						continue;
 					}
@@ -1725,7 +1735,7 @@ void FPCGGraphExecutor::ExecuteV1()
 		bHasAlreadyCheckedSleepingTasks = ReadyTasks.Num() == 0 && ActiveTasks.Num() == 0 && SleepingTasks.Num() > 0;
 
 		// First: if we have free resources, move ready tasks to the active tasks
-		bool bMainThreadAvailable = (ActiveTasks.Num() == 0 || !ActiveTasks[0]->Element->CanExecuteOnlyOnMainThread(ActiveTasks[0]->Context.Get()));
+		bool bMainThreadAvailable = (ActiveTasks.Num() == 0 || !ActiveTasks[0]->CanExecuteOnlyOnMainThread());
 		int32 NumAvailableThreads = FMath::Max(0, MaxNumThreads - CurrentlyUsedThreads);
 
 		const bool bMainThreadWasAvailable = bMainThreadAvailable;
@@ -1773,7 +1783,7 @@ void FPCGGraphExecutor::ExecuteV1()
 				}
 
 				// Validate that we can start this task now
-				const bool bIsMainThreadTask = SleepingTask->Element->CanExecuteOnlyOnMainThread(SleepingTask->Context.Get());
+				const bool bIsMainThreadTask = SleepingTask->CanExecuteOnlyOnMainThread();
 
 				if (!bIsMainThreadTask || bMainThreadAvailable)
 				{
@@ -1804,7 +1814,7 @@ void FPCGGraphExecutor::ExecuteV1()
 				check(Task.bHasDoneSetup && Task.bHasDonePrepareForExecute);
 
 				// Validate that we can start this task now
-				const bool bIsMainThreadTask = Task.Element->CanExecuteOnlyOnMainThread(Task.Context);
+				const bool bIsMainThreadTask = Task.CanExecuteOnlyOnMainThread();
 
 				if (!bIsMainThreadTask || bMainThreadAvailable)
 				{
@@ -1870,7 +1880,7 @@ void FPCGGraphExecutor::ExecuteV1()
 				if (!ActiveTask.bIsBypassed)
 	#endif
 				{
-					check(!ActiveTask.Element->CanExecuteOnlyOnMainThread(ActiveTask.Context.Get()));
+					check(!ActiveTask.CanExecuteOnlyOnMainThread());
 					ActiveTask.Context->AsyncState.EndTime = EndTime;
 					ActiveTask.Context->AsyncState.bIsRunningOnMainThread = false;
 					ActiveTask.StartExecuting();
@@ -1949,7 +1959,7 @@ void FPCGGraphExecutor::ExecuteV1()
 #endif
 
 				// Any task that asks to be paused or now needs to run on the main thread but doesn't have that slot currently will be moved to the sleeping queue
-				const bool bTaskShouldBePutAside = (ActiveTask->Context->bIsPaused || (ActiveTaskIndex > 0 && ActiveTask->Element->CanExecuteOnlyOnMainThread(ActiveTask->Context.Get())));
+				const bool bTaskShouldBePutAside = (ActiveTask->Context->bIsPaused || (ActiveTaskIndex > 0 && ActiveTask->CanExecuteOnlyOnMainThread()));
 				if (bTaskShouldBePutAside)
 				{
 					if (ActiveTask->Context->AsyncState.NumAvailableTasks > 0)
