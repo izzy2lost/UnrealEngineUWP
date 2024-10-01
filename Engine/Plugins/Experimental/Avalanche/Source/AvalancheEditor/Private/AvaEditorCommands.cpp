@@ -23,7 +23,6 @@ void FAvaEditorCommands::RegisterCommands()
 	RegisterPivotCommands();
 	RegisterToolsCommands();
 	RegisterAdvancedRenamerCommands();
-	RegisterAnimatorCommands();
 	RegisterClonerEffectorCommands();
 }
 
@@ -413,21 +412,6 @@ void FAvaEditorCommands::RegisterAdvancedRenamerCommands()
 		, "Opens the Advanced Renamer Panel to rename all actors sharing a class with any selected actor."
 		, EUserInterfaceActionType::Button
 		, FInputChord())
-}
-
-void FAvaEditorCommands::RegisterAnimatorCommands()
-{
-	UI_COMMAND(DisableAnimators
-		, "Disable Animators"
-		, "Disable animators of the selected actors in the level"
-		, EUserInterfaceActionType::Button
-		, FInputChord(EKeys::M, EModifierKey::Control))
-
-	UI_COMMAND(EnableAnimators
-		, "Enable Animators"
-		, "Enable animators of the selected actors in the level"
-		, EUserInterfaceActionType::Button
-		, FInputChord(EKeys::U, EModifierKey::Control))
 }
 
 void FAvaEditorCommands::RegisterClonerEffectorCommands()

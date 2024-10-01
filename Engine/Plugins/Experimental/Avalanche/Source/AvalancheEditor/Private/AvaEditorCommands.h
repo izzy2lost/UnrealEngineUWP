@@ -15,7 +15,6 @@ public:
 	void RegisterPivotCommands();
 	void RegisterToolsCommands();
 	void RegisterAdvancedRenamerCommands();
-	void RegisterAnimatorCommands();
 	void RegisterClonerEffectorCommands();
 
 	/** Switches between Camera "2D" viewport and 3D viewport. */
@@ -95,10 +94,6 @@ public:
 	// Advanced Renamer
 	TSharedPtr<FUICommandInfo> OpenAdvancedRenamerTool_SelectedActors;
 	TSharedPtr<FUICommandInfo> OpenAdvancedRenamerTool_SharedClassActors;
-
-	// Animator
-	TSharedPtr<FUICommandInfo> DisableAnimators;
-	TSharedPtr<FUICommandInfo> EnableAnimators;
 
 	// ClonerEffector
 	TSharedPtr<FUICommandInfo> DisableCloners;

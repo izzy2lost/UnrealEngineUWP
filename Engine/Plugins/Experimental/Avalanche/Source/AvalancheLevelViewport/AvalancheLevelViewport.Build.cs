@@ -43,6 +43,7 @@ public class AvalancheLevelViewport : ModuleRules
 				"InputCore",
 				"LevelEditor",
 				"Projects",
+				"PropertyAnimatorCore",
 				"PropertyEditor",
 				"ToolMenus",
 				"TypedElementRuntime"

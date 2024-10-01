@@ -39,6 +39,7 @@ void FAvaLevelViewportCommands::RegisterCommands()
 	RegisterVirtualSizeCommands();
 	RegisterGuideCommands();
 	RegisterTransformCommands();
+	RegisterAnimatorCommands();
 }
 
 void FAvaLevelViewportCommands::RegisterViewportCommands()
@@ -349,6 +350,21 @@ void FAvaLevelViewportCommands::RegisterTransformCommands()
 		, "Resets the currently selected object's transform to default."
 		, EUserInterfaceActionType::ToggleButton
 		, FInputChord(EKeys::T, EModifierKey::Alt))
+}
+
+void FAvaLevelViewportCommands::RegisterAnimatorCommands()
+{
+	UI_COMMAND(DisableAnimators
+	, "Disable Animators"
+	, "Disable animators of the selected actors in the level"
+	, EUserInterfaceActionType::Button
+	, FInputChord(EKeys::M, EModifierKey::Control))
+
+	UI_COMMAND(EnableAnimators
+	, "Enable Animators"
+	, "Enable animators of the selected actors in the level"
+	, EUserInterfaceActionType::Button
+	, FInputChord(EKeys::U, EModifierKey::Control))
 }
 
 #undef LOCTEXT_NAMESPACE

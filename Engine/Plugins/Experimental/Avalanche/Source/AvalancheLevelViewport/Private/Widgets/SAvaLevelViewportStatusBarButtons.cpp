@@ -18,6 +18,8 @@
 #include "SAvaViewportInfo.h"
 #include "Selection.h"
 #include "Styling/AppStyle.h"
+#include "Styling/SlateIconFinder.h"
+#include "Subsystems/PropertyAnimatorCoreSubsystem.h"
 #include "ThumbnailRendering/ThumbnailManager.h"
 #include "ToolMenu.h"
 #include "ToolMenus.h"
@@ -285,6 +287,36 @@ void SAvaLevelViewportStatusBarButtons::PopulateActorButtons(TSharedPtr<SHorizon
 		.Padding(ViewportStatusBarButton::Padding)
 		[
 			AlignmentButton
+		];
+
+	const FSlateBrush* AnimatorBrush = FSlateIconFinder::FindIconBrushForClass(UPropertyAnimatorCoreBase::StaticClass());
+
+	InContainer->AddSlot()
+		.AutoWidth()
+		.Padding(ViewportStatusBarButton::Padding)
+		[
+			ViewportStatusBarButton::MakeButton(
+				this,
+				CommandsRef.DisableAnimators,
+				AnimatorBrush,
+				&SAvaLevelViewportStatusBarButtons::DisableAnimators,
+				&SAvaLevelViewportStatusBarButtons::GetAnimatorButtonEnabled,
+				&SAvaLevelViewportStatusBarButtons::GetAnimatorButtonMuteColor
+			)
+		];
+
+	InContainer->AddSlot()
+		.AutoWidth()
+		.Padding(ViewportStatusBarButton::Padding)
+		[
+			ViewportStatusBarButton::MakeButton(
+				this,
+				CommandsRef.EnableAnimators,
+				AnimatorBrush,
+				&SAvaLevelViewportStatusBarButtons::EnableAnimators,
+				&SAvaLevelViewportStatusBarButtons::GetAnimatorButtonEnabled,
+				&SAvaLevelViewportStatusBarButtons::GetAnimatorButtonUnmuteColor
+			)
 		];
 }
 
@@ -816,6 +848,113 @@ TSharedRef<SWidget> SAvaLevelViewportStatusBarButtons::GetActorColorMenuContent(
 	}
 
 	return SAvaLevelViewportActorColorMenu::CreateMenu(LevelEditor.ToSharedRef());
+}
+
+FSlateColor SAvaLevelViewportStatusBarButtons::GetAnimatorButtonMuteColor() const
+{
+	return UE::AvaLevelViewport::Private::ViewportStatusBarButton::EnabledColor;
+}
+
+FSlateColor SAvaLevelViewportStatusBarButtons::GetAnimatorButtonUnmuteColor() const
+{
+	return UE::AvaLevelViewport::Private::ViewportStatusBarButton::ActiveColor;
+}
+
+bool SAvaLevelViewportStatusBarButtons::GetAnimatorButtonEnabled() const
+{
+	return true;
+}
+
+FReply SAvaLevelViewportStatusBarButtons::EnableAnimators()
+{
+	const TSharedPtr<SAvaLevelViewportFrame> ViewportFrame = ViewportFrameWeak.Pin();
+
+	if (!ViewportFrame.IsValid())
+	{
+		return FReply::Handled();
+	}
+
+	const TSharedPtr<FAvaLevelViewportClient> ViewportClient = ViewportFrame->GetViewportClient();
+
+	if (!ViewportClient.IsValid())
+	{
+		return FReply::Handled();
+	}
+
+	const FEditorModeTools* ModeTools = ViewportClient->GetModeTools();
+
+	if (!ModeTools)
+	{
+		return FReply::Handled();
+	}
+
+	UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get();
+	const UWorld* World = ModeTools->GetWorld();
+	const UTypedElementSelectionSet* SelectionSet = ModeTools->GetEditorSelectionSet();
+
+	if (!World || !SelectionSet || !AnimatorSubsystem)
+	{
+		return FReply::Handled();
+	}
+
+	const TSet<AActor*> SelectedActors(SelectionSet->GetSelectedObjects<AActor>());
+
+	if (SelectedActors.IsEmpty())
+	{
+		AnimatorSubsystem->SetLevelAnimatorsEnabled(World, /** Enabled */true, /** Transact */true);
+	}
+	else
+	{
+		AnimatorSubsystem->SetActorAnimatorsEnabled(SelectedActors, /** Enabled */true, /** Transact */true);
+	}
+
+	return FReply::Handled();
+}
+
+FReply SAvaLevelViewportStatusBarButtons::DisableAnimators()
+{
+	const TSharedPtr<SAvaLevelViewportFrame> ViewportFrame = ViewportFrameWeak.Pin();
+
+	if (!ViewportFrame.IsValid())
+	{
+		return FReply::Handled();
+	}
+
+	const TSharedPtr<FAvaLevelViewportClient> ViewportClient = ViewportFrame->GetViewportClient();
+
+	if (!ViewportClient.IsValid())
+	{
+		return FReply::Handled();
+	}
+
+	const FEditorModeTools* ModeTools = ViewportClient->GetModeTools();
+
+	if (!ModeTools)
+	{
+		return FReply::Handled();
+	}
+
+	UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get();
+	const UWorld* World = ModeTools->GetWorld();
+	const UTypedElementSelectionSet* SelectionSet = ModeTools->GetEditorSelectionSet();
+
+	if (!World || !SelectionSet || !AnimatorSubsystem)
+	{
+		return FReply::Handled();
+	}
+
+	const TSet<AActor*> SelectedActors(SelectionSet->GetSelectedObjects<AActor>());
+
+	if (SelectedActors.IsEmpty())
+	{
+		AnimatorSubsystem->SetLevelAnimatorsEnabled(World, /** Enabled */false, /** Transact */true);
+	}
+	else
+	{
+		AnimatorSubsystem->SetActorAnimatorsEnabled(SelectedActors, /** Enabled */false, /** Transact */true);
+	}
+
+	return FReply::Handled();
 }
 
 FSlateColor SAvaLevelViewportStatusBarButtons::GetToggleSnapColor() const

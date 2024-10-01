@@ -79,6 +79,10 @@ public:
 	TSharedPtr<FUICommandInfo> ResetScale;
 	TSharedPtr<FUICommandInfo> ResetTransform;
 
+	// Animator
+	TSharedPtr<FUICommandInfo> DisableAnimators;
+	TSharedPtr<FUICommandInfo> EnableAnimators;
+
 private:
 	// Make this unavailable to the public
 	using TCommands<FAvaLevelViewportCommands>::Get;
@@ -90,4 +94,5 @@ private:
 	void RegisterVirtualSizeCommands();
 	void RegisterGuideCommands();
 	void RegisterTransformCommands();
+	void RegisterAnimatorCommands();
 };

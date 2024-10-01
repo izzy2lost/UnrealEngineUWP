@@ -45,8 +45,13 @@ protected:
 	FSlateColor GetActorAlignmentColor() const;
 	bool GetActorAlignmentEnabled() const;
 	TSharedRef<SWidget> GetActorAlignmentMenuContent() const;
-
 	TSharedRef<SWidget> GetActorColorMenuContent() const;
+
+	FSlateColor GetAnimatorButtonMuteColor() const;
+	FSlateColor GetAnimatorButtonUnmuteColor() const;
+	bool GetAnimatorButtonEnabled() const;
+	FReply EnableAnimators();
+	FReply DisableAnimators();
 
 	// Post Process
 	FSlateColor GetPostProcessColor() const;
