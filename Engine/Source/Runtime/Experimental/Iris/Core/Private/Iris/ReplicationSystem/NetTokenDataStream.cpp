@@ -8,7 +8,6 @@
 #include "Iris/Serialization/NetBitStreamUtil.h"
 #include "Iris/Serialization/NetExportContext.h"
 #include "Iris/ReplicationSystem/NetExports.h"
-#include "Iris/ReplicationSystem/NetTokenStoreState.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
 #include "Iris/Core/IrisLog.h"
@@ -69,12 +68,10 @@ void UNetTokenDataStream::Init(const FInitParameters& Params)
 	// $IRIS $TODO: if we want to make this into a real feature we need to expose some sort of api to mark tokens for pre-export
 	if (Private::bIrisPreExportExistingNetTokensOnConnect)
 	{
-		// Grab all existing tokens and add them for pre-export
-		const uint32 LocalTokenCount = NetTokenStore->GetLocalNetTokenStoreState()->TokenInfos.Num();	
-		NetTokensPendingExport.Reserve(LocalTokenCount - 1);
-		for (uint32 Index = 1; Index < LocalTokenCount; ++Index)
+		TArray<FNetToken> Tokens(NetTokenStore->GetAllNetTokens());
+		for (const FNetToken& Token : Tokens)
 		{
-			NetTokensPendingExport.Add(FNetToken::MakeNetToken(Index, NetTokenStore->IsAuthority() ? FNetToken::ENetTokenAuthority::Authority : FNetToken::ENetTokenAuthority::None));
+			NetTokensPendingExport.Add(Token);
 		}
 	}
 }
@@ -130,7 +127,7 @@ UDataStream::EWriteResult UNetTokenDataStream::WriteData(UE::Net::FNetSerializat
 			UE_NET_TRACE_NAMED_SCOPE(ExportScope, NetTokenExport, SubStream, SubContext.GetTraceCollector(), ENetTraceVerbosity::Verbose);
 
 			SubStream.WriteBool(true);
-			WriteNetToken(SubContext, Token);
+			NetTokenStore->WriteNetToken(SubContext, Token);
 			NetTokenStore->WriteTokenData(SubContext, Token);
 
 			if (SubStream.IsOverflown())
@@ -200,11 +197,8 @@ void UNetTokenDataStream::ReadData(UE::Net::FNetSerializationContext& Context)
 			break;
 		}
 
-		FNetToken Token = ReadNetToken(Context);
-		if (Token.IsValid())
-		{
-			NetTokenStore->ReadTokenData(Context, Token, *RemoteNetTokenStoreState);
-		}
+		FNetToken Token = NetTokenStore->ReadNetToken(Context);
+		NetTokenStore->ReadTokenData(Context, Token, *RemoteNetTokenStoreState);
 	}
 }
 

@@ -1312,7 +1312,8 @@ namespace UE::GameplayTags::GameplayTagDynamicSerialization
 			TagToken = TagTokenDataStore->GetOrCreateToken(GameplayTag);
 
 			// Write token
-			WriteNetToken(Ar, TagToken);
+			// Important: As we write it directly through the TagTokenStore we must read it in the same way as we skip serializing the type.
+			TagTokenDataStore->WriteNetToken(Ar, TagToken);
 
 			// Register replay export if needed
 			if (TagToken.IsValid())
@@ -1350,7 +1351,8 @@ namespace UE::GameplayTags::GameplayTagDynamicSerialization
 		else if (Ar.IsLoading())
 		{
 			// Read TagNetToken
-			TagToken = ReadNetToken(Ar);
+			TagTokenDataStore->ReadNetToken(Ar);
+
 			if (Ar.IsError())
 			{
 				return false;
@@ -1403,59 +1405,55 @@ namespace UE::GameplayTags::GameplayTagDynamicSerialization
 		{
 			UE::Net::FNetTokenExportContext* ExportContext = FNetTokenExportContext::GetNetTokenExportContext(Ar);
 			UE::Net::FNetTokenStore* NetTokenStore = ExportContext ? ExportContext->GetNetTokenStore() : nullptr;
-			if (ensure(NetTokenStore))
+			FGameplayTagTokenStore* TagTokenStore = NetTokenStore ? NetTokenStore->GetDataStore<UE::Net::FGameplayTagTokenStore>() : nullptr;
+			if (ensure(TagTokenStore))
 			{
 				FNetToken TagToken;
-
 				if (GameplayTag.IsValid())
 				{
-					if (FGameplayTagTokenStore* TagTokenStore = NetTokenStore->GetDataStore<UE::Net::FGameplayTagTokenStore>())
-					{
-						TagToken = TagTokenStore->GetOrCreateToken(GameplayTag);
-					}
-					else
-					{
-						UE_LOG(LogGameplayTags, Error, TEXT("FGameplayTag::NetSerialize::Could not find required FGameplayTagTokenStore"));
-						ensure(false);
-					}
+					TagToken = TagTokenStore->GetOrCreateToken(GameplayTag);
 				}
 
 				UE_NET_TRACE_DYNAMIC_NAME_SCOPE(*TagToken.ToString(), static_cast<FNetBitWriter&>(Ar), GetTraceCollector(static_cast<FNetBitWriter&>(Ar)), ENetTraceVerbosity::VeryVerbose);
 
-				// Write token
-				WriteNetToken(Ar, TagToken);
+				// Write NetToken, 
+				// Important: As we write it directly thorugh the TagTokenStore we also need to read it in the samw way as we skip serializing the type.
+				TagTokenStore->WriteNetToken(Ar, TagToken);
 
-				// Should we append export from WriteNetToken method?
-				if (TagToken.IsValid())
-				{
-					ExportContext->AddNetTokenPendingExport(TagToken);
-				}
+				// Add export
+				ExportContext->AddNetTokenPendingExport(TagToken);
+
 				return true;
+			}
+			else
+			{
+				UE_LOG(LogGameplayTags, Error, TEXT("FGameplayTag::NetSerialize::Could not find required FGameplayTagTokenStore"));
+				ensure(false);
 			}
 		}
 		else if (Ar.IsLoading())
 		{
 			// When reading data we always have a PackageMap so we can get the necessary resolve context from here.
 			const FNetTokenResolveContext* NetTokenResolveContext = Map ? Map->GetNetTokenResolveContext() : nullptr;
-			if (ensure(NetTokenResolveContext && NetTokenResolveContext->NetTokenStore))
+			FGameplayTagTokenStore* TagTokenStore = NetTokenResolveContext ? NetTokenResolveContext->NetTokenStore->GetDataStore<UE::Net::FGameplayTagTokenStore>() : nullptr;
+			if (ensure(TagTokenStore))
 			{
-				FNetToken TagToken = ReadNetToken(Ar);
+				// Read the TagToken using the TagTokenStore
+				FNetToken TagToken = TagTokenStore->ReadNetToken(Ar);
 				if (Ar.IsError())
 				{
 					return false;
 				}
-				if (FGameplayTagTokenStore* TagTokenStore = NetTokenResolveContext->NetTokenStore->GetDataStore<UE::Net::FGameplayTagTokenStore>())
-				{
-					GameplayTag = TagTokenStore->ResolveToken(TagToken, NetTokenResolveContext->RemoteNetTokenStoreState);
-				}
-				else
-				{
-					UE_LOG(LogGameplayTags, Error, TEXT("FGameplayTag::NetSerialize::Could not find required FGameplayTagTokenStore"));	
-					ensure(false);
-					Ar.SetError();
-					return false;
-				}
+
+				// Resolve the TagToken
+				GameplayTag = TagTokenStore->ResolveToken(TagToken, NetTokenResolveContext->RemoteNetTokenStoreState);
 				return true;
+			}
+			else
+			{
+				UE_LOG(LogGameplayTags, Error, TEXT("FGameplayTag::NetSerialize::Could not find required FGameplayTagTokenStore"));	
+				ensure(false);
+				Ar.SetError();
 			}
 		}
 		return false;

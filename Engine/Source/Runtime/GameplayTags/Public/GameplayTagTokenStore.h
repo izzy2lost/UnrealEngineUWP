@@ -25,9 +25,13 @@ public:
 	// Resolve NetToken, to resolve remote tokens RemoteTokenStoreState must be valid
 	GAMEPLAYTAGS_API FGameplayTag ResolveToken(FNetToken Token, const FNetTokenStoreState* RemoteTokenStoreState = nullptr) const;
 
-	static FName GetTokenStoreName() { return NameTokenStoreName; }
+	static FName GetTokenStoreName()
+	{
+		return GameplayTokenStoreName;
+	}
+
 private:
-	inline static FName NameTokenStoreName = TEXT("GameplayTagTokenStore");
+	inline static FName GameplayTokenStoreName = TEXT("GameplayTagTokenStore");
 };
 
 }

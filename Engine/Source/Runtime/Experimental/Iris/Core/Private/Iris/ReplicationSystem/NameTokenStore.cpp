@@ -28,15 +28,14 @@ FNetToken FNameTokenStore::GetOrCreateToken(FName Name)
 	FNetTokenStoreKey Key = GetOrCreateTokenStoreKey(Name);
 	if (Key.IsValid())
 	{
-		const uint32 NameIndex = Key.GetKeyValue();
-		if (StoredTokens[NameIndex].IsValid())
+		const FNetToken ExistingToken = GetNetTokenFromKey(Key);
+		if (ExistingToken.IsValid())
 		{
-			return StoredTokens[NameIndex];
+			return ExistingToken;
 		}
 		else
 		{
-			const FNetToken NewToken = CreateToken(TokenStore.IsAuthority() ? FNetToken::ENetTokenAuthority::Authority : FNetToken::ENetTokenAuthority::None, Key, *TokenStore.GetLocalNetTokenStoreState());
-			StoredTokens[NameIndex] = NewToken;
+			const FNetToken NewToken = CreateAndStoreTokenForKey(Key);
 
 			UE_LOG_FNAMETOKEN(TEXT("FNameTokenStore::GetOrCreateToken - Created %s for %s"), *NewToken.ToString(), *Name.ToString());
 
@@ -47,22 +46,18 @@ FNetToken FNameTokenStore::GetOrCreateToken(FName Name)
 	return FNetToken();
 }
 
-FNetTokenStoreKey FNameTokenStore::GetOrCreateTokenStoreKey(FName Name)
+FNetTokenDataStore::FNetTokenStoreKey FNameTokenStore::GetOrCreateTokenStoreKey(FName Name)
 {
-	// Lock if we have to.. make that a policy
-	//FScopeLock Lock(&CriticalSection);
 	if (const FNetTokenStoreKey* ExistingKey = FNameToKey.Find(Name))
 	{
 		return *ExistingKey;
 	}
-	else if (FNameToKey.Num() < FNetToken::MaxNetTokenCount)
-	{
-		// Store bookkeeping data
-		const FNetTokenStoreKey NewKey = MakeNetTokenStoreKey(GetTypeId(), StoredFNames.Num());
 
-		FNameToKey.Add(Name, NewKey);
+	const FNetTokenStoreKey NewKey = GetNextNetTokenStoreKey();
+	if (NewKey.IsValid())
+	{
 		StoredFNames.Add(Name);
-		StoredTokens.Add(FNetToken());
+		FNameToKey.Add(Name, NewKey);
 
 		return NewKey;
 	}
@@ -71,11 +66,11 @@ FNetTokenStoreKey FNameTokenStore::GetOrCreateTokenStoreKey(FName Name)
 }
 
 FNameTokenStore::FNameTokenStore(FNetTokenStore& InTokenStore)
-: TokenStore(InTokenStore)
+: FNetTokenDataStore(InTokenStore)
 {
-	// Reserve 0
-	StoredFNames.Add(FName());
-	StoredTokens.Add(FNetToken());
+	// As we use an array for our storage we must match the size of the StoredTokens array.
+	// We assume that Index 0 is invalid.
+	StoredFNames.SetNum(StoredTokens.Num());
 }
 
 FName FNameTokenStore::ResolveToken(FNetToken Token, const FNetTokenStoreState* NetTokenStoreState) const
@@ -84,9 +79,13 @@ FName FNameTokenStore::ResolveToken(FNetToken Token, const FNetTokenStoreState* 
 	if (Token.IsValid() && ensureMsgf(TokenStoreState, TEXT("FNameTokenStore::ResolveToken Needs valid remote NetTokenStoreState to resolve remote %s"), *Token.ToString()))
 	{
 		const FNetTokenStoreKey StoreKey = GetTokenKey(Token, *TokenStoreState);
-		if (StoreKey.IsValid() && StoreKey.GetKeyValue() < (uint32)StoredFNames.Num())
+		if (StoreKey.IsValid() && StoreKey.GetKeyIndex() < (uint32)StoredFNames.Num())
 		{
-			return StoredFNames[StoreKey.GetKeyValue()];
+			return StoredFNames[StoreKey.GetKeyIndex()];
+		}
+		else
+		{
+			UE_LOG(LogNetToken, Error, TEXT("FNameTokenStore::ResolveToken failed to resolve %s in NetTokenDataStore: %s"), *Token.ToString(), *GetTokenStoreName().ToString());
 		}
 	}
 
@@ -95,21 +94,21 @@ FName FNameTokenStore::ResolveToken(FNetToken Token, const FNetTokenStoreState* 
 
 void FNameTokenStore::WriteTokenData(FNetSerializationContext& Context, FNetTokenStoreKey TokenStoreKey) const
 {
-	UE_NET_TRACE_DYNAMIC_NAME_SCOPE(StoredFNames[TokenStoreKey.GetKeyValue()], *Context.GetBitStreamWriter(), Context.GetTraceCollector(), ENetTraceVerbosity::VeryVerbose);
-	UE_LOG_FNAMETOKEN(TEXT("FNameTokenStore::WriteTokenData %s %s"), *(StoredTokens[TokenStoreKey.GetKeyValue()].ToString()), *(StoredFNames[TokenStoreKey.GetKeyValue()].ToString()));
+	UE_NET_TRACE_DYNAMIC_NAME_SCOPE(StoredFNames[TokenStoreKey.GetKeyIndex()], *Context.GetBitStreamWriter(), Context.GetTraceCollector(), ENetTraceVerbosity::VeryVerbose);
+	UE_LOG_FNAMETOKEN(TEXT("FNameTokenStore::WriteTokenData %s %s"), *(StoredTokens[TokenStoreKey.GetKeyIndex()].ToString()), *(StoredFNames[TokenStoreKey.GetKeyIndex()].ToString()));
 	// $TODO: $IRIS: We can be a bit smarter here and utilize the string-number split of FNames to export less data.. JIRA: UE-221753
-	WriteString(Context.GetBitStreamWriter(), StoredFNames[TokenStoreKey.GetKeyValue()].ToString());
+	WriteString(Context.GetBitStreamWriter(), StoredFNames[TokenStoreKey.GetKeyIndex()].ToString());
 }
 
 void FNameTokenStore::WriteTokenData(FArchive& Ar, FNetTokenStoreKey TokenStoreKey) const
 {
-	UE_NET_TRACE_DYNAMIC_NAME_SCOPE(StoredFNames[TokenStoreKey.GetKeyValue()], static_cast<FNetBitWriter&>(Ar), GetTraceCollector(static_cast<FNetBitWriter&>(Ar)), ENetTraceVerbosity::VeryVerbose);
-	UE_LOG_FNAMETOKEN(TEXT("FNameTokenStore::WriteTokenData %s %s"), *(StoredTokens[TokenStoreKey.GetKeyValue()].ToString()), *(StoredFNames[TokenStoreKey.GetKeyValue()].ToString()));
-	FName Name = StoredFNames[TokenStoreKey.GetKeyValue()];
+	UE_NET_TRACE_DYNAMIC_NAME_SCOPE(StoredFNames[TokenStoreKey.GetKeyIndex()], static_cast<FNetBitWriter&>(Ar), GetTraceCollector(static_cast<FNetBitWriter&>(Ar)), ENetTraceVerbosity::VeryVerbose);
+	UE_LOG_FNAMETOKEN(TEXT("FNameTokenStore::WriteTokenData %s %s"), *(StoredTokens[TokenStoreKey.GetKeyIndex()].ToString()), *(StoredFNames[TokenStoreKey.GetKeyIndex()].ToString()));
+	FName Name = StoredFNames[TokenStoreKey.GetKeyIndex()];
 	UPackageMap::StaticSerializeName(Ar, Name);
 }
 
-FNetTokenStoreKey FNameTokenStore::ReadTokenData(FNetSerializationContext& Context, const FNetToken& NetToken)
+FNetTokenDataStore::FNetTokenStoreKey FNameTokenStore::ReadTokenData(FNetSerializationContext& Context, const FNetToken& NetToken)
 {
 	UE_NET_TRACE_NAMED_DYNAMIC_NAME_SCOPE(TokenScope, FName(), *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::VeryVerbose);
 
@@ -124,18 +123,7 @@ FNetTokenStoreKey FNameTokenStore::ReadTokenData(FNetSerializationContext& Conte
 		FName Name(Temp);
 		UE_NET_TRACE_SET_SCOPE_NAME(TokenScope, Name);
 
-		FNetTokenStoreKey Key = GetOrCreateTokenStoreKey(Name);
-
-		// If this is an authtoken and we are not the authority, update the stored key
-		if (Key.IsValid() && NetToken.IsAssignedByAuthority() && !TokenStore.IsAuthority())
-		{
-			UE_LOG_FNAMETOKEN(TEXT("NameTokenStore::ReadTokenData - Replaced local key %s with %s for name %s"), *StoredTokens[Key.GetKeyValue()].ToString(), *NetToken.ToString(), *Temp);	
-
-			// This way the next time we lookup this key during assignment use the imported authoritative key which we do not have to export
-			StoredTokens[Key.GetKeyValue()] = NetToken;
-		}
-
-		return Key;
+		return GetOrCreateTokenStoreKey(Name);
 	}
 	else
 	{
@@ -143,25 +131,14 @@ FNetTokenStoreKey FNameTokenStore::ReadTokenData(FNetSerializationContext& Conte
 	}
 }
 
-FNetTokenStoreKey FNameTokenStore::ReadTokenData(FArchive& Ar, const FNetToken& NetToken)
+FNetTokenDataStore::FNetTokenStoreKey FNameTokenStore::ReadTokenData(FArchive& Ar, const FNetToken& NetToken)
 {
 	FName Name;
 	UPackageMap::StaticSerializeName(Ar, Name);
 
 	if (!Ar.IsError())
 	{
-		FNetTokenStoreKey Key = GetOrCreateTokenStoreKey(Name);
-
-		// If this is an authtoken and we are not the authority, update the stored key
-		if (Key.IsValid() && NetToken.IsAssignedByAuthority() && !TokenStore.IsAuthority())
-		{
-			UE_LOG_FNAMETOKEN(TEXT("NameTokenStore::ReadTokenData - Replaced local key %s with %s for name %s"), *StoredTokens[Key.GetKeyValue()].ToString(), *NetToken.ToString(), *Name.ToString());	
-
-			// This way the next time we lookup this key during assignment use the imported authoritative key which we do not have to export
-			StoredTokens[Key.GetKeyValue()] = NetToken;
-		}
-
-		return Key;
+		return GetOrCreateTokenStoreKey(Name);
 	}
 	else
 	{

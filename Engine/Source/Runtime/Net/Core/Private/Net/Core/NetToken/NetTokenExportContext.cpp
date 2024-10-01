@@ -61,7 +61,7 @@ void FNetTokenExportContext::AppendNetTokensPendingExport(TArrayView<const UE::N
 
 void FNetTokenExportContext::AddNetTokenPendingExport(UE::Net::FNetToken NetToken)
 {
-	if (ensure(NetTokensPendingExport))
+	if (ensure(NetTokensPendingExport) && NetToken.IsValid())
 	{
 		NetTokensPendingExport->Add(NetToken);
 		UE_LOG(LogNetToken, Verbose, TEXT("FNetTokenExportContext::AddNetTokenPendingExport %s"), *NetToken.ToString());

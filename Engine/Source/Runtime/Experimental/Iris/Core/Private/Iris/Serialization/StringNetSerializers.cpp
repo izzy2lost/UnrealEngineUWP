@@ -502,10 +502,10 @@ void FNameAsNetTokenNetSerializer::Serialize(FNetSerializationContext& Context, 
 	if (Writer->WriteBool(Value.bIsString))
 	{
 		// Always write the token
-		WriteNetToken(Context, Value.NetToken);
+		Context.GetNetTokenStore()->WriteNetTokenWithKnownType<FNameTokenStore>(Context, Value.NetToken);
 
 		// Export or add to pending exports for later export
-		FNetTokenStore::AppendExportOrWriteInlinedExportData(Context, Value.NetToken);
+		FNetTokenStore::AppendExport(Context, Value.NetToken);
 	}
 	else
 	{
@@ -531,15 +531,12 @@ void FNameAsNetTokenNetSerializer::Deserialize(FNetSerializationContext& Context
 		Target.bIsString = 1;
 
 		// Always Read the token
-		FNetToken NetToken = ReadNetToken(Context);
+		FNetToken NetToken = Context.GetNetTokenStore()->ReadNetTokenWithKnownType<FNameTokenStore>(Context);
 
 		if (Reader->IsOverflown())
 		{
 			return;
 		}
-
-		// Read inlined exports if there are any
-		FNetTokenStore::ReadInlinedExportData(Context, NetToken);
 
 		Target.NetToken = NetToken;
 	}
