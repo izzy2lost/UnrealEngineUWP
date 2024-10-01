@@ -445,4 +445,8 @@ public:
 	 */
 	DECLARE_EVENT_TwoParams( ICollectionManager, FAddToCollectionCheckinDescriptionEvent, const FName& /*CollectionName*/, TArray<FText>& /* OutAdditionalLines*/);
 	virtual FAddToCollectionCheckinDescriptionEvent& OnAddToCollectionCheckinDescriptionEvent() = 0;
+
+	/** Internal API for processing HandleObjectsDeleted calls in a batch-friendly way */
+	UE_INTERNAL virtual void SuppressObjectDeletionHandling() = 0;
+	UE_INTERNAL virtual void ResumeObjectDeletionHandling() = 0;
 };

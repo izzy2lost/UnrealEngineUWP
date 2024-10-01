@@ -13,6 +13,12 @@ namespace UE::PluginManager::Private
 	{
 	public:
 		virtual void OnPluginUnload(IPlugin& Plugin) = 0;
+
+		/**
+		* API for deferring calls to CollectGarbage (and leak detection).
+		*/
+		virtual void SuppressPluginUnloadGC() = 0;
+		virtual void ResumePluginUnloadGC() = 0;
 	};
 
 	PROJECTS_API void SetCoreUObjectPluginManager(ICoreUObjectPluginManager& Handler);

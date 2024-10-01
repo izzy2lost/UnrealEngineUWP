@@ -269,7 +269,47 @@ namespace UE::CoreUObject::Private
 
 	void PluginHandler::OnPluginUnload(IPlugin& Plugin)
 	{
-		CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS, true);
-		HandlePossibleAssetLeaks(Plugin.GetName());
+		check(IsInGameThread());
+
+		if (SuppressGCRefCount > 0)
+		{
+			DeferredPluginsToGC.Add(Plugin.GetName());
+		}
+		else
+		{
+			CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS, true);
+			HandlePossibleAssetLeaks(Plugin.GetName());
+		}
+	}
+
+	void PluginHandler::SuppressPluginUnloadGC()
+	{
+		check(IsInGameThread());
+
+		++SuppressGCRefCount;
+	}
+
+	void PluginHandler::ResumePluginUnloadGC()
+	{
+		check(IsInGameThread());
+
+		--SuppressGCRefCount;
+
+		ensure(SuppressGCRefCount >= 0);
+
+		if (SuppressGCRefCount == 0)
+		{
+			if (!DeferredPluginsToGC.IsEmpty())
+			{
+				CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS, true);
+
+				for (FString& PluginName : DeferredPluginsToGC)
+				{
+					HandlePossibleAssetLeaks(PluginName);
+				}
+
+				DeferredPluginsToGC.Empty();
+			}
+		}
 	}
 }
