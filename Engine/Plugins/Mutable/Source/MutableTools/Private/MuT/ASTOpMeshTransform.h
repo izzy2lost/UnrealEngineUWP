@@ -31,12 +31,14 @@ struct FProgram;
 		ASTOpMeshTransform(const ASTOpMeshTransform&) = delete;
 		~ASTOpMeshTransform();
 
+		// ASTOp interface
 		OP_TYPE GetOpType() const override { return OP_TYPE::ME_TRANSFORM; }
 		uint64 Hash() const override;
 		void ForEachChild(const TFunctionRef<void(ASTChild&)>) override;
 		bool IsEqual(const ASTOp& otherUntyped) const override;
 		Ptr<ASTOp> Clone(MapChildFuncRef mapChild) const override;
 		void Link(FProgram& program, FLinkerOptions* Options) override;
+		virtual FSourceDataDescriptor GetSourceDataDescriptor(FGetSourceDataDescriptorContext*) const override;
 
 	};
 

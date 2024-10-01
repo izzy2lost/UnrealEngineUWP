@@ -156,7 +156,11 @@ namespace mu
 
 		uint32 GetRomId(int32 Index) const;
 
+		uint32 GetRomSourceId(int32 Index) const;
+
 		uint32 GetRomSize(int32 Index) const;
+
+		uint16 GetRomType(int32 Index) const;
 
 		ERomFlags GetRomFlags(int32 Index) const;
     	

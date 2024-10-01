@@ -1007,6 +1007,13 @@ namespace mu
 
 					TargetOptions.OverrideContext = node.Table->GetPrivate()->Rows[row].Values[colIndex].ErrorContext;
 
+					pCell->SourceDataDescriptor = node.SourceDataDescriptor;
+
+					// Combine the SourceId of the node with the RowId to generate one shared between all resources from this row.
+					// Hash collisions are allowed, since it is used to group resources, not to differentiate them.
+					const uint32 RowId = node.Table->GetPrivate()->Rows[row].Id;
+					pCell->SourceDataDescriptor.SourceId = HashCombine(node.SourceDataDescriptor.SourceId, RowId);
+
 					GenerateMesh(TargetOptions, BranchResults, pCell);
 
 					if (!bFirstRowGenerated)
@@ -1117,6 +1124,7 @@ namespace mu
 
         Ptr<ASTOpConstantResource> ConstantOp = new ASTOpConstantResource();
 		ConstantOp->Type = OP_TYPE::ME_CONSTANT;
+		ConstantOp->SourceDataDescriptor = InNode->SourceDataDescriptor;
 		OutResult.BaseMeshOp = ConstantOp;
 		OutResult.MeshOp = ConstantOp;
 		OutResult.GeneratedLayouts.Empty();
@@ -1357,6 +1365,7 @@ namespace mu
             Ptr<ASTOpConstantResource> cop = new ASTOpConstantResource();
             cop->Type = OP_TYPE::ME_CONSTANT;
             cop->SetValue( FormatMesh, CompilerOptions->OptimisationOptions.DiskCacheContext );
+			cop->SourceDataDescriptor = baseResult.BaseMeshOp->GetSourceDataDescriptor();
             op->Format = cop;
 
             OutResult.MeshOp = op;

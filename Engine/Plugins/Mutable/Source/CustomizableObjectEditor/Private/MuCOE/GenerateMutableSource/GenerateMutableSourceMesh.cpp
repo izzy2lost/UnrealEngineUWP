@@ -2696,7 +2696,8 @@ TArray<TTuple<USkeletalMesh*, TSoftClassPtr<UAnimInstance>>> GetSkeletalMeshesIn
 
 		if (DataTable)
 		{
-			for (const FName& RowName : GetRowsToCompile(*DataTable, *TableNode, GenerationContext))
+			TArray<uint32> RowIds;
+			for (const FName& RowName : GetRowsToCompile(*DataTable, *TableNode, GenerationContext, RowIds))
 			{
 				USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(GenerationContext.LoadObject(TableNode->GetSkeletalMeshAt(SourceMeshPin, DataTable, RowName)));
 				TSoftClassPtr<UAnimInstance> MeshAnimInstance = TableNode->GetAnimInstanceAt(SourceMeshPin, DataTable, RowName);
@@ -3158,10 +3159,15 @@ mu::NodeMeshPtr GenerateMorphMesh(const UEdGraphPin* Pin,
 	
 	if (const UCustomizableObjectNodeTable* TypedNodeTable = Cast<UCustomizableObjectNodeTable>(Pin->GetOwningNode()))
 	{
+		const FString TableName = TypedNodeTable->Table ? GetNameSafe(TypedNodeTable->Table) : GetNameSafe(TypedNodeTable->Structure);
+		const uint32 TableId = CityHash32(reinterpret_cast<const char*>(*TableName), TableName.Len() * sizeof(FString::ElementType));
+
+
 		UDataTable* DataTable = GetDataTable(TypedNodeTable, GenerationContext);
 
 		// Generate a new Column for each morph
-		const TArray<FName>& RowNames = GetRowsToCompile(*DataTable, *TypedNodeTable, GenerationContext);
+		TArray<uint32> RowIds;
+		const TArray<FName>& RowNames = GetRowsToCompile(*DataTable, *TypedNodeTable, GenerationContext, RowIds);
 		int32 NumRows = RowNames.Num();
 
 		// Should exist
@@ -3174,6 +3180,7 @@ mu::NodeMeshPtr GenerateMorphMesh(const UEdGraphPin* Pin,
 		for (int32 RowIndex = 0; RowIndex < NumRows; ++RowIndex)
 		{
 			const FName RowName = RowNames[RowIndex];
+			const uint32 RowId = RowIds[RowIndex];
 
 			ColumnIndex = Table->FindColumn(ColumnName);
 
@@ -3183,7 +3190,7 @@ mu::NodeMeshPtr GenerateMorphMesh(const UEdGraphPin* Pin,
 			}
 
 			mu::MeshPtr MorphedSourceTableMesh = BuildMorphedMutableMesh(Pin, TypedNodeMorphs[MorphIndex].MorphTargetName, GenerationContext, bOnlyConnectedLOD, RowName);
-			Table->SetCell(ColumnIndex, RowIndex, MorphedSourceTableMesh.get());
+			Table->SetCell(ColumnIndex, RowId, MorphedSourceTableMesh.get());
 		}
 
 		if (ColumnIndex > INDEX_NONE)
@@ -3195,6 +3202,8 @@ mu::NodeMeshPtr GenerateMorphMesh(const UEdGraphPin* Pin,
 			MorphedSourceMeshNodeTable->SetColumn(ColumnName);
 			MorphedSourceMeshNodeTable->SetParameterName(TypedNodeTable->ParameterName);
 			MorphedSourceMeshNodeTable->SetMessageContext(MorphNode);
+			MorphedSourceMeshNodeTable->SourceDataDescriptor.SourceId = TableId;
+			MorphedSourceMeshNodeTable->SourceDataDescriptor.SourceHighResMips = 0;
 
 			mu::NodeMeshMakeMorphPtr Morph = new mu::NodeMeshMakeMorph;
 			Morph->SetBase(BaseSourceMesh.get());
@@ -3541,6 +3550,11 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 				}
 			}
 
+
+			const FString MeshName = GetNameSafe(TypedNodeSkel->SkeletalMesh);
+			MeshNode->SourceDataDescriptor.SourceId = CityHash32(reinterpret_cast<const char*>(*MeshName), MeshName.Len() * sizeof(FString::ElementType));
+			MeshNode->SourceDataDescriptor.SourceHighResMips = 0;
+
 			// Applying Mesh Morph Nodes
 			if (GenerationContext.MeshMorphStack.Num())
 			{
@@ -3630,6 +3644,11 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 
 				MeshNode->SetLayout(0, LayoutNode);
 				LayoutNode->SetMessageContext(Node);  // We need it here because we create multiple nodes.
+
+
+				const FString MeshName = GetNameSafe(TypedNodeStatic->StaticMesh);
+				MeshNode->SourceDataDescriptor.SourceId = CityHash32(reinterpret_cast<const char*>(*MeshName), MeshName.Len() * sizeof(FString::ElementType));
+				MeshNode->SourceDataDescriptor.SourceHighResMips = 0;
 			}
 			else
 			{
@@ -4147,6 +4166,9 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 
 	else if (const UCustomizableObjectNodeTable* TypedNodeTable = Cast<UCustomizableObjectNodeTable>(Node))
 	{
+		const FString TableName = TypedNodeTable->Table ? GetNameSafe(TypedNodeTable->Table) : GetNameSafe(TypedNodeTable->Structure);
+		const uint32 TableId = CityHash32(reinterpret_cast<const char*>(*TableName), TableName.Len() * sizeof(FString::ElementType));
+
 		mu::NodeMeshConstantPtr EmptyNode = new mu::NodeMeshConstant();
 		Result = EmptyNode;
 		bool bSuccess = true;
@@ -4236,6 +4258,8 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 						MeshTableNode->SetParameterName(TypedNodeTable->ParameterName);
 						MeshTableNode->SetNoneOption(TypedNodeTable->bAddNoneOption);
 						MeshTableNode->SetDefaultRowName(TypedNodeTable->DefaultRowName.ToString());
+						MeshTableNode->SourceDataDescriptor.SourceId = TableId;
+						MeshTableNode->SourceDataDescriptor.SourceHighResMips = 0;
 
 						// Pose Assets do not need this part of the code
 						if (Pin->PinType.PinCategory == Schema->PC_Mesh)
