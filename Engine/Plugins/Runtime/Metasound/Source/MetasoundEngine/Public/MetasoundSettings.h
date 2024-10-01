@@ -70,13 +70,15 @@ struct METASOUNDENGINE_API FMetaSoundPageSettings
 	FName Name = Metasound::Frontend::DefaultPageName;
 
 private:
-	// When true, page can be targeted for the assigned platform(s)/platform group(s).
-	// Is used to determine which asset page data (i.e. graphs and input defaults) can be
-	// excluded from cook if page is not explicitly omitted via 'ExcludeFromCook' setting.
-	UPROPERTY(EditAnywhere, Category = "Pages")
+#if WITH_EDITORONLY_DATA
+	// When true, page asset data (i.e. graphs and input defaults) can be targeted
+	// for the most applicable platform/platform group. If associated asset data is
+	// defined, will always be cooked. If false, asset page data is only cooked if it is
+	// resolved to from a higher-indexed page setting and is not set to explicitly
+	// "ExcludeFromCook".
+	UPROPERTY(EditAnywhere, Category = "Pages", meta = (DisplayName = "Targetable"))
 	FPerPlatformBool CanTarget = true;
 
-#if WITH_EDITORONLY_DATA
 	// Just used to inform edit condition to enable/disable exclude from cook. Maintained by ConformPageSettings on object load/mutation.
 	// EditCondition meta mark-up is hack to avoid boolean being default added to name field
 	UPROPERTY(EditAnywhere, Category = "Pages", meta = (EditCondition = false, EditConditionHides))
@@ -85,7 +87,7 @@ private:
 	// When true, exclude page data when cooking from the assigned platform(s)/platform group(s).
 	// If false, page data may or may not be included in cook depending on whether or not the given
 	// page data is required in order to ensure a value is always resolved for the cook platform target(s).
-	// (Ignored if CanTarget true for corresponding platform/group).
+	// (Ignored if 'Targetable' is true for most applicable platform/platform group).
 	UPROPERTY(EditAnywhere, Category = "Pages", meta = (EditCondition = "!bIsDefaultPage"))
 	FPerPlatformBool ExcludeFromCook = false;
 #endif //WITH_EDITORONLY_DATA

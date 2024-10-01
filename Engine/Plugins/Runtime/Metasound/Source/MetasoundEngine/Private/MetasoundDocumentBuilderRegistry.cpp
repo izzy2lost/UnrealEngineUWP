@@ -517,6 +517,26 @@ namespace Metasound::Engine
 			}
 		}, bReverse);
 
+		if (!bResolved)
+		{
+			const FGuid& AnyPageID = InPageIDsToResolve.Last();
+#if !NO_LOGGING
+			auto GetDisplayPageString = [&Settings](const FGuid& InPageID)
+			{
+				if (const FMetaSoundPageSettings* DisplayPage = Settings.FindPageSettings(InPageID))
+				{
+					return DisplayPage->Name.ToString();
+				}
+				return InPageID.ToString();
+			};
+			UE_LOG(LogMetaSound, Error,
+				TEXT("Failed to resolve PageID for Target '%s': Setting to arbitrary Page '%s' (Target likely overridden by page not set as 'CanTarget/Targetable' for the current platform)"),
+				*GetDisplayPageString(TargetPageID),
+				*GetDisplayPageString(AnyPageID));
+#endif // !NO_LOGGING
+			ResolvedPageID = AnyPageID;
+		}
+
 		return ResolvedPageID;
 	}
 
