@@ -541,18 +541,6 @@ const UCustomizableObjectInstanceUsagePrivate* UCustomizableObjectInstanceUsage:
 }
 
 
-bool UCustomizableObjectInstanceUsage::IsNetMode(ENetMode InNetMode) const
-{
-	return GetPrivate()->IsNetMode(InNetMode);
-}
-
-
-void UCustomizableObjectInstanceUsage::EditorUpdateComponent()
-{
-	GetPrivate()->EditorUpdateComponent();
-}
-
-
 void UCustomizableObjectInstanceUsagePrivate::UpdateDistFromComponentToPlayer(const AActor* ViewCenter, const bool bForceEvenIfNotBegunPlay)
 {
 	UCustomizableObjectInstance* CustomizableObjectInstance = GetPublic()->GetCustomizableObjectInstance();

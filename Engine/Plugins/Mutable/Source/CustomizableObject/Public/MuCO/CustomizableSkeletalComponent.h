@@ -32,7 +32,6 @@ private:
 	UPROPERTY(EditAnywhere, Category = CustomizableSkeletalComponent)
 	FName ComponentName;
 
-public: // TODO GMT Private
 	UPROPERTY(EditAnywhere, Category = CustomizableSkeletalComponent)
 	bool bSkipSetReferenceSkeletalMesh = false;
 	
