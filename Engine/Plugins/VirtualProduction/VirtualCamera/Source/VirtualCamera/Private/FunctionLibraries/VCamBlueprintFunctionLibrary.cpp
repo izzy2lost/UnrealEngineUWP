@@ -575,6 +575,7 @@ namespace UE::VirtualCamera::Private
 		}
 		
 		const FIntRect QueryRect(MinX, MinY, MaxX + 1, MaxY + 1);
+		Viewport.InvalidateHitProxy();
 		Viewport.GetHitProxyMap(QueryRect, Result);
 		return { TestSizeX, TestSizeY, Result };
 	}
