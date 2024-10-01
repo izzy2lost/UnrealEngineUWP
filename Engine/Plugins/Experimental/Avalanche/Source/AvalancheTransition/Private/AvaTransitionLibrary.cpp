@@ -89,7 +89,7 @@ EAvaTransitionType UAvaTransitionLibrary::GetTransitionType(UObject* InTransitio
 	return TransitionContext->GetTransitionType();
 }
 
-bool UAvaTransitionLibrary::IsOtherSceneTransitioning(UObject* InTransitionNode, const TSoftObjectPtr<UWorld>& InSceneAsset)
+bool UAvaTransitionLibrary::AreScenesTransitioning(UObject* InTransitionNode, const FAvaTagHandleContainer& InLayers, const TArray<TSoftObjectPtr<UWorld>>& InScenesToIgnore)
 {
 	const IAvaTransitionNodeInterface* NodeInterface = Cast<IAvaTransitionNodeInterface>(InTransitionNode);
 	if (!NodeInterface)
@@ -131,48 +131,62 @@ bool UAvaTransitionLibrary::IsOtherSceneTransitioning(UObject* InTransitionNode,
 		return false;
 	}
 
-	bool bFoundInstance = BehaviorInstances.ContainsByPredicate(
-		[TransitionScene, &InSceneAsset](const FAvaTransitionBehaviorInstance* InInstance)
+	TSet<FString> ScenesToIgnore;
+	ScenesToIgnore.Reserve(InScenesToIgnore.Num());
+	for (const TSoftObjectPtr<UWorld>& SceneToIgnore : InScenesToIgnore)
+	{
+		ScenesToIgnore.Add(SceneToIgnore.GetLongPackageName());
+	}
+
+	for (const FAvaTransitionBehaviorInstance* BehaviorInstance : BehaviorInstances)
+	{
+		if (!InLayers.ContainsTag(BehaviorInstance->GetTransitionLayer()))
 		{
-			const FAvaTransitionScene* const OtherTransitionScene = InInstance->GetTransitionContext().GetTransitionScene();
+			continue;
+		}
 
-			// ignore check on scenes marked as needing discard
-			if (!OtherTransitionScene || OtherTransitionScene->HasAnyFlags(EAvaTransitionSceneFlags::NeedsDiscard))
-			{
-				return false;
-			}
+		const FAvaTransitionScene* const OtherTransitionScene = BehaviorInstance->GetTransitionContext().GetTransitionScene();
 
-			const ULevel* const OtherLevel = OtherTransitionScene->GetLevel();
-			if (!OtherLevel)
-			{
-				return false;
-			}
+		// skip scenes marked as needing discard
+		if (!OtherTransitionScene || OtherTransitionScene->HasAnyFlags(EAvaTransitionSceneFlags::NeedsDiscard))
+		{
+			continue;
+		}
 
-			const UPackage* const OtherPackage = OtherLevel->GetPackage();
-			if (!OtherPackage)
-			{
-				return false;
-			}
+		const ULevel* const OtherLevel = OtherTransitionScene->GetLevel();
+		if (!OtherLevel)
+		{
+			continue;
+		}
 
-			// Remove the /Temp from the Package Name
-			FString PackageName = OtherPackage->GetName();
-			if (PackageName.StartsWith(TEXT("/Temp")))
-			{
-				PackageName.RightChopInline(-1 + sizeof(TEXT("/Temp")) / sizeof(TCHAR));
-			}
+		const UPackage* const OtherPackage = OtherLevel->GetPackage();
+		if (!OtherPackage)
+		{
+			continue;
+		}
 
-			// Remove the _LevelInstance_[Num] from the Package Name
-			const int32 LevelInstancePosition = PackageName.Find(TEXT("_LevelInstance_"), ESearchCase::IgnoreCase, ESearchDir::FromEnd);
-			if (LevelInstancePosition != INDEX_NONE)
-			{
-				PackageName.LeftChopInline(PackageName.Len() - LevelInstancePosition);
-			}
+		// Remove the /Temp from the Package Name
+		FString PackageName = OtherPackage->GetName();
+		if (PackageName.StartsWith(TEXT("/Temp")))
+		{
+			PackageName.RightChopInline(-1 + sizeof(TEXT("/Temp")) / sizeof(TCHAR));
+		}
 
-			const FString SceneAssetName = InSceneAsset.GetLongPackageName();
-			return PackageName == SceneAssetName;
-		});
+		// Remove the _LevelInstance_[Num] from the Package Name
+		const int32 LevelInstancePosition = PackageName.Find(TEXT("_LevelInstance_"), ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+		if (LevelInstancePosition != INDEX_NONE)
+		{
+			PackageName.LeftChopInline(PackageName.Len() - LevelInstancePosition);
+		}
 
-	return bFoundInstance;
+		// If this scene isn't part of those to ignore, then it's a valid transitioning scene
+		if (!ScenesToIgnore.Contains(PackageName))
+		{
+			return true;
+		}
+	}
+
+	return false;
 }
 
 const UAvaTransitionTree* UAvaTransitionLibrary::GetTransitionTree(UObject* InTransitionNode)
