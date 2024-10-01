@@ -263,7 +263,7 @@ protected:
 	void UpdateCachedParameterName(FName InPropertyName, int32 InComponent);
 
 	/** Updates the cached parameter name based on the Parameter object or the above method. */
-	void UpdateCachedParameterNames();
+	void UpdateCachedParameterNames(bool bInResetNames);
 #endif
 
 	//~ Begin UDMMaterialComponent
