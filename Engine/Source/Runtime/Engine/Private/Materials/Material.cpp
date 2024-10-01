@@ -3310,7 +3310,7 @@ static int32 GetSubstrateConversionVersion()
 	return 0;
 }
 
-bool UMaterial::ConvertMaterialToSubstrateMaterial()
+bool UMaterial::ConvertMaterialToSubstrateMaterial(bool bAllowEmptyMaterialUpdate)
 {
 	/*
 	* The data flow for legacy material conversion node that can be used in isolation is as such:
@@ -3487,6 +3487,9 @@ bool UMaterial::ConvertMaterialToSubstrateMaterial()
 	const bool bRequireSubsurfacePasses		= ShadingModels.HasShadingModel(MSM_SubsurfaceProfile) || ShadingModels.HasShadingModel(MSM_Subsurface) || ShadingModels.HasShadingModel(MSM_PreintegratedSkin) || ShadingModels.HasShadingModel(MSM_Eye);
 	const bool bRequireNoSubsurfaceProfile	= !bHasShadingModelMixture && (ShadingModel == MSM_Subsurface || ShadingModel == MSM_PreintegratedSkin); // Insure there is no profile, as this would take priority otherwise
 
+	// Empty material (i.e., material without any expression) can be 'patched' with UE4Legacy's MF in order to have correct visuals by default
+	const bool bUpdateEmptyMaterial = bAllowEmptyMaterialUpdate && !bUseMaterialAttributes && !EditorOnly->FrontMaterial.IsConnected() && GetExpressions().IsEmpty();
+
 	bool bInvalidateShader = false;
 	bool bEmptyShader = false;
 	bool bRelinkCustomOutputNodes = false;
@@ -3634,7 +3637,7 @@ bool UMaterial::ConvertMaterialToSubstrateMaterial()
 			RefractionCoverageMode = RCM_CoverageIgnored;
 			bInvalidateShader = true;
 		}
-		else if (!bUseMaterialAttributes && !EditorOnly->FrontMaterial.IsConnected() && GetExpressions().IsEmpty())
+		else if (bUpdateEmptyMaterial)
 		{
 			// Empty material: Create by default a slab node
 			UMaterialFunction* DefaultMF = LoadObject<UMaterialFunction>(nullptr, TEXT("/Engine/Functions/Substrate/SMF_UE4Legacy.SMF_UE4Legacy")); 
@@ -4305,7 +4308,7 @@ void UMaterial::PostLoad()
 	{
 		// Substrate materials conversion needs to be done after expressions are cached, otherwise material function won't have 
 		// valid inputs in certain cases
-		if (ConvertMaterialToSubstrateMaterial())
+		if (ConvertMaterialToSubstrateMaterial(true /*bAllowEmptyMaterialUpdate*/))
 		{
 			// Call PropagateDataToMaterialProxy in order to propagate Subsurface profiles and specular profiles data to the material proxy
 			PropagateDataToMaterialProxy();
@@ -4957,7 +4960,7 @@ void UMaterial::PostEditChangePropertyInternal(FPropertyChangedEvent& PropertyCh
 		// This late conversion ensures that imported materials are converted properly with Substrate.
 		if (!IsMaterialAlreadyConvertedToSubstrate(this, EditorOnly))
 		{
-			ConvertMaterialToSubstrateMaterial();
+			ConvertMaterialToSubstrateMaterial(false /*bAllowEmptyMaterialUpdate*/);
 		}
 	}
 
