@@ -3903,6 +3903,10 @@ FLLMPauseScope::~FLLMPauseScope()
 	}
 }
 
+FLLMClearScope::FLLMClearScope(ELLMTagSet InTagSet, ELLMTracker InTracker)
+	: FLLMScope(nullptr, false, InTagSet, InTracker)
+{
+}
 
 FLLMScopeFromPtr::FLLMScopeFromPtr(void* Ptr, ELLMTracker InTracker)
 {
