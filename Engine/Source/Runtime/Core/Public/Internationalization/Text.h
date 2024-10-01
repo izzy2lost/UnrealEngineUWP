@@ -466,12 +466,6 @@ public:
 	static CORE_API FText AsMemory(uint64 NumBytes, EMemoryUnitStandard UnitStandard);
 
 	/**
-	 * Attempts to find an existing FText using the representation found in the loc tables for the specified namespace and key
-	 * @return true if OutText was properly set; otherwise false and OutText will be untouched
-	 */
-	static CORE_API bool FindText( const FTextKey& Namespace, const FTextKey& Key, FText& OutText, const FString* const SourceString = nullptr );
-
-	/**
 	 * Attempts to create an FText instance from a string table ID and key (this is the same as the LOCTABLE macro, except this can also work with non-literal string values).
 	 * @return The found text, or a dummy FText if not found.
 	 */
@@ -496,13 +490,53 @@ public:
 	/**
 	 * Generate a culture invariant FText representing the passed in string
 	 */
-	static CORE_API FText AsCultureInvariant( const FString& String );
+	static CORE_API FText AsCultureInvariant( const TCHAR* String );
+	static CORE_API FText AsCultureInvariant( FStringView String );
 	static CORE_API FText AsCultureInvariant( FString&& String );
 
 	/**
 	 * Generate a culture invariant FText representing the passed in FText
 	 */
 	static CORE_API FText AsCultureInvariant( FText Text );
+
+	/**
+	 * === !! This is an ADVANCED function. USE WITH CAUTION !! ===
+	 * 
+	 * Generate a localizable FText for the given ID and source string, either to create a NEW localizable FText, or to dynamically reference an EXISTING FText.
+	 * 
+	 * When using it to create a NEW localizable FText (eg, when editing an asset), YOU are responsible for ensuring that the resultant FText is gathered for localization (eg, by assigning it to a FText property or via a CUSTOM gather handler).
+	 * Note: DO NOT use this as a general replacement for the LOCTEXT macro in C++!
+	 * 
+	 * When using it to dynamically reference an EXISTING FText (such as known LOCTEXT in code) it can be thought of as an alternative to FText::FindTextInLiveTable_Advanced that also handles untranslated text.
+	 * Note: Direct dynamic references to FText are EXTREMELY FRAGILE, and you may want to use a string table instead!
+	 */
+	static CORE_API FText AsLocalizable_Advanced(const FTextKey& Namespace, const FTextKey& Key, const TCHAR* String);
+	static CORE_API FText AsLocalizable_Advanced(const FTextKey& Namespace, const FTextKey& Key, FStringView String);
+	static CORE_API FText AsLocalizable_Advanced(const FTextKey& Namespace, const FTextKey& Key, FString&& String);
+
+	/**
+	 * === !! This is an ADVANCED function. USE WITH CAUTION !! ===
+	 *
+	 * Attempt to dynamically reference an EXISTING FText via its active display string in the live table.
+	 * Note: This can ONLY find text that is currently localized (gathered, translated, and has an active display string in FTextLocalizationManager). If you need to find a localizable but untranslated text, see FText::AsLocalizable_Advanced.
+	 * Note: Direct dynamic references to FText are EXTREMELY FRAGILE, and you may want to use a string table instead!
+	 * 
+	 * @param Namespace The namespace of the text to find (if any).
+	 * @param Key The key of the text to find.
+	 * @param SourceString If set (not empty) then the found text must also have been created from this source string.
+	 * 
+	 * @return true if OutText was set; otherwise false and OutText will be unmodified
+	 */
+	static CORE_API bool FindTextInLiveTable_Advanced(const FTextKey& Namespace, const FTextKey& Key, FText& OutText, const FString* const SourceString = nullptr);
+
+	/**
+	 * Legacy alias for FText::FindTextInLiveTable_Advanced.
+	 * Will be deprecated in the future. DO NOT USE IN NEW CODE!
+	 */
+	static FORCEINLINE bool FindText(const FTextKey& Namespace, const FTextKey& Key, FText& OutText, const FString* const SourceString = nullptr)
+	{
+		return FText::FindTextInLiveTable_Advanced(Namespace, Key, OutText, SourceString);
+	}
 
 	CORE_API const FString& ToString() const;
 

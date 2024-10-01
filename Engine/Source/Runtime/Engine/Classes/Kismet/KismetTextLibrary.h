@@ -195,12 +195,17 @@ class UKismetTextLibrary : public UBlueprintFunctionLibrary
 	static ENGINE_API FText GetEmptyText();
 
 	/**
-	 * Attempts to find existing Text using the representation found in the loc tables for the specified namespace and key.
-	 * @param Namespace The namespace of the text to find (if any).
-	 * @param Key The key of the text to find.
-	 * @param SourceString If set (not empty) then the found text must also have been created from this source string.
-	 */
-	UFUNCTION(BlueprintPure, Category="Utilities|Text", meta = (AdvancedDisplay = "SourceString"))
+	  * === !! This is an ADVANCED function. USE WITH CAUTION !! ===
+	  *
+	  * Attempt to dynamically reference an EXISTING Text via its active display string in the live table.
+	  * Note: This can ONLY find text that is currently localized (gathered, translated, and has an active display string in TextLocalizationManager). If you need to find a localizable but untranslated text, see 'Make Literal Text'.
+	  * Note: Direct dynamic references to Text are EXTREMELY FRAGILE, and you may want to use a string table instead!
+	  *
+	  * @param Namespace The namespace of the text to find (if any).
+	  * @param Key The key of the text to find.
+	  * @param SourceString If set (not empty) then the found text must also have been created from this source string.
+	  */
+	UFUNCTION(BlueprintPure, Category="Utilities|Text", DisplayName="Find Text in Live Table (Advanced)", meta = (AdvancedDisplay = "SourceString", ScriptName="FindTextInLiveTable_Advanced;FindTextInLocalizationTable"))
 	static ENGINE_API bool FindTextInLocalizationTable(const FString& Namespace, const FString& Key, FText& OutText, const FString& SourceString = TEXT(""));
 
 	/** Returns true if A and B are linguistically equal (A == B). */
