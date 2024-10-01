@@ -57,7 +57,7 @@ public:
 	FString StreamerId = "Streamer Component";
 
 	UPROPERTY(EditAnywhere, Category = "PixelStreaming2")
-	FString SignallingServerURL = "ws://localhost:8888";
+	FString SignallingServerURL = "ws://127.0.0.1:8888";
 
 	UPROPERTY(EditAnywhere, Category = "PixelStreaming2")
 	bool UsePixelStreamingURL = false;
