@@ -83,6 +83,9 @@ enum EMotionMatchTestFlags
 
 	// test FAnimationAssetSampler determinism across multiple editro executions. It'll store some bin files in \Engine\TestAssetSamplerDeterminism
 	TestAssetSamplerDeterminismFromPreviousExecution = 1 << 13,
+
+	// test DDC key generation determinism
+	TestDDCKeyDeterminism = 1 << 14,
 };
 static TAutoConsoleVariable<int32> CVarMotionMatchTestFlags(TEXT("a.MotionMatch.TestFlags"), EMotionMatchTestFlags::None, TEXT("Test Motion Matching using EMotionMatchTestFlags"));
 static TAutoConsoleVariable<int32> CVarMotionMatchTestNumIterations(TEXT("a.MotionMatch.TestNumIterations"), 10, TEXT("Test Motion Matching Num Iterations"));
@@ -1418,6 +1421,7 @@ void FPoseSearchDatabaseAsyncCacheTask::StartNewRequestIfNeeded(bool bPerformCon
 			DerivedDataKey = NewDerivedDataKey;
 
 			DatabaseDependencies.Reset();
+			DatabaseDependencies.Reserve(KeyBuilder.GetDependencies().Num());
 			for (const UObject* Dependency : KeyBuilder.GetDependencies())
 			{
 				DatabaseDependencies.Add(Dependency);
@@ -2399,6 +2403,32 @@ void FAsyncPoseSearchDatabasesManagement::Tick(float DeltaTime)
 			Tasks[TaskIndex]->Update(Mutex);
 		}
 	}
+	
+#if ENABLE_ANIM_DEBUG
+	if (AnyTestFlags(EMotionMatchTestFlags::TestDDCKeyDeterminism))
+	{
+		const int32 NumIterations = CVarMotionMatchTestNumIterations.GetValueOnAnyThread();
+		for (int32 TaskIndex = 0; TaskIndex < Tasks.Num(); ++TaskIndex)
+		{
+			if (const UPoseSearchDatabase* Database = Tasks[TaskIndex]->GetDatabase())
+			{
+				const FKeyBuilder KeyBuilder(Database, false, false);
+				const FIoHash IoHash = KeyBuilder.Finalize();
+
+				for (int32 IterationIndex = 0; IterationIndex < NumIterations; ++IterationIndex)
+				{
+					const FKeyBuilder TestKeyBuilder(Database, false, false);
+					const FIoHash TestIoHash = TestKeyBuilder.Finalize();
+
+					if (IoHash != TestIoHash)
+					{
+						UE_LOG(LogPoseSearch, Error, TEXT("FKeyBuilder - key generation is not deterministic: %s / %s for asset %s"), *LexToString(IoHash), *LexToString(TestIoHash), *Database->GetName());
+					}
+				}
+			}
+		}
+	}
+#endif ENABLE_ANIM_DEBUG
 }
 
 void FAsyncPoseSearchDatabasesManagement::TickCook(float DeltaTime, bool bCookCompete)
