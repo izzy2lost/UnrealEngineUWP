@@ -9,22 +9,6 @@ namespace Harmonix::Midi::Ops
 		Enabled = bEnable;
 	}
 
-	void FPulseGenerator::SetClock(const TSharedPtr<const HarmonixMetasound::FMidiClock, ESPMode::NotThreadSafe>& NewClock)
-	{
-		Clock = NewClock;
-		CurrentTimeSignature = *NewClock->GetSongMapEvaluator().GetTimeSignatureAtTick(NewClock->GetLastProcessedMidiTick());
-
-		// Find the next pulse and line up phase with the current bar
-		const FMusicTimestamp ClockCurrentTimestamp = NewClock->GetMusicTimestampAtBlockOffset(0);
-		NextPulseTimestamp.Bar = ClockCurrentTimestamp.Bar;
-		NextPulseTimestamp.Beat = 1;
-		IncrementTimestampByOffset(NextPulseTimestamp, Interval, CurrentTimeSignature);
-		while (NextPulseTimestamp < ClockCurrentTimestamp)
-		{
-			IncrementTimestampByInterval(NextPulseTimestamp, Interval, CurrentTimeSignature);
-		}
-	}
-
 	void FPulseGenerator::SetInterval(const FMusicTimeInterval& NewInterval)
 	{
 		Interval = NewInterval;
@@ -38,20 +22,28 @@ namespace Harmonix::Midi::Ops
 		NextPulseTimestamp = { -1, -1 };
 	}
 
-	void FPulseGenerator::Process(const TFunctionRef<void(const FPulseInfo&)>& OnPulse)
+	void FPulseGenerator::Process(const HarmonixMetasound::FMidiClock& MidiClock, const TFunctionRef<void(const FPulseInfo&)>& OnPulse)
 	{
-		check(Clock.IsValid()); // if we're here, and we don't have a clock, we have problems
-		const auto PinnedClock = Clock.Pin();
-
-		if (!PinnedClock)
+		// ensure the pulse generator is lined up with the current clock phase
+		if (NextPulseTimestamp == FMusicTimestamp(-1, -1))
 		{
-			return;
-		}
+			CurrentTimeSignature = *MidiClock.GetSongMapEvaluator().GetTimeSignatureAtTick(MidiClock.GetLastProcessedMidiTick());
 
+			// Find the next pulse and line up phase with the current bar
+			const FMusicTimestamp ClockCurrentTimestamp = MidiClock.GetMusicTimestampAtBlockOffset(0);
+			NextPulseTimestamp.Bar = ClockCurrentTimestamp.Bar;
+			NextPulseTimestamp.Beat = 1;
+			IncrementTimestampByOffset(NextPulseTimestamp, Interval, CurrentTimeSignature);
+			while (NextPulseTimestamp < ClockCurrentTimestamp)
+			{
+				IncrementTimestampByInterval(NextPulseTimestamp, Interval, CurrentTimeSignature);
+			}
+		}
+		
 		using namespace HarmonixMetasound;
 		using namespace HarmonixMetasound::MidiClockMessageTypes;
 
-		for (const FMidiClockEvent& ClockEvent : PinnedClock->GetMidiClockEventsInBlock())
+		for (const FMidiClockEvent& ClockEvent : MidiClock.GetMidiClockEventsInBlock())
 		{
 			if (const FAdvance* AsAdvance = ClockEvent.TryGet<FAdvance>())
 			{
@@ -60,7 +52,7 @@ namespace Harmonix::Midi::Ops
 					return;
 				}
 				
-				int32 NextPulseTick = PinnedClock->GetSongMapEvaluator().MusicTimestampToTick(NextPulseTimestamp);
+				int32 NextPulseTick = MidiClock.GetSongMapEvaluator().MusicTimestampToTick(NextPulseTimestamp);
 
 				while (AsAdvance->LastTickToProcess() >= NextPulseTick)
 				{
@@ -68,7 +60,7 @@ namespace Harmonix::Midi::Ops
 
 					IncrementTimestampByInterval(NextPulseTimestamp, Interval, CurrentTimeSignature);
 
-					NextPulseTick = PinnedClock->GetSongMapEvaluator().MusicTimestampToTick(NextPulseTimestamp);
+					NextPulseTick = MidiClock.GetSongMapEvaluator().MusicTimestampToTick(NextPulseTimestamp);
 				}
 			}
 			else if (const FTimeSignatureChange* AsTimeSigChange = ClockEvent.TryGet<FTimeSignatureChange>())
@@ -77,19 +69,19 @@ namespace Harmonix::Midi::Ops
 				
 				// Time sig changes will come on the downbeat, and if we change time signature,
 				// we want to reset the pulse, so the next pulse is now plus the offset
-				NextPulseTimestamp = PinnedClock->GetSongMapEvaluator().TickToMusicTimestamp(AsTimeSigChange->Tick);
+				NextPulseTimestamp = MidiClock.GetSongMapEvaluator().TickToMusicTimestamp(AsTimeSigChange->Tick);
 				IncrementTimestampByOffset(NextPulseTimestamp, Interval, CurrentTimeSignature);
 			}
 			else if (const FLoop* AsLoop = ClockEvent.TryGet<FLoop>())
 			{
 				// We assume the pulse should be reset on loop, and the loop start should imply the phase of the pulse
-				NextPulseTimestamp = PinnedClock->GetSongMapEvaluator().TickToMusicTimestamp(AsLoop->FirstTickInLoop);
+				NextPulseTimestamp = MidiClock.GetSongMapEvaluator().TickToMusicTimestamp(AsLoop->FirstTickInLoop);
 				IncrementTimestampByOffset(NextPulseTimestamp, Interval, CurrentTimeSignature);
 			}
 			else if (const FSeek* AsSeek = ClockEvent.TryGet<FSeek>())
 			{
 				// When we seek, reset the pulse phase to the current bar
-				const FMusicTimestamp ClockCurrentTimestamp = PinnedClock->GetSongMapEvaluator().TickToMusicTimestamp(AsSeek->NewNextTick);
+				const FMusicTimestamp ClockCurrentTimestamp = MidiClock.GetSongMapEvaluator().TickToMusicTimestamp(AsSeek->NewNextTick);
 				NextPulseTimestamp.Bar = ClockCurrentTimestamp.Bar;
 				NextPulseTimestamp.Beat = 1;
 				IncrementTimestampByOffset(NextPulseTimestamp, Interval, CurrentTimeSignature);
@@ -108,11 +100,11 @@ namespace Harmonix::Midi::Ops
 		LastNoteOn.Reset();
 	}
 
-	void FMidiPulseGenerator::Process(HarmonixMetasound::FMidiStream& OutStream)
+	void FMidiPulseGenerator::Process(const HarmonixMetasound::FMidiClock& MidiClock, HarmonixMetasound::FMidiStream& OutStream)
 	{
 		OutStream.PrepareBlock();
 
-		FPulseGenerator::Process([this, &OutStream](const FPulseInfo& Pulse)
+		FPulseGenerator::Process(MidiClock, [this, &OutStream](const FPulseInfo& Pulse)
 		{
 			AddPulseNote(Pulse.BlockFrameIndex, Pulse.Tick, OutStream);
 		});

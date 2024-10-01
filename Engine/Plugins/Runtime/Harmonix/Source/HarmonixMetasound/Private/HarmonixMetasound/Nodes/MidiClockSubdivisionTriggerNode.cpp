@@ -196,7 +196,6 @@ namespace HarmonixMetasound::Nodes::MidiClockSubdivisionTriggerNode
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::OffsetUnits), GridOffsetUnitsInPin);
 
 		PulseGenerator.Reset();
-		PulseGenerator.SetClock(MidiClockInPin->AsShared());
 	}
 
 	void FMidiClockSubdivisionTriggerOperator::BindOutputs(FOutputVertexInterfaceData& InVertexData)
@@ -209,7 +208,6 @@ namespace HarmonixMetasound::Nodes::MidiClockSubdivisionTriggerNode
 		TriggerOutPin->Reset();
 		
 		PulseGenerator.Reset();
-		PulseGenerator.SetClock(MidiClockInPin->AsShared());
 	}
 
 	void FMidiClockSubdivisionTriggerOperator::Execute()
@@ -224,7 +222,7 @@ namespace HarmonixMetasound::Nodes::MidiClockSubdivisionTriggerNode
 
 		// If there were pulses, trigger the output
 		TriggerOutPin->AdvanceBlock();
-		PulseGenerator.Process([this](const Harmonix::Midi::Ops::FPulseGenerator::FPulseInfo& Pulse)
+		PulseGenerator.Process(*MidiClockInPin, [this](const Harmonix::Midi::Ops::FPulseGenerator::FPulseInfo& Pulse)
 		{
 			TriggerOutPin->TriggerFrame(Pulse.BlockFrameIndex);
 		});

@@ -25,8 +25,6 @@ namespace Harmonix::Midi::Ops::Tests
 		
 		HarmonixMetasound::FMidiStream OutputStream;
 
-		PulseGenerator.SetClock(Clock);
-
 		// Default: a pulse every beat
 		{
 			constexpr int32 NotesUntilWeAreSatisfiedThisWorks = 23;
@@ -62,7 +60,7 @@ namespace Harmonix::Midi::Ops::Tests
 
 				// Process, which will pop the next notes
 				OutputStream.PrepareBlock();
-				PulseGenerator.Process(OutputStream);
+				PulseGenerator.Process(*Clock, OutputStream);
 				
 				// If this is a block where we should get a pulse, check that we got it
 				if (Clock->GetLastProcessedMidiTick() >= Clock->GetSongMapEvaluator().MusicTimestampToTick(NextPulse))
@@ -147,8 +145,6 @@ namespace Harmonix::Midi::Ops::Tests
 		const auto Clock = MakeShared<HarmonixMetasound::FMidiClock, ESPMode::NotThreadSafe>(OperatorSettings);
 		Clock->AttachToSongMapEvaluator(MakeShared<FSongMaps>(Tempo, TimeSignature.Numerator, TimeSignature.Denominator));
 
-		PulseGenerator.SetClock(Clock);
-
 		// Advance forward a few pulses, then seek back and ensure we keep getting notes
 		{
 			constexpr int32 PulsesToDo = 10;
@@ -173,7 +169,7 @@ namespace Harmonix::Midi::Ops::Tests
 
 				// Process
 				TArray<FPulseGenerator::FPulseInfo> PulsesThisBlock;
-				PulseGenerator.Process([&PulsesThisBlock](const FPulseGenerator::FPulseInfo& Pulse)
+				PulseGenerator.Process(*Clock, [&PulsesThisBlock](const FPulseGenerator::FPulseInfo& Pulse)
 				{
 					PulsesThisBlock.Add(Pulse);
 				});
@@ -206,7 +202,7 @@ namespace Harmonix::Midi::Ops::Tests
 
 				// Process
 				TArray<FPulseGenerator::FPulseInfo> PulsesThisBlock;
-				PulseGenerator.Process([&PulsesThisBlock](const FPulseGenerator::FPulseInfo& Pulse)
+				PulseGenerator.Process(*Clock, [&PulsesThisBlock](const FPulseGenerator::FPulseInfo& Pulse)
 				{
 					PulsesThisBlock.Add(Pulse);
 				});

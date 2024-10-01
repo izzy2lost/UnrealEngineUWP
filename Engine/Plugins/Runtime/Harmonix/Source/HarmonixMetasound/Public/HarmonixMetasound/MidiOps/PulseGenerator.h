@@ -19,8 +19,6 @@ namespace Harmonix::Midi::Ops
 		
 		void Enable(bool bEnable);
 
-		void SetClock(const TSharedPtr<const HarmonixMetasound::FMidiClock, ESPMode::NotThreadSafe>& NewClock);
-		
 		void SetInterval(const FMusicTimeInterval& NewInterval);
 		FMusicTimeInterval GetInterval() const { return Interval; }
 
@@ -32,11 +30,11 @@ namespace Harmonix::Midi::Ops
 			int32 Tick;
 		};
 		
-		void Process(const TFunctionRef<void(const FPulseInfo&)>& OnPulse);
+		void Process(const HarmonixMetasound::FMidiClock& MidiClock, const TFunctionRef<void(const FPulseInfo&)>& OnPulse);
 
 	protected:
 		bool Enabled{ true };
-		TWeakPtr<const HarmonixMetasound::FMidiClock, ESPMode::NotThreadSafe> Clock;
+
 		FMusicTimeInterval Interval{};
 		FTimeSignature CurrentTimeSignature{};
 		FMusicTimestamp NextPulseTimestamp{ -1, -1 };
@@ -57,7 +55,7 @@ namespace Harmonix::Midi::Ops
 
 		virtual void Reset() override;
 
-		void Process(HarmonixMetasound::FMidiStream& OutStream);
+		void Process(const HarmonixMetasound::FMidiClock& MidiClock, HarmonixMetasound::FMidiStream& OutStream);
 
 	private:
 		void AddPulseNote(const int32 BlockFrameIndex, const int32 PulseTick, HarmonixMetasound::FMidiStream& OutStream);

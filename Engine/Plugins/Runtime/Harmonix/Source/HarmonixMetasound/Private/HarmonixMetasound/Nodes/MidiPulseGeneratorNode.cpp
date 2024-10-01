@@ -160,7 +160,6 @@ namespace HarmonixMetasound::Nodes::MidiPulseGeneratorNode
 		void Reset(const FResetParams&)
 		{
 			PulseGenerator.Reset();
-			PulseGenerator.SetClock(Inputs.Clock->AsShared());
 			ApplyParameters();
 		}
 
@@ -177,7 +176,6 @@ namespace HarmonixMetasound::Nodes::MidiPulseGeneratorNode
 			InVertexData.BindReadVertex(Inputs::MidiVelocityName, Inputs.Velocity);
 
 			PulseGenerator.Reset();
-			PulseGenerator.SetClock(Inputs.Clock->AsShared());
 			ApplyParameters();
 		}
 
@@ -190,7 +188,7 @@ namespace HarmonixMetasound::Nodes::MidiPulseGeneratorNode
 		{
 			ApplyParameters();
 			
-			PulseGenerator.Process(*Outputs.MidiStream);
+			PulseGenerator.Process(*Inputs.Clock, *Outputs.MidiStream);
 		}
 	private:
 		void ApplyParameters()
