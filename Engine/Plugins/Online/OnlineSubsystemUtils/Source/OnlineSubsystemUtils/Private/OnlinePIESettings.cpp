@@ -7,7 +7,7 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(OnlinePIESettings)
 
 const int32 ONLINEPIE_XOR_KEY = 0xdeadbeef;
-void FPIELoginSettingsInternal::Encrypt()
+void FOnlineAccountStoredCredentials::Encrypt()
 {
 	if (Token.Len() > 0)
 	{
@@ -41,7 +41,7 @@ void FPIELoginSettingsInternal::Encrypt()
 	}
 }
 
-void FPIELoginSettingsInternal::Decrypt()
+void FOnlineAccountStoredCredentials::Decrypt()
 {
 	if (TokenBytes.Num() > 0)
 	{
@@ -96,7 +96,7 @@ void UOnlinePIESettings::PostInitProperties()
 {
 	Super::PostInitProperties();
 
-	for (FPIELoginSettingsInternal& Login : Logins)
+	for (FOnlineAccountStoredCredentials& Login : Logins)
 	{
 		Login.Decrypt();
 	}
@@ -122,10 +122,10 @@ void UOnlinePIESettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyC
 			// If we paste on top of the whole login entry, all fields will have changed and need their checks run.
 			const bool bPastedAllValues = SubPropName == GET_MEMBER_NAME_CHECKED(UOnlinePIESettings, Logins);
 			
-			if (bPastedAllValues || SubPropName == GET_MEMBER_NAME_CHECKED(FPIELoginSettingsInternal, Id))
+			if (bPastedAllValues || SubPropName == GET_MEMBER_NAME_CHECKED(FOnlineAccountStoredCredentials, Id))
 			{
 				TSet<FString> Ids;
-				for (FPIELoginSettingsInternal& Login : Logins)
+				for (FOnlineAccountStoredCredentials& Login : Logins)
 				{
 					// Remove any whitespace from login input
 					Login.Id.TrimStartAndEndInline();
@@ -145,9 +145,9 @@ void UOnlinePIESettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyC
 				}
 			}
 
-			if (bPastedAllValues || SubPropName == GET_MEMBER_NAME_CHECKED(FPIELoginSettingsInternal, Token))
+			if (bPastedAllValues || SubPropName == GET_MEMBER_NAME_CHECKED(FOnlineAccountStoredCredentials, Token))
 			{
-				for (FPIELoginSettingsInternal& Login : Logins)
+				for (FOnlineAccountStoredCredentials& Login : Logins)
 				{
 					// Remove any whitespace from login input
 					Login.Token.TrimStartAndEndInline();
@@ -156,9 +156,9 @@ void UOnlinePIESettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyC
 				}
 			}
 
-			if (bPastedAllValues || SubPropName == GET_MEMBER_NAME_CHECKED(FPIELoginSettingsInternal, Type))
+			if (bPastedAllValues || SubPropName == GET_MEMBER_NAME_CHECKED(FOnlineAccountStoredCredentials, Type))
 			{
-				for (FPIELoginSettingsInternal& Login : Logins)
+				for (FOnlineAccountStoredCredentials& Login : Logins)
 				{
 					// Remove any whitespace from login input
 					Login.Type.TrimStartAndEndInline();
