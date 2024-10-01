@@ -177,9 +177,13 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeORTCpu::CreateModelCPU(const TObjectPt
 		return TSharedPtr<UE::NNE::IModelCPU>();
 	}
 
-	const TSharedRef<UE::NNE::FSharedModelData> SharedData = ModelData->GetModelData(GetRuntimeName()).ToSharedRef();
+	const TSharedPtr<UE::NNE::FSharedModelData> SharedData = ModelData->GetModelData(GetRuntimeName());
+	check(SharedData.IsValid());
 
-	return MakeShared<UE::NNERuntimeORT::Private::FModelORTCpu>(Environment.ToSharedRef(), SharedData);
+	UE::NNE::IModelCPU* IModel = static_cast<UE::NNE::IModelCPU*>(new UE::NNERuntimeORT::Private::FModelORTCpu(Environment.ToSharedRef(), SharedData));
+	check(IModel != nullptr);
+
+	return TSharedPtr<UE::NNE::IModelCPU>(IModel);
 }
 
 /*
@@ -190,7 +194,6 @@ void UNNERuntimeORTDml::Init(TSharedRef<UE::NNERuntimeORT::Private::FEnvironment
 	Environment = InEnvironment;
 	bDirectMLAvailable = bInDirectMLAvailable;
 	bD3D12Available = UE::NNERuntimeORT::Private::IsD3D12Available();
-	bD3D12DeviceNPUAvailable = UE::NNERuntimeORT::Private::IsD3D12DeviceNPUAvailable();
 }
 
 FString UNNERuntimeORTDml::GetRuntimeName() const
@@ -254,16 +257,6 @@ FString UNNERuntimeORTDml::GetModelDataIdentifier(const FString& FileType, TCons
 
 UNNERuntimeORTDml::ECanCreateModelGPUStatus UNNERuntimeORTDml::CanCreateModelGPU(const TObjectPtr<UNNEModelData> ModelData) const
 {
-	if (!bDirectMLAvailable)
-	{
-		return ECanCreateModelCommonStatus::Fail;
-	}
-
-	if (!bD3D12Available)
-	{
-		return ECanCreateModelCommonStatus::Fail;
-	}
-
 	return CanCreateModelCommon(ModelData, false) == ECanCreateModelCommonStatus::Ok ? ECanCreateModelGPUStatus::Ok : ECanCreateModelGPUStatus::Fail;
 }
 
@@ -278,7 +271,8 @@ TSharedPtr<UE::NNE::IModelGPU> UNNERuntimeORTDml::CreateModelGPU(const TObjectPt
 		return {};
 	}
 
-	const TSharedRef<UE::NNE::FSharedModelData> SharedData = ModelData->GetModelData(GetRuntimeName()).ToSharedRef();
+	const TSharedPtr<UE::NNE::FSharedModelData> SharedData = ModelData->GetModelData(GetRuntimeName());
+	check(SharedData.IsValid());
 
 	return MakeShared<UE::NNERuntimeORT::Private::FModelORTDmlGPU>(Environment.ToSharedRef(), SharedData);
 #else // PLATFORM_WINDOWS
@@ -288,18 +282,6 @@ TSharedPtr<UE::NNE::IModelGPU> UNNERuntimeORTDml::CreateModelGPU(const TObjectPt
 
 UNNERuntimeORTDml::ECanCreateModelRDGStatus UNNERuntimeORTDml::CanCreateModelRDG(TObjectPtr<UNNEModelData> ModelData) const
 {
-	if (!bDirectMLAvailable)
-	{
-		return ECanCreateModelCommonStatus::Fail;
-	}
-
-#if PLATFORM_WINDOWS
-	if (!IsRHID3D12())
-	{
-		return ECanCreateModelCommonStatus::Fail;
-	}
-#endif // PLATFORM_WINDOWS
-
 	return CanCreateModelCommon(ModelData) == ECanCreateModelCommonStatus::Ok ? ECanCreateModelRDGStatus::Ok : ECanCreateModelRDGStatus::Fail;
 }
 
@@ -322,44 +304,26 @@ TSharedPtr<UE::NNE::IModelRDG> UNNERuntimeORTDml::CreateModelRDG(TObjectPtr<UNNE
 #endif // PLATFORM_WINDOWS
 }
 
-UNNERuntimeORTDml::ECanCreateModelNPUStatus UNNERuntimeORTDml::CanCreateModelNPU(const TObjectPtr<UNNEModelData> ModelData) const
+UNNERuntimeORTDml::ECanCreateModelCommonStatus UNNERuntimeORTDml::CanCreateModelCommon(const TObjectPtr<UNNEModelData> ModelData, bool bRHID3D12Required) const
 {
+#if PLATFORM_WINDOWS
+	check(ModelData != nullptr);
+
+	// DirectML is required
 	if (!bDirectMLAvailable)
 	{
 		return ECanCreateModelCommonStatus::Fail;
 	}
 
-	if (!bD3D12DeviceNPUAvailable)
+	// Either RHID3D12 or at least D3D12 is required
+	if (bRHID3D12Required && !IsRHID3D12())
 	{
 		return ECanCreateModelCommonStatus::Fail;
 	}
-
-	return CanCreateModelCommon(ModelData) == ECanCreateModelCommonStatus::Ok ? ECanCreateModelRDGStatus::Ok : ECanCreateModelRDGStatus::Fail;
-}
-
-TSharedPtr<UE::NNE::IModelNPU> UNNERuntimeORTDml::CreateModelNPU(const TObjectPtr<UNNEModelData> ModelData)
-{
-#if PLATFORM_WINDOWS
-	check(ModelData);
-
-	if (CanCreateModelNPU(ModelData) != ECanCreateModelRDGStatus::Ok)
+	else if (!bD3D12Available)
 	{
-		UE_LOG(LogNNERuntimeORT, Error, TEXT("Cannot create a model NPU from the model data with id %s"), *ModelData->GetFileId().ToString(EGuidFormats::Digits));
-		return {};
+		return ECanCreateModelCommonStatus::Fail;
 	}
-
-	const TSharedRef<UE::NNE::FSharedModelData> SharedData = ModelData->GetModelData(GetRuntimeName()).ToSharedRef();
-
-	return MakeShared<UE::NNERuntimeORT::Private::FModelORTNpu>(Environment.ToSharedRef(), SharedData);
-#else // PLATFORM_WINDOWS
-	return {};
-#endif // PLATFORM_WINDOWS
-}
-
-UNNERuntimeORTDml::ECanCreateModelCommonStatus UNNERuntimeORTDml::CanCreateModelCommon(const TObjectPtr<UNNEModelData> ModelData, bool bRHID3D12Required) const
-{
-#if PLATFORM_WINDOWS
-	check(ModelData != nullptr);
 
 	constexpr int32 GuidSize = sizeof(UNNERuntimeORTDml::GUID);
 	constexpr int32 VersionSize = sizeof(UNNERuntimeORTDml::Version);

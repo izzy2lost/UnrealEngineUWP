@@ -431,18 +431,21 @@ typename ModelInterface::ERunSyncStatus FModelInstanceORTBase<ModelInterface, Te
 
 TSharedPtr<NNE::IModelInstanceCPU> FModelORTCpu::CreateModelInstanceCPU()
 {
-	const FRuntimeConf RuntimeConfig = Detail::MakeRuntimeConfigFromSettings(GetDefault<UNNERuntimeORTSettings>());
+	const FRuntimeConf Conf = Detail::MakeRuntimeConfigFromSettings(GetDefault<UNNERuntimeORTSettings>());
+	FModelInstanceORTCpu* ModelInstance = new FModelInstanceORTCpu(Conf, Environment);
 
-	TSharedPtr<FModelInstanceORTCpu> ModelInstance = MakeShared<FModelInstanceORTCpu>(RuntimeConfig, Environment);
+	check(ModelData.IsValid());
 	if (!ModelInstance->Init(ModelData->GetView()))
 	{
-		return {};
+		delete ModelInstance;
+		return TSharedPtr<UE::NNE::IModelInstanceCPU>();
 	}
 
-	return ModelInstance;
+	NNE::IModelInstanceCPU* IModelInstance = static_cast<NNE::IModelInstanceCPU*>(ModelInstance);
+	return TSharedPtr<NNE::IModelInstanceCPU>(IModelInstance);
 }
 
-FModelORTCpu::FModelORTCpu(TSharedRef<FEnvironment> InEnvironment, TSharedRef<UE::NNE::FSharedModelData> InModelData) :
+FModelORTCpu::FModelORTCpu(TSharedRef<FEnvironment> InEnvironment, const TSharedPtr<UE::NNE::FSharedModelData>& InModelData) :
 	Environment(InEnvironment), ModelData(InModelData)
 {
 }
@@ -472,16 +475,20 @@ TSharedPtr<NNE::IModelInstanceGPU> FModelORTDmlGPU::CreateModelInstanceGPU()
 {
 	const FRuntimeConf RuntimeConfig = Detail::MakeRuntimeConfigFromSettings(GetDefault<UNNERuntimeORTSettings>());
 
-	TSharedPtr<FModelInstanceORTDmlGPU> ModelInstance = MakeShared<FModelInstanceORTDmlGPU>(RuntimeConfig, Environment);
+	FModelInstanceORTDmlGPU* ModelInstance = new FModelInstanceORTDmlGPU(RuntimeConfig, Environment);
+
+	check(ModelData.IsValid());
 	if (!ModelInstance->Init(ModelData->GetView()))
 	{
-		return {};
+		delete ModelInstance;
+		return TSharedPtr<UE::NNE::IModelInstanceGPU>();
 	}
 
-	return ModelInstance;
+	NNE::IModelInstanceGPU* IModelInstance = static_cast<NNE::IModelInstanceGPU*>(ModelInstance);
+	return TSharedPtr<NNE::IModelInstanceGPU>(IModelInstance);
 }
 
-FModelORTDmlGPU::FModelORTDmlGPU(TSharedRef<FEnvironment> InEnvironment, TSharedRef<UE::NNE::FSharedModelData> InModelData) :
+FModelORTDmlGPU::FModelORTDmlGPU(TSharedRef<FEnvironment> InEnvironment, const TSharedPtr<UE::NNE::FSharedModelData>& InModelData) :
 	Environment(InEnvironment), ModelData(InModelData)
 {
 }
@@ -978,43 +985,6 @@ FModelInstanceORTDmlRDG::EEnqueueRDGStatus FModelInstanceORTDmlRDG::EnqueueRDG(F
 	});
 
 	return EEnqueueRDGStatus::Ok;
-}
-
-TSharedPtr<NNE::IModelInstanceNPU> FModelORTNpu::CreateModelInstanceNPU()
-{
-	const FRuntimeConf RuntimeConfig = Detail::MakeRuntimeConfigFromSettings(GetDefault<UNNERuntimeORTSettings>());
-
-	TSharedPtr<FModelInstanceORTNpu> ModelInstance = MakeShared<FModelInstanceORTNpu>(RuntimeConfig, Environment);
-	if (!ModelInstance->Init(ModelData->GetView()))
-	{
-		return {};
-	}
-
-	return ModelInstance;
-}
-
-FModelORTNpu::FModelORTNpu(TSharedRef<FEnvironment> InEnvironment, TSharedRef<UE::NNE::FSharedModelData> InModelData) :
-	Environment(InEnvironment), ModelData(InModelData)
-{
-}
-
-bool FModelInstanceORTNpu::InitializedAndConfigureMembers()
-{
-	if (!FModelInstanceORTBase::InitializedAndConfigureMembers())
-	{
-		return false;
-	}
-
-	SessionOptions = CreateSessionOptionsForDirectMLNpu(Environment);
-	if (!SessionOptions.IsValid())
-	{
-		return false;
-	}
-
-	SessionOptions->SetExecutionMode(RuntimeConf.ExecutionMode);
-	SessionOptions->SetGraphOptimizationLevel(GetGraphOptimizationLevelForDML(true));
-
-	return true;
 }
 #endif //PLATFORM_WINDOWS
 	
