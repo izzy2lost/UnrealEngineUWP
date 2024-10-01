@@ -33,13 +33,15 @@ bool UCustomizableObjectNodeModifierBase::IsApplicableTo(UCustomizableObjectNode
 	const TArray<FString>* EnabledTags = Candidate->GetEnableTags();
 	if (EnabledTags)
 	{
+		FString InternalTag = Candidate->GetInternalTag();
+
 		switch ( MultipleTagPolicy )
 		{
 		case EMutableMultipleTagPolicy::OnlyOneRequired:
 		{
 			for (const FString& RequiredTag : RequiredTags)
 			{
-				if (EnabledTags->Contains(RequiredTag))
+				if (InternalTag==RequiredTag || EnabledTags->Contains(RequiredTag))
 				{
 					return true;
 				}
@@ -51,7 +53,7 @@ bool UCustomizableObjectNodeModifierBase::IsApplicableTo(UCustomizableObjectNode
 		{
 			for (const FString& RequiredTag : RequiredTags)
 			{
-				if (!EnabledTags->Contains(RequiredTag))
+				if (InternalTag != RequiredTag && !EnabledTags->Contains(RequiredTag))
 				{
 					return false;
 				}
