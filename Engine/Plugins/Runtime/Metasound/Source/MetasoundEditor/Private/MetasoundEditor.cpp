@@ -3781,6 +3781,8 @@ namespace Metasound
 				}
 			}
 
+			FGraphBuilder::RegisterGraphWithFrontend(*MetaSound, true);
+
 			if (GraphMembersMenu.IsValid())
 			{
 				GraphMembersMenu->RefreshAllActions(true);
@@ -5154,6 +5156,8 @@ namespace Metasound
 					}
 				}
 			}
+
+			FGraphBuilder::RegisterGraphWithFrontend(ParentMetasound, true);
 		}
 
 		bool FEditor::CanPromoteAllToCommonInputs()
@@ -5262,6 +5266,8 @@ namespace Metasound
 					}
 				}
 			}
+
+			FGraphBuilder::RegisterGraphWithFrontend(ParentMetasound, true);
 		}
 	}
 }
