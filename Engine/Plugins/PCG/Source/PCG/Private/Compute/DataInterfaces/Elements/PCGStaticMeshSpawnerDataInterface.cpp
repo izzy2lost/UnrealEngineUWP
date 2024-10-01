@@ -58,8 +58,8 @@ BEGIN_SHADER_PARAMETER_STRUCT(FPCGStaticMeshSpawnerDataInterfaceParameters,)
 	SHADER_PARAMETER_SCALAR_ARRAY(float, SelectionCDF, [PCGComputeConstants::MAX_PRIMITIVE_COMPONENTS_PER_SPAWNER])
 	SHADER_PARAMETER(uint32, NumAttributes)
 	SHADER_PARAMETER(uint32, NumPrimitives)
-	SHADER_PARAMETER(uint32, SelectorAttributeId)
-	SHADER_PARAMETER(uint32, SelectedMeshAttributeId)
+	SHADER_PARAMETER(int32, SelectorAttributeId)
+	SHADER_PARAMETER(int32, SelectedMeshAttributeId)
 END_SHADER_PARAMETER_STRUCT()
 
 void UPCGStaticMeshSpawnerDataInterface::GetShaderParameters(TCHAR const* UID, FShaderParametersMetadataBuilder& InOutBuilder, FShaderParametersMetadataAllocations& InOutAllocations) const
@@ -77,8 +77,8 @@ void UPCGStaticMeshSpawnerDataInterface::GetHLSL(FString& OutHLSL, FString const
 	};
 
 	OutHLSL += FString::Format(TEXT(
-		"uint {DataInterfaceName}_SelectorAttributeId;\n"
-		"uint SMSpawner_GetSelectorAttributeId_{DataInterfaceName}() { return {DataInterfaceName}_SelectorAttributeId; }\n"
+		"int {DataInterfaceName}_SelectorAttributeId;\n"
+		"int SMSpawner_GetSelectorAttributeId_{DataInterfaceName}() { return {DataInterfaceName}_SelectorAttributeId; }\n"
 		"\n"
 		"uint {DataInterfaceName}_NumAttributes;\n"
 		"uint4 {DataInterfaceName}_AttributeIdOffsetStrides[{MaxAttributes}];\n"
@@ -110,8 +110,8 @@ void UPCGStaticMeshSpawnerDataInterface::GetHLSL(FString& OutHLSL, FString const
 		"\n"
 		"float SMSpawner_GetPrimitiveSelectionCDF_{DataInterfaceName}(uint InPrimitiveIndex) { return GET_SCALAR_ARRAY_ELEMENT({DataInterfaceName}_SelectionCDF, InPrimitiveIndex); }\n"
 		"\n"
-		"uint {DataInterfaceName}_SelectedMeshAttributeId;\n"
-		"uint SMSpawner_GetSelectedMeshAttributeId_{DataInterfaceName}() { return {DataInterfaceName}_SelectedMeshAttributeId; }\n"
+		"int {DataInterfaceName}_SelectedMeshAttributeId;\n"
+		"int SMSpawner_GetSelectedMeshAttributeId_{DataInterfaceName}() { return {DataInterfaceName}_SelectedMeshAttributeId; }\n"
 		), TemplateArgs);
 }
 
@@ -162,8 +162,8 @@ void FPCGStaticMeshSpawnerDataProviderProxy::GatherDispatchData(FDispatchData co
 
 		Parameters.NumAttributes = AttributeIdOffsetStrides.Num();
 		Parameters.NumPrimitives = SelectionCDF.Num();
-		Parameters.SelectorAttributeId = static_cast<uint32>(SelectorAttributeId);
-		Parameters.SelectedMeshAttributeId = static_cast<uint32>(SelectedMeshAttributeId);
+		Parameters.SelectorAttributeId = SelectorAttributeId;
+		Parameters.SelectedMeshAttributeId = SelectedMeshAttributeId;
 
 		for (int32 Index = 0; Index < AttributeIdOffsetStrides.Num(); ++Index)
 		{

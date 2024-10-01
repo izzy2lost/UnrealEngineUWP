@@ -47,7 +47,7 @@ uint GetNumData_{DataInterfaceName}()
 	return {DataInterfaceName}_DataCollectionBuffer.Load(0) & ~KERNEL_EXECUTED_FLAG;
 }
 
-uint GetDataNumElements_{DataInterfaceName}(uint InDataIndex)
+uint GetNumElements_{DataInterfaceName}(uint InDataIndex)
 {
 	const uint ReadAddress =
 		DATA_COLLECTION_HEADER_SIZE_BYTES +
@@ -106,7 +106,7 @@ void StoreBufferInternal_{DataInterfaceName}(uint Address, uint Value)
 	return {DataInterfaceName}_DataCollectionBuffer.Store(Address, Value);
 }
 
-uint GetFirstElementAddressInternal_{DataInterfaceName}(uint InDataIndex, uint InAttributeId)
+uint GetFirstElementAddressInternal_{DataInterfaceName}(uint InDataIndex, int InAttributeId)
 {
 	const uint ReadAddress =
 		DATA_COLLECTION_HEADER_SIZE_BYTES +
@@ -118,7 +118,7 @@ uint GetFirstElementAddressInternal_{DataInterfaceName}(uint InDataIndex, uint I
 	return {DataInterfaceName}_DataCollectionBuffer.Load(ReadAddress);
 }
 
-uint GetAttributeStrideInternal_{DataInterfaceName}(uint InDataIndex, uint InAttributeId)
+uint GetAttributeStrideInternal_{DataInterfaceName}(uint InDataIndex, int InAttributeId)
 {
 	const uint ReadAddress =
 		DATA_COLLECTION_HEADER_SIZE_BYTES +
@@ -130,7 +130,7 @@ uint GetAttributeStrideInternal_{DataInterfaceName}(uint InDataIndex, uint InAtt
 	return PackedAttributeIdAndStride & (0xFFFFFFFF >> 24);
 }
 
-uint GetElementAddressInternal_{DataInterfaceName}(uint InDataIndex, uint InElementIndex, uint InAttributeId)
+uint GetElementAddressInternal_{DataInterfaceName}(uint InDataIndex, uint InElementIndex, int InAttributeId)
 {
 	const uint FirstElementAddress = GetFirstElementAddressInternal_{DataInterfaceName}(InDataIndex, InAttributeId);
 	const uint AttributeStride = GetAttributeStrideInternal_{DataInterfaceName}(InDataIndex, InAttributeId);
@@ -156,61 +156,61 @@ void SetAsExecutedInternal_{DataInterfaceName}()
 
 // #################### ATTRIBUTE GETTERS ##########################
 
-bool GetBool_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId)
+bool GetBool_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId)
 {
 	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
 	return asbool({DataInterfaceName}_DataCollectionBuffer.Load(AttributeAddress + ElementIndex * 1 * 4));
 }
 
-int GetInt_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId)
+int GetInt_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId)
 {
 	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
 	return asint({DataInterfaceName}_DataCollectionBuffer.Load(AttributeAddress + ElementIndex * 1 * 4));
 }
 
-int GetUint_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId)
+int GetUint_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId)
 {
 	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
 	return {DataInterfaceName}_DataCollectionBuffer.Load(AttributeAddress + ElementIndex * 1 * 4);
 }
 
-float GetFloat_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId)
+float GetFloat_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId)
 {
 	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
 	return asfloat({DataInterfaceName}_DataCollectionBuffer.Load(AttributeAddress + ElementIndex * 1 * 4));
 }
 
-float2 GetFloat2_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId)
+float2 GetFloat2_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId)
 {
 	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
 	return asfloat({DataInterfaceName}_DataCollectionBuffer.Load2(AttributeAddress + ElementIndex * 2 * 4));
 }
 
-float3 GetFloat3_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId)
+float3 GetFloat3_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId)
 {
 	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
 	return asfloat({DataInterfaceName}_DataCollectionBuffer.Load3(AttributeAddress + ElementIndex * 3 * 4));
 }
 
-float4 GetFloat4_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId)
+float4 GetFloat4_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId)
 {
 	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
 	return asfloat({DataInterfaceName}_DataCollectionBuffer.Load4(AttributeAddress + ElementIndex * 4 * 4));
 }
 
-float3 GetRotator_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId)
+float3 GetRotator_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId)
 {
 	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
 	return asfloat({DataInterfaceName}_DataCollectionBuffer.Load3(AttributeAddress + ElementIndex * 3 * 4));
 }
 
-float4 GetQuat_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId)
+float4 GetQuat_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId)
 {
 	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
 	return asfloat({DataInterfaceName}_DataCollectionBuffer.Load4(AttributeAddress + ElementIndex * 4 * 4));
 }
 
-int GetStringKey_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId)
+int GetStringKey_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId)
 {
 	// String keys are represented as ints.
 	return GetInt_{DataInterfaceName}(DataIndex, ElementIndex, AttributeId);
@@ -218,61 +218,61 @@ int GetStringKey_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint Att
 
 // #################### ATTRIBUTE SETTERS ##########################
 
-void SetBool_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId, bool Value)
+void SetBool_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId, bool Value)
 {
 	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
 	{DataInterfaceName}_DataCollectionBuffer.Store(AttributeAddress + ElementIndex * 1 * 4, asuint(Value));
 }
 
-void SetInt_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId, int Value)
+void SetInt_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId, int Value)
 {
 	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
 	{DataInterfaceName}_DataCollectionBuffer.Store(AttributeAddress + ElementIndex * 1 * 4, asuint(Value));
 }
 
-void SetUint_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId, uint Value)
+void SetUint_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId, uint Value)
 {
 	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
 	{DataInterfaceName}_DataCollectionBuffer.Store(AttributeAddress + ElementIndex * 1 * 4, Value);
 }
 
-void SetFloat_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId, float Value)
+void SetFloat_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId, float Value)
 {
 	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
 	{DataInterfaceName}_DataCollectionBuffer.Store(AttributeAddress + ElementIndex * 1 * 4, asuint(Value));
 }
 
-void SetFloat2_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId, float2 Value)
+void SetFloat2_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId, float2 Value)
 {
 	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
 	{DataInterfaceName}_DataCollectionBuffer.Store2(AttributeAddress + ElementIndex * 2 * 4, asuint(Value));
 }
 
-void SetFloat3_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId, float3 Value)
+void SetFloat3_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId, float3 Value)
 {
 	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
 	{DataInterfaceName}_DataCollectionBuffer.Store3(AttributeAddress + ElementIndex * 3 * 4, asuint(Value));
 }
 
-void SetFloat4_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId, float4 Value)
+void SetFloat4_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId, float4 Value)
 {
 	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
 	{DataInterfaceName}_DataCollectionBuffer.Store4(AttributeAddress + ElementIndex * 4 * 4, asuint(Value));
 }
 
-void SetRotator_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId, float3 Value)
+void SetRotator_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId, float3 Value)
 {
 	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
 	{DataInterfaceName}_DataCollectionBuffer.Store3(AttributeAddress + ElementIndex * 3 * 4, asuint(Value));
 }
 
-void SetQuat_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId, float4 Value)
+void SetQuat_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId, float4 Value)
 {
 	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
 	{DataInterfaceName}_DataCollectionBuffer.Store4(AttributeAddress + ElementIndex * 4 * 4, asuint(Value));
 }
 
-void SetStringKey_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId, int Value)
+void SetStringKey_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId, int Value)
 {
 	// String keys are represented as ints.
 	SetInt_{DataInterfaceName}(DataIndex, ElementIndex, AttributeId, Value);
