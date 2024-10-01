@@ -274,6 +274,10 @@ FORCEINLINE void StatsPrimaryEnableSubtract(int32 Value = 1)
 	FScopeCycleCounter StatNamedEventsScope_##Stat(TStatId(ANSI_TO_PROFILING(#Stat))); \
 	SCOPE_CYCLE_COUNTER_TO_TRACE(#Stat, Stat, true);
 
+#define SCOPE_CYCLE_COUNTER_STATID(StatId) \
+	FScopeCycleCounter StatNamedEventsScope_STATID(StatId); \
+	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT_CONDITIONAL(StatId.StatString, GCycleStatsShouldEmitNamedEvents > 0);
+
 #define CONDITIONAL_SCOPE_CYCLE_COUNTER(Stat,bCondition) \
 	FScopeCycleCounter StatNamedEventsScope_##Stat(bCondition ? ANSI_TO_PROFILING(#Stat) : nullptr); \
 	SCOPE_CYCLE_COUNTER_TO_TRACE(#Stat, Stat, bCondition);
@@ -315,6 +319,9 @@ public:
 #define SCOPE_CYCLE_COUNTER(Stat) \
 	FLightweightStatScope LightweightStatScope_##Stat(TEXT(#Stat));
 
+#define SCOPE_CYCLE_COUNTER_STATID(StatId) \
+	FLightweightStatScope LightweightStatScope_##Stat(TEXT("Lightweight StatId Scope"));
+
 #define CONDITIONAL_SCOPE_CYCLE_COUNTER(Stat,bCondition) \
 	FLightweightStatScope LightweightStatScope_##Stat(bCondition ? TEXT(#Stat) : nullptr);
 
@@ -323,6 +330,7 @@ public:
 
 #else
 #define SCOPE_CYCLE_COUNTER(Stat)
+#define SCOPE_CYCLE_COUNTER_STATID(StatId)
 #define QUICK_SCOPE_CYCLE_COUNTER(Stat)
 #define DECLARE_SCOPE_CYCLE_COUNTER(CounterName,StatId,GroupId)
 #define CONDITIONAL_SCOPE_CYCLE_COUNTER(Stat,bCondition)

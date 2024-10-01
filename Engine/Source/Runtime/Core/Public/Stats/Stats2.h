@@ -2115,6 +2115,9 @@ struct FStat_##StatName\
 #define SCOPE_CYCLE_COUNTER(Stat) \
 	FScopeCycleCounter CycleCount_##Stat(GET_STATID(Stat), GET_STATFLAGS(Stat));
 
+#define SCOPE_CYCLE_COUNTER_STATID(StatId) \
+	FScopeCycleCounter CycleCount_FromStatId(StatId);
+
 #define CONDITIONAL_SCOPE_CYCLE_COUNTER(Stat,bCondition) \
 	FScopeCycleCounter CycleCount_##Stat(bCondition ? GET_STATID(Stat) : TStatId(), GET_STATFLAGS(Stat));
 
