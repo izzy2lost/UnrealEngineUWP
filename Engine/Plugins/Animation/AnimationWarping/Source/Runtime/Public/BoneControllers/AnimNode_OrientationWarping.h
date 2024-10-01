@@ -110,6 +110,11 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OrientationWarping : public FAnimNo
 	UPROPERTY(EditAnywhere, Category=Settings, meta=(ClampMin="0.0"))
 	float RotationInterpSpeed = 10.f;
 
+	// Same as RotationInterpSpeed, but for CounterCompensate smoothing. A value of 0 sample raw root motion.
+	// Used to avoid stuttering from resampling root deltas. Root motion is already smooth, so a large value is our default (~75% of 60 fps).
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (ClampMin = "0.0"))
+	float CounterCompensateInterpSpeed = 45.f;
+
 	// Max correction we're allowed to do per-second when using interpolation.
 	// This minimizes pops when we have a large difference between current and target orientation.
 	UPROPERTY(EditAnywhere, Category=Settings, meta=(ClampMin="0.0", EditCondition="RotationInterpSpeed > 0.0f"))
@@ -215,7 +220,12 @@ private:
 	
 	// Internal current frame root motion delta direction
 	FVector RootMotionDeltaDirection = FVector::ZeroVector;
+
+	// Internal current frame root motion delta angle
 	FQuat RootMotionDeltaRotation = FQuat::Identity;
+
+	// Target for counter compenstate, we keep the target so we can smoothly interp.
+	float CounterCompensateTargetAngleRad = 0.0f;
 
 #if ENABLE_ANIM_DEBUG || ENABLE_VISUAL_LOG
 	// Store these in debug only so that they can persist in debug / across pauses
