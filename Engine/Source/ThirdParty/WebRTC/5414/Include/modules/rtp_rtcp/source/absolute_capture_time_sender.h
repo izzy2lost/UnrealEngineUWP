@@ -44,7 +44,7 @@ class AbsoluteCaptureTimeSender {
       TimeDelta::Millis(1000);
   static constexpr TimeDelta kInterpolationMaxError = TimeDelta::Millis(1);
 
-  explicit AbsoluteCaptureTimeSender(Clock* clock);
+  explicit AbsoluteCaptureTimeSender(Clock* clock, bool always_send_extension = false);
 
   // Returns the source (i.e. SSRC or CSRC) of the capture system.
   static uint32_t GetSource(uint32_t ssrc,
@@ -70,6 +70,7 @@ class AbsoluteCaptureTimeSender {
       RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   Clock* const clock_;
+  const bool always_send_extension_;
 
   Mutex mutex_;
 

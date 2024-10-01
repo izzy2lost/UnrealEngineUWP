@@ -11,6 +11,8 @@
 #ifndef RTC_BASE_PLATFORM_THREAD_TYPES_H_
 #define RTC_BASE_PLATFORM_THREAD_TYPES_H_
 
+#include <cstdint>
+
 // clang-format off
 // clang formating would change include order.
 #if defined(WEBRTC_WIN)
@@ -57,7 +59,6 @@ bool IsThreadRefEqual(const PlatformThreadRef& a, const PlatformThreadRef& b);
 // Sets the current thread name.
 void SetCurrentThreadName(const char* name);
 
-
 enum class ThreadPriority : int {
 #ifdef WEBRTC_WIN
   kLow = THREAD_PRIORITY_BELOW_NORMAL,
@@ -74,15 +75,18 @@ enum class ThreadPriority : int {
 #endif
 };
 
+using ThreadAffinityMask = std::uint64_t;
+
 #if defined(WEBRTC_WIN)
 using ThreadHandle = HANDLE;
 #else
 using ThreadHandle = pthread_t;
 #endif  // defined(WEBRTC_WIN)
 
+ThreadHandle GetCurrentThread();
+
 // Sets the thread priority.
 bool SetThreadPriority(const ThreadHandle& thread_handle, ThreadPriority thread_priority);
-
 }  // namespace rtc
 
 #endif  // RTC_BASE_PLATFORM_THREAD_TYPES_H_

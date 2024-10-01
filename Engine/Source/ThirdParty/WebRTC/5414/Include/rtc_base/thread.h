@@ -31,6 +31,7 @@
 #endif
 #include "absl/base/attributes.h"
 #include "absl/functional/any_invocable.h"
+#include "absl/types/optional.h"
 #include "api/function_view.h"
 #include "api/task_queue/task_queue_base.h"
 #include "api/units/time_delta.h"
@@ -288,6 +289,10 @@ class RTC_LOCKABLE RTC_EXPORT Thread : public webrtc::TaskQueueBase {
   const std::string& name() const { return name_; }
   bool SetName(absl::string_view name, const void* obj);
 
+  // Sets thread affinitt mask
+  absl::optional<ThreadAffinityMask> GetAffinityMask() const;
+  void SetAffinityMask(absl::optional<ThreadAffinityMask> affinity_mask);
+
   // Sets the expected processing time in ms. The thread will write
   // log messages when Dispatch() takes more time than this.
   // Default is 50 ms.
@@ -503,6 +508,8 @@ class RTC_LOCKABLE RTC_EXPORT Thread : public webrtc::TaskQueueBase {
   std::atomic<bool> is_real_thread_created_{ false };
   // all new threads will use this priority instead of using a platform-specific default priority
   const ThreadPriority priority_ = ThreadPriority::kNormal;
+
+  absl::optional<ThreadAffinityMask> affinity_mask_;
 
   // TODO(tommi): Add thread checks for proper use of control methods.
   // Ideally we should be able to just use PlatformThread.

@@ -15,6 +15,11 @@
 
 #if defined(WEBRTC_WIN)
 #include <windows.h>
+#include <condition_variable>
+#include <mutex>
+#include <variant>
+#include <thread>
+#include <deque>
 #elif defined(WEBRTC_POSIX)
 #include <atomic>
 #include <pthread.h>
@@ -90,7 +95,68 @@ class Event {
 
  private:
 #if defined(WEBRTC_WIN)
-  HANDLE event_handle_;
+  class WinSystemEvent
+  {
+    public:
+    WinSystemEvent(HANDLE event_handle);
+    ~WinSystemEvent();
+    
+    void Set() ;
+    void Reset();
+    bool Wait(webrtc::TimeDelta give_up_after, webrtc::TimeDelta warn_after);
+  private:
+    HANDLE event_handle_;
+  };
+
+  class ConditionVariableEvent
+  {
+  public:
+    ConditionVariableEvent(bool manual_reset, bool initially_signaled);
+    ~ConditionVariableEvent();
+    void Set();
+    void Reset();
+    bool Wait(webrtc::TimeDelta give_up_after, webrtc::TimeDelta warn_after);
+  private:
+    const bool manual_reset_;
+    bool event_status_;
+    std::deque<std::thread::id> waiting_threads_;
+    std::mutex mutex_;
+    std::condition_variable condition_variable_;
+  };
+
+  using EventImplType = std::variant<WinSystemEvent, ConditionVariableEvent>;
+
+  template<typename T>
+  T GetDefaultValue() const
+  {
+    return T{};
+  }
+  template<>
+  void GetDefaultValue<void>() const
+  {
+  }
+
+  template<typename Callable>
+  inline decltype(auto) Visit(Callable&& callable)
+  {
+    if (WinSystemEvent* event = std::get_if<WinSystemEvent>(&event_impl_))
+    {
+      return callable(*event);
+    }
+    else  if (ConditionVariableEvent* event = std::get_if<ConditionVariableEvent>(&event_impl_))
+    {
+      return callable(*event);
+    }
+    else
+    {
+      RTC_CHECK(false);
+      return GetDefaultValue<decltype(callable(*(reinterpret_cast<WinSystemEvent*>(0))))>();
+    }
+  }
+
+  static EventImplType CreateEvent(bool manual_reset, bool initially_signaled);
+
+  EventImplType event_impl_;
 #elif defined(WEBRTC_POSIX)
   pthread_mutex_t event_mutex_;
   pthread_cond_t event_cond_;

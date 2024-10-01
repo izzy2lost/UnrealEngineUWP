@@ -90,7 +90,8 @@ class PlatformThread final {
   static PlatformThread SpawnDetached(
       std::function<void()> thread_function,
       absl::string_view name,
-      ThreadAttributes attributes = ThreadAttributes());
+      ThreadAttributes attributes = ThreadAttributes(),
+      bool is_joinable_thread_check = true);
 
   // Returns the base platform thread handle of this thread.
   absl::optional<Handle> GetHandle() const;
@@ -104,7 +105,8 @@ class PlatformThread final {
   static PlatformThread SpawnThread(std::function<void()> thread_function,
                                     absl::string_view name,
                                     ThreadAttributes attributes,
-                                    bool joinable);
+                                    bool joinable,
+                                    bool is_joinable_thread_check = true);
 
   absl::optional<Handle> handle_;
   bool joinable_ = false;
