@@ -59,7 +59,6 @@ void UPolygonSelectionMechanic::GetSelection_AsGroupTopology(UE::Geometry::FGeom
 	}
 	else if (SelectionOut.ElementType == EGeometryElementType::Edge)
 	{
-		// TODO: not sure how we can apply compact maps here because mapping does not included compacted edges? are edges even compacted?
 		if ( CompactMapsToApply == nullptr )
 		{
 			for (int32 GroupEdgeID : CurSelection.SelectedEdgeIDs)
@@ -67,6 +66,24 @@ void UPolygonSelectionMechanic::GetSelection_AsGroupTopology(UE::Geometry::FGeom
 				const TArray<int>& GroupEdge = Topology->GetGroupEdgeEdges(GroupEdgeID);
 				FMeshTriEdgeID TriEdgeID = Topology->GetMesh()->GetTriEdgeIDFromEdgeID(GroupEdge[0]);
 				SelectionOut.Selection.Add( FGeoSelectionID(TriEdgeID.Encoded(), GroupEdgeID).Encoded() );
+			}
+		}
+		else
+		{
+			for (int32 GroupEdgeID : CurSelection.SelectedEdgeIDs)
+			{
+				const TArray<int>& GroupEdgeVerts = Topology->GetGroupEdgeVertices(GroupEdgeID);
+				if (GroupEdgeVerts.Num() > 1)
+				{
+					int32 VID0 = CompactMapsToApply->GetVertexMapping(GroupEdgeVerts[0]);
+					int32 VID1 = CompactMapsToApply->GetVertexMapping(GroupEdgeVerts[1]);
+					int32 FoundEID = Topology->GetMesh()->FindEdge(VID0, VID1);
+					if (FoundEID != IndexConstants::InvalidID)
+					{
+						FMeshTriEdgeID TriEdgeID = Topology->GetMesh()->GetTriEdgeIDFromEdgeID(FoundEID);
+						SelectionOut.Selection.Add(FGeoSelectionID(TriEdgeID.Encoded(), GroupEdgeID).Encoded());
+					}
+				}
 			}
 		}
 	}
@@ -87,7 +104,7 @@ void UPolygonSelectionMechanic::GetSelection_AsGroupTopology(UE::Geometry::FGeom
 
 void UPolygonSelectionMechanic::GetSelection_AsTriangleTopology(UE::Geometry::FGeometrySelection& SelectionOut, const FCompactMaps* CompactMapsToApply) const
 {
-	// note: this is currently the same code as GetSelection_AsGroupTopology() except for the topology-type verification check
+	// note: this is currently the same code as GetSelection_AsGroupTopology() except for the topology-type verification check, and the topology type of the selected elements
 
 	const FGroupTopologySelection& CurSelection = PersistentSelection;
 	if (SelectionOut.TopologyType != EGeometryTopologyType::Triangle)
@@ -108,7 +125,6 @@ void UPolygonSelectionMechanic::GetSelection_AsTriangleTopology(UE::Geometry::FG
 	}
 	else if (SelectionOut.ElementType == EGeometryElementType::Edge)
 	{
-		// TODO: not sure how we can apply compact maps here because mapping does not included compacted edges? are edges even compacted?
 		if ( CompactMapsToApply == nullptr )
 		{
 			for (int32 GroupEdgeID : CurSelection.SelectedEdgeIDs)
@@ -116,6 +132,24 @@ void UPolygonSelectionMechanic::GetSelection_AsTriangleTopology(UE::Geometry::FG
 				const TArray<int>& GroupEdge = Topology->GetGroupEdgeEdges(GroupEdgeID);
 				FMeshTriEdgeID TriEdgeID = Topology->GetMesh()->GetTriEdgeIDFromEdgeID(GroupEdge[0]);
 				SelectionOut.Selection.Add( FGeoSelectionID::MeshEdge(TriEdgeID).Encoded() );
+			}
+		}
+		else
+		{
+			for (int32 GroupEdgeID : CurSelection.SelectedEdgeIDs)
+			{
+				const TArray<int>& GroupEdgeVerts = Topology->GetGroupEdgeVertices(GroupEdgeID);
+				if (GroupEdgeVerts.Num() > 1)
+				{
+					int32 VID0 = CompactMapsToApply->GetVertexMapping(GroupEdgeVerts[0]);
+					int32 VID1 = CompactMapsToApply->GetVertexMapping(GroupEdgeVerts[1]);
+					int32 FoundEID = Topology->GetMesh()->FindEdge(VID0, VID1);
+					if (FoundEID != IndexConstants::InvalidID)
+					{
+						FMeshTriEdgeID TriEdgeID = Topology->GetMesh()->GetTriEdgeIDFromEdgeID(FoundEID);
+						SelectionOut.Selection.Add(FGeoSelectionID::MeshEdge(TriEdgeID).Encoded());
+					}
+				}
 			}
 		}
 	}

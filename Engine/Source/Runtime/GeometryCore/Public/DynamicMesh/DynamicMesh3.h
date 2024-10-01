@@ -1204,7 +1204,6 @@ public:
 	 * Should be faster if the amount of compacting is not too significant, and is useful in some places.
 	 *
 	 * @param CompactInfo if not nullptr, will be filled with mapping indicating how vertex and triangle IDs were changed during compaction
-	 * @todo VertexEdgeLists is not compacted. does not affect indices, but does keep memory.
 	 */
 	GEOMETRYCORE_API void CompactInPlace(FCompactMaps* CompactInfo = nullptr);
 
