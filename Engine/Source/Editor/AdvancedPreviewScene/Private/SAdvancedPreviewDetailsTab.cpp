@@ -201,7 +201,7 @@ FReply SAdvancedPreviewDetailsTab::AddProfileButtonClick()
 	DefaultSettings->Modify();
 
 	// Add new profile to settings instance
-	DefaultSettings->Profiles.AddDefaulted();
+	ProfileIndex = DefaultSettings->Profiles.AddDefaulted();
 	FPreviewSceneProfile& NewProfile = DefaultSettings->Profiles.Last();
 	
 	// Try to create a valid profile name when one is added
@@ -231,6 +231,7 @@ FReply SAdvancedPreviewDetailsTab::AddProfileButtonClick()
 	}
 
 	NewProfile.ProfileName = NewProfileName;
+	PerProjectSettings->AssetViewerProfileIndex = ProfileIndex;
 	DefaultSettings->PostEditChange();
 
 	// Change selection to new profile so the user directly sees the profile that was added

@@ -30,6 +30,9 @@ public:
 	/** Returns the preview profiles currently active. */
 	virtual FString GetActiveProfile() const override;
 
+	/** Returns true if user has added one or more of their own profiles */
+	virtual bool HasAnyUserProfiles() const override;
+
 	/** Invoked after the list of available profiles has changed. */
 	virtual FOnPreviewProfileListChanged& OnPreviewProfileListChanged() override { return OnPreviewProfileListChangedDelegate; }
 
