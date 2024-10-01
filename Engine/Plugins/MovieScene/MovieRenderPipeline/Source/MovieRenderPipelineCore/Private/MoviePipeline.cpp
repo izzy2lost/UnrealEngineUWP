@@ -53,6 +53,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "MoviePipelineTelemetry.h"
 #include "MovieSceneCommonHelpers.h"
+#include "Compilation/MovieSceneCompiledDataManager.h"
 
 #if WITH_EDITOR
 #include "MovieSceneExportMetadata.h"
@@ -912,7 +913,27 @@ void UMoviePipeline::InitializeLevelSequenceActor()
 	LevelSequenceActor->PlaybackSettings.bPauseAtEnd = true;
 	LevelSequenceActor->PlaybackSettings.FinishCompletionStateOverride = EMovieSceneCompletionModeOverride::ForceRestoreState;
 
-	// Use our duplicated sequence
+#if !WITH_EDITOR
+	// In shipping builds the Level Sequence data is assumed to be non-volatile. This prevents MRQ from automatically
+	// expanding sections (for temporal sub-samples, etc.). To solve this, we want to convert the user provided level
+	// sequence to be volatile, but unfortunately there's a couple of gotchas in the Sequencer API for doing that at runtime.
+	ULevelSequence* DummySequence = NewObject<ULevelSequence>(this, NAME_None, RF_Transient);
+	DummySequence->Initialize();
+	
+	// We need to create a dummy level sequence and specifically tell the LevelSequenceActor to switch to it. This is required
+	// because once we reset the precompiled data for the level sequence, if the LevelSequenceActor was already pointed to this
+	// sequence, then calling SetSequence again doesn't recompile the necessary data.
+	LevelSequenceActor->SetSequence(DummySequence);
+	
+	// Ensure the Volatile flag is set on the user provided level sequence.
+	TargetSequence->SetSequenceFlags(TargetSequence->GetFlags() | EMovieSceneSequenceFlags::Volatile);
+
+	// Reset the data in the Precompiled Data Manager so that it fetches the new Volatile value from the 
+	// sequence flags (otherwise it will used the cached data in the compiled hierarchy, which doesn't
+	// have the flag set).	
+	UMovieSceneCompiledDataManager::GetPrecompiledData()->Reset(TargetSequence);
+#endif
+
 	LevelSequenceActor->SetSequence(TargetSequence);
 
 	LevelSequenceActor->GetSequencePlayer()->SetTimeController(CustomSequenceTimeController);

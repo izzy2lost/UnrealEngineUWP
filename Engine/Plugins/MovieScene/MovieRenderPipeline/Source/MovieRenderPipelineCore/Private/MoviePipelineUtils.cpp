@@ -23,6 +23,7 @@
 #include "SceneView.h"
 #include "MovieScene.h"
 #include "MovieSceneSequence.h"
+#include "LevelSequence.h"
 #include "MovieRenderPipelineCoreModule.h"
 #include "Math/Halton.h"
 #include "Misc/Paths.h"
@@ -325,6 +326,11 @@ namespace MoviePipeline
 					}
 
 					Node->EvaluationType = Node->MovieScene->GetEvaluationType();
+
+					if (ULevelSequence* OwningSequence = Node->MovieScene->GetTypedOuter<ULevelSequence>())
+					{
+						Node->OriginalSequenceFlags = OwningSequence->GetFlags();
+					}
 				}
 
 				// Unlock the movie scene so we can make changes to sections below, it'll get re-locked later if needed.
@@ -389,6 +395,10 @@ namespace MoviePipeline
 				{
 					Node->MovieScene->SetPlaybackRange(Node->OriginalMovieScenePlaybackRange);
 					Node->MovieScene->SetEvaluationType(Node->EvaluationType);
+					if (ULevelSequence* OwningSequence = Node->MovieScene->GetTypedOuter<ULevelSequence>())
+					{
+						OwningSequence->SetSequenceFlags(Node->OriginalSequenceFlags);
+					}
 #if WITH_EDITOR
 					Node->MovieScene->SetReadOnly(Node->bOriginalMovieSceneReadOnly);
 					Node->MovieScene->SetPlaybackRangeLocked(Node->bOriginalMovieScenePlaybackRangeLocked);
