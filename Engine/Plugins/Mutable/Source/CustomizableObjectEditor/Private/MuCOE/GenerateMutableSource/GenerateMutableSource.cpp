@@ -841,6 +841,56 @@ mu::NodeMeshApplyPosePtr CreateNodeMeshApplyPose(FMutableGraphGenerationContext&
 	return NodeMeshApplyPose;
 }
 
+uint32 AddUniqueSurfaceMetadata(const FSkeletalMaterial* Material, const FSkelMeshSection* MeshSection, TMap<uint32, FMutableSurfaceMetadata>& InOutHashSurfaceMetadataSet)
+{
+	auto HashSurfaceMetadataFunc = [](const FMutableSurfaceMetadata& Data) -> uint32
+	{
+		// Create a string representation of the metadata.
+		FString SlotNameString = Data.MaterialSlotName.ToString();
+		SlotNameString.ToLowerInline();
+
+		TArrayView<const uint8> NameDataView(
+				reinterpret_cast<const uint8*>(*SlotNameString), SlotNameString.Len()*sizeof(FString::ElementType));
+
+		TArray<uint8, TInlineAllocator<256>> DataToHash;
+
+		DataToHash.Add(static_cast<uint8>(Data.bCastShadow));
+		DataToHash.Append(NameDataView);
+
+		return CityHash32(reinterpret_cast<const char*>(DataToHash.GetData()), DataToHash.Num());
+	};
+
+	auto CompareSurfaceMetadataFunc = [](const FMutableSurfaceMetadata& A, const FMutableSurfaceMetadata& B)
+	{
+		return A.bCastShadow == B.bCastShadow && A.MaterialSlotName == B.MaterialSlotName;
+	};
+
+	FMutableSurfaceMetadata SurfaceMetadata;
+
+	if (Material)
+	{
+		SurfaceMetadata.MaterialSlotName = Material->MaterialSlotName;
+	}
+
+	if (MeshSection)
+	{
+		SurfaceMetadata.bCastShadow = MeshSection->bCastShadow;
+	}
+
+	uint32 SurfaceMetadataUniqueHash = Private::GenerateUniquePersistentHash(
+			SurfaceMetadata, InOutHashSurfaceMetadataSet, HashSurfaceMetadataFunc, CompareSurfaceMetadataFunc);
+
+	if (SurfaceMetadataUniqueHash != 0)
+	{
+		InOutHashSurfaceMetadataSet.FindOrAdd(SurfaceMetadataUniqueHash, SurfaceMetadata);
+	}
+	else
+	{
+		UE_LOG(LogMutable, Error, TEXT("Maximum number of surfaces reached."));
+	}
+
+	return SurfaceMetadataUniqueHash;
+}
 
 // Convert a CustomizableObject Source Graph into a mutable source graph  
 mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGenerationContext & GenerationContext)

@@ -28,7 +28,7 @@ struct FMutableGraphGenerationContext;
  * @return  */
 bool GenerateTableColumn(const UCustomizableObjectNodeTable* TableNode, const UEdGraphPin* Pin, mu::TablePtr MutableTable, const FString& DataTableColumnName, const FProperty* ColumnProperty,
 	int32 LODIndexConnected, int32 SectionIndexConnected,
-	int32 LODIndex, int32 SectionIndex,
+	int32 LODIndex, int32 SectionIndex, uint32 SurfaceMetadataId,
 	bool bOnlyConnectedLOD,
 	FMutableGraphGenerationContext& GenerationContext);
 
@@ -52,7 +52,7 @@ bool GenerateTableColumn(const UCustomizableObjectNodeTable* TableNode, const UE
  * @return  */
 bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr MutableTable, const FString& ColumnName,
 	const FString& RowName, uint32 RowId, uint8* CellData, const FProperty* ColumnProperty,
-	int32 LODIndexConnected, int32 SectionIndexConnected, int32 LODIndex, int32 SectionIndex,
+	int32 LODIndexConnected, int32 SectionIndexConnected, int32 LODIndex, int32 SectionIndex, uint32 SectionMetadataId,
 	bool bOnlyConnectedLOD,
 	FMutableGraphGenerationContext& GenerationContext);
 

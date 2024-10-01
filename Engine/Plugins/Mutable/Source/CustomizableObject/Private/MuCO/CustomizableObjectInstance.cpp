@@ -4997,7 +4997,34 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 			}
 			
 			uint32 SurfaceMetadataId = OperationData->MutableInstance->GetSurfaceCustomId(InstanceComponentIndex, LODIndex, InstanceSurfaceIndex);
-			MeshSurfacesMetadata[MeshSectionIndex] = ModelResources.SurfaceMetadata.Find(SurfaceMetadataId);
+			
+			uint32 UsedSurfaceMetadataId = 0;
+			if (SurfaceMetadataId != 0)
+			{
+				UsedSurfaceMetadataId = SurfaceMetadataId;
+			}
+			else
+			{
+				// In case the surface does not have metadata, check if any submesh has surface metadata.
+				for (const mu::FSurfaceSubMesh& SubMesh : LOD.Mesh->Surfaces[MeshSectionIndex].SubMeshes)	
+				{
+					const FMutableMeshMetadata* FoundMeshMetadata = ModelResources.MeshMetadata.Find(SubMesh.ExternalId);
+
+					if (!FoundMeshMetadata)
+					{
+						continue;
+					}
+
+					UsedSurfaceMetadataId = FoundMeshMetadata->SurfaceMetadataId; 
+
+					if (UsedSurfaceMetadataId != 0)
+					{
+						break;
+					}
+				}
+			}	
+			
+			MeshSurfacesMetadata[MeshSectionIndex] = ModelResources.SurfaceMetadata.Find(UsedSurfaceMetadataId);
 		}
 
 		// Set RenderSections
@@ -6218,15 +6245,43 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 				FSkeletalMaterial& MaterialSlot = Materials.AddDefaulted_GetRef();
 				MaterialSlot.MaterialInterface = MaterialTemplate;
 
-				const FMutableSurfaceMetadata* FoundSurfaceMetadata = ModelResources.SurfaceMetadata.Find(Surface.SurfaceMetadataId);
+				uint32 UsedSurfaceMetadataId = Surface.SurfaceMetadataId;
+				
+				// If the surface metadata is invalid, check if any of the mesh fragments has metadata. 
+				// For now use the fisrt found, an aggregate may be needed. 
+				if (Surface.SurfaceMetadataId == 0 && LOD.Mesh)
+				{
+					int32 MeshSurfaceIndex = LOD.Mesh->Surfaces.IndexOfByPredicate([SurfaceId = Surface.SurfaceId](const mu::FMeshSurface& Surface)
+					{
+						return SurfaceId == Surface.Id;
+					});
+
+					if (MeshSurfaceIndex != INDEX_NONE)
+					{
+						for (const mu::FSurfaceSubMesh& SubMesh : LOD.Mesh->Surfaces[SurfaceIndex].SubMeshes)	
+						{
+							const FMutableMeshMetadata* FoundMeshMetadata = ModelResources.MeshMetadata.Find(SubMesh.ExternalId);
+
+							if (!FoundMeshMetadata)
+							{
+								continue;
+							}
+
+							UsedSurfaceMetadataId = FoundMeshMetadata->SurfaceMetadataId; 
+
+							if (UsedSurfaceMetadataId != 0)
+							{
+								break;
+							}
+						}
+					}
+				}
+
+				const FMutableSurfaceMetadata* FoundSurfaceMetadata = ModelResources.SurfaceMetadata.Find(UsedSurfaceMetadataId);
 				
 				if (FoundSurfaceMetadata)
 				{
-					const int32 MaterialSlotNameIndex = FoundSurfaceMetadata->MaterialSlotIndex;
-					if (ModelResources.MaterialSlotNames.IsValidIndex(MaterialSlotNameIndex))
-					{
-						MaterialSlot.MaterialSlotName = ModelResources.MaterialSlotNames[MaterialSlotNameIndex];
-					}
+					MaterialSlot.MaterialSlotName = FoundSurfaceMetadata->MaterialSlotName;
 				}
 				if (RefSkeletalMeshData)
 				{
