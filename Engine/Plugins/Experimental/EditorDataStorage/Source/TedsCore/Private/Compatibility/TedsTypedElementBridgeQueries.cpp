@@ -5,11 +5,10 @@
 #include "Compatibility/TedsTypedElementBridge.h"
 #include "Compatibility/Columns/TypedElement.h"
 #include "Elements/Columns/TypedElementCompatibilityColumns.h"
-#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
 #include "Elements/Framework/TypedElementList.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
+#include "Elements/Framework/TypedElementRegistry.h"
 #include "HAL/IConsoleManager.h"
 
 namespace UE::Editor::DataStorage::Compatibility::Private
@@ -91,18 +90,17 @@ void UTypedElementBridgeDataStorageFactory::CleanupTypedElementColumns(IEditorDa
 
 void UTypedElementBridgeDataStorageFactory::HandleOnEnabled(IConsoleVariable* CVar)
 {
-	using namespace UE::Editor::DataStorage;
-	IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
+	IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 	bool bIsEnabled = CVar->GetBool();
 
 	if (bIsEnabled)
 	{
 		RegisterQuery_NewUObject(*DataStorage);
-		Compatibility::OnTypedElementBridgeEnabled().Broadcast(bIsEnabled);
+		UE::Editor::DataStorage::Compatibility::OnTypedElementBridgeEnabled().Broadcast(bIsEnabled);
 	}
 	else
 	{
-		Compatibility::OnTypedElementBridgeEnabled().Broadcast(bIsEnabled);
+		UE::Editor::DataStorage::Compatibility::OnTypedElementBridgeEnabled().Broadcast(bIsEnabled);
 		UnregisterQuery_NewUObject(*DataStorage);
 		CleanupTypedElementColumns(*DataStorage);
 	}

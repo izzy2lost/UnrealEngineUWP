@@ -13,8 +13,7 @@
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementPackageColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
-#include "Elements/Common/EditorDataStorageFeatures.h"
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
+#include "Elements/Framework/TypedElementRegistry.h"
 #include "Modules/ModuleManager.h"
 #include "Compatibility/SceneOutlinerTedsBridge.h"
 #include "Compatibility/SceneOutlinerRowHandleColumn.h"
@@ -66,8 +65,9 @@ FTedsOutlinerModule::FTedsOutlinerModule()
 
 TSharedRef<ISceneOutliner> FTedsOutlinerModule::CreateTedsOutliner(const FSceneOutlinerInitializationOptions& InInitOptions, const FTedsOutlinerParams& InInitTedsOptions, DataStorage::QueryHandle ColumnQuery) const
 {
-	using namespace UE::Editor::DataStorage;
-	ensureMsgf(AreEditorDataStorageFeaturesEnabled(), TEXT("Unable to initialize the Teds-Outliner before TEDS itself is initialized."));
+	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+
+	ensureMsgf(Registry&& Registry->AreDataStorageInterfacesSet(), TEXT("Unable to initialize the Teds-Outliner before TEDS itself is initialized."));
 
 	FSceneOutlinerInitializationOptions InitOptions(InInitOptions);
 	FTedsOutlinerParams InitTedsOptions(InInitTedsOptions);
@@ -116,8 +116,8 @@ void FTedsOutlinerModule::ShutdownModule()
 
 DataStorage::QueryHandle FTedsOutlinerModule::GetLevelEditorTedsOutlinerColumnQuery()
 {
-	using namespace UE::Editor::DataStorage;
-	IEditorDataStorageProvider* Storage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
+	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+	IEditorDataStorageProvider* Storage = Registry->GetMutableDataStorage();
 		
 	using namespace DataStorage::Queries;
 
@@ -138,7 +138,10 @@ DataStorage::QueryHandle FTedsOutlinerModule::GetLevelEditorTedsOutlinerColumnQu
 
 TSharedRef<SWidget> FTedsOutlinerModule::CreateLevelEditorTedsOutliner()
 {
-	if(!DataStorage::AreEditorDataStorageFeaturesEnabled())
+	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+	checkf(Registry, TEXT("Unable to initialize the table viewer before TEDS is initialized."));
+
+	if(!Registry->AreDataStorageInterfacesSet())
 	{
 		return SNew(STextBlock)
 		.Text(LOCTEXT("TEDSPluginNotEnabledText", "You need to enable the Typed Element Data Storage plugin to see the table viewer!"));

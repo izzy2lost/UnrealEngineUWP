@@ -4,7 +4,7 @@
 
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
-#include "Elements/Common/EditorDataStorageFeatures.h"
+#include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
 #include "Widgets/Text/STextBlock.h"
@@ -36,10 +36,12 @@ namespace UE::Editor::DataStorage
 			WidgetPurposes = Widgets::Private::DefaultWidgetPurposes;
 		}
 
-		checkf(AreEditorDataStorageFeaturesEnabled(), TEXT("Unable to initialize SRowDetails without the editor data storage interfaces."));
+		UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+		checkf(Registry, TEXT("Unable to initialize SRowDetails before TEDS is initialized."));
+		checkf(Registry->AreDataStorageInterfacesSet(), TEXT("Unable to initialize SRowDetails without the editor data storage interfaces."));
 
-		DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
-		DataStorageUi = GetMutableDataStorageFeature<IEditorDataStorageUiProvider>(UiFeatureName);
+		DataStorage = Registry->GetMutableDataStorage();
+		DataStorageUi = Registry->GetMutableDataStorageUi();
 
 		
 		ChildSlot

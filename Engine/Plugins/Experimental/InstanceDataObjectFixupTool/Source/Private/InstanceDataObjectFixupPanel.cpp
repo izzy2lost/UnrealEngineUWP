@@ -13,7 +13,7 @@
 #include "UObject/PropertyBagRepository.h"
 
 #include "Elements/Columns/TypedElementAlertColumns.h"
-#include "Elements/Common/EditorDataStorageFeatures.h"
+#include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Interfaces/TypedElementDataStorageCompatibilityInterface.h"
 
@@ -250,8 +250,9 @@ FInstanceDataObjectFixupPanel::~FInstanceDataObjectFixupPanel()
 {
 	using namespace UE::Editor::DataStorage;
 
-	IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
-	IEditorDataStorageCompatibilityProvider* DataStorageCompatibility = DataStorageCompatibility = GetMutableDataStorageFeature<IEditorDataStorageCompatibilityProvider>(CompatibilityFeatureName);
+	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+	IEditorDataStorageProvider* DataStorage = Registry ? Registry->GetMutableDataStorage() : nullptr;
+	IEditorDataStorageCompatibilityProvider* DataStorageCompatibility = Registry ? Registry->GetMutableDataStorageCompatibility() : nullptr;
 
 	if (DataStorageCompatibility != nullptr && DataStorage != nullptr)
 	{

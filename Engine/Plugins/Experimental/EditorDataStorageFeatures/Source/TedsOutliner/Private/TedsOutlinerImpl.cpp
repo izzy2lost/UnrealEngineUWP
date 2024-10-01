@@ -7,11 +7,10 @@
 #include "Elements/Columns/TypedElementLabelColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
-#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
-#include "Elements/Interfaces/TypedElementDataStorageCompatibilityInterface.h"
 #include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
+#include "Elements/Framework/TypedElementRegistry.h"
 #include "Columns/SlateDelegateColumns.h"
 #include "Compatibility/SceneOutlinerRowHandleColumn.h"
 #include "TedsOutlinerFilter.h"
@@ -89,10 +88,15 @@ FTedsOutlinerImpl::FTedsOutlinerImpl(const FTedsOutlinerParams& InParams, IScene
 	, SceneOutliner(InParams.SceneOutliner)
 {
 	// Initialize the TEDS constructs
-	using namespace UE::Editor::DataStorage;
-	Storage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
-	StorageUi = GetMutableDataStorageFeature<IEditorDataStorageUiProvider>(UiFeatureName);
-	StorageCompatibility = GetMutableDataStorageFeature<IEditorDataStorageCompatibilityProvider>(CompatibilityFeatureName);
+	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+	checkf(Registry, TEXT("Unable to initialize the Typed Elements Outliner before TEDS is initialized."));
+	if (Registry)
+	{
+		Storage = Registry->GetMutableDataStorage();
+		StorageUi = Registry->GetMutableDataStorageUi();
+		StorageCompatibility = Registry->GetMutableDataStorageCompatibility();
+	}
+
 }
 
 void FTedsOutlinerImpl::CreateFilterQueries()

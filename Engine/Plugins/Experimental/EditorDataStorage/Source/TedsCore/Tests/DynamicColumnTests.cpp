@@ -1,14 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Framework/TypedElementTestColumns.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Debug/TypedElementDatabaseDebugTypes.h"
 #include "Misc/CoreDelegates.h"
 #if WITH_TESTS
-
-#include "Elements/Common/EditorDataStorageFeatures.h"
-#include "Elements/Framework/TypedElementQueryBuilder.h"
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 
 #include "Misc/AutomationTest.h"
 
@@ -101,7 +98,8 @@ namespace UE::Editor::DataStorage::Tests
 	{
 		BeforeEach([this]()
 		{
-			TedsInterface = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
+			UTypedElementRegistry* TypedElementRegistry = UTypedElementRegistry::GetInstance();
+			TedsInterface = TypedElementRegistry->GetMutableDataStorage();
 			TestTable = RegisterTestTable();
 			Identifiers = {TEXT("StaticMesh"), TEXT("Animation"), TEXT("AudioClip")};
 			TestTrue("", TedsInterface != nullptr);
