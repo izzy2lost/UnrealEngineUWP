@@ -409,6 +409,8 @@ FReply SLensDistortionToolPanel::OnDatasetRowKeyPressed(const FGeometry& Geometr
 			Tool->DeleteExportedRow(SelectedItem->Index);
 		}
 
+		RefreshListView();
+
 		Tool->RefreshCoverage();
 
 		return FReply::Handled();
