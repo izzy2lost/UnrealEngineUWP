@@ -25,8 +25,8 @@
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementPackageColumns.h"
 #include "Elements/Columns/TypedElementRevisionControlColumns.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Framework/TypedElementIndexHasher.h"
-#include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 
@@ -2031,15 +2031,10 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 
 	auto UpdateDataStorage = [](const FPerforceSourceControlState& State)
 	{
+		using namespace UE::Editor::DataStorage;
 		using namespace UE::Editor::DataStorage::Queries;
 
-		UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-		if (!Registry)
-		{
-			return;
-		}
-
-		IEditorDataStorageProvider* DataStorage = Registry->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
 		if (!DataStorage)
 		{
 			return;

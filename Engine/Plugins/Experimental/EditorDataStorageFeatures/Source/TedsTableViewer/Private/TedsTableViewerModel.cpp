@@ -4,7 +4,10 @@
 
 
 #include "Elements/Columns/TypedElementUIColumns.h"
-#include "Elements/Framework/TypedElementRegistry.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
+#include "Elements/Interfaces/TypedElementDataStorageCompatibilityInterface.h"
+#include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
 #include "QueryStack/IQueryStackNode_Row.h"
 #include "TedsTableViewerColumn.h"
 #include "TedsTableViewerUtils.h"
@@ -19,15 +22,9 @@ namespace UE::Editor::DataStorage
 		, CellWidgetPurposes(InCellWidgetPurposes)
 		, IsItemVisible(InIsItemVisibleDelegate)
 	{
-		UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-		
-		checkf(Registry, TEXT("Unable to create a Table Viewer before the Typed Element Registry is initialized."));
-		if (Registry)
-		{
-			Storage = Registry->GetMutableDataStorage();
-			StorageUi = Registry->GetMutableDataStorageUi();
-			StorageCompatibility = Registry->GetMutableDataStorageCompatibility();
-		}
+		Storage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
+		StorageUi = GetMutableDataStorageFeature<IEditorDataStorageUiProvider>(UiFeatureName);
+		StorageCompatibility = GetMutableDataStorageFeature<IEditorDataStorageCompatibilityProvider>(CompatibilityFeatureName);
 		
 		TickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateRaw(this, &FTedsTableViewerModel::Tick), 0);
 

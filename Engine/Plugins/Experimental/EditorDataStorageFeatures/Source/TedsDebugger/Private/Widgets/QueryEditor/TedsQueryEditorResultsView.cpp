@@ -5,9 +5,10 @@
 #include "SWarningOrErrorBox.h"
 #include "TedsOutlinerModule.h"
 #include "TedsTableViewerColumn.h"
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
-#include "Elements/Framework/TypedElementRegistry.h"
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
+#include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
 #include "Modules/ModuleManager.h"
 #include "QueryEditor/TedsQueryEditorModel.h"
 #include "QueryStack/FQueryStackNode_RowView.h"
@@ -185,9 +186,7 @@ namespace UE::Editor::DataStorage::Debug::QueryEditor
 			return false;
 		};
 	
-		UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-		checkf(Registry, TEXT("SResultsView created before UTypedElementRegistry is available."));
-		IEditorDataStorageUiProvider* StorageUi = Registry->GetMutableDataStorageUi();
+		IEditorDataStorageUiProvider* StorageUi = GetMutableDataStorageFeature<IEditorDataStorageUiProvider>(UiFeatureName);
 		checkf(StorageUi, TEXT("SResultsView created before data storage interfaces were initialized."))
 
 		StorageUi->CreateWidgetConstructors(TEXT("General.Cell.RowHandle"), FMetaDataView(), AssignWidgetToColumn);

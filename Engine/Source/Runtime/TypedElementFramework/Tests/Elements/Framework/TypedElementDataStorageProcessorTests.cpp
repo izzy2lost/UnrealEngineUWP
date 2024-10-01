@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #if WITH_TESTS
-#include "Elements/Framework/TypedElementRegistry.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
+#include "Elements/Framework/TypedElementQueryBuilder.h"
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "HAL/IConsoleManager.h"
 #include "TypedElementTestColumns.h"
 
@@ -28,7 +30,7 @@ namespace UE::Editor::DataStorage::Debug::ProcessorTests
 	{
 		using namespace UE::Editor::DataStorage::Queries;
 
-		IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
 
 		if (PrimaryTable == InvalidTableHandle)
 		{
@@ -122,7 +124,7 @@ namespace UE::Editor::DataStorage::Debug::ProcessorTests
 
 	void UnregisterProcessors()
 	{
-		IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
 		for (const UE::Editor::DataStorage::QueryHandle& Handle : RegisteredQueries)
 		{
 			DataStorage->UnregisterQuery(Handle);
@@ -145,7 +147,7 @@ namespace UE::Editor::DataStorage::Debug::ProcessorTests
 				return;
 			}
 
-			IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+			IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
 			DataStorage->BatchAddRow(PrimaryTable, RowsToCreate, [](UE::Editor::DataStorage::RowHandle Row)
 			{
 			});
@@ -178,4 +180,3 @@ namespace UE::Editor::DataStorage::Debug::ProcessorTests
 	};
 } // namespace UE::Editor::DataStorage::Debug::ProcessorTests
 #endif
-
