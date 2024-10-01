@@ -282,6 +282,16 @@ public:
 	UE::MovieGraph::DefaultRenderer::FCameraInfo GetCameraInfo(UMovieGraphEvaluatedConfig* InConfig, const int32 InCameraIndex) const;
 	void SetHasRenderedFirstViewThisFrame(bool bInValue) { bHasRenderedFirstViewThisFrame = bInValue; }
 	bool GetHasRenderedFirstViewThisFrame() const { return bHasRenderedFirstViewThisFrame; }
+
+	/**
+	 * Gets the overscan value for the specified camera. First checks to see if any cached overscan value exists and returning it, and if
+	 * no cached value was found, gets the camera's live overscan value and caches it.
+	 */
+	float GetCameraOverscan(UMovieGraphEvaluatedConfig* InConfig, int32 InCameraIndex);
+
+	/** Outputs a warning message regarding animated overscan to the MRQ log if one has not already been output  */
+	void WarnAboutAnimatedOverscan(float InInitialOverscan);
+	
 public:
 	UTextureRenderTarget2D* GetOrCreateViewRenderTarget(const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InInitParams, const FMovieGraphRenderDataIdentifier& InIdentifier);
 	FMoviePipelineSurfaceQueuePtr GetOrCreateSurfaceQueue(const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InInitParams);
@@ -349,4 +359,10 @@ protected:
 	FCriticalSection OutstandingTasksMutex;
 	/** Array of outstanding accumulation / blending tasks that are currently being worked on. */
 	TArray<UE::Tasks::FTask> OutstandingTasks;
+	
+	/** Caches the camera overscan used during setup to ensure that overscan-scaled resolution stays constant for every frame during a render */
+	TMap<int32, float> CameraOverscanCache;
+
+	/** Indicates if the user has already been warned about animate overscan if it is detected so that logs aren't flooded with warning messages */
+	bool bHasWarnedAboutAnimatedOverscan = false;
 };

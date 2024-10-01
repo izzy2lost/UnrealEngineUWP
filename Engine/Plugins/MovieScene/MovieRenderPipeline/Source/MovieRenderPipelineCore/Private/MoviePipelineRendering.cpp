@@ -75,11 +75,24 @@ void UMoviePipeline::SetupRenderingPipelineForShot(UMoviePipelineExecutorShot* I
 	UMoviePipelineOutputSetting* OutputSettings = GetPipelinePrimaryConfig()->FindSetting<UMoviePipelineOutputSetting>();
 	check(OutputSettings);
 
+	// Reset cached camera overscan
+	CameraOverscanCache.Empty();
+	bHasWarnedAboutAnimatedOverscan = false;
+	
 	// TODO: Not much support here for multi-camera, so simply get the player controller camera and use its overscan value
-	FMinimalViewInfo CameraViewInfo = GetWorld()->GetFirstPlayerController()->PlayerCameraManager->GetCameraCacheView();
+	float CameraOverscan = 0.0f;
+	if (UCameraComponent* BoundCamera = MovieSceneHelpers::CameraComponentFromRuntimeObject(GetWorld()->GetFirstPlayerController()->PlayerCameraManager->GetViewTarget()))
+	{
+		FMinimalViewInfo CameraViewInfo;
+		BoundCamera->GetCameraView(GetWorld()->GetDeltaSeconds(), CameraViewInfo);
+		CameraOverscan = CameraViewInfo.GetOverscan();
+	}
+
+	// Cache the default camera overscan at INDEX_NONE to ensure anything that doesn't have multi-camera support still has an overscan value to utilize
+	CameraOverscanCache.Add(INDEX_NONE, CameraOverscan);
 	
 	FIntPoint BackbufferTileCount = FIntPoint(HighResSettings->TileCount, HighResSettings->TileCount);
-	FIntPoint OutputResolution = UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(GetPipelinePrimaryConfig(), InShot, CameraViewInfo.GetOverscan());
+	FIntPoint OutputResolution = UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(GetPipelinePrimaryConfig(), InShot, CameraOverscan);
 
 	// Figure out how big each sub-region (tile) is.
 	FIntPoint BackbufferResolution = FIntPoint(
@@ -195,11 +208,12 @@ void UMoviePipeline::RenderFrame()
 	check(OutputSettings);
 
 	// TODO: Not much support here for multi-camera, so simply get the player controller camera and use its overscan value
-	FMinimalViewInfo CameraViewInfo = GetWorld()->GetFirstPlayerController()->PlayerCameraManager->GetCameraCacheView();
+	// Use the cache to get the overscan value for resolution scaling so that it doesn't vary between frames
+	const float CameraOverscan  = CameraOverscanCache[INDEX_NONE];
 	
 	FIntPoint TileCount = FIntPoint(HighResSettings->TileCount, HighResSettings->TileCount);
 	FIntPoint OriginalTileCount = TileCount;
-	FIntPoint OutputResolution = UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(GetPipelinePrimaryConfig(), ActiveShotList[CurrentShotIndex], CameraViewInfo.GetOverscan());
+	FIntPoint OutputResolution = UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(GetPipelinePrimaryConfig(), ActiveShotList[CurrentShotIndex], CameraOverscan);
 
 	int32 NumSpatialSamples = AntiAliasingSettings->SpatialSampleCount;
 	int32 NumTemporalSamples = AntiAliasingSettings->TemporalSampleCount;

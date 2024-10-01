@@ -442,6 +442,15 @@ FSceneView* UMoviePipelineImagePassBase::GetSceneViewForSampleState(FSceneViewFa
 		CameraInfo.ViewInfo.ClearOverscan();
 		CameraInfo.ViewInfo.ApplyOverscan(InOutSampleState.OverscanPercentage);
 	}
+	else
+	{
+		// Check for animated overscan, and warn if animated overscan was detected
+		const float CachedOverscan = GetPipeline()->GetCachedCameraOverscan(InOutSampleState.OutputState.CameraIndex);
+		if (CameraInfo.ViewInfo.GetOverscan() != CachedOverscan)
+		{
+			GetPipeline()->WarnAboutAnimatedOverscan(CachedOverscan);
+		}
+	}
 	
 	ViewInitOptions.FOV = CameraInfo.ViewInfo.FOV;
 	ViewInitOptions.DesiredFOV = CameraInfo.ViewInfo.FOV;

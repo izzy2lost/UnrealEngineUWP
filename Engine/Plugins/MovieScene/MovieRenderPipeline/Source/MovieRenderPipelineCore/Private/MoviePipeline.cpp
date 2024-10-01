@@ -1033,9 +1033,6 @@ void UMoviePipeline::InitializeShot(UMoviePipelineExecutorShot* InShot)
 		}
 	}
 
-	// Setup required rendering architecture for all passes in this shot.
-	SetupRenderingPipelineForShot(InShot);
-
 	FMoviePipelineTelemetry::SendBeginShotRenderTelemetry(InShot);
 }
 
@@ -1915,6 +1912,56 @@ bool UMoviePipeline::GetSidecarCameraViewPoints(UMoviePipelineExecutorShot* InSh
 	}
 
 	return true;
+}
+
+float UMoviePipeline::GetCachedCameraOverscan(int32 InCameraIndex) const
+{
+	if (CameraOverscanCache.Contains(InCameraIndex))
+	{
+		return CameraOverscanCache[InCameraIndex];
+	}
+
+	// If no camera under the specified index is found, check if a cached value exists for the "default" camera
+	if (CameraOverscanCache.Contains(INDEX_NONE))
+	{
+		return CameraOverscanCache[INDEX_NONE];
+	}
+
+	return 0.0f;
+}
+
+bool UMoviePipeline::HasCachedCameraOverscan(int32 InCameraIndex) const
+{
+	return CameraOverscanCache.Contains(InCameraIndex);
+}
+
+void UMoviePipeline::CacheCameraOverscan(int32 InCameraIndex, float InCameraOverscan)
+{
+	if (!CameraOverscanCache.Contains(InCameraIndex))
+	{
+		CameraOverscanCache.Add(InCameraIndex, InCameraOverscan);
+	}
+	else
+	{
+		CameraOverscanCache[InCameraIndex] = InCameraOverscan;
+	}
+}
+
+void UMoviePipeline::WarnAboutAnimatedOverscan(float InInitialOverscan)
+{
+	if (!bHasWarnedAboutAnimatedOverscan)
+	{
+		UMoviePipelineExecutorShot* CurrentShot = ActiveShotList[CurrentShotIndex];
+		UE_LOG(
+			LogMovieRenderPipeline,
+			Warning,
+			TEXT("Detected animated Camera Overscan value on shot %s for camera %s. MRQ does not support changing resolution between frames, and a resolution computed from the initial overscan (%f) will be used instead. Overscan can be affected by both the Overscan camera property or distortion parameters on the Lens component"),
+			*CurrentShot->OuterName,
+			*CurrentShot->InnerName,
+			InInitialOverscan);
+
+		bHasWarnedAboutAnimatedOverscan = true;
+	}
 }
 
 #undef LOCTEXT_NAMESPACE // "MoviePipeline"

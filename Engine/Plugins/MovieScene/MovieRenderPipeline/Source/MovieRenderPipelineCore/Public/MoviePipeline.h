@@ -116,6 +116,18 @@ public:
 	void GetSidecarCameraData(UMoviePipelineExecutorShot* InShot, int32 InCameraIndex, FMinimalViewInfo& OutViewInfo, class UCameraComponent** OutCameraComponent) const;
 	bool GetSidecarCameraViewPoints(UMoviePipelineExecutorShot* InShot, TArray<FVector>& OutSidecarViewLocations, TArray<FRotator>& OutSidecarViewRotations) const;
 
+	/** Gets any cached overscan for the specified camera, or 0 if no cached overscan was found */
+	float GetCachedCameraOverscan(int32 InCameraIndex) const;
+
+	/** Gets whether there is a cached overscan value for the specified camera */
+	bool HasCachedCameraOverscan(int32 InCameraIndex) const;
+
+	/** Caches the provided overscan value for the specified camera */
+	void CacheCameraOverscan(int32 InCameraIndex, float InCameraOverscan);
+
+	/** Outputs a warning message regarding animated overscan to the MRQ log if one has not already been output  */
+	void WarnAboutAnimatedOverscan(float InInitialOverscan);
+	
 #if WITH_EDITOR
 	const FMovieSceneExportMetadata& GetOutputMetadata() const { return OutputMetadata; }
 #endif
@@ -432,6 +444,12 @@ private:
 
 	TMap<int32, FRenderTimeStatistics> RenderTimeFrameStatistics;
 
+	/** Caches the camera overscan used during setup to ensure that overscan-scaled resolution stays constant for every frame during a render */
+	TMap<int32, float> CameraOverscanCache;
+
+	/** Indicates if the user has already been warned about animate overscan if it is detected so that logs aren't flooded with warning messages */
+	bool bHasWarnedAboutAnimatedOverscan = false;
+	
 public:
 	static FString DefaultDebugWidgetAsset;
 };
