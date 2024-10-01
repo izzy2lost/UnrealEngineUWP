@@ -630,7 +630,7 @@ FSubstrateOperator* UMaterialExpressionSubstrateShadingModels::SubstrateGenerate
 		}
 		else if (ShadingModels.HasShadingModel(MSM_ThinTranslucent))
 		{
-			return AddDefaultWorstCase(ESubstrateBsdfFeature_None);
+			return AddDefaultWorstCase(ESubstrateBsdfFeature_MFPPluggedIn);
 		}
 		else if (ShadingModels.HasShadingModel(MSM_SubsurfaceProfile))
 		{

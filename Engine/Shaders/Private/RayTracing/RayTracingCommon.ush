@@ -566,6 +566,7 @@ struct FMaterialClosestHitPayload : FMinimalPayload
 	float3 Radiance;
 	float3 WorldNormal; // Top Layer Normal
 	float Opacity;
+	float3 TransmittancePreCoverage;
 	uint BlendingMode;
 	uint PrimitiveLightingChannelMask;
 	float3 IndirectIrradiance;
@@ -602,12 +603,13 @@ struct FPackedMaterialClosestHitPayload : FMinimalPayload
 	// float FMinimalPayload::HitT                       // 4  bytes
 	uint PackedRayCone;                                  // 4  bytes (fp16 width, fp16 spread) aliased with RayDirection for MS lighting payload
 	uint Flags;											 // 4  bytes (see layout above)
+	uint TransmittancePreCoverage;						 // 4  bytes
 	uint Radiance;										 // 4  bytes
 	uint PackedGeometryNormal;							 // 4  bytes
 	uint SceneInstanceIndex;                             // 4  bytes - GPUSceneInstanceIndex
-														 //=24 bytes - must be in sync with InternalGetRayTracingMaterialPayloadSizeInBytes()
-	FSubstrateRaytracingPayload SubstrateData;				 //  ? bytes - must be in sync with GetRaytracingMaterialPayloadSize (see FSubstrateRaytracingPayload)
-														 //=24+? bytes total
+														 //=28 bytes - must be in sync with InternalGetRayTracingMaterialPayloadSizeInBytes()
+	FSubstrateRaytracingPayload SubstrateData;			 //  ? bytes - must be in sync with GetRaytracingMaterialPayloadSize (see FSubstrateRaytracingPayload)
+														 //=28+? bytes total
 
 	void SetMinimalPayloadMode()			{ Flags |= RAY_TRACING_PAYLOAD_INPUT_FLAG_MINIMAL_PAYLOAD; }
 	bool IsMinimalPayloadMode()				{ return (Flags & RAY_TRACING_PAYLOAD_INPUT_FLAG_MINIMAL_PAYLOAD) != 0; }
@@ -662,11 +664,13 @@ struct FPackedMaterialClosestHitPayload : FMinimalPayload
 	uint  GetBlendingMode()					{ return (Flags >> 16u) & 0x7; }
 	uint  GetPrimitiveLightingChannelMask() { return (Flags >> 19u) & 0x7; }
 	float GetOpacity()						{ return UnpackR8(Flags >> 24u); }
+	float3 GetTransmittancePreCoverage()		{ return UnpackR11G11B10F(TransmittancePreCoverage); }
 
 	void SetFlags(uint In)							{ Flags |= ((In & 0xFF)); }
 	void SetBlendingMode(uint In)					{ Flags  = (Flags & 0xFFF8FFFF) | ((In & 0x7)<<16u); }
 	void SetPrimitiveLightingChannelMask(uint In)	{ Flags  = (Flags & 0xFFC7FFFF) | ((In & 0x7)<<19u); }
 	void SetOpacity(float In)						{ Flags  = (Flags & 0x00FFFFFF) | (PackR8(In) << 24u); }
+	void SetTransmittancePreCoverage(float3 In)		{ TransmittancePreCoverage  = PackR11G11B10F(In); }
 
 	void SetRayDirection(float3 In)			{ PackedRayCone = SubstratePackNormal(In); }
 	float3 GetRayDirection()				{ return SubstrateUnpackNormal(PackedRayCone); }
@@ -701,6 +705,7 @@ FPackedMaterialClosestHitPayload PackRayTracingPayload(FMaterialClosestHitPayloa
 	Out.SetRadiance(In.Radiance);
 	Out.SubstrateData = In.SubstrateData;
 	Out.SetOpacity(In.Opacity);
+	Out.SetTransmittancePreCoverage(In.TransmittancePreCoverage);
 
 	return Out;
 }
@@ -721,6 +726,7 @@ FMaterialClosestHitPayload UnpackRayTracingPayload(FPackedMaterialClosestHitPayl
 	Out.TranslatedWorldPos = Ray.Origin + Out.HitT * Ray.Direction;
 	Out.RayDirection = In.GetRayDirection();
 	Out.Opacity = In.GetOpacity();
+	Out.TransmittancePreCoverage = In.GetTransmittancePreCoverage();
 	return Out;
 }
 
