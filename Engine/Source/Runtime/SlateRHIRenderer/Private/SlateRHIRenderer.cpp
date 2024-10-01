@@ -1451,8 +1451,7 @@ void FSlateRHIRenderer::FlushCommands() const
 
 void FSlateRHIRenderer::Sync() const
 {
-	static FFrameEndSync FrameEndSync;
-	FrameEndSync.Sync();
+	FFrameEndSync::Sync();
 }
 
 void FSlateRHIRenderer::BeginFrame() const

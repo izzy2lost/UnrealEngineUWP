@@ -5,7 +5,7 @@
 #include "Rendering/ShaderResourceManager.h"
 #include "Rendering/SlateDrawBuffer.h"
 #if UE_SLATE_NULL_RENDERER_WITH_ENGINE
-#include "UnrealEngine.h"
+#include "RenderingThread.h"
 #endif
 
 
@@ -144,7 +144,6 @@ void FSlateNullRenderer::ClearScenes()
 void FSlateNullRenderer::Sync() const
 {
 #if UE_SLATE_NULL_RENDERER_WITH_ENGINE
-	static FFrameEndSync FrameEndSync;
-	FrameEndSync.Sync();
+	FFrameEndSync::Sync();
 #endif
 }

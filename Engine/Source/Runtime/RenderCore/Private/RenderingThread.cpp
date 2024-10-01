@@ -734,9 +734,6 @@ static void StopRenderingThread()
 
 	GStopRenderingThreadDelegate.Broadcast();
 
-	// Get the list of objects which need to be cleaned up when the rendering thread is done with them.
-	FPendingCleanupObjects* PendingCleanupObjects = GetPendingCleanupObjects();
-
 	// Make sure we're not in the middle of streaming textures.
 	SuspendTextureStreamingRenderTasks();
 
@@ -786,9 +783,6 @@ static void StopRenderingThread()
 
 	delete GRenderingThreadRunnable;
 	GRenderingThreadRunnable = nullptr;
-
-	// Delete the pending cleanup objects which were in use by the rendering thread.
-	delete PendingCleanupObjects;
 
 	// Update can now resume with renderthread being the gamethread.
 	ResumeTextureStreamingRenderTasks();
@@ -1017,16 +1011,29 @@ void FRenderCommandFence::BeginFence(ESyncDepth SyncDepth)
 	{
 		return;
 	}
+
+	check(IsInGameThread());
 	
-	if (GRenderCommandFenceBundlerState.Event && IsInGameThread())
+	if (GRenderCommandFenceBundlerState.Event && SyncDepth == ESyncDepth::RenderThread)
 	{
-		check(SyncDepth == ESyncDepth::RenderThread);
+		// Case for game->render thread syncs when fence bundling is enabled. These are used
+		// throughout the engine when resources are destroyed. The fence bundling is an optimization
+		// to avoid the overhead of hundreds of individual fences.
+		// We aren't syncing any deeper than the render thread, so just use the bundled fence event.
 		CompletionTask = *GRenderCommandFenceBundlerState.Event;
 		return;
 	}
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRenderCommandFence::BeginFence);
-	UE::Tasks::FTaskEvent Event { UE_SOURCE_LOCATION };
+	UE::Tasks::FTaskEvent Event{ UE_SOURCE_LOCATION };
+
+	if (GRenderCommandFenceBundlerState.Event)
+	{
+		// Render command fences are bundled, but we're syncing deeper than the render thread.
+		// Flush the fence bundler so we can insert an RHIThread (or deeper) fence in the right location.
+		Event.AddPrerequisites(*GRenderCommandFenceBundlerState.Event);
+		FlushRenderCommandFenceBundler();
+	}
 
 	if (GRenderCommandPipeMode == ERenderCommandPipeMode::All)
 	{
@@ -1324,16 +1331,9 @@ void FlushRenderingCommands()
 		RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 	});
 
-	// Find the objects which may be cleaned up once the rendering thread command queue has been flushed.
-	FPendingCleanupObjects* PendingCleanupObjects = GetPendingCleanupObjects();
-
 	// Issue a fence command to the rendering thread and wait for it to complete.
-	FRenderCommandFence Fence;
-	Fence.BeginFence();
-	Fence.Wait();
-
-	// Delete the objects which were enqueued for deferred cleanup before the command queue flush.
-	delete PendingCleanupObjects;
+	// This also deletes the objects which were enqueued for deferred cleanup before the command queue flush.
+	FFrameEndSync::Sync(/* bFullSync = */ true);
 
 	FCoreRenderDelegates::OnFlushRenderingCommandsEnd.Broadcast();
 }
@@ -1370,96 +1370,226 @@ static FAutoConsoleVariableRef CVarEnablePendingCleanupObjectsCommandBatching(
 	TEXT("Enable batching PendingCleanupObjects destruction.")
 );
 
-#if WITH_EDITOR || IS_PROGRAM
+TAutoConsoleVariable<int32> CVarAllowOneFrameThreadLag(
+	TEXT("r.OneFrameThreadLag"),
+	1,
+	TEXT("Whether to allow the rendering thread to lag one frame behind the game thread (0: disabled, otherwise enabled)")
+);
 
-// mainly concerned about the cooker here, but anyway, the editor can run without a frame for a very long time (hours) and we do not have enough lock free links. 
+TAutoConsoleVariable<int32> CVarGTSyncType(
+	TEXT("r.GTSyncType"),
+	0,
+	TEXT("Determines how the game thread syncs with the render thread, RHI thread and GPU.\n")
+	TEXT("Syncing to the GPU swap chain flip allows for lower frame latency.\n")
+	TEXT(" <= 0 - Sync the game thread with the N-1 render thread frame. Then sync with the N-m RHI thread frame where m is (2 + (-r.GTSyncType)) (i.e. negative values increase the amount of RHI thread overlap) (default = 0).\n")
+	TEXT("    1 - Sync the game thread with the N-1 RHI thread frame.\n")
+	TEXT("    2 - Sync the game thread with the GPU swap chain flip (only on supported platforms).\n"),
+	ECVF_Default
+);
 
-/** The set of deferred cleanup objects which are pending cleanup. */
-TArray<FDeferredCleanupInterface*> PendingCleanupObjectsList;
-FCriticalSection PendingCleanupObjectsListLock;
+DECLARE_CYCLE_STAT(TEXT("Frame Sync Time"), STAT_FrameSyncTime, STATGROUP_RHI);
 
-FPendingCleanupObjects::FPendingCleanupObjects()
+namespace FFrameEndSync
 {
-	check(IsInGameThread());
-	{
-		FScopeLock Lock(&PendingCleanupObjectsListLock);
-		Exchange(CleanupArray, PendingCleanupObjectsList);
-	}
-}
+	using ESyncDepth = FRenderCommandFence::ESyncDepth;
 
-FPendingCleanupObjects::~FPendingCleanupObjects()
-{
-	if (CleanupArray.Num())
+	class FDeferredCleanupInterfaceArray
 	{
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_FPendingCleanupObjects_Destruct);
+	// Mainly concerned about the cooker here, but anyway, the editor can run without 
+	// a frame for a very long time (hours) and we do not have enough lock free links. 
+	#define USE_STANDARD_ARRAY (WITH_EDITOR || IS_PROGRAM)
 
-		const bool bBatchingEnabled = bEnablePendingCleanupObjectsCommandBatching;
-		if (bBatchingEnabled)
+	#if USE_STANDARD_ARRAY
+		FCriticalSection CS;
+		TArray<FDeferredCleanupInterface*> Objects;
+	#else
+		TLockFreePointerListUnordered<FDeferredCleanupInterface, PLATFORM_CACHE_LINE_SIZE> Objects;
+	#endif
+
+	public:
+		void Add(FDeferredCleanupInterface* Object)
 		{
-			StartRenderCommandFenceBundler();
+		#if USE_STANDARD_ARRAY
+			FScopeLock Lock(&CS);
+			Objects.Add(Object);
+		#else
+			Objects.Push(Object);
+		#endif
 		}
-		for (int32 ObjectIndex = 0; ObjectIndex < CleanupArray.Num(); ObjectIndex++)
+
+		void PopAll(TArray<FDeferredCleanupInterface*>& OutObjects)
 		{
-			delete CleanupArray[ObjectIndex];
+		#if USE_STANDARD_ARRAY
+			FScopeLock Lock(&CS);
+			OutObjects = MoveTemp(Objects);
+		#else
+			Objects.PopAll(OutObjects);
+		#endif
 		}
-		if (bBatchingEnabled)
+	#undef USE_STANDARD_ARRAY
+	};
+
+	// Wrapper to hold the objects which need to be cleaned up when the corresponding rendering frame finishes.
+	struct FPendingCleanupObjects : private TArray<FDeferredCleanupInterface*>
+	{
+		FPendingCleanupObjects(FDeferredCleanupInterfaceArray& InObjects)
 		{
-			StopRenderCommandFenceBundler();
+			check(IsInGameThread());
+			InObjects.PopAll(*this);
+		}
+
+		~FPendingCleanupObjects()
+		{
+			check(IsInGameThread());
+
+			if (Num())
+			{
+				QUICK_SCOPE_CYCLE_COUNTER(STAT_FPendingCleanupObjects_Destruct);
+
+				const bool bBatchingEnabled = bEnablePendingCleanupObjectsCommandBatching;
+				if (bBatchingEnabled)
+				{
+					StartRenderCommandFenceBundler();
+				}
+
+				for (FDeferredCleanupInterface* Object : *this)
+				{
+					delete Object;
+				}
+
+				if (bBatchingEnabled)
+				{
+					StopRenderCommandFenceBundler();
+				}
+			}
+		}
+	};
+
+	// The set of deferred cleanup objects marked for deletion via BeginCleanup().
+	// These will be enqueued for deletion at the next Sync() and deleted one frame later.
+	FDeferredCleanupInterfaceArray PendingObjects;
+
+	struct FRenderThreadState
+	{
+		// Legacy game code assumes the game thread will never get further than 1 frame ahead of the render thread.
+		// This fence is used to sync the game thread with the N-1 render thread frame.
+		FRenderCommandFence Fence;
+
+		// Once we've synced the game and render threads, we can also delete the deferred cleanup objects for that frame.
+		FPendingCleanupObjects Objects;
+
+		FRenderThreadState()
+			: Objects(PendingObjects)
+		{
+			Fence.BeginFence(ESyncDepth::RenderThread);
+		}
+
+		~FRenderThreadState()
+		{
+			Fence.Wait(true);
+		}
+	};
+	TArray<FRenderThreadState, TInlineAllocator<2>> RenderThreadStates;
+
+	// Additional fences to await. These sync with either the RHI thread or swapchain,
+	// and are used to prevent the game thread running too far ahead of presented frames.
+	TArray<FRenderCommandFence, TInlineAllocator<3>> PipelineFences;
+
+	void Sync(bool bFullSync)
+	{
+		// The "r.OneFrameThreadLag" cvar forces a full sync, meaning the game thread will
+		// not start work until all the rendering work for the previous frame has completed.
+		bFullSync |= CVarAllowOneFrameThreadLag.GetValueOnAnyThread() <= 0;
+
+		SCOPE_CYCLE_COUNTER(STAT_FrameSyncTime);
+
+		check(IsInGameThread());			
+
+	#if !UE_BUILD_SHIPPING && PLATFORM_SUPPORTS_FLIP_TRACKING
+		// Set the FrameDebugInfo on platforms that have accurate frame tracking.
+		ENQUEUE_RENDER_COMMAND(FrameDebugInfo)(
+			[CurrentFrameCounter = GFrameCounter, CurrentInputTime = GInputTime](FRHICommandListImmediate& RHICmdList)
+		{
+			RHICmdList.EnqueueLambda(
+				[CurrentFrameCounter, CurrentInputTime](FRHICommandListImmediate&)
+			{
+				// Set the FrameCount and InputTime for input latency stats and flip debugging.
+				RHISetFrameDebugInfo(GRHIPresentCounter - 1, CurrentFrameCounter, CurrentInputTime);
+			});
+		});
+	#endif
+
+		// Always sync with the render thread (either current frame, or N-1 frame)
+		RenderThreadStates.Emplace();
+		while (RenderThreadStates.Num() > (bFullSync ? 0 : 1))
+		{
+			RenderThreadStates.RemoveAt(0);
+		}
+
+		// Insert an additional fence based on how we want to sync with the RHI thread / swapchain
+		ESyncDepth SyncDepth;
+		int32 NumFramesOverlap;
+
+		int32 const GTSyncType = CVarGTSyncType.GetValueOnAnyThread();
+
+		if (bFullSync)
+		{
+			SyncDepth = GTSyncType >= 2
+				? ESyncDepth::Swapchain
+				: ESyncDepth::RHIThread;
+
+			NumFramesOverlap = 0;
+		}
+		else if (GTSyncType >= 2)
+		{
+			SyncDepth = ESyncDepth::Swapchain;
+			NumFramesOverlap = 1;
+		}
+		else if (GTSyncType == 1)
+		{
+			SyncDepth = ESyncDepth::RHIThread;
+			NumFramesOverlap = 1;
+		}
+		else
+		{
+			check(GTSyncType <= 0);
+
+			// Modes <= 0 allows N frames of overlap with the RHI thread.
+			SyncDepth = ESyncDepth::RHIThread;
+			NumFramesOverlap = 2 + (-GTSyncType);
+		}
+
+		if (SyncDepth == ESyncDepth::Swapchain)
+		{
+			// Swapchain sync mode does not work when vsync is disabled. Fallback to RHI thread sync in that case.
+			static auto CVarVsync = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VSync"));
+			check(CVarVsync != nullptr);
+
+			if (CVarVsync->GetInt() == 0)
+			{
+				SyncDepth = ESyncDepth::RHIThread;
+			}
+		}
+
+		PipelineFences.Emplace_GetRef().BeginFence(SyncDepth);
+
+		if (!FTaskGraphInterface::Get().IsThreadProcessingTasks(ENamedThreads::GameThread))
+		{
+			// need to process gamethread tasks at least once a frame no matter what
+			FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread);
+		}
+
+		while (PipelineFences.Num() > NumFramesOverlap)
+		{
+			PipelineFences[0].Wait(true);
+			PipelineFences.RemoveAt(0);
 		}
 	}
 }
 
 void BeginCleanup(FDeferredCleanupInterface* CleanupObject)
 {
-	{
-		FScopeLock Lock(&PendingCleanupObjectsListLock);
-		PendingCleanupObjectsList.Add(CleanupObject);
-	}
-}
-
-#else
-
-/** The set of deferred cleanup objects which are pending cleanup. */
-static TLockFreePointerListUnordered<FDeferredCleanupInterface, PLATFORM_CACHE_LINE_SIZE>	PendingCleanupObjectsList;
-
-FPendingCleanupObjects::FPendingCleanupObjects()
-{
-	check(IsInGameThread());
-	PendingCleanupObjectsList.PopAll(CleanupArray);
-}
-
-FPendingCleanupObjects::~FPendingCleanupObjects()
-{
-	if (CleanupArray.Num())
-	{
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_FPendingCleanupObjects_Destruct);
-
-		const bool bBatchingEnabled = bEnablePendingCleanupObjectsCommandBatching;
-		if (bBatchingEnabled)
-		{
-			StartRenderCommandFenceBundler();
-		}
-		for (int32 ObjectIndex = 0; ObjectIndex < CleanupArray.Num(); ObjectIndex++)
-		{
-			delete CleanupArray[ObjectIndex];
-		}
-		if (bBatchingEnabled)
-		{
-			StopRenderCommandFenceBundler();
-		}
-	}
-}
-
-void BeginCleanup(FDeferredCleanupInterface* CleanupObject)
-{
-	PendingCleanupObjectsList.Push(CleanupObject);
-}
-
-#endif
-
-FPendingCleanupObjects* GetPendingCleanupObjects()
-{
-	return new FPendingCleanupObjects;
+	FFrameEndSync::PendingObjects.Add(CleanupObject);
 }
 
 static void HandleRHIThreadEnableChanged(const TArray<FString>& Args)

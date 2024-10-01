@@ -664,7 +664,7 @@ static void DumpMaterials(
 					}
 
 					// Flush rendering commands to release any RHI resources (shaders and shader maps).
-					// Delete any FPendingCleanupObjects (shader maps).
+					// Delete any FDeferredCleanupInterface (shader maps).
 					FlushRenderingCommands();
 
 					if (CurrentOutstandingJobs < MaxOutstandingJobs)
@@ -697,7 +697,7 @@ static void DumpMaterials(
 				}
 
 				// Flush rendering commands to release any RHI resources (shaders and shader maps).
-				// Delete any FPendingCleanupObjects (shader maps).
+				// Delete any FDeferredCleanupInterface (shader maps).
 				FlushRenderingCommands();
 
 				if (CurrentOutstandingJobs < MaxOutstandingJobs)
