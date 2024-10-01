@@ -669,10 +669,9 @@ void FSubTrackEditor::OnInitialize()
 
 void FSubTrackEditor::OnRelease()
 {
-	FSubTrackEditorMode* EditorMode = static_cast<FSubTrackEditorMode*>(GLevelEditorModeTools().GetActiveMode(FSubTrackEditorMode::ModeName));
-	if(EditorMode)
+	if(GLevelEditorModeTools().IsModeActive(FSubTrackEditorMode::ModeName))
 	{
-		EditorMode->GetOnOriginValueChanged().RemoveAll(this);	
+		GLevelEditorModeTools().DeactivateMode(FSubTrackEditorMode::ModeName);
 	}
 	GetSequencer()->GetViewModel()->GetSelection()->TrackArea.OnChanged.RemoveAll(this);
 
