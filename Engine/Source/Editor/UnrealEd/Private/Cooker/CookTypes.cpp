@@ -90,17 +90,29 @@ const TCHAR* LexToString(ESuppressCookReason Reason)
 
 const TCHAR* LexToString(UE::Cook::EPackageState Reason)
 {
-	static_assert(static_cast<int>(EPackageState::Count) == 8);
+	static_assert(static_cast<int>(EPackageState::Count) == 7);
 	switch (Reason)
 	{
 	case EPackageState::Idle: return TEXT("Idle");
 	case EPackageState::Request: return TEXT("Request");
 	case EPackageState::AssignedToWorker: return TEXT("AssignedToWorker");
-	case EPackageState::LoadPrepare: return TEXT("LoadPrepare");
-	case EPackageState::LoadReady: return TEXT("LoadReady");
+	case EPackageState::Load: return TEXT("Load");
 	case EPackageState::SaveActive: return TEXT("SaveActive");
 	case EPackageState::SaveStalledRetracted: return TEXT("SaveStalledRetracted");
 	case EPackageState::SaveStalledAssignedToWorker: return TEXT("SaveStalledAssignedToWorker");
+	default: return TEXT("Invalid");
+	}
+}
+
+const TCHAR* LexToString(UE::Cook::EPreloaderState State)
+{
+	static_assert(static_cast<int>(EPreloaderState::Count) == 4);
+	switch (State)
+	{
+	case EPreloaderState::Inactive: return TEXT("Inactive");
+	case EPreloaderState::PendingKick: return TEXT("PendingKick");
+	case EPreloaderState::ActivePreload: return TEXT("ActivePreload");
+	case EPreloaderState::ReadyForLoad: return TEXT("ReadyForLoad");
 	default: return TEXT("Invalid");
 	}
 }

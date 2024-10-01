@@ -182,6 +182,7 @@ namespace UE::Cook
 	class FCookWorkerServer;
 	class FDiagnostics;
 	class FODSCClientData; 
+	class FPackagePreloader;
 	class FPackageWriterMPCollector;
 	class FRequestCluster;
 	class FRequestQueue;
@@ -383,8 +384,8 @@ private:
 	 * A knob to tune performance - How many packages should be present in the LoadPrepare+LoadReady queues before we
 	 * start processing the LoadQueue. If number is less, we will find other work to do, and load packages only if all
 	 * other work is done.
-	 * This allows us to have enough population in the LoadPrepareQueue to get benefit from the asynchronous work done
-	 * on packages in the LoadPrepareQueue.
+	 * This allows us to have enough population in the LoadQueue to get benefit from the asynchronous work done
+	 * on preloading packages.
 	 */
 	uint32 DesiredLoadQueueLength;
 	/** A knob to tune performance - how many packages to pull off in each call to PumpRequests. */
@@ -518,10 +519,7 @@ private:
 
 	/** Load packages in the LoadQueue until it's time to break. Report the number of loads that were pushed to save. */
 	void PumpLoads(UE::Cook::FTickStackData& StackData, uint32 DesiredQueueLength, int32& OutNumPushed, bool& bOutBusy);
-	/** Move packages from LoadPrepare's entry queue into the PreloadingQueue until we run out of Preload slots. */
-	void PumpPreloadStarts();
-	/** Move preload-completed packages from LoadPrepare->LoadReady until we find one that is not finished preloading. */
-	void PumpPreloadCompletes();
+
 	/**
 	 * Load the given PackageData that was in the load queue and send it on to its next state.
 	 * Report the number of PackageDatas that were pushed to save (0 or 1)
@@ -1644,6 +1642,7 @@ private:
 	friend UE::Cook::FInitializeConfigSettings;
 	friend UE::Cook::FPackageData;
 	friend UE::Cook::FPackageDatas;
+	friend UE::Cook::FPackagePreloader;
 	friend UE::Cook::FPackageTracker;
 	friend UE::Cook::FPackageWriterMPCollector;
 	friend UE::Cook::FPendingCookedPlatformData;

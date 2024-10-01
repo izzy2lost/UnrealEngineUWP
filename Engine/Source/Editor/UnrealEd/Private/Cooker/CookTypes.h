@@ -195,13 +195,8 @@ namespace UE::Cook
 		 * had any operations performed on it locally.
 		 */
 		AssignedToWorker,
-		/** The Package is in the LoadPrepareQueue. Preloading is in progress. */
-		LoadPrepare,
-		/**
-		 * The package is in the LoadReadyQueue. Preloading is complete and it will be loaded when its turn
-		 * comes up.
-		 */
-		LoadReady,
+		/** The Package is in the LoadQueue, in one of multiple substates that handle loading and preloading. */
+		Load,
 		/** The Package is in the SaveQueue; it has been fully loaded and some target data may have been calculated. */
 		SaveActive,
 		/**
@@ -246,6 +241,21 @@ namespace UE::Cook
 		Max = AssignedToWorkerProperty,
 	};
 	ENUM_CLASS_FLAGS(EPackageStateProperty);
+
+	/**
+	 * A substate of EPackageState::Load; it describes the state of the PackagePreloader in PumpLoads.
+	 * This state is on the PackagePreloader and not the PackageData, and might be active even while the package
+	 * is not in the load state.
+	 */
+	enum class EPreloaderState : uint8
+	{
+		Inactive,
+		PendingKick,
+		ActivePreload,
+		ReadyForLoad,
+		Count,
+	};
+	const TCHAR* LexToString(UE::Cook::EPreloaderState State);
 
 	/** SubState when in a Saving state. */
 	enum class ESaveSubState : uint8

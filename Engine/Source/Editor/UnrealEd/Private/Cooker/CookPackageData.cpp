@@ -139,21 +139,6 @@ void FPackageData::ClearReferences()
 	}
 }
 
-const FName& FPackageData::GetPackageName() const
-{
-	return PackageName;
-}
-
-const FName& FPackageData::GetFileName() const
-{
-	return FileName;
-}
-
-void FPackageData::SetFileName(const FName& InFileName)
-{
-	FileName = InFileName;
-}
-
 int32 FPackageData::GetPlatformsNeedingCookingNum() const
 {
 	int32 Result = 0;
@@ -604,11 +589,8 @@ struct FStateProperties
 		case EPackageState::AssignedToWorker:
 			Properties = EPackageStateProperty::InProgress | EPackageStateProperty::AssignedToWorkerProperty;
 			break;
-		case EPackageState::LoadPrepare:
-			Properties = EPackageStateProperty::InProgress | EPackageStateProperty::Loading;
-			break;
-		case EPackageState::LoadReady:
-			Properties = EPackageStateProperty::InProgress | EPackageStateProperty::Loading;
+		case EPackageState::Load:
+			Properties = EPackageStateProperty::InProgress;
 			break;
 		case EPackageState::SaveActive:
 			Properties = EPackageStateProperty::InProgress | EPackageStateProperty::Saving;
@@ -650,19 +632,12 @@ void FPackageData::SendToState(EPackageState NextState, ESendFlags SendFlags, ES
 		}
 		OnExitAssignedToWorker();
 		break;
-	case EPackageState::LoadPrepare:
+	case EPackageState::Load:
 		if (!!(SendFlags & ESendFlags::QueueRemove))
 		{
-			ensure(PackageDatas.GetLoadPrepareQueue().Remove(this) == 1);
+			ensure(PackageDatas.GetLoadQueue().Remove(this) == 1);
 		}
-		OnExitLoadPrepare();
-		break;
-	case EPackageState::LoadReady:
-		if (!!(SendFlags & ESendFlags::QueueRemove))
-		{
-			ensure(PackageDatas.GetLoadReadyQueue().Remove(this) == 1);
-		}
-		OnExitLoadReady();
+		OnExitLoad();
 		break;
 	case EPackageState::SaveActive:
 		if (!!(SendFlags & ESendFlags::QueueRemove))
@@ -707,9 +682,6 @@ void FPackageData::SendToState(EPackageState NextState, ESendFlags SendFlags, ES
 			case EPackageStateProperty::InProgress:
 				OnExitInProgress(ReleaseSaveReason);
 				break;
-			case EPackageStateProperty::Loading:
-				OnExitLoading();
-				break;
 			case EPackageStateProperty::Saving:
 				OnExitSaving(ReleaseSaveReason, NextState);
 				break;
@@ -733,9 +705,6 @@ void FPackageData::SendToState(EPackageState NextState, ESendFlags SendFlags, ES
 			{
 			case EPackageStateProperty::InProgress:
 				OnEnterInProgress();
-				break;
-			case EPackageStateProperty::Loading:
-				OnEnterLoading();
 				break;
 			case EPackageStateProperty::Saving:
 				OnEnterSaving();
@@ -771,32 +740,11 @@ void FPackageData::SendToState(EPackageState NextState, ESendFlags SendFlags, ES
 			PackageDatas.GetAssignedToWorkerSet().Add(this);
 		}
 		break;
-	case EPackageState::LoadPrepare:
-		OnEnterLoadPrepare();
+	case EPackageState::Load:
+		OnEnterLoad();
 		if ((SendFlags & ESendFlags::QueueAdd) != ESendFlags::QueueNone)
 		{
-			if (GetIsUrgent())
-			{
-				PackageDatas.GetLoadPrepareQueue().AddFront(this);
-			}
-			else
-			{
-				PackageDatas.GetLoadPrepareQueue().Add(this);
-			}
-		}
-		break;
-	case EPackageState::LoadReady:
-		OnEnterLoadReady();
-		if ((SendFlags & ESendFlags::QueueAdd) != ESendFlags::QueueNone)
-		{
-			if (GetIsUrgent())
-			{
-				PackageDatas.GetLoadReadyQueue().AddFront(this);
-			}
-			else
-			{
-				PackageDatas.GetLoadReadyQueue().Add(this);
-			}
+			PackageDatas.GetLoadQueue().Add(this);
 		}
 		break;
 	case EPackageState::SaveActive:
@@ -896,11 +844,8 @@ void FPackageData::CheckInContainer() const
 	case EPackageState::AssignedToWorker:
 		check(PackageDatas.GetAssignedToWorkerSet().Contains(this));
 		break;
-	case EPackageState::LoadPrepare:
-		check(PackageDatas.GetLoadPrepareQueue().Contains(this));
-		break;
-	case EPackageState::LoadReady:
-		check(Algo::Find(PackageDatas.GetLoadReadyQueue(), this) != nullptr);
+	case EPackageState::Load:
+		check(PackageDatas.GetLoadQueue().Contains(this));
 		break;
 	case EPackageState::SaveActive:
 		// The save queue is huge and often pushed at end. Check last element first and then scan.
@@ -989,20 +934,19 @@ void FPackageData::OnExitAssignedToWorker()
 {
 }
 
-void FPackageData::OnEnterLoadPrepare()
+void FPackageData::OnEnterLoad()
 {
+	TRefCountPtr<FPackagePreloader> Local = CreatePackagePreloader();
+	Local->SetSelfReference();
+	check(PackagePreloader);
 }
 
-void FPackageData::OnExitLoadPrepare()
+void FPackageData::OnExitLoad()
 {
-}
-
-void FPackageData::OnEnterLoadReady()
-{
-}
-
-void FPackageData::OnExitLoadReady()
-{
+	check(PackagePreloader); // Guaranteed by OnEnterLoad
+	PackagePreloader->OnPackageLeaveLoadState();
+	PackagePreloader->ClearSelfReference();
+	// PackagePreloader might now be nullptr
 }
 
 void FPackageData::OnEnterSaveActive()
@@ -1049,23 +993,6 @@ void FPackageData::OnExitInProgress(EStateChangeReason StateChangeReason)
 		LocalCompletionCallback(this);
 	}
 	ClearInProgressData(StateChangeReason);
-}
-
-void FPackageData::OnEnterLoading()
-{
-	TRefCountPtr<FPackagePreloader> Local = CreatePackagePreloader();
-	Local->SetSelfReference();
-
-	check(PackagePreloader);
-	PackagePreloader->CheckPreloadEmpty();
-}
-
-void FPackageData::OnExitLoading()
-{
-	check(PackagePreloader); // Guaranteed by OnEnterLoading
-	PackagePreloader->ClearPreload();
-	PackagePreloader->ClearSelfReference();
-	// PackagePreloader might now be nullptr
 }
 
 void FPackageData::OnEnterSaving()
@@ -1167,13 +1094,6 @@ void FPackageData::OnPackagePreloaderDestroyed(FPackagePreloader& InPackagePrelo
 {
 	check(PackagePreloader == &InPackagePreloader);
 	PackagePreloader = nullptr;
-}
-
-bool FPackageData::TryPreload()
-{
-	check(IsInStateProperty(EPackageStateProperty::Loading));
-	check(PackagePreloader != nullptr); // Guaranteed by OnEnterLoading
-	return PackagePreloader->TryPreload();
 }
 
 TArray<FCachedObjectInOuter>& FPackageData::GetCachedObjectsInOuter()
@@ -2944,49 +2864,6 @@ void FRequestQueue::NotifyRequestFencePassed(FPackageDatas& PackageDatas)
 		}
 	}
 	RequestFencePackageListeners.Empty();
-}
-
-bool FLoadPrepareQueue::IsEmpty()
-{
-	return Num() == 0;
-}
-
-int32 FLoadPrepareQueue::Num() const
-{
-	return PreloadingQueue.Num() + EntryQueue.Num();
-}
-
-FPackageData* FLoadPrepareQueue::PopFront()
-{
-	if (!PreloadingQueue.IsEmpty())
-	{
-		return PreloadingQueue.PopFrontValue();
-	}
-	else
-	{
-		return EntryQueue.PopFrontValue();
-	}
-}
-
-void FLoadPrepareQueue::Add(FPackageData* PackageData)
-{
-	EntryQueue.Add(PackageData);
-}
-
-void FLoadPrepareQueue::AddFront(FPackageData* PackageData)
-{
-	PreloadingQueue.AddFront(PackageData);
-}
-
-bool FLoadPrepareQueue::Contains(const FPackageData* PackageData) const
-{
-	return (Algo::Find(PreloadingQueue, PackageData) != nullptr) ||
-		(Algo::Find(EntryQueue, PackageData) != nullptr);
-}
-
-uint32 FLoadPrepareQueue::Remove(FPackageData* PackageData)
-{
-	return PreloadingQueue.Remove(PackageData) + EntryQueue.Remove(PackageData);
 }
 
 FPoppedPackageDataScope::FPoppedPackageDataScope(FPackageData& InPackageData)

@@ -13,6 +13,7 @@
 #include "HAL/CriticalSection.h"
 #include "HAL/Platform.h"
 #include "IO/IoHash.h"
+#include "Math/NumericLimits.h"
 #include "Misc/EnumClassFlags.h"
 #include "Misc/Optional.h"
 #include "Misc/ScopeRWLock.h"
@@ -330,6 +331,14 @@ public:
 	 */
 	const FName& GetFileName() const;
 
+	/**
+	 * Get the LeafToRootRank that was found for this PackageData, if set. Returns MAX_uint32 if not yet set.
+	 * This value is not replicated to CookWorkers; each CookWorker calculates it individually during Pumploads.
+	 */
+	uint32 GetLeafToRootRank() const;
+	/** Set the LeafToRootRank for this package data. */
+	void SetLeafToRootRank(uint32 Value);
+
 	/** Reset OutPlatforms and copy current set of reachable & cookable & not yet cooked platforms into it. */
 	template <typename ArrayType>
 	void GetPlatformsNeedingCooking(ArrayType& OutPlatforms) const;
@@ -512,9 +521,6 @@ public:
 	 */
 	bool GetIsVisited() const { return bIsVisited != 0; }
 	void SetIsVisited(bool bValue) { bIsVisited = static_cast<uint32>(bValue); }
-
-	/** Try to preload the file. Return true if preloading is complete (succeeded or failed or was skipped). */
-	bool TryPreload();
 
 	/**
 	 * The list of objects inside the package.  Only non-empty during saving; it is populated on demand by
@@ -767,10 +773,8 @@ private:
 	void OnExitRequest();
 	void OnEnterAssignedToWorker();
 	void OnExitAssignedToWorker();
-	void OnEnterLoadPrepare();
-	void OnExitLoadPrepare();
-	void OnEnterLoadReady();
-	void OnExitLoadReady();
+	void OnEnterLoad();
+	void OnExitLoad();
 	void OnEnterSaveActive();
 	void OnExitSaveActive();
 	void OnEnterSaveStalledRetracted();
@@ -780,8 +784,6 @@ private:
 	/* Entry/Exit gates for Properties shared between multiple states */
 	void OnExitInProgress(EStateChangeReason StateChangeReason);
 	void OnEnterInProgress();
-	void OnExitLoading();
-	void OnEnterLoading();
 	void OnExitSaving(EStateChangeReason ReleaseSaveReason, EPackageState NewState);
 	void OnEnterSaving();
 	void OnExitAssignedToWorkerProperty();
@@ -805,6 +807,7 @@ private:
 	/** The one-per-CookOnTheFlyServer owner of this PackageData. */
 	FPackageDatas& PackageDatas;
 	FPackagePreloader* PackagePreloader = nullptr;
+	uint32 LeafToRootRank = MAX_uint32;
 	int32 NumPendingCookedPlatformData = 0;
 	int32 CookedPlatformDataNextIndex = -1;
 	int32 NumRetriesBeginCacheOnObject = 0;
@@ -1038,22 +1041,51 @@ private:
 	FPackageDataSet NormalRequests;
 };
 
+/** A wrapper around a TRefCountPtr<FPackagePreloader> that defines operator< for FPackagePreloaderPriorityQueue. */
+struct FPackagePreloaderPriorityWrapper
+{
+	TRefCountPtr<FPackagePreloader> Payload;
+	bool operator<(const FPackagePreloaderPriorityWrapper& Other) const;
+};
+
 /**
- * Container for FPackageDatas in the LoadPrepare state. A FIFO with multiple substates.
+ * Priority queue for FPackagePreloaders in the PendingKick substate, prioritized mostly by LeafToRoot order,
+ * but with various exceptions. Controls which PendingKick preloader will next be kicked.
  */
-class FLoadPrepareQueue
+class FPackagePreloaderPriorityQueue
+{
+public:
+	bool IsEmpty() const;
+	void Add(TRefCountPtr<FPackagePreloader> Preloader);
+	void Remove(const TRefCountPtr<FPackagePreloader>& Preloader);
+	TRefCountPtr<FPackagePreloader> PopFront();
+
+private:
+	TArray<FPackagePreloaderPriorityWrapper> Heap;
+};
+
+/**
+ * Container for FPackageDatas in the Load state. Has a single InProgress container, and  multiple subqueues which
+ * contain pointers to PackagePreloaders of packages which might be requested because they're in the load state, or
+ * requested because even though they are in another state (e.g. request or idle), one of the packages in the load
+ * state imports them so we want to preload and load them for better load performance of the referencer package.
+ */
+class FLoadQueue
 {
 public:
 	bool IsEmpty();
 	int32 Num() const;
-	FPackageData* PopFront();
 	void Add(FPackageData* PackageData);
-	void AddFront(FPackageData* PackageData);
 	bool Contains(const FPackageData* PackageData) const;
 	uint32 Remove(FPackageData* PackageData);
+	TSet<FPackageData*>::TRangedForIterator begin();
+	TSet<FPackageData*>::TRangedForIterator end();
 
-	FPackageDataQueue PreloadingQueue;
-	FPackageDataQueue EntryQueue;
+	TRingBuffer<FPackageData*> Inbox;
+	FPackagePreloaderPriorityQueue PendingKicks;
+	TSet<TRefCountPtr<FPackagePreloader>> ActivePreloads;
+	TRingBuffer<TRefCountPtr<FPackagePreloader>> ReadyForLoads;
+	TSet<FPackageData*> InProgress;
 };
 
 /** Data duplicated from FPackageData that is stored separately for read/write from any thread. */
@@ -1101,6 +1133,12 @@ public:
 	FPackageDataMonitor& GetMonitor();
 	/** Return the backpointer to the CookOnTheFlyServer */
 	UCookOnTheFlyServer& GetCookOnTheFlyServer();
+
+	/** Return and increment the RoofToLankRank that should be assigned to the next PackageData needing one. */
+	uint32 GetNextLeafToRootRank();
+	/** Reset the LeafToRootRank index back to 0; called when the cook is reset. */
+	void ResetLeafToRootRank();
+
 	/**
 	 * Return the RequestQueue used by the CookOnTheFlyServer. The RequestQueue is the mostly-FIFO list of
 	 * PackageData that need to be cooked.
@@ -1111,15 +1149,10 @@ public:
 	TFastPointerSet<FPackageData*>& GetAssignedToWorkerSet();
 
 	/**
-	 * Return the LoadPrepareQueue used by the CookOnTheFlyServer. The LoadPrepareQueue is the dependency-ordered
-	 * list of FPackageData that need to be preloaded before they can be loaded.
+	 * Return the LoadQueue used by CookOnTheFlyServer. Container for packages in the Load state and for various
+	 * data that manages their passage through the state.
 	 */
-	FLoadPrepareQueue& GetLoadPrepareQueue();
-	/**
-	 * Return the LoadReadyQueue used by the CookOnTheFlyServer. The LoadReadyQueue is the dependency-ordered list
-	 * of PackageData that need to be loaded.
-	 */
-	FPackageDataQueue& GetLoadReadyQueue();
+	FLoadQueue& GetLoadQueue();
 	/**
 	 * Return the SaveQueue used by the CookOnTheFlyServer. The SaveQueue is the performance-sorted list of
 	 * PackageData that have been loaded and need to start or are only part way through saving.
@@ -1343,12 +1376,12 @@ private:
 	TMap<FName, FThreadsafePackageData> ThreadsafePackageDatas;
 	TRingBuffer<FPendingCookedPlatformDataContainer> PendingCookedPlatformDataLists;
 	TMap<UObject*, FCachedCookedPlatformDataState> CachedCookedPlatformDataObjects;
+	uint32 NextLeafToRootRank = 0;
 	int32 PendingCookedPlatformDataNum = 0;
 	FRequestQueue RequestQueue;
 	TFastPointerSet<FPackageData*> AssignedToWorkerSet;
 	TFastPointerSet<FPackageData*> SaveStalledSet;
-	FLoadPrepareQueue LoadPrepareQueue;
-	FPackageDataQueue LoadReadyQueue;
+	FLoadQueue LoadQueue;
 	FPackageDataQueue SaveQueue;
 	UCookOnTheFlyServer& CookOnTheFlyServer;
 	mutable FRWLock ExistenceLock;
@@ -1357,19 +1390,6 @@ private:
 
 	static IAssetRegistry* AssetRegistry;
 };
-
-template <typename CallbackType>
-inline void FPackageDatas::LockAndEnumeratePackageDatas(CallbackType&& Callback)
-{
-	FReadScopeLock ExistenceReadLock(ExistenceLock);
-	EnumeratePackageDatasWithinLock(Forward<CallbackType>(Callback));
-}
-
-template <typename CallbackType>
-inline void FPackageDatas::EnumeratePackageDatasWithinLock(CallbackType&& Callback)
-{
-	Allocator.EnumerateAllocations(Forward<CallbackType>(Callback));
-}
 
 /**
  * A debug-only scope class to confirm that each FPackageData removed from a container during a Pump function
@@ -1391,6 +1411,30 @@ struct FPoppedPackageDataScope
 // Inline implementations
 ///////////////////////////////////////////////////////
 
+
+/** Return and increment the RoofToLankRank that should be assigned to the next PackageData needing one. */
+inline uint32 FPackageDatas::GetNextLeafToRootRank()
+{
+	return NextLeafToRootRank++;
+}
+
+inline void FPackageDatas::ResetLeafToRootRank()
+{
+	NextLeafToRootRank = 0;
+}
+
+template <typename CallbackType>
+inline void FPackageDatas::LockAndEnumeratePackageDatas(CallbackType&& Callback)
+{
+	FReadScopeLock ExistenceReadLock(ExistenceLock);
+	EnumeratePackageDatasWithinLock(Forward<CallbackType>(Callback));
+}
+
+template <typename CallbackType>
+inline void FPackageDatas::EnumeratePackageDatasWithinLock(CallbackType&& Callback)
+{
+	Allocator.EnumerateAllocations(Forward<CallbackType>(Callback));
+}
 
 template<typename CallbackType>
 inline void FPackageDatas::UpdateThreadsafePackageData(FName PackageName, CallbackType&& Callback)
@@ -1433,14 +1477,9 @@ inline TFastPointerSet<FPackageData*>& FPackageDatas::GetAssignedToWorkerSet()
 	return AssignedToWorkerSet;
 }
 
-inline FLoadPrepareQueue& FPackageDatas::GetLoadPrepareQueue()
+inline FLoadQueue& FPackageDatas::GetLoadQueue()
 {
-	return LoadPrepareQueue;
-}
-
-inline FPackageDataQueue& FPackageDatas::GetLoadReadyQueue()
-{
-	return LoadReadyQueue;
+	return LoadQueue;
 }
 
 inline TFastPointerSet<FPackageData*>& FPackageDatas::GetSaveStalledSet()
@@ -1451,6 +1490,32 @@ inline TFastPointerSet<FPackageData*>& FPackageDatas::GetSaveStalledSet()
 inline FPackageDataQueue& FPackageDatas::GetSaveQueue()
 {
 	return SaveQueue;
+}
+
+
+inline const FName& FPackageData::GetPackageName() const
+{
+	return PackageName;
+}
+
+inline const FName& FPackageData::GetFileName() const
+{
+	return FileName;
+}
+
+inline void FPackageData::SetFileName(const FName& InFileName)
+{
+	FileName = InFileName;
+}
+
+inline uint32 FPackageData::GetLeafToRootRank() const
+{
+	return LeafToRootRank;
+}
+
+inline void FPackageData::SetLeafToRootRank(uint32 Value)
+{
+	LeafToRootRank = Value;
 }
 
 template <typename ArrayType>
