@@ -6,6 +6,7 @@
 #include "Animation/AnimNode_SequencePlayer.h"
 #include "AnimNodes/AnimNode_BlendSpacePlayer.h"
 #include "AnimNodes/AnimNode_Mirror.h"
+#include "EngineDefines.h"
 #include "AnimNode_BlendStack.generated.h"
 
 UENUM()
