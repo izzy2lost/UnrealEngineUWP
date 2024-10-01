@@ -116,7 +116,7 @@ bool FUnrealMutableModelBulkReader::PrepareStreamingForObject(UCustomizableObjec
 		NewData.DDCKey = ModelResources.DDCKey;
 		NewData.DDCPolicy = ModelResources.DDCDefaultPolicy;
 #else
-		if (NewData.ModelStreamableBulkData->HashToBulkData.IsEmpty())
+		if (NewData.ModelStreamableBulkData->StreamableBulkData.IsEmpty())
 		{
 			const UCustomizableObjectBulk* BulkData = CustomizableObject->GetPrivate()->GetStreamableBulkData();
 			if (!BulkData)
@@ -251,8 +251,10 @@ mu::ModelReader::OPERATION_ID FUnrealMutableModelBulkReader::BeginReadBlock(cons
 
 	OPERATION_ID Result = ++LastOperationID;
 
-	if (FByteBulkData* BulkData = ObjectData->ModelStreamableBulkData->HashToBulkData.Find(Block->FileId))
+	if(ObjectData->ModelStreamableBulkData->StreamableBulkData.IsValidIndex(Block->FileId))
 	{
+		FByteBulkData& BulkData = ObjectData->ModelStreamableBulkData->StreamableBulkData[Block->FileId];
+
 		FBulkDataIORequestCallBack IOCallback;
 
 		if (CompletionCallback)
@@ -265,7 +267,7 @@ mu::ModelReader::OPERATION_ID FUnrealMutableModelBulkReader::BeginReadBlock(cons
 
 		FReadRequest& Request = ObjectData->CurrentReadRequests.Add(Result);
 
-		Request.BulkReadRequest = MakeShareable(BulkData->CreateStreamingRequest(
+		Request.BulkReadRequest = MakeShareable(BulkData.CreateStreamingRequest(
 			Block->Offset,
 			size,
 			(EAsyncIOPriorityAndFlags)StreamPriority,

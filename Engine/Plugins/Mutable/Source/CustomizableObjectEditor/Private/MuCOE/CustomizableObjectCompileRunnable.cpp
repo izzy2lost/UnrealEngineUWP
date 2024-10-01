@@ -394,10 +394,16 @@ void FCustomizableObjectSaveDDRunnable::CachePlatfromData()
 	{
 		PlatformData.ModelStreamables = ModelStreamables;
 
-		const uint64 PackageDataBytesLimit = Options.bIsCooking ? Options.PackagedDataBytesLimit : MAX_uint64;
-
 		// Generate list of files and update streamable blocks ids and offsets
-		MutablePrivate::GenerateBulkDataFilesList(Model, *PlatformData.ModelStreamables.Get(), Options.TargetPlatform, PackageDataBytesLimit, PlatformData.BulkDataFiles);
+		if (Options.bUseBulkData)
+		{
+			MutablePrivate::GenerateBulkDataFilesListWithFileLimit(Model, *PlatformData.ModelStreamables.Get(), MAX_uint8, PlatformData.BulkDataFiles);
+		}
+		else
+		{
+			const uint64 PackageDataBytesLimit = Options.bIsCooking ? Options.PackagedDataBytesLimit : MAX_uint64;
+			MutablePrivate::GenerateBulkDataFilesListWithSizeLimit(Model, *PlatformData.ModelStreamables.Get(), Options.TargetPlatform, PackageDataBytesLimit, PlatformData.BulkDataFiles);
+		}
 	}
 
 
@@ -435,7 +441,7 @@ void FCustomizableObjectSaveDDRunnable::StoreCachedPlatformDataInDDC(bool& bStor
 		FModelStreamableBulkData ModelStreamablesDDC = *ModelStreamables.Get();
 
 		// Generate list of files and update streamable blocks ids and offsets
-		MutablePrivate::GenerateBulkDataFilesList(Model, ModelStreamablesDDC, Options.TargetPlatform, Options.DDCBytesLimit, BulkDataFilesDDC);
+		MutablePrivate::GenerateBulkDataFilesListWithFileLimit(Model, ModelStreamablesDDC, MAX_int16, BulkDataFilesDDC);
 
 		TArray64<uint8> ModelStreamablesBytesDDC;
 		FMemoryWriter64 MemoryWriterDDC(ModelStreamablesBytesDDC);
@@ -448,12 +454,24 @@ void FCustomizableObjectSaveDDRunnable::StoreCachedPlatformDataInDDC(bool& bStor
 	// Store streamable resources as FValues
 	{
 		MUTABLE_CPUPROFILER_SCOPE(SerializeBulkDataForDDC);
-		
+	
+		{
+			MutablePrivate::FFile File;
+			check(sizeof(FValueId::ByteArray) >= sizeof(File.DataType) + sizeof(File.Id) + sizeof(File.ResourceType) + sizeof(File.Flags));
+		}
+
 		FValueId::ByteArray ValueIdBytes = {};
-		const auto WriteBulkDataDDC = [&RecordBuilder, &ValueIdBytes](MutablePrivate::FFile& File, TArray64<uint8>& FileBulkData)
+		const auto WriteBulkDataDDC = [&RecordBuilder, &ValueIdBytes](MutablePrivate::FFile& File, TArray64<uint8>& FileBulkData, uint32 FileIndex)
 			{
-				FMemory::Memcpy(&ValueIdBytes, &File.DataType, sizeof(File.DataType));
-				FMemory::Memcpy(&ValueIdBytes[4], &File.Id, sizeof(File.Id));
+				int8 ValueIdOffset = 0;
+				FMemory::Memcpy(&ValueIdBytes[ValueIdOffset], &File.DataType, sizeof(File.DataType));
+				ValueIdOffset += sizeof(File.DataType);
+				FMemory::Memcpy(&ValueIdBytes[ValueIdOffset], &File.Id, sizeof(File.Id));
+				ValueIdOffset += sizeof(File.Id);
+				FMemory::Memcpy(&ValueIdBytes[ValueIdOffset], &File.ResourceType, sizeof(File.ResourceType));
+				ValueIdOffset += sizeof(File.ResourceType);
+				FMemory::Memcpy(&ValueIdBytes[ValueIdOffset], &File.Flags, sizeof(File.Flags));
+
 				const FValueId ValueId(ValueIdBytes);
 				const FValue Value = FValue::Compress(FSharedBuffer::MakeView(FileBulkData.GetData(), FileBulkData.Num()));
 
@@ -561,7 +579,7 @@ void FCustomizableObjectSaveDDRunnable::StoreCachedPlatformDataToDisk(bool& bSto
 		// Serailize headers to validate data
 		*StreamableMemoryWriter << CustomizableObjectHeader;
 
-		const auto WriteBulkDataToDisk = [&StreamableMemoryWriter](MutablePrivate::FFile& File, TArray64<uint8>& FileBulkData)
+		const auto WriteBulkDataToDisk = [&StreamableMemoryWriter](MutablePrivate::FFile& File, TArray64<uint8>& FileBulkData, uint32 FileIndex)
 			{
 				switch (File.DataType)
 				{

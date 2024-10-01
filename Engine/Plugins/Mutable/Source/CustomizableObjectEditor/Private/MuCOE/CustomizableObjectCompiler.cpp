@@ -920,6 +920,7 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 			ResourceMeshData.Size = DataSizeInBytes;
 			mu::ERomFlags Flags = mu::ERomFlags::None;
 			ResourceMeshData.Block = FMutableStreamableBlock { uint32(0), uint32(Flags), RealTimeMorphDataOffsetInBytes };
+			ResourceMeshData.SourceId = MeshData.Value.SourceId;
 
 			RealTimeMorphDataOffsetInBytes += DataSizeInBytes;
 			ModelResources.EditorOnlyMorphTargetReconstructionData.Append(MeshData.Value.Data);
@@ -951,6 +952,7 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 			ResourceMeshData.Size = DataSizeInBytes;
 			mu::ERomFlags Flags = mu::ERomFlags::None;
 			ResourceMeshData.Block = FMutableStreamableBlock{ uint32(0), uint32(Flags), ClothingDataOffsetInBytes };
+			ResourceMeshData.SourceId = MeshData.Value.SourceId;
 
 			ClothingDataOffsetInBytes += DataSizeInBytes;
 			ModelResources.EditorOnlyClothingMeshToMeshVertData.Append(MeshData.Value.Data);

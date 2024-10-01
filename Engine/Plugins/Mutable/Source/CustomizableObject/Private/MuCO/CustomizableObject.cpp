@@ -31,6 +31,7 @@
 #include "MuCO/UnrealMutableModelDiskStreamer.h"
 #include "MuCO/UnrealPortabilityHelpers.h"
 #include "MuR/Model.h"
+#include "MuR/Operations.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
@@ -197,14 +198,17 @@ void UCustomizableObject::PreSave(FObjectPreSaveContext ObjectSaveContext)
 				TSharedPtr<FModelStreamableBulkData> ModelStreamableBulkData = GetPrivate()->GetModelStreamableBulkData(true);
 
 				const int32 NumBulkDataFiles = CachedPlatformData.BulkDataFiles.Num();
-				ModelStreamableBulkData->HashToBulkData.Empty(NumBulkDataFiles);
-				ModelStreamableBulkData->HashToBulkData.Reserve(NumBulkDataFiles);
 
-				const auto WriteBulkData = [ModelStreamableBulkData](MutablePrivate::FFile& File, TArray64<uint8>& FileBulkData)
+				ModelStreamableBulkData->StreamableBulkData.SetNum(NumBulkDataFiles);
+
+				const auto WriteBulkData = [ModelStreamableBulkData](MutablePrivate::FFile& File, TArray64<uint8>& FileBulkData, uint32 FileIndex)
 					{
 						MUTABLE_CPUPROFILER_SCOPE(WriteBulkData);
 
-						FByteBulkData& ByteBulkData = ModelStreamableBulkData->HashToBulkData.FindOrAdd(File.Id);
+						FByteBulkData& ByteBulkData = ModelStreamableBulkData->StreamableBulkData[FileIndex];
+
+						// BulkData file to store the file to. CookedIndex 0 is used as a default for backwards compatibility, +1 to skip it.
+						ByteBulkData.SetCookedIndex(FBulkDataCookedIndex((File.Id % MAX_uint8) + 1));
 
 						ByteBulkData.Lock(LOCK_READ_WRITE);
 						uint8* Ptr = (uint8*)ByteBulkData.Realloc(FileBulkData.Num());
@@ -212,7 +216,7 @@ void UCustomizableObject::PreSave(FObjectPreSaveContext ObjectSaveContext)
 						ByteBulkData.Unlock();
 
 						uint32 BulkDataFlags = BULKDATA_PayloadInSeperateFile | BULKDATA_Force_NOT_InlinePayload;
-						if (File.Flags == uint32(mu::ERomFlags::HighRes))
+						if (File.Flags == uint16(mu::ERomFlags::HighRes))
 						{
 							BulkDataFlags |= BULKDATA_OptionalPayload;
 						}
@@ -1046,6 +1050,7 @@ void UCustomizableObjectPrivate::CompileForTargetPlatform(UCustomizableObject& C
 	Options.OptimizationLevel = UE_MUTABLE_MAX_OPTIMIZATION;	// Force max optimization when packaging.
 	Options.TextureCompression = ECustomizableObjectTextureCompression::HighQuality;
 	Options.bIsCooking = true;
+	Options.bUseBulkData = CVarMutableUseBulkData.GetValueOnAnyThread();
 	Options.TargetPlatform = &TargetPlatform;
 
 	const int32 DDCUsage = CVarMutableDerivedDataCacheUsage.GetValueOnAnyThread();
@@ -2211,28 +2216,14 @@ void FModelStreamableBulkData::Serialize(FArchive& Ar, UObject* Owner, bool bCoo
 
 	if (bCooked)
 	{
-		int32 NumBulkDatas = HashToBulkData.Num();
+		int32 NumBulkDatas = StreamableBulkData.Num();
 		Ar << NumBulkDatas;
 
-		if (Ar.IsSaving())
-		{
-			for (TPair<uint32, FByteBulkData>& BulkData : HashToBulkData)
-			{
-				Ar << BulkData.Key;
-				BulkData.Value.Serialize(Ar, Owner);
-			}
-		}
-		else
-		{
-			HashToBulkData.Reserve(NumBulkDatas);
-			for (int32 Index = 0; Index < NumBulkDatas; ++Index)
-			{
-				uint32 ResourceId = 0;
-				Ar << ResourceId;
+		StreamableBulkData.SetNum(NumBulkDatas);
 
-				FByteBulkData& BulkData = HashToBulkData.Add(ResourceId);
-				BulkData.Serialize(Ar, Owner);
-			}
+		for (FByteBulkData& BulkData : StreamableBulkData)
+		{
+			BulkData.Serialize(Ar, Owner);
 		}
 	}
 }
@@ -2508,9 +2499,9 @@ FCompilationOptions UCustomizableObjectPrivate::GetCompileOptions() const
 #if WITH_EDITOR
 namespace MutablePrivate
 {
-	int64 FFile::GetSize() const
+	uint64 FFile::GetSize() const
 	{
-		int64 FileSize = 0;
+		uint64 FileSize = 0;
 		for (const FBlock& Block : Blocks)
 		{
 			FileSize += Block.Size;
@@ -2559,21 +2550,45 @@ namespace MutablePrivate
 	}
 
 
-	// TODO:
-	// To avoid influence of the order of the streamed data (their index), classify it recursively based on hash values
-	// until the tree leaves have either a single block, or a sum of blocks below the desired file size.
+	uint32 GetTypeHash(const FFileCategoryID& Key)
+	{
+		uint32 Hash = (uint32)Key.DataType;
+		Hash = HashCombine(Hash, Key.ResourceType);
+		Hash = HashCombine(Hash, Key.Flags);
+		return Hash;
+	}
+
+
+	TPair<FFileBucket&, FFileCategory&> FindOrAddCategory(TArray<FFileBucket>& Buckets, FFileBucket& DefaultBucket, const FFileCategoryID CategoryID)
+	{
+		// Find the category
+		for (FFileBucket& Bucket : Buckets)
+		{
+			for (FFileCategory& Category : Bucket.Categories)
+			{
+				if (Category.Id == CategoryID)
+				{
+					return TPair<FFileBucket&, FFileCategory&>(Bucket, Category);
+				}
+			}
+		}
+
+		// Category not found, add to default bucket
+		FFileCategory& Category = DefaultBucket.Categories.AddDefaulted_GetRef();
+		Category.Id = CategoryID;
+		return TPair<FFileBucket&, FFileCategory&>(DefaultBucket, Category);
+	}
+
+
 	struct FClassifyNode
 	{
 		TArray<FBlock> Blocks;
-
-		//TSharedPtr<FClassifyNode> Child0;
-		//TSharedPtr<FClassifyNode> Child1;
-		//uint32 Depth=0;
 	};
 
-	void AddNode(TMap<uint32, FClassifyNode>& Nodes, int32 Slack, const FBlock& Block)
+
+	void AddNode(TMap<FFileCategoryID, FClassifyNode>& Nodes, int32 Slack, const FFileCategoryID& CategoryID, const FBlock& Block)
 	{
-		FClassifyNode& Root = Nodes.FindOrAdd(Block.Flags);
+		FClassifyNode& Root = Nodes.FindOrAdd(CategoryID);
 		if (Root.Blocks.IsEmpty())
 		{
 			Root.Blocks.Reserve(Slack);
@@ -2581,12 +2596,246 @@ namespace MutablePrivate
 
 		Root.Blocks.Add(Block);
 	}
+	
+	void GenerateBulkDataFilesListWithFileLimit(
+		TSharedPtr<const mu::Model, ESPMode::ThreadSafe> Model,
+		FModelStreamableBulkData& ModelStreamableBulkData,
+		uint32 NumFilesPerBucket,
+		TArray<FFile>& OutBulkDataFiles)
+	{
+		MUTABLE_CPUPROFILER_SCOPE(GenerateBulkDataFilesListWithFileLimit);
 
-	void GenerateBulkDataFilesList(
+		if (!Model)
+		{
+			return;
+		}
+
+		/* Overview.
+		 *	1. Add categories to the different buckets and accumulate the size of its resources 
+		 *	   to know the total size of each category and the size of the buckets.
+		 *	2. Use the accumulated sizes to distribute the NumFilesPerBucket between the bucket's categories.
+		 *	3. Generate the list of BulkData files based on the number of files per category.
+		 */
+
+		// Two buckets. One for non-optional data and one for optional data.
+		TArray<FFileBucket> FileBuckets;
+
+		// DefaultBucket is for non-optional BulkData
+		FFileBucket& DefaultBucket = FileBuckets.AddDefaulted_GetRef();
+		FFileBucket& OptionalBucket = FileBuckets.AddDefaulted_GetRef();
+
+		// Model Roms. Iterate all Model roms to distribute them in categories.
+		{
+			// Add meshes and low-res textures to the Default bucket 
+			DefaultBucket.Categories.Add({ FFileCategoryID(EDataType::Model, mu::DATATYPE::DT_MESH, 0) });
+			DefaultBucket.Categories.Add({ FFileCategoryID(EDataType::Model, mu::DATATYPE::DT_IMAGE, 0) });
+
+			// Add High-res textures to the Optional bucket
+			OptionalBucket.Categories.Add({ FFileCategoryID(EDataType::Model, mu::DATATYPE::DT_IMAGE, (uint16)mu::ERomFlags::HighRes) });
+
+			const int32 NumRoms = Model->GetRomCount();
+			for (int32 RomIndex = 0; RomIndex < NumRoms; ++RomIndex)
+			{
+				uint32 BlockId = Model->GetRomId(RomIndex);
+				const uint32 BlockSize = Model->GetRomSize(RomIndex);
+				const uint16 BlockResourceType = Model->GetRomType(RomIndex);
+				const mu::ERomFlags BlockFlags = Model->GetRomFlags(RomIndex);
+
+				FFileCategoryID CategoryID = { EDataType::Model, BlockResourceType, uint16(BlockFlags) };
+				TPair<FFileBucket&, FFileCategory&> It = FindOrAddCategory(FileBuckets, DefaultBucket, CategoryID); // Add block to an existing or new category
+				It.Key.DataSize += BlockSize;
+				It.Value.DataSize += BlockSize;
+			}
+		}
+
+		// RealTime Morphs. Iterate RealTimeMorph streamables to accumulate their sizes.
+		{
+			// Add RealTimeMorphs to the Default bucket
+			FFileCategory& RealTimeMorphCategory = DefaultBucket.Categories.AddDefaulted_GetRef();
+			RealTimeMorphCategory.Id.DataType = EDataType::RealTimeMorph;
+
+			const TMap<uint32, FRealTimeMorphStreamable>& RealTimeMorphStreamables = ModelStreamableBulkData.RealTimeMorphStreamables;
+			for (const TPair<uint32, FRealTimeMorphStreamable>& MorphStreamable : RealTimeMorphStreamables)
+			{
+				RealTimeMorphCategory.DataSize += MorphStreamable.Value.Size;
+			}
+
+			DefaultBucket.DataSize += RealTimeMorphCategory.DataSize;
+		}
+
+		// Clothing. Iterate clothing streamables to accumulate their sizes.
+		{
+			// Add Clothing to the Default bucket
+			FFileCategory& ClothingCategory = DefaultBucket.Categories.AddDefaulted_GetRef();
+			ClothingCategory.Id.DataType = EDataType::Clothing;
+			
+			const TMap<uint32, FClothingStreamable>& ClothingStreamables = ModelStreamableBulkData.ClothingStreamables;
+			for (const TPair<uint32, FClothingStreamable>& ClothStreamable : ClothingStreamables)
+			{
+				ClothingCategory.DataSize += ClothStreamable.Value.Size;
+			}
+
+			DefaultBucket.DataSize += ClothingCategory.DataSize;
+		}
+		
+		// Limited number of files in each bucket. Find the ideal file distribution between categories based on the accumulated size of their resources.
+		TArray<FFileCategory> Categories;
+
+		for (FFileBucket& Bucket : FileBuckets)
+		{
+			uint32 NumFiles = 0;
+
+			for (FFileCategory& Category : Bucket.Categories)
+			{
+				if (Category.DataSize > 0)
+				{
+					double DataDistribution = (double)Category.DataSize / Bucket.DataSize;
+					Category.NumFiles = FMath::Max(DataDistribution * NumFilesPerBucket, 1);  // At least one file if size > 0
+					Category.FirstFile = NumFiles;
+
+					NumFiles += Category.NumFiles;
+				}
+			}
+
+			Categories.Append(Bucket.Categories);
+		}
+		
+		// Function to create the list of bulk data files. Blocks will be grouped by source Id.
+		const auto CreateFileList = [Categories](const FFileCategoryID& CategoryID, const FClassifyNode& Node, TArray<FFile>& OutBulkDataFiles)
+			{
+				const FFileCategory* Category = Categories.FindByPredicate(
+					[CategoryID](const FFileCategory& C) { return C.Id == CategoryID; });
+				check(Category);
+
+				int32 NumBulkDataFiles = OutBulkDataFiles.Num();
+				OutBulkDataFiles.Reserve(NumBulkDataFiles + Category->NumFiles);
+
+				// FileID (File Index) to BulkData file index.
+				TArray<int64> BulkDataFileIndex;
+				BulkDataFileIndex.Init(INDEX_NONE, Category->NumFiles);
+
+				const int32 NumBlocks = Node.Blocks.Num();
+				for (const FBlock& Block : Node.Blocks)
+				{
+					// Use the module of the source id to determine the file id (FileIndex)
+					const uint32 FileID = Block.SourceId % Category->NumFiles;
+					int64& FileIndex = BulkDataFileIndex[FileID];
+
+					// Add new file
+					if (FileIndex == INDEX_NONE)
+					{
+						FFile& NewFile = OutBulkDataFiles.AddDefaulted_GetRef();
+						NewFile.DataType = CategoryID.DataType;
+						NewFile.ResourceType = CategoryID.ResourceType;
+						NewFile.Flags = CategoryID.Flags;
+						NewFile.Id = FileID; 
+
+						FileIndex = NumBulkDataFiles;
+						++NumBulkDataFiles;
+					}
+
+					// Add block to the file 
+					OutBulkDataFiles[FileIndex].Blocks.Add(Block);
+				}
+			};
+
+		// Generate the list of BulkData files.
+		GenerateBulkDataFilesList(Model, ModelStreamableBulkData, true /* bUseRomTypeAndFlagsToFilter */, CreateFileList, OutBulkDataFiles);
+	}
+	
+
+	void GenerateBulkDataFilesListWithSizeLimit(
 		TSharedPtr<const mu::Model, ESPMode::ThreadSafe> Model,
 		FModelStreamableBulkData& ModelStreamableBulkData,
 		const ITargetPlatform* TargetPlatform,
 		uint64 TargetBulkDataFileBytes,
+		TArray<FFile>& OutBulkDataFiles)
+	{
+		MUTABLE_CPUPROFILER_SCOPE(GenerateBulkDataFilesListWithSizeLimit);
+
+		if (!Model)
+		{
+			return;
+		}
+
+		const uint64 MaxChunkSize = UCustomizableObjectSystem::GetInstance()->GetMaxChunkSizeForPlatform(TargetPlatform);
+		TargetBulkDataFileBytes = FMath::Min(TargetBulkDataFileBytes, MaxChunkSize);
+
+		// Unlimited number of files, limited file size. Add blocks to the file if the size limit won't be surpassed. Add at least one block to each file. 
+		const auto CreateFileList = [TargetBulkDataFileBytes](const FFileCategoryID& CategoryID, const FClassifyNode& Node, TArray<FFile>& OutBulkDataFiles)
+			{
+				// Temp: Group by order in the array
+				for (int32 BlockIndex = 0; BlockIndex < Node.Blocks.Num(); )
+				{
+					FFile File;
+					File.DataType = CategoryID.DataType;
+					File.ResourceType = CategoryID.ResourceType;
+					File.Flags = CategoryID.Flags;
+
+					uint64 FileSize = 0;
+					uint32 FileId = uint32(CategoryID.DataType);
+
+					while (BlockIndex < Node.Blocks.Num())
+					{
+						const FBlock& CurrentBlock = Node.Blocks[BlockIndex];
+
+						if (FileSize > 0 &&
+							FileSize + CurrentBlock.Size > TargetBulkDataFileBytes &&
+							TargetBulkDataFileBytes > 0)
+						{
+							break;
+						}
+
+						// Block added to file. Set offset and increase file size.
+						FileSize += CurrentBlock.Size;
+
+						// Generate cumulative id for this file
+						FileId = HashCombine(FileId, CurrentBlock.Id);
+
+						// Add the block to the current file
+						File.Blocks.Add(CurrentBlock);
+
+						// Next block
+						++BlockIndex;
+					}
+
+					const int32 NumFiles = OutBulkDataFiles.Num();
+
+					// Ensure the FileId is unique
+					bool bUnique = false;
+					while (!bUnique)
+					{
+						bUnique = true;
+						for (int32 PreviousFileIndex = 0; PreviousFileIndex < NumFiles; ++PreviousFileIndex)
+						{
+							if (OutBulkDataFiles[PreviousFileIndex].Id == FileId)
+							{
+								bUnique = false;
+								++FileId;
+								break;
+							}
+						}
+					}
+
+					// Set it to the editor-only file descriptor
+					File.Id = FileId;
+
+					OutBulkDataFiles.Add(MoveTemp(File));
+				}
+			};
+
+		// TODO: Temp. Remove after unifying generated output files code between editor an package. UE-222777
+		const bool bUseRomTypeAndFlagsToFilter = TargetPlatform->RequiresCookedData();
+
+		GenerateBulkDataFilesList(Model, ModelStreamableBulkData, bUseRomTypeAndFlagsToFilter, CreateFileList, OutBulkDataFiles);
+	}
+
+
+	void GenerateBulkDataFilesList(
+		TSharedPtr<const mu::Model, ESPMode::ThreadSafe> Model,
+		FModelStreamableBulkData& ModelStreamableBulkData,
+		bool bUseRomTypeAndFlagsToFilter,
+		TFunctionRef<void(const FFileCategoryID&, const FClassifyNode&, TArray<FFile>&)> CreateFileList,
 		TArray<FFile>& OutBulkDataFiles)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(GenerateBulkDataFilesList);
@@ -2598,216 +2847,141 @@ namespace MutablePrivate
 			return;
 		}
 
-		const uint64 MaxChunkSize = UCustomizableObjectSystem::GetInstance()->GetMaxChunkSizeForPlatform(TargetPlatform);
-		TargetBulkDataFileBytes = FMath::Min(TargetBulkDataFileBytes, MaxChunkSize);
-
 		// TODO: Temp. Remove after unifying generated output files code between editor an package. UE-222777 
-		const bool bRequiresCookedData = TargetPlatform->RequiresCookedData();
+		const uint16 IgnoreMask = bUseRomTypeAndFlagsToFilter ? MAX_uint16 : 0;
 
 		// Root nodes by flags.
 		const int32 NumRoms = Model->GetRomCount();
-		TMap<uint32, FClassifyNode> RootNode;
+		TMap<FFileCategoryID, FClassifyNode> RootNode;
 
 		// Create blocks data.
 		{
 			for (int32 RomIndex = 0; RomIndex < NumRoms; ++RomIndex)
 			{
 				uint32 BlockId = Model->GetRomId(RomIndex);
+				uint32 SourceBlockId = Model->GetRomSourceId(RomIndex);
 				const uint32 BlockSize = Model->GetRomSize(RomIndex);
-				const mu::ERomFlags BlockFlags = bRequiresCookedData ? Model->GetRomFlags(RomIndex) : mu::ERomFlags::None;
+				const uint16 BlockResourceType = IgnoreMask & Model->GetRomType(RomIndex);
+				const mu::ERomFlags BlockFlags = (mu::ERomFlags)(IgnoreMask & (uint16)Model->GetRomFlags(RomIndex));
 
-				FBlock CurrentBlock = { EDataType::Model, BlockId, BlockSize, uint32(BlockFlags), 0 };
-				AddNode(RootNode, NumRoms, CurrentBlock);
+				FFileCategoryID CurrentCategory = { EDataType::Model, BlockResourceType, uint16(BlockFlags) };
+				FBlock CurrentBlock = { BlockId, SourceBlockId, BlockSize, 0 };
+				AddNode(RootNode, NumRoms, CurrentCategory, CurrentBlock);
 			}
 		}
 
-		// TODO: This should create a new classification branch when the tree is implemented.
-		// For now append after Model roms. 
 		{
 			uint64 SourceOffset = 0;
 
-			TArray<FMutableStreamableBlock> RealTimeMorphTargetsBlocks;
-
 			const TMap<uint32, FRealTimeMorphStreamable>& RealTimeMorphStreamables = ModelStreamableBulkData.RealTimeMorphStreamables;
 
-			const int32 NumBlocks = RealTimeMorphTargetsBlocks.Num();
+			const FFileCategoryID RealTimeMorphCategory = { EDataType::RealTimeMorph, (uint16)mu::DATATYPE::DT_NONE, (uint16)mu::ERomFlags::None };
+
 			for (const TPair<uint32, FRealTimeMorphStreamable>& MorphStreamable : RealTimeMorphStreamables)
 			{
 				const uint32 BlockSize = MorphStreamable.Value.Size;
 
-				uint32 Flags = 0;
-				FBlock CurrentBlock = { EDataType::RealTimeMorph, MorphStreamable.Key, BlockSize, Flags, SourceOffset };
-				AddNode(RootNode, NumRoms, CurrentBlock);
+				FBlock CurrentBlock = { MorphStreamable.Key, MorphStreamable.Value.SourceId, BlockSize, SourceOffset };
+				AddNode(RootNode, NumRoms, RealTimeMorphCategory, CurrentBlock);
 
 				SourceOffset += BlockSize;
 			}
 		}
 
-		// TODO: This should create a new classification branch when the tree is implemented.
-		// For now append after Model roms. 
 		{
 			uint64 SourceOffset = 0;
 
-			TArray<FMutableStreamableBlock> ClothingBlocks;
-
 			const TMap<uint32, FClothingStreamable>& ClothingStreamables = ModelStreamableBulkData.ClothingStreamables;
 
-			const int32 NumBlocks = ClothingBlocks.Num();
+			const FFileCategoryID ClothingCategory = { EDataType::Clothing, (uint16)mu::DATATYPE::DT_NONE, (uint16)mu::ERomFlags::None };
+
 			for (const TPair<uint32, FClothingStreamable>& ClothStreamable : ClothingStreamables)
 			{
 				const uint32 BlockSize = ClothStreamable.Value.Size;
 
-				//check(SourceOffset == ClothStreamable.Value.Block.Offset);
-				uint32 Flags = 0;
-				FBlock CurrentBlock = { EDataType::Clothing, ClothStreamable.Key, BlockSize, Flags, SourceOffset };
-				AddNode(RootNode, NumRoms, CurrentBlock);
+				FBlock CurrentBlock = { ClothStreamable.Key, ClothStreamable.Value.SourceId, BlockSize, SourceOffset };
+				AddNode(RootNode, NumRoms, ClothingCategory, CurrentBlock);
 
 				SourceOffset += BlockSize;
 			}
 		}
 
-		for (int32 FlagClassIndex = 0; FlagClassIndex < RootNode.Num(); ++FlagClassIndex)
+		// Create Files list
+		for (TPair<FFileCategoryID, FClassifyNode>& Node : RootNode)
 		{
-			FClassifyNode& Root = RootNode[FlagClassIndex];
-
-			// Temp: Group by order in the array
-			for (int32 BlockIndex = 0; BlockIndex < Root.Blocks.Num(); )
-			{
-				int32 CurrentFileSize = 0;
-
-				FFile CurrentFile;
-				CurrentFile.DataType = Root.Blocks[BlockIndex].DataType;
-				CurrentFile.Flags = Root.Blocks[BlockIndex].Flags;
-
-				while (BlockIndex < Root.Blocks.Num())
-				{
-					FBlock CurrentBlock = Root.Blocks[BlockIndex];
-
-					// Next file?
-					// Store different data types in different files. Blocks should be sorted by DataType so data is properly packeted
-					if (CurrentFile.DataType != CurrentBlock.DataType)
-					{
-						break;
-					}
-
-					// Different flags go to different files
-					check(CurrentFile.Flags == CurrentBlock.Flags)
-
-						if (CurrentFileSize > 0 && CurrentFileSize + CurrentBlock.Size > TargetBulkDataFileBytes)
-						{
-							break;
-						}
-
-					// Add the block to the current file
-					CurrentFile.Blocks.Add(CurrentBlock);
-					CurrentFileSize += CurrentBlock.Size;
-
-					// Next block
-					++BlockIndex;
-				}
-
-				OutBulkDataFiles.Add(MoveTemp(CurrentFile));
-			}
+			CreateFileList(Node.Key, Node.Value, OutBulkDataFiles);
 		}
 
-		// Create the file list
-		for (int32 FileIndex = 0; FileIndex < OutBulkDataFiles.Num(); ++FileIndex)
+		// Update streamable blocks data
+		const int32 NumBulkDataFiles = OutBulkDataFiles.Num();
+		for (int32 FileIndex = 0; FileIndex < NumBulkDataFiles; ++FileIndex)
 		{
-			// Generate the id for this file
-			FFile& CurrentFile = OutBulkDataFiles[FileIndex];
-			uint32 FileId = uint32(CurrentFile.DataType);
-			for (int32 FileBlockIndex = 0; FileBlockIndex < CurrentFile.Blocks.Num(); ++FileBlockIndex)
-			{
-				FBlock ThisBlock = CurrentFile.Blocks[FileBlockIndex];
-				FileId = HashCombine(FileId, ThisBlock.Id);
-			}
+			FFile& File = OutBulkDataFiles[FileIndex];
 
-			// Ensure the FileId is unique
-			bool bUnique = false;
-			while (!bUnique)
+			uint64 SourceOffset = 0;
+
+			switch (File.DataType)
 			{
-				bUnique = true;
-				for (int32 PreviousFileIndex = 0; PreviousFileIndex < FileIndex; ++PreviousFileIndex)
+			case EDataType::Model:
+			{
+				for (FBlock& Block : File.Blocks)
 				{
-					if (OutBulkDataFiles[PreviousFileIndex].Id == FileId)
-					{
-						bUnique = false;
-						++FileId;
-						break;
-					}
+					Block.Offset = SourceOffset;
+					SourceOffset += Block.Size;
+
+					FMutableStreamableBlock& StreamableBlock = ModelStreamableBulkData.ModelStreamables[Block.Id];
+					StreamableBlock.FileId = FileIndex;
+					StreamableBlock.Offset = Block.Offset;
 				}
+				break;
 			}
-
-			// Set it to the editor-only file descriptor
-			CurrentFile.Id = FileId;
-
-			if (CurrentFile.DataType == EDataType::Model)
+			case EDataType::RealTimeMorph:
 			{
-				// Set it to all streamable blocks
-				uint64 OffsetInFile = 0;
-				for (int32 FileBlockIndex = 0; FileBlockIndex < CurrentFile.Blocks.Num(); ++FileBlockIndex)
+				for (FBlock& Block : File.Blocks)
 				{
-					FBlock& ThisBlock = CurrentFile.Blocks[FileBlockIndex];
-					ThisBlock.Offset = OffsetInFile;
+					Block.Offset = SourceOffset;
+					SourceOffset += Block.Size;
 
-					FMutableStreamableBlock* StreamableBlock = ModelStreamableBulkData.ModelStreamables.Find(ThisBlock.Id);
-					StreamableBlock->FileId = FileId;
-					StreamableBlock->Offset = OffsetInFile;
-					check(StreamableBlock->Flags == CurrentFile.Flags);
-					OffsetInFile += ThisBlock.Size;
+					FMutableStreamableBlock& StreamableBlock = ModelStreamableBulkData.RealTimeMorphStreamables[Block.Id].Block;
+					StreamableBlock.FileId = FileIndex;
+					StreamableBlock.Offset = Block.Offset;
 				}
+				break;
 			}
-			else if (CurrentFile.DataType == EDataType::RealTimeMorph)
+			case EDataType::Clothing:
 			{
-				TMap<uint32, FRealTimeMorphStreamable>& MorphBlocks = ModelStreamableBulkData.RealTimeMorphStreamables;
-				// Set it to all streamable blocks
-				uint64 OffsetInFile = 0;
-				for (int32 FileBlockIndex = 0; FileBlockIndex < CurrentFile.Blocks.Num(); ++FileBlockIndex)
+				for (FBlock& Block : File.Blocks)
 				{
-					FBlock& ThisBlock = CurrentFile.Blocks[FileBlockIndex];
-					ThisBlock.Offset = OffsetInFile;
+					Block.Offset = SourceOffset;
+					SourceOffset += Block.Size;
 
-					FMutableStreamableBlock& StreamableBlock = MorphBlocks[ThisBlock.Id].Block;
-					StreamableBlock.FileId = FileId;
-					StreamableBlock.Offset = OffsetInFile;
-					OffsetInFile += ThisBlock.Size;
+					FMutableStreamableBlock& StreamableBlock = ModelStreamableBulkData.ClothingStreamables[Block.Id].Block;
+					StreamableBlock.FileId = FileIndex;
+					StreamableBlock.Offset = Block.Offset;
 				}
+				break;
 			}
-			else if (CurrentFile.DataType == EDataType::Clothing)
-			{
-				TMap<uint32, FClothingStreamable>& ClothBlocks = ModelStreamableBulkData.ClothingStreamables;
-				// Set it to all streamable blocks
-				uint64 OffsetInFile = 0;
-				for (int32 FileBlockIndex = 0; FileBlockIndex < CurrentFile.Blocks.Num(); ++FileBlockIndex)
-				{
-					FBlock& ThisBlock = CurrentFile.Blocks[FileBlockIndex];
-					ThisBlock.Offset = OffsetInFile;
-
-					FMutableStreamableBlock& StreamableBlock = ClothBlocks[ThisBlock.Id].Block;
-					StreamableBlock.FileId = FileId;
-					StreamableBlock.Offset = OffsetInFile;
-					OffsetInFile += ThisBlock.Size;
-				}
-			}
-			else
-			{
+			default:
 				UE_LOG(LogMutable, Error, TEXT("Unknown DataType found while fixing streaming block files ids."));
-				check(false);
+				unimplemented();
+				break;
 			}
 		}
 	}
 
-
+	
 	void CUSTOMIZABLEOBJECT_API SerializeBulkDataFiles(
 		FMutableCachedPlatformData& CachedPlatformData,
 		TArray<FFile>& BulkDataFiles,
-		TFunctionRef<void(FFile&, TArray64<uint8>&)> WriteFile,
+		TFunctionRef<void(FFile&, TArray64<uint8>&, uint32)> WriteFile,
 		bool bDropData)
 	{
+		MUTABLE_CPUPROFILER_SCOPE(SerializeBulkDataFiles);
+
 		TArray64<uint8> FileBulkData;
 
-		const int32 NumBulkDataFiles = BulkDataFiles.Num();
-		for (int32 FileIndex = 0; FileIndex < NumBulkDataFiles; ++FileIndex)
+		const uint32 NumBulkDataFiles = BulkDataFiles.Num();
+		for (uint32 FileIndex = 0; FileIndex < NumBulkDataFiles; ++FileIndex)
 		{
 			MutablePrivate::FFile& CurrentFile = BulkDataFiles[FileIndex];
 
@@ -2817,35 +2991,35 @@ namespace MutablePrivate
 			// Get the file data in memory
 			CurrentFile.GetFileData(&CachedPlatformData, FileBulkData, bDropData);
 
-			WriteFile(CurrentFile, FileBulkData);
+			WriteFile(CurrentFile, FileBulkData, FileIndex);
 		}
 	}
-
+	
 	UE::DerivedData::FValueId GetDerivedDataModelId()
 	{
 		UE::DerivedData::FValueId::ByteArray ValueIdBytes = {};
-		ValueIdBytes[0] = 1;
+		FMemory::Memset(&ValueIdBytes[0], 1, sizeof(ValueIdBytes));
 		return UE::DerivedData::FValueId(ValueIdBytes);
 	}
 
 	UE::DerivedData::FValueId GetDerivedDataModelResourcesId()
 	{
-		UE::DerivedData::FValueId::ByteArray ValueIdBytes = {};
-		ValueIdBytes[0] = 2;
+		UE::DerivedData::FValueId::ByteArray ValueIdBytes = {};		
+		FMemory::Memset(&ValueIdBytes[0], 2, sizeof(ValueIdBytes));
 		return UE::DerivedData::FValueId(ValueIdBytes);
 	}
 
 	UE::DerivedData::FValueId GetDerivedDataModelStreamableBulkDataId()
 	{
 		UE::DerivedData::FValueId::ByteArray ValueIdBytes = {};
-		ValueIdBytes[0] = 3;
+		FMemory::Memset(&ValueIdBytes[0], 3, sizeof(ValueIdBytes));
 		return UE::DerivedData::FValueId(ValueIdBytes);
 	}
 
 	UE::DerivedData::FValueId GetDerivedDataBulkDataFilesId()
 	{
 		UE::DerivedData::FValueId::ByteArray ValueIdBytes = {};
-		ValueIdBytes[0] = 4;
+		FMemory::Memset(&ValueIdBytes[0], 4, sizeof(ValueIdBytes));
 		return UE::DerivedData::FValueId(ValueIdBytes);
 	}
 }
@@ -2858,7 +3032,6 @@ void SerializeCompilationOptionsForDDC(FArchive& Ar, FCompilationOptions& Option
 	Ar << PlatformName;
 	Ar << Options.TextureCompression;
 	Ar << Options.OptimizationLevel;
-	Ar << Options.DDCBytesLimit;
 	Ar << Options.CustomizableObjectNumBoneInfluences;
 	Ar << Options.bRealTimeMorphTargetsEnabled;
 	Ar << Options.bClothingEnabled;
@@ -3073,8 +3246,15 @@ void UCustomizableObjectPrivate::LoadCompiledDataFromDDC(FCompilationOptions Opt
 				FValueId::ByteArray ValueIdBytes = {};
 				for (MutablePrivate::FFile& File : BulkDataFiles)
 				{
-					FMemory::Memcpy(&ValueIdBytes, &File.DataType, sizeof(File.DataType));
-					FMemory::Memcpy(&ValueIdBytes[4], &File.Id, sizeof(File.Id));
+					int8 ValueIdOffset = 0;
+					FMemory::Memcpy(&ValueIdBytes[ValueIdOffset], &File.DataType, sizeof(File.DataType));
+					ValueIdOffset += sizeof(File.DataType);
+					FMemory::Memcpy(&ValueIdBytes[ValueIdOffset], &File.Id, sizeof(File.Id));
+					ValueIdOffset += sizeof(File.Id);
+					FMemory::Memcpy(&ValueIdBytes[ValueIdOffset], &File.ResourceType, sizeof(File.ResourceType));
+					ValueIdOffset += sizeof(File.ResourceType);
+					FMemory::Memcpy(&ValueIdBytes[ValueIdOffset], &File.Flags, sizeof(File.Flags));
+
 					MutablePrivate::FFile& DestFile = ValueIdToFile.Add(FValueId(ValueIdBytes));
 					DestFile = MoveTemp(File);
 				}
@@ -3166,7 +3346,15 @@ void UCustomizableObjectPrivate::LoadCompiledDataFromDDC(FCompilationOptions Opt
 			RequestOwner.Wait();
 
 			// Generate list of files and update streamable blocks ids and offsets
-			MutablePrivate::GenerateBulkDataFilesList(Model, *ModelStreamables.Get(), Options.TargetPlatform, Options.PackagedDataBytesLimit, CachedData.BulkDataFiles);
+			if (CVarMutableUseBulkData.GetValueOnAnyThread())
+			{
+				const uint32 NumBulkDataFilesPerBucket = MAX_uint8;
+				MutablePrivate::GenerateBulkDataFilesListWithFileLimit(Model, *ModelStreamables.Get(), NumBulkDataFilesPerBucket, CachedData.BulkDataFiles);
+			}
+			else
+			{
+				MutablePrivate::GenerateBulkDataFilesListWithSizeLimit(Model, *ModelStreamables.Get(), Options.TargetPlatform, Options.PackagedDataBytesLimit, CachedData.BulkDataFiles);
+			}
 
 			MutablePrivate::FMutableCachedPlatformData& CachedPlatformData = CachedPlatformsData.Add(Options.TargetPlatform->PlatformName(), {});
 			CachedPlatformData = MoveTemp(CachedData);
@@ -3175,6 +3363,7 @@ void UCustomizableObjectPrivate::LoadCompiledDataFromDDC(FCompilationOptions Opt
 
 	return;
 }
+
 
 #endif // WITH_EDITOR
 
@@ -3228,7 +3417,7 @@ void UCustomizableObjectBulk::CookAdditionalFilesOverride(const TCHAR* PackageFi
 
 	const FString CookedBulkFileName = FString::Printf(TEXT("%s/%s"), *FPaths::GetPath(PackageFilename), *CustomizableObject->GetName());
 
-	const auto WriteFile = [WriteAdditionalFile, CookedBulkFileName](MutablePrivate::FFile& File, TArray64<uint8>& FileBulkData)
+	const auto WriteFile = [WriteAdditionalFile, CookedBulkFileName](MutablePrivate::FFile& File, TArray64<uint8>& FileBulkData, uint32 FileIndex)
 		{
 			FString FileName = CookedBulkFileName + FString::Printf(TEXT("-%08x.mut"), File.Id);
 

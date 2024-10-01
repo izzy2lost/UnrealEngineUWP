@@ -590,7 +590,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 										int32 HighResMipsForThisImage = FMath::Min(NumMipsBeyondMin, GenerationContext.Options.NumHighResImageMips);
 										ConstImageNode->SourceDataDescriptor.SourceHighResMips = HighResMipsForThisImage;
 
-										const FString TextureName = GetNameSafe(Texture2D);
+										const FString TextureName = GetNameSafe(Texture2D).ToLower();
 										ConstImageNode->SourceDataDescriptor.SourceId = CityHash32(reinterpret_cast<const char*>(*TextureName), TextureName.Len() * sizeof(FString::ElementType));
 
 										return Result;
@@ -690,7 +690,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 									int32 HighResMipsForThisImage = FMath::Min(NumMipsBeyondMin, GenerationContext.Options.NumHighResImageMips);
 									CompositeNormalImage->SourceDataDescriptor.SourceHighResMips = HighResMipsForThisImage;
 
-									const FString TextureName = GetNameSafe(ReferenceCompositeNormalTexture);
+									const FString TextureName = GetNameSafe(ReferenceCompositeNormalTexture).ToLower();
 									CompositeNormalImage->SourceDataDescriptor.SourceId = CityHash32(reinterpret_cast<const char*>(*TextureName), TextureName.Len() * sizeof(FString::ElementType));
 								}
 

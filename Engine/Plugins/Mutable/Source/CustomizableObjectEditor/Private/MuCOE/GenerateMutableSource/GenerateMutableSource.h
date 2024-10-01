@@ -299,6 +299,11 @@ struct FRealTimeMorphMeshData
 {
 	TArray<FName> NameResolutionMap;
 	TArray<FMorphTargetVertexData> Data;
+
+	/* Used to group data when generating bulk data files.
+	 * This property should not be taken into consideration when comparing structs.
+	 */
+	uint32 SourceId = 0;
 };
 
 struct FClothingMeshData
@@ -307,6 +312,11 @@ struct FClothingMeshData
 	int32 ClothingAssetLOD = INDEX_NONE;
 	int32 PhysicsAssetIndex = INDEX_NONE;
 	TArray<FCustomizableObjectMeshToMeshVertData> Data;
+
+	/* Used to group data when generating bulk data files. 
+	 * This property should not be taken into consideration when comparing structs.
+	 */
+	uint32 SourceId = 0;
 };
 
 struct FGroupProjectorTempData

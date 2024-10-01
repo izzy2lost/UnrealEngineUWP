@@ -505,7 +505,7 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 						int32 HighResMipsForThisImage = FMath::Min(NumMipsBeyondMin, GenerationContext.Options.NumHighResImageMips);
 						ImageNode->SourceDataDescriptor.SourceHighResMips = HighResMipsForThisImage;
 
-						const FString TextureName = GetNameSafe(Texture);
+						const FString TextureName = GetNameSafe(Texture).ToLower();
 						ImageNode->SourceDataDescriptor.SourceId = CityHash32(reinterpret_cast<const char*>(*TextureName), TextureName.Len() * sizeof(FString::ElementType));
 					}
 				}

@@ -5583,7 +5583,7 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 			uint32 FileId;
 		};
 
-		const bool bUseFBulkData = !ModelStreamableBulkData->HashToBulkData.IsEmpty();
+		const bool bUseFBulkData = !ModelStreamableBulkData->StreamableBulkData.IsEmpty();
 
 		TArray<FBlockReadInfo> BlockReadInfos;
 		BlockReadInfos.Reserve(16);
@@ -5729,10 +5729,10 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 								ReadDataReadyEvent.Trigger();
 							};
 
-						FByteBulkData* ByteBulkData = ModelStreamableBulkData->HashToBulkData.Find(Block.FileId);
-						check(ByteBulkData);
+						check(ModelStreamableBulkData->StreamableBulkData.IsValidIndex(Block.FileId));
+						FByteBulkData& ByteBulkData = ModelStreamableBulkData->StreamableBulkData[Block.FileId];
 
-						return TUniquePtr<IBulkDataIORequest>(ByteBulkData->CreateStreamingRequest(
+						return TUniquePtr<IBulkDataIORequest>(ByteBulkData.CreateStreamingRequest(
 							Block.Offset,
 							(int64)Block.AllocatedMemoryView.Num(),
 							Priority,

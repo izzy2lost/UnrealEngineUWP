@@ -53,16 +53,24 @@ struct FCompilationOptions
 	// From 0 to UE_MUTABLE_MAX_OPTIMIZATION
 	int32 OptimizationLevel = UE_MUTABLE_MAX_OPTIMIZATION;
 
-	// Use the disk to store intermediate compilation data. This slows down the object compilation
-	// but it may be necessary for huge objects.
+	/** Use the disk to store intermediate compilation data.This slows down the object compilation
+	 * but it may be necessary for huge objects.
+	 *
+	 * This option does not modify the DDC Key.
+	 * */
 	bool bUseDiskCompilation = false;
 
 	/** High limit of the size in bytes of the packaged data when cooking this object.
-	* This limit is before any pak or filesystem compression. This limit will be broken if a single piece of data is bigger because data is not fragmented for packaging purposes.
-	*/
+	 * This limit is before any pak or filesystem compression. This limit will be broken if a single piece of data is bigger because data is not fragmented for packaging purposes.
+	 *
+	 * This option does not modify the DDC Key.
+	 */
 	uint64 PackagedDataBytesLimit = 256 * 1024 * 1024;
 
-	/** High (inclusive) limit of the size in bytes of a data block to be included into the compiled object directly instead of stored in a streamable file. */
+	/** High (inclusive) limit of the size in bytes of a data block to be included into the compiled object directly instead of stored in a streamable file.
+	 *
+	 * This option does not modify the DDC Key.
+	 */
 	uint64 EmbeddedDataBytesLimit = 1024;
 
 	/** Number of minimum mipmaps that we want to always be available in disk regardless of NumHighResImageLODs. */
@@ -113,22 +121,32 @@ struct FCompilationOptions
 	// Control image tiled generation
 	int32 ImageTiling = 0;
 
-	/** If true, gather all game asset references and save them in the Customizable Object. */
+	/** If true, gather all game asset references and save them in the Customizable Object. 
+	 *
+	 * This option does not modify the DDC Key. 
+	 */
 	bool bGatherReferences = false;
 
-	/** Whether or not the compiler should query a request to load the compiled data from the DDC */
+	/** Whether or not the compiler should query a request to load the compiled data from the DDC.
+	 *
+	 * This option does not modify the DDC Key. 
+	 */
 	bool bQueryCompiledDatafromDDC = false;
 
-	/** Whether or not the compiler should store the compiled data to the DDC*/
-	bool bStoreCompiledDataInDDC = false;
-
-	/** High limit of the size in bytes of the packaged data when storing this object in the DDC.
-	 * This limit is before any pak or filesystem compression. This limit will be broken if a single piece of data is bigger because data is not fragmented for packaging purposes.
+	/** Whether or not the compiler should store the compiled data to the DDC.
+	 *
+	 * This option does not modify the DDC Key. 
 	 */
-	uint64 DDCBytesLimit = 64 * 1024;
+	bool bStoreCompiledDataInDDC = false;
 	
 	/** Stores the only option of an Int Param that should be compiled. */
 	TMap<FString, FString> ParamNamesToSelectedOptions;
+
+	/** Used to know if the object will be using FByteBulkData.
+	 *
+	 * This option does not modify the DDC Key. 
+	 */
+	bool bUseBulkData = false;
 };
 
 

@@ -697,7 +697,10 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(
 	}
 
 	GenerationContext.AddParticipatingObject(*InSkeletalMesh);
-	
+
+	const FString MeshName = *GetNameSafe(InSkeletalMesh).ToLower();
+	const uint32 MeshId = CityHash32(reinterpret_cast<const char*>(*MeshName), MeshName.Len() * sizeof(FString::ElementType));
+
 	const FSkeletalMeshModel* ImportedModel = InSkeletalMesh->GetImportedModel();
 	if (!ImportedModel)
 	{
@@ -1472,6 +1475,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(
 
 						RealTimeMorphMeshData.NameResolutionMap = MoveTemp(NameResolutionMap);
 						RealTimeMorphMeshData.Data = MoveTemp(MorphsMeshData);
+						RealTimeMorphMeshData.SourceId = MeshId;
 					}
 				}
 			}
@@ -1796,6 +1800,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(
 				NewClothingMeshData.PhysicsAssetIndex = ClothingMeshData.PhysicsAssetIndex;
 
 				NewClothingMeshData.Data = MoveTemp(ClothingMeshData.Data);
+				NewClothingMeshData.SourceId = MeshId;
 			}
 			
 			NextBufferIndex += 2;
@@ -3162,7 +3167,7 @@ mu::NodeMeshPtr GenerateMorphMesh(const UEdGraphPin* Pin,
 	
 	if (const UCustomizableObjectNodeTable* TypedNodeTable = Cast<UCustomizableObjectNodeTable>(Pin->GetOwningNode()))
 	{
-		const FString TableName = TypedNodeTable->Table ? GetNameSafe(TypedNodeTable->Table) : GetNameSafe(TypedNodeTable->Structure);
+		const FString TableName = TypedNodeTable->Table ? GetNameSafe(TypedNodeTable->Table).ToLower() : GetNameSafe(TypedNodeTable->Structure).ToLower();
 		const uint32 TableId = CityHash32(reinterpret_cast<const char*>(*TableName), TableName.Len() * sizeof(FString::ElementType));
 
 
@@ -3562,7 +3567,7 @@ mu::Ptr<mu::NodeMesh> GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 			}
 
 
-			const FString MeshName = GetNameSafe(TypedNodeSkel->SkeletalMesh);
+			const FString MeshName = GetNameSafe(TypedNodeSkel->SkeletalMesh).ToLower();
 			MeshNode->SourceDataDescriptor.SourceId = CityHash32(reinterpret_cast<const char*>(*MeshName), MeshName.Len() * sizeof(FString::ElementType));
 			MeshNode->SourceDataDescriptor.SourceHighResMips = 0;
 
@@ -3657,7 +3662,7 @@ mu::Ptr<mu::NodeMesh> GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 				LayoutNode->SetMessageContext(Node);  // We need it here because we create multiple nodes.
 
 
-				const FString MeshName = GetNameSafe(TypedNodeStatic->StaticMesh);
+				const FString MeshName = GetNameSafe(TypedNodeStatic->StaticMesh).ToLower();
 				MeshNode->SourceDataDescriptor.SourceId = CityHash32(reinterpret_cast<const char*>(*MeshName), MeshName.Len() * sizeof(FString::ElementType));
 				MeshNode->SourceDataDescriptor.SourceHighResMips = 0;
 			}
@@ -4177,7 +4182,7 @@ mu::Ptr<mu::NodeMesh> GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 
 	else if (const UCustomizableObjectNodeTable* TypedNodeTable = Cast<UCustomizableObjectNodeTable>(Node))
 	{
-		const FString TableName = TypedNodeTable->Table ? GetNameSafe(TypedNodeTable->Table) : GetNameSafe(TypedNodeTable->Structure);
+		const FString TableName = TypedNodeTable->Table ? GetNameSafe(TypedNodeTable->Table).ToLower() : GetNameSafe(TypedNodeTable->Structure).ToLower();
 		const uint32 TableId = CityHash32(reinterpret_cast<const char*>(*TableName), TableName.Len() * sizeof(FString::ElementType));
 
 		mu::NodeMeshConstantPtr EmptyNode = new mu::NodeMeshConstant();
