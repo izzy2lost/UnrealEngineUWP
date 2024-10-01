@@ -3053,12 +3053,55 @@ void UControlRigDetailPanelControlProxies::ResetSequencerProxies(TMap<ERigContro
 	}
 }
 
-const TArray<UControlRigControlsProxy*> UControlRigDetailPanelControlProxies::GetAllSelectedProxies() const
+const TArray<UControlRigControlsProxy*> UControlRigDetailPanelControlProxies::GetAllSelectedProxies() 
 {
 	TArray<UControlRigControlsProxy*> SelectedProxies(SelectedControlRigProxies);
+	TArray<USceneComponent*> BoundCRObjects;
+	for (UControlRigControlsProxy* Proxy : SelectedProxies)
+	{
+		if (Proxy && Proxy->OwnerControlRig.IsValid())
+		{
+			if (USceneComponent* SceneComponent = Cast<USceneComponent>(Proxy->OwnerControlRig->GetObjectBinding()->GetBoundObject()))
+			{
+				BoundCRObjects.Add(SceneComponent);
+			}
+		}
+	}
 	if (SelectedSequencerProxies.Num() > 0)
 	{
-		SelectedProxies.Append(SelectedSequencerProxies);
+		if (SelectedProxies.Num() > 0)
+		{
+			for (int32 Index = SelectedSequencerProxies.Num() -1; Index >=0; --Index)
+			{
+				if (UControlRigControlsProxy* Proxy = SelectedSequencerProxies[Index])
+				{
+					if (Proxy->OwnerObject.IsValid())
+					{
+						if (USceneComponent* SceneComponent = Cast<USceneComponent>(Proxy->OwnerObject.Get()))
+						{
+							if (BoundCRObjects.Contains(SceneComponent))
+							{
+								SelectedSequencerProxies.RemoveAt(Index);
+								continue;
+							}
+						}
+						if (AActor* Actor = Cast<AActor>(Proxy->OwnerObject.Get()))
+						{
+							if (BoundCRObjects.Contains(Actor->GetRootComponent()))
+							{
+								SelectedSequencerProxies.RemoveAt(Index);
+								continue;
+							}
+						}
+					}
+					SelectedProxies.Add(Proxy);
+				}
+			}
+		}
+		else //no CR selected so just add them all
+		{
+			SelectedProxies.Append(SelectedSequencerProxies);
+		}
 	}
 	return SelectedProxies;
 }
