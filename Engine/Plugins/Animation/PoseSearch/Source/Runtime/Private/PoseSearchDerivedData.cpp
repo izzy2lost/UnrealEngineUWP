@@ -2428,7 +2428,7 @@ void FAsyncPoseSearchDatabasesManagement::Tick(float DeltaTime)
 			}
 		}
 	}
-#endif ENABLE_ANIM_DEBUG
+#endif // ENABLE_ANIM_DEBUG
 }
 
 void FAsyncPoseSearchDatabasesManagement::TickCook(float DeltaTime, bool bCookCompete)
