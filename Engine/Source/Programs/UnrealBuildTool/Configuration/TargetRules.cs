@@ -2206,6 +2206,11 @@ namespace UnrealBuildTool
 		public bool bOmitFramePointers { get; set; } = true;
 
 		/// <summary>
+		/// If we want to compress the debug files
+		/// </summary>
+		public bool bCompressDebugFile { get; set; } = true;
+
+		/// <summary>
 		/// Whether to enable support for C++20 modules
 		/// </summary>
 		public bool bEnableCppModules { get; set; }

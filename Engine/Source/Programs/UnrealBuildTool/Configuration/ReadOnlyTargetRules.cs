@@ -446,6 +446,8 @@ namespace UnrealBuildTool
 
 		public bool bPreferThinLTO => Inner.bPreferThinLTO;
 
+		public bool bCompressDebugFile => Inner.bCompressDebugFile;
+
 		public bool bPGOProfile => Inner.bPGOProfile;
 
 		public bool bPGOOptimize => Inner.bPGOOptimize;
