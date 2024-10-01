@@ -1147,6 +1147,11 @@ public:
 	 */
 	virtual bool ShouldBeMarkedDirtyUponTransaction() const { return true; }
 
+	/**
+	 * Gives the blueprint a chance to load dependencies if may have to get before compilation
+	 */
+	virtual void PreloadDependenciesBeforeCompilation() {}
+
 #if WITH_EDITOR
 private:
 

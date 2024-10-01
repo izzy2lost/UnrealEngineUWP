@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RigVMModel/Nodes/RigVMFunctionReferenceNode.h"
+
+#include "RigVMBlueprint.h"
 #include "RigVMModel/RigVMFunctionLibrary.h"
 #include "RigVMCore/RigVMGraphFunctionDefinition.h"
 #include "RigVMCore/RigVMGraphFunctionHost.h"
@@ -350,12 +352,19 @@ bool URigVMFunctionReferenceNode::IsReferencedNodeLoaded() const
 	return ReferencedFunctionHeader.LibraryPointer.GetNodeSoftPath().ResolveObject() != nullptr;
 }
 
-URigVMLibraryNode* URigVMFunctionReferenceNode::LoadReferencedNode() const
+URigVMLibraryNode* URigVMFunctionReferenceNode::LoadReferencedNode(bool bForce) const
 {
-	FSoftObjectPath SoftObjectPath = ReferencedFunctionHeader.LibraryPointer.GetNodeSoftPath();
+	const FSoftObjectPath SoftObjectPath = ReferencedFunctionHeader.LibraryPointer.GetNodeSoftPath();
 	UObject* LibraryNode = SoftObjectPath.ResolveObject();
 	if (!LibraryNode)
 	{
+		if(const URigVMBlueprint* Blueprint = GetTypedOuter<URigVMBlueprint>())
+		{
+			if(Blueprint->bBeingCompiled && !bForce)
+			{
+				return nullptr;
+			}
+		}
 		LibraryNode = SoftObjectPath.TryLoad();
 	}
 	return Cast<URigVMLibraryNode>(LibraryNode);

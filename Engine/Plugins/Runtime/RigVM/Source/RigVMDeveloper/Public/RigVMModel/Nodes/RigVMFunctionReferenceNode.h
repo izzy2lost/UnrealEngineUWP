@@ -42,7 +42,7 @@ public:
 
 	bool IsReferencedFunctionHostLoaded() const;
 	bool IsReferencedNodeLoaded() const;
-	URigVMLibraryNode* LoadReferencedNode() const;
+	URigVMLibraryNode* LoadReferencedNode(bool bForce = false) const;
 
 	// Variable remapping
 	bool RequiresVariableRemapping() const;
