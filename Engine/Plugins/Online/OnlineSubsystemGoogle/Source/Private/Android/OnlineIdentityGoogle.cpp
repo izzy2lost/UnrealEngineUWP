@@ -13,10 +13,12 @@
 bool FOnlineIdentityGoogle::ShouldRequestIdToken()
 {
 	bool bRequestIdToken = true;
+	bool bUseCredentialManager = false;
 	
 	GConfig->GetBool(TEXT("OnlineSubsystemGoogle.OnlineIdentityGoogle"), TEXT("bRequestIdToken"), bRequestIdToken, GEngineIni);
+	GConfig->GetBool(TEXT("OnlineSubsystemGoogle.OnlineIdentityGoogle"), TEXT("bUseCredentialManager"), bUseCredentialManager, GEngineIni);
 	
-	return bRequestIdToken;
+	return bRequestIdToken || bUseCredentialManager;
 }
 
 FOnlineIdentityGoogle::FOnlineIdentityGoogle(FOnlineSubsystemGoogle* InSubsystem)
