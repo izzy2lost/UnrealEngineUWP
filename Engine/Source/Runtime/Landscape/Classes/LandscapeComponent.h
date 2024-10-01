@@ -217,9 +217,6 @@ struct FLandscapeComponentGrassData
 #if WITH_EDITORONLY_DATA
 	// Height data for LODs 1+, keyed on LOD index
 	TMap<int32, TArray<uint16>> HeightMipData;
-
-	// Grass data was updated but not saved yet
-	bool bIsDirty = false;
 #endif // WITH_EDITORONLY_DATA
 	
 	static constexpr int32 UnknownNumElements = -1;

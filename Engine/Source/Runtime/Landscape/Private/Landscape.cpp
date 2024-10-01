@@ -2147,16 +2147,16 @@ void ULandscapeComponent::OnUnregister()
 	PhysicalMaterialTask.Release();
 #endif
 
-	if (GetLandscapeProxy())
+	if (ALandscapeProxy* Proxy = GetLandscapeProxy())
 	{
 		// Generate MID representing the MIC
-		if (GetLandscapeProxy()->bUseDynamicMaterialInstance)
+		if (Proxy->bUseDynamicMaterialInstance)
 		{
 			MaterialInstancesDynamic.Empty();
 		}
 
 		// AActor::GetWorld checks for Unreachable and BeginDestroyed
-		UWorld* World = GetLandscapeProxy()->GetWorld();
+		UWorld* World = Proxy->GetWorld();
 
 		if (World)
 		{
@@ -3660,8 +3660,6 @@ void ALandscapeProxy::PreSave(FObjectPreSaveContext ObjectSaveContext)
 			int32 ValidGrassCount = 0;
 			for (ULandscapeComponent* Component : LandscapeComponents)
 			{
-				// Manually reset dirty flag (for post save)
-				Component->GrassData->bIsDirty = false;
 				if (Component->GrassData->HasValidData())
 				{
 					ValidGrassCount++;
