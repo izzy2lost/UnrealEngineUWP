@@ -5,10 +5,9 @@
 #include "CoreMinimal.h"
 
 /**
- * @brief The data types supported when sending messages across the data channel to/from peers
- *
+ * @brief The data types supported when sending messages across the data channel to/from peers.
  */
-enum class PIXELSTREAMING2INPUT_API EPixelStreaming2MessageTypes
+enum class EPixelStreaming2MessageTypes
 {
 	Uint8 = 0,
 	Uint16 = 1,
@@ -21,19 +20,17 @@ enum class PIXELSTREAMING2INPUT_API EPixelStreaming2MessageTypes
 
 /**
  * @brief The message directions
- *
  */
-enum class PIXELSTREAMING2INPUT_API EPixelStreaming2MessageDirection : uint8
+enum class EPixelStreaming2MessageDirection : uint8
 {
 	ToStreamer = 0,
 	FromStreamer = 1
 };
 
 /**
- * @brief The possible actions pixel streaming supports. These actions help differentiate input received from the browser
- *
+ * @brief The possible actions pixel streaming supports. These actions help differentiate input received from the browser.
  */
-enum class PIXELSTREAMING2INPUT_API EPixelStreaming2InputAction : uint8
+enum class EPixelStreaming2InputAction : uint8
 {
 	X = 0,
 	Y = 1,
@@ -45,9 +42,8 @@ enum class PIXELSTREAMING2INPUT_API EPixelStreaming2InputAction : uint8
 
 /**
  * @brief The possible control schemes pixel streaming supports. RouteToWindow routes input at an application level. RouteToWidget routes input to a specific widget, ignoring the rest of the application.
- *
  */
-enum class PIXELSTREAMING2INPUT_API EPixelStreaming2InputType : uint8
+enum class EPixelStreaming2InputType : uint8
 {
 	RouteToWindow = 0,
 	RouteToWidget = 1
@@ -58,45 +54,45 @@ enum class PIXELSTREAMING2INPUT_API EPixelStreaming2InputType : uint8
  */
 namespace EPixelStreaming2ToStreamerMessage
 {
-	static FString IFrameRequest = FString(TEXT("IFrameRequest"));
-	static FString RequestQualityControl = FString(TEXT("RequestQualityControl"));
-	static FString FpsRequest = FString(TEXT("FpsRequest"));
-	static FString AverageBitrateRequest = FString(TEXT("AverageBitrateRequest"));
-	static FString StartStreaming = FString(TEXT("StartStreaming"));
-	static FString StopStreaming = FString(TEXT("StopStreaming"));
-	static FString LatencyTest = FString(TEXT("LatencyTest"));
-	static FString RequestInitialSettings = FString(TEXT("RequestInitialSettings"));
-	static FString TestEcho = FString(TEXT("TestEcho"));
-	static FString UIInteraction = FString(TEXT("UIInteraction"));
-	static FString Command = FString(TEXT("Command"));
-	static FString TextboxEntry = FString(TEXT("TextboxEntry"));
-	static FString KeyDown = FString(TEXT("KeyDown"));
-	static FString KeyUp = FString(TEXT("KeyUp"));
-	static FString KeyPress = FString(TEXT("KeyPress"));
-	static FString MouseEnter = FString(TEXT("MouseEnter"));
-	static FString MouseLeave = FString(TEXT("MouseLeave"));
-	static FString MouseDown = FString(TEXT("MouseDown"));
-	static FString MouseUp = FString(TEXT("MouseUp"));
-	static FString MouseMove = FString(TEXT("MouseMove"));
-	static FString MouseWheel = FString(TEXT("MouseWheel"));
-	static FString MouseDouble = FString(TEXT("MouseDouble"));
-	static FString TouchStart = FString(TEXT("TouchStart"));
-	static FString TouchEnd = FString(TEXT("TouchEnd"));
-	static FString TouchMove = FString(TEXT("TouchMove"));
-	static FString GamepadButtonPressed = FString(TEXT("GamepadButtonPressed"));
-	static FString GamepadButtonReleased = FString(TEXT("GamepadButtonReleased"));
-	static FString GamepadAnalog = FString(TEXT("GamepadAnalog"));
-	static FString GamepadConnected = FString(TEXT("GamepadConnected"));
-	static FString GamepadDisconnected = FString(TEXT("GamepadDisconnected"));
-	static FString XREyeViews = FString(TEXT("XREyeViews"));
-	static FString XRHMDTransform = FString(TEXT("XRHMDTransform"));
-	static FString XRControllerTransform = FString(TEXT("XRControllerTransform"));
-	static FString XRButtonPressed = FString(TEXT("XRButtonPressed"));
-	static FString XRButtonTouched = FString(TEXT("XRButtonTouched"));
-	static FString XRButtonReleased = FString(TEXT("XRButtonReleased"));
-	static FString XRAnalog = FString(TEXT("XRAnalog"));
-	static FString XRSystem = FString(TEXT("XRSystem"));
-	static FString XRButtonTouchReleased = FString(TEXT("XRButtonTouchReleased"));
+	PIXELSTREAMING2INPUT_API extern const FString IFrameRequest;
+	PIXELSTREAMING2INPUT_API extern const FString RequestQualityControl;
+	PIXELSTREAMING2INPUT_API extern const FString FpsRequest;
+	PIXELSTREAMING2INPUT_API extern const FString AverageBitrateRequest;
+	PIXELSTREAMING2INPUT_API extern const FString StartStreaming;
+	PIXELSTREAMING2INPUT_API extern const FString StopStreaming;
+	PIXELSTREAMING2INPUT_API extern const FString LatencyTest;
+	PIXELSTREAMING2INPUT_API extern const FString RequestInitialSettings;
+	PIXELSTREAMING2INPUT_API extern const FString TestEcho;
+	PIXELSTREAMING2INPUT_API extern const FString UIInteraction;
+	PIXELSTREAMING2INPUT_API extern const FString Command;
+	PIXELSTREAMING2INPUT_API extern const FString TextboxEntry;
+	PIXELSTREAMING2INPUT_API extern const FString KeyDown;
+	PIXELSTREAMING2INPUT_API extern const FString KeyUp;
+	PIXELSTREAMING2INPUT_API extern const FString KeyPress;
+	PIXELSTREAMING2INPUT_API extern const FString MouseEnter;
+	PIXELSTREAMING2INPUT_API extern const FString MouseLeave;
+	PIXELSTREAMING2INPUT_API extern const FString MouseDown;
+	PIXELSTREAMING2INPUT_API extern const FString MouseUp;
+	PIXELSTREAMING2INPUT_API extern const FString MouseMove;
+	PIXELSTREAMING2INPUT_API extern const FString MouseWheel;
+	PIXELSTREAMING2INPUT_API extern const FString MouseDouble;
+	PIXELSTREAMING2INPUT_API extern const FString TouchStart;
+	PIXELSTREAMING2INPUT_API extern const FString TouchEnd;
+	PIXELSTREAMING2INPUT_API extern const FString TouchMove;
+	PIXELSTREAMING2INPUT_API extern const FString GamepadButtonPressed;
+	PIXELSTREAMING2INPUT_API extern const FString GamepadButtonReleased;
+	PIXELSTREAMING2INPUT_API extern const FString GamepadAnalog;;
+	PIXELSTREAMING2INPUT_API extern const FString GamepadConnected;
+	PIXELSTREAMING2INPUT_API extern const FString GamepadDisconnected;
+	PIXELSTREAMING2INPUT_API extern const FString XREyeViews;
+	PIXELSTREAMING2INPUT_API extern const FString XRHMDTransform;
+	PIXELSTREAMING2INPUT_API extern const FString XRControllerTransform;
+	PIXELSTREAMING2INPUT_API extern const FString XRButtonPressed;
+	PIXELSTREAMING2INPUT_API extern const FString XRButtonTouched;
+	PIXELSTREAMING2INPUT_API extern const FString XRButtonReleased;
+	PIXELSTREAMING2INPUT_API extern const FString XRAnalog;
+	PIXELSTREAMING2INPUT_API extern const FString XRSystem;
+	PIXELSTREAMING2INPUT_API extern const FString XRButtonTouchReleased;
 } // namespace EPixelStreaming2ToStreamerMessage
 
 /**
@@ -104,19 +100,19 @@ namespace EPixelStreaming2ToStreamerMessage
  */
 namespace EPixelStreaming2FromStreamerMessage
 {
-	static FString QualityControlOwnership = FString(TEXT("QualityControlOwnership"));
-	static FString Response = FString(TEXT("Response"));
-	static FString Command = FString(TEXT("Command"));
-	static FString FreezeFrame = FString(TEXT("FreezeFrame"));
-	static FString UnfreezeFrame = FString(TEXT("UnfreezeFrame"));
-	static FString VideoEncoderAvgQP = FString(TEXT("VideoEncoderAvgQP"));
-	static FString LatencyTest = FString(TEXT("LatencyTest"));
-	static FString InitialSettings = FString(TEXT("InitialSettings"));
-	static FString FileExtension = FString(TEXT("FileExtension"));
-	static FString FileMimeType = FString(TEXT("FileMimeType"));
-	static FString FileContents = FString(TEXT("FileContents"));
-	static FString TestEcho = FString(TEXT("TestEcho"));
-	static FString InputControlOwnership = FString(TEXT("InputControlOwnership"));
-	static FString GamepadResponse = FString(TEXT("GamepadResponse"));
-	static FString Protocol = FString(TEXT("Protocol"));
+	PIXELSTREAMING2INPUT_API extern const FString QualityControlOwnership;
+	PIXELSTREAMING2INPUT_API extern const FString Response;
+	PIXELSTREAMING2INPUT_API extern const FString Command;
+	PIXELSTREAMING2INPUT_API extern const FString FreezeFrame;
+	PIXELSTREAMING2INPUT_API extern const FString UnfreezeFrame;
+	PIXELSTREAMING2INPUT_API extern const FString VideoEncoderAvgQP;
+	PIXELSTREAMING2INPUT_API extern const FString LatencyTest;
+	PIXELSTREAMING2INPUT_API extern const FString InitialSettings;
+	PIXELSTREAMING2INPUT_API extern const FString FileExtension;
+	PIXELSTREAMING2INPUT_API extern const FString FileMimeType;
+	PIXELSTREAMING2INPUT_API extern const FString FileContents;
+	PIXELSTREAMING2INPUT_API extern const FString TestEcho;
+	PIXELSTREAMING2INPUT_API extern const FString InputControlOwnership;
+	PIXELSTREAMING2INPUT_API extern const FString GamepadResponse;
+	PIXELSTREAMING2INPUT_API extern const FString Protocol;
 } // namespace EPixelStreaming2FromStreamerMessage
