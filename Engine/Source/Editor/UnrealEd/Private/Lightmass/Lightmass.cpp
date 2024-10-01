@@ -1443,7 +1443,7 @@ void FLightmassExporter::GetMaterialHash(const UMaterialInterface* Material, FSH
 
 	if (Lightmass_IsSubstrateEnabled())
 	{
-		uint32 LightmassSubstrateVersion = 0XB6A0D99F; // This can be change when the code/logic for converting material to Substrate for lightmap has changed.
+		uint32 LightmassSubstrateVersion = 0XFA1081D0; // This can be change when the code/logic for converting material to Substrate for lightmap has changed.
 		HashState.Update((const uint8*)&LightmassSubstrateVersion, sizeof(LightmassSubstrateVersion));
 	}
 
