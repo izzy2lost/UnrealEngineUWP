@@ -5,10 +5,15 @@
 #include "DMXNameListItem.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Misc/Crc.h"
+#include "Misc/Optional.h"
 #include "UObject/NameTypes.h"
 
 #include "DMXAttribute.generated.h"
 
+namespace UE::DMX::Attribute
+{
+	class IDMXAttributeEditorContext;
+}
 
 USTRUCT()
 struct DMXPROTOCOL_API FDMXAttribute
@@ -50,11 +55,9 @@ struct DMXPROTOCOL_API FDMXAttributeName
 {
 	GENERATED_BODY()
 
+	using IDMXAttributeEditorContext = UE::DMX::Attribute::IDMXAttributeEditorContext;
+
 public:
-	/**
-	 * Default constructor. Assigns Attribute to the first available
-	 * Attribute from the plugin settings
-	 */
 	FDMXAttributeName();
 
 	/** Construct from an Attribute */
@@ -75,6 +78,19 @@ public:
 
 	/** Returns the predefined values */
 	static TArray<FName> GetPredefinedValues();
+
+	/** Custom serializer to maintain the upgrade path */
+	bool Serialize(FArchive& Ar);
+};
+
+template<>
+struct TStructOpsTypeTraits<FDMXAttributeName>
+	: public TStructOpsTypeTraitsBase2<FDMXAttributeName>
+{
+	enum
+	{
+		WithSerializer = true
+	};
 };
 
 inline uint32 GetTypeHash(const FDMXAttributeName& DMXNameListItem)
