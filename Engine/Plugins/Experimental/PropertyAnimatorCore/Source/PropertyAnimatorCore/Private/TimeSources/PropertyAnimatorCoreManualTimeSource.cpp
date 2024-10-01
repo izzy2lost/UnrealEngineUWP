@@ -147,6 +147,7 @@ void UPropertyAnimatorCoreManualTimeSource::Stop()
 	}
 
 	Pause();
+	CustomTime = 0;
 	ActiveStatus = EPropertyAnimatorCoreManualStatus::Stopped;
 }
 
