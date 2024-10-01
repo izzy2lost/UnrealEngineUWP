@@ -44,6 +44,12 @@ const FMassISMCSharedData* UMassRepresentationSubsystem::GetISMCSharedDataForDes
 	return VisualizationComponent->GetISMCSharedDataForDescriptionIndex(DescriptionIndex);
 }
 
+const FMassISMCSharedData* UMassRepresentationSubsystem::GetISMCSharedDataForInstancedStaticMesh(const UInstancedStaticMeshComponent* ISMC) const
+{
+	check(VisualizationComponent);
+	return VisualizationComponent->GetISMCSharedDataForInstancedStaticMesh(ISMC);
+}
+
 void UMassRepresentationSubsystem::RemoveISMComponent(UInstancedStaticMeshComponent& ISMComponent)
 {
 PRAGMA_DISABLE_DEPRECATION_WARNINGS

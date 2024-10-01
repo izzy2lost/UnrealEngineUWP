@@ -56,6 +56,11 @@ public:
 	const FMassISMCSharedData* GetISMCSharedDataForDescriptionIndex(const int32 DescriptionIndex) const;
 
 	/**
+	 * Fetches FMassISMCSharedData indicated by an ISMC, or nullptr if the ISMC is not represented by any shared data.
+	 */
+	const FMassISMCSharedData* GetISMCSharedDataForInstancedStaticMesh(const UInstancedStaticMeshComponent* ISMC) const;
+
+	/**
 	 * Removes the visualization data associated with the given ISM component. Note that this is safe to do only when
 	 * there are no entities relying on this data. No entity data patching will take place.
 	 * Note that the function will assert if there's more ISM components associated with given visualization. Also, in 
