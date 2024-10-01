@@ -112,7 +112,7 @@ FPropertyAccess::Result FPropertyValueImpl::GetValueData( void*& OutAddress ) co
 	FPropertyAccess::Result Res = FPropertyAccess::Fail;
 	OutAddress = nullptr;
 	TSharedPtr<FPropertyNode> PropertyNodePin = PropertyNode.Pin();
-	if( PropertyNodePin.IsValid() )
+	if (PropertyNodePin.IsValid())
 	{
 		uint8* ValueAddress = nullptr;
 		FReadAddressList ReadAddresses;

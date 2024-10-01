@@ -681,11 +681,11 @@ void FObjectPropertyBase::SetObjectPtrPropertyValue(void* PropertyValueAddress, 
 	if (Ptr || !HasAnyPropertyFlags(CPF_NonNullable))
 	{
 		SetObjectPtrPropertyValueUnchecked(PropertyValueAddress, Ptr);
-}
+	}
 	else
-{
+	{
 		UE_LOG(LogProperty, Verbose /*Warning*/, TEXT("Trying to assign null object value to non-nullable \"%s\""), *GetFullName());
-}
+	}
 }
 
 void FObjectPropertyBase::SetObjectPropertyValue_InContainer(void* ContainerAddress, UObject* Value, int32 ArrayIndex) const
@@ -707,7 +707,7 @@ void FObjectPropertyBase::SetObjectPtrPropertyValue_InContainer(void* ContainerA
 		SetObjectPtrPropertyValueUnchecked_InContainer(ContainerAddress, Ptr, ArrayIndex);
 	}
 	else
-{
+	{
 		UE_LOG(LogProperty, Verbose /*Warning*/, TEXT("Trying to assign null object value to non-nullable \"%s\""), *GetFullName());
 	}
 }
