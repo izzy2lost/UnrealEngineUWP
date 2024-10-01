@@ -9,6 +9,7 @@ using Horde.Common.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using OpenTelemetry.Trace;
 
 namespace JobDriver.Tests
 {
@@ -17,9 +18,10 @@ namespace JobDriver.Tests
 		public const string Name = "Simple";
 
 		private readonly Func<JobStepInfo, ILogger, CancellationToken, Task<JobStepOutcome>> _func;
+		public static Tracer NoOpTracer { get;  }= TracerProvider.Default.GetTracer("NoOp");
 
 		public SimpleTestExecutor(Func<JobStepInfo, ILogger, CancellationToken, Task<JobStepOutcome>> func)
-			: base(new JobExecutorOptions(null!, null!, null, default, default, default, null!), NullLogger.Instance)
+			: base(new JobExecutorOptions(null!, null!, null, default, default, default, null!), NoOpTracer, NullLogger.Instance)
 		{
 			_func = func;
 		}

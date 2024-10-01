@@ -16,12 +16,12 @@ using Microsoft.Extensions.Logging;
 namespace EpicGames.Horde
 {
 	/// <summary>
-	/// Base interface for Horde functionality.
+	/// Interface for Horde functionality.
 	/// </summary>
 	public interface IHordeClient
 	{
 		/// <summary>
-		/// Base URL of the horde server
+		/// URL of the horde server
 		/// </summary>
 		Uri ServerUrl { get; }
 
@@ -49,6 +49,11 @@ namespace EpicGames.Horde
 		/// Accessor for the tools collection
 		/// </summary>
 		IToolCollection Tools { get; }
+
+		/// <summary>
+		/// Event triggered whenever the access token state changes
+		/// </summary>
+		event Action? OnAccessTokenStateChanged;
 
 		/// <summary>
 		/// Connect to the Horde server

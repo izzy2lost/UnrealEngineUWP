@@ -48,13 +48,7 @@ namespace HordeServer.Tests
 
 		private async Task PopulateAsync(ConfigService configService, IGraphCollection graphCollection, ITemplateCollection templateCollection, JobService jobService, AgentService agentService, IPluginCollection pluginCollection, ServerSettings serverSettings)
 		{
-			FixtureGraph fg = new FixtureGraph();
-			fg.Id = ContentHash.Empty;
-			fg.Schema = 1122;
-			fg.Groups = new List<INodeGroup>();
-			fg.Aggregates = new List<IAggregate>();
-			fg.Labels = new List<ILabel>();
-
+			GraphStub fg = new (ContentHash.Empty, 1122);
 			Template = await templateCollection.GetOrAddAsync(new TemplateConfig { Name = "Test template" });
 			Graph = await graphCollection.AddAsync(Template, null);
 
@@ -119,15 +113,31 @@ namespace HordeServer.Tests
 			Agent1Name = "testAgent1";
 			Agent1 = await agentService.CreateAgentAsync(new CreateAgentOptions(new AgentId(Agent1Name), false, ""));
 		}
-
-		private class FixtureGraph : IGraph
-		{
-			public ContentHash Id { get; set; } = ContentHash.Empty;
-			public int Schema { get; set; }
-			public IReadOnlyList<INodeGroup> Groups { get; set; } = null!;
-			public IReadOnlyList<IAggregate> Aggregates { get; set; } = null!;
-			public IReadOnlyList<ILabel> Labels { get; set; } = null!;
-			public IReadOnlyList<IGraphArtifact> Artifacts { get; set; } = null!;
-		}
+	}
+	
+	internal class GraphStub(ContentHash id, int schema = 1) : IGraph
+	{
+		public ContentHash Id { get; set; } = id;
+		public int Schema { get; set; } = schema;
+		public IReadOnlyList<INodeGroup> Groups { get; set; } = [];
+		public IReadOnlyList<IAggregate> Aggregates { get; set; } = [];
+		public IReadOnlyList<ILabel> Labels { get; set; } = [];
+		public IReadOnlyList<IGraphArtifact> Artifacts { get; set; } = [];
+	}
+	
+	internal class TemplateStub(ContentHash hash, string name) : ITemplate
+	{
+		public ContentHash Hash { get; } = hash;
+		public string Name { get; } = name;
+		public string? Description { get; init; } = null;
+		public Priority? Priority { get; init; } = null;
+		public bool AllowPreflights { get; init; } = false;
+		public bool UpdateIssues { get; init; } = false;
+		public bool PromoteIssuesByDefault { get; init; } = false;
+		public string? InitialAgentType { get; init; } = null;
+		public string? SubmitNewChange { get; init; } = null;
+		public string? SubmitDescription { get; init; } = null;
+		public IReadOnlyList<string> Arguments { get; init; } = [];
+		public IReadOnlyList<Parameter> Parameters { get; init; } = [];
 	}
 }

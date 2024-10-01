@@ -827,7 +827,7 @@ namespace HordeServer.Agents
 		/// Called by ticker to avoid blocking reads. Updates in the background, in favor of slightly more stale agents
 		/// </summary>
 		/// <param name="cancellationToken">Cancellation token</param>
-		private async Task RefreshCachedAgentsAsync(CancellationToken cancellationToken = default)
+		public async Task RefreshCachedAgentsAsync(CancellationToken cancellationToken = default)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AgentService)}.{nameof(RefreshCachedAgentsAsync)}");
 

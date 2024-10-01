@@ -4,6 +4,7 @@ using EpicGames.Core;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using OpenTelemetry.Trace;
 
 namespace JobDriver.Execution
 {
@@ -31,8 +32,8 @@ namespace JobDriver.Execution
 		private readonly LocalExecutorSettings _settings;
 		private readonly DirectoryReference _localWorkspaceDir;
 
-		public LocalExecutor(JobExecutorOptions options, LocalExecutorSettings settings, ILogger logger)
-			: base(options, logger)
+		public LocalExecutor(JobExecutorOptions options, LocalExecutorSettings settings, Tracer tracer, ILogger logger)
+			: base(options, tracer, logger)
 		{
 			_settings = settings;
 			if (settings.WorkspaceDir == null)
@@ -84,19 +85,21 @@ namespace JobDriver.Execution
 	class LocalExecutorFactory : IJobExecutorFactory
 	{
 		readonly LocalExecutorSettings _settings;
+		readonly Tracer _tracer;
 		readonly ILogger<LocalExecutor> _logger;
 
 		public string Name => "Local";
 
-		public LocalExecutorFactory(IOptions<LocalExecutorSettings> settings, ILogger<LocalExecutor> logger)
+		public LocalExecutorFactory(IOptions<LocalExecutorSettings> settings, Tracer tracer, ILogger<LocalExecutor> logger)
 		{
 			_settings = settings.Value;
+			_tracer = tracer;
 			_logger = logger;
 		}
 
 		public Task<JobExecutor> CreateExecutorAsync(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options, CancellationToken cancellationToken)
 		{
-			return Task.FromResult<JobExecutor>(new LocalExecutor(options, _settings, _logger));
+			return Task.FromResult<JobExecutor>(new LocalExecutor(options, _settings, _tracer, _logger));
 		}
 	}
 }

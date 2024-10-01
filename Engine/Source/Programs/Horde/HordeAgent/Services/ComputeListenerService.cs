@@ -133,7 +133,7 @@ namespace HordeAgent.Services
 		/// <inheritdoc/>
 		public async Task StopAsync(CancellationToken cancellationToken)
 		{
-			_cancellationSource.Cancel();
+			await _cancellationSource.CancelAsync();
 			await _serverTask.IgnoreCanceledExceptionsAsync();
 		}
 

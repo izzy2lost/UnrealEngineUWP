@@ -71,6 +71,11 @@ namespace EpicGames.Horde.Tools
 		bool ShowInDashboard { get; }
 
 		/// <summary>
+		/// Whether to show the tool for download in the toolbox
+		/// </summary>
+		bool ShowInToolbox { get; }
+
+		/// <summary>
 		/// Current deployments of this tool, sorted by time.
 		/// </summary>
 		IReadOnlyList<IToolDeployment> Deployments { get; }

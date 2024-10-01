@@ -6,9 +6,6 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Datadog.Trace;
-using Datadog.Trace.Configuration;
-using Datadog.Trace.OpenTracing;
 using EpicGames.Core;
 using EpicGames.Horde;
 using HordeAgent.Leases;
@@ -19,15 +16,12 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
-using OpenTracing.Util;
 using Polly;
 using IConfigurationSource = Microsoft.Extensions.Configuration.IConfigurationSource;
 using JsonConfigurationSource = Microsoft.Extensions.Configuration.Json.JsonConfigurationSource;
 
 namespace HordeAgent
 {
-	using ITracer = OpenTracing.ITracer;
-
 	/// <summary>
 	/// Injectable list of existing services
 	/// </summary>
@@ -180,9 +174,7 @@ namespace HordeAgent
 				return 1;
 			}
 
-			ConfigureTracing(serverProfile.Environment, AgentApp.Version);
-
-			Logging.SetEnv(serverProfile.Environment);
+			OpenTelemetryHelper.Configure(services, settings.OpenTelemetry);
 
 			services.AddHorde(options =>
 			{
@@ -333,20 +325,6 @@ namespace HordeAgent
 					}
 				}
 			}
-		}
-
-		static void ConfigureTracing(string environment, string version)
-		{
-			TracerSettings settings = TracerSettings.FromDefaultSources();
-			settings.Environment = environment;
-			settings.ServiceName = "hordeagent";
-			settings.ServiceVersion = version;
-			settings.LogsInjectionEnabled = true;
-
-			Tracer.Configure(settings);
-
-			ITracer openTracer = OpenTracingTracerFactory.WrapTracer(Tracer.Instance);
-			GlobalTracer.Register(openTracer);
 		}
 
 		/// <summary>

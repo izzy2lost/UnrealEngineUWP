@@ -9,6 +9,7 @@ using JobDriver.Execution;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using OpenTelemetry.Trace;
 
 namespace JobDriver.Commands.Execution
 {
@@ -32,11 +33,13 @@ namespace JobDriver.Commands.Execution
 
 		readonly HordeClientFactory _hordeClientFactory;
 		readonly IOptions<DriverSettings> _driverSettings;
+		readonly Tracer _tracer;
 
-		public ExecuteConformCommand(HordeClientFactory hordeClientFactory, IOptions<DriverSettings> driverSettings)
+		public ExecuteConformCommand(HordeClientFactory hordeClientFactory, IOptions<DriverSettings> driverSettings, Tracer tracer)
 		{
 			_hordeClientFactory = hordeClientFactory;
 			_driverSettings = driverSettings;
+			_tracer = tracer;
 		}
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
@@ -47,7 +50,7 @@ namespace JobDriver.Commands.Execution
 
 			await using HordeClient hordeClient = _hordeClientFactory.Create();
 
-			ConformExecutor conformExecutor = new ConformExecutor(hordeClient, WorkingDir, AgentId, LeaseId, conformTask, _driverSettings.Value, logger);
+			ConformExecutor conformExecutor = new ConformExecutor(hordeClient, WorkingDir, AgentId, LeaseId, conformTask, _driverSettings.Value, _tracer, logger);
 			await conformExecutor.ExecuteAsync(CancellationToken.None);
 
 			return 0;

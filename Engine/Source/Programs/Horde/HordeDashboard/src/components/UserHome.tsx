@@ -1095,7 +1095,7 @@ const UserHomeViewInner: React.FC = () => {
       {(!!change || !!search.has("preflightconfig")) && <PreflightConfigModal onClose={() => { navigate("/index", { replace: true }) }} />}
       <Stack style={{ padding: 0 }} className={detailClasses.detailsRow}>
          <FocusZone direction={FocusZoneDirection.vertical} style={{ padding: 0 }}>
-            <div className={detailClasses.container} style={{ width: "100%", height: 'calc(100vh - 208px)', position: 'relative' }} data-is-scrollable={true}>
+            <div className={detailClasses.container} style={{ width: "100%", height: 'calc(100vh - 192px)', position: 'relative' }} data-is-scrollable={true}>
                <ScrollablePane scrollbarVisibility={ScrollbarVisibility.auto} onScroll={() => { }}>
                   <Stack tokens={{ childrenGap: 18 }} style={{ padding: 0 }}>
                      <ProjectsPanel />

@@ -187,11 +187,11 @@ namespace EpicGames.Redis
 
 		#region SortedSetUpdateAsync
 
-		/// <inheritdoc cref="IDatabaseAsync.SortedSetUpdateAsync(RedisKey, RedisValue, double, SortedSetWhen, CommandFlags)"/>
+		/// <inheritdoc cref="IDatabaseAsync.SortedSetUpdateAsync(RedisKey, RedisValue, Double, SortedSetWhen, CommandFlags)"/>
 		public static Task<bool> UpdateAsync<TElement>(this RedisSortedSet<TElement> target, TElement member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
 			=> target.Database.SortedSetUpdateAsync(target.Key, member, score, when, flags);
 
-		/// <inheritdoc cref="IDatabaseAsync.SortedSetUpdateAsync(RedisKey, RedisValue, double, SortedSetWhen, CommandFlags)"/>
+		/// <inheritdoc cref="IDatabaseAsync.SortedSetUpdateAsync(RedisKey, RedisValue, Double, SortedSetWhen, CommandFlags)"/>
 		public static Task<long> UpdateAsync<TElement>(this RedisSortedSet<TElement> target, SortedSetEntry<TElement>[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
 			=> target.Database.SortedSetUpdateAsync(target.Key, values, when, flags);
 

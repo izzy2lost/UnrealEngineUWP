@@ -3,6 +3,7 @@
 using System.ComponentModel.DataAnnotations;
 using EpicGames.Core;
 using EpicGames.Horde;
+using EpicGames.Horde.Utilities;
 using HordeServer.Utilities;
 using Microsoft.Extensions.Configuration;
 
@@ -177,6 +178,11 @@ namespace HordeAgent
 		/// Incoming port for listening for compute work. Needs to be tied with a lease. Set port to 0 to disable incoming compute requests.
 		/// </summary>
 		public int ComputePort { get; set; } = 7000;
+		
+		/// <summary>
+		/// Options for OpenTelemetry
+		/// </summary>
+		public OpenTelemetrySettings OpenTelemetry { get; set; } = new ();
 
 		/// <summary>
 		/// Whether to send telemetry back to Horde server

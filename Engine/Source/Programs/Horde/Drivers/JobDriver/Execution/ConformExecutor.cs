@@ -9,6 +9,7 @@ using Horde.Common.Rpc;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
+using OpenTelemetry.Trace;
 
 namespace JobDriver.Execution
 {
@@ -20,9 +21,10 @@ namespace JobDriver.Execution
 		readonly LeaseId _leaseId;
 		readonly ConformTask _conformTask;
 		readonly DriverSettings _driverSettings;
+		readonly Tracer _tracer;
 		readonly ILogger _logger;
 
-		public ConformExecutor(IHordeClient hordeClient, DirectoryReference workingDir, AgentId agentId, LeaseId leaseId, ConformTask conformTask, DriverSettings driverSettings, ILogger logger)
+		public ConformExecutor(IHordeClient hordeClient, DirectoryReference workingDir, AgentId agentId, LeaseId leaseId, ConformTask conformTask, DriverSettings driverSettings, Tracer tracer, ILogger logger)
 		{
 			_hordeClient = hordeClient;
 			_workingDir = workingDir;
@@ -30,6 +32,7 @@ namespace JobDriver.Execution
 			_leaseId = leaseId;
 			_conformTask = conformTask;
 			_driverSettings = driverSettings;
+			_tracer = tracer;
 			_logger = logger;
 		}
 
@@ -67,7 +70,7 @@ namespace JobDriver.Execution
 				// Run the conform task
 				if (isExecutorConformCompatible && _driverSettings.PerforceExecutor.RunConform)
 				{
-					await PerforceExecutor.ConformAsync(_workingDir, pendingWorkspaces, removeUntrackedFiles, _logger, cancellationToken);
+					await PerforceExecutor.ConformAsync(_workingDir, pendingWorkspaces, removeUntrackedFiles, _tracer, _logger, cancellationToken);
 				}
 				else
 				{

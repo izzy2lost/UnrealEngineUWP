@@ -9,7 +9,7 @@ using HordeAgent.Services;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
-using OpenTracing.Util;
+using OpenTelemetry.Trace;
 
 namespace HordeAgent.Leases.Handlers
 {
@@ -20,11 +20,12 @@ namespace HordeAgent.Leases.Handlers
 		{ }
 
 		/// <inheritdoc/>
-		protected override async Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, ExecuteJobTask executeTask, ILogger localLogger, CancellationToken cancellationToken)
+		protected override async Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, ExecuteJobTask executeTask, Tracer tracer, ILogger localLogger, CancellationToken cancellationToken)
 		{
-			GlobalTracer.Instance.ActiveSpan?.SetTag("jobId", executeTask.JobId.ToString());
-			GlobalTracer.Instance.ActiveSpan?.SetTag("jobName", executeTask.JobName.ToString());
-			GlobalTracer.Instance.ActiveSpan?.SetTag("batchId", executeTask.BatchId.ToString());
+			using TelemetrySpan span = tracer.StartActiveSpan($"{nameof(JobHandler)}.{nameof(ExecuteAsync)}");
+			span.SetAttribute("horde.job.id", executeTask.JobId);
+			span.SetAttribute("horde.job.name", executeTask.JobName);
+			span.SetAttribute("horde.job.batch_id", executeTask.BatchId);
 
 			await using IServerLogger logger = session.HordeClient.CreateServerLogger(LogId.Parse(executeTask.LogId)).WithLocalLogger(localLogger);
 			try
@@ -42,6 +43,7 @@ namespace HordeAgent.Leases.Handlers
 
 				string driverName = String.IsNullOrEmpty(executeTask.JobOptions.Driver) ? "JobDriver" : executeTask.JobOptions.Driver;
 				FileReference driverAssembly = FileReference.Combine(new DirectoryReference(AppContext.BaseDirectory), driverName, $"{driverName}.dll");
+				span.SetAttribute("horde.job.driver_name", driverName);
 
 				Dictionary<string, string> environment = ManagedProcess.GetCurrentEnvVars();
 				environment[HordeHttpClient.HordeUrlEnvVarName] = session.HordeClient.ServerUrl.ToString();

@@ -6,6 +6,7 @@ using HordeAgent.Utility;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
+using OpenTelemetry.Trace;
 
 namespace HordeAgent.Leases.Handlers
 {
@@ -16,7 +17,7 @@ namespace HordeAgent.Leases.Handlers
 		{ }
 
 		/// <inheritdoc/>
-		protected override Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, ShutdownTask task, ILogger logger, CancellationToken cancellationToken)
+		protected override Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, ShutdownTask task, Tracer tracer, ILogger logger, CancellationToken cancellationToken)
 		{
 			logger.LogInformation("Scheduling shutdown task for agent {AgentId}", session.AgentId);
 			SessionResult result = new SessionResult((logger, ctx) => Shutdown.ExecuteAsync(false, logger, ctx));

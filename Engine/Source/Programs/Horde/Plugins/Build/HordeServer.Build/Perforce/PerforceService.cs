@@ -1305,12 +1305,29 @@ namespace HordeServer.Perforce
 			{
 				for (; ; )
 				{
-					await foreach (ICommit commit in FindAsync(minChange: CommitId.FromPerforceChange(minChange), includeMinChange: false, maxResults: 10, tags: tags, cancellationToken: cancellationToken))
+					const int MaxChanges = 10;
+
+					InfoRecord info;
+					List<ChangesRecord> changes;
+
+					using (PooledConnectionHandle perforce = await PerforceService.ConnectWithStreamClientAsync(StreamConfig, null, cancellationToken))
 					{
-						yield return commit;
-						minChange = commit.Id.GetPerforceChange();
+						info = await perforce.GetInfoAsync(cancellationToken);
+						string filter = GetFilter($"//{perforce.Settings.ClientName}/...", minChange + 1, null);
+						changes = await perforce.GetChangesAsync(ChangesOptions.Reverse | ChangesOptions.IncludeTimes | ChangesOptions.LongOutput, MaxChanges, ChangeStatus.Submitted, filter, cancellationToken);
 					}
-					await Task.Delay(TimeSpan.FromSeconds(10.0), cancellationToken);
+
+					foreach (ChangesRecord change in changes)
+					{
+						ICommit commit = await PerforceService.CreateCommitAsync(StreamConfig, change, info, cancellationToken);
+						yield return commit;
+						minChange = change.Number;
+					}
+
+					if (changes.Count < MaxChanges)
+					{
+						await Task.Delay(TimeSpan.FromSeconds(10.0), cancellationToken);
+					}
 				}
 			}
 		}

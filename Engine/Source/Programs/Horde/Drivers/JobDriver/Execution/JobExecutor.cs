@@ -23,8 +23,8 @@ using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using OpenTracing;
-using OpenTracing.Util;
+using OpenTelemetry.Trace;
+using StatusCode = Grpc.Core.StatusCode;
 
 namespace JobDriver.Execution
 {
@@ -206,6 +206,8 @@ namespace JobDriver.Execution
 		protected string? _scriptFileName;
 		protected bool _preprocessScript;
 		protected bool _savePreprocessedScript;
+		
+		protected Tracer Tracer { get; }
 
 		/// <summary>
 		/// Logger for the local agent process (as opposed to job logger)
@@ -244,7 +246,7 @@ namespace JobDriver.Execution
 		/// </summary>
 		internal TimeSpan _stepAbortPollRetryDelay = TimeSpan.FromSeconds(30);
 
-		protected JobExecutor(JobExecutorOptions options, ILogger logger)
+		protected JobExecutor(JobExecutorOptions options, Tracer tracer, ILogger logger)
 		{
 			HordeClient = options.HordeClient;
 			WorkingDir = options.WorkingDir;
@@ -258,6 +260,7 @@ namespace JobDriver.Execution
 			JobOptions = options.JobOptions;
 			JobRpc = null!; // Set in InitializeAsync()
 
+			Tracer = tracer;
 			Logger = logger;
 		}
 
@@ -274,6 +277,13 @@ namespace JobDriver.Execution
 
 		public async Task ExecuteAsync(ILogger logger, CancellationToken cancellationToken)
 		{
+			using TelemetrySpan span = Tracer.StartActiveSpan($"{nameof(JobExecutor)}.{nameof(ExecuteAsync)}");
+			span.SetAttribute("horde.job.id", JobId.ToString());
+			span.SetAttribute("horde.job.batch_id", BatchId.ToString());
+			span.SetAttribute("horde.job.executor", JobOptions.Executor);
+			span.SetAttribute("horde.lease.id", LeaseId.ToString());
+			JobOptions.DecorateSpan(span);
+			
 			JobRpc.JobRpcClient jobRpc = await HordeClient.CreateGrpcClientAsync<JobRpc.JobRpcClient>(cancellationToken);
 
 			// Create a storage client for this session
@@ -326,7 +336,6 @@ namespace JobDriver.Execution
 			logger.LogInformation("Initializing executor...");
 			using (logger.BeginIndentScope("  "))
 			{
-				using IScope scope = GlobalTracer.Instance.BuildSpan("Initialize").StartActive();
 				await InitializeAsync(batch, logger, cancellationToken);
 			}
 
@@ -388,11 +397,11 @@ namespace JobDriver.Execution
 					logger.LogInformation("Starting job {JobId}, batch {BatchId}, step {StepId} (Drive Space Left: {DriveSpaceRemaining} GB)", JobId, BatchId, step.StepId, availableFreeSpace.ToString("F1"));
 
 					// Create a trace span
-					using IScope scope = GlobalTracer.Instance.BuildSpan("Execute").WithTag("resource.name", step.Name).StartActive();
-					scope.Span.SetTag("stepId", step.StepId.ToString());
-					scope.Span.SetTag("logId", step.LogId.ToString());
-					//				using IDisposable TraceProperty = LogContext.PushProperty("dd.trace_id", CorrelationIdentifier.TraceId.ToString());
-					//				using IDisposable SpanProperty = LogContext.PushProperty("dd.span_id", CorrelationIdentifier.SpanId.ToString());
+					using TelemetrySpan span = Tracer.StartActiveSpan("Execute");
+					span.SetAttribute("resource.name", step.Name);
+					span.SetAttribute("horde.job.step.id", step.StepId.ToString());
+					span.SetAttribute("horde.job.step.name", step.Name);
+					span.SetAttribute("horde.job.step.log_id", step.LogId.ToString());
 
 					// Update the context to include information about this step
 					JobStepOutcome stepOutcome;
@@ -474,7 +483,6 @@ namespace JobDriver.Execution
 			logger.LogInformation("Finalizing...");
 			using (logger.BeginIndentScope("  "))
 			{
-				using IScope scope = GlobalTracer.Instance.BuildSpan("Finalize").StartActive();
 				await FinalizeAsync(logger, CancellationToken.None);
 			}
 		}
@@ -546,7 +554,7 @@ namespace JobDriver.Execution
 					if (res.AbortRequested)
 					{
 						leaseLogger.LogDebug("Step was aborted by server (JobId={JobId} BatchId={BatchId} StepId={StepId})", jobId, batchId, stepId);
-						stepCancelSource.Cancel();
+						await stepCancelSource.CancelAsync();
 						break;
 					}
 				}
@@ -564,6 +572,8 @@ namespace JobDriver.Execution
 
 		public virtual async Task InitializeAsync(RpcBeginBatchResponse batch, ILogger logger, CancellationToken cancellationToken)
 		{
+			using TelemetrySpan span = Tracer.StartActiveSpan($"{nameof(JobExecutor)}.{nameof(InitializeAsync)}");
+			
 			Batch = batch;
 			JobRpc = await HordeClient.CreateGrpcClientAsync<JobRpc.JobRpcClient>(cancellationToken);
 
@@ -689,6 +699,7 @@ namespace JobDriver.Execution
 
 		public virtual Task FinalizeAsync(ILogger jobLogger, CancellationToken cancellationToken)
 		{
+			using TelemetrySpan span = Tracer.StartActiveSpan($"{nameof(JobExecutor)}.{nameof(FinalizeAsync)}");
 			return Task.CompletedTask;
 		}
 
@@ -806,8 +817,11 @@ namespace JobDriver.Execution
 				buildGraphFiles.Add(preprocessedSchemaFile);
 			}
 
-			using (GlobalTracer.Instance.BuildSpan("TempStorage").WithTag("resource", "Write").StartActive())
 			{
+				using TelemetrySpan span = Tracer.StartActiveSpan("TempStorage");
+				const string Prefix = "horde.temp_storage.";
+				span.SetAttribute(Prefix + "action", "upload");
+				
 				// Create the artifact
 				ArtifactName artifactName = TempStorage.GetArtifactNameForNode(SetupStepName);
 				ArtifactType artifactType = ArtifactType.StepOutput;
@@ -821,6 +835,7 @@ namespace JobDriver.Execution
 				RpcCreateJobArtifactResponseV2 artifact = await JobRpc.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
 				ArtifactId artifactId = ArtifactId.Parse(artifact.Id);
 				logger.LogInformation("Creating output artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} in namespace {NamespaceId}", artifactId, artifactName, artifactType, artifact.RefName, artifact.NamespaceId);
+				DecorateSpanWithArtifact(span, Prefix, artifactRequest, artifact);
 
 				// Write the data
 				IStorageNamespace storage = GetStorageNamespace(new NamespaceId(artifact.NamespaceId), artifact.Token);
@@ -1196,16 +1211,20 @@ namespace JobDriver.Execution
 
 			// Read the manifests for all the input storage blocks
 			Dictionary<TempStorageBlockRef, TempStorageBlockManifest> inputManifests = new Dictionary<TempStorageBlockRef, TempStorageBlockManifest>();
-			using (IScope scope = GlobalTracer.Instance.BuildSpan("TempStorage").WithTag("resource", "read").StartActive())
+
 			{
+				using TelemetrySpan span = Tracer.StartActiveSpan("TempStorage");
+				const string Prefix = "horde.temp_storage.";
+				span.SetAttribute(Prefix + "action", "download");
+				
 				Stopwatch timer = Stopwatch.StartNew();
-				scope.Span.SetTag("blocks", inputStorageBlocks.Count);
+				span.SetAttribute(Prefix + "blocks", inputStorageBlocks.Count);
 				foreach (TempStorageBlockRef inputStorageBlock in inputStorageBlocks)
 				{
 					TempStorageBlockManifest manifest = await TempStorage.RetrieveBlockAsync(HordeClient, JobId, step.StepId, inputStorageBlock.NodeName, inputStorageBlock.OutputName, workspaceDir, manifestDir, logger, cancellationToken);
 					inputManifests[inputStorageBlock] = manifest;
 				}
-				scope.Span.SetTag("size", inputManifests.Sum(x => x.Value.GetTotalSize()));
+				span.SetAttribute(Prefix + "size", inputManifests.Sum(x => x.Value.GetTotalSize()));
 				logger.LogInformation("Download took {Time:n1}s", timer.Elapsed.TotalSeconds);
 			}
 
@@ -1330,8 +1349,11 @@ namespace JobDriver.Execution
 			}
 
 			// Write all the storage blocks, and update the mapping from file to storage block
-			using (GlobalTracer.Instance.BuildSpan("TempStorage").WithTag("resource", "Write").StartActive())
 			{
+				using TelemetrySpan span = Tracer.StartActiveSpan("TempStorage");
+				const string Prefix = "horde.temp_storage.";
+				span.SetAttribute(Prefix + "action", "upload");
+				
 				// Create the artifact
 				RpcCreateJobArtifactRequestV2 artifactRequest = new RpcCreateJobArtifactRequestV2();
 				artifactRequest.JobId = JobId.ToString();
@@ -1342,6 +1364,7 @@ namespace JobDriver.Execution
 				RpcCreateJobArtifactResponseV2 artifact = await JobRpc.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
 				ArtifactId artifactId = ArtifactId.Parse(artifact.Id);
 				logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} ({RefUrl})", artifactId, artifactRequest.Name, ArtifactType.StepOutput, artifact.RefName, $"{HordeClient.ServerUrl.ToString().TrimEnd('/')}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
+				DecorateSpanWithArtifact(span, Prefix, artifactRequest, artifact);
 
 				IStorageNamespace storage = GetStorageNamespace(new NamespaceId(artifact.NamespaceId), artifact.Token);
 
@@ -1407,8 +1430,13 @@ namespace JobDriver.Execution
 					continue;
 				}
 
-				using (GlobalTracer.Instance.BuildSpan("Artifact").WithTag("name", graphArtifact.Name).WithTag("resource", "Write").StartActive())
 				{
+					using TelemetrySpan span = Tracer.StartActiveSpan("Artifact");
+					const string Prefix = "horde.artifact.";
+					span.SetAttribute(Prefix + "action", "upload");
+					span.SetAttribute(Prefix + "name", graphArtifact.Name);
+					span.SetAttribute(Prefix + "type", graphArtifact.Type);
+					
 					// Create the artifact
 					RpcCreateJobArtifactRequestV2 artifactRequest = new RpcCreateJobArtifactRequestV2();
 					artifactRequest.JobId = JobId.ToString();
@@ -1422,6 +1450,7 @@ namespace JobDriver.Execution
 					RpcCreateJobArtifactResponseV2 artifact = await JobRpc.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
 					ArtifactId artifactId = ArtifactId.Parse(artifact.Id);
 					logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} ({RefUrl})", artifactId, artifactRequest.Name, ArtifactType.StepOutput, artifact.RefName, $"{HordeClient.ServerUrl.ToString().TrimEnd('/')}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
+					DecorateSpanWithArtifact(span, Prefix, artifactRequest, artifact);
 
 					IStorageNamespace storage = GetStorageNamespace(new NamespaceId(artifact.NamespaceId), artifact.Token);
 
@@ -1458,7 +1487,9 @@ namespace JobDriver.Execution
 		protected async Task<int> ExecuteAutomationToolAsync(JobStepInfo step, DirectoryReference workspaceDir, string? arguments, bool? useP4, ILogger logger, CancellationToken cancellationToken)
 		{
 			int result;
-			using IScope scope = GlobalTracer.Instance.BuildSpan("BuildGraph").StartActive();
+			using TelemetrySpan span = Tracer.StartActiveSpan("BuildGraph");
+			span.SetAttribute("horde.job.step.id", step.StepId.ToString());
+			span.SetAttribute("horde.job.step.name", step.Name);
 
 			if (!_compileAutomationTool)
 			{
@@ -1469,10 +1500,12 @@ namespace JobDriver.Execution
 			{
 				arguments += " -NoP4";
 			}
+			
+			span.SetAttribute("horde.args", arguments);
 
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 			{
-				result = await ExecuteCommandAsync(step, workspaceDir, Environment.GetEnvironmentVariable("COMSPEC") ?? "cmd.exe", $"/C \"\"{workspaceDir}\\Engine\\Build\\BatchFiles\\RunUAT.bat\" {arguments}\"", logger, cancellationToken);
+				result = await ExecuteCommandAsync(step, workspaceDir, Environment.GetEnvironmentVariable("COMSPEC") ?? "cmd.exe", $"/C \"\"{workspaceDir}\\Engine\\Build\\BatchFiles\\RunUAT.bat\" {arguments}\"", span, logger, cancellationToken);
 			}
 			else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
 			{
@@ -1483,11 +1516,11 @@ namespace JobDriver.Execution
 					args = $"\"{workspaceDir}/Engine/Build/BatchFiles/RunWineUAT.sh\" {arguments}";
 				}
 
-				result = await ExecuteCommandAsync(step, workspaceDir, "/bin/bash", args, logger, cancellationToken);
+				result = await ExecuteCommandAsync(step, workspaceDir, "/bin/bash", args, span, logger, cancellationToken);
 			}
 			else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
 			{
-				result = await ExecuteCommandAsync(step, workspaceDir, "/bin/sh", $"\"{workspaceDir}/Engine/Build/BatchFiles/RunUAT.sh\" {arguments}", logger, cancellationToken);
+				result = await ExecuteCommandAsync(step, workspaceDir, "/bin/sh", $"\"{workspaceDir}/Engine/Build/BatchFiles/RunUAT.sh\" {arguments}", span, logger, cancellationToken);
 			}
 			else
 			{
@@ -1752,7 +1785,7 @@ namespace JobDriver.Execution
 			return name;
 		}
 
-		async Task<int> ExecuteCommandAsync(JobStepInfo step, DirectoryReference workspaceDir, string fileName, string arguments, ILogger jobLogger, CancellationToken cancellationToken)
+		async Task<int> ExecuteCommandAsync(JobStepInfo step, DirectoryReference workspaceDir, string fileName, string arguments, TelemetrySpan buildGraphSpan, ILogger jobLogger, CancellationToken cancellationToken)
 		{
 			// Method for expanding environment variable properties related to this step
 			Dictionary<string, string> properties = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -1889,7 +1922,7 @@ namespace JobDriver.Execution
 				List<(string, FileReference)> telemetryFiles = new List<(string, FileReference)>();
 				try
 				{
-					await CreateTelemetryFilesAsync(step.Name, telemetryDir, telemetryFiles, jobLogger, cancellationToken);
+					await CreateTelemetryFilesAsync(step.Name, telemetryDir, telemetryFiles, buildGraphSpan, jobLogger, cancellationToken);
 				}
 				catch (Exception ex)
 				{
@@ -1998,7 +2031,7 @@ namespace JobDriver.Execution
 			return exitCode;
 		}
 
-		async Task CreateTelemetryFilesAsync(string stepName, DirectoryReference telemetryDir, List<(string, FileReference)> telemetryFiles, ILogger jobLogger, CancellationToken cancellationToken)
+		async Task CreateTelemetryFilesAsync(string stepName, DirectoryReference telemetryDir, List<(string, FileReference)> telemetryFiles, TelemetrySpan buildGraphSpan, ILogger jobLogger, CancellationToken cancellationToken)
 		{
 			List<TraceEventList> telemetryList = new List<TraceEventList>();
 			foreach (FileReference telemetryFile in DirectoryReference.EnumerateFiles(telemetryDir, "*.json"))
@@ -2113,7 +2146,7 @@ namespace JobDriver.Execution
 				}
 				telemetryFiles.Add(("Trace.json", traceFile));
 
-				CreateTracingData(GlobalTracer.Instance.ActiveSpan, rootSpan);
+				CreateTracingData(buildGraphSpan, rootSpan);
 			}
 		}
 
@@ -2154,20 +2187,17 @@ namespace JobDriver.Execution
 			await JobRpc.CreateReportAsync(request);
 		}
 
-		private static ISpan CreateTracingData(ISpan parent, TraceSpan span)
+		private TelemetrySpan CreateTracingData(TelemetrySpan parent, TraceSpan span)
 		{
-			ISpan newSpan = GlobalTracer.Instance.BuildSpan(span.Name)
-				.AsChildOf(parent)
-				.WithTag("service.name", span.Service)
-				.WithTag("resource.name", span.Resource)
-				.WithStartTimestamp(new DateTime(span.Start, DateTimeKind.Utc))
-				.Start();
+			TelemetrySpan newSpan = Tracer.StartSpan(span.Name ?? "TraceJsonUnknown", SpanKind.Internal, parent, startTime: new DateTime(span.Start, DateTimeKind.Utc));
+			newSpan.SetAttribute("service.name", span.Service);
+			newSpan.SetAttribute("resource.name", span.Resource);
 
 			if (span.Properties != null)
 			{
 				foreach (KeyValuePair<string, string> pair in span.Properties)
 				{
-					newSpan.SetTag(pair.Key, pair.Value);
+					newSpan.SetAttribute(pair.Key, pair.Value);
 				}
 			}
 			if (span.Children != null)
@@ -2178,8 +2208,20 @@ namespace JobDriver.Execution
 				}
 			}
 
-			newSpan.Finish(new DateTime(span.Finish, DateTimeKind.Utc));
+			newSpan.End(new DateTime(span.Finish, DateTimeKind.Utc));
 			return newSpan;
+		}
+		
+		private static void DecorateSpanWithArtifact(TelemetrySpan span, string prefix, RpcCreateJobArtifactRequestV2 request, RpcCreateJobArtifactResponseV2 response)
+		{
+			span.SetAttribute(prefix + "artifact.name", request.Name);
+			span.SetAttribute(prefix + "artifact.type", request.Type);
+			span.SetAttribute(prefix + "artifact.job_id", request.JobId);
+			span.SetAttribute(prefix + "artifact.step_id", request.StepId);
+			
+			span.SetAttribute(prefix + "artifact.id", response.Id);
+			span.SetAttribute(prefix + "artifact.ref_name", response.RefName);
+			span.SetAttribute(prefix + "artifact.namespace_id", response.NamespaceId);
 		}
 
 		public async Task UploadTestDataAsync(JobStepId jobStepId, IEnumerable<KeyValuePair<string, object>> pairs)

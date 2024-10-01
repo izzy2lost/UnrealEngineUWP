@@ -26,7 +26,7 @@
     <Choose>
     <When Condition="'$(IsWindows)'=='true'">
       <PropertyGroup>
-        <TargetFramework>net6.0-windows</TargetFramework>
+        <TargetFramework>net8.0-windows</TargetFramework>
         <UseWindowsForms>true</UseWindowsForms>
         <UseWPF>true</UseWPF>
         <DefineConstants>$(DefineConstants);IS_WINDOWS</DefineConstants>
@@ -43,7 +43,7 @@
     </When>
     <Otherwise>
       <PropertyGroup>
-        <TargetFramework>net6.0</TargetFramework>
+        <TargetFramework>net8.0</TargetFramework>
       </PropertyGroup>
       <Choose>
       <When Condition="'$(IsOSX)'=='true'">
@@ -72,8 +72,15 @@
       <Link>Restricted\Commands\%(Filename)%(Extension)</Link>
     </Compile>
   </ItemGroup>
+  
+  <ItemGroup>
+    <None Remove="Toolbox.json" />
+  </ItemGroup>
     
   <ItemGroup>
+    <Content Include="Toolbox.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="UgsTool.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>

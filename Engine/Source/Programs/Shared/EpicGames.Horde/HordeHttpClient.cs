@@ -65,6 +65,11 @@ namespace EpicGames.Horde
 		/// </summary>
 		public const string UploadRedirectHttpClientName = "HordeUploadRedirectHttpClient";
 
+		/// <summary>
+		/// Accessor for the inner http client
+		/// </summary>
+		public HttpClient HttpClient => _httpClient;
+
 		readonly HttpClient _httpClient;
 
 		internal static JsonSerializerOptions JsonSerializerOptions => HordeHttpRequest.JsonSerializerOptions;

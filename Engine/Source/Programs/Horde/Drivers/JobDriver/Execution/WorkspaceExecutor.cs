@@ -6,8 +6,7 @@ using JobDriver.Utility;
 using Horde.Common.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
-using OpenTracing;
-using OpenTracing.Util;
+using OpenTelemetry.Trace;
 
 namespace JobDriver.Execution
 {
@@ -19,8 +18,8 @@ namespace JobDriver.Execution
 		private readonly IWorkspaceMaterializer _workspace;
 		private readonly IWorkspaceMaterializer? _autoSdkWorkspace;
 
-		public WorkspaceExecutor(JobExecutorOptions options, IWorkspaceMaterializer workspace, IWorkspaceMaterializer? autoSdkWorkspace, ILogger logger)
-			: base(options, logger)
+		public WorkspaceExecutor(JobExecutorOptions options, IWorkspaceMaterializer workspace, IWorkspaceMaterializer? autoSdkWorkspace, Tracer tracer, ILogger logger)
+			: base(options, tracer, logger)
 		{
 			_workspace = workspace;
 			_autoSdkWorkspace = autoSdkWorkspace;
@@ -39,6 +38,7 @@ namespace JobDriver.Execution
 
 		public override async Task InitializeAsync(RpcBeginBatchResponse batch, ILogger logger, CancellationToken cancellationToken)
 		{
+			using TelemetrySpan span = Tracer.StartActiveSpan($"{nameof(WorkspaceExecutor)}.{nameof(InitializeAsync)}");
 			await base.InitializeAsync(batch, logger, cancellationToken);
 
 			if (Batch.Change == 0)
@@ -49,7 +49,8 @@ namespace JobDriver.Execution
 			// Setup and sync the AutoSDK workspace
 			if (_autoSdkWorkspace != null)
 			{
-				using IScope _ = GlobalTracer.Instance.BuildSpan("Workspace").WithTag("resource.name", "AutoSDK").StartActive();
+				using TelemetrySpan autoSdkSpan = Tracer.StartActiveSpan("Workspace");
+				autoSdkSpan.SetAttribute("resource.name", "AutoSDK");
 				// TODO: Set type of workspace materializer as scope tag.
 
 				SyncOptions syncOptions = new();
@@ -57,9 +58,9 @@ namespace JobDriver.Execution
 			}
 
 			// Sync the regular workspace
-			using (IScope scope = GlobalTracer.Instance.BuildSpan("Workspace").StartActive())
 			{
-				scope.Span.SetTag(Datadog.Trace.OpenTracing.DatadogTags.ResourceName, _workspace.Identifier);
+				using TelemetrySpan autoSdkSpan = Tracer.StartActiveSpan("Workspace");
+				autoSdkSpan.SetAttribute("resource.name", _workspace.Identifier);
 
 				await _workspace.SyncAsync(Batch.Change, Batch.PreflightChange, new SyncOptions(), cancellationToken);
 
@@ -152,13 +153,15 @@ namespace JobDriver.Execution
 	class WorkspaceExecutorFactory : IJobExecutorFactory
 	{
 		private readonly IEnumerable<IWorkspaceMaterializerFactory> _materializerFactories;
+		private readonly Tracer _tracer;
 		private readonly ILoggerFactory _loggerFactory;
 
 		public string Name => WorkspaceExecutor.Name;
 
-		public WorkspaceExecutorFactory(IEnumerable<IWorkspaceMaterializerFactory> materializerFactories, ILoggerFactory loggerFactory)
+		public WorkspaceExecutorFactory(IEnumerable<IWorkspaceMaterializerFactory> materializerFactories, Tracer tracer, ILoggerFactory loggerFactory)
 		{
 			_materializerFactories = materializerFactories;
+			_tracer = tracer;
 			_loggerFactory = loggerFactory;
 		}
 
@@ -176,7 +179,7 @@ namespace JobDriver.Execution
 					autoSdkMaterializer = await CreateMaterializerAsync(name, autoSdkWorkspaceInfo, options.WorkingDir, forAutoSdk: true, cancellationToken);
 				}
 
-				return new WorkspaceExecutor(options, workspaceMaterializer, autoSdkMaterializer, _loggerFactory.CreateLogger<WorkspaceExecutor>());
+				return new WorkspaceExecutor(options, workspaceMaterializer, autoSdkMaterializer, _tracer, _loggerFactory.CreateLogger<WorkspaceExecutor>());
 			}
 			catch
 			{

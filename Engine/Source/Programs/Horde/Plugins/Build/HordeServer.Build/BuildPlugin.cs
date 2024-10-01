@@ -119,7 +119,6 @@ namespace HordeServer
 			{
 				services.AddHostedService<AgentReportService>();
 				services.AddHostedService<IssueReportService>();
-				services.AddHostedService<IssueTagService>();
 				services.AddHostedService<JobExpirationService>();
 				services.AddHostedService(provider => provider.GetRequiredService<PerforceLoadBalancer>());
 				services.AddHostedService<PoolUpdateService>();

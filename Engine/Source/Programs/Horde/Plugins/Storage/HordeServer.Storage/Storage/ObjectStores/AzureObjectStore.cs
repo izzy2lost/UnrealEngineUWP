@@ -190,4 +190,31 @@ namespace HordeServer.Storage.ObjectStores
 		{
 		}
 	}
+
+	/// <summary>
+	/// Factory for constructing <see cref="AzureObjectStore"/> instances
+	/// </summary>
+	public sealed class AzureObjectStoreFactory
+	{
+		readonly Tracer _tracer;
+		readonly ILogger<AzureObjectStore> _logger;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public AzureObjectStoreFactory(Tracer tracer, ILogger<AzureObjectStore> logger)
+		{
+			_tracer = tracer;
+			_logger = logger;
+		}
+
+		/// <summary>
+		/// Create a new object store with the given configuration
+		/// </summary>
+		/// <param name="options">Configuration for the store</param>
+		public AzureObjectStore CreateStore(IAzureStorageOptions options)
+		{
+			return new AzureObjectStore(options, _logger, _tracer);
+		}
+	}
 }

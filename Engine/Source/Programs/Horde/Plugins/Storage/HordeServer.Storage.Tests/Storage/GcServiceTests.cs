@@ -49,7 +49,6 @@ namespace HordeServer.Tests.Storage
 			}
 
 			HashSet<BlobLocator> nodes = await FindNodesAsync(store, roots);
-
 			await Clock.AdvanceAsync(TimeSpan.FromDays(1.0));
 
 			MemoryObjectStore backend = (MemoryObjectStore)ServiceProvider.GetRequiredService<IObjectStoreFactory>().CreateObjectStore(storageConfig.Backends[0]);

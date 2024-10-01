@@ -60,6 +60,9 @@ namespace EpicGames.Horde
 		/// <inheritdoc/>
 		public IToolCollection Tools { get; }
 
+		/// <inheritdoc/>
+		public event Action? OnAccessTokenStateChanged;
+
 		/// <summary>
 		/// Accessor for the logger instance
 		/// </summary>
@@ -94,6 +97,14 @@ namespace EpicGames.Horde
 			}
 
 			GC.SuppressFinalize(this);
+		}
+
+		/// <summary>
+		/// Notify listeners that the auth state has changed
+		/// </summary>
+		protected void NotifyAuthStateChanged()
+		{
+			OnAccessTokenStateChanged?.Invoke();
 		}
 
 		/// <inheritdoc/>
@@ -331,11 +342,15 @@ namespace EpicGames.Horde
 
 			_authHandlerState = new HordeHttpAuthHandlerState(_baseHttpMessageHandler.Instance, serverUrl, hordeOptions, loggerFactory.CreateLogger<HordeHttpAuthHandlerState>());
 			_authHttpMessageHandler = new HordeHttpAuthHandler(_baseHttpMessageHandler.Instance, _authHandlerState, hordeOptions);
+
+			_authHandlerState.OnStateChanged += NotifyAuthStateChanged;
 		}
 
 		/// <inheritdoc/>
 		public override async ValueTask DisposeAsync()
 		{
+			_authHandlerState.OnStateChanged -= NotifyAuthStateChanged;
+
 			await _authHandlerState.DisposeAsync();
 			_authHttpMessageHandler.Dispose();
 			await base.DisposeAsync();

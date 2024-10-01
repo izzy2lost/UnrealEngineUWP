@@ -474,8 +474,8 @@ Name | Description
 `awsRole` | `string`<br>ARN of a role to assume
 `awsProfile` | `string`<br>The AWS profile to read credentials form
 `awsRegion` | `string`<br>Region to connect to
-`azureConnectionString` | `string`<br>
-`azureContainerName` | `string`<br>
+`azureConnectionString` | `string`<br>Connection string for Azure
+`azureContainerName` | `string`<br>Name of the container
 `relayServer` | `string`<br>
 `relayToken` | `string`<br>
 
@@ -557,5 +557,6 @@ Name | Description
 `public` | `boolean`<br>Whether this tool should be exposed for download on a public endpoint without authentication
 `showInUgs` | `boolean`<br>Whether to show this tool for download in the UGS tools menu
 `showInDashboard` | `boolean`<br>Whether to show this tool for download in the dashboard
+`showInToolbox` | `boolean`<br>Whether to show this tool for download in Unreal Toolbox
 `namespaceId` | `string`<br>Default namespace for new deployments of this tool
 `acl` | [AclConfig](#aclconfig)<br>Permissions for the tool

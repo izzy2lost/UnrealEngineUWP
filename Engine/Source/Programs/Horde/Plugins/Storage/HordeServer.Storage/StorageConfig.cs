@@ -224,7 +224,7 @@ namespace HordeServer.Storage
 	/// Common settings object for different providers
 	/// </summary>
 	[DebuggerDisplay("{Id}")]
-	public class BackendConfig : IAwsStorageOptions
+	public class BackendConfig : IAwsStorageOptions, IAzureStorageOptions
 	{
 		/// <summary>
 		/// The storage backend ID
@@ -326,7 +326,7 @@ namespace HordeServer.Storage
 		/// <summary>
 		/// How frequently to run garbage collection, in hours.
 		/// </summary>
-		public double GcFrequencyHrs { get; set; } = 2.0;
+		public double GcFrequencyHrs { get; set; } = 0.1;
 
 		/// <summary>
 		/// How long to keep newly uploaded orphanned objects before allowing them to be deleted, in hours.

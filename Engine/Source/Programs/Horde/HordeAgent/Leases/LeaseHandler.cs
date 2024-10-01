@@ -10,8 +10,7 @@ using HordeAgent.Services;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
-using OpenTracing;
-using OpenTracing.Util;
+using OpenTelemetry.Trace;
 using ByteString = Google.Protobuf.ByteString;
 
 namespace HordeAgent.Leases
@@ -86,9 +85,9 @@ namespace HordeAgent.Leases
 		/// <summary>
 		/// Starts executing the lease
 		/// </summary>
-		public void Start(ISession session, ILogger logger, LeaseLoggerFactory leaseLoggerFactory)
+		public void Start(ISession session, Tracer tracer, ILogger logger, LeaseLoggerFactory leaseLoggerFactory)
 		{
-			Result = Task.Run(() => HandleLeaseAsync(session, logger, leaseLoggerFactory));
+			Result = Task.Run(() => HandleLeaseAsync(session, tracer, logger, leaseLoggerFactory));
 		}
 
 		/// <summary>
@@ -103,21 +102,20 @@ namespace HordeAgent.Leases
 		/// <summary>
 		/// Handle a lease request
 		/// </summary>
-		async Task<LeaseResult> HandleLeaseAsync(ISession session, ILogger logger, LeaseLoggerFactory leaseLoggerFactory)
+		async Task<LeaseResult> HandleLeaseAsync(ISession session, Tracer tracer, ILogger logger, LeaseLoggerFactory leaseLoggerFactory)
 		{
-			using IScope scope = GlobalTracer.Instance.BuildSpan("HandleLease").WithResourceName(RpcLease.Id.ToString()).StartActive();
-			scope.Span.SetTag("LeaseId", RpcLease.Id.ToString());
-			scope.Span.SetTag("AgentId", session.AgentId.ToString());
-			//			using IDisposable TraceProperty = LogContext.PushProperty("dd.trace_id", CorrelationIdentifier.TraceId.ToString());
-			//			using IDisposable SpanProperty = LogContext.PushProperty("dd.span_id", CorrelationIdentifier.SpanId.ToString());
-
+			using TelemetrySpan span = tracer.StartActiveSpan($"{nameof(LeaseHandler)}.{nameof(HandleLeaseAsync)}");
+			span.SetAttribute("horde.lease.id", RpcLease.Id.ToString());
+			span.SetAttribute("horde.agent.id", session.AgentId.ToString());
+			span.SetAttribute("horde.agent.session_id", session.SessionId.ToString());
 			logger.LogInformation("Handling lease {LeaseId}", Id);
 
 			// Get the lease outcome
 			LeaseResult result = LeaseResult.Failed;
 			try
 			{
-				result = await HandleLeasePayloadAsync(session, leaseLoggerFactory);
+				span.SetAttribute("horde.lease.task", RpcPayload.TypeUrl);
+				result = await HandleLeasePayloadAsync(session, tracer, leaseLoggerFactory);
 			}
 			catch (OperationCanceledException) when (_cancellationSource.IsCancellationRequested)
 			{
@@ -126,10 +124,14 @@ namespace HordeAgent.Leases
 			catch (InsufficientSpaceException ex)
 			{
 				logger.LogError(ex, "{Message}", ex.Message);
+				span.SetStatus(Status.Error);
+				span.RecordException(ex);
 			}
 			catch (Exception ex)
 			{
 				logger.LogError(ex, "Unhandled exception while executing lease {LeaseId}: {Message}", Id, ex.Message);
+				span.SetStatus(Status.Error);
+				span.RecordException(ex);
 			}
 
 			// Update the state of the lease
@@ -149,6 +151,8 @@ namespace HordeAgent.Leases
 			RpcLease = newRpcLease;
 
 			logger.LogInformation("Transitioning lease {LeaseId} to {State}, outcome={Outcome}", Id, RpcLease.State, RpcLease.Outcome);
+			span.SetAttribute("horde.lease.state", RpcLease.State.ToString());
+			span.SetAttribute("horde.lease.outcome", RpcLease.Outcome.ToString());
 
 			return result;
 		}
@@ -156,20 +160,18 @@ namespace HordeAgent.Leases
 		/// <summary>
 		/// Dispatch a lease payload to the appropriate handler
 		/// </summary>
-		internal async Task<LeaseResult> HandleLeasePayloadAsync(ISession session, LeaseLoggerFactory leaseLoggerFactory)
+		internal async Task<LeaseResult> HandleLeasePayloadAsync(ISession session, Tracer tracer, LeaseLoggerFactory leaseLoggerFactory)
 		{
 			using ILoggerFactory loggerFactory = leaseLoggerFactory.CreateLoggerFactory(Id);
 			ILogger leaseLogger = loggerFactory.CreateLogger(GetType());
-
-			GlobalTracer.Instance.ActiveSpan?.SetTag("task", RpcPayload.TypeUrl);
-			return await ExecuteAsync(session, leaseLogger, _cancellationSource.Token);
+			return await ExecuteAsync(session, tracer, leaseLogger, _cancellationSource.Token);
 		}
 
 		/// <summary>
 		/// Executes a lease
 		/// </summary>
 		/// <returns>Result for the lease</returns>
-		protected abstract Task<LeaseResult> ExecuteAsync(ISession session, ILogger logger, CancellationToken cancellationToken);
+		protected abstract Task<LeaseResult> ExecuteAsync(ISession session, Tracer tracer, ILogger logger, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Runs a child process, piping the output to the given logger
@@ -256,13 +258,13 @@ namespace HordeAgent.Leases
 		}
 
 		/// <inheritdoc/>
-		protected override Task<LeaseResult> ExecuteAsync(ISession session, ILogger logger, CancellationToken cancellationToken)
+		protected override Task<LeaseResult> ExecuteAsync(ISession session, Tracer tracer, ILogger logger, CancellationToken cancellationToken)
 		{
-			return ExecuteAsync(session, Id, RpcLease.Payload.Unpack<T>(), logger, cancellationToken);
+			return ExecuteAsync(session, Id, RpcLease.Payload.Unpack<T>(), tracer, logger, cancellationToken);
 		}
 
-		/// <inheritdoc/>
-		protected abstract Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, T message, ILogger logger, CancellationToken cancellationToken);
+		/// <inheritdoc cref="LeaseHandler.ExecuteAsync" />
+		protected abstract Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, T message, Tracer tracer, ILogger logger, CancellationToken cancellationToken);
 	}
 
 	class DefaultLeaseHandler : LeaseHandler
@@ -273,7 +275,7 @@ namespace HordeAgent.Leases
 			=> _result = result;
 
 		/// <inheritdoc/>
-		protected override Task<LeaseResult> ExecuteAsync(ISession session, ILogger logger, CancellationToken cancellationToken)
+		protected override Task<LeaseResult> ExecuteAsync(ISession session, Tracer tracer, ILogger logger, CancellationToken cancellationToken)
 			=> Task.FromResult(_result);
 	}
 }

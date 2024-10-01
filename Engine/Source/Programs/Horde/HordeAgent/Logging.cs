@@ -2,10 +2,9 @@
 
 using System.Runtime.InteropServices;
 using EpicGames.Core;
+using HordeAgent.Utility;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using OpenTracing;
-using OpenTracing.Util;
 using Serilog;
 using Serilog.Core;
 using Serilog.Extensions.Logging;
@@ -16,29 +15,13 @@ namespace HordeAgent
 {
 	static class Logging
 	{
-		static string s_env = "default";
+		public static LoggingLevelSwitch LogLevelSwitch = new ();
 
-		public static void SetEnv(string newEnv)
-		{
-			s_env = newEnv;
-		}
-
-		public static LoggingLevelSwitch LogLevelSwitch = new LoggingLevelSwitch();
-
-		private class DatadogLogEnricher : ILogEventEnricher
+		private class DatadogVersionLogEnricher : ILogEventEnricher
 		{
 			public void Enrich(Serilog.Events.LogEvent logEvent, ILogEventPropertyFactory propertyFactory)
 			{
-				logEvent.AddOrUpdateProperty(propertyFactory.CreateProperty("dd.env", s_env));
-				logEvent.AddOrUpdateProperty(propertyFactory.CreateProperty("dd.service", "hordeagent"));
-				logEvent.AddOrUpdateProperty(propertyFactory.CreateProperty("dd.version", AgentApp.Version));
-
-				ISpan? span = GlobalTracer.Instance?.ActiveSpan;
-				if (span != null)
-				{
-					logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("dd.trace_id", span.Context.TraceId));
-					logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("dd.span_id", span.Context.SpanId));
-				}
+				logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("dd.version", AgentApp.Version));
 			}
 		}
 
@@ -62,23 +45,29 @@ namespace HordeAgent
 			{
 				theme = AnsiConsoleTheme.Code;
 			}
-
-			return new LoggerConfiguration()
+			
+			LoggerConfiguration loggerConfig = new LoggerConfiguration()
 				.WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:w3}] {Indent}{Message:l}{NewLine}{Exception}", theme: theme)
 				.WriteTo.File(FileReference.Combine(settings.LogsDir, "Log-.txt").FullName, fileSizeLimitBytes: 50 * 1024 * 1024, rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true, retainedFileCountLimit: 10)
 				.WriteTo.File(new JsonFormatter(renderMessage: true), FileReference.Combine(settings.LogsDir, "Log-.json").FullName, fileSizeLimitBytes: 50 * 1024 * 1024, rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true, retainedFileCountLimit: 10)
 				.ReadFrom.Configuration(configuration)
 				.MinimumLevel.ControlledBy(LogLevelSwitch)
-				.Enrich.FromLogContext()
-				.Enrich.With<DatadogLogEnricher>()
-				.CreateLogger();
+				.Enrich.FromLogContext();
+			
+			if (settings.OpenTelemetry.EnableDatadogCompatibility)
+			{
+				loggerConfig = loggerConfig.Enrich.With<DatadogVersionLogEnricher>();
+				loggerConfig = loggerConfig.Enrich.With<OpenTelemetryDatadogLogEnricher>();
+			}
+			
+			return loggerConfig.CreateLogger();
 		}
 
 		public static ILoggerProvider CreateFileLoggerProvider(DirectoryReference baseDir, string name)
 		{
 			DirectoryReference.CreateDirectory(baseDir);
 
-			Serilog.Core.Logger logger = new LoggerConfiguration()
+			Logger logger = new LoggerConfiguration()
 				.WriteTo.File(FileReference.Combine(baseDir, $"{name}.txt").FullName)
 				.WriteTo.File(new JsonFormatter(renderMessage: true), FileReference.Combine(baseDir, $"{name}.json").FullName)
 				.Enrich.FromLogContext()

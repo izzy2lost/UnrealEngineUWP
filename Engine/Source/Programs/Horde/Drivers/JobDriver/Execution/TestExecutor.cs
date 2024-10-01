@@ -8,6 +8,7 @@ using JobDriver.Parser;
 using Horde.Common.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
+using OpenTelemetry.Trace;
 
 namespace JobDriver.Execution
 {
@@ -17,8 +18,8 @@ namespace JobDriver.Execution
 
 		readonly Dictionary<string, string> _arguments = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-		public TestExecutor(JobExecutorOptions options, ILogger logger)
-			: base(options, logger)
+		public TestExecutor(JobExecutorOptions options, Tracer tracer, ILogger logger)
+			: base(options, tracer, logger)
 		{
 		}
 
@@ -223,18 +224,20 @@ namespace JobDriver.Execution
 
 	class TestExecutorFactory : IJobExecutorFactory
 	{
+		readonly Tracer _tracer;
 		readonly ILogger<TestExecutor> _logger;
 
 		public string Name => TestExecutor.Name;
 
-		public TestExecutorFactory(ILogger<TestExecutor> logger)
+		public TestExecutorFactory(Tracer tracer, ILogger<TestExecutor> logger)
 		{
+			_tracer = tracer;
 			_logger = logger;
 		}
 
 		public Task<JobExecutor> CreateExecutorAsync(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options, CancellationToken cancellationToken)
 		{
-			return Task.FromResult<JobExecutor>(new TestExecutor(options, _logger));
+			return Task.FromResult<JobExecutor>(new TestExecutor(options, _tracer, _logger));
 		}
 	}
 }

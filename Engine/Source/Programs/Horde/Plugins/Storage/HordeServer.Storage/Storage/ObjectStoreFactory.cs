@@ -68,6 +68,8 @@ namespace HordeServer.Storage
 					return _serviceProvider.GetRequiredService<FileObjectStoreFactory>().CreateStore(DirectoryReference.Combine(_serverInfo.DataDir, config.BaseDir ?? "Storage"));
 				case StorageBackendType.Aws:
 					return _serviceProvider.GetRequiredService<AwsObjectStoreFactory>().CreateStore(config);
+				case StorageBackendType.Azure:
+					return _serviceProvider.GetRequiredService<AzureObjectStoreFactory>().CreateStore(config);
 				case StorageBackendType.Memory:
 					return new MemoryObjectStore();
 				default:

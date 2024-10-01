@@ -3,6 +3,8 @@
 using EpicGames.Horde.Agents;
 using HordeServer.Agents;
 using HordeServer.Agents.Pools;
+using HordeServer.Projects;
+using HordeServer.Streams;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -21,7 +23,7 @@ public class PoolUpdateServiceTest : BuildTestSetup
 	public PoolUpdateServiceTest()
 	{
 		UpdateConfig(x => x.Plugins.GetComputeConfig().Pools.Clear());
-		_pus = new PoolUpdateService(AgentService, PoolCollection, Clock, ServiceProvider.GetRequiredService<IOptionsMonitor<BuildConfig>>(), Tracer, new NullLogger<PoolUpdateService>());
+		_pus = new PoolUpdateService(AgentService, PoolService, PoolCollection, Clock, ServiceProvider.GetRequiredService<IOptionsMonitor<BuildConfig>>(), Tracer, new NullLogger<PoolUpdateService>());
 	}
 
 	[TestInitialize]
@@ -119,10 +121,10 @@ public class PoolUpdateServiceTest : BuildTestSetup
 	[DataRow(true, 200, 50)]
 	[DataRow(true, 200, null)]
 	[DataRow(true, null, 0, 50, 300)]
-	public async Task AutoConformAgentsAsync(bool conformRequested, params int?[] autoConformThresholdsM)
+	public async Task AutoConformAgentsAsync(bool conformRequested, params int?[] autoConformThresholdsMb)
 	{
 		// Arrange
-		IAgent agent = await CreateAutoConformAgentAsync(100, autoConformThresholdsM);
+		IAgent agent = await CreateAutoConformAgentAsync(100, autoConformThresholdsMb);
 
 		// Act
 		await _pus.AutoConformAgentsAsync(CancellationToken.None);
@@ -134,8 +136,23 @@ public class PoolUpdateServiceTest : BuildTestSetup
 
 	private async Task<IAgent> CreateAutoConformAgentAsync(int freeDiskSpaceMb, params int?[] autoConformThresholdsMb)
 	{
-		IEnumerable<AgentWorkspaceInfo> workspaces = autoConformThresholdsMb.Select(x => new AgentWorkspaceInfo(null, null, "someWorkspace", "//Some/Stream", null, false, null, null, x));
-		IAgent? agent = await CreateAgentAsync(_pool, properties: [$"{KnownPropertyNames.DiskFreeSpace}={freeDiskSpaceMb * 1024 * 1024}"], workspaces: workspaces.ToList());
+		Dictionary<string, AgentConfig> agentTypes = new();
+		Dictionary<string, WorkspaceConfig> workspaceTypes = new();
+		for (int i = 0; i < autoConformThresholdsMb.Length; i++)
+		{
+			string workspaceId = "myWorkspace" + i;
+			string agentTypeName = "myAgentType" + i;
+			agentTypes[agentTypeName] = new AgentConfig { Pool = _pool.Id, Workspace = workspaceId };
+			workspaceTypes[workspaceId] = new WorkspaceConfig { Identifier = workspaceId, ConformDiskFreeSpace = autoConformThresholdsMb[i] };
+		}
+		
+		UpdateConfig(x =>
+		{
+			x.Plugins.GetBuildConfig().Projects.Clear();
+			x.Plugins.GetBuildConfig().Projects.Add(new ProjectConfig { Streams = [new StreamConfig { WorkspaceTypes = workspaceTypes, AgentTypes = agentTypes }]});
+		});
+		
+		IAgent? agent = await CreateAgentAsync(_pool, properties: [$"{KnownPropertyNames.DiskFreeSpace}={freeDiskSpaceMb * 1024 * 1024}"]);
 		agent = await agent.TryTerminateSessionAsync(); // Make agent status = stopped
 		Assert.IsNotNull(agent);
 		return agent;

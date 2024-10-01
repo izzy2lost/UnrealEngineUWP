@@ -153,6 +153,11 @@ namespace HordeServer
 				{
 					await callFunc();
 				}
+				catch (OperationCanceledException ex)
+				{
+					_logger.LogDebug(ex, "Rpc call to {Method} was cancelled", context.Method);
+					throw;
+				}
 				catch (StructuredRpcException ex)
 				{
 #pragma warning disable CA2254 // Template should be a static expression
@@ -162,16 +167,8 @@ namespace HordeServer
 				}
 				catch (Exception ex)
 				{
-					if (context.CancellationToken.IsCancellationRequested)
-					{
-						_logger.LogInformation(ex, "Call to method {Method} was cancelled", context.Method);
-						throw;
-					}
-					else
-					{
-						_logger.LogError(ex, "Exception in call to {Method}", context.Method);
-						throw new RpcException(new Status(StatusCode.Internal, $"An exception was thrown on the server: {ex}"));
-					}
+					_logger.LogError(ex, "Exception in call to {Method}", context.Method);
+					throw new RpcException(new Status(StatusCode.Internal, $"An exception was thrown on the server: {ex}"));
 				}
 			}
 		}
