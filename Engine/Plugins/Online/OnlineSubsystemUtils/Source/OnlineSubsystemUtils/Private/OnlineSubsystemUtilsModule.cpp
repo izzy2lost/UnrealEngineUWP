@@ -164,7 +164,7 @@ public:
 
 		int32 NumValidLogins = 0;
 		const UOnlinePIESettings* OnlinePIESettings = GetDefault<UOnlinePIESettings>();
-		for (const FPIELoginSettingsInternal& Login : OnlinePIESettings->Logins)
+		for (const FOnlineAccountStoredCredentials& Login : OnlinePIESettings->Logins)
 		{
 			if (Login.IsValid())
 			{
@@ -186,7 +186,7 @@ public:
 		if (OnlinePIESettings->Logins.Num() > 0)
 		{
 			Logins.Empty(OnlinePIESettings->Logins.Num());
-			for (const FPIELoginSettingsInternal& Login : OnlinePIESettings->Logins)
+			for (const FOnlineAccountStoredCredentials& Login : OnlinePIESettings->Logins)
 			{
 				if (Login.IsValid())
 				{

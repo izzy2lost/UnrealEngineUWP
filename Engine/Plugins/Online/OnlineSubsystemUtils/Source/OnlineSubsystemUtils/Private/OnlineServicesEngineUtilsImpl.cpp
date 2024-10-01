@@ -153,7 +153,7 @@ int32 FOnlineServicesEngineUtils::GetNumPIELogins() const
 
 	int32 NumValidLogins = 0;
 	const UOnlinePIESettings* OnlinePIESettings = GetDefault<UOnlinePIESettings>();
-	for (const FPIELoginSettingsInternal& Login : OnlinePIESettings->Logins)
+	for (const FOnlineAccountStoredCredentials& Login : OnlinePIESettings->Logins)
 	{
 		if (Login.IsValid())
 		{
@@ -172,7 +172,7 @@ void FOnlineServicesEngineUtils::GetPIELogins(TArray<FAuthLogin::Params>& Logins
 {
 	check(UObjectInitialized());
 	const UOnlinePIESettings* OnlinePIESettings = GetDefault<UOnlinePIESettings>();
-	for (const FPIELoginSettingsInternal& PIELoginCredentials : OnlinePIESettings->Logins)
+	for (const FOnlineAccountStoredCredentials& PIELoginCredentials : OnlinePIESettings->Logins)
 	{
 		UE::Online::FAuthLogin::Params LoginParameters;
 		LoginParameters.CredentialsId = PIELoginCredentials.Id;
