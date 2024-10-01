@@ -266,7 +266,7 @@ private:
 			}
 			else
 			{
-				MenuBuilder.AddWidget(SNullWidget::NullWidget, LOCTEXT("InvalidLiveLink", "Invalid LiveLink Client"), false, false);
+				MenuBuilder.AddWidget(SNullWidget::NullWidget, LOCTEXT("InvalidLiveLink", "Invalid Live Link Client"), false, false);
 			}
 			MenuBuilder.EndSection();
 
@@ -471,7 +471,7 @@ void SLiveLinkClientPanelToolbar::Construct(const FArguments& Args, FLiveLinkCli
 					.OnGetMenuContent(this, &SLiveLinkClientPanelToolbar::OnGenerateSourceMenu)
 					.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
 					.Text(LOCTEXT("AddSource", "Add Source"))
-					.ToolTipText(LOCTEXT("AddSource_ToolTip", "Add a new LiveLink source"))
+					.ToolTipText(LOCTEXT("AddSource_ToolTip", "Add a new Live Link source"))
 				]
 				+ SHorizontalBox::Slot()
 				.Padding(8.f, 0.f, 0.f, 0.f)
@@ -539,7 +539,7 @@ void SLiveLinkClientPanelToolbar::Construct(const FArguments& Args, FLiveLinkCli
 					[
 						SNew(SCheckBox)
 						.Padding(4.f)
-						.ToolTipText(LOCTEXT("ShowUserSettings_Tip", "Show/Hide the general user settings for LiveLink"))
+						.ToolTipText(LOCTEXT("ShowUserSettings_Tip", "Show/Hide the general user settings for Live Link"))
 						.Style(FAppStyle::Get(), "ToggleButtonCheckbox")
 						.ForegroundColor(FSlateColor::UseForeground())
 						.IsChecked_Lambda([]() { return ECheckBoxState::Unchecked; })
@@ -566,7 +566,7 @@ TSharedRef<SWidget> SLiveLinkClientPanelToolbar::OnGenerateSourceMenu()
 	const bool CloseAfterSelection = true;
 	FMenuBuilder MenuBuilder(CloseAfterSelection, NULL);
 
-	MenuBuilder.BeginSection("SourceSection", LOCTEXT("Sources", "LiveLink Sources"));
+	MenuBuilder.BeginSection("SourceSection", LOCTEXT("Sources", "Live Link Sources"));
 
 	for (int32 FactoryIndex = 0; FactoryIndex < Factories.Num(); ++FactoryIndex)
 	{
@@ -613,7 +613,7 @@ TSharedRef<SWidget> SLiveLinkClientPanelToolbar::OnGenerateSourceMenu()
 
 	MenuBuilder.EndSection();
 
-	MenuBuilder.BeginSection("VirtualSourceSection", LOCTEXT("VirtualSources", "LiveLink VirtualSubject Sources"));
+	MenuBuilder.BeginSection("VirtualSourceSection", LOCTEXT("VirtualSources", "Live Link VirtualSubject Sources"));
 
 	//For now, it's not possible to create VirtualSubject Sources from the UI.
 	//Code is present in case it's required in the future.
@@ -625,7 +625,7 @@ TSharedRef<SWidget> SLiveLinkClientPanelToolbar::OnGenerateSourceMenu()
 
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("AddVirtualSubject", "Add Virtual Subject"),
-		LOCTEXT("AddVirtualSubject_Tooltip", "Adds a new virtual subject to LiveLink. Instead of coming from a source a virtual subject is a combination of 2 or more real subjects"),
+		LOCTEXT("AddVirtualSubject_Tooltip", "Adds a new virtual subject to Live Link. Instead of coming from a source a virtual subject is a combination of 2 or more real subjects"),
 		FSlateIcon(),
 		FUIAction(
 			FExecuteAction::CreateSP(this, &SLiveLinkClientPanelToolbar::AddVirtualSubject)
@@ -806,7 +806,7 @@ static bool OpenSaveDialog(const FString& InDefaultPath, const FString& InNewNam
 		SaveAssetDialogConfig.DefaultAssetName = InNewNameSuggestion;
 		SaveAssetDialogConfig.AssetClassNames.Add(ULiveLinkPreset::StaticClass()->GetClassPathName());
 		SaveAssetDialogConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::AllowButWarn;
-		SaveAssetDialogConfig.DialogTitleOverride = LOCTEXT("SaveLiveLinkPresetDialogTitle", "Save LiveLink Preset");
+		SaveAssetDialogConfig.DialogTitleOverride = LOCTEXT("SaveLiveLinkPresetDialogTitle", "Save Live Link Preset");
 		SaveAssetDialogConfig.WindowOverride = InParentWindowOverride;
 	}
 
@@ -923,7 +923,7 @@ void SLiveLinkClientPanelToolbar::OnImportPreset(const FAssetData& InPreset)
 	ULiveLinkPreset* ImportedPreset = Cast<ULiveLinkPreset>(PresetAssetData);
 	if (ImportedPreset)
 	{
-		FScopedTransaction Transaction(LOCTEXT("ImportPreset_Transaction", "Import LiveLink Preset"));
+		FScopedTransaction Transaction(LOCTEXT("ImportPreset_Transaction", "Import Live Link Preset"));
 		ImportedPreset->ApplyToClientLatent();
 	}
 	LiveLinkPreset = ImportedPreset;

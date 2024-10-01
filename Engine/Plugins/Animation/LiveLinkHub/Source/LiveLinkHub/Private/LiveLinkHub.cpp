@@ -228,21 +228,21 @@ void FLiveLinkHub::RegisterLiveLinkHubSettings()
 {
 	if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
 	{
-		SettingsModule->RegisterSettings("Editor", "Plugins", "LiveLink",
+		SettingsModule->RegisterSettings("Editor", "Plugins", "Live Link",
 			LOCTEXT("EditorSettingsName", "Live Link"),
-			LOCTEXT("EditorSettingsDescription", "Configure LiveLink."),
+			LOCTEXT("EditorSettingsDescription", "Configure Live Link."),
 			GetMutableDefault<ULiveLinkEditorSettings>()
 		);
 
-		SettingsModule->RegisterSettings("Project", "Plugins", "LiveLink",
+		SettingsModule->RegisterSettings("Project", "Plugins", "Live Link",
 			LOCTEXT("LiveLinkSettingsName", "Live Link"),
-			LOCTEXT("LiveLinkDescription", "Configure LiveLink."),
+			LOCTEXT("LiveLinkDescription", "Configure Live Link."),
 			GetMutableDefault<ULiveLinkSettings>()
 		);
 
-		SettingsModule->RegisterSettings("Project", "Plugins", "LiveLinkHub",
+		SettingsModule->RegisterSettings("Project", "Plugins", "Live Link Hub",
 			LOCTEXT("LiveLinkHubSettingsName", "Live Link Hub"),
-			LOCTEXT("LiveLinkHubDescription", "Configure LiveLink Hub."),
+			LOCTEXT("LiveLinkHubDescription", "Configure Live Link Hub."),
 			GetMutableDefault<ULiveLinkHubSettings>()
 		);
 	}
