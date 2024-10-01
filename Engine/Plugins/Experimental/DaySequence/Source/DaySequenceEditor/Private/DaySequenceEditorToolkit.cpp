@@ -323,14 +323,6 @@ void FDaySequenceEditorToolkit::InitializeInternal(
 
 	if (bIsSequenceEditor)
 	{
-		// Reopen the scene outliner so that is refreshed with the sequencer columns
-		TSharedPtr<FTabManager> LevelEditorTabManager = LevelEditorModule.GetLevelEditorTabManager();
-		if (LevelEditorTabManager->FindExistingLiveTab(FName("LevelEditorSceneOutliner")).IsValid())
-		{
-			LevelEditorTabManager->TryInvokeTab(FName("LevelEditorSceneOutliner"))->RequestCloseTab();
-			LevelEditorTabManager->TryInvokeTab(FName("LevelEditorSceneOutliner"));
-		}
-
 		// Now Attach so this window will appear in the correct front first order
 		TSharedPtr<SDockTab> DockTab = LevelEditorModule.AttachSequencer(Sequencer->GetSequencerWidget(), SharedThis(this));
 		if (DockTab.IsValid())
