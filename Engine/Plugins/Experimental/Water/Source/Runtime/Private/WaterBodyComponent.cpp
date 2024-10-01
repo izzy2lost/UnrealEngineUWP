@@ -1698,26 +1698,32 @@ void UWaterBodyComponent::PostLoad()
 
 	DeprecateData();
 
-	if (IsComponentPSOPrecachingEnabled()
-		// FIXME: need to collect an actual vertex declaration for non-MVF path
-		&& RHISupportsManualVertexFetch(GMaxRHIShaderPlatform))
+	if ((IsComponentPSOPrecachingEnabled() && RHISupportsManualVertexFetch(GMaxRHIShaderPlatform)) || IsDynamicShaderPreloadingEnabled())
 	{
 		FPSOPrecacheParams PrecachePSOParams;
 		SetupPrecachePSOParams(PrecachePSOParams);
-		if (WaterMaterial)
+
+		const FVertexFactoryType* VFType = &FLocalVertexFactory::StaticType;
+		FPSOPrecacheVertexFactoryDataList VFDataList;
+		VFDataList.Add(FPSOPrecacheVertexFactoryData(VFType));
+
+		TArray<TObjectPtr<UMaterialInterface>> Materials = { WaterMaterial, UnderwaterPostProcessMaterial, WaterInfoMaterial };
+
+		for (TObjectPtr<UMaterialInterface>& Mat : Materials)
 		{
-			WaterMaterial->ConditionalPostLoad();
-			WaterMaterial->PrecachePSOs(&FLocalVertexFactory::StaticType, PrecachePSOParams);
-		}
-		if (UnderwaterPostProcessMaterial)
-		{
-			UnderwaterPostProcessMaterial->ConditionalPostLoad();
-			UnderwaterPostProcessMaterial->PrecachePSOs(&FLocalVertexFactory::StaticType, PrecachePSOParams);
-		}
-		if (WaterInfoMaterial)
-		{
-			WaterInfoMaterial->ConditionalPostLoad();
-			WaterInfoMaterial->PrecachePSOs(&FLocalVertexFactory::StaticType, PrecachePSOParams);
+			if(Mat)
+			{ 
+				Mat->ConditionalPostLoad();
+
+				if (IsDynamicShaderPreloadingEnabled())
+				{
+					Mat->PreloadShaders(VFDataList, PrecachePSOParams);
+				}
+				else
+				{
+					Mat->PrecachePSOs(VFType, PrecachePSOParams);
+				}
+			}
 		}
 	}
 

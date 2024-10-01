@@ -601,6 +601,10 @@ public:
 	{
 		return Material && Material->MaterialDomain == MD_DeferredDecal;
 	}
+	virtual bool IsUIMaterial() const override
+	{
+		return Material && Material->MaterialDomain == MD_UI;
+	}
 	virtual bool IsVolumetricPrimitive() const override
 	{
 		return Material && Material->MaterialDomain == MD_Volume;

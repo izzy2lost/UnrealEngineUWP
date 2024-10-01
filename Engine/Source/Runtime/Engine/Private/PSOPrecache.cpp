@@ -7,12 +7,15 @@
 #include "PSOPrecache.h"
 #include "Misc/App.h"
 #include "HAL/IConsoleManager.h"
+#include "ShaderCodeLibrary.h"
+#include "Materials/MaterialInterface.h"
 
 static TAutoConsoleVariable<int32> CVarPrecacheGlobalComputeShaders(
-	TEXT("r.PSOPrecache.GlobalComputeShaders"),
+	TEXT("r.PSOPrecache.GlobalShaders"),
 	0,
-	TEXT("Precache all global compute shaders during startup (default 0)."),
-	ECVF_ReadOnly
+	TEXT("Precache global shaders during startup (disable(0) - only compute shaders(1) - all global shaders(2).\n") 
+	TEXT("Note: r.PSOPrecache.GlobalShaders == 2 is only supported when IsDynamicShaderPreloadingEnabled is enabled."),
+	ECVF_SaveForNextBoot
 );
 
 int32 GPSOPrecacheComponents = 1;
@@ -60,6 +63,19 @@ static FAutoConsoleVariableRef CVarPSOComponentBoostStrategy(
 	TEXT("1 if the component has been rendered then increase the priority of it's PSO precache requests. (this requires r.PSOPrecache.ProxyCreationDelayStrategy == 1.)"),
 	ECVF_ReadOnly
 );
+
+static int32 GDynamicShaderPreloading = 0;
+static FAutoConsoleVariableRef CVarDynamicShaderPreloading(
+	TEXT("r.PSOPrecache.DynamicShaderPreloading"),	
+	GDynamicShaderPreloading,
+	TEXT("Preload shaders separately as a task before PSO collection and precaching (requires r.ShaderCodeLibrary.PreloadShaderMaps=0)."),
+	ECVF_SaveForNextBoot
+);
+
+bool IsDynamicShaderPreloadingEnabled()
+{
+	return FApp::CanEverRender() && GDynamicShaderPreloading && !FShaderCodeLibrary::AreShaderMapsPreloadedAtLoadTime() && !GIsEditor && UMaterialInterface::IsDefaultMaterialInitialized();
+}
 
 bool IsComponentPSOPrecachingEnabled()
 {

@@ -490,6 +490,10 @@ public:
 		// Instead we'll just bake them as surface materials.
 		return false;
 	}
+	virtual bool IsUIMaterial() const override
+	{
+		return Material && Material->MaterialDomain == MD_UI;
+	}
 	virtual bool IsVolumetricPrimitive() const override
 	{
 		return Material && Material->MaterialDomain == MD_Volume;

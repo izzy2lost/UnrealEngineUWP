@@ -357,9 +357,7 @@ void UMaterialBillboardComponent::PostLoad()
 {
 	Super::PostLoad();
 
-	if (IsComponentPSOPrecachingEnabled()
-		// FIXME: need to collect an actual vertex declaration for non-MVF path
-		&& RHISupportsManualVertexFetch(GMaxRHIShaderPlatform))
+	if ((IsComponentPSOPrecachingEnabled() && RHISupportsManualVertexFetch(GMaxRHIShaderPlatform)) || IsDynamicShaderPreloadingEnabled())
 	{
 		FPSOPrecacheParams PrecachePSOParams;
 		SetupPrecachePSOParams(PrecachePSOParams);
@@ -367,6 +365,8 @@ void UMaterialBillboardComponent::PostLoad()
 		PrecachePSOParams.bDisableBackFaceCulling = true;
 
 		const FVertexFactoryType* VFType = &FLocalVertexFactory::StaticType;
+		FPSOPrecacheVertexFactoryDataList VFDataList;
+		VFDataList.Add(FPSOPrecacheVertexFactoryData(VFType));
 
 		TArray<UMaterialInterface*> UsedMaterials;
 		GetUsedMaterials(UsedMaterials, false);
@@ -374,7 +374,14 @@ void UMaterialBillboardComponent::PostLoad()
 		{
 			if (MaterialInterface)
 			{
-				MaterialInterface->PrecachePSOs(VFType, PrecachePSOParams);
+				if (IsDynamicShaderPreloadingEnabled())
+				{					
+					MaterialInterface->PreloadShaders(VFDataList, PrecachePSOParams);
+				}
+				else
+				{
+					MaterialInterface->PrecachePSOs(VFType, PrecachePSOParams);
+				}
 			}
 		}
 	}

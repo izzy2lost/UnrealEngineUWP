@@ -34,7 +34,7 @@ public:
 		const FMaterial& Material,
 		const FPSOPrecacheVertexFactoryData& VertexFactoryData,
 		const FPSOPrecacheParams& PreCacheParams,
-		TArray<FPSOPrecacheData>& PSOInitializers
+		FPassProcessorPSOCollection& OutCollection
 	) override final;
 
 private:
@@ -47,7 +47,7 @@ void FNanitePSOCollector::CollectPSOInitializers(
 	const FMaterial& Material,
 	const FPSOPrecacheVertexFactoryData& VertexFactoryData,
 	const FPSOPrecacheParams& PreCacheParams,
-	TArray<FPSOPrecacheData>& PSOInitializers
+	FPassProcessorPSOCollection& OutCollection
 )
 {
 	// Make sure Nanite rendering is supported.
@@ -75,9 +75,9 @@ void FNanitePSOCollector::CollectPSOInitializers(
 	FPSOPrecacheVertexFactoryData NaniteVertexFactoryData = VertexFactoryData;
 	NaniteVertexFactoryData.CustomDefaultVertexDeclaration = nullptr;
 
-	Nanite::CollectBasePassShadingPSOInitializers(SceneTexturesConfig, NaniteVertexFactoryData, Material, PreCacheParams, FeatureLevel, ShaderPlatform, PSOCollectorIndex, PSOInitializers);
-	Nanite::CollectRasterPSOInitializers(SceneTexturesConfig, Material, PreCacheParams, ShaderPlatform, PSOCollectorIndex, PSOInitializers);
-	Nanite::CollectLumenCardPSOInitializers(SceneTexturesConfig, NaniteVertexFactoryData, Material, PreCacheParams, FeatureLevel, ShaderPlatform, PSOCollectorIndex, PSOInitializers);
+	Nanite::CollectBasePassShadingPSOInitializers(SceneTexturesConfig, NaniteVertexFactoryData, Material, PreCacheParams, FeatureLevel, ShaderPlatform, PSOCollectorIndex, OutCollection);
+	Nanite::CollectRasterPSOInitializers(SceneTexturesConfig, Material, PreCacheParams, ShaderPlatform, PSOCollectorIndex, OutCollection);
+	Nanite::CollectLumenCardPSOInitializers(SceneTexturesConfig, NaniteVertexFactoryData, Material, PreCacheParams, FeatureLevel, ShaderPlatform, PSOCollectorIndex, OutCollection);
 }
 
 IPSOCollector* CreateNanitePSOCollector(ERHIFeatureLevel::Type FeatureLevel)

@@ -1669,7 +1669,7 @@ void FBasePassMeshProcessor::CollectPSOInitializersForLMPolicy(
 	ERasterizerFillMode MeshFillMode,
 	ERasterizerCullMode MeshCullMode,
 	EPrimitiveType PrimitiveType, 
-	TArray<FPSOPrecacheData>& PSOInitializers)
+	FPassProcessorPSOCollection& OutCollection)
 {
 	// Get the shaders if possible for given vertex factory
 	TMeshProcessorShaders<
@@ -1682,12 +1682,18 @@ void FBasePassMeshProcessor::CollectPSOInitializersForLMPolicy(
 		FeatureLevel,
 		bRenderSkylight,
 		Get128BitRequirement(),
-		GBL_Default, // Currently only Nanite supports non-default layout
+		GBL_Default, // Currently only Nanite supports non-default layout)
 		&BasePassShaders.VertexShader,
 		&BasePassShaders.PixelShader,
 		bOITBasePass
 		))
 	{
+		return;
+	}
+
+	if (OutCollection.IsCollectingShadersOnly())
+	{
+		OutCollection.Collect(BasePassShaders.GetUntypedShaders().GetValidShaders());
 		return;
 	}
 
@@ -1749,7 +1755,7 @@ void FBasePassMeshProcessor::CollectPSOInitializersForLMPolicy(
 			PrimitiveType,
 			EMeshPassFeatures::Default,
 			true /*bRequired*/,
-			PSOInitializers);
+			OutCollection);
 
 		// Add another PSO when render in separate translucency because render target format could have changed
 		if (bRenderInSeparateTranslucency)
@@ -1769,7 +1775,7 @@ void FBasePassMeshProcessor::CollectPSOInitializersForLMPolicy(
 				PrimitiveType,
 				EMeshPassFeatures::Default,
 				true /*bRequired*/,
-				PSOInitializers);
+				OutCollection);
 		}
 	}
 	else
@@ -1798,7 +1804,7 @@ void FBasePassMeshProcessor::CollectPSOInitializersForLMPolicy(
 			PrimitiveType,
 			true /*bPrecacheAlphaColorChannel*/,
 			PSOCollectorIndex,
-			PSOInitializers);
+			OutCollection);
 	}	
 }
 
@@ -2395,7 +2401,7 @@ TArray<ELightMapPolicyType, TInlineAllocator<2>> FBasePassMeshProcessor::GetUnif
 	return UniformLightMapPolicyTypes;
 }
 
-void FBasePassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers)
+void FBasePassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection)
 {
 	// Check if material should be rendered
 	bool bShouldDraw = ShouldDraw(Material)
@@ -2423,9 +2429,9 @@ void FBasePassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& 
 
 	{
 		bool bRenderSkyLight = true; // generate for both skylight enabled/disabled? Or can this be known already at this point?
-		CollectPSOInitializersForSkyLight(SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, bRenderSkyLight, bDitheredLODTransition, MeshFillMode, MeshCullMode, (EPrimitiveType)PreCacheParams.PrimitiveType, PSOInitializers);
+		CollectPSOInitializersForSkyLight(SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, bRenderSkyLight, bDitheredLODTransition, MeshFillMode, MeshCullMode, (EPrimitiveType)PreCacheParams.PrimitiveType, OutCollection);
 		bRenderSkyLight = false;
-		CollectPSOInitializersForSkyLight(SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, bRenderSkyLight, bDitheredLODTransition, MeshFillMode, MeshCullMode, (EPrimitiveType)PreCacheParams.PrimitiveType, PSOInitializers);
+		CollectPSOInitializersForSkyLight(SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, bRenderSkyLight, bDitheredLODTransition, MeshFillMode, MeshCullMode, (EPrimitiveType)PreCacheParams.PrimitiveType, OutCollection);
 	}
 }
 
@@ -2439,7 +2445,7 @@ void FBasePassMeshProcessor::CollectPSOInitializersForSkyLight(
 	ERasterizerFillMode MeshFillMode,
 	ERasterizerCullMode MeshCullMode,
 	EPrimitiveType PrimitiveType, 
-	TArray<FPSOPrecacheData>& PSOInitializers)
+	FPassProcessorPSOCollection& OutCollection)
 {
 	const FMaterialShadingModelField ShadingModels = Material.GetShadingModels();
 
@@ -2461,19 +2467,19 @@ void FBasePassMeshProcessor::CollectPSOInitializersForSkyLight(
 		{
 			CollectPSOInitializersForLMPolicy< FSelfShadowedVolumetricLightmapPolicy >(
 				SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, ShadingModels, bRenderSkyLight, bDitheredLODTransition,
-				FSelfShadowedVolumetricLightmapPolicy(), MeshFillMode, MeshCullMode, PrimitiveType, PSOInitializers);
+				FSelfShadowedVolumetricLightmapPolicy(), MeshFillMode, MeshCullMode, PrimitiveType, OutCollection);
 		}
 
 		if (IsIndirectLightingCacheAllowed(FeatureLevel) && bAllowIndirectLightingCache)
 		{
 			CollectPSOInitializersForLMPolicy< FSelfShadowedCachedPointIndirectLightingPolicy >(
 				SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, ShadingModels, bRenderSkyLight, bDitheredLODTransition,
-				FSelfShadowedCachedPointIndirectLightingPolicy(), MeshFillMode, MeshCullMode, PrimitiveType, PSOInitializers);
+				FSelfShadowedCachedPointIndirectLightingPolicy(), MeshFillMode, MeshCullMode, PrimitiveType, OutCollection);
 		}
 
 		CollectPSOInitializersForLMPolicy< FSelfShadowedTranslucencyPolicy >(
 			SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, ShadingModels, bRenderSkyLight, bDitheredLODTransition,
-			FSelfShadowedTranslucencyPolicy(), MeshFillMode, MeshCullMode, PrimitiveType, PSOInitializers);
+			FSelfShadowedTranslucencyPolicy(), MeshFillMode, MeshCullMode, PrimitiveType, OutCollection);
 	}
 
 	TArray<ELightMapPolicyType, TInlineAllocator<2>> UniformLightMapPolicyTypes = GetUniformLightMapPolicyTypeForPSOCollection(FeatureLevel, Material);
@@ -2481,7 +2487,7 @@ void FBasePassMeshProcessor::CollectPSOInitializersForSkyLight(
 	{
 		CollectPSOInitializersForLMPolicy< FUniformLightMapPolicy >(
 			SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, ShadingModels, bRenderSkyLight, bDitheredLODTransition,
-			FUniformLightMapPolicy(LightMapPolicyType), MeshFillMode, MeshCullMode, PrimitiveType, PSOInitializers);
+			FUniformLightMapPolicy(LightMapPolicyType), MeshFillMode, MeshCullMode, PrimitiveType, OutCollection);
 	}
 }
 

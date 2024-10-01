@@ -12,6 +12,7 @@
 #include "Engine/EngineTypes.h"
 #include "PipelineStateCache.h"
 #include "PSOPrecacheFwd.h"
+#include "Shader.h"
 
 class FVertexFactoryType;
 
@@ -180,6 +181,24 @@ struct FMaterialInterfacePSOPrecacheParams
 
 extern ENGINE_API void AddMaterialInterfacePSOPrecacheParamsToList(const FMaterialInterfacePSOPrecacheParams& EntryToAdd, FMaterialInterfacePSOPrecacheParamsList& List);
 
+struct FShaderPreloadData
+{
+	FShaderPreloadData() = default;
+
+	FShaderPreloadData(const TShaderRef<FShader>& InShader)
+	{
+		Shaders.Emplace(InShader);
+	}
+
+	FShaderPreloadData(TArray<TShaderRef<FShader>, TInlineAllocator<3>>&& InShaders)
+		: Shaders(MoveTemp(InShaders))
+	{
+	}
+
+	// Can have 3 shaders at most (vertex, geometry, pixel).
+	TArray<TShaderRef<FShader>, TInlineAllocator<3>> Shaders;
+};
+
 /**
  * Wrapper class around the initializer to collect some extra validation data during PSO collection on the different collectors
  */
@@ -248,6 +267,8 @@ struct FMaterialPSOPrecacheParams
 	}
 };
 
+
+
 /**
  * Precaching PSOs for components?
  */
@@ -262,6 +283,11 @@ extern ENGINE_API bool IsResourcePSOPrecachingEnabled();
  * Boost drawn PSO precache request priority
  */
 extern ENGINE_API bool ShouldBoostPSOPrecachePriorityOnDraw();
+
+/**
+ * Dynamically preload shaders
+ */
+extern ENGINE_API bool IsDynamicShaderPreloadingEnabled();
 
 enum class EPSOPrecacheProxyCreationStrategy : uint8
 {

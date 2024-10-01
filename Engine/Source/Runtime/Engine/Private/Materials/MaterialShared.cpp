@@ -3137,6 +3137,34 @@ FGraphEventArray FMaterial::CollectPSOs(ERHIFeatureLevel::Type InFeatureLevel, c
 	return GraphEvents;
 }
 
+FGraphEventArray FMaterial::CollectShaders(ERHIFeatureLevel::Type InFeatureLevel, const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const FPSOPrecacheParams& PreCacheParams)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FMaterial::CollectShaders);
+
+	FGraphEventArray GraphEvents;
+	if (GameThreadShaderMap == nullptr)
+	{
+		return GraphEvents;
+	}
+
+	for (const FPSOPrecacheVertexFactoryData& VFData : VertexFactoryDataList)
+	{
+		if (!VFData.VertexFactoryType->SupportsPSOPrecaching())
+		{
+			continue;
+		}
+
+		FMaterialPSOPrecacheParams Params;
+		Params.FeatureLevel = FeatureLevel;
+		Params.Material = this;
+		Params.VertexFactoryData = VFData;
+		Params.PrecachePSOParams = PreCacheParams;
+
+		PreloadMaterialShaders(Params, GraphEvents);
+	}
+	return GraphEvents;
+}
+
 TArray<FMaterialPSOPrecacheRequestID> FMaterial::GetMaterialPSOPrecacheRequestIDs() const
 {
 	TArray<FMaterialPSOPrecacheRequestID> TmpPrecachedPSORequestIDs;

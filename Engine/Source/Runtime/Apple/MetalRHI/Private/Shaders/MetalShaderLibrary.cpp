@@ -128,7 +128,7 @@ int32 FMetalShaderLibrary::FindShaderIndex(const FSHAHash& Hash)
 	return SerializedShaders.FindShader(Hash);
 }
 
-TRefCountPtr<FRHIShader> FMetalShaderLibrary::CreateShader(int32 Index)
+TRefCountPtr<FRHIShader> FMetalShaderLibrary::CreateShader(int32 Index, bool bRequired)
 {
 	const FShaderCodeEntry& ShaderEntry = SerializedShaders.GetShaderEntries()[Index];
 

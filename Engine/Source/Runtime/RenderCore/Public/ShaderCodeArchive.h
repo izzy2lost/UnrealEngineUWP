@@ -399,7 +399,7 @@ public:
 
 	virtual void ReleasePreloadedShader(int32 ShaderIndex) override;
 
-	virtual TRefCountPtr<FRHIShader> CreateShader(int32 Index) override;
+	virtual TRefCountPtr<FRHIShader> CreateShader(int32 Index, bool bRequired = true) override;
 	virtual void Teardown() override;
 
 	void OnShaderPreloadFinished(int32 ShaderIndex, const IMemoryReadStreamRef& PreloadData);
@@ -645,11 +645,21 @@ public:
 		return Header.ShaderHashes[GetShaderIndex(ShaderMapIndex, ShaderIndex)];
 	}
 
+	virtual bool IsPreloading(int32 ShaderIndex, FGraphEventArray& OutCompletionEvents) override;
 	virtual bool PreloadShader(int32 ShaderIndex, FGraphEventArray& OutCompletionEvents) override;
+	virtual void AddRefPreloadedShaderGroup(int32 ShaderGroupIndex) override;
+	virtual void ReleasePreloadedShaderGroup(int32 ShaderGroupIndex) override;
+
+	/** Returns the index of shader group that a given shader belongs to. */
+	virtual int32 GetGroupIndexForShader(int32 ShaderIndex) const override
+	{
+		return Header.ShaderEntries[ShaderIndex].ShaderGroupIndex;
+	}
+	
 	virtual bool PreloadShaderMap(int32 ShaderMapIndex, FGraphEventArray& OutCompletionEvents) override;
 	virtual bool PreloadShaderMap(int32 ShaderMapIndex, FCoreDelegates::FAttachShaderReadRequestFunc AttachShaderReadRequestFunc) override;
 	virtual void ReleasePreloadedShader(int32 ShaderIndex) override;
-	virtual TRefCountPtr<FRHIShader> CreateShader(int32 Index) override;
+	virtual TRefCountPtr<FRHIShader> CreateShader(int32 Index, bool bRequired = true) override;
 	virtual void Teardown() override;
 
 private:
@@ -670,6 +680,10 @@ private:
 		FShaderGroupPreloadEntry()
 			: NumRefs(0)
 			, bNeverToBePreloaded(0)
+		{
+		}
+
+		~FShaderGroupPreloadEntry()
 		{
 		}
 	};
@@ -701,12 +715,6 @@ private:
 		, const FString& CallsiteInfo
 #endif
 	);
-
-	/** Returns the index of shader group that a given shader belongs to. */
-	inline int32 GetGroupIndexForShader(int32 ShaderIndex) const
-	{
-		return Header.ShaderEntries[ShaderIndex].ShaderGroupIndex;
-	}
 
 	/** Finds or adds preload info for a shader group. Assumes lock guarding access to the info taken, never returns nullptr (except when new failed and we're already broken beyond repair)*/
 	inline FShaderGroupPreloadEntry* FindOrAddPreloadEntry(int32 ShaderGroupIndex)

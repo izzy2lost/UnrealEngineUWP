@@ -34,7 +34,7 @@ public:
 		const FMaterial& Material,
 		const FPSOPrecacheVertexFactoryData& VertexFactoryData,
 		const FPSOPrecacheParams& PreCacheParams, 
-		TArray<FPSOPrecacheData>& PSOInitializers) override final;
+		FPassProcessorPSOCollection& OutCollection) override final;
 
 protected:
 	bool TryAddMeshBatch(

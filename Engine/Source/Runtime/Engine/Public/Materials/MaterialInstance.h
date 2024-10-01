@@ -875,6 +875,8 @@ public:
 	virtual ENGINE_API int32 GetBlendablePriority(const UMaterial* Base) const override;
 
 	virtual ENGINE_API FGraphEventArray PrecachePSOs(const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const FPSOPrecacheParams& PreCacheParams, EPSOPrecachePriority Priority, TArray<FMaterialPSOPrecacheRequestID>& OutMaterialPSORequestIDs) override;
+	virtual ENGINE_API FGraphEventArray PreloadShaders(const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const struct FPSOPrecacheParams& PreCacheParams) override;
+
 
 #if WITH_EDITOR
 	ENGINE_API virtual void ForceRecompileForRendering(EMaterialShaderPrecompileMode CompileMode = EMaterialShaderPrecompileMode::Default) override;
@@ -898,6 +900,8 @@ public:
 	ENGINE_API virtual float GetMaxWorldPositionOffsetDisplacement() const override;
 	ENGINE_API virtual bool ShouldAlwaysEvaluateWorldPositionOffset() const override;
 	ENGINE_API virtual bool IsDeferredDecal() const override;
+	ENGINE_API virtual bool IsUIMaterial() const override;
+	ENGINE_API virtual bool IsPostProcessMaterial() const override;
 	ENGINE_API virtual bool HasVertexInterpolator() const override;
 	ENGINE_API virtual bool HasCustomizedUVs() const override;
 	ENGINE_API virtual bool HasPixelAnimation() const override;

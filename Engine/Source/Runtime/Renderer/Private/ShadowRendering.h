@@ -121,7 +121,7 @@ public:
 		FMeshPassDrawListContext* InDrawListContext);
 
 	virtual void AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch, uint64 BatchElementMask, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, int32 StaticMeshId = -1) override final;
-	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers) override final;
+	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection) override final;
 
 	FMeshPassProcessorRenderState PassDrawRenderState;
 
@@ -149,7 +149,7 @@ private:
 		ERasterizerFillMode MeshFillMode,
 		ERasterizerCullMode MeshCullMode,
 		bool bCastShadowAsTwoSided,
-		TArray<FPSOPrecacheData>& PSOInitializers);
+		FPassProcessorPSOCollection& OutCollection);
 
 	void CollectPSOInitializersForEachStreamSetup(
 		const FPSOPrecacheVertexFactoryData& VertexFactoryData,
@@ -158,7 +158,7 @@ private:
 		ERasterizerFillMode MeshFillMode,
 		ERasterizerCullMode MeshCullMode,
 		bool bRequired,
-		TArray<FPSOPrecacheData>& PSOInitializers);
+		FPassProcessorPSOCollection& OutCollection);
 
 	void CollectPSOInitializersInternal(
 		const FPSOPrecacheVertexFactoryData& VertexFactoryData,
@@ -168,7 +168,7 @@ private:
 		ERasterizerCullMode MeshCullMode,
 		bool bSupportsPositionAndNormalOnlyStream,
 		bool bRequired,
-		TArray<FPSOPrecacheData>& PSOInitializers);
+		FPassProcessorPSOCollection& OutCollection);
 
 	EShadowDepthType ShadowDepthType;
 	EShadowMeshSelection MeshSelectionMask = EShadowMeshSelection::All;

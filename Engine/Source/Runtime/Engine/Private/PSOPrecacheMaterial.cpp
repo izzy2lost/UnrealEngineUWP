@@ -14,6 +14,7 @@
 #include "MaterialShared.h"
 #include "VertexFactory.h"
 #include "SceneInterface.h"
+#include "ShaderCodeArchive.h"
 #include "ODSC/ODSCManager.h"
 
 int32 GPSOUseBackgroundThreadForCollection = 1;
@@ -22,6 +23,14 @@ static FAutoConsoleVariableRef CVarPSOUseBackgroundThreadForCollection(
 	GPSOUseBackgroundThreadForCollection,
 	TEXT("Use background threads for PSO precache data collection on the mesh pass processors.\n"),
 	ECVF_ReadOnly
+);
+
+bool GShaderPreloadFilterUniqueRequest = true;
+static FAutoConsoleVariableRef CVarShaderPreloadFilterUniqueRequest(
+	TEXT("r.PSOPrecache.ShaderPreloadFilterUniqueRequest"),
+	GShaderPreloadFilterUniqueRequest,
+	TEXT("Perf improvement (reduce contention on r/w lock). When kicking preload shaders job, only request one preload request per shaderIndex inside the same ShaderMapResource.\n"),
+	ECVF_Default
 );
 
 CSV_DECLARE_CATEGORY_EXTERN(PSOPrecache);
@@ -96,6 +105,34 @@ FPSOPrecacheRequestResultArray RequestPrecachePSOs(const FPSOPrecacheDataArray& 
 }
 
 /**
+ * Helper task used to release the strong object reference to the material interface on the game thread
+ * The release has to happen on the gamethread and the material interface can't be GCd while the PSO
+ * collection is happening because it touches the material resources
+ */
+class FMaterialInterfaceReleaseTask
+{
+public:
+	explicit FMaterialInterfaceReleaseTask(TStrongObjectPtr<UMaterialInterface>* InMaterialInterface)
+		: MaterialInterface(InMaterialInterface)
+	{
+	}
+
+	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
+	{
+		check(IsInGameThread());
+		delete MaterialInterface;
+	}
+
+public:
+
+	TStrongObjectPtr<UMaterialInterface>* MaterialInterface;
+
+	static ESubsequentsMode::Type	GetSubsequentsMode() { return ESubsequentsMode::FireAndForget; }
+	ENamedThreads::Type				GetDesiredThread() { return ENamedThreads::GameThread; }
+	FORCEINLINE TStatId				GetStatId() const { return TStatId(); }
+};
+
+/**
  * Helper task used to offload the PSO collection from the GameThread. The shader decompression
  * takes too long to run this on the GameThread and it isn't blocking anything crucial.
  * The graph event used to create this task is extended with the PSO compilation tasks itself so the user can optionally
@@ -133,6 +170,63 @@ public:
 	static ESubsequentsMode::Type	GetSubsequentsMode() { return ESubsequentsMode::TrackSubsequents; }
 	ENamedThreads::Type				GetDesiredThread() { return ENamedThreads::AnyBackgroundThreadNormalTask; }
 	FORCEINLINE TStatId				GetStatId() const { return TStatId(); }
+};
+
+
+class FShaderMapPreloadTask
+{
+public:
+	explicit FShaderMapPreloadTask(
+		TStrongObjectPtr<UMaterialInterface>* InMaterialInterface,
+		FMaterialShaderMap* InMaterialShaderMap,
+		FGraphEventRef InShaderPreloadEvents,
+		const TOptional<uint32>& InRequestLifecycleID)
+		: MaterialInterface(InMaterialInterface)
+		, MaterialShaderMap(InMaterialShaderMap)
+		, ShaderPreloadEvents(InShaderPreloadEvents)
+		, RequestLifecycleID(InRequestLifecycleID)
+	{
+	}
+
+	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent);
+
+	static ESubsequentsMode::Type	GetSubsequentsMode() { return ESubsequentsMode::TrackSubsequents; }
+	ENamedThreads::Type				GetDesiredThread() { return ENamedThreads::AnyBackgroundThreadNormalTask; }
+	FORCEINLINE TStatId				GetStatId() const { return TStatId(); }
+
+private:
+	TStrongObjectPtr<UMaterialInterface>* MaterialInterface;
+	FMaterialShaderMap* MaterialShaderMap;
+	FGraphEventRef ShaderPreloadEvents;
+	TOptional<uint32> RequestLifecycleID;
+};
+
+class FShaderPreloadCollectionTask
+{
+public:
+	explicit FShaderPreloadCollectionTask(
+		TStrongObjectPtr<UMaterialInterface>* InMaterialInterface,
+		const FMaterialPSOPrecacheParams& InPrecacheParams,
+		FGraphEventRef InShaderPreloadEvents,
+		const TOptional<uint32>& InRequestLifecycleID)
+		: MaterialInterface(InMaterialInterface)
+		, PrecacheParams(InPrecacheParams)
+		, ShaderPreloadEvents(InShaderPreloadEvents)
+		, RequestLifecycleID(InRequestLifecycleID)
+	{
+	}
+
+	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent);
+
+	static ESubsequentsMode::Type	GetSubsequentsMode() { return ESubsequentsMode::TrackSubsequents; }
+	ENamedThreads::Type				GetDesiredThread() { return ENamedThreads::AnyBackgroundThreadNormalTask; }
+	FORCEINLINE TStatId				GetStatId() const { return TStatId(); }
+
+private:
+	TStrongObjectPtr<UMaterialInterface>* MaterialInterface;
+	FMaterialPSOPrecacheParams PrecacheParams;
+	FGraphEventRef ShaderPreloadEvents;
+	TOptional<uint32> RequestLifecycleID;
 };
 
 
@@ -230,15 +324,27 @@ public:
 			// Make sure the material instance isn't garbage collected or destroyed yet (create TStrongObjectPtr which will be destroyed on the GT when the collection is done)
 			TStrongObjectPtr<UMaterialInterface>* MaterialInterface = new TStrongObjectPtr<UMaterialInterface>(Params.Material->GetMaterialInterface());
 
-			// Create and kick the collection task
-			TGraphTask<FMaterialPSOPrecacheCollectionTask>::CreateTask().ConstructAndDispatchWhenReady(MaterialInterface, Params, CollectionGraphEvent, LifecycleID);
-			
-			// Need to wait for collection task which will be extented during run with the actual async compile events
+			FGraphEventArray Prereqs;
+
+			// If we're not preloading shader maps, kick off shader preloading tasks now.
+			if (IsDynamicShaderPreloadingEnabled())
+			{
+				// Collect and preload shaders before moving onto PSOs.
+				FGraphEventRef ShadersPreloadedEvent = FGraphEvent::CreateGraphEvent();
+				FGraphEventRef ShaderPreloadTask = TGraphTask<FShaderPreloadCollectionTask>::CreateTask().ConstructAndDispatchWhenReady(MaterialInterface, Params, ShadersPreloadedEvent, LifecycleID);
+				Prereqs.Emplace(MoveTemp(ShadersPreloadedEvent));
+			}
+
+			// Create and kick off the PSO collection task.
+			TGraphTask<FMaterialPSOPrecacheCollectionTask>::CreateTask(&Prereqs).ConstructAndDispatchWhenReady(MaterialInterface, Params, CollectionGraphEvent, LifecycleID);
+
+			// Need to wait for collection task which will be extended during run with the actual async compile events.
 			OutGraphEvents.Add(CollectionGraphEvent);
 		}
 		else
 		{
-			// Collect pso data
+			// Collect pso data. Note we don't explicitly collect and preload shaders here since we're not using background tasks
+			// and doing so in separate phases wouldn't benefit anything.
 			FPSOPrecacheDataArray PSOPrecacheData = Params.Material->GetGameThreadShaderMap()->CollectPSOPrecacheData(Params);
 
 			// Start the async compiles
@@ -256,6 +362,50 @@ public:
 		}
 		
 		return RequestID;
+	}
+
+	void PreloadShaders(const FMaterialPSOPrecacheParams& Params, FGraphEventArray& OutGraphEvents)
+	{
+		LLM_SCOPE(ELLMTag::Shaders);
+
+		if (!IsDynamicShaderPreloadingEnabled())
+		{
+			return;
+		}
+
+		// Make sure the material instance isn't garbage collected or destroyed yet (create TStrongObjectPtr which will be destroyed on the GT when the collection is done)
+		TStrongObjectPtr<UMaterialInterface>* MaterialInterface = new TStrongObjectPtr<UMaterialInterface>(Params.Material->GetMaterialInterface());
+		FMaterialShaderMap* MaterialShaderMap = Params.Material->GetGameThreadShaderMap();
+
+		FGraphEventRef ShadersPreloadedEvent = FGraphEvent::CreateGraphEvent();
+		TGraphTask<FShaderPreloadCollectionTask>::CreateTask().ConstructAndDispatchWhenReady(MaterialInterface, Params, ShadersPreloadedEvent, TOptional<uint32>());
+
+		FGraphEventArray Prereqs = { ShadersPreloadedEvent };
+		TGraphTask<FMaterialInterfaceReleaseTask>::CreateTask(&Prereqs).ConstructAndDispatchWhenReady(MaterialInterface);
+
+		OutGraphEvents.Add(ShadersPreloadedEvent);
+	}
+
+	void PreloadShaderMap(const FMaterial* Material, FGraphEventArray& OutGraphEvents)
+	{
+		LLM_SCOPE(ELLMTag::Shaders);
+
+		if (!IsDynamicShaderPreloadingEnabled())
+		{
+			return;
+		}
+
+		// Make sure the material instance isn't garbage collected or destroyed yet (create TStrongObjectPtr which will be destroyed on the GT when the collection is done)
+		TStrongObjectPtr<UMaterialInterface>* MaterialInterface = new TStrongObjectPtr<UMaterialInterface>(Material->GetMaterialInterface());
+		FMaterialShaderMap* MaterialShaderMap = Material->GetGameThreadShaderMap();
+
+		FGraphEventRef ShadersPreloadedEvent = FGraphEvent::CreateGraphEvent();
+		TGraphTask<FShaderMapPreloadTask>::CreateTask().ConstructAndDispatchWhenReady(MaterialInterface, MaterialShaderMap, ShadersPreloadedEvent, TOptional<uint32>());
+
+		FGraphEventArray Prereqs = { ShadersPreloadedEvent };
+		TGraphTask<FMaterialInterfaceReleaseTask>::CreateTask(&Prereqs).ConstructAndDispatchWhenReady(MaterialInterface);
+
+		OutGraphEvents.Add(ShadersPreloadedEvent);
 	}
 
 	void MarkCollectionComplete(const FMaterialPSOPrecacheParams& Params, const FPSOPrecacheDataArray& PrecacheData, const FPSOPrecacheRequestResultArray& PrecacheRequestResults, uint32 RequestLifecycleID)
@@ -516,6 +666,111 @@ void FMaterialPSOPrecacheCollectionTask::DoTask(ENamedThreads::Type CurrentThrea
 	CollectionGraphEvent->DispatchSubsequents();
 }
 
+void FShaderMapPreloadTask::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FShaderMapPreloadTask);
+
+	// Make sure task is still relevant
+	if (RequestLifecycleID.IsSet() && *RequestLifecycleID != GMaterialPSORequestManager.GetLifecycleID())
+	{
+		ShaderPreloadEvents->DispatchSubsequents();
+		MaterialInterface = nullptr;
+		return;
+	}
+
+	FTaskTagScope ParallelGTScope(ETaskTag::EParallelGameThread);
+
+	// Collect shaders that need preloading.
+	TArray<FShaderPreloadData> ShaderPreloadData;
+
+	if (MaterialShaderMap)
+	{
+		FGraphEventArray OutCompletionEvents;
+		MaterialShaderMap->GetResource()->PreloadShaderMap(OutCompletionEvents);
+		for (FGraphEventRef Event : OutCompletionEvents)
+		{
+			ShaderPreloadEvents->DontCompleteUntil(Event);
+		}
+	}
+
+	ShaderPreloadEvents->DispatchSubsequents();
+	MaterialInterface = nullptr;
+}
+
+void FShaderPreloadCollectionTask::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FShaderPreloadCollectionTask);
+
+	// Make sure task is still relevant
+	if (RequestLifecycleID.IsSet() && *RequestLifecycleID != GMaterialPSORequestManager.GetLifecycleID())
+	{
+		ShaderPreloadEvents->DispatchSubsequents();
+		MaterialInterface = nullptr;
+		return;
+	}
+
+	FTaskTagScope ParallelGTScope(ETaskTag::EParallelGameThread);
+
+	// Collect shaders that need preloading.
+	TArray<FShaderPreloadData> ShaderPreloadData;
+	FMaterialShaderMap* MaterialShaderMap = PrecacheParams.Material->GetGameThreadShaderMap();
+
+	if (MaterialShaderMap)
+	{
+		ShaderPreloadData = MaterialShaderMap->CollectShaderPreloadData(PrecacheParams);
+	}
+
+	TArray<TShaderRef<FShader>> UniqueShaderRequests;
+	TMap<int32, TArray<int32>> UniqueShaderLibraryMap;
+
+	for (FShaderPreloadData& PreloadData : ShaderPreloadData)
+	{
+		for (TShaderRef<FShader>& Shader : PreloadData.Shaders)
+		{		
+			if(GShaderPreloadFilterUniqueRequest)
+			{ 				
+				TArray<int32>& ShaderLibraryIndexes = UniqueShaderLibraryMap.FindOrAdd(Shader.GetResource()->GetLibraryId());
+				const int32 ShaderGroupIndex = Shader.GetResource()->GetLibraryShaderIndex(Shader->GetResourceIndex());
+
+				if (ShaderLibraryIndexes.Find(ShaderGroupIndex) == INDEX_NONE)
+				{
+					ShaderLibraryIndexes.Add(ShaderGroupIndex);
+					UniqueShaderRequests.Add(Shader);
+				}
+			}
+			else 
+			{				
+				// Preload shaders. This will issue IO requests if they haven't been
+				// preloaded yet.
+				FGraphEventArray OutCompletionEvents;
+				Shader.GetResource()->PreloadShader(Shader->GetResourceIndex(), OutCompletionEvents);
+				for (FGraphEventRef Event : OutCompletionEvents)
+				{
+					ShaderPreloadEvents->DontCompleteUntil(Event);
+				}
+			}
+		}
+	}
+
+	if(GShaderPreloadFilterUniqueRequest)
+	{ 
+		for (TShaderRef<FShader>& Shader : UniqueShaderRequests)
+		{
+			// Preload shaders. This will issue IO requests if they haven't been
+			// preloaded yet.
+			FGraphEventArray OutCompletionEvents;
+			Shader.GetResource()->PreloadShader(Shader->GetResourceIndex(), OutCompletionEvents);
+			for (FGraphEventRef Event : OutCompletionEvents)
+			{
+				ShaderPreloadEvents->DontCompleteUntil(Event);
+			}
+		}
+	}
+	
+	ShaderPreloadEvents->DispatchSubsequents();
+	MaterialInterface = nullptr;
+}
+
 void PrecacheMaterialPSOs(const FMaterialInterfacePSOPrecacheParamsList& PSOPrecacheParamsList, TArray<FMaterialPSOPrecacheRequestID>& OutMaterialPSOPrecacheRequestIDs, FGraphEventArray& OutGraphEvents)
 {
 	for (const FMaterialInterfacePSOPrecacheParams& MaterialPSOPrecacheParams : PSOPrecacheParamsList)
@@ -527,9 +782,30 @@ void PrecacheMaterialPSOs(const FMaterialInterfacePSOPrecacheParamsList& PSOPrec
 	}
 }
 
+void PreloadMaterialShaders(const FMaterialInterfacePSOPrecacheParamsList& PSOPrecacheParamsList, FGraphEventArray& OutGraphEvents)
+{
+	for (const FMaterialInterfacePSOPrecacheParams& MaterialPSOPrecacheParams : PSOPrecacheParamsList)
+	{
+		if (MaterialPSOPrecacheParams.MaterialInterface)
+		{
+			OutGraphEvents.Append(MaterialPSOPrecacheParams.MaterialInterface->PreloadShaders(MaterialPSOPrecacheParams.VertexFactoryDataList, MaterialPSOPrecacheParams.PSOPrecacheParams));
+		}
+	}
+}
+
+void PreloadMaterialShaderMap(const FMaterial* Material, FGraphEventArray& OutGraphEvents)
+{
+	return GMaterialPSORequestManager.PreloadShaderMap(Material, OutGraphEvents);
+}
+
 FMaterialPSOPrecacheRequestID PrecacheMaterialPSOs(const FMaterialPSOPrecacheParams& MaterialPSOPrecacheParams, EPSOPrecachePriority Priority, FGraphEventArray& GraphEvents)
 {
 	return GMaterialPSORequestManager.PrecachePSOs(MaterialPSOPrecacheParams, Priority, GraphEvents);
+}
+
+void PreloadMaterialShaders(const FMaterialPSOPrecacheParams& MaterialPSOPrecacheParams, FGraphEventArray& GraphEvents)
+{
+	return GMaterialPSORequestManager.PreloadShaders(MaterialPSOPrecacheParams, GraphEvents);
 }
 
 void ReleasePSOPrecacheData(const TArray<FMaterialPSOPrecacheRequestID>& MaterialPSORequestIDs)

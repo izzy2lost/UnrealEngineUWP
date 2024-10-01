@@ -1416,6 +1416,16 @@ bool UMaterialInterface::IsDeferredDecal() const
 	return false;
 }
 
+bool UMaterialInterface::IsUIMaterial() const
+{
+	return false;
+}
+
+bool UMaterialInterface::IsPostProcessMaterial() const
+{
+	return false;
+}
+
 bool UMaterialInterface::GetCastDynamicShadowAsMasked() const
 {
 	return false;

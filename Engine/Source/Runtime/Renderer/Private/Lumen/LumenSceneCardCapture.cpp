@@ -194,7 +194,7 @@ void CollectLumenCardPSOInitializers(
 	ERHIFeatureLevel::Type FeatureLevel,
 	EShaderPlatform ShaderPlatform,
 	int32 PSOCollectorIndex,
-	TArray<FPSOPrecacheData>& PSOInitializers)
+	FPassProcessorPSOCollection& OutCollection)
 {	
 	FMaterialShaderTypes ShaderTypes;
 	ShaderTypes.AddShaderType<FLumenCardCS>();
@@ -223,7 +223,7 @@ void CollectLumenCardPSOInitializers(
 		ConditionalBreakOnPSOPrecacheShader(ComputePSOPrecacheData.ComputeShader);
 	}
 #endif // PSO_PRECACHING_VALIDATE
-	PSOInitializers.Add(ComputePSOPrecacheData);
+	OutCollection.Collect(MoveTemp(ComputePSOPrecacheData));
 }
 
 void RecordLumenCardParameters(
@@ -341,7 +341,7 @@ public:
 	FLumenCardMeshProcessor(const FScene* Scene, ERHIFeatureLevel::Type FeatureLevel, const FSceneView* InViewIfDynamicMeshCommand, const FMeshPassProcessorRenderState& InPassDrawRenderState, FMeshPassDrawListContext* InDrawListContext);
 
 	virtual void AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch, uint64 BatchElementMask, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, int32 StaticMeshId = -1) override final;
-	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers) override final;
+	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection) override final;
 
 	FMeshPassProcessorRenderState PassDrawRenderState;
 };
@@ -527,7 +527,7 @@ void LumenScene::AllocateCardCaptureAtlas(
 		TEXT("Lumen.CardCaptureDepthStencilAtlas"));
 }
 
-void FLumenCardMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers)
+void FLumenCardMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection)
 {
 	LLM_SCOPE_BYTAG(Lumen);
 
@@ -557,6 +557,12 @@ void FLumenCardMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig&
 			return;
 		}
 
+		if (OutCollection.IsCollectingShadersOnly())
+		{
+			OutCollection.Collect(PassShaders.GetUntypedShaders().GetValidShaders());
+			return;
+		}
+
 		FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
 		SetupCardCaptureRenderTargetsInfo(RenderTargetsInfo, Platform);
 
@@ -571,7 +577,7 @@ void FLumenCardMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig&
 			(EPrimitiveType)PreCacheParams.PrimitiveType,
 			EMeshPassFeatures::Default, 
 			true /*bRequired*/,
-			PSOInitializers);
+			OutCollection);
 	}
 }
 

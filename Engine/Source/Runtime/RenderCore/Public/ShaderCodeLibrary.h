@@ -196,6 +196,8 @@ struct FShaderCodeLibrary
 
 	static RENDERCORE_API bool IsEnabled();
 
+	static RENDERCORE_API bool AreShaderMapsPreloadedAtLoadTime();
+
 	/**
 	 * Makes a number of ChunkIDs known to the library.
 	 * 

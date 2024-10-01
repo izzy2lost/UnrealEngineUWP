@@ -157,7 +157,7 @@ bool FSkyPassMeshProcessor::Process(
 	return true;
 }
 
-void FSkyPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers)
+void FSkyPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection)
 {
 	// Early out if not sky
 	if (!Material.IsSky())
@@ -197,6 +197,12 @@ void FSkyPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& S
 	{
 		return;
 	}
+
+	if (OutCollection.IsCollectingShadersOnly())
+	{
+		OutCollection.Collect(SkyPassShaders.GetUntypedShaders().GetValidShaders());
+		return;
+	}
 	
 	FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
 	SetupGBufferRenderTargetInfo(SceneTexturesConfig, RenderTargetsInfo, true /*bSetupDepthStencil*/);
@@ -213,7 +219,7 @@ void FSkyPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& S
 		(EPrimitiveType)PreCacheParams.PrimitiveType,
 		true /*bPrecacheAlphaColorChannel*/,
 		PSOCollectorIndex,
-		PSOInitializers);
+		OutCollection);
 
 	// Also generate with depth write which is used during CaptureSkyMeshReflection
 	{
@@ -242,7 +248,7 @@ void FSkyPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& S
 			(EPrimitiveType)PreCacheParams.PrimitiveType,
 			EMeshPassFeatures::Default,
 			true /*bRequired*/,
-			PSOInitializers);
+			OutCollection);
 	}
 }
 

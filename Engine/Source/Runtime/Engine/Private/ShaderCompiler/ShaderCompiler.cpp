@@ -4654,8 +4654,13 @@ void VerifyGlobalShaders(EShaderPlatform Platform, bool bLoadedFromCacheFile, co
 
 void PrecacheComputePipelineStatesForGlobalShaders(EShaderPlatform Platform, const ITargetPlatform* TargetPlatform)
 {
-	static IConsoleVariable* PrecacheGlobalComputeShadersCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PSOPrecache.GlobalComputeShaders"));
-	if (!GRHISupportsPSOPrecaching || !PipelineStateCache::IsPSOPrecachingEnabled() || PrecacheGlobalComputeShadersCVar == nullptr || PrecacheGlobalComputeShadersCVar->GetInt() == 0)
+	static IConsoleVariable* PrecacheGlobalShadersCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PSOPrecache.GlobalShaders"));
+	if (PrecacheGlobalShadersCVar == nullptr || PrecacheGlobalShadersCVar->GetInt() == 0)
+	{
+		return;
+	}
+
+	if (!IsDynamicShaderPreloadingEnabled() && !(PipelineStateCache::IsPSOPrecachingEnabled() && GRHISupportsPSOPrecaching))
 	{
 		return;
 	}
@@ -4668,12 +4673,14 @@ void PrecacheComputePipelineStatesForGlobalShaders(EShaderPlatform Platform, con
 
 	FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(Platform);
 	
+	int32 PrecacheGlobalShaders = PrecacheGlobalShadersCVar->GetInt();
+
 	// some RHIs (OpenGL) can only create shaders on the Render thread. Queue the creation instead of doing it here.
 	TArray<TShaderRef<FShader>> ComputeShadersToPrecache;
 	for (TLinkedList<FShaderType*>::TIterator ShaderTypeIt(FShaderType::GetTypeList()); ShaderTypeIt; ShaderTypeIt.Next())
 	{
 		FGlobalShaderType* GlobalShaderType = ShaderTypeIt->GetGlobalShaderType();
-		if (!GlobalShaderType || GlobalShaderType->GetFrequency() != SF_Compute)
+		if (!GlobalShaderType || (GlobalShaderType->GetFrequency() != SF_Compute && PrecacheGlobalShaders == 1))
 		{
 			continue;
 		}
@@ -4704,9 +4711,11 @@ void PrecacheComputePipelineStatesForGlobalShaders(EShaderPlatform Platform, con
 	
 	if (ComputeShadersToPrecache.Num() > 0)
 	{
-		UE_LOG(LogShaders, Display, TEXT("Precaching %d global compute shaders"), ComputeShadersToPrecache.Num());
-		ENQUEUE_RENDER_COMMAND(PrecachePSOsForGlobalShaders)(
-			[ComputeShadersToPrecache](FRHICommandListImmediate& RHICmdList)
+		if (PipelineStateCache::IsPSOPrecachingEnabled())
+		{
+			UE_LOG(LogShaders, Display, TEXT("Precaching %d global compute shaders"), ComputeShadersToPrecache.Num());
+			ENQUEUE_RENDER_COMMAND(PrecachePSOsForGlobalShaders)(
+				[ComputeShadersToPrecache](FRHICommandListImmediate& RHICmdList)
 			{
 				for (TShaderRef<FShader> GlobalShader : ComputeShadersToPrecache)
 				{
@@ -4720,6 +4729,16 @@ void PrecacheComputePipelineStatesForGlobalShaders(EShaderPlatform Platform, con
 					}
 				}
 			});
+		}
+		else if (IsDynamicShaderPreloadingEnabled())
+		{
+			// Kick off preloading tasks.
+			FGraphEventArray Events;
+			for (TShaderRef<FShader> GlobalShader : ComputeShadersToPrecache)
+			{
+				GlobalShader.GetResource()->PreloadShader(GlobalShader->GetResourceIndex(), Events);
+			}
+		}
 	}
 }
 

@@ -391,7 +391,7 @@ public:
 		checkf(false, TEXT("Default AddMeshBatch can't be used as rendering requires extra parameters per pass."));
 	}
 
-	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers) override final;
+	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection) override final;
 
 private:
 	bool TryAddMeshBatch(
@@ -567,7 +567,7 @@ void FVoxelizeVolumeMeshProcessor::CollectPSOInitializers(
 	const FMaterial& Material,
 	const FPSOPrecacheVertexFactoryData& VertexFactoryData,
 	const FPSOPrecacheParams& PreCacheParams,
-	TArray<FPSOPrecacheData>& PSOInitializers)
+	FPassProcessorPSOCollection& OutCollection)
 {
 	if (Material.GetMaterialDomain() != MD_Volume)
 	{
@@ -609,6 +609,12 @@ void FVoxelizeVolumeMeshProcessor::CollectPSOInitializers(
 			return;
 		}
 
+		if (OutCollection.IsCollectingShadersOnly())
+		{
+			OutCollection.Collect(PassShaders.GetUntypedShaders().GetValidShaders());
+			return;
+		}
+
 		AddGraphicsPipelineStateInitializer(
 			VertexFactoryData,
 			Material,
@@ -620,7 +626,7 @@ void FVoxelizeVolumeMeshProcessor::CollectPSOInitializers(
 			(EPrimitiveType)PreCacheParams.PrimitiveType,
 			EMeshPassFeatures::Default,
 			true /*bRequired*/,
-			PSOInitializers);
+			OutCollection);
 	};
 
 	AddPSOInitializer(true /*bUsePrimitiveSphere*/);

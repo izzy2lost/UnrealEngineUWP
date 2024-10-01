@@ -89,7 +89,7 @@ void CollectBasePassShadingPSOInitializers(
 	ERHIFeatureLevel::Type FeatureLevel,
 	EShaderPlatform ShaderPlatform,
 	int32 PSOCollectorIndex,
-	TArray<FPSOPrecacheData>& PSOInitializers
+	FPassProcessorPSOCollection& OutCollection
 );
 
 void CollectLumenCardPSOInitializers(
@@ -100,7 +100,7 @@ void CollectLumenCardPSOInitializers(
 	ERHIFeatureLevel::Type FeatureLevel,
 	EShaderPlatform ShaderPlatform,
 	int32 PSOCollectorIndex,
-	TArray<FPSOPrecacheData>& PSOInitializers
+	FPassProcessorPSOCollection& OutCollection
 );
 
 extern bool HasNoDerivativeOps(FRHIComputeShader* ComputeShaderRHI);

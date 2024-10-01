@@ -361,6 +361,34 @@ public:
 		return RHIShaders[ShaderIndex].load(std::memory_order_acquire) != nullptr;
 	}
 
+	virtual void PreloadShader(int32 ShaderIndex, FGraphEventArray& OutCompletionEvents)
+	{
+		/* no-op when not using shader library */
+	};
+
+	virtual void PreloadShaderMap(FGraphEventArray& OutCompletionEvents)
+	{
+		/* no-op when not using shader library */
+	};
+
+	virtual int32 GetGroupIndexForShader(int32 ShaderIndex) const
+	{
+		/* return invalid index when not using shader library */
+		return INDEX_NONE;
+	};
+
+	virtual int32 GetLibraryId() const
+	{
+		/* return invalid index when not using shader library */
+		return INDEX_NONE;
+	}
+
+	virtual int32 GetLibraryShaderIndex(int32 ShaderIndex) const
+	{
+		/* return invalid index when not using shader library */
+		return INDEX_NONE;
+	}
+
 	inline bool ContainsAtLeastOneRHIShaderCreated() const
 	{
 		return bAtLeastOneRHIShaderCreated;
@@ -1161,9 +1189,9 @@ public:
 	}
 
 	/** @return the shader's vertex shader */
-	inline FRHIVertexShader* GetVertexShader() const
+	inline FRHIVertexShader* GetVertexShader(bool bRequired = true) const
 	{
-		return static_cast<FRHIVertexShader*>(GetRHIShaderBase(SF_Vertex));
+		return static_cast<FRHIVertexShader*>(GetRHIShaderBase(SF_Vertex, bRequired));
 	}
 	/** @return the shader's mesh shader */
 	inline FRHIMeshShader* GetMeshShader() const
@@ -1176,9 +1204,9 @@ public:
 		return static_cast<FRHIAmplificationShader*>(GetRHIShaderBase(SF_Amplification));
 	}
 	/** @return the shader's pixel shader */
-	inline FRHIPixelShader* GetPixelShader() const
+	inline FRHIPixelShader* GetPixelShader(bool bRequired = true) const
 	{
-		return static_cast<FRHIPixelShader*>(GetRHIShaderBase(SF_Pixel));
+		return static_cast<FRHIPixelShader*>(GetRHIShaderBase(SF_Pixel, bRequired));
 	}
 	/** @return the shader's geometry shader */
 	inline FRHIGeometryShader* GetGeometryShader() const

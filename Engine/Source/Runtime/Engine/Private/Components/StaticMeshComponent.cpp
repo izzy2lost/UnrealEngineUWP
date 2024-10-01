@@ -2319,9 +2319,9 @@ bool UStaticMeshComponent::SetStaticMesh(UStaticMesh* NewMesh)
 		);
 	}
 
-#if UE_WITH_PSO_PRECACHING
+#if UE_WITH_PSO_PRECACHING || UE_WITH_DYNAMIC_SHADER_PRELOADING
 	PrecachePSOs();
-#endif // UE_WITH_PSO_PRECACHING
+#endif // UE_WITH_PSO_PRECACHING || UE_WITH_DYNAMIC_SHADER_PRELOADING
 
 	// Need to send this to render thread at some point
 	if (IsRenderStateCreated())

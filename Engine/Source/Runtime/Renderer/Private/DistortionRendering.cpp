@@ -996,7 +996,7 @@ static bool ShouldDraw(const FMaterial& Material)
 		&& Material.IsDistorted());
 }
 
-void FDistortionMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers)
+void FDistortionMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection)
 {
 	if (!ShouldDraw(Material))
 	{
@@ -1013,6 +1013,12 @@ void FDistortionMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig
 		DistortionPassShaders.VertexShader,
 		DistortionPassShaders.PixelShader))
 	{
+		return;
+	}
+
+	if (OutCollection.IsCollectingShadersOnly())
+	{
+		OutCollection.Collect(DistortionPassShaders.GetUntypedShaders().GetValidShaders());
 		return;
 	}
 
@@ -1042,7 +1048,7 @@ void FDistortionMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig
 		(EPrimitiveType)PreCacheParams.PrimitiveType,
 		EMeshPassFeatures::Default,
 		true /*bRequired*/,
-		PSOInitializers);
+		OutCollection);
 }
 
 bool FDistortionMeshProcessor::TryAddMeshBatch(

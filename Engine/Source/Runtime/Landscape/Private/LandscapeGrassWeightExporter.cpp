@@ -195,7 +195,7 @@ public:
 		const FMaterial& Material, 
 		const FPSOPrecacheVertexFactoryData& VertexFactoryData, 
 		const FPSOPrecacheParams& PreCacheParams, 
-		TArray<FPSOPrecacheData>& PSOInitializers) override final;
+		FPassProcessorPSOCollection& OutCollection) override final;
 
 private:
 	bool TryAddMeshBatch(
@@ -342,7 +342,7 @@ bool FLandscapeGrassWeightMeshProcessor::Process(
 }
 
 
-void FLandscapeGrassWeightMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers)
+void FLandscapeGrassWeightMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection)
 {
 	// Only support the Landscape fixed grid vertex factory type.
 	if (VertexFactoryData.VertexFactoryType != &FLandscapeFixedGridVertexFactory::StaticType)
@@ -366,6 +366,12 @@ void FLandscapeGrassWeightMeshProcessor::CollectPSOInitializers(const FSceneText
 	Shaders.TryGetVertexShader(PassShaders.VertexShader);
 	Shaders.TryGetPixelShader(PassShaders.PixelShader);
 
+	if (OutCollection.IsCollectingShadersOnly())
+	{
+		OutCollection.Collect(PassShaders.GetUntypedShaders().GetValidShaders());
+		return;
+	}
+
 	const FMeshDrawingPolicyOverrideSettings OverrideSettings = ComputeMeshOverrideSettings(PreCacheParams);
 	const ERasterizerFillMode MeshFillMode = ComputeMeshFillMode(Material, OverrideSettings);
 	const ERasterizerCullMode MeshCullMode = CM_None;
@@ -385,7 +391,7 @@ void FLandscapeGrassWeightMeshProcessor::CollectPSOInitializers(const FSceneText
 		PT_PointList,
 		EMeshPassFeatures::Default,
 		true /*bRequired*/,
-		PSOInitializers);
+		OutCollection);
 }
 
 IPSOCollector* CreateLandscapeGrassWeightPSOCollector(ERHIFeatureLevel::Type FeatureLevel)

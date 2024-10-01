@@ -61,6 +61,7 @@
 #include "UObject/UE5ReleaseStreamObjectVersion.h"
 #include "VT/RuntimeVirtualTexture.h"
 #include "LocalVertexFactory.h"
+#include "PSOPrecacheMaterial.h"
 
 #if WITH_EDITOR
 #include "Cooker/CookDependency.h"
@@ -2743,7 +2744,7 @@ FGraphEventArray UMaterialInstance::PrecachePSOs(const FPSOPrecacheVertexFactory
 	FGraphEventArray GraphEvents;
 	if (FApp::CanEverRender() && PipelineStateCache::IsPSOPrecachingEnabled() && Parent)
 	{
-		// make sure material is initialized
+		// Make sure material is initialized.
 		ConditionalPostLoad();
 
 		if (bHasStaticPermutationResource)
@@ -2763,6 +2764,36 @@ FGraphEventArray UMaterialInstance::PrecachePSOs(const FPSOPrecacheVertexFactory
 		else
 		{
 			GraphEvents = Parent->PrecachePSOs(VertexFactoryDataList, InPreCacheParams, Priority, OutMaterialPSORequestIDs);
+		}
+	}
+	return GraphEvents;
+}
+
+FGraphEventArray UMaterialInstance::PreloadShaders(const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const struct FPSOPrecacheParams& PreCacheParams)
+{
+	FGraphEventArray GraphEvents;
+	if (FApp::CanEverRender() && Parent)
+	{
+		// Make sure material is initialized.
+		ConditionalPostLoad();
+
+		if (bHasStaticPermutationResource)
+		{
+			EMaterialQualityLevel::Type ActiveQualityLevel = GetCachedScalabilityCVars().MaterialQualityLevel;
+			uint32 FeatureLevelsToCompile = GetFeatureLevelsToCompileForRendering();
+			while (FeatureLevelsToCompile != 0)
+			{
+				const ERHIFeatureLevel::Type FeatureLevel = (ERHIFeatureLevel::Type)FBitSet::GetAndClearNextBit(FeatureLevelsToCompile);
+				FMaterialResource* StaticPermutationResource = FindMaterialResource(StaticPermutationMaterialResources, FeatureLevel, ActiveQualityLevel, true /*bAllowDefaultMaterial*/);
+				if (StaticPermutationResource)
+				{
+					GraphEvents.Append(StaticPermutationResource->CollectShaders(FeatureLevel, VertexFactoryDataList, PreCacheParams));
+				}
+			}
+		}
+		else
+		{
+			GraphEvents = Parent->PreloadShaders(VertexFactoryDataList, PreCacheParams);
 		}
 	}
 	return GraphEvents;
@@ -3468,6 +3499,11 @@ void UMaterialInstance::PostLoad()
 		UMaterialInterface::PrecachePSOs(&FLocalVertexFactory::StaticType, PSOPrecacheParams);
 	}
 
+	if (IsUIMaterial()  || IsDeferredDecal() || IsPostProcessMaterial())
+	{
+		FGraphEventArray Unused;
+		PreloadMaterialShaderMap(GetMaterialResource(GMaxRHIFeatureLevel), Unused);
+	}
 	//DumpDebugInfo(*GLog);
 }
 
@@ -4873,6 +4909,16 @@ bool UMaterialInstance::ShouldAlwaysEvaluateWorldPositionOffset() const
 bool UMaterialInstance::IsDeferredDecal() const
 {
 	return Parent ? Parent->IsDeferredDecal() : false;
+}
+
+bool UMaterialInstance::IsUIMaterial() const
+{
+	return Parent ? Parent->IsUIMaterial() : false;
+}
+
+bool UMaterialInstance::IsPostProcessMaterial() const
+{
+	return Parent ? Parent->IsPostProcessMaterial() : false;
 }
 
 bool UMaterialInstance::HasPixelAnimation() const

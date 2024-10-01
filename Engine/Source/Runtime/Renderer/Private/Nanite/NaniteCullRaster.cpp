@@ -2431,7 +2431,7 @@ void CollectRasterPSOInitializersForPermutation(
 	FMicropolyRasterizeCS::FPermutationDomain& PermutationVectorCS_Cluster,
 	FMicropolyRasterizeCS::FPermutationDomain& PermutationVectorCS_Patch,
 	int32 PSOCollectorIndex,
-	TArray<FPSOPrecacheData>& PSOInitializers)
+	FPassProcessorPSOCollection& OutCollection)
 {
 	FMaterialShaderTypes ProgrammableShaderTypes;
 	FMaterialShaderTypes NonProgrammableShaderTypes;
@@ -2522,7 +2522,7 @@ void CollectRasterPSOInitializersForPermutation(
 			PSOPrecacheData.PSOCollectorIndex = PSOCollectorIndex;
 			PSOPrecacheData.VertexFactoryType = &FNaniteVertexFactory::StaticType;
 		#endif
-			PSOInitializers.Add(PSOPrecacheData);
+			OutCollection.Collect(MoveTemp(PSOPrecacheData));
 		}
 
 		// Cluster CS PSO Setup
@@ -2544,7 +2544,7 @@ void CollectRasterPSOInitializersForPermutation(
 					ConditionalBreakOnPSOPrecacheShader(ComputePSOPrecacheData.ComputeShader);
 				}
 			#endif
-				PSOInitializers.Add(ComputePSOPrecacheData);
+				OutCollection.Collect(MoveTemp(ComputePSOPrecacheData));
 			}
 		}
 
@@ -2566,7 +2566,7 @@ void CollectRasterPSOInitializersForPermutation(
 					ConditionalBreakOnPSOPrecacheShader(ComputePSOPrecacheData.ComputeShader);
 				}
 				#endif
-				PSOInitializers.Add(ComputePSOPrecacheData);
+				OutCollection.Collect(MoveTemp(ComputePSOPrecacheData));
 			}
 		}
 	}
@@ -2582,7 +2582,7 @@ void CollectRasterPSOInitializersForDefaultMaterial(
 	FMicropolyRasterizeCS::FPermutationDomain& PermutationVectorCluster,
 	FMicropolyRasterizeCS::FPermutationDomain& PermutationVectorPatch,
 	int32 PSOCollectorIndex,
-	TArray<FPSOPrecacheData>& PSOInitializers)
+	FPassProcessorPSOCollection& OutCollection)
 {
 	// Collect PSOs for all possible combinations of vertex/pixel programmable and if two sided or not
 	for (uint32 VertexProgrammable = 0; VertexProgrammable < 2; ++VertexProgrammable)
@@ -2617,7 +2617,7 @@ void CollectRasterPSOInitializersForDefaultMaterial(
 									continue; // Mutually exclusive
 
 								CollectRasterPSOInitializersForPermutation(Material, ShaderPlatform, HardwarePath, bVertexProgrammable, bPixelProgrammable, bIsTwoSided, bSplineMesh, bSkinnedMesh, bDisplacement, bFixedDisplacementFallback,
-									PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCluster, PermutationVectorPatch, PSOCollectorIndex, PSOInitializers);
+									PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCluster, PermutationVectorPatch, PSOCollectorIndex, OutCollection);
 							}
 						}
 					}
@@ -2634,7 +2634,7 @@ void CollectRasterPSOInitializersForPipeline(
 	EShaderPlatform ShaderPlatform,
 	int32 PSOCollectorIndex,
 	EPipeline Pipeline,
-	TArray<FPSOPrecacheData>& PSOInitializers)
+	FPassProcessorPSOCollection& OutCollection)
 {
 	const ERasterHardwarePath HardwarePath = GetRasterHardwarePath(ShaderPlatform, Pipeline);
 
@@ -2663,7 +2663,7 @@ void CollectRasterPSOInitializersForPipeline(
 
 	if (PreCacheParams.bDefaultMaterial)
 	{
-		CollectRasterPSOInitializersForDefaultMaterial(RasterMaterial, ShaderPlatform, HardwarePath, PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS_Cluster, PermutationVectorCS_Patch, PSOCollectorIndex, PSOInitializers);
+		CollectRasterPSOInitializersForDefaultMaterial(RasterMaterial, ShaderPlatform, HardwarePath, PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS_Cluster, PermutationVectorCS_Patch, PSOCollectorIndex, OutCollection);
 	}
 	else
 	{
@@ -2691,7 +2691,7 @@ void CollectRasterPSOInitializersForPipeline(
 			ERasterizerCullMode MeshCullMode = FMeshPassProcessor::ComputeMeshCullMode(RasterMaterial, OverrideSettings);
 
 			CollectRasterPSOInitializersForPermutation(RasterMaterial, ShaderPlatform, HardwarePath, bVertexProgrammable, bPixelProgrammable, bIsTwoSided, bSplineMesh, bSkinnedMesh, bDisplacement, bFixedDisplacementFallback,
-				PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS_Cluster, PermutationVectorCS_Patch, PSOCollectorIndex, PSOInitializers);
+				PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS_Cluster, PermutationVectorCS_Patch, PSOCollectorIndex, OutCollection);
 		};
 
 		// Add initializers for all features that can be toggled in fallback bins (NOTE: can't disable both)
@@ -2707,11 +2707,11 @@ void CollectRasterPSOInitializers(
 	const FPSOPrecacheParams& PreCacheParams,
 	EShaderPlatform ShaderPlatform,
 	int32 PSOCollectorIndex,
-	TArray<FPSOPrecacheData>& PSOInitializers)
+	FPassProcessorPSOCollection& OutCollection)
 {
 	// Collect for primary & shadows
-	CollectRasterPSOInitializersForPipeline(SceneTexturesConfig, RasterMaterial, PreCacheParams, ShaderPlatform, PSOCollectorIndex, EPipeline::Primary, PSOInitializers);
-	CollectRasterPSOInitializersForPipeline(SceneTexturesConfig, RasterMaterial, PreCacheParams, ShaderPlatform, PSOCollectorIndex, EPipeline::Shadows, PSOInitializers);
+	CollectRasterPSOInitializersForPipeline(SceneTexturesConfig, RasterMaterial, PreCacheParams, ShaderPlatform, PSOCollectorIndex, EPipeline::Primary, OutCollection);
+	CollectRasterPSOInitializersForPipeline(SceneTexturesConfig, RasterMaterial, PreCacheParams, ShaderPlatform, PSOCollectorIndex, EPipeline::Shadows, OutCollection);
 }
 
 

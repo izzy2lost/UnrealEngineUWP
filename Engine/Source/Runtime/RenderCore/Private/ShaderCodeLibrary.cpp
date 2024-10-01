@@ -86,6 +86,23 @@ static FAutoConsoleVariableRef CVarShaderCodeLibrarySeparateLoadingCache(
 	ECVF_Default
 );
 
+int32 GPreloadShaderMaps = 1;
+static FAutoConsoleVariableRef CVarShaderCodeLibraryPreloadShaderMaps(
+	TEXT("r.ShaderCodeLibrary.PreloadShaderMaps"),
+	GPreloadShaderMaps,
+	TEXT("If > 0, shader maps will be preloaded at package/resource load time."),
+	ECVF_SaveForNextBoot
+);
+
+bool GShaderMapResourceRef = false;
+static FAutoConsoleVariableRef CVarShaderMapResourceRef(
+	TEXT("r.ShaderCodeLibrary.ShaderMapResourceRef"),
+	GShaderMapResourceRef,
+	TEXT("Track reference to the shader group for different shadermaps.\n")
+	TEXT("Normally used when dynamic shader preloading is enable to make sure we dont unload a shader group shared by two different shadermaps"),
+	ECVF_Default
+);
+
 class FShaderLibraryInstance;
 namespace UE
 {
@@ -276,7 +293,7 @@ public:
 	virtual void ReleaseResource() override
 	{
 		FShaderMapResource::ReleaseResource();
-		ensureMsgf(!bShaderMapPreloaded && !LibraryInstance, TEXT("FShaderMapResource_SharedCode::ReleaseRHI() was not called on a shadermap resource owned by %s"), *GetOwnerName().ToString());
+		ensureMsgf(!bEntireShaderMapPreloaded && !LibraryInstance, TEXT("FShaderMapResource_SharedCode::ReleaseRHI() was not called on a shadermap resource owned by %s"), *GetOwnerName().ToString());
 	}
 	virtual void ReleaseRHI() override;
 
@@ -284,13 +301,18 @@ public:
 	virtual FSHAHash GetShaderHash(int32 ShaderIndex) override;
 	virtual FRHIShader* CreateRHIShaderOrCrash(int32 ShaderIndex, bool bRequired) override;
 	virtual void ReleasePreloadedShaderCode(int32 ShaderIndex) override;
+	virtual void PreloadShader(int32 ShaderIndex, FGraphEventArray& OutCompletionEvents) override;
+	virtual void PreloadShaderMap(FGraphEventArray& OutCompletionEvents) override;
 	virtual bool TryRelease() override;
 	virtual uint32 GetSizeBytes() const override { return sizeof(*this) + GetAllocatedSize(); }
 	virtual FString GetFriendlyName() const override;
+	virtual int32 GetGroupIndexForShader(int32 ShaderIndex) const override;
+	virtual int32 GetLibraryId() const override;
+	virtual int32 GetLibraryShaderIndex(int32 ShaderIndex) const override;
 
 	class FShaderLibraryInstance* LibraryInstance;
 	int32 ShaderMapIndex;
-	bool bShaderMapPreloaded;
+	bool bEntireShaderMapPreloaded;
 };
 
 static FArchive* CreateShaderFileReader(const TCHAR* Filename)
@@ -1048,6 +1070,27 @@ public:
 		}
 	}
 
+	void PreloadShader(int32 ShaderIndex, FGraphEventArray& OutCompletionEvents)
+	{
+		SCOPED_LOADTIMER(FShaderLibraryInstance_PreloadShader);
+		
+		const int32 BucketIndex = ShaderIndex % NumShaderLocks;
+
+		// Don't preload if we already have the shader or we already preloaded it.
+		FRWScopeLock Locker(ShaderLocks[BucketIndex], SLT_Write);
+		FCachedRHIShader& Shader = RHIShaders[BucketIndex].FindOrAdd(ShaderIndex, FCachedRHIShader());
+		if (Shader.PreloadingState == EPreloadingState::NotPreloaded)
+		{
+			Library->PreloadShader(ShaderIndex, OutCompletionEvents);
+			Shader.PreloadingState = EPreloadingState::Preloaded;
+		}
+		else if (Shader.PreloadingState == EPreloadingState::Preloaded)
+		{
+			// Check if still preloading, which will get the completion events if they are still outstanding.
+			Library->IsPreloading(ShaderIndex, OutCompletionEvents);
+		}
+	}
+
 	void ReleasePreloadedShader(int32 ShaderIndex)
 	{
 		SCOPED_LOADTIMER(FShaderLibraryInstance_PreloadShader);
@@ -1071,7 +1114,7 @@ public:
 			if (!PrevResource)
 			{
 				Resources[ShaderMapIndex] = Resource;
-				bPreload = !GRHILazyShaderCodeLoading;
+				bPreload = !GRHILazyShaderCodeLoading && GPreloadShaderMaps;
 			}
 			else
 			{
@@ -1083,7 +1126,7 @@ public:
 		{
 			SCOPED_LOADTIMER(FShaderLibraryInstance_PreloadShaderMap);
 			FGraphEventArray PreloadCompletionEvents;
-			Resource->bShaderMapPreloaded = Library->PreloadShaderMap(ShaderMapIndex, PreloadCompletionEvents);
+			Resource->bEntireShaderMapPreloaded = Library->PreloadShaderMap(ShaderMapIndex, PreloadCompletionEvents);
 			if (Ar && PreloadCompletionEvents.Num() > 0)
 			{
 				FExternalReadCallback ExternalReadCallback = [this, PreloadCompletionEvents = MoveTemp(PreloadCompletionEvents)](double ReaminingTime)
@@ -1113,42 +1156,62 @@ public:
 		return false;
 	}
 
-	TRefCountPtr<FRHIShader> GetOrCreateShader(int32 ShaderIndex)
+	TRefCountPtr<FRHIShader> GetOrCreateShader(int32 ShaderIndex, bool bRequired = true)
 	{
 		const int32 BucketIndex = ShaderIndex % NumShaderLocks;
-		TRefCountPtr<FRHIShader> Shader;
+		TRefCountPtr<FRHIShader> RHIShader;
 		{
 			FRWScopeLock Locker(ShaderLocks[BucketIndex], SLT_ReadOnly);
-			TRefCountPtr<FRHIShader>* ShaderPtr = RHIShaders[BucketIndex].Find(ShaderIndex);
+			FCachedRHIShader* ShaderPtr = RHIShaders[BucketIndex].Find(ShaderIndex);
 			if (ShaderPtr)
 			{
-				Shader = *ShaderPtr;
+				RHIShader = ShaderPtr->RHIShader;
 			}
 		}
-		if (!Shader)
+		if (!RHIShader)
 		{
-			Shader = Library->CreateShader(ShaderIndex);
-
-			FRWScopeLock Locker(ShaderLocks[BucketIndex], SLT_Write);
-			TRefCountPtr<FRHIShader>* ShaderPtr = RHIShaders[BucketIndex].Find(ShaderIndex);
-			if (LIKELY(ShaderPtr == nullptr))
+			// We're going to create the shader now. Disallow preloading from this point on.
 			{
-				RHIShaders[BucketIndex].Add(ShaderIndex, Shader);
+				FRWScopeLock Locker(ShaderLocks[BucketIndex], SLT_Write);
+				FCachedRHIShader& Shader = RHIShaders[BucketIndex].FindOrAdd(ShaderIndex, FCachedRHIShader());
+				if (Shader.PreloadingState == EPreloadingState::NotPreloaded)
+				{
+					Shader.PreloadingState = EPreloadingState::CannotPreload;
+				}
 			}
-			else
+
+			RHIShader = Library->CreateShader(ShaderIndex, bRequired);
+
+			if (RHIShader)
 			{
-				Shader = *ShaderPtr;
+				FRWScopeLock Locker(ShaderLocks[BucketIndex], SLT_Write);
+				FCachedRHIShader& Shader = RHIShaders[BucketIndex].FindOrAdd(ShaderIndex, FCachedRHIShader());
+				if (LIKELY(Shader.RHIShader == nullptr))
+				{
+					Shader.RHIShader = RHIShader;
+
+					if (Shader.PreloadingState == EPreloadingState::Preloaded)
+					{
+						ReleasePreloadedShader(ShaderIndex);
+						Shader.PreloadingState = EPreloadingState::PreloadedAndCreated;
+					}
+				}
+				else
+				{
+					RHIShader = Shader.RHIShader;
+				}
 			}
 		}
-		return Shader;
+
+		return RHIShader;
 	}
 
 	void ReleaseShader(int32 ShaderIndex)
 	{
 		const int32 BucketIndex = ShaderIndex % NumShaderLocks;
 		FRWScopeLock Locker(ShaderLocks[BucketIndex], SLT_Write);
-		TRefCountPtr<FRHIShader>* ShaderPtr = RHIShaders[BucketIndex].Find(ShaderIndex);
-		FRHIShader* Shader = ShaderPtr ? ShaderPtr->GetReference() : nullptr;
+		FCachedRHIShader* ShaderPtr = RHIShaders[BucketIndex].Find(ShaderIndex);
+		FRHIShader* Shader = ShaderPtr ? ShaderPtr->RHIShader.GetReference() : nullptr;
 		if (Shader)
 		{
 			// The library instance is holding one ref
@@ -1163,6 +1226,20 @@ public:
 		}
 	}
 
+	void ReleasePreloadedShaderIfNecessary(int32 ShaderIndex)
+	{
+		const int32 BucketIndex = ShaderIndex % NumShaderLocks;
+		FRWScopeLock Locker(ShaderLocks[BucketIndex], SLT_Write);
+		FCachedRHIShader* ShaderPtr = RHIShaders[BucketIndex].Find(ShaderIndex);
+		if (ShaderPtr && ShaderPtr->PreloadingState == EPreloadingState::Preloaded)
+		{
+			// We should only be here when we preload the shader but don't end up actually creating it.
+			check(!ShaderPtr->RHIShader.IsValid());
+			Library->ReleasePreloadedShader(ShaderIndex);
+			RHIShaders[BucketIndex].Remove(ShaderIndex);
+		}
+	}
+
 	void PreloadPackageShaderMap(int32 ShaderMapIndex, FCoreDelegates::FAttachShaderReadRequestFunc AttachShaderReadRequestFunc)
 	{
 		FRWScopeLock Locker(ResourceLock, SLT_Write);
@@ -1170,7 +1247,10 @@ public:
 		if (!Resource)
 		{
 			Resource = new FShaderMapResource_SharedCode(this, ShaderMapIndex);
-			Resource->bShaderMapPreloaded = Library->PreloadShaderMap(ShaderMapIndex, AttachShaderReadRequestFunc);
+			if (GPreloadShaderMaps)
+			{
+				Resource->bEntireShaderMapPreloaded = Library->PreloadShaderMap(ShaderMapIndex, AttachShaderReadRequestFunc);
+			}
 			BeginInitResource(Resource);
 		}
 		Resource->AddRef();
@@ -1226,9 +1306,21 @@ private:
 		return true;
 	}
 
+	enum class EPreloadingState : uint8 {
+		NotPreloaded = 0, // Not preloaded.
+		Preloaded = 1, // Preloaded but RHI shader not yet created (preloaded memory is still allocated).
+		PreloadedAndCreated = 2, // Preloaded and RHI shader created (preloaded memory has been freed).
+		CannotPreload = 3 // Not preloaded and cannot preload because the RHI shader is now being created.
+	};
+
+	struct FCachedRHIShader {
+		EPreloadingState PreloadingState = EPreloadingState::NotPreloaded;
+		TRefCountPtr<FRHIShader> RHIShader;
+	};
+
 	/** Number of shaders can be pretty large (several hundred thousands). Do not allocate memory for them upfront, but instead store them in a map. 
 	    There's number of maps to reduce the lock contention. */
-	TMap<int32, TRefCountPtr<FRHIShader>> RHIShaders[NumShaderLocks];
+	TMap<int32, FCachedRHIShader> RHIShaders[NumShaderLocks];
 
 	TArray<FShaderMapResource_SharedCode*> Resources;
 
@@ -1244,8 +1336,24 @@ FShaderMapResource_SharedCode::FShaderMapResource_SharedCode(FShaderLibraryInsta
 	: FShaderMapResource(InLibraryInstance->GetPlatform(), InLibraryInstance->GetNumShadersForShaderMap(InShaderMapIndex))
 	, LibraryInstance(InLibraryInstance)
 	, ShaderMapIndex(InShaderMapIndex)
-	, bShaderMapPreloaded(false)
+	, bEntireShaderMapPreloaded(false)
 {
+	if (GShaderMapResourceRef)
+	{
+		TArray<int32> ShaderGroupIndexes;
+		const int32 NumShaders = GetNumShaders();
+		for (int32 i = 0; i < NumShaders; ++i)
+		{
+			const int32 LibraryShaderIndex = LibraryInstance->Library->GetShaderIndex(ShaderMapIndex, i);
+			const int32 ShaderGroupIndex = LibraryInstance->Library->GetGroupIndexForShader(LibraryShaderIndex);
+			ShaderGroupIndexes.AddUnique(ShaderGroupIndex);
+		}
+
+		for (int32 ShaderGroupIndex : ShaderGroupIndexes)
+		{
+			LibraryInstance->Library->AddRefPreloadedShaderGroup(ShaderGroupIndex);
+		}
+	}
 }
 
 FShaderMapResource_SharedCode::~FShaderMapResource_SharedCode()
@@ -1263,7 +1371,7 @@ FRHIShader* FShaderMapResource_SharedCode::CreateRHIShaderOrCrash(int32 ShaderIn
 	SCOPED_LOADTIMER(FShaderMapResource_SharedCode_InitRHI);
 
 	const int32 LibraryShaderIndex = LibraryInstance->Library->GetShaderIndex(ShaderMapIndex, ShaderIndex);
-	TRefCountPtr<FRHIShader> CreatedShader = LibraryInstance->GetOrCreateShader(LibraryShaderIndex);
+	TRefCountPtr<FRHIShader> CreatedShader = LibraryInstance->GetOrCreateShader(LibraryShaderIndex, bRequired);
 	if (UNLIKELY(CreatedShader == nullptr))
 	{
 		if (bRequired)
@@ -1282,11 +1390,28 @@ void FShaderMapResource_SharedCode::ReleasePreloadedShaderCode(int32 ShaderIndex
 {
 	SCOPED_LOADTIMER(FShaderMapResource_SharedCode_InitRHI);	// part of shader initialization in a way
 
-	if (bShaderMapPreloaded)
+	if (bEntireShaderMapPreloaded)
 	{
 		const int32 LibraryShaderIndex = LibraryInstance->Library->GetShaderIndex(ShaderMapIndex, ShaderIndex);
 		LibraryInstance->Library->ReleasePreloadedShader(LibraryShaderIndex);
 	}
+}
+
+int32 FShaderMapResource_SharedCode::GetLibraryShaderIndex(int32 ShaderIndex) const
+{
+	return LibraryInstance->Library->GetShaderIndex(ShaderMapIndex, ShaderIndex);
+}
+
+void FShaderMapResource_SharedCode::PreloadShader(int32 ShaderIndex, FGraphEventArray& OutCompletionEvents)
+{
+	// Don't preload if we already preloaded the full shader map, or we already created the RHI shader.
+	if (bEntireShaderMapPreloaded || HasShader(ShaderIndex))
+	{		
+		return;
+	}
+
+	const int32 LibraryShaderIndex = LibraryInstance->Library->GetShaderIndex(ShaderMapIndex, ShaderIndex);
+	LibraryInstance->PreloadShader(LibraryShaderIndex, OutCompletionEvents);
 }
 
 void FShaderMapResource_SharedCode::ReleaseRHI()
@@ -1294,6 +1419,8 @@ void FShaderMapResource_SharedCode::ReleaseRHI()
 	if (LibraryInstance && ensureMsgf(LibraryInstance->Library, TEXT("LibraryInstance->Library pointer is expected to be valid as long as library's FShaderMapResource are alive.")))
 	{
 		const int32 NumShaders = GetNumShaders();
+		TArray<int32> ShaderGroupIndexes;
+
 		for (int32 i = 0; i < NumShaders; ++i)
 		{
 			const int32 LibraryShaderIndex = LibraryInstance->Library->GetShaderIndex(ShaderMapIndex, i);
@@ -1301,15 +1428,34 @@ void FShaderMapResource_SharedCode::ReleaseRHI()
 			{
 				LibraryInstance->ReleaseShader(LibraryShaderIndex);
 			}
-			else if (bShaderMapPreloaded)
+			else if (bEntireShaderMapPreloaded)
 			{
-				// Release the preloaded memory if it was preloaded, but not created yet
+				// Release the preloaded memory if the entire shader map was preloaded, but not created yet.
 				LibraryInstance->Library->ReleasePreloadedShader(LibraryShaderIndex);
+			}
+			else
+			{
+				// Release preloaded memory if we individually preloaded that shader.
+				LibraryInstance->ReleasePreloadedShaderIfNecessary(LibraryShaderIndex);
+			}
+
+			if (GShaderMapResourceRef)
+			{
+				const int32 ShaderGroupIndex = LibraryInstance->Library->GetGroupIndexForShader(LibraryShaderIndex);
+				ShaderGroupIndexes.AddUnique(ShaderGroupIndex);
+			}
+		}
+
+		if (GShaderMapResourceRef)
+		{
+			for (int32 ShaderGroupIndex : ShaderGroupIndexes)
+			{
+				LibraryInstance->Library->ReleasePreloadedShaderGroup(ShaderGroupIndex);
 			}
 		}
 	}
 
-	bShaderMapPreloaded = false;
+	bEntireShaderMapPreloaded = false;
 
 	FShaderMapResource::ReleaseRHI();
 
@@ -1341,6 +1487,24 @@ FString FShaderMapResource_SharedCode::GetFriendlyName() const
 {
 	return LibraryInstance->Library->GetName();
 }
+
+void FShaderMapResource_SharedCode::PreloadShaderMap(FGraphEventArray& OutCompletionEvents)
+{
+	bEntireShaderMapPreloaded = LibraryInstance->Library->PreloadShaderMap(ShaderMapIndex, OutCompletionEvents);
+}
+
+int32 FShaderMapResource_SharedCode::GetGroupIndexForShader(int32 ShaderIndex) const
+{
+	const int32 LibraryShaderIndex = LibraryInstance->Library->GetShaderIndex(ShaderMapIndex, ShaderIndex);
+	const int32 ShaderGroupIndex = LibraryInstance->Library->GetGroupIndexForShader(LibraryShaderIndex);
+	return ShaderGroupIndex;
+}
+
+int32 FShaderMapResource_SharedCode::GetLibraryId() const
+{
+	return LibraryInstance->Library->GetLibraryId();
+}
+
 
 #if WITH_EDITOR
 struct FShaderCodeStats
@@ -3666,6 +3830,11 @@ void FShaderCodeLibrary::Shutdown()
 bool FShaderCodeLibrary::IsEnabled()
 {
 	return FShaderLibrariesCollection::Impl != nullptr;
+}
+
+bool FShaderCodeLibrary::AreShaderMapsPreloadedAtLoadTime()
+{
+	return GPreloadShaderMaps > 0;
 }
 
 bool FShaderCodeLibrary::ContainsShaderCode(const FSHAHash& Hash)
