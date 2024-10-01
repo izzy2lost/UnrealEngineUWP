@@ -31,7 +31,7 @@ public:
 	}
 
 	/** Returns whether a new name candidate for the outbound name is valid. */
-	static void NotifyRename(FName PreviousOutboundName, const FString& OutboundName)
+	static void NotifyRename(FName PreviousOutboundName, const FString& OutboundName, const FLiveLinkSubjectKey& SubjectKey)
 	{
 		FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
 
@@ -44,7 +44,13 @@ public:
 				FLiveLinkStaticDataStruct StaticDataCopy;
 				StaticDataCopy.InitializeWith(*StaticData.Value);
 
-				Provider->UpdateSubjectStaticData(*OutboundName, StaticData.Key, MoveTemp(StaticDataCopy));
+
+				TMap<FName, FString> ExtraAnnotations;
+
+				FLiveLinkHubClient* LiveLinkClient = static_cast<FLiveLinkHubClient*>(&IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName));
+				const FText OriginalSourceType = LiveLinkClient->GetSourceType(SubjectKey.Source);
+				ExtraAnnotations.Add(FLiveLinkMessageAnnotation::OriginalSourceAnnotation, OriginalSourceType.ToString());
+				Provider->UpdateSubjectStaticData(*OutboundName, StaticData.Key, MoveTemp(StaticDataCopy), ExtraAnnotations);
 			}
 
 			// Then clear the old static data entry in the provider.

@@ -26,12 +26,6 @@ void ULiveLinkHubSubjectSettings::PreEditChange(FProperty* PropertyAboutToChange
 	if (PropertyAboutToChange && PropertyAboutToChange->GetFName() == GET_MEMBER_NAME_CHECKED(ULiveLinkHubSubjectSettings, OutboundName))
 	{
 		PreviousOutboundName = *OutboundName;
-
-		FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
-		if (TSharedPtr<FLiveLinkHubProvider> Provider = LiveLinkHubModule.GetLiveLinkProvider())
-		{
-			Provider->SendClearSubjectToConnections(PreviousOutboundName);
-		}
 	}
 }
 
@@ -43,13 +37,19 @@ void ULiveLinkHubSubjectSettings::PostEditChangeProperty(FPropertyChangedEvent& 
 	{
 		if (PreviousOutboundName != *OutboundName)
 		{
-			if (!FLiveLinkHubSubjectSettingsUtils::ValidateOutboundName(SubjectName, PreviousOutboundName, OutboundName))
+			if (FLiveLinkHubSubjectSettingsUtils::ValidateOutboundName(SubjectName, PreviousOutboundName, OutboundName))
 			{
-				OutboundName = PreviousOutboundName.ToString();
+				FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
+				if (TSharedPtr<FLiveLinkHubProvider> Provider = LiveLinkHubModule.GetLiveLinkProvider())
+				{
+					Provider->SendClearSubjectToConnections(PreviousOutboundName);
+				}
+
+				FLiveLinkHubSubjectSettingsUtils::NotifyRename(PreviousOutboundName, OutboundName, Key);
 			}
 			else
 			{
-				FLiveLinkHubSubjectSettingsUtils::NotifyRename(PreviousOutboundName, OutboundName);
+				OutboundName = PreviousOutboundName.ToString();
 			}
 		}
 	}

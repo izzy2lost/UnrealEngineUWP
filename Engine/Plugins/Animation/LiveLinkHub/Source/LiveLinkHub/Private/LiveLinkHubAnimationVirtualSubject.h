@@ -85,12 +85,6 @@ public:
 		if (PropertyAboutToChange && PropertyAboutToChange->GetFName() == GET_MEMBER_NAME_CHECKED(ULiveLinkHubAnimationVirtualSubject, OutboundName))
 		{
 			PreviousOutboundName = *OutboundName;
-
-			FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
-			if (TSharedPtr<FLiveLinkHubProvider> Provider = LiveLinkHubModule.GetLiveLinkProvider())
-			{
-				Provider->SendClearSubjectToConnections(PreviousOutboundName);
-			}
 		}
 	}
 
@@ -102,13 +96,19 @@ public:
 		{
 			if (PreviousOutboundName != *OutboundName)
 			{
-				if (!FLiveLinkHubSubjectSettingsUtils::ValidateOutboundName(OutboundName, PreviousOutboundName, OutboundName))
+				if (FLiveLinkHubSubjectSettingsUtils::ValidateOutboundName(OutboundName, PreviousOutboundName, OutboundName))
 				{
-					OutboundName = PreviousOutboundName.ToString();
+					FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
+					if (TSharedPtr<FLiveLinkHubProvider> Provider = LiveLinkHubModule.GetLiveLinkProvider())
+					{
+						Provider->SendClearSubjectToConnections(PreviousOutboundName);
+					}
+
+					FLiveLinkHubSubjectSettingsUtils::NotifyRename(PreviousOutboundName, OutboundName, SubjectKey);
 				}
 				else
 				{
-					FLiveLinkHubSubjectSettingsUtils::NotifyRename(PreviousOutboundName, OutboundName);
+					OutboundName = PreviousOutboundName.ToString();
 				}
 			}
 		}
@@ -124,6 +124,7 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "LiveLink")
 	FString Source;
 
+private:
 	/* Previous outbound name to be used for reverting name changes that aren't valid. */
 	FName PreviousOutboundName;
 };
