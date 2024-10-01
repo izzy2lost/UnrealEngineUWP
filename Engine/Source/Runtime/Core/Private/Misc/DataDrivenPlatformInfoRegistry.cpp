@@ -247,6 +247,13 @@ static FString GetSectionString(const FConfigSection& Section, FName Key)
 	return Value ? Value->GetValue() : FString();
 }
 
+// Gets a string from a section, or default string if it didn't exist
+static inline FName GetSectionString(const FConfigSection& Section, FName Key, FName DefaultValue)
+{
+	const FConfigValue* Value = Section.Find(Key);
+	return Value ? *Value->GetValue() : DefaultValue;
+}
+
 #if DDPI_HAS_EXTENDED_PLATFORMINFO_DATA
 static void ParsePreviewPlatforms(const FConfigFile& IniFile)
 {
@@ -283,7 +290,7 @@ static void ParsePreviewPlatforms(const FConfigFile& IniFile)
 				
 				FPreviewPlatformMenuItem Item;
 				Item.PlatformName = PlatformName;
-				Item.PreviewShaderPlatformName = PreviewPlatformName;
+				Item.PreviewShaderPlatformName = GetSectionString(Section.Value, FName("PreviewShaderPlatform"), PreviewPlatformName);
 				Item.ShaderFormat = *GetSectionString(Section.Value, FName("ShaderFormat"));
 				checkf(Item.ShaderFormat != NAME_None, TEXT("DataDrivenPlatformInfo section [PreviewPlatform %s] must specify a ShaderFormat"), *SectionName);
 				Item.ActiveIconPath = GetSectionString(Section.Value, FName("ActiveIconPath"));
@@ -293,7 +300,7 @@ static void ParsePreviewPlatforms(const FConfigFile& IniFile)
 				Item.ShaderPlatformToPreview = *GetSectionString(Section.Value, FName("ShaderPlatform"));
 				Item.PreviewFeatureLevelName = *GetSectionString(Section.Value, FName("PreviewFeatureLevel"));
 
-				checkf(Item.ShaderPlatformToPreview != NAME_None, TEXT("DataDrivenPlatformInfo section [PreviewPlatform %s] must specify a ShaderPlatform"), *SectionName);
+				checkf(Item.ShaderPlatformToPreview != NAME_None, TEXT("DataDrivenPlatformInfo section [PreviewPlatform %s] must specify a ShaderPlatformToPreview"), *SectionName);
 				FTextStringHelper::ReadFromBuffer(*GetSectionString(Section.Value, FName("MenuTooltip")), Item.MenuTooltip);
 				FTextStringHelper::ReadFromBuffer(*GetSectionString(Section.Value, FName("IconText")), Item.IconText);
 

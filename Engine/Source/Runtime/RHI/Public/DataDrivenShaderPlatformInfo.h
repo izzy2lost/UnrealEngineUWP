@@ -138,6 +138,8 @@ class FGenericDataDrivenShaderPlatformInfo
 		SetDefaultValues();
 	}
 
+	FGenericDataDrivenShaderPlatformInfo(const FGenericDataDrivenShaderPlatformInfo&) = default;
+
 	RHI_API void SetDefaultValues();
 
 public:
