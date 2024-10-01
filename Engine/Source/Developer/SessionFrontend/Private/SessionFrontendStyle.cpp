@@ -73,6 +73,11 @@ void FSessionFrontendStyle::Initialize()
 		StyleSet->Set("SessionFrontEnd.Tabs.ScreenComparison", new CORE_IMAGE_BRUSH_SVG("Starship/Common/Monitor", Icon16x16));
 		StyleSet->Set("SessionFrontEnd.Tabs.TraceControl", new IMAGE_BRUSH_SVG("Starship/Common/TraceDataFiltering", Icon16x16));
 	}
+
+	// Sesssion Browser
+	{
+		StyleSet->Set("SessionBrowser.Row.Name", new IMAGE_BRUSH("ContentBrowser/FilterChecked", FVector2D(7.0f, 24.0f)));
+	}
 	
 	FSlateStyleRegistry::RegisterSlateStyle( *StyleSet.Get() );
 }
