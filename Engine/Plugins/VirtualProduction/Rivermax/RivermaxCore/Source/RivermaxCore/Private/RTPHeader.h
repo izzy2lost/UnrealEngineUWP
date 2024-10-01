@@ -134,7 +134,7 @@ namespace UE::RivermaxCore::Private
 		uint16 GetLastRowNumber() const;
 
 		/** Sequence number including extension if present */
-		uint32 SequencerNumber = 0;
+		uint32 SequenceNumber = 0;
 
 		/** Timestamp of frame in the specified clock resolution. Video is typically 90kHz */
 		uint32 Timestamp = 0;

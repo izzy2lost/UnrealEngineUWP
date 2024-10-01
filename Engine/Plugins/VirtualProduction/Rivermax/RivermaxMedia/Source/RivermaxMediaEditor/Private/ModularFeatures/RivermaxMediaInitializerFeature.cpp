@@ -51,8 +51,10 @@ void FRivermaxMediaInitializerFeature::InitializeMediaObjectForTile(UObject* Med
 {
 	if (URivermaxMediaSource* RivermaxMediaSource = Cast<URivermaxMediaSource>(MediaObject))
 	{
-		RivermaxMediaSource->PlayerMode          = ERivermaxPlayerMode::Framelock;
-		RivermaxMediaSource->bUseZeroLatency     = true;
+		RivermaxMediaSource->EvaluationType      = EMediaIOSampleEvaluationType::Timecode;
+		RivermaxMediaSource->bFramelock          = true;
+		RivermaxMediaSource->bUseTimeSynchronization = true;
+		RivermaxMediaSource->FrameDelay			 = 0;
 		RivermaxMediaSource->bOverrideResolution = false;
 		//RivermaxMediaSource->Resolution          = default value
 		RivermaxMediaSource->FrameRate           = { 60,1 };
@@ -60,7 +62,6 @@ void FRivermaxMediaInitializerFeature::InitializeMediaObjectForTile(UObject* Med
 		RivermaxMediaSource->InterfaceAddress    = GetRivermaxInterfaceAddress();
 		RivermaxMediaSource->StreamAddress       = GenerateStreamAddress(OnwerInfo.OwnerUniqueIdx, TilePos);
 		RivermaxMediaSource->Port                = 50000;
-		RivermaxMediaSource->bIsSRGBInput        = false;
 		RivermaxMediaSource->bUseGPUDirect       = true;
 	}
 	else if (URivermaxMediaOutput* RivermaxMediaOutput = Cast<URivermaxMediaOutput>(MediaObject))
@@ -85,16 +86,17 @@ void FRivermaxMediaInitializerFeature::InitializeMediaObjectForFullFrame(UObject
 {
 	if (URivermaxMediaSource* RivermaxMediaSource = Cast<URivermaxMediaSource>(MediaObject))
 	{
-		RivermaxMediaSource->PlayerMode          = ERivermaxPlayerMode::Framelock;
-		RivermaxMediaSource->bUseZeroLatency     = true;
+		RivermaxMediaSource->EvaluationType		 = EMediaIOSampleEvaluationType::Timecode;
+		RivermaxMediaSource->bFramelock			 = true;
+		RivermaxMediaSource->bUseTimeSynchronization = true;
 		RivermaxMediaSource->bOverrideResolution = false;
+		RivermaxMediaSource->FrameDelay = 0;
 		//RivermaxMediaSource->Resolution          = default value
 		RivermaxMediaSource->FrameRate           = { 60,1 };
 		RivermaxMediaSource->PixelFormat         = ERivermaxMediaSourcePixelFormat::RGB_10bit;
 		RivermaxMediaSource->InterfaceAddress    = GetRivermaxInterfaceAddress();
 		RivermaxMediaSource->StreamAddress       = GenerateStreamAddress(OnwerInfo.ClusterNodeUniqueIdx.Get(0), OnwerInfo.OwnerUniqueIdx, OnwerInfo.OwnerType);
 		RivermaxMediaSource->Port                = 50000;
-		RivermaxMediaSource->bIsSRGBInput        = false;
 		RivermaxMediaSource->bUseGPUDirect       = true;
 	}
 	else if (URivermaxMediaOutput* RivermaxMediaOutput = Cast<URivermaxMediaOutput>(MediaObject))

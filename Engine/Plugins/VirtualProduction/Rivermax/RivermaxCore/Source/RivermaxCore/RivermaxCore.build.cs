@@ -12,7 +12,6 @@ public class RivermaxCore : ModuleRules
 				"CoreUObject",
 				"DeveloperSettings",
 				"MediaAssets",
-				"MediaIOCore",
 				"RHI",
 				"RivermaxLib",
 				"TimeManagement"
@@ -24,7 +23,7 @@ public class RivermaxCore : ModuleRules
 				"D3D12RHI",
 				"Engine",
 				"Networking",
-				"RenderCore"
+				"RenderCore",
 			}
 		);
 
