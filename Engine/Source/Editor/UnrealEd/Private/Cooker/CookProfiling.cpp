@@ -235,8 +235,6 @@ namespace DetailedCookStats
 	double TickLoopProcessDeferredCommandsTimeSec = 0.0;
 	double TickLoopTickCommandletStatsTimeSec = 0.0;
 	double TickLoopFlushRenderingCommandsTimeSec = 0.0;
-	double ShaderFlushTimeSec = 0.0;
-	double ValidationTimeSec = 0.0;
 	bool IsCookAll = false;
 	bool IsCookOnTheFly = false;
 	bool IsIterativeCook = false;
@@ -889,8 +887,6 @@ FCookStatsManager::FAutoRegisterCallback RegisterCookStats([](FCookStatsManager:
 	ADD_COOK_STAT_FLT(" 0. 6", TickLoopProcessDeferredCommandsTimeSec);
 	ADD_COOK_STAT_FLT(" 0. 7", TickLoopTickCommandletStatsTimeSec);
 	ADD_COOK_STAT_FLT(" 0. 8", TickLoopFlushRenderingCommandsTimeSec);
-	ADD_COOK_STAT_FLT(" 0. 9", ShaderFlushTimeSec);
-	ADD_COOK_STAT_FLT(" 0. 10", ValidationTimeSec);
 	FString CookParameters; // Empty value to write a header with name "CookParameters"
 	ADD_COOK_STAT_FLT(" 1", CookParameters);
 	ADD_COOK_STAT_FLT(" 1. 0", TargetPlatforms);
