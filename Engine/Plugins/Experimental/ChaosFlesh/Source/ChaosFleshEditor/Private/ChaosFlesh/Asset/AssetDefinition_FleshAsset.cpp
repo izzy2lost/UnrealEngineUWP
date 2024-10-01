@@ -63,7 +63,7 @@ EAssetCommandResult UAssetDefinition_FleshAsset::OpenAssets(const FAssetOpenArgs
 		{
 			if (!FDataflowEditorToolkit::HasDataflowAsset(FleshAsset))
 			{
-				if (UDataflow* const NewDataflowAsset = Cast<UDataflow>(DataflowAssetDefinitionHelpers::NewOrOpenDataflowAsset(FleshAsset)))
+				if (UDataflow* const NewDataflowAsset = Cast<UDataflow>(UE::DataflowAssetDefinitionHelpers::NewOrOpenDataflowAsset(FleshAsset)))
 				{
 					FleshAsset->DataflowAsset = NewDataflowAsset;
 				}
