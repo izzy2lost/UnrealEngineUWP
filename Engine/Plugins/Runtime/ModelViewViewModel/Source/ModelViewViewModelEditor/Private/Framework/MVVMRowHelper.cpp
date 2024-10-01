@@ -23,6 +23,7 @@
 #include "MVVMBlueprintViewBinding.h"
 #include "MVVMBlueprintViewConversionFunction.h"
 #include "MVVMBlueprintViewEvent.h"
+#include "MVVMBlueprintViewCondition.h"
 #include "MVVMWidgetBlueprintExtension_View.h"
 #include "Misc/MessageDialog.h"
 #include "Types/MVVMBindingEntry.h"
@@ -35,7 +36,7 @@ extern UNREALED_API UEditorEngine* GEditor;
 namespace UE::MVVM::BindingEntry
 {
 
-void FRowHelper::GatherAllChildBindings(UMVVMBlueprintView* BlueprintView, const TConstArrayView<TSharedPtr<FBindingEntry>> Entries, TArray<const FMVVMBlueprintViewBinding*>& OutBindings, TArray<UMVVMBlueprintViewEvent*>& OutEvents)
+void FRowHelper::GatherAllChildBindings(UMVVMBlueprintView* BlueprintView, const TConstArrayView<TSharedPtr<FBindingEntry>> Entries, TArray<const FMVVMBlueprintViewBinding*>& OutBindings, TArray<UMVVMBlueprintViewEvent*>& OutEvents, TArray<UMVVMBlueprintViewCondition*>& OutConditions)
 {
 	for (const TSharedPtr<FBindingEntry>& Entry : Entries)
 	{
@@ -56,7 +57,16 @@ void FRowHelper::GatherAllChildBindings(UMVVMBlueprintView* BlueprintView, const
 				OutEvents.AddUnique(Event);
 			}
 		}
-		GatherAllChildBindings(BlueprintView, Entry->GetAllChildren(), OutBindings, OutEvents);
+
+		if (Entry->GetRowType() == FBindingEntry::ERowType::Condition)
+		{
+			UMVVMBlueprintViewCondition* Condition = Entry->GetCondition();
+			if (Condition)
+			{
+				OutConditions.AddUnique(Condition);
+			}
+		}
+		GatherAllChildBindings(BlueprintView, Entry->GetAllChildren(), OutBindings, OutEvents, OutConditions);
 	}
 }
 
@@ -66,9 +76,10 @@ void FRowHelper::DeleteEntries(const UWidgetBlueprint* WidgetBlueprint, UMVVMBlu
 	{
 		TArray<const FMVVMBlueprintViewBinding*> BindingsToRemove;
 		TArray<UMVVMBlueprintViewEvent*> EventsToRemove;
-		GatherAllChildBindings(BlueprintView, Selection, BindingsToRemove, EventsToRemove);
+		TArray<UMVVMBlueprintViewCondition*> ConditionsToRemove;
+		GatherAllChildBindings(BlueprintView, Selection, BindingsToRemove, EventsToRemove, ConditionsToRemove);
 
-		if (BindingsToRemove.Num() == 0 && EventsToRemove.Num() == 0)
+		if (BindingsToRemove.Num() == 0 && EventsToRemove.Num() == 0 && ConditionsToRemove.Num() == 0)
 		{
 			return;
 		}
@@ -81,6 +92,10 @@ void FRowHelper::DeleteEntries(const UWidgetBlueprint* WidgetBlueprint, UMVVMBlu
 		for (const UMVVMBlueprintViewEvent* Event : EventsToRemove)
 		{
 			BindingDisplayNames.Add(Event->GetDisplayName(true));
+		}
+		for (const UMVVMBlueprintViewCondition* Condition : ConditionsToRemove)
+		{
+			BindingDisplayNames.Add(Condition->GetDisplayName(true));
 		}
 
 		const FText Message = FText::Format(BindingDisplayNames.Num() == 1 ?
@@ -103,6 +118,10 @@ void FRowHelper::DeleteEntries(const UWidgetBlueprint* WidgetBlueprint, UMVVMBlu
 			for (UMVVMBlueprintViewEvent* Event : EventsToRemove)
 			{
 				BlueprintView->RemoveEvent(Event);
+			}
+			for (UMVVMBlueprintViewCondition* Condition : ConditionsToRemove)
+			{
+				BlueprintView->RemoveCondition(Condition);
 			}
 		}
 	}
@@ -150,6 +169,13 @@ void FRowHelper::ShowBlueprintGraph(FBlueprintEditor* BlueprintEditor, UWidgetBl
 			if (UMVVMBlueprintViewEvent* Event = Entry->GetEvent())
 			{
 				ShowGraph(Event->GetWrapperGraph());
+			}
+		}
+		else if (Entry->GetRowType() == FBindingEntry::ERowType::Condition)
+		{
+			if (UMVVMBlueprintViewCondition* Condition = Entry->GetCondition())
+			{
+				ShowGraph(Condition->GetWrapperGraph());
 			}
 		}
 	}
@@ -382,6 +408,7 @@ FMenuBuilder FRowHelper::CreateContextMenu(UWidgetBlueprint* WidgetBlueprint, UM
 				case FBindingEntry::ERowType::Group:
 				case FBindingEntry::ERowType::Binding:
 				case FBindingEntry::ERowType::Event:
+				case FBindingEntry::ERowType::Condition:
 					break;
 				default:
 					bCanRemoveEntry = false;

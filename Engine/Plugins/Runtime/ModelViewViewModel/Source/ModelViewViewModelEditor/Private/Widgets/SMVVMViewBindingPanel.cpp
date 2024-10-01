@@ -10,6 +10,7 @@
 #include "MVVMEditorSubsystem.h"
 #include "MVVMWidgetBlueprintExtension_View.h"
 #include "WidgetBlueprintEditor.h"
+#include "MVVMBlueprintViewCondition.h"
 #include "WidgetBlueprintToolMenuContext.h"
 
 #include "Customizations/MVVMConversionPathCustomization.h"
@@ -311,6 +312,48 @@ bool SBindingsPanel::CanAddBinding() const
 	UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get();
 	return MVVMExtensionPtr && MVVMExtensionPtr->GetBlueprintView() != nullptr;
 }
+
+void SBindingsPanel::AddEmptyCondition()
+{
+	if (!CanAddEmptyCondition())
+	{
+		return;
+	}
+	if (UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get())
+	{
+		UMVVMEditorSubsystem* EditorSubsystem = GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>();
+		if (TSharedPtr<FWidgetBlueprintEditor> BlueprintEditor = WeakBlueprintEditor.Pin())
+		{
+			UMVVMBlueprintViewCondition* Condition = EditorSubsystem->AddCondition(MVVMExtensionPtr->GetWidgetBlueprint());
+
+			if (Condition && BindingsList)
+			{
+				BindingsList->RequestNavigateToCondition(Condition);
+			}
+		}
+	}
+
+}
+
+bool SBindingsPanel::CanAddEmptyCondition() const
+{
+	UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get();
+	return MVVMExtensionPtr && MVVMExtensionPtr->GetBlueprintView() != nullptr;
+}
+
+FText SBindingsPanel::GetAddEmptyConditionToolTip() const
+{
+	if (CanAddEmptyCondition())
+	{
+		return LOCTEXT("AddEmptyConditionTooltip", "Add an empty condition.");
+	}
+	else
+	{
+		return LOCTEXT("CannotAddEmptyConditionToolTip", "A viewmodel is required before adding conditions.");
+	}
+
+}
+
 
 void SBindingsPanel::RefreshDetailsView()
 {
@@ -641,7 +684,21 @@ TSharedRef<SWidget> SBindingsPanel::GenerateEditViewWidget()
 			true
 		);
 
-
+		if (GetDefault<UMVVMDeveloperProjectSettings>()->bAllowConditionBinding)
+		{
+			ToolbarBuilderGlobal.AddToolBarButton(
+				FUIAction(
+					FExecuteAction::CreateSP(this, &SBindingsPanel::AddEmptyCondition),
+					FCanExecuteAction::CreateSP(this, &SBindingsPanel::CanAddEmptyCondition),
+					FGetActionCheckState()
+				),
+				NAME_None,
+				LOCTEXT("AddCondition", "Add Condition"),
+				MakeAttributeSP(this, &SBindingsPanel::GetAddEmptyConditionToolTip),
+				FSlateIcon(FAppStyle::Get().GetStyleSetName(), FName("Icons.Plus")),
+				EUserInterfaceActionType::Button
+			);
+		}
 	}
 	ToolbarBuilderGlobal.EndSection();
 

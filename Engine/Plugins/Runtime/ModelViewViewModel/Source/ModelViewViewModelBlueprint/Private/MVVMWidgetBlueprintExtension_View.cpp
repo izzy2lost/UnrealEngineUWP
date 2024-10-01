@@ -330,7 +330,7 @@ void UMVVMWidgetBlueprintExtension_View::HandleFinishCompilingClass(UWidgetBluep
 			check(ViewExtension);
 
 			// Does it have any bindings
-			if (ViewExtension->GetBindings().Num() > 0 || ViewExtension->GetEvents().Num() > 0)
+			if (ViewExtension->GetBindings().Num() > 0 || ViewExtension->GetEvents().Num() > 0 || ViewExtension->GetConditions().Num() > 0)
 			{
 				// Test if parent also has a view
 				if (Class->GetExtension<UMVVMViewClass>(true))

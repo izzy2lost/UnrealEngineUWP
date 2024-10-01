@@ -10,6 +10,7 @@
 
 class UMVVMBlueprintView;
 class UMVVMBlueprintViewEvent;
+class UMVVMBlueprintViewCondition;
 struct FMVVMBlueprintViewBinding;
 class UWidgetBlueprint;
 
@@ -29,6 +30,8 @@ struct FBindingEntry
 		BindingParameter,
 		Event,
 		EventParameter,
+		Condition,
+		ConditionParameter
 	};
 
 	FMVVMBlueprintViewBinding* GetBinding(UMVVMBlueprintView* View) const;
@@ -88,6 +91,18 @@ struct FBindingEntry
 
 	void SetEventParameter(UMVVMBlueprintViewEvent* Event, FMVVMBlueprintPinId Parameter);
 
+	UMVVMBlueprintViewCondition* GetCondition() const;
+
+	void SetCondition(UMVVMBlueprintViewCondition* InCondition);
+
+	const FMVVMBlueprintPinId& GetConditionParameterId() const
+	{
+		return PinId;
+	}
+
+	void SetConditionParameter(UMVVMBlueprintViewCondition* Condition, FMVVMBlueprintPinId Parameter);
+
+
 	//~ children
 	TConstArrayView<TSharedPtr<FBindingEntry>> GetAllChildren() const
 	{
@@ -117,6 +132,7 @@ private:
 	FGuid BindingId;
 	FMVVMBlueprintPinId PinId;
 	TWeakObjectPtr<UMVVMBlueprintViewEvent> Event;
+	TWeakObjectPtr<UMVVMBlueprintViewCondition> Condition;
 	TArray<TSharedPtr<FBindingEntry>> AllChildren;
 	TArray<TSharedPtr<FBindingEntry>> FilteredChildren;
 	bool bGroupIsWidget = false;

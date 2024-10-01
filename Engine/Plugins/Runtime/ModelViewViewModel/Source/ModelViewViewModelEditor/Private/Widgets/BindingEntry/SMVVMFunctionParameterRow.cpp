@@ -7,7 +7,7 @@
 #include "MVVMBlueprintViewBinding.h"
 #include "MVVMBlueprintViewConversionFunction.h"
 #include "MVVMBlueprintViewEvent.h"
-
+#include "MVVMBlueprintViewCondition.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 
 #include "Widgets/Images/SImage.h"
@@ -16,6 +16,7 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SMVVMEventParameter.h"
 #include "Widgets/SMVVMFunctionParameter.h"
+#include "Widgets/SMVVMConditionParameter.h"
 
 #define LOCTEXT_NAMESPACE "BindingListView_FunctionParameterRow"
 
@@ -77,6 +78,19 @@ TSharedRef<SWidget> SFunctionParameterRow::BuildRowWidget()
 		ContentWidget = SNew(SEventParameter, GetBlueprint())
 			.Event(GetEntry()->GetEvent())
 			.ParameterId(GetEntry()->GetEventParameterId())
+			.AllowDefault(true);
+	}
+	else if (GetEntry()->GetRowType() == FBindingEntry::ERowType::ConditionParameter)
+	{
+		UMVVMBlueprintViewCondition* ViewCondition = GetEntry()->GetCondition();
+		check(ViewCondition);
+
+		Pin = ViewCondition->GetPins().FindByPredicate([ArgId = GetEntry()->GetConditionParameterId()](const FMVVMBlueprintPin& Other) { return Other.GetId() == ArgId; });
+		GraphPin = ViewCondition->GetOrCreateGraphPin(GetEntry()->GetConditionParameterId());
+
+		ContentWidget = SNew(SConditionParameter, GetBlueprint())
+			.Condition(GetEntry()->GetCondition())
+			.ParameterId(GetEntry()->GetConditionParameterId())
 			.AllowDefault(true);
 	}
 

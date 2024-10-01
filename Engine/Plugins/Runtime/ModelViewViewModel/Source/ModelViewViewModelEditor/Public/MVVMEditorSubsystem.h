@@ -13,6 +13,7 @@ class UEdGraphPin;
 class UMVVMBlueprintView;
 enum class EMVVMBindingMode : uint8;
 enum class EMVVMExecutionMode : uint8;
+enum class EMVVMConditionOperation : uint8;
 namespace UE::MVVM { struct FBindingSource; }
 namespace UE::MVVM::ConversionFunctionLibrary { class FCollection; }
 struct FMVVMAvailableBinding;
@@ -24,6 +25,7 @@ template <typename T> class TSubclassOf;
 class UEdGraph;
 class UK2Node_CallFunction;
 class UMVVMBlueprintViewEvent;
+class UMVVMBlueprintViewCondition;
 class UWidgetBlueprint;
 
 /** */
@@ -70,6 +72,12 @@ public:
 	void RemoveEvent(UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintViewEvent* Event);
 
 	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
+	UMVVMBlueprintViewCondition* AddCondition(UWidgetBlueprint* WidgetBlueprint);
+
+	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
+	void RemoveCondition(UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintViewCondition* Condition);
+
+	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
 	TArray<FMVVMAvailableBinding> GetChildViewModels(TSubclassOf<UObject> Class, TSubclassOf<UObject> Accessor);
 
 	UE_DEPRECATED(5.4, "SetSourceToDestinationConversionFunction with a UFunction is deprecated.")
@@ -92,6 +100,15 @@ public:
 	void SetEventArgumentPath(UMVVMBlueprintViewEvent* Event, const FMVVMBlueprintPinId& PinId, const FMVVMBlueprintPropertyPath& PropertyPath) const;
 	void SetEnabledForEvent(UMVVMBlueprintViewEvent* Event, bool bEnabled);
 	void SetCompileForEvent(UMVVMBlueprintViewEvent* Event, bool bCompile);
+
+	void SetConditionPath(UMVVMBlueprintViewCondition* Condition, FMVVMBlueprintPropertyPath PropertyPath, bool bRequestBindingConversion);
+	void SetConditionDestinationPath(UMVVMBlueprintViewCondition* Condition, FMVVMBlueprintPropertyPath PropertyPath);
+	void SetConditionArgumentPath(UMVVMBlueprintViewCondition* Condition, const FMVVMBlueprintPinId& PinId, const FMVVMBlueprintPropertyPath& PropertyPath) const;
+	void SetEnabledForCondition(UMVVMBlueprintViewCondition* Condition, bool bEnabled);
+	void SetCompileForCondition(UMVVMBlueprintViewCondition* Condition, bool bCompile);
+	void SetConditionOperation(UMVVMBlueprintViewCondition* Condition, EMVVMConditionOperation Operation);
+	void SetConditionOperationValue(UMVVMBlueprintViewCondition* Condition, float Value);
+	void SetConditionOperationMaxValue(UMVVMBlueprintViewCondition* Condition, float MaxValue);
 
 	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
 	bool IsValidConversionFunction(const UWidgetBlueprint* WidgetBlueprint, const UFunction* Function, const FMVVMBlueprintPropertyPath& Source, const FMVVMBlueprintPropertyPath& Destination) const;

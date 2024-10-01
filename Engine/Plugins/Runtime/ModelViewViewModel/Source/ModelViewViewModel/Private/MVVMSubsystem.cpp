@@ -7,6 +7,7 @@
 #include "Templates/ValueOrError.h"
 #include "View/MVVMView.h"
 #include "Types/MVVMAvailableBinding.h"
+#include "Kismet/KismetMathLibrary.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MVVMSubsystem)
 
@@ -21,6 +22,66 @@ void UMVVMSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 void UMVVMSubsystem::Deinitialize()
 {
 	Super::Deinitialize();
+}
+
+bool UMVVMSubsystem::K2_CompareFloatValues(EMVVMConditionOperation Operation, float Value, float CompareValue, float CompareMaxValue)
+{
+	switch (Operation)
+	{
+	case EMVVMConditionOperation::Equal:
+	{
+		return UKismetMathLibrary::NearlyEqual_FloatFloat(Value, CompareValue);
+	}
+	break;
+	case EMVVMConditionOperation::NotEqual:
+	{
+		return !UKismetMathLibrary::NearlyEqual_FloatFloat(Value, CompareValue);
+	}
+	break;
+	case EMVVMConditionOperation::MoreThan:
+	{
+		return UKismetMathLibrary::Greater_DoubleDouble(Value, CompareValue);
+	}
+	break;
+	case EMVVMConditionOperation::MoreThanOrEqual:
+	{
+		return UKismetMathLibrary::GreaterEqual_DoubleDouble(Value, CompareValue);
+	}
+	break;
+	case EMVVMConditionOperation::LessThan:
+	{
+		return UKismetMathLibrary::Less_DoubleDouble(Value, CompareValue);
+	}
+	break;
+	case EMVVMConditionOperation::LessThanOrEqual:
+	{
+		return UKismetMathLibrary::LessEqual_DoubleDouble(Value, CompareValue);
+	}
+	break;
+	case EMVVMConditionOperation::BetweenExclusive:
+	case EMVVMConditionOperation::BetweenInclusive:
+	{
+		float Smallest = CompareValue;
+		float Largest = CompareMaxValue;
+		if (Smallest > Largest)
+		{
+			Largest = CompareValue;
+			Smallest = CompareMaxValue;
+		}
+		if (Operation == EMVVMConditionOperation::BetweenExclusive)
+		{
+			return UKismetMathLibrary::Greater_DoubleDouble(Value, Smallest) && UKismetMathLibrary::Less_DoubleDouble(Value, Largest);
+		}
+		else
+		{
+			return UKismetMathLibrary::GreaterEqual_DoubleDouble(Value, Smallest) && UKismetMathLibrary::LessEqual_DoubleDouble(Value, Largest);
+		}
+	}
+	break;
+	default : 
+		break;
+	}
+	return false;
 }
 
 

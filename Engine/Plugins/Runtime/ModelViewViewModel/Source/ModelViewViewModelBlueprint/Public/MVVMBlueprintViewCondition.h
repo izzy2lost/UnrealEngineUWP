@@ -5,13 +5,14 @@
 #include "MVVMPropertyPath.h"
 #include "MVVMBlueprintPin.h"
 #include "View/MVVMViewTypes.h"
+#include "Types/MVVMConditionOperation.h"
 
-#include "MVVMBlueprintViewEvent.generated.h"
+#include "MVVMBlueprintViewCondition.generated.h"
 
 struct FEdGraphEditAction;
 class UEdGraph;
 class UK2Node;
-class UMVVMK2Node_AreSourcesValidForEvent;
+class UMVVMK2Node_IsConditionValid;
 class UWidgetBlueprint;
 
 /**
@@ -21,7 +22,7 @@ class UWidgetBlueprint;
  * Ex: UButton::OnClick 
  */
 UCLASS(Within = MVVMBlueprintView)
-class MODELVIEWVIEWMODELBLUEPRINT_API UMVVMBlueprintViewEvent : public UObject
+class MODELVIEWVIEWMODELBLUEPRINT_API UMVVMBlueprintViewCondition : public UObject
 {
 	GENERATED_BODY()
 
@@ -39,9 +40,6 @@ public:
 		EMessageType MessageType;
 	};
 
-	/** @return true if the property path contains a multicast delegate property. */
-	static bool Supports(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintPropertyPath& PropertyPath);
-
 public:
 	/** Whether the event is enabled or disabled by default. The instance may enable the event at runtime. */
 	UPROPERTY(EditAnywhere, Category = "Viewmodel")
@@ -52,17 +50,36 @@ public:
 	bool bCompile = true;
 
 public:
-	const FMVVMBlueprintPropertyPath& GetEventPath() const
+	const FMVVMBlueprintPropertyPath& GetConditionPath() const
 	{
-		return EventPath;
+		return ConditionPath;
 	}
-	void SetEventPath(FMVVMBlueprintPropertyPath EventPath);
+	void SetConditionPath(FMVVMBlueprintPropertyPath ConditionPath);
 
 	const FMVVMBlueprintPropertyPath& GetDestinationPath() const
 	{
 		return DestinationPath;
 	}
 	void SetDestinationPath(FMVVMBlueprintPropertyPath DestinationPath);
+
+	EMVVMConditionOperation GetOperation() const
+	{
+		return ConditionOperation;
+	}
+
+	void SetOperation(EMVVMConditionOperation Operation);
+
+	float GetOperationValue()
+	{
+		return Value;
+	}
+	void SetOperationValue(float NewValue);
+
+	float GetOperationMaxValue()
+	{
+		return MaxValue;
+	}
+	void SetOperationMaxValue(float NewMaxValue);
 
 public:
 	UEdGraph* GetWrapperGraph() const
@@ -78,13 +95,13 @@ public:
 	enum ERemoveWrapperGraphParam
 	{
 		RemoveConversionFunctionCurrentValues, // when removing or changing the conversion function, we want to remove all the conversion function parameters
-		LeaveConversionFunctionCurrentValues // when we remove the wrapper graph because the event path has changed, we want to keep the conversion function parameters
+		LeaveConversionFunctionCurrentValues // when we remove the wrapper graph because the destination path or condition properties are changed, we want to keep the conversion function parameters
 	};
 	void RemoveWrapperGraph(ERemoveWrapperGraphParam ActionForCurrentValues = RemoveConversionFunctionCurrentValues);
 
-	UK2Node* GetWrapperNode() const
+	UK2Node* GetWrapperDestinationNode() const
 	{
-		return CachedWrapperNode;
+		return CachedWrapperDestinationNode;
 	}
 
 	UEdGraph* GetOrCreateWrapperGraph();
@@ -101,8 +118,8 @@ public:
 	void UpdatePinValues();
 	/** Keep the orphaned pins. Add the missing pins. */
 	bool HasOrphanedPin() const;
-	/** Event sources are tested at runtime to check if they are valid. */
-	void UpdateEventKey(FMVVMViewClass_EventKey EventKey);
+	/** Condition sources are tested at runtime to check if they are valid. */
+	void UpdateConditionKey(FMVVMViewClass_ConditionKey ConditionKey);
 
 	UEdGraphPin* GetOrCreateGraphPin(const FMVVMBlueprintPinId& Pin);
 
@@ -136,19 +153,27 @@ public:
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChainEvent) override;
 
 private:
-	static const UFunction* GetEventSignature(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintPropertyPath& PropertyPath);
-	const UFunction* GetEventSignature() const;
+	const UFunction* GetDestinationSignature() const;
 	void HandleGraphChanged(const FEdGraphEditAction& Action);
 	void HandleUserDefinedPinRenamed(UK2Node* InNode, FName OldPinName, FName NewPinName);
 	UWidgetBlueprint* GetWidgetBlueprintInternal() const;
-	void SetCachedWrapperGraphInternal(UEdGraph* Graph, UK2Node* Node, UMVVMK2Node_AreSourcesValidForEvent* SourceNode);
+	void SetCachedWrapperGraphInternal(UEdGraph* Graph, UK2Node* Node, UMVVMK2Node_IsConditionValid* SourceNode);
 	UEdGraph* CreateWrapperGraphInternal();
 	void LoadPinValuesInternal();
-	void UpdateEventKeyInternal();
+	void UpdateConditionKeyInternal();
 
 private:
 	UPROPERTY(VisibleAnywhere, Category = "Viewmodel")
-	FMVVMBlueprintPropertyPath EventPath;
+	FMVVMBlueprintPropertyPath ConditionPath;
+
+	UPROPERTY(VisibleAnywhere, Category = "Viewmodel")
+	EMVVMConditionOperation ConditionOperation;
+
+	UPROPERTY(VisibleAnywhere, Category = "Viewmodel")
+	float Value;
+
+	UPROPERTY(VisibleAnywhere, Category = "Viewmodel")
+	float MaxValue;
 
 	UPROPERTY(VisibleAnywhere, Category = "Viewmodel")
 	FMVVMBlueprintPropertyPath DestinationPath;
@@ -164,7 +189,7 @@ private:
 	FName GraphName;
 
 	UPROPERTY(VisibleAnywhere, Category = "Viewmodel")
-	FMVVMViewClass_EventKey EventKey;
+	FMVVMViewClass_ConditionKey ConditionKey;
 
 	mutable TArray<FMessage> Messages;
 	bool bLoadingPins = false;
@@ -173,10 +198,10 @@ private:
 	mutable TObjectPtr<UEdGraph> CachedWrapperGraph;
 
 	UPROPERTY(Transient, DuplicateTransient)
-	mutable TObjectPtr<UK2Node> CachedWrapperNode;
+	mutable TObjectPtr<UK2Node> CachedWrapperDestinationNode;
 
 	UPROPERTY(Transient, DuplicateTransient)
-	mutable TObjectPtr<UMVVMK2Node_AreSourcesValidForEvent> CachedSourceValidNode;
+	mutable TObjectPtr<UMVVMK2Node_IsConditionValid> CachedConditionValidNode;
 
 	FDelegateHandle OnGraphChangedHandle;
 	FDelegateHandle OnUserDefinedPinRenamedHandle;

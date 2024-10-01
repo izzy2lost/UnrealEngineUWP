@@ -13,6 +13,8 @@ class UWidgetBlueprint;
 class UMVVMBlueprintView;
 struct FMVVMBlueprintViewBinding;
 class UMVVMBlueprintViewEvent;
+class UMVVMBlueprintViewCondition;
+
 namespace UE::MVVM { struct FBindingEntry; }
 
 namespace UE::MVVM::BindingEntry
@@ -20,7 +22,7 @@ namespace UE::MVVM::BindingEntry
 
 struct FRowHelper
 {
-	static void GatherAllChildBindings(UMVVMBlueprintView* BlueprintView, const TConstArrayView<TSharedPtr<FBindingEntry>> Entries, TArray<const FMVVMBlueprintViewBinding*>& OutBindings, TArray<UMVVMBlueprintViewEvent*>& OutEvents);
+	static void GatherAllChildBindings(UMVVMBlueprintView* BlueprintView, const TConstArrayView<TSharedPtr<FBindingEntry>> Entries, TArray<const FMVVMBlueprintViewBinding*>& OutBindings, TArray<UMVVMBlueprintViewEvent*>& OutEvents, TArray<UMVVMBlueprintViewCondition*>& OutConditions);
 
 	static void DeleteEntries(const UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintView* BlueprintView, TArrayView<const TSharedPtr<FBindingEntry>> Selection);
 	static void ShowBlueprintGraph(FBlueprintEditor* Editor, UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintView* BlueprintView, TArrayView<const TSharedPtr<FBindingEntry>> Selection);

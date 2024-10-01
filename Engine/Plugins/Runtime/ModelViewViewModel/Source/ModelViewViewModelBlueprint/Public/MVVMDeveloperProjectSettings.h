@@ -153,6 +153,9 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = "Features")
 	bool bAllowBindingEvent = true;
 
+	UPROPERTY(EditAnywhere, config, Category = "Features")
+	bool bAllowConditionBinding = true;
+
 	/** Allow to create an instanced viewmodel directly in the view editor. */
 	UPROPERTY(EditAnywhere, config, Category = "Features", meta=(DisplayName="Experimental - Can Create Viewmodel In View"))
 	bool bCanCreateViewModelInView = false;

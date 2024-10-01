@@ -34,7 +34,8 @@ void UMVVMBlueprintViewEvent::SetEventPath(FMVVMBlueprintPropertyPath InEventPat
 		return;
 	}
 
-	RemoveWrapperGraph();
+	UpdatePinValues();
+	RemoveWrapperGraph(LeaveConversionFunctionCurrentValues);
 
 	EventPath = MoveTemp(InEventPath);
 	GraphName = FName();
@@ -47,8 +48,9 @@ void UMVVMBlueprintViewEvent::SetEventPath(FMVVMBlueprintPropertyPath InEventPat
 		GraphName = StringBuilder.ToString();
 	}
 
+	bNeedsToRegenerateChildren = true;
+
 	CreateWrapperGraphInternal();
-	SavePinValues();
 }
 
 void UMVVMBlueprintViewEvent::SetDestinationPath(FMVVMBlueprintPropertyPath InDestinationPath)
@@ -58,9 +60,11 @@ void UMVVMBlueprintViewEvent::SetDestinationPath(FMVVMBlueprintPropertyPath InDe
 		return;
 	}
 
-	RemoveWrapperGraph();
+	RemoveWrapperGraph(RemoveConversionFunctionCurrentValues);
 
 	DestinationPath = MoveTemp(InDestinationPath);
+
+	bNeedsToRegenerateChildren = true;
 
 	CreateWrapperGraphInternal();
 	SavePinValues();
@@ -105,7 +109,7 @@ UEdGraph* UMVVMBlueprintViewEvent::GetOrCreateWrapperGraph()
 	return CachedWrapperGraph;
 }
 
-void UMVVMBlueprintViewEvent::RemoveWrapperGraph()
+void UMVVMBlueprintViewEvent::RemoveWrapperGraph(ERemoveWrapperGraphParam ActionForCurrentValues)
 {
 	if (CachedWrapperGraph)
 	{
@@ -114,7 +118,10 @@ void UMVVMBlueprintViewEvent::RemoveWrapperGraph()
 	}
 
 	Messages.Empty();
-	SavedPins.Empty();
+	if(ActionForCurrentValues == RemoveConversionFunctionCurrentValues)
+	{
+		SavedPins.Empty();
+	}
 }
 
 UEdGraphPin* UMVVMBlueprintViewEvent::GetOrCreateGraphPin(const FMVVMBlueprintPinId& PinId)
@@ -282,6 +289,7 @@ UEdGraph* UMVVMBlueprintViewEvent::CreateWrapperGraphInternal()
 		UE::MVVM::ConversionFunctionHelper::SetMetaData(CreateSetterGraphResult.GetValue().NewGraph, NAME_Hidden, FStringView());
 
 		UMVVMK2Node_AreSourcesValidForEvent* BranchNode = Cast<UMVVMK2Node_AreSourcesValidForEvent>(UE::MVVM::ConversionFunctionHelper::InsertEarlyExitBranchNode(CreateSetterGraphResult.GetValue().NewGraph, UMVVMK2Node_AreSourcesValidForEvent::StaticClass()));
+		UE::MVVM::ConversionFunctionHelper::MarkNodeToKeepConnections(BranchNode);
 		SetCachedWrapperGraphInternal(CreateSetterGraphResult.GetValue().NewGraph, CreateSetterGraphResult.GetValue().WrappedNode, BranchNode);
 		LoadPinValuesInternal();
 	}
@@ -412,6 +420,11 @@ void UMVVMBlueprintViewEvent::HandleUserDefinedPinRenamed(UK2Node* InNode, FName
 void UMVVMBlueprintViewEvent::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChainEvent)
 {
 	Super::PostEditChangeChainProperty(PropertyChainEvent);
+	if (bNeedsToRegenerateChildren)
+	{
+		GetOuterUMVVMBlueprintView()->OnEventParametersRegenerate.Broadcast(this);
+		bNeedsToRegenerateChildren = false;
+	}
 	GetOuterUMVVMBlueprintView()->OnEventsUpdated.Broadcast();
 }
 
