@@ -11,6 +11,16 @@
 #include "MuCO/CustomizableObject.h"
 
 
+UCustomizableSkeletalComponentPrivate::UCustomizableSkeletalComponentPrivate()
+{
+	// This object may get instantiated into a level, as a part of UCustomizableSkeletalComponent, so needs to be public to ensure
+	// it can be serialized out.
+	if (!HasAllFlags(RF_ClassDefaultObject))
+	{
+		SetFlags(RF_Public);
+	}
+}
+
 void UCustomizableSkeletalComponentPrivate::CreateCustomizableObjectInstanceUsage()
 {
 	if (CustomizableObjectInstanceUsage)
@@ -37,7 +47,6 @@ void UCustomizableSkeletalComponentPrivate::CreateCustomizableObjectInstanceUsag
 
 UCustomizableSkeletalComponent::UCustomizableSkeletalComponent()
 {
-	Private = CreateDefaultSubobject<UCustomizableSkeletalComponentPrivate>(FName("Private"));
 }
 
 
@@ -95,6 +104,15 @@ void UCustomizableSkeletalComponentPrivate::SetPhysicsAsset(UPhysicsAsset* Physi
 	if (CustomizableObjectInstanceUsage)
 	{
 		CustomizableObjectInstanceUsage->GetPrivate()->SetPhysicsAsset(PhysicsAsset);
+	}
+}
+
+
+void UCustomizableSkeletalComponentPrivate::SetPendingSetSkeletalMesh(bool bIsActive)
+{
+	if (CustomizableObjectInstanceUsage)
+	{
+		CustomizableObjectInstanceUsage->GetPrivate()->SetPendingSetSkeletalMesh(bIsActive);
 	}
 }
 
@@ -168,18 +186,18 @@ bool UCustomizableSkeletalComponent::GetSkipSetSkeletalMeshOnAttach() const
 
 void UCustomizableSkeletalComponent::UpdateSkeletalMeshAsync(bool bNeverSkipUpdate)
 {
-	if (CustomizableObjectInstanceUsage)
+	if (GetPrivate()->CustomizableObjectInstanceUsage)
 	{
-		CustomizableObjectInstanceUsage->UpdateSkeletalMeshAsync(bNeverSkipUpdate);
+		GetPrivate()->CustomizableObjectInstanceUsage->UpdateSkeletalMeshAsync(bNeverSkipUpdate);
 	}
 }
 
 
 void UCustomizableSkeletalComponent::UpdateSkeletalMeshAsyncResult(FInstanceUpdateDelegate Callback, bool bIgnoreCloseDist, bool bForceHighPriority)
 {
-	if (CustomizableObjectInstanceUsage)
+	if (GetPrivate()->CustomizableObjectInstanceUsage)
 	{
-		CustomizableObjectInstanceUsage->UpdateSkeletalMeshAsyncResult(Callback, bIgnoreCloseDist, bForceHighPriority);
+		GetPrivate()->CustomizableObjectInstanceUsage->UpdateSkeletalMeshAsyncResult(Callback, bIgnoreCloseDist, bForceHighPriority);
 	}
 }
 
@@ -231,11 +249,9 @@ void UCustomizableSkeletalComponent::OnAttachmentChanged()
 {
 	Super::OnAttachmentChanged();
 
-	USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(GetAttachParent());
-
-	if (Parent && CustomizableObjectInstanceUsage)
+	if (Cast<USkeletalMeshComponent>(GetAttachParent()))
 	{
-		CustomizableObjectInstanceUsage->GetPrivate()->SetPendingSetSkeletalMesh(true);
+		GetPrivate()->SetPendingSetSkeletalMesh(true);
 	}
 	else if(!GetAttachParent())
 	{
@@ -247,12 +263,18 @@ void UCustomizableSkeletalComponent::OnAttachmentChanged()
 void UCustomizableSkeletalComponent::PostInitProperties()
 {
 	Super::PostInitProperties();
-	GetPrivate()->CreateCustomizableObjectInstanceUsage();
-}
 
-void UCustomizableSkeletalComponent::PostReinitProperties()
-{
-	Super::PostReinitProperties();
-	GetPrivate()->CreateCustomizableObjectInstanceUsage();
+	if (!HasAllFlags(RF_ClassDefaultObject))
+	{
+		if (!Private)
+		{
+			Private = NewObject<UCustomizableSkeletalComponentPrivate>(this, FName("Private"), RF_Public);
+		}
+		else if (Private->GetOuter() != this)
+		{
+			Private = Cast<UCustomizableSkeletalComponentPrivate>(StaticDuplicateObject(Private, this, FName("Private")));
+		}
+	
+		GetPrivate()->CreateCustomizableObjectInstanceUsage();
+	}
 }
-

@@ -24,7 +24,7 @@ public:
 
 	/** This component index refers to the object list of components */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = CustomizableSkeletalComponent)
-	int32 ComponentIndex;
+	int32 ComponentIndex = 0;
 
 private:
 	/** Only used if the ComponentIndex is INDEX_NONE.
@@ -51,9 +51,8 @@ protected:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 
-	// UActor interface
+	// UObject interface
 	virtual void PostInitProperties() override;
-	virtual void PostReinitProperties() override;
 
 	// USceneComponent interface
 	virtual void OnAttachmentChanged() override;
@@ -99,9 +98,4 @@ public:
 	UCustomizableSkeletalComponentPrivate* GetPrivate();
 
 	const UCustomizableSkeletalComponentPrivate* GetPrivate() const;
-	
-private:
-	UPROPERTY(Transient)
-	TObjectPtr<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage;
 };
-
