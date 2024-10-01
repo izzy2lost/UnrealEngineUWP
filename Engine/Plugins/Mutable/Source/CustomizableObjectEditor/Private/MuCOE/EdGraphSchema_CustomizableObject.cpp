@@ -44,6 +44,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeModifierClipMorph.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeModifierClipWithMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeModifierClipWithUVMask.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierTransformInMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshGeometryOperation.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshMorph.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshMorphStackApplication.h"
@@ -90,6 +91,8 @@
 #include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCOE/GraphTraversal.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeComponentMeshAddTo.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeTransformConstant.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeTransformParameter.h"
 
 class IToolkit;
 
@@ -243,6 +246,7 @@ const FName UEdGraphSchema_CustomizableObject::PC_Stack("stack");
 const FName UEdGraphSchema_CustomizableObject::PC_MaterialAsset("materialAsset");
 const FName UEdGraphSchema_CustomizableObject::PC_Wildcard("wildcard");
 const FName UEdGraphSchema_CustomizableObject::PC_PoseAsset("poseAsset");
+const FName UEdGraphSchema_CustomizableObject::PC_Transform("transform");
 
 
 // Node categories
@@ -524,6 +528,17 @@ void UEdGraphSchema_CustomizableObject::GetGraphContextActions(FGraphContextMenu
 	}
 
 	{
+		UCustomizableObjectNode* TransformTemplateNodes[] =
+		{
+			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeTransformConstant>(),
+			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeTransformParameter>(),
+		};
+
+		AddNewNodeCategoryActionsFiltered(TransformTemplateNodes, ContextMenuBuilder, TEXT("Transform"), GeneralGrouping, Filter);
+	}
+	
+	
+	{
 		UCustomizableObjectNode* ProjectorTemplateNodes[] =
 		{
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeProjectorConstant>(),
@@ -540,6 +555,7 @@ void UEdGraphSchema_CustomizableObject::GetGraphContextActions(FGraphContextMenu
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeComponentPassthroughMesh>(),
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeMeshReshape>(),
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeModifierClipDeform>(),
+			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeModifierTransformInMesh>(),
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeTextureParameter>(),
 		};
 
@@ -548,7 +564,7 @@ void UEdGraphSchema_CustomizableObject::GetGraphContextActions(FGraphContextMenu
 
 	{
 		// External Pin Nodes
-		TArray<FName> PinTypes({ PC_Material, PC_Modifier, PC_Mesh, PC_Image, PC_Projector, PC_GroupProjector, PC_Color, PC_Float, PC_Bool, PC_Enum, PC_Stack, PC_PassThroughImage, PC_MaterialAsset, PC_PoseAsset, PC_Component });
+		TArray<FName> PinTypes({ PC_Material, PC_Modifier, PC_Mesh, PC_Image, PC_Projector, PC_GroupProjector, PC_Color, PC_Float, PC_Bool, PC_Enum, PC_Transform, PC_Stack, PC_PassThroughImage, PC_MaterialAsset, PC_PoseAsset, PC_Component });
 
 		// Add pin types from extensions
 		for (const FRegisteredCustomizableObjectPinType& PinType : ICustomizableObjectModule::Get().GetExtendedPinTypes())
@@ -762,6 +778,10 @@ FLinearColor UEdGraphSchema_CustomizableObject::GetPinTypeColor(const FName& Typ
 	else if (TypeString == PC_PoseAsset)
 	{
 		return FLinearColor(0.700000f, 0.000000f, 0.000000f, 1.000000f); // Dark Red
+	}
+	else if (TypeString == PC_Transform)
+	{
+		return FLinearColor(0.5f, 1.0f, 1.0f, 1.0f); // Cyan
 	}
 
 	for (const FRegisteredCustomizableObjectPinType& PinType : ICustomizableObjectModule::Get().GetExtendedPinTypes())
@@ -1413,6 +1433,10 @@ FText UEdGraphSchema_CustomizableObject::GetPinCategoryName(const FName& PinCate
 	else if (PinCategory == UEdGraphSchema_CustomizableObject::PC_PoseAsset)
 	{
 		return LOCTEXT("Pose_Pin_Category", "PoseAsset");
+	}
+	else if (PinCategory == UEdGraphSchema_CustomizableObject::PC_Transform)
+	{
+		return LOCTEXT("Transform_Pin_Category", "Transform");
 	}
 	else
 	{

@@ -159,7 +159,7 @@ enum class EUpdateRequired : uint8
 
 
 /** Instance Update Result. */
-UENUM()
+UENUM(BlueprintType)
 enum class EUpdateResult : uint8
 {
 	Success, // Update finished without issues.
@@ -184,12 +184,12 @@ enum class ESkeletalMeshStatus : uint8
 
 /** Instance Update Context.
  * Used to avoid changing the delegate signature in the future.  */
-USTRUCT()
+USTRUCT(BlueprintType)
 struct FUpdateContext
 {	
 	GENERATED_BODY()
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category=UpdateResult)
 	EUpdateResult UpdateResult = EUpdateResult::Success;
 };
 
@@ -414,6 +414,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	void SetVectorParameterSelectedOption(const FString& VectorParamName, const FLinearColor& VectorValue);
 
+	/** Gets the value of a transform parameter with name "TransformParamName". */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
+	FTransform GetTransformParameterSelectedOption(const FString& TransformParamName) const;
+
+	/** Sets the transform value "TransformValue" of a transform parameter with name "TransformParamName". */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
+	void SetTransformParameterSelectedOption(const FString& TransformParamName, const FTransform& TransformValue);
+	
+	
 	/** Sets the projector values of a projector parameter with index "ProjectorParamIndex". */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	void SetProjectorValue(const FString& ProjectorParamName,

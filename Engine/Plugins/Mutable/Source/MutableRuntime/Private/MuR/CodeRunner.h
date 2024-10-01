@@ -136,6 +136,7 @@ namespace  mu
         void RunCode_String(const FScheduledOp&, const Parameters*, const Model* );
         void RunCode_Colour(const FScheduledOp&, const Parameters*, const Model* );
         void RunCode_Projector(const FScheduledOp&, const Parameters*, const Model* );
+        void RunCode_Matrix(const FScheduledOp&, const Parameters*, const Model* );
 
 		void RunCodeImageDesc(const FScheduledOp&, const Parameters*, const Model*, uint32 LodMask);
 
@@ -468,6 +469,11 @@ namespace  mu
 			return m_pSystem->WorkingMemoryManager.CurrentInstanceCache->GetColour(From);
 		}
 
+    	inline FMatrix44f LoadMatrix(const FCacheAddress& From)
+		{
+			return m_pSystem->WorkingMemoryManager.CurrentInstanceCache->GetMatrix(From);
+		}
+
 		inline Ptr<const String> LoadString(const FCacheAddress& From)
 		{
 			return m_pSystem->WorkingMemoryManager.CurrentInstanceCache->GetString(From);
@@ -533,6 +539,11 @@ namespace  mu
 			m_pSystem->WorkingMemoryManager.CurrentInstanceCache->SetColour(To, Value);
 		}
 
+    	inline void StoreMatrix(const FCacheAddress& To, const FMatrix44f& Value)
+		{
+			m_pSystem->WorkingMemoryManager.CurrentInstanceCache->SetMatrix(To, Value);
+		}
+    	
 		inline void StoreProjector(const FCacheAddress& To, const FProjector& Value)
 		{
 			m_pSystem->WorkingMemoryManager.CurrentInstanceCache->SetProjector(To, Value);

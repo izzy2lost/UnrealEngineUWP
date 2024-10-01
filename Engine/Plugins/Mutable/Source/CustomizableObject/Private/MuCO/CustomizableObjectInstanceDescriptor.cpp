@@ -190,6 +190,22 @@ void FCustomizableObjectInstanceDescriptor::SaveDescriptor(FArchive& Ar, bool bU
 			break;
 		}
 
+		case EMutableParameterType::Transform:
+		{
+			FTransform Value(FTransform::Identity);
+			for (const FCustomizableObjectTransformParameterValue& P : TransformParameters)
+			{
+				if (P.ParameterName == Name)
+				{
+					Value = P.ParameterValue;
+					break;
+				}
+			}
+			Ar << Value;
+
+			break;
+		}
+
 		case EMutableParameterType::Texture:
 		{
 			FName Value;
@@ -387,6 +403,22 @@ void FCustomizableObjectInstanceDescriptor::LoadDescriptor(FArchive& Ar)
 			break;
 		}
 
+		case EMutableParameterType::Transform:
+		{
+			FTransform Value(FTransform::Identity);
+			Ar << Value;
+			for (FCustomizableObjectTransformParameterValue& P : TransformParameters)
+			{
+				if (P.ParameterName == Name)
+				{
+					P.ParameterValue = Value;
+					break;
+				}
+			}
+
+			break;
+		}
+			
 		case EMutableParameterType::Texture:
 		{
 			FName Value;
@@ -590,6 +622,21 @@ mu::ParametersPtr FCustomizableObjectInstanceDescriptor::GetParameters() const
 			break;
 		}
 
+		case mu::PARAMETER_TYPE::T_MATRIX:
+			{
+				for (const FCustomizableObjectTransformParameterValue& TransformParameter : TransformParameters)
+				{
+					if (TransformParameter.ParameterName == Name || (Uid.IsValid() && TransformParameter.Id == Uid))
+					{
+						MutableParameters->SetMatrixValue(ParamIndex, FMatrix44f(TransformParameter.ParameterValue.ToMatrixWithScale()));
+
+						break;
+					}
+				}
+
+				break;
+			}
+			
 		case mu::PARAMETER_TYPE::T_PROJECTOR:
 		{
 			for (const auto& ProjectorParameter : ProjectorParameters)
@@ -724,6 +771,7 @@ void FCustomizableObjectInstanceDescriptor::ReloadParameters()
 	TArray<FCustomizableObjectTextureParameterValue> OldTextureParameters = TextureParameters;
 	TArray<FCustomizableObjectVectorParameterValue> OldVectorParameters = VectorParameters;
 	TArray<FCustomizableObjectProjectorParameterValue> OldProjectorParameters = ProjectorParameters;
+	TArray<FCustomizableObjectTransformParameterValue> OldTransformParameters = TransformParameters;
 
 	BoolParameters.Reset();
 	IntParameters.Reset();
@@ -731,6 +779,7 @@ void FCustomizableObjectInstanceDescriptor::ReloadParameters()
 	TextureParameters.Reset();
 	VectorParameters.Reset();
 	ProjectorParameters.Reset();
+	TransformParameters.Reset();
 	
 	if (!CustomizableObject->GetPrivate()->GetModel())
 	{
@@ -953,6 +1002,32 @@ void FCustomizableObjectInstanceDescriptor::ReloadParameters()
 			break;
 		}
 
+		case mu::PARAMETER_TYPE::T_MATRIX:
+			{
+				FCustomizableObjectTransformParameterValue Param;
+				Param.ParameterName = Name;
+				Param.Id = Uid;
+
+				auto FindByNameAndUid = [&](const FCustomizableObjectTransformParameterValue& P)
+				{
+					return P.ParameterName == Name || (Uid.IsValid() && P.Id == Uid);
+				};
+
+				if (FCustomizableObjectTransformParameterValue* Result = OldTransformParameters.FindByPredicate(FindByNameAndUid))
+				{	
+					Param.ParameterValue = Result->ParameterValue;
+				}
+				else // Not found in Instance Parameters. Use Mutable Parameters.
+				{
+					FMatrix44f Matrix;
+					MutableParameters->GetMatrixValue(ParamIndex, Matrix);
+					Param.ParameterValue = FTransform(FMatrix(Matrix));
+				}
+
+				TransformParameters.Add(Param);
+				break;
+			}
+			
 		case mu::PARAMETER_TYPE::T_PROJECTOR:
 		{
 			FCustomizableObjectProjectorParameterValue Param;
@@ -1160,6 +1235,11 @@ const TArray<FCustomizableObjectProjectorParameterValue>& FCustomizableObjectIns
 	return ProjectorParameters;	
 }
 
+const TArray<FCustomizableObjectTransformParameterValue>& FCustomizableObjectInstanceDescriptor::GetTransformParameters() const
+{
+	return TransformParameters;
+}
+
 
 bool FCustomizableObjectInstanceDescriptor::HasAnyParameters() const
 {
@@ -1168,6 +1248,7 @@ bool FCustomizableObjectInstanceDescriptor::HasAnyParameters() const
 		!FloatParameters.IsEmpty() || 
 		!TextureParameters.IsEmpty() ||
 		!ProjectorParameters.IsEmpty() ||
+		!TransformParameters.IsEmpty() ||
 		!VectorParameters.IsEmpty();
 }
 
@@ -1516,6 +1597,49 @@ void FCustomizableObjectInstanceDescriptor::SetColorParameterSelectedOption(cons
 	RETURN_ON_UNCOMPILED_CO(CustomizableObject, TEXT("Error: Cannot set Int parameter "));
 
 	SetVectorParameterSelectedOption(ColorParamName, ColorValue);
+}
+
+FTransform FCustomizableObjectInstanceDescriptor::GetTransformParameterSelectedOption(const FString& TransformParamName) const
+{
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return FCustomizableObjectTransformParameterValue::DEFAULT_PARAMETER_VALUE;
+	}
+
+	const int32 ParameterIndexInObject = CustomizableObject->FindParameter(TransformParamName);
+	const int32 TransformParamIndex = FindTypedParameterIndex(TransformParamName, EMutableParameterType::Transform);
+
+	if (TransformParamIndex == INDEX_NONE)
+	{
+		LogParameterNotFoundWarning(TransformParamName, ParameterIndexInObject, TransformParamIndex, CustomizableObject, __FUNCTION__);
+		return FCustomizableObjectTransformParameterValue::DEFAULT_PARAMETER_VALUE;
+	}
+
+	return TransformParameters.IsValidIndex(TransformParamIndex) ? TransformParameters[TransformParamIndex].ParameterValue : FTransform::Identity;
+}
+
+void FCustomizableObjectInstanceDescriptor::SetTransformParameterSelectedOption(const FString& TransformParamName, const FTransform& TransformValue)
+{
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return;
+	}
+
+	RETURN_ON_UNCOMPILED_CO(CustomizableObject, TEXT("Error: Cannot set Transform parameter "));
+
+	const int32 ParameterIndexInObject = CustomizableObject->FindParameter(TransformParamName);
+	const int32 ParameterIndexInInstance = FindTypedParameterIndex(TransformParamName, EMutableParameterType::Transform);
+
+	if (ParameterIndexInObject < 0 || ParameterIndexInInstance < 0)
+	{
+		// Early out since we could not find the parameter to set.
+		LogParameterNotFoundWarning(TransformParamName, ParameterIndexInObject, ParameterIndexInInstance, CustomizableObject, __FUNCTION__);
+		return;
+	}
+
+	TransformParameters[ParameterIndexInInstance].ParameterValue = TransformValue;
 }
 
 
@@ -2393,6 +2517,13 @@ void FCustomizableObjectInstanceDescriptor::SetDefaultValue(int32 ParamIndex)
 		break;
 	}
 
+	case EMutableParameterType::Transform:
+	{
+		const FTransform DefaultValue = CustomizableObject->GetTransformParameterDefaultValue(ParamName);
+		TransformParameters[TypedIndex].ParameterValue = DefaultValue;
+		break;
+	}
+		
 	case EMutableParameterType::Projector:
 	{
 		const FCustomizableObjectProjector DefaultValue = CustomizableObject->GetProjectorParameterDefaultValue(ParamName);

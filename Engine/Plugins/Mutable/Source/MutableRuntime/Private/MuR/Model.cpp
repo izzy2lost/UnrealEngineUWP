@@ -382,9 +382,24 @@ namespace mu
 		}
     }
 
+	FMatrix44f Model::GetMatrixDefaultValue(int32 Index) const
+	{
+    	check(m_pD->m_program.m_parameters.IsValidIndex(Index));
+    	check(m_pD->m_program.m_parameters[Index].m_type == PARAMETER_TYPE::T_MATRIX);
+
+    	// Early out in case of invalid parameters
+    	if (!m_pD->m_program.m_parameters.IsValidIndex(Index) ||
+			m_pD->m_program.m_parameters[Index].m_type != PARAMETER_TYPE::T_MATRIX)
+    	{
+    		return FMatrix44f::Identity;
+    	}
+
+    	return m_pD->m_program.m_parameters[Index].m_defaultValue.Get<ParamMatrixType>();
+	}
+
 
 	void Model::GetProjectorDefaultValue(int32 Index, PROJECTOR_TYPE* OutProjectionType, FVector3f* OutPos,
-		FVector3f* OutDir, FVector3f* OutUp, FVector3f* OutScale, float* OutProjectionAngle) const
+	                                     FVector3f* OutDir, FVector3f* OutUp, FVector3f* OutScale, float* OutProjectionAngle) const
 	{
     	check(m_pD->m_program.m_parameters.IsValidIndex(Index));
 		check(m_pD->m_program.m_parameters[Index].m_type == PARAMETER_TYPE::T_PROJECTOR);

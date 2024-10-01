@@ -1482,6 +1482,8 @@ public:
 		ReGroupRomsBySource,
 
 		UIMetadataGameplayTags,
+
+		TransformInMeshModifier,
 		
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion

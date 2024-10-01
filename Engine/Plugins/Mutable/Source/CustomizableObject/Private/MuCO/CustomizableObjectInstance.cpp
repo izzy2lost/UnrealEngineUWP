@@ -2565,11 +2565,21 @@ void UCustomizableObjectInstance::SetVectorParameterSelectedOption(const FString
 	Descriptor.SetVectorParameterSelectedOption(VectorParamName, VectorValue);
 }
 
+FTransform UCustomizableObjectInstance::GetTransformParameterSelectedOption(const FString& TransformParamName) const
+{
+	return Descriptor.GetTransformParameterSelectedOption(TransformParamName);
+}
+
+void UCustomizableObjectInstance::SetTransformParameterSelectedOption(const FString& TransformParamName, const FTransform& TransformValue)
+{
+	Descriptor.SetTransformParameterSelectedOption(TransformParamName, TransformValue);
+}
+
 
 void UCustomizableObjectInstance::SetProjectorValue(const FString& ProjectorParamName,
-	const FVector& Pos, const FVector& Direction, const FVector& Up, const FVector& Scale,
-	const float Angle,
-	const int32 RangeIndex)
+                                                    const FVector& Pos, const FVector& Direction, const FVector& Up, const FVector& Scale,
+                                                    const float Angle,
+                                                    const int32 RangeIndex)
 {
 	Descriptor.SetProjectorValue(ProjectorParamName, Pos, Direction, Up, Scale, Angle, RangeIndex);
 }
@@ -2746,6 +2756,7 @@ bool UCustomizableInstancePrivate::LoadParametersFromProfile(int32 ProfileIndex)
 	GetPublic()->Descriptor.TextureParameters = Profile.TextureParameters;
 	GetPublic()->Descriptor.ProjectorParameters = Profile.ProjectorParameters;
 	GetPublic()->Descriptor.VectorParameters = Profile.VectorParameters;
+	GetPublic()->Descriptor.TransformParameters = Profile.TransformParameters;
 #endif
 	return true;
 
@@ -2775,6 +2786,7 @@ bool UCustomizableInstancePrivate::SaveParametersToProfile(int32 ProfileIndex)
 	Profile.TextureParameters = GetPublic()->Descriptor.TextureParameters;
 	Profile.ProjectorParameters = GetPublic()->Descriptor.ProjectorParameters;
 	Profile.VectorParameters = GetPublic()->Descriptor.VectorParameters;
+	Profile.TransformParameters = GetPublic()->Descriptor.TransformParameters;
 #endif
 	return true;
 }
@@ -2803,7 +2815,7 @@ bool UCustomizableInstancePrivate::MigrateProfileParametersToCurrentInstance(int
 	TempProfile.ProjectorParameters = GetPublic()->Descriptor.ProjectorParameters;
 	TempProfile.TextureParameters = GetPublic()->Descriptor.TextureParameters;
 	TempProfile.VectorParameters = GetPublic()->Descriptor.VectorParameters;
-	
+	TempProfile.TransformParameters = GetPublic()->Descriptor.TransformParameters;
 
 	// Populate TempProfile with the parameters found in the profile.
 	// Any profile parameter missing will be discarded.

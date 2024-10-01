@@ -141,11 +141,16 @@ namespace mu
 			ModifierMeshClipDeform,
 			ModifierMeshClipWithUVMask,
 			ModifierSurfaceEdit,
+			ModifierTransformInMesh,
 
 			ExtensionData,
 			ExtensionDataConstant,
 			ExtensionDataSwitch,
 			ExtensionDataVariation,
+
+			Matrix,
+			MatrixConstant,
+			MatrixParameter,
 
 			Count
 		};

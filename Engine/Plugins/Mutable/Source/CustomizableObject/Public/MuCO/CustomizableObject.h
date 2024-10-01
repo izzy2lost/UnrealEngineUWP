@@ -96,6 +96,10 @@ struct FProfileParameterDat
 	////
 	UPROPERTY()
 	TArray<FCustomizableObjectProjectorParameterValue> ProjectorParameters;
+	
+	////
+	UPROPERTY()
+	TArray<FCustomizableObjectTransformParameterValue> TransformParameters;
 };
 
 // A USTRUCT version of FMeshToMeshVertData in SkeletalMeshTypes.h
@@ -436,6 +440,13 @@ public:
 	  * @return The default value of the provided parameter name. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	FLinearColor GetColorParameterDefaultValue(UPARAM(DisplayName = "Parameter Name") const FString& InParameterName) const;
+	
+	/** Get the default value of a parameter of type Transform.
+	  * @param InParameterName The name of the Transform parameter to get the default value of.
+	  * @return The default value of the provided parameter name. */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
+	FTransform GetTransformParameterDefaultValue(UPARAM(DisplayName = "Parameter Name") const FString& InParameterName) const;
+
 	
 	/** Get the default value of a parameter of type Projector.
 	  * @param InParameterName The name of the Projector parameter to get the default value of.

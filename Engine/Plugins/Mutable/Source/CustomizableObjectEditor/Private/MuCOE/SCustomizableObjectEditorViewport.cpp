@@ -361,14 +361,14 @@ void SCustomizableObjectEditorViewportTabBody::HideGizmoClipMorph() const
 }
 
 
-void SCustomizableObjectEditorViewportTabBody::ShowGizmoClipMesh(UCustomizableObjectNodeModifierClipWithMesh& ClipMeshNode, UObject& ClipMesh, int32 LODIndex, int32 SectionIndex, int32 MaterialSlotIndex) const
+void SCustomizableObjectEditorViewportTabBody::ShowGizmoClipMesh(UCustomizableObjectNode& Node, FTransform* Transform, UObject& ClipMesh, int32 LODIndex, int32 SectionIndex, int32 MaterialSlotIndex) const
 {
 	if (const TSharedPtr<SWidget> Toolbar = ViewportToolbarTransformWidget.Pin())
 	{
 		Toolbar->SetVisibility(EVisibility::Visible);		
 	}
 	
-	LevelViewportClient->ShowGizmoClipMesh(ClipMeshNode, ClipMesh, LODIndex, SectionIndex, MaterialSlotIndex);
+	LevelViewportClient->ShowGizmoClipMesh(Node, Transform, ClipMesh, LODIndex, SectionIndex, MaterialSlotIndex);
 }
 
 

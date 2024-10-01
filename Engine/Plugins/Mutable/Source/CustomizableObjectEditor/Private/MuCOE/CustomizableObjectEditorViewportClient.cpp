@@ -599,19 +599,20 @@ void FCustomizableObjectEditorViewportClient::HideGizmoClipMorph()
 }
 
 
-void FCustomizableObjectEditorViewportClient::ShowGizmoClipMesh(UCustomizableObjectNodeModifierClipWithMesh& InClipMeshNode, UObject& ClipMesh, int32 LODIndex, int32 SectionIndex, int32 MaterialSlotIndex)
+void FCustomizableObjectEditorViewportClient::ShowGizmoClipMesh(UCustomizableObjectNode& InClipMeshNode, FTransform* InClipMeshTransform, UObject& ClipMesh, int32 LODIndex, int32 SectionIndex, int32 MaterialSlotIndex)
 {
 	HideGizmoClipMesh();
 
 	SetWidgetType(EWidgetType::ClipMesh);
 
 	ClipMeshNode = &InClipMeshNode;
+	ClipMeshTransform = InClipMeshTransform;
 
 	if (UStaticMesh* StaticMesh = Cast<UStaticMesh>(&ClipMesh))
 	{
 		ClipMeshStaticMeshComp->SetStaticMesh(StaticMesh);
 		ClipMeshStaticMeshComp->SetVisibility(true);
-		ClipMeshStaticMeshComp->SetWorldTransform(InClipMeshNode.Transform);
+		ClipMeshStaticMeshComp->SetWorldTransform(*ClipMeshTransform);
 		ClipMeshStaticMeshComp->EmptyOverrideMaterials();
 		ClipMeshStaticMeshComp->SetMaterial(MaterialSlotIndex, ClipMeshMaterial);
 		ClipMeshStaticMeshComp->SetSectionPreview(SectionIndex);
@@ -620,7 +621,7 @@ void FCustomizableObjectEditorViewportClient::ShowGizmoClipMesh(UCustomizableObj
 	{
 		ClipMeshSkeletalMeshComp->SetSkeletalMesh(SkeletalMesh);
 		ClipMeshSkeletalMeshComp->SetVisibility(true);
-		ClipMeshSkeletalMeshComp->SetWorldTransform(InClipMeshNode.Transform);
+		ClipMeshSkeletalMeshComp->SetWorldTransform(*ClipMeshTransform);
 		ClipMeshSkeletalMeshComp->SetForcedLOD(LODIndex);
 		ClipMeshSkeletalMeshComp->EmptyOverrideMaterials();
 		ClipMeshSkeletalMeshComp->SetMaterial(MaterialSlotIndex, ClipMeshMaterial);
@@ -1082,21 +1083,21 @@ bool FCustomizableObjectEditorViewportClient::InputWidgetDelta(FViewport* InView
 		{
 			if (WidgetMode == UE::Widget::WM_Translate)
 			{
-				ClipMeshNode->Transform.AddToTranslation(Drag);
+				ClipMeshTransform->AddToTranslation(Drag);
 			}
 			else if (WidgetMode == UE::Widget::WM_Rotate)
 			{
-				ClipMeshNode->Transform.ConcatenateRotation(Rot.Quaternion());
+				ClipMeshTransform->ConcatenateRotation(Rot.Quaternion());
 			}
 			if (WidgetMode == UE::Widget::WM_Scale)
 			{
-				ClipMeshNode->Transform.SetScale3D(ClipMeshNode->Transform.GetScale3D() + Scale);
+				ClipMeshTransform->SetScale3D(ClipMeshTransform->GetScale3D() + Scale);
 			}
 
 			ClipMeshStaticMeshComp->Modify();
 			ClipMeshSkeletalMeshComp->Modify();
-			ClipMeshStaticMeshComp->SetWorldTransform(ClipMeshNode->Transform);
-			ClipMeshSkeletalMeshComp->SetWorldTransform(ClipMeshNode->Transform);
+			ClipMeshStaticMeshComp->SetWorldTransform(*ClipMeshTransform);
+			ClipMeshSkeletalMeshComp->SetWorldTransform(*ClipMeshTransform);
 
 			return true;
 		}
@@ -1253,7 +1254,7 @@ FVector FCustomizableObjectEditorViewportClient::GetWidgetLocation() const
 		return ClipMorphOrigin + ClipMorphOffset;
 
 	case EWidgetType::ClipMesh:
-		return ClipMeshNode->Transform.GetTranslation();
+		return ClipMeshTransform->GetTranslation();
 
 	case EWidgetType::Light:
 		return SelectedLightComponent->GetComponentLocation();
@@ -1299,7 +1300,7 @@ FMatrix FCustomizableObjectEditorViewportClient::GetWidgetCoordSystem() const
 		
 	case EWidgetType::ClipMesh:
 		{
-			return ClipMeshNode->Transform.ToMatrixNoScale().RemoveTranslation();			
+			return ClipMeshTransform->ToMatrixNoScale().RemoveTranslation();			
 		}
 		
 	case EWidgetType::Light:

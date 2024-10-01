@@ -233,6 +233,7 @@ namespace mu
 		TEXT("PR_CONSTANT      "),
 		TEXT("ST_CONSTANT      "),
 		TEXT("ED_CONSTANT      "),
+		TEXT("MA_CONSTANT      "),
 
 		TEXT("BO_PARAMETER     "),
 		TEXT("NU_PARAMETER     "),
@@ -241,6 +242,7 @@ namespace mu
 		TEXT("PR_PARAMETER     "),
 		TEXT("IM_PARAMETER     "),
 		TEXT("ST_PARAMETER     "),
+		TEXT("MA_PARAMETER     "),
 		
 		TEXT("IM_REFERENCE     "),
 		TEXT("ME_REFERENCE     "),
@@ -329,6 +331,7 @@ namespace mu
 		TEXT("ME_MORPHRESHAPE  "),
 		TEXT("ME_OPTIMIZESKIN  "),
 		TEXT("ME_ADDTAGS       "),
+		TEXT("ME_TRANSFORMWITHMESH"),
 
 		TEXT("IN_ADDMESH       "),
 		TEXT("IN_ADDIMAGE      "),

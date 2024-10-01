@@ -953,6 +953,87 @@ namespace mu
         }
     }
 
+    void Parameters::GetMatrixValue(int index, FMatrix44f& OutValue, const Ptr<const RangeIndex>& pos) const
+    {
+    	check( index >= 0 && index < (int)m_pD->m_values.Num() );
+    	check( GetType( index ) == PARAMETER_TYPE::T_MATRIX );
+
+    	// Early out in case of invalid parameters
+    	if ( index < 0 || index >= (int)m_pD->m_values.Num() ||
+			 GetType( index ) != PARAMETER_TYPE::T_MATRIX )
+    	{
+    		OutValue = FMatrix44f::Identity;
+    		return;
+    	}
+
+    	// Single value case
+    	if ( !pos )
+    	{
+    		// Return the single value
+    		OutValue = m_pD->m_values[index].Get<ParamMatrixType>();
+    		return;
+    	}
+
+    	// Multivalue case
+    	check( pos->m_pD->m_parameter == index );
+
+    	if ( index < int( m_pD->m_multiValues.Num() ) )
+    	{
+    		const TMap< TArray<int32_t>, PARAMETER_VALUE >& m = m_pD->m_multiValues[index];
+    		const PARAMETER_VALUE* it = m.Find( pos->m_pD->m_values );
+    		if ( it )
+    		{
+    			OutValue = it->Get<ParamMatrixType>();
+    			return;
+    		}
+    	}
+
+    	// Multivalue parameter, but no multivalue set. Return single value.
+    	OutValue = m_pD->m_values[index].Get<ParamMatrixType>();
+    }
+
+    void Parameters::SetMatrixValue(int index, const FMatrix44f& Value, const Ptr<const RangeIndex>& pos)
+    {
+    	LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
+
+    	check( index >= 0 && index < (int)m_pD->m_values.Num() );
+    	check( GetType( index ) == PARAMETER_TYPE::T_MATRIX );
+
+    	// Early out in case of invalid parameters
+    	if ( index < 0 || index >= (int)m_pD->m_values.Num() ||
+			 GetType( index ) != PARAMETER_TYPE::T_MATRIX )
+    	{
+    		return;
+    	}
+
+    	// Single value case
+    	if ( !pos )
+    	{
+    		// Clear multivalue, if set.
+    		if ( index < int( m_pD->m_multiValues.Num() ) )
+    		{
+    			m_pD->m_multiValues[index].Empty();
+    		}
+
+    		m_pD->m_values[index].Set<ParamMatrixType>(Value);
+    	}
+
+    	// Multivalue case
+    	else
+    	{
+    		check( pos->m_pD->m_parameter == index );
+
+    		if ( index >= int( m_pD->m_multiValues.Num() ) )
+    		{
+    			m_pD->m_multiValues.SetNum( index + 1 );
+    		}
+
+    		TMap< TArray<int32_t>, PARAMETER_VALUE >& m = m_pD->m_multiValues[index];
+    		PARAMETER_VALUE& it = m.FindOrAdd( pos->m_pD->m_values );
+    		it.Set<ParamMatrixType>(Value);
+    	}
+    }
+
 
     //---------------------------------------------------------------------------------------------
     FProjector Parameters::Private::GetProjectorValue( int index, const Ptr<const RangeIndex>& pos ) const

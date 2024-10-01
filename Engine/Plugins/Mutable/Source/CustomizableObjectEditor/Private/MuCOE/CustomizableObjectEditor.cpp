@@ -45,6 +45,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterialVariation.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeModifierClipMorph.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeModifierClipWithMesh.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierTransformInMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObject.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObjectGroup.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeProjectorConstant.h"
@@ -1030,14 +1031,14 @@ void FCustomizableObjectEditor::HideGizmoClipMorph()
 }
 
 
-void FCustomizableObjectEditor::ShowGizmoClipMesh(UCustomizableObjectNodeModifierClipWithMesh& Node)
+void FCustomizableObjectEditor::ShowGizmoClipMesh(UCustomizableObjectNode& Node, FTransform* Transform, const UEdGraphPin& MeshPin)
 {
 	UObject* ClipMesh = nullptr;
 	int32 LODIndex = 0;
 	int32 SectionIndex = 0;
 	int32 MaterialSlotIndex = 0;
 
-	if (const UEdGraphPin* ConnectedPin = FollowInputPin(*Node.ClipMeshPin()))
+	if (const UEdGraphPin* ConnectedPin = FollowInputPin(MeshPin))
 	{
 		if (const UEdGraphNode* ConnectedNode = ConnectedPin->GetOwningNode())
 		{
@@ -1080,7 +1081,7 @@ void FCustomizableObjectEditor::ShowGizmoClipMesh(UCustomizableObjectNodeModifie
 
 		SelectSingleNode(Node);
 
-		Viewport->ShowGizmoClipMesh(Node, *ClipMesh, LODIndex, SectionIndex, MaterialSlotIndex);
+		Viewport->ShowGizmoClipMesh(Node, Transform, *ClipMesh, LODIndex, SectionIndex, MaterialSlotIndex);
 	}
 }
 
@@ -1100,7 +1101,8 @@ void FCustomizableObjectEditor::HideGizmoClipMesh()
 	for (FGraphPanelSelectionSet::TConstIterator NodeIt( SelectedNodes ); NodeIt; ++NodeIt)
 	{
 		const UObject* Node = *NodeIt;
-		if (Node->IsA<UCustomizableObjectNodeModifierClipWithMesh>())
+		if (Node->IsA<UCustomizableObjectNodeModifierClipWithMesh>() ||
+			Node->IsA<UCustomizableObjectNodeModifierTransformInMesh>())
 		{
 			GraphEditor->ClearSelectionSet();
 			break;
@@ -1711,7 +1713,17 @@ void FCustomizableObjectEditor::OnSelectedGraphNodesChanged(const FGraphPanelSel
 		}
 		else if (UCustomizableObjectNodeModifierClipWithMesh* NodeModifierClipWithMesh = Cast<UCustomizableObjectNodeModifierClipWithMesh>(Objects[0]))
 		{
-			ShowGizmoClipMesh(*NodeModifierClipWithMesh);
+			if (const UEdGraphPin* Pin = NodeModifierClipWithMesh->ClipMeshPin())
+			{
+				ShowGizmoClipMesh(*NodeModifierClipWithMesh, &NodeModifierClipWithMesh->Transform, *Pin);
+			}
+		}
+		else if (UCustomizableObjectNodeModifierTransformInMesh* NodeModifierTransformInMesh = Cast<UCustomizableObjectNodeModifierTransformInMesh>(Objects[0]))
+		{
+			if (const UEdGraphPin* Pin = NodeModifierTransformInMesh->BoundingMeshPin())
+			{
+				ShowGizmoClipMesh(*NodeModifierTransformInMesh, &NodeModifierTransformInMesh->BoundingMeshTransform, *Pin);
+			}
 		}
 		else if (UCustomizableObjectNodeProjectorConstant* NodeProjectorConstant = Cast<UCustomizableObjectNodeProjectorConstant>(Objects[0]))
 		{

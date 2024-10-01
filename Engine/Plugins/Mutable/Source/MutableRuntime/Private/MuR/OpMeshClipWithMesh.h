@@ -10,6 +10,9 @@ namespace mu
 	class Image;
 	class Layout;
 
+    /** Generate a classification list for which vertex of pBase is fully contained in pClipMesh */
+	extern void MeshClipMeshClassifyVertices(TBitArray<>& VertexInClipMesh, const Mesh* pBase, const Mesh* pClipMesh);
+
     /**  */
 	extern void MeshClipWithMesh(Mesh* Result, const Mesh* pBase, const Mesh* pClipMesh, bool& bOutSuccess);
 
