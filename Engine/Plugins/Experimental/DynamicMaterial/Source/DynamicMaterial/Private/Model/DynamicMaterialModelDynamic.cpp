@@ -21,7 +21,7 @@ UDynamicMaterialModelDynamic* UDynamicMaterialModelDynamic::Create(UObject* InOu
 {
 	check(InParentModel);
 
-	UDynamicMaterialModelDynamic* NewModelDynamic = NewObject<UDynamicMaterialModelDynamic>(InOuter, NAME_None, RF_Transactional);
+	UDynamicMaterialModelDynamic* NewModelDynamic = NewObject<UDynamicMaterialModelDynamic>(InOuter, TEXT("MaterialDesignerModelInstance"), RF_Transactional);
 	NewModelDynamic->ParentModelSoft = InParentModel;
 	NewModelDynamic->ParentModel = InParentModel;
 	NewModelDynamic->InitComponents();

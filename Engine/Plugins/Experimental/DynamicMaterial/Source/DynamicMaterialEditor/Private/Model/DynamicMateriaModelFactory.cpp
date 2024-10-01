@@ -21,12 +21,17 @@ UDynamicMaterialModelFactory::UDynamicMaterialModelFactory()
 	bText = false;
 }
 
-UObject* UDynamicMaterialModelFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, 
-	EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
+UObject* UDynamicMaterialModelFactory::FactoryCreateNew(UClass* InClass, UObject* InParent, FName InName, 
+	EObjectFlags InFlags, UObject* InContext, FFeedbackContext* InWarn)
 {
-	check(Class->IsChildOf(UDynamicMaterialModel::StaticClass()));
+	check(InClass->IsChildOf(UDynamicMaterialModel::StaticClass()));
 
-	UDynamicMaterialModel* NewModel = NewObject<UDynamicMaterialModel>(InParent, Class, Name, Flags | RF_Transactional);
+	if (InName.IsNone())
+	{
+		InName = TEXT("MaterialDesignerModel");
+	}
+
+	UDynamicMaterialModel* NewModel = NewObject<UDynamicMaterialModel>(InParent, InClass, InName, InFlags | RF_Transactional);
 
 	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = NewObject<UDynamicMaterialModelEditorOnlyData>(
 		NewModel,

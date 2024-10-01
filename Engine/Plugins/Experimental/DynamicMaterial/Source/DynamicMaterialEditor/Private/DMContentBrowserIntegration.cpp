@@ -422,7 +422,7 @@ void FDMContentBrowserIntegration::CreateMaterialInstance(UDynamicMaterialInstan
 		return;
 	}
 
-	UDynamicMaterialInstance* Instance = NewObject<UDynamicMaterialInstance>(GetTransientPackage());
+	UDynamicMaterialInstance* Instance = NewObject<UDynamicMaterialInstance>(GetTransientPackage(), TEXT("MaterialDesigner"));
 
 	if (!Instance)
 	{
