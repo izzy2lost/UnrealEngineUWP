@@ -482,6 +482,12 @@ void FDetailLayoutBuilderImpl::GenerateDetailLayout()
 							continue;
 						}
 					}
+					else if (ChildNode->GetExternalRootPropertyNode()) 
+					{
+						// Also skip children that have been added externally, as those are likely generated from one of the other
+						// child nodes, and will be generated again upon moving that node to the outer category
+						continue;
+					}
 
 					// If there is no outer object then the class is the object root and there is only one instance
 					FName InstanceName = ParentStructPropertyName;
