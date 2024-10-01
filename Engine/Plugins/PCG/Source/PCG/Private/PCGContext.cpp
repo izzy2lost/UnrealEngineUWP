@@ -23,6 +23,17 @@
 
 #define LOCTEXT_NAMESPACE "PCGContext"
 
+namespace PCGContextHelpers
+{
+	template <typename T>
+	bool GetOverrideParamValue(const IPCGAttributeAccessor& InAccessor, T& OutValue)
+	{
+		// Override were using the first entry (0) by default.
+		FPCGAttributeAccessorKeysEntries FirstEntry(PCGMetadataEntryKey(0));
+		return InAccessor.Get<T>(OutValue, FirstEntry, EPCGAttributeAccessorFlags::AllowBroadcastAndConstructible);
+	}
+}
+
 FPCGTaskId FPCGContext::GetGraphExecutionTaskId() const
 {
 	return ensure(Stack) ? Stack->GetGraphExecutionTaskId() : InvalidPCGTaskId;
@@ -131,9 +142,40 @@ void FPCGContext::InitializeSettings(bool bSkipPostLoad)
 			}
 
 			if (bHasParamConnected)
-			{				
-				FObjectDuplicationParameters DuplicateParams(const_cast<UPCGSettings*>(NodeSettings), GetTransientPackage());
+			{
+				// If we have an override, we are not on the main thread and there is a hard ref override, we need to make sure that all objects
+				// are loaded. If not, we need to schedule the task on the main thread.
 				const bool bIsInGameThread = IsInGameThread();
+				if (!bIsInGameThread && NodeSettings->HasAnyOverridableHardReferences())
+				{
+					for (const FPCGSettingsOverridableParam& Param : OverridableParams)
+					{
+						// If the param is not a hard ref, ignore.
+						if (!Param.IsHardReferenceOverride())
+						{
+							continue;
+						}
+
+						PCGAttributeAccessorHelpers::AccessorParamResult AccessorResult{};
+						TUniquePtr<const IPCGAttributeAccessor> AttributeAccessor = PCGAttributeAccessorHelpers::CreateConstAccessorForOverrideParamWithResult(InputData, Param, &AccessorResult);
+
+						// If the accessor failed to be created, ignore
+						if (!AttributeAccessor.IsValid())
+						{
+							continue;
+						}
+
+						FSoftObjectPath ObjectPath;
+						if (PCGContextHelpers::GetOverrideParamValue(*AttributeAccessor, ObjectPath) && !ObjectPath.ResolveObject())
+						{
+							// We have an override value that is not loaded, and we are not on the main thread. We need to schedule the task on the main thread.
+							bOverrideSettingsOnMainThread = true;
+							break;
+						}
+					}
+				}
+			
+				FObjectDuplicationParameters DuplicateParams(const_cast<UPCGSettings*>(NodeSettings), GetTransientPackage());
 				DuplicateParams.bSkipPostLoad = bSkipPostLoad;
 				DuplicateParams.ApplyFlags = RF_Transient;
 			
@@ -184,6 +226,10 @@ void FPCGContext::InitializeSettings(bool bSkipPostLoad)
 void FPCGContext::OverrideSettings()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGContext::OverrideSettings);
+
+	// If we have to be on the main thread check it there. It is necessary for overrides of hard references that are not yet loaded. We can reset the flag afterwards.
+	check(!bOverrideSettingsOnMainThread || IsInGameThread());
+	bOverrideSettingsOnMainThread = false;
 
 	// Use original settings to avoid recomputing OverridableParams() everytime
 	const UPCGSettings* OriginalSettings = GetOriginalSettings<UPCGSettings>();
@@ -287,7 +333,7 @@ void FPCGContext::OverrideSettings()
 			FPCGAttributeAccessorKeysEntries FirstEntry(PCGMetadataEntryKey(0));
 					
 			PropertyType Value{};
-			if (!AttributeAccessor->Get<PropertyType>(Value, FirstEntry, EPCGAttributeAccessorFlags::AllowBroadcast | EPCGAttributeAccessorFlags::AllowConstructible))
+			if (!PCGContextHelpers::GetOverrideParamValue(*AttributeAccessor, Value))
 			{
 				PCGE_LOG_C(Warning, GraphAndLog, this, FText::Format(LOCTEXT("ConversionFailed", "Parameter '{0}' cannot be converted from attribute '{1}'"), FText::FromName(Param.Label), FText::FromName(AttributeName)));
 				return false;

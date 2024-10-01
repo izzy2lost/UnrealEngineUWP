@@ -82,6 +82,8 @@ struct FPCGGraphTask
 
 	const FPCGStack* GetStack() const;
 	FPCGTaskId GetGraphExecutionTaskId() const;
+	
+	bool CanExecuteOnlyOnMainThread() const;
 
 	TArray<FPCGGraphTaskInput> Inputs;
 	const UPCGNode* Node = nullptr;
@@ -138,6 +140,8 @@ struct FPCGGraphActiveTask : TSharedFromThis<FPCGGraphActiveTask>
 
 	void StartExecuting();
 	void StopExecuting();
+
+	bool CanExecuteOnlyOnMainThread() const;
 
 	TArray<FPCGGraphTaskInput> Inputs;
 	FPCGElementPtr Element;

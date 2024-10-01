@@ -116,6 +116,9 @@ struct FPCGSettingsOverridableParam
 
 	TArray<FName> GenerateAllPossibleAliases() const;
 
+	/** Returns true if the last property is an ObjectProperty. */
+	PCG_API bool IsHardReferenceOverride() const;
+
 #if WITH_EDITOR
 	FString GetDisplayPropertyPath() const;
 	PCG_API FText GetDisplayPropertyPathText() const;
@@ -510,6 +513,13 @@ protected:
 	/** Needs to be serialized since property metadata (used to populate this array) is not available at runtime. */
 	UPROPERTY()
 	TArray<FPCGSettingsOverridableParam> CachedOverridableParams;
+
+	// We need to make sure that if we have hard references that are overridable, and they are overriden by paths
+	// on objects that are not yet loaded, that we are loading it on the main thread.
+	bool bHasAnyOverridableHardReferences = false;
+	
+public:
+	bool HasAnyOverridableHardReferences() const { return bHasAnyOverridableHardReferences; }
 
 	// GPU section
 public:

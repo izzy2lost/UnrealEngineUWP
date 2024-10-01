@@ -75,6 +75,8 @@ struct PCG_API FPCGContext
 	/** The current call stack. */
 	const FPCGStack* Stack = nullptr;
 
+	bool CanExecuteOnlyOnMainThread() const { return bOverrideSettingsOnMainThread; } 
+
 	const UPCGSettingsInterface* GetInputSettingsInterface() const;
 	
 	// After initializing the context, we can call this method to prepare for parameter override
@@ -173,6 +175,9 @@ private:
 
 	// List of params that were in effect overriden
 	TArray<const FPCGSettingsOverridableParam*> OverriddenParams;
+
+	// If the settings need to be overridden on the main thread (because we have to load objects)
+	bool bOverrideSettingsOnMainThread = false;
 
 	// List of objects created by the PCG Elements, we need to track them so we can remove their Async flags when storing results on main thread
 	// so that they can be considered as existing on the main thread (and get properly GCed)

@@ -92,6 +92,11 @@ FString FPCGSettingsOverridableParam::GetPropertyPath() const
 	return FString::JoinBy(Properties, PCGSettings::PropertyPathSeparator, [](const FProperty* InProperty) { return InProperty ? InProperty->GetAuthoredName() : FString(); });
 }
 
+bool FPCGSettingsOverridableParam::IsHardReferenceOverride() const
+{
+	return !Properties.IsEmpty() && CastField<const FObjectProperty>(Properties.Last());
+}
+
 TArray<FName> FPCGSettingsOverridableParam::GenerateAllPossibleAliases() const
 {
 	if (Properties.IsEmpty() || !HasAliases())
@@ -1042,6 +1047,9 @@ void UPCGSettings::InitializeCachedOverridableParams(bool bReset)
 	}
 #endif // WITH_EDITOR
 
+	// Reset the value
+	bHasAnyOverridableHardReferences = false;
+	
 	for (int32 i = 0; i < CachedOverridableParams.Num(); ++i)
 	{
 		FPCGSettingsOverridableParam& Param = CachedOverridableParams[i];
@@ -1102,6 +1110,12 @@ void UPCGSettings::InitializeCachedOverridableParams(bool bReset)
 				Param.Properties.Empty();
 				break;
 			}
+		}
+
+		// Keep the information if the last property is a hard ref
+		if (Param.IsHardReferenceOverride())
+		{
+			bHasAnyOverridableHardReferences = true;
 		}
 	}
 }
