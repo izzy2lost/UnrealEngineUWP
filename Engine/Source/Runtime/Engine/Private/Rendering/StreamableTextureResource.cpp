@@ -12,6 +12,7 @@
 #include "ProfilingDebugging/ScopedDebugInfo.h"
 #include "Stats/StatsTrace.h"
 #include "RHIUtilities.h"
+#include "Engine/TextureMipDataProviderFactory.h"
 
 #if STATS
 int64 GUITextureMemory = 0;
@@ -121,7 +122,9 @@ FStreamableTextureResource::FStreamableTextureResource(UTexture* InOwner, const 
 
 	// Whether the virtual update path is enabled for this texture. This allows to map / unmap top mip memory in an out.
 	// Whether the texture will be created with TexCreate_Virtual depends on the requested mip count and "r.VirtualTextureReducedMemory"
-	bUsePartiallyResidentMips = bAllowPartiallyResidentMips && InPostInitState.bSupportsStreaming && CanCreateWithPartiallyResidentMips(CreationFlags);
+	// TODO: Remove the bHasNoMipProvider filter here, once virtual mip support is added to the Mip Provider streaming path
+	const bool bHasNoMipProvider = (InOwner->GetAssetUserData<UTextureMipDataProviderFactory>() == nullptr);
+	bUsePartiallyResidentMips = bHasNoMipProvider && bAllowPartiallyResidentMips && InPostInitState.bSupportsStreaming && CanCreateWithPartiallyResidentMips(CreationFlags);
 	 
 	STAT(LODGroupStatName = TextureGroupStatFNames[LODGroup]);
 	STAT(bIsNeverStream = InOwner->NeverStream);
