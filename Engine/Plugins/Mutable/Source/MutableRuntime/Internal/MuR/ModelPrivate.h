@@ -29,11 +29,8 @@ namespace mu
     //! Data stored for a rom even if it is not loaded
     struct FRomData
     {
-		// TODO: Remove. Use Rom index instead to find the file
         //! This is used to identify a ROM file. It is usually a hash from its data.
-        uint32 Id=0; 
-
-		uint32 SourceId=0;
+        uint32 Id=0;
 
 		//! Size of the rom
 		uint32 Size=0;
@@ -46,10 +43,6 @@ namespace mu
 
 		/** Properties of the rom data. */
 		ERomFlags Flags = ERomFlags::None;
-
-		// TODO: Store the offset here and delete the FModelStreamableBlock map
-		//! Offset in file
-		// uint64 Offset = 0;
     };
 
     MUTABLE_DEFINE_POD_SERIALISABLE(FRomData);

@@ -15,9 +15,9 @@ namespace mu
 	typedef Ptr<NodeImage> NodeImagePtr;
 	typedef Ptr<const NodeImage> NodeImagePtrConst;
 
-	/** Data related to the a source image that is necessary to classify the final image and mesh fragments
-	 * that are derived from this source.
-	 */
+	/** Data related to the a source image that is necessary to classify the final image fragments
+	* that are derived from this source.
+	*/
 	struct FSourceDataDescriptor
 	{
 		enum ESpecialValues
@@ -34,9 +34,6 @@ namespace mu
 
 		/** Source tags that mark this data and prevent it from mixing with other data at compile time. */
 		TArray<FString> Tags;
-
-		/** Source Id */
-		uint32 SourceId = MAX_uint32;
 
 		inline bool operator==(const FSourceDataDescriptor& Other) const
 		{
@@ -58,7 +55,6 @@ namespace mu
 			if (IsInvalid() || Other.IsInvalid())
 			{
 				SourceHighResMips = EInvalid;
-				SourceId = MAX_uint32;
 				Tags.Empty();
 				return;
 			}
@@ -71,15 +67,13 @@ namespace mu
 			if (IsNeutral())
 			{
 				SourceHighResMips = Other.SourceHighResMips;
-				SourceId = Other.SourceId;
 				Tags = Other.Tags;
 				return;
 			}
 
-			if (!(*this == Other))
+			if (!(*this==Other))
 			{
 				SourceHighResMips = EInvalid;
-				SourceId = MAX_uint32;
 				Tags.Empty();
 				return;
 			}

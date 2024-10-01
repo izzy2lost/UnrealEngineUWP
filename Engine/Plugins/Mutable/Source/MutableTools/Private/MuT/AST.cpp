@@ -1704,30 +1704,7 @@ FSourceDataDescriptor ASTOpFixed::GetSourceDataDescriptor(FGetSourceDataDescript
 	case OP_TYPE::IM_COLOURMAP:
 		Result = GetSourceDataDescriptor(op.args.ImageColourMap.base, Context);
 		break;
-	case OP_TYPE::ME_APPLYLAYOUT:
-		Result = GetSourceDataDescriptor(op.args.MeshApplyLayout.mesh, Context);
-		break;	
-	case OP_TYPE::ME_MERGE:
-		Result = GetSourceDataDescriptor(op.args.MeshMerge.base, Context);
-		break;	
-	case OP_TYPE::ME_INTERPOLATE:
-		Result = GetSourceDataDescriptor(op.args.MeshInterpolate.base, Context);
-		break;	
-	case OP_TYPE::ME_MASKDIFF:
-		Result = GetSourceDataDescriptor(op.args.MeshMaskDiff.source, Context);
-		break;	
-	case OP_TYPE::ME_CLIPMORPHPLANE:
-		Result = GetSourceDataDescriptor(op.args.MeshClipMorphPlane.source, Context);
-		break;	
-	case OP_TYPE::ME_CLIPWITHMESH:
-		Result = GetSourceDataDescriptor(op.args.MeshClipWithMesh.source, Context);
-		break;	
-	case OP_TYPE::ME_SETSKELETON:
-		Result = GetSourceDataDescriptor(op.args.MeshSetSkeleton.source, Context);
-		break;	
-	case OP_TYPE::ME_PROJECT:
-		Result = GetSourceDataDescriptor(op.args.MeshProject.mesh, Context);
-		break;
+
 	default:
 		// This should probably be implemented
 		ensure(false);

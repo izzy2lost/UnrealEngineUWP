@@ -597,7 +597,6 @@ public:
 
 		// Stores the names of the rows that will be compiled
 		TArray<FName> RowNames;
-		TArray<uint32> RowIds;
 
 		// Compilation Restrictions:
 		// If there is a bool column in the table, checked rows will not be compiled

@@ -361,16 +361,4 @@ namespace mu
 		return NewOp;
 	}
 
-
-	//-------------------------------------------------------------------------------------------------
-	FSourceDataDescriptor ASTOpMeshDifference::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
-	{
-		if (Base)
-		{
-			return Base->GetSourceDataDescriptor(Context);
-		}
-
-		return {};
-	}
-
 }

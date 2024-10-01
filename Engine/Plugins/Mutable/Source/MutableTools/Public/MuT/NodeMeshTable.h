@@ -7,7 +7,6 @@
 #include "MuT/Node.h"
 #include "MuT/NodeMesh.h"
 #include "MuT/NodeLayout.h"
-#include "MuT/NodeImage.h"
 #include "MuT/Table.h"
 
 
@@ -32,9 +31,6 @@ namespace mu
 		FString DefaultRowName;
 
 		TArray<Ptr<NodeLayout>> Layouts;
-
-		/** */
-		FSourceDataDescriptor SourceDataDescriptor;
 
 	public:
 

@@ -52,7 +52,6 @@
 #include "MuT/NodeComponentSwitch.h"
 #include "MuT/NodeComponentVariation.h"
 #include "MuT/NodeImage.h"
-#include "MuT/NodeImageConstant.h"
 #include "MuT/NodeImageFormat.h"
 #include "MuT/NodeImageFormatPrivate.h"
 #include "MuT/NodeImageMipmap.h"
@@ -345,22 +344,20 @@ namespace mu
 
 			// Add every row
 			int32 RowCount = CacheKey.Table->GetPrivate()->Rows.Num();
-			check(RowCount < MAX_int16) // max FIntValueDesc allows
-
-			for (int32 RowIndex = 0; RowIndex < RowCount; ++RowIndex)
+			for (int32 i = 0; i < RowCount; ++i)
 			{
 				FParameterDesc::FIntValueDesc value;
-				value.m_value = RowIndex;
+				value.m_value = (int16)CacheKey.Table->GetPrivate()->Rows[i].Id;
 
 				if (nameCol > -1)
 				{
-					value.m_name = CacheKey.Table->GetPrivate()->Rows[RowIndex].Values[nameCol].String;
+					value.m_name = CacheKey.Table->GetPrivate()->Rows[i].Values[nameCol].String;
 				}
 
 				param.m_possibleValues.Add(value);
 
 				// Set the first row as the default one (if there is none option)
-				if (RowIndex == 0 && !bAddNoneOption)
+				if (i == 0 && !bAddNoneOption)
 				{
 					param.m_defaultValue.Set<ParamIntType>(value.m_value);
 				}
@@ -2114,7 +2111,6 @@ namespace mu
 					Ptr<ASTOpConstantResource> TargetMeshOp = new ASTOpConstantResource;
 					TargetMeshOp->Type = OP_TYPE::ME_CONSTANT;
 					TargetMeshOp->SetValue(TargetMesh->Clone(), CompilerOptions->OptimisationOptions.DiskCacheContext);
-					TargetMeshOp->SourceDataDescriptor = OriginalMeshNode->SourceDataDescriptor;
 
 					// Morph generation through mesh diff
 					Ptr<ASTOpMeshDifference> diffAd;
@@ -2234,7 +2230,6 @@ namespace mu
 				Ptr<ASTOpConstantResource> UVMeshOp = new ASTOpConstantResource();
 				UVMeshOp->Type = OP_TYPE::ME_CONSTANT;
 				UVMeshOp->SetValue(OriginalMesh->Clone(), CompilerOptions->OptimisationOptions.DiskCacheContext);
-				UVMeshOp->SourceDataDescriptor = OriginalMeshNode->SourceDataDescriptor;
 
 				const NodeModifierMeshClipWithUVMask* TypedClipNode = static_cast<const NodeModifierMeshClipWithUVMask*>(m.Node);
 

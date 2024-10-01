@@ -78,15 +78,4 @@ namespace mu
 		}
 	}
 
-
-	FSourceDataDescriptor ASTOpMeshAddTags::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
-	{
-		if (Source)
-		{
-			return Source->GetSourceDataDescriptor(Context);
-		}
-
-		return {};
-	}
-
 }

@@ -91,15 +91,4 @@ namespace mu
 
 	}
 
-
-	FSourceDataDescriptor ASTOpMeshClipDeform::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
-	{
-		if (Mesh)
-		{
-			return Mesh->GetSourceDataDescriptor(Context);
-		}
-
-		return {};
-	}
-
 }

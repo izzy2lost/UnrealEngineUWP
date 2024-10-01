@@ -4,7 +4,7 @@
 
 #include "MuT/Platform.h"
 #include "MuT/Compiler.h"
-#include "MuT/NodeImage.h"
+#include "MuT/NodeImageConstant.h"
 #include "MuR/Image.h"
 #include "MuR/Mesh.h"
 #include "MuR/ModelPrivate.h"
@@ -295,11 +295,6 @@ namespace mu
 			* It must have the same size than the Program::ConstantImages array.
 			*/
 			TArray<FSourceDataDescriptor> SourceImagePerConstant;
-
-			/** Source data descriptor for every mesh constant that has been generated.
-			* It must have the same size than the Program::ConstantMeshes array.
-			*/
-			TArray<FSourceDataDescriptor> SourceMeshPerConstant;
 		};
 
 		FAdditionalData AdditionalData;
