@@ -134,8 +134,11 @@ private:
 	/** Gets a map where each Fader Group Controllers in this layout is sorted by universe id */
 	TMap<int32, TArray<UDMXControlConsoleFaderGroupController*>> GetUniverseIDToControllersMap() const;
 
+	/** Updates this layout according to its Controllers data, if it's the active layout */
+	void UpdateActiveLayoutByControllersData() const;
+
 	/** Called when the active layout has changed */
-	void OnActiveLayoutchanged(const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout);
+	void OnActiveLayoutChanged(const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout);
 
 	/** Called when a Fixture Patch was removed from a DMX Library */
 	void OnFixturePatchRemovedFromLibrary(UDMXLibrary* Library, TArray<UDMXEntity*> Entities);
