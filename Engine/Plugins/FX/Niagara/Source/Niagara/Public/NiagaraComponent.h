@@ -125,7 +125,6 @@ private:
 	/**
 	When true, this component's system will be force to update via a slower "solo" path rather than the more optimal batched path with other instances of the same system.
 	*/
-	UPROPERTY(EditAnywhere, Category = Parameters)
 	uint32 bForceSolo : 1;
 
 	/** When true the GPU simulation debug display will enabled, allowing information used during simulation to be visualized. */
