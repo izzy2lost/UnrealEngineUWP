@@ -125,7 +125,7 @@ namespace UE::PixelStreaming2
 
 	void FStreamer::SetCoupleFramerate(bool bCouple)
 	{
-		VideoSourceGroup->SetCoupleFramerate(bCouple);
+		VideoSourceGroup->SetDecoupleFramerate(!bCouple);
 	}
 
 	void FStreamer::SetVideoProducer(TSharedPtr<IPixelStreaming2VideoProducer> Producer)

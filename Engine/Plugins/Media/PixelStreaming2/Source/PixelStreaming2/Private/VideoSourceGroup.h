@@ -3,6 +3,7 @@
 #pragma once
 
 #include "HAL/Event.h"
+#include "HAL/IConsoleManager.h"
 #include "HAL/Runnable.h"
 #include "HAL/RunnableThread.h"
 #include "Misc/SingleThreadRunnable.h"
@@ -12,6 +13,7 @@
 namespace UE::PixelStreaming2
 {
 	class FEpicRtcVideoSource;
+	class FFrameRunnable;
 
 	class FVideoSourceGroup : public TSharedFromThis<FVideoSourceGroup>
 	{
@@ -22,7 +24,7 @@ namespace UE::PixelStreaming2
 		void  SetFPS(int32 InFramesPerSecond);
 		int32 GetFPS();
 
-		void SetCoupleFramerate(bool Couple);
+		void SetDecoupleFramerate(bool bDecouple);
 
 		void AddVideoSource(TSharedPtr<FEpicRtcVideoSource> VideoSource);
 		void RemoveVideoSource(const FEpicRtcVideoSource* ToRemove);
@@ -30,8 +32,7 @@ namespace UE::PixelStreaming2
 
 		void Start();
 		void Stop();
-		void Tick();
-		bool IsThreadRunning() const { return bRunning; }
+		void PushFrame();
 
 		void ForceKeyFrame();
 
@@ -40,50 +41,27 @@ namespace UE::PixelStreaming2
 
 		void StartThread();
 		void StopThread();
-		void CheckStartStopThread();
+
 		void OnFrameCaptured();
 
-		class FFrameThread : public FRunnable, public FSingleThreadRunnable
-		{
-		public:
-			FFrameThread(TWeakPtr<FVideoSourceGroup> InVideoSourceGroup)
-				: OuterVideoSourceGroup(InVideoSourceGroup)
-			{
-			}
-			virtual ~FFrameThread() = default;
+		void OnWebRtcFpsChanged(IConsoleVariable* Var);
+		void OnDecoupleFramerateChanged(IConsoleVariable* Var);
 
-			virtual bool   Init() override;
-			virtual uint32 Run() override;
-			virtual void   Stop() override;
-			virtual void   Exit() override;
+		bool bFPSOverride = false;
+		bool bDecoupleOverride = false;
 
-			virtual FSingleThreadRunnable* GetSingleThreadInterface() override
-			{
-				bIsRunning = true;
-				return this;
-			}
+		bool  bRunning = false;
+		bool  bDecoupleFramerate = false;
+		int32 FramesPerSecond = 30;
 
-			virtual void Tick() override;
-
-			void PushFrame(TSharedPtr<FVideoSourceGroup> VideoSourceGroup);
-
-			bool						bIsRunning = false;
-			TWeakPtr<FVideoSourceGroup> OuterVideoSourceGroup = nullptr;
-			uint64						LastSubmitCycles = 0;
-
-			/* Use this event to signal when we should wake and also how long we should sleep for between transmitting a frame. */
-			FEventRef FrameEvent;
-		};
-
-		bool									bRunning = false;
-		bool									bThreadRunning = false;
-		bool									bCoupleFramerate = false;
-		int32									FramesPerSecond = 30;
-		TUniquePtr<FFrameThread>				FrameRunnable;
-		FRunnableThread*						FrameThread = nullptr; // constant FPS tick thread
 		TArray<TSharedPtr<FEpicRtcVideoSource>> VideoSources;
 
 		FDelegateHandle FrameDelegateHandle;
+		FDelegateHandle FpsDelegateHandle;
+		FDelegateHandle DecoupleDelegateHandle;
+
+		TSharedPtr<FRunnableThread> FrameThread = nullptr;	 // constant FPS tick thread
+		TSharedPtr<FFrameRunnable>	FrameRunnable = nullptr; // constant fps runnable
 
 		mutable FCriticalSection CriticalSection;
 	};

@@ -163,6 +163,7 @@ TAutoConsoleVariable<bool> UPixelStreaming2PluginSettings::CVarDecoupleFramerate
 	TEXT("PixelStreaming2.DecoupleFramerate"),
 	false,
 	TEXT("Whether we should only stream as fast as we render or at some fixed interval. Coupled means only stream what we render."),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* Var) { Delegates()->OnDecoupleFramerateChanged.Broadcast(Var); }),
 	ECVF_Default);
 
 TAutoConsoleVariable<float> UPixelStreaming2PluginSettings::CVarDecoupleWaitFactor(

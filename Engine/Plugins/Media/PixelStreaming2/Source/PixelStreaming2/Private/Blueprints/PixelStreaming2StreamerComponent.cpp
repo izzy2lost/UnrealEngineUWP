@@ -10,7 +10,7 @@ UPixelStreaming2StreamerComponent::UPixelStreaming2StreamerComponent(const FObje
 {
 }
 
-void UPixelStreaming2StreamerComponent::BeginPlay() 
+void UPixelStreaming2StreamerComponent::BeginPlay()
 {
 	if (Streamer)
 	{
@@ -52,7 +52,12 @@ void UPixelStreaming2StreamerComponent::StartStreaming()
 	}
 
 	Streamer->SetCoupleFramerate(CoupleFramerate);
-	Streamer->SetStreamFPS(StreamFPS);
+
+	if (StreamFPSOverride > 0)
+	{
+		Streamer->SetStreamFPS(StreamFPSOverride);
+	}
+
 	if (UsePixelStreamingURL)
 	{
 		FString ServerURL;
@@ -145,7 +150,7 @@ void UPixelStreaming2StreamerComponent::SetupStreamerInput()
 		// default to the scene viewport if we have a game engine
 		if (UGameEngine* GameEngine = Cast<UGameEngine>(GEngine))
 		{
-			TSharedPtr<FSceneViewport>					   TargetViewport = GameEngine->SceneViewport;
+			TSharedPtr<FSceneViewport>				 TargetViewport = GameEngine->SceneViewport;
 			TSharedPtr<IPixelStreaming2InputHandler> InputHandler = Streamer->GetInputHandler().Pin();
 			if (TargetViewport.IsValid() && InputHandler.IsValid())
 			{

@@ -63,7 +63,7 @@ public:
 	bool UsePixelStreamingURL = false;
 
 	UPROPERTY(EditAnywhere, Category = "PixelStreaming2")
-	int32 StreamFPS = 60;
+	int32 StreamFPSOverride = -1;
 
 	UPROPERTY(EditAnywhere, Category = "PixelStreaming2")
 	bool CoupleFramerate = false;

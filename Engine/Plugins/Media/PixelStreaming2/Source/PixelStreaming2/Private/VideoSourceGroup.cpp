@@ -10,17 +10,150 @@
 
 namespace UE::PixelStreaming2
 {
+	class FFrameRunnable : public FRunnable, public FSingleThreadRunnable
+	{
+	public:
+		FFrameRunnable(TWeakPtr<FVideoSourceGroup> VideoSourceGroup, bool bEnabled)
+			: bEnabled(bEnabled)
+			, OuterVideoSourceGroup(VideoSourceGroup)
+		{
+		}
+
+		virtual ~FFrameRunnable() = default;
+
+		void SetEnabled(bool bInEnabled)
+		{
+			bEnabled = bInEnabled;
+
+			if (bEnabled)
+			{
+				// The thread has enabled so wake it up
+				FrameEvent->Trigger();
+			}
+		}
+
+		virtual bool Init() override
+		{
+			return true;
+		}
+
+		virtual uint32 Run() override
+		{
+			bIsRunning = true;
+
+			while (bIsRunning)
+			{
+				if (!bEnabled)
+				{
+					// Sleep the thread indefinitely because it is not enabled
+					FrameEvent->Wait();
+				}
+
+				if (TSharedPtr<FVideoSourceGroup> VideoSourceGroup = OuterVideoSourceGroup.Pin())
+				{
+
+					const double TimeSinceLastSubmitMs = FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - LastSubmitCycles);
+
+					// Decrease this value to make expected frame delivery more precise, however may result in more old frames being sent
+					const double PrecisionFactor = 0.1;
+					const double WaitFactor = UPixelStreaming2PluginSettings::CVarDecoupleWaitFactor.GetValueOnAnyThread();
+
+					// In "auto" mode vary this value based on historical average
+					const double TargetSubmitMs = 1000.0 / VideoSourceGroup->GetFPS();
+					const double TargetSubmitMsWithPadding = TargetSubmitMs * WaitFactor;
+					const double MinSubmitMs = TargetSubmitMs * (1.f / WaitFactor);
+					const double CloseEnoughMs = TargetSubmitMs * PrecisionFactor;
+					const bool	 bFrameOverdue = TimeSinceLastSubmitMs >= TargetSubmitMsWithPadding;
+
+					// Check frame arrived in time
+					if (!bFrameOverdue)
+					{
+						// Frame arrived in a timely fashion, but is it too soon to maintain our target rate? If so, sleep.
+						double WaitTimeRemainingMs = TargetSubmitMsWithPadding - TimeSinceLastSubmitMs;
+						if (WaitTimeRemainingMs > CloseEnoughMs)
+						{
+							bool bGotNewFrame = FrameEvent->Wait(WaitTimeRemainingMs);
+							if (!bGotNewFrame)
+							{
+								UE_LOG(LogPixelStreaming2, VeryVerbose, TEXT("Old frame submitted"));
+							}
+						}
+					}
+
+					// Push frame immediately
+					PushFrame(VideoSourceGroup);
+				}
+			}
+
+			return 0;
+		}
+
+		virtual void Stop() override
+		{
+			bIsRunning = false;
+		}
+
+		virtual void Exit() override
+		{
+			bIsRunning = false;
+		}
+
+		virtual FSingleThreadRunnable* GetSingleThreadInterface() override
+		{
+			bIsRunning = true;
+			return this;
+		}
+
+		/*
+		 * Note this function is required as part of `FSingleThreadRunnable` and only gets called when engine is run in single-threaded mode,
+		 * so the logic is much less complex as this is not a case we particularly optimize for, a simple tick on an interval will be acceptable.
+		 */
+		virtual void Tick() override
+		{
+			if (TSharedPtr<FVideoSourceGroup> VideoSourceGroup = OuterVideoSourceGroup.Pin())
+			{
+				const uint64 NowCycles = FPlatformTime::Cycles64();
+				const double DeltaMs = FPlatformTime::ToMilliseconds64(NowCycles - LastSubmitCycles);
+				const double TargetSubmitMs = 1000.0 / VideoSourceGroup->GetFPS();
+				if (DeltaMs >= TargetSubmitMs)
+				{
+					PushFrame(VideoSourceGroup);
+				}
+			}
+		}
+
+		void PushFrame(TSharedPtr<FVideoSourceGroup> VideoSourceGroup)
+		{
+			VideoSourceGroup->PushFrame();
+			LastSubmitCycles = FPlatformTime::Cycles64();
+		}
+
+		bool						bEnabled = false;
+		bool						bIsRunning = false;
+		TWeakPtr<FVideoSourceGroup> OuterVideoSourceGroup = nullptr;
+		uint64						LastSubmitCycles = 0;
+
+		/* Use this event to signal when we should wake and also how long we should sleep for between transmitting a frame. */
+		FEventRef FrameEvent;
+	};
+
 	TSharedPtr<FVideoSourceGroup> FVideoSourceGroup::Create(TSharedPtr<FVideoCapturer> InVideoCapturer)
 	{
 		TSharedPtr<FVideoSourceGroup> VideoSourceGroup = TSharedPtr<FVideoSourceGroup>(new FVideoSourceGroup());
 
 		VideoSourceGroup->FrameDelegateHandle = InVideoCapturer->OnFrameCaptured.AddSP(VideoSourceGroup.ToSharedRef(), &FVideoSourceGroup::OnFrameCaptured);
 
+		if (UPixelStreaming2PluginSettings::FDelegates* Delegates = UPixelStreaming2PluginSettings::Delegates())
+		{
+			VideoSourceGroup->FpsDelegateHandle = Delegates->OnWebRTCFpsChanged.AddSP(VideoSourceGroup.ToSharedRef(), &FVideoSourceGroup::OnWebRtcFpsChanged);
+			VideoSourceGroup->DecoupleDelegateHandle = Delegates->OnDecoupleFramerateChanged.AddSP(VideoSourceGroup.ToSharedRef(), &FVideoSourceGroup::OnDecoupleFramerateChanged);
+		}
+
 		return VideoSourceGroup;
 	}
 
 	FVideoSourceGroup::FVideoSourceGroup()
-		: bCoupleFramerate(!UPixelStreaming2PluginSettings::CVarDecoupleFramerate.GetValueOnAnyThread())
+		: bDecoupleFramerate(UPixelStreaming2PluginSettings::CVarDecoupleFramerate.GetValueOnAnyThread())
 		, FramesPerSecond(UPixelStreaming2PluginSettings::CVarWebRTCFps.GetValueOnAnyThread())
 	{
 	}
@@ -32,6 +165,8 @@ namespace UE::PixelStreaming2
 
 	void FVideoSourceGroup::SetFPS(int32 InFramesPerSecond)
 	{
+		bFPSOverride = true;
+
 		FramesPerSecond = InFramesPerSecond;
 	}
 
@@ -40,9 +175,43 @@ namespace UE::PixelStreaming2
 		return FramesPerSecond;
 	}
 
-	void FVideoSourceGroup::SetCoupleFramerate(bool Couple)
+	void FVideoSourceGroup::OnWebRtcFpsChanged(IConsoleVariable* Var)
 	{
-		bCoupleFramerate = Couple;
+		// User has manually overriden the stream fps so don't respect the cvar change
+		if (bFPSOverride)
+		{
+			return;
+		}
+
+		FramesPerSecond = Var->GetInt();
+	}
+
+	void FVideoSourceGroup::SetDecoupleFramerate(bool bDecouple)
+	{
+		bDecoupleOverride = true;
+
+		bDecoupleFramerate = bDecouple;
+
+		if (FrameRunnable)
+		{
+			FrameRunnable->SetEnabled(bDecoupleFramerate);
+		}
+	}
+
+	void FVideoSourceGroup::OnDecoupleFramerateChanged(IConsoleVariable* Var)
+	{
+		// User has manually overriden the decouple bool so don't respect the cvar change
+		if (bDecoupleOverride)
+		{
+			return;
+		}
+
+		bDecoupleFramerate = Var->GetBool();
+
+		if (FrameRunnable)
+		{
+			FrameRunnable->SetEnabled(bDecoupleFramerate);
+		}
 	}
 
 	void FVideoSourceGroup::AddVideoSource(TSharedPtr<FEpicRtcVideoSource> VideoSource)
@@ -51,8 +220,6 @@ namespace UE::PixelStreaming2
 			FScopeLock Lock(&CriticalSection);
 			VideoSources.Add(VideoSource);
 		}
-
-		CheckStartStopThread();
 	}
 
 	void FVideoSourceGroup::RemoveVideoSource(const FEpicRtcVideoSource* ToRemove)
@@ -63,7 +230,6 @@ namespace UE::PixelStreaming2
 				return Target.Get() == ToRemove;
 			});
 		}
-		CheckStartStopThread();
 	}
 
 	void FVideoSourceGroup::RemoveAllVideoSources()
@@ -72,32 +238,28 @@ namespace UE::PixelStreaming2
 			FScopeLock Lock(&CriticalSection);
 			VideoSources.Empty();
 		}
-		CheckStartStopThread();
 	}
 
 	void FVideoSourceGroup::Start()
 	{
-		if (!bRunning)
-		{
-			if (VideoSources.Num() > 0)
-			{
-				StartThread();
-			}
-			bRunning = true;
-		}
+		bRunning = true;
+		StartThread();
 	}
 
 	void FVideoSourceGroup::Stop()
 	{
-		if (bRunning)
-		{
-			StopThread();
-			bRunning = false;
-		}
+		bRunning = false;
+		StopThread();
 	}
 
-	void FVideoSourceGroup::Tick()
+	void FVideoSourceGroup::PushFrame()
 	{
+		// The FrameRunnable may push a frame post engine exit because it runs in its own thread
+		if (IsEngineExitRequested())
+		{
+			return;
+		}
+
 		TRACE_CPUPROFILER_EVENT_SCOPE_ON_CHANNEL_STR("PixelStreaming2 Video Source Group Tick", PixelStreaming2Channel);
 		FScopeLock Lock(&CriticalSection);
 
@@ -113,128 +275,40 @@ namespace UE::PixelStreaming2
 
 	void FVideoSourceGroup::OnFrameCaptured()
 	{
-		if (bCoupleFramerate)
+		if (!bDecoupleFramerate)
 		{
-			Tick();
-		}
-		else
-		{
-			// We are in decoupled render/streaming mode - we should wake our VideoSourceGroup::FFrameThread (if it is sleeping)
-			if (FrameRunnable && FrameRunnable->FrameEvent.Get())
-			{
-				FrameRunnable->FrameEvent.Get()->Trigger();
-			}
+			// Source FPS and engine FPS are coupled. Manually push a frame
+			PushFrame();
 		}
 	}
 
 	void FVideoSourceGroup::StartThread()
 	{
-		if (!bCoupleFramerate && !bThreadRunning)
+		if (!FrameRunnable)
 		{
-			FrameRunnable = MakeUnique<FFrameThread>(AsWeak());
-			FrameThread = FRunnableThread::Create(FrameRunnable.Get(), TEXT("FVideoSourceGroup Thread"), 0, TPri_TimeCritical);
-			bThreadRunning = true;
+			FrameRunnable = MakeShared<FFrameRunnable>(AsWeak(), bDecoupleFramerate);
+		}
+
+		if (!FrameThread)
+		{
+			FrameThread = TSharedPtr<FRunnableThread>(FRunnableThread::Create(FrameRunnable.Get(), TEXT("FVideoSourceGroup Thread"), 0, TPri_TimeCritical));
 		}
 	}
 
 	void FVideoSourceGroup::StopThread()
 	{
-		if (FrameThread != nullptr)
+		if (FrameRunnable)
+		{
+			FrameRunnable->Stop();
+			// Wake the thread in case it was sleeping. This will cause it to then exit the ::Run loop
+			FrameRunnable->FrameEvent->Trigger();
+			FrameRunnable.Reset();
+		}
+		
+		if (FrameThread)
 		{
 			FrameThread->Kill(true);
-		}
-		FrameThread = nullptr;
-		bThreadRunning = false;
-	}
-
-	void FVideoSourceGroup::CheckStartStopThread()
-	{
-		if (bRunning)
-		{
-			const int32 NumSources = VideoSources.Num();
-			if (bThreadRunning && NumSources == 0)
-			{
-				StopThread();
-			}
-			else if (!bThreadRunning && NumSources > 0)
-			{
-				StartThread();
-			}
-		}
-	}
-
-	bool FVideoSourceGroup::FFrameThread::Init()
-	{
-		return true;
-	}
-
-	uint32 FVideoSourceGroup::FFrameThread::Run()
-	{
-		bIsRunning = true;
-
-		while (bIsRunning)
-		{
-			if (TSharedPtr<FVideoSourceGroup> VideoSourceGroup = OuterVideoSourceGroup.Pin())
-			{
-				const double TimeSinceLastSubmitMs = FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - LastSubmitCycles);
-
-				// Decrease this value to make expected frame delivery more precise, however may result in more old frames being sent
-				const double PrecisionFactor = 0.1;
-				const double WaitFactor = UPixelStreaming2PluginSettings::CVarDecoupleWaitFactor.GetValueOnAnyThread();
-
-				// In "auto" mode vary this value based on historical average
-				const double TargetSubmitMs = 1000.0 / VideoSourceGroup->FramesPerSecond;
-				const double TargetSubmitMsWithPadding = TargetSubmitMs * WaitFactor;
-				const double CloseEnoughMs = TargetSubmitMs * PrecisionFactor;
-				const bool	 bFrameOverdue = TimeSinceLastSubmitMs >= TargetSubmitMsWithPadding;
-
-				// Check frame arrived in time
-				if (!bFrameOverdue)
-				{
-					// Frame arrived in a timely fashion, but is it too soon to maintain our target rate? If so, sleep.
-					double WaitTimeRemainingMs = TargetSubmitMsWithPadding - TimeSinceLastSubmitMs;
-					if (WaitTimeRemainingMs > CloseEnoughMs)
-					{
-						bool bGotNewFrame = FrameEvent.Get()->Wait(WaitTimeRemainingMs);
-						if (!bGotNewFrame)
-						{
-							UE_LOG(LogPixelStreaming2, VeryVerbose, TEXT("Old frame submitted"));
-						}
-					}
-				}
-
-				// Push frame immediately
-				PushFrame(VideoSourceGroup);
-			}
-		}
-		return 0;
-	}
-
-	void FVideoSourceGroup::FFrameThread::Stop()
-	{
-		bIsRunning = false;
-	}
-
-	void FVideoSourceGroup::FFrameThread::Exit()
-	{
-		bIsRunning = false;
-	}
-
-	/*
-	 * Note this function is required as part of `FSingleThreadRunnable` and only gets called when engine is run in single-threaded mode,
-	 * so the logic is much less complex as this is not a case we particularly optimize for, a simple tick on an interval will be acceptable.
-	 */
-	void FVideoSourceGroup::FFrameThread::Tick()
-	{
-		if (TSharedPtr<FVideoSourceGroup> VideoSourceGroup = OuterVideoSourceGroup.Pin())
-		{
-			const uint64 NowCycles = FPlatformTime::Cycles64();
-			const double DeltaMs = FPlatformTime::ToMilliseconds64(NowCycles - LastSubmitCycles);
-			const double TargetSubmitMs = 1000.0 / VideoSourceGroup->FramesPerSecond;
-			if (DeltaMs >= TargetSubmitMs)
-			{
-				PushFrame(VideoSourceGroup);
-			}
+			FrameThread.Reset();
 		}
 	}
 
@@ -255,11 +329,5 @@ namespace UE::PixelStreaming2
 				VideoSource->ForceKeyFrame();
 			}
 		}
-	}
-
-	void FVideoSourceGroup::FFrameThread::PushFrame(TSharedPtr<FVideoSourceGroup> VideoSourceGroup)
-	{
-		VideoSourceGroup->Tick();
-		LastSubmitCycles = FPlatformTime::Cycles64();
 	}
 } // namespace UE::PixelStreaming2
