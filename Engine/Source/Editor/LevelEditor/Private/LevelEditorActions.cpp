@@ -3103,6 +3103,11 @@ void FLevelEditorActionCallbacks::CopyActorFilePathtoClipboard_Clicked()
 
 	for (AActor* Actor : SelectedActors)
 	{
+		if (Result.Len() != 0)
+		{
+			Result.Append(LINE_TERMINATOR);
+		}
+
 		const UPackage* Package = Actor->GetPackage();
 		const FString LocalFullPath(Package->GetLoadedPath().GetLocalFullPath());
 		if (SelectedActors.Num() > 1)
@@ -3117,7 +3122,6 @@ void FLevelEditorActionCallbacks::CopyActorFilePathtoClipboard_Clicked()
 			Result.Append(TEXT("): "));
 		}
 		Result.Append(FPaths::ConvertRelativePathToFull(LocalFullPath));
-		Result.Append(LINE_TERMINATOR);
 	}
 
 	if (Result.Len())
