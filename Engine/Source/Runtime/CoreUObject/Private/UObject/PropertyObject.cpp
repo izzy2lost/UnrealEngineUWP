@@ -254,12 +254,45 @@ void FObjectProperty::PostSerializeObjectItem(FArchive& SerializingArchive, void
 		!SerializingArchive.IsTransacting() && // Don't create new objects when loading from the transaction buffer
 		!SerializingArchive.IsCountingMemory())
 	{
-		UE_LOG(LogProperty, Warning,
-			TEXT("Failed to serialize value for non-nullable property %s. Reference will be nulled - will cause a runtime error if accessed."),
-			*GetFullName()
-		);
+		UObject* DefaultValue = nullptr;
 
-		SetObjectPropertyValueUnchecked(Value, nullptr);
+		using UE::CoreUObject::Private::ENonNullableBehavior;
+		using UE::CoreUObject::Private::GetNonNullableBehavior;
+
+		ENonNullableBehavior NonNullableBehavior = GetNonNullableBehavior();
+		if (NonNullableBehavior == ENonNullableBehavior::CreateDefaultObjectIfPossible)
+		{
+			DefaultValue = ConstructDefaultObjectValueIfNecessary(CurrentValue);
+		}
+
+		if (DefaultValue)
+		{
+			UE_LOG(LogProperty, Warning,
+				TEXT("Failed to serialize value for non-nullable property %s (previously: %s). Reference will be defaulted to %s."),
+				*GetFullName(),
+				*GetFullNameSafe(CurrentValue),
+				*GetFullNameSafe(DefaultValue)
+			);
+		}
+		else if (NonNullableBehavior == ENonNullableBehavior::LogWarning)
+		{
+			UE_LOG(LogProperty, Warning,
+				TEXT("Failed to serialize value for non-nullable property %s (previously: %s). Reference will be nulled - will cause a runtime error if accessed."),
+				*GetFullNameSafe(CurrentValue),
+				*GetFullName()
+			);
+		}
+		else
+		{
+			UE_LOG(LogProperty, Error,
+				TEXT("Failed to serialize value for non-nullable property %s (previously: %s). Reference will be nulled - will cause a runtime error if accessed."),
+				*GetFullNameSafe(CurrentValue),
+				*GetFullName()
+			);
+		}
+
+		SetObjectPropertyValueUnchecked(Value, DefaultValue);
+		ObjectValue = DefaultValue;
 	}
 
 	if (ObjectValue != CurrentValue)
@@ -349,27 +382,27 @@ TObjectPtr<UObject> FObjectProperty::GetObjectPtrPropertyValue_InContainer(const
 	TObjectPtr<UObject> Result = nullptr;
 	GetWrappedUObjectPtrValues<FObjectPtr>(&Result, ContainerAddress, EPropertyMemoryAccess::InContainer, ArrayIndex, 1);
 	return Result;
-}
+	}
 
 void FObjectProperty::SetObjectPtrPropertyValueUnchecked(void* PropertyValueAddress, TObjectPtr<UObject> Ptr) const
-{
+	{
 	SetPropertyValue(PropertyValueAddress, Ptr);
 }
 
 void FObjectProperty::SetObjectPropertyValueUnchecked(void* PropertyValueAddress, UObject* Value) const
-{
-	SetPropertyValue(PropertyValueAddress, Value);
-}
+	{
+		SetPropertyValue(PropertyValueAddress, Value);
+	}
 
 void FObjectProperty::SetObjectPtrPropertyValueUnchecked_InContainer(void* ContainerAddress, TObjectPtr<UObject> Ptr, int32 ArrayIndex) const
-{
+	{
 	SetWrappedUObjectPtrValues<FObjectPtr>(ContainerAddress, EPropertyMemoryAccess::InContainer, &Ptr, ArrayIndex, 1);
 }
 
 void FObjectProperty::SetObjectPropertyValueUnchecked_InContainer(void* ContainerAddress, UObject* Value, int32 ArrayIndex) const
-{
-	SetWrappedUObjectPtrValues<FObjectPtr>(ContainerAddress, EPropertyMemoryAccess::InContainer, &Value, ArrayIndex, 1);
-}
+	{
+		SetWrappedUObjectPtrValues<FObjectPtr>(ContainerAddress, EPropertyMemoryAccess::InContainer, &Value, ArrayIndex, 1);
+	}
 
 void FObjectProperty::CopySingleValueToScriptVM(void* Dest, const void* Src) const
 {

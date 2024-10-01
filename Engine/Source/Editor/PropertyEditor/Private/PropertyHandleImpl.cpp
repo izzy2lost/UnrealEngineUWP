@@ -1161,10 +1161,18 @@ int32 FPropertyValueImpl::AddChild()
 						if (Array)
 						{
 							Array->PerformOperationWithSetter(Obj, Addr, [Obj, Array, &Index, &ReturnLogicalIndex](void* DirectAddress)
-							{
+							{								
 								FScriptArrayHelper	ArrayHelper(Array, DirectAddress);
 								Index = ArrayHelper.AddValue();
 								ReturnLogicalIndex = Index;
+
+								// check whether the inner type is flagged as a non-nullable. if so, create it.
+								FObjectProperty* InnerObjectProperty = CastField<FObjectProperty>(Array->Inner);
+								if (InnerObjectProperty && InnerObjectProperty->HasAnyPropertyFlags(CPF_NonNullable) && !InnerObjectProperty->PropertyClass->HasAnyClassFlags(CLASS_Abstract))
+								{
+									UObject* NewItem = NewObject<UObject>(Obj, InnerObjectProperty->PropertyClass);
+									InnerObjectProperty->SetObjectPropertyValue(ArrayHelper.GetRawPtr(Index), NewItem);
+								}
 							});
 						}
 						else if (Set)
@@ -1174,6 +1182,14 @@ int32 FPropertyValueImpl::AddChild()
 								FScriptSetHelper	SetHelper(Set, DirectAddress);
 								Index = SetHelper.AddDefaultValue_Invalid_NeedsRehash();
 								ReturnLogicalIndex = SetHelper.FindLogicalIndex(Index);
+
+								// check whether the element type is flagged as a non-nullable. if so, create it.
+								FObjectProperty* ElementObjectProperty = CastField<FObjectProperty>(Set->ElementProp);
+								if (ElementObjectProperty && ElementObjectProperty->HasAnyPropertyFlags(CPF_NonNullable) && !ElementObjectProperty->PropertyClass->HasAnyClassFlags(CLASS_Abstract))
+								{
+									UObject* NewItem = NewObject<UObject>(Obj, ElementObjectProperty->PropertyClass);
+									ElementObjectProperty->SetObjectPropertyValue(SetHelper.GetElementPtr(Index), NewItem);
+								}
 
 								SetHelper.Rehash();
 							});
@@ -1185,6 +1201,25 @@ int32 FPropertyValueImpl::AddChild()
 								FScriptMapHelper	MapHelper(Map, DirectAddress);
 								Index = MapHelper.AddDefaultValue_Invalid_NeedsRehash();
 								ReturnLogicalIndex = MapHelper.FindLogicalIndex(Index);
+
+								// check whether the key or value type is flagged as a non-nullable. if so, create it.
+								{
+									FObjectProperty* KeyObjectProperty = CastField<FObjectProperty>(Map->KeyProp);
+									if (KeyObjectProperty && KeyObjectProperty->HasAnyPropertyFlags(CPF_NonNullable) && !KeyObjectProperty->PropertyClass->HasAnyClassFlags(CLASS_Abstract))
+									{
+										UObject* NewItem = NewObject<UObject>(Obj, KeyObjectProperty->PropertyClass);
+										KeyObjectProperty->SetObjectPropertyValue(MapHelper.GetKeyPtr(Index), NewItem);
+									}
+								}
+
+								{
+									FObjectProperty* ValueObjectProperty = CastField<FObjectProperty>(Map->ValueProp);
+									if (ValueObjectProperty && ValueObjectProperty->HasAnyPropertyFlags(CPF_NonNullable) && !ValueObjectProperty->PropertyClass->HasAnyClassFlags(CLASS_Abstract))
+									{
+										UObject* NewItem = NewObject<UObject>(Obj, ValueObjectProperty->PropertyClass);
+										ValueObjectProperty->SetObjectPropertyValue(MapHelper.GetValuePtr(Index), NewItem);
+									}
+								}
 
 								MapHelper.Rehash();
 								bAddedMapEntry = true;
@@ -4608,17 +4643,17 @@ FPropertyHandleVector::FPropertyHandleVector( TSharedRef<class FPropertyNode> Pr
 	}
 
 	if( TSharedPtr<FPropertyNode> YComponentPropertyNode = Implementation->GetChildNode("Y", bRecurse) )
-	{
+		{
 		VectorComponents.Add( MakeShareable( new FPropertyHandleMixed( YComponentPropertyNode.ToSharedRef(), NotifyHook, PropertyUtilities ) ) );
-	}
+		}
 		
 	if( TSharedPtr<FPropertyNode> ZComponentPropertyNode = Implementation->GetChildNode("Z", bRecurse) )
-	{
+		{
 		VectorComponents.Add( MakeShareable( new FPropertyHandleMixed( ZComponentPropertyNode.ToSharedRef(), NotifyHook, PropertyUtilities ) ) );
-	}
+		}
 		
 	if( TSharedPtr<FPropertyNode> WComponentPropertyNode = Implementation->GetChildNode("W", bRecurse) )
-	{
+		{
 		VectorComponents.Add( MakeShareable( new FPropertyHandleMixed( WComponentPropertyNode.ToSharedRef(), NotifyHook, PropertyUtilities ) ) );
 	}
 }
