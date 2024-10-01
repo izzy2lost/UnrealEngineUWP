@@ -4120,10 +4120,8 @@ void FEditorViewportClient::SetupViewForRendering(FSceneViewFamily& ViewFamily, 
 	GetMeshEdgesViewSettings(View).Opacity = WireframeOpacity;
 	
 	//Look if the pixel inspector tool is on
-	View.bUsePixelInspector = false;
 	FPixelInspectorModule& PixelInspectorModule = FModuleManager::LoadModuleChecked<FPixelInspectorModule>(TEXT("PixelInspectorModule"));
 	bool IsInspectorActive = PixelInspectorModule.IsPixelInspectorEnable();
-	View.bUsePixelInspector = IsInspectorActive;
 	FIntPoint InspectViewportPos = FIntPoint(-1, -1);
 	if (IsInspectorActive)
 	{
@@ -4146,6 +4144,7 @@ void FEditorViewportClient::SetupViewForRendering(FSceneViewFamily& ViewFamily, 
 			PixelInspectorModule.SetCoordinatePosition(InspectViewportPos, false);
 		}
 	}
+	View.bUsePixelInspector = IsInspectorActive;
 
 	if (IsInspectorActive)
 	{
