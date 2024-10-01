@@ -53,6 +53,7 @@ namespace UE::Editor::ContentBrowser
 		// Get the internal FAssetViewItem from a row handle
 		TSharedPtr<FAssetViewItem> GetAssetViewItemFromRow(DataStorage::RowHandle Row);
 
+		DataStorage::RowHandle GetRowFromAssetViewItem(const TSharedPtr<FAssetViewItem>& Item);
 
 	private:
 
@@ -88,13 +89,10 @@ namespace UE::Editor::ContentBrowser
 
 		FTedsContentBrowserModule() = default;
 		
-		TSharedPtr<IContentBrowserViewExtender> GetContentBrowserViewExtender();
+		static TSharedPtr<IContentBrowserViewExtender> CreateContentBrowserViewExtender();
 
 		// IModuleInterface interface
 		virtual void StartupModule() override;
 		virtual void ShutdownModule() override;
-
-	private:
-		TSharedPtr<FTedsContentBrowserViewExtender> ViewExtender;
 	};
 } // namespace UE::Editor::ContentBrowser

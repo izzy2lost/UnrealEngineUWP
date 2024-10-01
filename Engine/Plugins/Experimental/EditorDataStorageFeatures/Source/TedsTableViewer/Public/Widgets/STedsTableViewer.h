@@ -78,6 +78,14 @@ namespace UE::Editor::DataStorage
 
 		// Get the row handle for the widget row the table viewer's contents are stored in
 		TEDSTABLEVIEWER_API RowHandle GetWidgetRowHandle() const;
+		
+		// Select the given row in the table viewer
+		TEDSTABLEVIEWER_API void SetSelection(RowHandle Row, bool bSelected, const ESelectInfo::Type SelectInfo) const;
+
+		// Scroll the given row into view in the table viewer
+		TEDSTABLEVIEWER_API void ScrollIntoView(RowHandle Row) const;
+
+		TEDSTABLEVIEWER_API void ClearSelection() const;
 
 	protected:
 		
