@@ -513,10 +513,42 @@ void ULevelStreaming::Serialize( FArchive& Ar )
 	
 	if (Ar.IsLoading())
 	{
-		if (GetOutermost()->HasAnyPackageFlags(PKG_PlayInEditor) && GetOutermost()->GetPIEInstanceID() != INDEX_NONE)
+		const bool bIsRunningPIE =
+			GetOutermost()->HasAnyPackageFlags(PKG_PlayInEditor) && 
+			GetOutermost()->GetPIEInstanceID() != INDEX_NONE
+		;
+
+		if (bIsRunningPIE)
 		{
 			RenameForPIE(GetOutermost()->GetPIEInstanceID());
 		}
+
+#if WITH_EDITOR
+		// If PackageNameToLoad doesn't match WorldAsset, we can potentially create a corrupt UPackage where the name and file path don't match.
+		// In this case, we have no option but to clear out PackageNameToLoad, since WorldAsset is the source of truth.
+		// Note that RenameForPIE intentionally creates a mismatch, but that's acceptable since PIE effectively creates transient duplicates.
+		if (Ar.IsPersistent() && !bIsRunningPIE)
+		{
+			const bool bHasMismatchedPackageName =
+				(PackageNameToLoad != NAME_None) &&
+				(PackageNameToLoad != WorldAsset.GetLongPackageFName())
+			;
+
+			if (bHasMismatchedPackageName)
+			{
+				const UPackage* Package = GetPackage();
+				ensure(Package);
+				const FString& PackageName = Package ? Package->GetName() : TEXT("Unknown package");
+
+				UE_LOG(LogLevelStreaming, Warning, TEXT("WorldAsset (%s) and PackageNameToLoad (%s) point to different streaming levels. PackageNameToLoad will be set to none. Resave this map (%s) to remove warnings."),
+					*WorldAsset.GetLongPackageName(),
+					*PackageNameToLoad.ToString(),
+					*PackageName);
+
+				PackageNameToLoad = NAME_None;
+			}
+		}
+#endif
 	}
 }
 
