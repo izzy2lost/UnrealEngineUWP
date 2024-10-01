@@ -1824,8 +1824,11 @@ FName FAnimMontageInstance::GetNextSection() const
 		const int32 CurrentSectionIndex = Montage->GetAnimCompositeSectionIndexFromPos(Position, CurrentPosition);
 		if (Montage->IsValidSectionIndex(CurrentSectionIndex))
 		{
-			FCompositeSection& CurrentSection = Montage->GetAnimCompositeSection(CurrentSectionIndex);
-			return CurrentSection.NextSectionName;
+			const int32 NextSectionIndex = GetNextSectionID(CurrentSectionIndex);
+			if (Montage->IsValidSectionIndex(NextSectionIndex))
+			{
+				return GetSectionNameFromID(NextSectionIndex);
+			}
 		}
 	}
 
