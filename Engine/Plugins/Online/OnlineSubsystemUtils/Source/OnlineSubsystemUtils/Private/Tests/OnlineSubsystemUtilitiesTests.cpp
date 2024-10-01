@@ -55,7 +55,6 @@ namespace OSSUtilsTestHelper
 		OSSList.AddUnique(TEXT( "Live" ) );
 		OSSList.AddUnique(TEXT( "Thunderhead" ) );
 		OSSList.AddUnique(TEXT( "Amazon" ) );
-		OSSList.AddUnique(TEXT( "Oculus" ) );
 
 		for ( auto& OSSName : OSSList )
 		{

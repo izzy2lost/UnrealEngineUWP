@@ -478,12 +478,6 @@ public:
 		Delegate.ExecuteIfBound(LocalUserNum, false, EmptyToken);
 	}
 
-	UE_DEPRECATED(5.2, "Please use GetLinkedAccountAuthToken taking a TokenType")
-	virtual void GetLinkedAccountAuthToken(int32 LocalUserNum, const FOnGetLinkedAccountAuthTokenCompleteDelegate& Delegate) const
-	{
-		GetLinkedAccountAuthToken(LocalUserNum, FString(), Delegate);
-	}
-
 	/**
 	 * Delegate executed when we get a user privilege result.
 	 *
