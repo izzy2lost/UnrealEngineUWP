@@ -4,6 +4,7 @@
 
 #include "BoneControllers/BoneControllerTypes.h"
 #include "BoneControllers/AnimNode_SkeletalControlBase.h"
+#include "EngineDefines.h"
 #include "AnimNode_OrientationWarping.generated.h"
 
 struct FAnimationInitializeContext;
