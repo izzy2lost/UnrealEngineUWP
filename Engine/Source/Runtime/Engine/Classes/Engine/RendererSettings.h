@@ -1195,8 +1195,8 @@ class URendererSettings : public UDeveloperSettings
 	"Enable Substrate materials (Beta)."
 	*/
 	UPROPERTY(config, EditAnywhere, Category = Substrate, meta = (
-		ConsoleVariable = "r.Substrate", DisplayName = "Substrate materials (Experimental)",
-		ToolTip = "Enable Substrate materials (Experimental).",
+		ConsoleVariable = "r.Substrate", DisplayName = "Substrate materials (Beta)",
+		ToolTip = "Enable Substrate materials (Beta).",
 		ConfigRestartRequired = true))
 		uint32 bEnableSubstrate : 1;
 
