@@ -1455,6 +1455,7 @@ private:
 
 		UCookOnTheFlyServer& COTFS;
 		TGuardValue<bool> SoftGCGuard;
+		bool bNeedsConstructBuffer;
 	};
 	/** Callback for FGenericCrashContext; provides the current ActivePackage as context. */
 	void DumpCrashContext(FCrashContextExtendedWriter& Writer);
