@@ -1782,21 +1782,9 @@ namespace acl
 					printf("    Error between frame [%u, %u] while testing %u: %f\n", interp_start_frame_index, interp_end_frame_index, frame_index, max_contributing_errorf);
 #endif
 
-					// EpicGames - BEGIN
-					// Improve handling of exotic clips that can have valid data but an infinite error due
-					// to very large translation/scale
-#if 0
 					// If our current frame's contributing error is lowest, it is the best candidate for removal
 					if (max_contributing_errorf < best_error.stripping_error)
 						best_error = keyframe_stripping_metadata_t(frame_index, segment_index, iteration_count - 1, max_contributing_errorf, is_keyframe_trivial);
-#else
-					// If our current frame's contributing error is lowest, it is the best candidate for removal
-					// Make sure to always assign a best keyframe even if its error is infinite
-					// If its error is infinite, it'll be replaced by another keyframe later or ultimately it won't be stripped
-					if (max_contributing_errorf < best_error.stripping_error || best_error.keyframe_index == ~0U)
-						best_error = keyframe_stripping_metadata_t(frame_index, segment_index, iteration_count - 1, max_contributing_errorf, is_keyframe_trivial);
-#endif
-					// EpicGames - END
 				}
 
 				ACL_ASSERT(best_error.keyframe_index != ~0U, "Failed to find the best contributing error");
