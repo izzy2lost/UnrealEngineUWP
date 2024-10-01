@@ -180,6 +180,22 @@ FVirtualTextureUpdateSettings::FVirtualTextureUpdateSettings()
 	MaxContinuousUpdates = VirtualTextureScalability::GetMaxContinuousUpdatesPerFrame();
 }
 
+static bool ShouldSyncProduceLockedTiles()
+{
+#if WITH_EDITOR
+	if (GIsEditor)
+	{
+		// Always force loading of locked root pages in editor to be sure that any build steps give best quality.
+		return true;
+	}
+#endif
+	// If we return false then we may render with a VT before the root pages are mapped.
+	// When that happens the shader switches to using the single color fallback value instead of sampling the VT.
+	// When the root page is finally mapped we will return to normal high quality VT sampling.
+	// todo[VT]: Make root pages always resident so that we never need to load sync the root pages.
+	return CVarVTSyncProduceLockedTiles.GetValueOnRenderThread() != 0;
+}
+
 
 static FORCEINLINE uint32 EncodePage(uint32 ID, uint32 vLevel, uint32 vTileX, uint32 vTileY)
 {
@@ -2149,19 +2165,9 @@ void FVirtualTextureSystem::SubmitRequests(FRHICommandList& RHICmdList, ERHIFeat
 		TArray<FProducePageDataPrepareTask> PrepareTasks;
 		PrepareTasks.Reserve(RequestList->GetNumLoadRequests());
 
-#if WITH_EDITOR
-		// Always force loading of locked root pages in editor to be sure that any build steps give best quality.
-		const bool bSyncProduceLockedTiles = true;
-#else
-		// if bSyncProduceLockedTiles is false then we may render with a VT before the root pages are mapped.
-		// When that happens the shader switches to using the single color fallback value instead of sampling the VT.
-		// When the root page is finally mapped we will return to normal high quality VT sampling.
-		// todo[VT]: Make root pages always resident so that we never need to load sync the root pages.
-		const bool bSyncProduceLockedTiles = CVarVTSyncProduceLockedTiles.GetValueOnRenderThread() != 0;
-#endif
-
 		bool bWaitForProducers = false;
 
+		const bool bSyncProduceLockedTiles = ShouldSyncProduceLockedTiles();
 		const uint32 MaxPagesProduced = Settings.MaxPagesProduced;
 		const uint32 PageFreeThreshold = VirtualTextureScalability::GetPageFreeThreshold();
 		uint32 NumStacksProduced = 0u;
