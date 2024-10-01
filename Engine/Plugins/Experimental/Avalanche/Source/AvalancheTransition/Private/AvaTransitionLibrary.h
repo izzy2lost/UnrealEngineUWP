@@ -27,7 +27,7 @@ public:
 	static EAvaTransitionType GetTransitionType(UObject* InTransitionNode);
 
 	UFUNCTION(BlueprintCallable, Category="Transition Logic", meta=(DefaultToSelf="InTransitionNode"))
-	static bool IsOtherSceneTransitioning(UObject* InTransitionNode, const TSoftObjectPtr<UWorld>& InSceneAsset);
+	static bool AreScenesTransitioning(UObject* InTransitionNode, const FAvaTagHandleContainer& InLayers, const TArray<TSoftObjectPtr<UWorld>>& InScenesToIgnore);
 
 	UFUNCTION(BlueprintCallable, Category="Transition Logic", meta=(DefaultToSelf="InTransitionNode"))
 	static const UAvaTransitionTree* GetTransitionTree(UObject* InTransitionNode);
