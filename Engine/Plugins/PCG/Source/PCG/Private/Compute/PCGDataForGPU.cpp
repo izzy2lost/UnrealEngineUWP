@@ -498,21 +498,9 @@ FPCGDataDesc::FPCGDataDesc(const UPCGData* InData, const TMap<FName, FPCGKernelA
 
 uint32 FPCGDataDesc::ComputePackedSize() const
 {
-	uint32 DataSizeBytes = 0;
+	check(PCGComputeHelpers::IsTypeAllowedInDataCollection(Type));
 
-	if (Type == EPCGDataType::Point)
-	{
-		DataSizeBytes += POINT_DATA_HEADER_SIZE_BYTES;
-	}
-	else if (Type == EPCGDataType::Param)
-	{
-		DataSizeBytes += PARAM_DATA_HEADER_SIZE_BYTES;
-	}
-	else
-	{
-		// TODO: Support more types
-		checkNoEntry();
-	}
+	uint32 DataSizeBytes = DATA_HEADER_SIZE_BYTES;
 
 	for (const FPCGKernelAttributeDesc& AttributeDesc : AttributeDescs)
 	{
