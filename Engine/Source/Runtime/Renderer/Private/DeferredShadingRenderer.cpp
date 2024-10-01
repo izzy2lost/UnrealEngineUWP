@@ -2669,7 +2669,16 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 					FFrontLayerTranslucencyData FrontLayerTranslucencyData = RenderFrontLayerTranslucency(GraphBuilder, Views, SceneTextures, true /*VSM page marking*/);
 
-					VirtualShadowMapArray.BuildPageAllocations(GraphBuilder, GetActiveSceneTextures(), Views, *GatherAndSortLightsTask.GetResult(), VisibleLightInfos, SingleLayerWaterPrePassResult, FrontLayerTranslucencyData, FroxelRenderer);
+					VirtualShadowMapArray.BuildPageAllocations(GraphBuilder,
+						GetActiveSceneTextures(),
+						Views,
+						*GatherAndSortLightsTask.GetResult(),
+						VisibleLightInfos,
+						SingleLayerWaterPrePassResult,
+						FrontLayerTranslucencyData,
+						FroxelRenderer,
+						ShadowSceneRenderer->AreAnyLocalLightsPreset()
+					);
 				}
 
 				RenderShadowDepthMaps(GraphBuilder, InitViewTaskDatas.DynamicShadows, InstanceCullingManager, ExternalAccessQueue);

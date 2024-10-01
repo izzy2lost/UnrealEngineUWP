@@ -883,6 +883,8 @@ class FPruneLightGridCS : public FVirtualShadowMapPageManagementShader
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVirtualShadowMapUniformParameters, VirtualShadowMap)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FForwardLightData, ForwardLightData)
+		SHADER_PARAMETER(uint32, MinLocalLightIndex)
+		SHADER_PARAMETER(uint32, MaxLocalLightIndex)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, OutPrunedLightGridData)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, OutPrunedNumCulledLightsGrid)
 	END_SHADER_PARAMETER_STRUCT()
@@ -1736,7 +1738,8 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 	const TConstArrayView<FVisibleLightInfo>& VisibleLightInfos,
 	const FSingleLayerWaterPrePassResult* SingleLayerWaterPrePassResult,
 	const FFrontLayerTranslucencyData& FrontLayerTranslucencyData,
-	const Froxel::FRenderer& FroxelRenderer)
+	const Froxel::FRenderer& FroxelRenderer,
+	bool bAnyLocalLightsWithVSMs)
 {
 	check(IsEnabled());
 
@@ -1970,15 +1973,29 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 				FRDGBufferRef PrunedNumCulledLightsGridRDG = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), NumLightGridCells), TEXT("Shadow.Virtual.NumCulledLightsGrid"));
 
 				{
+					// TODO: Make this a more dynamic bound rather than just this special case
+					uint32 MinLocalLightIndex = 0;
+					uint32 MaxLocalLightIndex = View.ForwardLightingResources.ForwardLightData->NumLocalLights;
+					if (!bAnyLocalLightsWithVSMs)
+					{
+						MaxLocalLightIndex = 0;
+					}
+
 					FPruneLightGridCS::FParameters* PassParameters = GraphBuilder.AllocParameters< FPruneLightGridCS::FParameters >();
 					PassParameters->VirtualShadowMap = GetUncachedUniformBuffer(GraphBuilder);
 					PassParameters->View = View.ViewUniformBuffer;
 					PassParameters->ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
+					PassParameters->MinLocalLightIndex = MinLocalLightIndex;
+					PassParameters->MaxLocalLightIndex = MaxLocalLightIndex;
 					PassParameters->OutPrunedLightGridData = GraphBuilder.CreateUAV(PrunedLightGridDataRDG);
 					PassParameters->OutPrunedNumCulledLightsGrid = GraphBuilder.CreateUAV(PrunedNumCulledLightsGridRDG);
 					auto ComputeShader = View.ShaderMap->GetShader<FPruneLightGridCS>();
 
-					FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("PruneLightGrid"), ComputeShader, PassParameters, FComputeShaderUtils::GetGroupCount(NumLightGridCells, FPruneLightGridCS::DefaultCSGroupX));
+					FComputeShaderUtils::AddPass(GraphBuilder,
+						RDG_EVENT_NAME("PruneLightGrid(Min=%d,Max=%d)", MinLocalLightIndex, MaxLocalLightIndex),
+						ComputeShader,
+						PassParameters,
+						FComputeShaderUtils::GetGroupCount(NumLightGridCells, FPruneLightGridCS::DefaultCSGroupX));
 				};
 
 				PerViewData.LightGridData = GraphBuilder.CreateSRV(PrunedLightGridDataRDG);
