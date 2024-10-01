@@ -305,6 +305,12 @@ namespace FReferenceSkeletonLocals
 
 			auto ElementToIndex = [this, &Visited, &OutMapping](const FElement& Element, auto&& ElementToIndexArg) -> void
 			{
+				// make sure the parent is added first
+				if (Element.Parent && !Visited[Element.Parent->RawIndex])
+				{
+					ElementToIndexArg(*Element.Parent, ElementToIndexArg);
+				}
+				
 				// add the element
 				if (!Visited[Element.RawIndex])
 				{
