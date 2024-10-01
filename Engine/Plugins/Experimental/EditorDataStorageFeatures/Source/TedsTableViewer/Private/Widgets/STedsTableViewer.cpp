@@ -166,6 +166,21 @@ namespace UE::Editor::DataStorage
 		return TedsWidget->GetRowHandle();
 	}
 
+	void STedsTableViewer::SetSelection(RowHandle Row, bool bSelected, const ESelectInfo::Type SelectInfo) const
+	{
+		ListView->SetItemSelection(FTedsRowHandle(Row), bSelected, SelectInfo);
+	}
+
+	void STedsTableViewer::ScrollIntoView(RowHandle Row) const
+	{
+		ListView->RequestScrollIntoView(FTedsRowHandle(Row));
+	}
+
+	void STedsTableViewer::ClearSelection() const
+	{
+		ListView->ClearSelection();
+	}
+
 	bool STedsTableViewer::IsItemVisible(TableViewerItemPtr InItem) const
 	{
 		return ListView->IsItemVisible(InItem);

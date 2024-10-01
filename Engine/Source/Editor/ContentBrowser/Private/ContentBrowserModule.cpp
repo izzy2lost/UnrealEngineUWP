@@ -48,12 +48,12 @@ IContentBrowserSingleton& FContentBrowserModule::Get() const
 	return *ContentBrowserSingleton;
 }
 
-void FContentBrowserModule::SetContentBrowserViewExtender(const TSharedPtr<IContentBrowserViewExtender>& InViewExtender)
+void FContentBrowserModule::SetContentBrowserViewExtender(const FCreateViewExtender& InViewExtender)
 {
 	ContentBrowserViewExtender = InViewExtender;
 }
 
-TSharedPtr<IContentBrowserViewExtender> FContentBrowserModule::GetContentBrowserViewExtender()
+FContentBrowserModule::FCreateViewExtender FContentBrowserModule::GetContentBrowserViewExtender()
 {
 	return ContentBrowserViewExtender;
 }

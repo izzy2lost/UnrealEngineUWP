@@ -1230,15 +1230,19 @@ void SAssetView::Construct( const FArguments& InArgs )
 	if(InArgs._AllowCustomView)
 	{
 		FContentBrowserModule& ContentBrowserModule = FModuleManager::GetModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
-		ViewExtender = ContentBrowserModule.GetContentBrowserViewExtender();
 
-		// Bind the delegates the custom view is responsible for firing
-		if(ViewExtender)
+		if(ContentBrowserModule.GetContentBrowserViewExtender().IsBound())
 		{
-			ViewExtender->OnSelectionChanged().BindSP(this, &SAssetView::AssetSelectionChanged);
-			ViewExtender->OnContextMenuOpened().BindSP(this, &SAssetView::OnGetContextMenuContent);
-			ViewExtender->OnItemScrolledIntoView().BindSP(this, &SAssetView::ItemScrolledIntoView);
-			ViewExtender->OnItemDoubleClicked().BindSP(this, &SAssetView::OnListMouseButtonDoubleClick);
+			ViewExtender = ContentBrowserModule.GetContentBrowserViewExtender().Execute();
+
+			// Bind the delegates the custom view is responsible for firing
+			if(ViewExtender)
+			{
+				ViewExtender->OnSelectionChanged().BindSP(this, &SAssetView::AssetSelectionChanged);
+				ViewExtender->OnContextMenuOpened().BindSP(this, &SAssetView::OnGetContextMenuContent);
+				ViewExtender->OnItemScrolledIntoView().BindSP(this, &SAssetView::ItemScrolledIntoView);
+				ViewExtender->OnItemDoubleClicked().BindSP(this, &SAssetView::OnListMouseButtonDoubleClick);
+			}
 		}
 	}
 	

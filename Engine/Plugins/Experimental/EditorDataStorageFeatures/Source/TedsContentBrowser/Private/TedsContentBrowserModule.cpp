@@ -13,6 +13,7 @@
 #include "Modules/ModuleManager.h"
 #include "QueryStack/FQueryStackNode_RowView.h"
 #include "TedsAssetDataColumns.h"
+#include "Elements/Columns/TypedElementAlertColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Widgets/STedsTableViewer.h"
 #include "Widgets/Views/SListView.h"
@@ -36,7 +37,8 @@ namespace UE::Editor::ContentBrowser
 			
 			if(bEnableTedsContentBrowser)
 			{
-				ContentBrowserModule.SetContentBrowserViewExtender(TedsContentBrowserModule.GetContentBrowserViewExtender());
+				ContentBrowserModule.SetContentBrowserViewExtender(
+					FContentBrowserModule::FCreateViewExtender::CreateStatic(&FTedsContentBrowserModule::CreateContentBrowserViewExtender));
 			}
 			else
 			{
@@ -44,13 +46,9 @@ namespace UE::Editor::ContentBrowser
 			}
 		}));
 
-	TSharedPtr<IContentBrowserViewExtender> FTedsContentBrowserModule::GetContentBrowserViewExtender()
+	TSharedPtr<IContentBrowserViewExtender> FTedsContentBrowserModule::CreateContentBrowserViewExtender()
 	{
-		if(!ViewExtender)
-		{
-			ViewExtender = MakeShared<FTedsContentBrowserViewExtender>();
-		}
-		return ViewExtender;
+		return MakeShared<FTedsContentBrowserViewExtender>();
 	}
 
 	void FTedsContentBrowserModule::StartupModule()
@@ -88,21 +86,7 @@ namespace UE::Editor::ContentBrowser
 
 	void FTedsContentBrowserViewExtender::AddRow(const TSharedPtr<FAssetViewItem>& Item)
 	{
-		FAssetData ItemAssetData;
-		FName PackagePath;
-		
-		RowHandle RowHandle = InvalidRowHandle;
-		
-		if (Item->GetItem().Legacy_TryGetAssetData(ItemAssetData))
-		{
-			IndexHash IndexHash = GenerateIndexHash(ItemAssetData.GetSoftObjectPath());
-			RowHandle = DataStorage->FindIndexedRow(IndexHash);
-		}
-		else if(Item->GetItem().Legacy_TryGetPackagePath(PackagePath))
-		{
-			IndexHash IndexHash = GenerateIndexHash(PackagePath);
-			RowHandle = DataStorage->FindIndexedRow(IndexHash);
-		}
+		RowHandle RowHandle = GetRowFromAssetViewItem(Item);
 		
 		if(DataStorage->IsRowAssigned(RowHandle))
 		{
@@ -125,27 +109,49 @@ namespace UE::Editor::ContentBrowser
 		return nullptr;
 	}
 
+	DataStorage::RowHandle FTedsContentBrowserViewExtender::GetRowFromAssetViewItem(const TSharedPtr<FAssetViewItem>& Item)
+	{
+		FAssetData ItemAssetData;
+		FName PackagePath;
+		
+		RowHandle RowHandle = InvalidRowHandle;
+		
+		if (Item->GetItem().Legacy_TryGetAssetData(ItemAssetData))
+		{
+			IndexHash IndexHash = GenerateIndexHash(ItemAssetData.GetSoftObjectPath());
+			RowHandle = DataStorage->FindIndexedRow(IndexHash);
+		}
+		else if(Item->GetItem().Legacy_TryGetPackagePath(PackagePath))
+		{
+			IndexHash IndexHash = GenerateIndexHash(PackagePath);
+			RowHandle = DataStorage->FindIndexedRow(IndexHash);
+		}
+
+		return RowHandle;
+	}
+
 	FTedsContentBrowserViewExtender::FTedsContentBrowserViewExtender()
 	{
 		DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
 		
 		RowQueryStack = MakeShared<FQueryStackNode_RowView>(&Rows);
 
-		// Sample dynamic column to display the "Triangles" attribute on static meshes
+		// Sample dynamic column to display the "Skeleton" attribute on skeletal meshes
 		// We probably want the dynamic columns in the table viewer to be data driven based on the rows in the future
-		const UScriptStruct* DynamicStaticMeshTrianglesColumn = DataStorage->GenerateDynamicColumn(FDynamicColumnDescription
+		const UScriptStruct* DynamicSkeletalMeshSkeletonColumn = DataStorage->GenerateDynamicColumn(FDynamicColumnDescription
 						{
 							.TemplateType = FItemStringAttributeColumn_Experimental::StaticStruct(),
-							.Identifier = "Triangles"
+							.Identifier = "Skeleton"
 						});
-
+		
 		// Create the table viewer widget
 		TableViewer = SNew(STedsTableViewer)
 					.QueryStack(RowQueryStack)
 					.CellWidgetPurposes({TEXT("General.RowLabel"), TEXT("General.Cell")})
 					// Default list of columns to display
-					.Columns({ FNameColumn::StaticStruct(), FAssetClassColumn::StaticStruct(), FAssetTag::StaticStruct(), FAssetPathColumn_Experimental::StaticStruct(),
-						FDiskSizeColumn::StaticStruct(), FVirtualPathColumn_Experimental::StaticStruct(), DynamicStaticMeshTrianglesColumn })
+					.Columns({ FNameColumn::StaticStruct(), FTypedElementAlertColumn::StaticStruct(),
+						FAssetClassColumn::StaticStruct(), FAssetTag::StaticStruct(), FAssetPathColumn_Experimental::StaticStruct(),
+						FDiskSizeColumn::StaticStruct(), FVirtualPathColumn_Experimental::StaticStruct(), DynamicSkeletalMeshSkeletonColumn })
 					.ListSelectionMode(ESelectionMode::Multi)
 					.OnSelectionChanged_Lambda([this](RowHandle Row)
 					{
@@ -256,17 +262,42 @@ namespace UE::Editor::ContentBrowser
 
 	void FTedsContentBrowserViewExtender::SetSelection(const TSharedPtr<FAssetViewItem>& Item, bool bSelected, const ESelectInfo::Type SelectInfo)
 	{
-		// CB 2.0 TODO: Implement using Teds selection
+		RowHandle Row = GetRowFromAssetViewItem(Item);
+
+		if(DataStorage->IsRowAssigned(Row))
+		{
+			// We have to defer the selection by a tick because this fires on path change which has to refresh the internal list of assets.
+			// The table viewer doesn't refresh immediately but rather on tick by checking if the query stack is dirty. If we set the selection
+			// before the refresh happens SListView will deselect the item since it isn't visible in the list yet.
+			// Long term selection should also be handled through TEDS so it happens at the proper time automatically.
+			FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([this, Row, bSelected, SelectInfo](float)
+			{
+				TableViewer->SetSelection(Row, bSelected, SelectInfo);
+				return false;
+			}));
+		}
 	}
 
 	void FTedsContentBrowserViewExtender::RequestScrollIntoView(const TSharedPtr<FAssetViewItem>& Item)
 	{
-		// CB 2.0 TODO: Implement using a Teds column
+		RowHandle Row = GetRowFromAssetViewItem(Item);
+
+		if(DataStorage->IsRowAssigned(Row))
+		{
+			// We have to defer the scroll by a tick because this fires on path change which has to refresh the internal list of assets.
+			// The table viewer doesn't refresh immediately but rather on tick by checking if the query stack is dirty. If we request scroll
+			// before the refresh happens SListView will ignore the request since the item isn't visible in the list yet.
+			FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([this, Row](float)
+			{
+				TableViewer->ScrollIntoView(Row);
+				return false;
+			}));
+		}
 	}
 
 	void FTedsContentBrowserViewExtender::ClearSelection()
 	{
-		// CB 2.0 TODO: Implement using a Teds column
+		TableViewer->ClearSelection();
 	}
 
 	bool FTedsContentBrowserViewExtender::IsRightClickScrolling()
