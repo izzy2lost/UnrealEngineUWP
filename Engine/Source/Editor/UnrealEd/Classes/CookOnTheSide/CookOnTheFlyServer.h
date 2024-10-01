@@ -1274,6 +1274,7 @@ private:
 	// Return the filename to use for the cook metadata file, adjusted for DLC, sandbox, and platform.
 	FString GetCookedCookMetadataFilename(const FString& PlatformName);
 	void WriteCookMetadata(const ITargetPlatform* InTargetPlatform, uint64 InDevelopmentAssetRegistryHash);
+	void WriteReferencedSet(const ITargetPlatform* InTargetPlatform, TArray<FName>&& CookedPackageNames);
 
 	/* @return Full path of the CachedEditorThumbnails.bin file in the sandbox */
 	FString GetSandboxCachedEditorThumbnailsFilename();

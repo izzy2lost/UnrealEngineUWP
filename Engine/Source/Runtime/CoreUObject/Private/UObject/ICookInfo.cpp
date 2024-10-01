@@ -53,6 +53,11 @@ FCookInfoEvent FDelegates::CookStarted;
 FCookInfoEvent FDelegates::CookFinished;
 FValidateSourcePackage FDelegates::ValidateSourcePackage;
 
+const TCHAR* GetReferencedSetFilename()
+{
+	return TEXT("ReferencedSet.txt");
+}
+
 }
 
 static thread_local ECookLoadType GCookLoadType = ECookLoadType::Unexpected;
