@@ -7,5 +7,5 @@ class FVisualLogEntryRenderer
 {
 public:
 	static void RenderLogEntry(class UWorld* World, const struct FVisualLogEntry& Entry, TFunctionRef<bool(const FName&, ELogVerbosity::Type)> MatchCategoryFilters,
-		class UCanvas* Canvas, class UFont* Font, int32& ScreenTextY);
+		class UCanvas* Canvas, class UFont* Font, class UFont* MonospaceFont, int32& ScreenTextY);
 };

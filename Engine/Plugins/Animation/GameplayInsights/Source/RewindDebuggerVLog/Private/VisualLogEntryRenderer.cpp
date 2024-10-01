@@ -115,13 +115,13 @@ namespace
 
 
 void FVisualLogEntryRenderer::RenderLogEntry(class UWorld* World, const FVisualLogEntry& Entry, TFunctionRef<bool (const FName&, ELogVerbosity::Type)> MatchCategoryFilters,
-	UCanvas* Canvas, UFont* Font, int32& ScreenTextY)
+	UCanvas* Canvas, UFont* Font, UFont* MonospaceFont, int32& ScreenTextY)
 {
 	for(const FVisualLogLine& LogLine : Entry.LogLines)
 	{
 		if (MatchCategoryFilters(LogLine.Category, LogLine.Verbosity))
 		{
-			Canvas->Canvas->DrawShadowedString(100, ScreenTextY+=20, LogLine.Line, Font, FColor::White);
+			Canvas->Canvas->DrawShadowedString(20, ScreenTextY+=16, LogLine.Line, (LogLine.bMonospace && MonospaceFont) ? MonospaceFont : Font, LogLine.Color);
 		}
 	}
 	

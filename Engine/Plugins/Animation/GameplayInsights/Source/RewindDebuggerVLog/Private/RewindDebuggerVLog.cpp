@@ -29,7 +29,7 @@ FRewindDebuggerVLog::FRewindDebuggerVLog()
 
 void FRewindDebuggerVLog::OnShowDebugInfo(UCanvas* Canvas, APlayerController* Player)
 {
-	ScreenTextY = 100;
+	ScreenTextY = 60;
 	if (IRewindDebugger* RewindDebugger = IRewindDebugger::Instance())
 	{
 		if (RewindDebugger->IsPIESimulating())
@@ -145,7 +145,7 @@ void FRewindDebuggerVLog::RenderLogEntry(const FVisualLogEntry& Entry, UCanvas* 
 	else
 	{
 		UWorld* World = IRewindDebugger::Instance()->GetWorldToVisualize();
-		FVisualLogEntryRenderer::RenderLogEntry(World,Entry, &MatchCategoryFilters, Canvas, MonospaceFont, ScreenTextY);
+		FVisualLogEntryRenderer::RenderLogEntry(World,Entry, &MatchCategoryFilters, Canvas, GEngine->GetMediumFont(), MonospaceFont, ScreenTextY);
 
 	}
 }
