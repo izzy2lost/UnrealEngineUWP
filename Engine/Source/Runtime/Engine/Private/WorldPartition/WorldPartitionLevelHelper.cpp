@@ -592,7 +592,7 @@ bool FWorldPartitionLevelHelper::LoadActorsInternal(FLoadActorsParams&& InParams
 
 	// Generate a unique name to load a level instance embedded actor if there are multiple instances of this level instance and possibly across 
 	// multiple instances of the WP world:
-	auto GetContainerPackage = [](const FActorContainerID& InContainerID, const FString& InPackageName, const UObject* InContextObject) -> FName
+	auto GetContainerPackage = [](const FActorContainerID& InContainerID, const FString& InPackageName, const UObject* InContextObject, bool bUniquePackage) -> FName
 	{
 		TStringBuilder<512> PackageNameBuilder;
 		
@@ -605,9 +605,12 @@ bool FWorldPartitionLevelHelper::LoadActorsInternal(FLoadActorsParams&& InParams
 		const uint64 ContextObjectPathNameHash = CityHash64(TCHAR_TO_ANSI(*ContextObjectPathName), ContextObjectPathName.Len());
 		PackageNameBuilder.Appendf(TEXT("_%llx"), ContextObjectPathNameHash);
 
-		// Distinguish between loading the same package after a reload between GCs (only for PIE)
-		static uint32 ContextObjectUniqueID = 0;
-		PackageNameBuilder.Appendf(TEXT("_%llx"), ContextObjectUniqueID++);
+		if (!IsRunningCommandlet() && bUniquePackage)
+		{
+			// Distinguish between loading the same package after a reload between GCs (only for PIE)
+			static uint32 ContextObjectUniqueID = 0;
+			PackageNameBuilder.Appendf(TEXT("_%llx"), ContextObjectUniqueID++);
+		}
 
 		return PackageNameBuilder.ToString();
 	};
@@ -618,7 +621,7 @@ bool FWorldPartitionLevelHelper::LoadActorsInternal(FLoadActorsParams&& InParams
 
 		// Add main container context
 		LinkerInstancingContexts.Add(FActorContainerID::GetMainContainerID(), MoveTemp(InParams.InstancingContext));
-			
+
 		for (FWorldPartitionRuntimeCellObjectMapping& PackageObjectMapping : InParams.ActorPackages)
 		{
 			FLinkerInstancingContext* Context = LinkerInstancingContexts.Find(PackageObjectMapping.ContainerID);
@@ -636,7 +639,9 @@ bool FWorldPartitionLevelHelper::LoadActorsInternal(FLoadActorsParams&& InParams
 				NewContext.AddTag(ULevel::DontLoadExternalObjectsTag);
 				NewContext.AddTag(ULevel::DontLoadExternalFoldersTag);
 
-				const FName ContainerPackageInstanceName(GetContainerPackage(PackageObjectMapping.ContainerID, PackageObjectMapping.ContainerPackage.ToString(), InParams.OuterWorld));
+				// We only want unique packages for non-OFPA actors, @todo_ow: remove this and duplicate actors from non-OFPA levels instead of renaming.
+				const bool bUniquePackage = !PackageObjectMapping.Package.ToString().Contains(FPackagePath::GetExternalActorsFolderName());
+				const FName ContainerPackageInstanceName(GetContainerPackage(PackageObjectMapping.ContainerID, PackageObjectMapping.ContainerPackage.ToString(), InParams.OuterWorld, bUniquePackage));
 				NewContext.AddPackageMapping(PackageObjectMapping.ContainerPackage, ContainerPackageInstanceName);
 				Context = &NewContext;
 			}
