@@ -2589,8 +2589,8 @@ void FEdModeLandscape::UpdateTargetList()
 					}
 
 					// Construct Thumbnail MIC
-					UMaterialInterface* LandscapeMaterial = LayerSettings.Owner ? LayerSettings.Owner->GetLandscapeMaterial() : UMaterial::GetDefaultMaterial(MD_Surface);
-					LayerSettings.ThumbnailMIC = ALandscapeProxy::GetLayerThumbnailMIC(LandscapeMaterial, LayerName, ThumbnailWeightmap, ThumbnailHeightmap, LayerSettings.Owner);
+					UMaterialInterface* LandscapeMaterial = LayerSettings.Owner.IsValid() ? LayerSettings.Owner.Get()->GetLandscapeMaterial() : UMaterial::GetDefaultMaterial(MD_Surface);
+					LayerSettings.ThumbnailMIC = ALandscapeProxy::GetLayerThumbnailMIC(LandscapeMaterial, LayerName, ThumbnailWeightmap, ThumbnailHeightmap, LayerSettings.Owner.Get());
 				}
 
 				// Add the layer
