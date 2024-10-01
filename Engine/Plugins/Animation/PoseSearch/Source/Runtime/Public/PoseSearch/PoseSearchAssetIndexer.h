@@ -128,6 +128,17 @@ private:
 	// bClamped will be true if SampleTime or OriginTime are outside the animation duration boundaries
 	bool GetSamplePositionInternal(FVector& OutSamplePosition, float SampleTime, float OriginTime, bool& bClamped, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, const FRole& SampleRole, const FRole& OriginRole, int32 SamplingAttributeId);
 
+	struct FCachedCSPose : public FCSPose<FCompactHeapPose>
+	{
+		void InitPose(const FCompactPose& SrcPose)
+		{
+			Pose.CopyBonesFrom(SrcPose);
+			ComponentSpaceFlags.Empty(Pose.GetNumBones());
+			ComponentSpaceFlags.AddZeroed(Pose.GetNumBones());
+			ComponentSpaceFlags[0] = 1;
+		}
+	};
+
 	struct FCachedEntry
 	{
 		float SampleTime = 0.f;
@@ -135,7 +146,7 @@ private:
 
 		// RootTransform and ComponentSpacePose are stored mirrored in case SearchIndexAsset.IsMirrored
 		TArray<FTransform> RootTransform;
-		TArray<FCSPose<FCompactHeapPose>> ComponentSpacePose;
+		TArray<FCachedCSPose> ComponentSpacePose;
 		TArray<FBlendedHeapCurve> Curves;
 	};
 

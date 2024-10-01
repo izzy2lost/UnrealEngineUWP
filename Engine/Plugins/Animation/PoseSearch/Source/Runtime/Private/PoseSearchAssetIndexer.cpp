@@ -219,6 +219,8 @@ FAssetIndexer::FAssetIndexer(const TConstArrayView<FBoneContainer> InBoneContain
 {
 	check(BoneContainers.Num() == AssetSamplers.Num() && BoneContainers.Num() == RoleToIndex.Num());
 	check(IsValid(RoleToIndex));
+
+	CachedEntries.Reserve(SearchIndexAsset.GetNumPoses());
 }
 
 void FAssetIndexer::AssignWorkingData(int32 InStartPoseIdx, TArrayView<float> InOutFeatureVectorTable, TArrayView<FPoseMetadata> InOutPoseMetadata)
@@ -488,9 +490,7 @@ FAssetIndexer::FCachedEntry& FAssetIndexer::GetEntry(float SampleTime)
 				AssetSamplers.MirrorPose(Pose, RoleIndex);
 			}
 
-			FCSPose<FCompactPose> StackComponentSpacePose;
-			StackComponentSpacePose.InitPose(MoveTemp(Pose));
-			Entry->ComponentSpacePose[RoleIndex].CopyPose(StackComponentSpacePose);
+			Entry->ComponentSpacePose[RoleIndex].InitPose(Pose);
 			Entry->Curves[RoleIndex].CopyFrom(Curve);
 
 			Entry->RootTransform[RoleIndex] = MirrorTransform(SampleRootTransform, RoleIndex);
