@@ -920,9 +920,6 @@ FSlateDrawWindowPassOutputs FSlateRHIRenderer::DrawWindow_RenderThread(FRDGBuild
 		}
 	}
 
-	// Dispatch work after each window since certain RHI's can't record commands for multiple swap chains.
-	GraphBuilder.AddDispatchHint();
-
 	FSlateDrawWindowPassOutputs Outputs;
 	Outputs.ViewportRHI = ViewportInfo.ViewportRHI;
 	Outputs.ViewportTextureRHI = ViewportTextureRHI;
@@ -1332,9 +1329,18 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 					DeferredUpdateContext.Renderer->DrawWindowToTarget_RenderThread(GraphBuilder, DeferredUpdateContext);
 				}
 
+				int32 NumSwapChains = 0;
+
 				for (const FSlateDrawWindowPassInputs& DrawWindowPassInputs : DrawWindowsCommand->Windows)
 				{
 					DrawWindowPassOutputs.Emplace(DrawWindowPassInputs.Renderer->DrawWindow_RenderThread(GraphBuilder, DrawWindowPassInputs));
+
+					// D3D12 can't handle more than 8 swap chains. Force a command list flush to avoid this limitation until it can be handled at the RHI level.
+					if (++NumSwapChains == 8)
+					{
+						GraphBuilder.AddDispatchHint();
+						NumSwapChains = 0;
+					}
 				}
 
 				GraphBuilder.Execute();
