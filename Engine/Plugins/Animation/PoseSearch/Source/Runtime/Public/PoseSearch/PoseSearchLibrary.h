@@ -288,5 +288,8 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Animation|Pose Search|Experimental", meta = (BlueprintThreadSafe))
 	static void IsAnimationAssetLooping(const UObject* Asset, bool& bIsAssetLooping);
+
+	UFUNCTION(BlueprintPure, Category = "Animation|Pose Search|Experimental", meta = (BlueprintThreadSafe))
+	static void GetDatabaseTags(const UPoseSearchDatabase* Database, TArray<FName>& Tags);
 };
 
