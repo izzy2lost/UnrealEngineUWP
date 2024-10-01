@@ -575,11 +575,11 @@ namespace DecalRendering
 		return OutPixelShader.IsValid();
 	}
 
-	bool SetupShaderState(
-		ERHIFeatureLevel::Type FeatureLevel,
+	bool GetShaders(ERHIFeatureLevel::Type FeatureLevel, 
 		const FMaterial& Material, 
 		EDecalRenderStage DecalRenderStage, 
-		FBoundShaderStateInput& OutBoundShaderState)
+		TShaderRef<FShader>& OutVertexShader,
+		TShaderRef<FShader>& OutPixelShader)
 	{
 		TShaderRef<FDeferredDecalPS> PixelShader;
 		if (!TryGetDeferredDecalShaders(Material, FeatureLevel, DecalRenderStage, PixelShader))
@@ -588,6 +588,25 @@ namespace DecalRendering
 		}
 
 		TShaderMapRef<FDeferredDecalVS> VertexShader(GetGlobalShaderMap(FeatureLevel));
+		OutVertexShader = VertexShader;
+		OutPixelShader = PixelShader;
+
+		return true;
+	}
+
+	bool SetupShaderState(
+		ERHIFeatureLevel::Type FeatureLevel,
+		const FMaterial& Material, 
+		EDecalRenderStage DecalRenderStage, 
+		FBoundShaderStateInput& OutBoundShaderState)
+	{
+		TShaderRef<FShader> VertexShader;
+		TShaderRef<FShader> PixelShader;
+		if (!GetShaders( FeatureLevel, Material, DecalRenderStage, VertexShader, PixelShader))
+		{
+			return false;
+		}
+
 		OutBoundShaderState.VertexDeclarationRHI = GetVertexDeclarationFVector4();
 		OutBoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
 		OutBoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();

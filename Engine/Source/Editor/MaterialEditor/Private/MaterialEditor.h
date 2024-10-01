@@ -129,6 +129,8 @@ public:
 	virtual bool IsDitheredLODTransition() const override { return false; }
 	virtual bool IsLightFunction() const override { return false; }
 	virtual bool IsDeferredDecal() const override { return false; }
+	virtual bool IsUIMaterial() const override { return false; }
+	virtual bool IsPostProcessMaterial() const override { return false; }
 	virtual bool IsVolumetricPrimitive() const override { return false; }
 	virtual bool IsSpecialEngineMaterial() const override { return false; }
 	virtual bool IsWireframe() const override { return false; }

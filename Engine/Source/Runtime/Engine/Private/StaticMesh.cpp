@@ -6707,7 +6707,10 @@ void UStaticMesh::PostLoad()
 			{
 				for (const FVertexFactoryType* VFType : CachingFactories)
 				{
-					MaterialInterface->PrecachePSOs(VFType, PrecachePSOParams);
+					if (IsComponentPSOPrecachingEnabled())
+					{
+						MaterialInterface->PrecachePSOs(VFType, PrecachePSOParams);
+					}
 				}
 			}
 		}

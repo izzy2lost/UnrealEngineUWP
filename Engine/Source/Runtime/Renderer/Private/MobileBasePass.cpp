@@ -907,7 +907,7 @@ void FMobileBasePassMeshProcessor::CollectPSOInitializersForLMPolicy(
 	ERasterizerFillMode MeshFillMode,
 	ERasterizerCullMode MeshCullMode,
 	EPrimitiveType PrimitiveType,
-	TArray<FPSOPrecacheData>& PSOInitializers)
+	FPassProcessorPSOCollection& OutCollection)
 {
 	TMeshProcessorShaders<
 		TMobileBasePassVSPolicyParamType<FUniformLightMapPolicy>,
@@ -921,6 +921,12 @@ void FMobileBasePassMeshProcessor::CollectPSOInitializersForLMPolicy(
 		BasePassShaders.VertexShader,
 		BasePassShaders.PixelShader))
 	{
+		return;
+	}
+
+	if (OutCollection.IsCollectingShadersOnly())
+	{
+		OutCollection.Collect(BasePassShaders.GetUntypedShaders().GetValidShaders());
 		return;
 	}
 
@@ -942,7 +948,7 @@ void FMobileBasePassMeshProcessor::CollectPSOInitializersForLMPolicy(
 		SubpassIndex,
 		true /*bRequired*/,
 		PSOCollectorIndex,
-		PSOInitializers);
+		OutCollection);
 }
 
 static void SetupMultiViewInfo(FGraphicsPipelineRenderTargetsInfo& RenderTargetsInfo)
@@ -954,7 +960,7 @@ static void SetupMultiViewInfo(FGraphicsPipelineRenderTargetsInfo& RenderTargets
 	RenderTargetsInfo.bHasFragmentDensityAttachment = GVRSImageManager.IsAttachmentVRSEnabled();
 }
 
-void FMobileBasePassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers)
+void FMobileBasePassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection)
 {
 	if (bTranslucentBasePass)
 	{
@@ -1035,10 +1041,10 @@ void FMobileBasePassMeshProcessor::CollectPSOInitializers(const FSceneTexturesCo
 	
 	for (ELightMapPolicyType LightMapPolicyType : UniformLightMapPolicyTypes)
 	{
-		CollectPSOInitializersForLMPolicy(VertexFactoryData, DrawRenderState, RenderTargetsInfo, Material, EMobileLocalLightSetting::LOCAL_LIGHTS_DISABLED, LightMapPolicyType, MeshFillMode, MeshCullMode, (EPrimitiveType)PreCacheParams.PrimitiveType, PSOInitializers);
+		CollectPSOInitializersForLMPolicy(VertexFactoryData, DrawRenderState, RenderTargetsInfo, Material, EMobileLocalLightSetting::LOCAL_LIGHTS_DISABLED, LightMapPolicyType, MeshFillMode, MeshCullMode, (EPrimitiveType)PreCacheParams.PrimitiveType, OutCollection);
 		if (bUseLocalLightPermutation)
 		{
-			CollectPSOInitializersForLMPolicy(VertexFactoryData, DrawRenderState, RenderTargetsInfo, Material, LocalLightSetting, LightMapPolicyType, MeshFillMode, MeshCullMode, (EPrimitiveType)PreCacheParams.PrimitiveType, PSOInitializers);
+			CollectPSOInitializersForLMPolicy(VertexFactoryData, DrawRenderState, RenderTargetsInfo, Material, LocalLightSetting, LightMapPolicyType, MeshFillMode, MeshCullMode, (EPrimitiveType)PreCacheParams.PrimitiveType, OutCollection);
 		}
 	}
 }

@@ -24,6 +24,7 @@
 #include "ComponentRecreateRenderStateContext.h"
 #include "Engine/World.h"
 #include "NaniteVertexFactory.h"
+#include "StaticMeshComponentLODInfo.h"
 
 #if WITH_EDITOR
 #include "IHierarchicalLODUtilities.h"
@@ -848,10 +849,9 @@ void USplineMeshComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& Base
 	const FVertexFactoryType* VertexFactoryType = &FSplineMeshVertexFactory::StaticType;
 	int32 LightMapCoordinateIndex = GetStaticMesh()->GetLightMapCoordinateIndex();
 
-	auto SMC_GetElements = [LightMapCoordinateIndex](const FStaticMeshLODResources& LODRenderData, int32 LODIndex, bool bSupportsManualVertexFetch, FVertexDeclarationElementList& Elements)
+	auto SMC_GetElements = [LightMapCoordinateIndex, &LODData = this->LODData](const FStaticMeshLODResources& LODRenderData, int32 LODIndex, bool bSupportsManualVertexFetch, FVertexDeclarationElementList& Elements)
 	{
-		// FIXME: This will miss when SM component overrides vertex colors and source StaticMesh does not have vertex colors
-		constexpr bool bOverrideColorVertexBuffer = false;
+		bool bOverrideColorVertexBuffer = LODIndex < LODData.Num() && LODData[LODIndex].OverrideVertexColors != nullptr;
 		FLocalVertexFactory::FDataType Data;
 		InitSplineMeshVertexFactoryComponents(LODRenderData.VertexBuffers, nullptr /*VertexFactory*/, LightMapCoordinateIndex, bOverrideColorVertexBuffer, Data);
 		FLocalVertexFactory::GetVertexElements(GMaxRHIFeatureLevel, EVertexInputStreamType::Default, bSupportsManualVertexFetch, Data, Elements);

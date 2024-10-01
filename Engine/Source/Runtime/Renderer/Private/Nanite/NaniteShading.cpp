@@ -1730,7 +1730,7 @@ void CollectBasePassShadingPSOInitializers(
 	ERHIFeatureLevel::Type FeatureLevel,
 	EShaderPlatform ShaderPlatform,
 	int32 PSOCollectorIndex,
-	TArray<FPSOPrecacheData>& PSOInitializers)
+	FPassProcessorPSOCollection& OutCollection)
 {
 	TArray<ELightMapPolicyType, TInlineAllocator<2>> UniformLightMapPolicyTypes = FBasePassMeshProcessor::GetUniformLightMapPolicyTypeForPSOCollection(FeatureLevel, Material);
 
@@ -1767,7 +1767,7 @@ void CollectBasePassShadingPSOInitializers(
 				ConditionalBreakOnPSOPrecacheShader(ComputePSOPrecacheData.ComputeShader);
 			}
 		#endif // PSO_PRECACHING_VALIDATE
-			PSOInitializers.Add(ComputePSOPrecacheData);
+			OutCollection.Collect(MoveTemp(ComputePSOPrecacheData));
 		}
 	};
 

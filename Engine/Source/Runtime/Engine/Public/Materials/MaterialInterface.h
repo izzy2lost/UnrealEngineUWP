@@ -615,6 +615,11 @@ public:
 	}
 	virtual FGraphEventArray PrecachePSOs(const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const struct FPSOPrecacheParams& PreCacheParams, EPSOPrecachePriority Priority, TArray<FMaterialPSOPrecacheRequestID>& OutMaterialPSORequestIDs) { return FGraphEventArray(); }
 
+	/**
+	* Preload shaders which can be used for this material for the given vertex factory type and material parameters.
+	*/
+	virtual FGraphEventArray PreloadShaders(const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const struct FPSOPrecacheParams& PreCacheParams) { return FGraphEventArray(); }
+
 #if WITH_EDITORONLY_DATA
 	/**
 	* Builds a composited set of static parameters, including inherited and overridden values
@@ -941,6 +946,8 @@ public:
 	ENGINE_API virtual bool IsTranslucencyWritingFrontLayerTransparency() const;
 	ENGINE_API virtual bool IsMasked() const;
 	ENGINE_API virtual bool IsDeferredDecal() const;
+	ENGINE_API virtual bool IsUIMaterial() const;
+	ENGINE_API virtual bool IsPostProcessMaterial() const;
 	ENGINE_API virtual bool WritesToRuntimeVirtualTexture() const;
 	ENGINE_API virtual bool HasMeshPaintTexture() const;
 	ENGINE_API virtual FDisplacementScaling GetDisplacementScaling() const;
@@ -1075,6 +1082,11 @@ public:
 	 * Initializes all default materials.
 	 */
 	ENGINE_API static void InitDefaultMaterials();
+
+	/**
+	 * Check if default materials as been initialized.
+	 */
+	ENGINE_API static bool IsDefaultMaterialInitialized();
 
 	/**
 	 * Precache PSOs for all default materials.

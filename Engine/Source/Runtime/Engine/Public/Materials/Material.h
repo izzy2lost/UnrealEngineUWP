@@ -1228,6 +1228,7 @@ public:
 	ENGINE_API virtual bool HasMeshPaintTexture() const override;
 
 	ENGINE_API virtual FGraphEventArray PrecachePSOs(const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const FPSOPrecacheParams& PreCacheParams, EPSOPrecachePriority Priority, TArray<FMaterialPSOPrecacheRequestID>& OutMaterialPSORequestIDs) override;
+	ENGINE_API virtual FGraphEventArray PreloadShaders(const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const struct FPSOPrecacheParams& PreCacheParams);
 
 	ENGINE_API void SetShadingModel(EMaterialShadingModel NewModel);
 

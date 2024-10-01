@@ -28,12 +28,18 @@ public:
 	virtual FSHAHash GetShaderHash(int32 ShaderMapIndex, int32 ShaderIndex) = 0;
 	virtual int32 FindShaderMapIndex(const FSHAHash& Hash) = 0;
 	virtual int32 FindShaderIndex(const FSHAHash& Hash) = 0;
+	virtual bool IsPreloading(int32 ShaderIndex, FGraphEventArray& OutCompletionEvents) { return false; }
 	virtual bool PreloadShader(int32 ShaderIndex, FGraphEventArray& OutCompletionEvents) { return false; }
 	virtual bool PreloadShaderMap(int32 ShaderMapIndex, FGraphEventArray& OutCompletionEvents) { return false; }
 	virtual bool PreloadShaderMap(int32 ShaderMapIndex, FCoreDelegates::FAttachShaderReadRequestFunc AttachShaderReadRequestFunc) { return false; }
 	virtual void ReleasePreloadedShader(int32 ShaderIndex) {}
 
-	virtual TRefCountPtr<FRHIShader> CreateShader(int32 ShaderIndex) { return nullptr; }
+	virtual void AddRefPreloadedShaderGroup(int32 ShaderGroupIndex) {}
+	virtual void ReleasePreloadedShaderGroup(int32 ShaderGroupIndex) {}
+	virtual int32 GetGroupIndexForShader(int32 ShaderIndex) const { return INDEX_NONE; }
+	virtual int32 GetLibraryId() { return LibraryId; }
+	/*CreateShader can return a null shader when bRequired == false. Usefull to debug dynamic shader preloading or when shaders haven't finished loading.*/
+	virtual TRefCountPtr<FRHIShader> CreateShader(int32 ShaderIndex, bool bRequired = true) { return nullptr; }
 	virtual void Teardown() {};
 
 protected:

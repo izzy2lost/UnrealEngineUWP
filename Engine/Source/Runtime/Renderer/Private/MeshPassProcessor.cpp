@@ -61,6 +61,14 @@ static FAutoConsoleVariableRef CVarSkipDrawOnPSOPrecaching(
 	ECVF_RenderThreadSafe
 );
 
+static bool GSkipUnloadedShaders = false;
+static FAutoConsoleVariableRef CVarAllowSkipUnloadedShaders(
+	TEXT("r.SkipUnloadedShaders"),
+	GSkipUnloadedShaders,
+	TEXT("Skip the draw call when the shaders are not fully preloaded. Useful for debugging"),
+	ECVF_Default
+);
+
 #if WITH_EDITORONLY_DATA
 
 int32 GNaniteIsolateInvalidCoarseMesh = 0;
@@ -945,6 +953,11 @@ void FMeshDrawShaderBindings::Release()
 	Data.SetHeapData(nullptr);
 }
 
+bool FMinimalBoundShaderStateInput::AllowSkipUnloadedShaders() const 
+{
+	return GSkipUnloadedShaders;
+}
+
 void FGraphicsMinimalPipelineStateInitializer::SetupBoundShaderState(FRHIVertexDeclaration* VertexDeclaration, const FMeshProcessorShaders& Shaders)
 {
 	BoundShaderState = FMinimalBoundShaderStateInput();
@@ -1321,6 +1334,16 @@ bool FMeshDrawCommand::SubmitDrawBegin(
 		RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
 
 		EPSOPrecacheResult PSOPrecacheResult = RetrieveAndCachePSOPrecacheResult(MeshPipelineState, GraphicsPSOInit, bAllowSkipDrawCommand);
+
+#if MESH_DRAW_COMMAND_DEBUG_DATA && MESH_DRAW_COMMAND_STATS
+		// Try and skip draw if the shaders are not completly loaded yet.
+		if (!MeshPipelineState.BoundShaderState.IsShaderAllLoaded())
+		{
+			UE_LOG(LogRenderer, Log, TEXT("Missing Preload shaders. Material Friendly: %s Material Proxy: %s Static: %s"), *MeshDrawCommand.DebugData.Material->GetFriendlyName(), *MeshDrawCommand.DebugData.MaterialRenderProxy->GetMaterialName(), *MeshDrawCommand.StatsData.CategoryName.ToString());
+			MeshPipelineState.BoundShaderState.ForceShaderReload();
+			GraphicsPSOInit.BoundShaderState = MeshPipelineState.BoundShaderState.AsBoundShaderState();
+		}
+#endif // MESH_DRAW_COMMAND_DEBUG_DATA
 
 #if PSO_PRECACHING_VALIDATE
 #if MESH_DRAW_COMMAND_DEBUG_DATA

@@ -1562,7 +1562,7 @@ FVertexDeclarationElementList InitDummyVertexDeclarationElementsForText()
 
 void UTextRenderComponent::PrecachePSOs()
 {
-	if (IsComponentPSOPrecachingEnabled() && TextMaterial)
+	if (((IsComponentPSOPrecachingEnabled() && RHISupportsManualVertexFetch(GMaxRHIShaderPlatform)) || IsDynamicShaderPreloadingEnabled()) && TextMaterial)
 	{
 		FPSOPrecacheParams PrecachePSOParams;
 		SetupPrecachePSOParams(PrecachePSOParams);
@@ -1571,20 +1571,22 @@ void UTextRenderComponent::PrecachePSOs()
 		// and leaves the default CastShadow value which is true
 		PrecachePSOParams.bCastShadow = true;
 
-		FPSOPrecacheVertexFactoryDataList VertexFactoryDataList;
 
-		if (RHISupportsManualVertexFetch(GMaxRHIShaderPlatform))
+		const FVertexFactoryType* VFType = &FLocalVertexFactory::StaticType;
+		FPSOPrecacheVertexFactoryDataList VFDataList;
+		VFDataList.Add(FPSOPrecacheVertexFactoryData(VFType));
+
+
+
+		if (IsDynamicShaderPreloadingEnabled())
 		{
-			VertexFactoryDataList.Add(FPSOPrecacheVertexFactoryData(&FLocalVertexFactory::StaticType));
+			TextMaterial->PreloadShaders(VFDataList, PrecachePSOParams);
 		}
 		else
 		{
-			const static FVertexDeclarationElementList Elements = InitDummyVertexDeclarationElementsForText();
-			VertexFactoryDataList.Add(FPSOPrecacheVertexFactoryData(&FLocalVertexFactory::StaticType, Elements));
+			TextMaterial->PrecachePSOs(VFType, PrecachePSOParams);
 		}
 
-		TArray<FMaterialPSOPrecacheRequestID> MaterialPrecacheRequestIDs;
-		TextMaterial->PrecachePSOs(VertexFactoryDataList, PrecachePSOParams, EPSOPrecachePriority::Medium, MaterialPrecacheRequestIDs);
 	}
 }
 

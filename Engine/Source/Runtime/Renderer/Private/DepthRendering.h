@@ -193,7 +193,7 @@ public:
 		const bool bSecondStageDepthPass = false);
 
 	virtual void AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch, uint64 BatchElementMask, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, int32 StaticMeshId = -1) override final;
-	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers) override final;
+	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection) override final;
 
 private:
 
@@ -216,7 +216,7 @@ private:
 		const FSceneTexturesConfig& SceneTexturesConfig, 
 		const FMaterial& Material, 
 		const FPSOPrecacheVertexFactoryData& VertexFactoryData,
-		TArray<FPSOPrecacheData>& PSOInitializers);
+		FPassProcessorPSOCollection& OutCollection);
 
 	template<bool bPositionOnly>
 	void CollectPSOInitializersInternal(
@@ -227,7 +227,7 @@ private:
 		ERasterizerCullMode MeshCullMode,
 		bool bDitheredLODTransition, 
 		EPrimitiveType PrimitiveType,
-		TArray<FPSOPrecacheData>& PSOInitializers);
+		FPassProcessorPSOCollection& OutCollection);
 
 	FMeshPassProcessorRenderState PassDrawRenderState;
 

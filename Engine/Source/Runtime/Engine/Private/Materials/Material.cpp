@@ -48,6 +48,7 @@
 #include "Materials/MaterialExpressionSingleLayerWaterMaterialOutput.h"
 #include "Materials/MaterialExpressionMultiply.h"
 #include "Materials/MaterialSharedPrivate.h"
+#include "PSOPrecacheMaterial.h"
 
 #include "SceneManagement.h"
 #include "SceneView.h"
@@ -544,6 +545,15 @@ static const TCHAR* GDefaultMaterialNames[MD_MAX] =
 	TEXT("engine-ini:/Script/Engine.Engine.DefaultMaterialName")
 };
 
+// Need to know if the default materials have been initialized in case dynamic shader preloading is enabled,
+// we don't want to kick preload shader jobs since they can call GetDefaultMaterial and causing a crash in InitDefaultMaterials.
+static bool bDefaultMaterialInitialized = false;
+
+bool UMaterialInterface::IsDefaultMaterialInitialized()
+{
+	return bDefaultMaterialInitialized;
+}
+
 void UMaterialInterface::InitDefaultMaterials()
 {
 	// Note that this function will (in fact must!) be called recursively. This
@@ -554,8 +564,7 @@ void UMaterialInterface::InitDefaultMaterials()
 	// 
 	// The check for initialization is purely an optimization as initializing
 	// the default materials is only done very early in the boot process.
-	static bool bInitialized = false;
-	if (!bInitialized)
+	if (!bDefaultMaterialInitialized)
 	{
 		SCOPED_BOOT_TIMING("UMaterialInterface::InitDefaultMaterials");
 		check(IsInGameThread());
@@ -601,11 +610,11 @@ void UMaterialInterface::InitDefaultMaterials()
 		}
 
 		RecursionLevel--;
-		bInitialized = RecursionLevel == 0;
+		bDefaultMaterialInitialized = RecursionLevel == 0;
 
 		// Now precache PSOs for all the default materials after the default materials are marked initialize
 		// PSO precaching can request default materials so they have to marked as initialized to avoid endless recursion
-		if (bInitialized && PipelineStateCache::IsPSOPrecachingEnabled())
+		if (bDefaultMaterialInitialized && (PipelineStateCache::IsPSOPrecachingEnabled() || IsDynamicShaderPreloadingEnabled()))
 		{
 			PrecacheDefaultMaterialPSOs();
 		}
@@ -614,7 +623,7 @@ void UMaterialInterface::InitDefaultMaterials()
 
 void UMaterialInterface::PrecacheDefaultMaterialPSOs()
 {
-	if (!GIsRHIInitialized || !RHISupportsManualVertexFetch(GMaxRHIShaderPlatform))
+	if (!GIsRHIInitialized || (!RHISupportsManualVertexFetch(GMaxRHIShaderPlatform) && !IsDynamicShaderPreloadingEnabled()))
 	{
 		// Skip platforms that do not support MVF, non-MVF path needs mesh information for PSO 
 		return;
@@ -631,15 +640,30 @@ void UMaterialInterface::PrecacheDefaultMaterialPSOs()
 		VFData.VertexFactoryType = *It;
 		AllVertexFactoryTypes.Add(VFData);
 	}
+
+
 	for (int32 Domain = 0; Domain < MD_MAX; ++Domain)
 	{
 		if (GDefaultMaterials[Domain])
 		{
 			PrecachePSOParams.Mobility = EComponentMobility::Static;
-			GDefaultMaterials[Domain]->PrecachePSOs(AllVertexFactoryTypes, PrecachePSOParams, EPSOPrecachePriority::High, MaterialPrecacheRequestIDs);
-
+			if (PipelineStateCache::IsPSOPrecachingEnabled())
+			{
+				GDefaultMaterials[Domain]->PrecachePSOs(AllVertexFactoryTypes, PrecachePSOParams, EPSOPrecachePriority::High, MaterialPrecacheRequestIDs);
+			}
+			else if (IsDynamicShaderPreloadingEnabled())
+			{
+				GDefaultMaterials[Domain]->PreloadShaders(AllVertexFactoryTypes, PrecachePSOParams);
+			}
 			PrecachePSOParams.Mobility = EComponentMobility::Movable;
-			GDefaultMaterials[Domain]->PrecachePSOs(AllVertexFactoryTypes, PrecachePSOParams, EPSOPrecachePriority::High, MaterialPrecacheRequestIDs);
+			if (PipelineStateCache::IsPSOPrecachingEnabled())
+			{
+				GDefaultMaterials[Domain]->PrecachePSOs(AllVertexFactoryTypes, PrecachePSOParams, EPSOPrecachePriority::High, MaterialPrecacheRequestIDs);
+			}
+			else if (IsDynamicShaderPreloadingEnabled())
+			{
+				GDefaultMaterials[Domain]->PreloadShaders(AllVertexFactoryTypes, PrecachePSOParams);
+			}
 		}
 	}
 }
@@ -2770,6 +2794,26 @@ FGraphEventArray UMaterial::PrecachePSOs(const FPSOPrecacheVertexFactoryDataList
 	return GraphEvents;
 }
 
+FGraphEventArray UMaterial::PreloadShaders(const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const struct FPSOPrecacheParams& PreCacheParams)
+{
+	FGraphEventArray GraphEvents;
+	if (FApp::CanEverRender() && MaterialResources.Num() > 0)
+	{
+		EMaterialQualityLevel::Type ActiveQualityLevel = GetCachedScalabilityCVars().MaterialQualityLevel;
+		uint32 FeatureLevelsToCompile = GetFeatureLevelsToCompileForRendering();
+		while (FeatureLevelsToCompile != 0)
+		{
+			const ERHIFeatureLevel::Type FeatureLevel = (ERHIFeatureLevel::Type)FBitSet::GetAndClearNextBit(FeatureLevelsToCompile);
+			FMaterialResource* MaterialResource = FindMaterialResource(MaterialResources, FeatureLevel, ActiveQualityLevel, true /*bAllowDefaultMaterial*/);
+			if (MaterialResource)
+			{
+				GraphEvents.Append(MaterialResource->CollectShaders(FeatureLevel, VertexFactoryDataList, PreCacheParams));
+			}
+		}
+	}
+	return GraphEvents;
+}
+
 void UMaterial::ReleaseResourcesAndMutateDDCKey(const FGuid& TransformationId)
 {
 	if (TransformationId.IsValid())
@@ -4412,6 +4456,16 @@ void UMaterial::PostLoad()
 		FPSOPrecacheParams PSOPrecacheParams;
 		UMaterialInterface::PrecachePSOs(&FLocalVertexFactory::StaticType, PSOPrecacheParams);
 	}
+
+
+	// When dynamic preload shaders is enabled, we need to prelaod some material domains since there is no
+	// code logic within the PSO precaching system.
+	if (IsUIMaterial() || IsDeferredDecal() || (MaterialDomain == MD_LightFunction) || IsPostProcessMaterial())
+	{
+		FGraphEventArray Unused;
+		PreloadMaterialShaderMap(GetMaterialResource(GMaxRHIFeatureLevel), Unused);
+	}
+
 }
 
 #if WITH_EDITORONLY_DATA

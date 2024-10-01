@@ -85,7 +85,7 @@ void CollectDeferredDecalPassPSOInitializers(
 	const FSceneTexturesConfig& SceneTexturesConfig,
 	const FMaterial& Material,
 	EDecalRenderStage DecalRenderStage,
-	TArray<FPSOPrecacheData>& PSOInitializers);
+	FPassProcessorPSOCollection& OutCollection);
 
 void GetDeferredDecalPassParameters(
 	FRDGBuilder& GraphBuilder,

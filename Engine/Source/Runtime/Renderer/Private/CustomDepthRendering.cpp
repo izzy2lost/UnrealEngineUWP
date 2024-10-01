@@ -424,7 +424,7 @@ public:
 	FCustomDepthPassMeshProcessor(const FScene* Scene, ERHIFeatureLevel::Type FeatureLevel, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext);
 
 	virtual void AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch, uint64 BatchElementMask, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, int32 StaticMeshId = -1) override final;
-	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers) override final;
+	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection) override final;
 
 private:
 	bool TryAddMeshBatch(
@@ -452,15 +452,15 @@ private:
 		const FSceneTexturesConfig& SceneTexturesConfig,
 		const FMaterial& Material,
 		const FPSOPrecacheVertexFactoryData& VertexFactoryData,
-		TArray<FPSOPrecacheData>& PSOInitializers);
+		FPassProcessorPSOCollection& OutCollection);
 
 	template<bool bPositionOnly>
-	void CollectPSOInitializers(
+	void CollectPSOInitializersInternal(
 		const FPSOPrecacheVertexFactoryData& VertexFactoryData,
 		const FMaterial& RESTRICT MaterialResource,
 		ERasterizerFillMode MeshFillMode,
 		ERasterizerCullMode MeshCullMode, 
-		TArray<FPSOPrecacheData>& PSOInitializers);
+		FPassProcessorPSOCollection& OutCollection);
 
 	FMeshPassProcessorRenderState PassDrawRenderState;
 };
@@ -659,7 +659,7 @@ bool FCustomDepthPassMeshProcessor::Process(
 	return true;
 }
 
-void FCustomDepthPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers)
+void FCustomDepthPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection)
 {
 	int32 CustomDepthPrecacheMode = CVarPSOPrecacheCustomDepth.GetValueOnAnyThread();
 	if (CustomDepthPrecacheMode == 0)
@@ -674,7 +674,7 @@ void FCustomDepthPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesC
 	// Are we currently collecting PSO's for the default material
 	if (PreCacheParams.bDefaultMaterial)
 	{		
-		CollectDefaultMaterialPSOInitializers(SceneTexturesConfig, Material, VertexFactoryData, PSOInitializers);
+		CollectDefaultMaterialPSOInitializers(SceneTexturesConfig, Material, VertexFactoryData, OutCollection);
 		return;
 	}
 
@@ -711,7 +711,7 @@ void FCustomDepthPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesC
 			const ERasterizerFillMode MeshFillMode = ComputeMeshFillMode(Material, OverrideSettings);
 			const ERasterizerCullMode MeshCullMode = ComputeMeshCullMode(Material, OverrideSettings);
 
-			CollectPSOInitializers<false>(VertexFactoryData, *EffectiveMaterial, MeshFillMode, MeshCullMode, PSOInitializers);
+			CollectPSOInitializersInternal<false>(VertexFactoryData, *EffectiveMaterial, MeshFillMode, MeshCullMode, OutCollection);
 		}
 	}
 }
@@ -720,7 +720,7 @@ void FCustomDepthPassMeshProcessor::CollectDefaultMaterialPSOInitializers(
 	const FSceneTexturesConfig& SceneTexturesConfig, 
 	const FMaterial& Material, 
 	const FPSOPrecacheVertexFactoryData& VertexFactoryData,
-	TArray<FPSOPrecacheData>& PSOInitializers)
+	FPassProcessorPSOCollection& OutCollection)
 {
 	const ERasterizerFillMode MeshFillMode = FM_Solid;
 
@@ -729,28 +729,28 @@ void FCustomDepthPassMeshProcessor::CollectDefaultMaterialPSOInitializers(
 	// Collect PSOs for all possible default material combinations
 	{
 		ERasterizerCullMode MeshCullMode = CM_None;
-		CollectPSOInitializers<true>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, PSOInitializers);
-		CollectPSOInitializers<false>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, PSOInitializers);
+		CollectPSOInitializersInternal<true>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, OutCollection);
+		CollectPSOInitializersInternal<false>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, OutCollection);
 	}
 	{
 		ERasterizerCullMode MeshCullMode = CM_CW;
-		CollectPSOInitializers<true>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, PSOInitializers);
-		CollectPSOInitializers<false>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, PSOInitializers);
+		CollectPSOInitializersInternal<true>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, OutCollection);
+		CollectPSOInitializersInternal<false>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, OutCollection);
 	}
 	{
 		ERasterizerCullMode MeshCullMode = CM_CCW;
-		CollectPSOInitializers<true>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, PSOInitializers);
-		CollectPSOInitializers<false>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, PSOInitializers);
+		CollectPSOInitializersInternal<true>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, OutCollection);
+		CollectPSOInitializersInternal<false>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, OutCollection);
 	}
 }
 
 template<bool bPositionOnly>
-void FCustomDepthPassMeshProcessor::CollectPSOInitializers(
+void FCustomDepthPassMeshProcessor::CollectPSOInitializersInternal(
 	const FPSOPrecacheVertexFactoryData& VertexFactoryData,
 	const FMaterial& RESTRICT MaterialResource,
 	ERasterizerFillMode MeshFillMode,
 	ERasterizerCullMode MeshCullMode, 
-	TArray<FPSOPrecacheData>& PSOInitializers)
+	FPassProcessorPSOCollection& OutCollection)
 {
 	TMeshProcessorShaders<
 		TDepthOnlyVS<bPositionOnly>,
@@ -767,6 +767,12 @@ void FCustomDepthPassMeshProcessor::CollectPSOInitializers(
 		ShaderPipeline
 		))
 	{
+		return;
+	}
+
+	if (OutCollection.IsCollectingShadersOnly())
+	{
+		OutCollection.Collect(DepthPassShaders.GetUntypedShaders().GetValidShaders());
 		return;
 	}
 
@@ -788,7 +794,7 @@ void FCustomDepthPassMeshProcessor::CollectPSOInitializers(
 		PT_TriangleList,
 		bPositionOnly ? EMeshPassFeatures::PositionOnly : EMeshPassFeatures::Default,
 		true /*bRequired*/,
-		PSOInitializers);
+		OutCollection);
 }
 
 FMeshPassProcessor* CreateCustomDepthPassProcessor(ERHIFeatureLevel::Type FeatureLevel, const FScene* Scene, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext)

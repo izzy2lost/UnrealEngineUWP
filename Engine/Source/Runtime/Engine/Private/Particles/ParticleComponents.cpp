@@ -131,7 +131,14 @@ FCustomVersionRegistration GRegisterParticleSystemCustomVersion(FParticleSystemC
 void UFXSystemAsset::LaunchPSOPrecaching(const FMaterialInterfacePSOPrecacheParamsList& PSOPrecacheParamsList)
 {
 	FGraphEventArray PrecachePSOsEvents;
-	PrecacheMaterialPSOs(PSOPrecacheParamsList, MaterialPSOPrecacheRequestIDs, PrecachePSOsEvents);
+	if (IsComponentPSOPrecachingEnabled())
+	{
+		PrecacheMaterialPSOs(PSOPrecacheParamsList, MaterialPSOPrecacheRequestIDs, PrecachePSOsEvents);
+	} 
+	else if (IsDynamicShaderPreloadingEnabled())
+	{		
+		PreloadMaterialShaders(PSOPrecacheParamsList, PrecachePSOsEvents);
+	}
 
 	// Create task to signal that the PSO precache events are done by adding them as prerequisite to the task.
 	if (PrecachePSOsEvents.Num() > 0)
@@ -2703,7 +2710,7 @@ void UParticleSystem::PostLoad()
 
 void UParticleSystem::PrecachePSOs()
 {
-	if (HasLaunchedPSOPrecaching() || (!IsComponentPSOPrecachingEnabled() && !IsResourcePSOPrecachingEnabled()))
+	if (HasLaunchedPSOPrecaching() || (!IsComponentPSOPrecachingEnabled() && !IsResourcePSOPrecachingEnabled() && !IsDynamicShaderPreloadingEnabled()))
 	{
 		return;
 	}
@@ -3555,8 +3562,8 @@ bool UFXSystemComponent::RequiresLWCTileRecache(const FVector3f CurrentTile, con
 
 void UFXSystemComponent::PrecacheAssetPSOs(UFXSystemAsset* FXSystemAsset)
 {
-#if UE_WITH_PSO_PRECACHING
-	if (!FApp::CanEverRender() || !IsComponentPSOPrecachingEnabled() || FXSystemAsset == nullptr)
+#if UE_WITH_PSO_PRECACHING || UE_WITH_DYNAMIC_SHADER_PRELOADING
+	if (!FApp::CanEverRender() || (!IsComponentPSOPrecachingEnabled() && !IsDynamicShaderPreloadingEnabled()) || FXSystemAsset == nullptr)
 	{
 		return;
 	}
@@ -3564,23 +3571,25 @@ void UFXSystemComponent::PrecacheAssetPSOs(UFXSystemAsset* FXSystemAsset)
 	FGraphEventRef GraphEvent = FXSystemAsset->GetPrecachePSOsEvent();
 
 	check(IsInGameThread() || IsInParallelGameThread());
-
+#if UE_WITH_PSO_PRECACHING
 	MaterialPSOPrecacheRequestIDs.Empty();
 	PSOPrecacheRequestPriority = EPSOPrecachePriority::Medium;
-
+#endif
 	// The asset will keep the Precache events alive, but these might be over. Avoid delaying scene proxy creation if everything is finished
 	bool bAllEventsDone = GraphEvent == nullptr || GraphEvent->IsComplete();
 
 	FGraphEventArray Events;
 	if (!bAllEventsDone)
 	{
+#if UE_WITH_PSO_PRECACHING
 		MaterialPSOPrecacheRequestIDs.Append(FXSystemAsset->GetMaterialPSOPrecacheRequestIDs());
+#endif
 		Events.Add(GraphEvent);
 	}
 
 	RequestRecreateRenderStateWhenPSOPrecacheFinished(Events);
 	bPSOPrecacheCalled = true;
-#endif // UE_WITH_PSO_PRECACHING
+#endif // UE_WITH_PSO_PRECACHING || UE_WITH_DYNAMIC_SHADER_PRELOADING
 }
 
 FOnSystemPreActivationChange UParticleSystemComponent::OnSystemPreActivationChange;

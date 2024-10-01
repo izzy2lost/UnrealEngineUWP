@@ -117,7 +117,7 @@ void CollectRasterPSOInitializers(
 	const FPSOPrecacheParams& PreCacheParams,
 	EShaderPlatform ShaderPlatform,
 	int32 PSOCollectorIndex,
-	TArray<FPSOPrecacheData>& PSOInitializers);
+	FPassProcessorPSOCollection& OutCollection);
 
 FRasterContext InitRasterContext(
 	FRDGBuilder& GraphBuilder,

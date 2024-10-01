@@ -671,9 +671,6 @@ protected:
 	uint8 bStaticWhenNotMoveable:1;
 
 #if UE_WITH_PSO_PRECACHING
-	/** Helper flag to check if PSOs have been precached already */
-	uint8 bPSOPrecacheCalled : 1;
-
 	/** PSOs requested priority */
 	EPSOPrecachePriority PSOPrecacheRequestPriority : 2;
 	static_assert((int)EPSOPrecachePriority::Highest < 1 << 2);
@@ -753,13 +750,16 @@ public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Lighting)
 	FLightingChannels LightingChannels;
 
+#if UE_WITH_PSO_PRECACHING || UE_WITH_DYNAMIC_SHADER_PRELOADING
 #if UE_WITH_PSO_PRECACHING
 	/** Cached array of material PSO requests which can be used to boost the priority */
 	TArray<FMaterialPSOPrecacheRequestID> MaterialPSOPrecacheRequestIDs;
-
+#endif
 	/** Atomic int used to track the last PSO precache events */
 	std::atomic<int> LatestPSOPrecacheJobSetCompleted = 0;
 	int32 LatestPSOPrecacheJobSet = 0;
+	/** Helper flag to check if PSOs have been precached already */
+	uint8 bPSOPrecacheCalled : 1;
 #endif
 
 	/**

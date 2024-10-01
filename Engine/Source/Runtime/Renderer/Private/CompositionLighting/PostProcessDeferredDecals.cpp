@@ -527,11 +527,27 @@ void CollectDeferredDecalPassPSOInitializers(
 	const FSceneTexturesConfig& SceneTexturesConfig,
 	const FMaterial& Material,
 	EDecalRenderStage DecalRenderStage,
-	TArray<FPSOPrecacheData>& PSOInitializers)
+	FPassProcessorPSOCollection& OutCollection)
 {
 	const EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(FeatureLevel);
 	const FDecalBlendDesc DecalBlendDesc = DecalRendering::ComputeDecalBlendDesc(ShaderPlatform, Material);
 	EDecalRenderTargetMode DecalRenderTargetMode = DecalRendering::GetRenderTargetMode(DecalBlendDesc, DecalRenderStage);
+
+
+	TShaderRef<FShader> VertexShader, PixelShader;
+	if (!DecalRendering::GetShaders(FeatureLevel, Material, DecalRenderStage, VertexShader, PixelShader))
+	{
+		return;
+	}
+
+	if (OutCollection.IsCollectingShadersOnly())
+	{
+		FShaderPreloadData ShaderData;
+		ShaderData.Shaders.Add(VertexShader);
+		ShaderData.Shaders.Add(PixelShader);
+		OutCollection.Collect(MoveTemp(ShaderData));
+		return;
+	}
 
 	FGraphicsPipelineStateInitializer GraphicsPSOInit;
 	GraphicsPSOInit.PrimitiveType = PT_TriangleList;		
@@ -564,7 +580,7 @@ void CollectDeferredDecalPassPSOInitializers(
 
 		GraphicsPSOInit.StatePrecachePSOHash = RHIComputeStatePrecachePSOHash(GraphicsPSOInit);
 
-		FPSOPrecacheData& PSOPrecacheData = PSOInitializers.Emplace_GetRef();
+		FPSOPrecacheData PSOPrecacheData;
 		PSOPrecacheData.bRequired = true;
 		PSOPrecacheData.Type = FPSOPrecacheData::EType::Graphics;
 		PSOPrecacheData.GraphicsPSOInitializer = GraphicsPSOInit;
@@ -572,9 +588,9 @@ void CollectDeferredDecalPassPSOInitializers(
 		PSOPrecacheData.PSOCollectorIndex = PSOCollectorIndex;
 		PSOPrecacheData.VertexFactoryType = nullptr;
 #endif // PSO_PRECACHING_VALIDATE		
-	};
 
-	PSOInitializers.Reserve(FMath::Max(PSOInitializers.Max(), PSOInitializers.Num() + 16));
+		OutCollection.Collect(MoveTemp(PSOPrecacheData));
+	};
 
 	const auto AddDeferredDecalPSOInsideOutside = [&](bool bReverseHanded, bool bReverseCulling, bool bDecalUsesStencil)
 	{

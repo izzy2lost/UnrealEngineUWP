@@ -200,16 +200,29 @@ struct FMinimalBoundShaderStateInput
 
 	FBoundShaderStateInput AsBoundShaderState() const
 	{
-		if (!CachedVertexShader)
+		bool bLocalAllShaderAreLoaded = true;
+		bool bCanSkipShader = AllowSkipUnloadedShaders();
+
+		auto GetShaderResource = [&bLocalAllShaderAreLoaded](FRHIShader* Shader) -> FRHIShader* {
+			if (Shader == nullptr)
+			{
+				bLocalAllShaderAreLoaded &= false;
+			}
+			return Shader;
+		};
+
+		if (!CachedVertexShader || !bAllShaderAreLoaded)
 		{
-			CachedPixelShader = PixelShaderResource ? static_cast<FRHIPixelShader*>(PixelShaderResource->GetShader(PixelShaderIndex)) : nullptr;
+			CachedPixelShader = PixelShaderResource ? static_cast<FRHIPixelShader*>(GetShaderResource(PixelShaderResource->GetShader(PixelShaderIndex, !bCanSkipShader))) : nullptr;
 #if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
 			CachedGeometryShader = GeometryShaderResource ? static_cast<FRHIGeometryShader*>(GeometryShaderResource->GetShader(GeometryShaderIndex)) : nullptr;
 #endif
 #if PLATFORM_SUPPORTS_MESH_SHADERS
 			CachedMeshShader = MeshShaderResource ? static_cast<FRHIMeshShader*>(MeshShaderResource->GetShader(MeshShaderIndex)) : nullptr;
 #endif
-			CachedVertexShader = VertexShaderResource ? static_cast<FRHIVertexShader*>(VertexShaderResource->GetShader(VertexShaderIndex)) : nullptr;
+			CachedVertexShader = VertexShaderResource ? static_cast<FRHIVertexShader*>(GetShaderResource(VertexShaderResource->GetShader(VertexShaderIndex, !bCanSkipShader))) : nullptr;
+
+			bAllShaderAreLoaded = bLocalAllShaderAreLoaded;
 		}
 
 #if PLATFORM_SUPPORTS_MESH_SHADERS
@@ -227,6 +240,27 @@ struct FMinimalBoundShaderStateInput
 				, CachedGeometryShader
 #endif
 			);
+		}
+	}
+
+	RENDERER_API bool AllowSkipUnloadedShaders() const;
+
+	bool IsShaderAllLoaded() const { return bAllShaderAreLoaded; }
+
+	void ForceShaderReload() const 
+	{
+		if (!CachedVertexShader || !bAllShaderAreLoaded)
+		{
+			CachedPixelShader = PixelShaderResource ? static_cast<FRHIPixelShader*>(PixelShaderResource->GetShader(PixelShaderIndex)) : nullptr;
+#if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
+			CachedGeometryShader = GeometryShaderResource ? static_cast<FRHIGeometryShader*>(GeometryShaderResource->GetShader(GeometryShaderIndex)) : nullptr;
+#endif
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+			CachedMeshShader = MeshShaderResource ? static_cast<FRHIMeshShader*>(MeshShaderResource->GetShader(MeshShaderIndex)) : nullptr;
+#endif
+			CachedVertexShader = VertexShaderResource ? static_cast<FRHIVertexShader*>(VertexShaderResource->GetShader(VertexShaderIndex)) : nullptr;
+
+			bAllShaderAreLoaded = true;
 		}
 	}
 
@@ -263,6 +297,7 @@ struct FMinimalBoundShaderStateInput
 	FRHIVertexDeclaration* VertexDeclarationRHI = nullptr;
 	mutable FRHIVertexShader* CachedVertexShader = nullptr;
 	mutable FRHIPixelShader* CachedPixelShader = nullptr;
+	mutable bool bAllShaderAreLoaded = true;
 #if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
 	mutable FRHIGeometryShader* CachedGeometryShader = nullptr;
 #endif
@@ -722,6 +757,34 @@ struct FMeshProcessorShaders
 
 		checkf(0, TEXT("Unhandled shader frequency"));
 		return TShaderRef<FShader>();
+	}
+
+	TArray<TShaderRef<FShader>, TInlineAllocator<3>> GetValidShaders() const
+	{
+		TArray<TShaderRef<FShader>, TInlineAllocator<3>> Shaders;
+		if (VertexShader.IsValid())
+		{
+			Shaders.Add(VertexShader);
+		}
+		if (PixelShader.IsValid())
+		{
+			Shaders.Add(PixelShader);
+		}
+		if (GeometryShader.IsValid())
+		{
+			Shaders.Add(GeometryShader);
+		}
+		if (ComputeShader.IsValid())
+		{
+			Shaders.Add(ComputeShader);
+		}
+#if RHI_RAYTRACING
+		if (RayTracingShader.IsValid())
+		{
+			Shaders.Add(RayTracingShader);
+		}
+#endif
+		return Shaders;
 	}
 };
 
@@ -2144,7 +2207,7 @@ public:
 	virtual void AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch, uint64 BatchElementMask, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, int32 StaticMeshId = -1) = 0;
 		
 	// By default no PSOs collected 
-	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers) override {}
+	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection) override {}
 
 	static FORCEINLINE_DEBUGGABLE ERasterizerCullMode InverseCullMode(ERasterizerCullMode CullMode)
 	{
@@ -2190,7 +2253,7 @@ public:
 		EPrimitiveType PrimitiveType,
 		EMeshPassFeatures MeshPassFeatures,
 		bool bRequired,
-		TArray<FPSOPrecacheData>& PSOInitializers);
+		FPassProcessorPSOCollection& OutCollection);
 
 	template<typename PassShadersType>
 	static void AddGraphicsPipelineStateInitializer(
@@ -2207,7 +2270,7 @@ public:
 		uint8 SubpassIndex,
 		bool bRequired,
 		int32 PSOCollectorIndex,
-		TArray<FPSOPrecacheData>& PSOInitializers);
+		FPassProcessorPSOCollection& OutCollection);
 
 protected:
 	RENDERER_API FMeshDrawCommandPrimitiveIdInfo GetDrawCommandPrimitiveId(

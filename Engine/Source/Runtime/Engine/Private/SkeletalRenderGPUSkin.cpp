@@ -2014,6 +2014,7 @@ void FSkeletalMeshObjectGPUSkin::GetUsedVertexFactoryData(
 		CompLODInfo = &SkinnedMeshComponent->LODInfo[LODIndex];
 	}
 
+	check(SkinnedMeshComponent);
 	const ESkeletalMeshGPUSkinTechnique GPUSkinTechnique = ::GetGPUSkinTechnique(SkinnedMeshComponent, SkelMeshRenderData, LODIndex, InFeatureLevel);
 
 	// Setup tmp MeshObjectLOD object to extract the vertex factory buffers

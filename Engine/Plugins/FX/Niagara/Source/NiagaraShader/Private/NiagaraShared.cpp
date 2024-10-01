@@ -540,6 +540,11 @@ void FNiagaraShaderScript::UpdateCachedData_PostCompile(bool bCalledFromSerializ
 					FRHIComputeShader* RHIComputeShader = static_cast<FRHIComputeShader*>(RHIShader);
 					PipelineStateCache::PrecacheComputePipelineState(RHIComputeShader, TEXT("NiagaraCompute"));
 				}
+				else if (IsDynamicShaderPreloadingEnabled())
+				{
+					FGraphEventArray PreloadEvent;
+					GameThreadShaderMap->GetResource()->PreloadShader(Shader->GetResourceIndex(), PreloadEvent);
+				}
 			}
 		}
 	}

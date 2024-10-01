@@ -218,7 +218,7 @@ void FMeshPassProcessor::AddGraphicsPipelineStateInitializer(
 	EPrimitiveType PrimitiveType,
 	EMeshPassFeatures MeshPassFeatures,
 	bool bRequired,
-	TArray<FPSOPrecacheData>& PSOInitializers)
+	FPassProcessorPSOCollection& OutCollection)
 {
 	AddGraphicsPipelineStateInitializer(
 		VertexFactoryData,
@@ -234,7 +234,7 @@ void FMeshPassProcessor::AddGraphicsPipelineStateInitializer(
 		0,
 		bRequired,
 		PSOCollectorIndex,
-		PSOInitializers);
+		OutCollection);
 }
 
 template<typename PassShadersType>
@@ -252,7 +252,7 @@ void FMeshPassProcessor::AddGraphicsPipelineStateInitializer(
 	uint8 SubpassIndex,
 	bool bRequired,
 	int32 InPSOCollectorIndex,
-	TArray<FPSOPrecacheData>& PSOInitializers)
+	FPassProcessorPSOCollection& OutCollection)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FMeshPassProcessor::AddGraphicsPipelineStateInitializer);
 
@@ -320,7 +320,7 @@ void FMeshPassProcessor::AddGraphicsPipelineStateInitializer(
 		ConditionalBreakOnPSOPrecacheShader(PipelineStateInitializer);
 	}
 #endif // PSO_PRECACHING_VALIDATE
-	PSOInitializers.Add(PSOPrecacheData);
+	OutCollection.Collect(MoveTemp(PSOPrecacheData));
 }
 
 

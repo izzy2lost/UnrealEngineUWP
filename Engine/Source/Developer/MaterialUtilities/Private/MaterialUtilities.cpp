@@ -690,6 +690,10 @@ public:
 	{
 		return Material && Material->MaterialDomain == MD_DeferredDecal;
 	}
+	virtual bool IsUIMaterial() const override
+	{
+		return Material && Material->MaterialDomain == MD_UI;
+	}
 	virtual bool IsSpecialEngineMaterial() const override
 	{
 		if (Material)

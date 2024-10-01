@@ -81,7 +81,7 @@ public:
 	virtual bool PreloadShader(int32 ShaderIndex, FGraphEventArray& OutCompletionEvents) override { return false; }
 	virtual bool PreloadShaderMap(int32 ShaderMapIndex, FGraphEventArray& OutCompletionEvents) override { return false; }
 
-	virtual TRefCountPtr<FRHIShader> CreateShader(int32 Index) override;
+	virtual TRefCountPtr<FRHIShader> CreateShader(int32 Index, bool bRequired = true) override;
 
 private:
 	FMetalDevice& Device;

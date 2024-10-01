@@ -16,6 +16,62 @@ class FVertexFactoryType;
 class FGraphicsPipelineStateInitializer;
 enum class EVertexInputStreamType : uint8;
 
+class FPassProcessorPSOCollection 
+{
+private:
+	enum class EPassProcessorPSOCollectionType : uint8 {
+		ShadersOnly = 0,
+		FullPSOs = 1
+	};
+
+public:
+	static FPassProcessorPSOCollection ShadersOnlyCollection(TArray<FShaderPreloadData>& Shaders)
+	{
+		return FPassProcessorPSOCollection(EPassProcessorPSOCollectionType::ShadersOnly, &Shaders, nullptr);
+	}
+
+	static FPassProcessorPSOCollection FullPSOCollection(TArray<FPSOPrecacheData>& PSOInitializers)
+	{
+		return FPassProcessorPSOCollection(EPassProcessorPSOCollectionType::FullPSOs, nullptr, &PSOInitializers);
+	}
+
+	void Collect(FShaderPreloadData&& Shader)
+	{
+		check(CollectionType == EPassProcessorPSOCollectionType::ShadersOnly);
+		checkSlow(OutShaders);
+		OutShaders->Emplace(MoveTemp(Shader));
+	}
+
+	void Collect(FPSOPrecacheData&& PSOInitializer)
+	{
+		check(CollectionType == EPassProcessorPSOCollectionType::FullPSOs);
+		checkSlow(OutPSOInitializers);
+		OutPSOInitializers->Emplace(MoveTemp(PSOInitializer));
+	}
+
+	bool IsCollectingShadersOnly() const
+	{
+		return CollectionType == EPassProcessorPSOCollectionType::ShadersOnly;
+	}
+
+	bool IsCollectingFullPSOs() const
+	{
+		return CollectionType == EPassProcessorPSOCollectionType::FullPSOs;
+	}
+
+private:
+	FPassProcessorPSOCollection(EPassProcessorPSOCollectionType Type, TArray<FShaderPreloadData>* Shaders, TArray<FPSOPrecacheData>* PSOInitializers)
+		:CollectionType(Type), OutShaders(Shaders), OutPSOInitializers(PSOInitializers)
+	{
+	}
+
+	const EPassProcessorPSOCollectionType CollectionType;
+
+	TArray<FShaderPreloadData>* const OutShaders = nullptr;
+	TArray<FPSOPrecacheData>* const OutPSOInitializers = nullptr;
+};
+
+
 /**
  * Interface class implemented by the mesh pass processor to collect all possible PSOs
  */
@@ -25,17 +81,25 @@ public:
 
 	IPSOCollector(int32 InPSOCollectorIndex) : PSOCollectorIndex(InPSOCollectorIndex) {}
 	virtual ~IPSOCollector() {}
-	
+
 	UE_DEPRECATED(5.2, "Call CollectPSOInitializers with FPSOPrecacheVertexFactoryData instead.")
 	void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FVertexFactoryType* VertexFactoryType, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers)
 	{
 		FPSOPrecacheVertexFactoryData VertexFactoryData;
 		VertexFactoryData.VertexFactoryType = VertexFactoryType;
-		return CollectPSOInitializers(SceneTexturesConfig, Material, VertexFactoryData, PreCacheParams, PSOInitializers);
+		FPassProcessorPSOCollection Collection = FPassProcessorPSOCollection::FullPSOCollection(PSOInitializers);
+		return CollectPSOInitializers(SceneTexturesConfig, Material, VertexFactoryData, PreCacheParams, Collection);
 	}
 
 	// Collect all PSO for given material, vertex factory & params
-	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers) = 0;
+	UE_DEPRECATED(5.5, "Call CollectPSOInitializers with FPassProcessorPSOCollection instead.")
+	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers)
+	{
+		FPassProcessorPSOCollection Collection = FPassProcessorPSOCollection::FullPSOCollection(PSOInitializers);
+		CollectPSOInitializers(SceneTexturesConfig, Material, VertexFactoryData, PreCacheParams, Collection);
+	}
+
+	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection) = 0;
 
 	// PSO Collector index used for stats tracking
 	int32 PSOCollectorIndex = INDEX_NONE;
@@ -122,14 +186,29 @@ private:
 };
 
 /**
- * Precache all PSOs for given material data
+ * Precache all PSOs for the given material data.
  */
 extern ENGINE_API void PrecacheMaterialPSOs(const FMaterialInterfacePSOPrecacheParamsList& PSOPrecacheParamsList, TArray<FMaterialPSOPrecacheRequestID>& OutMaterialPSOPrecacheRequestIDs, FGraphEventArray& OutGraphEvents);
 
 /**
- * Precache all PSOs for given material and parameters
+ * Preload all shaders for the given material data.
+ */
+extern ENGINE_API void PreloadMaterialShaders(const FMaterialInterfacePSOPrecacheParamsList & PSOPrecacheParamsList, FGraphEventArray & OutGraphEvents);
+
+/**
+ * Precache all PSOs for the given material and parameters.
  */
 extern ENGINE_API FMaterialPSOPrecacheRequestID PrecacheMaterialPSOs(const FMaterialPSOPrecacheParams& MaterialPSOPrecacheParams, EPSOPrecachePriority Priority, FGraphEventArray& GraphEvents);
+
+/**
+ * Preload all shaders for the given material and parameters.
+ */
+extern ENGINE_API void PreloadMaterialShaders(const FMaterialPSOPrecacheParams& MaterialPSOPrecacheParams, FGraphEventArray& GraphEvents);
+
+/**
+ * Preload all shaders for the given material data.
+ */
+extern ENGINE_API void PreloadMaterialShaderMap(const FMaterial* Material, FGraphEventArray& OutGraphEvents);
 
 /**
  * Release PSO material request data

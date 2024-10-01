@@ -1498,9 +1498,14 @@ public:
 	bool IsComplete(const FMaterial* Material, bool bSilent);
 
 	/**
-	 * Collect all possible PSO's  which can be used with this material shader map for given parameters
+	 * Collect all possible PSO's which can be used with this material shader map for given parameters
 	 */
 	FPSOPrecacheDataArray CollectPSOPrecacheData(const FMaterialPSOPrecacheParams& PrecacheParams);
+
+	/**
+	 * Collect the shaders which can be used with this material shader map for given parameters
+	 */
+	TArray<FShaderPreloadData> CollectShaderPreloadData(const FMaterialPSOPrecacheParams& PrecacheParams);
 
 #if WITH_EDITOR
 	/** Attempts to load missing shaders from memory. */
@@ -2067,6 +2072,11 @@ public:
 	ENGINE_API FGraphEventArray CollectPSOs(ERHIFeatureLevel::Type InFeatureLevel, const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const FPSOPrecacheParams& PreCacheParams, EPSOPrecachePriority Priority, TArray<FMaterialPSOPrecacheRequestID>& OutMaterialPSORequestIDs);
 
 	/**
+	 * Collect all possible shaders which can be used with this material for given parameters. Shaders will be preloaded async.
+	 */
+	ENGINE_API FGraphEventArray CollectShaders(ERHIFeatureLevel::Type InFeatureLevel, const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const FPSOPrecacheParams& PreCacheParams);
+
+	/**
 	 * Collect all PSO request information already done for this material
 	 */
 	ENGINE_API TArray<FMaterialPSOPrecacheRequestID> GetMaterialPSOPrecacheRequestIDs() const;
@@ -2128,9 +2138,9 @@ public:
 	virtual bool IsLightFunction() const = 0;
 	virtual bool IsUsedWithEditorCompositing() const { return false; }
 	virtual bool IsDeferredDecal() const = 0;
+	virtual bool IsUIMaterial() const = 0;
 	virtual bool IsVolumetricPrimitive() const = 0;
 	virtual bool IsWireframe() const = 0;
-	virtual bool IsUIMaterial() const { return false; }
 	virtual bool IsPostProcessMaterial() const { return false; }
 	virtual bool IsSpecialEngineMaterial() const = 0;
 	virtual bool IsUsedWithSkeletalMesh() const { return false; }

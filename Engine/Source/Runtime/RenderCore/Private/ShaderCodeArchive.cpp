@@ -1120,6 +1120,10 @@ void FShaderCodeArchive::Teardown()
 			FMemory::Free(ShaderPreloadEntry.Code);
 			ShaderPreloadEntry.Code = nullptr;
 			DEC_DWORD_STAT_BY(STAT_Shaders_ShaderPreloadMemory, ShaderEntry.Size);
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING) 
+			TCsvPersistentCustomStat<float>* CsvStatPreloadedShaderMB = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatFloat(TEXT("PreloadedShaderMB"), CSV_CATEGORY_INDEX(Shaders));
+			CsvStatPreloadedShaderMB->Sub((float)ShaderEntry.Size / (1024.0f * 1024.0f));
+#endif
 		}
 	}
 
@@ -1188,6 +1192,11 @@ bool FShaderCodeArchive::PreloadShader(int32 ShaderIndex, FGraphEventArray& OutC
 		Task->Unlock();
 
 		INC_DWORD_STAT_BY(STAT_Shaders_ShaderPreloadMemory, ShaderEntry.Size);
+
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING) 
+		TCsvPersistentCustomStat<float>* CsvStatPreloadedShaderMB = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatFloat(TEXT("PreloadedShaderMB"), CSV_CATEGORY_INDEX(Shaders));
+		CsvStatPreloadedShaderMB->Add((float)ShaderEntry.Size / (1024.0f * 1024.0f));
+#endif
 	}
 
 	if (ShaderPreloadEntry.PreloadEvent)
@@ -1248,6 +1257,10 @@ bool FShaderCodeArchive::PreloadShaderMap(int32 ShaderMapIndex, FGraphEventArray
 
 	INC_DWORD_STAT_BY(STAT_Shaders_ShaderPreloadMemory, PreloadMemory);
 
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING) 
+	TCsvPersistentCustomStat<float>* CsvStatPreloadedShaderMB = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatFloat(TEXT("PreloadedShaderMB"), CSV_CATEGORY_INDEX(Shaders));
+	CsvStatPreloadedShaderMB->Add((float)PreloadMemory / (1024.0f * 1024.0f));
+#endif
 	return true;
 }
 
@@ -1294,11 +1307,16 @@ void FShaderCodeArchive::ReleasePreloadedShader(int32 ShaderIndex)
 			ShaderPreloadEntry.Code = nullptr;
 			const FShaderCodeEntry& ShaderEntry = SerializedShaders.GetShaderEntries()[ShaderIndex];
 			DEC_DWORD_STAT_BY(STAT_Shaders_ShaderPreloadMemory, ShaderEntry.Size);
+
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING) 
+			TCsvPersistentCustomStat<float>* CsvStatPreloadedShaderMB = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatFloat(TEXT("PreloadedShaderMB"), CSV_CATEGORY_INDEX(Shaders));
+			CsvStatPreloadedShaderMB->Sub((float)ShaderEntry.Size / (1024.0f * 1024.0f));
+#endif
 		}
 	}
 }
 
-TRefCountPtr<FRHIShader> FShaderCodeArchive::CreateShader(int32 Index)
+TRefCountPtr<FRHIShader> FShaderCodeArchive::CreateShader(int32 Index, bool bRequired)
 {
 	LLM_SCOPE(ELLMTag::Shaders);
 
@@ -1311,8 +1329,10 @@ TRefCountPtr<FRHIShader> FShaderCodeArchive::CreateShader(int32 Index)
 	FShaderPreloadEntry& ShaderPreloadEntry = ShaderPreloads[Index];
 	checkf(!ShaderPreloadEntry.bNeverToBePreloaded, TEXT("We are creating a shader that shouldn't be preloaded in this run (e.g. raytracing shader on D3D11)."));
 
-	FGraphEventArray ReadCompleteEvents;
-	PreloadShader(Index, ReadCompleteEvents);
+	{
+		FGraphEventArray Dummy;
+		PreloadShader(Index, Dummy);
+	}
 
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(BlockingShaderLoad);
@@ -1911,7 +1931,7 @@ FIoStoreShaderCodeArchive::~FIoStoreShaderCodeArchive()
 void FIoStoreShaderCodeArchive::Teardown()
 {
 	DebugVisualizer.SaveShaderUsageBitmap(GetName(), GetPlatform());
-
+	uint32 DeletedPreloadEntryBytes = 0;
 	FWriteScopeLock Lock(PreloadedShaderGroupsLock);
 	for (TMap<int32, FShaderGroupPreloadEntry*>::TIterator Iter(PreloadedShaderGroups); Iter; ++Iter)
 	{
@@ -1926,11 +1946,17 @@ void FIoStoreShaderCodeArchive::Teardown()
 #endif
 
 		const FIoStoreShaderGroupEntry& GroupEntry = Header.ShaderGroupEntries[Iter.Key()];
-		DEC_DWORD_STAT_BY(STAT_Shaders_ShaderPreloadMemory, (GroupEntry.CompressedSize + sizeof(FShaderGroupPreloadEntry)));
+		DeletedPreloadEntryBytes += (GroupEntry.CompressedSize + sizeof(FShaderGroupPreloadEntry));
 
 		delete PreloadEntry;
 	}
 	PreloadedShaderGroups.Empty();
+
+	DEC_DWORD_STAT_BY(STAT_Shaders_ShaderPreloadMemory, DeletedPreloadEntryBytes);
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING) 
+	TCsvPersistentCustomStat<float>* CsvStatPreloadedShaderMB = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatFloat(TEXT("PreloadedShaderMB"), CSV_CATEGORY_INDEX(Shaders));
+	CsvStatPreloadedShaderMB->Sub((float)DeletedPreloadEntryBytes / (1024.0f * 1024.0f));
+#endif
 }
 
 void FIoStoreShaderCodeArchive::SetupPreloadEntryForLoading(int32 ShaderGroupIndex, FShaderGroupPreloadEntry& PreloadEntry)
@@ -1966,7 +1992,8 @@ bool FIoStoreShaderCodeArchive::PreloadShaderGroup(int32 ShaderGroupIndex, FGrap
 	);
 	PreloadEntry.DebugInfo.Append(AppendInfo);
 #endif
-	if (NumRefs == 0u)
+
+	if (PreloadEntry.IoRequest.Status() == FIoStatus::Invalid)
 	{
 		SetupPreloadEntryForLoading(ShaderGroupIndex, PreloadEntry);
 
@@ -1982,7 +2009,15 @@ bool FIoStoreShaderCodeArchive::PreloadShaderGroup(int32 ShaderGroupIndex, FGrap
 			PreloadEntry.IoRequest = (*AttachShaderReadRequestFuncPtr)(Header.ShaderGroupIoHashes[ShaderGroupIndex], PreloadEntry.PreloadEvent);
 		}
 
-		INC_DWORD_STAT_BY(STAT_Shaders_ShaderPreloadMemory, (Header.ShaderGroupEntries[ShaderGroupIndex].CompressedSize + sizeof(FShaderGroupPreloadEntry)));
+
+
+		uint32 ShaderGroupSize = Header.ShaderGroupEntries[ShaderGroupIndex].CompressedSize + sizeof(FShaderGroupPreloadEntry);
+
+		INC_DWORD_STAT_BY(STAT_Shaders_ShaderPreloadMemory, ShaderGroupSize);
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING) 
+		TCsvPersistentCustomStat<float>* CsvStatPreloadedShaderMB = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatFloat(TEXT("PreloadedShaderMB"), CSV_CATEGORY_INDEX(Shaders));
+		CsvStatPreloadedShaderMB->Add((float)ShaderGroupSize / (1024.0f * 1024.0f));
+#endif
 	}
 
 	if (AttachShaderReadRequestFuncPtr == nullptr && PreloadEntry.PreloadEvent && !PreloadEntry.PreloadEvent->IsComplete())
@@ -2011,8 +2046,45 @@ void FIoStoreShaderCodeArchive::MarkPreloadEntrySkipped(int32 ShaderGroupIndex
 	if (NumRefs == 0u)
 	{
 		PreloadEntry.bNeverToBePreloaded = 1;
-		INC_DWORD_STAT_BY(STAT_Shaders_ShaderPreloadMemory, sizeof(FShaderGroupPreloadEntry));
+		uint32 ShaderGroupSize = sizeof(FShaderGroupPreloadEntry);
+		
+		INC_DWORD_STAT_BY(STAT_Shaders_ShaderPreloadMemory, ShaderGroupSize);
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING) 
+		TCsvPersistentCustomStat<float>* CsvStatPreloadedShaderMB = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatFloat(TEXT("PreloadedShaderMB"), CSV_CATEGORY_INDEX(Shaders));
+		CsvStatPreloadedShaderMB->Add((float)ShaderGroupSize / (1024.0f * 1024.0f));
+#endif
 	}
+}
+
+void FIoStoreShaderCodeArchive::AddRefPreloadedShaderGroup(int32 ShaderGroupIndex)
+{
+	FWriteScopeLock Lock(PreloadedShaderGroupsLock);
+	FShaderGroupPreloadEntry& PreloadEntry = *FindOrAddPreloadEntry(ShaderGroupIndex);
+	PreloadEntry.NumRefs++;
+}
+
+void FIoStoreShaderCodeArchive::ReleasePreloadedShaderGroup(int32 ShaderGroupIndex)
+{
+	ReleasePreloadEntry(ShaderGroupIndex);
+}
+
+bool FIoStoreShaderCodeArchive::IsPreloading(int32 ShaderIndex, FGraphEventArray& OutCompletionEvents)
+{
+	LLM_SCOPE(ELLMTag::Shaders);
+	int32 ShaderGroupIndex = GetGroupIndexForShader(ShaderIndex);
+
+	FReadScopeLock Lock(PreloadedShaderGroupsLock);
+	FShaderGroupPreloadEntry** EntryPtrPtr = PreloadedShaderGroups.Find(ShaderGroupIndex);
+	if (EntryPtrPtr)
+	{
+		FShaderGroupPreloadEntry& Entry = **EntryPtrPtr;
+		if (Entry.PreloadEvent && !Entry.PreloadEvent->IsComplete())
+		{
+			OutCompletionEvents.Add(Entry.PreloadEvent);
+			return true;
+		}
+	}
+	return false;
 }
 
 bool FIoStoreShaderCodeArchive::PreloadShader(int32 ShaderIndex, FGraphEventArray& OutCompletionEvents)
@@ -2141,16 +2213,20 @@ void FIoStoreShaderCodeArchive::ReleasePreloadEntry(int32 ShaderGroupIndex
 
 		if (ShaderNumRefs == 1u)
 		{
+			uint32 ShaderGroupLoadBytes = 0;
 			if (!PreloadEntry->bNeverToBePreloaded)
 			{
+				// make sure we don't leak any reference on the shader group
+				check(PreloadEntry->PreloadEvent.GetRefCount() <= 1)
+				PreloadEntry->IoRequest.Cancel();
 				PreloadEntry->IoRequest = FIoRequest();
 				PreloadEntry->PreloadEvent.SafeRelease();
 				const FIoStoreShaderGroupEntry& GroupEntry = Header.ShaderGroupEntries[ShaderGroupIndex];
-				DEC_DWORD_STAT_BY(STAT_Shaders_ShaderPreloadMemory, (GroupEntry.CompressedSize + sizeof(FShaderGroupPreloadEntry)));
+				ShaderGroupLoadBytes = GroupEntry.CompressedSize + sizeof(FShaderGroupPreloadEntry);
 			}
 			else
 			{
-				DEC_DWORD_STAT_BY(STAT_Shaders_ShaderPreloadMemory, sizeof(FShaderGroupPreloadEntry));
+				ShaderGroupLoadBytes = sizeof(FShaderGroupPreloadEntry);
 			}
 
 #if UE_SCA_DEBUG_PRELOADING
@@ -2163,6 +2239,12 @@ void FIoStoreShaderCodeArchive::ReleasePreloadEntry(int32 ShaderGroupIndex
 
 			delete PreloadEntry;
 			PreloadedShaderGroups.Remove(ShaderGroupIndex);
+
+			DEC_DWORD_STAT_BY(STAT_Shaders_ShaderPreloadMemory, ShaderGroupLoadBytes);
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING) 
+			TCsvPersistentCustomStat<float>* CsvStatPreloadedShaderMB = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatFloat(TEXT("PreloadedShaderMB"), CSV_CATEGORY_INDEX(Shaders));
+			CsvStatPreloadedShaderMB->Sub((float)ShaderGroupLoadBytes / (1024.0f * 1024.0f));
+#endif
 		}
 	}
 }
@@ -2202,7 +2284,7 @@ int32 FIoStoreShaderCodeArchive::FindShaderIndex(const FSHAHash& Hash)
 	return INDEX_NONE;
 }
 
-TRefCountPtr<FRHIShader> FIoStoreShaderCodeArchive::CreateShader(int32 ShaderIndex)
+TRefCountPtr<FRHIShader> FIoStoreShaderCodeArchive::CreateShader(int32 ShaderIndex, bool bRequired)
 {
 	LLM_SCOPE(ELLMTag::Shaders);
 
@@ -2237,9 +2319,22 @@ TRefCountPtr<FRHIShader> FIoStoreShaderCodeArchive::CreateShader(int32 ShaderInd
 	}
 	FGraphEventRef Event = PreloadEntryPtr->PreloadEvent;
 
+	bool bMissedPreLoaded = false;
 	const bool bNeededToWait = Event.IsValid() && !Event->IsComplete();
 	if (bNeededToWait)
 	{
+		if (!bRequired)
+		{
+			PreloadEntryPtr = nullptr;
+			ReleasePreloadEntry(GroupIndex
+#if UE_SCA_DEBUG_PRELOADING
+				, Callsite
+#endif
+			);
+			return Shader;
+		}
+
+		bMissedPreLoaded = true;
 		TRACE_CPUPROFILER_EVENT_SCOPE(BlockingShaderLoad);
 
 		const double TimeStarted = FPlatformTime::Seconds();
@@ -2251,6 +2346,8 @@ TRefCountPtr<FRHIShader> FIoStoreShaderCodeArchive::CreateShader(int32 ShaderInd
 		{
 			UE_LOG(LogShaderLibrary, Warning, TEXT("Spent %.2f ms in a blocking wait for shader preload, NumRefs: %d, FramePreloadStarted: %d, CurrentFrame: %d"), WaitDuration * 1000.0, PreloadEntryPtr->NumRefs, PreloadEntryPtr->FramePreloadStarted, GFrameNumber);
 		}
+		CSV_CUSTOM_STAT(Shaders, PreloadShaderMiss, 1, ECsvCustomStatOp::Accumulate);
+		CSV_CUSTOM_STAT(Shaders, PreloadShaderWaitTime, WaitDuration * 1000.0f, ECsvCustomStatOp::Accumulate);
 	}
 
 	const uint8* ShaderCode = PreloadEntryPtr->IoRequest.GetResultOrDie().Data();
