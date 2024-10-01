@@ -206,8 +206,8 @@ struct FRHIGlobals
 	/** If an RHI is so slow, that it is the limiting factor for the entire frame, we can kick early to try to give it as much as possible. */
 	bool RHIThreadNeedsKicking = false;
 
-	/** If an RHI cannot do an unlimited number of occlusion queries without stalling and waiting for the GPU, this can be used to tune hte occlusion culler to try not to do that. */
-	int32 MaximumReccommendedOustandingOcclusionQueries = MAX_int32;
+	/** The maximum number of in-flight GPU queries the current RHI can handle without stalling and waiting for the GPU. Used to tune the occlusion culler to avoid stalls. */
+	int32 MaximumInFlightQueries = MAX_int32;
 
 	/** Some RHIs can only do visible or not occlusion queries. */
 	bool SupportsExactOcclusionQueries = true;
@@ -733,7 +733,7 @@ extern RHI_API uint32 GGPUFrameTime;
 #define GRHISupportsPipelineStateSortKey                       GRHIGlobals.SupportsPipelineStateSortKey
 #define GSupportsParallelRenderingTasksWithSeparateRHIThread   GRHIGlobals.SupportsParallelRenderingTasksWithSeparateRHIThread
 #define GRHIThreadNeedsKicking                                 GRHIGlobals.RHIThreadNeedsKicking
-#define GRHIMaximumReccommendedOustandingOcclusionQueries      GRHIGlobals.MaximumReccommendedOustandingOcclusionQueries
+#define GRHIMaximumInFlightQueries                             GRHIGlobals.MaximumInFlightQueries
 #define GRHISupportsExactOcclusionQueries                      GRHIGlobals.SupportsExactOcclusionQueries
 #define GSupportsVolumeTextureRendering                        GRHIGlobals.SupportsVolumeTextureRendering
 #define GSupportsSeparateRenderTargetBlendState                GRHIGlobals.SupportsSeparateRenderTargetBlendState

@@ -98,8 +98,6 @@ private:
 	bool				bSameDC;
 };
 
-void DeleteQueriesForCurrentContext(HGLRC Context);
-
 /**
  * A dummy wndproc.
  */
@@ -254,8 +252,6 @@ static void PlatformCreateOpenGLContextCore(FPlatformOpenGLContext* OutContext, 
 
 void PlatformReleaseOpenGLContext(FPlatformOpenGLDevice* Device, FPlatformOpenGLContext* Context);
 
-extern void OnQueryInvalidation(void);
-
 /** Platform specific OpenGL device. */
 struct FPlatformOpenGLDevice
 {
@@ -313,7 +309,6 @@ struct FPlatformOpenGLDevice
 
 		ContextMakeCurrent(NULL, NULL);
 
-		OnQueryInvalidation();
 		PlatformReleaseOpenGLContext(this, &RenderingContext);
 		PlatformReleaseOpenGLContext(this, &SharedContext);
 
@@ -389,7 +384,6 @@ void PlatformReleaseOpenGLContext(FPlatformOpenGLDevice* Device, FPlatformOpenGL
 			bActiveContextWillBeReleased = ScopeContext.ContextWasAlreadyActive();
 			bSharedDC = ScopeContext.ContextsShareSameDC();
 
-			DeleteQueriesForCurrentContext(Context->OpenGLContext);
 			glBindVertexArray(0);
 			glDeleteVertexArrays(1, &Context->VertexArrayObject);
 
@@ -863,97 +857,6 @@ EOpenGLCurrentContext PlatformOpenGLCurrentContext(FPlatformOpenGLDevice* Device
 }
 
 // =============================================================
-
-struct FOpenGLReleasedQuery
-{
-	HGLRC	Context;
-	GLuint	Query;
-};
-
-static TArray<FOpenGLReleasedQuery>	ReleasedQueries;
-static FCriticalSection* ReleasedQueriesGuard;
-
-void PlatformGetNewRenderQuery(GLuint* OutQuery, uint64* OutQueryContext)
-{
-	if (!ReleasedQueriesGuard)
-	{
-		ReleasedQueriesGuard = new FCriticalSection;
-	}
-
-	{
-		FScopeLock Lock(ReleasedQueriesGuard);
-
-#ifdef UE_BUILD_DEBUG
-		check(OutQuery && OutQueryContext);
-#endif
-
-		HGLRC Context = GetCurrentContext();
-		check(Context);
-
-		GLuint NewQuery = 0;
-
-		// Check for possible query reuse
-		const int32 ArraySize = ReleasedQueries.Num();
-		for (int32 Index = 0; Index < ArraySize; ++Index)
-		{
-			if (ReleasedQueries[Index].Context == Context)
-			{
-				NewQuery = ReleasedQueries[Index].Query;
-				ReleasedQueries.RemoveAtSwap(Index);
-				break;
-			}
-		}
-
-		if (!NewQuery)
-		{
-			FOpenGL::GenQueries(1, &NewQuery);
-		}
-
-		*OutQuery = NewQuery;
-		*OutQueryContext = (uint64)Context;
-	}
-}
-
-void PlatformReleaseRenderQuery(GLuint Query, uint64 QueryContext)
-{
-	HGLRC Context = GetCurrentContext();
-	if ((uint64)Context == QueryContext)
-	{
-		FOpenGL::DeleteQueries(1, &Query);
-	}
-	else
-	{
-		FScopeLock Lock(ReleasedQueriesGuard);
-#ifdef UE_BUILD_DEBUG
-		check(Query && QueryContext && ReleasedQueriesGuard);
-#endif
-		FOpenGLReleasedQuery ReleasedQuery;
-		ReleasedQuery.Context = (HGLRC)QueryContext;
-		ReleasedQuery.Query = Query;
-		ReleasedQueries.Add(ReleasedQuery);
-	}
-}
-
-void DeleteQueriesForCurrentContext(HGLRC Context)
-{
-	if (!ReleasedQueriesGuard)
-	{
-		ReleasedQueriesGuard = new FCriticalSection;
-	}
-
-	{
-		FScopeLock Lock(ReleasedQueriesGuard);
-		for (int32 Index = 0; Index < ReleasedQueries.Num(); ++Index)
-		{
-			if (ReleasedQueries[Index].Context == Context)
-			{
-				FOpenGL::DeleteQueries(1, &ReleasedQueries[Index].Query);
-				ReleasedQueries.RemoveAtSwap(Index);
-				--Index;
-			}
-		}
-	}
-}
 
 bool PlatformContextIsCurrent(uint64 QueryContext)
 {

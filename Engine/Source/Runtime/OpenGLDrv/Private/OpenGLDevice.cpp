@@ -87,28 +87,6 @@ static TAutoConsoleVariable<bool> CVarAllowPSOPrecaching(
 	TEXT("false: GL RHI will disable precaching (even if r.PSOPrecaching=1). "),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
-void OnQueryCreation( FOpenGLRenderQuery* Query )
-{
-	check(PrivateOpenGLDevicePtr);
-	PrivateOpenGLDevicePtr->RegisterQuery( Query );
-}
-
-void OnQueryDeletion( FOpenGLRenderQuery* Query )
-{
-	if(PrivateOpenGLDevicePtr)
-	{
-		PrivateOpenGLDevicePtr->UnregisterQuery( Query );
-	}
-}
-
-void OnQueryInvalidation( void )
-{
-	if(PrivateOpenGLDevicePtr)
-	{
-		PrivateOpenGLDevicePtr->InvalidateQueries();
-	}
-}
-
 void OnProgramDeletion( GLint ProgramResource )
 {
 	check(PrivateOpenGLDevicePtr);
@@ -177,9 +155,11 @@ bool IsUniformBufferBound( GLuint Buffer )
 
 extern void BeginFrame_UniformBufferPoolCleanup();
 extern void BeginFrame_VertexBufferCleanup();
-extern void BeginFrame_QueryBatchCleanup();
-extern void OpenGL_PollAllFences();
 
+EOpenGLCurrentContext FOpenGLDynamicRHI::GetCurrentContext()
+{
+	return PlatformOpenGLCurrentContext(FOpenGLDynamicRHI::Get().PlatformDevice);
+}
 
 FOpenGLContextState& FOpenGLDynamicRHI::GetContextStateForCurrentContext()
 {
@@ -223,8 +203,6 @@ void FOpenGLDynamicRHI::RHIEndFrame(const FRHIEndFrameArgs& Args)
 	GPUProfilingData->EndFrame();
 #endif
 
-	OpenGL_PollAllFences();
-
 	extern void OpenGLCommands_OnEndFrame();
 	OpenGLCommands_OnEndFrame();
 
@@ -234,7 +212,6 @@ void FOpenGLDynamicRHI::RHIEndFrame(const FRHIEndFrameArgs& Args)
 
 	BeginFrame_UniformBufferPoolCleanup();
 	BeginFrame_VertexBufferCleanup();
-	BeginFrame_QueryBatchCleanup();
 
 #if (RHI_NEW_GPU_PROFILER == 0)
 	GPUProfilingData->BeginFrame();
@@ -860,6 +837,8 @@ static void InitRHICapabilitiesForGL()
 	GMaxRHIFeatureLevel = ERHIFeatureLevel::ES3_1;
 	GMaxRHIShaderPlatform = FOpenGL::GetShaderPlatform();
 
+	GRHIMaximumInFlightQueries = 4000;
+
 	// Log all supported extensions.
 #if PLATFORM_WINDOWS
 	bool bWindowsSwapControlExtensionPresent = false;
@@ -1476,6 +1455,8 @@ void FOpenGLDynamicRHI::Shutdown()
 
 	Cleanup();
 
+	FOpenGLRenderQuery::Cleanup();
+
 	DestroyShadersAndPrograms();
 	PlatformDestroyOpenGLDevice(PlatformDevice);
 
@@ -1547,18 +1528,6 @@ void FOpenGLDynamicRHI::RHIReleaseThreadOwnership()
 	CachedContextState = nullptr;
 }
 
-void FOpenGLDynamicRHI::RegisterQuery( FOpenGLRenderQuery* Query )
-{
-	FScopeLock Lock(&QueriesListCriticalSection);
-	Queries.Add(Query);
-}
-
-void FOpenGLDynamicRHI::UnregisterQuery( FOpenGLRenderQuery* Query )
-{
-	FScopeLock Lock(&QueriesListCriticalSection);
-	Queries.RemoveSingleSwap(Query);
-}
-
 void* FOpenGLDynamicRHI::RHIGetNativeDevice()
 {
 	return PlatformDevice;
@@ -1567,18 +1536,6 @@ void* FOpenGLDynamicRHI::RHIGetNativeDevice()
 void* FOpenGLDynamicRHI::RHIGetNativeInstance()
 {
 	return nullptr;
-}
-
-void FOpenGLDynamicRHI::InvalidateQueries( void )
-{
-	{
-		FScopeLock Lock(&QueriesListCriticalSection);
-		PendingState.RunningOcclusionQuery = 0;
-		for( int32 Index = 0; Index < Queries.Num(); ++Index )
-		{
-			Queries[Index]->bInvalidResource = true;
-		}
-	}
 }
 
 void FOpenGLDynamicRHI::SetCustomPresent(FRHICustomPresent* InCustomPresent)

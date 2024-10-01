@@ -159,7 +159,7 @@ public:
 	static FORCEINLINE void QueryTimestampCounter(GLuint QueryID) UGL_OPTIONAL_VOID
 	static FORCEINLINE void BeginQuery(GLenum QueryType, GLuint QueryId) UGL_OPTIONAL_VOID
 	static FORCEINLINE void EndQuery(GLenum QueryType) UGL_OPTIONAL_VOID
-	static FORCEINLINE void GetQueryObject(GLuint QueryId, EQueryMode QueryMode, uint64 *OutResult) UGL_OPTIONAL_VOID
+	static FORCEINLINE void GetQueryObject(GLuint QueryId, EQueryMode QueryMode, GLuint64 *OutResult) UGL_OPTIONAL_VOID
 	static FORCEINLINE void BindFragDataLocation(GLuint Program, GLuint Color, const GLchar *Name) UGL_OPTIONAL_VOID
 	static FORCEINLINE void ReadBuffer(GLenum Mode) UGL_OPTIONAL_VOID
 	static FORCEINLINE void DrawBuffer(GLenum Mode) UGL_OPTIONAL_VOID

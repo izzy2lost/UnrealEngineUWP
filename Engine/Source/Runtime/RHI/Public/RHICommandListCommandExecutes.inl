@@ -476,12 +476,6 @@ void FRHICommandPostExternalCommandsReset::Execute(FRHICommandListBase& CmdList)
 	INTERNAL_DECORATOR(RHIPostExternalCommandsReset)();
 }
 
-void FRHICommandPollOcclusionQueries::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(PollOcclusionQueries);
-	INTERNAL_DECORATOR(RHIPollOcclusionQueries)();
-}
-
 void FRHICommandCopyBufferRegion::Execute(FRHICommandListBase& CmdList)
 {
 	INTERNAL_DECORATOR(RHICopyBufferRegion)(DestBuffer, DstOffset, SourceBuffer, SrcOffset, NumBytes);

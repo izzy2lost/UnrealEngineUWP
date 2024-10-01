@@ -13,27 +13,7 @@
 
 struct FAndroidOpenGL : public FOpenGLES
 {
-	static FORCEINLINE bool HasHardwareHiddenSurfaceRemoval() { return bHasHardwareHiddenSurfaceRemoval; };
-
-	// Optional:
-	static void QueryTimestampCounter(GLuint QueryID) 
-	{
-	};
-
-	static GLuint MakeVirtualQueryReal(GLuint QueryID);
-
-	static FORCEINLINE void GenQueries(GLsizei NumQueries, GLuint* QueryIDs)
-	{
-		*(char*)3 = 0; // this is virtualized and should not be called
-	}
-
-	static void GetQueryObject(GLuint QueryId, EQueryMode QueryMode, GLuint *OutResult);
-
-	static void GetQueryObject(GLuint QueryId, EQueryMode QueryMode, GLuint64* OutResult);
-
-	static void BeginQuery(GLenum QueryType, GLuint QueryId);
-
-	static void EndQuery(GLenum QueryType);
+	static FORCEINLINE bool HasHardwareHiddenSurfaceRemoval() { return bHasHardwareHiddenSurfaceRemoval; }
 
 	static bool SupportsFramebufferSRGBEnable();
 

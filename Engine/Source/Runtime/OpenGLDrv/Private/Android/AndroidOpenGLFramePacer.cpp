@@ -422,8 +422,6 @@ bool FAndroidOpenGLFramePacer::SwapBuffers(bool bLockToVsync)
 						{
 							break;
 						}
-
-						GetDynamicRHI<FOpenGLDynamicRHI>()->RHIPollOcclusionQueries();
 					}
 				}
 			}

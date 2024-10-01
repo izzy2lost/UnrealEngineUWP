@@ -2663,7 +2663,7 @@ bool FGPUOcclusionPacket::OcclusionCullPrimitive(VisitorType& Visitor, FOcclusio
 					}
 					else
 					{
-						if (OcclusionState.NumBufferedFrames > 1 || GRHIMaximumReccommendedOustandingOcclusionQueries < MAX_int32)
+						if (OcclusionState.NumBufferedFrames > 1 || GRHIMaximumInFlightQueries < MAX_int32)
 						{
 							// If there's no occlusion query for the primitive, assume it is whatever it was last frame
 							bIsOccluded = PrimitiveOcclusionHistory->WasOccludedLastFrame;
@@ -2798,7 +2798,7 @@ bool FGPUOcclusionPacket::OcclusionCullPrimitive(VisitorType& Visitor, FOcclusio
 						const FVector BoundOrigin = OcclusionBounds.Origin + View.ViewMatrices.GetPreViewTranslation();
 						const FVector BoundExtent = OcclusionBounds.BoxExtent;
 
-						if (GRHIMaximumReccommendedOustandingOcclusionQueries < MAX_int32 && !bGroupedQuery)
+						if (GRHIMaximumInFlightQueries < MAX_int32 && !bGroupedQuery)
 						{
 							Visitor.AddThrottledOcclusionQuery(FThrottledOcclusionQuery(FPrimitiveOcclusionHistoryKey(PrimitiveId, SubQuery), BoundOrigin, BoundExtent, PrimitiveOcclusionHistory->LastQuerySubmitFrame()));
 						}
@@ -2918,7 +2918,7 @@ void FGPUOcclusionPacket::FProcessVisitor::SubmitThrottledOcclusionQueries()
 
 	const int32 NumRequestedThrottledQueries = SortedQueries.Num();
 	const int32 NumUsedQueries = Packet.View.GroupedOcclusionQueries.GetNumBatchOcclusionQueries();
-	const int32 ThrottleThreshold = GRHIMaximumReccommendedOustandingOcclusionQueries / FMath::Min(Packet.OcclusionState.NumBufferedFrames, 2); // extra RHIT frame does not count
+	const int32 ThrottleThreshold = GRHIMaximumInFlightQueries / FMath::Min(Packet.OcclusionState.NumBufferedFrames, 2); // extra RHIT frame does not count
 
 	int32 NumThrottledQueries = NumRequestedThrottledQueries;
 

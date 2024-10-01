@@ -1056,12 +1056,6 @@ void FOpenGLDynamicRHI::RHIBeginRenderPass(const FRHIRenderPassInfo& InInfo, con
 
 	RenderPassInfo = InInfo;
 
-	if (InInfo.NumOcclusionQueries > 0)
-	{
-		extern void BeginOcclusionQueryBatch(uint32);
-		BeginOcclusionQueryBatch(InInfo.NumOcclusionQueries);
-	}
-
 #if PLATFORM_ANDROID
 	if (RenderPassInfo.SubpassHint == ESubpassHint::DeferredShadingSubpass &&
 		 FOpenGL::SupportsPixelLocalStorage() && FOpenGL::SupportsShaderDepthStencilFetch())
@@ -1085,12 +1079,6 @@ void FOpenGLDynamicRHI::RHIBeginRenderPass(const FRHIRenderPassInfo& InInfo, con
 
 void FOpenGLDynamicRHI::RHIEndRenderPass()
 {
-	if (RenderPassInfo.NumOcclusionQueries > 0)
-	{
-		extern void EndOcclusionQueryBatch();
-		EndOcclusionQueryBatch();
-	}
-
 	// End GL_EXT_multisampled_render_to_texture
 	PendingState.NumRenderingSamples = 1;
 
