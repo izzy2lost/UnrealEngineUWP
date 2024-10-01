@@ -35,6 +35,14 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (ShowOnlyInnerProperties, PCG_Overridable))
 	FPCGAssetExporterParameters ExportParams;
 
+	/**
+	 * This option has higher priority than CopyMeshToAssetOptions.ReplaceMaterials.
+	 * If true, we will replace the materials from the materials stored on the PCG Dynamic Mesh data.
+	 * Otherwise, we will follow what is set in CopyMeshToAssetOptions.
+	 */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	bool bExportMaterialsFromDynamicMesh = true;
+
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	FGeometryScriptCopyMeshToAssetOptions CopyMeshToAssetOptions;
 	
