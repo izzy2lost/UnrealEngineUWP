@@ -21,7 +21,9 @@ UDynamicMaterialModelDynamic* UDynamicMaterialModelDynamic::Create(UObject* InOu
 {
 	check(InParentModel);
 
-	UDynamicMaterialModelDynamic* NewModelDynamic = NewObject<UDynamicMaterialModelDynamic>(InOuter, TEXT("MaterialDesignerModelInstance"), RF_Transactional);
+	const FName ModelName = MakeUniqueObjectName(InOuter, UDynamicMaterialModelDynamic::StaticClass(), TEXT("MaterialDesignerModelInstance"));
+
+	UDynamicMaterialModelDynamic* NewModelDynamic = NewObject<UDynamicMaterialModelDynamic>(InOuter, ModelName, RF_Transactional);
 	NewModelDynamic->ParentModelSoft = InParentModel;
 	NewModelDynamic->ParentModel = InParentModel;
 	NewModelDynamic->InitComponents();
