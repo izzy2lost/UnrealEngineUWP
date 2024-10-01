@@ -63,7 +63,7 @@ BEGIN
             VALUE "LegalCopyright",   EPIC_COPYRIGHT_STRING
             VALUE "ProductName",      EPIC_PRODUCT_NAME
             VALUE "ProductVersion",   VER_PRODUCTVERSION_STR
-            VALUE "FileDescription",  "LiveLink Hub"
+            VALUE "FileDescription",  "Live Link Hub"
             VALUE "FileVersion",      VER_FILEVERSION_STR
             VALUE "InternalName",     "LiveLinkHub"
             VALUE "OriginalFilename", "LiveLinkHub.exe"
