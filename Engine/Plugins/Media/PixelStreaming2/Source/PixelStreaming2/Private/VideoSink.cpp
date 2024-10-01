@@ -108,7 +108,7 @@ namespace UE::PixelStreaming2
 					FrameBuffer->GetWidth(), FrameBuffer->GetHeight());
 			}
 
-			AsyncTask(ENamedThreads::ActualRenderingThread, [Width, Height, this]() {
+			AsyncTask(ENamedThreads::GetRenderThread(), [Width, Height, this]() {
 				FScopeLock Lock(&RenderSyncContext);
 
 				const FIntPoint			  FrameSize = FIntPoint(Width, Height);

@@ -161,11 +161,6 @@ TSharedPtr<FVideoResourceRHI> FVideoResourceRHI::Create(TSharedPtr<FAVDevice> co
 			TextureDesc.AddFlags(ETextureCreateFlags::Shared);
 		}
 
-		if(bIsSRGB)
-		{
-			TextureDesc.AddFlags(ETextureCreateFlags::SRGB);
-		}
-
 		TextureDesc.AddFlags(AdditionalFlags);
         
         if (Descriptor.BulkData)
@@ -201,13 +196,37 @@ TSharedPtr<FVideoResourceRHI> FVideoResourceRHI::Create(TSharedPtr<FAVDevice> co
         case EVideoFormat::BGRA:
 			TextureDesc.Format = EPixelFormat::PF_B8G8R8A8;
 			Descriptor.RawDescriptor = new FVideoDescriptor(EVideoFormat::BGRA, TextureDesc.Extent.X, TextureDesc.Extent.Y);
+			// Only BGRA can be directly displayed and could need sRGB adjustment, setting this for all formats triggers a check		
+			// in VulkanRHI
+			if (bIsSRGB)
+			{
+				TextureDesc.AddFlags(ETextureCreateFlags::SRGB);
+			}
 			break;
 		default:
 			break;
 		}
 
-//TODO-TE THIS IS THE REAL DEAL?
-		return MakeShareable(new FVideoResourceRHI(Device.ToSharedRef(), { GDynamicRHI->RHICreateTexture(FRHICommandListExecutor::GetImmediateCommandList(), TextureDesc), nullptr, 0 }, Descriptor));
+		// We have to add a fence here as VulkanRHI adds a fill to the command buffer that might not be dispatched until
+		// after a external decoder API has already copied to the texture. If we had access to Signal Semaphores they could
+		// instead be shared to the other APIs instead.
+		FGPUFenceRHIRef Fence = GDynamicRHI->RHICreateGPUFence("CreateVideoResourceRHI");
+		
+		// There seems to be an intermitant bug with VulkanRHI that results in crahes if we dont enque the allocation 
+		// of this texture
+		FTextureRHIRef Texture;
+		ENQUEUE_RENDER_COMMAND(CreateTexture)
+			([&Texture, TextureDesc, Fence](FRHICommandListImmediate& RHICmdList) {
+				Texture = GDynamicRHI->RHICreateTexture(RHICmdList, TextureDesc);
+				RHICmdList.WriteGPUFence(Fence);
+				});
+
+		while (!Fence->Poll()) {
+			constexpr float SleepTimeSeconds = 50 * 1E-6;
+			FPlatformProcess::SleepNoStats(SleepTimeSeconds);
+		}
+
+		return MakeShareable(new FVideoResourceRHI(Device.ToSharedRef(), { Texture, nullptr, 0 }, Descriptor));
 	}
 
 	return nullptr;

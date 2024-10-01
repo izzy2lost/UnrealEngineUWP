@@ -111,7 +111,7 @@ FTextureResource* UPixelStreaming2MediaTexture::CreateResource()
 
 void UPixelStreaming2MediaTexture::ConsumeFrame(FTextureRHIRef Frame)
 {
-	AsyncTask(ENamedThreads::ActualRenderingThread, [this, Frame]() {
+	AsyncTask(ENamedThreads::GetRenderThread(), [this, Frame]() {
 		FScopeLock Lock(&RenderSyncContext);
 
 		FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
