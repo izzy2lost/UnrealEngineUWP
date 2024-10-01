@@ -881,7 +881,7 @@ namespace UnrealGameSync
 						try
 						{
 							DirectoryInfo localRootInfo = project.LocalRootPath.ToDirectoryInfo();
-							DriveInfo drive = new DriveInfo(localRootInfo.Root.FullName);
+							DriveInfo drive = new DriveInfo(localRootInfo.FullName);
 
 							if (drive.AvailableFreeSpace < requiredFreeSpace)
 							{

@@ -22,6 +22,7 @@ using EpicGames.Perforce;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
+using UnrealGameSync.Forms;
 
 namespace UnrealGameSync
 {
@@ -3776,6 +3777,7 @@ namespace UnrealGameSync
 				if (_workspace.CurrentChangeNumber != -1)
 				{
 					programsLine.AddLink("Unreal Editor", FontStyle.Regular, () => { LaunchEditor(); });
+					programsLine.AddLink(" \u25BE", FontStyle.Regular, () => { ModifyEditorArguments(); });
 					programsLine.AddText("  |  ");
 				}
 
@@ -4249,41 +4251,61 @@ namespace UnrealGameSync
 				}
 				else
 				{
-					for (int idx = 0; idx < 2; idx++)
+					// check if there is any file opened in the current stream
+					List<string> openedFiles = new List<string>();
+
+					async Task<bool> GetOpenedFiles(IPerforceConnection perforce, CancellationToken cancellationToken)
 					{
-						async Task<bool> SwitchFunc(IPerforceConnection perforce, CancellationToken cancellationToken)
+						await foreach (OpenedRecord record in perforce.OpenedAsync(OpenedOptions.None, FileSpecList.Any, cancellationToken))
 						{
-							if (idx == 1 || !await perforce.OpenedAsync(OpenedOptions.None, FileSpecList.Any, cancellationToken).AnyAsync(cancellationToken))
-							{
-								await perforce.SwitchClientToStreamAsync(newStreamName, SwitchClientOptions.IgnoreOpenFiles, cancellationToken);
-								return true;
-							}
-							return false;
+							openedFiles.Add(record.DepotFile);
 						}
 
-						ModalTask<bool>? switchTask = PerforceModalTask.Execute<bool>(this, "Switching streams", "Please wait...", _perforceSettings, SwitchFunc, _logger);
-						if (switchTask == null || !switchTask.Succeeded)
-						{
-							break;
-						}
-						if (switchTask.Result)
-						{
-							StatusPanel.SuspendLayout();
-							StreamChanged();
+						return openedFiles.Any();
+					}
 
-							// Reset the last code change we found when switching streams
-							_workspace.ModifyState(x =>
-							{
-								x.CurrentCodeChangeNumber = -1;
-							});
+					ModalTask<bool>? openedFilesTask = PerforceModalTask.Execute<bool>(this, "Checking for opened files", "Please wait...", _perforceSettings, GetOpenedFiles, _logger);
 
-							StatusPanel.ResumeLayout();
-							break;
-						}
-						if (MessageBox.Show("You have files open for edit in this workspace. If you continue, you will not be able to submit them until you switch back.\n\nContinue switching streams?", "Files checked out", MessageBoxButtons.YesNo) != DialogResult.Yes)
+					if (openedFilesTask == null || !openedFilesTask.Succeeded)
+					{
+						return;
+					}
+					if (openedFilesTask.Result)
+					{
+#pragma warning disable CA2000 // Dispose objects before losing scope
+						SwitchStreamWarningWindow switchStreamWarningWindow = new SwitchStreamWarningWindow(openedFiles);
+						switchStreamWarningWindow.FormBorderStyle = FormBorderStyle.FixedDialog;
+						if (switchStreamWarningWindow.ShowDialog() == DialogResult.Cancel)
 						{
-							break;
+							return;
 						}
+#pragma warning restore CA2000 // Dispose objects before losing scope
+					}
+
+					// switch to the new stream
+					async Task<bool> SwitchFunc(IPerforceConnection perforce, CancellationToken cancellationToken)
+					{
+						await perforce.SwitchClientToStreamAsync(newStreamName, SwitchClientOptions.IgnoreOpenFiles, cancellationToken);
+						return true;
+					}
+
+					ModalTask<bool>? switchTask = PerforceModalTask.Execute<bool>(this, "Switching streams", "Please wait...", _perforceSettings, SwitchFunc, _logger);
+					if (switchTask == null || !switchTask.Succeeded)
+					{
+						return;
+					}
+					if (switchTask.Result)
+					{
+						StatusPanel.SuspendLayout();
+						StreamChanged();
+
+						// Reset the last code change we found when switching streams
+						_workspace.ModifyState(x =>
+						{
+							x.CurrentCodeChangeNumber = -1;
+						});
+
+						StatusPanel.ResumeLayout();
 					}
 				}
 			}

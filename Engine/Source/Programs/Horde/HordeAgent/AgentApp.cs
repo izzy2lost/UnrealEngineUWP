@@ -261,7 +261,10 @@ namespace HordeAgent
 			IConfigurationBuilder builder = new ConfigurationBuilder();
 			if (readInstalledConfig && OperatingSystem.IsWindows())
 			{
-				builder = builder.Add(new RegistryConfigurationSource(Registry.LocalMachine, "SOFTWARE\\Epic Games\\Horde\\Agent", AgentSettings.SectionName));
+				static bool IncludeRegistrySetting(string name)
+					=> !String.Equals(name, $"{AgentSettings.SectionName}:Installed", StringComparison.OrdinalIgnoreCase);
+
+				builder = builder.Add(new RegistryConfigurationSource(Registry.LocalMachine, "SOFTWARE\\Epic Games\\Horde\\Agent", AgentSettings.SectionName, IncludeRegistrySetting));
 			}
 			
 			string basePath = AppDir.FullName;

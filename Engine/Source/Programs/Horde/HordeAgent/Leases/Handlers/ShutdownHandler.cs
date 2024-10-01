@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Logs;
 using HordeAgent.Services;
 using HordeAgent.Utility;
 using HordeCommon.Rpc.Messages;
@@ -17,11 +18,12 @@ namespace HordeAgent.Leases.Handlers
 		{ }
 
 		/// <inheritdoc/>
-		protected override Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, ShutdownTask task, Tracer tracer, ILogger logger, CancellationToken cancellationToken)
+		protected override async Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, ShutdownTask task, Tracer tracer, ILogger logger, CancellationToken cancellationToken)
 		{
-			logger.LogInformation("Scheduling shutdown task for agent {AgentId}", session.AgentId);
+			await using IServerLogger serverLogger = session.HordeClient.CreateServerLogger(LogId.Parse(task.LogId)).WithLocalLogger(logger);
+			serverLogger.LogInformation("Scheduling shutdown task for agent {AgentId} when agent shuts down.", session.AgentId);
 			SessionResult result = new SessionResult((logger, ctx) => Shutdown.ExecuteAsync(false, logger, ctx));
-			return Task.FromResult(new LeaseResult(result));
+			return new LeaseResult(result);
 		}
 	}
 
