@@ -106,6 +106,11 @@ public:
 		return bNeedMegaLightsProjection;
 	}
 
+	bool AreAnyLocalLightsPreset() const
+	{
+		return LocalLights.Num() > 0;
+	}
+
 	UE::Renderer::Private::IShadowInvalidatingInstances *GetInvalidatingInstancesInterface(const FSceneView *SceneView);
 
 private:

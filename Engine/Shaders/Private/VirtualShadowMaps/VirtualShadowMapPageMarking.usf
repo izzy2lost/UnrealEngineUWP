@@ -141,7 +141,8 @@ void MarkPageClipmap(
 	}
 }
 
-// 
+uint MinLocalLightIndex;
+uint MaxLocalLightIndex;
 RWStructuredBuffer<uint> OutPrunedLightGridData;
 RWStructuredBuffer<uint> OutPrunedNumCulledLightsGrid;
 
@@ -161,9 +162,11 @@ void PruneLightGridCS(uint GridLinearIndex : SV_DispatchThreadID)
 	uint FirstLightWithVSM = CulledLightGridHeader.NumLights;
 	uint LastLightWithVSM = 0U;
 
+	uint MaxIndex = min(MaxLocalLightIndex, CulledLightGridHeader.NumLights);
+
 	// First pass add the non-distant lights with VSMs
 	LOOP
-	for (uint Index = 0; Index < CulledLightGridHeader.NumLights; ++Index)
+	for (uint Index = MinLocalLightIndex; Index < MaxIndex; ++Index)
 	{
 		int VirtualShadowMapId = GetLocalLightData(CulledLightGridHeader.DataStartIndex + Index, EyeIndex).VirtualShadowMapId;
 		if (VirtualShadowMapId != INDEX_NONE)

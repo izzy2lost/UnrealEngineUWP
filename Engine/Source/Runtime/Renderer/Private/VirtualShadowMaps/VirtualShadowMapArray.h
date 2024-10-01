@@ -325,7 +325,8 @@ public:
 		const TConstArrayView<FVisibleLightInfo>& VisibleLightInfos,
 		const FSingleLayerWaterPrePassResult* SingleLayerWaterPrePassResult,
 		const FFrontLayerTranslucencyData& FrontLayerTranslucencyData,
-		const Froxel::FRenderer& FroxelRenderer);
+		const Froxel::FRenderer& FroxelRenderer,
+		bool bAnyLocalLightsWithVSMs);
 
 	bool IsAllocated() const
 	{
