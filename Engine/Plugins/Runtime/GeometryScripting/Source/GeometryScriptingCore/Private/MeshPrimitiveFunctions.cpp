@@ -1491,16 +1491,16 @@ UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendVoronoiDiagra
 		return TargetMesh;
 	}
 
-	if (VoronoiSites.Num() < 3)
+	if (VoronoiSites.Num() < 1)
 	{
-		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("PrimitiveFunctions_AppendVoronoiDiagram2D_TooFewSites", "AppendVoronoiDiagram2D: VoronoiSites array requires at least 3 positions"));
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("PrimitiveFunctions_AppendVoronoiDiagram2D_TooFewSites", "AppendVoronoiDiagram2D: VoronoiSites array requires at least 1 position"));
 		return TargetMesh;
 	}
 
 	UE::Geometry::FDelaunay2 Delaunay;
-	bool bTriSuccess = Delaunay.Triangulate(VoronoiSites);
+	Delaunay.Triangulate(VoronoiSites);
 
-	if (!bTriSuccess)
+	if (!Delaunay.CanComputeVoronoiCells())
 	{
 		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::OperationFailed, LOCTEXT("PrimitiveFunctions_AppendVoronoiDiagram2D_GenFailed", "AppendVoronoiDiagram2D: Voronoi diagram generation failed"));
 		return TargetMesh;
