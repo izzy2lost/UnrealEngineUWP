@@ -1056,7 +1056,7 @@ struct FNDIRigidMeshCollisionProxy : public FNiagaraDataInterfaceProxy
 	}
 
 	/** Launch all pre stage functions */
-	virtual void PreStage(const FNDIGpuComputePostStageContext& Context) override
+	virtual void PreStage(const FNDIGpuComputePreStageContext& Context) override
 	{
 		using namespace NDIRigidMeshCollisionLocal;
 

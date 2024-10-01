@@ -544,7 +544,7 @@ void FNDIPhysicsAssetProxy::DestroyPerInstanceData(const FNiagaraSystemInstanceI
 	SystemInstancesToProxyData.Remove(SystemInstance);
 }
 
-void FNDIPhysicsAssetProxy::PreStage(const FNDIGpuComputePostStageContext& Context)
+void FNDIPhysicsAssetProxy::PreStage(const FNDIGpuComputePreStageContext& Context)
 {
 	using namespace NDIPhysicsAssetLocal;
 
