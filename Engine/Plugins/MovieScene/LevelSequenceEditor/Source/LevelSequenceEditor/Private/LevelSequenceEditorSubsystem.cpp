@@ -83,6 +83,7 @@
 #include "AssetToolsModule.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Kismet2/BlueprintEditorUtils.h"
+#include "MovieSceneSequencePlayer.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LevelSequenceEditorSubsystem)
 
@@ -225,11 +226,12 @@ TSharedRef<SWidget> FMovieSceneBindingPropertyInfoListCustomization::GenerateBin
 		{
 			Bindings.Add({ BindingGuid, BindingIndex });
 		}
-		LevelSequenceEditorSubsystem->AddChangeBindingTypeMenu(MenuBuilder, Sequencer, Bindings, false, [this, &DetailBuilder]()
+		LevelSequenceEditorSubsystem->AddChangeBindingTypeMenu(MenuBuilder, Sequencer, Bindings, false, [this, Sequencer, &DetailBuilder]()
 			{
 				if (IDetailsView* DetailsView = DetailBuilder.GetDetailsView())
 				{
 					LevelSequenceEditorSubsystem->RefreshBindingDetails(DetailsView, BindingGuid);
+					LevelSequenceEditorSubsystem->OnFinishedChangingLocators(FPropertyChangedEvent(nullptr), StaticCastSharedRef<IDetailsView>(DetailsView->AsShared()), BindingGuid);
 				}
 			});
 	}
