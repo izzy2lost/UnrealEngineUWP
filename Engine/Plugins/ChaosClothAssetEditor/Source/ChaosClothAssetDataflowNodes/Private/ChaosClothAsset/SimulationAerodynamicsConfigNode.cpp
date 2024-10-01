@@ -38,7 +38,11 @@ void FChaosClothAssetSimulationAerodynamicsConfigNode::AddProperties(FPropertyHe
 
 	if (bEnableOuterDrag)
 	{
-		PropertyHelper.SetPropertyWeighted(this, &OuterDrag);
+		PropertyHelper.SetSolverPropertyWeighted(FName(TEXT("OuterDrag")), OuterDrag, [](
+			const UE::Chaos::ClothAsset::FCollectionClothFacade& ClothFacade)-> float
+			{
+				return ClothFacade.GetSolverAirDamping();
+			}, {});
 	}
 
 	PropertyHelper.SetSolverPropertyWeighted(FName(TEXT("Lift")), Lift, [](
@@ -49,6 +53,10 @@ void FChaosClothAssetSimulationAerodynamicsConfigNode::AddProperties(FPropertyHe
 
 	if (bEnableOuterLift)
 	{
-		PropertyHelper.SetPropertyWeighted(this, &OuterLift);
+		PropertyHelper.SetSolverPropertyWeighted(FName(TEXT("OuterLift")), OuterLift, [](
+			const UE::Chaos::ClothAsset::FCollectionClothFacade& ClothFacade)-> float
+			{
+				return ClothFacade.GetSolverAirDamping();
+			}, {});
 	}
 }
