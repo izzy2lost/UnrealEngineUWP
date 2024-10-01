@@ -376,6 +376,9 @@ extern FName LLMGetTagStat(ELLMTag Tag);
 #define LLM_PLATFORM_SCOPE_BYNAME(Tag) 								static FName PREPROCESSOR_JOIN(LLMScope_Name,__LINE__)(Tag);\
 																	FLLMScope SCOPE_NAME(PREPROCESSOR_JOIN(LLMScope_Name,__LINE__), false /* bIsStatTag */, ELLMTagSet::None, ELLMTracker::Platform);
 #define LLM_PLATFORM_SCOPE_BYTAG(TagDeclName)						FLLMScope SCOPE_NAME(PREPROCESSOR_JOIN(LLMTagDeclaration_, TagDeclName).GetUniqueName(), false /* bIsStatTag */, ELLMTagSet::None, ELLMTracker::Platform);
+#define LLM_SCOPE_CLEAR()											FLLMClearScope SCOPE_NAME(ELLMTagSet::None, ELLMTracker::Default);\
+																	UE_MEMSCOPE(0)
+#define LLM_TAGSET_SCOPE_CLEAR(TagSet)								FLLMClearScope SCOPE_NAME(TagSet, ELLMTracker::Default);
 
  /**
  * LLM Pause scope macros
@@ -1037,6 +1040,13 @@ protected:
 	bool bEnabled;
 };
 
+/** LLM Scope to clear top tag while in scope */
+class FLLMClearScope : public FLLMScope
+{
+public:
+	CORE_API FLLMClearScope(ELLMTagSet InTagSet, ELLMTracker InTracker);
+};
+
 /** LLM scope for inheriting tag from the given address. */
 class FLLMScopeFromPtr
 {
@@ -1113,6 +1123,8 @@ inline bool FLowLevelMemTracker::IsEnabled()
 #define LLM_PLATFORM_SCOPE(...)
 #define LLM_PLATFORM_SCOPE_BYNAME(...)
 #define LLM_PLATFORM_SCOPE_BYTAG(...)
+#define LLM_SCOPE_CLEAR()
+#define LLM_TAGSET_SCOPE_CLEAR(...)
 #define LLM_REALLOC_SCOPE(...)
 #define LLM_REALLOC_PLATFORM_SCOPE(...)
 #define LLM_SCOPED_PAUSE_TRACKING(...)
