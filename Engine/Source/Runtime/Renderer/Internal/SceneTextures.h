@@ -14,7 +14,7 @@ class FViewInfo;
 class FViewFamilyInfo;
 
 /** Initializes a scene textures config instance from the view family. */
-extern RENDERER_API void InitializeSceneTexturesConfig(FSceneTexturesConfig& Config, const FSceneViewFamily& ViewFamily);
+extern RENDERER_API void InitializeSceneTexturesConfig(FSceneTexturesConfig& Config, const FSceneViewFamily& ViewFamily, FIntPoint ExtentOverride = FIntPoint(0,0));
 
 struct FTransientUserSceneTexture
 {

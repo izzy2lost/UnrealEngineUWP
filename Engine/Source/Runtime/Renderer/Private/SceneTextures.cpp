@@ -372,9 +372,23 @@ void ResetSceneTextureExtentHistory()
 
 ENUM_CLASS_FLAGS(FSceneTextureExtentState::ERenderTargetHistory);
 
-void InitializeSceneTexturesConfig(FSceneTexturesConfig& Config, const FSceneViewFamily& ViewFamily)
+void InitializeSceneTexturesConfig(FSceneTexturesConfig& Config, const FSceneViewFamily& ViewFamily, FIntPoint ExtentOverride)
 {
-	FIntPoint Extent = FSceneTextureExtentState::Get().Compute(ViewFamily);
+	FIntPoint Extent;
+	if (ExtentOverride.X > 0)
+	{
+#if DO_CHECK
+		for (const FSceneView* View : ViewFamily.Views)
+		{
+			check(View->UnscaledViewRect.Max.X <= ExtentOverride.X && View->UnscaledViewRect.Max.Y <= ExtentOverride.Y);
+		}
+#endif
+		Extent = ExtentOverride;
+	}
+	else
+	{
+		Extent = FSceneTextureExtentState::Get().Compute(ViewFamily);
+	}
 	EShadingPath ShadingPath = GetFeatureLevelShadingPath(ViewFamily.GetFeatureLevel());
 
 	bool bRequiresAlphaChannel = ShadingPath == EShadingPath::Mobile ? IsMobilePropagateAlphaEnabled(ViewFamily.GetShaderPlatform()) : IsPostProcessingWithAlphaChannelSupported();

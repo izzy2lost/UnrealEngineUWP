@@ -330,10 +330,10 @@ void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPas
 			View.MaterialMaxEmissiveValue = GetEmissiveMaxValueForPixelFormat(RenderContext.GetRenderTarget()->Desc.Format);
 		}
 
-		// Default init of SceneTexturesConfig will take extents from FSceneTextureExtentState.
-		// We want the view extents, so explicitly set that.
-		InitializeSceneTexturesConfig(ViewFamily->SceneTexturesConfig, *ViewFamily);
-		ViewFamily->SceneTexturesConfig.Extent = View.ViewRect.Size();
+		// Default init of SceneTexturesConfig will take extents from FSceneTextureExtentState.  We want the view extents, so explicitly
+		// set that.  This will bypass scene texture extent caching logic, but this code path doesn't allocate scene textures (it renders
+		// directly to RenderContext.GetRenderTarget()), so caching is irrelevant for purposes of avoiding render target pool thrashing.
+		InitializeSceneTexturesConfig(ViewFamily->SceneTexturesConfig, *ViewFamily, View.ViewRect.Size());
 
 		const auto FeatureLevel = View.GetFeatureLevel();
 		const EShadingPath ShadingPath = GetFeatureLevelShadingPath(FeatureLevel);
