@@ -159,6 +159,7 @@ void URuntimePartitionLHGrid::InitHLODRuntimePartitionFrom(const URuntimePartiti
 	const URuntimePartitionLHGrid* RuntimePartitionLHGrid = CastChecked<const URuntimePartitionLHGrid>(InRuntimePartition);
 	CellSize = RuntimePartitionLHGrid->CellSize * 2;
 	bIs2D = RuntimePartitionLHGrid->bIs2D;
+	Origin = RuntimePartitionLHGrid->Origin;
 }
 
 void URuntimePartitionLHGrid::UpdateHLODRuntimePartitionFrom(const URuntimePartition* InRuntimePartition)
@@ -166,6 +167,7 @@ void URuntimePartitionLHGrid::UpdateHLODRuntimePartitionFrom(const URuntimeParti
 	Super::UpdateHLODRuntimePartitionFrom(InRuntimePartition);
 	const URuntimePartitionLHGrid* RuntimePartitionLHGrid = CastChecked<const URuntimePartitionLHGrid>(InRuntimePartition);
 	bIs2D = RuntimePartitionLHGrid->bIs2D;
+	Origin = RuntimePartitionLHGrid->Origin;
 }
 
 void URuntimePartitionLHGrid::SetDefaultValues()

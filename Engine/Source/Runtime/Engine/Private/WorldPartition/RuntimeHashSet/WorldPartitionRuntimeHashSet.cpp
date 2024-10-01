@@ -1048,6 +1048,23 @@ void UWorldPartitionRuntimeHashSet::PostDuplicate(EDuplicateMode::Type Duplicate
 	}
 }
 
+void UWorldPartitionRuntimeHashSet::PostLoad()
+{
+	Super::PostLoad();
+
+	// Make sure that HLOD partitions settings are updated to match the main layer settings
+	for (const FRuntimePartitionDesc& RuntimePartition : RuntimePartitions)
+	{
+		for (const FRuntimePartitionHLODSetup& HLODSetup : RuntimePartition.HLODSetups)
+		{
+			if (HLODSetup.PartitionLayer)
+			{
+				HLODSetup.PartitionLayer->UpdateHLODRuntimePartitionFrom(RuntimePartition.MainLayer);
+			}
+		}
+	}
+}
+
 UWorldPartitionRuntimeHashSet::FCellUniqueId UWorldPartitionRuntimeHashSet::GetCellUniqueId(const URuntimePartition::FCellDescInstance& InCellDescInstance) const
 {
 	FCellUniqueId CellUniqueId;
