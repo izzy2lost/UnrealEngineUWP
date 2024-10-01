@@ -244,6 +244,16 @@ public:
 	// Get the default binding type that any new nodes will use when created
 	ENGINE_API UClass* GetDefaultBindingClass() const { return DefaultBindingClass; }
 
+	virtual void NotifyGraphRenamed(class UEdGraph* Graph, FName OldName, FName NewName) override;
+
+	// Event that is broadcast to inform observers that the node title has changed
+	// The default SAnimationGraphNode uses this to invalidate cached node title text
+	DECLARE_EVENT_ThreeParams(UAnimBlueprint, FOnGraphRenamedEvent, UEdGraph*, FName, FName);
+	FOnGraphRenamedEvent& OnGraphRenamedEvent() { return GraphRenameEvent; }
+
+private:
+	FOnGraphRenamedEvent GraphRenameEvent;
+
 public:
 	// Array of overrides to asset containing nodes in the parent that have been overridden
 	UPROPERTY()
