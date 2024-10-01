@@ -592,6 +592,7 @@ void ARecastNavMesh::LoadBeforeGeneratorRebuild()
 void ARecastNavMesh::CleanUp()
 {
 	Super::CleanUp();
+	bHasNoTileData = false;
 	if (NavDataGenerator.IsValid())
 	{
 		NavDataGenerator->CancelBuild();
@@ -3656,7 +3657,7 @@ void ARecastNavMesh::PostEditUndo()
 
 bool ARecastNavMesh::NeedsRebuild() const
 {
-	bool bLooksLikeNeeded = !RecastNavMeshImpl || RecastNavMeshImpl->GetRecastMesh() == 0;
+	bool bLooksLikeNeeded = !RecastNavMeshImpl || RecastNavMeshImpl->GetRecastMesh() == 0 || bHasNoTileData;
 	if (NavDataGenerator.IsValid())
 	{
 		return bLooksLikeNeeded || NavDataGenerator->GetNumRemaningBuildTasks() > 0;

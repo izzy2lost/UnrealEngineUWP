@@ -593,6 +593,11 @@ void FNavMeshSceneProxyData::GatherData(const ARecastNavMesh* NavMesh, int32 InN
 			const ERuntimeGenerationType Mode = NavMesh->GetRuntimeGenerationMode();
 			const FString GenerationMode = Mode == ERuntimeGenerationType::Static ? TEXT("Static") :
 				(Mode == ERuntimeGenerationType::Dynamic ? TEXT("Dynamic") : (Mode == ERuntimeGenerationType::DynamicModifiersOnly ? TEXT("DynamicModifersOnly") : TEXT("Unknown")));
+			
+			if (NavMesh->NeedsRebuild())
+			{
+				DebugLabels.Add(FDebugText(FString::Printf(TEXT("%s"), TEXT("*** NAVMESH NEEDS TO BE REBUILT ***"))));	
+			}
 			DebugLabels.Add(FDebugText(FString::Printf(TEXT("%s (%s%s)"), *NavMesh->GetName(), NavMesh->bIsWorldPartitioned ? TEXT("WP ") : TEXT(""), *GenerationMode)));
 			DebugLabels.Add(FDebugText(FString::Printf(TEXT("AgentRadius %0.1f, AgentHeight %0.1f"), NavMesh->AgentRadius, NavMesh->AgentHeight)));
 			DebugLabels.Add(FDebugText(FString::Printf(

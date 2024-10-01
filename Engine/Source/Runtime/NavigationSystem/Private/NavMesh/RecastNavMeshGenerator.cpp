@@ -5426,6 +5426,7 @@ bool FRecastNavMeshGenerator::RebuildAll()
 	
 	// Recreate recast navmesh
 	DestNavMesh->GetRecastNavMeshImpl()->ReleaseDetourNavMesh();
+	DestNavMesh->bHasNoTileData = false;
 
 	RcNavMeshOrigin = Unreal2RecastPoint(DestNavMesh->NavMeshOriginOffset);
 
