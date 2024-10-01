@@ -564,15 +564,8 @@ void FFeedbackContextEditor::ProgressReported( const float TotalProgressInterp, 
 	static double LastTimePendingCleanupObjectsWhereDeleted;
 	if( FPlatformTime::Seconds() - LastTimePendingCleanupObjectsWhereDeleted > 1 )
 	{
-		// Get list of objects that are pending cleanup.
-		FPendingCleanupObjects* PendingCleanupObjects = GetPendingCleanupObjects();
-		if (!PendingCleanupObjects->IsEmpty())
-		{
-			// Flush rendering commands in the queue.
-			FlushRenderingCommands();
-		}
-		// It is now safe to delete the pending clean objects.
-		delete PendingCleanupObjects;
+		FFrameEndSync::Sync();
+
 		// Keep track of time this operation was performed so we don't do it too often.
 		LastTimePendingCleanupObjectsWhereDeleted = FPlatformTime::Seconds();
 	}

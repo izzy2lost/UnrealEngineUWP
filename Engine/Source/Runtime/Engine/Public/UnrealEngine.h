@@ -364,48 +364,12 @@ ENGINE_API void CalculateFPSTimings();
 /** @return The font to use for rendering stats display. */
 extern ENGINE_API UFont* GetStatsFont();
 
-/*-----------------------------------------------------------------------------
-	Frame end sync object implementation.
------------------------------------------------------------------------------*/
-
-/**
- * Special helper class for frame end sync. It respects a passed in option to allow one frame
- * of lag between the game and the render thread by using two events in round robin fashion.
- */
-class FFrameEndSync
-{
-	/** Pair of fences. */
-	TArray<FRenderCommandFence, TInlineAllocator<3>> Fences;
-
-	/** cleanup delegate for engine pre-exit */
-	FDelegateHandle CleanupDelegate;
-
-public:
-	ENGINE_API FFrameEndSync();
-	ENGINE_API ~FFrameEndSync();
-
-	/**
-	 * Syncs the game thread with the render thread. Depending on passed in bool this will be a total
-	 * sync or a one frame lag.
-	 */
-	ENGINE_API void Sync();
-
-private:
-	void Cleanup();
-};
-
-
 /** Public interface to FEngineLoop so we can call it from editor or editor code */
 class IEngineLoop
 {
 public:
-
 	virtual int32 Init() = 0;
-
 	virtual void Tick() = 0;
-
-	/** Removes references to any objects pending cleanup by deleting them. */
-	virtual void ClearPendingCleanupObjects() = 0;
 };
 
 /**
