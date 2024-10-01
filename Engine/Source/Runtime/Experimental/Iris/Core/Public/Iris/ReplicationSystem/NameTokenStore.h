@@ -21,7 +21,10 @@ public:
 	// Resolve NetToken, to resolve remote tokens RemoteTokenStoreState must be valid
 	IRISCORE_API FName ResolveToken(FNetToken Token, const FNetTokenStoreState* RemoteTokenStoreState = nullptr) const;	
 
-	static FName GetTokenStoreName() { return NameTokenStoreName; }
+	static FName GetTokenStoreName()
+	{ 
+		return NameTokenStoreName;
+	}
 
 protected:
 	// Serialize data for a token, note there is not validation in this function
@@ -36,12 +39,11 @@ protected:
 	FNetTokenStoreKey GetOrCreateTokenStoreKey(FName Name);
 
 private:
+
 	inline static FName NameTokenStoreName = TEXT("NameTokenStore");
 
-	FNetTokenStore& TokenStore;
 	TMap<FName, FNetTokenStoreKey> FNameToKey;
 	TArray<FName> StoredFNames;
-	TArray<FNetToken> StoredTokens;
 };
 
 }

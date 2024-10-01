@@ -99,11 +99,11 @@ void FGameplayTagNetSerializer::Serialize(FNetSerializationContext& Context, con
 			return;
 		}
 
-		// Always write the token
-		WriteNetToken(Context, Value.TagNetToken);
+		// Write token without type, 
+		Context.GetNetTokenStore()->WriteNetTokenWithKnownType<FGameplayTagTokenStore>(Context, Value.TagNetToken);
 
 		// Export or add to pending exports for later export
-		FNetTokenStore::AppendExportOrWriteInlinedExportData(Context, Value.TagNetToken);
+		FNetTokenStore::AppendExport(Context, Value.TagNetToken);
 	}
 }
 
@@ -122,14 +122,11 @@ void FGameplayTagNetSerializer::Deserialize(FNetSerializationContext& Context, c
 	}
 	else
 	{
-		FNetToken NetToken = ReadNetToken(Context);
+		FNetToken NetToken = Context.GetNetTokenStore()->ReadNetTokenWithKnownType<FGameplayTagTokenStore>(Context);
 		if (Reader->IsOverflown())
 		{
 			return;
 		}
-
-		// Read inlined exports if we should
-		FNetTokenStore::ReadInlinedExportData(Context, NetToken);
 
 		if (Reader->IsOverflown())
 		{

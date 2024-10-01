@@ -1233,7 +1233,8 @@ void FObjectReferenceCache::WriteFullReferenceInternal(FNetSerializationContext&
 
 		if (Writer->WriteBool(bHasPath))
 		{
-			WriteNetToken(Context, CachedObject->RelativePath);
+			// Note: As we use the StringTokenStore to write the token we also need to read it using the stringtokenstore.
+			StringTokenStore->WriteNetToken(Context, CachedObject->RelativePath);
 			NetTokenStore->ConditionalWriteNetTokenData(Context, ExportContext, CachedObject->RelativePath);
 			WriteFullReferenceInternal(Context, FNetObjectReference(CachedObject->OuterNetRefHandle));
 		}
@@ -1300,7 +1301,7 @@ void FObjectReferenceCache::ReadFullReferenceInternal(FNetSerializationContext& 
 
 		if (Reader->ReadBool())
 		{
-			RelativePath = ReadNetToken(Context);
+			RelativePath = StringTokenStore->ReadNetToken(Context);
 			NetTokenStore->ConditionalReadNetTokenData(Context, RelativePath);
 			ReadFullReferenceInternal(Context, OuterRef, RecursionCount + 1U);
 		}
@@ -1386,7 +1387,7 @@ void FObjectReferenceCache::ReadFullReference(FNetSerializationContext& Context,
 		UE_NET_TRACE_SCOPE(ClientAssigned, *Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
 
 		const FNetRefHandle NetRefHandle = ReadNetRefHandle(Context);
-		FNetToken RelativePath = ReadNetToken(Context);
+		FNetToken RelativePath = StringTokenStore->ReadNetToken(Context);
 		NetTokenStore->ConditionalReadNetTokenData(Context, RelativePath);
 
 		OutRef.RefHandle = NetRefHandle;
@@ -1425,7 +1426,8 @@ void FObjectReferenceCache::WriteFullReference(FNetSerializationContext& Context
 		UE_NET_TRACE_SCOPE(ClientAssigned, *Writer, Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
 
 		WriteNetRefHandle(Context, Ref.GetRefHandle());
-		WriteNetToken(Context, Ref.PathToken);
+		// Note: As we use the StringTokenStore to write the token we also need to read it using the stringtokenstore.
+		StringTokenStore->WriteNetToken(Context, Ref.PathToken);
 		NetTokenStore->ConditionalWriteNetTokenData(Context, Context.GetExportContext(), Ref.PathToken);
 		return;
 	}
@@ -1457,7 +1459,8 @@ void FObjectReferenceCache::WriteReference(FNetSerializationContext& Context, FN
 	if (Writer->WriteBool(bIsClientAssignedReference))
 	{
 		WriteNetRefHandle(Context, Ref.GetRefHandle());
-		WriteNetToken(Context, Ref.PathToken);
+		// Note: As we use the StringTokenStore to write the token we also need to read it using the stringtokenstore.
+		StringTokenStore->WriteNetToken(Context, Ref.PathToken);
 
 		return;
 	}
@@ -1493,7 +1496,7 @@ void FObjectReferenceCache::ReadReference(FNetSerializationContext& Context, FNe
 	if (const bool bIsClientAssignedReference = Reader->ReadBool())
 	{
 		const FNetRefHandle NetRefHandle = ReadNetRefHandle(Context);
-		FNetToken RelativePath = ReadNetToken(Context);
+		FNetToken RelativePath = StringTokenStore->ReadNetToken(Context);
 
 		OutRef.RefHandle = NetRefHandle;
 		OutRef.PathToken = RelativePath;
@@ -1590,8 +1593,10 @@ FObjectReferenceCache::EWriteExportsResult FObjectReferenceCache::WritePendingEx
 				if (!(NetToken.IsAssignedByAuthority() && !bIsNetTokenAuthority) && !ExportContext->IsExported(NetToken))
 				{
 					Writer.WriteBool(true);
-					WriteNetToken(Context, NetToken);
+
+					NetTokenStore->WriteNetToken(Context, NetToken);
 					NetTokenStore->WriteTokenData(Context, NetToken);
+
 					ExportContext->AddExported(NetToken);			
 				}
 			}
@@ -1656,7 +1661,7 @@ bool FObjectReferenceCache::ReadExports(FNetSerializationContext& Context, TArra
 			FForceInlineExportScope ForceInlineExportScope(Context.GetInternalContext());
 			while (bHasExportsToRead && !Context.HasErrorOrOverflow())
 			{
-				FNetToken ImportedNetToken = ReadNetToken(Context);
+				FNetToken ImportedNetToken = NetTokenStore->ReadNetToken(Context);
 				NetTokenStore->ReadTokenData(Context, ImportedNetToken, *ResolveContext.RemoteNetTokenStoreState);
 				bHasExportsToRead = Reader.ReadBool();
 			}

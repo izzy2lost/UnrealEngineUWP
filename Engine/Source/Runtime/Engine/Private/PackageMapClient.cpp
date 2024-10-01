@@ -2245,7 +2245,7 @@ FOutBunch* UPackageMapClient::CreateCustomExportsBunch(const FOutBunch& Outgoing
 			UE_NET_TRACE_DYNAMIC_NAME_SCOPE(*NetToken.ToString(), *ExportsBunch, GetTraceCollector(*ExportsBunch), ENetTraceVerbosity::VeryVerbose);
 
 			// Write token 
-			WriteNetToken(*ExportsBunch, NetToken);
+			NetTokenResolveContext.NetTokenStore->WriteNetToken(*ExportsBunch, NetToken);
 			NetTokenResolveContext.NetTokenStore->WriteTokenData(*ExportsBunch, NetToken);
 
 			// Track what exports we exported until we know what packet we actually did commit to.
@@ -2279,7 +2279,7 @@ void UPackageMapClient::ReceiveCustomExportsBunch(FInBunch &InBunch)
 
 	while (bHasExportsToRead && !InBunch.IsError())
 	{
-		FNetToken ImportedNetToken = ReadNetToken(InBunch);
+		FNetToken ImportedNetToken = NetTokenStore->ReadNetToken(InBunch);
 
 		NetTokenStore->ReadTokenData(InBunch, ImportedNetToken, *RemoteNetTokenStoreState);
 

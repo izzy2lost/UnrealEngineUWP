@@ -44,22 +44,53 @@ public:
 	};
 
 public:	
-	FNetToken() : Value(Invalid) {}
-	inline bool IsValid() const { return Value != Invalid; }
-	bool IsAssignedByAuthority() const { return bIsAssignedByAuthority != 0U; }
-	uint32 GetIndex() const { return Index; }
-	bool operator==(const FNetToken& Other) const { return IsAssignedByAuthority() == Other.IsAssignedByAuthority() && Index == Other.Index; }
+	FNetToken()
+	: Value(Invalid)
+	{
+	}
+
+	inline bool IsValid() const
+	{
+		return Index != InvalidTokenIndex;
+	}
+
+	bool IsAssignedByAuthority() const
+	{
+		return bIsAssignedByAuthority != 0U;
+	}
+
+	uint32 GetIndex() const
+	{
+		return Index;
+	}
+
+	FTypeId GetTypeId() const
+	{
+		return TypeId;
+	}
+
+	bool operator==(const FNetToken& Other) const
+	{
+		return Value == Other.Value;
+	}
+
 	FString ToString() const;
 
 	friend uint32 GetTypeHash(const FNetToken& Token)
 	{
 		return ::GetTypeHash(Token.Value);
 	}
-	
-	static FNetToken MakeNetToken(uint32 Index, ENetTokenAuthority Authority) { check(Index < MaxNetTokenCount); return FNetToken(Index, Authority); }
-	
+
 private:
-	explicit FNetToken(uint32 InIndex, ENetTokenAuthority Authority) { Padding = 0U, Index = InIndex, bIsAssignedByAuthority = Authority == ENetTokenAuthority::Authority ? 1U : 0U; }
+	friend class UE::Net::FNetTokenStore;
+
+	explicit FNetToken(uint32 InTypeId, uint32 InIndex, ENetTokenAuthority Authority)
+	{
+		Padding = 0U;
+		TypeId = InTypeId;
+		Index = InIndex;
+		bIsAssignedByAuthority = Authority == ENetTokenAuthority::Authority ? 1U : 0U;
+	}
 
 private:
 
@@ -68,41 +99,13 @@ private:
 		struct
 		{
 			uint32 Index : TokenBits;
+			uint32 TypeId : TokenTypeIdBits;
 			uint32 bIsAssignedByAuthority : 1U;
-			uint32 Padding : 32 - TokenBits - 1U;
+			uint32 Padding : 32 - TokenTypeIdBits - TokenBits - 1U;
 		};
 		uint32 Value;
 	};
 };
-
-class FNetTokenStoreKey
-{
-public:
-	enum { Invalid = 0U };
-
-	FNetTokenStoreKey() : Value(Invalid) {}
-	bool IsValid() const { return Value != Invalid; }
-	uint32 GetKeyValue() const { return Key; }
-	FNetToken::FTypeId GetTypeId() const { return TypeId; }
-	bool operator==(const FNetTokenStoreKey& Other) const { return Value == Other.Value; }
-
-private:
-	friend class FNetTokenStore;
-	friend class FNetTokenDataStore;
-
-private:
-	union
-	{
-		struct
-		{
-			uint32 TypeId : FNetToken::TokenTypeIdBits;
-			uint32 Key : FNetToken::TokenBits;
-		};
-		uint32 Value;
-	};
-};
-
-static_assert(sizeof(FNetTokenStoreKey) == sizeof(uint32), "FNetTokenKey should fit in a uint32");
 
 // Contains necessary context to resolve NetTokens
 class FNetTokenResolveContext
@@ -115,7 +118,7 @@ public:
 inline FString FNetToken::ToString() const
 {
 	FString Result;
-	Result = FString::Printf(TEXT("NetToken (Auth:%u Index=%u)"), IsAssignedByAuthority(), Index);
+	Result = FString::Printf(TEXT("NetToken (Auth:%u TypeId=%u Index=%u)"), IsAssignedByAuthority(), TypeId, Index);
 	return Result;
 }
 
