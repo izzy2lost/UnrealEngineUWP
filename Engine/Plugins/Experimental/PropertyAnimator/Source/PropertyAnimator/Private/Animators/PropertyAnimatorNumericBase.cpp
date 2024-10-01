@@ -56,11 +56,6 @@ void UPropertyAnimatorNumericBase::SetCycleGapDuration(float InCycleGap)
 	CycleGapDuration = FMath::Max(0, InCycleGap);
 }
 
-void UPropertyAnimatorNumericBase::SetCycleRate(float InFrequency)
-{
-	CycleRate = FMath::Max(0, InFrequency);
-}
-
 void UPropertyAnimatorNumericBase::SetCycleMode(EPropertyAnimatorCycleMode InMode)
 {
 	if (CycleMode == InMode)
@@ -214,7 +209,7 @@ void UPropertyAnimatorNumericBase::EvaluateProperties(FInstancedPropertyBag& InP
 		}
 		else if (CycleMode == EPropertyAnimatorCycleMode::None)
 		{
-			Frequency = CycleRate;
+			Frequency = 1;
 		}
 
 		if (Magnitude != 0

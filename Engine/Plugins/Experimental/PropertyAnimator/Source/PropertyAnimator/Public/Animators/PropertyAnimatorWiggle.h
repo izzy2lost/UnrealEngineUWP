@@ -16,9 +16,21 @@ class UPropertyAnimatorWiggle : public UPropertyAnimatorNumericBase
 public:
 	UPropertyAnimatorWiggle();
 
+	PROPERTYANIMATOR_API void SetFrequency(float InFrequency);
+	float GetFrequency() const
+	{
+		return Frequency;
+	}
+
 protected:
 	//~ Begin UPropertyAnimatorFloatBase
 	virtual void OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata) override;
 	virtual bool EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const override;
+	virtual bool ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FPropertyAnimatorCorePresetArchive>& InValue) override;
+	virtual bool ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FPropertyAnimatorCorePresetArchive>& OutValue) const override;
 	//~ End UPropertyAnimatorFloatBase
+
+	/** Frequency for the effect, higher values will give you faster movements */
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(ClampMin="0", Units=Hz))
+	float Frequency = 1.f;
 };

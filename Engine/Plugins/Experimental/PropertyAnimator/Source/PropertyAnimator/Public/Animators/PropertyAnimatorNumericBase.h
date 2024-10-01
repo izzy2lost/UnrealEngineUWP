@@ -53,12 +53,6 @@ public:
 		return CycleGapDuration;
 	}
 
-	PROPERTYANIMATOR_API void SetCycleRate(float InFrequency);
-	float GetCycleRate() const
-	{
-		return CycleRate;
-	}
-
 	PROPERTYANIMATOR_API void SetRandomTimeOffset(bool bInOffset);
 	bool GetRandomTimeOffset() const
 	{
@@ -115,10 +109,6 @@ protected:
 	/** Time gap between each cycle */
 	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(ClampMin="0", Units=Seconds, EditCondition="CycleMode != EPropertyAnimatorCycleMode::DoOnce && CycleMode != EPropertyAnimatorCycleMode::None", EditConditionHides))
 	float CycleGapDuration = 0.f;
-
-	/** Frequency for the effect, higher values will give you faster movements */
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", DisplayName="Frequency", meta=(ClampMin="0", Units=Hz, EditCondition="CycleMode == EPropertyAnimatorCycleMode::None", EditConditionHides))
-	float CycleRate = 1.f;
 
 	/** Use random time offset to add variation in animation */
 	UPROPERTY(EditInstanceOnly, Setter="SetRandomTimeOffset", Getter="GetRandomTimeOffset", Category="Animator", meta=(InlineEditConditionToggle))
