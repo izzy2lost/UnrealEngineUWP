@@ -422,7 +422,7 @@ void FilteredBinaryInputArchive::process(RawMachineLearnedBehavior& dest) {
 void FilteredBinaryInputArchive::process(DNA& dest) {
     BaseArchive::process(dest);
     // Don't run control-based post-load filtering for delta DNA files
-    if (!loadedControls.empty()) {
+    if ((dest.layers.unknownPolicy == UnknownLayerPolicy::Ignore) && (!loadedControls.empty())) {
         removeUnreferencedBlendShapes(dest);
     }
 }
@@ -435,7 +435,7 @@ void FilteredBinaryInputArchive::removeUnreferencedBlendShapes(DNA& dest) {
     for (std::size_t iPlusOne = bsc.inputIndices.size(); iPlusOne > 0ul; --iPlusOne) {
         const auto i = iPlusOne - 1ul;
         const auto controlIndex = bsc.inputIndices[i];
-        if (!loadedControls[controlIndex]) {
+        if ((controlIndex > loadedControls.size()) || (!loadedControls[controlIndex])) {
             unreferencedChannels.push_back(bsc.outputIndices[i]);
             // Remove behavior data
             removeByIndex(bsc.inputIndices, i);
@@ -521,12 +521,14 @@ void FilteredBinaryInputArchive::process(RawRBFBehaviorExt& dest) {
         return;
     }
 
-    if (!contains(layerBitmask, DataLayerBitmask::RBFBehavior)) {
-        return;
+    if (contains(layerBitmask, DataLayerBitmask::RBFBehavior)) {
+        process(dest.poseControlNames);
+        process(dest.poses);
+        loadedControls.resize(loadedControls.size() + dest.poseControlNames.size(), true);
+    } else {
+        const auto poseControlCount = processSize();
+        loadedControls.resize(loadedControls.size() + poseControlCount, false);
     }
-
-    process(dest.poseControlNames);
-    process(dest.poses);
 }
 
 void FilteredBinaryInputArchive::process(RawJointBehaviorMetadata& dest) {

@@ -1572,7 +1572,6 @@ struct DNA {
     Layer<sid4("jbmd"), rev(1, 0), RawJointBehaviorMetadata, FileVersion::v24> jointBehaviorMetadata;
     Layer<sid4("twsw"), rev(1, 0), RawTwistSwingBehavior, FileVersion::v24> twistSwingBehavior;
 
-
     using Layers =
         LayerContainer<decltype(descriptor),
                        decltype(definition),
