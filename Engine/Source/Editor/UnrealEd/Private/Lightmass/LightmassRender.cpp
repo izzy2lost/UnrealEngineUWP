@@ -629,12 +629,17 @@ public:
 	virtual enum EBlendMode GetBlendMode() const override					{ return BLEND_Opaque; }
 	virtual enum ERefractionMode GetRefractionMode() const override			{ return Material ? (ERefractionMode)Material->RefractionMethod : RM_None; }
 	virtual bool GetRootNodeOverridesDefaultRefraction()const override		{ return Material ? Material->bRootNodeOverridesDefaultDistortion : false; }
-	virtual FMaterialShadingModelField GetShadingModels() const override	{ return MSM_Unlit; }
-	virtual bool IsShadingModelFromMaterialExpression() const override		{ return false; }
 	virtual float GetOpacityMaskClipValue() const override					{ return 0.5f; }
 	virtual bool GetCastDynamicShadowAsMasked() const override				{ return false; }
 	virtual FString GetFriendlyName() const override { return FString::Printf(TEXT("FLightmassMaterialRenderer %s"), MaterialInterface ? *MaterialInterface->GetName() : TEXT("NULL")); }
 
+	virtual bool IsShadingModelFromMaterialExpression() const override		{ return false; }
+	virtual FMaterialShadingModelField GetShadingModels() const override	
+	{ 
+		// Substrate needs the real material shading model since the expressions access GetMaterialShadingModels() through the compiler to generate the substrate operators, 
+		// and we do not want unlit materials when it is a Slab or a ShadingModel node.
+		return Lightmass_IsSubstrateEnabled() ? Material->GetShadingModels() : MSM_Unlit; 
+	} 
 	/**
 	 * Should shaders compiled for this material be saved to disk?
 	 */
