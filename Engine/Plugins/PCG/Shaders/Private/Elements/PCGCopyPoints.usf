@@ -23,89 +23,89 @@
 // TODO pass in attribute IDs to copy.
 void CopyAttributesFromSource(uint Source_DataIndex, uint Source_ElementIndex, uint Out_DataIndex, uint Out_ElementIndex)
 {
-    const uint NumAttributes = Out_GetDataNumAttributesInternal(Out_DataIndex);
-    uint NumAttributesProcessed = 0;
+	const uint NumAttributes = Out_GetDataNumAttributesInternal(Out_DataIndex);
+	uint NumAttributesProcessed = 0;
 
-    for (int AttributeId = NUM_RESERVED_ATTRS; AttributeId < MAX_NUM_ATTRS; ++AttributeId)
-    {
-        const uint Out_Stride = Out_GetAttributeStrideInternal(Out_DataIndex, AttributeId);
+	for (int AttributeId = NUM_RESERVED_ATTRS; AttributeId < MAX_NUM_ATTRS; ++AttributeId)
+	{
+		const uint Out_Stride = Out_GetAttributeStrideInternal(Out_DataIndex, AttributeId);
 
-        if (Out_Stride == 0)
-        {
-            // No output attribute to write to.
-            continue;
-        }
-
-        const uint Source_Stride = Source_GetAttributeStrideInternal(Source_DataIndex, AttributeId);
-        const uint Out_ElementAddress = Out_GetElementAddressInternal(Out_DataIndex, Out_ElementIndex, AttributeId);
-
-        if (Source_Stride == Out_Stride)
-        {
-            const uint Source_ElementAddress = Source_GetElementAddressInternal(Source_DataIndex, Source_ElementIndex, AttributeId);
-
-            for (uint Offset = 0; Offset < Out_Stride; Offset += 4)
-            {
-                Out_StoreBufferInternal(Out_ElementAddress + Offset, Source_LoadBufferInternal(Source_ElementAddress + Offset));
-            }
-        }
-        else
-        {
-            for (uint Offset = 0; Offset < Out_Stride; Offset += 4)
-            {
+		if (Out_Stride == 0)
+		{
+			// No output attribute to write to.
+			continue;
+		}
+		
+		const uint Source_Stride = Source_GetAttributeStrideInternal(Source_DataIndex, AttributeId);
+		const uint Out_ElementAddress = Out_GetElementAddressInternal(Out_DataIndex, Out_ElementIndex, AttributeId);
+		
+		if (Source_Stride == Out_Stride)
+		{
+			const uint Source_ElementAddress = Source_GetElementAddressInternal(Source_DataIndex, Source_ElementIndex, AttributeId);
+			
+			for (uint Offset = 0; Offset < Out_Stride; Offset += 4)
+			{
+				Out_StoreBufferInternal(Out_ElementAddress + Offset, Source_LoadBufferInternal(Source_ElementAddress + Offset));
+			}
+		}
+		else
+		{
+			for (uint Offset = 0; Offset < Out_Stride; Offset += 4)
+			{
 				// Initialize output data (only header part of buffer will be initialized).
-                Out_StoreBufferInternal(Out_ElementAddress + Offset, 0u);
-            }
-        }
-
-        if (++NumAttributesProcessed >= NumAttributes)
-        {
-            break; // We can early-out when we've looked at all the possible attributes
-        }
-    }
+				Out_StoreBufferInternal(Out_ElementAddress + Offset, 0u);
+			}
+		}
+		
+		if (++NumAttributesProcessed >= NumAttributes)
+		{
+			break; // We can early-out when we've looked at all the possible attributes
+		}
+	}
 }
 
 // TODO pass in attribute IDs to copy.
 void CopyAttributesFromTarget(uint Target_DataIndex, uint Target_ElementIndex, uint Out_DataIndex, uint Out_ElementIndex)
 {
-    const uint NumAttributes = Out_GetDataNumAttributesInternal(Out_DataIndex);
-    uint NumAttributesProcessed = 0;
-
-    for (int AttributeId = NUM_RESERVED_ATTRS; AttributeId < MAX_NUM_ATTRS; ++AttributeId)
-    {
-        const uint Out_Stride = Out_GetAttributeStrideInternal(Out_DataIndex, AttributeId);
-
-        if (Out_Stride == 0)
-        {
-            // No output attribute to write to.
-            continue;
-        }
-
-        const uint Target_Stride = Target_GetAttributeStrideInternal(Target_DataIndex, AttributeId);
-        const uint Out_ElementAddress = Out_GetElementAddressInternal(Out_DataIndex, Out_ElementIndex, AttributeId);
-
-        if (Target_Stride == Out_Stride)
-        {
-            const uint Target_ElementAddress = Target_GetElementAddressInternal(Target_DataIndex, Target_ElementIndex, AttributeId);
-
-            for (uint Offset = 0; Offset < Out_Stride; Offset += 4)
-            {
-                Out_StoreBufferInternal(Out_ElementAddress + Offset, Target_LoadBufferInternal(Target_ElementAddress + Offset));
-            }
-        }
-        else
-        {
-            for (uint Offset = 0; Offset < Out_Stride; Offset += 4)
-            {
+	const uint NumAttributes = Out_GetDataNumAttributesInternal(Out_DataIndex);
+	uint NumAttributesProcessed = 0;
+	
+	for (int AttributeId = NUM_RESERVED_ATTRS; AttributeId < MAX_NUM_ATTRS; ++AttributeId)
+	{
+		const uint Out_Stride = Out_GetAttributeStrideInternal(Out_DataIndex, AttributeId);
+		
+		if (Out_Stride == 0)
+		{
+			// No output attribute to write to.
+			continue;
+		}
+		
+		const uint Target_Stride = Target_GetAttributeStrideInternal(Target_DataIndex, AttributeId);
+		const uint Out_ElementAddress = Out_GetElementAddressInternal(Out_DataIndex, Out_ElementIndex, AttributeId);
+		
+		if (Target_Stride == Out_Stride)
+		{
+			const uint Target_ElementAddress = Target_GetElementAddressInternal(Target_DataIndex, Target_ElementIndex, AttributeId);
+			
+			for (uint Offset = 0; Offset < Out_Stride; Offset += 4)
+			{
+				Out_StoreBufferInternal(Out_ElementAddress + Offset, Target_LoadBufferInternal(Target_ElementAddress + Offset));
+			}
+		}
+		else
+		{
+			for (uint Offset = 0; Offset < Out_Stride; Offset += 4)
+			{
 				// Initialize output data (only header part of buffer will be initialized).
-                Out_StoreBufferInternal(Out_ElementAddress + Offset, 0u);
-            }
-        }
-
-        if (++NumAttributesProcessed >= NumAttributes)
-        {
-            break; // We can early-out when we've looked at all the possible attributes
-        }
-    }
+				Out_StoreBufferInternal(Out_ElementAddress + Offset, 0u);
+			}
+		}
+		
+		if (++NumAttributesProcessed >= NumAttributes)
+		{
+			break; // We can early-out when we've looked at all the possible attributes
+		}
+	}
 }
 
 [numthreads(64, 1, 1)]

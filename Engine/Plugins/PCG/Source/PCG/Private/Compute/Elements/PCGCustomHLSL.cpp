@@ -475,6 +475,12 @@ void UPCGCustomHLSLSettings::ApplyPreconfiguredSettings(const FPCGPreConfiguredS
 		{
 			KernelType = EPCGKernelType(PreconfiguredInfo.PreconfiguredIndex);
 
+			// Point Generator doesn't utilize the default input pin, so let's not add it by default.
+			if (KernelType == EPCGKernelType::PointGenerator)
+			{
+				InputPins.Empty();
+			}
+
 #if WITH_EDITOR
 			UpdatePinSettings();
 #endif
@@ -665,7 +671,7 @@ void UPCGCustomHLSLSettings::UpdateInputDeclarations()
 		InputDeclarations += TEXT("const uint ElementIndex;\n\n");
 	}
 
-	TArray<FString> DataPins;
+	TArray<FString> DataCollectionDataPins;
 	TArray<FString> PointDataPins;
 	TArray<FString> SplineDataPins;
 	TArray<FString> LandscapeDataPins;
@@ -674,7 +680,10 @@ void UPCGCustomHLSLSettings::UpdateInputDeclarations()
 
 	for (const FPCGPinProperties& Pin : InputPinProperties())
 	{
-		DataPins.Add(Pin.Label.ToString());
+		if (PCGComputeHelpers::IsTypeAllowedInDataCollection(Pin.AllowedTypes))
+		{
+			DataCollectionDataPins.Add(Pin.Label.ToString());
+		}
 
 		if (!!(Pin.AllowedTypes & EPCGDataType::Point))
 		{
@@ -697,15 +706,15 @@ void UPCGCustomHLSLSettings::UpdateInputDeclarations()
 		}
 	}
 
-	if (!DataPins.IsEmpty())
+	if (!DataCollectionDataPins.IsEmpty())
 	{
 		InputDeclarations += TEXT("/*** INPUT DATA FUNCTIONS ***/\n\n");
 
-		const bool bMultiPin = DataPins.Num() > 1;
+		const bool bMultiPin = DataCollectionDataPins.Num() > 1;
 
 		if (bMultiPin)
 		{
-			InputDeclarations += TEXT("// Valid pins: ") + FString::Join(DataPins, TEXT(", ")) + TEXT("\n");
+			InputDeclarations += TEXT("// Valid pins: ") + FString::Join(DataCollectionDataPins, TEXT(", ")) + TEXT("\n");
 		}
 
 		InputDeclarations += FString::Format(TEXT(
@@ -716,7 +725,7 @@ void UPCGCustomHLSLSettings::UpdateInputDeclarations()
 			"\n"
 			"<type> {0}_Get<type>(uint DataIndex, uint ElementIndex, uint AttributeId);\n"
 			"<type> {0}_Get<type>(uint DataIndex, uint ElementIndex, 'AttributeName');\n"),
-			{ bMultiPin ? PCGHLSLElement::PinDeclTemplateStr : DataPins[0] });
+			{ bMultiPin ? PCGHLSLElement::PinDeclTemplateStr : DataCollectionDataPins[0] });
 
 		InputDeclarations += TEXT("\n");
 	}
@@ -814,14 +823,17 @@ void UPCGCustomHLSLSettings::UpdateOutputDeclarations()
 {
 	OutputDeclarations.Reset();
 
-	TArray<FString> DataPins;
+	TArray<FString> DataCollectionDataPins;
 	TArray<FString> PointDataPins;
 	TArray<FString> SplineDataPins;
 	TArray<FString> RawBufferDataPins;
 
 	for (const FPCGPinProperties& Pin : OutputPinProperties())
 	{
-		DataPins.Add(Pin.Label.ToString());
+		if (PCGComputeHelpers::IsTypeAllowedInDataCollection(Pin.AllowedTypes))
+		{
+			DataCollectionDataPins.Add(Pin.Label.ToString());
+		}
 
 		if (!!(Pin.AllowedTypes & EPCGDataType::Point))
 		{
@@ -834,15 +846,15 @@ void UPCGCustomHLSLSettings::UpdateOutputDeclarations()
 		}
 	}
 
-	if (!DataPins.IsEmpty())
+	if (!DataCollectionDataPins.IsEmpty())
 	{
 		OutputDeclarations += TEXT("/*** OUTPUT DATA FUNCTIONS ***/\n\n");
 
-		const bool bMultiPin = DataPins.Num() > 1;
+		const bool bMultiPin = DataCollectionDataPins.Num() > 1;
 
 		if (bMultiPin)
 		{
-			OutputDeclarations += TEXT("// Valid pins: ") + FString::Join(DataPins, TEXT(", ")) + TEXT("\n");
+			OutputDeclarations += TEXT("// Valid pins: ") + FString::Join(DataCollectionDataPins, TEXT(", ")) + TEXT("\n");
 		}
 
 		OutputDeclarations += FString::Format(TEXT(
@@ -850,7 +862,7 @@ void UPCGCustomHLSLSettings::UpdateOutputDeclarations()
 			"\n"
 			"void {0}_Set<type>(uint DataIndex, uint ElementIndex, uint AttributeId, <type> Value);\n"
 			"void {0}_Set<type>(uint DataIndex, uint ElementIndex, 'AttributeName', <type> Value);\n"),
-			{ bMultiPin ? PCGHLSLElement::PinDeclTemplateStr : DataPins[0] });
+			{ bMultiPin ? PCGHLSLElement::PinDeclTemplateStr : DataCollectionDataPins[0] });
 
 		OutputDeclarations += TEXT("\n");
 	}

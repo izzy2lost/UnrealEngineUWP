@@ -273,6 +273,19 @@ void UPCGStaticMeshSpawnerSettings::ApplyDeprecation(UPCGNode* InOutNode)
 }
 #endif
 
+TArray<FPCGPinProperties> UPCGStaticMeshSpawnerSettings::InputPinProperties() const
+{
+	// Note: If executing on the GPU, we need to prevent multiple connections on inputs, since it is not supported at this time.
+	// Also note: Since the ShouldExecuteOnGPU() is already tied to structural changes, we don't need to implement any logic for this in GetChangeTypeForProperty()
+	const bool bAllowMultipleConnections = !ShouldExecuteOnGPU();
+
+	TArray<FPCGPinProperties> Properties;
+	FPCGPinProperties& InputPinProperty = Properties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::Point, bAllowMultipleConnections);
+	InputPinProperty.SetRequiredPin();
+
+	return Properties;
+}
+
 FPCGElementPtr UPCGStaticMeshSpawnerSettings::CreateElement() const
 {
 	return MakeShared<FPCGStaticMeshSpawnerElement>();
