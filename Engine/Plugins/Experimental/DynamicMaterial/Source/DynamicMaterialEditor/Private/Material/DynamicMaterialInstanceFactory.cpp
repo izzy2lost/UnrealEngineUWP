@@ -30,7 +30,7 @@ UObject* UDynamicMaterialInstanceFactory::FactoryCreateNew(UClass* InClass, UObj
 
 	if (InName.IsNone())
 	{
-		InName = TEXT("MaterialDesigner");
+		InName = MakeUniqueObjectName(InParent, UDynamicMaterialInstance::StaticClass(), TEXT("MaterialDesigner"));
 	}
 
 	UDynamicMaterialInstance* NewInstance = NewObject<UDynamicMaterialInstance>(InParent, InClass, InName, InFlags | RF_Transactional);
