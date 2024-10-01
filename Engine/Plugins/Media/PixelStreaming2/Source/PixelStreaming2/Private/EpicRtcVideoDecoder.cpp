@@ -116,7 +116,8 @@ namespace UE::PixelStreaming2
 			FAVResult DecodeResult;
 			if constexpr (std::is_same_v<TVideoResource, FVideoResourceRHI>)
 			{
-				FResolvableVideoResourceRHI DecoderResource;
+				// HACK edge case if streaming framerate is faster than render framerate this will cause an issue and should be switched to FetchOrCreate
+				FResolvableVideoResourceRHI& DecoderResource = VideoResourcesRHI[VideoResourceIndex++ % 2];
 				DecodeResult = Decoder->ReceiveFrame(DecoderResource);
 
 				if (DecodeResult.IsSuccess())
@@ -126,7 +127,8 @@ namespace UE::PixelStreaming2
 			}
 			else if constexpr (std::is_same_v<TVideoResource, FVideoResourceCPU>)
 			{
-				FResolvableVideoResourceCPU DecoderResource;
+				// HACK edge case if streaming framerate is faster than render framerate this will cause an issue and should be switched to FetchOrCreate
+				FResolvableVideoResourceCPU& DecoderResource = VideoResourcesCPU[VideoResourceIndex++ % 2];
 				DecodeResult = Decoder->ReceiveFrame(DecoderResource);
 
 				if (DecodeResult.IsSuccess())

@@ -13,6 +13,8 @@
 
 #include "epic_rtc/core/video/video_decoder.h"
 
+#include <atomic>
+
 namespace UE::PixelStreaming2
 {
 	template <std::derived_from<FVideoResource> TVideoResource>
@@ -36,7 +38,10 @@ namespace UE::PixelStreaming2
 		TRefCountPtr<EpicRtcVideoDecoderCallbackInterface> VideoDecoderCallback;
 		TRefCountPtr<EpicRtcVideoCodecInfoInterface>	   CodecInfo;
 		uint16_t										   FrameCount;
-
+		// TODO rather than just flip flopping we should have a system to FetchOrCreate a Resource on an as needed basis
+		TStaticArray<FResolvableVideoResourceRHI, 2>	   VideoResourcesRHI;
+		TStaticArray<FResolvableVideoResourceCPU, 2>	   VideoResourcesCPU;
+		std::atomic<uint32>								   VideoResourceIndex;
 	private:
 		bool LateInitDecoder();
 
