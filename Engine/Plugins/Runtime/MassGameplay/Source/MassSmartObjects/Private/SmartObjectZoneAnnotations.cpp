@@ -204,7 +204,7 @@ void USmartObjectZoneAnnotations::DebugDraw(FZoneGraphAnnotationSceneProxy* Debu
 			}
 			const FSmartObjectLaneLocation& SOLaneLocation = AnnotationData.SmartObjectLaneLocations[*Index];
 
-			const FVector& ObjectLocation = Entry.GetComponent()->GetComponentLocation();
+			const FVector& ObjectLocation = Entry.GetTransform().GetLocation();
 			FZoneGraphLaneLocation EntryPointLocation;
 			UE::ZoneGraph::Query::CalculateLocationAlongLane(*ZoneStorage, SOLaneLocation.LaneIndex, SOLaneLocation.DistanceAlongLane, EntryPointLocation);
 			const FColor Color = FColor::Silver;
