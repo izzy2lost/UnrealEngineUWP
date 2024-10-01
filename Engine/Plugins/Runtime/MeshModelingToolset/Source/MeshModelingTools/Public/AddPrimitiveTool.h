@@ -550,6 +550,13 @@ protected:
 
 	void UpdateTargetSurface();
 
+	// @return true if the primitive needs to be centered in the XY plane when placed.
+	virtual bool ShouldCenterXY() const
+	{
+		// Most primitives are already XY centered, and re-centering them only introduces issues at very low samplings where the bounds center is offset from the intended center.
+		return false;
+	}
+
 	// Used to make the initial placement of the mesh undoable
 	class FStateChange : public FToolCommandChange
 	{
@@ -675,6 +682,10 @@ public:
 	explicit UAddStairsPrimitiveTool(const FObjectInitializer& ObjectInitializer);
 protected:
 	virtual void GenerateMesh(FDynamicMesh3* OutMesh) const override;
+	virtual bool ShouldCenterXY() const override
+	{
+		return true;
+	}
 };
 
 

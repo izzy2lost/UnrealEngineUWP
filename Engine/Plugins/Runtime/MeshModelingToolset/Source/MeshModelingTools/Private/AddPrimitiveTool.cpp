@@ -363,6 +363,10 @@ void UAddPrimitiveTool::UpdatePreviewMesh() const
 	// set mesh position
 	const FAxisAlignedBox3d Bounds = NewMesh.GetBounds(true);
 	FVector3d TargetOrigin = Bounds.Center();
+	if (!ShouldCenterXY())
+	{
+		TargetOrigin.X = TargetOrigin.Y = 0;
+	}
 	if (ShapeSettings->PivotLocation == EMakeMeshPivotLocation::Base)
 	{
 		TargetOrigin.Z = Bounds.Min.Z;
