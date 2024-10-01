@@ -612,7 +612,7 @@ void UDebugSkelMeshComponent::InitAnim(bool bForceReinit)
 	}
 }
 
-void UDebugSkelMeshComponent::SetAnimClass(class UClass* NewClass)
+void UDebugSkelMeshComponent::SetAnimInstanceClass(class UClass* NewClass)
 {
 	// Override this to do nothing and warn the user
 	UE_LOG(LogAnimation, Warning, TEXT("Attempting to destroy an animation preview actor, skipping."));
