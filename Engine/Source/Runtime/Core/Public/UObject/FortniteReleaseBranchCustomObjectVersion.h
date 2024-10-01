@@ -54,6 +54,9 @@ struct FFortniteReleaseBranchCustomObjectVersion
 		// Deprecation of Nav Movement Properties and moving them to a new struct
 		NavMovementComponentMovingPropertiesToStruct,
 
+		// Add bone serialization for dynamic mesh attributes
+		DynamicMeshAttributesSerializeBones,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

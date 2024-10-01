@@ -8,6 +8,7 @@
 #include "Tasks/Task.h"
 #include "Serialization/NameAsStringProxyArchive.h"
 
+#include "UObject/FortniteReleaseBranchCustomObjectVersion.h"
 
 using namespace UE::Geometry;
 
@@ -1305,6 +1306,7 @@ void FDynamicMeshAttributeSet::Serialize(FArchive& Ar, const FCompactMaps* Compa
 	using namespace FDynamicMeshAttributeSet_Local;
 	
 	Ar.UsingCustomVersion(FUE5MainStreamObjectVersion::GUID);
+	Ar.UsingCustomVersion(FFortniteReleaseBranchCustomObjectVersion::GUID);
 
 	const bool bUseLegacySerialization = Ar.IsLoading() && Ar.CustomVer(FUE5MainStreamObjectVersion::GUID) < FUE5MainStreamObjectVersion::DynamicMeshCompactedSerialization;
 
@@ -1419,8 +1421,23 @@ void FDynamicMeshAttributeSet::Serialize(FArchive& Ar, const FCompactMaps* Compa
 		}
 	}
 
-
-	// TODO: Serialize bone attributes
+	const bool bSerializeBones = !Ar.IsLoading() || Ar.CustomVer(FFortniteReleaseBranchCustomObjectVersion::GUID) >= FFortniteReleaseBranchCustomObjectVersion::DynamicMeshAttributesSerializeBones;
+	if (bSerializeBones)
+	{
+		bool bHasBones = BoneNameAttrib && BoneParentIndexAttrib && BonePoseAttrib && BoneColorAttrib;
+		Ar << bHasBones;
+		if (bHasBones)
+		{
+			if (Ar.IsLoading())
+			{
+				EnableBones(0);
+			}
+			FNameAsStringProxyArchive ProxyArchive(Ar); BoneNameAttrib->Serialize(ProxyArchive);
+			BoneParentIndexAttrib->Serialize(Ar);
+			BonePoseAttrib->Serialize(Ar);
+			BoneColorAttrib->Serialize(Ar);
+		}
+	}
 
 	//Ar << GenericAttributes; // TODO
 }
