@@ -74,6 +74,9 @@ struct FMovieSceneChannelMetaData
 	uint8 bRelativeToSection : 1;
 	/** A sort order for this channel. Channels are sorted by this order, then by name. Groups are sorted by the channel with the lowest sort order. */
 	uint32 SortOrder;
+	/** By default if a channel has no FText::Group specified, we put it last, by setting this to false we use SortIndex instead */
+	bool bSortEmptyGroupsLast;
+
 	/** This channel's unique name */
 	FName Name;
 	/**
