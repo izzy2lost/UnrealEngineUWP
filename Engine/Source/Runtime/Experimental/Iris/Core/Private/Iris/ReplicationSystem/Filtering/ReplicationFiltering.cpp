@@ -805,6 +805,10 @@ void FReplicationFiltering::InitNewConnections()
 			{
 				const bool bIsOwner = (ConnectionId == ObjectIndexToOwningConnection[ObjectIndex]);
 				ConnectionInfo.ConnectionFilteredObjects.SetBitValue(ObjectIndex, bIsOwner);
+				for (const FInternalNetRefIndex SubObjectIndex : NetRefHandleManager->GetSubObjects(ObjectIndex))
+				{
+					ConnectionInfo.ConnectionFilteredObjects.SetBitValue(SubObjectIndex, bIsOwner);
+				}
 			};
 
 			ObjectsWithOwnerFilter.ForAllSetBits(MaskObjectToOwner);
@@ -817,7 +821,12 @@ void FReplicationFiltering::InitNewConnections()
 				const PerObjectInfoIndexType ObjectInfoIndex = ObjectIndexToPerObjectInfoIndex[ObjectIndex];
 				const FPerObjectInfo* ObjectInfo = GetPerObjectInfo(ObjectInfoIndex);
 				const ENetFilterStatus ReplicationStatus = GetConnectionFilterStatus(*ObjectInfo, ConnectionId);
-				ConnectionInfo.ConnectionFilteredObjects.SetBitValue(ObjectIndex, ReplicationStatus == ENetFilterStatus::Allow);
+				const bool bIsAllowedToReplicate = (ReplicationStatus == ENetFilterStatus::Allow);
+				ConnectionInfo.ConnectionFilteredObjects.SetBitValue(ObjectIndex, bIsAllowedToReplicate);
+				for (const FInternalNetRefIndex SubObjectIndex : NetRefHandleManager->GetSubObjects(ObjectIndex))
+				{
+					ConnectionInfo.ConnectionFilteredObjects.SetBitValue(SubObjectIndex, bIsAllowedToReplicate);
+				}
 			};
 
 			ObjectsWithPerObjectInfo.ForAllSetBits(MaskObjectToConnection);
