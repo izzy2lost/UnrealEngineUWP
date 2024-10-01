@@ -1310,7 +1310,7 @@ void FShaderCompilerOutput::GenerateOutputHash()
 {
 	FSHA1 HashState;
 	
-	const TArray<uint8>& Code = ShaderCode.GetReadAccess();
+	TArrayView<const uint8> Code = ShaderCode.GetReadView();
 
 	// we don't hash the optional attachments as they would prevent sharing (e.g. many materials share the same VS)
 	uint32 ShaderCodeSize = ShaderCode.GetShaderCodeSize();
@@ -1627,19 +1627,21 @@ public:
 		int32 PackedShaderKey = Compiler->GetPackedShaderKey();
 		CombinedSource.Append(reinterpret_cast<const uint8*>(&PackedShaderKey), sizeof(PackedShaderKey));
 
-		const uint32 PrimaryLength = Job.Output.ShaderCode.GetReadAccess().Num();
+		TArrayView<const uint8> PrimaryCode = Job.Output.ShaderCode.GetReadView();
+		const uint32 PrimaryLength = PrimaryCode.NumBytes();
+		TArrayView<const uint8> SecondaryCode = Job.SecondaryOutput->ShaderCode.GetReadView();
+		const uint32 SecondaryLength = SecondaryCode.NumBytes();
+
+		CombinedSource.Reserve(PrimaryLength + sizeof(PrimaryLength) + SecondaryLength + sizeof(SecondaryLength));
 		CombinedSource.Append(reinterpret_cast<const uint8*>(&PrimaryLength), sizeof(PrimaryLength));
-
-		const uint32 SecondaryLength = Job.SecondaryOutput->ShaderCode.GetReadAccess().Num();
 		CombinedSource.Append(reinterpret_cast<const uint8*>(&SecondaryLength), sizeof(SecondaryLength));
-
-		CombinedSource.Append(Job.Output.ShaderCode.GetReadAccess());
-		CombinedSource.Append(Job.SecondaryOutput->ShaderCode.GetReadAccess());
+		CombinedSource.Append(PrimaryCode);
+		CombinedSource.Append(SecondaryCode);
 
 		// Replace Output shader code with the combined result
 		Job.Output.ShaderCode = {};
 		TArray<uint8>& FinalShaderCode = Job.Output.ShaderCode.GetWriteAccess();
-		FinalShaderCode.Append(CombinedSource);
+		FinalShaderCode = MoveTemp(CombinedSource);
 		Job.Output.ShaderCode.FinalizeShaderCode();
 	}
 
@@ -3779,27 +3781,28 @@ void FShaderCode::Compress(FName ShaderCompressionFormat, FOodleDataCompression:
 
 	TArray<uint8> Compressed;
 	// conventional formats will fail if the compressed size isn't enough, Oodle needs a more precise estimate
-	int32 CompressedSize = (ShaderCompressionFormat != NAME_Oodle) ? ShaderCodeWithOptionalData.Num() : FOodleDataCompression::CompressedBufferSizeNeeded(ShaderCodeWithOptionalData.Num());
+	TConstArrayView<uint8> Code = ShaderCodeResource.GetCodeView();
+	int32 CompressedSize = (ShaderCompressionFormat != NAME_Oodle) ? Code.NumBytes() : FOodleDataCompression::CompressedBufferSizeNeeded(Code.NumBytes());
 	Compressed.AddUninitialized(CompressedSize);
 
 	// non-Oodle format names use the old API, for NAME_Oodle we replace the call with the custom invocation
 	bool bCompressed = false;
 	if (ShaderCompressionFormat != NAME_Oodle)
 	{
-		bCompressed = FCompression::CompressMemory(ShaderCompressionFormat, Compressed.GetData(), CompressedSize, ShaderCodeWithOptionalData.GetData(), ShaderCodeWithOptionalData.Num(), COMPRESS_BiasSize);
+		bCompressed = FCompression::CompressMemory(ShaderCompressionFormat, Compressed.GetData(), CompressedSize, Code.GetData(), Code.Num(), COMPRESS_BiasSize);
 	}
 	else
 	{
-		CompressedSize = FOodleDataCompression::Compress(Compressed.GetData(), CompressedSize, ShaderCodeWithOptionalData.GetData(), ShaderCodeWithOptionalData.Num(),
+		CompressedSize = FOodleDataCompression::Compress(Compressed.GetData(), CompressedSize, Code.GetData(), Code.Num(),
 			InOodleCompressor, InOodleLevel);
 		bCompressed = CompressedSize != 0;
 	}
 
 	// there is code that assumes that if CompressedSize == CodeSize, the shader isn't compressed. Because of that, do not accept equal compressed size (very unlikely anyway)
-	if (bCompressed && CompressedSize < ShaderCodeWithOptionalData.Num())
+	if (bCompressed && CompressedSize < Code.Num())
 	{
 		// cache the ShaderCodeSize since it will no longer possible to get it as the reader will fail to parse the compressed data
-		FShaderCodeReader Wrapper(ShaderCodeWithOptionalData);
+		FShaderCodeReader Wrapper(Code);
 		ShaderCodeSize = Wrapper.GetShaderCodeSize();
 		checkf(ShaderCodeSize >= 0, TEXT("Unable to determine ShaderCodeSize from uncompressed code"), ShaderCodeSize);
 
@@ -3807,11 +3810,42 @@ void FShaderCode::Compress(FName ShaderCompressionFormat, FOodleDataCompression:
 		CompressionFormat = ShaderCompressionFormat;
 		OodleCompressor = InOodleCompressor;
 		OodleLevel = InOodleLevel;
-		UncompressedSize = ShaderCodeWithOptionalData.Num();
+		UncompressedSize = Code.Num();
 
 		Compressed.SetNum(CompressedSize);
-		ShaderCodeWithOptionalData = Compressed;
+		ShaderCodeResource.Code = MakeSharedBufferFromArray(MoveTemp(Compressed));
 	}
+}
+
+FArchive& operator<<(FArchive& Ar, FSharedBuffer& Buffer)
+{
+	uint64 Len = Buffer.GetSize();
+	Ar << Len;
+
+	if (Ar.IsLoading())
+	{
+		Buffer.Reset();
+
+		if (Len > 0)
+		{
+			FUniqueBuffer BufTmp = FUniqueBuffer::Alloc(Len);
+			Ar.Serialize(BufTmp.GetData(), Len);
+			Buffer = BufTmp.MoveToShared();
+		}
+	}
+	else if (Ar.IsSaving())
+	{
+		Ar.Serialize(const_cast<void*>(Buffer.GetData()), Len);
+	}
+
+	return Ar;
+}
+
+FArchive& operator<<(FArchive& Ar, FShaderCodeResource& Resource)
+{
+	Ar << Resource.Header;
+	Ar << Resource.Code;
+	return Ar;
 }
 
 FArchive& operator<<(FArchive& Ar, FShaderCode& Output)
@@ -3826,7 +3860,8 @@ FArchive& operator<<(FArchive& Ar, FShaderCode& Output)
 	}
 
 	// Note: this serialize is used to pass between UE and the shader compile worker, recompile both when modifying
-	Ar << Output.ShaderCodeWithOptionalData;
+	FSharedBuffer& CodeBuffer = Output.ShaderCodeResource.Code;
+	Ar << CodeBuffer;
 	Ar << Output.UncompressedSize;
 	{
 		FString CompressionFormatString(Output.CompressionFormat.ToString());
@@ -4012,7 +4047,7 @@ void FShaderCompileJob::SerializeOutput(FShaderCacheSerializeContext& Ctx, int32
 	FShaderCodeResource CodeResource;
 	if (bIsSaving)
 	{
-		CodeResource = Output.ConvertCodeToResource();
+		CodeResource = Output.GetFinalizedCodeResource();
 	}
 
 	Ctx.SerializeCodeFunc(CodeResource, CodeIndex);
