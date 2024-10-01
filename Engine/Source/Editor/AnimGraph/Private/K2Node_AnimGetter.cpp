@@ -40,6 +40,54 @@ class UBlueprint;
 
 #define LOCTEXT_NAMESPACE "AnimGetter"
 
+void UK2Node_AnimGetter::PostLoad()
+{
+	Super::PostLoad();
+
+	if (!HasAnyFlags(RF_ClassDefaultObject))
+	{
+		RegisterDelegates();
+	}
+}
+
+void UK2Node_AnimGetter::PostPlacedNewNode()
+{
+	Super::PostPlacedNewNode();
+
+	RegisterDelegates();
+}
+
+void UK2Node_AnimGetter::RegisterDelegates()
+{
+	if (!HasAnyFlags(RF_Transient) && HasValidBlueprint())
+	{
+		if (UAnimBlueprint* ABP = CastChecked<UAnimBlueprint>(GetBlueprint()))
+		{
+			GraphRenameHandle = ABP->OnGraphRenamedEvent().AddLambda([this](UEdGraph*, FName, FName)
+			{
+				UpdateCachedTitle();
+			});
+		}
+	}
+}
+
+void UK2Node_AnimGetter::UnregisterDelegates()
+{
+	if (!HasAnyFlags(RF_Transient) && HasValidBlueprint())
+	{
+		if (UAnimBlueprint* ABP = CastChecked<UAnimBlueprint>(GetBlueprint()))
+		{
+			ABP->OnGraphRenamedEvent().Remove(GraphRenameHandle);
+		}
+	}
+}
+
+void UK2Node_AnimGetter::BeginDestroy()
+{
+	Super::BeginDestroy();
+
+	UnregisterDelegates();	
+}
 
 void UK2Node_AnimGetter::Serialize(FArchive& Ar)
 {
