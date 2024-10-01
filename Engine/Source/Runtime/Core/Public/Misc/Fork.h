@@ -70,11 +70,6 @@ public:
 	static CORE_API void OnForkingOccured();
 
 	/**
-	 * Event triggered when a fork is about to occur on the parent process
-	 */
-	static CORE_API void OnPreFork();
-
-	/**
 	 * Tells if we allow multithreading on forked processes.
 	 * Default is set to false but can be configured to always be true via DEFAULT_MULTITHREAD_FORKED_PROCESSES
 	 * Enabled via -PostForkThreading

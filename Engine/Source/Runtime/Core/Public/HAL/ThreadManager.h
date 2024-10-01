@@ -33,6 +33,9 @@ class FThreadManager
 
 public:
 
+	FThreadManager();
+	~FThreadManager();
+
 	/**
 	* Used internally to add a new thread object.
 	*
@@ -123,4 +126,7 @@ private:
 
 	/** Returns internal name of a the thread given its TLS id */
 	CORE_API const FString& GetThreadNameInternal(uint32 ThreadId);
+
+	/** Notification that the parent is about to fork */
+	void HandleOnParentPreFork();
 };

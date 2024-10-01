@@ -4,6 +4,7 @@
 #include "UObject/NameTypes.h"
 #include "Stats/Stats.h"
 #include "Misc/CommandLine.h"
+#include "Misc/CoreDelegates.h"
 #include "Misc/CoreStats.h"
 #include "Misc/EventPool.h"
 #include "Misc/LazySingleton.h"
@@ -450,6 +451,16 @@ public:
 };
 uint32 FFakeThread::ThreadIdCounter = 0xffff;
 
+FThreadManager::FThreadManager()
+{
+	FCoreDelegates::OnParentPreFork.AddRaw(this, &FThreadManager::HandleOnParentPreFork);
+}
+
+FThreadManager::~FThreadManager()
+{
+	FCoreDelegates::OnParentPreFork.RemoveAll(this);
+}
+
 bool FThreadManager::CheckThreadListSafeToContinueIteration()
 {
 	if (bIsThreadListDirty)
@@ -668,6 +679,16 @@ TArray<FRunnableThread*> FThreadManager::GetForkableThreads()
 	);
 
 	return ForkableThreads;
+}
+
+void FThreadManager::HandleOnParentPreFork()
+{
+	// Use a local list of forkable threads so we don't keep a lock on the global list during thread creation
+	TArray<FRunnableThread*> ForkableThreads = GetForkableThreads();
+	for (FRunnableThread* ForkableThread : ForkableThreads)
+	{
+		ForkableThread->OnPreFork();
+	}
 }
 
 /*-----------------------------------------------------------------------------
