@@ -348,12 +348,20 @@ namespace HordeServer.Agents
 		/// <returns>Information about the requested agent</returns>
 		[HttpGet]
 		[Route("/api/v1/agents/{agentId}/history")]
-		public async Task GetAgentHistoryAsync(AgentId agentId, [FromQuery] DateTime? minTime = null, [FromQuery] DateTime? maxTime = null, [FromQuery] int index = 0, [FromQuery] int count = 50)
+		public async Task<ActionResult> GetAgentHistoryAsync(AgentId agentId, [FromQuery] DateTime? minTime = null, [FromQuery] DateTime? maxTime = null, [FromQuery] int index = 0, [FromQuery] int count = 50)
 		{
+			if (!_computeConfig.Value.Authorize(AgentAclAction.ViewAgent, User))
+			{
+				return Forbid(AgentAclAction.ViewAgent, agentId);
+			}
+
 			Response.ContentType = "application/json";
 			Response.StatusCode = 200;
 			await Response.StartAsync();
 			await _agentService.Agents.GetLogger(agentId).FindAsync(Response.BodyWriter, minTime, maxTime, index, count);
+			await Response.CompleteAsync();
+
+			return NoContent();
 		}
 
 		/// <summary>
