@@ -747,7 +747,7 @@ endif()
 
 # System libraries, our own and transitive dependencies from LLVM libs.
 if (WIN32)
-    list(APPEND LINK_LIBRARIES version.lib shlwapi.lib odbc32.lib odbccp32.lib)
+    list(APPEND LINK_LIBRARIES version.lib shlwapi.lib odbc32.lib odbccp32.lib Ws2_32.lib)
 else()
     if (ISPC_STATIC_LINK)
         list(APPEND LINK_LIBRARIES pthread tinfo.a curses.a)
