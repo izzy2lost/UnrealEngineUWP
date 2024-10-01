@@ -76,30 +76,6 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FOnJoinSessionComplete, FName, EOnJoinSessi
 typedef FOnJoinSessionComplete::FDelegate FOnJoinSessionCompleteDelegate;
 
 /**
- * Delegate fired when a player has joined or left a session
- *
- * @param SessionName The name of the session that changed
- * @param UniqueId The ID of the user whose join state has changed
- * @param bJoined If true this is a join event, (if false it is a leave event)
- */
-UE_DEPRECATED(5.2, "FOnSessionParticipantsChange is deprecated, please use FOnSessionParticipantJoined and FOnSessionParticipantLeft instead.")
-DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnSessionParticipantsChange, FName, const FUniqueNetId&, bool);
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-typedef FOnSessionParticipantsChange::FDelegate FOnSessionParticipantsChangeDelegate;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-/**
- * Delegate fired when a session's member is removed from the session
- * @param SessionName The name of the session
- * @param TargetUniqueNetId The UniqueNetId of the member who was removed
- */
-UE_DEPRECATED(5.2, "FOnSessionParticipantRemoved is deprecated, please use FOnSessionParticipantLeft instead.")
-DECLARE_MULTICAST_DELEGATE_TwoParams(FOnSessionParticipantRemoved, FName, const FUniqueNetId&);
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-typedef FOnSessionParticipantRemoved::FDelegate FOnSessionParticipantRemovedDelegate;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-/**
  * Delegate fired when a player has joined a session
  *
  * @param SessionName The name of the session that changed
@@ -658,24 +634,6 @@ public:
 	 * @param Result EOnJoinSessionCompleteResult describing the outcome of the call 
 	 */
 	DEFINE_ONLINE_DELEGATE_TWO_PARAM(OnJoinSessionComplete, FName, EOnJoinSessionCompleteResult::Type);
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	/**
-	 * Delegate fired when a player has joined or left a session
-	 * @param SessionName The name of the session that changed
-	 * @param UniqueId The ID of the user whose join state has changed
-	 * @param bJoined if true this is a join event, (if false it is a leave event)
-	 */
-	DEFINE_ONLINE_DELEGATE_THREE_PARAM(OnSessionParticipantsChange, FName, const FUniqueNetId&, bool);
-
-	/**
-	* Delegate fired when a session's member is removed from the session
-	*
-	* @param SessionName The name of the session
-	* @param TargetUniqueNetId The UniqueNetId of the member who was removed
-	*/
-	DEFINE_ONLINE_DELEGATE_TWO_PARAM(OnSessionParticipantRemoved, FName, const FUniqueNetId&);
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/**
 	* Delegate fired when a player joins a session

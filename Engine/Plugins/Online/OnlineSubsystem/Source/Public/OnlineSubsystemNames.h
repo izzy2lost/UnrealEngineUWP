@@ -85,14 +85,8 @@ extern ONLINESUBSYSTEM_API const FName TENCENT_SUBSYSTEM;
 extern ONLINESUBSYSTEM_API const FName SWITCH_SUBSYSTEM;
 #endif
 
-UE_DEPRECATED(5.2, "OnlineSubsystemOculus has been deprecated and will be removed") ONLINESUBSYSTEM_API extern const FName OCULUS_SUBSYSTEM;
-
 #ifndef SAMSUNG_SUBSYSTEM
 extern ONLINESUBSYSTEM_API const FName SAMSUNG_SUBSYSTEM;
-#endif
-
-#ifndef QUAIL_SUBSYSTEM
-extern ONLINESUBSYSTEM_API const FName QUAIL_SUBSYSTEM;
 #endif
 
 #ifndef EOS_SUBSYSTEM

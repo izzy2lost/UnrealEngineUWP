@@ -42,10 +42,6 @@ FString ToLogString(const FLobbyBucketIdEOS& BucketId)
 	return FString::Printf(TEXT("%s:%d"), *BucketId.GetProductName(), BucketId.GetProductVersion());
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-const FString FLobbyBucketIdEOS::Separator = TEXT("|");
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 FLobbyBucketIdEOS::FLobbyBucketIdEOS(FString ProductName, int32 ProductVersion)
 	: ProductName(ProductName.Replace(UE_ONLINE_LOBBIES_BUCKET_ID_EOS_SEPARATOR, TEXT("_")))
 	, ProductVersion(ProductVersion)
