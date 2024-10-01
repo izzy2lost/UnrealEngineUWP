@@ -13,14 +13,16 @@
 #include "Video/VideoConfig.h"
 
 /**
- * The public interface of the Pixel Streaming module.
+ * The IPixelStreaming2Module interface manages the core functionality of the Pixel Streaming system.
+ * This class provides access to streamers, video and audio producers, and handles starting and stopping the streaming process.
+ * It also allows interaction with the signalling server and manages the lifecycle of streamers within the Pixel Streaming system.
  */
 class PIXELSTREAMING2_API IPixelStreaming2Module : public IModuleInterface
 {
 public:
 	/**
 	 * Singleton-like access to this module's interface.
-	 * Beware of calling this during the shutdown phase, though.  Your module might have been unloaded already.
+	 * Beware calling this during the shutdown phase, though. Your module might have been unloaded already.
 	 *
 	 * @return Returns singleton instance, loading the module on demand if needed
 	 */
@@ -58,6 +60,7 @@ public:
 
 	/**
 	 * Starts streaming on all streamers.
+	 * @return False if the module was not able to start streaming. 
 	 */
 	virtual bool StartStreaming() = 0;
 
@@ -69,19 +72,20 @@ public:
 	/**
 	 * Creates a new streamer.
 	 * @param StreamerId - The ID of the Streamer to be created.
+	 * @return SharedPtr to the streamer.
 	 */
 	virtual TSharedPtr<IPixelStreaming2Streamer> CreateStreamer(const FString& StreamerId) = 0;
 
 	/**
 	 * @brief Creates a new video producer.
-	 * @return An video producer interface for you to push video frames in to
+	 * @return An video producer interface for you to push video frames in to.
 	 */
 	virtual TSharedPtr<IPixelStreaming2VideoProducer> CreateVideoProducer() = 0;
 
 	/**
-	 * @brief Creates a new audio producer. Any audio you push in with `PushAudio` will be mixed with other audio sources before being streamed
-	 * @note Users are responsible for the lifetime of this object
-	 * @return An audio producer interface for you to push audio in to
+	 * @brief Creates a new audio producer. Any audio you push in with `PushAudio` will be mixed with other audio sources before being streamed.
+	 * @note Users are responsible for the lifetime of this object.
+	 * @return An audio producer interface for you to push audio in to.
 	 */
 	virtual TSharedPtr<IPixelStreaming2AudioProducer> CreateAudioProducer() = 0;
 
@@ -93,7 +97,8 @@ public:
 
 	/**
 	 * Find a streamer by an ID.
-	 * @return A pointer to the interface for a streamer. nullptr if the streamer isn't found
+	 * @param StreamerId	-	The ID of the streamer to be found.
+	 * @return A pointer to the interface for a streamer. nullptr if the streamer isn't found.
 	 */
 	virtual TSharedPtr<IPixelStreaming2Streamer> FindStreamer(const FString& StreamerId) = 0;
 
@@ -111,21 +116,21 @@ public:
 	virtual void DeleteStreamer(TSharedPtr<IPixelStreaming2Streamer> ToBeDeleted) = 0;
 
 	/**
-	 * Get the Default Streamer ID
-	 * @return FString The default streamer ID
+	 * Get the Default Streamer ID.
+	 * @return FString The default streamer ID.
 	 */
 	virtual FString GetDefaultStreamerID() = 0;
 
 	/**
-	 * Get the Default Signaling URL ("ws://127.0.0.1:8888")
-	 * @return FString The default signaling url ("ws://127.0.0.1:8888")
+	 * Get the Default Signaling URL ("ws://127.0.0.1:8888").
+	 * @return FString The default signaling url ("ws://127.0.0.1:8888").
 	 */
 	virtual FString GetDefaultSignallingURL() = 0;
 
 	/**
-	 * @brief A method for iterating through all of the streamers on the module
+	 * @brief A method for iterating through all of the streamers on the module.
 	 *
-	 * @param Func The lambda to execute with each streamer
+	 * @param Func The lambda to execute with each streamer.
 	 */
 	virtual void ForEachStreamer(const TFunction<void(TSharedPtr<IPixelStreaming2Streamer>)>& Func) = 0;
 };

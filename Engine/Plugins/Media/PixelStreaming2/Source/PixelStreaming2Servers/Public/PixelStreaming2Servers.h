@@ -10,11 +10,9 @@
 #include "Misc/MonitoredProcess.h"
 
 /*
- * Utility namespace for launching Pixel Streaming servers signaling or selective forwarding>
- * This utility can launch embedded servers from:
- * 1. C++ classes in this module.
- * 2. From known server binaries.
- * 3. From the Github releases of the servers.
+ * Utility namespace for launching Pixel Streaming servers signaling or selective forwarding.
+ * This utility can launch embedded servers from C++ classes in this module, 
+ * from known server binaries and from the Github releases of the servers.
  */
 namespace UE::PixelStreaming2Servers
 {

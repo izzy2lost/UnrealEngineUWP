@@ -98,6 +98,8 @@ public:
 	/**
 	 * @brief Register a custom function to execute when command JSON is received over the data channel: "{ type: "Command", YourCommand: YourCommandValue }".
 	 * Note: You can also override the default Pixel Streaming command handlers by setting handlers with the same name as those already used, e.g. "Stat.FPS".
+	 * @param CommandName The name of the command to handle. This corresponds to the key in the JSON message and is used to identify the command.
+	 * @param Handler The function that will be executed when the command is received.
 	 */
 	virtual void SetCommandHandler(const FString& CommandName, const CommandHandlerFn& Handler) = 0;
 
@@ -111,8 +113,7 @@ public:
 	/**
 	 * @brief Checks whether the given id has elevated priviledges.
 	 *
-	 * @return true The id is elevated.
-	 * @return false The id is not elevated.
+	 * @return True if id is elevated and false is not elevated.
 	 */
 	virtual bool IsElevated(const FString& Id) = 0;
 
@@ -135,7 +136,8 @@ public:
 	virtual TSharedPtr<IPixelStreaming2DataProtocol> GetFromStreamerProtocol() = 0;
 
 	/**
-	 * @brief Set the input handlers type. This controls whether input is routed to widgets or windows
+	 * @brief Set the input handlers type. This controls whether input is routed to widgets or windows.
+	 * @param InputType The input routing type.
 	 */
 	virtual void SetInputType(EPixelStreaming2InputType InputType) = 0;
 
