@@ -113,6 +113,8 @@ struct FOpenGLES : public FOpenGLBase
 		glDeleteQueries(NumQueries, QueryIDs);
 	}
 
+	using FOpenGLBase::GetQueryObject;
+
 	static FORCEINLINE void GetQueryObject(GLuint QueryId, EQueryMode QueryMode, GLuint* OutResult)
 	{
 		GLenum QueryName = (QueryMode == QM_Result) ? GL_QUERY_RESULT : GL_QUERY_RESULT_AVAILABLE;

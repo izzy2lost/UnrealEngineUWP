@@ -117,7 +117,7 @@ DECLARE_CYCLE_STAT_EXTERN(TEXT("Uniform bind time"),STAT_OpenGLUniformBindTime,S
 DECLARE_CYCLE_STAT_EXTERN(TEXT("VBO setup time"),STAT_OpenGLVBOSetupTime,STATGROUP_OpenGLRHI, );
 #endif
 
-enum EOpenGLCurrentContext
+enum EOpenGLCurrentContext : int8
 {
 	CONTEXT_Other = -2,
 	CONTEXT_Invalid = -1,
@@ -161,21 +161,6 @@ int32 PlatformGlGetError();
  * order to optimize out redundant OpenGL calls.
  */
 EOpenGLCurrentContext PlatformOpenGLCurrentContext(FPlatformOpenGLDevice* Device);
-
-/**
- * Get new occlusion query from current context. This is provided from a cache inside the context
- * if some entries are in there, and created otherwise. All other released queries present in the
- * cache are deleted at the same time (as this is the earliest possible occasion when the context
- * they're in is present).
- */
-void PlatformGetNewRenderQuery( GLuint* OutQuery, uint64* OutQueryContext );
-
-/**
- * Release occlusion query. If the current context is the one it was created in, it's deleted from
- * OpenGL immediately, otherwise it's stored on the list, and will be deleted when its context is
- * a current one.
- */
-void PlatformReleaseRenderQuery( GLuint Query, uint64 QueryContext );
 
 /**
  * Check if the query's OpenGL context is a current one. If it's not, there's no sense in issuing

@@ -430,7 +430,6 @@ struct FOpenGLRHIState final : public FOpenGLCommonState
 	GLuint							ZeroFilledDummyUniformBuffer;
 	uint32							RenderTargetWidth;
 	uint32							RenderTargetHeight;
-	GLuint							RunningOcclusionQuery;
 	bool							bAlphaToCoverageEnabled;
 
 	// Pending framebuffer setup
@@ -491,7 +490,6 @@ struct FOpenGLRHIState final : public FOpenGLCommonState
 	,	ZeroFilledDummyUniformBuffer(0)
 	,	RenderTargetWidth(0)
 	,	RenderTargetHeight(0)
-	,	RunningOcclusionQuery(0)
 	,	bAlphaToCoverageEnabled(false)
 	,	NumRenderingSamples(1)
 	,	FirstNonzeroRenderTarget(-1)

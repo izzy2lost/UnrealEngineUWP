@@ -687,12 +687,6 @@ public:
 		RHIContext->RHICalibrateTimers(CalibrationQuery);
 	}
 
-	// Used for OpenGL to check and see if any occlusion queries can be read back on the RHI thread. If they aren't ready when we need them, then we end up stalling.
-	virtual void RHIPollOcclusionQueries() override final
-	{
-		RHIContext->RHIPollOcclusionQueries();
-	}
-
 	// Not all RHIs need this (Mobile specific)
 	virtual void RHIDiscardRenderTargets(bool bDepth, bool bStencil, uint32 ColorBitMask) override final
 	{

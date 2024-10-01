@@ -34,6 +34,7 @@ class FOpenGLDynamicRHI;
 class FResourceBulkDataInterface;
 struct FOpenGLResourceBinder;
 struct Rect;
+enum EOpenGLCurrentContext : int8;
 
 template<class T> struct TOpenGLResourceTraits;
 
@@ -106,11 +107,14 @@ public:
 	void StartTracking();
 	void EndTracking();
 	bool IsResultValid();
-	bool GetResult(uint64* OutResult=NULL);
+
+	bool GetResult(uint64* OutResult);
+
 	static uint64 GetTimingFrequency()
 	{
 		return 1000000000ull;
 	}
+
 	static bool IsSupported()
 	{
 #if UE_BUILD_SHIPPING
@@ -120,14 +124,9 @@ public:
 #endif
 	}
 
-	void InitResources();
-	void ReleaseResources();
-
-
 private:
 	bool	bIsResultValid = false;
-	GLuint	DisjointQuery = 0;
-	uint64	Context = 0;
+	FOpenGLRenderQuery DisjointQuery { FOpenGLRenderQuery::EType::Disjoint };
 };
 
 /** A single perf event node, which tracks information about a appBeginDrawEvent/appEndDrawEvent range. */
@@ -176,13 +175,11 @@ public:
 		, DisjointQuery()
 	{
 		RootEventTiming.InitResources();
-		DisjointQuery.InitResources();
 	}
 
 	~FOpenGLEventNodeFrame()
 	{
 		RootEventTiming.ReleaseResources();
-		DisjointQuery.ReleaseResources();
 	}
 
 	/** Start this frame of per tracking */
@@ -229,11 +226,6 @@ struct FOpenGLGPUProfiler : public FGPUProfiler
 		: FrameTiming(4)
 	{
 		FrameTiming.InitResources();
-		for (int32 Index = 0; Index < MAX_GPUFRAMEQUERIES; ++Index)
-		{
-			DisjointGPUFrameTimeQuery[Index].InitResources();
-		}
-
 		BeginFrame();
 	}
 
@@ -262,6 +254,8 @@ public:
 	static inline FOpenGLDynamicRHI& Get() { return *Singleton; }
 
 	friend class FOpenGLViewport;
+
+	static EOpenGLCurrentContext GetCurrentContext();
 
 	/** Initialization constructor. */
 	FOpenGLDynamicRHI();
@@ -382,7 +376,6 @@ public:
 	virtual EPixelFormat RHIPreferredPixelFormatHint(EPixelFormat PreferredPixelFormat) final override;
 	virtual void RHITick(float DeltaTime) final override;
 	virtual void RHIBlockUntilGPUIdle() final override;
-	virtual void RHIPollOcclusionQueries() final override;
 	virtual bool RHIGetAvailableResolutions(FScreenResolutionArray& Resolutions, bool bIgnoreRefreshRate) final override;
 	virtual void RHIGetSupportedResolution(uint32& Width, uint32& Height) final override;
 	virtual void* RHIGetNativeDevice() final override;
@@ -405,8 +398,12 @@ public:
 	virtual void RHISetMultipleViewports(uint32 Count, const FViewportBounds* Data) final override;
 	virtual void RHIClearUAVFloat(FRHIUnorderedAccessView* UnorderedAccessViewRHI, const FVector4f& Values) final override;
 	virtual void RHIClearUAVUint(FRHIUnorderedAccessView* UnorderedAccessViewRHI, const FUintVector4& Values) final override;
+
+	virtual void RHIBeginRenderQuery_TopOfPipe(FRHICommandListBase& RHICmdList, FRHIRenderQuery* RenderQuery) override final;
+	virtual void RHIEndRenderQuery_TopOfPipe(FRHICommandListBase& RHICmdList, FRHIRenderQuery* RenderQuery) override final;
 	virtual void RHIBeginRenderQuery(FRHIRenderQuery* RenderQuery) final override;
 	virtual void RHIEndRenderQuery(FRHIRenderQuery* RenderQuery) final override;
+
 	virtual void RHIBeginDrawingViewport(FRHIViewport* Viewport, FRHITexture* RenderTargetRHI) final override;
 	virtual void RHIEndDrawingViewport(FRHIViewport* Viewport, bool bPresent, bool bLockToVsync) final override;
 	virtual void RHIEndFrame(const FRHIEndFrameArgs& Args) final override;
@@ -560,19 +557,6 @@ public:
 	{
 		return ( ContextState.UniformBufferBound == Buffer );
 	}
-
-	/** Add query to Queries list upon its creation. */
-	void RegisterQuery( FOpenGLRenderQuery* Query );
-
-	/** Remove query from Queries list upon its deletion. */
-	void UnregisterQuery( FOpenGLRenderQuery* Query );
-
-	/** Inform all queries about the need to recreate themselves after OpenGL context they're in gets deleted. */
-	void InvalidateQueries();
-
-	void BeginRenderQuery_OnThisThread(FOpenGLRenderQuery* Query);
-	void EndRenderQuery_OnThisThread(FOpenGLRenderQuery* Query);
-	void GetRenderQueryResult_OnThisThread(FOpenGLRenderQuery* Query, bool bWait);
 
 	FOpenGLSamplerState* GetPointSamplerState() const { return (FOpenGLSamplerState*)PointSamplerState.GetReference(); }
 
@@ -814,12 +798,6 @@ private:
 
 	/** Underlying platform-specific data */
 	struct FPlatformOpenGLDevice* PlatformDevice = nullptr;
-
-	/** Query list. This is used to inform queries they're no longer valid when OpenGL context they're in gets released from another thread. */
-	TArray<FOpenGLRenderQuery*> Queries;
-
-	/** A critical section to protect modifications and iteration over Queries list */
-	FCriticalSection QueriesListCriticalSection;
 
 #if RHI_NEW_GPU_PROFILER
 

@@ -227,14 +227,6 @@ static bool PostProcessUsesSceneDepth(const FViewInfo& View)
 	return false;
 }
 
-static void PollOcclusionQueriesPass(FRDGBuilder& GraphBuilder)
-{
-	AddPass(GraphBuilder, RDG_EVENT_NAME("PollOcclusionQueries"), [](FRHICommandListImmediate& RHICmdList)
-	{
-		RHICmdList.PollOcclusionQueries();
-	});
-}
-
 struct FRenderViewContext
 {
 	FViewInfo* ViewInfo;
@@ -1186,8 +1178,6 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		}
 		ExternalAccessQueue.Submit(GraphBuilder);
 
-		PollOcclusionQueriesPass(GraphBuilder);
-
 		// Custom depth
 		// bShouldRenderCustomDepth has been initialized in InitViews on mobile platform
 		if (bShouldRenderCustomDepth)
@@ -1472,11 +1462,6 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	OnRenderFinish(GraphBuilder, ViewFamilyTexture);
 
-	if (bRendererOutputFinalSceneColor)
-	{
-		PollOcclusionQueriesPass(GraphBuilder);
-	}
-
 	QueueSceneTextureExtractions(GraphBuilder, SceneTextures);
 
 	if (Scene->InstanceCullingOcclusionQueryRenderer)
@@ -1667,7 +1652,7 @@ void FMobileSceneRenderer::RenderForwardSinglePass(FRDGBuilder& GraphBuilder, FM
 		// Opaque and masked
 		RenderMobileBasePass(RHICmdList, View, &PassParameters->InstanceCullingDrawParams);
 		RenderMobileDebugView(RHICmdList, View);
-		RHICmdList.PollOcclusionQueries();
+
 		PostRenderBasePass(RHICmdList, View);
 		// scene depth is read only and can be fetched
 		RHICmdList.NextSubpass();
@@ -1736,7 +1721,7 @@ void FMobileSceneRenderer::RenderForwardMultiPass(FRDGBuilder& GraphBuilder, FMo
 		// Opaque and masked
 		RenderMobileBasePass(RHICmdList, View, &PassParameters->InstanceCullingDrawParams);
 		RenderMobileDebugView(RHICmdList, View);
-		RHICmdList.PollOcclusionQueries();
+
 		PostRenderBasePass(RHICmdList, View);
 	});
 
@@ -2006,7 +1991,7 @@ void FMobileSceneRenderer::RenderDeferredSinglePass(FRDGBuilder& GraphBuilder, F
 				// Opaque and masked
 				RenderMobileBasePass(RHICmdList, View, &PassParameters->InstanceCullingDrawParams);
 				RenderMobileDebugView(RHICmdList, View);
-				RHICmdList.PollOcclusionQueries();
+
 				PostRenderBasePass(RHICmdList, View);
 				// SceneColor + GBuffer write, SceneDepth is read only
 				RHICmdList.NextSubpass();
@@ -2085,7 +2070,7 @@ void FMobileSceneRenderer::RenderDeferredMultiPass(FRDGBuilder& GraphBuilder, FS
 				// Opaque and masked
 				RenderMobileBasePass(RHICmdList, View, &PassParameters->InstanceCullingDrawParams);
 				RenderMobileDebugView(RHICmdList, View);
-				RHICmdList.PollOcclusionQueries();
+
 				PostRenderBasePass(RHICmdList, View);
 
 				if (bDoOcclusionQueires)

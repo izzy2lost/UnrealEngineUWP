@@ -1158,51 +1158,99 @@ public:
 	uint8 const bMultisampleRenderbuffer : 1;
 };
 
-class FOpenGLRenderQuery final
+class FOpenGLRenderQuery
 {
 public:
+	enum class EType : uint8
+	{
+		Timestamp,
+		Occlusion,
+		Disjoint,
+
+		Num
+	};
+
+	static constexpr uint64 InvalidDisjointMask = 0x8000000000000000;
+
+private:
+	// Render queries that should be polled by the RHI thread.
+	struct FActiveQueries
+	{
+		FOpenGLRenderQuery* First = nullptr;
+		FOpenGLRenderQuery* Last = nullptr;
+		int32 Count = 0;
+	} static ActiveQueries;
+
+	struct FQueryPool : public TStaticArray<TArray<GLuint>, (uint32)EType::Num>
+	{
+		TArray<GLuint>& operator [](EType InType) { return TStaticArray::operator[]((uint32)InType); }
+	} static PooledQueries;
+
+	// Linked list pointers. Used to build a list of "active" queries, i.e. queries that need data to be polled from the GPU.
+	FOpenGLRenderQuery** Prev = nullptr;
+	FOpenGLRenderQuery* Next = nullptr;
+
+	uint64 Result = 0;
+
 	/** The query resource. */
-	GLuint Resource;
+	GLuint Resource = 0;
 
-	/** Identifier of the OpenGL context the query is a part of. */
-	uint64 ResourceContext;
+	uint8 bSharedContext : 1 = false;
 
-	/** The cached query result. */
-	GLuint64 Result = 0;
+protected:
+	EType const Type : 2;
 
-	FThreadSafeCounter TotalBegins;
-	FThreadSafeCounter TotalResults;
+	std::atomic<uint8> LastCachedBOPCounter = 0;
+	uint8 BOPCounter = 0;
+	uint8 TOPCounter = 0;
 
-	/** true if the context the query is in was released from another thread */
-	bool bResultWasSuccess;
+public:
+	FOpenGLRenderQuery(EType Type)
+		: Type(Type)
+	{}
 
-	/** true if the context the query is in was released from another thread */
-	bool bInvalidResource = true;
-
-	// todo: memory optimize
-	const ERenderQueryType QueryType;
-
-	FOpenGLRenderQuery(ERenderQueryType InQueryType);
 	~FOpenGLRenderQuery();
+
+	void AcquireGlQuery();
+	void ReleaseGlQuery();
+
+	bool IsLinked() const { return Prev != nullptr; }
+
+	void Begin();
+	void End();
+
+	uint64 GetResult() const
+	{
+		return Result;
+	}
+
+	bool CacheResult(bool bWait);
+
+	static void PollQueryResults();
+	static void Cleanup();
+
+private:
+	void Link();
+	void Unlink();
+
+	void SetResult(uint64 Value);
+
+	void CheckContext();
 };
 
-class FOpenGLRenderQuery_RHI : public FRHIRenderQuery
+class FOpenGLRenderQuery_RHI : public FRHIRenderQuery, public FOpenGLRenderQuery
 {
-	TOptional<FOpenGLRenderQuery> Inner;
-
 public:
-	FOpenGLRenderQuery_RHI(FRHICommandListBase& RHICmdList, ERenderQueryType QueryType)
+	FOpenGLRenderQuery_RHI(ERenderQueryType QueryType)
+		: FOpenGLRenderQuery(QueryType == RQT_Occlusion ? EType::Occlusion : EType::Timestamp)
+	{}
+
+	void End_TopOfPipe()
 	{
-		RHICmdList.EnqueueLambda([this, QueryType](FRHICommandListBase&)
-		{
-			Inner.Emplace(QueryType);
-		});
+		TOPCounter++;
 	}
 
-	FOpenGLRenderQuery* GetInnerQuery()
-	{
-		return &Inner.GetValue();
-	}
+	bool GetResult(bool bWait, uint64& OutResult);
 };
 
 class FOpenGLView : public TIntrusiveLinkedList<FOpenGLView>

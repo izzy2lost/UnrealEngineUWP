@@ -452,11 +452,6 @@ void FOpenGLGPUProfiler::EndFrame()
 
 void FOpenGLGPUProfiler::Cleanup()
 {
-	for (int32 Index = 0; Index < MAX_GPUFRAMEQUERIES; ++Index)
-	{
-		DisjointGPUFrameTimeQuery[Index].ReleaseResources();
-	}
-
 	FrameTiming.ReleaseResources();
 	NestedFrameCount = 0;
 }

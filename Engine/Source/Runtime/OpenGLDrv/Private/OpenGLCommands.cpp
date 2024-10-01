@@ -2723,7 +2723,6 @@ void FOpenGLDynamicRHI::RHIBlockUntilGPUIdle()
 	RunOnGLRenderContextThread([&]()
 	{
 		FOpenGL::Flush();
-		RHIPollOcclusionQueries();
 	});
 	
 	// @todo dev-pr use a render query to determine when the GPU is done
@@ -2918,12 +2917,6 @@ void FOpenGLDynamicRHI::RHIFinalizeContext(FRHIFinalizeContextArgs&& Args, TRHIP
 		check(Context == this);
 	}
 
-	// Flush the context to ensure recorded commands will reach the driver.
-	//if (PlatformOpenGLContextValid())
-	//{
-	//	FOpenGL::Flush(); // This gets called way too many times in a frame, which is unnecessary 
-	//}
-
 	// Clear some context state
 	FMemory::Memset(PendingState.BoundUniformBuffers, 0, sizeof(PendingState.BoundUniformBuffers));
 	FMemory::Memset(PendingState.BoundUniformBuffersDynamicOffset, 0u, sizeof(PendingState.BoundUniformBuffersDynamicOffset));
@@ -2931,7 +2924,8 @@ void FOpenGLDynamicRHI::RHIFinalizeContext(FRHIFinalizeContextArgs&& Args, TRHIP
 
 void FOpenGLDynamicRHI::RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args)
 {
-	// Nothing to do
+	// Periodically poll for completed queries
+	FOpenGLRenderQuery::PollQueryResults();
 }
 
 void FOpenGLDynamicRHI::RHICopyToStagingBuffer(FRHIBuffer* SourceBufferRHI, FRHIStagingBuffer* DestinationStagingBufferRHI, uint32 InOffset, uint32 InNumBytes)

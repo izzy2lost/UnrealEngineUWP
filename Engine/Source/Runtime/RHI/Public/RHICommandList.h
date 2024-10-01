@@ -2343,11 +2343,6 @@ FRHICOMMAND_MACRO(FRHICommandPostExternalCommandsReset)
 	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
 };
 
-FRHICOMMAND_MACRO(FRHICommandPollOcclusionQueries)
-{
-	RHI_EXECUTE_API void Execute(FRHICommandListBase& CmdList);
-};
-
 FRHICOMMAND_MACRO(FRHICommandBeginDrawingViewport)
 {
 	FRHIViewport* Viewport;
@@ -3886,14 +3881,9 @@ public:
 		ALLOC_COMMAND(FRHICommandCalibrateTimers)(CalibrationQuery);
 	}
 
+	UE_DEPRECATED(5.5, "PollOcclusionQueries is no longer necessary. It has been deprecated and there is no replacement. Remove any remaining calls to PollOcclusionQueries.")
 	FORCEINLINE_DEBUGGABLE void PollOcclusionQueries()
 	{
-		if (Bypass())
-		{
-			GetContext().RHIPollOcclusionQueries();
-			return;
-		}
-		ALLOC_COMMAND(FRHICommandPollOcclusionQueries)();
 	}
 
 	FORCEINLINE_DEBUGGABLE void BeginRenderPass(const FRHIRenderPassInfo& InInfo, const TCHAR* Name)
