@@ -31,9 +31,9 @@ class FShaderPipelineCompileJob;
 typedef TSharedPtr<TArray<ANSICHAR>, ESPMode::ThreadSafe> FShaderSharedAnsiStringPtr;
 
 // this is for the protocol, not the data, bump if FShaderCompilerInput/FShaderPreprocessOutput serialization, SerializeWorkerInput or ProcessInputFromArchive changes.
-inline const int32 ShaderCompileWorkerInputVersion = 29;
+inline const int32 ShaderCompileWorkerInputVersion = 28;
 // this is for the protocol, not the data, bump if FShaderCompilerOutput or WriteToOutputArchive changes.
-inline const int32 ShaderCompileWorkerOutputVersion = 25;
+inline const int32 ShaderCompileWorkerOutputVersion = 24;
 // this is for the protocol, not the data.
 inline const int32 ShaderCompileWorkerSingleJobHeader = 'S';
 // this is for the protocol, not the data.
@@ -41,7 +41,7 @@ inline const int32 ShaderCompileWorkerPipelineJobHeader = 'P';
 
 // Modify this to invalidate _just_ the cache/DDC entries for individual shaders (will not cause shadermaps to rebuild if they are not otherwise out-of-date).
 // This should be bumped for changes to the FShaderCompilerOutput data structure (in addition to ShaderCompileWorkerOutputVersion)
-inline static const FGuid UE_SHADER_CACHE_VERSION = FGuid("31D16D5D-E4DC-43FF-BB50-6648399DC4B0");
+inline static const FGuid UE_SHADER_CACHE_VERSION = FGuid("55EB8969-BA75-4CBD-B7A1-84194D140CBD");
 
 namespace UE::ShaderCompiler
 {
@@ -645,9 +645,9 @@ struct FShaderCompilerOutput
 		Stat.Flags = Flags;
 	}
 
-	const FShaderCodeResource& GetFinalizedCodeResource() const
+	FShaderCodeResource ConvertCodeToResource() const
 	{
-		return ShaderCode.GetFinalizedResource(Target.GetFrequency(), OutputHash);
+		return ShaderCode.ConvertToResource(Target.GetFrequency(), OutputHash);
 	}
 
 	void SetCodeFromResource(FShaderCodeResource&& Resource)

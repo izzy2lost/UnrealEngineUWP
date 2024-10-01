@@ -2225,9 +2225,9 @@ TOptional<FNiagaraCompileResults> FHlslNiagaraCompiler::GetCompileResult(int32 J
 	FVectorVMCompilationOutput CompilationOutput;
 	if (CompilationJob->ShaderCompileJob->bSucceeded)
 	{
-		TConstArrayView<uint8> Code = CompilationJob->ShaderCompileJob->Output.ShaderCode.GetReadView();
+		const TArray<uint8>& Code = CompilationJob->ShaderCompileJob->Output.ShaderCode.GetReadAccess();
 		FShaderCodeReader ShaderCode(Code);
-		FMemoryReaderView Ar(Code, true);
+		FMemoryReader Ar(Code, true);
 		Ar.SetLimitSize(ShaderCode.GetActualShaderCodeSize());
 		Ar << CompilationOutput;
 

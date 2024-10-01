@@ -2214,12 +2214,12 @@ namespace UE::ShaderCompilerCommon
 				// always output decompressed code as it's slightly more useful for A/B comparisons
 				TArray<uint8> DecompressedCode;
 				DecompressedCode.SetNum(Output.ShaderCode.GetUncompressedSize());
-				bool bSucceed = FCompression::UncompressMemory(NAME_Oodle, DecompressedCode.GetData(), DecompressedCode.Num(), Output.ShaderCode.GetReadView().GetData(), Output.ShaderCode.GetShaderCodeSize());
+				bool bSucceed = FCompression::UncompressMemory(NAME_Oodle, DecompressedCode.GetData(), DecompressedCode.Num(), Output.ShaderCode.GetReadAccess().GetData(), Output.ShaderCode.GetShaderCodeSize());
 				FFileHelper::SaveArrayToFile(DecompressedCode, *ShaderCodeFileName);
 			}
 			else
 			{
-				FFileHelper::SaveArrayToFile(Output.ShaderCode.GetReadView(), *ShaderCodeFileName);
+				FFileHelper::SaveArrayToFile(Output.ShaderCode.GetReadAccess(), *ShaderCodeFileName);
 			}
 		}
 
