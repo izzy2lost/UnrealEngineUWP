@@ -192,7 +192,7 @@ void FTickableGameObject::TickObjects(UWorld* World, const ELevelTick LevelTickT
 					if ((GIsEditor && TickableObject->IsTickableInEditor()) ||
 						(bIsGameWorld && ((!bIsPaused && LevelTickType != LEVELTICK_TimeOnly) || (bIsPaused && TickableObject->IsTickableWhenPaused()))))
 					{
-						FScopeCycleCounter Context(TickableObject->GetStatId());
+						SCOPE_CYCLE_COUNTER_STATID(TickableObject->GetStatId());
 						TickableObject->Tick(DeltaSeconds);
 					}
 				}

@@ -276,7 +276,7 @@ FORCEINLINE void StatsPrimaryEnableSubtract(int32 Value = 1)
 
 #define SCOPE_CYCLE_COUNTER_STATID(StatId) \
 	FScopeCycleCounter StatNamedEventsScope_STATID(StatId); \
-	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT_CONDITIONAL(StatId.StatString, GCycleStatsShouldEmitNamedEvents > 0);
+	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT_CONDITIONAL(StatId.StatString, StatId.StatString != nullptr && GCycleStatsShouldEmitNamedEvents > 0);
 
 #define CONDITIONAL_SCOPE_CYCLE_COUNTER(Stat,bCondition) \
 	FScopeCycleCounter StatNamedEventsScope_##Stat(bCondition ? ANSI_TO_PROFILING(#Stat) : nullptr); \
