@@ -147,11 +147,7 @@ public:
 	{
 		FRDGTextureRef DilatedCRP = CreateDilatedTexture(GraphBuilder);
 
-#if HOLDOUT_COMPOSITE_WORKAROUND_UE_209928
 		ParentExtension->CollectCustomRenderTarget(ViewId, GraphBuilder.ConvertToExternalTexture(DilatedCRP));
-#else
-		ParentExtension->CollectCustomRenderTarget(ViewId, DilatedCRP);
-#endif
 	}
 
 private:
@@ -341,7 +337,6 @@ void FHoldoutCompositeSceneViewExtension::SetupView(FSceneViewFamily& InViewFami
 	PassInput.CustomRenderPass = CustomRenderPass;
 	PassInput.bIsSceneCapture = true;
 
-	// TODO: Once CRPs are associated with view(family), disable & remove HOLDOUT_COMPOSITE_WORKAROUND_UE_209928.
 	WorldPtr.Get()->Scene->AddCustomRenderPass(&InViewFamily, PassInput);
 }
 
@@ -367,19 +362,11 @@ FRDGTextureRef FHoldoutCompositeSceneViewExtension::GetCustomRenderPassTexture(F
 {
 	FRDGTextureRef CustomRenderPassTexture = GSystemTextures.GetBlackAlphaOneDummy(GraphBuilder);
 
-#if HOLDOUT_COMPOSITE_WORKAROUND_UE_209928
 	const TRefCountPtr<IPooledRenderTarget>* CustomRenderPassRenderTargetPtr = CustomRenderTargetPerView_RenderThread.Find(InView.GetViewKey());
 	if (CustomRenderPassRenderTargetPtr != nullptr)
 	{
 		CustomRenderPassTexture = GraphBuilder.RegisterExternalTexture(*CustomRenderPassRenderTargetPtr);
 	}
-#else
-	const FRDGTextureRef* CustomRenderPassTexturePtr = CustomRenderTargetPerView_RenderThread.Find(InView.GetViewKey());
-	if (CustomRenderPassTexturePtr && HasBeenProduced(*CustomRenderPassTexturePtr))
-	{
-		CustomRenderPassTexture = *CustomRenderPassTexturePtr;
-	}
-#endif
 	
 	return CustomRenderPassTexture;
 }

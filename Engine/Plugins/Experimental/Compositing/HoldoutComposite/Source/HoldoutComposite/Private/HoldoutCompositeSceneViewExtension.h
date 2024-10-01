@@ -7,9 +7,6 @@
 #include "RendererInterface.h"
 #include "Containers/ContainersFwd.h"
 
-// Temporary workaround for UE-209928 to fix holdout composite on nDisplay. Remove-disable once addressed.
-#define HOLDOUT_COMPOSITE_WORKAROUND_UE_209928 1
-
 class FViewInfo;
 struct FScreenPassRenderTarget;
 struct FScreenPassTexture;
@@ -59,12 +56,8 @@ private:
 	// Collection of primitives to render as a custom render pass and composite after post-processing.
 	TSet<TSoftObjectPtr<UPrimitiveComponent>> CompositePrimitives;
 
-#if HOLDOUT_COMPOSITE_WORKAROUND_UE_209928
-	TMap<uint32, TRefCountPtr<IPooledRenderTarget>> CustomRenderTargetPerView_RenderThread;
-#else
 	// Custom render pass render targets for each active view
-	TMap<uint32, FRDGTextureRef> CustomRenderTargetPerView_RenderThread;
-#endif
+	TMap<uint32, TRefCountPtr<IPooledRenderTarget>> CustomRenderTargetPerView_RenderThread;
 
 	// Flag to enable global exposure on the composited render
 	std::atomic_bool bCompositeFollowsSceneExposure = false;
