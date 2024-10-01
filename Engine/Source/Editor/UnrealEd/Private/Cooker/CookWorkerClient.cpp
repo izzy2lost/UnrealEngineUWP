@@ -312,7 +312,7 @@ void FCookWorkerClient::ReportPackageMessage(FName PackageName, TUniquePtr<FPack
 }
 
 void FCookWorkerClient::ReportDiscoveredPackage(const FPackageData& PackageData, const FInstigator& Instigator,
-	FDiscoveredPlatformSet&& ReachablePlatforms, FGenerationHelper* ParentGenerationHelper)
+	FDiscoveredPlatformSet&& ReachablePlatforms, FGenerationHelper* ParentGenerationHelper, EUrgency Urgency)
 {
 	FDiscoveredPackageReplication& Discovered = PendingDiscoveredPackages.Emplace_GetRef();
 	Discovered.PackageName = PackageData.GetPackageName();
@@ -322,6 +322,7 @@ void FCookWorkerClient::ReportDiscoveredPackage(const FPackageData& PackageData,
 	Discovered.Platforms = MoveTemp(ReachablePlatforms);
 	Discovered.Platforms.ConvertToBitfield(OrderedSessionAndSpecialPlatforms);
 	Discovered.DoesGeneratedRequireGenerator = PackageData.DoesGeneratedRequireGenerator();
+	Discovered.Urgency = Urgency;
 	if (ParentGenerationHelper)
 	{
 		if (FCookGenerationInfo* Info = ParentGenerationHelper->FindInfo(PackageData))
@@ -928,6 +929,7 @@ void FCookWorkerClient::AssignPackages(FAssignPackagesMessage& Message)
 				}
 				// Allow the package to continue in its progress. If it was in a stalled-by-retraction state, return it to active.
 				PackageData.UnStall(ESendFlags::QueueAddAndRemove);
+				PackageData.RaiseUrgency(AssignData.Urgency, ESendFlags::QueueAddAndRemove);
 				continue;
 			}
 
@@ -939,6 +941,7 @@ void FCookWorkerClient::AssignPackages(FAssignPackagesMessage& Message)
 			}
 			PackageData.FindOrAddPlatformData(CookerLoadingPlatformKey).MarkCookableForWorker(*this);
 			PackageData.SetInstigator(*this, FInstigator(AssignData.Instigator));
+			PackageData.RaiseUrgency(AssignData.Urgency, ESendFlags::QueueAddAndRemove, true /* bAllowUrgencyInIdle */);
 			PackageData.SendToState(EPackageState::Request, ESendFlags::QueueAddAndRemove,
 				EStateChangeReason::DirectorRequest);
 		}

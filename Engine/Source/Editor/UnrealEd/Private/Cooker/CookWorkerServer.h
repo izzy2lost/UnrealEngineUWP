@@ -254,6 +254,7 @@ struct FAssignPackageData
 	FConstructPackageData ConstructData;
 	FName ParentGenerator;
 	FInstigator Instigator;
+	EUrgency Urgency;
 	FDiscoveredPlatformSet NeedCookPlatforms;
 	TMap<FName, FAssetPackageData> GeneratorPreviousGeneratedPackages;
 	TArray<UE::CompactBinaryTCP::FMarshalledMessage> PerPackageCollectorMessages;
@@ -414,6 +415,7 @@ struct FDiscoveredPackageReplication
 	FDiscoveredPlatformSet Platforms;
 	ICookPackageSplitter::EGeneratedRequiresGenerator DoesGeneratedRequireGenerator =
 		ICookPackageSplitter::EGeneratedRequiresGenerator::None;
+	EUrgency Urgency = EUrgency::Normal;
 
 private:
 	void Write(FCbWriter& Writer, TConstArrayView<const ITargetPlatform*> OrderedSessionAndSpecialPlatforms) const;

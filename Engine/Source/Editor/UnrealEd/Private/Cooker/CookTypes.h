@@ -288,6 +288,20 @@ namespace UE::Cook
 	};
 	const TCHAR* LexToString(UE::Cook::ESaveSubState State);
 
+	/** How quickly we should push a PackageData through the cook, compared to other PackageDatas. */
+	enum class EUrgency : uint8
+	{
+		Normal = 0,
+		High,
+		Blocking,
+
+		Min = Normal,
+		Max = Blocking,
+		Count = Max + 1,
+		BitCount = FPlatformMath::ConstExprCeilLogTwo(Count),
+	};
+	const TCHAR* LexToString(UE::Cook::EUrgency Urgency);
+
 	/** Used as a helper to timeslice cooker functions. */
 	struct FCookerTimer
 	{

@@ -361,25 +361,18 @@ public:
 	/** Return whether all Platforms that have been marked reachable have also been explored in an FRequestCluster. */
 	bool AreAllReachablePlatformsVisitedByCluster() const;
 
-	/**
-	 * Get the flag for whether this InProgress PackageData has been marked as an urgent request
-	 * (e.g. because it has been requested from the game client during cookonthefly.).
-	 * Always false for PackageDatas that are not InProgress.
-	 */
-	bool GetIsUrgent() const { return static_cast<bool>(bIsUrgent); }
-	/**
-	 * Mark this PackageData as urgent if bUrgent is true. Noop if bUrgent is false.
-	 * Move it to front of its current container if bAllowUpdateState.
-	 */
-	void AddUrgency(bool bUrgent, bool bAllowUpdateState);
-	void ClearCookLastUrgency();
+	/** Get/Set the urgency of a package. Always EUrgency::Normal for pacakges that are not in progress. */
+	EUrgency GetUrgency() const;
+	void SetUrgency(EUrgency NewUrgency, ESendFlags SendFlags, bool bAllowUrgencyInIdle = false);
+	/** Set the Urgency iff the newurgency is greater than current. */
+	void RaiseUrgency(EUrgency NewUrgency, ESendFlags SendFlags, bool bAllowUrgencyInIdle = false);
 
 	/** Accessor for RequestClusters to add reachable platforms directly without modifying dependent data. */
 	void AddReachablePlatforms(FRequestCluster& RequestCluster, TConstArrayView<const ITargetPlatform*> Platforms,
 		FInstigator&& InInstigator);
 
 	/** Add the given reachable platforms to this PackageData and send it back to Request state for exploration. */
-	void QueueAsDiscovered(FInstigator&& InInstigator, FDiscoveredPlatformSet&& ReachablePlatforms, bool bUrgent);
+	void QueueAsDiscovered(FInstigator&& InInstigator, FDiscoveredPlatformSet&& ReachablePlatforms, EUrgency InUrgency);
 
 	/**
 	 * Clear all the inprogress variables from the current PackageData. It is invalid to call this except when
@@ -632,10 +625,6 @@ public:
 		bool& bOutNeedWaitForIsLoaded);
 	/** Helper function for ~FGenerationHelper: clear the pointer this->GenerationHelper. */
 	void OnGenerationHelperDestroyed(FGenerationHelper& InGenerationHelper);
-	/** Get whether the PackageData has done any necessary Generator steps and is ready for BeginCache calls. */
-	bool HasCompletedGeneration() const;
-	/** Set whether the PackageData has done any necessary Generator steps and is ready for BeginCache calls. */
-	void SetCompletedGeneration(bool Value);
 	/** Return whether the PackageData is a generated package created by a owning generator PackageData. */
 	bool IsGenerated() const;
 	/** Mark that the PackageData is a generated package created by a ParentGenerator. */
@@ -722,12 +711,12 @@ public:
 private:
 	friend struct UE::Cook::FPackageDatas;
 
-	void SetIsUrgent(bool Value);
+	void UpdateContainerUrgency(EUrgency OldUrgency, EUrgency NewUrgency);
 	void SetInstigatorInternal(FInstigator&& InInstigator);
 	static void AddReachablePlatformsInternal(FPackageData& PackageData,
 		TConstArrayView<const ITargetPlatform*> Platforms, FInstigator&& InInstigator);
 	static void QueueAsDiscoveredInternal(FPackageData& PackageData, FInstigator&& InInstigator,
-		FDiscoveredPlatformSet&& ReachablePlatforms, bool bUrgent);
+		FDiscoveredPlatformSet&& ReachablePlatforms, EUrgency InUrgency);
 
 	/**
 	 * Set the FileName of the file that contains the package. This member is private because FPackageDatas
@@ -818,14 +807,13 @@ private:
 	uint32 State : int32(EPackageState::BitCount);
 	uint32 SaveSubState : int32(ESaveSubState::BitCount);
 	uint32 SuppressCookReason : int32(ESuppressCookReason::BitCount);
-	uint32 bIsUrgent : 1;
+	uint32 Urgency : int32(EUrgency::BitCount);
 	uint32 bIsCookLast : 1;
 	uint32 bIsVisited : 1;
 	uint32 bHasSaveCache : 1;
 	uint32 bPrepareSaveFailed : 1;
 	uint32 bPrepareSaveRequiresGC : 1;
 	uint32 MonitorCookResult : (int) ECookResult::NumBits;
-	uint32 bCompletedGeneration : 1;
 	uint32 bGenerated : 1;
 	uint32 bKeepReferencedDuringGC : 1;
 	uint32 bWasCookedThisSession : 1;
@@ -928,16 +916,16 @@ public:
 	/** Report the number of packages that have cooked any platform. Used by CookCommandlet progress reporting. */
 	int32 GetNumCooked(ECookResult CookResult) const;
 	/**
-	 * Report the number of FPackageData that are currently marked as urgent.
+	 * Report the number of FPackageData that are currently set to the given urgency level.
 	 * Used to check if a Pump function needs to exit to handle urgent PackageData in other states.
 	 */
-	int32 GetNumUrgent() const;
+	int32 GetNumUrgent(EUrgency UrgencyLevel) const;
 	/**
-	 * Report the number of FPackageData that are in the given state and have been marked as urgent. Only valid to
-	 * call on states that are in the InProgress set, such as Save.
+	 * Report the number of FPackageData that are in the given state and are set to the given urgency level. Only
+	 * valid to call on states that are in the InProgress set, such as Save.
 	 * Used to prioritize scheduler actions.
 	 */
-	int32 GetNumUrgent(EPackageState InState) const;
+	int32 GetNumUrgent(EPackageState InState, EUrgency UrgencyLevel) const;
 	/** Report the number of CookLast packages. */
 	int32 GetNumCookLast() const;
 	/** Report the number of CookLast packages in the given state. */
@@ -957,7 +945,7 @@ public:
 	 */
 	void OnLastCookedPlatformRemoved(FPackageData& PackageData);
 	/** Callback called from FPackageData when it has changed its urgency. */
-	void OnUrgencyChanged(FPackageData& PackageData);
+	void OnUrgencyChanged(FPackageData& PackageData, EUrgency OldUrgency, EUrgency NewUrgency);
 	/** Callback called from FPackageData when it has changed its value of IsCookLast. */
 	void OnCookLastChanged(FPackageData& PackageData);
 	/** Callback called from FPackageData when it has changed its state. */
@@ -968,14 +956,14 @@ public:
 
 private:
 	/** Increment or decrement the NumUrgent counter for the given state. */
-	void TrackUrgentRequests(EPackageState State, int32 Delta);
+	void TrackUrgentRequests(EPackageState State, EUrgency Urgency, int32 Delta);
 	/** Increment or decrement the NumCookLast counter for the given state. */
 	void TrackCookLastRequests(EPackageState State, int32 Delta);
 
 	int32 NumInProgress = 0;
 	int32 NumCooked[(uint8)ECookResult::Count]{};
 	int32 NumPreloadAllocated = 0;
-	int32 NumUrgentInState[static_cast<uint32>(EPackageState::Count)];
+	int32 NumUrgentInState[static_cast<uint32>(EPackageState::Count)][static_cast<uint32>(EUrgency::Count)];
 	int32 NumCookLastInState[static_cast<uint32>(EPackageState::Count)];
 	int32 MPCookAssignedFenceMarker = 0;
 	int32 MPCookRetiredFenceMarker = 0;
@@ -986,7 +974,7 @@ struct FDiscoveryQueueElement
 	FPackageData* PackageData;
 	FInstigator Instigator;
 	FDiscoveredPlatformSet ReachablePlatforms;
-	bool bUrgent;
+	UE::Cook::EUrgency Urgency;
 };
 
 /**
@@ -1013,6 +1001,7 @@ public:
 	void AddReadyRequest(FPackageData* PackageData, bool bForceUrgent = false);
 	uint32 RemoveRequest(FPackageData* PackageData);
 	uint32 RemoveRequestExceptFromCluster(FPackageData* PackageData, FRequestCluster* ExceptFromCluster);
+	void UpdateUrgency(FPackageData* PackageData, EUrgency bOldUrgency, EUrgency NewUrgency);
 
 	FPackageDataSet& GetRestartedRequests() { return RestartedRequests; }
 	/**
@@ -1078,6 +1067,7 @@ public:
 	void Add(FPackageData* PackageData);
 	bool Contains(const FPackageData* PackageData) const;
 	uint32 Remove(FPackageData* PackageData);
+	void UpdateUrgency(FPackageData* PackageData, EUrgency bOldUrgency, EUrgency NewUrgency);
 	TSet<FPackageData*>::TRangedForIterator begin();
 	TSet<FPackageData*>::TRangedForIterator end();
 
@@ -1572,14 +1562,17 @@ inline void FPackageData::SetSuppressCookReason(ESuppressCookReason Reason)
 	SuppressCookReason = static_cast<uint32>(Reason);
 }
 
-inline bool FPackageData::HasCompletedGeneration() const
+inline EUrgency FPackageData::GetUrgency() const
 {
-	return static_cast<bool>(bCompletedGeneration);
+	return static_cast<EUrgency>(Urgency);
 }
 
-inline void FPackageData::SetCompletedGeneration(bool Value)
+inline void FPackageData::RaiseUrgency(EUrgency NewUrgency, ESendFlags SendFlags, bool bAllowUrgencyInIdle)
 {
-	bCompletedGeneration = Value != 0;
+	if (NewUrgency > GetUrgency())
+	{
+		SetUrgency(NewUrgency, SendFlags, bAllowUrgencyInIdle);
+	}
 }
 
 inline bool FPackageData::IsGenerated() const

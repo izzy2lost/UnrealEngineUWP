@@ -198,6 +198,7 @@ namespace UE::Cook
 	enum class EStateChangeReason : uint8;
 	enum class ESuppressCookReason : uint8;
 	enum class ESendFlags : uint8;
+	enum class EUrgency : uint8;
 	struct FBeginCookConfigSettings;
 	struct FCachedObjectInOuter;
 	struct FConstructPackageData;
@@ -541,10 +542,12 @@ private:
 	 * @param PackageData			The PackageData to be considered for saving.
 	 */
 	void QueueDiscoveredPackage(UE::Cook::FPackageData& PackageData, UE::Cook::FInstigator&& Instigator, 
-		UE::Cook::FDiscoveredPlatformSet&& ReachablePlatforms, bool bUrgent=false,
+		UE::Cook::FDiscoveredPlatformSet&& ReachablePlatforms, UE::Cook::EUrgency Urgency,
 		UE::Cook::FGenerationHelper* ParentGenerationHelper = nullptr);
+	void QueueDiscoveredPackage(UE::Cook::FPackageData& PackageData, UE::Cook::FInstigator&& Instigator,
+		UE::Cook::FDiscoveredPlatformSet&& ReachablePlatforms);
 	void QueueDiscoveredPackageOnDirector(UE::Cook::FPackageData& PackageData, UE::Cook::FInstigator&& Instigator,
-		UE::Cook::FDiscoveredPlatformSet&& ReachablePlatforms, bool bUrgent);
+		UE::Cook::FDiscoveredPlatformSet&& ReachablePlatforms, UE::Cook::EUrgency Urgency);
 
 	/** Called when a package is cancelled and returned to idle. Notifies CookDirector when on a CookWorker. */
 	void DemoteToIdle(UE::Cook::FPackageData& PackageData, UE::Cook::ESendFlags SendFlags, UE::Cook::ESuppressCookReason Reason);

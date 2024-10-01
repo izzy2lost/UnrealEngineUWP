@@ -55,12 +55,11 @@ void FWorkerRequestsRemote::DequeueAllExternal(TArray<FSchedulerCallback>& OutCa
 }
 
 void FWorkerRequestsRemote::QueueDiscoveredPackage(UCookOnTheFlyServer& COTFS, FPackageData& PackageData,
-	FInstigator&& Instigator, FDiscoveredPlatformSet&& ReachablePlatforms, bool bUrgent,
+	FInstigator&& Instigator, FDiscoveredPlatformSet&& ReachablePlatforms, EUrgency Urgency,
 	FGenerationHelper* ParentGenerationHelper)
 {
-	(void)bUrgent; // Tracking urgency on CookWorkers is not supported
 	CookWorkerClient.ReportDiscoveredPackage(PackageData, MoveTemp(Instigator), MoveTemp(ReachablePlatforms),
-		ParentGenerationHelper);
+		ParentGenerationHelper, Urgency);
 }
 
 void FWorkerRequestsRemote::EndQueueGeneratedPackages(UCookOnTheFlyServer& COTFS,
