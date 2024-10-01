@@ -6,8 +6,9 @@
 #include "Templates/SharedPointer.h"
 #include "PropertyAnimatorCorePresetable.generated.h"
 
-class FJsonValue;
+struct FPropertyAnimatorCorePresetArchiveImplementation;
 class UPropertyAnimatorCorePresetBase;
+struct FPropertyAnimatorCorePresetArchive;
 
 UINTERFACE(MinimalAPI)
 class UPropertyAnimatorCorePresetable : public UInterface
@@ -22,8 +23,8 @@ class IPropertyAnimatorCorePresetable
 
 public:
 	/** Import a specific preset */
-	PROPERTYANIMATORCORE_API virtual bool ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue) = 0;
+	PROPERTYANIMATORCORE_API virtual bool ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FPropertyAnimatorCorePresetArchive>& InValue) = 0;
 
 	/** Export a specific preset */
-	PROPERTYANIMATORCORE_API virtual bool ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue) = 0;
+	PROPERTYANIMATORCORE_API virtual bool ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FPropertyAnimatorCorePresetArchive>& OutValue) const = 0;
 };

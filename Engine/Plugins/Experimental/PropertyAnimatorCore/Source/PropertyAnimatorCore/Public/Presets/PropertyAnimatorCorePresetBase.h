@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "PropertyAnimatorCorePresetArchive.h"
 #include "PropertyAnimatorCorePresetBase.generated.h"
 
 class AActor;
@@ -61,6 +62,9 @@ public:
 	/** Called when this preset is unregistered by the subsystem */
 	virtual void OnPresetUnregistered() {}
 
+	/** Which implementation to use for archive */
+	PROPERTYANIMATORCORE_API virtual TSharedRef<FPropertyAnimatorCorePresetArchiveImplementation> GetArchiveImplementation() const;
+
 protected:
 	/** Name used to display this preset to the user */
 	UPROPERTY(VisibleInstanceOnly, Category="Animator")
@@ -69,6 +73,10 @@ protected:
 	/** Version of this preset for diffs */
 	UPROPERTY(VisibleInstanceOnly, Category="Animator")
 	int32 PresetVersion = INDEX_NONE;
+
+	/** Format used for the preset content */
+	UPROPERTY(VisibleInstanceOnly, Category="Animator")
+	FName PresetFormat;
 
 	/** Preset stringify content */
 	UPROPERTY(VisibleInstanceOnly, Category="Animator")

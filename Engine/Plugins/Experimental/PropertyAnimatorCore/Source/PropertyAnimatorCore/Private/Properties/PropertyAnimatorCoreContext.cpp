@@ -3,8 +3,6 @@
 #include "Properties/PropertyAnimatorCoreContext.h"
 
 #include "Containers/Ticker.h"
-#include "Dom/JsonObject.h"
-#include "Dom/JsonValue.h"
 #include "StructUtils/InstancedStruct.h"
 #include "Properties/PropertyAnimatorCoreResolver.h"
 #include "Properties/Converters/PropertyAnimatorCoreConverterBase.h"
@@ -180,73 +178,76 @@ void UPropertyAnimatorCoreContext::PostEditChangeProperty(FPropertyChangedEvent&
 }
 #endif
 
-bool UPropertyAnimatorCoreContext::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue)
+bool UPropertyAnimatorCoreContext::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FPropertyAnimatorCorePresetArchive>& InValue)
 {
-	TSharedPtr<FJsonObject>* JsonObject;
-	if (!InValue->TryGetObject(JsonObject) || !JsonObject || !JsonObject->IsValid())
+	TSharedPtr<FPropertyAnimatorCorePresetObjectArchive> ObjectArchive = InValue->AsMutableObject();
+
+	if (!ObjectArchive)
 	{
 		return false;
 	}
 
-	bool bJsonAnimated = bAnimated;
-	(*JsonObject)->TryGetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, bAnimated), bJsonAnimated);
-	SetAnimated(bJsonAnimated);
+	bool bAnimatedArchive = bAnimated;
+	ObjectArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, bAnimated), bAnimatedArchive);
+	SetAnimated(bAnimatedArchive);
 
 	if (bEditMagnitude)
 	{
-		float JsonMagnitude = Magnitude;
-		(*JsonObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Magnitude), JsonMagnitude);
-		SetMagnitude(JsonMagnitude);
+		double MagnitudeArchive = Magnitude;
+		ObjectArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Magnitude), MagnitudeArchive);
+		SetMagnitude(MagnitudeArchive);
 
-		float JsonTimeOffset = TimeOffset;
-		(*JsonObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, TimeOffset), JsonTimeOffset);
-		SetTimeOffset(JsonTimeOffset);
+		double TimeOffsetArchive = TimeOffset;
+		ObjectArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, TimeOffset), TimeOffsetArchive);
+		SetTimeOffset(TimeOffsetArchive);
 	}
 
 	if (bEditMode)
 	{
-		float JsonMode = static_cast<float>(Mode);
-		(*JsonObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Mode), JsonMode);
-		SetMode(static_cast<EPropertyAnimatorCoreMode>(JsonMode));
+		int64 ModeArchive = static_cast<int64>(Mode);
+		ObjectArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Mode), ModeArchive);
+		SetMode(static_cast<EPropertyAnimatorCoreMode>(ModeArchive));
 	}
 
 	if (Resolver)
 	{
-		if ((*JsonObject)->HasTypedField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Resolver), EJson::Object))
+		if (ObjectArchive->Has(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Resolver), EPropertyAnimatorCorePresetArchiveType::Object))
 		{
-			Resolver->ImportPreset(InPreset, (*JsonObject)->TryGetField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Resolver)).ToSharedRef());
+			TSharedPtr<FPropertyAnimatorCorePresetArchive> ResolverArchive;
+			ObjectArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Resolver), ResolverArchive);
+			Resolver->ImportPreset(InPreset, ResolverArchive.ToSharedRef());
 		}
 	}
 
 	return true;
 }
 
-bool UPropertyAnimatorCoreContext::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue)
+bool UPropertyAnimatorCoreContext::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FPropertyAnimatorCorePresetArchive>& OutValue) const
 {
-	TSharedRef<FJsonObject> JsonObject = MakeShared<FJsonObject>();
-	OutValue = MakeShared<FJsonValueObject>(JsonObject);
+	TSharedRef<FPropertyAnimatorCorePresetObjectArchive> ContextArchive = InPreset->GetArchiveImplementation()->CreateObject();
+	OutValue = ContextArchive;
 
-	JsonObject->SetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, bAnimated), bAnimated);
+	ContextArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, bAnimated), bAnimated);
 
 	if (bEditMagnitude)
 	{
-		JsonObject->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Magnitude), Magnitude);
-		JsonObject->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, TimeOffset), TimeOffset);
+		ContextArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Magnitude), Magnitude);
+		ContextArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, TimeOffset), TimeOffset);
 	}
 
 	if (bEditMode)
 	{
-		JsonObject->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Mode), static_cast<float>(Mode));
+		ContextArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Mode), static_cast<uint64>(Mode));
 	}
 
-	JsonObject->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, AnimatedProperty), AnimatedProperty.GetPropertyLocatorPath());
+	ContextArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, AnimatedProperty), AnimatedProperty.GetPropertyLocatorPath());
 
 	if (Resolver)
 	{
-		TSharedPtr<FJsonValue> JsonValue;
-		if (Resolver->ExportPreset(InPreset, JsonValue) && JsonValue.IsValid())
+		TSharedPtr<FPropertyAnimatorCorePresetArchive> ResolverArchive;
+		if (Resolver->ExportPreset(InPreset, ResolverArchive) && ResolverArchive.IsValid())
 		{
-			JsonObject->SetField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Resolver), JsonValue);
+			ContextArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Resolver), ResolverArchive.ToSharedRef());
 		}
 	}
 
@@ -290,11 +291,11 @@ bool UPropertyAnimatorCoreContext::ResolvePropertyOwner(AActor* InNewOwner)
 		return true;
 	}
 
-	bool bFound = IsValid(NewOwner);
-	const TArray<UObject*> OtherOuters = AnimatedProperty.GetOuters(AnimatedProperty.GetOwningActor());
-
 	const FProperty* MemberProperty = AnimatedProperty.GetMemberProperty();
 	UClass* PropertyOwningClass = MemberProperty->GetOwnerClass();
+
+	bool bFound = IsValid(NewOwner);
+	const TArray<UObject*> OtherOuters = AnimatedProperty.GetOuters(AnimatedProperty.GetOwningActor());
 
 	if (!OtherOuters.IsEmpty())
 	{

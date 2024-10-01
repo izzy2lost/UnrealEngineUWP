@@ -3,16 +3,11 @@
 #include "Presets/PropertyAnimatorCorePropertyPreset.h"
 
 #include "Animators/PropertyAnimatorCoreBase.h"
-#include "Dom/JsonObject.h"
-#include "Dom/JsonValue.h"
 #include "Properties/PropertyAnimatorCoreContext.h"
-#include "Serialization/JsonReader.h"
-#include "Serialization/JsonSerializer.h"
-#include "Serialization/JsonWriter.h"
 
 void UPropertyAnimatorCorePropertyPreset::GetPresetProperties(const AActor* InActor, const UPropertyAnimatorCoreBase* InAnimator, TSet<FPropertyAnimatorCoreData>& OutProperties) const
 {
-	for (const TPair<FString, TSharedRef<FJsonValue>>& PropertyPreset : PropertyPresets)
+	for (const TPair<FString, TSharedRef<FPropertyAnimatorCorePresetArchive>>& PropertyPreset : PropertyPresets)
 	{
 		FPropertyAnimatorCoreData Property(const_cast<AActor*>(InActor), PropertyPreset.Key);
 
@@ -25,7 +20,7 @@ void UPropertyAnimatorCorePropertyPreset::GetPresetProperties(const AActor* InAc
 
 void UPropertyAnimatorCorePropertyPreset::OnPresetApplied(UPropertyAnimatorCoreBase* InAnimator, const TSet<FPropertyAnimatorCoreData>& InProperties)
 {
-	for (const TPair<FString, TSharedRef<FJsonValue>>& PropertyPreset : PropertyPresets)
+	for (const TPair<FString, TSharedRef<FPropertyAnimatorCorePresetArchive>>& PropertyPreset : PropertyPresets)
 	{
 		FPropertyAnimatorCoreData Property(InAnimator->GetAnimatorActor(), PropertyPreset.Key);
 
@@ -163,26 +158,26 @@ void UPropertyAnimatorCorePropertyPreset::CreatePreset(FName InName, const TArra
 {
 	Super::CreatePreset(InName, InPresetableItems);
 
-	TArray<TSharedPtr<FJsonValue>> JsonValues;
+	TSharedPtr<FPropertyAnimatorCorePresetArrayArchive> PropertiesArchive = GetArchiveImplementation()->CreateArray();
 
 	for (IPropertyAnimatorCorePresetable* InPresetableItem : InPresetableItems)
 	{
-		TSharedPtr<FJsonValue> JsonValue;
+		TSharedPtr<FPropertyAnimatorCorePresetArchive> PropertyArchive;
 
 		if (InPresetableItem
-			&& InPresetableItem->ExportPreset(this, JsonValue)
-			&& JsonValue.IsValid())
+			&& InPresetableItem->ExportPreset(this, PropertyArchive)
+			&& PropertyArchive.IsValid())
 		{
-			JsonValues.Add(JsonValue);
+			PropertiesArchive->Add(PropertyArchive.ToSharedRef());
 		}
 	}
 
-	FString JsonString;
-	TSharedRef<TJsonWriter<>> JsonWriter = TJsonWriterFactory<>::Create(&JsonString);
-	if (FJsonSerializer::Serialize(JsonValues, JsonWriter))
+	FString OutputString;
+	if (PropertiesArchive->ToString(OutputString))
 	{
 		PresetVersion = 0;
-		PresetContent = JsonString;
+		PresetFormat = PropertiesArchive->GetImplementationType();
+		PresetContent = OutputString;
 	}
 }
 
@@ -193,30 +188,27 @@ bool UPropertyAnimatorCorePropertyPreset::LoadPreset()
 		return false;
 	}
 
-	TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(PresetContent);
+	TSharedPtr<FPropertyAnimatorCorePresetArrayArchive> PropertiesArchive = GetArchiveImplementation()->CreateArray();
 
-	TArray<TSharedPtr<FJsonValue>> JsonArray;
-	if (!FJsonSerializer::Deserialize(Reader, JsonArray) || JsonArray.IsEmpty())
+	if (!PropertiesArchive->FromString(PresetContent) || PropertiesArchive->Num() == 0)
 	{
 		return false;
 	}
 
-	for (const TSharedPtr<FJsonValue>& JsonValue : JsonArray)
+	for (int32 Index = 0; Index < PropertiesArchive->Num(); Index++)
 	{
-		TSharedPtr<FJsonObject>* JsonObject = nullptr;
-		if (!JsonValue
-			|| !JsonValue->TryGetObject(JsonObject)
-			|| !JsonObject)
+		TSharedPtr<FPropertyAnimatorCorePresetArchive> PropertyArchive;
+		if (!PropertiesArchive->Get(Index, PropertyArchive) || !PropertyArchive->IsObject())
 		{
 			continue;
 		}
 
-		FString PropertyPath;
+		const TSharedPtr<FPropertyAnimatorCorePresetObjectArchive> PropertyObject = PropertyArchive->AsMutableObject();
 
-		if ((*JsonObject)->TryGetStringField(UPropertyAnimatorCoreContext::GetAnimatedPropertyName().ToString(), PropertyPath)
-			&& !PropertyPath.IsEmpty())
+		FString PropertyPath;
+		if (PropertyObject->Get(UPropertyAnimatorCoreContext::GetAnimatedPropertyName().ToString(), PropertyPath) && !PropertyPath.IsEmpty())
 		{
-			PropertyPresets.Add(PropertyPath, JsonValue.ToSharedRef());
+			PropertyPresets.Add(PropertyPath, PropertyArchive.ToSharedRef());
 		}
 	}
 

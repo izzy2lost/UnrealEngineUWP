@@ -2,8 +2,8 @@
 
 #include "TimeSources/PropertyAnimatorCoreTimeSourceBase.h"
 
-#include "Dom/JsonObject.h"
-#include "Dom/JsonValue.h"
+#include "Presets/PropertyAnimatorCorePresetArchive.h"
+#include "Presets/PropertyAnimatorCorePresetBase.h"
 
 void UPropertyAnimatorCoreTimeSourceBase::ActivateTimeSource()
 {
@@ -56,32 +56,33 @@ void UPropertyAnimatorCoreTimeSourceBase::SetUseFrameRate(bool bInUseFrameRate)
 	bUseFrameRate = bInUseFrameRate;
 }
 
-bool UPropertyAnimatorCoreTimeSourceBase::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue)
+bool UPropertyAnimatorCoreTimeSourceBase::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FPropertyAnimatorCorePresetArchive>& InValue)
 {
-	const TSharedPtr<FJsonObject>* JsonTimeSourceObject;
-	if (!InValue->TryGetObject(JsonTimeSourceObject) || !JsonTimeSourceObject)
+	TSharedPtr<FPropertyAnimatorCorePresetObjectArchive> ObjectArchive = InValue->AsMutableObject();
+
+	if (!ObjectArchive)
 	{
 		return false;
 	}
 
-	bool bJsonUseFrameRate = bUseFrameRate;
-	(*JsonTimeSourceObject)->TryGetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreTimeSourceBase, bUseFrameRate), bJsonUseFrameRate);
-	SetUseFrameRate(bJsonUseFrameRate);
+	bool bUseFrameRateValue = bUseFrameRate;
+	ObjectArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreTimeSourceBase, bUseFrameRate), bUseFrameRateValue);
+	SetUseFrameRate(bUseFrameRateValue);
 
-	double JsonFrameRate = FrameRate;
-	(*JsonTimeSourceObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreTimeSourceBase, FrameRate), JsonFrameRate);
-	SetFrameRate(JsonFrameRate);
+	double FrameRateValue = FrameRate;
+	ObjectArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreTimeSourceBase, FrameRate), FrameRateValue);
+	SetFrameRate(FrameRateValue);
 
 	return true;
 }
 
-bool UPropertyAnimatorCoreTimeSourceBase::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue)
+bool UPropertyAnimatorCoreTimeSourceBase::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FPropertyAnimatorCorePresetArchive>& OutValue) const
 {
-	TSharedRef<FJsonObject> JsonTimeSourceObject = MakeShared<FJsonObject>();
-	OutValue = MakeShared<FJsonValueObject>(JsonTimeSourceObject);
+	const TSharedRef<FPropertyAnimatorCorePresetObjectArchive> ObjectArchive = InPreset->GetArchiveImplementation()->CreateObject();
+	OutValue = ObjectArchive;
 
-	JsonTimeSourceObject->SetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreTimeSourceBase, bUseFrameRate), bUseFrameRate);
-	JsonTimeSourceObject->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreTimeSourceBase, FrameRate), FrameRate);
+	ObjectArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreTimeSourceBase, bUseFrameRate), bUseFrameRate);
+	ObjectArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreTimeSourceBase, FrameRate), bUseFrameRate);
 
 	return true;
 }

@@ -2,8 +2,6 @@
 
 #include "Animators/PropertyAnimatorNumericBase.h"
 
-#include "Dom/JsonObject.h"
-#include "Dom/JsonValue.h"
 #include "Properties/PropertyAnimatorFloatContext.h"
 #include "Properties/PropertyAnimatorRotatorContext.h"
 #include "Properties/PropertyAnimatorVectorContext.h"
@@ -187,7 +185,7 @@ void UPropertyAnimatorNumericBase::EvaluateProperties(FInstancedPropertyBag& InP
 		{
 			if (FMath::Abs(PropertyTimeElapsed) > CycleDuration)
 			{
-				PropertyTimeElapsed = CycleDuration - UE_KINDA_SMALL_NUMBER;
+				PropertyTimeElapsed = CycleDuration;
 			}
 		}
 		else if (CycleMode == EPropertyAnimatorCycleMode::Loop)
@@ -196,7 +194,7 @@ void UPropertyAnimatorNumericBase::EvaluateProperties(FInstancedPropertyBag& InP
 
 			if (FMath::Abs(PropertyTimeElapsed) > CycleDuration)
 			{
-				PropertyTimeElapsed = CycleDuration - UE_KINDA_SMALL_NUMBER;
+				PropertyTimeElapsed = CycleDuration;
 			}
 		}
 		else if (CycleMode == EPropertyAnimatorCycleMode::PingPong)
@@ -206,7 +204,7 @@ void UPropertyAnimatorNumericBase::EvaluateProperties(FInstancedPropertyBag& InP
 
 			if (FMath::Abs(PropertyTimeElapsed) > CycleDuration)
 			{
-				PropertyTimeElapsed = CycleDuration - UE_KINDA_SMALL_NUMBER;
+				PropertyTimeElapsed = CycleDuration;
 			}
 
 			if (bReverse)
@@ -276,38 +274,38 @@ void UPropertyAnimatorNumericBase::OnAnimatorRegistered(FPropertyAnimatorCoreMet
 	InMetadata.Category = TEXT("Numeric");
 }
 
-bool UPropertyAnimatorNumericBase::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue)
+bool UPropertyAnimatorNumericBase::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FPropertyAnimatorCorePresetArchive>& InValue)
 {
-	const TSharedPtr<FJsonObject>* JsonAnimatorObject;
-
-	if (Super::ImportPreset(InPreset, InValue) && InValue->TryGetObject(JsonAnimatorObject))
+	if (Super::ImportPreset(InPreset, InValue) && InValue->IsObject())
 	{
-		double JsonMagnitude = Magnitude;
-		(*JsonAnimatorObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, Magnitude), JsonMagnitude);
-		SetMagnitude(JsonMagnitude);
+		const TSharedPtr<FPropertyAnimatorCorePresetObjectArchive> AnimatorArchive = InValue->AsMutableObject();
+
+		double MagnitudeValue = Magnitude;
+		AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, Magnitude), MagnitudeValue);
+		SetMagnitude(MagnitudeValue);
 
 		if (CycleMode != EPropertyAnimatorCycleMode::None)
 		{
-			double JsonCycleMode = static_cast<double>(CycleMode);
-			(*JsonAnimatorObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, CycleMode), JsonCycleMode);
-			SetCycleMode(static_cast<EPropertyAnimatorCycleMode>(JsonCycleMode));
+			uint64 CycleModeValue = static_cast<uint64>(CycleMode);
+			AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, CycleMode), CycleModeValue);
+			SetCycleMode(static_cast<EPropertyAnimatorCycleMode>(CycleModeValue));
 
-			double JsonCycleDuration = CycleDuration;
-			(*JsonAnimatorObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, CycleDuration), JsonCycleDuration);
-			SetCycleDuration(JsonCycleDuration);
+			double CycleDurationValue = CycleDuration;
+			AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, CycleDuration), CycleDurationValue);
+			SetCycleDuration(CycleDurationValue);
 
-			double JsonCycleGapDuration = CycleGapDuration;
-			(*JsonAnimatorObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, CycleGapDuration), JsonCycleGapDuration);
-			SetCycleGapDuration(JsonCycleGapDuration);
+			double CycleGapDurationValue = CycleGapDuration;
+			AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, CycleGapDuration), CycleGapDurationValue);
+			SetCycleGapDuration(CycleGapDurationValue);
 		}
 
-		bool bJsonRandomTimeOffset = bRandomTimeOffset;
-		(*JsonAnimatorObject)->TryGetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, bRandomTimeOffset), bJsonRandomTimeOffset);
-		SetRandomTimeOffset(bJsonRandomTimeOffset);
+		bool bRandomTimeOffsetValue = bRandomTimeOffset;
+		AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, bRandomTimeOffset), bRandomTimeOffsetValue);
+		SetRandomTimeOffset(bRandomTimeOffsetValue);
 
-		double JsonSeed = Seed;
-		(*JsonAnimatorObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, Seed), JsonSeed);
-		SetSeed(JsonSeed);
+		int64 SeedValue = Seed;
+		AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, Seed), SeedValue);
+		SetSeed(SeedValue);
 
 		return true;
 	}
@@ -315,23 +313,23 @@ bool UPropertyAnimatorNumericBase::ImportPreset(const UPropertyAnimatorCorePrese
 	return false;
 }
 
-bool UPropertyAnimatorNumericBase::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue)
+bool UPropertyAnimatorNumericBase::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FPropertyAnimatorCorePresetArchive>& OutValue) const
 {
-	const TSharedPtr<FJsonObject>* JsonAnimatorObject;
-
-	if (Super::ExportPreset(InPreset, OutValue) && OutValue->TryGetObject(JsonAnimatorObject))
+	if (Super::ExportPreset(InPreset, OutValue) && OutValue->IsObject())
 	{
-		(*JsonAnimatorObject)->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, Magnitude), Magnitude);
+		const TSharedPtr<FPropertyAnimatorCorePresetObjectArchive> AnimatorArchive = OutValue->AsMutableObject();
+
+		AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, Magnitude), Magnitude);
 
 		if (CycleMode != EPropertyAnimatorCycleMode::None)
 		{
-			(*JsonAnimatorObject)->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, CycleMode), static_cast<double>(CycleMode));
-			(*JsonAnimatorObject)->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, CycleDuration), CycleDuration);
-			(*JsonAnimatorObject)->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, CycleGapDuration), CycleGapDuration);
+			AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, CycleMode), static_cast<uint64>(CycleMode));
+			AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, CycleDuration), CycleDuration);
+			AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, CycleGapDuration), CycleGapDuration);
 		}
 
-		(*JsonAnimatorObject)->SetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, bRandomTimeOffset), bRandomTimeOffset);
-		(*JsonAnimatorObject)->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, Seed), Seed);
+		AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, bRandomTimeOffset), bRandomTimeOffset);
+		AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorNumericBase, Seed), static_cast<int64>(Seed));
 
 		return true;
 	}

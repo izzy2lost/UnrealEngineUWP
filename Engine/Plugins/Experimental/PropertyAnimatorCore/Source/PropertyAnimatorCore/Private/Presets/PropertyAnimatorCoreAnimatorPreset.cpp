@@ -3,12 +3,7 @@
 #include "Presets/PropertyAnimatorCoreAnimatorPreset.h"
 
 #include "Animators/PropertyAnimatorCoreBase.h"
-#include "Dom/JsonObject.h"
-#include "Dom/JsonValue.h"
 #include "Presets/PropertyAnimatorCorePresetable.h"
-#include "Serialization/JsonReader.h"
-#include "Serialization/JsonSerializer.h"
-#include "Serialization/JsonWriter.h"
 
 bool UPropertyAnimatorCoreAnimatorPreset::IsPresetApplied(const UPropertyAnimatorCoreBase* InAnimator) const
 {
@@ -22,7 +17,7 @@ bool UPropertyAnimatorCoreAnimatorPreset::IsPresetSupported(const AActor* InActo
 
 bool UPropertyAnimatorCoreAnimatorPreset::ApplyPreset(UPropertyAnimatorCoreBase* InAnimator)
 {
-	if (InAnimator->IsTemplate())
+	if (InAnimator->IsTemplate() || !AnimatorPreset.IsValid())
 	{
 		return false;
 	}
@@ -39,22 +34,18 @@ void UPropertyAnimatorCoreAnimatorPreset::CreatePreset(FName InName, const TArra
 {
 	Super::CreatePreset(InName, InPresetableItem);
 
-	TSharedPtr<FJsonValue> JsonValue;
+	TSharedPtr<FPropertyAnimatorCorePresetArchive> ItemArchive;
 
 	if (InPresetableItem[0]
-		&& InPresetableItem[0]->ExportPreset(this, JsonValue)
-		&& JsonValue.IsValid())
+		&& InPresetableItem[0]->ExportPreset(this, ItemArchive)
+		&& ItemArchive.IsValid())
 	{
-		TSharedPtr<FJsonObject>* JsonObject = nullptr;
-		if (JsonValue->TryGetObject(JsonObject))
+		FString OutputString;
+		if (ItemArchive->ToString(OutputString))
 		{
-			FString JsonString;
-			TSharedRef<TJsonWriter<>> JsonWriter = TJsonWriterFactory<>::Create(&JsonString);
-			if (FJsonSerializer::Serialize(JsonObject->ToSharedRef(), JsonWriter))
-			{
-				PresetVersion = 0;
-				PresetContent = JsonString;
-			}
+			PresetVersion = 0;
+			PresetFormat = ItemArchive->GetImplementationType();
+			PresetContent = OutputString;
 		}
 	}
 }
@@ -66,21 +57,19 @@ bool UPropertyAnimatorCoreAnimatorPreset::LoadPreset()
 		return false;
 	}
 
-	TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(PresetContent);
-
-	TSharedPtr<FJsonObject> JsonObject;
-	if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
+	TSharedRef<FPropertyAnimatorCorePresetObjectArchive> ObjectArchive = GetArchiveImplementation()->CreateObject();
+	if (!ObjectArchive->FromString(PresetContent))
 	{
 		return false;
 	}
 
 	FString Class;
-	JsonObject->TryGetStringField(TEXT("AnimatorClass"), Class);
+	ObjectArchive->Get(TEXT("AnimatorClass"), Class);
 
 	if (UClass* AnimatorClass = LoadObject<UClass>(nullptr, *Class))
 	{
 		TargetAnimatorClass = AnimatorClass;
-		AnimatorPreset = MakeShared<FJsonValueObject>(JsonObject);
+		AnimatorPreset = ObjectArchive;
 		return true;
 	}
 
