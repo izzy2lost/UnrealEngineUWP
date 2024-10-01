@@ -323,6 +323,14 @@ UDisplayClusterConfigurationViewport* UE::DisplayClusterConfiguratorClusterEdito
 	return NewViewport;
 }
 
+bool UE::DisplayClusterConfiguratorClusterEditorUtils::CanAddNewViewportToToolkit(const TWeakPtr<FDisplayClusterConfiguratorBlueprintEditor>& InToolkit)
+{
+	check(InToolkit.IsValid());
+	const UDisplayClusterConfigurationData* EditorData = InToolkit.Pin()->GetEditorData();
+	check(EditorData);
+	return EditorData->Cluster && EditorData->Cluster->Nodes.Num() > 0;
+}
+
 void UE::DisplayClusterConfiguratorClusterEditorUtils::ShowNewClusterItemDialogWindow(TSharedRef<SDisplayClusterConfiguratorNewClusterItemDialog> DialogContent, TSharedPtr<SWidget> ParentElement, FText WindowTitle, FVector2D WindowSize)
 {
 	TSharedPtr<SWidget> ParentWindow = FSlateApplication::Get().FindBestParentWindowForDialogs(ParentElement);

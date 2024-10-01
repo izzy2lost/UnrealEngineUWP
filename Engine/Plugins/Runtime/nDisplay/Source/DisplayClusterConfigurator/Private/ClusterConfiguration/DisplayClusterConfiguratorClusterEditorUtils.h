@@ -48,6 +48,12 @@ namespace UE::DisplayClusterConfiguratorClusterEditorUtils
 		TSharedPtr<FScopedTransaction>& OutTransaction);
 
 	/**
+	 * Checks if a new viewport is allowed to be added by making sure there is a cluster node available.
+	 * @param InToolkit The toolkit hosting the viewport.
+	 */
+	bool CanAddNewViewportToToolkit(const TWeakPtr<FDisplayClusterConfiguratorBlueprintEditor>& InToolkit);
+	
+	/**
 	 * Displays a dialog box used to configure new cluster item properties before adding the new item to the cluster configuration.
 	 * @param DialogContent - The widget to display in the dialog box's main section.
 	 * @param ParentElement - The UI element to display the dialog box from. If null, will use the active window as a parent.

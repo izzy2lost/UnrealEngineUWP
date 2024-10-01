@@ -70,6 +70,8 @@ void UDisplayClusterConfiguratorGraphSchema::GetGraphContextActions(FGraphContex
 	}
 
 	// Action for adding a new viewport
+	const UDisplayClusterConfiguratorGraph* ClusterGraph = CastChecked<UDisplayClusterConfiguratorGraph>(ContextMenuBuilder.CurrentGraph);
+	if (UE::DisplayClusterConfiguratorClusterEditorUtils::CanAddNewViewportToToolkit(ClusterGraph->GetToolkit()))
 	{
 		FText Desc = LOCTEXT("NewViewport_Desc", "New Viewport");
 		FText Tooltip = LOCTEXT("NewViewport_Tooltip", "Add a new viewport");
