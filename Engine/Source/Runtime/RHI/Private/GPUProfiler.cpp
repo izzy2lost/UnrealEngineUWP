@@ -7,6 +7,7 @@
 #include "GPUProfiler.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "Misc/WildcardString.h"
+#include "Misc/CommandLine.h"
 #include "RHI.h"
 #include "GpuProfilerTrace.h"
 
@@ -706,9 +707,9 @@ bool FGPUTiming::GAreGlobalsInitialized = false;
 // until we have a new API that is capable of displaying more info.
 #define RHI_TEMP_USE_GPU_TRACE (1 && GPUPROFILERTRACE_ENABLED)
 
-// When enabled, adds "GPUWork" markers to the GPU Insights trace to show where the GPU is busy or idle.
-// Causes breadcrumbs to be pushed / popped multiple times, breaking them up on the timeline.
-#define RHI_TEMP_SHOW_GPU_WORK (1 && RHI_TEMP_USE_GPU_TRACE)
+// When enabled, and running with a single GPU, repurposes the "GPU2" track
+// in Insights to show the single GPU's async compute queue.
+#define RHI_TEMP_USE_TRACK2_FOR_COMPUTE (1 && RHI_TEMP_USE_GPU_TRACE)
 
 namespace UE::RHI::GPUProfiler
 {
@@ -870,6 +871,8 @@ namespace UE::RHI::GPUProfiler
 
 		struct FQueueState
 		{
+			FQueue::EType Type;
+
 			bool bBusy = false;
 			FQueueTimestamps Timestamps;
 
@@ -877,6 +880,10 @@ namespace UE::RHI::GPUProfiler
 			TMap<FRHIBreadcrumbData_Stats, int32> ActiveStats;
 			FRHIBreadcrumbNode* Breadcrumb = nullptr;
 		#endif
+
+			FQueueState(FQueue const& Queue)
+				: Type(Queue.Type)
+			{}
 		};
 
 		using FFrameState = TMap<FQueue, FQueueTimestamps>;
@@ -885,62 +892,229 @@ namespace UE::RHI::GPUProfiler
 		TMap<uint32, FFrameState> Frames;
 
 	#if RHI_TEMP_USE_GPU_TRACE
-		uint32 FrameNumber = 0;
-		uint64 MaxTraceTime = 0;
-
-		uint64 GPUToTrace(uint64 GPUTimestamp)
+		struct FInsightsTrack
 		{
-			uint64 TraceTime = (uint64)(FPlatformTime::ToMilliseconds64(GPUTimestamp) * 1000.0);
+			uint32 const Index;
+			uint64 MaxTraceTime = 0;
+			uint32 FrameNumber = 0;
 
-			//
-			// Some platforms support top-of-pipe timestamps, meaning BeginWork/BeginBreadcrumb events
-			// that occur logically after EndWork/EndBreadcrumb events in the command stream can have
-			// a timestamp that is earlier than the subsequent begin event due the GPU workload overlap.
-			//
-			// The old Insights API cannot support this, and simply doesn't display the events if their
-			// timestamps aren't strictly sequential. Work around this by emitting the Max() of the current
-			// timestamp, and the largest timestamp we've seen before.
-			//
+		#if DO_CHECK
+			int32 EventCounter = 0;
+		#endif
 
-			MaxTraceTime = FMath::Max(TraceTime, MaxTraceTime);
-			return MaxTraceTime;
-		}
+			FInsightsTrack(uint32 Index)
+				: Index(Index)
+			{}
 
-	#if RHI_TEMP_SHOW_GPU_WORK
-		bool bNeedsEnd = false;
-		uint64 MaxEndTimeBOP = 0;
-
-		// Emitting FEndWork events to Insights are deferred until we know there isn't an overlapping FBeginWork event
-		// that would otherwise prevent the GPU going idle. This is done to coalesce markers to make them less noisy.
-		bool EmitEndWork(FQueueState& QueueState, TOptional<uint64> NextBeginWorkTimeTOP)
-		{
-			bool bEmitEnd = bNeedsEnd && (!NextBeginWorkTimeTOP.IsSet() || NextBeginWorkTimeTOP.GetValue() > MaxEndTimeBOP);
-			bool bNeedsBegin = !bNeedsEnd || bEmitEnd;
-
-			if (bEmitEnd)
+			uint64 GPUToTrace(uint64 GPUTimestamp)
 			{
-				uint64 TraceTime = GPUToTrace(MaxEndTimeBOP);
+				uint64 TraceTime = (uint64)(FPlatformTime::ToMilliseconds64(GPUTimestamp) * 1000.0);
 
-			#if WITH_RHI_BREADCRUMBS
-				for (FRHIBreadcrumbNode* Current = QueueState.Breadcrumb; Current; Current = Current->GetParent())
-				{
-					FGpuProfilerTrace::EndEvent(TraceTime);
-				}
-			#endif
+				//
+				// Some platforms support top-of-pipe timestamps, meaning BeginWork/BeginBreadcrumb events
+				// that occur logically after EndWork/EndBreadcrumb events in the command stream can have
+				// a timestamp that is earlier than the subsequent begin event due the GPU workload overlap.
+				//
+				// The old Insights API cannot support this, and simply doesn't display the events if their
+				// timestamps aren't strictly sequential. Work around this by emitting the Max() of the current
+				// timestamp, and the largest timestamp we've seen before.
+				//
 
-				FGpuProfilerTrace::EndEvent(TraceTime); // GPUWork event
-
-				bNeedsEnd = false;
+				MaxTraceTime = FMath::Max(TraceTime, MaxTraceTime);
+				return MaxTraceTime;
 			}
 
-			return bNeedsBegin;
-		}
-	#endif // RHI_TEMP_SHOW_GPU_WORK
+			bool bShowWork = false;
+			bool bEmittedGPUWorkName = false;
 
-		bool ShouldEmitGPU(FQueue const& Queue)
+			bool bNeedsEnd = false;
+			uint64 MaxEndTimeBOP = 0;
+			TOptional<uint64> LastBeginTimestampTOP;
+
+			// Emitting FEndWork events to Insights are deferred until we know there isn't an overlapping FBeginWork event
+			// that would otherwise prevent the GPU going idle. This is done to coalesce markers to make them less noisy.
+			bool EmitEndWork(FQueueState const& QueueState)
+			{
+				bool bEmitEnd = bNeedsEnd && (!LastBeginTimestampTOP.IsSet() || LastBeginTimestampTOP.GetValue() > MaxEndTimeBOP);
+				bool bNeedsBegin = !bNeedsEnd || bEmitEnd;
+
+				if (bEmitEnd)
+				{
+					uint64 TraceTime = GPUToTrace(MaxEndTimeBOP);
+
+				#if WITH_RHI_BREADCRUMBS
+					for (FRHIBreadcrumbNode* Current = QueueState.Breadcrumb; Current; Current = Current->GetParent())
+					{
+						check(EventCounter-- > 0);
+						FGpuProfilerTrace::EndEvent(TraceTime, Index);
+					}
+				#endif
+
+					if (bShowWork)
+					{
+						check(EventCounter-- > 0);
+						FGpuProfilerTrace::EndEvent(TraceTime, Index); // GPUWork event
+					}
+
+					bNeedsEnd = false;
+				}
+
+				return bNeedsBegin;
+			}
+
+			void EmitBeginWork(FQueueState const& QueueState)
+			{
+				if (LastBeginTimestampTOP.IsSet())
+				{
+					uint64 TraceTime = GPUToTrace(LastBeginTimestampTOP.GetValue());
+							
+					if (bShowWork)
+					{
+						static FName GraphicsWorkName("Graphics Work");
+						static FName ComputeWorkName("Compute Work");
+						FName WorkName = QueueState.Type == FQueue::EType::Graphics
+							? GraphicsWorkName
+							: ComputeWorkName;
+
+						if (!bEmittedGPUWorkName)
+						{
+							FGpuProfilerTrace::SpecifyEventByName(WorkName, Index);
+						}
+
+						FGpuProfilerTrace::BeginEventByName(WorkName, FrameNumber, TraceTime, Index);
+						check(++EventCounter);
+					}
+
+				#if WITH_RHI_BREADCRUMBS
+					{
+						FRHIBreadcrumb::FBuffer Buffer;
+						auto Recurse = [&](auto& Recurse, FRHIBreadcrumbNode* Current) -> void
+						{
+							if (!Current)
+								return;
+
+							Recurse(Recurse, Current->GetParent());
+
+							FName Name(Current->Name.GetTCHAR(Buffer));
+							FGpuProfilerTrace::BeginEventByName(Name, FrameNumber, TraceTime, Index);
+							check(++EventCounter);
+						};
+						Recurse(Recurse, QueueState.Breadcrumb);
+					}
+				#endif
+
+					LastBeginTimestampTOP.Reset();
+				}
+			}
+
+			void BeginWork(FQueueState const& QueueState, FEvent::FBeginWork const& BeginWork)
+			{
+				LastBeginTimestampTOP = BeginWork.GPUTimestampTOP;
+
+				if (bShowWork)
+				{
+					if (EmitEndWork(QueueState))
+					{
+						EmitBeginWork(QueueState);
+					}
+				}
+			}
+
+			void EndWork(FQueueState const& QueueState, FEvent::FEndWork const& EndWork)
+			{
+				MaxEndTimeBOP = FMath::Max(MaxEndTimeBOP, EndWork.GPUTimestampBOP);
+				bNeedsEnd = true;
+			}
+
+			void BeginBreadcrumb(FQueueState const& QueueState, FEvent::FBeginBreadcrumb const& BeginBreadcrumb)
+			{
+				FRHIBreadcrumb::FBuffer Buffer;
+				TCHAR const* Str = BeginBreadcrumb.Breadcrumb->Name.GetTCHAR(Buffer);
+				FName Name(Str);
+
+				FGpuProfilerTrace::SpecifyEventByName(Name, Index);
+				FGpuProfilerTrace::BeginEventByName(Name, FrameNumber, GPUToTrace(BeginBreadcrumb.GPUTimestampTOP), Index);
+				check(++EventCounter);
+			}
+
+			void EndBreadcrumb(FQueueState const& QueueState, FEvent::FEndBreadcrumb const& EndBreadcrumb)
+			{
+				check(EventCounter-- > 0);
+				FGpuProfilerTrace::EndEvent(GPUToTrace(EndBreadcrumb.GPUTimestampBOP), Index);
+			}
+
+			void FrameBoundary(FQueueState const& QueueState, FEvent::FFrameBoundary const& FrameBoundary)
+			{
+				// End the current Insights GPU frame + start the next one
+
+				// All breadcrumbs must be ended before the frame boundary can be emitted.
+				LastBeginTimestampTOP.Reset();
+				bool bNeedsBegin = EmitEndWork(QueueState);
+
+				check(FrameNumber == FrameBoundary.FrameNumber);
+				check(EventCounter == 0);
+				FGpuProfilerTrace::EndFrame(Index);
+
+				FrameNumber++;
+
+				// Use 1,1 calibration to disable any adjustments Insights makes.
+				// The timestamps we use in the GPU event stream are already in the CPU clock domain.
+				FGPUTimingCalibrationTimestamp Calibration{ 1, 1 };
+				FGpuProfilerTrace::BeginFrame(Calibration, Index);
+
+				if (!bShowWork)
+				{
+					if (bNeedsBegin)
+					{
+						LastBeginTimestampTOP = MaxEndTimeBOP;
+						EmitBeginWork(QueueState);
+					}
+				}
+			}
+
+			void Initialize()
+			{
+				// When enabled, adds "GPUWork" markers to the GPU Insights trace to show where the GPU is busy or idle.
+				// Causes breadcrumbs to be pushed / popped multiple times, breaking them up on the timeline.
+				bShowWork = FParse::Param(FCommandLine::Get(), TEXT("tracegpuwork"));
+
+				// Use 1,1 calibration to disable any adjustments Insights makes.
+				// The timestamps we use in the GPU event stream are already in the CPU clock domain.
+				FGPUTimingCalibrationTimestamp Calibration{ 1, 1 };
+				check(EventCounter == 0);
+				FGpuProfilerTrace::BeginFrame(Calibration, Index);
+			}
+
+		} InsightsTracks[2] { {0}, {1} };
+
+		FInsightsTrack* GetInsightsTrack(FQueue const& Queue)
 		{
-			return Queue.Type == FQueue::EType::Graphics && Queue.GPU == 0 && Queue.Index == 0;
+			if (GNumExplicitGPUsForRendering > 1)
+			{
+				// MGPU Mode - GPU0 Graphics + GPU1 Graphics
+				if (Queue.Type == FQueue::EType::Graphics && Queue.Index == 0 && Queue.GPU < 2)
+				{
+					return &InsightsTracks[Queue.GPU];
+				}
+			}
+			else
+			{
+				// GPU0 Graphics + GPU0 Compute Mode
+				if (Queue.GPU == 0 && Queue.Index == 0)
+				{
+					switch (Queue.Type)
+					{
+					case FQueue::EType::Graphics: return &InsightsTracks[0];
+				#if RHI_TEMP_USE_TRACK2_FOR_COMPUTE
+					case FQueue::EType::Compute : return &InsightsTracks[1];
+				#endif
+					}
+				}
+			}
+
+			return nullptr;
 		}
+
 	#endif // RHI_TEMP_USE_GPU_TRACE
 
 		void InitializeQueues(TConstArrayView<FQueue> Queues) override
@@ -948,16 +1122,14 @@ namespace UE::RHI::GPUProfiler
 			for (FQueue const& Queue : Queues)
 			{
 				check(QueueStates.Find(Queue) == nullptr);
-				QueueStates.Add(Queue);
+				QueueStates.Add(Queue, Queue);
 
 			#if RHI_TEMP_USE_GPU_TRACE
 				// Start the first Insights GPU frame
-				if (ShouldEmitGPU(Queue))
+				FInsightsTrack* Track = GetInsightsTrack(Queue);
+				if (Track)
 				{
-					// Use 1,1 calibration to disable any adjustments Insights makes.
-					// The timestamps we use in the GPU event stream are already in the CPU clock domain.
-					FGPUTimingCalibrationTimestamp Calibration{ 1, 1 };
-					FGpuProfilerTrace::BeginFrame(Calibration);
+					Track->Initialize();
 				}
 			#endif
 			}
@@ -965,6 +1137,9 @@ namespace UE::RHI::GPUProfiler
 
 		void ProcessEvents(FQueue Queue, FEventStream const& EventStream) override
 		{
+		#if RHI_TEMP_USE_GPU_TRACE
+			FInsightsTrack* Track = GetInsightsTrack(Queue);
+		#endif
 			FQueueState& QueueState = QueueStates.FindChecked(Queue);
 
 			for (FEvent const* Event : EventStream)
@@ -979,36 +1154,10 @@ namespace UE::RHI::GPUProfiler
 						FEvent::FBeginWork const& BeginWork = Event->Value.Get<FEvent::FBeginWork>();
 						QueueState.Timestamps.Queue.AddTimestamp(BeginWork.GPUTimestampTOP, true);
 
-					#if RHI_TEMP_SHOW_GPU_WORK
-						if (ShouldEmitGPU(Queue))
+					#if RHI_TEMP_USE_GPU_TRACE
+						if (Track)
 						{
-							if (EmitEndWork(QueueState, BeginWork.GPUTimestampTOP))
-							{
-								uint64 TraceTime = GPUToTrace(BeginWork.GPUTimestampTOP);
-								static FName GPUWorkName = ([]()
-								{
-									FName Name("GPUWork");
-									FGpuProfilerTrace::SpecifyEventByName(Name);
-									return Name;
-								})();
-
-								FGpuProfilerTrace::BeginEventByName(GPUWorkName, FrameNumber, TraceTime);
-
-							#if WITH_RHI_BREADCRUMBS
-								FRHIBreadcrumb::FBuffer Buffer;
-								auto Recurse = [&](auto& Recurse, FRHIBreadcrumbNode* Current) -> void
-								{
-									if (!Current)
-										return;
-
-									Recurse(Recurse, Current->GetParent());
-
-									FName Name(Current->Name.GetTCHAR(Buffer));
-									FGpuProfilerTrace::BeginEventByName(Name, FrameNumber, TraceTime);
-								};
-								Recurse(Recurse, QueueState.Breadcrumb);
-							#endif
-							}
+							Track->BeginWork(QueueState, BeginWork);
 						}
 					#endif
 
@@ -1038,11 +1187,10 @@ namespace UE::RHI::GPUProfiler
 						}
 					#endif
 
-					#if RHI_TEMP_SHOW_GPU_WORK
-						if (ShouldEmitGPU(Queue))
+					#if RHI_TEMP_USE_GPU_TRACE
+						if (Track)
 						{
-							MaxEndTimeBOP = FMath::Max(MaxEndTimeBOP, EndWork.GPUTimestampBOP);
-							bNeedsEnd = true;
+							Track->EndWork(QueueState, EndWork);
 						}
 					#endif
 					}
@@ -1051,18 +1199,15 @@ namespace UE::RHI::GPUProfiler
 			#if WITH_RHI_BREADCRUMBS
 				case FEvent::EType::BeginBreadcrumb:
 					{
+						check(QueueState.bBusy);
+
 						FEvent::FBeginBreadcrumb const& BeginBreadcrumb = Event->Value.Get<FEvent::FBeginBreadcrumb>();
 						FRHIBreadcrumbData_Stats const& Stat = BeginBreadcrumb.Breadcrumb->Name.Data;
 
 					#if RHI_TEMP_USE_GPU_TRACE
-						if (ShouldEmitGPU(Queue))
+						if (Track)
 						{
-							FRHIBreadcrumb::FBuffer Buffer;
-							TCHAR const* Str = BeginBreadcrumb.Breadcrumb->Name.GetTCHAR(Buffer);
-							FName Name(Str);
-
-							FGpuProfilerTrace::SpecifyEventByName(Name);
-							FGpuProfilerTrace::BeginEventByName(Name, FrameNumber, GPUToTrace(BeginBreadcrumb.GPUTimestampTOP));
+							Track->BeginBreadcrumb(QueueState, BeginBreadcrumb);
 						}
 					#endif
 
@@ -1083,13 +1228,15 @@ namespace UE::RHI::GPUProfiler
 
 				case FEvent::EType::EndBreadcrumb:
 					{
+						check(QueueState.bBusy);
+
 						FEvent::FEndBreadcrumb const& EndBreadcrumb = Event->Value.Get<FEvent::FEndBreadcrumb>();
 						FRHIBreadcrumbData_Stats const& Stat = EndBreadcrumb.Breadcrumb->Name.Data;
 
 					#if RHI_TEMP_USE_GPU_TRACE
-						if (ShouldEmitGPU(Queue))
+						if (Track)
 						{
-							FGpuProfilerTrace::EndEvent(GPUToTrace(EndBreadcrumb.GPUTimestampBOP));
+							Track->EndBreadcrumb(QueueState, EndBreadcrumb);
 						}
 					#endif
 
@@ -1148,21 +1295,9 @@ namespace UE::RHI::GPUProfiler
 						}
 
 					#if RHI_TEMP_USE_GPU_TRACE
-						// End the current Insights GPU frame + start the next one
-						if (ShouldEmitGPU(Queue))
+						if (Track)
 						{
-						#if RHI_TEMP_SHOW_GPU_WORK
-							EmitEndWork(QueueState, {});
-						#endif
-
-							check(FrameNumber == FrameBoundary.FrameNumber);
-							FGpuProfilerTrace::EndFrame(0);
-							FrameNumber++;
-
-							// Use 1,1 calibration to disable any adjustments Insights makes.
-							// The timestamps we use in the GPU event stream are already in the CPU clock domain.
-							FGPUTimingCalibrationTimestamp Calibration{ 1, 1 };
-							FGpuProfilerTrace::BeginFrame(Calibration);
+							Track->FrameBoundary(QueueState, FrameBoundary);
 						}
 					#endif
 					}
