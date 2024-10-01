@@ -46,6 +46,12 @@ public:
 
 	const FMassEntityTemplate* GetMassEntityTemplate(FMassEntityTemplateID TemplateID) const;
 
+	FMassEntityManager& GetEntityManagerChecked()
+	{
+		check(EntityManager.IsValid());
+		return *EntityManager.Get();
+	}
+
 protected:
 	// UWorldSubsystem BEGIN
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
