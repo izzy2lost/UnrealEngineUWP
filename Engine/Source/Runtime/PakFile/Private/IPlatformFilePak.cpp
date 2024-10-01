@@ -4166,7 +4166,7 @@ public:
 		return PakEntry.UncompressedSize;
 	}
 
-	void Serialize(int64 DesiredPosition, void* V, int64 Length)
+	void Serialize(int64 DesiredPosition, void* V, int64 Length) const
 	{
 		const int32 CompressionBlockSize = PakEntry.CompressionBlockSize;
 		uint32 CompressionBlockIndex = (uint32)(DesiredPosition / CompressionBlockSize);

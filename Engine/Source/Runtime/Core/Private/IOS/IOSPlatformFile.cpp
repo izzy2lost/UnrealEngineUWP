@@ -5,12 +5,14 @@
 #include "Containers/StringConv.h"
 #include "HAL/PlatformTime.h"
 #include "Templates/Function.h"
+#include "HAL/CriticalSection.h"
 #include "HAL/PlatformProcess.h"
 #include "Misc/Parse.h"
 #include "Misc/CoreMisc.h"
 #include "Misc/CommandLine.h"
 #include "Misc/App.h"
 #include "Misc/Paths.h"
+#include "Misc/ScopeLock.h"
 
 #include "Async/MappedFileHandle.h"
 #include <sys/mman.h>
@@ -184,6 +186,43 @@ public:
         }
 	}
 
+	virtual bool ReadAt(uint8* Destination, int64 BytesToRead, int64 Offset) override
+	{
+		if (BytesToRead < 0 || Offset < 0)
+		{
+			return false;
+		}
+
+		if (BytesToRead == 0)
+		{
+			return true;
+		}
+
+#if MANAGE_FILE_HANDLES_IOS
+		if (IsManaged())
+		{
+			ActivateSlot();
+		}
+#endif //MANAGE_FILE_HANDLES_IOS
+
+		do
+		{
+			size_t BytesToRead32 = static_cast<size_t>(FMath::Min<int64>(READWRITE_SIZE, BytesToRead));
+			ssize_t BytesRead = pread(FileHandle, Destination, BytesToRead, Offset);
+
+			if (BytesRead != BytesToRead32)
+			{
+				return false;
+			}
+
+			Offset += BytesRead;
+			BytesToRead -= BytesToRead32;
+
+		} while (BytesToRead > 0);
+
+		return true;
+	}
+
 	virtual bool Seek( int64 NewPosition ) override
 	{
 		check(NewPosition >= 0);
@@ -315,6 +354,9 @@ private:
 
     void ActivateSlot()
     {
+		static FCriticalSection LockHandles;
+		FScopeLock Lock(&LockHandles);
+
         if( IsManaged() )
         {
             if( ManagedFiles[HandleSlot].ID != FileID )

@@ -55,6 +55,12 @@ namespace UE::CoreUObject::Private::Tests
 			return true;
 		}
 
+		virtual bool ReadAt(uint8* Destination, int64 BytesToRead, int64 Offset) override
+		{
+			FMemory::Memcpy(Destination, Data + Offset, BytesToRead);
+			return true;
+		}
+
 		virtual int64 Tell() { return Pos; }
 		virtual bool Write(const uint8* Source, int64 BytesToWrite) { return false; }
 		virtual bool Flush(const bool bFullFlush = false){ return false; }

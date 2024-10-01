@@ -718,6 +718,11 @@ public:
 		return FileHandle->Read(Destination, BytesToRead);
 	}
 
+	virtual bool ReadAt(uint8* Destination, int64 BytesToRead, int64 Offset) override
+	{
+		return FileHandle->ReadAt(Destination, BytesToRead, Offset);
+	}
+
 	virtual bool Write(const uint8* Source, int64 BytesToWrite) override
 	{
 		if (!TryManageFile())

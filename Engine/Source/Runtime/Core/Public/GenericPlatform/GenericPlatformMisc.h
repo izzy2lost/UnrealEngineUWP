@@ -25,6 +25,7 @@ class GenericApplication;
 class IInstallBundleManager;
 class IPlatformChunkInstall;
 class IPlatformCompression;
+class IWrappedFileHandle;
 class IPlatformHostCommunication;
 struct FDefaultDelegateUserPolicy;
 struct FGenericCrashContext;
@@ -1263,6 +1264,8 @@ public:
 	 * @return Returns the platform specific compression interface
 	 */
 	static CORE_API IPlatformCompression* GetPlatformCompression();
+
+	static CORE_API IWrappedFileHandle* CreateCompressedPlatformFileHandle(IFileHandle* InLowerLevelHandle);
 
 	/**
 	 * Returns the platform specific interface for communication with processes running on the host pc.

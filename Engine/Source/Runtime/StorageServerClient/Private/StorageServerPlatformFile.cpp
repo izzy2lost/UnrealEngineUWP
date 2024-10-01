@@ -378,11 +378,19 @@ private:
 class FStorageServerFileHandle
 	: public IFileHandle
 {
+	enum
+	{
+		BufferSize = 64 << 10
+	};
 	FStorageServerPlatformFile& Owner;
 	FIoChunkId FileChunkId;
 	FString Filename;
 	int64 FilePos = 0;
 	int64 FileSize = -1;
+	int64 BufferStart = -1;
+	int64 BufferEnd = -1;
+	uint8 Buffer[BufferSize];
+	FCriticalSection BufferCS;
 
 public:
 	FStorageServerFileHandle(FStorageServerPlatformFile& InOwner, FIoChunkId InFileChunkId, int64 InFileSize, const TCHAR* InFilename)
@@ -454,6 +462,60 @@ public:
 		TRACE_PLATFORMFILE_END_READ(Destination, BytesRead);
 		
 		return BytesRemaining == 0;
+	}
+
+	virtual bool ReadAt(uint8* Destination, int64 BytesToRead, int64 Offset)
+	{
+		if (BytesToRead == 0)
+		{
+			return true;
+		}
+
+		if (BytesToRead > BufferSize)
+		{
+			const int64 BytesRead = Owner.SendReadMessage(Destination, FileChunkId, Offset, BytesToRead);
+			if (BytesRead == BytesToRead)
+			{
+				STORAGESERVER_CACHEMISS(BytesRead);
+				return true;
+			}
+			return false;
+		}
+
+		{
+			FScopeLock BufferLock(&BufferCS);
+
+			int64 BytesReadFromBuffer = 0;
+			if (Offset >= BufferStart && Offset < BufferEnd)
+			{
+				const int64 BufferOffset = Offset - BufferStart;
+				check(BufferOffset < BufferSize);
+				BytesReadFromBuffer = FMath::Min(BufferSize - BufferOffset, BytesToRead);
+				FMemory::Memcpy(Destination, Buffer + BufferOffset, BytesReadFromBuffer);
+				STORAGESERVER_CACHEHIT(BytesReadFromBuffer);
+				if (BytesReadFromBuffer == BytesToRead)
+				{
+					Offset += BytesReadFromBuffer;
+					return true;
+				}
+			}
+
+			const int64 BytesRead = Owner.SendReadMessage(Buffer, FileChunkId, Offset + BytesReadFromBuffer, BufferSize);
+			BufferStart = Offset + BytesReadFromBuffer;
+			BufferEnd = BufferStart + BytesRead;
+
+			const int64 BytesToReadFromBuffer = FMath::Min(BytesRead, BytesToRead - BytesReadFromBuffer);
+			FMemory::Memcpy(Destination + BytesReadFromBuffer, Buffer, BytesToReadFromBuffer);
+			BytesReadFromBuffer += BytesToReadFromBuffer;
+			if (BytesReadFromBuffer == BytesToRead)
+			{
+				Offset += BytesReadFromBuffer;
+				STORAGESERVER_CACHEMISS(BytesReadFromBuffer);
+				return true;
+			}
+
+			return false;
+		}
 	}
 
 	virtual bool Write(const uint8* Source, int64 BytesToWrite) override
@@ -681,6 +743,7 @@ bool FStorageServerPlatformFile::Initialize(IPlatformFile* Inner, const TCHAR* C
 		{
 			UE_LOG(LogStorageServerPlatformFile, Display, TEXT("Using settings from command line: -ZenStoreBaseURI='%s'"), *BaseURI);
 		}
+
 		return true;
 	}
 	return false;
@@ -688,6 +751,22 @@ bool FStorageServerPlatformFile::Initialize(IPlatformFile* Inner, const TCHAR* C
 
 void FStorageServerPlatformFile::InitializeAfterProjectFilePath()
 {
+	InitializeConnection();
+
+	// optional debugging module depends on a valid Connection
+	if (FModuleManager::Get().ModuleExists(TEXT("StorageServerClientDebug")))
+	{
+		FModuleManager::Get().LoadModule("StorageServerClientDebug");
+	}
+}
+
+void FStorageServerPlatformFile::InitializeConnection()
+{
+	if (Connection)
+	{
+		return;
+	}
+
 #if WITH_COTF
 	UE::Cook::ICookOnTheFlyModule& CookOnTheFlyModule = FModuleManager::LoadModuleChecked<UE::Cook::ICookOnTheFlyModule>(TEXT("CookOnTheFly"));
 	CookOnTheFlyServerConnection = CookOnTheFlyModule.GetDefaultServerConnection();
@@ -724,12 +803,6 @@ void FStorageServerPlatformFile::InitializeAfterProjectFilePath()
 		{
 			FStringView HostAddr = Connection->GetHostAddr();
 			UE_LOG(LogStorageServerPlatformFile, Fatal, TEXT("Failed to get file list from Zen at '%.*s'"), HostAddr.Len(), HostAddr.GetData());
-		}
-
-		// optional debugging module depends on a valid Connection
-		if (FModuleManager::Get().ModuleExists(TEXT("StorageServerClientDebug")))
-		{
-			FModuleManager::Get().LoadModule("StorageServerClientDebug");
 		}
 	}
 	else if (bAbortOnConnectionFailure)
@@ -857,6 +930,7 @@ IFileHandle* FStorageServerPlatformFile::InternalOpenFile(const FIoChunkId& File
 IFileHandle* FStorageServerPlatformFile::OpenRead(const TCHAR* Filename, bool bAllowWrite)
 {
 	TStringBuilder<1024> StorageServerFilename;
+
 	if (MakeStorageServerPath(Filename, StorageServerFilename))
 	{
 		FIoChunkId FileChunkId;
