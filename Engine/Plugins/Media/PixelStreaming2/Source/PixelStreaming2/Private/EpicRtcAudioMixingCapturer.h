@@ -152,6 +152,11 @@ namespace UE::PixelStreaming2
 		FEpicRtcAudioMixingCapturer();
 
 	private:
+		void OnDebugDumpAudioChanged(IConsoleVariable* Var);
+		void OnEnginePreExit();
+		void WriteDebugAudio();
+
+	private:
 		TSharedPtr<FEpicRtcAudioPatchMixer>	 Mixer;
 		TUniqueTaskPtr<FEpicRtcMixAudioTask> MixerTask;
 
@@ -163,5 +168,7 @@ namespace UE::PixelStreaming2
 		int				  NumChannels;
 		float			  SampleSizeSeconds;
 		Audio::FResampler Resampler;
+
+		Audio::TSampleBuffer<int16_t> DebugDumpAudioBuffer;
 	};
 } // namespace UE::PixelStreaming2

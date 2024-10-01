@@ -153,6 +153,8 @@ public:
 		))
 	FString SignallingURL;
 
+	static TAutoConsoleVariable<bool> CVarDebugDumpAudio;
+
 	// Begin Cursor Settings
 	/**
 	 * Pixel streaming always requires various software cursors so they will be
@@ -627,6 +629,9 @@ public:
 
 		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnEncoderDebugDumpFrameChanged, IConsoleVariable*);
 		FOnEncoderDebugDumpFrameChanged OnEncoderDebugDumpFrameChanged;
+
+		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnDebugDumpAudioChanged, IConsoleVariable*);
+		FOnDebugDumpAudioChanged OnDebugDumpAudioChanged;
 
 		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnDecoupleFramerateChanged, IConsoleVariable*);
 		FOnDecoupleFramerateChanged OnDecoupleFramerateChanged;

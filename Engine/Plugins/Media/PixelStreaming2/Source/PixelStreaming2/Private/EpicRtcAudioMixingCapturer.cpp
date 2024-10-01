@@ -4,7 +4,10 @@
 
 #include "AudioDevice.h"
 #include "Engine/Engine.h"
+#include "Logging.h"
+#include "Misc/CoreDelegates.h"
 #include "PixelStreaming2PluginSettings.h"
+#include "Sound/SampleBufferIO.h"
 
 namespace UE::PixelStreaming2
 {
@@ -38,6 +41,19 @@ namespace UE::PixelStreaming2
 
 		FAudioDeviceManagerDelegates::OnAudioDeviceCreated.AddSP(AudioMixingCapturer.ToSharedRef(), &FEpicRtcAudioMixingCapturer::CreateAudioProducer);
 		FAudioDeviceManagerDelegates::OnAudioDeviceDestroyed.AddSP(AudioMixingCapturer.ToSharedRef(), &FEpicRtcAudioMixingCapturer::RemoveAudioProducer);
+
+		if (UPixelStreaming2PluginSettings::FDelegates* Delegates = UPixelStreaming2PluginSettings::Delegates())
+		{
+			Delegates->OnDebugDumpAudioChanged.AddSP(AudioMixingCapturer.ToSharedRef(), &FEpicRtcAudioMixingCapturer::OnDebugDumpAudioChanged);
+
+			TWeakPtr<FEpicRtcAudioMixingCapturer> WeakAudioMixingCapturer = AudioMixingCapturer;
+			FCoreDelegates::OnEnginePreExit.AddLambda([WeakAudioMixingCapturer]() {
+				if (TSharedPtr<FEpicRtcAudioMixingCapturer> AudioMixingCapturer = WeakAudioMixingCapturer.Pin())
+				{
+					AudioMixingCapturer->OnEnginePreExit();
+				}
+			});
+		}
 
 		return AudioMixingCapturer;
 	}
@@ -111,7 +127,12 @@ namespace UE::PixelStreaming2
 
 		RecordingBuffer.Append(Buffer.GetData(), Buffer.GetNumSamples());
 
-		const int32 SamplesPer10Ms = NumChannels * SampleRate * 0.01f;
+		if (UPixelStreaming2PluginSettings::CVarDebugDumpAudio.GetValueOnAnyThread())
+		{
+			DebugDumpAudioBuffer.Append(Buffer.GetData(), Buffer.GetNumSamples(), Buffer.GetNumChannels(), Buffer.GetSampleRate());
+		}
+
+		const int32	 SamplesPer10Ms = NumChannels * SampleRate * 0.01f;
 		const size_t BytesPerFrame = NumChannels * sizeof(int16_t);
 
 		// Feed in 10ms chunks
@@ -123,4 +144,36 @@ namespace UE::PixelStreaming2
 			RecordingBuffer.RemoveAt(0, SamplesPer10Ms, EAllowShrinking::No);
 		}
 	}
-} // namespace UE::PixelStreaming2 
+
+	void FEpicRtcAudioMixingCapturer::OnDebugDumpAudioChanged(IConsoleVariable* Var)
+	{
+		if (!Var->GetBool())
+		{
+			WriteDebugAudio();
+		}
+	}
+
+	void FEpicRtcAudioMixingCapturer::OnEnginePreExit()
+	{
+		// If engine is exiting but the dump cvar is true, we need to manually trigger a write
+		if (UPixelStreaming2PluginSettings::CVarDebugDumpAudio.GetValueOnAnyThread())
+		{
+			WriteDebugAudio();
+		}
+	}
+
+	void FEpicRtcAudioMixingCapturer::WriteDebugAudio()
+	{
+		// Only write audio if we actually have some
+		if (DebugDumpAudioBuffer.GetSampleDuration() <= 0.f)
+		{
+			return;
+		}
+
+		Audio::FSoundWavePCMWriter Writer;
+		FString					   FilePath = TEXT("");
+		Writer.SynchronouslyWriteToWavFile(DebugDumpAudioBuffer, TEXT("PixelStreamingMixedAudio"), TEXT(""), &FilePath);
+		UE_LOGFMT(LogPixelStreaming2, Log, "Saving audio sample to: {0}", FilePath);
+		DebugDumpAudioBuffer.Reset();
+	}
+} // namespace UE::PixelStreaming2

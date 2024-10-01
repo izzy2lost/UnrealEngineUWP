@@ -202,6 +202,13 @@ TAutoConsoleVariable<FString> UPixelStreaming2PluginSettings::CVarSignallingURL(
 	TEXT("Default URL to connect to for signalling."),
 	ECVF_Default);
 
+TAutoConsoleVariable<bool> UPixelStreaming2PluginSettings::CVarDebugDumpAudio(
+	TEXT("PixelStreaming2.DumpDebugAudio"),
+	false,
+	TEXT("Dumps mixed audio from PS2 to a file on disk for debugging purposes."),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* Var) { Delegates()->OnDebugDumpAudioChanged.Broadcast(Var); }),
+	ECVF_Default);
+
 // Begin Encoder CVars
 
 TAutoConsoleVariable<int32> UPixelStreaming2PluginSettings::CVarEncoderTargetBitrate(
