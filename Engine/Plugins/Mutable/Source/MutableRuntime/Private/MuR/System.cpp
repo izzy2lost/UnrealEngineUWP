@@ -1736,7 +1736,7 @@ namespace mu
 		const TArray<FParameterDesc>& ParamDescs = Params->GetPrivate()->m_pModel->GetPrivate()->m_program.m_parameters;
 
 		// First make a mask with a bit for each relevant parameter. It will be on for parameters included in the blob.
-		// A parameter will be excluded from the blob if it has the deafult value, and no multivalues.
+		// A parameter will be excluded from the blob if it has the default value, and no multivalues.
 		TBitArray IncludedParameters(0, RelevantParams->Num());
 		if (RelevantParams->Num())
 		{
