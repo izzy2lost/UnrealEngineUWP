@@ -4995,8 +4995,6 @@ bool AUsdStageActor::UnloadAssets(const UE::FSdfPath& StartPrimPath, bool bForEn
 		}
 	}
 
-	AssetCache->RequestDelayedAssetAutoCleanup();
-
 	return bAssetsDiscarded;
 }
 
