@@ -359,12 +359,6 @@ public:
 	virtual FHttpRequestCompleteDelegate& OnProcessRequestComplete() = 0;
 
 	/**
-	 * Delegate called to update the request/response progress. See FHttpRequestProgressDelegate
-	 */
-	UE_DEPRECATED(5.3, "OnRequestProgress has been deprecated, use OnRequestProgress64 instead")
-	virtual FHttpRequestProgressDelegate& OnRequestProgress() = 0;
-
-	/**
 	 * Delegate called to update the request/response progress. See FHttpRequestProgressDelegate64
 	 */
 	virtual FHttpRequestProgressDelegate64& OnRequestProgress64() = 0;

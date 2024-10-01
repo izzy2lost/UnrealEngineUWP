@@ -203,9 +203,6 @@ void FHttpRetrySystem::FRequest::CancelRequest()
 
 void FHttpRetrySystem::FRequest::HttpOnRequestProgress(FHttpRequestPtr InHttpRequest, uint64 BytesSent, uint64 BytesRcv)
 {
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	OnRequestProgress().ExecuteIfBound(AsShared(), BytesSent, BytesRcv);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	OnRequestProgress64().ExecuteIfBound(AsShared(), BytesSent, BytesRcv);
 }
 

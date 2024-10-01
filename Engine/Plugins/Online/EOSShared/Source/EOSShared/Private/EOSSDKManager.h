@@ -37,9 +37,6 @@ public:
 	virtual ~FEOSSDKManager();
 
 	// Begin IEOSSDKManager
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	virtual EOS_EResult Initialize() override;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	virtual bool IsInitialized() const override { return bInitialized; }
 
 	virtual const FEOSSDKPlatformConfig* GetPlatformConfig(const FString& PlatformConfigName, bool bLoadIfMissing = false) override;
@@ -68,6 +65,7 @@ public:
 	virtual void AddCallbackObject(TUniquePtr<class FCallbackBase> CallbackObj) override;
 	// End IEOSSDKManager
 
+	EOS_EResult Initialize();
 	void Shutdown();
 
 protected:

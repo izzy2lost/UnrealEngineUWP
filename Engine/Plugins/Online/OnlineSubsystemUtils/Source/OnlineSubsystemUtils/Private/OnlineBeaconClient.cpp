@@ -563,14 +563,6 @@ void AOnlineBeaconClient::NotifyControlMessage(UNetConnection* Connection, uint8
 	}	
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-FString AOnlineBeaconClient::GetAuthTicket(const FUniqueNetIdRepl& PlayerId)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-{
-	return GetAuthTicketInternal(PlayerId);
-}
-
-
 FString AOnlineBeaconClient::GetAuthTicketInternal(const FUniqueNetIdRepl& PlayerId)
 {
 	FString AuthTicket;

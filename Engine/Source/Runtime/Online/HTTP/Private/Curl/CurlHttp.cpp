@@ -1170,7 +1170,6 @@ void FCurlHttpRequest::CheckProgressDelegate()
 		LastReportedBytesSent = CurrentBytesSent;
 		LastReportedBytesRead = CurrentBytesRead;
 		// Update response progress
-		OnRequestProgress().ExecuteIfBound(SharedThis(this), LastReportedBytesSent, LastReportedBytesRead);
 		OnRequestProgress64().ExecuteIfBound(SharedThis(this), LastReportedBytesSent, LastReportedBytesRead);
 	}
 }

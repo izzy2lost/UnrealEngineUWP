@@ -315,32 +315,13 @@ bool AOnlineBeaconHost::HandleControlMessage(UNetConnection* Connection, uint8 M
 			// Try to kick off verification for this player.
 			const FString AuthTicket = UGameplayStatics::ParseOption(OptionsURL, TEXT("AuthTicket"));
 
-			bool bStartedAuth = false;
-
-			// Try to start deprecated auth method.
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			bStartedAuth = StartVerifyAuthentication(*UniqueIdRepl, AuthTicket);
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-			if (!bStartedAuth)
+			// Create completion delegate.
+			FOnAuthenticationVerificationCompleteDelegate OnAuthComplete = FOnAuthenticationVerificationCompleteDelegate::CreateWeakLambda(this, [this, WeakConnection = TWeakObjectPtr<UNetConnection>(Connection)](const FOnlineError& OnlineError)
 			{
-				// Create completion delegate.
-				FOnAuthenticationVerificationCompleteDelegate OnAuthComplete = FOnAuthenticationVerificationCompleteDelegate::CreateWeakLambda(this, [this, WeakConnection = TWeakObjectPtr<UNetConnection>(Connection)](const FOnlineError& OnlineError)
-				{
-					OnAuthenticationVerificationComplete(WeakConnection.Get(), OnlineError);
-				});
+				OnAuthenticationVerificationComplete(WeakConnection.Get(), OnlineError);
+			});
 
-				// Try to start deprecated auth method.
-				PRAGMA_DISABLE_DEPRECATION_WARNINGS
-				bStartedAuth = StartVerifyAuthentication(*UniqueIdRepl, AuthTicket, OnAuthComplete);
-				PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-				// Don't start new auth method if deprecated auth is active.
-				if (!bStartedAuth)
-				{
-					bStartedAuth = StartVerifyAuthentication(*UniqueIdRepl, OptionsURL, AuthTicket, OnAuthComplete);
-				}
-			}
+			bool bStartedAuth = StartVerifyAuthentication(*UniqueIdRepl, OptionsURL, AuthTicket, OnAuthComplete);
 
 			if (!bStartedAuth)
 			{
@@ -657,32 +638,6 @@ void AOnlineBeaconHost::RemoveClientActor(AOnlineBeaconClient* ClientActor)
 			ClientActor->Destroy();
 		}
 	}
-}
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-bool AOnlineBeaconHost::StartVerifyAuthentication(const FUniqueNetId& PlayerId, const FString& AuthenticationToken)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-{
-	return false;
-}
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-void AOnlineBeaconHost::OnAuthenticationVerificationComplete(const class FUniqueNetId& PlayerId, const FOnlineError& Error)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-{
-	UNetConnection* Connection = nullptr;
-	FConnectionState* ConnState = nullptr;
-	if (GetConnectionDataForUniqueNetId(PlayerId, Connection, ConnState))
-	{
-		OnAuthenticationVerificationComplete(Connection, Error);
-	}
-}
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-bool AOnlineBeaconHost::StartVerifyAuthentication(const FUniqueNetId& PlayerId, const FString& AuthenticationToken, const FOnAuthenticationVerificationCompleteDelegate& OnComplete)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-{
-	return false;
 }
 
 bool AOnlineBeaconHost::StartVerifyAuthentication(const FUniqueNetId& PlayerId, const FString& LoginOptions, const FString& AuthenticationToken, const FOnAuthenticationVerificationCompleteDelegate& OnComplete)

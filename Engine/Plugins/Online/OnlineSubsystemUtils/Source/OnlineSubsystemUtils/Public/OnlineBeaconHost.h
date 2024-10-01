@@ -123,41 +123,11 @@ protected:
 	uint32 MaxAuthTokenSize = 1024;
 
 	/**
-	 * Start verifying an authentication token for a connection.
-	 * OnAuthenticationVerificationComplete must be called to complete authentication verification.
-	 *
-	 * @param PlayerId net id of player to authenticate.
-	 * @param AuthenticationToken token to use for verification.
-	 */
-	 UE_DEPRECATED(5.2, "This version of the StartVerifyAuthentication is deprecated. Please use the new StartVerifyAuthentication method instead.")
-	virtual bool StartVerifyAuthentication(const FUniqueNetId& PlayerId, const FString& AuthenticationToken);
-
-	/**
-	 * Event which must be signaled to complete an authentication verification request.
-	 *
-	 * @param PlayerId net id of player to authenticate.
-	 * @param Error result of the operation.
-	 */
-	UE_DEPRECATED(5.2, "This version of the OnAuthenticationVerificationComplete is deprecated. Please use the new OnAuthenticationVerificationComplete method instead.")
-	void OnAuthenticationVerificationComplete(const class FUniqueNetId& PlayerId, const FOnlineError& Error);
-
-	/**
 	 * Delegate executed when user authentication has completed.
 	 *
 	 * @param OnlineError the result of the operation
 	 */
 	DECLARE_DELEGATE_OneParam(FOnAuthenticationVerificationCompleteDelegate, const FOnlineError& /*OnlineError*/);
-
-	/**
-	 * Start verifying an authentication token for a connection.
-	 * OnAuthenticationVerificationComplete must be called to complete authentication verification.
-	 *
-	 * @param NetConnection network connection associated with the authentication challenge.
-	 * @param PlayerId net id of player to authenticate.
-	 * @param AuthenticationToken token to use for verification.
-	 */
-	UE_DEPRECATED(5.3, "This version of the StartVerifyAuthentication is deprecated. Please use the new StartVerifyAuthentication method instead.")
-	virtual bool StartVerifyAuthentication(const FUniqueNetId& PlayerId, const FString& AuthenticationToken, const FOnAuthenticationVerificationCompleteDelegate& OnComplete);
 
 	/**
 	 * Start verifying an authentication token for a connection.

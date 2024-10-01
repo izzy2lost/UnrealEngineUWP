@@ -48,8 +48,6 @@ enum class EVoiceChatTransmitMode
 	None,
 	/** Transmit to all of the channels you are in */
 	All,
-	/** Transmit to a specific channel */
-	Channel UE_DEPRECATED(5.3, "EVoiceChatTransmitMode::Channel is deprecated. Please use EVoiceChatTransmitMode::SpecificChannels instead!"),
 	/** Transmit to specific channel(s) */
 	SpecificChannels,
 };
@@ -588,14 +586,6 @@ public:
 	virtual void TransmitToNoChannels() = 0;
 
 	/**
-	 * Transmit to a specific channel
-	 *
-	 * @param ChannelName Channel to transmit to
-	 */
-	UE_DEPRECATED(5.3, "TransmitToSpecificChannel is deprecated. Please use TransmitToSpecificChannels instead!")
-	virtual void TransmitToSpecificChannel(const FString& ChannelName) { TransmitToSpecificChannels({ChannelName}); }
-
-	/**
 	 * Transmit to Specified set of channels
 	 * @param ChannelNames Channels to transmit to
 	 */
@@ -619,14 +609,6 @@ public:
 	 * @return Transmit mode. If it is EVoiceChatTransmitMode::SpecificChannels, the current channels can be retrieved using GetTransmitChannels()
 	 */
 	virtual EVoiceChatTransmitMode GetTransmitMode() const = 0;
-
-	/**
-	 * Get the first channel we are transmitting to
-	 *
-	 * @return Channel we are transmitting to. Will be empty if GetTransmitMode() returned a value other than EVoiceChatTransmitMode::SpecificChannels
-	 */
-	UE_DEPRECATED(5.3, "GetTransmitChannel is deprecated. Please use GetTransmitChannels instead!")
-		virtual FString GetTransmitChannel() const { return ((GetTransmitMode() == EVoiceChatTransmitMode::SpecificChannels) && !GetTransmitChannels().IsEmpty()) ? GetTransmitChannels().Array()[0] : FString(); };
 
 	/**
 	 * Get all channels we are transmitting to

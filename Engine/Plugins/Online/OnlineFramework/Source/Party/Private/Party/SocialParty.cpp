@@ -251,12 +251,6 @@ bool USocialParty::CanInviteUser(const USocialUser& User, ESocialPartyInviteMeth
 	return CanInviteUserInternal(User, InviteMethod) == ESocialPartyInviteFailureReason::Success;
 }
 
-ESocialPartyInviteFailureReason USocialParty::CanInviteUserInternal(const USocialUser& User) const
-{
-	UE_LOG(LogParty, Warning, TEXT("Invoking a deprecated method CanInviteUserInternal, use CanInviteUserInternal(const USocialUser& User, const ESocialPartyInviteMethod InviteMethod) instead!"));
-	return CanInviteUserInternal(User, ESocialPartyInviteMethod::Other);
-}
-
 ESocialPartyInviteFailureReason USocialParty::CanInviteUserInternal(const USocialUser& User, ESocialPartyInviteMethod InviteMethod) const
 {
 	bool bCanOnlyInviteFriend = false;
