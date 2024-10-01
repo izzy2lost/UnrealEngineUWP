@@ -825,7 +825,7 @@ void FD3D12CommandContext::RHISetGraphicsPipelineState(FRHIGraphicsPipelineState
 		}
 		else
 		{
-			// Also forces shading rate image attachment to be ignored
+			// This also forces shading rate image attachment to be ignored, so no need to set it to nullptr in the state cache
 			StateCache.SetShadingRate(EVRSShadingRate::VRSSR_1x1, VRSRB_Passthrough, VRSRB_Passthrough);
 		}
 	}
@@ -1959,42 +1959,37 @@ void FD3D12CommandContext::RHISetShadingRate(EVRSShadingRate ShadingRate, EVRSRa
 #endif
 }
 
-void FD3D12CommandContext::SetShadingRate(EVRSShadingRate ShadingRate, const TStaticArray<EVRSRateCombiner, ED3D12VRSCombinerStages::Num>& Combiners)
+void FD3D12CommandContext::SetShadingRate(EVRSShadingRate ShadingRate, FD3D12Resource* RateImageTexture, const TStaticArray<EVRSRateCombiner, ED3D12VRSCombinerStages::Num>& Combiners)
 {
- #if PLATFORM_SUPPORTS_VARIABLE_RATE_SHADING
- 	if (GRHISupportsPipelineVariableRateShading && GraphicsCommandList5())
- 	{
-		for (int32 CombinerIndex = 0; CombinerIndex < Combiners.Num(); ++CombinerIndex)
-		{
-			VRSCombiners[CombinerIndex] = ConvertShadingRateCombiner(Combiners[CombinerIndex]);
-		}
- 		VRSShadingRate = static_cast<D3D12_SHADING_RATE>(ShadingRate);
- 		GraphicsCommandList5()->RSSetShadingRate(VRSShadingRate, VRSCombiners);
- 	}
-	else
+#if	PLATFORM_SUPPORTS_VARIABLE_RATE_SHADING
+	if (GraphicsCommandList5())
 	{
-		// Ensure we're at a reasonable default in the case we're not supporting VRS.
-		for (int32 CombinerIndex = 0; CombinerIndex < Combiners.Num(); ++CombinerIndex)
+		if (GRHISupportsPipelineVariableRateShading)
 		{
-			VRSCombiners[CombinerIndex] = D3D12_SHADING_RATE_COMBINER_PASSTHROUGH;
-		}
-	}
- #endif
-}
+			if (ShadingRate == EVRSShadingRate::VRSSR_1x1 && RateImageTexture == nullptr)
+			{
+				// Make sure VRS is fully disabled when rate is 1x1 and no shading rate image is passed in
+				// Otherwise we may encounter validation issues on platforms where shaders must be compiled to support VRS
+				for (int32 CombinerIndex = 0; CombinerIndex < Combiners.Num(); ++CombinerIndex)
+				{
+					VRSCombiners[CombinerIndex] = D3D12_SHADING_RATE_COMBINER_PASSTHROUGH;
+				}
+			}
+			else
+			{
+				for (int32 CombinerIndex = 0; CombinerIndex < Combiners.Num(); ++CombinerIndex)
+				{
+					VRSCombiners[CombinerIndex] = ConvertShadingRateCombiner(Combiners[CombinerIndex]);
+				}
+			}
+			VRSShadingRate = static_cast<D3D12_SHADING_RATE>(ShadingRate);
+			GraphicsCommandList5()->RSSetShadingRate(VRSShadingRate, VRSCombiners);
 
-void FD3D12CommandContext::SetShadingRateImage(FD3D12Resource* RateImageTexture)
-{
-#if PLATFORM_SUPPORTS_VARIABLE_RATE_SHADING
-	if (GRHISupportsAttachmentVariableRateShading && GraphicsCommandList5())
-	{
-		if (RateImageTexture)
-		{
-			GraphicsCommandList5()->RSSetShadingRateImage(RateImageTexture->GetResource());
-		}
-		else
-		{
-			GraphicsCommandList5()->RSSetShadingRateImage(nullptr);
+			if (GRHISupportsAttachmentVariableRateShading) // In D3D12, support for attachment VRS implies support for pipeline VRS
+			{
+				GraphicsCommandList5()->RSSetShadingRateImage(RateImageTexture ? RateImageTexture->GetResource() : nullptr);
+			}
 		}
 	}
- #endif
+#endif
 }

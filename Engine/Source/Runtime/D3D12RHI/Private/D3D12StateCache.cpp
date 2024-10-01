@@ -541,16 +541,12 @@ void FD3D12StateCache::ApplyState(ERHIPipeline HardwarePipe, ED3D12PipelineType 
 			CmdContext.SetDepthBounds(PipelineState.Graphics.MinDepth, PipelineState.Graphics.MaxDepth);
 		}
 
-		if (bNeedSetShadingRate)
+		// The shading rate image can influence RSSetShadingRate, because we want to set the combiners to passthrough/passthrough if the rate = 1x1 and the SRI is nullptr
+		if (bNeedSetShadingRate || bNeedSetShadingRateImage)
 		{
 			bNeedSetShadingRate = false;
-			CmdContext.SetShadingRate(PipelineState.Graphics.DrawShadingRate, PipelineState.Graphics.Combiners);
-		}
-
-		if (bNeedSetShadingRateImage)
-		{
 			bNeedSetShadingRateImage = false;
-			CmdContext.SetShadingRateImage(PipelineState.Graphics.ShadingRateImage);
+			CmdContext.SetShadingRate(PipelineState.Graphics.DrawShadingRate, PipelineState.Graphics.ShadingRateImage, PipelineState.Graphics.Combiners);
 		}
 	}
 
