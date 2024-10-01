@@ -18,7 +18,7 @@ namespace UE::Dataflow
 			
 			if(SimulationGraph)
 			{
-				if(const TSharedPtr<::Dataflow::FGraph> DataflowGraph = SimulationGraph->GetDataflow())
+				if(const TSharedPtr<UE::Dataflow::FGraph> DataflowGraph = SimulationGraph->GetDataflow())
 				{
 					// Invalidation of all the simulation nodes that are always dirty
 					for(const TSharedPtr<FDataflowNode>& InvalidNode : DataflowGraph->GetFilteredNodes(FDataflowInvalidNode::StaticType()))

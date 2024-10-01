@@ -37,7 +37,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Dataflow")
 	float Radius = float(1);
 
-	FGenerateOriginInsertionNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FGenerateOriginInsertionNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
@@ -48,5 +48,5 @@ public:
 		RegisterOutputConnection(&InsertionIndicesOut);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };

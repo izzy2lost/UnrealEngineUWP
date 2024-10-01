@@ -54,11 +54,11 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "SkinningBlend", Meta = (DataflowOutput))
 	FString SkinningBlendName;
 
-	FChaosClothAssetSkinningBlendNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetSkinningBlendNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 
 	//~ Begin FDataflowNode interface
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 	//~ End FDataflowNode interface
 };

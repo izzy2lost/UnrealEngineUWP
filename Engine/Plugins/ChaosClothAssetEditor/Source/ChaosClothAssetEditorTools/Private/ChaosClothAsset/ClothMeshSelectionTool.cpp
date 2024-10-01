@@ -492,7 +492,7 @@ bool UClothMeshSelectionTool::GetSelectedNodeInfo(FString& OutSelectionName, UE:
 		ensure(DataflowContextObject->IsUsingInputCollection());
 		if (const TSharedPtr<const FManagedArrayCollection> ClothCollection = DataflowContextObject->GetSelectedCollection())
 		{
-			if (const TSharedPtr<Dataflow::FEngineContext> DataflowContext = DataflowContextObject->GetDataflowContext())
+			if (const TSharedPtr<UE::Dataflow::FEngineContext> DataflowContext = DataflowContextObject->GetDataflowContext())
 			{
 				using namespace UE::Chaos::ClothAsset;
 				const FName InputName = SelectionNodeToUpdate->GetInputName(*DataflowContext);

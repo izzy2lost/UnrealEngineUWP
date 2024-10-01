@@ -16,7 +16,7 @@ public:
 	virtual ~IDataflowAddScalarVertexPropertyCallbacks() = default;
 	virtual FName GetName() const = 0;
 	virtual TArray<FName> GetTargetGroupNames() const = 0;
-	virtual TArray<Dataflow::FRenderingParameter> GetRenderingParameters() const = 0;
+	virtual TArray<UE::Dataflow::FRenderingParameter> GetRenderingParameters() const = 0;
 };
 
 class DataflowAddScalarVertexPropertyCallbackRegistry
@@ -32,7 +32,7 @@ public:
 
 	DATAFLOWNODES_API TArray<FName> GetTargetGroupNames() const;
 
-	DATAFLOWNODES_API TArray<Dataflow::FRenderingParameter> GetRenderingParameters() const;
+	DATAFLOWNODES_API TArray<UE::Dataflow::FRenderingParameter> GetRenderingParameters() const;
 
 private:
 
@@ -60,7 +60,7 @@ struct DATAFLOWNODES_API FDataflowCollectionAddScalarVertexPropertyNode : public
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowCollectionAddScalarVertexPropertyNode, "AddScalarVertexProperty", "Collection", "Add a saved scalar property to a collection")
 
-	virtual TArray<::Dataflow::FRenderingParameter> GetRenderParametersImpl() const override;
+	virtual TArray<UE::Dataflow::FRenderingParameter> GetRenderParametersImpl() const override;
 
 public:
 
@@ -80,14 +80,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vertex Attribute")
 	FScalarVertexPropertyGroup TargetGroup;
 
-	FDataflowCollectionAddScalarVertexPropertyNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FDataflowCollectionAddScalarVertexPropertyNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 	/** Return a cached array of all the groups used by the input collection during at the time of the latest evaluation. */
 	const TArray<FName>& GetCachedCollectionGroupNames() const { return CachedCollectionGroupNames; }
 
 private:
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
-	virtual void OnSelected(Dataflow::FContext& Context) override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void OnSelected(UE::Dataflow::FContext& Context) override;
 	virtual void OnDeselected() override;
 
 	TArray<FName> CachedCollectionGroupNames;

@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	/**
 	 * Rendering callbacks for the Dataflow Rendering Factory

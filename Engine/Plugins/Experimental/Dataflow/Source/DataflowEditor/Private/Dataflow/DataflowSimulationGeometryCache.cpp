@@ -18,7 +18,7 @@ DEFINE_LOG_CATEGORY(LogDataflowSimulationGeometryCache);
 
 #define LOCTEXT_NAMESPACE "DataflowSimulationGeometryCache"
 	
-namespace DataflowSimulationGeometryCache
+namespace UE::DataflowSimulationGeometryCache
 {
 	int32 GetNumVertices(const FSkeletalMeshLODRenderData& LODData)
 	{

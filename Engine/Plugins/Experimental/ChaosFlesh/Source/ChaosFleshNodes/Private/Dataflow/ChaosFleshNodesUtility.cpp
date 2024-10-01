@@ -6,7 +6,7 @@
 #include "Dataflow/DataflowEngine.h"
 #include "GeometryCollection/GeometryCollectionAlgo.h"
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	// Helper to get the boundary of a tet mesh, useful for debugging / verifying output
 	TArray<FIntVector3> GetSurfaceTriangles(const TArray<FIntVector4>& Tets, const bool bKeepInterior)

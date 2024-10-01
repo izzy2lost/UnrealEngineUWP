@@ -15,15 +15,13 @@
 
 class UScriptStruct;
 
-namespace Dataflow {
+namespace UE::Dataflow {
 	struct FNodeParameters {
 		FName Name;
 		UObject* OwningObject = nullptr;
 	};
 	class FGraph;
 }
-
-
 
 /**
 * FNode
@@ -40,7 +38,7 @@ struct FDataflowNode
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	GENERATED_USTRUCT_BODY()
 
-	friend class Dataflow::FGraph;
+	friend class UE::Dataflow::FGraph;
 	friend struct FDataflowConnection;
 
 	UE_DEPRECATED(5.5, "Will be made private in 5.7, use Get/Set methods instead.")
@@ -48,7 +46,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UE_DEPRECATED(5.5, "Will be made private in 5.7, use Get/Set methods instead.")
 	FName Name;
 	UE_DEPRECATED(5.5, "Will be made private in 5.7, use Get/Set methods instead.")
-	Dataflow::FTimestamp LastModifiedTimestamp;
+	UE::Dataflow::FTimestamp LastModifiedTimestamp;
 
 	UE_DEPRECATED(5.5, "Inputs type has changed and has been made private")
 	TMap< int, FDataflowInput* > Inputs;
@@ -61,14 +59,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	FDataflowNode()
 		: Guid(FGuid())
 		, Name("Invalid")
-		, LastModifiedTimestamp(Dataflow::FTimestamp::Invalid)
+		, LastModifiedTimestamp(UE::Dataflow::FTimestamp::Invalid)
 	{
 	}
 
-	FDataflowNode(const Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid())
+	FDataflowNode(const UE::Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid())
 		: Guid(InGuid)
 		, Name(Param.Name)
-		, LastModifiedTimestamp(Dataflow::FTimestamp::Invalid)
+		, LastModifiedTimestamp(UE::Dataflow::FTimestamp::Invalid)
 	{
 	}
 
@@ -81,7 +79,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	FGuid GetGuid() const { return Guid; }
 	FName GetName() const { return Name; }
 	void SetName(FName InName) { Name = InName; }
-	Dataflow::FTimestamp GetTimestamp() const { return LastModifiedTimestamp;  }
+	UE::Dataflow::FTimestamp GetTimestamp() const { return LastModifiedTimestamp;  }
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	DATAFLOWCORE_API uint32 GetValueHash();
 
@@ -91,10 +89,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	virtual FName GetCategory() const { return ""; }
 	virtual FString GetTags() const { return ""; }
 	DATAFLOWCORE_API virtual FString GetToolTip() const;
-	DATAFLOWCORE_API FString GetPinToolTip(const FName& PropertyName, const Dataflow::FPin::EDirection Direction = Dataflow::FPin::EDirection::NONE) const;
-	DATAFLOWCORE_API FText GetPinDisplayName(const FName& PropertyName, const Dataflow::FPin::EDirection Direction = Dataflow::FPin::EDirection::NONE) const;
-	DATAFLOWCORE_API TArray<FString> GetPinMetaData(const FName& PropertyName, const Dataflow::FPin::EDirection Direction = Dataflow::FPin::EDirection::NONE) const;
-	virtual TArray<Dataflow::FRenderingParameter> GetRenderParameters() const { return GetRenderParametersImpl(); }
+	DATAFLOWCORE_API FString GetPinToolTip(const FName& PropertyName, const UE::Dataflow::FPin::EDirection Direction = UE::Dataflow::FPin::EDirection::NONE) const;
+	DATAFLOWCORE_API FText GetPinDisplayName(const FName& PropertyName, const UE::Dataflow::FPin::EDirection Direction = UE::Dataflow::FPin::EDirection::NONE) const;
+	DATAFLOWCORE_API TArray<FString> GetPinMetaData(const FName& PropertyName, const UE::Dataflow::FPin::EDirection Direction = UE::Dataflow::FPin::EDirection::NONE) const;
+	virtual TArray<UE::Dataflow::FRenderingParameter> GetRenderParameters() const { return GetRenderParametersImpl(); }
 	// Copy node property values from another node
 	UE_DEPRECATED(5.4, "FDataflowNode::CopyNodeProperties is deprecated.")
 	DATAFLOWCORE_API void CopyNodeProperties(const TSharedPtr<FDataflowNode> CopyFromDataflowNode);
@@ -108,42 +106,42 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	// Connections
 	//
 
-	DATAFLOWCORE_API TArray<Dataflow::FPin> GetPins() const;
+	DATAFLOWCORE_API TArray<UE::Dataflow::FPin> GetPins() const;
 
 	UE_DEPRECATED(5.5, "Use AddPins method instead")
-	virtual Dataflow::FPin AddPin() { return Dataflow::FPin::InvalidPin; }
+	virtual UE::Dataflow::FPin AddPin() { return UE::Dataflow::FPin::InvalidPin; }
 	/** Override this function to add the AddOptionPin functionality to the node's context menu. */
-	virtual TArray<Dataflow::FPin> AddPins()
+	virtual TArray<UE::Dataflow::FPin> AddPins()
 	{
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		const Dataflow::FPin DeprecatedAddPin = AddPin();
+		const UE::Dataflow::FPin DeprecatedAddPin = AddPin();
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		if(DeprecatedAddPin == Dataflow::FPin::InvalidPin)
+		if(DeprecatedAddPin == UE::Dataflow::FPin::InvalidPin)
 		{
-			return TArray<Dataflow::FPin>();
+			return TArray<UE::Dataflow::FPin>();
 		}
 		return { DeprecatedAddPin };
 	}
 	/** Override this function to add the AddOptionPin functionality to the node's context menu. */
 	virtual bool CanAddPin() const { return false; }
 	UE_DEPRECATED(5.5, "Use GetPinsToRemove method instead")
-	virtual Dataflow::FPin GetPinToRemove() const { return Dataflow::FPin::InvalidPin; }
+	virtual UE::Dataflow::FPin GetPinToRemove() const { return UE::Dataflow::FPin::InvalidPin; }
 	UE_DEPRECATED(5.4, "Use GetPinsToRemove and OnPinRemoved instead.")
-	virtual Dataflow::FPin RemovePin()
+	virtual UE::Dataflow::FPin RemovePin()
 	{
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		return GetPinToRemove();
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 	/** Override this function to add the RemoveOptionPin functionality to the node's context menu. OnPinRemoved will be called in this order.*/
-	virtual TArray<Dataflow::FPin> GetPinsToRemove() const
+	virtual TArray<UE::Dataflow::FPin> GetPinsToRemove() const
 	{
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		const Dataflow::FPin DeprecatedRemovePin = GetPinToRemove();
+		const UE::Dataflow::FPin DeprecatedRemovePin = GetPinToRemove();
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		if (DeprecatedRemovePin == Dataflow::FPin::InvalidPin)
+		if (DeprecatedRemovePin == UE::Dataflow::FPin::InvalidPin)
 		{
-			return TArray<Dataflow::FPin>();
+			return TArray<UE::Dataflow::FPin>();
 		}
 		return { DeprecatedRemovePin };
 	}
@@ -151,7 +149,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 * Override this to update any bookkeeping when a pin is being removed.
 	 * This will be called before the pin is unregistered as an input.
 	 */
-	virtual void OnPinRemoved(const Dataflow::FPin& Pin) {}
+	virtual void OnPinRemoved(const UE::Dataflow::FPin& Pin) {}
 	/** Override this function to add the RemoveOptionPin functionality to the node's context menu. */
 	virtual bool CanRemovePin() const { return false; }
 
@@ -167,13 +165,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	DATAFLOWCORE_API bool HasHiddenInputs() const;
 
 	DATAFLOWCORE_API FDataflowInput* FindInput(FName Name);
-	DATAFLOWCORE_API FDataflowInput* FindInput(const Dataflow::FConnectionKey& Key);
+	DATAFLOWCORE_API FDataflowInput* FindInput(const UE::Dataflow::FConnectionKey& Key);
 	/**This version can find array inputs if only the Reference is supplied by searching through all inputs */
-	DATAFLOWCORE_API FDataflowInput* FindInput(const Dataflow::FConnectionReference& Reference);
+	DATAFLOWCORE_API FDataflowInput* FindInput(const UE::Dataflow::FConnectionReference& Reference);
 	DATAFLOWCORE_API const FDataflowInput* FindInput(FName Name) const;
-	DATAFLOWCORE_API const FDataflowInput* FindInput(const Dataflow::FConnectionKey& Key) const;
+	DATAFLOWCORE_API const FDataflowInput* FindInput(const UE::Dataflow::FConnectionKey& Key) const;
 	/**This version can find array inputs if only the Reference is supplied by searching through all inputs */
-	DATAFLOWCORE_API const FDataflowInput* FindInput(const Dataflow::FConnectionReference& Reference) const;
+	DATAFLOWCORE_API const FDataflowInput* FindInput(const UE::Dataflow::FConnectionReference& Reference) const;
 	DATAFLOWCORE_API const FDataflowInput* FindInput(const FGuid& InGuid) const;
 
 	DATAFLOWCORE_API virtual void AddOutput(FDataflowOutput* InPtr);
@@ -185,12 +183,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	DATAFLOWCORE_API FDataflowOutput* FindOutput(FName Name);
 	DATAFLOWCORE_API FDataflowOutput* FindOutput(uint32 GuidHash);
-	DATAFLOWCORE_API FDataflowOutput* FindOutput(const Dataflow::FConnectionKey& Key);
-	DATAFLOWCORE_API FDataflowOutput* FindOutput(const Dataflow::FConnectionReference& Reference);
+	DATAFLOWCORE_API FDataflowOutput* FindOutput(const UE::Dataflow::FConnectionKey& Key);
+	DATAFLOWCORE_API FDataflowOutput* FindOutput(const UE::Dataflow::FConnectionReference& Reference);
 	DATAFLOWCORE_API const FDataflowOutput* FindOutput(FName Name) const;
 	DATAFLOWCORE_API const FDataflowOutput* FindOutput(uint32 GuidHash) const;
-	DATAFLOWCORE_API const FDataflowOutput* FindOutput(const Dataflow::FConnectionKey& Key) const;
-	DATAFLOWCORE_API const FDataflowOutput* FindOutput(const Dataflow::FConnectionReference& Reference) const;
+	DATAFLOWCORE_API const FDataflowOutput* FindOutput(const UE::Dataflow::FConnectionKey& Key) const;
+	DATAFLOWCORE_API const FDataflowOutput* FindOutput(const UE::Dataflow::FConnectionReference& Reference) const;
 	DATAFLOWCORE_API const FDataflowOutput* FindOutput(const FGuid& InGuid) const;
 
 	/** Return a property's byte offset from the dataflow base node address using the full property name (must includes its parent struct property names). Does not work with array properties.*/
@@ -213,7 +211,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	virtual FDataflowOutput* RedirectSerializedOutput(const FName& MissingOutputName) { return nullptr; }
 
 	/** Called by editor toolkits when the node is selected, or already selected and invalidated. */
-	virtual void OnSelected(Dataflow::FContext& Context) {}
+	virtual void OnSelected(UE::Dataflow::FContext& Context) {}
 	/** Called by editor toolkits when the node is deselected. */
 	virtual void OnDeselected() {}
 
@@ -229,7 +227,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** Register the Input and Outputs after the creation in the factory. Use PropertyName to disambiguate a struct name from its first property. */
 	template<typename T>
-	FDataflowInput& RegisterInputConnection(const Dataflow::TConnectionReference<T>& Reference, const FName& PropertyName = NAME_None)
+	FDataflowInput& RegisterInputConnection(const UE::Dataflow::TConnectionReference<T>& Reference, const FName& PropertyName = NAME_None)
 	{
 		FDataflowInput& Input = RegisterInputConnectionInternal(Reference, PropertyName);
 		if constexpr (std::is_base_of_v<FDataflowAnyType, T>)
@@ -242,11 +240,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	template <typename T>
 	FDataflowInput& RegisterInputConnection(const T* Reference, const FName& PropertyName = NAME_None)
 	{
-		return RegisterInputConnection(Dataflow::TConnectionReference<T>(Reference), PropertyName);
+		return RegisterInputConnection(UE::Dataflow::TConnectionReference<T>(Reference), PropertyName);
 	}
 
 	template <typename T>
-	FDataflowOutput& RegisterOutputConnection(const Dataflow::TConnectionReference<T>& Reference, const Dataflow::TConnectionReference<T>& Passthrough = Dataflow::TConnectionReference<T>(nullptr), const FName& PropertyName = NAME_None)
+	FDataflowOutput& RegisterOutputConnection(const UE::Dataflow::TConnectionReference<T>& Reference, const UE::Dataflow::TConnectionReference<T>& Passthrough = UE::Dataflow::TConnectionReference<T>(nullptr), const FName& PropertyName = NAME_None)
 	{
 		FDataflowOutput& Output = RegisterOutputConnectionInternal(Reference, PropertyName);
 		if constexpr (std::is_base_of_v<FDataflowAnyType, T>)
@@ -264,18 +262,18 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	template <typename T>
 	FDataflowOutput& RegisterOutputConnection(const T* Reference, const T* Passthrough = nullptr, const FName& PropertyName = NAME_None)
 	{
-		return RegisterOutputConnection(Dataflow::TConnectionReference<T>(Reference), Dataflow::TConnectionReference<T>(Passthrough), PropertyName);
+		return RegisterOutputConnection(UE::Dataflow::TConnectionReference<T>(Reference), UE::Dataflow::TConnectionReference<T>(Passthrough), PropertyName);
 	}
 
 	template <typename T>
 	UE_DEPRECATED(5.5, "PassthroughName is no longer needed to register output connections")
 	FDataflowOutput& RegisterOutputConnection(const T* Reference, const T* Passthrough, const FName& PropertyName, const FName& PassthroughName)
 	{
-		return RegisterOutputConnection(Dataflow::TConnectionReference<T>(Reference), Dataflow::TConnectionReference<T>(Passthrough), PropertyName);
+		return RegisterOutputConnection(UE::Dataflow::TConnectionReference<T>(Reference), UE::Dataflow::TConnectionReference<T>(Passthrough), PropertyName);
 	}
 
 	template<typename T>
-	FDataflowInput& RegisterInputArrayConnection(const Dataflow::TConnectionReference<T>& Reference, const FName& ElementPropertyName = NAME_None,
+	FDataflowInput& RegisterInputArrayConnection(const UE::Dataflow::TConnectionReference<T>& Reference, const FName& ElementPropertyName = NAME_None,
 		const FName& ArrayPropertyName = NAME_None)
 	{
 		FDataflowInput& Input = RegisterInputArrayConnectionInternal(Reference, ElementPropertyName, ArrayPropertyName);
@@ -287,7 +285,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	template<typename T>
-	FDataflowInput& FindOrRegisterInputArrayConnection(const Dataflow::TConnectionReference<T>& Reference, const FName& ElementPropertyName = NAME_None,
+	FDataflowInput& FindOrRegisterInputArrayConnection(const UE::Dataflow::TConnectionReference<T>& Reference, const FName& ElementPropertyName = NAME_None,
 		const FName& ArrayPropertyName = NAME_None)
 	{
 		if (FDataflowInput* const FoundInput = FindInput(Reference))
@@ -304,7 +302,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/** Unregister the input connection if one exists matching this property, and then invalidate the graph. */
-	void UnregisterInputConnection(const Dataflow::FConnectionReference& Reference)
+	void UnregisterInputConnection(const UE::Dataflow::FConnectionReference& Reference)
 	{
 		UnregisterInputConnection(GetKeyFromReference(Reference));
 	}
@@ -313,14 +311,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		return UnregisterInputConnection(GetKeyFromReference(Reference));
 	}
-	DATAFLOWCORE_API void UnregisterInputConnection(const Dataflow::FConnectionKey& Key);
+	DATAFLOWCORE_API void UnregisterInputConnection(const UE::Dataflow::FConnectionKey& Key);
 	/** Unregister the connection if one exists matching this pin, then invalidate the graph. */
-	DATAFLOWCORE_API void UnregisterPinConnection(const Dataflow::FPin& Pin);
+	DATAFLOWCORE_API void UnregisterPinConnection(const UE::Dataflow::FPin& Pin);
 
 	//
 	// Evaluation
 	//
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput*) const { ensure(false); }
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput*) const { ensure(false); }
 
 	/**
 	*   GetValue(...)
@@ -333,42 +331,42 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	*						*Reference will be used as the default if the input is not connected. 
 	*/
 	template<class T, typename = std::enable_if_t<!std::is_base_of_v<FDataflowAnyType, T>>>
-	const T& GetValue(Dataflow::FContext& Context, const Dataflow::TConnectionReference<T>& Reference) const
+	const T& GetValue(UE::Dataflow::FContext& Context, const UE::Dataflow::TConnectionReference<T>& Reference) const
 	{
 		checkSlow(FindInput(Reference));
 		return FindInput(Reference)->template GetValue<T>(Context, *static_cast<const T*>(Reference.Reference));
 	}
 
 	template<typename TAnyType, typename = std::enable_if_t<std::is_base_of_v<FDataflowAnyType, TAnyType>>>
-	typename TAnyType::FStorageType GetValue(Dataflow::FContext& Context, const Dataflow::TConnectionReference<TAnyType>& Reference) const
+	typename TAnyType::FStorageType GetValue(UE::Dataflow::FContext& Context, const UE::Dataflow::TConnectionReference<TAnyType>& Reference) const
 	{
 		checkSlow(Reference.Reference && FindInput(Reference));
 		return FindInput(Reference)->template GetValueFromAnyType<TAnyType>(Context, static_cast<const TAnyType*>(Reference.Reference)->Value);
 	}
 
 	template<class T, typename = std::enable_if_t<!std::is_base_of_v<FDataflowAnyType, T>>>
-	const T& GetValue(Dataflow::FContext& Context, const T* Reference) const
+	const T& GetValue(UE::Dataflow::FContext& Context, const T* Reference) const
 	{
-		return GetValue(Context, Dataflow::TConnectionReference<T>(Reference));
+		return GetValue(Context, UE::Dataflow::TConnectionReference<T>(Reference));
 	}
 
 	template<typename TAnyType, typename = std::enable_if_t<std::is_base_of_v<FDataflowAnyType, TAnyType>>>
-	typename TAnyType::FStorageType GetValue(Dataflow::FContext& Context, const TAnyType* Reference) const
+	typename TAnyType::FStorageType GetValue(UE::Dataflow::FContext& Context, const TAnyType* Reference) const
 	{
-		return GetValue(Context, Dataflow::TConnectionReference<TAnyType>(Reference));
+		return GetValue(Context, UE::Dataflow::TConnectionReference<TAnyType>(Reference));
 	}
 	
 	template<class T>
-	TFuture<const T&> GetValueParallel(Dataflow::FContext& Context, const Dataflow::TConnectionReference<T>& Reference) const
+	TFuture<const T&> GetValueParallel(UE::Dataflow::FContext& Context, const UE::Dataflow::TConnectionReference<T>& Reference) const
 	{
 		checkSlow(FindInput(Reference));
 		return FindInput(Reference)->template GetValueParallel<T>(Context, *static_cast<const T*>(Reference.Reference));
 	}
 
 	template<class T>
-	TFuture<const T&> GetValueParallel(Dataflow::FContext& Context, const T* Reference) const
+	TFuture<const T&> GetValueParallel(UE::Dataflow::FContext& Context, const T* Reference) const
 	{
-		return GetValueParallel(Context, Dataflow::TConnectionReference<T>(Reference));
+		return GetValueParallel(Context, UE::Dataflow::TConnectionReference<T>(Reference));
 	}
 
 	/**
@@ -381,15 +379,15 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	*   @param Reference : Pointer to a member of this node that corresponds with the output to set.
 	*   @param Default : Default value if the input is not connected.
 	*/
-	template<class T> const T& GetValue(Dataflow::FContext& Context, const Dataflow::TConnectionReference<T>& Reference, const T& Default) const
+	template<class T> const T& GetValue(UE::Dataflow::FContext& Context, const UE::Dataflow::TConnectionReference<T>& Reference, const T& Default) const
 	{
 		checkSlow(FindInput(Reference));
 		return FindInput(Reference)->template GetValue<T>(Context, Default);
 	}
 
-	template<class T> const T& GetValue(Dataflow::FContext& Context, const T* Reference, const T& Default) const
+	template<class T> const T& GetValue(UE::Dataflow::FContext& Context, const T* Reference, const T& Default) const
 	{
-		return GetValue(Context, Dataflow::TConnectionReference<T>(Reference), Default);
+		return GetValue(Context, UE::Dataflow::TConnectionReference<T>(Reference), Default);
 	}
 
 	/**
@@ -408,7 +406,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	*   @param Reference : Pointer to a member of this node that corresponds with the output to set. 
 	*/
 	template<class T, typename = std::enable_if_t<!std::is_base_of_v<FDataflowAnyType, T>>>
-	void SetValue(Dataflow::FContext& Context, T&& Value, const typename TDecay<T>::Type* Reference) const
+	void SetValue(UE::Dataflow::FContext& Context, T&& Value, const typename TDecay<T>::Type* Reference) const
 	{
 		if (const FDataflowOutput* Output = FindOutput(Reference))
 		{
@@ -421,7 +419,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	template<typename TAnyType, typename = std::enable_if_t<std::is_base_of_v<FDataflowAnyType, TAnyType>>>
-	void SetValue(Dataflow::FContext& Context, const typename TAnyType::FStorageType& Value, const TAnyType* Reference) const
+	void SetValue(UE::Dataflow::FContext& Context, const typename TAnyType::FStorageType& Value, const TAnyType* Reference) const
 	{
 		if (const FDataflowOutput* Output = FindOutput(Reference))
 		{
@@ -446,7 +444,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	*   @param InputReference : Pointer to a input member of this node that needs to be forwarded.
 	*   @param Reference : Pointer to a member of this node that corresponds with the output to set.
 	*/
-	DATAFLOWCORE_API void ForwardInput(Dataflow::FContext& Context, const Dataflow::FConnectionReference& InputReference, const Dataflow::FConnectionReference& Reference) const;
+	DATAFLOWCORE_API void ForwardInput(UE::Dataflow::FContext& Context, const UE::Dataflow::FConnectionReference& InputReference, const UE::Dataflow::FConnectionReference& Reference) const;
 
 	/**
 	*   SafeForwardInput(...)
@@ -460,11 +458,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	*   @param Reference : Pointer to a member of this node that corresponds with the output to set.
 	*/
 	template<class T>
-	void SafeForwardInput(Dataflow::FContext& Context, const Dataflow::FConnectionReference& InputReference, const T* Reference) const
+	void SafeForwardInput(UE::Dataflow::FContext& Context, const UE::Dataflow::FConnectionReference& InputReference, const T* Reference) const
 	{
 		if (IsConnected(InputReference))
 		{
-			ForwardInput(Context, InputReference, Dataflow::TConnectionReference<T>(Reference));
+			ForwardInput(Context, InputReference, UE::Dataflow::TConnectionReference<T>(Reference));
 		}
 		else if constexpr (std::is_base_of_v<FDataflowAnyType, T>)
 		{
@@ -483,7 +481,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	*
 	*   @param Reference : Pointer to a member of this node that corresponds with the input.
 	*/
-	bool IsConnected(const Dataflow::FConnectionReference& Reference) const
+	bool IsConnected(const UE::Dataflow::FConnectionReference& Reference) const
 	{
 		checkSlow(FindInput(Reference));
 		return (FindInput(Reference)->GetConnection() != nullptr);
@@ -492,7 +490,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	template<typename T>
 	bool IsConnected(const T* Reference) const
 	{
-		return IsConnected(Dataflow::FConnectionReference(Reference));
+		return IsConnected(UE::Dataflow::FConnectionReference(Reference));
 	}
 
 	void PauseInvalidations()
@@ -500,7 +498,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		if (!bPauseInvalidations)
 		{
 			bPauseInvalidations = true;
-			PausedModifiedTimestamp = Dataflow::FTimestamp::Invalid;
+			PausedModifiedTimestamp = UE::Dataflow::FTimestamp::Invalid;
 		}
 	}
 
@@ -513,7 +511,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 
-	DATAFLOWCORE_API void Invalidate(const Dataflow::FTimestamp& ModifiedTimestamp = Dataflow::FTimestamp::Current());
+	DATAFLOWCORE_API void Invalidate(const UE::Dataflow::FTimestamp& ModifiedTimestamp = UE::Dataflow::FTimestamp::Current());
 
 	virtual void OnInvalidate() {}
 
@@ -565,19 +563,19 @@ protected:
 	virtual bool OnOutputTypeChanged(const FDataflowOutput* Output) { return false; }
 
 	// returns true if the input type was changed successfully
-	DATAFLOWCORE_API bool SetInputConcreteType(const Dataflow::FConnectionReference& InputReference, FName NewType);
+	DATAFLOWCORE_API bool SetInputConcreteType(const UE::Dataflow::FConnectionReference& InputReference, FName NewType);
 
 	template <typename T>
-	bool SetInputConcreteType(const Dataflow::FConnectionReference& InputReference)
+	bool SetInputConcreteType(const UE::Dataflow::FConnectionReference& InputReference)
 	{
 		return SetInputConcreteType(InputReference, TDataflowPolicyTypeName<T>::GetName());
 	}
 
 	// returns true if the output type was changed successfully
-	DATAFLOWCORE_API bool SetOutputConcreteType(const Dataflow::FConnectionReference& OutputReference, FName NewType);
+	DATAFLOWCORE_API bool SetOutputConcreteType(const UE::Dataflow::FConnectionReference& OutputReference, FName NewType);
 
 	template <typename T>
-	bool SetOutputConcreteType(const Dataflow::FConnectionReference& OutputReference)
+	bool SetOutputConcreteType(const UE::Dataflow::FConnectionReference& OutputReference)
 	{
 		return SetOutputConcreteType(OutputReference, TDataflowPolicyTypeName<T>::GetName());
 	}
@@ -585,14 +583,14 @@ protected:
 	// returns true if any of the types was changed successfully
 	DATAFLOWCORE_API bool SetAllConnectionConcreteType(FName NewType);
 
-	DATAFLOWCORE_API FDataflowInput& RegisterInputConnectionInternal(const Dataflow::FConnectionReference& Reference, const FName& PropertyName = NAME_None);
-	DATAFLOWCORE_API FDataflowOutput& RegisterOutputConnectionInternal(const Dataflow::FConnectionReference& Reference, const FName& PropertyName = NAME_None);
-	DATAFLOWCORE_API FDataflowInput& RegisterInputArrayConnectionInternal(const Dataflow::FConnectionReference& Reference, const FName& ElementPropertyName = NAME_None,
+	DATAFLOWCORE_API FDataflowInput& RegisterInputConnectionInternal(const UE::Dataflow::FConnectionReference& Reference, const FName& PropertyName = NAME_None);
+	DATAFLOWCORE_API FDataflowOutput& RegisterOutputConnectionInternal(const UE::Dataflow::FConnectionReference& Reference, const FName& PropertyName = NAME_None);
+	DATAFLOWCORE_API FDataflowInput& RegisterInputArrayConnectionInternal(const UE::Dataflow::FConnectionReference& Reference, const FName& ElementPropertyName = NAME_None,
 		const FName& ArrayPropertyName = NAME_None);
 
 private:
 
-	void InitConnectionParametersFromPropertyReference(const FStructOnScope& StructOnScope, const void* PropertyRef, const FName& PropertyName, Dataflow::FConnectionParameters& OutParams);
+	void InitConnectionParametersFromPropertyReference(const FStructOnScope& StructOnScope, const void* PropertyRef, const FName& PropertyName, UE::Dataflow::FConnectionParameters& OutParams);
 	// This will add [ContainerIndex] to any array it finds unless ContainerIndex == INDEX_NONE.
 	static FString GetPropertyFullNameString(const TConstArrayView<const FProperty*>& PropertyChain, int32 ContainerIndex = INDEX_NONE);
 	static FName GetPropertyFullName(const TArray<const FProperty*>& PropertyChain, int32 ContainerIndex = INDEX_NONE);
@@ -600,7 +598,7 @@ private:
 	static FString StripContainerIndexFromPropertyFullName(const FString& PropertyFullName);
 	static uint32 GetPropertyOffset(const TArray<const FProperty*>& PropertyChain);
 	uint32 GetConnectionOffsetFromReference(const void* Reference) const;
-	DATAFLOWCORE_API Dataflow::FConnectionKey GetKeyFromReference(const Dataflow::FConnectionReference& Reference) const;
+	DATAFLOWCORE_API UE::Dataflow::FConnectionKey GetKeyFromReference(const UE::Dataflow::FConnectionReference& Reference) const;
 
 	/**
 	* Find a property using the property address and name (not including its parent struct property names).
@@ -613,20 +611,20 @@ private:
 	/** Find a property using the property full name (must includes its parent struct property names). */
 	const FProperty* FindProperty(const UStruct* Struct, const FName& PropertyFullName, TArray<const FProperty*>* OutPropertyChain = nullptr) const;
 
-	virtual TArray<Dataflow::FRenderingParameter> GetRenderParametersImpl() const { return TArray<Dataflow::FRenderingParameter>(); }
+	virtual TArray<UE::Dataflow::FRenderingParameter> GetRenderParametersImpl() const { return TArray<UE::Dataflow::FRenderingParameter>(); }
 
 	bool bHasValidConnections = true;
-	TMap<Dataflow::FConnectionKey, FDataflowInput*> ExpandedInputs;
+	TMap<UE::Dataflow::FConnectionKey, FDataflowInput*> ExpandedInputs;
 	TMap<uint32, const FArrayProperty*> InputArrayProperties; // Used to calculate ContainerElementOffsets
 
 protected:
 	bool bPauseInvalidations = false;
-	Dataflow::FTimestamp PausedModifiedTimestamp = Dataflow::FTimestamp::Invalid; // When unpausing invalidations, Invalidate will be called with this timestamp.
+	UE::Dataflow::FTimestamp PausedModifiedTimestamp = UE::Dataflow::FTimestamp::Invalid; // When unpausing invalidations, Invalidate will be called with this timestamp.
 	FOnNodeInvalidated OnNodeInvalidatedDelegate;
 
 };
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 
 class FDataflowNodePauseInvalidationScope
@@ -661,11 +659,11 @@ private:
 	//
 
 #define DATAFLOW_NODE_REGISTER_CREATION_FACTORY(A)									\
-	::Dataflow::FNodeFactory::RegisterNodeFromType<A>();
+	::UE::Dataflow::FNodeFactory::RegisterNodeFromType<A>();
 
 #define DATAFLOW_NODE_RENDER_TYPE(A, B, ...)												\
-	virtual TArray<::Dataflow::FRenderingParameter> GetRenderParametersImpl() const {		\
-		TArray<::Dataflow::FRenderingParameter> Array;								\
+	virtual TArray<::UE::Dataflow::FRenderingParameter> GetRenderParametersImpl() const {		\
+		TArray<::UE::Dataflow::FRenderingParameter> Array;								\
 		Array.Add({ A, B, {__VA_ARGS__,} });														\
 		return Array;}
 
@@ -696,9 +694,7 @@ private:
 
 #define DATAFLOW_NODE_REGISTER_CREATION_FACTORY_NODE_COLORS_BY_CATEGORY(A, C1, C2)	\
 {																					\
-	::Dataflow::FNodeColorsRegistry::Get().RegisterNodeColors(A, {C1, C2});			\
+	::UE::Dataflow::FNodeColorsRegistry::Get().RegisterNodeColors(A, {C1, C2});			\
 }																					\
 
 }
-
-

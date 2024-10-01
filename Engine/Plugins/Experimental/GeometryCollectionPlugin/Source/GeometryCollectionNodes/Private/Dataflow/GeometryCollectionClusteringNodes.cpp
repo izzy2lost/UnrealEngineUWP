@@ -33,7 +33,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionClusteringNodes)
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 
 	void GeometryCollectionClusteringNodes()
@@ -55,7 +55,7 @@ namespace Dataflow
 }
 
 
-void FAutoClusterDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FAutoClusterDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
@@ -111,7 +111,7 @@ void FAutoClusterDataflowNode::Evaluate(Dataflow::FContext& Context, const FData
 }
 
 
-void FClusterFlattenDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FClusterFlattenDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Collection) && IsConnected(&Collection))
 	{
@@ -155,7 +155,7 @@ void FClusterFlattenDataflowNode::Evaluate(Dataflow::FContext& Context, const FD
 }
 
 
-void FClusterUnclusterDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FClusterUnclusterDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
@@ -183,7 +183,7 @@ void FClusterUnclusterDataflowNode::Evaluate(Dataflow::FContext& Context, const 
 }
 
 
-void FClusterDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FClusterDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Collection))
 	{
@@ -198,7 +198,7 @@ void FClusterDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflow
 	}
 }
 
-void FClusterMergeToNeighborsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FClusterMergeToNeighborsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Collection))
 	{
@@ -245,7 +245,7 @@ void FClusterMergeToNeighborsDataflowNode::Evaluate(Dataflow::FContext& Context,
 	}
 }
 
-void FClusterMergeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FClusterMergeDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Collection))
 	{
@@ -263,7 +263,7 @@ void FClusterMergeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDat
 	}
 }
 
-void FClusterIsolatedRootsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FClusterIsolatedRootsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Collection))
 	{
@@ -283,7 +283,7 @@ void FClusterIsolatedRootsDataflowNode::Evaluate(Dataflow::FContext& Context, co
 	}
 }
 
-void FClusterMagnetDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FClusterMagnetDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Collection))
 	{

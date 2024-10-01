@@ -11,7 +11,7 @@
 
 #define LOCTEXT_NAMESPACE "FunctionPropertyCustomization"
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	namespace Private
 	{
@@ -182,6 +182,6 @@ namespace Dataflow
 			}
 		}
 	}
-}  // End namespace Dataflow
+}  // End namespace UE::Dataflow
 
 #undef LOCTEXT_NAMESPACE

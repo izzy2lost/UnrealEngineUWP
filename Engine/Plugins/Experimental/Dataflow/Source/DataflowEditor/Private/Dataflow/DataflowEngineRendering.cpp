@@ -14,9 +14,9 @@
 #include "GeometryCollection/GeometryCollectionAlgo.h"
 #include "UDynamicMesh.h"
 
-namespace Dataflow
+namespace UE::Dataflow
 {
-	void RenderBasicGeometryCollection(GeometryCollection::Facades::FRenderingFacade& RenderCollection, const Dataflow::FGraphRenderingState& State, TArray<FLinearColor>* VertexColorOverride = nullptr)
+	void RenderBasicGeometryCollection(GeometryCollection::Facades::FRenderingFacade& RenderCollection, const UE::Dataflow::FGraphRenderingState& State, TArray<FLinearColor>* VertexColorOverride = nullptr)
 	{
 		FManagedArrayCollection Default;
 		FName PrimaryOutput = State.GetRenderOutputs()[0]; // "Collection"
@@ -120,7 +120,7 @@ namespace Dataflow
 
 	}
 
-	void RenderMeshIndexedGeometryCollection(GeometryCollection::Facades::FRenderingFacade& RenderCollection, const Dataflow::FGraphRenderingState& State, TArray<FLinearColor>* VertexColorOverride = nullptr )
+	void RenderMeshIndexedGeometryCollection(GeometryCollection::Facades::FRenderingFacade& RenderCollection, const UE::Dataflow::FGraphRenderingState& State, TArray<FLinearColor>* VertexColorOverride = nullptr )
 	{
 		auto ToD = [](FVector3f V) { return FVector3d(V.X, V.Y, V.Z); };
 		auto ToF = [](FVector3d V) { return FVector3f(V.X, V.Y, V.Z); };
@@ -253,12 +253,12 @@ namespace Dataflow
 
 	class FGeometryCollectionSurfaceRenderCallbacks : public FRenderingFactory::ICallbackInterface
 	{
-		virtual Dataflow::FRenderKey GetRenderKey() const override
+		virtual UE::Dataflow::FRenderKey GetRenderKey() const override
 		{
 			return { "SurfaceRender", FGeometryCollection::StaticType() };
 		}
 
-		virtual bool CanRender(const Dataflow::IDataflowConstructionViewMode& ViewMode) const override
+		virtual bool CanRender(const UE::Dataflow::IDataflowConstructionViewMode& ViewMode) const override
 		{
 			return (ViewMode.GetName() == FDataflowConstruction3DViewMode::Name);
 		}
@@ -303,12 +303,12 @@ namespace Dataflow
 
 	class FGeometryCollectionSurfaceWeightsRenderCallbacks : public FRenderingFactory::ICallbackInterface
 	{
-		virtual Dataflow::FRenderKey GetRenderKey() const override
+		virtual UE::Dataflow::FRenderKey GetRenderKey() const override
 		{
 			return { "SurfaceWeightsRender", FGeometryCollection::StaticType() };
 		}
 
-		virtual bool CanRender(const Dataflow::IDataflowConstructionViewMode& ViewMode) const override
+		virtual bool CanRender(const UE::Dataflow::IDataflowConstructionViewMode& ViewMode) const override
 		{
 			return (ViewMode.GetName() == FDataflowConstruction3DViewMode::Name);
 		}
@@ -404,12 +404,12 @@ namespace Dataflow
 
 	class FDynamicMesh3SurfaceRenderCallbacks : public FRenderingFactory::ICallbackInterface
 	{
-		virtual Dataflow::FRenderKey GetRenderKey() const override
+		virtual UE::Dataflow::FRenderKey GetRenderKey() const override
 		{
 			return { "SurfaceRender", FName("FDynamicMesh3") };
 		}
 
-		virtual bool CanRender(const Dataflow::IDataflowConstructionViewMode& ViewMode) const override
+		virtual bool CanRender(const UE::Dataflow::IDataflowConstructionViewMode& ViewMode) const override
 		{
 			return (ViewMode.GetName() == FDataflowConstruction3DViewMode::Name);
 		}
@@ -471,12 +471,12 @@ namespace Dataflow
 
 	class FBoxSurfaceRenderCallbacks : public FRenderingFactory::ICallbackInterface
 	{
-		virtual Dataflow::FRenderKey GetRenderKey() const override
+		virtual UE::Dataflow::FRenderKey GetRenderKey() const override
 		{
 			return { "SurfaceRender", FName("FBox") };
 		}
 
-		virtual bool CanRender(const Dataflow::IDataflowConstructionViewMode& ViewMode) const override
+		virtual bool CanRender(const UE::Dataflow::IDataflowConstructionViewMode& ViewMode) const override
 		{
 			return (ViewMode.GetName() == FDataflowConstruction3DViewMode::Name);
 		}
@@ -538,12 +538,12 @@ namespace Dataflow
 
 	class FFieldVolumeRenderCallbacks : public FRenderingFactory::ICallbackInterface
 	{
-		virtual Dataflow::FRenderKey GetRenderKey() const override
+		virtual UE::Dataflow::FRenderKey GetRenderKey() const override
 		{
 			return { "VolumeRender", FFieldCollection::StaticType() };
 		}
 
-		virtual bool CanRender(const Dataflow::IDataflowConstructionViewMode& ViewMode) const override
+		virtual bool CanRender(const UE::Dataflow::IDataflowConstructionViewMode& ViewMode) const override
 		{
 			return (ViewMode.GetName() == FDataflowConstruction3DViewMode::Name);
 		}
@@ -593,7 +593,7 @@ namespace Dataflow
 
 	void RenderingCallbacks()
 	{
-		using namespace Dataflow;
+		using namespace UE::Dataflow;
 
 		FRenderingFactory::GetInstance()->RegisterCallbacks(MakeUnique<FGeometryCollectionSurfaceRenderCallbacks>());
 		FRenderingFactory::GetInstance()->RegisterCallbacks(MakeUnique<FGeometryCollectionSurfaceWeightsRenderCallbacks>());

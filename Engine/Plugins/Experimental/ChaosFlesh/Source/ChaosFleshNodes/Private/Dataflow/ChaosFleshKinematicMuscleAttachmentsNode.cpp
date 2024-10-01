@@ -11,7 +11,7 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ChaosFleshKinematicMuscleAttachmentsNode)
 
 
-void FKinematicMuscleAttachmentsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FKinematicMuscleAttachmentsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<DataType>(&Collection))
 	{
@@ -51,7 +51,7 @@ void FKinematicMuscleAttachmentsDataflowNode::Evaluate(Dataflow::FContext& Conte
 						const FSkinWeightVertexBuffer* SkinWeightVertexBuffer = LODRenderData->GetSkinWeightVertexBuffer();
 						const int32 MaxBoneInfluences = SkinWeightVertexBuffer->GetMaxBoneInfluences();
 						TArray<FTransform> ComponentPose;
-						Dataflow::Animation::GlobalTransforms(SkeletalMesh->GetRefSkeleton(), ComponentPose);
+						UE::Dataflow::Animation::GlobalTransforms(SkeletalMesh->GetRefSkeleton(), ComponentPose);
 						TArray<TArray<int32>> BoneBoundVerts;
 						TArray<TArray<float>> BoneBoundWeights;
 						BoneBoundVerts.SetNum(ComponentPose.Num());

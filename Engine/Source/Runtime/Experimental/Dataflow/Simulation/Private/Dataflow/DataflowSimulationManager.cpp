@@ -79,7 +79,7 @@ namespace UE::Dataflow
 #if CHAOS_DEBUG_DRAW
 				ChaosDD::Private::FChaosDDScopeTaskContext DDTaskContext(ParentDDContext);
 #endif
-				Dataflow::EvaluateSimulationGraph(DataflowAsset, SimulationContext, DeltaTime, SimulationTime);
+				UE::Dataflow::EvaluateSimulationGraph(DataflowAsset, SimulationContext, DeltaTime, SimulationTime);
 			}
 
 		private:
@@ -87,7 +87,7 @@ namespace UE::Dataflow
 			TObjectPtr<UDataflow> DataflowAsset;
 
 			/** Simulation context */
-			TSharedPtr<Dataflow::FDataflowSimulationContext> SimulationContext;
+			TSharedPtr<UE::Dataflow::FDataflowSimulationContext> SimulationContext;
 
 			/** Delta time used to advance the simulation */
 			float DeltaTime;

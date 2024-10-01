@@ -115,7 +115,7 @@ namespace UE
 
 }
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	TSharedPtr<FEngineContext> GetContext(TObjectPtr<UDataflowBaseContent> Content)
 	{

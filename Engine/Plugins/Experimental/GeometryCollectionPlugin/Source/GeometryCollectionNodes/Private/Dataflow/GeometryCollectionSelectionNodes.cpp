@@ -31,7 +31,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionSelectionNodes)
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 
 	void GeometryCollectionSelectionNodes()
@@ -78,7 +78,7 @@ namespace Dataflow
 }
 
 
-void FCollectionTransformSelectionAllDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionAllDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -100,7 +100,7 @@ void FCollectionTransformSelectionAllDataflowNode::Evaluate(Dataflow::FContext& 
 }
 
 
-void FCollectionTransformSelectionSetOperationDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionSetOperationDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -229,7 +229,7 @@ static void BuildHierarchicalOutput(const TManagedArray<int32>& Parents,
 }
 
 
-void FCollectionTransformSelectionInfoDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionInfoDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FString>(&String))
 	{
@@ -278,7 +278,7 @@ void FCollectionTransformSelectionInfoDataflowNode::Evaluate(Dataflow::FContext&
 }
 
 
-void FCollectionTransformSelectionNoneDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionNoneDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -300,7 +300,7 @@ void FCollectionTransformSelectionNoneDataflowNode::Evaluate(Dataflow::FContext&
 }
 
 
-void FCollectionTransformSelectionInvertDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionInvertDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -313,7 +313,7 @@ void FCollectionTransformSelectionInvertDataflowNode::Evaluate(Dataflow::FContex
 }
 
 
-void FCollectionTransformSelectionRandomDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionRandomDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -338,7 +338,7 @@ void FCollectionTransformSelectionRandomDataflowNode::Evaluate(Dataflow::FContex
 }
 
 
-void FCollectionTransformSelectionRootDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionRootDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -360,7 +360,7 @@ void FCollectionTransformSelectionRootDataflowNode::Evaluate(Dataflow::FContext&
 }
 
 
-void FCollectionTransformSelectionCustomDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionCustomDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -410,7 +410,7 @@ void FCollectionTransformSelectionCustomDataflowNode::Evaluate(Dataflow::FContex
 }
 
 
-void FCollectionTransformSelectionFromIndexArrayDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionFromIndexArrayDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&TransformSelection))
 	{
@@ -450,7 +450,7 @@ void FCollectionTransformSelectionFromIndexArrayDataflowNode::Evaluate(Dataflow:
 }
 
 
-void FCollectionTransformSelectionParentDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionParentDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -472,7 +472,7 @@ void FCollectionTransformSelectionParentDataflowNode::Evaluate(Dataflow::FContex
 }
 
 
-void FCollectionTransformSelectionByPercentageDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionByPercentageDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -491,7 +491,7 @@ void FCollectionTransformSelectionByPercentageDataflowNode::Evaluate(Dataflow::F
 }
 
 
-void FCollectionTransformSelectionChildrenDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionChildrenDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -513,7 +513,7 @@ void FCollectionTransformSelectionChildrenDataflowNode::Evaluate(Dataflow::FCont
 }
 
 
-void FCollectionTransformSelectionSiblingsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionSiblingsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -535,7 +535,7 @@ void FCollectionTransformSelectionSiblingsDataflowNode::Evaluate(Dataflow::FCont
 }
 
 
-void FCollectionTransformSelectionLevelDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionLevelDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -557,7 +557,7 @@ void FCollectionTransformSelectionLevelDataflowNode::Evaluate(Dataflow::FContext
 }
 
 
-void FCollectionTransformSelectionTargetLevelDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionTargetLevelDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&TransformSelection))
 	{
@@ -581,7 +581,7 @@ void FCollectionTransformSelectionTargetLevelDataflowNode::Evaluate(Dataflow::FC
 }
 
 
-void FCollectionTransformSelectionContactDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionContactDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -603,7 +603,7 @@ void FCollectionTransformSelectionContactDataflowNode::Evaluate(Dataflow::FConte
 }
 
 
-void FCollectionTransformSelectionLeafDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionLeafDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -625,7 +625,7 @@ void FCollectionTransformSelectionLeafDataflowNode::Evaluate(Dataflow::FContext&
 }
 
 
-void FCollectionTransformSelectionClusterDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionClusterDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&TransformSelection))
 	{
@@ -649,7 +649,7 @@ void FCollectionTransformSelectionClusterDataflowNode::Evaluate(Dataflow::FConte
 	}
 }
 
-void FCollectionTransformSelectionClusterDataflowNode_v2::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionClusterDataflowNode_v2::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&TransformSelection))
 	{
@@ -670,7 +670,7 @@ void FCollectionTransformSelectionClusterDataflowNode_v2::Evaluate(Dataflow::FCo
 	}
 }
 
-void FCollectionTransformSelectionBySizeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionBySizeDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -695,7 +695,7 @@ void FCollectionTransformSelectionBySizeDataflowNode::Evaluate(Dataflow::FContex
 }
 
 
-void FCollectionTransformSelectionByVolumeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionByVolumeDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -720,7 +720,7 @@ void FCollectionTransformSelectionByVolumeDataflowNode::Evaluate(Dataflow::FCont
 }
 
 
-void FCollectionTransformSelectionInBoxDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionInBoxDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -757,7 +757,7 @@ void FCollectionTransformSelectionInBoxDataflowNode::Evaluate(Dataflow::FContext
 }
 
 
-void FCollectionTransformSelectionInSphereDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionInSphereDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -794,7 +794,7 @@ void FCollectionTransformSelectionInSphereDataflowNode::Evaluate(Dataflow::FCont
 }
 
 
-void FCollectionTransformSelectionByFloatAttrDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionByFloatAttrDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -818,7 +818,7 @@ void FCollectionTransformSelectionByFloatAttrDataflowNode::Evaluate(Dataflow::FC
 	}
 }
 
-void FSelectFloatArrayIndicesInRangeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FSelectFloatArrayIndicesInRangeDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Indices))
 	{
@@ -850,7 +850,7 @@ void FSelectFloatArrayIndicesInRangeDataflowNode::Evaluate(Dataflow::FContext& C
 	}
 }
 
-void FCollectionTransformSelectionByIntAttrDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionByIntAttrDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -875,7 +875,7 @@ void FCollectionTransformSelectionByIntAttrDataflowNode::Evaluate(Dataflow::FCon
 }
 
 
-void FCollectionVertexSelectionCustomDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionVertexSelectionCustomDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowVertexSelection>(&VertexSelection))
 	{
@@ -925,7 +925,7 @@ void FCollectionVertexSelectionCustomDataflowNode::Evaluate(Dataflow::FContext& 
 }
 
 
-void FCollectionFaceSelectionCustomDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionFaceSelectionCustomDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowFaceSelection>(&FaceSelection))
 	{
@@ -975,7 +975,7 @@ void FCollectionFaceSelectionCustomDataflowNode::Evaluate(Dataflow::FContext& Co
 }
 
 
-void FCollectionSelectionConvertDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionSelectionConvertDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&TransformSelection))
 	{
@@ -1092,7 +1092,7 @@ void FCollectionSelectionConvertDataflowNode::Evaluate(Dataflow::FContext& Conte
 }
 
 
-void FCollectionFaceSelectionInvertDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionFaceSelectionInvertDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowFaceSelection>(&FaceSelection))
 	{
@@ -1105,7 +1105,7 @@ void FCollectionFaceSelectionInvertDataflowNode::Evaluate(Dataflow::FContext& Co
 }
 
 
-void FCollectionVertexSelectionByPercentageDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionVertexSelectionByPercentageDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowVertexSelection>(&VertexSelection))
 	{
@@ -1124,7 +1124,7 @@ void FCollectionVertexSelectionByPercentageDataflowNode::Evaluate(Dataflow::FCon
 }
 
 
-void FCollectionVertexSelectionSetOperationDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionVertexSelectionSetOperationDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowVertexSelection>(&VertexSelection))
 	{
@@ -1271,7 +1271,7 @@ static void CreateSelectionFromAttr(const FManagedArrayCollection& InCollection,
 }
 
 
-void FCollectionSelectionByAttrDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionSelectionByAttrDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowVertexSelection>(&VertexSelection) ||
 		Out->IsA<FDataflowFaceSelection>(&FaceSelection) ||
@@ -1280,7 +1280,7 @@ void FCollectionSelectionByAttrDataflowNode::Evaluate(Dataflow::FContext& Contex
 		Out->IsA<FDataflowMaterialSelection>(&MaterialSelection))
 	{
 		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		const FName GroupName = Dataflow::Private::GetAttributeFromEnumAsName(Group);
+		const FName GroupName = UE::Dataflow::Private::GetAttributeFromEnumAsName(Group);
 
 		if (InCollection.HasGroup(GroupName))
 		{

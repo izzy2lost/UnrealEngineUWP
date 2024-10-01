@@ -164,7 +164,7 @@ void SDataflowGraphEditor::Construct(const FArguments& InArgs, UObject* InAssetO
 	SetNodeFactory( MakeShared<FDataflowGraphNodeFactory>(this) );
 }
 
-const TSharedPtr<Dataflow::FEngineContext> SDataflowGraphEditor::GetDataflowContext() const
+const TSharedPtr<UE::Dataflow::FEngineContext> SDataflowGraphEditor::GetDataflowContext() const
 {
 	if (DataflowEditor)
 	{
@@ -173,7 +173,7 @@ const TSharedPtr<Dataflow::FEngineContext> SDataflowGraphEditor::GetDataflowCont
 			return DataflowEditor->GetEditorContent()->GetDataflowContext();
 		}
 	}
-	return TSharedPtr<Dataflow::FEngineContext>(nullptr);
+	return TSharedPtr<UE::Dataflow::FEngineContext>(nullptr);
 }
 
 void SDataflowGraphEditor::EvaluateNode()
@@ -185,7 +185,7 @@ void SDataflowGraphEditor::EvaluateNode()
 					Cast<UDataflowEdNode>(SelectedNode)->GetDataflowNode()->GetName().ToString() : FString();
 			}));
 
-	using namespace Dataflow;
+	using namespace UE::Dataflow;
 
 	TOptional<FContextThreaded> DefaultContext(EvaluateGraphCallback ? TOptional<FContextThreaded>() : TOptional<FContextThreaded>(FContextThreaded()));
 
@@ -456,7 +456,7 @@ void SDataflowGraphEditor::CreateVertexSelectionNode(const FString & InArray)
 		if (UEdGraphNode* NewEdNode = NodeAction->PerformAction(Graph, nullptr, GetGraphEditor()->GetPasteLocation(), false))
 		{
 			FDataflowAssetEdit Edit = Graph->EditDataflow();
-			if (Dataflow::FGraph* DataflowGraph = Edit.GetGraph())
+			if (UE::Dataflow::FGraph* DataflowGraph = Edit.GetGraph())
 			{
 				if (TSharedPtr<FDataflowNode> Node = DataflowGraph->FindBaseNode(((UDataflowEdNode*)NewEdNode)->DataflowNodeGuid))
 				{
@@ -524,7 +524,7 @@ void SDataflowGraphEditor::OnAddOptionPin()
 {
 	UDataflow* const Graph = DataflowAsset.Get();
 	FDataflowAssetEdit Edit = Graph->EditDataflow();
-	if (Dataflow::FGraph* const DataflowGraph = Edit.GetGraph())
+	if (UE::Dataflow::FGraph* const DataflowGraph = Edit.GetGraph())
 	{
 		const FGraphPanelSelectionSet& SelectedNodes = GetSelectedNodes();
 
@@ -556,7 +556,7 @@ bool SDataflowGraphEditor::CanAddOptionPin() const
 	bool bCanAddOptionPin = false;
 
 	const UDataflow* const Graph = DataflowAsset.Get();
-	if (const Dataflow::FGraph* const DataflowGraph = Graph->GetDataflow().Get())
+	if (const UE::Dataflow::FGraph* const DataflowGraph = Graph->GetDataflow().Get())
 	{
 		const FGraphPanelSelectionSet& SelectedNodes = GetSelectedNodes();
 
@@ -589,7 +589,7 @@ void SDataflowGraphEditor::OnRemoveOptionPin()
 {
 	UDataflow* const Graph = DataflowAsset.Get();
 	FDataflowAssetEdit Edit = Graph->EditDataflow();
-	if (Dataflow::FGraph* const DataflowGraph = Edit.GetGraph())
+	if (UE::Dataflow::FGraph* const DataflowGraph = Edit.GetGraph())
 	{
 		const FGraphPanelSelectionSet& SelectedNodes = GetSelectedNodes();
 
@@ -621,7 +621,7 @@ bool SDataflowGraphEditor::CanRemoveOptionPin() const
 	bool bCanRemoveOptionPin = false;
 
 	const UDataflow* const Graph = DataflowAsset.Get();
-	if (const Dataflow::FGraph* const DataflowGraph = Graph->GetDataflow().Get())
+	if (const UE::Dataflow::FGraph* const DataflowGraph = Graph->GetDataflow().Get())
 	{
 		const FGraphPanelSelectionSet& SelectedNodes = GetSelectedNodes();
 

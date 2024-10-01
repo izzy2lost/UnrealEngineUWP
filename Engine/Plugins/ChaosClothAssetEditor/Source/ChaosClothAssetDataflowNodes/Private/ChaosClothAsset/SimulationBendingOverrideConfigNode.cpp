@@ -5,7 +5,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationBendingOverrideConfigNode)
 
-FChaosClothAssetSimulationBendingOverrideConfigNode::FChaosClothAssetSimulationBendingOverrideConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetSimulationBendingOverrideConfigNode::FChaosClothAssetSimulationBendingOverrideConfigNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FChaosClothAssetSimulationBaseConfigNode(InParam, InGuid)
 {
 	RegisterCollectionConnections();

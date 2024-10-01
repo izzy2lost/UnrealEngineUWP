@@ -10,7 +10,7 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ChaosFleshKinematicTetrahedralConstraintNode)
 
 
-void FKinematicTetrahedralBindingsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FKinematicTetrahedralBindingsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<DataType>(&Collection))
 	{
@@ -26,7 +26,7 @@ void FKinematicTetrahedralBindingsDataflowNode::Evaluate(Dataflow::FContext& Con
 			ExclusionList.ParseIntoArray(StrArray, *FString(" "));				
 			int32 NumTets = Tetrahedron->Num();
 			TArray<FTransform> ComponentPose;
-			Dataflow::Animation::GlobalTransforms(SkeletalMesh->GetRefSkeleton(), ComponentPose);
+			UE::Dataflow::Animation::GlobalTransforms(SkeletalMesh->GetRefSkeleton(), ComponentPose);
 			TArray<bool> VertAdded;
 			VertAdded.Init(false, Vertex->Num());
 			auto DoSkipBoneIndex = [&StrArray, &SkeletalMesh](int32 BoneIndex)

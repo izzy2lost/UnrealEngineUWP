@@ -19,7 +19,7 @@ class FDataflowPreviewSceneBase;
 class UInputBehaviorSet;
 class USelection;
 class FDataflowConstructionViewportClient;
-namespace Dataflow
+namespace UE::Dataflow
 {
 	class IDataflowConstructionViewMode;
 }
@@ -32,7 +32,7 @@ public:
 	FDataflowConstructionViewportClient(FEditorModeTools* InModeTools, FPreviewScene* InPreviewScene,  const bool bCouldTickScene,
 								  const TWeakPtr<SEditorViewport> InEditorViewportWidget = nullptr);
 
-	void SetConstructionViewMode(const Dataflow::IDataflowConstructionViewMode* InViewMode);
+	void SetConstructionViewMode(const UE::Dataflow::IDataflowConstructionViewMode* InViewMode);
 
 	// IInputBehaviorSource
 	// virtual const UInputBehaviorSet* GetInputBehaviors() const override;
@@ -71,7 +71,7 @@ private:
 	TWeakPtr<FUICommandList> ToolCommandList;
 
 	/** Construction view mode */
-	const Dataflow::IDataflowConstructionViewMode* ConstructionViewMode = nullptr;
+	const UE::Dataflow::IDataflowConstructionViewMode* ConstructionViewMode = nullptr;
 
 	/** Behavior set for the behavior UI */
 	TObjectPtr<UInputBehaviorSet> BehaviorSet;

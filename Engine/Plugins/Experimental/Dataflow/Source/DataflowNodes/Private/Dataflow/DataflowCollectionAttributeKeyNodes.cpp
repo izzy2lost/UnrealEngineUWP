@@ -7,7 +7,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataflowCollectionAttributeKeyNodes)
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void DataflowCollectionAttributeKeyNodes()
 	{
@@ -17,14 +17,14 @@ namespace Dataflow
 }
 
 
-void FMakeAttributeKeyDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMakeAttributeKeyDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	FString AttributeName = GetValue<FString>(Context, &AttributeIn);
 	FString GroupName = GetValue<FString>(Context, &GroupIn);
 	SetValue(Context, FCollectionAttributeKey(GroupName, AttributeName), &AttributeKeyOut);
 }
 
-void FBreakAttributeKeyDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FBreakAttributeKeyDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	FCollectionAttributeKey CollectionKey = GetValue<FCollectionAttributeKey>(Context, &AttributeKeyIn);
 	SetValue(Context, CollectionKey.Attribute, &AttributeOut);

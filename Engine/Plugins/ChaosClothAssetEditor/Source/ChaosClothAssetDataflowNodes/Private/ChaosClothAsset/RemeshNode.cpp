@@ -922,7 +922,7 @@ namespace UE::Chaos::ClothAsset::Private
 }
 
 
-FChaosClothAssetRemeshNode::FChaosClothAssetRemeshNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetRemeshNode::FChaosClothAssetRemeshNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
@@ -1597,7 +1597,7 @@ void FChaosClothAssetRemeshNode::RemeshRenderMesh(const TSharedRef<const FManage
 }
 
 
-void FChaosClothAssetRemeshNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FChaosClothAssetRemeshNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{

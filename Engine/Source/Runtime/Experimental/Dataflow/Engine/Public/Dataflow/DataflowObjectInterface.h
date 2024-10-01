@@ -8,7 +8,7 @@
 class UObject;
 class FArchive;
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	template<class Base = FContextSingle>
 	class TEngineContext : public Base
@@ -36,3 +36,4 @@ namespace Dataflow
 	typedef TEngineContext<FContextSingle> FEngineContext;
 	typedef TEngineContext<FContextThreaded> FEngineContextThreaded;
 }
+

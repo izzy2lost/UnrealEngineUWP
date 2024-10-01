@@ -18,7 +18,7 @@ struct FDataflowNode;
 struct FDataflowInput;
 struct FDataflowOutput;
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 
 	template<class T> inline DATAFLOWCORE_API FName GraphConnectionTypeName();
@@ -139,14 +139,14 @@ protected:
 	FGuid  Guid;
 	IDataflowTypePolicy* TypePolicy = nullptr;
 	uint32 Offset;
-	Dataflow::FPin::EDirection Direction;
+	UE::Dataflow::FPin::EDirection Direction;
 	bool bIsAnyType:1 = false;
 	bool bHasConcreteType : 1 = false;
 	bool bCanHidePin:1 = false;
 	bool bPinIsHidden:1 = false;
 
 	friend struct FDataflowNode;
-	friend class Dataflow::FGraph;
+	friend class UE::Dataflow::FGraph;
 
 protected:
 	DATAFLOWCORE_API bool IsOwningNodeEnabled() const;
@@ -174,8 +174,8 @@ protected:
 public:
 	FDataflowConnection() {};
 	UE_DEPRECATED(5.5, "Deprecated constructor : use FConnectionParameters to pass parameters")
-	DATAFLOWCORE_API FDataflowConnection(Dataflow::FPin::EDirection Direction, FName InType, FName InName, FDataflowNode* OwningNode = nullptr, const FProperty* InProperty = nullptr, FGuid InGuid = FGuid::NewGuid());
-	DATAFLOWCORE_API FDataflowConnection(Dataflow::FPin::EDirection Direction, const Dataflow::FConnectionParameters& Params);
+	DATAFLOWCORE_API FDataflowConnection(UE::Dataflow::FPin::EDirection Direction, FName InType, FName InName, FDataflowNode* OwningNode = nullptr, const FProperty* InProperty = nullptr, FGuid InGuid = FGuid::NewGuid());
+	DATAFLOWCORE_API FDataflowConnection(UE::Dataflow::FPin::EDirection Direction, const UE::Dataflow::FConnectionParameters& Params);
 	virtual ~FDataflowConnection() {};
 
 	FDataflowNode* GetOwningNode() { return OwningNode; }
@@ -183,20 +183,20 @@ public:
 
 	DATAFLOWCORE_API FGuid GetOwningNodeGuid() const;
 	DATAFLOWCORE_API uint32 GetOwningNodeValueHash() const;
-	DATAFLOWCORE_API Dataflow::FTimestamp GetOwningNodeTimestamp() const;
+	DATAFLOWCORE_API UE::Dataflow::FTimestamp GetOwningNodeTimestamp() const;
 
 	const FProperty* GetProperty() const { return Property; }
 
 	DATAFLOWCORE_API FString GetPropertyTooltip() const;
 	DATAFLOWCORE_API FString GetPropertyTypeNameTooltip() const;
 
-	Dataflow::FPin::EDirection GetDirection() const { return Direction; }
+	UE::Dataflow::FPin::EDirection GetDirection() const { return Direction; }
 	uint32 GetOffset() const { return Offset; }
 	virtual int32 GetContainerIndex() const { return INDEX_NONE; }
 	virtual uint32 GetContainerElementOffset() const { return INDEX_NONE; }
-	Dataflow::FConnectionKey GetConnectionKey() const 
+	UE::Dataflow::FConnectionKey GetConnectionKey() const 
 	{		
-		return Dataflow::FConnectionKey(GetOffset(), GetContainerIndex(), GetContainerElementOffset());
+		return UE::Dataflow::FConnectionKey(GetOffset(), GetContainerIndex(), GetContainerElementOffset());
 	}
 
 	FName GetType() const { return Type; }
@@ -208,7 +208,7 @@ public:
 	void SetName(FName InName) { Name = InName; }
 
 	virtual void* RealAddress() const { ensure(OwningNode);  return (void*)((size_t)OwningNode + (size_t)GetOffset()); };
-	Dataflow::FContextCacheKey CacheKey() const { return GetTypeHash(Guid); };
+	UE::Dataflow::FContextCacheKey CacheKey() const { return GetTypeHash(Guid); };
 
 	virtual bool AddConnection(FDataflowConnection* In) { return false; };
 	virtual bool RemoveConnection(FDataflowConnection* In) { return false; }
@@ -225,7 +225,7 @@ public:
 		return (size_t)RealAddress() == (size_t)InVar;
 	}
 
-	virtual void Invalidate(const Dataflow::FTimestamp& ModifiedTimestamp = Dataflow::FTimestamp::Current()) {};
+	virtual void Invalidate(const UE::Dataflow::FTimestamp& ModifiedTimestamp = UE::Dataflow::FTimestamp::Current()) {};
 
 	bool GetCanHidePin() const { return bCanHidePin; }
 	bool GetPinIsHidden() const { return bCanHidePin && bPinIsHidden; }

@@ -28,7 +28,7 @@ struct FDataflowOverrideNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowOverrideNode, "DataflowOverrideNode", "BaseClass", "")
 
 public:
-	FDataflowOverrideNode(const Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid())
+	FDataflowOverrideNode(const UE::Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid())
 		: Super(Param,InGuid) 
 	{
 		RegisterInputConnection(&Key);
@@ -41,23 +41,23 @@ public:
 	DATAFLOWCORE_API bool ShouldInvalidate(FName InKey) const;
 
 	template <class T>
-	T GetDefaultValue(Dataflow::FContext& Context) const
+	T GetDefaultValue(UE::Dataflow::FContext& Context) const
 	{
 		return GetValue<T>(Context, &Default, Default);
 	}
 
 	template <>
-	DATAFLOWCORE_API int32 GetDefaultValue(Dataflow::FContext& Context) const;
+	DATAFLOWCORE_API int32 GetDefaultValue(UE::Dataflow::FContext& Context) const;
 
 	template <>
-	DATAFLOWCORE_API float GetDefaultValue(Dataflow::FContext& Context) const;
+	DATAFLOWCORE_API float GetDefaultValue(UE::Dataflow::FContext& Context) const;
 
-	DATAFLOWCORE_API FString GetValueFromAsset(Dataflow::FContext& Context, const UObject* InOwner) const;
+	DATAFLOWCORE_API FString GetValueFromAsset(UE::Dataflow::FContext& Context, const UObject* InOwner) const;
 
 	//
 	// Evaluate
 	//
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const { ensure(false); };
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const { ensure(false); };
 
 public:
 	UPROPERTY(EditAnywhere, Category = "Overrides", meta = (DataflowInput))

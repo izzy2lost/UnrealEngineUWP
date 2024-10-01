@@ -13,7 +13,7 @@
 
 DEFINE_LOG_CATEGORY(LogImportGEO);
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void RegisterChaosFleshImportGEONodes()
 	{
@@ -30,7 +30,7 @@ namespace Dataflow
 
 
 void
-FExtractGEOInt::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+FExtractGEOInt::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<int32>(&Value))
 	{
@@ -45,7 +45,7 @@ FExtractGEOInt::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out
 }
 
 void
-FExtractGEOIntVector::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+FExtractGEOIntVector::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<int32>>(&Value))
 	{
@@ -60,7 +60,7 @@ FExtractGEOIntVector::Evaluate(Dataflow::FContext& Context, const FDataflowOutpu
 }
 
 void
-FExtractGEOFloatVector::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+FExtractGEOFloatVector::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<float>>(&Value))
 	{
@@ -178,7 +178,7 @@ FImportGEO::ReadGEOFile(const bool PrintStats) const
 
 void
 FImportGEO::Evaluate(
-	Dataflow::FContext& Context,
+	UE::Dataflow::FContext& Context,
 	const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
@@ -242,7 +242,7 @@ FImportGEO::Evaluate(
 
 			if (Vertices.Num() && Elements.Num())
 			{
-				TArray<FIntVector3> SurfaceElements = Dataflow::GetSurfaceTriangles(Elements, !bDiscardInteriorTriangles);
+				TArray<FIntVector3> SurfaceElements = UE::Dataflow::GetSurfaceTriangles(Elements, !bDiscardInteriorTriangles);
 				TUniquePtr<FTetrahedralCollection> OBJCollection(
 					FTetrahedralCollection::NewTetrahedralCollection(Vertices, SurfaceElements, Elements));
 				InCollection->AppendGeometry(*OBJCollection.Get());

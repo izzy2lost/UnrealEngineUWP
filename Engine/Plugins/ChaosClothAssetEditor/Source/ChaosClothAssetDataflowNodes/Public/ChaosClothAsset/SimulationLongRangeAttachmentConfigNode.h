@@ -48,12 +48,12 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Long Range Attachment Properties")
 	FChaosClothAssetConnectableIStringValue FixedEndSet = { TEXT("KinematicVertices3D") };
 
-	FChaosClothAssetSimulationLongRangeAttachmentConfigNode_v2(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetSimulationLongRangeAttachmentConfigNode_v2(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;
 
-	virtual void EvaluateClothCollection(Dataflow::FContext& Context, const TSharedRef<FManagedArrayCollection>& ClothCollection) const override;
+	virtual void EvaluateClothCollection(UE::Dataflow::FContext& Context, const TSharedRef<FManagedArrayCollection>& ClothCollection) const override;
 };
 
 /** Long range attachment constraint property configuration node. */
@@ -98,10 +98,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Long Range Attachment Properties", Meta = (DataflowInput))
 	FString FixedEndWeightMap = TEXT("MaxDistance");
 
-	FChaosClothAssetSimulationLongRangeAttachmentConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetSimulationLongRangeAttachmentConfigNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;
 
-	virtual void EvaluateClothCollection(Dataflow::FContext& Context, const TSharedRef<FManagedArrayCollection>& ClothCollection) const override;
+	virtual void EvaluateClothCollection(UE::Dataflow::FContext& Context, const TSharedRef<FManagedArrayCollection>& ClothCollection) const override;
 };

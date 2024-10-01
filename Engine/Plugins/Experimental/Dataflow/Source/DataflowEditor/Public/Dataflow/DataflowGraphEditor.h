@@ -25,7 +25,7 @@ class FDataflowSNodeFactory;
 class UDataflow;
 class UDataflowEditor;
 struct FDataflowConnection;
-namespace Dataflow {
+namespace UE::Dataflow {
 	class FContext;
 }
 /**
@@ -146,7 +146,7 @@ public:
 	virtual FString GetReferencerName() const override { return TEXT("SDataflowGraphEditor"); }
 
 	/** FDataflowSNodeInterface */
-	virtual const TSharedPtr<Dataflow::FEngineContext> GetDataflowContext() const override;
+	virtual const TSharedPtr<UE::Dataflow::FEngineContext> GetDataflowContext() const override;
 
 private:
 	/** Add an additional option pin to all selected Dataflow nodes for those that overrides the AddPin function. */
@@ -188,3 +188,4 @@ private:
 	bool LeftAltKeyDown = false;
 	bool RightAltKeyDown = false;
 };
+

@@ -24,7 +24,7 @@ class FClothEditorSimulationVisualization;
 class FChaosClothAssetEditor3DViewportClient;
 }
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	class CHAOSCLOTHASSETEDITOR_API FClothAssetDataflowContext final : public TEngineContext<FContextSingle>
 	{
@@ -54,7 +54,7 @@ public:
 	explicit FChaosClothAssetEditorToolkit(UAssetEditor* InOwningAssetEditor);
 	virtual ~FChaosClothAssetEditorToolkit();
 
-	TSharedPtr<Dataflow::FEngineContext> GetDataflowContext() const;
+	TSharedPtr<UE::Dataflow::FEngineContext> GetDataflowContext() const;
 	const UDataflow* GetDataflow() const;
 
 private:
@@ -129,8 +129,8 @@ private:
 	void ReinitializeGraphEditorWidget();
 	TSharedPtr<IStructureDetailsView> CreateNodeDetailsEditorWidget(UObject* ObjectToEdit);
 
-	TSharedPtr<FManagedArrayCollection> GetClothCollectionIfPossible(const TSharedPtr<FDataflowNode> InDataflowNode, const TSharedPtr<Dataflow::FEngineContext> Context);
-	TSharedPtr<FManagedArrayCollection> GetInputClothCollectionIfPossible(const TSharedPtr<FDataflowNode> InDataflowNode, const TSharedPtr<Dataflow::FEngineContext> Context);
+	TSharedPtr<FManagedArrayCollection> GetClothCollectionIfPossible(const TSharedPtr<FDataflowNode> InDataflowNode, const TSharedPtr<UE::Dataflow::FEngineContext> Context);
+	TSharedPtr<FManagedArrayCollection> GetInputClothCollectionIfPossible(const TSharedPtr<FDataflowNode> InDataflowNode, const TSharedPtr<UE::Dataflow::FEngineContext> Context);
 	TSharedPtr<FDataflowNode> GetSelectedDataflowNode();
 	TSharedPtr<const FDataflowNode> GetSelectedDataflowNode() const;
 
@@ -165,8 +165,8 @@ private:
 	TSharedPtr<SClothCollectionOutliner> Outliner;
 
 	// Dataflow
-	TSharedPtr<Dataflow::FEngineContext> DataflowContext;
-	Dataflow::FTimestamp LastDataflowNodeTimestamp = Dataflow::FTimestamp::Invalid;
+	TSharedPtr<UE::Dataflow::FEngineContext> DataflowContext;
+	UE::Dataflow::FTimestamp LastDataflowNodeTimestamp = UE::Dataflow::FTimestamp::Invalid;
 	FDelegateHandle OnNodeInvalidatedDelegateHandle;
 	FGuid SelectedDataflowNodeGuid;
 

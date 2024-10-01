@@ -6,7 +6,7 @@
 
 #define LOCTEXT_NAMESPACE "DataflowRenderingViewMode"
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	bool IDataflowConstructionViewMode::IsPerspective() const
 	{

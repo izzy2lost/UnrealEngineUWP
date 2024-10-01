@@ -6,7 +6,7 @@
 #include "GeometryCollection/GeometryCollection.h"
 
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void GeometryCollectionProcessingNodes()
 	{
@@ -14,7 +14,7 @@ namespace Dataflow
 	}
 }
 
-void FCloseGeometryOnCollectionDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCloseGeometryOnCollectionDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<DataType>(&Collection))
 	{

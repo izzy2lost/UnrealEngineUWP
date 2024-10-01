@@ -58,7 +58,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	int32 NumSamplePoints = 0;
 
-	FUniformPointSamplingDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FUniformPointSamplingDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&TargetMesh);
@@ -72,7 +72,7 @@ public:
 		RegisterOutputConnection(&NumSamplePoints);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -139,7 +139,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	int32 NumSamplePoints = 0;
 
-	FNonUniformPointSamplingDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FNonUniformPointSamplingDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&TargetMesh);
@@ -156,7 +156,7 @@ public:
 		RegisterOutputConnection(&NumSamplePoints);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -233,7 +233,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	int32 NumSamplePoints = 0;
 
-	FVertexWeightedPointSamplingDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FVertexWeightedPointSamplingDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&TargetMesh);
@@ -251,11 +251,11 @@ public:
 		RegisterOutputConnection(&NumSamplePoints);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void GeometryCollectionSamplingNodes();
 }

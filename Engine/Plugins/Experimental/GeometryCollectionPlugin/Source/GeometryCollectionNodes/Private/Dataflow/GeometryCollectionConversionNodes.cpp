@@ -5,7 +5,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionConversionNodes)
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void GeometryCollectionConversionNodes()
 	{
@@ -28,7 +28,7 @@ namespace Dataflow
 	}
 }
 
-void FVectorToStringDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FVectorToStringDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FString>(&String))
 	{
@@ -37,7 +37,7 @@ void FVectorToStringDataflowNode::Evaluate(Dataflow::FContext& Context, const FD
 	}
 }
 
-void FFloatToStringDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FFloatToStringDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FString>(&String))
 	{
@@ -46,7 +46,7 @@ void FFloatToStringDataflowNode::Evaluate(Dataflow::FContext& Context, const FDa
 	}
 }
 
-void FIntToStringDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FIntToStringDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FString>(&String))
 	{
@@ -55,7 +55,7 @@ void FIntToStringDataflowNode::Evaluate(Dataflow::FContext& Context, const FData
 	}
 }
 
-void FBoolToStringDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FBoolToStringDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FString>(&String))
 	{
@@ -64,7 +64,7 @@ void FBoolToStringDataflowNode::Evaluate(Dataflow::FContext& Context, const FDat
 	}
 }
 
-void FIntToFloatDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FIntToFloatDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Float))
 	{
@@ -73,7 +73,7 @@ void FIntToFloatDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataf
 	}
 }
 
-void FIntToDoubleDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FIntToDoubleDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Double))
 	{
@@ -82,7 +82,7 @@ void FIntToDoubleDataflowNode::Evaluate(Dataflow::FContext& Context, const FData
 	}
 }
 
-void FFloatToDoubleDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FFloatToDoubleDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Double))
 	{
@@ -91,7 +91,7 @@ void FFloatToDoubleDataflowNode::Evaluate(Dataflow::FContext& Context, const FDa
 	}
 }
 
-void FFloatToIntDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FFloatToIntDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<int32>(&Int))
 	{
@@ -115,7 +115,7 @@ void FFloatToIntDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataf
 	}
 }
 
-void FIntToBoolDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FIntToBoolDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<bool>(&Bool))
 	{
@@ -124,7 +124,7 @@ void FIntToBoolDataflowNode::Evaluate(Dataflow::FContext& Context, const FDatafl
 	}
 }
 
-void FBoolToIntDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FBoolToIntDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<int32>(&Int))
 	{

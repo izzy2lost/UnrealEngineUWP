@@ -11,14 +11,14 @@
 #include "Dataflow/DataflowRenderingViewMode.h"
 #include "GeometryCollection/Facades/CollectionRenderingFacade.h"
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	class FContext;
 	typedef TPair<FString, FName> FRenderKey;
 
 	struct FGraphRenderingState 
 	{
-		FGraphRenderingState(const FGuid InGuid, const FDataflowNode* InNode, const FRenderingParameter& InParameters, Dataflow::FContext& InContext, const Dataflow::IDataflowConstructionViewMode& ViewMode)
+		FGraphRenderingState(const FGuid InGuid, const FDataflowNode* InNode, const FRenderingParameter& InParameters, UE::Dataflow::FContext& InContext, const UE::Dataflow::IDataflowConstructionViewMode& ViewMode)
 			: NodeGuid(InGuid)
 			, Node(InNode)
 			, RenderName(InParameters.Name)
@@ -46,7 +46,7 @@ namespace Dataflow
 			return Default;
 		}
 
-		const Dataflow::IDataflowConstructionViewMode& GetViewMode() const { return ViewMode; }
+		const UE::Dataflow::IDataflowConstructionViewMode& GetViewMode() const { return ViewMode; }
 
 	private:
 		const FGuid NodeGuid;
@@ -56,9 +56,9 @@ namespace Dataflow
 		FName RenderType;
 		TArray<FName> RenderOutputs;
 
-		Dataflow::FContext& Context;
+		UE::Dataflow::FContext& Context;
 
-		const Dataflow::IDataflowConstructionViewMode& ViewMode;
+		const UE::Dataflow::IDataflowConstructionViewMode& ViewMode;
 	};
 
 
@@ -71,7 +71,7 @@ namespace Dataflow
 		public:
 			virtual ~ICallbackInterface() = default;
 			virtual FRenderKey GetRenderKey() const = 0;
-			virtual bool CanRender(const Dataflow::IDataflowConstructionViewMode& ViewMode) const = 0;
+			virtual bool CanRender(const UE::Dataflow::IDataflowConstructionViewMode& ViewMode) const = 0;
 			virtual void Render(GeometryCollection::Facades::FRenderingFacade& RenderData, const FGraphRenderingState& State) = 0;
 		};
 
@@ -96,5 +96,7 @@ namespace Dataflow
 	};
 
 }
+
+
 
 

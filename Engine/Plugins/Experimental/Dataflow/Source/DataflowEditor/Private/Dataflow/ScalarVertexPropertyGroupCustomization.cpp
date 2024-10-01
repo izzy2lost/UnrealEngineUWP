@@ -10,7 +10,7 @@
 
 #define LOCTEXT_NAMESPACE "ScalarVertexPropertyGroupCustomization"
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	TSharedRef<IPropertyTypeCustomization> FScalarVertexPropertyGroupCustomization::MakeInstance()
 	{

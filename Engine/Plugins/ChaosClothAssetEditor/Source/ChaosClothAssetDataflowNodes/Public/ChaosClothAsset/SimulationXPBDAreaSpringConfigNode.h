@@ -24,7 +24,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "XPBDAreaSpring Properties", Meta = (UIMin = "0", UIMax = "10000", ClampMin = "0", ClampMax = "10000000"))
 	FChaosClothAssetWeightedValue XPBDAreaSpringStiffness = { true, 100.f, 100.f, TEXT("XPBDAreaSpringStiffness") };
 
-	FChaosClothAssetSimulationXPBDAreaSpringConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetSimulationXPBDAreaSpringConfigNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;

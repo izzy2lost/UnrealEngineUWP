@@ -55,14 +55,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Dataflow", meta = (DataflowOutput))
 	int32 Value = 0;
 
-	FExtractGEOInt(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FExtractGEOInt(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&IntVars);
 		RegisterOutputConnection(&Value);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /** Extract a named integer array from the results of an ImportGEO node. */
@@ -85,14 +85,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Dataflow", meta = (DataflowOutput))
 	TArray<int32> Value;
 
-	FExtractGEOIntVector(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FExtractGEOIntVector(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&IntVectorVars);
 		RegisterOutputConnection(&Value);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /** Extract a named float array from the results of an ImportGEO node. */
@@ -115,14 +115,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Dataflow", meta = (DataflowOutput))
 	TArray<float> Value;
 
-	FExtractGEOFloatVector(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FExtractGEOFloatVector(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&FloatVectorVars);
 		RegisterOutputConnection(&Value);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /** Import data from GEO file. */
@@ -172,7 +172,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Dataflow", meta = (DataflowOutput, DisplayName = "FloatVectorVars"))
 	FGEOMapStringArrayFloat FloatVectorVarsOutput;
 
-	FImportGEO(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FImportGEO(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
@@ -182,7 +182,7 @@ public:
 		RegisterOutputConnection(&FloatVectorVarsOutput);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 protected:
 	bool ReadGEOFile(const bool PrintStats=true) const;
@@ -195,7 +195,7 @@ protected:
 	mutable TMap<FString, TPair<TArray<std::string>, TArray<int32>>> IndexedStringVars;
 };
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void RegisterChaosFleshImportGEONodes();
 }

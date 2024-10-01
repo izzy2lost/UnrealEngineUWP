@@ -15,7 +15,7 @@ void UDataflowBlueprintLibrary::EvaluateTerminalNodeByName(UDataflow* Dataflow, 
 			if (const FDataflowTerminalNode* TerminalNode = Node->AsType<const FDataflowTerminalNode>())
 			{
 				UE_LOG(LogChaosDataflow, Verbose, TEXT("UDataflowBlueprintLibrary::EvaluateTerminalNodeByName(): Node [%s]"), *TerminalNodeName.ToString());
-				Dataflow::FEngineContext Context(ResultAsset);
+				UE::Dataflow::FEngineContext Context(ResultAsset);
 				TerminalNode->Evaluate(Context);
 				if (ResultAsset)
 				{

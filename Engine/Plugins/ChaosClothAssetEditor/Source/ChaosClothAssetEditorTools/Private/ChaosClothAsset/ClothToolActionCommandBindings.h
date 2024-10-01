@@ -55,7 +55,7 @@ public:
 
 // Tool action registry entry
 
-class FClothToolActionCommandBindings : public Dataflow::FDataflowToolRegistry::IDataflowToolActionCommands
+class FClothToolActionCommandBindings : public UE::Dataflow::FDataflowToolRegistry::IDataflowToolActionCommands
 {
 
 public:

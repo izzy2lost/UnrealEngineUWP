@@ -9,7 +9,7 @@
 #include "Serialization/Archive.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	uint64 FTimestamp::Invalid = 0;
 	uint64 FTimestamp::Current() { return FPlatformTime::Cycles64(); }

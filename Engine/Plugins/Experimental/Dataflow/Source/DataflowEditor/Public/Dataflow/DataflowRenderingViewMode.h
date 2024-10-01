@@ -6,22 +6,22 @@
 #include "Editor/UnrealEdTypes.h"
 #include "ChaosLog.h"
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	//
 	// Dataflow Construction View Modes allow the user to choose different views on the same node output. The View Mode system serves two main purposes: 
 	// 
 	// 1) In the Dataflow Editor's Construction Viewport, the currently active IDataflowConstructionViewMode will determine which ELevelViewportType should be used for rendering.
 	//    In other words, the the ViewMode will determine whether we have a 3D perspective camera or a 2D orthographic camera.
-	// 2) In the Datflow Rendering Factory (Dataflow::FRenderingFactory), the rendering callbacks that are registered will also be able to return different 
+	// 2) In the Datflow Rendering Factory (UE::Dataflow::FRenderingFactory), the rendering callbacks that are registered will also be able to return different 
 	//    render data based on what the currently active IDataflowConstructionViewMode in the viewport is.
 	//
 	// For example, suppose you have created a new type FMyMeshType that contains both a 3D Mesh representation and a 2D Mesh representation (for, say, UVs.) If you want to
 	// write custom ViewModes for it, here is the process:
 	// 
 	// 1) Define two new classes, e.g. FMyMeshType2DViewMode (inheriting from FDataflowConstruction2DViewModeBase) and FMyMeshType3DViewMode (inheriting from FDataflowConstruction3DViewModeBase)
-	// 2) In your module initialization, register both view modes with the Dataflow::FRenderingViewModeFactory
-	// 3) Create a render function callback class and register it with Dataflow::FRenderingFactory. 
+	// 2) In your module initialization, register both view modes with the UE::Dataflow::FRenderingViewModeFactory
+	// 3) Create a render function callback class and register it with UE::Dataflow::FRenderingFactory. 
 	//    - The CanRender function should return true if the view mode is either of your two new custom view modes.
 	//    - The Render function should return different RenderCollections depending on what the current view mode is (which can be determined from the FGraphRenderingState parameter.)
 	//

@@ -10,7 +10,7 @@
 
 struct FDataflowConnection;
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 
 	struct FLink {
@@ -191,13 +191,13 @@ namespace Dataflow
 }
 
 
-FORCEINLINE FArchive& operator<<(FArchive& Ar, Dataflow::FLink& Value)
+FORCEINLINE FArchive& operator<<(FArchive& Ar, UE::Dataflow::FLink& Value)
 {
 	Ar << Value.InputNode << Value.OutputNode << Value.Input << Value.Output;
 	return Ar;
 }
 
-FORCEINLINE FArchive& operator<<(Chaos::FChaosArchive& Ar, Dataflow::FLink& Value)
+FORCEINLINE FArchive& operator<<(Chaos::FChaosArchive& Ar, UE::Dataflow::FLink& Value)
 {
 	Ar << Value.InputNode << Value.OutputNode << Value.Input << Value.Output;
 	return Ar;

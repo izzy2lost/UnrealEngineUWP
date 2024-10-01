@@ -14,15 +14,15 @@ FDataflowInput FDataflowInput::NoOpInput = FDataflowInput();
 FDataflowOutput FDataflowOutput::NoOpOutput = FDataflowOutput();
 
 
-FDataflowInput::FDataflowInput(const Dataflow::FInputParameters& Param, FGuid InGuid)
-	: FDataflowConnection(Dataflow::FPin::EDirection::INPUT, Param)
+FDataflowInput::FDataflowInput(const UE::Dataflow::FInputParameters& Param, FGuid InGuid)
+	: FDataflowConnection(UE::Dataflow::FPin::EDirection::INPUT, Param)
 	, Connection(nullptr)
 {
 	Guid = InGuid;
 }
 
-FDataflowInput::FDataflowInput(const Dataflow::FInputParameters& Param)
-	: FDataflowConnection(Dataflow::FPin::EDirection::INPUT, Param)
+FDataflowInput::FDataflowInput(const UE::Dataflow::FInputParameters& Param)
+	: FDataflowConnection(UE::Dataflow::FPin::EDirection::INPUT, Param)
 	, Connection(nullptr)
 {
 }
@@ -69,12 +69,12 @@ const TArray< const FDataflowOutput* > FDataflowInput::GetConnectedOutputs() con
 	return RetList;
 }
 
-void FDataflowInput::Invalidate(const Dataflow::FTimestamp& ModifiedTimestamp)
+void FDataflowInput::Invalidate(const UE::Dataflow::FTimestamp& ModifiedTimestamp)
 {
 	OwningNode->Invalidate(ModifiedTimestamp);
 }
 
-void FDataflowInput::PullValue(Dataflow::FContext& Context) const
+void FDataflowInput::PullValue(UE::Dataflow::FContext& Context) const
 {
 	if (GetConnectedOutputs().Num())
 	{
@@ -119,7 +119,7 @@ void FDataflowInput::FixAndPropagateType(FName InType)
 	}
 }
 
-FDataflowArrayInput::FDataflowArrayInput(int32 InIndex, const Dataflow::FArrayInputParameters& Param)
+FDataflowArrayInput::FDataflowArrayInput(int32 InIndex, const UE::Dataflow::FArrayInputParameters& Param)
 	: FDataflowInput(Param)
 	, Index(InIndex)
 	, ElementOffset(Param.InnerOffset)
@@ -149,15 +149,15 @@ void* FDataflowArrayInput::RealAddress() const
 //
 
 
-FDataflowOutput::FDataflowOutput(const Dataflow::FOutputParameters& Param, FGuid InGuid)
-	: FDataflowConnection(Dataflow::FPin::EDirection::OUTPUT, Param)
+FDataflowOutput::FDataflowOutput(const UE::Dataflow::FOutputParameters& Param, FGuid InGuid)
+	: FDataflowConnection(UE::Dataflow::FPin::EDirection::OUTPUT, Param)
 {
 	Guid = InGuid;
 	OutputLock = MakeShared<FCriticalSection>();
 }
 
-FDataflowOutput::FDataflowOutput(const Dataflow::FOutputParameters& Param)
-	: FDataflowConnection(Dataflow::FPin::EDirection::OUTPUT, Param)
+FDataflowOutput::FDataflowOutput(const UE::Dataflow::FOutputParameters& Param)
+	: FDataflowConnection(UE::Dataflow::FPin::EDirection::OUTPUT, Param)
 {
 	OutputLock = MakeShared<FCriticalSection>();
 }
@@ -202,7 +202,7 @@ bool FDataflowOutput::RemoveConnection(FDataflowConnection* InInput)
 	Connections.RemoveSwap((FDataflowInput*)InInput); return true;
 }
 
-FDataflowOutput& FDataflowOutput::SetPassthroughInput(const Dataflow::FConnectionReference& Reference)
+FDataflowOutput& FDataflowOutput::SetPassthroughInput(const UE::Dataflow::FConnectionReference& Reference)
 {
 	check(OwningNode);
 	const FDataflowInput* const PassthroughInput = OwningNode->FindInput(Reference);
@@ -211,9 +211,9 @@ FDataflowOutput& FDataflowOutput::SetPassthroughInput(const Dataflow::FConnectio
 	return *this;
 }
 
-FDataflowOutput& FDataflowOutput::SetPassthroughInput(const Dataflow::FConnectionKey& Key)
+FDataflowOutput& FDataflowOutput::SetPassthroughInput(const UE::Dataflow::FConnectionKey& Key)
 {
-	check(Key == Dataflow::FConnectionKey::Invalid || !OwningNode || OwningNode->FindInput(Key));
+	check(Key == UE::Dataflow::FConnectionKey::Invalid || !OwningNode || OwningNode->FindInput(Key));
 	PassthroughKey = Key;
 	return *this;
 }
@@ -223,7 +223,7 @@ const FDataflowInput* FDataflowOutput::GetPassthroughInput() const
 	return OwningNode ? OwningNode->FindInput(PassthroughKey) : nullptr;
 }
 
-void FDataflowOutput::Invalidate(const Dataflow::FTimestamp& ModifiedTimestamp)
+void FDataflowOutput::Invalidate(const UE::Dataflow::FTimestamp& ModifiedTimestamp)
 {
 	for (FDataflowConnection* Con : GetConnections())
 	{
@@ -231,7 +231,7 @@ void FDataflowOutput::Invalidate(const Dataflow::FTimestamp& ModifiedTimestamp)
 	}
 }
 
-bool FDataflowOutput::Evaluate(Dataflow::FContext& Context) const
+bool FDataflowOutput::Evaluate(UE::Dataflow::FContext& Context) const
 {
 	check(OwningNode);
 
@@ -248,11 +248,11 @@ bool FDataflowOutput::Evaluate(Dataflow::FContext& Context) const
 	return false;
 }
 
-bool FDataflowOutput::EvaluateImpl(Dataflow::FContext& Context) const
+bool FDataflowOutput::EvaluateImpl(UE::Dataflow::FContext& Context) const
 {
 	UE_LOG(LogChaosDataflow, Verbose, TEXT("FDataflowOutput::EvaluateImpl(): Node [%s], Output [%s]"), *GetOwningNode()->GetName().ToString(), *GetName().ToString());
 
-	Dataflow::FContextScopedCallstack Callstack(Context, this);
+	UE::Dataflow::FContextScopedCallstack Callstack(Context, this);
 	if (Callstack.IsLoopDetected())
 	{ 
 		ensureMsgf(false, TEXT("Connection %s is already in the callstack, this is certainly because of a loop in the graph"), *GetName().ToString());
@@ -278,13 +278,13 @@ bool FDataflowOutput::EvaluateImpl(Dataflow::FContext& Context) const
 	return true;
 }
 
-TFuture<bool> FDataflowOutput::EvaluateParallel(Dataflow::FContext& Context) const
+TFuture<bool> FDataflowOutput::EvaluateParallel(UE::Dataflow::FContext& Context) const
 {
 	return Async(EAsyncExecution::TaskGraph, [&]() -> bool { return this->Evaluate(Context); });
 }
 
 
-void FDataflowOutput::ForwardInput(const Dataflow::FConnectionReference& InputReference, Dataflow::FContext& Context) const
+void FDataflowOutput::ForwardInput(const UE::Dataflow::FConnectionReference& InputReference, UE::Dataflow::FContext& Context) const
 {
 	if (Property && OwningNode)
 	{
@@ -293,7 +293,7 @@ void FDataflowOutput::ForwardInput(const Dataflow::FConnectionReference& InputRe
 	}
 }
 
-void FDataflowOutput::ForwardInput(const FDataflowInput* Input, Dataflow::FContext& Context) const
+void FDataflowOutput::ForwardInput(const FDataflowInput* Input, UE::Dataflow::FContext& Context) const
 {
 	if (Property && OwningNode)
 	{

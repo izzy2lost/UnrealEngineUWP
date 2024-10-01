@@ -13,7 +13,7 @@
 
 #define LOCTEXT_NAMESPACE "ChaosClothAssetDeleteElementNode"
 
-FChaosClothAssetDeleteElementNode::FChaosClothAssetDeleteElementNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetDeleteElementNode::FChaosClothAssetDeleteElementNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
@@ -21,7 +21,7 @@ FChaosClothAssetDeleteElementNode::FChaosClothAssetDeleteElementNode(const Dataf
 	RegisterInputConnection(&SelectionName.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
 }
 
-void FChaosClothAssetDeleteElementNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FChaosClothAssetDeleteElementNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
@@ -372,7 +372,7 @@ void FChaosClothAssetDeleteElementNode::Evaluate(Dataflow::FContext& Context, co
 	}
 }
 
-void FChaosClothAssetDeleteElementNode::OnSelected(Dataflow::FContext& Context)
+void FChaosClothAssetDeleteElementNode::OnSelected(UE::Dataflow::FContext& Context)
 {
 	// Re-evaluate the input collection
 	const FManagedArrayCollection& SelectionCollection = GetValue<FManagedArrayCollection>(Context, &Collection);

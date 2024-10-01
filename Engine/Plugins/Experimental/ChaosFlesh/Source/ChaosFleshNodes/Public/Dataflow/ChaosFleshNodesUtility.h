@@ -24,7 +24,7 @@ enum class ESkeletalSeletionMode : uint8
 	Chaos_Max UMETA(Hidden)
 };
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	TArray<FIntVector3> CHAOSFLESHNODES_API GetSurfaceTriangles(const TArray<FIntVector4>& Tets, const bool bKeepInterior);
 

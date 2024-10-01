@@ -23,7 +23,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Add Stitch")
 	FChaosClothAssetConnectableIStringValue MergeToSingleVertexSelection;
 
-	FChaosClothAssetAddStitchNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetAddStitchNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };

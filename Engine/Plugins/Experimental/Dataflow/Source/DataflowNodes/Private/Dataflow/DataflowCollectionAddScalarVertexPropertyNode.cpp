@@ -45,13 +45,13 @@ TArray<FName> DataflowAddScalarVertexPropertyCallbackRegistry::GetTargetGroupNam
 	return UniqueNames;
 }
 
-TArray<Dataflow::FRenderingParameter> DataflowAddScalarVertexPropertyCallbackRegistry::GetRenderingParameters() const
+TArray<UE::Dataflow::FRenderingParameter> DataflowAddScalarVertexPropertyCallbackRegistry::GetRenderingParameters() const
 {
-	TArray<Dataflow::FRenderingParameter> UniqueParameters;
+	TArray<UE::Dataflow::FRenderingParameter> UniqueParameters;
 
 	for (const TPair<FName, TUniquePtr<IDataflowAddScalarVertexPropertyCallbacks>>& CallbacksEntry : AllCallbacks)
 	{
-		for (const Dataflow::FRenderingParameter& RenderingParameter : CallbacksEntry.Value->GetRenderingParameters())
+		for (const UE::Dataflow::FRenderingParameter& RenderingParameter : CallbacksEntry.Value->GetRenderingParameters())
 		{
 			UniqueParameters.AddUnique(RenderingParameter);
 		}
@@ -60,7 +60,7 @@ TArray<Dataflow::FRenderingParameter> DataflowAddScalarVertexPropertyCallbackReg
 }
 
 
-FDataflowCollectionAddScalarVertexPropertyNode::FDataflowCollectionAddScalarVertexPropertyNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowCollectionAddScalarVertexPropertyNode::FDataflowCollectionAddScalarVertexPropertyNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
@@ -68,15 +68,15 @@ FDataflowCollectionAddScalarVertexPropertyNode::FDataflowCollectionAddScalarVert
 	RegisterOutputConnection(&AttributeKey);
 }
 
-TArray<::Dataflow::FRenderingParameter> FDataflowCollectionAddScalarVertexPropertyNode::GetRenderParametersImpl() const
+TArray<UE::Dataflow::FRenderingParameter> FDataflowCollectionAddScalarVertexPropertyNode::GetRenderParametersImpl() const
 {
 	return DataflowAddScalarVertexPropertyCallbackRegistry::Get().GetRenderingParameters();
 }
 
 
-void FDataflowCollectionAddScalarVertexPropertyNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDataflowCollectionAddScalarVertexPropertyNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
-	using namespace Dataflow;
+	using namespace UE::Dataflow;
 
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
@@ -114,7 +114,7 @@ void FDataflowCollectionAddScalarVertexPropertyNode::Evaluate(Dataflow::FContext
 	}
 }
 
-void FDataflowCollectionAddScalarVertexPropertyNode::OnSelected(Dataflow::FContext& Context)
+void FDataflowCollectionAddScalarVertexPropertyNode::OnSelected(UE::Dataflow::FContext& Context)
 {
 	// Re-evaluate the input collection
 	FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);

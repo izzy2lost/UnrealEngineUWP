@@ -9,7 +9,7 @@ struct FManagedArrayCollection;
 struct FDataflowNode;
 class FString;
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	/**
 	* Dataflow Node Tools
@@ -26,6 +26,6 @@ namespace Dataflow
 		 */
 		static void MakeCollectionName(FString& InOutString);
 	};
-}  // End namespace Dataflow
+}  // End namespace UE::Dataflow
 
 DECLARE_LOG_CATEGORY_EXTERN(LogDataflowNodes, Log, All);

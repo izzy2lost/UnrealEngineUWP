@@ -85,7 +85,7 @@ public:
 	FChaosClothAssetWeightedValueOverride WeftScale;
 
 
-	FChaosClothAssetSimulationStretchOverrideConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetSimulationStretchOverrideConfigNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;

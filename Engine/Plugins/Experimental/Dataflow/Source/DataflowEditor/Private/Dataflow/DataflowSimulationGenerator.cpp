@@ -30,7 +30,7 @@ void FDataflowSimulationTask::DoWork()
 			if(bAsyncCaching)
 			{
 				// Compute all the skelmesh animations at the simulation time
-				Dataflow::ComputeSkeletonAnimation(TaskManager->PreviewActor, SimulationTime);
+				UE::Dataflow::ComputeSkeletonAnimation(TaskManager->PreviewActor, SimulationTime);
 				
 				// Background task : run directly the advance simulation data without coming back to the game thread
 				UDataflowSimulationManager* DataflowManager = SimulationWorld->GetSubsystem<UDataflowSimulationManager>();
@@ -47,7 +47,7 @@ void FDataflowSimulationTask::DoWork()
 			else
 			{
 				// Update all the skelmesh animations at the simulation time
-				Dataflow::UpdateSkeletonAnimation(TaskManager->PreviewActor, SimulationTime);
+				UE::Dataflow::UpdateSkeletonAnimation(TaskManager->PreviewActor, SimulationTime);
 				
 				// Foreground task : Run the world ticking 
 				SimulationWorld->Tick(ELevelTick::LEVELTICK_All, DeltaTime);
@@ -75,8 +75,8 @@ bool FDataflowTaskManager::AllocateSimulationResource(const FVector2f& TimeRange
 	
 	CacheManager = SimulationWorld->SpawnActor<AChaosCacheManager>();
 
-	PreviewActor = Dataflow::SpawnSimulatedActor(ActorClass, CacheManager, CacheAsset, true, DataflowContent, BlueprintTransform);
-	Dataflow::SetupSkeletonAnimation(PreviewActor);
+	PreviewActor = UE::Dataflow::SpawnSimulatedActor(ActorClass, CacheManager, CacheAsset, true, DataflowContent, BlueprintTransform);
+	UE::Dataflow::SetupSkeletonAnimation(PreviewActor);
 
 	// Init the cache manager
 	CacheManager->SetObservedComponentProperties(CacheManager->CacheMode);
@@ -98,7 +98,7 @@ bool FDataflowTaskManager::AllocateSimulationResource(const FVector2f& TimeRange
 		if(SimulationTask->GetTask().bAsyncCaching)
 		{
 			// Update all the skelmesh animations at the simulation time
-			Dataflow::UpdateSkeletonAnimation(PreviewActor, SimulationTask->GetTask().MinTime+SimulationTask->GetTask().DeltaTime);
+			UE::Dataflow::UpdateSkeletonAnimation(PreviewActor, SimulationTask->GetTask().MinTime+SimulationTask->GetTask().DeltaTime);
 				
 			// Foreground task : Run the world ticking 
 			SimulationWorld->Tick(ELevelTick::LEVELTICK_All, SimulationTask->GetTask().DeltaTime);

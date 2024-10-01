@@ -40,25 +40,25 @@
 
 void IGeometryCollectionNodesPlugin::StartupModule()
 {
-	Dataflow::GeometryCollectionEngineNodes();
-	Dataflow::GeometryCollectionEngineAssetNodes();
-	Dataflow::GeometryCollectionProcessingNodes();
-	Dataflow::GeometryCollectionSelectionNodes();
-	Dataflow::GeometryCollectionMeshNodes();
-	Dataflow::GeometryCollectionClusteringNodes();
-	Dataflow::GeometryCollectionFracturingNodes();
-	Dataflow::GeometryCollectionEditNodes();
-	Dataflow::GeometryCollectionUtilityNodes();
-	Dataflow::GeometryCollectionMaterialNodes();
-	Dataflow::GeometryCollectionFieldNodes();
-	Dataflow::GeometryCollectionOverrideNodes();
-	Dataflow::GeometryCollectionMakeNodes();
-	Dataflow::GeometryCollectionMathNodes();
-	Dataflow::GeometryCollectionConversionNodes();
-	Dataflow::GeometryCollectionVerticesNodes();
-	Dataflow::GeometryCollectionArrayNodes();
-	Dataflow::GeometryCollectionDebugNodes();
-	Dataflow::GeometryCollectionSamplingNodes();
+	UE::Dataflow::GeometryCollectionEngineNodes();
+	UE::Dataflow::GeometryCollectionEngineAssetNodes();
+	UE::Dataflow::GeometryCollectionProcessingNodes();
+	UE::Dataflow::GeometryCollectionSelectionNodes();
+	UE::Dataflow::GeometryCollectionMeshNodes();
+	UE::Dataflow::GeometryCollectionClusteringNodes();
+	UE::Dataflow::GeometryCollectionFracturingNodes();
+	UE::Dataflow::GeometryCollectionEditNodes();
+	UE::Dataflow::GeometryCollectionUtilityNodes();
+	UE::Dataflow::GeometryCollectionMaterialNodes();
+	UE::Dataflow::GeometryCollectionFieldNodes();
+	UE::Dataflow::GeometryCollectionOverrideNodes();
+	UE::Dataflow::GeometryCollectionMakeNodes();
+	UE::Dataflow::GeometryCollectionMathNodes();
+	UE::Dataflow::GeometryCollectionConversionNodes();
+	UE::Dataflow::GeometryCollectionVerticesNodes();
+	UE::Dataflow::GeometryCollectionArrayNodes();
+	UE::Dataflow::GeometryCollectionDebugNodes();
+	UE::Dataflow::GeometryCollectionSamplingNodes();
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FCreateColorArrayFromFloatArrayDataflowNode);
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FGeometryCollectionVertexScalarToVertexIndicesNode);
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FSetVertexColorFromFloatArrayDataflowNode);

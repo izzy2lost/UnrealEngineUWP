@@ -10,11 +10,11 @@
 namespace UE::Dataflow
 {
 	/** Simulation context that will be used by all the simulation nodes*/
-	template<typename Base = ::Dataflow::FContextSingle>
-	class DATAFLOWSIMULATION_API TSimulationContext : public ::Dataflow::TEngineContext<Base>
+	template<typename Base = UE::Dataflow::FContextSingle>
+	class DATAFLOWSIMULATION_API TSimulationContext : public UE::Dataflow::TEngineContext<Base>
 	{
 	public:
-		DATAFLOW_CONTEXT_INTERNAL(::Dataflow::TEngineContext<Base>, TSimulationContext);
+		DATAFLOW_CONTEXT_INTERNAL(UE::Dataflow::TEngineContext<Base>, TSimulationContext);
 
 		explicit TSimulationContext(const TObjectPtr<UObject>& InOwner)
 				: Super(InOwner)
@@ -114,6 +114,6 @@ namespace UE::Dataflow
 		}
 	}
 
-	using FDataflowSimulationContext = TSimulationContext<::Dataflow::FContextSingle>;
-	using FDataflowSimulationContextThreaded =  TSimulationContext<::Dataflow::FContextThreaded>;
+	using FDataflowSimulationContext = TSimulationContext<UE::Dataflow::FContextSingle>;
+	using FDataflowSimulationContextThreaded =  TSimulationContext<UE::Dataflow::FContextThreaded>;
 }

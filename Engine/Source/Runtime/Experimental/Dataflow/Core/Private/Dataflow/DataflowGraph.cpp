@@ -12,7 +12,7 @@
 
 DEFINE_LOG_CATEGORY_STATIC(DATAFLOW_LOG, Error, All);
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	TSet<FName> FGraph::RegisteredFilters = {};
 

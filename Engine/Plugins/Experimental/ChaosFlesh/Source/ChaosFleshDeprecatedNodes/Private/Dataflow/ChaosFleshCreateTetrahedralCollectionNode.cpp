@@ -30,7 +30,7 @@
 //=============================================================================
 
 
-void FGenerateTetrahedralCollectionDataflowNodes::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FGenerateTetrahedralCollectionDataflowNodes::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<DataType>(&Collection))
 	{
@@ -145,7 +145,7 @@ void FGenerateTetrahedralCollectionDataflowNodes::Evaluate(Dataflow::FContext& C
 }
 
 void FGenerateTetrahedralCollectionDataflowNodes::EvaluateIsoStuffing(
-	Dataflow::FContext& Context, 
+	UE::Dataflow::FContext& Context, 
 	TUniquePtr<FFleshCollection>& InCollection,
 	const UE::Geometry::FDynamicMesh3& DynamicMesh) const
 {
@@ -174,7 +174,7 @@ void FGenerateTetrahedralCollectionDataflowNodes::EvaluateIsoStuffing(
 		{
 			TArray<FVector> Vertices; Vertices.SetNumUninitialized(IsosurfaceStuffing.Vertices.Num());
 			TArray<FIntVector4> Elements; Elements.SetNumUninitialized(IsosurfaceStuffing.Tets.Num());
-			TArray<FIntVector3> SurfaceElements = Dataflow::GetSurfaceTriangles(IsosurfaceStuffing.Tets, !bDiscardInteriorTriangles);
+			TArray<FIntVector3> SurfaceElements = UE::Dataflow::GetSurfaceTriangles(IsosurfaceStuffing.Tets, !bDiscardInteriorTriangles);
 
 			for (int32 Tdx = 0; Tdx < IsosurfaceStuffing.Tets.Num(); ++Tdx)
 			{
@@ -202,7 +202,7 @@ void FGenerateTetrahedralCollectionDataflowNodes::EvaluateIsoStuffing(
 }
 
 void FGenerateTetrahedralCollectionDataflowNodes::EvaluateTetWild(
-	Dataflow::FContext& Context, 
+	UE::Dataflow::FContext& Context, 
 	TUniquePtr<FFleshCollection>& InCollection,
 	const UE::Geometry::FDynamicMesh3& DynamicMesh) const
 {
@@ -240,7 +240,7 @@ void FGenerateTetrahedralCollectionDataflowNodes::EvaluateTetWild(
 		UE_LOG(LogChaosFlesh, Display,TEXT("Generating tet mesh via TetWild..."));
 		if (UE::Geometry::FTetWild::ComputeTetMesh(Params, Verts, Tris, TetVerts, Tets, &Progress))
 		{
-			TArray<FIntVector3> SurfaceElements = Dataflow::GetSurfaceTriangles(Tets, !bDiscardInteriorTriangles);
+			TArray<FIntVector3> SurfaceElements = UE::Dataflow::GetSurfaceTriangles(Tets, !bDiscardInteriorTriangles);
 			TUniquePtr<FTetrahedralCollection> TetCollection(FTetrahedralCollection::NewTetrahedralCollection(TetVerts, SurfaceElements, Tets));
 			InCollection->AppendGeometry(*TetCollection.Get());
 

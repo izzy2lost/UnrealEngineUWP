@@ -10,11 +10,11 @@
 
 void IDataflowSimulationPlugin::StartupModule()
 {
-	Dataflow::RegisterDataflowSimulationNodes();
+	UE::Dataflow::RegisterDataflowSimulationNodes();
 
-	Dataflow::RegisterNodeFilter(FDataflowSimulationNode::StaticType());
-	Dataflow::RegisterNodeFilter(FDataflowInvalidNode::StaticType());
-	Dataflow::RegisterNodeFilter(FDataflowExecutionNode::StaticType());
+	UE::Dataflow::RegisterNodeFilter(FDataflowSimulationNode::StaticType());
+	UE::Dataflow::RegisterNodeFilter(FDataflowInvalidNode::StaticType());
+	UE::Dataflow::RegisterNodeFilter(FDataflowExecutionNode::StaticType());
 
 	UDataflowSimulationManager::OnStartup();
 }

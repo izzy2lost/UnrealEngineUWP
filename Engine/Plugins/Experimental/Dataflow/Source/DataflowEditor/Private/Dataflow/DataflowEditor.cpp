@@ -36,7 +36,7 @@ void UDataflowEditor::Initialize(const TArray<TObjectPtr<UObject>>& InObjects, c
 		{
 			if(UDataflow* DataflowAsset = Cast<UDataflow>(ContentOwner))
 			{
-				EditorContent = DataflowContextHelpers::CreateNewDataflowContent<UDataflowBaseContent>(ContentOwner);
+				EditorContent = UE::DataflowContextHelpers::CreateNewDataflowContent<UDataflowBaseContent>(ContentOwner);
 				EditorContent->SetDataflowOwner(DataflowAsset);
 				EditorContent->SetDataflowAsset(DataflowAsset);
 			}
@@ -69,7 +69,7 @@ void UDataflowEditor::Initialize(const TArray<TObjectPtr<UObject>>& InObjects, c
 		UpdateEditorContent();
 
 		// Update and build the terminal contents
-		UpdateTerminalContents(Dataflow::FTimestamp::Invalid);
+		UpdateTerminalContents(UE::Dataflow::FTimestamp::Invalid);
 		
 		// Potentially we could add additional objects to edit here (fields, meshes....)
 		// If these objects have a matching factory we would be able to use geometry tools
@@ -96,7 +96,7 @@ void UDataflowEditor::UpdateEditorContent()
 	}
 }
 
-void UDataflowEditor::RemoveTerminalContents(const TSharedPtr<Dataflow::FGraph>& DataflowGraph, ValidTerminalsType& ValidTerminals)
+void UDataflowEditor::RemoveTerminalContents(const TSharedPtr<UE::Dataflow::FGraph>& DataflowGraph, ValidTerminalsType& ValidTerminals)
 {
 	for(int32 ContentIndex = TerminalContents.Num()-1; ContentIndex >= 0; --ContentIndex)
 	{
@@ -122,7 +122,7 @@ void UDataflowEditor::RemoveTerminalContents(const TSharedPtr<Dataflow::FGraph>&
 	}
 }
 
-void UDataflowEditor::AddTerminalContents(const TSharedPtr<Dataflow::FGraph>& DataflowGraph, ValidTerminalsType& ValidTerminals)
+void UDataflowEditor::AddTerminalContents(const TSharedPtr<UE::Dataflow::FGraph>& DataflowGraph, ValidTerminalsType& ValidTerminals)
 {
 	for(const TSharedPtr<FDataflowNode>& DataflowNode : DataflowGraph->GetFilteredNodes(FDataflowTerminalNode::StaticType()))
 	{
@@ -151,14 +151,14 @@ void UDataflowEditor::AddTerminalContents(const TSharedPtr<Dataflow::FGraph>& Da
 	}
 }
 
-void UDataflowEditor::UpdateTerminalContents(const Dataflow::FTimestamp TimeStamp)
+void UDataflowEditor::UpdateTerminalContents(const UE::Dataflow::FTimestamp TimeStamp)
 {
 	bHasTerminalsDirty = false;
 	
 	// update of the terminal contents only if no terminal asset on the main editor content
 	if(EditorContent && !EditorContent->GetTerminalAsset() && EditorContent->GetDataflowAsset())
 	{
-		if(const TSharedPtr<Dataflow::FGraph> DataflowGraph = EditorContent->GetDataflowAsset()->GetDataflow())
+		if(const TSharedPtr<UE::Dataflow::FGraph> DataflowGraph = EditorContent->GetDataflowAsset()->GetDataflow())
 		{
 			ValidTerminalsType ValidTerminals;
 

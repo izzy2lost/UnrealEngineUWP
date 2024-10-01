@@ -5,7 +5,7 @@
 #include "Dataflow/DataflowNode.h"
 #include "Misc/LazySingleton.h"
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	FNodeColorsRegistry::FNodeColorsRegistry()
 	{

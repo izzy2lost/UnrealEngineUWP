@@ -22,7 +22,7 @@
 
 #define LOCTEXT_NAMESPACE "DataflowNode"
 
-namespace Dataflow::Private
+namespace UE::Dataflow::Private
 {
 	static const FName ManagedArrayCollectionType = FName("FManagedArrayCollection");
 	static const FName FloatType = FName("float");
@@ -39,7 +39,7 @@ namespace Dataflow::Private
 	static const FName BoxType = FName("FBox");
 	static const FName SphereType = FName("FSphere");
 	static const FName DataflowAnyTypeType = FName("FDataflowAnyType");
-} // namespace Dataflow::Private
+} // namespace UE::Dataflow::Private
 
 UDataflowSchema::UDataflowSchema()
 {
@@ -108,9 +108,9 @@ void UDataflowSchema::GetContextMenuActions(class UToolMenu* Menu, class UGraphN
 
 void UDataflowSchema::GetGraphContextActions(FGraphContextMenuBuilder& ContextMenuBuilder) const
 {
-	if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
+	if (UE::Dataflow::FNodeFactory* Factory = UE::Dataflow::FNodeFactory::GetInstance())
 	{
-		for (Dataflow::FFactoryParameters NodeParameters : Factory->RegisteredParameters())
+		for (UE::Dataflow::FFactoryParameters NodeParameters : Factory->RegisteredParameters())
 		{
 			if (TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> Action =
 				FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode::CreateAction(ContextMenuBuilder.CurrentGraph, NodeParameters.TypeName, NodeParameters.DisplayName))
@@ -243,63 +243,63 @@ FLinearColor UDataflowSchema::GetTypeColor(const FName& Type)
 	const UGraphEditorSettings* Settings = GetDefault<UGraphEditorSettings>();
 	const UDataflowSettings* DataflowSettings = GetDefault<UDataflowSettings>();
 
-	if (Type == Dataflow::Private::ManagedArrayCollectionType)
+	if (Type == UE::Dataflow::Private::ManagedArrayCollectionType)
 	{
 		return DataflowSettings->ManagedArrayCollectionPinTypeColor;
 	}
-	else if (Type == Dataflow::Private::FloatType)
+	else if (Type == UE::Dataflow::Private::FloatType)
 	{
 		return Settings->FloatPinTypeColor;
 	}
-	else if (Type == Dataflow::Private::DoubleType)
+	else if (Type == UE::Dataflow::Private::DoubleType)
 	{
 		return Settings->DoublePinTypeColor;
 	}
-	else if (Type == Dataflow::Private::Int32Type)
+	else if (Type == UE::Dataflow::Private::Int32Type)
 	{
 		return Settings->IntPinTypeColor;
 	}
-	else if (Type == Dataflow::Private::BoolType)
+	else if (Type == UE::Dataflow::Private::BoolType)
 	{
 		return Settings->BooleanPinTypeColor;
 	}
-	else if (Type == Dataflow::Private::StringType)
+	else if (Type == UE::Dataflow::Private::StringType)
 	{
 		return Settings->StringPinTypeColor;
 	}
-	else if (Type == Dataflow::Private::NameType)
+	else if (Type == UE::Dataflow::Private::NameType)
 	{
 		return Settings->NamePinTypeColor;
 	}
-	else if (Type == Dataflow::Private::TextType)
+	else if (Type == UE::Dataflow::Private::TextType)
 	{
 		return Settings->TextPinTypeColor;
 	}
-	else if (Type == Dataflow::Private::VectorType)
+	else if (Type == UE::Dataflow::Private::VectorType)
 	{
 		return Settings->VectorPinTypeColor;
 	}
-	else if (Type == Dataflow::Private::TransformType)
+	else if (Type == UE::Dataflow::Private::TransformType)
 	{
 		return Settings->TransformPinTypeColor;
 	}
-	else if (Type == Dataflow::Private::RotatorType)
+	else if (Type == UE::Dataflow::Private::RotatorType)
 	{
 		return Settings->RotatorPinTypeColor;
 	}
-	else if (Type == Dataflow::Private::ArrayType)
+	else if (Type == UE::Dataflow::Private::ArrayType)
 	{
 		return DataflowSettings->ArrayPinTypeColor;
 	}
-	else if (Type == Dataflow::Private::BoxType)
+	else if (Type == UE::Dataflow::Private::BoxType)
 	{
 		return DataflowSettings->BoxPinTypeColor;
 	}
-	else if (Type == Dataflow::Private::SphereType)
+	else if (Type == UE::Dataflow::Private::SphereType)
 	{
 		return DataflowSettings->SpherePinTypeColor;
 	}
-	else if (Type == Dataflow::Private::DataflowAnyTypeType)
+	else if (Type == UE::Dataflow::Private::DataflowAnyTypeType)
 	{
 		return DataflowSettings->DataflowAnyTypePinTypeColor;
 	}

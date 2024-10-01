@@ -39,7 +39,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionFracturingNodes)
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 
 	void GeometryCollectionFracturingNodes()
@@ -65,7 +65,7 @@ namespace Dataflow
 	}
 }
 
-void FUniformScatterPointsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FUniformScatterPointsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<FVector>>(&Points))
 	{
@@ -94,7 +94,7 @@ void FUniformScatterPointsDataflowNode::Evaluate(Dataflow::FContext& Context, co
 	}
 }
 
-void FUniformScatterPointsDataflowNode_v2::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FUniformScatterPointsDataflowNode_v2::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<FVector>>(&Points))
 	{
@@ -123,7 +123,7 @@ void FUniformScatterPointsDataflowNode_v2::Evaluate(Dataflow::FContext& Context,
 	}
 }
 
-void FRadialScatterPointsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FRadialScatterPointsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<FVector>>(&Points))
 	{
@@ -153,7 +153,7 @@ void FRadialScatterPointsDataflowNode::Evaluate(Dataflow::FContext& Context, con
 	}
 }
 
-void FRadialScatterPointsDataflowNode_v2::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FRadialScatterPointsDataflowNode_v2::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<FVector>>(&Points))
 	{
@@ -267,7 +267,7 @@ void FRadialScatterPointsDataflowNode_v2::Evaluate(Dataflow::FContext& Context, 
 	}
 }
 
-void FGridScatterPointsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FGridScatterPointsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<FVector>>(&Points))
 	{
@@ -323,7 +323,7 @@ void FGridScatterPointsDataflowNode::Evaluate(Dataflow::FContext& Context, const
 	}
 }
 
-void FVoronoiFractureDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FVoronoiFractureDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
@@ -363,7 +363,7 @@ void FVoronoiFractureDataflowNode::Evaluate(Dataflow::FContext& Context, const F
 	}
 }
 
-void FVoronoiFractureDataflowNode_v2::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FVoronoiFractureDataflowNode_v2::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection) ||
 		Out->IsA<FDataflowTransformSelection>(&TransformSelection) ||
@@ -452,7 +452,7 @@ void FVoronoiFractureDataflowNode_v2::Evaluate(Dataflow::FContext& Context, cons
 	}
 }
 
-void FPlaneCutterDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FPlaneCutterDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
@@ -493,7 +493,7 @@ void FPlaneCutterDataflowNode::Evaluate(Dataflow::FContext& Context, const FData
 	}
 }
 
-void FPlaneCutterDataflowNode_v2::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FPlaneCutterDataflowNode_v2::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection) ||
 		Out->IsA<FDataflowTransformSelection>(&TransformSelection) ||
@@ -582,7 +582,7 @@ void FPlaneCutterDataflowNode_v2::Evaluate(Dataflow::FContext& Context, const FD
 	}
 }
 
-void FExplodedViewDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FExplodedViewDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
@@ -594,7 +594,7 @@ void FExplodedViewDataflowNode::Evaluate(Dataflow::FContext& Context, const FDat
 	}
 }
 
-void FSliceCutterDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FSliceCutterDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection) ||
 		Out->IsA<FDataflowTransformSelection>(&TransformSelection) ||
@@ -686,7 +686,7 @@ void FSliceCutterDataflowNode::Evaluate(Dataflow::FContext& Context, const FData
 	}
 }
 
-void FBrickCutterDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FBrickCutterDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection) ||
 		Out->IsA<FDataflowTransformSelection>(&TransformSelection) ||
@@ -791,7 +791,7 @@ void FBrickCutterDataflowNode::Evaluate(Dataflow::FContext& Context, const FData
 	}
 }
 
-void FMeshCutterDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMeshCutterDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Collection) ||
 		Out->IsA(&TransformSelection) ||

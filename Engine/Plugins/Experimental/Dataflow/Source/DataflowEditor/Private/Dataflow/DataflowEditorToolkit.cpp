@@ -726,8 +726,8 @@ void FDataflowEditorToolkit::OnPropertyValueChanged(const FPropertyChangedEvent&
 		ensure(EditorContent);
 		if (UDataflow* DataflowAsset = EditorContent->GetDataflowAsset())
 		{
-			TSharedPtr<Dataflow::FEngineContext> DataflowContext = EditorContent->GetDataflowContext();
-			Dataflow::FTimestamp LastNodeTimestamp = EditorContent->GetLastModifiedTimestamp();
+			TSharedPtr<UE::Dataflow::FEngineContext> DataflowContext = EditorContent->GetDataflowContext();
+			UE::Dataflow::FTimestamp LastNodeTimestamp = EditorContent->GetLastModifiedTimestamp();
 			
 			FDataflowEditorCommands::OnPropertyValueChanged(DataflowAsset, DataflowContext, LastNodeTimestamp, PropertyChangedEvent, SelectedDataflowNodes);
 
@@ -952,7 +952,7 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 				EditorContent->SetSelectedNode(PrimarySelection);
 
 				// Call the node's OnSelected function. Some nodes use this to cache information from the inputs (e.g. FDataflowCollectionAddScalarVertexPropertyNode::CachedCollectionGroupNames)
-				TSharedPtr<Dataflow::FEngineContext> DataflowContext = EditorContent->GetDataflowContext();
+				TSharedPtr<UE::Dataflow::FEngineContext> DataflowContext = EditorContent->GetDataflowContext();
 				if (PrimarySelection && DataflowContext.IsValid())
 				{
 					if (const TSharedPtr<FDataflowNode> DataflowNode = PrimarySelection->GetDataflowNode())
@@ -993,22 +993,22 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 
 		if (PrimarySelection && GetEditorContent())
 		{
-			if (!Dataflow::CanRenderNodeOutput(*PrimarySelection, *GetEditorContent(), *DataflowMode->GetConstructionViewMode()))
+			if (!UE::Dataflow::CanRenderNodeOutput(*PrimarySelection, *GetEditorContent(), *DataflowMode->GetConstructionViewMode()))
 			{
 				// Selected node can't render with the current view mode. Check through available view modes and see if it can render with any of them
 
 				bFoundViewMode = false;
 
-				TArray<Dataflow::FRenderingParameter> RenderingParameters = PrimarySelection->GetRenderParameters();
-				for (const Dataflow::FRenderingParameter& Param : RenderingParameters)
+				TArray<UE::Dataflow::FRenderingParameter> RenderingParameters = PrimarySelection->GetRenderParameters();
+				for (const UE::Dataflow::FRenderingParameter& Param : RenderingParameters)
 				{
 					const FName NodeOutputTypeName = Param.Type;
 
-					for (const TPair<FName, TUniquePtr<Dataflow::IDataflowConstructionViewMode>>& ViewMode : Dataflow::FRenderingViewModeFactory::GetInstance().GetViewModes())
+					for (const TPair<FName, TUniquePtr<UE::Dataflow::IDataflowConstructionViewMode>>& ViewMode : UE::Dataflow::FRenderingViewModeFactory::GetInstance().GetViewModes())
 					{
 						check(ViewMode.Value.IsValid());
 
-						const bool bCanRender = Dataflow::CanRenderNodeOutput(*PrimarySelection, *GetEditorContent(), *ViewMode.Value);
+						const bool bCanRender = UE::Dataflow::CanRenderNodeOutput(*PrimarySelection, *GetEditorContent(), *ViewMode.Value);
 
 						if (bCanRender)
 						{
@@ -1029,7 +1029,7 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 		if (!bFoundViewMode)
 		{
 			// TODO: Clear and disable View Mode Button. For now set default mode to the built-in 3D view mode.
-			DataflowMode->SetConstructionViewMode(Dataflow::FDataflowConstruction3DViewMode::Name);
+			DataflowMode->SetConstructionViewMode(UE::Dataflow::FDataflowConstruction3DViewMode::Name);
 		}
 	}
 }
@@ -1079,11 +1079,11 @@ void FDataflowEditorToolkit::Tick(float DeltaTime)
 	{
 		if (EditorContent->GetDataflowAsset())
 		{
-			Dataflow::FTimestamp InitTimeStamp = EditorContent->GetLastModifiedTimestamp();
+			UE::Dataflow::FTimestamp InitTimeStamp = EditorContent->GetLastModifiedTimestamp();
 			if (!EditorContent->GetDataflowContext())
 			{
-				EditorContent->SetDataflowContext(MakeShared<Dataflow::FEngineContext>(EditorContent->GetDataflowOwner()));
-				InitTimeStamp = Dataflow::FTimestamp::Invalid;
+				EditorContent->SetDataflowContext(MakeShared<UE::Dataflow::FEngineContext>(EditorContent->GetDataflowOwner()));
+				InitTimeStamp = UE::Dataflow::FTimestamp::Invalid;
 			}
 
 			// Update the list of dataflow terminal contents 
@@ -1097,16 +1097,16 @@ void FDataflowEditorToolkit::Tick(float DeltaTime)
 				{
 					if (const UDataflow* const Dataflow = EditorContent->GetDataflowAsset())
 					{
-						if (const TSharedPtr<const Dataflow::FGraph> Graph = Dataflow->GetDataflow())
+						if (const TSharedPtr<const UE::Dataflow::FGraph> Graph = Dataflow->GetDataflow())
 						{
 							const FName TerminalNodeName(TerminalContent->GetDataflowTerminal());
 							const FDataflowNode* const Node = Graph->FindBaseNode(TerminalNodeName).Get();
 
-							Dataflow::FTimestamp TerminalNodeTimeStamp = InitTimeStamp;
+							UE::Dataflow::FTimestamp TerminalNodeTimeStamp = InitTimeStamp;
 							EvaluateNode(Node, nullptr, TerminalNodeTimeStamp);  // When Node is null, EvaluateNode falls back on the EditorContent terminal node
 
 							// Take the Max of the existing time stamp, as other terminal nodes might have more recent invalidations
-							const Dataflow::FTimestamp LastModifiedTimestamp = FMath::Max(EditorContent->GetLastModifiedTimestamp(), TerminalNodeTimeStamp);
+							const UE::Dataflow::FTimestamp LastModifiedTimestamp = FMath::Max(EditorContent->GetLastModifiedTimestamp(), TerminalNodeTimeStamp);
 							EditorContent->SetLastModifiedTimestamp(LastModifiedTimestamp);
 						}
 					}
@@ -1114,7 +1114,7 @@ void FDataflowEditorToolkit::Tick(float DeltaTime)
 			}
 			else
 			{
-				Dataflow::FTimestamp TerminalNodeTimeStamp = InitTimeStamp;
+				UE::Dataflow::FTimestamp TerminalNodeTimeStamp = InitTimeStamp;
 				EvaluateNode(nullptr, nullptr, TerminalNodeTimeStamp);
 				EditorContent->SetLastModifiedTimestamp(TerminalNodeTimeStamp);
 			}
@@ -1137,7 +1137,7 @@ TStatId FDataflowEditorToolkit::GetStatId() const
 	RETURN_QUICK_DECLARE_CYCLE_STAT(FDataflowEditorToolkit, STATGROUP_Tickables);
 }
 
-void FDataflowEditorToolkit::EvaluateNode(const FDataflowNode* Node, const FDataflowOutput* Output, Dataflow::FTimestamp& InOutTimestamp)
+void FDataflowEditorToolkit::EvaluateNode(const FDataflowNode* Node, const FDataflowOutput* Output, UE::Dataflow::FTimestamp& InOutTimestamp)
 {
 	UE_LOG(LogChaosDataflow, Verbose, TEXT("FDataflowEditorToolkit::EvaluateNode(): Node [%s], Output [%s]"), Node ? *Node->GetName().ToString() : TEXT("nullptr"), Output ? *Output->GetName().ToString() : TEXT("nullptr"));
 
@@ -1159,14 +1159,14 @@ void FDataflowEditorToolkit::EvaluateNode(const FDataflowNode* Node, const FData
 TSharedRef<SDataflowGraphEditor> FDataflowEditorToolkit::CreateGraphEditorWidget(UDataflow* DataflowToEdit, TSharedPtr<IStructureDetailsView> InNodeDetailsEditor)
 {
 	ensure(DataflowToEdit);
-	using namespace Dataflow;
+	using namespace UE::Dataflow;
 
 	const FDataflowEditorCommands::FGraphEvaluationCallback Evaluate =
 		[this](const FDataflowNode* Node, const FDataflowOutput* Output)
 		{
 			if (const TObjectPtr<UDataflowBaseContent>& EditorContent = GetEditorContent())
 			{
-				Dataflow::FTimestamp LastNodeTimestamp = EditorContent->GetLastModifiedTimestamp();
+				UE::Dataflow::FTimestamp LastNodeTimestamp = EditorContent->GetLastModifiedTimestamp();
 
 				EvaluateNode(Node, Output, LastNodeTimestamp);
 
@@ -1179,7 +1179,7 @@ TSharedRef<SDataflowGraphEditor> FDataflowEditorToolkit::CreateGraphEditorWidget
 			OnFinishEvaluate();
 		};
 	
-	DataflowEditor->UpdateTerminalContents(Dataflow::FTimestamp::Invalid);
+	DataflowEditor->UpdateTerminalContents(FTimestamp::Invalid);
 	
 	SGraphEditor::FGraphEditorEvents InEvents;
 	InEvents.OnVerifyTextCommit = FOnNodeVerifyTextCommit::CreateSP(this, &FDataflowEditorToolkit::OnNodeVerifyTitleCommit);

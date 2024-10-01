@@ -58,10 +58,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Skeletal Mesh Import")
 	bool bSetPhysicsAsset = false;
 
-	FChaosClothAssetSkeletalMeshImportNode_v2(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetSkeletalMeshImportNode_v2(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /** Import a skeletal mesh asset into the cloth collection simulation and/or render mesh containers. 
@@ -115,9 +115,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Skeletal Mesh Import")
 	bool bSetPhysicsAsset = false;
 
-	FChaosClothAssetSkeletalMeshImportNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetSkeletalMeshImportNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 	virtual void Serialize(FArchive& Ar) override;
 };

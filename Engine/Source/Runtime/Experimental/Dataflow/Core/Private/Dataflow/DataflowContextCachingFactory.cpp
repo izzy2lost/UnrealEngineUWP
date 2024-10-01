@@ -9,7 +9,7 @@
 DEFINE_LOG_CATEGORY_STATIC(LogDataflowContextCachingFactory, Warning, All);
 
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	FContextCachingFactory* FContextCachingFactory::Instance = nullptr;
 

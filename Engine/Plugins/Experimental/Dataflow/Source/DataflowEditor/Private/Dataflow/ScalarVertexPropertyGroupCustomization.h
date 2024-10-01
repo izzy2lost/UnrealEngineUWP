@@ -10,7 +10,7 @@ class SComboButton;
 class STableViewBase;
 class SWidget;
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 
 	class FScalarVertexPropertyGroupCustomization : public IPropertyTypeCustomization

@@ -4,7 +4,7 @@
 #include "Dataflow/DataflowNode.h"
 #include "Dataflow/DataflowNodeFactory.h"
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void RegisterCoreNodes()
 	{
@@ -15,7 +15,7 @@ namespace Dataflow
 	}
 }
 
-FDataflowReRouteNode::FDataflowReRouteNode(const Dataflow::FNodeParameters& Param, FGuid InGuid)
+FDataflowReRouteNode::FDataflowReRouteNode(const UE::Dataflow::FNodeParameters& Param, FGuid InGuid)
 	: Super(Param, InGuid)
 {
 	RegisterInputConnection(&Value);
@@ -23,7 +23,7 @@ FDataflowReRouteNode::FDataflowReRouteNode(const Dataflow::FNodeParameters& Para
 		.SetPassthroughInput(&Value);
 }
 
-void FDataflowReRouteNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDataflowReRouteNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	ForwardInput(Context, &Value, &Value);
 }
@@ -38,7 +38,7 @@ bool FDataflowReRouteNode::OnOutputTypeChanged(const FDataflowOutput* Input)
 	return SetInputConcreteType(&Value, Input->GetType());
 }
 
-FDataflowBranchNode::FDataflowBranchNode(const Dataflow::FNodeParameters& Param, FGuid InGuid)
+FDataflowBranchNode::FDataflowBranchNode(const UE::Dataflow::FNodeParameters& Param, FGuid InGuid)
 	: Super(Param, InGuid)
 {
 	RegisterInputConnection(&TrueValue);
@@ -47,7 +47,7 @@ FDataflowBranchNode::FDataflowBranchNode(const Dataflow::FNodeParameters& Param,
 	RegisterOutputConnection(&Result);
 }
 
-void FDataflowBranchNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDataflowBranchNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Result))
 	{
@@ -86,7 +86,7 @@ bool FDataflowBranchNode::OnOutputTypeChanged(const FDataflowOutput* Input)
 		);
 }
 
-FDataflowSelectNode::FDataflowSelectNode(const Dataflow::FNodeParameters& Param, FGuid InGuid)
+FDataflowSelectNode::FDataflowSelectNode(const UE::Dataflow::FNodeParameters& Param, FGuid InGuid)
 	: Super(Param, InGuid)
 {
 	// Add two sets of pins to start.
@@ -100,14 +100,14 @@ FDataflowSelectNode::FDataflowSelectNode(const Dataflow::FNodeParameters& Param,
 	check(NumRequiredDataflowInputs + NumInitialInputs == GetNumInputs()); // Update NumRequiredDataflowInputs when adding more inputs. This is used by Serialize
 }
 
-void FDataflowSelectNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDataflowSelectNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Result))
 	{
 		const int32 InSelectedIndex = GetValue<int32>(Context, &SelectedIndex);
 		if (Inputs.IsValidIndex(InSelectedIndex))
 		{
-			const Dataflow::TConnectionReference<FDataflowAnyType> SelectedInputReference = GetConnectionReference(InSelectedIndex);
+			const UE::Dataflow::TConnectionReference<FDataflowAnyType> SelectedInputReference = GetConnectionReference(InSelectedIndex);
 			if (IsConnected(SelectedInputReference))
 			{
 				ForwardInput(Context, SelectedInputReference, &Result);
@@ -141,7 +141,7 @@ bool FDataflowSelectNode::OnOutputTypeChanged(const FDataflowOutput* Input)
 	return bResult;
 }
 
-TArray<Dataflow::FPin> FDataflowSelectNode::AddPins()
+TArray<UE::Dataflow::FPin> FDataflowSelectNode::AddPins()
 {
 	const int32 Index = Inputs.AddDefaulted();
 	const FDataflowInput& Input = RegisterInputArrayConnection(GetConnectionReference(Index));
@@ -152,21 +152,21 @@ TArray<Dataflow::FPin> FDataflowSelectNode::AddPins()
 		check(Input0);
 		SetInputConcreteType(GetConnectionReference(Index), Input0->GetType());
 	}
-	return { { Dataflow::FPin::EDirection::INPUT, Input.GetType(), Input.GetName() } };
+	return { { UE::Dataflow::FPin::EDirection::INPUT, Input.GetType(), Input.GetName() } };
 }
 
-TArray<Dataflow::FPin> FDataflowSelectNode::GetPinsToRemove() const
+TArray<UE::Dataflow::FPin> FDataflowSelectNode::GetPinsToRemove() const
 {
 	const int32 Index = Inputs.Num() - 1;
 	check(Inputs.IsValidIndex(Index));
 	if (const FDataflowInput* const Input = FindInput(GetConnectionReference(Index)))
 	{
-		return { { Dataflow::FPin::EDirection::INPUT, Input->GetType(), Input->GetName() } };
+		return { { UE::Dataflow::FPin::EDirection::INPUT, Input->GetType(), Input->GetName() } };
 	}
 	return Super::GetPinsToRemove();
 }
 
-void FDataflowSelectNode::OnPinRemoved(const Dataflow::FPin& Pin)
+void FDataflowSelectNode::OnPinRemoved(const UE::Dataflow::FPin& Pin)
 {
 	const int32 Index = Inputs.Num() - 1;
 	check(Inputs.IsValidIndex(Index));
@@ -220,18 +220,18 @@ void FDataflowSelectNode::Serialize(FArchive& Ar)
 	}
 }
 
-Dataflow::TConnectionReference<FDataflowAnyType> FDataflowSelectNode::GetConnectionReference(int32 Index) const
+UE::Dataflow::TConnectionReference<FDataflowAnyType> FDataflowSelectNode::GetConnectionReference(int32 Index) const
 {
 	return { &Inputs[Index], Index, &Inputs };
 }
 
-FDataflowPrintNode::FDataflowPrintNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowPrintNode::FDataflowPrintNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Value);
 }
 
-void FDataflowPrintNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDataflowPrintNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	const FString InValue = GetValue(Context, &Value);
 	UE_LOG(LogTemp, Warning, TEXT("[Dataflow Print] %s"), *InValue);

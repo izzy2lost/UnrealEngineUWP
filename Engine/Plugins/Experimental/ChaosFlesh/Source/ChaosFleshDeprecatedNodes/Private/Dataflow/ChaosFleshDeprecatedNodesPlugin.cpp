@@ -14,7 +14,7 @@
 
 void IChaosFleshDeprecatedNodesPlugin::StartupModule()
 {
-	Dataflow::RegisterChaosFleshImportGEONodes();
+	UE::Dataflow::RegisterChaosFleshImportGEONodes();
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FGenerateTetrahedralCollectionDataflowNodes);
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FConstructTetGridNode);
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FKinematicOriginInsertionInitializationDataflowNode);

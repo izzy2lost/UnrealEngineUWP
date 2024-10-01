@@ -1592,7 +1592,7 @@ void UChaosClothAssetEditorMode::InitializeContextObject()
 		RestSpaceToolsContext->ContextObjectStore->AddContextObject(DataflowContextObject);
 	}
 
-	DataflowContextObject->SetConstructionViewMode(Dataflow::FRenderingViewModeFactory::GetInstance().GetViewMode(ClothViewModeToDataflowViewModeName(ConstructionViewMode)));
+	DataflowContextObject->SetConstructionViewMode(UE::Dataflow::FRenderingViewModeFactory::GetInstance().GetViewMode(ClothViewModeToDataflowViewModeName(ConstructionViewMode)));
 
 	if (const TSharedPtr<SDataflowGraphEditor> GraphEditor = DataflowGraphEditor.Pin())
 	{
@@ -1614,7 +1614,7 @@ void UChaosClothAssetEditorMode::UpdateContextObject(const TSharedPtr<FManagedAr
 	
 	if (UDataflowContextObject* DataflowContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>())
 	{
-		DataflowContextObject->SetConstructionViewMode(Dataflow::FRenderingViewModeFactory::GetInstance().GetViewMode(ClothViewModeToDataflowViewModeName(ConstructionViewMode)));
+		DataflowContextObject->SetConstructionViewMode(UE::Dataflow::FRenderingViewModeFactory::GetInstance().GetViewMode(ClothViewModeToDataflowViewModeName(ConstructionViewMode)));
 
 		DataflowContextObject->SetSelectedCollection(Collection, bDynamicMeshUseInputCollection);
 	}
@@ -1629,7 +1629,7 @@ void UChaosClothAssetEditorMode::DeleteContextObject()
 	}
 }
 
-void UChaosClothAssetEditorMode::SetDataflowContext(TWeakPtr<Dataflow::FEngineContext> InDataflowContext)
+void UChaosClothAssetEditorMode::SetDataflowContext(TWeakPtr<UE::Dataflow::FEngineContext> InDataflowContext)
 {
 	DataflowContext = InDataflowContext;
 	UEditorInteractiveToolsContext* const RestSpaceToolsContext = GetInteractiveToolsContext();

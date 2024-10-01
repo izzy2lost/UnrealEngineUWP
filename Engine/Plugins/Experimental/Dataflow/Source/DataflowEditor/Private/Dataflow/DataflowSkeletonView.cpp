@@ -88,7 +88,7 @@ void FDataflowSkeletonView::UpdateViewData()
 				{
 					if (const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(GetEditorContent()))
 					{
-						if (TSharedPtr<Dataflow::FEngineContext> Context = SkeletalContent->GetDataflowContext())
+						if (TSharedPtr<UE::Dataflow::FEngineContext> Context = SkeletalContent->GetDataflowContext())
 						{
 							FManagedArrayCollection DefaultCollection;
 							const FManagedArrayCollection& Result = Output->GetValue(*Context, DefaultCollection);

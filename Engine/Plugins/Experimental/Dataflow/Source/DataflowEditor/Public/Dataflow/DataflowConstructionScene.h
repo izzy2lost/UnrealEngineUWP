@@ -93,7 +93,7 @@ private:
 	TArray<TObjectPtr<UInteractiveToolPropertySet>> PropertyObjectsToTick;
 
 	/** Last Rendered Timestamp */
-	Dataflow::FTimestamp LastRenderedTimestamp = Dataflow::FTimestamp::Invalid;
+	UE::Dataflow::FTimestamp LastRenderedTimestamp = UE::Dataflow::FTimestamp::Invalid;
 
 	/** Show the wireframe on render */ 
 	bool bConstructionViewWireframe = true;

@@ -214,8 +214,8 @@ namespace UE::Chaos::FleshGenerator
 	
 		{
 			UE::Chaos::FleshGenerator::Private::FTimeScope TimeScope(TEXT("Saving"));
-			DataflowSimulationGeometryCache::SaveGeometryCache(*TaskResource->Cache, *Properties->SkeletalMeshAsset, TaskResource->ImportedVertexNumbers, TaskResource->SimulatedPositions);
-			DataflowSimulationGeometryCache::SavePackage(*TaskResource->Cache);
+			UE::DataflowSimulationGeometryCache::SaveGeometryCache(*TaskResource->Cache, *Properties->SkeletalMeshAsset, TaskResource->ImportedVertexNumbers, TaskResource->SimulatedPositions);
+			UE::DataflowSimulationGeometryCache::SavePackage(*TaskResource->Cache);
 		}
 		if (bCancelled)
 		{

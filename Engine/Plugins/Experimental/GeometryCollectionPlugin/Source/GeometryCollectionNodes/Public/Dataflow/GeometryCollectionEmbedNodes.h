@@ -15,7 +15,7 @@ class FGeometryCollection;
 
 
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void GeometryCollectionEmbedNodes();
 }

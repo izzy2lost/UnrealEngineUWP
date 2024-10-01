@@ -26,18 +26,18 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Overrides")
 	FName PropertyName = "StaticMesh";
 
-	FGetStaticMeshDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FGetStaticMeshDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterOutputConnection(&StaticMesh);
 	}
 
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void RegisterStaticMeshNodes();
 }

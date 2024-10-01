@@ -165,7 +165,7 @@ private:
 	int32 NumFrames;
 
 	/** Last context time stamp for which we regenerated the world */
-	Dataflow::FTimestamp LastTimeStamp = Dataflow::FTimestamp::Invalid;
+	UE::Dataflow::FTimestamp LastTimeStamp = UE::Dataflow::FTimestamp::Invalid;
 
 	/** Preview actor that will will be used to visualize the result of the simulation graph */
 	TObjectPtr<AActor> PreviewActor;

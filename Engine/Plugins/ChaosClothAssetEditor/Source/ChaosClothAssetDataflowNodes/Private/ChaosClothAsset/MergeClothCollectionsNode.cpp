@@ -329,7 +329,7 @@ namespace UE::Chaos::ClothAsset::Private
 	}
 }
 
-FChaosClothAssetMergeClothCollectionsNode_v2::FChaosClothAssetMergeClothCollectionsNode_v2(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetMergeClothCollectionsNode_v2::FChaosClothAssetMergeClothCollectionsNode_v2(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	check(GetNumInputs() == NumRequiredInputs);
@@ -343,7 +343,7 @@ FChaosClothAssetMergeClothCollectionsNode_v2::FChaosClothAssetMergeClothCollecti
 		.SetPassthroughInput(GetConnectionReference(0));
 }
 
-void FChaosClothAssetMergeClothCollectionsNode_v2::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FChaosClothAssetMergeClothCollectionsNode_v2::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
@@ -441,25 +441,25 @@ void FChaosClothAssetMergeClothCollectionsNode_v2::Evaluate(Dataflow::FContext& 
 	}
 }
 
-TArray<Dataflow::FPin> FChaosClothAssetMergeClothCollectionsNode_v2::AddPins()
+TArray<UE::Dataflow::FPin> FChaosClothAssetMergeClothCollectionsNode_v2::AddPins()
 {
 	const int32 Index = Collections.AddDefaulted();
 	const FDataflowInput& Input = RegisterInputArrayConnection(GetConnectionReference(Index));
-	return { { Dataflow::FPin::EDirection::INPUT, Input.GetType(), Input.GetName() } };
+	return { { UE::Dataflow::FPin::EDirection::INPUT, Input.GetType(), Input.GetName() } };
 }
 
-TArray<Dataflow::FPin> FChaosClothAssetMergeClothCollectionsNode_v2::GetPinsToRemove() const
+TArray<UE::Dataflow::FPin> FChaosClothAssetMergeClothCollectionsNode_v2::GetPinsToRemove() const
 {
 	const int32 Index = Collections.Num() - 1;
 	check(Collections.IsValidIndex(Index));
 	if (const FDataflowInput* const Input = FindInput(GetConnectionReference(Index)))
 	{
-		return { { Dataflow::FPin::EDirection::INPUT, Input->GetType(), Input->GetName() } };
+		return { { UE::Dataflow::FPin::EDirection::INPUT, Input->GetType(), Input->GetName() } };
 	}
 	return Super::GetPinsToRemove();
 }
 
-void FChaosClothAssetMergeClothCollectionsNode_v2::OnPinRemoved(const Dataflow::FPin& Pin)
+void FChaosClothAssetMergeClothCollectionsNode_v2::OnPinRemoved(const UE::Dataflow::FPin& Pin)
 {
 	const int32 Index = Collections.Num() - 1;
 	check(Collections.IsValidIndex(Index));
@@ -514,7 +514,7 @@ void FChaosClothAssetMergeClothCollectionsNode_v2::Serialize(FArchive& Ar)
 	}
 }
 
-Dataflow::TConnectionReference<FManagedArrayCollection> FChaosClothAssetMergeClothCollectionsNode_v2::GetConnectionReference(int32 Index) const
+UE::Dataflow::TConnectionReference<FManagedArrayCollection> FChaosClothAssetMergeClothCollectionsNode_v2::GetConnectionReference(int32 Index) const
 {
 	return { &Collections[Index], Index, &Collections };
 }
@@ -522,7 +522,7 @@ Dataflow::TConnectionReference<FManagedArrayCollection> FChaosClothAssetMergeClo
 
 
 
-FChaosClothAssetMergeClothCollectionsNode::FChaosClothAssetMergeClothCollectionsNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetMergeClothCollectionsNode::FChaosClothAssetMergeClothCollectionsNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
@@ -532,7 +532,7 @@ FChaosClothAssetMergeClothCollectionsNode::FChaosClothAssetMergeClothCollections
 	check(GetNumInputs() == NumRequiredInputs + NumInitialOptionalInputs); // Update NumRequiredInputs if you add more Inputs. This is used by Serialize.
 }
 
-void FChaosClothAssetMergeClothCollectionsNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FChaosClothAssetMergeClothCollectionsNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
@@ -632,13 +632,13 @@ void FChaosClothAssetMergeClothCollectionsNode::Evaluate(Dataflow::FContext& Con
 	}
 }
 
-TArray<Dataflow::FPin> FChaosClothAssetMergeClothCollectionsNode::AddPins()
+TArray<UE::Dataflow::FPin> FChaosClothAssetMergeClothCollectionsNode::AddPins()
 {
-	auto AddInput = [this](const FManagedArrayCollection* InCollection) -> TArray<Dataflow::FPin>
+	auto AddInput = [this](const FManagedArrayCollection* InCollection) -> TArray<UE::Dataflow::FPin>
 	{
 		RegisterInputConnection(InCollection);
 		const FDataflowInput* const Input = FindInput(InCollection);
-		return { { Dataflow::FPin::EDirection::INPUT, Input->GetType(), Input->GetName() } };
+		return { { UE::Dataflow::FPin::EDirection::INPUT, Input->GetType(), Input->GetName() } };
 	};
 
 	switch (NumInputs)
@@ -654,13 +654,13 @@ TArray<Dataflow::FPin> FChaosClothAssetMergeClothCollectionsNode::AddPins()
 	return Super::AddPins();
 }
 
-TArray<Dataflow::FPin> FChaosClothAssetMergeClothCollectionsNode::GetPinsToRemove() const
+TArray<UE::Dataflow::FPin> FChaosClothAssetMergeClothCollectionsNode::GetPinsToRemove() const
 {
-	auto PinToRemove = [this](const FManagedArrayCollection* InCollection) -> TArray<Dataflow::FPin>
+	auto PinToRemove = [this](const FManagedArrayCollection* InCollection) -> TArray<UE::Dataflow::FPin>
 	{
 		const FDataflowInput* const Input = FindInput(InCollection);
 		check(Input);
-		return { { Dataflow::FPin::EDirection::INPUT, Input->GetType(), Input->GetName() } };
+		return { { UE::Dataflow::FPin::EDirection::INPUT, Input->GetType(), Input->GetName() } };
 	};
 
 	switch (NumInputs - 1)
@@ -675,11 +675,11 @@ TArray<Dataflow::FPin> FChaosClothAssetMergeClothCollectionsNode::GetPinsToRemov
 	return Super::GetPinsToRemove();
 }
 
-void FChaosClothAssetMergeClothCollectionsNode::OnPinRemoved(const Dataflow::FPin& Pin)
+void FChaosClothAssetMergeClothCollectionsNode::OnPinRemoved(const UE::Dataflow::FPin& Pin)
 {
 	auto CheckPinRemoved = [this, &Pin](const FManagedArrayCollection* InCollection)
 	{
-		check(Pin.Direction == Dataflow::FPin::EDirection::INPUT);
+		check(Pin.Direction == UE::Dataflow::FPin::EDirection::INPUT);
 #if DO_CHECK
 		const FDataflowInput* const Input = FindInput(InCollection);
 		check(Input);

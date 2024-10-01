@@ -561,7 +561,7 @@ void UGeometryCollection::Reset()
 	}
 }
 
-namespace Dataflow::Private
+namespace UE::Dataflow::Private
 {
 	static void SetRandomBoneColor(TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe>& InGeometryCollection)
 	{
@@ -595,7 +595,7 @@ void UGeometryCollection::ResetFrom(const FManagedArrayCollection& InCollection,
 		InitializeMaterials(bHasInternalMaterials);
 
 		// Randomize BoneColor
-		Dataflow::Private::SetRandomBoneColor(GeometryCollection);
+		UE::Dataflow::Private::SetRandomBoneColor(GeometryCollection);
 	}
 }
 
@@ -611,7 +611,7 @@ void UGeometryCollection::ResetFrom(const FManagedArrayCollection& InCollection,
 		InitializeMaterials(bHasInternalMaterials);
 
 		// Randomize BoneColor
-		Dataflow::Private::SetRandomBoneColor(GeometryCollection);
+		UE::Dataflow::Private::SetRandomBoneColor(GeometryCollection);
 	}
 }
 

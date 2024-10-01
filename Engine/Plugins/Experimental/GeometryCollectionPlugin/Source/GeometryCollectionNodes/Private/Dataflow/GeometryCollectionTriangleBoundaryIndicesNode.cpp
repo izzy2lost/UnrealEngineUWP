@@ -9,7 +9,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionTriangleBoundaryIndicesNode)
 
-void FTriangleBoundaryIndicesNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FTriangleBoundaryIndicesNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<int32>>(&BoundaryIndicesOut))
 	{

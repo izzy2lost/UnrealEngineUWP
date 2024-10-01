@@ -4,7 +4,7 @@
 
 #include "IPropertyTypeCustomization.h"
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	/**
 	 * Customization for buttons in the UStruct UI of dataflow nodes.

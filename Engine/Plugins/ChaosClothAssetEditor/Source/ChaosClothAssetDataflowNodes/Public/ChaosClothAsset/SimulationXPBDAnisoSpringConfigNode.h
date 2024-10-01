@@ -72,7 +72,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "XPBDAnisoSpring Properties", Meta = (UIMin = "0", UIMax = "10", ClampMin = "0", ClampMax = "10000000"))
 	FChaosClothAssetWeightedValue XPBDAnisoSpringWeftScale = { true, 1.f, 1.f, TEXT("XPBDAnisoStretchWeftSpringScale") };
 
-	FChaosClothAssetSimulationXPBDAnisoSpringConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetSimulationXPBDAnisoSpringConfigNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;

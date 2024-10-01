@@ -88,7 +88,7 @@ void FFractureEngineUtility::DeconstructMesh(const UE::Geometry::FDynamicMesh3& 
 	}
 }
 
-namespace Dataflow::Private
+namespace UE::Dataflow::Private
 {
 	static constexpr double VolDimScale = .01; // compute volumes in meters instead of cm, for saner units at typical scales
 }
@@ -119,7 +119,7 @@ static double GetMinVolume(double TotalVolume,
 	double MinVolume = 0.0;
 	if (InSelectionMethod == EFixTinyGeoGeometrySelectionMethod::VolumeCubeRoot)
 	{
-		MinVolume = InMinVolumeCubeRoot * Dataflow::Private::VolDimScale;
+		MinVolume = InMinVolumeCubeRoot * UE::Dataflow::Private::VolDimScale;
 		MinVolume = MinVolume * MinVolume * MinVolume;
 	}
 	else // EGeometrySelectionMethod::RelativeVolume
@@ -152,7 +152,7 @@ static bool CollectTargetBones(FGeometryCollection& Collection,
 		Collection,
 		TArrayView<int32>(), /*Empty array => use all transforms*/
 		OutVolumes,
-		Dataflow::Private::VolDimScale,
+		UE::Dataflow::Private::VolDimScale,
 		bClusterMode
 	);
 

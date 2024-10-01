@@ -19,7 +19,7 @@
 DEFINE_LOG_CATEGORY(LogSkeletalBindings);
 
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 
 	TArray<int32> ChildIndices(TObjectPtr<const USkeletalMesh> SkeletalMesh, int32 StartIndex)
@@ -56,7 +56,7 @@ namespace Dataflow
 }
 
 void
-FGenerateSkeletalBindings::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+FGenerateSkeletalBindings::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	auto UEVertd = [](FVector3f V) { return FVector3d(V.X, V.Y, V.Z); };
 	auto UEVertf = [](FVector3d V) { return FVector3f(V.X, V.Y, V.Z); };
@@ -106,8 +106,8 @@ FGenerateSkeletalBindings::Evaluate(Dataflow::FContext& Context, const FDataflow
 
 				FName SkeletalMeshName = FName(SkeletalMesh->GetName());
 				TArray<FTransform> ComponentPose;
-				Dataflow::Animation::GlobalTransforms(SkeletalMesh->GetRefSkeleton(), ComponentPose);
-				TArray<int32> Indices = Dataflow::ChildIndices(SkeletalMesh, GetValue<int32>(Context, &BoneIndexIn));
+				UE::Dataflow::Animation::GlobalTransforms(SkeletalMesh->GetRefSkeleton(), ComponentPose);
+				TArray<int32> Indices = UE::Dataflow::ChildIndices(SkeletalMesh, GetValue<int32>(Context, &BoneIndexIn));
 
 				//
 				// Do intersection tests against tets

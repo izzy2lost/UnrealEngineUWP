@@ -22,7 +22,7 @@ public:
 	FManagedArrayCollection Collection;
 
 
-	FFleshAssetTerminalDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FFleshAssetTerminalDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 	: FDataflowTerminalNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
@@ -35,8 +35,8 @@ public:
 	/** Return the terminal asset */
 	virtual TObjectPtr<UObject> GetTerminalAsset() const override {return FleshAsset;}
 
-	virtual void SetAssetValue(TObjectPtr<UObject> Asset, Dataflow::FContext& Context) const override;
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void SetAssetValue(TObjectPtr<UObject> Asset, UE::Dataflow::FContext& Context) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 

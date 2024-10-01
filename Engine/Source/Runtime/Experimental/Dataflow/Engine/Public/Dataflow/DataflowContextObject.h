@@ -9,7 +9,7 @@
 
 struct FManagedArrayCollection;
 class UDataflow;
-namespace Dataflow
+namespace UE::Dataflow
 {
 	class IDataflowConstructionViewMode;
 	template<class Base> class TEngineContext;
@@ -46,16 +46,16 @@ public:
 	TSharedPtr<const FManagedArrayCollection> GetRenderCollection() const { return RenderCollection; }
 
 	/** ViewMode Access */
-	void SetConstructionViewMode(const Dataflow::IDataflowConstructionViewMode* InMode) { ConstructionViewMode = InMode; }
-	const Dataflow::IDataflowConstructionViewMode* GetConstructionViewMode() const { return ConstructionViewMode; }
+	void SetConstructionViewMode(const UE::Dataflow::IDataflowConstructionViewMode* InMode) { ConstructionViewMode = InMode; }
+	const UE::Dataflow::IDataflowConstructionViewMode* GetConstructionViewMode() const { return ConstructionViewMode; }
 	
 	/**
 	*	Context - Dataflow Evaluation State
 	*   Dataflow context stores the evaluated state of the graph.
 	*/
-	virtual void SetDataflowContext(const TSharedPtr<Dataflow::FEngineContext>& InDataflowContext) { DataflowContext = InDataflowContext; }
-	const TSharedPtr<Dataflow::FEngineContext>& GetDataflowContext() const { return DataflowContext; }
-	TSharedPtr<Dataflow::FEngineContext>& GetDataflowContext() { return DataflowContext; }
+	virtual void SetDataflowContext(const TSharedPtr<UE::Dataflow::FEngineContext>& InDataflowContext) { DataflowContext = InDataflowContext; }
+	const TSharedPtr<UE::Dataflow::FEngineContext>& GetDataflowContext() const { return DataflowContext; }
+	TSharedPtr<UE::Dataflow::FEngineContext>& GetDataflowContext() { return DataflowContext; }
 
 	/** Dataflow Asset */
 	virtual void SetDataflowAsset(const TObjectPtr<UDataflow>& InAsset) { DataflowGraph = InAsset; }
@@ -84,10 +84,10 @@ protected:
 	TObjectPtr<UDataflowEdNode> SelectedNode = nullptr;
 
 	/** Construction view mode for the context object @todo(michael) : is it only for construction or for simulation as well*/
-	const Dataflow::IDataflowConstructionViewMode* ConstructionViewMode = nullptr;
+	const UE::Dataflow::IDataflowConstructionViewMode* ConstructionViewMode = nullptr;
 
 	/** Engine context (data flow owner/asset) to be used for dataflow evaluation */
-	TSharedPtr<Dataflow::FEngineContext> DataflowContext = nullptr;
+	TSharedPtr<UE::Dataflow::FEngineContext> DataflowContext = nullptr;
 
 	/** Dataflow graph for evaluation */
 	UPROPERTY(Transient, SkipSerialization)

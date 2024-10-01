@@ -13,7 +13,7 @@
 #include "Materials/MaterialInterface.h"
 #include "PreviewScene.h"
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void GeometryCollectionEngineAssetNodes()
 	{
@@ -34,7 +34,7 @@ namespace Dataflow
 
 // ===========================================================================================================================
 
-FGeometryCollectionTerminalDataflowNode::FGeometryCollectionTerminalDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FGeometryCollectionTerminalDataflowNode::FGeometryCollectionTerminalDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowTerminalNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
@@ -49,7 +49,7 @@ FGeometryCollectionTerminalDataflowNode::FGeometryCollectionTerminalDataflowNode
 
 
 
-void FGeometryCollectionTerminalDataflowNode::SetAssetValue(TObjectPtr<UObject> Asset, Dataflow::FContext& Context) const
+void FGeometryCollectionTerminalDataflowNode::SetAssetValue(TObjectPtr<UObject> Asset, UE::Dataflow::FContext& Context) const
 {
 	using FGeometryCollectionPtr = TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe>;
 	using FMaterialArray = TArray<TObjectPtr<UMaterial>>;
@@ -86,7 +86,7 @@ void FGeometryCollectionTerminalDataflowNode::SetAssetValue(TObjectPtr<UObject> 
 	}
 }
 
-void FGeometryCollectionTerminalDataflowNode::Evaluate(Dataflow::FContext& Context) const
+void FGeometryCollectionTerminalDataflowNode::Evaluate(UE::Dataflow::FContext& Context) const
 {
 	// simply forward all inputs to corresponding outputs
 	SafeForwardInput(Context, &Collection, &Collection);
@@ -97,18 +97,18 @@ void FGeometryCollectionTerminalDataflowNode::Evaluate(Dataflow::FContext& Conte
 
 // ===========================================================================================================================
 
-FGetGeometryCollectionAssetDataflowNode::FGetGeometryCollectionAssetDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FGetGeometryCollectionAssetDataflowNode::FGetGeometryCollectionAssetDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterOutputConnection(&Asset);
 }
 
-void FGetGeometryCollectionAssetDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FGetGeometryCollectionAssetDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	ensure(Out->IsA(&Asset));
 
 	TObjectPtr<UGeometryCollection> CollectionAsset(nullptr);
-	if (const Dataflow::FEngineContext* EngineContext = Context.AsType<Dataflow::FEngineContext>())
+	if (const UE::Dataflow::FEngineContext* EngineContext = Context.AsType<UE::Dataflow::FEngineContext>())
 	{
 		CollectionAsset = Cast<UGeometryCollection>(EngineContext->Owner);
 	}
@@ -117,14 +117,14 @@ void FGetGeometryCollectionAssetDataflowNode::Evaluate(Dataflow::FContext& Conte
 
 // ===========================================================================================================================
 
-FGetGeometryCollectionSourcesDataflowNode::FGetGeometryCollectionSourcesDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FGetGeometryCollectionSourcesDataflowNode::FGetGeometryCollectionSourcesDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 		: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Asset);
 	RegisterOutputConnection(&Sources);
 }
 
-void FGetGeometryCollectionSourcesDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FGetGeometryCollectionSourcesDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	ensure(Out->IsA(&Sources));
 
@@ -145,7 +145,7 @@ void FGetGeometryCollectionSourcesDataflowNode::Evaluate(Dataflow::FContext& Con
 
 // ===========================================================================================================================
 
-FCreateGeometryCollectionFromSourcesDataflowNode::FCreateGeometryCollectionFromSourcesDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FCreateGeometryCollectionFromSourcesDataflowNode::FCreateGeometryCollectionFromSourcesDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 		: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Sources);
@@ -155,7 +155,7 @@ FCreateGeometryCollectionFromSourcesDataflowNode::FCreateGeometryCollectionFromS
 	RegisterOutputConnection(&InstancedMeshes);
 }
 
-void FCreateGeometryCollectionFromSourcesDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCreateGeometryCollectionFromSourcesDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	ensure(Out->IsA(&Collection) || Out->IsA(&Materials) || Out->IsA(&InstancedMeshes));
 	
@@ -235,7 +235,7 @@ void FCreateGeometryCollectionFromSourcesDataflowNode::Evaluate(Dataflow::FConte
 
 // ===========================================================================================================================
 
-FGeometryCollectionToCollectionDataflowNode::FGeometryCollectionToCollectionDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FGeometryCollectionToCollectionDataflowNode::FGeometryCollectionToCollectionDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterOutputConnection(&Collection);
@@ -244,7 +244,7 @@ FGeometryCollectionToCollectionDataflowNode::FGeometryCollectionToCollectionData
 	RegisterOutputConnection(&InstancedMeshes);
 }
 
-void FGeometryCollectionToCollectionDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FGeometryCollectionToCollectionDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	ensure(Out->IsA(&Collection) || Out->IsA(&Materials) || Out->IsA(&InstancedMeshes));
 
@@ -269,7 +269,7 @@ void FGeometryCollectionToCollectionDataflowNode::Evaluate(Dataflow::FContext& C
 
 // ===========================================================================================================================
 
-FBlueprintToCollectionDataflowNode::FBlueprintToCollectionDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FBlueprintToCollectionDataflowNode::FBlueprintToCollectionDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterOutputConnection(&Collection);
@@ -278,7 +278,7 @@ FBlueprintToCollectionDataflowNode::FBlueprintToCollectionDataflowNode(const Dat
 	RegisterOutputConnection(&InstancedMeshes);
 }
 
-void FBlueprintToCollectionDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FBlueprintToCollectionDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	ensure(Out->IsA(&Collection) || Out->IsA(&Materials) || Out->IsA(&InstancedMeshes));
 

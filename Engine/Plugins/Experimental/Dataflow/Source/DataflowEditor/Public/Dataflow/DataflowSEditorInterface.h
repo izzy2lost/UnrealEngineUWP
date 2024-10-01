@@ -19,7 +19,7 @@ public:
 	FDataflowSEditorInterface() {}
 
 	/** Dataflow editor content accessors */
-	virtual const TSharedPtr<Dataflow::FEngineContext> GetDataflowContext() const { return TSharedPtr<Dataflow::FEngineContext>(nullptr); };
+	virtual const TSharedPtr<UE::Dataflow::FEngineContext> GetDataflowContext() const { return TSharedPtr<UE::Dataflow::FEngineContext>(nullptr); };
 
 };
 

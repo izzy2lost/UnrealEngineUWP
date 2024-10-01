@@ -14,7 +14,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionDebugNodes)
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void GeometryCollectionDebugNodes()
 	{
@@ -33,7 +33,7 @@ namespace Dataflow
 	}
 }
 
-void FConvexHullToMeshDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FConvexHullToMeshDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	using namespace UE::Geometry;
 
@@ -58,7 +58,7 @@ void FConvexHullToMeshDataflowNode::Evaluate(Dataflow::FContext& Context, const 
 	}
 }
 
-void FSphereCoveringToMeshDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FSphereCoveringToMeshDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	using namespace UE::Geometry;
 
@@ -89,7 +89,7 @@ void FSphereCoveringToMeshDataflowNode::Evaluate(Dataflow::FContext& Context, co
 	}
 }
 
-void FMeshToOBJStringDebugDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMeshToOBJStringDebugDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&StringOBJ))
 	{
@@ -124,7 +124,7 @@ void FMeshToOBJStringDebugDataflowNode::Evaluate(Dataflow::FContext& Context, co
 	}
 }
 
-void FWriteStringToFile::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FWriteStringToFile::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	FString InContents = GetValue(Context, &FileContents);
 	FString InPath = GetValue(Context, &FilePath);

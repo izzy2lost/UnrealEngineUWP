@@ -184,7 +184,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 									Text = *static_cast<FString*>(Data);  // Default value if the property isn't an input, or isn't connected
 									if (const FDataflowInput* const DataflowInput = DataflowNode->FindInput(Data))
 									{
-										Dataflow::FContextThreaded Context;
+										UE::Dataflow::FContextThreaded Context;
 										Text = DataflowInput->GetValue<FString>(Context, Text);
 									}
 								}

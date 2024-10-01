@@ -17,7 +17,7 @@ struct FManagedArrayCollection;
 class UEdGraphNode;
 class FViewport;
 class UDataflowEditor;
-namespace Dataflow
+namespace UE::Dataflow
 {
 	class IDataflowConstructionViewMode;
 }
@@ -58,7 +58,7 @@ public:
 	* Construction View Mode
 	*/
 	void SetConstructionViewMode(const FName& NewViewModeName);
-	const Dataflow::IDataflowConstructionViewMode* GetConstructionViewMode() const;
+	const UE::Dataflow::IDataflowConstructionViewMode* GetConstructionViewMode() const;
 	bool CanChangeConstructionViewModeTo(const FName& NewViewModeName) const;
 
 	void ToggleConstructionViewWireframe();
@@ -180,7 +180,7 @@ private:
 	TWeakPtr<SDataflowGraphEditor> DataflowGraphEditor;
 
 	// Points to a view mode owned by FRenderingViewModeFactory
-	const Dataflow::IDataflowConstructionViewMode* ConstructionViewMode = nullptr;
+	const UE::Dataflow::IDataflowConstructionViewMode* ConstructionViewMode = nullptr;
 
 	// Whether we should restore the previous view mode when a tool ends
 	bool bShouldRestoreSavedConstructionViewMode = false;

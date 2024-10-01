@@ -31,7 +31,7 @@ public:
 		return { FGeometryCollection::VerticesGroup };
 	}
 
-	virtual TArray<Dataflow::FRenderingParameter> GetRenderingParameters() const override
+	virtual TArray<UE::Dataflow::FRenderingParameter> GetRenderingParameters() const override
 	{
 		return { { TEXT("SurfaceRender"), FGeometryCollection::StaticType(), {TEXT("Collection")} } };
 	}
@@ -41,14 +41,14 @@ const FName FGeometryCollectionAddScalarVertexPropertyCallbacks::Name = FName("F
 
 void IDataflowNodesPlugin::StartupModule()
 {
-	Dataflow::RegisterSkeletalMeshNodes();
-	Dataflow::RegisterStaticMeshNodes();
-	Dataflow::RegisterSelectionNodes();
-	Dataflow::RegisterContextOverridesNodes();
-	Dataflow::DataflowCollectionAttributeKeyNodes();
+	UE::Dataflow::RegisterSkeletalMeshNodes();
+	UE::Dataflow::RegisterStaticMeshNodes();
+	UE::Dataflow::RegisterSelectionNodes();
+	UE::Dataflow::RegisterContextOverridesNodes();
+	UE::Dataflow::DataflowCollectionAttributeKeyNodes();
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowCollectionAddScalarVertexPropertyNode);
 
-	Dataflow::RegisterNodeFilter(FDataflowTerminalNode::StaticType());
+	UE::Dataflow::RegisterNodeFilter(FDataflowTerminalNode::StaticType());
 
 	DataflowAddScalarVertexPropertyCallbackRegistry::Get().RegisterCallbacks(MakeUnique<FGeometryCollectionAddScalarVertexPropertyCallbacks>());
 }

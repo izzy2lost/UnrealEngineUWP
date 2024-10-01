@@ -38,7 +38,7 @@ void FDataflowCollectionSpreadSheet::UpdateViewData()
 					TArray<FDataflowOutput*> Outputs = DataflowNode->GetOutputs();
 					if (const TObjectPtr<UDataflowBaseContent> Content = GetEditorContent())
 					{
-						if (TSharedPtr<Dataflow::FEngineContext> Context = Content->GetDataflowContext())
+						if (TSharedPtr<UE::Dataflow::FEngineContext> Context = Content->GetDataflowContext())
 						{
 							for (FDataflowOutput* Output : Outputs)
 							{
