@@ -225,11 +225,6 @@ bool FDatabasePreviewActor::DrawPreviewActors(TConstArrayView<FDatabasePreviewAc
 
 	for (const FDatabasePreviewActor& PreviewActor : PreviewActors)
 	{
-		if (EAsyncBuildIndexResult::Success != FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(PoseSearchDatabase, ERequestAsyncBuildFlag::ContinueRequest))
-		{
-			return false;
-		}
-
 		const FSearchIndex& SearchIndex = PoseSearchDatabase->GetSearchIndex();
 
 		// This condition happens when the database got reindexed and the new valid SearchIndex has different cardinality for assets or poses.
@@ -516,16 +511,18 @@ void FDatabaseViewModel::OnPreviewActorClassChanged()
 
 void FDatabaseViewModel::Tick(float DeltaSeconds)
 {
-	const float DeltaPlayTime = DeltaSeconds * DeltaTimeMultiplier;
-	if (!FMath::IsNearlyZero(DeltaPlayTime))
+	if (!PreviewActors.IsEmpty())
 	{
-		PlayTime += DeltaPlayTime;
-		PlayTime = FMath::Clamp(PlayTime, MinPreviewPlayLength, MaxPreviewPlayLength);
+		const float DeltaPlayTime = DeltaSeconds * DeltaTimeMultiplier;
 
-		if (const UPoseSearchDatabase* Database = GetPoseSearchDatabase())
+		const UPoseSearchDatabase* Database = GetPoseSearchDatabase();
+		if (EAsyncBuildIndexResult::Success == FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, ERequestAsyncBuildFlag::ContinueRequest))
 		{
-			if (EAsyncBuildIndexResult::Success == FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, ERequestAsyncBuildFlag::ContinueRequest))
+			if (!FMath::IsNearlyZero(DeltaPlayTime))
 			{
+				PlayTime += DeltaPlayTime;
+				PlayTime = FMath::Clamp(PlayTime, MinPreviewPlayLength, MaxPreviewPlayLength);
+
 				for (TArray<FDatabasePreviewActor>& PreviewActorGroup : PreviewActors)
 				{
 					for (FDatabasePreviewActor& PreviewActor : PreviewActorGroup)
@@ -533,6 +530,12 @@ void FDatabaseViewModel::Tick(float DeltaSeconds)
 						PreviewActor.UpdatePreviewActor(Database, PlayTime, bQuantizeAnimationToPoseData);
 					}
 				}
+			}
+
+			bool bShouldDrawQueryVector = ShouldDrawQueryVector();
+			for (TArray<FDatabasePreviewActor>& PreviewActorGroup : PreviewActors)
+			{
+				bShouldDrawQueryVector &= !FDatabasePreviewActor::DrawPreviewActors(PreviewActorGroup, Database, bDisplayRootMotionSpeed, bDisplayBlockTransition, bShouldDrawQueryVector ? GetQueryVector() : TConstArrayView<float>());
 			}
 		}
 	}
@@ -957,8 +960,9 @@ void FDatabaseViewModel::SetDrawQueryVector(bool bValue)
 
 const FSearchIndexAsset* FDatabaseViewModel::GetSelectedActorIndexAsset() const
 {
-	if (const UPoseSearchDatabase* Database = GetPoseSearchDatabase())
+	if (SelectedActorIndexAssetIndex >= 0)
 	{
+		const UPoseSearchDatabase* Database = GetPoseSearchDatabase();
 		if (EAsyncBuildIndexResult::Success == FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, ERequestAsyncBuildFlag::ContinueRequest))
 		{
 			const FSearchIndex& SearchIndex = Database->GetSearchIndex();

@@ -89,7 +89,8 @@ static TAutoConsoleVariable<int32> CVarMotionMatchTestNumIterations(TEXT("a.Moti
 static bool AnyTestFlags(int32 Flags) { return (CVarMotionMatchTestFlags.GetValueOnAnyThread() & Flags) != 0; }
 #endif // ENABLE_ANIM_DEBUG
 
-static TAutoConsoleVariable<bool> CVarMotionMatchReindexCancelledDatabases(TEXT("a.MotionMatch.ReindexCancelledDatabases"), true, TEXT("Reindex Cancelled Databases"));
+static TAutoConsoleVariable<bool> CVarMotionMatchReindexCancelledDatabases(TEXT("a.MotionMatch.ReindexCancelledDatabases"), false, TEXT("Reindex Cancelled Databases"));
+static TAutoConsoleVariable<bool> CVarMotionMatchReindexAllReferencedDatabases(TEXT("a.MotionMatch.ReindexAllReferencedDatabases"), true, TEXT("Reindex All Referenced Databases"));
 
 static const UE::DerivedData::FValueId Id(UE::DerivedData::FValueId::FromName("Data"));
 static const UE::DerivedData::FCacheBucket Bucket("PoseSearchDatabase");
@@ -101,6 +102,28 @@ static FCookStatsManager::FAutoRegisterCallback RegisterCookStats([](FCookStatsM
 		UsageStats.LogStats(AddStat, TEXT("MotionMatching.Usage"), TEXT(""));
 	});
 #endif // ENABLE_COOK_STATS
+
+typedef TSet<const UPoseSearchDatabase*, DefaultKeyFuncs<const UPoseSearchDatabase*>, TInlineSetAllocator<256>> FDatabaseSet;
+
+static void RecursivePopulateDependentDatabases(const UPoseSearchDatabase* Database, FDatabaseSet& DatabaseSet)
+{
+	if (Database)
+	{
+		bool bIsAlreadyInSet = false;
+		DatabaseSet.Add(Database, &bIsAlreadyInSet);
+
+		if (!bIsAlreadyInSet)
+		{
+			if (const UPoseSearchNormalizationSet* NormalizationSet = Database->NormalizationSet)
+			{
+				for (const UPoseSearchDatabase* DependentDatabase : NormalizationSet->Databases)
+				{
+					RecursivePopulateDependentDatabases(DependentDatabase, DatabaseSet);
+				}
+			}
+		}
+	}
+}
 
 // helper struct to calculate mean deviations
 struct FMeanDeviationCalculator
@@ -2398,7 +2421,7 @@ void FAsyncPoseSearchDatabasesManagement::AddReferencedObjects(FReferenceCollect
 	}
 }
 
-EAsyncBuildIndexResult FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(const UPoseSearchDatabase* Database, ERequestAsyncBuildFlag Flag)
+EAsyncBuildIndexResult FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndexInternal(const UPoseSearchDatabase* Database, ERequestAsyncBuildFlag Flag)
 {
 	if (!IsValid(Database))
 	{
@@ -2459,6 +2482,26 @@ EAsyncBuildIndexResult FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildInd
 	}
 
 	return EAsyncBuildIndexResult::InProgress;
+}
+
+EAsyncBuildIndexResult FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(const UPoseSearchDatabase* Database, ERequestAsyncBuildFlag Flag)
+{
+	if (CVarMotionMatchReindexAllReferencedDatabases.GetValueOnAnyThread())
+	{
+		FDatabaseSet DatabaseSet;
+		RecursivePopulateDependentDatabases(Database, DatabaseSet);
+
+		for (FDatabaseSet::TConstIterator Iter = DatabaseSet.CreateConstIterator(); Iter; ++Iter)
+		{
+			const UPoseSearchDatabase* DependentDatabase = *Iter;
+			if (DependentDatabase != Database)
+			{
+				RequestAsyncBuildIndexInternal(DependentDatabase, ERequestAsyncBuildFlag::ContinueRequest);
+			}
+		}
+	}
+
+	return RequestAsyncBuildIndexInternal(Database, Flag);
 }
 
 } // namespace UE::PoseSearch
