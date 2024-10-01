@@ -303,7 +303,8 @@ void FGenerationHelper::DiagnoseWhyNotShutdown()
 			}
 		};
 	TestInfo(GetOwnerInfo());
-	for (FCookGenerationInfo& Info : GetPackagesToGenerate())
+	// Do not call GetPackagesToGenerate as that would initialize.
+	for (FCookGenerationInfo& Info : PackagesToGenerate)
 	{
 		TestInfo(Info);
 	}
