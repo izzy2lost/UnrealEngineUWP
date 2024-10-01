@@ -28,7 +28,7 @@ FText UPCGCopyPointsSettings::GetNodeTooltipText() const
 FString UPCGCopyPointsSettings::GetCookedKernelSource(const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable) const
 {
 	FString TemplateFile;
-	LoadShaderSourceFile(TEXT("/Plugin/PCG/Private/Elements/PCGCopyPoints.usf"), EShaderPlatform::SP_PCD3D_SM5, &TemplateFile, nullptr);
+	ensure(LoadShaderSourceFile(TEXT("/Plugin/PCG/Private/Elements/PCGCopyPoints.usf"), EShaderPlatform::SP_PCD3D_SM5, &TemplateFile, nullptr));
 	return TemplateFile;
 }
 
@@ -131,6 +131,7 @@ void UPCGCopyPointsSettings::CreateAdditionalInputDataInterfaces(TArray<TObjectP
 TArray<FPCGPinProperties> UPCGCopyPointsSettings::InputPinProperties() const
 {
 	// Note: If executing on the GPU, we need to prevent multiple connections on inputs, since it is not supported at this time.
+	// Also note: Since the ShouldExecuteOnGPU() is already tied to structural changes, we don't need to implement any logic for this in GetChangeTypeForProperty()
 	const bool bAllowMultipleConnections = !ShouldExecuteOnGPU();
 
 	TArray<FPCGPinProperties> PinProperties;
