@@ -59,7 +59,7 @@ TSharedRef<SDockTab> FRigHierarchyTabSummoner::SpawnTab(const FWorkflowTabSpawnI
 				}
 			}
 		}
-		return HierarchyTabCount > 1;
+		return HierarchyTabCount > 0;
     }));
 	DockTab->SetOnTabClosed( SDockTab::FOnTabClosedCallback::CreateLambda([](TSharedRef<SDockTab> DockTab)
 	{
