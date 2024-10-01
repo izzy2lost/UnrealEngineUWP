@@ -205,10 +205,12 @@ namespace VirtualTextureScalability
 	int32 GetMaxAllocatedVTReleasedPerFrame()
 	{
 #if WITH_EDITOR
-		return 0;
-#else
-		return CVarVTMaxReleasedPerFrame.GetValueOnAnyThread();
+		if (GIsEditor)
+		{
+			return 0;
+		}
 #endif
+		return CVarVTMaxReleasedPerFrame.GetValueOnAnyThread();
 	}
 
 	uint32 GetPageFreeThreshold()
