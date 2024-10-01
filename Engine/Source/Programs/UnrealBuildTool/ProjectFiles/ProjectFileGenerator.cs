@@ -734,7 +734,7 @@ namespace UnrealBuildTool
 					"\" />");
 
 				Writer.WriteLine("  <PropertyGroup>");
-				Writer.WriteLine("    <TargetFramework>net6.0</TargetFramework>");
+				Writer.WriteLine("    <TargetFramework>net8.0</TargetFramework>");
 				Writer.WriteLine("    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>"); // Shorten intermediate filepath slightly
 				Writer.WriteLine("    <Configurations>Debug;Release;Development</Configurations>"); // VCSharpProject requires at least Debug & Development configurations
 				Writer.WriteLine("    <DefineConstants>$(DefineConstants);" + String.Join(';', RulesAssembly.PreprocessorDefines!) + "</DefineConstants>");
