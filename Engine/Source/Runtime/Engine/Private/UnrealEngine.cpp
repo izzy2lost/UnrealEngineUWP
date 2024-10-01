@@ -13371,7 +13371,8 @@ void FFrameEndSync::Sync()
 
 		switch (GTSyncType)
 		{
-		case 0:  SyncDepth = ESyncDepth::RHIThread; NumFramesOverlap = bHasRHIThread ? 2 : 1; break;
+		// HACK - only allow 1 frame of overlap while we investigate crashes caused by the GetPendingCleanupObjects() cleanup mechanism
+		case 0:  SyncDepth = ESyncDepth::RHIThread; NumFramesOverlap = 1/*bHasRHIThread ? 2 : 1*/; break;
 		case 1:  SyncDepth = ESyncDepth::RHIThread; NumFramesOverlap = 1; break;
 		case 2:  SyncDepth = ESyncDepth::Swapchain; NumFramesOverlap = 1; break;
 		default: SyncDepth = ESyncDepth::Swapchain; NumFramesOverlap = 1; break;
