@@ -6,10 +6,17 @@
 		<log text="Google SDK Android init"/>
         
 		<setBoolFromProperty result="bEnabled" ini="Engine" section="OnlineSubsystemGoogle" property="bEnabled" default="false"/>
+		<setBoolFromProperty result="bUseCredentialManager" ini="Engine" section="OnlineSubsystemGoogle.OnlineIdentityGoogle" property="bUseCredentialManager" default="true"/>
 		<setIntFromProperty result="RequestCodeForGoogleLogin" ini="Engine" section="OnlineSubsystemGoogle.OnlineIdentityGoogle" property="RequestCodeForGoogleLogin" default="9001"/>
 		<dumpvars/>
 	</init>
-	
+
+	<registerBuildSettings>
+	<insertValue value="OnlineSubsystemGoogle[bEnabled]"/>
+	<insertValue value="OnlineSubsystemGoogle.OnlineIdentityGoogle[bUseCredentialManager,RequestCodeForGoogleLogin]"/>
+	<insertNewline/>
+	</registerBuildSettings>
+
 	<!-- optional files or directories to copy to Intermediate/Android/APK -->
 	<resourceCopies>
 	</resourceCopies>
@@ -18,19 +25,45 @@
 	<prebuildCopies>
 		<if condition="bEnabled">
 			<true>
-				<log text="Copying Google buildtime files to staging"/>
-				<copyDir src="$S(PluginDir)/ThirdParty/Android/Java"
-					dst = "$S(BuildDir)/src/com/epicgames/unreal" /> 	
+				<if condition="bUseCredentialManager">
+					<true>
+						<log text="Copying Google buildtime files to staging (CredentialManager mode)"/>
+						<copyDir src="$S(PluginDir)/ThirdParty/Android/Java/CredentialManager"
+							dst = "$S(BuildDir)/src/com/epicgames/unreal" /> 	
+					</true>
+					<false>
+						<log text="Copying Google buildtime files to staging (GoogleSignIn mode)"/>
+						<copyDir src="$S(PluginDir)/ThirdParty/Android/Java/GoogleSignIn"
+							dst = "$S(BuildDir)/src/com/epicgames/unreal" /> 	
+					</false>
+				</if>
 			</true>
 		</if>
 	</prebuildCopies>
 	
     <buildGradleAdditions>
-        <insert>
-			dependencies {
-			implementation('com.google.android.gms:play-services-auth:20.7.0')
-			}
-		</insert>
+		<if condition="bEnabled">
+			<true>
+				<if condition="bUseCredentialManager">
+					<true>
+						<insert>
+	dependencies {
+		implementation('androidx.credentials:credentials:1.2.2')
+		implementation('androidx.credentials:credentials-play-services-auth:1.2.2')
+		implementation('com.google.android.libraries.identity.googleid:googleid:1.1.0')
+	}
+						</insert>
+					</true>
+					<false>
+						<insert>
+	dependencies {
+		implementation('com.google.android.gms:play-services-auth:20.7.0')
+	}
+						</insert>
+					</false>
+				</if>
+			</true>
+		</if>
     </buildGradleAdditions>
 
 	<!-- optional updates applied to AndroidManifest.xml -->
@@ -46,6 +79,16 @@
 	public *;
 }                   
 				</insert>
+				<if condition="bUseCredentialManager">
+					<true>
+						<insert>
+-if class androidx.credentials.CredentialManager
+-keep class androidx.credentials.playservices.** {
+  *;
+}
+						</insert>
+					</true>
+				</if>
 			</true>
 		</if>
 	</proguardAdditions>
@@ -61,7 +104,6 @@
 				<insertNewline/>
 				<insert>
 	private GoogleLogin googleLogin;
-	
 	public GoogleLogin getGoogleLogin() 
 	{ 
 		return googleLogin; 
@@ -91,14 +133,14 @@
 		<if condition="bEnabled">
 			<true>
 				<insert>
-	// Begin Google onActivityResult
-    Log.debug("[JAVA] - Google onActivityResult");
-	if (requestCode == REQUEST_CODE_OSSGOOGLE_LOGIN)
-	{
-		googleLogin.onActivityResult(resultCode, data);
-	}
-	// End Google onActivityResult
- 				</insert>
+		// Begin Google onActivityResult
+		Log.debug("[JAVA] - Google onActivityResult");
+		if (requestCode == REQUEST_CODE_OSSGOOGLE_LOGIN)
+		{
+			googleLogin.onActivityResult(resultCode, data);
+		}
+		// End Google onActivityResult
+				</insert>
 			</true>
 		</if>
 	</gameActivityOnActivityResultAdditions>
