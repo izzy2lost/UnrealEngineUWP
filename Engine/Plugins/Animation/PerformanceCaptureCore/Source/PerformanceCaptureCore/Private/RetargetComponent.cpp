@@ -123,7 +123,7 @@ void URetargetComponent::DestroyComponent(bool bPromoteChildren)
 		//If the anim class is LiveLinkInstance assume user does not want to reset that skeletal mesh component
 		if(OwnerSkeletalMeshComponent->GetAnimClass()!=ULiveLinkInstance::StaticClass())
 		{
-			OwnerSkeletalMeshComponent->SetAnimClass(nullptr);
+			OwnerSkeletalMeshComponent->SetAnimInstanceClass(nullptr);
 			OwnerSkeletalMeshComponent->SetLeaderPoseComponent(nullptr);
 			OwnerSkeletalMeshComponent->InitAnim(true /*bForceReinit*/);
 			OwnerSkeletalMeshComponent->SetUpdateAnimationInEditor(false);
@@ -192,7 +192,7 @@ void URetargetComponent::SetForceOtherMeshesToFollowControlledMesh(bool bInBool)
 				&& OwnerSkeletalMeshComponent!=ControlledMesh && OwnerSkeletalMeshComponent!=SourceMesh;
 				if(bShouldResetMesh)
 				{
-					OwnerSkeletalMeshComponent->SetAnimClass(nullptr);
+					OwnerSkeletalMeshComponent->SetAnimInstanceClass(nullptr);
 					OwnerSkeletalMeshComponent->InitAnim(true /*bForceReinit*/);
 					OwnerSkeletalMeshComponent->SetUpdateAnimationInEditor(true);
 					OwnerSkeletalMeshComponent->SetLeaderPoseComponent(nullptr);
@@ -229,7 +229,7 @@ void URetargetComponent::InitiateAnimation()
 	if(bShouldBeReinitialized)
 	{
 		//Set the anim instance class on the controlled mesh to use RetargetAnimInstance
-		ControlledMesh->SetAnimClass(URetargetAnimInstance::StaticClass());
+		ControlledMesh->SetAnimInstanceClass(URetargetAnimInstance::StaticClass());
 
 		TObjectPtr<URetargetAnimInstance> AnimInstance = Cast<URetargetAnimInstance>(ControlledMesh->GetAnimInstance());
 		
