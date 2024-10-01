@@ -41,8 +41,4 @@ public:
 		UE::Editor::DataStorage::RowHandle TargetRow,
 		UE::Editor::DataStorage::RowHandle WidgetRow, 
 		const UE::Editor::DataStorage::FMetaDataView& Arguments) override;
-
-protected:
-	
-	static FText ConstructToolTip(IEditorDataStorageProvider* DataStorage, UE::Editor::DataStorage::RowHandle DataRow);
 };

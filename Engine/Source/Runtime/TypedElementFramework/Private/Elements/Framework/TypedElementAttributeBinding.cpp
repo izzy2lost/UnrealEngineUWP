@@ -7,13 +7,8 @@
 namespace UE::Editor::DataStorage
 {
 	FAttributeBinder::FAttributeBinder(RowHandle InTargetRow)
-		: TargetRow(InTargetRow)
+		: FAttributeBinder(InTargetRow, GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName))
 	{
-		if (ensureMsgf(AreEditorDataStorageFeaturesEnabled(),
-				TEXT("The Editor Data Storage plugin needs to be enabled to use attribute bindings.")))
-		{
-			DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
-		}
 	}
 
 	FAttributeBinder::FAttributeBinder(
@@ -22,5 +17,10 @@ namespace UE::Editor::DataStorage
 		, DataStorage(InDataStorage)
 	{
 		ensureMsgf(DataStorage, TEXT("The Editor Data Storage plugin needs to be enabled to use attribute bindings."));
+	}
+
+	FTextAttributeFormatted FAttributeBinder::BindTextFormat(FTextFormat Format) const
+	{
+		return FTextAttributeFormatted(MoveTemp(Format), TargetRow, DataStorage);
 	}
 } // namespace UE::Editor::DataStorage
