@@ -131,7 +131,7 @@ void UHoldoutCompositeSubsystem::PrimitiveHoldoutSettingsNotification(URendererS
 	}
 
 	FSimpleDelegate OnConfirmDelegate = FSimpleDelegate::CreateLambda(
-		[RendererSettings]()
+		[WeakThis = MakeWeakObjectPtr(this), RendererSettings]()
 		{
 			if (IsValid(RendererSettings))
 			{
@@ -161,6 +161,19 @@ void UHoldoutCompositeSubsystem::PrimitiveHoldoutSettingsNotification(URendererS
 					RendererSettings->PostEditChangeProperty(PropertyChangedEvent);
 					RendererSettings->UpdateSinglePropertyInConfigFile(Property, RendererSettings->GetDefaultConfigFilename());
 				}
+			}
+
+			TStrongObjectPtr<UHoldoutCompositeSubsystem> Subsystem = WeakThis.Pin();
+			if (Subsystem.IsValid())
+			{
+				TSharedPtr<SNotificationItem> NotificationItem = Subsystem->HoldoutNotificationItem.Pin();
+				if (NotificationItem.IsValid())
+				{
+					NotificationItem->SetCompletionState(SNotificationItem::CS_Success);
+					NotificationItem->ExpireAndFadeout();
+				}
+
+				Subsystem->HoldoutNotificationItem.Reset();
 			}
 		}
 	);

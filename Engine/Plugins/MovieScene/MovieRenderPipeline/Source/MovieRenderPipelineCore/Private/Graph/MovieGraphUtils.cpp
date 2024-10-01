@@ -157,6 +157,14 @@ namespace UE::MovieGraph
 							// SupportPrimitiveAlphaHoldout requires shader recompilation, ask for a restart.
 							FModuleManager::GetModuleChecked<ISettingsEditorModule>("SettingsEditor").OnApplicationRestartRequired();
 						}
+
+						if (TSharedPtr<SNotificationItem> Item = NotificationItem.Pin())
+						{
+							Item->SetCompletionState(SNotificationItem::CS_Success);
+							Item->ExpireAndFadeout();
+						}
+
+						NotificationItem.Reset();
 					}
 				}
 			);
