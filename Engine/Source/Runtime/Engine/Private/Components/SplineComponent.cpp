@@ -2207,6 +2207,7 @@ TStructOnScope<FActorComponentInstanceData> USplineComponent::GetComponentInstan
 	if (bSplineHasBeenEdited)
 	{
 		SplineInstanceData->SplineCurves = SplineCurves;
+		SplineInstanceData->bClosedLoop = bClosedLoop;
 	}
 	SplineInstanceData->bSplineHasBeenEdited = bSplineHasBeenEdited;
 
@@ -2257,6 +2258,7 @@ void USplineComponent::ApplyComponentInstanceData(FSplineInstanceData* SplineIns
 	if (SplineInstanceData->bSplineHasBeenEdited)
 	{
 		SplineCurves = SplineInstanceData->SplineCurves;
+		bClosedLoop = SplineInstanceData->bClosedLoop;
 		bModifiedByConstructionScript = false;
 	}
 

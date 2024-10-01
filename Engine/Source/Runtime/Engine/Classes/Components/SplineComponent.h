@@ -937,6 +937,9 @@ public:
 	FSplineCurves SplineCurves;
 
 	UPROPERTY()
+	bool bClosedLoop = false;
+
+	UPROPERTY()
 	FSplineCurves SplineCurvesPreUCS;
 };
 
