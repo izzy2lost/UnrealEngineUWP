@@ -226,5 +226,5 @@ bool FDisplayClusterViewport_CustomPostProcessSettings::ConfigurePostProcessSett
 		bPostProcessSettingsHaveChanged |= OverrideDepthOfFieldPostProcessSettings(InViewport, InContextNum, InOutPostProcessSettings);
 	}
 
-	return false;
+	return bPostProcessSettingsHaveChanged;
 }
