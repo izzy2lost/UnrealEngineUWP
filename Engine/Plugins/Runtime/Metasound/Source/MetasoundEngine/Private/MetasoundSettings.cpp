@@ -363,26 +363,20 @@ const FMetaSoundPageSettings& UMetaSoundSettings::GetTargetPageSettings() const
 
 	if (const FMetaSoundPageSettings* TargetSettings = FindPageSettings(TargetPage))
 	{
-		if (TargetSettings->CanTarget.GetValue())
-		{
 #if !NO_LOGGING
-			WarnIfUninitialized(*TargetSettings);
+		WarnIfUninitialized(*TargetSettings);
 #endif // !NO_LOGGING
-			return *TargetSettings;
-		}
+		return *TargetSettings;
 	}
 
 	// Shouldn't hit this, but if for some reason the target page is in a bad state,
 	// try and return any page setting set as a valid target.
 	for (const FMetaSoundPageSettings& Setting : PageSettings)
 	{
-		if (Setting.CanTarget.GetValue())
-		{
 #if !NO_LOGGING
-			WarnIfUninitialized(Setting);
+		WarnIfUninitialized(Setting);
 #endif // !NO_LOGGING
-			return Setting;
-		}
+		return Setting;
 	}
 
 #if !NO_LOGGING
@@ -434,55 +428,36 @@ void UMetaSoundSettings::PostInitProperties()
 	bWarnAccessBeforeInit = false;
 #endif // !NO_LOGGING
 
-#if WITH_EDITORONLY_DATA
-	UE_LOG(LogMetaSound, Display, TEXT("MetaSound Page Target Initialized to '%s'"), *GetTargetPageSettings().Name.ToString());
-#else // !WITH_EDITORONLY_DATA
 	if (const FMetaSoundPageSettings* Page = FindPageSettings(TargetPageName))
 	{
-		if (Page->CanTarget.GetValue())
-		{
-			UE_LOG(LogMetaSound, Display, TEXT("MetaSound Page Target Initialized to '%s'"), *GetTargetPageSettings().Name.ToString());
-			return;
-		}
-	}
-
-	UE_LOG(LogMetaSound, Warning, TEXT("TargetPageName on load in MetaSound settings did not correspond to a valid targetable page."));
-	if (DefaultPageSettings.CanTarget.GetValue())
-	{
-		UE_LOG(LogMetaSound, Warning, TEXT("Setting target to 'Default' page settings."));
-		TargetPageNameOverride = DefaultPageSettings.Name;
-		return;
+		UE_LOG(LogMetaSound, Display, TEXT("MetaSound Page Target Initialized to '%s'"), *GetTargetPageSettings().Name.ToString());
 	}
 	else
 	{
-		for (const FMetaSoundPageSettings& Page : PageSettings)
+		UE_LOG(LogMetaSound, Warning, TEXT("TargetPageName '%s' at time of 'UMetaSoundSettings::PostInitProperties' did not correspond to a valid page."), *TargetPageName.ToString());
+		if (PageSettings.IsEmpty())
 		{
-			if (Page.CanTarget.GetValue())
-			{
-				UE_LOG(LogMetaSound, Warning, TEXT("Setting target to '%s' page settings."), *Page.Name.ToString());
-				TargetPageNameOverride = Page.Name;
-				return;
-			}
+			UE_LOG(LogMetaSound, Warning, TEXT("Setting target to '%s' page settings."), *DefaultPageSettings.Name.ToString());
+			TargetPageName = DefaultPageSettings.Name;
 		}
-
-		UE_LOG(LogMetaSound, Warning, TEXT("Setting target to 'Default' page settings & forcing default as targetable."));
-		DefaultPageSettings.CanTarget.Default = true;
-		TargetPageNameOverride = DefaultPageSettings.Name;
+		else
+		{
+			UE_LOG(LogMetaSound, Warning, TEXT("Setting target to highest project page settings '%s'."), *PageSettings.Last().Name.ToString());
+			TargetPageName = PageSettings.Last().Name;
+		}
 	}
-#endif // !WITH_EDITORONLY_DATA
 }
 
 bool UMetaSoundSettings::SetTargetPage(FName PageName)
 {
 	if (const FMetaSoundPageSettings* PageSetting = FindPageSettings(PageName))
 	{
-		if (TargetPageName != PageSetting->Name)
+		const FName TargetPage = TargetPageNameOverride.IsSet() ? *TargetPageNameOverride : TargetPageName;
+		if (TargetPage != PageSetting->Name)
 		{
-			if (PageSetting->CanTarget.GetValue())
-			{
-				TargetPageNameOverride = PageSetting->Name;
-				return true;
-			}
+			UE_LOG(LogMetaSound, Display, TEXT("Target page override set to '%s'."), *TargetPage.ToString());
+			TargetPageNameOverride = PageSetting->Name;
+			return true;
 		}
 	}
 
