@@ -3,7 +3,8 @@
 #include "TedsAssetDataModule.h"
 
 #include "CB/TedsAssetDataCBDataSource.h"
-#include "Elements/Framework/TypedElementRegistry.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "HAL/IConsoleManager.h"
 #include "Modules/ModuleManager.h"
 #include "TedsAssetData.h"
@@ -42,10 +43,7 @@ void FTedsAssetDataModule::StartupModule()
 
 void FTedsAssetDataModule::ShutdownModule()
 {
-	if (UTypedElementRegistry* TypedElementRegistry = UTypedElementRegistry::GetInstance())
-	{
-		TypedElementRegistry->OnDataStorageInterfacesSet().RemoveAll(this);
-	}
+	UE::Editor::DataStorage::OnEditorDataStorageFeaturesEnabled().RemoveAll(this);
 }
 
 FTedsAssetDataModule* FTedsAssetDataModule::Get()
@@ -60,17 +58,17 @@ FTedsAssetDataModule& FTedsAssetDataModule::GetChecked()
 
 void FTedsAssetDataModule::EnableTedsAssetRegistryStorage()
 {
+	using namespace UE::Editor::DataStorage;
 	if (!AssetRegistryStorage)
 	{
 		FModuleManager::Get().LoadModuleChecked(TEXT("TypedElementFramework"));
-		UTypedElementRegistry* TypedElementRegistry = UTypedElementRegistry::GetInstance();
-		if (TypedElementRegistry->GetMutableDataStorage())
+		if (AreEditorDataStorageFeaturesEnabled())
 		{
 			InitAssetRegistryStorage();
 		}
 		else
 		{
-			TypedElementRegistry->OnDataStorageInterfacesSet().AddRaw(this, &FTedsAssetDataModule::InitAssetRegistryStorage);
+			OnEditorDataStorageFeaturesEnabled().AddRaw(this, &FTedsAssetDataModule::InitAssetRegistryStorage);
 		}
 
 		if (!Private::CVarTEDSAssetDataStorage.GetValueOnGameThread())
@@ -108,7 +106,8 @@ void FTedsAssetDataModule::ProcessDependentEvents()
 
 void FTedsAssetDataModule::InitAssetRegistryStorage()
 {
-	IEditorDataStorageProvider& MutableDataStorage = *UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+	using namespace UE::Editor::DataStorage;
+	IEditorDataStorageProvider& MutableDataStorage = *GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
 
 	AssetDataCBDataSource = MakeUnique<Private::FTedsAssetDataCBDataSource>(MutableDataStorage);
 	AssetRegistryStorage = MakeUnique<Private::FTedsAssetData>(MutableDataStorage);

@@ -2,7 +2,7 @@
 
 #include "Widgets/SPropertyMenuTedsRowPicker.h"
 
-#include "Elements/Framework/TypedElementRegistry.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "TedsRowPickingMode.h"
 #include "TedsOutlinerItem.h"
 
@@ -36,16 +36,14 @@ void SPropertyMenuTedsRowPicker::Construct(const FArguments& InArgs)
 		TSharedPtr<SWidget> MenuContent;
 		{
 			using namespace UE::Editor::Outliner;
+			using namespace UE::Editor::DataStorage;
 
 			// TEDS-Outliner TODO: Taken from private implementation of PropertyEditorAssetConstants.
 			//                     Should be centralized when TEDS is moved to core
 			static const FVector2D ContentBrowserWindowSize(300.0f, 300.0f);
 			static const FVector2D SceneOutlinerWindowSize(350.0f, 300.0f);
 
-			UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-			checkf(Registry, TEXT("Unable to initialize the Typed Elements Outliner before TEDS is initialized."));
-
-			if (!Registry->AreDataStorageInterfacesSet())
+			if (!AreEditorDataStorageFeaturesEnabled())
 			{
 				MenuContent = SNew(STextBlock)
 					.Text(LOCTEXT("TEDSPluginNotEnabledText", "Typed Element Data Storage plugin required to use this property picker."));

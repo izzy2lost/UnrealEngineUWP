@@ -4,7 +4,8 @@
 
 #include "SortHelper.h"
 #include "TedsOutlinerItem.h"
-#include "Elements/Framework/TypedElementRegistry.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
+#include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
 #include "TedsTableViewerColumn.h"
 
 #define LOCTEXT_NAMESPACE "SceneOutlinerRowHandleColumn"
@@ -12,16 +13,15 @@
 FSceneOutlinerRowHandleColumn::FSceneOutlinerRowHandleColumn(ISceneOutliner& SceneOutliner)
 	: WeakSceneOutliner(StaticCastSharedRef<ISceneOutliner>(SceneOutliner.AsShared()))
 {
+	using namespace UE::Editor::DataStorage;
 	auto AssignWidgetToColumn = [this](TUniquePtr<FTypedElementWidgetConstructor> Constructor, TConstArrayView<TWeakObjectPtr<const UScriptStruct>>)
 	{
 		TSharedPtr<FTypedElementWidgetConstructor> WidgetConstructor(Constructor.Release());
-		TableViewerColumn = MakeShared<UE::Editor::DataStorage::FTedsTableViewerColumn>(TEXT("Row Handle"), WidgetConstructor);
+		TableViewerColumn = MakeShared<FTedsTableViewerColumn>(TEXT("Row Handle"), WidgetConstructor);
 		return false;
 	};
 	
-	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-	checkf(Registry, TEXT("FSceneOutlinerRowHandleColumn created before UTypedElementRegistry is available."));
-	IEditorDataStorageUiProvider* StorageUi = Registry->GetMutableDataStorageUi();
+	IEditorDataStorageUiProvider* StorageUi = GetMutableDataStorageFeature<IEditorDataStorageUiProvider>(UiFeatureName);
 	checkf(StorageUi, TEXT("FSceneOutlinerRowHandleColumn created before data storage interfaces were initialized."))
 
 	StorageUi->CreateWidgetConstructors(TEXT("General.Cell.RowHandle"), UE::Editor::DataStorage::FMetaDataView(), AssignWidgetToColumn);

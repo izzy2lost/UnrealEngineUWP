@@ -2,7 +2,8 @@
 
 #include "Elements/Framework/TypedElementDataStorageWidget.h"
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
-#include "Elements/Framework/TypedElementRegistry.h"
+#include "Elements/Common//EditorDataStorageFeatures.h"
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 
 STedsWidget::STedsWidget()
 	: UiRowHandle(UE::Editor::DataStorage::InvalidRowHandle)
@@ -75,12 +76,6 @@ UE::Editor::DataStorage::RowHandle STedsWidget::GetRowHandle() const
 
 IEditorDataStorageProvider* STedsWidget::GetStorageIfAvailable()
 {
-	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-
-	if(!Registry || !Registry->AreDataStorageInterfacesSet())
-	{
-		return nullptr;
-	}
-
-	return Registry->GetMutableDataStorage();
+	using namespace UE::Editor::DataStorage;
+	return GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
 }

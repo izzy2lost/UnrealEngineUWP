@@ -6,8 +6,9 @@
 #include "Elements/Columns/TypedElementCompatibilityColumns.h"
 #include "Elements/Columns/TypedElementViewportColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
-#include "Elements/Framework/TypedElementRegistry.h"
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "HAL/IConsoleManager.h"
 #include "Elements/Columns/TypedElementSelectionColumns.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
@@ -23,7 +24,7 @@ namespace UE::Editor::DataStorage::Private
 
 				TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.AddOverlayColorToSelectionCommand);
 
-				if (IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
+				if (IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName))
 				{
 					static QueryHandle OverlayQuery = InvalidQueryHandle;
 					if (OverlayQuery == InvalidQueryHandle)
@@ -81,7 +82,7 @@ namespace UE::Editor::DataStorage::Private
 
 				TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.AddOverlayColorToSelectionCommand);
 
-				if (IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
+				if (IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName))
 				{
 					static QueryHandle OverlayQuery = InvalidQueryHandle;
 					if (OverlayQuery == InvalidQueryHandle)
@@ -132,7 +133,7 @@ namespace UE::Editor::DataStorage::Private
 
 				TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.AddOverlayColorToSelectionCommand);
 
-				if (IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
+				if (IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName))
 				{
 					static QueryHandle OverlayQuery = InvalidQueryHandle;
 					if (OverlayQuery == InvalidQueryHandle)

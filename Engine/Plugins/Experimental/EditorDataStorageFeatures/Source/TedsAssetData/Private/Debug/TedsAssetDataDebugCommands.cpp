@@ -4,8 +4,8 @@
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Containers/UnrealString.h"
 #include "Elements/Common/TypedElementHandles.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Framework/TypedElementIndexHasher.h"
-#include "Elements/Framework/TypedElementRegistry.h"
 #include "HAL/IConsoleManager.h"
 #include "TedsAssetDataColumns.h"
 #include "UObject/NameTypes.h"
@@ -30,7 +30,7 @@ namespace UE::Editor::DataStorage::Debug::Private
 		TEXT("Print some debug information on the specified path."),
 		FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& InArgs)
 			{
-				const IEditorDataStorageProvider* Database = UTypedElementRegistry::GetInstance()->GetDataStorage();
+				const IEditorDataStorageProvider* Database = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
 				IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
 
 				for (const FString& Path : InArgs)
@@ -220,7 +220,7 @@ namespace UE::Editor::DataStorage::Debug::Private
 				TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.CreateDebugAssetRows);
 
 
-				IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+				IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
 
 				if (!DataStorage)
 				{
@@ -252,7 +252,7 @@ namespace UE::Editor::DataStorage::Debug::Private
 			{
 				using namespace UE::Editor::DataStorage::Queries;
 
-				IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+				IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
 
 				if (!DataStorage)
 				{
