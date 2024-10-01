@@ -87,7 +87,7 @@ public:
 		DisplayName = "Disable Latency Tester",
 		ToolTip = "If true disables latency tester being triggerable."
 		))
-	bool DisableLatencyTester = true; // TODO (Migration) RTCP-6453 make false by default when stats are back in
+	bool DisableLatencyTester = false;
 
 	static TAutoConsoleVariable<FString> CVarInputController;
 	UPROPERTY(config, EditAnywhere, Category = "PixelStreaming", meta = (
@@ -111,7 +111,7 @@ public:
 		DisplayName = "Decouple Wait Factor",
 		ToolTip = "Frame rate factor to wait for a captured frame when streaming in decoupled mode. Higher factor waits longer but may also result in higher latency."
 		))
-	float DecoupleWaitFactor = 1.25f;
+	float DecoupleWaitFactor = 1.0f;
 
 	static TAutoConsoleVariable<float> CVarSignalingReconnectInterval;
 	UPROPERTY(config, EditAnywhere, Category = "PixelStreaming", meta = (
@@ -627,6 +627,9 @@ public:
 
 		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnEncoderDebugDumpFrameChanged, IConsoleVariable*);
 		FOnEncoderDebugDumpFrameChanged OnEncoderDebugDumpFrameChanged;
+
+		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnDecoupleFramerateChanged, IConsoleVariable*);
+		FOnDecoupleFramerateChanged OnDecoupleFramerateChanged;
 	};
 
 	static FDelegates* Delegates();
