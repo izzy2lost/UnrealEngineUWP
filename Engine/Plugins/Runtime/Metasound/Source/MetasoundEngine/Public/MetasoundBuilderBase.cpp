@@ -248,6 +248,38 @@ FMetaSoundNodeHandle UMetaSoundBuilderBase::AddNodeByClassName(const FMetasoundF
 	return NewHandle;
 }
 
+#if WITH_EDITORONLY_DATA
+TScriptInterface<IMetaSoundDocumentInterface> UMetaSoundBuilderBase::Build(const FMetaSoundBuilderOptions& Options) const
+{
+	if (Options.ExistingMetaSound)
+	{
+		BuildAndOverwriteMetaSoundInternal(Options.ExistingMetaSound, Options.bForceUniqueClassName);
+		return Options.ExistingMetaSound;
+	}
+
+	return BuildNewMetaSound(Options.Name);
+}
+#endif // WITH_EDITORONLY_DATA
+
+void UMetaSoundBuilderBase::BuildAndOverwriteMetaSound(TScriptInterface<IMetaSoundDocumentInterface> ExistingMetaSound, bool bForceUniqueClassName)
+{
+	if (!ExistingMetaSound)
+	{
+		UE_LOG(LogMetaSound, Error, TEXT("Failed to build and overwrite MetaSound: No existing MetaSound supplied."));
+		return;
+	}
+
+	if (ExistingMetaSound.GetObject()->IsAsset())
+	{
+		UE_LOG(LogMetaSound, Error, TEXT("Failed to build and overwrite MetaSound: Cannot overwrite serialized asset "
+			"(use 'BuildNewMetaSound' to create a new, transient MetaSound. Overwriting serialized asset is only supported at edit time via "
+			"UMetaSoundEditorSubsystem::BuildToAsset."));
+		return;
+	}
+
+	BuildAndOverwriteMetaSoundInternal(ExistingMetaSound, bForceUniqueClassName);
+}
+
 void UMetaSoundBuilderBase::BuildInternal(TScriptInterface<IMetaSoundDocumentInterface> NewMetaSound, const FMetasoundFrontendClassName* InDocClassName) const
 {
 	using namespace Metasound::Engine;

@@ -63,7 +63,9 @@ TScriptInterface<IMetaSoundDocumentInterface> UMetaSoundEditorSubsystem::BuildTo
 			// Initialize and Build
 			{
 				constexpr bool bForceUniqueClassName = true;
-				InBuilder->BuildAndOverwriteMetaSound(NewMetaSound, bForceUniqueClassName);
+				constexpr bool bAddToRegistry = true;
+				const FMetaSoundBuilderOptions BuilderOptions { FName(*AssetName), bForceUniqueClassName, bAddToRegistry, NewMetaSound };
+				InBuilder->Build(BuilderOptions);
 			}
 
 			UMetaSoundBuilderBase& NewDocBuilder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(*NewMetaSound);
