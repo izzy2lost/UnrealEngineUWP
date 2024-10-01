@@ -274,6 +274,7 @@ void STraceDataFilterWidget::ConstructTileView()
 	.OnContextMenuOpening(this, &STraceDataFilterWidget::OnContextMenuOpening)
 	.Orientation(EOrientation::Orient_Horizontal)
 	.ItemHeight(15.0f)
+	.ItemWidth(150.0f)
 	.ListItemsSource(&FilteredListItems);
 }
 

@@ -10,6 +10,7 @@
 #include "Widgets/SWidget.h"
 #include "Layout/Margin.h"
 #include "Widgets/Views/STableViewBase.h"
+#include "SessionFrontendStyle.h"
 #include "Styling/StyleDefaults.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/SBoxPanel.h"
@@ -118,22 +119,28 @@ public:
 
 			if (InstanceInfo.IsValid())
 			{
-				return SNew(SBox)
-					.Padding(FMargin(1.0f, 1.0f, 4.0f, 1.0f))
-					.HAlign(HAlign_Left)
-					[
-						SNew(SBorder)
-						.BorderBackgroundColor(this, &SSessionBrowserTreeInstanceRow::HandleInstanceBorderBackgroundColor)
-						.BorderImage(this, &SSessionBrowserTreeInstanceRow::HandleInstanceBorderBrush)
-						.ColorAndOpacity(FLinearColor(0.25f, 0.25f, 0.25f))
-						.Padding(FMargin(6.0f, 4.0f))
-						.VAlign(VAlign_Center)
-						[
-							SNew(STextBlock)
-							.Font(FAppStyle::GetFontStyle("BoldFont"))
-							.Text(FText::FromString(InstanceInfo->GetInstanceName()))
-						]
-					];
+				return SNew(SHorizontalBox)
+
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding(FMargin(0.0f, 0.0f, 0.0f, 0.0f))
+				.VAlign(VAlign_Center)
+				[
+					SNew(SImage)
+					.Image(FSessionFrontendStyle::GetBrush("SessionBrowser.Row.Name"))
+					.ColorAndOpacity(this, &SSessionBrowserTreeInstanceRow::GetNameImageColor)
+				]
+
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
+				.VAlign(VAlign_Center)
+				[
+					SNew(STextBlock)
+					.Font(FAppStyle::GetFontStyle("BoldFont"))
+					.Text(FText::FromString(InstanceInfo->GetInstanceName()))
+					.ColorAndOpacity(this, &SSessionBrowserTreeInstanceRow::HandleTextColorAndOpacity)
+				];
 			}
 		}
 		else if (ColumnName == "Status")
@@ -151,7 +158,7 @@ public:
 
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
-			.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
+			.Padding(FMargin(4.0f, 0.0f, 1.5f, 0.0f))
 			.VAlign(VAlign_Center)
 			[
 				SNew(SImage)
@@ -208,8 +215,8 @@ private:
 		return FText::GetEmpty();
 	}
 
-	/** Callback for getting the border color for this row. */
-	FSlateColor HandleInstanceBorderBackgroundColor() const
+	/** Callback for getting the image color for the name column. */
+	FSlateColor GetNameImageColor() const
 	{
 		TSharedPtr<ISessionInstanceInfo> InstanceInfo = Item->GetInstanceInfo();
 
@@ -219,6 +226,19 @@ private:
 		}
 
 		return FLinearColor::Transparent;
+	}
+
+	/** Callback for getting the text color for the name column. */
+	FSlateColor GetNameTextColor() const
+	{
+		FSlateColor Color = GetNameImageColor();
+
+		if (Color == FLinearColor::Transparent)
+		{
+			Color = FSlateColor::UseSubduedForeground();;
+		}
+
+		return Color;
 	}
 
 	/** Callback for getting the border brush for this row. */
