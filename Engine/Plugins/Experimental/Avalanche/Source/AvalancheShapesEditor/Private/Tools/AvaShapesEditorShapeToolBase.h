@@ -48,7 +48,6 @@ protected:
 
 	//~ Begin UAvaInteractiveToolsToolBase
 	virtual bool UseIdentityLocation() const override;
-	virtual bool UseIdentityRotation() const override;
 
 	virtual AActor* SpawnActor(TSubclassOf<AActor> InActorClass, EAvaViewportStatus InViewportStatus, 
 		const FVector2f& InViewportPosition, bool bInPreview, FString* InActorLabelOverride = nullptr) const override;

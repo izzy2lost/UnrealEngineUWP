@@ -99,15 +99,5 @@ bool UAvaShapesEditorShapeToolBase::UseIdentityLocation() const
 		return false;
 	}
 
-	if (!ShapeClass || ShapeClass->IsChildOf<UAvaShape2DDynMeshBase>())
-	{
-		return false;
-	}
-
 	return !IsMotionDesignViewport();
-}
-
-bool UAvaShapesEditorShapeToolBase::UseIdentityRotation() const
-{
-	return ConditionalIdentityRotation();
 }

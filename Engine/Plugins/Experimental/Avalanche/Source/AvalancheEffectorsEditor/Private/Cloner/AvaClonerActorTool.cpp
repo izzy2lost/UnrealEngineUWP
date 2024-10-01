@@ -12,11 +12,6 @@ UAvaClonerActorTool::UAvaClonerActorTool()
 	ActorClass = ACEClonerActor::StaticClass();
 }
 
-bool UAvaClonerActorTool::UseIdentityRotation() const
-{
-	return ConditionalIdentityRotation();
-}
-
 FName UAvaClonerActorTool::GetCategoryName()
 {
 	return IAvalancheInteractiveToolsModule::CategoryNameActor;

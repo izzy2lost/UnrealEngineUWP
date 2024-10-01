@@ -12,11 +12,6 @@ UAvaSVGActorTool::UAvaSVGActorTool()
 	ActorClass = ASVGActor::StaticClass();
 }
 
-bool UAvaSVGActorTool::UseIdentityRotation() const
-{
-	return ConditionalIdentityRotation();
-}
-
 FName UAvaSVGActorTool::GetCategoryName()
 {
 	return IAvalancheInteractiveToolsModule::CategoryNameActor;
