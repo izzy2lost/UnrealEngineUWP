@@ -2884,6 +2884,7 @@ UMaterialInterface* UStaticMeshComponent::GetNaniteAuditMaterial(int32 MaterialI
 	return GetMaterial(MaterialIndex, true);
 }
 
+#if WITH_EDITOR
 UMaterialInterface* UStaticMeshComponent::GetEditorMaterial(int32 MaterialIndex) const
 {
 	// Same logic as GetMaterial() but without the nanite override.
@@ -2898,6 +2899,7 @@ UMaterialInterface* UStaticMeshComponent::GetEditorMaterial(int32 MaterialIndex)
 	}
 	return nullptr;
 }
+#endif
 
 void UStaticMeshComponent::GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, bool bGetDebugMaterials) const
 {

@@ -602,7 +602,9 @@ public:
 	ENGINE_API virtual void GetLightAndShadowMapMemoryUsage( int32& LightMapMemoryUsage, int32& ShadowMapMemoryUsage ) const override;
 	ENGINE_API virtual void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, bool bGetDebugMaterials = false) const final;
 	ENGINE_API virtual UMaterialInterface* GetMaterial(int32 MaterialIndex) const final;
+#if WITH_EDITOR
 	ENGINE_API virtual UMaterialInterface* GetEditorMaterial(int32 MaterialIndex) const override;
+#endif
 	ENGINE_API virtual int32 GetMaterialIndex(FName MaterialSlotName) const override;
 	ENGINE_API virtual UMaterialInterface* GetMaterialFromCollisionFaceIndex(int32 FaceIndex, int32& SectionIndex) const override;
 	ENGINE_API virtual TArray<FName> GetMaterialSlotNames() const override;
