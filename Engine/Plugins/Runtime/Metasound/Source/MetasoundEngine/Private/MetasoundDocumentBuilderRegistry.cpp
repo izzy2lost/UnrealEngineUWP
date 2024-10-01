@@ -141,13 +141,20 @@ namespace Metasound::Engine
 				return Builder.RemoveGraphPage(InPageID);
 			};
 
+			const int32 NumInitGraphs = Document.RootGraph.GetConstGraphPages().Num();
 			StripPageEntries(ResolvePageIDs, ResolvedTargetScratchIDs, RemoveGraphPage);
+			const int32 NumRemainingGraphs = Document.RootGraph.GetConstGraphPages().Num();
 
-			checkf(!Document.RootGraph.GetConstGraphPages().IsEmpty(),
+			checkf(NumRemainingGraphs > 0,
 				TEXT("Document in MetaSound asset '%s' had all default values "
 					"cooked away leaving it in an invalid state. "
 					"Graph must always have at least one implementation."),
 				*Builder.GetDebugName());
+
+			if (NumInitGraphs > NumRemainingGraphs)
+			{
+				UE_LOG(LogMetaSound, Display, TEXT("Cook removed %i graph page(s) from '%s'"), NumInitGraphs - NumRemainingGraphs, *Builder.GetDebugName());
+			}
 		}
 
 		{ // Strip default input values
@@ -162,11 +169,19 @@ namespace Metasound::Engine
 					return Builder.RemoveGraphInputDefault(GraphInput.Name, InPageID);
 				};
 
+				const int32 NumInitDefaults = GraphInput.GetDefaults().Num();
 				StripPageEntries(ResolvePageIDs, ResolvedTargetScratchIDs, RemoveDefault);
-				checkf(!GraphInput.GetDefaults().IsEmpty(),
+				const int32 NumRemainingDefaults = GraphInput.GetDefaults().Num();
+
+				checkf(NumRemainingDefaults > 0,
 					TEXT("Input '%s' had all default values stripped leaving it in an invalid state. "
 					"Input must always have at least one default value"),
 					*GraphInput.Name.ToString());
+
+				if (NumInitDefaults > NumRemainingDefaults)
+				{
+					UE_LOG(LogMetaSound, Display, TEXT("Cook removed %i default input page value(s) from input '%s'"), NumInitDefaults - NumRemainingDefaults, *GraphInput.Name.ToString());
+				}
 			}
 		}
 
