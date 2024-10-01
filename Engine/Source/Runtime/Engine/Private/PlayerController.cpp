@@ -4605,6 +4605,48 @@ void APlayerController::ResetControllerLightColor()
 	}
 }
 
+void APlayerController::SetControllerDeadZones(const float LeftDeadZone, const float RightDeadZone)
+{
+	if (Player == nullptr)
+	{
+		return;
+	}
+
+	if (FSlateApplication::IsInitialized())
+	{
+		IInputInterface* InputInterface = FSlateApplication::Get().GetInputInterface();
+		if (InputInterface)
+		{
+			const int32 ControllerId = CastChecked<ULocalPlayer>(Player)->GetControllerId();
+			FInputDeviceAnalogStickDeadZoneProperty DeadZoneLeft(EInputDeviceAnalogStickMask::Left, LeftDeadZone);
+			InputInterface->SetDeviceProperty(ControllerId, &DeadZoneLeft);
+			FInputDeviceAnalogStickDeadZoneProperty DeadZoneRight(EInputDeviceAnalogStickMask::Right, RightDeadZone);
+			InputInterface->SetDeviceProperty(ControllerId, &DeadZoneRight);
+		}
+	}
+}
+
+void APlayerController::ResetControllerDeadZones()
+{
+	if (Player == nullptr)
+	{
+		return;
+	}
+
+	if (FSlateApplication::IsInitialized())
+	{
+		IInputInterface* InputInterface = FSlateApplication::Get().GetInputInterface();
+		if (InputInterface)
+		{
+			const int32 ControllerId = CastChecked<ULocalPlayer>(Player)->GetControllerId();
+			FInputDeviceAnalogStickDeadZoneProperty DeadZoneLeft(EInputDeviceAnalogStickMask::Left, 0.f);
+			InputInterface->SetDeviceProperty(ControllerId, &DeadZoneLeft);
+			FInputDeviceAnalogStickDeadZoneProperty DeadZoneRight(EInputDeviceAnalogStickMask::Right, 0.f);
+			InputInterface->SetDeviceProperty(ControllerId, &DeadZoneRight);
+		}
+	}
+}
+
 void APlayerController::ProcessForceFeedbackAndHaptics(const float DeltaTime, const bool bGamePaused)
 {
 	if (Player == nullptr)

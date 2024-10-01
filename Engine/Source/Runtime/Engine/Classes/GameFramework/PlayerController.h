@@ -1365,6 +1365,20 @@ public:
 	ENGINE_API void ResetControllerLightColor();
 
 	/**
+	 * Sets the deadzones of the player's controller
+	 * @param	LeftDeadZone 	Inner DeadZone for the left analog stick
+	 * @param	RightDeadZone	Inner DeadZone for the right analog stick
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	ENGINE_API void SetControllerDeadZones(const float LeftDeadZone, const float RightDeadZone);
+
+	/**
+	 * Resets the player's controller deadzones to default
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	ENGINE_API void ResetControllerDeadZones();
+
+	/**
 	 * Travel to a different map or IP address. Calls the PreClientTravel event before doing anything.
 	 * NOTE: This is implemented as a locally executed wrapper for ClientTravelInternal, to avoid API compatability breakage
 	 *

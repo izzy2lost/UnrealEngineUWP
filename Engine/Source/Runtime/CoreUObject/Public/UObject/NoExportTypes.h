@@ -2681,6 +2681,19 @@ enum class EInputDeviceTriggerMask : uint8
 };
 
 /**
+ * Represents input device analog sticks that are available
+ *
+ * NOTE: Make sure to keep this type in sync with the reflected version in IInputInterface.h!
+ */
+UENUM(BlueprintType)
+enum class EInputDeviceAnalogStickMask : uint8
+{
+	None = 0x00,
+	Left = 0x01,
+	Right = 0x02
+};
+
+/**
  * Data about an input device's current state
  */
 USTRUCT(noexport, BlueprintType)
