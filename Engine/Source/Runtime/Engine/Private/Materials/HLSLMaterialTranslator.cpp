@@ -8863,6 +8863,11 @@ int32 FHLSLMaterialTranslator::VertexColor()
 	}
 }
 
+int32 FHLSLMaterialTranslator::MeshPaintTextureCoordinateIndex()
+{
+	return AddInlinedCodeChunkZeroDeriv(MCT_Float, TEXT("GetMeshPaintTextureCoordinateIndex(GetPrimitiveData(Parameters))"));
+}
+
 int32 FHLSLMaterialTranslator::MeshPaintTextureDescriptor()
 {
 	return AddInlinedCodeChunkZeroDeriv(EMaterialValueType(MCT_TextureVirtual | MCT_TextureMeshPaint), TEXT("GetMeshPaintTextureDescriptor(GetPrimitiveData(Parameters))"));
