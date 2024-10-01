@@ -1554,6 +1554,14 @@ TSharedRef<SDockTab> FChooserTableEditor::SpawnTableTab( const FSpawnTabArgs& Ar
 	UpdateTableColumns();
 
 	TableView = SNew(SListView<TSharedPtr<FChooserTableRow>>)
+				.OnKeyDownHandler_Lambda([this](const FGeometry&, const FKeyEvent& Event)
+				{
+					if (GetToolkitCommands()->ProcessCommandBindings(Event))
+					{
+						return FReply::Handled();
+					}
+					return FReply::Unhandled();
+				})
     			.ListItemsSource(&TableRows)
 				.OnContextMenuOpening_Raw(this, &FChooserTableEditor::GenerateRowContextMenu)
 				.OnSelectionChanged_Lambda([this](TSharedPtr<FChooserTableRow>,  ESelectInfo::Type SelectInfo)
