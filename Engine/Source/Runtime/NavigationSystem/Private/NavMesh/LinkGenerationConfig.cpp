@@ -25,6 +25,7 @@ void FNavLinkGenerationJumpDownConfig::CopyToDetourConfig(dtNavLinkBuilderJumpDo
 	OutDetourConfig.jumpEndsHeightTolerance	= JumpEndsHeightTolerance;
 	OutDetourConfig.samplingSeparationFactor = SamplingSeparationFactor;
 	OutDetourConfig.filterDistanceThreshold = FilterDistanceThreshold;
+	OutDetourConfig.linkBuilderFlags = LinkBuilderFlags;
 
 	if (LinkProxy)
 	{
