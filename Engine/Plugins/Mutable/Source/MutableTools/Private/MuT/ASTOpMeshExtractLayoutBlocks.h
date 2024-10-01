@@ -44,6 +44,7 @@ namespace mu
 		void Assert() override;
 		void Link(FProgram& program, FLinkerOptions* Options) override;
 		mu::Ptr<ASTOp> OptimiseSink(const FModelOptimizationOptions&, FOptimizeSinkContext&) const;
+		virtual FSourceDataDescriptor GetSourceDataDescriptor(FGetSourceDataDescriptorContext*) const override;
 
 	};
 

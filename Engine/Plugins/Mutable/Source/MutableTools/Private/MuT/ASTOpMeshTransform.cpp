@@ -80,4 +80,15 @@ namespace mu
 
 	}
 
+
+	FSourceDataDescriptor ASTOpMeshTransform::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
+	{
+		if (source)
+		{
+			return source->GetSourceDataDescriptor(Context);
+		}
+
+		return {};
+	}
+
 }

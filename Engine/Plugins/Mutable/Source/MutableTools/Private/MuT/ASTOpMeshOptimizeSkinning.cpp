@@ -83,4 +83,16 @@ namespace mu
 		}
 	}
 
+
+	//-------------------------------------------------------------------------------------------------
+	FSourceDataDescriptor ASTOpMeshOptimizeSkinning::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
+	{
+		if (source)
+		{
+			return source->GetSourceDataDescriptor(Context);
+		}
+
+		return {};
+	}
+
 }

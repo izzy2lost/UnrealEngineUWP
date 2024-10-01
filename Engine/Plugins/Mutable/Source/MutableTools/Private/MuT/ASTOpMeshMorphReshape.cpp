@@ -89,4 +89,15 @@ namespace mu
 
 	}
 
+
+	FSourceDataDescriptor ASTOpMeshMorphReshape::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
+	{
+		if (Morph)
+		{
+			return Morph->GetSourceDataDescriptor(Context);
+		}
+
+		return {};
+	}
+
 }
