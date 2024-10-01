@@ -96,7 +96,7 @@ namespace UE::PixelStreaming2
 
 	bool FDisconnectSession::Update()
 	{
-		Manager->GetEpicRtcSession()->Disconnect();
+		Manager->GetEpicRtcSession()->Disconnect(EpicRtcStringView{});
 
 		return true;
 	}

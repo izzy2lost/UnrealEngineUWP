@@ -46,7 +46,7 @@ namespace UE::PixelStreaming2
 		virtual ~FMockPlayer();
 
 		void Connect(int StreamerPort);
-		void Disconnect();
+		void Disconnect(const FString& Reason);
 		bool Subscribe(const FString& StreamerId);
 
 		void OnVideoTrackUpdate(EpicRtcParticipantInterface* Participant, EpicRtcVideoTrackInterface* VideoTrack);

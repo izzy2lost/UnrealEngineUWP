@@ -96,7 +96,7 @@ namespace UE::PixelStreaming2
 
 	FMockPlayer::~FMockPlayer()
 	{
-		Disconnect();
+		Disconnect(TEXT("Mock player being destroyed"));
 
 		if (EpicRtcManager->EpicRtcConference)
 		{
@@ -269,7 +269,7 @@ namespace UE::PixelStreaming2
 		DataTrack = FEpicRtcDataTrack::Create(InDataTrack, ToStreamerProtocol);
 	}
 
-	void FMockPlayer::Disconnect()
+	void FMockPlayer::Disconnect(const FString& Reason)
 	{
 		if (!EpicRtcManager->EpicRtcSession)
 		{
@@ -282,7 +282,7 @@ namespace UE::PixelStreaming2
 			EpicRtcManager->EpicRtcSession->RemoveRoom(ToEpicRtcStringView(SubscribedStream));
 		}
 
-		EpicRtcErrorCode Result = EpicRtcManager->EpicRtcSession->Disconnect();
+		EpicRtcErrorCode Result = EpicRtcManager->EpicRtcSession->Disconnect(ToEpicRtcStringView(*Reason));
 		if (Result != EpicRtcErrorCode::Ok)
 		{
 			UE_LOG(LogPixelStreaming2, Error, TEXT("Failed to disconnect EpicRtcSession"));

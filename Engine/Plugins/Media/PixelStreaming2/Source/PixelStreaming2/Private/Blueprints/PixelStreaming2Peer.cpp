@@ -73,7 +73,7 @@ void UPixelStreaming2Peer::BeginPlay()
 
 void UPixelStreaming2Peer::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	Disconnect();
+	Disconnect(FString(TEXT("UPixelStreaming2Peer::EndPlay called with reason: ")) + StaticEnum<EEndPlayReason::Type>()->GetNameStringByValue(EndPlayReason));
 
 	Super::EndPlay(EndPlayReason);
 }
@@ -113,6 +113,11 @@ bool UPixelStreaming2Peer::Connect(const FString& Url)
 
 bool UPixelStreaming2Peer::Disconnect()
 {
+	return Disconnect(TEXT("Disconnect called from Blueprint"));
+}
+
+bool UPixelStreaming2Peer::Disconnect(const FString& OptionalReason)
+{
 	if (!EpicRtcManager)
 	{
 		UE_LOGFMT(LogPixelStreaming2, Warning, "Failed to disconnect. EpicRtcManager isn't valid!");
@@ -131,7 +136,17 @@ bool UPixelStreaming2Peer::Disconnect()
 		EpicRtcManager->EpicRtcSession->RemoveRoom({ ._ptr = reinterpret_cast<const char*>(*SubscribedStream), ._length = static_cast<uint64_t>(SubscribedStream.Len()) });
 	}
 
-	EpicRtcErrorCode Result = EpicRtcManager->EpicRtcSession->Disconnect();
+	FUtf8String Reason;
+	if (OptionalReason.Len())
+	{
+		Reason = *OptionalReason;
+	}
+	else
+	{
+		Reason = "PixelStreaming2Peer Disconnected";
+	}
+
+	EpicRtcErrorCode Result = EpicRtcManager->EpicRtcSession->Disconnect(UE::PixelStreaming2::ToEpicRtcStringView(Reason));
 	if (Result != EpicRtcErrorCode::Ok)
 	{
 		UE_LOGFMT(LogPixelStreaming2, Error, "Failed to disconnect EpicRtcSession. Disconnect returned {0}", UE::PixelStreaming2::ToString(Result));

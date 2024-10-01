@@ -14,7 +14,7 @@ class EpicRtcWebsocketInterface : public EpicRtcRefCountInterface
 {
 public:
     virtual EpicRtcBool Connect(EpicRtcStringView url, EpicRtcWebsocketObserverInterface* observer) = 0;
-    virtual void Disconnect() = 0;
+    virtual void Disconnect(const EpicRtcStringView reason) = 0;
     virtual void Send(EpicRtcStringView message) = 0;
 };
 

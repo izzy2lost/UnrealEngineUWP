@@ -74,6 +74,12 @@ public:
     virtual EMRTC_API EpicRtcStringView GetId() = 0;
 
     /**
+     * Gets instance label.
+     * @return Label.
+     */
+    virtual EMRTC_API EpicRtcStringView GetLabel() = 0;
+
+    /**
      * Pop frame for processing. The user must call release on the frame else it will leak.
      * @param outFrame next available frame. The user must call release on the frame.
      * @return False if no frame was available or failed to pop the frame
