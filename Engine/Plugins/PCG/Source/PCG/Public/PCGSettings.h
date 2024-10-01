@@ -524,6 +524,9 @@ public:
 	/** Get a list of the attributes read or written by this node. */
 	virtual const TArray<FPCGKernelAttributeKey> GetKernelAttributeKeys() const { return {}; }
 
+	/** Add any strings emitted by this node that are known statically at compile time. */
+	virtual void AddStaticCreatedStrings(TArray<FString>& InOutStringTable) const {};
+
 	/** Compute how many threads should be dispatched to execute this node on the GPU. */
 	virtual int ComputeKernelThreadCount(const UPCGDataBinding* Binding) const { return 0; };
 

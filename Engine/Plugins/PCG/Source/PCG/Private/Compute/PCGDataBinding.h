@@ -34,7 +34,7 @@ struct FPCGSpawnerPrimitives
 	int32 SelectorAttributeId = -1;
 
 	UPROPERTY()
-	TArray<uint32> PrimitiveStringKeys;
+	TArray<int32> PrimitiveStringKeys;
 };
 
 UCLASS(Transient, Category = PCG)

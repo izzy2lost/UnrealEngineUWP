@@ -596,6 +596,7 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 					ComputeGraph->DataInterfaces.Add(OutputDI);
 					OutputPinDataInterfaces.Add({ TaskId, OutputPinProperties.Label }, OutputDI);
 
+					// TODO: This seems like a once-per-settings process rather than repeating for each output pin?
 					for (const FPCGKernelAttributeKey& Key : Settings->GetKernelAttributeKeys())
 					{
 						FPCGKernelAttributeIDAndType* FoundEntry = ComputeGraph->GlobalAttributeLookupTable.Find(Key.Name);
@@ -622,6 +623,8 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 							ComputeGraph->GlobalAttributeLookupTable.Add(Key.Name, IDAndType);
 						}
 					}
+
+					Settings->AddStaticCreatedStrings(ComputeGraph->StringTable);
 				}
 			}
 		}

@@ -285,7 +285,7 @@ bool FPCGComputeGraphElement::SetupProceduralISMComponents(FPCGContext* InContex
 
 		TArray<float> PrimitiveSelectionCDF;
 		int32 SelectorAttributeId = -1;
-		TArray<uint32> PrimitiveStringKeys; // ok index is just array index! TODO
+		TArray<int32> PrimitiveStringKeys;
 		TArray<FPCGProceduralISMComponentDescriptor> ComponentsToCreate;
 
 		if (const UPCGMeshSelectorByAttribute* SelectorByAttribute = Cast<UPCGMeshSelectorByAttribute>(SpawnerSettings->MeshSelectorParameters))
@@ -341,7 +341,7 @@ bool FPCGComputeGraphElement::SetupProceduralISMComponents(FPCGContext* InContex
 					continue;
 				}
 
-				PrimitiveStringKeys.Emplace(static_cast<uint32>(StringKey));
+				PrimitiveStringKeys.Emplace(StringKey);
 				ComponentsToCreate.Add(MoveTemp(Descriptor));
 			}
 
@@ -377,6 +377,7 @@ bool FPCGComputeGraphElement::SetupProceduralISMComponents(FPCGContext* InContex
 				const float Weight = float(Entry.Weight) / TotalWeight;
 				CumulativeWeight += Weight;
 				PrimitiveSelectionCDF.Add(CumulativeWeight);
+				PrimitiveStringKeys.Add(InBinding->GetStringTable().IndexOfByKey(Entry.Descriptor.StaticMesh.ToString()));
 
 				FPCGProceduralISMComponentDescriptor Descriptor;
 				Descriptor = Entry.Descriptor;

@@ -58,6 +58,10 @@ void UPCGDataBinding::InitializeInputData(const FPCGDataCollection& InComputeGra
 void UPCGDataBinding::BuildStringTable()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGDataBinding::BuildStringTable);
+	check(Graph);
+
+	// Start with any strings known statically at compilation time.
+	StringTable = Graph->GetStringTable();
 
 	for (const FPCGTaggedData& Data : DataForGPU.InputDataCollection.TaggedData)
 	{
