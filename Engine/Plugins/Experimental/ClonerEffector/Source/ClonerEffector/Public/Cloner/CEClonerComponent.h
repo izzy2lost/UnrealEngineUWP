@@ -235,6 +235,14 @@ protected:
 	/** Called when cloner is initialized */
 	CLONEREFFECTOR_API static FOnClonerInitialized OnClonerInitializedDelegate;
 
+	/** Replaces all unsupported material by default material, gathers unset materials that needs recompiling with proper flags */
+	static bool FilterSupportedMaterials(TArray<TWeakObjectPtr<UMaterialInterface>>& InMaterials, TArray<TWeakObjectPtr<UMaterialInterface>>& OutUnsetMaterials, UMaterialInterface* InDefaultMaterial);
+
+	static bool FilterSupportedMaterial(UMaterialInterface*& InMaterial, UMaterialInterface* InDefaultMaterial);
+
+	/** Fires a warning about unset materials used within this cloner */
+	void FireMaterialWarning(const AActor* InContextActor, const TArray<TWeakObjectPtr<UMaterialInterface>>& InUnsetMaterials);
+
 	//~ Begin UObject
 	virtual void PostInitProperties() override;
 	virtual void PostLoad() override;
@@ -246,6 +254,7 @@ protected:
 
 	//~ Begin UActorComponent
 	virtual void OnComponentCreated() override;
+	virtual void OnComponentDestroyed(bool bInDestroyingHierarchy) override;
 	//~ End UActorComponent
 
 	void UpdateAttachmentTree();
@@ -367,6 +376,7 @@ private:
 
 #if WITH_EDITOR
 	void OnActorPropertyChanged(UObject* InObject, FPropertyChangedEvent& InPropertyChangedEvent);
+	void OnMaterialCompiled(UMaterialInterface* InMaterial);
 #endif
 
 	/** Called when a cloned actor is destroyed */
