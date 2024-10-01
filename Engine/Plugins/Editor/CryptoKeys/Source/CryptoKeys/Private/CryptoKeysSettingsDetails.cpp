@@ -59,7 +59,7 @@ void FCryptoKeysSettingsDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBu
 				.OnClicked_Lambda([this, Settings]()
 				{
 					Settings->EncryptionKey = TEXT("");
-					Settings->SaveConfig(CPF_Config, *Settings->GetDefaultConfigFilename());
+					Settings->TryUpdateDefaultConfigFile();
 					return(FReply::Handled());
 				})
 			]
