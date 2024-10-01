@@ -1602,7 +1602,11 @@ void UAnimSequence::GetAnimationPose(FAnimationPoseData& OutAnimationPoseData, c
 	}
 
 	// If the sequence has root motion enabled, allow sampling of a root motion delta into the custom attribute container of the outgoing pose
-	if (HasRootMotion())
+	if (HasRootMotion()
+#if WITH_EDITOR
+		&& ExtractionContext.bExtractWithRootMotionProvider
+#endif // WITH_EDITOR
+		)
 	{
 		if (const UE::Anim::IAnimRootMotionProvider* RootMotionProvider = UE::Anim::IAnimRootMotionProvider::Get())
 		{
