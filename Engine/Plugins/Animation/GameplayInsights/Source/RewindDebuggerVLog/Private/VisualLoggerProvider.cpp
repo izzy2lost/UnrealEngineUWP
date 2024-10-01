@@ -57,6 +57,11 @@ void  FVisualLoggerProvider::AppendVisualLogEntry(uint64 InObjectId, double InTi
 
 	Timeline->AppendEvent(InTime, Entry);
 	
+	for (const FVisualLogLine& Line : Entry.LogLines)
+	{
+		Categories.AddUnique(Line.Category);
+	}
+	
 	for (const FVisualLogShapeElement& Shape : Entry.ElementsToDraw)
 	{
 		Categories.AddUnique(Shape.Category);

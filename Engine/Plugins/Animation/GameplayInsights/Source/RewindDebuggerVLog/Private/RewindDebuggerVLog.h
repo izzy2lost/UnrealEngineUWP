@@ -14,7 +14,8 @@ class FRewindDebuggerVLog : public IRewindDebuggerExtension
 {
 public:
 	FRewindDebuggerVLog();
-	virtual ~FRewindDebuggerVLog() {};
+	void OnShowDebugInfo(UCanvas* Canvas, APlayerController* Player);
+	virtual ~FRewindDebuggerVLog();
 
 	void Initialize();
 	void MakeCategoriesMenu(UToolMenu* Menu);
@@ -28,12 +29,20 @@ public:
 	virtual void Update(float DeltaTime, IRewindDebugger* RewindDebugger) override;
 
 private:
-	void AddLogEntries(const TArray<TSharedPtr<FDebugObjectInfo>>& Components, float StartTime, float EndTime, const class IVisualLoggerProvider* Provider);
+	void AddLogEntries(const TArray<TSharedPtr<FDebugObjectInfo>>& Components, float StartTime, float EndTime, const class IVisualLoggerProvider* Provider, UCanvas* Canvas);
 	void ImmediateRender(const UObject* Object, const FVisualLogEntry& Entry);
-	void RenderLogEntry(const FVisualLogEntry& Entry);
+	void RenderLogEntry(const FVisualLogEntry& Entry, UCanvas* Canvas);
 
 	AVLogRenderingActor* GetRenderingActor();
 
-	TWeakObjectPtr<AVLogRenderingActor> VLogActor; 
+	TWeakObjectPtr<AVLogRenderingActor> VLogActor;
+
+	TSet<uint64> ObjectsVisited;
+	int32 ScreenTextY;
+
+	FDelegateHandle DelegateHandle;
+	UFont* MonospaceFont = nullptr;
+
+	TArray<FVisualLogEntry> ImmediateRenderQueue;
 };
 
