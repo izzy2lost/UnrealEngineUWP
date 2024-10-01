@@ -19,6 +19,7 @@ namespace Metasound::Editor
 	{
 		bool bPastedNodesAddMultipleVariableSetters = false;
 		bool bPastedNodesCreateLoop = false;
+		bool bPastedNodesAddMultipleOutputNodes = false;
 	};
 
 	struct FDocumentClipboardUtils
@@ -36,7 +37,7 @@ namespace Metasound::Editor
 
 		static void ProcessPastedNodeConnections(FMetasoundAssetBase& OutAsset, TArray<UMetasoundEditorGraphNode*>& OutPastedNodes);
 
-		static void ProcessPastedOutputNodes(FMetasoundAssetBase& OutAsset, TArray<UMetasoundEditorGraphNode*>& OutPastedNodes);
+		static void ProcessPastedOutputNodes(FMetasoundAssetBase& OutAsset, TArray<UMetasoundEditorGraphNode*>& OutPastedNodes, FDocumentPasteNotifications& OutNotifications);
 
 		static void ProcessPastedVariableNodes(FMetasoundAssetBase& OutAsset, TArray<UMetasoundEditorGraphNode*>& OutPastedNodes, FDocumentPasteNotifications& OutNotifications);
 	};

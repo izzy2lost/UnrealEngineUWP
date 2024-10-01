@@ -503,6 +503,7 @@ namespace Metasound::Editor
 		void NotifyDocumentVersioned();
 		void NotifyNodePasteFailure_MultipleVariableSetters();
 		void NotifyNodePasteFailure_ReferenceLoop();
+		void NotifyNodePasteFailure_MultipleOutputs();
 
 		TUniquePtr<FGraphConnectionManager> RebuildConnectionManager(UAudioComponent* PreviewComponent = nullptr) const;
 

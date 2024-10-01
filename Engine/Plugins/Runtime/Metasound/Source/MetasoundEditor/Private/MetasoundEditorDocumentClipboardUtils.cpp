@@ -6,6 +6,7 @@
 #include "EdGraphUtilities.h"
 #include "Logging/TokenizedMessage.h"
 #include "MetasoundDocumentBuilderRegistry.h"
+#include "MetasoundEditorSubsystem.h"
 #include "MetasoundFrontendSearchEngine.h"
 #include "NodeTemplates/MetasoundFrontendNodeTemplateInput.h"
 #include "ScopedTransaction.h"
@@ -66,6 +67,7 @@ namespace Metasound::Editor
 						{
 							FCreateNodeVertexParams VertexParams;
 							VertexParams.DataType = Breadcrumb.DataType;
+							VertexParams.AccessType = Breadcrumb.AccessType;
 
 							TArray<FMetasoundFrontendClassInputDefault> InputDefaults;
 							Algo::Transform(Breadcrumb.DefaultLiterals, InputDefaults, [](const TPair<FGuid, FMetasoundFrontendLiteral>& Pair)
@@ -74,9 +76,22 @@ namespace Metasound::Editor
 							});
 
 							FMetasoundFrontendClassInput ClassInput = FGraphBuilder::CreateUniqueClassInput(*OutAsset.GetOwningAsset(), VertexParams, InputDefaults, &Breadcrumb.MemberName);
+							ClassInput.Metadata = Breadcrumb.VertexMetadata;
+
 							if (const FMetasoundFrontendNode* NewNode = Builder.AddGraphInput(ClassInput))
 							{
 								Input = Graph.FindOrAddInput(NewNode->GetID());
+								if (Breadcrumb.MemberMetadataPath.IsSet())
+								{
+									UObject* MemberMetadata = Breadcrumb.MemberMetadataPath->TryLoad();
+									if (UMetasoundEditorGraphMemberDefaultLiteral* DefaultLiteral = Cast<UMetasoundEditorGraphMemberDefaultLiteral>(MemberMetadata))
+									{
+										Builder.ClearMemberMetadata(ClassInput.NodeID);
+										UMetaSoundEditorSubsystem& MetaSoundEditorSubsystem = UMetaSoundEditorSubsystem::GetChecked();
+										TSubclassOf<UMetasoundEditorGraphMemberDefaultLiteral> LiteralClass = MetaSoundEditorSubsystem.GetLiteralClassForType(Breadcrumb.DataType);
+										MetaSoundEditorSubsystem.BindMemberMetadata(Builder, *Input, LiteralClass, DefaultLiteral);
+									}
+								}
 								MappedGeneratedInputNames.Add(Breadcrumb.MemberName, Input);
 							}
 						}
@@ -111,10 +126,11 @@ namespace Metasound::Editor
 		}
 	}
 
-	void FDocumentClipboardUtils::ProcessPastedOutputNodes(FMetasoundAssetBase& OutAsset, TArray<UMetasoundEditorGraphNode*>& OutPastedNodes)
+	void FDocumentClipboardUtils::ProcessPastedOutputNodes(FMetasoundAssetBase& OutAsset, TArray<UMetasoundEditorGraphNode*>& OutPastedNodes, FDocumentPasteNotifications& OutNotifications)
 	{
 		using namespace Frontend;
-
+		using namespace Engine;
+		FMetaSoundFrontendDocumentBuilder& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(OutAsset.GetOwningAsset());
 		UMetasoundEditorGraph& Graph = *CastChecked<UMetasoundEditorGraph>(&OutAsset.GetGraphChecked());
 		for (int32 Index = OutPastedNodes.Num() - 1; Index >= 0; --Index)
 		{
@@ -126,7 +142,6 @@ namespace Metasound::Editor
 
 			OutputNode->CreateNewGuid();
 
-			// TODO: Add logic to dynamically add output if missing
 			if (OutputNode->Output && Graph.ContainsOutput(*OutputNode->Output))
 			{
 				auto NodeMatches = [OutputNodeID = OutputNode->GetNodeID()](const TObjectPtr<UEdGraphNode>& EdNode)
@@ -141,14 +156,51 @@ namespace Metasound::Editor
 				// Can only have one output reference node
 				if (TObjectPtr<UEdGraphNode>* MatchingOutput = Graph.Nodes.FindByPredicate(NodeMatches))
 				{
+					OutNotifications.bPastedNodesAddMultipleOutputNodes = true;
 					Graph.RemoveNode(OutputNode);
 					OutPastedNodes.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 				}
 			}
 			else
 			{
-				Graph.RemoveNode(OutputNode);
-				OutPastedNodes.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				// Add output if doesn't exist 
+				const FMetasoundEditorGraphVertexNodeBreadcrumb& Breadcrumb = OutputNode->GetBreadcrumb();
+
+				FDataTypeRegistryInfo Info;
+				if (IDataTypeRegistry::Get().GetDataTypeInfo(Breadcrumb.DataType, Info))
+				{
+					FCreateNodeVertexParams VertexParams;
+					VertexParams.DataType = Breadcrumb.DataType;
+					VertexParams.AccessType = Breadcrumb.AccessType;
+
+					FMetasoundFrontendClassOutput ClassOutput = FGraphBuilder::CreateUniqueClassOutput(*OutAsset.GetOwningAsset(), VertexParams, &Breadcrumb.MemberName);
+					ClassOutput.Metadata = Breadcrumb.VertexMetadata;
+
+					if (const FMetasoundFrontendNode* NewNode = Builder.AddGraphOutput(ClassOutput))
+					{
+						UMetasoundEditorGraphOutput* Output = Graph.FindOrAddOutput(NewNode->GetID());
+						if (Output)
+						{
+							if (Breadcrumb.MemberMetadataPath.IsSet())
+							{
+								UObject* MemberMetadata = Breadcrumb.MemberMetadataPath->TryLoad();
+								if (UMetasoundEditorGraphMemberDefaultLiteral* DefaultLiteral = Cast<UMetasoundEditorGraphMemberDefaultLiteral>(MemberMetadata))
+								{
+									Builder.ClearMemberMetadata(ClassOutput.NodeID);
+									UMetaSoundEditorSubsystem& MetaSoundEditorSubsystem = UMetaSoundEditorSubsystem::GetChecked();
+									TSubclassOf<UMetasoundEditorGraphMemberDefaultLiteral> LiteralClass = MetaSoundEditorSubsystem.GetLiteralClassForType(Breadcrumb.DataType);
+									MetaSoundEditorSubsystem.BindMemberMetadata(Builder, *Output, LiteralClass, DefaultLiteral);
+								}
+							}
+							OutputNode->Output = Output;
+						}
+						else
+						{
+							Graph.RemoveNode(OutputNode);
+							OutPastedNodes.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+						}
+					}
+				}
 			}
 		}
 	}
@@ -176,7 +228,6 @@ namespace Metasound::Editor
 
 			VariableNode->CreateNewGuid();
 
-			// Can only have one setter node
 			TObjectPtr<UMetasoundEditorGraphVariable>& Variable = VariableNode->Variable;
 			if (!Variable || !Graph.ContainsVariable(*Variable))
 			{
@@ -196,6 +247,15 @@ namespace Metasound::Editor
 				else
 				{
 					FrontendVariable = FGraphBuilder::AddVariableHandle(*OutAsset.GetOwningAsset(), Breadcrumb.DataType);
+					FrontendVariable->SetDescription(Breadcrumb.VertexMetadata.GetDescription());
+					FrontendVariable->SetDisplayName(Breadcrumb.VertexMetadata.GetDisplayName());
+					// Hack to reuse the default literals breadcrumb property for variables, which only have a single (rather than paged) literals
+					const FMetasoundFrontendLiteral* Literal = Breadcrumb.DefaultLiterals.Find(DefaultPageID);
+					if (Literal)
+					{
+						FrontendVariable->SetLiteral(*Literal);
+					}
+					// TODO: copy member metadata when variables have been moved to use the builder API
 					Variable = Graph.FindOrAddVariable(FrontendVariable);
 					check(Variable);
 
@@ -210,6 +270,7 @@ namespace Metasound::Editor
 			FConstVariableHandle VariableHandle = Variable->GetConstVariableHandle();
 			if (VariableHandle->IsValid())
 			{
+				// Can only have one setter node
 				FConstNodeHandle VariableMutatorNodeHandle = VariableHandle->FindMutatorNode();
 				if (VariableNode->GetNodeID() == VariableMutatorNodeHandle->GetID())
 				{
@@ -474,7 +535,7 @@ namespace Metasound::Editor
 
 		ProcessPastedCommentNodes(*Asset, PastedCommentNodes);
 		ProcessPastedInputNodes(*Asset, PastedGraphNodes);
-		ProcessPastedOutputNodes(*Asset, PastedGraphNodes);
+		ProcessPastedOutputNodes(*Asset, PastedGraphNodes, OutNotifications);
 		ProcessPastedVariableNodes(*Asset, PastedGraphNodes, OutNotifications);
 		ProcessPastedExternalNodes(*Asset, PastedGraphNodes, OutNotifications);
 		ProcessPastedNodePositions(*Asset, InLocation, PastedGraphNodes, PastedCommentNodes);

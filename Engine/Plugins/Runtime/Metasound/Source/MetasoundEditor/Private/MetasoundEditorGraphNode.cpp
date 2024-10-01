@@ -809,11 +809,6 @@ FString UMetasoundEditorGraphMemberNode::GetFindReferenceSearchString_Impl(EGetF
 	return FString();
 }
 
-bool UMetasoundEditorGraphOutputNode::CanDuplicateNode() const
-{
-	return false;
-}
-
 void UMetasoundEditorGraphOutputNode::PinDefaultValueChanged(UEdGraphPin* InPin)
 {
 	using namespace Metasound::Editor;
@@ -950,8 +945,7 @@ void UMetasoundEditorGraphOutputNode::Validate(Metasound::Editor::FGraphNodeVali
 	}
 }
 
-
-const FMetasoundEditorGraphNodeBreadcrumb& UMetasoundEditorGraphOutputNode::GetBreadcrumb() const
+const FMetasoundEditorGraphVertexNodeBreadcrumb& UMetasoundEditorGraphOutputNode::GetBreadcrumb() const
 {
 	return Breadcrumb;
 }
@@ -962,16 +956,20 @@ void UMetasoundEditorGraphOutputNode::CacheBreadcrumb()
 	{
 		Breadcrumb.MemberName = Output->GetMemberName();
 
-		const FMetaSoundFrontendDocumentBuilder& Builder = Output->GetFrontendBuilderChecked();
+		FMetaSoundFrontendDocumentBuilder& Builder = Output->GetFrontendBuilderChecked();
 		if (const FMetasoundFrontendClassOutput* ClassOutput = Builder.FindGraphOutput(Breadcrumb.MemberName))
 		{
-			if (const FMetasoundFrontendNode* Node = Builder.FindGraphInputNode(Breadcrumb.MemberName))
+			if (const FMetasoundFrontendNode* Node = Builder.FindGraphOutputNode(Breadcrumb.MemberName))
 			{
 				if (const FMetasoundFrontendClass* Class = Builder.FindDependency(Node->ClassID))
 				{
 					Breadcrumb.ClassName = Class->Metadata.GetClassName();
 					Breadcrumb.AccessType = ClassOutput->AccessType;
 					Breadcrumb.DataType = ClassOutput->TypeName;
+					if (UMetaSoundFrontendMemberMetadata* MemberMetadata = Builder.FindMemberMetadata(Node->GetID()))
+					{
+						Breadcrumb.MemberMetadataPath = FSoftObjectPath(MemberMetadata);
+					}
 				}
 			}
 		}
@@ -1514,6 +1512,16 @@ void UMetasoundEditorGraphVariableNode::CacheBreadcrumb()
 
 		Breadcrumb.MemberName = VariableHandle->GetName();
 		Breadcrumb.DataType = VariableHandle->GetDataType();
+		// Hack to reuse the default literals breadcrumb property for variables, which only have a single (rather than paged) literals
+		TMap<FGuid, FMetasoundFrontendLiteral> DefaultLiterals;
+		DefaultLiterals.Add(DefaultPageID, VariableHandle->GetLiteral());
+		Breadcrumb.DefaultLiterals = DefaultLiterals;
+
+		FMetasoundFrontendVertexMetadata VertexMetadata;
+		VertexMetadata.SetDisplayName(VariableHandle->GetDisplayName());
+		VertexMetadata.SetDescription(VariableHandle->GetDescription());
+		
+		Breadcrumb.VertexMetadata = VertexMetadata;
 	}
 }
 

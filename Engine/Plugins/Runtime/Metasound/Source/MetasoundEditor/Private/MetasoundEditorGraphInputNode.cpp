@@ -53,7 +53,7 @@ void UMetasoundEditorGraphInputNode::CacheBreadcrumb()
 	{
 		Breadcrumb.MemberName = Input->GetMemberName();
 
-		const FMetaSoundFrontendDocumentBuilder& Builder = Input->GetFrontendBuilderChecked();
+		FMetaSoundFrontendDocumentBuilder& Builder = Input->GetFrontendBuilderChecked();
 		if (const FMetasoundFrontendClassInput* ClassInput = Builder.FindGraphInput(Breadcrumb.MemberName))
 		{
 			if (const FMetasoundFrontendNode* Node = Builder.FindGraphInputNode(Breadcrumb.MemberName))
@@ -63,11 +63,16 @@ void UMetasoundEditorGraphInputNode::CacheBreadcrumb()
 					Breadcrumb.ClassName = Class->Metadata.GetClassName();
 					Breadcrumb.AccessType = ClassInput->AccessType;
 					Breadcrumb.DataType = ClassInput->TypeName;
-
+					Breadcrumb.VertexMetadata = ClassInput->Metadata;
+					if (UMetaSoundFrontendMemberMetadata* MemberMetadata = Builder.FindMemberMetadata(Node->GetID()))
+					{
+						Breadcrumb.MemberMetadataPath = FSoftObjectPath(MemberMetadata);
+					}
 					ClassInput->IterateDefaults([this](const FGuid& PageID, const FMetasoundFrontendLiteral& Literal)
 					{
 						Breadcrumb.DefaultLiterals.Add(PageID, Literal);
 					});
+					
 				}
 			}
 		}
