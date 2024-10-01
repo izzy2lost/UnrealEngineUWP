@@ -8,85 +8,101 @@
 
 #include "CustomizableSkeletalComponent.generated.h"
 
+class UCustomizableSkeletalComponentPrivate;
 
 DECLARE_DELEGATE(FCustomizableSkeletalComponentUpdatedDelegate);
+
 
 UCLASS(Blueprintable, BlueprintType, ClassGroup = (CustomizableObject), meta = (BlueprintSpawnableComponent))
 class CUSTOMIZABLEOBJECT_API UCustomizableSkeletalComponent : public USceneComponent
 {
 public:
 	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = CustomizableSkeletalMesh)
+	
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = CustomizableSkeletalComponent)
 	TObjectPtr<UCustomizableObjectInstance> CustomizableObjectInstance;
 
 	/** This component index refers to the object list of components */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = CustomizableSkeletalMesh)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = CustomizableSkeletalComponent)
 	int32 ComponentIndex;
 
 private:
 	/** Only used if the ComponentIndex is INDEX_NONE.
 	 *  Editing this property will set ComponentIndex to INDEX_NONE. */
-	UPROPERTY(EditAnywhere, Category = CustomizableSkeletalMesh)
+	UPROPERTY(EditAnywhere, Category = CustomizableSkeletalComponent)
 	FName ComponentName;
 
-public:
-	// Used to replace the SkeletalMesh of the parent component by the ReferenceSkeletalMesh or the generated SkeletalMesh 
-	bool bPendingSetSkeletalMesh = false;
-
-	// Used to avoid replacing the SkeletalMesh of the parent component by the ReferenceSkeletalMesh if bPendingSetSkeletalMesh is true
+public: // TODO GMT Private
+	UPROPERTY(EditAnywhere, Category = CustomizableSkeletalComponent)
 	bool bSkipSetReferenceSkeletalMesh = false;
-
+	
+public:
 	FCustomizableSkeletalComponentUpdatedDelegate UpdatedDelegate;
 
+private:
+	UPROPERTY()
+	TObjectPtr<UCustomizableSkeletalComponentPrivate> Private;
+
+public:
+	UCustomizableSkeletalComponent();
+	
 	// UObject interface
+protected:
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
-	
+
+	// UActor interface
+	virtual void PostInitProperties() override;
+	virtual void PostReinitProperties() override;
+
+	// USceneComponent interface
+	virtual void OnAttachmentChanged() override;
+
+public:
 	// Own interface
 	
-	/** Common end point of all updates. Even those which failed. */
-	void Callbacks() const;
-	
-	USkeletalMesh* GetSkeletalMesh() const;
-	USkeletalMesh* GetAttachedSkeletalMesh() const;
-
-	UFUNCTION(BlueprintCallable, Category = CustomizableSkeletalMesh)
+	UFUNCTION(BlueprintCallable, Category = CustomizableSkeletalComponent)
 	void SetComponentName(const FName& Name);
 
-	UFUNCTION(BlueprintCallable, Category = CustomizableSkeletalMesh)
+	UFUNCTION(BlueprintCallable, Category = CustomizableSkeletalComponent)
 	FName GetComponentName() const;
 	
+	UFUNCTION(BlueprintCallable, Category = CustomizableSkeletalComponent)
+	UCustomizableObjectInstance* GetCustomizableObjectInstance() const;
+	
+	UFUNCTION(BlueprintCallable, Category = CustomizableSkeletalComponent)
+	void SetCustomizableObjectInstance(UCustomizableObjectInstance* Instance);
+	
+	/** Set to true to avoid automatically replacing the Skeletal Mesh of the parent Skeletal Mesh Component by the Reference Skeletal Mesh.
+	 * If SkipSetSkeletalMeshOnAttach is true, it will not replace it. */
+	UFUNCTION(BlueprintCallable, Category = CustomizableSkeletalComponent)
+	void SetSkipSetReferenceSkeletalMesh(bool bSkip);
+
+	UFUNCTION(BlueprintCallable, Category = CustomizableSkeletalComponent)
+	bool GetSkipSetReferenceSkeletalMesh() const;
+
+	/** Set to true to avoid automatically replacing the Skeletal Mesh of the parent Skeletal Mesh Component with any mesh. */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstanceUsage)
+	void SetSkipSetSkeletalMeshOnAttach(bool bSkip);
+
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstanceUsage)
+	bool GetSkipSetSkeletalMeshOnAttach() const;
+	
 	/** Update Skeletal Mesh asynchronously. */
-	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
+	UFUNCTION(BlueprintCallable, Category = CustomizableSkeletalComponent)
 	void UpdateSkeletalMeshAsync(bool bNeverSkipUpdate = false);
 
 	/** Update Skeletal Mesh asynchronously. Callback will be called once the update finishes, even if it fails. */
-	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
+	UFUNCTION(BlueprintCallable, Category = CustomizableSkeletalComponent)
 	void UpdateSkeletalMeshAsyncResult(FInstanceUpdateDelegate Callback, bool bIgnoreCloseDist = false, bool bForceHighPriority = false);
 
-	void SetSkeletalMesh(USkeletalMesh* SkeletalMesh);
-	void SetPhysicsAsset(class UPhysicsAsset* PhysicsAsset);
-	void UpdateDistFromComponentToPlayer(const AActor* const Pawn, bool bForceEvenIfNotBegunPlay = false);
+	UCustomizableSkeletalComponentPrivate* GetPrivate();
 
-	void SetVisibilityOfSkeletalMeshSectionWithMaterialName(bool bVisible, const FString& MaterialName, int32 LOD);
-
-#if WITH_EDITOR
-	// Used to generate instances outside the CustomizableObject editor and PIE
-	void UpdateDistFromComponentToLevelEditorCamera(const FVector& CameraPosition);
-	void EditorUpdateComponent();
-#endif
-
+	const UCustomizableSkeletalComponentPrivate* GetPrivate() const;
+	
 private:
 	UPROPERTY(Transient)
 	TObjectPtr<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage;
-
-	void OnAttachmentChanged() override;
-	void CreateCustomizableObjectInstanceUsage();
-
-protected:
-	virtual void PostInitProperties() override;
-	virtual void PostReinitProperties() override;
 };
 

@@ -1,11 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MuCO/CustomizableObjectInstanceUsage.h"
+#include "MuCO/CustomizableObjectInstanceUsagePrivate.h"
+
 #include "MuCO/CustomizableSkeletalComponent.h"
 #include "MuCO/CustomizableObjectSystem.h"
 #include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "MuCO/UnrealPortabilityHelpers.h"
-
+#include "MuCO/CustomizableSkeletalComponentPrivate.h"
 #include "AnimationRuntime.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/SkeletalMesh.h"
@@ -20,7 +22,7 @@
 #include "Stats/Stats.h"
 
 
-ETickableTickType UCustomizableObjectInstanceUsage::GetTickableTickType() const
+ETickableTickType UCustomizableObjectInstanceUsagePrivate::GetTickableTickType() const
 { 
 	return (HasAnyFlags(RF_ClassDefaultObject))
 		? ETickableTickType::Never
@@ -28,25 +30,31 @@ ETickableTickType UCustomizableObjectInstanceUsage::GetTickableTickType() const
 }
 
 
-void UCustomizableObjectInstanceUsage::Callbacks() const
+void UCustomizableObjectInstanceUsagePrivate::Callbacks() const
 {
 	for (const UCustomizableObjectExtension* Extension : ICustomizableObjectModule::Get().GetRegisteredExtensions())
 	{
-		Extension->OnCustomizableObjectInstanceUsageUpdated(this);
+		Extension->OnCustomizableObjectInstanceUsageUpdated(GetPublic());
 	}
 	
-	if (CustomizableSkeletalComponent)
+	if (GetPublic()->CustomizableSkeletalComponent)
 	{
-		CustomizableSkeletalComponent->UpdatedDelegate.ExecuteIfBound();
+		GetPublic()->CustomizableSkeletalComponent->UpdatedDelegate.ExecuteIfBound();
 
-		if (UpdatedDelegate.IsBound() && CustomizableSkeletalComponent->UpdatedDelegate.IsBound())
+		if (GetPublic()->UpdatedDelegate.IsBound() && GetPublic()->CustomizableSkeletalComponent->UpdatedDelegate.IsBound())
 		{
 			UE_LOG(LogMutable, Error, TEXT("The UpdatedDelegate is bound both in the UCustomizableObjectInstanceUsage and in its parent CustomizableSkeletalComponent. Only one should be bound."));
 			ensure(false);
 		}
 	}
 	
-	UpdatedDelegate.ExecuteIfBound();
+	GetPublic()->UpdatedDelegate.ExecuteIfBound();
+}
+
+
+UCustomizableObjectInstanceUsage::UCustomizableObjectInstanceUsage()
+{
+	Private = CreateDefaultSubobject<UCustomizableObjectInstanceUsagePrivate>(FName("Private"));
 }
 
 
@@ -136,11 +144,11 @@ FName UCustomizableObjectInstanceUsage::GetComponentName() const
 }
 
 
-void UCustomizableObjectInstanceUsage::SetPendingSetSkeletalMesh(bool bIsActive)
+void UCustomizableObjectInstanceUsagePrivate::SetPendingSetSkeletalMesh(bool bIsActive)
 {
-	if (CustomizableSkeletalComponent)
+	if (GetPublic()->CustomizableSkeletalComponent)
 	{
-		CustomizableSkeletalComponent->bPendingSetSkeletalMesh = bIsActive;
+		GetPublic()->CustomizableSkeletalComponent->GetPrivate()->bPendingSetSkeletalMesh = bIsActive;
 	}
 	else
 	{
@@ -149,11 +157,11 @@ void UCustomizableObjectInstanceUsage::SetPendingSetSkeletalMesh(bool bIsActive)
 }
 
 
-bool UCustomizableObjectInstanceUsage::GetPendingSetSkeletalMesh() const
+bool UCustomizableObjectInstanceUsagePrivate::GetPendingSetSkeletalMesh() const
 {
-	if (CustomizableSkeletalComponent)
+	if (GetPublic()->CustomizableSkeletalComponent)
 	{
-		return CustomizableSkeletalComponent->bPendingSetSkeletalMesh;
+		return GetPublic()->CustomizableSkeletalComponent->GetPrivate()->bPendingSetSkeletalMesh;
 	}
 	else
 	{
@@ -162,15 +170,45 @@ bool UCustomizableObjectInstanceUsage::GetPendingSetSkeletalMesh() const
 }
 
 
-void UCustomizableObjectInstanceUsage::SetSkipSetReferenceSkeletalMesh(bool bIsActive)
+UCustomizableSkeletalComponent* UCustomizableObjectInstanceUsagePrivate::GetCustomizableSkeletalComponent()
+{
+	return GetPublic()->CustomizableSkeletalComponent;
+}
+
+
+void UCustomizableObjectInstanceUsagePrivate::SetCustomizableSkeletalComponent(UCustomizableSkeletalComponent* Component)
+{
+	GetPublic()->CustomizableSkeletalComponent = Component;
+}
+
+
+UCustomizableObjectInstanceUsage* UCustomizableObjectInstanceUsagePrivate::GetPublic()
+{
+	UCustomizableObjectInstanceUsage* Public = StaticCast<UCustomizableObjectInstanceUsage*>(GetOuter());
+	check(Public);
+
+	return Public;
+}
+
+
+const UCustomizableObjectInstanceUsage* UCustomizableObjectInstanceUsagePrivate::GetPublic() const
+{
+	UCustomizableObjectInstanceUsage* Public = StaticCast<UCustomizableObjectInstanceUsage*>(GetOuter());
+	check(Public);
+
+	return Public;
+}
+
+
+void UCustomizableObjectInstanceUsage::SetSkipSetReferenceSkeletalMesh(bool bSkip)
 {
 	if (CustomizableSkeletalComponent)
 	{
-		CustomizableSkeletalComponent->bSkipSetReferenceSkeletalMesh = bIsActive;
+		CustomizableSkeletalComponent->SetSkipSetReferenceSkeletalMesh(bSkip);
 	}
 	else
 	{
-		bUsedSkipSetReferenceSkeletalMesh = bIsActive;
+		GetPrivate()->bUsedSkipSetReferenceSkeletalMesh = bSkip;
 	}
 }
 
@@ -179,11 +217,37 @@ bool UCustomizableObjectInstanceUsage::GetSkipSetReferenceSkeletalMesh() const
 {
 	if (CustomizableSkeletalComponent)
 	{
-		return CustomizableSkeletalComponent->bSkipSetReferenceSkeletalMesh;
+		return CustomizableSkeletalComponent->GetSkipSetReferenceSkeletalMesh();
 	}
 	else
 	{
-		return bUsedSkipSetReferenceSkeletalMesh;
+		return GetPrivate()->bUsedSkipSetReferenceSkeletalMesh;
+	}
+}
+
+
+void UCustomizableObjectInstanceUsage::SetSkipSetSkeletalMeshOnAttach(bool bSkip)
+{
+	if (CustomizableSkeletalComponent)
+	{
+		CustomizableSkeletalComponent->SetSkipSetSkeletalMeshOnAttach(bSkip);
+	}
+	else
+	{
+		GetPrivate()->bUsedSkipSetSkeletalMeshOnAttach = bSkip;
+	}
+}
+
+
+bool UCustomizableObjectInstanceUsage::GetSkipSetSkeletalMeshOnAttach() const
+{
+	if (CustomizableSkeletalComponent)
+	{
+		return CustomizableSkeletalComponent->GetSkipSetReferenceSkeletalMesh();
+	}
+	else
+	{
+		return GetPrivate()->bUsedSkipSetSkeletalMeshOnAttach;
 	}
 }
 
@@ -207,7 +271,7 @@ void UCustomizableObjectInstanceUsage::AttachTo(USkeletalMeshComponent* Skeletal
 		}
 
 		// To mimic the behavior of UCustomizableSkeletalComponent::OnAttachmentChanged()
-		SetPendingSetSkeletalMesh(true);
+		GetPrivate()->SetPendingSetSkeletalMesh(true);
 	}
 }
 
@@ -227,11 +291,11 @@ USkeletalMeshComponent* UCustomizableObjectInstanceUsage::GetAttachParent() cons
 }
 
 
-USkeletalMesh* UCustomizableObjectInstanceUsage::GetSkeletalMesh() const
+USkeletalMesh* UCustomizableObjectInstanceUsagePrivate::GetSkeletalMesh() const
 {
-	UCustomizableObjectInstance* CustomizableObjectInstance = GetCustomizableObjectInstance();
+	UCustomizableObjectInstance* CustomizableObjectInstance = GetPublic()->GetCustomizableObjectInstance();
 
-	return CustomizableObjectInstance ? CustomizableObjectInstance->GetComponentMeshSkeletalMesh(GetComponentName()) : nullptr;
+	return CustomizableObjectInstance ? CustomizableObjectInstance->GetComponentMeshSkeletalMesh(GetPublic()->GetComponentName()) : nullptr;
 }
 
 
@@ -272,7 +336,7 @@ bool RequiresReinitPose(USkeletalMesh* CurrentSkeletalMesh, USkeletalMesh* Skele
 }
 
 
-void UCustomizableObjectInstanceUsage::SetSkeletalMeshAndOverrideMaterials(USkeletalMeshComponent& Parent, USkeletalMesh* SkeletalMesh, 
+void UCustomizableObjectInstanceUsagePrivate::SetSkeletalMeshAndOverrideMaterials(USkeletalMeshComponent& Parent, USkeletalMesh* SkeletalMesh, 
 	const UCustomizableObjectInstance& CustomizableObjectInstance, bool* bOutSkeletalMeshUpdated, bool* bOutMaterialsUpdated)
 {
 	if (SkeletalMesh != Parent.GetSkeletalMeshAsset())
@@ -313,7 +377,7 @@ void UCustomizableObjectInstanceUsage::SetSkeletalMeshAndOverrideMaterials(USkel
 
 	if (bUseOverrideMaterials)
 	{
-		if (FCustomizableInstanceComponentData* ComponentData = CustomizableObjectInstance.GetPrivate()->GetComponentData(GetComponentName()))
+		if (FCustomizableInstanceComponentData* ComponentData = CustomizableObjectInstance.GetPrivate()->GetComponentData(GetPublic()->GetComponentName()))
 		{
 			for (int32 Index = 0; Index < ComponentData->OverrideMaterials.Num(); ++Index)
 			{
@@ -329,10 +393,10 @@ void UCustomizableObjectInstanceUsage::SetSkeletalMeshAndOverrideMaterials(USkel
 }
 
 
-void UCustomizableObjectInstanceUsage::SetSkeletalMesh(USkeletalMesh* SkeletalMesh, bool* bOutSkeletalMeshUpdated, bool* bOutMaterialsUpdated)
+void UCustomizableObjectInstanceUsagePrivate::SetSkeletalMesh(USkeletalMesh* SkeletalMesh, bool* bOutSkeletalMeshUpdated, bool* bOutMaterialsUpdated)
 {
-	USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(GetAttachParent());
-	const UCustomizableObjectInstance* CustomizableObjectInstance = GetCustomizableObjectInstance();
+	USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(GetPublic()->GetAttachParent());
+	const UCustomizableObjectInstance* CustomizableObjectInstance = GetPublic()->GetCustomizableObjectInstance();
 
 	if (Parent && CustomizableObjectInstance)
 	{
@@ -340,9 +404,9 @@ void UCustomizableObjectInstanceUsage::SetSkeletalMesh(USkeletalMesh* SkeletalMe
 	}
 }
 
-void UCustomizableObjectInstanceUsage::SetPhysicsAsset(UPhysicsAsset* PhysicsAsset, bool* bOutPhysicsAssetUpdated)
+void UCustomizableObjectInstanceUsagePrivate::SetPhysicsAsset(UPhysicsAsset* PhysicsAsset, bool* bOutPhysicsAssetUpdated)
 {
-	USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(GetAttachParent());
+	USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(GetPublic()->GetAttachParent());
 
 	if (Parent && Parent->GetWorld() &&
 		PhysicsAsset != Parent->GetPhysicsAsset())
@@ -357,9 +421,9 @@ void UCustomizableObjectInstanceUsage::SetPhysicsAsset(UPhysicsAsset* PhysicsAss
 }
 
 
-USkeletalMesh* UCustomizableObjectInstanceUsage::GetAttachedSkeletalMesh() const
+USkeletalMesh* UCustomizableObjectInstanceUsagePrivate::GetAttachedSkeletalMesh() const
 {
-	USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(GetAttachParent());
+	USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(GetPublic()->GetAttachParent());
 
 	if (Parent)
 	{
@@ -392,15 +456,8 @@ void UCustomizableObjectInstanceUsage::UpdateSkeletalMeshAsyncResult(FInstanceUp
 }
 
 
-void UCustomizableObjectInstanceUsage::BeginDestroy()
-{
-	Super::BeginDestroy();
-}
-
-
 #if WITH_EDITOR
-
-void UCustomizableObjectInstanceUsage::UpdateDistFromComponentToLevelEditorCamera(const FVector& CameraPosition)
+void UCustomizableObjectInstanceUsagePrivate::UpdateDistFromComponentToLevelEditorCamera(const FVector& CameraPosition)
 {
 	// We want instances in the editor to be generated
 	if (!GetWorld() || GetWorld()->WorldType != EWorldType::Editor)
@@ -408,11 +465,11 @@ void UCustomizableObjectInstanceUsage::UpdateDistFromComponentToLevelEditorCamer
 		return;
 	}
 
-	UCustomizableObjectInstance* CustomizableObjectInstance = GetCustomizableObjectInstance();
+	UCustomizableObjectInstance* CustomizableObjectInstance = GetPublic()->GetCustomizableObjectInstance();
 
 	if (CustomizableObjectInstance)
 	{
-		USkeletalMeshComponent* SkeletalMeshComponent = GetAttachParent();
+		USkeletalMeshComponent* SkeletalMeshComponent = GetPublic()->GetAttachParent();
 		AActor* ParentActor = SkeletalMeshComponent ? SkeletalMeshComponent->GetAttachmentRootActor() : nullptr;
 		if (ParentActor && ParentActor->IsValidLowLevel())
 		{
@@ -425,7 +482,7 @@ void UCustomizableObjectInstanceUsage::UpdateDistFromComponentToLevelEditorCamer
 		}
 
 		USkeletalMesh* AttachedSkeletalMesh = GetAttachedSkeletalMesh();
-		const FName& ComponentName = GetComponentName();
+		const FName& ComponentName = GetPublic()->GetComponentName();
 
 		const bool bInstanceGenerated = CustomizableObjectInstance->GetPrivate()->SkeletalMeshStatus != ESkeletalMeshStatus::NotGenerated;
 		USkeletalMesh* GeneratedSkeletalMesh = bInstanceGenerated ? CustomizableObjectInstance->GetComponentMeshSkeletalMesh(ComponentName) :
@@ -439,26 +496,26 @@ void UCustomizableObjectInstanceUsage::UpdateDistFromComponentToLevelEditorCamer
 }
 
 
-void UCustomizableObjectInstanceUsage::EditorUpdateComponent()
+void UCustomizableObjectInstanceUsagePrivate::EditorUpdateComponent()
 {
-	UCustomizableObjectInstance* CustomizableObjectInstance = GetCustomizableObjectInstance();
+	UCustomizableObjectInstance* CustomizableObjectInstance = GetPublic()->GetCustomizableObjectInstance();
 
 	if (CustomizableObjectInstance)
 	{
 		CustomizableObjectInstance->GetPrivate()->SetCOInstanceFlags(UsedByComponent);
 
-		USkeletalMeshComponent* SkeletalMeshComponent = GetAttachParent();
+		USkeletalMeshComponent* SkeletalMeshComponent = GetPublic()->GetAttachParent();
 		AActor* ParentActor = SkeletalMeshComponent ? SkeletalMeshComponent->GetAttachmentRootActor() : nullptr;
 		
 		if (ParentActor)
 		{
 			USkeletalMesh* AttachedSkeletalMesh = GetAttachedSkeletalMesh();
-			const FName& ComponentName = GetComponentName();
+			const FName& ComponentName = GetPublic()->GetComponentName();
 
 			const bool bInstanceGenerated = CustomizableObjectInstance->GetPrivate()->SkeletalMeshStatus != ESkeletalMeshStatus::NotGenerated;
 			USkeletalMesh* GeneratedSkeletalMesh = bInstanceGenerated ?
 				CustomizableObjectInstance->GetComponentMeshSkeletalMesh(ComponentName) :
-				GetSkipSetReferenceSkeletalMesh() ?
+				GetPublic()->GetSkipSetReferenceSkeletalMesh() ?
 					nullptr :
 					CustomizableObjectInstance->GetCustomizableObject()->GetComponentMeshReferenceSkeletalMesh(ComponentName);
 
@@ -472,53 +529,37 @@ void UCustomizableObjectInstanceUsage::EditorUpdateComponent()
 #endif
 
 
-void UCustomizableObjectInstanceUsage::SetVisibilityOfSkeletalMeshSectionWithMaterialName(bool bInVisible, const FString& MaterialName, int32 LOD)
+UCustomizableObjectInstanceUsagePrivate* UCustomizableObjectInstanceUsage::GetPrivate()
 {
-	UCustomizableObjectInstance* CustomizableObjectInstance = GetCustomizableObjectInstance();
-	const FName& ComponentName = GetComponentName();
-
-	USkeletalMesh* SkeletalMesh = CustomizableObjectInstance->GetComponentMeshSkeletalMesh(ComponentName);
-
-	if (!SkeletalMesh)
-	{
-		return;
-	}
-
-	for (int32 i = 0; i < SkeletalMesh->GetMaterials().Num(); ++i)
-	{
-		UMaterialInstanceDynamic* MatInst = Cast<UMaterialInstanceDynamic>(SkeletalMesh->GetMaterials()[i].MaterialInterface);
-
-		if (MatInst && MatInst->Parent->GetName() == MaterialName)
-		{
-			if (FSkeletalMeshRenderData* SkelResource = SkeletalMesh->GetResourceForRendering() )
-			{
-				if ( SkelResource->LODRenderData.IsValidIndex(LOD))
-				{
-					FSkeletalMeshLODRenderData& LodData = SkelResource->LODRenderData[LOD];
-
-					for (int32 j = 0; j < LodData.RenderSections.Num(); ++j)
-					{
-						FSkelMeshRenderSection& Section = LodData.RenderSections[j];
-
-						if (Section.MaterialIndex == i)
-						{
-							Section.bDisabled = !bInVisible;
-						}
-					}
-				}
-			}
-		}
-	}
+	return Private;
 }
 
 
-void UCustomizableObjectInstanceUsage::UpdateDistFromComponentToPlayer(const AActor* ViewCenter, const bool bForceEvenIfNotBegunPlay)
+const UCustomizableObjectInstanceUsagePrivate* UCustomizableObjectInstanceUsage::GetPrivate() const
 {
-	UCustomizableObjectInstance* CustomizableObjectInstance = GetCustomizableObjectInstance();
+	return Private;
+}
+
+
+bool UCustomizableObjectInstanceUsage::IsNetMode(ENetMode InNetMode) const
+{
+	return GetPrivate()->IsNetMode(InNetMode);
+}
+
+
+void UCustomizableObjectInstanceUsage::EditorUpdateComponent()
+{
+	GetPrivate()->EditorUpdateComponent();
+}
+
+
+void UCustomizableObjectInstanceUsagePrivate::UpdateDistFromComponentToPlayer(const AActor* ViewCenter, const bool bForceEvenIfNotBegunPlay)
+{
+	UCustomizableObjectInstance* CustomizableObjectInstance = GetPublic()->GetCustomizableObjectInstance();
 
 	if (CustomizableObjectInstance)
 	{
-		USkeletalMeshComponent* SkeletalMeshComponent = GetAttachParent();
+		USkeletalMeshComponent* SkeletalMeshComponent = GetPublic()->GetAttachParent();
 		AActor* ParentActor = SkeletalMeshComponent ? SkeletalMeshComponent->GetAttachmentRootActor() : nullptr;
 		
 		CustomizableObjectInstance->SetIsPlayerOrNearIt(false);
@@ -560,13 +601,13 @@ void UCustomizableObjectInstanceUsage::UpdateDistFromComponentToPlayer(const AAc
 
 				if (CustomizableObjectInstance->GetPrivate()->MinSquareDistFromComponentToPlayer == SquareDist)
 				{
-					CustomizableObjectInstance->GetPrivate()->NearestToActor = this;
+					CustomizableObjectInstance->GetPrivate()->NearestToActor = GetPublic();
 					CustomizableObjectInstance->GetPrivate()->NearestToViewCenter = ViewCenter;
 				}
 			}
 		}
 
-		const FName& ComponentName = GetComponentName();
+		const FName& ComponentName = GetPublic()->GetComponentName();
 
 		if (ParentActor && GetAttachedSkeletalMesh() == nullptr && CustomizableObjectInstance->GetComponentMeshSkeletalMesh(ComponentName))
 		{
@@ -576,16 +617,16 @@ void UCustomizableObjectInstanceUsage::UpdateDistFromComponentToPlayer(const AAc
 }
 
 
-void UCustomizableObjectInstanceUsage::Tick(float DeltaTime)
+void UCustomizableObjectInstanceUsagePrivate::Tick(float DeltaTime)
 {
 	if (!IsValid(this))
 	{
 		return;
 	}
 
-	UCustomizableObjectInstance* CustomizableObjectInstance = GetCustomizableObjectInstance();
+	UCustomizableObjectInstance* CustomizableObjectInstance = GetPublic()->GetCustomizableObjectInstance();
 
-	if (!GetPendingSetSkeletalMesh() || !CustomizableObjectInstance || !IsValid(CustomizableObjectInstance))
+	if (!GetPendingSetSkeletalMesh() || GetPublic()->GetSkipSetSkeletalMeshOnAttach() || !CustomizableObjectInstance || !IsValid(CustomizableObjectInstance))
 	{
 		return;
 	}
@@ -596,9 +637,9 @@ void UCustomizableObjectInstanceUsage::Tick(float DeltaTime)
 		return;
 	}	
 
-	if (USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(GetAttachParent()))
+	if (USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(GetPublic()->GetAttachParent()))
 	{
-		const FName& ComponentName = GetComponentName();
+		const FName& ComponentName = GetPublic()->GetComponentName();
 
 		USkeletalMesh* SkeletalMesh = nullptr;
 
@@ -611,7 +652,7 @@ void UCustomizableObjectInstanceUsage::Tick(float DeltaTime)
 		else
 		{
 			// If not generated yet, conditionally set the SkeletalMesh of reference
-			if (!bInstanceGenerated && !GetSkipSetReferenceSkeletalMesh() && 
+			if (!bInstanceGenerated && !GetPublic()->GetSkipSetReferenceSkeletalMesh() && 
 				CustomizableObject->bEnableUseRefSkeletalMeshAsPlaceholder)
 			{
 				// Can be nullptr
@@ -628,27 +669,39 @@ void UCustomizableObjectInstanceUsage::Tick(float DeltaTime)
 }
 
 
-TStatId UCustomizableObjectInstanceUsage::GetStatId() const
+TStatId UCustomizableObjectInstanceUsagePrivate::GetStatId() const
 {
 	RETURN_QUICK_DECLARE_CYCLE_STAT(UCustomizableObjectInstanceUsage, STATGROUP_Tickables);
 }
 
 
-bool UCustomizableObjectInstanceUsage::IsTickable() const
+bool UCustomizableObjectInstanceUsagePrivate::IsTickableWhenPaused() const
+{
+	return true;
+}
+
+
+bool UCustomizableObjectInstanceUsagePrivate::IsTickableInEditor() const
+{
+	return true;
+}
+
+
+bool UCustomizableObjectInstanceUsagePrivate::IsTickable() const
 {
 	return !HasAnyFlags(RF_BeginDestroyed);
 }
 
 
-bool UCustomizableObjectInstanceUsage::IsNetMode(ENetMode InNetMode) const
+bool UCustomizableObjectInstanceUsagePrivate::IsNetMode(ENetMode InNetMode) const
 {
-	if (CustomizableSkeletalComponent)
+	if (GetPublic()->CustomizableSkeletalComponent)
 	{
-		return CustomizableSkeletalComponent->IsNetMode(InNetMode);
+		return GetPublic()->CustomizableSkeletalComponent->IsNetMode(InNetMode);
 	}
-	else if(UsedSkeletalMeshComponent.IsValid())
+	else if (GetPublic()->UsedSkeletalMeshComponent.IsValid())
 	{
-		return UsedSkeletalMeshComponent->IsNetMode(InNetMode);
+		return GetPublic()->UsedSkeletalMeshComponent->IsNetMode(InNetMode);
 	}
 
 	return false;

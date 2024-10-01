@@ -987,7 +987,7 @@ void FCustomizableObjectInstanceEditor::CreatePreviewActor()
 		PreviewSkeletalMeshComponents.Add(DebugComponent);
 		
 		UCustomizableSkeletalComponent* CustomizableComponent = NewObject<UCustomizableSkeletalComponent>(DebugComponent);
-		CustomizableComponent->bSkipSetReferenceSkeletalMesh = true;
+		CustomizableComponent->SetSkipSetReferenceSkeletalMesh(true);
 		CustomizableComponent->CustomizableObjectInstance = CustomizableObjectInstance;
 		CustomizableComponent->SetComponentName(Object->GetComponentName(ObjectComponentIndex));
 		CustomizableComponent->AttachToComponent(DebugComponent, FAttachmentTransformRules::KeepRelativeTransform);

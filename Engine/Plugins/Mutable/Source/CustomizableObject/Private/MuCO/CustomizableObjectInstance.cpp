@@ -11,6 +11,7 @@
 #include "BoneControllers/AnimNode_RigidBody.h"
 #include "ClothConfig.h"
 #include "ClothingAsset.h"
+#include "MuCO/CustomizableObjectInstanceUsagePrivate.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkeletalMeshSocket.h"
 #include "Engine/SkeletalMeshLODSettings.h"
@@ -2977,7 +2978,7 @@ void UCustomizableInstancePrivate::SetDefaultSkeletalMesh(bool bSetEmptyMesh) co
 		}
 
 #if WITH_EDITOR
-		if (CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
+		if (CustomizableObjectInstanceUsage->GetPrivate()->IsNetMode(NM_DedicatedServer))
 		{
 			continue;
 		}
@@ -2998,7 +2999,7 @@ void UCustomizableInstancePrivate::SetDefaultSkeletalMesh(bool bSetEmptyMesh) co
 			SkeletalMesh = ModelResources.ReferenceSkeletalMeshesData[ObjectComponentIndex].SoftSkeletalMesh.LoadSynchronous();
 		}
 		
-		CustomizableObjectInstanceUsage->SetSkeletalMesh(SkeletalMesh);
+		CustomizableObjectInstanceUsage->GetPrivate()->SetSkeletalMesh(SkeletalMesh);
 	}
 }
 
@@ -6733,7 +6734,7 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 			}
 
 #if WITH_EDITOR
-			if (CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
+			if (CustomizableObjectInstanceUsage->GetPrivate()->IsNetMode(NM_DedicatedServer))
 			{
 				continue;
 			}

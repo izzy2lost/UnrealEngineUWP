@@ -2,6 +2,7 @@
 
 #include "MuCO/CustomizableInstanceLODManagement.h"
 
+#include "MuCO/CustomizableObjectInstanceUsagePrivate.h"
 #include "Camera/CameraActor.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAssetCommon.h"
@@ -57,6 +58,15 @@ static TAutoConsoleVariable<bool> CVarOnlyUpdateCloseCustomizableObjects(
 	TEXT("If true, only CustomizableObjects within a predefined distance to the view centers will be generated"),
 	ECVF_Scalability);
 
+
+#if WITH_EDITOR
+void UCustomizableInstanceLODManagementBase::EditorUpdateComponent(UCustomizableObjectInstanceUsage* InstanceUsage)
+{
+	InstanceUsage->GetPrivate()->EditorUpdateComponent();
+}
+#endif
+
+
 UCustomizableInstanceLODManagement::UCustomizableInstanceLODManagement() : UCustomizableInstanceLODManagementBase()
 {
 	CloseCustomizableObjectsDist = 2000.f;
@@ -75,7 +85,7 @@ void UpdatePawnToInstancesDistances(const class UCustomizableObjectInstance* Onl
 	for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage; ++CustomizableObjectInstanceUsage)
 	{
 #if WITH_EDITOR
-		if (IsValid(*CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
+		if (IsValid(*CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->GetPrivate()->IsNetMode(NM_DedicatedServer))
 		{
 			continue;
 		}
@@ -83,7 +93,7 @@ void UpdatePawnToInstancesDistances(const class UCustomizableObjectInstance* Onl
 
 		if (IsValid(*CustomizableObjectInstanceUsage) && (OnlyForInstance == nullptr || CustomizableObjectInstanceUsage->GetCustomizableObjectInstance() == OnlyForInstance))
 		{
-			CustomizableObjectInstanceUsage->UpdateDistFromComponentToPlayer(ViewCenter.IsValid() ? ViewCenter.Get() : nullptr, OnlyForInstance != nullptr);
+			CustomizableObjectInstanceUsage->GetPrivate()->UpdateDistFromComponentToPlayer(ViewCenter.IsValid() ? ViewCenter.Get() : nullptr, OnlyForInstance != nullptr);
 		}
 	}
 }
@@ -95,14 +105,14 @@ void UpdateCameraToInstancesDistance(const FVector CameraPosition)
 	for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage; ++CustomizableObjectInstanceUsage)
 	{
 #if WITH_EDITOR
-		if (IsValid(*CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
+		if (IsValid(*CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->GetPrivate()->IsNetMode(NM_DedicatedServer))
 		{
 			continue;
 		}
 #endif
 		if (IsValid(*CustomizableObjectInstanceUsage) && !CustomizableObjectInstanceUsage->IsTemplate())
 		{
-			CustomizableObjectInstanceUsage->UpdateDistFromComponentToLevelEditorCamera(CameraPosition);
+			CustomizableObjectInstanceUsage->GetPrivate()->UpdateDistFromComponentToLevelEditorCamera(CameraPosition);
 		}
 	}
 }
@@ -127,7 +137,7 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 			for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage; ++CustomizableObjectInstanceUsage)
 			{
 #if WITH_EDITOR
-				if (IsValid(*CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
+				if (IsValid(*CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->GetPrivate()->IsNetMode(NM_DedicatedServer))
 				{
 					continue;
 				}
@@ -173,7 +183,7 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 						// Blueprint instances
 						else if (WorldType == EWorldType::EditorPreview)
 						{
-							CustomizableObjectInstanceUsage->EditorUpdateComponent();
+							CustomizableObjectInstanceUsage->GetPrivate()->EditorUpdateComponent();
 						}
 					}
 	#endif // WITH_EDITOR
@@ -303,7 +313,7 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 		for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage; ++CustomizableObjectInstanceUsage)
 		{
 #if WITH_EDITOR
-			if (IsValid(*CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
+			if (IsValid(*CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->GetPrivate()->IsNetMode(NM_DedicatedServer))
 			{
 				continue;
 			}
@@ -336,7 +346,7 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 
 				if (WorldType == EWorldType::EditorPreview || (!World && !bAttachParentActor))
 				{
-					CustomizableObjectInstanceUsage->EditorUpdateComponent();
+					CustomizableObjectInstanceUsage->GetPrivate()->EditorUpdateComponent();
 					continue;
 				}
 
