@@ -110,6 +110,16 @@ void FForkProcessHelper::OnForkingOccured()
 	}
 }
 
+void FForkProcessHelper::OnPreFork()
+{
+	// Use a local list of forkable threads so we don't keep a lock on the global list during thread creation
+	TArray<FRunnableThread*> ForkableThreads = FThreadManager::Get().GetForkableThreads();
+	for (FRunnableThread* ForkableThread : ForkableThreads)
+	{
+		ForkableThread->OnPreFork();
+	}
+}
+
 bool FForkProcessHelper::IsForkedMultithreadInstance()
 {
 	return ForkInternal::bIsForkedMultithreadInstance;

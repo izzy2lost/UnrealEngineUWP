@@ -197,6 +197,14 @@ private:
 	virtual void Tick() {}
 
 	/**
+	 * Called on the parent process before the fork occurs
+	 */
+	virtual void OnPreFork()
+	{
+		checkf(false, TEXT("Only forkable threads should receive OnPreFork."));
+	}
+
+	/**
 	 * Called on the forked process when the forkable thread can create a real thread
 	 */
 	virtual void OnPostFork()
