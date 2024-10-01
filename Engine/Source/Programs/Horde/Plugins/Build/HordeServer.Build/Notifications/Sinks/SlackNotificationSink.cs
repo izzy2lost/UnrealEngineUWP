@@ -412,7 +412,7 @@ namespace HordeServer.Notifications.Sinks
 				}
 
 				JobScheduledNotification notification = notifications[idx];
-				string jobUrl = _serverInfo.DashboardUrl + "/job/" + notification.JobId;
+				string jobUrl = new Uri(_serverInfo.DashboardUrl, $"job/{notification.JobId}").ToString();
 				sb.AppendLine($"Job `{notification.JobName}` with ID <{jobUrl}|{notification.JobId}> in pool `{notification.PoolName}`");
 			}
 
