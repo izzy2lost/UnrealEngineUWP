@@ -34,6 +34,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FPostProcessMaterialParameters, )
 	SHADER_PARAMETER(FVector2f, SceneWithoutSingleLayerWaterInvTextureSize)
 	SHADER_PARAMETER(uint32, ManualStencilReferenceValue)
 	SHADER_PARAMETER(uint32, ManualStencilTestMask)
+	SHADER_PARAMETER(uint32, UserSceneTextureSceneColorInput)
 	RENDER_TARGET_BINDING_SLOTS()
 END_SHADER_PARAMETER_STRUCT()
 

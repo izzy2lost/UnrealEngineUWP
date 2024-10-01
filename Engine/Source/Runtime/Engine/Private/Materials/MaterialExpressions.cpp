@@ -12592,13 +12592,15 @@ int32 UMaterialExpressionSceneTexture::Compile(class FMaterialCompiler* Compiler
 		ViewportUV = Coordinates.Compile(Compiler);
 	}
 
-	if(OutputIndex == 0)
+	if(OutputIndex == 0 || OutputIndex == 3)
 	{
 		// Color.  Note that clamping support is not necessary for regular SceneTexture, because it's only useful when sampling from lower resolution
 		// maps with filtering, where bilinear blending of a higher resolution UV sample can end up interpolating with pixels outside the valid UV
 		// range on a lower resolution map.  All SceneTextures are full resolution, while UserSceneTextures can be lower resolution (see
-		// UMaterialExpressionUserSceneTexture::Compile below), so those support a user specified clamp flag.
-		return Compiler->SceneTextureLookup(ViewportUV, SceneTextureId, bFiltered, /*bClamped=*/ false);
+		// UMaterialExpressionUserSceneTexture::Compile below), so those support a user specified clamp flag.  The special OutputIndex of 3 (not
+		// user facing) indicates an input pin to custom HLSL that isn't used in the code, meaning the scene texture input should be compiled in,
+		// but the input pin's expression should be dead stripped to avoid an unnecessary texture fetch.
+		return Compiler->SceneTextureLookup(ViewportUV, SceneTextureId, bFiltered, /*bClamped=*/ false, /*bUnused=*/ OutputIndex == 3);
 	}
 	else if(OutputIndex == 1 || OutputIndex == 2)
 	{
@@ -12676,10 +12678,11 @@ int32 UMaterialExpressionUserSceneTexture::Compile(class FMaterialCompiler* Comp
 		ViewportUV = Coordinates.Compile(Compiler);
 	}
 
-	if (OutputIndex == 0)
+	if (OutputIndex == 0 || OutputIndex == 3)
 	{
-		// Color
-		return Compiler->SceneTextureLookup(ViewportUV, SceneTextureId, bFiltered, bClamped);
+		// Color.    The special OutputIndex of 3 (not user facing) indicates an input pin to custom HLSL that isn't used in the code, meaning the
+		// scene texture input should be compiled in, but the input pin's expression should be dead stripped to avoid an unnecessary texture fetch.
+		return Compiler->SceneTextureLookup(ViewportUV, SceneTextureId, bFiltered, bClamped, /*bUnused=*/ OutputIndex == 3);
 	}
 	else if (OutputIndex == 1 || OutputIndex == 2)
 	{
@@ -15383,9 +15386,18 @@ UMaterialExpressionCustom::UMaterialExpressionCustom(const FObjectInitializer& O
 }
 
 #if WITH_EDITOR
+extern FString CustomExpressionSceneTextureInputFixup(const UMaterialExpressionCustom* Custom, const TCHAR* Code, TArray<int8>& OutSceneTextureInfo);
+
 int32 UMaterialExpressionCustom::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
 	TArray<int32> CompiledInputs;
+
+	// We're not using the fixed up code here, just the SceneTextureInfo, which tracks whether the value of SceneTexture / UserSceneTexture input pins are
+	// used in the custom HLSL code.  In many cases, the scene textures will be fetched from using SceneTextureLookup, SceneTextureFetch, or *.Fetch calls
+	// in the custom HLSL, rather than using the input pin value.  The fixup function has a parser that is aware of HLSL syntax, and able to tokenize out
+	// identifiers, and handle symbol sequences (such as Input.ID or Input.Fetch) that will be substituted into SceneTextureFetch calls.
+	TArray<int8> SceneTextureInfo;
+	CustomExpressionSceneTextureInputFixup(this, *Code, SceneTextureInfo);
 
 	for( int32 i=0;i<Inputs.Num();i++ )
 	{
@@ -15400,7 +15412,24 @@ int32 UMaterialExpressionCustom::Compile(class FMaterialCompiler* Compiler, int3
 			{
 				return Compiler->Errorf(TEXT("Custom material %s missing input %d (%s)"), *Description, i+1, *Inputs[i].InputName.ToString());
 			}
-			int32 InputCode = Inputs[i].Input.Compile(Compiler);
+
+			int32 InputCode;
+			if (SceneTextureInfo.Num() && SceneTextureInfo[i] == -1)
+			{
+				// Scene texture reference, not actually used in the custom HLSL.  The special output index "3" (not present in the user interface) specifies
+				// that the scene texture should be compiled into the shader for use by custom HLSL, but the input pin value is not actually used in code, so
+				// its expression shouldn't be compiled in.  It's necessary to explicitly remove the input pin's SceneTexture expression, because the SceneColor
+				// alpha propagation feature means the SceneTextureLookup function now has a side effect of caching propagated alpha, and the compiler can no
+				// longer dead strip calls to that function.  This early removal of the fetch makes stats more accurate as a side bonus.
+				FExpressionInput LocalInput = Inputs[i].Input;
+				LocalInput.OutputIndex = 3;
+				InputCode = LocalInput.Compile(Compiler);
+			}
+			else
+			{
+				InputCode = Inputs[i].Input.Compile(Compiler);
+			}
+
 			if( InputCode < 0 )
 			{
 				return InputCode;

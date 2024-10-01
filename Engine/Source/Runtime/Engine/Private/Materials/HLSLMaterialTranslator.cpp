@@ -259,6 +259,9 @@ struct FHLSLMaterialTranslator::FEnvironmentDefines
 	bool bNeedsParticleSize;
 	bool bNeedsParticleSpriteRotation;
 	bool bNeedsSceneTextures;
+	bool bAlphaPropagatePostProcessInput0;
+	bool bAlphaPropagateUserSceneTexture;
+	uint32 UsedSceneTextures;
 	bool bUsesEyeAdaptation;
 	bool bVirtualTextureOutput;
 	bool bUsesPerInstanceCustomData;
@@ -355,6 +358,9 @@ struct FHLSLMaterialTranslator::FEnvironmentDefines
 		Ar << bNeedsParticleSize;
 		Ar << bNeedsParticleSpriteRotation;
 		Ar << bNeedsSceneTextures;
+		Ar << bAlphaPropagatePostProcessInput0;
+		Ar << bAlphaPropagateUserSceneTexture;
+		Ar << UsedSceneTextures;
 		Ar << bUsesEyeAdaptation;
 		Ar << bVirtualTextureOutput;
 		Ar << bUsesPerInstanceCustomData;
@@ -2623,6 +2629,12 @@ void FHLSLMaterialTranslator::GetMaterialEnvironment(EShaderPlatform InPlatform,
 	if (EnvironmentDefines->bNeedsSceneTextures)
 	{
 		OutEnvironment.SetDefine(TEXT("NEEDS_SCENE_TEXTURES"), TEXT("1"));
+	}
+
+	if (EnvironmentDefines->bAlphaPropagatePostProcessInput0 || EnvironmentDefines->bAlphaPropagateUserSceneTexture)
+	{
+		OutEnvironment.SetDefine(TEXT("POST_PROCESS_PROPAGATE_ALPHA_INPUT"), EnvironmentDefines->bAlphaPropagatePostProcessInput0 ? TEXT("PPI_PostProcessInput0") : TEXT("UserSceneTextureSceneColorInput"));
+		OutEnvironment.SetDefine(TEXT("POST_PROCESS_USED_SCENE_TEXTURES"), EnvironmentDefines->UsedSceneTextures);
 	}
 
 	if (EnvironmentDefines->bUsesEyeAdaptation)
@@ -7921,7 +7933,7 @@ int32 FHLSLMaterialTranslator::SceneDepth(int32 Offset, int32 ViewportUV, bool b
 }
 
 // @param SceneTextureId of type ESceneTextureId e.g. PPI_SubsurfaceColor
-int32 FHLSLMaterialTranslator::SceneTextureLookup(int32 ViewportUV, uint32 InSceneTextureId, bool bFiltered, bool bClamped)
+int32 FHLSLMaterialTranslator::SceneTextureLookup(int32 ViewportUV, uint32 InSceneTextureId, bool bFiltered, bool bClamped, bool bUnused)
 {
 	ESceneTextureId SceneTextureId = (ESceneTextureId)InSceneTextureId;
 
@@ -7944,6 +7956,14 @@ int32 FHLSLMaterialTranslator::SceneTextureLookup(int32 ViewportUV, uint32 InSce
 	}
 
 	UseSceneTextureId(SceneTextureId, true);
+
+	if (bUnused)
+	{
+		// If the output is unused, we just need to reach the call to UseSceneTextureId above so the shader compiler includes the scene texture, then
+		// emit an arbitrary unused constant expression.  This code path is for Custom HLSL references to scene textures, where custom code is calling
+		// SceneTextureFetch or SceneTextureLookup, and the result of the input pin itself isn't used.
+		return Constant4(0.0f, 0.0f, 0.0f, 0.0f);
+	}
 
 	FString SceneTextureIdString = SceneTextureIdToHLSLString(SceneTextureId);
 
@@ -14827,7 +14847,9 @@ static const TCHAR* FindHlslIdentifierInCode(const TCHAR*& Code, const TCHAR* Id
 
 // Fixup for SceneTexture and UserSceneTexture inputs to custom HLSL.  Returns a new string, rather than modifying a Code FString
 // in place, to allow the code to be shared with the HLSL tree code path (MaterialExpressionHLSL.cpp), which uses TStringBuilder.
-// An empty string is returned if no fixup was required (the common case), avoiding reallocation.
+// An empty string is returned if no fixup was required (the common case), avoiding reallocation.  OutSceneTextureInfo tracks
+// which inputs are SceneTexture or UserSceneTexture (left empty if no scene textures).  A -1 indicates a scene texture input not
+// directly used as a symbol in the custom HLSL, allowing the fetch to be dead stripped, while 1 is an actually used input.
 //
 // The goal is to allow the scene texture ID to be automatically generated in the code, without the user needing to manually
 // insert the correct identifier based on settings in the connected node.  Without this fixup, the user needs to change the
@@ -14865,13 +14887,15 @@ static const TCHAR* FindHlslIdentifierInCode(const TCHAR*& Code, const TCHAR* Id
 //		#define WEIGHTED_FETCH_SCENE_TEXTURE(SampleIndex) \
 //			(InputName.Fetch(Offsets[SampleIndex], 0) * Weights[SampleIndex])
 //
-FString CustomExpressionSceneTextureInputFixup(const UMaterialExpressionCustom* Custom, const TCHAR* Code)
+FString CustomExpressionSceneTextureInputFixup(const UMaterialExpressionCustom* Custom, const TCHAR* Code, TArray<int8>& OutSceneTextureInfo)
 {
 	// Allocated when required fixup is first encountered
 	FString ModifiedCode;
 
-	for (const FCustomInput& Input : Custom->Inputs)
+	for (int32 InputIndex = 0; InputIndex < Custom->Inputs.Num(); InputIndex++)
 	{
+		const FCustomInput& Input = Custom->Inputs[InputIndex];
+
 		if (Input.InputName.IsNone())
 		{
 			continue;
@@ -14896,6 +14920,15 @@ FString CustomExpressionSceneTextureInputFixup(const UMaterialExpressionCustom* 
 			const UMaterialExpressionUserSceneTexture* UserSceneTextureExpression = Cast<UMaterialExpressionUserSceneTexture>(Expression);
 			InputIDString = TEXT("PPIUser_") + UserSceneTextureExpression->UserSceneTexture.ToString();
 		}
+
+		// We've encountered a scene texture, allocate our info array
+		if (!OutSceneTextureInfo.Num())
+		{
+			OutSceneTextureInfo.SetNumZeroed(Custom->Inputs.Num());
+		}
+
+		// Mark with -1 to indicate that it's a scene texture input, but might not be directly used in the source.
+		OutSceneTextureInfo[InputIndex] = -1;
 
 		int32 CodeOffset = 0;
 		while (1)
@@ -14955,6 +14988,9 @@ FString CustomExpressionSceneTextureInputFixup(const UMaterialExpressionCustom* 
 			if (CodeOffset == OriginalCodeOffset)
 			{
 				CodeOffset = CodeString - CodeStart;
+
+				// Scene Texture input pin symbol was directly used by the custom HLSL, mark it with a 1, as the input pin expression needs to be compiled in
+				OutSceneTextureInfo[InputIndex] = 1;
 			}
 		}
 	}
@@ -15169,7 +15205,8 @@ int32 FHLSLMaterialTranslator::CustomExpression( class UMaterialExpressionCustom
 		}
 		Code.ReplaceInline(TEXT("\r\n"), TEXT("\n"), ESearchCase::CaseSensitive);
 
-		FString ModifiedCode = CustomExpressionSceneTextureInputFixup(Custom, *Code);
+		TArray<int8> SceneTextureInfoIgnored;
+		FString ModifiedCode = CustomExpressionSceneTextureInputFixup(Custom, *Code, SceneTextureInfoIgnored);
 		if (!ModifiedCode.IsEmpty())
 		{
 			Code = ModifiedCode;
@@ -15672,6 +15709,9 @@ void FHLSLMaterialTranslator::PrepareEnvironmentDefines()
 	EnvironmentDefines->bNeedsParticleSize = bNeedsParticleSize;
 	EnvironmentDefines->bNeedsParticleSpriteRotation = bNeedsParticleSpriteRotation;
 	EnvironmentDefines->bNeedsSceneTextures = MaterialCompilationOutput.bNeedsSceneTextures;
+	EnvironmentDefines->bAlphaPropagatePostProcessInput0 = Material->GetMaterialDomain() == MD_PostProcess && !Material->GetBlendableOutputAlpha() && MaterialCompilationOutput.IsSceneTextureUsed(PPI_PostProcessInput0);
+	EnvironmentDefines->bAlphaPropagateUserSceneTexture = Material->GetMaterialDomain() == MD_PostProcess && !Material->GetBlendableOutputAlpha() && !MaterialCompilationOutput.UserSceneTextureInputs.IsEmpty();
+	EnvironmentDefines->UsedSceneTextures = MaterialCompilationOutput.UsedSceneTextures;
 	EnvironmentDefines->bUsesEyeAdaptation = MaterialCompilationOutput.bUsesEyeAdaptation;
 	EnvironmentDefines->bVirtualTextureOutput = MaterialCompilationOutput.bHasRuntimeVirtualTextureOutputNode;
 	EnvironmentDefines->bUsesPerInstanceCustomData = MaterialCompilationOutput.bUsesPerInstanceCustomData && Material->IsUsedWithInstancedStaticMeshes();
