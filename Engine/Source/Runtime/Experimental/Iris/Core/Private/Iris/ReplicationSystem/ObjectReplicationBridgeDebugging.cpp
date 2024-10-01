@@ -150,14 +150,13 @@ void PrintDefaultNetObjectState(UReplicationSystem* ReplicationSystem, uint32 Co
 	NetSerializationContext.SetLocalConnectionId(ConnectionId);
 
 	FReplicationInstanceOperations::OutputInternalDefaultStateToString(NetSerializationContext, StringBuilder, RegisteredFragments);
+	FReplicationInstanceOperations::OutputInternalDefaultStateMemberHashesToString(ReplicationSystem, StringBuilder, RegisteredFragments);
 }
 
-void RemoteProtocolMismatchDetected(UReplicationSystem* ReplicationSystem, uint32 ConnectionId, const FReplicationFragments& RegisteredFragments, const UObject* ArchetypeOrCDOKey, const UObject* InstancePtr)
+void RemoteProtocolMismatchDetected(TMap<FObjectKey, bool>& ArchetypesAlreadyPrinted, UReplicationSystem* ReplicationSystem, uint32 ConnectionId, const FReplicationFragments& RegisteredFragments, const UObject* ArchetypeOrCDOKey, const UObject* InstancePtr)
 {
 	if (UE_LOG_ACTIVE(LogIris, Error))
 	{
-		static TMap<FObjectKey, bool> ArchetypesAlreadyPrinted;
-
 		// Only print the CDO state once
 		if (ArchetypesAlreadyPrinted.Find(FObjectKey(ArchetypeOrCDOKey)) == nullptr)
 		{
