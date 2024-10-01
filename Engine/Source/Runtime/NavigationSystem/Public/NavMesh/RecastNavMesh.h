@@ -661,7 +661,6 @@ class ARecastNavMesh : public ANavigationData
 	UPROPERTY(EditAnywhere, Category=Generation, config, meta=(ClampMin = "300.0"))
 	float TileSizeUU;
 
-#if WITH_EDITORONLY_DATA
 	/**
 	 * Note that we are not using _DEPRECATED on the following deprecated properties
 	 * since it prevents the property from being serialized back which can break the
@@ -679,7 +678,6 @@ class ARecastNavMesh : public ANavigationData
 	UE_DEPRECATED(all, "Use NavMeshResolutionParams to set AgentMaxStepHeight for the different resolutions instead")
 	UPROPERTY(config, meta = (DeprecatedProperty, DeprecationMessage = "Use NavMeshResolutionParams to set AgentMaxStepHeight for the different resolutions instead"))
 	float AgentMaxStepHeight;
-#endif // WITH_EDITORONLY_DATA
 
 	/** Resolution params 
 	 * If using multiple resolutions, it's recommended to chose the highest resolution first and 

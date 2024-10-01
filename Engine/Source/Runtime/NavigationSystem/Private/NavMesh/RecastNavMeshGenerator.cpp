@@ -4988,6 +4988,7 @@ void FRecastNavMeshGenerator::ConfigureBuildProperties(FRecastBuildConfig& OutCo
 {
 	// @TODO those variables should be tweakable per navmesh actor
 	const float CellSize = DestNavMesh->GetCellSize(ENavigationDataResolution::Default);
+	ensure(CellSize != 0.f);
 	const float CellHeight = DestNavMesh->GetCellHeight(ENavigationDataResolution::Default);
 	const float AgentHeight = DestNavMesh->AgentHeight;
 	const float AgentMaxSlope = DestNavMesh->AgentMaxSlope;
