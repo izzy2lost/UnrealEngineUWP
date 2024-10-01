@@ -570,6 +570,8 @@ FArchive& operator<<(FArchive& Ar, FVisualLogLine& LogLine)
 	Ar << LogLine.Verbosity;
 	Ar << LogLine.UniqueId;
 	Ar << LogLine.UserData;
+	Ar << LogLine.Color;
+	Ar << LogLine.bMonospace;
 	Ar << LogLine.Line;
 	return Ar;
 }

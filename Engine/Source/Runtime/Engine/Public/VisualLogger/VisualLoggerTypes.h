@@ -101,10 +101,12 @@ struct FVisualLogLine
 	int32 UniqueId;
 	int64 UserData;
 	FName TagName;
-
+	FColor Color;
+	bool bMonospace;
 	FVisualLogLine() { /* Empty */ }
 	ENGINE_API FVisualLogLine(const FName& InCategory, ELogVerbosity::Type InVerbosity, const FString& InLine);
 	ENGINE_API FVisualLogLine(const FName& InCategory, ELogVerbosity::Type InVerbosity, const FString& InLine, int64 InUserData);
+	ENGINE_API FVisualLogLine(const FName& InCategory, ELogVerbosity::Type InVerbosity, const FString& InLine, const FColor& InColor, bool bInMonospace);
 };
 
 struct FVisualLogStatusCategory
@@ -406,6 +408,9 @@ FVisualLogLine::FVisualLogLine(const FName& InCategory, ELogVerbosity::Type InVe
 , Category(InCategory)
 , Verbosity(InVerbosity)
 , UserData(0)
+, Color(FColor::White)
+, bMonospace(false)
+
 {
 
 }
@@ -416,6 +421,20 @@ FVisualLogLine::FVisualLogLine(const FName& InCategory, ELogVerbosity::Type InVe
 , Category(InCategory)
 , Verbosity(InVerbosity)
 , UserData(InUserData)
+, Color(FColor::White)
+, bMonospace(false)
+{
+
+}
+
+inline
+FVisualLogLine::FVisualLogLine(const FName& InCategory, ELogVerbosity::Type InVerbosity, const FString& InLine, const FColor& InColor, bool bInMonospace)
+	: Line(InLine)
+	, Category(InCategory)
+	, Verbosity(InVerbosity)
+	, UserData(0)
+	, Color(InColor)
+	, bMonospace(bInMonospace)
 {
 
 }
