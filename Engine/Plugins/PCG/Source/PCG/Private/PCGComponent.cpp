@@ -91,6 +91,13 @@ void UPCGComponent::SetIsPartitioned(bool bIsNowPartitioned)
 	{
 		return;
 	}
+	
+	// Allow BP class to set the flag. BP class won't have an owner. They won't get registered anyway.
+	if (!GetOwner())
+	{
+		bIsComponentPartitioned = bIsNowPartitioned;
+		return;
+	}
 
 	bool bDoActorMapping = bGenerated || PCGHelpers::IsRuntimeOrPIE();
 
