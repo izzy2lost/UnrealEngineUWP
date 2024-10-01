@@ -267,6 +267,8 @@ public:
 				.ToolTipText(LOCTEXT("AddFilterToolTip", "Open the Add Filter Menu to add or manage filters."))
 				.OnGetMenuContent(InFilterBar, &SBasicFilterBar<FilterType>::MakeAddFilterMenu)
 				.ContentPadding(FMargin(1, 0))
+ 				// If the filter bar is embedded in a parent menu, this allows the Add Filter Menu to close when clicking on an empty area in the parent menu
+ 				.CollapseMenuOnParentFocus(true)
 				.ButtonContent()
 				[
 					FilterImage.ToSharedRef()
