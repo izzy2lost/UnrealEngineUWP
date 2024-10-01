@@ -292,6 +292,9 @@ struct FAnimExtractContext
 
 #if WITH_EDITOR
 	bool bIgnoreRootLock;
+
+	// Experimental
+	bool bExtractWithRootMotionProvider;
 #endif 
 	
 	UE_DEPRECATED(5.1, "FAnimExtractContext construct with float-based time value is deprecated, use other signature")
@@ -305,6 +308,7 @@ struct FAnimExtractContext
 		, InterpolationOverride()
 #if WITH_EDITOR
 		, bIgnoreRootLock(false)
+		, bExtractWithRootMotionProvider(true)
 #endif 
 	{
 	}
@@ -319,6 +323,7 @@ struct FAnimExtractContext
 		, InterpolationOverride()
 #if WITH_EDITOR
 		, bIgnoreRootLock(false)
+		, bExtractWithRootMotionProvider(true)
 #endif 
 	{
 	}

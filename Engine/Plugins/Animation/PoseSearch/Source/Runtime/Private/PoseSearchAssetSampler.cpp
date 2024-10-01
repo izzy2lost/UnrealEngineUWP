@@ -409,6 +409,10 @@ void FAnimationAssetSampler::ExtractPose(float Time, FCompactPose& OutPose) cons
 	DeltaTimeRecord.Set(Time, 0.f);
 	FAnimExtractContext ExtractionCtx(double(Time), false, DeltaTimeRecord, IsLoopable());
 
+#if WITH_EDITOR
+	ExtractionCtx.bExtractWithRootMotionProvider = false;
+#endif // WITH_EDITOR
+
 	ExtractPose(ExtractionCtx, AnimPoseData);
 }
 
@@ -421,6 +425,10 @@ void FAnimationAssetSampler::ExtractPose(float Time, FCompactPose& OutPose, FBle
 	FDeltaTimeRecord DeltaTimeRecord;
 	DeltaTimeRecord.Set(Time, 0.f);
 	FAnimExtractContext ExtractionCtx(double(Time), false, DeltaTimeRecord, IsLoopable());
+
+#if WITH_EDITOR
+	ExtractionCtx.bExtractWithRootMotionProvider = false;
+#endif // WITH_EDITOR
 
 	ExtractPose(ExtractionCtx, AnimPoseData);
 }
