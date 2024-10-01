@@ -283,6 +283,13 @@ FPCGDataCollectionDesc UPCGCustomHLSLSettings::ComputeOutputPinDataDesc(const UP
 {
 	check(OutputPin);
 	check(Binding);
+
+	// If node will not execute on GPU then its data comes straight from CPU.
+	if (!ShouldExecuteOnGPU() || !bEnabled)
+	{
+		return Super::ComputeOutputPinDataDesc(OutputPin, Binding);
+	}
+
 	FPCGDataCollectionDesc PinDesc;
 
 	const FPCGPinPropertiesGPU* Properties = GetOutputPinPropertiesGPU(OutputPin->Properties.Label);

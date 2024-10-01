@@ -712,6 +712,12 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	ChangeType |= IsStructuralProperty(InPropertyName) ? EPCGChangeType::Structural : EPCGChangeType::None;
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+	// Changes to GPU nodes can deeply affect the compiled compute graph so trigger recompiles on any non-trivial changes.
+	if (ChangeType != EPCGChangeType::Cosmetic && ShouldExecuteOnGPU())
+	{
+		ChangeType |= EPCGChangeType::Structural;
+	}
+
 	return ChangeType;
 }
 

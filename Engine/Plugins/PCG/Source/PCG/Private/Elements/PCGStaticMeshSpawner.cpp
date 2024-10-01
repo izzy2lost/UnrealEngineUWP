@@ -116,12 +116,15 @@ FString UPCGStaticMeshSpawnerSettings::GetCookedKernelSource(const TMap<FName, F
 
 FPCGDataCollectionDesc UPCGStaticMeshSpawnerSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding) const
 {
-	if (!ShouldExecuteOnGPU())
+	check(OutputPin);
+	check(Binding);
+
+	// If node will not execute on GPU then its data comes straight from CPU.
+	if (!ShouldExecuteOnGPU() || !bEnabled)
 	{
 		return Super::ComputeOutputPinDataDesc(OutputPin, Binding);
 	}
 
-	check(OutputPin);
 
 	// Passthrough - output description matches input description.
 	return ComputeInputPinDataDesc(PCGPinConstants::DefaultInputLabel, Binding);
@@ -192,19 +195,6 @@ void UPCGStaticMeshSpawnerSettings::CreateAdditionalOutputDataInterfaces(TArray<
 }
 
 #if WITH_EDITOR
-EPCGChangeType UPCGStaticMeshSpawnerSettings::GetChangeTypeForProperty(const FName& InPropertyName) const
-{
-	EPCGChangeType ChangeType = Super::GetChangeTypeForProperty(InPropertyName);
-
-	if (ChangeType != EPCGChangeType::Cosmetic && ShouldExecuteOnGPU())
-	{
-		// GPU SM Spawners are compiled into compute graph so trigger recompilation.
-		ChangeType |= EPCGChangeType::Structural;
-	}
-
-	return ChangeType;
-}
-
 FText UPCGStaticMeshSpawnerSettings::GetDefaultNodeTitle() const
 {
 	return LOCTEXT("NodeTitle", "Static Mesh Spawner");
