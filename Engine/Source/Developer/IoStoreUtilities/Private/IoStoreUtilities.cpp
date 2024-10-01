@@ -821,34 +821,49 @@ struct FCookedFileStatData
 	EFileType FileType = Invalid;
 };
 
+/**
+ * Finds where the extension starts in a path.
+ * 
+ * We can't just find the left most '.' in the file name because the path might
+ * contain a bulkdata cooked index (@see FBulkDataCookedIndex) and we don't want
+ * to include the index part. We are attempting to match up the extensions with
+ * those found in the constructor of FCookedFileStatMap.
+ * 
+ * For example take the following filenames and the extensions we want to find:
+ * <packagename>.m.ubulk   -> .m.ubulk
+ * <packagename>.o.ubulk   -> .o.ubulk
+ * <packagename>.001.ubulk ->.ubulk
+ * 
+ * So we want to find the left most '.' unless that is followed by only numeric
+ * values in which case we have found a cooked index and we want to find the '.'
+ * after those values.
+*/
 static int32 GetFullExtensionStartIndex(FStringView Path)
 {
 	int32 ExtensionStartIndex = -1;
 	for (int32 Index = Path.Len() - 1; Index >= 0; --Index)
 	{
+		// Check if we reached the end of the filename
 		if (FPathViews::IsSeparator(Path[Index]))
 		{
 			break;
 		}
 		else if (Path[Index] == '.')
 		{
+			if (ExtensionStartIndex != -1)
+			{
+				// As we have already found a '.' we need to check for the cooked index
+				FStringView Extension = Path.SubStr(Index + 1, (ExtensionStartIndex - Index) - 1);
+				if (UE::String::IsNumericOnlyDigits(Extension))
+				{
+					return ExtensionStartIndex;
+				}
+			}
+
 			ExtensionStartIndex = Index;
 		}
 	}
 	return ExtensionStartIndex;
-}
-
-static FStringView GetBaseFilenameWithoutAnyExtension(FStringView Path)
-{
-	int32 ExtensionStartIndex = GetFullExtensionStartIndex(Path);
-	if (ExtensionStartIndex < 0)
-	{
-		return FStringView();
-	}
-	else
-	{
-		return Path.Left(ExtensionStartIndex);
-	}
 }
 
 static FStringView GetFullExtension(FStringView Path)
@@ -1014,6 +1029,7 @@ struct FContainerTargetFile
 	uint64 IdealOrder = 0;
 	FIoChunkId ChunkId;
 	FIoHash ChunkHash;
+	FBulkDataCookedIndex BulkDataCookedIndex;
 	TArray<uint8> PackageHeaderData;
 	EContainerChunkType ChunkType;
 	bool bForceUncompressed = false;
@@ -1587,6 +1603,7 @@ static void CreateDiskLayout(
 				SortedTargetFiles.Add(&TargetFile);
 			}
 		}
+
 		check(ShaderTargetFilesMap.Num() == ContainerTarget->GlobalShaders.Num() + ContainerTarget->SharedShaders.Num() + ContainerTarget->UniqueShaders.Num() + ContainerTarget->InlineShaders.Num());
 		Algo::Sort(SortedTargetFiles, [](const FContainerTargetFile* A, const FContainerTargetFile* B)
 		{
@@ -1601,6 +1618,10 @@ static void CreateDiskLayout(
 			if (A->Package != B->Package)
 			{
 				return A->Package->DiskLayoutOrder < B->Package->DiskLayoutOrder;
+			}
+			if (A->BulkDataCookedIndex != B->BulkDataCookedIndex)
+			{
+				return A->BulkDataCookedIndex < B->BulkDataCookedIndex;
 			}
 			check(A == B)
 			return false;
@@ -2604,6 +2625,9 @@ void InitializeContainerTargetsAndPackages(
 				return false;
 			}
 
+			// TODO - Would be nicer to parse this from the package info rather than inferring it from the path
+			OutTargetFile.BulkDataCookedIndex = FBulkDataCookedIndex::ParseFromPath(SourceFile.NormalizedPath);
+
 			switch (CookedFileStatData->FileType)
 			{
 			case FCookedFileStatData::PackageData:
@@ -2615,17 +2639,17 @@ void InitializeContainerTargetsAndPackages(
 				break;
 			case FCookedFileStatData::BulkData:
 				OutTargetFile.ChunkType = EContainerChunkType::BulkData;
-				OutTargetFile.ChunkId = CreateIoChunkId(OutTargetFile.Package->GlobalPackageId.Value(), 0, EIoChunkType::BulkData);
+				OutTargetFile.ChunkId = CreateBulkDataIoChunkId(OutTargetFile.Package->GlobalPackageId.Value(), 0, OutTargetFile.BulkDataCookedIndex.GetValue(), EIoChunkType::BulkData);
 				OutTargetFile.Package->TotalBulkDataSize += CookedFileStatData->FileSize;
 				break;
 			case FCookedFileStatData::OptionalBulkData:
 				OutTargetFile.ChunkType = EContainerChunkType::OptionalBulkData;
-				OutTargetFile.ChunkId = CreateIoChunkId(OutTargetFile.Package->GlobalPackageId.Value(), 0, EIoChunkType::OptionalBulkData);
+				OutTargetFile.ChunkId = CreateBulkDataIoChunkId(OutTargetFile.Package->GlobalPackageId.Value(), 0, OutTargetFile.BulkDataCookedIndex.GetValue(), EIoChunkType::OptionalBulkData);
 				Package->TotalBulkDataSize += CookedFileStatData->FileSize;
 				break;
 			case FCookedFileStatData::MemoryMappedBulkData:
 				OutTargetFile.ChunkType = EContainerChunkType::MemoryMappedBulkData;
-				OutTargetFile.ChunkId = CreateIoChunkId(OutTargetFile.Package->GlobalPackageId.Value(), 0, EIoChunkType::MemoryMappedBulkData);
+				OutTargetFile.ChunkId = CreateBulkDataIoChunkId(OutTargetFile.Package->GlobalPackageId.Value(), 0, OutTargetFile.BulkDataCookedIndex.GetValue(), EIoChunkType::MemoryMappedBulkData);
 				Package->TotalBulkDataSize += CookedFileStatData->FileSize;
 				break;
 			case FCookedFileStatData::OptionalSegmentPackageData:
@@ -2636,7 +2660,7 @@ void InitializeContainerTargetsAndPackages(
 				break;
 			case FCookedFileStatData::OptionalSegmentBulkData:
 				OutTargetFile.ChunkType = EContainerChunkType::OptionalSegmentBulkData;
-				OutTargetFile.ChunkId = CreateIoChunkId(OutTargetFile.Package->GlobalPackageId.Value(), 1, EIoChunkType::BulkData);
+				OutTargetFile.ChunkId = CreateBulkDataIoChunkId(OutTargetFile.Package->GlobalPackageId.Value(), 1, OutTargetFile.BulkDataCookedIndex.GetValue(), EIoChunkType::BulkData);
 				break;
 			default:
 				UE_LOG(LogIoStore, Fatal, TEXT("Unexpected file type %d for file '%s'"), CookedFileStatData->FileType, *OutTargetFile.NormalizedSourcePath);
@@ -2743,6 +2767,9 @@ void InitializeContainerTargetsAndPackages(
 			return false;
 		}
 		OutTargetFile.Package->PackageStoreEntry = *PackageStoreEntry;
+
+		// TODO - Would be nicer to parse this from the package info rather than inferring it from the path
+		OutTargetFile.BulkDataCookedIndex = FBulkDataCookedIndex::ParseFromPath(SourceFile.NormalizedPath);
 
 		if (Extension == TEXT(".m.ubulk"))
 		{
@@ -5267,7 +5294,7 @@ int32 CreateTarget(const FIoStoreArguments& Arguments, const FIoStoreWriterSetti
 			if (TargetFile.Package->PackageStoreEntry.IsAutoOptional())
 			{
 				// Auto optional packages replace the non-optional part when the container is mounted
-				ChunkId = CreateIoChunkId(TargetFile.Package->GlobalPackageId.Value(), 0, EIoChunkType::BulkData);
+				ChunkId = CreateBulkDataIoChunkId(TargetFile.Package->GlobalPackageId.Value(), 0, TargetFile.BulkDataCookedIndex.GetValue(), EIoChunkType::BulkData);
 			}
 			bIsOptionalSegmentChunk = true;
 			break;

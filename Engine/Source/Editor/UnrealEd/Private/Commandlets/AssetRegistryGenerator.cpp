@@ -100,6 +100,50 @@ FName GetPackageNameFromDependencyPackageName(const FName RawPackageFName)
 	return PackageFName;
 }
 
+/**
+ * Checks if the provided file path is in the format supported by the BulkData CookedIndex system.
+ * We expect two extensions in the path, the first will be all numbers and the second will be one
+ * of the bulkdata types supported by the system, 'i.e <PackageName>.001.ubulk'.
+ * @see FBulkDataCookedIndex for more info.
+ */
+static bool HasBulkDataCookedIndexExtension(FStringView Path)
+{
+	// Check that the extension at the end of the file is one of the bulkdata types that supports this feature
+	if (!(Path.EndsWith(TEXT(".ubulk")) || Path.EndsWith(TEXT(".uptnl"))) || Path.Len() < 10)
+	{
+		return false;
+	}
+
+	// If the number of max digits changes then our assumptions about ExtensionSize should be reconsidered
+	static_assert(FBulkDataCookedIndex::MAX_DIGITS == 3);
+
+	// A valid extension of this type will always be 10 characters long
+	const int32 ExtensionSize = 10;
+
+	if (Path.Len() < ExtensionSize)
+	{
+		return false;
+	}
+
+	const int32 ExtensionStart = Path.Len() - ExtensionSize;
+
+	if (Path[ExtensionStart] != TEXT('.'))
+	{
+		return false;
+	}
+
+	// Make sure that the first extension only has numeric characters, 0-9
+	for (int32 Index = 1; Index < 4; Index++)
+	{
+		if (Path[ExtensionStart + Index] < TEXT('0') || Path[ExtensionStart + Index] > TEXT('9'))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 class FDefaultPakFileRules
 {
 public:
@@ -1908,6 +1952,13 @@ public:
 				BaseAssetSourcePathBuffer.RemoveFromEnd(TEXT(".m.ubulk"));
 				BaseAssetSourcePath = &BaseAssetSourcePathBuffer;
 			}
+			else if (HasBulkDataCookedIndexExtension(StandardAssetSourcePath))
+			{
+				// 10 characters equals '.XXX.ubulk' or '.XXX.uptnl' extensions
+				BaseAssetSourcePathBuffer = StandardAssetSourcePath.LeftChop(10);
+				BaseAssetSourcePath = &BaseAssetSourcePathBuffer;
+			}
+
 			if (FPackageName::TryConvertFilenameToLongPackageName(*BaseAssetSourcePath, PackageName))
 			{
 				PackageExtensions.AddUnique(PackageName, StandardAssetSourcePath);

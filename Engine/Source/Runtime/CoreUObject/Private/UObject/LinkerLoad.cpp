@@ -7064,8 +7064,9 @@ bool FLinkerLoad::SerializeBulkData(FBulkData& BulkData, const FBulkDataSerializ
 	checkf(BulkData.IsUnlocked(), TEXT("Serialize bulk data FAILED, bulk data is locked"));
 
 	FBulkMetaData& Meta = BulkData.BulkMeta;
+	FBulkDataCookedIndex CookedIndex;
 	int64 DuplicateSerialOffset = -1;
-	SerializeBulkMeta(Meta, DuplicateSerialOffset, Params.ElementSize);
+	SerializeBulkMeta(Meta, CookedIndex, DuplicateSerialOffset, Params.ElementSize);
 
 	const bool bLazyLoadable = IsAllowingLazyLoading();
 	if (bLazyLoadable)
@@ -7080,15 +7081,17 @@ bool FLinkerLoad::SerializeBulkData(FBulkData& BulkData, const FBulkDataSerializ
 
 	const bool bExternalResource = Meta.HasAnyFlags(BULKDATA_WorkspaceDomainPayload);
 	EPackageSegment Segment = GetBulkDataPackageSegmentFromFlags(Meta.GetFlags(), IsLoadingFromCookedPackage());  
-	BulkData.BulkChunkId = UE::CreatePackageResourceChunkId(PackagePath.GetPackageFName(), Segment, bExternalResource);
+	BulkData.BulkChunkId = UE::CreatePackageResourceChunkId(PackagePath.GetPackageFName(), Segment, CookedIndex, bExternalResource);
 
 	const bool bIsInline = Meta.HasAnyFlags(BULKDATA_PayloadAtEndOfFile) == false;
 	if (bIsInline)
 	{
+		checkf(CookedIndex.IsDefault(), TEXT("Inline bulkdata cannot be assigned a chunk group!"));
+
 		if (IsLoadingFromCookedPackage())
 		{
 			// Cooked packages are split into .uasset/.exp files and the offset needs to be adjusted accordingly.
-			const int64 PkgHeaderSize = IPackageResourceManager::Get().FileSize(PackagePath,  EPackageSegment::Header);
+			const int64 PkgHeaderSize = IPackageResourceManager::Get().FileSize(PackagePath, CookedIndex, EPackageSegment::Header);
 			Meta.SetOffset(Tell() - PkgHeaderSize);
 		}
 		void* Payload = BulkData.ReallocateData(Meta.GetSize());
@@ -7099,9 +7102,11 @@ bool FLinkerLoad::SerializeBulkData(FBulkData& BulkData, const FBulkDataSerializ
 		// Streaming cooked bulk data / loading from Editor Domain and referencing Workspace domain bulk data
 		if (Meta.HasAnyFlags(BULKDATA_DuplicateNonOptionalPayload))
 		{
-			if (IPackageResourceManager::Get().DoesPackageExist(PackagePath, EPackageSegment::BulkDataOptional))
+			checkf(CookedIndex.IsDefault(), TEXT("Bulkdata with duplicate non optional payloads cannot be assigned a chunk group!"));
+
+			if (IPackageResourceManager::Get().DoesPackageExist(PackagePath, CookedIndex, EPackageSegment::BulkDataOptional))
 			{
-				BulkData.BulkChunkId = UE::CreatePackageResourceChunkId(PackagePath.GetPackageFName(), EPackageSegment::BulkDataOptional, bExternalResource);
+				BulkData.BulkChunkId = UE::CreatePackageResourceChunkId(PackagePath.GetPackageFName(), EPackageSegment::BulkDataOptional, FBulkDataCookedIndex::Default, bExternalResource);
 				Meta.ClearFlags(BULKDATA_DuplicateNonOptionalPayload);
 				Meta.AddFlags(BULKDATA_OptionalPayload);
 				Meta.SetOffset(DuplicateSerialOffset);
@@ -7109,6 +7114,8 @@ bool FLinkerLoad::SerializeBulkData(FBulkData& BulkData, const FBulkDataSerializ
 		}
 		else if (Meta.HasAnyFlags(BULKDATA_MemoryMappedPayload))
 		{
+			checkf(CookedIndex.IsDefault(), TEXT("Bulkdata with memory mapped payloads cannot be assigned a chunk group!"));
+
 			if (bLazyLoadable && Params.bAttemptMemoryMapping)
 			{
 				TUniquePtr<IMappedFileHandle> MappedFile;
@@ -7128,6 +7135,8 @@ bool FLinkerLoad::SerializeBulkData(FBulkData& BulkData, const FBulkDataSerializ
 	}
 	else
 	{
+		checkf(CookedIndex.IsDefault(), TEXT("Bulkdata stored within the same file cannot be assigned a chunk group!"));
+
 		// Streaming uncooked bulk data (editor only)
 		check(IsLoadingFromCookedPackage() == false);
 
@@ -7200,7 +7209,7 @@ bool FLinkerLoad::ShouldSkipProperty(const FProperty* InProperty) const
 	return FArchiveUObject::ShouldSkipProperty(InProperty);
 }
 
-void FLinkerLoad::SerializeBulkMeta(UE::BulkData::Private::FBulkMetaData& Meta, int64& DuplicateSerialOffset, int32 ElementSize)
+void FLinkerLoad::SerializeBulkMeta(UE::BulkData::Private::FBulkMetaData& Meta, FBulkDataCookedIndex& CookedIndex, int64& DuplicateSerialOffset, int32 ElementSize)
 {
 	using namespace UE::BulkData::Private;
 	FArchive& Ar = *this;
@@ -7219,6 +7228,8 @@ void FLinkerLoad::SerializeBulkMeta(UE::BulkData::Private::FBulkMetaData& Meta, 
 		Meta.SetSize(DataResource.RawSize);
 		Meta.SetSizeOnDisk(DataResource.SerialSize);
 		DuplicateSerialOffset = DataResource.DuplicateSerialOffset;
+
+		CookedIndex = DataResource.CookedIndex;
 	}
 
 #if WITH_EDITOR

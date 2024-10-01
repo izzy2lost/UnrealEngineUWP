@@ -18,6 +18,7 @@
 #include "Misc/PackageSegment.h"
 #include "Modules/ModuleInterface.h"
 #include "Serialization/Archive.h"
+#include "Serialization/BulkDataCookedIndex.h"
 #include "Templates/Function.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/UniquePtr.h"
@@ -340,21 +341,47 @@ public:
 
 public:
 	// Internal API used by low-level PackageResourceManager users
+	UE_DEPRECATED(5.5, "Use the overload that takes a FBulkDataCookedIndex")
+	bool DoesPackageExist(const FPackagePath& PackagePath, EPackageSegment PackageSegment,
+		FPackagePath* OutUpdatedPath = nullptr)
+	{
+		return DoesPackageExist(PackagePath, FBulkDataCookedIndex::Default, PackageSegment, OutUpdatedPath);
+	}
 
 	/** DoesPackageExist that takes a PackageSegment */
-	virtual bool DoesPackageExist(const FPackagePath& PackagePath, EPackageSegment PackageSegment,
-		FPackagePath* OutUpdatedPath = nullptr) = 0;
+	virtual bool DoesPackageExist(const FPackagePath& PackagePath, FBulkDataCookedIndex CookedIndex,
+		EPackageSegment PackageSegment, FPackagePath* OutUpdatedPath = nullptr) = 0;
+
+	UE_DEPRECATED(5.5, "Use the overload that takes a FBulkDataCookedIndex")
+	int64 FileSize(const FPackagePath& PackagePath, EPackageSegment PackageSegment,
+		FPackagePath* OutUpdatedPath = nullptr)
+	{
+		return FileSize(PackagePath, FBulkDataCookedIndex::Default, PackageSegment, OutUpdatedPath);
+	}
 
 	/** FileSize that takes a PackageSegment */
-	virtual int64 FileSize(const FPackagePath& PackagePath, EPackageSegment PackageSegment,
-		FPackagePath* OutUpdatedPath = nullptr) = 0;
+	virtual int64 FileSize(const FPackagePath& PackagePath, FBulkDataCookedIndex CookedIndex,
+		EPackageSegment PackageSegment, FPackagePath* OutUpdatedPath = nullptr) = 0;
+
+	UE_DEPRECATED(5.5, "Use the overload that takes a FBulkDataCookedIndex")
+	FOpenPackageResult OpenReadPackage(const FPackagePath& PackagePath, EPackageSegment PackageSegment,
+		FPackagePath* OutUpdatedPath = nullptr)
+	{
+		return OpenReadPackage(PackagePath, FBulkDataCookedIndex::Default, PackageSegment, OutUpdatedPath);
+	}
 
 	/** OpenReadPackage that takes a PackageSegment */
-	virtual FOpenPackageResult OpenReadPackage(const FPackagePath& PackagePath, EPackageSegment PackageSegment,
-		FPackagePath* OutUpdatedPath = nullptr) = 0;
+	virtual FOpenPackageResult OpenReadPackage(const FPackagePath& PackagePath, FBulkDataCookedIndex CookedIndex,
+		EPackageSegment PackageSegment, FPackagePath* OutUpdatedPath = nullptr) = 0;
+
+	UE_DEPRECATED(5.5, "Use the overload that takes a FBulkDataCookedIndex")
+	FOpenAsyncPackageResult OpenAsyncReadPackage(const FPackagePath& PackagePath, EPackageSegment PackageSegment)
+	{
+		return OpenAsyncReadPackage(PackagePath, FBulkDataCookedIndex::Default, PackageSegment);
+	}
 
 	/** OpenAsyncReadPackage that takes a PackageSegment */
-	virtual FOpenAsyncPackageResult OpenAsyncReadPackage(const FPackagePath& PackagePath, EPackageSegment PackageSegment) = 0;
+	virtual FOpenAsyncPackageResult OpenAsyncReadPackage(const FPackagePath& PackagePath, FBulkDataCookedIndex CookedIndex, EPackageSegment PackageSegment) = 0;
 
 	/* OpenMappedHandleToPackage that takes a PackageSegment */
 	virtual IMappedFileHandle* OpenMappedHandleToPackage(const FPackagePath& PackagePath, EPackageSegment PackageSegment,

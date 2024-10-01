@@ -45,6 +45,18 @@ enum class EIoChunkType : uint8
 
 CORE_API FString LexToString(const EIoChunkType Type);
 
+inline bool IsBulkDataType(const EIoChunkType Type)
+{
+	if (Type == EIoChunkType::BulkData || Type == EIoChunkType::OptionalBulkData || Type == EIoChunkType::MemoryMappedBulkData)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
 /**
  * Identifier to a chunk of data.
  */
@@ -143,15 +155,47 @@ private:
 	uint8	Id[12];
 };
 
+
 /** Creates a chunk identifier (generic -- prefer specialized versions where possible). */
 inline FIoChunkId CreateIoChunkId(uint64 ChunkId, uint16 ChunkIndex, EIoChunkType IoChunkType)
 {
 	checkSlow(IoChunkType != EIoChunkType::ExternalFile);	// Use CreateExternalFileChunkId() instead
+	checkfSlow(IsBulkDataType(IoChunkType) == false, TEXT("Bulkdata types should call CreateBulkDataIoChunkId instead"));
 
 	uint8 Data[12] = {0};
 
 	*reinterpret_cast<uint64*>(&Data[0]) = ChunkId;
 	*reinterpret_cast<uint16*>(&Data[8]) = NETWORK_ORDER16(ChunkIndex);
+	*reinterpret_cast<uint8*>(&Data[11]) = static_cast<uint8>(IoChunkType);
+
+	FIoChunkId IoChunkId;
+	IoChunkId.Set(Data, 12);
+
+	return IoChunkId;
+}
+
+
+
+/**
+ * Used to create a FIoChunkId that references a bulkdata chunk.
+ * 
+ * TODO Cannot use FBulkDataChunkGroup directly here as it is in CoreUObject
+ * 
+ * @param ChunkId		FPackageId
+ * @param ChunkIndex	MultiOutputIindex [0 = disabled, 1 enabled]
+ * @param ChunkGroup	FBulkDataCookedIndex
+ * @param IoChunkType	EIoChunkType
+ */
+inline FIoChunkId CreateBulkDataIoChunkId(uint64 ChunkId, uint16 ChunkIndex, uint8 ChunkGroup, EIoChunkType IoChunkType)
+{
+	checkSlow(IoChunkType != EIoChunkType::ExternalFile);	// Use CreateExternalFileChunkId() instead
+	checkfSlow(IsBulkDataType(IoChunkType), TEXT("CreateBulkDataIoChunkId is only intended for bulkdata types"));
+	
+	uint8 Data[12] = { 0 };
+
+	*reinterpret_cast<uint64*>(&Data[0]) = ChunkId;
+	*reinterpret_cast<uint16*>(&Data[8]) = NETWORK_ORDER16(ChunkIndex);
+	*reinterpret_cast<uint8*>(&Data[10]) = ChunkGroup;
 	*reinterpret_cast<uint8*>(&Data[11]) = static_cast<uint8>(IoChunkType);
 
 	FIoChunkId IoChunkId;

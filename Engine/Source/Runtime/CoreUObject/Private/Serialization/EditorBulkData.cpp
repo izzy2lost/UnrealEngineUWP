@@ -1408,7 +1408,7 @@ FCompressedBuffer FEditorBulkData::LoadFromPackageFile() const
 	TUniquePtr<FArchive> BulkArchive;
 	if (!IsReferencingByPackagePath())
 	{
-		FOpenPackageResult Result = IPackageResourceManager::Get().OpenReadPackage(PackagePath, EPackageSegment::Header);
+		FOpenPackageResult Result = IPackageResourceManager::Get().OpenReadPackage(PackagePath, FBulkDataCookedIndex::Default, EPackageSegment::Header);
 		if (Result.Format == EPackageFormat::Binary)
 		{
 			BulkArchive = MoveTemp(Result.Archive);
@@ -1455,7 +1455,7 @@ FCompressedBuffer FEditorBulkData::LoadFromPackageTrailer() const
 	TUniquePtr<FArchive> BulkArchive;
 	if (!IsReferencingByPackagePath())
 	{
-		FOpenPackageResult Result = IPackageResourceManager::Get().OpenReadPackage(PackagePath, EPackageSegment::Header);
+		FOpenPackageResult Result = IPackageResourceManager::Get().OpenReadPackage(PackagePath, FBulkDataCookedIndex::Default, EPackageSegment::Header);
 		if (Result.Format == EPackageFormat::Binary)
 		{
 			BulkArchive = MoveTemp(Result.Archive);
@@ -1500,7 +1500,7 @@ FCompressedBuffer FEditorBulkData::LoadFromSidecarFileInternal(ErrorVerbosity Ve
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FEditorBulkData::LoadFromSidecarFileInternal);
 
-	FOpenPackageResult Result = IPackageResourceManager::Get().OpenReadPackage(PackagePath, EPackageSegment::PayloadSidecar);
+	FOpenPackageResult Result = IPackageResourceManager::Get().OpenReadPackage(PackagePath, FBulkDataCookedIndex::Default, EPackageSegment::PayloadSidecar);
 	if (Result.Archive.IsValid() && Result.Format == EPackageFormat::Binary)
 	{
 		FPackageTrailer Trailer;

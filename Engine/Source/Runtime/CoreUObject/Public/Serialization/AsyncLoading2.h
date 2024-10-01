@@ -14,6 +14,7 @@
 #include "IO/PackageId.h"
 #include "Misc/AssertionMacros.h"
 #include "Serialization/Archive.h"
+#include "Serialization/BulkDataCookedIndex.h"
 #include "Serialization/CustomVersion.h"
 #include "Serialization/MappedName.h"
 #include "Templates/TypeHash.h"
@@ -365,10 +366,17 @@ struct FBulkDataMapEntry
 	int64 DuplicateSerialOffset = 0;
 	int64 SerialSize = 0;
 	uint32 Flags = 0;
-	uint32 Pad = 0;
+	FBulkDataCookedIndex CookedIndex;
+	uint8 Pad[3] = { 0, 0, 0 };
 	
 	COREUOBJECT_API friend FArchive& operator<<(FArchive& Ar, FBulkDataMapEntry& BulkDataEntry);
 };
+
+// If we change the size of FBulkDataCookedIndex we will need to update FBulkDataMapEntry
+static_assert(sizeof(FBulkDataCookedIndex) == sizeof(uint8));
+
+// We don't want to grow the size of FBulkDataMapEntry accidently
+static_assert(sizeof(FBulkDataMapEntry) <= 32, "The memory layout of FBulkDataMapEntry now exceeds 32 bytes, was this intended?");
 
 COREUOBJECT_API void FindAllRuntimeScriptPackages(TArray<UPackage*>& OutPackages);
 

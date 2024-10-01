@@ -185,7 +185,7 @@ bool UPackageFileValidator::TryResolvePackagePath(FName PackageName, FPackagePat
 		return false;
 	}
 
-	if (!IPackageResourceManager::Get().DoesPackageExist(PackagePath, EPackageSegment::Header, &OutPackagePath))
+	if (!IPackageResourceManager::Get().DoesPackageExist(PackagePath, FBulkDataCookedIndex::Default, EPackageSegment::Header, &OutPackagePath))
 	{
 		return false;
 	}
