@@ -5171,13 +5171,12 @@ FPrimitiveSceneProxy* FActorPrimitiveComponentInterface::CreateSceneProxy()
 	FPrimitiveSceneProxy* SceneProxy = Component->CreateSceneProxy();
 	Component->AssignSceneProxy(SceneProxy);
 
-#if UE_WITH_PSO_PRECACHING
-	if (ShouldBoostPSOPrecachePriorityOnDraw() && Component->IsPSOPrecaching() && Component->PSOPrecacheRequestPriority == EPSOPrecachePriority::High && SceneProxy)
-	{
-		SceneProxy->SetPSORequestsToBoostOnDraw(Component->MaterialPSOPrecacheRequestIDs);
-	}
-#endif
 	return SceneProxy;
+}
+
+void FActorPrimitiveComponentInterface::PrecachePSOs()
+{
+	UPrimitiveComponent::GetPrimitiveComponent(this)->PrecachePSOs();
 }
 
 #if WITH_EDITOR
