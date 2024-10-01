@@ -228,7 +228,12 @@ void FChaosVDGeometryComponentUtils::UpdateCollisionDataFromShapeArray(const TAr
 		const FName ImplicitObjectTypeName = InInstanceHandle->GetState().ImplicitObjectInfo.ImplicitObjectType;
 		const Chaos::FImplicitObject* RootImplicitObject = ExtractedGeometryHandle->GetRootImplicitObject();
 		const FName RootImplicitObjectTypeName = !InInstanceHandle->GetState().ImplicitObjectInfo.bIsRootObject && RootImplicitObject ? Chaos::GetImplicitObjectTypeName(Chaos::GetInnerType(RootImplicitObject->GetType())) : TEXT("None");
-		UE_LOG(LogChaosVDEditor, Warning, TEXT("[%s] Failed to find shape instance data at Index [%d] | Particle ID[%d] | Available Shape instance Data Num [%d] | Implicit Type [%s] - Root Implicit Type [%s] | This geometry will be hidden..."), ANSI_TO_TCHAR(__FUNCTION__), ShapeInstanceIndex, InInstanceHandle->GetOwningParticleID(), InShapeArray.Num(), *ImplicitObjectTypeName.ToString(), *RootImplicitObjectTypeName.ToString());
+		
+		FString ErrorMessage = FString::Printf(TEXT("[%s] Failed to find shape instance data at Index [%d] | Particle ID[%d] | Available Shape instance Data Num [%d] | Implicit Type [%s] - Root Implicit Type [%s] | This geometry will be hidden..."), ANSI_TO_TCHAR(__FUNCTION__), ShapeInstanceIndex, InInstanceHandle->GetOwningParticleID(), InShapeArray.Num(), *ImplicitObjectTypeName.ToString(), *RootImplicitObjectTypeName.ToString());
+		
+		UE_LOG(LogChaosVDEditor, Verbose, TEXT("[%s]"), *ErrorMessage);
+
+		ensureMsgf(false, TEXT("[%s]"), *ErrorMessage);
 
 		InInstanceHandle->bFailedToUpdateShapeInstanceData = true;
 		return;
@@ -236,7 +241,7 @@ void FChaosVDGeometryComponentUtils::UpdateCollisionDataFromShapeArray(const TAr
 	else if (InInstanceHandle->bFailedToUpdateShapeInstanceData)
 	{
 		InInstanceHandle->bFailedToUpdateShapeInstanceData = false;
-		UE_LOG(LogChaosVDEditor, Warning, TEXT("[%s] Recovered from failing to find shape instance data at Index [%d] | Particle ID[%d] | Available Shape instance Data Num [%d] | This geometry will be shown again..."), ANSI_TO_TCHAR(__FUNCTION__), ShapeInstanceIndex, InInstanceHandle->GetOwningParticleID(), InShapeArray.Num());
+		UE_LOG(LogChaosVDEditor, Verbose, TEXT("[%s] Recovered from failing to find shape instance data at Index [%d] | Particle ID[%d] | Available Shape instance Data Num [%d] | This geometry will be shown again..."), ANSI_TO_TCHAR(__FUNCTION__), ShapeInstanceIndex, InInstanceHandle->GetOwningParticleID(), InShapeArray.Num());
 	}
 
 	FChaosVDShapeCollisionData CollisionDataToUpdate = InShapeArray[ShapeInstanceIndex];

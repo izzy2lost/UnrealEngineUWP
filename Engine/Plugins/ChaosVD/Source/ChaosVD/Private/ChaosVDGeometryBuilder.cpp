@@ -324,10 +324,10 @@ void FChaosVDGeometryBuilder::DeInitialize()
 	bInitialized = false;
 }
 
-void FChaosVDGeometryBuilder::CreateMeshesFromImplicitObject(const Chaos::FImplicitObject* InImplicitObject, AActor* Owner, TArray<TSharedPtr<FChaosVDExtractedGeometryDataHandle>>& OutMeshDataHandles, const int32 DesiredLODCount, const Chaos::FRigidTransform3& InTransform, const int32 MeshIndex)
+void FChaosVDGeometryBuilder::CreateMeshesFromImplicitObject(const Chaos::FImplicitObject* InImplicitObject, AActor* Owner, TArray<TSharedPtr<FChaosVDExtractedGeometryDataHandle>>& OutMeshDataHandles,int32 AvailableShapeDataNum , const int32 DesiredLODCount, const Chaos::FRigidTransform3& InTransform, const int32 MeshIndex)
 {
 	// To start set the leaf and the root to the same ptr. If the object is an union, in the subsequent recursive call the leaf will be set correctly
-	CreateMeshesFromImplicit_Internal(InImplicitObject, InImplicitObject, Owner, OutMeshDataHandles, DesiredLODCount, InTransform, MeshIndex);
+	CreateMeshesFromImplicit_Internal(InImplicitObject, InImplicitObject, Owner, OutMeshDataHandles, DesiredLODCount, InTransform, MeshIndex, AvailableShapeDataNum);
 }
 
 void FChaosVDGeometryBuilder::AddReferencedObjects(FReferenceCollector& Collector)
@@ -383,7 +383,7 @@ bool FChaosVDGeometryBuilder::HasNegativeScale(const Chaos::FRigidTransform3& In
 	return ScaleSignVector.X * ScaleSignVector.Y * ScaleSignVector.Z < 0;
 }
 
-void FChaosVDGeometryBuilder::CreateMeshesFromImplicit_Internal(const Chaos::FImplicitObject* InRootImplicitObject, const Chaos::FImplicitObject* InLeafImplicitObject, AActor* Owner, TArray<TSharedPtr<FChaosVDExtractedGeometryDataHandle>>& OutMeshDataHandles, const int32 DesiredLODCount, const Chaos::FRigidTransform3& InTransform, const int32 ShapeInstanceIndex)
+void FChaosVDGeometryBuilder::CreateMeshesFromImplicit_Internal(const Chaos::FImplicitObject* InRootImplicitObject, const Chaos::FImplicitObject* InLeafImplicitObject, AActor* Owner, TArray<TSharedPtr<FChaosVDExtractedGeometryDataHandle>>& OutMeshDataHandles, const int32 DesiredLODCount, const Chaos::FRigidTransform3& InTransform, const int32 ParentShapeInstanceIndex, int32 AvailableShapeDataNum)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FChaosVDGeometryBuilder::CreateMeshesFromImplicit_Internal);
 
@@ -397,14 +397,31 @@ void FChaosVDGeometryBuilder::CreateMeshesFromImplicit_Internal(const Chaos::FIm
 		{
 			const bool bIsRootUnion = InRootImplicitObject == InLeafImplicitObject;
 
+			const bool bIsCluster = InnerType == ImplicitObjectType::UnionClustered;
+
 			for (int32 ObjectIndex = 0; ObjectIndex < Union->GetObjects().Num(); ++ObjectIndex)
 			{
 				const FImplicitObjectPtr& UnionImplicit = Union->GetObjects()[ObjectIndex];
 
-				// If this union it is not the root implicit object, then all its objects will share the same Instance index
-				int32 CurrentShapeInstanceIndex = bIsRootUnion ? ObjectIndex : ShapeInstanceIndex;
+				int32 CurrentShapeInstanceIndex = ParentShapeInstanceIndex;
 
-				CreateMeshesFromImplicit_Internal(InRootImplicitObject, UnionImplicit.GetReference(), Owner, OutMeshDataHandles, DesiredLODCount, InTransform, CurrentShapeInstanceIndex);	
+				if (bIsRootUnion)
+				{
+					if (bIsCluster)
+					{
+						// Geometry Collections might break the usual rule of how may shape data instances we have per geometry
+						// Sometimes they can create clusters where all particles share a single instance
+						constexpr int32 SingleShapeInstanceDataIndex = 0;
+						CurrentShapeInstanceIndex = AvailableShapeDataNum == 1 ? SingleShapeInstanceDataIndex : ParentShapeInstanceIndex;
+					}
+					else
+					{
+						// If this union it is not the root implicit object, and it is not a cluster, then all its objects will share the same Instance index
+						CurrentShapeInstanceIndex = ObjectIndex;
+					}
+				}
+
+				CreateMeshesFromImplicit_Internal(InRootImplicitObject, UnionImplicit.GetReference(), Owner, OutMeshDataHandles, DesiredLODCount, InTransform, CurrentShapeInstanceIndex, AvailableShapeDataNum);	
 			}
 		}
 
@@ -416,7 +433,7 @@ void FChaosVDGeometryBuilder::CreateMeshesFromImplicit_Internal(const Chaos::FIm
 		if (const TImplicitObjectTransformed<FReal, 3>* Transformed = InLeafImplicitObject->template GetObject<TImplicitObjectTransformed<FReal, 3>>())
 		{
 			// For transformed objects, the Instance index is the same so we pass it in without changing it
-			CreateMeshesFromImplicit_Internal(InRootImplicitObject, Transformed->GetTransformedObject(), Owner, OutMeshDataHandles, DesiredLODCount, Transformed->GetTransform(), ShapeInstanceIndex);
+			CreateMeshesFromImplicit_Internal(InRootImplicitObject, Transformed->GetTransformedObject(), Owner, OutMeshDataHandles, DesiredLODCount, Transformed->GetTransform(), ParentShapeInstanceIndex, AvailableShapeDataNum);
 		}
 		
 		return;
@@ -425,12 +442,13 @@ void FChaosVDGeometryBuilder::CreateMeshesFromImplicit_Internal(const Chaos::FIm
 	if (const TSharedPtr<FChaosVDExtractedGeometryDataHandle> MeshDataHandle = ExtractGeometryDataForImplicit(InLeafImplicitObject, InTransform))
 	{
 		MeshDataHandle->SetImplicitObject(InLeafImplicitObject);
-		MeshDataHandle->SetShapeInstanceIndex(ShapeInstanceIndex);
+		MeshDataHandle->SetShapeInstanceIndex(ParentShapeInstanceIndex);
 		MeshDataHandle->SetRootImplicitObject(InRootImplicitObject);
 
 		OutMeshDataHandles.Add(MeshDataHandle);
 	}
 }
+
 
 bool FChaosVDGeometryBuilder::HasGeometryInCache(uint32 GeometryKey)
 {
