@@ -20,7 +20,6 @@ public:
 
 private:
 	void RegisterTools(IAvalancheInteractiveToolsModule* InModule);
-	void OnSVGCommandsRegistered(const FBindingContext& InContext, IAvalancheInteractiveToolsModule* InModule);
 
 	void OnSVGActorSplit(ASVGShapesParentActor* InSVGShapesParent);
 	void OnSVGShapesUpdated(AActor* InActor) const;
