@@ -22,7 +22,7 @@ FDMTextureSetStyle::FDMTextureSetStyle()
 		FStyleColors::Recessed.GetSpecifiedColor(), 6.0f,
 		FStyleColors::Header.GetSpecifiedColor(), 2.0f));
 
-	Set("TextureSetConfig.TextureNameHighlight.Background", new FSlateColorBrush(FStyleColors::Black.GetSpecifiedColor()));
+	Set("TextureSetConfig.TextureNameHighlight.Background", new FSlateColorBrush(FStyleColors::Black.GetSpecifiedColor() * FLinearColor(1.f, 1.f, 1.f, 0.5f)));
 
 	Set("TextureSetConfig.TextureNameHighlight.Color", FStyleColors::AccentWhite);
 }
