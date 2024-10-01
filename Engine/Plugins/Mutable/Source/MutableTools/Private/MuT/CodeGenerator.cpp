@@ -2634,21 +2634,20 @@ namespace mu
 	{
 		int32 CurrentLOD = CurrentParents.Last().Lod;
 
-		for (const FirstPassGenerator::FModifier& m : Modifiers)
+		for (const FirstPassGenerator::FModifier& Mod : Modifiers)
 		{
 			// A mistake in the surface edit modifier usually results in no change visible. Try to detect it.
-			if (m.Node->GetType() == NodeModifierSurfaceEdit::GetStaticType())
+			if (Mod.Node->GetType() == NodeModifierSurfaceEdit::GetStaticType())
 			{
-				const NodeModifierSurfaceEdit* Edit = static_cast<const NodeModifierSurfaceEdit*>(m.Node);
+				const NodeModifierSurfaceEdit* Edit = static_cast<const NodeModifierSurfaceEdit*>(Mod.Node);
 
 				bool bAffectsCurrentLOD = Edit->LODs.IsValidIndex(CurrentLOD);
-
 				if (!bAffectsCurrentLOD)
 				{
 					continue;
 				}
 
-				if (Node.Images.IsEmpty())
+				if (Node.Images.IsEmpty() || Edit->LODs[CurrentLOD].Textures.IsEmpty())
 				{
 					continue;
 				}
