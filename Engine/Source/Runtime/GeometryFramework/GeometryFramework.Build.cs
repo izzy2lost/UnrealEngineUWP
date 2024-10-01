@@ -21,6 +21,7 @@ public class GeometryFramework : ModuleRules
 				new string[]
 				{
 					"EditorWidgets",
+					"Slate"
 				}
 			);
 				
