@@ -155,7 +155,7 @@ private:
 	 * InRequestedLoads must be in Root to Leaf order; that order is used to define the priority of
 	 * packages in PendingKick queue (leafwards packages are kicked earlier).
 	 */
-	void SetRequestedLoads(TArray<TRefCountPtr<FPackagePreloader>>&& InRequestedLoads);
+	void SetRequestedLoads(TArray<TRefCountPtr<FPackagePreloader>>&& InRequestedLoads, bool bMakeActive = true);
 	/**
 	 * Called when a PackagePreloader leaves the active state (regardless of what state its Package is in) to
 	 * clear the resources used during preloading.
