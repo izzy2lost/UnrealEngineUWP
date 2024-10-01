@@ -40,8 +40,23 @@ bool FSequencerTrackFilter_Keyed::SupportsSequence(UMovieSceneSequence* const In
 
 bool FSequencerTrackFilter_Keyed::PassesFilter(FSequencerTrackFilterType InItem) const
 {
-	const TWeakViewModelPtr<ITrackExtension> Track = FilterInterface.GetFilterData().ResolveTrack(InItem);
-	return DoesTrackExtensionHaveKeys(Track);
+	if (const TViewModelPtr<FCategoryGroupModel> CategoryGroupModel = InItem.ImplicitCast())
+	{
+		for (const TWeakViewModelPtr<FCategoryModel>& WeakCategory : CategoryGroupModel->GetCategories())
+		{
+			if (const TViewModelPtr<FCategoryModel> Category = WeakCategory.Pin())
+			{
+				return Category->IsAnimated();
+			}
+		}
+	}
+	else if (const TViewModelPtr<FChannelGroupOutlinerModel> ChannelGroupOutlinerModel = InItem.ImplicitCast())
+	{
+		return ChannelGroupOutlinerModel->IsAnimated();
+	}
+
+	const TWeakViewModelPtr<ITrackExtension> WeakTrack = FilterInterface.GetFilterData().ResolveTrack(InItem);
+	return DoesTrackExtensionHaveKeys(WeakTrack);
 }
 
 FText FSequencerTrackFilter_Keyed::GetDisplayName() const
