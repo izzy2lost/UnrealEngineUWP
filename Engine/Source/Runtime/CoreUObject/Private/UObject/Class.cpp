@@ -269,7 +269,7 @@ struct FDisplayNameHelper
  */
 FText UField::GetDisplayNameText() const
 {
-	static const FString Namespace = TEXT("UObjectDisplayNames");
+	static const FTextKey Namespace = TEXT("UObjectDisplayNames");
 	static const FName NAME_DisplayName(TEXT("DisplayName"));
 
 	const FString Key = GetFullGroupName(false);
@@ -280,7 +280,7 @@ FText UField::GetDisplayNameText() const
 		NativeDisplayName = FName::NameToDisplayString(FDisplayNameHelper::Get(*this), false);
 	}
 
-	return FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*NativeDisplayName, *Namespace, *Key);
+	return FText::AsLocalizable_Advanced(Namespace, Key, MoveTemp(NativeDisplayName));
 }
 
 /**
@@ -325,7 +325,7 @@ FText UField::GetToolTipText(bool bShortTooltip) const
 		{
 			FormatNativeToolTip(NativeToolTip, true);
 		}
-		LocalizedToolTip = FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*NativeToolTip, *Namespace, *Key);
+		LocalizedToolTip = FText::AsLocalizable_Advanced(Namespace, Key, MoveTemp(NativeToolTip));
 	}
 
 	return LocalizedToolTip;
@@ -456,7 +456,7 @@ const FString& UField::GetMetaData(const FName& Key) const
 	return MetaDataString;
 }
 
-FText UField::GetMetaDataText(const TCHAR* MetaDataKey, const FString LocalizationNamespace, const FString LocalizationKey) const
+FText UField::GetMetaDataText(const TCHAR* MetaDataKey, const FTextKey LocalizationNamespace, const FTextKey LocalizationKey) const
 {
 	FString DefaultMetaData;
 
@@ -474,12 +474,12 @@ FText UField::GetMetaDataText(const TCHAR* MetaDataKey, const FString Localizati
 	FText LocalizedMetaData;
 	if (!DefaultMetaData.IsEmpty())
 	{
-		LocalizedMetaData = FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*DefaultMetaData, *LocalizationNamespace, *LocalizationKey);
+		LocalizedMetaData = FText::AsLocalizable_Advanced(LocalizationNamespace, LocalizationKey, MoveTemp(DefaultMetaData));
 	}
 	return LocalizedMetaData;
 }
 
-FText UField::GetMetaDataText(const FName& MetaDataKey, const FString LocalizationNamespace, const FString LocalizationKey) const
+FText UField::GetMetaDataText(const FName& MetaDataKey, const FTextKey LocalizationNamespace, const FTextKey LocalizationKey) const
 {
 	FString DefaultMetaData;
 
@@ -497,7 +497,7 @@ FText UField::GetMetaDataText(const FName& MetaDataKey, const FString Localizati
 	FText LocalizedMetaData;
 	if (!DefaultMetaData.IsEmpty())
 	{
-		LocalizedMetaData = FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*DefaultMetaData, *LocalizationNamespace, *LocalizationKey);
+		LocalizedMetaData = FText::AsLocalizable_Advanced(LocalizationNamespace, LocalizationKey, MoveTemp(DefaultMetaData));
 	}
 	return LocalizedMetaData;
 }

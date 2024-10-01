@@ -672,7 +672,7 @@ const FString& FField::GetMetaData(const FName& Key) const
 	return *ValuePtr;
 }
 
-const FText FField::GetMetaDataText(const TCHAR* MetaDataKey, const FString LocalizationNamespace, const FString LocalizationKey) const
+const FText FField::GetMetaDataText(const TCHAR* MetaDataKey, const FTextKey LocalizationNamespace, const FTextKey LocalizationKey) const
 {
 	FString DefaultMetaData;
 
@@ -690,12 +690,12 @@ const FText FField::GetMetaDataText(const TCHAR* MetaDataKey, const FString Loca
 	FText LocalizedMetaData;
 	if (!DefaultMetaData.IsEmpty())
 	{
-		LocalizedMetaData = FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*DefaultMetaData, *LocalizationNamespace, *LocalizationKey);
+		LocalizedMetaData = FText::AsLocalizable_Advanced(LocalizationNamespace, LocalizationKey, MoveTemp(DefaultMetaData));
 	}
 	return LocalizedMetaData;
 }
 
-const FText FField::GetMetaDataText(const FName& MetaDataKey, const FString LocalizationNamespace, const FString LocalizationKey) const
+const FText FField::GetMetaDataText(const FName& MetaDataKey, const FTextKey LocalizationNamespace, const FTextKey LocalizationKey) const
 {
 	FString DefaultMetaData;
 
@@ -713,7 +713,7 @@ const FText FField::GetMetaDataText(const FName& MetaDataKey, const FString Loca
 	FText LocalizedMetaData;
 	if (!DefaultMetaData.IsEmpty())
 	{
-		LocalizedMetaData = FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*DefaultMetaData, *LocalizationNamespace, *LocalizationKey);
+		LocalizedMetaData = FText::AsLocalizable_Advanced(LocalizationNamespace, LocalizationKey, MoveTemp(DefaultMetaData));
 	}
 	return LocalizedMetaData;
 }
@@ -904,7 +904,7 @@ struct FFieldDisplayNameHelper
 */
 FText FField::GetDisplayNameText() const
 {
-	static const FString Namespace = TEXT("UObjectDisplayNames");
+	static const FTextKey Namespace = TEXT("UObjectDisplayNames");
 	static const FName NAME_DisplayName(TEXT("DisplayName"));
 
 	const FString Key = GetFullGroupName(false);
@@ -919,7 +919,7 @@ FText FField::GetDisplayNameText() const
 		NativeDisplayName = FName::NameToDisplayString(FFieldDisplayNameHelper::Get(*this), IsA<FBoolProperty>());
 	}
 
-	return FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*NativeDisplayName, *Namespace, *Key);
+	return FText::AsLocalizable_Advanced(Namespace, Key, MoveTemp(NativeDisplayName));
 }
 
 /**
@@ -965,7 +965,7 @@ FText FField::GetToolTipText(bool bShortTooltip) const
 				NativeToolTip.TrimEndInline();
 			}
 		}
-		LocalizedToolTip = FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*NativeToolTip, *Namespace, *Key);
+		LocalizedToolTip = FText::AsLocalizable_Advanced(Namespace, Key, MoveTemp(NativeToolTip));
 	}
 
 	return LocalizedToolTip;

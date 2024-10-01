@@ -728,7 +728,7 @@ private:
 				bIsParsingText = true;
 
 				SerializeExpr(iCode, Ar);
-				const FString SourceString = MoveTemp(LastParsedString);
+				FString SourceString = MoveTemp(LastParsedString);
 
 				SerializeExpr(iCode, Ar);
 				const FString TextKey = MoveTemp(LastParsedString);
@@ -738,7 +738,7 @@ private:
 
 				bIsParsingText = false;
 
-				const FText TextInstance = FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*SourceString, *TextNamespace, *TextKey);
+				const FText TextInstance = FText::AsLocalizable_Advanced(TextNamespace, TextKey, MoveTemp(SourceString));
 				if (!PropertyLocalizationDataGatherer.IsDefaultTextInstance(TextInstance))
 				{
 					PropertyLocalizationDataGatherer.GatherTextInstance(TextInstance, FString::Printf(TEXT("%s [Script Bytecode]"), SourceDescription), bTreatAsEditorOnlyData);

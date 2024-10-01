@@ -676,7 +676,7 @@ FText UEnum::GetDisplayNameTextByIndex(int32 NameIndex) const
 
 #if WITH_EDITOR
 	// In the editor, use metadata and localization to look up names
-	static const FString Namespace = TEXT("UObjectDisplayNames");
+	static const FTextKey Namespace = TEXT("UObjectDisplayNames");
 	const FString Key = GetFullGroupName(false) + TEXT(".") + RawName;
 
 	FString NativeDisplayName;
@@ -691,7 +691,7 @@ FText UEnum::GetDisplayNameTextByIndex(int32 NameIndex) const
 
 	if (!NativeDisplayName.IsEmpty())
 	{
-		return FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*NativeDisplayName, *Namespace, *Key);
+		return FText::AsLocalizable_Advanced(Namespace, Key, MoveTemp(NativeDisplayName));
 	}
 #endif
 
@@ -916,8 +916,8 @@ FText UEnum::GetToolTipTextByIndex(int32 NameIndex) const
 	FText LocalizedToolTip;
 	FString NativeToolTip = GetMetaData( TEXT("ToolTip"), NameIndex );
 
-	static const FString Namespace = TEXT("UObjectToolTips");
-	FString Key = GetFullGroupName(false) + TEXT(".") + GetNameStringByIndex(NameIndex);
+	static const FTextKey Namespace = TEXT("UObjectToolTips");
+	const FString Key = GetFullGroupName(false) + TEXT(".") + GetNameStringByIndex(NameIndex);
 		
 	if ( !FText::FindTextInLiveTable_Advanced( Namespace, Key, /*OUT*/LocalizedToolTip, &NativeToolTip ) )
 	{
@@ -928,7 +928,7 @@ FText UEnum::GetToolTipTextByIndex(int32 NameIndex) const
 			NativeToolTip.TrimEndInline();
 		}
 
-		LocalizedToolTip = FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*NativeToolTip, *Namespace, *Key);
+		LocalizedToolTip = FText::AsLocalizable_Advanced(Namespace, Key, MoveTemp(NativeToolTip));
 	}
 
 	return LocalizedToolTip;

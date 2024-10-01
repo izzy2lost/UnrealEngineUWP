@@ -383,7 +383,7 @@ FLogTemplate* FLogTemplate::CreateLocalized(const TCHAR* TextNamespace, const TC
 	checkf(FAsciiSet::HasNone(Format, Invalid),
 		TEXT("Log format does not currently allow escapes (`) or argument modifiers (|). [[%s]]"), Format);
 
-	FTextFormat TextFormat(FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(Format, TextNamespace, TextKey));
+	FTextFormat TextFormat(FText::AsLocalizable_Advanced(TextNamespace, TextKey, Format));
 
 	const bool bFindFields = !!Fields;
 	if (bFindFields)

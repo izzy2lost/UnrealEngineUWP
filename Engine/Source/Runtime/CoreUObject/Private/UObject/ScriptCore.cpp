@@ -3430,7 +3430,7 @@ DEFINE_FUNCTION(UObject::execTextConst)
 			FString Namespace;
 			Stack.Step(Stack.Object, &Namespace);
 
-			*(FText*)RESULT_PARAM = FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*SourceString, *Namespace, *KeyString);
+			*(FText*)RESULT_PARAM = FText::AsLocalizable_Advanced(Namespace, KeyString, MoveTemp(SourceString));
 		}
 		break;
 

@@ -1525,7 +1525,7 @@ void STextPropertyEditableTextBox::HandleLocalizableCheckStateChanged(ECheckBoxS
 					NewKey
 					);
 
-				EditableTextProperty->SetText(TextIndex, FInternationalization::Get().ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*PropertyValue.ToString(), *NewNamespace, *NewKey));
+				EditableTextProperty->SetText(TextIndex, FText::AsLocalizable_Advanced(NewNamespace, NewKey, PropertyValue.ToString()));
 			}
 		}
 	}
