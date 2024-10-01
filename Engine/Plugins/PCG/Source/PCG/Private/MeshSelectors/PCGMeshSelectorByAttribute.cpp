@@ -28,6 +28,7 @@ namespace PCGMeshSelectorAttribute
 		TSoftObjectPtr<UStaticMesh> Mesh,
 		const TArray<TSoftObjectPtr<UMaterialInterface>>& MaterialOverrides,
 		bool bReverseCulling,
+		const UPCGPointData* InPointData,
 		const int AttributePartitionIndex = INDEX_NONE)
 	{
 		for (FPCGMeshInstanceList& InstanceList : InstanceLists)
@@ -46,6 +47,7 @@ namespace PCGMeshSelectorAttribute
 		NewInstanceList.Descriptor.OverrideMaterials = MaterialOverrides;
 		NewInstanceList.Descriptor.bReverseCulling = bReverseCulling;
 		NewInstanceList.AttributePartitionIndex = AttributePartitionIndex;
+		NewInstanceList.PointData = InPointData;
 
 		return NewInstanceList;
 	}
@@ -283,33 +285,32 @@ bool UPCGMeshSelectorByAttribute::SelectInstances(
 				Partition.SetNum(WriteIndex);
 			}
 
-			auto AddPointsToInstanceList = [&OutMeshInstances, &CurrentPartitionDescriptor, &MaterialOverrideHelper, &Points, PartitionIndex](const TArray<int32>& PointIndices, bool bReverseTransform)
+			auto AddPointsToInstanceList = [&OutMeshInstances, &CurrentPartitionDescriptor, &MaterialOverrideHelper, &Points, PartitionIndex, InPointData](const TArray<int32>& PointIndices, bool bReverseTransform)
 			{
 				if (MaterialOverrideHelper.OverridesMaterials())
 				{
 					for (int32 PointIndex = 0; PointIndex < PointIndices.Num(); ++PointIndex)
 					{
 						const FPCGPoint& Point = Points[PointIndices[PointIndex]];
-						FPCGMeshInstanceList& InstanceList = PCGMeshSelectorAttribute::GetInstanceList(OutMeshInstances, CurrentPartitionDescriptor, CurrentPartitionDescriptor.StaticMesh, MaterialOverrideHelper.GetMaterialOverrides(Point.MetadataEntry), bReverseTransform, PartitionIndex);
+						FPCGMeshInstanceList& InstanceList = PCGMeshSelectorAttribute::GetInstanceList(OutMeshInstances, CurrentPartitionDescriptor, CurrentPartitionDescriptor.StaticMesh, MaterialOverrideHelper.GetMaterialOverrides(Point.MetadataEntry), bReverseTransform, InPointData, PartitionIndex);
 						InstanceList.Instances.Emplace(Point.Transform);
-						InstanceList.InstancesMetadataEntry.Emplace(Point.MetadataEntry);
+						InstanceList.InstancesIndices.Emplace(PointIndex);
 					}
 				}
 				else
 				{
 					TArray<TSoftObjectPtr<UMaterialInterface>> DummyMaterialList;
-					FPCGMeshInstanceList& InstanceList = PCGMeshSelectorAttribute::GetInstanceList(OutMeshInstances, CurrentPartitionDescriptor, CurrentPartitionDescriptor.StaticMesh, DummyMaterialList, bReverseTransform, PartitionIndex);
+					FPCGMeshInstanceList& InstanceList = PCGMeshSelectorAttribute::GetInstanceList(OutMeshInstances, CurrentPartitionDescriptor, CurrentPartitionDescriptor.StaticMesh, DummyMaterialList, bReverseTransform, InPointData, PartitionIndex);
 
-					check(InstanceList.Instances.Num() == InstanceList.InstancesMetadataEntry.Num());
+					check(InstanceList.Instances.Num() == InstanceList.InstancesIndices.Num());
 					const int32 InstanceOffset = InstanceList.Instances.Num();
 					InstanceList.Instances.SetNum(InstanceOffset + PointIndices.Num());
-					InstanceList.InstancesMetadataEntry.SetNum(InstanceOffset + PointIndices.Num());
+					InstanceList.InstancesIndices.Append(PointIndices);
 
 					for(int32 PointIndex = 0; PointIndex < PointIndices.Num(); ++PointIndex)
 					{
 						const FPCGPoint& Point = Points[PointIndices[PointIndex]];
 						InstanceList.Instances[InstanceOffset + PointIndex] = Point.Transform;
-						InstanceList.InstancesMetadataEntry[InstanceOffset + PointIndex] = Point.MetadataEntry;
 					}
 				}
 			};

@@ -14,7 +14,8 @@ namespace PCGMeshSelectorWeighted
 		TArray<FPCGMeshInstanceList>& InstanceLists,
 		bool bUseMaterialOverrides,
 		const TArray<TSoftObjectPtr<UMaterialInterface>>& InMaterialOverrides,
-		bool bInIsLocalToWorldDeterminantNegative);
+		bool bInIsLocalToWorldDeterminantNegative,
+		const UPCGPointData* InPointData);
 }
 
 USTRUCT(BlueprintType)

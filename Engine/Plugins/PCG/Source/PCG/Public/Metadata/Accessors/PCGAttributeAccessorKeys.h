@@ -190,6 +190,35 @@ protected:
 	TArrayView<FPCGPoint> Points;
 };
 
+///////////////////////////////////////////////////////////////////////
+
+/**
+* Key around subset of points
+*/
+class PCG_API FPCGAttributeAccessorKeysPointsSubset : public IPCGAttributeAccessorKeys
+{
+public:
+	FPCGAttributeAccessorKeysPointsSubset(const TArrayView<FPCGPoint>& InPoints, const TArrayView<const int32>& InPointIndices);
+	FPCGAttributeAccessorKeysPointsSubset(const TArrayView<const FPCGPoint>& InPoints, const TArrayView<const int32>& InPointIndices);
+
+	FPCGAttributeAccessorKeysPointsSubset(TArray<FPCGPoint*> InPointPtrs);
+	FPCGAttributeAccessorKeysPointsSubset(TArray<const FPCGPoint*> InPointPtrs);
+
+	virtual int32 GetNum() const override { return Points.Num(); }
+
+protected:
+	virtual bool GetPointKeys(int32 InStart, TArrayView<FPCGPoint*> OutPoints) override;
+	virtual bool GetPointKeys(int32 InStart, TArrayView<const FPCGPoint*> OutPoints) const override;
+
+	virtual bool GetGenericObjectKeys(int32 InStart, TArrayView<void*> OutObjects) override;
+	virtual bool GetGenericObjectKeys(int32 InStart, TArrayView<const void*> OutObjects) const override;
+
+	virtual bool GetMetadataEntryKeys(int32 InStart, TArrayView<PCGMetadataEntryKey*> OutEntryKeys) override;
+	virtual bool GetMetadataEntryKeys(int32 InStart, TArrayView<const PCGMetadataEntryKey*> OutEntryKeys) const override;
+
+	TArray<FPCGPoint*> Points;
+};
+
 /////////////////////////////////////////////////////////////////
 
 /**
