@@ -175,7 +175,7 @@ public:
 		const FString& OutputDir,
 		const FString& DebugOutputDir,
 		const FSerializedShaderArchive& InSerializedShaders,
-		const TArray<TArray<uint8>>& ShaderCode,
+		const TArray<FSharedBuffer>& ShaderCode,
 		TArray<FString>* OutputFiles) const override final
 	{
 		int32 NumShadersPerLibrary = 10000;
