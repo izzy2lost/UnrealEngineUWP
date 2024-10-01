@@ -13,10 +13,12 @@ FCulledLightsGridHeader VirtualShadowMapGetLightsGrid(uint2 PixelPos, float Scen
 	// Has no effect unless INSTANCED_STEREO is enabled. Used in GetLightGridData to select ForwardLightData or ForwardLightDataISR, but then only uses redundant parameters anyway.
 	uint EyeIndex = 0U;
 
-	uint GridLinearIndex = ComputeLightGridCellIndex(PixelPos, SceneDepth, EyeIndex);
+	// Index 0 is always going to a valid index and the NumCulledLightsGrid is initialized to zero making acess safe.
+	uint GridLinearIndex = min(VirtualShadowMap.MaxLightGridEntryIndex, ComputeLightGridCellIndex(PixelPos, SceneDepth, EyeIndex));
 	FCulledLightsGridHeader CulledLightGridHeader = GetCulledLightsGridHeader(GridLinearIndex, EyeIndex);
 
 	// Replace light count with our pruned count
+	checkStructuredBufferAccessSlow(VirtualShadowMap.NumCulledLightsGrid, GridLinearIndex);
 	CulledLightGridHeader.NumLights = VirtualShadowMap.NumCulledLightsGrid[GridLinearIndex];
 	return CulledLightGridHeader;
 }

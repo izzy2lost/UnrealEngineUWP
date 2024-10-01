@@ -124,6 +124,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FVirtualShadowMapPerViewParameters, )
 	// Still references the original indices from the global light grid
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, LightGridData)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, NumCulledLightsGrid)
+	SHADER_PARAMETER(uint32, MaxLightGridEntryIndex)	
 END_SHADER_PARAMETER_STRUCT()
 
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FVirtualShadowMapUniformParameters, )
