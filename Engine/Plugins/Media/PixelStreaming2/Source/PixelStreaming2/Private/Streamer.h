@@ -20,7 +20,6 @@ class IPixelStreaming2Module;
 namespace UE::PixelStreaming2
 {
 	static const FString INVALID_PLAYER_ID = FString(TEXT("Invalid Player Id"));
-	static const FString SFU_PLAYER_ID = FString(TEXT("1"));
 
 	class FStreamer : public IPixelStreaming2Streamer, public TSharedFromThis<FStreamer>
 	{
@@ -89,6 +88,7 @@ namespace UE::PixelStreaming2
 		void SendProtocol(FString PlayerId) const;
 		void SendPeerControllerMessages(FString PlayerId) const;
 		void SendLatencyReport(FString PlayerId) const;
+		void HandleRelayStatusMessage(const uint8_t* Data, uint32_t Size, EpicRtcDataTrackInterface* DataTrack);
 		bool FindPlayerByAudioTrack(EpicRtcAudioTrackInterface* AudioTrack, FString& OutPlayerId);
 		bool FindPlayerByVideoTrack(EpicRtcVideoTrackInterface* VideoTrack, FString& OutPlayerId);
 		bool FindPlayerByDataTrack(EpicRtcDataTrackInterface* DataTrack, FString& OutPlayerId);
@@ -105,7 +105,6 @@ namespace UE::PixelStreaming2
 
 		TSharedPtr<TThreadSafeMap<FString, FPlayerContext>> Players;
 
-		FString SFUPlayerId = INVALID_PLAYER_ID;
 		FString InputControllingId = INVALID_PLAYER_ID;
 
 		bool bSignallingConnected = false;

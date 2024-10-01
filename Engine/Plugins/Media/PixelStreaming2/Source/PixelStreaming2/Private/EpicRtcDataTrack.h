@@ -33,15 +33,22 @@ namespace UE::PixelStreaming2
 		return *Value;
 	}
 
-	struct BufferBuilder
+	struct FBufferBuilder
 	{
 		TArray<uint8> Buffer;
 		size_t		  Pos;
 
-		BufferBuilder(size_t size)
+		FBufferBuilder(size_t size)
 			: Pos(0)
 		{
 			Buffer.SetNum(size);
+		}
+
+		size_t Serialize(const void* Data, size_t DataSize)
+		{
+			check(Pos + DataSize <= Buffer.Num());
+			FMemory::Memcpy(Buffer.GetData() + Pos, Data, DataSize);
+			return Pos + DataSize;
 		}
 
 		template <typename T>
@@ -58,7 +65,9 @@ namespace UE::PixelStreaming2
 	class FEpicRtcDataTrack : public TSharedFromThis<FEpicRtcDataTrack>
 	{
 	public:
-		static TSharedPtr<FEpicRtcDataTrack> Create(TRefCountPtr<EpicRtcDataTrackInterface> InTrack, TWeakPtr<IPixelStreaming2DataProtocol> FromStreamerProtocol);
+		static TSharedPtr<FEpicRtcDataTrack> Create(TRefCountPtr<EpicRtcDataTrackInterface> InTrack, TWeakPtr<IPixelStreaming2DataProtocol> InDataProtocol);
+
+		virtual ~FEpicRtcDataTrack() = default;
 
 		/**
 		 * Sends a series of arguments to the data channel with the given type.
@@ -68,48 +77,20 @@ namespace UE::PixelStreaming2
 		template <typename... Args>
 		bool SendMessage(FString MessageType, Args... VarArgs) const
 		{
-			if (!Track)
+			if (!IsActive())
 			{
-				UE_LOG(LogPixelStreaming2, Error, TEXT("Cannot send message when datatrack is null."));
-				return false;
-			}
-			if (Track->GetState() != EpicRtcTrackState::Active)
-			{
-				UE_LOG(LogPixelStreaming2, Error, TEXT("Cannot send message when is not active."));
 				return false;
 			}
 
-			TSharedPtr<IPixelStreaming2DataProtocol> DataProtocol = WeakDataProtocol.Pin();
-
-			if (!DataProtocol)
+			uint8 MessageId;
+			if (!GetMessageId(MessageType, MessageId))
 			{
-				UE_LOG(LogPixelStreaming2, Error, TEXT("Cannot send message, data protocol was null."));
 				return false;
 			}
 
-			TSharedPtr<IPixelStreaming2InputMessage> Message = DataProtocol->Find(MessageType);
-			if (!Message)
-			{
-				UE_LOG(LogPixelStreaming2, Error, TEXT("Cannot send message called '%s' as it is not in the data protocol. Try GetTo/FromStreamerProtocol()->Add()"), *MessageType);
-				return false;
-			}
+			FBufferBuilder Builder = EncodeMessage(MessageId, Forward<Args>(VarArgs)...);
 
-			// Get the unique identifier of the message type we are about to send.
-			uint8 Type = Message->GetID();
-
-			BufferBuilder Builder(sizeof(Type) + (0 + ... + ValueSize(Forward<Args>(VarArgs))));
-			Builder.Insert(Type);
-			(Builder.Insert(Forward<Args>(VarArgs)), ...);
-
-			EpicRtcDataFrameInput InputFrame = {
-				._data = Builder.Buffer.GetData(),
-				._size = static_cast<uint32>(Builder.Buffer.Num()),
-				._binary = true
-			};
-
-			Track->PushFrame(InputFrame);
-
-			return true;
+			return Send(Builder.Buffer);
 		}
 
 		/**
@@ -118,7 +99,7 @@ namespace UE::PixelStreaming2
 		 * @param DataBytes The raw byte buffer to send.
 		 * @returns True of the message was successfully sent.
 		 */
-		bool SendArbitraryData(FString MessageType, const TArray64<uint8>& DataBytes) const;
+		bool SendArbitraryData(const FString& MessageType, const TArray64<uint8>& DataBytes) const;
 
 		/**
 		 * @return The id of the underlying EpicRtc data track.
@@ -130,11 +111,54 @@ namespace UE::PixelStreaming2
 		 */
 		EpicRtcTrackState GetState() const { return Track->GetState(); }
 
+		void SetSendTrack(TRefCountPtr<EpicRtcDataTrackInterface> InSendTrack) { SendTrack = InSendTrack; }
+
 	protected:
 		FEpicRtcDataTrack(TRefCountPtr<EpicRtcDataTrackInterface> InTrack, TWeakPtr<IPixelStreaming2DataProtocol> InDataProtocol);
+		FEpicRtcDataTrack(TSharedPtr<FEpicRtcDataTrack> InTrack, TWeakPtr<IPixelStreaming2DataProtocol> InDataProtocol);
+
+		virtual void PrependData(FBufferBuilder& Builder) const {};
+
+		bool IsActive() const;
+
+		bool GetMessageId(const FString& MessageType, uint8& OutMessageId) const;
 
 	private:
-		TRefCountPtr<EpicRtcDataTrackInterface>		 Track;
+		TRefCountPtr<EpicRtcDataTrackInterface> Track;
+
+		/**
+		 * Track that is used for sending data with Consumer/Producer architecture.
+		 */
+		TRefCountPtr<EpicRtcDataTrackInterface> SendTrack;
+
 		TWeakPtr<IPixelStreaming2DataProtocol> WeakDataProtocol;
+
+		bool Send(TArray<uint8>& Buffer) const;
+
+		template <typename... Args>
+		FBufferBuilder EncodeMessage(uint8 Type, Args... VarArgs) const
+		{
+
+			FBufferBuilder Builder(sizeof(Type) + (0 + ... + ValueSize(Forward<Args>(VarArgs))));
+			PrependData(Builder);
+			Builder.Insert(Type);
+			(Builder.Insert(Forward<Args>(VarArgs)), ...);
+
+			return MoveTemp(Builder);
+		}
+	};
+
+	class FEpicRtcMutliplexDataTrack : public FEpicRtcDataTrack
+	{
+	public:
+		static TSharedPtr<FEpicRtcMutliplexDataTrack> Create(TSharedPtr<FEpicRtcDataTrack> InTrack, TWeakPtr<IPixelStreaming2DataProtocol> InDataProtocol, const FString& InPlayerId);
+
+	protected:
+		FEpicRtcMutliplexDataTrack(TSharedPtr<FEpicRtcDataTrack> InTrack, TWeakPtr<IPixelStreaming2DataProtocol> InDataProtocol, const FString& InPlayerId);
+
+		virtual void PrependData(FBufferBuilder& Builder) const override;
+
+	private:
+		const FString PlayerId;
 	};
 } // namespace UE::PixelStreaming2

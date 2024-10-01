@@ -43,6 +43,8 @@ namespace EPixelStreaming2ToStreamerMessage
 	const FString XRAnalog = FString(TEXT("XRAnalog"));
 	const FString XRSystem = FString(TEXT("XRSystem"));
 	const FString XRButtonTouchReleased = FString(TEXT("XRButtonTouchReleased"));
+	const FString Multiplexed = FString(TEXT("Multiplexed"));
+	const FString ChannelRelayStatus = FString(TEXT("ChannelRelayStatus"));
 } // namespace EPixelStreaming2ToStreamerMessage
 
 namespace EPixelStreaming2FromStreamerMessage
@@ -61,5 +63,6 @@ namespace EPixelStreaming2FromStreamerMessage
 	const FString TestEcho = FString(TEXT("TestEcho"));
 	const FString InputControlOwnership = FString(TEXT("InputControlOwnership"));
 	const FString GamepadResponse = FString(TEXT("GamepadResponse"));
+	const FString Multiplexed = FString(TEXT("Multiplexed"));
 	const FString Protocol = FString(TEXT("Protocol"));
 } // namespace EPixelStreaming2FromStreamerMessage
