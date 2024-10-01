@@ -32,7 +32,7 @@ namespace Metasound::Editor
 
 			InputNode->CreateNewGuid();
 			TObjectPtr<UMetasoundEditorGraphInput>& Input = InputNode->Input;
-			if (!Input || Input->GetOwningGraph() != &Graph)
+			if (!Input || !Graph.ContainsInput(*Input))
 			{
 				Input = nullptr;
 
@@ -178,7 +178,7 @@ namespace Metasound::Editor
 
 			// Can only have one setter node
 			TObjectPtr<UMetasoundEditorGraphVariable>& Variable = VariableNode->Variable;
-			if (!Variable || Variable->GetOwningGraph() != &Graph)
+			if (!Variable || !Graph.ContainsVariable(*Variable))
 			{
 				const FMetasoundEditorGraphMemberNodeBreadcrumb& Breadcrumb = VariableNode->Breadcrumb;
 				const FName BaseName = Breadcrumb.MemberName;

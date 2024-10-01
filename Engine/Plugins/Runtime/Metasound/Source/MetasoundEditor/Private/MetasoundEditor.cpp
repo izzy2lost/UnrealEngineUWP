@@ -85,6 +85,7 @@
 #include "ToolMenuEntry.h"
 #include "ToolMenus.h"
 #include "UObject/ScriptInterface.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
@@ -1889,7 +1890,21 @@ namespace Metasound
 			constexpr bool bShouldCloseWindowAfterMenuSelection = false;
 			FMenuBuilder MenuBuilder(bShouldCloseWindowAfterMenuSelection, Commands);
 			CreateAuditionPageSubMenuOptions(MenuBuilder);
-			return MenuBuilder.MakeWidget();
+			TSharedRef<SWidget> MenuWidget = MenuBuilder.MakeWidget();
+			TWeakObjectPtr<UMetaSoundBuilderBase> WeakBuilderPtr(Builder.Get());
+			MenuWidget->SetVisibility(TAttribute<EVisibility>::Create([WeakBuilderPtr]()
+			{
+				if (const TStrongObjectPtr<UMetaSoundBuilderBase> BuilderPtr = WeakBuilderPtr.Pin())
+				{
+					constexpr bool bHasProjectPageValues = true;
+					constexpr bool bPresetCanEditPageValues = true;
+					const bool bIsEnabled = PageEditorEnabled(BuilderPtr->GetConstBuilder(), bHasProjectPageValues, bPresetCanEditPageValues);
+					return bIsEnabled ? EVisibility::Visible : EVisibility::Collapsed;
+				}
+
+				return EVisibility::Collapsed;
+			}));
+			return MenuWidget;
 		}
 
 		void FEditor::CreateAuditionPageSubMenuOptions(FMenuBuilder& MenuBuilder)
@@ -4918,6 +4933,11 @@ namespace Metasound
 				ParentPtr->UpdatePageInfo(false);
 				ParentPtr->bRefreshGraph = true;
 				ParentPtr->RefreshExecVisibility(Args.PageID);
+
+				if (ParentPtr->GraphMembersMenu.IsValid())
+				{
+					ParentPtr->GraphMembersMenu->RefreshAllActions(true);
+				}
 			}
 		}
 
