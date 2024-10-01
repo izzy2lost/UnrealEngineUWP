@@ -382,27 +382,27 @@ TObjectPtr<UObject> FObjectProperty::GetObjectPtrPropertyValue_InContainer(const
 	TObjectPtr<UObject> Result = nullptr;
 	GetWrappedUObjectPtrValues<FObjectPtr>(&Result, ContainerAddress, EPropertyMemoryAccess::InContainer, ArrayIndex, 1);
 	return Result;
-	}
+}
 
 void FObjectProperty::SetObjectPtrPropertyValueUnchecked(void* PropertyValueAddress, TObjectPtr<UObject> Ptr) const
-	{
+{
 	SetPropertyValue(PropertyValueAddress, Ptr);
 }
 
 void FObjectProperty::SetObjectPropertyValueUnchecked(void* PropertyValueAddress, UObject* Value) const
-	{
-		SetPropertyValue(PropertyValueAddress, Value);
-	}
+{
+	SetPropertyValue(PropertyValueAddress, Value);
+}
 
 void FObjectProperty::SetObjectPtrPropertyValueUnchecked_InContainer(void* ContainerAddress, TObjectPtr<UObject> Ptr, int32 ArrayIndex) const
-	{
+{
 	SetWrappedUObjectPtrValues<FObjectPtr>(ContainerAddress, EPropertyMemoryAccess::InContainer, &Ptr, ArrayIndex, 1);
 }
 
 void FObjectProperty::SetObjectPropertyValueUnchecked_InContainer(void* ContainerAddress, UObject* Value, int32 ArrayIndex) const
-	{
-		SetWrappedUObjectPtrValues<FObjectPtr>(ContainerAddress, EPropertyMemoryAccess::InContainer, &Value, ArrayIndex, 1);
-	}
+{
+	SetWrappedUObjectPtrValues<FObjectPtr>(ContainerAddress, EPropertyMemoryAccess::InContainer, &Value, ArrayIndex, 1);
+}
 
 void FObjectProperty::CopySingleValueToScriptVM(void* Dest, const void* Src) const
 {

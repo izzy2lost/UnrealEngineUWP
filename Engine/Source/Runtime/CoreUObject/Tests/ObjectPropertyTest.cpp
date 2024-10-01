@@ -575,7 +575,6 @@ TEST_CASE("UE::FObjectProperty::CopySingleValue")
 	CHECK(PtrObj2 == RawPtr);
 
 	CHECK(RawProperty->GetClass() == PtrProperty->GetClass());
-
 }
 
 
