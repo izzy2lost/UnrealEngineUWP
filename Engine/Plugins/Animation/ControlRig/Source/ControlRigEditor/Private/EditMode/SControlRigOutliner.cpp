@@ -611,7 +611,7 @@ bool SMultiRigHierarchyTreeView::AddElement(UControlRig* InControlRig, const FRi
 
 			if (ParentKey.IsValid())
 			{
-				if(FKControlRig)
+				if(FKControlRig && ParentKey != URigHierarchy::GetWorldSpaceReferenceKey())
 				{
 					if(const FRigControlElement* ControlElement = Cast<FRigControlElement>(InElement))
 					{
