@@ -440,6 +440,7 @@ public:
 
 struct FTransformConstraintUtils
 {
+public: 
 	/** Fills a sorted constraint array that InChild actor is the child of. */
 	static CONSTRAINTS_API void GetParentConstraints(
 		UWorld* World,
@@ -506,6 +507,10 @@ struct FTransformConstraintUtils
 
 	/** Ensure default dependencies between constraints. */
 	static CONSTRAINTS_API bool BuildDependencies(UWorld* InWorld, UTickableTransformConstraint* Constraint);
+	
+private:
+	/** Ensures that attachment dependencies are reflected at the constraints level. */
+	static void BuildAttachmentsDependencies(UWorld* InWorld, const UTickableTransformConstraint* Constraint);
 };
 
 /**
