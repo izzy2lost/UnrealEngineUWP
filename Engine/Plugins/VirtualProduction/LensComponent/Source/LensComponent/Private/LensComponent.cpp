@@ -397,7 +397,7 @@ void ULensComponent::ReapplyNodalOffset()
 	if (TrackedComponent.IsValid())
 	{
 		// Reset the tracked component back to its original relative transform (before nodal offset was originally applied)
-		TrackedComponent->SetRelativeTransform(OriginalTrackedComponentTransform);
+		TrackedComponent->SetRelativeTransform(GetOriginalTrackedComponentTransform());
 
 		// Now, reapply the nodal offset to the tracked component
 		ApplyNodalOffset();
@@ -429,7 +429,7 @@ void ULensComponent::ApplyNodalOffset()
 	LensFile->EvaluateNodalPointOffset(EvalInputs.Focus, EvalInputs.Zoom, Offset);
 
 	// Cache the original transform before applying the offset, so that nodal offset can potentially be re-evaluated in the future
-	OriginalTrackedComponentTransform = TrackedComponent.Get()->GetRelativeTransform();
+	SetOriginalTrackedComponentTransform(TrackedComponent.Get()->GetRelativeTransform());
 
 	TrackedComponent.Get()->AddLocalOffset(Offset.LocationOffset);
 	TrackedComponent.Get()->AddLocalRotation(Offset.RotationOffset);
@@ -473,10 +473,34 @@ void ULensComponent::ApplyNodalOffset(USceneComponent* ComponentToOffset, bool b
 	}
 
 	// Cache the original transform before applying the offset, so that nodal offset can potentially be re-evaluated in the future
-	OriginalTrackedComponentTransform = ComponentToOffset->GetRelativeTransform();
+	SetOriginalTrackedComponentTransform(ComponentToOffset->GetRelativeTransform());
 
 	ComponentToOffset->AddLocalOffset(Offset.LocationOffset);
 	ComponentToOffset->AddLocalRotation(Offset.RotationOffset);
+}
+
+FTransform ULensComponent::GetOriginalTrackedComponentTransform()
+{
+	OriginalTrackedComponentTransform.SetLocation(OriginalTrackedComponentLocation);
+
+	FRotator TrackedRotator;
+	TrackedRotator.Pitch = OriginalTrackedComponentRotation.Y;
+	TrackedRotator.Yaw = OriginalTrackedComponentRotation.Z;
+	TrackedRotator.Roll = OriginalTrackedComponentRotation.X;
+
+	OriginalTrackedComponentTransform.SetRotation(TrackedRotator.Quaternion());
+	return OriginalTrackedComponentTransform;
+}
+
+void ULensComponent::SetOriginalTrackedComponentTransform(const FTransform& NewTransform)
+{
+	OriginalTrackedComponentTransform = NewTransform;
+	OriginalTrackedComponentLocation = NewTransform.GetLocation();
+
+	FRotator NewRotator = NewTransform.GetRotation().Rotator();
+	OriginalTrackedComponentRotation.X = NewRotator.Roll;
+	OriginalTrackedComponentRotation.Y = NewRotator.Pitch;
+	OriginalTrackedComponentRotation.Z = NewRotator.Yaw;
 }
 
 void ULensComponent::EvaluateFocalLength(UCineCameraComponent* CineCameraComponent)
