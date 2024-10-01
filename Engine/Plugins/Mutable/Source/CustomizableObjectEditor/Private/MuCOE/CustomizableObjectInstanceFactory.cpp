@@ -5,6 +5,7 @@
 #include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "MuCO/CustomizableSkeletalComponentPrivate.h"
 #include "Engine/SkeletalMesh.h"
 #include "Modules/ModuleManager.h"
 #include "MuCO/CustomizableObjectInstance.h"
@@ -78,7 +79,7 @@ void UCustomizableObjectInstanceFactory::PostSpawnActor(UObject* Asset, AActor* 
 				CustomSkeletalComp->UnregisterComponent();
 				CustomSkeletalComp->CustomizableObjectInstance = Instance;
 				CustomSkeletalComp->SetComponentName(ComponentName);
-				CustomSkeletalComp->SetSkeletalMesh(SkeletalMesh);
+				CustomSkeletalComp->GetPrivate()->SetSkeletalMesh(SkeletalMesh);
 				CustomSkeletalComp->UpdateSkeletalMeshAsync();
 				CustomSkeletalComp->RegisterComponent();
 			}

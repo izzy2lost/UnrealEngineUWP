@@ -201,7 +201,7 @@ void FLogBenchmarkUtil::UpdateStats()
 
 	for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage; ++CustomizableObjectInstanceUsage)
 	{
-		if (!IsValid(*CustomizableObjectInstanceUsage) || CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
+		if (!IsValid(*CustomizableObjectInstanceUsage) || CustomizableObjectInstanceUsage->GetPrivate()->IsNetMode(NM_DedicatedServer))
 		{
 			continue;
 		}

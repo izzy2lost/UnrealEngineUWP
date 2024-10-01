@@ -12,6 +12,7 @@
 #include "MuCO/CustomizableInstanceLODManagement.h"
 #include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "MuCO/CustomizableObjectPrivate.h"
+#include "MuCO/CustomizableObjectInstanceUsagePrivate.h"
 #include "MuCO/CustomizableObjectUIData.h"
 #include "MuCO/DefaultImageProvider.h"
 #include "MuCO/CustomizableObjectInstanceUsage.h"
@@ -438,7 +439,7 @@ void UCustomizableObjectSystem::LogShowData(bool bFullInfo, bool ShowMaterialInf
 		const UCustomizableObjectInstanceUsage* CustomizableObjectInstanceUsage = *It;
 
 #if WITH_EDITOR
-		if (IsValid(CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
+		if (IsValid(CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->GetPrivate()->IsNetMode(NM_DedicatedServer))
 		{
 			continue;
 		}
@@ -862,7 +863,7 @@ void FinishUpdateGlobal(const TSharedRef<FUpdateContextPrivate>& Context)
 			}
 
 #if WITH_EDITOR
-			if (It->IsNetMode(NM_DedicatedServer))
+			if (It->GetPrivate()->IsNetMode(NM_DedicatedServer))
 			{
 				continue;
 			}
@@ -871,7 +872,7 @@ void FinishUpdateGlobal(const TSharedRef<FUpdateContextPrivate>& Context)
 			if (InstanceUsage->GetCustomizableObjectInstance() == Instance &&
 				(!Context->bOptimizedUpdate || Context->AttachedParentUpdated.Find(InstanceUsage)))
 			{
-				InstanceUsage->Callbacks();
+				InstanceUsage->GetPrivate()->Callbacks();
 			}
 		}
 	}
@@ -943,7 +944,7 @@ void UpdateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& Context)
 		UCustomizableObjectInstanceUsage* CustomizableObjectInstanceUsage = *It;
 
 #if WITH_EDITOR
-		if (IsValid(CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
+		if (IsValid(CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->GetPrivate()->IsNetMode(NM_DedicatedServer))
 		{
 			continue;
 		}
@@ -959,12 +960,12 @@ void UpdateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& Context)
 			MUTABLE_CPUPROFILER_SCOPE(UpdateSkeletalMesh_SetSkeletalMesh);
 
 			USkeletalMesh* SkeletalMesh = CustomizableObjectInstance->GetComponentMeshSkeletalMesh(CustomizableObjectInstanceUsage->GetComponentName());
-			CustomizableObjectInstanceUsage->SetSkeletalMesh(SkeletalMesh, &bSkeletalMeshUpdated, &bMaterialsUpdated);
+			CustomizableObjectInstanceUsage->GetPrivate()->SetSkeletalMesh(SkeletalMesh, &bSkeletalMeshUpdated, &bMaterialsUpdated);
 
 			if (CustomizableObjectInstancePrivateData->HasCOInstanceFlags(ReplacePhysicsAssets) &&
 				SkeletalMesh)
 			{
-				CustomizableObjectInstanceUsage->SetPhysicsAsset(SkeletalMesh->GetPhysicsAsset(), &bPhysicsAssetUpdated);	
+				CustomizableObjectInstanceUsage->GetPrivate()->SetPhysicsAsset(SkeletalMesh->GetPhysicsAsset(), &bPhysicsAssetUpdated);	
 			}
 		}
 
@@ -3422,7 +3423,7 @@ namespace impl
 
 		for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage && !bRequestAllLODs; ++CustomizableObjectInstanceUsage)
 		{
-			if (IsValid(*CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
+			if (IsValid(*CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->GetPrivate()->IsNetMode(NM_DedicatedServer))
 			{
 				continue;
 			}

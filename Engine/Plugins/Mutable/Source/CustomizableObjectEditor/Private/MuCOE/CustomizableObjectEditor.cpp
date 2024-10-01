@@ -66,6 +66,7 @@
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "SMutableObjectViewer.h"
+#include "MuCO/CustomizableSkeletalComponentPrivate.h"
 #include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCO/CustomizableSkeletalMeshActor.h"
 #include "MuCOE/CustomizableObjectInstanceFactory.h"
@@ -2328,7 +2329,7 @@ void FCustomizableObjectEditor::CreatePreviewActor()
 		PreviewSkeletalMeshComponents.Add(DebugComponent);
 		
 		UCustomizableSkeletalComponent* CustomizableComponent = NewObject<UCustomizableSkeletalComponent>(DebugComponent);
-		CustomizableComponent->bSkipSetReferenceSkeletalMesh = true;
+		CustomizableComponent->SetSkipSetReferenceSkeletalMesh(true);
 		CustomizableComponent->CustomizableObjectInstance = PreviewInstance;
 		CustomizableComponent->SetComponentName(CustomizableObject->GetComponentName(ObjectComponentIndex));
 		CustomizableComponent->AttachToComponent(DebugComponent, FAttachmentTransformRules::KeepRelativeTransform);

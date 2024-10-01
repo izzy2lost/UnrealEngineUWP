@@ -3,6 +3,7 @@
 #pragma once
 
 #include "MuCO/CustomizableObjectInstance.h"
+#include "MuCO/CustomizableObjectInstanceUsagePrivate.h"
 #include "Tickable.h"
 #include "Engine/EngineBaseTypes.h"
 
@@ -12,7 +13,6 @@ class AActor;
 class FObjectPreSaveContext;
 class UObject;
 class USkeletalMesh;
-class UCustomizableSkeletalComponent;
 class UPhysicsAsset;
 struct FFrame;
 enum class EUpdateResult : uint8;
@@ -24,22 +24,22 @@ DECLARE_DELEGATE(FCustomizableObjectInstanceUsageUpdatedDelegate);
 // streaming, etc. It's a UObject, so it will be much cheaper than a UCustomizableComponent as it won't have to refresh its transforms
 // every time it's moved.
 UCLASS(Blueprintable, BlueprintType, ClassGroup = (CustomizableObject), meta = (BlueprintSpawnableComponent))
-class CUSTOMIZABLEOBJECT_API UCustomizableObjectInstanceUsage : public UObject, public FTickableGameObject
+class CUSTOMIZABLEOBJECT_API UCustomizableObjectInstanceUsage : public UObject
 {
 public:
 	GENERATED_BODY()
 
-	UPROPERTY(Transient)
-	float SkippedLastRenderTime;
-
-	FCustomizableObjectInstanceUsageUpdatedDelegate UpdatedDelegate;
-
+	// Own interface
+	UCustomizableObjectInstanceUsage();
+	
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstanceUsage)
 	void SetCustomizableObjectInstance(UCustomizableObjectInstance* CustomizableObjectInstance);
-	UCustomizableObjectInstance* GetCustomizableObjectInstance() const;
 
-	// TODO: What is the proper way to refer to dynamic components?
-	// For now assume this is an *Object* component index (to index the array of all possible components in the CO) and not an *Instance* component index.
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstanceUsage)
+	UCustomizableObjectInstance* GetCustomizableObjectInstance() const;
+	
 	void SetComponentIndex(int32 ObjectComponentIndex);
+
 	int32 GetComponentIndex() const;
 	
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstanceUsage)
@@ -47,16 +47,15 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstanceUsage)
 	FName GetComponentName() const;
-	
+
+	/** Attach this Customizable Object Instance Usage to a Skeletal Mesh Component to be customized. */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstanceUsage)
 	void AttachTo(USkeletalMeshComponent* SkeletalMeshComponent);
-	USkeletalMeshComponent* GetAttachParent() const;
-
-	/** Common end point of all updates. Even those which failed. */
-	void Callbacks() const;
 	
-	USkeletalMesh* GetSkeletalMesh() const;
-	USkeletalMesh* GetAttachedSkeletalMesh() const;
-
+	/** Get the parent Skeletal Mesh Component this Customizable Object Instance Usage is attached to. */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstanceUsage)
+	USkeletalMeshComponent* GetAttachParent() const;
+	
 	/** Update Skeletal Mesh asynchronously. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	void UpdateSkeletalMeshAsync(bool bNeverSkipUpdate = false);
@@ -64,33 +63,32 @@ public:
 	/** Update Skeletal Mesh asynchronously. Callback will be called once the update finishes, even if it fails. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	void UpdateSkeletalMeshAsyncResult(FInstanceUpdateDelegate Callback, bool bIgnoreCloseDist = false, bool bForceHighPriority = false);
+	
+	/** Set to true to avoid automatically replacing the Skeletal Mesh of the parent Skeletal Mesh Component by the Reference Skeletal Mesh.
+	 * If SkipSetSkeletalMeshOnAttach is true, it will not replace it. */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstanceUsage)
+	void SetSkipSetReferenceSkeletalMesh(bool bSkip);
 
-	void SetSkeletalMesh(USkeletalMesh* SkeletalMesh, bool* bOutSkeletalMeshUpdated = nullptr, bool* bOutMaterialsUpdated = nullptr);
-	void SetPhysicsAsset(UPhysicsAsset* PhysicsAsset, bool* bOutPhysicsAssetUpdated = nullptr);
-	void UpdateDistFromComponentToPlayer(const AActor* const Pawn, bool bForceEvenIfNotBegunPlay = false);
-
-	void SetVisibilityOfSkeletalMeshSectionWithMaterialName(bool bVisible, const FString& MaterialName, int32 LOD);
-
-	// Set to true to replace the SkeletalMesh of the parent component by the ReferenceSkeletalMesh or the generated SkeletalMesh 
-	void SetPendingSetSkeletalMesh(bool bIsActive);
-	bool GetPendingSetSkeletalMesh() const;
-
-	// Set to true to avoid replacing the SkeletalMesh of the parent component by the ReferenceSkeletalMesh if bPendingSetSkeletalMesh is true
-	void SetSkipSetReferenceSkeletalMesh(bool bIsActive);
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstanceUsage)
 	bool GetSkipSetReferenceSkeletalMesh() const;
 
-	// USceneComponent interface
-	virtual void BeginDestroy() override;
+	/** Set to true to avoid automatically replacing the Skeletal Mesh of the parent Skeletal Mesh Component with any mesh. */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstanceUsage)
+	void SetSkipSetSkeletalMeshOnAttach(bool bSkip);
 
-	// Returns true if the NetMode of the associated UCustomizableSkeletalComponent (or the associated SkeletalMeshComponent if the former does not exist) is equal to InNetMode
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstanceUsage)
+	bool GetSkipSetSkeletalMeshOnAttach() const;
+	
+	UCustomizableObjectInstanceUsagePrivate* GetPrivate();
+
+	const UCustomizableObjectInstanceUsagePrivate* GetPrivate() const;
+
+	FCustomizableObjectInstanceUsageUpdatedDelegate UpdatedDelegate;
+
+	// TODO GMT Remove
 	bool IsNetMode(ENetMode InNetMode) const;
-
-#if WITH_EDITOR
-	// Used to generate instances outside the CustomizableObject editor and PIE
-	void UpdateDistFromComponentToLevelEditorCamera(const FVector& CameraPosition);
 	void EditorUpdateComponent();
-#endif
-
+	
 private:
 	// If this CustomizableSkeletalComponent is not null, it means this Usage was created by it, and all persistent properties should be obtained through it
 	UPROPERTY()
@@ -111,24 +109,10 @@ private:
 	/** Only used if the ComponentIndex is INDEX_NONE. */
 	UPROPERTY()
 	FName UsedComponentName;
-
-	// Used to replace the SkeletalMesh of the parent component by the ReferenceSkeletalMesh or the generated SkeletalMesh 
-	bool bUsedPendingSetSkeletalMesh = false;
-
-	// Used to avoid replacing the SkeletalMesh of the parent component by the ReferenceSkeletalMesh if bPendingSetSkeletalMesh is true
-	bool bUsedSkipSetReferenceSkeletalMesh = false;
-
-	// Begin FTickableGameObject
-	virtual void Tick(float DeltaTime) override;
-	virtual ETickableTickType GetTickableTickType() const override;
-	virtual TStatId GetStatId() const override;
-	virtual bool IsTickableWhenPaused() const override { return true; }
-	virtual bool IsTickableInEditor() const override { return true; }
-	virtual bool IsTickable() const override;
-	// End FTickableGameObject
-
-	void SetSkeletalMeshAndOverrideMaterials(USkeletalMeshComponent& Parent, USkeletalMesh* SkeletalMesh, const UCustomizableObjectInstance& CustomizableObjectInstance, bool* bOutSkeletalMeshUpdated, bool* bOutMaterialsUpdated);
-
-	friend UCustomizableSkeletalComponent;
+	
+	UPROPERTY()
+	TObjectPtr<UCustomizableObjectInstanceUsagePrivate> Private;
+	
+	friend UCustomizableObjectInstanceUsagePrivate;
 };
 

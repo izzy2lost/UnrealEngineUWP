@@ -10,6 +10,7 @@
 #include "SceneView.h"
 #include "TextureResource.h"
 #include "ThumbnailHelpers.h"
+#include "MuCO/CustomizableSkeletalComponentPrivate.h"
 #include "UObject/ConstructorHelpers.h"
 
 class FRenderTarget;
@@ -70,7 +71,7 @@ void UCustomizableObjectThumbnailRenderer::Draw(UObject* Object, int32 X, int32 
 				PreviewCustomizableSkeletalComponent->CustomizableObjectInstance = CustomizableObjectInstance;
 
 				PreviewCustomizableSkeletalComponent->UpdateSkeletalMeshAsync();
-				USkeletalMesh* SkeletalMesh = PreviewCustomizableSkeletalComponent->GetSkeletalMesh();
+				USkeletalMesh* SkeletalMesh = PreviewCustomizableSkeletalComponent->GetPrivate()->GetSkeletalMesh();
 
 				if (SkeletalMesh && SkeletalMesh->GetLODNum())
 				{
