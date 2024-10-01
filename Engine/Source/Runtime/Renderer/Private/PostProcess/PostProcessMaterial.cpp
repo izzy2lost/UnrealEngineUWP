@@ -1464,3 +1464,20 @@ FScreenPassTexture AddHighResolutionScreenshotMaskPass(
 
 	return Output;
 }
+
+FScreenPassTexture FPostProcessMaterialInputs::ReturnUntouchedSceneColorForPostProcessing(FRDGBuilder& GraphBuilder) const
+{
+	FScreenPassTextureSlice& SceneColorSlice = const_cast<FScreenPassTextureSlice&>(Textures[(uint32)EPostProcessMaterialInput::SceneColor]);
+
+	// Support format conversions here, to handle the case where the output is the final render target, and happens to
+	// be a different format than the intermediate render targets.
+	if (OverrideOutput.IsValid() && OverrideOutput.Texture->Desc.Format != SceneColorSlice.TextureSRV->GetParent()->Desc.Format)
+	{
+		AddDrawTexturePass(GraphBuilder, FScreenPassViewInfo(), SceneColorSlice, OverrideOutput);
+		return OverrideOutput;
+	}
+	else
+	{
+		return FScreenPassTexture::CopyFromSlice(GraphBuilder, SceneColorSlice, OverrideOutput);
+	}
+}
