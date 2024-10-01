@@ -411,6 +411,30 @@ struct RIGVM_API FRigVMFunction_MathFloatToInt : public FRigVMFunction_MathFloat
 };
 
 /**
+ * Returns the float cast to a double
+ */
+USTRUCT(meta=(DisplayName="To Double", TemplateName="Cast", ExecuteContext="FRigVMExecuteContext"))
+struct RIGVM_API FRigVMFunction_MathFloatToDouble : public FRigVMFunction_MathFloatBase
+{
+	GENERATED_BODY()
+
+	FRigVMFunction_MathFloatToDouble()
+	{
+		Value = 0.f;
+		Result = 0.0;
+	}
+
+	RIGVM_METHOD()
+	virtual void Execute() override;
+
+	UPROPERTY(meta=(Input))
+	float Value;
+
+	UPROPERTY(meta=(Output))
+	double Result;
+};
+
+/**
  * Returns the sign of the value (+1 for >= 0.f, -1 for < 0.f)
  */
 USTRUCT(meta=(DisplayName="Sign", TemplateName="Sign"))
