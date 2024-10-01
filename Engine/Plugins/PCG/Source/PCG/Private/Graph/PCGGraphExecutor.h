@@ -5,28 +5,30 @@
 #include "PCGContext.h"
 #include "PCGElement.h"
 #include "PCGPin.h"
+#include "PCGSettings.h"
 #include "PCGSubsystem.h"
 #include "Graph/PCGGraphCache.h"
 #include "Graph/PCGGraphCompiler.h"
-#include "Graph/PCGPinDependencyExpression.h"
+#include "Graph/PCGGraphTask.h"
 #include "Graph/PCGStackContext.h"
 
+#include "Containers/Ticker.h"
 #include "Misc/SpinLock.h"
-#include "UObject/GCObject.h"
 #include "Tasks/Task.h"
 #include "Templates/UniquePtr.h"
+#include "UObject/GCObject.h"
 
 #if WITH_EDITOR
 #include "Editor/IPCGEditorProgressNotification.h"
 #include "WorldPartition/WorldPartitionHandle.h" // Needed for FWorldPartitionReference
 #endif
 
+#include "PCGGraphExecutor.generated.h"
+
+class UPCGComponent;
 class UPCGGraph;
 class UPCGNode;
-class UPCGComponent;
-class FPCGGraphCompiler;
 struct FPCGStack;
-class FPCGStackContext;
 class FTextFormat;
 
 namespace PCGGraphExecutor
@@ -37,135 +39,22 @@ namespace PCGGraphExecutor
 #if WITH_EDITOR
 	extern PCG_API TAutoConsoleVariable<float> CVarEditorTimePerFrame;
 #endif
-}
 
-struct FPCGGraphTaskInput
-{
-	FPCGGraphTaskInput(FPCGTaskId InTaskId, const TOptional<FPCGPinProperties>& InUpstreamPin = NoPin, const TOptional<FPCGPinProperties>& InDownstreamPin = NoPin, bool bInProvideData = true)
-		: TaskId(InTaskId)
-		, UpstreamPin(InUpstreamPin)
-		, DownstreamPin(InDownstreamPin)
-		, bProvideData(bInProvideData)
+	template<typename FunctorType>
+	void ExecuteOnGameThread(const TCHAR* DebugName, FunctorType&& Functor)
 	{
+		if (IsInGameThread())
+		{
+			Functor();
+		}
+		else
+		{
+			::ExecuteOnGameThread(DebugName, std::forward<FunctorType>(Functor));
+		}
 	}
 
-#if WITH_EDITOR
-	bool operator==(const FPCGGraphTaskInput& Other) const;
-#endif
-
-	FPCGTaskId TaskId;
-
-	/** The upstream output pin from which the input data comes. */
-	TOptional<FPCGPinProperties> UpstreamPin;
-
-	/** The input pin on the task element. */
-	TOptional<FPCGPinProperties> DownstreamPin;
-
-	/** Whether the input provides any data. For the post execute task, only the output node will provide data. */
-	bool bProvideData;
-	
-	/** Whether the input is used multiple times (previous task has multiple successors). Useful to know if the data can be stolen or not. True by default.*/
-	bool bIsUsedMultipleTimes = true;
-
-	static inline const TOptional<FPCGPinProperties> NoPin = TOptional<FPCGPinProperties>();
-};
-
-struct FPCGGraphTask
-{
-#if WITH_EDITOR
-	/** Approximate equivalence. Does not deeply check node settings, nor does it do a deep comparison of the element. */
-	bool IsApproximatelyEqual(const FPCGGraphTask& Other) const;
-
-	/** Because we might not already have a context, but still want to attach some logs to the node, use this utility function */
-	void LogVisual(ELogVerbosity::Type InVerbosity, const FText& InMessage) const;
-#endif
-
-	const FPCGStack* GetStack() const;
-	FPCGTaskId GetGraphExecutionTaskId() const;
-	
-	bool CanExecuteOnlyOnMainThread() const;
-
-	TArray<FPCGGraphTaskInput> Inputs;
-	const UPCGNode* Node = nullptr;
-	TWeakObjectPtr<UPCGComponent> SourceComponent = nullptr;
-	FPCGElementPtr Element; // Added to have tasks that aren't node-bound
-	FPCGContext* Context = nullptr;
-	FPCGTaskId NodeId = InvalidPCGTaskId;
-	FPCGTaskId CompiledTaskId = InvalidPCGTaskId; // the task id as it exists when compiled
-	FPCGTaskId ParentId = InvalidPCGTaskId; // represents the parent sub object graph task, if we were called from one
-
-	/** Conjunction of disjunctions of pin IDs that are required to be active for this task to be active.
-	* Example - keep task if: UpstreamPin0Active && (UpstreamPin1Active || UpstreamPin2Active)
-	*/
-	FPCGPinDependencyExpression PinDependency;
-
-	int32 StackIndex = INDEX_NONE;
-	TSharedPtr<const FPCGStackContext> StackContext;
-
-	// Whether SetupTask has been called on this task
-	bool bHasDoneSetup = false;
-	// BuildTaskInput will initialize this Collection which will later be used by PrepareForExecute
-	FPCGDataCollection TaskInput;
-	// CombineParams call might have created AsyncObjects
-	TSet<TObjectPtr<UObject>> CombineParamsAsyncObjects;
-
-	// Whether PrepareForExecute as been called on this task
-	bool bHasDonePrepareForExecute = false;
-
-#if WITH_EDITOR
-	// Can be true when we want to have debug display on a task but have taken the results from the cache
-	bool bIsBypassed = false;
-#endif
-};
-
-struct FPCGGraphScheduleTask
-{
-	TArray<FPCGGraphTask> Tasks;
-	TWeakObjectPtr<UPCGComponent> SourceComponent = nullptr;
-	int32 FirstTaskIndex = 0;
-	int32 LastTaskIndex = 0;
-	bool bHasAbortCallbacks = false;
-};
-
-struct FPCGGraphActiveTask : TSharedFromThis<FPCGGraphActiveTask>
-{
-	FPCGGraphActiveTask() = default;
-	virtual ~FPCGGraphActiveTask();
-
-	FPCGGraphActiveTask(const FPCGGraphActiveTask&) = delete;
-	FPCGGraphActiveTask& operator=(const FPCGGraphActiveTask&) = delete;
-
-	FPCGGraphActiveTask(FPCGGraphActiveTask&&) = delete;
-	FPCGGraphActiveTask& operator=(FPCGGraphActiveTask&&) = delete;
-
-	void StartExecuting();
-	void StopExecuting();
-
-	bool CanExecuteOnlyOnMainThread() const;
-
-	TArray<FPCGGraphTaskInput> Inputs;
-	FPCGElementPtr Element;
-	TUniquePtr<FPCGContext> Context;
-	FPCGTaskId NodeId = InvalidPCGTaskId;
-	std::atomic<bool> bWasCancelled = false;
-#if WITH_EDITOR
-	bool bIsBypassed = false;
-#endif
-	int32 StackIndex = INDEX_NONE;
-	TSharedPtr<const FPCGStackContext> StackContext;
-		
-	// Those members need to be modified under the FPCGGraphExecutor::LiveTasksLock (unless we are running the old executor path)
-	UE::Tasks::TTask<bool> ExecutingTask;
-	bool bIsExecutingTask = false;
-
-	// Used to know if task should be in ActiveTasks or ActiveTasksGameThreadOnly
-	bool bIsGameThreadOnly = false;
-	// TaskIndex inside ActiveTasks/ActiveTasksGameThreadOnly/SleepingTasks for fast removal
-	int32 TaskIndex = INDEX_NONE;
-
-	static int32 NumExecuting;
-	TArray<TObjectPtr<const UObject>> ExecutingReferences;
-};
+	void ClearAsyncFlags(TSet<TObjectPtr<UObject>>& AsyncObjects);
+}
 
 class FPCGGraphExecutor : public FGCObject
 {
@@ -234,10 +123,10 @@ public:
 	void ClearOutputData(FPCGTaskId InTaskId);
 
 	/** Accessor so PCG tools (e.g. profiler) can easily decode graph task ids **/
-	FPCGGraphCompiler& GetCompiler() { return GraphCompiler; }
+	FPCGGraphCompiler* GetCompiler() { return &GraphCompiler; }
 
 	/** Accessor so PCG tools (e.g. profiler) can easily decode graph task ids **/
-	const FPCGGraphCompiler& GetCompiler() const { return GraphCompiler; }
+	const FPCGGraphCompiler* GetCompiler() const { return &GraphCompiler; }
 
 #if WITH_EDITOR
 	FPCGTaskId ScheduleDebugWithTaskCallback(UPCGComponent* InComponent, TFunction<void(FPCGTaskId, const UPCGNode*, const FPCGDataCollection&)> TaskCompleteCallback);
@@ -296,7 +185,7 @@ private:
 	void SetLandscapePCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData) { SetExecutionCacheData(InGraphExecutionTaskId, EExecutionCacheDataType::LandscapeData, InData); }
 	void SetLandscapeHeightPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData) { SetExecutionCacheData(InGraphExecutionTaskId, EExecutionCacheDataType::LandscapeHeightData, InData); }
 	void SetOriginalActorPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData) { SetExecutionCacheData(InGraphExecutionTaskId, EExecutionCacheDataType::OriginalActorData, InData); }
-	
+
 	void ExecuteV1();
 	void ExecuteV2();
 	double GetTickBudgetInSeconds() const;
@@ -429,7 +318,7 @@ private:
 	
 	/** Monotonically increasing id. Should be reset once all tasks are executed, should be protected by the ScheduleLock */
 	FPCGTaskId NextTaskId = 0;
-	
+
 	/** Struct holding different UPCGData caches that we want to compute only once per graph execution */
 	struct FGraphExecutionCache
 	{
@@ -563,10 +452,11 @@ namespace PCGGraphExecutor
 	class FPCGGridLinkageElement : public FPCGGenericElement
 	{
 	public:
-		FPCGGridLinkageElement(TFunction<bool(FPCGContext*)> InOperation, const FContextAllocator& InContextAllocator, EPCGHiGenGrid InFromGrid, EPCGHiGenGrid InToGrid, const FString& InResourceKey, const UPCGPin* InUpstreamPin)
+		FPCGGridLinkageElement(TFunction<bool(FPCGContext*)> InOperation, const FContextAllocator& InContextAllocator, EPCGHiGenGrid InFromGrid, EPCGHiGenGrid InToGrid, EPCGHiGenGrid InGenerationGrid, const FString& InResourceKey, const UPCGPin* InUpstreamPin)
 			: FPCGGenericElement(InOperation, InContextAllocator)
 			, FromGrid(InFromGrid)
 			, ToGrid(InToGrid)
+			, GenerationGrid(InGenerationGrid)
 			, ResourceKey(InResourceKey)
 		{
 			if (IsValid(InUpstreamPin))
@@ -590,6 +480,10 @@ namespace PCGGraphExecutor
 		// These values are stored here so that we can compare two grid linkage elements for equivalence.
 		EPCGHiGenGrid FromGrid = EPCGHiGenGrid::Uninitialized;
 		EPCGHiGenGrid ToGrid = EPCGHiGenGrid::Uninitialized;
+
+		// This tells us which side of the From/To relationship this grid linkage is on.
+		EPCGHiGenGrid GenerationGrid = EPCGHiGenGrid::Uninitialized; 
+
 		FString ResourceKey;
 		TWeakObjectPtr<const UPCGPin> UpstreamPin = nullptr;
 	};
@@ -603,3 +497,29 @@ namespace PCGGraphExecutor
 		FName InUpstreamPinLabel,
 		FPCGGridLinkageContext* InContext);
 }
+
+UCLASS(ClassGroup = (Procedural))
+class UPCGGridLinkageSettings : public UPCGSettings
+{
+	GENERATED_BODY()
+
+protected:
+	virtual FPCGElementPtr CreateElement() const override;
+
+public:
+	UPROPERTY()
+	EPCGHiGenGrid FromGrid = EPCGHiGenGrid::Uninitialized;
+
+	UPROPERTY()
+	EPCGHiGenGrid ToGrid = EPCGHiGenGrid::Uninitialized;
+
+	UPROPERTY()
+	EPCGHiGenGrid GenerationGrid = EPCGHiGenGrid::Uninitialized;
+
+	UPROPERTY()
+	FString ResourceKey;
+
+	UPROPERTY()
+	TSoftObjectPtr<const UPCGPin> UpstreamPin = nullptr;
+};
+
