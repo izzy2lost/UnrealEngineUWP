@@ -50,7 +50,7 @@ public:
 	float AbsolutePositionOnRail = 1.0f;
 
 	/* Use PointRotation metadata for attachment orientation. If false, attachment orientation is based on the spline curvature*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rail Controls", meta = (EditCondition = "bLockOrientationToRail"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rail Controls")
 	bool bUsePointRotation = true;
 
 	/* Material assigned to spline component mesh*/
