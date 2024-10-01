@@ -3,6 +3,7 @@
 #include "../Common.ush"
 
 #define SUPPORT_CONTACT_SHADOWS 0
+#define EYE_ADAPTATION_LOOSE_PARAMETERS 1
 
 #include "/Engine/Generated/Material.ush"
 #include "../BlueNoise.ush"

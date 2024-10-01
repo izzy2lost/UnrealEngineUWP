@@ -21,6 +21,7 @@ class FHeterogeneousVolumesBakeMaterialCS : public FMeshMaterialShader
 		// Scene data
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, EyeAdaptationBuffer)
 
 		// Object data
 		SHADER_PARAMETER(FMatrix44f, LocalToWorld)
@@ -136,6 +137,7 @@ void ComputeHeterogeneousVolumeBakeMaterial(
 		// Scene data
 		PassParameters->View = View.ViewUniformBuffer;
 		PassParameters->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
+		PassParameters->EyeAdaptationBuffer = GraphBuilder.CreateSRV(GetEyeAdaptationBuffer(GraphBuilder, View));
 
 		// Object data
 		// TODO: Convert to relative-local space
