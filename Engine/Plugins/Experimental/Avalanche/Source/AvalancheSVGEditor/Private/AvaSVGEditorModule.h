@@ -7,6 +7,7 @@
 
 class AActor;
 class ASVGShapesParentActor;
+class FBindingContext;
 class IAvalancheInteractiveToolsModule;
 class UEdMode;
 struct FAvaInteractiveToolsToolParameters;
@@ -19,6 +20,7 @@ public:
 
 private:
 	void RegisterTools(IAvalancheInteractiveToolsModule* InModule);
+	void OnSVGCommandsRegistered(const FBindingContext& InContext, IAvalancheInteractiveToolsModule* InModule);
 
 	void OnSVGActorSplit(ASVGShapesParentActor* InSVGShapesParent);
 	void OnSVGShapesUpdated(AActor* InActor) const;
