@@ -55,7 +55,10 @@ inline FConnectionHandle::FConnectionHandle(uint32 InParentConnectionId, uint32 
 {
 }
 
-inline bool FConnectionHandle::operator==(const FConnectionHandle& Other) const = default;
+inline bool FConnectionHandle::operator==(const FConnectionHandle& Other) const
+{
+	return ParentConnectionId == Other.ParentConnectionId && ChildConnectionId == Other.ChildConnectionId;
+}
 
 inline bool FConnectionHandle::IsValid() const
 {
