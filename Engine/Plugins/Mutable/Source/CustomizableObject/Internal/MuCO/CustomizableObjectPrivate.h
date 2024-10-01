@@ -1477,6 +1477,8 @@ public:
 
 		GroupRomsBySource,
 		
+		RemovedGroupRomsBySource,
+		
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion
 	};
