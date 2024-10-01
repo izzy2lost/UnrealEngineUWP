@@ -1596,6 +1596,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UFUNCTION(BlueprintCallable, BlueprintPure=false, Category = "Rendering|Texture")
 	bool ComputeTextureSourceChannelMinMax(FLinearColor & OutColorMin, FLinearColor & OutColorMax) const;
 
+	/**
+	 * Return the ID for the texture source.
+	 * If the source isn't valid or editor data isn't available, returns false.
+	 */
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "GetTextureSourceIdString"), Category = "Rendering|Texture")
+	bool Blueprint_GetTextureSourceIdString(FString& OutTextureSourceId);
+
 private:
 	/** Whether the async resource release process has already been kicked off or not */
 	UPROPERTY(transient)

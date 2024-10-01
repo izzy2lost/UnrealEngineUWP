@@ -4520,6 +4520,22 @@ void UTexture::Blueprint_GetTextureSourceDiskAndMemorySize(int64 & OutDiskSize,i
 #endif
 }
 
+bool UTexture::Blueprint_GetTextureSourceIdString(FString& OutTextureSourceId)
+{
+	OutTextureSourceId.Reset();
+
+#if WITH_EDITORONLY_DATA
+	if (!Source.IsValid())
+	{
+		return false;
+	}
+	OutTextureSourceId = Source.GetIdString();
+	return true;
+#else
+	return false;
+#endif
+}
+
 bool UTexture::ComputeTextureSourceChannelMinMax(FLinearColor & OutColorMin, FLinearColor & OutColorMax) const
 {
 	// make sure we fill the outputs if we return failure :
