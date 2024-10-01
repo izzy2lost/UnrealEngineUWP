@@ -303,10 +303,7 @@ namespace mu
 		// Source image
 		FImageGenerationOptions ImageOptions;
 		ImageOptions.State = Options.State;
-		if (!ActiveTags.IsEmpty())
-		{
-			ImageOptions.ActiveTags = ActiveTags.Last();
-		}
+		ImageOptions.ActiveTags = Options.ActiveTags;
 
 		Ptr<ASTOp> base;
 		if (node.Image)

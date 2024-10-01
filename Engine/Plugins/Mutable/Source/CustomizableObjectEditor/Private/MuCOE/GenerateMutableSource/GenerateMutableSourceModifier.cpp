@@ -225,6 +225,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		mu::Ptr<mu::NodeModifierMeshClipWithUVMask> ClipNode = new mu::NodeModifierMeshClipWithUVMask();
 		Result = ClipNode;
 
+		ClipNode->SetMessageContext(Node);
 		ClipNode->FaceCullStrategy = TypedNodeClipUVMask->FaceCullStrategy;
 
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeClipUVMask->ClipMaskPin()))
@@ -256,6 +257,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		GenerationContext.MeshGenerationFlags.Push(ModifiersMeshFlags);
 
 		mu::Ptr<mu::NodeModifierSurfaceEdit> SurfNode = new mu::NodeModifierSurfaceEdit();
+		SurfNode->SetMessageContext(Node);
 		Result = SurfNode;
 
 		// TODO: This was used in the non-modifier version for group projectors. It may affect the "drop projection from LOD" feature.
@@ -330,6 +332,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 			for (int32 ImageIndex = 0; ImageIndex < NumImages; ++ImageIndex)
 			{
 				mu::NodeImagePtr ImageNode;
+				FString MaterialParameterName;
 
 				if (!ImageNode) // If
 				{
@@ -375,14 +378,15 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 							const int32 ReferenceTextureSize = 0; // TODO GetBaseTextureSize(GenerationContext, TypedNodeExt, ImageIndex);
 
 							ImageNode = GenerateMutableSourceImage(ConnectedPin, GenerationContext, ReferenceTextureSize);
+							MaterialParameterName = TypedNodeExt->GetParameterName(EMaterialParameterType::Texture, ImageIndex).ToString();
+
 						}
 					}
 				}
 
-				if (ImageNode)
-				{
-					SurfNode->LODs[LODIndex].Textures[ImageIndex].Extend = ImageNode;
-				}
+
+				SurfNode->LODs[LODIndex].Textures[ImageIndex].Extend = ImageNode;
+				SurfNode->LODs[LODIndex].Textures[ImageIndex].MaterialParameterName = MaterialParameterName;
 			}
 		}
 
@@ -405,6 +409,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		mu::Ptr<mu::NodeModifierSurfaceEdit> SurfNode = new mu::NodeModifierSurfaceEdit();
 		Result = SurfNode;
 
+		SurfNode->SetMessageContext(Node);
 		SurfNode->MultipleTagsPolicy = TypedNodeRem->MultipleTagPolicy;
 		SurfNode->RequiredTags = TypedNodeRem->RequiredTags;
 
@@ -442,6 +447,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		mu::Ptr<mu::NodeModifierMeshClipWithUVMask> ClipNode = new mu::NodeModifierMeshClipWithUVMask();
 		Result = ClipNode;
 
+		ClipNode->SetMessageContext(Node);
 		ClipNode->FaceCullStrategy = TypedNodeRemBlocks->FaceCullStrategy;
 
 		ClipNode->MultipleTagsPolicy = TypedNodeRemBlocks->MultipleTagPolicy;
@@ -465,6 +471,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		mu::Ptr<mu::NodeModifierSurfaceEdit> SurfNode = new mu::NodeModifierSurfaceEdit();
 		Result = SurfNode;
 
+		SurfNode->SetMessageContext(Node);
 		SurfNode->MultipleTagsPolicy = TypedNodeEdit->MultipleTagPolicy;
 		SurfNode->RequiredTags = TypedNodeEdit->RequiredTags;
 
@@ -492,6 +499,8 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 					const UEdGraphPin* ConnectedImagePin = FollowInputPin(*TypedNodeEdit->GetUsedImagePin(ImageId));
 
 					mu::NodeModifierSurfaceEdit::FTexture& ImagePatch = SurfNode->LODs[LODIndex].Textures[ImageIndex];
+
+					ImagePatch.MaterialParameterName = TypedNodeEdit->GetParameterName(EMaterialParameterType::Texture, ImageIndex).ToString();
 
 					// \todo: expose these two options?
 					ImagePatch.PatchBlendType = mu::EBlendType::BT_BLEND;
@@ -539,6 +548,8 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 
 		mu::Ptr<mu::NodeModifierSurfaceEdit> SurfNode = new mu::NodeModifierSurfaceEdit();
 		Result = SurfNode;
+
+		SurfNode->SetMessageContext(Node);
 
 		// This modifier needs to be applied right after the mesh constant is generated
 		SurfNode->bApplyBeforeNormalOperations = true;

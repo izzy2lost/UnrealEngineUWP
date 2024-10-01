@@ -894,14 +894,23 @@ namespace mu
 		// If this is true, we will reuse the surface properties from a higher LOD, se we can skip the generation of material properties and images.
 		const bool bShareSurface = node.SharedSurfaceId != INDEX_NONE && !bIsBaseForSharedSurface;
 
+		// Gather all modifiers that apply to this surface
+		TArray<FirstPassGenerator::FModifier> Modifiers;
+		constexpr bool bModifiersForBeforeOperations = false;
+
+		// Store the data necessary to apply modifiers for the pre-normal operations stage.
+		// TODO: Should we merge with currently active tags from the InOptions?
+		GetModifiersFor(node.Tags, bModifiersForBeforeOperations, Modifiers);
+
+		// This pass on the modifiers is only to detect errors that cannot be detected at the point they are applied.
+		CheckModifiersForSurface( node, Modifiers);
+
+		// Generate the mesh
         if (node.Mesh)
         {
             MUTABLE_CPUPROFILER_SCOPE(SurfaceMesh);
 
             Ptr<ASTOp> lastMeshOp;
-
-			// Store the data necessary to apply modifiers for the pre-normal operations stage.
-			ActiveTags.Add(node.Tags);
 
             // Generate the mesh
 			FMeshGenerationOptions MeshOptions;
@@ -932,13 +941,8 @@ namespace mu
 
             GenerateMesh(MeshOptions, MeshResults, node.Mesh);
 
-			ActiveTags.Pop();
-
 			// Apply the modifier for the post-normal operations stage.
-			bool bModifiersForBeforeOperations = false;
-			FMeshGenerationOptions ModifierOptions(MeshOptions);
-			ModifierOptions.ActiveTags = node.Tags;
-			lastMeshOp = ApplyMeshModifiers(MeshOptions, MeshResults, SharedMeshResults, bModifiersForBeforeOperations, surfaceNode->GetMessageContext(), nullptr);
+			lastMeshOp = ApplyMeshModifiers(Modifiers, MeshOptions, MeshResults, SharedMeshResults, surfaceNode->GetMessageContext(), nullptr);
 
             // Layouts
             for ( int32 LayoutIndex=0; LayoutIndex < MeshResults.GeneratedLayouts.Num(); ++LayoutIndex)
@@ -1125,8 +1129,9 @@ namespace mu
 
 				if (bFound)
 				{
+					const NodeSurfaceNew::FImageData& ImageData = node.Images[ImageIndex];
 
-					const int32 LayoutIndex = node.Images[ImageIndex].LayoutIndex;
+					const int32 LayoutIndex = ImageData.LayoutIndex;
 
 					// If the layout index has been set to negative, it means we should ignore the layout for this image.
 					CompilerOptions::TextureLayoutStrategy ImageLayoutStrategy = (LayoutIndex < 0)
@@ -1136,8 +1141,6 @@ namespace mu
 
 					if (ImageLayoutStrategy == CompilerOptions::TextureLayoutStrategy::None)
 					{
-						//check(desc.m_format != EImageFormat::IF_NONE);
-
 						// Generate the image
 						FImageGenerationOptions ImageOptions;
 						ImageOptions.State = Options.State;
@@ -1158,8 +1161,7 @@ namespace mu
 						RectInCells.min = { 0,0 };
 						RectInCells.size = { FakeLayoutSize ,FakeLayoutSize };
 						
-						bool bModifiersForBeforeOperations = false;
-						imageAd = ApplyImageBlockModifiers(ImageOptions, imageAd, ImageIndex, GridSize, LayoutBlockDesc, RectInCells, bModifiersForBeforeOperations, surfaceNode->GetMessageContext());
+						imageAd = ApplyImageBlockModifiers( Modifiers, ImageOptions, imageAd, ImageData, GridSize, LayoutBlockDesc, RectInCells, surfaceNode->GetMessageContext());
 						
 						check(imageAd);
 
@@ -1293,8 +1295,7 @@ namespace mu
 								// Even if we force the size afterwards, we need some size hint in some cases, like image projections.
 								ImageOptions.RectSize = UE::Math::TIntVector2<int32>(BlockDesc.m_size);
 
-								bool bModifiersForBeforeOperations = false;
-								blockAd = ApplyImageBlockModifiers(ImageOptions, blockAd, ImageIndex, GridSize, LayoutBlockDesc, RectInCells, bModifiersForBeforeOperations, surfaceNode->GetMessageContext());
+								blockAd = ApplyImageBlockModifiers( Modifiers, ImageOptions, blockAd, ImageData, GridSize, LayoutBlockDesc, RectInCells, surfaceNode->GetMessageContext());
 
 								// Enforce block size and optimizations
 								blockAd = GenerateImageSize(blockAd, FIntVector2(BlockDesc.m_size));
@@ -1323,8 +1324,9 @@ namespace mu
 							FMeshGenerationOptions ModifierOptions;
 							ModifierOptions.State = Options.State;
 							ModifierOptions.ActiveTags = node.Tags;
-							bool bModifiersForBeforeOperations = false;
-							imageAd = ApplyImageExtendModifiers(ModifierOptions, MeshResults, imageAd, ImageLayoutStrategy, LayoutIndex, ImageIndex, GridSize, LayoutBlockDesc, bModifiersForBeforeOperations, surfaceNode->GetMessageContext());
+							imageAd = ApplyImageExtendModifiers( Modifiers, ModifierOptions, MeshResults, imageAd, ImageLayoutStrategy, 
+								LayoutIndex, ImageData, GridSize, LayoutBlockDesc, 
+								surfaceNode->GetMessageContext());
 
 							// Complete the base op
 							BlankImageOp->op.args.ImageBlankLayout.blockSize[0] = uint16(LayoutBlockDesc.BlockPixelsX);
@@ -1865,7 +1867,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void CodeGenerator::GetModifiersFor(
 		const TArray<FString>& SurfaceTags,
-		int32 LOD, bool bModifiersForBeforeOperations,
+		bool bModifiersForBeforeOperations,
 		TArray<FirstPassGenerator::FModifier>& OutModifiers)
 	{
         MUTABLE_CPUPROFILER_SCOPE(GetModifiersFor);
@@ -1877,13 +1879,6 @@ namespace mu
 
 		for (const FirstPassGenerator::FModifier& m: FirstPass.Modifiers)
 		{
-			// Correct LOD?
-			// TODO: LOD restrictions inside the modifiers data.
-			//if (m.LOD != LOD)
-			//{
-			//	continue;
-			//}
-
 			// Correct stage?
 			if (m.Node->bApplyBeforeNormalOperations != bModifiersForBeforeOperations)
 			{
@@ -1941,24 +1936,19 @@ namespace mu
 	}
 
 	//---------------------------------------------------------------------------------------------
-	Ptr<ASTOp> CodeGenerator::ApplyMeshModifiers(const FMeshGenerationOptions& Options, 
+	Ptr<ASTOp> CodeGenerator::ApplyMeshModifiers(
+		const TArray<FirstPassGenerator::FModifier>& Modifiers,
+		const FMeshGenerationOptions& Options, 
 		FMeshGenerationResult& BaseMeshResult,
 		const FMeshGenerationResult* SharedMeshResults,
-		bool bModifiersForBeforeOperations,
 		const void* ErrorContext,
 		const NodeMeshConstant* OriginalMeshNode )
 	{
 		Ptr<ASTOp> LastMeshOp = BaseMeshResult.MeshOp;
 
-		// Apply mesh modifiers
-		TArray<FirstPassGenerator::FModifier> Modifiers;
-
-		int32 CurrentLOD = CurrentParents.Last().Lod;
-		GetModifiersFor(Options.ActiveTags, CurrentLOD, bModifiersForBeforeOperations, Modifiers);
-
 		Ptr<ASTOp> PreModifiersMesh = LastMeshOp;
 
-		ActiveTags.Push({});
+		int32 CurrentLOD = CurrentParents.Last().Lod;
 
 		// Process mesh extend modifiers (from edit modifiers)
 		int32 EditIndex = 0;
@@ -1982,8 +1972,6 @@ namespace mu
 					Ptr<NodeMesh> pAdd = Edit->LODs[CurrentLOD].MeshAdd;
 
 					// Store the data necessary to apply modifiers for the pre-normal operations stage.
-					ActiveTags.Push(Edit->EnableTags);
-
 					FMeshGenerationOptions MergedMeshOptions(Options);
 					MergedMeshOptions.ActiveTags = Edit->EnableTags; // TODO: Append to current?
 
@@ -1996,13 +1984,16 @@ namespace mu
 					FMeshGenerationResult AddResults;
 					GenerateMesh(MergedMeshOptions, AddResults, pAdd);
 
-					ActiveTags.Pop();
-
 					// Apply the modifier for the post-normal operations stage to the added mesh
 					FMeshGenerationOptions ModifierOptions(Options);
 					ModifierOptions.ActiveTags = Edit->EnableTags;
+
+					TArray<FirstPassGenerator::FModifier> ChildModifiers;
+					constexpr bool bModifiersForBeforeOperations = false;
+					GetModifiersFor(ModifierOptions.ActiveTags, bModifiersForBeforeOperations, ChildModifiers);
+
 					ModifiersToIgnore.Push(m);
-					Ptr<ASTOp> AddedMeshOp = ApplyMeshModifiers(ModifierOptions, AddResults, SharedMeshResults, bModifiersForBeforeOperations, ErrorContext, nullptr);
+					Ptr<ASTOp> AddedMeshOp = ApplyMeshModifiers(ChildModifiers, ModifierOptions, AddResults, SharedMeshResults, ErrorContext, nullptr);
 					ModifiersToIgnore.Pop();
 
 					FMeshGenerationResult::FExtraLayouts data;
@@ -2419,28 +2410,23 @@ namespace mu
 				LastMeshOp = Op;
 			}
 		}
-			
-		ActiveTags.Pop();
 
 		return LastMeshOp;
 	}
 
 
-	Ptr<ASTOp> CodeGenerator::ApplyImageBlockModifiers(const FImageGenerationOptions& Options, Ptr<ASTOp> BaseImageOp, int32 ImageIndex, 
+	Ptr<ASTOp> CodeGenerator::ApplyImageBlockModifiers(
+		const TArray<FirstPassGenerator::FModifier>& Modifiers,
+		const FImageGenerationOptions& Options, Ptr<ASTOp> BaseImageOp, 
+		const NodeSurfaceNew::FImageData& ImageData,
 		FIntPoint GridSize,
 		const FLayoutBlockDesc& LayoutBlockDesc,
 		box< FIntVector2 > RectInCells,
-		bool bModifiersForBeforeOperations, const void* ErrorContext)
+		const void* ErrorContext)
 	{
 		Ptr<ASTOp> LastImageOp = BaseImageOp;
 
-		// Apply mesh modifiers
-		TArray<FirstPassGenerator::FModifier> Modifiers;
-
 		int32 CurrentLOD = CurrentParents.Last().Lod;
-		GetModifiersFor(Options.ActiveTags, CurrentLOD, bModifiersForBeforeOperations, Modifiers);
-
-		ActiveTags.Push({});
 
 		// Process patch image modifiers (from edit modifiers)
 		for (const FirstPassGenerator::FModifier& m : Modifiers)
@@ -2451,27 +2437,40 @@ namespace mu
 
 				bool bAffectsCurrentLOD = Edit->LODs.IsValidIndex(CurrentLOD);
 
-				if (!bAffectsCurrentLOD || ImageIndex >= Edit->LODs[CurrentLOD].Textures.Num())
+				if (!bAffectsCurrentLOD)
 				{
 					continue;
 				}
 
-				const NodeModifierSurfaceEdit::FTexture& Patch = Edit->LODs[CurrentLOD].Textures[ImageIndex];
-				if (Patch.PatchImage.get())
+				const NodeModifierSurfaceEdit::FTexture* MatchingEdit = Edit->LODs[CurrentLOD].Textures.FindByPredicate(
+					[&](const NodeModifierSurfaceEdit::FTexture& Candidate)
+					{
+						return (Candidate.MaterialParameterName == ImageData.MaterialParameterName);
+					});
+
+				if ( !MatchingEdit)
+				{
+					continue;
+				}
+
+				if (MatchingEdit->PatchImage.get())
 				{
 					// Does the current block need to be patched? Find out by building a mask.
-					Ptr<Image> PatchMask = GenerateImageBlockPatchMask(Patch, GridSize, LayoutBlockDesc.BlockPixelsX, LayoutBlockDesc.BlockPixelsY, RectInCells);
+					Ptr<Image> PatchMask = GenerateImageBlockPatchMask(*MatchingEdit, GridSize, LayoutBlockDesc.BlockPixelsX, LayoutBlockDesc.BlockPixelsY, RectInCells);
 
 					if (PatchMask)
 					{
-						LastImageOp = GenerateImageBlockPatch(LastImageOp, Patch, PatchMask, m.FinalCondition, Options);
+						LastImageOp = GenerateImageBlockPatch(LastImageOp, *MatchingEdit, PatchMask, m.FinalCondition, Options);
 					}
 				}
 			}
 
-		}
+			else
+			{
+				// This modifier doesn't affect the per-block image operations.
+			}
 
-		ActiveTags.Pop();
+		}
 
 		return LastImageOp;
 	}
@@ -2494,24 +2493,21 @@ namespace mu
 
 
 	Ptr<ASTOp> CodeGenerator::ApplyImageExtendModifiers(
+		const TArray<FirstPassGenerator::FModifier>& Modifiers,
 		const FGenericGenerationOptions& Options, 
 		const FMeshGenerationResult& BaseMeshResults,
 		Ptr<ASTOp> BaseImageOp, 
 		CompilerOptions::TextureLayoutStrategy ImageLayoutStrategy,
-		int32 LayoutIndex, int32 ImageIndex,
+		int32 LayoutIndex, 
+		const NodeSurfaceNew::FImageData& ImageData,
 		FIntPoint GridSize, 
 		CodeGenerator::FLayoutBlockDesc& InOutLayoutBlockDesc,
-		bool bModifiersForBeforeOperations, const void* ErrorContext)
+		const void* ModifiedNodeErrorContext)
 	{
 		Ptr<ASTOp> LastImageOp = BaseImageOp;
 
-		// Apply mesh modifiers
-		TArray<FirstPassGenerator::FModifier> Modifiers;
-
 		int32 CurrentLOD = CurrentParents.Last().Lod;
-		GetModifiersFor(Options.ActiveTags, CurrentLOD, bModifiersForBeforeOperations, Modifiers);
 
-		ActiveTags.Push({});
 
 		// Process mesh extend modifiers (from edit modifiers)
 		int32 EditIndex = 0;
@@ -2530,14 +2526,21 @@ namespace mu
 					continue;
 				}
 
-				if (ImageIndex >= Edit->LODs[CurrentLOD].Textures.Num())
-				{
-					continue;
-				}
+				const NodeModifierSurfaceEdit::FTexture* MatchingEdit = Edit->LODs[CurrentLOD].Textures.FindByPredicate(
+					[&](const NodeModifierSurfaceEdit::FTexture& Candidate)
+					{
+						return (Candidate.MaterialParameterName == ImageData.MaterialParameterName);
+					});
 
-				Ptr<NodeImage> pExtend = Edit->LODs[CurrentLOD].Textures[ImageIndex].Extend;
-				if (!pExtend)
+				if (!MatchingEdit || (MatchingEdit && !MatchingEdit->Extend) )
 				{
+					if (Edit->LODs[CurrentLOD].MeshAdd)
+					{
+						// When extending a mesh section it is mandatory to provide textures for all section textures handled by Mutable.
+						FString Msg = FString::Printf(TEXT("Required texture [%s] is missing when trying to extend a mesh section."), *ImageData.MaterialParameterName);
+						ErrorLog->GetPrivate()->Add(Msg, ELMT_WARNING, Edit->GetMessageContext(), ModifiedNodeErrorContext);
+					}
+
 					continue;
 				}
 
@@ -2545,8 +2548,7 @@ namespace mu
 
 				if (LayoutIndex >= ExtraLayouts.Num() || !ExtraLayouts[LayoutIndex].Layout)
 				{
-					FString Msg = FString::Printf(TEXT("Trying to extend a layout that doesn't exist in object [%s]."), *CurrentParents.Last().ObjectNode->Name );
-					ErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, ErrorContext);
+					ErrorLog->GetPrivate()->Add(TEXT("Trying to extend a layout that doesn't exist."), ELMT_WARNING, Edit->GetMessageContext(), ModifiedNodeErrorContext);
 				}
 				else
 				{
@@ -2565,7 +2567,7 @@ namespace mu
 						ImageOptions.LayoutToApply = pExtendLayout;
 						ImageOptions.LayoutBlockId = pExtendLayout->Blocks[b].Id;
 						FImageGenerationResult ExtendResult;
-						GenerateImage(ImageOptions, ExtendResult, pExtend);
+						GenerateImage(ImageOptions, ExtendResult, MatchingEdit->Extend);
 						Ptr<ASTOp> fragmentAd = ExtendResult.op;
 
 						// Block in layout grid units
@@ -2624,9 +2626,56 @@ namespace mu
 			}
 		}
 
-		ActiveTags.Pop();
-
 		return LastImageOp;
+	}
+
+
+	void CodeGenerator::CheckModifiersForSurface(const NodeSurfaceNew& Node, const TArray<FirstPassGenerator::FModifier>& Modifiers )
+	{
+		int32 CurrentLOD = CurrentParents.Last().Lod;
+
+		for (const FirstPassGenerator::FModifier& m : Modifiers)
+		{
+			// A mistake in the surface edit modifier usually results in no change visible. Try to detect it.
+			if (m.Node->GetType() == NodeModifierSurfaceEdit::GetStaticType())
+			{
+				const NodeModifierSurfaceEdit* Edit = static_cast<const NodeModifierSurfaceEdit*>(m.Node);
+
+				bool bAffectsCurrentLOD = Edit->LODs.IsValidIndex(CurrentLOD);
+
+				if (!bAffectsCurrentLOD)
+				{
+					continue;
+				}
+
+				if (Node.Images.IsEmpty())
+				{
+					continue;
+				}
+
+				bool bAtLeastSomeTexture = false;
+
+				for (NodeSurfaceNew::FImageData Data : Node.Images)
+				{
+					const NodeModifierSurfaceEdit::FTexture* MatchingEdit = Edit->LODs[CurrentLOD].Textures.FindByPredicate(
+						[&](const NodeModifierSurfaceEdit::FTexture& Candidate)
+						{
+							return (Candidate.MaterialParameterName == Data.MaterialParameterName);
+						});
+
+					if (MatchingEdit)
+					{
+						bAtLeastSomeTexture = true;
+						break;
+					}
+				}
+
+				if (!bAtLeastSomeTexture)
+				{
+					ErrorLog->GetPrivate()->Add(TEXT("A mesh section modifier applies to a section but no texture matches."), ELMT_WARNING, Edit->GetMessageContext(), Node.GetMessageContext());
+				}
+			}
+		}
 	}
 
 

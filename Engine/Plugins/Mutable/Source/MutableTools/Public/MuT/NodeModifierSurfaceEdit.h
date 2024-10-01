@@ -25,6 +25,11 @@ namespace mu
 		/** Data for every modified texture. */
 		struct FTexture
 		{
+			/** Name used to match the image with the original one being modified. 
+			* This should match the MaterialParameterName in a NodeSurfaceNew::FImageData.
+			*/
+			FString MaterialParameterName;
+
 			/** Image to add if extgending. */
 			Ptr<NodeImage> Extend;
 

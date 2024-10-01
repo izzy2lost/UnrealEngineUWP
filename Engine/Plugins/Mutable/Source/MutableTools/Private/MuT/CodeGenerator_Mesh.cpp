@@ -1322,8 +1322,11 @@ namespace mu
 		OutResult.MeshOp = LastMeshOp;
 
 		// Apply the modifier for the pre-normal operations stage.
-		bool bModifiersForBeforeOperations = true;
-		OutResult.MeshOp = ApplyMeshModifiers(InOptions, OutResult, nullptr, bModifiersForBeforeOperations, InNode->GetMessageContext(), InNode);
+		TArray<FirstPassGenerator::FModifier> Modifiers;
+		constexpr bool bModifiersForBeforeOperations = true;
+		GetModifiersFor(InOptions.ActiveTags, bModifiersForBeforeOperations, Modifiers);
+
+		OutResult.MeshOp = ApplyMeshModifiers(Modifiers, InOptions, OutResult, nullptr, InNode->GetMessageContext(), InNode);
     }
 
 

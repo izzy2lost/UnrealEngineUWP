@@ -252,9 +252,6 @@ namespace mu
         //! List of already used vertex ID groups that must be unique.
         TSet<uint32> UniqueVertexIDGroups;
 
-		// (top-down) Tags that are active when generating nodes.
-		TArray< TArray<FString> > ActiveTags;
-
         struct FParentKey
         {
             const NodeObjectNew* ObjectNode = nullptr;
@@ -812,32 +809,43 @@ namespace mu
 		void UpdateLayoutBlockDesc(FLayoutBlockDesc& Out, FImageDesc BlockDesc, FIntVector2 LayoutCellSize);
 
 		// Get the modifiers that have to be applied to elements with a specific tag.
-		void GetModifiersFor(const TArray<FString>& SurfaceTags, int32 LOD, bool bModifiersForBeforeOperations, TArray<FirstPassGenerator::FModifier>& OutModifiers);
+		void GetModifiersFor(const TArray<FString>& SurfaceTags, bool bModifiersForBeforeOperations, TArray<FirstPassGenerator::FModifier>& OutModifiers);
 
 		// Used to avoid recursion when generating modifiers.
 		TArray<FirstPassGenerator::FModifier> ModifiersToIgnore;
 
 		// Apply the required mesh modifiers to the given operation.
-		Ptr<ASTOp> ApplyMeshModifiers(const FMeshGenerationOptions&, FMeshGenerationResult& BaseResults, 
+		Ptr<ASTOp> ApplyMeshModifiers(
+			const TArray<FirstPassGenerator::FModifier>&,
+			const FMeshGenerationOptions&, 
+			FMeshGenerationResult& BaseResults, 
 			const FMeshGenerationResult* SharedSurfaceResults, 
-			bool bModifiersForBeforeOperations, const void* ErrorContext,
+			const void* ErrorContext,
 			const NodeMeshConstant* OriginalMeshNode);
 
-		Ptr<ASTOp> ApplyImageBlockModifiers(const FImageGenerationOptions&, Ptr<ASTOp> BaseImageOp, int32 ImageIndex, 
+		Ptr<ASTOp> ApplyImageBlockModifiers(
+			const TArray<FirstPassGenerator::FModifier>&, 
+			const FImageGenerationOptions&, 
+			Ptr<ASTOp> BaseImageOp,
+			const NodeSurfaceNew::FImageData& ImageData,
 			FIntPoint GridSize,
 			const FLayoutBlockDesc& LayoutBlockDesc,
 			box< FIntVector2 > RectInCells,
-			bool bModifiersForBeforeOperations, const void* ErrorContext);
+			const void* ErrorContext);
 
 		Ptr<ASTOp> ApplyImageExtendModifiers(
+			const TArray<FirstPassGenerator::FModifier>&,
 			const FGenericGenerationOptions& Options, 
 			const FMeshGenerationResult& BaseMeshResults,
 			Ptr<ASTOp> ImageAd, 
 			CompilerOptions::TextureLayoutStrategy ImageLayoutStrategy, 
-			int32 LayoutIndex, int32 ImageIndex,
+			int32 LayoutIndex, 
+			const NodeSurfaceNew::FImageData& ImageData,
 			FIntPoint GridSize,
 			CodeGenerator::FLayoutBlockDesc& InOutLayoutBlockDesc,
-			bool bModifiersForBeforeOperations, const void* ErrorContext);
+			const void* ModifiedNodeErrorContext);
+
+		void CheckModifiersForSurface(const NodeSurfaceNew&, const TArray<FirstPassGenerator::FModifier>&);
 
     };
 
