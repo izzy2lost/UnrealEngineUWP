@@ -254,6 +254,7 @@ void FRewindDebugger::OnPIEStopped(bool bSimulating)
 
 	StopRecording();
 	
+	bDisplayWorldIdValid = false;
 }
 
 bool FRewindDebugger::GetTargetActorPosition(FVector& OutPosition) const
@@ -493,6 +494,8 @@ void FRewindDebugger::OpenTrace(const FString& FilePath)
 { 
 	ClearTrace();
 
+	bDisplayWorldIdValid = false;
+	
 	IUnrealInsightsModule& TraceInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
 	TraceInsightsModule.StartAnalysisForTraceFile(*FilePath);
 
@@ -1031,7 +1034,6 @@ void FRewindDebugger::Tick(float DeltaTime)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRewindDebugger::Tick);
 
-
 	if (bQueueStartRecording)
 	{
 		StartRecording();
@@ -1046,6 +1048,32 @@ void FRewindDebugger::Tick(float DeltaTime)
 		if (AnimationProvider && GameplayProvider)
 		{
 			TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session);
+
+			// set a default display world when loading a trace (first client/standalone world)
+			if (IsTraceFileLoaded() && !bDisplayWorldIdValid)
+			{
+				GameplayProvider->EnumerateWorlds([this](const FWorldInfo& WorldInfo)
+           		{
+					if (WorldInfo.Type == FWorldInfo::EType::PIE)
+					{
+						if(WorldInfo.NetMode == FWorldInfo::ENetMode::Client && WorldInfo.PIEInstanceId == 1)
+						{
+							DisplayWorldId = WorldInfo.Id;
+							bDisplayWorldIdValid = true;
+						}
+						if(WorldInfo.NetMode == FWorldInfo::ENetMode::Standalone && WorldInfo.PIEInstanceId == 0)
+						{
+							DisplayWorldId = WorldInfo.Id;
+							bDisplayWorldIdValid = true;
+						}
+					}
+					else if (WorldInfo.Type == FWorldInfo::EType::Game)
+					{
+						DisplayWorldId = WorldInfo.Id;
+						bDisplayWorldIdValid = true;
+					}
+           		});
+			}
 
 			double RecordingDurationValue = GameplayProvider->GetRecordingDuration();
 			if (IsTraceFileLoaded() && RecordingDurationValue > RecordingDuration.Get())
@@ -1224,6 +1252,152 @@ void FRewindDebugger::RegisterComponentContextMenu()
 			Context->SelectedTrack->BuildContextMenu(InSection);
 		}
 	}));
+}
+
+void FRewindDebugger::MakeOtherWorldsMenu(UToolMenu* Menu)
+{
+	FRewindDebugger* RewindDebugger = FRewindDebugger::Instance();
+	
+	FToolMenuSection& Section = Menu->AddSection("Other Worlds", LOCTEXT("Other Worlds", "Other Worlds"));
+
+	if (const TraceServices::IAnalysisSession* Session = RewindDebugger->GetAnalysisSession())
+	{
+		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session);
+		const IGameplayProvider* GameplayProvider = Session->ReadProvider<IGameplayProvider>("GameplayProvider");
+
+		GameplayProvider->EnumerateWorlds([GameplayProvider, &Section](const FWorldInfo& WorldInfo)
+		{
+			const FObjectInfo* ObjectInfo = GameplayProvider->FindObjectInfo(WorldInfo.Id);
+			FString Name = ObjectInfo->Name;
+
+			if(WorldInfo.NetMode == FWorldInfo::ENetMode::DedicatedServer)
+			{
+				return;
+			}
+			else if (WorldInfo.Type == FWorldInfo::EType::Game || WorldInfo.Type == FWorldInfo::EType::PIE)
+			{
+				return;
+			}
+			else
+			{
+				if (WorldInfo.Type == FWorldInfo::EType::Editor)
+				{
+					Name = Name + " (Editor)";
+				}
+				else if (WorldInfo.Type == FWorldInfo::EType::Inactive)
+				{
+					Name = Name + " (Editor)";
+				}
+				else if (WorldInfo.Type == FWorldInfo::EType::EditorPreview)
+				{
+					Name = Name + " (Editor Preview)";
+				}
+				else if (WorldInfo.Type == FWorldInfo::EType::GamePreview)
+				{
+					Name = Name + " (Game Preview)";
+				}
+				else if (WorldInfo.Type == FWorldInfo::EType::GameRPC)
+				{
+					Name = Name + " (Game RPC)";
+				}
+			}
+		
+			Section.AddMenuEntry(FName(ObjectInfo->Name,WorldInfo.Id),
+								FText::FromString(Name),
+								FText(),
+								FSlateIcon(),
+								FUIAction( FExecuteAction::CreateLambda([World = WorldInfo.Id]()
+								{
+									FRewindDebugger::Instance()->SetDisplayWorld(World);
+								}),
+								FCanExecuteAction(),
+								FIsActionChecked::CreateLambda([World = WorldInfo.Id]()
+								{
+									return FRewindDebugger::Instance()->DisplayWorldId == World;
+								})),
+								EUserInterfaceActionType::Check
+							);
+		
+		});
+	}
+}
+
+void FRewindDebugger::SetDisplayWorld(uint64 WorldId)
+{
+	DisplayWorldId = WorldId;
+	
+	IterateExtensions([this](IRewindDebuggerExtension* Extension)
+	{
+		Extension->Clear(this);
+		Extension->Update(0.0,this);
+	});
+}
+void FRewindDebugger::MakeWorldsMenu(UToolMenu* Menu)
+{
+	FRewindDebugger* RewindDebugger = FRewindDebugger::Instance();
+	
+	FToolMenuSection& ServerWorldsSection = Menu->AddSection("Server Worlds", LOCTEXT("Server", "Server"));
+	FToolMenuSection& GameWorldsSection = Menu->AddSection("Game Worlds", LOCTEXT("Game Worlds", "Game Worlds"));
+	FToolMenuSection& OtherWorldsSection = Menu->AddSection("Other Worlds", LOCTEXT("Other Worlds", "Other Worlds"));
+
+	OtherWorldsSection.AddSubMenu("Other Worlds",
+		LOCTEXT("Other Worlds", "Other Worlds"),
+		LOCTEXT("Other Worlds Tooltip", "Additional worlds such as  Editor Preview worlds"),
+		FNewToolMenuChoice(
+			FNewToolMenuDelegate::CreateStatic(FRewindDebugger::MakeOtherWorldsMenu)
+			));
+	
+	if (const TraceServices::IAnalysisSession* Session = RewindDebugger->GetAnalysisSession())
+	{
+		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session);
+		const IGameplayProvider* GameplayProvider = Session->ReadProvider<IGameplayProvider>("GameplayProvider");
+
+		GameplayProvider->EnumerateWorlds([GameplayProvider,&GameWorldsSection, &OtherWorldsSection, &ServerWorldsSection](const FWorldInfo& WorldInfo)
+		{
+			const FObjectInfo* ObjectInfo = GameplayProvider->FindObjectInfo(WorldInfo.Id);
+			FString Name = ObjectInfo->Name;
+
+			FToolMenuSection* Section = &OtherWorldsSection;
+
+			if(WorldInfo.NetMode == FWorldInfo::ENetMode::DedicatedServer)
+			{
+				Section = &ServerWorldsSection;
+				Name = Name + " (Server)";
+			}
+			else if (WorldInfo.Type == FWorldInfo::EType::Game || WorldInfo.Type == FWorldInfo::EType::PIE)
+			{
+				Section = &GameWorldsSection;
+				if(WorldInfo.NetMode == FWorldInfo::ENetMode::Client && WorldInfo.PIEInstanceId >= 0)
+				{
+					Name = Name + " (Client " + FString::FromInt(WorldInfo.PIEInstanceId) + ")";
+				}
+				if(WorldInfo.NetMode == FWorldInfo::ENetMode::Standalone && WorldInfo.PIEInstanceId >= 0)
+				{
+					Name = Name + " (Standalone " + FString::FromInt(WorldInfo.PIEInstanceId) + ")";
+				}
+			}
+			else
+			{
+				return;
+			}
+			
+			Section->AddMenuEntry(FName(ObjectInfo->Name,WorldInfo.Id),
+								FText::FromString(Name),
+								FText(),
+								FSlateIcon(),
+								FUIAction( FExecuteAction::CreateLambda([World = WorldInfo.Id]()
+								{
+									FRewindDebugger::Instance()->SetDisplayWorld(World);
+								}),
+								FCanExecuteAction(),
+								FIsActionChecked::CreateLambda([World = WorldInfo.Id]()
+								{
+									return FRewindDebugger::Instance()->DisplayWorldId == World;
+								})),
+								EUserInterfaceActionType::Check
+							);
+		});
+	}
 }
 
 void FRewindDebugger::RegisterToolBar()
@@ -1449,7 +1623,18 @@ void FRewindDebugger::RegisterToolBar()
 				TAttribute<FText>(),
 				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.AutoRecord")));
 	
+	Section.AddSeparator("NAME_None");
 
+	Section.AddEntry(FToolMenuEntry::InitComboButton(
+		"Display World",
+		FUIAction(
+			FExecuteAction(),
+			FCanExecuteAction::CreateLambda([](){ return FRewindDebugger::Instance()->IsTraceFileLoaded(); })
+			),
+		FNewToolMenuDelegate::CreateStatic(&FRewindDebugger::MakeWorldsMenu),
+		LOCTEXT("Display World", "Display World"),
+		LOCTEXT("Display World Tooltip", "When loading trace files, only the objects (Such as Skeletal Meshes) from the world selected here will be spawned for preview")
+		));
 	
 	Menu->SetStyleSet(&FAppStyle::Get());
 	Menu->StyleName = "PaletteToolBar";

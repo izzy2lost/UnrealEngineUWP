@@ -104,6 +104,8 @@ public:
 	
 	virtual const struct FObjectInfo* FindOwningActorInfo(const class IGameplayProvider* GameplayProvider, uint64 ObjectId) const = 0;
 
+	virtual bool ShouldDisplayWorld(uint64 WorldId) = 0;
+
 	// get the current IRewindDebugger instance
 	static IRewindDebugger* Instance();
 	

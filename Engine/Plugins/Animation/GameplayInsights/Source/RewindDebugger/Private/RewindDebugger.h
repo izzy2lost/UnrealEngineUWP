@@ -51,6 +51,7 @@ public:
 	virtual TSharedPtr<FDebugObjectInfo> GetSelectedComponent() const override;
 	virtual TSharedPtr<RewindDebugger::FRewindDebuggerTrack> GetSelectedTrack() const override;
 	virtual TArray<TSharedPtr<FDebugObjectInfo>>& GetDebugComponents() override;
+	virtual bool ShouldDisplayWorld(uint64 WorldId) override { return DisplayWorldId == WorldId; } 
 
 	void OnConnection();
 
@@ -135,6 +136,9 @@ public:
 	
 	void UpdateDetailsPanel(TSharedRef<SDockTab> DetailsTab);
 	static void RegisterComponentContextMenu();
+	static void MakeOtherWorldsMenu(class UToolMenu* Menu);
+	void SetDisplayWorld(uint64 WorldId);
+	static void MakeWorldsMenu(class UToolMenu* Menu);
 	static void RegisterToolBar();
 	
 	DECLARE_DELEGATE_OneParam( FOnTrackCursor, bool)
@@ -223,4 +227,7 @@ private:
 	TArray<RewindDebugger::FRewindDebuggerTrackType> TrackTypes;
 
 	bool bIsDetailsPanelOpen = true;
+
+	uint64 DisplayWorldId = 0;
+	bool bDisplayWorldIdValid = false;
 };
