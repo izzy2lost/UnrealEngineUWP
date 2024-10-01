@@ -12,7 +12,10 @@
 
 TSharedPtr<IAvaOutliner> FAvaOutlinerUtils::EditorGetOutliner(const UWorld* const InWorld)
 {
-	check(IsValid(InWorld));
+	if (!IsValid(InWorld))
+	{
+		return nullptr;
+	}
 
 	UAvaOutlinerSubsystem* const OutlinerSubsystem = InWorld->GetSubsystem<UAvaOutlinerSubsystem>();
 	if (!IsValid(OutlinerSubsystem))
