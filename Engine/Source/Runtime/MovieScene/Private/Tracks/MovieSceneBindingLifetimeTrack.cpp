@@ -22,7 +22,9 @@ UMovieSceneBindingLifetimeTrack::UMovieSceneBindingLifetimeTrack(const FObjectIn
 {
 #if WITH_EDITORONLY_DATA
 	TrackTint = FColor(26, 117, 49, 150);
+	bSupportsConditions = false;
 #endif
+
 }
 
 
