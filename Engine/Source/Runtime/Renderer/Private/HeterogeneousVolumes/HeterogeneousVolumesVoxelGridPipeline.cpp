@@ -547,6 +547,7 @@ class FRasterizeBottomLevelFrustumGridCS : public FMeshMaterialShader
 		// Scene data
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, EyeAdaptationBuffer)
 
 		// Primitive data
 		SHADER_PARAMETER(FVector3f, PrimitiveWorldBoundsMin)
@@ -847,6 +848,7 @@ class FRasterizeBottomLevelOrthoGridCS : public FMeshMaterialShader
 		// Scene data
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, EyeAdaptationBuffer)
 
 		// Primitive data
 		SHADER_PARAMETER(FVector3f, PrimitiveWorldBoundsMin)
@@ -2066,6 +2068,7 @@ void RasterizeVolumesIntoFrustumVoxelGrid(
 				// Scene data
 				PassParameters->View = View.ViewUniformBuffer;
 				PassParameters->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
+				PassParameters->EyeAdaptationBuffer = GraphBuilder.CreateSRV(GetEyeAdaptationBuffer(GraphBuilder, View));
 
 				// Primitive data
 				PassParameters->PrimitiveWorldBoundsMin = FVector3f(PrimitiveBounds.Origin - PrimitiveBounds.BoxExtent);
@@ -2545,6 +2548,7 @@ void RasterizeVolumesIntoOrthoVoxelGrid(
 					// Scene data
 					PassParameters->View = View.ViewUniformBuffer;
 					PassParameters->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
+					PassParameters->EyeAdaptationBuffer = GraphBuilder.CreateSRV(GetEyeAdaptationBuffer(GraphBuilder, View));
 
 					// Primitive data
 					PassParameters->PrimitiveWorldBoundsMin = FVector3f(PrimitiveBounds.Origin - PrimitiveBounds.BoxExtent);
