@@ -1291,7 +1291,7 @@ void UCEClonerComponent::OpenClonerSettings()
 {
 	if (const UCEClonerEffectorSettings* ClonerSettings = GetDefault<UCEClonerEffectorSettings>())
 	{
-		ClonerSettings->OpenSettings();
+		ClonerSettings->OpenEditorSettingsWindow();
 	}
 }
 
