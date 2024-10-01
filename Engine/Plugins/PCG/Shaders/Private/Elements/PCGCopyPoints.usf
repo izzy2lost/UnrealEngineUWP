@@ -163,8 +163,8 @@ void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 			SourceDataIndex = min(DataIndex, SourceNumData - 1);
 			TargetDataIndex = min(DataIndex, TargetNumData - 1);
 
-			const uint SourceElemCount = Source_GetDataNumElements(SourceDataIndex);
-			const uint TargetElemCount = Target_GetDataNumElements(TargetDataIndex);
+			const uint SourceElemCount = Source_GetNumElements(SourceDataIndex);
+			const uint TargetElemCount = Target_GetNumElements(TargetDataIndex);
 
 			const uint ElemCount = SourceElemCount * TargetElemCount;
 
