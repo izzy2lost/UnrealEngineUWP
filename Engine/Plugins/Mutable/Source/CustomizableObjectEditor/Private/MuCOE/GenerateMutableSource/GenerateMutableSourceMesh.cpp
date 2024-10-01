@@ -781,11 +781,8 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(
 		GenerationContext.AddParticipatingObject(*InSkeleton);
 
 		FMutableComponentInfo* MutComponentInfo = GenerationContext.GetCurrentComponentInfo();
-		if (!MutComponentInfo)
-		{
-			return {};
-		}
-
+		check(MutComponentInfo);
+		
 		USkeletalMesh* ComponentRefSkeletalMesh = MutComponentInfo->RefSkeletalMesh;
 		USkeleton* ComponentRefSkeleton = MutComponentInfo->RefSkeleton;
 		check(ComponentRefSkeletalMesh);

@@ -148,8 +148,6 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 	{
 		mu::Ptr<mu::NodeImageParameter> TextureNode = new mu::NodeImageParameter();
 
-		GenerationContext.AddParameterNameUnique(Node, TypedNodeParam->ParameterName);
-
 		TextureNode->SetName(TypedNodeParam->ParameterName);
 		TextureNode->SetUid(GenerationContext.GetNodeIdUnique(Node).ToString());
 

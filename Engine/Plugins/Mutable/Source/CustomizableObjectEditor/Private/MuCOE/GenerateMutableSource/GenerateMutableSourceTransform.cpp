@@ -43,9 +43,7 @@ mu::Ptr<mu::NodeMatrix> GenerateMutableSourceTransform(const UEdGraphPin* Pin, F
 	{
 		mu::Ptr<mu::NodeMatrixParameter> MatrixNode = new mu::NodeMatrixParameter();
 		Result = MatrixNode;
-
-		GenerationContext.AddParameterNameUnique(Node, TypedNodeTransformParameter->ParameterName);
-
+		
 		MatrixNode->Name = TypedNodeTransformParameter->ParameterName;
 		MatrixNode->Uid = GenerationContext.GetNodeIdUnique(Node).ToString();
 		MatrixNode->DefaultValue = FMatrix44f(TypedNodeTransformParameter->DefaultValue.ToMatrixWithScale());

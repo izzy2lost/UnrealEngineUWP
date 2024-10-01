@@ -53,7 +53,9 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 	
 	UCustomizableObjectNode* Node = CastChecked<UCustomizableObjectNode>(Pin->GetOwningNode());
 
-	const FGeneratedKey Key(reinterpret_cast<void*>(&GenerateMutableSourceModifier), *Pin, *Node, GenerationContext, true);
+	FGeneratedKey Key(reinterpret_cast<void*>(&GenerateMutableSourceModifier), *Pin, *Node, GenerationContext, true);
+	Key.CurrentMeshComponent = GenerationContext.CurrentMeshComponent;
+	
 	if (const FGeneratedData* Generated = GenerationContext.Generated.Find(Key))
 	{
 		return static_cast<mu::NodeModifier*>(Generated->Node.get());
@@ -391,7 +393,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 					TMap<FString, float> TextureNameToProjectionResFactor;
 					FString AlternateResStateName;
 
-					ImageNode = GenerateMutableGroupProjection(LOD, ImageIndex, AddMeshNode, GenerationContext,
+					ImageNode = GenerateMutableSourceGroupProjector(LOD, ImageIndex, AddMeshNode, GenerationContext,
 						nullptr, TypedNodeExt, bShareProjectionTexturesBetweenLODs, bIsGroupProjectorImage,
 						GroupProjectionReferenceTexture, TextureNameToProjectionResFactor, AlternateResStateName);
 				}

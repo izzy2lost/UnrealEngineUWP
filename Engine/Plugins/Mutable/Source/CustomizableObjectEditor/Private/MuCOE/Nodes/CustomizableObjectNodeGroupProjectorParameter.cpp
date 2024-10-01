@@ -141,4 +141,10 @@ void UCustomizableObjectNodeGroupProjectorParameter::AllocateDefaultPins(UCustom
 }
 
 
+UEdGraphPin& UCustomizableObjectNodeGroupProjectorParameter::OutputPin() const
+{
+	return *FindPin(TEXT("Value"));
+}
+
+
 #undef LOCTEXT_NAMESPACE

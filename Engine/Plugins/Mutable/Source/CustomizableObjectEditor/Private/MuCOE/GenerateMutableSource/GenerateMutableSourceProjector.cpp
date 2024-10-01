@@ -83,8 +83,6 @@ mu::NodeProjectorPtr GenerateMutableSourceProjector(const UEdGraphPin* Pin, FMut
 		mu::NodeProjectorParameterPtr ProjectorNode = new mu::NodeProjectorParameter();
 		Result = ProjectorNode;
 
-		GenerationContext.AddParameterNameUnique(Node, TypedNodeParam->ParameterName);
-
 		ProjectorNode->SetName(TypedNodeParam->ParameterName);
 		ProjectorNode->SetUid(GenerationContext.GetNodeIdUnique(Node).ToString());
 		switch ((int)TypedNodeParam->DefaultValue.ProjectionType)

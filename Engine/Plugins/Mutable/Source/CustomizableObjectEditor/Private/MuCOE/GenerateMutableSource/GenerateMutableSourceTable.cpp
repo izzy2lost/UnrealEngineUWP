@@ -990,9 +990,6 @@ bool GenerateTableColumn(const UCustomizableObjectNodeTable* TableNode, const UE
 
 void GenerateTableParameterUIData(const UDataTable* DataTable, const UCustomizableObjectNodeTable* TableNode, FMutableGraphGenerationContext& GenerationContext)
 {
-	// Checking if the parameter name already exists
-	GenerationContext.AddParameterNameUnique(TableNode, TableNode->ParameterName);
-
 	TArray<uint32> RowIds;
 	TArray<FName> RowNames = GetRowsToCompile(*DataTable, *TableNode, GenerationContext, RowIds);
 

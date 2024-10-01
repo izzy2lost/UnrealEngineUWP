@@ -30,6 +30,7 @@
 #include "MuR/Ptr.h"
 #include "UObject/Package.h"
 
+class UCustomizableObjectNodeGroupProjectorParameter;
 class UCustomizableObjectNodeMaterialBase;
 class UCustomizableObjectNodeModifierClipWithMesh;
 class UCustomizableObjectNodeTable;
@@ -149,9 +150,8 @@ class FGeneratedKey
 public:
 	FGeneratedKey(void* InFunctionAddress, const UEdGraphPin& InPin, const UCustomizableObjectNode& Node, FMutableGraphGenerationContext& GenerationContext, const bool UseMesh = false, bool bOnlyConnectedLOD = false);
 	
-	bool operator==(const FGeneratedKey& Other) const;
+	bool operator==(const FGeneratedKey& Other) const = default;
 
-private:
 	/** Used to differentiate pins being cached from different functions (e.g. a PC_Color pin cached from GenerateMutableSourceImage and GenerateMutableSourceColor). */
 	void* FunctionAddress;
 	
@@ -167,7 +167,9 @@ private:
 
 	/** UV Layout modes */
 	FLayoutGenerationFlags LayoutFlags;
-
+	
+	FName CurrentMeshComponent;
+	
 	/** When caching a generated mesh, true if we force to generate the connected LOD when using Automatic LODs From Mesh. */
 	bool bOnlyConnectedLOD = false;
 };
@@ -441,6 +443,8 @@ struct FMutableComponentInfo
 
 	// Bones to remove on each LOD, include bones on previous LODs. FName (BoneToRemove) - bool (bOnlyRemoveChildren)
 	TArray<TMap<FName, bool>> BonesToRemovePerLOD;
+	
+	UCustomizableObjectNodeComponentMesh* Node = nullptr;
 };
 
 
@@ -551,6 +555,19 @@ private:
 		return {}; \
 	} \
 
+
+
+struct FGeneratedGroupProjectorsKey
+{
+	UCustomizableObjectNodeGroupProjectorParameter* Node = nullptr;
+	FName CurrentComponent;
+
+	bool operator==(const FGeneratedGroupProjectorsKey&) const = default;
+};
+
+uint32 GetTypeHash(const FGeneratedGroupProjectorsKey& Key);
+
+
 struct FMutableGraphGenerationContext
 {
 	FMutableGraphGenerationContext(const UCustomizableObject* CustomizableObject, class FCustomizableObjectCompiler* InCompiler, const FCompilationOptions& InOptions);
@@ -624,6 +641,14 @@ public:
 	// Cache of generated Node Tables
 	TMap<FString, FGeneratedDataTablesData> GeneratedTables;
 
+	TMap<FGeneratedGroupProjectorsKey, FGroupProjectorTempData> GeneratedGroupProjectors;
+
+	/** Key is the Node Uid. */
+	TMap<FString, mu::Ptr<mu::NodeScalarParameter>> GeneratedScalarParameters;
+
+	/** Key is the Node Uid. */
+	TMap<FString, mu::Ptr<mu::NodeScalarEnumParameter>> GeneratedEnumParameters;
+	
 	struct FGeneratedCompositeDataTablesData
 	{
 		UScriptStruct* ParentStruct = nullptr;
@@ -736,6 +761,10 @@ public:
 	// Stack of Layout generation flags. The last one is the currently valid.
 	TArray<FLayoutGenerationFlags> LayoutGenerationFlags;
 
+	/** Stack of Group Projector nodes. Each time a Group Object node is visited, a set of Group Projector nodes get pushed
+	 * When a Mesh Section node is found, it will compile all Group Projector nodes in the stack. */
+	TArray<TArray<UCustomizableObjectNodeGroupProjectorParameter*>> CurrentGroupProjectors;
+
 	/** Find a mesh if already generated for a given source and flags. */
 	mu::Ptr<mu::Mesh> FindGeneratedMesh(const FGeneratedMeshData::FKey& Key);
 
@@ -747,9 +776,6 @@ public:
 	/** Adds a streamed resource of type AssetUserData.
 	  * Returns resource index in the array of streamed resources. */
 	int32 AddAssetUserDataToStreamedResources(UAssetUserData* AssetUserData);
-
-	/** Adds to ParameterNamesMap the node Node to the array of elements with name Name */
-	void AddParameterNameUnique(const UCustomizableObjectNode* Node, FString Name);
 
 	uint32 GetSkinWeightProfileIdUnique(const FName ProfileName);
 
@@ -796,12 +822,10 @@ private:
 	void AddParticipatingObjectChecked(const FName& PackageName, const FGuid& PackageGuid);
 
 public:
-	TMap<FName, UCustomizableObjectNodeComponentMesh*> MeshComponents;
-
 	/** Only Mesh Components (no passthrough). */
 	TArray<FMutableComponentInfo> ComponentInfos;
 
-	/** All components. Index is the ObjectComponentIndex. */
+	/** Only compiled components. All components types. Index is the ObjectComponentIndex. */
 	TArray<FName> ComponentNames;
 	
 	TArray<FMutableRefSkeletalMeshData> ReferenceSkeletalMeshesData;
@@ -809,14 +833,12 @@ public:
 	TArray<UMaterialInterface*> ReferencedMaterials;
 	TArray<FName> ReferencedMaterialSlotNames;
 	TMap<FGeneratedImagePropertiesKey, FGeneratedImageProperties> ImageProperties;
-	TMap<FString, TArray<const UObject*>> ParameterNamesMap;
 	TArray<const UCustomizableObjectNode*> NoNameNodeObjectArray;
 	TMap<FString, FCustomizableObjectIdPair> GroupNodeMap;
 	TMap<FString, FString> CustomizableObjectPathMap;
 	TMap<FString, FMutableParameterData> ParameterUIDataMap;
 	TMap<FString, FMutableStateData> StateUIDataMap;
 	TMap<TTuple<FString, FString>, TSet<TSoftObjectPtr<UDataTable>>> IntParameterOptionDataTable;
-	TMultiMap<const UCustomizableObjectNodeObjectGroup*, FGroupProjectorTempData> ProjectorGroupMap;
 	//TMap<UPhysicsAsset*, uint32> DiscartedPhysicsAssetMap;
 
 	TArray<const USkeleton*> ReferencedSkeletons;

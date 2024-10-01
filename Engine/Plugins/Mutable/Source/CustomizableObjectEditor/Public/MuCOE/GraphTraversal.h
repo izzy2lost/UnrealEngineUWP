@@ -77,6 +77,13 @@ namespace GraphTraversal
 		 * object does not have any parent.	*/
 	CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObject* GetRootObject(UCustomizableObject* ChildObject);
 	CUSTOMIZABLEOBJECTEDITOR_API const UCustomizableObject* GetRootObject(const UCustomizableObject* ChildObject);
+
+	/** From the StartNode visit all connected nodes in the hierarchy.
+	 *
+	 *   @param StartNode Node to start the visit.
+	 *   @param ObjectGroupMap Key is the Object Group node id, values are the attached Child Object nodes. Used to prune the traversal.
+	 *   @param VisitFunction Called for each UCustomizableObjectNode node found. Order is not guaranteed. */
+	void VisitNodes(UCustomizableObjectNode& StartNode, const TMultiMap<FGuid, UCustomizableObjectNodeObject*>& ObjectGroupMap, const TFunction<void(UCustomizableObjectNode&)>& VisitFunction);
 }
 
 /** Return the full graph Customizable Object Node root of the node given as parameter */

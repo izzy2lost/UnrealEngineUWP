@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "MuCOE/Nodes/CustomizableObjectNodeComponentMesh.h"
 #include "MuR/Ptr.h"
 
 class UEdGraphPin;
@@ -14,4 +15,7 @@ namespace mu
 
 
 mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin, FMutableGraphGenerationContext& GenerationContext);
+
+
+void FirstPass(UCustomizableObjectNodeComponentMesh& Node, FMutableGraphGenerationContext& GenerationContext);
 
