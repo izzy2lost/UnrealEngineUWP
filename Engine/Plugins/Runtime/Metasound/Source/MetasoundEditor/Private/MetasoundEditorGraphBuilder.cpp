@@ -85,6 +85,8 @@ namespace Metasound
 					// Override finalized EdGraphNode ID if a location is found.
 					constexpr bool bUpdateEditorNodeID = true;
 					NewGraphNode->SyncLocationFromFrontendNode(bUpdateEditorNodeID);
+					NewGraphNode->SyncCommentFromFrontendNode();
+
 					return NewGraphNode;
 				}
 

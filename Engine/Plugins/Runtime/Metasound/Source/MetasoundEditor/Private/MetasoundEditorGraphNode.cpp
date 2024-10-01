@@ -671,6 +671,29 @@ void UMetasoundEditorGraphNode::PostEditImport()
 {
 }
 
+void UMetasoundEditorGraphNode::PostEditChangeProperty(struct FPropertyChangedEvent& InEvent)
+{
+	Super::PostEditChangeProperty(InEvent);
+	
+	if (InEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UEdGraphNode, NodeComment))
+	{
+		UMetaSoundBuilderBase& Builder = GetBuilderChecked();
+		if (const FMetasoundFrontendNode* Node = Builder.GetConstBuilder().FindNode(GetNodeID()))
+		{
+			if (!Node->Style.Display.Comment.Equals(NodeComment))
+			{
+				UObject& MetaSound = GetMetasoundChecked();
+				MetaSound.Modify();
+				EMetaSoundBuilderResult Result;
+				Builder.SetNodeComment(Node->GetID(), NodeComment, Result);
+				ensure(Result == EMetaSoundBuilderResult::Succeeded);
+				Builder.SetNodeCommentVisible(Node->GetID(), bCommentBubbleMakeVisible, Result);
+				ensure(Result == EMetaSoundBuilderResult::Succeeded);
+			}
+		}
+	}
+}
+
 void UMetasoundEditorGraphNode::PostEditUndo()
 {
 	using namespace Metasound::Editor;
