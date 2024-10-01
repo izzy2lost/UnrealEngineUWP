@@ -671,7 +671,7 @@ void UCookCommandlet::ConditionalCollectGarbage(uint32 TickResults, UCookOnTheFl
 
 		int32 JobsToLogAt = GShaderCompilingManager->GetNumRemainingJobs();
 		double NextFlushMsgSeconds = FPlatformTime::Seconds();
-		UE_SCOPED_COOKTIMER(CookByTheBook_ShaderJobFlush);
+		UE_SCOPED_COOKTIMER_AND_DURATION(CookByTheBook_ShaderJobFlush, DetailedCookStats::ShaderFlushTimeSec);
 		UE_LOG(LogCookCommandlet, Display, TEXT("Detected max mem exceeded - forcing shader compilation flush"));
 		while (true)
 		{
@@ -714,13 +714,7 @@ void UCookCommandlet::ConditionalCollectGarbage(uint32 TickResults, UCookOnTheFl
 		UE_SCOPED_COOKTIMER(CookByTheBook_TickAssetRegistry);
 		FAssetRegistryModule::TickAssetRegistry(-1.0f);
 	}
-#if OUTPUT_COOKTIMING
-	TOptional<FScopedDurationTimer> CBTBScopedDurationTimer;
-	if (!COTFS.IsCookOnTheFlyMode())
-	{
-		CBTBScopedDurationTimer.Emplace(DetailedCookStats::TickLoopGCTimeSec);
-	}
-#endif
+	UE_SCOPED_COOKTIMER_AND_DURATION(CookCommandlet_GC, DetailedCookStats::TickLoopGCTimeSec);
 	UE_SCOPED_COOKTIMER(CookCommandlet_GC);
 
 	const FPlatformMemoryStats MemStatsBeforeGC = FPlatformMemory::GetStats();
