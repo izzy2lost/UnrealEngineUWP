@@ -1160,7 +1160,7 @@ static FAutoConsoleVariable CVarWriteDetailedCSVStats(
 	ECVF_Default | ECVF_RenderThreadSafe
 );
 
-int32 GFXDetailedCSVMemoryMode = 2;
+int32 GFXDetailedCSVMemoryMode = 1;
 static FAutoConsoleVariableRef CVarFXDetailedCSVMemoryStats(
 	TEXT("fx.DetailedCSVStats.MemoryMode"),
 	GFXDetailedCSVMemoryMode,
