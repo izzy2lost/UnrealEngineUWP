@@ -154,6 +154,29 @@ bool ULensDistortionTool::OnViewportClicked(const FGeometry& MyGeometry, const F
 		return false;
 	}
 
+	return CaptureCalibrationData(MyGeometry, MouseEvent);
+}
+
+bool ULensDistortionTool::OnViewportMarqueeSelect(FVector2D StartPosition, FVector2D EndPosition)
+{
+	// Marquee select currently only supports providing an ROI for checkerboard detection
+	if (CaptureSettings.CalibrationPattern != ECalibrationPattern::Checkerboard)
+	{
+		return false;
+	}
+
+	FIntRect MarqueeSelection;
+	MarqueeSelection.Min = FIntPoint(FMath::Floor(StartPosition.X), FMath::Floor(StartPosition.Y));
+	MarqueeSelection.Max = FIntPoint(FMath::Floor(EndPosition.X), FMath::Floor(EndPosition.Y));
+
+	// These are unused by the checkerboard detection
+	const FGeometry MyGeometryUnused;
+	const FPointerEvent MouseEventUnused;
+	return CaptureCalibrationData(MyGeometryUnused, MouseEventUnused, MarqueeSelection);
+}
+
+bool ULensDistortionTool::CaptureCalibrationData(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent, FIntRect RegionOfInterest)
+{
 	// Block user interaction with the simulcam viewport while an async calibration task is executing
 	if (CalibrationTask.IsValid())
 	{
@@ -195,7 +218,12 @@ bool ULensDistortionTool::OnViewportClicked(const FGeometry& MyGeometry, const F
 		bool bDetectionResult = false;
 		if (CaptureSettings.CalibrationPattern == ECalibrationPattern::Checkerboard)
 		{
-			bDetectionResult = DetectCheckerboardPattern(Pixels, ImageSize, NewRow);
+			// If no ROI was provided, use the full image size
+			if (RegionOfInterest.IsEmpty())
+			{
+				RegionOfInterest = FIntRect(FIntPoint(0), ImageSize);
+			}
+			bDetectionResult = DetectCheckerboardPattern(Pixels, ImageSize, RegionOfInterest, NewRow);
 		}
 		else if (CaptureSettings.CalibrationPattern == ECalibrationPattern::Aruco)
 		{
@@ -240,7 +268,7 @@ bool ULensDistortionTool::OnViewportClicked(const FGeometry& MyGeometry, const F
 	return true;
 }
 
-bool ULensDistortionTool::DetectCheckerboardPattern(TArray<FColor>& Pixels, FIntPoint Size, TSharedPtr<FCalibrationRow> OutRow)
+bool ULensDistortionTool::DetectCheckerboardPattern(TArray<FColor>& Pixels, FIntPoint Size, FIntRect RegionOfInterest, TSharedPtr<FCalibrationRow> OutRow)
 {
 	const FText ErrorTitle = LOCTEXT("CaptureError", "Capture Error");
 
@@ -257,10 +285,10 @@ bool ULensDistortionTool::DetectCheckerboardPattern(TArray<FColor>& Pixels, FInt
 	OutRow->CheckerboardDimensions = CheckerboardDimensions;
 
 	// Launch an async task to perform the opencv checkerboard detection to prevent the game thread from being blocked in the rare cases when detection takes a very long time
-	UE::Tasks::TTask<TArray<FVector2f>> DetectionTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [Pixels, Size, CheckerboardDimensions]() mutable
+	UE::Tasks::TTask<TArray<FVector2f>> DetectionTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [Pixels, Size, RegionOfInterest, CheckerboardDimensions]() mutable
 	{
 		TArray<FVector2f> Corners;
-		FOpenCVHelper::IdentifyCheckerboard(Pixels, Size, CheckerboardDimensions, Corners);
+		FOpenCVHelper::IdentifyCheckerboard(Pixels, Size, RegionOfInterest, CheckerboardDimensions, Corners);
 		return Corners;
 	});
 
