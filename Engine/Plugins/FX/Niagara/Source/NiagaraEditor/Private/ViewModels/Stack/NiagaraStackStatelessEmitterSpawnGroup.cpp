@@ -15,8 +15,78 @@
 #include "ViewModels/NiagaraSystemViewModel.h"
 #include "ViewModels/Stack/NiagaraStackItemPropertyHeaderValueShared.h"
 #include "ViewModels/Stack/NiagaraStackObject.h"
+#include "NiagaraClipboard.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraEmitterStatelessSpawnGroup"
+
+namespace NiagaraStackStatelessEmitterSpawnGroupPrivate
+{
+	TOptional<FNiagaraStatelessSpawnInfo> ConvertPortableValue(const FNiagaraClipboardPortableValue& PortableValue)
+	{
+		TOptional<FNiagaraStatelessSpawnInfo> ReturnValue;
+
+		FNiagaraStatelessSpawnInfo TempSpawnInfo;
+		if (PortableValue.TryUpdateStructValue(*FNiagaraStatelessSpawnInfo::StaticStruct(), reinterpret_cast<uint8*>(&TempSpawnInfo)))
+		{
+			ReturnValue = TempSpawnInfo;
+		}
+		return ReturnValue;
+	}
+
+	bool TestCanPaste(UNiagaraStatelessEmitter* StatelessEmitter, const UNiagaraClipboardContent* ClipboardContent, FText& OutMessage)
+	{
+		if (StatelessEmitter)
+		{
+			for (const FNiagaraClipboardPortableValue& PortableValue : ClipboardContent->PortableValues)
+			{
+				if (ConvertPortableValue(PortableValue).IsSet())
+				{
+					OutMessage = LOCTEXT("CanPasteSpawnInfo", "Paste spawn info(s).");
+					return true;
+				}
+			}
+		}
+
+		OutMessage = LOCTEXT("CanPasteSpawnInfoUnsupported", "Incompatible or no data to paste.");
+		return false;
+	}
+
+	FText GetPasteTransactionText(const UNiagaraClipboardContent* ClipboardContent)
+	{
+		return LOCTEXT("PasteSpawnInfoTransaction", "Paste spawn info(s).");
+	}
+
+	bool Paste(UNiagaraStatelessEmitter* StatelessEmitter, const UNiagaraClipboardContent* ClipboardContent)
+	{
+		bool bHasPastedValues = false;
+		if (StatelessEmitter)
+		{
+			for (const FNiagaraClipboardPortableValue& PortableValue : ClipboardContent->PortableValues)
+			{
+				TOptional<FNiagaraStatelessSpawnInfo> NewSpawnInfo = ConvertPortableValue(PortableValue);
+				if (!NewSpawnInfo.IsSet())
+				{
+					continue;
+				}
+
+				if (!bHasPastedValues)
+				{
+					bHasPastedValues = true;
+					StatelessEmitter->Modify();
+				}
+
+				StatelessEmitter->AddSpawnInfo() = NewSpawnInfo.GetValue();
+			}
+
+			if (bHasPastedValues)
+			{
+				StatelessEmitter->PostEditChange();
+			}
+		}
+
+		return bHasPastedValues;
+	}
+}
 
 class FNiagaraStatelessEmitterAddSpawnInfoAction : public INiagaraStackItemGroupAddAction
 {
@@ -155,6 +225,26 @@ void UNiagaraStackStatelessEmitterSpawnGroup::OnChildRequestDelete(FGuid DeleteI
 	}
 }
 
+bool UNiagaraStackStatelessEmitterSpawnGroup::TestCanPasteWithMessage(const UNiagaraClipboardContent* ClipboardContent, FText& OutMessage) const
+{
+	return NiagaraStackStatelessEmitterSpawnGroupPrivate::TestCanPaste(GetStatelessEmitter(), ClipboardContent, OutMessage);
+}
+
+FText UNiagaraStackStatelessEmitterSpawnGroup::GetPasteTransactionText(const UNiagaraClipboardContent* ClipboardContent) const
+{
+	return NiagaraStackStatelessEmitterSpawnGroupPrivate::GetPasteTransactionText(ClipboardContent);
+}
+
+void UNiagaraStackStatelessEmitterSpawnGroup::Paste(const UNiagaraClipboardContent* ClipboardContent, FText& OutPasteWarning)
+{
+	UNiagaraStatelessEmitter* StatelessEmitter = GetStatelessEmitter();
+	if (NiagaraStackStatelessEmitterSpawnGroupPrivate::Paste(StatelessEmitter, ClipboardContent))
+	{
+		OnDataObjectModified().Broadcast({ StatelessEmitter }, ENiagaraDataObjectChange::Changed);
+		RefreshChildren();
+	}
+}
+
 void UNiagaraStackStatelessEmitterSpawnItem::Initialize(FRequiredEntryData InRequiredEntryData, UNiagaraStatelessEmitter* InStatelessEmitter, int32 InIndex)
 {
 	Super::Initialize(InRequiredEntryData, FString::Printf(TEXT("StatelessEmitterSpawnItem-%i"), InIndex));
@@ -202,6 +292,47 @@ FText UNiagaraStackStatelessEmitterSpawnItem::GetTooltipText() const
 FGuid UNiagaraStackStatelessEmitterSpawnItem::GetSelectionId() const
 {
 	return SourceId;
+}
+
+bool UNiagaraStackStatelessEmitterSpawnItem::TestCanCopyWithMessage(FText& OutMessage) const
+{
+	if (FNiagaraStatelessSpawnInfo* SpawnInfo = GetSpawnInfo())
+	{
+		OutMessage = LOCTEXT("CanCopyStatelessSpawnInfo", "Copy spawn info to the clipboard.");
+		return true;
+	}
+	OutMessage = LOCTEXT("CanCopyStatelessSpawnInfoUnsupported", "This spawn info does not support copy.");
+	return false;
+}
+
+void UNiagaraStackStatelessEmitterSpawnItem::Copy(UNiagaraClipboardContent* ClipboardContent) const
+{
+	if (FNiagaraStatelessSpawnInfo* SpawnInfo = GetSpawnInfo())
+	{
+		ClipboardContent->PortableValues.Emplace(
+			FNiagaraClipboardPortableValue::CreateFromStructValue(*FNiagaraStatelessSpawnInfo::StaticStruct(), reinterpret_cast<uint8*>(SpawnInfo))
+		);
+	}
+}
+
+bool UNiagaraStackStatelessEmitterSpawnItem::TestCanPasteWithMessage(const UNiagaraClipboardContent* ClipboardContent, FText& OutMessage) const
+{
+	return NiagaraStackStatelessEmitterSpawnGroupPrivate::TestCanPaste(GetStatelessEmitter(), ClipboardContent, OutMessage);
+}
+
+FText UNiagaraStackStatelessEmitterSpawnItem::GetPasteTransactionText(const UNiagaraClipboardContent* ClipboardContent) const
+{
+	return NiagaraStackStatelessEmitterSpawnGroupPrivate::GetPasteTransactionText(ClipboardContent);
+}
+
+void UNiagaraStackStatelessEmitterSpawnItem::Paste(const UNiagaraClipboardContent* ClipboardContent, FText& OutPasteWarning)
+{
+	UNiagaraStatelessEmitter* StatelessEmitter = GetStatelessEmitter();
+	if (NiagaraStackStatelessEmitterSpawnGroupPrivate::Paste(StatelessEmitter, ClipboardContent))
+	{
+		OnDataObjectModified().Broadcast({ StatelessEmitter }, ENiagaraDataObjectChange::Changed);
+		RefreshChildren();
+	}
 }
 
 bool UNiagaraStackStatelessEmitterSpawnItem::TestCanDeleteWithMessage(FText& OutCanDeleteMessage) const
