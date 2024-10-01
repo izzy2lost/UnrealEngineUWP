@@ -117,6 +117,28 @@ void UCEClonerComponent::PostLoad()
 }
 
 #if WITH_EDITOR
+void UCEClonerComponent::PostEditImport()
+{
+	SetAsset(nullptr);
+
+	Super::PostEditImport();
+
+	RegisterTicker();
+
+	ForceUpdateCloner();
+}
+
+void UCEClonerComponent::PostDuplicate(bool bInPIE)
+{
+	SetAsset(nullptr);
+
+	Super::PostDuplicate(bInPIE);
+
+	RegisterTicker();
+
+	ForceUpdateCloner();
+}
+
 void UCEClonerComponent::PostEditUndo()
 {
 	Super::PostEditUndo();
@@ -1265,6 +1287,14 @@ void UCEClonerComponent::ForceUpdateCloner()
 	OnLayoutNameChanged();
 }
 
+void UCEClonerComponent::OpenClonerSettings()
+{
+	if (const UCEClonerEffectorSettings* ClonerSettings = GetDefault<UCEClonerEffectorSettings>())
+	{
+		ClonerSettings->OpenSettings();
+	}
+}
+
 void UCEClonerComponent::CreateDefaultActorAttached()
 {
 	const UCEClonerEffectorSettings* ClonerEffectorSettings = GetDefault<UCEClonerEffectorSettings>();
@@ -1669,6 +1699,11 @@ UCEClonerLayoutBase* UCEClonerComponent::FindOrAddLayout(TSubclassOf<UCEClonerLa
 
 UCEClonerLayoutBase* UCEClonerComponent::FindOrAddLayout(FName InLayoutName)
 {
+	if (IsTemplate())
+	{
+		return nullptr;
+	}
+
 	UCEClonerSubsystem* Subsystem = UCEClonerSubsystem::Get();
 	if (!Subsystem)
 	{

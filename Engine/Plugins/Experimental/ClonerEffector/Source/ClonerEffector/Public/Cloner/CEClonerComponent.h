@@ -167,6 +167,10 @@ public:
 	UFUNCTION(CallInEditor, Category="Cloner")
 	void ForceUpdateCloner();
 
+	/** Open project settings for cloner */
+	UFUNCTION(CallInEditor, Category="Utilities")
+	void OpenClonerSettings();
+
 	/** This will create a new default actor attached to this cloner if nothing is attached to this cloner */
 	UFUNCTION(CallInEditor, Category="Utilities")
 	void CreateDefaultActorAttached();
@@ -247,6 +251,8 @@ protected:
 	virtual void PostInitProperties() override;
 	virtual void PostLoad() override;
 #if WITH_EDITOR
+	virtual void PostEditImport() override;
+	virtual void PostDuplicate(bool bInPIE) override;
 	virtual void PostEditUndo() override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
 #endif
