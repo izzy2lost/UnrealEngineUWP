@@ -342,7 +342,7 @@ bool FPCGCopyAttributeTests_Params_SingleValue::RunTest(const FString& Parameter
 
 	check(InputAttribute && OutputAttribute);
 
-	UTEST_EQUAL("Output Attribute default value is the same as first entry of Input Attribute", OutputAttribute->GetValueFromItemKey(PCGInvalidEntryKey), InputAttribute->GetValueFromItemKey(PCGMetadataEntryKey(0)));
+	UTEST_EQUAL("Output Attribute default value is the same as default of Input Attribute", OutputAttribute->GetValueFromItemKey(PCGInvalidEntryKey), InputAttribute->GetValueFromItemKey(PCGInvalidEntryKey));
 	UTEST_EQUAL("Output Attribute has the same value as Input Attribute for entry 0", OutputAttribute->GetValueFromItemKey(PCGMetadataEntryKey(0)), InputAttribute->GetValueFromItemKey(PCGMetadataEntryKey(0)));
 
 	return true;
