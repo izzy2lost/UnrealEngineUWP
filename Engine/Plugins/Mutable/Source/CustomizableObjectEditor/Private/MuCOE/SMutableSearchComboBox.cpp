@@ -273,9 +273,20 @@ void SMutableSearchComboBox::OnSearchTextChanged(const FText& ChangedText)
 
 void SMutableSearchComboBox::OnSearchTextCommitted(const FText& InText, ETextCommit::Type InCommitType)
 {
-	if ((InCommitType == ETextCommit::Type::OnEnter) && FilteredOptionsSource.Num() > 0)
+	if ((InCommitType == ETextCommit::Type::OnEnter) && !FilteredOptionsSource.IsEmpty())
 	{
-		ComboTreeView->SetSelection(FilteredOptionsSource[0], ESelectInfo::OnKeyPress);
+		TSharedRef<FFilteredOption> Selected = FilteredOptionsSource[0];
+
+		for (const TSharedRef<FFilteredOption>& Option : *OptionsSource)
+		{
+			if (Option->DisplayOption == InText.ToString())
+			{
+				Selected = Option;
+				break;
+			}
+		}
+
+		ComboTreeView->SetSelection(Selected, ESelectInfo::OnKeyPress);
 	}
 }
 
