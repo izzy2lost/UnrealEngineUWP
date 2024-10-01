@@ -62,6 +62,9 @@ public:
 	/** Toggle Shape Transform Edit*/
 	TSharedPtr< FUICommandInfo > ToggleControlShapeTransformEdit;
 
+	/** Sets Passthrough Key on selected anim layers */
+	TSharedPtr< FUICommandInfo > SetAnimLayerPassthroughKey;
+
 	/** Opens up the space picker widget */
 	TSharedPtr< FUICommandInfo > OpenSpacePickerWidget;
 
