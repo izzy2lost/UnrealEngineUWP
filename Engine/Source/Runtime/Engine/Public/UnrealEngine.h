@@ -375,9 +375,8 @@ extern ENGINE_API UFont* GetStatsFont();
 class FFrameEndSync
 {
 	/** Pair of fences. */
-	FRenderCommandFence Fence[2];
-	/** Current index into events array. */
-	int32 EventIndex;
+	TArray<FRenderCommandFence, TInlineAllocator<3>> Fences;
+
 	/** cleanup delegate for engine pre-exit */
 	FDelegateHandle CleanupDelegate;
 
@@ -389,7 +388,7 @@ public:
 	 * Syncs the game thread with the render thread. Depending on passed in bool this will be a total
 	 * sync or a one frame lag.
 	 */
-	ENGINE_API void Sync( bool bAllowOneFrameThreadLag );
+	ENGINE_API void Sync();
 
 private:
 	void Cleanup();

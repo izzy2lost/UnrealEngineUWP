@@ -178,6 +178,7 @@ class FRHIFrameFlipTrackingRunnable : public FRunnable
 
 		~FFramePair()
 		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(SyncTrigger_Swapchain);
 			Event.Trigger();
 		}
 
@@ -524,6 +525,7 @@ void FRHIFrameFlipTrackingRunnable::TriggerTaskEventOnFlip(uint64 PresentIndex, 
 	{
 		// Platform does not support flip tracking.
 		// Signal the event now...
+		TRACE_CPUPROFILER_EVENT_SCOPE(SyncTrigger_Swapchain);
 		Event.Trigger();
 	}
 }

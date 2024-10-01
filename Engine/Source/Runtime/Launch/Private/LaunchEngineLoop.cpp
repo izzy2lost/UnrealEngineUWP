@@ -6065,10 +6065,9 @@ void FEngineLoop::Tick()
 		{
 			SCOPE_CYCLE_COUNTER(STAT_FrameSyncTime);
 			// this could be perhaps moved down to get greater parallelism
-			// Sync game and render thread. Either total sync or allowing one frame lag.
+			// Sync game and render/RHI threads.
 			static FFrameEndSync FrameEndSync;
-			static auto CVarAllowOneFrameThreadLag = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.OneFrameThreadLag"));
-			FrameEndSync.Sync( CVarAllowOneFrameThreadLag->GetValueOnGameThread() != 0 );
+			FrameEndSync.Sync();
 		}
 
 		// tick core ticker, threads & deferred commands
