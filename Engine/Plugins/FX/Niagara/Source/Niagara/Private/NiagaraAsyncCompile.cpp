@@ -38,6 +38,13 @@ static FAutoConsoleVariableRef CVarNiagaraCompileDDCWaitTimeout(
 //////////////////////////////////////////////////////////////////////////
 
 #if WITH_EDITORONLY_DATA
+FNiagaraLazyPrecompileReference::FNiagaraLazyPrecompileReference(UNiagaraSystem* InSystem, TConstArrayView<UNiagaraScript*> InScripts)
+	: System(InSystem)
+	, Scripts(InScripts)
+{
+	GenerateEmitterScriptIndexMap(EmitterScriptIndex);
+}
+
 TSharedPtr<FNiagaraCompileRequestDataBase, ESPMode::ThreadSafe> FNiagaraLazyPrecompileReference::GetPrecompileData(UNiagaraScript* ForScript)
 {
 	if (SystemPrecompiledData == nullptr)
@@ -112,37 +119,49 @@ TSharedPtr<FNiagaraCompileRequestDuplicateDataBase, ESPMode::ThreadSafe> FNiagar
 	return PrecompileDuplicateData;
 }
 
+// annoyingly because we're driving some of the compilation process on live data (UNiagaraSystem/UNiagaraEmitter) which
+// might be changing in the scenario of a user continuing to modify their effect in the system editor, we need to at
+// least put some effort into validating that the system/emitters are still going to match up for the work we do in the
+// precompile.  So, we again generate the EmitterScriptIndexMap and make sure that they are the same.  This should handle
+// the common case of emitters being added, removed or reordered.
 bool FNiagaraLazyPrecompileReference::IsValidForPrecompile() const
 {
 	if (System)
 	{
-		const TArray<FNiagaraEmitterHandle>& EmitterHandles = System->GetEmitterHandles();
-		for (TMap<UNiagaraScript*, int32>::TConstIterator It = EmitterScriptIndex.CreateConstIterator(); It; ++It)
+		FEmitterScriptIndexMap CurrentScriptIndexMap;
+		GenerateEmitterScriptIndexMap(CurrentScriptIndexMap);
+		
+		if (!CurrentScriptIndexMap.OrderIndependentCompareEqual(EmitterScriptIndex))
 		{
-			if (EmitterHandles.IsValidIndex(It.Value()))
-			{
-				const FNiagaraEmitterHandle& EmitterHandle = EmitterHandles[It.Value()];
-				const FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
-				if (!EmitterHandle.GetIsEnabled() || !EmitterData)
-				{
-					return false;
-				}
-				TArray<UNiagaraScript*> EmitterScripts;
-				EmitterData->GetScripts(EmitterScripts, false, true);
-
-				if (!EmitterScripts.Contains(It.Key()))
-				{
-					return false;
-				}
-			}
-			else
-			{
-				return false;
-			}
+			return false;
 		}
 	}
 
 	return true;
+}
+
+void FNiagaraLazyPrecompileReference::GenerateEmitterScriptIndexMap(FEmitterScriptIndexMap& OutIndexMap) const
+{
+	OutIndexMap.Reset();
+
+	if (System)
+	{
+		const TArray<FNiagaraEmitterHandle>& EmitterHandles = System->GetEmitterHandles();
+		for (int32 i = 0; i < EmitterHandles.Num(); i++)
+		{
+			FNiagaraEmitterHandle Handle = EmitterHandles[i];
+			if (Handle.GetIsEnabled() && Handle.GetEmitterData())
+			{
+				TArray<UNiagaraScript*> EmitterScripts;
+				Handle.GetEmitterData()->GetScripts(EmitterScripts, false, true);
+				check(EmitterScripts.Num() > 0);
+				for (UNiagaraScript* EmitterScript : EmitterScripts)
+				{
+					OutIndexMap.Add(EmitterScript, i);
+				}
+			}
+		}
+	}
 }
 
 FNiagaraAsyncCompileTask::FNiagaraAsyncCompileTask(UNiagaraSystem* InOwningSystem, FString InAssetPath, const FEmitterCompiledScriptPair& InScriptPair)
@@ -1100,25 +1119,7 @@ bool FNiagaraActiveCompilationDefault::Launch(const FNiagaraCompilationOptions& 
 		bEvaluateParametersPending = !UseRapidIterationParameters;
 
 		// prepare data for any precompile the ddc tasks need to do
-		TSharedPtr<FNiagaraLazyPrecompileReference, ESPMode::ThreadSafe> PrecompileReference = MakeShared<FNiagaraLazyPrecompileReference, ESPMode::ThreadSafe>();
-		PrecompileReference->System = Options.System;
-		PrecompileReference->Scripts = ScriptsNeedingCompile;
-
-		const TArray<FNiagaraEmitterHandle>& EmitterHandles = Options.System->GetEmitterHandles();
-		for (int32 i = 0; i < EmitterHandles.Num(); i++)
-		{
-			FNiagaraEmitterHandle Handle = EmitterHandles[i];
-			if (Handle.GetIsEnabled() && Handle.GetEmitterData())
-			{
-				TArray<UNiagaraScript*> EmitterScripts;
-				Handle.GetEmitterData()->GetScripts(EmitterScripts, false, true);
-				check(EmitterScripts.Num() > 0);
-				for (UNiagaraScript* EmitterScript : EmitterScripts)
-				{
-					PrecompileReference->EmitterScriptIndex.Add(EmitterScript, i);
-				}
-			}
-		}
+		TSharedPtr<FNiagaraLazyPrecompileReference, ESPMode::ThreadSafe> PrecompileReference = MakeShared<FNiagaraLazyPrecompileReference, ESPMode::ThreadSafe>(Options.System, ScriptsNeedingCompile);
 
 		for (UNiagaraScript* Script : ScriptsNeedingCompile)
 		{
