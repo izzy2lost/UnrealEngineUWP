@@ -242,6 +242,11 @@ namespace Metasound::Engine
 		// report the failed load of the class.
 		if (const UClass* AssetClass = InAssetData.GetClass())
 		{
+			// Don't add temporary assets used for diffing
+			if (InAssetData.HasAnyPackageFlags(PKG_ForDiffing))
+			{
+				return;
+			}
 			const bool bIsRegisteredClass = IMetasoundUObjectRegistry::Get().IsRegisteredClass(*AssetClass);
 			if (bIsRegisteredClass)
 			{
