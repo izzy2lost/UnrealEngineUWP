@@ -36,6 +36,22 @@ class FDelaunay2
 {
 public:
 
+	// Indicates result of triangulation
+	enum class EResult
+	{
+		Success,
+		// Has not yet tried to compute a triangulation
+		NotComputed,
+		// No input points
+		EmptyInput,
+		// Input did not span a 2D basis (was 1D or 0D) so could not form a triangle
+		Collinear,
+		// Could not create triangulation containing all requested constraint edges, typically due to intersections between requested edges
+		MissingEdges,
+		// Uncategorized failure
+		Unknown
+	};
+
 	// Options for selecting what triangles to include in the output, for constrained Delaunay triangulation of polygons
 	enum class EFillMode
 	{
@@ -286,15 +302,41 @@ public:
 		return Delaunay.GetVoronoiCells(Sites, bIncludeBoundary, ClipBounds, ExpandBounds);
 	}
 
+	/** @return Last triangulation result -- either Success, NotComputed, or a reason for failure */
+	EResult GetResult() const
+	{
+		return Result;
+	}
+	
+	/** @return Whether the triangulation result supports computing a Voronoi diagram -- i.e., if it was triangulated, or a collinear input */
+	bool CanComputeVoronoiCells() const
+	{
+		return Result == EResult::Collinear || Result == EResult::Success;
+	}
+
 protected:
 	TPimplPtr<FDelaunay2Connectivity> Connectivity;
 
 	bool bIsConstrained = false;
 
 	// helper to perform standard validation on results after Triangulate or ConstrainEdges calls
+	UE_DEPRECATED(5.5, "No longer used by the implementation and may be removed")
 	bool ValidateResult(TArrayView<const FIndex2i> Edges) const
 	{
 		return !bValidateEdges || HasEdges(Edges);
+	}
+
+private:
+	EResult Result = EResult::NotComputed;
+
+	bool ValidateEdgesResult(TArrayView<const FIndex2i> Edges)
+	{
+		if (bValidateEdges && !HasEdges(Edges))
+		{
+			Result = EResult::MissingEdges;
+			return false;
+		}
+		return true;
 	}
 };
 
