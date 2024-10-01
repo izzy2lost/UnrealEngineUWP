@@ -1412,8 +1412,16 @@ bool USkeletalMeshComponent::ShouldOnlyTickMontages(const float DeltaTime) const
 {
 	// Ignore DeltaSeconds == 0.f, as that is used when we want to force an update followed by RefreshBoneTransforms.
 	// RefreshBoneTransforms will need an updated graph.
-	return (VisibilityBasedAnimTickOption == EVisibilityBasedAnimTickOption::OnlyTickMontagesWhenNotRendered
-		|| VisibilityBasedAnimTickOption == EVisibilityBasedAnimTickOption::OnlyTickMontagesAndRefreshBonesWhenPlayingMontages)
+	return VisibilityBasedAnimTickOption == EVisibilityBasedAnimTickOption::OnlyTickMontagesWhenNotRendered
+		&& !bRecentlyRendered
+		&& (DeltaTime > 0.f);
+}
+
+bool USkeletalMeshComponent::ShouldOnlyTickMontagesAndRefreshBones(const float DeltaTime) const
+{
+	// Ignore DeltaSeconds == 0.f, as that is used when we want to force an update followed by RefreshBoneTransforms.
+	// RefreshBoneTransforms will need an updated graph.
+	return VisibilityBasedAnimTickOption == EVisibilityBasedAnimTickOption::OnlyTickMontagesAndRefreshBonesWhenPlayingMontages
 		&& !bRecentlyRendered
 		&& (DeltaTime > 0.f);
 }
@@ -1452,7 +1460,7 @@ void USkeletalMeshComponent::TickAnimation(float DeltaTime, bool bNeedsValidRoot
 			If we're called directly for autonomous proxies, TickComponent is not guaranteed to get called.
 			So dispatch all queued events here if we're doing MontageOnly ticking.
 		*/
-		if (ShouldOnlyTickMontages(DeltaTime))
+		if (ShouldOnlyTickMontages(DeltaTime) || ShouldOnlyTickMontagesAndRefreshBones(DeltaTime))
 		{
 			ConditionallyDispatchQueuedAnimEvents();
 		}

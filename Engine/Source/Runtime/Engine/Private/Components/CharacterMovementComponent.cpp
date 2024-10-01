@@ -10440,7 +10440,7 @@ void UCharacterMovementComponent::MoveAutonomous
 		else
 		{
 			// Revert back to old behavior if wanted/needed.
-			if (OwnerMesh->ShouldOnlyTickMontages(DeltaTime))
+			if (OwnerMesh->ShouldOnlyTickMontages(DeltaTime) || OwnerMesh->ShouldOnlyTickMontagesAndRefreshBones(DeltaTime))
 			{
 				OwnerMesh->ConditionallyDispatchQueuedAnimEvents();
 			}

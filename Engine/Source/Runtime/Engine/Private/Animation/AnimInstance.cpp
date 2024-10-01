@@ -532,7 +532,7 @@ void UAnimInstance::UpdateAnimation(float DeltaSeconds, bool bNeedsValidRootMoti
 			If we're set to OnlyTickMontagesWhenNotRendered and we haven't been recently rendered,
 			then only update montages and skip everything else. 
 		*/
-		if (SkelMeshComp->ShouldOnlyTickMontages(DeltaSeconds))
+		if (SkelMeshComp->ShouldOnlyTickMontages(DeltaSeconds) || (SkelMeshComp->ShouldOnlyTickMontagesAndRefreshBones(DeltaSeconds) && !IsAnyMontagePlaying()))
 		{
 			/**
 				Clear NotifyQueue prior to ticking montages.
