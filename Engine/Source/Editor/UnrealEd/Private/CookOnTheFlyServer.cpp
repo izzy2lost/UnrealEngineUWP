@@ -5330,17 +5330,23 @@ static void ConstructSoftGCPackageToObjectList(TArray<UObject*>& PackageToObject
 }
 
 UCookOnTheFlyServer::FScopeFindCookReferences::FScopeFindCookReferences(UCookOnTheFlyServer& InCOTFS)
-	:COTFS(InCOTFS),
-	SoftGCGuard(UPackage::bSupportCookerSoftGC, true)
+	: COTFS(InCOTFS)
+	, SoftGCGuard(UPackage::bSupportCookerSoftGC, true)
+	, bNeedsConstructBuffer(COTFS.SoftGCPackageToObjectListBuffer.IsEmpty())
 {
-	check(COTFS.SoftGCPackageToObjectListBuffer.IsEmpty())
-	ConstructSoftGCPackageToObjectList(COTFS.SoftGCPackageToObjectListBuffer);
+	if (bNeedsConstructBuffer)
+	{
+		ConstructSoftGCPackageToObjectList(COTFS.SoftGCPackageToObjectListBuffer);
+	}
 }
 
 UCookOnTheFlyServer::FScopeFindCookReferences::~FScopeFindCookReferences()
 {
-	UPackage::SoftGCPackageToObjectList.Empty();
-	COTFS.SoftGCPackageToObjectListBuffer.Empty();
+	if (bNeedsConstructBuffer)
+	{
+		UPackage::SoftGCPackageToObjectList.Empty();
+		COTFS.SoftGCPackageToObjectListBuffer.Empty();
+	}
 }
 
 void UCookOnTheFlyServer::PreGarbageCollect()
