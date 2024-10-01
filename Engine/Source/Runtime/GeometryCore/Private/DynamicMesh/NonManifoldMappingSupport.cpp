@@ -208,7 +208,11 @@ public:
 	{
 		bValid = false;
 	}
-	
+
+	virtual void OnNewVertex(int VertexID, bool bInserted) override
+	{
+		SourceVertexIds.InsertAt(VertexID, VertexID);
+	}
 };
 
 void FNonManifoldSourceVertexIdAttributeChange::SaveInitialVertex(const FDynamicMeshAttributeBase* Attribute, int VertexID)
