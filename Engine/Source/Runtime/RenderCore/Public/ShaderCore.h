@@ -17,6 +17,8 @@
 #include "HAL/Platform.h"
 #include "HAL/UnrealMemory.h"
 #include "Logging/LogMacros.h"
+#include "Memory/CompositeBuffer.h"
+#include "Memory/SharedBuffer.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/CString.h"
 #include "Misc/CoreStats.h"
@@ -942,10 +944,10 @@ typedef uint32 RENDERCORE_ATTRIBUTE_UNALIGNED unaligned_uint32;
 // later we can transform that to the actual class passed around at the RHI level
 class FShaderCodeReader
 {
-	TArrayView<const uint8> ShaderCode;
+	TConstArrayView<uint8> ShaderCode;
 
 public:
-	FShaderCodeReader(TArrayView<const uint8> InShaderCode)
+	FShaderCodeReader(TConstArrayView<uint8> InShaderCode)
 		: ShaderCode(InShaderCode)
 	{
 		check(ShaderCode.Num());
@@ -956,9 +958,9 @@ public:
 		return ShaderCode.Num() - GetOptionalDataSize();
 	}
 
-	TArrayView<const uint8> GetOffsetShaderCode(int32 Offset)
+	TConstArrayView<uint8> GetOffsetShaderCode(int32 Offset)
 	{
-		return MakeArrayView(ShaderCode.GetData() + Offset, GetActualShaderCodeSize() - Offset);
+		return MakeConstArrayView(ShaderCode.GetData() + Offset, GetActualShaderCodeSize() - Offset);
 	}
 
 	// for convenience
@@ -1087,20 +1089,106 @@ public:
 	}
 };
 
-struct FShaderCodeResource
-{
-	TArray<uint8> Code;
-	int32 UncompressedSize; // full size of code array before compression
-	int32 ShaderCodeSize;	// uncompressed size excluding optional data
-	EShaderFrequency Frequency;
+class FShaderCode;
 
-	friend FArchive& operator<<(FArchive& Ar, FShaderCodeResource& Resource)
+class FShaderCodeResource
+{
+	struct FHeader
 	{
-		uint8 Freq = Resource.Frequency;
-		Ar << Resource.Code << Resource.UncompressedSize << Resource.ShaderCodeSize << Freq;
-		Resource.Frequency = (EShaderFrequency)Freq;
-		return Ar;
+		int32 UncompressedSize = 0;		// full size of code array before compression
+		int32 ShaderCodeSize = 0;		// uncompressed size excluding optional data
+		EShaderFrequency Frequency = EShaderFrequency::SF_NumFrequencies;
+		uint8 _Pad0 = 0;
+		uint16 _Pad1 = 0;
+	};
+	// header is cloned into shared buffer to avoid needing to determine what offsets FArchive serialization wrote everything at
+	// as such it needs explicitly initialized padding, so we ensure no additional padding was added by the compiler
+	static_assert(std::has_unique_object_representations_v<FHeader>);
+
+	FSharedBuffer Header;		// The above FHeader struct persisted in a shared buffer
+	FSharedBuffer Code;			// The bytecode buffer as constructed by FShaderCode::FinalizeShaderCode
+
+	friend class FShaderCode;
+	friend RENDERCORE_API FArchive& operator<<(FArchive& Ar, FShaderCode& Code);
+	friend FArchive& operator<<(FArchive& Ar, FShaderCodeResource& Resource);
+
+public:
+
+	/* Returns a uint8 array view representation of the Code FSharedBuffer, for compatibility's sake (much downstream
+	 * usage of shader code expects an array of uint8)
+	 */
+	TConstArrayView<uint8> GetCodeView() const
+	{
+		return MakeConstArrayView(reinterpret_cast<const uint8*>(Code.GetData()), static_cast<int32>(Code.GetSize()));
 	}
+
+	/* Return the buffer storing just the shader code for this resource */
+	FSharedBuffer GetCodeBuffer() const
+	{
+		return Code;
+	}
+
+	/* Returns a single composite buffer referencing both the header and code data to be cached. */
+	FCompositeBuffer GetCacheBuffer() const
+	{
+		return FCompositeBuffer(Header, Code);
+	}
+
+	/* Unpacks the given FSharedBuffer into separate header/code buffer views and returns them as a 2-segment composite buffer. 
+	 * Note that this is required since when pushing a composite buffer to DDC it does not maintain the segment structure.
+	 */
+	static FCompositeBuffer Unpack(FSharedBuffer MonolithicBuffer)
+	{
+		FMemoryView FullBufferView = MonolithicBuffer.GetView();
+
+		return FCompositeBuffer(
+			MonolithicBuffer.MakeView(FullBufferView.Left(sizeof(FHeader)), MonolithicBuffer),
+			MonolithicBuffer.MakeView(FullBufferView.RightChop(sizeof(FHeader)), MonolithicBuffer));
+	}
+	
+	/* Sets the Header and Code shared buffer references in this resource to the segments referenced
+	 * by the given composite buffer.
+	 */
+	void PopulateFromComposite(FCompositeBuffer CacheBuffer)
+	{
+		check(CacheBuffer.GetSegments().Num() == 2);
+		Header = CacheBuffer.GetSegments()[0];
+		check(Header.GetSize() == sizeof(FHeader));
+		Code = CacheBuffer.GetSegments()[1];
+	}
+
+	/* Populates the header for this code resource with the given sizes and frequency. 
+	 * Note that this is done as a separate process from the construction of the Code buffer
+	 * as the shader frequency is only known by the owning job, and not stored in the FShaderCode.
+	 */
+	void PopulateHeader(int32 UncompressedSize, int32 ShaderCodeSize, EShaderFrequency Frequency)
+	{
+		check(Code);
+		FHeader HeaderData{ UncompressedSize, ShaderCodeSize, Frequency };
+		Header = FSharedBuffer::Clone(&HeaderData, sizeof(HeaderData));
+	}
+
+	/* Retrieves the uncompressed size of the shader code as stored in the FHeader buffer. */
+	int32 GetUncompressedSize() const
+	{
+		check(Header);
+		return reinterpret_cast<const FHeader*>(Header.GetData())->UncompressedSize;
+	}
+
+	/* Retrieves the actual shader code size (excluding optional data) as stored in the FHeader buffer. */
+	int32 GetShaderCodeSize() const
+	{
+		check(Header);
+		return reinterpret_cast<const FHeader*>(Header.GetData())->ShaderCodeSize;
+	}
+
+	/* Retrieves the shader frequency as stored in the FHeader buffer. */
+	EShaderFrequency GetFrequency() const
+	{
+		check(Header);
+		return reinterpret_cast<const FHeader*>(Header.GetData())->Frequency;
+	}
+
 };
 
 class FShaderCode
@@ -1109,6 +1197,8 @@ class FShaderCode
 	mutable int32 OptionalDataSize;
 	// access through class methods
 	mutable TArray<uint8> ShaderCodeWithOptionalData;
+
+	mutable FShaderCodeResource ShaderCodeResource;
 
 	/** ShaderCode may be compressed in SCWs on demand. If this value isn't null, the shader code is compressed. */
 	mutable int32 UncompressedSize;
@@ -1140,12 +1230,14 @@ public:
 	// adds CustomData or does nothing if that was already done before
 	void FinalizeShaderCode() const
 	{
-		if(OptionalDataSize != -1)
+		if (OptionalDataSize != -1)
 		{
 			checkf(UncompressedSize == 0, TEXT("FShaderCode::FinalizeShaderCode() was called after compressing the code"));
 			OptionalDataSize += sizeof(OptionalDataSize);
 			ShaderCodeWithOptionalData.Append((const uint8*)&OptionalDataSize, sizeof(OptionalDataSize));
 			OptionalDataSize = -1;
+
+			ShaderCodeResource.Code = MakeSharedBufferFromArray(MoveTemp(ShaderCodeWithOptionalData));
 		}
 	}
 
@@ -1170,17 +1262,32 @@ public:
 		{
 			FinalizeShaderCode();
 
-			FShaderCodeReader Wrapper(ShaderCodeWithOptionalData);
-			return Wrapper.GetShaderCodeSize();
+			if (UncompressedSize != 0) // already compressed, get code size from resource
+			{
+				return ShaderCodeResource.GetShaderCodeSize();
+			}
+			else
+			{
+				// code buffer has been populated but not compressed, can still read additional fields from code buffer
+				FShaderCodeReader Wrapper(ShaderCodeResource.GetCodeView());
+				return Wrapper.GetShaderCodeSize();
+			}
 		}
 	}
 
-	// for read access, can have additional data attached to the end. Can also be compressed
+	UE_DEPRECATED(5.5, "Use GetReadView")
 	const TArray<uint8>& GetReadAccess() const
+	{
+		static TArray<uint8> Dummy;
+		return Dummy;
+	}
+
+	// for read access, can have additional data attached to the end. Can also be compressed
+	TConstArrayView<uint8> GetReadView() const
 	{
 		FinalizeShaderCode();
 
-		return ShaderCodeWithOptionalData;
+		return ShaderCodeResource.GetCodeView();
 	}
 
 	bool IsCompressed() const
@@ -1241,21 +1348,25 @@ public:
 		AddOptionalData(Key, (uint8*)InString, Size);
 	}
 
-	// Converts code to FShaderCodeResource format. Note that this is destructive (internal code array will be moved into the resource).
-	FShaderCodeResource ConvertToResource(EShaderFrequency Frequency, FSHAHash OutputHash) const
+	// Populates FShaderCodeResource's header buffer and returns the fully populated resource struct
+	const FShaderCodeResource& GetFinalizedResource(EShaderFrequency Frequency, FSHAHash OutputHash) const
 	{
-		check(OptionalDataSize == -1); // shader code must be finalized before converting to FShaderCodeResource
-		FShaderCodeResource Resource;
-		// need to persist this in the resource since it will not be readable from the code array after compression
-		Resource.ShaderCodeSize = GetShaderCodeSize();
-		Resource.Frequency = Frequency;
+		// shader code must be finalized prior to calling this function
+		// the finalize process will have created the code FSharedBuffer on the resource already
+		check(OptionalDataSize == -1);
+
+		// If the header is already populated, resource has already been finalized, early out
+		if (ShaderCodeResource.Header)
+		{
+			// sanity check
+			check(ShaderCodeResource.GetFrequency() == Frequency);
+			return ShaderCodeResource;
+		}
 
 		// Validate that compression settings used for this ShaderCode by the compilation process match what is expected
 		FName ShaderCompressionFormat = GetShaderCompressionFormat();
 		if (ShaderCompressionFormat != NAME_None)
 		{
-			Resource.UncompressedSize = GetUncompressedSize();
-
 			// we trust that SCWs also obeyed by the same CVar, so we expect a compressed shader code at this point
 			// However, if we see an uncompressed shader, it perhaps means that SCW tried to compress it, but the result was worse than uncompressed. 
 			// Because of that we special-case NAME_None here
@@ -1269,11 +1380,10 @@ public:
 						*GetCompressionFormat().ToString()
 					);
 					// unreachable
-					return Resource;
+					return ShaderCodeResource;
 				}
 
 				// assume uncompressed due to worse ratio than the compression
-				Resource.UncompressedSize = ShaderCodeWithOptionalData.Num();
 				UE_LOG(LogShaders, Verbose, TEXT("Shader %s is expected to be compressed with %s, but it arrived uncompressed (size=%d). Assuming compressing made it longer and storing uncompressed."),
 					*OutputHash.ToString(),
 					*ShaderCompressionFormat.ToString(),
@@ -1297,31 +1407,31 @@ public:
 						static_cast<int32>(GetOodleLevel())
 					);
 					// unreachable
-					return Resource;
+					return ShaderCodeResource;
 				}
 			}
 		}
-		else
-		{
-			Resource.UncompressedSize = ShaderCodeWithOptionalData.Num();
-		}
 
-		Resource.Code = MoveTemp(ShaderCodeWithOptionalData);
-		return Resource;
+		// Shader library/shader map usage expects uncompressed size to be set to the full code buffer size if uncompressed; so we need to apply that
+		// transformation here (and reverse it when populating from a FShaderCodeResource, see mirroring code in SetFromResource below)
+		ShaderCodeResource.PopulateHeader(UncompressedSize == 0 ? static_cast<int32>(ShaderCodeResource.Code.GetSize()) : UncompressedSize, GetShaderCodeSize(), Frequency);
+		return ShaderCodeResource;
 	}
 
 	void SetFromResource(FShaderCodeResource&& Resource)
 	{
-		// Set to the state of a finalized ShaderCode object
-		UncompressedSize = Resource.UncompressedSize;
-		ShaderCodeSize = Resource.ShaderCodeSize;
+		ShaderCodeResource = MoveTemp(Resource);
+		// Set the internal state of this FShaderCode to that of a finalized (and possibly compressed) ShaderCode object
 		OptionalDataSize = -1;
+		ShaderCodeSize = ShaderCodeResource.GetShaderCodeSize();
+
+		// as above, set UncompressedSize to 0 if not compressed, indicated by the resource uncompressed size matching the code buffer size.
+		int32 ResourceUncompressedSize = ShaderCodeResource.GetUncompressedSize();
+		UncompressedSize = ResourceUncompressedSize == ShaderCodeResource.Code.GetSize() ? 0 : ResourceUncompressedSize;
 
 		// already validated that compression settings matched when serializing the resource, so we can just initialize them to the known-correct values
 		CompressionFormat = GetShaderCompressionFormat();
 		GetShaderCompressionOodleSettings(OodleCompressor, OodleLevel);
-
-		ShaderCodeWithOptionalData = MoveTemp(Resource.Code);
 	}
 
 	friend RENDERCORE_API FArchive& operator<<(FArchive& Ar, FShaderCode& Output);

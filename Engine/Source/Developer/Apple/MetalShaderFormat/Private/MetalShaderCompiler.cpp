@@ -1184,7 +1184,7 @@ bool StripShader_Metal(TArray<uint8>& Code, class FString const& DebugPath, bool
 				// jam it into the output bytes
 				NewAr.Serialize(SourceCode.GetData(), SourceCode.Num());
 				
-				Code = NewCode.GetReadAccess();
+				Code = NewCode.GetReadView();
 			}
 		}
 		else
@@ -1278,7 +1278,7 @@ uint64 AppendShader_Metal(FString const& WorkingDir, const FSHAHash& Hash, TArra
 						NewAr << OfflineCompiledFlag;
                         Header.Serialize(NewAr, SRT);
 						
-						InShaderCode = NewCode.GetReadAccess();
+						InShaderCode = NewCode.GetReadView();
 						
 						UE_LOG(LogShaders, Verbose, TEXT("Archiving succeeded: shader %s (Len: %0.8x, CRC: %0.8x, SHA: %s)"), *ShaderName, Header.SourceLen, Header.SourceCRC, *Hash.ToString());
 					}
