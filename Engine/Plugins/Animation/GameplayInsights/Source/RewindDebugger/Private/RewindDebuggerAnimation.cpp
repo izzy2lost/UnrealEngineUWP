@@ -329,7 +329,16 @@ void FRewindDebuggerAnimation::Update(float DeltaTime, IRewindDebugger* RewindDe
 									
 								if (MeshComponentInfo == nullptr)
 								{
-									MeshComponentInfo = SpawnMesh(ObjectId, GameplayProvider);
+									if (RewindDebugger->IsTraceFileLoaded())
+									{
+										if (const FWorldInfo* ObjectWorldInfo = GameplayProvider->FindWorldInfoFromObject(ObjectId))
+										{
+											if (RewindDebugger->ShouldDisplayWorld(ObjectWorldInfo->Id))
+											{
+												MeshComponentInfo = SpawnMesh(ObjectId, GameplayProvider);
+											}
+										}
+									}
 									bLoadMesh = true;
 									LastScrubTime = -1;
 								}

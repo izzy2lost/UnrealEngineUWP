@@ -227,6 +227,16 @@ void FGameplayProvider::EnumerateObjects(double StartTime, double EndTime, TFunc
 		});
 }
 
+void FGameplayProvider::EnumerateWorlds(TFunctionRef<void(const FWorldInfo&)> Callback) const
+{
+	Session.ReadAccessCheck();
+    
+	for(const FWorldInfo& WorldInfo : WorldInfos)
+	{
+		Callback(WorldInfo);
+	}
+}
+
 const FObjectPropertyValue* FGameplayProvider::FindPropertyValueFromStorageIndex(uint64 InObjectId, int64 InStorageIndex) const
 {
 	Session.ReadAccessCheck();
