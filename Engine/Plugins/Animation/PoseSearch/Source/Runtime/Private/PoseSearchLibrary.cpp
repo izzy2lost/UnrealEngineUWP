@@ -714,6 +714,18 @@ void UPoseSearchLibrary::IsAnimationAssetLooping(const UObject* Asset, bool& bIs
 	}
 }
 
+void UPoseSearchLibrary::GetDatabaseTags(const UPoseSearchDatabase* Database, TArray<FName>& Tags)
+{
+	if (Database)
+	{
+		Tags = Database->Tags;
+	}
+	else
+	{
+		Tags.Reset();
+	}
+}
+
 void UPoseSearchLibrary::MotionMatch(
 	UAnimInstance* AnimInstance,
 	TArray<UObject*> AssetsToSearch,
