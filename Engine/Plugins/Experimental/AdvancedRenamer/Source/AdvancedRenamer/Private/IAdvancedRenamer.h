@@ -40,10 +40,11 @@ public:
 
 	virtual const TSharedRef<IAdvancedRenamerProvider>& GetProvider() const = 0;
 
-	virtual const TArray<TSharedPtr<FAdvancedRenamerPreview>>& GetPreviews() = 0;
+	/** Get the sortable previews */
+	virtual TArray<TSharedPtr<FAdvancedRenamerPreview>>& GetSortablePreviews() = 0;
 
-	/** Returns the preview for the item at the given index. */
-	virtual TSharedPtr<FAdvancedRenamerPreview> GetPreview(int32 InIndex) const = 0;
+	/** Reset the order of the Previews to the original one */
+	virtual void ResetSortablePreviews() = 0;
 
 	/** Add a section to this Renamer */
 	virtual void AddSection(FAdvancedRenamerExecuteSection InSection) = 0;

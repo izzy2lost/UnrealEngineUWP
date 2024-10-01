@@ -95,7 +95,7 @@ void SAdvancedRenamerPanel::Construct(const FArguments& InArgs, const TSharedRef
 	Renamer = InRenamer;
 
 	SortMode = EColumnSortMode::None;
-	PreviewList = InRenamer->GetPreviews();
+	PreviewList = InRenamer->GetSortablePreviews();
 
 	CommandList = MakeShared<FUICommandList>();
 	CommandList->MapAction(
@@ -455,7 +455,7 @@ void SAdvancedRenamerPanel::OnColumnSortModeChanged(EColumnSortPriority::Type In
 
 	if (Renamer.IsValid())
 	{
-		PreviewList = Renamer->GetPreviews();
+		TArray<TSharedPtr<FAdvancedRenamerPreview>>& SortablePreview = Renamer->GetSortablePreviews();
 		if (SortMode != EColumnSortMode::None)
 		{
 			EColumnSortMode::Type TempSortMode = SortMode;
@@ -470,8 +470,16 @@ void SAdvancedRenamerPanel::OnColumnSortModeChanged(EColumnSortPriority::Type In
 				return TempSortMode == EColumnSortMode::Ascending ? CompareResult : !CompareResult;
 			};
 
-			PreviewList.Sort(ComparePreviewList);
+			SortablePreview.Sort(ComparePreviewList);
+			PreviewList = SortablePreview;
 		}
+		else
+		{
+			Renamer->ResetSortablePreviews();
+			PreviewList = Renamer->GetSortablePreviews();
+		}
+
+		Renamer->MarkDirty();
 		RenamePreviewList->RequestListRefresh();
 	}
 }

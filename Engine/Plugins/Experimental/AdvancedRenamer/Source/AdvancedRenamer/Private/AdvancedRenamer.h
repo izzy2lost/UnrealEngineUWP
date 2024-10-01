@@ -15,8 +15,8 @@ public:
 
 	//~ Begin IAdvancedRenamer
 	virtual const TSharedRef<IAdvancedRenamerProvider>& GetProvider() const override;
-	virtual const TArray<TSharedPtr<FAdvancedRenamerPreview>>& GetPreviews() override;
-	virtual TSharedPtr<FAdvancedRenamerPreview> GetPreview(int32 InIndex) const override;
+	virtual TArray<TSharedPtr<FAdvancedRenamerPreview>>& GetSortablePreviews() override;
+	virtual void ResetSortablePreviews() override;
 	virtual void AddSection(FAdvancedRenamerExecuteSection InSection) override;
 	virtual bool HasRenames() const override;
 	virtual bool IsDirty() const override;
@@ -54,7 +54,10 @@ private:
 
 	/** Previews Name list */
 	TArray<TSharedPtr<FAdvancedRenamerPreview>> Previews;
-	
+
+	/** Sorted Previews Name list */
+	TArray<TSharedPtr<FAdvancedRenamerPreview>> SortablePreviews;
+
 	/** Renamer sections list */
 	TArray<FAdvancedRenamerExecuteSection> Sections;
 
