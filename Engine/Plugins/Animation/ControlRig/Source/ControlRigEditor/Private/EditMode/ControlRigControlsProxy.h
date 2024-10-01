@@ -205,7 +205,7 @@ public:
 	void RemoveAllProxies();
 	void ProxyChanged(UControlRig* InControlRig, FRigControlElement* RigElement, bool bModify = true);
 	void RecreateAllProxies(UControlRig* InControlRig);
-	const TArray<UControlRigControlsProxy*> GetAllSelectedProxies() const;
+	const TArray<UControlRigControlsProxy*> GetAllSelectedProxies();
 	bool IsSelected(UControlRig* InControlRig, FRigControlElement* RigElement) const;
 	void SetSequencer(TWeakPtr<ISequencer> InSequencer) { Sequencer = InSequencer; }
 	ISequencer* GetSequencer() const { return Sequencer.Pin().Get(); }
