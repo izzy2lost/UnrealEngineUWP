@@ -55,7 +55,8 @@ namespace NiagaraSystemCookStats
 
 namespace NiagaraCompilationTasksImpl
 {
-	static const FGuid UE_NIAGARA_ASYNC_TASK_COMPILER_VER = FGuid(0x3076A815, 0x9F4F4E23, 0x99C2573E, 0xAC120D18);
+	static const FGuid UE_NIAGARA_ASYNC_TASK_COMPILER_VER = FGuid(0xB2E44F66, 0x59164A73, 0x8D687867, 0xFBBBB30B);
+	
 	static UE::DerivedData::FCacheBucket NiagaraDDCBucket("NiagaraScript");
 
 	void GetUsagesToDuplicate(ENiagaraScriptUsage TargetUsage, TArray<ENiagaraScriptUsage>& DuplicateUsages)
