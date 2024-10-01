@@ -831,7 +831,7 @@ void SDMMaterialWizard::CreateNewDynamicInstanceInActor(UDynamicMaterialModel* I
 		return;
 	}
 
-	UDynamicMaterialInstanceFactory* Factory = NewObject<UDynamicMaterialInstanceFactory>(GetTransientPackage());
+	UDynamicMaterialInstanceFactory* Factory = NewObject<UDynamicMaterialInstanceFactory>(GetTransientPackage(), TEXT("MaterialDesigner"));
 
 	UDynamicMaterialInstance* NewInstance = Cast<UDynamicMaterialInstance>(Factory->FactoryCreateNew(
 		UDynamicMaterialInstance::StaticClass(),
@@ -909,7 +909,7 @@ void SDMMaterialWizard::CreateTemplateMaterialInActor(FName InChannelList, FDMOb
 		return;
 	}
 
-	UDynamicMaterialInstanceFactory* Factory = NewObject<UDynamicMaterialInstanceFactory>(GetTransientPackage());
+	UDynamicMaterialInstanceFactory* Factory = NewObject<UDynamicMaterialInstanceFactory>(GetTransientPackage(), TEXT("MaterialDesigner"));
 
 	UDynamicMaterialInstance* NewInstance = Cast<UDynamicMaterialInstance>(Factory->FactoryCreateNew(
 		UDynamicMaterialInstance::StaticClass(),
@@ -930,6 +930,7 @@ void SDMMaterialWizard::CreateTemplateMaterialInActor(FName InChannelList, FDMOb
 	{
 		EditorOnlyData->SetChannelListPreset(InChannelList);
 		EditorOnlyData->OnWizardComplete();
+		EditorOnlyData->RequestMaterialBuild(/* Immediate */ true);
 	}
 
 	if (!UDMMaterialInstanceFunctionLibrary::SetMaterialInObject(InMaterialObjectProperty, NewInstance))

@@ -23,18 +23,23 @@ UDynamicMaterialInstanceFactory::UDynamicMaterialInstanceFactory()
 	bText = false;
 }
 
-UObject* UDynamicMaterialInstanceFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, 
-	EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
+UObject* UDynamicMaterialInstanceFactory::FactoryCreateNew(UClass* InClass, UObject* InParent, FName InName, 
+	EObjectFlags InFlags, UObject* InContext, FFeedbackContext* InWarn)
 {
-	check(Class->IsChildOf(UDynamicMaterialInstance::StaticClass()));
+	check(InClass->IsChildOf(UDynamicMaterialInstance::StaticClass()));
 
-	UDynamicMaterialInstance* NewInstance = NewObject<UDynamicMaterialInstance>(InParent, Class, Name, Flags | RF_Transactional);
+	if (InName.IsNone())
+	{
+		InName = TEXT("MaterialDesigner");
+	}
+
+	UDynamicMaterialInstance* NewInstance = NewObject<UDynamicMaterialInstance>(InParent, InClass, InName, InFlags | RF_Transactional);
 	check(NewInstance);
 
 	UDynamicMaterialModelFactory* EditorFactory = NewObject<UDynamicMaterialModelFactory>();
 	check(EditorFactory);
 
-	UDynamicMaterialModelBase* ModelBase = Cast<UDynamicMaterialModelBase>(Context);
+	UDynamicMaterialModelBase* ModelBase = Cast<UDynamicMaterialModelBase>(InContext);
 
 	if (!ModelBase)
 	{

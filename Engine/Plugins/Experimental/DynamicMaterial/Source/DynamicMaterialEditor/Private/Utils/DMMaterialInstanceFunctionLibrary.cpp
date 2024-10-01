@@ -103,7 +103,7 @@ UDynamicMaterialModel* UDMMaterialInstanceFunctionLibrary::CreateMaterialInObjec
 		return nullptr;
 	}
 
-	UDynamicMaterialInstanceFactory* const InstanceFactory = NewObject<UDynamicMaterialInstanceFactory>();
+	UDynamicMaterialInstanceFactory* const InstanceFactory = NewObject<UDynamicMaterialInstanceFactory>(Outer, TEXT("MaterialDesigner"));
 	check(InstanceFactory);
 
 	UDynamicMaterialInstance* const NewInstance = Cast<UDynamicMaterialInstance>(InstanceFactory->FactoryCreateNew(UDynamicMaterialInstance::StaticClass(),
