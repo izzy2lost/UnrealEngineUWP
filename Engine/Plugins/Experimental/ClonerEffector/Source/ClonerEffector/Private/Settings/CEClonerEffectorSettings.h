@@ -45,6 +45,8 @@ public:
 	{
 		return bReduceMotionGhosting;
 	}
+
+	void OpenSettings() const;
 #endif
 
 protected:
@@ -80,11 +82,11 @@ protected:
 #if WITH_EDITORONLY_DATA
 	/** Reduces the r.TSR.ShadingRejection.Flickering.Period from 3 (default) to 1 if enabled to avoid ghosting artifacts when moving */
 	UPROPERTY(Config, EditAnywhere, Category="Cloner")
-	bool bReduceMotionGhosting = false;
+	bool bReduceMotionGhosting = true;
 #endif
 
 private:
-#if WITH_EDITOR
+#if WITH_EDITORONLY_DATA
 	void EnableNoFlicker();
 	void DisableNoFlicker();
 	bool IsNoFlickerEnabled() const;
@@ -96,6 +98,7 @@ private:
 	IConsoleVariable* CVarTSRShadingRejectionFlickeringPeriod = nullptr;
 
 	/** Previous value to restore it when disabled */
+	UPROPERTY()
 	TOptional<int32> PreviousCVarValue;
 #endif
 };

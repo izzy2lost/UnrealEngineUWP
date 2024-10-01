@@ -8,6 +8,18 @@
 
 #if WITH_EDITOR
 #include "HAL/IConsoleManager.h"
+#include "ISettingsModule.h"
+#include "Modules/ModuleManager.h"
+#endif
+
+#if WITH_EDITOR
+void UCEClonerEffectorSettings::OpenSettings() const
+{
+	if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>(TEXT("Settings")))
+	{
+		SettingsModule->ShowViewer(GetContainerName(), GetCategoryName(), GetSectionName());
+	}
+}
 #endif
 
 UCEClonerEffectorSettings::UCEClonerEffectorSettings()
@@ -42,7 +54,7 @@ void UCEClonerEffectorSettings::PostInitProperties()
 		CVarTSRShadingRejectionFlickeringPeriod->OnChangedDelegate().AddUObject(this, &UCEClonerEffectorSettings::OnTSRShadingRejectionFlickeringPeriodChanged);
 	}
 
-	OnTSRShadingRejectionFlickeringPeriodChanged(CVarTSRShadingRejectionFlickeringPeriod);
+	OnReduceMotionGhostingChanged();
 #endif
 }
 
