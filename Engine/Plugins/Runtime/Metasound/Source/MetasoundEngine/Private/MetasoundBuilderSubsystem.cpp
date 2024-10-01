@@ -96,10 +96,31 @@ namespace Metasound::Engine
 	} // namespace BuilderSubsystemPrivate
 } // namespace Metasound::Engine
 
-
-TScriptInterface<IMetaSoundDocumentInterface> UMetaSoundPatchBuilder::Build(UObject* Parent, const FMetaSoundBuilderOptions& InBuilderOptions) const
+void UMetaSoundPatchBuilder::BuildAndOverwriteMetaSound(TScriptInterface<IMetaSoundDocumentInterface> ExistingMetaSound, bool bForceUniqueClassName)
 {
-	return &BuildInternal<UMetaSoundPatch>(Parent, InBuilderOptions);
+	if (!ExistingMetaSound || !ExistingMetaSound.GetObject()->IsAsset())
+	{
+		UE_LOG(LogMetaSound, Error, TEXT("Failed to build and overwrite MetaSound: No existing MetaSound supplied or is serialized asset "
+			"(use 'BuildNewMetaSound' to create a new, transient MetaSound. Overwriting serialized asset is only supported at edit time via "
+			"UMetaSoundEditorSubsystem::BuildToAsset."));
+		return;
+	}
+
+	FMetaSoundBuilderOptions Options;
+	Options.ExistingMetaSound = ExistingMetaSound;
+	Options.bForceUniqueClassName = bForceUniqueClassName;
+	constexpr UObject* Parent = nullptr;
+
+	BuildInternal<UMetaSoundPatch>(Parent, Options);
+}
+
+TScriptInterface<IMetaSoundDocumentInterface> UMetaSoundPatchBuilder::BuildNewMetaSound(FName NameBase) const
+{
+	FMetaSoundBuilderOptions Options;
+	Options.Name = NameBase;
+	constexpr UObject* Parent = nullptr;
+
+	return &BuildInternal<UMetaSoundPatch>(Parent, Options);
 }
 
 const UClass& UMetaSoundPatchBuilder::GetBaseMetaSoundUClass() const
@@ -249,9 +270,31 @@ bool UMetaSoundSourceBuilder::ExecuteAuditionableTransaction(FAuditionableTransa
 	return false;
 }
 
-TScriptInterface<IMetaSoundDocumentInterface> UMetaSoundSourceBuilder::Build(UObject* Parent, const FMetaSoundBuilderOptions& InBuilderOptions) const
+void UMetaSoundSourceBuilder::BuildAndOverwriteMetaSound(TScriptInterface<IMetaSoundDocumentInterface> ExistingMetaSound, bool bForceUniqueClassName)
 {
-	return &BuildInternal<UMetaSoundSource>(Parent, InBuilderOptions);
+	if (!ExistingMetaSound || !ExistingMetaSound.GetObject()->IsAsset())
+	{
+		UE_LOG(LogMetaSound, Error, TEXT("Failed to build and overwrite MetaSound: No existing MetaSound supplied or is serialized asset "
+			"(use 'BuildNewMetaSound' to create a new, transient MetaSound. Overwriting serialized asset is only supported at edit time via "
+			"UMetaSoundEditorSubsystem::BuildToAsset."));
+		return;
+	}
+
+	FMetaSoundBuilderOptions Options;
+	Options.ExistingMetaSound = ExistingMetaSound;
+	Options.bForceUniqueClassName = bForceUniqueClassName;
+	constexpr UObject* Parent = nullptr;
+
+	BuildInternal<UMetaSoundSource>(Parent, Options);
+}
+
+TScriptInterface<IMetaSoundDocumentInterface> UMetaSoundSourceBuilder::BuildNewMetaSound(FName NameBase) const
+{
+	FMetaSoundBuilderOptions Options;
+	Options.Name = NameBase;
+	constexpr UObject* Parent = nullptr;
+
+	return &BuildInternal<UMetaSoundSource>(Parent, Options);
 }
 
 const Metasound::Engine::FOutputAudioFormatInfoPair* UMetaSoundSourceBuilder::FindOutputAudioFormatInfo() const

@@ -87,12 +87,13 @@ struct METASOUNDENGINE_API FMetaSoundBuilderOptions
 	GENERATED_BODY()
 
 	// Name of generated object. If object already exists, used as the base name to ensure new object is unique.
+	// If left 'None', creates unique name.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MetaSound|Builder")
 	FName Name;
 
 	// If the resulting MetaSound is building over an existing document, a unique class name will be generated,
 	// invalidating any referencing MetaSounds and registering the MetaSound as a new entry in the Frontend. If
-	// building a new document, option is ignored.
+	// building a new document, option is ignored (new document always generates a unique class name).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MetaSound|Builder", meta = (AdvancedDisplay))
 	bool bForceUniqueClassName = false;
 
@@ -435,7 +436,25 @@ public:
 	UE_DEPRECATED(5.5, "Call directly on Frontend builder using 'GetBuilder'")
 	void UpdateDependencyClassNames(const TMap<FMetasoundFrontendClassName, FMetasoundFrontendClassName>& OldToNewReferencedClassNames);
 
-	virtual TScriptInterface<IMetaSoundDocumentInterface> Build(UObject* Parent, const FMetaSoundBuilderOptions& Options) const PURE_VIRTUAL(UMetaSoundBuilderBase::Build, return { }; );
+	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (
+		WorldContext = "Parent",
+		DeprecatedFunction,
+		DeprecationMessage = "MetaSounds must now be top-level objects within a package.  Use 'BuildAndOverwriteMetaSound' to copy this builder's implementation over an existing transient MetaSound or 'BuildNewMetaSound' to generate a new, transient MetaSound. Use 'MetaSoundEditorSubsystem::BuildToAsset' to build a copied MetaSound as a new, serialized asset (editor only)."))
+	virtual UPARAM(DisplayName = "MetaSound") TScriptInterface<IMetaSoundDocumentInterface> Build(UObject* Parent, const FMetaSoundBuilderOptions& Options) const { return BuildNewMetaSound(Options.Name); }
+
+	// Copies a transient MetaSound with the provided builder options, copying the underlying MetaSound
+	// managed by this builder and registering it with the MetaSound Node Registry as a unique name.
+	// If 'Force Unique Class Name' is true, registers MetaSound as a new class in the registry, potentially
+	// invalidating existing references in other MetaSounds.
+	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (DisplayName = "Build And Overwrite MetaSound", AdvancedDisplay = "1"))
+	virtual void BuildAndOverwriteMetaSound(UPARAM(DisplayName = "Existing MetaSound") TScriptInterface<IMetaSoundDocumentInterface> ExistingMetaSound, bool bForceUniqueClassName = false) PURE_VIRTUAL(UMetaSoundBuilderBase::BuildAndOverwriteMetaSound, ;);
+
+	// Builds a transient MetaSound with the provided builder options, copying the underlying MetaSound
+	// managed by this builder and registering it with the MetaSound Node Registry as a unique class. If
+	// existing MetaSound exists with the provided NameBase, will make object with unique name with the given
+	// NameBase as prefix.
+	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (DisplayName = "Build New MetaSound"))
+	virtual UPARAM(DisplayName = "New MetaSound") TScriptInterface<IMetaSoundDocumentInterface> BuildNewMetaSound(FName NameBase) const PURE_VIRTUAL(UMetaSoundBuilderBase::BuildNewMetaSound, return { }; );
 
 	virtual bool ConformObjectToDocument();
 
