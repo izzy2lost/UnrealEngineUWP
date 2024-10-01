@@ -764,6 +764,12 @@ namespace mu
 
 		//MUTABLE_CPUPROFILER_SCOPE(NodeImageSwizzle);
 
+		if (node.m_format == EImageFormat::IF_NONE)
+		{
+			Result.op = GenerateMissingImageCode(TEXT("Make Texture channel."), EImageFormat::IF_L_UBYTE, InNode->GetMessageContext(), Options);
+			return;
+		}
+
         // This node always produces a swizzle operation and sometimes it may produce a pixelformat
 		// operation to compress the Result
         Ptr<ASTOpImageSwizzle> SwizzleOp = new ASTOpImageSwizzle();
@@ -776,7 +782,7 @@ namespace mu
         case EImageFormat::IF_BC1:
         case EImageFormat::IF_ASTC_4x4_RGB_LDR:
             CompressedFormat = node.m_format;
-            SwizzleOp->Format = node.m_sources[3] ? EImageFormat::IF_RGBA_UBYTE : EImageFormat::IF_RGB_UBYTE;
+            SwizzleOp->Format = (node.m_sources.IsValidIndex(3) && node.m_sources[3]) ? EImageFormat::IF_RGBA_UBYTE : EImageFormat::IF_RGB_UBYTE;
 			break;
 
 		case EImageFormat::IF_BC2:
