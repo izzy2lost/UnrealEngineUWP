@@ -26,7 +26,6 @@ namespace HarmonixMetasound::Nodes::MidiClockSubdivisionTriggerNode::Tests
 		(*Clock)->SetTransportState(0, EMusicPlayerTransportState::Playing);
 
 		Harmonix::Midi::Ops::FPulseGenerator PulseGenerator;
-		PulseGenerator.SetClock((*Clock)->AsShared());
 
 		// Render for a bit and expect the same output from both the node and the raw processor
 		constexpr int32 NumBlocks = 1000;
@@ -42,7 +41,7 @@ namespace HarmonixMetasound::Nodes::MidiClockSubdivisionTriggerNode::Tests
 			Generator->OnGenerateAudio(Buffer.GetData(), Buffer.Num());
 
 			TArray<int32> PulseGeneratorTriggers;
-			PulseGenerator.Process([&PulseGeneratorTriggers](const Harmonix::Midi::Ops::FPulseGenerator::FPulseInfo& Pulse)
+			PulseGenerator.Process(*Clock.GetValue(), [&PulseGeneratorTriggers](const Harmonix::Midi::Ops::FPulseGenerator::FPulseInfo& Pulse)
 			{
 				PulseGeneratorTriggers.Add(Pulse.BlockFrameIndex);
 			});
