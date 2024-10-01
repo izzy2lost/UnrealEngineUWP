@@ -312,14 +312,11 @@ void FAvaLevelViewportExtension::SetViewportType(const TSharedRef<FUICommandInfo
 		return;
 	}
 
-	TSharedPtr<SLevelViewport> ActiveLevelViewport = LevelEditor->GetActiveViewportInterface();
-
-	if (!ActiveLevelViewport.IsValid())
+	TSharedPtr<FUICommandList> CommandList;
+	if (TSharedPtr<SLevelViewport> ActiveLevelViewport = LevelEditor->GetActiveViewportInterface())
 	{
-		return;
+		CommandList = ActiveLevelViewport->GetCommandList();
 	}
-
-	TSharedPtr<FUICommandList> CommandList = ActiveLevelViewport->GetCommandList();
 
 	if (!CommandList.IsValid())
 	{
