@@ -616,9 +616,7 @@ public:
 
 	/** Return the min LOD that will be used in the next Instance update. */
 	int32 GetMinLODToLoad() const;
-
-	int32 GetNumLODsAvailable() const;
-
+	
 	/** Return the min LOD this Instance is using. */
 	int32 GetCurrentMinLOD() const;
 

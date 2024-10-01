@@ -604,9 +604,6 @@ public:
 	int64 UpdateStartBytes = 0;
 	int64 UpdateEndPeakBytes = 0;
 	int64 UpdateEndRealPeakBytes = 0;
-	
-	/** Used for profiling in the editor. */
-	uint32 MutableRuntimeCycles = 0;
 
 	/** If a InstanceUsage is in this set it means that its AttachParent has been modified (USkeletalMesh changed, UMaterial changed...). */
 	TSet<TWeakObjectPtr<UCustomizableObjectInstanceUsage>> AttachedParentUpdated;

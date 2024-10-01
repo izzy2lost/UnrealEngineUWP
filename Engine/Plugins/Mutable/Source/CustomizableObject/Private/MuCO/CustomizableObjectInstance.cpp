@@ -6870,12 +6870,6 @@ int32 UCustomizableObjectInstance::GetMinLODToLoad() const
 }
 
 
-int32 UCustomizableObjectInstance::GetNumLODsAvailable() const
-{
-	return GetPrivate()->GetNumLODsAvailable();
-}
-
-
 int32 UCustomizableObjectInstance::GetCurrentMinLOD() const
 {
 	return GetPrivate()->CommittedDescriptor.GetMinLod();
