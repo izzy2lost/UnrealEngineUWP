@@ -32,7 +32,7 @@ EMassActorSpawnRequestAction UInstancedActorsRepresentationActorManagement::OnPo
 		{
 			if (USceneComponent* RootComponent = Actor->GetRootComponent())
 			{
-				RootComponent->TransformUpdated.AddUObject(this, &UInstancedActorsRepresentationActorManagement::OnSpawnedBuildingActorMoved, MassActorSpawnRequest.MassAgent);
+				RootComponent->TransformUpdated.AddUObject(this, &UInstancedActorsRepresentationActorManagement::OnSpawnedActorMoved, MassActorSpawnRequest.MassAgent);
 			}
 		}
 
@@ -70,9 +70,8 @@ void UInstancedActorsRepresentationActorManagement::SetActorEnabled(const EMassA
 				});
 		}
 
-		// mz@todo IA: reconsider
+		// mz@todo IA: reconsider for generic use, should probably be configurable.
 		// Don't call Super::SetActorEnabled when enabling, to skip default implementation of enabling tick which we don't want to do
-		// for BuildingActor's etc
 	}
 	else
 	{
@@ -126,7 +125,7 @@ void UInstancedActorsRepresentationActorManagement::OnSpawnedActorDestroyed(AAct
 	}
 }
 
-void UInstancedActorsRepresentationActorManagement::OnSpawnedBuildingActorMoved(USceneComponent* MovedActorRootComponent, EUpdateTransformFlags TransformUpdateFlags, ETeleportType TeleportType, FMassEntityHandle EntityHandle) const
+void UInstancedActorsRepresentationActorManagement::OnSpawnedActorMoved(USceneComponent* MovedActorRootComponent, EUpdateTransformFlags TransformUpdateFlags, ETeleportType TeleportType, FMassEntityHandle EntityHandle) const
 {
 	check(IsValid(MovedActorRootComponent));
 

@@ -674,7 +674,8 @@ UInstancedActorsData* AInstancedActorsManager::CreateNextInstanceActorData(TSubc
 {
 	check(InstancedActorsDataClass);
 
-	UInstancedActorsData* NewInstanceData = NewObject<UInstancedActorsData>(this, InstancedActorsDataClass);
+	const FString InstanceDataNameStr = FString::Printf(TEXT("InstancedActorsData_%s"), *ActorClass->GetFName().ToString());
+	UInstancedActorsData* NewInstanceData = NewObject<UInstancedActorsData>(this, InstancedActorsDataClass, FName(InstanceDataNameStr));
 	// @todo it's conceivable the NextInstanceDataID will overflow. We need to use some handle system in place instead. 
 	NewInstanceData->ID = NextInstanceDataID++;
 	NewInstanceData->ActorClass = ActorClass;

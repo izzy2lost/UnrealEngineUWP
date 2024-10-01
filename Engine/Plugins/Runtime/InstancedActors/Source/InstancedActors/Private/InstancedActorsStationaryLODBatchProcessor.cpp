@@ -206,8 +206,7 @@ void UInstancedActorsStationaryLODBatchProcessor::Execute(FMassEntityManager& En
 						Settings.DetailedRepresentationLODDistance
 					);
 
-					EInstancedActorsBulkLOD NewBulkLOD = EInstancedActorsBulkLOD::Off;
-
+					// Calculates distance sqr from the viewer to the bounds of the InstancedActorManager who owns the FInstancedActorsDataSharedFragment
 					const FBox WorldSpaceBounds = InstanceData->Bounds.TransformBy(InstanceData->GetManagerChecked().GetActorTransform());
 					FVector::FReal DistanceSquared = TNumericLimits<FVector::FReal>::Max();
 
@@ -229,9 +228,11 @@ void UInstancedActorsStationaryLODBatchProcessor::Execute(FMassEntityManager& En
 					}
 #endif
 
-					// Compute scaled squared draw distance to the lowest LOD because cvar could change
+					// Calculates LOD for a given FInstancedActorsDataSharedFragment based on the distance from the viewer to its owner's bounds
+					// NOTE (1): It's called bulk LOD because we're only comparing the viewer to the InstancedActorManager, and not to a specific instance inside it
+					// NOTE (2): We're caching the scaled squared draw distance to the lowest LOD because the cvar could change
 					const float ScaledForceLowLODDrawDistance = InstanceData->LowLODDrawDistance / StaticMeshLODDistanceScale;
-
+					EInstancedActorsBulkLOD NewBulkLOD = EInstancedActorsBulkLOD::Off;
 					if (DistanceSquared < ForcedDetailedLevelDistanceSquared)
 					{
 						NewBulkLOD = EInstancedActorsBulkLOD::Detailed;
@@ -252,18 +253,20 @@ void UInstancedActorsStationaryLODBatchProcessor::Execute(FMassEntityManager& En
 					}
 
 					check(NewBulkLOD != EInstancedActorsBulkLOD::MAX);
+					// Updates the time at which the FInstancedActorsDataSharedFragment will tick depending on its bulk LOD value
 					NextTickTime = CurrentTime + (DelayPerBulkLOD[(int)NewBulkLOD] * 0.95 + FMath::FRand() * 0.1);
 
-					if (ManagerSharedFragment.BulkLOD != NewBulkLOD)
+					if (const bool bHasBulkLODChanged = (ManagerSharedFragment.BulkLOD != NewBulkLOD))
 					{
-						// Dec stats with current state
-						AInstancedActorsManager::UpdateInstanceStats(InstanceData->NumInstances, ManagerSharedFragment.BulkLOD, false);
+						// Decrements stats with current state, and then increments stats with the new one
+						{
+							AInstancedActorsManager::UpdateInstanceStats(InstanceData->NumInstances, ManagerSharedFragment.BulkLOD, false);
+							ManagerSharedFragment.BulkLOD = NewBulkLOD;
+							AInstancedActorsManager::UpdateInstanceStats(InstanceData->NumInstances, ManagerSharedFragment.BulkLOD, true);
+						}
 
-						ManagerSharedFragment.BulkLOD = NewBulkLOD;
-
-						// Inc stats with new state
-						AInstancedActorsManager::UpdateInstanceStats(InstanceData->NumInstances, ManagerSharedFragment.BulkLOD, true);
-
+						// Toggles physics state for the IA's ISM depending on the new bulk LOD value.
+						// If enabled = physics on, else = physics off.				
 						if (UE::Mass::Tweakables::bControlPhysicsState && Settings.bControlPhysicsState)
 						{
 							if (NewBulkLOD == EInstancedActorsBulkLOD::Detailed)
@@ -304,6 +307,8 @@ void UInstancedActorsStationaryLODBatchProcessor::Execute(FMassEntityManager& En
 						}
 
 						{
+							// Toggles visibility for the IA's ISM depending on the new bulk LOD value.
+							// If enabled = use default visibility (probably on), else = physics off.
 							if (NewBulkLOD != EInstancedActorsBulkLOD::Off)
 							{
 								const bool bForcedLowLOD = NewBulkLOD == EInstancedActorsBulkLOD::Low;
@@ -333,28 +338,28 @@ void UInstancedActorsStationaryLODBatchProcessor::Execute(FMassEntityManager& En
 								});
 							}
 						}
-
+						// Toggles MassProcessors on/off depending on the bulk LOD, by pushing or removing tags that are used by those processor's queries.
+						// NOTE: Forcibly updates the mass LOD to off or low when bulk LOD is smaller than Detailed
 						if (ManagerSharedFragment.BulkLOD == EInstancedActorsBulkLOD::Detailed)
 						{
 							EntityManager.Defer().PushCommand<UE::InstancedActors::FEnableDetailedLODCommand>(InstanceData->Entities);
 						}
 						else
 						{
-							// force given LOD for all the hosted entities 
+							// Force given LOD for all the hosted entities 
 							EMassLOD::Type NewLOD = EMassLOD::Off;
 							switch (ManagerSharedFragment.BulkLOD)
 							{
-							case EInstancedActorsBulkLOD::Medium:
-								// NewLOD = EMassLOD::Medium;
-								// break;
-								// right now falling through since we don't have a medium-level visualization
+							case EInstancedActorsBulkLOD::Medium: // right now falling through since we don't have a medium-level visualization
 							case EInstancedActorsBulkLOD::Low:
 								NewLOD = EMassLOD::Low;
 								break;
-							default: // defaulting to Off, as per initial NewLOD value
+							default:
+								NewLOD = EMassLOD::Off;
 								break;
 							}
 
+							// Grabs entity collections from the entities stored by the fragment we're processing, so that we can process them as chunks
 							TArray<FMassArchetypeEntityCollection> EntityCollections;
 							UE::Mass::Utils::CreateEntityCollections(EntityManager, InstanceData->Entities, FMassArchetypeEntityCollection::NoDuplicates, EntityCollections);
 
@@ -397,6 +402,7 @@ void UInstancedActorsStationaryLODBatchProcessor::Execute(FMassEntityManager& En
 		}
 
 		// Consume all pending explicitly dirtied instances to process
+		// NOTE: Those instances are dirtied whenever an InstancedActor is hydrated/dehydrated (check UInstancedActorsData::SetReplicatedActor)
 		TArray<FInstancedActorsInstanceHandle> DirtyRepresentationInstances;
 		InstancedActorSubsystem->PopAllDirtyRepresentationInstances(DirtyRepresentationInstances);
 
@@ -429,13 +435,14 @@ void UInstancedActorsStationaryLODBatchProcessor::Execute(FMassEntityManager& En
 
 			if (DirtyEntitiesByArchetype.Num())
 			{
+				// Converts collected mass entities to collections, which we'll then process afterwards as entity chunks
 				TArray<FMassArchetypeEntityCollection> DirtyEntityCollections;
 				for (TPair<const FMassArchetypeHandle, TArray<FMassEntityHandle>>& Pair : DirtyEntitiesByArchetype)
 				{
 					DirtyEntityCollections.Add(FMassArchetypeEntityCollection(Pair.Key, Pair.Value, FMassArchetypeEntityCollection::EDuplicatesHandling::FoldDuplicates));
 				}
 
-				// Ensure detailed representation update occurs for explicitly dirtied instanced actor entities with non-detailed BulkLOD 
+				// Ensure that detailed representation update occurs for explicitly dirtied instanced actor entities with non-detailed BulkLOD 
 				DirtyVisualizationEntityQuery.ForEachEntityChunkInCollections(DirtyEntityCollections, EntityManager, Context, [](FMassExecutionContext& Context)
 					{
 						// It's possible that we've only just switched to Non-Detailed this frame, the tag removal to prevent regular processing wouldn't have

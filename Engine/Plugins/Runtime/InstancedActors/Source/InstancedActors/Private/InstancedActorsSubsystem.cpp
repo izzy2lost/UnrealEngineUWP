@@ -474,7 +474,8 @@ FInstancedActorsInstanceHandle UInstancedActorsSubsystem::InstanceActor(TSubclas
 	FVector CellCenter(ForceInitToZero);
 	
 	// If this is a world partition world we want to be in the centre of a cell.
-	const bool bIsPartitionedWorld = Level->GetWorld()->IsPartitionedWorld();
+	const bool bIsPartitionedLevel = (Level->GetWorldPartitionRuntimeCell() != nullptr);
+	const bool bIsPartitionedWorld = bIsPartitionedLevel || Level->GetWorld()->IsPartitionedWorld();
 	if (bIsPartitionedWorld)
 	{
 		FBox CellBounds = UActorPartitionSubsystem::FCellCoord::GetCellBounds(CellCoord, ManagerGridSize);
@@ -482,7 +483,6 @@ FInstancedActorsInstanceHandle UInstancedActorsSubsystem::InstanceActor(TSubclas
 	}
 
 	// Note: These will be re-compiled at runtime in UInstancedActorsData::BeginPlay, and may differ as such.
-	//TSharedPtr<const FInstancedActorsSettings> Settings = GetOrCompileSettingsForActorClass(ActorClass);
 	FSharedStruct SharedSettings = GetOrCompileSettingsForActorClass(ActorClass);
 	const FInstancedActorsSettings& Settings = SharedSettings.Get<FInstancedActorsSettings>();
 

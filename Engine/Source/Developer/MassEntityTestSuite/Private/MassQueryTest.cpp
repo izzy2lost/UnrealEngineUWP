@@ -12,16 +12,6 @@
 
 #define LOCTEXT_NAMESPACE "MassTest"
 
-/**
-mz@todo:
-	- add a test for requirement mode (read/write, absent, [future] optional)
-	- test Present/Absent modes for tags
-	- test Present/Absent modes for non-tag fragments
-	- read/write tag fragments 
-	- constructs like Query.AddRequirement<FTestFragment_Tag>(EMassFragmentAccess::ReadWrite);
-	- constructs like Query.AddRequirement<FTestFragment_Int>(EMassFragmentAccess::ReadWrite, Absent);
-*/
-
 
 namespace FMassQueryTest
 {

@@ -36,5 +36,5 @@ protected:
 	//~ End UMassRepresentationActorManagement Overrides
 
 	INSTANCEDACTORS_API void OnSpawnedActorDestroyed(AActor& DestroyedActor, FMassEntityHandle EntityHandle) const;
-	INSTANCEDACTORS_API void OnSpawnedBuildingActorMoved(USceneComponent* MovedActorRootComponent, EUpdateTransformFlags TransformUpdateFlags, ETeleportType TeleportType, FMassEntityHandle EntityHandle) const;
+	INSTANCEDACTORS_API void OnSpawnedActorMoved(USceneComponent* MovedActorRootComponent, EUpdateTransformFlags TransformUpdateFlags, ETeleportType TeleportType, FMassEntityHandle EntityHandle) const;
 };

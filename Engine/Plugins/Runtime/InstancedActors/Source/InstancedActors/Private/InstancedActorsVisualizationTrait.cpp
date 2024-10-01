@@ -25,6 +25,8 @@ UInstancedActorsVisualizationTrait::UInstancedActorsVisualizationTrait(const FOb
 	bAllowServerSideVisualization = true;
 	RepresentationSubsystemClass = UInstancedActorsRepresentationSubsystem::StaticClass();
 
+	// Avoids registering the Static Mesh Descriptor during BuildTemplate, as it's already added
+	// during UInstancedActorsManagers InitializeModifySpawn flow.
 	bRegisterStaticMeshDesc = false;
 }
 

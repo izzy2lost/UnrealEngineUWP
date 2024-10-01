@@ -112,9 +112,10 @@ FStaticMeshInstanceVisualizationDescHandle UMassVisualizationComponent::AddVisua
 	
 	UE_MT_SCOPED_WRITE_ACCESS(InstancedStaticMeshInfosDetector);
 
+
+	// 0. Iterate over all meshes in the visualization desc. Each mesh is a descriptor.
 	FStaticMeshInstanceVisualizationDescHandle VisualHandle;
 	TArray<UInstancedStaticMeshComponent*> ISMComponentsUsed;
-
 	for (int32 EntryIndex = 0; EntryIndex < Desc.Meshes.Num(); ++EntryIndex)
 	{
 		const FMassStaticMeshInstanceVisualizationMeshDesc& MeshDesc = Desc.Meshes[EntryIndex];
@@ -125,17 +126,23 @@ FStaticMeshInstanceVisualizationDescHandle UMassVisualizationComponent::AddVisua
 			continue;
 		}
 	
+		// 1. Creates a VisualHandle that will be used for all ISMCs
 		if (!VisualHandle.IsValid())
 		{
 			VisualHandle = AddInstancedStaticMeshInfo(Desc);
 			check(VisualHandle.IsValid());
 		}
 
+		// 2. Stores one FMassISMCSharedData for each ISMC in ISMCSharedData
+		// NOTE: FMassISMCSharedData stores a reference to an ISMC and instance transform updates performed in the current frame.
 		FMassISMCSharedData& NewData = ISMCSharedData.FindOrAdd(ISMComponents[EntryIndex], FMassISMCSharedData(ISMComponents[EntryIndex], /*bInRequiresExternalInstanceIDTracking=*/true));
+		// 3. Stores the newly created FMassISMCSharedData in a VisualHandle -> FMassISMCSharedData array
+		// NOTE: This means that one VisualHandle may reference multiple FMassISMCSharedData
 		InstancedStaticMeshInfos[VisualHandle.ToIndex()].AddISMComponent(NewData);
-		ISMComponentsUsed.Add(ISMComponents[EntryIndex]);
-	
+		// 4. Stores an ISMC -> VisualHandle map, which allows us to later on use an ISMC to query for its FMassISMCSharedData
 		ISMComponentMap.Add(ISMComponents[EntryIndex], VisualHandle);
+
+		ISMComponentsUsed.Add(ISMComponents[EntryIndex]);
 	}
 
 	if (VisualHandle.IsValid())
