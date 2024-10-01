@@ -90,7 +90,7 @@
 		{
 			"Name": "LibVpxCodecs",
 			"Enabled": true,
-			"PlatformAllowList": [ "Win64", "Linux" ]
+			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
 		},
 		{
 			"Name": "WebSocketNetworking",
