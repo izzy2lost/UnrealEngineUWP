@@ -140,6 +140,14 @@ static TAutoConsoleVariable<bool> CVarOpenXRUseWaitCountToAvoidExtraXrBeginFrame
 	TEXT("If true we use the WaitCount in the PipelinedFrameState to avoid extra xrBeginFrame calls.  Without this level loads can cause two additional xrBeginFrame calls.\n"),
 	ECVF_Default);
 
+static TAutoConsoleVariable<bool> CVarOpenXRLateUpdateDeviceLocationsAfterReflections(
+	TEXT("xr.OpenXRLateUpdateDeviceLocationsAfterReflections"),
+	false,
+	TEXT("If true, delays snapshotting device late update poses until OnBeginRendering_RenderThread, after planar reflections.\n")
+	TEXT("This is necessary to get accurate late update poses for some platforms, and will reduce apparent latency, but will also cause visual lag in planar reflections.\n")
+	TEXT("If you aren't using planar reflections in your project, you can safely enable this to get late update poses as late as possible.\n"),
+	ECVF_Default);
+
 namespace {
 	static TSet<XrViewConfigurationType> SupportedViewConfigurations{ XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_QUAD_VARJO };
 
@@ -3147,8 +3155,13 @@ void FOpenXRHMD::OnBeginRendering_RenderThread(FRHICommandListImmediate& RHICmdL
 		Module->OnBeginRendering_RenderThread(Session);
 	}
 	
-	// Snapshot new poses for late update.
-	UpdateDeviceLocations(false);
+	// Snapshot new poses for late update. We either do this here, or queue it from OnBeginRendering_GameThread().
+	// If we do it here, it's guaranteed that all platforms will have late update poses available,
+	// but planar reflections will be rendered with pre-late update poses, causing them to visually lag behind the rest of the scene.
+	if (CVarOpenXRLateUpdateDeviceLocationsAfterReflections.GetValueOnRenderThread())
+	{
+		UpdateDeviceLocations(false);
+	}
 	
 	SetupFrameLayers_RenderThread(RHICmdList);
 
@@ -3322,7 +3335,15 @@ void FOpenXRHMD::OnBeginRendering_GameThread()
 
 			UE_LOG(LogHMD, VeryVerbose, TEXT("%s WF_%i FOpenXRHMD TransferFrameStateToRenderingThread"), HMDThreadString(), GameFrameState.WaitCount);
 			PipelinedFrameStateRendering = GameFrameState;
-			
+
+			// Snapshot new poses for late update. We either do this here, or in OnBeginRendering_RenderThread().
+			// If we do it here, we'll have the correct late update poses for reflection rendering, but may end up getting the same
+			// poses as we had before late update on some platforms because they don't have new poses available yet.
+			if (!CVarOpenXRLateUpdateDeviceLocationsAfterReflections.GetValueOnRenderThread())
+			{
+				UpdateDeviceLocations(false);
+			}
+
 			PipelinedLayerStateRendering.LayerStateFlags = EOpenXRLayerStateFlags::None;
 
 			// If we are emulating layers, we still need to submit background layer since we composite into it

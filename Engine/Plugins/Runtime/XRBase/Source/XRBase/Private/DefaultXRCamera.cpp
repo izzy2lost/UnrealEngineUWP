@@ -197,10 +197,12 @@ void FDefaultXRCamera::PreRenderView_RenderThread(FRDGBuilder& GraphBuilder, FSc
 				View.ViewLocation += LocalDeltaControlOrientation.RotateVector(DeltaPosition);
 			}
 
-			// Planar reflections use mirrored view matrices, handled in UpdatePlanarReflectionContents
-			if (!View.bIsPlanarReflection)
+			View.UpdateViewMatrix();
+
+			// UpdateViewMatrix() will un-mirror planar reflection view matrices, we need to re-mirror them
+			if (View.bIsPlanarReflection)
 			{
-				View.UpdateViewMatrix();
+				View.UpdatePlanarReflectionViewMatrix(View, FMirrorMatrix(View.GlobalClippingPlane));
 			}
 		}
 	}
