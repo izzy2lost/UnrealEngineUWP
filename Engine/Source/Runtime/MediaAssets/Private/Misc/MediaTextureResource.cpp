@@ -512,11 +512,6 @@ void FMediaTextureResource::Render(const FRenderParams& Params)
 						else
 						{
 							UpdateTextureReference(RHICmdList, OutTexture);
-							if (Converter->GetConverterInfoFlags() & IMediaTextureSampleConverter::ConverterInfoFlags_PreprocessOnly)
-							{
-								// ...followed by the built in conversion code as needed...
-								ConvertOrCopyNeeded = true;
-							}
 						}
 					}
 				}
@@ -866,7 +861,6 @@ bool FMediaTextureResource::RequiresConversion(const FTextureRHIRef& SampleTextu
 		(Format != PF_R8G8B8A8) &&
 		(Format != PF_FloatRGB) &&
 		(Format != PF_A16B16G16R16) &&
-		(Format != PF_A2B10G10R10) &&
 		(Format != PF_FloatRGBA));
 }
  
