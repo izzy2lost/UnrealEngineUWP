@@ -17,7 +17,7 @@ public:
 	
 public:
 	CMVideoCodecType Codec;
-    CMVideoFormatDescriptionRef VideoFormat;
+    CMVideoFormatDescriptionRef VideoFormat = nullptr;
 
 	FVideoDecoderConfigVT()
 		: FAVConfig()

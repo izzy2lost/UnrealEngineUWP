@@ -142,8 +142,13 @@ TSharedPtr<FVideoResourceRHI> FVideoResourceRHI::Create(TSharedPtr<FAVDevice> co
 		FRHITextureCreateDesc TextureDesc = FRHITextureCreateDesc::Create2D(TEXT("AVCodecs Resource"), Descriptor.Width, Descriptor.Height, static_cast<EPixelFormat>(Descriptor.Format));
 
 		TextureDesc.SetClearValue(FClearValueBinding::None);
+#if AVCODECS_USE_METAL
+		TextureDesc.SetFlags(ETextureCreateFlags::CPUReadback);
+		TextureDesc.SetInitialState(ERHIAccess::CPURead);
+#else
     	TextureDesc.SetFlags(ETextureCreateFlags::RenderTargetable);
 		TextureDesc.SetInitialState(ERHIAccess::Present);
+#endif
 
 		TextureDesc.SetNumMips(1);
 
