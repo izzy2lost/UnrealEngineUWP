@@ -32,7 +32,7 @@ extern void OnCVarWaterInfoSceneProxiesValueChanged(IConsoleVariable*);
 static TAutoConsoleVariable<int32> CVarWaterInfoRenderMethod(
 	TEXT("r.Water.WaterInfo.RenderMethod"),
 	2,
-	TEXT("0: SceneCaptures, 1: Custom, 2: CustomRenderPasses"),
+	TEXT("1: Custom, 2: CustomRenderPasses"),
 	FConsoleVariableDelegate::CreateStatic(OnCVarWaterInfoSceneProxiesValueChanged),
 	ECVF_Default | ECVF_RenderThreadSafe);
 
@@ -432,13 +432,9 @@ void FWaterViewExtension::RenderWaterInfoTexture(FSceneViewFamily& InViewFamily,
 	check(ViewPlayerIndex != INDEX_NONE);
 
 	const UE::WaterInfo::FRenderingContext& Context(WaterZoneInfo->RenderContext);
-	// Old method of rendering the water info texture; uses scene captures
-	if (WaterInfoRenderMethod == 0)
-	{
-		UE::WaterInfo::UpdateWaterInfoRendering(Scene, Context, ZoneCenter);
-	}
+	
 	// Render the water info texture using custom render pass method
-	else if (WaterInfoRenderMethod == 2)
+	if (WaterInfoRenderMethod == 2)
 	{
 		UE::WaterInfo::UpdateWaterInfoRendering_CustomRenderPass(Scene, InViewFamily, Context, ViewPlayerIndex, ZoneCenter);
 	}
@@ -446,6 +442,10 @@ void FWaterViewExtension::RenderWaterInfoTexture(FSceneViewFamily& InViewFamily,
 	else if (WaterInfoRenderMethod == 1)
 	{
 		UE::WaterInfo::UpdateWaterInfoRendering2(InView, Context, ViewPlayerIndex, ZoneCenter);
+	}
+	else if (WaterInfoRenderMethod == 0)
+	{
+		UE_LOG(LogWater, Error, TEXT("Water Info Render Method 0 is deprecated and no longer functions! Please set r.Water.WaterInfo.RenderMethod to either 1 or 2"));
 	}
 }
 

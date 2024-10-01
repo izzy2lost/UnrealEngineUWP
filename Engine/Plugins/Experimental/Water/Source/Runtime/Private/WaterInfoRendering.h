@@ -27,11 +27,6 @@ struct FRenderingContext
 	TArray<TWeakObjectPtr<UPrimitiveComponent>> GroundPrimitiveComponents;
 	float CaptureZ;
 };
-	
-void UpdateWaterInfoRendering(
-	FSceneInterface* Scene,
-	const FRenderingContext& Context,
-	const FVector& WaterInfoCenter);
 
 void UpdateWaterInfoRendering2(
 	FSceneView& InView, 
