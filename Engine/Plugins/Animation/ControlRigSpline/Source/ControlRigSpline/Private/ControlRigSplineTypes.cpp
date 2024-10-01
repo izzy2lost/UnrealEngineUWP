@@ -296,7 +296,15 @@ TArray<FTransform> FControlRigSplineImpl::GetControlTransformsWithoutDuplicates(
 	Transforms.Reserve(ControlIndices.Num());
 	for (const uint16& Index : ControlIndices)
 	{
-		Transforms.Add(ControlTransforms[Index]);
+		int32 WrappedIndex = int32(Index);
+
+		// for closed splines we may ask for a control index above the index count,
+		// so we need to wrap around along the spline and start over from the front.
+		if(!ControlTransforms.IsValidIndex(WrappedIndex))
+		{
+			WrappedIndex = WrappedIndex % ControlTransforms.Num();
+		}
+		Transforms.Add(ControlTransforms[WrappedIndex]);
 	}
 	return Transforms;
 }
