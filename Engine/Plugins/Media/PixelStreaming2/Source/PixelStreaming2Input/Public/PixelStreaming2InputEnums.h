@@ -93,6 +93,8 @@ namespace EPixelStreaming2ToStreamerMessage
 	PIXELSTREAMING2INPUT_API extern const FString XRAnalog;
 	PIXELSTREAMING2INPUT_API extern const FString XRSystem;
 	PIXELSTREAMING2INPUT_API extern const FString XRButtonTouchReleased;
+	PIXELSTREAMING2INPUT_API extern const FString Multiplexed;
+	PIXELSTREAMING2INPUT_API extern const FString ChannelRelayStatus;
 } // namespace EPixelStreaming2ToStreamerMessage
 
 /**
@@ -114,5 +116,6 @@ namespace EPixelStreaming2FromStreamerMessage
 	PIXELSTREAMING2INPUT_API extern const FString TestEcho;
 	PIXELSTREAMING2INPUT_API extern const FString InputControlOwnership;
 	PIXELSTREAMING2INPUT_API extern const FString GamepadResponse;
+	PIXELSTREAMING2INPUT_API extern const FString Multiplexed;
 	PIXELSTREAMING2INPUT_API extern const FString Protocol;
 } // namespace EPixelStreaming2FromStreamerMessage

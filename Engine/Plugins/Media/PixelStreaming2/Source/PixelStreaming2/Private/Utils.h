@@ -250,4 +250,29 @@ namespace UE::PixelStreaming2
 		return Pos + DataSize;
 	}
 
+	static const FString SFU_PLAYER_ID_PREFIX = FString(TEXT("SFU_"));
+
+	inline bool IsSFU(const FString& InPlayerId)
+	{
+		return InPlayerId.StartsWith(SFU_PLAYER_ID_PREFIX);
+	}
+
+	/**
+	 * Reads a string represented by 2 bytes length (in bytes) followed by UTF16 characters.
+	 * String and length are encoded in little endian format.
+	 */
+	inline FString ReadString(const uint8*& Data, uint32_t& Size)
+	{
+		uint16_t BytesLength = Data[1] << 8 | Data[0];
+		check(Size >= (uint32_t)(BytesLength + 2));
+		Data += 2;
+		Size -= 2;
+
+		FString Message(BytesLength / sizeof(TCHAR), reinterpret_cast<const TCHAR*>(Data));
+		Data += BytesLength;
+		Size -= BytesLength;
+
+		return Message;
+	}
+
 } // namespace UE::PixelStreaming2

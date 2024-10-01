@@ -313,7 +313,7 @@ namespace UE::PixelStreaming2
 	void FStreamer::SendAllPlayersMessage(FString MessageType, const FString& Descriptor)
 	{
 		Players->Apply([&MessageType, &Descriptor](FString PlayerId, FPlayerContext& PlayerContext) {
-			if (PlayerContext.DataTrack)
+			if (PlayerContext.DataTrack && !IsSFU(PlayerId))
 			{
 				PlayerContext.DataTrack->SendMessage(MessageType, Descriptor);
 			}
@@ -322,6 +322,10 @@ namespace UE::PixelStreaming2
 
 	void FStreamer::SendPlayerMessage(FString PlayerId, FString MessageType, const FString& Descriptor)
 	{
+		if (IsSFU(PlayerId))
+		{
+			return;
+		}
 		if (FPlayerContext* PlayerContext = Players->Find(PlayerId))
 		{
 			if (!PlayerContext->DataTrack)
@@ -496,6 +500,10 @@ namespace UE::PixelStreaming2
 
 	void FStreamer::ConsumeStats(FString PlayerId, FName StatName, float StatValue)
 	{
+		if (IsSFU(PlayerId))
+		{
+			return;
+		}
 
 		if (StatName != PixelStreaming2StatNames::MeanQPPerSecond)
 		{
@@ -543,11 +551,6 @@ namespace UE::PixelStreaming2
 
 		Players->Remove(PlayerId);
 
-		if (PlayerId == SFUPlayerId)
-		{
-			SFUPlayerId = INVALID_PLAYER_ID;
-		}
-
 		if (UPixelStreaming2Delegates* Delegates = UPixelStreaming2Delegates::Get())
 		{
 			Delegates->OnClosedConnection.Broadcast(StreamerId, PlayerId);
@@ -574,7 +577,6 @@ namespace UE::PixelStreaming2
 
 		VideoSourceGroup->RemoveAllVideoSources();
 		Players->Empty();
-		SFUPlayerId = INVALID_PLAYER_ID;
 		InputControllingId = INVALID_PLAYER_ID;
 		if (UPixelStreaming2Delegates* Delegates = UPixelStreaming2Delegates::Get())
 		{
@@ -587,7 +589,7 @@ namespace UE::PixelStreaming2
 	{
 		// Only time we automatically make a new peer the input controlling host is if they are the first peer (and not the SFU).
 		bool HostControlsInput = GetEnumFromCVar<EInputControllerMode>(UPixelStreaming2PluginSettings::CVarInputController) == EInputControllerMode::Host;
-		if (HostControlsInput && PlayerId != SFUPlayerId && InputControllingId == INVALID_PLAYER_ID)
+		if (HostControlsInput && !IsSFU(PlayerId) && InputControllingId == INVALID_PLAYER_ID)
 		{
 			InputControllingId = PlayerId;
 		}
@@ -621,7 +623,7 @@ namespace UE::PixelStreaming2
 					{
 						return false;
 					}
-					if (PlayerId == SFUPlayerId)
+					if (IsSFU(PlayerId))
 					{
 						return false;
 					}
@@ -769,6 +771,42 @@ namespace UE::PixelStreaming2
 				}
 			}
 		});
+	}
+
+	void FStreamer::HandleRelayStatusMessage(const uint8_t* Data, uint32_t Size, EpicRtcDataTrackInterface* DataTrack)
+	{
+		//skip type
+		Data++;
+		Size--;
+		FString PlayerId = ReadString(Data, Size);
+		checkf(Size > 0, TEXT("Malformed relay status message!"))
+		bool bIsOn = static_cast<bool>(Data[0]);
+
+		FString DataTrackId = ToString(DataTrack->GetId());
+		if (bIsOn)
+		{
+			UE_LOG(LogPixelStreaming2, Log, TEXT("FStreamer::HandleRelayStatusMessage() Adding new PlayerId [%s] with DataTrackId [%s]"), *PlayerId, *DataTrackId);
+			
+			FString SFUId;
+			if (FindPlayerByDataTrack(DataTrack, SFUId))
+			{
+				FPlayerContext* SFUContext = Players->Find(SFUId);
+				FPlayerContext& PlayerContext = Players->FindOrAdd(PlayerId);
+				PlayerContext.DataTrack = FEpicRtcMutliplexDataTrack::Create(SFUContext->DataTrack, InputHandler->GetFromStreamerProtocol(), PlayerId);
+				OnDataChannelOpen(PlayerId);
+			}
+			else
+			{
+				UE_LOG(LogPixelStreaming2, Log, TEXT("FStreamer::HandleRelayStatusMessage() Failed to find SFU PlayerContext"));
+			}
+		}
+		else
+		{
+			UE_LOG(LogPixelStreaming2, Log, TEXT("FStreamer::HandleRelayStatusMessage() Removing PlayerId [%s] with DataTrackId [%s]"), *PlayerId, *DataTrackId);
+
+			OnDataChannelClosed(PlayerId);
+			Players->Remove(PlayerId);
+		}
 	}
 
 	void FStreamer::TriggerMouseLeave(FString InStreamerId)
@@ -1069,15 +1107,45 @@ namespace UE::PixelStreaming2
 			ParticipantConnection->AddVideoSource(VideoSource);
 		}
 
-		EpicRtcDataSource DataSource = {
-			._label = Participant->GetId(),
-			._maxRetransmitTime = 0,
-			._maxRetransmits = 0,
-			._isOrdered = true,
-			._protocol = EpicRtcDataSourceProtocol::Sctp
-		};
+		if (IsSFU(ParticipantId))
+		{
+			FString RecvLabel(TEXT("recv-datachannel"));
+			FUtf8String Utf8RecvLabel = *RecvLabel;
+			EpicRtcDataSource RecvDataSource = {
+				._label = ToEpicRtcStringView(Utf8RecvLabel),
+				._maxRetransmitTime = 0,
+				._maxRetransmits = 0,
+				._isOrdered = true,
+				._protocol = EpicRtcDataSourceProtocol::Sctp,
+				._negotiated = true,
+				._transportChannelId = 1
+			};
+			ParticipantConnection->AddDataSource(RecvDataSource);
 
-		ParticipantConnection->AddDataSource(DataSource);
+			FString SendLabel(TEXT("send-datachannel"));
+			FUtf8String Utf8SendLabel = *SendLabel;
+			EpicRtcDataSource SendDataSource = {
+				._label = ToEpicRtcStringView(Utf8RecvLabel),
+				._maxRetransmitTime = 0,
+				._maxRetransmits = 0,
+				._isOrdered = true,
+				._protocol = EpicRtcDataSourceProtocol::Sctp,
+				._negotiated = true,
+				._transportChannelId = 0
+			};
+			ParticipantConnection->AddDataSource(SendDataSource);
+		}
+		else
+		{
+			EpicRtcDataSource DataSource = {
+				._label = Participant->GetId(),
+				._maxRetransmitTime = 0,
+				._maxRetransmits = 0,
+				._isOrdered = true,
+				._protocol = EpicRtcDataSourceProtocol::Sctp
+			};
+			ParticipantConnection->AddDataSource(DataSource);
+		}
 
 		EpicRtcBitrate Bitrates = {
 			._minBitrateBps = UPixelStreaming2PluginSettings::CVarWebRTCMinBitrate.GetValueOnAnyThread(),
@@ -1158,7 +1226,14 @@ namespace UE::PixelStreaming2
 
 		if (FPlayerContext* PlayerContext = Players->Find(ParticipantId))
 		{
-			PlayerContext->DataTrack = FEpicRtcDataTrack::Create(DataTrack, InputHandler->GetFromStreamerProtocol());
+			if (!PlayerContext->DataTrack)
+			{
+				PlayerContext->DataTrack = FEpicRtcDataTrack::Create(DataTrack, InputHandler->GetFromStreamerProtocol());
+			}
+			else
+			{
+				PlayerContext->DataTrack->SetSendTrack(DataTrack);
+			}
 		}
 	}
 
@@ -1399,26 +1474,38 @@ namespace UE::PixelStreaming2
 
 	void FStreamer::OnDataTrackMessage(EpicRtcDataTrackInterface* DataTrack)
 	{
-		FString PlayerId = "";
-		bool	bFoundPlayer = FindPlayerByDataTrack(DataTrack, PlayerId);
 		FString DataTrackId = ToString(DataTrack->GetId());
-
-		if (!bFoundPlayer)
-		{
-			UE_LOG(LogPixelStreaming2, Log, TEXT("FStreamer::OnDataTrackMessage(Failed to find a player for data track [%s])"), *DataTrackId);
-			return;
-		}
-
 		TRefCountPtr<EpicRtcDataFrameInterface> DataFrame;
 		if (!DataTrack->PopFrame(DataFrame.GetInitReference()))
 		{
 			UE_LOG(LogPixelStreaming2, Log, TEXT("FStreamer::OnDataTrackMessage(Failed to PopFrame [%s])"), *DataTrackId);
 			return;
 		}
-
-		const uint8_t							 Type = DataFrame->Data()[0];
+		FString PlayerId;
+		const uint8_t* Data = DataFrame->Data();
+		uint32_t DataSize = DataFrame->Size();
+		uint8 Type = Data[0];
 		TSharedPtr<IPixelStreaming2DataProtocol> ToStreamerProtocol = InputHandler->GetToStreamerProtocol();
-
+		if (Type == ToStreamerProtocol->Find(EPixelStreaming2ToStreamerMessage::Multiplexed)->GetID())
+		{
+			//skip type
+			Data++;
+			DataSize--;
+			PlayerId = ReadString(Data, DataSize); 
+			Type = Data[0];
+			UE_LOG(LogPixelStreaming2, VeryVerbose, TEXT("FStreamer::OnDataTrackMessage(Received multiplexed message of type [%d] with PlayerId [%s])"), Type, *PlayerId);
+		}
+		else if (Type == ToStreamerProtocol->Find(EPixelStreaming2ToStreamerMessage::ChannelRelayStatus)->GetID())
+		{
+			HandleRelayStatusMessage(Data, DataSize, DataTrack);
+			return;
+		}
+		else if (!FindPlayerByDataTrack(DataTrack, PlayerId))
+		{
+			UE_LOG(LogPixelStreaming2, Log, TEXT("FStreamer::OnDataTrackMessage(Failed to find a player for data track [%s])"), *DataTrackId);
+			return;
+		}
+		
 		if (Type == ToStreamerProtocol->Find(EPixelStreaming2ToStreamerMessage::LatencyTest)->GetID())
 		{
 			SendLatencyReport(PlayerId);
@@ -1437,8 +1524,8 @@ namespace UE::PixelStreaming2
 			{
 				if (PlayerContext->DataTrack)
 				{
-					const size_t  DescriptorSize = (DataFrame->Size() - 1) / sizeof(TCHAR);
-					const TCHAR*  DescPtr = reinterpret_cast<const TCHAR*>(DataFrame->Data() + 1);
+					const size_t  DescriptorSize = (DataSize - 1) / sizeof(TCHAR);
+					const TCHAR*  DescPtr = reinterpret_cast<const TCHAR*>(Data + 1);
 					const FString Message(DescriptorSize, DescPtr);
 					PlayerContext->DataTrack->SendMessage(EPixelStreaming2FromStreamerMessage::TestEcho, Message);
 				}
@@ -1451,8 +1538,8 @@ namespace UE::PixelStreaming2
 			{
 				return;
 			}
-
-			TArray<uint8> MessageData((uint8*)DataFrame->Data(), (unsigned int)DataFrame->Size());
+			
+			TArray<uint8> MessageData(Data, DataSize);
 			if (InputHandler)
 			{
 				InputHandler->OnMessage(PlayerId, MessageData);

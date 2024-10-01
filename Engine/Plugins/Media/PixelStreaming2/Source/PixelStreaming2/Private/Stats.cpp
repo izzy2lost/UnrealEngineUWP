@@ -97,7 +97,7 @@ namespace UE::PixelStreaming2
 
 		PeerStats.Remove(PlayerId);
 
-		if (PlayerId == SFU_PLAYER_ID)
+		if (IsSFU(PlayerId))
 		{
 			TArray<FString> ToRemove;
 

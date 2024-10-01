@@ -130,6 +130,10 @@ namespace UE::PixelStreaming2Input
 		ToStreamerProtocol->AddInternal(EPixelStreaming2ToStreamerMessage::XRButtonTouchReleased, 117, {// Handedness, ButtonIdx, IsRepeat
 															EType::Uint8, EType::Uint8, EType::Uint8
 														});
+		
+		ToStreamerProtocol->AddInternal(EPixelStreaming2ToStreamerMessage::ChannelRelayStatus, 198); // id, 2 byte string length, string, uint8 flag
+		
+		ToStreamerProtocol->AddInternal(EPixelStreaming2ToStreamerMessage::Multiplexed, 199); // id, 2 byte string length, string, original message
 
 		// clang-format on
 		return ToStreamerProtocol;
@@ -154,6 +158,7 @@ namespace UE::PixelStreaming2Input
 		FromStreamerProtocol->AddInternal(EPixelStreaming2FromStreamerMessage::InputControlOwnership, 12);
 		FromStreamerProtocol->AddInternal(EPixelStreaming2FromStreamerMessage::GamepadResponse, 13);
 		FromStreamerProtocol->AddInternal(EPixelStreaming2FromStreamerMessage::Protocol, 255);
+		FromStreamerProtocol->AddInternal(EPixelStreaming2FromStreamerMessage::Multiplexed, 199);
 
 		return FromStreamerProtocol;
 	}
