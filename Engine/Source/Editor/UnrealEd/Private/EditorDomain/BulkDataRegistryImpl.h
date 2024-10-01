@@ -144,6 +144,8 @@ class FTaskSharedDataLock : public FThreadSafeRefCountedObject
 public:
 	FRWLock ActiveLock;
 	bool bActive = true;
+
+	std::atomic<uint32> UpdatePayloadWorkerInFlight = 0;
 };
 
 /** A worker that updates the PayloadId for a BulkData that is missing its RawHash. */
