@@ -47,6 +47,5 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
-    <PackageReference Include="System.Collections.Specialized" Version="4.3.0" />
   </ItemGroup>
 </Project>

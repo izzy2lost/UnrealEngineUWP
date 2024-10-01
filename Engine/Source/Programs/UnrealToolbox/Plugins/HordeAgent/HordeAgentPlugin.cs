@@ -1,17 +1,19 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using Avalonia.Controls;
+using EpicGames.Core;
+using FluentAvalonia.UI.Controls;
+using HordeAgent;
+using Microsoft.Win32;
 using System.Diagnostics;
 using System.IO.Pipes;
 using System.Runtime.InteropServices;
 using System.Text.Json;
-using Avalonia.Controls;
-using EpicGames.Core;
-using HordeAgent;
-using Microsoft.Win32;
+using System.Text.Json.Serialization;
 
-namespace HordeTrayApp
+namespace UnrealToolbox.Plugins.HordeAgent
 {
-	class AgentPlugin : TrayAppPluginBase
+	class HordeAgentPlugin : ITrayAppPlugin
 	{
 		record struct IdleStat(string Name, long Value, long MinValue);
 
@@ -20,17 +22,41 @@ namespace HordeTrayApp
 		readonly BackgroundTask _clientTask;
 		readonly BackgroundTask _tickPauseStateTask;
 
-		readonly NativeMenuItem _enrollMenuItem;
-		readonly NativeMenuItem _statusEnabled;
-		readonly NativeMenuItem _statusDisabled;
-		readonly NativeMenuItem _statusWhenIdle;
+		readonly FileReference _settingsFile;
 
-		readonly NativeMenuItem _statusMenuItem;
-		readonly NativeMenuItem _logsMenuItem;
+		byte[] _settingsData = Array.Empty<byte>();
+		HordeAgentSettings _settings = new HordeAgentSettings();
 
-		readonly Settings _settings;
+		public HordeAgentSettings Settings => _settings;
 
 		AgentSettingsMessage? _agentSettings;
+
+		public string Name => "Horde Agent";
+
+		public IconSource Icon => new SymbolIconSource() { Symbol = Symbol.People };
+
+		public bool IsEnabled { get; private set; }
+
+		public bool HasSettingsPage()
+			=> IsEnabled;
+
+		public Control CreateSettingsPage(SettingsContext context)
+			=> new HordeAgentSettingsPage(context, this);
+
+		public void UpdateSettings(HordeAgentSettings settings)
+		{
+			byte[] data = JsonSerializer.SerializeToUtf8Bytes(settings, GetJsonSerializerOptions());
+			if (!data.SequenceEqual(_settingsData))
+			{
+				_settings = settings;
+				_settingsData = data;
+
+				DirectoryReference.CreateDirectory(_settingsFile.Directory);
+				FileReference.WriteAllBytes(_settingsFile, data);
+
+				_statusChangedEvent.Set();
+			}
+		}
 
 		void EnrollWithServer()
 		{
@@ -41,93 +67,104 @@ namespace HordeTrayApp
 			}
 		}
 
-		public AgentPlugin(ITrayAppHost host)
+		public HordeAgentPlugin(ITrayAppHost host)
 		{
 			_host = host;
-			_settings = LoadSettings();
 
-			_enrollMenuItem = new NativeMenuItem("Enroll with Server...");
-			_enrollMenuItem.Click += (s, e) => EnrollWithServer();
+			DirectoryReference? settingsRoot = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.CommonApplicationData);
+			settingsRoot ??= DirectoryReference.GetCurrentDirectory();
+			_settingsFile = FileReference.Combine(settingsRoot, "Epic", "Horde", "Agent", "Toolbox.json");
 
-			_statusEnabled = new NativeMenuItem("Enabled");
-			_statusEnabled.ToggleType = NativeMenuItemToggleType.CheckBox;
-			_statusEnabled.Click += (s, e) => SetUserStatus(UserStatus.Enabled);
-
-			_statusDisabled = new NativeMenuItem("Disabled");
-			_statusDisabled.ToggleType = NativeMenuItemToggleType.CheckBox;
-			_statusDisabled.Click += (s, e) => SetUserStatus(UserStatus.Disabled);
-
-			_statusWhenIdle = new NativeMenuItem("When Idle");
-			_statusWhenIdle.ToggleType = NativeMenuItemToggleType.CheckBox;
-			_statusWhenIdle.Click += (s, e) => SetUserStatus(UserStatus.WhenIdle);
-
-			_statusMenuItem = new NativeMenuItem("Status");
-			_statusMenuItem.Menu = new NativeMenu();
-			_statusMenuItem.Menu.Items.Add(_statusEnabled);
-			_statusMenuItem.Menu.Items.Add(_statusDisabled);
-			_statusMenuItem.Menu.Items.Add(_statusWhenIdle);
-
-			_logsMenuItem = new NativeMenuItem("Open logs dir");
-			_logsMenuItem.Click += OnOpenLogs;
+			LoadSettings();
 
 			_clientTask = BackgroundTask.StartNew(StatusTaskAsync);
 			_tickPauseStateTask = BackgroundTask.StartNew(ctx => TickPauseStateAsync(ctx));
-
-			UpdateContextMenu(GetUserStatus());
 		}
 
-		private static Settings LoadSettings()
+		public void Refresh()
 		{
-			Settings? result = null;
-
-			DirectoryReference? settingsRoot = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.CommonApplicationData);
-			if (settingsRoot != null)
+			if (OperatingSystem.IsWindows())
 			{
-				FileReference settingsPath = FileReference.Combine(settingsRoot, "Epic", "Horde", "TrayApp", "Settings.json");
-				if (FileReference.Exists(settingsPath))
+				IsEnabled = Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Epic Games\\Horde\\Agent", "Installed", null) != null;
+			}
+		}
+
+		static JsonSerializerOptions GetJsonSerializerOptions()
+		{
+			JsonSerializerOptions options = new JsonSerializerOptions();
+			options.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+			options.PropertyNameCaseInsensitive = true;
+			options.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+			options.AllowTrailingCommas = true;
+			options.WriteIndented = true;
+			options.Converters.Add(new JsonStringEnumConverter());
+			return options;
+		}
+
+		void LoadSettings()
+		{
+			if (FileReference.Exists(_settingsFile))
+			{
+				try
 				{
-					try
+					byte[] data = FileReference.ReadAllBytes(_settingsFile);
+					if (!data.SequenceEqual(_settingsData))
 					{
-						using FileStream stream = FileReference.Open(settingsPath, FileMode.Open, FileAccess.Read);
-						result = JsonSerializer.Deserialize<Settings>(stream);
-					}
-					catch (Exception)
-					{
+						_settings = JsonSerializer.Deserialize<HordeAgentSettings>(data, GetJsonSerializerOptions())!;
+						if (_settings.Mode == null)
+						{
+							_settings.Mode = ReadLegacyMode();
+							UpdateSettings(_settings);
+						}
+						_settingsData = data;
+						return;
 					}
 				}
-				else
+				catch (Exception)
 				{
-					// File not found, create a file containing the default settings
-					DirectoryReference.CreateDirectory(settingsPath.Directory);
-					using FileStream stream = FileReference.Open(settingsPath, FileMode.OpenOrCreate, FileAccess.Write);
-					JsonSerializer.Serialize(stream, new Settings(), new JsonSerializerOptions() { WriteIndented = true });
 				}
 			}
 
-			return result ?? new Settings();
+			UpdateSettings(new HordeAgentSettings());
 		}
 
-		public override void PopulateContextMenu(NativeMenu contextMenu)
+		static AgentMode? ReadLegacyMode()
 		{
-			base.PopulateContextMenu(contextMenu);
+			if (!OperatingSystem.IsWindows())
+			{
+				return null;
+			}
 
-			contextMenu.Items.Add(_enrollMenuItem);
-			contextMenu.Items.Add(_statusMenuItem);
-			contextMenu.Items.Add(new NativeMenuItemSeparator());
-			contextMenu.Items.Add(_logsMenuItem);
+			const string RegistryKey = "HKEY_CURRENT_USER\\Software\\Epic Games\\Horde\\TrayApp";
+			const string RegistryStatusValue = "Status";
+
+			int? status = Registry.GetValue(RegistryKey, RegistryStatusValue, null) as int?;
+			if (status == null)
+			{
+				return null;
+			}
+
+			return status.Value switch
+			{
+				0 => AgentMode.Dedicated,
+				1 => AgentMode.Disabled,
+				2 => AgentMode.Workstation,
+				_ => null
+			};
 		}
 
-		void UpdateContextMenu(UserStatus status)
+		public void PopulateContextMenu(NativeMenu contextMenu)
 		{
-			_statusEnabled.IsChecked = (status == UserStatus.Enabled);
-			_statusDisabled.IsChecked = (status == UserStatus.Disabled);
-			_statusWhenIdle.IsChecked = (status == UserStatus.WhenIdle);
+			if (IsEnabled)
+			{
+				NativeMenuItem enrollMenuItem = new NativeMenuItem("Enroll with Server...");
+				enrollMenuItem.Click += (s, e) => EnrollWithServer();
+				contextMenu.Items.Add(enrollMenuItem);
+			}
 		}
 
-		public override async ValueTask DisposeAsync()
+		public async ValueTask DisposeAsync()
 		{
-			await base.DisposeAsync();
-
 			await _tickPauseStateTask.DisposeAsync();
 			await _clientTask.DisposeAsync();
 		}
@@ -145,40 +182,18 @@ namespace HordeTrayApp
 			}
 		}
 
-		enum UserStatus
-		{
-			Enabled = 0,
-			Disabled = 1,
-			WhenIdle = 2,
-		}
-
-		const string RegistryKey = "HKEY_CURRENT_USER\\Software\\Epic Games\\Horde\\TrayApp";
-		const string RegistryStatusValue = "Status";
-
-		private static UserStatus GetUserStatus()
-		{
-			return (UserStatus)((Registry.GetValue(RegistryKey, RegistryStatusValue, null) as int?) ?? 0);
-		}
-
-		private void SetUserStatus(UserStatus status)
-		{
-			Registry.SetValue(RegistryKey, RegistryStatusValue, (int)status);
-			_statusChangedEvent.Set();
-			UpdateContextMenu(status);
-		}
-
 		TrayAppPluginStatus? _status;
 
 		void SetStatus(AgentStatusMessage status)
 		{
 			if (!status.Healthy)
 			{
-				string message = String.IsNullOrEmpty(status.Detail) ? "Error. Check logs." : (status.Detail.Length > 100) ? status.Detail.Substring(0, 100) : status.Detail;
-				_status = new TrayAppPluginStatus(TrayAppPluginState.Error, message);
+				string message = String.IsNullOrEmpty(status.Detail) ? "Error. Check logs." : status.Detail.Length > 100 ? status.Detail.Substring(0, 100) : status.Detail;
+				_status = new TrayAppPluginStatus(TrayAppPluginState.Error, message, message);
 			}
 			else if (status.NumLeases > 0)
 			{
-				string message = (status.NumLeases == 1) ? "Currently handling 1 lease" : $"Currently handling {status.NumLeases} leases";
+				string message = status.NumLeases == 1 ? "Currently handling 1 lease" : $"Currently handling {status.NumLeases} leases";
 				_status = new TrayAppPluginStatus(TrayAppPluginState.Busy, message);
 			}
 			else if (_enabled)
@@ -194,8 +209,8 @@ namespace HordeTrayApp
 			_host.UpdateStatus();
 		}
 
-		public override TrayAppPluginStatus GetStatus()
-			=> _status ?? base.GetStatus();
+		public TrayAppPluginStatus GetStatus()
+			=> _status ?? TrayAppPluginStatus.Default;
 
 		async Task StatusTaskAsync(CancellationToken cancellationToken)
 		{
@@ -238,7 +253,7 @@ namespace HordeTrayApp
 			public uint dwLowDateTime;
 			public uint dwHighDateTime;
 
-			public readonly ulong Total => dwLowDateTime | ((ulong)dwHighDateTime << 32);
+			public readonly ulong Total => dwLowDateTime | (ulong)dwHighDateTime << 32;
 		};
 
 		[StructLayout(LayoutKind.Sequential)]
@@ -278,8 +293,8 @@ namespace HordeTrayApp
 			{
 				Task statusChangedTask = _statusChangedEvent.Task;
 
-				UserStatus userStatus = GetUserStatus();
-				if (userStatus == UserStatus.Enabled)
+				AgentMode mode = _settings.Mode ?? AgentMode.Disabled;
+				if (mode == AgentMode.Dedicated)
 				{
 					if (!_enabled)
 					{
@@ -287,7 +302,7 @@ namespace HordeTrayApp
 						_enabledChangedEvent.Set();
 					}
 				}
-				else if (userStatus == UserStatus.Disabled)
+				else if (mode == AgentMode.Disabled)
 				{
 					if (_enabled)
 					{
@@ -311,7 +326,7 @@ namespace HordeTrayApp
 				int stateChangeMaxTime = _enabled ? WakeTimeSecs : IdleTimeSecs;
 				//				_idleForm?.TickStats(_enabled, stateChangeTime, stateChangeMaxTime, idleStats);
 
-				if (userStatus == UserStatus.WhenIdle && stateChangeTime >= stateChangeMaxTime)
+				if (mode == AgentMode.Workstation && stateChangeTime >= stateChangeMaxTime)
 				{
 					_enabled ^= true;
 					_enabledChangedEvent.Set();
@@ -378,7 +393,7 @@ namespace HordeTrayApp
 
 					if (prevTotalTime > 0 && nextTotalTime > prevTotalTime)
 					{
-						_idleCpuPct = (int)(((nextIdleTime - prevIdleTime) * 100) / (nextTotalTime - prevTotalTime));
+						_idleCpuPct = (int)((nextIdleTime - prevIdleTime) * 100 / (nextTotalTime - prevTotalTime));
 					}
 				}
 				await Task.Delay(sampleInterval, cancellationToken);
@@ -427,10 +442,10 @@ namespace HordeTrayApp
 			AgentMessageBuffer message = new AgentMessageBuffer();
 			using (NamedPipeClientStream pipeClient = new NamedPipeClientStream(".", AgentMessagePipe.PipeName, PipeDirection.InOut))
 			{
-				SetStatus(new AgentStatusMessage(false, 0, "Connecting to agent..."));
+				SetStatus(new AgentStatusMessage(true, 0, "Connecting to agent..."));
 				await pipeClient.ConnectAsync(cancellationToken);
 
-				SetStatus(new AgentStatusMessage(false, 0, "Waiting for status update."));
+				SetStatus(new AgentStatusMessage(true, 0, "Waiting for status update."));
 				for (; ; )
 				{
 					Task idleChangeTask = _enabledChangedEvent.Task;

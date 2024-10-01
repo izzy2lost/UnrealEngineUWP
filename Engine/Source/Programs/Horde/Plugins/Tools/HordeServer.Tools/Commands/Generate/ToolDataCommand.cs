@@ -35,6 +35,14 @@ namespace HordeServer.Commands.Generate
 		public string? Category { get; set; }
 
 		[CommandLine]
+		[Description("Group for the tool")]
+		public string? Group { get; set; }
+
+		[CommandLine(ListSeparator = ';')]
+		[Description("Semicolon delimited list of tool platforms")]
+		public List<string> Platforms { get; set; } = new List<string>();
+
+		[CommandLine]
 		[Description("Version string for the tool")]
 		public string? Version { get; set; }
 
@@ -45,6 +53,10 @@ namespace HordeServer.Commands.Generate
 		[CommandLine]
 		[Description("Shows the tool for download in UGS")]
 		public bool ShowInUgs { get; set; }
+
+		[CommandLine]
+		[Description("Shows the tool for download in the Unreal Toolbox")]
+		public bool ShowInToolbox { get; set; }
 
 		[CommandLine("-ShowInDashboard=")]
 		[Description("Shows the tool for download on the dashboard")]
@@ -115,9 +127,23 @@ namespace HordeServer.Commands.Generate
 				{
 					bundledTool[nameof(BundledToolConfig.Category)] = Category;
 				}
+				if (!String.IsNullOrEmpty(Group))
+				{
+					bundledTool[nameof(BundledToolConfig.Group)] = Group;
+				}
 				if (!String.IsNullOrEmpty(Version))
 				{
 					bundledTool[nameof(BundledToolConfig.Version)] = Version;
+				}
+
+				if (Platforms.Count > 0)
+				{
+					JsonArray platforms = new JsonArray();
+					foreach (string platform in Platforms) 
+					{
+						platforms.Add(platform);
+					}
+					bundledTool[nameof(BundledToolConfig.Platforms)] = platforms;
 				}
 
 				bundledTool[nameof(BundledToolConfig.RefName)] = refName.ToString();
@@ -125,6 +151,10 @@ namespace HordeServer.Commands.Generate
 				if (Public)
 				{
 					bundledTool[nameof(BundledToolConfig.Public)] = true;
+				}
+				if (ShowInToolbox)
+				{
+					bundledTool[nameof(BundledToolConfig.ShowInToolbox)] = true;
 				}
 				if (ShowInUgs)
 				{

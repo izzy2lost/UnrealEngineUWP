@@ -925,12 +925,13 @@ namespace HordeServer.Jobs
 				List<IJob> results = new List<IJob>();
 				_logger.LogInformation("Performing scan for job with ");
 
+				const int Count = 5;
 				bool excludeMaxCommitId = false;
-
+				int scanIndex = 0;
 				int maxCount = (count ?? 1);
 				while (results.Count < maxCount)
 				{
-					IReadOnlyList<IJob> scanJobs = await FindInternalAsync(options, 0, 5, cancellationToken: cancellationToken);
+					IReadOnlyList<IJob> scanJobs = await FindInternalAsync(options, scanIndex, Count, cancellationToken: cancellationToken);
 					if (scanJobs.Count == 0)
 					{
 						break;
@@ -972,7 +973,7 @@ namespace HordeServer.Jobs
 						}
 					}
 
-					options = options with { MaxCommitId = scanJobs.Min(x => x.CommitId) };
+					scanIndex += Count;
 					excludeMaxCommitId = true;
 				}
 

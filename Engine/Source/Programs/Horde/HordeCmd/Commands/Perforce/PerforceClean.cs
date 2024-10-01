@@ -17,7 +17,7 @@ namespace Horde.Commands.Perforce
 
 		protected override Task ExecuteAsync(IPerforceConnection perforce, ManagedWorkspace repo, ILogger logger)
 		{
-			return repo.CleanAsync(!Incremental, CancellationToken.None);
+			return repo.CleanAsync(perforce, !Incremental, CancellationToken.None);
 		}
 	}
 }

@@ -28,14 +28,16 @@ namespace HordeServer.Tests.Jobs
 	[TestClass]
 	public class JobCollectionTests : BuildTestSetup
 	{
+		private readonly StreamId _streamId = new ("ue4-main");
+		private readonly TemplateId _templateId1 = new ("template1");
+		private readonly ITemplate _template1 = new TemplateStub(ContentHash.MD5("graphHash"), "template1");
+		
 		public JobCollectionTests()
 		{
 			UpdateConfig(globalConfig =>
 			{
-				ProjectConfig projectConfig = new ProjectConfig();
-				projectConfig.Id = new ProjectId("ue4");
-				projectConfig.Streams.Add(new StreamConfig { Id = new StreamId("ue4-main") });
-
+				ProjectConfig projectConfig = new () { Id = new ProjectId("ue4") };
+				projectConfig.Streams.Add(new StreamConfig { Id = _streamId });
 				globalConfig.Plugins.GetBuildConfig().Projects.Add(projectConfig);
 			});
 		}
@@ -841,6 +843,36 @@ namespace HordeServer.Tests.Jobs
 			Assert.AreEqual("hello world", graph.Artifacts[0].Description);
 			Assert.AreEqual("Engine/Source", graph.Artifacts[0].BasePath);
 			Assert.AreEqual("fileset", graph.Artifacts[0].OutputName);
+		}
+		
+		[TestMethod]
+		public async Task FindJobsAsync()
+		{
+			IGraph graph = await GraphCollection.AddAsync(_template1, null);
+			
+			List<IJob> jobs = [];
+			for (int i = 0; i < 10; i++)
+			{
+				jobs.Add(await AddJobAsync(graph, $"{i}"));
+			}
+			
+			jobs[2] = await RunBatchAsync(jobs[2], 0);
+			await RunStepAsync(jobs[2], 0, 0, JobStepOutcome.Success); // Setup Build
+			
+			{
+				IReadOnlyList<IJob> jobsFound = await JobCollection.FindAsync(new FindJobOptions());
+				Assert.AreEqual(jobs.Count, jobsFound.Count);
+			}
+			
+			{
+				IReadOnlyList<IJob> jobsFound = await JobCollection.FindAsync(new FindJobOptions() { Outcome = [JobStepOutcome.Success] });
+				Assert.AreEqual(1, jobsFound.Count);
+			}
+		}
+		
+		private async Task<IJob> AddJobAsync(IGraph graph, string commitId)
+		{
+			return await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), _streamId, _templateId1, _template1.Hash, graph, "jobName", new CommitId(commitId), null, new CreateJobOptions());
 		}
 	}
 }

@@ -62,9 +62,17 @@ namespace HordeServer.Issues
 			using CancellationTokenSource cancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 			using IDisposable? listener = _buildConfig.OnChange((_, _) => cancellationSource.Cancel());
 
-			State initialState = await _state.GetAsync(cancellationSource.Token);
-
 			BuildConfig buildConfig = _buildConfig.CurrentValue;
+
+			State initialState = await _state.GetAsync(cancellationSource.Token);
+			foreach (StreamId streamId in initialState.Streams.Keys)
+			{
+				if (!buildConfig.TryGetStream(streamId, out _))
+				{
+					await _state.UpdateAsync(x => x.Streams.Remove(streamId), cancellationToken);
+				}
+			}
+
 			if (buildConfig.Streams.Count > 0)
 			{
 				List<Task> tasks = new List<Task>();

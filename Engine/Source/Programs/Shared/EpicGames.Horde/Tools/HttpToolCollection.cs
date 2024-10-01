@@ -32,6 +32,7 @@ namespace EpicGames.Horde.Tools
 			bool ITool.Bundled => _response.Bundled;
 			bool ITool.ShowInUgs => _response.ShowInUgs;
 			bool ITool.ShowInDashboard => _response.ShowInDashboard;
+			bool ITool.ShowInToolbox => _response.ShowInToolbox;
 			IReadOnlyList<IToolDeployment> ITool.Deployments => _deployments;
 
 			public Tool(HttpToolCollection collection, GetToolResponse response)

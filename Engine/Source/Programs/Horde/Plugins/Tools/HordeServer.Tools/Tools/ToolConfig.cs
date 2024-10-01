@@ -71,6 +71,11 @@ namespace HordeServer.Tools
 		public bool ShowInDashboard { get; set; } = true;
 
 		/// <summary>
+		/// Whether to show this tool for download in Unreal Toolbox
+		/// </summary>
+		public bool ShowInToolbox { get; set; }
+
+		/// <summary>
 		/// Default namespace for new deployments of this tool
 		/// </summary>
 		public NamespaceId NamespaceId { get; set; } = DefaultNamespaceId;

@@ -13,6 +13,7 @@ using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
+using OpenTelemetry.Trace;
 
 namespace HordeAgent.Leases.Handlers
 {
@@ -23,7 +24,7 @@ namespace HordeAgent.Leases.Handlers
 		{ }
 
 		/// <inheritdoc/>
-		protected override async Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, UpgradeTask task, ILogger localLogger, CancellationToken cancellationToken)
+		protected override async Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, UpgradeTask task, Tracer tracer, ILogger localLogger, CancellationToken cancellationToken)
 		{
 			await using IServerLogger logger = session.HordeClient.CreateServerLogger(LogId.Parse(task.LogId)).WithLocalLogger(localLogger);
 

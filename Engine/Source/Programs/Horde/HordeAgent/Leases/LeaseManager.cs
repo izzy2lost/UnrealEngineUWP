@@ -11,6 +11,8 @@ using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using OpenTelemetry.Trace;
+using StatusCode = Grpc.Core.StatusCode;
 
 namespace HordeAgent.Leases
 {
@@ -88,11 +90,21 @@ namespace HordeAgent.Leases
 		readonly Dictionary<string, LeaseHandlerFactory> _typeUrlToLeaseHandler;
 		readonly LeaseLoggerFactory _leaseLoggerFactory;
 		readonly IOptions<AgentSettings> _settings;
+		readonly Tracer _tracer;
 		readonly ILogger _logger;
 
 		RpcAgentCapabilities? _capabilities;
 
-		public LeaseManager(ISession session, CapabilitiesService capabilitiesService, StatusService statusService, ISystemMetrics systemMetrics, IEnumerable<LeaseHandlerFactory> leaseHandlerFactories, LeaseLoggerFactory leaseLoggerFactory, IOptions<AgentSettings> settings, ILogger logger)
+		public LeaseManager(
+			ISession session,
+			CapabilitiesService capabilitiesService,
+			StatusService statusService,
+			ISystemMetrics systemMetrics,
+			IEnumerable<LeaseHandlerFactory> leaseHandlerFactories,
+			LeaseLoggerFactory leaseLoggerFactory,
+			IOptions<AgentSettings> settings,
+			Tracer tracer,
+			ILogger logger)
 		{
 			_session = session;
 			_capabilitiesService = capabilitiesService;
@@ -101,6 +113,7 @@ namespace HordeAgent.Leases
 			_typeUrlToLeaseHandler = leaseHandlerFactories.ToDictionary(x => x.LeaseType, x => x);
 			_leaseLoggerFactory = leaseLoggerFactory;
 			_settings = settings;
+			_tracer = tracer;
 			_logger = logger;
 		}
 
@@ -112,6 +125,7 @@ namespace HordeAgent.Leases
 				serviceProvider.GetRequiredService<IEnumerable<LeaseHandlerFactory>>(),
 				serviceProvider.GetRequiredService<LeaseLoggerFactory>(),
 				serviceProvider.GetRequiredService<IOptions<AgentSettings>>(),
+				serviceProvider.GetRequiredService<Tracer>(),
 				serviceProvider.GetRequiredService<ILogger<LeaseManager>>())
 		{
 		}
@@ -360,7 +374,7 @@ namespace HordeAgent.Leases
 									_logger.LogInformation("Adding lease {LeaseId}", serverLease.Id);
 
 									LeaseHandler leaseHandler = CreateLeaseHandler(serverLease);
-									leaseHandler.Start(_session, _logger, _leaseLoggerFactory);
+									leaseHandler.Start(_session, _tracer, _logger, _leaseLoggerFactory);
 									leaseHandler.Result.ContinueWith((Task<LeaseResult> task) =>
 									{
 										LeaseResult result = task.Result;

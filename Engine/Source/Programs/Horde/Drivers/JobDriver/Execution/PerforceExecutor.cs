@@ -9,8 +9,7 @@ using JobDriver.Utility;
 using Horde.Common.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
-using OpenTracing;
-using OpenTracing.Util;
+using OpenTelemetry.Trace;
 
 namespace JobDriver.Execution
 {
@@ -39,24 +38,25 @@ namespace JobDriver.Execution
 		protected WorkspaceInfo? _autoSdkWorkspace;
 		protected WorkspaceInfo _workspace;
 
-		public PerforceExecutor(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options, ILogger logger)
-			: base(options, logger)
+		public PerforceExecutor(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options, Tracer tracer, ILogger logger)
+			: base(options, tracer, logger)
 		{
 			_workspaceInfo = workspaceInfo;
 			_autoSdkWorkspaceInfo = autoSdkWorkspaceInfo;
 			_rootDir = options.WorkingDir;
-
 			_workspace = null!;
 		}
 
 		public override async Task InitializeAsync(RpcBeginBatchResponse batch, ILogger logger, CancellationToken cancellationToken)
 		{
+			using TelemetrySpan span = Tracer.StartActiveSpan($"{nameof(PerforceExecutor)}.{nameof(InitializeAsync)}");
 			await base.InitializeAsync(batch, logger, cancellationToken);
 
 			// Setup and sync the AutoSDK workspace
 			if (_autoSdkWorkspaceInfo != null)
 			{
-				using IScope _ = GlobalTracer.Instance.BuildSpan("Workspace").WithTag("resource.name", "AutoSDK").StartActive();
+				using TelemetrySpan autoSdkSpan = Tracer.StartActiveSpan("Workspace");
+				autoSdkSpan.SetAttribute("resource.name", "AutoSDK");
 
 				ManagedWorkspaceOptions options = WorkspaceInfo.GetMwOptions(_autoSdkWorkspaceInfo);
 				_autoSdkWorkspace = await WorkspaceInfo.CreateWorkspaceInfoAsync(_autoSdkWorkspaceInfo, _rootDir, options, logger, cancellationToken);
@@ -78,6 +78,7 @@ namespace JobDriver.Execution
 				}
 
 				int autoSdkChangeNumber = await _autoSdkWorkspace.GetLatestChangeAsync(autoSdkPerforce, cancellationToken);
+				autoSdkSpan.SetAttribute("horde.change_number", autoSdkChangeNumber);
 
 				string syncText = $"Synced to CL {autoSdkChangeNumber}";
 				if (_autoSdkWorkspaceInfo.View.Count > 0)
@@ -99,12 +100,14 @@ namespace JobDriver.Execution
 					await _autoSdkWorkspace.UpdateLocalCacheMarkerAsync(autoSdkCacheFile, autoSdkChangeNumber, -1);
 					await _autoSdkWorkspace.SyncAsync(autoSdkPerforce, autoSdkChangeNumber, -1, autoSdkCacheFile, cancellationToken);
 
-					await FileReference.WriteAllTextAsync(syncFile, syncText);
+					await FileReference.WriteAllTextAsync(syncFile, syncText, cancellationToken);
 				}
 			}
 
-			using (IScope scope = GlobalTracer.Instance.BuildSpan("Workspace").WithTag("resource.name", _workspaceInfo.Identifier).StartActive())
 			{
+				using TelemetrySpan autoSdkSpan = Tracer.StartActiveSpan("Workspace");
+				autoSdkSpan.SetAttribute("resource.name", _workspaceInfo.Identifier);
+				
 				// Sync the regular workspace
 				ManagedWorkspaceOptions options = WorkspaceInfo.GetMwOptions(_workspaceInfo);
 				_workspace = await WorkspaceInfo.CreateWorkspaceInfoAsync(_workspaceInfo, _rootDir, options, logger, cancellationToken);
@@ -243,11 +246,11 @@ namespace JobDriver.Execution
 			await base.FinalizeAsync(logger, cancellationToken);
 		}
 
-		public static async Task ConformAsync(DirectoryReference rootDir, IList<RpcAgentWorkspace> pendingWorkspaces, bool removeUntrackedFiles, ILogger logger, CancellationToken cancellationToken)
+		public static async Task ConformAsync(DirectoryReference rootDir, IList<RpcAgentWorkspace> pendingWorkspaces, bool removeUntrackedFiles, Tracer tracer, ILogger logger, CancellationToken cancellationToken)
 		{
-			using IScope scope = GlobalTracer.Instance.BuildSpan("Conform").StartActive();
-			scope.Span.SetTag("workspaces", String.Join(',', pendingWorkspaces.Select(x => x.Identifier)));
-			scope.Span.SetTag("removeUntrackedFiles", removeUntrackedFiles);
+			using TelemetrySpan span = tracer.StartActiveSpan("Conform");
+			span.SetAttribute("horde.perforce.workspaces", String.Join(',', pendingWorkspaces.Select(x => x.Identifier)));
+			span.SetAttribute("horde.perforce.remove_untracked", removeUntrackedFiles);
 
 			// Print out all the workspaces we're going to sync
 			logger.LogInformation("Workspaces:");
@@ -429,17 +432,19 @@ namespace JobDriver.Execution
 	class PerforceExecutorFactory : IJobExecutorFactory
 	{
 		readonly ILogger<PerforceExecutor> _logger;
+		readonly Tracer _tracer;
 
 		public string Name => PerforceExecutor.Name;
 
-		public PerforceExecutorFactory(ILogger<PerforceExecutor> logger)
+		public PerforceExecutorFactory(Tracer tracer, ILogger<PerforceExecutor> logger)
 		{
+			_tracer = tracer;
 			_logger = logger;
 		}
 
 		public Task<JobExecutor> CreateExecutorAsync(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options, CancellationToken cancellationToken)
 		{
-			return Task.FromResult<JobExecutor>(new PerforceExecutor(workspaceInfo, autoSdkWorkspaceInfo, options, _logger));
+			return Task.FromResult<JobExecutor>(new PerforceExecutor(workspaceInfo, autoSdkWorkspaceInfo, options, _tracer, _logger));
 		}
 	}
 }

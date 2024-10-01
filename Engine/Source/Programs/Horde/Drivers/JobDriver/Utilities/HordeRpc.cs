@@ -2,6 +2,7 @@
 
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Jobs;
+using OpenTelemetry.Trace;
 
 // These partial classes/extensions operate on generated gRPC and Protobuf code.
 // Warnings below are disabled to avoid documenting every class touched.
@@ -76,6 +77,38 @@ namespace Horde.Common.Rpc
 			Outcome = (int)outcome;
 			State = (int)state;
 			AbortRequested = abortRequested;
+		}
+	}
+}
+
+namespace HordeCommon.Rpc.Tasks
+{
+	partial class RpcJobOptions
+	{
+		public void DecorateSpan(TelemetrySpan span)
+		{
+			const string Prefix = "horde.job.options.";
+			span.SetAttribute(Prefix + "executor", Executor);
+			span.SetAttribute(Prefix + "materializer", WorkspaceMaterializer);
+			span.SetAttribute(Prefix + "driver", Driver);
+			
+			if (UseWine != null)
+			{
+				span.SetAttribute(Prefix + "use_wine", UseWine.Value);	
+			}
+			
+			if (RunInSeparateProcess != null)
+			{
+				span.SetAttribute(Prefix + "separate_process", RunInSeparateProcess.Value);
+			}
+			
+			if (Container.Enabled != null)
+			{
+				span.SetAttribute(Prefix + "container.enabled", Container.Enabled.Value);
+				span.SetAttribute(Prefix + "container.image_url", Container.ImageUrl);
+				span.SetAttribute(Prefix + "container.engine", Container.ContainerEngineExecutable);
+				span.SetAttribute(Prefix + "container.extra_args", Container.ExtraArguments);
+			}
 		}
 	}
 }

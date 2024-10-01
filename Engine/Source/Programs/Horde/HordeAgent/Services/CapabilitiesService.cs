@@ -17,8 +17,7 @@ using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Management.Infrastructure;
-using OpenTracing;
-using OpenTracing.Util;
+using OpenTelemetry.Trace;
 using AddressFamily = System.Net.Sockets.AddressFamily;
 
 namespace HordeAgent.Services
@@ -32,14 +31,16 @@ namespace HordeAgent.Services
 		static readonly DateTimeOffset s_bootTime = DateTimeOffset.Now - TimeSpan.FromTicks(Environment.TickCount64 * TimeSpan.TicksPerMillisecond);
 
 		readonly AgentSettings _settings;
+		readonly Tracer _tracer;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public CapabilitiesService(IOptions<AgentSettings> settings, ILogger<CapabilitiesService> logger)
+		public CapabilitiesService(IOptions<AgentSettings> settings, Tracer tracer, ILogger<CapabilitiesService> logger)
 		{
 			_settings = settings.Value;
+			_tracer = tracer;
 			_logger = logger;
 		}
 
@@ -79,7 +80,7 @@ namespace HordeAgent.Services
 
 		async Task<RpcAgentCapabilities> GetCapabilitiesInternalAsync(DirectoryReference? workingDir)
 		{
-			using IScope scope = GlobalTracer.Instance.BuildSpan($"{nameof(CapabilitiesService)}.{nameof(GetCapabilitiesInternalAsync)}").StartActive();
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(CapabilitiesService)}.{nameof(GetCapabilitiesInternalAsync)}");
 			ILogger logger = _logger;
 
 			// Create the primary device
@@ -87,7 +88,7 @@ namespace HordeAgent.Services
 
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 			{
-				using IScope winScope = GlobalTracer.Instance.BuildSpan("GetWindowsCapabilities").StartActive();
+				using TelemetrySpan winSpan = _tracer.StartActiveSpan("GetWindowsCapabilities");
 				capabilities.Properties.Add($"{KnownPropertyNames.Platform}=Win64");
 				capabilities.Properties.Add($"{KnownPropertyNames.PlatformGroup}=Windows");
 				capabilities.Properties.Add($"{KnownPropertyNames.PlatformGroup}=Microsoft");
@@ -104,7 +105,7 @@ namespace HordeAgent.Services
 					
 					{
 						// Add OS info
-						using IScope _ = GlobalTracer.Instance.BuildSpan("GetOsInfo").StartActive();
+						using TelemetrySpan _ = _tracer.StartActiveSpan("GetOsInfo");
 						foreach (CimInstance instance in session.QueryInstances(QueryNamespace, QueryDialect, "select * from Win32_OperatingSystem"))
 						{
 							foreach (CimProperty property in instance.CimInstanceProperties)
@@ -124,47 +125,37 @@ namespace HordeAgent.Services
 					
 					{
 						// Add CPU info
-						using IScope _ = GlobalTracer.Instance.BuildSpan("GetCpuInfo").StartActive();
-						Dictionary<string, int> cpuNameToCount = new Dictionary<string, int>();
+						using TelemetrySpan _ = _tracer.StartActiveSpan("GetCpuInfo");
+						Dictionary<string, int> cpuNameToCount = new ();
 						int totalPhysicalCores = 0;
+						int totalEnabledPhysicalCores = 0;
 						int totalLogicalCores = 0;
 						
 						foreach (CimInstance instance in session.QueryInstances(QueryNamespace, QueryDialect, "select * from Win32_Processor"))
 						{
 							foreach (CimProperty property in instance.CimInstanceProperties)
 							{
-								string name = property.Name;
-								if (name.Equals("Name", StringComparison.OrdinalIgnoreCase))
+								switch (property.Name.ToUpperInvariant())
 								{
-									string cpuName = property.Value.ToString() ?? String.Empty;
-									int count;
-									cpuNameToCount.TryGetValue(cpuName, out count);
-									cpuNameToCount[cpuName] = count + 1;
-								}
-								else if (name.Equals("NumberOfEnabledCore", StringComparison.OrdinalIgnoreCase) ||
-								         name.Equals("NumberOfCores", StringComparison.OrdinalIgnoreCase))
-								{
-									if (property.Value is uint numCores)
-									{
-										totalPhysicalCores += (int)numCores;
-									}
-								}
-								else if (name.Equals("NumberOfLogicalProcessors", StringComparison.OrdinalIgnoreCase))
-								{
-									if (property.Value is uint numCores)
-									{
-										totalLogicalCores += (int)numCores;
-									}
+									case "NAME":
+										{
+											string cpuName = property.Value.ToString() ?? String.Empty;
+											cpuNameToCount.TryGetValue(cpuName, out int count);
+											cpuNameToCount[cpuName] = count + 1;
+											break;
+										}
+									case "NUMBEROFCORES" when property.Value is uint c: totalPhysicalCores += (int)c; break;
+									case "NUMBEROFENABLEDCORE" when property.Value is uint c: totalEnabledPhysicalCores += (int)c; break;
 								}
 							}
 						}
 						
-						AddCpuInfo(capabilities, cpuNameToCount, totalLogicalCores, totalPhysicalCores);
+						AddCpuInfo(capabilities, cpuNameToCount, totalLogicalCores, Math.Min(totalEnabledPhysicalCores, totalPhysicalCores));
 					}
 					
 					{
 						// Add RAM info
-						using IScope _ = GlobalTracer.Instance.BuildSpan("GetRamInfo").StartActive();
+						using TelemetrySpan _ = _tracer.StartActiveSpan("GetRamInfo");
 						ulong totalCapacity = 0;
 						foreach (CimInstance instance in session.QueryInstances(QueryNamespace, QueryDialect, "select Capacity from Win32_PhysicalMemory"))
 						{
@@ -182,7 +173,7 @@ namespace HordeAgent.Services
 					
 					{
 						// Add GPU info
-						using IScope _ = GlobalTracer.Instance.BuildSpan("GetGpuInfo").StartActive();
+						using TelemetrySpan _ = _tracer.StartActiveSpan("GetGpuInfo");
 						int index = 0;
 						foreach (CimInstance instance in session.QueryInstances(QueryNamespace, QueryDialect, "select Name, DriverVersion, AdapterRAM from Win32_VideoController"))
 						{
@@ -229,7 +220,7 @@ namespace HordeAgent.Services
 			}
 			else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
 			{
-				using IScope _ = GlobalTracer.Instance.BuildSpan("GetLinuxCapabilities").StartActive();
+				using TelemetrySpan _ = _tracer.StartActiveSpan("GetLinuxCapabilities");
 				capabilities.Properties.Add($"{KnownPropertyNames.Platform}=Linux");
 				capabilities.Properties.Add($"{KnownPropertyNames.PlatformGroup}=Linux");
 				capabilities.Properties.Add($"{KnownPropertyNames.PlatformGroup}=Unix");
@@ -307,7 +298,7 @@ namespace HordeAgent.Services
 			}
 			else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
 			{
-				using IScope _ = GlobalTracer.Instance.BuildSpan("GetMacCapabilities").StartActive();
+				using TelemetrySpan _ = _tracer.StartActiveSpan("GetMacCapabilities");
 				capabilities.Properties.Add($"{KnownPropertyNames.Platform}=Mac");
 				capabilities.Properties.Add($"{KnownPropertyNames.PlatformGroup}=Apple");
 				capabilities.Properties.Add($"{KnownPropertyNames.PlatformGroup}=Desktop");
@@ -388,7 +379,7 @@ namespace HordeAgent.Services
 			// Get the IP addresses
 			try
 			{
-				using IScope _ = GlobalTracer.Instance.BuildSpan("ResolveIp").StartActive();
+				using TelemetrySpan _ = _tracer.StartActiveSpan("ResolveIp");
 				using CancellationTokenSource dnsCts = new(3000);
 				IPHostEntry entry = await Dns.GetHostEntryAsync(Dns.GetHostName(), dnsCts.Token);
 				foreach (IPAddress address in entry.AddressList)
@@ -477,6 +468,7 @@ namespace HordeAgent.Services
 			// Whether the agent is packaged as a self-contained .NET app
 			// Used during the transition period over from multi-platform, non-self-contained agent packages.
 			capabilities.Properties.Add($"SelfContained={AgentApp.IsSelfContained}");
+			capabilities.Properties.Add($"DotNetFramework={RuntimeInformation.FrameworkDescription}");
 
 			// Add any additional properties from the config file
 			capabilities.Properties.AddRange(_settings.Properties.Select(kvp => $"{kvp.Key}={kvp.Value}"));
@@ -516,9 +508,9 @@ namespace HordeAgent.Services
 		/// <param name="hostname">A hostname to test against</param>
 		/// <param name="timeoutMs">Max time to wait for a connect, in milliseconds</param>
 		/// <returns>Local IP address of this machine</returns>
-		public static async Task<IPAddress?> GetLocalIpAddressAsync(string hostname, int timeoutMs = 2000)
+		public async Task<IPAddress?> GetLocalIpAddressAsync(string hostname, int timeoutMs = 2000)
 		{
-			using IScope _ = GlobalTracer.Instance.BuildSpan(nameof(GetLocalIpAddressAsync)).StartActive();
+			using TelemetrySpan _ = _tracer.StartActiveSpan(nameof(GetLocalIpAddressAsync));
 			try
 			{
 				using Socket socket = new(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.IP);
@@ -547,6 +539,7 @@ namespace HordeAgent.Services
 			if (numLogicalCores > 0)
 			{
 				capabilities.Resources.Add("LogicalCores", numLogicalCores);
+				capabilities.Properties.Add($"LogicalCores={numLogicalCores}");
 			}
 
 			if (numPhysicalCores > 0)
@@ -614,9 +607,9 @@ namespace HordeAgent.Services
 			}
 		}
 
-		static async Task AddAwsPropertiesInternalAsync(IList<string> properties, ILogger logger)
+		async Task AddAwsPropertiesInternalAsync(IList<string> properties, ILogger logger)
 		{
-			using IScope scope = GlobalTracer.Instance.BuildSpan(nameof(AddAwsPropertiesInternalAsync)).StartActive();
+			using TelemetrySpan _ = _tracer.StartActiveSpan(nameof(AddAwsPropertiesInternalAsync));
 			if (EC2InstanceMetadata.IdentityDocument != null)
 			{
 				properties.Add("EC2=1");

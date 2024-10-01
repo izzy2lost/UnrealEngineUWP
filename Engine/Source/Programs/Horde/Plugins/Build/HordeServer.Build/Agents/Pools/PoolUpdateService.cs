@@ -18,6 +18,7 @@ namespace HordeServer.Agents.Pools
 	public sealed class PoolUpdateService : IHostedService, IAsyncDisposable
 	{
 		readonly AgentService _agentService;
+		readonly PoolService _poolService;
 		readonly IPoolCollection _pools;
 		readonly IClock _clock;
 		readonly IOptionsMonitor<BuildConfig> _buildConfig;
@@ -30,9 +31,10 @@ namespace HordeServer.Agents.Pools
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public PoolUpdateService(AgentService agentService, IPoolCollection pools, IClock clock, IOptionsMonitor<BuildConfig> buildConfig, Tracer tracer, ILogger<PoolUpdateService> logger)
+		public PoolUpdateService(AgentService agentService, PoolService poolService, IPoolCollection pools, IClock clock, IOptionsMonitor<BuildConfig> buildConfig, Tracer tracer, ILogger<PoolUpdateService> logger)
 		{
 			_agentService = agentService;
+			_poolService = poolService;
 			_pools = pools;
 			_clock = clock;
 			_buildConfig = buildConfig;
@@ -138,22 +140,23 @@ namespace HordeServer.Agents.Pools
 			foreach (IAgent agent in agents)
 			{
 				long? freeDiskSpace = agent.GetDiskFreeSpace();
-				long maxConformDiskSpace = 0;
-
+				long conformDiskSpaceNeeded = 0;
+				HashSet<AgentWorkspaceInfo> workspaces = await _poolService.GetWorkspacesAsync(agent, DateTime.UtcNow - TimeSpan.FromHours(1), _buildConfig.CurrentValue, cancellationToken);
+				
 				// Find the largest conform disk space amount needed, if any
-				foreach (AgentWorkspaceInfo workspace in agent.Workspaces)
+				foreach (AgentWorkspaceInfo workspace in workspaces)
 				{
 					if (workspace.ConformDiskFreeSpace is > 0)
 					{
-						maxConformDiskSpace = Math.Max(maxConformDiskSpace, MegabytesToBytes(workspace.ConformDiskFreeSpace.Value));
+						conformDiskSpaceNeeded = Math.Max(conformDiskSpaceNeeded, MegabytesToBytes(workspace.ConformDiskFreeSpace.Value));
 					}
 				}
 
-				if (freeDiskSpace != null && maxConformDiskSpace > 0 && freeDiskSpace < maxConformDiskSpace && agent.ConformAttemptCount is null or 0)
+				if (freeDiskSpace != null && conformDiskSpaceNeeded > 0 && freeDiskSpace < conformDiskSpaceNeeded && agent.ConformAttemptCount is null or 0)
 				{
 					await agent.TryUpdateAsync(new UpdateAgentOptions { RequestFullConform = true }, cancellationToken: cancellationToken);
 					_logger.LogInformation("Auto-conforming {AgentId} as workspace conform disk space needed ({ConformDiskSpace:F1} MB) is less than free disk space ({FreeDiskSpace:F1} MB)",
-						agent.Id.ToString(), maxConformDiskSpace / 1024.0 / 1024.0, freeDiskSpace.Value / 1024.0 / 1024.0);
+						agent.Id.ToString(), conformDiskSpaceNeeded / 1024.0 / 1024.0, freeDiskSpace.Value / 1024.0 / 1024.0);
 				}
 			}
 		}

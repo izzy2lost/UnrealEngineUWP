@@ -2,11 +2,19 @@
 
 #pragma warning disable CS1591
 
-namespace HordeTrayApp
+namespace UnrealToolbox.Plugins.HordeAgent
 {
-	[Serializable]
-	public class Settings
+	public enum AgentMode
 	{
+		Workstation = 0,
+		Dedicated = 1,
+		Disabled = 2,
+	}
+
+	[Serializable]
+	public class HordeAgentSettings
+	{
+		public AgentMode? Mode { get; set; }
 		public IdleSettings Idle { get; set; } = new();
 	}
 

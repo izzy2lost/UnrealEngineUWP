@@ -108,6 +108,11 @@ namespace EpicGames.Horde
 		readonly IClock _clock;
 
 		/// <summary>
+		/// Event handler for the auth state changing
+		/// </summary>
+		public event Action? OnStateChanged;
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
 		public HordeHttpAuthHandlerState(
@@ -262,6 +267,7 @@ namespace EpicGames.Horde
 					if (_authStateTask == null || _authStateTask == authStateTask)
 					{
 						_authStateTask = Task.Run(() => GetAuthStateInternalAsync(interactive, _cancellationTokenSource.Token), _cancellationTokenSource.Token);
+						_authStateTask.ContinueWith(_ => OnStateChanged?.Invoke(), CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
 					}
 					authStateTask = _authStateTask;
 				}

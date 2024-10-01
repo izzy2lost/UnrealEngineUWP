@@ -284,7 +284,10 @@ class TelemetryService : IHostedService, IDisposable
 
 	public async Task StopAsync(CancellationToken cancellationToken)
 	{
-		_eventLoopHeartbeatCts?.Cancel();
+		if (_eventLoopHeartbeatCts != null)
+		{
+			await _eventLoopHeartbeatCts.CancelAsync();
+		}
 
 		if (_eventLoopTask != null)
 		{

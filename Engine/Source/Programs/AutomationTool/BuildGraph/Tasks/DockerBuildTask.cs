@@ -47,6 +47,12 @@ namespace AutomationTool.Tasks
 		/// </summary>
 		[TaskParameter(Optional = true)]
 		public bool UseBuildKit { get; set; }
+		
+		/// <summary>
+		/// Set ulimit in build
+		/// </summary>
+		[TaskParameter(Optional = true)]
+		public string Ulimit { get; set; } = "nofile=100000:100000";
 
 		/// <summary>
 		/// Type of progress output (--progress)
@@ -180,6 +186,10 @@ namespace AutomationTool.Tasks
 				if (_parameters.ProgressOutput != null)
 				{
 					arguments.Append($" --progress={_parameters.ProgressOutput}");
+				}
+				if (_parameters.Ulimit != null && _parameters.Ulimit.Length > 1)
+				{
+					arguments.Append($" --ulimit={_parameters.Ulimit}");
 				}
 				if (_parameters.Arguments != null)
 				{

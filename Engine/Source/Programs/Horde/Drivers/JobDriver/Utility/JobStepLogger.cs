@@ -59,7 +59,7 @@ namespace JobDriver.Utility
 		{
 			if (!_updateOutcomeTask.IsCompleted)
 			{
-				_cancellationSource.Cancel();
+				await _cancellationSource.CancelAsync();
 				await _updateOutcomeTask;
 				_cancellationSource.Dispose();
 			}

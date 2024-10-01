@@ -732,7 +732,7 @@ namespace EpicGames.Horde.Issues
 		/// </summary>
 		public CommitId? FixCommitId
 		{
-			get => _fixCommitId ?? ((_fixChange < 0)? null : CommitId.FromPerforceChange(_fixChange));
+			get => _fixCommitId ?? ((_fixChange < 0)? null : (_fixChange == 0)? CommitId.Empty : CommitId.FromPerforceChange(_fixChange));
 			set => _fixCommitId = value;
 		}
 		CommitId? _fixCommitId;

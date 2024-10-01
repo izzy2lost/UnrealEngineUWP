@@ -341,7 +341,7 @@ namespace JobDriver.Utility
 		public async Task CleanAsync(IPerforceConnection perforceClient, CancellationToken cancellationToken)
 		{
 			await Repository.RevertAsync(perforceClient, cancellationToken);
-			await Repository.CleanAsync(RemoveUntrackedFiles, cancellationToken);
+			await Repository.CleanAsync(perforceClient, RemoveUntrackedFiles, cancellationToken);
 		}
 
 		/// <summary>

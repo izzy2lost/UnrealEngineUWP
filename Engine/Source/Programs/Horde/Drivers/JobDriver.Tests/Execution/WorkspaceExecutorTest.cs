@@ -39,6 +39,12 @@ namespace JobDriver.Tests.Execution
 			private readonly Dictionary<StreamId, RpcGetStreamResponse> _streamIdToStreamResponse = new();
 			private readonly Dictionary<JobId, RpcGetJobResponse> _jobIdToJobResponse = new();
 
+			public event Action? OnAccessTokenStateChanged
+			{
+				add { }
+				remove { }
+			}
+
 			public void AddStream(StreamId streamId, string streamName)
 			{
 				if (_streamIdToStreamResponse.ContainsKey(streamId))
@@ -158,7 +164,7 @@ namespace JobDriver.Tests.Execution
 			_workspace.SetFile(1, "foo/bar/baz.h", "baz");
 
 			JobExecutorOptions executorOptions = new JobExecutorOptions(_hordeClient, _workingDir, null, _jobId, _batchId, default, new RpcJobOptions());
-			_executor = new(executorOptions, _workspace, null, NullLogger.Instance);
+			_executor = new(executorOptions, _workspace, null, SimpleTestExecutor.NoOpTracer, NullLogger.Instance);
 		}
 
 		public void Dispose()
@@ -182,7 +188,7 @@ namespace JobDriver.Tests.Execution
 		public async Task RegularAndAutoSdkWorkspaceAsync()
 		{
 			JobExecutorOptions executorOptions = new JobExecutorOptions(_hordeClient, _workingDir, Array.Empty<ProcessToTerminate>(), _jobId, _batchId, default, new RpcJobOptions());
-			using WorkspaceExecutor executor = new(executorOptions, _workspace, _autoSdkWorkspace, NullLogger.Instance);
+			using WorkspaceExecutor executor = new(executorOptions, _workspace, _autoSdkWorkspace, SimpleTestExecutor.NoOpTracer, NullLogger.Instance);
 
 			RpcBeginBatchResponse batch = new RpcBeginBatchResponse { Change = 1 };
 			await executor.InitializeAsync(batch, _logger, CancellationToken.None);
@@ -196,7 +202,7 @@ namespace JobDriver.Tests.Execution
 		public async Task EnvVarsAsync()
 		{
 			JobExecutorOptions executorOptions = new JobExecutorOptions(_hordeClient, _workingDir, Array.Empty<ProcessToTerminate>(), _jobId, _batchId, default, new RpcJobOptions());
-			using WorkspaceExecutor executor = new(executorOptions, _workspace, _autoSdkWorkspace, NullLogger.Instance);
+			using WorkspaceExecutor executor = new(executorOptions, _workspace, _autoSdkWorkspace, SimpleTestExecutor.NoOpTracer, NullLogger.Instance);
 
 			RpcBeginBatchResponse batch = new RpcBeginBatchResponse { Change = 1, StreamName = "//UE5/Main" };
 			await executor.InitializeAsync(batch, _logger, CancellationToken.None);
@@ -222,7 +228,7 @@ namespace JobDriver.Tests.Execution
 			_workspace.SetFile(1000, "New/Feature/Foo.cs", "foo");
 
 			JobExecutorOptions executorOptions = new JobExecutorOptions(_hordeClient, _workingDir, Array.Empty<ProcessToTerminate>(), preflightJobId, _batchId, default, new RpcJobOptions());
-			using WorkspaceExecutor executor = new(executorOptions, _workspace, null, NullLogger.Instance);
+			using WorkspaceExecutor executor = new(executorOptions, _workspace, null, SimpleTestExecutor.NoOpTracer, NullLogger.Instance);
 
 			RpcBeginBatchResponse batch = new RpcBeginBatchResponse { Change = 1, PreflightChange = 1000 };
 			await executor.InitializeAsync(batch, _logger, CancellationToken.None);
@@ -240,7 +246,7 @@ namespace JobDriver.Tests.Execution
 			_hordeClient.AddJob(noChangeJobId, _streamId, 0, 0);
 
 			JobExecutorOptions executorOptions = new JobExecutorOptions(_hordeClient, _workingDir, Array.Empty<ProcessToTerminate>(), noChangeJobId, _batchId, default, new RpcJobOptions());
-			using WorkspaceExecutor executor = new(executorOptions, _workspace, null, NullLogger.Instance);
+			using WorkspaceExecutor executor = new(executorOptions, _workspace, null, SimpleTestExecutor.NoOpTracer, NullLogger.Instance);
 
 			RpcBeginBatchResponse batch = new RpcBeginBatchResponse { };
 			await Assert.ThrowsExceptionAsync<WorkspaceMaterializationException>(() => executor.InitializeAsync(batch, _logger, CancellationToken.None));

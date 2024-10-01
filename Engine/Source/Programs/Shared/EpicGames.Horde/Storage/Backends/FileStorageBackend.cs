@@ -167,7 +167,7 @@ namespace EpicGames.Horde.Storage.Backends
 			{
 				try
 				{
-					await FileReference.WriteAllTextAsync(file, $"{value.Hash}\n{value.Locator}\n");
+					await FileReference.WriteAllTextAsync(file, $"{value.Hash}\n{value.Locator}\n", cancellationToken);
 					break;
 				}
 				catch (IOException ex) when (attempt < 3)

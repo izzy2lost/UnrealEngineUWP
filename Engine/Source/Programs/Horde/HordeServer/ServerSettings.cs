@@ -1,11 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Net;
-using EpicGames.Core;
 using EpicGames.Horde.Server;
+using EpicGames.Horde.Utilities;
 using HordeServer.Utilities;
 
 namespace HordeServer
@@ -19,68 +18,6 @@ namespace HordeServer
 	/// </summary>
 	public class FeatureFlagSettings
 	{
-	}
-
-	/// <summary>
-	/// OpenTelemetry configuration for collection and sending of traces and metrics.
-	/// </summary>
-	public class OpenTelemetrySettings
-	{
-		/// <summary>
-		/// Whether OpenTelemetry exporting is enabled
-		/// </summary>
-		public bool Enabled { get; set; } = false;
-
-		/// <summary>
-		/// Service name
-		/// </summary>
-		public string ServiceName { get; set; } = "HordeServer";
-
-		/// <summary>
-		/// Service namespace
-		/// </summary>
-		public string ServiceNamespace { get; set; } = "Horde";
-
-		/// <summary>
-		/// Service version
-		/// </summary>
-		public string? ServiceVersion { get; set; }
-
-		/// <summary>
-		/// Whether to enrich and format telemetry to fit presentation in Datadog
-		/// </summary>
-		public bool EnableDatadogCompatibility { get; set; } = false;
-
-		/// <summary>
-		/// Extra attributes to set
-		/// </summary>
-		public Dictionary<string, string> Attributes { get; set; } = new();
-
-		/// <summary>
-		/// Whether to enable the console exporter (for debugging purposes)
-		/// </summary>
-		public bool EnableConsoleExporter { get; set; } = false;
-
-		/// <summary>
-		/// Protocol exporters (key is a unique and arbitrary name) 
-		/// </summary>
-		public Dictionary<string, OpenTelemetryProtocolExporterSettings> ProtocolExporters { get; set; } = new();
-	}
-
-	/// <summary>
-	/// Configuration for an OpenTelemetry exporter
-	/// </summary>
-	public class OpenTelemetryProtocolExporterSettings
-	{
-		/// <summary>
-		/// Endpoint URL. Usually differs depending on protocol used.
-		/// </summary>
-		public Uri? Endpoint { get; set; }
-
-		/// <summary>
-		/// Protocol for the exporter ('grpc' or 'httpprotobuf')
-		/// </summary>
-		public string Protocol { get; set; } = "grpc";
 	}
 
 	/// <summary>

@@ -44,6 +44,7 @@ namespace HordeServer.Storage
 
 			services.AddSingleton<IObjectStoreFactory, ObjectStoreFactory>();
 			services.AddSingleton<AwsObjectStoreFactory>();
+			services.AddSingleton<AzureObjectStoreFactory>();
 			services.AddSingleton<FileObjectStoreFactory>();
 
 			services.AddSingleton<BundleCache>();

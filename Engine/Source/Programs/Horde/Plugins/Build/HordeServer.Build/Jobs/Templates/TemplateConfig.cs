@@ -118,7 +118,7 @@ namespace HordeServer.Jobs.Templates
 		/// <param name="name"></param>
 		/// <param name="parameterIds"></param>
 		/// <returns></returns>
-		static protected ParameterId AddParameterId(ParameterId explicitParameterId, string name, HashSet<ParameterId> parameterIds)
+		protected static ParameterId AddParameterId(ParameterId explicitParameterId, string name, HashSet<ParameterId> parameterIds)
 		{
 			if (explicitParameterId.Id.IsEmpty)
 			{
@@ -139,7 +139,7 @@ namespace HordeServer.Jobs.Templates
 		/// </summary>
 		/// <param name="name">Default name for the parameter</param>
 		/// <param name="parameterIds">The existing parameter ids</param>
-		static protected ParameterId CreateUniqueParameterId(string name, HashSet<ParameterId> parameterIds)
+		protected static ParameterId CreateUniqueParameterId(string name, HashSet<ParameterId> parameterIds)
 		{
 			string baseName = name;
 			if (String.IsNullOrEmpty(baseName))

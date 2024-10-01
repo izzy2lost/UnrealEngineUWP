@@ -4,6 +4,7 @@ using System.Buffers;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq.Expressions;
+using System.Threading.Channels;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
@@ -399,6 +400,20 @@ namespace HordeServer.Storage
 		static readonly FieldDefinition<BlobInfo, string> s_blobAliasField
 			= new StringFieldDefinition<BlobInfo, string>($"{GetFieldName<BlobInfo>(x => x.Aliases)}.{GetFieldName<AliasInfo>(x => x.Name)}");
 
+		class ObjectIdRedisConverter : IRedisConverter<ObjectId>
+		{
+			public ObjectId FromRedisValue(RedisValue value)
+				=> value.IsNullOrEmpty ? ObjectId.Empty : new ObjectId((byte[]?)value);
+
+			public RedisValue ToRedisValue(ObjectId value)
+				=> value.ToByteArray();
+		}
+
+		static StorageService()
+		{
+			RedisSerializer.RegisterConverter<ObjectId, ObjectIdRedisConverter>();
+		}
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
@@ -700,16 +715,20 @@ namespace HordeServer.Storage
 				{
 					break;
 				}
-				if (await ShouldPauseBlobTickAsync(current, cancellationToken))
+
+				// Wait until there's some space in the queue
+				int delaySecs = 1;
+				while (await ShouldPauseBlobTickAsync(current, cancellationToken))
 				{
-					break;
+					await Task.Delay(TimeSpan.FromSeconds(delaySecs), cancellationToken);
+					delaySecs = Math.Min(delaySecs * 2, 128);
 				}
 
 				// Add a check record for each new blob
 				_logger.LogDebug("Adding {NumBlobs} blobs for GC consideration ({FirstId} to {LastId})", current.Count, current[0].Id, current[^1].Id);
 				foreach (BlobInfo blobInfo in current)
 				{
-					AddGcCheckRecord(blobInfo.NamespaceId, blobInfo.Id);
+					AddGcCheckRecord(blobInfo.NamespaceId, blobInfo.Id, latestInfoId);
 				}
 
 				// Update the last imported blob id
@@ -856,6 +875,8 @@ namespace HordeServer.Storage
 
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(StorageService)}.{nameof(TickRefsAsync)}");
 
+			GcState gcState = await _gcState.GetAsync(cancellationToken);
+
 			FilterDefinition<RefInfo> queryFilter = Builders<RefInfo>.Filter.Exists(x => x.ExpiresAtUtc) & Builders<RefInfo>.Filter.Lt(x => x.ExpiresAtUtc, utcNow);
 			using (IAsyncCursor<RefInfo> cursor = await _refCollection.Find(queryFilter).ToCursorAsync(cancellationToken))
 			{
@@ -869,7 +890,7 @@ namespace HordeServer.Storage
 						_logger.LogInformation("Expired ref {NamespaceId}:{RefName}", refInfo.NamespaceId, refInfo.Name);
 						FilterDefinition<RefInfo> filter = Builders<RefInfo>.Filter.Expr(x => x.Id == refInfo.Id && x.ExpiresAtUtc == refInfo.ExpiresAtUtc);
 						requests.Add(new DeleteOneModel<RefInfo>(filter));
-						AddGcCheckRecord(refInfo.NamespaceId, refInfo.TargetBlobId);
+						AddGcCheckRecord(refInfo.NamespaceId, refInfo.TargetBlobId, gcState.LastImportBlobInfoId);
 						AddRefToCache(refInfo.NamespaceId, refInfo.Name, default);
 					}
 
@@ -905,7 +926,8 @@ namespace HordeServer.Storage
 			if (oldRefInfo != null)
 			{
 				_logger.LogInformation("Deleted ref {NamespaceId}:{RefName}", namespaceId, name);
-				AddGcCheckRecord(namespaceId, oldRefInfo.TargetBlobId);
+				GcState gcState = await _gcState.GetAsync(cancellationToken);
+				AddGcCheckRecord(namespaceId, oldRefInfo.TargetBlobId, gcState.LastImportBlobInfoId);
 				return true;
 			}
 
@@ -969,7 +991,8 @@ namespace HordeServer.Storage
 			RefInfo? oldRefInfo = await _refCollection.FindOneAndReplaceAsync<RefInfo>(x => x.NamespaceId == namespaceId && x.Name == name, newRefInfo, new FindOneAndReplaceOptions<RefInfo> { IsUpsert = true }, cancellationToken);
 			if (oldRefInfo != null)
 			{
-				AddGcCheckRecord(namespaceId, oldRefInfo.TargetBlobId);
+				GcState gcState = await _gcState.GetAsync(cancellationToken);
+				AddGcCheckRecord(namespaceId, oldRefInfo.TargetBlobId, gcState.LastImportBlobInfoId);
 			}
 
 			_logger.LogInformation("Updated ref {NamespaceId}:{RefName}", namespaceId, name);
@@ -986,7 +1009,7 @@ namespace HordeServer.Storage
 		static RedisKey GetRedisKey(string suffix) => $"storage:{suffix}";
 		static RedisKey GetRedisKey(NamespaceId namespaceId, string suffix) => GetRedisKey($"{namespaceId}:{suffix}");
 
-		static RedisSortedSetKey<RedisValue> GetGcCheckSet(NamespaceId namespaceId) => new RedisSortedSetKey<RedisValue>(GetRedisKey(namespaceId, "check"));
+		static RedisSortedSetKey<ObjectId> GetGcCheckSet(NamespaceId namespaceId) => new RedisSortedSetKey<ObjectId>(GetRedisKey(namespaceId, "check"));
 
 		/// <summary>
 		/// Find the next namespace to run GC on
@@ -1054,7 +1077,11 @@ namespace HordeServer.Storage
 							{
 								try
 								{
-									await TickGcForNamespaceAsync(state.Namespaces[namespaceId], gcState.LastImportBlobInfoId, utcNow, storageConfig.EnableGc, cancellationToken);
+									await TickGcForNamespaceAsync(state.Namespaces[namespaceId], gcState.LastImportBlobInfoId, utcNow, cancellationToken);
+								}
+								catch (OperationCanceledException ex)
+								{
+									_logger.LogInformation(ex, "Cancelled GC pass for {NamespaceId}", namespaceId);
 								}
 								catch (Exception ex)
 								{
@@ -1069,73 +1096,184 @@ namespace HordeServer.Storage
 			}
 		}
 
-		async Task TickGcForNamespaceAsync(NamespaceInfo namespaceInfo, ObjectId lastImportBlobInfoId, DateTime utcNow, bool deleteObjects, CancellationToken cancellationToken)
+		class GcSweepState
 		{
-			IStorageNamespace client = this.GetNamespace(namespaceInfo.Id);
+			long _score;
+			int _numItemsRemoved;
 
-			Stopwatch timer = Stopwatch.StartNew();
-			_logger.LogInformation("Running garbage collection for namespace {NamespaceId}...", namespaceInfo.Id);
-			int numItemsRemoved = 0;
+			public int NumRemovedItems
+				=> _numItemsRemoved;
 
-			double score = GetGcTimestamp(utcNow);
+			public GcSweepState(double score)
+				=> _score = BitConverter.DoubleToInt64Bits(score);
 
-			RedisSortedSetKey<RedisValue> checkSet = GetGcCheckSet(namespaceInfo.Id);
-			while (_storageConfig.CurrentValue.EnableGc || _storageConfig.CurrentValue.EnableGcVerification)
+			public double GetNextScore()
+				=> BitConverter.Int64BitsToDouble(Interlocked.Increment(ref _score));
+
+			public void OnRemovedItem()
+				=> Interlocked.Increment(ref _numItemsRemoved);
+		}
+
+		async Task TickGcForNamespaceAsync(NamespaceInfo namespaceInfo, ObjectId lastImportBlobInfoId, DateTime utcNow, CancellationToken cancellationToken)
+		{
+			// Runs the garbage collector over a particular namespace.
+			// 
+			// Horde assigns a unique id to each blob in the DB when uploaded, and we maintain a reverse index of all things that reference a blob. At any
+			// moment in time, we can query this index to determine if a blob is referenced. (TODO: May want a grace period where we consider a ref's old AND
+			// new value to handle races for updates?)
+			//
+			// Since we're not a CAS and never recycle ids, we can guarantee that any blobs that do not have any references cannot be reintroduced into the
+			// live set, and don't have to worry about races with unreferenced blobs becoming referenced again.
+			//
+			// To prevent newly added blobs being GC'd before their references are present, we have a maximum object id that we consider for GC based on
+			// creation timestamp. After the grace period elapses, all blobs are added to the reachability check set.
+			//
+			// For reachability analysis, we maintain a set of blob ids that need checking in Redis. Whenever a ref to a blob is removed, we add it to the set
+			// with a score derived from the current time. If a second request to check a blob changes, we update the time. We leave the blob id in the set 
+			// until we've done our reachability checks on it, and only remove it IFF the score matches the original value - preventing the second check
+			// request being removed from the set.
+			//
+			// Querying the reachability set in score order ensures that heavily referenced blobs are continually pushed to the end, reducing the number of times
+			// we need to do redundant checks on it.
+			// 
+			// There is a potential for the enumeration to skip over blobs; either because the check set drains before new items are added, or because
+			// new scores are assigned before items are actually pushed to Redis. This isn't really a problem; we'll catch them the next
+			// iteration and will process them eventually.
+
+			using CancellationTokenSource cancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+			using IDisposable? notification = _storageConfig.OnChange((_, _) => cancellationSource.Cancel());
+
+			StorageConfig storageConfig = _storageConfig.CurrentValue;
+			if (storageConfig.EnableGc || storageConfig.EnableGcVerification)
 			{
-				long length = await _redisService.GetDatabase().SortedSetLengthAsync(checkSet);
-				int batchSize = (int)Math.Min(length, 1024);
-				_logger.LogInformation("Garbage collection queue for namespace {NamespaceId} ({QueueName}) has {Length} entries; taking {Count}", namespaceInfo.Id, checkSet.Inner, length, batchSize);
+				IStorageNamespace client = this.GetNamespace(namespaceInfo.Id);
 
-				if (length == 0)
+				Stopwatch timer = Stopwatch.StartNew();
+				_logger.LogInformation("Running garbage collection for namespace {NamespaceId}...", namespaceInfo.Id);
+
+				// Get the current GC timestamp, in minutes since the Unix Epoch
+				GcSweepState sweepState = new GcSweepState(GetGcTimestamp(utcNow));
+
+				AsyncEvent queueChangeEvent = new AsyncEvent();
+				Channel<SortedSetEntry<ObjectId>> channel = Channel.CreateBounded<SortedSetEntry<ObjectId>>(new BoundedChannelOptions(128));
+
+				await using AsyncPipeline pipeline = new AsyncPipeline(cancellationSource.Token);
+				pipeline.AddTask(ctx => FindBlobsForReachabilityCheckAsync(namespaceInfo, channel.Writer, queueChangeEvent, ctx));
+				pipeline.AddTasks(8, channel.Reader, (entry, ctx) => CheckReachabilityAsync(namespaceInfo, entry, lastImportBlobInfoId, sweepState, storageConfig, queueChangeEvent, ctx));
+				await pipeline.WaitForCompletionAsync();
+
+				// Update the GC timestamp
+				await _gcState.UpdateAsync(state => state.FindOrAddNamespace(namespaceInfo.Id).LastTime = utcNow, cancellationToken);
+				_logger.LogInformation("Finished garbage collection for namespace {NamespaceId} in {TimeSecs}s ({NumItems} removed)", namespaceInfo.Id, timer.Elapsed.TotalSeconds, sweepState.NumRemovedItems);
+			}
+		}
+
+		// Reads batches of blobs from the check set and queues them for reachability checking
+		async Task FindBlobsForReachabilityCheckAsync(NamespaceInfo namespaceInfo, ChannelWriter<SortedSetEntry<ObjectId>> writer, AsyncEvent queueChangeEvent, CancellationToken cancellationToken)
+		{
+			// Keep a set of items we previously added to the queue, so we don't queue them again.
+			HashSet<SortedSetEntry<ObjectId>> queuedItems = new HashSet<SortedSetEntry<ObjectId>>();
+
+			Stopwatch? timer = null;
+
+			RedisSortedSetKey<ObjectId> checkSet = GetGcCheckSet(namespaceInfo.Id);
+			for (; ; )
+			{
+				// Capture the current state of the queue change event. We can use this to speculatively update the queue while being able to check for changes elsewhere
+				queueChangeEvent.Reset();
+				Task queueChangeTask = queueChangeEvent.Task;
+
+				// Print the current queue stats
+				if (timer == null || timer.Elapsed > TimeSpan.FromSeconds(30))
 				{
-					await _gcState.UpdateAsync(state => state.FindOrAddNamespace(namespaceInfo.Id).LastTime = utcNow, cancellationToken);
-					_logger.LogInformation("Finished garbage collection for namespace {NamespaceId} in {TimeSecs}s ({NumItems} removed)", namespaceInfo.Id, timer.Elapsed.TotalSeconds, numItemsRemoved);
+					long length = await _redisService.GetDatabase().SortedSetLengthAsync(checkSet);
+					_logger.LogInformation("Garbage collection queue for namespace {NamespaceId} ({QueueName}) has {Length} entries", namespaceInfo.Id, checkSet.Inner, length);
+					timer = Stopwatch.StartNew();
+				}
+
+				// Get the current state of the queue. If it's empty, we're done.
+				SortedSetEntry<ObjectId>[] entries = await _redisService.GetDatabase().SortedSetRangeByRankWithScoresAsync(checkSet, 0, 1024);
+				if (entries.Length == 0)
+				{
+					_logger.LogInformation("Garbage collection complete for namespace {NamespaceId}", namespaceInfo.Id);
+					writer.Complete();
 					break;
 				}
 
-				RedisValue[] values = await _redisService.GetDatabase().SortedSetRangeByRankAsync(checkSet, 0, batchSize);
-				foreach (RedisValue value in values)
+				// Write the entries to the channel
+				HashSet<SortedSetEntry<ObjectId>> nextQueuedItems = new HashSet<SortedSetEntry<ObjectId>>(entries.Length);
+				foreach (SortedSetEntry<ObjectId> entry in entries)
 				{
-					ObjectId blobInfoId = new ObjectId(((byte[]?)value)!);
-
-					using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(StorageService)}.{nameof(TickGcForNamespaceAsync)}");
-					span.SetAttribute("BlobId", blobInfoId.ToString());
-
-					if (blobInfoId <= lastImportBlobInfoId && !await IsBlobReferencedAsync(blobInfoId, cancellationToken))
+					ObjectId blobInfoId = entry.Element;
+					if (!queuedItems.Contains(entry))
 					{
-						BlobInfo? info;
-						if (deleteObjects)
-						{
-							info = await _blobCollection.FindOneAndDeleteAsync(x => x.Id == blobInfoId, cancellationToken: cancellationToken);
-						}
-						else
-						{
-							info = await _blobCollection.FindOneAndUpdateAsync(x => x.Id == blobInfoId, Builders<BlobInfo>.Update.Set(x => x.GcVersion, CurrentGcVersion), cancellationToken: cancellationToken);
-						}
-
-						if (info != null)
-						{
-							if (info.Imports != null)
-							{
-								SortedSetEntry<RedisValue>[] entries = info.Imports.Select(x => new SortedSetEntry<RedisValue>(x.ToByteArray(), score)).ToArray();
-								_ = _redisService.GetDatabase().SortedSetAddAsync(checkSet, entries, flags: CommandFlags.FireAndForget);
-								score = Math.BitIncrement(score);
-							}
-
-							ObjectKey objectKey = GetObjectKey(new BlobLocator(info.Path));
-							_logger.LogDebug("Deleting {NamespaceId} blob {BlobId}, key: {ObjectKey} ({ImportCount} imports)", namespaceInfo.Id, blobInfoId, objectKey, info.Imports?.Count ?? 0);
-
-							if (deleteObjects)
-							{
-								await namespaceInfo.Store.DeleteAsync(objectKey, cancellationToken);
-							}
-
-							numItemsRemoved++;
-						}
+						await writer.WriteAsync(entry, cancellationToken);
 					}
-					_ = _redisService.GetDatabase().SortedSetRemoveAsync(checkSet, value, CommandFlags.FireAndForget);
+					nextQueuedItems.Add(entry);
+				}
+				queuedItems = nextQueuedItems;
+
+				// Wait for something to be processed before running again
+				await queueChangeTask;
+			}
+		}
+
+		// Checks whether an individual blob can be removed
+		async Task CheckReachabilityAsync(NamespaceInfo namespaceInfo, SortedSetEntry<ObjectId> entry, ObjectId lastImportBlobInfoId, GcSweepState state, StorageConfig storageConfig, AsyncEvent queueChangeEvent, CancellationToken cancellationToken)
+		{
+			ObjectId blobInfoId = new ObjectId(((byte[]?)entry.ElementValue)!);
+
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(StorageService)}.{nameof(TickGcForNamespaceAsync)}");
+			span.SetAttribute("BlobId", blobInfoId.ToString());
+
+			RedisSortedSetKey<ObjectId> checkSet = GetGcCheckSet(namespaceInfo.Id);
+			if (!await IsBlobReferencedAsync(blobInfoId, cancellationToken))
+			{
+				BlobInfo? info;
+				if (storageConfig.EnableGc)
+				{
+					info = await _blobCollection.FindOneAndDeleteAsync(x => x.Id == blobInfoId, cancellationToken: cancellationToken);
+				}
+				else
+				{
+					info = await _blobCollection.FindOneAndUpdateAsync(x => x.Id == blobInfoId, Builders<BlobInfo>.Update.Set(x => x.GcVersion, CurrentGcVersion), cancellationToken: cancellationToken);
+				}
+
+				if (info != null)
+				{
+					if (info.Imports != null)
+					{
+						SortedSetEntry<ObjectId>[] entries = info.Imports.Where(x => x <= lastImportBlobInfoId).Select(x => new SortedSetEntry<ObjectId>(x, state.GetNextScore())).ToArray();
+						await _redisService.GetDatabase().SortedSetAddAsync(checkSet, entries);
+					}
+
+					ObjectKey objectKey = GetObjectKey(new BlobLocator(info.Path));
+					_logger.LogDebug("Deleting {NamespaceId} blob {BlobId}, key: {ObjectKey} ({ImportCount} imports)", namespaceInfo.Id, blobInfoId, objectKey, info.Imports?.Count ?? 0);
+
+					if (storageConfig.EnableGc)
+					{
+						await namespaceInfo.Store.DeleteAsync(objectKey, cancellationToken);
+					}
+
+					state.OnRemovedItem();
 				}
 			}
+
+			// Remove the item from the check set iff the score is the same
+			for (; ; )
+			{
+				ITransaction transaction = _redisService.GetDatabase().CreateTransaction();
+				ConditionResult scoreEqualCondition = transaction.AddCondition(checkSet.SortedSetEqual(entry.Element, entry.Score));
+				_ = transaction.SortedSetRemoveAsync(checkSet, entry.Element);
+
+				if (await transaction.ExecuteAsync() || !scoreEqualCondition.WasSatisfied)
+				{
+					break;
+				}
+			}
+
+			// Flag that the queue has been updated
+			queueChangeEvent.Latch();
 		}
 
 		static void SyncNamespaceList(GcState state, List<NamespaceConfig> namespaces)
@@ -1155,10 +1293,13 @@ namespace HordeServer.Storage
 			state.Namespaces.SortBy(x => x.Id.Text.Text);
 		}
 
-		void AddGcCheckRecord(NamespaceId namespaceId, ObjectId id)
+		void AddGcCheckRecord(NamespaceId namespaceId, ObjectId id, ObjectId lastImportBlobId)
 		{
-			double score = GetGcTimestamp();
-			_ = _redisService.GetDatabase().SortedSetAddAsync(GetGcCheckSet(namespaceId), id.ToByteArray(), score, flags: CommandFlags.FireAndForget);
+			if (id < lastImportBlobId)
+			{
+				double score = GetGcTimestamp();
+				_ = _redisService.GetDatabase().SortedSetAddAsync(GetGcCheckSet(namespaceId), id, score, flags: CommandFlags.FireAndForget);
+			}
 		}
 
 		#endregion

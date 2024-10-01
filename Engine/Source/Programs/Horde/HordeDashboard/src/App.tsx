@@ -85,7 +85,10 @@ const Main: React.FC = () => {
          ErrorHandler.set({ title: "Error initializing site", reason: reason }, true);
       });
 
-      return (<ThemeProvider applyTo='body' theme={dashboard.darktheme ? darkTheme : lightTheme}>
+      // avoid flash when initializing dashboard
+      document.body.setAttribute('style', `background: ${dashboard.darktheme ? "#0F0F0F" : "#FAF9F9"}`)   
+
+      return (<ThemeProvider applyTo='element' theme={dashboard.darktheme ? darkTheme : lightTheme}>
          <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}>
             <Stack horizontalAlign="center" styles={{ root: { padding: 20, minWidth: 200, minHeight: 100 } }}>
                <Stack horizontal>
@@ -183,8 +186,13 @@ const Main: React.FC = () => {
       router = createBrowserRouter(routes);
    }
 
+   // avoid white bar on body
+   
+   document.body.setAttribute('style', `background: ${dashboard.darktheme ? "#0F0F0F" : "#FAF9F9"}`)   
+   
+   
    return (
-      <ThemeProvider applyTo='body' theme={dashboard.darktheme ? darkTheme : lightTheme}>
+      <ThemeProvider applyTo='element' theme={dashboard.darktheme ? darkTheme : lightTheme}>
          <RouterProvider router={router} />
       </ThemeProvider>
    );

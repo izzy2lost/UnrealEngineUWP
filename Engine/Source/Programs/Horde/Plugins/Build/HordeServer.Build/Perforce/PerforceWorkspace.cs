@@ -184,7 +184,17 @@ namespace HordeServer.Perforce
 
 				// Create the new workspace
 				string cluster = workspaceConfig.Cluster ?? streamConfig.ClusterName;
-				workspace = new AgentWorkspaceInfo(cluster, workspaceConfig.UserName, identifier, workspaceConfig.Stream ?? streamConfig.Name, workspaceConfig.View, workspaceConfig.Incremental ?? false, workspaceConfig.Method, workspaceConfig.MinScratchSpace);
+				workspace = new AgentWorkspaceInfo(
+					cluster,
+					workspaceConfig.UserName,
+					identifier,
+					workspaceConfig.Stream ?? streamConfig.Name,
+					workspaceConfig.View,
+					workspaceConfig.Incremental ?? false,
+					workspaceConfig.Method,
+					workspaceConfig.MinScratchSpace,
+					workspaceConfig.ConformDiskFreeSpace);
+				
 				autoSdkConfig = GetAutoSdkConfig(workspaceConfig, streamConfig);
 
 				return true;

@@ -352,6 +352,12 @@ namespace HordeServer.Streams
 				_artifactTypeLookup[artifactTypeConfig.Type] = artifactTypeConfig;
 			}
 
+			// Add the default artifact types
+			EnsureDefaultArtifactType(ArtifactType.StepOutput);
+			EnsureDefaultArtifactType(ArtifactType.StepSaved);
+			EnsureDefaultArtifactType(ArtifactType.StepTrace);
+			EnsureDefaultArtifactType(ArtifactType.StepTestData);
+
 			// Compute a hash of this stream revision to make it easier to detect changes
 			byte[] streamData = JsonSerializer.SerializeToUtf8Bytes(this, JsonUtils.DefaultSerializerOptions);
 			Revision = IoHash.Compute(streamData).ToString();
@@ -370,6 +376,16 @@ namespace HordeServer.Streams
 		/// <param name="artifactTypeConfig">Receives the configuration for the artifact type</param>
 		public bool TryGetArtifactType(ArtifactType type, [NotNullWhen(true)] out ArtifactTypeConfig? artifactTypeConfig)
 			=> _artifactTypeLookup.TryGetValue(type, out artifactTypeConfig);
+
+		void EnsureDefaultArtifactType(ArtifactType artifactType)
+		{
+			if (!_artifactTypeLookup.ContainsKey(artifactType))
+			{
+				ArtifactTypeConfig artifactTypeConfig = new ArtifactTypeConfig { Type = artifactType };
+				ArtifactTypes.Add(artifactTypeConfig);
+				_artifactTypeLookup.Add(artifactType, artifactTypeConfig);
+			}
+		}
 
 		/// <summary>
 		/// Enumerates all commit tags, including the default tags for code and content.

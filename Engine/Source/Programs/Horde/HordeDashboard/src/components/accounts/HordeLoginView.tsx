@@ -61,7 +61,7 @@ export const HordeLoginView: React.FC = () => {
       }
    }
 
-   return (<ThemeProvider applyTo='body' theme={dashboard.darktheme ? darkTheme : lightTheme}>
+   return (<ThemeProvider applyTo='element' theme={dashboard.darktheme ? darkTheme : lightTheme}>
       <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}>
          <Stack>
             <Stack horizontalAlign="center">

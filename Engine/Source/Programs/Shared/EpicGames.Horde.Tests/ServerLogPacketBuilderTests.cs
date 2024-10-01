@@ -211,7 +211,7 @@ namespace EpicGames.Horde.Tests
 			}
 		}
 
-		class FakeHordeClient : IHordeClient
+		class FakeHordeClient : IHordeClient, IAsyncDisposable
 		{
 			public FakeLogRpcClient LogRpc { get; } = new FakeLogRpcClient();
 			public Dictionary<string, BundleStorageNamespace> StorageNamespaces { get; } = new Dictionary<string, BundleStorageNamespace>();
@@ -223,6 +223,12 @@ namespace EpicGames.Horde.Tests
 			public IProjectCollection Projects => throw new NotImplementedException();
 			public ISecretCollection Secrets => throw new NotImplementedException();
 			public IToolCollection Tools => throw new NotImplementedException();
+
+			public event Action? OnAccessTokenStateChanged
+			{
+				add { }
+				remove { }
+			}
 
 			public Task<bool> LoginAsync(bool allowLogin, CancellationToken cancellationToken)
 				=> throw new NotImplementedException();

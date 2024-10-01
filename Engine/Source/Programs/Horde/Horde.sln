@@ -65,8 +65,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EpicGames.OIDC", "..\Shared
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HordeCmd", "HordeCmd\HordeCmd.csproj", "{1995E4FA-DFFF-44BD-A4C8-C2E59D07E468}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HordeTrayApp", "HordeTrayApp\HordeTrayApp.csproj", "{AAA04F58-16A1-4F9E-983D-0C526485D9F5}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Installer", "Installer", "{BEC23DA9-595D-4411-A12C-34A2F201B904}"
 	ProjectSection(SolutionItems) = preProject
 		Installer\AgentInstaller.wxs = Installer\AgentInstaller.wxs
@@ -185,6 +183,8 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HordeServer.Symbols", "Plugins\Symbols\HordeServer.Symbols\HordeServer.Symbols.csproj", "{346F8FD4-6B29-4791-8472-C977A383BF82}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "InstallerCustomActions", "Installer\CustomActions\InstallerCustomActions.csproj", "{6D69FB65-1C64-4219-A297-7FB159AFBBB3}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UnrealToolbox", "..\UnrealToolbox\UnrealToolbox.csproj", "{C30C14C0-1531-4FFC-81E9-CBB09EECF2B5}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -520,18 +520,6 @@ Global
 		{1995E4FA-DFFF-44BD-A4C8-C2E59D07E468}.Release|Any CPU.Build.0 = Release|Any CPU
 		{1995E4FA-DFFF-44BD-A4C8-C2E59D07E468}.ReleaseAutoUpdate|Any CPU.ActiveCfg = Release|Any CPU
 		{1995E4FA-DFFF-44BD-A4C8-C2E59D07E468}.ReleaseAutoUpdate|Any CPU.Build.0 = Release|Any CPU
-		{AAA04F58-16A1-4F9E-983D-0C526485D9F5}.Analyze|Any CPU.ActiveCfg = Analyze|Any CPU
-		{AAA04F58-16A1-4F9E-983D-0C526485D9F5}.Analyze|Any CPU.Build.0 = Analyze|Any CPU
-		{AAA04F58-16A1-4F9E-983D-0C526485D9F5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{AAA04F58-16A1-4F9E-983D-0C526485D9F5}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{AAA04F58-16A1-4F9E-983D-0C526485D9F5}.DebugAutoUpdate|Any CPU.ActiveCfg = Debug|Any CPU
-		{AAA04F58-16A1-4F9E-983D-0C526485D9F5}.DebugAutoUpdate|Any CPU.Build.0 = Debug|Any CPU
-		{AAA04F58-16A1-4F9E-983D-0C526485D9F5}.Development|Any CPU.ActiveCfg = Debug|Any CPU
-		{AAA04F58-16A1-4F9E-983D-0C526485D9F5}.Development|Any CPU.Build.0 = Debug|Any CPU
-		{AAA04F58-16A1-4F9E-983D-0C526485D9F5}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{AAA04F58-16A1-4F9E-983D-0C526485D9F5}.Release|Any CPU.Build.0 = Release|Any CPU
-		{AAA04F58-16A1-4F9E-983D-0C526485D9F5}.ReleaseAutoUpdate|Any CPU.ActiveCfg = Release|Any CPU
-		{AAA04F58-16A1-4F9E-983D-0C526485D9F5}.ReleaseAutoUpdate|Any CPU.Build.0 = Release|Any CPU
 		{B0FB0C5F-F4C9-4AAA-9ECB-6590DFEFC733}.Analyze|Any CPU.ActiveCfg = Debug|Any CPU
 		{B0FB0C5F-F4C9-4AAA-9ECB-6590DFEFC733}.Analyze|Any CPU.Build.0 = Debug|Any CPU
 		{B0FB0C5F-F4C9-4AAA-9ECB-6590DFEFC733}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -976,6 +964,18 @@ Global
 		{6D69FB65-1C64-4219-A297-7FB159AFBBB3}.Release|Any CPU.Build.0 = Release|Any CPU
 		{6D69FB65-1C64-4219-A297-7FB159AFBBB3}.ReleaseAutoUpdate|Any CPU.ActiveCfg = Release|Any CPU
 		{6D69FB65-1C64-4219-A297-7FB159AFBBB3}.ReleaseAutoUpdate|Any CPU.Build.0 = Release|Any CPU
+		{C30C14C0-1531-4FFC-81E9-CBB09EECF2B5}.Analyze|Any CPU.ActiveCfg = Analyze|Any CPU
+		{C30C14C0-1531-4FFC-81E9-CBB09EECF2B5}.Analyze|Any CPU.Build.0 = Analyze|Any CPU
+		{C30C14C0-1531-4FFC-81E9-CBB09EECF2B5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C30C14C0-1531-4FFC-81E9-CBB09EECF2B5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C30C14C0-1531-4FFC-81E9-CBB09EECF2B5}.DebugAutoUpdate|Any CPU.ActiveCfg = Debug|Any CPU
+		{C30C14C0-1531-4FFC-81E9-CBB09EECF2B5}.DebugAutoUpdate|Any CPU.Build.0 = Debug|Any CPU
+		{C30C14C0-1531-4FFC-81E9-CBB09EECF2B5}.Development|Any CPU.ActiveCfg = Debug|Any CPU
+		{C30C14C0-1531-4FFC-81E9-CBB09EECF2B5}.Development|Any CPU.Build.0 = Debug|Any CPU
+		{C30C14C0-1531-4FFC-81E9-CBB09EECF2B5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C30C14C0-1531-4FFC-81E9-CBB09EECF2B5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C30C14C0-1531-4FFC-81E9-CBB09EECF2B5}.ReleaseAutoUpdate|Any CPU.ActiveCfg = Release|Any CPU
+		{C30C14C0-1531-4FFC-81E9-CBB09EECF2B5}.ReleaseAutoUpdate|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -1049,6 +1049,7 @@ Global
 		{24D4526F-E649-4C8A-86F8-1A74C253F1E3} = {C0214E80-0A85-4432-834D-9DC48104AD26}
 		{346F8FD4-6B29-4791-8472-C977A383BF82} = {24D4526F-E649-4C8A-86F8-1A74C253F1E3}
 		{6D69FB65-1C64-4219-A297-7FB159AFBBB3} = {BEC23DA9-595D-4411-A12C-34A2F201B904}
+		{C30C14C0-1531-4FFC-81E9-CBB09EECF2B5} = {58313EA1-DC2B-49DD-A4F8-3288D292ED61}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {F06D2583-1509-4254-BEE6-5921340022BF}

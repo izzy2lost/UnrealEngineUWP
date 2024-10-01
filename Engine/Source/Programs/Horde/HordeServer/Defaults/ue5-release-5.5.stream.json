@@ -1,6 +1,6 @@
 {
 	// Update this to the name of your Perforce stream
-	"name": "//UE5/Release-5.4-HordeSync",
+	"name": "//UE5/Release-5.5-HordeSync",
 
 	// Macros for strings in the rest of this file (as $(Project) etc...)
 	"macros":
@@ -225,6 +225,22 @@
 			"method": "name=managedWorkspace&preferNativeClient=true"
 		}
 	},
+
+	// Artifact types that can be uploaded for this stream, and their retention policies
+	"artifactTypes": [
+		{
+			"type": "packaged-build",
+			"keepDays": 14
+		},
+		{
+			"type": "staged-build",
+			"keepDays": 14
+		},
+		{
+			"type": "ugs-pcb",
+			"keepCount": 5
+		}
+	],
 
 	// Templates for all the jobs that can be run, as well as any parameters to show in the dashboard's New Build dialog
 	"templates":

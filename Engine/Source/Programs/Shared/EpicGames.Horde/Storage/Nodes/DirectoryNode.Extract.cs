@@ -212,7 +212,23 @@ namespace EpicGames.Horde.Storage.Nodes
 					FileStream? stream = null;
 					try
 					{
-						stream = FileInfo.Open(FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
+						try
+						{
+							stream = FileInfo.Open(FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
+						}
+						catch (IOException ex)
+						{
+							string? lockInfo = FileUtils.GetFileLockInfo(FileInfo.FullName);
+							if (lockInfo == null)
+							{
+								throw;
+							}
+							else
+							{
+								throw new WrappedFileOrDirectoryException(ex, $"{ex.Message}\n{lockInfo}");
+							}
+						}
+
 						if (!_createdFile)
 						{
 							stream.SetLength(FileEntry.Length);

@@ -121,7 +121,7 @@ namespace EpicGames.Redis
 
 		#region SetRandomMembersAsync
 
-		/// <inheritdoc cref="IDatabaseAsync.SetRandomMembersAsync(RedisKey, long, CommandFlags)"/>
+		/// <inheritdoc cref="IDatabaseAsync.SetRandomMembersAsync(RedisKey, Int64, CommandFlags)"/>
 		public static Task<TElement[]> SetRandomMembersAsync<TElement>(this IDatabaseAsync target, RedisSetKey<TElement> key, long count, CommandFlags flags = CommandFlags.None)
 			=> target.SetRandomMembersAsync(key.Inner, count, flags).DeserializeAsync<TElement>();
 
@@ -145,7 +145,7 @@ namespace EpicGames.Redis
 
 		#region SetScanAsync
 
-		/// <inheritdoc cref="IDatabaseAsync.SetScanAsync(RedisKey, RedisValue, int, long, int, CommandFlags)"/>
+		/// <inheritdoc cref="IDatabaseAsync.SetScanAsync(RedisKey, RedisValue, Int32, Int64, Int32, CommandFlags)"/>
 		public static async IAsyncEnumerable<TElement> SetScanAsync<TElement>(this IDatabaseAsync target, RedisSetKey<TElement> key, RedisValue pattern = default, int pageSize = 250, long cursor = 0, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
 		{
 			await foreach (RedisValue value in target.SetScanAsync(key.Inner, pattern, pageSize, cursor, pageOffset, flags))

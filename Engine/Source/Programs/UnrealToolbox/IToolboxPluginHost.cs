@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-namespace HordeTrayApp
+namespace UnrealToolbox
 {
 	/// <summary>
 	/// Interface for the tray app host application
