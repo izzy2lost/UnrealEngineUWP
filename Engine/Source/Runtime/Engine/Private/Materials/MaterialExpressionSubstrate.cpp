@@ -3094,7 +3094,7 @@ void UMaterialExpressionSubstrateTransmittanceToMFP::GetConnectorToolTip(int32 I
 			ConvertToMultilineToolTip(TEXT("The colored transmittance for a view perpendicular to the surface. The transmittance for other view orientations will automatically be deduced according to surface thickness."), 80, OutToolTip);
 			break;
 		case 1:
-			ConvertToMultilineToolTip(TEXT("The desired thickness in centimeter. This can be set lower than 0.1mm(= 0.01cm) to enable the Thin lighting model on the slab node for instance. Another use case example: this node output called thickness can be modulated before it is plugged in a slab node.this can be used to achieve simple scattering/transmittance variation of the same material."), 80, OutToolTip);
+			ConvertToMultilineToolTip(TEXT("The thickness (in centimeter) at which the desired colored transmittance is reached. Default thickness: 0.01cm. Another use case example: this node output called thickness can be modulated before it is plugged in a slab node.this can be used to achieve simple scattering/transmittance variation of the same material."), 80, OutToolTip);
 			break;
 		}
 	}

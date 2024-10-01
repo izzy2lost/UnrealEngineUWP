@@ -271,7 +271,7 @@ class UMaterialExpressionSubstrateSlabBSDF : public UMaterialExpressionSubstrate
 	FExpressionInput SSSMFP;
 
 	/**
-	 * Scale the mean free path radius of the SSS profile according to a value between 0 and 1. Always used, when a subsurface profile is provided or not. (type = float, unitless, defaults to 1)
+	 * Scale the mean free path length. Value between 0 and 1. Always used, without or without a subsurface profile. (type = float, unitless, defaults to 1)
 	 */
 	UPROPERTY()
 	FExpressionInput SSSMFPScale;
@@ -971,7 +971,7 @@ class UMaterialExpressionSubstrateVerticalLayering : public UMaterialExpressionS
 	FExpressionInput Base;
 
 	/**
-	 * Thickness of the Top material layer in centimeter.
+	 * Thickness of the Top material layer in centimeter. Default value: 0.01cm.
 	 * It can be modulated to achieve simple scattering/transmittance variation of the same material.
 	 */
 	UPROPERTY()
@@ -1086,7 +1086,7 @@ class UMaterialExpressionSubstrateTransmittanceToMFP : public UMaterialExpressio
 	FExpressionInput TransmittanceColor;
 
 	/**
-	* Thickness of the layer in centimeter.
+	* Thickness of the layer in centimeter. Default value: 0.01cm.
 	* Example of use case: this node output called thickness can be modulated before it is plugged in a Vertical Layering node Thickness input. This can be used to achieve simple scattering/transmittance variation of the same material.
 	*/
 	UPROPERTY()
