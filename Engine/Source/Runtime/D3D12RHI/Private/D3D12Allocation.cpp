@@ -13,10 +13,6 @@
 #include "HAL/LowLevelMemStats.h"
 #include "ProfilingDebugging/MemoryTrace.h"
 
-#if CSV_PROFILER_STATS
-CSV_DECLARE_CATEGORY_MODULE_EXTERN(CORE_API, FMemory);
-#endif
-
 // Fix for random GPU crashes on draw indirects on multiple IHVs. Force all indirect arg buffers as committed resources (see UE-115982)
 static int32 GD3D12AllowPoolAllocateIndirectArgBuffers = 1;
 static FAutoConsoleVariableRef CVarD3D12AllowPoolAllocateIndirectArgBuffers(
@@ -2254,10 +2250,6 @@ void FD3D12FastAllocatorPagePool::ReturnFastAllocatorPage(FD3D12FastAllocatorPag
 
 void FD3D12FastAllocatorPagePool::CleanupPages(uint64 FrameLag)
 {
-#if CSV_PROFILER_STATS
-	CSV_CUSTOM_STAT(FMemory, FastAllocatorNumPages, Pool.Num(), ECsvCustomStatOp::Max);
-#endif
-
 	if (Pool.Num() <= GD3D12FastAllocatorMinPagesToRetain)
 	{
 		return;
