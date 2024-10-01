@@ -135,7 +135,19 @@ public:
 	 */
 	inline void Notify()
 	{
-		CounterType Value = Count.load(std::memory_order_relaxed);
+		//
+		// .fetch_add(0, acq_rel) is used to have a StoreLoad barrier,
+		// which we can't express in C++. That works by making the load
+		// also be store (via RMW) and relying on a StoreStore barrier to
+		// get the desired ordering.
+		//
+		// Previously, this code was:
+		//   CounterType Value = Count.load(std::memory_order_relaxed);
+		//
+		// which had a memory re-ordering and stale values being read,
+		// leading to a missed Wake and dead-locked waiter, as a result.
+		//
+		CounterType Value = Count.fetch_add(0, std::memory_order_acq_rel);
 		if ((Value & 1) && Count.compare_exchange_strong(Value, Value + 1, std::memory_order_release))
 		{
 			ParkingLot::WakeAll(&Count);
