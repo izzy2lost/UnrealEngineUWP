@@ -670,15 +670,16 @@ protected:
 		ToolTip = "When false, the underlying physics body will contain all sim data (mass, inertia tensor, etc) even if mobility is not set to Moveable"))
 	uint8 bStaticWhenNotMoveable:1;
 
+	uint8 bIgnoreBoundsForEditorFocus : 1;
+
+public:
 #if UE_WITH_PSO_PRECACHING
 	/** PSOs requested priority */
 	EPSOPrecachePriority PSOPrecacheRequestPriority : 2;
 	static_assert((int)EPSOPrecachePriority::Highest < 1 << 2);
 #endif
 
-	uint8 bIgnoreBoundsForEditorFocus : 1;
 #if WITH_EDITOR
-public:
 	uint8 bAlwaysAllowTranslucentSelect : 1;
 
 	uint8 SelectionOutlineColorIndex;
@@ -686,7 +687,6 @@ public:
 	FColor OverlayColor;
 #endif
 
-public:
 	/** If true then DoCustomNavigableGeometryExport will be called to collect navigable geometry of this component. */
 	UPROPERTY()
 	TEnumAsByte<EHasCustomNavigableGeometry::Type> bHasCustomNavigableGeometry;

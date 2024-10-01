@@ -684,6 +684,18 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 	{
 		bHasWorldPositionOffsetVelocity = true;
 	}
+
+#if UE_WITH_PSO_PRECACHING
+	if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(InProxyDesc.Component))
+	{
+		check(!PrimitiveComponent->ShouldRenderProxyFallbackToDefaultMaterial() || !PrimitiveComponent->MaterialPSOPrecacheRequestIDs.IsEmpty());
+		if (ShouldBoostPSOPrecachePriorityOnDraw() && PrimitiveComponent->IsPSOPrecaching() && PrimitiveComponent->PSOPrecacheRequestPriority == EPSOPrecachePriority::High)
+		{
+			SetPSORequestsToBoostOnDraw(PrimitiveComponent->MaterialPSOPrecacheRequestIDs);
+		}
+	}
+#endif
+
 }
 
 bool FPrimitiveSceneProxy::OnLevelAddedToWorld_RenderThread()

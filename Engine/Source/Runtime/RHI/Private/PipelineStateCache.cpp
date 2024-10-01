@@ -194,8 +194,19 @@ int32 GPSOWaitForHighPriorityRequestsOnly = 0;
 static FAutoConsoleVariableRef CVarPSOWaitForHighPriorityRequestsOnly(
 	TEXT("r.PSOPrecaching.WaitForHighPriorityRequestsOnly"),
 	GPSOWaitForHighPriorityRequestsOnly,
-	TEXT("0 to wait for all pending PSO precache requests during loading (default)g\n")
-	TEXT("1 to only wait for the high priority PSO precache requests during loading\n"),
+	TEXT("0 to wait for all pending PSO precache requests during loading (default)\n")
+	TEXT("1 to only wait for the high priority and above PSO precache requests during loading\n")
+	TEXT("2 to only wait for the highest priority PSO precache requests during loading"),
+	ECVF_Default
+);
+
+bool GPSOPrecachePermitPriorityEscalation = true;
+static FAutoConsoleVariableRef CVarPSOPrecachePermitPriorityEscalation(
+	TEXT("r.PSOPrecaching.PermitPriorityEscalation"),
+	GPSOPrecachePermitPriorityEscalation,
+	TEXT("Whether to permit requests to increase high pri PSO precaching tasks to highest.\n")
+	TEXT("1: High priority tasks can be escalated to highest if requested. (default)\n")
+	TEXT("0: High priority tasks will remain unchanged."),
 	ECVF_Default
 );
 
@@ -2177,13 +2188,15 @@ public:
 
 	uint32 NumActivePrecacheRequests()
 	{
-		if (GPSOWaitForHighPriorityRequestsOnly)
+		switch (GPSOWaitForHighPriorityRequestsOnly)
 		{
-			return FPlatformAtomics::AtomicRead(&HighPriorityCompileCount) + FPlatformAtomics::AtomicRead(&HighestPriorityCompileCount);
-		}
-		else
-		{
-			return FPlatformAtomics::AtomicRead(&ActiveCompileCount);
+			default: checkNoEntry(); [[fallthrough]];
+			case 0:
+				return FPlatformAtomics::AtomicRead(&ActiveCompileCount);
+			case 1:
+				return FPlatformAtomics::AtomicRead(&HighPriorityCompileCount) + FPlatformAtomics::AtomicRead(&HighestPriorityCompileCount);
+			case 2:
+				return FPlatformAtomics::AtomicRead(&HighestPriorityCompileCount);
 		}
 	}
 
@@ -4103,7 +4116,8 @@ void PipelineStateCache::BoostPrecachePriority(EPSOPrecachePriority PSOPrecacheP
 
 void PipelineStateCache::PrecachePSOsBoostToHighestPriority(bool bForceHighest)
 {
-	UE_LOG(LogRHI, Log, TEXT("PipelineStateCache: PSO precaching %s highest priority boost"), bForceHighest ? TEXT("enabling") : TEXT("disabling"));
+	bForceHighest = bForceHighest && GPSOPrecachePermitPriorityEscalation;
+	UE_CLOG(GForceHighToHighestPri != bForceHighest, LogRHI, Log, TEXT("PipelineStateCache: PSO precaching %s highest priority boost"), bForceHighest ? TEXT("enabling") : TEXT("disabling"));
 	GForceHighToHighestPri = bForceHighest;
 #if PSO_TRACK_CACHE_STATS
 	DumpPipelineCacheStats();

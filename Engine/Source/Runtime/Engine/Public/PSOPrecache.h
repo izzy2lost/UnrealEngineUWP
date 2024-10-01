@@ -333,3 +333,8 @@ extern ENGINE_API EPSOPrecacheProxyCreationStrategy GetPSOPrecacheProxyCreationS
  * Delay component proxy creation when it's requested PSOs are still precaching
  */
 extern ENGINE_API bool ProxyCreationWhenPSOReady();
+
+/**
+ * Boost the primitive's precache PSO jobs to highest priority.
+ */
+extern ENGINE_API void BoostPrecachedPSORequestsOnDraw(const class FPrimitiveSceneInfo* SceneInfo);

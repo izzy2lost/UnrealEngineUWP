@@ -9,6 +9,8 @@
 #include "HAL/IConsoleManager.h"
 #include "ShaderCodeLibrary.h"
 #include "Materials/MaterialInterface.h"
+#include "PrimitiveSceneProxy.h"
+#include "PrimitiveSceneInfo.h"
 
 static TAutoConsoleVariable<int32> CVarPrecacheGlobalComputeShaders(
 	TEXT("r.PSOPrecache.GlobalShaders"),
@@ -127,6 +129,16 @@ EPSOPrecacheProxyCreationStrategy GetPSOPrecacheProxyCreationStrategy()
 bool ProxyCreationWhenPSOReady()
 {
 	return FApp::CanEverRender() && (PipelineStateCache::IsPSOPrecachingEnabled() || IsPSOShaderPreloadingEnabled()) && GPSOProxyCreationWhenPSOReady && !GIsEditor;
+}
+
+void BoostPrecachedPSORequestsOnDraw(const FPrimitiveSceneInfo* SceneInfo)
+{
+#if UE_WITH_PSO_PRECACHING 
+	if (SceneInfo && SceneInfo->Proxy)
+	{
+		SceneInfo->Proxy->BoostPrecachedPSORequestsOnDraw();
+	}
+#endif
 }
 
 FPSOPrecacheVertexFactoryData::FPSOPrecacheVertexFactoryData(

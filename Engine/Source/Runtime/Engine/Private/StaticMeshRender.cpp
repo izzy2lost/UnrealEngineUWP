@@ -85,6 +85,16 @@ void TogglePreCulledIndexBuffers( UWorld* InWorld )
 	GUsePreCulledIndexBuffer = !GUsePreCulledIndexBuffer;
 }
 
+static bool GStaticMeshComponentBoostPSOPrecachePri = false;
+static FAutoConsoleVariableRef CVarStaticMeshComponentBoostPSOPrecachePri(
+	TEXT("r.PSOPrecache.StaticMeshComponentPSOPrecachePriority"),
+	GStaticMeshComponentBoostPSOPrecachePri,
+	TEXT("Static Mesh component PSO precache priority level.\n")
+	TEXT(" 0. Static Mesh component's PSO precache requests are set to high priority (default)\n")
+	TEXT(" 1. Static Mesh component's PSO precache requests are set to highest priority"),
+	ECVF_Default
+);
+
 FAutoConsoleCommandWithWorld GToggleUsePreCulledIndexBuffersCmd(
 	TEXT("r.TogglePreCulledIndexBuffers"),
 	TEXT("Toggles use of preculled index buffers from the command 'PreCullIndexBuffers'"),
@@ -2684,7 +2694,8 @@ FPrimitiveSceneProxy* UStaticMeshComponent::CreateSceneProxy()
 		return nullptr;
 	}
 
-	if (CheckPSOPrecachingAndBoostPriority() && GetPSOPrecacheProxyCreationStrategy() == EPSOPrecacheProxyCreationStrategy::DelayUntilPSOPrecached)
+	EPSOPrecachePriority PSOPrecachePriority = GStaticMeshComponentBoostPSOPrecachePri ? EPSOPrecachePriority::Highest : EPSOPrecachePriority::High;
+	if (CheckPSOPrecachingAndBoostPriority(PSOPrecachePriority) && GetPSOPrecacheProxyCreationStrategy() == EPSOPrecacheProxyCreationStrategy::DelayUntilPSOPrecached)
 	{
 		UE_LOG(LogStaticMesh, Verbose, TEXT("Skipping CreateSceneProxy for StaticMeshComponent %s (Static mesh component PSOs are still compiling)"), *GetFullName());
 		return nullptr;

@@ -327,6 +327,10 @@ FComponentRecreateRenderStateContext::~FComponentRecreateRenderStateContext()
 
 	if (ComponentInterface && !ComponentInterface->IsRenderStateCreated() && ComponentInterface->IsRegistered())
 	{
+		if (GPrecachePSOsOnComponentRecreateRenderContext)
+		{
+ 			ComponentInterface->PrecachePSOs();
+		}
 		ComponentInterface->CreateRenderState(nullptr);
 
 		UpdateAllPrimitiveSceneInfosForSingleComponentInterface(ComponentInterface, ScenesToUpdateAllPrimitiveSceneInfos);

@@ -78,6 +78,7 @@ public:
 	virtual void GetPrimitiveStats(FPrimitiveStats& PrimitiveStats) const = 0;
 	virtual UObject*	GetUObject() = 0;
 	virtual const UObject*	GetUObject() const = 0;
+	virtual void PrecachePSOs() = 0;
 
 	// helper to obtain typed UObjects 
 	template<class T> 
