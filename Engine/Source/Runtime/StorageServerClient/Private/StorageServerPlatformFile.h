@@ -124,6 +124,7 @@ public:
 private:
 	friend class FStorageServerFileHandle;
 
+	void InitializeConnection();
 	bool IsNonServerFilenameAllowed(FStringView InFilename);
 	bool IsAssumedImmutableTimeStampFilename(FStringView InFilename) const;
 	bool MakeStorageServerPath(const TCHAR* LocalFilenameOrDirectory, FStringBuilderBase& OutPath) const;

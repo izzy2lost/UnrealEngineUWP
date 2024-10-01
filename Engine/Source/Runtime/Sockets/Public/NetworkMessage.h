@@ -46,6 +46,7 @@ namespace NFS_Messages
 		CopyFile,
 		GetFileInfo,
 		Read,
+		ReadAt,
 		Write,
 		Close,
 		Seek,

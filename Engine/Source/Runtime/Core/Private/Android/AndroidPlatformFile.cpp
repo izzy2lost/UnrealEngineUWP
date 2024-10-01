@@ -220,7 +220,7 @@ public:
 	int64 Length;
 	int64 CurrentOffset;
 
-	FORCEINLINE void CheckValid()
+	FORCEINLINE void CheckValid() const
 	{
 		check(File.IsValid() && File->Handle != -1);
 	}
@@ -365,6 +365,12 @@ public:
 		return BytesToRead == 0;
 	}
 
+	virtual bool ReadAt(uint8* Destination, int64 BytesToRead, int64 Offset) override
+	{
+		int64 TrueOffset = Start + Offset;
+		return ReadInternal(Destination, BytesToRead, TrueOffset);
+	}
+
 	virtual bool Write(const uint8* Source, int64 BytesToWrite) override
 	{
 		CheckValid();
@@ -451,6 +457,55 @@ public:
 	virtual int64 Size() override
 	{
 		return Length;
+	}
+
+private:
+	bool ReadInternal(uint8* Destination, int64 BytesToRead, int64 Offset)
+	{
+		CheckValid();
+#if LOG_ANDROID_FILE
+		FPlatformMisc::LowLevelOutputDebugStringf(
+			TEXT("(%d/%d) FFileHandleAndroid:Read => Path = %s, BytesToRead = %d"),
+			FAndroidTLS::GetCurrentThreadId(), File->Handle,
+			*(File->Path), int32(BytesToRead));
+#endif
+		if (BytesToRead < 0 || Offset - Start < 0 || (BytesToRead + Offset - Start) > Size())
+		{
+			return false;
+		}
+
+		if (BytesToRead == 0)
+		{
+			return true;
+		}
+
+		check(Destination);
+
+		while (BytesToRead > 0)
+		{
+			int64 ThisSize = FMath::Min<int64>(READWRITE_SIZE, BytesToRead);
+
+			ThisSize = __pread(File->Handle, Destination, ThisSize, Offset);
+#if LOG_ANDROID_FILE
+			FPlatformMisc::LowLevelOutputDebugStringf(
+				TEXT("(%d/%d) FFileHandleAndroid:Read => Path = %s, ThisSize = %d, destination = %X"),
+				FAndroidTLS::GetCurrentThreadId(), File->Handle,
+				*(File->Path), int32(ThisSize), Destination);
+#endif
+			if (ThisSize < 0)
+			{
+				return false;
+			}
+			else if (ThisSize == 0)
+			{
+				break;
+			}
+			Offset += ThisSize;
+			Destination += ThisSize;
+			BytesToRead -= ThisSize;
+		}
+
+		return BytesToRead == 0;
 	}
 };
 

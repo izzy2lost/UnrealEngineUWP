@@ -18,9 +18,11 @@ class FPlatformFileManager
 #if USE_ATOMIC_PLATFORM_FILE
 	/** Currently used platform file. */
 	TAtomic<class IPlatformFile*> TopmostPlatformFile;
+	TAtomic<class IPlatformFile*> PhysicalPlatformFile;
 #else
 	/** Currently used platform file. */
 	class IPlatformFile* TopmostPlatformFile;
+	class IPlatformFile* PhysicalPlatformFile;
 #endif
 
 public:
@@ -35,12 +37,16 @@ public:
 	 */
 	CORE_API IPlatformFile& GetPlatformFile( );
 
+	CORE_API IPlatformFile& GetPlatformPhysical();
+
 	/**
 	 * Sets the current platform file.
 	 *
 	 * @param NewTopmostPlatformFile Platform file to be used.
 	 */
 	CORE_API void SetPlatformFile( IPlatformFile& NewTopmostPlatformFile );
+
+	CORE_API void SetPlatformPhysical(IPlatformFile& NewPhysicalPlatformFile);
 
 	/**
 	 * Finds a platform file in the chain of active platform files.

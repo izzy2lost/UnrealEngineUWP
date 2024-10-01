@@ -145,6 +145,8 @@ public:
 	**/
 	virtual bool		Read(uint8* Destination, int64 BytesToRead) = 0;
 
+	virtual bool		ReadAt(uint8* Destination, int64 BytesToRead, int64 Offset) = 0;
+
 	/** 
 	 * Write bytes to the file.
 	 * @param Source		Buffer to write, should be at least BytesToWrite in size.

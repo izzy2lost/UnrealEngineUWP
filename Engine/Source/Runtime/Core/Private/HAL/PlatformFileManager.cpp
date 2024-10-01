@@ -28,10 +28,26 @@ IPlatformFile& FPlatformFileManager::GetPlatformFile()
 	return *TopmostPlatformFile;
 }
 
+CORE_API IPlatformFile& FPlatformFileManager::GetPlatformPhysical()
+{
+	if (PhysicalPlatformFile == nullptr)
+	{
+		PhysicalPlatformFile = &IPlatformFile::GetPlatformPhysical();
+	}
+
+	return *PhysicalPlatformFile;
+}
+
 void FPlatformFileManager::SetPlatformFile(IPlatformFile& NewTopmostPlatformFile)
 {
 	TopmostPlatformFile = &NewTopmostPlatformFile;
 	NewTopmostPlatformFile.InitializeAfterSetActive();
+}
+
+void FPlatformFileManager::SetPlatformPhysical(IPlatformFile& NewPhysicalPlatformFile)
+{
+	PhysicalPlatformFile = &NewPhysicalPlatformFile;
+	NewPhysicalPlatformFile.InitializeAfterSetActive();
 }
 
 IPlatformFile* FPlatformFileManager::FindPlatformFile(const TCHAR* Name)

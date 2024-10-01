@@ -135,6 +135,12 @@ public:
 		return Result;
 	}
 
+	virtual bool ReadAt(uint8* Destination, int64 BytesToRead, int64 Offset) override
+	{
+		// concurrent reads won't be cached yet
+		return FileHandle->ReadAt(Destination, BytesToRead, Offset);
+	}
+
 	virtual bool		Write(const uint8* Source, int64 BytesToWrite) override
 	{
 		if (!bWritable || BytesToWrite < 0)

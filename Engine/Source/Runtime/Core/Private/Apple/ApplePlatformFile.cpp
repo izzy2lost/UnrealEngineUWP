@@ -9,8 +9,10 @@
 #include "Containers/UnrealString.h"
 #include "Containers/StringConv.h"
 #include "CoreGlobals.h"
+#include "HAL/CriticalSection.h"
 #include "HAL/PlatformFile.h"
 #include "HAL/PlatformTime.h"
+#include "Misc/ScopeLock.h"
 #include "ProfilingDebugging/PlatformFileTrace.h"
 #include "Templates/Function.h"
 #include <sys/stat.h>
@@ -192,6 +194,50 @@ public:
 		{
 			return ReadInternal(Destination, BytesToRead) == BytesToRead;
 		}
+	}
+	virtual bool ReadAt(uint8* Destination, int64 BytesToRead, int64 Offset) override
+	{
+		if (BytesToRead < 0 || Offset < 0)
+		{
+			return false;
+		}
+
+		if (BytesToRead == 0)
+		{
+			return true;
+		}
+
+#if MANAGE_FILE_HANDLES
+		if (IsManaged())
+		{
+			ActivateSlot();
+		}
+#endif //MANAGE_FILE_HANDLES
+
+		int64 TotalBytesRead = 0;
+		TRACE_PLATFORMFILE_BEGIN_READ(this, FileHandle, Offset, BytesToRead);
+
+		do
+		{
+			size_t BytesToRead32 = static_cast<size_t>(FMath::Min<int64>(READWRITE_SIZE, BytesToRead));
+			ssize_t BytesRead = pread(FileHandle, Destination, BytesToRead, Offset);
+
+			TotalBytesRead += BytesRead;
+
+			if (BytesRead != BytesToRead32)
+			{
+				TRACE_PLATFORMFILE_END_READ(this, TotalBytesRead);
+				return false;
+			}
+
+			Offset += BytesRead;
+			BytesToRead -= BytesToRead32;
+
+		} while (BytesToRead > 0);
+
+		TRACE_PLATFORMFILE_END_READ(this, TotalBytesRead);
+
+		return true;
 	}
 	virtual bool Write(const uint8* Source, int64 BytesToWrite) override
 	{
