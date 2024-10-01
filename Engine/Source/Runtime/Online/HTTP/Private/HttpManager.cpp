@@ -244,8 +244,6 @@ bool FHttpManager::IsDomainAllowed(const FString& Url) const
 		return URLRequestFilter.IsRequestAllowed(Url);
 	}
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-
 #if !UE_BUILD_SHIPPING
 #if !(UE_GAME || UE_SERVER)
 	// Allowed domain filtering is opt-in in non-shipping non-game/server builds
@@ -264,23 +262,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 #endif
 #endif // !UE_BUILD_SHIPPING
 
-	// Check to see if the Domain is allowed (either on the list or the list was empty)
-	const TArray<FString>& AllowedDomains = FHttpModule::Get().GetAllowedDomains();
-	if (AllowedDomains.Num() > 0)
-	{
-		const FString Domain = FPlatformHttp::GetUrlDomain(Url);
-		for (const FString& AllowedDomain : AllowedDomains)
-		{
-			if (Domain.EndsWith(AllowedDomain))
-			{
-				return true;
-			}
-		}
-		return false;
-	}
 	return true;
-
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 /*static*/

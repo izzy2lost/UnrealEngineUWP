@@ -286,15 +286,6 @@ protected:
 	/**
 	 * Called prior to reading the file data.
 	 *
-	 * @param FileData - byte data of the hotfix file
-	 *
-	 * @return whether the file was successfully preprocessed
-	 */
-	UE_DEPRECATED(5.3, "Replaced with PreProcessDownloadedFileData taking a FCloudFileHeader")
-	virtual bool PreProcessDownloadedFileData(TArray<uint8>& FileData) const { return true;	}
-	/**
-	 * Called prior to reading the file data.
-	 *
 	 * @param FileHeader - the header information for the file in question
 	 * @param FileData - byte data of the hotfix file. Intentionally not const, so the array is modifiable as part of preprocessing.
 	 *

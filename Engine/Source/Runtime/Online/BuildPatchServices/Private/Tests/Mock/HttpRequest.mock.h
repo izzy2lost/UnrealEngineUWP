@@ -176,11 +176,6 @@ namespace BuildPatchServices
 			return HttpRequestCompleteDelegate;
 		}
 
-		virtual FHttpRequestProgressDelegate& OnRequestProgress() override
-		{
-			return HttpRequestProgressDelegate;
-		}
-
 		virtual FHttpRequestProgressDelegate64& OnRequestProgress64() override
 		{
 			return HttpRequestProgressDelegate64;

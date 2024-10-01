@@ -147,8 +147,3 @@ UInAppPurchaseRestoreCallbackProxy2* UInAppPurchaseRestoreCallbackProxy2::Create
 	Proxy->Trigger(ConsumableProductFlags, PlayerController);
 	return Proxy;
 }
-
-EInAppPurchaseStatus UInAppPurchaseRestoreCallbackProxy2::PurchaseStatusFromOnlineError(const FOnlineError& OnlineError)
-{
-	return ::PurchaseStatusFromOnlineError(OnlineError);
-}

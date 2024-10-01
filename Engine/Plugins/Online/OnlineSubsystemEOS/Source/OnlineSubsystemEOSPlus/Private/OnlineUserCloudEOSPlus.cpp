@@ -15,9 +15,6 @@ FOnlineUserCloudEOSPlus::~FOnlineUserCloudEOSPlus()
 	if (BaseUserCloudInterface.IsValid())
 	{
 		BaseUserCloudInterface->ClearOnEnumerateUserFilesCompleteDelegates(this);
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		BaseUserCloudInterface->ClearOnWriteUserFileProgressDelegates(this);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		BaseUserCloudInterface->ClearOnWriteUserFileProgress64Delegates(this);
 		BaseUserCloudInterface->ClearOnWriteUserFileCompleteDelegates(this);
 		BaseUserCloudInterface->ClearOnWriteUserFileCanceledDelegates(this);
@@ -37,9 +34,6 @@ void FOnlineUserCloudEOSPlus::Initialize()
 	if (BaseUserCloudInterface.IsValid())
 	{
 		BaseUserCloudInterface->AddOnEnumerateUserFilesCompleteDelegate_Handle(FOnEnumerateUserFilesCompleteDelegate::CreateThreadSafeSP(this, &FOnlineUserCloudEOSPlus::OnEnumerateUserFilesComplete));
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		BaseUserCloudInterface->AddOnWriteUserFileProgressDelegate_Handle(FOnWriteUserFileProgressDelegate::CreateThreadSafeSP(this, &FOnlineUserCloudEOSPlus::OnWriteUserFileProgress));
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		BaseUserCloudInterface->AddOnWriteUserFileProgress64Delegate_Handle(FOnWriteUserFileProgress64Delegate::CreateThreadSafeSP(this, &FOnlineUserCloudEOSPlus::OnWriteUserFileProgress64));
 		BaseUserCloudInterface->AddOnWriteUserFileCompleteDelegate_Handle(FOnWriteUserFileCompleteDelegate::CreateThreadSafeSP(this, &FOnlineUserCloudEOSPlus::OnWriteUserFileComplete));
 		BaseUserCloudInterface->AddOnWriteUserFileCanceledDelegate_Handle(FOnWriteUserFileCanceledDelegate::CreateThreadSafeSP(this, &FOnlineUserCloudEOSPlus::OnWriteUserFileCanceled));
@@ -356,19 +350,6 @@ void FOnlineUserCloudEOSPlus::OnEnumerateUserFilesComplete(bool bWasSuccessful, 
 	}
 
 	TriggerOnEnumerateUserFilesCompleteDelegates(bWasSuccessful, *NetIdPlus);
-}
-
-void FOnlineUserCloudEOSPlus::OnWriteUserFileProgress(int32 BytesWritten, const FUniqueNetId& UserId, const FString& FileName)
-{
-	const FUniqueNetIdEOSPlusPtr NetIdPlus = GetNetIdPlus(UserId.ToString());
-	if (!NetIdPlus.IsValid())
-	{
-		UE_LOG_ONLINE(Warning, TEXT("[FOnlineUserCloudEOSPlus::OnWriteUserFileProgress] Unknown user (%s)"), *UserId.ToString());
-	}
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	TriggerOnWriteUserFileProgressDelegates(BytesWritten, *NetIdPlus, FileName);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void FOnlineUserCloudEOSPlus::OnWriteUserFileProgress64(uint64 BytesWritten, const FUniqueNetId& UserId, const FString& FileName)

@@ -9,13 +9,6 @@ FHttpRequestCompleteDelegate& FHttpRequestImpl::OnProcessRequestComplete()
 	return RequestCompleteDelegate;
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-FHttpRequestProgressDelegate& FHttpRequestImpl::OnRequestProgress() 
-{
-	return RequestProgressDelegate;
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 FHttpRequestProgressDelegate64& FHttpRequestImpl::OnRequestProgress64() 
 {
 	return RequestProgressDelegate64;
@@ -39,9 +32,6 @@ FHttpRequestWillRetryDelegate& FHttpRequestImpl::OnRequestWillRetry()
 void FHttpRequestImpl::Shutdown()
 {
 	OnProcessRequestComplete().Unbind();
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	OnRequestProgress().Unbind();
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	OnRequestProgress64().Unbind();
 	OnStatusCodeReceived().Unbind();
 	OnHeaderReceived().Unbind();

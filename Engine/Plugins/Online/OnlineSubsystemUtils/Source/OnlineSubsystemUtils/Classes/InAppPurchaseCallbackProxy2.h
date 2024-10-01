@@ -102,9 +102,6 @@ private:
 	void OnPurchaseComplete();
 	void OnQueryReceiptsComplete(const FOnlineError& Result);
 
-	UE_DEPRECATED(5.3, "Use ::PurchaseStatusFromOnlineError instead")
-	EInAppPurchaseStatus PurchaseStatusFromOnlineError(const FOnlineError& OnlineError);
-
 	/** Triggers the In-App Purchase Transaction for the specifed user; the Purchase Request object must already be set up */
 	void Trigger(class APlayerController* PlayerController, const FInAppPurchaseProductRequest2& ProductRequest);
 	/** Triggers the In-App Purchase processing for unprocessed receipts */

@@ -21,12 +21,6 @@ public:
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 
 	//~ Begin AOnlineBeaconHost Interface
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	virtual bool StartVerifyAuthentication(const FUniqueNetId& PlayerId, const FString& AuthenticationToken) override;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	virtual bool StartVerifyAuthentication(const FUniqueNetId& PlayerId, const FString& AuthenticationToken, const FOnAuthenticationVerificationCompleteDelegate& OnComplete) override;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	virtual bool StartVerifyAuthentication(const FUniqueNetId& PlayerId, const FString& LoginOptions, const FString& AuthenticationToken, const FOnAuthenticationVerificationCompleteDelegate& OnComplete) override;
 	virtual bool VerifyJoinForBeaconType(const FUniqueNetId& PlayerId, const FString& BeaconType) override;
 	//~ End AOnlineBeaconHost Interface

@@ -13,7 +13,6 @@ class FHttpRequestImpl : public IHttpRequest
 public:
 	// IHttpRequest
 	HTTP_API virtual FHttpRequestCompleteDelegate& OnProcessRequestComplete() override;
-	HTTP_API virtual FHttpRequestProgressDelegate& OnRequestProgress() override;
 	HTTP_API virtual FHttpRequestProgressDelegate64& OnRequestProgress64() override;
 	HTTP_API virtual FHttpRequestStatusCodeReceivedDelegate& OnStatusCodeReceived() override;
 	HTTP_API virtual FHttpRequestHeaderReceivedDelegate& OnHeaderReceived() override;
@@ -34,9 +33,6 @@ protected:
 protected:
 	/** Delegate that will get called once request completes or on any error */
 	FHttpRequestCompleteDelegate RequestCompleteDelegate;
-
-	/** Delegate that will get called once per tick with bytes downloaded so far */
-	FHttpRequestProgressDelegate RequestProgressDelegate;
 
 	/** Delegate that will get called once per tick with bytes downloaded so far */
 	FHttpRequestProgressDelegate64 RequestProgressDelegate64;

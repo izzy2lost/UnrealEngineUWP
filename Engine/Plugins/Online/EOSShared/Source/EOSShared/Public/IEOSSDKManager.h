@@ -99,8 +99,6 @@ public:
 
 	virtual ~IEOSSDKManager() = default;
 
-	UE_DEPRECATED(5.3, "Initialize is now called automatically when the EOSShared module is started. User code should instead check IsInitialized to see whether the EOSSDK was successfully started.")
-	virtual EOS_EResult Initialize() = 0;
 	virtual bool IsInitialized() const = 0;
 
 	virtual const FEOSSDKPlatformConfig* GetPlatformConfig(const FString& PlatformConfigName, bool bLoadIfMissing = false) = 0;
