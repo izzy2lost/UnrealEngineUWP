@@ -312,7 +312,10 @@ void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentS
 					const float MaxRootMotionDeltaToCompensateRad = FMath::DegreesToRadians(MaxRootMotionDeltaToCompensateDegrees);
 					if (FMath::Abs(RootMotionDeltaAngleRad) < MaxRootMotionDeltaToCompensateRad)
 					{
-						ActualOrientationAngleRad = FMath::UnwindRadians(ActualOrientationAngleRad + RootMotionDeltaAngleRad);
+						CounterCompensateTargetAngleRad += RootMotionDeltaAngleRad;
+						float CounterCompensateAngle = FMath::FInterpTo(0, CounterCompensateTargetAngleRad, DeltaSeconds, CounterCompensateInterpSpeed);
+						ActualOrientationAngleRad = FMath::UnwindRadians(ActualOrientationAngleRad + CounterCompensateAngle);
+						CounterCompensateTargetAngleRad -= CounterCompensateAngle;
 					}
 				}
 
