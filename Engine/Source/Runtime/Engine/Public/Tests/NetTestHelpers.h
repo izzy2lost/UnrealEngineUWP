@@ -3,15 +3,14 @@
 #pragma once
 
 #include "HAL/Platform.h"
-#include "Net/UnrealNetwork.h"
-#include "Engine/ActorChannel.h"
 #include "Engine/NetDriver.h"
-#include "Engine/NetworkObjectList.h"
 
 class APlayerController;
 class IConsoleVariable;
 class UGameInstance;
 class UWorld;
+class UReplicationSystem;
+class UObjectReplicationBridge;
 
 struct FGameInstancePIEParameters;
 
@@ -20,12 +19,80 @@ struct FGameInstancePIEParameters;
 namespace UE::Net
 {
 
+/*
+ * Used to set a cvar and restore it to it's original value when destroyed
+ */
+class FScopedCVarOverrideInt
+{
+public:
+	ENGINE_API FScopedCVarOverrideInt(const TCHAR* VariableName, int32 Value);
+	ENGINE_API ~FScopedCVarOverrideInt();
+
+	FScopedCVarOverrideInt(FScopedCVarOverrideInt&&) = delete;
+	FScopedCVarOverrideInt(const FScopedCVarOverrideInt&) = delete;
+	FScopedCVarOverrideInt& operator=(FScopedCVarOverrideInt&&) = delete;
+	FScopedCVarOverrideInt& operator=(const FScopedCVarOverrideInt&) = delete;
+
+private:
+	IConsoleVariable* Variable = nullptr;
+	int32 SavedValue = 0;
+};
+
+/**
+* Sets and restores  cvars needed to use FNetTestWorldInstances within a scope.
+* Meant to be used within a single function.
+*/
+class FScopedTestSettings
+{
+public:
+	ENGINE_API FScopedTestSettings();
+	ENGINE_API ~FScopedTestSettings();
+
+	FScopedTestSettings(FScopedTestSettings&&) = delete;
+	FScopedTestSettings(const FScopedTestSettings&) = delete;
+	FScopedTestSettings& operator=(FScopedTestSettings&&) = delete;
+	FScopedTestSettings& operator=(const FScopedTestSettings&) = delete;
+
+private:
+	FScopedCVarOverrideInt AddressResolutionDisabled;
+	FScopedCVarOverrideInt BandwidthThrottlingDisabled;
+	FScopedCVarOverrideInt RepGraphBandwidthThrottlingDisabled;
+	FScopedCVarOverrideInt RandomNetUpdateDelayDisabled;
+	FScopedCVarOverrideInt GameplayDebuggerDisabled;
+};
+
+/**
+* Stores and restore GWorld and PIE settings modified by the creation of the temporary test worlds
+*/
+class FScopedNetTestPIERestoration
+{
+public:
+
+	ENGINE_API FScopedNetTestPIERestoration();
+	ENGINE_API ~FScopedNetTestPIERestoration();
+
+	FScopedNetTestPIERestoration(FScopedNetTestPIERestoration&&) = delete;
+	FScopedNetTestPIERestoration(const FScopedNetTestPIERestoration&) = delete;
+	FScopedNetTestPIERestoration& operator=(FScopedNetTestPIERestoration&&) = delete;
+	FScopedNetTestPIERestoration& operator=(const FScopedNetTestPIERestoration&) = delete;
+
+private:
+
+	// Restores PIE world context
+	UWorld* OldGWorld = nullptr;
+	int32 OldPIEID = 0;
+	bool OldGIsPlayInEditorWorld = false;
+};
+
 /**
  * Properly scoped/RAII wrapper around a GameInstance/WorldContext/World that makes it easier to write tests
  * involving full UWorld functionality within the scope of one function.
  */
 struct FTestWorldInstance
 {
+	struct FContext;
+
+public:
 	ENGINE_API static FTestWorldInstance CreateServer(const TCHAR* InURL);
 	ENGINE_API static FTestWorldInstance CreateClient(int32 ServerPort);
 
@@ -38,9 +105,12 @@ struct FTestWorldInstance
 	
 	ENGINE_API FTestWorldInstance(FTestWorldInstance&& Other);
 	ENGINE_API FTestWorldInstance& operator=(FTestWorldInstance&& Other);
-	
+
+	ENGINE_API FWorldContext* GetWorldContext() const;	
+
+	ENGINE_API FContext GetTestContext() const;
+
 	ENGINE_API UWorld* GetWorld() const;
-	ENGINE_API FWorldContext* GetWorldContext() const;
 	ENGINE_API UNetDriver* GetNetDriver() const;
 
 	ENGINE_API int32 GetPort();
@@ -49,6 +119,18 @@ struct FTestWorldInstance
 
 	ENGINE_API void LoadStreamingLevel(FName LevelName);
 	ENGINE_API void UnloadStreamingLevel(FName LevelName);
+
+public:
+
+	struct FContext
+	{
+		UWorld* World = nullptr;
+		UNetDriver* NetDriver = nullptr;
+#if UE_WITH_IRIS
+		UReplicationSystem* IrisRepSystem = nullptr;
+		UObjectReplicationBridge* IrisRepBridge = nullptr;
+#endif
+	};
 
 public:
 
@@ -102,6 +184,14 @@ struct FTestWorlds
 	/** Return the Server's player state corresponding to a specific client */
 	ENGINE_API APlayerController* GetServerPlayerControllerOfClient(uint32 ClientIndex);
 
+	/**
+	 * Find the remote instance of a replicated object.
+	 * @param ServerObject The server object that you want the remote version of.
+	 * @param ClientIndex The client you want a remote instance of
+	 * @return Return the remote (client) instance of the same object if it exists.
+	 */
+	ENGINE_API UObject* FindReplicatedObjectOnClient(UObject* ServerObject, uint32 ClientIndex) const;
+
 public:
 
 	/** Server and Client Worlds */
@@ -113,7 +203,15 @@ private:
 	void OnNetDriverCreated(UWorld* InWorld, UNetDriver* InNetDriver);
 	FDelegateHandle NetDriverCreatedHandle;
 
+private:
+
 	float TickDeltaSeconds = 0.0166f;
+
+	// Sets up important settings for the networking system to run optimally
+	FScopedTestSettings TestSettings;
+
+	// Restore GWorld and other PIE settings
+	FScopedNetTestPIERestoration PIERestoration;
 };
 
 //------------------------------------------------------------------------
@@ -140,52 +238,6 @@ inline bool FTestWorlds::TickAllUntil(const PredicateT& Predicate, float DeltaSe
 
 	return bPredicateResult;
 }
-
-//------------------------------------------------------------------------
-// FScopedCVarOverrideInt
-//------------------------------------------------------------------------
-class FScopedCVarOverrideInt
-{
-public:
-	ENGINE_API FScopedCVarOverrideInt(const TCHAR* VariableName, int32 Value);
-	ENGINE_API ~FScopedCVarOverrideInt();
-
-	FScopedCVarOverrideInt(FScopedCVarOverrideInt&&) = delete;
-	FScopedCVarOverrideInt(const FScopedCVarOverrideInt&) = delete;
-	FScopedCVarOverrideInt& operator=(FScopedCVarOverrideInt&&) = delete;
-	FScopedCVarOverrideInt& operator=(const FScopedCVarOverrideInt&) = delete;
-
-private:
-	IConsoleVariable* Variable = nullptr;
-	int32 SavedValue = 0;
-};
-
-/**
- * Sets and restores globals and cvars needed to use FNetTestWorldInstances within a scope.
- * Meant to be used within a single function.
- */
-class FScopedTestSettings
-{
-public:
-	ENGINE_API FScopedTestSettings();
-	ENGINE_API ~FScopedTestSettings();
-
-	FScopedTestSettings(FScopedTestSettings&&) = delete;
-	FScopedTestSettings(const FScopedTestSettings&) = delete;
-	FScopedTestSettings& operator=(FScopedTestSettings&&) = delete;
-	FScopedTestSettings& operator=(const FScopedTestSettings&) = delete;
-
-private:
-	FScopedCVarOverrideInt AddressResolutionDisabled;
-	FScopedCVarOverrideInt BandwidthThrottlingDisabled;
-	FScopedCVarOverrideInt RepGraphBandwidthThrottlingDisabled;
-	FScopedCVarOverrideInt RandomNetUpdateDelayDisabled;
-	FScopedCVarOverrideInt GameplayDebuggerDisabled;
-
-	UWorld* OldGWorld;
-	int32 OldPIEID;
-	bool OldGIsPlayInEditorWorld;
-};
 
 } // end namespace UE::Net
 
