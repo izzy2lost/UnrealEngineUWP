@@ -954,9 +954,6 @@ void FAppleHttpRequest::CheckProgressDelegate()
 		const uint64 BytesRead = Response->GetNumBytesReceived();
 		if (BytesWritten != LastReportedBytesWritten || BytesRead != LastReportedBytesRead)
 		{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			OnRequestProgress().ExecuteIfBound(SharedThis(this), BytesWritten, BytesRead);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			OnRequestProgress64().ExecuteIfBound(SharedThis(this), BytesWritten, BytesRead);
 			LastReportedBytesWritten = BytesWritten;
 			LastReportedBytesRead = BytesRead;
