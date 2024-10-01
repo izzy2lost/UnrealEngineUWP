@@ -819,18 +819,6 @@ bool FLevelEditorActionCallbacks::CanExecutePreviewPlatform(FPreviewPlatformInfo
 
 	if (FDataDrivenShaderPlatformInfo::IsValid(PreviewShaderPlatform) && FDataDrivenShaderPlatformInfo::GetIsPreviewPlatform(PreviewShaderPlatform))
 	{
-		const EShaderPlatform RealShaderPlatform = FDataDrivenShaderPlatformInfo::GetPreviewShaderPlatformParent(PreviewShaderPlatform);
-
-		// TODO: Prevent previewing VULKAN_SM5 with a D3D renderer until all issues are resolved.
-		// We have to use the real platform here since these fields are overridden in preview.
-		if (GDynamicRHI
-			&& (GDynamicRHI->GetInterfaceType() == ERHIInterfaceType::D3D12 || GDynamicRHI->GetInterfaceType() == ERHIInterfaceType::D3D11)
-			&& IsVulkanPlatform(RealShaderPlatform)
-			&& IsFeatureLevelSupported(RealShaderPlatform, ERHIFeatureLevel::SM5))
-		{
-			return false;
-		}
-
 		// When the preview platform's DDSPI MaxSamplers is > 16 and the current RHI device has support
 		// for > 16 samplers we rely on the shader compiler being able to choose an appropriate profile for the
 		// preview feature level that supports > 16 samplers. On D3D12 SM5 the D3D shader compiler will use Dxc and

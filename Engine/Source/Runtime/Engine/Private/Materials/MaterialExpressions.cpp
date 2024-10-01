@@ -10806,7 +10806,17 @@ UMaterialExpressionFeatureLevelSwitch::UMaterialExpressionFeatureLevelSwitch(con
 #if WITH_EDITOR
 int32 UMaterialExpressionFeatureLevelSwitch::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
-	const ERHIFeatureLevel::Type FeatureLevelToCompile = Compiler->GetFeatureLevel();
+	ERHIFeatureLevel::Type FeatureLevelToCompile = Compiler->GetFeatureLevel();
+
+	// PreviewPlatform can have a different feature level in order to support previewing the platform
+	// But we still want to respect the material logic of the parent platform
+	const EShaderPlatform ShaderPlatform = Compiler->GetShaderPlatform();
+	if (FDataDrivenShaderPlatformInfo::GetIsPreviewPlatform(ShaderPlatform))
+	{
+		const EShaderPlatform ParentShaderPlatform = FDataDrivenShaderPlatformInfo::GetPreviewShaderPlatformParent(ShaderPlatform);
+		FeatureLevelToCompile = FDataDrivenShaderPlatformInfo::GetMaxFeatureLevel(ParentShaderPlatform);
+	}
+
 	check(FeatureLevelToCompile < UE_ARRAY_COUNT(Inputs));
 	FExpressionInput& FeatureInput = Inputs[FeatureLevelToCompile];
 
