@@ -7,6 +7,8 @@
 
 #include "ImageSequenceUtils.h"
 
+#include "SoundWaveTimecodeUtils.h"
+
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Rendering/SkeletalMeshModel.h"
@@ -363,13 +365,19 @@ void UFootageCaptureData::GetFrameRanges(const FFrameRate& InTargetRate, ETimeco
 	OutProcessingFrameRange = TRange<FFrameNumber>(0, 0);
 	OutMaximumFrameRange = TRange<FFrameNumber>(0, 0);
 
+	const bool bMediaStartFrameIsZero = InTimecodeAlignment == ETimecodeAlignment::None;
+
 	for (int32 Index = 0; Index < ImageSequences.Num(); ++Index)
 	{
 		const TObjectPtr<UImgMediaSource>& ImageSequence = ImageSequences[Index];
 
 		if (ImageSequence)
 		{
-			OutMediaFrameRanges.Add(ImageSequence, GetFrameRange(InTargetRate, ImageSequence, GetEffectiveImageTimecode(Index), GetEffectiveImageTimecodeRate(Index), InTimecodeAlignment == ETimecodeAlignment::None));
+			const FTimecode EffectiveImageTimecode = GetEffectiveImageTimecode(Index);
+			const FFrameRate EffectiveImageTimecodeRate = GetEffectiveImageTimecodeRate(Index);
+			const TRange<FFrameNumber> ImageFrameFrange = GetFrameRange(InTargetRate, ImageSequence, EffectiveImageTimecode, EffectiveImageTimecodeRate, bMediaStartFrameIsZero);
+
+			OutMediaFrameRanges.Add(ImageSequence, ImageFrameFrange);
 		}
 	}
 
@@ -379,7 +387,11 @@ void UFootageCaptureData::GetFrameRanges(const FFrameRate& InTargetRate, ETimeco
 
 		if (DepthSequence)
 		{
-			OutMediaFrameRanges.Add(DepthSequence, GetFrameRange(InTargetRate, DepthSequence, GetEffectiveDepthTimecode(Index), GetEffectiveDepthTimecodeRate(Index), InTimecodeAlignment == ETimecodeAlignment::None));
+			const FTimecode EffectiveDepthTimecode = GetEffectiveDepthTimecode(Index);
+			const FFrameRate EffectiveDepthTimecodeRate = GetEffectiveDepthTimecodeRate(Index);
+			const TRange<FFrameNumber> DepthFrameRange = GetFrameRange(InTargetRate, DepthSequence, EffectiveDepthTimecode, EffectiveDepthTimecodeRate, bMediaStartFrameIsZero);
+
+			OutMediaFrameRanges.Add(DepthSequence, DepthFrameRange);
 		}
 	}
 
@@ -389,7 +401,11 @@ void UFootageCaptureData::GetFrameRanges(const FFrameRate& InTargetRate, ETimeco
 		{
 			if (Audio)
 			{
-				OutMediaFrameRanges.Add(Audio, GetFrameRange(InTargetRate, Audio, GetEffectiveAudioTimecode(), GetEffectiveAudioTimecodeRate(), InTimecodeAlignment == ETimecodeAlignment::None));
+				const FTimecode EffectiveAudioTimecode = GetEffectiveAudioTimecode();
+				const FFrameRate EffectiveAudioTimecodeRate = GetEffectiveAudioTimecodeRate();
+				const TRange<FFrameNumber> AudioFrameRange = GetFrameRange(InTargetRate, Audio, EffectiveAudioTimecode, EffectiveAudioTimecodeRate, bMediaStartFrameIsZero);
+
+				OutMediaFrameRanges.Add(Audio, AudioFrameRange);
 			}
 		}
 	}
@@ -549,12 +565,22 @@ FFrameRate UFootageCaptureData::GetEffectiveDepthTimecodeRate(int32 InView) cons
 FTimecode UFootageCaptureData::GetEffectiveAudioTimecode() const
 {
 	FTimecode Timecode;
+	bool TimecodeFromAsset = false;
 
-	if (bAudioTimecodePresent)
+	if (Audios.Num() > 0)
 	{
-		Timecode = AudioTimecode;
+		const USoundWave* SoundWave = Audios[0].Get();
+		check(IsValid(SoundWave));
+
+		TOptional<FTimecode> TimecodeOpt = USoundWaveTimecodeUtils::GetTimecode(SoundWave);
+		if (TimecodeOpt.IsSet())
+		{
+			Timecode = TimecodeOpt.GetValue();
+			TimecodeFromAsset = true;
+		}
 	}
-	else
+
+	if (!TimecodeFromAsset)
 	{
 		FFrameRate FrameRate;
 		GetDefaultTimecodeInfo(Timecode, FrameRate);
@@ -566,12 +592,22 @@ FTimecode UFootageCaptureData::GetEffectiveAudioTimecode() const
 FFrameRate UFootageCaptureData::GetEffectiveAudioTimecodeRate() const
 {
 	FFrameRate FrameRate;
+	bool TimecodeRateFromAsset = false;
 
-	if (bAudioTimecodePresent)
+	if (Audios.Num() > 0)
 	{
-		FrameRate = AudioTimecodeRate;
+		const USoundWave* SoundWave = Audios[0].Get();
+		check(IsValid(SoundWave));
+
+		TOptional<FFrameRate> FrameRateOpt = USoundWaveTimecodeUtils::GetFrameRate(SoundWave);
+		if (FrameRateOpt.IsSet())
+		{
+			FrameRate = FrameRateOpt.GetValue();
+			TimecodeRateFromAsset = true;
+		}
 	}
-	else
+
+	if (!TimecodeRateFromAsset)
 	{
 		FTimecode Timecode;
 		GetDefaultTimecodeInfo(Timecode, FrameRate);
@@ -610,11 +646,21 @@ void UFootageCaptureData::GetDefaultTimecodeInfo(FTimecode& OutTimecode, FFrameR
 	}
 #endif
 
-	if (bAudioTimecodePresent)
+
+	if (Audios.Num() > 0)
 	{
-		OutTimecode = AudioTimecode;
-		OutFrameRate = AudioTimecodeRate;
-		return;
+		const USoundWave* SoundWave = Audios[0].Get();
+		check(IsValid(SoundWave));
+
+		TOptional<FTimecode> TimecodeOpt = USoundWaveTimecodeUtils::GetTimecode(SoundWave);
+		TOptional<FFrameRate> FrameRateOpt = USoundWaveTimecodeUtils::GetFrameRate(SoundWave);
+
+		if (TimecodeOpt.IsSet() && FrameRateOpt.IsSet())
+		{
+			OutTimecode = TimecodeOpt.GetValue();
+			OutFrameRate = FrameRateOpt.GetValue();
+			return;
+		}
 	}
 
 	OutTimecode = FTimecode(0, 0, 0, 0, false);
@@ -659,6 +705,14 @@ void UFootageCaptureData::PostLoad()
 		DepthSequences.Add(MoveTemp(View.DepthSequence));
 	}
 #endif
+	if (Audios.Num() > 0 && bAudioTimecodePresent_DEPRECATED == true) 
+	{
+		USoundWave* SoundWave = Audios[0].Get();
+		check(IsValid(SoundWave));
+
+		USoundWaveTimecodeUtils::SetTimecodeInfo(AudioTimecode_DEPRECATED, AudioTimecodeRate_DEPRECATED, SoundWave);
+		bAudioTimecodePresent_DEPRECATED = false;
+	}
 }
 
 void UFootageCaptureData::PopulateCameraNames(UFootageCaptureData* InFootageCaptureData, FString& InOutCamera, TArray<TSharedPtr<FString>>& OutCameraNames)
