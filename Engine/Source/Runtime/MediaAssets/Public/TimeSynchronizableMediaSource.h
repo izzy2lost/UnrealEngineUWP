@@ -45,11 +45,8 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Synchronization, meta=(DisplayName="Time Synchronization"))
 	bool bUseTimeSynchronization;
 
-	/** 
-	* When using Time Synchronization, how many frame back should it read. Capped at 4 frames due to the potential issues with buffer sizes.
-	* Framelocked modes don't support this feature.
-	*/
-	UPROPERTY(EditAnywhere, Category=Synchronization, meta=(EditCondition="bUseTimeSynchronization", ClampMin = "0", ClampMax = "4"))
+	/** When using Time Synchronization, how many frame back should it read. */
+	UPROPERTY(EditAnywhere, Category=Synchronization, meta=(EditCondition="bUseTimeSynchronization"))
 	int32 FrameDelay;
 
 	/** When not using Time Synchronization, how far back it time should it read. */

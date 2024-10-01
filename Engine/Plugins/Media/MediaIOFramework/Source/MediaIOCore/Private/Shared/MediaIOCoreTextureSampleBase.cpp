@@ -153,16 +153,10 @@ bool FMediaIOCoreTextureSampleBase::SetBufferWithEvenOddLine(bool bUseEvenLine, 
 void FMediaIOCoreTextureSampleBase::SetColorConversionSettings(TSharedPtr<struct FOpenColorIOColorConversionSettings> InColorConversionSettings)
 {
 	ColorConversionSettings = InColorConversionSettings;
-	if (IsInGameThread())
-	{
+
+	AsyncTask(ENamedThreads::GameThread, [this]() {
 		CacheColorCoversionSettings_GameThread();
-	}
-	else
-	{
-		AsyncTask(ENamedThreads::GameThread, [this]() {
-			CacheColorCoversionSettings_GameThread();
-			});
-	}
+	});
 }
 
 void* FMediaIOCoreTextureSampleBase::RequestBuffer(uint32 InBufferSize)
@@ -206,6 +200,7 @@ bool FMediaIOCoreTextureSampleBase::InitializeJITR(const FMediaIOCoreSampleJITRC
 	Player    = Args.Player;
 	Converter = Args.Converter;
 	EvaluationOffsetInSeconds = Args.EvaluationOffsetInSeconds;
+
 	return true;
 }
 
@@ -228,13 +223,6 @@ void FMediaIOCoreTextureSampleBase::CopyConfiguration(const TSharedPtr<FMediaIOC
 	ColorSpaceStruct = SourceSample->ColorSpaceStruct;
 	ColorConversionSettings = SourceSample->ColorConversionSettings;
 	CachedOCIOResources = SourceSample->CachedOCIOResources;
-	Player = SourceSample->Player;
-	Converter = SourceSample->Converter;
-	FrameNumber = SourceSample->FrameNumber.load();
-	Duration = SourceSample->Duration;
-	Texture = SourceSample->Texture;
-
-	EvaluationOffsetInSeconds = SourceSample->EvaluationOffsetInSeconds;
 
 	// Save original sample
 	OriginalSample = SourceSample;
@@ -315,25 +303,6 @@ void FMediaIOCoreTextureSampleBase::SetDestructionCallback(TFunction<void(TRefCo
 	DestructionCallback = InDestructionCallback;
 }
 
-EPixelFormat FMediaIOCoreTextureSampleBase::GetPixelFormat()
-{
-	switch (GetFormat())
-	{
-	case EMediaTextureSampleFormat::FloatRGBA:
-		return PF_FloatRGBA;
-	case EMediaTextureSampleFormat::CharBGR10A2:
-	{
-		if (GetEncodingType() != UE::Color::EEncoding::Linear)
-		{
-			return PF_FloatRGB;
-		}
-		return PF_A2B10G10R10;
-	}
-	default:
-		return PF_B8G8R8A8;
-	}
-}
-
 void FMediaIOCoreTextureSampleBase::ShutdownPoolable()
 {
 	if (DestructionCallback)
@@ -399,15 +368,6 @@ UE::Color::EEncoding FMediaIOCoreTextureSampleBase::GetEncodingType() const
     }
     
 	return Encoding;
-}
-
-UE::Color::EColorSpace FMediaIOCoreTextureSampleBase::GetColorSpaceType() const
-{
-	if (ColorConversionSettings && ColorConversionSettings->IsValid())
-	{
-		return UE::Color::EColorSpace::None;
-	}
-	return ColorSpace;
 }
 
 float FMediaIOCoreTextureSampleBase::GetHDRNitsNormalizationFactor() const
