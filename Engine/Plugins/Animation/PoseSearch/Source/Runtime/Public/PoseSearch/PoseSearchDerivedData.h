@@ -40,6 +40,7 @@ namespace UE::PoseSearch
 		~FAsyncPoseSearchDatabasesManagement();
 
 		static FAsyncPoseSearchDatabasesManagement& Get();
+		static EAsyncBuildIndexResult RequestAsyncBuildIndexInternal(const UPoseSearchDatabase* Database, ERequestAsyncBuildFlag Flag);
 
 		void OnObjectModified(UObject* Object);
 		void OnObjectTransacted(UObject* Object, const FTransactionObjectEvent& TransactionObjectEvent);

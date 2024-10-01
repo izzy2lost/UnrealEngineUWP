@@ -56,20 +56,5 @@ namespace UE::PoseSearch
 		}
 
 		GetWorld()->Tick(LEVELTICK_All, InDeltaTime);
-
-		FDatabaseViewModel* ViewModel = GetEditor()->GetViewModel();
-		const UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase();
-
-		if (!ViewModel->GetPreviewActors().IsEmpty() && EAsyncBuildIndexResult::Success == FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, ERequestAsyncBuildFlag::ContinueRequest))
-		{
-			const bool bDisplayRootMotionSpeed = ViewModel->IsDisplayRootMotionSpeedChecked();
-			const bool bDisplayBlockTransition = ViewModel->IsDisplayBlockTransitionChecked();
-			bool bDrawQueryVector = ViewModel->ShouldDrawQueryVector();
-
-			for (TArray<FDatabasePreviewActor>& PreviewActorGroup : ViewModel->GetPreviewActors())
-			{
-				bDrawQueryVector &= !FDatabasePreviewActor::DrawPreviewActors(PreviewActorGroup, Database, bDisplayRootMotionSpeed, bDisplayBlockTransition, bDrawQueryVector ? ViewModel->GetQueryVector() : TConstArrayView<float>());
-			}
-		}
 	}
 }
