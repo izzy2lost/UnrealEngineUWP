@@ -459,7 +459,7 @@ void UMovieSceneControlRigParameterTrack::SetSectionToKey(UMovieSceneSection* In
 					FChannelMapInfo* pChannelIndex = CRSection->ControlChannelMap.Find(SectionToKeyItem.Key);
 					if (pChannelIndex)
 					{
-						if (CRSection->GetControlsMask(pChannelIndex->MaskIndex))
+						if (CRSection->GetControlNameMask(SectionToKeyItem.Key))
 						{
 							SectionToKeyItem.Value = InSection;
 						}

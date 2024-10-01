@@ -812,8 +812,7 @@ TSet<FName> FControlRigEditMode::GetActiveControlsFromSequencer(UControlRig* Con
 							UMovieSceneControlRigParameterSection* ActiveSection = Cast<UMovieSceneControlRigParameterSection>(ControlRigParameterTrack->GetSectionToKey(ControlElement->GetFName()));
 							if (ActiveSection)
 							{
-								TArray<bool> Mask = ActiveSection->GetControlsMask();
-								if (Mask[Index])
+								if (ActiveSection->GetControlNameMask(ControlElement->GetFName()))
 								{
 									ActiveControls.Add(ControlElement->GetFName());
 								}
