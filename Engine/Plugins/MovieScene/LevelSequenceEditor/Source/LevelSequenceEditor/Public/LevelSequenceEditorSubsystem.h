@@ -371,6 +371,8 @@ private:
 	TSharedPtr<FExtender> BindingPropertiesMenuExtender;
 	TSharedPtr<FExtender> RebindComponentMenuExtender;
 	TSharedPtr<FExtender> SidebarMenuExtender;
+
+	friend class FMovieSceneBindingPropertyInfoListCustomization;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
