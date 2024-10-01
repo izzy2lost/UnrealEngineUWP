@@ -1069,3 +1069,10 @@ mu::Ptr<mu::Mesh> GenerateMeshConstant(USkeletalMesh*, FMutableGraphGenerationCo
 
 /** Generates a mutable image descriptor from an unreal engine texture */
 mu::FImageDesc GenerateImageDescriptor(UTexture* Texture);
+
+/** 
+ * Add SurfaceMetadata gathered form Material and MeshSection to HashSurfaceMetadataSet.
+ * 
+ * return the unique id for the SurfaceMetadata in HashSurfaceMetadataSet.
+ **/
+uint32 AddUniqueSurfaceMetadata(const FSkeletalMaterial* Material, const FSkelMeshSection* MeshSection, TMap<uint32, FMutableSurfaceMetadata>& InOutHashSurfaceMetadataSet);

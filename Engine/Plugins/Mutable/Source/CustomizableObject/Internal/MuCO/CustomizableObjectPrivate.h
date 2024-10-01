@@ -562,10 +562,14 @@ struct FMutableMeshMetadata
 	UPROPERTY()
 	uint32 ClothingMetadataId = 0;
 
+	UPROPERTY()
+	uint32 SurfaceMetadataId = 0;
+
 	friend FArchive& operator<<(FArchive& Ar, FMutableMeshMetadata& Elem)
 	{
 		Ar << Elem.MorphMetadataId;
 		Ar << Elem.ClothingMetadataId;
+		Ar << Elem.SurfaceMetadataId;
 
 		return Ar;
 	}
@@ -578,22 +582,20 @@ struct FMutableSurfaceMetadata
 	GENERATED_USTRUCT_BODY()
 	
 	UPROPERTY()
-	int32 MaterialSlotIndex = INDEX_NONE;
+	FName MaterialSlotName = FName{};
 	
 	UPROPERTY()
-	bool bCastShadow = false;
-	uint8 UnusedPadding[3] = {0};
+	bool bCastShadow = true;
 
 	friend FArchive& operator<<(FArchive& Ar, FMutableSurfaceMetadata& Elem)
 	{
-		Ar << Elem.MaterialSlotIndex;
+		Ar << Elem.MaterialSlotName;
 		Ar << Elem.bCastShadow;
 
 		return Ar;
 	}
 };
 
-static_assert(sizeof(FMutableSurfaceMetadata) == (sizeof(int32) + sizeof(bool) + sizeof(uint8)*3));
 
 USTRUCT()
 struct FClothingStreamable
@@ -1485,6 +1487,8 @@ public:
 
 		TransformInMeshModifier,
 		
+		SurfaceMetadataSlotNameIndexToName,
+
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion
 	};

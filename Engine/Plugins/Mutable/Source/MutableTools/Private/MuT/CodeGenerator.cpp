@@ -836,16 +836,14 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    void CodeGenerator::GenerateSurface( FSurfaceGenerationResult& result, 
+    void CodeGenerator::GenerateSurface( FSurfaceGenerationResult& SurfaceResult, 
 										 const FSurfaceGenerationOptions& Options,
-                                         Ptr<const NodeSurfaceNew> surfaceNode )
+                                         Ptr<const NodeSurfaceNew> SurfaceNode )
     {
         MUTABLE_CPUPROFILER_SCOPE(GenerateSurface);
 
-        const NodeSurfaceNew& node = *surfaceNode;
-
         // Build a series of operations to assemble the surface
-        Ptr<ASTOp> lastSurfOp;
+        Ptr<ASTOp> LastSurfOp;
 
         // Generate the mesh
         //------------------------------------------------------------------------
@@ -858,44 +856,49 @@ namespace mu
 
 		// Do we need to generate the mesh? Or was it already generated for state conditions 
 		// accepting the current state?
-		FirstPassGenerator::FSurface* targetSurface = nullptr;
-		for (FirstPassGenerator::FSurface& its : FirstPass.Surfaces)
+		FirstPassGenerator::FSurface* TargetSurface = nullptr;
+		for (FirstPassGenerator::FSurface& Surface : FirstPass.Surfaces)
 		{
-            if (its.Node == &node)
-            {
-                // Check state conditions
-                bool surfaceValidForThisState =
-                    Options.State >= its.StateCondition.Num()
-                    ||
-                    its.StateCondition[Options.State];
+			if (Surface.Node != SurfaceNode)
+			{
+				continue;
+			}
 
-                if (surfaceValidForThisState)
-                {
-                    if (its.ResultSurfaceOp)
-                    {
-                        // Reuse the entire surface
-                        result.surfaceOp = its.ResultSurfaceOp;
-                        return;
-                    }
-                    else
-                    {
-                        // Not already generated, we will generate this
-                        targetSurface = &its;
-                    }
-                }
-            }
+            // Check state conditions
+            const bool bSurfaceValidForThisState = 
+					Options.State >= Surface.StateCondition.Num() ||
+                    Surface.StateCondition[Options.State];
+
+			if (!bSurfaceValidForThisState)
+			{
+				continue;
+			}
+
+			if (Surface.ResultSurfaceOp)
+			{
+				// Reuse the entire surface
+				SurfaceResult.surfaceOp = Surface.ResultSurfaceOp;
+				return;
+			}
+			else
+			{
+				// Not already generated, we will generate this
+				TargetSurface = &Surface;
+			}
 		}
 
-        if (!targetSurface)
+        if (!TargetSurface)
         {
             return;
         }
 
 		// This assumes that the lods are processed in order. It checks it this way because some platforms may have empty lods at the top.
-		const bool bIsBaseForSharedSurface = node.SharedSurfaceId != INDEX_NONE && !SharedMeshOptionsMap.Contains(node.SharedSurfaceId);
+		const bool bIsBaseForSharedSurface = 
+			SurfaceNode->SharedSurfaceId != INDEX_NONE && 
+			!SharedMeshOptionsMap.Contains(SurfaceNode->SharedSurfaceId);
 
 		// If this is true, we will reuse the surface properties from a higher LOD, se we can skip the generation of material properties and images.
-		const bool bShareSurface = node.SharedSurfaceId != INDEX_NONE && !bIsBaseForSharedSurface;
+		const bool bShareSurface = SurfaceNode->SharedSurfaceId != INDEX_NONE && !bIsBaseForSharedSurface;
 
 		// Gather all modifiers that apply to this surface
 		TArray<FirstPassGenerator::FModifier> Modifiers;
@@ -903,29 +906,27 @@ namespace mu
 
 		// Store the data necessary to apply modifiers for the pre-normal operations stage.
 		// TODO: Should we merge with currently active tags from the InOptions?
-		GetModifiersFor(node.Tags, bModifiersForBeforeOperations, Modifiers);
+		GetModifiersFor(SurfaceNode->Tags, bModifiersForBeforeOperations, Modifiers);
 
 		// This pass on the modifiers is only to detect errors that cannot be detected at the point they are applied.
-		CheckModifiersForSurface( node, Modifiers);
-
-		// Generate the mesh
-        if (node.Mesh)
+		CheckModifiersForSurface(*SurfaceNode, Modifiers);
+        //if (SurfaceNode->Mesh)
         {
             MUTABLE_CPUPROFILER_SCOPE(SurfaceMesh);
 
-            Ptr<ASTOp> lastMeshOp;
+            Ptr<ASTOp> LastMeshOp;
 
             // Generate the mesh
 			FMeshGenerationOptions MeshOptions;
 			MeshOptions.bLayouts = true;
 			MeshOptions.State = Options.State;
-			MeshOptions.ActiveTags = node.Tags;
+			MeshOptions.ActiveTags = SurfaceNode->Tags;
 
 			const FMeshGenerationResult* SharedMeshResults = nullptr;
 			if (bShareSurface)
 			{
 				// Do we have the surface we need to share it with?
-				SharedMeshResults = SharedMeshOptionsMap.Find(node.SharedSurfaceId);
+				SharedMeshResults = SharedMeshOptionsMap.Find(SurfaceNode->SharedSurfaceId);
 				check(SharedMeshResults);
 
 				// Override the layouts with the ones from the surface we share
@@ -934,7 +935,7 @@ namespace mu
 
 			// Normalize UVs if we're going to work with images and layouts.
 			// TODO: This should come from per-layout settings!
-			const bool bNormalizeUVs = false; // !node.Images.IsEmpty();
+			const bool bNormalizeUVs = false; // !SurfaceNode->Images.IsEmpty();
 			MeshOptions.bNormalizeUVs = bNormalizeUVs;
 
 			// Ensure UV islands remain within their main layout block on lower LODs to avoid unexpected reordering 
@@ -942,138 +943,164 @@ namespace mu
 			// that may cause them to fall on a different block.
 			MeshOptions.bClampUVIslands = bShareSurface && bNormalizeUVs;
 
-            GenerateMesh(MeshOptions, MeshResults, node.Mesh);
+            GenerateMesh(MeshOptions, MeshResults, SurfaceNode->Mesh);
 
 			// Apply the modifier for the post-normal operations stage.
-			lastMeshOp = ApplyMeshModifiers(Modifiers, MeshOptions, MeshResults, SharedMeshResults, surfaceNode->GetMessageContext(), nullptr);
+			LastMeshOp = ApplyMeshModifiers(Modifiers, MeshOptions, MeshResults, SharedMeshResults, SurfaceNode->GetMessageContext(), nullptr);
 
-            // Layouts
-            for ( int32 LayoutIndex=0; LayoutIndex < MeshResults.GeneratedLayouts.Num(); ++LayoutIndex)
-            {
-                Ptr<ASTOp> layoutOp;
+			// Base mesh is allowed to be missing, aggregate all layouts and operations per layout indices in the
+			// generated mesh, base and extends.
+			TArray<CodeGenerator::FGeneratedLayout> SurfaceReferenceLayouts;
+			TArray<Ptr<ASTOp>> SurfaceLayoutOps;
 
-				Ptr<const Layout> pLayout = MeshResults.GeneratedLayouts[LayoutIndex].Layout;
-                if ( pLayout )
-                {
-					if (SharedMeshResults)
+			int32 MaxLayoutNum = MeshResults.GeneratedLayouts.Num();
+			for (const FMeshGenerationResult::FExtraLayouts& ExtraLayoutData : MeshResults.ExtraMeshLayouts)
+			{
+				MaxLayoutNum = FMath::Max(MaxLayoutNum, ExtraLayoutData.GeneratedLayouts.Num());
+			}
+
+			SurfaceReferenceLayouts.SetNum(MaxLayoutNum);
+			SurfaceLayoutOps.SetNum(MaxLayoutNum);
+
+			// Add layouts form the base mesh.	
+            for (int32 LayoutIndex = 0; LayoutIndex < MeshResults.GeneratedLayouts.Num(); ++LayoutIndex)
+			{
+				if (!MeshResults.GeneratedLayouts[LayoutIndex].Layout)
+				{
+					continue;
+				}
+
+				SurfaceReferenceLayouts[LayoutIndex] = MeshResults.GeneratedLayouts[LayoutIndex];
+
+				if (SharedMeshResults)
+				{
+					check(SharedMeshResults->LayoutOps.IsValidIndex(LayoutIndex));
+					SurfaceLayoutOps[LayoutIndex] = SharedMeshResults->LayoutOps[LayoutIndex];
+				}
+				else
+				{
+					Ptr<ASTOpConstantResource> ConstantLayoutOp = new ASTOpConstantResource();
+					ConstantLayoutOp->Type = OP_TYPE::LA_CONSTANT;
+
+					ConstantLayoutOp->SetValue(
+							SurfaceReferenceLayouts[LayoutIndex].Layout, 
+							CompilerOptions->OptimisationOptions.DiskCacheContext);
+					SurfaceLayoutOps[LayoutIndex] = ConstantLayoutOp;
+				}
+			}
+
+			// Add extra layouts. In case there is a missing reference layout, the first visited will
+			// take the role.
+			for (const FMeshGenerationResult::FExtraLayouts& ExtraLayoutsData : MeshResults.ExtraMeshLayouts)
+			{
+				if (!ExtraLayoutsData.MeshFragment)
+				{
+					// No mesh to add, we assume there are no layouts to add either.
+					check(ExtraLayoutsData.GeneratedLayouts.IsEmpty());
+					continue;
+				}
+
+				const TArray<CodeGenerator::FGeneratedLayout>& ExtraGeneratedLayouts = ExtraLayoutsData.GeneratedLayouts;
+            	for (int32 LayoutIndex = 0; LayoutIndex < ExtraGeneratedLayouts.Num(); ++LayoutIndex)
+				{
+					if (!ExtraGeneratedLayouts[LayoutIndex].Layout)
 					{
-						check(SharedMeshResults->LayoutOps.Num()>LayoutIndex);
-						layoutOp = SharedMeshResults->LayoutOps[LayoutIndex];
+						continue;
+					}
+
+					if (!SurfaceReferenceLayouts[LayoutIndex].Layout)
+					{
+						// This Layout slot is not set by the base surface, set it as reference.
+						SurfaceReferenceLayouts[LayoutIndex] = ExtraGeneratedLayouts[LayoutIndex];
+					}
+
+					Ptr<ASTOpConstantResource> LayoutFragmentConstantOp = new ASTOpConstantResource();
+					LayoutFragmentConstantOp->Type = OP_TYPE::LA_CONSTANT;
+
+					LayoutFragmentConstantOp->SetValue(
+							ExtraLayoutsData.GeneratedLayouts[LayoutIndex].Layout,
+							CompilerOptions->OptimisationOptions.DiskCacheContext);
+
+					Ptr<ASTOpLayoutMerge> LayoutMergeOp = new ASTOpLayoutMerge();
+					// Base may be null if the base does not have  a mesh with a layout at LayoutIndex.
+					// In that case, when applying the condition this can generate null layouts.
+					LayoutMergeOp->Base = SurfaceLayoutOps[LayoutIndex];
+					LayoutMergeOp->Added = LayoutFragmentConstantOp;
+
+					if (ExtraLayoutsData.Condition)
+					{
+						Ptr<ASTOpConditional> ConditionalOp = new ASTOpConditional();
+						ConditionalOp->type = OP_TYPE::LA_CONDITIONAL;
+						ConditionalOp->no = SurfaceLayoutOps[LayoutIndex];
+						ConditionalOp->yes = LayoutMergeOp;
+						ConditionalOp->condition = ExtraLayoutsData.Condition;
+
+						SurfaceLayoutOps[LayoutIndex] = ConditionalOp;
 					}
 					else
 					{
-						// Create a new layout expression
-
-						// Constant layout to start with
-						{
-							Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
-							op->Type = OP_TYPE::LA_CONSTANT;
-
-							op->SetValue(pLayout, CompilerOptions->OptimisationOptions.DiskCacheContext);
-							layoutOp = op;
-						}
-
-						// Add children merged meshes layouts
-						for (const FMeshGenerationResult::FExtraLayouts& Data : MeshResults.ExtraMeshLayouts)
-						{
-							if (!Data.MeshFragment)
-							{
-								// No mesh to add, we assume there are no layouts to add either.
-								check(Data.GeneratedLayouts.IsEmpty());
-								continue;
-							}
-
-							if (Data.GeneratedLayouts.Num() < MeshResults.GeneratedLayouts.Num())
-							{
-								ErrorLog->GetPrivate()->Add(TEXT("Merged layout has been ignored because the number of layouts is different."), ELMT_ERROR, surfaceNode->GetMessageContext());
-							}
-							else
-							{
-								// Constant layout to start with
-								Ptr<ASTOp> layoutFragmentAd;
-								{
-									Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
-									op->Type = OP_TYPE::LA_CONSTANT;
-
-									Ptr<const Layout> pCloned = Data.GeneratedLayouts[LayoutIndex].Layout;
-									op->SetValue(pCloned, CompilerOptions->OptimisationOptions.DiskCacheContext);
-
-									layoutFragmentAd = op;
-								}
-
-								// Merge operation
-								Ptr<ASTOpLayoutMerge> mergeAd = new ASTOpLayoutMerge();
-								mergeAd->Base = layoutOp;
-								mergeAd->Added = layoutFragmentAd;
-
-								// Condition to apply
-								if (Data.Condition)
-								{
-									Ptr<ASTOpConditional> conditionalAd = new ASTOpConditional();
-									conditionalAd->type = OP_TYPE::LA_CONDITIONAL;
-									conditionalAd->no = layoutOp;
-									conditionalAd->yes = mergeAd;
-									conditionalAd->condition = Data.Condition;
-									layoutOp = conditionalAd;
-								}
-								else
-								{
-									layoutOp = mergeAd;
-								}
-							}
-						}
+						SurfaceLayoutOps[LayoutIndex] = LayoutMergeOp;
 					}
+				}
+			}
 
-					bool bIsOverlayLayout = pLayout->GetLayoutPackingStrategy() == mu::EPackStrategy::Overlay;
+			check(SurfaceReferenceLayouts.Num() == SurfaceLayoutOps.Num());
+            for (int32 LayoutIndex = 0; LayoutIndex < SurfaceReferenceLayouts.Num(); ++LayoutIndex)
+			{
+				if (!SurfaceReferenceLayouts[LayoutIndex].Layout)
+				{
+					continue;
+				}
 
-                    if (!bIsOverlayLayout && layoutOp)
-                    {
-                        // Add layout packing instructions
-						if (!SharedMeshResults)
-						{
-                            // Make sure we removed unnecessary blocks
-                            Ptr<ASTOpLayoutFromMesh> ExtractOp = new ASTOpLayoutFromMesh();
-							ExtractOp->Mesh = lastMeshOp;
-							check(LayoutIndex<256);
-							ExtractOp->LayoutIndex = uint8(LayoutIndex);
+				if (SurfaceReferenceLayouts[LayoutIndex].Layout->GetLayoutPackingStrategy() == mu::EPackStrategy::Overlay)
+				{
+					continue;
+				}
 
-							Ptr<ASTOpLayoutRemoveBlocks> RemoveOp = new ASTOpLayoutRemoveBlocks();
-							RemoveOp->Source = layoutOp;
-							RemoveOp->ReferenceLayout = ExtractOp;
-							layoutOp = RemoveOp;
+				// Add layout packing instructions
+				if (!SharedMeshResults)
+				{
+					// Make sure we removed unnecessary blocks
+					Ptr<ASTOpLayoutFromMesh> ExtractOp = new ASTOpLayoutFromMesh();
+					ExtractOp->Mesh = LastMeshOp;
+					check(LayoutIndex < 256);
+					ExtractOp->LayoutIndex = uint8(LayoutIndex);
 
-                            // Pack uv blocks
-                            Ptr<ASTOpLayoutPack> op = new ASTOpLayoutPack();
-                            op->Source = layoutOp;
-                            layoutOp = op;
-                        }
+					Ptr<ASTOpLayoutRemoveBlocks> RemoveOp = new ASTOpLayoutRemoveBlocks();
+					RemoveOp->Source = SurfaceLayoutOps[LayoutIndex];
+					RemoveOp->ReferenceLayout = ExtractOp;
+					SurfaceLayoutOps[LayoutIndex] = RemoveOp;
 
-                        // Create the expression to apply the layout to the mesh
-                        {
-                            Ptr<ASTOpFixed> op = new ASTOpFixed();
-                            op->op.type = OP_TYPE::ME_APPLYLAYOUT;
-                            op->SetChild(op->op.args.MeshApplyLayout.mesh, lastMeshOp );
-                            op->SetChild(op->op.args.MeshApplyLayout.layout, layoutOp );
-                            op->op.args.MeshApplyLayout.channel = (uint16)LayoutIndex;
-                            lastMeshOp = op;
-                        }
-                    }
+					// Pack uv blocks
+					Ptr<ASTOpLayoutPack> LayoutPackOp = new ASTOpLayoutPack();
+					LayoutPackOp->Source = SurfaceLayoutOps[LayoutIndex];
+					SurfaceLayoutOps[LayoutIndex] = LayoutPackOp;
+				}
 
-                }
+				// Create the expression to apply the layout to the mesh
+				{
+					Ptr<ASTOpFixed> ApplyLayoutOp = new ASTOpFixed();
+					ApplyLayoutOp->op.type = OP_TYPE::ME_APPLYLAYOUT;
+					ApplyLayoutOp->SetChild(ApplyLayoutOp->op.args.MeshApplyLayout.mesh, LastMeshOp);
+					ApplyLayoutOp->SetChild(ApplyLayoutOp->op.args.MeshApplyLayout.layout, SurfaceLayoutOps[LayoutIndex]);
+					ApplyLayoutOp->op.args.MeshApplyLayout.channel = (uint16)LayoutIndex;
+					
+					LastMeshOp = ApplyLayoutOp;
+				}
+			}
 
-                MeshResults.LayoutOps.Add( layoutOp );
-            }
+			MeshResults.GeneratedLayouts = MoveTemp(SurfaceReferenceLayouts);
+			MeshResults.LayoutOps = MoveTemp(SurfaceLayoutOps); 
 
             // Store in the surface for later use.
-            targetSurface->ResultMeshOp = lastMeshOp;
+            TargetSurface->ResultMeshOp = LastMeshOp;
         }
-
 
         // Create the expression for each texture, if we are not reusing the surface from another LOD.
         //------------------------------------------------------------------------
 		if (!bShareSurface)
 		{
-			for (int32 ImageIndex = 0; ImageIndex < node.Images.Num(); ++ImageIndex)
+			for (int32 ImageIndex = 0; ImageIndex < SurfaceNode->Images.Num(); ++ImageIndex)
 			{
 				MUTABLE_CPUPROFILER_SCOPE(SurfaceTexture);
 
@@ -1083,7 +1110,7 @@ namespace mu
 				Ptr<NodeImageSwizzle> swizzleNode;
 
 				bool bFound = false;
-				Ptr<NodeImage> pImageNode = node.Images[ImageIndex].Image;
+				Ptr<NodeImage> pImageNode = SurfaceNode->Images[ImageIndex].Image;
 
 				while (!bFound && pImageNode)
 				{
@@ -1137,7 +1164,7 @@ namespace mu
 
 				if (bFound)
 				{
-					const NodeSurfaceNew::FImageData& ImageData = node.Images[ImageIndex];
+					const NodeSurfaceNew::FImageData& ImageData = SurfaceNode->Images[ImageIndex];
 
 					const int32 LayoutIndex = ImageData.LayoutIndex;
 
@@ -1153,7 +1180,7 @@ namespace mu
 						FImageGenerationOptions ImageOptions;
 						ImageOptions.State = Options.State;
 						ImageOptions.ImageLayoutStrategy = ImageLayoutStrategy;
-						ImageOptions.ActiveTags = node.Tags;
+						ImageOptions.ActiveTags = SurfaceNode->Tags;
 						ImageOptions.RectSize = { 0, 0 };
 						FImageGenerationResult Result;
 						GenerateImage(ImageOptions, Result, pImageNode);
@@ -1169,7 +1196,7 @@ namespace mu
 						RectInCells.min = { 0,0 };
 						RectInCells.size = { FakeLayoutSize ,FakeLayoutSize };
 						
-						imageAd = ApplyImageBlockModifiers( Modifiers, ImageOptions, imageAd, ImageData, GridSize, LayoutBlockDesc, RectInCells, surfaceNode->GetMessageContext());
+						imageAd = ApplyImageBlockModifiers(Modifiers, ImageOptions, imageAd, ImageData, GridSize, LayoutBlockDesc, RectInCells, SurfaceNode->GetMessageContext());
 						
 						check(imageAd);
 
@@ -1213,11 +1240,11 @@ namespace mu
 
 						Ptr<ASTOpInstanceAdd> op = new ASTOpInstanceAdd();
 						op->type = OP_TYPE::IN_ADDIMAGE;
-						op->instance = lastSurfOp;
+						op->instance = LastSurfOp;
 						op->value = imageAd;
-						op->name = node.Images[ImageIndex].Name;
+						op->name = SurfaceNode->Images[ImageIndex].Name;
 
-						lastSurfOp = op;
+						LastSurfOp = op;
 					}
 
 					else if (ImageLayoutStrategy == CompilerOptions::TextureLayoutStrategy::Pack) //-V547
@@ -1225,7 +1252,7 @@ namespace mu
 						if (LayoutIndex >= MeshResults.GeneratedLayouts.Num() ||
 							LayoutIndex >= MeshResults.LayoutOps.Num())
 						{
-							ErrorLog->GetPrivate()->Add("Missing layout in object, or its parent.", ELMT_ERROR, surfaceNode->GetMessageContext());
+							ErrorLog->GetPrivate()->Add("Missing layout in object, or its parent.", ELMT_ERROR, SurfaceNode->GetMessageContext());
 						}
 						else
 						{
@@ -1234,7 +1261,7 @@ namespace mu
 
 							Ptr<ASTOpInstanceAdd> op = new ASTOpInstanceAdd();
 							op->type = OP_TYPE::IN_ADDIMAGE;
-							op->instance = lastSurfOp;
+							op->instance = LastSurfOp;
 
 							// Image
 							//-------------------------------------
@@ -1274,17 +1301,17 @@ namespace mu
 								ImageOptions.State = Options.State;
 								ImageOptions.ImageLayoutStrategy = ImageLayoutStrategy;
 								ImageOptions.RectSize = { 0,0 };
-								ImageOptions.ActiveTags = node.Tags;
+								ImageOptions.ActiveTags = SurfaceNode->Tags;
 								ImageOptions.LayoutToApply = pLayout;
 								ImageOptions.LayoutBlockId = pLayout->Blocks[BlockIndex].Id;
-								FImageGenerationResult Result;
-								GenerateImage(ImageOptions, Result, pImageNode);
-								Ptr<ASTOp> blockAd = Result.op;
+								FImageGenerationResult ImageResult;
+								GenerateImage(ImageOptions, ImageResult, pImageNode);
+								Ptr<ASTOp> blockAd = ImageResult.op;
 
 								if (!blockAd)
 								{
 									// The GenerateImage(...) above has failed, skip this block
-									result.surfaceOp = nullptr;
+									SurfaceResult.surfaceOp = nullptr;
 									continue;
 								}
 
@@ -1303,7 +1330,7 @@ namespace mu
 								// Even if we force the size afterwards, we need some size hint in some cases, like image projections.
 								ImageOptions.RectSize = UE::Math::TIntVector2<int32>(BlockDesc.m_size);
 
-								blockAd = ApplyImageBlockModifiers( Modifiers, ImageOptions, blockAd, ImageData, GridSize, LayoutBlockDesc, RectInCells, surfaceNode->GetMessageContext());
+								blockAd = ApplyImageBlockModifiers(Modifiers, ImageOptions, blockAd, ImageData, GridSize, LayoutBlockDesc, RectInCells, SurfaceNode->GetMessageContext());
 
 								// Enforce block size and optimizations
 								blockAd = GenerateImageSize(blockAd, FIntVector2(BlockDesc.m_size));
@@ -1331,10 +1358,10 @@ namespace mu
 
 							FMeshGenerationOptions ModifierOptions;
 							ModifierOptions.State = Options.State;
-							ModifierOptions.ActiveTags = node.Tags;
+							ModifierOptions.ActiveTags = SurfaceNode->Tags;
 							imageAd = ApplyImageExtendModifiers( Modifiers, ModifierOptions, MeshResults, imageAd, ImageLayoutStrategy, 
 								LayoutIndex, ImageData, GridSize, LayoutBlockDesc, 
-								surfaceNode->GetMessageContext());
+								SurfaceNode->GetMessageContext());
 
 							// Complete the base op
 							BlankImageOp->op.args.ImageBlankLayout.blockSize[0] = uint16(LayoutBlockDesc.BlockPixelsX);
@@ -1413,9 +1440,9 @@ namespace mu
 							op->value = imageAd;
 
 							// Name
-							op->name = node.Images[ImageIndex].Name;
+							op->name = SurfaceNode->Images[ImageIndex].Name;
 
-							lastSurfOp = op;
+							LastSurfOp = op;
 						}
 					}
 
@@ -1429,15 +1456,15 @@ namespace mu
 
 			// Create the expression for each vector
 			//------------------------------------------------------------------------
-			for (int32 t = 0; t < node.Vectors.Num(); ++t)
+			for (int32 t = 0; t < SurfaceNode->Vectors.Num(); ++t)
 			{
 				//MUTABLE_CPUPROFILER_SCOPE(SurfaceVector);
 
-				if (Ptr<NodeColour> pVectorNode = node.Vectors[t].Vector)
+				if (Ptr<NodeColour> pVectorNode = SurfaceNode->Vectors[t].Vector)
 				{
 					Ptr<ASTOpInstanceAdd> op = new ASTOpInstanceAdd();
 					op->type = OP_TYPE::IN_ADDVECTOR;
-					op->instance = lastSurfOp;
+					op->instance = LastSurfOp;
 
 					// Vector
 					FColorGenerationResult VectorResult;
@@ -1445,23 +1472,23 @@ namespace mu
 					op->value = VectorResult.op;
 
 					// Name
-					op->name = node.Vectors[t].Name;
+					op->name = SurfaceNode->Vectors[t].Name;
 
-					lastSurfOp = op;
+					LastSurfOp = op;
 				}
 			}
 
 			// Create the expression for each scalar
 			//------------------------------------------------------------------------
-			for (int32 t = 0; t < node.Scalars.Num(); ++t)
+			for (int32 t = 0; t < SurfaceNode->Scalars.Num(); ++t)
 			{
 				// MUTABLE_CPUPROFILER_SCOPE(SurfaceScalar);
 
-				if (NodeScalarPtr pScalarNode = node.Scalars[t].Scalar)
+				if (NodeScalarPtr pScalarNode = SurfaceNode->Scalars[t].Scalar)
 				{
 					Ptr<ASTOpInstanceAdd> op = new ASTOpInstanceAdd();
 					op->type = OP_TYPE::IN_ADDSCALAR;
-					op->instance = lastSurfOp;
+					op->instance = LastSurfOp;
 
 					// Scalar
 					FScalarGenerationResult ScalarResult;
@@ -1469,42 +1496,42 @@ namespace mu
 					op->value = ScalarResult.op;
 
 					// Name
-					op->name = node.Scalars[t].Name;
+					op->name = SurfaceNode->Scalars[t].Name;
 
-					lastSurfOp = op;
+					LastSurfOp = op;
 				}
 			}
 
 			// Create the expression for each string
 			//------------------------------------------------------------------------
-			for (int32 t = 0; t < node.Strings.Num(); ++t)
+			for (int32 t = 0; t < SurfaceNode->Strings.Num(); ++t)
 			{
-				if (NodeStringPtr pStringNode = node.Strings[t].String)
+				if (NodeStringPtr pStringNode = SurfaceNode->Strings[t].String)
 				{
 					Ptr<ASTOpInstanceAdd> op = new ASTOpInstanceAdd();
 					op->type = OP_TYPE::IN_ADDSTRING;
-					op->instance = lastSurfOp;
+					op->instance = LastSurfOp;
 
 					FStringGenerationResult StringResult;
 					GenerateString(StringResult, Options, pStringNode);
 					op->value = StringResult.op;
 
 					// Name
-					op->name = node.Strings[t].Name;
+					op->name = SurfaceNode->Strings[t].Name;
 
-					lastSurfOp = op;
+					LastSurfOp = op;
 				}
 			}
 		}
 
-        result.surfaceOp = lastSurfOp;
-        targetSurface->ResultSurfaceOp = lastSurfOp;
+        SurfaceResult.surfaceOp = LastSurfOp;
+        TargetSurface->ResultSurfaceOp = LastSurfOp;
 
 		// If we are going to share this surface properties, remember it.
 		if (bIsBaseForSharedSurface)
 		{
-			check(!SharedMeshOptionsMap.Contains(node.SharedSurfaceId));
-			SharedMeshOptionsMap.Add( node.SharedSurfaceId, MeshResults );
+			check(!SharedMeshOptionsMap.Contains(SurfaceNode->SharedSurfaceId));
+			SharedMeshOptionsMap.Add(SurfaceNode->SharedSurfaceId, MeshResults);
 		}
     }
 

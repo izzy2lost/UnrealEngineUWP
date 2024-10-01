@@ -54,6 +54,7 @@
 #include "MuT/NodeSurfaceVariation.h"
 #include "MuT/UnrealPixelFormatOverride.h"
 
+
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
 
@@ -282,44 +283,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 						ReferenceSkelMeshSection = TableNode->GetDefaultSkeletalMeshSectionFor(*SkeletalMeshPin);
 					}
 
-					// A reference to the material slot name index will be kept in the surface metadata.
-					int32 MaterialSlotNameIndex = INDEX_NONE;
-					if (SkeletalMaterial)
-					{
-						MaterialSlotNameIndex = 
-								GenerationContext.ReferencedMaterialSlotNames.AddUnique(SkeletalMaterial->MaterialSlotName);
-					}
-
-					if (ReferenceSkelMeshSection)
-					{
-						auto HashSurfaceMetadataFunc = [](const FMutableSurfaceMetadata& Data) -> uint32
-						{
-							return CityHash32(reinterpret_cast<const char*>(&Data), sizeof(FMutableSurfaceMetadata));
-						};
-
-						auto CompareSurfaceMetadataFunc = [](const FMutableSurfaceMetadata& A, const FMutableSurfaceMetadata& B)
-						{
-							return FMemory::Memcmp(&A, &B, sizeof(FMutableSurfaceMetadata)) == 0;
-						};
-
-						FMutableSurfaceMetadata SurfaceMetadata;
-						FMemory::Memzero(SurfaceMetadata);
-						
-						SurfaceMetadata.MaterialSlotIndex = MaterialSlotNameIndex;
-						SurfaceMetadata.bCastShadow = ReferenceSkelMeshSection->bCastShadow;
-
-						SurfaceMetadataUniqueHash = Private::GenerateUniquePersistentHash(
-								SurfaceMetadata, GenerationContext.SurfaceMetadata, HashSurfaceMetadataFunc, CompareSurfaceMetadataFunc);
-
-						if (SurfaceMetadataUniqueHash != 0)
-						{
-							GenerationContext.SurfaceMetadata.FindOrAdd(SurfaceMetadataUniqueHash, SurfaceMetadata);
-						}
-						else
-						{
-							UE_LOG(LogMutable, Error, TEXT("Maximum number of surfaces reached."));
-						}
-					}
+					SurfaceMetadataUniqueHash = AddUniqueSurfaceMetadata(SkeletalMaterial, ReferenceSkelMeshSection, GenerationContext.SurfaceMetadata);
 				}
 			}
 		}
@@ -362,7 +326,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 				GenerationContext.LayoutGenerationFlags.Push(LayoutGenerationFlags);
 
 				FMutableGraphMeshGenerationData MeshData;
-				MeshNode = GenerateMutableSourceMesh(ConnectedPin, GenerationContext, MeshData, false, false);
+				MeshNode = GenerateMutableSourceMesh(ConnectedPin, GenerationContext, MeshData, SurfaceMetadataUniqueHash, false, false);
 
 				GenerationContext.LayoutGenerationFlags.Pop();
 
