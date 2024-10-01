@@ -9,6 +9,7 @@
 #include "IRivermaxCoreModule.h"
 #include "IRivermaxManager.h"
 #include "Misc/ByteSwap.h"
+#include "RenderGraphUtils.h"
 #include "RivermaxLog.h"
 #include "RivermaxPTPUtils.h"
 #include "RivermaxTracingUtils.h"
@@ -314,9 +315,10 @@ namespace UE::RivermaxCore::Private
 
 	void FRivermaxInputStream::ParseChunks(const rmx_input_completion* Completion)
 	{
-		const size_t ChunkCount = rmx_input_get_completion_chunk_size(Completion);
+		const size_t PacketCount = rmx_input_get_completion_chunk_size(Completion);
 
-		for (uint64 StrideIndex = 0; StrideIndex < ChunkCount; ++StrideIndex)
+		// We need to get all samples once per group of packets and store against its frame number.
+		for (uint64 StrideIndex = 0; StrideIndex < PacketCount; ++StrideIndex)
 		{
 			++StreamStats.ChunksReceived;
 
@@ -354,7 +356,6 @@ namespace UE::RivermaxCore::Private
 				if (RawRTPHeaderPtr.Version == 2)
 				{
 					FRTPHeader RTPHeader(RawRTPHeaderPtr);
-					
 					// Add trace for the first packet of a frame to help visualize reception of a full frame in time
 					if (bIsFirstPacketReceived == false)
 					{
@@ -404,11 +405,18 @@ namespace UE::RivermaxCore::Private
 					
 					UpdateFrameTracking(RTPHeader);
 
+					// Get video sample to write into (once per frame)
+					if (!StreamData.CurrentSamples.Contains(IRivermaxSample::ESampleType::Video) && State != EReceptionState::FrameError)
+					{
+						TSharedPtr<IRivermaxVideoSample> Sample = GetVideoSampleForReception(RTPHeader);
+						StreamData.CurrentSamples.Add(IRivermaxSample::ESampleType::Video, StaticCastSharedPtr<IRivermaxSample>(Sample));
+					}
+
 					switch (State)
 					{
 					case EReceptionState::Receiving:
 					{
-						FrameReceptionState(RTPHeader, DataPtr);
+						FrameReceptionState(RTPHeader, DataPtr, StreamData.CurrentSamples[IRivermaxSample::ESampleType::Video]);
 						break;
 					}
 					case EReceptionState::WaitingForMarker:
@@ -439,7 +447,7 @@ namespace UE::RivermaxCore::Private
 		}
 	}
 
-	bool FRivermaxInputStream::PrepareNextFrame(const FRTPHeader& RTPHeader)
+	TSharedPtr<IRivermaxVideoSample> FRivermaxInputStream::GetVideoSampleForReception(const FRTPHeader& RTPHeader)
 	{
 		using namespace UE::RivermaxCore::Private::Utils;
 
@@ -453,46 +461,48 @@ namespace UE::RivermaxCore::Private
 		const uint32 FrameSize = PixelCount / FormatInfo.PixelGroupCoverage * FormatInfo.PixelGroupSize;
 		Descriptor.VideoBufferSize = FrameSize;
 		FRivermaxInputVideoFrameRequest Request;
-		Listener->OnVideoFrameRequested(Descriptor, Request);
+		TSharedPtr<IRivermaxVideoSample> OutSample = Listener->OnVideoFrameRequested(Descriptor);
 
 		// Reset current frame to know when we have a valid one
-		StreamData.CurrentFrame = nullptr;
-		if (bIsUsingGPUDirect)
+		StreamData.CurrentFrameVideoBuffer = nullptr;
+		if (OutSample.IsValid())
 		{
-			if(Request.GPUBuffer)
+			if (bIsUsingGPUDirect)
 			{
-				StreamData.CurrentFrame = GetMappedBuffer(Request.GPUBuffer);
+				FBufferRHIRef RHIBuffer = OutSample->GetGPUBuffer()->GetRHI();
+				if (RHIBuffer.IsValid())
+				{
+					StreamData.CurrentFrameVideoBuffer = GetMappedBuffer(RHIBuffer);
+				}
 			}
-		}
-		else
-		{	
-			if (Request.VideoBuffer)
+			else
 			{
-				StreamData.CurrentFrame = Request.VideoBuffer;
+				StreamData.CurrentFrameVideoBuffer = OutSample->GetVideoBufferRawPtr(Descriptor.VideoBufferSize);
 			}
 		}
 
 		// Verify if we were able to request a valid frame. If engine is blocked, it could happen that there is none available 
-		if (StreamData.CurrentFrame == nullptr)
+		if (StreamData.CurrentFrameVideoBuffer == nullptr)
 		{
 			// If we failed getting one, reset the valid first frame received and wait for the next one
 			UE_LOG(LogRivermax, Verbose, TEXT("Could not get a new frame for incoming frame with timestamp %u and frame number %u"), RTPHeader.Timestamp, Descriptor.FrameNumber);
-			Listener->OnVideoFrameReceptionError(Descriptor);
+			Listener->OnVideoFrameReceptionError(OutSample);
 			State = EReceptionState::FrameError;
 			FrameErrorState(RTPHeader);
-			return false;
+		}
+		else
+		{
+			StreamData.WritingOffset = 0;
+			StreamData.ReceivedSize = 0;
+			StreamData.ExpectedSize = Descriptor.VideoBufferSize;
+			StreamData.DeviceWritePointerOne = nullptr;
+			StreamData.SizeToWriteOne = 0;
+			StreamData.DeviceWritePointerTwo = nullptr;
+			StreamData.SizeToWriteTwo = 0;
+			bIsFirstPacketReceived = false;
 		}
 
-		StreamData.WritingOffset = 0;
-		StreamData.ReceivedSize = 0;
-		StreamData.ExpectedSize = Descriptor.VideoBufferSize;
-		StreamData.DeviceWritePointerOne = nullptr;
-		StreamData.SizeToWriteOne = 0;
-		StreamData.DeviceWritePointerTwo = nullptr;
-		StreamData.SizeToWriteTwo = 0;
-		bIsFirstPacketReceived = false;
-
-		return true;
+		return OutSample;
 	}
 
 	void FRivermaxInputStream::LogStats()
@@ -815,14 +825,6 @@ namespace UE::RivermaxCore::Private
 
 	void FRivermaxInputStream::ProcessSRD(const FRTPHeader& RTPHeader, const uint8* DataPtr)
 	{
-		if (StreamData.CurrentFrame == nullptr)
-		{
-			if (PrepareNextFrame(RTPHeader) == false)
-			{
-				return;
-			}
-		}
-
 		if (RTPHeader.SRD1.Length <= 0)
 		{
 			return;
@@ -865,7 +867,7 @@ namespace UE::RivermaxCore::Private
 		}
 		else
 		{
-			uint8* WriteBuffer = reinterpret_cast<uint8*>(StreamData.CurrentFrame);
+			uint8* WriteBuffer = reinterpret_cast<uint8*>(StreamData.CurrentFrameVideoBuffer);
 			FMemory::Memcpy(&WriteBuffer[StreamData.WritingOffset], &DataPtr[DataOffset], RTPHeader.SRD1.Length);
 			StreamData.WritingOffset += RTPHeader.SRD1.Length;
 
@@ -880,22 +882,13 @@ namespace UE::RivermaxCore::Private
 		StreamData.ReceivedSize += PayloadSize;
 	}
 
-	void FRivermaxInputStream::ProcessLastSRD(const FRTPHeader& RTPHeader, const uint8* DataPtr)
+	void FRivermaxInputStream::ProcessLastSRD(const FRTPHeader& RTPHeader, const uint8* DataPtr, TSharedPtr<IRivermaxSample> InSample)
 	{
-		FRivermaxInputVideoFrameDescriptor Descriptor;
-		Descriptor.Width = StreamResolution.X;
-		Descriptor.Height = StreamResolution.Y;
-		Descriptor.PixelFormat = Options.PixelFormat;
-		Descriptor.Timestamp = RTPHeader.Timestamp;
-		const uint32 PixelCount = StreamResolution.X * StreamResolution.Y;
-		Descriptor.VideoBufferSize = PixelCount / FormatInfo.PixelGroupCoverage * FormatInfo.PixelGroupSize;
-		Descriptor.FrameNumber = Utils::TimestampToFrameNumber(RTPHeader.Timestamp, Options.FrameRate);
-
 		if (StreamData.ReceivedSize == StreamData.ExpectedSize)
 		{
 			++StreamStats.FramesReceived;
-			
-			TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FRivermaxTracingUtils::RmaxInReceivedFrameTraceEvents[Descriptor.FrameNumber % 10]);
+			uint32 FrameNumber = Utils::TimestampToFrameNumber(RTPHeader.Timestamp, Options.FrameRate);
+			TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FRivermaxTracingUtils::RmaxInReceivedFrameTraceEvents[FrameNumber % 10]);
 
 			if (bIsUsingGPUDirect)
 			{
@@ -911,7 +904,7 @@ namespace UE::RivermaxCore::Private
 				FCUDAModule& CudaModule = FModuleManager::GetModuleChecked<FCUDAModule>("CUDA");
 				CUresult Result = CudaModule.DriverAPI()->cuCtxPushCurrent(CudaModule.GetCudaContext());
 
-				const CUdeviceptr DestinationGPUMemory = reinterpret_cast<CUdeviceptr>(StreamData.CurrentFrame);
+				const CUdeviceptr DestinationGPUMemory = reinterpret_cast<CUdeviceptr>(StreamData.CurrentFrameVideoBuffer);
 				const CUdeviceptr SourceGPUMemoryOne = reinterpret_cast<CUdeviceptr>(StreamData.DeviceWritePointerOne);
 
 				const uint32 NumSRDPartOne = StreamData.SizeToWriteOne / FrameDescriptionTracking.CommonPayloadSize;
@@ -940,7 +933,7 @@ namespace UE::RivermaxCore::Private
 				if (StreamData.DeviceWritePointerTwo != nullptr && StreamData.SizeToWriteTwo > 0)
 				{
 					StrideDescription.srcDevice = reinterpret_cast<CUdeviceptr>(StreamData.DeviceWritePointerTwo);
-					StrideDescription.dstDevice = reinterpret_cast<CUdeviceptr>(StreamData.CurrentFrame) + StreamData.SizeToWriteOne;
+					StrideDescription.dstDevice = reinterpret_cast<CUdeviceptr>(StreamData.CurrentFrameVideoBuffer) + StreamData.SizeToWriteOne;
 					StrideDescription.Height = NumSRDPartTwo;
 					Result = CudaModule.DriverAPI()->cuMemcpy2DAsync(&StrideDescription, reinterpret_cast<CUstream>(GPUStream));
 
@@ -963,7 +956,7 @@ namespace UE::RivermaxCore::Private
 				if (Result != CUDA_SUCCESS)
 				{
 					UE_LOG(LogRivermax, Warning, TEXT("Failed to copy received buffer to shared memory. Error: %d"), Result);
-					Listener->OnVideoFrameReceptionError(Descriptor);
+					Listener->OnVideoFrameReceptionError(StaticCastSharedPtr<IRivermaxVideoSample>(InSample));
 					State = EReceptionState::FrameError;
 					FrameErrorState(RTPHeader);
 					return;
@@ -1016,13 +1009,11 @@ namespace UE::RivermaxCore::Private
 			// No need to provide the new frame and prepare the next one if we are shutting down
 			if (bIsShuttingDown == false)
 			{
-				UE_LOG(LogRivermax, VeryVerbose, TEXT("RmaxRX frame number %u with timestamp %u."), Descriptor.FrameNumber, Descriptor.Timestamp);
-				
 				FRivermaxInputVideoFrameReception NewFrame;
-				NewFrame.VideoBuffer = reinterpret_cast<uint8*>(StreamData.CurrentFrame);
-				Listener->OnVideoFrameReceived(Descriptor, NewFrame);
-				StreamData.CurrentFrame = nullptr;
-
+				NewFrame.VideoBuffer = reinterpret_cast<uint8*>(StreamData.CurrentFrameVideoBuffer);
+				Listener->OnVideoFrameReceived(StaticCastSharedPtr<IRivermaxVideoSample>(InSample));
+				StreamData.CurrentFrameVideoBuffer = nullptr;
+				StreamData.CurrentSamples.Empty();
 				// Finished receiving a frame, move back to reception
 				State = EReceptionState::Receiving;
 			}
@@ -1031,7 +1022,7 @@ namespace UE::RivermaxCore::Private
 		{
 			UE_LOG(LogRivermax, Warning, TEXT("End of frame received but not enough data was received (missing %d). Expected %d but received (%d)"), StreamData.ExpectedSize - StreamData.ReceivedSize, StreamData.ExpectedSize, StreamData.ReceivedSize);
 			
-			Listener->OnVideoFrameReceptionError(Descriptor);
+			Listener->OnVideoFrameReceptionError(StaticCastSharedPtr<IRivermaxVideoSample>(InSample));
 			State = EReceptionState::FrameError;
 			FrameErrorState(RTPHeader);
 			
@@ -1039,24 +1030,14 @@ namespace UE::RivermaxCore::Private
 		}
 	}
 
-	void FRivermaxInputStream::FrameReceptionState(const FRTPHeader& RTPHeader, const uint8* DataPtr)
+	void FRivermaxInputStream::FrameReceptionState(const FRTPHeader& RTPHeader, const uint8* DataPtr, TSharedPtr<IRivermaxSample> InSample)
 	{
-		FRivermaxInputVideoFrameDescriptor Descriptor;
-		Descriptor.Width = StreamResolution.X;
-		Descriptor.Height = StreamResolution.Y;
-		Descriptor.PixelFormat = Options.PixelFormat;
-		Descriptor.Timestamp = RTPHeader.Timestamp;
-		const uint32 PixelCount = StreamResolution.X * StreamResolution.Y;
-		const uint32 FrameSize = PixelCount / FormatInfo.PixelGroupCoverage * FormatInfo.PixelGroupSize;
-		Descriptor.VideoBufferSize = FrameSize;
-		Descriptor.FrameNumber = Utils::TimestampToFrameNumber(RTPHeader.Timestamp, Options.FrameRate);
-
 		const uint64 LastSequenceNumberIncremented = StreamData.LastSequenceNumber + 1;
 
-		const uint64 LostPackets = ((uint64)RTPHeader.SequencerNumber + 0x100000000 - LastSequenceNumberIncremented) & 0xFFFFFFFF;
+		const uint64 LostPackets = ((uint64)RTPHeader.SequenceNumber + 0x100000000 - LastSequenceNumberIncremented) & 0xFFFFFFFF;
 		if (LostPackets > 0)
 		{
-			UE_LOG(LogRivermax, Warning, TEXT("Lost %llu packets during reception of packet %u"), LostPackets, Descriptor.FrameNumber);
+			UE_LOG(LogRivermax, Warning, TEXT("Lost %llu packets during reception of chunk"), LostPackets);
 			
 			StreamData.WritingOffset = 0;
 			StreamData.ReceivedSize = 0;
@@ -1064,13 +1045,13 @@ namespace UE::RivermaxCore::Private
 			++StreamStats.FramePacketLossCount;
 
 			// For now, if packets were lost, skip the incoming frame. We could improve that and have corrupted frames instead of skipping them but can be added later
-			Listener->OnVideoFrameReceptionError(Descriptor);
+			Listener->OnVideoFrameReceptionError(StaticCastSharedPtr<IRivermaxVideoSample>(InSample));
 			State = EReceptionState::FrameError;
 			FrameErrorState(RTPHeader);
 			return;
 		}
 
-		StreamData.LastSequenceNumber = RTPHeader.SequencerNumber;
+		StreamData.LastSequenceNumber = RTPHeader.SequenceNumber;
 
 		ProcessSRD(RTPHeader, DataPtr);
 
@@ -1081,7 +1062,7 @@ namespace UE::RivermaxCore::Private
 			StreamData.ReceivedSize = 0;
 			++StreamStats.BiggerFramesCount;
 
-			Listener->OnVideoFrameReceptionError(Descriptor);
+			Listener->OnVideoFrameReceptionError(StaticCastSharedPtr<IRivermaxVideoSample>(InSample));
 			State = EReceptionState::FrameError;
 			FrameErrorState(RTPHeader);
 			return;
@@ -1089,7 +1070,7 @@ namespace UE::RivermaxCore::Private
 
 		if (RTPHeader.bIsMarkerBit)
 		{
-			ProcessLastSRD(RTPHeader, DataPtr);
+			ProcessLastSRD(RTPHeader, DataPtr, InSample);
 
 			StreamStats.FramePacketLossCount = 0;
 			++StreamStats.EndOfFrameReceived;
@@ -1100,7 +1081,7 @@ namespace UE::RivermaxCore::Private
 	{
 		if (RTPHeader.bIsMarkerBit)
 		{
-			StreamData.LastSequenceNumber = RTPHeader.SequencerNumber;
+			StreamData.LastSequenceNumber = RTPHeader.SequenceNumber;
 			StreamData.WritingOffset = 0;
 			StreamData.ReceivedSize = 0;
 			StreamData.DeviceWritePointerOne = nullptr;
@@ -1109,7 +1090,8 @@ namespace UE::RivermaxCore::Private
 			StreamData.SizeToWriteTwo = 0;
 			bIsFirstPacketReceived = false;
 
-			StreamData.CurrentFrame = nullptr;
+			StreamData.CurrentFrameVideoBuffer = nullptr;
+			StreamData.CurrentSamples.Empty();
 			State = EReceptionState::Receiving;
 		}
 	}
@@ -1280,6 +1262,5 @@ namespace UE::RivermaxCore::Private
 	}
 }
 
-	
 	
 

@@ -78,7 +78,7 @@ namespace UE::RivermaxCore::Private
 		}
 
 		// Pretty sure some data needs to be swapped but can't validate that until we have other hardware generating data
-		SequencerNumber = (ByteSwap((uint16)RawHeader.ExtendedSequenceNumber) << 16) | ByteSwap((uint16)RawHeader.SequenceNumber);
+		SequenceNumber = (ByteSwap((uint16)RawHeader.ExtendedSequenceNumber) << 16) | ByteSwap((uint16)RawHeader.SequenceNumber);
 		Timestamp = ByteSwap(RawHeader.Timestamp);
 		bIsMarkerBit = RawHeader.MarkerBit;
 

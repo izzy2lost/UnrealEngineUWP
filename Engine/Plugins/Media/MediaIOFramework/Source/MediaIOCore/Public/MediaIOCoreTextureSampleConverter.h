@@ -33,7 +33,7 @@ public:
 	virtual uint32 GetConverterInfoFlags() const override;
 	//~ End IMediaTextureSampleConverter interface
 
-private:
+protected:
 
 	/** Proxy sample for JITR */
 	TWeakPtr<FMediaIOCoreTextureSampleBase> JITRProxySample;
