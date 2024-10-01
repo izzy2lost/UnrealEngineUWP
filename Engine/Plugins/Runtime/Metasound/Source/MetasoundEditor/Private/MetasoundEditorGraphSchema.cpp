@@ -1180,11 +1180,11 @@ UEdGraphNode* FMetasoundGraphSchemaAction_NewComment::PerformAction(UEdGraph* Pa
 			NewComment->NodePosX = Location.X;
 			NewComment->NodePosY = Location.Y;
 			NewComment->SnapToGrid(GetDefault<UEditorStyleSettings>()->GridSnapSize);
-
-			// Applies new snapped node data to frontend doc data
-			FMetaSoundFrontendGraphComment& FrontendComment = MetaSoundGraph->GetBuilderChecked().FindOrAddGraphComment(NewComment->GetCommentID());
-			UMetasoundEditorGraphCommentNode::ConvertToFrontendComment(*NewComment, FrontendComment);
 		}
+
+		// Applies new node data to frontend doc data
+		FMetaSoundFrontendGraphComment& FrontendComment = MetaSoundGraph->GetBuilderChecked().FindOrAddGraphComment(NewComment->GetCommentID());
+		UMetasoundEditorGraphCommentNode::ConvertToFrontendComment(*NewComment, FrontendComment);
 
 		return NewComment;
 	}

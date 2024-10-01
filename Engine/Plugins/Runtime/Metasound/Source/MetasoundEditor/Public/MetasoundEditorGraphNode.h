@@ -121,6 +121,7 @@ public:
 	virtual void PreSave(FObjectPreSaveContext InSaveContext) override;
 
 	virtual void PostLoad() override;
+	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& InEvent) override;
 	virtual void PostEditUndo() override;
 
 	virtual void PostEditImport() override;
