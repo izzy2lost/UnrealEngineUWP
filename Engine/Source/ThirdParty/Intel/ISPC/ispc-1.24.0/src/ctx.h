@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2010-2023, Intel Corporation
+  Copyright (c) 2010-2024, Intel Corporation
 
   SPDX-License-Identifier: BSD-3-Clause
 */
@@ -128,11 +128,6 @@ class FunctionEmitContext {
     /** Emits a branch instruction to the basic block btrue if all of the
         lanes of current mask are on and bfalse if none are on. */
     void BranchIfMaskAll(llvm::BasicBlock *btrue, llvm::BasicBlock *bfalse);
-
-    /** Emits a branch instruction to the basic block btrue if none of the
-        lanes of current mask are on and bfalse if none are on. */
-    void BranchIfMaskNone(llvm::BasicBlock *btrue, llvm::BasicBlock *bfalse);
-    /** @} */
 
     /** @name Control flow management
         @{
@@ -478,10 +473,12 @@ class FunctionEmitContext {
     llvm::Value *AddElementOffset(AddressInfo *basePtrInfo, int elementNum, const llvm::Twine &name = "",
                                   const PointerType **resultPtrType = nullptr);
 
-    /** Bool is stored as i8 and <WIDTH x i8> but represented in IR as i1 and
-     * <WIDTH x MASK>. This is a helper function to match bool size at storage
-     * interface. */
-    llvm::Value *SwitchBoolSize(llvm::Value *value, llvm::Type *toType, const llvm::Twine &name = "");
+    /** Bool is stored as i8 and <WIDTH x i8> (storage type) but represented in
+     * IR as i1 and <WIDTH x MASK> (mask type). These are two helper functions
+     * to match bool sizes.  */
+    llvm::Value *SwitchBoolToMaskType(llvm::Value *value, llvm::Type *toType, const llvm::Twine &name = "");
+    llvm::Value *SwitchBoolToStorageType(llvm::Value *value, llvm::Type *toType, const llvm::Twine &name = "");
+
     /** Load from the memory location(s) given by lvalue, using the given
         mask.  The lvalue may be varying, in which case this corresponds to
         a gather from the multiple memory locations given by the array of
@@ -844,5 +841,11 @@ class FunctionEmitContext {
     llvm::Value *gather(llvm::Value *ptr, const PointerType *ptrType, llvm::Value *mask, const llvm::Twine &name = "");
 
     llvm::Value *addVaryingOffsetsIfNeeded(llvm::Value *ptr, const Type *ptrType);
+
+    llvm::Value *lSwitchBoolSize_2(llvm::Value *value, llvm::Type *toType, bool toStorageType,
+                                   const llvm::Twine &name = "");
+
+    llvm::Value *lSwitchBoolSize_1(llvm::Value *value, llvm::Type *toType, bool toStorageType,
+                                   const llvm::Twine &name = "");
 };
 } // namespace ispc

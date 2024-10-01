@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2010-2023, Intel Corporation
+  Copyright (c) 2010-2024, Intel Corporation
 
   SPDX-License-Identifier: BSD-3-Clause
 */
@@ -68,6 +68,9 @@
 #include <llvm/Transforms/Scalar/EarlyCSE.h>
 #include <llvm/Transforms/Scalar/GVN.h>
 #include <llvm/Transforms/Scalar/IndVarSimplify.h>
+#if ISPC_LLVM_VERSION >= ISPC_LLVM_18_1
+#include <llvm/Transforms/Scalar/InferAlignment.h>
+#endif
 #include <llvm/Transforms/Scalar/InstSimplifyPass.h>
 #include <llvm/Transforms/Scalar/JumpThreading.h>
 #include <llvm/Transforms/Scalar/LICM.h>
@@ -88,147 +91,11 @@
 #include <llvm/Transforms/Utils/Mem2Reg.h>
 #include <llvm/Transforms/Vectorize/LoadStoreVectorizer.h>
 
-#ifdef ISPC_HOST_IS_LINUX
-#include <alloca.h>
-#elif defined(ISPC_HOST_IS_WINDOWS)
-#include <malloc.h>
-#ifndef __MINGW32__
-#define alloca _alloca
-#endif
-#endif // ISPC_HOST_IS_WINDOWS
-
 #ifdef ISPC_XE_ENABLED
 #include <llvm/GenXIntrinsics/GenXSPIRVWriterAdaptor.h>
 #endif
 
 using namespace ispc;
-
-///////////////////////////////////////////////////////////////////////////
-// This is a wrap over class llvm::ModulePassManager. This duplicates PassManager function run()
-//   and adds several add functions with some checks and debug passes.
-//   This wrap can control:
-//   - If we want to switch off optimization with given number.
-//   - If we want to dump LLVM IR after optimization with given number.
-//   - If we want to generate LLVM IR debug for gdb after optimization with given number.
-class DebugModulePassManager {
-  public:
-    DebugModulePassManager(llvm::Module &M, int optLevel) : m_passNumber(0), m_optLevel(optLevel) {
-        m = &M;
-        llvm::Triple targetTriple = llvm::Triple(m->getTargetTriple());
-        llvm::TargetLibraryInfoImpl targetLibraryInfo(targetTriple);
-        targetMachine = g->target->GetTargetMachine();
-
-        // We have to register an llvm::OptNoneInstrumentation with a llvm::PassInstrumentationCallbacks,
-        // which is then registered in the llvm::PassBuilder constructor.
-        // This ensures that any function with optnone will not be optimized.
-        OptNoneInst.registerCallbacks(PIC);
-
-        if (g->debugPMTimeTrace) {
-            // Enable time traces for optimization passes.
-            TimePasses.registerCallbacks(PIC);
-        }
-        // Create the new pass manager builder using our target machine.
-#if ISPC_LLVM_VERSION >= ISPC_LLVM_16_0
-        pb = llvm::PassBuilder(targetMachine, llvm::PipelineTuningOptions(), std::nullopt, &PIC);
-#else
-        pb = llvm::PassBuilder(targetMachine, llvm::PipelineTuningOptions(), llvm::None, &PIC);
-#endif
-
-        // Register all the basic analyses with the managers.
-        pb.registerModuleAnalyses(mam);
-        pb.registerCGSCCAnalyses(cgam);
-        pb.registerFunctionAnalyses(fam);
-        pb.registerLoopAnalyses(lam);
-        pb.crossRegisterProxies(lam, fam, cgam, mam);
-
-#if ISPC_LLVM_VERSION >= ISPC_LLVM_17_0
-        SI.registerCallbacks(PIC, &mam);
-#else
-        SI.registerCallbacks(PIC, &fam);
-#endif
-
-        // Register all the analysis passes
-        fam.registerPass([&] { return targetMachine->getTargetIRAnalysis(); });
-        fam.registerPass([&] { return llvm::TargetLibraryAnalysis(targetLibraryInfo); });
-
-        // Add alias analysis for more aggressive optimizations
-        if (m_optLevel != 0) {
-            llvm::AAManager aam;
-            // The order in which these are registered determines their priority when
-            // being queried.
-
-            // First we register the basic alias analysis that provides the majority of
-            // per-function local AA logic. This is a stateless, on-demand local set of
-            // AA techniques.
-            aam.registerFunctionAnalysis<llvm::BasicAA>();
-
-            // Next we query fast, specialized alias analyses that wrap IR-embedded
-            // information about aliasing.
-            aam.registerFunctionAnalysis<llvm::ScopedNoAliasAA>();
-            aam.registerFunctionAnalysis<llvm::TypeBasedAA>();
-
-            // Add support for querying global aliasing information when available.
-            // Because the `AAManager` is a function analysis and `GlobalsAA` is a module
-            // analysis, all that the `AAManager` can do is query for any *cached*
-            // results from `GlobalsAA` through a readonly proxy.
-            // aam.registerModuleAnalysis<llvm::GlobalsAA>();
-
-            // Add target-specific alias analyses.
-            if (targetMachine) {
-                targetMachine->registerDefaultAliasAnalyses(aam);
-            }
-            fam.registerPass([aam] { return std::move(aam); });
-        }
-    }
-
-    llvm::PreservedAnalyses run() { return mpm.run(*m, mam); }
-    enum Passes { Module, Function, Loop };
-    template <typename T> void addModulePass(T &&P, int stage = -1);
-    template <typename T> void addPostOrderCGSCCPass(T &&P, int stage = -1);
-    template <typename T> void addFunctionPass(T &&P, int stage = -1);
-    template <typename T> void addLoopPass(T &&P, int stage = -1);
-    // Start a new group of function passes
-    void initFunctionPassManager();
-    // Add function passes to the ModulePassManager
-    void commitFunctionToModulePassManager();
-    // Start a new group of loop passes
-    void initLoopPassManager();
-    // Add loop passes to the FunctionPassManager
-    void commitLoopToFunctionPassManager(bool memorySSA = false, bool blocksFreq = false);
-
-  private:
-    llvm::TargetMachine *targetMachine;
-    llvm::PassBuilder pb;
-    llvm::LoopAnalysisManager lam;
-    llvm::FunctionAnalysisManager fam;
-    llvm::CGSCCAnalysisManager cgam;
-    llvm::ModuleAnalysisManager mam;
-    llvm::ModulePassManager mpm;
-    llvm::PassInstrumentationCallbacks PIC;
-    llvm::PrintPassOptions PrintPassOpts{/*Verbose*/ true, /*SkipAnalyses*/ true, /*Indent*/ true};
-#if ISPC_LLVM_VERSION >= ISPC_LLVM_16_0
-    llvm::StandardInstrumentations SI{*g->ctx, /*DebugLogging*/ g->debugPM, /*VerifyEach*/ false, PrintPassOpts};
-#else
-    llvm::StandardInstrumentations SI{/*DebugLogging*/ g->debugPM, /*VerifyEach*/ false, PrintPassOpts};
-#endif
-    llvm::OptNoneInstrumentation OptNoneInst{/*DebugLogging*/ false};
-    llvm::TimePassesHandler TimePasses{true};
-
-    std::vector<std::unique_ptr<llvm::raw_fd_ostream>> outputDebugDumps;
-    std::vector<std::unique_ptr<llvm::FunctionPassManager>> fpmVec;
-    std::vector<std::unique_ptr<llvm::LoopPassManager>> lpmVec;
-
-    llvm::Module *m;
-
-    bool m_isFPMOpen{false};
-    bool m_isLPMOpen{false};
-    int m_passNumber;
-    int m_optLevel;
-
-    // Add pass to pass manager and print IR if needed
-    void addPassAndDebugPrint(std::string name, DebugModulePassManager::Passes kind);
-};
-
 // Strips all non-alphanumeric characters from given string.
 static std::string lSanitize(std::string in) {
     llvm::Regex r("[^[:alnum:]]");
@@ -260,56 +127,87 @@ static std::string getDumpFilePath(std::string className, int pnum) {
     return pathDirFile;
 }
 
-template <typename T> void DebugModulePassManager::addModulePass(T &&P, int stage) {
-    Assert(!m_isFPMOpen && "FunctionPassManager must be committed before adding module passes.");
-    Assert(!m_isLPMOpen && "LoopPassManager must be committed before adding module passes.");
-    // taking number of optimization
-    m_passNumber = (stage == -1) ? (m_passNumber + 1) : stage;
-    if (g->off_stages.find(m_passNumber) == g->off_stages.end()) {
-        mpm.addPass(std::move(P));
-        addPassAndDebugPrint(T::name().str(), DebugModulePassManager::Passes::Module);
+DebugModulePassManager::DebugModulePassManager(llvm::Module &M, int optLevel) : m_passNumber(0), m_optLevel(optLevel) {
+    m = &M;
+    llvm::Triple targetTriple = llvm::Triple(m->getTargetTriple());
+    llvm::TargetLibraryInfoImpl targetLibraryInfo(targetTriple);
+    targetMachine = g->target->GetTargetMachine();
+
+    // We have to register an llvm::OptNoneInstrumentation with a llvm::PassInstrumentationCallbacks,
+    // which is then registered in the llvm::PassBuilder constructor.
+    // This ensures that any function with optnone will not be optimized.
+    OptNoneInst.registerCallbacks(PIC);
+
+    if (g->debugPMTimeTrace) {
+        // Enable time traces for optimization passes.
+        TimePasses.registerCallbacks(PIC);
+    }
+    // Create the new pass manager builder using our target machine.
+#if ISPC_LLVM_VERSION >= ISPC_LLVM_16_0
+    pb = llvm::PassBuilder(targetMachine, llvm::PipelineTuningOptions(), std::nullopt, &PIC);
+#else
+    pb = llvm::PassBuilder(targetMachine, llvm::PipelineTuningOptions(), llvm::None, &PIC);
+#endif
+
+    // Register all the basic analyses with the managers.
+    pb.registerModuleAnalyses(mam);
+    pb.registerCGSCCAnalyses(cgam);
+    pb.registerFunctionAnalyses(fam);
+    pb.registerLoopAnalyses(lam);
+    pb.crossRegisterProxies(lam, fam, cgam, mam);
+
+#if ISPC_LLVM_VERSION >= ISPC_LLVM_17_0
+    SI.registerCallbacks(PIC, &mam);
+#else
+    SI.registerCallbacks(PIC, &fam);
+#endif
+
+    // Register all the analysis passes
+    fam.registerPass([&] { return targetMachine->getTargetIRAnalysis(); });
+    fam.registerPass([&] { return llvm::TargetLibraryAnalysis(targetLibraryInfo); });
+
+    // Add alias analysis for more aggressive optimizations
+    if (m_optLevel != 0) {
+        llvm::AAManager aam;
+        // The order in which these are registered determines their priority when
+        // being queried.
+
+        // First we register the basic alias analysis that provides the majority of
+        // per-function local AA logic. This is a stateless, on-demand local set of
+        // AA techniques.
+        aam.registerFunctionAnalysis<llvm::BasicAA>();
+
+        // Next we query fast, specialized alias analyses that wrap IR-embedded
+        // information about aliasing.
+        aam.registerFunctionAnalysis<llvm::ScopedNoAliasAA>();
+        aam.registerFunctionAnalysis<llvm::TypeBasedAA>();
+
+        // Add support for querying global aliasing information when available.
+        // Because the `AAManager` is a function analysis and `GlobalsAA` is a module
+        // analysis, all that the `AAManager` can do is query for any *cached*
+        // results from `GlobalsAA` through a readonly proxy.
+        // aam.registerModuleAnalysis<llvm::GlobalsAA>();
+
+        // Add target-specific alias analyses.
+        if (targetMachine) {
+            targetMachine->registerDefaultAliasAnalyses(aam);
+        }
+        fam.registerPass([aam] { return std::move(aam); });
     }
 }
 
-template <typename T> void DebugModulePassManager::addPostOrderCGSCCPass(T &&P, int stage) {
-    Assert(!m_isFPMOpen && "FunctionPassManager must be committed before adding PostOrderCGSCC passes.");
-    Assert(!m_isLPMOpen && "LoopPassManager must be committed before adding PostOrderCGSCC passes.");
-    // taking number of optimization
-    m_passNumber = (stage == -1) ? (m_passNumber + 1) : stage;
-    if (g->off_stages.find(m_passNumber) == g->off_stages.end()) {
-        // Add PostOrderCGSCC pass to the ModulePassManager directly through adaptor
-        mpm.addPass(llvm::createModuleToPostOrderCGSCCPassAdaptor(std::move(P)));
-        addPassAndDebugPrint(T::name().str(), DebugModulePassManager::Passes::Module);
-    }
-}
+llvm::PreservedAnalyses DebugModulePassManager::run() { return mpm.run(*m, mam); }
 
-template <typename T> void DebugModulePassManager::addFunctionPass(T &&P, int stage) {
-    Assert(m_isFPMOpen && "FunctionPassManager must be initialized before adding function passes");
-    // taking number of optimization
-    m_passNumber = (stage == -1) ? (m_passNumber + 1) : stage;
-    if (g->off_stages.find(m_passNumber) == g->off_stages.end()) {
-        fpmVec.back()->addPass(std::move(P));
-        addPassAndDebugPrint(T::name().str(), DebugModulePassManager::Passes::Function);
-    }
-}
+void DebugModulePassManager::setMemorySSA(bool v) { m_memorySSA = v; }
 
-template <typename T> void DebugModulePassManager::addLoopPass(T &&P, int stage) {
-    Assert(m_isLPMOpen && "LoopPassManager must be initialized before adding function passes");
-    // taking number of optimization
-    m_passNumber = (stage == -1) ? (m_passNumber + 1) : stage;
-    if (g->off_stages.find(m_passNumber) == g->off_stages.end()) {
-        // if not debug stage, add pass to loop pass manager
-        lpmVec.back()->addPass(std::move(P));
-        addPassAndDebugPrint(T::name().str(), DebugModulePassManager::Passes::Loop);
-    }
-}
+void DebugModulePassManager::setBlocksFreq(bool v) { m_blocksFreq = v; }
 
 // Add pass to pass manager and print IR if needed
 void DebugModulePassManager::addPassAndDebugPrint(std::string name, DebugModulePassManager::Passes kind) {
     if (g->off_stages.find(m_passNumber) == g->off_stages.end()) {
         if (g->debug_stages.find(m_passNumber) != g->debug_stages.end()) {
             char banner[100];
-            snprintf(banner, sizeof(banner), "\n\n*****LLVM IR after phase : %s*****\n\n", name.c_str());
+            snprintf(banner, sizeof(banner), "\n\n; *****LLVM IR after phase : %s*****\n\n", name.c_str());
             llvm::raw_ostream *outputStream = nullptr;
             if (g->dumpFile) {
                 std::error_code EC;
@@ -320,12 +218,29 @@ void DebugModulePassManager::addPassAndDebugPrint(std::string name, DebugModuleP
                     outputStream = outputDebugDumps.back().get();
                 }
             }
-            if (kind == Passes::Function) {
-                fpmVec.back()->addPass(llvm::PrintFunctionPass(outputStream ? *outputStream : llvm::outs(), banner));
-            } else if (kind == Passes::Module) {
-                mpm.addPass(llvm::PrintModulePass(outputStream ? *outputStream : llvm::outs(), banner));
-            } else if (kind == Passes::Loop) {
-                lpmVec.back()->addPass(llvm::PrintLoopPass(outputStream ? *outputStream : llvm::outs(), banner));
+            if (g->dumpFile) {
+                if (kind == Passes::Function) {
+                    commitFunctionToModulePassManager();
+                    mpm.addPass(llvm::PrintModulePass(outputStream ? *outputStream : llvm::outs(), banner));
+                    initFunctionPassManager();
+                } else if (kind == Passes::Loop) {
+                    commitLoopToFunctionPassManager();
+                    commitFunctionToModulePassManager();
+                    mpm.addPass(llvm::PrintModulePass(outputStream ? *outputStream : llvm::outs(), banner));
+                    initFunctionPassManager();
+                    initLoopPassManager();
+                } else if (kind == Passes::Module) {
+                    mpm.addPass(llvm::PrintModulePass(outputStream ? *outputStream : llvm::outs(), banner));
+                }
+            } else {
+                if (kind == Passes::Function) {
+                    fpmVec.back()->addPass(
+                        llvm::PrintFunctionPass(outputStream ? *outputStream : llvm::outs(), banner));
+                } else if (kind == Passes::Module) {
+                    mpm.addPass(llvm::PrintModulePass(outputStream ? *outputStream : llvm::outs(), banner));
+                } else if (kind == Passes::Loop) {
+                    lpmVec.back()->addPass(llvm::PrintLoopPass(outputStream ? *outputStream : llvm::outs(), banner));
+                }
             }
         }
     }
@@ -360,15 +275,14 @@ void DebugModulePassManager::initLoopPassManager() {
 }
 
 // Add loop passes to the FunctionPassManager
-void DebugModulePassManager::commitLoopToFunctionPassManager(bool memorySSA, bool useBlockFrequencyInfo) {
+void DebugModulePassManager::commitLoopToFunctionPassManager() {
     Assert(m_isLPMOpen && "LoopPassManager has not been initialized or already committed.");
     if (fpmVec.empty() || lpmVec.empty()) {
         return;
     }
     // Get the last element of lpmVec
     llvm::LoopPassManager *lastLPM = lpmVec.back().get();
-    fpmVec.back()->addPass(
-        llvm::createFunctionToLoopPassAdaptor(std::move(*lastLPM), memorySSA, useBlockFrequencyInfo));
+    fpmVec.back()->addPass(llvm::createFunctionToLoopPassAdaptor(std::move(*lastLPM), m_memorySSA, m_blocksFreq));
     m_isLPMOpen = false;
 }
 
@@ -477,6 +391,17 @@ void ispc::Optimize(llvm::Module *module, int optLevel) {
         optPM.addFunctionPass(llvm::PromotePass());
         optPM.addFunctionPass(llvm::ADCEPass());
 
+#if ISPC_LLVM_VERSION >= ISPC_LLVM_18_1
+        // Note: this pass has been added since LLVM 18.1.
+        // InstCombine contains similar functionality. It can be enabled back
+        // (at the moment) with enable-infer-alignment-pass=false option.
+        // It looks like it is enough to call it once before the last call to
+        // InstCombine pass. But maybe more clear way to preserve previous
+        // functionality is to call it before InstCombine every time.
+        // Let us call it once before the first InstCombine invocation and
+        // before the last one.
+        optPM.addFunctionPass(llvm::InferAlignmentPass());
+#endif
         if (g->opt.disableGatherScatterOptimizations == false && g->target->getVectorWidth() > 1) {
             optPM.addFunctionPass(llvm::InstCombinePass(), 210);
             optPM.addFunctionPass(ImproveMemoryOpsPass());
@@ -499,9 +424,11 @@ void ispc::Optimize(llvm::Module *module, int optLevel) {
         optPM.addFunctionPass(llvm::SimplifyCFGPass(simplifyCFGopt));
         optPM.addFunctionPass(llvm::PromotePass());
         optPM.addFunctionPass(llvm::ReassociatePass());
+        optPM.setBlocksFreq(true);
         optPM.initLoopPassManager();
         optPM.addLoopPass(llvm::LoopFullUnrollPass());
-        optPM.commitLoopToFunctionPassManager(false, true);
+        optPM.commitLoopToFunctionPassManager();
+        optPM.setBlocksFreq(false);
         optPM.addFunctionPass(ReplaceStdlibShiftPass(), 229);
         optPM.addFunctionPass(llvm::InstCombinePass());
         optPM.addFunctionPass(llvm::SimplifyCFGPass(simplifyCFGopt));
@@ -625,6 +552,8 @@ void ispc::Optimize(llvm::Module *module, int optLevel) {
         // We provide the opt remark emitter pass for LICM to use.
         optPM.addFunctionPass(llvm::RequireAnalysisPass<llvm::OptimizationRemarkEmitterAnalysis, llvm::Function>());
 
+        optPM.setMemorySSA(true);
+        optPM.setBlocksFreq(true);
         optPM.initLoopPassManager();
         // Loop passes using MemorySSA
         optPM.addLoopPass(llvm::LoopRotatePass(), 291);
@@ -641,9 +570,12 @@ void ispc::Optimize(llvm::Module *module, int optLevel) {
             // not efficient for Xe targets. Moreover when this pass is used
             // some integer division tests are failing on TGLLP Windows.
             // Disable this pass on Xe until the problem is fixed on BE side.
-            optPM.addLoopPass(llvm::SimpleLoopUnswitchPass(false), 293);
+            // Note: enable both trivial and non-trivial loop unswitching.
+            optPM.addLoopPass(llvm::SimpleLoopUnswitchPass(true /* NonTrivial */, true /* Trivial */), 293);
         }
-        optPM.commitLoopToFunctionPassManager(true, true);
+        optPM.commitLoopToFunctionPassManager();
+        optPM.setMemorySSA(false);
+        optPM.setBlocksFreq(false);
 
         optPM.addFunctionPass(llvm::InstCombinePass());
         optPM.addFunctionPass(InstructionSimplifyPass());
@@ -674,6 +606,7 @@ void ispc::Optimize(llvm::Module *module, int optLevel) {
 #else
         optPM.addFunctionPass(llvm::GVN(), 301);
 #endif
+        optPM.addFunctionPass(ReplaceMaskedMemOpsPass());
         optPM.addFunctionPass(IsCompileTimeConstantPass(true));
         optPM.addFunctionPass(IntrinsicsOpt());
         optPM.addFunctionPass(InstructionSimplifyPass());
@@ -702,6 +635,9 @@ void ispc::Optimize(llvm::Module *module, int optLevel) {
         optPM.addFunctionPass(llvm::DSEPass());
         optPM.addFunctionPass(llvm::ADCEPass());
         optPM.addFunctionPass(llvm::SimplifyCFGPass(simplifyCFGopt));
+#if ISPC_LLVM_VERSION >= ISPC_LLVM_18_1
+        optPM.addFunctionPass(llvm::InferAlignmentPass());
+#endif
         optPM.addFunctionPass(llvm::InstCombinePass());
         optPM.addFunctionPass(InstructionSimplifyPass());
 #ifdef ISPC_XE_ENABLED
@@ -711,6 +647,7 @@ void ispc::Optimize(llvm::Module *module, int optLevel) {
 #endif
 
         optPM.addFunctionPass(PeepholePass());
+        optPM.addFunctionPass(ScalarizePass());
         optPM.addFunctionPass(llvm::ADCEPass());
         optPM.commitFunctionToModulePassManager();
         optPM.addModulePass(llvm::ModuleInlinerWrapperPass());

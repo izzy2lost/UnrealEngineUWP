@@ -1,4 +1,4 @@
-// Copyright 2020-2023 Intel Corporation
+// Copyright 2020-2024 Intel Corporation
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "GPUDevice.h"
@@ -49,6 +49,7 @@ ispcrt::base::Context *load_gpu_context_ctx(void *ctx) { return new ispcrt::GPUC
 #define DECLARE_ENV(NAME) const char *NAME = #NAME;
 DECLARE_ENV(ISPCRT_VERBOSE)
 DECLARE_ENV(ISPCRT_MAX_KERNEL_LAUNCHES)
+DECLARE_ENV(ISPCRT_GPU_DRIVER)
 DECLARE_ENV(ISPCRT_GPU_DEVICE)
 DECLARE_ENV(ISPCRT_MOCK_DEVICE)
 DECLARE_ENV(ISPCRT_GPU_THREAD_GROUP_SIZE_X)
@@ -535,7 +536,7 @@ struct EventPool {
             throw std::runtime_error(ss.str());
         }
         // Put all event ids into a freelist
-        for (uint32_t i = 0; i < m_poolSize; i++) {
+        for (size_t i = 0; i < m_poolSize; i++) {
             m_freeList.push_back(i);
         }
     }
@@ -607,8 +608,8 @@ struct EventPool {
     ze_event_pool_handle_t m_pool{nullptr};
     uint64_t m_timestampFreq;
     uint64_t m_timestampMaxValue;
-    uint32_t m_poolSize;
-    std::deque<uint32_t> m_freeList;
+    size_t m_poolSize;
+    std::deque<size_t> m_freeList;
     // Events pool for reuse
     std::vector<Event *> m_events_pool;
 };
@@ -830,15 +831,22 @@ class ChunkedPool {
 struct MemoryView : public ispcrt::base::MemoryView {
     MemoryView(ze_context_handle_t context, ze_device_handle_t device, void *appMem, size_t numBytes,
                const ISPCRTNewMemoryViewFlags *flags, const GPUContext *ctxt)
-        : m_hostPtr(appMem), m_size(numBytes), m_requestedSize(numBytes), m_context(context), m_device(device),
+        : m_size(numBytes), m_requestedSize(numBytes), m_context(context), m_device(device),
           m_shared(flags->allocType == ISPCRT_ALLOC_TYPE_SHARED), m_smhint(flags->smHint), m_ctxtGPU(ctxt) {
         // We need context object to be alive until memoryview is alive
         if (m_ctxtGPU) {
             m_ctxtGPU->refInc();
         }
 
+        if (flags->smHint == ISPCRT_SM_APPLICATION_MANAGED_DEVICE) {
+            m_devicePtr = appMem;
+        } else {
+            m_hostPtr = appMem;
+        }
+
         // Use MemPool only when it is explicitly enabled with env var and memory hint is not device/host read/write
-        m_useMemPool = get_bool_envvar(ISPCRT_MEM_POOL) && (m_smhint != ISPCRT_SM_HOST_DEVICE_READ_WRITE);
+        m_useMemPool = get_bool_envvar(ISPCRT_MEM_POOL) && (m_smhint != ISPCRT_SM_HOST_DEVICE_READ_WRITE) &&
+                       (m_smhint != ISPCRT_SM_APPLICATION_MANAGED_DEVICE);
         if (m_ctxtGPU && m_useMemPool) {
             m_memPool = m_ctxtGPU->memPool(m_smhint);
             if (!m_memPool->hDev())
@@ -847,7 +855,7 @@ struct MemoryView : public ispcrt::base::MemoryView {
     }
 
     ~MemoryView() {
-        if (m_devicePtr) {
+        if (m_devicePtr && m_smhint != ISPCRT_SM_APPLICATION_MANAGED_DEVICE) {
             if (m_shared && m_useMemPool && m_size <= m_memPool->maxChunkSize()) {
                 m_memPool->deallocate(m_devicePtr);
                 if (UNLIKELY(is_verbose)) {
@@ -1685,16 +1693,16 @@ struct TaskQueue : public ispcrt::base::TaskQueue {
     bool anyComputeCommand() { return m_events_compute_list.size(); }
 };
 
-// limitation: we assume that there'll be only one driver
-// for Intel devices
-static std::vector<ze_device_handle_t> g_deviceList;
+static std::vector<ze_driver_handle_t> g_driverList;
+static std::vector<std::pair<ze_driver_handle_t, ze_device_handle_t>> g_deviceList;
 
-static ze_driver_handle_t deviceDiscovery(bool *p_is_mock) {
+static void deviceDiscovery(bool *p_is_mock) {
     // Enable verbose if env var is set
     is_verbose = get_bool_envvar(ISPCRT_VERBOSE);
     if (UNLIKELY(is_verbose)) {
         std::cout << "Verbose mode is on" << std::endl;
         print_env(ISPCRT_VERBOSE);
+        print_env(ISPCRT_GPU_DRIVER);
         print_env(ISPCRT_GPU_DEVICE);
         print_env(ISPCRT_MOCK_DEVICE);
         print_env(ISPCRT_GPU_THREAD_GROUP_SIZE_X);
@@ -1710,13 +1718,13 @@ static ze_driver_handle_t deviceDiscovery(bool *p_is_mock) {
         print_env(ISPCRT_MEM_POOL_MAX_CHUNK_POW2);
     }
 
-    static ze_driver_handle_t selectedDriver = nullptr;
     bool is_mock = get_bool_envvar(ISPCRT_MOCK_DEVICE);
 
     // Allow reinitialization of device list for mock device
-    if (!is_mock && selectedDriver != nullptr)
-        return selectedDriver;
+    if (!is_mock && !g_deviceList.empty())
+        return;
 
+    g_driverList.clear();
     g_deviceList.clear();
 
     // zeInit can be called multiple times
@@ -1744,16 +1752,39 @@ static ze_driver_handle_t deviceDiscovery(bool *p_is_mock) {
             device_properties.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
             L0_SAFE_CALL(zeDeviceGetProperties(device, &device_properties));
             if (device_properties.type == ZE_DEVICE_TYPE_GPU && device_properties.vendorId == 0x8086) {
-                if (selectedDriver != nullptr && driver != selectedDriver)
-                    throw std::runtime_error("there should be only one Intel driver in the system");
-                selectedDriver = driver;
-                g_deviceList.push_back(device);
+                g_deviceList.push_back(std::make_pair(driver, device));
+                if (std::find(g_driverList.begin(), g_driverList.end(), driver) == g_driverList.end()) {
+                    g_driverList.push_back(driver);
+                }
             }
         }
     }
+
+    if (UNLIKELY(is_verbose)) {
+        std::cout << "Discovered Intel GPU drivers: " << g_driverList.size() << std::endl;
+        uint32_t driverIdx = 0;
+        uint32_t deviceIdx = 0;
+        ze_driver_handle_t prevDriver = g_deviceList[0].first;
+        for (const auto &dd : g_deviceList) {
+            ze_device_properties_t props{};
+            props.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+            L0_SAFE_CALL(zeDeviceGetProperties(dd.second, &props));
+
+            std::cout << "Driver (" << driverIdx << ") with device (" << deviceIdx << ") ";
+            std::cout << "deviceID: 0x" << std::hex << props.deviceId << std::dec;
+            std::cout << ", clock rate: " << props.coreClockRate << std::endl;
+
+            deviceIdx++;
+            if (prevDriver != dd.first) {
+                driverIdx++;
+                prevDriver = dd.first;
+            }
+        }
+    }
+
     if (p_is_mock != nullptr)
         *p_is_mock = is_mock;
-    return selectedDriver;
+    return;
 }
 
 uint32_t deviceCount() {
@@ -1768,7 +1799,7 @@ ISPCRTDeviceInfo deviceInfo(uint32_t deviceIdx) {
     ISPCRTDeviceInfo info;
     ze_device_properties_t dp{};
     dp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
-    L0_SAFE_CALL(zeDeviceGetProperties(g_deviceList[deviceIdx], &dp));
+    L0_SAFE_CALL(zeDeviceGetProperties(g_deviceList[deviceIdx].second, &dp));
     info.deviceId = dp.deviceId;
     info.vendorId = dp.vendorId;
     return info;
@@ -1828,7 +1859,7 @@ GPUDevice::GPUDevice() : GPUDevice(nullptr, nullptr, 0) {}
 
 GPUDevice::GPUDevice(void *nativeContext, void *nativeDevice, uint32_t deviceIdx) {
     // Perform GPU discovery
-    m_driver = gpu::deviceDiscovery(&m_is_mock);
+    gpu::deviceDiscovery(&m_is_mock);
 
     if (nativeDevice) {
         // Use the native device handler passed from app
@@ -1845,7 +1876,16 @@ GPUDevice::GPUDevice(void *nativeContext, void *nativeDevice, uint32_t deviceIdx
         if (gpuDeviceToGrab >= gpu::g_deviceList.size())
             throw std::runtime_error("could not find a valid GPU device");
 
-        m_device = gpu::g_deviceList[gpuDeviceToGrab];
+        std::pair<ze_driver_handle_t, ze_device_handle_t> p = gpu::g_deviceList[gpuDeviceToGrab];
+        m_driver = p.first;
+        m_device = p.second;
+
+        uint32_t gpuDriverIdx = get_number_envvar(ISPCRT_GPU_DRIVER, 0);
+        if (gpuDriverIdx >= gpu::g_driverList.size())
+            throw std::runtime_error("could not find a requested GPU driver");
+
+        if (m_driver != gpu::g_driverList[gpuDriverIdx])
+            throw std::runtime_error("the requested GPU driver don't provide the requested GPU device");
     }
 
     if (!m_device)
@@ -1939,13 +1979,27 @@ GPUContext::GPUContext() : GPUContext(nullptr) {}
 
 GPUContext::GPUContext(void *nativeContext) {
     // Perform GPU discovery
-    m_driver = gpu::deviceDiscovery(&m_is_mock);
+    gpu::deviceDiscovery(&m_is_mock);
+
     if (nativeContext) {
         m_has_context_ownership = false;
         m_context = nativeContext;
     } else {
+        // Find an instance of Intel GPU driver
+        // User can select particular driver using env variable
+        // By default first available driver is selected
+        uint32_t gpuDriverIdx = get_number_envvar(ISPCRT_GPU_DRIVER, 0);
+        if (gpuDriverIdx >= gpu::g_driverList.size())
+            throw std::runtime_error("could not find a requested GPU driver");
+
+        m_driver = gpu::g_driverList[gpuDriverIdx];
+
         ze_context_desc_t contextDesc = {}; // use default values
         L0_SAFE_CALL(zeContextCreate((ze_driver_handle_t)m_driver, &contextDesc, (ze_context_handle_t *)&m_context));
+
+        if (UNLIKELY(is_verbose)) {
+            std::cout << "Created GPUContext for driver: " << gpuDriverIdx << std::endl;
+        }
     }
     if (!m_context)
         throw std::runtime_error("failed to create GPU context");

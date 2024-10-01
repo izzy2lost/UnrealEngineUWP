@@ -1,7 +1,7 @@
 ## Copyright 2020-2023 Intel Corporation
 ## SPDX-License-Identifier: BSD-3-Clause
 
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.15)
 
 ## Global setup ##
 
@@ -98,8 +98,9 @@ endif()
 
 # Security options
 if (MSVC)
+    target_compile_options(ispcrt_interface_lib INTERFACE /W3)
     # Stack canaries
-    target_compile_options(ispcrt_interface_lib INTERFACE /GS)
+    target_compile_options(ispcrt_interface_lib INTERFACE /GS /EHsc)
     # Control flow guard
     target_link_options(ispcrt_interface_lib INTERFACE /GUARD:CF)
 else()

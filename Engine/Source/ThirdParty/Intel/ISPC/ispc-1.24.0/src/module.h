@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2010-2023, Intel Corporation
+  Copyright (c) 2010-2024, Intel Corporation
 
   SPDX-License-Identifier: BSD-3-Clause
 */
@@ -79,24 +79,22 @@ class Module {
         symbol to the module. */
     void AddFunctionTemplateDeclaration(const TemplateParms *templateParmList, const std::string &name,
                                         const FunctionType *ftype, StorageClass sc, bool isInline, bool isNoInline,
-                                        bool isVectorCall, SourcePos pos);
+                                        SourcePos pos);
 
     /** Add the function described by the declaration information and the
         provided statements to the module. */
     void AddFunctionTemplateDefinition(const TemplateParms *templateParmList, const std::string &name,
                                        const FunctionType *ftype, Stmt *code);
 
-    void AddFunctionTemplateInstantiation(const std::string &name,
-                                          const std::vector<std::pair<const Type *, SourcePos>> &types,
-                                          const FunctionType *ftype, SourcePos pos);
+    void AddFunctionTemplateInstantiation(const std::string &name, const TemplateArgs &tArgs, const FunctionType *ftype,
+                                          StorageClass sc, bool isInline, bool isNoInline, SourcePos pos);
 
     void AddFunctionTemplateSpecializationDeclaration(const std::string &name, const FunctionType *ftype,
-                                                      const std::vector<std::pair<const Type *, SourcePos>> &types,
-                                                      SourcePos pos);
+                                                      const TemplateArgs &tArgs, StorageClass sc, bool isInline,
+                                                      bool isNoInline, SourcePos pos);
 
     void AddFunctionTemplateSpecializationDefinition(const std::string &name, const FunctionType *ftype,
-                                                     const std::vector<std::pair<const Type *, SourcePos>> &types,
-                                                     SourcePos pos, Stmt *code);
+                                                     const TemplateArgs &tArgs, SourcePos pos, Stmt *code);
 
     /** Adds the given type to the set of types that have their definitions
         included in automatically generated header files. */
@@ -111,8 +109,8 @@ class Module {
        template <typename T> void foo(T t);
        foo<int>(1); // T is assumed to be "varying int" here.
     */
-    FunctionTemplate *MatchFunctionTemplate(const std::string &name, const FunctionType *ftype,
-                                            std::vector<std::pair<const Type *, SourcePos>> &normTypes, SourcePos pos);
+    FunctionTemplate *MatchFunctionTemplate(const std::string &name, const FunctionType *ftype, TemplateArgs &normTypes,
+                                            SourcePos pos);
 
     /** After a source file has been compiled, output can be generated in a
         number of different formats. */
@@ -137,13 +135,14 @@ class Module {
     class OutputFlags {
       public:
         OutputFlags()
-            : pic(false), flatDeps(false), makeRuleDeps(false), depsToStdout(false), mcModel(MCModel::Default) {}
+            : picLevel(PICLevel::Default), flatDeps(false), makeRuleDeps(false), depsToStdout(false),
+              mcModel(MCModel::Default) {}
         OutputFlags(OutputFlags &o)
-            : pic(o.pic), flatDeps(o.flatDeps), makeRuleDeps(o.makeRuleDeps), depsToStdout(o.depsToStdout),
+            : picLevel(o.picLevel), flatDeps(o.flatDeps), makeRuleDeps(o.makeRuleDeps), depsToStdout(o.depsToStdout),
               mcModel(o.mcModel) {}
 
         OutputFlags &operator=(const OutputFlags &o) {
-            pic = o.pic;
+            picLevel = o.picLevel;
             flatDeps = o.flatDeps;
             makeRuleDeps = o.makeRuleDeps;
             depsToStdout = o.depsToStdout;
@@ -151,8 +150,9 @@ class Module {
             return *this;
         };
 
-        void setPIC(bool v = true) { pic = v; }
-        bool isPIC() const { return pic; }
+        void setPICLevel(PICLevel v = PICLevel::Default) { picLevel = v; }
+        PICLevel getPICLevel() const { return picLevel; }
+        bool isPIC() const { return picLevel != PICLevel::Default; }
         void setFlatDeps(bool v = true) { flatDeps = v; }
         bool isFlatDeps() const { return flatDeps; }
         void setMakeRuleDeps(bool v = true) { makeRuleDeps = v; }
@@ -163,8 +163,8 @@ class Module {
         MCModel getMCModel() const { return mcModel; }
 
       private:
-        // --pic
-        bool pic;
+        // --pic --PIC
+        PICLevel picLevel;
         // -MMM
         bool flatDeps;
         // -M
