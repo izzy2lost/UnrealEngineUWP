@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2010-2023, Intel Corporation
+  Copyright (c) 2010-2024, Intel Corporation
 
   SPDX-License-Identifier: BSD-3-Clause
 */
@@ -86,11 +86,14 @@ class PointerType;
 class Stmt;
 class Symbol;
 class SymbolTable;
+class TemplateArg;
 class TemplateInstantiation;
+class TemplateParam;
 class TemplateParms;
 class TemplateSymbol;
 class Type;
 struct VariableDeclaration;
+typedef std::vector<TemplateArg> TemplateArgs;
 
 enum StorageClass { SC_NONE, SC_EXTERN, SC_STATIC, SC_TYPEDEF, SC_EXTERN_C, SC_EXTERN_SYCL };
 
@@ -163,6 +166,14 @@ enum class MCModel {
     Large,   /** large model */
 };
 
+/** PIC level. It corresponds to llvm::PICLevel. */
+enum class PICLevel {
+    Default,  /** default model - i.e. not specified on the command line */
+    NotPIC,   /** not PIC */
+    SmallPIC, /** small PIC */
+    BigPIC,   /** big PIC */
+};
+
 /** @brief Structure that defines a compilation target
 
     This structure defines a compilation target for the ispc compiler.
@@ -183,9 +194,11 @@ class Target {
         // Not supported anymore. Use either AVX or AVX2.
         // AVX11 = 4,
         AVX2 = 4,
-        KNL_AVX512 = 5,
-        SKX_AVX512 = 6,
-        SPR_AVX512 = 7,
+        AVX2VNNI = 5,
+        KNL_AVX512 = 6,
+        SKX_AVX512 = 7,
+        ICL_AVX512 = 8,
+        SPR_AVX512 = 9,
 #ifdef ISPC_ARM_ENABLED
         NEON,
 #endif
@@ -215,7 +228,7 @@ class Target {
     /** Initializes the given Target pointer for a target of the given
         name, if the name is a known target.  Returns true if the
         target was initialized and false if the name is unknown. */
-    Target(Arch arch, const char *cpu, ISPCTarget isa, bool pic, MCModel code_model, bool printTarget);
+    Target(Arch arch, const char *cpu, ISPCTarget isa, PICLevel picLevel, MCModel code_model, bool printTarget);
 
     ~Target();
 
@@ -315,13 +328,15 @@ class Target {
 
     int getVectorWidth() const { return m_vectorWidth; }
 
-    bool getGeneratePIC() const { return m_generatePIC; }
+    PICLevel getPICLevel() const { return m_picLevel; }
 
     MCModel getMCModel() const { return m_codeModel; }
 
     bool getMaskingIsFree() const { return m_maskingIsFree; }
 
     int getMaskBitCount() const { return m_maskBitCount; }
+
+    bool hasDotProductVNNI() const { return m_hasDotProductVNNI; }
 
     bool hasHalfConverts() const { return m_hasHalfConverts; }
 
@@ -418,7 +433,7 @@ class Target {
     int m_vectorWidth;
 
     /** Indicates whether position independent code should be generated. */
-    bool m_generatePIC;
+    PICLevel m_picLevel;
 
     /** Code model */
     MCModel m_codeModel;
@@ -432,6 +447,9 @@ class Target {
     /** How many bits are used to store each element of the mask: e.g. this
         is 32 on SSE/AVX, since that matches the HW better. */
     int m_maskBitCount;
+
+    /** Indicates whether the target has native support for VNNI dot product. */
+    bool m_hasDotProductVNNI;
 
     /** Indicates whether the target has native support for float/half conversions. */
     bool m_hasHalfConverts;
@@ -776,8 +794,12 @@ struct Globals {
         program in its output. */
     bool generateDebuggingSymbols;
 
-    /** Require generation of DWARF of certain version (2, 3, 4). For
-        default version, this field is set to 0. */
+    /** Debug info type to generate. */
+    enum class DebugInfoType { None = 0, DWARF, CodeView };
+    DebugInfoType debugInfoType;
+
+    /** Require generation of DWARF of certain version (2, 3, 4, 5). For
+        default version, this field is set to 3. */
     // Hint: to verify dwarf version in the object file, run on Linux:
     // readelf --debug-dump=info object.o | grep -A 2 'Compilation Unit @'
     // on Mac:

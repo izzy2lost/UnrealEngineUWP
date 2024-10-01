@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2013-2023, Intel Corporation
+  Copyright (c) 2013-2024, Intel Corporation
 
   SPDX-License-Identifier: BSD-3-Clause
 */
@@ -19,7 +19,7 @@
 #define HOST_IS_APPLE
 #endif
 
-#if !defined(__arm__) && !defined(__aarch64__) && !defined(_M_ARM64)
+#if defined(__i386__) || defined(__x86_64__) || defined(_M_IX86) || defined(_M_X64)
 #if !defined(HOST_IS_WINDOWS)
 static void __cpuid(int info[4], int infoType) {
     __asm__ __volatile__("cpuid" : "=a"(info[0]), "=b"(info[1]), "=c"(info[2]), "=d"(info[3]) : "0"(infoType));
@@ -85,18 +85,24 @@ static bool __os_enabled_amx_support() {
     return (rEAX & 0x60000) == 0x60000;
 #endif // !defined(HOST_IS_WINDOWS)
 }
-#endif // !__arm__
+#endif // !__x86_64__
 
 static const char *lGetSystemISA() {
 #if defined(__arm__) || defined(__aarch64__) || defined(_M_ARM64)
     return "ARM NEON";
-#else
+#elif defined(__i386__) || defined(__x86_64__) || defined(_M_IX86) || defined(_M_X64)
     int info[4];
     __cpuid(info, 1);
 
     int info2[4];
     // Call cpuid with eax=7, ecx=0
     __cpuidex(info2, 7, 0);
+
+    int info3[4] = {0, 0, 0, 0};
+    int max_subleaf = info2[0];
+    // Call cpuid with eax=7, ecx=1
+    if (max_subleaf >= 1)
+        __cpuidex(info3, 7, 1);
 
     // clang-format off
     bool sse2 =                (info[3] & (1 << 26))  != 0;
@@ -107,6 +113,7 @@ static const char *lGetSystemISA() {
     bool osxsave =             (info[2] & (1 << 27))  != 0;
     bool avx =                 (info[2] & (1 << 28))  != 0;
     bool avx2 =                (info2[1] & (1 << 5))  != 0;
+    bool avx_vnni =            (info3[0] & (1 << 4))  != 0;
     bool avx512_f =            (info2[1] & (1 << 16)) != 0;
     // clang-format on
 
@@ -114,13 +121,6 @@ static const char *lGetSystemISA() {
         // We need to verify that AVX2 is also available,
         // as well as AVX512, because our targets are supposed
         // to use both.
-
-        int info3[4] = {0, 0, 0, 0};
-        int max_subleaf = info2[0];
-        // Call cpuid with eax=7, ecx=1
-        if (max_subleaf >= 1)
-            __cpuidex(info3, 7, 1);
-
         // clang-format off
         bool avx512_dq =           (info2[1] & (1 << 17)) != 0;
         bool avx512_pf =           (info2[1] & (1 << 26)) != 0;
@@ -135,7 +135,6 @@ static const char *lGetSystemISA() {
         bool avx512_vnni =         (info2[2] & (1 << 11)) != 0;
         bool avx512_bitalg =       (info2[2] & (1 << 12)) != 0;
         bool avx512_vpopcntdq =    (info2[2] & (1 << 14)) != 0;
-        bool avx_vnni =            (info3[0] & (1 << 4))  != 0;
         bool avx512_bf16 =         (info3[0] & (1 << 5))  != 0;
         bool avx512_vp2intersect = (info2[3] & (1 << 8))  != 0;
         bool avx512_amx_bf16 =     (info2[3] & (1 << 22)) != 0;
@@ -154,19 +153,20 @@ static const char *lGetSystemISA() {
         bool knl = avx512_pf && avx512_er && avx512_cd;
         bool skx = avx512_dq && avx512_cd && avx512_bw && avx512_vl;
         bool clx = skx && avx512_vnni;
-        bool cpx = clx && avx512_bf16;
+        [[maybe_unused]] bool cpx = clx && avx512_bf16;
         bool icl =
             clx && avx512_vbmi2 && avx512_gfni && avx512_vaes && avx512_vpclmulqdq && avx512_bitalg && avx512_vpopcntdq;
-        bool tgl = icl && avx512_vp2intersect;
+        [[maybe_unused]] bool tgl = icl && avx512_vp2intersect;
         bool spr =
             icl && avx512_bf16 && avx512_amx_bf16 && avx512_amx_tile && avx512_amx_int8 && avx_vnni && avx512_fp16;
-#pragma unused(cpx, tgl)
         if (spr) {
             if (__os_enabled_amx_support()) {
                 return "SPR (AMX on)";
             } else {
                 return "SPR (AMX off)";
             }
+        } else if (icl) {
+            return "ICL";
         } else if (skx) {
             return "SKX";
         } else if (knl) {
@@ -177,6 +177,9 @@ static const char *lGetSystemISA() {
     }
 
     if (osxsave && avx && __os_has_avx_support()) {
+        if (avx_vnni) {
+            return "AVX2VNNI (codename Alder Lake)";
+        }
         // AVX1 for sure....
         // Ivy Bridge?
         if (avx_f16c && avx_rdrand) {
@@ -200,6 +203,8 @@ static const char *lGetSystemISA() {
     } else {
         return "Error";
     }
+#else
+#error "Unsupported host CPU architecture."
 #endif
 }
 

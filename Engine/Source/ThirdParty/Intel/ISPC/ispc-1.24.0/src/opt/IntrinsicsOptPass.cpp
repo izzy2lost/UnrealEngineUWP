@@ -1,10 +1,11 @@
 /*
-  Copyright (c) 2022-2023, Intel Corporation
+  Copyright (c) 2022-2024, Intel Corporation
 
   SPDX-License-Identifier: BSD-3-Clause
 */
 
 #include "IntrinsicsOptPass.h"
+#include "builtins-decl.h"
 
 namespace ispc {
 
@@ -17,36 +18,36 @@ bool IntrinsicsOpt::optimizeIntrinsics(llvm::BasicBlock &bb) {
     // All of the mask instructions we may encounter.  Note that even if
     // compiling for AVX, we may still encounter the regular 4-wide SSE
     // MOVMSK instruction.
+    llvm::Module *M = bb.getModule();
     if (llvm::Function *ssei8Movmsk =
-            m->module->getFunction(llvm::Intrinsic::getName(llvm::Intrinsic::x86_sse2_pmovmskb_128))) {
+            M->getFunction(llvm::Intrinsic::getName(llvm::Intrinsic::x86_sse2_pmovmskb_128))) {
         maskInstructions.push_back(ssei8Movmsk);
     }
-    if (llvm::Function *sseFloatMovmsk =
-            m->module->getFunction(llvm::Intrinsic::getName(llvm::Intrinsic::x86_sse_movmsk_ps))) {
+    if (llvm::Function *sseFloatMovmsk = M->getFunction(llvm::Intrinsic::getName(llvm::Intrinsic::x86_sse_movmsk_ps))) {
         maskInstructions.push_back(sseFloatMovmsk);
     }
-    if (llvm::Function *__movmsk = m->module->getFunction("__movmsk")) {
-        maskInstructions.push_back(__movmsk);
+    if (llvm::Function *movmsk = M->getFunction(builtin::__movmsk)) {
+        maskInstructions.push_back(movmsk);
     }
     if (llvm::Function *avxFloatMovmsk =
-            m->module->getFunction(llvm::Intrinsic::getName(llvm::Intrinsic::x86_avx_movmsk_ps_256))) {
+            M->getFunction(llvm::Intrinsic::getName(llvm::Intrinsic::x86_avx_movmsk_ps_256))) {
         maskInstructions.push_back(avxFloatMovmsk);
     }
 
     // And all of the blend instructions
+    blendInstructions.push_back(
+        BlendInstruction(M->getFunction(llvm::Intrinsic::getName(llvm::Intrinsic::x86_sse41_blendvps)), 0xf, 0, 1, 2));
     blendInstructions.push_back(BlendInstruction(
-        m->module->getFunction(llvm::Intrinsic::getName(llvm::Intrinsic::x86_sse41_blendvps)), 0xf, 0, 1, 2));
-    blendInstructions.push_back(BlendInstruction(
-        m->module->getFunction(llvm::Intrinsic::getName(llvm::Intrinsic::x86_avx_blendv_ps_256)), 0xff, 0, 1, 2));
+        M->getFunction(llvm::Intrinsic::getName(llvm::Intrinsic::x86_avx_blendv_ps_256)), 0xff, 0, 1, 2));
 
     llvm::Function *avxMaskedLoad32 =
-        m->module->getFunction(llvm::Intrinsic::getName(llvm::Intrinsic::x86_avx_maskload_ps_256));
+        M->getFunction(llvm::Intrinsic::getName(llvm::Intrinsic::x86_avx_maskload_ps_256));
     llvm::Function *avxMaskedLoad64 =
-        m->module->getFunction(llvm::Intrinsic::getName(llvm::Intrinsic::x86_avx_maskload_pd_256));
+        M->getFunction(llvm::Intrinsic::getName(llvm::Intrinsic::x86_avx_maskload_pd_256));
     llvm::Function *avxMaskedStore32 =
-        m->module->getFunction(llvm::Intrinsic::getName(llvm::Intrinsic::x86_avx_maskstore_ps_256));
+        M->getFunction(llvm::Intrinsic::getName(llvm::Intrinsic::x86_avx_maskstore_ps_256));
     llvm::Function *avxMaskedStore64 =
-        m->module->getFunction(llvm::Intrinsic::getName(llvm::Intrinsic::x86_avx_maskstore_pd_256));
+        M->getFunction(llvm::Intrinsic::getName(llvm::Intrinsic::x86_avx_maskstore_pd_256));
 
     bool modifiedAny = false;
 

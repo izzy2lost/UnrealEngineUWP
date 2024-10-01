@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2013-2023, Intel Corporation
+  Copyright (c) 2013-2024, Intel Corporation
 
   SPDX-License-Identifier: BSD-3-Clause
 */
@@ -7,12 +7,10 @@
 // This is the source code of __get_system_isa() function in the following files:
 // - dispatch.ll
 // - dispatch-macos.ll
-// - dispatch-no_spr.ll
 //
 // Compile in the following way:
 // - clang dispatch.c -O2 -emit-llvm -S -c -DREGULAR -o isa_dispatch.ll
 // - clang dispatch.c -O2 -emit-llvm -S -c -DMACOS   -o isa_dispatch-macos.ll
-// - clang dispatch.c -O2 -emit-llvm -S -c -DNO_SPR  -o isa_dispatch-no-spr.ll
 //
 // Use the definition of __get_system_isa() from .ll file to update dispatch*.ll files.
 // Note that attributes and metadata need to be defined "in-place" instead of by number.
@@ -20,15 +18,11 @@
 // MACOS version: the key difference is absence of OS support check for AVX512
 // - see issue #1854 for more details. Also it does not support ISAs newer than
 // SKX, as no such Macs exist.
-//
-// NO SPR version: it doesn't support SPR and to be used with builds with no
-// SPR enabled, i.e. linked with LLVM 13 or older. This should be removed when
-// LLVM 13 support is deprecated.
 
 // Require one of the macros to be defined to make sure that it's not
 // misspelled on the command line.
-#if !defined(REGULAR) && !defined(MACOS) && !defined(NO_SPR)
-#error "Either REGULAR, MACOS, or NO_SPR macro need to defined"
+#if !defined(REGULAR) && !defined(MACOS)
+#error "Either REGULAR or MACOS macro need to defined"
 #endif
 
 #include <stdint.h>
@@ -75,12 +69,19 @@ int32_t __get_system_isa() {
     int info2[4];
     __cpuidex(info2, 7, 0);
 
+    int info3[4] = {0, 0, 0, 0};
+    int max_subleaf = info2[0];
+    // Call cpuid with eax=7, ecx=1
+    if (max_subleaf >= 1)
+        __cpuidex(info3, 7, 1);
+
     // clang-format off
     _Bool sse2 =                (info[3] & (1 << 26))  != 0;
     _Bool sse41 =               (info[2] & (1 << 19))  != 0;
     _Bool sse42 =               (info[2] & (1 << 20))  != 0;
     _Bool avx =                 (info[2] & (1 << 28))  != 0;
     _Bool avx2 =                (info2[1] & (1 << 5))  != 0;
+    _Bool avx_vnni =            (info3[0] & (1 << 4))  != 0;
     _Bool avx_f16c =            (info[2] & (1 << 29))  != 0;
     _Bool avx_rdrand =          (info[2] & (1 << 30))  != 0;
     _Bool osxsave =             (info[2] & (1 << 27))  != 0;
@@ -98,12 +99,6 @@ int32_t __get_system_isa() {
         // as well as AVX512, because our targets are supposed
         // to use both.
 
-        int info3[4] = {0, 0, 0, 0};
-        int max_subleaf = info2[0];
-        // Call cpuid with eax=7, ecx=1
-        if (max_subleaf >= 1)
-            __cpuidex(info3, 7, 1);
-
         // clang-format off
         _Bool avx512_dq =           (info2[1] & (1 << 17)) != 0;
         _Bool avx512_pf =           (info2[1] & (1 << 26)) != 0;
@@ -111,7 +106,7 @@ int32_t __get_system_isa() {
         _Bool avx512_cd =           (info2[1] & (1 << 28)) != 0;
         _Bool avx512_bw =           (info2[1] & (1 << 30)) != 0;
         _Bool avx512_vl =           (info2[1] & (1 << 31)) != 0;
-#if !defined(NO_SPR) && !defined(MACOS)
+#if !defined(MACOS)
         _Bool avx512_vbmi2 =        (info2[2] & (1 << 6))  != 0;
         _Bool avx512_gfni =         (info2[2] & (1 << 8))  != 0;
         _Bool avx512_vaes =         (info2[2] & (1 << 9))  != 0;
@@ -119,14 +114,13 @@ int32_t __get_system_isa() {
         _Bool avx512_vnni =         (info2[2] & (1 << 11)) != 0;
         _Bool avx512_bitalg =       (info2[2] & (1 << 12)) != 0;
         _Bool avx512_vpopcntdq =    (info2[2] & (1 << 14)) != 0;
-        _Bool avx_vnni =            (info3[0] & (1 << 4))  != 0;
         _Bool avx512_bf16 =         (info3[0] & (1 << 5))  != 0;
         _Bool avx512_vp2intersect = (info2[3] & (1 << 8))  != 0;
         _Bool avx512_amx_bf16 =     (info2[3] & (1 << 22)) != 0;
         _Bool avx512_amx_tile =     (info2[3] & (1 << 24)) != 0;
         _Bool avx512_amx_int8 =     (info2[3] & (1 << 25)) != 0;
         _Bool avx512_fp16 =         (info2[3] & (1 << 23)) != 0;
-#endif // !SPR && !MACOS
+#endif // !MACOS
        // clang-format on
 
         // Knights Landing:          KNL = F + PF + ER + CD
@@ -138,7 +132,7 @@ int32_t __get_system_isa() {
         // Sapphire Rapids:          SPR = ICL + BF16 + AMX_BF16 + AMX_TILE + AMX_INT8 + AVX_VNNI + FP16
         _Bool knl = avx512_pf && avx512_er && avx512_cd;
         _Bool skx = avx512_dq && avx512_cd && avx512_bw && avx512_vl;
-#if !defined(NO_SPR) && !defined(MACOS)
+#if !defined(MACOS)
         _Bool clx = skx && avx512_vnni;
         _Bool cpx = clx && avx512_bf16;
         _Bool icl =
@@ -147,19 +141,24 @@ int32_t __get_system_isa() {
         _Bool spr =
             icl && avx512_bf16 && avx512_amx_bf16 && avx512_amx_tile && avx512_amx_int8 && avx_vnni && avx512_fp16;
         if (spr) {
-            return 7; // SPR
+            return 9; // SPR
+        } else if (icl) {
+            return 8; // ICL
         }
-#endif // !SPR && !MACOS
+#endif // !MACOS
         if (skx) {
-            return 6; // SKX
+            return 7; // SKX
         } else if (knl) {
-            return 5; // KNL
+            return 6; // KNL
         }
         // If it's unknown AVX512 target, fall through and use AVX2
         // or whatever is available in the machine.
     }
 
     if (osxsave && avx && __os_has_avx_support()) {
+        if (avx_vnni) {
+            return 5; // ADL
+        }
         if (avx_f16c && avx_rdrand && avx2) {
             return 4;
         }

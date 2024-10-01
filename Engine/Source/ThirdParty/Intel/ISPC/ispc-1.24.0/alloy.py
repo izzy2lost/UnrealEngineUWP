@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-#  Copyright (c) 2013-2023, Intel Corporation
+#  Copyright (c) 2013-2024, Intel Corporation
 #
 #  SPDX-License-Identifier: BSD-3-Clause
 
@@ -93,8 +93,10 @@ def checkout_LLVM(component, version_LLVM, target_dir, from_validation, verbose)
     # git: "release/16.x"
     if  version_LLVM == "trunk":
         GIT_TAG="main"
+    elif  version_LLVM == "18_1":
+        GIT_TAG="llvmorg-18.1.2"
     elif  version_LLVM == "17_0":
-        GIT_TAG="release/17.x"
+        GIT_TAG="llvmorg-17.0.6"
     elif  version_LLVM == "16_0":
         GIT_TAG="llvmorg-16.0.6"
     elif  version_LLVM == "15_0":
@@ -135,7 +137,7 @@ def get_llvm_disable_assertions_switch(llvm_disable_assertions):
     else:
         return "  -DLLVM_ENABLE_ASSERTIONS=ON"
 
-def build_LLVM(version_LLVM, folder, debug, selfbuild, extra, from_validation, force, make, gcc_toolchain_path, llvm_disable_assertions, verbose, macos_version_min, macos_universal_bin):
+def build_LLVM(version_LLVM, folder, debug, selfbuild, extra, openmp, from_validation, force, make, gcc_toolchain_path, llvm_disable_assertions, verbose, macos_version_min, macos_universal_bin):
     print_debug("Building LLVM. Version: " + version_LLVM + ".\n", from_validation, alloy_build)
     # Here we understand what and where do we want to build
     current_path = os.getcwd()
@@ -224,8 +226,8 @@ def build_LLVM(version_LLVM, folder, debug, selfbuild, extra, from_validation, f
         print_debug("Building Universal Binary for macOS (x86_64 + arm64)\n", from_validation, alloy_build)
 
     llvm_enable_projects = llvm_enable_runtimes + " -DLLVM_ENABLE_PROJECTS=\"clang"
-    if current_OS == "Linux":
-        # OpenMP is needed for Xe enabled builds.
+    if current_OS == "Linux" and openmp == True:
+        # OpenMP may be needed for Xe enabled builds.
         # Starting from Ubuntu 20.04 libomp-dev package doesn't install omp.h to default location.
         llvm_enable_projects +=";openmp"
     if extra == True:
@@ -340,18 +342,20 @@ def unsupported_llvm_targets(LLVM_VERSION):
 # native - native targets run natively on current hardware.
 # sde - native target, which need to be emulated on current hardware.
 def check_targets():
+    from os.path import join
+
     result = []
     result_sde = []
-    # check what native targets do we have
-    if current_OS != "Windows":
-        if options.ispc_build_compiler == "clang":
-            cisa_compiler = "clang"
-        elif options.ispc_build_compiler == "gcc":
-            cisa_compiler = "g++"
 
-        try_do_LLVM("build check_ISA", cisa_compiler + " check_isa.cpp -o check_isa.exe", True)
-    else:
-        try_do_LLVM("build check_ISA", "cl check_isa.cpp", True)
+    cmd_conf = "cmake . -B check_isa_build -DISPC_INCLUDE_UTILS_ONLY=ON"
+    cmd_build = "cmake --build check_isa_build --target check_isa --config Release"
+    check_isa = "check_isa"
+    if current_OS == "Windows":
+        check_isa = join("Release", "check_isa.exe")
+    check_isa = join("check_isa_build", "bin", check_isa)
+
+    try_do_LLVM("build_check_isa configure", cmd_conf, True, True)
+    try_do_LLVM("build_check_isa build", cmd_build, True, True)
 
     # Dictionary mapping hardware architecture to its targets.
     # The value in the dictionary is:
@@ -361,33 +365,41 @@ def check_targets():
     #   flag for sde to emulate this platform,
     #   flag is this is supported on current platform
     # ]
+    # Note: we have to put AVX and AVX1.1 both to the list of natively supported targets in target_dict,
+    # otherwise it results in bizarre situation when on, e.g., AVX2 we run AVX1 targets under SDE.
     target_dict = OrderedDict([
-      ("SSE2",   [["sse2-i32x4",  "sse2-i32x8"],
-                 ["SSE2"], "-p4", False]),
-      ("SSE4.1", [["sse4.1-i32x4",  "sse4.1-i32x8",   "sse4.1-i16x8", "sse4.1-i8x16"],
-                 ["SSE2", "SSE4.1"], "-pnr", False]),
-      ("SSE4.2", [["sse4.2-i32x4",  "sse4.2-i32x8",   "sse4.2-i16x8", "sse4.2-i8x16", "sse4-i32x4",  "sse4-i32x8",   "sse4-i16x8", "sse4-i8x16"],
-                 ["SSE2", "SSE4.1", "SSE4.2"], "-nhm", False]),
-      ("AVX",    [["avx1-i32x4",  "avx1-i32x8",  "avx1-i32x16",  "avx1-i64x4"],
-                 ["SSE2", "SSE4.1", "SSE4.2", "AVX"], "-snb", False]),
-      ("AVX1.1", [["avx1-i32x4",  "avx1-i32x8",  "avx1-i32x16",  "avx1-i64x4"],
-                 ["SSE2", "SSE4.1", "SSE4.2", "AVX"], "-snb", False]),
-      ("AVX2",   [["avx2-i32x4", "avx2-i32x8",  "avx2-i32x16",  "avx2-i64x4", "avx2-i8x32", "avx2-i16x16"],
-                 ["SSE2", "SSE4.1", "SSE4.2", "AVX", "AVX2"], "-hsw", False]),
-      ("KNL",    [["avx512knl-x16"],
-                 ["SSE2", "SSE4.1", "SSE4.2", "AVX", "AVX2", "KNL"], "-knl", False]),
-      ("SKX",    [["avx512skx-x16", "avx512skx-x8", "avx512skx-x4", "avx512skx-x64", "avx512skx-x32"],
-                 ["SSE2", "SSE4.1", "SSE4.2", "AVX", "AVX2", "SKX"], "-skx", False]),
-      ("SPR",    [["avx512spr-x16", "avx512spr-x8", "avx512spr-x4", "avx512spr-x64", "avx512spr-x32"],
-                 ["SSE2", "SSE4.1", "SSE4.2", "AVX", "AVX2", "SKX", "SPR"], "-spr", False])
+      ("SSE2",       [["sse2-i32x4",  "sse2-i32x8"],
+                     ["SSE2"], "-p4", False]),
+      ("SSE4.1",     [["sse4.1-i32x4",  "sse4.1-i32x8",   "sse4.1-i16x8", "sse4.1-i8x16"],
+                     ["SSE2", "SSE4.1"], "-pnr", False]),
+      ("SSE4.2",     [["sse4.2-i32x4",  "sse4.2-i32x8",   "sse4.2-i16x8", "sse4.2-i8x16", "sse4-i32x4",  "sse4-i32x8",   "sse4-i16x8", "sse4-i8x16"],
+                     ["SSE2", "SSE4.1", "SSE4.2"], "-nhm", False]),
+      ("AVX",        [["avx1-i32x4",  "avx1-i32x8",  "avx1-i32x16",  "avx1-i64x4"],
+                     ["SSE2", "SSE4.1", "SSE4.2", "AVX"], "-snb", False]),
+      ("AVX1.1",     [["avx1-i32x4",  "avx1-i32x8",  "avx1-i32x16",  "avx1-i64x4"],
+                     ["SSE2", "SSE4.1", "SSE4.2", "AVX"], "-snb", False]),
+      ("AVX2",       [["avx2-i32x4", "avx2-i32x8",  "avx2-i32x16",  "avx2-i64x4", "avx2-i8x32", "avx2-i16x16"],
+                     ["SSE2", "SSE4.1", "SSE4.2", "AVX", "AVX1.1", "AVX2"], "-hsw", False]),
+      ("AVX2VNNI",   [["avx2vnni-i32x4", "avx2vnni-i32x8",  "avx2vnni-i32x16"],
+                     ["SSE2", "SSE4.1", "SSE4.2", "AVX", "AVX1.1", "AVX2", "AVX2VNNI"], "-adl", False]),
+      ("KNL",        [["avx512knl-x16"],
+                     ["SSE2", "SSE4.1", "SSE4.2", "AVX", "AVX1.1", "AVX2", "AVX2VNNI", "KNL"], "-knl", False]),
+      ("SKX",        [["avx512skx-x16", "avx512skx-x8", "avx512skx-x4", "avx512skx-x64", "avx512skx-x32"],
+                     ["SSE2", "SSE4.1", "SSE4.2", "AVX", "AVX1.1", "AVX2", "AVX2VNNI", "SKX"], "-skx", False]),
+      ("ICL",        [["avx512icl-x16", "avx512icl-x8", "avx512icl-x4", "avx512icl-x64", "avx512icl-x32"],
+                     ["SSE2", "SSE4.1", "SSE4.2", "AVX", "AVX1.1", "AVX2", "AVX2VNNI", "SKX", "ICL"], "-icl", False]),
+      ("SPR",        [["avx512spr-x16", "avx512spr-x8", "avx512spr-x4", "avx512spr-x64", "avx512spr-x32"],
+                     ["SSE2", "SSE4.1", "SSE4.2", "AVX", "AVX1.1", "AVX2", "AVX2VNNI", "SKX", "ICL", "SPR"], "-spr", False])
     ])
 
-    hw_arch = take_lines("check_isa.exe", "first").split()[1]
+    hw_arch = take_lines(check_isa, "first").split()[1]
 
     if not (hw_arch in target_dict):
         alloy_error("Architecture " + hw_arch + " was not recognized", 1)
 
     # Mark all compatible architecutres in the dictionary.
+    # Note: we have to put AVX and AVX1.1 both to the list of natively supported targets target_dict,
+    # otherwise it results in bizarre situation when on, e.g., AVX2 we run AVX1 targets under SDE.
     for compatible_arch in target_dict[hw_arch][1]:
         target_dict[compatible_arch][3] = True
 
@@ -397,11 +409,16 @@ def check_targets():
         targets = item[0]
         if item[3]:
             # Supported natively
-            result = result + targets
+            for t in targets:
+                # AVX1.1 and AVX aliased each other so avoid adding twice same arch.
+                if t not in result:
+                    result.append(t)
         else:
             # Supported through SDE
             for target in targets:
-                result_sde = result_sde + [[item[2], target]]
+                # AVX1.1 and AVX aliased each other so avoid adding twice same arch.
+                if [item[2], target] not in result_sde:
+                    result_sde.append([item[2], target])
 
     # now check what targets we have with the help of SDE
     sde_exists = get_sde()
@@ -602,7 +619,7 @@ def validation_run(only, only_targets, reference_branch, number, update, speed_n
             archs.append("x86-64")
         if "native" in only:
             sde_targets_t = []
-        for i in ["6.0", "7.0", "8.0", "9.0", "10.0", "11.0", "12.0", "13.0", "14.0", "15.0", "16.0", "17.0", "trunk"]:
+        for i in ["6.0", "7.0", "8.0", "9.0", "10.0", "11.0", "12.0", "13.0", "14.0", "15.0", "16.0", "17.0", "18.1", "trunk"]:
             if i in only:
                 LLVM.append(i)
         if "current" in only:
@@ -808,7 +825,7 @@ def Main():
     if os.environ.get("ISPC_HOME") == None:
         alloy_error("you have no ISPC_HOME", 1)
     if options.only != "":
-        test_only_r = " 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 trunk current build stability performance x86 x86-64 x86_64 -O0 -O1 -O2 native debug nodebug "
+        test_only_r = " 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.1 trunk current build stability performance x86 x86-64 x86_64 -O0 -O1 -O2 native debug nodebug "
         test_only = options.only.split(" ")
         for iterator in test_only:
             if not (" " + iterator + " " in test_only_r):
@@ -845,7 +862,7 @@ def Main():
         start_time = time.time()
         if options.build_llvm:
             build_LLVM(options.version, options.folder,
-                    options.debug, selfbuild, options.extra, False, options.force, make, options.gcc_toolchain_path, options.llvm_disable_assertions, options.verbose, options.macos_version_min, options.macos_universal_bin)
+                    options.debug, selfbuild, options.extra, options.openmp, False, options.force, make, options.gcc_toolchain_path, options.llvm_disable_assertions, options.verbose, options.macos_version_min, options.macos_universal_bin)
         if options.validation_run:
             validation_run(options.only, options.only_targets, options.branch,
                     options.number_for_performance, options.update, int(options.speed),
@@ -931,7 +948,7 @@ if __name__ == '__main__':
     llvm_group = OptionGroup(parser, "Options for building LLVM",
                     "These options must be used with -b option.")
     llvm_group.add_option('--version', dest='version',
-        help='version of llvm to build: 6.0-17.0 trunk. Default: trunk', default="trunk")
+        help='version of llvm to build: 6.0-18.1 trunk. Default: trunk', default="trunk")
     llvm_group.add_option('--full-checkout', dest='full_checkout', action='store_true', default=False,
         help=('Disable a shallow clone and checkout a whole LLVM repository.\n'
               'By default it clones LLVM with --depth=1 to save space and time'))
@@ -959,6 +976,8 @@ if __name__ == '__main__':
         help='rebuild LLVM', default=False, action='store_true')
     llvm_group.add_option('--extra', dest='extra',
         help='load extra clang tools', default=False, action='store_true')
+    llvm_group.add_option('--openmp', dest='openmp',
+        help='build OpenMP as part of LLVM', default=False, action='store_true')
     llvm_group.add_option('--verbose', dest='verbose',
         help='verbose output during the build', default=False, action='store_true')
     parser.add_option_group(llvm_group)
@@ -982,7 +1001,7 @@ if __name__ == '__main__':
     run_group.add_option('--only', dest='only',
         help='set types of tests. Possible values:\n' +
             '-O0, -O1, -O2, x86, x86-64, stability (test only stability), performance (test only performance),\n' +
-            'build (only build with different LLVM), 6.0-17.0, trunk, native (do not use SDE),\n' +
+            'build (only build with different LLVM), 6.0-18.1, trunk, native (do not use SDE),\n' +
             'current (do not rebuild ISPC), debug (only with debug info), nodebug (only without debug info, default).',
             default="")
     run_group.add_option('--perf_LLVM', dest='perf_llvm',

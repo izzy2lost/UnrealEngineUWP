@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2010-2023, Intel Corporation
+  Copyright (c) 2010-2024, Intel Corporation
 
   SPDX-License-Identifier: BSD-3-Clause
 */
@@ -157,6 +157,10 @@ bool Type::IsVaryingAtomicOrUniformVectorType() const {
             (CastType<VectorType>(this) != nullptr && IsUniformType()));
 }
 
+bool Type::IsVaryingAtomic() const { return IsAtomicType() && IsVaryingType(); }
+
+bool Type::IsUniformVector() const { return IsVectorType() && IsUniformType(); }
+
 bool Type::IsReferenceType() const { return (CastType<ReferenceType>(this) != nullptr); }
 
 bool Type::IsVectorType() const { return (CastType<VectorType>(this) != nullptr); }
@@ -169,12 +173,18 @@ bool Type::IsDependentType() const {
         return CastType<AtomicType>(this)->basicType == AtomicType::TYPE_DEPENDENT;
     case ENUM_TYPE:
         return false;
-    case POINTER_TYPE:
-        return CastType<PointerType>(this)->GetBaseType()->IsDependentType();
-    case ARRAY_TYPE:
-        return CastType<ArrayType>(this)->GetElementType()->IsDependentType();
-    case VECTOR_TYPE:
-        return CastType<VectorType>(this)->GetElementType()->IsDependentType();
+    case POINTER_TYPE: {
+        const Type *baseType = CastType<PointerType>(this)->GetBaseType();
+        return baseType && baseType->IsDependentType();
+    }
+    case ARRAY_TYPE: {
+        const Type *elemType = CastType<ArrayType>(this)->GetElementType();
+        return elemType && elemType->IsDependentType();
+    }
+    case VECTOR_TYPE: {
+        const Type *elemType = CastType<VectorType>(this)->GetElementType();
+        return elemType && elemType->IsDependentType();
+    }
     case STRUCT_TYPE: {
         const StructType *st = CastType<StructType>(this);
         for (int i = 0; i < st->GetElementCount(); ++i) {
@@ -463,7 +473,7 @@ std::string AtomicType::Mangle() const {
     return ret;
 }
 
-std::string AtomicType::GetCDeclaration(const std::string &name) const {
+std::string AtomicType::GetDeclaration(const std::string &name, DeclarationSyntax syntax) const {
     Assert(basicType != TYPE_DEPENDENT);
     std::string ret;
     if (variability == Variability::Unbound) {
@@ -514,7 +524,7 @@ std::string AtomicType::GetCDeclaration(const std::string &name) const {
         ret += "double";
         break;
     default:
-        FATAL("Logic error in AtomicType::GetCDeclaration()");
+        FATAL("Logic error in AtomicType::GetDeclaration()");
     }
 
     if (lShouldPrintName(name)) {
@@ -790,7 +800,7 @@ std::string TemplateTypeParmType::Mangle() const {
     return ret;
 }
 
-std::string TemplateTypeParmType::GetCDeclaration(const std::string &cname) const {
+std::string TemplateTypeParmType::GetDeclaration(const std::string &cname, DeclarationSyntax syntax) const {
     std::string ret;
     if (variability == Variability::Unbound) {
         Assert(m->errorCount > 0);
@@ -938,7 +948,7 @@ std::string EnumType::Mangle() const {
     return ret;
 }
 
-std::string EnumType::GetCDeclaration(const std::string &varName) const {
+std::string EnumType::GetDeclaration(const std::string &varName, DeclarationSyntax syntax) const {
     if (variability == Variability::Unbound) {
         Assert(m->errorCount > 0);
         return "";
@@ -1003,7 +1013,11 @@ llvm::DIType *EnumType::GetDIType(llvm::DIScope *scope) const {
     llvm::DIType *underlyingType = AtomicType::UniformInt32->GetDIType(scope);
     llvm::DIType *diType =
         m->diBuilder->createEnumerationType(diSpace, GetString(), diFile, pos.first_line, 32 /* size in bits */,
-                                            32 /* align in bits */, elementArray, underlyingType, name);
+                                            32 /* align in bits */, elementArray, underlyingType,
+#if ISPC_LLVM_VERSION > ISPC_LLVM_17_0
+                                            0,
+#endif
+                                            name);
     switch (variability.type) {
     case Variability::Uniform:
         return diType;
@@ -1202,7 +1216,7 @@ std::string PointerType::Mangle() const {
     return ret + baseType->Mangle() + std::string("_3E_"); // >
 }
 
-std::string PointerType::GetCDeclaration(const std::string &name) const {
+std::string PointerType::GetDeclaration(const std::string &name, DeclarationSyntax syntax) const {
     if (isSlice || (variability == Variability::Unbound)) {
         Assert(m->errorCount > 0);
         return "";
@@ -1229,10 +1243,10 @@ std::string PointerType::GetCDeclaration(const std::string &name) const {
 
     std::string ret;
     if (!baseIsFunction) {
-        ret = baseType->GetCDeclaration("");
+        ret = baseType->GetDeclaration("", syntax);
         ret += tempName;
     } else {
-        ret += baseType->GetCDeclaration(tempName);
+        ret += baseType->GetDeclaration(tempName, syntax);
     }
     if (variability == Variability::SOA) {
         char buf[32];
@@ -1526,7 +1540,7 @@ std::string ArrayType::Mangle() const {
     return s + "_5B_" + buf + "_5D_";
 }
 
-std::string ArrayType::GetCDeclaration(const std::string &name) const {
+std::string ArrayType::GetDeclaration(const std::string &name, DeclarationSyntax syntax) const {
     const Type *base = GetBaseType();
     if (base == nullptr) {
         Assert(m->errorCount > 0);
@@ -1537,7 +1551,7 @@ std::string ArrayType::GetCDeclaration(const std::string &name) const {
     int vWidth = (base->IsVaryingType()) ? g->target->getVectorWidth() : 0;
     base = base->GetAsUniformType();
 
-    std::string s = base->GetCDeclaration(name);
+    std::string s = base->GetDeclaration(name, syntax);
 
     const ArrayType *at = this;
     Assert(at);
@@ -1722,8 +1736,8 @@ std::string VectorType::Mangle() const {
     return s + std::string(buf);
 }
 
-std::string VectorType::GetCDeclaration(const std::string &name) const {
-    std::string s = base->GetCDeclaration("");
+std::string VectorType::GetDeclaration(const std::string &name, DeclarationSyntax syntax) const {
+    std::string s = base->GetDeclaration("", syntax);
     char buf[16];
     snprintf(buf, sizeof(buf), "%d", numElements);
     return s + std::string(buf) + "  " + name;
@@ -2102,7 +2116,7 @@ static std::string lMangleStruct(Variability variability, bool isConst, const st
 
 std::string StructType::Mangle() const { return lMangleStruct(variability, isConst, name); }
 
-std::string StructType::GetCDeclaration(const std::string &n) const {
+std::string StructType::GetDeclaration(const std::string &n, DeclarationSyntax syntax) const {
     std::string ret;
     if (isConst)
         ret += "const ";
@@ -2326,7 +2340,7 @@ std::string UndefinedStructType::GetString() const {
 
 std::string UndefinedStructType::Mangle() const { return lMangleStruct(variability, isConst, name); }
 
-std::string UndefinedStructType::GetCDeclaration(const std::string &n) const {
+std::string UndefinedStructType::GetDeclaration(const std::string &n, DeclarationSyntax syntax) const {
     std::string ret;
     if (isConst)
         ret += "const ";
@@ -2545,7 +2559,7 @@ std::string ReferenceType::Mangle() const {
     return ret;
 }
 
-std::string ReferenceType::GetCDeclaration(const std::string &name) const {
+std::string ReferenceType::GetDeclaration(const std::string &name, DeclarationSyntax syntax) const {
     if (targetType == nullptr) {
         Assert(m->errorCount > 0);
         return "";
@@ -2556,17 +2570,18 @@ std::string ReferenceType::GetCDeclaration(const std::string &name) const {
         if (at->GetElementCount() == 0) {
             // emit unsized arrays as pointers to the base type..
             std::string ret;
-            ret += at->GetElementType()->GetAsNonConstType()->GetCDeclaration("") + std::string(" *");
+            ret += at->GetElementType()->GetAsNonConstType()->GetDeclaration("", syntax) + std::string(" *");
             if (lShouldPrintName(name))
                 ret += name;
             return ret;
         } else
             // otherwise forget about the reference part if it's an
             // array since C already passes arrays by reference...
-            return targetType->GetCDeclaration(name);
+            return targetType->GetDeclaration(name, syntax);
     } else {
         std::string ret;
-        ret += targetType->GetCDeclaration("") + std::string(" &");
+        ret += targetType->GetDeclaration("", syntax);
+        ret += syntax == DeclarationSyntax::CPP ? std::string(" &") : std::string(" *");
         if (lShouldPrintName(name))
             ret += name;
         return ret;
@@ -2614,6 +2629,7 @@ FunctionType::FunctionType(const Type *r, const llvm::SmallVector<const Type *, 
     Assert(returnType != nullptr);
     isSafe = false;
     costOverride = -1;
+    asUnmaskedType = asMaskedType = nullptr;
 }
 
 FunctionType::FunctionType(const Type *r, const llvm::SmallVector<const Type *, 8> &a,
@@ -2628,6 +2644,7 @@ FunctionType::FunctionType(const Type *r, const llvm::SmallVector<const Type *, 
     Assert(returnType != nullptr);
     isSafe = false;
     costOverride = -1;
+    asUnmaskedType = asMaskedType = nullptr;
 }
 
 Variability FunctionType::GetVariability() const { return Variability(Variability::Uniform); }
@@ -2727,6 +2744,36 @@ const Type *FunctionType::GetAsConstType() const { return this; }
 
 const Type *FunctionType::GetAsNonConstType() const { return this; }
 
+const Type *FunctionType::GetAsUnmaskedType() const {
+    if (isUnmasked)
+        return this;
+    if (asUnmaskedType == nullptr) {
+        FunctionType *ft = new FunctionType(returnType, paramTypes, paramNames, paramDefaults, paramPositions, isTask,
+                                            isExported, isExternC, isExternSYCL, true, isVectorCall, isRegCall);
+        ft->isSafe = isSafe;
+        ft->costOverride = costOverride;
+        asUnmaskedType = ft;
+        if (!isUnmasked)
+            asUnmaskedType->asMaskedType = this;
+    }
+    return asUnmaskedType;
+}
+
+const Type *FunctionType::GetAsNonUnmaskedType() const {
+    if (!isUnmasked)
+        return this;
+    if (asMaskedType == nullptr) {
+        FunctionType *ft = new FunctionType(returnType, paramTypes, paramNames, paramDefaults, paramPositions, isTask,
+                                            isExported, isExternC, isExternSYCL, false, isVectorCall, isRegCall);
+        ft->isSafe = isSafe;
+        ft->costOverride = costOverride;
+        asMaskedType = ft;
+        if (isUnmasked)
+            asMaskedType->asUnmaskedType = this;
+    }
+    return asMaskedType;
+}
+
 std::string FunctionType::GetString() const {
     std::string ret = GetNameForCallConv();
     ret += " ";
@@ -2767,9 +2814,9 @@ std::string FunctionType::Mangle() const {
     return ret;
 }
 
-std::string FunctionType::GetCDeclaration(const std::string &fname) const {
+std::string FunctionType::GetDeclaration(const std::string &fname, DeclarationSyntax syntax) const {
     std::string ret;
-    ret += returnType->GetCDeclaration("");
+    ret += returnType->GetDeclaration("", syntax);
     ret += " ";
     ret += fname;
     ret += "(";
@@ -2785,7 +2832,7 @@ std::string FunctionType::GetCDeclaration(const std::string &fname) const {
         }
 
         if (paramNames[i] != "")
-            ret += type->GetCDeclaration(paramNames[i]);
+            ret += type->GetDeclaration(paramNames[i], syntax);
         else
             ret += type->GetString();
         if (i != paramTypes.size() - 1)
@@ -2795,9 +2842,9 @@ std::string FunctionType::GetCDeclaration(const std::string &fname) const {
     return ret;
 }
 
-std::string FunctionType::GetCDeclarationForDispatch(const std::string &fname) const {
+std::string FunctionType::GetDeclarationForDispatch(const std::string &fname, DeclarationSyntax syntax) const {
     std::string ret;
-    ret += returnType->GetCDeclaration("");
+    ret += returnType->GetDeclaration("", syntax);
     ret += " ";
     ret += fname;
     ret += "(";
@@ -2817,12 +2864,12 @@ std::string FunctionType::GetCDeclarationForDispatch(const std::string &fname) c
             PointerType *t = PointerType::Void;
 
             if (paramNames[i] != "")
-                ret += t->GetCDeclaration(paramNames[i]);
+                ret += t->GetDeclaration(paramNames[i], syntax);
             else
                 ret += t->GetString();
         } else {
             if (paramNames[i] != "")
-                ret += type->GetCDeclaration(paramNames[i]);
+                ret += type->GetDeclaration(paramNames[i], syntax);
             else
                 ret += type->GetString();
         }
@@ -2881,23 +2928,19 @@ const std::string FunctionType::GetReturnTypeString() const {
     return ret + returnType->GetString();
 }
 
-std::string FunctionType::mangleTemplateArgs(std::vector<const Type *> *templateArgs) const {
+std::string FunctionType::mangleTemplateArgs(TemplateArgs *templateArgs) const {
     if (templateArgs == nullptr) {
         return "";
     }
     std::string ret = "___";
-    for (const Type *arg : *templateArgs) {
-        if (arg) {
-            ret += arg->Mangle();
-        } else {
-            Assert(m->errorCount > 0);
-        }
+    for (const auto &arg : *templateArgs) {
+        ret += arg.Mangle();
     }
     return ret;
 }
 
 FunctionType::FunctionMangledName FunctionType::GetFunctionMangledName(bool appFunction,
-                                                                       std::vector<const Type *> *templateArgs) const {
+                                                                       TemplateArgs *templateArgs) const {
     FunctionMangledName mangle = {};
     // Mangle internal functions name.
     if (!(isExternC || isExternSYCL || appFunction)) {

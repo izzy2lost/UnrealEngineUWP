@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2010-2023, Intel Corporation
+  Copyright (c) 2010-2024, Intel Corporation
 
   SPDX-License-Identifier: BSD-3-Clause
 */
@@ -210,6 +210,30 @@ static void lSetCodeModel(llvm::Module *module) {
     }
 }
 
+/** We need to set the correct value inside "PIC Level" metadata as it can be
+    used by some targets to generate code in the different way. Unlike code
+    model, it is not passed to the TargetMachine, so it is the only place for
+    codegen to access the correct value. */
+static void lSetPICLevel(llvm::Module *module) {
+    PICLevel picLevel = g->target->getPICLevel();
+    switch (picLevel) {
+    case ispc::PICLevel::Default:
+        // We're leaving the default. There's a similar case in the LLVM
+        // frontend code where they don't set the level when pic flag is
+        // omitted in the command line.
+        break;
+    case ispc::PICLevel::NotPIC:
+        module->setPICLevel(llvm::PICLevel::NotPIC);
+        break;
+    case ispc::PICLevel::SmallPIC:
+        module->setPICLevel(llvm::PICLevel::SmallPIC);
+        break;
+    case ispc::PICLevel::BigPIC:
+        module->setPICLevel(llvm::PICLevel::BigPIC);
+        break;
+    }
+}
+
 ///////////////////////////////////////////////////////////////////////////
 // Module
 
@@ -231,6 +255,7 @@ Module::Module(const char *fn) : filename(fn) {
     // DataLayout information supposed to be managed in single place in Target class.
     module->setDataLayout(g->target->getDataLayout()->getStringRepresentation());
     lSetCodeModel(module);
+    lSetPICLevel(module);
 
     // Version strings.
     // Have ISPC details and LLVM details as two separate strings attached to !llvm.ident.
@@ -247,10 +272,17 @@ Module::Module(const char *fn) : filename(fn) {
         llvm::TimeTraceScope TimeScope("Create Debug Data");
         // To enable debug information on Windows, we have to let llvm know, that
         // debug information should be emitted in CodeView format.
-        if (g->target_os == TargetOS::windows) {
+
+        switch (g->debugInfoType) {
+        case Globals::DebugInfoType::CodeView:
             module->addModuleFlag(llvm::Module::Warning, "CodeView", 1);
-        } else {
+            break;
+        case Globals::DebugInfoType::DWARF:
             module->addModuleFlag(llvm::Module::Warning, "Dwarf Version", g->generateDWARFVersion);
+            break;
+        default:
+            FATAL("Incorrect debugInfoType");
+            break;
         }
         diBuilder = new llvm::DIBuilder(*module);
 
@@ -264,8 +296,7 @@ Module::Module(const char *fn) : filename(fn) {
             delete diBuilder;
             diBuilder = nullptr;
         } else {
-            std::string directory, name;
-            GetDirectoryAndFileName(g->currentDirectory, filename, &directory, &name);
+            auto [directory, name] = GetDirectoryAndFileName(g->currentDirectory, filename);
             auto srcFile = diBuilder->createFile(name, directory);
             // Use DW_LANG_C_plus_plus to avoid problems with debigging on Xe.
             // The debugger reads symbols partially when a solib file is loaded.
@@ -414,12 +445,14 @@ Symbol *Module::AddLLVMIntrinsicDecl(const std::string &name, ExprList *args, So
         }
         llvm::ArrayRef<llvm::Type *> argArr(exprType);
         funcDecl = llvm::GenXIntrinsic::getGenXDeclaration(module, ID, argArr);
+        if (funcDecl) {
 #if ISPC_LLVM_VERSION >= ISPC_LLVM_16_0
-        // ReadNone, ReadOnly and WriteOnly are not supported for intrinsics anymore:
-        FixFunctionAttribute(*funcDecl, llvm::Attribute::ReadNone, llvm::MemoryEffects::none());
-        FixFunctionAttribute(*funcDecl, llvm::Attribute::ReadOnly, llvm::MemoryEffects::readOnly());
-        FixFunctionAttribute(*funcDecl, llvm::Attribute::WriteOnly, llvm::MemoryEffects::writeOnly());
+            // ReadNone, ReadOnly and WriteOnly are not supported for intrinsics anymore:
+            FixFunctionAttribute(*funcDecl, llvm::Attribute::ReadNone, llvm::MemoryEffects::none());
+            FixFunctionAttribute(*funcDecl, llvm::Attribute::ReadOnly, llvm::MemoryEffects::readOnly());
+            FixFunctionAttribute(*funcDecl, llvm::Attribute::WriteOnly, llvm::MemoryEffects::writeOnly());
 #endif
+        }
     }
 #endif
     if (!g->target->isXeTarget()) {
@@ -451,6 +484,7 @@ Symbol *Module::AddLLVMIntrinsicDecl(const std::string &name, ExprList *args, So
         }
     }
 
+    Assert(funcDecl != nullptr);
     Symbol *funcSym = CreateISPCSymbolForLLVMIntrinsic(funcDecl, symbolTable);
     return funcSym;
 }
@@ -459,6 +493,124 @@ void Module::AddTypeDef(const std::string &name, const Type *type, SourcePos pos
     // Typedefs are easy; just add the mapping between the given name and
     // the given type.
     symbolTable->AddType(name.c_str(), type, pos);
+}
+
+// Construct ConstExpr as initializer for varying const value from given expression list if possible
+// T is bool* or std::vector<llvm::APFloat> or int8_t* (and others integer types) here.
+// Although, it looks like very unlogical this is the probably most reasonable
+// approach to unify usage of vals variable inside function.
+// Approach with T is bool, llvm::APFloat, int8_t, ... doesn't work because
+// 1) We can't dereference &vals[i++] when it is std::vector<bool>. The
+// specialization of vector with bool doesn't necessarily store its elements as
+// contiguous array.
+// 2) MSVC doesn't support VLAs, so T vals[N] is not an option.
+// 3) T vals[64] is not an option because llvm::APFloat doesn't have the
+// default constructor. Same applicable for std::array.
+template <class T>
+Expr *lCreateConstExpr(ExprList *exprList, const AtomicType::BasicType basicType, const Type *type,
+                       const std::string &name, SourcePos pos) {
+    const int N = g->target->getVectorWidth();
+    bool canConstructConstExpr = true;
+    using ManagedType =
+        typename std::conditional<std::is_pointer<T>::value, std::unique_ptr<typename std::remove_pointer<T>::type[]>,
+                                  int // unused placeholder
+                                  >::type;
+    ManagedType managedMemory;
+    T vals;
+    if constexpr (std::is_same_v<T, std::vector<llvm::APFloat>>) {
+        switch (basicType) {
+        case AtomicType::TYPE_FLOAT16:
+            vals.resize(N, llvm::APFloat::getZero(llvm::APFloat::IEEEhalf()));
+            break;
+        case AtomicType::TYPE_FLOAT:
+            vals.resize(N, llvm::APFloat::getZero(llvm::APFloat::IEEEsingle()));
+            break;
+        case AtomicType::TYPE_DOUBLE:
+            vals.resize(N, llvm::APFloat::getZero(llvm::APFloat::IEEEdouble()));
+            break;
+        default:
+            return nullptr;
+        }
+    } else {
+        // T equals int8_t* and etc.
+        // We allocate PointToType[N] on the heap. It is managed by unique_ptr.
+        using PointToType = typename std::remove_pointer<T>::type;
+        managedMemory = std::make_unique<PointToType[]>(N);
+        vals = managedMemory.get();
+        memset(vals, 0, N * sizeof(PointToType));
+    }
+
+    int i = 0;
+    for (Expr *expr : exprList->exprs) {
+        const ConstExpr *ce = llvm::dyn_cast<ConstExpr>(Optimize(expr));
+        // ConstExpr of length 1 implies that it contains uniform value
+        if (!ce || ce->Count() != 1) {
+            canConstructConstExpr = false;
+            break;
+        }
+
+        if constexpr (std::is_same_v<T, std::vector<llvm::APFloat>>) {
+            std::vector<llvm::APFloat> ce_vals;
+            llvm::Type *to_type = type->GetAsUniformType()->LLVMType(g->ctx);
+            ce->GetValues(ce_vals, to_type);
+            vals[i++] = ce_vals[0];
+        } else {
+            ce->GetValues(&vals[i++]);
+        }
+    }
+
+    if (i == 1) {
+        // In case when, e.g., { 1, }, we need to set all values as equaled to
+        // the first one to match the behaviour with other initializations.
+        while (i < N) {
+            vals[i++] = vals[0];
+        }
+    } else if (i != N) {
+        // In other cases when number of values in initializer don't match the
+        // vector width, we report error to match the other behaviour.
+        Error(pos, "Initializer list for %s \"%s\" must have %d elements (has %d).", name.c_str(),
+              type->GetString().c_str(), N, (int)exprList->exprs.size());
+    }
+
+    if (canConstructConstExpr) {
+        return new ConstExpr(type, vals, pos);
+    }
+    return nullptr;
+}
+
+Expr *lConvertExprListToConstExpr(Expr *initExpr, const Type *type, const std::string &name, SourcePos pos) {
+    ExprList *exprList = llvm::dyn_cast<ExprList>(initExpr);
+    if (type->IsConstType() && type->IsVaryingType() && type->IsAtomicType()) {
+        const AtomicType::BasicType basicType = CastType<AtomicType>(type)->basicType;
+        switch (basicType) {
+        case AtomicType::TYPE_BOOL:
+            return lCreateConstExpr<bool *>(exprList, basicType, type, name, pos);
+        case AtomicType::TYPE_INT8:
+            return lCreateConstExpr<int8_t *>(exprList, basicType, type, name, pos);
+        case AtomicType::TYPE_UINT8:
+            return lCreateConstExpr<uint8_t *>(exprList, basicType, type, name, pos);
+        case AtomicType::TYPE_INT16:
+            return lCreateConstExpr<int16_t *>(exprList, basicType, type, name, pos);
+        case AtomicType::TYPE_UINT16:
+            return lCreateConstExpr<uint16_t *>(exprList, basicType, type, name, pos);
+        case AtomicType::TYPE_INT32:
+            return lCreateConstExpr<int32_t *>(exprList, basicType, type, name, pos);
+        case AtomicType::TYPE_UINT32:
+            return lCreateConstExpr<uint32_t *>(exprList, basicType, type, name, pos);
+        case AtomicType::TYPE_INT64:
+            return lCreateConstExpr<int64_t *>(exprList, basicType, type, name, pos);
+        case AtomicType::TYPE_UINT64:
+            return lCreateConstExpr<uint64_t *>(exprList, basicType, type, name, pos);
+        case AtomicType::TYPE_FLOAT16:
+        case AtomicType::TYPE_FLOAT:
+        case AtomicType::TYPE_DOUBLE:
+            return lCreateConstExpr<std::vector<llvm::APFloat>>(exprList, basicType, type, name, pos);
+        default:
+            // Unsupported types.
+            break;
+        }
+    }
+    return nullptr;
 }
 
 void Module::AddGlobalVariable(const std::string &name, const Type *type, Expr *initExpr, bool isConst,
@@ -523,11 +675,22 @@ void Module::AddGlobalVariable(const std::string &name, const Type *type, Expr *
             initExpr = TypeCheck(initExpr);
             if (initExpr != nullptr) {
                 // We need to make sure the initializer expression is
-                // the same type as the global.  (But not if it's an
-                // ExprList; they don't have types per se / can't type
-                // convert themselves anyway.)
-                if (llvm::dyn_cast<ExprList>(initExpr) == nullptr)
+                // the same type as the global.
+                if (llvm::dyn_cast<ExprList>(initExpr) == nullptr) {
                     initExpr = TypeConvertExpr(initExpr, type, "initializer");
+                } else {
+                    // The alternative is to create ConstExpr initializing
+                    // expression with correct type and value from ExprList.
+                    // If we have exprList that initalizes const varying int, e.g.:
+                    // static const int x = { 0, 1, 2, 3 };
+                    // then we need to convert rvalue to varying ConstExpr value.
+                    // It will be utilized later in arithmetic expressions that can be
+                    // calculated in compile time (Optimize function call below),
+                    Expr *ce = lConvertExprListToConstExpr(initExpr, type, name, pos);
+                    if (ce) {
+                        initExpr = ce;
+                    }
+                }
 
                 if (initExpr != nullptr) {
                     initExpr = Optimize(initExpr);
@@ -925,6 +1088,8 @@ void Module::AddFunctionDeclaration(const std::string &name, const FunctionType 
         function->addFnAttr(llvm::Attribute::NoInline);
     }
 
+    AddUWTableFuncAttr(function);
+
     if (functionType->isTask) {
         if (!g->target->isXeTarget()) {
             // This also applies transitively to members I think?
@@ -993,10 +1158,6 @@ void Module::AddFunctionDeclaration(const std::string &name, const FunctionType 
              CastType<ReferenceType>(argType) != nullptr)) {
 
             function->addParamAttr(i, llvm::Attribute::NoAlias);
-#if 0
-            int align = 4 * RoundUpPow2(g->target->nativeVectorWidth);
-            function->addAttribute(i+1, llvm::Attribute::constructAlignmentFromInt(align));
-#endif
         }
 
         if (symbolTable->LookupFunction(argName.c_str())) {
@@ -1060,7 +1221,7 @@ void Module::AddFunctionDefinition(const std::string &name, const FunctionType *
 //
 void Module::AddFunctionTemplateDeclaration(const TemplateParms *templateParmList, const std::string &name,
                                             const FunctionType *ftype, StorageClass sc, bool isInline, bool isNoInline,
-                                            bool isVectorCall, SourcePos pos) {
+                                            SourcePos pos) {
     Assert(ftype != nullptr);
     Assert(templateParmList != nullptr);
 
@@ -1098,19 +1259,19 @@ void Module::AddFunctionTemplateDeclaration(const TemplateParms *templateParmLis
         }
     }
 
-    // TODO: extern "C" - do we allow it?
-
     // TODO: Xe adjust linkage
 
     // No mangling for template, only instantiations.
 
     // TODO: inline / noinline check.
 
-    // TODO: vectorcall checks
-
     // ...
 
-    TemplateSymbol *funcTemplSym = new TemplateSymbol(templateParmList, name, ftype, pos, isInline, isNoInline);
+    // We don't need to worry here about passing vectorcall/regcall specifier since we support these
+    // conventions for extern "C"/extern "SYCL" functions only. And we don't support extern "C"/extern "SYCL" functions
+    // for templates. In case when --vectorcall option is passed on Windows, we will generate vectorcall functions for
+    // all functions.
+    TemplateSymbol *funcTemplSym = new TemplateSymbol(templateParmList, name, ftype, sc, pos, isInline, isNoInline);
     symbolTable->AddFunctionTemplate(funcTemplSym);
 }
 
@@ -1137,8 +1298,7 @@ void Module::AddFunctionTemplateDefinition(const TemplateParms *templateParmList
 }
 
 FunctionTemplate *Module::MatchFunctionTemplate(const std::string &name, const FunctionType *ftype,
-                                                std::vector<std::pair<const Type *, SourcePos>> &normTypes,
-                                                SourcePos pos) {
+                                                TemplateArgs &normTypes, SourcePos pos) {
     if (ftype == nullptr) {
         Assert(m->errorCount > 0);
         return nullptr;
@@ -1154,9 +1314,7 @@ FunctionTemplate *Module::MatchFunctionTemplate(const std::string &name, const F
     // template <typename T> void foo(T t);
     // foo<int>(1); // T is assumed to be "varying int" here.
     for (auto &arg : normTypes) {
-        if (arg.first->GetVariability() == Variability::Unbound) {
-            arg.first = arg.first->GetAsVaryingType();
-        }
+        arg.SetAsVaryingType();
     }
 
     FunctionTemplate *templ = nullptr;
@@ -1172,7 +1330,8 @@ FunctionTemplate *Module::MatchFunctionTemplate(const std::string &name, const F
             continue;
         }
         bool matched = true;
-        TemplateInstantiation inst(*(templateSymbol->templateParms), normTypes);
+        TemplateInstantiation inst(*(templateSymbol->templateParms), normTypes, TemplateInstantiationKind::Implicit,
+                                   templateSymbol->isInline, templateSymbol->isNoInline);
         for (int i = 0; i < ftype->GetNumParameters(); i++) {
             const Type *instParam = ftype->GetParameterType(i);
             const Type *templateParam = templateSymbol->type->GetParameterType(i)->ResolveDependence(inst);
@@ -1189,22 +1348,41 @@ FunctionTemplate *Module::MatchFunctionTemplate(const std::string &name, const F
     return templ;
 }
 
-void Module::AddFunctionTemplateInstantiation(const std::string &name,
-                                              const std::vector<std::pair<const Type *, SourcePos>> &types,
-                                              const FunctionType *ftype, SourcePos pos) {
-    std::vector<std::pair<const Type *, SourcePos>> normTypes(types);
+void Module::AddFunctionTemplateInstantiation(const std::string &name, const TemplateArgs &tArgs,
+                                              const FunctionType *ftype, StorageClass sc, bool isInline,
+                                              bool isNoInline, SourcePos pos) {
+    TemplateArgs normTypes(tArgs);
     FunctionTemplate *templ = MatchFunctionTemplate(name, ftype, normTypes, pos);
     if (templ) {
-        templ->AddInstantiation(normTypes);
+        // If primary template has default storage class, but explicit instantiation has non-default storage class,
+        // report an error
+        if (templ->GetStorageClass() == SC_NONE && sc != SC_NONE) {
+            Error(pos, "Template instantiation has inconsistent storage class. Consider assigning it to the primary "
+                       "template to inherit it's signature.");
+            return;
+        }
+        // If primary template has non-default storage class, but explicit instantiation has different non-default
+        // storage class, report an error
+        if (templ->GetStorageClass() != SC_NONE && sc != SC_NONE && sc != templ->GetStorageClass()) {
+            Error(pos, "Template instantiation has inconsistent storage class.");
+            return;
+        }
+        // If primary template doesn't have unmasked specifier, but explicit instantiation has it,
+        // report an error
+        if (!templ->GetFunctionType()->isUnmasked && ftype->isUnmasked) {
+            Error(pos, "Template instantiation has inconsistent \"unmasked\" specifier. Consider moving the specifier "
+                       "inside the function or assigning it to the primary template to inherit it's signature.");
+            return;
+        }
+        templ->AddInstantiation(normTypes, TemplateInstantiationKind::Explicit, isInline, isNoInline);
     } else {
         Error(pos, "No matching function template found for instantiation.");
     }
 }
 
 void Module::AddFunctionTemplateSpecializationDefinition(const std::string &name, const FunctionType *ftype,
-                                                         const std::vector<std::pair<const Type *, SourcePos>> &types,
-                                                         SourcePos pos, Stmt *code) {
-    std::vector<std::pair<const Type *, SourcePos>> normTypes(types);
+                                                         const TemplateArgs &tArgs, SourcePos pos, Stmt *code) {
+    TemplateArgs normTypes(tArgs);
     FunctionTemplate *templ = MatchFunctionTemplate(name, ftype, normTypes, pos);
     if (templ == nullptr) {
         Error(pos, "No matching function template found for specialization.");
@@ -1216,20 +1394,42 @@ void Module::AddFunctionTemplateSpecializationDefinition(const std::string &name
         return;
     }
     sym->pos = code->pos;
-
-    // Update already created symbol with real function type and function implementation
-    sym->type = ftype;
+    // Update already created symbol with real function type and function implementation.
+    // Inherit unmasked specifier from the basic template.
+    const FunctionType *instType = CastType<FunctionType>(sym->type);
+    bool instUnmasked = instType ? instType->isUnmasked : false;
+    sym->type = instUnmasked ? ftype->GetAsUnmaskedType() : ftype->GetAsNonUnmaskedType();
     Function *inst = new Function(sym, code);
     sym->parentFunction = inst;
 }
 
 void Module::AddFunctionTemplateSpecializationDeclaration(const std::string &name, const FunctionType *ftype,
-                                                          const std::vector<std::pair<const Type *, SourcePos>> &types,
-                                                          SourcePos pos) {
-    std::vector<std::pair<const Type *, SourcePos>> normTypes(types);
+                                                          const TemplateArgs &tArgs, StorageClass sc, bool isInline,
+                                                          bool isNoInline, SourcePos pos) {
+    TemplateArgs normTypes(tArgs);
     FunctionTemplate *templ = MatchFunctionTemplate(name, ftype, normTypes, pos);
     if (templ == nullptr) {
         Error(pos, "No matching function template found for specialization.");
+        return;
+    }
+    // If primary template has default storage class, but specialization has non-default storage class,
+    // report an error
+    if (templ->GetStorageClass() == SC_NONE && sc != SC_NONE) {
+        Error(pos, "Template specialization has inconsistent storage class. Consider assigning it to the primary "
+                   "template to inherit it's signature.");
+        return;
+    }
+    // If primary template has non-default storage class, but specialization has different non-default storage class,
+    // report an error
+    if (templ->GetStorageClass() != SC_NONE && sc != SC_NONE && sc != templ->GetStorageClass()) {
+        Error(pos, "Template specialization has inconsistent storage class.");
+        return;
+    }
+    // If primary template doesn't have unmasked specifier, but specialization has it,
+    // report an error
+    if (!templ->GetFunctionType()->isUnmasked && ftype->isUnmasked) {
+        Error(pos, "Template specialization has inconsistent \"unmasked\" specifier. Consider moving the specifier "
+                   "inside the function or assigning it to the primary template to inherit it's signature.");
         return;
     }
     Symbol *sym = templ->LookupInstantiation(normTypes);
@@ -1239,8 +1439,7 @@ void Module::AddFunctionTemplateSpecializationDeclaration(const std::string &nam
             return;
         }
     }
-
-    templ->AddSpecialization(ftype, normTypes, pos);
+    templ->AddSpecialization(ftype, normTypes, isInline, isNoInline, pos);
 }
 
 void Module::AddExportedTypes(const std::vector<std::pair<const Type *, SourcePos>> &types) {
@@ -1581,9 +1780,15 @@ bool Module::writeObjectFileOrAssembly(llvm::TargetMachine *targetMachine, llvm:
                                        const char *outFileName) {
     // Figure out if we're generating object file or assembly output, and
     // set binary output for object files
+#if ISPC_LLVM_VERSION > ISPC_LLVM_17_0
+    llvm::CodeGenFileType fileType =
+        (outputType == Object) ? llvm::CodeGenFileType::ObjectFile : llvm::CodeGenFileType::AssemblyFile;
+    bool binary = (fileType == llvm::CodeGenFileType::ObjectFile);
+#else
     llvm::CodeGenFileType fileType = (outputType == Object) ? llvm::CGFT_ObjectFile : llvm::CGFT_AssemblyFile;
     bool binary = (fileType == llvm::CGFT_ObjectFile);
 
+#endif
     llvm::sys::fs::OpenFlags flags = binary ? llvm::sys::fs::OF_None : llvm::sys::fs::OF_Text;
 
     std::error_code error;
@@ -1690,7 +1895,7 @@ static void lEmitStructDecl(const StructType *st, std::vector<const StructType *
     }
     if (st->GetSOAWidth() > 0) {
         // This has to match the naming scheme in
-        // StructType::GetCDeclaration().
+        // StructType::GetDeclaration().
         snprintf(sSOA, sizeof(sSOA), "_SOA%d", st->GetSOAWidth());
     } else {
         *sSOA = '\0';
@@ -1702,21 +1907,52 @@ static void lEmitStructDecl(const StructType *st, std::vector<const StructType *
         fprintf(file, "__ISPC_ALIGNED_STRUCT__(%u) %s%s {\n", uABI, st->GetCStructName().c_str(), sSOA);
     }
     for (int i = 0; i < st->GetElementCount(); ++i) {
+        std::string name = st->GetElementName(i);
         const Type *ftype = st->GetElementType(i)->GetAsNonConstType();
-        std::string d = ftype->GetCDeclaration(st->GetElementName(i));
+        std::string d_cpp = ftype->GetDeclaration(name, DeclarationSyntax::CPP);
+        std::string d_c = ftype->GetDeclaration(name, DeclarationSyntax::C);
+        bool same_decls = d_c == d_cpp;
 
-        fprintf(file, "    ");
         if (needsAlign && ftype->IsVaryingType() && (CastType<StructType>(ftype) == nullptr)) {
             unsigned uABI = DL->getABITypeAlign(ftype->LLVMStorageType(g->ctx)).value();
-            fprintf(file, "__ISPC_ALIGN__(%u) ", uABI);
+            fprintf(file, "    __ISPC_ALIGN__(%u) ", uABI);
         }
+
+        if (!same_decls) {
+            fprintf(file, "\n#if defined(__cplusplus)\n");
+        }
+
         // Don't expand arrays, pointers and structures:
         // their insides will be expanded automatically.
         if (!ftype->IsArrayType() && !ftype->IsPointerType() && ftype->IsVaryingType() &&
             (CastType<StructType>(ftype) == nullptr)) {
-            fprintf(file, "%s[%d];\n", d.c_str(), g->target->getVectorWidth());
+            fprintf(file, "    %s[%d];\n", d_cpp.c_str(), g->target->getVectorWidth());
+            if (!same_decls) {
+                fprintf(file,
+                        "#else\n"
+                        "    %s[%d];\n",
+                        d_c.c_str(), g->target->getVectorWidth());
+            }
+        } else if (CastType<VectorType>(ftype) != nullptr) {
+            fprintf(file, "    struct %s;\n", d_cpp.c_str());
+            if (!same_decls) {
+                fprintf(file,
+                        "#else\n"
+                        "    struct %s;\n",
+                        d_c.c_str());
+            }
         } else {
-            fprintf(file, "%s;\n", d.c_str());
+            fprintf(file, "    %s;\n", d_cpp.c_str());
+            if (!same_decls) {
+                fprintf(file,
+                        "#else\n"
+                        "    %s;\n",
+                        d_c.c_str());
+            }
+        }
+
+        if (!same_decls) {
+            fprintf(file, "#endif // %s field\n", name.c_str());
         }
     }
     fprintf(file, "};\n");
@@ -1758,7 +1994,7 @@ static void lEmitEnumDecls(const std::vector<const EnumType *> &enumTypes, FILE 
     for (unsigned int i = 0; i < enumTypes.size(); ++i) {
         fprintf(file, "#ifndef __ISPC_ENUM_%s__\n", enumTypes[i]->GetEnumName().c_str());
         fprintf(file, "#define __ISPC_ENUM_%s__\n", enumTypes[i]->GetEnumName().c_str());
-        std::string declaration = enumTypes[i]->GetCDeclaration("");
+        std::string declaration = enumTypes[i]->GetDeclaration("", DeclarationSyntax::CPP);
         fprintf(file, "%s {\n", declaration.c_str());
 
         // Print the individual enumerators
@@ -1806,7 +2042,7 @@ static void lEmitVectorTypedefs(const std::vector<const VectorType *> &types, FI
 
         llvm::Type *ty = vt->LLVMStorageType(g->ctx);
         int align = g->target->getDataLayout()->getABITypeAlign(ty).value();
-        baseDecl = vt->GetBaseType()->GetCDeclaration("");
+        baseDecl = vt->GetBaseType()->GetDeclaration("", DeclarationSyntax::CPP);
         fprintf(file, "#ifndef __ISPC_VECTOR_%s%d__\n", baseDecl.c_str(), size);
         fprintf(file, "#define __ISPC_VECTOR_%s%d__\n", baseDecl.c_str(), size);
         fprintf(file, "#ifdef _MSC_VER\n__declspec( align(%d) ) ", align);
@@ -1906,17 +2142,31 @@ static void lPrintFunctionDeclarations(FILE *file, const std::vector<Symbol *> &
     for (unsigned int i = 0; i < funcs.size(); ++i) {
         const FunctionType *ftype = CastType<FunctionType>(funcs[i]->type);
         Assert(ftype);
-        std::string decl;
+        std::string c_decl, cpp_decl;
         std::string fname = funcs[i]->name;
         if (g->calling_conv == CallingConv::x86_vectorcall) {
             fname = "__vectorcall " + fname;
         }
         if (rewriteForDispatch) {
-            decl = ftype->GetCDeclarationForDispatch(fname);
+            c_decl = ftype->GetDeclarationForDispatch(fname, DeclarationSyntax::C);
+            cpp_decl = ftype->GetDeclarationForDispatch(fname, DeclarationSyntax::CPP);
         } else {
-            decl = ftype->GetCDeclaration(fname);
+            c_decl = ftype->GetDeclaration(fname, DeclarationSyntax::C);
+            cpp_decl = ftype->GetDeclaration(fname, DeclarationSyntax::CPP);
         }
-        fprintf(file, "    extern %s;\n", decl.c_str());
+        if (c_decl == cpp_decl) {
+            fprintf(file, "    extern %s;\n", c_decl.c_str());
+        } else {
+            fprintf(file,
+                    "#if defined(__cplusplus)\n"
+                    "    extern %s;\n",
+                    cpp_decl.c_str());
+            fprintf(file,
+                    "#else\n"
+                    "    extern %s;\n",
+                    c_decl.c_str());
+            fprintf(file, "#endif // %s function declaraion\n", fname.c_str());
+        }
     }
     if (useExternC)
 
@@ -2033,7 +2283,7 @@ std::string emitOffloadParamStruct(const std::string &paramStructName, const Sym
         std::string paramName = fct->GetParameterName(i);
         std::string paramTypeName = paramType->GetString();
 
-        std::string tmpArgDecl = paramType->GetCDeclaration(paramName);
+        std::string tmpArgDecl = paramType->GetDeclaration(paramName, DeclarationSyntax::CPP);
         out << "   " << tmpArgDecl << ";" << std::endl;
     }
 
@@ -2155,7 +2405,7 @@ bool Module::writeDevStub(const char *fn) {
                 funcall << ", ";
             std::string tmpArgName = std::string("_") + paramName;
             if (paramType->IsPointerType() || paramType->IsArrayType()) {
-                std::string tmpArgDecl = paramType->GetCDeclaration(tmpArgName);
+                std::string tmpArgDecl = paramType->GetDeclaration(tmpArgName, DeclarationSyntax::CPP);
                 fprintf(file, "  %s;\n", tmpArgDecl.c_str());
                 fprintf(file, "  (void *&)%s = ispc_dev_translate_pointer(*in_ppBufferPointers++);\n",
                         tmpArgName.c_str());
@@ -2271,7 +2521,7 @@ bool Module::writeHostStub(const char *fn) {
         // then, emit a fct stub that unpacks the parameters and pointers
         // -------------------------------------------------------
 
-        std::string decl = fct->GetCDeclaration(sym->name);
+        std::string decl = fct->GetDeclaration(sym->name, DeclarationSyntax::CPP);
         fprintf(file, "extern %s {\n", decl.c_str());
         int numPointers = 0;
         fprintf(file, "  %s __args;\n", paramStructName.c_str());
@@ -2358,6 +2608,14 @@ bool Module::writeHeader(const char *fn) {
 
     fprintf(f, "#include <stdint.h>\n\n");
 
+    fprintf(f, "#if !defined(__cplusplus)\n"
+               "#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)\n"
+               "#include <stdbool.h>\n"
+               "#else\n"
+               "typedef int bool;\n"
+               "#endif\n"
+               "#endif\n\n");
+
     if (g->emitInstrumentation) {
         fprintf(f, "#define ISPC_INSTRUMENTATION 1\n");
         fprintf(f, "#if defined(__cplusplus) && (! defined(__ISPC_NO_EXTERN_C) || !__ISPC_NO_EXTERN_C )\nextern \"C\" "
@@ -2410,15 +2668,6 @@ bool Module::writeHeader(const char *fn) {
         fprintf(f, "///////////////////////////////////////////////////////////////////////////\n");
         lPrintFunctionDeclarations(f, exportedFuncs);
     }
-#if 0
-    if (externCFuncs.size() > 0) {
-        fprintf(f, "\n");
-        fprintf(f, "///////////////////////////////////////////////////////////////////////////\n");
-        fprintf(f, "// External C functions used by ispc code\n");
-        fprintf(f, "///////////////////////////////////////////////////////////////////////////\n");
-        lPrintFunctionDeclarations(f, externCFuncs);
-    }
-#endif
 
     // end namespace
     fprintf(f, "\n");
@@ -2666,6 +2915,26 @@ static void lSetPreprocessorOptions(const std::shared_ptr<clang::PreprocessorOpt
     opts->addMacroDef("ISPC");
     opts->addMacroDef("PI=3.1415926535");
 
+    // Add definitions of limits for integers and float types.
+    opts->addMacroDef("INT8_MIN=-128");
+    opts->addMacroDef("INT8_MAX=127");
+    opts->addMacroDef("UINT8_MAX=255U");
+    opts->addMacroDef("INT16_MIN=-32768");
+    opts->addMacroDef("INT16_MAX=32767");
+    opts->addMacroDef("UINT16_MAX=65535U");
+    opts->addMacroDef("INT32_MIN=-2147483648L");
+    opts->addMacroDef("INT32_MAX=2147483647L");
+    opts->addMacroDef("UINT32_MAX=4294967295UL");
+    opts->addMacroDef("INT64_MIN=-9223372036854775808LL");
+    opts->addMacroDef("INT64_MAX=9223372036854775807LL");
+    opts->addMacroDef("UINT64_MAX=18446744073709551615ULL");
+    opts->addMacroDef("F16_MIN=6.103515625e-05F16");
+    opts->addMacroDef("F16_MAX=65504.0F16");
+    opts->addMacroDef("FLT_MIN=1.17549435082228750796873653722224568e-38F");
+    opts->addMacroDef("FLT_MAX=3.40282346638528859811704183484516925e+38F");
+    opts->addMacroDef("DBL_MIN=2.22507385850720138309023271733240406e-308D");
+    opts->addMacroDef("DBL_MAX=1.79769313486231570814527423731704357e+308D");
+
     if (g->enableLLVMIntrinsics) {
         opts->addMacroDef("ISPC_LLVM_INTRINSICS_ENABLED");
     }
@@ -2861,7 +3130,6 @@ static void lGetExportedFunctions(SymbolTable *symbolTable, std::map<std::string
 }
 
 static llvm::FunctionType *lGetVaryingDispatchType(FunctionTargetVariants &funcs) {
-    llvm::Type *ptrToInt8Ty = llvm::Type::getInt8PtrTy(*g->ctx);
     llvm::FunctionType *resultFuncTy = nullptr;
 
     for (int i = 0; i < Target::NUM_ISAS; ++i) {
@@ -2886,7 +3154,7 @@ static llvm::FunctionType *lGetVaryingDispatchType(FunctionTargetVariants &funcs
                     // For each varying type pointed to, swap the LLVM pointer type
                     // with i8 * (as close as we can get to void *)
                     if (baseType->IsVaryingType()) {
-                        ftype[j] = ptrToInt8Ty;
+                        ftype[j] = LLVMTypes::Int8PointerType;
                         foundVarying = true;
                     }
                 }
@@ -2948,7 +3216,7 @@ static void lCreateDispatchFunction(llvm::Module *module, llvm::Function *setISA
             // Calling convention should be the same for all dispatched functions
             callingConv = funcs.FTs[i]->GetCallingConv();
             targetFuncs[i]->setCallingConv(callingConv);
-
+            AddUWTableFuncAttr(targetFuncs[i]);
         } else
             targetFuncs[i] = nullptr;
     }
@@ -2964,6 +3232,7 @@ static void lCreateDispatchFunction(llvm::Module *module, llvm::Function *setISA
     llvm::Function *dispatchFunc =
         llvm::Function::Create(ftype, llvm::GlobalValue::ExternalLinkage, functionName.c_str(), module);
     dispatchFunc->setCallingConv(callingConv);
+    AddUWTableFuncAttr(dispatchFunc);
 
     // Make dispatch function callable from DLLs.
     if ((g->target_os == TargetOS::windows) && (g->dllExport)) {
@@ -3065,6 +3334,7 @@ static llvm::Module *lInitDispatchModule() {
     AddBitcodeToModule(dispatch, module);
 
     lSetCodeModel(module);
+    lSetPICLevel(module);
 
     return module;
 }
@@ -3189,7 +3459,7 @@ int Module::CompileAndOutput(const char *srcFile, Arch arch, const char *cpu, st
         if (targets.size() == 1) {
             target = targets[0];
         }
-        g->target = new Target(arch, cpu, target, outputFlags.isPIC(), outputFlags.getMCModel(), g->printTarget);
+        g->target = new Target(arch, cpu, target, outputFlags.getPICLevel(), outputFlags.getMCModel(), g->printTarget);
         if (!g->target->isValid())
             return 1;
 
@@ -3316,7 +3586,7 @@ int Module::CompileAndOutput(const char *srcFile, Arch arch, const char *cpu, st
         std::vector<Module *> modules(targets.size());
         for (unsigned int i = 0; i < targets.size(); ++i) {
             g->target =
-                new Target(arch, cpu, targets[i], outputFlags.isPIC(), outputFlags.getMCModel(), g->printTarget);
+                new Target(arch, cpu, targets[i], outputFlags.getPICLevel(), outputFlags.getMCModel(), g->printTarget);
             if (!g->target->isValid())
                 return 1;
 
@@ -3411,7 +3681,7 @@ int Module::CompileAndOutput(const char *srcFile, Arch arch, const char *cpu, st
         Assert(strcmp(firstISA, "") != 0);
         Assert(firstTarget != ISPCTarget::none);
 
-        g->target = new Target(arch, cpu, firstTarget, outputFlags.isPIC(), outputFlags.getMCModel(), false);
+        g->target = new Target(arch, cpu, firstTarget, outputFlags.getPICLevel(), outputFlags.getMCModel(), false);
         llvm::TargetMachine *firstTargetMachine = g->target->GetTargetMachine();
         Assert(firstTargetMachine);
         if (!g->target->isValid()) {
