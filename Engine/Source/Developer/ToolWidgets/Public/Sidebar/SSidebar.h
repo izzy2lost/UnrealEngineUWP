@@ -263,7 +263,7 @@ private:
 
 	const TArray<TSharedRef<FSidebarDrawer>>& GetAllDrawers() const;
 
-	TSharedPtr<SSidebarContainer> ContainerWidget;
+	TWeakPtr<SSidebarContainer> ContainerWidgetWeak;
 
 	ESidebarTabLocation TabLocation = ESidebarTabLocation::Right;
 	FOnGetContent OnGetContent;

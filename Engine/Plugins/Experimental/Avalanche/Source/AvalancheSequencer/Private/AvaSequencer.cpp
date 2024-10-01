@@ -1499,29 +1499,26 @@ TSharedRef<SWidget> FAvaSequencer::CreateSequenceWidget()
 	check(IsValid(SequencerSettings));
 	FSidebarState& SidebarState = SequencerSettings->GetSidebarState();
 
-	TSharedPtr<SWidget> OutWidget;
+	// Make sure the sequence tree widget is created
+	GetSequenceTreeWidget();
 
-	if (SidebarState.IsVisible())
+	if (!SidebarState.IsVisible())
 	{
-		SidebarContainer = SNew(SSidebarContainer);
-
-		LeftSidebar = SNew(SSidebar, SidebarContainer.ToSharedRef())
-			.TabLocation(ESidebarTabLocation::Left)
-			.InitialDrawerSize(SidebarState.GetDrawerSize())
-			.OnStateChanged(this, &FAvaSequencer::OnSidebarStateChanged)
-			.OnGetContent(FOnGetContent::CreateLambda([this]()
-				{
-					return GetSequencer()->GetSequencerWidget();
-				}));
-
-		SidebarContainer->RebuildSidebar(LeftSidebar.ToSharedRef(), SidebarState);
-
-		OutWidget = SidebarContainer.ToSharedRef();
+		return Sequencer->GetSequencerWidget();
 	}
-	else
-	{
-		OutWidget = Sequencer->GetSequencerWidget();
-	}
+
+	TSharedRef<SSidebarContainer> SidebarContainer = SNew(SSidebarContainer);
+
+	TSharedRef<SSidebar> LeftSidebar = SNew(SSidebar, SidebarContainer)
+		.TabLocation(ESidebarTabLocation::Left)
+		.InitialDrawerSize(SidebarState.GetDrawerSize())
+		.OnStateChanged(this, &FAvaSequencer::OnSidebarStateChanged)
+		.OnGetContent(FOnGetContent::CreateLambda([this]()
+		{
+			return GetSequencer()->GetSequencerWidget();
+		}));
+
+	SidebarContainer->RebuildSidebar(LeftSidebar, SidebarState);
 
 	FSidebarDrawerConfig SequenceTreeDrawerConfig;
 	SequenceTreeDrawerConfig.UniqueId = SidebarDrawerId;
@@ -1532,15 +1529,12 @@ TSharedRef<SWidget> FAvaSequencer::CreateSequenceWidget()
 
 	LeftSidebar->RegisterDrawer(MoveTemp(SequenceTreeDrawerConfig));
 
-	// Make sure the sequence tree widget is created
-	GetSequenceTreeWidget();
-
 	const TSharedRef<FAvaSequencer> ThisSequencerRef = SharedThis(this);
 	LeftSidebar->RegisterDrawerSection(SidebarDrawerId, MakeShared<FAvaSequenceTreeDetails>(ThisSequencerRef));
 	LeftSidebar->RegisterDrawerSection(SidebarDrawerId, MakeShared<FAvaSequencePlaybackDetails>(ThisSequencerRef));
 	LeftSidebar->RegisterDrawerSection(SidebarDrawerId, MakeShared<FAvaSequenceSettingsDetails>(ThisSequencerRef));
 
-	return OutWidget.ToSharedRef();
+	return SidebarContainer;
 }
 
 void FAvaSequencer::OnActorsCopied(FString& InOutCopiedData, TConstArrayView<AActor*> InCopiedActors)
