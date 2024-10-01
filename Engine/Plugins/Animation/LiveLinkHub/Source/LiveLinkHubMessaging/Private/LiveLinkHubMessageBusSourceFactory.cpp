@@ -11,12 +11,12 @@
 
 FText ULiveLinkHubMessageBusSourceFactory::GetSourceDisplayName() const
 {
-	return LOCTEXT("SourceDisplayName", "LiveLink Hub");
+	return LOCTEXT("SourceDisplayName", "Live Link Hub");
 }
 
 FText ULiveLinkHubMessageBusSourceFactory::GetSourceTooltip() const
 {
-	return LOCTEXT("SourceTooltip", "Creates a connection to a LiveLink Hub instance.");
+	return LOCTEXT("SourceTooltip", "Creates a connection to a Live Link Hub instance.");
 }
 
 TSharedPtr<SWidget> ULiveLinkHubMessageBusSourceFactory::BuildCreationPanel(FOnLiveLinkSourceCreated InOnLiveLinkSourceCreated) const

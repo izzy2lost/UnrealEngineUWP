@@ -25,7 +25,7 @@ public:
 
 	virtual FText GetSourceTooltip() const
 	{
-		return LOCTEXT("PlaybackSourceTooltip", "Mock livelink source used to playback livelink data that was recorded.");
+		return LOCTEXT("PlaybackSourceTooltip", "Mock Live Link source used to playback Live Link data that was recorded.");
 	}
 
 	virtual TSharedPtr<ILiveLinkSource> CreateSource(const FString& ConnectionString) const

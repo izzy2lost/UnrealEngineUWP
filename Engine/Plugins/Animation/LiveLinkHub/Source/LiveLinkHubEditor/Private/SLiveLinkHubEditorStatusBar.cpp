@@ -133,13 +133,13 @@ SLiveLinkHubEditorStatusBar::~SLiveLinkHubEditorStatusBar()
 FText SLiveLinkHubEditorStatusBar::GetStatusText() const
 {
 	const bool bConnectionActive = ConnectionState == EHubConnectionState::Valid;
-	return bConnectionActive ? LOCTEXT("LiveLinkHubConnectionActive", "LiveLinkHub Connected") : LOCTEXT("LiveLinkHubConnectionError", "LiveLinkHub Error");
+	return bConnectionActive ? LOCTEXT("LiveLinkHubConnectionActive", "LiveLinkHub Connected") : LOCTEXT("LiveLinkHubConnectionError", "Live Link Hub Error");
 }
 
 FText SLiveLinkHubEditorStatusBar::GetToolTipText() const
 {
 	const bool bConnectionActive = ConnectionState == EHubConnectionState::Valid;
-	return bConnectionActive ? LOCTEXT("LiveLinkHubConnectionActiveTooltip", "LiveLinkHub is connected to this instance of Unreal Editor.") : LOCTEXT("LiveLinkHubConnectionErrorTooltip", "The LiveLinkHub connection was terminated.");
+	return bConnectionActive ? LOCTEXT("LiveLinkHubConnectionActiveTooltip", "LiveLinkHub is connected to this instance of Unreal Editor.") : LOCTEXT("LiveLinkHubConnectionErrorTooltip", "The Live Link Hub connection was terminated.");
 }
 
 FSlateColor SLiveLinkHubEditorStatusBar::GetIconColor() const

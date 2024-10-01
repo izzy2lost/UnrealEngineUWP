@@ -133,7 +133,7 @@ bool FLiveLinkUAssetRecorder::OpenSaveDialog(const FString& InDefaultPath, const
 		SaveAssetDialogConfig.DefaultAssetName = InNewNameSuggestion;
 		SaveAssetDialogConfig.AssetClassNames.Add(ULiveLinkRecording::StaticClass()->GetClassPathName());
 		SaveAssetDialogConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::AllowButWarn;
-		SaveAssetDialogConfig.DialogTitleOverride = LOCTEXT("SaveLiveLinkRecordingDialogTitle", "Save LiveLink Recording");
+		SaveAssetDialogConfig.DialogTitleOverride = LOCTEXT("SaveLiveLinkRecordingDialogTitle", "Save Live Link Recording");
 		SaveAssetDialogConfig.WindowOverride = RootWindow;
 	}
 

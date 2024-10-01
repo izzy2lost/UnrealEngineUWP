@@ -45,7 +45,7 @@ TSharedRef<SWindow> FLiveLinkHubWindowController::CreateWindow()
 	constexpr bool bEmbedTitleAreaContent = true;
 	const FVector2D ClientSize(1200.0f * DPIScaleFactor, 800.0f * DPIScaleFactor);
 	TSharedRef<SWindow> RootWindowRef = SNew(SWindow)
-		.Title(LOCTEXT("WindowTitle", "LiveLink Hub"))
+		.Title(LOCTEXT("WindowTitle", "Live Link Hub"))
 		.CreateTitleBar(!bEmbedTitleAreaContent)
 		.SupportsMaximize(true)
 		.SupportsMinimize(true)
@@ -117,7 +117,7 @@ TSharedPtr<FModalWindowManager> FLiveLinkHubWindowController::InitializeSlateApp
 	PRIVATE_GIsRunningCommandlet = bIsRunningCommandlet;
 #endif
 
-	const FText ApplicationTitle = LOCTEXT("AppTitle", "LiveLink Hub");
+	const FText ApplicationTitle = LOCTEXT("AppTitle", "Live Link Hub");
 	FGlobalTabmanager::Get()->SetApplicationTitle(ApplicationTitle);
 
 	return MakeShared<FModalWindowManager>(CreateWindow());

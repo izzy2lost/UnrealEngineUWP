@@ -477,7 +477,7 @@ private:
 		FMenuBuilder MenuBuilder( CloseAfterSelection, nullptr);
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("Remove", "Remove selected client"),
-			LOCTEXT("RemoveClientTooltip", "Stop transmitting LiveLink data to this client."),
+			LOCTEXT("RemoveClientTooltip", "Stop transmitting Live Link data to this client."),
 			FSlateIcon("LiveLinkStyle", "LiveLinkClient.Common.RemoveSource"),
 			FUIAction(
 				FExecuteAction::CreateRaw(this, &SLiveLinkHubClientsView::RemoveSelectedClient),
@@ -487,7 +487,7 @@ private:
 
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("RemoveAll", "Remove all clients"),
-			LOCTEXT("RemoveAllClientTooltip", "Stop transmitting LiveLink data to all discovered clients."),
+			LOCTEXT("RemoveAllClientTooltip", "Stop transmitting Live Link data to all discovered clients."),
 			FSlateIcon("LiveLinkStyle", "LiveLinkClient.Common.RemoveSource"),
 			FUIAction(
 				FExecuteAction::CreateRaw(this, &SLiveLinkHubClientsView::RemoveAllClients),
