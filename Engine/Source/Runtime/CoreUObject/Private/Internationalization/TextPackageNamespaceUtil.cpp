@@ -325,12 +325,12 @@ bool TextNamespaceUtil::EditTextProperty_Direct(UPackage* InPackage, void* InTex
 
 	const FString ProposedNamespace = (InEditAction == ETextEditAction::Namespace ? InEditValue : CurrentTextId.GetNamespace().ToString());
 	const FString ProposedKey = (InEditAction == ETextEditAction::Key ? InEditValue : CurrentTextId.GetKey().ToString());
-	const FString SourceString = (InEditAction == ETextEditAction::SourceString ? InEditValue : CurrentSourceString ? *CurrentSourceString : FString());
+	FString SourceString = (InEditAction == ETextEditAction::SourceString ? InEditValue : CurrentSourceString ? *CurrentSourceString : FString());
 
 	FString StableNamespace;
 	FString StableKey;
 	GetTextIdForEdit(InPackage, InEditAction, SourceString, ProposedNamespace, ProposedKey, StableNamespace, StableKey, InTextKeyGenerator, bApplyPackageNamespace);
 
-	InTextProperty->SetPropertyValue(InTextValue, FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*SourceString, *StableNamespace, *StableKey));
+	InTextProperty->SetPropertyValue(InTextValue, FText::AsLocalizable_Advanced(StableNamespace, StableKey, MoveTemp(SourceString)));
 	return true;
 }

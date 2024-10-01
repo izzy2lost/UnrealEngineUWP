@@ -1754,7 +1754,7 @@ PyObject* CreateLocalizedText(PyObject* InSelf, PyObject* InArgs)
 		return nullptr;
 	}
 
-	return PyConversion::Pythonize(FInternationalization::Get().ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*Source, *Namespace, *Key));
+	return PyConversion::Pythonize(FText::AsLocalizable_Advanced(Namespace, Key, MoveTemp(Source)));
 }
 
 PyObject* CreateLocalizedTextFromStringTable(PyObject* InSelf, PyObject* InArgs)
