@@ -495,7 +495,7 @@ static void UpdatePlanarReflectionContentsWithoutRendering_RenderThread(
 
 extern void BuildProjectionMatrix(FIntPoint RenderTargetSize, float FOV, float InNearClippingPlane, FMatrix& ProjectionMatrix);
 
-extern void SetupViewFamilyForSceneCapture(
+extern TArray<FSceneView*> SetupViewFamilyForSceneCapture(
 	FSceneViewFamily& ViewFamily,
 	USceneCaptureComponent* SceneCaptureComponent,
 	const TArrayView<const FSceneCaptureViewInfo> Views,
@@ -506,6 +506,10 @@ extern void SetupViewFamilyForSceneCapture(
 	float PostProcessBlendWeight,
 	const AActor* ViewActor,
 	int32 CubemapFaceIndex);
+
+extern void SetupSceneViewExtensionsForSceneCapture(
+	FSceneViewFamily& ViewFamily,
+	TConstArrayView<FSceneView*> Views);
 
 void FScene::UpdatePlanarReflectionContents(UPlanarReflectionComponent* CaptureComponent, FSceneRenderer& MainSceneRenderer)
 {
@@ -641,7 +645,7 @@ void FScene::UpdatePlanarReflectionContents(UPlanarReflectionComponent* CaptureC
 		ViewExtensionContext.bStereoEnabled = true;
 		ViewFamily.ViewExtensions = GEngine->ViewExtensions->GatherActiveExtensions(ViewExtensionContext);
 
-		SetupViewFamilyForSceneCapture(
+		TArray<FSceneView*> Views = SetupViewFamilyForSceneCapture(
 			ViewFamily,
 			CaptureComponent,
 			SceneCaptureViewInfo, CaptureComponent->MaxViewDistanceOverride,
@@ -656,30 +660,25 @@ void FScene::UpdatePlanarReflectionContents(UPlanarReflectionComponent* CaptureC
 		ViewFamily.SetScreenPercentageInterface(FSceneRenderer::ForkScreenPercentageInterface(
 			MainSceneRenderer.ViewFamily.GetScreenPercentageInterface(), ViewFamily));
 
+		for (FSceneView* View : Views)
+		{
+			View->GlobalClippingPlane = MirrorPlane;
+			// Jitter can't be removed completely due to the clipping plane
+			// Also, this prevents the prefilter pass, which reads from jittered depth, from having to do special handling of it's depth-dependent input
+			View->bAllowTemporalJitter = false;
+			View->bRenderSceneTwoSided = CaptureComponent->bRenderSceneTwoSided;
+		}
+
+		// Call SetupViewFamily & SetupView on scene view extensions before renderer creation
+		SetupSceneViewExtensionsForSceneCapture(ViewFamily, Views);
+
 		FSceneRenderer* SceneRenderer = FSceneRenderer::CreateSceneRenderer(&ViewFamily, nullptr);
 
 		// Disable screen percentage on planar reflection renderer if main one has screen percentage disabled.
 		SceneRenderer->ViewFamily.EngineShowFlags.ScreenPercentage = MainSceneRenderer.ViewFamily.EngineShowFlags.ScreenPercentage;
 
-		for (const FSceneViewExtensionRef& Extension : SceneRenderer->ViewFamily.ViewExtensions)
-		{
-			Extension->SetupViewFamily(SceneRenderer->ViewFamily);
-		}
-
 		for (int32 ViewIndex = 0; ViewIndex < SceneCaptureViewInfo.Num(); ++ViewIndex)
 		{
-			FViewInfo& ViewInfo = SceneRenderer->Views[ViewIndex];
-			ViewInfo.GlobalClippingPlane = MirrorPlane;
-			// Jitter can't be removed completely due to the clipping plane
-			// Also, this prevents the prefilter pass, which reads from jittered depth, from having to do special handling of it's depth-dependent input
-			ViewInfo.bAllowTemporalJitter = false;
-			ViewInfo.bRenderSceneTwoSided = CaptureComponent->bRenderSceneTwoSided;
-
-			for (const FSceneViewExtensionRef& Extension : SceneRenderer->ViewFamily.ViewExtensions)
-			{
-				Extension->SetupView(SceneRenderer->ViewFamily, ViewInfo);
-			}
-
 			CaptureComponent->ProjectionWithExtraFOV[ViewIndex] = SceneCaptureViewInfo[ViewIndex].ProjectionMatrix;
 
 			const bool bIsStereo = IStereoRendering::IsStereoEyeView(MainSceneRenderer.Views[0]);
