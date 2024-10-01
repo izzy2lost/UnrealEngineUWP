@@ -29,6 +29,7 @@
 #include "Dataflow/DataflowEditorPreviewSceneBase.h"
 #include "Dataflow/DataflowRenderingFactory.h"
 #include "Dataflow/DataflowSimulationScene.h"
+#include "Dataflow/DataflowSimulationVisualization.h"
 #include "Dataflow/DataflowSchema.h"
 #include "Dataflow/DataflowSkeletonView.h"
 #include "Dataflow/DataflowSimulationViewportClient.h"
@@ -77,6 +78,7 @@ const FName FDataflowEditorToolkit::CollectionSpreadSheetTabId_2(TEXT("DataflowE
 const FName FDataflowEditorToolkit::CollectionSpreadSheetTabId_3(TEXT("DataflowEditor_CollectionSpreadSheet_3"));
 const FName FDataflowEditorToolkit::CollectionSpreadSheetTabId_4(TEXT("DataflowEditor_CollectionSpreadSheet_4"));
 const FName FDataflowEditorToolkit::SimulationViewportTabId(TEXT("DataflowEditor_SimulationViewport"));
+const FName FDataflowEditorToolkit::SimulationVisualizationTabId(TEXT("DataflowEditor_SimulationVisualizationTab"));
 
 FDataflowEditorToolkit::FDataflowEditorToolkit(UAssetEditor* InOwningAssetEditor)
 	: FBaseCharacterFXEditorToolkit(InOwningAssetEditor, FName("DataflowEditor"))
@@ -157,6 +159,7 @@ FDataflowEditorToolkit::FDataflowEditorToolkit(UAssetEditor* InOwningAssetEditor
 					->SetSizeCoefficient(0.65f)	// Relative height of (Asset Details, Preview Scene Details) vs (Dataflow Node Details)
 					->AddTab(DetailsTabID, ETabState::OpenedTab)
 					->AddTab(PreviewSceneTabId, ETabState::OpenedTab)
+					->AddTab(SimulationVisualizationTabId, ETabState::OpenedTab)
 					->SetExtensionId("DetailsArea")
 					->SetHideTabWell(true)
 					->SetForegroundTab(DetailsTabID)
@@ -281,6 +284,11 @@ FDataflowEditorToolkit::FDataflowEditorToolkit(UAssetEditor* InOwningAssetEditor
 
 FDataflowEditorToolkit::~FDataflowEditorToolkit()
 {
+	if (SimulationScene && SimulationScene->GetPreviewSceneDescription())
+	{
+		SimulationScene->GetPreviewSceneDescription()->DataflowSimulationSceneDescriptionChanged.Remove(OnSimulationSceneChangedDelegateHandle);
+	}
+
 	if (GraphEditor)
 	{
 		GraphEditor->OnSelectionChangedMulticast.Remove(OnSelectionChangedMulticastDelegateHandle);
@@ -939,6 +947,8 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 
 			EditorContent->SetSelectedNode(nullptr);
 
+			EditorContent->SetSelectedCollection(nullptr, /*bCollectionIsInput=*/ false);
+
 			if( UDataflowEditorMode* const DataflowMode = Cast<UDataflowEditorMode>(EditorModeManager->GetActiveScriptableMode(UDataflowEditorMode::EM_DataflowEditorModeId)) )
 			{
 				// Close any running tool. OnNodeSingleClicked() will start a new tool if a new node was clicked.
@@ -1485,6 +1495,37 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_CollectionSpreadSheet(cons
 	return DockableTab;
 }
 
+TSharedPtr<SWidget> FDataflowEditorToolkit::CreateSimulationVisualizationWidget()
+{
+	FMenuBuilder MenuBuilder(false, nullptr);
+
+	using namespace UE::Dataflow;
+	for (const TPair<FName, TUniquePtr<IDataflowSimulationVisualization>>& Visualization : FDataflowSimulationVisualizationRegistry::GetInstance().GetVisualizations())
+	{
+		Visualization.Value->ExtendSimulationVisualizationMenu(SimulationViewportClient, MenuBuilder);
+	}
+	return MenuBuilder.MakeWidget();
+}
+
+TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SimulationVisualization(const FSpawnTabArgs& Args)
+{
+	TSharedRef<SDockTab> SimulationVisualizationTab = SNew(SDockTab)
+		.Label(LOCTEXT("SimulationVisualizationTitle", "Simulation Visualization"));
+
+	SimulationVisualizationWidget = CreateSimulationVisualizationWidget();
+	SimulationVisualizationTab->SetContent(SimulationVisualizationWidget.ToSharedRef());
+
+	// Re-create the visualization panel when the simulation scene changes
+	OnSimulationSceneChangedDelegateHandle = SimulationScene->GetPreviewSceneDescription()->DataflowSimulationSceneDescriptionChanged.AddLambda([this, SimulationVisualizationTab]()
+	{
+		SimulationVisualizationWidget = CreateSimulationVisualizationWidget();
+		SimulationVisualizationTab->SetContent(SimulationVisualizationWidget.ToSharedRef());
+	});
+
+	return SimulationVisualizationTab;
+}
+
+
 void FDataflowEditorToolkit::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
 {
 	FAssetEditorToolkit::RegisterTabSpawners(InTabManager);
@@ -1570,6 +1611,12 @@ void FDataflowEditorToolkit::RegisterTabSpawners(const TSharedRef<FTabManager>& 
 		.SetDisplayName(LOCTEXT("DataflowCollectionSpreadSheetTab4", "Collection SpreadSheet 4"))
 		.SetGroup(CollectionSpreadSheetWorkspaceMenuCategoryRef)
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Outliner"));
+
+	InTabManager->RegisterTabSpawner(SimulationVisualizationTabId, FOnSpawnTab::CreateSP(this, &FDataflowEditorToolkit::SpawnTab_SimulationVisualization))
+		.SetDisplayName(LOCTEXT("SimulationVisualizationTabDisplayName", "Simulation Visualization"))
+		.SetGroup(AssetEditorTabsCategory.ToSharedRef());
+
+	
 }
 
 void FDataflowEditorToolkit::UnregisterTabSpawners(const TSharedRef<class FTabManager>& InTabManager)

@@ -3,6 +3,8 @@
 #include "ChaosClothAsset/ChaosClothAssetEditorModule.h"
 #include "ChaosClothAsset/AssetDefinition_ClothAsset.h"
 #include "ChaosClothAsset/ClothAsset.h"
+#include "ChaosClothAsset/ClothDataflowConstructionVisualization.h"
+#include "ChaosClothAsset/ClothDataflowSimulationVisualization.h"
 #include "ChaosClothAsset/ClothEditorCommands.h"
 #include "ChaosClothAsset/ClothEditorMode.h"
 #include "ChaosClothAsset/ClothEditorStyle.h"
@@ -94,6 +96,9 @@ namespace UE::Chaos::ClothAsset
 		// Menus need to be registered in a callback to make sure the system is ready for them.
 		StartupCallbackDelegateHandle = UToolMenus::RegisterStartupCallback(
 			FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FChaosClothAssetEditorModule::RegisterMenus));
+
+		Dataflow::FDataflowConstructionVisualizationRegistry::GetInstance().RegisterVisualization(MakeUnique<FClothDataflowConstructionVisualization>());
+		Dataflow::FDataflowSimulationVisualizationRegistry::GetInstance().RegisterVisualization(MakeUnique<FClothDataflowSimulationVisualization>());
 	}
 
 	void FChaosClothAssetEditorModule::ShutdownModule()
@@ -103,6 +108,9 @@ namespace UE::Chaos::ClothAsset
 		FEditorModeRegistry::Get().UnregisterMode(UChaosClothAssetEditorMode::EM_ChaosClothAssetEditorModeId);
 
 		UToolMenus::UnRegisterStartupCallback(StartupCallbackDelegateHandle);
+
+		Dataflow::FDataflowConstructionVisualizationRegistry::GetInstance().DeregisterVisualization(FClothDataflowConstructionVisualization::Name);
+		Dataflow::FDataflowSimulationVisualizationRegistry::GetInstance().DeregisterVisualization(FClothDataflowSimulationVisualization::Name);
 	}
 
 } // namespace UE::Chaos::ClothAsset

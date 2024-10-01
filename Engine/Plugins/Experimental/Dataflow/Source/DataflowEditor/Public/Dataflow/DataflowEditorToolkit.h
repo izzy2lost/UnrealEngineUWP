@@ -107,6 +107,7 @@ private:
 	TSharedRef<SDockTab> SpawnTab_AssetDetails(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_SimulationViewport(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_PreviewScene(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_SimulationVisualization(const FSpawnTabArgs& Args);
 	
 	// FTickableEditorObject interface
 	virtual void Tick(float DeltaTime) override;
@@ -146,6 +147,7 @@ private:
 	static const FName CollectionSpreadSheetTabId_4;
 	static const FName SimulationViewportTabId;
 	static const FName PreviewSceneTabId;
+	static const FName SimulationVisualizationTabId;
 
 	// List of all the widgets shared ptr that will be built in the editor
 	TSharedPtr<SDataflowConstructionViewport> DataflowConstructionViewport;
@@ -163,6 +165,7 @@ private:
 	TSharedPtr<FDataflowCollectionSpreadSheet> DataflowCollectionSpreadSheet_3;
 	TSharedPtr<FDataflowCollectionSpreadSheet> DataflowCollectionSpreadSheet_4;
 	TSharedPtr<SWidget> AdvancedPreviewSettingsWidget;
+	TSharedPtr<SWidget> SimulationVisualizationWidget;
 
 	/** Customize preview scene with editor/terminal contents */
 	TSharedRef<class IDetailCustomization> CustomizePreviewSceneDescription() const;
@@ -170,6 +173,7 @@ private:
 	// Utility factory functions to build the widgets
 	TSharedRef<SDataflowGraphEditor> CreateGraphEditorWidget(UDataflow* ObjectToEdit, TSharedPtr<IStructureDetailsView> PropertiesEditor);
     TSharedPtr<IDetailsView> CreateAssetDetailsEditorWidget(const TArray<UObject*>& ObjectsToEdit);
+	TSharedPtr<SWidget> CreateSimulationVisualizationWidget();
     TSharedPtr<IStructureDetailsView> CreateNodeDetailsEditorWidget(UObject* ObjectToEdit);
 
 	/** Create the simulation viewport client */
@@ -187,6 +191,7 @@ private:
     FDelegateHandle OnFinishedChangingPropertiesDelegateHandle;
 	FDelegateHandle OnFinishedChangingAssetPropertiesDelegateHandle;
 	FDelegateHandle OnConstructionSelectionChangedDelegateHandle;
+	FDelegateHandle OnSimulationSceneChangedDelegateHandle;
 
 	// The currently selected set of dataflow nodes. 
 	UPROPERTY()

@@ -23,9 +23,10 @@ public:
 
 private:
 
-	TSharedRef<SWidget> MakeToolBar(const TSharedPtr<FExtender> InExtenders);
+	// SCommonEditorViewportToolbarBase
+	virtual TSharedRef<SWidget> GenerateShowMenu() const override;
 
-	TSharedPtr<SEditorViewportToolbarMenu> ViewModeDropDown;
+	TSharedRef<SWidget> MakeToolBar(const TSharedPtr<FExtender> InExtenders);
 
 	// View mode
 	FText GetViewModeMenuLabel() const;
@@ -34,6 +35,8 @@ private:
 
 	// Display (Lit, Unlit, Wireframe, etc.)
 	TSharedRef<SWidget> MakeDisplayToolBar(const TSharedPtr<FExtender> InExtenders);
+
+	TSharedPtr<SEditorViewportToolbarMenu> ViewModeDropDown;
 
 	/** Reference to the parent viewport */
 	TWeakPtr<SDataflowConstructionViewport> EditorViewport;

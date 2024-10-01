@@ -9,6 +9,8 @@
 #include "Dataflow/DataflowEngineSceneHitProxies.h"
 #include "Dataflow/DataflowGraphEditor.h"
 #include "Dataflow/DataflowEditorPreviewSceneBase.h"
+#include "Dataflow/DataflowSimulationScene.h"
+#include "Dataflow/DataflowSimulationVisualization.h"
 #include "EditorModeManager.h"
 #include "EdModeInteractiveToolsContext.h"
 #include "GraphEditor.h"
@@ -96,3 +98,32 @@ void FDataflowSimulationViewportClient::AddReferencedObjects(FReferenceCollector
 	Collector.AddReferencedObject(BehaviorSet);
 }
 
+void FDataflowSimulationViewportClient::Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI)
+{
+	FEditorViewportClient::Draw(View, PDI);
+
+	using namespace UE::Dataflow;
+	const TMap<FName, TUniquePtr<IDataflowSimulationVisualization>>& Visualizations = FDataflowSimulationVisualizationRegistry::GetInstance().GetVisualizations();
+	for (const TPair<FName, TUniquePtr<IDataflowSimulationVisualization>>& Visualization : Visualizations)
+	{
+		if (PreviewScene)
+		{
+			Visualization.Value->Draw(static_cast<FDataflowSimulationScene*>(PreviewScene), PDI);
+		}
+	}
+}
+
+void FDataflowSimulationViewportClient::DrawCanvas(FViewport& InViewport, FSceneView& View, FCanvas& Canvas)
+{
+	FEditorViewportClient::DrawCanvas(InViewport, View, Canvas);
+
+	using namespace UE::Dataflow;
+	const TMap<FName, TUniquePtr<IDataflowSimulationVisualization>>& Visualizations = FDataflowSimulationVisualizationRegistry::GetInstance().GetVisualizations();
+	for (const TPair<FName, TUniquePtr<IDataflowSimulationVisualization>>& Visualization : Visualizations)
+	{
+		if (PreviewScene)
+		{
+			Visualization.Value->DrawCanvas(static_cast<FDataflowSimulationScene*>(PreviewScene), &Canvas, &View);
+		}
+	}
+}
