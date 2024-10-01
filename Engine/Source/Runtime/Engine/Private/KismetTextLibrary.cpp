@@ -147,7 +147,7 @@ FText UKismetTextLibrary::GetEmptyText()
 
 bool UKismetTextLibrary::FindTextInLocalizationTable(const FString& Namespace, const FString& Key, FText& OutText, const FString& SourceString)
 {
-	return FText::FindText(Namespace, Key, OutText, SourceString.IsEmpty() ? nullptr : &SourceString);
+	return FText::FindTextInLiveTable_Advanced(Namespace, Key, OutText, SourceString.IsEmpty() ? nullptr : &SourceString);
 }
 
 bool UKismetTextLibrary::EqualEqual_IgnoreCase_TextText(const FText& A, const FText& B)

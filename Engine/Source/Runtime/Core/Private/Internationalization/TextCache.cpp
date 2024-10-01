@@ -29,12 +29,12 @@ void FTextCache::TearDown()
 	return TLazySingleton<FTextCache>::TearDown();
 }
 
-FText FTextCache::FindOrCache(const TCHAR* InTextLiteral, const TCHAR* InNamespace, const TCHAR* InKey)
+FText FTextCache::FindOrCache(const TCHAR* InTextLiteral, const FTextId& InTextId)
 {
-	return FindOrCache(InTextLiteral, FTextId(InNamespace, InKey));
+	return FindOrCache(FStringView(InTextLiteral), InTextId);
 }
 
-FText FTextCache::FindOrCache(const TCHAR* InTextLiteral, const FTextId& InTextId)
+FText FTextCache::FindOrCache(FStringView InTextLiteral, const FTextId& InTextId)
 {
 	return AutoRTFM::Open([&]
 	{
@@ -50,7 +50,7 @@ FText FTextCache::FindOrCache(const TCHAR* InTextLiteral, const FTextId& InTextI
 			if (FoundText)
 			{
 				const FString* FoundTextLiteral = FTextInspector::GetSourceString(*FoundText);
-				if (FoundTextLiteral && FCString::Strcmp(**FoundTextLiteral, InTextLiteral) == 0)
+				if (FoundTextLiteral && InTextLiteral.Equals(*FoundTextLiteral, ESearchCase::CaseSensitive))
 				{
 					ReturnFoundText = FoundText;
 				}
@@ -63,7 +63,47 @@ FText FTextCache::FindOrCache(const TCHAR* InTextLiteral, const FTextId& InTextI
 		}
 
 		// Not currently cached, make a new instance...
-		FText NewText = FText(InTextLiteral, InTextId.GetNamespace(), InTextId.GetKey(), ETextFlag::Immutable);
+		FText NewText = FText(FString(InTextLiteral), InTextId.GetNamespace(), InTextId.GetKey(), ETextFlag::Immutable);
+
+		// ... and add it to the cache
+		FScopeLock Lock(&CachedTextCS);
+
+		CachedText.Emplace(InTextId, NewText);
+
+		return NewText;
+	});
+}
+
+FText FTextCache::FindOrCache(FString&& InTextLiteral, const FTextId& InTextId)
+{
+	return AutoRTFM::Open([&]
+	{
+		LLM_SCOPE(ELLMTag::Localization);
+
+		// First try and find a cached instance
+		{
+			FText* ReturnFoundText = nullptr;
+
+			FScopeLock Lock(&CachedTextCS);
+
+			FText* FoundText = CachedText.Find(InTextId);
+			if (FoundText)
+			{
+				const FString* FoundTextLiteral = FTextInspector::GetSourceString(*FoundText);
+				if (FoundTextLiteral && InTextLiteral.Equals(*FoundTextLiteral, ESearchCase::CaseSensitive))
+				{
+					ReturnFoundText = FoundText;
+				}
+			}
+
+			if (ReturnFoundText)
+			{
+				return *ReturnFoundText;
+			}
+		}
+
+		// Not currently cached, make a new instance...
+		FText NewText = FText(MoveTemp(InTextLiteral), InTextId.GetNamespace(), InTextId.GetKey(), ETextFlag::Immutable);
 
 		// ... and add it to the cache
 		FScopeLock Lock(&CachedTextCS);

@@ -12,6 +12,7 @@
 
 #include "Internationalization/TextHistory.h"
 #include "Misc/Guid.h"
+#include "Internationalization/TextCache.h"
 #include "Internationalization/TextFormatter.h"
 #include "Internationalization/TextChronoFormatter.h"
 #include "Internationalization/TextTransformer.h"
@@ -820,19 +821,6 @@ FString FText::GetInvariantTimeZone()
 	return TEXT("Etc/Unknown");
 }
 
-bool FText::FindText(const FTextKey& Namespace, const FTextKey& Key, FText& OutText, const FString* const SourceString)
-{
-	FTextConstDisplayStringPtr FoundString = FTextLocalizationManager::Get().FindDisplayString( Namespace, Key, SourceString );
-
-	if ( FoundString.IsValid() )
-	{
-		OutText = FText(MakeRefCount<FTextHistory_Base>(FTextId(Namespace, Key), SourceString ? FString(*SourceString) : FString(), FoundString.ToSharedRef()));
-		return true;
-	}
-
-	return false;
-}
-
 void FText::SerializeText(FArchive& Ar, FText& Value)
 {
 	SerializeText(FStructuredArchiveFromArchive(Ar).GetSlot(), Value);
@@ -1107,9 +1095,14 @@ FText FText::FromStringView(FStringView InString)
 	return NewText;
 }
 
-FText FText::AsCultureInvariant( const FString& String )
+FText FText::AsCultureInvariant( const TCHAR* String )
 {
-	FText NewText = String.IsEmpty() ? FText::GetEmpty() : FText(CopyTemp(String));
+	return FText::AsCultureInvariant(FStringView(String));
+}
+
+FText FText::AsCultureInvariant( FStringView String )
+{
+	FText NewText = String.IsEmpty() ? FText::GetEmpty() : FText(FString(String));
 	NewText.Flags |= ETextFlag::CultureInvariant;
 
 	return NewText;
@@ -1129,6 +1122,38 @@ FText FText::AsCultureInvariant( FText Text )
 	NewText.Flags |= ETextFlag::CultureInvariant;
 
 	return NewText;
+}
+
+FText FText::AsLocalizable_Advanced(const FTextKey& Namespace, const FTextKey& Key, const TCHAR* String)
+{
+	return FText::AsLocalizable_Advanced(Namespace, Key, FStringView(String));
+}
+
+FText FText::AsLocalizable_Advanced(const FTextKey& Namespace, const FTextKey& Key, FStringView String)
+{
+	return String.IsEmpty() 
+		? FText::GetEmpty() 
+		: FTextCache::Get().FindOrCache(String, FTextId(Namespace, Key));
+}
+
+FText FText::AsLocalizable_Advanced(const FTextKey& Namespace, const FTextKey& Key, FString&& String)
+{
+	return String.IsEmpty() 
+		? FText::GetEmpty() 
+		: FTextCache::Get().FindOrCache(MoveTemp(String), FTextId(Namespace, Key));
+}
+
+bool FText::FindTextInLiveTable_Advanced(const FTextKey& Namespace, const FTextKey& Key, FText& OutText, const FString* const SourceString)
+{
+	FTextConstDisplayStringPtr FoundString = FTextLocalizationManager::Get().FindDisplayString(Namespace, Key, SourceString);
+
+	if (FoundString.IsValid())
+	{
+		OutText = FText(MakeRefCount<FTextHistory_Base>(FTextId(Namespace, Key), SourceString ? FString(*SourceString) : FString(), FoundString.ToSharedRef()));
+		return true;
+	}
+
+	return false;
 }
 
 const FString& FText::ToString() const
