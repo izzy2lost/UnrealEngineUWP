@@ -283,9 +283,7 @@ private:
 
 	TSharedPtr<FAvaEaseCurveTool> EaseCurveTool;
 
-	TSharedPtr<SSidebarContainer> SidebarContainer;
-	TSharedPtr<SSidebar> LeftSidebar;
-
 	TSharedPtr<FExtender> SidebarExtender;
+
 	FDelegateHandle SidebarSelectionExtenderHandle;
 };
