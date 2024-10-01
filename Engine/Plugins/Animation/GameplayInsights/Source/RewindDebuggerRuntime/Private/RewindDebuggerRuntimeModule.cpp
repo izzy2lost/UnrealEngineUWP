@@ -18,7 +18,7 @@ void FRewindDebuggerRuntimeModule::StartupModule()
 	ConsoleObjects.Add(IConsoleManager::Get().RegisterConsoleCommand(
 		TEXT("RewindDebugger.StartRecording"),
 		TEXT("Starts making a rewind debugger recording."),
-		FConsoleCommandDelegate::CreateRaw(RewindDebugger::FRewindDebuggerRuntime::Instance(), &RewindDebugger::FRewindDebuggerRuntime::StartRecording),
+		FConsoleCommandWithArgsDelegate::CreateRaw(RewindDebugger::FRewindDebuggerRuntime::Instance(), &RewindDebugger::FRewindDebuggerRuntime::StartRecordingWithArgs),
 		ECVF_Default
 	));
 	
