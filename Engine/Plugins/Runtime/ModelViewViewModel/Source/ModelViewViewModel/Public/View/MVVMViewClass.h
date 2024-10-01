@@ -70,6 +70,40 @@ private:
 	uint8 Flags = (uint8)EFlags::None;
 };
 
+/**
+ * A structure to identify the Condition and the associated FieldId
+ */
+USTRUCT()
+struct FMVVMViewClass_SourceCondition
+{
+	GENERATED_BODY()
+
+	friend UE::MVVM::Private::FMVVMViewBlueprintCompiler;
+
+public:
+	/**
+	 * The id for the FieldId on the source.
+	 * Valid when it is OneWay or when we need to register to the FieldNotify system.
+	 */
+	FFieldNotificationId GetFieldId() const
+	{
+		return FieldId;
+	}
+
+	/** The key to identify a binding in the view class. */
+	FMVVMViewClass_ConditionKey GetConditionKey() const
+	{
+		return ConditionKey;
+	}
+
+private:
+	UPROPERTY(VisibleAnywhere, Category = "View")
+	FFieldNotificationId FieldId;
+
+	UPROPERTY(VisibleAnywhere, Category = "View")
+	FMVVMViewClass_ConditionKey ConditionKey;
+};
+
 
 /**
  * A compiled and shared binding for ViewModel<->View
@@ -348,6 +382,11 @@ public:
 		return Bindings;
 	}
 
+	const TArrayView<const FMVVMViewClass_SourceCondition> GetConditions() const
+	{
+		return Conditions;
+	}
+
 #if UE_WITH_MVVM_DEBUGGING
 	struct FToStringArgs
 	{
@@ -400,6 +439,10 @@ private:
 	 */
 	UPROPERTY(VisibleAnywhere, Category = "View")
 	TArray<FMVVMViewClass_SourceBinding> Bindings;
+
+	// All the conditions that need to execute when Field value changes
+	UPROPERTY(VisibleAnywhere, Category = "View")
+	TArray<FMVVMViewClass_SourceCondition> Conditions;
 
 	enum class EFlags : uint16
 	{
@@ -495,6 +538,62 @@ private:
 	uint64 SourceBitField = 0;
 };
 
+USTRUCT()
+struct MODELVIEWVIEWMODEL_API FMVVMViewClass_Condition
+{
+	GENERATED_BODY()
+
+	friend UE::MVVM::Private::FMVVMViewBlueprintCompiler;
+
+public:
+
+	/** The name of the UFunction on the UserWidget. */
+	const FName GetUserWidgetFunctionName() const
+	{
+		return UserWidgetFunctionName;
+	}
+
+	/**
+	 * The source, if the multicast parent is a valid source.
+	 * This is used when the source value changes at runtime and we want to bound the event again.
+	 */
+	FMVVMViewClass_SourceKey GetSourceKey() const
+	{
+		return SourceToReevaluate;
+	}
+
+	/**
+	 * A view event may require more than one view sources to run the event.
+	 * A event will not execute if any view source is invalid.
+	 * It will not warn if the view source is make as optional.
+	 */
+	uint64 GetSources() const
+	{
+		return SourceBitField;
+	}
+
+#if UE_WITH_MVVM_DEBUGGING
+	struct FToStringArgs
+	{
+		bool bUseDisplayName = true;
+
+		MODELVIEWVIEWMODEL_API static FToStringArgs Short();
+		MODELVIEWVIEWMODEL_API static FToStringArgs All();
+	};
+	/** @return a human readable version of the binding that can be use for debugging purposes. */
+	FString ToString(const UMVVMViewClass* ViewClass, FToStringArgs Args) const;
+#endif
+
+private:
+	UPROPERTY()
+	FName UserWidgetFunctionName;
+
+	UPROPERTY()
+	FMVVMViewClass_SourceKey SourceToReevaluate;
+
+	UPROPERTY()
+	uint64 SourceBitField = 0;
+};
 
 /**
  * Shared between every instances of the same View class.
@@ -605,6 +704,19 @@ public:
 		return Events[Key.GetIndex()];
 	}
 
+	/** The list of conditions. */
+	[[nodiscard]] const TArrayView<const FMVVMViewClass_Condition> GetConditions() const
+	{
+		return Conditions;
+	}
+
+	/** The condition. */
+	[[nodiscard]] const FMVVMViewClass_Condition& GetCondition(FMVVMViewClass_ConditionKey Key) const
+	{
+		check(Conditions.IsValidIndex(Key.GetIndex()));
+		return Conditions[Key.GetIndex()];
+	}
+
 	/** The list of extensions for widgets. */
 	[[nodiscard]] const TArrayView<const TObjectPtr<UMVVMViewClassExtension>> GetViewClassExtensions() const
 	{
@@ -639,6 +751,8 @@ private:
 	TArray<FMVVMViewClass_EvaluateSource> EvaluateSources;
 	UPROPERTY(VisibleAnywhere, Category = "View")
 	TArray<FMVVMViewClass_Event> Events;
+	UPROPERTY(VisibleAnywhere, Category = "View")
+	TArray<FMVVMViewClass_Condition> Conditions;
 
 	/** All MVVM extensions on widgets of the owning userwidget. */
 	UPROPERTY(Instanced)
@@ -667,7 +781,7 @@ private:
 	bool bListenToViewModelCollectionChanged = false;
 
 #if WITH_EDITORONLY_DATA
-	FDelegateHandle BluerpintCompiledHandle;
+	FDelegateHandle BlueprintCompiledHandle;
 #endif
 };
 

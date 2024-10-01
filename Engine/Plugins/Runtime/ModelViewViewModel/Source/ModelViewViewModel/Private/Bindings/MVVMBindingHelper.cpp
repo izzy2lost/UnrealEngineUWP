@@ -6,6 +6,7 @@
 #include "Types/MVVMBindingName.h"
 #include "Types/MVVMFieldContext.h"
 #include "Types/MVVMFunctionContext.h"
+#include "Blueprint/UserWidget.h"
 
 #define LOCTEXT_NAMESPACE "MVVMBindingHelper"
 
@@ -655,6 +656,26 @@ namespace UE::MVVM::BindingHelper
 		}
 
 		return Arguments;
+	}
+
+	void ExecuteFunction_NoReturnValue(UFunction* InFunction, UObject* UserWidget)
+	{
+		void* ConversionFunctionDataPtr = FMemory_Alloca_Aligned(InFunction->ParmsSize, InFunction->GetMinAlignment());
+		if (InFunction->ParmsSize > 0)
+		{
+			FMemory::Memzero(ConversionFunctionDataPtr, InFunction->ParmsSize);
+		}
+		for (TFieldIterator<FProperty> It(InFunction); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+		{
+			It->InitializeValue_InContainer(ConversionFunctionDataPtr);
+		}
+
+		UserWidget->ProcessEvent(InFunction, ConversionFunctionDataPtr);
+
+		for (TFieldIterator<FProperty> It(InFunction); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+		{
+			It->DestroyValue_InContainer(ConversionFunctionDataPtr);
+		}
 	}
 
 	namespace Private

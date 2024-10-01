@@ -22,6 +22,7 @@
 #include "MVVMBlueprintView.h"
 #include "MVVMBlueprintViewConversionFunction.h"
 #include "MVVMBlueprintViewEvent.h"
+#include "MVVMBlueprintViewCondition.h"
 #include "MVVMDeveloperProjectSettings.h"
 #include "MVVMSubsystem.h"
 #include "MVVMWidgetBlueprintExtension_View.h"
@@ -87,6 +88,32 @@ namespace UE::MVVM::Private
 		FPropertyChangedEvent ChangeEvent(ChangedProperty, EPropertyChangeType::ValueSet);
 		FPropertyChangedChainEvent ChainEvent(EditChain, ChangeEvent);
 		Event->PostEditChangeChainProperty(ChainEvent);
+	}
+
+	void OnConditionPreEditChange(UMVVMBlueprintViewCondition* Condition, FName PropertyName)
+	{
+		FProperty* ChangedProperty = UMVVMBlueprintViewCondition::StaticClass()->FindPropertyByName(PropertyName);
+		check(ChangedProperty != nullptr);
+
+		FEditPropertyChain EditChain;
+		EditChain.AddTail(ChangedProperty);
+		EditChain.SetActivePropertyNode(ChangedProperty);
+
+		Condition->PreEditChange(EditChain);
+	}
+
+	void OnConditionPostEditChange(UMVVMBlueprintViewCondition* Condition, FName PropertyName)
+	{
+		FProperty* ChangedProperty = UMVVMBlueprintViewCondition::StaticClass()->FindPropertyByName(PropertyName);
+		check(ChangedProperty != nullptr);
+
+		FEditPropertyChain EditChain;
+		EditChain.AddTail(ChangedProperty);
+		EditChain.SetActivePropertyNode(ChangedProperty);
+
+		FPropertyChangedEvent ChangeEvent(ChangedProperty, EPropertyChangeType::ValueSet);
+		FPropertyChangedChainEvent ChainEvent(EditChain, ChangeEvent);
+		Condition->PostEditChangeChainProperty(ChainEvent);
 	}
 
 	UK2Node_FunctionResult* FindFunctionResult(UEdGraph* Graph)
@@ -339,6 +366,25 @@ void UMVVMEditorSubsystem::RemoveEvent(UWidgetBlueprint* WidgetBlueprint, UMVVMB
 		View->RemoveEvent(Event);
 	}
 }
+
+UMVVMBlueprintViewCondition* UMVVMEditorSubsystem::AddCondition(UWidgetBlueprint* WidgetBlueprint)
+{
+	if (!GetDefault<UMVVMDeveloperProjectSettings>()->bAllowConditionBinding)
+	{
+		return nullptr;
+	}
+	UMVVMBlueprintView* View = RequestView(WidgetBlueprint);
+	return View->AddDefaultCondition();
+}
+
+void UMVVMEditorSubsystem::RemoveCondition(UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintViewCondition* Condition)
+{
+	if (UMVVMBlueprintView* View = GetView(WidgetBlueprint))
+	{
+		View->RemoveCondition(Condition);
+	}
+}
+
 
 UFunction* UMVVMEditorSubsystem::GetConversionFunction(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintViewBinding& Binding, bool bSourceToDestination) const
 {
@@ -768,6 +814,140 @@ void UMVVMEditorSubsystem::SetCompileForEvent(UMVVMBlueprintViewEvent* Event, bo
 		}
 	}
 }
+
+void UMVVMEditorSubsystem::SetConditionPath(UMVVMBlueprintViewCondition* Condition, FMVVMBlueprintPropertyPath PropertyPath, bool bRequestBindingConversion)
+{
+	const UMVVMBlueprintView* View = Condition ? Condition->GetOuterUMVVMBlueprintView() : nullptr;
+	if (View)
+	{
+		FScopedTransaction Transaction(LOCTEXT("SetConditionPath", "Set Condition Path"));
+
+		FName ConditionPath = "ConditionPath";
+		UE::MVVM::Private::OnConditionPreEditChange(Condition, ConditionPath);
+
+		Condition->SetConditionPath(PropertyPath);
+
+		UE::MVVM::Private::OnConditionPostEditChange(Condition, ConditionPath);
+	}
+}
+
+void UMVVMEditorSubsystem::SetConditionDestinationPath(UMVVMBlueprintViewCondition* Condition, FMVVMBlueprintPropertyPath PropertyPath)
+{
+	const UMVVMBlueprintView* View = Condition ? Condition->GetOuterUMVVMBlueprintView() : nullptr;
+	if (View)
+	{
+		FScopedTransaction Transaction(LOCTEXT("SetConditionDestinationPath", "Set Condition Destination Path"));
+
+		FName DestinationPath = "DestinationPath";
+		UE::MVVM::Private::OnConditionPreEditChange(Condition, DestinationPath);
+
+		Condition->SetDestinationPath(PropertyPath);
+
+		UE::MVVM::Private::OnConditionPostEditChange(Condition, DestinationPath);
+	}
+}
+
+void UMVVMEditorSubsystem::SetConditionArgumentPath(UMVVMBlueprintViewCondition* Condition, const FMVVMBlueprintPinId& PinId, const FMVVMBlueprintPropertyPath& PropertyPath) const
+{
+	const UMVVMBlueprintView* View = Condition ? Condition->GetOuterUMVVMBlueprintView() : nullptr;
+	if (View)
+	{
+		FScopedTransaction Transaction(LOCTEXT("SetConditionParameterPath", "Set Condition Parameter Path"));
+
+		UE::MVVM::Private::OnConditionPreEditChange(Condition, "SavedPins");
+
+		Condition->SetPinPath(PinId, PropertyPath);
+
+		UE::MVVM::Private::OnConditionPostEditChange(Condition, "SavedPins");
+	}
+
+}
+
+void UMVVMEditorSubsystem::SetEnabledForCondition(UMVVMBlueprintViewCondition* Condition, bool bEnabled)
+{
+	if (Condition->bEnabled != bEnabled)
+	{
+		const UMVVMBlueprintView* View = Condition ? Condition->GetOuterUMVVMBlueprintView() : nullptr;
+		if (View)
+		{
+			FScopedTransaction Transaction(LOCTEXT("SetBindingEnabled", "Set Binding Enabled"));
+
+			UE::MVVM::Private::OnConditionPreEditChange(Condition, GET_MEMBER_NAME_CHECKED(UMVVMBlueprintViewCondition, bEnabled));
+
+			Condition->bEnabled = bEnabled;
+
+			UE::MVVM::Private::OnConditionPostEditChange(Condition, GET_MEMBER_NAME_CHECKED(UMVVMBlueprintViewCondition, bEnabled));
+		}
+	}
+}
+
+void UMVVMEditorSubsystem::SetCompileForCondition(UMVVMBlueprintViewCondition* Condition, bool bCompile)
+{
+	if (Condition->bCompile != bCompile)
+	{
+		const UMVVMBlueprintView* View = Condition ? Condition->GetOuterUMVVMBlueprintView() : nullptr;
+		if (View)
+		{
+			FScopedTransaction Transaction(LOCTEXT("SetBindingCompiled", "Set Binding Compiled"));
+
+			UE::MVVM::Private::OnConditionPreEditChange(Condition, GET_MEMBER_NAME_CHECKED(UMVVMBlueprintViewCondition, bCompile));
+
+			Condition->bCompile = bCompile;
+
+			UE::MVVM::Private::OnConditionPostEditChange(Condition, GET_MEMBER_NAME_CHECKED(UMVVMBlueprintViewCondition, bCompile));
+		}
+	}
+}
+
+void UMVVMEditorSubsystem::SetConditionOperation(UMVVMBlueprintViewCondition* Condition, EMVVMConditionOperation Operation)
+{
+	const UMVVMBlueprintView* View = Condition ? Condition->GetOuterUMVVMBlueprintView() : nullptr;
+	if (View)
+	{
+		FScopedTransaction Transaction(LOCTEXT("SetConditionOperation", "Set Condition Operation"));
+
+		FName ConditionOperation = "ConditionOperation";
+		UE::MVVM::Private::OnConditionPreEditChange(Condition, ConditionOperation);
+
+		Condition->SetOperation(Operation);
+
+		UE::MVVM::Private::OnConditionPostEditChange(Condition, ConditionOperation);
+	}
+
+}
+
+void UMVVMEditorSubsystem::SetConditionOperationValue(UMVVMBlueprintViewCondition* Condition, float Value)
+{
+	const UMVVMBlueprintView* View = Condition ? Condition->GetOuterUMVVMBlueprintView() : nullptr;
+	if (View)
+	{
+		FScopedTransaction Transaction(LOCTEXT("SetConditionOperationValue", "Set Condition Operation Value"));
+
+		FName ValueName = "Value";
+		UE::MVVM::Private::OnConditionPreEditChange(Condition, ValueName);
+
+		Condition->SetOperationValue(Value);
+
+		UE::MVVM::Private::OnConditionPostEditChange(Condition, ValueName);
+	}
+}
+
+void UMVVMEditorSubsystem::SetConditionOperationMaxValue(UMVVMBlueprintViewCondition* Condition, float MaxValue)
+{
+	const UMVVMBlueprintView* View = Condition ? Condition->GetOuterUMVVMBlueprintView() : nullptr;
+	if (View)
+	{
+		FScopedTransaction Transaction(LOCTEXT("SetConditionOperationMaxValue", "Set Condition Operation Maximum Value"));
+
+		FName ValueName = "MaxValue";
+		UE::MVVM::Private::OnConditionPreEditChange(Condition, ValueName);
+
+		Condition->SetOperationMaxValue(MaxValue);
+
+		UE::MVVM::Private::OnConditionPostEditChange(Condition, ValueName);
+	}
+}
+
 
 namespace UE::MVVM::Private
 {

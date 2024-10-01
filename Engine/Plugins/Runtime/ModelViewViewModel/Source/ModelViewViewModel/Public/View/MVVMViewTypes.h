@@ -201,6 +201,42 @@ private:
 };
 
 /**
+ * Key that identify the FMVVMViewClass_Condition.
+ */
+USTRUCT()
+struct FMVVMViewClass_ConditionKey
+{
+	GENERATED_BODY()
+
+	friend UE::MVVM::Private::FMVVMViewBlueprintCompiler;
+
+public:
+	FMVVMViewClass_ConditionKey() = default;
+	explicit FMVVMViewClass_ConditionKey(int32 InIndex)
+		: Index(InIndex)
+	{}
+	bool IsValid() const
+	{
+		return Index != INDEX_NONE;
+	}
+
+	int32 GetIndex() const
+	{
+		return Index;
+	}
+
+	bool operator== (const FMVVMViewClass_ConditionKey& Other) const
+	{
+		return Index == Other.Index;
+	}
+
+private:
+	UPROPERTY(VisibleAnywhere, Category = "View")
+	int32 Index = INDEX_NONE;
+};
+
+
+/**
  * Key that identify the FMVVMView_Source.
  */
 USTRUCT()

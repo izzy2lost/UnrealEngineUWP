@@ -33,6 +33,7 @@ namespace UE::MVVM::ConversionFunctionHelper
 namespace Private
 {
 	static const FLazyName ConversionFunctionMetadataKey = "ConversionFunction";
+	static const FLazyName KeepConnectionsMetadataKey = "KeepConnections";
 	static const FStringView AutoPromoteFunctionMetadataKey = TEXT("AutoPromoteFunction");
 	static const FLazyName ConversionFunctionCategory = "Conversion Functions";
 
@@ -1020,6 +1021,27 @@ namespace NamedNodes
 
 		UEdGraphPin* ThenPin = FunctionEntry->FindPinChecked(UEdGraphSchema_K2::PN_Then);
 		check(ThenPin);
+
+		while (ThenPin->LinkedTo.Num() == 1)
+		{
+			bool FoundNodeToConnect = false;
+			if (UK2Node* ConnectedNode = Cast<UK2Node>(ThenPin->LinkedTo[0]->GetOwningNode()))
+			{
+				if (IsNodeMarkedToKeepConnections(ConnectedNode))
+				{
+					if (UEdGraphPin* ExecPin = ConnectedNode->FindPin(UEdGraphSchema_K2::PN_Execute))
+					{
+						ThenPin->BreakAllPinLinks();
+						GraphSchema->TryCreateConnection(ThenPin, ExecPin);
+						ThenPin = ConnectedNode->FindPin(UEdGraphSchema_K2::PN_Then);
+						FoundNodeToConnect = true;
+					}
+				}
+			}
+			if (!FoundNodeToConnect)
+				break;
+		}
+
 		ThenPin->BreakAllPinLinks();
 
 		// Break Pins for every pins
@@ -1496,10 +1518,10 @@ void SetPropertyPathForPin(const UBlueprint* Blueprint, const FMVVMBlueprintProp
 		}
 	}
 
-	UK2Node_FunctionEntry* ConverionFunctionEntry = ConversionNode ? Private::FindFunctionEntry(FunctionGraph) : nullptr;
-	UK2Node_FunctionResult* ConverionFunctionResult = ConversionNode ? Private::FindFunctionResult(FunctionGraph) : nullptr;
+	UK2Node_FunctionEntry* ConversionFunctionEntry = ConversionNode ? Private::FindFunctionEntry(FunctionGraph) : nullptr;
+	UK2Node_FunctionResult* ConversionFunctionResult = ConversionNode ? Private::FindFunctionResult(FunctionGraph) : nullptr;
 
-	if (!FunctionGraph || !ConversionNode || !ConverionFunctionEntry || !ConverionFunctionResult)
+	if (!FunctionGraph || !ConversionNode || !ConversionFunctionEntry || !ConversionFunctionResult)
 	{
 		return;
 	}
@@ -1530,7 +1552,7 @@ void SetPropertyPathForPin(const UBlueprint* Blueprint, const FMVVMBlueprintProp
 	}
 
 	// Link Then / Exec pin
-	Private::LinkAllNodes(FunctionGraph, ConverionFunctionEntry, ConversionNode, ConverionFunctionResult);
+	Private::LinkAllNodes(FunctionGraph, ConversionFunctionEntry, ConversionNode, ConversionFunctionResult);
 }
 
 FMVVMBlueprintPropertyPath GetPropertyPathForArgument(const UBlueprint* WidgetBlueprint, const UK2Node_CallFunction* FunctionNode, FName ArgumentName, bool bSkipResolve)
@@ -1547,7 +1569,12 @@ UEdGraphPin* FindPin(const UEdGraph* Graph, const TArrayView<const FName> PinNam
 	}
 
 	const UEdGraphNode* CurrentGraphNode = GetWrapperNode(Graph);
-	if (CurrentGraphNode == nullptr)
+	return FindPin(CurrentGraphNode, PinNames);
+}
+
+UEdGraphPin* FindPin(const UEdGraphNode* Node, const TArrayView<const FName> PinNames)
+{
+	if (PinNames.Num() == 0 || Node == nullptr)
 	{
 		return nullptr;
 	}
@@ -1555,19 +1582,20 @@ UEdGraphPin* FindPin(const UEdGraph* Graph, const TArrayView<const FName> PinNam
 	for (int32 Index = 0; Index < PinNames.Num() - 1; ++Index)
 	{
 		FName PinName = PinNames[Index];
-		const UEdGraphPin* Pin = CurrentGraphNode->FindPin(PinName);
+		const UEdGraphPin* Pin = Node->FindPin(PinName);
 		if (Pin == nullptr || Pin->LinkedTo.Num() != 1)
 		{
 			return nullptr;
 		}
-		CurrentGraphNode = Pin->LinkedTo[0]->GetOwningNode();
-		if (CurrentGraphNode == nullptr)
+		Node = Pin->LinkedTo[0]->GetOwningNode();
+		if (Node == nullptr)
 		{
 			return nullptr;
 		}
 	}
 
-	return CurrentGraphNode ? CurrentGraphNode->FindPin(PinNames.Last()) : nullptr;
+	return Node ? Node->FindPin(PinNames.Last()) : nullptr;
+
 }
 
 TArray<FName> FindPinId(const UEdGraphPin* GraphPin)
@@ -1664,6 +1692,20 @@ bool IsAsyncNode(const TSubclassOf<UK2Node> Node)
 	return Node->GetDefaultObject<UK2Node>()->IsCompatibleWithGraph(UMVVMFakeTestUbergraph::StaticClass()->GetDefaultObject<UEdGraph>())
 		&& !Node->GetDefaultObject<UK2Node>()->IsCompatibleWithGraph(UMVVMFakeTestFunctiongraph::StaticClass()->GetDefaultObject<UEdGraph>());
 }
+
+void MarkNodeToKeepConnections(const UK2Node* Node)
+{
+	check(Node != nullptr);
+	Node->GetPackage()->GetMetaData()->SetValue(Node, Private::KeepConnectionsMetadataKey.Resolve(), TEXT(""));
+}
+
+bool IsNodeMarkedToKeepConnections(const UK2Node* Node)
+{
+	if (Node == nullptr)
+		return false;
+	return Node->GetPackage()->GetMetaData()->HasValue(Node, Private::KeepConnectionsMetadataKey.Resolve());
+}
+
 
 } // UE::MVVM::ConversionFunctionHelper
 

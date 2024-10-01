@@ -747,7 +747,7 @@ void UMVVMViewClass::Construct(UUserWidget* UserWidget)
 #if WITH_EDITOR
 	if (GEditor)
 	{
-		BluerpintCompiledHandle = GEditor->OnBlueprintCompiled().AddUObject(this, &UMVVMViewClass::HandleBlueprintCompiled);
+		BlueprintCompiledHandle = GEditor->OnBlueprintCompiled().AddUObject(this, &UMVVMViewClass::HandleBlueprintCompiled);
 	}
 #endif
 }
@@ -763,10 +763,10 @@ void UMVVMViewClass::Destruct(UUserWidget* UserWidget)
 	}
 
 #if WITH_EDITOR
-	if (GEditor && BluerpintCompiledHandle.IsValid())
+	if (GEditor && BlueprintCompiledHandle.IsValid())
 	{
-		GEditor->OnBlueprintCompiled().Remove(BluerpintCompiledHandle);
-		BluerpintCompiledHandle.Reset();
+		GEditor->OnBlueprintCompiled().Remove(BlueprintCompiledHandle);
+		BlueprintCompiledHandle.Reset();
 	}
 #endif
 }
@@ -774,10 +774,10 @@ void UMVVMViewClass::Destruct(UUserWidget* UserWidget)
 #if WITH_EDITOR
 void UMVVMViewClass::BeginDestroy()
 {
-	if (GEditor && BluerpintCompiledHandle.IsValid())
+	if (GEditor && BlueprintCompiledHandle.IsValid())
 	{
-		GEditor->OnBlueprintCompiled().Remove(BluerpintCompiledHandle);
-		BluerpintCompiledHandle.Reset();
+		GEditor->OnBlueprintCompiled().Remove(BlueprintCompiledHandle);
+		BlueprintCompiledHandle.Reset();
 	}
 	Super::BeginDestroy();
 }

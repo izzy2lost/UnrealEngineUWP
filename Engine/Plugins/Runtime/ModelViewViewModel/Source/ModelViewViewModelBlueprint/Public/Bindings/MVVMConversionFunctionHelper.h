@@ -102,6 +102,9 @@ namespace UE::MVVM::ConversionFunctionHelper
 	MODELVIEWVIEWMODELBLUEPRINT_API UEdGraphPin* FindPin(const UEdGraph* Graph, const TArrayView<const FName> PinNames);
 
 	/** Find the conversion function node from the given graph. */
+	MODELVIEWVIEWMODELBLUEPRINT_API UEdGraphPin* FindPin(const UEdGraphNode* Node, const TArrayView<const FName> PinNames);
+
+	/** Find the conversion function node from the given graph. */
 	MODELVIEWVIEWMODELBLUEPRINT_API TArray<FName> FindPinId(const UEdGraphPin* GraphPin);
 
 	/** Return the pin used for arguments. */
@@ -121,6 +124,10 @@ namespace UE::MVVM::ConversionFunctionHelper
 
 	/** Is the node an async node. */
 	MODELVIEWVIEWMODELBLUEPRINT_API bool IsAsyncNode(const TSubclassOf<UK2Node> Node);
+
+	MODELVIEWVIEWMODELBLUEPRINT_API bool IsNodeMarkedToKeepConnections(const UK2Node* Node);
+	MODELVIEWVIEWMODELBLUEPRINT_API void MarkNodeToKeepConnections(const UK2Node* Node);
+
 } //namespace
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

@@ -186,6 +186,14 @@ namespace UE::MVVM::BindingHelper
 	 * @note No test is performed to see if the ConversionFunction can be safely executed. Use with caution.
 	 */
 	MODELVIEWVIEWMODEL_API void ExecuteBinding_NoCheck(const FFieldContext& Source, const FFieldContext& Destination, const FFunctionContext& ConversionFunction);
+
+	/**
+	 * Execute a function with no parameters and no return value
+	 *
+	 * @note No test is performed to verify the function doesn't have parameters and return value. Use with caution.
+	 */
+	MODELVIEWVIEWMODEL_API void ExecuteFunction_NoReturnValue(UFunction* InFunction, UObject* UserWidget);
+
 } //namespace
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

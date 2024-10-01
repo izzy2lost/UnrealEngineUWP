@@ -68,6 +68,10 @@ private:
 	TSharedRef<SWidget> HandleAddDefaultBindingContextMenu();
 	void HandleAddDefaultBindingButtonClick(EAddBindingMode NewMode);
 
+	void AddEmptyCondition();
+	bool CanAddEmptyCondition() const;
+	FText GetAddEmptyConditionToolTip() const;
+
 	TSharedRef<SWidget> GenerateSettingsMenu();
 
 	TSharedRef<SWidget> CreateDrawerDockButton();

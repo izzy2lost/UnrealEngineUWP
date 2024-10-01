@@ -51,6 +51,7 @@ void SFieldSelector::Construct(const FArguments& InArgs, const UWidgetBlueprint*
 				SAssignNew(FieldDisplay, SFieldDisplay, InWidgetBlueprint)
 				.TextStyle(InArgs._TextStyle)
 				.OnGetLinkedValue(InArgs._OnGetLinkedValue)
+				.ShowFieldNotify(InArgs._ShowFieldNotify)
 			]
 		]
 	];

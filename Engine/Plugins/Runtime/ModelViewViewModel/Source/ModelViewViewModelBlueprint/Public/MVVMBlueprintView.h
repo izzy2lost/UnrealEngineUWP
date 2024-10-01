@@ -9,6 +9,7 @@
 
 class UMVVMWidgetBlueprintExtension_View;
 class UMVVMBlueprintViewEvent;
+class UMVVMBlueprintViewCondition;
 
 class UWidget;
 class UWidgetBlueprint;
@@ -138,6 +139,19 @@ public:
 		return Events;
 	}
 
+	UMVVMBlueprintViewCondition* AddDefaultCondition();
+	void RemoveCondition(UMVVMBlueprintViewCondition* Condition);
+
+	TArrayView<TObjectPtr<UMVVMBlueprintViewCondition>> GetConditions()
+	{
+		return Conditions;
+	}
+
+	const TArrayView<const TObjectPtr<UMVVMBlueprintViewCondition>> GetConditions() const
+	{
+		return Conditions;
+	}
+
 	TArray<FText> GetBindingMessages(FGuid Id, UE::MVVM::EBindingMessageType InMessageType) const;
 	bool HasBindingMessage(FGuid Id, UE::MVVM::EBindingMessageType InMessageType) const;
 	void AddMessageToBinding(FGuid Id, UE::MVVM::FBindingMessage MessageToAdd);
@@ -171,6 +185,15 @@ public:
 	DECLARE_EVENT(UMVVMBlueprintView, FOnEventsUpdated);
 	FOnEventsUpdated OnEventsUpdated;
 
+	DECLARE_EVENT(UMVVMBlueprintView, FOnConditionsUpdated);
+	FOnConditionsUpdated OnConditionsUpdated;
+
+	DECLARE_EVENT_OneParam(UMVVMBlueprintView, FOnEventParametersRegenerate, UMVVMBlueprintViewEvent*);
+	FOnEventParametersRegenerate OnEventParametersRegenerate;
+
+	DECLARE_EVENT_OneParam(UMVVMBlueprintView, FOnConditionParametersRegenerate, UMVVMBlueprintViewCondition*);
+	FOnConditionParametersRegenerate OnConditionParametersRegenerate;
+
 	DECLARE_EVENT(UMVVMBlueprintView, FOnViewModelsUpdated);
 	FOnViewModelsUpdated OnViewModelsUpdated;
 
@@ -187,6 +210,9 @@ private:
 	
 	UPROPERTY(Instanced, EditAnywhere, Category = "Viewmodel")
 	TArray<TObjectPtr<UMVVMBlueprintViewEvent>> Events;
+
+	UPROPERTY(Instanced, EditAnywhere, Category = "Viewmodel")
+	TArray<TObjectPtr<UMVVMBlueprintViewCondition>> Conditions;
 
 	UPROPERTY(EditAnywhere, Category = "Viewmodel")
 	TArray<FMVVMBlueprintViewModelContext> AvailableViewModels;

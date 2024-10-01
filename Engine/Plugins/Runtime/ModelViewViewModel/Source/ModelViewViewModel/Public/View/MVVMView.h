@@ -20,6 +20,7 @@ struct FMVVMViewClass_Event;
 struct FMVVMViewClass_Source;
 struct FMVVMViewClass_SourceBinding;
 struct FMVVMViewClass_SourceKey;
+struct FMVVMViewClass_SourceCondition;
 
 /**
  * Instance FMVVMViewClass_Source for the UUserWdiget
@@ -203,6 +204,8 @@ private:
 	void ExecuteBindingInternal(const FMVVMViewClass_SourceBinding& SourceBinding) const;
 	void ExecuteBindingImmediately(const FMVVMViewClass_Binding& ClassBinding, FMVVMViewClass_BindingKey KeyForLog) const;
 	void ExecuteViewModelBindingsInternal(FMVVMViewClass_SourceKey SourceKey);
+
+	void ExecuteConditionInternal(const FMVVMViewClass_SourceCondition& SourceCondition) const;
 
 	//~ evaluate source
 	bool EvaluateSource(FMVVMViewClass_SourceKey SourceIndex);

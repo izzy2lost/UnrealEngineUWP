@@ -29,6 +29,7 @@ void SCachedViewBindingPropertyPath::Construct(const FArguments& InArgs, const U
 		.PropertyPath(CachedPropertyPath)
 		.ShowContext(InArgs._ShowContext)
 		.ShowOnlyLastPath(InArgs._ShowOnlyLastPath)
+		.ShowFieldNotify(InArgs._ShowFieldNotify)
 	];
 }
 

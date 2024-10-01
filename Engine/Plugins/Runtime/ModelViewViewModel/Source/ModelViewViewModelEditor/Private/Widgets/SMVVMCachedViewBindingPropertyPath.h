@@ -32,6 +32,7 @@ public:
 		SLATE_EVENT(FOnGetPropertyPath, OnGetPropertyPath)
 		SLATE_ARGUMENT_DEFAULT(bool, ShowContext) = true;
 		SLATE_ARGUMENT_DEFAULT(bool, ShowOnlyLastPath) = false;
+		SLATE_ARGUMENT_DEFAULT(bool, ShowFieldNotify) = true;
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, const UWidgetBlueprint* WidgetBlueprint);

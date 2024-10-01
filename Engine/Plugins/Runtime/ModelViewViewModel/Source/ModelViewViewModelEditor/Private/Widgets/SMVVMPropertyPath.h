@@ -24,6 +24,7 @@ public:
 		SLATE_ARGUMENT(FMVVMBlueprintPropertyPath, PropertyPath)
 		SLATE_ARGUMENT_DEFAULT(bool, ShowContext) = true;
 		SLATE_ARGUMENT_DEFAULT(bool, ShowOnlyLastPath) = false;
+		SLATE_ARGUMENT_DEFAULT(bool, ShowFieldNotify) = true;
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, const UWidgetBlueprint* WidgetBlueprint);
@@ -35,6 +36,7 @@ private:
 	TSharedPtr<SHorizontalBox> FieldBox;
 	bool bShowContext = false;
 	bool bShowOnlyLastPath = false;
+	bool bShowFieldNotify = true;
 };
 
 } // namespace UE::MVVM
