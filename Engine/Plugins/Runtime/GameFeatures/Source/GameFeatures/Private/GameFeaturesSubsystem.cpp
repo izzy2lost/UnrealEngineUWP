@@ -1690,6 +1690,32 @@ bool UGameFeaturesSubsystem::GetGameFeaturePluginInstallPercent(TConstArrayView<
 	return false;
 }
 
+bool UGameFeaturesSubsystem::IsGameFeaturePluginUpToDate(const FString& PluginURL) const
+{
+	TArray<FName> InstallBundles;
+	const bool bParseSuccess = UGameFeaturesSubsystem::ParsePluginURLOptions(PluginURL, EGameFeatureURLOptions::Bundles,
+		[&InstallBundles](EGameFeatureURLOptions Option, FStringView OptionName, FStringView OptionValue)
+		{
+			check(Option == EGameFeatureURLOptions::Bundles);
+			InstallBundles.Emplace(OptionValue);
+		});
+
+	if (InstallBundles.IsEmpty())
+	{
+		return true;
+	}
+
+	TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
+	TValueOrError<FInstallBundleCombinedInstallState, EInstallBundleResult> InstallStateResult = BundleManager->GetInstallStateSynchronous(InstallBundles, false);
+	if (InstallStateResult.HasError())
+	{
+		UE_LOG(LogGameFeatures, Error, TEXT("Failed to get install state for PluginURL %s : Error reason %s"), *PluginURL, LexToString(InstallStateResult.GetError()));
+		return true;
+	}
+
+	return InstallStateResult.GetValue().GetAllBundlesHaveState(EInstallBundleInstallState::UpToDate);
+}
+
 bool UGameFeaturesSubsystem::IsGameFeaturePluginActive(const FString& PluginURL, bool bCheckForActivating /*= false*/) const
 {
 	if (const UGameFeaturePluginStateMachine* StateMachine = FindGameFeaturePluginStateMachine(PluginURL))

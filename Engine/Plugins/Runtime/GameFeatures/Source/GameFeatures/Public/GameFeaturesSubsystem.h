@@ -535,6 +535,9 @@ public:
 
 	/** Determines if a plugin is in the Active state.*/
 	bool IsGameFeaturePluginActive(const FString& PluginURL, bool bCheckForActivating = false) const;
+	
+	/** Determines if a plugin is up to date. Returning false means an update is available for download.*/
+	bool IsGameFeaturePluginUpToDate(const FString& PluginURL) const;
 
 	/** Deactivates the specified plugin */
 	void DeactivateGameFeaturePlugin(const FString& PluginURL);
