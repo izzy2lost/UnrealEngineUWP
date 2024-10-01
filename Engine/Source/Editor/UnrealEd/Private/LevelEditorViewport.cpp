@@ -44,12 +44,14 @@
 #include "UnrealEdGlobals.h"
 #include "Materials/MaterialExpressionTextureSample.h"
 #include "EditorSupportDelegates.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
 #include "Elements/Framework/TypedElementCommonActions.h"
 #include "Elements/Framework/TypedElementListObjectUtil.h"
 #include "Elements/Framework/TypedElementViewportInteraction.h"
 #include "Elements/Interfaces/TypedElementObjectInterface.h"
+#include "Elements/Interfaces/TypedElementDataStorageCompatibilityInterface.h"
 #include "Elements/Actor/ActorElementLevelEditorViewportInteractionCustomization.h"
 #include "Elements/Component/ComponentElementLevelEditorViewportInteractionCustomization.h"
 #include "AudioDevice.h"
@@ -1659,6 +1661,7 @@ bool FLevelEditorViewportClient::UpdateDropPreviewElements(int32 MouseX, int32 M
 void FLevelEditorViewportClient::DestroyDropPreviewElements()
 {
 	using namespace LevelEditorViewportLocals;
+	using namespace UE::Editor::DataStorage;
 
 	if (!HasDropPreviewElements())
 	{
@@ -1670,8 +1673,7 @@ void FLevelEditorViewportClient::DestroyDropPreviewElements()
 	// deleting preview actors in UUnrealEdEngine::DeleteActors skips explicit handle deregistration,
 	// and although it does still happen in the immediately triggered garbage cleanup, that feels
 	// potentially brittle.
-	UTypedElementRegistry* TypedElementRegistry = UTypedElementRegistry::GetInstance();
-	if (IEditorDataStorageCompatibilityProvider* TedsCompat = TypedElementRegistry->GetMutableDataStorageCompatibility())
+	if (IEditorDataStorageCompatibilityProvider* TedsCompat = GetMutableDataStorageFeature<IEditorDataStorageCompatibilityProvider>(CompatibilityFeatureName))
 	{
 		DropPreviewElements->ForEachElement<ITypedElementObjectInterface>(
 			[this, TedsCompat](const TTypedElement<ITypedElementObjectInterface>& InElement)

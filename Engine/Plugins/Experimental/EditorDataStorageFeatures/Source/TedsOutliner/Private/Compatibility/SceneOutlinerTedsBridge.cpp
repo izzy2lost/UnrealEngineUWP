@@ -8,9 +8,11 @@
 #include "Elements/Columns/TypedElementPackageColumns.h"
 #include "Elements/Columns/TypedElementTransformColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
-#include "Elements/Framework/TypedElementRegistry.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Interfaces/TypedElementDataStorageCompatibilityInterface.h"
+#include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
 #include "ILevelEditor.h"
 #include "ISceneOutliner.h"
 #include "ISceneOutlinerColumn.h"
@@ -38,8 +40,7 @@ FAutoConsoleCommand BindColumnsToSceneOutlinerConsoleCommand(
 			
 		    const FName WidgetPurposes[] = {TEXT("SceneOutliner.Cell"), TEXT("General.Cell")};
 
-			UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-			if (IEditorDataStorageProvider* DataStorage = Registry->GetMutableDataStorage())
+			if (IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName))
 			{
 				static UE::Editor::DataStorage::QueryHandle Queries[] =
 				{
@@ -367,14 +368,10 @@ const FName FSceneOutlinerTedsQueryBinder::DefaultItemLabelCellWidgetPurpose(TEX
 
 FSceneOutlinerTedsQueryBinder::FSceneOutlinerTedsQueryBinder()
 {
-	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-	checkf(Registry, TEXT("Unable to bind a Scene Outliner to a query before the Typed Elements are available."));
-	if (Registry)
-	{
-		Storage = Registry->GetMutableDataStorage();
-		StorageUi = Registry->GetMutableDataStorageUi();
-		StorageCompatibility = Registry->GetMutableDataStorageCompatibility();
-	}
+	using namespace UE::Editor::DataStorage;
+	Storage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
+	StorageUi = GetMutableDataStorageFeature<IEditorDataStorageUiProvider>(UiFeatureName);
+	StorageCompatibility = GetMutableDataStorageFeature<IEditorDataStorageCompatibilityProvider>(CompatibilityFeatureName);
 
 	SetupDefaultColumnMapping();
 }

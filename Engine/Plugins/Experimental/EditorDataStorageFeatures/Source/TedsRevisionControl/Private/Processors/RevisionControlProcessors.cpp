@@ -12,9 +12,9 @@
 #include "Elements/Columns/TypedElementRevisionControlColumns.h"
 #include "Elements/Columns/TypedElementSelectionColumns.h"
 #include "Elements/Columns/TypedElementViewportColumns.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Common/TypedElementDataStorageLog.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
-#include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Interfaces/TypedElementQueryStorageInterfaces.h"
 
 namespace UE::Editor::RevisionControl::Private
@@ -24,7 +24,8 @@ namespace UE::Editor::RevisionControl::Private
 	// Update the overlay color for all rows with InColumn
 	void UpdateSCCOverlayStates(UScriptStruct* InColumn)
 	{
-		IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		using namespace UE::Editor::DataStorage;
+		IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
 
 		if(const URevisionControlDataStorageFactory* Factory = DataStorage->FindFactory<URevisionControlDataStorageFactory>())
 		{
@@ -35,7 +36,8 @@ namespace UE::Editor::RevisionControl::Private
 	// Update all currently existing overlay colors
 	void UpdateOverlayColors()
 	{
-		IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		using namespace UE::Editor::DataStorage;
+		IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
 
 		if(const URevisionControlDataStorageFactory* Factory = DataStorage->FindFactory<URevisionControlDataStorageFactory>())
 		{

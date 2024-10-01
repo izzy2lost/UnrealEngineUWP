@@ -6,8 +6,9 @@
 #include "Elements/Columns/TypedElementHiearchyColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementSelectionColumns.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
-#include "Elements/Framework/TypedElementRegistry.h"
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "HAL/IConsoleManager.h"
 #include "Math/UnrealMathUtility.h"
 
@@ -21,7 +22,7 @@ FAutoConsoleCommand AddRandomAlertToRowConsoleCommand(
 
 			TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.AddRandomAlertToSelectedRows);
 
-			if (IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
+			if (IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName))
 			{
 				static QueryHandle Query = [DataStorage]
 				{
@@ -82,7 +83,7 @@ FAutoConsoleCommand ClearAllAlertsConsoleCommand(
 			static TTypedElementColumnTypeList<FTypedElementSyncBackToWorldTag> BatchAddColumns;
 			static TTypedElementColumnTypeList<FTypedElementAlertColumn, FTypedElementChildAlertColumn> BatchRemoveColumns;
 
-			if (IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
+			if (IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName))
 			{
 				static QueryHandle AlertInfoQuery = [DataStorage]
 				{
@@ -118,7 +119,7 @@ FAutoConsoleCommand ClearSelectedAlertsConsoleCommand(
 
 			TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.ClearSelectedAlerts);
 
-			if (IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
+			if (IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName))
 			{
 				static QueryHandle AlertQuery = [DataStorage]
 				{

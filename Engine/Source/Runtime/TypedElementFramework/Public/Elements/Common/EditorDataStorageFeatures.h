@@ -14,7 +14,7 @@ namespace UE::Editor::DataStorage
 	TYPEDELEMENTFRAMEWORK_API const extern FName UiFeatureName;
 
 	TYPEDELEMENTFRAMEWORK_API FSimpleMulticastDelegate& OnEditorDataStorageFeaturesEnabled();
-	bool AreEditorDataStorageFeaturesEnabled();
+	TYPEDELEMENTFRAMEWORK_API bool AreEditorDataStorageFeaturesEnabled();
 
 	template<typename T>
 	const T* GetDataStorageFeature(const FName InName)

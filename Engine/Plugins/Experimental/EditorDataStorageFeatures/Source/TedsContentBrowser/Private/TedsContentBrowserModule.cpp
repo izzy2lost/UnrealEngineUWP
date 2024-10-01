@@ -6,8 +6,9 @@
 #include "ContentBrowserModule.h"
 #include "Columns/SlateDelegateColumns.h"
 #include "Elements/Common/TypedElementQueryTypes.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Framework/TypedElementIndexHasher.h"
-#include "Elements/Framework/TypedElementRegistry.h"
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Experimental/ContentBrowserViewExtender.h"
 #include "Modules/ModuleManager.h"
 #include "QueryStack/FQueryStackNode_RowView.h"
@@ -126,7 +127,7 @@ namespace UE::Editor::ContentBrowser
 
 	FTedsContentBrowserViewExtender::FTedsContentBrowserViewExtender()
 	{
-		DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
 		
 		RowQueryStack = MakeShared<FQueryStackNode_RowView>(&Rows);
 
