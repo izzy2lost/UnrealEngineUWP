@@ -223,6 +223,12 @@ private:
 	FVector RootMotionDeltaDirection = FVector::ZeroVector;
 	FQuat RootMotionDeltaRotation = FQuat::Identity;
 
+#if ENABLE_ANIM_DEBUG || ENABLE_VISUAL_LOG
+	// Store these in debug only so that they can persist in debug / across pauses
+	FVector CurrentRootMotionDeltaDirection = FVector::ZeroVector;
+	bool bUsedFutureRootMotion = false;
+#endif
+
 	// Internal orientation warping angle
 	float ActualOrientationAngleRad = 0.f;
 	float BlendWeight = 0.0f;
