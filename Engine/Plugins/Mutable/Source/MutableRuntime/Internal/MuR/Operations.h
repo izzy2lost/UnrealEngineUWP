@@ -40,6 +40,7 @@ namespace mu
         PR_CONSTANT,
         ST_CONSTANT,
 		ED_CONSTANT,
+    	MA_CONSTANT,
 
         //! User parameter
         BO_PARAMETER,
@@ -49,6 +50,7 @@ namespace mu
         PR_PARAMETER,
         IM_PARAMETER,
         ST_PARAMETER,
+    	MA_PARAMETER,
 
 		//! A referenced, but opaque engine resource
 		IM_REFERENCE,
@@ -293,6 +295,9 @@ namespace mu
 		//! Add a set of tags to a mesh
 		ME_ADDTAGS,
 
+    	//! Transform with a 4x4 matrix the geometry channels of a mesh that are bounded by another mesh
+    	ME_TRANSFORMWITHMESH,
+
         //-----------------------------------------------------------------------------------------
         // Instance operations
         //-----------------------------------------------------------------------------------------
@@ -410,6 +415,11 @@ namespace mu
         {
             float value[4];
         };
+
+    	struct MatrixConstantArgs
+    	{
+    		ADDRESS value;
+    	};
 
         struct ResourceConstantArgs
         {
@@ -987,6 +997,13 @@ namespace mu
 			EFaceCullStrategy FaceCullStrategy;
 		};
 
+    	struct MeshTransformWithinMeshArgs
+    	{
+    		ADDRESS sourceMesh;
+    		ADDRESS boundingMesh;
+    		ADDRESS matrix;
+    	};
+
 		struct MeshOptimizeSkinningArgs
 		{
 			ADDRESS source;
@@ -1099,6 +1116,7 @@ namespace mu
             IntConstantArgs IntConstant;
             ScalarConstantArgs ScalarConstant;
             ColourConstantArgs ColourConstant;
+        	MatrixConstantArgs TransformConstant;
             //ParameterArgs Parameter;
 
             //-------------------------------------------------------------------------------------
@@ -1178,9 +1196,9 @@ namespace mu
 		DT_PROJECTOR,
 		DT_STRING,
 		DT_EXTENSION_DATA,
+		DT_MATRIX,
 
 		// Supporting data types : Never returned as an actual data type for any operation.
-		DT_MATRIX,
 		DT_SHAPE,
 		DT_CURVE,
 		DT_SKELETON,

@@ -320,8 +320,187 @@ namespace mu { namespace
         return NumIntersections;
     }
 
+	void MeshUVMaskClassifyVertices(TBitArray<>& VertexClipped, const Mesh* Base, const Image* Mask, const uint8 LayoutIndex)
+	{
+		using namespace UE::Geometry;
+
+		MUTABLE_CPUPROFILER_SCOPE(MeshUVMaskClassifyVertices);
+
+		uint32 VertexCount = Base->GetVertexCount();
+
+		// Stores whether each vertex in the original mesh in the clip mesh volume
+		VertexClipped.SetNum(VertexCount, false);
+
+		// Now go through all vertices in the mesh and record whether they are inside or outside of the ClipMesh
+		const FMeshBufferSet& MBSPriv = Base->GetVertexBuffers();
+		for (int32 b = 0; b < MBSPriv.Buffers.Num(); ++b)
+		{
+			const TArray<mu::FMeshBufferChannel>& Channels = MBSPriv.Buffers[b].Channels;
+
+			for (int32 c = 0; c < Channels.Num(); ++c)
+			{
+				EMeshBufferSemantic Sem = Channels[c].Semantic;
+				if (Sem != MBS_TEXCOORDS)
+				{
+					continue;
+				}
+
+				int32 SemIndex = Channels[c].SemanticIndex;
+				if (SemIndex != LayoutIndex)
+				{
+					continue;
+				}
+
+				UntypedMeshBufferIteratorConst It(Base->GetVertexBuffers(), Sem, SemIndex);
+				for (uint32 V = 0; V < VertexCount; ++V)
+				{
+					// \TODO: This could be optimized.
+					FVector2f UV = It.GetAsVec2f();
+
+					// \TODO: This could also be optimized
+					FVector4f Color = Mask->Sample(UV);
+
+					VertexClipped[V] = Color[0] >= 0.5f;
+
+					++It;
+				}
+
+				break;
+			}
+		}
+	}
+
+
+	void MeshLayoutMaskClassifyVertices(TBitArray<>& VertexClipped, const Mesh* Base, const Layout* Mask, const uint8 LayoutIndex)
+	{
+		using namespace UE::Geometry;
+
+		MUTABLE_CPUPROFILER_SCOPE(MeshLayoutMaskClassifyVertices);
+
+		uint32 VertexCount = Base->GetVertexCount();
+
+		// Stores whether each vertex in the original mesh in the clip mesh volume
+		VertexClipped.SetNum(VertexCount, false);
+
+		// Now go through all vertices in the mesh and record whether they are inside or outside of the ClipMesh
+		const FMeshBufferSet& MBSPriv = Base->GetVertexBuffers();
+		for (int32 b = 0; b < MBSPriv.Buffers.Num(); ++b)
+		{
+			const TArray<mu::FMeshBufferChannel>& Channels = MBSPriv.Buffers[b].Channels;
+
+			for (int32 c = 0; c < Channels.Num(); ++c)
+			{
+				EMeshBufferSemantic Sem = Channels[c].Semantic;
+				if (Sem != MBS_TEXCOORDS)
+				{
+					continue;
+				}
+
+				int32 SemIndex = Channels[c].SemanticIndex;
+				if (SemIndex != LayoutIndex)
+				{
+					continue;
+				}
+
+				UntypedMeshBufferIteratorConst It(Base->GetVertexBuffers(), Sem, SemIndex);
+				for (uint32 V = 0; V < VertexCount; ++V)
+				{
+					// \TODO: This could be optimized.
+					FVector2f UV = It.GetAsVec2f();
+
+					FVector2f Cell = UV * FVector2f(Mask->Size.X, Mask->Size.Y);
+
+					// \TODO: This could also be optimized
+					for (const FLayoutBlock& Block : Mask->Blocks)
+					{
+						if (
+							float(Block.Min.X) <= Cell.X && float(Block.Min.Y) <= Cell.Y
+							&&
+							float(Block.Min.X + Block.Size.X) >= Cell.X && float(Block.Min.Y + Block.Size.Y) >= Cell.Y
+							)
+						{
+							VertexClipped[V] = true; 
+							break;
+						}
+					}
+
+					++It;
+				}
+
+				break;
+			}
+		}
+	}
+
+
+	/** Make a mask with the indices of the vertices with 0 in the IncludedVertices array. */
+	void CreateMask(Mesh* Result, const Mesh* Base, const TArray<uint8>& IncludedVertices)
+	{
+		int32 MaskVertexCount = 0;
+		for (uint8 b : IncludedVertices)
+		{
+			if (!b)
+			{
+				++MaskVertexCount;
+			}
+		}
+
+		Result->GetVertexBuffers().SetElementCount(MaskVertexCount);
+		Result->GetVertexBuffers().SetBufferCount(1);
+		Result->MeshIDPrefix = Base->MeshIDPrefix;
+
+		EMeshBufferSemantic Semantic = MBS_VERTEXINDEX;
+		int32 SemanticIndex = 0;
+		int32 Components = 1;
+		int32 Offsets = 0;
+
+		bool bMakeRelativeIds = !Base->AreVertexIdsExplicit();
+		if (bMakeRelativeIds)
+		{
+			EMeshBufferFormat Format = MBF_UINT32;
+			Result->GetVertexBuffers().SetBuffer( 0, sizeof(uint32), 1, &Semantic, &SemanticIndex, &Format, &Components, &Offsets );
+
+			// Fill the buffer
+			uint32* Data = reinterpret_cast<uint32*>(Result->GetVertexBuffers().GetBufferData(0));
+			MeshVertexIdIteratorConst ItBase(Base);
+			for (int32 v = 0; v < IncludedVertices.Num(); ++v)
+			{
+				if (!IncludedVertices[v])
+				{
+					uint64 ID = ItBase.Get();
+					*Data = uint32(ID & 0xffffffff);
+					++Data;
+				}
+				++ItBase;
+			}
+		}
+		else
+		{
+			EMeshBufferFormat Format = MBF_UINT64;
+			Result->GetVertexBuffers().SetBuffer( 0, sizeof(uint64), 1, &Semantic, &SemanticIndex, &Format, &Components, &Offsets );
+
+			// Fill the buffer
+			uint64* Data = reinterpret_cast<uint64*>( Result->GetVertexBuffers().GetBufferData(0) );
+			MeshVertexIdIteratorConst ItBase(Base);
+			for (int32 v = 0; v < IncludedVertices.Num(); ++v)
+			{
+				if (!IncludedVertices[v])
+				{
+					*Data = ItBase.Get();
+					++Data;
+				}
+				++ItBase;
+			}
+		}
+	}
+
+}} // namespace mu::anonymous
+
+
+namespace mu
+{
     /** Core Geometry version */
-    void MeshClipMeshClassifyVertices(TArray<uint8>& VertexInClipMesh, const Mesh* pBase, const Mesh* pClipMesh)
+    void MeshClipMeshClassifyVertices(TBitArray<>& VertexInClipMesh, const Mesh* pBase, const Mesh* pClipMesh)
     {
 		using namespace UE::Geometry;
 
@@ -337,7 +516,7 @@ namespace mu { namespace
         int32 OrigVertCount = pBase->GetVertexBuffers().GetElementCount();
 
         // Stores whether each vertex in the original mesh in the clip mesh volume
-        VertexInClipMesh.AddZeroed(OrigVertCount);
+        VertexInClipMesh.SetNum(OrigVertCount, false);
 
         if (VCount == 0)
         {
@@ -506,189 +685,6 @@ namespace mu { namespace
         }
     }	
 
-
-	void MeshUVMaskClassifyVertices(TArray<uint8>& VertexClipped, const Mesh* Base, const Image* Mask, const uint8 LayoutIndex)
-	{
-		using namespace UE::Geometry;
-
-		MUTABLE_CPUPROFILER_SCOPE(MeshUVMaskClassifyVertices);
-
-		uint32 VertexCount = Base->GetVertexCount();
-
-		// Stores whether each vertex in the original mesh in the clip mesh volume
-		VertexClipped.SetNumUninitialized(VertexCount,EAllowShrinking::No);
-		FMemory::Memzero(VertexClipped.GetData(),VertexClipped.GetAllocatedSize());
-
-		// Now go through all vertices in the mesh and record whether they are inside or outside of the ClipMesh
-		const FMeshBufferSet& MBSPriv = Base->GetVertexBuffers();
-		for (int32 b = 0; b < MBSPriv.Buffers.Num(); ++b)
-		{
-			const TArray<mu::FMeshBufferChannel>& Channels = MBSPriv.Buffers[b].Channels;
-
-			for (int32 c = 0; c < Channels.Num(); ++c)
-			{
-				EMeshBufferSemantic Sem = Channels[c].Semantic;
-				if (Sem != MBS_TEXCOORDS)
-				{
-					continue;
-				}
-
-				int32 SemIndex = Channels[c].SemanticIndex;
-				if (SemIndex != LayoutIndex)
-				{
-					continue;
-				}
-
-				UntypedMeshBufferIteratorConst It(Base->GetVertexBuffers(), Sem, SemIndex);
-				for (uint32 V = 0; V < VertexCount; ++V)
-				{
-					// \TODO: This could be optimized.
-					FVector2f UV = It.GetAsVec2f();
-
-					// \TODO: This could also be optimized
-					FVector4f Color = Mask->Sample(UV);
-
-					VertexClipped[V] = Color[0] >= 0.5f;
-
-					++It;
-				}
-
-				break;
-			}
-		}
-	}
-
-
-	void MeshLayoutMaskClassifyVertices(TArray<uint8>& VertexClipped, const Mesh* Base, const Layout* Mask, const uint8 LayoutIndex)
-	{
-		using namespace UE::Geometry;
-
-		MUTABLE_CPUPROFILER_SCOPE(MeshUVMaskClassifyVertices);
-
-		uint32 VertexCount = Base->GetVertexCount();
-
-		// Stores whether each vertex in the original mesh in the clip mesh volume
-		VertexClipped.SetNumUninitialized(VertexCount, EAllowShrinking::No);
-		FMemory::Memzero(VertexClipped.GetData(), VertexClipped.Num());
-
-		// Now go through all vertices in the mesh and record whether they are inside or outside of the ClipMesh
-		const FMeshBufferSet& MBSPriv = Base->GetVertexBuffers();
-		for (int32 b = 0; b < MBSPriv.Buffers.Num(); ++b)
-		{
-			const TArray<mu::FMeshBufferChannel>& Channels = MBSPriv.Buffers[b].Channels;
-
-			for (int32 c = 0; c < Channels.Num(); ++c)
-			{
-				EMeshBufferSemantic Sem = Channels[c].Semantic;
-				if (Sem != MBS_TEXCOORDS)
-				{
-					continue;
-				}
-
-				int32 SemIndex = Channels[c].SemanticIndex;
-				if (SemIndex != LayoutIndex)
-				{
-					continue;
-				}
-
-				UntypedMeshBufferIteratorConst It(Base->GetVertexBuffers(), Sem, SemIndex);
-				for (uint32 V = 0; V < VertexCount; ++V)
-				{
-					// \TODO: This could be optimized.
-					FVector2f UV = It.GetAsVec2f();
-
-					FVector2f Cell = UV * FVector2f(Mask->Size.X, Mask->Size.Y);
-
-					// \TODO: This could also be optimized
-					for (const FLayoutBlock& Block : Mask->Blocks)
-					{
-						if (
-							float(Block.Min.X) <= Cell.X && float(Block.Min.Y) <= Cell.Y
-							&&
-							float(Block.Min.X + Block.Size.X) >= Cell.X && float(Block.Min.Y + Block.Size.Y) >= Cell.Y
-							)
-						{
-							VertexClipped[V] = true; 
-							break;
-						}
-					}
-
-					++It;
-				}
-
-				break;
-			}
-		}
-	}
-
-
-	/** Make a mask with the indices of the vertices with 0 in the IncludedVertices array. */
-	void CreateMask(Mesh* Result, const Mesh* Base, const TArray<uint8>& IncludedVertices)
-	{
-		int32 MaskVertexCount = 0;
-		for (uint8 b : IncludedVertices)
-		{
-			if (!b)
-			{
-				++MaskVertexCount;
-			}
-		}
-
-		Result->GetVertexBuffers().SetElementCount(MaskVertexCount);
-		Result->GetVertexBuffers().SetBufferCount(1);
-		Result->MeshIDPrefix = Base->MeshIDPrefix;
-
-		EMeshBufferSemantic Semantic = MBS_VERTEXINDEX;
-		int32 SemanticIndex = 0;
-		int32 Components = 1;
-		int32 Offsets = 0;
-
-		bool bMakeRelativeIds = !Base->AreVertexIdsExplicit();
-		if (bMakeRelativeIds)
-		{
-			EMeshBufferFormat Format = MBF_UINT32;
-			Result->GetVertexBuffers().SetBuffer( 0, sizeof(uint32), 1, &Semantic, &SemanticIndex, &Format, &Components, &Offsets );
-
-			// Fill the buffer
-			uint32* Data = reinterpret_cast<uint32*>(Result->GetVertexBuffers().GetBufferData(0));
-			MeshVertexIdIteratorConst ItBase(Base);
-			for (int32 v = 0; v < IncludedVertices.Num(); ++v)
-			{
-				if (!IncludedVertices[v])
-				{
-					uint64 ID = ItBase.Get();
-					*Data = uint32(ID & 0xffffffff);
-					++Data;
-				}
-				++ItBase;
-			}
-		}
-		else
-		{
-			EMeshBufferFormat Format = MBF_UINT64;
-			Result->GetVertexBuffers().SetBuffer( 0, sizeof(uint64), 1, &Semantic, &SemanticIndex, &Format, &Components, &Offsets );
-
-			// Fill the buffer
-			uint64* Data = reinterpret_cast<uint64*>( Result->GetVertexBuffers().GetBufferData(0) );
-			MeshVertexIdIteratorConst ItBase(Base);
-			for (int32 v = 0; v < IncludedVertices.Num(); ++v)
-			{
-				if (!IncludedVertices[v])
-				{
-					*Data = ItBase.Get();
-					++Data;
-				}
-				++ItBase;
-			}
-		}
-	}
-
-}} // namespace mu::anonymous
-
-
-namespace mu
-{
-
     void MeshClipWithMesh(Mesh* Result, const Mesh* pBase, const Mesh* pClipMesh, bool& bOutSuccess)
     {
         MUTABLE_CPUPROFILER_SCOPE(MeshClipWithMesh);
@@ -703,7 +699,7 @@ namespace mu
 
 		Result->CopyFrom(*pBase);
 
-        TArray<uint8> VertexInClipMesh;  // Stores whether each vertex in the original mesh in in the clip mesh volume
+        TBitArray<> VertexInClipMesh;  // Stores whether each vertex in the original mesh is in the clip mesh volume
         MeshClipMeshClassifyVertices(VertexInClipMesh, pBase, pClipMesh);
 
         // Now remove all the faces from the result mesh that have all the vertices outside the clip volume
@@ -757,7 +753,7 @@ namespace mu
 			return;
         }
 
-        TArray<uint8> VertexInClipMesh;  // Stores whether each vertex in the original mesh in in the clip mesh volume
+        TBitArray<> VertexInClipMesh;  // Stores whether each vertex in the original mesh in in the clip mesh volume
         MeshClipMeshClassifyVertices( VertexInClipMesh, pBase, pClipMesh );
 
         // We only remove vertices if all their faces are clipped
@@ -800,8 +796,8 @@ namespace mu
 
 		bOutSuccess = true;
 
-		// Stores whether each vertex in the original mesh in in the clip mesh volume
-		TArray<uint8> VertexClipped; 
+		// Stores whether each vertex in the original mesh is in the clip mesh volume
+		TBitArray<> VertexClipped; 
 
 		MeshUVMaskClassifyVertices(VertexClipped, BaseForUVs, Mask, LayoutIndex);
 
@@ -845,8 +841,8 @@ namespace mu
 
 		bOutSuccess = true;
 
-		// Stores whether each vertex in the original mesh in in the clip mesh volume
-		TArray<uint8> VertexClipped;
+		// Stores whether each vertex in the original mesh is in the clip mesh volume
+		TBitArray<> VertexClipped;
 
 		MeshLayoutMaskClassifyVertices(VertexClipped, BaseForUVs, Mask, LayoutIndex);
 

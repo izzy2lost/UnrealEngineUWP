@@ -17,7 +17,8 @@ enum class EMutableParameterType : uint8
 	Float		UMETA(DisplayName = "Float"),
 	Color		UMETA(DisplayName = "Color"),
 	Projector	UMETA(DisplayName = "Projector"),
-	Texture		UMETA(DisplayName = "Texture")
+	Texture		UMETA(DisplayName = "Texture"),
+	Transform	UMETA(DisplayName = "Transform"),
 };
 
 
@@ -214,6 +215,34 @@ inline uint32 GetTypeHash(const FCustomizableObjectVectorParameterValue& Key)
 
 	return Hash;
 }
+
+
+USTRUCT(BlueprintType)
+struct FCustomizableObjectTransformParameterValue
+{
+	GENERATED_USTRUCT_BODY()
+
+	inline static const FTransform DEFAULT_PARAMETER_VALUE = FTransform::Identity;
+	
+	UPROPERTY(Category = CustomizableObjectTransformParameterValue, VisibleAnywhere)
+	FString ParameterName;
+
+	UPROPERTY(Category = CustomizableObjectTransformParameterValue, VisibleAnywhere)
+	FTransform ParameterValue = FTransform::Identity;
+
+	UPROPERTY(Category = CustomizableObjectTransformParameterValue, VisibleAnywhere)
+	FGuid Id;
+};
+
+
+inline uint32 GetTypeHash(const FCustomizableObjectTransformParameterValue& Key)
+{
+	uint32 Hash = GetTypeHash(Key.ParameterName);
+	Hash = HashCombine(Hash, GetTypeHash(Key.ParameterValue));
+
+	return Hash;
+}
+
 
 
 UENUM()

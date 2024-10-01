@@ -44,6 +44,11 @@ FDescriptorHash::FDescriptorHash(const FCustomizableObjectInstanceDescriptor& De
 		Hash = HashCombine(Hash, GetTypeHash(Value));
 	}
 	
+	for (const FCustomizableObjectTransformParameterValue& Value : Descriptor.TransformParameters)
+	{
+		Hash = HashCombine(Hash, GetTypeHash(Value));
+	}
+
 	Hash = HashCombine(Hash, GetTypeHash(Descriptor.State));
 	Hash = HashCombine(Hash, GetTypeHash(Descriptor.GetBuildParameterRelevancy()));
 	

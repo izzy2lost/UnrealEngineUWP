@@ -1600,6 +1600,12 @@ void UCustomizableObjectPrivate::UpdateParameterPropertiesFromModel(const TShare
 				break;
 			}
 
+			case mu::PARAMETER_TYPE::T_MATRIX:
+			{
+				Data.Type = EMutableParameterType::Transform;
+				break;
+			}
+				
 			case mu::PARAMETER_TYPE::T_IMAGE:
 			{
 				Data.Type = EMutableParameterType::Texture;
@@ -1905,6 +1911,28 @@ FLinearColor UCustomizableObject::GetColorParameterDefaultValue(const FString& I
 	Model->GetColourDefaultValue(ParameterIndex, &Value.R, &Value.G, &Value.B, &Value.A);
 
 	return Value;
+}
+
+
+FTransform UCustomizableObject::GetTransformParameterDefaultValue(const FString& InParameterName) const
+{
+	const int32 ParameterIndex = FindParameter(InParameterName);
+	if (ParameterIndex == INDEX_NONE)
+	{
+		UE_LOG(LogMutable, Error, TEXT("Tried to access the default value of the nonexistent color parameter [%s] in the CustomizableObject [%s]."), *InParameterName, *GetName());
+		return FCustomizableObjectTransformParameterValue::DEFAULT_PARAMETER_VALUE;
+	}
+
+	const TSharedPtr<const mu::Model>& Model = GetPrivate()->GetModel();
+	if (!Model)
+	{
+		checkNoEntry();
+		return FCustomizableObjectTransformParameterValue::DEFAULT_PARAMETER_VALUE;
+	}
+	
+	const FMatrix44f Matrix = Model->GetMatrixDefaultValue(ParameterIndex);
+
+	return FTransform(FMatrix(Matrix));
 }
 
 

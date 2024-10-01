@@ -98,6 +98,8 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectInstanceDescriptor
 
 	const TArray<FCustomizableObjectProjectorParameterValue>& GetProjectorParameters() const;
 	
+	const TArray<FCustomizableObjectTransformParameterValue>& GetTransformParameters() const;
+	
 	/** Return true if there are any parameters. */
 	bool HasAnyParameters() const;
 
@@ -127,6 +129,12 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectInstanceDescriptor
 
 	/** Sets the color value "ColorValue" of a color parameter with index "ColorParamIndex". */
 	void SetColorParameterSelectedOption(const FString& ColorParamName, const FLinearColor& ColorValue);
+
+	/** Gets the value of a transform parameter with name "TransformParamName". */
+	FTransform GetTransformParameterSelectedOption(const FString& TransformParamName) const;
+
+	/** Sets the transform value "TransformValue" of a transform parameter with name "TransformParamName". */
+	void SetTransformParameterSelectedOption(const FString& TransformParamName, const FTransform& TransformValue);
 
 	/** Gets the value of the bool parameter with name "BoolParamName". */
 	bool GetBoolParameterSelectedOption(const FString& BoolParamName) const;
@@ -318,6 +326,9 @@ private:
 	
 	UPROPERTY()
 	TArray<FCustomizableObjectProjectorParameterValue> ProjectorParameters;
+
+	UPROPERTY()
+	TArray<FCustomizableObjectTransformParameterValue> TransformParameters;
 
 	/** Mutable parameters optimization state. Transient UProperty to make it transactable. */
 	UPROPERTY(Transient)

@@ -208,7 +208,7 @@ public:
 	virtual void HideGizmoProjectorParameter() override;
 	virtual void ShowGizmoClipMorph(UCustomizableObjectNodeModifierClipMorph& Node) override;
 	virtual void HideGizmoClipMorph() override;
-	virtual void ShowGizmoClipMesh(UCustomizableObjectNodeModifierClipWithMesh& Node) override;
+	virtual void ShowGizmoClipMesh(UCustomizableObjectNode& Node, FTransform* Transform, const UEdGraphPin& MeshPin) override;
 	virtual void HideGizmoClipMesh() override;
 	virtual void ShowGizmoLight(ULightComponent& SelectedLight) override;
 	virtual void HideGizmoLight() override;

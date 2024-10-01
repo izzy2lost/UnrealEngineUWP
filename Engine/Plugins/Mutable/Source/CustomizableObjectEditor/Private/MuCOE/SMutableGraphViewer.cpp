@@ -80,6 +80,7 @@
 #include "MuT/NodeImageInvertPrivate.h"
 #include "MuT/NodeImageSwizzlePrivate.h"
 #include "MuT/NodeImageMultiLayerPrivate.h"
+#include "MuT/NodeModifierMeshTransformInMesh.h"
 #include "Widgets/MutableExpanderArrow.h"
 
 class FExtender;
@@ -496,6 +497,13 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 		mu::NodeModifierMeshClipWithUVMask* ModifierMeshClipWithUVMaskVar = StaticCast<mu::NodeModifierMeshClipWithUVMask*>(ParentNode);
 		AddChildFunc(ModifierMeshClipWithUVMaskVar->ClipMask.get(), FString::Printf(TEXT("CLIP MASK")));
 		AddChildFunc(ModifierMeshClipWithUVMaskVar->ClipLayout.get(), FString::Printf(TEXT("CLIP LAYOUT")));
+	}
+
+	else if (ParentNode->GetType() == mu::NodeModifierMeshTransformInMesh::GetStaticType())
+	{
+		mu::NodeModifierMeshTransformInMesh* ModifierMeshTransformInMeshVar = StaticCast<mu::NodeModifierMeshTransformInMesh*>(ParentNode);
+		AddChildFunc(ModifierMeshTransformInMeshVar->BoundingMesh.get(), FString::Printf(TEXT("BOUNDING MESH")));
+		AddChildFunc(ModifierMeshTransformInMeshVar->MatrixNode.get(), FString::Printf(TEXT("MESH TRANSFORM")));
 	}
 
 	else if (ParentNode->GetType() == mu::NodeImageSwitch::GetStaticType())

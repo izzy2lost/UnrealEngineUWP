@@ -2,6 +2,7 @@
 
 #include "MuR/CodeRunner.h"
 
+#include "OpMeshTransformWithMesh.h"
 #include "GenericPlatform/GenericPlatformMath.h"
 #include "HAL/UnrealMemory.h"
 #include "Logging/LogCategory.h"
@@ -3080,6 +3081,67 @@ namespace mu
 			break;
 		}
 
+        case OP_TYPE::ME_TRANSFORMWITHMESH:
+		{
+			OP::MeshTransformWithinMeshArgs args = Program.GetOpArgs<OP::MeshTransformWithinMeshArgs>(item.At);
+			switch (item.Stage)
+			{
+			case 0:
+			{
+				if (args.sourceMesh)
+				{
+					AddOp(FScheduledOp(item.At, item, 1),
+						FScheduledOp(args.sourceMesh, item),
+						FScheduledOp(args.boundingMesh, item),
+						FScheduledOp(args.matrix, item));
+				}
+				else
+				{
+					StoreMesh(item, nullptr);
+				}
+				break;
+			}
+			case 1:
+			{
+				MUTABLE_CPUPROFILER_SCOPE(ME_TRANSFORMWITHMESH_1)
+            
+				Ptr<const Mesh> SourceMesh = LoadMesh(FCacheAddress(args.sourceMesh,item));
+				Ptr<const Mesh> BoundingMesh = LoadMesh(FCacheAddress(args.boundingMesh, item));
+				const FMatrix44f& Transform = LoadMatrix(FCacheAddress(args.matrix, item));
+
+				if (SourceMesh)
+				{
+					Ptr<Mesh> Result = CreateMesh(SourceMesh->GetDataSize());
+
+					bool bOutSuccess = false;
+					MeshTransformWithMesh(Result.get(), SourceMesh.get(), BoundingMesh.get(), Transform, bOutSuccess);
+					Release(BoundingMesh);
+
+					if (!bOutSuccess)
+					{
+						Release(Result);
+						StoreMesh(item, SourceMesh);
+					}
+					else
+					{
+						Release(SourceMesh);
+						StoreMesh(item, Result);
+					}
+				}
+				else
+				{
+					Release(BoundingMesh);
+					StoreMesh(item, SourceMesh);
+				}
+				break;
+			}
+
+			default:
+				check(false);
+			}
+			break;
+		}
+
         default:
             if (type!=OP_TYPE::NONE)
             {
@@ -5857,6 +5919,36 @@ namespace mu
         }
     }
 
+    //---------------------------------------------------------------------------------------------
+    void CodeRunner::RunCode_Matrix(const FScheduledOp& item, const Parameters* pParams, const Model* pModel )
+    {
+		MUTABLE_CPUPROFILER_SCOPE(RunCode_Transform);
+
+		const FProgram& Program = m_pModel->GetPrivate()->m_program;
+
+		OP_TYPE type = Program.GetOpType(item.At);
+
+		switch ( type )
+		{
+		case OP_TYPE::MA_CONSTANT:
+			{
+				OP::MatrixConstantArgs args = Program.GetOpArgs<OP::MatrixConstantArgs>(item.At);
+				StoreMatrix( item, Program.m_constantMatrices[args.value] );
+				break;
+			}
+
+		case OP_TYPE::MA_PARAMETER:
+			{
+				OP::ParameterArgs args = Program.GetOpArgs<OP::ParameterArgs>(item.At);
+				Ptr<RangeIndex> index = BuildCurrentOpRangeIndex( item, pParams, pModel, args.variable );
+				FMatrix44f Value;
+				pParams->GetMatrixValue( args.variable, Value, index );
+				StoreMatrix( item, Value );
+				break;
+			}
+		}
+    }
+
 
     //---------------------------------------------------------------------------------------------
     void CodeRunner::RunCode_Layout(const FScheduledOp& item, const Model* pModel )
@@ -6132,6 +6224,10 @@ namespace mu
 				RunCode_Colour(item, pParams, pModel);
 				break;
 
+			case DT_MATRIX:
+				RunCode_Matrix(item, pParams, pModel);
+				break;
+				
 			default:
 				check(false);
 				break;

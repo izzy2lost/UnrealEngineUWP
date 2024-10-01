@@ -14,6 +14,7 @@
 #include "ScopedTransaction.h"
 #include "Serialization/BufferArchive.h"
 #include "Toolkits/ToolkitManager.h"
+#include "Math/Transform.h"
 
 #include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "MuCO/CustomizableObject.h"
@@ -33,7 +34,10 @@
 #include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Input/SSlider.h"
 #include "Widgets/Input/STextComboBox.h"
+#include "Widgets/Input/SRotatorInputBox.h"
+#include "Widgets/Input/SVectorInputBox.h"
 #include "Widgets/Layout/SExpandableArea.h"
+#include "Widgets/Layout/SGridPanel.h"
 #include "Widgets/Layout/SUniformGridPanel.h"
 
 class UObject;
@@ -946,6 +950,10 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateParameterWidget(const 
 		{
 			return GenerateTextureWidget(CustomizableObject, ParamName);
 		}
+		case EMutableParameterType::Transform:
+		{
+			return GenerateTransformWidget(ParamName);
+		}
 		case EMutableParameterType::Projector:
 		{
 			bool bIsParamMultidimensional = CustomInstance->GetCustomizableObject()->IsParameterMultidimensional(ParamIndexInObject);
@@ -1417,6 +1425,203 @@ void FCustomizableInstanceDetails::OnSetColorFromColorPicker(FLinearColor NewCol
 	CustomInstance->Modify();
 	CustomInstance->SetColorParameterSelectedOption(PickerParamName, NewColor);
 	UpdateInstance();
+}
+
+// TRANSFORM PARAMETERS -----------------------------------------------------------------------------------------------------------------
+
+TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateTransformWidget(const FString& ParamName)
+{
+	auto OnLocationChanged = [this, ParamName](double Value, EAxis::Type Axis)
+	{
+		FTransform Transform = GetTransformParameterValue(ParamName);
+		FVector Location = Transform.GetLocation();
+		if (!FMath::IsNearlyEqualByULP(Value, Location.GetComponentForAxis(Axis)))
+		{
+			Location.SetComponentForAxis(Axis, Value);
+			Transform.SetLocation(Location);
+			OnTransformParameterChanged(Transform, ParamName);
+		}
+	};
+	auto OnLocationCommitted = [this, ParamName](double Value, ETextCommit::Type Type, EAxis::Type Axis)
+	{
+		FTransform Transform = GetTransformParameterValue(ParamName);
+		FVector Location = Transform.GetLocation();
+		if (!FMath::IsNearlyEqualByULP(Value, Location.GetComponentForAxis(Axis)))
+		{
+			Location.SetComponentForAxis(Axis, Value);
+			Transform.SetLocation(Location);
+			OnTransformParameterCommitted(Transform, Type, ParamName);
+		}
+	};
+
+	auto OnRotationChanged = [this, ParamName](double Value, EAxis::Type Axis)
+	{
+		FTransform Transform = GetTransformParameterValue(ParamName);
+		FRotator Rotation = Transform.Rotator();
+		Rotation.SetComponentForAxis(Axis, Value);
+		
+		if (!Transform.Rotator().Equals(Rotation))
+		{
+			Transform.SetRotation(Rotation.Quaternion());
+			OnTransformParameterChanged(Transform, ParamName);
+		}
+	};
+	auto OnRotationCommitted = [this, ParamName](double Value, ETextCommit::Type Type, EAxis::Type Axis)
+	{
+		FTransform Transform = GetTransformParameterValue(ParamName);
+		FRotator Rotation = Transform.Rotator();
+		Rotation.SetComponentForAxis(Axis, Value);
+		
+		if (!Transform.Rotator().Equals(Rotation))
+		{
+			Transform.SetRotation(Rotation.Quaternion());
+			OnTransformParameterCommitted(Transform, Type, ParamName);
+		}
+	};
+	
+	auto OnScaleChanged = [this, ParamName](double Value, EAxis::Type Axis)
+	{
+		FTransform Transform = GetTransformParameterValue(ParamName);
+		FVector Scale = Transform.GetScale3D();
+		if (!FMath::IsNearlyEqualByULP(Value, Scale.GetComponentForAxis(Axis)))
+		{
+			Scale.SetComponentForAxis(Axis, Value);
+			Transform.SetScale3D(Scale);
+			OnTransformParameterChanged(Transform, ParamName);
+		}
+	};
+	auto OnScaleCommitted = [this, ParamName](double Value, ETextCommit::Type Type, EAxis::Type Axis)
+	{
+		FTransform Transform = GetTransformParameterValue(ParamName);
+		FVector Scale = Transform.GetScale3D();
+		if (!FMath::IsNearlyEqualByULP(Value, Scale.GetComponentForAxis(Axis)))
+		{
+			Scale.SetComponentForAxis(Axis, Value);
+			Transform.SetScale3D(Scale);
+			OnTransformParameterCommitted(Transform, Type, ParamName);
+		}
+	};
+	
+	
+	return SNew(SGridPanel)
+		.FillColumn(1, 1)
+		+ SGridPanel::Slot(0, 0)
+		.HAlign(HAlign_Right)
+		.VAlign(VAlign_Center)
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("Transform_Location", "Location"))
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+		]
+		+ SGridPanel::Slot(1, 0)
+		.Padding(4.0f, 0.0f, 0.0f, 0.0f)
+		.HAlign(HAlign_Fill)
+		[
+			SNew(SNumericVectorInputBox<double>)
+			.bColorAxisLabels(true)
+			.AllowSpin(true)
+			.X_Lambda([this, ParamName]() { return GetTransformParameterValue(ParamName).GetLocation().X; })
+			.Y_Lambda([this, ParamName]() { return GetTransformParameterValue(ParamName).GetLocation().Y; })
+			.Z_Lambda([this, ParamName]() { return GetTransformParameterValue(ParamName).GetLocation().Z; })
+			.OnXChanged_Lambda([OnLocationChanged](float Value) { OnLocationChanged(Value, EAxis::X); })
+			.OnYChanged_Lambda([OnLocationChanged](float Value) { OnLocationChanged(Value, EAxis::Y); })
+			.OnZChanged_Lambda([OnLocationChanged](float Value) { OnLocationChanged(Value, EAxis::Z); })
+			.OnXCommitted_Lambda([OnLocationCommitted](float Value, ETextCommit::Type Type) { OnLocationCommitted(Value, Type, EAxis::X); })
+			.OnYCommitted_Lambda([OnLocationCommitted](float Value, ETextCommit::Type Type) { OnLocationCommitted(Value, Type, EAxis::Y); })
+			.OnZCommitted_Lambda([OnLocationCommitted](float Value, ETextCommit::Type Type) { OnLocationCommitted(Value, Type, EAxis::Z); })
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+		]
+		
+		+ SGridPanel::Slot(0, 1)
+		.HAlign(EHorizontalAlignment::HAlign_Right)
+		.VAlign(VAlign_Center)
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("Transform_Rotation", "Rotation"))
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+		]
+		+ SGridPanel::Slot(1, 1)
+		.HAlign(HAlign_Fill)
+		.Padding(4.0f, 0.0f, 0.0f, 0.0f)
+		[
+			SNew(SNumericRotatorInputBox<double>)
+			.bColorAxisLabels(true)
+			.AllowSpin(true)
+			.Roll_Lambda([this, ParamName]() { return GetTransformParameterValue(ParamName).Rotator().Roll; })
+			.Pitch_Lambda([this, ParamName]() { return GetTransformParameterValue(ParamName).Rotator().Pitch; })
+			.Yaw_Lambda([this, ParamName]() { return GetTransformParameterValue(ParamName).Rotator().Yaw; })
+			.OnRollChanged_Lambda([OnRotationChanged](float Value) { OnRotationChanged(Value, EAxis::X); })
+			.OnPitchChanged_Lambda([OnRotationChanged](float Value) { OnRotationChanged(Value, EAxis::Y); })
+			.OnYawChanged_Lambda([OnRotationChanged](float Value) { OnRotationChanged(Value, EAxis::Z); })
+			.OnRollCommitted_Lambda([OnRotationCommitted](float Value, ETextCommit::Type Type) { OnRotationCommitted(Value, Type, EAxis::X); })
+			.OnPitchCommitted_Lambda([OnRotationCommitted](float Value, ETextCommit::Type Type) { OnRotationCommitted(Value, Type, EAxis::Y); })
+			.OnYawCommitted_Lambda([OnRotationCommitted](float Value, ETextCommit::Type Type) { OnRotationCommitted(Value, Type, EAxis::Z); })
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+		]
+
+		+ SGridPanel::Slot(0, 2)
+		.HAlign(EHorizontalAlignment::HAlign_Right)
+		.VAlign(VAlign_Center)
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("Transform_Scale", "Scale"))
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+		]
+		+ SGridPanel::Slot(1, 2)
+		.HAlign(HAlign_Fill)
+		.Padding(4.0f, 0.0f, 0.0f, 0.0f)
+		[
+			SNew(SNumericVectorInputBox<double>)
+			.bColorAxisLabels(true)
+			.AllowSpin(false)
+			.X_Lambda([this, ParamName]() { return GetTransformParameterValue(ParamName).GetScale3D().X; })
+			.Y_Lambda([this, ParamName]() { return GetTransformParameterValue(ParamName).GetScale3D().Y; })
+			.Z_Lambda([this, ParamName]() { return GetTransformParameterValue(ParamName).GetScale3D().Z; })
+
+			.OnXChanged_Lambda([OnScaleChanged](float Value) { OnScaleChanged(Value, EAxis::X); })
+			.OnYChanged_Lambda([OnScaleChanged](float Value) { OnScaleChanged(Value, EAxis::Y); })
+			.OnZChanged_Lambda([OnScaleChanged](float Value) { OnScaleChanged(Value, EAxis::Z); })
+			.OnXCommitted_Lambda([OnScaleCommitted](float Value, ETextCommit::Type Type) { OnScaleCommitted(Value, Type, EAxis::X); })
+			.OnYCommitted_Lambda([OnScaleCommitted](float Value, ETextCommit::Type Type) { OnScaleCommitted(Value, Type, EAxis::Y); })
+			.OnZCommitted_Lambda([OnScaleCommitted](float Value, ETextCommit::Type Type) { OnScaleCommitted(Value, Type, EAxis::Z); })
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+		];
+}
+
+FTransform FCustomizableInstanceDetails::GetTransformParameterValue(const FString ParamName) const
+{
+	return CustomInstance->GetTransformParameterSelectedOption(ParamName);
+}
+
+void FCustomizableInstanceDetails::OnTransformParameterChanged(FTransform NewValue, const FString ParamName)
+{
+	FTransform OldValue = CustomInstance->GetTransformParameterSelectedOption(ParamName);
+
+	if (!OldValue.Equals(NewValue))
+	{
+		//No transaction is needed here as this is called when the transaction has already started
+		CustomInstance->SetTransformParameterSelectedOption(ParamName, NewValue);
+		UpdateInstance();
+	}
+}
+
+void FCustomizableInstanceDetails::OnTransformParameterCommitted(FTransform NewTransform, ETextCommit::Type Type, const FString ParamName)
+{
+	if (Type == ETextCommit::OnEnter)
+	{
+		if (!Transaction)
+		{
+			BeginTransaction(FText::Format(LOCTEXT("OnTransformParameterCommited", "Set Transform Parameter: {0}"), FText::FromString(ParamName)));
+		}
+
+		CustomInstance->SetTransformParameterSelectedOption(ParamName, NewTransform);
+		UpdateInstance();
+		EndTransaction();
+
+		// Non-continuous change: collect garbage.
+		GEngine->ForceGarbageCollection();
+	}
+
 }
 
 

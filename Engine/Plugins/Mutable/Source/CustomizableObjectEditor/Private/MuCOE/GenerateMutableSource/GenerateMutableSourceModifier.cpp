@@ -10,6 +10,7 @@
 #include "MuCOE/GenerateMutableSource/GenerateMutableSourceSurface.h"
 #include "MuCOE/GenerateMutableSource/GenerateMutableSourceLayout.h"
 #include "MuCOE/GenerateMutableSource/GenerateMutableSourceGroupProjector.h"
+#include "MuCOE/GenerateMutableSource/GenerateMutableSourceTransform.h"
 #include "MuCOE/GraphTraversal.h"
 #include "MuCOE/MutableUtils.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeModifierClipDeform.h"
@@ -24,11 +25,13 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeStaticMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeFloatParameter.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeFloatConstant.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierTransformInMesh.h"
 #include "MuR/Mesh.h"
 #include "MuT/NodeMeshTransform.h"
 #include "MuT/NodeModifierMeshClipDeform.h"
 #include "MuT/NodeModifierMeshClipMorphPlane.h"
 #include "MuT/NodeModifierMeshClipWithUVMask.h"
+#include "MuT/NodeModifierMeshTransformInMesh.h"
 #include "MuT/NodeModifierSurfaceEdit.h"
 #include "MuT/NodeMeshConstant.h"
 #include "MuT/NodeMeshFragment.h"
@@ -600,6 +603,77 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 				SurfNode->MorphFactor = FactorNode;
 			}
 		}
+
+		GenerationContext.MeshGenerationFlags.Pop();
+	}
+
+	else if (const UCustomizableObjectNodeModifierTransformInMesh* TypedNodeTransformMesh = Cast<UCustomizableObjectNodeModifierTransformInMesh>(Node))
+	{
+		const EMutableMeshConversionFlags ModifiersMeshFlags =
+			EMutableMeshConversionFlags::IgnoreSkinning |
+			EMutableMeshConversionFlags::IgnorePhysics;
+		GenerationContext.MeshGenerationFlags.Push(ModifiersMeshFlags);
+
+		// MeshTransformInMesh can be connected to multiple objects, so the compiled NodeModifierMeshTransformInMesh
+		// needs to be different for each object. If it were added to the Generated cache, all the objects would get the same.
+		bDoNotAddToGeneratedCache = true;
+
+		mu::Ptr<mu::NodeModifierMeshTransformInMesh> TransformNode = new mu::NodeModifierMeshTransformInMesh();
+		TransformNode->SetMessageContext(Node);
+		Result = TransformNode;
+
+		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeTransformMesh->TransformPin()))
+		{
+			TransformNode->MatrixNode = GenerateMutableSourceTransform(ConnectedPin, GenerationContext);
+		}
+
+		// If no bounding mesh is provided, we transform the entire mesh.
+		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeTransformMesh->BoundingMeshPin()))
+		{
+			FMutableGraphMeshGenerationData DummyMeshData;
+
+			mu::NodeMeshPtr BoundingMesh = GenerateMutableSourceMesh(ConnectedPin, GenerationContext, DummyMeshData, false, true);
+
+			const FPinDataValue* PinData = GenerationContext.PinData.Find(ConnectedPin);
+			for (const FMeshData& MeshData : PinData->MeshesData)
+			{
+				bool bClosed = true;
+				if (const USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(MeshData.Mesh))
+				{
+					bClosed = IsMeshClosed(SkeletalMesh, MeshData.LOD, MeshData.MaterialIndex);
+				}
+				else if (const UStaticMesh* StaticMesh = Cast<UStaticMesh>(MeshData.Mesh))
+				{
+					bClosed = IsMeshClosed(StaticMesh, MeshData.LOD, MeshData.MaterialIndex);
+				}
+				else
+				{
+					// TODO: We support the bounding mesh not being constant. This message is not precise enough. It should say that it hasn't been 
+					// possible to check if the mesh is closed or not.
+					GenerationContext.Log(LOCTEXT("UnimplementedNode", "Node type not implemented yet."), MeshData.Node);
+				}
+
+				if (!bClosed)
+				{
+					FText ErrorMsg = FText::Format(LOCTEXT("Clipping mesh", "The bounding [{0}] not watertight (i.e. it does not fully enclose a volume)."), FText::FromName(MeshData.Mesh->GetFName()));
+					GenerationContext.Log(ErrorMsg, MeshData.Node, EMessageSeverity::Warning);
+				}
+			}
+
+			if (FMatrix Matrix = TypedNodeTransformMesh->BoundingMeshTransform.ToMatrixWithScale(); Matrix != FMatrix::Identity)
+			{
+				mu::NodeMeshTransformPtr TransformMesh = new mu::NodeMeshTransform();
+				TransformMesh->SetSource(BoundingMesh.get());
+
+				TransformMesh->SetTransform(FMatrix44f(Matrix));
+				BoundingMesh = TransformMesh;
+			}
+
+			TransformNode->BoundingMesh = BoundingMesh;
+		}
+
+		TransformNode->MultipleTagsPolicy = TypedNodeTransformMesh->MultipleTagPolicy;
+		TransformNode->RequiredTags = TypedNodeTransformMesh->RequiredTags;
 
 		GenerationContext.MeshGenerationFlags.Pop();
 	}

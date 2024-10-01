@@ -511,6 +511,7 @@ namespace mu
 		TMemoryTrackedArray<FProjector> ProjectorResults;
 		TMemoryTrackedArray<Ptr<const String>> StringResults;
 		TMemoryTrackedArray<Ptr<const ExtensionData>> ExtensionDataResults;
+		TMemoryTrackedArray<FMatrix44f> MatrixResults;
 
 		/** */
 		inline const ExecutionIndex& GetRangeIndex(uint32_t i)
@@ -567,6 +568,7 @@ namespace mu
 				InstanceResults.Add(nullptr);
 				ProjectorResults.Add(FProjector());
 				StringResults.Add(nullptr);
+				MatrixResults.Add(FMatrix44f());
 				ExtensionDataResults.Add(nullptr);
 			}
 		}
@@ -721,6 +723,16 @@ namespace mu
 
 			check(Data->DataType == DATATYPE::DT_COLOUR);
 			return ColorResults[Data->DataTypeIndex];
+		}
+
+		FMatrix44f GetMatrix(FCacheAddress at)
+		{
+			if (!at.At) return FMatrix44f::Identity;
+			const FOpExecutionData* Data = OpExecutionData.get_ptr(at);
+			if (!Data) return FMatrix44f::Identity;
+
+			check(Data->DataType == DATATYPE::DT_MATRIX);
+			return MatrixResults[Data->DataTypeIndex];
 		}
 
 		FProjector GetProjector(FCacheAddress at)
@@ -897,6 +909,26 @@ namespace mu
 			check(Data->DataTypeIndex != 0);
 		}
 
+		void SetMatrix(FCacheAddress at, const FMatrix44f& v)
+		{
+			check(at.At < OpExecutionData.size_code());
+			FOpExecutionData* Data = OpExecutionData.get_ptr(at);
+			check(Data->DataType == DATATYPE::DT_MATRIX || Data->DataType == DATATYPE::DT_NONE);
+			Data->DataType = DATATYPE::DT_MATRIX;
+			Data->IsValueValid = true;
+
+			if (!Data->DataTypeIndex)
+			{
+				Data->DataTypeIndex = MatrixResults.Num();
+				MatrixResults.Add(v);
+			}
+			else
+			{
+				MatrixResults[Data->DataTypeIndex] = v;
+			}
+			check(Data->DataTypeIndex != 0);
+		}
+		
 		void SetProjector(FCacheAddress at, const FProjector& v)
 		{
 			check(at.At < OpExecutionData.size_code());

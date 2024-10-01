@@ -12,14 +12,13 @@ class UCustomizableObject;
 class UCustomizableObjectInstance;
 class UProjectorParameter;
 class UCustomSettings;
-class UCustomizableObjectNodeModifierClipWithMesh;
+class UCustomizableObjectNode;
 class UCustomizableObjectNodeModifierClipMorph;
-class UCustomizableObjectNodeModifierClipWithMesh;
+class UEdGraphPin;
 class ULightComponent;
 class UPoseAsset;
 class UCustomizableObjectEditorProperties;
 class SCustomizableObjectEditorAdvancedPreviewSettings;
-
 
 /**
  * Public interface to Customizable Object Instance Editor
@@ -76,9 +75,8 @@ public:
 	 * Synchronizes all editor widgets so that the selection and the widgets is always consistent. */
 	virtual void HideGizmoClipMorph() {}
 	
-	/** Show the clipping mesh gizmo from the NodeMeshClipWithMesh.
-	 * Synchronizes all editor widgets so that the selection and the widgets is always consistent. */
-	virtual void ShowGizmoClipMesh(UCustomizableObjectNodeModifierClipWithMesh& ClipMeshNode) {}
+	/** Show the clipping mesh gizmo from a node that uses a transformable bounding mesh. */
+	virtual void ShowGizmoClipMesh(UCustomizableObjectNode& Node, FTransform* Transform, const UEdGraphPin& MeshPin) {}
 
 	/** Hide the clipping mesh gizmo from the NodeMeshClipWithMesh.
 	 * Synchronizes all editor widgets so that the selection and the widgets is always consistent. */

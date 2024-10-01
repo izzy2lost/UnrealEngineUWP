@@ -2,6 +2,7 @@
 
 #include "MuT/CodeGenerator.h"
 
+#include "ASTOpMeshTransformWithBoundingMesh.h"
 #include "Containers/Array.h"
 #include "Logging/LogCategory.h"
 #include "Logging/LogMacros.h"
@@ -58,6 +59,7 @@
 #include "MuT/NodeImageMipmap.h"
 #include "MuT/NodeImageMipmapPrivate.h"
 #include "MuT/NodeImageSwizzlePrivate.h"
+#include "MuT/NodeMatrixConstant.h"
 #include "MuT/NodeMesh.h"
 #include "MuT/NodeMeshClipMorphPlane.h"
 #include "MuT/NodeMeshClipWithMesh.h"
@@ -73,6 +75,7 @@
 #include "MuT/NodeModifierMeshClipMorphPlane.h"
 #include "MuT/NodeModifierMeshClipWithMesh.h"
 #include "MuT/NodeModifierMeshClipWithUVMask.h"
+#include "MuT/NodeModifierMeshTransformInMesh.h"
 #include "MuT/NodeModifierSurfaceEdit.h"
 #include "MuT/NodeObject.h"
 #include "MuT/NodeObjectGroupPrivate.h"
@@ -2410,6 +2413,64 @@ namespace mu
 				LastMeshOp = Op;
 			}
 		}
+		
+		// Process transform mesh within mesh modifiers.
+		for (const FirstPassGenerator::FModifier& m : Modifiers)
+		{
+			if (m.Node->GetType()== NodeModifierMeshTransformInMesh::GetStaticType())
+			{
+				const NodeModifierMeshTransformInMesh* TypedTransformNode = static_cast<const NodeModifierMeshTransformInMesh*>(m.Node);
+
+				// If a matrix node is not connected, the op won't do anything, so let's not create it at all.
+				if (TypedTransformNode->MatrixNode)
+				{
+					Ptr<ASTOpMeshTransformWithBoundingMesh> transformOp = new ASTOpMeshTransformWithBoundingMesh();
+					transformOp->source = LastMeshOp;
+
+					// Transform matrix.
+					if (TypedTransformNode->MatrixNode)
+					{
+						FMatrixGenerationResult ChildResult;
+						GenerateMatrix(ChildResult, Options, TypedTransformNode->MatrixNode);
+						transformOp->matrix = ChildResult.op;
+					}
+					
+					if (TypedTransformNode->BoundingMesh)
+					{
+						// Parameters
+						FMeshGenerationOptions MeshOptions;
+						MeshOptions.bLayouts = false;
+						MeshOptions.State = Options.State;
+
+						FMeshGenerationResult BoundingMeshResult;
+						GenerateMesh(MeshOptions, BoundingMeshResult, TypedTransformNode->BoundingMesh);
+						transformOp->boundingMesh = BoundingMeshResult.MeshOp;
+
+						if (!transformOp->boundingMesh)
+						{
+							ErrorLog->GetPrivate()->Add("Bounding mesh has not been generated", ELMT_ERROR, ErrorContext);
+							continue;
+						}
+					}
+
+					// Condition to apply the transform op
+					if (m.FinalCondition)
+					{
+						Ptr<ASTOpConditional> conditionalAd = new ASTOpConditional();
+						conditionalAd->type = OP_TYPE::ME_CONDITIONAL;
+						conditionalAd->no = LastMeshOp;
+						conditionalAd->yes = transformOp;
+						conditionalAd->condition = m.FinalCondition;
+						LastMeshOp = conditionalAd;
+					}
+					else
+					{
+						LastMeshOp = transformOp;
+					}
+				}
+			}
+		}
+		
 
 		return LastMeshOp;
 	}

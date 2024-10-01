@@ -115,6 +115,13 @@ private:
 	FReply OnColorBlockMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent, const FString ParamName);
 	void OnSetColorFromColorPicker(FLinearColor NewColor, const FString PickerParamName);
 
+	// Transform Parameters Functions
+	TSharedRef<SWidget> GenerateTransformWidget(const FString& ParamName);
+	FTransform GetTransformParameterValue(const FString ParamName) const;
+	void OnTransformParameterChanged(FTransform NewTransform, const FString ParamName);
+	void OnTransformParameterCommitted(FTransform NewTransform, ETextCommit::Type Type, const FString ParamName);
+
+
 	// Bool Parameters Functions
 	TSharedRef<SWidget> GenerateBoolWidget(const FString& ParamName);
 	ECheckBoxState GetBoolParameterValue(const FString ParamName) const;

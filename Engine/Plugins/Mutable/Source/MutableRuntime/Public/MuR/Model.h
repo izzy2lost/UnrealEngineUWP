@@ -133,6 +133,11 @@ namespace mu
         //! \param R,G,B Pointers to values where every resulting colour channel will be stored
     	void GetColourDefaultValue(int32 Index, float* R, float* G, float* B, float* A) const;
 
+		//! Return the default value of a colour parameter.
+		//! \pre The parameter specified by index is a T_FLOAT.
+        //! \param Index Index of the parameter from 0 to GetCount()-1
+    	FMatrix44f GetMatrixDefaultValue(int32 Index) const;
+
     	//! Return the default value of a projector parameter, as a 4x4 matrix. The matrix is supposed to be
 		//! a linear transform in column-major.
 		//! \pre The parameter specified by index is a T_PROJECTOR.

@@ -101,6 +101,9 @@ namespace mu
 	class NodeScalarVariation;
 	class NodeStringConstant;
 	class NodeStringParameter;
+	class NodeMatrix;
+	class NodeMatrixConstant;
+	class NodeMatrixParameter;
 	struct FObjectState;
 	struct FProgram;
 
@@ -762,6 +765,20 @@ namespace mu
 		void GenerateString(FStringGenerationResult&, const FGenericGenerationOptions&, const Ptr<const NodeString>&);
 		void GenerateString_Constant(FStringGenerationResult&, const FGenericGenerationOptions& Options, const Ptr<const NodeStringConstant>&);
 		void GenerateString_Parameter(FStringGenerationResult&, const FGenericGenerationOptions& Options, const Ptr<const NodeStringParameter>&);
+
+    	//-----------------------------------------------------------------------------------------
+    	// Transforms
+    	struct FMatrixGenerationResult
+    	{
+    		Ptr<ASTOp> op;
+    	};
+
+    	typedef TMap<FGeneratedCacheKey, FMatrixGenerationResult> FGeneratedMatrixMap;
+    	FGeneratedMatrixMap GeneratedMatrices;
+
+    	void GenerateMatrix(FMatrixGenerationResult&, const FGenericGenerationOptions&, const Ptr<const NodeMatrix>&);
+    	void GenerateMatrix_Constant(FMatrixGenerationResult&, const FGenericGenerationOptions&, const Ptr<const NodeMatrixConstant>&);
+    	void GenerateMatrix_Parameter(FMatrixGenerationResult&, const FGenericGenerationOptions&, const Ptr<const NodeMatrixParameter>&);
 
         //-----------------------------------------------------------------------------------------
         // Ranges

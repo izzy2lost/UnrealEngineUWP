@@ -62,6 +62,9 @@ namespace mu
         //! A text string.
         T_STRING,
 
+    	//! A 4x4 matrix.
+    	T_MATRIX,
+
         //! Utility enumeration value, not really a parameter type.
         T_COUNT
 
@@ -354,6 +357,18 @@ namespace mu
         //! \param value new value of the parameter
         //! \param pos Only for multidimensional parameters: relevant position to set in the ranges
         void SetStringValue( int index, const FString& Value, const Ptr<const RangeIndex>& pos = nullptr );
+
+		//! Return the value of a matrix parameter.
+		//! \pre The parameter specified by index is a T_MATRIX.
+		//! \param index Index of the parameter from 0 to GetCount()-1
+		//! \param pos Only for multidimensional parameters: relevant position to get in the ranges
+		void GetMatrixValue( int index, FMatrix44f& OutValue, const Ptr<const RangeIndex>& pos = nullptr) const;
+
+		//! If the parameter is of the matrix type, set its value.
+		//! \param index Index of the parameter from 0 to GetCount()-1
+		//! \param value new value of the parameter
+		//! \param pos Only for multidimensional parameters: relevant position to set in the ranges
+		void SetMatrixValue( int index, const FMatrix44f& Value, const Ptr<const RangeIndex>& pos = nullptr );
 
         //! Utility method to compare the values of a specific parameter with the values of another
         //! Parameters object. It returns false if type or values are different.

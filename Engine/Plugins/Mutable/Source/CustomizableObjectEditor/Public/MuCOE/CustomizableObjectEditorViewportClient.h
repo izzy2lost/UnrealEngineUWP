@@ -18,8 +18,8 @@ class FViewport;
 class ICustomizableObjectInstanceEditor;
 class UAnimationAsset;
 class UCustomizableObject;
+class UCustomizableObjectNode;
 class UCustomizableObjectNodeModifierClipMorph;
-class UCustomizableObjectNodeModifierClipWithMesh;
 class UCustomizableObjectNodeProjectorConstant;
 class UCustomizableObjectNodeProjectorParameter;
 class UDebugSkelMeshComponent;
@@ -188,7 +188,7 @@ public:
 	void HideGizmoClipMorph();
 	
 	/** Do not call directly. Use ICustomizableObjectEditor functions instead. */
-	void ShowGizmoClipMesh(UCustomizableObjectNodeModifierClipWithMesh& ClipMeshNode, UObject& ClipMesh, int32 LODIndex, int32 SectionIndex, int32 MaterialSlotIndex);
+	void ShowGizmoClipMesh(UCustomizableObjectNode& ClipMeshNode, FTransform* ClipMeshTransform, UObject& ClipMesh, int32 LODIndex, int32 SectionIndex, int32 MaterialSlotIndex);
 
 	/** Do not call directly. Use ICustomizableObjectEditor functions instead. */
 	void HideGizmoClipMesh();
@@ -355,7 +355,8 @@ private:
 	FVector ClipMorphYAxis;
 	float MorphLength;
 	FBoxSphereBounds MorphBounds;
-	UCustomizableObjectNodeModifierClipWithMesh* ClipMeshNode;
+	TObjectPtr<UObject> ClipMeshNode;
+	FTransform* ClipMeshTransform = nullptr;
 	TObjectPtr<UMaterial> ClipMeshMaterial;
 	UStaticMeshComponent* ClipMeshStaticMeshComp;
 	USkeletalMeshComponent* ClipMeshSkeletalMeshComp;

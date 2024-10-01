@@ -107,6 +107,7 @@ public:
 	static const FName PC_MaterialAsset;
 	static const FName PC_Wildcard;
 	static const FName PC_PoseAsset;
+	static const FName PC_Transform;
 
 	// Node categories
 	static const FText NC_Experimental;

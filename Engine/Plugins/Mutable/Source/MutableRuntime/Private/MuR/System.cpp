@@ -733,6 +733,7 @@ namespace mu
             case OP_TYPE::CO_PARAMETER:
             case OP_TYPE::PR_PARAMETER:
             case OP_TYPE::IM_PARAMETER:
+            case OP_TYPE::MA_PARAMETER:
             {
 				OP::ParameterArgs args = program.GetOpArgs<OP::ParameterArgs>(at);
 				OP::ADDRESS ParamIndex = args.variable;

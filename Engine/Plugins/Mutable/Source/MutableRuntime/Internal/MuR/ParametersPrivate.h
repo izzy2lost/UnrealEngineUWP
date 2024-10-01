@@ -255,9 +255,10 @@ namespace Private
 	using ParamProjectorType = Private::TIndirectObject<FProjector>;
 	using ParamImageType = FName;
 	using ParamStringType = Private::TIndirectObject<FString>;
+	using ParamMatrixType = Private::TIndirectObject<FMatrix44f>;
 	
 	using PARAMETER_VALUE = TVariant<
-            ParamBoolType, ParamIntType, ParamFloatType, ParamColorType, ParamProjectorType, ParamImageType, ParamStringType>;
+            ParamBoolType, ParamIntType, ParamFloatType, ParamColorType, ParamProjectorType, ParamImageType, ParamStringType, ParamMatrixType>;
 
     // static_assert to track PARAMETER_VALUE size changes. It is ok to change if needed.
     static_assert(sizeof(PARAMETER_VALUE) == 8*4, "PARAMETER_VALUE size has changed.");
