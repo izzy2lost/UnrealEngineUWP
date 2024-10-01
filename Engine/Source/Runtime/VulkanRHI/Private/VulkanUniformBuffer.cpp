@@ -207,7 +207,7 @@ FVulkanUniformBuffer::~FVulkanUniformBuffer()
 {
 	if (BindlessHandle.IsValid())
 	{
-		Device->GetBindlessDescriptorManager()->Unregister(BindlessHandle);
+		Device->GetDeferredDeletionQueue().EnqueueBindlessHandle(BindlessHandle);
 	}
 
 	Device->GetMemoryManager().FreeUniformBuffer(Allocation);
@@ -242,7 +242,7 @@ FRHIDescriptorHandle FVulkanUniformBuffer::GetBindlessHandle()
 	{
 		if (BindlessHandle.IsValid())
 		{
-			Device->GetBindlessDescriptorManager()->Unregister(BindlessHandle);
+			Device->GetDeferredDeletionQueue().EnqueueBindlessHandle(BindlessHandle);
 		}
 
 		BindlessHandle = Device->GetBindlessDescriptorManager()->ReserveDescriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
