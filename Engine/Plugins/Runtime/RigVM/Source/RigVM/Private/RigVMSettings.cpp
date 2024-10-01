@@ -17,8 +17,9 @@ URigVMEditorSettings::URigVMEditorSettings(const FObjectInitializer& ObjectIniti
 URigVMProjectSettings::URigVMProjectSettings(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	VariantTags.Emplace(TEXT("Outdated"), TEXT("Outdated"), LOCTEXT("OutdatedToolTip", "This item is outdated and should no longer be used."), FLinearColor::Red, true, true);
-	VariantTags.Emplace(TEXT("Stable"), TEXT("Stable"), LOCTEXT("StableToolTip", "This item is stable and ready to use."), FLinearColor::Green, true);
+	// Default tags are now added via Engine/Plugins/Runtime/RigVM/Config/Editor.ini
+	// to avoid external plugins overriding default tags when they only want to append new tags
+	// See UObject::LoadConfig for details
 }
 
 #undef LOCTEXT_NAMESPACE // RigVMSettings
