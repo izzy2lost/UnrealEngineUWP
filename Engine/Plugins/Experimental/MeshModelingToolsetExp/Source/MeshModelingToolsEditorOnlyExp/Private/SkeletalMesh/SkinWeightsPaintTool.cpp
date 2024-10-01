@@ -456,6 +456,7 @@ void UWeightToolMeshSelector::SetMesh(
 
 	// clear the selection (old selection is invalid on new topo)
 	PolygonSelectionMechanic->ClearSelection();
+	PolygonSelectionMechanic->ClearHighlight();
 
 	// selection colors
 	constexpr FLinearColor FaceSelectedOrange = FLinearColor(0.886f, 0.672f, 0.473f);
