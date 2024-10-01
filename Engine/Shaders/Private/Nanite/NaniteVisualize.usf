@@ -754,10 +754,7 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		}
 		else if (GetVisualizeMode() == NANITE_VISUALIZE_VERTEX_COLOR || GetVisualizeMode() == NANITE_VISUALIZE_MESH_PAINT_TEXTURE)
 		{
-			if (GetMeshPaintingShowMode() == NANITE_MESH_PAINTING_SHOW_SELECTED)
-			{
-				Opacity = 0;
-			}
+			Opacity = 0.0f;
 		}
 	}
 
