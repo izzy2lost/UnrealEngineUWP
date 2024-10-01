@@ -2,7 +2,6 @@
 
 #include "FoliageEditorSubsystem.h"
 #include "CoreGlobals.h"
-#include "Editor.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -42,85 +41,6 @@ void UFoliageEditorSubsystem::Deinitialize()
 	FWorldDelegates::OnPostWorldInitialization.RemoveAll(this);
 
 	Super::Deinitialize();
-}
-
-void UFoliageEditorSubsystem::Tick(float DeltaTime)
-{
-	for (const TPair<TWeakObjectPtr<UWorld>, TSet<TWeakObjectPtr<AActor>>>& WorldActorsPair : ActorsPendingMovementUpdatePerWorld)
-	{
-		const UWorld* World = WorldActorsPair.Key.Get();
-		if (!World)
-		{
-			continue;
-		}
-
-		const TSet<TWeakObjectPtr<AActor>>& ActorsPendingMovementUpdate = WorldActorsPair.Value;
-
-		TMap<AInstancedFoliageActor*, TArray<UActorComponent*>> UpdatedIFAsPerComponent;
-
-		// Process new instance positions first
-		for (TActorIterator<AInstancedFoliageActor> It(World); It; ++It)
-		{
-			for (TWeakObjectPtr<AActor> ActorPtr : ActorsPendingMovementUpdate)
-			{
-				AActor* Actor = ActorPtr.Get();
-				if (!Actor)
-				{
-					continue;
-				}
-
-				AInstancedFoliageActor* IFA = *It;
-				for (UActorComponent* Component : Actor->GetComponents())
-				{
-					if (IFA->MoveInstancesForMovedComponent(Component))
-					{
-						UpdatedIFAsPerComponent.FindOrAdd(IFA).Add(Component);
-					}
-				}
-
-				if (FFoliageHelper::IsOwnedByFoliage(Actor))
-				{
-					IFA->MoveInstancesForMovedOwnedActors(Actor);
-				}
-			}
-		}
-
-		// Then update partitioning
-		for (const TPair<AInstancedFoliageActor*, TArray<UActorComponent*>>& IFAComponentsPair : UpdatedIFAsPerComponent)
-		{
-			for (UActorComponent* Component : IFAComponentsPair.Value)
-			{
-				IFAComponentsPair.Key->UpdateInstancePartitioningForMovedComponent(Component);
-			}
-		}
-	}
-
-	ActorsPendingMovementUpdatePerWorld.Empty();
-}
-
-ETickableTickType UFoliageEditorSubsystem::GetTickableTickType() const
-{
-	return (IsTemplate() ? ETickableTickType::Never : ETickableTickType::Conditional);
-}
-
-bool UFoliageEditorSubsystem::IsTickable() const
-{
-	return ActorsPendingMovementUpdatePerWorld.Num() > 0;
-}
-
-bool UFoliageEditorSubsystem::IsTickableInEditor() const
-{
-	return true;
-}
-
-UWorld* UFoliageEditorSubsystem::GetTickableGameObjectWorld() const
-{
-	return GEditor->GetEditorWorldContext().World();
-}
-
-TStatId UFoliageEditorSubsystem::GetStatId() const
-{
-	RETURN_QUICK_DECLARE_CYCLE_STAT(UFoliageEditorSubsystem, STATGROUP_Tickables);
 }
 
 void UFoliageEditorSubsystem::OnPostApplyLevelOffset(ULevel* InLevel, UWorld* InWorld, const FVector& InOffset, bool bWorldShift)
@@ -170,8 +90,34 @@ void UFoliageEditorSubsystem::OnActorMoved(AActor* InActor)
 		return;
 	}
 
-	// Defer movement update until the next tick to reduce the number of expensive TActorIterator operations
-	ActorsPendingMovementUpdatePerWorld.FindOrAdd(InWorld).Add(InActor);
+	TMap<AInstancedFoliageActor*, TArray<UActorComponent*>> UpdatedIFAsPerComponent;
+	
+	// Process new instance positions first
+	for (TActorIterator<AInstancedFoliageActor> It(InWorld); It; ++It)
+	{
+		AInstancedFoliageActor* IFA = *It;
+		for (UActorComponent* Component : InActor->GetComponents())
+		{
+			if (IFA->MoveInstancesForMovedComponent(Component))
+			{
+				UpdatedIFAsPerComponent.FindOrAdd(IFA).Add(Component);
+			}
+		}
+
+		if (FFoliageHelper::IsOwnedByFoliage(InActor))
+		{
+			IFA->MoveInstancesForMovedOwnedActors(InActor);
+		}
+	}
+
+	// Then update partitioning
+	for (const auto& [IFA, Components] : UpdatedIFAsPerComponent)
+	{
+		for (UActorComponent* Component : Components)
+		{
+			IFA->UpdateInstancePartitioningForMovedComponent(Component);
+		}
+	}
 }
 
 void UFoliageEditorSubsystem::OnActorOuterChanged(AActor* InActor, UObject* OldOuter)
