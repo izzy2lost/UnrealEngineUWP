@@ -85,10 +85,6 @@ public:
 
 	FCustomizableObjectInstanceUsageUpdatedDelegate UpdatedDelegate;
 
-	// TODO GMT Remove
-	bool IsNetMode(ENetMode InNetMode) const;
-	void EditorUpdateComponent();
-	
 private:
 	// If this CustomizableSkeletalComponent is not null, it means this Usage was created by it, and all persistent properties should be obtained through it
 	UPROPERTY()
