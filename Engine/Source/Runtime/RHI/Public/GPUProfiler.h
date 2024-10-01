@@ -44,19 +44,19 @@ namespace UE::RHI::GPUProfiler
 
 		FQueue() = default;
 
-		FQueue(EType Type, uint8 GPU, uint8 Index)
+		constexpr FQueue(EType Type, uint8 GPU, uint8 Index)
 			: Type   (Type)
 			, GPU    (GPU)
 			, Index  (Index)
 			, Padding(0)
 		{}
 
-		bool operator == (FQueue const& RHS) const
+		constexpr bool operator == (FQueue const& RHS) const
 		{
 			return Value == RHS.Value;
 		}
 
-		bool operator != (FQueue const& RHS) const
+		constexpr bool operator != (FQueue const& RHS) const
 		{
 			return !(*this == RHS);
 		}
@@ -115,10 +115,11 @@ namespace UE::RHI::GPUProfiler
 		struct FBeginBreadcrumb
 		{
 			FRHIBreadcrumbNode* const Breadcrumb;
-			uint64 GPUTimestampTOP = 0;
+			uint64 GPUTimestampTOP;
 
-			FBeginBreadcrumb(FRHIBreadcrumbNode* Breadcrumb)
+			FBeginBreadcrumb(FRHIBreadcrumbNode* Breadcrumb, uint64 GPUTimestampTOP = 0)
 				: Breadcrumb(Breadcrumb)
+				, GPUTimestampTOP(GPUTimestampTOP)
 			{}
 		};
 
@@ -127,8 +128,9 @@ namespace UE::RHI::GPUProfiler
 			FRHIBreadcrumbNode* const Breadcrumb;
 			uint64 GPUTimestampBOP = 0;
 
-			FEndBreadcrumb(FRHIBreadcrumbNode* Breadcrumb)
+			FEndBreadcrumb(FRHIBreadcrumbNode* Breadcrumb, uint64 GPUTimestampBOP = 0)
 				: Breadcrumb(Breadcrumb)
+				, GPUTimestampBOP(GPUTimestampBOP)
 			{}
 		};
 	#endif
@@ -140,17 +142,22 @@ namespace UE::RHI::GPUProfiler
 			uint64 CPUTimestamp;
 
 			// TOP timestamp of when the work actually started on the GPU.
-			uint64 GPUTimestampTOP = 0;
+			uint64 GPUTimestampTOP;
 
-			FBeginWork(uint64 CPUTimestamp)
+			FBeginWork(uint64 CPUTimestamp, uint64 GPUTimestampTOP = 0)
 				: CPUTimestamp(CPUTimestamp)
+				, GPUTimestampTOP(GPUTimestampTOP)
 			{}
 		};
 
 		// Inserted when the GPU completes work on a queue and goes idle.
 		struct FEndWork
 		{
-			uint64 GPUTimestampBOP = 0;
+			uint64 GPUTimestampBOP;
+
+			FEndWork(uint64 GPUTimestampBOP = 0)
+				: GPUTimestampBOP(GPUTimestampBOP)
+			{}
 		};
 
 		struct FStats
