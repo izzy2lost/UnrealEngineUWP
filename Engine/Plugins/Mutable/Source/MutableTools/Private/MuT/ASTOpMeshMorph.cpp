@@ -157,16 +157,4 @@ namespace mu
 		return NewOp;
 	}
 
-
-	//-------------------------------------------------------------------------------------------------
-	FSourceDataDescriptor ASTOpMeshMorph::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
-	{
-		if (Base)
-		{
-			return Base->GetSourceDataDescriptor(Context);
-		}
-
-		return {};
-	}
-
 }

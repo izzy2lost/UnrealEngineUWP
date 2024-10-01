@@ -117,7 +117,6 @@ namespace mu
 
 	}
 
-
 	mu::Ptr<ASTOp> ASTOpMeshClipMorphPlane::OptimiseSink(const FModelOptimizationOptions&, FOptimizeSinkContext&) const
 	{
 		Ptr<ASTOp> NewOp;
@@ -154,17 +153,6 @@ namespace mu
 		}
 
 		return NewOp;
-	}
-
-
-	FSourceDataDescriptor ASTOpMeshClipMorphPlane::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
-	{
-		if (source)
-		{
-			return source->GetSourceDataDescriptor(Context);
-		}
-
-		return {};
 	}
 
 }

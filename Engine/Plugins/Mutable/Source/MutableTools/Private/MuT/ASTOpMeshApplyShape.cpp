@@ -114,15 +114,4 @@ namespace mu
 
 	}
 
-
-	FSourceDataDescriptor ASTOpMeshApplyShape::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
-	{
-		if (Mesh)
-		{
-			return Mesh->GetSourceDataDescriptor(Context);
-		}
-
-		return {};
-	}
-
 }

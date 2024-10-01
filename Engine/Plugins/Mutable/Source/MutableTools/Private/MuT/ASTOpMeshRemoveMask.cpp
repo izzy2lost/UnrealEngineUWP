@@ -278,16 +278,4 @@ namespace mu
 		return at;
 	}
 
-
-	//-------------------------------------------------------------------------------------------------
-	FSourceDataDescriptor ASTOpMeshRemoveMask::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
-	{
-		if (source)
-		{
-			return source->GetSourceDataDescriptor(Context);
-		}
-
-		return {};
-	}
-
 }

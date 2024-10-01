@@ -548,23 +548,6 @@ namespace mu
 		}
 
 		{
-			MUTABLE_CPUPROFILER_SCOPE(GenerateRoms_ImageSourceIds);
-
-			for (int32 ImageIndex = 0; ImageIndex < Program.ConstantImages.Num(); ++ImageIndex)
-			{
-				const FImageLODRange& LODRange = Program.ConstantImages[ImageIndex];
-
-				uint32 SourceId = AdditionalData.SourceImagePerConstant[ImageIndex].SourceId;
-
-				for (int32 LODRangeIndex = 0; LODRangeIndex < LODRange.LODCount; ++LODRangeIndex)
-				{
-					int32 RomIndex = Program.ConstantImageLODIndices[LODRange.FirstIndex + LODRangeIndex];
-					RomDatas[RomIndex].SourceId = SourceId;
-				}
-			}
-		}
-
-		{
 			MUTABLE_CPUPROFILER_SCOPE(GenerateRoms_ImageIdsUnique);
 
 			for (int32 ResourceIndex = 0; ResourceIndex < Program.ConstantImageLODs.Num(); ++ResourceIndex)
@@ -636,7 +619,6 @@ namespace mu
 			for (int32 ResourceIndex = 0; ResourceIndex < Program.ConstantMeshes.Num(); ++ResourceIndex)
 			{
 				FRomData& RomData = RomDatas[ResourceIndex];
-				RomData.SourceId = AdditionalData.SourceMeshPerConstant[ResourceIndex].SourceId;
 
 				// If the resource uses less memory than the threshold, don't save it in a separate rom.
 				if (int32(RomData.Size) <= EmbeddedDataBytesLimit)

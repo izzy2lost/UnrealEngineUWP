@@ -893,12 +893,11 @@ namespace mu
 		SwitchOp->variable = Variable;
 		SwitchOp->def = GenerateDefaultTableValue(TYPE);
 
-		for (int32 RowIndex = 0; RowIndex < NumRows; ++RowIndex)
+		for (int32 i = 0; i < NumRows; ++i)
         {
-            check(RowIndex <= 0xFFFF);
-			auto Condition = (uint16)RowIndex;
-
-            Ptr<ASTOp> Branch = GenerateOption( node, ColIndex, (int)RowIndex, ErrorLog.get() );
+            check(NodeTable->GetPrivate()->Rows[i].Id <= 0xFFFF);
+            auto Condition = (uint16)NodeTable->GetPrivate()->Rows[i].Id;
+            Ptr<ASTOp> Branch = GenerateOption( node, ColIndex, (int)i, ErrorLog.get() );
 
 			if (Branch || TYPE != ETableColumnType::Mesh)
 			{

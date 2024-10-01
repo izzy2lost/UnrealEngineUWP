@@ -435,10 +435,6 @@ namespace mu
 				if (!IndexPtr)
 				{
 					args.value = program.AddConstant(MeshData.get());
-
-					int32 DataDescIndex = Options->AdditionalData.SourceMeshPerConstant.Add(SourceDataDescriptor);
-					check(DataDescIndex == args.value);
-
 					Options->MeshConstantMap.Add(MeshData, int32(args.value));
 				}
 				else

@@ -470,16 +470,4 @@ namespace mu
 		return NewOp;
 	}
 
-
-	//-------------------------------------------------------------------------------------------------
-	FSourceDataDescriptor ASTOpMeshBindShape::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
-	{
-		if (Mesh)
-		{
-			return Mesh->GetSourceDataDescriptor(Context);
-		}
-
-		return {};
-	}
-
 }

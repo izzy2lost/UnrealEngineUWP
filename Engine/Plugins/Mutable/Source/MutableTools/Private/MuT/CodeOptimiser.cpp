@@ -481,7 +481,7 @@ namespace mu
 			pSystem->GetPrivate()->ImagePixelFormatOverride = ImOp.FormatImageOverride;
 
 			FSourceDataDescriptor SourceDataDescriptor;
-			if (DataType == DT_IMAGE || DataType == DT_MESH)
+			if (DataType == DT_IMAGE)
 			{
 				SourceDataDescriptor = SourceCloned->GetSourceDataDescriptor();
 				check(!SourceDataDescriptor.IsInvalid());
@@ -513,11 +513,10 @@ namespace mu
 
 				if (pMesh)
 				{
-					mu::Ptr<ASTOpConstantResource> ConstantOp = new ASTOpConstantResource();
-					ConstantOp->SourceDataDescriptor = SourceDataDescriptor;
-					ConstantOp->Type = OP_TYPE::ME_CONSTANT;
-					ConstantOp->SetValue( pMesh, DiskCacheContext );
-					Result = ConstantOp;
+					mu::Ptr<ASTOpConstantResource> constantOp = new ASTOpConstantResource();
+					constantOp->Type = OP_TYPE::ME_CONSTANT;
+					constantOp->SetValue( pMesh, DiskCacheContext );
+					Result = constantOp;
 				  }
 				break;
 			}
@@ -745,7 +744,7 @@ namespace mu
 						bool bCanBeGenerated = true;
 
 						// Check source data incompatiblities: when generating constants don't mix data that has different source descriptors (tags and other properties).
-						if (DataType == DT_IMAGE || DataType == DT_MESH)
+						if (DataType == DT_IMAGE)
 						{
 							FSourceDataDescriptor SourceDescriptor = SubgraphRoot->GetSourceDataDescriptor();
 							if (SourceDescriptor.IsInvalid())
@@ -1340,7 +1339,6 @@ namespace mu
 							mu::Ptr<ASTOpConstantResource> newOp = new ASTOpConstantResource();
 							newOp->Type = OP_TYPE::ME_CONSTANT;
 							newOp->SetValue(NewMesh, options.DiskCacheContext);
-							newOp->SourceDataDescriptor = at->GetSourceDataDescriptor();
 
 							ASTOp::Replace(at, newOp);
 						}

@@ -118,14 +118,4 @@ namespace mu
 
 		return NewOp;
 	}
-
-	FSourceDataDescriptor ASTOpMeshApplyPose::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
-	{
-		if (base)
-		{
-			return base->GetSourceDataDescriptor(Context);
-		}
-
-		return {};
-	}
 }
