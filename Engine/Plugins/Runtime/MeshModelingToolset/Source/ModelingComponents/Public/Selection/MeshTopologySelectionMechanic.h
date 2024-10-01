@@ -284,10 +284,14 @@ public:
 	void InvertSelection();
 	void SelectAll();
 
-	void GrowSelection();
-	void ShrinkSelection();
-	void FloodSelection();
-	void ConvertSelectionToBorder();
+	UE_DEPRECATED(5.5, "Calling this function on the base class is not supported. It can be called on UPolygonSelectionMechanic.")
+	void GrowSelection() {};
+	UE_DEPRECATED(5.5, "Calling this function on the base class is not supported. It can be called on UPolygonSelectionMechanic.")
+	void ShrinkSelection() {};
+	UE_DEPRECATED(5.5, "Calling this function on the base class is not supported. It can be called on UPolygonSelectionMechanic.")
+	void FloodSelection() {};
+	UE_DEPRECATED(5.5, "Calling this function on the base class is not supported. It can be called on UPolygonSelectionMechanic.")
+	void ConvertSelectionToBorder() {};
 
 	/** 
 	 * @return true if the current selection is non-empty 

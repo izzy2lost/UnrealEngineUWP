@@ -674,7 +674,7 @@ void UWeightToolMeshSelector::GrowSelection() const
 		return;
 	}
 	
-	PolygonSelectionMechanic->GrowSelection();
+	PolygonSelectionMechanic->GrowSelection(/*bAsTriangleTopology*/ true);
 }
 
 void UWeightToolMeshSelector::ShrinkSelection() const
@@ -684,7 +684,7 @@ void UWeightToolMeshSelector::ShrinkSelection() const
 		return;
 	}
 	
-	PolygonSelectionMechanic->ShrinkSelection();
+	PolygonSelectionMechanic->ShrinkSelection(/*bAsTriangleTopology*/ true);
 }
 
 void UWeightToolMeshSelector::FloodSelection() const
@@ -704,7 +704,7 @@ void UWeightToolMeshSelector::SelectBorder() const
 		return;
 	}
 	
-	PolygonSelectionMechanic->ConvertSelectionToBorder();
+	PolygonSelectionMechanic->ConvertSelectionToBorderVertices(/*bAsTriangleTopology*/ true);
 }
 
 void UWeightToolTransferManager::InitialSetup(USkinWeightsPaintTool* InWeightTool, FEditorViewportClient* InViewportClient)
