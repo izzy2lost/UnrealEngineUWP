@@ -255,24 +255,7 @@ void FPCGEditor::OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMa
 	TArray<FPCGStackFrame>& StackFrames = StackBeingInspected.GetStackFramesMutable();
 	if (!StackFrames.IsEmpty())
 	{
-		UObject* NewStackRoot = ReplacementMap.FindRef(StackFrames[0].Object.Get());
-
-		// If the stack frame was marked as garbage, NewStackRoot will be nullptr, but we still match against the object path.
-		if (!NewStackRoot)
-		{
-			for(const TPair<UObject*, UObject*>& Pair : ReplacementMap)
-			{
-				if (Pair.Key && Pair.Value)
-				{
-					if (Pair.Key->GetPathName() == StackFrames[0].Object.ToString())
-					{
-						NewStackRoot = Pair.Value;
-					}
-				}
-			}
-		}
-
-		if (NewStackRoot)
+		if (UObject* NewStackRoot = ReplacementMap.FindRef(StackFrames[0].Object.GetEvenIfUnreachable()))
 		{
 			StackFrames[0].SetObject(NewStackRoot);
 		}
@@ -3131,12 +3114,7 @@ void FPCGEditor::OnComponentUnregistered(UPCGComponent* Component)
 
 void FPCGEditor::OnComponentGenerationDone(UPCGSubsystem* Subsystem, UPCGComponent* Component, EPCGGenerationStatus Status)
 {
-	// We want to refresh if the component that is done generating has generated the current graph being edited,
-	// or if it is the root of the current stack being inspected (for subgraphs to also be refreshed).
-	// If we don't have a component, we refresh nonetheless.
-	const bool bShouldRefresh = !Component || StackBeingInspected.GetRootComponent() == Component || Component->GetGraph() == PCGGraphBeingEdited;
-
-	if (!bShouldRefresh)
+	if(Component && Component->GetGraph() != PCGGraphBeingEdited)
 	{
 		return;
 	}

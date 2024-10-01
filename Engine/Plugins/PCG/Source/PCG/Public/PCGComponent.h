@@ -20,6 +20,7 @@ namespace EEndPlayReason { enum Type : int; }
 
 class APCGPartitionActor;
 class FPCGActorAndComponentMapping;
+class FPCGStackContext;
 class UPCGComponent;
 class UPCGData;
 class IPCGGenSourceBase;
@@ -33,7 +34,6 @@ class ALandscapeProxy;
 class FLandscapeProxyComponentDataChangedParams;
 class UClass;
 struct FPCGContext;
-struct FPCGStackContext;
 
 #if WITH_EDITOR
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnPCGGraphStartGenerating, UPCGComponent*);

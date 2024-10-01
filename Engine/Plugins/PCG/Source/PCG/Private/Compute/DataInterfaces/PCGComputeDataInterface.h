@@ -27,13 +27,9 @@ public:
 
 protected:
 	/** Label of output pin that this data interface is associated with. */
-	UPROPERTY()
 	FName OutputPinLabel;
-
-	UPROPERTY()
 	FName OutputPinLabelAlias;
 
 	/** Generated PCG data will be assigned these labels. */
-	UPROPERTY()
 	TArray<FName> DownstreamInputPinLabelAliases;
 };

@@ -22,6 +22,7 @@
 
 #include "Algo/AnyOf.h"
 #include "Algo/ForEach.h"
+#include "Containers/Ticker.h"
 #include "GameFramework/Actor.h"
 #include "Misc/ScopeExit.h"
 #include "Tasks/Task.h"
@@ -38,8 +39,6 @@
 #if WITH_EDITOR
 #include "FileHelpers.h"
 #endif
-
-#include UE_INLINE_GENERATED_CPP_BY_NAME(PCGGraphExecutor)
 
 static TAutoConsoleVariable<int32> CVarMaxNumTasks(
 	TEXT("pcg.MaxConcurrentTasks"),
@@ -89,6 +88,20 @@ namespace PCGGraphExecutor
 		TEXT("pcg.Graph.MaxWorkerTasks"),
 		32,
 		TEXT("Max in flight PCG Element tasks allowed at the same time. Note that PCG Element execution can spawn async tasks themselves"));
+	
+
+	template<typename FunctorType>
+	void ExecuteOnGameThread(const TCHAR* DebugName, FunctorType&& Functor)
+	{
+		if (IsInGameThread())
+		{
+			Functor();
+		}
+		else
+		{
+			::ExecuteOnGameThread(DebugName, std::forward<FunctorType>(Functor));
+		}
+	}
 
 	void ClearAsyncFlags(TSet<TObjectPtr<UObject>>& AsyncObjects)
 	{
@@ -176,6 +189,155 @@ namespace PCGGraphExecutor
 		MutexType* Mutex;
 		bool bLocked;
 	};
+}
+
+int32 FPCGGraphActiveTask::NumExecuting = 0;
+
+const FPCGStack* FPCGGraphTask::GetStack() const
+{
+	return (StackContext && StackIndex != INDEX_NONE) ? StackContext->GetStack(StackIndex) : nullptr;
+}
+
+FPCGTaskId FPCGGraphTask::GetGraphExecutionTaskId() const
+{
+	return StackContext ? StackContext->GetGraphExecutionTaskId() : InvalidPCGTaskId;
+}
+
+bool FPCGGraphTask::CanExecuteOnlyOnMainThread() const
+{
+	return (Element && Element->CanExecuteOnlyOnMainThread(Context)) || (Context && Context->CanExecuteOnlyOnMainThread());
+}
+
+#if WITH_EDITOR
+void FPCGGraphTask::LogVisual(ELogVerbosity::Type InVerbosity, const FText& InMessage) const
+{
+	if (!SourceComponent.IsValid())
+	{
+		return;
+	}
+
+	if (UPCGSubsystem* Subsystem = UPCGSubsystem::GetInstance(SourceComponent->GetWorld()))
+	{
+		const FPCGStack* TaskStack = GetStack();
+		FPCGStack StackWithNode = TaskStack ? FPCGStack(*TaskStack) : FPCGStack();
+		StackWithNode.PushFrame(Node);
+		Subsystem->GetNodeVisualLogsMutable().Log(StackWithNode, InVerbosity, InMessage);
+	}
+}
+
+bool FPCGGraphTaskInput::operator==(const FPCGGraphTaskInput& Other) const
+{
+	return (TaskId == Other.TaskId)
+		&& (UpstreamPin == Other.UpstreamPin)
+		&& (DownstreamPin == Other.DownstreamPin)
+		&& (bProvideData == Other.bProvideData);
+}
+
+bool FPCGGraphTask::IsApproximatelyEqual(const FPCGGraphTask& Other) const
+{
+	// Do trivial pointer comparisons first, then run == operator to determine equivalence.
+	bool bElementsMatch = (Element == Other.Element);
+	if (!bElementsMatch && Element && Other.Element)
+	{
+		if (Element->IsGridLinkage() && Other.Element->IsGridLinkage())
+		{
+			const PCGGraphExecutor::FPCGGridLinkageElement& LinkageElement = static_cast<const PCGGraphExecutor::FPCGGridLinkageElement&>(*Element);
+			const PCGGraphExecutor::FPCGGridLinkageElement& OtherLinkageElement = static_cast<const PCGGraphExecutor::FPCGGridLinkageElement&>(*Other.Element);
+			bElementsMatch = (LinkageElement == OtherLinkageElement);
+		}
+		else if (Element->IsComputeGraphElement() && Other.Element->IsComputeGraphElement())
+		{
+			const FPCGComputeGraphElement& ComputeGraphElement = static_cast<const FPCGComputeGraphElement&>(*Element);
+			const FPCGComputeGraphElement& OtherComputeGraphElement = static_cast<const FPCGComputeGraphElement&>(*Other.Element);
+			bElementsMatch = (ComputeGraphElement == OtherComputeGraphElement);
+		}
+		else
+		{
+			ensureMsgf(false, TEXT("Graph compilation emitted an element type that is not a trivial element or a grid linkage element. Element comparison will fail. ")
+				TEXT("Equivalence operator needs to be implemented for this new element."));
+		}
+	}
+
+	return (Inputs == Other.Inputs)
+		&& (Node == Other.Node)
+		&& (SourceComponent == Other.SourceComponent)
+		&& bElementsMatch
+		&& (Context == Other.Context)
+		&& (NodeId == Other.NodeId)
+		&& (CompiledTaskId == Other.CompiledTaskId)
+		&& (ParentId == Other.ParentId)
+		&& (PinDependency == Other.PinDependency)
+		&& (StackIndex == Other.StackIndex)
+		&& (StackContext == Other.StackContext);
+}
+#endif // WITH_EDITOR
+
+FPCGGraphActiveTask::~FPCGGraphActiveTask()
+{
+	if (Context)
+	{
+		PCGGraphExecutor::ExecuteOnGameThread(UE_SOURCE_LOCATION, [ContextPtr = Context.Release()]()
+		{
+			PCGGraphExecutor::ClearAsyncFlags(ContextPtr->AsyncObjects);
+			delete ContextPtr;
+		});	
+	}
+}
+
+void FPCGGraphActiveTask::StartExecuting()
+{
+	check(!bIsExecutingTask);
+	++NumExecuting;
+
+	auto GatherReferences = [this](const FPCGDataCollection& Collection)
+	{
+		for (const FPCGTaggedData& TaggedInputData : Collection.TaggedData)
+		{
+			if (TaggedInputData.Data)
+			{
+				ExecutingReferences.Add(TaggedInputData.Data);
+			}
+		}
+	};
+
+	// @todo_pcg this should be merged through some kind of visitor pattern with AddStructReferencedObjects
+	// We need to keep a immutable list of references prior to execution mainly so that TaggedData contents don't change while we are running GC
+	{
+		ExecutingReferences.Reserve(Context->InputData.TaggedData.Num() + Context->OutputData.TaggedData.Num() + 1);
+		GatherReferences(Context->InputData);
+		GatherReferences(Context->OutputData);
+
+		// Additional cached per-data
+		for (TPair<FPCGDataCollection, FPCGDataCollection>& CachedInputToOutput : Context->CachedInputToOutputInternalResults)
+		{
+			GatherReferences(CachedInputToOutput.Key);
+			GatherReferences(CachedInputToOutput.Value);
+		}
+
+		if (Context->SettingsWithOverride)
+		{
+			ExecutingReferences.Add(Context->SettingsWithOverride);
+		}
+	}
+
+	bIsExecutingTask = true;
+}
+
+void FPCGGraphActiveTask::StopExecuting()
+{
+	if (bIsExecutingTask)
+	{
+		bIsExecutingTask = false;
+		ExecutingTask = {};
+		--NumExecuting;
+
+		ExecutingReferences.Empty();
+	}
+}
+
+bool FPCGGraphActiveTask::CanExecuteOnlyOnMainThread() const
+{
+	return (Element && Element->CanExecuteOnlyOnMainThread(Context.Get())) || (Context && Context->CanExecuteOnlyOnMainThread());
 }
 
 FPCGGraphExecutor::FPCGGraphExecutor()
@@ -1066,38 +1228,13 @@ bool FPCGGraphExecutor::SetupTask(FPCGGraphTask& Task, TArray<FPCGTaskId>& Resul
 	// Initialize the element if needed (required to know whether it will run on the main thread or not)
 	if (!Task.Element)
 	{
-		// TODO: It may be more efficient to do this in UPCGGraph::PostLoad(), since these are only related to cooking (with the exception of EPCGElementSource::FromNode).
-		if (Task.ElementSource == EPCGElementSource::Trivial)
-		{
-			Task.Element = GraphCompiler.GetSharedTrivialElement();
-		}
-		else if (Task.ElementSource == EPCGElementSource::TrivialPostGraph)
-		{
-			Task.Element = GraphCompiler.GetSharedTrivialPostGraphElement();
-		}
-		else if (Task.ElementSource == EPCGElementSource::Gather)
-		{
-			Task.Element = GraphCompiler.GetSharedGatherElement();
-		}
-		else if (Task.ElementSource == EPCGElementSource::FromNode)
-		{
-			// Get appropriate settings
-			check(Task.Node);
-			const UPCGSettings* Settings = Task.TaskInput.GetSettings(Task.Node->GetSettings());
+		// Get appropriate settings
+		check(Task.Node);
+		const UPCGSettings* Settings = Task.TaskInput.GetSettings(Task.Node->GetSettings());
 
-			if (Settings)
-			{
-				Task.Element = Settings->GetElement();
-			}
-		}
-		else if (Task.ElementSource == EPCGElementSource::FromSettings)
+		if (Settings)
 		{
-			check(Task.Settings);
-			Task.Element = Task.Settings->GetElement();
-		}
-		else
-		{
-			checkNoEntry();
+			Task.Element = Settings->GetElement();
 		}
 	}
 
@@ -1314,7 +1451,6 @@ bool FPCGGraphExecutor::ExecuteScheduling(double EndTime, TSharedPtr<FPCGGraphAc
 					}
 
 					const bool bIsGameThreadOnly = SleepingTask->CanExecuteOnlyOnMainThread();
-
 					TArray<TSharedPtr<FPCGGraphActiveTask>>& ActiveTaskArray = bIsGameThreadOnly ? ActiveTasksGameThreadOnly : ActiveTasks;
 					SleepingTask->bIsGameThreadOnly = bIsGameThreadOnly;
 
@@ -2513,8 +2649,6 @@ void FPCGGraphExecutor::AddReferencedObjects(FReferenceCollector& Collector)
 			It.Value().AddStructReferencedObjects(Collector);
 		}
 	}
-
-	GraphCompiler.AddReferencedObjects(Collector);
 }
 
 FPCGGraphExecutor::FGraphExecutionCache::FGraphExecutionCache()
@@ -3074,25 +3208,4 @@ namespace PCGGraphExecutor
 
 		return true;
 	}
-}
-
-FPCGElementPtr UPCGGridLinkageSettings::CreateElement() const
-{
-	auto GridLinkageOperation = [this](FPCGContext* InContext)
-	{
-		return PCGGraphExecutor::ExecuteGridLinkage(
-			GenerationGrid,
-			FromGrid,
-			ToGrid,
-			ResourceKey,
-			UpstreamPin.Get() ? UpstreamPin->Properties.Label : NAME_None,
-			static_cast<FPCGGridLinkageContext*>(InContext));
-	};
-
-	FPCGGenericElement::FContextAllocator ContextAllocator = [](const FPCGDataCollection&, TWeakObjectPtr<UPCGComponent>, const UPCGNode*)
-	{
-		return new FPCGGridLinkageContext();
-	};
-
-	return MakeShared<PCGGraphExecutor::FPCGGridLinkageElement>(GridLinkageOperation, ContextAllocator, FromGrid, ToGrid, GenerationGrid, ResourceKey, UpstreamPin.Get());
 }

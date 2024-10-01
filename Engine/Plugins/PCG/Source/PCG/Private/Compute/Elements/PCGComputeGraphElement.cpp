@@ -3,7 +3,6 @@
 #include "Compute/Elements/PCGComputeGraphElement.h"
 
 #include "PCGComponent.h"
-#include "PCGGraph.h"
 #include "PCGManagedResource.h"
 #include "PCGModule.h"
 #include "PCGSubsystem.h"
@@ -12,7 +11,6 @@
 #include "Compute/DataInterfaces/PCGDataCollectionDataInterface.h"
 #include "Elements/PCGStaticMeshSpawner.h"
 #include "Engine/StaticMesh.h"
-#include "Graph/PCGGraphCompiler.h"
 #include "InstanceDataPackers/PCGInstanceDataPackerBase.h"
 #include "MeshSelectors/PCGMeshSelectorByAttribute.h"
 #include "MeshSelectors/PCGMeshSelectorWeighted.h"
@@ -22,8 +20,6 @@
 #include "ComputeFramework/ComputeKernelCompileResult.h"
 #include "GameFramework/Actor.h"
 #include "Logging/LogVerbosity.h"
-
-#include UE_INLINE_GENERATED_CPP_BY_NAME(PCGComputeGraphElement)
 
 #define LOCTEXT_NAMESPACE "PCGComputeGraphElement"
 
@@ -35,7 +31,11 @@ void FPCGComputeGraphContext::AddExtraStructReferencedObjects(FReferenceCollecto
 #if WITH_EDITOR
 bool FPCGComputeGraphElement::operator==(const FPCGComputeGraphElement& Other) const
 {
-	return ComputeGraphIndex == Other.ComputeGraphIndex;
+	// Equivalence is same compute graph.
+	// TODO: A compute graph is currently generated for every compile, so the presence of GPU nodes breaks the current
+	// change detection. We could either cache compute graphs formed by subsets of GPU nodes that have not changed, or
+	// we could do a deep equality check for compute graphs here.
+	return Graph == Other.Graph;
 }
 #endif
 
@@ -45,32 +45,9 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 	check(InContext);
 	FPCGComputeGraphContext* Context = static_cast<FPCGComputeGraphContext*>(InContext);
 
-	if (!Context->ComputeGraph)
+	if (!ensure(Graph))
 	{
-		const UPCGComponent* Component = InContext->SourceComponent.Get();
-
-		if (const UPCGGraph* PCGGraph = Component ? Component->GetGraph() : nullptr)
-		{
-			uint32 GenerationGridSize = PCGHiGenGrid::UninitializedGridSize();
-
-			if (PCGGraph->IsHierarchicalGenerationEnabled())
-			{
-				if (Component->IsLocalComponent() || Component->IsPartitioned())
-				{
-					GenerationGridSize = Component->GetGenerationGridSize();
-				}
-			}
-
-			if (UPCGSubsystem* Subsystem = Context->SourceComponent->GetSubsystem())
-			{
-				Context->ComputeGraph.Reset(Subsystem->GetComputeGraph(PCGGraph, GenerationGridSize, ComputeGraphIndex));
-			}
-		}
-
-		if (!ensure(Context->ComputeGraph))
-		{
-			return true;
-		}
+		return true;
 	}
 
 	// Drive the execution of a compute graph. The stages are commented below and numbered by the sequence in which they are executed.
@@ -115,7 +92,7 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 	};
 
 	// 3. If still compiling, try again next frame.
-	if (Context->ComputeGraph->HasKernelResourcesPendingShaderCompilation())
+	if (Graph->HasKernelResourcesPendingShaderCompilation())
 	{
 		UE_LOG(LogPCG, Log, TEXT("Deferring until next frame as the kernel has pending shader compilations."));
 		SleepUntilNextFrame();
@@ -136,10 +113,10 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 		UPCGDataBinding* DataBinding = FPCGContext::NewObject_AnyThread<UPCGDataBinding>(Context);
 		Context->DataBinding.Reset(DataBinding);
 
-		Context->DataBinding->Initialize(Context->ComputeGraph.Get(), Context->SourceComponent, Context->InputData, Context->ComputeGraph->GetAttributeLookupTable());
+		Context->DataBinding->Initialize(Graph.Get(), Context->SourceComponent, Context->InputData, Graph->GetAttributeLookupTable());
 
 		// Perform validation after input data is initialized.
-		for (TSoftObjectPtr<const UPCGNode> Node : Context->ComputeGraph->KernelToNode)
+		for (TWeakObjectPtr<const UPCGNode> Node : Graph->KernelToNode)
 		{
 			const UPCGSettings* Settings = Node.Get() ? Node->GetSettings() : nullptr;
 
@@ -153,7 +130,7 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(ComputeGraphInstance.CreateDataProviders);
-			Context->ComputeGraphInstance.CreateDataProviders(Context->ComputeGraph.Get(), 0, Context->DataBinding.Get());
+			Context->ComputeGraphInstance.CreateDataProviders(Graph.Get(), 0, Context->DataBinding.Get());
 		}
 
 		// Register all providers running async operations. TODO review if we should have a general API like "RunsAsyncOperations()"?
@@ -194,11 +171,11 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 	check(Context->DataBinding && InContext->SourceComponent.Get());
 
 	// 1. Prepare render resources. In editor, this will trigger shader compile if not compiled already.
-	if (!Context->ComputeGraph->GetRenderProxy())
+	if (!Graph->GetRenderProxy())
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(Context->ComputeGraph->UpdateResources);
+		TRACE_CPUPROFILER_EVENT_SCOPE(Graph->UpdateResources);
 
-		Context->ComputeGraph->UpdateResources();
+		Graph->UpdateResources();
 
 		SleepUntilNextFrame();
 		return false;
@@ -212,8 +189,7 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 #endif
 
 		// If there was any error then we should abort.
-		using FNodeAndCompileMessages = const TPair<TObjectKey<const UPCGNode>, TArray<FComputeKernelCompileMessage>>;
-		for (FNodeAndCompileMessages& NodeAndCompileMessages : Context->ComputeGraph->KernelToCompileMessages)
+		for (const TPair<TObjectKey<const UPCGNode>, TArray<FComputeKernelCompileMessage>>& NodeAndCompileMessages : Graph->KernelToCompileMessages)
 		{
 			for (const FComputeKernelCompileMessage& Message : NodeAndCompileMessages.Get<1>())
 			{
@@ -232,7 +208,7 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 		TRACE_CPUPROFILER_EVENT_SCOPE(ComputeGraphInstance.EnqueueWork);
 
 		Context->bGraphEnqueued = Context->ComputeGraphInstance.EnqueueWork(
-			Context->ComputeGraph.Get(),
+			Graph.Get(),
 			InContext->SourceComponent->GetScene(),
 			ComputeTaskExecutionGroup::EndOfFrameUpdate,
 			InContext->SourceComponent->GetOwner()->GetFName(),
@@ -270,11 +246,9 @@ bool FPCGComputeGraphElement::SetupProceduralISMComponents(FPCGContext* InContex
 	check(InContext);
 	check(InBinding);
 
-	FPCGComputeGraphContext* Context = static_cast<FPCGComputeGraphContext*>(InContext);
-
 	bool bAnyComponentsSetup = false;
 
-	for (const UPCGSettings* Settings : Context->ComputeGraph->StaticMeshSpawners)
+	for (const UPCGSettings* Settings : Graph->StaticMeshSpawners)
 	{
 		const UPCGStaticMeshSpawnerSettings* SpawnerSettings = Cast<UPCGStaticMeshSpawnerSettings>(Settings);
 		if (!ensure(SpawnerSettings) || !SpawnerSettings->bEnabled)
@@ -464,7 +438,7 @@ void FPCGComputeGraphElement::PostExecuteInternal(FPCGContext* InContext) const
 #if WITH_EDITOR
 	if (Context->bExecutionSuccess)
 	{
-		for (TSoftObjectPtr<const UPCGNode> NodePtr : Context->DataBinding->Graph->KernelToNode)
+		for (TWeakObjectPtr<const UPCGNode> NodePtr : Context->DataBinding->Graph->KernelToNode)
 		{
 			const UPCGNode* Node = NodePtr.Get();
 			UPCGComponent* Component = Context->SourceComponent.Get();
@@ -507,8 +481,7 @@ void FPCGComputeGraphElement::LogCompilationMessages(FPCGComputeGraphContext* In
 {
 	if (InContext->SourceComponent.IsValid() && InContext->Stack)
 	{
-		using FNodeAndCompileMessages = const TPair<TObjectKey<const UPCGNode>, TArray<FComputeKernelCompileMessage>>;
-		for (FNodeAndCompileMessages& NodeAndCompileMessages : InContext->ComputeGraph->KernelToCompileMessages)
+		for (const TPair<TObjectKey<const UPCGNode>, TArray<FComputeKernelCompileMessage>>& NodeAndCompileMessages : Graph->KernelToCompileMessages)
 		{
 			for (const FComputeKernelCompileMessage& Message : NodeAndCompileMessages.Get<1>())
 			{
@@ -564,10 +537,5 @@ void FPCGComputeGraphElement::LogCompilationMessages(FPCGComputeGraphContext* In
 	}
 }
 #endif
-
-FPCGElementPtr UPCGComputeGraphSettings::CreateElement() const
-{
-	return MakeShared<FPCGComputeGraphElement>(ComputeGraphIndex);
-}
 
 #undef LOCTEXT_NAMESPACE
