@@ -2605,6 +2605,7 @@ extern RHI_API FGraphicsPipelineState*		GetGraphicsPipelineState(FRHICommandList
 extern RHI_API FRHIComputePipelineState*	GetRHIComputePipelineState(FComputePipelineState*);
 extern RHI_API FRHIWorkGraphPipelineState*	GetRHIWorkGraphPipelineState(FWorkGraphPipelineState*);
 extern RHI_API FRHIRayTracingPipelineState*	GetRHIRayTracingPipelineState(FRayTracingPipelineState*);
+extern RHI_API uint32					    GetRHIRayTracingPipelineStateMaxLocalBindingDataSize(FRayTracingPipelineState*);
 
 class FRHIComputeCommandList : public FRHICommandListBase
 {
@@ -4193,6 +4194,8 @@ public:
 		}
 		else
 		{
+			check(GetRHIRayTracingPipelineStateMaxLocalBindingDataSize(Pipeline) <= SBT->GetInitializer().LocalBindingDataSize);
+
 			FRayTracingLocalShaderBindings* InlineBindings = nullptr;
 
 			// By default all batch binding data is stored in the command list memory.
