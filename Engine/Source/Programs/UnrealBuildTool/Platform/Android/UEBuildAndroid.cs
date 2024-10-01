@@ -508,7 +508,6 @@ namespace UnrealBuildTool
 
 			CompileEnvironment.Definitions.Add("WITH_EDITOR=0");
 			CompileEnvironment.Definitions.Add("USE_NULL_RHI=0");
- 			CompileEnvironment.Definitions.Add("WITH_RHI_BREADCRUMBS=1");
 
 			if (Target.AndroidPlatform.bEnableRayTracing && Target.AndroidPlatform.bSupportsVulkanSM5)
 			{
