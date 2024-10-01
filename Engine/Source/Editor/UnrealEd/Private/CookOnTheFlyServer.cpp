@@ -28,6 +28,7 @@
 #include "Cooker/CookGenerationHelper.h"
 #include "Cooker/CookOnTheFlyServerInterface.h"
 #include "Cooker/CookPackageData.h"
+#include "Cooker/CookPackagePreloader.h"
 #include "Cooker/CookPlatformManager.h"
 #include "Cooker/CookProfiling.h"
 #include "Cooker/CookRequestCluster.h"
@@ -1763,23 +1764,13 @@ void UCookOnTheFlyServer::SetLoadBusy(bool bInLoadBusy)
 		{
 			int DisplayCount = 0;
 			const int DisplayMax = 10;
-			FLoadPrepareQueue& LoadPrepareQueue = PackageDatas->GetLoadPrepareQueue();
+			FLoadQueue& LoadQueue = PackageDatas->GetLoadQueue();
 #if !NO_LOGGING
 			FMsg::Logf(__FILE__, __LINE__, LogCook.GetCategoryName(), CookerIdleWarningSeverity,
 				TEXT("Cooker has been blocked from loading the current packages for %.0f seconds. %d packages in the loadqueue:"),
-				(float)(CurrentTime - LoadBusyStartTimeSeconds), LoadPrepareQueue.PreloadingQueue.Num() + LoadPrepareQueue.EntryQueue.Num());
+				(float)(CurrentTime - LoadBusyStartTimeSeconds), LoadQueue.Num());
 #endif
-			for (FPackageData* PackageData : LoadPrepareQueue.PreloadingQueue)
-			{
-				if (DisplayCount == DisplayMax)
-				{
-					UE_LOG(LogCook, Display, TEXT("    ..."));
-					break;
-				}
-				UE_LOG(LogCook, Display, TEXT("    %s"), *PackageData->GetFileName().ToString());
-				++DisplayCount;
-			}
-			for (FPackageData* PackageData : LoadPrepareQueue.EntryQueue)
+			for (FPackageData* PackageData : LoadQueue)
 			{
 				if (DisplayCount == DisplayMax)
 				{
@@ -2374,12 +2365,7 @@ UCookOnTheFlyServer::ECookAction UCookOnTheFlyServer::DecideNextCookAction(UE::C
 			SetIdleStatus(StackData, EIdleStatus::Active);
 			return ECookAction::Save;
 		}
-		else if (!bLoadBusy && Monitor.GetNumUrgent(UE::Cook::EPackageState::LoadPrepare) > 0)
-		{
-			SetIdleStatus(StackData, EIdleStatus::Active);
-			return ECookAction::Load;
-		}
-		else if (!bLoadBusy && Monitor.GetNumUrgent(UE::Cook::EPackageState::LoadReady) > 0)
+		else if (!bLoadBusy && Monitor.GetNumUrgent(UE::Cook::EPackageState::Load) > 0)
 		{
 			SetIdleStatus(StackData, EIdleStatus::Active);
 			return ECookAction::Load;
@@ -2394,12 +2380,7 @@ UCookOnTheFlyServer::ECookAction UCookOnTheFlyServer::DecideNextCookAction(UE::C
 			SetIdleStatus(StackData, EIdleStatus::Active);
 			return ECookAction::Save;
 		}
-		else if (Monitor.GetNumUrgent(UE::Cook::EPackageState::LoadPrepare) > 0)
-		{
-			SetIdleStatus(StackData, EIdleStatus::Active);
-			return ECookAction::Load;
-		}
-		else if (Monitor.GetNumUrgent(UE::Cook::EPackageState::LoadReady) > 0)
+		else if (Monitor.GetNumUrgent(UE::Cook::EPackageState::Load) > 0)
 		{
 			SetIdleStatus(StackData, EIdleStatus::Active);
 			return ECookAction::Load;
@@ -2425,7 +2406,7 @@ UCookOnTheFlyServer::ECookAction UCookOnTheFlyServer::DecideNextCookAction(UE::C
 		return ECookAction::SaveLimited;
 	}
 
-	int32 NumLoads = PackageDatas->GetLoadReadyQueue().Num() + PackageDatas->GetLoadPrepareQueue().Num();
+	int32 NumLoads = PackageDatas->GetLoadQueue().Num();
 	bool bLoadAvailable = ((!bLoadBusy) & (NumLoads > 0)) != 0;
 	if (bLoadAvailable & (NumLoads > static_cast<int32>(DesiredLoadQueueLength)))
 	{
@@ -2536,8 +2517,7 @@ int32 UCookOnTheFlyServer::NumMultiprocessLocalWorkerAssignments() const
 	UE::Cook::FPackageDataMonitor& Monitor = PackageDatas->GetMonitor();
 	int32 Result = WorkerRequests->GetNumExternalRequests() +
 		PackageDatas->GetRequestQueue().Num() +
-		PackageDatas->GetLoadPrepareQueue().Num() +
-		PackageDatas->GetLoadReadyQueue().Num() +
+		PackageDatas->GetLoadQueue().Num() +
 		PackageDatas->GetSaveQueue().Num();
 	for (const FRequestCluster& Cluster : PackageDatas->GetRequestQueue().GetRequestClusters())
 	{
@@ -2700,7 +2680,7 @@ void UCookOnTheFlyServer::PumpRequests(UE::Cook::FTickStackData& StackData, int3
 			DemoteToIdle(*PackageData, ESendFlags::QueueAdd, SuppressCookReason);
 			continue;
 		}
-		PackageData->SendToState(EPackageState::LoadPrepare, ESendFlags::QueueAdd, EStateChangeReason::Requested);
+		PackageData->SendToState(EPackageState::Load, ESendFlags::QueueAdd, EStateChangeReason::Requested);
 		++NumInBatch;
 	}
 	OutNumPushed += NumInBatch;
@@ -2837,107 +2817,113 @@ void UCookOnTheFlyServer::PromoteToSaveComplete(UE::Cook::FPackageData& PackageD
 void UCookOnTheFlyServer::PumpLoads(UE::Cook::FTickStackData& StackData, uint32 DesiredQueueLength, int32& OutNumPushed, bool& bOutBusy)
 {
 	using namespace UE::Cook;
-	FPackageDataQueue& LoadReadyQueue = PackageDatas->GetLoadReadyQueue();
-	FLoadPrepareQueue& LoadPrepareQueue = PackageDatas->GetLoadPrepareQueue();
+	FLoadQueue& LoadQueue = PackageDatas->GetLoadQueue();
 	FPackageDataMonitor& Monitor = PackageDatas->GetMonitor();
 	bool bIsUrgentInProgress = Monitor.GetNumUrgent() > 0;
 	OutNumPushed = 0;
 	bOutBusy = false;
 
+	TSet<FPackageData*>& InProgress = LoadQueue.InProgress;
+	TSet<TRefCountPtr<FPackagePreloader>>& ActivePreloads = LoadQueue.ActivePreloads;
+	TRingBuffer<TRefCountPtr<FPackagePreloader>>& ReadyForLoads = LoadQueue.ReadyForLoads;
+
+	if (bIsUrgentInProgress && !Monitor.GetNumUrgent(EPackageState::Load))
+	{
+		return;
+	}
+
 	// Process loads until we reduce the queue size down to the desired size or we hit the max number of loads per batch
 	// We do not want to load too many packages without saving because if we hit the memory limit and GC every package
 	// we load will have to be loaded again
-	while (LoadReadyQueue.Num() + LoadPrepareQueue.Num() > static_cast<int32>(DesiredQueueLength) &&
-		OutNumPushed < LoadBatchSize)
+	while (InProgress.Num() > static_cast<int32>(DesiredQueueLength) && OutNumPushed < LoadBatchSize)
 	{
 		if (StackData.Timer.IsActionTimeUp())
 		{
 			return;
 		}
-		if (bIsUrgentInProgress && !Monitor.GetNumUrgent(EPackageState::LoadPrepare) && !Monitor.GetNumUrgent(EPackageState::LoadReady))
+		if (bIsUrgentInProgress && !Monitor.GetNumUrgent(EPackageState::Load))
 		{
 			return;
 		}
-		COOK_STAT(DetailedCookStats::PeakLoadQueueSize = FMath::Max(DetailedCookStats::PeakLoadQueueSize, LoadPrepareQueue.Num() + LoadReadyQueue.Num()));
-		PumpPreloadStarts(); // PumpPreloadStarts after every load so that we keep adding preloads ahead of our need for them
+		COOK_STAT(DetailedCookStats::PeakLoadQueueSize = FMath::Max(DetailedCookStats::PeakLoadQueueSize, InProgress.Num()));
 
-		if (LoadReadyQueue.IsEmpty())
+		if (!ReadyForLoads.IsEmpty())
 		{
-			PumpPreloadCompletes();
-			if (LoadReadyQueue.IsEmpty())
+			TRefCountPtr<FPackagePreloader> Preloader = ReadyForLoads.PopFrontValue();
+			FPackageData& PackageData(Preloader->GetPackageData());
+			if (PackageData.GetState() == EPackageState::Load)
 			{
-				if (!LoadPrepareQueue.IsEmpty())
+				// A PackageData is in the load state, and we are done with preloading its imports
+				// and are ready to load it.
+				// Call extra code to add logging and state-transitioning the package out of load.
+				int32 NumPushed;
+				LoadPackageInQueue(PackageData, StackData.ResultFlags, NumPushed);
+				OutNumPushed += NumPushed;
+			}
+			else
+			{
+				// The PackagePreloader is done preloading and needs to be loaded, but its PackageData
+				// is in some other state. Just do minimum amount of work to load the package.
+				// Note that generated packages do not come through here; they are never added because
+				// they are not in any other package's import tree.
+				if (PackageData.IsGenerated())
 				{
-					bOutBusy = true;
+					UE_LOG(LogCook, Warning,
+						TEXT("Package %s is generated but is ReadyForLoad when not in load state. State == %s, PreloaderState == %s, CountFromRequestedLoads == %d."),
+						*WriteToString<256>(PackageData.GetPackageName()), LexToString(PackageData.GetState()),
+						LexToString(Preloader->GetState()), Preloader->GetCountFromRequestedLoads());
 				}
-				break;
+				UPackage* UnusedPackage;
+				LoadPackageForCooking(PackageData, UnusedPackage);
+				Preloader->PumpLoadsMarkLoadAttemptComplete();
+			}
+
+			ProcessUnsolicitedPackages(); // May add new packages into LoadInbox
+#if ENABLE_LOW_LEVEL_MEM_TRACKER
+			FLowLevelMemTracker::Get().UpdateStatsPerFrame();
+#endif
+			if (PumpHasExceededMaxMemory(StackData.ResultFlags))
+			{
+				return;
+			}
+			continue;
+		}
+
+		// Process all values in the inbox until it is empty or we run out of time. Adding values from the inbox may
+		// change the front of the PendingKicks priority queue.
+		while (FPackagePreloader::PumpLoadsTryStartInboxPackage(*this))
+		{
+			// Work was done in while condition
+			if (StackData.Timer.IsActionTimeUp())
+			{
+				return;
 			}
 		}
 
-		FPackageData& PackageData(*LoadReadyQueue.PopFrontValue());
-		FPoppedPackageDataScope Scope(PackageData);
-		if (TryCreateRequestCluster(PackageData))
+		// Kick preloads until we run out of preload budget
+		while (FPackagePreloader::PumpLoadsTryKickPreload(*this))
 		{
-			continue;
+			// Work was done in while condition
 		}
 
-		int32 NumPushed;
-		LoadPackageInQueue(PackageData, StackData.ResultFlags, NumPushed);
-		OutNumPushed += NumPushed;
-		ProcessUnsolicitedPackages(); // May add new packages into the LoadQueue
-#if ENABLE_LOW_LEVEL_MEM_TRACKER
-		FLowLevelMemTracker::Get().UpdateStatsPerFrame();
-#endif
-
-		if (PumpHasExceededMaxMemory(StackData.ResultFlags))
+		// Poll all active preloads
+		for (TSet<TRefCountPtr<FPackagePreloader>>::TIterator Iter(ActivePreloads); Iter; ++Iter)
 		{
-			return;
+			TRefCountPtr<FPackagePreloader>& IterPreloader = *Iter;
+			if (IterPreloader->PumpLoadsIsReadyToLeavePreload())
+			{
+				TRefCountPtr<FPackagePreloader> Preloader(IterPreloader);
+				Iter.RemoveCurrent();
+				Preloader->SendToState(EPreloaderState::ReadyForLoad, ESendFlags::QueueAdd);
+			}
 		}
-	}
-}
 
-void UCookOnTheFlyServer::PumpPreloadCompletes()
-{
-	using namespace UE::Cook;
-
-	FPackageDataQueue& PreloadingQueue = PackageDatas->GetLoadPrepareQueue().PreloadingQueue;
-	const bool bLocalPreloadingEnabled = bPreloadingEnabled;
-	while (!PreloadingQueue.IsEmpty())
-	{
-		FPackageData* PackageData = PreloadingQueue.First();
-		if (!bLocalPreloadingEnabled || PackageData->TryPreload())
+		// If we did not find any packages ready to load then report the load queue is busy waiting for preloads
+		if (ReadyForLoads.IsEmpty())
 		{
-			// Ready to go
-			PreloadingQueue.PopFront();
-			PackageData->SendToState(EPackageState::LoadReady, ESendFlags::QueueAdd, EStateChangeReason::Loaded);
-			continue;
+			bOutBusy = true;
+			break;
 		}
-		break;
-	}
-}
-
-void UCookOnTheFlyServer::PumpPreloadStarts()
-{
-	using namespace UE::Cook;
-
-	FPackageDataMonitor& Monitor = PackageDatas->GetMonitor();
-	FLoadPrepareQueue& LoadPrepareQueue = PackageDatas->GetLoadPrepareQueue();
-	FPackageDataQueue& PreloadingQueue = LoadPrepareQueue.PreloadingQueue;
-	FPackageDataQueue& EntryQueue = LoadPrepareQueue.EntryQueue;
-
-	const bool bLocalPreloadingEnabled = bPreloadingEnabled;
-	while (!EntryQueue.IsEmpty() && Monitor.GetNumPreloadAllocated() < static_cast<int32>(MaxPreloadAllocated))
-	{
-		FPackageData* PackageData = EntryQueue.PopFrontValue();
-		if (TryCreateRequestCluster(*PackageData))
-		{
-			continue;
-		}
-		if (bLocalPreloadingEnabled)
-		{
-			PackageData->TryPreload();
-		}
-		PreloadingQueue.Add(PackageData);
 	}
 }
 
@@ -2947,11 +2933,15 @@ void UCookOnTheFlyServer::LoadPackageInQueue(UE::Cook::FPackageData& PackageData
 
 	UPackage* LoadedPackage = nullptr;
 	OutNumPushed = 0;
+	TRefCountPtr<FPackagePreloader> Preloader = PackageData.CreatePackagePreloader();
+	check(Preloader->GetState() == EPreloaderState::ReadyForLoad);
 
 	FName PackageFileName(PackageData.GetFileName());
 	if (!PackageData.IsGenerated())
 	{
 		bool bLoadFullySuccessful = LoadPackageForCooking(PackageData, LoadedPackage);
+		// Mark the load attempt complete before we do any state transition of the PackageData.
+		Preloader->PumpLoadsMarkLoadAttemptComplete();
 		if (!bLoadFullySuccessful)
 		{
 			ResultFlags |= COSR_ErrorLoadingPackage;
@@ -2979,6 +2969,9 @@ void UCookOnTheFlyServer::LoadPackageInQueue(UE::Cook::FPackageData& PackageData
 	}
 	else
 	{
+		// Generated packages do not use the preload, so go ahead and mark it complete now. As with regular packages,
+		// we need to mark it complete before any state transitions of the PackageData.
+		Preloader->PumpLoadsMarkLoadAttemptComplete();
 		TRefCountPtr<FGenerationHelper> GenerationHelper = PackageData.TryCreateValidParentGenerationHelper();
 		if (!GenerationHelper)
 		{
@@ -3036,7 +3029,7 @@ void UCookOnTheFlyServer::LoadPackageInQueue(UE::Cook::FPackageData& PackageData
 	{
 		// Already cooked. This can happen if we needed to load a package that was previously cooked and garbage collected because it is a loaddependency of a new request.
 		// Send the package back to idle, nothing further to do with it.
-		DemoteToIdle(PackageData, ESendFlags::QueueAdd, ESuppressCookReason::AlreadyCooked);
+		DemoteToIdle(PackageData, ESendFlags::QueueAddAndRemove, ESuppressCookReason::AlreadyCooked);
 		return;
 	}
 
@@ -3056,7 +3049,7 @@ void UCookOnTheFlyServer::LoadPackageInQueue(UE::Cook::FPackageData& PackageData
 
 	PostLoadPackageFixup(PackageData, LoadedPackage);
 	PackageData.SetPackage(LoadedPackage);
-	PackageData.SendToState(EPackageState::SaveActive, ESendFlags::QueueAdd, EStateChangeReason::Loaded);
+	PackageData.SendToState(EPackageState::SaveActive, ESendFlags::QueueAddAndRemove, EStateChangeReason::Loaded);
 	++OutNumPushed;
 }
 
@@ -3081,7 +3074,7 @@ void UCookOnTheFlyServer::RejectPackageToLoad(UE::Cook::FPackageData& PackageDat
 			IFileManager::Get().Delete(*SandboxFilename);
 		}
 	}
-	DemoteToIdle(PackageData, UE::Cook::ESendFlags::QueueAdd, Reason);
+	DemoteToIdle(PackageData, UE::Cook::ESendFlags::QueueAddAndRemove, Reason);
 }
 
 EDataValidationResult UCookOnTheFlyServer::ValidateSourcePackage(UE::Cook::FPackageData& PackageData, UPackage* Package)
@@ -5447,15 +5440,7 @@ void UCookOnTheFlyServer::PreGarbageCollect()
 		{
 			AddPackageName(PackageData->GetPackageName());
 		}
-		for (FPackageData* PackageData : PackageDatas->GetLoadPrepareQueue().EntryQueue)
-		{
-			AddPackageName(PackageData->GetPackageName());
-		}
-		for (FPackageData* PackageData : PackageDatas->GetLoadPrepareQueue().PreloadingQueue)
-		{
-			AddPackageName(PackageData->GetPackageName());
-		}
-		for (FPackageData* PackageData : PackageDatas->GetLoadReadyQueue())
+		for (FPackageData* PackageData : PackageDatas->GetLoadQueue())
 		{
 			AddPackageName(PackageData->GetPackageName());
 		}
@@ -5644,9 +5629,20 @@ void UCookOnTheFlyServer::PostGarbageCollect()
 			GenerationHelper->PostGarbageCollect(GenerationHelper, *GCDiagnosticContext);
 		}
 	});
+
+	// Second pass over all PackageDatas, combine a few operations
 	PackageDatas->LockAndEnumeratePackageDatas([](FPackageData* PackageData)
 	{
+		// Mark that the PackageData no longer needs to be keepreferenced.
+		// This can only be done after all GenerationHelper->PostGarbageCollect have been called.
 		PackageData->SetKeepReferencedDuringGC(false);
+
+		// Reset the completion flags for FPreloadPackage, since the UPackage might be no longer loaded.
+		TRefCountPtr<FPackagePreloader> Preloader = PackageData->GetPackagePreloader();
+		if (Preloader)
+		{
+			Preloader->PostGarbageCollect();
+		}
 	});
 
 	// Only after running all possible callbacks that need our links for diagnostics, clear the list of temporary
@@ -10523,8 +10519,7 @@ void UCookOnTheFlyServer::CookByTheBookFinishedInternal()
 	check(PackageDatas->GetRequestQueue().IsEmpty());
 	check(PackageDatas->GetRequestQueue().GetDiscoveryQueue().IsEmpty());
 	check(PackageDatas->GetAssignedToWorkerSet().IsEmpty());
-	check(PackageDatas->GetLoadPrepareQueue().IsEmpty());
-	check(PackageDatas->GetLoadReadyQueue().IsEmpty());
+	check(PackageDatas->GetLoadQueue().IsEmpty());
 	check(PackageDatas->GetSaveQueue().IsEmpty());
 	check(PackageDatas->GetSaveStalledSet().IsEmpty());
 
@@ -11118,34 +11113,34 @@ void UCookOnTheFlyServer::CancelAllQueues()
 	{
 		DemoteToIdle(*SaveQueue.PopFrontValue(), ESendFlags::QueueAdd, ESuppressCookReason::CookCanceled);
 	}
-	FPackageDataQueue& LoadReadyQueue = PackageDatas->GetLoadReadyQueue();
-	while (!LoadReadyQueue.IsEmpty())
+	FLoadQueue& LoadQueue = PackageDatas->GetLoadQueue();
+	FRequestQueue& RequestQueue = PackageDatas->GetRequestQueue();
+	TArray<FPackageData*> DatasInStatesWithTSet;
+	DatasInStatesWithTSet.Reset(LoadQueue.Num()
+		+ PackageDatas->GetAssignedToWorkerSet().Num()
+		+ PackageDatas->GetSaveStalledSet().Num()
+		+ RequestQueue.GetRestartedRequests().Num());
+	for (FPackageData* PackageData : LoadQueue)
 	{
-		DemoteToIdle(*LoadReadyQueue.PopFrontValue(), ESendFlags::QueueAdd, ESuppressCookReason::CookCanceled);
-	}
-	FLoadPrepareQueue& LoadPrepareQueue = PackageDatas->GetLoadPrepareQueue();
-	while (!LoadPrepareQueue.IsEmpty())
-	{
-		DemoteToIdle(*LoadPrepareQueue.PopFront(), ESendFlags::QueueAdd, ESuppressCookReason::CookCanceled);
+		DatasInStatesWithTSet.Add(PackageData);
 	}
 	for (FPackageData* PackageData : PackageDatas->GetAssignedToWorkerSet())
 	{
-		DemoteToIdle(*PackageData, ESendFlags::QueueAdd, ESuppressCookReason::CookCanceled);
+		DatasInStatesWithTSet.Add(PackageData);
 	}
-	PackageDatas->GetAssignedToWorkerSet().Empty();
 	for (FPackageData* PackageData : PackageDatas->GetSaveStalledSet())
 	{
-		DemoteToIdle(*PackageData, ESendFlags::QueueAdd, ESuppressCookReason::CookCanceled);
+		DatasInStatesWithTSet.Add(PackageData);
 	}
-	PackageDatas->GetSaveStalledSet().Empty();
-	FRequestQueue& RequestQueue = PackageDatas->GetRequestQueue();
-	RequestQueue.GetDiscoveryQueue().Empty();
-	FPackageDataSet& RestartedRequests = RequestQueue.GetRestartedRequests();
-	for (FPackageData* PackageData : RestartedRequests)
+	for (FPackageData* PackageData : RequestQueue.GetRestartedRequests())
 	{
-		DemoteToIdle(*PackageData, ESendFlags::QueueAdd, ESuppressCookReason::CookCanceled);
+		DatasInStatesWithTSet.Add(PackageData);
 	}
-	RestartedRequests.Empty();
+	for (FPackageData* PackageData : DatasInStatesWithTSet)
+	{
+		DemoteToIdle(*PackageData, ESendFlags::QueueAddAndRemove, ESuppressCookReason::CookCanceled);
+	}
+	RequestQueue.GetDiscoveryQueue().Empty();
 	TRingBuffer<FRequestCluster>& RequestClusters = RequestQueue.GetRequestClusters();
 	for (FRequestCluster& RequestCluster : RequestClusters)
 	{
@@ -11192,6 +11187,8 @@ void UCookOnTheFlyServer::ClearPlatformCookedData(const ITargetPlatform* TargetP
 
 void UCookOnTheFlyServer::ResetCook(TConstArrayView<TPair<const ITargetPlatform*, bool>> TargetPlatforms)
 {
+	using namespace UE::Cook;
+
 	PackageDatas->LockAndEnumeratePackageDatas([TargetPlatforms](UE::Cook::FPackageData* PackageData)
 	{
 		PackageData->FindOrAddPlatformData(CookerLoadingPlatformKey).ResetReachable();
@@ -11199,7 +11196,7 @@ void UCookOnTheFlyServer::ResetCook(TConstArrayView<TPair<const ITargetPlatform*
 		for (const TPair<const ITargetPlatform*, bool>& Pair : TargetPlatforms)
 		{
 			const ITargetPlatform* TargetPlatform = Pair.Key;
-			UE::Cook::FPackagePlatformData* PlatformData = PackageData->FindPlatformData(TargetPlatform);
+			FPackagePlatformData* PlatformData = PackageData->FindPlatformData(TargetPlatform);
 			if (PlatformData)
 			{
 				bool bResetResults = Pair.Value;
@@ -11210,7 +11207,12 @@ void UCookOnTheFlyServer::ResetCook(TConstArrayView<TPair<const ITargetPlatform*
 				}
 			}
 		}
+
+		PackageData->SetSuppressCookReason(ESuppressCookReason::NotSuppressed);
+		PackageData->SetLeafToRootRank(MAX_uint32);
 	});
+
+	PackageDatas->ResetLeafToRootRank();
 
 	TArray<FName> PackageNames;
 	for (const TPair<const ITargetPlatform*, bool>& Pair : TargetPlatforms)
@@ -12154,29 +12156,31 @@ void UCookOnTheFlyServer::GetPackagesToRetract(int32 NumToRetract, TArray<FName>
 		return;
 	}
 
-	FLoadPrepareQueue& LoadPrepareQueue = PackageDatas->GetLoadPrepareQueue();
-	for (FPackageData* PackageData : LoadPrepareQueue.EntryQueue)
+	// Send back loadstate packages that have not started loading before sending back any that have.
+	FLoadQueue& LoadQueue = PackageDatas->GetLoadQueue();
+	for (FPackageData* PackageData : LoadQueue)
 	{
-		if (AddPackageIfPossibleAndReportDone(PackageData))
+		TRefCountPtr<FPackagePreloader> Preloader = PackageData->GetPackagePreloader();
+		if (!(Preloader && (Preloader->IsPackageLoaded() || Preloader->GetState() >= EPreloaderState::ActivePreload)))
 		{
-			return;
+			if (AddPackageIfPossibleAndReportDone(PackageData))
+			{
+				return;
+			}
 		}
 	}
-	for (FPackageData* PackageData : LoadPrepareQueue.PreloadingQueue)
+	for (FPackageData* PackageData : LoadQueue)
 	{
-		if (AddPackageIfPossibleAndReportDone(PackageData))
+		TRefCountPtr<FPackagePreloader> Preloader = PackageData->GetPackagePreloader();
+		if (Preloader && (Preloader->IsPackageLoaded() || Preloader->GetState() >= EPreloaderState::ActivePreload))
 		{
-			return;
+			if (AddPackageIfPossibleAndReportDone(PackageData))
+			{
+				return;
+			}
 		}
 	}
-	for (FPackageData* PackageData : PackageDatas->GetLoadReadyQueue())
-	{
-		if (AddPackageIfPossibleAndReportDone(PackageData))
-		{
-			return;
-		}
-	}
-	// Send back all packages that have not started saving before sending back any that have
+	// Send back savestate packages that have not started saving before sending back any that have.
 	for (FPackageData* PackageData : PackageDatas->GetSaveQueue())
 	{
 		if (PackageData->GetSaveSubState() <= ESaveSubState::StartSave)

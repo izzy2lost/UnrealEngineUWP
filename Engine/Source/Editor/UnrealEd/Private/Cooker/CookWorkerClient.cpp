@@ -922,7 +922,7 @@ void FCookWorkerClient::AssignPackages(FAssignPackagesMessage& Message)
 							UE_LOG(LogCook, Display,
 								TEXT("Package %s is in the save state, but the CookDirector updated the requested platforms to include the new platform %s. Restarting the package's save."),
 								*PackageData.GetPackageName().ToString(), *TargetPlatform->PlatformName());
-							PackageData.SendToState(EPackageState::LoadReady, ESendFlags::QueueAddAndRemove, EStateChangeReason::DirectorRequest);
+							PackageData.SendToState(EPackageState::Load, ESendFlags::QueueAddAndRemove, EStateChangeReason::DirectorRequest);
 						}
 					}
 				}
