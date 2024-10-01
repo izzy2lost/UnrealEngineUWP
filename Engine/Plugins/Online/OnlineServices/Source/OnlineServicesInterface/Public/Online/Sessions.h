@@ -601,6 +601,15 @@ struct FRejectSessionInvite
 
 /* Events */
 
+struct FSessionCreated
+{
+	/** Id handle for the local user who created the session */
+	FAccountId LocalAccountId;
+
+	/** Id handle for the session created. */
+	FOnlineSessionId SessionId;
+};
+
 struct FSessionJoined
 {
 	/** Id handle for the local user who joined the session */
@@ -834,7 +843,13 @@ public:
 	virtual TOnlineAsyncOpHandle<FRejectSessionInvite> RejectSessionInvite(FRejectSessionInvite::Params&& Params) = 0;
 
 	/* Events */
-
+	
+	/**
+	 * This event will trigger as a result of a session being created.
+	 *
+	 * @return
+	 */
+	virtual TOnlineEvent<void(const FSessionCreated &)> OnSessionCreated() = 0;
 	/**
 	 * This event will trigger as a result of joining a session.
 	 *
@@ -1102,6 +1117,19 @@ BEGIN_ONLINE_STRUCT_META(FSessionUpdate)
 	ONLINE_STRUCT_FIELD(FSessionUpdate, RemovedSessionMembers)
 END_ONLINE_STRUCT_META()
 
+BEGIN_ONLINE_STRUCT_META(FSessionCreated)
+	ONLINE_STRUCT_FIELD(FSessionCreated, LocalAccountId),
+	ONLINE_STRUCT_FIELD(FSessionCreated, SessionId)
+END_ONLINE_STRUCT_META()
+
+BEGIN_ONLINE_STRUCT_META(FSessionJoined)
+ONLINE_STRUCT_FIELD(FSessionCreated, LocalAccountId),
+ONLINE_STRUCT_FIELD(FSessionCreated, SessionId)
+END_ONLINE_STRUCT_META()
+
+BEGIN_ONLINE_STRUCT_META(FSessionLeft)
+	ONLINE_STRUCT_FIELD(FSessionCreated, LocalAccountId)
+END_ONLINE_STRUCT_META()
 /* Meta*/ }
 
 /* UE::Online */ }
