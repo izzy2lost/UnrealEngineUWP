@@ -534,6 +534,7 @@ void FGenericDataDrivenShaderPlatformInfo::UpdatePreviewPlatforms()
 				PREVIEW_USE_RUNTIME_VALUE(Language);
 				PREVIEW_USE_RUNTIME_VALUE(bIsHlslcc);
 				PREVIEW_USE_RUNTIME_VALUE(bSupportsDxc);
+				PREVIEW_USE_RUNTIME_VALUE(bIsSPIRV);
 
 				// Editor is always PC, never console and always supports debug view shaders
 				PREVIEW_FORCE_SETTING(bIsPC, true);
