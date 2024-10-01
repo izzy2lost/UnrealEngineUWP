@@ -145,11 +145,8 @@ public:
 	/**
 	 * @return Whether or not we need to display a group border around a list of details.
 	 */
-	bool ShouldShowGroup(FName RequiredGroupName) const
-	{
-		// Should show the group if the group name is not empty and there are more than two entries in the list where one of them is not the default "none" entry (represents the base object)
-		return RequiredGroupName != NAME_None && Layouts.Num() > 1 && (Layouts.Num() > 2 || !bContainsBaseInstance);
-	}
+	bool ShouldShowGroup(FName RequiredGroupName) const;
+
 private:
 	TArray<FDetailLayout> Layouts;
 	bool bContainsBaseInstance;
