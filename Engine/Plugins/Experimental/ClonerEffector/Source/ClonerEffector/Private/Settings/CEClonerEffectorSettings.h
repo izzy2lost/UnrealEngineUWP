@@ -46,7 +46,7 @@ public:
 		return bReduceMotionGhosting;
 	}
 
-	void OpenSettings() const;
+	void OpenEditorSettingsWindow() const;
 #endif
 
 protected:

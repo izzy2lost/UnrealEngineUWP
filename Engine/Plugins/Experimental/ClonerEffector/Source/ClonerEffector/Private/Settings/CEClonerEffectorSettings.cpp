@@ -12,16 +12,6 @@
 #include "Modules/ModuleManager.h"
 #endif
 
-#if WITH_EDITOR
-void UCEClonerEffectorSettings::OpenSettings() const
-{
-	if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>(TEXT("Settings")))
-	{
-		SettingsModule->ShowViewer(GetContainerName(), GetCategoryName(), GetSectionName());
-	}
-}
-#endif
-
 UCEClonerEffectorSettings::UCEClonerEffectorSettings()
 {
 	CategoryName = TEXT("Motion Design");
@@ -59,6 +49,14 @@ void UCEClonerEffectorSettings::PostInitProperties()
 }
 
 #if WITH_EDITOR
+void UCEClonerEffectorSettings::OpenEditorSettingsWindow() const
+{
+	if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>(TEXT("Settings")))
+	{
+		SettingsModule->ShowViewer(GetContainerName(), GetCategoryName(), GetSectionName());
+	}
+}
+
 void UCEClonerEffectorSettings::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
 {
 	if (InPropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(UCEClonerEffectorSettings, bReduceMotionGhosting))
