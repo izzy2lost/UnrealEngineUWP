@@ -1542,7 +1542,7 @@ protected:
 	GEOMETRYCOLLECTIONENGINE_API virtual void CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FMaterialInterfacePSOPrecacheParamsList& OutParams) override;
 
 	/** Populate the dynamic particle data for the render thread. */
-	GEOMETRYCOLLECTIONENGINE_API FGeometryCollectionDynamicData* InitDynamicData(bool bInitialization);
+	GEOMETRYCOLLECTIONENGINE_API FGeometryCollectionDynamicData* InitDynamicData(bool bInitialization = false);
 
 	/** Reset the dynamic collection from the current rest state. */
 	GEOMETRYCOLLECTIONENGINE_API void ResetDynamicCollection();
@@ -1649,6 +1649,7 @@ private:
 	void ProcessRepStateDataOnPT();
 	void ProcessRepDynamicDataOnPT();
 	void InitializeRemovalDynamicAttributesIfNeeded();
+	void SendDynamicDataToSceneProxy();
 
 	// called when the rest transform are updated from SetRestState / ResetRestTransforms
 	// this updates only the renderer, the dynamic collection should be initialized when calling this function
@@ -1663,9 +1664,6 @@ private:
 	uint8 bEnableBoneSelection : 1;
 	uint8 IsObjectDynamic : 1;
 	uint8 IsObjectLoading : 1;
-
-	/** True if GeometryCollection transforms have changed from previous tick. */
-	uint8 bIsMoving : 1;
 
 	int ViewLevel;
 
