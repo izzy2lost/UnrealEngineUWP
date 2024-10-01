@@ -128,7 +128,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 				int32 HighResMipsForThisImage = FMath::Min(NumMipsBeyondMin, GenerationContext.Options.NumHighResImageMips);
 				ConstantImageNode->SourceDataDescriptor.SourceHighResMips = HighResMipsForThisImage;
 
-				const FString TextureName = GetNameSafe(BaseTexture);
+				const FString TextureName = GetNameSafe(BaseTexture).ToLower();
 				ConstantImageNode->SourceDataDescriptor.SourceId = CityHash32(reinterpret_cast<const char*>(*TextureName), TextureName.Len() * sizeof(FString::ElementType));
 
 				ImageNode = ConstantImageNode;
@@ -232,7 +232,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 			int32 HighResMipsForThisImage = FMath::Min(NumMipsBeyondMin, GenerationContext.Options.NumHighResImageMips);
 			ImageNode->SourceDataDescriptor.SourceHighResMips = HighResMipsForThisImage;
 
-			const FString TextureName = GetNameSafe(Texture);
+			const FString TextureName = GetNameSafe(Texture).ToLower();
 			ImageNode->SourceDataDescriptor.SourceId = CityHash32(reinterpret_cast<const char*>(*TextureName), TextureName.Len() * sizeof(FString::ElementType));
 		}
 		else
@@ -1003,7 +1003,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 		}
 		else
 		{
-			const FString TableName = TypedNodeTable->Table ? GetNameSafe(TypedNodeTable->Table) : GetNameSafe(TypedNodeTable->Structure);
+			const FString TableName = TypedNodeTable->Table ? GetNameSafe(TypedNodeTable->Table).ToLower() : GetNameSafe(TypedNodeTable->Structure).ToLower();
 			const uint32 TableId = CityHash32(reinterpret_cast<const char*>(*TableName), TableName.Len() * sizeof(FString::ElementType));
 
 			// This node will add a checker texture in case of error

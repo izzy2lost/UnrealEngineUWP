@@ -28,6 +28,11 @@ namespace mu
 }
 
 #if WITH_EDITOR
+namespace MutablePrivate
+{
+	struct FClassifyNode;
+}
+
 namespace UE::DerivedData
 {
 	struct FValueId;
@@ -539,13 +544,17 @@ struct FRealTimeMorphStreamable
 	FMutableStreamableBlock Block;
 
 	UPROPERTY()
-	uint32 Size=0;
+	uint32 Size = 0;
+
+	UPROPERTY()
+	uint32 SourceId = 0;
 
 	friend FArchive& operator<<(FArchive& Ar, FRealTimeMorphStreamable& Elem)
 	{
 		Ar << Elem.NameResolutionMap;
 		Ar << Elem.Size;
 		Ar << Elem.Block;
+		Ar << Elem.SourceId;
 
 		return Ar;
 	}
@@ -617,6 +626,9 @@ struct FClothingStreamable
 	UPROPERTY()
 	FMutableStreamableBlock Block;
 
+	UPROPERTY()
+	uint32 SourceId = 0;
+
 	friend FArchive& operator<<(FArchive& Ar, FClothingStreamable& Elem)
 	{
 		Ar << Elem.ClothingAssetIndex;
@@ -624,7 +636,7 @@ struct FClothingStreamable
 		Ar << Elem.PhysicsAssetIndex;
 		Ar << Elem.Size;
 		Ar << Elem.Block;
-
+		Ar << Elem.SourceId;
 		return Ar;
 	}
 };
@@ -753,27 +765,25 @@ namespace MutablePrivate
 
 	struct FBlock
 	{
-		/** Data Type*/
-		EDataType DataType;
-
 		/** Used on some data types as the index to the block stored in the CustomizableObject */
 		uint32 Id;
+
+		/** Used on some data types to group blocks. */
+		uint32 SourceId;
 
 		/** Size of the data block. */
 		uint32 Size;
 
-		/** Data flags, like "high-res". */
-		uint32 Flags;
+		uint32 Padding = 0;
 
 		/** Offset in the full source streamed data file that is created when compiling. */
 		uint64 Offset;
 
 		friend FArchive& operator<<(FArchive& Ar, FBlock& Data)
 		{
-			Ar << Data.DataType;
 			Ar << Data.Id;
+			Ar << Data.SourceId;
 			Ar << Data.Size;
-			Ar << Data.Flags;
 			Ar << Data.Offset;
 			return Ar;
 		};
@@ -784,19 +794,22 @@ namespace MutablePrivate
 	{
 		EDataType DataType = EDataType::None;
 
-		uint32 Padding = 0;
-
-		/** Id generated from a hash of the file content + offset to avoid collisions. */
-		uint32 Id;
+		/** Rom ResourceType. */
+		uint16 ResourceType = 0;
 
 		/** Common flags of the data stored in this file. See mu::ERomFlags. */
-		uint32 Flags = 0;
+		uint16 Flags = 0;
+
+		/** Id generated from a hash of the file content + offset to avoid collisions. */
+		uint32 Id = 0;
+
+		uint32 Padding = 0;
 
 		/** List of blocks that are contained in the file, in order. */
 		TArray<FBlock> Blocks;
 
 		/** Get the total size of blocks in this file. */
-		int64 GetSize() const;
+		uint64 GetSize() const;
 
 		/** Copy the requested block to the requested buffer and return its size. */
 		void GetFileData(struct FMutableCachedPlatformData*, TArray64<uint8>& DataDestination, bool bDropData);
@@ -804,12 +817,52 @@ namespace MutablePrivate
 		friend FArchive& operator<<(FArchive& Ar, FFile& Data)
 		{
 			Ar << Data.DataType;
-			Ar << Data.Padding;
-			Ar << Data.Id;
+			Ar << Data.ResourceType;
 			Ar << Data.Flags;
+			Ar << Data.Id;
 			Ar << Data.Blocks;
 			return Ar;
 		};
+	};
+
+	struct FFileCategoryID
+	{
+		// DATATYPE
+		EDataType DataType = EDataType::None;
+
+		/** Rom ResourceType. */
+		uint16 ResourceType = 0;
+
+		/** Rom flags  */
+		uint16 Flags = 0;
+
+		friend uint32 GetTypeHash(const FFileCategoryID& Key);
+		bool operator==(const FFileCategoryID& Other) const = default;
+	};
+
+
+	struct FFileCategory
+	{
+		FFileCategoryID Id;
+
+		// Accumulated size of resources from this category
+		uint64 DataSize = 0;
+
+		// Categories within a bucket with a limited number of files will use sequential ID starting at FirstFile
+		// and up to FirstFile + NumFiles.
+		uint32 FirstFile = 0;
+		uint32 NumFiles = 0;
+	};
+
+
+	/** Group bulk data by categories. */
+	struct FFileBucket
+	{
+		// Resources belonging to these categories will be added to the bucket.
+		TArray<FFileCategory> Categories;
+
+		// Accumulated size of the resources of all categories within this bucket
+		uint64 DataSize = 0;
 	};
 
 	struct FModelStreamableData
@@ -867,22 +920,39 @@ namespace MutablePrivate
 	};
 
 
-	/** Compute the number of files and sizes the BulkData will be split into and update
-	 * the streamables's FileIds and Offsets.
+	/** Generate the list of BulkData files with a restriction to the number of files to generate per bucket.
+	 *  Resources will be split into two buckets for non-optional and optional BulkData.
 	 */
-	void CUSTOMIZABLEOBJECT_API GenerateBulkDataFilesList(
+	void CUSTOMIZABLEOBJECT_API GenerateBulkDataFilesListWithFileLimit(
 		TSharedPtr<const mu::Model, ESPMode::ThreadSafe> Model,
-		FModelStreamableBulkData& StreamableBulkData,
+		FModelStreamableBulkData& ModelStreamableBulkData,
+		uint32 NumFilesPerBucket,
+		TArray<FFile>& OutBulkDataFiles);
+
+	/** Generate the list of BulkData files with a soft restriction to the size of the files.
+	 */
+	void CUSTOMIZABLEOBJECT_API GenerateBulkDataFilesListWithSizeLimit(
+		TSharedPtr<const mu::Model, ESPMode::ThreadSafe> Model,
+		FModelStreamableBulkData& ModelStreamableBulkData,
 		const ITargetPlatform* TargetPlatform,
 		uint64 TargetBulkDataFileBytes,
+		TArray<FFile>& OutBulkDataFiles);
+
+	/** Compute the number of files and sizes the BulkData will be split into and update
+	 * the streamable's FileIds and Offsets.
+	 */
+	void GenerateBulkDataFilesList(
+		TSharedPtr<const mu::Model, ESPMode::ThreadSafe> Model,
+		FModelStreamableBulkData& StreamableBulkData,
+		bool bUseRomTypeAndFlagsToFilter,
+		TFunctionRef<void(const FFileCategoryID&, const FClassifyNode&, TArray<FFile>&)> CreateFileList,
 		TArray<FFile>& OutBulkDataFiles);
 
 	void CUSTOMIZABLEOBJECT_API SerializeBulkDataFiles(
 		FMutableCachedPlatformData& CachedPlatformData,
 		TArray<FFile>& BulkDataFiles,
-		TFunctionRef<void(FFile&, TArray64<uint8>&)> WriteFile,
-		bool bDropData
-	);
+		TFunctionRef<void(FFile&, TArray64<uint8>&, uint32 FileIndex)> WriteFile,
+		bool bDropData);
 
 	UE::DerivedData::FValueId CUSTOMIZABLEOBJECT_API GetDerivedDataModelId();
 	UE::DerivedData::FValueId CUSTOMIZABLEOBJECT_API GetDerivedDataModelResourcesId();
@@ -901,7 +971,7 @@ struct CUSTOMIZABLEOBJECT_API FModelStreamableBulkData
 
 	TMap<uint32, FRealTimeMorphStreamable> RealTimeMorphStreamables;
 
-	TMap<uint32, FByteBulkData> HashToBulkData;
+	TArray<FByteBulkData> StreamableBulkData;
 
 	void Serialize(FArchive& Ar, UObject* Owner, bool bCooked);
 
@@ -1488,6 +1558,8 @@ public:
 		TransformInMeshModifier,
 		
 		SurfaceMetadataSlotNameIndexToName,
+
+		BulkDataFilesNumFilesLimit,
 
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion
