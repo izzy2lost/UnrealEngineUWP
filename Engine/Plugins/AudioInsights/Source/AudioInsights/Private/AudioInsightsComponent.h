@@ -24,7 +24,7 @@ namespace UE::Audio::Insights
 		virtual void RegisterMajorTabs(IUnrealInsightsModule& InsightsModule) override;
 		virtual void UnregisterMajorTabs() override;
 
-		bool GetIsLiveSession() const { return bIsLiveSession; }
+		bool GetIsLiveSession() const;
 		bool GetIsEditorTrace() const { return bIsEditorTrace; }
 
 		DECLARE_MULTICAST_DELEGATE(FOnTabSpawn);
@@ -37,11 +37,8 @@ namespace UE::Audio::Insights
 		bool Tick(float DeltaTime);
 
 		bool bIsInitialized = false;
-
-		bool bIsLiveSession = false;
 		bool bIsEditorTrace = false;
-
-		bool bCanSpawnTab = false;
+		bool bCanSpawnTab   = false;
 
 		FTickerDelegate OnTick;
 		FTSTicker::FDelegateHandle OnTickHandle;

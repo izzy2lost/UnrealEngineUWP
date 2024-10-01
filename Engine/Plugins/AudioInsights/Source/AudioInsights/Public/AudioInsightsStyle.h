@@ -124,7 +124,7 @@ namespace UE::Audio::Insights
 
 			const FVector2D Icon16(16.0f, 16.0f);
 			const FVector2D Icon20(20.0f, 20.0f);
-			const FVector2D Icon40(40.0f, 40.0f);
+			const FVector2D Icon24(24.0f, 24.0f);
 			const FVector2D Icon64(64.0f, 64.0f);
 
 			Set("AudioInsights.Icon", new IMAGE_BRUSH_SVG(TEXT("Icons/audio_insights_icon"), Icon16));
@@ -132,6 +132,7 @@ namespace UE::Audio::Insights
 			Set("AudioInsights.Icon.Event", new IMAGE_BRUSH_SVG(TEXT("Icons/audio_event"), Icon16));
 			Set("AudioInsights.Icon.Log", new IMAGE_BRUSH_SVG(TEXT("Icons/audio_log"), Icon16));
 			Set("AudioInsights.Icon.Sources", new IMAGE_BRUSH_SVG(TEXT("Icons/audio_sources"), Icon16));
+			Set("AudioInsights.Icon.Sources.Plots", new IMAGE_BRUSH(TEXT("Icons/audio_sources_plots"), Icon24));
 			Set("AudioInsights.Icon.Submix", new IMAGE_BRUSH_SVG(TEXT("Icons/audio_submix"), Icon16));
 			Set("AudioInsights.Icon.VirtualLoop", new IMAGE_BRUSH_SVG(TEXT("Icons/audio_virtualloop"), Icon16));
 			Set("AudioInsights.Icon.Viewport", new IMAGE_BRUSH_SVG(TEXT("Icons/viewport"), Icon16));

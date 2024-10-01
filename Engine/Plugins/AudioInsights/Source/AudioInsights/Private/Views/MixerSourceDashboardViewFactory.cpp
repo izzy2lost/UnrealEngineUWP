@@ -6,6 +6,7 @@
 #include "AudioInsightsStyle.h"
 #include "DSP/Dsp.h"
 #include "Framework/Docking/LayoutService.h"
+#include "Framework/Docking/TabManager.h"
 #include "Internationalization/Text.h"
 #include "Providers/MixerSourceTraceProvider.h"
 #include "SSimpleTimeSlider.h"
@@ -847,6 +848,20 @@ namespace UE::Audio::Insights
 			];
 	}
 
+	TSharedRef<FTabManager::FLayout> FMixerSourceDashboardViewFactory::LoadLayoutFromConfig()
+	{
+		return FLayoutSaveRestore::LoadFromConfig(GEditorLayoutIni, GetDefaultTabLayout());
+	}
+
+	void FMixerSourceDashboardViewFactory::SaveLayoutToConfig()
+	{
+		if (MixerSourcesTabManager.IsValid())
+		{
+			FLayoutSaveRestore::SaveToConfig(GEditorLayoutIni, MixerSourcesTabManager->PersistLayout());
+		}
+	}
+#endif // WITH_EDITOR
+
 	TSharedRef<SWidget> FMixerSourceDashboardViewFactory::MakePlotsButtonWidget()
 	{
 		return SAssignNew(PlotsButton, SCheckBox)
@@ -861,22 +876,9 @@ namespace UE::Audio::Insights
 				[
 					SNew(SImage)
 					.ColorAndOpacity(FSlateColor::UseForeground())
-					.Image(FAppStyle::GetBrush("GenericCurveEditor.SetViewModeStacked"))
+					.Image(FSlateStyle::Get().GetBrush("AudioInsights.Icon.Sources.Plots"))
 				]
 			];
-	}
-
-	TSharedRef<FTabManager::FLayout> FMixerSourceDashboardViewFactory::LoadLayoutFromConfig()
-	{
-		return FLayoutSaveRestore::LoadFromConfig(GEditorLayoutIni, GetDefaultTabLayout());
-	}
-
-	void FMixerSourceDashboardViewFactory::SaveLayoutToConfig()
-	{
-		if (MixerSourcesTabManager.IsValid())
-		{
-			FLayoutSaveRestore::SaveToConfig(GEditorLayoutIni, MixerSourcesTabManager->PersistLayout());
-		}
 	}
 
 	void FMixerSourceDashboardViewFactory::TogglePlotsTabVisibility(ECheckBoxState InCheckboxState)
@@ -901,28 +903,34 @@ namespace UE::Audio::Insights
 			}
 		}
 
+#if WITH_EDITOR
 		SaveLayoutToConfig();
-	}
 #endif // WITH_EDITOR
+	}
 
 	TSharedRef<SDockTab> FMixerSourceDashboardViewFactory::CreateMixerSourcesTab(const FSpawnTabArgs& Args)
 	{
+#if !WITH_EDITOR
+		const TSharedPtr<const FAudioInsightsComponent> AudioInsightsComponent = FAudioInsightsModule::GetChecked().GetAudioInsightsComponent();
+#endif // !WITH_EDITOR
+
 		return SNew(SDockTab)
 			.Clipping(EWidgetClipping::ClipToBounds)
 			[
 				SNew(SVerticalBox)
-#if WITH_EDITOR
 				+SVerticalBox::Slot()
 				.AutoHeight()
 				.HAlign(HAlign_Fill)
 				.Padding(0.0f, 0.0f, 0.0f, 6.0f)
 				[
 					SNew(SHorizontalBox)
+#if WITH_EDITOR
 					+SHorizontalBox::Slot()
 					.HAlign(HAlign_Left)
 					[
 						MakeMuteSoloWidget()
 					]
+#endif // WITH_EDITOR
 					+ SHorizontalBox::Slot()
 					.HAlign(HAlign_Right)
 					[
@@ -932,10 +940,13 @@ namespace UE::Audio::Insights
 					.AutoWidth()
 					.HAlign(HAlign_Right)
 					[
+#if WITH_EDITOR
 						MakePlotsButtonWidget()
+#else
+						AudioInsightsComponent.IsValid() && AudioInsightsComponent->GetIsLiveSession() ? MakePlotsButtonWidget() : SNullWidget::NullWidget
+#endif // WITH_EDITOR
 					]
 				]
-#endif // WITH_EDITOR
 				+ SVerticalBox::Slot()
 				.HAlign(HAlign_Fill)
 				[
@@ -953,21 +964,20 @@ namespace UE::Audio::Insights
 
 		return SNew(SDockTab)
 			.Clipping(EWidgetClipping::ClipToBounds)
-#if WITH_EDITOR
 			.OnTabClosed_Lambda([this](TSharedRef<SDockTab> InDockTab)
 			{				
 				if (PlotsButton.IsValid())
 				{
 					PlotsButton->SetIsChecked(ECheckBoxState::Unchecked);
-
+#if WITH_EDITOR
 					// Can't save layout immediately (it won't save the tab closed state), needs to be done a bit later
 					AsyncTask(ENamedThreads::GameThread, [this]()
 					{
 						SaveLayoutToConfig();
 					});
+#endif // WITH_EDITOR
 				}
 			})
-#endif // WITH_EDITOR
 			[
 				PlotsWidget ? PlotsWidget.ToSharedRef() : SNullWidget::NullWidget
 			];
@@ -986,12 +996,16 @@ namespace UE::Audio::Insights
 			.SetDisplayName(LOCTEXT("MixerSourceTab_MixerSourcesTable_Name", "Mixer Sources"))
 			.SetGroup(MixerSourcesWorkspace.ToSharedRef())
 			.SetMenuType(ETabSpawnerMenuType::Hidden);
-#if WITH_EDITOR
-		MixerSourcesTabManager->RegisterTabSpawner(MixerSourcesPlotsTabName, FOnSpawnTab::CreateSP(this, &FMixerSourceDashboardViewFactory::CreatePlotsTab))
-			.SetDisplayName(LOCTEXT("MixerSourceTab_PlotsTab_Name", "Mixer Sources Plots"))
-			.SetGroup(MixerSourcesWorkspace.ToSharedRef())
-			.SetMenuType(ETabSpawnerMenuType::Hidden);
-#endif // WITH_EDITOR
+#if !WITH_EDITOR
+		const TSharedPtr<const FAudioInsightsComponent> AudioInsightsComponent = FAudioInsightsModule::GetChecked().GetAudioInsightsComponent();
+		if (AudioInsightsComponent.IsValid() && AudioInsightsComponent->GetIsLiveSession())
+#endif // !WITH_EDITOR
+		{
+			MixerSourcesTabManager->RegisterTabSpawner(MixerSourcesPlotsTabName, FOnSpawnTab::CreateSP(this, &FMixerSourceDashboardViewFactory::CreatePlotsTab))
+				.SetDisplayName(LOCTEXT("MixerSourceTab_PlotsTab_Name", "Mixer Sources Plots"))
+				.SetGroup(MixerSourcesWorkspace.ToSharedRef())
+				.SetMenuType(ETabSpawnerMenuType::Hidden);
+		}
 	}
 
 	void FMixerSourceDashboardViewFactory::UnregisterTabSpawners()
@@ -1001,9 +1015,7 @@ namespace UE::Audio::Insights
 		if (MixerSourcesTabManager.IsValid())
 		{
 			MixerSourcesTabManager->UnregisterTabSpawner(MixerSourcesTableTabName);
-#if WITH_EDITOR
 			MixerSourcesTabManager->UnregisterTabSpawner(MixerSourcesPlotsTabName);
-#endif // WITH_EDITOR
 		}
 	}
 
@@ -1011,34 +1023,47 @@ namespace UE::Audio::Insights
 	{
 		using namespace MixerSourcePrivate;
 
-		return FTabManager::NewLayout("MixerSourceTabsLayout_v1")
-		->AddArea
-		(
-			FTabManager::NewPrimaryArea()
+		float SizeCoefficient = 0.7f;
+
+#if !WITH_EDITOR
+		const TSharedPtr<const FAudioInsightsComponent> AudioInsightsComponent = FAudioInsightsModule::GetChecked().GetAudioInsightsComponent();
+		if (AudioInsightsComponent.IsValid() && !AudioInsightsComponent->GetIsLiveSession())
+		{
+			SizeCoefficient = 1.0f;
+		}
+#endif // !WITH_EDITOR
+
+		const TSharedRef<FTabManager::FSplitter> TabSplitter = FTabManager::NewSplitter()
 			->SetOrientation(Orient_Vertical)
+			->SetSizeCoefficient(SizeCoefficient)
 			->Split
 			(
-				FTabManager::NewSplitter()
+				FTabManager::NewStack()
+				->SetSizeCoefficient(SizeCoefficient)
+				->SetHideTabWell(true)
+				->AddTab(MixerSourcesTableTabName, ETabState::OpenedTab)
+			);
+
+#if !WITH_EDITOR
+		if (AudioInsightsComponent.IsValid() && AudioInsightsComponent->GetIsLiveSession())
+#endif // !WITH_EDITOR
+		{
+			TabSplitter->Split(FTabManager::NewStack()
+				->SetSizeCoefficient(0.3f)
+				->AddTab(MixerSourcesPlotsTabName, ETabState::OpenedTab)
+				->SetHideTabWell(true));
+		}
+
+		return FTabManager::NewLayout("MixerSourceTabsLayout_v2")
+			->AddArea
+			(
+				FTabManager::NewPrimaryArea()
 				->SetOrientation(Orient_Vertical)
-				->SetSizeCoefficient(0.7f)
 				->Split
 				(
-					FTabManager::NewStack()
-					->SetSizeCoefficient(0.7f)
-					->SetHideTabWell(true)
-					->AddTab(MixerSourcesTableTabName, ETabState::OpenedTab)
+					TabSplitter
 				)
-#if WITH_EDITOR
-				->Split
-				(
-					FTabManager::NewStack()
-					->SetSizeCoefficient(0.3f)
-					->AddTab(MixerSourcesPlotsTabName, ETabState::OpenedTab)
-					->SetHideTabWell(true)
-				)
-#endif // WITH_EDITOR
-			)
-		);
+			);
 	}
 
 	TSharedRef<SWidget> FMixerSourceDashboardViewFactory::MakeWidget()

@@ -113,25 +113,35 @@ namespace UE::Audio::Insights
 		return DockTab;
 	}
 
+	bool FAudioInsightsComponent::GetIsLiveSession() const
+	{
+		IUnrealInsightsModule& UnrealInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
+
+		TSharedPtr<const TraceServices::IAnalysisSession> Session = UnrealInsightsModule.GetAnalysisSession();
+		if (Session.IsValid())
+		{
+			TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
+
+			const UE::Trace::FStoreClient* StoreClient = UnrealInsightsModule.GetStoreClient();
+			const UE::Trace::FStoreClient::FSessionInfo* SessionInfo = StoreClient ? StoreClient->GetSessionInfoByTraceId(Session->GetTraceId()) : nullptr;
+
+			return !Session->IsAnalysisComplete() && StoreClient != nullptr && SessionInfo != nullptr;
+		}
+
+		return false;
+	}
+
 	bool FAudioInsightsComponent::Tick(float DeltaTime)
 	{
-		// Audio Insights will be available in non-editor file traces or if there is an active standalone game live session
 		if (!bCanSpawnTab)
 		{
-			IUnrealInsightsModule& UnrealInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
+			const IUnrealInsightsModule& UnrealInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
 
 			TSharedPtr<const TraceServices::IAnalysisSession> Session = UnrealInsightsModule.GetAnalysisSession();
 			if (Session.IsValid())
 			{
 				TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
 
-				// Set bIsLiveSession
-				const UE::Trace::FStoreClient* StoreClient = UnrealInsightsModule.GetStoreClient();
-				const UE::Trace::FStoreClient::FSessionInfo* SessionInfo = StoreClient ? StoreClient->GetSessionInfoByTraceId(Session->GetTraceId()) : nullptr;
-
-				bIsLiveSession = !Session->IsAnalysisComplete() && StoreClient != nullptr && SessionInfo != nullptr;
-
-				// Set bIsEditorTrace
 				const TraceServices::IDiagnosticsProvider* DiagnosticsProvider = TraceServices::ReadDiagnosticsProvider(*Session.Get());
 				if (DiagnosticsProvider && DiagnosticsProvider->IsSessionInfoAvailable())
 				{
