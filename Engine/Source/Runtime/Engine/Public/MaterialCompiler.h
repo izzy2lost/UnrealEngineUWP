@@ -451,6 +451,7 @@ public:
 	virtual int32 StaticTerrainLayerWeight(FName ParameterName,int32 Default, bool bTextureArray = false) = 0;
 
 	virtual int32 VertexColor() = 0;
+	virtual int32 MeshPaintTextureCoordinateIndex() = 0;
 	virtual int32 MeshPaintTextureDescriptor() = 0;
 	virtual int32 MeshPaintTextureReplace(int32 Invalid, int32 Valid) = 0;
 
@@ -1005,6 +1006,7 @@ public:
 	virtual int32 StaticTerrainLayerWeight(FName ParameterName, int32 Default, bool bTextureArray = false) override { return Compiler->StaticTerrainLayerWeight(ParameterName, Default, bTextureArray); }
 
 	virtual int32 VertexColor() override { return Compiler->VertexColor(); }
+	virtual int32 MeshPaintTextureCoordinateIndex() override { return Compiler->MeshPaintTextureCoordinateIndex(); }
 	virtual int32 MeshPaintTextureDescriptor() override { return Compiler->MeshPaintTextureDescriptor(); }
 	virtual int32 MeshPaintTextureReplace(int32 Invalid, int32 Valid) override { return Compiler->MeshPaintTextureReplace(Invalid, Valid); }
 

@@ -124,6 +124,7 @@
 #include "Materials/MaterialExpressionIf.h"
 #include "Materials/MaterialExpressionInverseLinearInterpolate.h"
 #include "Materials/MaterialExpressionLightmapUVs.h"
+#include "Materials/MaterialExpressionMeshPaintTextureCoordinateIndex.h"
 #include "Materials/MaterialExpressionMeshPaintTextureObject.h"
 #include "Materials/MaterialExpressionMeshPaintTextureReplace.h"
 #include "Materials/MaterialExpressionPrecomputedAOMask.h"
@@ -3922,6 +3923,47 @@ void UMaterialExpressionVirtualTextureFeatureSwitch::GetCaption(TArray<FString>&
 
 #endif // WITH_EDITOR
 
+UMaterialExpressionMeshPaintTextureCoordinateIndex::UMaterialExpressionMeshPaintTextureCoordinateIndex(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	// Structure to hold one-time initialization
+	struct FConstructorStatics
+	{
+		FText NAME_MeshPaintTexture;
+		FConstructorStatics()
+			: NAME_MeshPaintTexture(LOCTEXT("MeshPaintTexture", "MeshPaintTexture"))
+		{
+		}
+	};
+	static FConstructorStatics ConstructorStatics;
+
+#if WITH_EDITORONLY_DATA
+	MenuCategories.Add(ConstructorStatics.NAME_MeshPaintTexture);
+#endif
+
+	Outputs.Reset();
+	Outputs.Add(FExpressionOutput(TEXT("")));
+}
+
+#if WITH_EDITOR
+
+void UMaterialExpressionMeshPaintTextureCoordinateIndex::GetCaption(TArray<FString>& OutCaptions) const
+{
+	OutCaptions.Add(TEXT("Mesh Paint Texture Coordinate Index"));
+}
+
+void UMaterialExpressionMeshPaintTextureCoordinateIndex::GetExpressionToolTip(TArray<FString>& OutToolTip)
+{
+	ConvertToMultilineToolTip(TEXT("Get the Mesh Paint Texture UV coordinate index."), 40, OutToolTip);
+}
+
+int32 UMaterialExpressionMeshPaintTextureCoordinateIndex::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	return Compiler->MeshPaintTextureCoordinateIndex();
+}
+
+#endif // WITH_EDITOR
+
 UMaterialExpressionMeshPaintTextureObject::UMaterialExpressionMeshPaintTextureObject(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -3948,7 +3990,7 @@ UMaterialExpressionMeshPaintTextureObject::UMaterialExpressionMeshPaintTextureOb
 
 void UMaterialExpressionMeshPaintTextureObject::GetCaption(TArray<FString>& OutCaptions) const
 {
-	OutCaptions.Add(TEXT("MeshPaintTextureObject"));
+	OutCaptions.Add(TEXT("Mesh Paint Texture Object"));
 }
 
 void UMaterialExpressionMeshPaintTextureObject::GetExpressionToolTip(TArray<FString>& OutToolTip)
@@ -3994,7 +4036,7 @@ UMaterialExpressionMeshPaintTextureReplace::UMaterialExpressionMeshPaintTextureR
 
 void UMaterialExpressionMeshPaintTextureReplace::GetCaption(TArray<FString>& OutCaptions) const
 {
-	OutCaptions.Add(TEXT("MeshPaintTextureReplace"));
+	OutCaptions.Add(TEXT("Mesh Paint Texture Replace"));
 }
 
 void UMaterialExpressionMeshPaintTextureReplace::GetExpressionToolTip(TArray<FString>& OutToolTip)
