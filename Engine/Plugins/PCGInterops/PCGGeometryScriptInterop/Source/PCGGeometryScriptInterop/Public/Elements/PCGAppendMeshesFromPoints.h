@@ -53,6 +53,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Settings", meta = (EditCondition = "Mode==EPCGAppendMeshesFromPointsMode::StaticMeshFromAttribute", EditConditionHides, PCG_Overridable))
 	FPCGAttributePropertyInputSelector MeshAttribute;
 	
+	/** Allows to extract materials from the static mesh and set them in the resulting append. */
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Settings", meta = (EditCondition = "Mode!=EPCGAppendMeshesFromPointsMode::DynamicMesh", EditConditionHides, PCG_Overridable))
+    bool bExtractMaterials = true;
+	
 	/** LOD type to use when creating DynamicMesh from specified StaticMesh. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|LODSettings", meta = (EditCondition = "Mode!=EPCGAppendMeshesFromPointsMode::DynamicMesh", EditConditionHides, PCG_Overridable))
 	EGeometryScriptLODType RequestedLODType = EGeometryScriptLODType::RenderData;

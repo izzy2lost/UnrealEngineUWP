@@ -223,13 +223,16 @@ bool FPCGAppendMeshesFromPointsElement::ExecuteInternal(FPCGContext* InContext) 
 		}
 
 		// Then do the remapping if needed
-		TArray<UMaterialInterface*> StaticMeshMaterials;
-		TArray<FName> MaterialSlotNames;
-		UGeometryScriptLibrary_StaticMeshFunctions::GetMaterialListFromStaticMesh(StaticMesh, StaticMeshMaterials, MaterialSlotNames);
-
-		if (!StaticMeshMaterials.IsEmpty() && StaticMeshMaterials != OutDynMeshData->GetMaterials())
+		if (Settings->bExtractMaterials)
 		{
-			PCGGeometryHelpers::RemapMaterials(NewMesh, StaticMeshMaterials, OutDynMeshData->GetMutableMaterials());
+			TArray<UMaterialInterface*> StaticMeshMaterials;
+			TArray<FName> MaterialSlotNames;
+			UGeometryScriptLibrary_StaticMeshFunctions::GetMaterialListFromStaticMesh(StaticMesh, StaticMeshMaterials, MaterialSlotNames);
+
+			if (!StaticMeshMaterials.IsEmpty() && StaticMeshMaterials != OutDynMeshData->GetMaterials())
+			{
+				PCGGeometryHelpers::RemapMaterials(NewMesh, StaticMeshMaterials, OutDynMeshData->GetMutableMaterials());
+			}
 		}
 
 		return true;
