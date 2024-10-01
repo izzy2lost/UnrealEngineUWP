@@ -512,6 +512,11 @@ void FMediaTextureResource::Render(const FRenderParams& Params)
 						else
 						{
 							UpdateTextureReference(RHICmdList, OutTexture);
+							if (Converter->GetConverterInfoFlags() & IMediaTextureSampleConverter::ConverterInfoFlags_PreprocessOnly)
+							{
+								// ...followed by the built in conversion code as needed...
+								ConvertOrCopyNeeded = true;
+							}
 						}
 					}
 				}

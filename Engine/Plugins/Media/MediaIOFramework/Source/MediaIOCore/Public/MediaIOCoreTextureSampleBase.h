@@ -95,14 +95,6 @@ class MEDIAIOCORE_API FMediaIOCoreTextureSampleBase
 public:
 	FMediaIOCoreTextureSampleBase();
 
-	// Note: We need to explicitly disable warnings on these constructors/operators for clang to be happy with deprecated variables
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	FMediaIOCoreTextureSampleBase(const FMediaIOCoreTextureSampleBase&) = default;
-	FMediaIOCoreTextureSampleBase(FMediaIOCoreTextureSampleBase&&) = default;
-	FMediaIOCoreTextureSampleBase& operator=(const FMediaIOCoreTextureSampleBase&) = default;
-	FMediaIOCoreTextureSampleBase& operator=(FMediaIOCoreTextureSampleBase&&) = default;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	/**
 	 * Initialize the sample.
 	 *
@@ -329,6 +321,9 @@ public:
 	virtual FVector2d GetDisplayPrimaryBlue() const override;
 	virtual UE::Color::EEncoding GetEncodingType() const override;
 	virtual float GetHDRNitsNormalizationFactor() const override;
+	
+	/**Method that returns this sample's colorspace type.*/
+	virtual UE::Color::EColorSpace GetColorSpaceType() const;
 
 	virtual const void* GetBuffer() override
 	{
@@ -355,7 +350,7 @@ public:
 	virtual void* GetOrRequestBuffer(uint32 InBufferSize);
 
 
-	virtual uint32 GetFrameNumber() const
+	virtual uint64 GetFrameNumber() const
 	{
 		return FrameNumber;
 	}
@@ -397,7 +392,7 @@ public:
 
 	void SetTexture(TRefCountPtr<FRHITexture> InRHITexture);
 	void SetDestructionCallback(TFunction<void(TRefCountPtr<FRHITexture>)> InDestructionCallback);
-
+	EPixelFormat GetPixelFormat();
 private:
 	/** Hold a texture to be used for gpu texture transfers. */
 	TRefCountPtr<FRHITexture> Texture;
@@ -441,7 +436,7 @@ protected:
 	TOptional<FTimecode> Timecode;
 
 	/** Which engine frame number this sample corresponds to. */
-	uint32 FrameNumber = 0;
+	std::atomic<uint64> FrameNumber;
 
 	/** Image dimensions */
 	uint32 Stride = 0;
@@ -481,7 +476,7 @@ private:
 	TSharedPtr<FMediaIOCoreTextureSampleBase> OriginalSample;
 
 	/** Whether this sample's texture data is awaiting to be transferred by GPUDirect */
-	bool bIsAwaitingForGPUTransfer = false;
+	std::atomic<bool> bIsAwaitingForGPUTransfer;
 
 	/** Time offset evaluated on game thread for JITR */
 	double EvaluationOffsetInSeconds = 0;
