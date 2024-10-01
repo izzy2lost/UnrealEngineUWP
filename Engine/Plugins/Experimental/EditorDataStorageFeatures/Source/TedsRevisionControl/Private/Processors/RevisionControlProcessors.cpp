@@ -290,6 +290,9 @@ void URevisionControlDataStorageFactory::RegisterQueries(IEditorDataStorageProvi
 				DataStorage.UnregisterQuery(SelectionRemoved);
 				SelectionRemoved = InvalidQueryHandle;
 
+				DataStorage.UnregisterQuery(FlushPackageUpdates);
+				FlushPackageUpdates = InvalidQueryHandle;
+
 				RegisterRemoveOverlays(DataStorage);
 			}
 		}
