@@ -668,6 +668,29 @@ public:
 	virtual FString ToString() const override;
 };
 
+// Why does this exist?
+// It is important for the mesh selection algorithms to operate on a mesh that is free from floating vertices,
+// but changing the topology of the mesh the tool is working on causes issue with the non-manifold mapping, UV attributes and possibly other things
+//
+// So, rather than track these issues down individually, we leave the original mesh topology intact, and operate on a cleaned submesh.
+// When the tool exits, we copy the weight edits from the submesh to the full mesh.
+// This means weights of the floating vertices cannot be edited, however they do not matter since they do not belong to any triangles they cannot be rendered
+struct MESHMODELINGTOOLSEDITORONLYEXP_API FCleanedEditMesh
+{
+	FCleanedEditMesh(const FDynamicMesh3& InDynamicMesh, const FMeshDescription& InMeshDescription);
+	void CopyWeightsToOriginalMesh(FName Profile);
+	FDynamicMesh3& GetEditableMesh();
+	FMeshDescription& GetEditableMeshDescription();
+	FDynamicMesh3& GetOriginalMesh();
+	FMeshDescription& GetOriginalMeshDescription();
+
+private:
+	FDynamicMesh3 OriginalDynamicMesh;
+	FMeshDescription OriginalMeshDescription;
+	UE::Geometry::FDynamicSubmesh3 CleanedSubMesh;
+	TSharedPtr<FMeshDescription> CleanedSubMeshDescription = nullptr;
+};
+
 // An interactive tool for painting and editing skin weights.
 UCLASS()
 class MESHMODELINGTOOLSEDITORONLYEXP_API USkinWeightsPaintTool : public UDynamicMeshBrushTool, public ISkeletalMeshEditingInterface
@@ -733,7 +756,7 @@ public:
 	void ToggleEditingMode();
 	// update the state of the mesh selectors
 	void UpdateSelectorState() const;
-
+	
 	// get access to the mesh selector for the main mesh
 	UWeightToolMeshSelector* GetMainMeshSelector();
 	// get access to the currently active mesh selector (may be on the transfer source mesh)
@@ -778,7 +801,9 @@ public:
 	USkinWeightsPaintToolProperties* GetWeightToolProperties() const;
 
 	// get access to the mesh description for the mesh being edited
-	FMeshDescription* GetCurrentlyEditedMeshDescription() const { return EditedMesh; };
+	FCleanedEditMesh* GetCurrentCleanedEditMesh() const;
+	FMeshDescription* GetCurrentlyEditedMeshDescription() const;
+	FDynamicMesh3* GetCurrentlyEditedDynamicMesh() const;
 
 	// HOW TO EDIT WEIGHTS WITH UNDO/REDO:
 	//
@@ -817,8 +842,6 @@ protected:
 	virtual void ApplyStamp(const FBrushStampData& Stamp);
 	void OnShutdown(EToolShutdownType ShutdownType) override;
 	void OnTick(float DeltaTime) override;
-
-	void CleanMesh() const;
 
 	// stamp
 	float CalculateBrushFalloff(float Distance) const;
@@ -866,8 +889,8 @@ protected:
 	virtual void OnPropertyModified(UObject* ModifiedObject, FProperty* ModifiedProperty) override;
 	
 	// the currently edited mesh descriptions
-	mutable TMap<EMeshLODIdentifier, FMeshDescription> EditedMeshes;
-	FMeshDescription* EditedMesh = nullptr;
+	mutable TMap<EMeshLODIdentifier, FCleanedEditMesh> EditedMeshes;
+	EMeshLODIdentifier CurrentlyEditedLOD;
 
 	// storage of vertex weights per bone 
 	SkinPaintTool::FSkinToolWeights Weights;
