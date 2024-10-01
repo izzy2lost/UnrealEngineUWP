@@ -46,10 +46,10 @@ private:
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
 	uint32 CellSize = 25600;
 
-	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
+	UPROPERTY(EditAnywhere, Category = RuntimeSettings, meta=(EditCondition="HLODIndex == INDEX_NONE", EditConditionHides))
 	FVector Origin = FVector::ZeroVector;
 
-	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
+	UPROPERTY(EditAnywhere, Category = RuntimeSettings, meta=(EditCondition="HLODIndex == INDEX_NONE", EditConditionHides))
 	bool bIs2D = false;
 
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Transient, SkipSerialization)
