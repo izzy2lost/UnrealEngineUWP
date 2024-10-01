@@ -96,16 +96,8 @@ namespace Metasound::Engine
 	} // namespace BuilderSubsystemPrivate
 } // namespace Metasound::Engine
 
-void UMetaSoundPatchBuilder::BuildAndOverwriteMetaSound(TScriptInterface<IMetaSoundDocumentInterface> ExistingMetaSound, bool bForceUniqueClassName)
+void UMetaSoundPatchBuilder::BuildAndOverwriteMetaSoundInternal(TScriptInterface<IMetaSoundDocumentInterface> ExistingMetaSound, bool bForceUniqueClassName) const
 {
-	if (!ExistingMetaSound || ExistingMetaSound.GetObject()->IsAsset())
-	{
-		UE_LOG(LogMetaSound, Error, TEXT("Failed to build and overwrite MetaSound: No existing MetaSound supplied or is serialized asset "
-			"(use 'BuildNewMetaSound' to create a new, transient MetaSound. Overwriting serialized asset is only supported at edit time via "
-			"UMetaSoundEditorSubsystem::BuildToAsset."));
-		return;
-	}
-
 	FMetaSoundBuilderOptions Options;
 	Options.ExistingMetaSound = ExistingMetaSound;
 	Options.bForceUniqueClassName = bForceUniqueClassName;
@@ -270,16 +262,8 @@ bool UMetaSoundSourceBuilder::ExecuteAuditionableTransaction(FAuditionableTransa
 	return false;
 }
 
-void UMetaSoundSourceBuilder::BuildAndOverwriteMetaSound(TScriptInterface<IMetaSoundDocumentInterface> ExistingMetaSound, bool bForceUniqueClassName)
+void UMetaSoundSourceBuilder::BuildAndOverwriteMetaSoundInternal(TScriptInterface<IMetaSoundDocumentInterface> ExistingMetaSound, bool bForceUniqueClassName) const
 {
-	if (!ExistingMetaSound || !ExistingMetaSound.GetObject()->IsAsset())
-	{
-		UE_LOG(LogMetaSound, Error, TEXT("Failed to build and overwrite MetaSound: No existing MetaSound supplied or is serialized asset "
-			"(use 'BuildNewMetaSound' to create a new, transient MetaSound. Overwriting serialized asset is only supported at edit time via "
-			"UMetaSoundEditorSubsystem::BuildToAsset."));
-		return;
-	}
-
 	FMetaSoundBuilderOptions Options;
 	Options.ExistingMetaSound = ExistingMetaSound;
 	Options.bForceUniqueClassName = bForceUniqueClassName;

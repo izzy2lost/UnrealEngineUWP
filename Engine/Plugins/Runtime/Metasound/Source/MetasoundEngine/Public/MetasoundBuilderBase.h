@@ -436,15 +436,20 @@ public:
 	UE_DEPRECATED(5.5, "Call directly on Frontend builder using 'GetBuilder'")
 	void UpdateDependencyClassNames(const TMap<FMetasoundFrontendClassName, FMetasoundFrontendClassName>& OldToNewReferencedClassNames);
 
-	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (WorldContext = "Parent"))
+	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (WorldContext = "Parent", DisplayName = "Build (Soft Deprecated. Parent no longer supported and field is ignored.)"))
 	virtual UPARAM(DisplayName = "MetaSound") TScriptInterface<IMetaSoundDocumentInterface> Build(UObject* Parent, const FMetaSoundBuilderOptions& Options) const { return BuildNewMetaSound(Options.Name); }
+
+#if WITH_EDITORONLY_DATA
+	TScriptInterface<IMetaSoundDocumentInterface> Build(const FMetaSoundBuilderOptions& Options) const;
+#endif // WITH_EDITORONLY_DATA
 
 	// Copies a transient MetaSound with the provided builder options, copying the underlying MetaSound
 	// managed by this builder and registering it with the MetaSound Node Registry as a unique name.
 	// If 'Force Unique Class Name' is true, registers MetaSound as a new class in the registry, potentially
-	// invalidating existing references in other MetaSounds.
+	// invalidating existing references in other MetaSounds. Not permissible to overwrite MetaSound asset,
+	// only transient MetaSound (see EditorSubsystem for overwriting assets at edit time).
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (DisplayName = "Build And Overwrite MetaSound", AdvancedDisplay = "1"))
-	virtual void BuildAndOverwriteMetaSound(UPARAM(DisplayName = "Existing MetaSound") TScriptInterface<IMetaSoundDocumentInterface> ExistingMetaSound, bool bForceUniqueClassName = false) PURE_VIRTUAL(UMetaSoundBuilderBase::BuildAndOverwriteMetaSound, ;);
+	void BuildAndOverwriteMetaSound(UPARAM(DisplayName = "Existing MetaSound") TScriptInterface<IMetaSoundDocumentInterface> ExistingMetaSound, bool bForceUniqueClassName = false);
 
 	// Builds a transient MetaSound with the provided builder options, copying the underlying MetaSound
 	// managed by this builder and registering it with the MetaSound Node Registry as a unique class. If
@@ -496,6 +501,7 @@ public:
 	void Initialize();
 
 protected:
+	virtual void BuildAndOverwriteMetaSoundInternal(TScriptInterface<IMetaSoundDocumentInterface> ExistingMetaSound, bool bForceUniqueClassName) const PURE_VIRTUAL(UMetaSoundBuilderBase::BuildAndOverwriteMetaSoundInternal, ;);
 	virtual void InitDelegates(Metasound::Frontend::FDocumentModifyDelegates& OutDocumentDelegates);
 
 	virtual void OnAssetReferenceAdded(TScriptInterface<IMetaSoundDocumentInterface> DocInterface) PURE_VIRTUAL(UMetaSoundBuilderBase::OnAssetReferenceAdded, );
