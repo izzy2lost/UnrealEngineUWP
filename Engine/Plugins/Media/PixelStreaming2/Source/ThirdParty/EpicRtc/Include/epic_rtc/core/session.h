@@ -30,9 +30,10 @@ public:
 
     /**
      * Disconnects the Session from the signaling server. This will free all the resources that were allocated during the Session lifetime.
+     * @param reason Disconnect reason. May be a null string with 0 length or a valid string.
      * @return EpicRtcErrorCode::Ok on success.
      */
-    virtual EMRTC_API EpicRtcErrorCode Disconnect() = 0;
+    virtual EMRTC_API EpicRtcErrorCode Disconnect(const EpicRtcStringView reason) = 0;
 
     /**
      * Creates Room object within this Session. Release must be called on the room else it will leak.

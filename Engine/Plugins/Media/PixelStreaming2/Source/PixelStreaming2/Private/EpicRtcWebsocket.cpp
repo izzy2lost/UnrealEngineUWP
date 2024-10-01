@@ -50,7 +50,7 @@ namespace UE::PixelStreaming2
 		return true;
 	}
 
-	void FEpicRtcWebsocket::Disconnect()
+	void FEpicRtcWebsocket::Disconnect(const EpicRtcStringView InReason)
 	{
 		if (!WebSocket)
 		{
@@ -66,13 +66,20 @@ namespace UE::PixelStreaming2
 		if (WebSocket->IsConnected() && !bCloseRequested)
 		{
 			bCloseRequested = true;
-			FString Reason = IsEngineExitRequested() ? TEXT("Pixel Streaming shutting down") : TEXT("Pixel Streaming closed WS under normal conditions.");
+			FString Reason;
+			if (InReason._length)
+			{
+				Reason = ToString(InReason);
+			}
+			else
+			{
+				Reason = IsEngineExitRequested() ? TEXT("Pixel Streaming shutting down") : TEXT("Pixel Streaming closed WS under normal conditions.");
+			}
 
 			UE_LOG(LogEpicRtcWebsocket, Log, TEXT("Closing websocket to %s"), *Url);
 			WebSocket->Close(1000, Reason);
 
 			// Because we've onbound ourselves from the existing WS message, we need to manually trigger OnClosed
-			// TODO (Migration): RTCP-6522 Add reason to the EpicRTC websocket disconnect.
 			OnClosed(1000, Reason, true);
 		}
 	}

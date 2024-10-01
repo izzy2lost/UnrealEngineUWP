@@ -89,6 +89,8 @@ private:
 
 	TSharedPtr<UE::PixelStreaming2::FRTCStatsCollector> StatsCollector;
 
+	bool Disconnect(const FString& OptionalReason);
+
 public:
 	/* Begin IPixelStreaming2AudioConsumer Callbacks */
 	virtual void ConsumeRawPCM(const int16_t* AudioData, int InSampleRate, size_t NChannels, size_t NFrames) override;

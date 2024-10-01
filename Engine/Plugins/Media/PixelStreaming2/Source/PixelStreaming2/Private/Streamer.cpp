@@ -231,7 +231,7 @@ namespace UE::PixelStreaming2
 
 		if (bDisconnect)
 		{
-			EpicRtcErrorCode Result = EpicRtcManager->EpicRtcSession->Disconnect();
+			EpicRtcErrorCode Result = EpicRtcManager->EpicRtcSession->Disconnect(ToEpicRtcStringView("Streaming Session Removed"));
 			if (Result == EpicRtcErrorCode::SessionDisconnected)
 			{
 				UE_LOG(LogPixelStreaming2, VeryVerbose, TEXT("FStreamer::StopStreaming - Session disconnected cleanly."));

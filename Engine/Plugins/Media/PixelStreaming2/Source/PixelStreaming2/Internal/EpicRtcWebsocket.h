@@ -20,7 +20,7 @@ namespace UE::PixelStreaming2
 
 		/* Begin EpicRtcWebsocketInterface */
 		virtual EpicRtcBool Connect(EpicRtcStringView Url, EpicRtcWebsocketObserverInterface* Observer) override;
-		virtual void		Disconnect() override;
+		virtual void		Disconnect(const EpicRtcStringView Reason) override;
 		virtual void		Send(EpicRtcStringView Message) override;
 		/* End EpicRtcWebsocketInterface */
 
