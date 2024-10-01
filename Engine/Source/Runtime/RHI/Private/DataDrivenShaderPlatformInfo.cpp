@@ -345,6 +345,9 @@ void FGenericDataDrivenShaderPlatformInfo::ParseDataDrivenShaderInfo(const FConf
 	GET_SECTION_BOOL_HELPER(bSupportsWave64);
 	GET_SECTION_BOOL_HELPER(bSupportsIndependentSamplers);
 	GET_SECTION_BOOL_HELPER(bSupportsWorkGraphs);
+#if WITH_EDITOR
+	GET_SECTION_BOOL_HELPER(bCanUsePreviewPlatformForMaterialValidation);
+#endif
 #undef GET_SECTION_BOOL_HELPER
 #undef GET_SECTION_INT_HELPER
 #undef GET_SECTION_SUPPORT_HELPER
