@@ -45,6 +45,7 @@ void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 	const int NumPrimitives = InstanceData_GetNumPrimitives();
 
 	uint PrimitiveIndex = 0;
+	uint OutputMeshStringKey = (uint)-1;
 
 	if (NumPrimitives > 1)
 	{
@@ -53,8 +54,8 @@ void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 		if (SelectorAttributeId != (uint)-1)
 		{
 			// Select using string key
-			const int MeshPathStringKey = In_GetStringKey(In_DataIndex, In_ElementIndex, SelectorAttributeId);
-			PrimitiveIndex = SMSpawner_GetPrimitiveIndexFromStringKey(MeshPathStringKey);
+			OutputMeshStringKey = In_GetStringKey(In_DataIndex, In_ElementIndex, SelectorAttributeId);
+			PrimitiveIndex = SMSpawner_GetPrimitiveIndexFromStringKey(OutputMeshStringKey);
 		}
 		else
 		{
@@ -69,6 +70,8 @@ void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 					break;
 				}
 			}
+
+			OutputMeshStringKey = SMSpawner_GetPrimitiveStringKey(PrimitiveIndex);
 		}
 	}
 
@@ -146,36 +149,54 @@ void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 		Out_SetSteepness(Out_DataIndex, Out_ElementIndex, In_GetSteepness(In_DataIndex, In_ElementIndex));
 
 		CopyAttributesToOuput(In_DataIndex, In_ElementIndex, Out_DataIndex, Out_ElementIndex);
+
+		if (SMSpawner_GetSelectedMeshAttributeId() != (uint)-1)
+		{
+			Out_SetStringKey(Out_DataIndex, Out_ElementIndex, SMSpawner_GetSelectedMeshAttributeId(), OutputMeshStringKey);
+		}
 	}
 }
 
 // TODO pass in attribute IDs to copy.
 void CopyAttributesToOuput(uint In_DataIndex, uint In_ElementIndex, uint Out_DataIndex, uint Out_ElementIndex)
 {
-	const uint NumAttributes = In_GetDataNumAttributesInternal(In_DataIndex);
-	uint NumAttributesProcessed = 0;
-	
-	// Loop over all attribute headers, if the address is non-zero, then copy it from pin Source to pin Out.
-	for (int AttributeIndex = NUM_RESERVED_ATTRS; AttributeIndex < MAX_NUM_ATTRS; ++AttributeIndex)
-	{
-		const uint In_Stride = In_GetAttributeStrideInternal(In_DataIndex, AttributeIndex);
-		const uint Out_Stride = In_GetAttributeStrideInternal(In_DataIndex, AttributeIndex);
+    const uint NumAttributes = Out_GetDataNumAttributesInternal(Out_DataIndex);
+    uint NumAttributesProcessed = 0;
 
-		if (In_Stride != 0 && In_Stride == Out_Stride)
-		{
-			const uint In_ElementAddress = In_GetElementAddressInternal(In_DataIndex, In_ElementIndex, AttributeIndex);
-			const uint Out_ElementAddress = Out_GetElementAddressInternal(Out_DataIndex, Out_ElementIndex, AttributeIndex);
+    for (int AttributeId = NUM_RESERVED_ATTRS; AttributeId < MAX_NUM_ATTRS; ++AttributeId)
+    {
+        const uint Out_Stride = Out_GetAttributeStrideInternal(Out_DataIndex, AttributeId);
 
-			for (int Address = 0; Address < In_Stride; Address += 4)
-			{
-				Out_StoreBufferInternal(Out_ElementAddress + Address, In_LoadBufferInternal(In_ElementAddress + Address));
-			}
+        if (Out_Stride == 0)
+        {
+            // No output attribute to write to.
+            continue;
+        }
 
-			// We can early-out when we've looked at all the possible attributes
-			if (++NumAttributesProcessed >= NumAttributes)
-			{
-				break;
-			}
-		}
-	}
+        const uint In_Stride = In_GetAttributeStrideInternal(In_DataIndex, AttributeId);
+        const uint Out_ElementAddress = Out_GetElementAddressInternal(Out_DataIndex, Out_ElementIndex, AttributeId);
+
+        if (In_Stride == Out_Stride)
+        {
+            const uint In_ElementAddress = In_GetElementAddressInternal(In_DataIndex, In_ElementIndex, AttributeId);
+
+            for (uint Offset = 0; Offset < Out_Stride; Offset += 4)
+            {
+                Out_StoreBufferInternal(Out_ElementAddress + Offset, In_LoadBufferInternal(In_ElementAddress + Offset));
+            }
+        }
+        else
+        {
+            for (uint Offset = 0; Offset < Out_Stride; Offset += 4)
+            {
+				// Initialize output data (only header part of buffer will be initialized).
+                Out_StoreBufferInternal(Out_ElementAddress + Offset, 0u);
+            }
+        }
+
+        if (++NumAttributesProcessed >= NumAttributes)
+        {
+            break; // We can early-out when we've looked at all the possible attributes
+        }
+    }
 }

@@ -27,6 +27,8 @@ public:
 	/** Get the global attribute information collated during compilation. */
 	const TMap<FName, FPCGKernelAttributeIDAndType>& GetAttributeLookupTable() const { return GlobalAttributeLookupTable; }
 
+	const TArray<FString>& GetStringTable() const { return StringTable; }
+
 public:
 	TMap<TObjectKey<const UPCGNode>, TArray<FComputeKernelCompileMessage>> KernelToCompileMessages;
 	
@@ -54,8 +56,13 @@ public:
 	bool bLogDataDescriptions = false;
 
 protected:
+	/** Global attribute information collated during compilation. */
 	UPROPERTY()
 	TMap<FName /* Attribute name */, FPCGKernelAttributeIDAndType> GlobalAttributeLookupTable;
+
+	/** String table collated during compilation. */
+	UPROPERTY()
+	TArray<FString> StringTable;
 
 	friend class FPCGGraphCompilerGPU;
 };

@@ -125,9 +125,65 @@ FPCGDataCollectionDesc UPCGStaticMeshSpawnerSettings::ComputeOutputPinDataDesc(c
 		return Super::ComputeOutputPinDataDesc(OutputPin, Binding);
 	}
 
+	const FPCGDataCollectionDesc InputPinDesc = ComputeInputPinDataDesc(PCGPinConstants::DefaultInputLabel, Binding);
+	FPCGDataCollectionDesc OutputPinDesc = InputPinDesc;
 
-	// Passthrough - output description matches input description.
-	return ComputeInputPinDataDesc(PCGPinConstants::DefaultInputLabel, Binding);
+	if (ensure(OutputPin->Properties.Label == PCGPinConstants::DefaultOutputLabel))
+	{
+		const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable = Binding->GetAttributeLookupTable();
+
+		if (const FPCGKernelAttributeIDAndType* FoundAttributeIDAndType = GlobalAttributeLookupTable.Find(OutAttributeName))
+		{
+			// Create attribute description.
+			FPCGKernelAttributeDesc AttributeDesc(FoundAttributeIDAndType->Id, FoundAttributeIDAndType->Type, OutAttributeName);
+
+			// Create unique value keys for the output string.
+			if (UPCGMeshSelectorWeighted* SelectorWeighted = Cast<UPCGMeshSelectorWeighted>(MeshSelectorParameters))
+			{
+				// Weighted selection - add explicit strings from settings.
+				for (const FPCGMeshSelectorWeightedEntry& Entry : SelectorWeighted->MeshEntries)
+				{
+					const FString Value = Entry.Descriptor.StaticMesh.ToString();
+					const int32 StringIndex = Binding->GetStringTable().IndexOfByKey(Value);
+					if (ensureAlways(StringIndex != INDEX_NONE))
+					{
+						AttributeDesc.UniqueStringKeys.Add(StringIndex);
+					}
+				}
+			}
+			else if (UPCGMeshSelectorByAttribute* SelectorByAttribute = Cast<UPCGMeshSelectorByAttribute>(MeshSelectorParameters))
+			{
+				// By-attribute selection - pass on strings from input attribute.
+				if (SelectorByAttribute->AttributeName != NAME_None)
+				{
+					for (const FPCGDataDesc& InputDataDesc : InputPinDesc.DataDescs)
+					{
+						for (const FPCGKernelAttributeDesc& InputAttrDesc : InputDataDesc.AttributeDescs)
+						{
+							if (InputAttrDesc.Name == SelectorByAttribute->AttributeName)
+							{
+								AttributeDesc.UniqueStringKeys.Append(InputAttrDesc.UniqueStringKeys);
+							}
+						}
+					}
+				}
+			}
+			else if (MeshSelectorParameters)
+			{
+				UE_LOG(LogPCG, Warning, TEXT("Mesh selector not supported by GPU Static Mesh Spawner: %s"), *MeshSelectorParameters->GetName());
+			}
+
+			for (FPCGDataDesc& DataDesc : OutputPinDesc.DataDescs)
+			{
+				if (const FPCGKernelAttributeIDAndType* IDAndType = GlobalAttributeLookupTable.Find(OutAttributeName))
+				{
+					DataDesc.AttributeDescs.AddUnique(AttributeDesc);
+				}
+			}
+		}
+	}
+
+	return OutputPinDesc;
 }
 
 const TArray<FPCGKernelAttributeKey> UPCGStaticMeshSpawnerSettings::GetKernelAttributeKeys() const
@@ -142,7 +198,7 @@ const TArray<FPCGKernelAttributeKey> UPCGStaticMeshSpawnerSettings::GetKernelAtt
 			for (const FName& AttributeName : AttributeNames)
 			{
 				// We don't know the type statically before execution, leave unset.
-				AttributeKeys.Emplace(AttributeName, EPCGKernelAttributeType::None);
+				AttributeKeys.AddUnique(FPCGKernelAttributeKey(AttributeName, EPCGKernelAttributeType::None));
 			}
 		}
 	}
@@ -150,10 +206,24 @@ const TArray<FPCGKernelAttributeKey> UPCGStaticMeshSpawnerSettings::GetKernelAtt
 	if (const UPCGMeshSelectorByAttribute* Selector = Cast<UPCGMeshSelectorByAttribute>(MeshSelectorParameters))
 	{
 		// Add an attribute key for the given attribute so we register it as being read.
-		AttributeKeys.Emplace(Selector->AttributeName, EPCGKernelAttributeType::None);
+		AttributeKeys.AddUnique(FPCGKernelAttributeKey(Selector->AttributeName, EPCGKernelAttributeType::None));
 	}
 
+	// Write out attribute.
+	AttributeKeys.AddUnique(FPCGKernelAttributeKey(OutAttributeName, EPCGKernelAttributeType::StringKey));
+
 	return AttributeKeys;
+}
+
+void UPCGStaticMeshSpawnerSettings::AddStaticCreatedStrings(TArray<FString>& InOutStringTable) const
+{
+	if (UPCGMeshSelectorWeighted* SelectorWeighted = Cast<UPCGMeshSelectorWeighted>(MeshSelectorParameters))
+	{
+		for (const FPCGMeshSelectorWeightedEntry& Entry : SelectorWeighted->MeshEntries)
+		{
+			InOutStringTable.AddUnique(Entry.Descriptor.StaticMesh.ToString());
+		}
+	}
 }
 
 int UPCGStaticMeshSpawnerSettings::ComputeKernelThreadCount(const UPCGDataBinding* Binding) const
