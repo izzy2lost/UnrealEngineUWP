@@ -25,18 +25,16 @@
 #include "Templates/Tuple.h"
 #include "Trace/Detail/Channel.h"
 
+
 namespace mu
 {
 
-
-	//---------------------------------------------------------------------------------------------
 	ErrorLog::ErrorLog()
 	{
 		m_pD = new Private();
 	}
 
 
-	//---------------------------------------------------------------------------------------------
 	ErrorLog::~ErrorLog()
 	{
         check( m_pD );
@@ -45,29 +43,26 @@ namespace mu
 	}
 
 
-	//---------------------------------------------------------------------------------------------
 	ErrorLog::Private* ErrorLog::GetPrivate() const
 	{
 		return m_pD;
 	}
 
 
-	//---------------------------------------------------------------------------------------------
-    int ErrorLog::GetMessageCount( ErrorLogMessageType ) const
+    int32 ErrorLog::GetMessageCount( ErrorLogMessageType ) const
 	{
         // \todo: by type argument
-		return (int)m_pD->m_messages.Num();
+		return (int32)m_pD->Messages.Num();
 	}
 
 
-	//---------------------------------------------------------------------------------------------
-	const FString& ErrorLog::GetMessageText( int index ) const
+	const FString& ErrorLog::GetMessageText( int32 index ) const
 	{
 		const char* strResult = "";
 
-		if ( index >=0 && index<(int)m_pD->m_messages.Num() )
+		if (m_pD->Messages.IsValidIndex(index))
 		{
-			return m_pD->m_messages[index].m_text;
+			return m_pD->Messages[index].Text;
 		}
 
 		static FString Empty;
@@ -75,122 +70,146 @@ namespace mu
 	}
 
 
-	//---------------------------------------------------------------------------------------------
-	const void* ErrorLog::GetMessageContext( int index ) const
+	const void* ErrorLog::GetMessageContext(int32 index) const
 	{
 		const void* result = 0;
 
-		if ( index >=0 && index<(int)m_pD->m_messages.Num() )
+		if (m_pD->Messages.IsValidIndex(index))
 		{
-			result = m_pD->m_messages[index].m_context;
+			result = m_pD->Messages[index].Context;
 		}
 
 		return result;
 	}
 
 
-	//---------------------------------------------------------------------------------------------
-	ErrorLogMessageType ErrorLog::GetMessageType( int index ) const
+	const void* ErrorLog::GetMessageContext2(int32 index) const
+	{
+		const void* result = 0;
+
+		if (m_pD->Messages.IsValidIndex(index))
+		{
+			result = m_pD->Messages[index].Context2;
+		}
+
+		return result;
+	}
+
+
+	ErrorLogMessageType ErrorLog::GetMessageType( int32 index ) const
 	{
 		ErrorLogMessageType result = ELMT_NONE;
 
-		if ( index >=0 && index<(int)m_pD->m_messages.Num() )
+		if (m_pD->Messages.IsValidIndex(index))
 		{
-			result = m_pD->m_messages[index].m_type;
+			result = m_pD->Messages[index].Type;
 		}
 
 		return result;
 	}
 
 
-	//---------------------------------------------------------------------------------------------
-	ErrorLogMessageSpamBin ErrorLog::GetMessageSpamBin(int index) const
+	ErrorLogMessageSpamBin ErrorLog::GetMessageSpamBin(int32 index) const
 	{
 		ErrorLogMessageSpamBin result = ELMSB_ALL;
 
-		if (index >= 0 && index < (int)m_pD->m_messages.Num())
+		if (m_pD->Messages.IsValidIndex(index))
 		{
-			result = m_pD->m_messages[index].m_spam;
+			result = m_pD->Messages[index].Spam;
 		}
 
 		return result;
 	}
 
-	//---------------------------------------------------------------------------------------------
-    ErrorLogMessageAttachedDataView ErrorLog::GetMessageAttachedData( int index ) const
+
+	ErrorLogMessageAttachedDataView ErrorLog::GetMessageAttachedData( int32 index ) const
 	{
         ErrorLogMessageAttachedDataView result;
 
-		if ( index >=0 && index<(int)m_pD->m_messages.Num() )
+		if (m_pD->Messages.IsValidIndex(index))
 		{
-			const Private::FMessage& message = m_pD->m_messages[index];
+			const Private::FMessage& message = m_pD->Messages[index];
             
-            if ( message.m_data ) 
+            if ( message.Data ) 
             {
-                result.m_unassignedUVs = message.m_data->m_unassignedUVs.GetData();
-			    result.m_unassignedUVsSize = message.m_data->m_unassignedUVs.Num();
+                result.m_unassignedUVs = message.Data->UnassignedUVs.GetData();
+			    result.m_unassignedUVsSize = message.Data->UnassignedUVs.Num();
             }
 		}
 
 		return result;
 	}
 
-	//---------------------------------------------------------------------------------------------
+
 	void ErrorLog::Private::Add(const FString& InMessage,
-								ErrorLogMessageType InType,
+		ErrorLogMessageType InType,
+		const void* InContext,
+		ErrorLogMessageSpamBin InSpamBin)
+	{
+		FMessage& Msg = Messages.Emplace_GetRef();
+		Msg.Type = InType;
+		Msg.Spam = InSpamBin;
+		Msg.Text = InMessage;
+		Msg.Context = InContext;
+	}
+
+
+	void ErrorLog::Private::Add(const FString& InMessage,
+		ErrorLogMessageType InType,
+		const void* InContext,
+		const void* InContext2,
+		ErrorLogMessageSpamBin InSpamBin)
+	{
+		FMessage& Msg = Messages.Emplace_GetRef();
+		Msg.Type = InType;
+		Msg.Spam = InSpamBin;
+		Msg.Text = InMessage;
+		Msg.Context = InContext;
+		Msg.Context2 = InContext2;
+	}
+
+
+	void ErrorLog::Private::Add(const FString& InMessage,
+                                const ErrorLogMessageAttachedDataView& InDataView,
+                                ErrorLogMessageType InType, 
 								const void* InContext,
 								ErrorLogMessageSpamBin InSpamBin)
 	{
-		m_messages.Add(FMessage());
-		m_messages.Last().m_type = InType;
-		m_messages.Last().m_spam = InSpamBin;
-		m_messages.Last().m_text = InMessage;
-		m_messages.Last().m_context = InContext;
-	}
-
-	//---------------------------------------------------------------------------------------------
-	void ErrorLog::Private::Add(const FString& InMessage,
-                                const ErrorLogMessageAttachedDataView& InDataView,
-                                ErrorLogMessageType InType, const void* InContext,
-								ErrorLogMessageSpamBin InSpamBin)
-	{
-		m_messages.Add(FMessage() );
-		m_messages.Last().m_type = InType;
-		m_messages.Last().m_spam = InSpamBin;
-		m_messages.Last().m_text = InMessage;
-		m_messages.Last().m_context = InContext;
-		m_messages.Last().m_data = MakeShared<FErrorData>();
+		FMessage& Msg = Messages.Emplace_GetRef();
+		Msg.Type = InType;
+		Msg.Spam = InSpamBin;
+		Msg.Text = InMessage;
+		Msg.Context = InContext;
+		Msg.Data = MakeShared<FErrorData>();
 
         if ( InDataView.m_unassignedUVs && InDataView.m_unassignedUVsSize > 0 )
         {
 			// \TODO: Review
-			m_messages.Last().m_data->m_unassignedUVs.Append(InDataView.m_unassignedUVs, InDataView.m_unassignedUVsSize);
+			Msg.Data->UnassignedUVs.Append(InDataView.m_unassignedUVs, InDataView.m_unassignedUVsSize);
         }
 	}
 	
 	
-	//---------------------------------------------------------------------------------------------
 	void ErrorLog::Log() const
 	{
 		UE_LOG(LogMutableCore, Log, TEXT(" Error Log :\n"));
 
-		for ( const Private::FMessage& msg : m_pD->m_messages )
+		for ( const Private::FMessage& msg : m_pD->Messages )
 		{
-			switch ( msg.m_type )
+			switch ( msg.Type )
 			{
-			case ELMT_ERROR: 	UE_LOG(LogMutableCore, Log, TEXT("  ERR  %s\n"), *msg.m_text); break;
-			case ELMT_WARNING: 	UE_LOG(LogMutableCore, Log, TEXT("  WRN  %s\n"), *msg.m_text); break;
-			case ELMT_INFO: 	UE_LOG(LogMutableCore, Log, TEXT("  INF  %s\n"), *msg.m_text); break;
-			default: 			UE_LOG(LogMutableCore, Log, TEXT("  NON  %s\n"), *msg.m_text); break;
+			case ELMT_ERROR: 	UE_LOG(LogMutableCore, Log, TEXT("  ERR  %s\n"), *msg.Text); break;
+			case ELMT_WARNING: 	UE_LOG(LogMutableCore, Log, TEXT("  WRN  %s\n"), *msg.Text); break;
+			case ELMT_INFO: 	UE_LOG(LogMutableCore, Log, TEXT("  INF  %s\n"), *msg.Text); break;
+			default: 			UE_LOG(LogMutableCore, Log, TEXT("  NON  %s\n"), *msg.Text); break;
 			}
 		}
 	}
 
 
-	//---------------------------------------------------------------------------------------------
 	void ErrorLog::Merge( const ErrorLog* pOther )
 	{
-		m_pD->m_messages.Append(pOther->GetPrivate()->m_messages);
+		m_pD->Messages.Append(pOther->GetPrivate()->Messages);
 	}
 
 
@@ -331,11 +350,10 @@ namespace mu
 
     // clang-format on
 
-    //---------------------------------------------------------------------------------------------
     const TCHAR* GetOpName( OP_TYPE type )
     {
-        //check( type>=0 && type<(int)OP_TYPE::COUNT );
-        return s_opNames[(int)type];
+        //check( type>=0 && type<(int32)OP_TYPE::COUNT );
+        return s_opNames[(int32)type];
     }
 
 }

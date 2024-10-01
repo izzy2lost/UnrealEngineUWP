@@ -15,23 +15,25 @@ namespace mu
 
         struct FErrorData
         {
-            TArray< float > m_unassignedUVs;
+            TArray< float > UnassignedUVs;
         };
 
 		struct FMessage
 		{
-			ErrorLogMessageType m_type = ELMT_NONE;
-			ErrorLogMessageSpamBin m_spam = ELMSB_ALL;
-			FString m_text;
-            TSharedPtr<FErrorData> m_data;
-			const void* m_context = nullptr;
+			ErrorLogMessageType Type = ELMT_NONE;
+			ErrorLogMessageSpamBin Spam = ELMSB_ALL;
+			FString Text;
+            TSharedPtr<FErrorData> Data;
+			const void* Context = nullptr;
+			const void* Context2 = nullptr;
 		};
 
-		TArray<FMessage> m_messages;
+		TArray<FMessage> Messages;
 
 
 		//!
 		void Add(const FString& Message, ErrorLogMessageType Type, const void* Context, ErrorLogMessageSpamBin SpamBin = ELMSB_ALL);
+		void Add(const FString& Message, ErrorLogMessageType Type, const void* Context, const void* Context2, ErrorLogMessageSpamBin SpamBin = ELMSB_ALL);
 
         //!
         void Add(const FString& Message, const ErrorLogMessageAttachedDataView& Data, ErrorLogMessageType Type, const void* Context, ErrorLogMessageSpamBin SpamBin = ELMSB_ALL);

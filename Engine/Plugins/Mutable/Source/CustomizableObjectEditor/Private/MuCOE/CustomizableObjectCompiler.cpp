@@ -1527,11 +1527,19 @@ void FCustomizableObjectCompiler::UpdateCompilerLogData()
 
 	for (const FCustomizableObjectCompileRunnable::FError& CompileError : ArrayCompileErrors)
 	{
-		const UObject* Object = static_cast<const UObject*>(CompileError.Context); // Context are always UObjects
-
-		if (const UCustomizableObjectNode* Node = Cast<UCustomizableObjectNode>(Object))
+		TArray<const UObject*> ObjectArray;
+		if (CompileError.Context)
 		{
-			if (CompileError.AttachedData)
+			ObjectArray.Add(CompileError.Context);
+		}
+		if (CompileError.Context2)
+		{
+			ObjectArray.Add(CompileError.Context2);
+		}
+
+		if (CompileError.Context && CompileError.AttachedData)
+		{
+			if (const UCustomizableObjectNode* Node = Cast<UCustomizableObjectNode>(CompileError.Context))
 			{
 				UCustomizableObjectNode::FAttachedErrorDataView ErrorDataView;
 				ErrorDataView.UnassignedUVs = { CompileError.AttachedData->UnassignedUVs.GetData(),
@@ -1542,7 +1550,7 @@ void FCustomizableObjectCompiler::UpdateCompilerLogData()
 		}
 
 		FText FullMsg = FText::Format(LOCTEXT("MutableMessage", "{0} : {1}"), ObjectName, CompileError.Message);
-		CompilerLog(FullMsg, Object, CompileError.Severity, true, CompileError.SpamBin);
+		CompilerLog(FullMsg, ObjectArray, CompileError.Severity, true, CompileError.SpamBin);
 	}
 }
 

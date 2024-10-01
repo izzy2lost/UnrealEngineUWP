@@ -214,11 +214,15 @@ uint32 FCustomizableObjectCompileRunnable::Run()
 				TSharedPtr<FErrorAttachedData> ErrorAttachedData = MakeShared<FErrorAttachedData>();
 				ErrorAttachedData->UnassignedUVs.Reset();
 				ErrorAttachedData->UnassignedUVs.Append(MessageAttachedData.m_unassignedUVs, MessageAttachedData.m_unassignedUVsSize);
-				ArrayErrors.Add(FError(Severity, FText::AsCultureInvariant(Message), ErrorAttachedData, pLog->GetMessageContext(i), SpamBin));
+				const UObject* Context = static_cast<const UObject*>(pLog->GetMessageContext(i));
+				ArrayErrors.Add(FError(Severity, FText::AsCultureInvariant(Message), ErrorAttachedData, Context, SpamBin));
 			}
 			else
 			{
-				ArrayErrors.Add(FError(Severity, FText::AsCultureInvariant(Message), pLog->GetMessageContext(i), SpamBin));
+				// TODO: Review, and probably propagate the UObject type into the runtime.
+				const UObject* Context = static_cast<const UObject*>(pLog->GetMessageContext(i));
+				const UObject* Context2 = static_cast<const UObject*>(pLog->GetMessageContext2(i));
+				ArrayErrors.Add(FError(Severity, FText::AsCultureInvariant(Message), Context, Context2, SpamBin));
 			}
 		}
 	}

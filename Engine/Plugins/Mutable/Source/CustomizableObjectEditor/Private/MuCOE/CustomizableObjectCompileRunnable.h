@@ -28,14 +28,16 @@ public:
 
 	struct FError
 	{
-		EMessageSeverity::Type Severity;
+		EMessageSeverity::Type Severity = EMessageSeverity::Error;
 		ELoggerSpamBin SpamBin = ELoggerSpamBin::ShowAll;
 		FText Message;
 		TSharedPtr<FErrorAttachedData> AttachedData;
-		const void* Context;
+		TObjectPtr<const UObject> Context = nullptr;
+		TObjectPtr<const UObject> Context2 = nullptr;
 
-		FError(const EMessageSeverity::Type InSeverity, const FText& InMessage, const void* InContext, const ELoggerSpamBin InSpamBin = ELoggerSpamBin::ShowAll) : Severity(InSeverity), SpamBin(InSpamBin), Message(InMessage), Context(InContext) {}
-		FError(const EMessageSeverity::Type InSeverity, const FText& InMessage, const TSharedPtr<FErrorAttachedData>& InAttachedData, const void* InContext, const ELoggerSpamBin InSpamBin = ELoggerSpamBin::ShowAll)
+		FError(const EMessageSeverity::Type InSeverity, const FText& InMessage, const UObject* InContext, const UObject* InContext2=nullptr, const ELoggerSpamBin InSpamBin = ELoggerSpamBin::ShowAll )
+			: Severity(InSeverity), SpamBin(InSpamBin), Message(InMessage), Context(InContext), Context2(InContext2) {}
+		FError(const EMessageSeverity::Type InSeverity, const FText& InMessage, const TSharedPtr<FErrorAttachedData>& InAttachedData, const UObject* InContext, const ELoggerSpamBin InSpamBin = ELoggerSpamBin::ShowAll)
 			: Severity(InSeverity), SpamBin(InSpamBin), Message(InMessage), AttachedData(InAttachedData), Context(InContext) {}
 	};
 

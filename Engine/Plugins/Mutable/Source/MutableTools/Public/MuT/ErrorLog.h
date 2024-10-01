@@ -58,25 +58,26 @@ namespace mu
 
 		//! Get the number of messages.
 		//! If a message type is provided, return the number of that type of message only.
-		int GetMessageCount( ErrorLogMessageType type = ELMT_NONE ) const;
+		int32 GetMessageCount( ErrorLogMessageType type = ELMT_NONE ) const;
 
 		//! Get the text of a message.
 		//! \param index index of the message from 0 to GetMessageCount(ELMT_NONE)-1
-		const FString& GetMessageText( int index ) const;
+		const FString& GetMessageText( int32 index ) const;
 
 		//! Get the opaque context of a message.
 		//! \param index index of the message from 0 to GetMessageCount(ELMT_NONE)-1
-		const void* GetMessageContext( int index ) const;
+		const void* GetMessageContext(int32 index) const;
+		const void* GetMessageContext2(int32 index) const;
 
 		//!
-		ErrorLogMessageType GetMessageType( int index ) const;
+		ErrorLogMessageType GetMessageType( int32 index ) const;
 
 		//!
-		ErrorLogMessageSpamBin GetMessageSpamBin(int index) const;
+		ErrorLogMessageSpamBin GetMessageSpamBin(int32 index) const;
 
 		//! Get the attached data of a message.
 		//! \param index index of message data from 0 to GetMessageCount(ELMT_NONE)-1
-		ErrorLogMessageAttachedDataView GetMessageAttachedData( int index ) const;
+		ErrorLogMessageAttachedDataView GetMessageAttachedData( int32 index ) const;
 
 		//!
 		void Log() const;
