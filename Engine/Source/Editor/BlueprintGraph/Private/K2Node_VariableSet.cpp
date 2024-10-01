@@ -169,7 +169,7 @@ FText UK2Node_VariableSet::GetPropertyTooltip(FProperty const* VariableProperty)
 				// See if the native property has a tooltip
 				SubTooltip = PropertyTooltip;
 				FString TooltipName = FString::Printf(TEXT("%s.%s"), *VarName.ToString(), *FBlueprintMetadata::MD_Tooltip.ToString());
-				FText::FindText(*VariableProperty->GetFullGroupName(true), *TooltipName, SubTooltip);
+				FText::FindTextInLiveTable_Advanced(*VariableProperty->GetFullGroupName(true), *TooltipName, SubTooltip);
 			}
 		}
 		else if (SourceClass)

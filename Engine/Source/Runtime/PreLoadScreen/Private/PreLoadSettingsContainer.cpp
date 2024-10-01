@@ -418,17 +418,8 @@ void FPreLoadSettingsContainerBase::ParseLocalizedTextConfigString(const FString
         LocInitialValue.RemoveFromEnd(")");
         LocInitialValue.RemoveFromEnd("\"");
 
-        //Actually try to add the FText to our list by finding it in the FText collection (should already be in there due to Localization system)
-        FText FoundText = FText::GetEmpty();
-        if (FText::FindText(LocNameSpace, LocIdentifier, FoundText))
-        {
-            AddLocalizedText(Identifier, FoundText);
-        }
-        //We couldn't find it already, so go ahead and add a version to FText with an initial value. This one won't be localized, but that may be intended
-        else
-        {
-            AddLocalizedText(Identifier, FText::FromString(LocInitialValue));
-        }
+        //Add the FText to our list
+        AddLocalizedText(Identifier, FText::AsLocalizable_Advanced(MoveTemp(LocNameSpace), MoveTemp(LocIdentifier), MoveTemp(LocInitialValue)));
     }
 }
 
