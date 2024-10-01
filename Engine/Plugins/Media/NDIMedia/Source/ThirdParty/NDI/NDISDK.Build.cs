@@ -16,8 +16,6 @@ public class NDISDK : ModuleRules
 	        PublicIncludePaths.Add(IncludePath);
 
             string DllName = Path.Combine("Processing.NDI.Lib.x64.dll");
-            PublicDelayLoadDLLs.Add(DllName);
-
             string DllPath = Path.Combine(PluginDirectory, "Binaries", "ThirdParty", "Win64", DllName);
             RuntimeDependencies.Add(DllPath);
 
