@@ -107,6 +107,12 @@ int32 RunLiveLinkHub(const TCHAR* CommandLine)
 	int32 Result = GEngineLoop.PreInit(*FString::Printf(TEXT("%s %s"), CommandLine, TEXT("-RUN=LiveLinkHubCommandlet -Messaging -DDC=NoShared -NoShaderCompile")));
 #endif
 
+	// Ensure FEngineLoop::Exit is called for all return paths. (see EngineLoopCleanupGuard)
+	ON_SCOPE_EXIT
+	{
+		GEngineLoop.Exit();
+	};
+
 	if (Result != 0)
 	{
 		UE_LOG(LogLiveLinkHub, Error, TEXT("EngineLoop PreInit failed (%i)"), Result);
@@ -139,8 +145,6 @@ int32 RunLiveLinkHub(const TCHAR* CommandLine)
 		HubModule.ShutdownLiveLinkHub();
 	}
 #endif
-
-	GEngineLoop.Exit();
 
 	return Result;
 }
