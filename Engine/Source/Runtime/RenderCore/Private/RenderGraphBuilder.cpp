@@ -2833,13 +2833,18 @@ void FRDGBuilder::SetupParallelExecute(TStaticArray<void*, MAX_NUM_GPUS> const& 
 		}
 
 		bTaskModeAsync &= bPassTaskModeAsync;
-		bDispatchAfterExecute |= Pass->bDispatchAfterExecute;
 
 		ParallelPassCandidates.Emplace(Pass);
 
 		if (!Pass->bSkipRenderPassBegin && !Pass->bSkipRenderPassEnd)
 		{
 			ParallelPassCandidatesWorkload += Pass->Workload;
+		}
+
+		if (Pass->bDispatchAfterExecute)
+		{
+			bDispatchAfterExecute = true;
+			FlushParallelPassCandidates();
 		}
 
 		if (ParallelPassCandidatesWorkload >= (uint32)GRDGParallelExecutePassMax)
