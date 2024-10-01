@@ -623,7 +623,7 @@ const TArray<int32>& UWeightToolMeshSelector::GetSelectedVertices()
 
 bool UWeightToolMeshSelector::IsAnyComponentSelected() const
 {
-	if (!ensure(PolygonSelectionMechanic))
+	if (!PolygonSelectionMechanic)
 	{
 		return false;
 	}
