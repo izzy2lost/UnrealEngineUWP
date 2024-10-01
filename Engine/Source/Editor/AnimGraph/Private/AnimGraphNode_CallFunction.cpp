@@ -167,6 +167,11 @@ void UAnimGraphNode_CallFunction::ExpandNode(FKismetCompilerContext& CompilerCon
 
 void UAnimGraphNode_CallFunction::SetupFromFunction(UFunction* InFunction)
 {
+	if(InFunction == nullptr)
+	{
+		return;
+	}
+
 	// Create graph and inner node
 	InnerGraph = FBlueprintEditorUtils::CreateNewGraph(this, NAME_None, UEdGraph::StaticClass(), UEdGraphSchema_K2::StaticClass());
 
@@ -274,10 +279,16 @@ void UAnimGraphNode_CallFunction::GetMenuActions(FBlueprintActionDatabaseRegistr
 		{
 			if (UEdGraphSchema_K2::CanUserKismetCallFunction(InFunction) && ValidateFunction(InFunction))
 			{
-				auto CustomizeNode = [InFunction](UEdGraphNode* InNode, bool bIsTemplate)
+				auto CustomizeNode = [Function = TWeakObjectPtr<UFunction>(InFunction)](UEdGraphNode* InNode, bool bIsTemplate)
 				{
+					UFunction* ResolvedFunction = Function.Get();
+					if(ResolvedFunction == nullptr)
+					{
+						return;
+					}
+
 					UAnimGraphNode_CallFunction* CallFunctionNode = CastChecked<UAnimGraphNode_CallFunction>(InNode);
-					CallFunctionNode->SetupFromFunction(InFunction);
+					CallFunctionNode->SetupFromFunction(ResolvedFunction);
 				};
 
 				UBlueprintNodeSpawner* Spawner = UBlueprintNodeSpawner::Create(UAnimGraphNode_CallFunction::StaticClass(), nullptr, UBlueprintNodeSpawner::FCustomizeNodeDelegate::CreateLambda(CustomizeNode));
@@ -298,7 +309,7 @@ void UAnimGraphNode_CallFunction::GetMenuActions(FBlueprintActionDatabaseRegistr
 			}
 		};
 
-		for (TFieldIterator<UFunction> It(InClass); It; ++It)
+		for (TFieldIterator<UFunction> It(InClass, EFieldIterationFlags::IncludeInterfaces); It; ++It)
 		{
 			MakeFunctionAction(*It);
 		}
@@ -317,6 +328,11 @@ void UAnimGraphNode_CallFunction::GetMenuActions(FBlueprintActionDatabaseRegistr
 			MakeFunctionActionsForClass(It->GetClass());
 		}
 	}
+}
+
+bool UAnimGraphNode_CallFunction::IsActionFilteredOut(FBlueprintActionFilter const& Filter)
+{
+	return CallFunctionPrototype == nullptr || InnerGraph == nullptr || CallFunctionPrototype->IsActionFilteredOut(Filter);
 }
 
 void UAnimGraphNode_CallFunction::GetRequiredExtensions(TArray<TSubclassOf<UAnimBlueprintExtension>>& OutExtensions) const
