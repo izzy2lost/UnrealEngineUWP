@@ -733,8 +733,6 @@ void FAnimationBudgetAllocator::Update(float DeltaSeconds)
 
 			for(const TPair<AActor*, TArray<int32>>& ActorIndicesPair : ActorMap)
 			{
-				FVector Location = ActorIndicesPair.Key->GetActorLocation();
-
 				FString DebugString;
 				
 				for(int32 ComponentDataIndex : ActorIndicesPair.Value)
@@ -753,7 +751,7 @@ void FAnimationBudgetAllocator::Update(float DeltaSeconds)
 					}
 				}
 
-				DrawDebugString(World, Location, DebugString, nullptr, FColor::White, 0.016f, false);
+				DrawDebugString(World, FVector::ZeroVector, DebugString, ActorIndicesPair.Key, FColor::White, 0.016f, false);
 			}
 
 			DebugTimes.Add(FVector2D(CurrentDebugTimeDisplay, DebugTotalTime));
