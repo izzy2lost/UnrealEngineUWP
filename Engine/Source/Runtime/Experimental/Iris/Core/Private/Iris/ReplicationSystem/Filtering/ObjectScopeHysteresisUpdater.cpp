@@ -157,10 +157,10 @@ FObjectScopeHysteresisUpdater::FLocalIndex FObjectScopeHysteresisUpdater::GetOrC
 	uint32 LocalIndex = UsedLocalIndices.FindFirstZero();
 	if (LocalIndex == FNetBitArray::InvalidIndex)
 	{
+		LocalIndex = UsedLocalIndices.GetNumBits();
 		UsedLocalIndices.AddBits(LocalIndexGrowCount);
 		LocalIndexToNetRefIndex.AddZeroed(LocalIndexGrowCount);
 		FrameCounters.AddZeroed(LocalIndexGrowCount);
-		LocalIndex = UsedLocalIndices.FindFirstZero();
 	}
 
 	UsedLocalIndices.SetBit(LocalIndex);
@@ -168,6 +168,8 @@ FObjectScopeHysteresisUpdater::FLocalIndex FObjectScopeHysteresisUpdater::GetOrC
 	NetRefIndexToLocalIndex.Add(NetRefIndex, LocalIndex);
 	ObjectsToUpdate.SetBit(NetRefIndex);
 	MaxLocalIndex = FPlatformMath::Max(MaxLocalIndex, LocalIndex + 1U);
+
+	ensureMsgf(MaxLocalIndex <= UsedLocalIndices.GetNumBits(), TEXT("MaxLocalIndex has grown beyond supported size. MaxLocalIndex: %u LocalIndex: %u Array sizes: %u"), MaxLocalIndex, LocalIndex, UsedLocalIndices.GetNumBits());
 
 	return LocalIndex;
 }
