@@ -297,6 +297,9 @@ public:
 	/** Frame a list of provided items*/
    	void FrameItems(const TArray<FRigElementKey>& InItems);
 
+	/** Sets Passthrough Key on selected anim layers */
+	void SetAnimLayerPassthroughKey();
+
 	/** Opens up the space picker widget */
 	void OpenSpacePickerWidget();
 

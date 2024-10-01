@@ -1682,6 +1682,7 @@ bool UAnimLayers::SetPassthroughKey(ISequencer* InSequencer, int32 InIndex)
 							int32 SectionIndex = TrackSections.Find((SectionItem.Section.Get()));
 							if (SectionIndex != INDEX_NONE)
 							{
+								const FScopedTransaction Transaction(LOCTEXT("SetPassthroughKey_Transaction", "Set Passthrough Key"), !GIsTransacting);
 								SectionItem.Section->Modify();
 								TrackSections.SetNum(SectionIndex); //this will gives us up to the section 
 								TArray<UMovieSceneSection*> Sections;

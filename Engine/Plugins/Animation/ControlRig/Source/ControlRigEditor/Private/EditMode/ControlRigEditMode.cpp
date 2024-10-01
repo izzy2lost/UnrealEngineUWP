@@ -2846,6 +2846,10 @@ void FControlRigEditMode::BindCommands()
 		FExecuteAction::CreateRaw(this, &FControlRigEditMode::ToggleControlShapeTransformEdit));
 
 	CommandBindings->MapAction(
+		Commands.SetAnimLayerPassthroughKey,
+		FExecuteAction::CreateRaw(this, &FControlRigEditMode::SetAnimLayerPassthroughKey));
+
+	CommandBindings->MapAction(
 		Commands.OpenSpacePickerWidget,
 		FExecuteAction::CreateRaw(this, &FControlRigEditMode::OpenSpacePickerWidget));
 }
@@ -3118,6 +3122,29 @@ bool FControlRigEditMode::IsDragAnimSliderToolPressed(FViewport* InViewport)
 		return bIsMovingSlider;
 	}
 	return false;
+}
+
+void FControlRigEditMode::SetAnimLayerPassthroughKey()
+{
+	ISequencer* Sequencer = WeakSequencer.Pin().Get();
+	if (Sequencer)
+	{
+		if (UAnimLayers* AnimLayers = UAnimLayers::GetAnimLayers(Sequencer))
+		{
+			const FScopedTransaction Transaction(LOCTEXT("SetPassthroughKey_Transaction", "Set Passthrough Key"), !GIsTransacting);
+			for (UAnimLayer* AnimLayer : AnimLayers->AnimLayers)
+			{
+				if (AnimLayer->GetSelectedInList())
+				{
+					int32 Index = AnimLayers->GetAnimLayerIndex(AnimLayer);
+					if (Index != INDEX_NONE)
+					{
+						AnimLayers->SetPassthroughKey(Sequencer, Index);
+					}
+				}
+			}
+		}
+	}
 }
 
 void FControlRigEditMode::OpenSpacePickerWidget()

@@ -134,7 +134,6 @@ void FAnimLayerSourceUIEntry::AddSelected() const
 {
 	if (AnimLayer)
 	{
-
 		AnimLayer->AddSelectedInSequencer();
 		ClearCaches();
 	}
@@ -143,7 +142,7 @@ void FAnimLayerSourceUIEntry::AddSelected() const
 void FAnimLayerSourceUIEntry::RemoveSelected() const
 {
 	if (AnimLayer)
-{
+	{
 		AnimLayer->RemoveSelectedInSequencer();
 		ClearCaches();
 	}
@@ -934,18 +933,26 @@ void FAnimLayerSourcesView::AddSelected()
 {
 	TArray<FAnimLayerSourceUIEntryPtr> Selected;
 	SourcesListView->GetSelectedItems(Selected);
-	for (const FAnimLayerSourceUIEntryPtr& Ptr : Selected)
+	if (Selected.Num() > 0)
 	{
-		Ptr->AddSelected();
+		const FScopedTransaction Transaction(LOCTEXT("AddSelectedAnimLayer_Transaction", "Add Selected"), !GIsTransacting);
+		for (const FAnimLayerSourceUIEntryPtr& Ptr : Selected)
+		{
+			Ptr->AddSelected();
+		}
 	}
 }
 void FAnimLayerSourcesView::RemoveSelected()
 {
 	TArray<FAnimLayerSourceUIEntryPtr> Selected;
 	SourcesListView->GetSelectedItems(Selected);
-	for (const FAnimLayerSourceUIEntryPtr& Ptr : Selected)
+	if (Selected.Num() > 0)
 	{
-		Ptr->RemoveSelected();
+		const FScopedTransaction Transaction(LOCTEXT("RemoveSelected_Transaction", "Remove Selected"), !GIsTransacting);
+		for (const FAnimLayerSourceUIEntryPtr& Ptr : Selected)
+		{
+			Ptr->RemoveSelected();
+		}
 	}
 }
 
@@ -953,9 +960,13 @@ void FAnimLayerSourcesView::SelectObjects()
 {
 	TArray<FAnimLayerSourceUIEntryPtr> Selected;
 	SourcesListView->GetSelectedItems(Selected);
-	for(const FAnimLayerSourceUIEntryPtr& Ptr: Selected)
+	if (Selected.Num() > 0)
 	{
-		Ptr->SelectObjects();
+		const FScopedTransaction Transaction(LOCTEXT("SetSelected_Transaction", "Set Selection"), !GIsTransacting);
+		for (const FAnimLayerSourceUIEntryPtr& Ptr : Selected)
+		{
+			Ptr->SelectObjects();
+		}
 	}
 }
 
@@ -963,18 +974,26 @@ void FAnimLayerSourcesView::DeleteAnimLayer()
 {
 	TArray<FAnimLayerSourceUIEntryPtr> Selected;
 	SourcesListView->GetSelectedItems(Selected);
-	for (const FAnimLayerSourceUIEntryPtr& Ptr : Selected)
+	if (Selected.Num() > 0)
 	{
-		Ptr->DeleteAnimLayer();
+		const FScopedTransaction Transaction(LOCTEXT("DeleteAnimLayer_Transaction", "Delete Anim Layer"), !GIsTransacting);
+		for (const FAnimLayerSourceUIEntryPtr& Ptr : Selected)
+		{
+			Ptr->DeleteAnimLayer();
+		}
 	}
 }
 void FAnimLayerSourcesView::Duplicate()
 {
 	TArray<FAnimLayerSourceUIEntryPtr> Selected;
 	SourcesListView->GetSelectedItems(Selected);
-	for (const FAnimLayerSourceUIEntryPtr& Ptr : Selected)
+	if (Selected.Num() > 0)
 	{
-		Ptr->Duplicate();
+		const FScopedTransaction Transaction(LOCTEXT("DuplicateAnimLayer_Transaction", "Duplicate Anim Layer"), !GIsTransacting);
+		for (const FAnimLayerSourceUIEntryPtr& Ptr : Selected)
+		{
+			Ptr->Duplicate();
+		}
 	}
 }
 
@@ -1047,9 +1066,13 @@ void FAnimLayerSourcesView::SetPassthroughKey()
 {
 	TArray<FAnimLayerSourceUIEntryPtr> Selected;
 	SourcesListView->GetSelectedItems(Selected);
-	for (const FAnimLayerSourceUIEntryPtr& Ptr : Selected)
+	if (Selected.Num() > 0)
 	{
-		Ptr->SetPassthroughKey();
+		const FScopedTransaction Transaction(LOCTEXT("SetPassthroughKey_Transaction", "Set Passthrough Key"), !GIsTransacting);
+		for (const FAnimLayerSourceUIEntryPtr& Ptr : Selected)
+		{
+			Ptr->SetPassthroughKey();
+		}
 	}
 }
 
