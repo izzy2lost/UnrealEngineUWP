@@ -7,10 +7,9 @@
 #include "Modifiers/ActorModifierCoreStack.h"
 #include "Modifiers/AvaBevelModifier.h"
 #include "Modifiers/AvaExtrudeModifier.h"
-#include "Modules/ModuleObserver.h"
 #include "ProceduralMeshes/SVGDynamicMeshComponent.h"
 #include "SVGEngineSubsystem.h"
-#include "SVGImporterEditorCommands.h"
+#include "SVGImporter.h"
 #include "SVGShapesParentActor.h"
 #include "Subsystems/ActorModifierCoreSubsystem.h"
 #include "Tool/AvaSVGActorTool.h"
@@ -40,27 +39,13 @@ void FAvaSVGEditorModule::RegisterTools(IAvalancheInteractiveToolsModule* InModu
 		return;
 	}
 
-	if (FSVGImporterEditorCommands::IsRegistered())
-	{
-		InModule->RegisterTool(
-			IAvalancheInteractiveToolsModule::Get().CategoryNameActor,
-			GetDefault<UAvaSVGActorTool>()->GetToolParameters()
-		);
-	}
-	else
-	{
-		// Register SVG when commands are registered instead of when module is loaded, may happen at different time on various platform
-		FSVGImporterEditorCommands::CommandsChanged.AddRaw(this, &FAvaSVGEditorModule::OnSVGCommandsRegistered, InModule);
-	}
-}
+	// Load svg module
+	FSVGImporterModule::Get();
 
-void FAvaSVGEditorModule::OnSVGCommandsRegistered(const FBindingContext& InContext, IAvalancheInteractiveToolsModule* InModule)
-{
-	if (InContext.GetContextName() == TEXT("SVGImporterEditor") && FSVGImporterEditorCommands::IsRegistered())
-	{
-		RegisterTools(InModule);
-		FSVGImporterEditorCommands::CommandsChanged.RemoveAll(this);
-	}
+	InModule->RegisterTool(
+		IAvalancheInteractiveToolsModule::Get().CategoryNameActor,
+		GetDefault<UAvaSVGActorTool>()->GetToolParameters()
+	);
 }
 
 void FAvaSVGEditorModule::OnSVGActorSplit(ASVGShapesParentActor* InSVGShapesParent)

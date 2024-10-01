@@ -4,9 +4,13 @@
 
 #include "Framework/Commands/Commands.h"
 
-class SVGIMPORTEREDITOR_API FSVGImporterEditorCommands : public TCommands<FSVGImporterEditorCommands>
+class FSVGImporterEditorCommands : public TCommands<FSVGImporterEditorCommands>
 {
 public:
+	SVGIMPORTEREDITOR_API static const FSVGImporterEditorCommands& GetExternal();
+
+	static const FSVGImporterEditorCommands& GetInternal();
+
 	FSVGImporterEditorCommands();
 
 	//~ Begin TCommands
@@ -14,4 +18,8 @@ public:
 	//~ End TCommands
 
 	TSharedPtr<FUICommandInfo> SpawnSVGActor;
+
+private:
+	// Make this unavailable to the public
+	using TCommands<FSVGImporterEditorCommands>::Get;
 };
