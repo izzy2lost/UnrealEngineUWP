@@ -433,7 +433,7 @@ void F3DTransformTrackEditor::OnPreSaveWorld(UWorld* World)
 	// bound camera actors. If they are, associate them with the binding GUID.
 	for (FLevelEditorViewportClient* LevelVC : GEditor->GetLevelViewportClients())
 	{
-		if (LevelVC && LevelVC->GetViewMode() != VMI_Unknown)
+		if (LevelVC && LevelVC->GetViewMode() != VMI_Unknown && LevelVC->AllowsCinematicControl())
 		{
 			AActor* ActorLock = LevelVC->GetActiveActorLock().Get();
 			if (!ActorLock)
