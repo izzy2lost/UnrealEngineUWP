@@ -1179,6 +1179,7 @@ void USkeletalMeshComponent::ClearAnimScriptInstance()
 		HandleExistingParallelEvaluationTask(bBlockOnTask, bPerformPostAnimEvaluation);
 
 		AnimScriptInstance->EndNotifyStates();
+		AnimScriptInstance->UninitializeAnimation();
 	}
 	AnimScriptInstance = nullptr;
 	ResetLinkedAnimInstances();
