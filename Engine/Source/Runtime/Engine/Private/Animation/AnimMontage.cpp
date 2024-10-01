@@ -2094,6 +2094,13 @@ EMontageSubStepResult FMontageSubStepper::Advance(float& InOut_P_Original, const
 			// We are modifying the current position so we also need to update the section and pos in section
 			InOut_P_Original = MontageInstance->ForcedNextFromPosition.GetValue();
 			CurrentSectionIndex = Montage->GetAnimCompositeSectionIndexFromPos(InOut_P_Original, PositionInSection);
+			
+			if (!Montage->IsValidSectionIndex(CurrentSectionIndex))
+			{
+				return EMontageSubStepResult::InvalidSection;
+			}
+			CurrentSectionStartTime = Montage->GetAnimCompositeSection(CurrentSectionIndex).GetTime();
+			CurrentSectionLength = Montage->GetSectionLength(CurrentSectionIndex);
 		}
 		DeltaMove = NewPosition - InOut_P_Original;
 		PlayRate = DeltaMove / TimeRemaining;
