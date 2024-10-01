@@ -234,13 +234,6 @@ namespace UE::USDAssetCache3::Private
 								continue;
 							}
 
-							// Quickly ignore references from actors and components on the preview world (i.e. thumbnail renderers, asset editors,
-							// etc...)
-							if (Referencer->HasAnyFlags(RF_DefaultSubObject))
-							{
-								continue;
-							}
-
 							ExternalReferencers.Add(Referencer);
 						}
 					}
