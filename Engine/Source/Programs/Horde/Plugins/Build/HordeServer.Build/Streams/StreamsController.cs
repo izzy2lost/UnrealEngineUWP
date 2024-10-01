@@ -7,8 +7,10 @@ using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
+using HordeServer.Auditing;
 using HordeServer.Commits;
 using HordeServer.Jobs;
+using HordeServer.Jobs.Schedules;
 using HordeServer.Jobs.Templates;
 using HordeServer.Projects;
 using HordeServer.Server;
@@ -34,6 +36,7 @@ namespace HordeServer.Streams
 		private readonly ITemplateCollection _templateCollection;
 		private readonly IJobStepRefCollection _jobStepRefCollection;
 		private readonly IUserCollection _userCollection;
+		private readonly ScheduleService _scheduleService;
 		private readonly Tracer _tracer;
 		private readonly IOptionsSnapshot<BuildConfig> _buildConfig;
 		private readonly TimeZoneInfo _timeZone;
@@ -41,13 +44,14 @@ namespace HordeServer.Streams
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StreamsController(IStreamCollection streamCollection, ICommitService commitService, ITemplateCollection templateCollection, IJobStepRefCollection jobStepRefCollection, IUserCollection userCollection, Tracer tracer, IClock clock, IOptionsSnapshot<BuildConfig> buildConfig)
+		public StreamsController(IStreamCollection streamCollection, ICommitService commitService, ITemplateCollection templateCollection, IJobStepRefCollection jobStepRefCollection, IUserCollection userCollection, ScheduleService scheduleService, Tracer tracer, IClock clock, IOptionsSnapshot<BuildConfig> buildConfig)
 		{
 			_streamCollection = streamCollection;
 			_commitService = commitService;
 			_templateCollection = templateCollection;
 			_jobStepRefCollection = jobStepRefCollection;
 			_userCollection = userCollection;
+			_scheduleService = scheduleService;
 			_tracer = tracer;
 			_buildConfig = buildConfig;
 			_timeZone = clock.TimeZone;
@@ -415,6 +419,47 @@ namespace HordeServer.Streams
 
 			ITemplate template = await _templateCollection.GetOrAddAsync(templateConfig);
 			return new GetTemplateResponse(template).ApplyFilter(filter);
+		}
+
+		/// <summary>
+		/// Retrieve historical information about a specific schedule
+		/// </summary>
+		/// <param name="streamId">Unique id of the stream to query</param>
+		/// <param name="templateId">Unique id of the template to query</param>
+		/// <param name="minTime">Minimum time for records to return</param>
+		/// <param name="maxTime">Maximum time for records to return</param>
+		/// <param name="index">Offset of the first result</param>
+		/// <param name="count">Number of records to return</param>
+		/// <returns>Information about the requested agent</returns>
+		[HttpGet]
+		[Route("/api/v1/streams/{streamId}/templates/{templateId}/history")]
+		public async Task<ActionResult> GetTemplateHistoryAsync(StreamId streamId, TemplateId templateId, [FromQuery] DateTime? minTime = null, [FromQuery] DateTime? maxTime = null, [FromQuery] int index = 0, [FromQuery] int count = 50)
+		{
+			StreamConfig? streamConfig;
+			if (!_buildConfig.Value.TryGetStream(streamId, out streamConfig))
+			{
+				return NotFound(streamId);
+			}
+
+			TemplateRefConfig? templateConfig;
+			if (!streamConfig.TryGetTemplate(templateId, out templateConfig))
+			{
+				return NotFound(streamId, templateId);
+			}
+			if (!templateConfig.Authorize(StreamAclAction.ViewTemplate, User))
+			{
+				return Forbid(StreamAclAction.ViewTemplate, streamId);
+			}
+
+			IAuditLogChannel channel = _scheduleService.GetAuditLog(streamId, templateId);
+
+			Response.ContentType = "application/json";
+			Response.StatusCode = 200;
+			await Response.StartAsync();
+			await channel.FindAsync(HttpContext.Response.BodyWriter, minTime, maxTime, index, count);
+			await Response.CompleteAsync();
+
+			return NoContent();
 		}
 
 		/// <summary>

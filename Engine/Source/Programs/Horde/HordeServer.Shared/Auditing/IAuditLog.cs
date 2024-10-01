@@ -126,7 +126,7 @@ namespace HordeServer.Auditing
 		/// <param name="count">Number of records to return</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Information about the requested agent</returns>
-		public static async Task FindAsync<T>(this IAuditLogChannel<T> channel, PipeWriter bodyWriter, DateTime? minTime = null, DateTime? maxTime = null, int index = 0, int count = 50, CancellationToken cancellationToken = default)
+		public static async Task FindAsync(this IAuditLogChannel channel, PipeWriter bodyWriter, DateTime? minTime = null, DateTime? maxTime = null, int index = 0, int count = 50, CancellationToken cancellationToken = default)
 		{
 			string prefix = "{\n\t\"entries\":\n\t[";
 			await bodyWriter.WriteAsync(Encoding.UTF8.GetBytes(prefix), cancellationToken);
