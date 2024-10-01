@@ -324,9 +324,9 @@ bool FPackagePreloader::TryPreload()
 	const TSharedPtr<FPreloadableArchive>& FilePtr = PreloadableFile.Get();
 	if (!FilePtr->IsInitialized())
 	{
-		if (PackageData.GetIsUrgent())
+		if (PackageData.GetUrgency() == EUrgency::Blocking)
 		{
-			// For urgent requests, wait on them to finish preloading rather than letting them run asynchronously
+			// For blocking requests, wait on them to finish preloading rather than letting them run asynchronously
 			// and coming back to them later
 			FilePtr->WaitForInitialization();
 			check(FilePtr->IsInitialized());
@@ -546,9 +546,9 @@ bool FPackagePreloader::NeedsLoad()
 
 bool FPackagePreloader::IsHigherPriorityThan(const FPackagePreloader& Other) const
 {
-	if (PackageData.GetIsUrgent() != Other.PackageData.GetIsUrgent())
+	if (PackageData.GetUrgency() != Other.PackageData.GetUrgency())
 	{
-		return PackageData.GetIsUrgent();
+		return PackageData.GetUrgency() > Other.PackageData.GetUrgency();
 	}
 
 	// Leaves are higher priority because we want them to be already preloaded (or even
@@ -649,7 +649,8 @@ bool FPackagePreloader::PumpLoadsTryStartInboxPackage(UCookOnTheFlyServer& COTFS
 
 	// If the package is already ready for loading, or we otherwise want to skip preloading for it,
 	// skip the preload containers and put in the ReadyLoads container
-	if (!COTFS.bPreloadingEnabled || Preloader->IsPackageLoaded() || PoppedPackageData->GetIsUrgent())
+	if (!COTFS.bPreloadingEnabled || Preloader->IsPackageLoaded()
+		|| PoppedPackageData->GetUrgency() == EUrgency::Blocking)
 	{
 		if (Preloader->GetState() != EPreloaderState::ReadyForLoad)
 		{
@@ -866,6 +867,35 @@ uint32 FLoadQueue::Remove(FPackageData* PackageData)
 	// preloaders. That responsibility is complicated and the work that needs to be done for it upon leaving the load
 	// state is done by FPackageData::OnExitLoad.
 	return Result;
+}
+
+void FLoadQueue::UpdateUrgency(FPackageData* PackageData, EUrgency bOldUrgency, EUrgency NewUrgency)
+{
+	TRefCountPtr<FPackagePreloader> Preloader = PackageData->GetPackagePreloader();
+	if (!Preloader)
+	{
+		// Urgency does not impact state for packages that haven't reached a preloader state yet
+		return;
+	}
+	switch (Preloader->GetState())
+	{
+	case EPreloaderState::Inactive:
+		// Urgency does not impact state for packages that are inactive
+		break;
+	case EPreloaderState::PendingKick:
+		PendingKicks.Remove(Preloader);
+		PendingKicks.Add(Preloader);
+		break;
+	case EPreloaderState::ActivePreload:
+		break;
+	case EPreloaderState::ReadyForLoad:
+		ReadyForLoads.Remove(Preloader);
+		ReadyForLoads.AddFront(Preloader);
+		break;
+	default:
+		checkNoEntry();
+		break;
+	}
 }
 
 TSet<FPackageData*>::TRangedForIterator FLoadQueue::begin()

@@ -143,6 +143,18 @@ const TCHAR* LexToString(UE::Cook::ESaveSubState State)
 	}
 }
 
+const TCHAR* LexToString(UE::Cook::EUrgency Urgency)
+{
+	static_assert(static_cast<int>(EUrgency::Count) == 3);
+	switch (Urgency)
+	{
+	case EUrgency::Normal: return TEXT("Normal");
+	case EUrgency::High: return TEXT("High");
+	case EUrgency::Blocking: return TEXT("Blocking");
+	default: return TEXT("Invalid");
+	}
+}
+
 EStateChangeReason ConvertToStateChangeReason(ESuppressCookReason Reason)
 {
 	switch (Reason)

@@ -153,13 +153,20 @@ FRequestCluster::FRequestCluster(UCookOnTheFlyServer& InCOTFS, TRingBuffer<FDisc
 		{
 			// If there are no new reachable platforms, add it to the cluster for cooking if it needs
 			// it, otherwise let it remain where it is
+			EUrgency Urgency = Discovery->Urgency;
 			DiscoveryQueue.PopFrontValue();
 			Discovery = nullptr;
 			if (!PackageData.IsInProgress() && PackageData.GetPlatformsNeedingCookingNum() == 0)
 			{
 				PackageData.SendToState(EPackageState::Request, ESendFlags::QueueRemove,
 					EStateChangeReason::RequestCluster);
+				PackageData.RaiseUrgency(Urgency, ESendFlags::QueueNone);
+				// SetPackageDataSuppressReason adds it in the proper container of *this
 				SetPackageDataSuppressReason(PackageData, ESuppressCookReason::NotSuppressed);
+			}
+			else if (PackageData.IsInProgress())
+			{
+				PackageData.RaiseUrgency(Urgency, ESendFlags::QueueAddAndRemove);
 			}
 			continue;
 		}
@@ -233,7 +240,8 @@ FRequestCluster::FRequestCluster(UCookOnTheFlyServer& InCOTFS, TRingBuffer<FDisc
 		// Send it to the Request state if it's not already there, remove it from its old container
 		// and add it to this cluster.
 		PackageData.SendToState(EPackageState::Request, ESendFlags::QueueRemove, EStateChangeReason::RequestCluster);
-		PackageData.AddUrgency(Discovery->bUrgent, false /* bAllowUpdateState */);
+		PackageData.RaiseUrgency(Discovery->Urgency, ESendFlags::QueueNone);
+		// SetPackageDataSuppressReason adds it in the proper container of *this
 		SetPackageDataSuppressReason(PackageData, ESuppressCookReason::NotSuppressed);
 	}
 }
@@ -299,7 +307,10 @@ void FRequestCluster::FetchPackageNames(const FCookerTimer& CookerTimer, bool& b
 		{
 			PackageData->AddReachablePlatforms(*this, Request.GetPlatforms(), MoveTemp(Request.GetInstigator()));
 			PullIntoCluster(*PackageData);
-			PackageData->AddUrgency(Request.IsUrgent(), false /* bAllowUpdateState */);
+			if (Request.IsUrgent())
+			{
+				PackageData->SetUrgency(EUrgency::Blocking, ESendFlags::QueueNone);
+			}
 		}
 		else
 		{
@@ -307,13 +318,19 @@ void FRequestCluster::FetchPackageNames(const FCookerTimer& CookerTimer, bool& b
 			{
 				// If it's already in progress with no new platforms, we don't need to add it to the cluster, but add
 				// add on our urgency setting
-				PackageData->AddUrgency(Request.IsUrgent(), true /* bAllowUpdateState */);
+				if (Request.IsUrgent())
+				{
+					PackageData->SetUrgency(EUrgency::Blocking, ESendFlags::QueueAddAndRemove);
+				}
 			}
 			else if (PackageData->GetPlatformsNeedingCookingNum() > 0)
 			{
 				// If it's missing cookable platforms and not in progress we need to add it to the cluster for cooking
 				PullIntoCluster(*PackageData);
-				PackageData->AddUrgency(Request.IsUrgent(), true /* bAllowUpdateState */);
+				if (Request.IsUrgent())
+				{
+					PackageData->SetUrgency(EUrgency::Blocking, ESendFlags::QueueNone);
+				}
 			}
 		}
 		// Add on our completion callback, or call it immediately if already done

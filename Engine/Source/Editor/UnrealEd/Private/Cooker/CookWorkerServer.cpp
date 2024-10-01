@@ -692,6 +692,7 @@ void FCookWorkerServer::SendPendingPackages()
 		AssignData.ParentGenerator = PackageData->GetParentGenerator();
 		AssignData.DoesGeneratedRequireGenerator = PackageData->DoesGeneratedRequireGenerator();
 		AssignData.Instigator = PackageData->GetInstigator();
+		AssignData.Urgency = PackageData->GetUrgency();
 		SessionPlatformNeedsCook.Init(false, OrderedSessionPlatforms.Num());
 		int32 PlatformIndex = 0;
 		for (const ITargetPlatform* SessionPlatform : OrderedSessionPlatforms)
@@ -1093,7 +1094,7 @@ void FCookWorkerServer::QueueDiscoveredPackage(FDiscoveredPackageReplication&& D
 	Director.ResetFinalIdleHeartbeatFence();
 	Platforms.ConvertFromBitfield(OrderedSessionAndSpecialPlatforms);
 	COTFS.QueueDiscoveredPackageOnDirector(PackageData, MoveTemp(Instigator), MoveTemp(Platforms),
-		false /* bUrgent */);
+		DiscoveredPackage.Urgency);
 }
 
 void FCookWorkerServer::HandleGeneratorMessage(FGeneratorEventMessage& GeneratorMessage)
@@ -1220,6 +1221,8 @@ void FAssignPackageData::Write(FCbWriter& Writer,
 	Writer << ConstructData;
 	Writer << ParentGenerator;
 	Writer << Instigator;
+	Writer << static_cast<uint8>(Urgency);
+	static_assert(sizeof(EUrgency) <= sizeof(uint8), "We are storing it in a uint8");
 	WriteToCompactBinary(Writer, NeedCookPlatforms, OrderedSessionPlatforms);
 	{
 		Writer.BeginArray();
@@ -1245,6 +1248,15 @@ bool FAssignPackageData::TryRead(FCbFieldView Field, TConstArrayView<const ITarg
 	bOk = LoadFromCompactBinary(*It++, ConstructData) & bOk;
 	bOk = LoadFromCompactBinary(*It++, ParentGenerator) & bOk;
 	bOk = LoadFromCompactBinary(*It++, Instigator) & bOk;
+	uint8 UrgencyInt = It->AsUInt8();
+	if (!(It++)->HasError() && UrgencyInt < static_cast<uint8>(EUrgency::Count))
+	{
+		Urgency = static_cast<EUrgency>(UrgencyInt);
+	}
+	else
+	{
+		bOk = false;
+	}
 	bOk = LoadFromCompactBinary(*It++, NeedCookPlatforms, OrderedSessionPlatforms) & bOk;
 	{
 		FCbFieldView ArrayFieldView = *It++;
@@ -1475,13 +1487,15 @@ void FDiscoveredPackageReplication::Write(FCbWriter& Writer,
 	Writer << static_cast<uint8>(Instigator.Category);
 	Writer << Instigator.Referencer;
 	Writer << static_cast<uint8>(DoesGeneratedRequireGenerator);
+	static_assert(sizeof(ICookPackageSplitter::EGeneratedRequiresGenerator) <= sizeof(uint8), "We are storing it in a uint8");
+	Writer << static_cast<uint8>(Urgency);
+	static_assert(sizeof(EUrgency) <= sizeof(uint8), "We are storing it in a uint8");
 	bool bGeneratedPackageHash = !GeneratedPackageHash.IsZero();
 	Writer << bGeneratedPackageHash;
 	if (bGeneratedPackageHash)
 	{
 		Writer << GeneratedPackageHash;
 	}
-	static_assert(sizeof(ICookPackageSplitter::EGeneratedRequiresGenerator) <= sizeof(uint8), "We are storing it in a uint8");
 	WriteToCompactBinary(Writer, Platforms, OrderedSessionAndSpecialPlatforms);
 	Writer.EndArray();
 }
@@ -1517,6 +1531,15 @@ bool FDiscoveredPackageReplication::TryRead(FCbFieldView Field,
 	{
 		DoesGeneratedRequireGenerator = static_cast<ICookPackageSplitter::EGeneratedRequiresGenerator>(
 			DoesGeneratedRequireGeneratorInt);
+	}
+	else
+	{
+		bOk = false;
+	}
+	uint8 UrgencyInt = Iter->AsUInt8();
+	if (!(Iter++)->HasError() && UrgencyInt < static_cast<uint8>(EUrgency::Count))
+	{
+		Urgency = static_cast<EUrgency>(UrgencyInt);
 	}
 	else
 	{

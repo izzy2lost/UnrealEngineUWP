@@ -2332,6 +2332,8 @@ void UCookOnTheFlyServer::WaitForAsync(UE::Cook::FTickStackData& StackData)
 
 UCookOnTheFlyServer::ECookAction UCookOnTheFlyServer::DecideNextCookAction(UE::Cook::FTickStackData& StackData)
 {
+	using namespace UE::Cook;
+
 	if (StackData.ResultFlags & COSR_YieldTick)
 	{
 		// Yielding on demand does not impact idle status
@@ -2350,54 +2352,61 @@ UCookOnTheFlyServer::ECookAction UCookOnTheFlyServer::DecideNextCookAction(UE::C
 		return ECookAction::Poll;
 	}
 
-	UE::Cook::FRequestQueue& RequestQueue = PackageDatas->GetRequestQueue();
+	FRequestQueue& RequestQueue = PackageDatas->GetRequestQueue();
 	if (RequestQueue.HasRequestsToExplore())
 	{
 		SetIdleStatus(StackData, EIdleStatus::Active);
 		return ECookAction::Request;
 	}
 
-	UE::Cook::FPackageDataMonitor& Monitor = PackageDatas->GetMonitor();
-	if (Monitor.GetNumUrgent() > 0)
-	{
-		if (!bSaveBusy && Monitor.GetNumUrgent(UE::Cook::EPackageState::SaveActive) > 0)
-		{
-			SetIdleStatus(StackData, EIdleStatus::Active);
-			return ECookAction::Save;
-		}
-		else if (!bLoadBusy && Monitor.GetNumUrgent(UE::Cook::EPackageState::Load) > 0)
-		{
-			SetIdleStatus(StackData, EIdleStatus::Active);
-			return ECookAction::Load;
-		}
-		else if (Monitor.GetNumUrgent(UE::Cook::EPackageState::Request) > 0)
-		{
-			SetIdleStatus(StackData, EIdleStatus::Active);
-			return ECookAction::Request;
-		}
-		else if (Monitor.GetNumUrgent(UE::Cook::EPackageState::SaveActive) > 0)
-		{
-			SetIdleStatus(StackData, EIdleStatus::Active);
-			return ECookAction::Save;
-		}
-		else if (Monitor.GetNumUrgent(UE::Cook::EPackageState::Load) > 0)
-		{
-			SetIdleStatus(StackData, EIdleStatus::Active);
-			return ECookAction::Load;
-		}
+	FPackageDataMonitor& Monitor = PackageDatas->GetMonitor();
 
-		if (Monitor.GetNumUrgent(UE::Cook::EPackageState::AssignedToWorker) > 0)
+	// If we have any packages with urgency higher than EUrgency::Normal, pump their states first, if not busy,
+	// before pumping any lower-urgency states.
+	for (EUrgency UrgencyLevel = EUrgency::Max; UrgencyLevel > EUrgency::Normal;
+		UrgencyLevel = static_cast<EUrgency>(static_cast<uint32>(UrgencyLevel) - 1))
+	{
+		if (Monitor.GetNumUrgent(UrgencyLevel) > 0)
 		{
-			// Fall through and do non-urgent while we wait for the Worker to finish
-		}
-		else
-		{
-			// UE::Cook::EPackageState::SaveStalledAssignedToWorker should not be possible for urgent packages
-			// UE::Cook::EPackageState::SaveStalledRetracted should not be possible for urgent packages
-			checkf(false, TEXT("Urgent request is in state not yet handled by DecideNextCookAction"));
+			static_assert(static_cast<uint32>(EPackageState::Count) == 7, "Need to handle every state here.");
+			bool bSaveHasUrgent = Monitor.GetNumUrgent(EPackageState::SaveActive, UrgencyLevel) > 0;
+			if (!bSaveBusy && bSaveHasUrgent)
+			{
+				SetIdleStatus(StackData, EIdleStatus::Active);
+				return ECookAction::Save;
+			}
+			bool bLoadHasUrgent = Monitor.GetNumUrgent(EPackageState::Load, UrgencyLevel) > 0;
+			if (!bLoadBusy && bLoadHasUrgent)
+			{
+				SetIdleStatus(StackData, EIdleStatus::Active);
+				return ECookAction::Load;
+			}
+			if (Monitor.GetNumUrgent(EPackageState::Request, UrgencyLevel) > 0)
+			{
+				SetIdleStatus(StackData, EIdleStatus::Active);
+				return ECookAction::Request;
+			}
+			if (UrgencyLevel == EUrgency::Blocking && bSaveHasUrgent)
+			{
+				SetIdleStatus(StackData, EIdleStatus::Active);
+				return ECookAction::Save;
+			}
+			if (UrgencyLevel == EUrgency::Blocking && bLoadHasUrgent)
+			{
+				SetIdleStatus(StackData, EIdleStatus::Active);
+				return ECookAction::Load;
+			}
+
+			// For the the remaining states, nothing to do
+			// EPackageState::AssignedToWorker
+			// EPackageState::SaveStalledAssignedToWorker
+			// EPackageState::SaveStalledRetracted
+
+			// fall through and do the next lower level of urgency
 		}
 	}
 
+	static_assert(static_cast<uint32>(EPackageState::Count) == 7, "Need to handle every state here.");
 	int32 NumSaves = PackageDatas->GetSaveQueue().Num();
 	bool bSaveAvailable = ((!bSaveBusy) & (NumSaves > 0)) != 0;
 	if (bSaveAvailable & (NumSaves > static_cast<int32>(DesiredSaveQueueLength)))
@@ -2819,7 +2828,7 @@ void UCookOnTheFlyServer::PumpLoads(UE::Cook::FTickStackData& StackData, uint32 
 	using namespace UE::Cook;
 	FLoadQueue& LoadQueue = PackageDatas->GetLoadQueue();
 	FPackageDataMonitor& Monitor = PackageDatas->GetMonitor();
-	bool bIsUrgentInProgress = Monitor.GetNumUrgent() > 0;
+	bool bIsBlockingUrgencyInProgress = Monitor.GetNumUrgent(EUrgency::Blocking) > 0;
 	OutNumPushed = 0;
 	bOutBusy = false;
 
@@ -2827,7 +2836,7 @@ void UCookOnTheFlyServer::PumpLoads(UE::Cook::FTickStackData& StackData, uint32 
 	TSet<TRefCountPtr<FPackagePreloader>>& ActivePreloads = LoadQueue.ActivePreloads;
 	TRingBuffer<TRefCountPtr<FPackagePreloader>>& ReadyForLoads = LoadQueue.ReadyForLoads;
 
-	if (bIsUrgentInProgress && !Monitor.GetNumUrgent(EPackageState::Load))
+	if (bIsBlockingUrgencyInProgress && !Monitor.GetNumUrgent(EPackageState::Load, EUrgency::Blocking))
 	{
 		return;
 	}
@@ -2841,7 +2850,7 @@ void UCookOnTheFlyServer::PumpLoads(UE::Cook::FTickStackData& StackData, uint32 
 		{
 			return;
 		}
-		if (bIsUrgentInProgress && !Monitor.GetNumUrgent(EPackageState::Load))
+		if (bIsBlockingUrgencyInProgress && !Monitor.GetNumUrgent(EPackageState::Load, EUrgency::Blocking))
 		{
 			return;
 		}
@@ -3245,8 +3254,15 @@ EDataValidationResult UCookOnTheFlyServer::ValidateSourcePackage(UE::Cook::FPack
 }
 
 void UCookOnTheFlyServer::QueueDiscoveredPackage(UE::Cook::FPackageData& PackageData,
-	UE::Cook::FInstigator&& Instigator, UE::Cook::FDiscoveredPlatformSet&& ReachablePlatforms, bool bUrgent,
-	UE::Cook::FGenerationHelper* ParentGenerationHelper)
+	UE::Cook::FInstigator&& Instigator, UE::Cook::FDiscoveredPlatformSet&& ReachablePlatforms)
+{
+	QueueDiscoveredPackage(PackageData, MoveTemp(Instigator), MoveTemp(ReachablePlatforms),
+		UE::Cook::EUrgency::Normal, nullptr /* ParentGenerationHelper */);
+}
+
+void UCookOnTheFlyServer::QueueDiscoveredPackage(UE::Cook::FPackageData& PackageData,
+	UE::Cook::FInstigator&& Instigator, UE::Cook::FDiscoveredPlatformSet&& ReachablePlatforms,
+	UE::Cook::EUrgency Urgency, UE::Cook::FGenerationHelper* ParentGenerationHelper)
 {
 	using namespace UE::Cook;
 
@@ -3275,11 +3291,12 @@ void UCookOnTheFlyServer::QueueDiscoveredPackage(UE::Cook::FPackageData& Package
 		OnDiscoveredPackageDebug(PackageData.GetPackageName(), Instigator);
 	}
 	WorkerRequests->QueueDiscoveredPackage(*this, PackageData, MoveTemp(Instigator), MoveTemp(ReachablePlatforms),
-		bUrgent, ParentGenerationHelper);
+		Urgency, ParentGenerationHelper);
 }
 
 void UCookOnTheFlyServer::QueueDiscoveredPackageOnDirector(UE::Cook::FPackageData& PackageData,
-	UE::Cook::FInstigator&& Instigator, UE::Cook::FDiscoveredPlatformSet&& ReachablePlatforms, bool bUrgent)
+	UE::Cook::FInstigator&& Instigator, UE::Cook::FDiscoveredPlatformSet&& ReachablePlatforms,
+	UE::Cook::EUrgency Urgency)
 {
 	using namespace UE::Cook;
 
@@ -3298,7 +3315,7 @@ void UCookOnTheFlyServer::QueueDiscoveredPackageOnDirector(UE::Cook::FPackageDat
 	if (!CookByTheBookOptions->bSkipHardReferences ||
 		(Instigator.Category == EInstigator::GeneratedPackage))
 	{
-		PackageData.QueueAsDiscovered(MoveTemp(Instigator), MoveTemp(ReachablePlatforms), bUrgent);
+		PackageData.QueueAsDiscovered(MoveTemp(Instigator), MoveTemp(ReachablePlatforms), Urgency);
 	}
 }
 
@@ -3377,13 +3394,14 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::QueueGeneratedPackages(UE::Cook::FGen
 			FPackageData* ChildPackageData = ChildInfo.PackageData;
 			// Set the Instigator now rather than delaying it until the discovery queue is processed.
 			ChildPackageData->SetInstigator(GenerationHelper, FInstigator(EInstigator::GeneratedPackage, OwnerName));
-			// When running -cookfirst, generated packages should also be cooked first, so set the urgency of the
-			// generated packages to match the urgency of the generator
-			bool bUrgent = PackageData.GetIsUrgent();
+			// The urgency of generated packages must be at least as high as the generator to satisfy the contract of 
+			// making the generator urgent. By default they are High urgency rather than Normal so that they are saved 
+			// quickly, so that we release the memory used by their generator for them.
+			EUrgency Urgency = PackageData.GetUrgency() > EUrgency::High ? PackageData.GetUrgency() : EUrgency::High;
 
 			// Queue the package for cooking
 			QueueDiscoveredPackage(*ChildPackageData, FInstigator(ChildPackageData->GetInstigator()),
-				EDiscoveredPlatformSet::CopyFromInstigator, bUrgent, &GenerationHelper);
+				EDiscoveredPlatformSet::CopyFromInstigator, Urgency, &GenerationHelper);
 		}
 		GenerationHelper.EndQueueGeneratedPackages(*this);
 	}
@@ -3834,7 +3852,7 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::PrepareSave(UE::Cook::FPackageData& P
 	if (Result == EPollStatus::Success && PackageData.GetIsCookLast())
 	{
 		// No longer urgent
-		PackageData.ClearCookLastUrgency();
+		PackageData.SetUrgency(EUrgency::Normal, ESendFlags::QueueAddAndRemove);
 		// Mark it as still not ready if there are non-cook-last packages still in progress
 		if (PackageDatas->GetMonitor().GetNumInProgress() - PackageDatas->GetMonitor().GetNumCookLast() > 0)
 		{
@@ -4643,9 +4661,9 @@ void UCookOnTheFlyServer::PumpSaves(UE::Cook::FTickStackData& StackData, uint32 
 		bool bShouldExitPump = false;
 		if (IsCookOnTheFlyMode())
 		{
-			if (IsUsingLegacyCookOnTheFlyScheduling() && !PackageData.GetIsUrgent())
+			if (IsUsingLegacyCookOnTheFlyScheduling() && PackageData.GetUrgency() != EUrgency::Blocking)
 			{
-				if (WorkerRequests->HasExternalRequests() || PackageDatas->GetMonitor().GetNumUrgent() > 0)
+				if (WorkerRequests->HasExternalRequests() || PackageDatas->GetMonitor().GetNumUrgent(EUrgency::Blocking) > 0)
 				{
 					bShouldExitPump = true;
 				}
@@ -4718,7 +4736,7 @@ void UCookOnTheFlyServer::PumpSaves(UE::Cook::FTickStackData& StackData, uint32 
 			}
 
 			// Can we postpone?
-			if (!PackageData.GetIsUrgent())
+			if (PackageData.GetUrgency() != EUrgency::Blocking)
 			{
 				bool HasCheckedAllPackagesAreCached = HandledCount >= OriginalPackagesToSaveCount;
 				if (!HasCheckedAllPackagesAreCached)
@@ -4728,7 +4746,7 @@ void UCookOnTheFlyServer::PumpSaves(UE::Cook::FTickStackData& StackData, uint32 
 				}
 			}
 			// Should we wait?
-			if (PackageData.GetIsUrgent() && !IsRealtimeMode())
+			if (PackageData.GetUrgency() == EUrgency::Blocking && !IsRealtimeMode())
 			{
 				UE_SCOPED_HIERARCHICAL_COOKTIMER(WaitingForCachedCookedPlatformData);
 				do
@@ -4746,7 +4764,8 @@ void UCookOnTheFlyServer::PumpSaves(UE::Cook::FTickStackData& StackData, uint32 
 					// Poll the results again and check whether we are now done
 					PackageDatas->PollPendingCookedPlatformDatas(true, LastCookableObjectTickTime);
 					PrepareSaveStatus = PrepareSave(PackageData, StackData.Timer, false /* bPrecaching */);
-				} while (!StackData.Timer.IsActionTimeUp() && PrepareSaveStatus == EPollStatus::Incomplete && PackageData.GetIsUrgent());
+				} while (!StackData.Timer.IsActionTimeUp() && PrepareSaveStatus == EPollStatus::Incomplete
+					&& PackageData.GetUrgency() == EUrgency::Blocking);
 			}
 			// If we couldn't postpone or wait, then we need to exit and try again later
 			if (PrepareSaveStatus != EPollStatus::Success)
@@ -4797,7 +4816,7 @@ void UCookOnTheFlyServer::PumpSaves(UE::Cook::FTickStackData& StackData, uint32 
 			check(!PackageData.GetGenerationHelper() && !PackageData.GetParentGenerationHelper());
 			ReleaseCookedPlatformData(PackageData, EStateChangeReason::RecreateObjectCache, EPackageState::SaveActive);
 			PackageData.ClearObjectCache();
-			if (PackageData.GetIsUrgent())
+			if (PackageData.GetUrgency() > EUrgency::Normal)
 			{
 				SaveQueue.AddFront(&PackageData);
 			}
@@ -5588,7 +5607,7 @@ void UCookOnTheFlyServer::PostGarbageCollect()
 			if (PackageData->GetIsCookLast())
 			{
 				// CookLast packages in SaveState have had their urgency removed. Add it back if we need to demote them.
-				PackageData->AddUrgency(true /* bValue */, false /* bAllowUpdateState */);
+				PackageData->SetUrgency(EUrgency::Blocking, ESendFlags::QueueNone);
 			}
 			PackageDatas->GetRequestQueue().AddRequest(PackageData, /* bForceUrgent */ true);
 			break;
@@ -6742,7 +6761,7 @@ void FSaveCookedPackageContext::FinishPackage()
 
 	if (!bHasRetryErrorCode)
 	{
-		if (COTFS.IsCookOnTheFlyMode() && !PackageData.GetIsUrgent() &&
+		if (COTFS.IsCookOnTheFlyMode() && PackageData.GetUrgency() != EUrgency::Blocking &&
 			(!COTFS.CookOnTheFlyRequestManager || COTFS.CookOnTheFlyRequestManager->ShouldUseLegacyScheduling()))
 		{
 			// this is an unsolicited package

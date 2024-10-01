@@ -92,11 +92,11 @@ bool FPackagePlatformData::NeedsCooking(const ITargetPlatform* PlatformItBelongs
 
 FPackageData::FPackageData(FPackageDatas& PackageDatas, const FName& InPackageName, const FName& InFileName)
 	: ParentGenerationHelper(nullptr), PackageName(InPackageName), FileName(InFileName), PackageDatas(PackageDatas)
-	, Instigator(EInstigator::NotYetRequested), bIsUrgent(0), bIsCookLast(0)
+	, Instigator(EInstigator::NotYetRequested), Urgency(static_cast<uint32>(EUrgency::Normal)), bIsCookLast(0)
 	, bIsVisited(0)
 	, bHasSaveCache(0), bPrepareSaveFailed(0), bPrepareSaveRequiresGC(0)
 	, MonitorCookResult((uint8)ECookResult::NotAttempted)
-	, bCompletedGeneration(0), bGenerated(0), bKeepReferencedDuringGC(0)
+	, bGenerated(0), bKeepReferencedDuringGC(0)
 	, bWasCookedThisSession(0)
 	, DoesGeneratedRequireGeneratorValue(static_cast<uint32>(ICookPackageSplitter::EGeneratedRequiresGenerator::None))
 {
@@ -240,43 +240,40 @@ void FPackageData::AddReachablePlatformsInternal(FPackageData& PackageData,
 }
 
 void FPackageData::QueueAsDiscovered(FInstigator&& InInstigator, FDiscoveredPlatformSet&& ReachablePlatforms,
-	bool bUrgent)
+	EUrgency InUrgency)
 {
-	QueueAsDiscoveredInternal(*this, MoveTemp(InInstigator), MoveTemp(ReachablePlatforms), bUrgent);
+	QueueAsDiscoveredInternal(*this, MoveTemp(InInstigator), MoveTemp(ReachablePlatforms), InUrgency);
 }
 
 void FPackageData::QueueAsDiscoveredInternal(FPackageData& PackageData, FInstigator&& InInstigator,
-	FDiscoveredPlatformSet&& ReachablePlatforms, bool bUrgent)
+	FDiscoveredPlatformSet&& ReachablePlatforms, EUrgency InUrgency)
 {
 	// This is a static helper function to make it impossible to make a typo and use this->Instigator instead of
 	// InInstigator
 	TRingBuffer<FDiscoveryQueueElement>& Queue = PackageData.PackageDatas.GetRequestQueue().GetDiscoveryQueue();
-	Queue.Add(FDiscoveryQueueElement{ &PackageData, MoveTemp(InInstigator), MoveTemp(ReachablePlatforms), bUrgent });
+	Queue.Add(FDiscoveryQueueElement{ &PackageData, MoveTemp(InInstigator), MoveTemp(ReachablePlatforms), InUrgency });
 }
 
-void FPackageData::SetIsUrgent(bool Value)
+void FPackageData::SetUrgency(EUrgency NewUrgency, ESendFlags SendFlags, bool bAllowUrgencyInIdle)
 {
-	bool OldValue = static_cast<bool>(bIsUrgent);
-	if (OldValue != Value)
-	{
-		bIsUrgent = Value != 0;
-		check(IsInProgress() || !bIsUrgent);
-		PackageDatas.GetMonitor().OnUrgencyChanged(*this);
-	}
-}
-
-void FPackageData::AddUrgency(bool bUrgent, bool bAllowUpdateState)
-{
-	if (!bUrgent)
+	if (GetUrgency() == NewUrgency)
 	{
 		return;
 	}
-	bool bWasUrgent = GetIsUrgent();
-	SetIsUrgent(true);
-	if (!bWasUrgent && bAllowUpdateState)
+
+	// It is illegal to SetUrgency to above normal when in the Idle state, unless the caller explicitly takes
+	// responsibility for changing the state immediately afterwards.
+	check(bAllowUrgencyInIdle || IsInProgress() || NewUrgency == EUrgency::Normal);
+	// For SendFlags when setting urgency, only AddAndRemove or None are supported
+	check(SendFlags == ESendFlags::QueueAddAndRemove || SendFlags == ESendFlags::QueueNone);
+
+	EUrgency OldUrgency = GetUrgency();
+	Urgency = static_cast<uint32>(NewUrgency);
+	if (SendFlags == ESendFlags::QueueAddAndRemove)
 	{
-		SendToState(GetState(), ESendFlags::QueueAddAndRemove, EStateChangeReason::UrgencyUpdated);
+		UpdateContainerUrgency(OldUrgency, NewUrgency);
 	}
+	PackageDatas.GetMonitor().OnUrgencyChanged(*this, OldUrgency, NewUrgency);
 }
 
 void FPackageData::SetIsCookLast(bool bValue)
@@ -287,15 +284,6 @@ void FPackageData::SetIsCookLast(bool bValue)
 		bIsCookLast = static_cast<uint32>(bValue);
 		PackageDatas.GetMonitor().OnCookLastChanged(*this);
 	}
-}
-
-void FPackageData::ClearCookLastUrgency()
-{
-	if (!GetIsCookLast() || !GetIsUrgent())
-	{
-		return;
-	}
-	SetIsUrgent(false);
 }
 
 void FPackageData::SetInstigator(FRequestCluster& Cluster, FInstigator&& InInstigator)
@@ -323,7 +311,7 @@ void FPackageData::SetInstigatorInternal(FInstigator&& InInstigator)
 
 void FPackageData::ClearInProgressData(EStateChangeReason StateChangeReason)
 {
-	SetIsUrgent(false);
+	SetUrgency(EUrgency::Normal, ESendFlags::QueueNone);
 	CompletionCallback = FCompletionCallback();
 	if (GenerationHelper)
 	{
@@ -751,7 +739,7 @@ void FPackageData::SendToState(EPackageState NextState, ESendFlags SendFlags, ES
 		OnEnterSaveActive();
 		if (((SendFlags & ESendFlags::QueueAdd) != ESendFlags::QueueNone))
 		{
-			if (GetIsUrgent())
+			if (GetUrgency() > EUrgency::Normal)
 			{
 				PackageDatas.GetSaveQueue().AddFront(this);
 			}
@@ -781,6 +769,51 @@ void FPackageData::SendToState(EPackageState NextState, ESendFlags SendFlags, ES
 	}
 
 	PackageDatas.GetMonitor().OnStateChanged(*this, OldState);
+}
+
+void FPackageData::UpdateContainerUrgency(EUrgency OldUrgency, EUrgency NewUrgency)
+{
+	switch (GetState())
+	{
+	case EPackageState::Idle:
+		// Urgency does not affect behavior in the Idle state
+		break;
+	case EPackageState::Request:
+		PackageDatas.GetRequestQueue().UpdateUrgency(this, OldUrgency, NewUrgency);
+		break;
+	case EPackageState::AssignedToWorker:
+		// Urgency does not affect behavior in the AssignedToWorker state
+		break;
+	case EPackageState::Load:
+		PackageDatas.GetLoadQueue().UpdateUrgency(this, OldUrgency, NewUrgency);
+		break;
+	case EPackageState::SaveActive:
+		if (NewUrgency > EUrgency::Normal)
+		{
+			FPackageDataQueue& Queue = PackageDatas.GetSaveQueue();
+			if (Queue.Remove(this) > 0)
+			{
+				Queue.AddFront(this);
+			}
+		}
+		break;
+	case EPackageState::SaveStalledRetracted:
+		// Urgency does not affect behavior in stalled states
+		break;
+	case EPackageState::SaveStalledAssignedToWorker:
+		// Urgency does not affect behavior in stalled states
+		break;
+	default:
+		check(false);
+		break;
+	}
+
+	// The Package preloader can be active in any state, and is contained in the LoadQueue.
+	// If it exists and we did not already call UpdateUrgency on the LoadQueue, then call it.
+	if (GetState() != EPackageState::Load && GetPackagePreloader())
+	{
+		PackageDatas.GetLoadQueue().UpdateUrgency(this, OldUrgency, NewUrgency);
+	}
 }
 
 void FPackageData::Stall(EPackageState TargetState, ESendFlags SendFlags)
@@ -1817,14 +1850,17 @@ FPackageDataMonitor::FPackageDataMonitor()
 	FMemory::Memset(NumCookLastInState, 0);
 }
 
-int32 FPackageDataMonitor::GetNumUrgent() const
+int32 FPackageDataMonitor::GetNumUrgent(EUrgency UrgencyLevel) const
 {
+	check(EUrgency::Min <= UrgencyLevel && UrgencyLevel <= EUrgency::Max);
+	int32 UrgencyIndex = static_cast<uint32>(UrgencyLevel) - static_cast<uint32>(EUrgency::Min);
 	int32 NumUrgent = 0;
 	for (EPackageState State = EPackageState::Min;
 		State <= EPackageState::Max;
 		State = static_cast<EPackageState>(static_cast<uint32>(State) + 1))
 	{
-		NumUrgent += NumUrgentInState[static_cast<uint32>(State) - static_cast<uint32>(EPackageState::Min)];
+		int32 StateIndex = static_cast<uint32>(State) - static_cast<uint32>(EPackageState::Min);
+		NumUrgent += NumUrgentInState[StateIndex][UrgencyIndex];
 	}
 	return NumUrgent;
 }
@@ -1841,16 +1877,20 @@ int32 FPackageDataMonitor::GetNumCookLast() const
 	return Num;
 }
 
-int32 FPackageDataMonitor::GetNumUrgent(EPackageState InState) const
+int32 FPackageDataMonitor::GetNumUrgent(EPackageState InState, EUrgency UrgencyLevel) const
 {
+	check(EUrgency::Min <= UrgencyLevel && UrgencyLevel <= EUrgency::Max);
+	int32 UrgencyIndex = static_cast<uint32>(UrgencyLevel) - static_cast<uint32>(EUrgency::Min);
 	check(EPackageState::Min <= InState && InState <= EPackageState::Max);
-	return NumUrgentInState[static_cast<uint32>(InState) - static_cast<uint32>(EPackageState::Min)];
+	int32 StateIndex = static_cast<uint32>(InState) - static_cast<uint32>(EPackageState::Min);
+	return NumUrgentInState[StateIndex][UrgencyIndex];
 }
 
 int32 FPackageDataMonitor::GetNumCookLast(EPackageState InState) const
 {
 	check(EPackageState::Min <= InState && InState <= EPackageState::Max);
-	return NumUrgentInState[static_cast<uint32>(InState) - static_cast<uint32>(EPackageState::Min)];
+	int32 StateIndex = static_cast<uint32>(InState) - static_cast<uint32>(EPackageState::Min);
+	return NumCookLastInState[StateIndex];
 }
 
 int32 FPackageDataMonitor::GetNumPreloadAllocated() const
@@ -1900,10 +1940,10 @@ void FPackageDataMonitor::OnLastCookedPlatformRemoved(FPackageData& PackageData)
 	}
 }
 
-void FPackageDataMonitor::OnUrgencyChanged(FPackageData& PackageData)
+void FPackageDataMonitor::OnUrgencyChanged(FPackageData& PackageData, EUrgency OldUrgency, EUrgency NewUrgency)
 {
-	int32 Delta = PackageData.GetIsUrgent() ? 1 : -1;
-	TrackUrgentRequests(PackageData.GetState(), Delta);
+	TrackUrgentRequests(PackageData.GetState(), OldUrgency, -1);
+	TrackUrgentRequests(PackageData.GetState(), NewUrgency, 1);
 }
 
 void FPackageDataMonitor::OnCookLastChanged(FPackageData& PackageData)
@@ -1915,10 +1955,11 @@ void FPackageDataMonitor::OnCookLastChanged(FPackageData& PackageData)
 void FPackageDataMonitor::OnStateChanged(FPackageData& PackageData, EPackageState OldState)
 {
 	EPackageState NewState = PackageData.GetState();
-	if (PackageData.GetIsUrgent())
+	EUrgency Urgency = PackageData.GetUrgency();
+	if (Urgency > EUrgency::Normal)
 	{
-		TrackUrgentRequests(OldState, -1);
-		TrackUrgentRequests(NewState, 1);
+		TrackUrgentRequests(OldState, Urgency, -1);
+		TrackUrgentRequests(NewState, Urgency, 1);
 	}
 	if (PackageData.GetIsCookLast())
 	{
@@ -1935,11 +1976,20 @@ void FPackageDataMonitor::OnStateChanged(FPackageData& PackageData, EPackageStat
 	}
 }
 
-void FPackageDataMonitor::TrackUrgentRequests(EPackageState State, int32 Delta)
+void FPackageDataMonitor::TrackUrgentRequests(EPackageState State, EUrgency Urgency, int32 Delta)
 {
+	if (State == EPackageState::Idle || Urgency == EUrgency::Normal)
+	{
+		// We don't track urgency count in idle, and we don't track normal urgency count.
+		return;
+	}
 	check(EPackageState::Min <= State && State <= EPackageState::Max);
-	NumUrgentInState[static_cast<uint32>(State) - static_cast<uint32>(EPackageState::Min)] += Delta;
-	check(NumUrgentInState[static_cast<uint32>(State) - static_cast<uint32>(EPackageState::Min)] >= 0);
+	check(EUrgency::Min <= Urgency && Urgency <= EUrgency::Max);
+
+	int32 StateIndex = static_cast<uint32>(State) - static_cast<uint32>(EPackageState::Min);
+	int32 UrgencyIndex = static_cast<uint32>(Urgency) - static_cast<uint32>(EUrgency::Min);
+	NumUrgentInState[StateIndex][UrgencyIndex] += Delta;
+	check(NumUrgentInState[StateIndex][UrgencyIndex] >= 0);
 }
 
 void FPackageDataMonitor::TrackCookLastRequests(EPackageState State, int32 Delta)
@@ -2834,7 +2884,7 @@ void FRequestQueue::AddRequest(FPackageData* PackageData, bool bForceUrgent)
 
 void FRequestQueue::AddReadyRequest(FPackageData* PackageData, bool bForceUrgent)
 {
-	if (bForceUrgent || PackageData->GetIsUrgent())
+	if (bForceUrgent || PackageData->GetUrgency() > EUrgency::Normal)
 	{
 		UrgentRequests.Add(PackageData);
 	}
@@ -2842,6 +2892,25 @@ void FRequestQueue::AddReadyRequest(FPackageData* PackageData, bool bForceUrgent
 	{
 		NormalRequests.Add(PackageData);
 	}
+}
+
+void FRequestQueue::UpdateUrgency(FPackageData* PackageData, EUrgency OldUrgency, EUrgency NewUrgency)
+{
+	if (OldUrgency == EUrgency::Normal)
+	{
+		if (NormalRequests.Remove(PackageData) > 0)
+		{
+			UrgentRequests.Add(PackageData);
+		}
+	}
+	else
+	{
+		if (UrgentRequests.Remove(PackageData) > 0)
+		{
+			NormalRequests.Add(PackageData);
+		}
+	}
+	// The other subcontainers do not handle urgency types differently
 }
 
 void FRequestQueue::AddRequestFenceListener(FName PackageName)
