@@ -36,11 +36,11 @@ public:
 
 	static void FindAutoCompletableTextAtPos(const FString& InWholeString, int32 InCursorPos, FString& OutStr, bool& bShowAutoComplete);
 
-	void ReplaceRelevantTextWithSuggestion(const FString& InSuggestionText) const;
+	void ReplaceRelevantTextWithSuggestion(const FString& InSuggestionText);
 
 	void HandleTextBoxTextChanged(const FText& InText);
 
-	void HandleTextBoxTextCommitted(const FText& InText, ETextCommit::Type CommitInfo);
+	void HandleTextBoxTextCommitted(const FText& InText, ETextCommit::Type CommitInfo) const;
 
 	void FilterVisibleSuggestions(const FString& StrToMatch, const bool bForceShowAll);
 

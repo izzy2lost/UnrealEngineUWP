@@ -28,6 +28,7 @@ void FMovieGraphFormatTokenCustomization::CustomizeDetails(IDetailLayoutBuilder&
 	}
 
 	DetailBuilder.EditDefaultProperty(OutputFormatPropertyHandle)->CustomWidget()
+		.PropertyHandleList({OutputFormatPropertyHandle})
 		.NameContent()
 		[
 			OutputFormatPropertyHandle->CreatePropertyNameWidget()
