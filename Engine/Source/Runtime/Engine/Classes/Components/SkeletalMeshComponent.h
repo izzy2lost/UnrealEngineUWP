@@ -1620,6 +1620,8 @@ public:
 	*/
 	ENGINE_API bool ShouldOnlyTickMontages(const float DeltaTime) const;
 
+	ENGINE_API bool ShouldOnlyTickMontagesAndRefreshBones(const float DeltaTime) const;
+
 	/** @return whether we should tick animation (we may want to skip it due to URO) */
 	ENGINE_API bool ShouldTickAnimation() const;
 
