@@ -362,6 +362,7 @@ FVector2D AWaterZone::GetZoneExtent() const
 
 void AWaterZone::Update()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(AWaterZone::Update);
 	if (bNeedsWaterInfoRebuild || (ForceUpdateWaterInfoNextFrames != 0))
 	{
 		ForceUpdateWaterInfoNextFrames = (ForceUpdateWaterInfoNextFrames < 0) ? ForceUpdateWaterInfoNextFrames : FMath::Max(0, ForceUpdateWaterInfoNextFrames - 1);

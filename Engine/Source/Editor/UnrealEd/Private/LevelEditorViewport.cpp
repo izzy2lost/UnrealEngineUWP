@@ -5067,8 +5067,9 @@ void FLevelEditorViewportClient::Draw(const FSceneView* View,FPrimitiveDrawInter
 
 void FLevelEditorViewportClient::DrawBrushDetails(const FSceneView* View, FPrimitiveDrawInterface* PDI)
 {
-	// Draw translucent polygons on brushes and volumes
+	TRACE_CPUPROFILER_EVENT_SCOPE(FLevelEditorViewportClient::DrawBrushDetails);
 
+	// Draw translucent polygons on brushes and volumes
 	for (TActorIterator<ABrush> It(GetWorld()); It; ++It)
 	{
 		ABrush* Brush = *It;
