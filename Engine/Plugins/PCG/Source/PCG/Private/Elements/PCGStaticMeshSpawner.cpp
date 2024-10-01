@@ -231,18 +231,7 @@ int UPCGStaticMeshSpawnerSettings::ComputeKernelThreadCount(const UPCGDataBindin
 	const UPCGNode* Node = CastChecked<UPCGNode>(GetOuter());
 	const UPCGPin* Pin = Node->GetInputPin(PCGPinConstants::DefaultInputLabel);
 
-	uint32 ElementCount = ComputeInputPinDataDesc(Pin, Binding).ComputeDataElementCount(EPCGDataType::Point);
-
-	if (const FPCGSpawnerPrimitives* FoundPrimitives = Binding->MeshSpawnersToPrimitives.Find(this))
-	{
-		// When selecting primitives dynamically (by attribute), we don't know statically how many instances will end up in each primitive, so run worst case.
-		if (FoundPrimitives->SelectorAttributeId != -1)
-		{
-			ElementCount *= FoundPrimitives->Primitives.Num();
-		}
-	}
-
-	return ElementCount;
+	return ComputeInputPinDataDesc(Pin, Binding).ComputeDataElementCount(EPCGDataType::Point);
 }
 
 void UPCGStaticMeshSpawnerSettings::CreateAdditionalInputDataInterfaces(TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const
