@@ -259,6 +259,19 @@ FFloatingPropertiesClassProperties* SFloatingPropertiesPropertyWidget::GetSavedV
 	return nullptr;
 }
 
+FVector2f SFloatingPropertiesPropertyWidget::GetAbsolutePropertySize() const
+{
+	const FGeometry& NodePropertyWidgetGeometry = GetTickSpaceGeometry();
+	const FVector2D LocalSize = NodePropertyWidgetGeometry.GetLocalSize();
+
+	if (LocalSize.IsNearlyZero())
+	{
+		return FVector2f::ZeroVector;
+	}
+
+	return GetDesiredSize() * NodePropertyWidgetGeometry.GetAbsoluteSize() / LocalSize;
+}
+
 void SFloatingPropertiesPropertyWidget::SaveConfig()
 {
 	if (UFloatingPropertiesSettings* FloatingPropertiesSettings = GetMutableDefault<UFloatingPropertiesSettings>())

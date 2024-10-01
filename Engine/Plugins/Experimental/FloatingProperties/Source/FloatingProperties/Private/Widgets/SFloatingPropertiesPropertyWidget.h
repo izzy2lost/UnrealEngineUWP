@@ -41,6 +41,8 @@ public:
 
 	void SetPropertyValueOverrideSize(FOptionalSize InSize) { PropertyValueOverrideSize = InSize; }
 
+	FVector2f GetAbsolutePropertySize() const;
+
 	void SaveConfig();
 
 protected:

@@ -69,4 +69,8 @@ protected:
 	void CheckForViewportSizeChange(const FVector2f& InViewportSize) const;
 
 	void EnsurePositions(bool bInInvalidate) const;
+
+	FVector2D GetNodeSize(TWeakPtr<SFloatingPropertiesPropertyWidget> InNodeWidgetWeak) const;
+
+	FVector2D GetNodePosition(TWeakPtr<FFloatingPropertiesPropertyNode> InNodeWeak) const;
 };
