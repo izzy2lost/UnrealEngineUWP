@@ -1414,6 +1414,8 @@ protected:
 	/**Experimental access to the EyeAdaptation RT for applying an inverse. */
 	virtual int32 EyeAdaptationInverse(int32 LightValueArg, int32 AlphaArg) override;
 
+	const bool CheckPrimitivePropertyCompatibity(const TCHAR* ExpressionName);
+
 	/**
 	 * To only have one piece of code dealing with error handling if the Primitive constant buffer is not used.
 	 * @param Name e.g. TEXT("ObjectWorldPositionAndRadius.w")

@@ -744,12 +744,20 @@ void MaterialPackInterpolatorComponent(in out FMaterialVertexParameters Paramete
 #else
 FPrimitiveSceneData GetPrimitiveData(FMaterialVertexParameters Parameters)
 {
+#if HAS_PRIMITIVE_UNIFORM_BUFFER
 	return Parameters.SceneData.Primitive;
+#else
+	return (FPrimitiveSceneData)0;
+#endif	
 }
 
 FPrimitiveSceneData GetPrimitiveData(FMaterialPixelParameters Parameters)
 {
+#if HAS_PRIMITIVE_UNIFORM_BUFFER
 	return GetPrimitiveData(Parameters.PrimitiveId);
+#else
+	return (FPrimitiveSceneData)0;
+#endif	
 }
 #endif 
 
@@ -1697,7 +1705,17 @@ FWSVector3 TransformLocalPositionToPrevWorld(FMaterialVertexParameters Parameter
 /** Return the object's position in world space */
 FWSVector3 GetObjectWorldPosition(FMaterialPixelParameters Parameters)
 {
+#if HAS_PRIMITIVE_UNIFORM_BUFFER
 	return Parameters.LWCData.ObjectWorldPosition;
+#else
+	/**
+	* Light functions return light position in the Pixel shader only. 
+	* Other material types should not be compiling/reach here, 
+	* but the closest data we have without a primitive buffer is the per pixel position anyway, 
+	* so this is a safe return value if this code is compiled into invalid material domain types.
+	*/
+	return DFToWS(Parameters.AbsoluteWorldPosition);
+#endif
 }
 
 /** Return the object's position in world space. For instanced meshes, this returns the instance position. */
@@ -1708,7 +1726,15 @@ FWSVector3 GetObjectWorldPosition(FMaterialVertexParameters Parameters)
 
 float3 GetObjectTranslatedWorldPosition(FMaterialPixelParameters Parameters)
 {
-#if PRIMITIVE_HAS_TILEOFFSET_DATA && VIEW_HAS_TILEOFFSET_DATA
+#if !HAS_PRIMITIVE_UNIFORM_BUFFER
+	/**
+	* Light functions return light position in the Pixel shader only. 
+	* Other material types should not be compiling/reach here, 
+	* but the closest data we have without a primitive buffer is the per pixel position anyway, 
+	* so this is a safe return value if this code is compiled into invalid material domain types.
+	*/
+	return Parameters.WorldPosition_CamRelative;	
+#elif PRIMITIVE_HAS_TILEOFFSET_DATA && VIEW_HAS_TILEOFFSET_DATA
 	return LWCToFloat(LWCAdd(GetPrimitiveData(Parameters).ObjectWorldPositionTO, ResolvedView.TileOffset.PreViewTranslation));
 #else
 	return DFFastToTranslatedWorld(GetPrimitiveData(Parameters).ObjectWorldPosition, ResolvedView.PreViewTranslation);

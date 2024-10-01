@@ -6378,6 +6378,12 @@ int32 FHLSLMaterialTranslator::WorldPosition(EWorldPositionIncludedOffsets World
 
 int32 FHLSLMaterialTranslator::ObjectWorldPosition(EPositionOrigin OriginType)
 {
+	EMaterialDomain Domain = Material->GetMaterialDomain();
+	if (Domain != MD_LightFunction && Domain != MD_DeferredDecal && !CheckPrimitivePropertyCompatibity(ANSI_TO_TCHAR(__FUNCTION__)))
+	{
+		return INDEX_NONE;
+	}
+
 	if (OriginType == EPositionOrigin::CameraRelative)
 	{
 		return AddInlinedCodeChunkZeroDeriv(MCT_Float3,TEXT("GetObjectTranslatedWorldPosition(Parameters)"));
@@ -6396,11 +6402,21 @@ int32 FHLSLMaterialTranslator::ObjectRadius()
 
 int32 FHLSLMaterialTranslator::ObjectBounds()
 {
+	if (!CheckPrimitivePropertyCompatibity(ANSI_TO_TCHAR(__FUNCTION__)))
+	{
+		return INDEX_NONE;
+	}
+
 	return AddInlinedCodeChunkZeroDeriv(MCT_Float3, TEXT("float3(GetPrimitiveData(Parameters).ObjectBoundsX, GetPrimitiveData(Parameters).ObjectBoundsY, GetPrimitiveData(Parameters).ObjectBoundsZ)"));
 }
 
 int32 FHLSLMaterialTranslator::ObjectLocalBounds(int32 OutputIndex)
 {
+	if (!CheckPrimitivePropertyCompatibity(ANSI_TO_TCHAR(__FUNCTION__)))
+	{
+		return INDEX_NONE;
+	}
+
 	switch (OutputIndex)
 	{
 	case 0: // Half extents
@@ -6420,6 +6436,11 @@ int32 FHLSLMaterialTranslator::ObjectLocalBounds(int32 OutputIndex)
 
 int32 FHLSLMaterialTranslator::InstanceLocalBounds(int32 OutputIndex)
 {
+	if (!CheckPrimitivePropertyCompatibity(ANSI_TO_TCHAR(__FUNCTION__)))
+	{
+		return INDEX_NONE;
+	}
+
 	switch (OutputIndex)
 	{
 	case 0: // Half extents
@@ -6439,6 +6460,11 @@ int32 FHLSLMaterialTranslator::InstanceLocalBounds(int32 OutputIndex)
 
 int32 FHLSLMaterialTranslator::PreSkinnedLocalBounds(int32 OutputIndex)
 {
+	if (!CheckPrimitivePropertyCompatibity(ANSI_TO_TCHAR(__FUNCTION__)))
+	{
+		return INDEX_NONE;
+	}
+
 	switch (OutputIndex)
 	{
 	case 0: // Half extents
@@ -15646,15 +15672,24 @@ int32 FHLSLMaterialTranslator::EyeAdaptationInverse(int32 LightValueArg, int32 A
 	return Mul(LightValueArg, Multiplier);
 }
 
+const bool FHLSLMaterialTranslator::CheckPrimitivePropertyCompatibity(const TCHAR* ExpressionName)
+{
+	const EMaterialDomain Domain = Material->GetMaterialDomain();
+	if (Domain == MD_Surface || Domain == MD_Volume)
+	{
+		return true;
+	}
+
+	Errorf(TEXT("Material expression '%s' is only compatible with Surface or Volume materials."), ExpressionName);
+	return false;
+}
+
 // to only have one piece of code dealing with error handling if the Primitive constant buffer is not used.
 // @param Name e.g. TEXT("ObjectWorldPositionAndRadius.w")
 int32 FHLSLMaterialTranslator::GetPrimitiveProperty(EMaterialValueType Type, const TCHAR* ExpressionName, const TCHAR* HLSLName)
 {
-	const EMaterialDomain Domain = (const EMaterialDomain)Material->GetMaterialDomain();
-
-	if(Domain != MD_Surface && Domain != MD_Volume)
+	if(!CheckPrimitivePropertyCompatibity(ExpressionName))
 	{
-		Errorf(TEXT("The material expression '%s' is only supported in the 'Surface' or 'Volume' material domain."), ExpressionName);
 		return INDEX_NONE;
 	}
 
