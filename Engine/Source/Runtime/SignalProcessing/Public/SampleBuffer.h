@@ -221,7 +221,7 @@ namespace Audio
 				else if constexpr(std::is_same_v<SampleType, float> && std::is_same_v<OtherSampleType, int16>)
 				{
 					// Convert from int to float:
-					Audio::ArrayPcm16ToFloat(MakeArrayView(InputBuffer, InNumSamples), MakeArrayView(&RawPCMData[StartIndex], NumSamples));
+					Audio::ArrayPcm16ToFloat(MakeArrayView(InputBuffer, InNumSamples), MakeArrayView(&RawPCMData[StartIndex], InNumSamples));
 				}
 				else
 				{
