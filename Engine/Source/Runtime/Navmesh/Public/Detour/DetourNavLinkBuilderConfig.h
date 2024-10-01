@@ -3,6 +3,12 @@
 
 #include "CoreTypes.h"
 
+enum dtNavLinkBuilderFlags : unsigned short
+{
+	DT_NAVLINK_CREATE_CENTER_POINT_LINK = 1 << 0,
+	DT_NAVLINK_CREATE_EXTREMITY_LINKS	= 1 << 1,
+};
+
 /** Configuration for generated jump down links. */
 struct dtNavLinkBuilderJumpDownConfig
 {
@@ -31,6 +37,9 @@ struct dtNavLinkBuilderJumpDownConfig
 	/// When filtering similar links, distance used to compare between segment endpoints to match similar links.
 	/// Use greater distance for more filtering (0 to deactivate filtering). [Limit: > 0] [Units: wu]
 	float filterDistanceThreshold = 80.f;
+
+	/// Flags used to indicate how links will be added.
+	unsigned short linkBuilderFlags = DT_NAVLINK_CREATE_CENTER_POINT_LINK;
 
 	/// Cached parabola constant fitting the configuration parameters. 
 	float cachedParabolaConstant = 0;

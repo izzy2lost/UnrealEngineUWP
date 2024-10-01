@@ -3861,32 +3861,58 @@ dtStatus FRecastTileGenerator::BuildTileCacheLinks(FNavMeshBuildContext& BuildCo
 #endif // RECAST_INTERNAL_DEBUG_DATA		
 	}
 
+	auto AddLinkLambda = [&OutGeneratedLinks](const dtNavLinkBuilderJumpDownConfig& config, const dtReal* posA, const dtReal* posB)
+	{
+		FGeneratedNavigationLink& NewLink = OutGeneratedLinks.Emplace_GetRef();
+		NewLink.bIsGenerated = true;
+		NewLink.NavLinkId = FNavLinkId(config.linkUserId);
+		NewLink.generatedLinkArea = config.area;
+		NewLink.generatedLinkPolyFlag = config.polyFlag;
+		NewLink.Left = Recast2UnrealPoint(posA);
+		NewLink.Right = Recast2UnrealPoint(posB);	
+	};
+
 	// Make FGeneratedNavigationLinks
 	for (const dtNavLinkBuilder::JumpLink& link : linkBuilder.m_links)
 	{
 		if (link.flags == dtNavLinkBuilder::FILTERED)
 			continue;
 
-		// For now, just make a link using the center of the range.
-		dtReal midA[3];
-		dtVlerp(midA, &link.spine0[0], &link.spine1[0], 0.5);
-		dtReal midB[3];
-		dtVlerp(midB, &link.spine0[(link.nspine-1)*3], &link.spine1[(link.nspine-1)*3], 0.5);
-		// Since trajectory validation starts at agentClimb height to ignore small bumps, remove the offset for the actual link height.
-		midA[1] -= linkBuilderConfig.agentClimb;
-		midB[1] -= linkBuilderConfig.agentClimb;
-
-		FGeneratedNavigationLink& NewLink = OutGeneratedLinks.Emplace_GetRef();
-		NewLink.bIsGenerated = true;
-		if (link.action == DT_LINK_ACTION_JUMP_DOWN)
+		// Only "JumpDownConfig are expected for now
+		if (link.action != DT_LINK_ACTION_JUMP_DOWN)
 		{
-			NewLink.NavLinkId = FNavLinkId(linkBuilderConfig.jumpDownConfig.linkUserId);
-			NewLink.generatedLinkArea = linkBuilderConfig.jumpDownConfig.area;
-			NewLink.generatedLinkPolyFlag = linkBuilderConfig.jumpDownConfig.polyFlag;
+			continue;
 		}
-		// @todo: Set NavLinkId for jump over links if we keep them.
-		NewLink.Left = Recast2UnrealPoint(midA);
-		NewLink.Right = Recast2UnrealPoint(midB);
+
+		if (TileConfig.JumpDownConfig.linkBuilderFlags & DT_NAVLINK_CREATE_CENTER_POINT_LINK)
+		{
+			// Make a link using the center of the range.
+			dtReal midA[3];
+			dtVlerp(midA, &link.spine0[0], &link.spine1[0], 0.5);
+			dtReal midB[3];
+			dtVlerp(midB, &link.spine0[(link.nspine-1)*3], &link.spine1[(link.nspine-1)*3], 0.5);
+			// Since trajectory validation starts at agentClimb height to ignore small bumps, remove the offset for the actual link height.
+			midA[1] -= linkBuilderConfig.agentClimb;
+			midB[1] -= linkBuilderConfig.agentClimb;
+			AddLinkLambda(linkBuilderConfig.jumpDownConfig, midA, midB);
+		}
+
+		if (TileConfig.JumpDownConfig.linkBuilderFlags & DT_NAVLINK_CREATE_EXTREMITY_LINKS)
+		{
+			dtReal posA[3];
+			dtReal posB[3];
+			dtVcopy(posA, &link.spine0[0]);
+			dtVcopy(posB, &link.spine0[(link.nspine-1)*3]);
+			posA[1] -= linkBuilderConfig.agentClimb;
+			posB[1] -= linkBuilderConfig.agentClimb;
+			AddLinkLambda(linkBuilderConfig.jumpDownConfig, posA, posB);
+
+			dtVcopy(posA, &link.spine1[0]);
+			dtVcopy(posB, &link.spine1[(link.nspine-1)*3]);
+			posA[1] -= linkBuilderConfig.agentClimb;
+			posB[1] -= linkBuilderConfig.agentClimb;
+			AddLinkLambda(linkBuilderConfig.jumpDownConfig, posA, posB);
+		}
 	}
 	
 	LogOnExit();
