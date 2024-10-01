@@ -1474,6 +1474,8 @@ public:
 		AddedFaceCullStrategyToSomeOperations,
 
 		DDCParticipatingObjects,
+
+		GroupRomsBySource,
 		
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion
