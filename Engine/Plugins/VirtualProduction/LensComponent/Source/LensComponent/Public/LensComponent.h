@@ -274,6 +274,12 @@ private:
 	/** Returns the sensor width of the input CineCamera, factoring in its squeeze factor */
 	float GetDesqueezedSensorWidth(UCineCameraComponent* const CineCameraComponent) const;
 
+	/** Get the original transform of the tracked component (rebuilt from the location and rotation vectors) */
+	FTransform GetOriginalTrackedComponentTransform();
+
+	/** Set the original transform of the tracked component (and also the location and rotation vectors) */
+	void SetOriginalTrackedComponentTransform(const FTransform& NewTransform);
+
 protected:
 	/** Lens File used to drive distortion with current camera settings */
 	UPROPERTY(EditAnywhere, Category="Lens File", meta=(ShowOnlyInnerProperties))
@@ -343,6 +349,17 @@ protected:
 	 */
 	UPROPERTY(EditAnywhere, Category="Nodal Offset")
 	bool bApplyNodalOffsetOnTick = true;
+
+	/*
+	 * Location and Rotation of the TrackedComponent prior to nodal offset being applied 
+	 * Note: These are marked Interp so that they will be recorded in a level sequence to support re-applying nodal offset
+	 * However, recording of FTransform properties is not currently supported by the transform track recorder.
+	 * FRotator and FQuat are also not supported by the basic property track recorder, but FVector is, so we use that for both location and rotation.
+	 */
+	UPROPERTY(Interp, Category = "Nodal Offset", meta = (EditCondition=false, EditConditionHides))
+	FVector OriginalTrackedComponentLocation;
+	UPROPERTY(Interp, Category = "Nodal Offset", meta = (EditCondition=false, EditConditionHides))
+	FVector OriginalTrackedComponentRotation;
 
 	/** Serialized transform of the TrackedComponent prior to nodal offset being applied */
 	UPROPERTY(Interp, VisibleAnywhere, AdvancedDisplay, Category = "Nodal Offset")
