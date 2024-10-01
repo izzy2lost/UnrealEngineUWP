@@ -71,7 +71,7 @@ void SPCGEditorNodeSource::Construct(const FArguments& InArgs, TSharedPtr<FPCGEd
 			+SVerticalBox::Slot()
 			.AutoHeight()
 			[
-				ConstructNonExpandableHeaderWidget(ExpandableAreaArgs.AreaTitle(LOCTEXT("PCGNodeSource_ShaderText_Title", "Shader Text")))
+				ConstructNonExpandableHeaderWidget(ExpandableAreaArgs.AreaTitle(LOCTEXT("PCGNodeSource_ShaderText_Title", "Shader Source")))
 			]
 			+SVerticalBox::Slot()
 			.FillHeight(1.0f)

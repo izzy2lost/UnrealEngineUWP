@@ -1677,6 +1677,19 @@ bool FPCGEditor::CanConvertRerouteToNamedReroute() const
 	return false;
 }
 
+bool FPCGEditor::IsNodeSourceEditorTabClosed() const
+{
+	return !TabManager.IsValid() || !TabManager->FindExistingLiveTab(FPCGEditor_private::NodeSourceID).IsValid();
+}
+
+void FPCGEditor::SpawnNodeSourceEditorTab()
+{
+	if (TabManager.IsValid() && !TabManager->FindExistingLiveTab(FPCGEditor_private::NodeSourceID))
+	{
+		TabManager->TryInvokeTab(FPCGEditor_private::NodeSourceID);
+	}
+}
+
 void FPCGEditor::OnCollapseNodesInSubgraph()
 {
 	if (!InternalValidationOnAction())

@@ -546,8 +546,14 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 			break;
 		}
 		default:
-			ensure(false);
+		{
+			UE_LOG(LogPCG, Error, TEXT("Unsupported connected upstream pin '%s' on node '%s' with type %s. Consider adding a conversion to a supported type such as Point."),
+				*InOutputPinProperties.Label.ToString(),
+				InOutCompiledTasks[InTaskId].Node ? *InOutCompiledTasks[InTaskId].Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString() : TEXT("MISSING"),
+				StaticEnum<EPCGDataType>() ? *StaticEnum<EPCGDataType>()->GetNameStringByValue(static_cast<int64>(PinType)) : TEXT("MISSING")
+			);
 			break;
+		}
 		}
 
 		if (DataInterface)

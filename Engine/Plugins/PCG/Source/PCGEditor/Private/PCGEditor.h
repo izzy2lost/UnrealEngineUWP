@@ -97,6 +97,12 @@ public:
 	virtual void InitToolMenuContext(FToolMenuContext& MenuContext) override;
 	// ~End FAssetEditorToolkit interface
 
+	/** Returns true if the Node Source Editor tab is not currently open. */
+	bool IsNodeSourceEditorTabClosed() const;
+
+	/** Opens the Node Source Editor tab if it is not already visible. */
+	void SpawnNodeSourceEditorTab();
+
 	FOnInspectedStackChanged OnInspectedStackChangedDelegate;
 
 protected:

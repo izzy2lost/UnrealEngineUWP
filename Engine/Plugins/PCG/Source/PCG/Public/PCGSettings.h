@@ -560,7 +560,7 @@ public:
 
 public:
 	/** Whether this node should be executed on the GPU. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = GPU, meta = (EditCondition = "DisplayExecuteOnGPUSetting()", EditConditionHides, HideEditConditionToggle))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "GPU", meta = (EditCondition = "DisplayExecuteOnGPUSetting()", EditConditionHides, HideEditConditionToggle))
 	bool bExecuteOnGPU = false;
 
 	/** Dump the cooked HLSL into the log after it is generated. */
