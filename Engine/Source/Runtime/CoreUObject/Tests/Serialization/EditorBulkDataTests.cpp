@@ -1,5 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#if WITH_LOW_LEVEL_TESTS
+#include "Misc/CoreMiscDefines.h" // WITH_EDITORONLY_DATA
+#endif
+
 #if WITH_LOW_LEVEL_TESTS && WITH_EDITORONLY_DATA
 
 #include "Algo/AllOf.h"
