@@ -577,6 +577,21 @@ private:
 
 	FBox GetGridBounds(const AActor* InActor) const;
 
+	UPROPERTY(Transient, NonPIEDuplicateTransient)
+	mutable TObjectPtr<UPCGData> CachedPCGData = nullptr;
+
+	UPROPERTY(Transient, NonPIEDuplicateTransient)
+	mutable TObjectPtr<UPCGData> CachedInputData = nullptr;
+
+	UPROPERTY(Transient, NonPIEDuplicateTransient)
+	mutable TObjectPtr<UPCGData> CachedActorData = nullptr;
+
+	UPROPERTY(Transient, NonPIEDuplicateTransient)
+	mutable TObjectPtr<UPCGData> CachedLandscapeData = nullptr;
+
+	UPROPERTY(Transient, NonPIEDuplicateTransient)
+	mutable TObjectPtr<UPCGData> CachedLandscapeHeightData = nullptr;
+
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	TSet<TSoftObjectPtr<AActor>> GeneratedActors_DEPRECATED;
