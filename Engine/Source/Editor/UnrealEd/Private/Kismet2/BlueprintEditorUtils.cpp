@@ -1280,8 +1280,6 @@ void FBlueprintEditorUtils::PreloadBlueprintSpecificData(UBlueprint* Blueprint)
 	{
 		K2Node->PreloadRequiredAssets();
 	}
-
-	Blueprint->PreloadDependenciesBeforeCompilation();
 }
 
 void FBlueprintEditorUtils::LinkExternalDependencies(UBlueprint* Blueprint)
