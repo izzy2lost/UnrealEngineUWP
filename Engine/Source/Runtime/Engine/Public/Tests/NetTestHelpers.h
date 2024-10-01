@@ -147,13 +147,13 @@ inline bool FTestWorlds::TickAllUntil(const PredicateT& Predicate, float DeltaSe
 class FScopedCVarOverrideInt
 {
 public:
-	FScopedCVarOverrideInt(const TCHAR* VariableName, int32 Value);
-	~FScopedCVarOverrideInt();
+	ENGINE_API FScopedCVarOverrideInt(const TCHAR* VariableName, int32 Value);
+	ENGINE_API ~FScopedCVarOverrideInt();
 
-	FScopedCVarOverrideInt(FScopedCVarOverrideInt&&) = delete;
-	FScopedCVarOverrideInt(const FScopedCVarOverrideInt&) = delete;
-	FScopedCVarOverrideInt& operator=(FScopedCVarOverrideInt&&) = delete;
-	FScopedCVarOverrideInt& operator=(const FScopedCVarOverrideInt&) = delete;
+	ENGINE_API FScopedCVarOverrideInt(FScopedCVarOverrideInt&&) = delete;
+	ENGINE_API FScopedCVarOverrideInt(const FScopedCVarOverrideInt&) = delete;
+	ENGINE_API FScopedCVarOverrideInt& operator=(FScopedCVarOverrideInt&&) = delete;
+	ENGINE_API FScopedCVarOverrideInt& operator=(const FScopedCVarOverrideInt&) = delete;
 
 private:
 	IConsoleVariable* Variable = nullptr;
@@ -167,13 +167,13 @@ private:
 class FScopedTestSettings
 {
 public:
-	FScopedTestSettings();
-	~FScopedTestSettings();
+	ENGINE_API FScopedTestSettings();
+	ENGINE_API ~FScopedTestSettings();
 
-	FScopedTestSettings(FScopedTestSettings&&) = delete;
-	FScopedTestSettings(const FScopedTestSettings&) = delete;
-	FScopedTestSettings& operator=(FScopedTestSettings&&) = delete;
-	FScopedTestSettings& operator=(const FScopedTestSettings&) = delete;
+	ENGINE_API FScopedTestSettings(FScopedTestSettings&&) = delete;
+	ENGINE_API FScopedTestSettings(const FScopedTestSettings&) = delete;
+	ENGINE_API FScopedTestSettings& operator=(FScopedTestSettings&&) = delete;
+	ENGINE_API FScopedTestSettings& operator=(const FScopedTestSettings&) = delete;
 
 private:
 	FScopedCVarOverrideInt AddressResolutionDisabled;
