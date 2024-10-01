@@ -72,6 +72,9 @@ void UMovieGraphDefaultRenderer::SetupRenderingPipelineForShot(UMoviePipelineExe
 		CameraIndexes.Add(-1);
 	}
 
+	CameraOverscanCache.Empty();
+	bHasWarnedAboutAnimatedOverscan = false;
+	
 	for (const FName& Branch : GraphBranches)
 	{
 		// We follow each branch looking for Render Layer nodes to figure out what render layer this should be. We assume a render layer is named
@@ -464,6 +467,36 @@ UE::MovieGraph::DefaultRenderer::FCameraInfo UMovieGraphDefaultRenderer::GetCame
 
 	CameraInfo.ViewInfo = ViewInfos[LocalArrayIndex];
 	return CameraInfo;
+}
+
+float UMovieGraphDefaultRenderer::GetCameraOverscan(UMovieGraphEvaluatedConfig* InConfig, int32 InCameraIndex)
+{
+	if (CameraOverscanCache.Contains(InCameraIndex))
+	{
+		return CameraOverscanCache[InCameraIndex];
+	}
+
+	const float CameraOverscan = GetCameraInfo(InConfig, InCameraIndex).ViewInfo.GetOverscan();
+	CameraOverscanCache.Add(InCameraIndex, CameraOverscan);
+	return CameraOverscan;
+}
+
+void UMovieGraphDefaultRenderer::WarnAboutAnimatedOverscan(float InInitialOverscan)
+{
+	if (!bHasWarnedAboutAnimatedOverscan)
+	{
+		UMoviePipelineExecutorShot* CurrentShot = GetOwningGraph()->GetActiveShotList()[GetOwningGraph()->GetCurrentShotIndex()];
+		
+		UE_LOG(
+			LogMovieRenderPipeline,
+			Warning,
+			TEXT("Detected animated Camera Overscan value on shot %s for camera %s. MRG does not support changing resolution between frames, and a resolution computed from the initial overscan (%f) will be used instead. Overscan can be affected by both the Overscan camera property or distortion parameters on the Lens component"),
+			*CurrentShot->OuterName,
+			*CurrentShot->InnerName,
+			InInitialOverscan);
+
+		bHasWarnedAboutAnimatedOverscan = true;
+	}
 }
 
 UTextureRenderTarget2D* UMovieGraphDefaultRenderer::GetOrCreateViewRenderTarget(const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InInitParams, const FMovieGraphRenderDataIdentifier& InIdentifier)

@@ -150,7 +150,7 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 	}
 
 	// ToDo: When tiling is used, this should be the size of the per-tile backbuffer
-	const float CameraOverscan = GetRenderer()->GetCameraInfo(InTimeData.EvaluatedConfig, LayerData.CameraIndex).ViewInfo.GetOverscan();
+	const float CameraOverscan = GetRenderer()->GetCameraOverscan(InTimeData.EvaluatedConfig, LayerData.CameraIndex);
 	FIntPoint AccumulatorResolution = UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(InTimeData.EvaluatedConfig, CameraOverscan);
 	FIntPoint BackbufferResolution = AccumulatorResolution;
 	
@@ -198,7 +198,15 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 			CameraInfo.ViewInfo.ClearOverscan();
 			CameraInfo.ViewInfo.ApplyOverscan(OverscanFraction);
 		}
-		
+		else
+		{
+			// Current overscan is different from originally cached value, indicating an animated overscan value, so output a warning message
+			if (CameraInfo.ViewInfo.GetOverscan() != CameraOverscan)
+			{
+				GetRenderer()->WarnAboutAnimatedOverscan(CameraOverscan);
+			}
+		}
+
 		// ToDo: This math probably needs the per-tile, pre-overlapped size? 
 		FIntPoint OverlappedPad = FIntPoint(FMath::CeilToInt(BackbufferResolution.X * TileOverlapPadRatio), FMath::CeilToInt(BackbufferResolution.Y * TileOverlapPadRatio));
 		

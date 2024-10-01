@@ -238,6 +238,10 @@ void UMoviePipeline::TickProducingFrames()
 			}
 		}
 
+		// We delay setting up the rendering pipeline for the camera cut until the end of setup. This is because we want the Sequence to have evaluated at least once
+		// (via the Jump command earlier) so that spawnable cameras exist during setup.
+		SetupRenderingPipelineForShot(CurrentCameraCut);
+		
 		// We can safely fall through to the below states as they're OK to process the same frame we set up.
 		UE_LOG(LogMovieRenderPipeline, Log, TEXT("[%d] Finished initializing Camera Cut [%d/%d] in [%s] %s."), GFrameCounter,
 			CurrentShotIndex + 1, ActiveShotList.Num(), *CurrentCameraCut->OuterName, *CurrentCameraCut->InnerName);

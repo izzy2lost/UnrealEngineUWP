@@ -92,20 +92,32 @@ FIntPoint UMoviePipelineDeferredPassBase::GetEffectiveOutputResolutionForCamera(
 	UMoviePipelinePrimaryConfig* PrimaryConfig = GetPipeline()->GetPipelinePrimaryConfig();
 	UMoviePipelineExecutorShot* CurrentShot = GetPipeline()->GetActiveShotList()[GetPipeline()->GetCurrentShotIndex()];
 
-	// Get the camera view info to retrieve the camera's overscan, which is used when the settings to not override the overscan
-	FMinimalViewInfo CameraViewInfo;
-
-	if (GetNumCamerasToRender() == 1)
+	// Get any cached overscan value for this camera. If there is none, query the live overscan value and cache it
+	float CameraOverscan = 0.0f;
+	if (GetPipeline()->HasCachedCameraOverscan(InCameraIndex))
 	{
-		CameraViewInfo = GetPipeline()->GetWorld()->GetFirstPlayerController()->PlayerCameraManager->GetCameraCacheView();
+		CameraOverscan = GetPipeline()->GetCachedCameraOverscan(InCameraIndex);
 	}
 	else
 	{
-		UCameraComponent* CameraComponent;
-		GetPipeline()->GetSidecarCameraData(CurrentShot, InCameraIndex, CameraViewInfo, &CameraComponent);
+		// Get the camera view info to retrieve the camera's overscan, which is used when the settings to not override the overscan
+		FMinimalViewInfo CameraViewInfo;
+
+		if (GetNumCamerasToRender() == 1)
+		{
+			CameraViewInfo = GetPipeline()->GetWorld()->GetFirstPlayerController()->PlayerCameraManager->GetCameraCacheView();
+		}
+		else
+		{
+			UCameraComponent* CameraComponent;
+			GetPipeline()->GetSidecarCameraData(CurrentShot, InCameraIndex, CameraViewInfo, &CameraComponent);
+		}
+
+		CameraOverscan = CameraViewInfo.GetOverscan();
+		GetPipeline()->CacheCameraOverscan(InCameraIndex, CameraOverscan);
 	}
 	
-	const FIntPoint OutputResolution = UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(PrimaryConfig, CurrentShot, CameraViewInfo.GetOverscan());
+	const FIntPoint OutputResolution = UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(PrimaryConfig, CurrentShot, CameraOverscan);
 
 	return OutputResolution;
 }
