@@ -710,7 +710,7 @@ void ULensDistortionTool::SaveCalibrationResult()
 			FScopedTransaction Transaction(LOCTEXT("SaveNodalOffsetResult", "Save Calibrated Nodal Offset to Lens Asset"));
 			LensFile->Modify();
 
-			LensFile->AddNodalOffsetPoint(CalibrationResult.EvaluatedFocus, CalibrationResult.EvaluatedFocus, CalibrationResult.NodalOffset);
+			LensFile->AddNodalOffsetPoint(CalibrationResult.EvaluatedFocus, CalibrationResult.EvaluatedZoom, CalibrationResult.NodalOffset);
 		}
 	}
 
