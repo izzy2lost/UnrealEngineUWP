@@ -61,12 +61,22 @@ namespace HordeServer.Agents
 		/// <param name="index">First result to return</param>
 		/// <param name="count">Number of results to return</param>
 		/// <param name="modifiedAfter">If set, only returns agents modified after this time</param>
-		/// <param name="filter">Filter for the properties to return</param>
+		/// <param name="propsFilter">If set, what keys to include in the list of agent properties. Separated by commas.</param>
+		/// <param name="filter">If set, filter for fields/properties to return</param>
 		/// <returns>List of matching agents</returns>
 		[HttpGet]
 		[Route("/api/v1/agents")]
 		[ProducesResponseType(typeof(List<GetAgentResponse>), 200)]
-		public async Task<ActionResult<List<object>>> FindAgentsAsync([FromQuery] PoolId? poolId = null, [FromQuery] Condition? condition = null, [FromQuery] bool includeDeleted = false, [FromQuery] bool invalidateCache = false, [FromQuery] int? index = null, [FromQuery] int? count = null, [FromQuery] DateTimeOffset? modifiedAfter = null, [FromQuery] PropertyFilter? filter = null)
+		public async Task<ActionResult<List<object>>> FindAgentsAsync(
+			[FromQuery] PoolId? poolId = null,
+			[FromQuery] Condition? condition = null,
+			[FromQuery] bool includeDeleted = false,
+			[FromQuery] bool invalidateCache = false,
+			[FromQuery] int? index = null,
+			[FromQuery] int? count = null,
+			[FromQuery] DateTimeOffset? modifiedAfter = null,
+			[FromQuery] string? propsFilter = null,
+			[FromQuery] PropertyFilter? filter = null)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AgentsController)}.{nameof(FindAgentsAsync)}");
 
@@ -100,7 +110,7 @@ namespace HordeServer.Agents
 				{
 					if (condition == null || agent.SatisfiesCondition(condition))
 					{
-						responses.Add(await GetAgentResponseAsync(agent, filter));
+						responses.Add(await GetAgentResponseAsync(agent, propsFilter, filter));
 					}
 				}
 			}
@@ -132,13 +142,13 @@ namespace HordeServer.Agents
 				return NotFound(agentId);
 			}
 
-			return await GetAgentResponseAsync(agent, filter);
+			return await GetAgentResponseAsync(agent, null, filter);
 		}
 
 		/// <summary>
 		/// Gets an individual agent response
 		/// </summary>
-		async ValueTask<object> GetAgentResponseAsync(IAgent agent, PropertyFilter? filter = null, CancellationToken cancellationToken = default)
+		async ValueTask<object> GetAgentResponseAsync(IAgent agent, string? propFilter = null, PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			double? rate = null;
 			if (_computeConfig.Value.Authorize(ServerAclAction.ViewCosts, User))
@@ -164,15 +174,40 @@ namespace HordeServer.Agents
 				}
 			}
 
-			return CreateGetAgentResponse(agent, leases, rate).ApplyFilter(filter);
+			return CreateGetAgentResponse(agent, leases, rate, propFilter).ApplyFilter(filter);
 		}
 
 		internal static GetAgentLeaseResponse CreateGetAgentLeaseResponse(ILease lease, Dictionary<string, string>? details, double? agentRate)
 		{
 			return new GetAgentLeaseResponse(lease.Id, lease.ParentId, lease.AgentId, agentRate, lease.Name, lease.LogId, lease.StartTime, lease.FinishTime, lease.FinishTime == null, details, lease.Outcome, null);
 		}
+		
+		private static List<string> FilterProperties(List<string> properties, string? filter)
+		{
+			if (filter == null)
+			{
+				return properties;
+			}
+			
+			List<string> filteredProps = new (properties.Count);
+			List<string> includedKeys = filter.Split(",").Select(x => x.ToUpperInvariant()).ToList();
+			foreach (string property in properties)
+			{
+				string[] parts = property.Split("=");
+				string key = parts[0].ToUpperInvariant();
+				foreach (string includedKey in includedKeys)
+				{
+					if (key == includedKey)
+					{
+						filteredProps.Add(property);
+					}
+				}
+			}
+			
+			return filteredProps;
+		}
 
-		static GetAgentResponse CreateGetAgentResponse(IAgent agent, List<GetAgentLeaseResponse> leases, double? rate)
+		static GetAgentResponse CreateGetAgentResponse(IAgent agent, List<GetAgentLeaseResponse> leases, double? rate, string? propFilter)
 		{
 			return new GetAgentResponse(
 				agent.Id,
@@ -193,7 +228,7 @@ namespace HordeServer.Agents
 				agent.ConformAttemptCount,
 				agent.LastConformTime,
 				agent.Version?.ToString() ?? "Unknown",
-				new List<string>(agent.Properties),
+				FilterProperties(new List<string>(agent.Properties), propFilter),
 				new Dictionary<string, int>(agent.Resources),
 				agent.UpdateTime,
 				agent.LastOnlineTime,

@@ -2,6 +2,7 @@
 
 using System.Diagnostics.Metrics;
 using EpicGames.Core;
+using EpicGames.Horde.Tools;
 using HordeCommon;
 using HordeServer.Accounts;
 using HordeServer.Acls;
@@ -10,6 +11,7 @@ using HordeServer.Configuration;
 using HordeServer.Dashboard;
 using HordeServer.Plugins;
 using HordeServer.Server;
+using HordeServer.Tools;
 using HordeServer.Users;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
@@ -116,6 +118,7 @@ namespace HordeServer.Tests
 			services.AddSingleton<MemoryMappedFileCache>();
 
 			services.AddSingleton<IAccountCollection, AccountCollection>();
+			services.AddSingleton<IToolCollection, ToolCollection>();
 
 			services.AddLogging(builder => builder.AddSerilog());
 			services.AddSingleton<IMemoryCache>(sp => new MemoryCache(new MemoryCacheOptions { }));
@@ -124,7 +127,8 @@ namespace HordeServer.Tests
 			services.AddSingleton(sp => new Meter("TestMeter"));
 
 			services.AddSingleton(typeof(IAuditLogFactory<>), typeof(AuditLogFactory<>));
-
+			
+			services.AddSingleton<GlobalsService>();
 			services.AddSingleton<ConfigService>();
 			services.AddSingleton<IConfigService>(sp => sp.GetRequiredService<ConfigService>());
 			services.AddSingleton<IOptionsFactory<GlobalConfig>>(sp => sp.GetRequiredService<ConfigService>());
