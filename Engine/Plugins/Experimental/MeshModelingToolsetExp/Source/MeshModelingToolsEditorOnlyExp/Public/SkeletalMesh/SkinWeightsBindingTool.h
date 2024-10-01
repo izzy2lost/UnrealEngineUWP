@@ -134,4 +134,7 @@ protected:
 	
 	// ISkeletalMeshEditionInterface
 	virtual void HandleSkeletalMeshModified(const TArray<FName>& InBoneNames, const ESkeletalMeshNotifyType InNotifyType) override;
+
+	// Pending update function */
+	TFunction<void()> PendingUpdateFunction;
 };
