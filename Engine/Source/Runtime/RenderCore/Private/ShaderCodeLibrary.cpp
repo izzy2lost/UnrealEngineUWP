@@ -1427,17 +1427,18 @@ struct FEditorShaderCodeArchive
 				{
 					const FShaderCodeResource& SourceShaderResource = Code->ShaderCodeResources[i];
 					FShaderCodeEntry& SerializedShaderEntry = SerializedShaders.ShaderEntries[ShaderIndex];
-					SerializedShaderEntry.Frequency = SourceShaderResource.Frequency;
-					SerializedShaderEntry.Size = SourceShaderResource.Code.Num();
-					SerializedShaderEntry.UncompressedSize = SourceShaderResource.UncompressedSize;
-					check(!SourceShaderResource.Code.IsEmpty());
-					ShaderCode.Add(SourceShaderResource.Code);
+					SerializedShaderEntry.Frequency = SourceShaderResource.GetFrequency();
+					FSharedBuffer CodeBuffer = SourceShaderResource.GetCodeBuffer();
+					SerializedShaderEntry.Size = CodeBuffer.GetSize();
+					SerializedShaderEntry.UncompressedSize = SourceShaderResource.GetUncompressedSize();
+					check(SerializedShaderEntry.Size > 0);
+					ShaderCode.Add(CodeBuffer);
 					check(ShaderCode.Num() == SerializedShaders.ShaderEntries.Num());
 
 					CodeStats.NumUniqueShaders++;
-					CodeStats.ShadersUniqueSize += SourceShaderResource.Code.Num();
+					CodeStats.ShadersUniqueSize += CodeBuffer.GetSize();
 				}
-				CodeStats.ShadersSize += Code->ShaderCodeResources[i].Code.Num();
+				CodeStats.ShadersSize += Code->ShaderCodeResources[i].GetCodeView().NumBytes();
 				SerializedShaders.ShaderIndices[ShaderMapEntry.ShaderIndicesOffset + i] = ShaderIndex;
 			}
 
@@ -1517,7 +1518,7 @@ struct FEditorShaderCodeArchive
 		int32 NumShadersSentWithCode = 0;
 
 		const FSerializedShaderArchive& SourceArchive = this->SerializedShaders;
-		TArray<TArray<uint8>>& SourceShaderCodes = this->ShaderCode;
+		TArray<FSharedBuffer>& SourceShaderCodes = this->ShaderCode;
 		for (int32 SourceShaderMapIndex : LocalShaderMapsToCopy)
 		{
 			const FSHAHash& SourceShaderMapHash = SourceArchive.ShaderMapHashes[SourceShaderMapIndex];
@@ -1551,15 +1552,15 @@ struct FEditorShaderCodeArchive
 					check(TargetShaderIndex == TargetArchive.ShaderEntries.Num() - 1);
 
 					const FShaderCodeEntry& SourceShaderEntry = SourceArchive.ShaderEntries[SourceShaderIndex];
-					TArray<uint8>& SourceShaderCode = SourceShaderCodes[SourceShaderIndex];
+					FSharedBuffer& SourceShaderCode = SourceShaderCodes[SourceShaderIndex];
 					FShaderCodeEntry& TargetShaderEntry = TargetArchive.ShaderEntries[TargetShaderIndex];
 
 					TargetShaderEntry = SourceShaderEntry;
-					if (!SourceShaderCode.IsEmpty())
+					if (SourceShaderCode.GetSize() > 0)
 					{
 						TargetShaderEntry.Offset = TargetFlatShaderCode.Num();
-						check(SourceShaderEntry.Size == SourceShaderCode.Num());
-						if ((MaxShaderSize > 0 && TargetFlatShaderCode.Num() + SourceShaderCode.Num() > MaxShaderSize) ||
+						check(SourceShaderEntry.Size == SourceShaderCode.GetSize());
+						if ((MaxShaderSize > 0 && TargetFlatShaderCode.Num() + (int64)SourceShaderCode.GetSize() > MaxShaderSize) ||
 							(MaxShaderCount > 0 && NumShadersSentWithCode > MaxShaderCount))
 						{
 							// We have to stop here to avoid overflowing the shader limit. Send the shaders we have accumulated
@@ -1576,11 +1577,11 @@ struct FEditorShaderCodeArchive
 						}
 						++NumShadersSentWithCode;
 
-						TargetFlatShaderCode.Append(SourceShaderCode);
+						TargetFlatShaderCode.Append(MakeArrayView(reinterpret_cast<const uint8*>(SourceShaderCode.GetData()), SourceShaderCode.GetSize()));
 
-						// Empty the ShaderCode to save memory in the local process. The consumer of the TargetArchive and
+						// Reset the ShaderCode reference to (potentially) save memory in the local process. The consumer of the TargetArchive and
 						// TargetFlatShaderCode will be the only one that needs to read it.
-						SourceShaderCode.Empty();
+						SourceShaderCode.Reset();
 					}
 					else
 					{
@@ -1601,7 +1602,7 @@ struct FEditorShaderCodeArchive
 	{
 		bool bOk = true;
 		FSerializedShaderArchive& TargetArchive = this->SerializedShaders;
-		TArray<TArray<uint8>>& TargetShaderCodes = this->ShaderCode;
+		TArray<FSharedBuffer>& TargetShaderCodes = this->ShaderCode;
 
 		// Add all the shaders; we can sometimes get messages that send the shaders in advance without sending the shadermaps that use them
 		for (int32 SourceShaderIndex = 0; SourceShaderIndex < SourceArchive.ShaderHashes.Num(); ++SourceShaderIndex)
@@ -1615,7 +1616,6 @@ struct FEditorShaderCodeArchive
 			}
 			check(TargetShaderIndex == TargetArchive.ShaderEntries.Num() - 1 &&
 				TargetShaderCodes.Num() == TargetArchive.ShaderEntries.Num() - 1);
-			TArray<uint8>& TargetShaderCode = TargetShaderCodes.Emplace_GetRef();
 
 			const FShaderCodeEntry& SourceShaderEntry = SourceArchive.ShaderEntries[SourceShaderIndex];
 			FShaderCodeEntry& TargetShaderEntry = TargetArchive.ShaderEntries[TargetShaderIndex];
@@ -1645,8 +1645,8 @@ struct FEditorShaderCodeArchive
 			}
 			else
 			{
-				const TConstArrayView<uint8> SourceShaderCode(SourceFlatShaderCode.GetData() + SourceShaderEntry.Offset, SourceShaderEntry.Size);
-				TargetShaderCode = SourceShaderCode; // Copy from source's flat list to the target's separate TArray<uint8> for each shader
+				// Copy from source's flat list to the target's separate FSharedBuffer for each shader
+				TargetShaderCodes.Add(FSharedBuffer::Clone(SourceFlatShaderCode.GetData() + SourceShaderEntry.Offset, SourceShaderEntry.Size));
 			}
 		}
 
@@ -1708,8 +1708,8 @@ struct FEditorShaderCodeArchive
 		NewChunk->ShaderCode.Empty();
 		for (int32 NewArchiveIdx = 0, NumIndices = ShaderCodeEntriesNeeded.Num(); NewArchiveIdx < NumIndices; ++NewArchiveIdx)
 		{
-			TArray<uint8>& SourceShaderCodeEntry = ShaderCode[ShaderCodeEntriesNeeded[NewArchiveIdx]];
-			check(!SourceShaderCodeEntry.IsEmpty());
+			FSharedBuffer& SourceShaderCodeEntry = ShaderCode[ShaderCodeEntriesNeeded[NewArchiveIdx]];
+			check(SourceShaderCodeEntry.GetSize() > 0);
 			NewChunk->ShaderCode.Add(SourceShaderCodeEntry);
 		}
 
@@ -1739,8 +1739,8 @@ struct FEditorShaderCodeArchive
 					const FShaderCodeEntry& OtherShaderEntry = OtherArchive.SerializedShaders.ShaderEntries[OtherShaderIndex];
 					SerializedShaders.ShaderEntries[ShaderIndex] = OtherShaderEntry;
 
-					const TArray<uint8>& OtherShaderCodeEntry = OtherArchive.ShaderCode[OtherShaderIndex];
-					check(!OtherShaderCodeEntry.IsEmpty());
+					const FSharedBuffer& OtherShaderCodeEntry = OtherArchive.ShaderCode[OtherShaderIndex];
+					check(OtherShaderCodeEntry.GetSize() > 0);
 					ShaderCode.Add(OtherShaderCodeEntry);
 					check(ShaderCode.Num() == SerializedShaders.ShaderEntries.Num());
 				}
@@ -1777,16 +1777,16 @@ struct FEditorShaderCodeArchive
 					const FShaderCodeEntry& OtherShaderEntry = OtherShaders.ShaderEntries[OtherShaderIndex];
 					SerializedShaders.ShaderEntries[ShaderIndex] = OtherShaderEntry;
 
-					TArray<uint8>& Code = ShaderCode.AddDefaulted_GetRef();
-					check(ShaderCode.Num() == SerializedShaders.GetNumShaders());
+					check(ShaderCode.Num() == SerializedShaders.GetNumShaders() - 1);
 
 					// Read shader code from archive and add shader to set
 					const int64 ReadSize = OtherShaderEntry.Size;
 					check(ReadSize > 0);
 					const int64 ReadOffset = OtherShaderCodeOffset + OtherShaderEntry.Offset;
-					Code.SetNumUninitialized(ReadSize);
+					FUniqueBuffer Code = FUniqueBuffer::Alloc(ReadSize);
 					Ar.Seek(ReadOffset);
 					Ar.Serialize(Code.GetData(), ReadSize);
+					ShaderCode.Add(Code.MoveToShared());
 				}
 				SerializedShaders.ShaderIndices[ShaderMapEntry.ShaderIndicesOffset + i] = ShaderIndex;
 			}
@@ -1815,16 +1815,18 @@ struct FEditorShaderCodeArchive
 				for (int32 Index = 0; Index < ShaderCode.Num(); ++Index)
 				{
 					const FShaderCodeEntry& Entry = SerializedShaders.ShaderEntries[Index];
-					TArray<uint8>& Code = ShaderCode[Index];
 					check(Entry.Size > 0);
-					Code.SetNumUninitialized(Entry.Size);
+					FUniqueBuffer Code = FUniqueBuffer::Alloc(Entry.Size);
 					PrevCookedAr->Serialize(Code.GetData(), Entry.Size);
+
 					bOK = !PrevCookedAr->GetError();
 					if (!bOK)
 					{
 						UE_LOG(LogShaderLibrary, Error, TEXT("Failed to deserialize shader code for %s from %s"), *SerializedShaders.ShaderHashes[Index].ToString(), *IntermediateFormatPath);
 						break;
 					}
+
+					ShaderCode[Index] = Code.MoveToShared();
 				}
 			}
 			else
@@ -1972,8 +1974,8 @@ struct FEditorShaderCodeArchive
 					*FileWriter << SerializedShaders;
 					for (auto& Code : ShaderCode)
 					{
-						check(!Code.IsEmpty());
-						FileWriter->Serialize(Code.GetData(), Code.Num());
+						check(Code.GetSize() > 0);
+						FileWriter->Serialize(const_cast<void*>(Code.GetData()), Code.GetSize());
 					}
 
 					FileWriter->Close();
@@ -2250,7 +2252,7 @@ private:
 	 * The element at index N holds the ShaderCode for the element of SerializedShaders.ShaderEntries at index N.
 	 * In MultiprocessCooking elements can be empty if they have been transferred to the Director (bHasCopiedAndCleared will be true in this case).
 	 */
-	TArray<TArray<uint8>> ShaderCode;
+	TArray<FSharedBuffer> ShaderCode;
 	/** A list of ShaderMaps that have not yet been copied to the CookDirector. Used only by MultiprocessCookWorkers. */
 	TSet<int32> ShaderMapsToCopy;
 	/** True if CopyToArchiveAndClear has been called, otherwise false. If false we avoid doing some tracking since it might never be used. */
