@@ -24,8 +24,8 @@ static const FName OpenXRSystemName = FName(TEXT("OpenXR"));
 
 UVPScoutingMode::UVPScoutingMode()
 {
-	InteractorClass = FSoftObjectPath("/VirtualProductionUtilities/VR/VirtualScoutingInteractor.VirtualScoutingInteractor_C");
-	TeleporterClass = FSoftObjectPath("/VirtualProductionUtilities/VR/VirtualScoutingTeleporter.VirtualScoutingTeleporter_C");
+	InteractorClass = FSoftObjectPath("/VirtualProductionUtilities/DEPRECATED/VR/VirtualScoutingInteractor.VirtualScoutingInteractor_C");
+	TeleporterClass = FSoftObjectPath("/VirtualProductionUtilities/DEPRECATED/VR/VirtualScoutingTeleporter.VirtualScoutingTeleporter_C");
 }
 
 
