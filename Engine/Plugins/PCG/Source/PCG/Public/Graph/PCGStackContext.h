@@ -24,7 +24,7 @@ struct PCG_API FPCGStackFrame
 
 	FPCGStackFrame() {}
 
-	explicit FPCGStackFrame(const UObject* InObject)
+	explicit FPCGStackFrame(TWeakObjectPtr<const UObject> InObject)
 	{
 		SetObject(InObject);
 	}
@@ -42,7 +42,7 @@ struct PCG_API FPCGStackFrame
 	// A valid frame should either point to an object or have a loop index >= 0.
 	bool IsValid() const { return LoopIndex != INDEX_NONE || Object.IsValid(); }
 
-	void SetObject(const UObject* InObject)
+	void SetObject(TWeakObjectPtr<const UObject> InObject)
 	{
 		Object = InObject;
 		LoopIndex = INDEX_NONE;
@@ -57,15 +57,12 @@ struct PCG_API FPCGStackFrame
 	}
 
 	// Stores object this frame refers to. Use SetObject to change this and properly update the hash.
-	UPROPERTY()
-	TSoftObjectPtr<const UObject> Object;
+	TWeakObjectPtr<const UObject> Object;
 
 	// Stores the loop index (if any) that this frame refers to. Use SetLoopIndex to change this and properly update the hash.
-	UPROPERTY()
 	int32 LoopIndex = INDEX_NONE;
 
 private:
-	UPROPERTY()
 	uint32 Hash = 0;
 };
 
@@ -75,7 +72,7 @@ struct PCG_API FPCGStack
 {
 	GENERATED_BODY()
 
-	friend struct FPCGStackContext;
+	friend class FPCGStackContext;
 
 public:
 #if WITH_EDITOR
@@ -147,8 +144,6 @@ public:
 
 private:
 	FPCGTaskId GraphExecutionTaskId = InvalidPCGTaskId;
-
-	UPROPERTY()
 	TArray<FPCGStackFrame> StackFrames;
 
 public:
@@ -160,13 +155,9 @@ public:
 };
 
 /** A collection of call stacks. */
-USTRUCT()
-struct PCG_API FPCGStackContext
+class PCG_API FPCGStackContext
 {
-	GENERATED_BODY()
-
 	friend class FPCGGraphExecutor;
-
 public:
 	int32 GetNumStacks() const { return Stacks.Num(); }
 	int32 GetCurrentStackIndex() const { return CurrentStackIndex; }
@@ -190,7 +181,6 @@ public:
 	bool operator==(const FPCGStackContext& Other) const;
 
 	FPCGTaskId GetGraphExecutionTaskId() const { return GraphExecutionTaskId; }
-
 private:
 	void SetGraphExecutionTaskId(FPCGTaskId InGraphExecutionTaskId);
 
@@ -198,10 +188,8 @@ private:
 	FPCGTaskId GraphExecutionTaskId = InvalidPCGTaskId;
 
 	/** List of all stacks encountered top graph and all (nested) subgraphs. Order is simply order of encountering during compilation. */
-	UPROPERTY()
 	TArray<FPCGStack> Stacks;
 
 	/** Index of element in Stacks that is the current stack. */
-	UPROPERTY()
 	int32 CurrentStackIndex = INDEX_NONE;
 };

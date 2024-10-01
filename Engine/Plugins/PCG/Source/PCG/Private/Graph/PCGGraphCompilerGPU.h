@@ -4,12 +4,10 @@
 
 #include "PCGCommon.h"
 
-class FPCGGraphCompiler;
 class UPCGGraph;
 class UPCGPin;
 struct FPCGGraphTask;
 
-#if WITH_EDITOR
 class FPCGGraphCompilerGPU
 {
 public:
@@ -35,7 +33,7 @@ public:
 	/** For GPU node inputs that have multiple incident edges, bundle them into a single edge. This is to avoid an inefficient
 	* gather operation on the GPU, and allows data interfaces to pick their data from the compute graph element input data collection
 	* using unique virtual input pin labels. */
-	static void CreateGatherTasksAtGPUInputs(UPCGGraph* InGraph, const TSet<FPCGTaskId>& InGPUCompatibleTaskIds, TArray<FPCGGraphTask>& InOutCompiledTasks);
+	static void CreateGatherTasksAtGPUInputs(const TSet<FPCGTaskId>& InGPUCompatibleTaskIds, TArray<FPCGGraphTask>& InOutCompiledTasks);
 	
 	/** Wires in a compute graph element alongside each set of GPU compatible nodes. The tasks for each node will be culled later. */
 	static void WireGPUGraphNode(
@@ -50,9 +48,7 @@ public:
 	
 	/** Compiles a compute graph. */
 	static void BuildGPUGraphTask(
-		FPCGGraphCompiler& InOutCompiler,
 		UPCGGraph* InGraph,
-		uint32 InGridSize,
 		FPCGTaskId InGPUGraphTaskId,
 		const TSet<FPCGTaskId>& InCollapsedTasks,
 		const FTaskToSuccessors& InTaskSuccessors,
@@ -61,6 +57,5 @@ public:
 		const TMap<TObjectPtr<const UPCGPin>, FName>& InOutputCPUPinToVirtualPin);
 	
 	/** Finds connected subgraphs of GPU - enabled nodes that can be dispatched together and replaces each one with a compute graph. */
-	static void CreateGPUNodes(FPCGGraphCompiler& InOutCompiler, UPCGGraph* InGraph, uint32 InGridSize, TArray<FPCGGraphTask>& InOutCompiledTasks);
+	static void CreateGPUNodes(UPCGGraph* InGraph, TArray<FPCGGraphTask>& InOutCompiledTasks);
 };
-#endif // WITH_EDITOR

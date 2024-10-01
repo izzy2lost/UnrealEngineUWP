@@ -61,7 +61,6 @@ protected:
 	TObjectPtr<const UPCGSettings> ProducerSettings;
 
 	/** Whether this data should be copied from GPU to CPU. */
-	UPROPERTY()
 	bool bRequiresReadback = false;
 
 	static TCHAR const* TemplateFilePath;
