@@ -534,10 +534,12 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			check(Output.GetShape().Rank() == Input.GetShape().Rank());
 			check(NumDimensions == (Input.GetShape().Rank() - 2));
 
+#if !PLATFORM_MAC
 			if (DispatchConvWinograd(GraphBuilder, Input, Weights, Bias, Output))
 			{
 				return;
 			}
+#endif // !PLATFORM_MAC
 			if (DispatchConvMatmul(GraphBuilder, Input, Weights, Bias, Output))
 			{
 				return;

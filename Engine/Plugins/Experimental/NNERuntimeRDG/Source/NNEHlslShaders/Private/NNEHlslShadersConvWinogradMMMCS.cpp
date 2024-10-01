@@ -11,6 +11,9 @@ namespace UE::NNEHlslShaders::Internal
 {
 	bool FConvWinogradMMMCS::ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
+#if PLATFORM_MAC
+		return false;
+#else
 		if (!FHlslShaderBase::ShouldCompilePermutation(Parameters))
 		{
 			return false;
@@ -18,6 +21,7 @@ namespace UE::NNEHlslShaders::Internal
 		FPermutationDomain PermutationVector(Parameters.PermutationId);
 		ENNEShaderDataType DataType = PermutationVector.Get<FConvWinogradMMMCS::FDataType>();
 		return DataType == ENNEShaderDataType::FLOAT16 || DataType == ENNEShaderDataType::FLOAT32;
+#endif // PLATFORM_MAC
 	}
 
 	void FConvWinogradMMMCS::ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment)
