@@ -179,7 +179,7 @@ static void ApplyResourceStats(FShaderMapResourceCode& Resource)
 	INC_DWORD_STAT_BY(STAT_Shaders_ShaderResourceMemory, Resource.GetSizeBytes());
 	for (const FShaderCodeResource& Shader : Resource.ShaderCodeResources)
 	{
-		INC_DWORD_STAT_BY_FName(GetMemoryStatType(Shader.GetFrequency()).GetName(), Shader.GetCodeBuffer().GetSize());
+		INC_DWORD_STAT_BY_FName(GetMemoryStatType(Shader.Frequency).GetName(), Shader.Code.Num());
 	}
 #endif // STATS
 }
@@ -190,7 +190,7 @@ static void RemoveResourceStats(FShaderMapResourceCode& Resource)
 	DEC_DWORD_STAT_BY(STAT_Shaders_ShaderResourceMemory, Resource.GetSizeBytes());
 	for (const FShaderCodeResource& Shader : Resource.ShaderCodeResources)
 	{
-		DEC_DWORD_STAT_BY_FName(GetMemoryStatType(Shader.GetFrequency()).GetName(), Shader.GetCodeBuffer().GetSize());
+		DEC_DWORD_STAT_BY_FName(GetMemoryStatType(Shader.Frequency).GetName(), Shader.Code.Num());
 	}
 #endif // STATS
 }
@@ -231,7 +231,7 @@ uint32 FShaderMapResourceCode::GetSizeBytes() const
 	uint64 Size = sizeof(*this) + ShaderHashes.GetAllocatedSize() + ShaderCodeResources.GetAllocatedSize();
 	for (const FShaderCodeResource& Entry : ShaderCodeResources)
 	{
-		Size += Entry.GetCacheBuffer().GetSize();
+		Size += Entry.Code.GetAllocatedSize();
 	}
 	check(Size <= TNumericLimits<uint32>::Max());
 	return static_cast<uint32>(Size);
@@ -257,7 +257,9 @@ void FShaderMapResourceCode::AddShaderCompilerOutput(const FShaderCompilerOutput
 		AddEditorOnlyData(Index, DebugName, Output.PlatformDebugData, Output.Errors, Output.ShaderStatistics, DebugInfo);
 #endif
 
-		ShaderCodeResources.Insert(Output.GetFinalizedCodeResource(), Index);
+		// This moves the internal array in the Output's ShaderCode object into the resource format; assuming that after
+		// the code is moved to the shadermap that it's no longer required in the job output struct.
+		ShaderCodeResources.Insert(Output.ConvertCodeToResource(), Index);
 	}
 #if WITH_EDITORONLY_DATA
 	else
@@ -353,8 +355,8 @@ void FShaderMapResourceCode::ToString(FStringBuilderBase& OutString) const
 	for (int32 i = 0; i < ShaderHashes.Num(); ++i)
 	{
 		const FShaderCodeResource& Res = ShaderCodeResources[i];
-		OutString.Appendf(TEXT("    [%d]: { Hash: %s, Freq: %s, Size: %llu, UncompressedSize: %d }\n"),
-			i, *ShaderHashes[i].ToString(), GetShaderFrequencyString(Res.GetFrequency()), Res.GetCodeBuffer().GetSize(), Res.GetUncompressedSize());
+		OutString.Appendf(TEXT("    [%d]: { Hash: %s, Freq: %s, Size: %d, UncompressedSize: %d }\n"),
+			i, *ShaderHashes[i].ToString(), GetShaderFrequencyString(Res.Frequency), Res.Code.Num(), Res.UncompressedSize);
 	}
 }
 
@@ -653,21 +655,20 @@ FRHIShader* FShaderMapResource_InlineCode::CreateRHIShaderOrCrash(int32 ShaderIn
 
 	FMemStackBase& MemStack = FMemStack::Get();
 	const FShaderCodeResource& ShaderCodeResource = Code->ShaderCodeResources[ShaderIndex];
-	FSharedBuffer ShaderCode = ShaderCodeResource.GetCodeBuffer();
-	TConstArrayView<uint8> ShaderCodeView = ShaderCodeResource.GetCodeView();
+	const uint8* ShaderCode = ShaderCodeResource.Code.GetData();
 
 	FMemMark Mark(MemStack);
-	int32 UncompressedSize = ShaderCodeResource.GetUncompressedSize();
-	if (ShaderCode.GetSize() != UncompressedSize)
+	if (ShaderCodeResource.Code.Num() != ShaderCodeResource.UncompressedSize)
 	{
-		void* UncompressedCode = MemStack.Alloc(UncompressedSize, 16);
-		bool bSucceed = FCompression::UncompressMemory(GetShaderCompressionFormat(), UncompressedCode, UncompressedSize, ShaderCode.GetData(), ShaderCode.GetSize());
+		void* UncompressedCode = MemStack.Alloc(ShaderCodeResource.UncompressedSize, 16);
+		bool bSucceed = FCompression::UncompressMemory(GetShaderCompressionFormat(), UncompressedCode, ShaderCodeResource.UncompressedSize, ShaderCode, ShaderCodeResource.Code.Num());
 		check(bSucceed);
-		ShaderCodeView = MakeArrayView(reinterpret_cast<const uint8*>(UncompressedCode), UncompressedSize);
+		ShaderCode = (uint8*)UncompressedCode;
 	}
 
+	const auto ShaderCodeView = MakeArrayView(ShaderCode, ShaderCodeResource.UncompressedSize);
 	const FSHAHash& ShaderHash = Code->ShaderHashes[ShaderIndex];
-	const EShaderFrequency Frequency = ShaderCodeResource.GetFrequency();
+	const EShaderFrequency Frequency = ShaderCodeResource.Frequency;
 
 	TRefCountPtr<FRHIShader> RHIShader;
 	switch (Frequency)

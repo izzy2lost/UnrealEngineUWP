@@ -378,7 +378,7 @@ public:
 	FSharedBuffer JobOutput;
 
 	/** Separate blobs for shader code */
-	TArray<FCompositeBuffer> JobCode;
+	TArray<FSharedBuffer> JobCode;
 
 	/** Path to where the cached debug info is stored. */
 	FString CachedDebugInfoPath;
@@ -627,12 +627,9 @@ private:
 		FBlake3 Hasher;
 		check(SerializeContext.HasData());
 		Hasher.Update(SerializeContext.ShaderObjectData.GetData(), SerializeContext.ShaderObjectData.GetSize());
-		for (const FCompositeBuffer& CodeBuf : SerializeContext.ShaderCode)
+		for (const FSharedBuffer& CodeBuf : SerializeContext.ShaderCode)
 		{
-			for (const FSharedBuffer& CodeBufSegment : CodeBuf.GetSegments())
-			{
-				Hasher.Update(CodeBufSegment.GetData(), CodeBuf.GetSize());
-			}
+			Hasher.Update(CodeBuf.GetData(), CodeBuf.GetSize());
 		}
 		return Hasher.Finalize();
 	}
@@ -2235,10 +2232,8 @@ void FShaderJobCache::AddJobOutput(FShaderJobData& JobData, const FShaderCommonC
 				for (int32 CodeIndex = 0; CodeIndex < SaveContext.ShaderCode.Num(); ++CodeIndex)
 				{
 					const FString CacheCodeFilename = FString::Printf(TEXT("%s/%s_%d.bytecode"), *InputDebugInfoPath, *InputSourceFilename);
-					const FCompositeBuffer& JobCode = SaveContext.ShaderCode[CodeIndex];
-					check(JobCode.GetSegments().Num() == 2); // first segment is header, second is actual code
-					FSharedBuffer CodeBuffer = JobCode.GetSegments()[1];
-					FFileHelper::SaveArrayToFile(TArrayView<const uint8>((const uint8*)CodeBuffer.GetData(), CodeBuffer.GetSize()), *CacheCodeFilename);
+					const FSharedBuffer& JobCode = SaveContext.ShaderCode[CodeIndex];
+					FFileHelper::SaveArrayToFile(TArrayView<const uint8>((const uint8*)JobCode.GetData(), JobCode.GetSize()), *CacheCodeFilename);
 				}
 			}
 		}

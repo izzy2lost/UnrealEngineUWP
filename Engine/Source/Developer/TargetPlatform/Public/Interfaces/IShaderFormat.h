@@ -9,7 +9,6 @@
 
 class FSerializedShaderArchive;
 class FShaderPreprocessOutput;
-class FSharedBuffer;
 struct FShaderCompilerEnvironment;
 struct FShaderCompilerInput;
 struct FShaderCompilerOutput;
@@ -64,19 +63,6 @@ public:
 	*/
 	virtual bool SupportsShaderArchives() const { return false; }
 	
-	UE_DEPRECATED(5.5, "Use version accepting a TArray of FSharedBuffer code buffers.")
-	virtual bool CreateShaderArchive(FString const& LibraryName,
-		FName ShaderFormatAndShaderPlatformName,
-		const FString& WorkingDirectory,
-		const FString& OutputDir,
-		const FString& DebugOutputDir,
-		const FSerializedShaderArchive& SerializedShaders,
-		const TArray<TArray<uint8>>& ShaderCode,
-		TArray<FString>* OutputFiles) const
-	{ 
-		return false; 
-	}
-
 	/**
      * Create a format specific archive for precompiled shader code.
      *
@@ -94,11 +80,9 @@ public:
 		const FString& OutputDir,
 		const FString& DebugOutputDir,
 		const FSerializedShaderArchive& SerializedShaders,
-		const TArray<FSharedBuffer>& ShaderCode,
+		const TArray<TArray<uint8>>& ShaderCode,
 		TArray<FString>* OutputFiles) const
-	{ 
-		return false; 
-	}
+	{ return false; }
 	
 	/**
 	 * Can the shader format compile shaders to the native binary format for the platform.
