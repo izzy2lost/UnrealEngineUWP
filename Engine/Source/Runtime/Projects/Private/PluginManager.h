@@ -162,6 +162,9 @@ public:
 	virtual bool AreRequiredPluginsAvailable() override;
 	virtual FGetExplanationForUnavailablePackageWithPluginInfoDelegate& GetExplanationForUnavailablePackageWithPluginInfoDelegate() override;
 
+	virtual void SuppressPluginUnloadGC() override;
+	virtual void ResumePluginUnloadGC() override;
+
 #if !IS_MONOLITHIC
 	virtual bool CheckModuleCompatibility(TArray<FString>& OutIncompatibleModules, TArray<FString>& OutIncompatibleEngineModules) override;
 #endif

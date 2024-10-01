@@ -602,6 +602,12 @@ public:
 	virtual void SetPreloadBinaries() = 0;
 	virtual bool GetPreloadBinaries() = 0;
 
+	/**
+	 * Internal API for handling plugin garbage collection in a batch-friendly way.
+	 */
+	UE_INTERNAL virtual void SuppressPluginUnloadGC() = 0;
+	UE_INTERNAL virtual void ResumePluginUnloadGC() = 0;
+
 public:
 
 	/**

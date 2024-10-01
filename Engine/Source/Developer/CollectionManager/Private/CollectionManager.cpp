@@ -2170,6 +2170,13 @@ void FCollectionManager::HandleObjectsDeleted(TConstArrayView<FSoftObjectPath> O
 	TArray<FCollectionNameType> UpdatedCollections;
 	{
 		FCollectionLock_Write Guard(Lock);
+
+		if (SuppressObjectDeletionRefCount.load() > 0)
+		{
+			DeferredDeletedObjects.Append(ObjectPaths);
+			return;
+		}
+
 		CollectionCache->UpdateCaches(Guard, ECollectionCacheFlags::Objects);
 
 		for (const FSoftObjectPath& ObjectPath : ObjectPaths)
@@ -2193,6 +2200,30 @@ void FCollectionManager::HandleObjectsDeleted(TConstArrayView<FSoftObjectPath> O
 void FCollectionManager::HandleObjectDeleted(const FSoftObjectPath& ObjectPath)
 {
 	HandleObjectsDeleted(MakeArrayView(&ObjectPath, 1));
+}
+
+void FCollectionManager::SuppressObjectDeletionHandling()
+{
+	check(IsInGameThread());
+
+	SuppressObjectDeletionRefCount.fetch_add(1);
+}
+
+void FCollectionManager::ResumeObjectDeletionHandling()
+{
+	check(IsInGameThread());
+
+	int32 PrevRefCount = SuppressObjectDeletionRefCount.fetch_sub(1);
+	ensure(PrevRefCount >= 1);
+
+	if (PrevRefCount == 1)
+	{
+		if (!DeferredDeletedObjects.IsEmpty())
+		{
+			HandleObjectsDeleted(DeferredDeletedObjects);
+			DeferredDeletedObjects.Empty();
+		}
+	}
 }
 
 bool FCollectionManager::TickFileCache(float InDeltaTime)

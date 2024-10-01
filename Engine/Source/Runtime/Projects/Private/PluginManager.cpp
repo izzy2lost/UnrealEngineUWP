@@ -3623,6 +3623,22 @@ bool FPluginManager::UnmountExplicitlyLoadedPlugin(const FString& PluginName, FT
 	return true;
 }
 
+void FPluginManager::SuppressPluginUnloadGC()
+{
+	if (UE::PluginManager::Private::CoreUObjectPluginHandler)
+	{
+		UE::PluginManager::Private::CoreUObjectPluginHandler->SuppressPluginUnloadGC();
+	}
+}
+
+void FPluginManager::ResumePluginUnloadGC()
+{
+	if (UE::PluginManager::Private::CoreUObjectPluginHandler)
+	{
+		UE::PluginManager::Private::CoreUObjectPluginHandler->ResumePluginUnloadGC();
+	}
+}
+
 FName FPluginManager::PackageNameFromModuleName(FName ModuleName)
 {
 	FName Result = ModuleName;

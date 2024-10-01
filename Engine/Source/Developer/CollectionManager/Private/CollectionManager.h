@@ -220,6 +220,9 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	virtual void HandleObjectDeleted(const FSoftObjectPath& ObjectPath) override;
 	virtual void HandleObjectsDeleted(TConstArrayView<FSoftObjectPath> ObjectPaths) override;
 
+	virtual void SuppressObjectDeletionHandling() override;
+	virtual void ResumeObjectDeletionHandling() override;
+
 	/** Event for when collections are created */
 	DECLARE_DERIVED_EVENT( FCollectionManager, ICollectionManager::FCollectionCreatedEvent, FCollectionCreatedEvent );
 	virtual FCollectionCreatedEvent& OnCollectionCreated() override { return CollectionCreatedEvent; }
@@ -315,6 +318,8 @@ private:
 	/** A map of collection names to FCollection objects */
 	TMap<FCollectionNameType, TSharedRef<FCollection>> AvailableCollections;
 
+	TArray<FSoftObjectPath> DeferredDeletedObjects;
+
 	/** Cache of collection hierarchy, identity, etc */
 	TPimplPtr<FCollectionManagerCache> CollectionCache;
 
@@ -341,6 +346,9 @@ private:
 
 	/** When a collection checkin happens, use this event to add additional text to the changelist description */
 	FAddToCollectionCheckinDescriptionEvent AddToCollectionCheckinDescriptionEvent;
+
+	/** Ref count for deferring calls to HandleObjectsDeleted. When the ref count reaches 0 we flush all deferred notifications */
+	std::atomic<int32> SuppressObjectDeletionRefCount = 0;
 
 	/** When true, redirectors will not be automatically followed in collections during startup */
 	bool bNoFixupRedirectors;
