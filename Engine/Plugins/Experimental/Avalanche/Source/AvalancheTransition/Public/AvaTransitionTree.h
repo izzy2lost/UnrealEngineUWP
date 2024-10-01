@@ -42,6 +42,7 @@ public:
 		InstancingMode = InInstancingMode;
 	}
 
+	UFUNCTION(BlueprintPure, Category = "Transition Logic")
 	EAvaTransitionInstancingMode GetInstancingMode() const
 	{
 		return InstancingMode;

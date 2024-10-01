@@ -4,6 +4,7 @@
 
 #include "AvaTransitionScene.h"
 
+class UAvaTransitionTree;
 struct FAvaTransitionBehaviorInstance;
 struct FAvaTransitionContext;
 struct FStateTreeExecutionContext;
@@ -11,6 +12,8 @@ struct FStateTreeExecutionContext;
 struct FAvaTransitionBehaviorInstanceCache
 {
 	AVALANCHETRANSITION_API const FAvaTransitionContext* GetTransitionContext() const;
+
+	const UAvaTransitionTree* GetTransitionTree() const;
 
 	void SetCachedInstanceDataFromContext(const FStateTreeExecutionContext& InExecutionContext);
 

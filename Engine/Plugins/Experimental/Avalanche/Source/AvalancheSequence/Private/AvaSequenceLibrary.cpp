@@ -44,3 +44,16 @@ TScriptInterface<IAvaSequencePlaybackObject> UAvaSequenceLibrary::GetPlaybackObj
 
 	return TScriptInterface<IAvaSequencePlaybackObject>(PlaybackObject->ToUObject());	
 }
+
+FAvaSequencePlayParams UAvaSequenceLibrary::MakeSingleFramePlaySettings(const FAvaSequenceTime& InTargetTime, EAvaSequencePlayMode InPlayMode)
+{
+	FAvaSequencePlayParams PlaySettings;
+
+	// Set start to the largest double, so that it gets clamped down to be End Time (i.e. time that the Sequence should evaluate)
+	// Start is not set to End as the passed in time could be unset (no time constraint) -- which then could resolve to different values for Start/End.
+	PlaySettings.Start = FAvaSequenceTime(TNumericLimits<double>::Max());
+	PlaySettings.End = InTargetTime;
+	PlaySettings.PlayMode = InPlayMode;
+
+	return PlaySettings;
+}

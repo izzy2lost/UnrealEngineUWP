@@ -5,6 +5,7 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "AvaTransitionLibrary.generated.h"
 
+class UAvaTransitionTree;
 enum class EAvaTransitionComparisonResult : uint8;
 enum class EAvaTransitionLayerCompareType : uint8;
 enum class EAvaTransitionType : uint8;
@@ -27,4 +28,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="Transition Logic", meta=(DefaultToSelf="InTransitionNode"))
 	static bool IsOtherSceneTransitioning(UObject* InTransitionNode, const TSoftObjectPtr<UWorld>& InSceneAsset);
+
+	UFUNCTION(BlueprintCallable, Category="Transition Logic", meta=(DefaultToSelf="InTransitionNode"))
+	static const UAvaTransitionTree* GetTransitionTree(UObject* InTransitionNode);
 };

@@ -174,3 +174,12 @@ bool UAvaTransitionLibrary::IsOtherSceneTransitioning(UObject* InTransitionNode,
 
 	return bFoundInstance;
 }
+
+const UAvaTransitionTree* UAvaTransitionLibrary::GetTransitionTree(UObject* InTransitionNode)
+{
+	if (const IAvaTransitionNodeInterface* NodeInterface = Cast<IAvaTransitionNodeInterface>(InTransitionNode))
+	{
+		return NodeInterface->GetBehaviorInstanceCache().GetTransitionTree();
+	}
+	return nullptr;
+}

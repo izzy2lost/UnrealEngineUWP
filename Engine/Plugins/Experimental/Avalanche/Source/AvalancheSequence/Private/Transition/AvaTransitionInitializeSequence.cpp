@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Transition/AvaTransitionInitializeSequence.h"
+#include "AvaSequenceLibrary.h"
 #include "AvaSequencePlaybackObject.h"
 #include "AvaTransitionUtils.h"
 #include "Math/NumericLimits.h"
@@ -36,14 +37,9 @@ TArray<UAvaSequencePlayer*> FAvaTransitionInitializeSequence::ExecuteSequenceTas
 		return TArray<UAvaSequencePlayer*>();
 	}
 
-	FAvaSequencePlayParams PlaySettings;
-
 	const FInstanceDataType& InstanceData = InContext.GetInstanceData(*this);
 
-	// Set start to the largest double, so that it gets clamped down to be at the End Time (i.e. time that the Sequence should evaluate)
-	PlaySettings.Start = FAvaSequenceTime(TNumericLimits<double>::Max());
-	PlaySettings.End = InstanceData.InitializeTime;
-	PlaySettings.PlayMode = InstanceData.PlayMode;
+	const FAvaSequencePlayParams PlaySettings = UAvaSequenceLibrary::MakeSingleFramePlaySettings(InstanceData.InitializeTime, InstanceData.PlayMode);
 
 	switch (InstanceData.QueryType)
 	{
