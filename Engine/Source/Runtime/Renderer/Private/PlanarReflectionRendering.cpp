@@ -371,22 +371,6 @@ static void UpdatePlanarReflectionContents_RenderThread(
 #else
 		RDG_EVENT_SCOPE(GraphBuilder, "UpdatePlanarReflectionContent_RenderThread");
 #endif
-		// Applies late update (if any) to view matrices and re-reflects
-		if (SceneRenderer->Views.Num() > 1)
-		{
-			const FMirrorMatrix MirrorMatrix(MirrorPlane);
-			for (int32 ViewIndex = 0; ViewIndex < SceneRenderer->Views.Num(); ++ViewIndex)
-			{
-				FViewInfo& ReflectionViewToUpdate = SceneRenderer->Views[ViewIndex];
-
-				// Updates view matrices to match new ViewLocation/ViewRotation, un-reflects
-				// Normally performed in late update itself, delayed to here to ensure we don't ever re-reflect without first un-reflecting
-				ReflectionViewToUpdate.UpdateViewMatrix(); 
-
-				// Re-reflects view matrices
-				ReflectionViewToUpdate.UpdatePlanarReflectionViewMatrix(ReflectionViewToUpdate, MirrorMatrix);
-			}
-		}
 
 		// Render the scene normally
 		{
