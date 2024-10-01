@@ -2411,10 +2411,6 @@ void SReferenceViewer::ResolveReferencingProperties() const
 				}
 
 				TArray<FReferencingPropertyDescription> ReferencingPropertiesArray = GraphObj->RetrieveReferencingProperties(ReferencingObject, ReferencedObject);
-				if (ReferencingPropertiesArray.IsEmpty())
-				{
-					continue;
-				}
 
 				GraphObj->CreateReferencedPropertiesNode(ReferencingPropertiesArray, ReferencingNode, ReferencedNode);
 			}

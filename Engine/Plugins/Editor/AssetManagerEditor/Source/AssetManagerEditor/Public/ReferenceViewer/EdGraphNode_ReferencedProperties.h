@@ -23,11 +23,13 @@ struct FReferencingPropertyDescription
 		None
 	};
 
-	FReferencingPropertyDescription(const FString& InName, const FString& InReferencerName, const EAssetReferenceType& InType, const UClass* InClass) :
+	FReferencingPropertyDescription(const FString& InName, const FString& InReferencerName, const FString& InReferencedNodeName, const EAssetReferenceType& InType, const UClass* InClass, bool bInIsIndirect = false) :
 		Name(InName),
 		ReferencerName(InReferencerName),
+		ReferencedNodeName(InReferencedNodeName),
 		Type(InType),
-		PropertyClass(InClass)
+		PropertyClass(InClass),
+		bIsIndirectReference(bInIsIndirect)
 	{
 	}
 
@@ -44,6 +46,9 @@ struct FReferencingPropertyDescription
 	/** Returns the name of the property referencer */
 	const FString& GetReferencerName() const { return ReferencerName; }
 
+	/** Returns the name of the referenced node */
+	const FString& GetReferencedNodeName() const { return ReferencedNodeName; }
+
 	/** Returns the property type */
 	EAssetReferenceType GetType() const { return Type; }
 
@@ -52,15 +57,19 @@ struct FReferencingPropertyDescription
 
 	const UClass* GetPropertyClass() const { return PropertyClass; }
 
+	bool IsIndirect() const { return bIsIndirectReference; }
+
 private:
 	friend class SReferencedPropertyNode;
 	FReferencingPropertyDescription() = default;
 
 	FString Name;
 	FString ReferencerName;
+	FString ReferencedNodeName;
 	EAssetReferenceType Type = EAssetReferenceType::None;
 
 	const UClass* PropertyClass = nullptr;
+	bool bIsIndirectReference = false;
 };
 
 
