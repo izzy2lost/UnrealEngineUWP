@@ -223,12 +223,6 @@ void UKismetRenderingLibrary::DrawMaterialToRenderTarget(UObject* WorldContextOb
 
 			//UpdateResourceImmediate must be called here to ensure mips are generated.
 			TextureRenderTarget->UpdateResourceImmediate(false);
-
-			ENQUEUE_RENDER_COMMAND(ResetSceneTextureExtentHistory)(
-				[RenderTargetResource](FRHICommandListImmediate& RHICmdList)
-				{
-					RenderTargetResource->ResetSceneTextureExtentsHistory();
-				});
 		}
 	}
 }
