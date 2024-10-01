@@ -29,8 +29,8 @@ void FOnlineAsyncTaskGooglePlayWriteAchievements::Tick()
 
 bool FOnlineAsyncTaskGooglePlayWriteAchievements::SetSucceeded(const TArray<FString>& SucceededIds)
 {
-	// Remove data of entried that did not succeed
-	return 0 != WriteAchievementsData.RemoveAll([&SucceededIds](const FGooglePlayAchievementWriteData& Entry)
+	// Remove data of entries that did not succeed. Task succeeded if no entry was removed
+	return 0 == WriteAchievementsData.RemoveAll([&SucceededIds](const FGooglePlayAchievementWriteData& Entry)
 		{
 			return Algo::NoneOf(SucceededIds, [&Entry](const FString& Id) { return Id == Entry.GooglePlayAchievementId;} );
 		});
