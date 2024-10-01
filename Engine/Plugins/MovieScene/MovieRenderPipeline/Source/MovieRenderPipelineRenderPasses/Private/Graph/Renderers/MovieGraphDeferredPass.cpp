@@ -271,6 +271,7 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 			SampleState.OverlappedSubpixelShift = OverlappedSubpixelShift;
 			SampleState.OverscanFraction = CameraInfo.ViewInfo.GetOverscan();
 			SampleState.bAllowOCIO = ParentNodeThisFrame->GetAllowOCIO();
+			SampleState.bAllowsCompositing = ParentNodeThisFrame->GetAllowsCompositing();
 			SampleState.SceneCaptureSource = SceneCaptureSource;
 			SampleState.CompositingSortOrder = 10;
 		}

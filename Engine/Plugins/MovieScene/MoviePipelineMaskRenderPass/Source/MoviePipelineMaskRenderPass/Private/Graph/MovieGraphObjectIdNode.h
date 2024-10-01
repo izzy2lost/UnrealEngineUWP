@@ -25,6 +25,7 @@ public:
 	virtual FEngineShowFlags GetShowFlags() const override;
 	virtual EViewModeIndex GetViewModeIndex() const override;
 	virtual bool GetAllowsShowFlagsCustomization() const override;
+	virtual bool GetAllowsCompositing() const override;
 	// ~UMovieGraphImagePassBaseNode Interface
 
 	// UMovieGraphNode Interface

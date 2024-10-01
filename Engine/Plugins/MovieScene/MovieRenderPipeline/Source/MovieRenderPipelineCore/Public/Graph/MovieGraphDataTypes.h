@@ -348,6 +348,7 @@ namespace UE::MovieGraph
 			, bRequiresAccumulator(false)
 			, bFetchFromAccumulator(false)
 			, bCompositeOnOtherRenders(false)
+			, bAllowsCompositing(true)
 			, OverscanFraction(0.f)
 			, CompositingSortOrder(0)
 			, bAllowOCIO(true)
@@ -381,6 +382,9 @@ namespace UE::MovieGraph
 
 		/** Set this to true if this pass should be composited on top of other renders. */
 		bool bCompositeOnOtherRenders;
+
+		/** Set this to false if this pass should not allow other passes to be composited onto it. */
+		bool bAllowsCompositing;
 
 		/** When using high-res tiling, how many pixels does each tile overlap the adjacent tiles (on each side)? This should be zero if not using tiling. */
 		FIntPoint OverlappedPad;
