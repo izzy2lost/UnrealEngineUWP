@@ -1118,7 +1118,7 @@ bool FMetasoundFrontendGraphClass::RemoveGraphPage(const FGuid& InPageID, FGuid*
 				{
 					*OutAdjacentPageID = PagedGraphs[Index - 1].PageID;
 				}
-				else if (Index < PagedGraphs.Num() - 1)
+				else if (Index < PagedGraphs.Num())
 				{
 					*OutAdjacentPageID = PagedGraphs[0].PageID;
 				}

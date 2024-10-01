@@ -250,8 +250,6 @@ public:
 	// optionally set to reverse, iterates in reverse.
 	void IteratePageSettings(TFunctionRef<void(const FMetaSoundPageSettings&)> Iter, bool bReverse = false) const;
 
-	virtual void PostLoad() override;
-
 	// Sets the target page to the given name. Returns true if associated page settings were found
 	// and target set, false if not found and not set.
 	bool SetTargetPage(FName PageName);
@@ -283,6 +281,11 @@ private:
 
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-	virtual void PostInitProperties() override;
 #endif // WITH_EDITOR
+
+	virtual void PostInitProperties() override;
+
+#if !NO_LOGGING
+	mutable bool bWarnAccessBeforeInit = true;
+#endif // !NO_LOGGING
 };

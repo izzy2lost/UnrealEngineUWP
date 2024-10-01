@@ -350,10 +350,24 @@ const FMetaSoundPageSettings& UMetaSoundSettings::GetTargetPageSettings() const
 {
 	const FName TargetPage = TargetPageNameOverride.IsSet() ? *TargetPageNameOverride : TargetPageName;
 
+#if !NO_LOGGING
+	auto WarnIfUninitialized = [this](const FMetaSoundPageSettings& SettingsSet)
+	{
+		if (bWarnAccessBeforeInit)
+		{
+			UE_LOG(LogMetaSound, Display, TEXT("Target Page Settings accessed prior to 'PostLoad' called.  Uninitialized PageSettings '%s' being returned."), *SettingsSet.Name.ToString());
+			bWarnAccessBeforeInit = false;
+		}
+	};
+#endif // !NO_LOGGING
+
 	if (const FMetaSoundPageSettings* TargetSettings = FindPageSettings(TargetPage))
 	{
 		if (TargetSettings->CanTarget.GetValue())
 		{
+#if !NO_LOGGING
+			WarnIfUninitialized(*TargetSettings);
+#endif // !NO_LOGGING
 			return *TargetSettings;
 		}
 	}
@@ -364,10 +378,16 @@ const FMetaSoundPageSettings& UMetaSoundSettings::GetTargetPageSettings() const
 	{
 		if (Setting.CanTarget.GetValue())
 		{
+#if !NO_LOGGING
+			WarnIfUninitialized(Setting);
+#endif // !NO_LOGGING
 			return Setting;
 		}
 	}
 
+#if !NO_LOGGING
+	WarnIfUninitialized(DefaultPageSettings);
+#endif // !NO_LOGGING
 	return DefaultPageSettings;
 }
 
@@ -399,15 +419,58 @@ void UMetaSoundSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyC
 
 	DenyListCacheChangeID++;
 }
+#endif // WITH_EDITOR
 
 void UMetaSoundSettings::PostInitProperties()
 {
 	Super::PostInitProperties();
 
+#if WITH_EDITOR
 	constexpr bool bNotifyDefaultRenamed = false;
 	ConformPageSettings(bNotifyDefaultRenamed);
-}
 #endif // WITH_EDITOR
+
+#if !NO_LOGGING
+	bWarnAccessBeforeInit = false;
+#endif // !NO_LOGGING
+
+#if WITH_EDITORONLY_DATA
+	UE_LOG(LogMetaSound, Display, TEXT("MetaSound Page Target Initialized to '%s'"), *GetTargetPageSettings().Name.ToString());
+#else // !WITH_EDITORONLY_DATA
+	if (const FMetaSoundPageSettings* Page = FindPageSettings(TargetPageName))
+	{
+		if (Page->CanTarget.GetValue())
+		{
+			UE_LOG(LogMetaSound, Display, TEXT("MetaSound Page Target Initialized to '%s'"), *GetTargetPageSettings().Name.ToString());
+			return;
+		}
+	}
+
+	UE_LOG(LogMetaSound, Warning, TEXT("TargetPageName on load in MetaSound settings did not correspond to a valid targetable page."));
+	if (DefaultPageSettings.CanTarget.GetValue())
+	{
+		UE_LOG(LogMetaSound, Warning, TEXT("Setting target to 'Default' page settings."));
+		TargetPageNameOverride = DefaultPageSettings.Name;
+		return;
+	}
+	else
+	{
+		for (const FMetaSoundPageSettings& Page : PageSettings)
+		{
+			if (Page.CanTarget.GetValue())
+			{
+				UE_LOG(LogMetaSound, Warning, TEXT("Setting target to '%s' page settings."), *Page.Name.ToString());
+				TargetPageNameOverride = Page.Name;
+				return;
+			}
+		}
+
+		UE_LOG(LogMetaSound, Warning, TEXT("Setting target to 'Default' page settings & forcing default as targetable."));
+		DefaultPageSettings.CanTarget.Default = true;
+		TargetPageNameOverride = DefaultPageSettings.Name;
+	}
+#endif // !WITH_EDITORONLY_DATA
+}
 
 bool UMetaSoundSettings::SetTargetPage(FName PageName)
 {
@@ -496,42 +559,5 @@ void UMetaSoundSettings::IteratePageSettings(TFunctionRef<void(const FMetaSoundP
 			Iter(Setting);
 		}
 	}
-}
-
-void UMetaSoundSettings::PostLoad()
-{
-#if !WITH_EDITORONLY_DATA
-	if (const FMetaSoundPageSettings* Page = FindPageSettings(TargetPageName))
-	{
-		if (Page->CanTarget.GetValue())
-		{
-			return;
-		}
-	}
-
-	UE_LOG(LogMetaSound, Warning, TEXT("TargetPageName on load in MetaSound settings did not correspond to a valid targetable page."));
-	if (DefaultPageSettings.CanTarget.GetValue())
-	{
-		UE_LOG(LogMetaSound, Warning, TEXT("Setting target to 'Default' page settings."));
-		TargetPageNameOverride = DefaultPageSettings.Name;
-		return;
-	}
-	else
-	{
-		for (const FMetaSoundPageSettings& Page : PageSettings)
-		{
-			if (Page.CanTarget.GetValue())
-			{
-				UE_LOG(LogMetaSound, Warning, TEXT("Setting target to '%s' page settings."), *Page.Name.ToString());
-				TargetPageNameOverride = Page.Name;
-				return;
-			}
-		}
-
-		UE_LOG(LogMetaSound, Warning, TEXT("Setting target to 'Default' page settings & forcing default as targetable."));
-		DefaultPageSettings.CanTarget.Default = true;
-		TargetPageNameOverride = DefaultPageSettings.Name;
-	}
-#endif // !WITH_EDITORONLY_DATA
 }
 #undef LOCTEXT_NAMESPACE // MetaSound
