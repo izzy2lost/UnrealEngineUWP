@@ -171,7 +171,7 @@ struct FDMXConflictMonitorSettings
 };
 
 /** Settings that holds editor configurations. Not accessible in Project Settings. TODO: Idealy rename to UDMXEditorConfiguration */
-UCLASS(Config = DMXEditor)
+UCLASS(Config = EditorPerProjectUserSettings)
 class DMXEDITOR_API UDMXEditorSettings : public UObject
 {
 	GENERATED_BODY()
