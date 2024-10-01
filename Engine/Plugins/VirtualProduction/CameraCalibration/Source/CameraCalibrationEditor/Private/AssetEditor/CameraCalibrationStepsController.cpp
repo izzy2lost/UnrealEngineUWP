@@ -1218,6 +1218,18 @@ bool FCameraCalibrationStepsController::OnSimulcamViewportInputKey(const FKey& I
 	return bStepHandled;
 }
 
+void FCameraCalibrationStepsController::OnSimulcamViewportMarqueeSelect(FVector2D StartPosition, FVector2D EndPosition)
+{
+	for (TStrongObjectPtr<UCameraCalibrationStep>& Step : CalibrationSteps)
+	{
+		if (Step.IsValid() && Step->IsActive())
+		{
+			Step->OnViewportMarqueeSelect(StartPosition, EndPosition);
+			break;
+		}
+	}
+}
+
 FReply FCameraCalibrationStepsController::OnRewindButtonClicked()
 {
 	// Rewind to the beginning of the media

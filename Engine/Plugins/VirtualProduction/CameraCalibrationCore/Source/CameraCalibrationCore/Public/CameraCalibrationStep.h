@@ -41,6 +41,9 @@ public:
 	/** Callback when key is pressed while viewport is focused. Returns false if the event was not handled. */
 	virtual bool OnViewportInputKey(const FKey& InKey, const EInputEvent& InEvent) { return false; };
 
+	/** Callback when the user performs a marquee select operation. Returns false if the event was not handled. */
+	virtual bool OnViewportMarqueeSelect(FVector2D StartPosition, FVector2D EndPosition) { return false; };
+
 	/** Returns the UI of this camera calibration step. Expected to only be called once */
 	virtual TSharedRef<SWidget> BuildUI() { return SNew(SVerticalBox); };
 
