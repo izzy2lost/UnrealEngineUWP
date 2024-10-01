@@ -492,7 +492,8 @@ void FPackagePreloader::DecrementCountFromRequestedLoads()
 	}
 }
 
-void FPackagePreloader::SetRequestedLoads(TArray<TRefCountPtr<FPackagePreloader>>&& InRequestedLoads)
+void FPackagePreloader::SetRequestedLoads(TArray<TRefCountPtr<FPackagePreloader>>&& InRequestedLoads,
+	bool bMakeActive)
 {
 	FPackageDatas& PackageDatas = PackageData.GetPackageDatas();
 	check(RequestedLoads.IsEmpty()); // This function is only for setting from empty.
@@ -507,7 +508,7 @@ void FPackagePreloader::SetRequestedLoads(TArray<TRefCountPtr<FPackagePreloader>
 			NeedsLoadData.SetLeafToRootRank(PackageDatas.GetNextLeafToRootRank());
 		}
 
-		if (NeedsLoadPreloader->GetState() == EPreloaderState::Inactive)
+		if (NeedsLoadPreloader->GetState() == EPreloaderState::Inactive && bMakeActive)
 		{
 			NeedsLoadPreloader->SendToState(EPreloaderState::PendingKick, ESendFlags::QueueAddAndRemove);
 		}
@@ -625,23 +626,39 @@ bool FPackagePreloader::PumpLoadsTryStartInboxPackage(UCookOnTheFlyServer& COTFS
 		return false;
 	}
 
-	FPackageData* PackageData = Inbox.PopFrontValue();
-	check(PackageData->GetState() == EPackageState::Load);
-	TRefCountPtr<FPackagePreloader> Preloader = PackageData->GetPackagePreloader();
+	FPackageData* PoppedPackageData = Inbox.PopFrontValue();
+	check(PoppedPackageData->GetState() == EPackageState::Load);
+	TRefCountPtr<FPackagePreloader> Preloader = PoppedPackageData->GetPackagePreloader();
 	check(Preloader);
 	Preloader->SetIsInInbox(false);
 
-	if (COTFS.TryCreateRequestCluster(*PackageData))
+	// A required invariant for any preloader moved into an active state is that it has a count from the packages in
+	// load state that are requesting it. Assert that we satisfy that invariant for *this during this function.
+	ON_SCOPE_EXIT
+	{
+		if (Preloader->GetState() != EPreloaderState::Inactive)
+		{
+			check(Preloader->GetCountFromRequestedLoads() > 0);
+		}
+	};
+
+	if (COTFS.TryCreateRequestCluster(*PoppedPackageData))
 	{
 		return true;
 	}
 
 	// If the package is already ready for loading, or we otherwise want to skip preloading for it,
 	// skip the preload containers and put in the ReadyLoads container
-	if (!COTFS.bPreloadingEnabled || Preloader->IsPackageLoaded() || PackageData->GetIsUrgent())
+	if (!COTFS.bPreloadingEnabled || Preloader->IsPackageLoaded() || PoppedPackageData->GetIsUrgent())
 	{
 		if (Preloader->GetState() != EPreloaderState::ReadyForLoad)
 		{
+			if (!Preloader->HasInitializedRequestedLoads())
+			{
+				Preloader->SetHasInitializedRequestedLoads(true);
+				Preloader->SetRequestedLoads(TArray<TRefCountPtr<FPackagePreloader>>({ Preloader }),
+					false /* bMakeActive */);
+			}
 			Preloader->SendToState(EPreloaderState::ReadyForLoad, ESendFlags::QueueAddAndRemove);
 		}
 		return true;
@@ -674,6 +691,12 @@ bool FPackagePreloader::PumpLoadsTryStartInboxPackage(UCookOnTheFlyServer& COTFS
 	{
 		// Edgecase: we've already initialized loads, but the preloader is inactive and not loaded somehow. Put it
 		// directly into ReadyForLoad since its not clear that it needs preloading.
+		if (!Preloader->HasInitializedRequestedLoads())
+		{
+			Preloader->SetHasInitializedRequestedLoads(true);
+			Preloader->SetRequestedLoads(TArray<TRefCountPtr<FPackagePreloader>>({ Preloader }),
+				false /* bMakeActive */);
+		}
 		Preloader->SendToState(EPreloaderState::ReadyForLoad, ESendFlags::QueueAddAndRemove);
 	}
 
