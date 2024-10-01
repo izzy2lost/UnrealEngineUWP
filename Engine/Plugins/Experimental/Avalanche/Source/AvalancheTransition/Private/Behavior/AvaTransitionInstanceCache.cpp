@@ -13,6 +13,15 @@ const FAvaTransitionContext* FAvaTransitionBehaviorInstanceCache::GetTransitionC
 	return nullptr;
 }
 
+const UAvaTransitionTree* FAvaTransitionBehaviorInstanceCache::GetTransitionTree() const
+{
+	if (CachedBehaviorInstance && CachedSceneOwner.IsValid())
+	{
+		return CachedBehaviorInstance->GetTransitionTree();
+	}
+	return nullptr;
+}
+
 void FAvaTransitionBehaviorInstanceCache::SetCachedInstanceDataFromContext(const FStateTreeExecutionContext& InExecutionContext)
 {
 	if (const FAvaTransitionBehaviorInstance* BehaviorInstance = UE::AvaTransition::GetBehaviorInstance(InExecutionContext))
