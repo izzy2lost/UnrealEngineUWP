@@ -68,6 +68,9 @@
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
 #include "IAssetViewport.h"
 
+// for editor selection queries
+#include "Selection.h"
+
 #if ENABLE_STYLUS_SUPPORT
 #include "ModelingStylusInputHandler.h"
 #endif
@@ -2291,6 +2294,10 @@ void FModelingToolsEditorModeToolkit::ShowRealtimeAndModeWarnings(bool bShowReal
 	{
 		WarningText = LOCTEXT("ModelingModeToolkitRealtimeWarning", "Realtime Mode is required for Modeling Tools to work correctly. Please enable Realtime Mode in the Viewport Options or with the Ctrl+r hotkey.");
 	}
+	else if (EngineAssetsSelected())
+	{
+		WarningText = LOCTEXT("ModelingModeToolkitEngineAssetsWarning", "Selection includes Engine assets, which cannot be modified.");
+	}
 	if (!WarningText.IdenticalTo(ActiveWarning))
 	{
 		ActiveWarning = WarningText;
@@ -2716,6 +2723,33 @@ IToolStylusStateProviderAPI* FModelingToolsEditorModeToolkit::GetStylusStateProv
 #else
 	return nullptr;
 #endif
+}
+
+
+bool FModelingToolsEditorModeToolkit::EngineAssetsSelected() const
+{
+	auto HasEngineAsset = [](UStaticMeshComponent* SMC) -> bool
+	{
+		UStaticMesh* StaticMesh = SMC->GetStaticMesh();
+		return StaticMesh && StaticMesh->GetPathName().StartsWith(TEXT("/Engine/"));
+	};
+	bool bFoundEngineAssets = false;
+	for (FSelectionIterator It(GEditor->GetSelectedActorIterator()); It; ++It)
+	{
+		AActor* Actor = static_cast<AActor*>(*It);
+		Actor->ForEachComponent<UStaticMeshComponent>(false, [&HasEngineAsset, &bFoundEngineAssets](UStaticMeshComponent* SMC)
+		{
+			bFoundEngineAssets = bFoundEngineAssets || HasEngineAsset(SMC);
+		});
+	}
+	for (FSelectionIterator It(GEditor->GetSelectedComponentIterator()); It; ++It)
+	{
+		if (UStaticMeshComponent* SMC = Cast<UStaticMeshComponent>(*It))
+		{
+			bFoundEngineAssets = bFoundEngineAssets || HasEngineAsset(SMC);
+		}
+	}
+	return bFoundEngineAssets;
 }
 
 

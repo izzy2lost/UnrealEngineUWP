@@ -230,6 +230,9 @@ private:
 	TUniquePtr<UE::Modeling::FStylusInputHandler> StylusInputHandler;
 #endif
 
+	// tests if selection includes components backed by assets from the /Engine folder, of types the tools might otherwise modify (currently, static meshes)
+	bool EngineAssetsSelected() const;
+
 };
 
 #undef LOCTEXT_NAMESPACE
