@@ -254,6 +254,7 @@ void UUVSelectTool::Setup()
 	TransformGizmo->bSnapToWorldGrid = false;
 	TransformGizmo->bSnapToWorldRotGrid = false;
 	TransformGizmo->bUseContextCoordinateSystem = false;
+	TransformGizmo->bSnapToScaleGrid = false;
 
 	TransformGizmo->SetActiveTarget(TransformProxy, GetToolManager());
 	
