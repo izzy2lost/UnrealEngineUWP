@@ -32,7 +32,9 @@ bool UMovieGraphMember::SetMemberName(const FString& InNewName)
 	FText UnusedError;
 	if (CanRename(FText::FromString(InNewName), UnusedError))
 	{
+		Modify();
 		Name = InNewName;
+		
 		return true;
 	}
 
