@@ -179,6 +179,12 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 		// Perform compositing if any composited passes were found earlier
 		for (TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& CompositedPass : CompositedPasses)
 		{
+			// This pass may not allow other passes to be composited on it
+			if (!Payload->bAllowsCompositing)
+			{
+				continue;
+			}
+			
 			// This composited pass will only composite on top of renders w/ the same branch and camera
 			if (!CompositedPass.Key.IsBranchAndCameraEqual(RenderData.Key))
 			{
@@ -369,6 +375,12 @@ void UMovieGraphImageSequenceOutputNode_EXR::OnReceiveImageDataImpl(UMovieGraphP
 		// Perform compositing if any composited passes were found earlier
 		for (TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& CompositedPass : CompositedPasses)
 		{
+			// This pass may not allow other passes to be composited on it
+			if (!Payload->bAllowsCompositing)
+			{
+				continue;
+			}
+			
 			// This composited pass will only composite on top of renders w/ the same branch and camera
 			if (CompositedPass.Key.IsBranchAndCameraEqual(RenderData.Key))
 			{

@@ -40,6 +40,12 @@ bool UMovieGraphObjectIdNode::GetAllowsShowFlagsCustomization() const
 	return false;
 }
 
+bool UMovieGraphObjectIdNode::GetAllowsCompositing() const
+{
+	// Having anything composited into an Object ID pass would corrupt the data in it
+	return false;
+}
+
 #if WITH_EDITOR
 FText UMovieGraphObjectIdNode::GetNodeTitle(const bool bGetDescriptive) const
 {

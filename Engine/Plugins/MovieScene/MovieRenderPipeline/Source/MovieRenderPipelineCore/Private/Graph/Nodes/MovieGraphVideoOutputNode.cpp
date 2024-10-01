@@ -83,6 +83,7 @@ void UMovieGraphVideoOutputNode::OnReceiveImageDataImpl(UMovieGraphPipeline* InP
 		}
 
 		FImagePixelData* RawRenderPassData = RenderPassData.Value.Get();
+		const UE::MovieGraph::FMovieGraphSampleState* Payload = RawRenderPassData->GetPayload<UE::MovieGraph::FMovieGraphSampleState>();
 
 		// Write this frame's beauty pass, and pass along other passes so the encoder can composite them
 		if (RenderPassData.Key.SubResourceName == TEXT("beauty"))
@@ -90,6 +91,12 @@ void UMovieGraphVideoOutputNode::OnReceiveImageDataImpl(UMovieGraphPipeline* InP
 			TArray<FMovieGraphPassData> CompositesForThisCamera;
 			for (FMovieGraphPassData& CompositePass : CompositedPasses)
 			{
+				// This pass may not allow other passes to be composited on it 
+				if (!Payload->bAllowsCompositing)
+				{
+					continue;
+				}
+				
 				// Match them up by camera name so multiple passes intended for different camera names work.
 				if (RenderPassData.Key.CameraName == CompositePass.Key.CameraName)
 				{
