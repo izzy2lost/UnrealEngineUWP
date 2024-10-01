@@ -145,7 +145,8 @@ bool UCommonInputSubsystem::GetInputTypeFilter(ECommonInputType InputType) const
 
 void UCommonInputSubsystem::AddOrRemoveInputTypeLock(FName InReason, ECommonInputType InInputType, bool bAddLock)
 {
-	if (bAddLock)
+	// Make sure the input is supported before locking it, otherwise remove it if it exists
+	if (bAddLock && PlatformSupportsInputType(InInputType))
 	{
 		ECommonInputType& CurrentValue = CurrentInputLocks.FindOrAdd(InReason);
 		CurrentValue = InInputType;
