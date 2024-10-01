@@ -47,6 +47,8 @@ protected:
 	
 	void OnNameCommitted(const FText& InText, ETextCommit::Type Arg, UMovieGraphMember* MovieGraphMember) const
 	{
+		const FScopedTransaction Transaction(LOCTEXT("SetMemberName_Transaction", "Set Graph Member Name"));
+		
 		if (MovieGraphMember->SetMemberName(InText.ToString()))
 		{
 			NameEditableTextBox->SetError(FText::GetEmpty());
