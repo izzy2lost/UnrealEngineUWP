@@ -24,7 +24,7 @@
 #include "Iris/Serialization/VectorNetSerializers.h"
 
 #include "Net/DataBunch.h"
-
+#include "Net/Core/Connection/ConnectionHandle.h"
 #include "Net/Iris/ReplicationSystem/EngineReplicationBridge.h"
 
 #include "ProfilingDebugging/AssetMetadataTrace.h"
@@ -454,7 +454,7 @@ void UNetActorFactory::PostInstantiation(const FPostInstantiationContext& Contex
 
 	// OnActorChannelOpen
 	{
-		UNetConnection* Connection = NetDriver->GetConnectionById(Context.ConnectionId);
+		UNetConnection* Connection = NetDriver->GetConnectionByHandle(FConnectionHandle(Context.ConnectionId));
 		FInBunch Bunch(Connection, const_cast<uint8*>(BaseHeader->CustomCreationData.GetData()), BaseHeader->CustomCreationDataBitCount);
 		Actor->OnActorChannelOpen(Bunch, Connection);
 

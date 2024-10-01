@@ -82,4 +82,7 @@ public:
 	virtual void InitLocalConnection(UNetDriver* InDriver, class FSocket* InSocket, const FURL& InURL, EConnectionState InState, int32 InMaxPacket = 0, int32 InPacketOverhead = 0) override {}
 
 	virtual void InitChildConnection(UNetDriver* InDriver, UNetConnection* InParent);
+
+private:
+	void AssignConnectionHandle();
 };

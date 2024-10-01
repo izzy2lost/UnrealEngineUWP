@@ -29,6 +29,7 @@
 #include "Net/Common/Packets/PacketTraits.h"
 #include "Net/Core/Misc/ResizableCircularQueue.h"
 #include "Net/NetAnalyticsTypes.h"
+#include "Net/Core/Connection/ConnectionHandle.h"
 #include "Net/Core/Connection/NetCloseResult.h"
 #include "Net/TrafficControl.h"
 #include "Net/NetDormantHolder.h"
@@ -630,10 +631,27 @@ public:
 	int32			LogCallCount;
 	int32			LogSustainedCount;
 
-	uint32 GetConnectionId() const { return ConnectionId; }
-	void SetConnectionId(uint32 InConnectionId) { ConnectionId = InConnectionId; }
+	/** Returns a connection identifier which contains both parent connection and child connection information. */
+	UE::Net::FConnectionHandle GetConnectionHandle() const
+	{
+		return ConnectionHandle;
+	}
 
+	UE_DEPRECATED(5.6, "Use GetConnectionHandle() instead")
+	uint32 GetConnectionId() const
+	{ 
+		return ConnectionHandle.IsParentConnection() ? ConnectionHandle.GetParentConnectionId() : UE::Net::FConnectionHandle().GetParentConnectionId();
+	}
+
+	UE_DEPRECATED(5.6, "External code should not be setting connection IDs. For valid use cases SetConnectionHandle() should be used instead.")
+	void SetConnectionId(uint32 InConnectionId)
+	{
+		// Using this deprecated method will result in previous behavior which didn't support child connections in a meaningful way. We assume this is a parent connection.
+		ConnectionHandle = UE::Net::FConnectionHandle(InConnectionId);
+	}
+	
 	/** If this is a child connection it will return the topmost parent coonnection ID, otherwise it will return its own ID. */
+	UE_DEPRECATED(5.6, "Use GetConnectionHandle instead")
 	ENGINE_API uint32 GetParentConnectionId() const;
 
 	FNetTraceCollector* GetInTraceCollector() const;
@@ -1736,8 +1754,8 @@ private:
 	/** Whether or not PacketOrderCache is presently being flushed */
 	bool bFlushingPacketOrderCache;
 
-	/** Unique ID that can be used instead of passing around a pointer to the connection */
-	uint32 ConnectionId;
+	/** Per NetDriver unique ID that can be used instead of passing around a pointer to the connection. Be careful if caching as the handle can be re-purposed as connections are destroyed and created. */
+	UE::Net::FConnectionHandle ConnectionHandle;
 
 #if UE_NET_TRACE_ENABLED
 	FNetTraceCollector* InTraceCollector = nullptr;
@@ -1856,6 +1874,11 @@ protected:
 	TOptional<FNetworkCongestionControl> NetworkCongestionControl;
 
 	void InitChannelData();
+
+	void SetConnectionHandle(UE::Net::FConnectionHandle Handle)
+	{
+		ConnectionHandle = Handle;
+	}
 
 public:
 	/**

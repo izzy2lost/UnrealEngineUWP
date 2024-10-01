@@ -16,6 +16,7 @@
 #include "Misc/NetworkGuid.h"
 #include "UObject/CoreNet.h"
 #include "Channel.h"
+#include "Net/Core/Connection/ConnectionHandle.h"
 #include "Net/Core/Misc/DDoSDetection.h"
 #include "IPAddress.h"
 #include "Net/NetAnalyticsTypes.h"
@@ -1987,8 +1988,12 @@ public:
 	inline uint32 AllocateConnectionId() { return ConnectionIdHandler.Allocate(); }
 	inline void FreeConnectionId(uint32 Id) { return ConnectionIdHandler.Free(Id); };
 
-	/** Returns the NetConnection associated with the ConnectionId. Slow. */
-	ENGINE_API UNetConnection* GetConnectionById(uint32 ConnectionId) const;
+	/** Returns the NetConnection associated with the ParentConnectionId. Slow. */
+	UE_DEPRECATED(5.6, "Use GetConnectionByHandle()")
+	ENGINE_API UNetConnection* GetConnectionById(uint32 ParentConnectionId) const;
+
+	/** Returns the NetConnection associated with the ConnectionHandle. Slow as it iterates over all connections to find one with matching handle. */
+	ENGINE_API UNetConnection* GetConnectionByHandle(UE::Net::FConnectionHandle ConnectionHandle) const;
 
 	/** Returns identifier used for NetTrace */
 	inline uint32 GetNetTraceId() const { return NetTraceId; }

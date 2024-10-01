@@ -10,6 +10,7 @@
 #include "Iris/ReplicationSystem/NetRefHandle.h"
 #include "Iris/ReplicationSystem/NetObjectGroupHandle.h"
 #include "Iris/ReplicationSystem/ReplicationSystemTypes.h"
+#include "Net/Core/Connection/ConnectionHandle.h"
 #include "Net/Core/NetHandle/NetHandle.h"
 
 #include "ReplicationSystem.generated.h"
@@ -555,7 +556,7 @@ public:
 	IRISCORE_API FNetObjectGroupHandle GetSubObjectFilterGroupHandle(FName GroupName) const;
 
 	/** Set status of GroupFilter for specific connection. */
-	IRISCORE_API void SetSubObjectFilterStatus(FName GroupName, uint32 ConnectionId, UE::Net::ENetFilterStatus ReplicationStatus);
+	IRISCORE_API void SetSubObjectFilterStatus(FName GroupName, UE::Net::FConnectionHandle ConnectionHandle, UE::Net::ENetFilterStatus ReplicationStatus);
 
 	/** Remove group from filtering system, will cancel effects of the group. */
 	IRISCORE_API void RemoveSubObjectFilter(FName GroupName);

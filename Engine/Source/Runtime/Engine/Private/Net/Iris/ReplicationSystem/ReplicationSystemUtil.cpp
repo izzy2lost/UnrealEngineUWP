@@ -18,6 +18,7 @@
 #include "HAL/IConsoleManager.h"
 #include "Templates/Casts.h"
 #include "Net/Subsystems/NetworkSubsystem.h"
+#include "Net/Core/Connection/ConnectionHandle.h"
 #include "Net/Core/Misc/NetConditionGroupManager.h"
 #include "Net/Core/NetHandle/NetHandleManager.h"
 #include "GameFramework/PlayerController.h"
@@ -560,7 +561,7 @@ void FReplicationSystemUtil::RemoveSubObjectGroupMembership(const APlayerControl
 	{
 		if (UReplicationSystem* ReplicationSystem = Conn->GetDriver() ? Conn->GetDriver()->GetReplicationSystem() : nullptr)
 		{
-			ReplicationSystem->SetSubObjectFilterStatus(NetGroup, Conn->GetConnectionId(), ENetFilterStatus::Disallow);
+			ReplicationSystem->SetSubObjectFilterStatus(NetGroup, Conn->GetConnectionHandle(), ENetFilterStatus::Disallow);
 		}
 	}
 }
@@ -572,13 +573,13 @@ void FReplicationSystemUtil::UpdateSubObjectGroupMemberships(const APlayerContro
 	{
 		if (UReplicationSystem* ReplicationSystem = Conn->GetDriver() ? Conn->GetDriver()->GetReplicationSystem() : nullptr)
 		{
-			const uint32 ConnId = Conn->GetParentConnectionId();
+			const FConnectionHandle ConnectionHandle = Conn->GetConnectionHandle();
 			for (const FName NetGroup : PC->GetNetConditionGroups())
 			{
 				if (!IsSpecialNetConditionGroup(NetGroup))
 				{
 					FNetObjectGroupHandle SubObjectGroupHandle = ReplicationSystem->GetOrCreateSubObjectFilter(NetGroup);
-					ReplicationSystem->SetSubObjectFilterStatus(NetGroup, ConnId, ENetFilterStatus::Allow);
+					ReplicationSystem->SetSubObjectFilterStatus(NetGroup, ConnectionHandle, ENetFilterStatus::Allow);
 				}
 			}
 		}

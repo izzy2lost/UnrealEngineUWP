@@ -1957,7 +1957,7 @@ void UControlChannel::ReceivedBunch( FInBunch& Bunch )
 #if UE_WITH_IRIS
 				if (UReplicationSystem* IrisRepSystem = Connection->Driver->GetReplicationSystem())
 				{
-					IrisRepSystem->ReportProtocolMismatch(NetRefHandleId, Connection->GetConnectionId());
+					IrisRepSystem->ReportProtocolMismatch(NetRefHandleId, Connection->GetConnectionHandle().GetParentConnectionId());
 				}
 #endif
 			}
@@ -1971,7 +1971,7 @@ void UControlChannel::ReceivedBunch( FInBunch& Bunch )
 #if UE_WITH_IRIS
 				if (UReplicationSystem* IrisRepSystem = Connection->Driver->GetReplicationSystem())
 				{
-					IrisRepSystem->ReportErrorWithNetRefHandle(NetRefHandleError, NetRefHandleId, Connection->GetConnectionId());
+					IrisRepSystem->ReportErrorWithNetRefHandle(NetRefHandleError, NetRefHandleId, Connection->GetConnectionHandle().GetParentConnectionId());
 				}
 #endif
 			}

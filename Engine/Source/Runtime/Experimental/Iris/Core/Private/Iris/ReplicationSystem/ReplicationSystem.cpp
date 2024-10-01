@@ -1321,7 +1321,7 @@ UE::Net::FNetObjectGroupHandle UReplicationSystem::GetSubObjectFilterGroupHandle
 	return FNetObjectGroupHandle();
 }
 
-void UReplicationSystem::SetSubObjectFilterStatus(FName GroupName, uint32 ConnectionId, UE::Net::ENetFilterStatus ReplicationStatus)
+void UReplicationSystem::SetSubObjectFilterStatus(FName GroupName, UE::Net::FConnectionHandle ConnectionHandle, UE::Net::ENetFilterStatus ReplicationStatus)
 {
 	using namespace UE::Net;
 	using namespace UE::Net::Private;
@@ -1342,7 +1342,7 @@ void UReplicationSystem::SetSubObjectFilterStatus(FName GroupName, uint32 Connec
 	if (GroupHandle.IsValid())
 	{
 		FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();
-		Filtering.SetSubObjectFilterStatus(GroupHandle, ConnectionId, ReplicationStatus);
+		Filtering.SetSubObjectFilterStatus(GroupHandle, ConnectionHandle, ReplicationStatus);
 
 		FReplicationConditionals& Conditionals = Impl->ReplicationSystemInternal.GetConditionals();
 		Conditionals.MarkLifeTimeConditionalsDirtyForObjectsInGroup(GroupHandle);
