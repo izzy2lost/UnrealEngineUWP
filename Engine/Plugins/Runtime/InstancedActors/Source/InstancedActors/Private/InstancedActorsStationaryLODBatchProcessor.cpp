@@ -9,22 +9,20 @@
 #include "InstancedActorsData.h"
 #include "InstancedActorsDebug.h"
 #include "InstancedActorsSubsystem.h"
+#include "InstancedActorsCommands.h"
 #include "InstancedActorsVisualizationProcessor.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "StaticMeshResources.h"
 
 #include "MassActorSubsystem.h"
 #include "MassCommands.h"
-#include "MassDistanceLODProcessor.h"
 #include "MassExecutionContext.h"
-#include "MassLODFragments.h"
 #include "MassLODSubsystem.h"
 #include "MassLODTypes.h"
 #include "MassRepresentationFragments.h"
 #include "MassRepresentationProcessor.h"
 #include "MassRepresentationTypes.h"
 #include "MassSignalSubsystem.h"
-#include "MassSmartObjectRegistration.h"
 #include "MassStationaryISMSwitcherProcessor.h"
 
 
@@ -131,9 +129,6 @@ void UInstancedActorsStationaryLODBatchProcessor::ConfigureQueries()
 void UInstancedActorsStationaryLODBatchProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
 	SCOPE_CYCLE_COUNTER(STAT_InstancedActorsStationaryLODBatchProcessor_Execute);
-
-	using FAddRelevantTagsCommand = FMassCommandAddTags<FMassInActiveSmartObjectsRangeTag, FMassDistanceLODProcessorTag, FMassCollectDistanceLODViewerInfoTag, FMassStationaryISMSwitcherProcessorTag, FInstancedActorsVisualizationProcessorTag>;
-	using FRemoveRelevantTagsCommand = FMassCommandRemoveTags<FMassInActiveSmartObjectsRangeTag, FMassDistanceLODProcessorTag, FMassCollectDistanceLODViewerInfoTag, FMassStationaryISMSwitcherProcessorTag, FInstancedActorsVisualizationProcessorTag>;
 
 	// some of the code below assumes EInstancedActorsBulkLOD::Detailed == 0, we need to verify that's the case. If not the code below needs updating.
 	static_assert((uint8)EInstancedActorsBulkLOD::Detailed == 0, "Code below relies on the assumptions. Needs to be updated if the assumption is broken");
@@ -341,7 +336,7 @@ void UInstancedActorsStationaryLODBatchProcessor::Execute(FMassEntityManager& En
 
 						if (ManagerSharedFragment.BulkLOD == EInstancedActorsBulkLOD::Detailed)
 						{
-							EntityManager.Defer().PushCommand<FAddRelevantTagsCommand>(InstanceData->Entities);
+							EntityManager.Defer().PushCommand<UE::InstancedActors::FEnableDetailedLODCommand>(InstanceData->Entities);
 						}
 						else
 						{
@@ -377,7 +372,8 @@ void UInstancedActorsStationaryLODBatchProcessor::Execute(FMassEntityManager& En
 									UMassStationaryISMSwitcherProcessor::ProcessContext(Context);
 								});
 
-							EntityManager.Defer().PushCommand<FRemoveRelevantTagsCommand>(InstanceData->Entities);
+							// Removes a bunch of tags from all mass entities that belong to an InstancedActorsData, so that we don't spend MassProcessor time on them
+							EntityManager.Defer().PushCommand<UE::InstancedActors::FEnableBatchLODCommand>(InstanceData->Entities);
 						}
 					}
 				}
