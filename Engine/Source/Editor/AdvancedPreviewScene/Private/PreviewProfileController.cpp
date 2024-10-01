@@ -102,6 +102,22 @@ FString FPreviewProfileController::GetActiveProfile() const
 	return FString();
 }
 
+bool FPreviewProfileController::HasAnyUserProfiles() const
+{
+	if (AssetViewerSettings)
+	{
+		for (const FPreviewSceneProfile& Profile : AssetViewerSettings->Profiles)
+		{
+			if (!Profile.bIsEngineDefaultProfile)
+			{
+				return true;
+			}
+		}
+	}
+	
+	return false;
+}
+
 void FPreviewProfileController::EnsureProfilesStateCoherence() const
 {
 	ensureMsgf(AssetViewerProfileNames.Num() == AssetViewerSettings->Profiles.Num(), TEXT("List of profiles is out of sync with the list of corresponding profile names."));

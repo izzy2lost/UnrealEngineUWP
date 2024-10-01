@@ -24,6 +24,9 @@ public:
 	/** Returns the preview profiles currently active. */
 	virtual FString GetActiveProfile() const = 0;
 
+	/** Returns true if user has added one or more of their own profiles */
+	virtual bool HasAnyUserProfiles() const = 0;
+
 	/** Invoked after the list of available profiles has changed. */
 	DECLARE_EVENT(IPreviewProfileController, FOnPreviewProfileListChanged);
 	virtual FOnPreviewProfileListChanged& OnPreviewProfileListChanged() = 0;

@@ -331,6 +331,16 @@ void SAnimViewportToolBar::Construct(const FArguments& InArgs, TSharedPtr<class 
 		.Padding(ToolbarSlotPadding)
 		[
 			SNew(SPreviewSceneProfileSelector).PreviewProfileController(InArgs._PreviewProfileController)
+			.Visibility_Lambda([this]()
+			{
+				// only show this menu if the user has customized it by adding their own profiles
+				// this behavior was requested by UX to match the behavior of the static mesh editor
+				if (PreviewProfileController.IsValid())
+				{
+					return PreviewProfileController->HasAnyUserProfiles() ? EVisibility::Visible : EVisibility::Hidden;
+				}
+				return EVisibility::Hidden;
+			})
 		]
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
