@@ -139,7 +139,7 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 		Context->DataBinding->Initialize(Context->ComputeGraph.Get(), Context->SourceComponent, Context->InputData, Context->ComputeGraph->GetAttributeLookupTable());
 
 		// Perform validation after input data is initialized.
-		for (TWeakObjectPtr<const UPCGNode> Node : Context->ComputeGraph->KernelToNode)
+		for (TSoftObjectPtr<const UPCGNode> Node : Context->ComputeGraph->KernelToNode)
 		{
 			const UPCGSettings* Settings = Node.Get() ? Node->GetSettings() : nullptr;
 
@@ -464,7 +464,7 @@ void FPCGComputeGraphElement::PostExecuteInternal(FPCGContext* InContext) const
 #if WITH_EDITOR
 	if (Context->bExecutionSuccess)
 	{
-		for (TWeakObjectPtr<const UPCGNode> NodePtr : Context->DataBinding->Graph->KernelToNode)
+		for (TSoftObjectPtr<const UPCGNode> NodePtr : Context->DataBinding->Graph->KernelToNode)
 		{
 			const UPCGNode* Node = NodePtr.Get();
 			UPCGComponent* Component = Context->SourceComponent.Get();
