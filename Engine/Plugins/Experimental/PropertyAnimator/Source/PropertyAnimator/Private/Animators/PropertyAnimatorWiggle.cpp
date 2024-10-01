@@ -15,6 +15,11 @@ UPropertyAnimatorWiggle::UPropertyAnimatorWiggle()
 	CycleMode = EPropertyAnimatorCycleMode::None;
 }
 
+void UPropertyAnimatorWiggle::SetFrequency(float InFrequency)
+{
+	Frequency = FMath::Max(0, InFrequency);
+}
+
 void UPropertyAnimatorWiggle::OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata)
 {
 	Super::OnAnimatorRegistered(InMetadata);
@@ -25,7 +30,6 @@ void UPropertyAnimatorWiggle::OnAnimatorRegistered(FPropertyAnimatorCoreMetadata
 bool UPropertyAnimatorWiggle::EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const
 {
 	const double TimeElapsed = InParameters.GetValueDouble(TimeElapsedParameterName).GetValue();
-	const double Frequency = InParameters.GetValueDouble(FrequencyParameterName).GetValue();
 
 	// Apply random wave based on time and frequency
 	const double WaveResult = UE::PropertyAnimator::Wave::Perlin(TimeElapsed, 1.f, Frequency, 0.f);
@@ -37,4 +41,34 @@ bool UPropertyAnimatorWiggle::EvaluateProperty(const FPropertyAnimatorCoreData& 
 	InParameters.SetValueFloat(AlphaParameterName, NormalizedValue);
 
 	return InContext->EvaluateProperty(InPropertyData, InParameters, OutEvaluationResult);
+}
+
+bool UPropertyAnimatorWiggle::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FPropertyAnimatorCorePresetArchive>& InValue)
+{
+	if (Super::ImportPreset(InPreset, InValue) && InValue->IsObject())
+	{
+		const TSharedPtr<FPropertyAnimatorCorePresetObjectArchive> AnimatorArchive = InValue->AsMutableObject();
+
+		double FrequencyValue = Frequency;
+		AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorWiggle, Frequency), FrequencyValue);
+		SetFrequency(FrequencyValue);
+
+		return true;
+	}
+
+	return false;
+}
+
+bool UPropertyAnimatorWiggle::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FPropertyAnimatorCorePresetArchive>& OutValue) const
+{
+	if (Super::ExportPreset(InPreset, OutValue) && OutValue->IsObject())
+	{
+		const TSharedPtr<FPropertyAnimatorCorePresetObjectArchive> AnimatorArchive = OutValue->AsMutableObject();
+
+		AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorWiggle, Frequency), Frequency);
+
+		return true;
+	}
+
+	return false;
 }
