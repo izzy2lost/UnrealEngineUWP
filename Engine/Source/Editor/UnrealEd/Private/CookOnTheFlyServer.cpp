@@ -10554,7 +10554,14 @@ void UCookOnTheFlyServer::CookByTheBookFinishedInternal()
 			TRefCountPtr<FGenerationHelper> GenerationHelper = PackageData->GetGenerationHelper();
 			if (GenerationHelper)
 			{
-				DanglingGenerationHelpers.Add(PackageData);
+				// One reason it might still be around is the keepforiterativeflag, if it were in the oplog but never
+				// cooked. Clear that flag now and then retest whether it is still referenced.
+				GenerationHelper->ClearKeepForIterative();
+				GenerationHelper.SafeRelease();
+				if (PackageData->GetGenerationHelper())
+				{
+					DanglingGenerationHelpers.Add(PackageData);
+				}
 			}
 		});
 	for (FPackageData* PackageData : DanglingGenerationHelpers)
