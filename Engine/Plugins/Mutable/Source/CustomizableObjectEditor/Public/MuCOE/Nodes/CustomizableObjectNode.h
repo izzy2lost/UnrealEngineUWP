@@ -100,7 +100,7 @@ public:
 
 	/** Allocates the default pins using the empty remap pins action. Usually called from CreateNode. */
 	virtual void AllocateDefaultPins() override final; // Final. Override AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) instead
-	
+
 	/** Reconstructs the node using its default remap pins action. */
 	virtual void ReconstructNode() override final; // Final. Override ReconstructNode(UCustomizableObjectNodeRemapPins* RemapPins) instead
 	virtual void PostInitProperties() override;
@@ -120,12 +120,12 @@ public:
 	 * Since this function is used BackwardsCompatibleFixup, it should not have major changes (or they will break existing fixups).
 	 * If changes are needed, duplicate this function so old fixups remain unchanged. */
 	void FixupReconstructPins(UCustomizableObjectNodeRemapPins* RemapPinsAction, TFunction<void(UCustomizableObjectNode*, UCustomizableObjectNodeRemapPins*)> AllocateDefaultPins);
-	
+
 	/** Add post load work here.
 	 * When called, it is guaranteed that all nodes in this graph will have executed the BackwardsCompatibleFixup function.
 	 * Notice that no compatibility code should not go here. Use BackwardsCompatibleFixup instead. */
 	virtual void PostBackwardsCompatibleFixup() {}
-	
+
 	/** Virtual implementation of RemovePin. Allows to do work before removing a pin.
 	 * Use this function instead of RemovePin. RemovePin does not removes possible attached PinData. */
 	virtual bool CustomRemovePin(UEdGraphPin& Pin);
@@ -133,7 +133,7 @@ public:
 	/**
 	 * Subclasses should override this to return true and set OutCategory if this node should be
 	 * auto-added to the right-click context menu in the graph editor.
-	 * 
+	 *
 	 * Some nodes are added manually in the graph editor code and don't need to do this.
 	 */
 	virtual bool ShouldAddToContextMenu(FText& OutCategory) const;
@@ -141,7 +141,7 @@ public:
 	void GetInputPins(TArray<class UEdGraphPin*>& OutInputPins) const;
 	void GetOutputPins(TArray<class UEdGraphPin*>& OutOutputPins) const;
 	UEdGraphPin* GetOutputPin(int32 OutputIndex) const;
-	
+
 	virtual bool IsNodeOutDatedAndNeedsRefresh() { return false; }
 	virtual FString GetRefreshMessage() const { return "Refresh Node."; }
 	void SetRefreshNodeWarning();
@@ -159,17 +159,17 @@ public:
 	{
 		TArrayView<const float> UnassignedUVs;
 	};
-	
-	/** 
-	 * Check if two pins can be connected. 
-	 * 
+
+	/**
+	 * Check if two pins can be connected.
+	 *
 	 * @param	InOwnedInputPin	Input pin which belongs to this node.
 	 * @param	InOutputPin		Output pin which belongs to another node. If the node connects to iself, it could belong to this node.
 	 * @param	bOutIsOtherNodeBlocklisted		Is the other node of a type we are not allowed to connect?
 	 * @param	bOutArePinsCompatible		Does InOutputPin pin share the same type as the InOwnedInputPin?
 	 * @return	True if the pin types match and if the other node is not one of the Blocklisted types.
 	 */
-	virtual bool CanConnect( const UEdGraphPin* InOwnedInputPin, const UEdGraphPin* InOutputPin, bool& bOutIsOtherNodeBlocklisted, bool& bOutArePinsCompatible) const;
+	virtual bool CanConnect(const UEdGraphPin* InOwnedInputPin, const UEdGraphPin* InOutputPin, bool& bOutIsOtherNodeBlocklisted, bool& bOutArePinsCompatible) const;
 
 	// Used during compilation process to cache the node for all LODs, or generate it specifically for each of them.
 	virtual bool IsAffectedByLOD() const;
@@ -177,6 +177,26 @@ public:
 	/** Return an array of tags that this node will enable and apply to its data. Null if none, or of it doesn't apply. */
 	virtual TArray<FString>* GetEnableTags();
 
+	/** Return the unique internal tag that can identify this node across all objects.
+	* Internal tags are automatically added to some nodes that can be then referred to from other nodes.
+	* They are usually shown differently in the UI, to represent them as tags that will be defined in a single node.
+	*/
+	FString GetInternalTag() const;
+
+	/** Return a valid GUID if a tag represents an internal tag. */
+	static FGuid GetInternalTagNodeId(const FString& Tag);
+	static bool IsInternalTag(const FString& Tag);
+
+	/** Find the object and node that a given tag refers to, if it belongs to the same CO hierarchy that this node. */
+	bool FindNodeForInternalTag(const FString& Tag, UCustomizableObjectNode*& OutNode, UCustomizableObject*& OutObject);
+
+	/** Return a non-unique, non-persistent UI-ready text to represent the interna tag of this node. It includes some node information for the user to identify the tag. */
+	virtual FString GetInternalTagDisplayName();
+
+	/** Return a UI-ready text to represent the given tag. For most cases this is just the tag, but if it is an internal tag
+	* of any node related to this one (in the same CO hierarchy) a more descriptive (non-persitent) name is build with node information.
+	*/
+	FString GetTagDisplayName(const FString& Tag);
 
 	// Get the CustomizableObject graph that owns this node
 	class UCustomizableObjectGraph* GetCustomizableObjectGraph() const;

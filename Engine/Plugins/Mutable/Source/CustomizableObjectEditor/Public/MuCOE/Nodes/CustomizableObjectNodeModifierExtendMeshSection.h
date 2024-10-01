@@ -43,6 +43,7 @@ public:
 	virtual bool IsSingleOutputNode() const override;
 	virtual bool CustomRemovePin(UEdGraphPin& Pin) override;
 	virtual TArray<FString>* GetEnableTags() override;
+	virtual FString GetInternalTagDisplayName() override;
 
 	// Own interface
 	UEdGraphPin* AddMeshPin() const;

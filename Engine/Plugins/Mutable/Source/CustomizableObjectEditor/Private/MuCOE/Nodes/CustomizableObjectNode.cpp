@@ -24,6 +24,9 @@ struct FPropertyChangedEvent;
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
+/** This is used to generate automatic unique tags for some nodes. */
+#define MUTABLE_INTERNAL_TAG_PREFIX		"MutableInternalTag_"
+
 
 UCustomizableObjectGraph* UCustomizableObjectNode::GetCustomizableObjectGraph() const
 {
@@ -429,6 +432,93 @@ bool UCustomizableObjectNode::IsAffectedByLOD() const
 TArray<FString>* UCustomizableObjectNode::GetEnableTags()
 { 
 	return nullptr; 
+}
+
+
+FString UCustomizableObjectNode::GetInternalTag() const
+{
+	return FString::Printf(TEXT("%s%s"), TEXT(MUTABLE_INTERNAL_TAG_PREFIX), *NodeGuid.ToString());
+}
+
+
+FGuid UCustomizableObjectNode::GetInternalTagNodeId(const FString& Tag)
+{
+	FGuid TempId;
+
+	bool bCorrect = Tag.StartsWith(TEXT(MUTABLE_INTERNAL_TAG_PREFIX));
+	if (bCorrect)
+	{
+		int32 PrefixSize = FString(TEXT(MUTABLE_INTERNAL_TAG_PREFIX)).Len();
+		FString IdString = Tag.RightChop(PrefixSize);
+		bCorrect = FGuid::Parse(IdString, TempId);
+	}
+
+	return bCorrect ? TempId : FGuid();
+}
+
+
+bool UCustomizableObjectNode::IsInternalTag(const FString& Tag)
+{
+	return GetInternalTagNodeId(Tag).IsValid();
+}
+
+
+bool UCustomizableObjectNode::FindNodeForInternalTag(const FString& Tag, UCustomizableObjectNode*& OutNode, UCustomizableObject*& OutObject)
+{
+	OutNode = nullptr;
+	OutObject = nullptr;
+
+	FGuid NodeId = GetInternalTagNodeId(Tag);
+	if (!NodeId.IsValid())
+	{
+		return false;
+	}
+
+	// Scan all potential receivers
+	UCustomizableObject* ThisNodeObject = GetRootObject(*this);
+	UCustomizableObject* RootObject = GraphTraversal::GetRootObject(ThisNodeObject);
+
+	TSet<UCustomizableObject*> AllCustomizableObject;
+	GetAllObjectsInGraph(RootObject, AllCustomizableObject);
+
+	for (UCustomizableObject* CustObject : AllCustomizableObject)
+	{
+		if (CustObject)
+		{
+			for (const TObjectPtr<UEdGraphNode>& CandidateNode : CustObject->GetPrivate()->GetSource()->Nodes)
+			{
+				if (CandidateNode->NodeGuid == NodeId)
+				{
+					OutNode = Cast<UCustomizableObjectNode>(CandidateNode);
+					OutObject = CustObject;
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
+
+FString UCustomizableObjectNode::GetInternalTagDisplayName()
+{
+	ensure(false);
+	return FString();
+}
+
+
+FString UCustomizableObjectNode::GetTagDisplayName(const FString& InTag)
+{
+	UCustomizableObjectNode* InternalTagNode = nullptr;
+	UCustomizableObject* InternalTagObject = nullptr;
+	bool bIsInternal = FindNodeForInternalTag(InTag, InternalTagNode, InternalTagObject);
+	if (bIsInternal && InternalTagNode)
+	{
+		return InternalTagNode->GetInternalTagDisplayName();
+	}
+
+	return InTag;
 }
 
 

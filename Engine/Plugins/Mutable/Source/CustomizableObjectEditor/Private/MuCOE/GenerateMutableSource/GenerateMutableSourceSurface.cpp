@@ -975,6 +975,8 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 			{
 				SurfNode->Tags.AddUnique(Tag);
 			}
+
+			SurfNode->Tags.AddUnique( TypedNodeMat->GetInternalTag() );
 		}
 
 		TArray<mu::Ptr<mu::NodeSurfaceNew>>* ArraySurfaceNodePtr = GenerationContext.MapMaterialNodeToMutableSurfaceNodeArray.Find(TypedNodeMat->GetMaterialNode());

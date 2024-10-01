@@ -28,11 +28,13 @@ public:
 
 	SLATE_BEGIN_ARGS(SMutableTagComboBox)
 		: _Node(nullptr)
+		, _AllowInternalTags(true)
 		{}
 		/** Slot for this button's content (optional) */
 		SLATE_DEFAULT_SLOT(FArguments, Content)
 		SLATE_ARGUMENT(UCustomizableObjectNode*, Node)
 		SLATE_ARGUMENT(const FSlateBrush*, MenuButtonBrush)
+		SLATE_ARGUMENT(bool, AllowInternalTags)
 		SLATE_EVENT(FOnTextChanged, OnSelectionChanged)
 
 	SLATE_END_ARGS()
@@ -49,6 +51,8 @@ private:
 
 	TArray< TSharedRef<SMutableSearchComboBox::FFilteredOption> > TagComboOptionsSource;
 
+	bool bAllowInternalTags = true;
+
 	/** */
 	TSharedPtr<SMutableSearchComboBox::FFilteredOption> AddNodeHierarchyOptions(UEdGraphNode* Node, TMap<UEdGraphNode*, TSharedPtr<SMutableSearchComboBox::FFilteredOption>>& AddedOptions);
 
@@ -63,11 +67,13 @@ public:
 	SLATE_BEGIN_ARGS(SMutableTagListWidget)
 		: _Node(nullptr)
 		, _TagArray(nullptr)
+		, _AllowInternalTags(true)
 		{}
 
 		SLATE_ARGUMENT(UCustomizableObjectNode*, Node)
 		SLATE_ARGUMENT(TArray<FString>*, TagArray)
 		SLATE_ARGUMENT(FText, EmptyListText)
+		SLATE_ARGUMENT(bool, AllowInternalTags)
 
 		SLATE_EVENT(FSimpleDelegate, OnTagListChanged)
 
@@ -89,7 +95,6 @@ private:
 	FText EmptyListText;
 
 	TSharedPtr<SMutableTagComboBox> TagCombo;
-	TArray< TSharedRef<SMutableSearchComboBox::FFilteredOption> > TagComboOptionsSource;
 	void OnTagComboBoxSelectionChanged(const FText& NewText);
 
 	struct FTagUIData
