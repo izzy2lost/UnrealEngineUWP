@@ -340,6 +340,7 @@ namespace MoviePipeline
 			, bOriginalShotSectionIsLocked(false)
 			, bOriginalCameraCutIsActive(false)
 			, bOriginalShotSectionIsActive(false)
+			, OriginalSequenceFlags(EMovieSceneSequenceFlags::None)
 			, EvaluationType(EMovieSceneEvaluationType::WithSubFrames)
 			, NodeID(MovieSceneSequenceID::Invalid)
 		{
@@ -364,6 +365,7 @@ namespace MoviePipeline
 
 		bool bOriginalCameraCutIsActive;
 		bool bOriginalShotSectionIsActive;
+		EMovieSceneSequenceFlags OriginalSequenceFlags;
 
 		/** An array of sections that we should expand, as well as their original range for restoration later. */
 		TArray<TTuple<UMovieSceneSection*, TRange<FFrameNumber>>> AdditionalSectionsToExpand;
