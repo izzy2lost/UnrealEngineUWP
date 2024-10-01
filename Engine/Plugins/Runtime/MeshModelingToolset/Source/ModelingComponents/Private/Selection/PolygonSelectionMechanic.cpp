@@ -2,15 +2,35 @@
 
 #include "Selection/PolygonSelectionMechanic.h"
 #include "Engine/World.h"
+#include "InteractiveToolManager.h"
 #include "Selection/GroupTopologySelector.h"
 #include "Selection/PersistentMeshSelection.h"
 #include "Selections/GeometrySelection.h"
+#include "Selections/GeometrySelectionUtil.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PolygonSelectionMechanic)
 
 using namespace UE::Geometry;
 
 #define LOCTEXT_NAMESPACE "UPolygonSelectionMechanic"
+
+namespace PolygonSelectionMechanicLocals
+{
+	using namespace UE::Geometry;
+
+	EGeometryElementType ToGeometryElementType(const FGroupTopologySelection& Selection)
+	{
+		if (!Selection.SelectedCornerIDs.IsEmpty())
+		{
+			return EGeometryElementType::Vertex;
+		}
+		else if (!Selection.SelectedEdgeIDs.IsEmpty())
+		{
+			return EGeometryElementType::Edge;
+		}
+		return EGeometryElementType::Face;
+	}
+}
 
 void UPolygonSelectionMechanic::Initialize(
 	const FDynamicMesh3* MeshIn,
@@ -173,6 +193,8 @@ void UPolygonSelectionMechanic::SetSelection_AsGroupTopology(const UE::Geometry:
 	{
 		return;
 	}
+	PersistentSelection.Clear();
+
 	if (Selection.ElementType == EGeometryElementType::Vertex)
 	{
 		for (uint64 ElementID : Selection.Selection)
@@ -217,6 +239,8 @@ void UPolygonSelectionMechanic::SetSelection_AsTriangleTopology(const UE::Geomet
 	{
 		return;
 	}
+	PersistentSelection.Clear();
+	
 	if (Selection.ElementType == EGeometryElementType::Vertex)
 	{
 		for (uint64 ElementID : Selection.Selection)
@@ -253,6 +277,157 @@ void UPolygonSelectionMechanic::SetSelection_AsTriangleTopology(const UE::Geomet
 			}
 		}
 	}
+}
+
+bool UPolygonSelectionMechanic::ExecuteActionThroughGeometrySelection(bool bAsTriangleTopology, const FText& TransactionName, 
+	TFunctionRef<bool(UE::Geometry::FGeometrySelection& SelectionToModifyInPlace)> SelectionProcessor)
+{
+	using namespace PolygonSelectionMechanicLocals;
+	using namespace UE::Geometry;
+
+	if (!Topology || !Topology->GetMesh())
+	{
+		return false;
+	}
+
+	FGeometrySelection GeometrySelection;
+	GeometrySelection.InitializeTypes(ToGeometryElementType(PersistentSelection),
+		bAsTriangleTopology ? EGeometryTopologyType::Triangle : EGeometryTopologyType::Polygroup);
+
+	if (bAsTriangleTopology)
+	{
+		GetSelection_AsTriangleTopology(GeometrySelection);
+	}
+	else
+	{
+		GetSelection_AsGroupTopology(GeometrySelection);
+	}
+
+	bool bSuccess = SelectionProcessor(GeometrySelection);
+	if (!bSuccess)
+	{
+		return false;
+	}
+
+	ParentTool->GetToolManager()->BeginUndoTransaction(TransactionName);
+	BeginChange();
+
+	if (bAsTriangleTopology)
+	{
+		SetSelection_AsTriangleTopology(GeometrySelection);
+	}
+	else
+	{
+		SetSelection_AsGroupTopology(GeometrySelection);
+	}
+
+	SelectionTimestamp++;
+	OnSelectionChanged.Broadcast();
+	EndChangeAndEmitIfModified();
+	ParentTool->GetToolManager()->EndUndoTransaction();
+
+	return true;
+}
+
+void UPolygonSelectionMechanic::GrowSelection(bool bAsTriangleTopology)
+{
+	using namespace UE::Geometry;
+
+	ExecuteActionThroughGeometrySelection(bAsTriangleTopology, LOCTEXT("GrowSelectionChange", "Grow Selection"),
+		[this](FGeometrySelection& GeometrySelection) 
+	{
+		FGeometrySelection BoundaryConnectedSelection;
+		BoundaryConnectedSelection.InitializeTypes(GeometrySelection);
+
+		bool bSuccess = MakeBoundaryConnectedSelection(*Topology->GetMesh(), Topology, GeometrySelection,
+			[](FGeoSelectionID) { return true; }, BoundaryConnectedSelection);
+		bSuccess = bSuccess && CombineSelectionInPlace(GeometrySelection, BoundaryConnectedSelection, 
+			UE::Geometry::EGeometrySelectionCombineModes::Add);
+
+		return bSuccess;
+	});
+}
+
+void UPolygonSelectionMechanic::ShrinkSelection(bool bAsTriangleTopology)
+{
+	using namespace UE::Geometry;
+
+	ExecuteActionThroughGeometrySelection(bAsTriangleTopology, LOCTEXT("ShrinkSelectionChange", "Shrink Selection"),
+		[this](FGeometrySelection& GeometrySelection) 
+	{
+		FGeometrySelection BoundaryConnectedSelection;
+		BoundaryConnectedSelection.InitializeTypes(GeometrySelection);
+
+		bool bSuccess = MakeBoundaryConnectedSelection(*Topology->GetMesh(), Topology, GeometrySelection,
+			[](FGeoSelectionID) { return true; }, BoundaryConnectedSelection);
+		bSuccess = bSuccess && CombineSelectionInPlace(GeometrySelection, BoundaryConnectedSelection, 
+			UE::Geometry::EGeometrySelectionCombineModes::Subtract);
+
+		return bSuccess;
+	});
+}
+
+void UPolygonSelectionMechanic::ConvertSelectionToBorderVertices(bool bAsTriangleTopology)
+{
+	using namespace UE::Geometry;
+
+	ExecuteActionThroughGeometrySelection(bAsTriangleTopology, LOCTEXT("BorderSelectionChange", "Select Border"),
+		[this, bAsTriangleTopology](FGeometrySelection& GeometrySelection) 
+	{
+		TSet<int32> Unused;
+		if (bAsTriangleTopology)
+		{
+			TSet<int32> BoundaryVertices;
+			bool bSuccess = GetSelectionBoundaryVertices(*Topology->GetMesh(), Topology, GeometrySelection,
+				BoundaryVertices, Unused);
+			
+			if (!bSuccess) { return false; }
+
+			GeometrySelection.Selection.Reset();
+			GeometrySelection.InitializeTypes(EGeometryElementType::Vertex, EGeometryTopologyType::Triangle);
+			for (int32 Vid : BoundaryVertices)
+			{
+				GeometrySelection.Selection.Add(FGeoSelectionID::MeshVertex(Vid).Encoded());
+			}
+		}
+		else
+		{
+			TSet<int32> BoundaryCorners;
+			bool bSuccess = GetSelectionBoundaryCorners(*Topology->GetMesh(), Topology, GeometrySelection, 
+				BoundaryCorners, Unused);
+
+			if (!bSuccess) { return false; }
+
+			GeometrySelection.Selection.Reset();
+			GeometrySelection.InitializeTypes(EGeometryElementType::Vertex, EGeometryTopologyType::Polygroup);
+			for (int32 CornerID : BoundaryCorners)
+			{
+				GeometrySelection.Selection.Add(FGeoSelectionID(Topology->GetCornerVertexID(CornerID), CornerID).Encoded());
+			}
+		}
+
+		return true;
+	});
+}
+
+void UPolygonSelectionMechanic::FloodSelection()
+{
+	using namespace UE::Geometry;
+
+	ExecuteActionThroughGeometrySelection(true, LOCTEXT("FloodSelectionChange", "Flood Selection"),
+		[this](FGeometrySelection& GeometrySelection)
+	{
+		FGeometrySelection NewSelection;
+		NewSelection.InitializeTypes(GeometrySelection);
+		bool bSuccess = MakeSelectAllConnectedSelection(*Topology->GetMesh(), Topology, GeometrySelection, 
+			[](FGeoSelectionID) { return true; }, [](FGeoSelectionID, FGeoSelectionID) { return true; }, 
+			NewSelection);
+
+		if (!bSuccess) { return false; }
+			
+		GeometrySelection = NewSelection;
+		return true;
+	});
 }
 
 

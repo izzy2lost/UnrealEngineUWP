@@ -613,13 +613,17 @@ void UClothMeshSelectionTool::RequestAction(EClothMeshSelectionToolActions Actio
 
 void UClothMeshSelectionTool::ApplyAction(EClothMeshSelectionToolActions ActionType)
 {
+	// We use a triangle topology, so the below actions can be done in mesh space instead
+	//  of working with the topology.
+	bool bAsTriangleTopology = true;
+
 	switch (ActionType)
 	{
 	case EClothMeshSelectionToolActions::GrowSelection:
-		SelectionMechanic->GrowSelection();
+		SelectionMechanic->GrowSelection(bAsTriangleTopology);
 		break;
 	case EClothMeshSelectionToolActions::ShrinkSelection:
-		SelectionMechanic->ShrinkSelection();
+		SelectionMechanic->ShrinkSelection(bAsTriangleTopology);
 		break;
 	case EClothMeshSelectionToolActions::FloodSelection:
 		SelectionMechanic->FloodSelection();
