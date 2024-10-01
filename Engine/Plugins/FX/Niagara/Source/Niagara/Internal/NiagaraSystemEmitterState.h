@@ -35,6 +35,13 @@ enum class ENiagaraLoopBehavior : uint8
 	Once,
 };
 
+UENUM()
+enum class ENiagaraLoopDurationMode : uint8
+{
+	Fixed,
+	Infinite,
+};
+
 USTRUCT()
 struct FNiagaraSystemStateData
 {
@@ -49,13 +56,16 @@ struct FNiagaraSystemStateData
 	UPROPERTY(EditAnywhere, Category = "System State")
 	uint32 bIgnoreSystemState : 1 = true;
 
-	UPROPERTY(EditAnywhere, Category = "System State", meta = (DisplayAfter = "LoopCount", EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = "System State", meta = (DisplayAfter = "LoopDuration", EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once", EditConditionHides))
 	uint32 bRecalculateDurationEachLoop : 1 = false;
 
-	UPROPERTY(EditAnywhere, Category = "System State", meta = (DisplayAfter = "LoopDelay", EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = "System State", meta = (InlineEditConditionToggle))
+	uint32 bLoopDelayEnabled : 1 = false;
+
+	UPROPERTY(EditAnywhere, Category = "System State", meta = (DisplayAfter = "LoopDelay", EditCondition = "bLoopDelayEnabled && LoopBehavior != ENiagaraLoopBehavior::Once", EditConditionHides))
 	uint32 bDelayFirstLoopOnly : 1 = false;
 
-	UPROPERTY(EditAnywhere, Category = "System State", meta = (DisplayAfter = "bDelayFirstLoopOnly", EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once && !bDelayFirstLoopOnly", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = "System State", meta = (DisplayAfter = "bDelayFirstLoopOnly", EditCondition = "bLoopDelayEnabled && LoopBehavior != ENiagaraLoopBehavior::Once && !bDelayFirstLoopOnly", EditConditionHides))
 	uint32 bRecalculateDelayEachLoop : 1 = false;
 
 	UPROPERTY(EditAnywhere, Category = "System State")
@@ -70,7 +80,7 @@ struct FNiagaraSystemStateData
 	UPROPERTY(EditAnywhere, Category = "System State", meta = (ClampMin = "1", EditCondition = "LoopBehavior == ENiagaraLoopBehavior::Multiple", EditConditionHides))
 	int LoopCount = 1;
 
-	UPROPERTY(EditAnywhere, Category = "System State", meta = (ClampMin = "0.0", Units="s"))
+	UPROPERTY(EditAnywhere, Category = "System State", meta = (ClampMin = "0.0", Units="s", EditCondition = "bLoopDelayEnabled"))
 	FNiagaraDistributionRangeFloat LoopDelay = FNiagaraDistributionRangeFloat(0.0f);
 };
 
@@ -91,51 +101,72 @@ struct FNiagaraEmitterStateData
 	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (ClampMin = "1", EditCondition = "LoopBehavior == ENiagaraLoopBehavior::Multiple", EditConditionHides))
 	int32 LoopCount = 1;
 
-	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (ClampMin = "0.0", Units="s"))
+	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (EditCondition = "LoopBehavior == ENiagaraLoopBehavior::Once", EditConditionHides, SegmentedDisplay))
+	ENiagaraLoopDurationMode LoopDurationMode = ENiagaraLoopDurationMode::Fixed;
+
+	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once || (LoopBehavior == ENiagaraLoopBehavior::Once && LoopDurationMode == ENiagaraLoopDurationMode::Fixed)", EditConditionHides, ClampMin = "0.0", Units="s"))
 	FNiagaraDistributionRangeFloat LoopDuration = FNiagaraDistributionRangeFloat(1.0f);
 
-	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (ClampMin = "0.0", Units="s"))
+	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (ClampMin = "0.0", Units="s", EditCondition="bLoopDelayEnabled"))
 	FNiagaraDistributionRangeFloat LoopDelay = FNiagaraDistributionRangeFloat(0.0f);
+
+	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (InlineEditConditionToggle))
+	uint32 bLoopDelayEnabled : 1 = false;
 
 	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once", EditConditionHides, DisplayAfter = "LoopDuration"))
 	uint32 bRecalculateDurationEachLoop : 1 = false;
 
-	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once && bLoopDelayEnabled", EditConditionHides))
 	uint32 bDelayFirstLoopOnly : 1 = false;
 
-	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once && !bDelayFirstLoopOnly", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once && bLoopDelayEnabled && !bDelayFirstLoopOnly", EditConditionHides))
 	uint32 bRecalculateDelayEachLoop : 1 = false;
 
-	UPROPERTY(EditAnywhere, Category = "Scalability")
+	UPROPERTY(EditAnywhere, Category = "Emitter Scalability")
 	uint32 bEnableDistanceCulling : 1 = false;
 
-	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (DisplayAfter = "MaxDistanceReaction"))
+	UPROPERTY(EditAnywhere, Category = "Emitter Scalability", meta = (DisplayAfter = "MaxDistanceReaction"))
 	uint32 bEnableVisibilityCulling : 1 = false;
 
-	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (EditCondition = "bEnableDistanceCulling", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = "Emitter Scalability", meta = (InlineEditConditionToggle))
 	uint32 bMinDistanceEnabled : 1 = false;
 
-	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (EditCondition = "bEnableDistanceCulling", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = "Emitter Scalability", meta = (InlineEditConditionToggle))
 	uint32 bMaxDistanceEnabled : 1 = false;
 
-	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (DisplayAfter = "VisibilityCullDelay"))
+	UPROPERTY(EditAnywhere, Category = "Emitter Scalability", meta = (DisplayAfter = "VisibilityCullDelay"))
 	uint32 bResetAgeOnAwaken : 1 = false;
 
-	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (EditCondition = "bEnableDistanceCulling && bMinDistanceEnabled", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = "Emitter Scalability", meta = (DisplayAfter = "bEnableDistanceCulling", EditCondition = "bMinDistanceEnabled"))
 	float MinDistance = 0.0f;
 
-	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (EditCondition = "bEnableDistanceCulling && bMinDistanceEnabled", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = "Emitter Scalability", meta = (DisplayAfter = "MinDistance"))
 	ENiagaraExecutionStateManagement MinDistanceReaction = ENiagaraExecutionStateManagement::Awaken;
 
-	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (EditCondition = "bEnableDistanceCulling && bMaxDistanceEnabled", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = "Emitter Scalability", meta = (DisplayAfter = "bEnableDistanceCulling", EditCondition = "bMaxDistanceEnabled"))
 	float MaxDistance = 5000.0f;
 
-	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (EditCondition = "bEnableDistanceCulling && bMaxDistanceEnabled", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = "Emitter Scalability", meta = (DisplayAfter = "MaxDistance"))
 	ENiagaraExecutionStateManagement MaxDistanceReaction = ENiagaraExecutionStateManagement::SleepAndLetParticlesFinish;
 
-	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (EditCondition = "bEnableVisibilityCulling", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = "Emitter Scalability", meta = (EditCondition = "bEnableVisibilityCulling", EditConditionHides))
 	ENiagaraExecutionStateManagement VisibilityCullReaction = ENiagaraExecutionStateManagement::SleepAndLetParticlesFinish;
 
-	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (EditCondition = "bEnableVisibilityCulling", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = "Emitter Scalability", meta = (EditCondition = "bEnableVisibilityCulling", EditConditionHides))
 	float VisibilityCullDelay = 1.0f;
+
+#if WITH_EDITORONLY_DATA
+	void PostSerialize(const FArchive& Ar);
+#endif
 };
+
+#if WITH_EDITORONLY_DATA
+template<>
+struct TStructOpsTypeTraits<FNiagaraEmitterStateData> : public TStructOpsTypeTraitsBase2<FNiagaraEmitterStateData>
+{
+	enum
+	{
+		WithPostSerialize = true,
+	};
+};
+#endif
