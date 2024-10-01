@@ -347,6 +347,15 @@ public:
 	/** Release the hair strands resource. */
 	void ReleaseResource(bool bResetLoadedSize);
 
+	/**
+	 * Stream in all of this binding's streamable resources and make them accessible from the CPU.
+	 *
+	 * This is only needed for advanced use cases involving editing grooms or binding data.
+	 *
+	 * @param bWait If true, this call will block until the resources have been streamed in
+	 */
+	void StreamInForCPUAccess(bool bWait);
+
 	void Reset();
 
 	/** Return true if the binding asset is valid, i.e., correctly built and loaded. */

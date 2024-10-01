@@ -453,6 +453,20 @@ void UGroomBindingAsset::FlushRenderingCommandIfUsed(const UGroomBindingAsset* I
 	}
 }
 
+void UGroomBindingAsset::StreamInForCPUAccess(bool bWait)
+{
+	check(IsValid());
+
+	for (UGroomBindingAsset::FHairGroupPlatformData& Data : GetHairGroupsPlatformData())
+	{
+		for (FHairStrandsRootBulkData& BulkData : Data.RenRootBulkDatas)
+		{
+			FHairStreamingRequest R;
+			R.Request(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, BulkData, bWait, true /*bFillBulkdata*/, false /*bWarmCache*/, GetFName());
+		}
+	}
+}
+
 void UGroomBindingAsset::Reset()
 {
 	FlushRenderingCommandIfUsed(this);
