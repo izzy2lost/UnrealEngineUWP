@@ -466,7 +466,7 @@ bool ShaderCodeArchive::CompressShaderWithOodle(uint8* OutCompressedShader, int6
 	}	
 }
 
-void FSerializedShaderArchive::DecompressShader(int32 Index, const TArray<TArray<uint8>>& ShaderCode, TArray<uint8>& OutDecompressedShader) const
+void FSerializedShaderArchive::DecompressShader(int32 Index, const TArray<FSharedBuffer>& ShaderCode, TArray<uint8>& OutDecompressedShader) const
 {
 	const FShaderCodeEntry& Entry = ShaderEntries[Index];
 	OutDecompressedShader.SetNum(Entry.UncompressedSize, EAllowShrinking::No);
@@ -476,7 +476,7 @@ void FSerializedShaderArchive::DecompressShader(int32 Index, const TArray<TArray
 	}
 	else
 	{
-		ShaderCodeArchive::DecompressShaderWithOodle(OutDecompressedShader.GetData(), Entry.UncompressedSize, ShaderCode[Index].GetData(), Entry.Size);
+		ShaderCodeArchive::DecompressShaderWithOodle(OutDecompressedShader.GetData(), Entry.UncompressedSize, reinterpret_cast<const uint8*>(ShaderCode[Index].GetData()), Entry.Size);
 	}
 }
 

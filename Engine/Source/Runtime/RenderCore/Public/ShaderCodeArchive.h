@@ -256,7 +256,12 @@ public:
 	RENDERCORE_API void Finalize();
 #endif
 
-	RENDERCORE_API void DecompressShader(int32 Index, const TArray<TArray<uint8>>& ShaderCode, TArray<uint8>& OutDecompressedShader) const;
+	UE_DEPRECATED(5.5, "Use overload accepting a TArray<FSharedBuffer> for shader code")
+	RENDERCORE_API void DecompressShader(int32 Index, const TArray<TArray<uint8>>& ShaderCode, TArray<uint8>& OutDecompressedShader) const
+	{
+	}
+
+	RENDERCORE_API void DecompressShader(int32 Index, const TArray<FSharedBuffer>& ShaderCode, TArray<uint8>& OutDecompressedShader) const;
 
 	RENDERCORE_API void Serialize(FArchive& Ar);
 #if WITH_EDITOR
