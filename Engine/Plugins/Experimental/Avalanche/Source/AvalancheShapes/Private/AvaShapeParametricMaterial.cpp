@@ -10,8 +10,9 @@ FAvaShapeParametricMaterial::FOnMaterialChanged FAvaShapeParametricMaterial::OnM
 
 FAvaShapeParametricMaterial::FAvaShapeParametricMaterial()
 {
-	bUseTranslucentMaterial         = false;
-	bUseUnlitMaterial               = false;
+	bUseTranslucentMaterial = false;
+	bUseUnlitMaterial       = false;
+	bUseTwoSidedMaterial    = true;
 
 	Style    = EAvaShapeParametricMaterialStyle::Solid;
 
@@ -28,6 +29,7 @@ FAvaShapeParametricMaterial::FAvaShapeParametricMaterial(const FAvaShapeParametr
 {
 	bUseUnlitMaterial        = Other.bUseUnlitMaterial;
 	bUseTranslucentMaterial  = Other.bUseTranslucentMaterial;
+	bUseTwoSidedMaterial     = Other.bUseTwoSidedMaterial;
 	ColorA                   = Other.ColorA;
 	ColorB                   = Other.ColorB;
 	GradientOffset           = Other.GradientOffset;
@@ -42,6 +44,7 @@ FAvaShapeParametricMaterial& FAvaShapeParametricMaterial::operator=(const FAvaSh
 {
 	bUseUnlitMaterial        = Other.bUseUnlitMaterial;
 	bUseTranslucentMaterial  = Other.bUseTranslucentMaterial;
+	bUseTwoSidedMaterial     = Other.bUseTwoSidedMaterial;
 	ColorA                   = Other.ColorA;
 	ColorB                   = Other.ColorB;
 	GradientOffset           = Other.GradientOffset;
@@ -65,31 +68,65 @@ UMaterialInterface* FAvaShapeParametricMaterial::GetDefaultMaterial() const
 
 void FAvaShapeParametricMaterial::LoadDefaultMaterials() const
 {
-	if (!DefaultMaterials.IsEmpty())
+	if (DefaultMaterials.Num() == MaterialTypeCount)
 	{
 		return;
 	}
 
-	if (FAvaShapeParametricMaterial* MutableThis = const_cast<FAvaShapeParametricMaterial*>(this))
+	FAvaShapeParametricMaterial* MutableThis = const_cast<FAvaShapeParametricMaterial*>(this);
+
+	if (!MutableThis)
 	{
-		static const TCHAR* LitOpaqueMaterialPath = TEXT("/Avalanche/ToolboxResources/M_Toolbox_Opaque_Lit.M_Toolbox_Opaque_Lit");
-		UMaterialInterface* DefaultLitMaterialOpaque = LoadObject<UMaterialInterface>(nullptr, LitOpaqueMaterialPath);
-		MutableThis->DefaultMaterials.Add(DefaultLitMaterialOpaque);
-
-		static const TCHAR* LitTranslucentMaterialPath = TEXT("/Avalanche/ToolboxResources/M_Toolbox_Translucent_Lit.M_Toolbox_Translucent_Lit");
-		UMaterialInterface* DefaultLitMaterialTranslucent = LoadObject<UMaterialInterface>(nullptr, LitTranslucentMaterialPath);
-		MutableThis->DefaultMaterials.Add(DefaultLitMaterialTranslucent);
-
-		static const TCHAR* UnlitOpaqueMaterialPath = TEXT("/Avalanche/ToolboxResources/M_Toolbox_Opaque_Unlit.M_Toolbox_Opaque_Unlit");
-		UMaterialInterface* DefaultUnlitMaterialOpaque = LoadObject<UMaterialInterface>(nullptr, UnlitOpaqueMaterialPath);
-		MutableThis->DefaultMaterials.Add(DefaultUnlitMaterialOpaque);
-
-		static const TCHAR* UnlitTranslucentMaterialPath = TEXT("/Avalanche/ToolboxResources/M_Toolbox_Translucent_Unlit.M_Toolbox_Translucent_Unlit");
-		UMaterialInterface* DefaultUnlitMaterialTranslucent = LoadObject<UMaterialInterface>(nullptr, UnlitTranslucentMaterialPath);
-		MutableThis->DefaultMaterials.Add(DefaultUnlitMaterialTranslucent);
-
-		MutableThis->InstanceMaterials.SetNum(DefaultMaterials.Num(), EAllowShrinking::No);
+		return;
 	}
+
+	MutableThis->DefaultMaterials.Empty(MaterialTypeCount);
+
+	static const TCHAR* LitOpaqueMaterialPath = TEXT("/Avalanche/ToolboxResources/M_Toolbox_Opaque_Lit.M_Toolbox_Opaque_Lit");
+	UMaterialInterface* DefaultLitMaterialOpaque = LoadObject<UMaterialInterface>(nullptr, LitOpaqueMaterialPath);
+	MutableThis->DefaultMaterials.Add(DefaultLitMaterialOpaque);
+
+	static const TCHAR* LitTranslucentMaterialPath = TEXT("/Avalanche/ToolboxResources/M_Toolbox_Translucent_Lit.M_Toolbox_Translucent_Lit");
+	UMaterialInterface* DefaultLitMaterialTranslucent = LoadObject<UMaterialInterface>(nullptr, LitTranslucentMaterialPath);
+	MutableThis->DefaultMaterials.Add(DefaultLitMaterialTranslucent);
+
+	static const TCHAR* UnlitOpaqueMaterialPath = TEXT("/Avalanche/ToolboxResources/M_Toolbox_Opaque_Unlit.M_Toolbox_Opaque_Unlit");
+	UMaterialInterface* DefaultUnlitMaterialOpaque = LoadObject<UMaterialInterface>(nullptr, UnlitOpaqueMaterialPath);
+	MutableThis->DefaultMaterials.Add(DefaultUnlitMaterialOpaque);
+
+	static const TCHAR* UnlitTranslucentMaterialPath = TEXT("/Avalanche/ToolboxResources/M_Toolbox_Translucent_Unlit.M_Toolbox_Translucent_Unlit");
+	UMaterialInterface* DefaultUnlitMaterialTranslucent = LoadObject<UMaterialInterface>(nullptr, UnlitTranslucentMaterialPath);
+	MutableThis->DefaultMaterials.Add(DefaultUnlitMaterialTranslucent);
+
+	// As above, but one sided materials.
+	static const TCHAR* LitOpaqueOneSidedMaterialPath = TEXT("/Avalanche/ToolboxResources/M_Toolbox_Opaque_Lit_Onesided.M_Toolbox_Opaque_Lit_Onesided");
+	UMaterialInterface* DefaultLitOneSidedMaterialOpaque = LoadObject<UMaterialInterface>(nullptr, LitOpaqueOneSidedMaterialPath);
+	MutableThis->DefaultMaterials.Add(DefaultLitOneSidedMaterialOpaque);
+
+	static const TCHAR* LitTranslucentOneSidedMaterialPath = TEXT("/Avalanche/ToolboxResources/M_Toolbox_Translucent_Lit_Onesided.M_Toolbox_Translucent_Lit_Onesided");
+	UMaterialInterface* DefaultLitOneSidedMaterialTranslucent = LoadObject<UMaterialInterface>(nullptr, LitTranslucentOneSidedMaterialPath);
+	MutableThis->DefaultMaterials.Add(DefaultLitOneSidedMaterialTranslucent);
+
+	static const TCHAR* UnlitOpaqueOneSidedMaterialPath = TEXT("/Avalanche/ToolboxResources/M_Toolbox_Opaque_Unlit_Onesided.M_Toolbox_Opaque_Unlit_Onesided");
+	UMaterialInterface* DefaultUnlitOneSidedMaterialOpaque = LoadObject<UMaterialInterface>(nullptr, UnlitOpaqueOneSidedMaterialPath);
+	MutableThis->DefaultMaterials.Add(DefaultUnlitOneSidedMaterialOpaque);
+
+	static const TCHAR* UnlitTranslucentOneSidedMaterialPath = TEXT("/Avalanche/ToolboxResources/M_Toolbox_Translucent_Unlit_Onesided.M_Toolbox_Translucent_Unlit_Onesided");
+	UMaterialInterface* DefaultUnlitOneSidedMaterialTranslucent = LoadObject<UMaterialInterface>(nullptr, UnlitTranslucentOneSidedMaterialPath);
+	MutableThis->DefaultMaterials.Add(DefaultUnlitOneSidedMaterialTranslucent);
+
+	MutableThis->InstanceMaterials.SetNum(DefaultMaterials.Num(), EAllowShrinking::No);
+}
+
+void FAvaShapeParametricMaterial::SetUseTwoSidedMaterial(bool bInUse)
+{
+	if (bInUse == bUseTwoSidedMaterial)
+	{
+		return;
+	}
+
+	bUseTwoSidedMaterial = bInUse;
+	OnMaterialParameterUpdated();
 }
 
 void FAvaShapeParametricMaterial::SetMaterialParameterValues(UMaterialInstanceDynamic* InMaterialInstance, bool bInNotifyUpdate) const
@@ -148,14 +185,9 @@ int32 FAvaShapeParametricMaterial::GetActiveInstanceIndex() const
 {
 	FAvaShapeParametricMaterial* MutableThis = const_cast<FAvaShapeParametricMaterial*>(this);
 
-	if (bUseTranslucentMaterial)
-	{
-		MutableThis->ActiveInstanceIndex = bUseUnlitMaterial ? TRANSLUCENT_UNLIT : TRANSLUCENT_LIT;
-	}
-	else
-	{
-		MutableThis->ActiveInstanceIndex = bUseUnlitMaterial ? OPAQUE_UNLIT : OPAQUE_LIT;
-	}
+	MutableThis->ActiveInstanceIndex = (bUseTranslucentMaterial ? Translucent : Opaque)
+		+ (bUseUnlitMaterial ? Unlit : Lit)
+		+ (bUseTwoSidedMaterial ? TwoSided : OneSided);
 
 	return MutableThis->ActiveInstanceIndex;
 }
