@@ -2042,9 +2042,16 @@ public class AndroidPlatform : Platform
 				{
 					throw new AutomationException(ExitCode.Error_SymbolizedSONotFound, "ARCHIVE FAILED - {0} was not found", SymbolizedSOPath);
 				}
-
 				// Add symbolized .so directory
 				SC.ArchiveFiles(Path.GetDirectoryName(SymbolizedSOPath), Path.GetFileName(SymbolizedSOPath), true, null, SymbolizedSODirectory);
+
+				// copy mapping.txt file if generated
+				string SymbolizedBasePath = SymbolizedSODirectory.Substring(0, SymbolizedSODirectory.LastIndexOf("/"));
+				string SymbolizedMappingFile = Path.Combine(Path.Combine(Path.GetDirectoryName(ApkName), SymbolizedBasePath), "mapping.txt");
+				if (FileExists(SymbolizedMappingFile))
+				{
+					SC.ArchiveFiles(Path.GetDirectoryName(SymbolizedMappingFile), Path.GetFileName(SymbolizedMappingFile), false, null, SymbolizedBasePath);
+				}
 			}
 
 			if (!bPackageDataInsideApk)

@@ -54,7 +54,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 		RequestedDownloads =  new HashMap<String,DownloadDescription>();
 	}
 	
-	public void StopWork(String WorkID)
+	public synchronized void StopWork(String WorkID)
 	{
 		Log.debug("StopWork called");
 
@@ -69,22 +69,19 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 		}
 
 		//Synchronized with initFetch to make sure we aren't creating and closing our fetch instance in a weird race condition
-		synchronized(this)
+		if (IsFetchInstanceValid())
 		{
-			if (IsFetchInstanceValid())
-			{
-				//We need to purge all partially completed downloads
-				//If we don't, then on relaunching our app the BackgroundHttp system can end up assuming these downloads are finished incorrectly.
-				DeleteAllInProgressRequests();
+			//We need to purge all partially completed downloads
+			//If we don't, then on relaunching our app the BackgroundHttp system can end up assuming these downloads are finished incorrectly.
+			DeleteAllInProgressRequests();
 
-				//close our FetchInstance so it stops all work until we recreate it in initfetch later
-				FetchInstance.close();
-				FetchInstance = null;
-			}
+			//close our FetchInstance so it stops all work until we recreate it in initfetch later
+			FetchInstance.close();
+			FetchInstance = null;
 		}
 	}
 	
-	private void DeleteAllInProgressRequests()
+	private synchronized void DeleteAllInProgressRequests()
 	{
 		if (!IsFetchInstanceValid())
 		{
@@ -99,7 +96,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 		FetchInstance.deleteAll();
 	}
 
-	public void EnqueueRequests(Context context, DownloadQueueDescription QueueDescription)
+	public synchronized void EnqueueRequests(Context context, DownloadQueueDescription QueueDescription)
 	{
 		InitFetch(context);
 		
@@ -111,7 +108,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 	}
 		
 	//Does any setup we need based on data in the QueueDescription
-	public void SetVariablesFromQueueDescription(DownloadQueueDescription QueueDescription)
+	public synchronized void SetVariablesFromQueueDescription(DownloadQueueDescription QueueDescription)
 	{
 		if (!IsFetchInstanceValid())
 		{
@@ -124,7 +121,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 		
 	//Goes through the DownloadDescriptions in our DownloadQueueDescription and finds DownloadDescription that
 	//don't match our ActiveDownloadDescriptions entries and thus need to be reconciled (either added or modified in some way)
-	private void ReconcileDownloadDescriptions(DownloadQueueDescription QueueDescription)
+	private synchronized void ReconcileDownloadDescriptions(DownloadQueueDescription QueueDescription)
 	{
 		//Create reference copy of RequestedDownloads and clear original lists for
 		//RequestedDownloads, CompletedDownloads, and FailedDownloads to allow them to re-populate with new work state
@@ -157,7 +154,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 		}
 	}
 	
-	public void ResetDownloadCompleteTracking(DownloadDescription Description)
+	public synchronized void ResetDownloadCompleteTracking(DownloadDescription Description)
 	{
 		if (CompletedDownloads.containsKey(Description.RequestID))
 		{
@@ -170,7 +167,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 		}
 	}
 
-	public ECompleteReason GetCompleteReasonForDownload(DownloadDescription Description)
+	public synchronized ECompleteReason GetCompleteReasonForDownload(DownloadDescription Description)
 	{
 		if (Description.bIsCancelled)
 		{
@@ -186,7 +183,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 		return ECompleteReason.Success;
 	}
 
-	public void QueueNewDownloadDescription(DownloadDescription Description, boolean LastRequest)
+	public synchronized void QueueNewDownloadDescription(DownloadDescription Description, boolean LastRequest)
 	{
 		//We have hit this code after something else has already invalidated our FetchInstance
 		if (!IsFetchInstanceValid())
@@ -231,7 +228,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 		}
 	}
 
-	private boolean CheckForPreviouslyCompletedDownload(DownloadDescription Description)
+	private synchronized boolean CheckForPreviouslyCompletedDownload(DownloadDescription Description)
 	{
 		boolean bInCompleteList = CompletedDownloads.containsKey(Description.RequestID);
 		
@@ -241,7 +238,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 		return (bInCompleteList || bHasFileInCompleteLocation || Description.bHasCompleted || Description.bIsCancelled);
 	}
 
-	public void PauseDownload(String RequestID, boolean bPause)
+	public synchronized void PauseDownload(String RequestID, boolean bPause)
 	{
 		//Early out if we have invalidated our FetchInstance and thus would crash if trying to do work
 		if (!IsFetchInstanceValid())
@@ -268,7 +265,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 		}
 	}
 
-	public void PauseAllDownloads()
+	public synchronized void PauseAllDownloads()
 	{
 		if (!IsFetchInstanceValid())
 		{
@@ -290,7 +287,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 		}
 	}
 
-	public void ResumeAllDownloads()
+	public synchronized void ResumeAllDownloads()
 	{
 		if (!IsFetchInstanceValid())
 		{
@@ -313,7 +310,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 	}
 
 
-	public void CancelDownload(String RequestID)
+	public synchronized void CancelDownload(String RequestID)
 	{
 		if (!IsFetchInstanceValid())
 		{
@@ -342,7 +339,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 		CheckForAllDownloadsComplete(MatchedDesc.ProgressListener);
 	}
 	
-	private Request BuildFetchRequest(DownloadDescription Description)
+	private synchronized Request BuildFetchRequest(DownloadDescription Description)
 	{
 		String URL = GetNextURL(Description);
 		String TempDownloadLoc = GetTempDownloadDestination(Description);
@@ -370,7 +367,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 		return FetchRequest;
 	}
 	
-	private void HandleChangedDownloadDescription(DownloadDescription OldDescription, DownloadDescription NewDescription, boolean LastRequest)
+	private synchronized void HandleChangedDownloadDescription(DownloadDescription OldDescription, DownloadDescription NewDescription, boolean LastRequest)
 	{
 		if (!IsFetchInstanceValid())
 		{
@@ -444,7 +441,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 		}
 	}
 	
-	private void InitFetch(Context context)
+	private synchronized void InitFetch(Context context)
 	{
 		Log.debug("InitFetch called");
 
@@ -471,7 +468,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 		}
 
 		//Synchronized with StopWork to make sure we aren't creating and closing our fetch instance in a weird race condition
-		synchronized(this)
+//		synchronized(this)
 		{
 			//Make sure any existing FetchInstance is in a correct state (null and ready to be created, with any in progress work deleted)
 			if (FetchInstance != null)
@@ -612,7 +609,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 						Log.debug("Aborting CancelDownloadByTagFunc as FetchInstance has been invalidated.");
 						break;
 					}
-					
+				
 					Download FoundDownload = MatchingDownloads.get(DownloadIndex);
 					FetchInstance.cancel(FoundDownload.getId());
 				}
@@ -622,7 +619,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 	
 	//Function that allows us to catch any errors where the FetchAPI has stopped all work and thus should bubble up that all downloads are complete
 	//Employs a non-synchronous callback, so check will not be instant
-	public void RequestCheckDownloadsStillActive(DownloadProgressListener ProgressListener)
+	public synchronized void RequestCheckDownloadsStillActive(DownloadProgressListener ProgressListener)
 	{
 		if (!IsFetchInstanceValid())
 		{
@@ -634,7 +631,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 		FetchInstance.hasActiveDownloads(true /*includeAddedDownloads*/, HasActiveDownloadFunc);
 	}
 
-	public void RequestGroupProgressUpdate(int GroupID, DownloadProgressListener ListenerToUpdate)
+	public synchronized void RequestGroupProgressUpdate(int GroupID, DownloadProgressListener ListenerToUpdate)
 	{
 		long TotalBytesProgress = 0;
 		long TotalBytesNeeded = 0;
@@ -738,7 +735,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 	}
 
 	@Override
-	public void OnDownloadChangePauseState(@NonNull Download download, boolean bIsPaused)
+	public synchronized void OnDownloadChangePauseState(@NonNull Download download, boolean bIsPaused)
 	{
 		String DownloadRequestID = GetRequestID(download);
 		Log.verbose("OnDownloadChangePauseState: " + DownloadRequestID);
@@ -834,7 +831,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 	}
 
 	@Override
-	public void OnFetchEnqueueErrorCallback(@NonNull String RequestID, @NonNull Error EnqueueError)
+	public synchronized void OnFetchEnqueueErrorCallback(@NonNull String RequestID, @NonNull Error EnqueueError)
 	{
 		Log.error("Error Enqueing Request! " + RequestID + " Error: " + EnqueueError);
 		
@@ -859,7 +856,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 		MatchingDescription.ProgressListener.OnDownloadEnqueued(RequestID, false);
 	}
 	
-	public void HandleEnqueueCheckCallback(String RequestID, @Nullable Download FetchDownload)
+	public synchronized void HandleEnqueueCheckCallback(String RequestID, @Nullable Download FetchDownload)
 	{
 		boolean bIsAlreadyEnqueued = false;
 
@@ -939,7 +936,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 		RetryDownload(RequestID, null);
 	}
 	
-	private void RetryDownload(String RequestID, @Nullable Download FetchDownload)
+	private synchronized void RetryDownload(String RequestID, @Nullable Download FetchDownload)
 	{
 		DownloadDescription MatchingDescription = RequestedDownloads.get(RequestID);
 		if (null == MatchingDescription)
@@ -977,7 +974,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 		}
 	}
 	
-	private void RetryDownload_Internal(@NonNull DownloadDescription DownloadDesc, @Nullable Download RetryDownload)
+	private synchronized void RetryDownload_Internal(@NonNull DownloadDescription DownloadDesc, @Nullable Download RetryDownload)
 	{
 		if (!IsFetchInstanceValid())
 		{
@@ -985,7 +982,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 			CompleteDownload(DownloadDesc, FetchRequestProgressListener.ECompleteReason.Error, true);
 			return;
 		}
-		
+
 		if (null != RetryDownload)
 		{
 			//Remove existing download from Fetch
@@ -1017,16 +1014,19 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 				Owner.HandleEnqueueCheckCallback(CachedRequestID, MatchingDownloads.get(0));
 			}
 			//remove and delete any other downloads that might have been found after the first
-			for (int DownloadIndex = 1; DownloadIndex < MatchingDownloads.size(); ++DownloadIndex)
+			synchronized (this.Owner)
 			{
-				if (!IsFetchInstanceValid())
+				for (int DownloadIndex = 1; DownloadIndex < MatchingDownloads.size(); ++DownloadIndex)
 				{
-					return;
-				}
+					if (!IsFetchInstanceValid())
+					{
+						return;
+					}
 					
-				Download FoundDownload = MatchingDownloads.get(DownloadIndex);
-				FetchInstance.remove(FoundDownload.getId());
-				FetchInstance.delete(FoundDownload.getId());
+					Download FoundDownload = MatchingDownloads.get(DownloadIndex);
+					FetchInstance.remove(FoundDownload.getId());
+					FetchInstance.delete(FoundDownload.getId());
+				}
 			}
 		}
 
@@ -1137,7 +1137,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 		}
 	}
 
-	private void CompleteDownload(DownloadDescription DownloadDesc, ECompleteReason CompleteReason, boolean CheckForAllCompleted)
+	private synchronized void CompleteDownload(DownloadDescription DownloadDesc, ECompleteReason CompleteReason, boolean CheckForAllCompleted)
 	{
 		if (false == HasValidProgressCallback(DownloadDesc))
 		{
@@ -1236,7 +1236,7 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 		}
 	}
 	
-	private void CheckForAllDownloadsComplete(DownloadProgressListener ProgressListener)
+	private synchronized void CheckForAllDownloadsComplete(DownloadProgressListener ProgressListener)
 	{
 		if (CompletedDownloads.size() < RequestedDownloads.size())
 		{

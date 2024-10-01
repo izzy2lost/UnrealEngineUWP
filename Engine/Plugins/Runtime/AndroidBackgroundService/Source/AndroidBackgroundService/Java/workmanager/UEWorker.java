@@ -230,13 +230,29 @@ public class UEWorker extends Worker
 	//overridable code to call the respective native OnWorkerStart for this worker
 	public void CallNativeOnWorkerStart(String WorkID)
 	{
-		nativeAndroidBackgroundServicesOnWorkerStart(WorkID);
+		// this can fail if the hosting app has terminated which is fine
+		try
+		{
+			nativeAndroidBackgroundServicesOnWorkerStart(WorkID);
+		}
+		catch (Exception e)
+		{
+			Log.debug("Call to CallNativeOnWorkerStart after termination for " + WorkID);
+		}
 	}
 
 	//overridable code to call the respective native OnWorkerStop for this worker
 	public void CallNativeOnWorkerStop(String WorkID)
 	{
-		nativeAndroidBackgroundServicesOnWorkerStop(WorkID);
+		// this can fail if the hosting app has terminated which is fine
+		try
+		{
+			nativeAndroidBackgroundServicesOnWorkerStop(WorkID);
+		}
+		catch (Exception e)
+		{
+			Log.debug("Call to CallNativeOnWorkerStop after termination for " + WorkID);
+		}
 	}
 
 	//Native functions used to bubble up to native UE code
