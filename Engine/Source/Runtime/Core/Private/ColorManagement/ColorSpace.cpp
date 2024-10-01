@@ -69,6 +69,13 @@ void FColorSpace::SetWorking(FColorSpace ColorSpace)
 	bIsWorkingColorSpaceReadyForUse = true;
 }
 
+const FColorSpace& FColorSpace::GetSRGB()
+{
+	static const FColorSpace ColorSpaceSRGB = FColorSpace(EColorSpace::sRGB);
+
+	return ColorSpaceSRGB;
+}
+
 static bool IsSRGBChromaticities(const TStaticArray<FVector2d, 4>& Chromaticities, double Tolerance = 1.e-7)
 {
 	return	Chromaticities[0].Equals(FVector2d(0.64, 0.33), Tolerance) &&
@@ -318,10 +325,17 @@ FMatrix44d FColorSpaceTransform::CalcChromaticAdaptionMatrix(FVector3d SourceXYZ
 	return XyzToRgb * ScaleMat * RgbToXyz;
 }
 
-FColorSpaceTransform FColorSpaceTransform::GetSRGBToWorkingColorSpace()
+const FColorSpaceTransform& FColorSpaceTransform::GetSRGBToWorkingColorSpace()
 {
-	static FColorSpaceTransform CachedTransform = FColorSpaceTransform(FColorSpace(EColorSpace::sRGB), FColorSpace::GetWorking());
+	static FColorSpaceTransform CachedTransform = FColorSpaceTransform(FColorSpace::GetSRGB(), FColorSpace::GetWorking());
 	
+	return CachedTransform;
+}
+
+const FColorSpaceTransform& FColorSpaceTransform::GetWorkingColorSpaceToSRGB()
+{
+	static FColorSpaceTransform CachedTransform = FColorSpaceTransform(FColorSpace::GetWorking(), FColorSpace::GetSRGB());
+
 	return CachedTransform;
 }
 
