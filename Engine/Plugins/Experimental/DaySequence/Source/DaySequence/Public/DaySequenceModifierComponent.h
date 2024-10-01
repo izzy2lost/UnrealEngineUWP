@@ -173,26 +173,27 @@ public:
 	DAYSEQUENCE_API void SetTransientSequence(UDaySequence* InDaySequence);
 	DAYSEQUENCE_API UDaySequence* GetTransientSequence() const;
 	
-	UFUNCTION(BlueprintCallable, Category="Day Sequence")
+	/** Sets the Day Night Cycle mode. This will reenable the component. */
 	DAYSEQUENCE_API void SetDayNightCycle(EDayNightCycleMode NewMode);
+	DAYSEQUENCE_API EDayNightCycleMode GetDayNightCycle() const;
 
-	UFUNCTION(BlueprintCallable, Category="Day Sequence")
 	DAYSEQUENCE_API void SetDayNightCycleTime(float Time);
+	DAYSEQUENCE_API float GetDayNightCycleTime() const;
 	
-	UFUNCTION(BlueprintCallable, Category="Day Sequence")
 	DAYSEQUENCE_API void SetMode(EDaySequenceModifierMode NewMode);
+	DAYSEQUENCE_API EDaySequenceModifierMode GetMode() const;
 
-	UFUNCTION(BlueprintCallable, Category="Day Sequence")
 	DAYSEQUENCE_API void SetBlendPolicy(EDaySequenceModifierUserBlendPolicy NewPolicy);
+	DAYSEQUENCE_API EDaySequenceModifierUserBlendPolicy GetBlendPolicy() const;
+
+	/** Sets a custom blend weight for volume based blends. Final weight depends on BlendPolicy. */
+	DAYSEQUENCE_API void SetUserBlendWeight(float Weight);
+	DAYSEQUENCE_API float GetUserBlendWeight() const;
 
 	/** Sets the blend target to use when in Volume mode. */
 	UFUNCTION(BlueprintCallable, Category="Day Sequence")
 	DAYSEQUENCE_API void SetBlendTarget(APlayerController* InActor);
 	
-	/** Sets a custom blend weight for volume based blends. Final weight depends on BlendPolicy. */
-	UFUNCTION(BlueprintCallable, Category="Day Sequence")
-	DAYSEQUENCE_API void SetUserBlendWeight(float Weight);
-
 	/** Get the current blend weight. */
 	UFUNCTION(BlueprintCallable, Category="Day Sequence")
 	float GetBlendWeight() const;
@@ -255,11 +256,11 @@ protected:
 	TWeakObjectPtr<APlayerController> WeakBlendTarget;
 
 	/** The user provided Day Sequence. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Day Sequence", Setter, Getter, meta=(EditCondition="!bUseCollection", EditConditionHides, DisplayAfter="bUseCollection"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Day Sequence", meta=(EditCondition="!bUseCollection", EditConditionHides, DisplayAfter="bUseCollection"))
 	TObjectPtr<UDaySequence> UserDaySequence;
 
 	/** The user provided Transient Day Sequence. */
-    UPROPERTY(Transient, BlueprintReadWrite, Category="Day Sequence", Setter, Getter, meta=(EditCondition="!bUseCollection", EditConditionHides, DisplayAfter="bUseCollection"))
+    UPROPERTY(Transient, BlueprintReadWrite, Setter, Getter, Category="Day Sequence", meta=(EditCondition="!bUseCollection", EditConditionHides, DisplayAfter="bUseCollection"))
     TObjectPtr<UDaySequence> TransientSequence;
 	
 	/** The user provided collection. This is an alternative to UserDaySequence. */
@@ -274,27 +275,27 @@ protected:
 	int32 Bias;
 
 	/** The time to use for the day/night cycle. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Time", DisplayName="Time", meta=(DisplayAfter="DayNightCycle", EditCondition="DayNightCycle==EDayNightCycleMode::FixedTime || DayNightCycle==EDayNightCycleMode::StartAtSpecifiedTime", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, DisplayName="Time", Category="Time", meta=(DisplayAfter="DayNightCycle", EditCondition="DayNightCycle==EDayNightCycleMode::FixedTime || DayNightCycle==EDayNightCycleMode::StartAtSpecifiedTime", EditConditionHides))
 	float DayNightCycleTime;
 
 	/** Defines the region in which the effective blend weight is in the range (0.0, 1.0) (not inclusive) when Mode == EDaySequenceModifierMode::Volume. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Day Sequence", meta=(DisplayAfter="Mode", EditCondition="Mode==EDaySequenceModifierMode::Volume", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Day Sequence", meta=(DisplayAfter="Mode", EditCondition="Mode==EDaySequenceModifierMode::Volume", EditConditionHides))
 	float BlendAmount;
 
 	/** User specified blend weight. The final blend weight is determined by BlendPolicy. */
-	UPROPERTY(Transient, BlueprintReadWrite, EditAnywhere, Category="Day Sequence", meta=(DisplayAfter="BlendPolicy", EditCondition="BlendPolicy!=EDaySequenceModifierUserBlendPolicy::Ignored", EditConditionHides))
+	UPROPERTY(Transient, EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Day Sequence", meta=(DisplayAfter="BlendPolicy", EditCondition="BlendPolicy!=EDaySequenceModifierUserBlendPolicy::Ignored", EditConditionHides))
 	float UserBlendWeight;
 
 	/** Changes the way the modifier controls the day/night cycle time when enabled. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Time", DisplayName="Day/Night Cycle")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, DisplayName="Day/Night Cycle", Category="Time")
 	EDayNightCycleMode DayNightCycle;
 
 	/** Determines how the modifier computes InternalBlendWeight. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Day Sequence")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Day Sequence")
 	EDaySequenceModifierMode Mode;
 
 	/** Determines how the modifier uses UserBlendWeight to compute effective blend weight. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Day Sequence")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Day Sequence")
 	EDaySequenceModifierUserBlendPolicy BlendPolicy;
 
 	/** Blueprint exposed delegate invoked after the component's subsequences are reinitialized. */
@@ -321,15 +322,12 @@ protected:
 	UPROPERTY(Transient, BlueprintReadWrite, EditAnywhere, Category="Day Sequence")
 	uint8 bPreview : 1;
 
-	/** Flag to keep track of whether we need to unpause the day sequence when we are disabled */
-	uint8 bUnpauseOnDisable : 1;
-
 	/** If true, hide UserDaySequence and expose DaySequenceCollection. */
 	UPROPERTY(EditAnywhere, Category="Day Sequence")
 	uint8 bUseCollection : 1;
 
 	/** If true, day sequence evaluation while within the blending region will be smooth. Note: Can be very expensive. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Day Sequence")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category="Day Sequence")
 	uint8 bSmoothBlending : 1;
 
 private:

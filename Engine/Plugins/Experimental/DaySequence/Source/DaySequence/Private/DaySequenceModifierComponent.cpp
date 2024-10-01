@@ -248,6 +248,11 @@ void UDaySequenceModifierComponent::PostEditChangeProperty(FPropertyChangedEvent
 	{
 		EnableModifier();
 	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(UDaySequenceModifierComponent, DayNightCycle))
+	{
+		// Force details panel changes to use our setter.
+		SetDayNightCycle(DayNightCycle);
+	}
 }
 
 #endif // WITH_EDITOR
@@ -509,13 +514,8 @@ void UDaySequenceModifierComponent::DisableModifier()
 
 		TargetActor->UnregisterStaticTimeContributor(this);
 		
-		if (bUnpauseOnDisable)
-		{
-			TargetActor->Play();
-			bUnpauseOnDisable = false;
-		}
 		// Force an update if it's not playing so that the effects of this being disabled are seen
-		else if (!TargetActor->IsPlaying())
+		if (!TargetActor->IsPlaying())
 		{
 			TargetActor->SetTimeOfDay(TargetActor->GetTimeOfDay());
 		}
@@ -871,6 +871,17 @@ UDaySequence* UDaySequenceModifierComponent::GetTransientSequence() const
 void UDaySequenceModifierComponent::SetDayNightCycle(EDayNightCycleMode NewMode)
 {
 	DayNightCycle = NewMode;
+
+	if (bIsComponentEnabled)
+	{
+		DisableComponent();
+		EnableComponent();
+	}
+}
+
+EDayNightCycleMode UDaySequenceModifierComponent::GetDayNightCycle() const
+{
+	return DayNightCycle;
 }
 
 void UDaySequenceModifierComponent::SetDayNightCycleTime(float Time)
@@ -878,14 +889,44 @@ void UDaySequenceModifierComponent::SetDayNightCycleTime(float Time)
 	DayNightCycleTime = Time;
 }
 
+float UDaySequenceModifierComponent::GetDayNightCycleTime() const
+{
+	return DayNightCycleTime;
+}
+
 void UDaySequenceModifierComponent::SetMode(EDaySequenceModifierMode NewMode)
 {
 	Mode = NewMode;
 }
 
+EDaySequenceModifierMode UDaySequenceModifierComponent::GetMode() const
+{
+	return Mode;
+}
+
 void UDaySequenceModifierComponent::SetBlendPolicy(EDaySequenceModifierUserBlendPolicy NewPolicy)
 {
 	BlendPolicy = NewPolicy;
+}
+
+EDaySequenceModifierUserBlendPolicy UDaySequenceModifierComponent::GetBlendPolicy() const
+{
+	return BlendPolicy;
+}
+
+void UDaySequenceModifierComponent::SetBlendTarget(APlayerController* InActor)
+{	
+	WeakBlendTarget = InActor;
+}
+
+void UDaySequenceModifierComponent::SetUserBlendWeight(float Weight)
+{
+	UserBlendWeight = FMath::Clamp(Weight, 0.f, 1.f);
+}
+
+float UDaySequenceModifierComponent::GetUserBlendWeight() const
+{
+	return UserBlendWeight;
 }
 
 bool UDaySequenceModifierComponent::GetBlendPosition(FVector& InPosition) const
@@ -1032,16 +1073,6 @@ void UDaySequenceModifierComponent::AddVolumeShapeComponent(const FComponentRefe
 void UDaySequenceModifierComponent::InvalidateMuteStates() const
 {
 	OnInvalidateMuteStates.Broadcast();
-}
-
-void UDaySequenceModifierComponent::SetBlendTarget(APlayerController* InActor)
-{	
-	WeakBlendTarget = InActor;
-}
-
-void UDaySequenceModifierComponent::SetUserBlendWeight(float Weight)
-{
-	UserBlendWeight = FMath::Clamp(Weight, 0.f, 1.f);
 }
 
 #if ENABLE_DRAW_DEBUG
