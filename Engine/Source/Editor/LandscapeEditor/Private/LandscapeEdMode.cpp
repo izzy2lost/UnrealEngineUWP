@@ -3233,7 +3233,7 @@ void ImportDataInternal(ULandscapeInfo* LandscapeInfo, const FString& Filename, 
 	}
 
 	FLandscapeTiledImage TiledImage;
-	TiledImage.Load(*Filename);
+	TiledImage.Load<T>(*Filename);
 	FIntPoint ImportResolution = TiledImage.GetResolution();
 
 	bool bResolutionMismatch = false;

@@ -28,6 +28,7 @@ FLandscapeTiledImage::FLandscapeTiledImage()
 {
 }
 
+template <typename T>
 FLandscapeFileInfo FLandscapeTiledImage::Load(const TCHAR* Filename)
 {
 	FLandscapeFileInfo Result;
@@ -115,21 +116,10 @@ FLandscapeFileInfo FLandscapeTiledImage::Load(const TCHAR* Filename)
 	{
 		FLandscapeImageDataRef ImageData;
 		FLandscapeImageFileCache& LandscapeImageFileCache = FModuleManager::GetModuleChecked<ILandscapeEditorModule>("LandscapeEditor").GetImageFileCache();
-		FLandscapeFileInfo TileLoadResult;
-		if (TileLoadResult = LandscapeImageFileCache.FindImage<uint16>(*Tile.Value, ImageData); TileLoadResult.ResultCode != ELandscapeImportResult::Success)
+		Result = LandscapeImageFileCache.FindImage<T>(*Tile.Value, ImageData);
+		if (Result.ResultCode == ELandscapeImportResult::Error)
 		{
-			if (TileLoadResult = LandscapeImageFileCache.FindImage<uint8>(*Tile.Value, ImageData);  TileLoadResult.ResultCode != ELandscapeImportResult::Success)
-			{
-				if (TileLoadResult.ResultCode == ELandscapeImportResult::Warning)
-				{
-					Result.ErrorMessage = TileLoadResult.ErrorMessage;
-					Result.ResultCode = TileLoadResult.ResultCode;
-				}
-				else if (TileLoadResult.ResultCode == ELandscapeImportResult::Error)
-				{
-					return TileLoadResult;
-				}
-			}
+			return Result;
 		}
 
 		SizeInTiles.X = FMath::Max(SizeInTiles.X, Tile.Key.X + 1);
@@ -146,7 +136,7 @@ FLandscapeFileInfo FLandscapeTiledImage::Load(const TCHAR* Filename)
 		else if (Width != TileResolution.X && Height != TileResolution.Y)
 		{
 			Result.ResultCode = ELandscapeImportResult::Error;
-			Result.ErrorMessage = LOCTEXT("FileReadErrorTiledResolutionMismatch", "Mimatched resolution found in tiled image");
+			Result.ErrorMessage = LOCTEXT("FileReadErrorTiledResolutionMismatch", "Mismatched resolution found in tiled image");
 			return Result;
 		}
 	}
@@ -162,6 +152,10 @@ FLandscapeFileInfo FLandscapeTiledImage::Load(const TCHAR* Filename)
 
 	return Result;
 }
+
+template FLandscapeFileInfo FLandscapeTiledImage::Load<uint8>(const TCHAR* Filename);
+template FLandscapeFileInfo FLandscapeTiledImage::Load<uint16>(const TCHAR* Filename);
+
 
 void FLandscapeTiledImage::FindFiles(const TCHAR* FilenamePattern, TArray<FString>& OutPaths)
 {

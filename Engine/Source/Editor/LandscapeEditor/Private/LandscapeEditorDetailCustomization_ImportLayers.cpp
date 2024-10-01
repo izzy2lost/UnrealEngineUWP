@@ -8,7 +8,6 @@
 #include "LandscapeEditorModule.h"
 #include "LandscapeEditorObject.h"
 #include "LandscapeUtils.h"
-#include "LandscapeTiledImage.h"
 #include "LandscapeEditorUtils.h"
 #include "SLandscapeEditor.h"
 

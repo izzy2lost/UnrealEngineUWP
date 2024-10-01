@@ -22,7 +22,6 @@
 #include "LandscapeEditorObject.h"
 #include "Landscape.h"
 #include "LandscapeStreamingProxy.h"
-#include "LandscapeTiledImage.h"
 #include "LandscapeRegionUtils.h"
 #include "LandscapeEditorPrivate.h"
 #include "LandscapeEditorUtils.h"
