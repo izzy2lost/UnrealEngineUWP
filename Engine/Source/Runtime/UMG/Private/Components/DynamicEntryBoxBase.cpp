@@ -383,7 +383,7 @@ UUserWidget* UDynamicEntryBoxBase::CreateEntryInternal(TSubclassOf<UUserWidget> 
 	DynamicEntryBoxBaseCreateEntryInternal::RecursiveDetection.Push(InEntryClass);
 
 	UUserWidget* NewEntryWidget = EntryWidgetPool.GetOrCreateInstance(InEntryClass);
-	if (MyPanelWidget.IsValid())
+	if (MyPanelWidget.IsValid() && NewEntryWidget != nullptr)
 	{
 		// If we've already been constructed, immediately add the child to our panel widget
 		AddEntryChild(*NewEntryWidget);
