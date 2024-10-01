@@ -661,6 +661,8 @@ void FPImplRecastNavMesh::Serialize( FArchive& Ar, int32 NavMeshVersion )
 			{
 				UE_VLOG(NavMeshOwner, LogNavigation, Error, TEXT("Failed to initialize NavMesh"));
 			}
+			
+			NavMeshOwner->bHasNoTileData = (NumTiles == 0);	
 
 			for (int i = 0; i < NumTiles; ++i)
 			{

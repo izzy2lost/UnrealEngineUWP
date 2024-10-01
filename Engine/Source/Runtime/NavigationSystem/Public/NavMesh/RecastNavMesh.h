@@ -872,6 +872,9 @@ protected:
 	FNavLinkGenerationJumpDownConfig NavLinkJumpDownConfig;
 	
 private:
+	/** @returns true if there were no tiles when the navmesh was loaded. */
+	bool bHasNoTileData : 1 = false;
+	
 	/** Cache rasterized voxels instead of just collision vertices/indices in navigation octree */
 	UPROPERTY(config)
 	uint32 bUseVoxelCache : 1;
