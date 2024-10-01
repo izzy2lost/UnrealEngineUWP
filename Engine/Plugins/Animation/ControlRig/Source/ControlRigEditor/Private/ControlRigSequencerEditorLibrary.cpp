@@ -3078,21 +3078,7 @@ bool UControlRigSequencerEditorLibrary::GetControlsMask(UMovieSceneSection* InSe
 		FFrame::KismetExecutionMessage(TEXT("Section does not have a control rig"), ELogVerbosity::Error);
 		return false;
 	}
-
-	TArray<FRigControlElement*> Controls;
-	ControlRig->GetControlsInOrder(Controls);
-	int32 Index = 0;
-	for (const FRigControlElement* RigControl : Controls)
-	{
-		if (RigControl->GetFName() == ControlName)
-		{
-			return ParameterSection->GetControlsMask(Index);
-		}
-		++Index;
-	}
-
-	FFrame::KismetExecutionMessage(*FString::Printf(TEXT("Control Name ('%s') not found"), *ControlName.ToString()), ELogVerbosity::Error);
-	return false;
+	return ParameterSection->GetControlNameMask(ControlName);
 }
 
 void UControlRigSequencerEditorLibrary::SetControlsMask(UMovieSceneSection* InSection, const TArray<FName>& ControlNames, bool bVisible)
@@ -3112,18 +3098,11 @@ void UControlRigSequencerEditorLibrary::SetControlsMask(UMovieSceneSection* InSe
 	}
 
 	ParameterSection->Modify();
-
-	TArray<FRigControlElement*> Controls;
-	ControlRig->GetControlsInOrder(Controls);
-	int32 Index = 0;
-	for (const FRigControlElement* RigControl : Controls)
+	for (const FName& ControlName : ControlNames)
 	{
-		if (ControlNames.Contains(RigControl->GetFName()))
-		{
-			ParameterSection->SetControlsMask(Index, bVisible);
-		}
-		++Index;
+		ParameterSection->SetControlNameMask(ControlName, bVisible);
 	}
+	
 }
 
 void UControlRigSequencerEditorLibrary::ShowAllControls(UMovieSceneSection* InSection)
@@ -3136,7 +3115,7 @@ void UControlRigSequencerEditorLibrary::ShowAllControls(UMovieSceneSection* InSe
 	}
 
 	ParameterSection->Modify();
-	ParameterSection->FillControlsMask(true);
+	ParameterSection->FillControlNameMask(true);
 }
 
 void UControlRigSequencerEditorLibrary::HideAllControls(UMovieSceneSection* InSection)
@@ -3149,7 +3128,7 @@ void UControlRigSequencerEditorLibrary::HideAllControls(UMovieSceneSection* InSe
 	}
 
 	ParameterSection->Modify();
-	ParameterSection->FillControlsMask(false);
+	ParameterSection->FillControlNameMask(false);
 }
 
 bool UControlRigSequencerEditorLibrary::IsFKControlRig(UControlRig* InControlRig)

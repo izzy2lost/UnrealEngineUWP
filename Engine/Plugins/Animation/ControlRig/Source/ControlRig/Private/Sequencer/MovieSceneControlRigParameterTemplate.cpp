@@ -294,8 +294,6 @@ struct FEvaluatedControlRigParameterSectionChannelMasks : IPersistentEvaluationD
 		TArrayView<const FTransformParameterNameAndCurves> Transforms
 		)
 	{
-		const TArray<bool>& ControlsMask = Section->GetControlsMask();
-
 		const FChannelMapInfo* ChannelInfo = nullptr;
 
 		ScalarCurveMask.Add(false, Scalars.Num());
@@ -311,49 +309,49 @@ struct FEvaluatedControlRigParameterSectionChannelMasks : IPersistentEvaluationD
 		{
 			const FScalarParameterNameAndCurve& Scalar = Scalars[Index];
 			ChannelInfo = Section->ControlChannelMap.Find(Scalar.ParameterName);
-			ScalarCurveMask[Index] = (!ChannelInfo || ControlsMask[ChannelInfo->MaskIndex]);
+			ScalarCurveMask[Index] = (!ChannelInfo || Section->GetControlNameMask(Scalar.ParameterName));
 		}
 		for (int32 Index = 0; Index < Bools.Num(); ++Index)
 		{
 			const FBoolParameterNameAndCurve& Bool = Bools[Index];
 			ChannelInfo = Section->ControlChannelMap.Find(Bool.ParameterName);
-			BoolCurveMask[Index] = (!ChannelInfo || ControlsMask[ChannelInfo->MaskIndex]);
+			BoolCurveMask[Index] = (!ChannelInfo || Section->GetControlNameMask(Bool.ParameterName));
 		}
 		for (int32 Index = 0; Index < Integers.Num(); ++Index)
 		{
 			const FIntegerParameterNameAndCurve& Integer = Integers[Index];
 			ChannelInfo = Section->ControlChannelMap.Find(Integer.ParameterName);
-			IntegerCurveMask[Index] = (!ChannelInfo || ControlsMask[ChannelInfo->MaskIndex]);
+			IntegerCurveMask[Index] = (!ChannelInfo || Section->GetControlNameMask(Integer.ParameterName));
 		}
 		for (int32 Index = 0; Index < Enums.Num(); ++Index)
 		{
 			const FEnumParameterNameAndCurve& Enum = Enums[Index];
 			ChannelInfo = Section->ControlChannelMap.Find(Enum.ParameterName);
-			EnumCurveMask[Index] = (!ChannelInfo || ControlsMask[ChannelInfo->ControlIndex]);
+			EnumCurveMask[Index] = (!ChannelInfo || Section->GetControlNameMask(Enum.ParameterName));
 		}
 		for (int32 Index = 0; Index < Vector2Ds.Num(); ++Index)
 		{
 			const FVector2DParameterNameAndCurves& Vector2D = Vector2Ds[Index];
 			ChannelInfo = Section->ControlChannelMap.Find(Vector2D.ParameterName);
-			Vector2DCurveMask[Index] = (!ChannelInfo || ControlsMask[ChannelInfo->MaskIndex]);
+			Vector2DCurveMask[Index] = (!ChannelInfo || Section->GetControlNameMask(Vector2D.ParameterName));
 		}
 		for (int32 Index = 0; Index < Vectors.Num(); ++Index)
 		{
 			const FVectorParameterNameAndCurves& Vector = Vectors[Index];
 			ChannelInfo = Section->ControlChannelMap.Find(Vector.ParameterName);
-			VectorCurveMask[Index] = (!ChannelInfo || ControlsMask[ChannelInfo->MaskIndex]);
+			VectorCurveMask[Index] = (!ChannelInfo || Section->GetControlNameMask(Vector.ParameterName));
 		}
 		for (int32 Index = 0; Index < Colors.Num(); ++Index)
 		{
 			const FColorParameterNameAndCurves& Color = Colors[Index];
 			ChannelInfo = Section->ControlChannelMap.Find(Color.ParameterName);
-			ColorCurveMask[Index] = (!ChannelInfo || ControlsMask[ChannelInfo->MaskIndex]);
+			ColorCurveMask[Index] = (!ChannelInfo || Section->GetControlNameMask(Color.ParameterName));
 		}
 		for (int32 Index = 0; Index < Transforms.Num(); ++Index)
 		{
 			const FTransformParameterNameAndCurves& Transform = Transforms[Index];
 			ChannelInfo = Section->ControlChannelMap.Find(Transform.ParameterName);
-			TransformCurveMask[Index] = (!ChannelInfo || ControlsMask[ChannelInfo->MaskIndex]);
+			TransformCurveMask[Index] = (!ChannelInfo || Section->GetControlNameMask(Transform.ParameterName));
 		}
 	}
 };
@@ -1834,7 +1832,6 @@ struct TControlRigParameterActuatorTransform : TMovieSceneBlendingActuator<FCont
 
 };
 
-
 void FMovieSceneControlRigParameterTemplate::Evaluate(const FMovieSceneEvaluationOperand& Operand, const FMovieSceneContext& Context, const FPersistentEvaluationData& PersistentData, FMovieSceneExecutionTokens& ExecutionTokens) const
 {
 	const FFrameTime Time = Context.GetTime();
@@ -1894,6 +1891,10 @@ void FMovieSceneControlRigParameterTemplate::Evaluate(const FMovieSceneEvaluatio
 
 		for (const FScalarParameterStringAndValue& ScalarNameAndValue : Values.ScalarValues)
 		{
+			if (Section->GetControlNameMask(ScalarNameAndValue.ParameterName) == false)
+			{
+				continue;
+			}
 			FMovieSceneAnimTypeID AnimTypeID = TypeIDs->FindScalar(ScalarNameAndValue.ParameterName);
 			FMovieSceneBlendingActuatorID ActuatorTypeID(AnimTypeID);
 
@@ -1907,6 +1908,10 @@ void FMovieSceneControlRigParameterTemplate::Evaluate(const FMovieSceneEvaluatio
 		UE::MovieScene::TMultiChannelValue<float, 3> VectorData;
 		for (const FVectorParameterStringAndValue& VectorNameAndValue : Values.VectorValues)
 		{
+			if (Section->GetControlNameMask(VectorNameAndValue.ParameterName) == false)
+			{
+				continue;
+			}
 			FMovieSceneAnimTypeID AnimTypeID = TypeIDs->FindVector(VectorNameAndValue.ParameterName);
 			FMovieSceneBlendingActuatorID ActuatorTypeID(AnimTypeID);
 
@@ -1924,6 +1929,10 @@ void FMovieSceneControlRigParameterTemplate::Evaluate(const FMovieSceneEvaluatio
 		UE::MovieScene::TMultiChannelValue<float, 2> Vector2DData;
 		for (const FVector2DParameterStringAndValue& Vector2DNameAndValue : Values.Vector2DValues)
 		{
+			if (Section->GetControlNameMask(Vector2DNameAndValue.ParameterName) == false)
+			{
+				continue;
+			}
 			FMovieSceneAnimTypeID AnimTypeID = TypeIDs->FindVector2D(Vector2DNameAndValue.ParameterName);
 			FMovieSceneBlendingActuatorID ActuatorTypeID(AnimTypeID);
 
@@ -1940,6 +1949,10 @@ void FMovieSceneControlRigParameterTemplate::Evaluate(const FMovieSceneEvaluatio
 		UE::MovieScene::TMultiChannelValue<float, 9> TransformData;
 		for (const FEulerTransformParameterStringAndValue& TransformNameAndValue : Values.TransformValues)
 		{
+			if (Section->GetControlNameMask(TransformNameAndValue.ParameterName) == false)
+			{
+				continue;
+			}
 			FMovieSceneAnimTypeID AnimTypeID = TypeIDs->FindTransform(TransformNameAndValue.ParameterName);
 			FMovieSceneBlendingActuatorID ActuatorTypeID(AnimTypeID);
 
@@ -2386,9 +2399,12 @@ void FMovieSceneControlRigParameterTemplate::Interrogate(const FMovieSceneContex
 			Weight *= ManualWeight;
 		}
 
-
 		for (const FScalarParameterStringAndValue& ScalarNameAndValue : Values.ScalarValues)
 		{
+			if (Section->GetControlNameMask(ScalarNameAndValue.ParameterName) == false)
+			{
+				continue;
+			}
 			FMovieSceneAnimTypeID AnimTypeID = TypeIDs->FindScalar(ScalarNameAndValue.ParameterName);
 			FMovieSceneBlendingActuatorID ActuatorTypeID(AnimTypeID);
 
@@ -2402,6 +2418,10 @@ void FMovieSceneControlRigParameterTemplate::Interrogate(const FMovieSceneContex
 		UE::MovieScene::TMultiChannelValue<float, 2> Vector2DData;
 		for (const FVector2DParameterStringAndValue& Vector2DNameAndValue : Values.Vector2DValues)
 		{
+			if (Section->GetControlNameMask(Vector2DNameAndValue.ParameterName) == false)
+			{
+				continue;
+			}
 			FMovieSceneAnimTypeID AnimTypeID = TypeIDs->FindVector2D(Vector2DNameAndValue.ParameterName);
 			FMovieSceneBlendingActuatorID ActuatorTypeID(AnimTypeID);
 
@@ -2418,6 +2438,10 @@ void FMovieSceneControlRigParameterTemplate::Interrogate(const FMovieSceneContex
 		UE::MovieScene::TMultiChannelValue<float, 3> VectorData;
 		for (const FVectorParameterStringAndValue& VectorNameAndValue : Values.VectorValues)
 		{
+			if (Section->GetControlNameMask(VectorNameAndValue.ParameterName) == false)
+			{
+				continue;
+			}
 			FMovieSceneAnimTypeID AnimTypeID = TypeIDs->FindVector(VectorNameAndValue.ParameterName);
 			FMovieSceneBlendingActuatorID ActuatorTypeID(AnimTypeID);
 
@@ -2435,6 +2459,10 @@ void FMovieSceneControlRigParameterTemplate::Interrogate(const FMovieSceneContex
 		UE::MovieScene::TMultiChannelValue<float, 9> TransformData;
 		for (const FEulerTransformParameterStringAndValue& TransformNameAndValue : Values.TransformValues)
 		{
+			if (Section->GetControlNameMask(TransformNameAndValue.ParameterName) == false)
+			{
+				continue;
+			}
 			FMovieSceneAnimTypeID AnimTypeID = TypeIDs->FindTransform(TransformNameAndValue.ParameterName);
 			FMovieSceneBlendingActuatorID ActuatorTypeID(AnimTypeID);
 

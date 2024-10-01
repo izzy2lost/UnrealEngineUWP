@@ -1747,7 +1747,6 @@ bool UAnimLayers::SetPassthroughKey(ISequencer* InSequencer, int32 InIndex)
 									}
 								}
 								InSequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::TrackValueChanged);
-
 							}
 						}
 						else
@@ -1764,6 +1763,292 @@ bool UAnimLayers::SetPassthroughKey(ISequencer* InSequencer, int32 InIndex)
 		return false;
 	}
 	return true;
+}
+
+static void MergeControlRigSections(UMovieSceneControlRigParameterSection* BaseSection, UMovieSceneControlRigParameterSection* Section, const TRange<FFrameNumber>& Range)
+{
+	if (!BaseSection || !Section)
+	{
+		return;
+	}
+	TArrayView<FMovieSceneFloatChannel*> BaseFloatChannels = BaseSection->GetChannelProxy().GetChannels<FMovieSceneFloatChannel>();
+	if (BaseFloatChannels.Num() > 0)
+	{
+		//need to go through each control and merge that
+		TArray<FRigControlElement*> Controls;
+		UControlRig* ControlRig = BaseSection->GetControlRig();
+		if (ControlRig == nullptr)
+		{
+			return;
+		}
+		ControlRig->GetControlsInOrder(Controls);
+		URigHierarchy* Hierarchy = ControlRig->GetHierarchy();
+		if (Hierarchy == nullptr)
+		{
+			return;
+		}
+
+		for (int32 LocalControlIndex = 0; LocalControlIndex < Controls.Num(); ++LocalControlIndex)
+		{
+			FRigControlElement* ControlElement = Controls[LocalControlIndex];
+			check(ControlElement);
+			if (!Hierarchy->IsAnimatable(ControlElement))
+			{
+				continue;
+			}
+
+			if (FChannelMapInfo* pChannelIndex = BaseSection->ControlChannelMap.Find(ControlElement->GetFName()))
+			{
+				const int32 ChannelIndex = pChannelIndex->ChannelIndex;
+				bool bMaskKeyOut = (BaseSection->GetControlNameMask(ControlElement->GetFName()) == false)
+					|| (Section->GetControlNameMask(ControlElement->GetFName()) == false);
+
+				if (bMaskKeyOut)
+				{
+					continue;
+				}
+
+				switch (ControlElement->Settings.ControlType)
+				{
+
+					case ERigControlType::Float:
+					case ERigControlType::ScaleFloat:
+					{
+						int32 StartIndex = ChannelIndex;
+						int32 EndIndex = ChannelIndex;
+						MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(BaseSection,
+							Section, StartIndex, EndIndex, Range);
+						break;
+					}
+					case ERigControlType::Vector2D:
+					{
+						int32 StartIndex = ChannelIndex;
+						int32 EndIndex = ChannelIndex + 1;
+						MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(BaseSection,
+							Section, StartIndex, EndIndex, Range);
+						break;
+					}
+					case ERigControlType::Position:
+					case ERigControlType::Scale:
+					case ERigControlType::Rotator:
+					{
+						int32 StartIndex = ChannelIndex;
+						int32 EndIndex = ChannelIndex + 2;
+						MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(BaseSection,
+							Section, StartIndex, EndIndex, Range);
+						break;
+					}
+
+					case ERigControlType::Transform:
+					case ERigControlType::TransformNoScale:
+					case ERigControlType::EulerTransform:
+					{
+						EMovieSceneTransformChannel BaseChannelMask = BaseSection->GetTransformMask().GetChannels();
+						EMovieSceneTransformChannel ChannelMask = Section->GetTransformMask().GetChannels();
+
+						const bool bDoAllTransform = EnumHasAllFlags(ChannelMask, EMovieSceneTransformChannel::AllTransform);
+						if (bDoAllTransform)
+						{
+							if (ControlElement->Settings.ControlType == ERigControlType::TransformNoScale)
+							{
+								int32 StartIndex = ChannelIndex;
+								int32 EndIndex = ChannelIndex + 5;
+								MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(BaseSection,
+									Section, StartIndex, EndIndex, Range);
+							}
+							else
+							{
+								int32 StartIndex = ChannelIndex;
+								int32 EndIndex = ChannelIndex + 8;
+								MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(BaseSection,
+									Section, StartIndex, EndIndex, Range);
+							}
+						}
+						else
+						{
+							if (EnumHasAllFlags(BaseChannelMask, EMovieSceneTransformChannel::TranslationX)
+								 && EnumHasAllFlags(ChannelMask, EMovieSceneTransformChannel::TranslationX))
+							{
+								int32 StartIndex = ChannelIndex;
+								int32 EndIndex = StartIndex;
+								MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(BaseSection,
+									Section, StartIndex, EndIndex, Range);
+							}
+							if (EnumHasAllFlags(BaseChannelMask, EMovieSceneTransformChannel::TranslationY)
+								&& EnumHasAllFlags(ChannelMask, EMovieSceneTransformChannel::TranslationY))
+							{
+								int32 StartIndex = ChannelIndex + 1;
+								int32 EndIndex = StartIndex;
+								MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(BaseSection,
+									Section, StartIndex, EndIndex, Range);
+							}
+							if (EnumHasAllFlags(BaseChannelMask, EMovieSceneTransformChannel::TranslationZ)
+								&& EnumHasAllFlags(ChannelMask, EMovieSceneTransformChannel::TranslationZ))
+							{
+								int32 StartIndex = ChannelIndex + 2;
+								int32 EndIndex = StartIndex;
+								MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(BaseSection,
+									Section, StartIndex, EndIndex, Range);
+							}
+							if (EnumHasAllFlags(BaseChannelMask, EMovieSceneTransformChannel::RotationX)
+								&& EnumHasAllFlags(ChannelMask, EMovieSceneTransformChannel::RotationX))
+							{
+								int32 StartIndex = ChannelIndex + 3;
+								int32 EndIndex = StartIndex;
+								MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(BaseSection,
+									Section, StartIndex, EndIndex, Range);
+							}
+							if (EnumHasAllFlags(BaseChannelMask, EMovieSceneTransformChannel::RotationY)
+								&& EnumHasAllFlags(ChannelMask, EMovieSceneTransformChannel::RotationY))
+							{
+								int32 StartIndex = ChannelIndex + 4;
+								int32 EndIndex = StartIndex;
+								MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(BaseSection,
+									Section, StartIndex, EndIndex, Range);
+							}
+							if (EnumHasAllFlags(BaseChannelMask, EMovieSceneTransformChannel::RotationZ)
+								&& EnumHasAllFlags(ChannelMask, EMovieSceneTransformChannel::RotationZ))
+							{
+								int32 StartIndex = ChannelIndex + 5;
+								int32 EndIndex = StartIndex;
+								MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(BaseSection,
+									Section, StartIndex, EndIndex, Range);
+							}
+							if (ControlElement->Settings.ControlType != ERigControlType::TransformNoScale)
+							{
+								if (EnumHasAllFlags(BaseChannelMask, EMovieSceneTransformChannel::ScaleX)
+									&& EnumHasAllFlags(ChannelMask, EMovieSceneTransformChannel::ScaleX))
+								{
+									int32 StartIndex = ChannelIndex + 6;
+									int32 EndIndex = StartIndex;
+									MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(BaseSection,
+										Section, StartIndex, EndIndex, Range);
+								}
+								if (EnumHasAllFlags(BaseChannelMask, EMovieSceneTransformChannel::ScaleY)
+									&& EnumHasAllFlags(ChannelMask, EMovieSceneTransformChannel::ScaleY))
+								{
+									int32 StartIndex = ChannelIndex + 7;
+									int32 EndIndex = StartIndex;
+									MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(BaseSection,
+										Section, StartIndex, EndIndex, Range);
+								}
+								if (EnumHasAllFlags(BaseChannelMask, EMovieSceneTransformChannel::ScaleZ)
+									&& EnumHasAllFlags(ChannelMask, EMovieSceneTransformChannel::ScaleZ))
+								{
+									int32 StartIndex = ChannelIndex + 8;
+									int32 EndIndex = StartIndex;
+									MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(BaseSection,
+										Section, StartIndex, EndIndex, Range);
+								}
+							}
+						}
+						break;
+					}
+					default:
+						break;
+				}
+			}
+		}
+	}
+}
+
+static void MergeTransformSections(UMovieScene3DTransformSection* BaseSection, UMovieScene3DTransformSection* Section, const TRange<FFrameNumber>& Range)
+{
+	if (!BaseSection || !Section)
+	{
+		return;
+	}
+	TArrayView<FMovieSceneDoubleChannel*> BaseDoubleChannels = BaseSection->GetChannelProxy().GetChannels<FMovieSceneDoubleChannel>();
+	if (BaseDoubleChannels.Num() > 0)
+	{
+		EMovieSceneTransformChannel BaseChannelMask = BaseSection->GetMask().GetChannels();
+		EMovieSceneTransformChannel ChannelMask = Section->GetMask().GetChannels();
+
+		const bool bDoAllTransform = EnumHasAllFlags(ChannelMask, EMovieSceneTransformChannel::AllTransform);
+		if (bDoAllTransform)
+		{
+			int32 StartIndex = 0;
+			int32 EndIndex = BaseDoubleChannels.Num() - 1;
+			MovieSceneToolHelpers::MergeSections<FMovieSceneDoubleChannel>(BaseSection,
+				Section, StartIndex, EndIndex, Range);
+		}
+		else
+		{
+			const int32 ChannelIndex = 0;
+			if (EnumHasAllFlags(BaseChannelMask, EMovieSceneTransformChannel::TranslationX)
+				&& EnumHasAllFlags(ChannelMask, EMovieSceneTransformChannel::TranslationX))
+			{
+				int32 StartIndex = ChannelIndex;
+				int32 EndIndex = StartIndex;
+				MovieSceneToolHelpers::MergeSections<FMovieSceneDoubleChannel>(BaseSection,
+					Section, StartIndex, EndIndex, Range);
+			}
+			if (EnumHasAllFlags(BaseChannelMask, EMovieSceneTransformChannel::TranslationY)
+				&& EnumHasAllFlags(ChannelMask, EMovieSceneTransformChannel::TranslationY))
+			{
+				int32 StartIndex = ChannelIndex + 1;
+				int32 EndIndex = StartIndex;
+				MovieSceneToolHelpers::MergeSections<FMovieSceneDoubleChannel>(BaseSection,
+					Section, StartIndex, EndIndex, Range);
+			}
+			if (EnumHasAllFlags(BaseChannelMask, EMovieSceneTransformChannel::TranslationZ)
+				&& EnumHasAllFlags(ChannelMask, EMovieSceneTransformChannel::TranslationZ))
+			{
+				int32 StartIndex = ChannelIndex + 2;
+				int32 EndIndex = StartIndex;
+				MovieSceneToolHelpers::MergeSections<FMovieSceneDoubleChannel>(BaseSection,
+					Section, StartIndex, EndIndex, Range);
+			}
+			if (EnumHasAllFlags(BaseChannelMask, EMovieSceneTransformChannel::RotationX)
+				&& EnumHasAllFlags(ChannelMask, EMovieSceneTransformChannel::RotationX))
+			{
+				int32 StartIndex = ChannelIndex + 3;
+				int32 EndIndex = StartIndex;
+				MovieSceneToolHelpers::MergeSections<FMovieSceneDoubleChannel>(BaseSection,
+					Section, StartIndex, EndIndex, Range);
+			}
+			if (EnumHasAllFlags(BaseChannelMask, EMovieSceneTransformChannel::RotationY)
+				&& EnumHasAllFlags(ChannelMask, EMovieSceneTransformChannel::RotationY))
+			{
+				int32 StartIndex = ChannelIndex + 4;
+				int32 EndIndex = StartIndex;
+				MovieSceneToolHelpers::MergeSections<FMovieSceneDoubleChannel>(BaseSection,
+					Section, StartIndex, EndIndex, Range);
+			}
+			if (EnumHasAllFlags(BaseChannelMask, EMovieSceneTransformChannel::RotationZ)
+				&& EnumHasAllFlags(ChannelMask, EMovieSceneTransformChannel::RotationZ))
+			{
+				int32 StartIndex = ChannelIndex +  5;
+				int32 EndIndex = StartIndex;
+				MovieSceneToolHelpers::MergeSections<FMovieSceneDoubleChannel>(BaseSection,
+					Section, StartIndex, EndIndex, Range);
+			}
+			if (EnumHasAllFlags(BaseChannelMask, EMovieSceneTransformChannel::ScaleX)
+				&& EnumHasAllFlags(ChannelMask, EMovieSceneTransformChannel::ScaleX))
+			{
+				int32 StartIndex = ChannelIndex + 6;
+				int32 EndIndex = StartIndex;
+				MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(BaseSection,
+					Section, StartIndex, EndIndex, Range);
+			}
+			if (EnumHasAllFlags(BaseChannelMask, EMovieSceneTransformChannel::ScaleY)
+				&& EnumHasAllFlags(ChannelMask, EMovieSceneTransformChannel::ScaleY))
+			{
+				int32 StartIndex = ChannelIndex + 7;
+				int32 EndIndex = StartIndex;
+				MovieSceneToolHelpers::MergeSections<FMovieSceneDoubleChannel>(BaseSection,
+					Section, StartIndex, EndIndex, Range);
+			}
+			if (EnumHasAllFlags(BaseChannelMask, EMovieSceneTransformChannel::ScaleZ)
+				&& EnumHasAllFlags(ChannelMask, EMovieSceneTransformChannel::ScaleZ))
+			{
+				int32 StartIndex = ChannelIndex + 8;
+				int32 EndIndex = StartIndex;
+				MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(BaseSection,
+					Section, StartIndex, EndIndex, Range);
+			}
+		}
+	}
 }
 
 bool UAnimLayers::MergeAnimLayers(ISequencer* InSequencer, const TArray<int32>& Indices, const FBakingAnimationKeySettings* InSettings)
@@ -1823,36 +2108,51 @@ bool UAnimLayers::MergeAnimLayers(ISequencer* InSequencer, const TArray<int32>& 
 						{
 							if (SectionItem.Section->IsActive())//active sections merge them
 							{
-								
-								TArrayView<FMovieSceneFloatChannel*> BaseFloatChannels = BaseSectionItem->Section->GetChannelProxy().GetChannels<FMovieSceneFloatChannel>();
-								TArrayView<FMovieSceneDoubleChannel*> BaseDoubleChannels = BaseSectionItem->Section->GetChannelProxy().GetChannels<FMovieSceneDoubleChannel>();
-								if (BaseDoubleChannels.Num() > 0)
+								//if transform or control rig section we need to handle masking
+								if (UMovieSceneControlRigParameterSection* BaseCRSection = Cast< UMovieSceneControlRigParameterSection>(BaseSectionItem->Section.Get()))
 								{
-									int32 StartIndex = 0;
-									int32 EndIndex = BaseDoubleChannels.Num() - 1;
-									MovieSceneToolHelpers::MergeSections<FMovieSceneDoubleChannel>(BaseSectionItem->Section.Get(),
-										SectionItem.Section.Get(), StartIndex, EndIndex, Range);
-
+									UMovieSceneControlRigParameterSection* CRSection = Cast< UMovieSceneControlRigParameterSection>(SectionItem.Section.Get());
+									MergeControlRigSections(BaseCRSection, CRSection, Range);
 								}
-								else if (BaseFloatChannels.Num() > 0)
+								else if (UMovieScene3DTransformSection* BaseTRSection = Cast< UMovieScene3DTransformSection>(BaseSectionItem->Section.Get()))
 								{
-									int32 StartIndex = 0;
-									int32 EndIndex = BaseFloatChannels.Num() - 1;
-									MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(BaseSectionItem->Section.Get(),
-										SectionItem.Section.Get(), StartIndex, EndIndex, Range);
+									UMovieScene3DTransformSection* TRSection = Cast< UMovieScene3DTransformSection>(SectionItem.Section.Get());
+									MergeTransformSections(BaseTRSection, TRSection, Range);
+								}
+								else
+								{
+									TArrayView<FMovieSceneFloatChannel*> BaseFloatChannels = BaseSectionItem->Section->GetChannelProxy().GetChannels<FMovieSceneFloatChannel>();
+									TArrayView<FMovieSceneDoubleChannel*> BaseDoubleChannels = BaseSectionItem->Section->GetChannelProxy().GetChannels<FMovieSceneDoubleChannel>();
+									if (BaseDoubleChannels.Num() > 0)
+									{
+										int32 StartIndex = 0;
+										int32 EndIndex = BaseDoubleChannels.Num() - 1;
+										MovieSceneToolHelpers::MergeSections<FMovieSceneDoubleChannel>(BaseSectionItem->Section.Get(),
+											SectionItem.Section.Get(), StartIndex, EndIndex, Range);
+
+									}
+									else if (BaseFloatChannels.Num() > 0)
+									{
+										int32 StartIndex = 0;
+										int32 EndIndex = BaseFloatChannels.Num() - 1;
+										MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(BaseSectionItem->Section.Get(),
+											SectionItem.Section.Get(), StartIndex, EndIndex, Range);
+									}
 								}
 							}
-			
-							if (UMovieSceneControlRigParameterSection* CRSection = Cast<UMovieSceneControlRigParameterSection>(BaseSectionItem->Section))
+							if (BaseLayer != AnimLayers[0]) //if not base layer
 							{
-								if (SectionItem.AnimLayerSet.Names.Num() > 0)
+								if (UMovieSceneControlRigParameterSection* CRSection = Cast<UMovieSceneControlRigParameterSection>(BaseSectionItem->Section))
 								{
-									AddNamesToMask(BaseSectionItem, CRSection, SectionItem.AnimLayerSet);
-									if (SortedIndices[0] != 0) //if not base then make sure mask is set up
+									if (SectionItem.AnimLayerSet.Names.Num() > 0)
 									{
-										TArray<FName> AllControls;
-										BaseSectionItem->AnimLayerSet.Names.GenerateKeyArray(AllControls);
-										UAnimLayers::SetUpControlRigSection(CRSection, AllControls);
+										AddNamesToMask(BaseSectionItem, CRSection, SectionItem.AnimLayerSet);
+										if (SortedIndices[0] != 0) //if not base then make sure mask is set up
+										{
+											TArray<FName> AllControls;
+											BaseSectionItem->AnimLayerSet.Names.GenerateKeyArray(AllControls);
+											UAnimLayers::SetUpControlRigSection(CRSection, AllControls);
+										}
 									}
 								}
 							}
@@ -1893,14 +2193,21 @@ bool UAnimLayers::MergeAnimLayers(ISequencer* InSequencer, const TArray<int32>& 
 		}
 	}
 	UAnimLayer* BaseLayer = LayersToMerge[LayersToMerge.Num() - 1];
-	FString Merged(TEXT("Merged"));
-	FString ExistingName = BaseLayer->GetName().ToString();
-	if (ExistingName.Contains(Merged) == false)
+	if (BaseLayer != AnimLayers[0]) //if not base layer
 	{
-		FString NewLayerName = FString::Printf(TEXT("%s_Merged"), *ExistingName);
-		FText LayerText;
-		LayerText = LayerText.FromString(NewLayerName);
-		BaseLayer->SetName(LayerText); //need items/sections to be added so we can change their track row names
+		FString Merged(TEXT("Merged"));
+		FString ExistingName = BaseLayer->GetName().ToString();
+		if (ExistingName.Contains(Merged) == false)
+		{
+			FString NewLayerName = FString::Printf(TEXT("%s_Merged"), *ExistingName);
+			FText LayerText;
+			LayerText = LayerText.FromString(NewLayerName);
+			BaseLayer->SetName(LayerText); //need items/sections to be added so we can change their track row names
+		}
+	}
+	else
+	{
+		SetUpBaseLayerSections(); //if it is the base reset it
 	}
 	InSequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
 	return true;
@@ -2282,17 +2589,13 @@ void UAnimLayers::SetUpControlRigSection(UMovieSceneControlRigParameterSection* 
 		if (ParameterSection && ControlRig)
 		{
 			ParameterSection->Modify();
-			ParameterSection->FillControlsMask(false);
+			ParameterSection->FillControlNameMask(false);
 
 			TArray<FRigControlElement*> Controls;
 			ControlRig->GetControlsInOrder(Controls);
 			for (const FName& RigName : ControlNames)
 			{
-				FChannelMapInfo* pChannelIndex = ParameterSection->ControlChannelMap.Find(RigName);
-				if (pChannelIndex)
-				{
-					ParameterSection->SetControlsMask(pChannelIndex->MaskIndex, true);
-				}
+				ParameterSection->SetControlNameMask(RigName, true);
 			}
 		}
 	}

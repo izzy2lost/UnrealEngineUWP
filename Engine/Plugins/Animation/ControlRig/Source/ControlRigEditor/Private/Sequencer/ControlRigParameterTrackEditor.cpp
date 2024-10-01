@@ -3900,7 +3900,6 @@ void FControlRigParameterTrackEditor::GetControlRigKeys(
 	FGeneratedTrackKeys& OutGeneratedKeys,
 	const bool bInConstraintSpace)
 {
-	const TArray<bool>& ControlsMask = SectionToKey->GetControlsMask();
 	EMovieSceneTransformChannel TransformMask = SectionToKey->GetTransformMask().GetChannels();
 
 	TArray<FRigControlElement*> Controls;
@@ -3929,7 +3928,7 @@ void FControlRigParameterTrackEditor::GetControlRigKeys(
 			int32 ChannelIndex = pChannelIndex->ChannelIndex;
 			const int32 MaskIndex = pChannelIndex->MaskIndex;
 
-			bool bMaskKeyOut = (MaskIndex >= ControlsMask.Num() || ControlsMask[MaskIndex] == false);
+			bool bMaskKeyOut = (SectionToKey->GetControlNameMask(ControlElement->GetFName()) == false);
 			bool bSetKey = ParameterName.IsNone() || (ControlElement->GetFName() == ParameterName && !bMaskKeyOut);
 
 			FRigControlValue ControlValue = InControlRig->GetControlValue(ControlElement, ERigControlValueType::Current);
@@ -4922,20 +4921,16 @@ private:
 			}
 			if (Track && Sequencer)
 			{
-				TArray<bool> Mask;
-				Mask.SetNum(BoneCheckArray.Num());
-				for (const FFKBoneCheckInfo& Info : BoneCheckArray)
-				{
-					Mask[Info.BoneID] = Info.bActive;
-				}
-
 				TArray<UMovieSceneSection*> Sections = Track->GetAllSections();
 				for (UMovieSceneSection* IterSection : Sections)
 				{
 					UMovieSceneControlRigParameterSection* Section = Cast< UMovieSceneControlRigParameterSection>(IterSection);
 					if (Section)
 					{
-						Section->SetControlsMask(Mask);
+						for (const FFKBoneCheckInfo& Info : BoneCheckArray)
+						{
+							Section->SetControlNameMask(Info.BoneName, Info.bActive);
+						}
 					}
 				}
 				Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
@@ -5487,79 +5482,7 @@ void FControlRigParameterSection::BuildSectionContextMenu(FMenuBuilder& MenuBuil
 				})
 			);
 	};
-	auto ToggleControls = [this](int32 Index)
-	{
-		return FUIAction(
-			FExecuteAction::CreateLambda([this, Index]
-				{
-					const TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
-					if (!SequencerPtr)
-					{
-						return;
-					}
-
-					UMovieSceneControlRigParameterSection* const ParameterSection = CastChecked<UMovieSceneControlRigParameterSection>(WeakSection.Get());
-					if (!IsValid(ParameterSection))
-					{
-						return;
-					}
-
-					FScopedTransaction Transaction(LOCTEXT("ToggleRigControlFiltersTransaction", "Toggle Rig Control Filters"));
-					ParameterSection->Modify();
-					if (Index >= 0)
-					{
-						ParameterSection->SetControlsMask(Index, !ParameterSection->GetControlsMask(Index));
-					}
-					else
-					{
-						ParameterSection->FillControlsMask(!ParameterSection->GetControlsMask(0));
-					}
-					SequencerPtr->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
-				}
-			),
-			FCanExecuteAction(),
-			FGetActionCheckState::CreateLambda([this, Index]
-				{
-					UMovieSceneControlRigParameterSection* const ParameterSection = CastChecked<UMovieSceneControlRigParameterSection>(WeakSection.Get());
-					if (!IsValid(ParameterSection))
-					{
-						return ECheckBoxState::Unchecked;
-					}
-
-					TArray<bool> ControlBool = ParameterSection->GetControlsMask();
-					if (Index >= 0)
-					{
-						if (ControlBool[Index])
-						{
-							return ECheckBoxState::Checked;
-						}
-						else
-						{
-							return ECheckBoxState::Unchecked;
-						}
-					}
-					else
-					{
-						TOptional<bool> FirstVal;
-						for (bool Val : ControlBool)
-						{
-							if (FirstVal.IsSet())
-							{
-								if (Val != FirstVal)
-								{
-									return ECheckBoxState::Undetermined;
-								}
-							}
-							else
-							{
-								FirstVal = Val;
-							}
-						}
-						return (FirstVal.IsSet() && FirstVal.GetValue()) ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-					}
-				})
-			);
-	};
+	
 	UMovieSceneControlRigParameterTrack* Track = ParameterSection->GetTypedOuter<UMovieSceneControlRigParameterTrack>();
 	if (Track)
 	{
@@ -5692,7 +5615,7 @@ void FControlRigParameterSection::ShowSelectedControlsChannels()
 	{
 		FScopedTransaction Transaction(LOCTEXT("ShowSelecedControlChannels", "Show Selected Control Channels"));
 		ParameterSection->Modify();
-		ParameterSection->FillControlsMask(false);
+		ParameterSection->FillControlNameMask(false);
 
 		TArray<FRigControlElement*> Controls;
 		ControlRig->GetControlsInOrder(Controls);
@@ -5704,7 +5627,7 @@ void FControlRigParameterSection::ShowSelectedControlsChannels()
 				FChannelMapInfo* pChannelIndex = ParameterSection->ControlChannelMap.Find(RigName);
 				if (pChannelIndex)
 				{
-					ParameterSection->SetControlsMask(pChannelIndex->MaskIndex, true);
+					ParameterSection->SetControlNameMask(RigName, true);
 				}
 			}
 		}
@@ -5720,7 +5643,7 @@ void FControlRigParameterSection::ShowAllControlsChannels()
 	{
 		FScopedTransaction Transaction(LOCTEXT("ShowAllControlChannels", "Show All Control Channels"));
 		ParameterSection->Modify();
-		ParameterSection->FillControlsMask(true);
+		ParameterSection->FillControlNameMask(true);
 		SequencerPtr->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
 	}
 }

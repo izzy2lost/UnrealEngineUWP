@@ -228,9 +228,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Animation")
 	TSubclassOf<UControlRig> ControlRigClass;
 
-	/** Mask for controls themselves*/
+	/** Deprecrated, use ControlNameMask*/
 	UPROPERTY()
 	TArray<bool> ControlsMask;
+
+	/** Names of Controls that are masked out on this section*/
+	UPROPERTY()
+	TSet<FName> ControlNameMask;
 
 	/** Mask for Transform Mask*/
 	UPROPERTY()
@@ -243,6 +247,7 @@ public:
 	/** Map from the control name to where it starts as a channel*/
 	UPROPERTY()
 	TMap<FName, FChannelMapInfo> ControlChannelMap;
+
 
 protected:
 	/** Enum Curves*/
@@ -320,6 +325,20 @@ public:
 	UE_DEPRECATED(5.5, "LoadAnimSequenceIntoThisSection without taking a sequence start frame is deprecated, use version that takes start frame instead")
 	virtual bool LoadAnimSequenceIntoThisSection(UAnimSequence* Sequence, UMovieScene* MovieScene, UObject* BoundObject, bool bKeyReduce, float Tolerance, bool bResetControls, FFrameNumber InStartFrame , EMovieSceneKeyInterpolation InInterpolation);
 #endif
+	
+	void FillControlNameMask(bool bValue);
+
+	void SetControlNameMask(const FName& Name, bool bValue);
+
+	bool GetControlNameMask(const FName& Name) const;
+
+	UE_DEPRECATED(5.5, "Use GetControlNameMask")
+	const TArray<bool>& GetControlsMask() const
+	{
+		return ControlsMask;
+	}
+	
+	UE_DEPRECATED(5.5, "Use GetControlNameMask")
 	const TArray<bool>& GetControlsMask() 
 	{
 		if (ChannelProxy.IsValid() == false)
@@ -329,6 +348,7 @@ public:
 		return ControlsMask;
 	}
 
+	UE_DEPRECATED(5.5, "Use GetControlNameMask")
 	bool GetControlsMask(int32 Index)  
 	{
 		if (ChannelProxy.IsValid() == false)
@@ -342,12 +362,14 @@ public:
 		return false;
 	}
 
+	UE_DEPRECATED(5.5, "Use SetControlNameMask")
 	void SetControlsMask(const TArray<bool>& InMask)
 	{
 		ControlsMask = InMask;
 		ReconstructChannelProxy();
 	}
 
+	UE_DEPRECATED(5.5, "Use SetControlNameMask")
 	void SetControlsMask(int32 Index, bool Val)
 	{
 		if (Index >= 0 && Index < ControlsMask.Num())
@@ -357,11 +379,13 @@ public:
 		ReconstructChannelProxy();
 	}
 
+	UE_DEPRECATED(5.5, "Use FillControlNameMask")
 	void FillControlsMask(bool Val)
 	{
 		ControlsMask.Init(Val, ControlsMask.Num());
 		ReconstructChannelProxy();
 	}
+	
 	/**
 	* This function returns the active category index of the control, based upon what controls are active/masked or not
 	* If itself is masked it returns INDEX_NONE
@@ -513,6 +537,8 @@ public:
 	virtual void ReconstructChannelProxy() override;
 
 protected:
+
+	void ConvertMaskArrayToNameSet();
 
 	//~ UMovieSceneSection interface
 	virtual void Serialize(FArchive& Ar) override;
