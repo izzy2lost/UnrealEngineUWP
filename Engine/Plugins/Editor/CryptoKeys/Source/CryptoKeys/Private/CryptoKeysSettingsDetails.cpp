@@ -103,7 +103,7 @@ void FCryptoKeysSettingsDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBu
 					Settings->SigningModulus = TEXT("");
 					Settings->SigningPublicExponent = TEXT("");
 					Settings->SigningPrivateExponent = TEXT("");
-					Settings->SaveConfig(CPF_Config, *Settings->GetDefaultConfigFilename());
+					Settings->TryUpdateDefaultConfigFile();
 					return(FReply::Handled());
 				})
 			]
