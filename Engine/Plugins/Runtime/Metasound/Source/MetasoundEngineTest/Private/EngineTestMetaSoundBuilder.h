@@ -43,7 +43,7 @@ namespace EngineTestMetaSoundPatchBuilderPrivate
 	{
 		UMetaSoundPatchBuilder& Builder = CreatePatchBuilderChecked(Test, FName(PatchName + TEXT(" Builder")), InterfaceNamesToAdd);
 
-		UMetaSoundPatch* InputPatch = CastChecked<UMetaSoundPatch>(Builder.Build(nullptr, FMetaSoundBuilderOptions { FName(PatchName) }).GetObject());
+		UMetaSoundPatch* InputPatch = CastChecked<UMetaSoundPatch>(Builder.BuildNewMetaSound(FName(PatchName)).GetObject());
 		Test.AddErrorIfFalse(InputPatch != nullptr, FString::Printf(TEXT("Failed to build MetaSound patch '%s'"), *PatchName));
 		return InputPatch;
 	}

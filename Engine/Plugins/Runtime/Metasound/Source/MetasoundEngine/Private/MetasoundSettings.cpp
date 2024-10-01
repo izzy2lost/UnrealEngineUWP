@@ -355,7 +355,7 @@ const FMetaSoundPageSettings& UMetaSoundSettings::GetTargetPageSettings() const
 	{
 		if (bWarnAccessBeforeInit)
 		{
-			UE_LOG(LogMetaSound, Display, TEXT("Target Page Settings accessed prior to 'PostLoad' called.  Uninitialized PageSettings '%s' being returned."), *SettingsSet.Name.ToString());
+			UE_LOG(LogMetaSound, Display, TEXT("Target Page Settings accessed prior to 'PostInitProperties' being called.  Uninitialized PageSettings '%s' being returned."), *SettingsSet.Name.ToString());
 			bWarnAccessBeforeInit = false;
 		}
 	};
