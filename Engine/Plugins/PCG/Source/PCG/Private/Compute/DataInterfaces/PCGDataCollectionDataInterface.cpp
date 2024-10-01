@@ -46,7 +46,7 @@ void UPCGDataCollectionDataInterface::GetSupportedInputs(TArray<FShaderFunctionD
 			.AddParam(EShaderFundamentalType::Uint); // InDataIndex
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("GetDataNumElements"))
+			.SetName(TEXT("GetNumElements"))
 			.AddReturnType(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint); // InDataIndex
 

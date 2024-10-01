@@ -64,7 +64,7 @@ bool GetThreadData_{DataInterfaceName}(uint InThreadIndex, out uint OutDataIndex
 	const uint NumData = GetNumData_{DataInterfaceName}();
 	for (uint DataIndex = 0; DataIndex < NumData; ++DataIndex)
 	{
-		const uint ElemCount = GetDataNumElements_{DataInterfaceName}(DataIndex);
+		const uint ElemCount = GetNumElements_{DataInterfaceName}(DataIndex);
 
 		if (ElementIndex < ElemCount)
 		{
@@ -88,7 +88,7 @@ uint GetNumElements_{DataInterfaceName}()
 	const uint NumData = GetNumData_{DataInterfaceName}();
 	for (uint DataIndex = 0; DataIndex < NumData; ++DataIndex)
 	{
-		NumElements += GetDataNumElements_{DataInterfaceName}(DataIndex);
+		NumElements += GetNumElements_{DataInterfaceName}(DataIndex);
 	}
 
 	return NumElements;
