@@ -30,6 +30,7 @@
 #include "PlatformInfo.h"
 #include "DesktopPlatformModule.h"
 #include "Interfaces/ITurnkeySupportModule.h"
+#include "DataDrivenShaderPlatformInfo.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogTargetPlatformManager, Log, All);
 
@@ -872,6 +873,18 @@ protected:
 		}
 #endif
 
+	// Get the platform we are previewing if GMaxRHIShaderPlatform is a preview SP
+#if WITH_EDITOR
+		FName PlatformNamePreview = NAME_None;
+		if (IsRunningGame())
+		{
+			if (FDataDrivenShaderPlatformInfo::GetIsPreviewPlatform(GMaxRHIShaderPlatform))
+			{
+				PlatformNamePreview = FDataDrivenShaderPlatformInfo::GetPlatformName(GMaxRHIShaderPlatform);
+			}
+		}
+#endif
+
 		// find a set of valid target platform names (the platform DataDrivenPlatformInfo.ini file was found indicates support for the platform 
 		// exists on disk, so the TP is expected to work)
 		FScopedSlowTask SlowTask((float)FDataDrivenPlatformInfoRegistry::GetAllPlatformInfos().Num());
@@ -887,10 +900,13 @@ protected:
 
 #if WITH_EDITOR
 			// if we have the editor and we are using -game
-			// only need to instantiate the current platform 
+			// only need to instantiate the current platform if we are not using OverrideSP command
+			// If we are using OverrideSP command that means our SP is a preview SP 
+			// Because of that we must also load the TPS of the Platform we are previewing.
 			if (IsRunningGame())
 			{
-				if (PlatformName != FPlatformProperties::IniPlatformName())
+				if ((PlatformName != FPlatformProperties::IniPlatformName()) && 
+					(PlatformName != PlatformNamePreview))
 				{
 					continue;
 				}
