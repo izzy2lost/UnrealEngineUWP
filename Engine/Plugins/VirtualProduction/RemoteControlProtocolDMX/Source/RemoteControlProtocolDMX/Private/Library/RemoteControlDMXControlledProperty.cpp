@@ -84,7 +84,7 @@ namespace UE::RemoteControl::DMX
 						}
 						else
 						{
-							return FString::Printf(TEXT("%s.%s%i"), *ExposedProperty->FieldPathInfo.ToString(), *GetSubobjectPath(), EntityIndex + 1);
+							return FString::Printf(TEXT("%s%i.%s"), *ExposedProperty->FieldPathInfo.ToString(), EntityIndex + 1, *GetSubobjectPath());
 						}
 					}();
 

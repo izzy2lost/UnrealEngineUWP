@@ -26,7 +26,8 @@ void URemoteControlDMXUserData::PostEditChangeProperty(FPropertyChangedEvent& Pr
 	{
 		if (!DMXLibrary)
 		{
-			DMXLibrary = NewObject<UDMXLibrary>(this, "Internal", RF_Public | RF_Transactional);
+			const FName UnqiueName = MakeUniqueObjectName(this, UDMXLibrary::StaticClass(), "Internal");
+			DMXLibrary = NewObject<UDMXLibrary>(this, UnqiueName, RF_Public | RF_Transactional);
 		}
 
 		check(DMXLibraryProxy);

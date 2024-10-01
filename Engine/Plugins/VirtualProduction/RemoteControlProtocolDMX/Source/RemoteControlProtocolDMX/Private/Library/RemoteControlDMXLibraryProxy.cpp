@@ -198,7 +198,7 @@ void URemoteControlDMXLibraryProxy::UpdatePropertyPatches()
 		TMap<const UObject*, TArray<TSharedRef<FRemoteControlDMXControlledProperty>>> OwnerToPropertiesMap;
 		for (const TSharedRef<FRemoteControlDMXControlledProperty>& DMXControlledProperty : DMXControlledProperties)
 		{
-			const UObject* Owner = DMXControlledProperty->ExposedProperty->GetBoundObject();
+			const UObject* Owner = DMXControlledProperty->GetOwnerActor();
 			if (ensureMsgf(Owner, TEXT("Cannot group property by owner. Property has no valid bound object.")))
 			{
 				OwnerToPropertiesMap.FindOrAdd(Owner).Add(DMXControlledProperty);

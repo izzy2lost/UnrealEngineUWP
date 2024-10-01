@@ -128,7 +128,7 @@ namespace UE::RemoteControl::DMX
 					.Orientation(Orient_Vertical)
 				]
 
-				// Create DMX Libary button
+				// Actions menu
 				+SHorizontalBox::Slot()
 				.Padding(FMargin(8.f, 0.f))
 				.VAlign(VAlign_Center)
