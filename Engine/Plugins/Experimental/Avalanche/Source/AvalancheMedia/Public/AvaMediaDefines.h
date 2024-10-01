@@ -6,14 +6,20 @@
 #include "Misc/EnumClassFlags.h"
 #include "AvaMediaDefines.generated.h"
 
+/**
+ * Channel state is a union summary of the output's states.
+ */
 UENUM()
 enum class EAvaBroadcastChannelState : uint8
 {
+	/** Indicates that all channel outputs are offline. */
 	Offline,
+	/** Indicates that at least some of the channel outputs are idle (but none are live). */
 	Idle,
+	/** Indicates that at least some of the channel outputs are live.*/
 	Live,
 
-	Max,
+	Max UMETA(Hidden),
 };
 
 /**
@@ -58,6 +64,10 @@ enum class EAvaBroadcastOutputState : uint8
 	Error
 };
 
+/**
+ * In case the broadcast device is Live (see EAvaBroadcastOutputState),
+ * this extra status indicates if the device is operating normally.
+ */
 UENUM()
 enum class EAvaBroadcastIssueSeverity : uint8
 {
@@ -65,7 +75,7 @@ enum class EAvaBroadcastIssueSeverity : uint8
 	Warnings,
 	Errors,
 
-	Max,
+	Max UMETA(Hidden),
 };
 
 //An enum indicating what changed in Broadcast
@@ -125,7 +135,7 @@ enum class EAvaPlayableStatus : uint8
 UENUM()
 enum class EAvaPlayableSequenceEventType : uint8
 {
-	None,
+	None UMETA(Hidden),
 	Started,
 	Paused,
 	Finished
@@ -304,6 +314,9 @@ enum class EAvaPlaybackStatus
 	Error
 };
 
+/**
+ * Rundown's page list type.
+ */
 UENUM(BlueprintType, DisplayName = "Motion Design Rundown Page List Type")
 enum class EAvaRundownPageListType : uint8
 {

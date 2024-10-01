@@ -169,6 +169,7 @@ namespace UE::AvaRundownServer::Private
 		PageInfo.AssetPath = InPage.GetAssetPath(InRundown);	// Todo: combo templates
 		PageInfo.Statuses = InPage.GetPageStatuses(InRundown);
 		PageInfo.TransitionLayerName = InPage.GetTransitionLayer(InRundown).ToString(); 	// Todo: combo templates
+		PageInfo.bTransitionLogicEnabled = InPage.HasTransitionLogic(InRundown);
 		PageInfo.OutputChannel = InPage.GetChannelName().ToString();
 		PageInfo.bIsEnabled = InPage.IsEnabled();
 		PageInfo.bIsPlaying = InRundown->IsPagePlaying(InPage);
@@ -1215,12 +1216,12 @@ void FAvaRundownServer::HandleChangeTemplateBP(const FAvaRundownChangeTemplateBP
 	{
 		if (Page.UpdateAsset(InMessage.AssetPath))
 		{
-			SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log, TEXT("Blueprint change of template: %d to %s"), InMessage.TemplateId, *InMessage.AssetPath);
+			SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log, TEXT("Asset change of template: %d to %s"), InMessage.TemplateId, *InMessage.AssetPath);
 			Rundown->GetOnPagesChanged().Broadcast(Rundown, Page, EAvaRundownPageChanges::Blueprint);
 			return;
 		}
 	}
-	LogAndSendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error, TEXT("Blueprint change of template: %d to %s failed."), InMessage.TemplateId, *InMessage.AssetPath);
+	LogAndSendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error, TEXT("Asset change of template: %d to %s failed."), InMessage.TemplateId, *InMessage.AssetPath);
 }
 
 void FAvaRundownServer::HandleGetPageDetails(const FAvaRundownGetPageDetails& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
