@@ -84,10 +84,18 @@ TSharedPtr<SWidget> FAssetDataLabelWidgetConstructor::CreateWidget(IEditorDataSt
 			[
 				SNew(STextBlock)
 				.Text(Binder.BindText(&FNameColumn::Name))
-				.ToolTipText_Lambda([DataStorage, DataRow = TargetRow]()
-					{
-						return ConstructToolTip(DataStorage, DataRow);
-					})
+				.ToolTipText(Binder.BindTextFormat(
+								LOCTEXT("AssetLabelTooltip", 
+									"{Name}\n\nVirtual path: {VirtualPath}\n  Asset path: {AssetPath}\n  Verse path: {VersePath}"))
+								.Arg(TEXT("Name"), &FNameColumn::Name)
+								.Arg(TEXT("VirtualPath"), &FVirtualPathColumn_Experimental::VirtualPath, LOCTEXT("PathNotSet", "<not set>"))
+								.Arg(TEXT("AssetPath"), &FAssetPathColumn_Experimental::Path, LOCTEXT("PathNotSet", "<not set>"))
+								.Arg(TEXT("VersePath"), &FVersePathColumn::VersePath, 
+									[](const UE::Core::FVersePath& Path) 
+									{
+										return FText::FromStringView(Path.AsStringView());
+									}, 
+									LOCTEXT("PathNotSet", "<not set>")))
 			];
 	}
 	else
@@ -95,35 +103,4 @@ TSharedPtr<SWidget> FAssetDataLabelWidgetConstructor::CreateWidget(IEditorDataSt
 		return SNullWidget::NullWidget;
 	}
 }
-
-FText FAssetDataLabelWidgetConstructor::ConstructToolTip(
-	IEditorDataStorageProvider* DataStorage, UE::Editor::DataStorage::RowHandle DataRow)
-{
-	TStringBuilder<1024> ToolTip;
-	if (FNameColumn* ItemName = DataStorage->GetColumn<FNameColumn>(DataRow))
-	{
-		ToolTip.Append(ItemName->Name.ToString());
-		ToolTip.AppendChar(TEXT('\n'));
-	}
-	if (FAssetPathColumn_Experimental* AssetPath = DataStorage->GetColumn<FAssetPathColumn_Experimental>(DataRow))
-	{
-		ToolTip.AppendChar(TEXT('\n'));
-		ToolTip.Append(LOCTEXT("AssetPath", "Asset path: ").ToString());
-		ToolTip.Append(AssetPath->Path.ToString());
-	}
-	if (FVersePathColumn* VersePath = DataStorage->GetColumn<FVersePathColumn>(DataRow))
-	{
-		ToolTip.AppendChar(TEXT('\n'));
-		ToolTip.Append(LOCTEXT("VersePath", "Verse path: ").ToString());
-		ToolTip.Append(VersePath->VersePath.AsStringView());
-	}
-	if (FVirtualPathColumn_Experimental* VirtualPath = DataStorage->GetColumn<FVirtualPathColumn_Experimental>(DataRow))
-	{
-		ToolTip.AppendChar(TEXT('\n'));
-		ToolTip.Append(LOCTEXT("VirtualPath", "Virtual path: ").ToString());
-		ToolTip.Append(VirtualPath->VirtualPath.ToString());
-	}
-	return FText::FromString(ToolTip.ToString());
-}
-
 #undef LOCTEXT_NAMESPACE

@@ -4,16 +4,14 @@
 
 #include "Elements/Common/TypedElementHandles.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
+#include "Internationalization/Text.h"
 #include "Misc/Attribute.h"
+#include "TypedElementAttributeBindingText.h"
 
 class IEditorDataStorageProvider;
 
 namespace UE::Editor::DataStorage
 {
-	// Concept for a conversion function used by the attribute binder to bind a column data member to an attribute of a different type
-	template <typename FunctionType, typename ArgumentType>
-	concept AttributeBinderInvocable = std::is_invocable_v<std::decay_t<FunctionType>, const ArgumentType&>;
-
 	/**
 	 * Builder class that can be used as a shorthand to bind data inside a TEDS row, column pair to a TAttribute so the attribute updates if the data
 	 * in the column is changed.
@@ -69,8 +67,7 @@ namespace UE::Editor::DataStorage
 		 *                                 ));
 		 */
 		template <typename AttributeType, typename DataType, TDataColumnType ColumnType>
-		TAttribute<AttributeType> BindData(DataType ColumnType::* InVariable, const TFunction<AttributeType(const DataType&)>& InConverter,
-			const DataType& InDefaultValue = DataType(), const FName& InIdentifier = NAME_None);
+		TAttribute<AttributeType> BindData(DataType ColumnType::* InVariable, TFunction<AttributeType(const DataType&)> InConverter, const DataType& InDefaultValue = DataType(), const FName& InIdentifier = NAME_None);
 
 		/**
 		 * Overload for the conversion binder to accept lambdas instead of TFunctions
@@ -82,13 +79,13 @@ namespace UE::Editor::DataStorage
 		 * @return A TAttribute bound to the row, column pair specified
 		 */
 		template <typename DataType, TDataColumnType ColumnType, typename FunctionType>
-			requires AttributeBinderInvocable<FunctionType, DataType>
+			requires Private::AttributeBinderInvocable<FunctionType, DataType>
 		auto BindData(DataType ColumnType::* InVariable, FunctionType InConverter, const DataType& InDefaultValue = DataType(),
 			const FName& InIdentifier = NAME_None);
 
 		/**
-		 * Bind a delegate inside a Teds column to a SLATE_EVENT macro on a widget
-		 * @param InVariable The delegate inside the Teds column
+		 * Bind a delegate inside a TEDS column to a SLATE_EVENT macro on a widget
+		 * @param InVariable The delegate inside the TEDS column
 		 * @param InIdentifier The identifier for this column if it is a dynamic column, NAME_None if it is not a dynamic column
 		 * @return A delegate that can be provided to an event on a slate widget
 		 */
@@ -97,7 +94,7 @@ namespace UE::Editor::DataStorage
 			const FName& InIdentifier = NAME_None);
 
 		/**
-		 * Directly bind an FString member in a Teds column to an FText attribute as a shortcut
+		 * Directly bind an FString member in a TEDS column to an FText attribute as a shortcut
 		 * @param InFStringVariable The FString variable
 		 * @param InIdentifier The identifier for this column if it is a dynamic column, NAME_None if it is not a dynamic column
 		 * @return A delegate that can be provided to a text widget in Slate (e.g STextBlock)
@@ -106,13 +103,34 @@ namespace UE::Editor::DataStorage
 		TAttribute<FText> BindText(FString ColumnType::* InFStringVariable, const FName& InIdentifier = NAME_None);
 
 		/**
-		 * Directly bind an FName member in a Teds column to an FText attribute as a shortcut
+		 * Directly bind an FName member in a TEDS column to an FText attribute as a shortcut
 		 * @param InFNameVariable The FName variable
 		 * @param InIdentifier The identifier for this column if it is a dynamic column, NAME_None if it is not a dynamic column
 		 * @return A delegate that can be provided to a text widget in Slate (e.g STextBlock)
 		 */
 		template <TDataColumnType ColumnType>
 		TAttribute<FText> BindText(FName ColumnType::* InFNameVariable, const FName& InIdentifier = NAME_None);
+
+		/**
+		 * Composite a FText attribute using a format string and named arguments bound to TEDS columns.
+		 * Arguments are passed in using the .Arg(...) function. Each argument starts with the name of the
+		 * argument in the format string followed by one of the following options:
+		 *		- A column variable that's a string (FText, FString or FName).
+		 *		- A column variable with a converter to a string.
+		 *		- A direct value that's supported by FFormatArgumentValue (FText and numbers).
+		 * The final parameter for an argument is an optional default that optionally takes a FFormatArgumentValue value.
+		 * @param Format The format to use composite a string together.
+		 * @return A delegate that can be provided to a text widget in Slate (e.g STextBlock)
+		 * 
+		 * Example:
+		 * TAttribute<FText> Attribute(Binder.BindTextFormat(
+		 *		LOCTEXT("Format", "{Label}: {Value1}, {Value2}, {Value3}, {Value4}")
+		 *		.Arg(TEXT("Label"), &FTypedElementLabelColumn::Label)
+		 *		.Arg(TEXT("Value1"), &FValueColumn::Integer, [](const int32& Value) { return FText::AsNumber(Value); }, 42)
+		 *		.Arg(TEXT("Value2"), &FTextColumn::Text, LOCTEXT("Default", "<no value>"))
+		 *		.Arg(TEXT("Value3"), 42)
+		 */
+		TYPEDELEMENTFRAMEWORK_API FTextAttributeFormatted BindTextFormat(FTextFormat Format) const;
 		
 	private:
 
