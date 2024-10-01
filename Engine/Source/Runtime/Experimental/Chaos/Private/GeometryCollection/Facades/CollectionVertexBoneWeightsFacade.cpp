@@ -73,7 +73,31 @@ namespace GeometryCollection::Facades
 		}
 	}
 
-
+	void FVertexBoneWeightsFacade::ModifyBoneWeight(int32 VertexIndex, TArray<int32> VertexBoneIndex, TArray<float> VertexBoneWeight)
+	{
+		TManagedArray< TArray<int32> >& IndicesArray = BoneIndexAttribute.Modify();
+		TManagedArray< TArray<float> >& WeightsArray = BoneWeightAttribute.Modify();
+		const TManagedArray<FVector3f>& Vertices = VerticesAttribute.Modify();
+		if (VerticesAttribute.IsValidIndex(VertexIndex))
+		{
+			IndicesArray[VertexIndex].Empty();
+			WeightsArray[VertexIndex].Empty();
+			float TotalWeight = 0.f;
+			for (int32 Idx = 0; Idx < VertexBoneIndex.Num(); ++Idx)
+			{
+				if (ParentAttribute.IsValidIndex(VertexBoneIndex[Idx]))
+				{
+					IndicesArray[VertexIndex].Add(VertexBoneIndex[Idx]);
+					WeightsArray[VertexIndex].Add(VertexBoneWeight[Idx]);
+					TotalWeight += VertexBoneWeight[Idx];
+				}
+			}
+			if (TotalWeight < 1.f - UE_KINDA_SMALL_NUMBER || TotalWeight > 1.f + UE_KINDA_SMALL_NUMBER)
+			{
+				UE_LOG(LogChaos, Warning, TEXT("FVertexBoneWeightsFacade::ModifyBoneWeight: Bone weight sum %f is not 1 on vertex %d"), TotalWeight, VertexIndex);
+			}
+		}
+	}
 	//
 	//  Add Weights from Selection 
 	//
@@ -119,7 +143,7 @@ namespace GeometryCollection::Facades
 						if (0 <= Vert && Vert < NumVertices && !IndicesArray[Vert].Contains(Bone))
 						{
 							int32 BoneIndex = IndicesArray[Vert].Find(Bone);
-							if (TotalWeights[Vert] + Weight <= 1.f)
+							if (TotalWeights[Vert] + Weight <= 1.f + UE_KINDA_SMALL_NUMBER)
 							{
 								if (BoneIndex == INDEX_NONE)
 								{
@@ -135,7 +159,7 @@ namespace GeometryCollection::Facades
 							}
 							else
 							{
-								UE_LOG(LogChaos, Warning, TEXT("Bone weight sum exceeds 1 on vertex %d"), Vert);
+								UE_LOG(LogChaos, Warning, TEXT("Bone weight sum %f exceeds 1 on vertex %d"), TotalWeights[Vert] + Weight, Vert);
 							}
 						}
 					}

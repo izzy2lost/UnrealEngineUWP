@@ -1025,11 +1025,11 @@ void UDataflowEditorWeightMapPaintTool::OnPolyLassoFinished(const FCameraPolyLas
 	// project each mesh vertex to view plane and evaluate winding integral of polyline
 	const FDynamicMesh3* Mesh = GetSculptMesh();
 	TempROIBuffer.SetNum(Mesh->MaxVertexID());
-	ParallelFor(Mesh->MaxVertexID(), [&](int32 vid)
+	ParallelFor(Mesh->MaxVertexID(), [&](int32 VertexIdx)
 	{
-		if (Mesh->IsVertex(vid))
+		if (Mesh->IsVertex(VertexIdx))
 		{
-			FVector3d WorldPos = CurTargetTransform.TransformPosition(Mesh->GetVertex(vid));
+			FVector3d WorldPos = CurTargetTransform.TransformPosition(Mesh->GetVertex(VertexIdx));
 			FVector2f PlanePos = (FVector2f)Lasso.GetProjectedPoint((FVector)WorldPos);
 
 			double WindingSum = 0;
@@ -1042,17 +1042,17 @@ void UDataflowEditorWeightMapPaintTool::OnPolyLassoFinished(const FCameraPolyLas
 			}
 			WindingSum /= FMathd::TwoPi;
 			bool bInside = FMathd::Abs(WindingSum) > 0.3;
-			TempROIBuffer[vid] = bInside ? 1 : 0;
+			TempROIBuffer[VertexIdx] = bInside ? 1 : 0;
 		}
 		else
 		{
-			TempROIBuffer[vid] = -1;
+			TempROIBuffer[VertexIdx] = -1;
 		}
 	});
 
 	// convert to vertex selection, and then select fully-enclosed faces
 	FMeshVertexSelection VertexSelection(Mesh);
-	VertexSelection.SelectByVertexID([&](int32 vid) { return TempROIBuffer[vid] == 1; });
+	VertexSelection.SelectByVertexID([&](int32 VertexIdx) { return TempROIBuffer[VertexIdx] == 1; });
 
 	double SetWeightValue = GetInEraseStroke() ? 0.0 : FilterProperties->AttributeValue;
 	SetVerticesToWeightMap(VertexSelection.AsSet(), SetWeightValue, GetInEraseStroke());
@@ -1071,16 +1071,16 @@ void UDataflowEditorWeightMapPaintTool::ComputeGradient()
 
 	const FDynamicMesh3* const Mesh = DynamicMeshComponent->GetMesh();
 	TempROIBuffer.SetNum(0, EAllowShrinking::No);
-	for (int32 vid : Mesh->VertexIndicesItr())
+	for (int32 VertexIdx : Mesh->VertexIndicesItr())
 	{
-		TempROIBuffer.Add(vid);
+		TempROIBuffer.Add(VertexIdx);
 	}
 
 	if (bHaveDynamicMeshToWeightConversion)
 	{
-		for (int32 vid : TempROIBuffer)
+		for (int32 VertexIdx : TempROIBuffer)
 		{
-			for (const int32 Idx : WeightToDynamicMesh[DynamicMeshToWeight[vid]])
+			for (const int32 Idx : WeightToDynamicMesh[DynamicMeshToWeight[VertexIdx]])
 			{
 				ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(Idx, true);
 			}
@@ -1088,9 +1088,9 @@ void UDataflowEditorWeightMapPaintTool::ComputeGradient()
 	}
 	else
 	{
-		for (int32 vid : TempROIBuffer)
+		for (int32 VertexIdx : TempROIBuffer)
 		{
-			ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(vid, true);
+			ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(VertexIdx, true);
 		}
 	}
 
@@ -1181,9 +1181,9 @@ void UDataflowEditorWeightMapPaintTool::SetVerticesToWeightMap(const TSet<int32>
 	BeginChange();
 
 	TempROIBuffer.SetNum(0, EAllowShrinking::No);
-	for (int32 vid : Vertices)
+	for (int32 VertexIdx : Vertices)
 	{
-		TempROIBuffer.Add(vid);
+		TempROIBuffer.Add(VertexIdx);
 	}
 
 	if (HaveVisibilityFilter())
@@ -1196,9 +1196,9 @@ void UDataflowEditorWeightMapPaintTool::SetVerticesToWeightMap(const TSet<int32>
 
 	if (bHaveDynamicMeshToWeightConversion)
 	{
-		for (int32 vid : TempROIBuffer)
+		for (int32 VertexIdx : TempROIBuffer)
 		{
-			for (const int32 Idx : WeightToDynamicMesh[DynamicMeshToWeight[vid]])
+			for (const int32 Idx : WeightToDynamicMesh[DynamicMeshToWeight[VertexIdx]])
 			{
 				ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(Idx, true);
 				ActiveWeightMap->SetValue(Idx, &WeightValue);
@@ -1207,13 +1207,13 @@ void UDataflowEditorWeightMapPaintTool::SetVerticesToWeightMap(const TSet<int32>
 	}
 	else
 	{
-		for (int32 vid : TempROIBuffer)
+		for (int32 VertexIdx : TempROIBuffer)
 		{
-			ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(vid, true);
+			ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(VertexIdx, true);
 		}
-		for (int32 vid : TempROIBuffer)
+		for (int32 VertexIdx : TempROIBuffer)
 		{		
-			ActiveWeightMap->SetValue(vid, &WeightValue);
+			ActiveWeightMap->SetValue(VertexIdx, &WeightValue);
 		}
 	}
 
@@ -1239,18 +1239,18 @@ void UDataflowEditorWeightMapPaintTool::ApplyVisibilityFilter(TSet<int32>& Verti
 {
 	ROIBuffer.SetNum(0, EAllowShrinking::No);
 	ROIBuffer.Reserve(Vertices.Num());
-	for (int32 vid : Vertices)
+	for (int32 VertexIdx : Vertices)
 	{
-		ROIBuffer.Add(vid);
+		ROIBuffer.Add(VertexIdx);
 	}
 	
 	OutputBuffer.Reset();
 	ApplyVisibilityFilter(TempROIBuffer, OutputBuffer);
 
 	Vertices.Reset();
-	for (int32 vid : OutputBuffer)
+	for (int32 VertexIdx : OutputBuffer)
 	{
-		Vertices.Add(vid);
+		Vertices.Add(VertexIdx);
 	}
 }
 
@@ -1611,16 +1611,16 @@ void UDataflowEditorWeightMapPaintTool::FloodFillCurrentWeightAction()
 	const float SetWeightValue = FilterProperties->AttributeValue;
 	const FDynamicMesh3* Mesh = DynamicMeshComponent->GetMesh();
 	TempROIBuffer.SetNum(0, EAllowShrinking::No);
-	for (int32 vid : Mesh->VertexIndicesItr())
+	for (int32 VertexIdx : Mesh->VertexIndicesItr())
 	{
-		TempROIBuffer.Add(vid);
+		TempROIBuffer.Add(VertexIdx);
 	}
 
 	if (bHaveDynamicMeshToWeightConversion)
 	{
-		for (int32 vid : TempROIBuffer)
+		for (int32 VertexIdx : TempROIBuffer)
 		{
-			for (const int32 Idx : WeightToDynamicMesh[DynamicMeshToWeight[vid]])
+			for (const int32 Idx : WeightToDynamicMesh[DynamicMeshToWeight[VertexIdx]])
 			{
 				ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(Idx, true);
 				ActiveWeightMap->SetValue(Idx, &SetWeightValue);
@@ -1629,13 +1629,13 @@ void UDataflowEditorWeightMapPaintTool::FloodFillCurrentWeightAction()
 	}
 	else
 	{
-		for (int32 vid : TempROIBuffer)
+		for (int32 VertexIdx : TempROIBuffer)
 		{
-			ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(vid, true);
+			ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(VertexIdx, true);
 		}
-		for (int32 vid : TempROIBuffer)
+		for (int32 VertexIdx : TempROIBuffer)
 		{
-			ActiveWeightMap->SetValue(vid, &SetWeightValue);
+			ActiveWeightMap->SetValue(VertexIdx, &SetWeightValue);
 		}
 	}
 
@@ -1645,7 +1645,6 @@ void UDataflowEditorWeightMapPaintTool::FloodFillCurrentWeightAction()
 	GetToolManager()->PostInvalidation();
 	EndChange();
 }
-
 
 void UDataflowEditorWeightMapPaintTool::ClearAllWeightsAction()
 {
@@ -1659,16 +1658,16 @@ void UDataflowEditorWeightMapPaintTool::ClearAllWeightsAction()
 	float SetWeightValue = 0.0f;
 	const FDynamicMesh3* Mesh = DynamicMeshComponent->GetMesh();
 	TempROIBuffer.SetNum(0, EAllowShrinking::No);
-	for (int32 vid : Mesh->VertexIndicesItr())
+	for (int32 VertexIdx : Mesh->VertexIndicesItr())
 	{
-		TempROIBuffer.Add(vid);
+		TempROIBuffer.Add(VertexIdx);
 	}
 
 	if (bHaveDynamicMeshToWeightConversion)
 	{
-		for (int32 vid : TempROIBuffer)
+		for (int32 VertexIdx : TempROIBuffer)
 		{
-			for (const int32 Idx : WeightToDynamicMesh[DynamicMeshToWeight[vid]])
+			for (const int32 Idx : WeightToDynamicMesh[DynamicMeshToWeight[VertexIdx]])
 			{
 				ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(Idx, true);
 				ActiveWeightMap->SetValue(Idx, &SetWeightValue);
@@ -1677,13 +1676,13 @@ void UDataflowEditorWeightMapPaintTool::ClearAllWeightsAction()
 	}
 	else
 	{
-		for (int32 vid : TempROIBuffer)
+		for (int32 VertexIdx : TempROIBuffer)
 		{
-			ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(vid, true);
+			ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(VertexIdx, true);
 		}
-		for (int32 vid : TempROIBuffer)
+		for (int32 VertexIdx : TempROIBuffer)
 		{
-			ActiveWeightMap->SetValue(vid, &SetWeightValue);
+			ActiveWeightMap->SetValue(VertexIdx, &SetWeightValue);
 		}
 	}
 
@@ -1694,6 +1693,61 @@ void UDataflowEditorWeightMapPaintTool::ClearAllWeightsAction()
 	EndChange();
 }
 
+void UDataflowEditorWeightMapPaintTool::InvertCurrentWeightAction(bool bInvertSurfaceOnly)
+{
+	if (!ActiveWeightMap)
+	{
+		return;
+	}
+
+	BeginChange();
+
+
+	const FDynamicMesh3* Mesh = DynamicMeshComponent->GetMesh();
+	TempROIBuffer.SetNum(0, EAllowShrinking::No);
+	for (int32 VertexIdx : Mesh->VertexIndicesItr())
+	{
+		if (!bInvertSurfaceOnly || Mesh->IsReferencedVertex(VertexIdx))
+		{
+			TempROIBuffer.Add(VertexIdx);
+		}
+	}
+
+	if (bHaveDynamicMeshToWeightConversion)
+	{
+		for (int32 VertexIdx : TempROIBuffer)
+		{
+			for (const int32 Idx : WeightToDynamicMesh[DynamicMeshToWeight[VertexIdx]])
+			{
+				ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(Idx, true);
+				float CurrentValue;
+				ActiveWeightMap->GetValue(Idx, &CurrentValue);
+				float SetWeightValue = 1.f - CurrentValue;
+				ActiveWeightMap->SetValue(Idx, &SetWeightValue);
+			}
+		}
+	}
+	else
+	{
+		for (int32 VertexIdx : TempROIBuffer)
+		{
+			ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(VertexIdx, true);
+		}
+		for (int32 VertexIdx : TempROIBuffer)
+		{
+			float CurrentValue;
+			ActiveWeightMap->GetValue(VertexIdx, &CurrentValue);
+			float SetWeightValue = 1.f - CurrentValue;
+			ActiveWeightMap->SetValue(VertexIdx, &SetWeightValue);
+		}
+	}
+
+	// update colors
+	UpdateVertexColorOverlay();
+	DynamicMeshComponent->FastNotifyVertexAttributesUpdated(EMeshRenderAttributeFlags::VertexColors);
+	GetToolManager()->PostInvalidation();
+	EndChange();
+}
 
 void UDataflowEditorWeightMapPaintTool::UpdateSelectedNode()
 {
@@ -1992,6 +2046,14 @@ void UDataflowEditorWeightMapPaintTool::ApplyAction(EDataflowEditorWeightMapPain
 
 	case EDataflowEditorWeightMapPaintToolActions::ClearAll:
 		ClearAllWeightsAction();
+		break;
+
+	case EDataflowEditorWeightMapPaintToolActions::InvertCurrent:
+		InvertCurrentWeightAction(false);
+		break;
+
+	case EDataflowEditorWeightMapPaintToolActions::InvertCurrentSurface:
+		InvertCurrentWeightAction(true);
 		break;
 	}
 }

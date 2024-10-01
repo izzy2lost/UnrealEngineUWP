@@ -6,45 +6,55 @@
 
 void FGetSurfaceIndicesNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
-	FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-	TArray<int32> SurfaceIndicesLocal;
-	if (TManagedArray<FIntVector>* Indices = InCollection.FindAttribute<FIntVector>("Indices", FGeometryCollection::FacesGroup))
+	const FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
+	if (const TManagedArray<FVector3f>* Vertex = InCollection.FindAttribute<FVector3f>("Vertex", FGeometryCollection::VerticesGroup))
 	{
-		if (FindInput(&GeometryGroupGuidsIn) && FindInput(&GeometryGroupGuidsIn)->GetConnection())
+		FDataflowVertexSelection SurfaceVertexSelectionOut;
+		SurfaceVertexSelectionOut.Initialize(Vertex->Num(), false);
+		TArray<int32> SurfaceIndicesLocal;
+		if (const TManagedArray<FIntVector>* Indices = InCollection.FindAttribute<FIntVector>("Indices", FGeometryCollection::FacesGroup))
 		{
-			TArray<FString> GeometryGroupGuidsLocal = GetValue<TArray<FString>>(Context, &GeometryGroupGuidsIn);
-			TManagedArray<int32>* IndicesStart = InCollection.FindAttribute<int32>("FaceStart", FGeometryCollection::GeometryGroup);
-			TManagedArray<int32>* IndicesCount = InCollection.FindAttribute<int32>("FaceCount", FGeometryCollection::GeometryGroup);
-			if (TManagedArray<FString>* Guids = InCollection.FindAttribute<FString>("Guid", FGeometryCollection::GeometryGroup))
+			if (FindInput(&GeometryGroupGuidsIn) && FindInput(&GeometryGroupGuidsIn)->GetConnection())
 			{
-				for (int32 Idx = 0; Idx < IndicesStart->Num(); Idx++)
+				const TArray<FString> GeometryGroupGuidsLocal = GetValue<TArray<FString>>(Context, &GeometryGroupGuidsIn);
+				const TManagedArray<int32>* IndicesStart = InCollection.FindAttribute<int32>("FaceStart", FGeometryCollection::GeometryGroup);
+				const TManagedArray<int32>* IndicesCount = InCollection.FindAttribute<int32>("FaceCount", FGeometryCollection::GeometryGroup);
+				if (const TManagedArray<FString>* Guids = InCollection.FindAttribute<FString>("Guid", FGeometryCollection::GeometryGroup))
 				{
-					if (GeometryGroupGuidsLocal.Num() && Guids)
+					for (int32 Idx = 0; Idx < IndicesStart->Num(); Idx++)
 					{
-						if (GeometryGroupGuidsLocal.Contains((*Guids)[Idx]))
+						if (GeometryGroupGuidsLocal.Num() && Guids)
 						{
-							for (int32 i = (*IndicesStart)[Idx]; i < (*IndicesStart)[Idx] + (*IndicesCount)[Idx]; i++)
+							if (GeometryGroupGuidsLocal.Contains((*Guids)[Idx]))
 							{
-								for (int32 j = 0; j < 3; j++)
+								for (int32 i = (*IndicesStart)[Idx]; i < (*IndicesStart)[Idx] + (*IndicesCount)[Idx]; i++)
 								{
-									SurfaceIndicesLocal.AddUnique((*Indices)[i][j]);
+									for (int32 j = 0; j < 3; j++)
+									{
+										SurfaceIndicesLocal.AddUnique((*Indices)[i][j]);
+									}
 								}
 							}
 						}
 					}
 				}
 			}
-		}
-		else
-		{
-			for (int32 i = 0; i < Indices->Num(); i++)
+			else
 			{
-				for (int32 j = 0; j < 3; j++)
+				for (int32 i = 0; i < Indices->Num(); i++)
 				{
-					SurfaceIndicesLocal.AddUnique((*Indices)[i][j]);
+					for (int32 j = 0; j < 3; j++)
+					{
+						SurfaceIndicesLocal.AddUnique((*Indices)[i][j]);
+					}
 				}
 			}
+			SurfaceVertexSelectionOut.SetFromArray(SurfaceIndicesLocal);
 		}
+		SetValue(Context, MoveTemp(SurfaceVertexSelectionOut), &SurfaceVertexSelection);
 	}
-	SetValue(Context, MoveTemp(SurfaceIndicesLocal), &SurfaceIndicesOut);
+	else
+	{
+		SetValue(Context, FDataflowVertexSelection(), &SurfaceVertexSelection);
+	}
 }

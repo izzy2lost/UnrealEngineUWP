@@ -55,13 +55,18 @@ namespace GeometryCollection::Facades
 		/** Add bone weight based on the kinematic bindings. */
 		CHAOS_API void AddBoneWeightsFromKinematicBindings();
 
-		/** Add bone weight based on the kinematic bindings. */
+		/** Add single bone/weight to vertex */
 		CHAOS_API void AddBoneWeight(int32 VertexIndex, int32 BoneIndex, float BoneWeight);
+
+		/** Modify bone weight based on the kinematic bindings. */
+		CHAOS_API void ModifyBoneWeight(int32 VertexIndex, TArray<int32> VertexBoneIndex, TArray<float> VertexBoneWeight);
 
 		/** Return the vertex bone indices from the collection. Null if not initialized.  */
 		const TManagedArray< TArray<int32> >* FindBoneIndices()  const { return BoneIndexAttribute.Find(); }
 		const TManagedArray< TArray<int32> >& GetBoneIndices() const { return BoneIndexAttribute.Get(); }
 
+		/** Return if the vertex is kinematic */
+		CHAOS_API bool IsKinematicVertex(int32 VertexIndex) const { return BoneIndexAttribute.IsValidIndex(VertexIndex) && BoneIndexAttribute[VertexIndex].Num(); };
 
 		/** Return the vertex bone weights from the collection. Null if not initialized. */
 		const TManagedArray< TArray<float> >* FindBoneWeights()  const { return BoneWeightAttribute.Find(); }

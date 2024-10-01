@@ -206,9 +206,10 @@ UENUM()
 enum class EDataflowEditorWeightMapPaintToolActions
 {
 	NoAction,
-
 	FloodFillCurrent,
 	ClearAll,
+	InvertCurrent,
+	InvertCurrentSurface
 };
 
 
@@ -237,6 +238,19 @@ public:
 		PostAction(EDataflowEditorWeightMapPaintToolActions::FloodFillCurrent);
 	}
 
+	/* Invert the values in range [0, 1] for the current selected geometry, including interior vertices*/
+	UFUNCTION(CallInEditor, Category = Operations, meta = (DisplayPriority = 13))
+	void InvertCurrent()
+	{
+		PostAction(EDataflowEditorWeightMapPaintToolActions::InvertCurrent);
+	}
+
+	/* Invert the values in range [0, 1] for the current selected surface*/
+	UFUNCTION(CallInEditor, Category = Operations, meta = (DisplayPriority = 13))
+	void InvertCurrentSurface()
+	{
+		PostAction(EDataflowEditorWeightMapPaintToolActions::InvertCurrentSurface);
+	}
 };
 
 UCLASS()
@@ -315,6 +329,7 @@ private:
 public:
 	void FloodFillCurrentWeightAction();
 	void ClearAllWeightsAction();
+	void InvertCurrentWeightAction(bool bInvertSurfaceOnly = true);
 
 	void SetVerticesToWeightMap(const TSet<int32>& Vertices, double WeightValue, bool bIsErase);
 

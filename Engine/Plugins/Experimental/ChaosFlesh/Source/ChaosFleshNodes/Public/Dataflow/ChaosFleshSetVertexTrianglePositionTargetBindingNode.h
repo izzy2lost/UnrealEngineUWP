@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Dataflow/DataflowCore.h"
 #include "Dataflow/DataflowEngine.h"
+#include "Dataflow/DataflowSelection.h"
 
 #include "ChaosFleshSetVertexTrianglePositionTargetBindingNode.generated.h"
 
@@ -25,8 +26,8 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Dataflow")
 		float PositionTargetStiffness = 10000.f;
 
-	UPROPERTY(meta = (DataflowInput, DisplayName = "VertexSelectionSet"))
-		TArray<int32> VertexSelectionSetIn;
+	UPROPERTY(meta = (DataflowInput, DisplayName = "(Optional) VertexSelection"))
+		FDataflowVertexSelection VertexSelection;
 
 	UPROPERTY(EditAnywhere, Category = "Dataflow", meta = (ClampMin = "0.0", ClampMax = "2.0", UIMin = "0.0", UIMax = "2.0"))
 		float VertexRadiusRatio = .001f;
@@ -36,7 +37,7 @@ public:
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
-		RegisterInputConnection(&VertexSelectionSetIn);
+		RegisterInputConnection(&VertexSelection);
 		RegisterOutputConnection(&Collection, &Collection);
 	}
 

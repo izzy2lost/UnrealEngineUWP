@@ -93,9 +93,11 @@ void FSetVertexTrianglePositionTargetBindingDataflowNode::Evaluate(UE::Dataflow:
 					Chaos::TVec3<float> CoordDiff = (CoordMaxs - CoordMins) * VertexRadiusRatio;
 					Chaos::FReal SphereRadius = Chaos::FReal(FGenericPlatformMath::Max(CoordDiff[0], FGenericPlatformMath::Max(CoordDiff[1], CoordDiff[2])));
 					
-					if (FindInput(&VertexSelectionSetIn) && FindInput(&VertexSelectionSetIn)->GetConnection())
+					if (IsConnected(&VertexSelection))
 					{
-						IndicesMap = GetValue<TArray<int32>>(Context, &VertexSelectionSetIn);
+						FDataflowVertexSelection InDataflowVertexSelection = GetValue<FDataflowVertexSelection>(Context, &VertexSelection);
+						IndicesMap = InDataflowVertexSelection.AsArray();
+
 					}
 
 					GeometryCollection::Facades::FPositionTargetFacade PositionTargets(InCollection);
