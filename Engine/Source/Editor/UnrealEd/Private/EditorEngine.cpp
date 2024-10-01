@@ -6284,7 +6284,7 @@ void UEditorEngine::SetPreviewPlatform(const FPreviewPlatformInfo& NewPreviewPla
 	if (bChangedPreviewShaderPlatform)
 	{
 		UMaterialShaderQualitySettings* MaterialShaderQualitySettings = UMaterialShaderQualitySettings::Get();
-		MaterialShaderQualitySettings->SetPreviewPlatform(PreviewPlatform.PreviewShaderFormatName);
+		MaterialShaderQualitySettings->SetPreviewPlatform(PreviewPlatform.PreviewShaderPlatformName);
 
 		UStaticMesh::OnLodStrippingQualityLevelChanged(nullptr);
 

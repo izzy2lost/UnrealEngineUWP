@@ -52,6 +52,13 @@ static inline FString GetSectionString(const FConfigSection& Section, FName Key)
 	return Value ? Value->GetValue() : FString();
 }
 
+// Gets a string from a section, or default string if it didn't exist
+static inline FName GetSectionString(const FConfigSection& Section, FName Key, FName DefaultValue)
+{
+	const FConfigValue* Value = Section.Find(Key);
+	return Value ? *Value->GetValue() : DefaultValue;
+}
+
 // Gets a bool from a section.  It returns the original value if the setting does not exist
 static inline bool GetSectionBool(const FConfigSection& Section, FName Key, bool OriginalValue)
 {
@@ -184,11 +191,15 @@ void FGenericDataDrivenShaderPlatformInfo::ParseDataDrivenShaderInfo(const FConf
 {
 	FGenericDataDrivenShaderPlatformInfo& Info = Infos[Index];
 
-	Info.Language = *GetSectionString(Section, "Language");
-	Info.ShaderFormat = *GetSectionString(Section, "ShaderFormat");
+	Info.Language = GetSectionString(Section, "Language", Info.Language);
+	Info.ShaderFormat = GetSectionString(Section, "ShaderFormat", Info.ShaderFormat);
 	checkf(!Info.ShaderFormat.IsNone(), TEXT("Missing ShaderFormat for ShaderPlatform %s  ShaderFormat %s"), *Info.Name.ToString(), *Info.ShaderFormat.ToString());
 
-	GetFeatureLevelFromName(GetSectionString(Section, "MaxFeatureLevel"), Info.MaxFeatureLevel);
+	const FConfigValue* MaxFeatureLevelValue = Section.Find("MaxFeatureLevel");
+	if (MaxFeatureLevelValue)
+	{
+		GetFeatureLevelFromName(MaxFeatureLevelValue->GetValue(), Info.MaxFeatureLevel);
+	}
 
 	Info.ShaderPropertiesHash = 0;
 	FString ShaderPropertiesString = Info.Name.GetPlainNameString();
@@ -436,6 +447,50 @@ void FGenericDataDrivenShaderPlatformInfo::Initialize()
 				}
 #endif
 			}
+#if WITH_EDITOR
+			else if (Section.Key.StartsWith(TEXT("PreviewShaderPlatform ")))
+			{
+				const FString& SectionName = Section.Key;
+				const FConfigSection& SectionSettings = Section.Value;
+
+				const FString ParentShaderPlatformName = GetSectionString(SectionSettings, "ParentShaderPlatform");
+				const EShaderPlatform ParentShaderPlatform = ParseShaderPlatform(*ParentShaderPlatformName);
+				if (ParentShaderPlatform == SP_NumPlatforms)
+				{
+#if DDPI_HAS_EXTENDED_PLATFORMINFO_DATA
+					const bool bIsEnabled = FDataDrivenPlatformInfoRegistry::GetPlatformInfo(PlatformName).bEnabledForUse;
+#else
+					const bool bIsEnabled = true;
+#endif
+					UE_CLOG(bIsEnabled, LogRHI, Warning, TEXT("Found an unknown parent shader platform %s in a preview shader platform DataDriven ini file"), *ParentShaderPlatformName);
+					continue;
+				}
+
+				check(IsValid(ParentShaderPlatform));
+
+				// get enum value for the string name
+				const EShaderPlatform ShaderPlatform = EShaderPlatform(CustomShaderPlatform++);
+
+				FGenericDataDrivenShaderPlatformInfo& Info = Infos[ShaderPlatform];
+				const FGenericDataDrivenShaderPlatformInfo& ParentInfo = Infos[ParentShaderPlatform];
+				Info = ParentInfo;
+				Info.Name = *SectionName.Mid(22);
+				Info.bIsPreviewPlatform = true;
+				Info.bContainsValidPlatformInfo = true;
+				ParseDataDrivenShaderInfo(SectionSettings, ShaderPlatform);
+
+				ERHIFeatureLevel::Type PreviewFeatureLevel = ERHIFeatureLevel::Num;
+				if (GetFeatureLevelFromName(GetSectionString(SectionSettings, "PreviewFeatureLevel"), PreviewFeatureLevel))
+				{
+					Info.MaxFeatureLevel = PreviewFeatureLevel;
+				}
+
+				PlatformNameToShaderPlatformMap.FindOrAdd(Info.Name) = ShaderPlatform;
+
+				FDataDrivenShaderPlatformInfoEditorOnly& PreviewEditorInfo = DataDrivenShaderPlatformInfoEditorOnlyInfos[ShaderPlatform];
+				PreviewEditorInfo.PreviewShaderPlatformParent = ShaderPlatform;
+			}
+#endif
 		}
 	}
 	bInitialized = true;
