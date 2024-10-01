@@ -148,5 +148,17 @@ namespace HordeServer.Accounts
 		/// </summary>
 		[JsonPropertyName("id_token")]
 		public string? IdToken { get; set; }
+
+		/// <summary>
+		/// Error code
+		/// </summary>
+		[JsonPropertyName("error")]
+		public string? Error { get; set; }
+
+		/// <summary>
+		/// The error description text
+		/// </summary>
+		[JsonPropertyName("error_description")]
+		public string? ErrorDescription { get; set; }
 	}
 }
