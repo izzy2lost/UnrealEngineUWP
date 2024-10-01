@@ -157,6 +157,12 @@ void FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSe
 	InOutRuntimeSettings.CustomFrustumPixels.Top    = FMath::RoundToInt(Size.Y * InOutRuntimeSettings.CustomFrustumPercent.Top);
 	InOutRuntimeSettings.CustomFrustumPixels.Bottom = FMath::RoundToInt(Size.Y * InOutRuntimeSettings.CustomFrustumPercent.Bottom);
 
+	// Quantize the percentage to exactly fit the number of pixels.
+	InOutRuntimeSettings.CustomFrustumPercent.Left   = double(InOutRuntimeSettings.CustomFrustumPixels.Left)   / double(Size.X);
+	InOutRuntimeSettings.CustomFrustumPercent.Right  = double(InOutRuntimeSettings.CustomFrustumPixels.Right)  / double(Size.X);
+	InOutRuntimeSettings.CustomFrustumPercent.Top    = double(InOutRuntimeSettings.CustomFrustumPixels.Top)    / double(Size.Y);
+	InOutRuntimeSettings.CustomFrustumPercent.Bottom = double(InOutRuntimeSettings.CustomFrustumPixels.Bottom) / double(Size.Y);
+
 	// Update RTT size for CustomFrustum when we need to scale target resolution
 	if (InCustomFrustumSettings.bAdaptResolution)
 	{

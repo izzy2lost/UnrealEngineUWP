@@ -115,10 +115,17 @@ void FDisplayClusterViewport_OverscanRuntimeSettings::UpdateOverscanSettings(
 	if (InOutOverscanRuntimeSettings.bIsEnabled)
 	{
 		// Calc pixels from percent
-		InOutOverscanRuntimeSettings.OverscanPixels.Left   = Size.X * InOutOverscanRuntimeSettings.OverscanPercent.Left;
-		InOutOverscanRuntimeSettings.OverscanPixels.Right  = Size.X * InOutOverscanRuntimeSettings.OverscanPercent.Right;
-		InOutOverscanRuntimeSettings.OverscanPixels.Top    = Size.Y * InOutOverscanRuntimeSettings.OverscanPercent.Top;
-		InOutOverscanRuntimeSettings.OverscanPixels.Bottom = Size.Y * InOutOverscanRuntimeSettings.OverscanPercent.Bottom;
+		InOutOverscanRuntimeSettings.OverscanPixels.Left   = FMath::RoundToInt(Size.X * InOutOverscanRuntimeSettings.OverscanPercent.Left);
+		InOutOverscanRuntimeSettings.OverscanPixels.Right  = FMath::RoundToInt(Size.X * InOutOverscanRuntimeSettings.OverscanPercent.Right);
+		InOutOverscanRuntimeSettings.OverscanPixels.Top    = FMath::RoundToInt(Size.Y * InOutOverscanRuntimeSettings.OverscanPercent.Top);
+		InOutOverscanRuntimeSettings.OverscanPixels.Bottom = FMath::RoundToInt(Size.Y * InOutOverscanRuntimeSettings.OverscanPercent.Bottom);
+
+		// Quantize the overscan percentage to exactly fit the number of pixels.
+		// This will avoid a mismatch between the overscanned frustum calculated in UpdateProjectionAngles and the pixel crop in GetFinalContextRect.
+		InOutOverscanRuntimeSettings.OverscanPercent.Left   = double(InOutOverscanRuntimeSettings.OverscanPixels.Left)   / double(Size.X);
+		InOutOverscanRuntimeSettings.OverscanPercent.Right  = double(InOutOverscanRuntimeSettings.OverscanPixels.Right)  / double(Size.X);
+		InOutOverscanRuntimeSettings.OverscanPercent.Top    = double(InOutOverscanRuntimeSettings.OverscanPixels.Top)    / double(Size.Y);
+		InOutOverscanRuntimeSettings.OverscanPercent.Bottom = double(InOutOverscanRuntimeSettings.OverscanPixels.Bottom) / double(Size.Y);
 
 		const FIntPoint OverscanSize = Size + InOutOverscanRuntimeSettings.OverscanPixels.Size();
 		const FIntPoint ValidOverscanSize = FDisplayClusterViewportHelpers::GetValidViewportRect(FIntRect(FIntPoint(0, 0), OverscanSize), InViewportId, TEXT("Overscan")).Size();
@@ -137,13 +144,24 @@ void FDisplayClusterViewport_OverscanRuntimeSettings::UpdateOverscanSettings(
 		}
 		else
 		{
-			double scaleX = double(Size.X) / OverscanSize.X;
-			double scaleY = double(Size.Y) / OverscanSize.Y;
+			const double ScaleX = double(Size.X) / double(OverscanSize.X);
+			const double ScaleY = double(Size.Y) / double(OverscanSize.Y);
 
-			InOutOverscanRuntimeSettings.OverscanPixels.Left   *= scaleX;
-			InOutOverscanRuntimeSettings.OverscanPixels.Right  *= scaleX;
-			InOutOverscanRuntimeSettings.OverscanPixels.Top    *= scaleY;
-			InOutOverscanRuntimeSettings.OverscanPixels.Bottom *= scaleY;
+			InOutOverscanRuntimeSettings.OverscanPixels.Left   *= ScaleX;
+			InOutOverscanRuntimeSettings.OverscanPixels.Right  *= ScaleX;
+			InOutOverscanRuntimeSettings.OverscanPixels.Top    *= ScaleY;
+			InOutOverscanRuntimeSettings.OverscanPixels.Bottom *= ScaleY;
+
+			const FIntPoint ScaledSize(
+				Size.X - (InOutOverscanRuntimeSettings.OverscanPixels.Left + InOutOverscanRuntimeSettings.OverscanPixels.Right),
+				Size.Y - (InOutOverscanRuntimeSettings.OverscanPixels.Top  + InOutOverscanRuntimeSettings.OverscanPixels.Bottom)
+			);
+
+			// Quantize the overscan percentage to exactly fit the number of pixels.
+			InOutOverscanRuntimeSettings.OverscanPercent.Left   = double(InOutOverscanRuntimeSettings.OverscanPixels.Left)   / double(ScaledSize.X);
+			InOutOverscanRuntimeSettings.OverscanPercent.Right  = double(InOutOverscanRuntimeSettings.OverscanPixels.Right)  / double(ScaledSize.X);
+			InOutOverscanRuntimeSettings.OverscanPercent.Top    = double(InOutOverscanRuntimeSettings.OverscanPixels.Top)    / double(ScaledSize.Y);
+			InOutOverscanRuntimeSettings.OverscanPercent.Bottom = double(InOutOverscanRuntimeSettings.OverscanPixels.Bottom) / double(ScaledSize.Y);
 		}
 	}
 }
