@@ -9,7 +9,7 @@
 #include "PixelStreaming2HMDEnums.h"
 
 /**
- * The public interface of the Pixel Streaming HMD module.
+ * The public interface provides functionality for interacting with Pixel Streaming and Head Mounted Display (HMD) systems.
  */
 class PIXELSTREAMING2HMD_API IPixelStreaming2HMDModule : public IHeadMountedDisplayModule
 {
@@ -27,24 +27,25 @@ public:
 
 	/**
 	 * Checks to see if this module is loaded.
-	 *
 	 * @return True if the module is loaded.
 	 */
 	static inline bool IsAvailable() { return FModuleManager::Get().IsModuleLoaded("PixelStreaming2HMD"); }
 
 	/**
-	 * @brief Get the Pixel Streaming HMD object
-	 *
-	 * @return IPixelStreaming2HMD*
+	 * @brief Get the Pixel Streaming HMD object.
+	 * @return Pointer to the Pixel Streaming HMD.
 	 */
 	virtual IPixelStreaming2HMD* GetPixelStreaming2HMD() const = 0;
 
 	/**
-	 * @brief Get the Active XR System
-	 *
-	 * @return EPixelStreaming2XRSystem
+	 * @brief Get the Active XR System.
+	 * @return The Active XR System.
 	 */
 	virtual EPixelStreaming2XRSystem GetActiveXRSystem() = 0;
 
+	/**
+	 * @brief Set the Active XR System.
+	 * @param System The Active XR System to set.
+	 */
 	virtual void SetActiveXRSystem(EPixelStreaming2XRSystem System) = 0;
 };

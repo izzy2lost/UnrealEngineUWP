@@ -14,20 +14,25 @@
 
 class UTexture2D;
 
+/**
+ * The IPixelStreaming2Streamer interface provides functionality for managing a Pixel Streaming session.
+ * This class manages the core operations of streaming, such as setting the framerate, handling video input, 
+ * and interacting with the signalling server. It also allows for control over connected players and sending data to them.
+ */
 class PIXELSTREAMING2_API IPixelStreaming2Streamer
 {
 public:
 	virtual ~IPixelStreaming2Streamer() = default;
 
 	/**
-	 * @brief Set the Stream FPS
-	 * @param InFramesPerSecond The number of frames per second the streamer will stream at
+	 * @brief Set the Stream FPS.
+	 * @param InFramesPerSecond The number of frames per second the streamer will stream at.
 	 */
 	virtual void SetStreamFPS(int32 InFramesPerSecond) = 0;
 
 	/**
-	 * @brief Get the Stream FPS
-	 * @return - The number of frames per second the streamer will stream at
+	 * @brief Get the Stream FPS.
+	 * @return - The number of frames per second the streamer will stream at.
 	 */
 	virtual int32 GetStreamFPS() = 0;
 
@@ -40,32 +45,32 @@ public:
 	virtual void SetCoupleFramerate(bool bCouple) = 0;
 
 	/**
-	 * @brief Set the Video Input object
-	 * @param Input The IPixelStreaming2VideoProducer that this streamer will stream
+	 * @brief Set the Video Input object.
+	 * @param Input The IPixelStreaming2VideoProducer that this streamer will stream.
 	 */
 	virtual void SetVideoProducer(TSharedPtr<IPixelStreaming2VideoProducer> Input) = 0;
 
 	/**
-	 * @brief Get the Video Input object
-	 * @return The IPixelStreaming2VideoProducer that this streamer will stream
+	 * @brief Get the Video Input object.
+	 * @return The IPixelStreaming2VideoProducer that this streamer will stream.
 	 */
 	virtual TWeakPtr<IPixelStreaming2VideoProducer> GetVideoProducer() = 0;
 
 	/**
-	 * @brief Set the Signalling Server URL
-	 * @param InSignallingServerURL
+	 * @brief Set the Signalling Server URL.
+	 * @param InSignallingServerURL.
 	 */
 	virtual void SetSignallingServerURL(const FString& InSignallingServerURL) = 0;
 
 	/**
-	 * @brief Get the Signalling Server URL
-	 * @return The Signalling Server URL
+	 * @brief Get the Signalling Server URL.
+	 * @return The Signalling Server URL.
 	 */
 	virtual FString GetSignallingServerURL() = 0;
 
 	/**
-	 * @brief Get this streamer's ID
-	 *
+	 * @brief Get this streamer's ID.
+	 * @return The streamer's ID.
 	 */
 	virtual FString GetId() = 0;
 
@@ -87,8 +92,7 @@ public:
 
 	/**
 	 * @brief Get the current state of this streamer
-	 * @return true
-	 * @return false
+	 * @return True if streaming, false otherwise.
 	 */
 	virtual bool IsStreaming() const = 0;
 
@@ -142,15 +146,15 @@ public:
 	virtual void UnfreezeStream() = 0;
 
 	/**
-	 * @brief Send all players connected to this streamer a message
-	 * @param MessageType The message type to be sent to the player
+	 * @brief Send all players connected to this streamer a message.
+	 * @param MessageType The message type to be sent to the player.
 	 * @param Descriptor The contents of the message.
 	 */
 	virtual void SendAllPlayersMessage(FString MessageType, const FString& Descriptor) = 0;
 
 	/**
-	 * @brief Send all players connected to this streamer a message
-	 * @param MessageType The message type to be sent to the player
+	 * @brief Send all players connected to this streamer a message.
+	 * @param MessageType The message type to be sent to the player.
 	 * @param Descriptor The contents of the message.
 	 */
 	virtual void SendPlayerMessage(FString PlayerId, FString MessageType, const FString& Descriptor) = 0;
@@ -171,7 +175,6 @@ public:
 
 	/**
 	 * @brief Get the ids of the connected players.
-	 *
 	 * @return TArray<FString> The ids of the connected players.
 	 */
 	virtual TArray<FString> GetConnectedPlayers() = 0;
@@ -184,35 +187,53 @@ public:
 
 	/**
 	 * @brief Get the audio sink associated with a specific peer/player.
+	 * @param PlayerId The player id of the audio sink to retrieve.
+	 * @return The PeerAudioSink.
 	 */
 	virtual IPixelStreaming2AudioSink* GetPeerAudioSink(FString PlayerId) = 0;
 
 	/**
 	 * @brief Get an audio sink that has no peers/players listening to it.
+	 * @return The unlistened PeerAudioSink.
 	 */
 	virtual IPixelStreaming2AudioSink* GetUnlistenedAudioSink() = 0;
 
 	/**
 	 * @brief Get the video sink associated with a specific peer/player.
+	 * @return The PeerVideoSink.
 	 */
 	virtual IPixelStreaming2VideoSink* GetPeerVideoSink(FString PlayerId) = 0;
 
 	/**
 	 * @brief Get a video sink that has no peers/players watching it.
+	 * @return The unwatched PeerVideoSink.
 	 */
 	virtual IPixelStreaming2VideoSink* GetUnwatchedVideoSink() = 0;
 
 	/**
-	 * @brief Allows sending arbitrary configuration options during initial connection
-	 *
-	 * @param Value Setting a value to an empty string clears it from the mapping and prevents it being sent
+	 * @brief Allows sending arbitrary configuration options during initial connection.
+	 * @param OptionName The name of the option to set.
+	 * @param Value Setting a value to an empty string clears it from the mapping and prevents it being sent.
 	 */
 	virtual void SetConfigOption(const FName& OptionName, const FString& Value) = 0;
+
+	/**
+	 * @brief Get the Gonfigerartion value for a specific option.
+	 * @param OptionName The name of the config option to get.
+	 * @param Value The value of the config option retrieved.
+	 */
 	virtual bool GetConfigOption(const FName& OptionName, FString& OutValue) = 0;
 
 	/**
+	 * @brief Set the minimum and maximum bitrate for the streamer.
+	 * @param PlayerId Currently unused. For setting the bitrate for a individual player id.
+	 * @param MinBitrate minimum bitrate for the streamer.
+	 * @param MaxBitrate maximum bitrate for the streamer.
 	 */
 	virtual void PlayerRequestsBitrate(FString PlayerId, int MinBitrate, int MaxBitrate) = 0;
 
+	/**
+	 * @brief Refresh connection with minimum and maximum bitrate.
+	 */
 	virtual void RefreshStreamBitrate() = 0;
 };

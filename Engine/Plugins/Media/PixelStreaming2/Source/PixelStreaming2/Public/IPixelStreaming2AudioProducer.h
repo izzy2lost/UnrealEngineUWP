@@ -19,6 +19,12 @@ public:
 	IPixelStreaming2AudioProducer() = default;
 	virtual ~IPixelStreaming2AudioProducer() = default;
 
-    /* Pushes audio into the PS2 audio pipeline which will mix with other audio producers before broadcasting. */
+	/**
+	 * @brief Pushes audio into the PS2 audio pipeline which will mix with other audio producers before broadcasting.
+	 * @param InBuffer Pointer to the audio data.
+	 * @param NumSamples Number of Audio frames in a single channel.
+	 * @param NumChannels Number of audio channels. For example 2 for stero audio.
+	 * @param SampleRate Audio sample rate in samples per second.
+	 */
     virtual void PushAudio(const float* InBuffer, int32 NumSamples, int32 NumChannels, int32 SampleRate) = 0;
 };

@@ -6,142 +6,160 @@
 #include "Containers/UnrealString.h"
 #include "PixelStreaming2Delegates.generated.h"
 
+/**
+ * Pixel Streaming Delegates that can be invoked when pixel streaming events take place.
+ * Includes blueprint and native c++ delegates.
+ */
 UCLASS()
 class PIXELSTREAMING2_API UPixelStreaming2Delegates : public UObject
 {
 	GENERATED_BODY()
 
 public:
-	/**
-	 * A connection to the signalling server was made.
-	 */
-	// BP Delegate
+	/** Blueprint delegate type for when a connection to the signalling server was made. */
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FConnectedToSignallingServer, FString, StreamerId);
+
+	/** Invoked when a connection to the signalling server was made. */
 	UPROPERTY(BlueprintAssignable, Category = "Pixel Streaming Delegates")
 	FConnectedToSignallingServer OnConnectedToSignallingServer;
-	// C++ Delegate
+	
+	/** Delegate type for when a connection to the signalling server was made. */
 	DECLARE_MULTICAST_DELEGATE_OneParam(FConnectedToSignallingServerNative, FString /* StreamerId */);
+
+	/** Invoked when a connection to the signalling server was made. */
 	FConnectedToSignallingServerNative OnConnectedToSignallingServerNative;
 
-	/**
-	 * A connection to the signalling server was lost.
-	 */
-	// BP Delegate
+	/** Blueprint delegate type for when a connection to the signalling server was lost. */
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FDisconnectedFromSignallingServer, FString, StreamerId);
+
+	/** Invoked when a connection to the signalling server was lost. */
 	UPROPERTY(BlueprintAssignable, Category = "Pixel Streaming Delegates")
 	FDisconnectedFromSignallingServer OnDisconnectedFromSignallingServer;
-	// C++ Delegate
+	
+	/** Delegate type for when a connection to the signalling server was lost. */
 	DECLARE_MULTICAST_DELEGATE_OneParam(FDisconnectedFromSignallingServerNative, FString /* StreamerId */);
+
+	/** Invoked when a connection to the signalling server was lost. */
 	FDisconnectedFromSignallingServerNative OnDisconnectedFromSignallingServerNative;
 
-	/**
-	 * A new connection has been made to the session.
-	 */
-	// BP Delegate
+	/** Blueprint delegate type for when a new connection has been made to the session. */
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FNewConnection, FString, StreamerId, FString, PlayerId);
+
+	/** Invoked when a new connection has been made to the session. */
 	UPROPERTY(BlueprintAssignable, Category = "Pixel Streaming Delegates")
 	FNewConnection OnNewConnection;
-	// C++ Delegate
+
+	/** Delegate type for when a new connection has been made to the session. */
 	DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FNewConnectionNative, FString /* Streamer id*/, FString /* Peer id */);
+
+	/** Invoked when a new connection has been made to the session. */
 	FNewConnectionNative OnNewConnectionNative;
 
-	/**
-	 * A connection to a player was lost.
-	 */
-	// BP Delegate
+	/** Blueprint delegate type for when a connection to a player was lost. */
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FClosedConnection, FString, StreamerId, FString, PlayerId);
+
+	/** Invoked when a connection to a player was lost. */
 	UPROPERTY(BlueprintAssignable, Category = "Pixel Streaming Delegates")
 	FClosedConnection OnClosedConnection;
-	// C++ Delegate
+
+	/** Delegate type for when a connection to a player was lost. */
 	DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FClosedConnectionNative, FString /* Streamer id */, FString /* Peer id */);
+
+	/** Invoked when a connection to a player was lost. */
 	FClosedConnectionNative OnClosedConnectionNative;
 
-	/**
-	 * All connections have closed and nobody is viewing or interacting with
-	 * the app. This is an opportunity to reset the app.
-	 */
-	// BP Delegate
+	/** Blueprint delegate type for when all connections have closed and nobody is viewing or interacting with the app. This is an opportunity to reset the app. */
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FAllConnectionsClosed, FString, StreamerId);
+
+	/** Invoked when all connections have closed and nobody is viewing or interacting with the app. This is an opportunity to reset the app. */
 	UPROPERTY(BlueprintAssignable, Category = "Pixel Streaming Delegates")
 	FAllConnectionsClosed OnAllConnectionsClosed;
-	// C++ Delegate
+
+	/** Delegate type for when all connections have closed and nobody is viewing or interacting with the app. This is an opportunity to reset the app. */
 	DECLARE_TS_MULTICAST_DELEGATE_OneParam(FAllConnectionsClosedNative, FString);
+
+	/** Invoked when all connections have closed and nobody is viewing or interacting with the app. This is an opportunity to reset the app. */
 	FAllConnectionsClosedNative OnAllConnectionsClosedNative;
 
-	/**
-	 * A new data track has been opened
-	 */
-	// BP Delegate
+	/** Blueprint delegate type for when a new data track has been opened. */
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FDataTrackOpen, FString, StreamerId, FString, PlayerId);
+
+	/** Invoked when a new data track has been opened. */
 	UPROPERTY(BlueprintAssignable, Category = "Pixel Streaming Delegates")
 	FDataTrackOpen OnDataTrackOpen;
-	// C++ Delegate
+	
+	/** Delegate type for when a new data track has been opened. */
 	DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FDataTrackOpenNative, FString /* Streamer id */, FString /* Peer id */);
+
+	/** Invoked when a new data track has been opened. */
 	FDataTrackOpenNative OnDataTrackOpenNative;
 
-	/**
-	 * An existing data track has been closed
-	 */
-	// BP Delegate
+	/** Blueprint delegate type for when an existing data track has been closed. */
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FDataTrackClosed, FString, StreamerId, FString, PlayerId);
+
+	/** Invoked when an existing data track has been closed. */
 	UPROPERTY(BlueprintAssignable, Category = "Pixel Streaming Delegates")
 	FDataTrackClosed OnDataTrackClosed;
-	// C++ Delegate
+
+	/** Delegate type for when an existing data track has been closed. */
 	DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FDataTrackClosedNative, FString /* Streamer id */, FString /* Peer id */);
+
+	/** Invoked when an existing data track has been closed. */
 	FDataTrackClosedNative OnDataTrackClosedNative;
 
-	/**
-	 * A new video track has been opened
-	 */
-	// C++ Delegate
+	/** Delegate type for when a new video track has been opened. */
 	DECLARE_TS_MULTICAST_DELEGATE_ThreeParams(FVideoTrackOpenNative, FString /* Streamer id */, FString /* Peer id */, bool /* bIsRemote */);
+
+	/** Invoked when a new video track has been opened. */
 	FVideoTrackOpenNative OnVideoTrackOpenNative;
 
-	/**
-	 * An existing video track has been closed
-	 */
-	// C++ Delegate
+	/** Delegate type for when an existing video track has been closed. */
 	DECLARE_TS_MULTICAST_DELEGATE_ThreeParams(FVideoTrackClosedNative, FString /* Streamer id */, FString /* Peer id */, bool /* bIsRemote */);
+
+	/** Invoked when an existing video track has been closed. */
 	FVideoTrackClosedNative OnVideoTrackClosedNative;
 
-	/**
-	 * A new audio track has been opened
-	 */
-	// C++ Delegate
+	/** Delegate type for when a new audio track has been opened. */
 	DECLARE_TS_MULTICAST_DELEGATE_ThreeParams(FAudioTrackOpenNative, FString /* Streamer id */, FString /* Peer id */, bool /* bIsRemote */);
+
+	/** Invoked when a new audio track has been opened. */
 	FAudioTrackOpenNative OnAudioTrackOpenNative;
 
-	/**
-	 * An existing audio track has been closed
-	 */
-	// C++ Delegate
+	/** Delegate type for when an existing audio track has been closed. */
 	DECLARE_TS_MULTICAST_DELEGATE_ThreeParams(FAudioTrackClosedNative, FString /* Streamer id */, FString /* Peer id */, bool /* bIsRemote */);
+
+	/** Invoked when an existing audio track has been closed. */
 	FAudioTrackClosedNative OnAudioTrackClosedNative;
 
-	/**
-	 * A pixel streaming stat has changed
-	 */
-	// BP Delegate
+	/** Blueprint delegate type for when a pixel streaming stat has changed. */
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FStatsChanged, FString, PlayerId, FName, StatName, float, StatValue);
+
+	/** Invoked when a pixel streaming stat has changed. */
 	UPROPERTY(BlueprintAssignable, Category = "Pixel Streaming Delegates")
 	FStatsChanged OnStatChanged;
-	// C++ Delegate
+
+	/** Delegate type for when a pixel streaming stat has changed. */
 	DECLARE_MULTICAST_DELEGATE_ThreeParams(FStatChangedNative, FString /* Peer id */, FName /* Stat name */, float);
+
+	/** Invoked when a pixel streaming stat has changed. */
 	FStatChangedNative OnStatChangedNative;
 
-	/**
-	 * The GPU ran out of available HW encoders and fell back to software encoders
-	 */
-	// BP Delegate
+	/** Blueprint delegate type for when the GPU ran out of available hardware encoders and fell back to software encoders. */
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FFallbackToSoftwareEncoding);
+
+	/** Invoked when the GPU ran out of available hardware encoders and fell back to software encoders. */
 	UPROPERTY(BlueprintAssignable, Category = "Pixel Streaming Delegates")
 	FFallbackToSoftwareEncoding OnFallbackToSoftwareEncoding;
-	// C++ Delegate
+
+	/** Delegate type for when the GPU ran out of available hardware encoders and fell back to software encoders. */
 	DECLARE_MULTICAST_DELEGATE(FFallbackToSoftwareEncodingNative);
+
+	/** Invoked when the GPU ran out of available hardware encoders and fell back to software encoders. */
 	FFallbackToSoftwareEncodingNative OnFallbackToSoftwareEncodingNative;
 
 	/**
-	 * Create the singleton.
+	 * @param Get the UPixelStreaming2Delegates singleton.
+	 * @return UPixelStreaming2Delegates pointer.
 	 */
 	static UPixelStreaming2Delegates* Get()
 	{

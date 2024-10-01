@@ -9,7 +9,8 @@
 #include "PixelStreaming2Servers.h"
 
 /**
- * The public interface of the Pixel Streaming Editor module.
+ * Public interface that manages Pixel Streaming specific functionality within the Unreal Editor.
+ * Provides various features for controlling Pixel Streaming, such as starting and stopping the streamer.
  */
 class PIXELSTREAMING2EDITOR_API IPixelStreaming2EditorModule : public IModuleInterface
 {

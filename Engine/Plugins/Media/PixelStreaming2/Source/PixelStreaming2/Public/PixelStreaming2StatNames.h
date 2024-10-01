@@ -4,77 +4,72 @@
 
 #include "UObject/NameTypes.h"
 
+/**
+ * Stat Names used by Pixel Streaming.
+ */
 namespace PixelStreaming2StatNames
 {
-	// Calculated stats
-	const FName Bitrate					= FName(TEXT("bitrate"));
-	const FName BitrateMegabits			= FName(TEXT("bitrateMbits"));
-	const FName TargetBitrateMegabits	= FName(TEXT("targetBitrateMbits"));
-	const FName MeanSendDelay			= FName(TEXT("captureToSend"));
-	const FName SourceFps				= FName(TEXT("captureFps"));
-	const FName Fps						= FName(TEXT("captureFps"));
-	const FName MeanEncodeTime			= FName(TEXT("encodeTime"));
-	const FName EncodedFramesPerSecond	= FName(TEXT("encodeFps"));
-	const FName DecodedFramesPerSecond	= FName(TEXT("decodeFps"));
-	const FName MeanQPPerSecond			= FName(TEXT("qp"));
-	const FName FramesSentPerSecond		= FName(TEXT("transmitFps"));
-	const FName FramesReceivedPerSecond	= FName(TEXT("receiveFps"));
-
-	// WebRTC stats
-	const FName JitterBufferDelay		  = FName(TEXT("jitterBufferDelay"));
-	const FName FramesSent				  = FName(TEXT("framesSent"));
-	const FName FramesReceived			  = FName(TEXT("framesReceived"));
-	const FName FramesPerSecond			  = FName(TEXT("framesPerSecond"));
-	const FName FramesDecoded			  = FName(TEXT("framesDecoded"));
-	const FName FramesDropped			  = FName(TEXT("framesDropped"));
-	const FName FramesCorrupted			  = FName(TEXT("framesCorrupted"));
-	const FName PartialFramesLost		  = FName(TEXT("partialFramesLost"));
-	const FName FullFramesLost			  = FName(TEXT("fullFramesLost"));
-	const FName HugeFramesSent			  = FName(TEXT("hugeFramesSent"));
-	const FName JitterBufferTargetDelay	  = FName(TEXT("jitterBufferTargetDelay"));
-	const FName InterruptionCount		  = FName(TEXT("interruptionCount"));
-	const FName TotalInterruptionDuration = FName(TEXT("totalInterruptionDuration"));
-	const FName FreezeCount				  = FName(TEXT("freezeCount"));
-	const FName PauseCount				  = FName(TEXT("pauseCount"));
-	const FName TotalFreezesDuration	  = FName(TEXT("totalFreezesDuration"));
-	const FName TotalPausesDuration		  = FName(TEXT("totalPausesDuration"));
-	const FName FirCount				  = FName(TEXT("firCount"));
-	const FName PliCount				  = FName(TEXT("pliCount"));
-	const FName NackCount				  = FName(TEXT("nackCount"));
-	const FName RetransmittedBytesSent	  = FName(TEXT("retransmittedBytesSent"));
-	const FName TargetBitrate			  = FName(TEXT("targetBitrate"));
-	const FName TotalEncodeBytesTarget	  = FName(TEXT("totalEncodedBytesTarget"));
-	const FName KeyFramesEncoded		  = FName(TEXT("keyFramesEncoded"));
-	const FName FrameWidth				  = FName(TEXT("frameWidth"));
-	const FName FrameHeight				  = FName(TEXT("frameHeight"));
-	const FName BytesSent				  = FName(TEXT("bytesSent"));
-	const FName BytesReceived			  = FName(TEXT("bytesReceived"));
-	const FName QPSum					  = FName(TEXT("qpSum"));
-	const FName TotalEncodeTime			  = FName(TEXT("totalEncodeTime"));
-	const FName TotalPacketSendDelay	  = FName(TEXT("totalPacketSendDelay"));
-	const FName FramesEncoded			  = FName(TEXT("framesEncoded"));
-	const FName AvgSendDelay			  = FName(TEXT("packetSendDelay"));
-	const FName MessagesSent			  = FName(TEXT("messagesSent"));
-	const FName MessagesReceived		  = FName(TEXT("messagesReceived"));
-
-	const FName PacketsLost				  = FName(TEXT("packetsLost"));
-	const FName Jitter				      = FName(TEXT("jitter"));
-	const FName RoundTripTime			  = FName(TEXT("roundTripTime"));
-	const FName KeyFramesDecoded		  = FName(TEXT("keyFramesDecoded"));
-	const FName AudioLevel				  = FName(TEXT("audioLevel"));
-	const FName TotalSamplesDuration	  = FName(TEXT("totalSamplesDuration"));
-	const FName AvailableOutgoingBitrate  = FName(TEXT("availableOutgoingBitrate"));
-	const FName AvailableIncomingBitrate  = FName(TEXT("availableIncomingBitrate"));
-	const FName RetransmittedBytesReceived	  = FName(TEXT("retransmittedBytesReceived"));
-	const FName RetransmittedPacketsReceived  = FName(TEXT("retransmittedPacketsReceived"));
-
-	// Data-channel stats
-	const FName DataChannelBytesSent		  = FName(TEXT("data-channel-bytesSent"));
-	const FName DataChannelBytesReceived	  = FName(TEXT("data-channel-bytesReceived"));
-	const FName DataChannelMessagesSent		  = FName(TEXT("data-channel-messagesSent"));
-	const FName DataChannelMessagesReceived	  = FName(TEXT("data-channel-messagesReceived"));
-
-	// Pixel Streaming specific stats
-	const FName InputController			  = FName(TEXT("inputController"));
+	PIXELSTREAMING2_API extern const FName Bitrate;
+	PIXELSTREAMING2_API extern const FName BitrateMegabits;
+	PIXELSTREAMING2_API extern const FName TargetBitrateMegabits;
+	PIXELSTREAMING2_API extern const FName MeanSendDelay;
+	PIXELSTREAMING2_API extern const FName SourceFps;
+	PIXELSTREAMING2_API extern const FName Fps;
+	PIXELSTREAMING2_API extern const FName MeanEncodeTime;
+	PIXELSTREAMING2_API extern const FName EncodedFramesPerSecond;
+	PIXELSTREAMING2_API extern const FName DecodedFramesPerSecond;
+	PIXELSTREAMING2_API extern const FName MeanQPPerSecond;
+	PIXELSTREAMING2_API extern const FName FramesSentPerSecond;
+	PIXELSTREAMING2_API extern const FName FramesReceivedPerSecond;
+	PIXELSTREAMING2_API extern const FName JitterBufferDelay;
+	PIXELSTREAMING2_API extern const FName FramesSent;
+	PIXELSTREAMING2_API extern const FName FramesReceived;
+	PIXELSTREAMING2_API extern const FName FramesPerSecond;
+	PIXELSTREAMING2_API extern const FName FramesDecoded;
+	PIXELSTREAMING2_API extern const FName FramesDropped;
+	PIXELSTREAMING2_API extern const FName FramesCorrupted;
+	PIXELSTREAMING2_API extern const FName PartialFramesLost;
+	PIXELSTREAMING2_API extern const FName FullFramesLost;
+	PIXELSTREAMING2_API extern const FName HugeFramesSent;
+	PIXELSTREAMING2_API extern const FName JitterBufferTargetDelay;
+	PIXELSTREAMING2_API extern const FName InterruptionCount;
+	PIXELSTREAMING2_API extern const FName TotalInterruptionDuration;
+	PIXELSTREAMING2_API extern const FName FreezeCount;
+	PIXELSTREAMING2_API extern const FName PauseCount;
+	PIXELSTREAMING2_API extern const FName TotalFreezesDuration;
+	PIXELSTREAMING2_API extern const FName TotalPausesDuration;
+	PIXELSTREAMING2_API extern const FName FirCount;
+	PIXELSTREAMING2_API extern const FName PliCount;
+	PIXELSTREAMING2_API extern const FName NackCount;
+	PIXELSTREAMING2_API extern const FName RetransmittedBytesSent;
+	PIXELSTREAMING2_API extern const FName TargetBitrate;
+	PIXELSTREAMING2_API extern const FName TotalEncodeBytesTarget;
+	PIXELSTREAMING2_API extern const FName KeyFramesEncoded;
+	PIXELSTREAMING2_API extern const FName FrameWidth;
+	PIXELSTREAMING2_API extern const FName FrameHeight;
+	PIXELSTREAMING2_API extern const FName BytesSent;
+	PIXELSTREAMING2_API extern const FName BytesReceived;
+	PIXELSTREAMING2_API extern const FName QPSum;
+	PIXELSTREAMING2_API extern const FName TotalEncodeTime;
+	PIXELSTREAMING2_API extern const FName TotalPacketSendDelay;
+	PIXELSTREAMING2_API extern const FName FramesEncoded;
+	PIXELSTREAMING2_API extern const FName AvgSendDelay;
+	PIXELSTREAMING2_API extern const FName MessagesSent;
+	PIXELSTREAMING2_API extern const FName MessagesReceived;
+	PIXELSTREAMING2_API extern const FName PacketsLost;
+	PIXELSTREAMING2_API extern const FName Jitter;
+	PIXELSTREAMING2_API extern const FName RoundTripTime;
+	PIXELSTREAMING2_API extern const FName KeyFramesDecoded;
+	PIXELSTREAMING2_API extern const FName AudioLevel;
+	PIXELSTREAMING2_API extern const FName TotalSamplesDuration;
+	PIXELSTREAMING2_API extern const FName AvailableOutgoingBitrate;
+	PIXELSTREAMING2_API extern const FName AvailableIncomingBitrate;
+	PIXELSTREAMING2_API extern const FName RetransmittedBytesReceived;
+	PIXELSTREAMING2_API extern const FName RetransmittedPacketsReceived;
+	PIXELSTREAMING2_API extern const FName DataChannelBytesSent;
+	PIXELSTREAMING2_API extern const FName DataChannelBytesReceived;
+	PIXELSTREAMING2_API extern const FName DataChannelMessagesSent;
+	PIXELSTREAMING2_API extern const FName DataChannelMessagesReceived;
+	PIXELSTREAMING2_API extern const FName InputController;
 
 } // namespace PixelStreaming2StatNames

@@ -29,6 +29,7 @@ public:
 
     /**
 	 * A human readable identifier used when displaying what the streamer is streaming in the toolbar
+	 * @return A string containing the display name.
 	 */
 	virtual FString ToString() = 0;
 };
