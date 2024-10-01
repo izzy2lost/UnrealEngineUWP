@@ -1178,10 +1178,6 @@ class DevicenDisplay(DeviceUnreal):
             args.extend([
                 '-fullscreen',
             ])
-        elif headless:
-            args.extend([
-                '-RenderOffscreen',
-            ])
         else:
             args.extend([
                 '-windowed',
@@ -1190,6 +1186,11 @@ class DevicenDisplay(DeviceUnreal):
                 f'WinY={win_pos[1]}',
                 f'ResX={win_res[0]}',
                 f'ResY={win_res[1]}',
+            ])
+
+        if headless:
+            args.extend([
+                '-RenderOffscreen',
             ])
 
         # MultiUser parameters
