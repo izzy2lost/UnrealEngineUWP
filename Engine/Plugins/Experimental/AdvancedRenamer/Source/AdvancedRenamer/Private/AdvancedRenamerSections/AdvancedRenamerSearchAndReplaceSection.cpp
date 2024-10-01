@@ -120,7 +120,7 @@ TSharedRef<SWidget> FAdvancedRenamerSearchAndReplaceSection::GetWidget()
 			// Search text
 			+ SVerticalBox::Slot()
 			.Padding(SectionContentMiddleEntriesPadding)
-			.FillHeight(1.f)
+			.AutoHeight()
 			[
 				SNew(SHorizontalBox)
 
@@ -152,7 +152,7 @@ TSharedRef<SWidget> FAdvancedRenamerSearchAndReplaceSection::GetWidget()
 			// Rename/Replace text
 			+ SVerticalBox::Slot()
 			.Padding(SectionContentMiddleEntriesPadding)
-			.FillHeight(1.f)
+			.AutoHeight()
 			[
 				SNew(SHorizontalBox)
 

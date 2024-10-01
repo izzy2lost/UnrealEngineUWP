@@ -28,17 +28,17 @@ namespace UE::AdvancedRenamer::Private
 {
 	TSharedRef<SWindow> CreateAdvancedRenamerWindow()
 	{
-		// Take into account the AppScale when spawning the window, this has to be done since SWindow do not take the AppScale into consideration for the Min/Max Width/Height
-		float AppScale = FSlateApplication::Get().GetApplicationScale();
+		// Workaround to make the AppScale and OS Zoom work at the same time, this will eventually be changed to add constraint to the window size
+		const float AppScale = FSlateApplication::Get().GetApplicationScale();
+		constexpr float MinWindowHeight = 589.f;
+		constexpr float MinWindowWidth = 730.f;
+		constexpr float TitleHeightOffset = 38.f;
+		constexpr float ContentWidthOffset = 6.f;
 		return SNew(SWindow)
 			.Title(LOCTEXT("AdvancedRenameWindow", "Batch Renamer"))
-			.ClientSize(FVector2D(731 * AppScale, 603 * AppScale))
-			.SizingRule(ESizingRule::UserSized)
-			.SupportsMaximize(false)
-			.SupportsMinimize(false)
-			.MinWidth(737.f * AppScale)
-			.MaxHeight(626.f * AppScale)
-			.MinHeight(626.f * AppScale);
+			.ClientSize(FVector2D((MinWindowWidth + ContentWidthOffset) * AppScale, (MinWindowHeight + TitleHeightOffset) * AppScale))
+			.MinHeight((MinWindowHeight + TitleHeightOffset) * AppScale)
+			.MinWidth((MinWindowWidth + ContentWidthOffset) * AppScale);
 	}
 }
 

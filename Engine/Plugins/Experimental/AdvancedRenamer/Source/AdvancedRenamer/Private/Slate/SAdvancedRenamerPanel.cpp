@@ -115,7 +115,6 @@ void SAdvancedRenamerPanel::Construct(const FArguments& InArgs, const TSharedRef
 		[
 			SNew(SBorder)
 			.BorderImage(FAppStyle::GetBrush("NoBorder"))
-			.Padding(2.f, 2.f)
 			[
 				SNew(SBox)
 				[
@@ -158,18 +157,9 @@ void SAdvancedRenamerPanel::Construct(const FArguments& InArgs, const TSharedRef
 
 		if (Index == 0)
 		{
-			// The first Section Search and Replace will fill the height by design
 			Padding = FMargin(0.f, 0.f, 0.f, 1.f);
-			LeftSideVerticalBox->AddSlot()
-				.Padding(Padding)
-				.FillHeight(1.f)
-				[
-					RegisteredSections[Index]->GetWidget()
-				];
-			continue;
 		}
-
-		if (Index == RegisteredSections.Num() - 1)
+		else if (Index == RegisteredSections.Num() - 1)
 		{
 			Padding = FMargin(0.f, 1.f, 0.f, 0.f);
 		}
