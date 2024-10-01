@@ -1421,11 +1421,14 @@ public:
 	UFUNCTION(BlueprintPure, Category="Rendering|Material")
 	ENGINE_API virtual class UMaterialInterface* GetMaterial(int32 ElementIndex) const;
 
-	/** Returns the material to show in the editor details panel as being used. */
-	virtual class UMaterialInterface* GetEditorMaterial(int32 ElementIndex) const 
-	{ 
+#if WITH_EDITOR
+	/** Returns the material to show in the editor details panel as being used. Skips Nanite Override materials. */
+	UFUNCTION(BlueprintPure, Category = "Rendering|Material")
+	ENGINE_API virtual class UMaterialInterface* GetEditorMaterial(int32 ElementIndex) const
+	{
 		return GetMaterial(ElementIndex);
 	}
+#endif
 
 	UFUNCTION(BlueprintCallable, Category = "Rendering|Material")
 	ENGINE_API virtual int32 GetMaterialIndex(FName MaterialSlotName) const;
