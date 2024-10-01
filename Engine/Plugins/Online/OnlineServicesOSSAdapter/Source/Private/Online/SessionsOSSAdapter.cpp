@@ -319,6 +319,34 @@ void FSessionsOSSAdapter::Initialize()
 		SessionEvents.OnUISessionJoinRequested.Broadcast(Event);
 	}));
 
+	SessionsInterface->AddOnCreateSessionCompleteDelegate_Handle(FOnCreateSessionCompleteDelegate::CreateLambda([this](FName SessionName, bool bSessionCompletionResult)
+	{
+		if (bSessionCompletionResult)
+		{
+			FAccountId AccountId;
+			FOnlineSessionId OnlineSessionId;
+			if (GetAccountIdAndSessionIdFromNamedSession(SessionName, AccountId, OnlineSessionId))
+			{
+				const FSessionCreated Event { AccountId, OnlineSessionId };
+				SessionEvents.OnSessionCreated.Broadcast(Event);
+			}
+		}
+	}));
+
+	SessionsInterface->AddOnJoinSessionCompleteDelegate_Handle(FOnJoinSessionCompleteDelegate::CreateLambda([this](FName SessionName, EOnJoinSessionCompleteResult::Type JoinSessionType)
+	{
+		if (JoinSessionType == EOnJoinSessionCompleteResult::Type::Success)
+		{
+			FAccountId AccountId;
+			FOnlineSessionId OnlineSessionId;
+			if (GetAccountIdAndSessionIdFromNamedSession(SessionName, AccountId, OnlineSessionId))
+			{
+				const FSessionJoined Event { AccountId, OnlineSessionId };
+				SessionEvents.OnSessionJoined.Broadcast(Event);
+			}
+		}
+	}));
+
 	SessionsInterface->AddOnSessionParticipantJoinedDelegate_Handle(FOnSessionParticipantJoinedDelegate::CreateLambda([this](FName SessionName, const FUniqueNetId& TargetUniqueNetId)
 	{
 		// We won't update a session that can't be retrieved from the OSS or doesn't exist in OnlineServices anymore
@@ -365,6 +393,8 @@ void FSessionsOSSAdapter::Shutdown()
 	SessionsInterface->ClearOnSessionParticipantJoinedDelegates(this);
 	SessionsInterface->ClearOnSessionParticipantLeftDelegates(this);
 	SessionsInterface->ClearOnSessionParticipantSettingsUpdatedDelegates(this);
+	SessionsInterface->ClearOnCreateSessionCompleteDelegates(this);
+	SessionsInterface->ClearOnJoinSessionCompleteDelegates(this);
 
 	Super::Shutdown();
 }
@@ -1147,6 +1177,52 @@ TArray<TSharedRef<FSessionCommon>> FSessionsOSSAdapter::BuildV2SessionSearchResu
 	}
 
 	return FoundSessions;
+}
+
+bool FSessionsOSSAdapter::GetAccountIdAndSessionIdFromNamedSession(const FName& SessionName, FAccountId& AccountId, FOnlineSessionId& OnlineSessionId) const
+{
+	if (GetV2SessionCreatorFromV1NamedSession(SessionName, AccountId))
+	{
+		if (GetV2SessionIdFromV1NamedSession(SessionName, OnlineSessionId))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool FSessionsOSSAdapter::GetV2SessionIdFromV1NamedSession(const FName& SessionName, FOnlineSessionId& OnlineSessionId) const
+{
+	const FNamedOnlineSession* NamedOnlineSession = SessionsInterface->GetNamedSession(SessionName);
+	if (NamedOnlineSession)
+	{
+		const FUniqueNetIdRef SessionUniqueNetIdRef = NamedOnlineSession->SessionInfo->GetSessionId().AsShared();
+		OnlineSessionId = GetSessionIdRegistry().FindOrAddHandle(SessionUniqueNetIdRef);
+		return true;
+	}
+
+	return false;
+}
+
+bool FSessionsOSSAdapter::GetV2SessionCreatorFromV1NamedSession(const FName& SessionName, FAccountId& AccountId) const
+{
+	const FNamedOnlineSession* NamedOnlineSession = SessionsInterface->GetNamedSession(SessionName);
+	if (NamedOnlineSession)
+	{
+		const FUniqueNetIdPtr LocalOwnerIdPtr = NamedOnlineSession->OwningUserId;
+		if (LocalOwnerIdPtr.IsValid())
+		{
+			const FOnlineServicesOSSAdapter& ServicesOSSAdapter = static_cast<FOnlineServicesOSSAdapter&>(Services);
+			AccountId = ServicesOSSAdapter.GetAccountIdRegistry().FindOrAddHandle(LocalOwnerIdPtr->AsShared());
+			if (AccountId.IsValid())
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 FOnlineSessionIdRegistryOSSAdapter& FSessionsOSSAdapter::GetSessionIdRegistry() const

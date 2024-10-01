@@ -270,6 +270,7 @@ public:
 	virtual TOnlineResult<FGetAllSessionInvites> GetAllSessionInvites(FGetAllSessionInvites::Params&& Params) override;
 	virtual TOnlineAsyncOpHandle<FRejectSessionInvite> RejectSessionInvite(FRejectSessionInvite::Params&& Params) override;
 
+	virtual TOnlineEvent<void(const FSessionCreated&)> OnSessionCreated() override;
 	virtual TOnlineEvent<void(const FSessionJoined&)> OnSessionJoined() override;
 	virtual TOnlineEvent<void(const FSessionLeft&)> OnSessionLeft() override;
 	virtual TOnlineEvent<void(const FSessionUpdated&)> OnSessionUpdated() override;
@@ -349,6 +350,7 @@ protected:
 
 	struct FSessionEvents
 	{
+		TOnlineEventCallable<void(const FSessionCreated&)> OnSessionCreated;
 		TOnlineEventCallable<void(const FSessionJoined&)> OnSessionJoined;
 		TOnlineEventCallable<void(const FSessionLeft&)> OnSessionLeft;
 		TOnlineEventCallable<void(const FSessionUpdated&)> OnSessionUpdated;
