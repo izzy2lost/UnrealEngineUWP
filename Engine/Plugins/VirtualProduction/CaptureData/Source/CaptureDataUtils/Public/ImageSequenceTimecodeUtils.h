@@ -8,21 +8,6 @@
 #include "ImageSequenceTimecodeUtils.generated.h"
 
 UCLASS(BlueprintType, Blueprintable)
-class UImageSequenceTimecodeInfo
-	: public UObject
-{
-	GENERATED_BODY()
-
-public:
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ExposeOnSpawn), Category = "ImageSequenceInfo")
-	FTimecode Timecode;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ExposeOnSpawn), Category = "ImageSequenceInfo")
-	FFrameRate FrameRate;
-};
-
-UCLASS(BlueprintType, Blueprintable)
 class CAPTUREDATAUTILS_API UImageSequenceTimecodeUtils
 	: public UObject
 {

@@ -9,7 +9,6 @@
 #include "Misc/Paths.h"
 #include "Engine/StaticMesh.h"
 #include "FrameRange.h"
-
 #include "Templates/ValueOrError.h"
 
 #include "CaptureData.generated.h"
@@ -221,14 +220,14 @@ public:
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Audio is deprecated. Please use Audios instead."))
 	TObjectPtr<class USoundWave> Audio_DEPRECATED;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Capture")
-	bool bAudioTimecodePresent = false;
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "AudioTimecodePresent is deprecated."))
+	bool bAudioTimecodePresent_DEPRECATED = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Capture")
-	FTimecode AudioTimecode = FTimecode(0, 0, 0, 0, false);
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "AudioTimecode is deprecated."))
+	FTimecode AudioTimecode_DEPRECATED = FTimecode(0, 0, 0, 0, false);
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Capture")
-	FFrameRate AudioTimecodeRate = FFrameRate(30, 1);
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "AudioTimecodeRate is deprecated."))
+	FFrameRate AudioTimecodeRate_DEPRECATED = FFrameRate(30, 1);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Capture")
 	TArray<TObjectPtr<class UCameraCalibration>> CameraCalibrations;
@@ -280,7 +279,6 @@ public:
 	static void PopulateCameraNames(UFootageCaptureData* InFootageCaptureData, FString& InOutCamera, TArray<TSharedPtr<FString>>& OutCameraNames);
 
 private:
-
 	/** Checks if camera calibration and views are valid. */
 	FVerifyResult ViewsContainsValidData() const;
 	FVerifyResult MetadataContainsValidData() const;
