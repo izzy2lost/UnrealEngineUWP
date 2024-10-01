@@ -16,6 +16,7 @@ public class TargetPlatform : ModuleRules
 		PublicDependencyModuleNames.Add("AudioPlatformConfiguration");
 		PublicDependencyModuleNames.Add("DesktopPlatform");
 		PublicDependencyModuleNames.Add("Analytics");
+		PublicDependencyModuleNames.Add("RHI");
 
 		// TextureFormat contains public headers that were historically part of TargetPlatform, so it is exposed
 		// as a public include path on TargetPlatform.

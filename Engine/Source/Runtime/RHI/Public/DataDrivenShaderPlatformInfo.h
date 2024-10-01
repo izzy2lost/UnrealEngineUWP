@@ -19,6 +19,7 @@ extern RHI_API const FName LANGUAGE_Nintendo;
 class FGenericDataDrivenShaderPlatformInfo
 {
 	FName Name;
+	FName PlatformName;
 	FName Language;
 	ERHIFeatureLevel::Type MaxFeatureLevel;
 	FName ShaderFormat;
@@ -150,6 +151,12 @@ public:
 	{
 		check(IsValid(Platform));
 		return Infos[Platform].Name;
+	}
+
+	static FORCEINLINE_DEBUGGABLE const FName GetPlatformName(const FStaticShaderPlatform Platform)
+	{
+		check(IsValid(Platform));
+		return Infos[Platform].PlatformName;
 	}
 
 	static FORCEINLINE_DEBUGGABLE const FName GetShaderFormat(const FStaticShaderPlatform Platform)
