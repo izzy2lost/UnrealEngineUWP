@@ -183,6 +183,16 @@ public:
 	static COREUOBJECT_API FValidateSourcePackage ValidateSourcePackage;
 };
 
+
+/**
+ * Return the relative path under the cook output MetaData folder to the ReferencedSet file.
+ * The ReferencedSet file is a text file list of package names, one per line, that were referenced from the cook
+ * session.
+ * It does not include previously cooked files in an incremental cook that are no longer referenced.
+ * It does not include packages from the base game for a DLC cook.
+ */
+COREUOBJECT_API const TCHAR* GetReferencedSetFilename();
+
 } // namespace UE::Cook
 
 /**
