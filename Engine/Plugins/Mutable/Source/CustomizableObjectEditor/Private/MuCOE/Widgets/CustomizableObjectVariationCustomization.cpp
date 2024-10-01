@@ -75,6 +75,9 @@ void FCustomizableObjectVariationCustomization::CustomizeHeader(TSharedRef<IProp
 									{
 										TagPropertyHandle->GetValue(Value);
 									}
+
+									Value = BaseObjectNode->GetTagDisplayName(Value);
+
 									return FText::FromString(Value); 
 								})
 							.OnTextCommitted_Lambda([&](const FText& NewText, ETextCommit::Type)

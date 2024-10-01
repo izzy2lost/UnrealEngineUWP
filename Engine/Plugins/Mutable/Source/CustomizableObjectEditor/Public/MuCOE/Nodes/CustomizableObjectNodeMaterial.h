@@ -133,7 +133,7 @@ public:
 	virtual FString GetRefreshMessage() const override;
 	virtual TSharedPtr<IDetailsView> CustomizePinDetails(const UEdGraphPin& Pin) const override;
 	virtual TArray<FString>* GetEnableTags() override;
-
+	virtual FString GetInternalTagDisplayName() override;
 	
 	// UCustomizableObjectNodeMaterialBase interface
 	virtual TArray<UCustomizableObjectLayout*> GetLayouts() const override;

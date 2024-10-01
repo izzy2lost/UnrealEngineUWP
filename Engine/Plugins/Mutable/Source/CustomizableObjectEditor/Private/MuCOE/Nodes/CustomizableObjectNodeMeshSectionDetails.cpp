@@ -75,6 +75,7 @@ void FCustomizableObjectNodeMeshSectionDetails::CustomizeDetails( IDetailLayoutB
 				SAssignNew(this->TagListWidget, SMutableTagListWidget)
 					.Node(Node)
 					.TagArray(&Node->Tags)
+					.AllowInternalTags(false)
 					.EmptyListText(LOCTEXT("MeshSectionDetails_NoTags", "No tags enabled by this mesh section."))
 					.OnTagListChanged( this, &FCustomizableObjectNodeMeshSectionDetails::OnEnableTagsPropertyChanged)
 			];

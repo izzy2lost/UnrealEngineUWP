@@ -212,4 +212,11 @@ TArray<FString>* UCustomizableObjectNodeModifierExtendMeshSection::GetEnableTags
 }
 
 
+FString UCustomizableObjectNodeModifierExtendMeshSection::GetInternalTagDisplayName()
+{
+	UMaterialInterface* Material = ReferenceMaterial;
+	return FString::Printf(TEXT("Extend Mesh [%s]"), Material ? *Material->GetName() : TEXT("no-material"));
+}
+
+
 #undef LOCTEXT_NAMESPACE

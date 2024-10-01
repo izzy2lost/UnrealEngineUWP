@@ -10,6 +10,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeObjectGroup.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterial.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeModifierBase.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierExtendMeshSection.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeVariation.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeTextureVariation.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeFloatVariation.h"
@@ -32,6 +33,7 @@
 void SMutableTagComboBox::Construct(const FArguments& InArgs)
 {
 	Node = InArgs._Node;
+	bAllowInternalTags = InArgs._AllowInternalTags;
 
 	RefreshOptions();
 
@@ -42,6 +44,7 @@ void SMutableTagComboBox::Construct(const FArguments& InArgs)
 		.ButtonStyle(FAppStyle::Get(), "NoBorder")
 		.MenuButtonBrush(InArgs._MenuButtonBrush)
 		.OnSelectionChanged(InArgs._OnSelectionChanged)
+		.ForegroundColor(FSlateColor::UseSubduedForeground())
 		.Content()
 		[
 			InArgs._Content.Widget
@@ -106,8 +109,24 @@ TSharedPtr<SMutableSearchComboBox::FFilteredOption> SMutableTagComboBox::AddNode
 		{
 			Option = MakeShared<SMutableSearchComboBox::FFilteredOption>();
 			Option->Parent = ParentOption;
-			UMaterialInterface* Material = MeshSectionNode->GetMaterial();
-			Option->DisplayOption = FString::Printf(TEXT("Mesh Section [%s]"), Material ? *Material->GetName() : TEXT("no-material"));
+			Option->DisplayOption = MeshSectionNode->GetInternalTagDisplayName();
+			if (bAllowInternalTags)
+			{
+				Option->ActualOption = MeshSectionNode->GetInternalTag();
+			}
+			TagComboOptionsSource.Add(Option.ToSharedRef());
+		}
+
+		else if (UCustomizableObjectNodeModifierExtendMeshSection* ExtendMeshSectionNode = Cast<UCustomizableObjectNodeModifierExtendMeshSection>(InNode))
+		{
+			Option = MakeShared<SMutableSearchComboBox::FFilteredOption>();
+			Option->Parent = ParentOption;
+			UMaterialInterface* Material = ExtendMeshSectionNode->ReferenceMaterial;
+			Option->DisplayOption = ExtendMeshSectionNode->GetInternalTagDisplayName();
+			if (bAllowInternalTags)
+			{
+				Option->ActualOption = ExtendMeshSectionNode->GetInternalTag();
+			}
 			TagComboOptionsSource.Add(Option.ToSharedRef());
 		}
 
@@ -192,14 +211,21 @@ void SMutableTagComboBox::RefreshOptions()
 
 				for (const FString& OneTag : *EnableTags)
 				{
-					if (!OneTag.IsEmpty())
+					if (OneTag.IsEmpty())
 					{
-						TSharedRef Option = MakeShared<SMutableSearchComboBox::FFilteredOption>();
-						Option->ActualOption = OneTag;
-						Option->DisplayOption = OneTag;
-						Option->Parent = NodeOption;
-						TagComboOptionsSource.Add(Option);
+						continue;
 					}
+
+					if (!bAllowInternalTags && UCustomizableObjectNode::IsInternalTag(OneTag))
+					{
+						continue;
+					}
+
+					TSharedRef Option = MakeShared<SMutableSearchComboBox::FFilteredOption>();
+					Option->ActualOption = OneTag;
+					Option->DisplayOption = OneTag;
+					Option->Parent = NodeOption;
+					TagComboOptionsSource.Add(Option);
 				}
 			}
 
@@ -210,14 +236,21 @@ void SMutableTagComboBox::RefreshOptions()
 				{
 					TSharedPtr<SMutableSearchComboBox::FFilteredOption> NodeOption = AddNodeHierarchyOptions(Typed, AddedOptions);
 
-					if (!OneTag.IsEmpty())
+					if (OneTag.IsEmpty())
 					{
-						TSharedRef Option = MakeShared<SMutableSearchComboBox::FFilteredOption>();
-						Option->ActualOption = OneTag;
-						Option->DisplayOption = OneTag;
-						Option->Parent = NodeOption;
-						TagComboOptionsSource.Add(Option);
+						continue;
 					}
+
+					if (!bAllowInternalTags && UCustomizableObjectNode::IsInternalTag(OneTag))
+					{
+						continue;
+					}
+
+					TSharedRef Option = MakeShared<SMutableSearchComboBox::FFilteredOption>();
+					Option->ActualOption = OneTag;
+					Option->DisplayOption = OneTag;
+					Option->Parent = NodeOption;
+					TagComboOptionsSource.Add(Option);
 				}
 			}
 
@@ -230,14 +263,21 @@ void SMutableTagComboBox::RefreshOptions()
 					{
 						TSharedPtr<SMutableSearchComboBox::FFilteredOption> NodeOption = AddNodeHierarchyOptions(VariationNode, AddedOptions);
 
-						if (!Var.Tag.IsEmpty())
+						if (Var.Tag.IsEmpty())
 						{
-							TSharedRef Option = MakeShared<SMutableSearchComboBox::FFilteredOption>();
-							Option->ActualOption = Var.Tag;
-							Option->DisplayOption = Var.Tag;
-							Option->Parent = NodeOption;
-							TagComboOptionsSource.Add(Option);
+							continue;
 						}
+
+						if (!bAllowInternalTags && UCustomizableObjectNode::IsInternalTag(Var.Tag))
+						{
+							continue;
+						}
+
+						TSharedRef Option = MakeShared<SMutableSearchComboBox::FFilteredOption>();
+						Option->ActualOption = Var.Tag;
+						Option->DisplayOption = Var.Tag;
+						Option->Parent = NodeOption;
+						TagComboOptionsSource.Add(Option);
 					}
 				}
 			}
@@ -251,14 +291,21 @@ void SMutableTagComboBox::RefreshOptions()
 					{
 						TSharedPtr<SMutableSearchComboBox::FFilteredOption> NodeOption = AddNodeHierarchyOptions(VariationNode, AddedOptions);
 
-						if (!Var.Tag.IsEmpty())
+						if (Var.Tag.IsEmpty())
 						{
-							TSharedRef Option = MakeShared<SMutableSearchComboBox::FFilteredOption>();
-							Option->ActualOption = Var.Tag;
-							Option->DisplayOption = Var.Tag;
-							Option->Parent = NodeOption;
-							TagComboOptionsSource.Add(Option);
+							continue;
 						}
+
+						if (!bAllowInternalTags && UCustomizableObjectNode::IsInternalTag(Var.Tag))
+						{
+							continue;
+						}
+
+						TSharedRef Option = MakeShared<SMutableSearchComboBox::FFilteredOption>();
+						Option->ActualOption = Var.Tag;
+						Option->DisplayOption = Var.Tag;
+						Option->Parent = NodeOption;
+						TagComboOptionsSource.Add(Option);
 					}
 				}
 			}
@@ -296,6 +343,7 @@ void SMutableTagListWidget::Construct(const FArguments& InArgs)
 					SAssignNew(this->TagCombo, SMutableTagComboBox)
 						.Node(Node)
 						.MenuButtonBrush( FAppStyle::GetBrush(TEXT("Icons.PlusCircle")) )
+						.AllowInternalTags( InArgs._AllowInternalTags )
 						.OnSelectionChanged(this, &SMutableTagListWidget::OnTagComboBoxSelectionChanged)
 				]
 		]
@@ -344,7 +392,19 @@ void SMutableTagListWidget::RefreshOptions()
 		for (const FString& OneTag : *TagArray)
 		{
 			TSharedPtr<FTagUIData> Data = MakeShared<FTagUIData>();
-			Data->DisplayName = OneTag;
+
+			UCustomizableObjectNode* InternalTagNode = nullptr;
+			UCustomizableObject* InternalTagObject = nullptr;
+			bool bIsInternal = Node->FindNodeForInternalTag( OneTag, InternalTagNode, InternalTagObject );
+			if (bIsInternal && InternalTagNode)
+			{
+				Data->DisplayName = InternalTagNode->GetInternalTagDisplayName();
+			}
+			else
+			{
+				Data->DisplayName = OneTag;
+			}
+
 			Data->Tag = OneTag;
 			CurrentTagsSource.Add(Data);
 		}
@@ -372,7 +432,7 @@ TSharedRef<ITableRow> SMutableTagListWidget::GenerateTagListItemRow(TSharedPtr<F
 {
 	if (!InItem)
 	{
-		return SNew(SComboRow<TSharedPtr<FString>>, OwnerTable)
+		return SNew(STableRow<TSharedPtr<FString>>, OwnerTable)
 			[
 				SNew(STextBlock)
 					.Text(FText::FromString("No item."))
@@ -380,13 +440,15 @@ TSharedRef<ITableRow> SMutableTagListWidget::GenerateTagListItemRow(TSharedPtr<F
 			];
 	}
 
-	return SNew(SComboRow<TSharedPtr<FString>>, OwnerTable)
+	return SNew(STableRow<TSharedPtr<FString>>, OwnerTable)
+		.Padding(0)
 		[
 			SNew(SHorizontalBox)
 
 				+ SHorizontalBox::Slot()
 				.HAlign(HAlign_Fill)
 				.VAlign(VAlign_Center)
+				.Padding(4)
 				[
 					SNew(STextBlock)
 						.Text(FText::FromString(InItem->DisplayName))
@@ -395,8 +457,10 @@ TSharedRef<ITableRow> SMutableTagListWidget::GenerateTagListItemRow(TSharedPtr<F
 
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
+				.Padding(0)
 				[
 					SNew(SButton)
+						.ContentPadding(2)
 						.ButtonStyle(FAppStyle::Get(), "NoBorder")
 						.ToolTipText(LOCTEXT("RemoveModifierTag", "Remove this tag from the modifier."))
 						.OnClicked_Lambda([this, InItem]()
@@ -414,6 +478,7 @@ TSharedRef<ITableRow> SMutableTagListWidget::GenerateTagListItemRow(TSharedPtr<F
 						[
 							SNew(SImage)
 								.Image(FAppStyle::GetBrush(TEXT("Icons.MinusCircle")))
+								.ColorAndOpacity(FSlateColor::UseSubduedForeground())
 						]
 				]
 		];

@@ -387,6 +387,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		}
 
 		SurfNode->EnableTags = TypedNodeExt->Tags;
+		SurfNode->EnableTags.AddUnique(TypedNodeExt->GetInternalTag());
 
 		GenerationContext.MeshGenerationFlags.Pop();
 		GenerationContext.FromLOD = 0;

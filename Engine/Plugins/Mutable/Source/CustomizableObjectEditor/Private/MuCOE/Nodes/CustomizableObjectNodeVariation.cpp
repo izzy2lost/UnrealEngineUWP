@@ -40,7 +40,8 @@ void UCustomizableObjectNodeVariation::AllocateDefaultPins(UCustomizableObjectNo
 		const FName PinName = FName(FString::Printf( TEXT("Variation %d"), VariationIndex));
 		UEdGraphPin* VariationPin = CustomCreatePin(EGPD_Input, Category, PinName, bIsInputPinArray);
 
-		VariationPin->PinFriendlyName = FText::Format(LOCTEXT("Variation_Pin_FriendlyName", "Variation {0} [{1}]"), VariationIndex, FText::FromString(*VariationsData[VariationIndex].Tag));
+		FString TagName = GetTagDisplayName(VariationsData[VariationIndex].Tag);
+		VariationPin->PinFriendlyName = FText::Format(LOCTEXT("Variation_Pin_FriendlyName", "Variation {0} [{1}]"), VariationIndex, FText::FromString(TagName));
 		
 		VariationsPins[VariationIndex] = VariationPin;
 	}

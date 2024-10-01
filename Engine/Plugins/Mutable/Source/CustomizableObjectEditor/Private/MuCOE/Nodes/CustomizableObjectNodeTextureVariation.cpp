@@ -41,8 +41,8 @@ void UCustomizableObjectNodeTextureVariation::AllocateDefaultPins(UCustomizableO
 		UEdGraphPin* VariationPin = CustomCreatePin(EGPD_Input, Schema->PC_Image, FName(*PinName), false);
 		VariationPin->bDefaultValueIsIgnored = true;
 
-		FString FriendlyName = FString::Printf(TEXT("Variation %d [%s]"), VariationIndex, *Variations[VariationIndex].Tag);
-		VariationPin->PinFriendlyName = FText::FromString(FriendlyName);
+		FString TagName = GetTagDisplayName(Variations[VariationIndex].Tag);
+		VariationPin->PinFriendlyName = FText::Format(LOCTEXT("Variation_Pin_FriendlyName", "Variation {0} [{1}]"), VariationIndex, FText::FromString(TagName));
 	}
 
 	UEdGraphPin* DefaultVariation = CustomCreatePin(EGPD_Input, Schema->PC_Image, FName(TEXT("Default")), false);

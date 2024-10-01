@@ -363,6 +363,12 @@ bool UCustomizableObjectNodeMaterial::HasPinViewer() const
 }
 
 
+FString UCustomizableObjectNodeMaterial::GetInternalTagDisplayName()
+{
+	return FString::Printf(TEXT("Mesh Section [%s]"), Material ? *Material->GetName() : TEXT("no-material"));
+}
+
+
 UCustomizableObjectNodeRemapPinsByName* UCustomizableObjectNodeMaterial::CreateRemapPinsDefault() const
 {
 	return NewObject<UCustomizableObjectNodeMaterialRemapPinsByName>();
