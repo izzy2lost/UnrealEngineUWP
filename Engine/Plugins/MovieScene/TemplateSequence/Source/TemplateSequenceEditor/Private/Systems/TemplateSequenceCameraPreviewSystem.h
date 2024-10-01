@@ -7,19 +7,10 @@
 
 #include "TemplateSequenceCameraPreviewSystem.generated.h"
 
-namespace UE::MovieScene
-{
-
-struct FEditorViewportLinkerExtension : public TSharedEntitySystemLinkerExtension<FEditorViewportLinkerExtension>
-{
-	static TEntitySystemLinkerExtensionID<FEditorViewportLinkerExtension> GetExtensionID();
-	static TSharedPtr<FEditorViewportLinkerExtension> GetOrCreateExtension(UMovieSceneEntitySystemLinker* Linker);
-
-	FEditorViewportLinkerExtension(UMovieSceneEntitySystemLinker* Linker);
-};
-
-}
-
+/**
+ * A sequencer system that can write the current editor viewport transform into the initial values
+ * of the camera object's transform entities.
+ */
 UCLASS(MinimalAPI)
 class UTemplateSequenceCameraPreviewSystem : public UMovieSceneEntitySystem
 {
@@ -29,7 +20,10 @@ public:
 
 	UTemplateSequenceCameraPreviewSystem(const FObjectInitializer& ObjInit);
 
+	/** Update the root camera's initial transform to the current editor viewport transform. */
 	static void EnableNextFrame();
+	/** Revert the root camera's initial transform to the origin. */
+	static void DisableNextFrame();
 
 protected:
 
@@ -39,5 +33,6 @@ protected:
 private:
 
 	static bool bEnableNextFrame;
+	static bool bDisableNextFrame;
 };
 

@@ -26,7 +26,9 @@ private:
 
 	void ToggleCameraInitiallyAdditiveToViewport();
 	bool IsCameraInitiallyAdditiveToViewport();
+
 	void SetCameraAdditiveToViewportOffset();
+	bool CanSetCameraAdditiveToViewportOffset();
 
 	TArray<UClass*> CameraActorClasses;
 };

@@ -37,8 +37,7 @@ void FTemplateSequenceCustomization::UnregisterSequencerCustomization()
 void FTemplateSequenceCustomization::ExtendSequencerToolbar(FToolBarBuilder& ToolbarBuilder)
 {
 	ToolbarBuilder.BeginStyleOverride("SequencerToolBar");
-
-	ToolbarBuilder.AddSeparator();
+	ToolbarBuilder.BeginSection("TemplateSequence", true);
 
 	ToolbarBuilder.AddComboButton(
 			FUIAction(),
@@ -47,6 +46,7 @@ void FTemplateSequenceCustomization::ExtendSequencerToolbar(FToolBarBuilder& Too
 			LOCTEXT("BoundActorClassPickerTooltip", "Change the base actor type that this template sequence can bind to"),
 			FSlateIcon(FTemplateSequenceEditorStyle::Get()->GetStyleSetName(), "TemplateSequenceEditor.Chain"));
 
+	ToolbarBuilder.EndSection();
 	ToolbarBuilder.EndStyleOverride();
 }
 

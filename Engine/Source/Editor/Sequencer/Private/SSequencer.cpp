@@ -1981,7 +1981,7 @@ TSharedRef<SWidget> SSequencer::MakeViewMenu()
 	TArray<TSharedPtr<FExtender>> AllExtenders;
 	ISequencerModule& SequencerModule = FModuleManager::GetModuleChecked<ISequencerModule>("Sequencer");
 	AllExtenders.Add(SequencerModule.GetViewMenuExtensibilityManager()->GetAllExtenders());
-	AllExtenders.Append(ActionsMenuExtenders);
+	AllExtenders.Append(ViewMenuExtenders);
 
 	TSharedPtr<FExtender> Extender = FExtender::Combine(AllExtenders);
 	FMenuBuilder MenuBuilder(true, Sequencer->GetCommandBindings(), Extender);
