@@ -34,7 +34,7 @@ public:
 	
 	/** Set of input pins at the CPU -> GPU border. */
 	UPROPERTY()
-	TArray<TWeakObjectPtr<const UPCGPin>> PinsReceivingDataFromCPU;
+	TArray<TSoftObjectPtr<const UPCGPin>> PinsReceivingDataFromCPU;
 
 	/** Pin label aliases, used for selecting data items corresponding to an input pin from the input data collection. */
 	UPROPERTY()
@@ -46,7 +46,7 @@ public:
 
 	/** Node corresponding to each kernel, useful for compilation feedback. */
 	UPROPERTY()
-	TArray<TWeakObjectPtr<const UPCGNode>> KernelToNode;
+	TArray<TSoftObjectPtr<const UPCGNode>> KernelToNode;
 
 	/** List of settings for all nodes that spawn static meshes, so we can do required primitive & DI setup when compute graph element executes. */
 	UPROPERTY()

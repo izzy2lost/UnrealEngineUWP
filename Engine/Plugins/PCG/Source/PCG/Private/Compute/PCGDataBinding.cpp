@@ -42,7 +42,7 @@ void UPCGDataBinding::InitializeInputData(const FPCGDataCollection& InComputeGra
 	DataForGPU.InputDataCollection = InComputeGraphElementInputData;
 
 	// Link each input pin to the data collection, so that data providers can find the data.
-	for (const TWeakObjectPtr<const UPCGPin>& InputPinPtr : Graph->PinsReceivingDataFromCPU)
+	for (const TSoftObjectPtr<const UPCGPin>& InputPinPtr : Graph->PinsReceivingDataFromCPU)
 	{
 		if (const UPCGPin* InputPin = InputPinPtr.Get())
 		{
@@ -220,7 +220,7 @@ void UPCGDataBinding::DebugLogDataDescriptions()
 	};
 
 	UE_LOG(LogPCG, Display, TEXT("\n### INPUT PIN DATA DESCRIPTIONS ###"));
-	for (const TWeakObjectPtr<const UPCGNode>& Node : Graph->KernelToNode)
+	for (const TSoftObjectPtr<const UPCGNode>& Node : Graph->KernelToNode)
 	{
 		const UPCGSettings* Settings = Node.IsValid() ? Node->GetSettings() : nullptr;
 		if (Settings && Settings->bDumpDataDescriptions)
