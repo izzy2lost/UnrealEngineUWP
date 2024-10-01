@@ -1794,6 +1794,16 @@ bool FControlRigParameterTrackEditor::IsControlRigAllowed(const FAssetData& Asse
 				return true;
 			}
 		}
+
+		if (!FSoftObjectPath(PreviewSkeletalMesh).IsValid() &&
+			!FSoftObjectPath(PreviewSkeleton).IsValid() &&
+			!FSoftObjectPath(SourceHierarchyImport).IsValid() &&
+			!FSoftObjectPath(SourceCurveImport).IsValid())
+		{
+			// this indicates that the rig can work on any skeleton (for example, utility rigs or deformer rigs)
+			return true;
+		}
+		
 		return false;
 	}
 	return true;	
