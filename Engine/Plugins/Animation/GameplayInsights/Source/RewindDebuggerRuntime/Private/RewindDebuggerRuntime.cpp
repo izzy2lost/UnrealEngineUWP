@@ -78,7 +78,7 @@ namespace RewindDebugger
 						FText FilenameError;
 						if (!FFileHelper::IsFilenameValidForSaving(TraceDestination, FilenameError))
 						{
-							ensureMsgf(TraceType == FTraceAuxiliary::EConnectionType::None, TEXT("RewindDebugger.StartRecording: Specified filename is not supported: %s"), *FilenameError.ToString());
+							ensureMsgf(false, TEXT("RewindDebugger.StartRecording: Specified filename is not supported: %s"), *FilenameError.ToString());
 							TraceDestination = "";
 						}
 					}
@@ -86,6 +86,8 @@ namespace RewindDebugger
 				else if (Arg.StartsWith(TEXT("-tracehost"), ESearchCase::IgnoreCase))
 				{
 					ensureMsgf(TraceType == FTraceAuxiliary::EConnectionType::None, TEXT("RewindDebugger.StartRecording: Specifying more than 1 trace destination is not supported. Received: %s"), *FString::Join(Args, TEXT(" ")));
+
+					TraceType = FTraceAuxiliary::EConnectionType::Network;
 
 					if (FParse::Value(*Arg, TEXT("-tracehost="), TraceDestination))
 					{
