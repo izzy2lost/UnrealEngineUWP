@@ -111,6 +111,12 @@ public:
 	 */
 	static CORE_API void SetWorking(FColorSpace ColorSpace);
 
+	/**
+	 * Get a (statically cached) sRGB color space.
+	 *
+	 * @return FColorSpace sRGB color space
+	 */
+	static CORE_API const FColorSpace& GetSRGB();
 
 	/** Constructor */
 	FColorSpace() {}
@@ -360,7 +366,12 @@ struct FColorSpaceTransform : FMatrix44d
 	/**
 	* Convenience function to get a (statically cached) conversion from sRGB/Rec709 to the working color space.
 	*/
-	CORE_API static FColorSpaceTransform GetSRGBToWorkingColorSpace();
+	CORE_API static const FColorSpaceTransform& GetSRGBToWorkingColorSpace();
+
+	/**
+	 * Convenience function to get a (statically cached) conversion from the working color space to sRGB/Rec709.
+	*/
+	CORE_API static const FColorSpaceTransform& GetWorkingColorSpaceToSRGB();
 };
 
 } }  // end namespace UE::Color
