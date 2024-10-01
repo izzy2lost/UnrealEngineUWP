@@ -38,5 +38,11 @@ public:
 	// Own interface
 	UEdGraphPin* BoundingMeshPin() const;
 	UEdGraphPin* TransformPin() const;
+	
+private:
+	static const TCHAR* OutputPinName;
+	static const TCHAR* BoundingMeshPinName;
+	static const TCHAR* TransformPinName;
+	
 };
 

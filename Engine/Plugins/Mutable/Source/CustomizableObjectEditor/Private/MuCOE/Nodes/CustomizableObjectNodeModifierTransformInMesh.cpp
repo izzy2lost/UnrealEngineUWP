@@ -6,12 +6,10 @@
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
-namespace
-{
-const TCHAR* OutputPinName = TEXT("Modifier");
-const TCHAR* BoundingMeshPinName = TEXT("Bounding Mesh");
-const TCHAR* TransformPinName = TEXT("Transform");
-}
+
+const TCHAR* UCustomizableObjectNodeModifierTransformInMesh::OutputPinName = TEXT("Modifier");
+const TCHAR* UCustomizableObjectNodeModifierTransformInMesh::BoundingMeshPinName = TEXT("Bounding Mesh");
+const TCHAR* UCustomizableObjectNodeModifierTransformInMesh::TransformPinName = TEXT("Transform");
 
 
 FText UCustomizableObjectNodeModifierTransformInMesh::GetNodeTitle(ENodeTitleType::Type TitleType) const
