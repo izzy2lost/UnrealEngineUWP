@@ -5,12 +5,11 @@
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 #include "TedsOutlinerModule.h"
+#include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Columns/TypedElementLabelColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
 #include "Elements/Columns/TypedElementSelectionColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
-#include "Elements/Common/EditorDataStorageFeatures.h"
-#include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "SceneOutlinerPublicTypes.h"
 #include "TedsOutlinerMode.h"
@@ -89,10 +88,10 @@ void FHierarchyTableEditorToolkit::RegisterTabSpawners(const TSharedRef<class FT
 
 void FHierarchyTableEditorToolkit::OnClose()
 {
-	using namespace UE::Editor::DataStorage;
-	IEditorDataStorageProvider* DSI = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
+	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+	IEditorDataStorageProvider* DSI = Registry->GetMutableDataStorage();
 
-	for (const TTuple<int32, RowHandle>& Row : EntryIndexToHandleMap)
+	for (const TTuple<int32, UE::Editor::DataStorage::RowHandle>& Row : EntryIndexToHandleMap)
 	{
 		DSI->RemoveRow(Row.Value);
 	}
@@ -107,14 +106,17 @@ void FHierarchyTableEditorToolkit::UnregisterTabSpawners(const TSharedRef<class 
 
 TSharedRef<SWidget> FHierarchyTableEditorToolkit::CreateTedsOutliner()
 {
-	using namespace UE::Editor::DataStorage::Queries;
-	using namespace UE::Editor::Outliner;
+	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+	checkf(Registry, TEXT("Unable to initialize the table viewer before TEDS is initialized."));
 
-	if (!AreEditorDataStorageFeaturesEnabled())
+	if (!Registry->AreDataStorageInterfacesSet())
 	{
 		return SNew(STextBlock)
 			.Text(INVTEXT("You need to enable the Typed Element Data Storage plugin to see the table viewer!"));
 	}
+
+	using namespace UE::Editor::DataStorage::Queries;
+	using namespace UE::Editor::Outliner;
 
 	if (!ensure(HierarchyTable->TableType))
 	{
@@ -136,7 +138,7 @@ TSharedRef<SWidget> FHierarchyTableEditorToolkit::CreateTedsOutliner()
 			.ReadOnly(HierarchyTableTypeColumns)
 		.Compile();
 
-	InitialColumnQuery = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName)->RegisterQuery(MoveTemp(ColumnQueryDescription));
+	InitialColumnQuery = Registry->GetMutableDataStorage()->RegisterQuery(MoveTemp(ColumnQueryDescription));
 
 	FSceneOutlinerInitializationOptions InitOptions;
 	InitOptions.bShowHeaderRow = true;
@@ -159,7 +161,7 @@ TSharedRef<SWidget> FHierarchyTableEditorToolkit::CreateTedsOutliner()
 
 	FTedsOutlinerModule& TedsOutlinerModule = FModuleManager::GetModuleChecked<FTedsOutlinerModule>("TedsOutliner");
 
-	IEditorDataStorageProvider* DSI = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
+	IEditorDataStorageProvider* DSI = Registry->GetMutableDataStorage();
 	static TableHandle Table = DSI->FindTable(FName("Editor_HierarchyTableTable"));
 	
 	TArray<UScriptStruct*> BaseHierarchyTableTypeColumns = Handler->GetColumns();
@@ -323,7 +325,8 @@ void FHierarchyTableEditorToolkit::AddEntry(const FName Identifier, const EHiera
 	}
 
 	using namespace UE::Editor::DataStorage;
-	IEditorDataStorageProvider* DSI = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
+	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+	IEditorDataStorageProvider* DSI = Registry->GetMutableDataStorage();
 	static TableHandle Table = DSI->FindTable(FName("Editor_HierarchyTableTable"));
 
 	int32 ParentIndex = 0; // root of hierarchy

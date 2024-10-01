@@ -7,7 +7,6 @@
 #include "Containers/ChunkedArray.h"
 #include "Containers/Set.h"
 #include "Containers/UnrealString.h"
-#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Common/TypedElementHandles.h"
 #include "Elements/Framework/TypedElementIndexHasher.h"
 #include "Elements/Framework/TypedElementRegistry.h"
@@ -66,8 +65,7 @@ bool FTedsAssetDataTest::RunTest(const FString& Parameters)
 
 
 	// Do a sanity check that the data from the asset registry exist in Teds
-	using namespace UE::Editor::DataStorage;
-	const IEditorDataStorageProvider* Database = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
+	const IEditorDataStorageProvider* Database = UTypedElementRegistry::GetInstance()->GetDataStorage();
 	
 	for (const TPair<FName, int32>& PathAndAssetCount : AssetRegistryPathsAndAssetCount)
 	{

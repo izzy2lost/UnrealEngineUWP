@@ -4,10 +4,9 @@
 
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
 #include "Elements/Columns/TypedElementValueCacheColumns.h"
-#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
+#include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
-#include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
 #include "Interfaces/IMainFrameModule.h"
 #include "Layout/Margin.h"
 #include "Misc/CoreDelegates.h"
@@ -112,9 +111,11 @@ void UCounterWidgetFactory::SetupMainWindowIntegrations(TSharedPtr<SWindow> Pare
 {
 	if (!bHasBeenSetup)
 	{
-		using namespace UE::Editor::DataStorage;
+		UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+		checkf(Registry, TEXT(
+			"FEditorDataStorageUiModule didn't find the UTypedElementRegistry during main window integration when it should be available."));
 
-		IEditorDataStorageUiProvider* UiInterface = GetMutableDataStorageFeature<IEditorDataStorageUiProvider>(UiFeatureName);
+		IEditorDataStorageUiProvider* UiInterface = Registry->GetMutableDataStorageUi();
 		checkf(UiInterface, TEXT(
 			"FEditorDataStorageUiModule tried to integrate with the main window before the "
 			"TEDS UI interface is available."));

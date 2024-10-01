@@ -8,8 +8,8 @@
 #include "Editor.h"
 #include "Elements/Columns/TypedElementCompatibilityColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
-#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
+#include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "ISettingsModule.h"
 #include "Modules/ModuleManager.h"
@@ -21,6 +21,7 @@ namespace UE::Editor::Settings::Tests
 {
 	BEGIN_DEFINE_SPEC(FTedsSettingsTestFixture, "Editor.DataStorage.Settings", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 	ISettingsModule* SettingsModule = nullptr;
+	UTypedElementRegistry* TypedElementRegistry = nullptr;
 	IEditorDataStorageProvider* DataStorage = nullptr;
 	IEditorDataStorageCompatibilityProvider* DataStorageCompatibility = nullptr;
 	DataStorage::QueryHandle CountAllSettingsQuery = DataStorage::InvalidQueryHandle;
@@ -71,14 +72,16 @@ namespace UE::Editor::Settings::Tests
 
 		BeforeEach([this]()
 		{
-			using namespace UE::Editor::DataStorage;
 			SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
 			check(SettingsModule != nullptr);
 
-			DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
+			TypedElementRegistry = UTypedElementRegistry::GetInstance();
+			check(TypedElementRegistry != nullptr);
+
+			DataStorage = TypedElementRegistry->GetMutableDataStorage();
 			check(DataStorage != nullptr);
 
-			DataStorageCompatibility = GetMutableDataStorageFeature<IEditorDataStorageCompatibilityProvider>(CompatibilityFeatureName);
+			DataStorageCompatibility = TypedElementRegistry->GetMutableDataStorageCompatibility();
 			check(DataStorageCompatibility != nullptr);
 
 			{
@@ -102,6 +105,7 @@ namespace UE::Editor::Settings::Tests
 			TestRowHandles.Empty();
 			CountAllSettingsQuery = DataStorage::InvalidQueryHandle;
 			SettingsModule = nullptr;
+			TypedElementRegistry = nullptr;
 			DataStorage = nullptr;
 			DataStorageCompatibility = nullptr;
 		});

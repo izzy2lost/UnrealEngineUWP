@@ -3,9 +3,7 @@
 #include "Elements/Columns/TypedElementAlertColumns.h"
 #include "Elements/Columns/TypedElementCompatibilityColumns.h"
 #include "Elements/Columns/TypedElementLabelColumns.h"
-#include "Elements/Common/EditorDataStorageFeatures.h"
-#include "Elements/Framework/TypedElementQueryBuilder.h"
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
+#include "Elements/Framework/TypedElementRegistry.h"
 #include "LevelEditor.h"
 #include "Modules/ModuleManager.h"
 #include "Modules/ModuleInterface.h"
@@ -64,14 +62,15 @@ public:
 	
 	TSharedRef<SWidget> CreateTableViewer()
 	{
-		using namespace UE::Editor::DataStorage;
+		UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+		checkf(Registry, TEXT("Unable to initialize the table viewer before TEDS is initialized."));
 
-		if(!AreEditorDataStorageFeaturesEnabled())
+		if(!Registry->AreDataStorageInterfacesSet())
 		{
 			return SNullWidget::NullWidget;
 		}
 
-		IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
+		IEditorDataStorageProvider* DataStorage = Registry->GetMutableDataStorage();
 
 		using namespace UE::Editor::DataStorage::Queries;
 
@@ -85,14 +84,14 @@ public:
 
 		Rows.Empty();
 		
-		FQueryResult QueryResult = DataStorage->RunQuery(QueryHandle,
-			CreateDirectQueryCallbackBinding([this](const IEditorDataStorageProvider::IDirectQueryContext& Context, const RowHandle* RowHandles)
+		UE::Editor::DataStorage::FQueryResult QueryResult = DataStorage->RunQuery(QueryHandle,
+			CreateDirectQueryCallbackBinding([this](const IEditorDataStorageProvider::IDirectQueryContext& Context, const UE::Editor::DataStorage::RowHandle* RowHandles)
 			{
 				Rows.Append(RowHandles, Context.GetRowCount());
 			}));
 
-		return SNew(STedsTableViewer)
-			.QueryStack(MakeShared<FQueryStackNode_RowView>(&Rows))
+		return SNew(UE::Editor::DataStorage::STedsTableViewer)
+			.QueryStack(MakeShared<UE::Editor::DataStorage::FQueryStackNode_RowView>(&Rows))
 			.Columns({FTypedElementLabelColumn::StaticStruct(), FTypedElementSelectionColumn::StaticStruct(),
 				FTypedElementAlertColumn::StaticStruct(), FTypedElementChildAlertColumn::StaticStruct()});
 	}

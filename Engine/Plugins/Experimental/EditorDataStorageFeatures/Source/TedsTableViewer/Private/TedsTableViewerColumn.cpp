@@ -6,10 +6,6 @@
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
-#include "Elements/Common/EditorDataStorageFeatures.h"
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
-#include "Elements/Interfaces/TypedElementDataStorageCompatibilityInterface.h"
-#include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
 #include "Elements/Framework/TypedElementDataStorageWidget.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "TedsTableViewerUtils.h"
@@ -28,9 +24,15 @@ namespace UE::Editor::DataStorage
 		, MatchedColumns(InMatchedColumns)
 		, WidgetMetaData(InWidgetMetaData)
 	{
-		Storage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
-		StorageUi = GetMutableDataStorageFeature<IEditorDataStorageUiProvider>(UiFeatureName);
-		StorageCompatibility = GetMutableDataStorageFeature<IEditorDataStorageCompatibilityProvider>(CompatibilityFeatureName);
+		UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+		
+		checkf(Registry, TEXT("Unable to create a Table Viewer column before the Typed Element Registry is initialized."));
+		if (Registry)
+		{
+			Storage = Registry->GetMutableDataStorage();
+			StorageUi = Registry->GetMutableDataStorageUi();
+			StorageCompatibility = Registry->GetMutableDataStorageCompatibility();
+		}
 
 		// Store the matched columns as a query condition that requires all of them (i.e AND's them)
 		for(const TWeakObjectPtr<const UScriptStruct>& Column : MatchedColumns)

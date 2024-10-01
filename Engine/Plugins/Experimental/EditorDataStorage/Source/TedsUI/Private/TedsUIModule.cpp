@@ -2,7 +2,7 @@
 
 #include "TedsUIModule.h"
 
-#include "Elements/Common/EditorDataStorageFeatures.h"
+#include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/CoreDelegates.h"
@@ -17,7 +17,8 @@ namespace UE::Editor::DataStorage::Private
 	TEXT("Prints a list of all the known widget purposes."),
 	FConsoleCommandWithOutputDeviceDelegate::CreateLambda([](FOutputDevice& Output)
 		{
-			if (IEditorDataStorageUiProvider* UiStorage = GetMutableDataStorageFeature<IEditorDataStorageUiProvider>(UiFeatureName))
+			UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+			if (IEditorDataStorageUiProvider* UiStorage = Registry->GetMutableDataStorageUi())
 			{
 				Output.Log(TEXT("The Typed Elements Data Storage has recorded the following widget purposes:"));
 				UiStorage->ListWidgetPurposes(

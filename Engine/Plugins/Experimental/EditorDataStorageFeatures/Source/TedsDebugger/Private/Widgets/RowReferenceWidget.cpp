@@ -6,12 +6,12 @@
 #include "Elements/Columns/TypedElementHiearchyColumns.h"
 #include "Elements/Columns/TypedElementLabelColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
-#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "ISceneOutliner.h"
 #include "Modules/ModuleManager.h"
 #include "TedsDebuggerModule.h"
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
+#include "Elements/Framework/TypedElementRegistry.h"
 #include "Widgets/Input/SHyperlink.h"
 #include "Widgets/Layout/SBox.h"
 
@@ -66,7 +66,7 @@ namespace UE::Editor::DataStorage::Debug::Private
 		SBox* WidgetInstance = static_cast<SBox*>(Widget.Get());
 		WidgetInstance->SetContent(SNullWidget::NullWidget);
 
-		const IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
+		const IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetDataStorage();
 
 		// We only navigate to row references that have a label column
 		if (const FTypedElementLabelColumn* LabelColumn = DataStorage->GetColumn<FTypedElementLabelColumn>(TargetRow))

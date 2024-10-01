@@ -2,17 +2,17 @@
 
 #include "Elements/Framework/TypedElementAttributeBinding.h"
 
-#include "Elements/Common/EditorDataStorageFeatures.h"
+#include "Elements/Framework/TypedElementRegistry.h"
 
 namespace UE::Editor::DataStorage
 {
 	FAttributeBinder::FAttributeBinder(RowHandle InTargetRow)
 		: TargetRow(InTargetRow)
 	{
-		if (ensureMsgf(AreEditorDataStorageFeaturesEnabled(),
+		if (ensureMsgf(UTypedElementRegistry::GetInstance()->AreDataStorageInterfacesSet(), 
 				TEXT("The Editor Data Storage plugin needs to be enabled to use attribute bindings.")))
 		{
-			DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
+			DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 		}
 	}
 

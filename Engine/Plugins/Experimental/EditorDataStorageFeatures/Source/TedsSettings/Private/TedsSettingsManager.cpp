@@ -5,10 +5,9 @@
 #include "Elements/Columns/TypedElementCompatibilityColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
-#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Framework/TypedElementIndexHasher.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
+#include "Elements/Framework/TypedElementRegistry.h"
 #include "ISettingsCategory.h"
 #include "ISettingsContainer.h"
 #include "ISettingsModule.h"
@@ -45,10 +44,14 @@ void FTedsSettingsManager::Initialize()
 {
 	if (!bIsInitialized)
 	{
-		using namespace UE::Editor::DataStorage;
-		auto OnDataStorage = [this]
+		FModuleManager::Get().LoadModule(TEXT("TypedElementFramework"));
+
+		UTypedElementRegistry* TypedElementRegistry = UTypedElementRegistry::GetInstance();
+		check(TypedElementRegistry);
+
+		auto OnDataStorage = [this, TypedElementRegistry]
 			{
-				IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
+				IEditorDataStorageProvider* DataStorage = TypedElementRegistry->GetMutableDataStorage();
 				check(DataStorage);
 
 				RegisterTables(*DataStorage);
@@ -56,13 +59,13 @@ void FTedsSettingsManager::Initialize()
 				RegisterSettings();
 			};
 
-		if (AreEditorDataStorageFeaturesEnabled())
+		if (TypedElementRegistry->AreDataStorageInterfacesSet())
 		{
 			OnDataStorage();
 		}
 		else
 		{
-			OnEditorDataStorageFeaturesEnabled().AddSPLambda(this, OnDataStorage);
+			TypedElementRegistry->OnDataStorageInterfacesSet().AddSPLambda(this, OnDataStorage);
 		}
 
 		bIsInitialized = true;
@@ -73,12 +76,14 @@ void FTedsSettingsManager::Shutdown()
 {
 	if (bIsInitialized)
 	{
-		using namespace UE::Editor::DataStorage;
-		OnEditorDataStorageFeaturesEnabled().RemoveAll(this);
+		UTypedElementRegistry* TypedElementRegistry = UTypedElementRegistry::GetInstance();
+		check(TypedElementRegistry);
 
-		if (AreEditorDataStorageFeaturesEnabled())
+		TypedElementRegistry->OnDataStorageInterfacesSet().RemoveAll(this);
+
+		if (TypedElementRegistry->AreDataStorageInterfacesSet())
 		{
-			IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
+			IEditorDataStorageProvider* DataStorage = TypedElementRegistry->GetMutableDataStorage();
 			check(DataStorage);
 
 			UnregisterSettings();
@@ -154,7 +159,10 @@ void FTedsSettingsManager::RegisterSettingsContainer(const FName& ContainerName)
 	ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
 	check(SettingsModule);
 
-	IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
+	UTypedElementRegistry* TypedElementRegistry = UTypedElementRegistry::GetInstance();
+	check(TypedElementRegistry);
+
+	IEditorDataStorageProvider* DataStorage = TypedElementRegistry->GetMutableDataStorage();
 	check(DataStorage);
 
 	UE_LOG(LogTedsSettings, Log, TEXT("Register Settings Container : '%s'"), *ContainerName.ToString());
@@ -204,10 +212,13 @@ void FTedsSettingsManager::UnregisterSettings()
 	ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
 	check(SettingsModule);
 
-	IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
+	UTypedElementRegistry* TypedElementRegistry = UTypedElementRegistry::GetInstance();
+	check(TypedElementRegistry);
+
+	IEditorDataStorageProvider* DataStorage = TypedElementRegistry->GetMutableDataStorage();
 	check(DataStorage);
 
-	IEditorDataStorageCompatibilityProvider* DataStorageCompatibility = GetMutableDataStorageFeature<IEditorDataStorageCompatibilityProvider>(CompatibilityFeatureName);
+	IEditorDataStorageCompatibilityProvider* DataStorageCompatibility = TypedElementRegistry->GetMutableDataStorageCompatibility();
 	check(DataStorageCompatibility);
 
 	SettingsModule->OnContainerAdded().RemoveAll(this);
@@ -272,10 +283,13 @@ void FTedsSettingsManager::UpdateSettingsCategory(TSharedPtr<ISettingsCategory> 
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(TedsSettingsManager.UpdateSettingsCategory);
 
-	IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
+	UTypedElementRegistry* TypedElementRegistry = UTypedElementRegistry::GetInstance();
+	check(TypedElementRegistry);
+
+	IEditorDataStorageProvider* DataStorage = TypedElementRegistry->GetMutableDataStorage();
 	check(DataStorage);
 
-	IEditorDataStorageCompatibilityProvider* DataStorageCompatibility = GetMutableDataStorageFeature<IEditorDataStorageCompatibilityProvider>(CompatibilityFeatureName);
+	IEditorDataStorageCompatibilityProvider* DataStorageCompatibility = TypedElementRegistry->GetMutableDataStorageCompatibility();
 	check(DataStorageCompatibility);
 
 	const FName& ContainerName = DataStorage->GetColumn<FNameColumn>(ContainerRow)->Name;

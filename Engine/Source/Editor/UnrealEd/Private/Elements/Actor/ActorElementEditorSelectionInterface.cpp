@@ -4,13 +4,11 @@
  
 #include "Elements/Actor/ActorElementData.h"
 #include "Elements/Columns/TypedElementSelectionColumns.h"
-#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
 #include "Elements/Framework/TypedElementHandle.h"
 #include "Elements/Framework/TypedElementList.h"
+#include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Interfaces/TypedElementSelectionInterface.h"
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
-#include "Elements/Interfaces/TypedElementDataStorageCompatibilityInterface.h"
 #include "Elements/Object/ObjectElementEditorSelectionInterface.h"
 #include "GameFramework/Actor.h"
 #include "Serialization/Archive.h"
@@ -53,13 +51,14 @@ bool UActorElementEditorSelectionInterface::SelectElement(const FTypedElementHan
 	using namespace UE::Editor::DataStorage;
 
 	const AActor* Actor = ActorElementDataUtil::GetActorFromHandle(InElementHandle);
+	UTypedElementRegistry* Registry = InSelectionSet->GetRegistry();
 	// Add a selection column in TEDS
-	if (const IEditorDataStorageCompatibilityProvider* Compatibility = GetDataStorageFeature<IEditorDataStorageCompatibilityProvider>(CompatibilityFeatureName))
+	if (const IEditorDataStorageCompatibilityProvider* Compatibility = Registry->GetDataStorageCompatibility())
 	{
 		RowHandle Row = Compatibility->FindRowWithCompatibleObject(Actor);
 		if (Row != InvalidRowHandle)
 		{
-			if (IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName))
+			if (IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
 			{
 				DataStorage->AddColumn<FTypedElementSelectionColumn>(Row);
 
@@ -81,12 +80,13 @@ bool UActorElementEditorSelectionInterface::DeselectElement(const FTypedElementH
 	using namespace UE::Editor::DataStorage;
 
 	const AActor* Actor = ActorElementDataUtil::GetActorFromHandle(InElementHandle);
-	if (const IEditorDataStorageCompatibilityProvider* Compatibility = GetDataStorageFeature<IEditorDataStorageCompatibilityProvider>(CompatibilityFeatureName))
+	UTypedElementRegistry* Registry = InSelectionSet->GetRegistry();
+	if (const IEditorDataStorageCompatibilityProvider* Compatibility = Registry->GetDataStorageCompatibility())
 	{
 		RowHandle Row = Compatibility->FindRowWithCompatibleObject(Actor);
 		if (Row != InvalidRowHandle)
 		{
-			if (IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName))
+			if (IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
             {
             	DataStorage->RemoveColumn(Row, FTypedElementSelectionColumn::StaticStruct());
             }
