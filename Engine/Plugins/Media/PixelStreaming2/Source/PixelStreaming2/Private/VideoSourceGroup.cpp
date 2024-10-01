@@ -49,9 +49,9 @@ namespace UE::PixelStreaming2
 					FrameEvent->Wait();
 				}
 
-				if (TSharedPtr<FVideoSourceGroup> VideoSourceGroup = OuterVideoSourceGroup.Pin())
+				// Need to check bIsRunning in order to not push a frame when running is disabled and FrameEvent->Wait() has returned.
+				if (TSharedPtr<FVideoSourceGroup> VideoSourceGroup = OuterVideoSourceGroup.Pin(); bIsRunning && VideoSourceGroup)
 				{
-
 					const double TimeSinceLastSubmitMs = FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - LastSubmitCycles);
 
 					// Decrease this value to make expected frame delivery more precise, however may result in more old frames being sent
@@ -91,11 +91,13 @@ namespace UE::PixelStreaming2
 		virtual void Stop() override
 		{
 			bIsRunning = false;
+			// Wake the thread in case it was sleeping. This will cause it to then exit the ::Run loop
+			FrameEvent->Trigger();
 		}
 
 		virtual void Exit() override
 		{
-			bIsRunning = false;
+			Stop();
 		}
 
 		virtual FSingleThreadRunnable* GetSingleThreadInterface() override
@@ -128,8 +130,8 @@ namespace UE::PixelStreaming2
 			LastSubmitCycles = FPlatformTime::Cycles64();
 		}
 
-		bool						bEnabled = false;
-		bool						bIsRunning = false;
+		std::atomic<bool>			bEnabled = false;
+		std::atomic<bool>			bIsRunning = false;
 		TWeakPtr<FVideoSourceGroup> OuterVideoSourceGroup = nullptr;
 		uint64						LastSubmitCycles = 0;
 
@@ -284,6 +286,7 @@ namespace UE::PixelStreaming2
 
 	void FVideoSourceGroup::StartThread()
 	{
+		FScopeLock Lock(&RunnableCriticalSection);
 		if (!FrameRunnable)
 		{
 			FrameRunnable = MakeShared<FFrameRunnable>(AsWeak(), bDecoupleFramerate);
@@ -297,18 +300,22 @@ namespace UE::PixelStreaming2
 
 	void FVideoSourceGroup::StopThread()
 	{
+		FScopeLock Lock(&RunnableCriticalSection);
 		if (FrameRunnable)
 		{
 			FrameRunnable->Stop();
-			// Wake the thread in case it was sleeping. This will cause it to then exit the ::Run loop
-			FrameRunnable->FrameEvent->Trigger();
-			FrameRunnable.Reset();
 		}
 		
 		if (FrameThread)
 		{
 			FrameThread->Kill(true);
 			FrameThread.Reset();
+		}
+
+		// Need to reset FrameRunnable after FrameThread as that will try to access FrameRunnable when killing it.
+		if (FrameRunnable)
+		{
+			FrameRunnable.Reset();
 		}
 	}
 
