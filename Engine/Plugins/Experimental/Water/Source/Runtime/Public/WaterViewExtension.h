@@ -77,7 +77,7 @@ private:
 
 	struct FQuadtreeUpdateInfo
 	{
-		FWaterMeshSceneProxy* SceneProxy;
+		AWaterZone* WaterZone;
 		FVector2D Location;
 		int32 Key;
 	};
