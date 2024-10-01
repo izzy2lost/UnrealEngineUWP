@@ -29,6 +29,9 @@ public:
 	virtual void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
 	virtual FLinearColor GetNodeTitleColor() const override;
 
+	// UCustomizableObjectNode interface
+	virtual bool IsSingleOutputNode() const override;
+
 	UPROPERTY(EditAnywhere, Category = ComponentMesh)
 	int32 NumLODs = 1;
 	
