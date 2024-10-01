@@ -15,6 +15,7 @@
 #include "PCGGraph.generated.h"
 
 class UPCGGraphInterface;
+class UPCGGraphCompilationData;
 #if WITH_EDITOR
 class UPCGEditorGraph;
 struct FEdGraphPinType;
@@ -218,7 +219,9 @@ public:
 	/** ~Begin UObject interface */
 	virtual void PostLoad() override;
 	virtual bool IsEditorOnly() const override;
+
 #if WITH_EDITOR
+	virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 	static void DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConstructClasses, const UClass* SpecificSubclass);
 #endif
 
@@ -377,6 +380,8 @@ public:
 	/** Size of grid on which this node should be executed. Nodes execute at the minimum of all input grid sizes. */
 	uint32 GetNodeGenerationGridSize(const UPCGNode* InNode, uint32 InDefaultGridSize) const;
 
+	const TObjectPtr<UPCGGraphCompilationData> GetCookedCompilationData() const { return CookedCompilationData; }
+
 protected:
 	/** Internal function to react to add/remove nodes. bNotify can be set to false to not notify the world. */
 	void OnNodeAdded(UPCGNode* InNode, bool bNotify = true);
@@ -455,6 +460,13 @@ protected:
 	UPROPERTY(EditAnywhere, Category = Debug)
 	bool bDebugFlagAppliesToIndividualComponents = true;
 #endif // WITH_EDITORONLY_DATA
+
+	/**
+	 * Populated during cook to prewarm graph compiler cache in standalone builds. Also necessary for GPU execution because compiling
+	 * compute graphs is not supported outside of editor.
+	 */
+	UPROPERTY()
+	TObjectPtr<UPCGGraphCompilationData> CookedCompilationData = nullptr;
 
 public:
 	virtual const FInstancedPropertyBag* GetUserParametersStruct() const override { return &UserParameters; }

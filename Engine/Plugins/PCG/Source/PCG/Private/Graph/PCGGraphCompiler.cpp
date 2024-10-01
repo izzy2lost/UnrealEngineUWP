@@ -12,15 +12,13 @@
 #include "Elements/PCGGather.h"
 #include "Elements/PCGHiGenGridSize.h"
 #include "Elements/PCGReroute.h"
+#include "Graph/PCGGraphCompilationData.h"
 #include "Graph/PCGGraphCompilerGPU.h"
 #include "Graph/PCGGraphExecutor.h"
 #include "Graph/PCGPinDependencyExpression.h"
 
 #include "HAL/IConsoleManager.h"
 #include "Misc/ScopeRWLock.h"
-
-FPCGElementPtr FPCGGraphCompiler::SharedGatherElement;
-FRWLock FPCGGraphCompiler::SharedGatherElementLock;
 
 namespace PCGGraphCompiler
 {
@@ -77,6 +75,72 @@ namespace PCGGraphCompiler
 	};
 }
 
+UPCGComputeGraph* FPCGGraphCompilerCache::GetCompiledComputeGraph(const UPCGGraph* InGraph, uint32 GridSize, uint32 ComputeGraphIndex)
+{
+#if WITH_EDITOR
+	if (TMap<uint32, TArray<TObjectPtr<UPCGComputeGraph>>>* GridSizeToComputeGraphs = TopGraphToComputeGraphMap.Find(InGraph))
+	{
+		if (TArray<TObjectPtr<UPCGComputeGraph>>* ComputeGraphs = GridSizeToComputeGraphs->Find(GridSize))
+		{
+			if (ComputeGraphs->IsValidIndex(ComputeGraphIndex))
+			{
+				return (*ComputeGraphs)[ComputeGraphIndex];
+			}
+		}
+	}
+#else
+	// Cannot compile compute graphs outside of editor, so we always look for cooked compute graphs.
+	const UPCGGraphCompilationData* CookedData = InGraph ? InGraph->GetCookedCompilationData() : nullptr;
+
+	if (CookedData)
+	{
+		const FPCGComputeGraphs* CookedComputeGraphs = CookedData->ComputeGraphs.Find(GridSize);
+
+		if (CookedComputeGraphs && CookedComputeGraphs->ComputeGraphs.IsValidIndex(ComputeGraphIndex))
+		{
+			return CookedComputeGraphs->ComputeGraphs[ComputeGraphIndex];
+		}
+	}
+#endif
+
+	return nullptr;
+}
+
+#if WITH_EDITOR
+void FPCGGraphCompilerCache::RemoveFromCache(UPCGGraph* InGraph)
+{
+	UE_LOG(LogPCG, Verbose, TEXT("FPCGGraphCompilerCache::RemoveFromCache '%s'"), *InGraph->GetName());
+
+	check(InGraph);
+	RemoveFromCacheRecursive(InGraph);
+}
+
+void FPCGGraphCompilerCache::RemoveFromCacheRecursive(UPCGGraph* InGraph)
+{
+	{
+		FWriteScopeLock Lock(GraphToTaskMapLock);
+		GraphToTaskMap.Remove(InGraph);
+		GraphToStackContextMap.Remove(InGraph);
+		TopGraphToTaskMap.Remove(InGraph);
+		TopGraphToStackContextMap.Remove(InGraph);
+		TopGraphToComputeGraphMap.Remove(InGraph);
+	}
+
+	TArray<UPCGGraph*> ParentGraphs;
+
+	{
+		FScopeLock Lock(&GraphDependenciesLock);
+		GraphDependencies.MultiFind(InGraph, ParentGraphs);
+		GraphDependencies.Remove(InGraph);
+	}
+
+	for (UPCGGraph* Graph : ParentGraphs)
+	{
+		RemoveFromCacheRecursive(Graph);
+	}
+}
+#endif // WITH_EDITOR
+
 TArray<FPCGGraphTask> FPCGGraphCompiler::CompileGraph(UPCGGraph* InGraph, FPCGTaskId& NextId, FPCGStackContext& InOutStackContext)
 {
 	if (!InGraph)
@@ -128,9 +192,9 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::CompileGraph(UPCGGraph* InGraph, FPCGTa
 			TArray<FPCGGraphTask> Subtasks = GetCompiledTasks(Subgraph, PCGHiGenGrid::UninitializedGridSize(), SubgraphStackContext, /*bIsTopGraph=*/false);
 
 #if WITH_EDITOR
-			GraphDependenciesLock.Lock();
-			GraphDependencies.AddUnique(Subgraph, InGraph);
-			GraphDependenciesLock.Unlock();
+			Cache.GraphDependenciesLock.Lock();
+			Cache.GraphDependencies.AddUnique(Subgraph, InGraph);
+			Cache.GraphDependenciesLock.Unlock();
 #endif // WITH_EDITOR
 
 			// Append all the stack frames from inside the subgraph to my current graph stack
@@ -229,7 +293,7 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::CompileGraph(UPCGGraph* InGraph, FPCGTa
 			PostTask.StackIndex = InOutStackContext.GetCurrentStackIndex();
 			// Implementation note: since we`ve already executed the node once, we normally don`t need to execute it a second time
 			// especially since we cannot distinguish between the pre and post during execution so any data filtering related to pins is bound to fail.
-			PostTask.Element = GetSharedTrivialElement();
+			PostTask.ElementSource = EPCGElementSource::Trivial;
 
 			// Add execution-only dependency on pre-task, without this post task can be scheduled concurrently with pre-task, and concurrently
 			// with something that might become inactive and would then fail to dynamically cull this already-scheduled task.
@@ -325,9 +389,22 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::CompileGraph(UPCGGraph* InGraph, FPCGTa
 
 void FPCGGraphCompiler::Compile(UPCGGraph* InGraph)
 {
-	GraphToTaskMapLock.ReadLock();
-	bool bAlreadyCached = GraphToTaskMap.Contains(InGraph);
-	GraphToTaskMapLock.ReadUnlock();
+	bool bAlreadyCached = false;
+
+	{
+		FReadScopeLock Lock(Cache.GraphToTaskMapLock);
+		bAlreadyCached = Cache.GraphToTaskMap.Contains(InGraph);
+	}
+
+#if !WITH_EDITOR
+	// Don't need to compile if the tasks are already cooked.
+	const UPCGGraphCompilationData* CookedData = InGraph ? InGraph->GetCookedCompilationData() : nullptr;
+
+	if (CookedData)
+	{
+		bAlreadyCached |= !CookedData->Tasks.IsEmpty();
+	}
+#endif
 
 	if (bAlreadyCached)
 	{
@@ -345,11 +422,11 @@ void FPCGGraphCompiler::Compile(UPCGGraph* InGraph)
 	// Store back the results in the cache if it's valid
 	if (!CompiledTasks.IsEmpty())
 	{
-		FWriteScopeLock Lock(GraphToTaskMapLock);
-		if (!GraphToTaskMap.Contains(InGraph))
+		FWriteScopeLock Lock(Cache.GraphToTaskMapLock);
+		if (!Cache.GraphToTaskMap.Contains(InGraph))
 		{
-			GraphToTaskMap.Add(InGraph, MoveTemp(CompiledTasks));
-			GraphToStackContext.Add(InGraph, StackContext);
+			Cache.GraphToTaskMap.Add(InGraph, MoveTemp(CompiledTasks));
+			Cache.GraphToStackContextMap.Add(InGraph, StackContext);
 		}
 	}
 }
@@ -357,16 +434,16 @@ void FPCGGraphCompiler::Compile(UPCGGraph* InGraph)
 TArray<FPCGGraphTask> FPCGGraphCompiler::GetPrecompiledTasks(const UPCGGraph* InGraph, uint32 GenerationGridSize, FPCGStackContext& OutStackContext, bool bIsTopGraph) const
 {
 	// Get compiled tasks in a threadsafe way
-	FReadScopeLock ReadLock(GraphToTaskMapLock);
+	FReadScopeLock ReadLock(Cache.GraphToTaskMapLock);
 
 	const TArray<FPCGGraphTask>* ExistingTasks = nullptr;
 	if (bIsTopGraph)
 	{
 		// Top graphs are optimized per grid size.
-		const TMap<uint32, TArray<FPCGGraphTask>>* GridSizeToCompiledGraph = TopGraphToTaskMap.Find(InGraph);
+		const TMap<uint32, TArray<FPCGGraphTask>>* GridSizeToCompiledGraph = Cache.TopGraphToTaskMap.Find(InGraph);
 		ExistingTasks = GridSizeToCompiledGraph ? GridSizeToCompiledGraph->Find(GenerationGridSize) : nullptr;
 
-		const TMap<uint32, FPCGStackContext>* GridSizeToStackContext = TopGraphToStackContextMap.Find(InGraph);
+		const TMap<uint32, FPCGStackContext>* GridSizeToStackContext = Cache.TopGraphToStackContextMap.Find(InGraph);
 		const FPCGStackContext* ExistingStackContext = GridSizeToStackContext ? GridSizeToStackContext->Find(GenerationGridSize) : nullptr;
 		OutStackContext = ExistingStackContext ? *ExistingStackContext : FPCGStackContext();
 
@@ -375,10 +452,15 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::GetPrecompiledTasks(const UPCGGraph* In
 	}
 	else
 	{
-		ExistingTasks = GraphToTaskMap.Find(InGraph);
+		ExistingTasks = Cache.GraphToTaskMap.Find(InGraph);
 	}
 
 	return ExistingTasks ? *ExistingTasks : TArray<FPCGGraphTask>();
+}
+
+UPCGComputeGraph* FPCGGraphCompiler::GetComputeGraph(const UPCGGraph* InGraph, uint32 GridSize, uint32 ComputeGraphIndex)
+{
+	return Cache.GetCompiledComputeGraph(InGraph, GridSize, ComputeGraphIndex);
 }
 
 void FPCGGraphCompiler::ResolveGridSizes(
@@ -407,10 +489,12 @@ void FPCGGraphCompiler::ResolveGridSizes(
 }
 
 void FPCGGraphCompiler::CreateGridLinkages(
+	UPCGGraph* InGraph,
 	EPCGHiGenGrid InGenerationGrid,
 	TArray<EPCGHiGenGrid>& InOutTaskGenerationGrid,
 	TArray<FPCGGraphTask>& InOutCompiledTasks,
-	const FPCGStackContext& InStackContext)
+	const FPCGStackContext& InStackContext,
+	bool bIsCooking)
 {
 	// Now add link tasks - if a Grid256 task depends on data from a Grid512 task, inject a link
 	// task that looks up the Grid512 component, schedules its execution if it does not have data, and
@@ -496,7 +580,24 @@ void FPCGGraphCompiler::CreateGridLinkages(
 					return new FPCGGridLinkageContext();
 				};
 
-				LinkTask.Element = MakeShared<PCGGraphExecutor::FPCGGridLinkageElement>(GridLinkageOperation, ContextAllocator, FromGrid, ToGrid, ResourceKey, UpstreamPin);
+#if WITH_EDITOR
+				if (bIsCooking)
+				{
+					TObjectPtr<UPCGGridLinkageSettings> Settings = NewObject<UPCGGridLinkageSettings>(InGraph);
+					Settings->FromGrid = FromGrid;
+					Settings->ToGrid = ToGrid;
+					Settings->GenerationGrid = InGenerationGrid;
+					Settings->ResourceKey = ResourceKey;
+					Settings->UpstreamPin = UpstreamPin;
+
+					LinkTask.ElementSource = EPCGElementSource::FromSettings;
+					LinkTask.Settings = Settings;
+				}
+				else
+#endif
+				{
+					LinkTask.Element = MakeShared<PCGGraphExecutor::FPCGGridLinkageElement>(GridLinkageOperation, ContextAllocator, FromGrid, ToGrid, InGenerationGrid, ResourceKey, UpstreamPin);
+				}
 
 				// Now splice in the new task - redirect the downstream task to grab its input from the link task.
 				TaskInput.TaskId = LinkTask.NodeId;
@@ -854,6 +955,25 @@ void FPCGGraphCompiler::CullTasks(TArray<FPCGGraphTask>& InOutCompiledTasks, boo
 	}
 }
 
+void FPCGGraphCompiler::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FCPGGraphCompiler::AddReferencedObjects);
+
+	TMap<UPCGGraph*, TMap<uint32, TArray<TObjectPtr<UPCGComputeGraph>>>> TopGraphToComputeGraphMap;
+
+	for (const TPair<UPCGGraph*, TMap<uint32, TArray<TObjectPtr<UPCGComputeGraph>>>>& GraphToGridSizes : Cache.TopGraphToComputeGraphMap)
+	{
+		for (const TPair<uint32, TArray<TObjectPtr<UPCGComputeGraph>>>& GridSizeToComputeGraphs : GraphToGridSizes.Value)
+		{
+			for (TObjectPtr<UPCGComputeGraph> ComputeGraph : GridSizeToComputeGraphs.Value)
+			{
+				Collector.AddReferencedObject(ComputeGraph);
+			}
+		}
+	}
+}
+
+
 void FPCGGraphCompiler::PostCullStackCleanup(TArray<FPCGGraphTask>& InCompiledTasks, FPCGStackContext& InOutStackContext)
 {
 	// Build set of stack IDs used by tasks. Using array as set is likely small.
@@ -1007,17 +1127,35 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::GetCompiledTasks(UPCGGraph* InGraph, ui
 {
 	TArray<FPCGGraphTask> CompiledTasks;
 
+#if !WITH_EDITOR
+	// In standalone builds, try using cooked tasks first.
+	if (InGraph)
+	{
+		if (const UPCGGraphCompilationData* CookedData = InGraph->GetCookedCompilationData())
+		{
+			const FPCGGraphTasks* CookedTasks = CookedData->Tasks.Find(GenerationGridSize);
+			const FPCGStackContext* CookedStackContext = CookedData->StackContexts.Find(GenerationGridSize);
+
+			if (CookedTasks && CookedStackContext)
+			{
+				OutStackContext = *CookedStackContext;
+				return CookedTasks->GraphTasks;
+			}
+		}
+	}
+#endif
+
 	if (bIsTopGraph)
 	{
 		// Always try to compile
 		CompileTopGraph(InGraph, GenerationGridSize);
 
 		// Get compiled tasks in a threadsafe way
-		FReadScopeLock Lock(GraphToTaskMapLock);
-		const TMap<uint32, TArray<FPCGGraphTask>>* GridSizeToCompiledGraph = TopGraphToTaskMap.Find(InGraph);
+		FReadScopeLock Lock(Cache.GraphToTaskMapLock);
+		const TMap<uint32, TArray<FPCGGraphTask>>* GridSizeToCompiledGraph = Cache.TopGraphToTaskMap.Find(InGraph);
 		const TArray<FPCGGraphTask>* Tasks = GridSizeToCompiledGraph ? GridSizeToCompiledGraph->Find(GenerationGridSize) : nullptr;
 
-		const TMap<uint32, FPCGStackContext>* GridSizeToStackContext = TopGraphToStackContextMap.Find(InGraph);
+		const TMap<uint32, FPCGStackContext>* GridSizeToStackContext = Cache.TopGraphToStackContextMap.Find(InGraph);
 		const FPCGStackContext* StackContext = GridSizeToStackContext ? GridSizeToStackContext->Find(GenerationGridSize) : nullptr;
 
 		// Should have either found both or neither.
@@ -1035,11 +1173,11 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::GetCompiledTasks(UPCGGraph* InGraph, ui
 		Compile(InGraph);
 
 		// Get compiled tasks in a threadsafe way
-		FReadScopeLock Lock(GraphToTaskMapLock);
-		if (TArray<FPCGGraphTask>* Tasks = GraphToTaskMap.Find(InGraph))
+		FReadScopeLock Lock(Cache.GraphToTaskMapLock);
+		if (TArray<FPCGGraphTask>* Tasks = Cache.GraphToTaskMap.Find(InGraph))
 		{
 			CompiledTasks = *Tasks;
-			OutStackContext = GraphToStackContext[InGraph];
+			OutStackContext = Cache.GraphToStackContextMap[InGraph];
 		}
 	}
 
@@ -1072,10 +1210,13 @@ void FPCGGraphCompiler::OffsetNodeIds(TArray<FPCGGraphTask>& Tasks, FPCGTaskId O
 
 void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGridSize)
 {
-	GraphToTaskMapLock.ReadLock();
-	const TMap<uint32, TArray<FPCGGraphTask>>* GridSizeToCompiledGraph = TopGraphToTaskMap.Find(InGraph);
-	const bool bAlreadyCached = GridSizeToCompiledGraph && GridSizeToCompiledGraph->Contains(GenerationGridSize);
-	GraphToTaskMapLock.ReadUnlock();
+	bool bAlreadyCached = false;
+
+	{
+		FReadScopeLock Lock(Cache.GraphToTaskMapLock);
+		const TMap<uint32, TArray<FPCGGraphTask>>* GridSizeToCompiledGraph = Cache.TopGraphToTaskMap.Find(InGraph);
+		bAlreadyCached = GridSizeToCompiledGraph && GridSizeToCompiledGraph->Contains(GenerationGridSize);
+	}
 
 	if (bAlreadyCached)
 	{
@@ -1115,7 +1256,7 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 			ResolveGridSizes(GenerationGrid, CompiledTasks, StackContext, DefaultGrid, TaskGenerationGrid);
 
 			// Create linkage tasks for edges that cross from large grid to small grid tasks.
-			CreateGridLinkages(GenerationGrid, TaskGenerationGrid, CompiledTasks, StackContext);
+			CreateGridLinkages(InGraph, GenerationGrid, TaskGenerationGrid, CompiledTasks, StackContext, bIsCooking);
 
 			// Cull any task that should not execute on the current grid.
 			CullTasks(CompiledTasks, /*bAddPassthroughWires=*/false, [GenerationGrid, &TaskGenerationGrid](const FPCGGraphTask& InTask)
@@ -1130,7 +1271,7 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 #if WITH_EDITOR
 	if (PCGGraphCompiler::CVarEnableGPUExecution.GetValueOnAnyThread())
 	{
-		FPCGGraphCompilerGPU::CreateGPUNodes(InGraph, CompiledTasks);
+		FPCGGraphCompilerGPU::CreateGPUNodes(*this, InGraph, GenerationGridSize, CompiledTasks);
 	}
 	else
 #endif
@@ -1200,7 +1341,7 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 	const FPCGTaskId PostExecuteTaskId = PreExecuteTaskId + 1;
 
 	FPCGGraphTask& PreExecuteTask = CompiledTasks.Emplace_GetRef();
-	PreExecuteTask.Element = GetSharedTrivialElement();
+	PreExecuteTask.ElementSource = EPCGElementSource::Trivial;
 	PreExecuteTask.NodeId = PreExecuteTaskId;
 
 	for (int TaskIndex = 0; TaskIndex < TaskNum; ++TaskIndex)
@@ -1215,7 +1356,7 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 	}
 
 	FPCGGraphTask& PostExecuteTask = CompiledTasks.Emplace_GetRef();
-	PostExecuteTask.Element = GetSharedTrivialPostGraphElement();
+	PostExecuteTask.ElementSource = EPCGElementSource::TrivialPostGraph;
 	PostExecuteTask.NodeId = PostExecuteTaskId;
 
 	// Find end nodes, e.g. all nodes that have no successors.
@@ -1244,19 +1385,19 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 	}
 
 	// Store back the results in the cache
-	GraphToTaskMapLock.WriteLock();
-	TMap<uint32, TArray<FPCGGraphTask>>& TasksPerGenerationGrid = TopGraphToTaskMap.FindOrAdd(InGraph);
+	Cache.GraphToTaskMapLock.WriteLock();
+	TMap<uint32, TArray<FPCGGraphTask>>& TasksPerGenerationGrid = Cache.TopGraphToTaskMap.FindOrAdd(InGraph);
 	if (!TasksPerGenerationGrid.Contains(GenerationGridSize))
 	{
 		TasksPerGenerationGrid.Add(GenerationGridSize, MoveTemp(CompiledTasks));
 	}
 
-	TMap<uint32, FPCGStackContext>& StackContextPerGenerationGrid = TopGraphToStackContextMap.FindOrAdd(InGraph);
+	TMap<uint32, FPCGStackContext>& StackContextPerGenerationGrid = Cache.TopGraphToStackContextMap.FindOrAdd(InGraph);
 	if (!StackContextPerGenerationGrid.Contains(GenerationGridSize))
 	{
 		StackContextPerGenerationGrid.Add(GenerationGridSize, MoveTemp(StackContext));
 	}
-	GraphToTaskMapLock.WriteUnlock();
+	Cache.GraphToTaskMapLock.WriteUnlock();
 }
 
 FPCGElementPtr FPCGGraphCompiler::GetSharedTrivialElement()
@@ -1304,7 +1445,7 @@ FPCGElementPtr FPCGGraphCompiler::GetSharedGatherElement()
 FPCGElementPtr FPCGGraphCompiler::GetSharedTrivialPostGraphElement()
 {
 	{
-		FReadScopeLock Lock(SharedTrivialElementLock);
+		FReadScopeLock Lock(SharedTrivialPostGraphElementLock);
 
 		if (SharedTrivialPostGraphElement)
 		{
@@ -1312,7 +1453,7 @@ FPCGElementPtr FPCGGraphCompiler::GetSharedTrivialPostGraphElement()
 		}
 	}
 
-	FWriteScopeLock Lock(SharedTrivialElementLock);
+	FWriteScopeLock Lock(SharedTrivialPostGraphElementLock);
 
 	if (!SharedTrivialPostGraphElement)
 	{
@@ -1324,11 +1465,12 @@ FPCGElementPtr FPCGGraphCompiler::GetSharedTrivialPostGraphElement()
 
 void FPCGGraphCompiler::ClearCache()
 {
-	FWriteScopeLock Lock(GraphToTaskMapLock);
-	GraphToTaskMap.Reset();
-	GraphToStackContext.Reset();
-	TopGraphToTaskMap.Reset();
-	TopGraphToStackContextMap.Reset();
+	FWriteScopeLock Lock(Cache.GraphToTaskMapLock);
+	Cache.GraphToTaskMap.Reset();
+	Cache.GraphToStackContextMap.Reset();
+	Cache.TopGraphToTaskMap.Reset();
+	Cache.TopGraphToStackContextMap.Reset();
+	Cache.TopGraphToComputeGraphMap.Reset();
 }
 
 #if WITH_EDITOR
@@ -1336,7 +1478,7 @@ void FPCGGraphCompiler::NotifyGraphChanged(UPCGGraph* InGraph, EPCGChangeType Ch
 {
 	if (InGraph && (ChangeType != EPCGChangeType::Cosmetic))
 	{
-		RemoveFromCache(InGraph);
+		Cache.RemoveFromCache(InGraph);
 	}
 }
 
@@ -1346,7 +1488,7 @@ bool FPCGGraphCompiler::Recompile(UPCGGraph* InGraph, uint32 GenerationGridSize,
 	const TArray<FPCGGraphTask> TasksBefore = GetPrecompiledTasks(InGraph, GenerationGridSize, StackContextBefore, bIsTopGraph);
 
 	// Need to manually purge as the graph compiler will not have gotten the change notification yet. Editor only.
-	RemoveFromCache(InGraph);
+	Cache.RemoveFromCache(InGraph);
 
 	FPCGStackContext StackContextAfter;
 	const TArray<FPCGGraphTask> TasksAfter = GetCompiledTasks(InGraph, GenerationGridSize, StackContextAfter, bIsTopGraph);
@@ -1362,34 +1504,5 @@ bool FPCGGraphCompiler::Recompile(UPCGGraph* InGraph, uint32 GenerationGridSize,
 
 	// Compiled result is compiled tasks + associated stacks. Compare both and return true if compiled result changes.
 	return !bAllTasksEqual || (StackContextBefore != StackContextAfter);
-}
-
-void FPCGGraphCompiler::RemoveFromCache(UPCGGraph* InGraph)
-{
-	UE_LOG(LogPCG, Verbose, TEXT("FPCGGraphCompiler::RemoveFromCache '%s'"), *InGraph->GetName());
-
-	check(InGraph);
-	RemoveFromCacheRecursive(InGraph);
-}
-
-void FPCGGraphCompiler::RemoveFromCacheRecursive(UPCGGraph* InGraph)
-{
-	GraphToTaskMapLock.WriteLock();
-	GraphToTaskMap.Remove(InGraph);
-	GraphToStackContext.Remove(InGraph);
-	TopGraphToTaskMap.Remove(InGraph);
-	TopGraphToStackContextMap.Remove(InGraph);
-	GraphToTaskMapLock.WriteUnlock();
-
-	GraphDependenciesLock.Lock();
-	TArray<UPCGGraph*> ParentGraphs;
-	GraphDependencies.MultiFind(InGraph, ParentGraphs);
-	GraphDependencies.Remove(InGraph);
-	GraphDependenciesLock.Unlock();
-
-	for (UPCGGraph* Graph : ParentGraphs)
-	{
-		RemoveFromCacheRecursive(Graph);
-	}
 }
 #endif // WITH_EDITOR

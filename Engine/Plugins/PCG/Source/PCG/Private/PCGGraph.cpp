@@ -9,12 +9,13 @@
 #include "PCGModule.h"
 #include "PCGNode.h"
 #include "PCGPin.h"
-#include "PCGSubsystem.h"
 #include "PCGSubgraph.h"
+#include "PCGSubsystem.h"
 #include "Elements/PCGHiGenGridSize.h"
 #include "Elements/PCGUserParameterGet.h"
 #include "Elements/ControlFlow/PCGQualityBranch.h"
 #include "Elements/ControlFlow/PCGQualitySelect.h"
+#include "Graph/PCGGraphCompilationData.h"
 #include "Graph/PCGGraphCompiler.h"
 #include "Graph/PCGGraphExecutor.h"
 
@@ -395,7 +396,7 @@ void UPCGGraph::PostLoad()
 	{
 		FixInvalidEdges();
 	}
-#endif
+#endif // WITH_EDITOR
 }
 
 bool UPCGGraph::IsEditorOnly() const
@@ -481,6 +482,82 @@ UPCGNode* UPCGGraph::FindNodeWithSettings(const UPCGSettingsInterface* InSetting
 
 	return NodeFound;
 }
+
+#if WITH_EDITOR
+void UPCGGraph::PreSave(FObjectPreSaveContext ObjectSaveContext)
+{
+	Super::PreSave(ObjectSaveContext);
+
+	if (ObjectSaveContext.IsCooking())
+	{
+		FPCGGraphCompiler GraphCompiler(/*bIsCooking=*/true);
+
+		// Compile graph for all grid sizes in preparation for cooking.
+		if (IsHierarchicalGenerationEnabled())
+		{
+			bool bHasUnbounded = true;
+			PCGHiGenGrid::FSizeArray GridSizes;
+			GetGridSizes(GridSizes, bHasUnbounded);
+
+			for (uint32 GridSize : GridSizes)
+			{
+				FPCGStackContext StackContext;
+
+				GraphCompiler.GetCompiledTasks(this, GridSize, StackContext);
+			}
+
+			if (bHasUnbounded)
+			{
+				FPCGStackContext StackContext;
+				GraphCompiler.GetCompiledTasks(this, PCGHiGenGrid::UnboundedGridSize(), StackContext);
+			}
+		}
+		else
+		{
+			FPCGStackContext StackContext;
+			GraphCompiler.GetCompiledTasks(this, PCGHiGenGrid::UninitializedGridSize(), StackContext);
+		}
+
+		// Move compiled results into cooked results.
+		FPCGGraphCompilerCache& Cache = GraphCompiler.GetCache();
+		TMap<uint32, TArray<FPCGGraphTask>>* CompiledTasks = Cache.TopGraphToTaskMap.Find(this);
+		TMap<uint32, FPCGStackContext>* CompiledStackContexts = Cache.TopGraphToStackContextMap.Find(this);
+		TMap<uint32, TArray<TObjectPtr<UPCGComputeGraph>>>* CompiledComputeGraphs = Cache.TopGraphToComputeGraphMap.Find(this);
+
+		CookedCompilationData = NewObject<UPCGGraphCompilationData>(this);
+
+		if (ensure(CompiledTasks))
+		{
+			CookedCompilationData->Tasks.Reserve(CompiledTasks->Num());
+
+			for (const TPair<uint32, TArray<FPCGGraphTask>>& Pair : *CompiledTasks)
+			{
+				CookedCompilationData->Tasks.Emplace(Pair.Key, std::move(Pair.Value));
+			}
+		}
+
+		if (ensure(CompiledStackContexts))
+		{
+			CookedCompilationData->StackContexts.Reserve(CompiledStackContexts->Num());
+
+			for (const TPair<uint32, FPCGStackContext>& Pair : *CompiledStackContexts)
+			{
+				CookedCompilationData->StackContexts.Emplace(Pair.Key, std::move(Pair.Value));
+			}
+		}
+
+		if (ensure(CompiledComputeGraphs))
+		{
+			CookedCompilationData->ComputeGraphs.Reserve(CompiledComputeGraphs->Num());
+
+			for (const TPair<uint32, TArray<TObjectPtr<UPCGComputeGraph>>>& Pair : *CompiledComputeGraphs)
+			{
+				CookedCompilationData->ComputeGraphs.Emplace(Pair.Key, std::move(Pair.Value));
+			}
+		}
+	}
+}
+#endif
 
 #if WITH_EDITOR
 void UPCGGraph::DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConstructClasses, const UClass* SpecificSubclass)
@@ -1180,7 +1257,8 @@ bool UPCGGraph::PrimeGraphCompilationCache()
 {
 	UPCGSubsystem* Subsystem = UPCGSubsystem::GetActiveEditorInstance();
 	FPCGGraphCompiler* GraphCompiler = Subsystem ? Subsystem->GetGraphCompiler() : nullptr;
-	if (!Subsystem || !GraphCompiler)
+
+	if (!GraphCompiler)
 	{
 		return false;
 	}
@@ -1199,7 +1277,8 @@ bool UPCGGraph::Recompile()
 {
 	UPCGSubsystem* Subsystem = UPCGSubsystem::GetActiveEditorInstance();
 	FPCGGraphCompiler* GraphCompiler = Subsystem ? Subsystem->GetGraphCompiler() : nullptr;
-	if (!Subsystem || !GraphCompiler)
+
+	if (!GraphCompiler)
 	{
 		return true;
 	}

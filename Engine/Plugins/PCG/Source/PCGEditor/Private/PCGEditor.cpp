@@ -255,7 +255,24 @@ void FPCGEditor::OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMa
 	TArray<FPCGStackFrame>& StackFrames = StackBeingInspected.GetStackFramesMutable();
 	if (!StackFrames.IsEmpty())
 	{
-		if (UObject* NewStackRoot = ReplacementMap.FindRef(StackFrames[0].Object.GetEvenIfUnreachable()))
+		UObject* NewStackRoot = ReplacementMap.FindRef(StackFrames[0].Object.Get());
+
+		// If the stack frame was marked as garbage, NewStackRoot will be nullptr, but we still match against the object path.
+		if (!NewStackRoot)
+		{
+			for(const TPair<UObject*, UObject*>& Pair : ReplacementMap)
+			{
+				if (Pair.Key && Pair.Value)
+				{
+					if (Pair.Key->GetPathName() == StackFrames[0].Object.ToString())
+					{
+						NewStackRoot = Pair.Value;
+					}
+				}
+			}
+		}
+
+		if (NewStackRoot)
 		{
 			StackFrames[0].SetObject(NewStackRoot);
 		}
