@@ -204,7 +204,7 @@ bool UDMMaterialValue::SetParameterName(FName InBaseName)
 		Parameter->SetParentComponent(this);
 	}
 
-	UpdateCachedParameterName();
+	UpdateCachedParameterName(/* Reset Name */ false);
  
 	return true;
 }
@@ -247,7 +247,8 @@ void UDMMaterialValue::OnComponentAdded()
 			MaterialModel->AddRuntimeComponentReference(this);
 		}
 
-		UpdateCachedParameterName();
+		CachedParameterName = NAME_None;
+		UpdateCachedParameterName(/* Reset Name */ true);
 	}
 }
 
@@ -293,7 +294,7 @@ void UDMMaterialValue::PostEditorDuplicate(UDynamicMaterialModel* InMaterialMode
 	if (GetOuter() == InMaterialModel)
 	{
 		Super::PostEditorDuplicate(InMaterialModel, InParent);
-		UpdateCachedParameterName();
+		UpdateCachedParameterName(/* Reset Name */ false);
 		return;
 	}
 
@@ -320,7 +321,7 @@ void UDMMaterialValue::PostEditorDuplicate(UDynamicMaterialModel* InMaterialMode
 		SetParameterName(OldParameterName);
 	}
 
-	UpdateCachedParameterName();
+	UpdateCachedParameterName(/* Reset Name */ false);
 }
 
 bool UDMMaterialValue::Modify(bool bInAlwaysMarkDirty)
@@ -402,13 +403,13 @@ FName UDMMaterialValue::GenerateAutomaticParameterName() const
 	return *GetComponentPath();
 }
 
-void UDMMaterialValue::UpdateCachedParameterName()
+void UDMMaterialValue::UpdateCachedParameterName(bool bInResetName)
 {
 	if (Parameter)
 	{
 		CachedParameterName = Parameter->GetParameterName();
 	}
-	else
+	else if (bInResetName || CachedParameterName.IsNone())
 	{
 		CachedParameterName = GenerateAutomaticParameterName();
 	}
@@ -437,7 +438,7 @@ void UDMMaterialValue::Update(UDMMaterialComponent* InSource, EDMUpdateType InUp
 
 	if (InUpdateType == EDMUpdateType::Structure)
 	{
-		UpdateCachedParameterName();
+		UpdateCachedParameterName(/* Reset Name */ false);
 	}
 #endif
 

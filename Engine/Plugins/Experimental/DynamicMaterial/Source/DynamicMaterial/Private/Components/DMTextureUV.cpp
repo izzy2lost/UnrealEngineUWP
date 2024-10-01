@@ -337,6 +337,7 @@ void UDMTextureUV::PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, U
 	if (GetOuter() == InMaterialModel)
 	{
 		Super::PostEditorDuplicate(InMaterialModel, InParent);
+		UpdateCachedParameterNames(/* Reset names */ false);
 		return;
 	}
 
@@ -352,11 +353,12 @@ void UDMTextureUV::PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, U
 	}
 
 	MaterialParameters.Empty();
-	CachedParameterNames.Empty();
 
 	Super::PostEditorDuplicate(InMaterialModel, InParent);
 
 	Rename(nullptr, InMaterialModel, UE::DynamicMaterial::RenameFlags);
+
+	UpdateCachedParameterNames(/* Reset names */ false);
 
 	using namespace UE::DynamicMaterial;
 
@@ -396,8 +398,6 @@ void UDMTextureUV::PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, U
 			}
 		}
 	}
-
-	UpdateCachedParameterNames();
 }
 #endif
 
@@ -411,12 +411,12 @@ void UDMTextureUV::SetMIDParameters(UMaterialInstanceDynamic* InMID)
 	check(InMID);
 
 	auto UpdateMID = [InMID](FName InParamName, float InValue)
-	{
-		if (FMath::IsNearlyEqual(InValue, InMID->K2_GetScalarParameterValue(InParamName)) == false)
 		{
-			InMID->SetScalarParameterValue(InParamName, InValue);
-		}
-	};
+			if (FMath::IsNearlyEqual(InValue, InMID->K2_GetScalarParameterValue(InParamName)) == false)
+			{
+				InMID->SetScalarParameterValue(InParamName, InValue);
+			}
+		};
 
 	UpdateMID(GetMaterialParameterName(UDMTextureUV::NAME_Offset,   0), GetOffset().X);
 	UpdateMID(GetMaterialParameterName(UDMTextureUV::NAME_Offset,   1), GetOffset().Y);
@@ -468,7 +468,7 @@ void UDMTextureUV::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdate
 
 	if (InUpdateType == EDMUpdateType::Structure)
 	{
-		UpdateCachedParameterNames();
+		UpdateCachedParameterNames(/* Reset Names */ false);
 	}
 #endif
 
@@ -686,14 +686,19 @@ void UDMTextureUV::UpdateCachedParameterName(FName InPropertyName, int32 InCompo
 	{
 		CachedParameterNames.FindOrAdd(ParamId) = (*ParameterPtr)->GetParameterName();
 	}
-	else
+	else if (!CachedParameterNames.Contains(ParamId))
 	{
-		CachedParameterNames.FindOrAdd(ParamId) = GenerateAutomaticParameterName(InPropertyName, InComponent);
+		CachedParameterNames.Add(ParamId, GenerateAutomaticParameterName(InPropertyName, InComponent));
 	}
 }
 
-void UDMTextureUV::UpdateCachedParameterNames()
+void UDMTextureUV::UpdateCachedParameterNames(bool bInResetNames)
 {
+	if (bInResetNames)
+	{
+		CachedParameterNames.Empty(7);
+	}
+
 	UpdateCachedParameterName(UDMTextureUV::NAME_Offset, 0);
 	UpdateCachedParameterName(UDMTextureUV::NAME_Offset, 1);
 	UpdateCachedParameterName(UDMTextureUV::NAME_Rotation, 0);
@@ -710,7 +715,7 @@ void UDMTextureUV::OnComponentAdded()
 		return;
 	}
 
-	UpdateCachedParameterNames();
+	UpdateCachedParameterNames(/* Reset Names */ true);
 
 	if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
 	{
@@ -800,7 +805,7 @@ void UDMTextureUV::PostLoad()
 		MaterialModel->AddRuntimeComponentReference(this);
 	}
 
-	UpdateCachedParameterNames();
+	UpdateCachedParameterNames(/* Reset Names */ false);
 
 	for (const TPair<int32, TObjectPtr<UDMMaterialParameter>>& Pair : MaterialParameters)
 	{
@@ -835,7 +840,7 @@ void UDMTextureUV::PostEditImport()
 		return;
 	}
 
-	UpdateCachedParameterNames();
+	UpdateCachedParameterNames(/* Reset Names */ false);
 
 	for (const TPair<int32, TObjectPtr<UDMMaterialParameter>>& Pair : MaterialParameters)
 	{

@@ -200,7 +200,7 @@ protected:
 	DYNAMICMATERIAL_API FName GenerateAutomaticParameterName() const;
 
 	/** Updates the cached parameter name based on the Parameter object or the above method. */
-	void UpdateCachedParameterName();
+	void UpdateCachedParameterName(bool bInResetName);
 #endif
  
 	//~ Begin UDMMaterialComponent
