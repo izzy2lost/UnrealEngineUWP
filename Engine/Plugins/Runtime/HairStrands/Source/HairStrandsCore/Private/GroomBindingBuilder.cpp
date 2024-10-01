@@ -2026,6 +2026,8 @@ void CopyToBulkData(FHairBulkContainer& Out, const TArray<typename TFormatType::
 template<typename TFormatType>
 void CopyFromBulkData(TArray<typename TFormatType::Type>& Out, const FByteBulkData& In)
 {
+	check(In.IsBulkDataLoaded());
+
 	const uint32 InDataSize = In.GetBulkDataSize();
 	const uint32 ElementCount = InDataSize / sizeof(typename TFormatType::BulkType);
 	Out.SetNum(ElementCount);
@@ -2119,12 +2121,12 @@ static void BuildRootBulkData(
 }
 
 // Convert "root data" <- "root bulk data"
+//
+// Bulk data must be loaded before calling this function
 static void BuildRootData(
 	FHairStrandsRootData& Out,
 	const FHairStrandsRootBulkData& In)
 {
-	// TODO: do we need to force load the data into the bulk data prior to running the convertion (bulk -> data)?
-
 	Out.RootCount = In.Header.RootCount;
 	Out.PointCount = In.Header.PointCount;
 	{

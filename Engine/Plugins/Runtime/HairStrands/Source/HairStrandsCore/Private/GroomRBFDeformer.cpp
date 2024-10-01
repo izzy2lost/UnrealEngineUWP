@@ -657,11 +657,17 @@ static float SampleMaskTexture(const FVector2f& InUV, const FUintPoint& InResolu
 	return 1.0f;
 }
 
-void FGroomRBFDeformer::GetRBFDeformedGroomAsset(const UGroomAsset* InGroomAsset, const UGroomBindingAsset* BindingAsset, FTextureSource* MaskTextureSource, const float MaskScale, UGroomAsset* OutGroomAsset)
+void FGroomRBFDeformer::GetRBFDeformedGroomAsset(const UGroomAsset* InGroomAsset, UGroomBindingAsset* BindingAsset, FTextureSource* MaskTextureSource, const float MaskScale, UGroomAsset* OutGroomAsset)
 {
 #if WITH_EDITORONLY_DATA
 	if (InGroomAsset && BindingAsset && BindingAsset->GetTargetSkeletalMesh() && BindingAsset->GetSourceSkeletalMesh())
 	{
+		// Ensure the bulk data is streamed in and accessible from the CPU
+		{
+			const bool bWait = true;
+			BindingAsset->StreamInForCPUAccess(bWait);
+		}
+
 		// Get the skel. mesh render data for the current platform
 		// This similar to how we fetch skel. mesh data when building groom binding. This is requires in order to get 
 		// identical skel. mesh render data and ensure that the hair deformation is done correctly.
