@@ -141,7 +141,7 @@ void MixManager::Exit()
 	
 	FRenderCommandFence SuspendFence;
 	
-	SuspendFence.BeginFence(true);
+	SuspendFence.BeginFence();
 	SuspendFence.Wait();
 	
 	Suspend();
