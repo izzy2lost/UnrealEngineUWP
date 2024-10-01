@@ -35,7 +35,7 @@ enum class ERigElementType : uint8
 	First = Bone UMETA(Hidden), 
 	Last = Socket UMETA(Hidden), 
 	All = Bone | Null | Control | Curve | Physics | Reference | Connector | Socket,
-	ToResetAfterConstructionEvent = Bone | Control | Curve | Socket UMETA(Hidden),
+	ToResetAfterConstructionEvent = Bone | Control | Null | Curve | Socket UMETA(Hidden),
 };
 
 UENUM(BlueprintType)
