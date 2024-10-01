@@ -219,7 +219,11 @@ void UAvaTranslucentPriorityModifier::Apply()
 			else if (Component->TranslucencySortPriority != TranslucentSortPriority)
 			{
 				// Cache to avoid doing the same query for the same result
-				ComponentModifier->CachedSortedComponentStates = CachedSortedComponentStates;
+				if (ComponentModifier->CachedSortedComponentStates.IsEmpty())
+				{
+					ComponentModifier->CachedSortedComponentStates = CachedSortedComponentStates;
+				}
+
 				ComponentModifier->MarkModifierDirty();
 			}
 
