@@ -3058,12 +3058,6 @@ void UObject::LoadConfig(UClass* ConfigClass/*=nullptr*/, const TCHAR* InFilenam
 			continue;
 		}
 
-		// Don't load config properties that are marked editoronly if not in the editor
-		if ((Property->PropertyFlags & CPF_EditorOnly) && !GIsEditor)
-		{
-			continue;
-		}
-
 		const bool bGlobalConfig = EnumHasAnyFlags(Property->PropertyFlags, CPF_GlobalConfig);
 		UClass* OwnerClass = Property->GetOwnerClass();
 
