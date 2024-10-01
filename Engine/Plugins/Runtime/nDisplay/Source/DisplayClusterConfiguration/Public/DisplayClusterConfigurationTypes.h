@@ -291,6 +291,7 @@ public:
 	FOnPostEditChangeChainProperty OnPostEditChangeChainProperty;
 
 public:
+	UDisplayClusterConfigurationClusterNode();
 
 	UFUNCTION(BlueprintPure, Category = "NDisplay|Configuration")
 	void GetViewportIds(TArray<FString>& OutViewportIds) const;
@@ -319,23 +320,23 @@ public:
 	
 	/** Enables or disables sound on nDisplay primary Node */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration", meta = (DisplayName = "Enable Sound"))
-	bool bIsSoundEnabled = false;
+	bool bIsSoundEnabled;
 
 	/** Enables application window native fullscreen support */
-	UPROPERTY(EditAnywhere, BlueprintReadonly, Category = "Configuration", meta = (DisplayName = "Fullscreen", EditCondition = "!bRenderHeadless"))
-	bool bIsFullscreen = false;
-
-	/** Activates headless rendering for this cluster node */
-	UPROPERTY(EditAnywhere, BlueprintReadonly, Category = "Configuration", meta = (DisplayName = "Headless Rendering", EditCondition = "!bIsFullscreen"))
-	bool bRenderHeadless = false;
+	UPROPERTY(EditAnywhere, BlueprintReadonly, Category = "Configuration", meta = (DisplayName = "Fullscreen"))
+	bool bIsFullscreen;
 
 	/** Defines the application window size in pixels */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration", meta = (DisplayName = "Window", DisplayMode = "Compound", FixedAspectRatioProperty = "bFixedAspectRatio", EditCondition = "!bRenderHeadless && !bIsFullscreen"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration", meta = (DisplayName = "Window", DisplayMode = "Compound", FixedAspectRatioProperty = "bFixedAspectRatio"))
 	FDisplayClusterConfigurationRectangle WindowRect;
 
 	/** Output remapping settings for the selected cluster node */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration", meta = (DisplayName = "Output Remapping"))
 	FDisplayClusterConfigurationFramePostProcess_OutputRemap OutputRemap;
+
+	/** Activates headless rendering for this cluster node */
+	UPROPERTY(EditAnywhere, BlueprintReadonly, Category = "Configuration", meta = (DisplayName = "Headless Rendering"))
+	bool bRenderHeadless = false;
 
 	/** Hint for setting the r.GraphicsAdapter CVar when launching this cluster node. Note that this is distinct from the GPU Node Indices assigned to viewports. */
 	UPROPERTY(EditAnywhere, BlueprintReadonly, Category = "Configuration", meta = (DisplayName = "Graphics Adapter"))
@@ -348,7 +349,7 @@ public:
 #if WITH_EDITORONLY_DATA
 	/** Locks the application window aspect ratio for easier resizing */
 	UPROPERTY(EditAnywhere, Category = "Configuration", meta = (HideProperty))
-	bool bFixedAspectRatio = false;
+	bool bFixedAspectRatio;
 #endif
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, EditFixedSize, Instanced, Category = "Configuration", meta = (DisplayThumbnail = false))
@@ -363,10 +364,10 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditDefaultsOnly, Category = "Configuration", meta = (HideProperty))
-	bool bIsVisible = true;
+	bool bIsVisible;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Configuration", meta = (HideProperty))
-	bool bIsUnlocked = true;
+	bool bIsUnlocked;
 
 	/** Binds a background preview image for easier output mapping */
 	UPROPERTY(EditDefaultsOnly, Category = "Configuration")
