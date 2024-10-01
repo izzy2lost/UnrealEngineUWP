@@ -24,3 +24,8 @@ void UAvaInteractiveToolsActorToolBase::DefaultAction()
 
 	Super::DefaultAction();
 }
+
+bool UAvaInteractiveToolsActorToolBase::UseIdentityRotation() const
+{
+	return ConditionalIdentityRotation();
+}

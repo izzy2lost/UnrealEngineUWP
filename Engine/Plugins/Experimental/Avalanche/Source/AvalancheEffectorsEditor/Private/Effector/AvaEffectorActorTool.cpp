@@ -12,11 +12,6 @@ UAvaEffectorActorTool::UAvaEffectorActorTool()
 	ActorClass = ACEEffectorActor::StaticClass();
 }
 
-bool UAvaEffectorActorTool::UseIdentityRotation() const
-{
-	return ConditionalIdentityRotation();
-}
-
 FName UAvaEffectorActorTool::GetCategoryName()
 {
 	return IAvalancheInteractiveToolsModule::CategoryNameActor;
