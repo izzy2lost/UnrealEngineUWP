@@ -532,7 +532,7 @@ void UPCGGraph::PreSave(FObjectPreSaveContext ObjectSaveContext)
 
 			for (const TPair<uint32, TArray<FPCGGraphTask>>& Pair : *CompiledTasks)
 			{
-				CookedCompilationData->Tasks.Emplace(Pair.Key, std::move(Pair.Value));
+				CookedCompilationData->Tasks.Emplace(Pair.Key, FPCGGraphTasks(std::move(Pair.Value)));
 			}
 		}
 
@@ -552,7 +552,7 @@ void UPCGGraph::PreSave(FObjectPreSaveContext ObjectSaveContext)
 
 			for (const TPair<uint32, TArray<TObjectPtr<UPCGComputeGraph>>>& Pair : *CompiledComputeGraphs)
 			{
-				CookedCompilationData->ComputeGraphs.Emplace(Pair.Key, std::move(Pair.Value));
+				CookedCompilationData->ComputeGraphs.Emplace(Pair.Key, FPCGComputeGraphs(std::move(Pair.Value)));
 			}
 		}
 	}

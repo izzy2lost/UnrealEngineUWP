@@ -15,6 +15,12 @@ struct FPCGGraphTasks
 {
 	GENERATED_BODY();
 
+	FPCGGraphTasks() = default;
+
+	explicit FPCGGraphTasks(TArray<FPCGGraphTask> InGraphTasks)
+		: GraphTasks(std::move(InGraphTasks))
+	{}
+
 	UPROPERTY()
 	TArray<FPCGGraphTask> GraphTasks;
 };
@@ -24,6 +30,12 @@ USTRUCT()
 struct FPCGComputeGraphs
 {
 	GENERATED_BODY();
+
+	FPCGComputeGraphs() = default;
+
+	explicit FPCGComputeGraphs(TArray<TObjectPtr<UPCGComputeGraph>> InComputeGraphs)
+		: ComputeGraphs(std::move(InComputeGraphs))
+	{}
 
 	UPROPERTY()
 	TArray<TObjectPtr<UPCGComputeGraph>> ComputeGraphs;
