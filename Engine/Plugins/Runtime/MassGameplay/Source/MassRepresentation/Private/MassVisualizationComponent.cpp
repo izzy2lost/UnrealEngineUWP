@@ -151,6 +151,11 @@ const FMassISMCSharedData* UMassVisualizationComponent::GetISMCSharedDataForDesc
 	return ISMCSharedData.GetDataForIndex(DescriptionIndex);
 }
 
+const FMassISMCSharedData* UMassVisualizationComponent::GetISMCSharedDataForInstancedStaticMesh(const UInstancedStaticMeshComponent* ISMC) const
+{
+	return ISMCSharedData.GetDataForKey(ISMC);
+}
+
 void UMassVisualizationComponent::RemoveVisualDesc(const FStaticMeshInstanceVisualizationDescHandle VisualizationHandle)
 {
 	UE_MT_SCOPED_WRITE_ACCESS(InstancedStaticMeshInfosDetector);

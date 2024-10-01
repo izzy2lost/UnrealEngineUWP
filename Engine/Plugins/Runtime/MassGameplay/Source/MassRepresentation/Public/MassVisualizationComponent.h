@@ -48,6 +48,11 @@ public:
 	 */
 	const FMassISMCSharedData* GetISMCSharedDataForDescriptionIndex(const int32 DescriptionIndex) const;
 
+	/**
+	 * Fetches FMassISMCSharedData indicated by an ISMC, or nullptr if the ISMC is not represented by any shared data.
+	 */
+	const FMassISMCSharedData* GetISMCSharedDataForInstancedStaticMesh(const UInstancedStaticMeshComponent* ISMC) const;
+
 	/** 
 	 * Removes all the visualization data associated with the given ISM component. The function resolves the VisualizationIndex
 	 * associated with the given ISMComponent and calls RemoveVisualDescByIndex which will remove data on all ISMComponents

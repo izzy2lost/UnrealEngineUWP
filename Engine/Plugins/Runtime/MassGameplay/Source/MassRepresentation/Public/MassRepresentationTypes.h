@@ -497,6 +497,14 @@ struct FMassISMCSharedDataMap
 		return Data.IsValidIndex(Index) ? &Data[Index] : nullptr;
 	}
 
+	const FMassISMCSharedData* GetDataForKey(const FISMCSharedDataKey Key) const
+	{
+		const int32* Index = Map.Find(Key);
+		return (Index && Data.IsValidIndex(*Index))
+			? &Data[*Index]
+			: nullptr;
+	}
+
 protected:
 	TArray<FMassISMCSharedData> Data;
 	/** Mapping from Owner (as FObjectKey) of data represented by FMassISMCSharedData to an index to Data */
