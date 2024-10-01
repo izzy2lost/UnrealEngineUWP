@@ -3066,7 +3066,7 @@ void UCookOnTheFlyServer::RejectPackageToLoad(UE::Cook::FPackageData& PackageDat
 
 EDataValidationResult UCookOnTheFlyServer::ValidateSourcePackage(UE::Cook::FPackageData& PackageData, UPackage* Package)
 {
-	UE_SCOPED_HIERARCHICAL_COOKTIMER(ValidateSourcePackage);
+	UE_SCOPED_HIERARCHICAL_COOKTIMER_AND_DURATION(ValidateSourcePackage, DetailedCookStats::ValidationTimeSec);
 
 	// Don't validate packages if validation is disabled
 	if (!EnumHasAnyFlags(CookByTheBookOptions->StartupOptions, ECookByTheBookOptions::RunAssetValidation | ECookByTheBookOptions::RunMapValidation))
