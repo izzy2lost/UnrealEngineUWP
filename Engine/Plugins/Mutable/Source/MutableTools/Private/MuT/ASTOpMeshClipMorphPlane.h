@@ -44,6 +44,7 @@ struct FProgram;
 		virtual void ForEachChild(const TFunctionRef<void(ASTChild&)>) override;
 		virtual void Link(FProgram& program, FLinkerOptions* Options) override;
 		virtual mu::Ptr<ASTOp> OptimiseSink(const FModelOptimizationOptions&, FOptimizeSinkContext&) const override;
+		virtual FSourceDataDescriptor GetSourceDataDescriptor(FGetSourceDataDescriptorContext*) const override;
 	};
 
 

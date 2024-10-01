@@ -90,4 +90,15 @@ namespace mu
 
 	}
 
+
+	FSourceDataDescriptor ASTOpMeshGeometryOperation::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
+	{
+		if (meshA)
+		{
+			return meshA->GetSourceDataDescriptor(Context);
+		}
+
+		return {};
+	}
+
 }

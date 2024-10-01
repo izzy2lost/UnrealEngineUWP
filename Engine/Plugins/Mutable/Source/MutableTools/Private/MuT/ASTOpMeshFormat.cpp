@@ -110,6 +110,17 @@ mu::Ptr<ASTOp> ASTOpMeshFormat::OptimiseSink(const FModelOptimizationOptions& op
 }
 
 
+FSourceDataDescriptor ASTOpMeshFormat::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
+{
+	if (Source)
+	{
+		return Source->GetSourceDataDescriptor(Context);
+	}
+
+	return {};
+}
+
+
 //---------------------------------------------------------------------------------------------
 //---------------------------------------------------------------------------------------------
 //---------------------------------------------------------------------------------------------
@@ -275,6 +286,7 @@ mu::Ptr<ASTOp> Sink_MeshFormatAST::Visit(const mu::Ptr<ASTOp>& at, const ASTOpMe
 		mu::Ptr<ASTOpConstantResource> NewFormatConstant = new ASTOpConstantResource();
 		NewFormatConstant->Type = OP_TYPE::ME_CONSTANT;
 		NewFormatConstant->SetValue(pTargetMorphFormat, nullptr);
+		NewFormatConstant->SourceDataDescriptor = at->GetSourceDataDescriptor();
 
 		if (NewOp->Target)
 		{
@@ -319,6 +331,7 @@ mu::Ptr<ASTOp> Sink_MeshFormatAST::Visit(const mu::Ptr<ASTOp>& at, const ASTOpMe
 		mu::Ptr<ASTOpConstantResource> TargetMorphFormatOp = new ASTOpConstantResource();
 		TargetMorphFormatOp->Type = OP_TYPE::ME_CONSTANT;
 		TargetMorphFormatOp->SetValue(pTargetMorphFormat, nullptr );
+		TargetMorphFormatOp->SourceDataDescriptor = at->GetSourceDataDescriptor();
 
 		for (int32 t = 0; t < MUTABLE_OP_MAX_INTERPOLATE_COUNT - 1; ++t)
 		{

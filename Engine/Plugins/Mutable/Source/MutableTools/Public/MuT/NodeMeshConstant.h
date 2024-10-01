@@ -6,6 +6,7 @@
 #include "MuR/RefCounted.h"
 #include "MuT/Node.h"
 #include "MuT/NodeMesh.h"
+#include "MuT/NodeImage.h"
 
 
 namespace mu
@@ -23,6 +24,10 @@ namespace mu
 	//! It allows to define the layouts for the texture channels of the constant mesh
 	class MUTABLETOOLS_API NodeMeshConstant : public NodeMesh
 	{
+	public:
+
+		FSourceDataDescriptor SourceDataDescriptor;
+
 	public:
 
 		NodeMeshConstant();

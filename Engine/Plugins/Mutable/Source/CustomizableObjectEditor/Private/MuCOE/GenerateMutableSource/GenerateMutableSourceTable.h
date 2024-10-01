@@ -51,7 +51,7 @@ bool GenerateTableColumn(const UCustomizableObjectNodeTable* TableNode, const UE
  * @param GenerationContext 
  * @return  */
 bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr MutableTable, const FString& ColumnName,
-	const FString& RowName, int32 RowIdx, uint8* CellData, const FProperty* ColumnProperty,
+	const FString& RowName, uint32 RowId, uint8* CellData, const FProperty* ColumnProperty,
 	int32 LODIndexConnected, int32 SectionIndexConnected, int32 LODIndex, int32 SectionIndex,
 	bool bOnlyConnectedLOD,
 	FMutableGraphGenerationContext& GenerationContext);
@@ -66,8 +66,9 @@ void GenerateTableParameterUIData(const UDataTable* DataTable, const UCustomizab
 UDataTable* GetDataTable(const UCustomizableObjectNodeTable* TableNode, FMutableGraphGenerationContext& GenerationContext);
 
 /** Gets all the rows of a data table that are going to be compiled. Some rows can be disabled with a bool column or an asset version system 
+	@OutRowIds Deterministic Ids for each row. Used to Add, Get, and Set cell data
 	@return Array with all the names of the rows that are going to be compiled */
-TArray<FName> GetRowsToCompile(const UDataTable& DataTable, const UCustomizableObjectNodeTable& TableNode, FMutableGraphGenerationContext& GenerationContext);
+TArray<FName> GetRowsToCompile(const UDataTable& DataTable, const UCustomizableObjectNodeTable& TableNode, FMutableGraphGenerationContext& GenerationContext, TArray<uint32>& OutRowIds);
 
 /** Generates a Data Table from the Data Tables referenced in a Script Struct */
 UDataTable* GenerateDataTableFromStruct(const UCustomizableObjectNodeTable* TableNode, FMutableGraphGenerationContext& GenerationContext);

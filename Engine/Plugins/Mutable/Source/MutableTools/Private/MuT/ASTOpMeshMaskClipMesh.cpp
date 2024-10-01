@@ -364,5 +364,17 @@ namespace mu
 		return at;
 	}
 
+
+	//-------------------------------------------------------------------------------------------------
+	FSourceDataDescriptor ASTOpMeshMaskClipMesh::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
+	{
+		if (source)
+		{
+			return source->GetSourceDataDescriptor(Context);
+		}
+
+		return {};
+	}
+
 }
  
