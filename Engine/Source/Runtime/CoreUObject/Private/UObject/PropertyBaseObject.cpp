@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "CoreMinimal.h"
+#include "HAL/IConsoleManager.h"
 #include "UObject/ObjectMacros.h"
 #include "Templates/Casts.h"
 #include "UObject/Package.h"
@@ -15,6 +16,25 @@
 #include "UObject/LinkerLoadImportBehavior.h"
 #include "UObject/UObjectThreadContext.h"
 #include "Misc/StringBuilder.h"
+
+namespace UE::CoreUObject::Private
+{
+	TAutoConsoleVariable<int32> CVarNonNullableBehavior(
+		TEXT("CoreUObject.NonNullableBehavior"),
+		(int32)ENonNullableBehavior::CreateDefaultObjectIfPossible,
+		TEXT("Sets the behavior when a non-null property cannot be resolved into an object reference - 0=Leave property null and log a warning, 1=Leave property null and log an error, 2=Create a default object and log a warning if successful, or leave it null and log an error if unsuccessful")
+	);
+
+	ENonNullableBehavior GetNonNullableBehavior()
+	{
+		int32 Value = CVarNonNullableBehavior.GetValueOnAnyThread();
+		if (Value < 0 || Value > 2)
+		{
+			Value = 2;
+		}
+		return (ENonNullableBehavior)Value;
+	}
+}
 
 /*-----------------------------------------------------------------------------
 	FObjectPropertyBase.
@@ -661,11 +681,11 @@ void FObjectPropertyBase::SetObjectPtrPropertyValue(void* PropertyValueAddress, 
 	if (Ptr || !HasAnyPropertyFlags(CPF_NonNullable))
 	{
 		SetObjectPtrPropertyValueUnchecked(PropertyValueAddress, Ptr);
-	}
+}
 	else
-	{
+{
 		UE_LOG(LogProperty, Verbose /*Warning*/, TEXT("Trying to assign null object value to non-nullable \"%s\""), *GetFullName());
-	}
+}
 }
 
 void FObjectPropertyBase::SetObjectPropertyValue_InContainer(void* ContainerAddress, UObject* Value, int32 ArrayIndex) const
@@ -687,7 +707,7 @@ void FObjectPropertyBase::SetObjectPtrPropertyValue_InContainer(void* ContainerA
 		SetObjectPtrPropertyValueUnchecked_InContainer(ContainerAddress, Ptr, ArrayIndex);
 	}
 	else
-	{
+{
 		UE_LOG(LogProperty, Verbose /*Warning*/, TEXT("Trying to assign null object value to non-nullable \"%s\""), *GetFullName());
 	}
 }
@@ -700,6 +720,49 @@ bool FObjectPropertyBase::AllowCrossLevel() const
 bool FObjectPropertyBase::AllowObjectTypeReinterpretationTo(const FObjectPropertyBase* Other) const
 {
 	return false;
+}
+
+UObject* FObjectPropertyBase::ConstructDefaultObjectValueIfNecessary(UObject* ExistingValue) const
+{
+	UObject* NewDefaultObjectValue = nullptr;
+
+	FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
+	UObject* Outer = SerializeContext ? SerializeContext->SerializedObject : nullptr;
+	if (!Outer)
+	{
+		Outer = GetTransientPackage();
+	}
+
+	if (ExistingValue)
+	{
+		UClass* ExistingValueClass = ExistingValue->GetClass();
+		// Sanity check to make sure the existing value class matches the property class
+		if (ExistingValueClass && (ExistingValueClass->IsChildOf(PropertyClass) || ExistingValueClass->GetAuthoritativeClass()->IsChildOf(PropertyClass)))
+		{
+			if (ExistingValue->IsTemplate() && 	// Existing value is a template so we can construct a new value with it as the archetype
+				ExistingValue->GetOuter() != Outer) // Unless the template's Outer is the same as the new Outer in which case the template (ExistingValue) IS the object we can reuse
+			{
+				// We probably got here because an object value failed to load (missing import class) and the property is left with a template of default subobject
+				NewDefaultObjectValue = NewObject<UObject>(Outer, ExistingValue->GetClass(), NAME_None, RF_NoFlags, ExistingValue);
+			}
+			else
+			{
+				// Existing value is not a template or a template is what this property was pointing to so we can use it directly
+				// Similar to the above condition but the property was not referencing an instanced value in which case it's ok to leave the CDO default here
+				NewDefaultObjectValue = ExistingValue;
+			}
+		}
+	}
+
+	if (!NewDefaultObjectValue && !PropertyClass->HasAnyClassFlags(CLASS_Abstract))
+	{
+		// Existing value did not exist or it could not be used as a template
+		// Existing value may be null in case we were serializing an array of UObjects that failed to load (missing import class). Since the array is first pre-allocated with null values
+		// it will not have any existing objects to instantiate
+		NewDefaultObjectValue = NewObject<UObject>(Outer, PropertyClass);
+	}
+
+	return NewDefaultObjectValue;
 }
 
 void FObjectPropertyBase::CheckValidObject(void* ValueAddress, TObjectPtr<UObject> OldValue) const
@@ -745,31 +808,77 @@ void FObjectPropertyBase::CheckValidObject(void* ValueAddress, TObjectPtr<UObjec
 		bool bIsReplacingClassRefs = PropertyClass && PropertyClass->HasAnyClassFlags(CLASS_NewerVersionExists) != ObjectClass->HasAnyClassFlags(CLASS_NewerVersionExists);
 		if (!bIsReplacingClassRefs && !IsDeferringValueLoad())
 		{
+			UObject* DefaultValue = nullptr;
+
 			FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
+			UObject* Outer = SerializeContext ? SerializeContext->SerializedObject : nullptr;
+			if (!Outer)
+			{
+				Outer = GetTransientPackage();
+			}
 			if (!HasAnyPropertyFlags(CPF_NonNullable))
 			{
 				UE_LOG(LogProperty, Warning,
 					TEXT("Serialized %s for a property of %s. Reference will be nulled.\n    ReferencingObject = %s\n    Property = %s\n    Item = %s"),
 					*ObjectClass->GetFullName(),
 					*PropertyClass->GetFullName(),
-					*GetFullNameSafe(SerializeContext ? SerializeContext->SerializedObject : nullptr),
+					*GetFullNameSafe(Outer),
 					*GetFullName(),
 					*Object.GetFullName()
 				);
 			}
 			else
 			{
-				UE_LOG(LogProperty, Warning,
-					TEXT("Serialized %s for a non-nullable property of %s. Reference will be nulled - will cause a runtime error if accessed.\n    ReferencingObject = %s\n    Property = %s\n    Item = %s"),
-					*ObjectClass->GetFullName(),
-					*PropertyClass->GetFullName(),
-					*GetFullNameSafe(SerializeContext ? SerializeContext->SerializedObject : nullptr),
-					*GetFullName(),
-					*Object.GetFullName()
-				);
+				using UE::CoreUObject::Private::ENonNullableBehavior;
+				using UE::CoreUObject::Private::GetNonNullableBehavior;
+
+				ENonNullableBehavior NonNullableBehavior = GetNonNullableBehavior();
+				if (NonNullableBehavior == ENonNullableBehavior::CreateDefaultObjectIfPossible)
+				{
+					DefaultValue = ConstructDefaultObjectValueIfNecessary(OldValue);
+				}
+
+				if (DefaultValue)
+				{
+					UE_LOG(LogProperty, Warning,
+						TEXT("Serialized %s for a non-nullable property of %s. Reference will be defaulted to %s (previously: %s).\n    ReferencingObject = %s\n    Property = %s\n    Item = %s"),
+						*ObjectClass->GetFullName(),
+						*PropertyClass->GetFullName(),
+						*GetFullNameSafe(DefaultValue),
+						*GetFullNameSafe(OldValue),
+						*GetFullNameSafe(Outer),
+						*GetFullName(),
+						*Object.GetFullName()
+					);
+				}
+				else if (NonNullableBehavior == ENonNullableBehavior::LogWarning)
+				{
+					UE_LOG(LogProperty, Warning,
+						TEXT("Serialized %s for a non-nullable property of %s. Reference will be nulled (previously: %s) - will cause a runtime error if accessed.\n    ReferencingObject = %s\n    Property = %s\n    Item = %s"),
+						*ObjectClass->GetFullName(),
+						*PropertyClass->GetFullName(),
+						*GetFullNameSafe(OldValue),
+						*GetFullNameSafe(Outer),
+						*GetFullName(),
+						*Object.GetFullName()
+					);
+				}
+				else
+				{
+					UE_LOG(LogProperty, Error,
+						TEXT("Serialized %s for a non-nullable property of %s. Reference will be nulled%s (previously: %s) - will cause a runtime error if accessed.\n    ReferencingObject = %s\n    Property = %s\n    Item = %s"),
+						*ObjectClass->GetFullName(),
+						*PropertyClass->GetFullName(),
+						(NonNullableBehavior == ENonNullableBehavior::CreateDefaultObjectIfPossible) ? *FString::Printf(TEXT(" as %s is abstract"), *PropertyClass->GetName()) : TEXT(""),
+						*GetFullNameSafe(OldValue),
+						*GetFullNameSafe(Outer),
+						*GetFullName(),
+						*Object.GetFullName()
+					);
+				}
 			}
 
-			SetObjectPropertyValueUnchecked(ValueAddress, nullptr);
+			SetObjectPropertyValueUnchecked(ValueAddress, DefaultValue);
 		}
 	}
 }

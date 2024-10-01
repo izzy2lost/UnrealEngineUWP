@@ -94,7 +94,9 @@ TEST_CASE("UE::CoreUObject::FObjectProperty::CheckValidAddressNonNullable")
 #endif
 	UClass* Class = UObjectPtrTestClassWithRef::StaticClass();
 	FObjectProperty* Property = CastField<FObjectProperty>(Class->FindPropertyByName(TEXT("ObjectPtrNonNullable")));
+	FObjectProperty* AbstractProperty = CastField<FObjectProperty>(Class->FindPropertyByName(TEXT("ObjectPtrAbstractNonNullable")));
 	REQUIRE(Property != nullptr);
+	REQUIRE(AbstractProperty != nullptr);
 
 	UPackage* TestPackage = NewObject<UPackage>(nullptr, TEXT("/Temp/TestPackageName"), RF_Transient);
 	UPackage* OtherTestPackage = NewObject<UPackage>(nullptr, TEXT("/Temp/CheckValidAddressNonNullableOther"), RF_Transient);
@@ -105,31 +107,48 @@ TEST_CASE("UE::CoreUObject::FObjectProperty::CheckValidAddressNonNullable")
 	};
 	UObjectPtrTestClassWithRef* Obj = NewObject<UObjectPtrTestClassWithRef>(TestPackage, TEXT("Object"));
 	UObjectPtrTestClass* Other = NewObject<UObjectPtrTestClass>(Obj, TEXT("Other"));
+	UObjectPtrAbstractDerivedTestClass* AbstractDerivedOther = NewObject<UObjectPtrAbstractDerivedTestClass>(Obj, TEXT("AbstractDerivedOther"));
 
 #if UE_WITH_OBJECT_HANDLE_TRACKING && UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
 	FObjectHandle Handle = MakeUnresolvedHandle(Other);
+	FObjectHandle AbstractDerivedHandle = MakeUnresolvedHandle(AbstractDerivedOther);
 	TObjectPtr<UObjectPtrTestClass> ObjectPtr = *reinterpret_cast<TObjectPtr<UObjectPtrTestClass>*>(&Handle);
+	TObjectPtr<UObjectPtrAbstractDerivedTestClass> AbstractDerivedObjectPtr = *reinterpret_cast<TObjectPtr<UObjectPtrAbstractDerivedTestClass>*>(&AbstractDerivedHandle);
 #else
 	TObjectPtr<UObjectPtrTestClass> ObjectPtr = Other;
+	TObjectPtr<UObjectPtrAbstractDerivedTestClass> AbstractDerivedObjectPtr = AbstractDerivedOther;
 #endif
 
 	//property is already null should stay null
 	CHECK(!Obj->ObjectPtrNonNullable);
+	CHECK(!Obj->ObjectPtrAbstractNonNullable);
 	Property->CheckValidObject(&Obj->ObjectPtrNonNullable, ObjectPtr);
+	AbstractProperty->CheckValidObject(&Obj->ObjectPtrAbstractNonNullable, AbstractDerivedObjectPtr);
 	CHECK(!Obj->ObjectPtrNonNullable);
+	CHECK(!Obj->ObjectPtrAbstractNonNullable);
 
 	//valid assignment
 	Obj->ObjectPtrNonNullable = ObjectPtr;
+	Obj->ObjectPtrAbstractNonNullable = AbstractDerivedObjectPtr;
 	Property->CheckValidObject(&Obj->ObjectPtrNonNullable, nullptr);
+	AbstractProperty->CheckValidObject(&Obj->ObjectPtrAbstractNonNullable, nullptr);
 	CHECK(Obj->ObjectPtrNonNullable == ObjectPtr);
+	CHECK(Obj->ObjectPtrAbstractNonNullable == AbstractDerivedObjectPtr);
 
 	// Disable property warnings that will fire because we're deliberately setting non-nullable properties to null
 	LOG_SCOPE_VERBOSITY_OVERRIDE(LogProperty, ELogVerbosity::NoLogging);
 
+	using UE::CoreUObject::Private::ENonNullableBehavior;
+	using UE::CoreUObject::Private::GetNonNullableBehavior;
+	ENonNullableBehavior NonNullableBehavior = GetNonNullableBehavior();
+
 	bAllowRead = true; //has resolve the old value to construct a new default value for the property
+
 	//assign a bad value to the pointer
 	Obj->ObjectPtrNonNullable = reinterpret_cast<UObjectPtrTestClass*>(OtherTestPackage);
+	Obj->ObjectPtrAbstractNonNullable = reinterpret_cast<UObjectPtrAbstractTestClass*>(OtherTestPackage);
 	CHECK(Obj->ObjectPtrNonNullable != nullptr);
+	CHECK(Obj->ObjectPtrAbstractNonNullable != nullptr);
 
 	FWarnFilterScope _([](const TCHAR* Message, ELogVerbosity::Type Verbosity, const FName& Category)
 		{
@@ -140,15 +159,41 @@ TEST_CASE("UE::CoreUObject::FObjectProperty::CheckValidAddressNonNullable")
 			return false;
 		});
 	Property->CheckValidObject(&Obj->ObjectPtrNonNullable, ObjectPtr);
-	CHECK(Obj->ObjectPtrNonNullable == nullptr); //non nullable properties should be nulled if invalid
+	AbstractProperty->CheckValidObject(&Obj->ObjectPtrAbstractNonNullable, AbstractDerivedObjectPtr);
+	if (NonNullableBehavior == ENonNullableBehavior::CreateDefaultObjectIfPossible)
+	{
+		CHECK(Obj->ObjectPtrNonNullable == ObjectPtr); //non nullable properties should be assigned the old value
+		CHECK(Obj->ObjectPtrAbstractNonNullable == AbstractDerivedObjectPtr); //abstract non nullable properties should be assigned the old value
+	}
+	else
+	{
+		CHECK(Obj->ObjectPtrNonNullable == nullptr); //non nullable properties should be nulled if invalid
+		CHECK(Obj->ObjectPtrAbstractNonNullable == nullptr); //abstract non nullable properties should be nulled
+	}
 
 	//assign a bad value to the pointer
 	Obj->ObjectPtrNonNullable = reinterpret_cast<UObjectPtrTestClass*>(Obj);
+	Obj->ObjectPtrAbstractNonNullable = reinterpret_cast<UObjectPtrAbstractTestClass*>(Obj);
 	CHECK(Obj->ObjectPtrNonNullable != nullptr);
+	CHECK(Obj->ObjectPtrAbstractNonNullable != nullptr);
 
-	//null is required for invalid non nullable properties
-	Property->CheckValidObject(&Obj->ObjectPtrNonNullable, nullptr);
-	CHECK(Obj->ObjectPtrNonNullable == nullptr);
+	if (NonNullableBehavior == ENonNullableBehavior::CreateDefaultObjectIfPossible)
+	{
+		//new value is required for non nullable properties
+		Property->CheckValidObject(&Obj->ObjectPtrNonNullable, nullptr);
+		AbstractProperty->CheckValidObject(&Obj->ObjectPtrAbstractNonNullable, nullptr);
+		CHECK(Obj->ObjectPtrNonNullable != nullptr);
+		CHECK(Obj->ObjectPtrNonNullable->IsA(UObjectPtrTestClass::StaticClass()));
+		CHECK(Obj->ObjectPtrAbstractNonNullable == nullptr);
+	}
+	else
+	{
+		//null is required for invalid non nullable properties
+		Property->CheckValidObject(&Obj->ObjectPtrNonNullable, nullptr);
+		AbstractProperty->CheckValidObject(&Obj->ObjectPtrAbstractNonNullable, nullptr);
+		CHECK(Obj->ObjectPtrNonNullable == nullptr);
+		CHECK(Obj->ObjectPtrAbstractNonNullable == nullptr);
+	}
 }
 
 class FMockArchive : public FArchive
