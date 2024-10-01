@@ -56,7 +56,7 @@ public:
 #if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("CustomHLSL")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGCustomHLSLElement", "NodeTitle", "Custom HLSL"); }
-	virtual FText GetNodeTooltipText() const override { return NSLOCTEXT("PCGCustomHLSLElement", "NodeTooltip", "Produces a HLSL compute shader which will be executed on the GPU."); }
+	virtual FText GetNodeTooltipText() const override { return NSLOCTEXT("PCGCustomHLSLElement", "NodeTooltip", "[EXPERIMENTAL] Produces a HLSL compute shader which will be executed on the GPU."); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::GPU; }
 
 	virtual TArray<FPCGPreConfiguredSettingsInfo> GetPreconfiguredInfo() const override;
@@ -158,23 +158,23 @@ public:
 
 protected:
 	/** Optional functions that can be called from the source. Intended to be edited using the Node Source Editor window. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Source", meta = (MultiLine = true))
-	FString ShaderFunctions;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings", AdvancedDisplay, meta = (MultiLine = true))
+	FString ShaderFunctions = "/** CUSTOM SHADER FUNCTIONS **/\n";
 
 	/** Shader code that forms the body of the kernel. Intended to be edited using the Node Source Editor window. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Source", meta = (MultiLine = true))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings", AdvancedDisplay, meta = (MultiLine = true))
 	FString ShaderSource;
 
 	/** Inputs data accessors that can be used from the shader code. Intended to be viewed using the Node Source Editor window. */
-	UPROPERTY(Transient, VisibleAnywhere, Category = "Declarations|Inputs", meta = (MultiLine = true))
+	UPROPERTY(Transient, VisibleAnywhere, Category = "Settings", AdvancedDisplay, meta = (MultiLine = true))
 	FString InputDeclarations;
 
 	/** Output data accessors that can be used from the shader code. Intended to be viewed using the Node Source Editor window. */
-	UPROPERTY(Transient, VisibleAnywhere, Category = "Declarations|Outputs", meta = (MultiLine = true))
+	UPROPERTY(Transient, VisibleAnywhere, Category = "Settings", AdvancedDisplay, meta = (MultiLine = true))
 	FString OutputDeclarations;
 
 	/** Helper data and functions that can be used from the shader code. Intended to be viewed using the Node Source Editor window. */
-	UPROPERTY(Transient, VisibleAnywhere, Category = "Declarations|Helpers", meta = (MultiLine = true))
+	UPROPERTY(Transient, VisibleAnywhere, Category = "Settings", AdvancedDisplay, meta = (MultiLine = true))
 	FString HelperDeclarations;
 
 	/** Attributes statically detected as being read, written, or created by this node. */

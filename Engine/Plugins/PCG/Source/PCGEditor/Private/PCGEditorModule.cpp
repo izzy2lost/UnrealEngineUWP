@@ -8,11 +8,9 @@
 #include "PCGParamData.h"
 #include "PCGSubsystem.h"
 #include "PCGVolumeFactory.h"
+#include "Compute/Elements/PCGCustomHLSL.h"
 #include "Data/PCGSpatialData.h"
 #include "Data/PCGSplineData.h"
-#include "DataVisualizations/PCGParamDataVisualization.h"
-#include "DataVisualizations/PCGSpatialDataVisualization.h"
-#include "DataVisualizations/PCGSplineDataVisualization.h"
 #include "Grid/PCGPartitionActor.h"
 #include "WorldPartitionBuilder/PCGWorldPartitionBuilder.h"
 
@@ -23,7 +21,18 @@
 #include "PCGEditorSettings.h"
 #include "PCGEditorStyle.h"
 #include "PCGEditorUtils.h"
-#include "Widgets/SPCGNodeSourceTextBox.h"
+#include "DataVisualizations/PCGParamDataVisualization.h"
+#include "DataVisualizations/PCGSpatialDataVisualization.h"
+#include "DataVisualizations/PCGSplineDataVisualization.h"
+#include "Details/PCGAttributePropertySelectorDetails.h"
+#include "Details/PCGBlueprintSettingsDetails.h"
+#include "Details/PCGComponentDetails.h"
+#include "Details/PCGCustomHLSLSettingsDetails.h"
+#include "Details/PCGEditableUserParameterDetails.h"
+#include "Details/PCGGraphDetails.h"
+#include "Details/PCGGraphInstanceDetails.h"
+#include "Details/PCGInstancedPropertyBagOverrideDetails.h"
+#include "Details/PCGVolumeDetails.h"
 
 #include "ContentBrowserMenuContexts.h"
 #include "ContentBrowserModule.h"
@@ -33,23 +42,16 @@
 #include "EditorModes.h"
 #include "IContentBrowserSingleton.h"
 #include "ISettingsModule.h"
+#include "LevelEditor.h"
 #include "LevelEditorMenuContext.h"
 #include "PropertyEditorModule.h"
 #include "ScopedTransaction.h"
 #include "ToolMenus.h"
-
 #include "Details/EnumSelectorDetails.h"
-#include "Details/PCGAttributePropertySelectorDetails.h"
-#include "Details/PCGBlueprintSettingsDetails.h"
-#include "Details/PCGEditableUserParameterDetails.h"
-#include "Details/PCGGraphDetails.h"
-#include "Details/PCGGraphInstanceDetails.h"
-#include "Details/PCGInstancedPropertyBagOverrideDetails.h"
-#include "Details/PCGVolumeDetails.h"
-#include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "LevelEditor.h"
 #include "Editor/SceneOutliner/Public/ISceneOutliner.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/Notifications/NotificationManager.h"
+#include "Widgets/SPCGNodeSourceTextBox.h"
 
 #define LOCTEXT_NAMESPACE "FPCGEditorModule"
 
@@ -232,6 +234,7 @@ void FPCGEditorModule::RegisterDetailsCustomizations()
 	PropertyEditor.RegisterCustomClassLayout("PCGGraphInstance", FOnGetDetailCustomizationInstance::CreateStatic(&FPCGGraphInstanceDetails::MakeInstance));
 	PropertyEditor.RegisterCustomClassLayout("PCGVolume", FOnGetDetailCustomizationInstance::CreateStatic(&FPCGVolumeDetails::MakeInstance));
 	PropertyEditor.RegisterCustomClassLayout("PCGUserParameterGetSettings", FOnGetDetailCustomizationInstance::CreateStatic(&FPCGEditableUserParameterDetails::MakeInstance));
+	PropertyEditor.RegisterCustomClassLayout(UPCGCustomHLSLSettings::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FPCGCustomHLSLSettingsDetails::MakeInstance));
 
 	PropertyEditor.RegisterCustomPropertyTypeLayout("PCGAttributePropertySelector", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FPCGAttributePropertySelectorDetails::MakeInstance));
 	PropertyEditor.RegisterCustomPropertyTypeLayout("PCGAttributePropertyInputSelector", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FPCGAttributePropertySelectorDetails::MakeInstance));

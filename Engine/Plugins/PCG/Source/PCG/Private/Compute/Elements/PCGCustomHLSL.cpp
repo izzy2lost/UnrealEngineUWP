@@ -720,6 +720,7 @@ void UPCGCustomHLSLSettings::UpdateInputDeclarations()
 		InputDeclarations += FString::Format(TEXT(
 			"uint {0}_GetNumData();\n"
 			"uint {0}_GetNumElements();\n"
+			"uint {0}_GetDataNumElements(uint DataIndex);\n"
 			"\n"
 			"// Valid types: bool, int, float, float2, float3, float4, Rotator (float3), Quat (float4), Transform (float4x4), StringKey (int)\n"
 			"\n"
@@ -742,7 +743,6 @@ void UPCGCustomHLSLSettings::UpdateInputDeclarations()
 		}
 
 		InputDeclarations += FString::Format(TEXT(
-			"uint {0}_GetNumPoints(uint DataIndex);\n"
 			"float3 {0}_GetPosition(uint DataIndex, uint ElementIndex);\n"
 			"float4 {0}_GetRotation(uint DataIndex, uint ElementIndex);\n"
 			"float3 {0}_GetScale(uint DataIndex, uint ElementIndex);\n"
