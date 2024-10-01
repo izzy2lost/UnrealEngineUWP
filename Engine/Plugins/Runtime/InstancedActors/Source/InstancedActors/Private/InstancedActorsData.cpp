@@ -11,6 +11,7 @@
 #include "InstancedActorsVisualizationTrait.h"
 #include "InstancedActorsSettingsTypes.h"
 #include "InstancedActorsSettings.h"
+#include "InstancedActorsCommands.h"
 #include "UObject/ObjectSaveContext.h"
 #include "Algo/Count.h"
 #include "Algo/NoneOf.h"
@@ -312,11 +313,9 @@ void UInstancedActorsData::CreateEntityTemplate(const AActor& ExemplarActor)
 
 void UInstancedActorsData::ModifyEntityTemplate(FMassEntityTemplateData& ModifiedTemplate, const AActor&)
 {
-	ModifiedTemplate.RemoveTag<FMassDistanceLODProcessorTag>();
-	ModifiedTemplate.RemoveTag<FMassCollectDistanceLODViewerInfoTag>();
-	ModifiedTemplate.RemoveTag<FInstancedActorsVisualizationProcessorTag>();
-	// not needed really, since we don't add it in any of the traits but leaving here for the reference
-	// ModifiedTemplate.RemoveTag<FMassStationaryISMSwitcherProcessorTag>();
+	// NOTE: Removes some tags that are added by default by the traits that we add to the original template,
+	// but are toggled by the UInstancedActorsStationaryLODBatchProcessor and shouldn't be active when the Mass entities are created.
+	ModifiedTemplate.GetMutableTags().Remove(UE::InstancedActors::GetDetailedLODTags());
 }
 
 void UInstancedActorsData::ReleaseEntityTemplate()
