@@ -41,6 +41,8 @@ enum EMaterialExposedViewProperty : int
 	MEVP_RuntimeVirtualTextureMaxLevel UMETA(DisplayName = "Virtual Texture Max Level"),
 	/** Screen percentage at which the rendering resolution happens, to allow tech-art to remain consistent with dynamic resolution. */
 	MEVP_ResolutionFraction UMETA(DisplayName = "ScreenPercentage / 100"),
+	/** Post process volume user flags, useful for varying the behavior of a material per view */
+	MEVP_PostVolumeUserFlags UMETA(DisplayName = "Post Process Volume User Flags"),
 
 	MEVP_MAX,
 };
