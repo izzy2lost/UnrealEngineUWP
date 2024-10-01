@@ -70,16 +70,16 @@ namespace UE::Audio::Insights
 
 #if WITH_EDITOR
 		TSharedRef<SWidget> MakeMuteSoloWidget();
-		TSharedRef<SWidget> MakePlotsButtonWidget();
 
 		void ToggleMuteForAllItems(ECheckBoxState NewState);
 		void ToggleSoloForAllItems(ECheckBoxState NewState);
 
 		TSharedRef<FTabManager::FLayout> LoadLayoutFromConfig();
 		void SaveLayoutToConfig();
-
-		void TogglePlotsTabVisibility(ECheckBoxState InCheckboxState);
 #endif // WITH EDITOR
+
+		TSharedRef<SWidget> MakePlotsButtonWidget();
+		void TogglePlotsTabVisibility(ECheckBoxState InCheckboxState);
 
 		TSharedRef<SDockTab> CreateMixerSourcesTab(const FSpawnTabArgs& Args);
 		TSharedRef<SDockTab> CreatePlotsTab(const FSpawnTabArgs& Args);
