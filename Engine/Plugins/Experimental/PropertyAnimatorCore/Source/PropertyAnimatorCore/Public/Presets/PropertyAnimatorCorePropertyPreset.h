@@ -44,5 +44,5 @@ public:
 	PROPERTYANIMATORCORE_API virtual void GetAppliedPresetProperties(const UPropertyAnimatorCoreBase* InAnimator, TSet<FPropertyAnimatorCoreData>& OutSupportedProperties, TSet<FPropertyAnimatorCoreData>& OutAppliedProperties);
 
 protected:
-	TMap<FString, TSharedRef<FJsonValue>> PropertyPresets;
+	TMap<FString, TSharedRef<FPropertyAnimatorCorePresetArchive>> PropertyPresets;
 };

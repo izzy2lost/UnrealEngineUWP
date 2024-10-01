@@ -99,7 +99,7 @@ public:
 	}
 
 	PROPERTYANIMATOR_API void SetDirection(EPropertyAnimatorTextResolverRangeDirection InDirection);
-	EPropertyAnimatorTextResolverRangeDirection GeDirection() const
+	EPropertyAnimatorTextResolverRangeDirection GetDirection() const
 	{
 		return Direction;
 	}
@@ -107,12 +107,12 @@ public:
 	//~ Begin UPropertyAnimatorCoreResolver
 	virtual void GetResolvableProperties(const FPropertyAnimatorCoreData& InParentProperty, TSet<FPropertyAnimatorCoreData>& OutProperties) override;
 	virtual void ResolveProperties(const FPropertyAnimatorCoreData& InTemplateProperty, TArray<FPropertyAnimatorCoreData>& OutProperties, bool bInForEvaluation) override;
-	virtual bool ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue) override;
-	virtual bool ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue) override;
+	virtual bool ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FPropertyAnimatorCorePresetArchive>& InValue) override;
+	virtual bool ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FPropertyAnimatorCorePresetArchive>& OutValue) const override;
 	//~ End UPropertyAnimatorCoreResolver
 
 protected:
-	UPROPERTY(EditInstanceOnly, Category="Animator")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator")
 	EPropertyAnimatorTextResolverRangeUnit Unit = EPropertyAnimatorTextResolverRangeUnit::Percentage;
 
 	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(ClampMin="0", ClampMax="100", Units=Percent, EditCondition="Unit == EPropertyAnimatorTextResolverRangeUnit::Percentage", EditConditionHides))
@@ -124,24 +124,24 @@ protected:
 	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(Units=Percent, Delta="1", EditCondition="Unit == EPropertyAnimatorTextResolverRangeUnit::Percentage", EditConditionHides))
 	float Offset = 0.f;
 
-	UPROPERTY(EditInstanceOnly, Category="Animator", meta=(ClampMin="0", EditCondition="Unit == EPropertyAnimatorTextResolverRangeUnit::Character", EditConditionHides))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(ClampMin="0", EditCondition="Unit == EPropertyAnimatorTextResolverRangeUnit::Character", EditConditionHides))
 	int32 CharacterStartIndex = 0;
 
-	UPROPERTY(EditInstanceOnly, Category="Animator", meta=(ClampMin="0", EditCondition="Unit == EPropertyAnimatorTextResolverRangeUnit::Character", EditConditionHides))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(ClampMin="0", EditCondition="Unit == EPropertyAnimatorTextResolverRangeUnit::Character", EditConditionHides))
 	int32 CharacterEndIndex = 100;
 
-	UPROPERTY(EditInstanceOnly, Category="Animator", meta=(EditCondition="Unit == EPropertyAnimatorTextResolverRangeUnit::Character", EditConditionHides))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(EditCondition="Unit == EPropertyAnimatorTextResolverRangeUnit::Character", EditConditionHides))
 	int32 CharacterOffsetIndex = 0;
 
-	UPROPERTY(EditInstanceOnly, Category="Animator", meta=(ClampMin="0", EditCondition="Unit == EPropertyAnimatorTextResolverRangeUnit::Word", EditConditionHides))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(ClampMin="0", EditCondition="Unit == EPropertyAnimatorTextResolverRangeUnit::Word", EditConditionHides))
 	int32 WordStartIndex = 0;
 
-	UPROPERTY(EditInstanceOnly, Category="Animator", meta=(ClampMin="0", EditCondition="Unit == EPropertyAnimatorTextResolverRangeUnit::Word", EditConditionHides))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(ClampMin="0", EditCondition="Unit == EPropertyAnimatorTextResolverRangeUnit::Word", EditConditionHides))
 	int32 WordEndIndex = 100;
 
-	UPROPERTY(EditInstanceOnly, Category="Animator", meta=(EditCondition="Unit == EPropertyAnimatorTextResolverRangeUnit::Word", EditConditionHides))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(EditCondition="Unit == EPropertyAnimatorTextResolverRangeUnit::Word", EditConditionHides))
 	int32 WordOffsetIndex = 0;
 
-	UPROPERTY(EditInstanceOnly, Category="Animator")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator")
 	EPropertyAnimatorTextResolverRangeDirection Direction = EPropertyAnimatorTextResolverRangeDirection::LeftToRight;
 };

@@ -2,8 +2,7 @@
 
 #include "Properties/PropertyAnimatorTextResolver.h"
 
-#include "Dom/JsonObject.h"
-#include "Dom/JsonValue.h"
+#include "Presets/PropertyAnimatorCorePresetArchive.h"
 #include "Text3DComponent.h"
 
 void UPropertyAnimatorTextResolver::SetUnit(EPropertyAnimatorTextResolverRangeUnit InUnit)
@@ -260,57 +259,55 @@ void UPropertyAnimatorTextResolver::ResolveProperties(const FPropertyAnimatorCor
 	}
 }
 
-bool UPropertyAnimatorTextResolver::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue)
+bool UPropertyAnimatorTextResolver::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FPropertyAnimatorCorePresetArchive>& InValue)
 {
-	const TSharedPtr<FJsonObject>* JsonResolverObjectPtr;
-
-	if (Super::ImportPreset(InPreset, InValue) && InValue->TryGetObject(JsonResolverObjectPtr))
+	if (Super::ImportPreset(InPreset, InValue) && InValue->IsObject())
 	{
-		const TSharedPtr<FJsonObject> JsonResolverObject = *JsonResolverObjectPtr;
+		const TSharedPtr<FPropertyAnimatorCorePresetObjectArchive> ResolverArchive = InValue->AsMutableObject();
 
-		uint8 JsonUnit = static_cast<uint8>(Unit);
-		JsonResolverObject->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, Unit), JsonUnit);
-		SetUnit(static_cast<EPropertyAnimatorTextResolverRangeUnit>(JsonUnit));
+		uint64 UnitValue = static_cast<uint64>(Unit);
+		ResolverArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, Unit), UnitValue);
+		SetUnit(static_cast<EPropertyAnimatorTextResolverRangeUnit>(UnitValue));
 
-		float JsonStart = Start;
-		JsonResolverObject->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, Start), JsonStart);
-		SetStart(JsonStart);
+		double StartValue = Start;
+		ResolverArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, Start), StartValue);
+		SetStart(StartValue);
 
-		float JsonEnd = End;
-		JsonResolverObject->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, End), JsonEnd);
-		SetEnd(JsonEnd);
+		double EndValue = End;
+		ResolverArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, End), EndValue);
+		SetEnd(EndValue);
 
-		float JsonOffset = Offset;
-		JsonResolverObject->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, Offset), JsonOffset);
-		SetOffset(JsonOffset);
+		double OffsetValue = Offset;
+		ResolverArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, Offset), OffsetValue);
+		SetOffset(OffsetValue);
 
-		int32 JsonCharStartIndex = CharacterStartIndex;
-		JsonResolverObject->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, CharacterStartIndex), JsonCharStartIndex);
-		SetCharacterStartIndex(JsonCharStartIndex);
+		int64 CharStartIndexValue = CharacterStartIndex;
+		ResolverArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, CharacterStartIndex), CharStartIndexValue);
+		SetCharacterStartIndex(CharStartIndexValue);
 
-		int32 JsonCharEndIndex = CharacterEndIndex;
-		JsonResolverObject->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, CharacterEndIndex), JsonCharEndIndex);
-		SetCharacterEndIndex(JsonCharEndIndex);
+		int64 CharEndIndexValue = CharacterEndIndex;
+		ResolverArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, CharacterEndIndex), CharEndIndexValue);
+		SetCharacterEndIndex(CharEndIndexValue);
 
-		int32 JsonCharOffsetIndex = CharacterOffsetIndex;
-		JsonResolverObject->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, CharacterOffsetIndex), JsonCharOffsetIndex);
-		SetCharacterOffsetIndex(JsonCharOffsetIndex);
+		int64 CharOffsetIndexValue = CharacterOffsetIndex;
+		ResolverArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, CharacterOffsetIndex), CharOffsetIndexValue);
+		SetCharacterOffsetIndex(CharOffsetIndexValue);
 
-		int32 JsonWordStartIndex = WordStartIndex;
-		JsonResolverObject->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, WordStartIndex), JsonWordStartIndex);
-		SetWordStartIndex(JsonWordStartIndex);
+		int64 WordStartIndexValue = WordStartIndex;
+		ResolverArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, WordStartIndex), WordStartIndexValue);
+		SetWordStartIndex(WordStartIndexValue);
 
-		int32 JsonWordEndIndex = WordEndIndex;
-		JsonResolverObject->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, WordEndIndex), JsonWordEndIndex);
-		SetWordEndIndex(JsonWordEndIndex);
+		int64 WordEndIndexValue = WordEndIndex;
+		ResolverArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, WordEndIndex), WordEndIndexValue);
+		SetWordEndIndex(WordEndIndexValue);
 
-		int32 JsonWordOffsetIndex = WordOffsetIndex;
-		JsonResolverObject->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, WordOffsetIndex), JsonWordOffsetIndex);
-		SetWordOffsetIndex(JsonWordOffsetIndex);
+		int64 WordOffsetIndexValue = WordOffsetIndex;
+		ResolverArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, WordOffsetIndex), WordOffsetIndexValue);
+		SetWordOffsetIndex(WordOffsetIndexValue);
 
-		uint8 JsonDirection = static_cast<uint8>(Direction);
-		JsonResolverObject->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, Direction), JsonDirection);
-		SetDirection(static_cast<EPropertyAnimatorTextResolverRangeDirection>(JsonWordOffsetIndex));
+		uint64 DirectionValue = static_cast<uint64>(Direction);
+		ResolverArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, Direction), DirectionValue);
+		SetDirection(static_cast<EPropertyAnimatorTextResolverRangeDirection>(WordOffsetIndexValue));
 
 		return true;
 	}
@@ -318,25 +315,23 @@ bool UPropertyAnimatorTextResolver::ImportPreset(const UPropertyAnimatorCorePres
 	return false;
 }
 
-bool UPropertyAnimatorTextResolver::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue)
+bool UPropertyAnimatorTextResolver::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FPropertyAnimatorCorePresetArchive>& OutValue) const
 {
-	const TSharedPtr<FJsonObject>* JsonResolverObjectPtr;
-
-	if (Super::ExportPreset(InPreset, OutValue) && OutValue->TryGetObject(JsonResolverObjectPtr))
+	if (Super::ExportPreset(InPreset, OutValue) && OutValue->IsObject())
 	{
-		const TSharedPtr<FJsonObject> JsonResolverObject = *JsonResolverObjectPtr;
+		const TSharedPtr<FPropertyAnimatorCorePresetObjectArchive> ResolverArchive = OutValue->AsMutableObject();
 
-		JsonResolverObject->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, Unit), static_cast<uint8>(Unit));
-		JsonResolverObject->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, Start), Start);
-		JsonResolverObject->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, End), End);
-		JsonResolverObject->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, Offset), Offset);
-		JsonResolverObject->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, CharacterStartIndex), CharacterStartIndex);
-		JsonResolverObject->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, CharacterEndIndex), CharacterEndIndex);
-		JsonResolverObject->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, CharacterOffsetIndex), CharacterOffsetIndex);
-		JsonResolverObject->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, WordStartIndex), WordStartIndex);
-		JsonResolverObject->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, WordEndIndex), WordEndIndex);
-		JsonResolverObject->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, WordOffsetIndex), WordOffsetIndex);
-		JsonResolverObject->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, Direction), static_cast<uint8>(Direction));
+		ResolverArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, Unit), static_cast<uint64>(Unit));
+		ResolverArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, Start), Start);
+		ResolverArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, End), End);
+		ResolverArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, Offset), Offset);
+		ResolverArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, CharacterStartIndex), static_cast<int64>(CharacterStartIndex));
+		ResolverArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, CharacterEndIndex), static_cast<int64>(CharacterEndIndex));
+		ResolverArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, CharacterOffsetIndex), static_cast<int64>(CharacterOffsetIndex));
+		ResolverArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, WordStartIndex), static_cast<int64>(WordStartIndex));
+		ResolverArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, WordEndIndex), static_cast<int64>(WordEndIndex));
+		ResolverArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, WordOffsetIndex), static_cast<int64>(WordOffsetIndex));
+		ResolverArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorTextResolver, Direction), static_cast<uint64>(Direction));
 
 		return true;
 	}

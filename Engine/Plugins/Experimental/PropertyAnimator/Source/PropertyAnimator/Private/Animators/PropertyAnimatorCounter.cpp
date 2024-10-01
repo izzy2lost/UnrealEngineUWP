@@ -2,8 +2,6 @@
 
 #include "Animators/PropertyAnimatorCounter.h"
 
-#include "Dom/JsonObject.h"
-#include "Dom/JsonValue.h"
 #include "Properties/Converters/PropertyAnimatorCoreConverterBase.h"
 #include "Settings/PropertyAnimatorSettings.h"
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
@@ -283,39 +281,48 @@ void UPropertyAnimatorCounter::EvaluateProperties(FInstancedPropertyBag& InParam
 	});
 }
 
-bool UPropertyAnimatorCounter::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue)
+bool UPropertyAnimatorCounter::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FPropertyAnimatorCorePresetArchive>& InValue)
 {
-	const TSharedPtr<FJsonObject>* JsonAnimatorObject;
-
-	if (Super::ImportPreset(InPreset, InValue) && InValue->TryGetObject(JsonAnimatorObject))
+	if (Super::ImportPreset(InPreset, InValue) && InValue->IsObject())
 	{
-		FString JsonDisplayPattern = DisplayPattern.ToString();
-		(*JsonAnimatorObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCounter, DisplayPattern), JsonDisplayPattern);
-		SetDisplayPattern(FText::FromString(JsonDisplayPattern));
+		const TSharedPtr<FPropertyAnimatorCorePresetObjectArchive> AnimatorArchive = InValue->AsMutableObject();
 
-		FString JsonPresetFormatNameStr = PresetFormatName.ToString();
-		(*JsonAnimatorObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCounter, PresetFormatName), JsonPresetFormatNameStr);
-		FName JsonPresetFormatName(JsonPresetFormatNameStr);
-		SetPresetFormatName(JsonPresetFormatName);
+		FString DisplayPatternValue = DisplayPattern.ToString();
+		AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCounter, DisplayPattern), DisplayPatternValue);
+		SetDisplayPattern(FText::FromString(DisplayPatternValue));
 
-		if (!PresetFormatName.IsEqual(JsonPresetFormatName))
+		FString PresetFormatNameValue = PresetFormatName.ToString();
+		AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCounter, PresetFormatName), PresetFormatNameValue);
+		FName NewPresetFormatName(PresetFormatNameValue);
+		SetPresetFormatName(NewPresetFormatName);
+
+		if (!PresetFormatName.IsEqual(NewPresetFormatName))
 		{
 			FPropertyAnimatorCounterFormat Format;
-			Format.FormatName = JsonPresetFormatName;
+			Format.FormatName = NewPresetFormatName;
 
-			(*JsonAnimatorObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, MinIntegerCount), Format.MinIntegerCount);
-			(*JsonAnimatorObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, MaxDecimalCount), Format.MaxDecimalCount);
-			(*JsonAnimatorObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, GroupingSize), Format.GroupingSize);
-			(*JsonAnimatorObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, DecimalCharacter), Format.DecimalCharacter);
-			(*JsonAnimatorObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, GroupingCharacter), Format.GroupingCharacter);
-			(*JsonAnimatorObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, PaddingCharacter), Format.PaddingCharacter);
+			uint64 IntegerCount = Format.MinIntegerCount;
+			AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, MinIntegerCount), IntegerCount);
+			Format.MinIntegerCount = IntegerCount;
 
-			uint8 JsonRoundingMode = static_cast<uint8>(Format.RoundingMode);
-			(*JsonAnimatorObject)->TryGetNumberField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, RoundingMode), JsonRoundingMode);
-			Format.RoundingMode = static_cast<EPropertyAnimatorCounterRoundingMode>(JsonRoundingMode);
+			uint64 DecimalCount = Format.MaxDecimalCount;
+			AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, MaxDecimalCount), DecimalCount);
+			Format.MaxDecimalCount = DecimalCount;
 
-			(*JsonAnimatorObject)->TryGetBoolField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, bUseSign), Format.bUseSign);
-			(*JsonAnimatorObject)->TryGetBoolField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, bTruncate), Format.bTruncate);
+			uint64 GroupingSize = Format.GroupingSize;
+			AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, GroupingSize), GroupingSize);
+			Format.GroupingSize = GroupingSize;
+
+			AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, DecimalCharacter), Format.DecimalCharacter);
+			AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, GroupingCharacter), Format.GroupingCharacter);
+			AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, PaddingCharacter), Format.PaddingCharacter);
+
+			uint64 RoundingModeValue = static_cast<uint64>(Format.RoundingMode);
+			AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, RoundingMode), RoundingModeValue);
+			Format.RoundingMode = static_cast<EPropertyAnimatorCounterRoundingMode>(RoundingModeValue);
+
+			AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, bUseSign), Format.bUseSign);
+			AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, bTruncate), Format.bTruncate);
 
 			SetUseCustomFormat(true);
 			SetCustomFormat(&Format);
@@ -327,26 +334,26 @@ bool UPropertyAnimatorCounter::ImportPreset(const UPropertyAnimatorCorePresetBas
 	return false;
 }
 
-bool UPropertyAnimatorCounter::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue)
+bool UPropertyAnimatorCounter::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FPropertyAnimatorCorePresetArchive>& OutValue) const
 {
-	const TSharedPtr<FJsonObject>* JsonAnimatorObject;
-
-	if (Super::ExportPreset(InPreset, OutValue) && OutValue->TryGetObject(JsonAnimatorObject))
+	if (Super::ExportPreset(InPreset, OutValue) && OutValue->IsObject())
 	{
-		(*JsonAnimatorObject)->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCounter, DisplayPattern), DisplayPattern.ToString());
+		const TSharedPtr<FPropertyAnimatorCorePresetObjectArchive> AnimatorArchive = OutValue->AsMutableObject();
+
+		AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCounter, DisplayPattern), DisplayPattern.ToString());
 
 		if (const FPropertyAnimatorCounterFormat* Format = GetFormat())
 		{
-			(*JsonAnimatorObject)->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCounter, PresetFormatName), bUseCustomFormat ? Format->FormatName.ToString() : PresetFormatName.ToString());
-			(*JsonAnimatorObject)->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, MinIntegerCount), Format->MinIntegerCount);
-			(*JsonAnimatorObject)->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, MaxDecimalCount), Format->MaxDecimalCount);
-			(*JsonAnimatorObject)->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, GroupingSize), Format->GroupingSize);
-			(*JsonAnimatorObject)->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, DecimalCharacter), Format->DecimalCharacter);
-			(*JsonAnimatorObject)->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, GroupingCharacter), Format->GroupingCharacter);
-			(*JsonAnimatorObject)->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, PaddingCharacter), Format->PaddingCharacter);
-			(*JsonAnimatorObject)->SetNumberField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, RoundingMode), static_cast<uint8>(Format->RoundingMode));
-			(*JsonAnimatorObject)->SetBoolField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, bUseSign), Format->bUseSign);
-			(*JsonAnimatorObject)->SetBoolField(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, bTruncate), Format->bTruncate);
+			AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCounter, PresetFormatName), bUseCustomFormat ? Format->FormatName.ToString() : PresetFormatName.ToString());
+			AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, MinIntegerCount), static_cast<uint64>(Format->MinIntegerCount));
+			AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, MaxDecimalCount), static_cast<uint64>(Format->MaxDecimalCount));
+			AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, GroupingSize), static_cast<uint64>(Format->GroupingSize));
+			AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, DecimalCharacter), Format->DecimalCharacter);
+			AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, GroupingCharacter), Format->GroupingCharacter);
+			AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, PaddingCharacter), Format->PaddingCharacter);
+			AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, RoundingMode), static_cast<uint64>(Format->RoundingMode));
+			AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, bUseSign), Format->bUseSign);
+			AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(FPropertyAnimatorCounterFormat, bTruncate), Format->bTruncate);
 		}
 
 		return true;

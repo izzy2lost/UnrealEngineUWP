@@ -2,8 +2,6 @@
 
 #include "Animators/PropertyAnimatorSoundWave.h"
 
-#include "Dom/JsonObject.h"
-#include "Dom/JsonValue.h"
 #include "LoudnessNRT.h"
 #include "Properties/Handlers/PropertyAnimatorCoreHandlerBase.h"
 #include "Properties/PropertyAnimatorFloatContext.h"
@@ -96,23 +94,23 @@ bool UPropertyAnimatorSoundWave::EvaluateProperty(const FPropertyAnimatorCoreDat
 	return false;
 }
 
-bool UPropertyAnimatorSoundWave::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue)
+bool UPropertyAnimatorSoundWave::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FPropertyAnimatorCorePresetArchive>& InValue)
 {
-	const TSharedPtr<FJsonObject>* JsonAnimatorObject;
-
-	if (Super::ImportPreset(InPreset, InValue) && InValue->TryGetObject(JsonAnimatorObject))
+	if (Super::ImportPreset(InPreset, InValue) && InValue->IsObject())
 	{
-		FString JsonSoundWave;
-		(*JsonAnimatorObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorSoundWave, SampledSoundWave), JsonSoundWave);
+		const TSharedPtr<FPropertyAnimatorCorePresetObjectArchive> AnimatorArchive = InValue->AsMutableObject();
 
-		if (USoundWave* SoundWave = LoadObject<USoundWave>(nullptr, *JsonSoundWave))
+		FString SoundWaveValue;
+		AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorSoundWave, SampledSoundWave), SoundWaveValue);
+
+		if (USoundWave* SoundWave = LoadObject<USoundWave>(nullptr, *SoundWaveValue))
 		{
 			SetSampledSoundWave(SoundWave);
 		}
 
-		bool bJsonLoop = bLoop;
-		(*JsonAnimatorObject)->TryGetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorSoundWave, bLoop), bLoop);
-		SetLoop(bJsonLoop);
+		bool bLoopValue = bLoop;
+		AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorSoundWave, bLoop), bLoop);
+		SetLoop(bLoopValue);
 
 		return true;
 	}
@@ -120,18 +118,18 @@ bool UPropertyAnimatorSoundWave::ImportPreset(const UPropertyAnimatorCorePresetB
 	return false;
 }
 
-bool UPropertyAnimatorSoundWave::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue)
+bool UPropertyAnimatorSoundWave::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FPropertyAnimatorCorePresetArchive>& OutValue) const
 {
-	const TSharedPtr<FJsonObject>* JsonAnimatorObject;
-
-	if (Super::ExportPreset(InPreset, OutValue) && OutValue->TryGetObject(JsonAnimatorObject))
+	if (Super::ExportPreset(InPreset, OutValue) && OutValue->IsObject())
 	{
+		const TSharedPtr<FPropertyAnimatorCorePresetObjectArchive> AnimatorArchive = OutValue->AsMutableObject();
+
 		if (SampledSoundWave)
 		{
-			(*JsonAnimatorObject)->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorSoundWave, SampledSoundWave), SampledSoundWave.GetPath());
+			AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorSoundWave, SampledSoundWave), SampledSoundWave.GetPath());
 		}
 
-		(*JsonAnimatorObject)->SetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorSoundWave, bLoop), bLoop);
+		AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorSoundWave, bLoop), bLoop);
 
 		return true;
 	}

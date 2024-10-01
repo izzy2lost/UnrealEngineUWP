@@ -3,7 +3,6 @@
 #include "Animators/PropertyAnimatorCoreBase.h"
 
 #include "Components/PropertyAnimatorCoreComponent.h"
-#include "Dom/JsonObject.h"
 #include "GameFramework/Actor.h"
 #include "Properties/PropertyAnimatorCoreResolver.h"
 #include "Properties/Handlers/PropertyAnimatorCoreHandlerBase.h"
@@ -207,102 +206,110 @@ void UPropertyAnimatorCoreBase::PostEditChangeProperty(FPropertyChangedEvent& Pr
 }
 #endif
 
-bool UPropertyAnimatorCoreBase::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FJsonValue>& InValue)
+bool UPropertyAnimatorCoreBase::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FPropertyAnimatorCorePresetArchive>& InValue)
 {
-	const TSharedPtr<FJsonObject>* JsonAnimatorObject;
-	if (!InValue->TryGetObject(JsonAnimatorObject) || !JsonAnimatorObject)
+	if (!InValue->IsObject())
 	{
 		return false;
 	}
 
-	bool bJsonEnabled = bAnimatorEnabled;
-	(*JsonAnimatorObject)->TryGetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, bAnimatorEnabled), bJsonEnabled);
-	SetAnimatorEnabled(bJsonEnabled);
+	const TSharedPtr<FPropertyAnimatorCorePresetObjectArchive> AnimatorArchive = InValue->AsMutableObject();
 
-	FString JsonDisplayName = AnimatorDisplayName.ToString();
-	(*JsonAnimatorObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, AnimatorDisplayName), JsonDisplayName);
-	SetAnimatorDisplayName(FName(JsonDisplayName));
+	bool bEnabledValue = bAnimatorEnabled;
+	AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, bAnimatorEnabled), bEnabledValue);
+	SetAnimatorEnabled(bEnabledValue);
 
-	const TArray<TSharedPtr<FJsonValue>>* JsonValues;
-	(*JsonAnimatorObject)->TryGetArrayField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, LinkedProperties), JsonValues);
-	for (const TSharedPtr<FJsonValue>& JsonValue : (*JsonValues))
+	FString DisplayNameValue = AnimatorDisplayName.ToString();
+	AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, AnimatorDisplayName), DisplayNameValue);
+	SetAnimatorDisplayName(FName(DisplayNameValue));
+
+	TSharedPtr<FPropertyAnimatorCorePresetArchive> LinkedPropertiesArchive;
+	AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, LinkedProperties), LinkedPropertiesArchive);
+	if (const TSharedPtr<FPropertyAnimatorCorePresetArrayArchive> LinkedPropertiesArray = LinkedPropertiesArchive->AsMutableArray())
 	{
-		TSharedPtr<FJsonObject>* JsonPropertyObject;
-		if (!JsonValue->TryGetObject(JsonPropertyObject) || !JsonPropertyObject || !JsonPropertyObject->IsValid())
+		for (int32 Index = 0; Index < LinkedPropertiesArray->Num(); Index++)
 		{
-			continue;
-		}
+			TSharedPtr<FPropertyAnimatorCorePresetArchive> LinkedPropertyArchive;
+			if (!LinkedPropertiesArray->Get(Index, LinkedPropertyArchive) || !LinkedPropertyArchive->IsObject())
+			{
+				continue;
+			}
 
-		FString AnimatedPropertyLocatorPath;
-		if (!(*JsonPropertyObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, AnimatedProperty), AnimatedPropertyLocatorPath))
-		{
-			continue;
-		}
+			const TSharedPtr<FPropertyAnimatorCorePresetObjectArchive> LinkedPropertyObject = LinkedPropertyArchive->AsMutableObject();
 
-		FPropertyAnimatorCoreData PropertyData(GetAnimatorActor(), AnimatedPropertyLocatorPath);
+			FString AnimatedPropertyLocatorPath;
+			if (!LinkedPropertyObject->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, AnimatedProperty), AnimatedPropertyLocatorPath))
+			{
+				continue;
+			}
 
-		if (!PropertyData.IsResolved())
-		{
-			continue;
-		}
+			FPropertyAnimatorCoreData PropertyData(GetAnimatorActor(), AnimatedPropertyLocatorPath);
 
-		if (IPropertyAnimatorCorePresetable* PropertyContext = Cast<IPropertyAnimatorCorePresetable>(LinkProperty(PropertyData)))
-		{
-			PropertyContext->ImportPreset(InPreset, JsonValue.ToSharedRef());
+			if (!PropertyData.IsResolved())
+			{
+				continue;
+			}
+
+			if (IPropertyAnimatorCorePresetable* PropertyContext = Cast<IPropertyAnimatorCorePresetable>(LinkProperty(PropertyData)))
+			{
+				PropertyContext->ImportPreset(InPreset, LinkedPropertyArchive.ToSharedRef());
+			}
 		}
 	}
 
-	bool bJsonOverrideTimeSource = bOverrideTimeSource;
-	(*JsonAnimatorObject)->TryGetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, bOverrideTimeSource), bJsonOverrideTimeSource);
-	SetOverrideTimeSource(bJsonOverrideTimeSource);
+	bool bOverrideTimeSourceValue = bOverrideTimeSource;
+	AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, bOverrideTimeSource), bOverrideTimeSourceValue);
+	SetOverrideTimeSource(bOverrideTimeSourceValue);
 
-	FString JsonTimeSourceName = TimeSourceName.ToString();
-	(*JsonAnimatorObject)->TryGetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, TimeSourceName), JsonTimeSourceName);
-	SetTimeSourceName(FName(JsonTimeSourceName));
+	FString TimeSourceNameValue = TimeSourceName.ToString();
+	AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, TimeSourceName), TimeSourceNameValue);
+	SetTimeSourceName(FName(TimeSourceNameValue));
 
 	if (UPropertyAnimatorCoreTimeSourceBase* TimeSource = FindOrAddTimeSource(GetTimeSourceName()))
 	{
-		if ((*JsonAnimatorObject)->HasTypedField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, ActiveTimeSource), EJson::Object))
+		if (AnimatorArchive->Has(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, ActiveTimeSource), EPropertyAnimatorCorePresetArchiveType::Object))
 		{
-			TimeSource->ImportPreset(InPreset, (*JsonAnimatorObject)->TryGetField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, ActiveTimeSource)).ToSharedRef());
+			TSharedPtr<FPropertyAnimatorCorePresetArchive> TimeSourceArchive;
+			AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, ActiveTimeSource), TimeSourceArchive);
+			TimeSource->ImportPreset(InPreset, TimeSourceArchive.ToSharedRef());
 		}
 	}
 
 	return true;
 }
 
-bool UPropertyAnimatorCoreBase::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FJsonValue>& OutValue)
+bool UPropertyAnimatorCoreBase::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FPropertyAnimatorCorePresetArchive>& OutValue) const
 {
-	TSharedRef<FJsonObject> JsonAnimatorObject = MakeShared<FJsonObject>();
-	OutValue = MakeShared<FJsonValueObject>(JsonAnimatorObject);
+	TSharedPtr<FPropertyAnimatorCorePresetObjectArchive> AnimatorArchive = InPreset->GetArchiveImplementation()->CreateObject();
+	OutValue = AnimatorArchive;
 
-	JsonAnimatorObject->SetStringField(TEXT("AnimatorClass"), GetClass()->GetClassPathName().ToString());
-	JsonAnimatorObject->SetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, bAnimatorEnabled), bAnimatorEnabled);
-	JsonAnimatorObject->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, AnimatorDisplayName), AnimatorDisplayName.ToString());
+	AnimatorArchive->Set(TEXT("AnimatorClass"), GetClass()->GetClassPathName().ToString());
+	AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, bAnimatorEnabled), bAnimatorEnabled);
+	AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, AnimatorDisplayName), AnimatorDisplayName.ToString());
 
-	TArray<TSharedPtr<FJsonValue>> JsonValues;
+	TSharedPtr<FPropertyAnimatorCorePresetArrayArchive> LinkedPropertiesArchive = InPreset->GetArchiveImplementation()->CreateArray();
 	for (const TObjectPtr<UPropertyAnimatorCoreContext>& LinkedProperty : LinkedProperties)
 	{
 		if (IPropertyAnimatorCorePresetable* PropertyContext = Cast<IPropertyAnimatorCorePresetable>(LinkedProperty))
 		{
-			TSharedPtr<FJsonValue> JsonValue;
-			if (PropertyContext->ExportPreset(InPreset, JsonValue) && JsonValue.IsValid())
+			TSharedPtr<FPropertyAnimatorCorePresetArchive> LinkedPropertyArchive;
+			if (PropertyContext->ExportPreset(InPreset, LinkedPropertyArchive) && LinkedPropertyArchive.IsValid())
 			{
-				JsonValues.Add(JsonValue);
+				LinkedPropertiesArchive->Add(LinkedPropertyArchive.ToSharedRef());
 			}
 		}
 	}
-	JsonAnimatorObject->SetArrayField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, LinkedProperties), JsonValues);
+	AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, LinkedProperties), LinkedPropertiesArchive.ToSharedRef());
 
-	JsonAnimatorObject->SetBoolField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, bOverrideTimeSource), bOverrideTimeSource);
-	JsonAnimatorObject->SetStringField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, TimeSourceName), TimeSourceName.ToString());
+	AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, bOverrideTimeSource), bOverrideTimeSource);
+	AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, TimeSourceName), TimeSourceName.ToString());
 
 	if (UPropertyAnimatorCoreTimeSourceBase* TimeSource = GetActiveTimeSource())
 	{
-		TSharedPtr<FJsonValue> JsonValue;
-		if (TimeSource->ExportPreset(InPreset, JsonValue) && JsonValue.IsValid())
+		TSharedPtr<FPropertyAnimatorCorePresetArchive> TimeSourceArchive;
+		if (TimeSource->ExportPreset(InPreset, TimeSourceArchive) && TimeSourceArchive.IsValid())
 		{
-			JsonAnimatorObject->SetField(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, ActiveTimeSource), JsonValue);
+			AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreBase, ActiveTimeSource), TimeSourceArchive.ToSharedRef());
 		}
 	}
 

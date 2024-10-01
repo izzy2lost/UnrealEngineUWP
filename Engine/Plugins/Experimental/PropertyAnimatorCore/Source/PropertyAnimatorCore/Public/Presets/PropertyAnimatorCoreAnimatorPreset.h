@@ -34,5 +34,5 @@ protected:
 	UPROPERTY(Transient)
 	TSubclassOf<UPropertyAnimatorCoreBase> TargetAnimatorClass;
 
-	TSharedPtr<FJsonValue> AnimatorPreset;
+	TSharedPtr<FPropertyAnimatorCorePresetArchive> AnimatorPreset;
 };
