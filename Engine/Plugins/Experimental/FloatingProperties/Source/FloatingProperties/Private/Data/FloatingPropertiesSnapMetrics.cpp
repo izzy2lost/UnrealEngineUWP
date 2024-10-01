@@ -25,7 +25,7 @@ FVector2f FFloatingPropertiesSnapMetrics::GetSnapPosition(TSharedRef<FFloatingPr
 
 	if (InAttachType == EFloatingPropertiesSnapType::AttachAsParent)
 	{
-		Position.Y += InNode->GetPropertyWidget()->GetDesiredSize().Y;
+		Position.Y += InNode->GetPropertyWidget()->GetAbsolutePropertySize().Y;
 	}
 
 	return Position;
