@@ -176,6 +176,10 @@ void AChaosVDParticleActor::ProcessUpdatedAndRemovedHandles(TArray<TSharedPtr<FC
 				{
 					bExists = true;
 
+					// Although the geometry is the same, we need to copy over all the new data on the updated handle
+					// Otherwise the ptr to the root implicit object or the Shape Instance Index will be outdated 
+					*ExistingMeshDataHandle->GetGeometryHandle() = *GeometryDataHandle;
+
 					// If we have a CVD Geometry Component for this handle, just remove it from the list as it means we don't need to re-create it
 					HandleRemoveIterator.RemoveCurrent();
 					break;
@@ -254,7 +258,7 @@ void AChaosVDParticleActor::UpdateGeometry(const Chaos::FConstImplicitObjectPtr&
 	constexpr int32 LODsToGenerateNum = 3;
 	constexpr int32 LODsToGenerateNumForInstancedStaticMesh = 0;
 
-	GeometryGenerator->CreateMeshesFromImplicitObject(InImplicitObject, this, OutExtractedGeometryDataHandles, bHasToUseStaticMeshComponent ? LODsToGenerateNum : LODsToGenerateNumForInstancedStaticMesh);
+	GeometryGenerator->CreateMeshesFromImplicitObject(InImplicitObject, this, OutExtractedGeometryDataHandles, ParticleDataPtr->CollisionDataPerShape.Num(), bHasToUseStaticMeshComponent ? LODsToGenerateNum : LODsToGenerateNumForInstancedStaticMesh);
 
 	// This should not happen in theory, but there might be some valid situations where it does. Adding an ensure to catch them and then evaluate if it is really an issue (if it is not I will remove the ensure later on). 
 	if (!ensure(ObjectsToGenerateNum == OutExtractedGeometryDataHandles.Num()))

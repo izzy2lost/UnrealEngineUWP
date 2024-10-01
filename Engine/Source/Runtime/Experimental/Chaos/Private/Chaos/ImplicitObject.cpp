@@ -36,6 +36,9 @@ namespace Chaos
 
 	FImplicitObject::~FImplicitObject()
 	{
+		// CVD caches geometry hashes using ptrs as key. There is a chance that this ptr could get re-used
+		CVD_TRACE_INVALIDATE_CACHED_GEOMETRY(this)
+
 #if TRACK_CHAOS_GEOMETRY
 		if(bIsTracked)
 		{
