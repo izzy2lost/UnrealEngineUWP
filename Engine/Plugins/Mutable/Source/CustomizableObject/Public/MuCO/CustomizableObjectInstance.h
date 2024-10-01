@@ -249,6 +249,7 @@ public:
 	virtual bool IsReadyForFinishDestroy() override;
 	virtual FString GetDesc() override;
 	virtual bool IsEditorOnly() const override;
+	virtual void PostInitProperties() override;
 
 	/** Set the CustomizableObject this instance will be generated from. 
 	  * It is usually not necessary to call this since instances are already generated from a CustomizableObject. */

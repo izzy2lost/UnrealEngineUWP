@@ -287,8 +287,6 @@ const FCustomizableInstanceComponentData* UCustomizableInstancePrivate::GetCompo
 UCustomizableObjectInstance::UCustomizableObjectInstance()
 {
 	SetFlags(RF_Transactional);
-	
-	PrivateData = CreateDefaultSubobject<UCustomizableInstancePrivate>(FName("Private"));
 }
 
 
@@ -438,6 +436,23 @@ bool UCustomizableObjectInstance::IsEditorOnly() const
 		return CustomizableObject->IsEditorOnly();
 	}
 	return false;
+}
+
+void UCustomizableObjectInstance::PostInitProperties()
+{
+	UObject::PostInitProperties();
+
+	if (!HasAllFlags(RF_ClassDefaultObject))
+	{
+		if (!PrivateData)
+		{
+			PrivateData = NewObject<UCustomizableInstancePrivate>(this, FName("Private"));
+		}
+		else if (PrivateData->GetOuter() != this)
+		{
+			PrivateData = Cast<UCustomizableInstancePrivate>(StaticDuplicateObject(PrivateData, this, FName("Private")));
+		}
+	}
 }
 
 

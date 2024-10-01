@@ -10,12 +10,14 @@ class UPhysicsAsset;
 class USkeletalMesh;
 
 
-UCLASS(Blueprintable, BlueprintType, ClassGroup = (CustomizableObject), meta = (BlueprintSpawnableComponent))
+UCLASS()
 class CUSTOMIZABLEOBJECT_API UCustomizableSkeletalComponentPrivate : public UObject
 {
 	GENERATED_BODY()
 
 public:
+	UCustomizableSkeletalComponentPrivate();
+	
 	void CreateCustomizableObjectInstanceUsage();
 
 	/** Common end point of all updates. Even those which failed. */
@@ -28,6 +30,8 @@ public:
 	void SetSkeletalMesh(USkeletalMesh* SkeletalMesh);
 	
 	void SetPhysicsAsset(UPhysicsAsset* PhysicsAsset);
+	
+	void SetPendingSetSkeletalMesh(bool bIsActive);
 
 #if WITH_EDITOR
 	void EditorUpdateComponent();
