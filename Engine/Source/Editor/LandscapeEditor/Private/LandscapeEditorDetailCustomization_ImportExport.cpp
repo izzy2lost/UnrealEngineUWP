@@ -37,7 +37,6 @@
 #include "LandscapeSubsystem.h"
 #include "LandscapeStreamingProxy.h"
 #include "LandscapeImageFileCache.h"
-#include "LandscapeTiledImage.h"
 #include "LandscapeRegionUtils.h"
 #include "LandscapeEditorUtils.h"
 

@@ -13,7 +13,7 @@
 #include "DirectoryWatcherModule.h"
 #include "LandscapeFileFormatInterface.h"
 #include "LandscapeEditorModule.h"
-
+#include "Containers/StaticArray.h"
 #include "Delegates/IDelegateInstance.h"
 
 #define LOCTEXT_NAMESPACE "LandscapeEditor"
@@ -33,11 +33,10 @@ public:
 	FLandscapeImageFileCache();
 	~FLandscapeImageFileCache();
 
-
 	template<typename T>
 	FLandscapeFileInfo FindImage(const TCHAR* InImageFilename, FLandscapeImageDataRef& OutImageData)
 	{
-		FCacheEntry* CacheEntry = CachedImages.Find(InImageFilename);
+		FCacheEntry* CacheEntry = ChooseCache<T>().Find(InImageFilename);
 		FLandscapeFileInfo Result;
 
 		if (CacheEntry)
@@ -83,7 +82,7 @@ public:
 		
 		Trim();
 		OutImageData = NewImageData;
-		Add(FString(InImageFilename), OutImageData);
+		Add<T>(FString(InImageFilename), OutImageData);
 		
 		Result.PossibleResolutions.Add(FLandscapeFileResolution(OutImageData.Resolution.X, OutImageData.Resolution.Y));
 		Result.ResultCode = FileInfo.ResultCode;
@@ -120,10 +119,22 @@ private:
 
 	void MonitorCallback(const TArray<struct FFileChangeData>& Changes);
 
-	TMap<FString, FCacheEntry> CachedImages;
+	using CacheType = TMap<FString, FCacheEntry>;
+
+	template<typename T>
+	CacheType& ChooseCache();
+
+	// Two cache maps.  Hold 8 bit and 16 bit data separately.  Otherwise importing the same file as weightmap and heightmap
+	// will use the cached 8bit version for the heightmap.
+	enum {
+		Cache8 = 0,
+		Cache16 = 1
+	};
+	TStaticArray<CacheType, 2> CachedImages;
 	
 	TMap<FString, FDirectoryMonitor> MonitoredDirs;
 
+	template <typename T>
 	void Add(const FString& Filename, FLandscapeImageDataRef NewImageData);
 	void Remove(const FString& Filename);
 

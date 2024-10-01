@@ -669,7 +669,7 @@ void ULandscapeEditorObject::RefreshImports()
 	{
 		FLandscapeTiledImage TiledImage;
 		
-		FLandscapeFileInfo FileInfo = TiledImage.Load(*ImportLandscape_HeightmapFilename);
+		FLandscapeFileInfo FileInfo = TiledImage.Load<uint16>(*ImportLandscape_HeightmapFilename);
 
 		if (FileInfo.PossibleResolutions.Num() > 0)
 		{
@@ -726,7 +726,7 @@ void ULandscapeEditorObject::RefreshLayerImport(FLandscapeImportLayer& ImportLay
 		else
 		{
 			FLandscapeTiledImage TiledImage;
-			FLandscapeFileInfo FileInfo = TiledImage.Load(*ImportLayer.SourceFilePath);
+			FLandscapeFileInfo FileInfo = TiledImage.Load<uint8>(*ImportLayer.SourceFilePath);
 			ImportLayer.ImportResult = FileInfo.ResultCode;
 			ImportLayer.ErrorMessage = FileInfo.ErrorMessage;
 			if (FileInfo.ResultCode == ELandscapeImportResult::Success)
@@ -755,7 +755,7 @@ void ULandscapeEditorObject::OnChangeImportLandscapeResolution(int32 DescriptorI
 void ULandscapeEditorObject::ImportLandscapeData()
 {
 	FLandscapeTiledImage TiledImage;
-	FLandscapeFileInfo FileInfo = TiledImage.Load(*ImportLandscape_HeightmapFilename);
+	FLandscapeFileInfo FileInfo = TiledImage.Load<uint16>(*ImportLandscape_HeightmapFilename);
 
 	if (FileInfo.ResultCode == ELandscapeImportResult::Error)
 	{
@@ -787,7 +787,7 @@ ELandscapeImportResult ULandscapeEditorObject::CreateImportLayersInfo(TArray<FLa
 		if (ImportLayer.LayerInfo != nullptr && !ImportLayer.SourceFilePath.IsEmpty())
 		{
 			FLandscapeTiledImage LayerImage;
-			FLandscapeFileInfo LayerFileInfo = LayerImage.Load(*ImportLayer.SourceFilePath);
+			FLandscapeFileInfo LayerFileInfo = LayerImage.Load<uint8>(*ImportLayer.SourceFilePath);
 
 			UIImportLayer.ImportResult = LayerFileInfo.ResultCode;
 
