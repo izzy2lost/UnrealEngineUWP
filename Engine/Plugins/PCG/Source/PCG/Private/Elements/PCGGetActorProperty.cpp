@@ -171,7 +171,7 @@ bool FPCGGetActorPropertyElement::ExecuteInternal(FPCGContext* InContext) const
 	check(Settings);
 
 	// Early out if arguments are not specified
-	if (Settings->PropertyName == NAME_None || (Settings->bSelectComponent && !Settings->ComponentClass))
+	if (Settings->bSelectComponent && !Settings->ComponentClass)
 	{
 		PCGE_LOG(Warning, GraphAndLog, LOCTEXT("ParametersMissing", "Some parameters are missing, aborting"));
 		return true;
