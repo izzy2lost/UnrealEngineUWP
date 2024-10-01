@@ -858,11 +858,11 @@ bool FCustomizableInstanceDetails::IsIntParameterFilteredOut(const UCustomizable
 	{
 	case EGameplayContainerMatchType::Any:
 	{
-		return !Metadata.EditorGameplayTags.HasAny(Filter);
+		return !Metadata.GameplayTags.HasAny(Filter);
 	}
 	case EGameplayContainerMatchType::All:
 	{
-		return !Metadata.EditorGameplayTags.HasAll(Filter);
+		return !Metadata.GameplayTags.HasAll(Filter);
 	}
 	default:
 		unimplemented();

@@ -80,11 +80,10 @@ FArchive& operator<<(FArchive& Ar, FMutableParamUIMetadata& Struct)
 	Ar << Struct.MinimumValue;
 	Ar << Struct.MaximumValue;
 
-#if WITH_EDITORONLY_DATA
 	FString ExportString;
 	if (Ar.IsSaving())
 	{
-		ExportString = Struct.EditorGameplayTags.ToString();
+		ExportString = Struct.GameplayTags.ToString();
 	}
 
 	Ar << ExportString;
@@ -93,10 +92,9 @@ FArchive& operator<<(FArchive& Ar, FMutableParamUIMetadata& Struct)
 	{
 		if (!ExportString.IsEmpty())
 		{
-			Struct.EditorGameplayTags.FromExportString(ExportString);
+			Struct.GameplayTags.FromExportString(ExportString);
 		}
 	}
-#endif
 
 	return Ar;
 }

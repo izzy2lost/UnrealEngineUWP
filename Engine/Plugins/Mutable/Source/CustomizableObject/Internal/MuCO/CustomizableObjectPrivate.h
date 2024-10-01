@@ -1480,6 +1480,8 @@ public:
 		RemovedGroupRomsBySource,
 
 		ReGroupRomsBySource,
+
+		UIMetadataGameplayTags,
 		
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion
