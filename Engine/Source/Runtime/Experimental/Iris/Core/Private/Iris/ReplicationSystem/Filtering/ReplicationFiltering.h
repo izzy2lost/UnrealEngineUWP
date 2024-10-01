@@ -4,10 +4,12 @@
 
 #include "CoreTypes.h"
 #include "Net/Core/NetBitArray.h"
+#include "Iris/ReplicationSystem/Filtering/SharedConnectionFilterStatus.h"
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilter.h"
 #include "Iris/ReplicationSystem/Filtering/ObjectScopeHysteresisUpdater.h"
 #include "Iris/ReplicationSystem/Filtering/ReplicationFilteringConfig.h"
 #include "Iris/ReplicationSystem/NetObjectGroupHandle.h"
+#include "Net/Core/Connection/ConnectionHandle.h"
 #include "Containers/Array.h"
 #include "UObject/StrongObjectPtr.h"
 
@@ -140,10 +142,8 @@ public:
 	void RemoveSubObjectFilter(FNetObjectGroupHandle GroupHandle);
 	bool IsSubObjectFilterGroup(FNetObjectGroupHandle GroupHandle) const { return GroupHandle.IsValid() && SubObjectFilterGroups.GetBit(GroupHandle.GetGroupIndex()); }
 
-	void SetSubObjectFilterStatus(FNetObjectGroupHandle GroupHandle, ENetFilterStatus ReplicationStatus);
-	void SetSubObjectFilterStatus(FNetObjectGroupHandle GroupHandle, const FNetBitArrayView& ConnectionsBitArray, ENetFilterStatus);
-	void SetSubObjectFilterStatus(FNetObjectGroupHandle GroupHandle, uint32 ConnectionId, ENetFilterStatus ReplicationStatus);
-	bool GetSubObjectFilterStatus(FNetObjectGroupHandle GroupHandle, uint32 ConnectionId, ENetFilterStatus& OutReplicationStatus) const;
+	void SetSubObjectFilterStatus(FNetObjectGroupHandle GroupHandle, FConnectionHandle ConnectionHandle, ENetFilterStatus ReplicationStatus);
+	bool GetSubObjectFilterStatus(FNetObjectGroupHandle GroupHandle, uint32 ParentConnectionId, ENetFilterStatus& OutReplicationStatus) const;
 
 	/** Print the filter information we have regarding the passed ObjectIndex and his relation to the passed Connection */
 	FString PrintFilterObjectInfo(FInternalNetRefIndex ObjectIndex, uint32 ConnectionId) const;
@@ -187,6 +187,15 @@ private:
 		PerObjectInfoIndexType ConnectionStateIndex;
 	};
 
+	class FPerSubObjectFilterGroupInfo
+	{
+	public:
+		// Tracks parent and child connection filter status. Necessary for splitscreen support.
+		FSharedConnectionFilterStatusCollection ConnectionFilterStatus;
+		// Index to storage for parent connection bit array. 
+		PerObjectInfoIndexType ConnectionStateIndex = 0;
+	};
+
 	struct FFilterInfo
 	{
 		TStrongObjectPtr<UNetObjectFilter> Filter;
@@ -197,6 +206,7 @@ private:
 private:
 	class FUpdateDirtyObjectsBatchHelper;
 	friend FNetObjectFilteringInfoAccessor;
+	friend FPerSubObjectFilterGroupInfo;
 	
 	static void StaticChecks();
 
@@ -245,6 +255,12 @@ private:
 	const FPerObjectInfo* GetPerObjectInfo(PerObjectInfoIndexType Index) const;
 
 	void SetPerObjectInfoFilterStatus(FPerObjectInfo& ObjectInfo, ENetFilterStatus ReplicationStatus);
+
+	// SubObjectGroup filtering support
+	FPerSubObjectFilterGroupInfo& CreatePerSubObjectGroupFilterInfo(FNetObjectGroupHandle::FGroupIndexType GroupIndex);
+	void DestroyPerSubObjectGroupFilterInfo(FNetObjectGroupHandle::FGroupIndexType GroupIndex);
+	FPerSubObjectFilterGroupInfo* GetPerSubObjectFilterGroupInfo(FNetObjectGroupHandle::FGroupIndexType GroupIndex);
+	const FPerSubObjectFilterGroupInfo* GetPerSubObjectFilterGroupInfo(FNetObjectGroupHandle::FGroupIndexType GroupIndex) const;
 
 	ENetFilterStatus GetConnectionFilterStatus(const FPerObjectInfo& ObjectInfo, uint32 ConnectionId) const;
 	bool IsAnyConnectionFilterStatusAllowed(const FPerObjectInfo& ObjectInfo) const;
@@ -346,6 +362,9 @@ private:
 	TArray<FPerGroupInfo> GroupInfos;
 	uint32 MaxGroupCount = 0;
 
+	// SubObject filter groups
+	TMap<uint32, FPerSubObjectFilterGroupInfo> SubObjectFilterGroupInfos;
+
 	// Hysteresis frame counts for dynamically filtered objects
 	TArray<uint8> ObjectScopeHysteresisFrameCounts;
 
@@ -361,9 +380,11 @@ private:
 	/** Inclusion filtering groups with newly added members and that need to include objects for at least one connection. */
 	FNetBitArray DirtyInclusionFilterGroups;
 
-	//$IRIS TODO: These need better documentation
+	// Group indices which are subobject filter groups
 	FNetBitArray SubObjectFilterGroups;
+	// Group indices which are subobject filter groups and in need of updating
 	FNetBitArray DirtySubObjectFilterGroups;
+	// Object indices with a connection filter
 	FNetBitArray AllConnectionFilteredObjects;
 
 	TArray<PerObjectInfoIndexType> ObjectIndexToPerObjectInfoIndex;

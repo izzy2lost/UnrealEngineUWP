@@ -5,3 +5,4 @@
 #include "Logging/LogMacros.h"
 
 IRISCORE_API DECLARE_LOG_CATEGORY_EXTERN(LogIris, Log, All);
+IRISCORE_API DECLARE_LOG_CATEGORY_EXTERN(LogIrisFiltering, Log, All);

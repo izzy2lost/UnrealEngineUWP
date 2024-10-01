@@ -127,7 +127,7 @@ void FMinimalGameplayCueReplicationProxyReplicationFragment::MimicMinimalGamepla
 		{			
 			if (const UNetConnection* OwnerNetConnection = OwningActor->GetNetConnection())
 			{
-				if (OwnerNetConnection->GetConnectionId() == Context.NetSerializationContext->GetLocalConnectionId())
+				if (OwnerNetConnection->GetConnectionHandle().GetParentConnectionId() == Context.NetSerializationContext->GetLocalConnectionId())
 				{
 					UpdateOwnerTagMap = false;
 				}

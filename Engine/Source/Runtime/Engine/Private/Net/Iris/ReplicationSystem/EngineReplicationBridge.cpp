@@ -47,6 +47,7 @@
 
 #include "Net/DataBunch.h"
 #include "Net/DataChannel.h"
+#include "Net/Core/Connection/ConnectionHandle.h"
 #include "Net/Core/Connection/NetEnums.h"
 #include "Net/Core/Connection/NetCloseResult.h"
 #include "Net/Core/Misc/NetSubObjectRegistry.h"
@@ -793,7 +794,7 @@ void UEngineReplicationBridge::OnProtocolMismatchReported(FNetRefHandle RefHandl
 
 		if (IsClassCritical(ObjectClass))
 		{
-			if (UNetConnection* ClientConnection = NetDriver->GetConnectionById(ConnectionId))
+			if (UNetConnection* ClientConnection = NetDriver->GetConnectionByHandle(UE::Net::FConnectionHandle(ConnectionId)))
 			{
 				FString ErrorMsg = FString::Printf(TEXT("Protocol mismatch: %s:%s. Class: %s"), *RefHandle.ToString(), *GetNameSafe(ReplicatedObject), *GetNameSafe(ObjectClass));
 				UE_LOG(LogIrisBridge, Error, TEXT("%s: Closing connection due to: %s"), ToCStr(ClientConnection->Describe()), ToCStr(ErrorMsg));
@@ -818,7 +819,7 @@ void UEngineReplicationBridge::SendErrorWithNetRefHandle(UE::Net::ENetRefHandleE
 {
 	if (NetDriver)
 	{
-		if (UNetConnection* ClientConnection = NetDriver->GetConnectionById(ConnectionId))
+		if (UNetConnection* ClientConnection = NetDriver->GetConnectionByHandle(UE::Net::FConnectionHandle(ConnectionId)))
 		{
 			uint64 RawHandleId = RefHandle.GetId();
 			FNetControlMessage<NMT_IrisNetRefHandleError>::Send(ClientConnection, ErrorType, RawHandleId);
@@ -919,7 +920,7 @@ FString UEngineReplicationBridge::PrintConnectionInfo(uint32 ConnectionId) const
 {
 	if (NetDriver)
 	{
-		if (UNetConnection* ClientConnection = NetDriver->GetConnectionById(ConnectionId))
+		if (UNetConnection* ClientConnection = NetDriver->GetConnectionByHandle(UE::Net::FConnectionHandle(ConnectionId)))
 		{
 			return FString::Printf(TEXT("ConnectionId:%u ViewTarget: %s Named: %s"), ConnectionId, *GetNameSafe(ClientConnection->ViewTarget), *ClientConnection->Describe());
 		}

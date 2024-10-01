@@ -116,7 +116,7 @@ void FPredictionKeyNetSerializer::Quantize(FNetSerializationContext&, const FNet
 		{
 			if (const UNetConnection* Connection = PackageMap->GetConnection())
 			{
-				Target.OwningConnectionId = Connection->GetParentConnectionId();
+				Target.OwningConnectionId = Connection->GetConnectionHandle().GetParentConnectionId();
 			}
 		}
 	}

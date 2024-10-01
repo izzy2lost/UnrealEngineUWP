@@ -74,7 +74,7 @@ void UDataStreamChannel::Init(UNetConnection* InConnection, int32 InChIndex, ECh
 	if (UReplicationSystem* ReplicationSystem = InConnection->Driver->GetReplicationSystem())
 	{
 		bIsReadyToHandshake = 1U;
-		ReplicationSystem->InitDataStreams(InConnection->GetConnectionId(), DataStreamManager);
+		ReplicationSystem->InitDataStreams(InConnection->GetConnectionHandle().GetParentConnectionId(), DataStreamManager);
 	}
 #endif // UE_WITH_IRIS
 }
@@ -87,7 +87,7 @@ void UDataStreamChannel::ReInit()
 	if (UReplicationSystem* ReplicationSystem = Connection->Driver->GetReplicationSystem())
 	{
 		bIsReadyToHandshake = 1U;
-		ReplicationSystem->InitDataStreams(Connection->GetConnectionId(), DataStreamManager);
+		ReplicationSystem->InitDataStreams(Connection->GetConnectionHandle().GetParentConnectionId(), DataStreamManager);
 	}
 #endif
 }
@@ -155,7 +155,7 @@ void UDataStreamChannel::ReceivedBunch(FInBunch& Bunch)
 			UEngineReplicationBridge* ActorBridge = FReplicationSystemUtil::GetActorReplicationBridge(Connection);
 			if (ActorBridge)
 			{
-				ActorBridge->SendErrorWithNetRefHandle(UE::Net::ENetRefHandleError::BitstreamCorrupted, SerializationContext.GetErrorHandleContext(), Connection->GetConnectionId());
+				ActorBridge->SendErrorWithNetRefHandle(UE::Net::ENetRefHandleError::BitstreamCorrupted, SerializationContext.GetErrorHandleContext(), Connection->GetConnectionHandle().GetParentConnectionId());
 			}
 		}
 		Bunch.SetError();

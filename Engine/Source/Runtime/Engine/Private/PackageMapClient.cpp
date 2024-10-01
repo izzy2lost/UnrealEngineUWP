@@ -297,7 +297,7 @@ void UPackageMapClient::Initialize(UNetConnection * InConnection, TSharedPtr<FNe
 	NetTokenResolveContext.NetTokenStore = InConnection->GetDriver()->GetNetTokenStore();
 	if (NetTokenResolveContext.NetTokenStore)
 	{
-		NetTokenResolveContext.RemoteNetTokenStoreState = NetTokenResolveContext.NetTokenStore->GetRemoteNetTokenStoreState(InConnection->GetConnectionId());
+		NetTokenResolveContext.RemoteNetTokenStoreState = NetTokenResolveContext.NetTokenStore->GetRemoteNetTokenStoreState(InConnection->GetConnectionHandle().GetParentConnectionId());
 	}
 #endif
 }
@@ -2275,7 +2275,7 @@ void UPackageMapClient::ReceiveCustomExportsBunch(FInBunch &InBunch)
 	InBunch.SerializeBits(&bHasExportsToRead, 1);
 
 	UE::Net::FNetTokenStore* NetTokenStore = NetTokenResolveContext.NetTokenStore;
-	UE::Net::FNetTokenStoreState* RemoteNetTokenStoreState = NetTokenStore->GetRemoteNetTokenStoreState(Connection->GetConnectionId());
+	UE::Net::FNetTokenStoreState* RemoteNetTokenStoreState = NetTokenStore->GetRemoteNetTokenStoreState(Connection->GetConnectionHandle().GetParentConnectionId());
 
 	while (bHasExportsToRead && !InBunch.IsError())
 	{

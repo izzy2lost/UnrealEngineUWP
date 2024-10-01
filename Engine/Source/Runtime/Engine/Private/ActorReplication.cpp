@@ -1108,7 +1108,7 @@ void AActor::UpdateOwningNetConnection()
 	uint32 NewOwningNetConnectionId = 0U;
 	if (const UNetConnection* NetConnection = GetNetConnection())
 	{
-		NewOwningNetConnectionId = NetConnection->GetParentConnectionId();
+		NewOwningNetConnectionId = NetConnection->GetConnectionHandle().GetParentConnectionId();
 	}
 
 	// If this actor isn't replicated there's no way for us to tell whether we need to update our children.

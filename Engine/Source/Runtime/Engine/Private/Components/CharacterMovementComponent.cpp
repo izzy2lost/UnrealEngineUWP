@@ -8882,7 +8882,7 @@ static UIrisObjectReferencePackageMap* GetIrisPackageMapToReadReferences(const U
 		if (UIrisObjectReferencePackageMap* ObjectReferencePackageMap = Bridge->GetObjectReferencePackageMap())
 		{
 			const UReplicationSystem* ReplicationSystem = UE::Net::FReplicationSystemUtil::GetReplicationSystem(NetConnection->GetDriver());
-			ObjectReferencePackageMap->InitForRead(&PackedBits.PackageMapExports, ReplicationSystem->GetNetTokenResolveContext(NetConnection->GetConnectionId()));
+			ObjectReferencePackageMap->InitForRead(&PackedBits.PackageMapExports, ReplicationSystem->GetNetTokenResolveContext(NetConnection->GetConnectionHandle().GetParentConnectionId()));
 
 			return ObjectReferencePackageMap;
 		}

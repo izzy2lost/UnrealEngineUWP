@@ -2286,8 +2286,8 @@ void UNetDriver::TryUpgradeNetworkFeatures(EEngineNetworkRuntimeFeatures RemoteF
 			checkf(ServerConnection, TEXT("NMT_Upgrade control message received with no server connection on %s"), *GetDescription());
 			
 			// Tell Iris and the Datastream about the current netconnection
-			ReplicationSystem->AddConnection(ServerConnection->GetConnectionId());
-			ReplicationSystem->SetConnectionUserData(ServerConnection->GetConnectionId(), ServerConnection);
+			ReplicationSystem->AddConnection(ServerConnection->GetConnectionHandle().GetParentConnectionId());
+			ReplicationSystem->SetConnectionUserData(ServerConnection->GetConnectionHandle().GetParentConnectionId(), ServerConnection);
 			for (UChannel* Channel : ServerConnection->Channels)
 			{
 				if (Channel)
@@ -6980,16 +6980,34 @@ void UNetDriver::SetReplicationDriver(UReplicationDriver* NewReplicationDriver)
 	NotifyGameInstanceUpdated();
 }
 
-UNetConnection* UNetDriver::GetConnectionById(uint32 ConnectionId) const
+UNetConnection* UNetDriver::GetConnectionById(uint32 ParentConnectionId) const
 {
-	if (ServerConnection != nullptr && ServerConnection->GetConnectionId() == ConnectionId)
+	if (ServerConnection != nullptr && ServerConnection->GetConnectionHandle().GetParentConnectionId() == ParentConnectionId)
 	{
 		return ServerConnection;
 	}
 
 	for (UNetConnection* Connection : ClientConnections)
 	{
-		if (Connection && Connection->GetConnectionId() == ConnectionId)
+		if (Connection && Connection->GetConnectionHandle().GetParentConnectionId() == ParentConnectionId)
+		{
+			return Connection;
+		}
+	}
+
+	return nullptr;
+}
+
+UNetConnection* UNetDriver::GetConnectionByHandle(UE::Net::FConnectionHandle ConnectionHandle) const
+{
+	if (ServerConnection != nullptr && ServerConnection->GetConnectionHandle() == ConnectionHandle)
+	{
+		return ServerConnection;
+	}
+
+	for (UNetConnection* Connection : ClientConnections)
+	{
+		if (Connection && Connection->GetConnectionHandle() == ConnectionHandle)
 		{
 			return Connection;
 		}
@@ -7043,7 +7061,7 @@ void UNetDriver::UpdateGroupFilterStatusForLevel(const ULevel* Level, UE::Net::F
 	for (UNetConnection* Connection : ClientConnections)
 	{
 		const bool bIsVisible = (bIsPersistentLevel && WorldPackageName == Connection->GetClientWorldPackageName()) || Connection->ClientVisibleLevelNames.Contains(LevelPackageName);
-		ConnectionMask.SetBitValue(Connection->GetConnectionId(), bIsVisible);
+		ConnectionMask.SetBitValue(Connection->GetConnectionHandle().GetParentConnectionId(), bIsVisible);
 	}
 
 	// Set group filter status
@@ -7227,7 +7245,7 @@ void UNetDriver::UpdateIrisReplicationViews() const
 
 			FillIrisReplicationViews(AllConnections, ReplicationView);
 
-			ReplicationSystem->SetReplicationView(ClientConnection->GetConnectionId(), ReplicationView);
+			ReplicationSystem->SetReplicationView(ClientConnection->GetConnectionHandle().GetParentConnectionId(), ReplicationView);
 
 			ReplicationView.Views.Reset();
 			AllConnections.Reset();
@@ -7246,7 +7264,7 @@ void UNetDriver::UpdateIrisReplicationViews() const
 
 		FillIrisReplicationViews(AllConnections, ReplicationView);
 
-		ReplicationSystem->SetReplicationView(ServerConnection->GetConnectionId(), ReplicationView);
+		ReplicationSystem->SetReplicationView(ServerConnection->GetConnectionHandle().GetParentConnectionId(), ReplicationView);
 	}
 }
 
@@ -7298,7 +7316,7 @@ void UNetDriver::PostDispatchSendUpdate()
 
 			for (uint32 ConnId : ConnectionsToSend)
 			{
-				UNetConnection* NetConnection = GetConnectionById(ConnId);
+				UNetConnection* NetConnection = GetConnectionByHandle(UE::Net::FConnectionHandle(ConnId));
 				if (NetConnection && NetConnection->Channels.IsValidIndex(DataStreamChannelIndex))
 				{
 					if (UDataStreamChannel* DataStreamChannel = Cast<UDataStreamChannel>(NetConnection->Channels[DataStreamChannelIndex]))
@@ -7646,12 +7664,7 @@ void UNetDriver::ProcessRemoteFunction(
 			{
 				if (UNetConnection* Connection = Actor->GetNetConnection())
 				{
-					if (UChildConnection* ChildConnection = Connection->GetUChildConnection())
-					{
-						Connection = ChildConnection->Parent;
-					}
-
-					if (ReplicationSystem->SendRPC(Connection->GetConnectionId(), Actor, SubObject, Function, Parameters))
+					if (ReplicationSystem->SendRPC(Connection->GetConnectionHandle().GetParentConnectionId(), Actor, SubObject, Function, Parameters))
 					{
 						return;
 					}
@@ -8587,7 +8600,7 @@ FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray< FString >& Args)
 			UE_LOG(LogNet, Display, TEXT("Printing Server Connection for: %s (Definition=%s)"), *NetDriver->NetDriverName.ToString(), *NetDriver->GetNetDriverDefinition().ToString());
 
 			UE_LOG(LogNet, Display, TEXT("\tServerConnection: ConnectionId=%u ViewTarget=%s FullDescription=%s"), 
-				NetDriver->ServerConnection->GetConnectionId(), 
+				NetDriver->ServerConnection->GetConnectionHandle().GetParentConnectionId(), 
 				*GetNameSafe(NetDriver->ServerConnection->ViewTarget),
 				*NetDriver->ServerConnection->Describe()
 			);
@@ -8599,7 +8612,7 @@ FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray< FString >& Args)
 			for (UNetConnection* NetConnection : NetDriver->ClientConnections)
 			{
 				UE_LOG(LogNet, Display, TEXT("\tClientConnection: ConnectionId=%u ViewTarget=%s NetId=%s FullDescription=%s"), 
-					NetConnection->GetConnectionId(), 
+					NetConnection->GetConnectionHandle().GetParentConnectionId(), 
 					*GetNameSafe(NetConnection->ViewTarget),
 					*NetConnection->PlayerId.ToDebugString(), 
 					*NetConnection->Describe()
