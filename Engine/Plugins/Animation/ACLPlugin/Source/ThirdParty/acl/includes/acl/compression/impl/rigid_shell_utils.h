@@ -68,10 +68,6 @@ namespace acl
 			const float duration = raw_clip.get_duration();
 			const additive_clip_format8 additive_format = raw_clip.get_additive_format();
 
-			// EpicGames - BEGIN
-			// Integrating some fixes from ACL's develop branch
-			// Also fix how scale is handled by first converting local shell distance into object space
-#if 0
 			rigid_shell_metadata_t* shell_metadata = allocate_type_array<rigid_shell_metadata_t>(allocator, num_transforms);
 
 			// Initialize everything
@@ -169,111 +165,6 @@ namespace acl
 					}
 				}
 			}
-#else
-			// We retain only one dominant sub-transform per transform but in reality, it could change from keyframe to keyframe
-			// To keep things simple, we use the first keyframe to compute dominance
-			const uint32_t sample_index = 0;
-			const uint32_t base_sample_index = 0;
-
-			rtm::qvvf* object_transforms = allocate_type_array<rtm::qvvf>(allocator, num_transforms);
-
-			// Our output buffer we'll return
-			rigid_shell_metadata_t* shell_metadata = allocate_type_array<rigid_shell_metadata_t>(allocator, num_transforms);
-
-			// Initialize our output shell metadata
-			for (uint32_t transform_index = 0; transform_index < num_transforms; ++transform_index)
-			{
-				rigid_shell_metadata_t& transform_shell_metadata = shell_metadata[transform_index];
-
-				transform_shell_metadata.local_shell_distance = raw_clip.get_transform_shell_distance(transform_index);
-				transform_shell_metadata.precision = raw_clip.get_transform_precision(transform_index);
-				transform_shell_metadata.parent_shell_distance = 0.0F;
-			}
-
-			// Retrieve the object space transforms for this sample
-			for (const uint32_t transform_index : make_iterator(raw_clip.get_sorted_transforms_parent_first(), num_transforms))
-			{
-				const uint32_t parent_index = raw_clip.get_transform_parent_index(transform_index);
-
-				// Sample our local transform
-				const rtm::quatf rotation = raw_clip.get_transform_rotation(transform_index, sample_index);
-				const rtm::vector4f translation = raw_clip.get_transform_translation(transform_index, sample_index);
-				const rtm::vector4f scale = raw_clip.get_transform_scale(transform_index, sample_index);
-				rtm::qvvf local_transform = rtm::qvv_set(rotation, translation, scale);
-
-				if (has_additive_base)
-				{
-					const rtm::quatf base_rotation = additive_base_clip.get_transform_rotation(transform_index, base_sample_index);
-					const rtm::vector4f base_translation = additive_base_clip.get_transform_translation(transform_index, base_sample_index);
-					const rtm::vector4f base_scale = additive_base_clip.get_transform_scale(transform_index, base_sample_index);
-					const rtm::qvvf base_transform = rtm::qvv_set(base_rotation, base_translation, base_scale);
-
-					local_transform = rtm::qvv_normalize(acl::apply_additive_to_base(additive_format, base_transform, local_transform));
-				}
-
-				// Compute our object space transform
-				rtm::qvvf object_transform;
-				if (parent_index != k_invalid_track_index)
-					object_transform = rtm::qvv_normalize(rtm::qvv_mul(local_transform, object_transforms[parent_index]));
-				else
-					object_transform = local_transform;
-
-				object_transforms[transform_index] = object_transform;
-			}
-
-			// Convert our local shell distances into object space
-			for (uint32_t transform_index = 0; transform_index < num_transforms; ++transform_index)
-			{
-				rigid_shell_metadata_t& transform_shell_metadata = shell_metadata[transform_index];
-
-				const rtm::qvvf& object_transform = object_transforms[transform_index];
-
-				const rtm::vector4f abs_scale = rtm::vector_abs(object_transform.scale);
-				const rtm::scalarf largest_scale = rtm::scalar_max(rtm::scalar_max((rtm::scalarf)rtm::vector_get_x(abs_scale), (rtm::scalarf)rtm::vector_get_y(abs_scale)), (rtm::scalarf)rtm::vector_get_z(abs_scale));
-
-				transform_shell_metadata.local_shell_distance = rtm::scalar_cast(largest_scale) * transform_shell_metadata.local_shell_distance;
-			}
-
-			// Now that we computed the object space transforms for this sample,
-			// we identity which transforms are dominant
-			for (const uint32_t transform_index : make_reverse_iterator(raw_clip.get_sorted_transforms_parent_first(), num_transforms))
-			{
-				const uint32_t parent_index = raw_clip.get_transform_parent_index(transform_index);
-
-				if (parent_index != k_invalid_track_index)
-				{
-					// We have a parent, propagate our shell distance if we are a dominant transform
-					// We are a dominant transform if our shell distance in parent space is larger
-					// than our parent's shell distance in local space. Otherwise, if we are smaller
-					// or equal, it means that the full range of motion of our transform fits within
-					// the parent's shell distance.
-
-					const rigid_shell_metadata_t& transform_shell = shell_metadata[transform_index];
-
-					// Compute our transform length in object space
-					const rtm::qvvf& object_transform = object_transforms[transform_index];
-					rtm::vector4f object_parent_position = rtm::vector_zero();
-					if (parent_index != k_invalid_track_index)
-						object_parent_position = object_transforms[parent_index].translation;
-
-					const rtm::scalarf local_shell_distance = rtm::scalar_set(transform_shell.local_shell_distance);
-					const rtm::scalarf shell_distance = rtm::scalar_add(local_shell_distance, (rtm::scalarf)rtm::vector_distance3(object_transform.translation, object_parent_position));
-					const float shell_distance_f = rtm::scalar_cast(shell_distance);
-
-					rigid_shell_metadata_t& parent_shell = shell_metadata[parent_index];
-
-					if (shell_distance_f > parent_shell.local_shell_distance)
-					{
-						// We are the new dominant transform, use our shell distance and precision
-						parent_shell.local_shell_distance = shell_distance_f;
-						parent_shell.precision = transform_shell.precision;
-					}
-				}
-			}
-
-			deallocate_type_array(allocator, object_transforms, num_transforms);
-#endif
-			// EpicGames - END
 
 			return shell_metadata;
 		}
@@ -294,10 +185,6 @@ namespace acl
 			const clip_context& owner_clip_context = *segment.clip;
 			const bool has_additive_base = owner_clip_context.has_additive_base;
 
-			// EpicGames - BEGIN
-			// Integrating some fixes from ACL's develop branch
-			// Also fix how scale is handled by first converting local shell distance into object space
-#if 0
 			// Initialize everything
 			for (uint32_t transform_index = 0; transform_index < num_transforms; ++transform_index)
 			{
@@ -395,144 +282,6 @@ namespace acl
 					}
 				}
 			}
-#else
-			iallocator& allocator = *owner_clip_context.allocator;
-			const additive_clip_format8 additive_format = owner_clip_context.additive_format;
-			const bool has_scale = owner_clip_context.has_scale;
-
-			// We retain only one dominant sub-transform per transform but in reality, it could change from keyframe to keyframe
-			// To keep things simple, we use the first keyframe to compute dominance
-			const uint32_t segment_sample_index = 0;
-			uint32_t base_sample_index = 0;
-
-			if (has_additive_base)
-			{
-				const float sample_rate = owner_clip_context.sample_rate;
-				const float duration = owner_clip_context.duration;
-
-				const uint32_t base_num_samples = additive_base_clip_context.num_samples;
-				const float base_duration = additive_base_clip_context.duration;
-
-				const segment_context& base_segment = additive_base_clip_context.segments[0];
-				const uint32_t clip_sample_index = segment.clip_sample_offset + segment_sample_index;
-
-				// The sample time is calculated from the full clip duration to be consistent with decompression
-				const float sample_time = rtm::scalar_min(float(clip_sample_index) / sample_rate, duration);
-
-				const float normalized_sample_time = base_num_samples > 1 ? (sample_time / duration) : 0.0F;
-				const float additive_sample_time = base_num_samples > 1 ? (normalized_sample_time * base_duration) : 0.0F;
-
-				// With uniform sample distributions, we do not interpolate.
-				base_sample_index = get_uniform_sample_key(base_segment, additive_sample_time);
-			}
-
-			rtm::qvvf* object_transforms = allocate_type_array<rtm::qvvf>(allocator, num_transforms);
-
-			// Initialize our output shell metadata
-			for (uint32_t transform_index = 0; transform_index < num_transforms; ++transform_index)
-			{
-				const transform_metadata& metadata = owner_clip_context.metadata[transform_index];
-				rigid_shell_metadata_t& shell_metadata = out_shell_metadata[transform_index];
-
-				shell_metadata.local_shell_distance = metadata.shell_distance;
-				shell_metadata.precision = metadata.precision;
-				shell_metadata.parent_shell_distance = 0.0F;
-			}
-
-			sample_context context;
-			context.sample_key = segment_sample_index;
-
-			// Retrieve the object space transforms for this sample
-			for (const uint32_t transform_index : make_iterator(owner_clip_context.sorted_transforms_parent_first, num_transforms))
-			{
-				const transform_metadata& metadata = owner_clip_context.metadata[transform_index];
-				const uint32_t parent_index = metadata.parent_index;
-
-				// Sample our local transform
-				const transform_streams& sampling_bone_stream = segment.bone_streams[transform_index];
-
-				const rtm::quatf rotation = acl_impl::sample_rotation(context, sampling_bone_stream);
-				const rtm::vector4f translation = acl_impl::sample_translation(context, sampling_bone_stream);
-				const rtm::vector4f scale = has_scale ? acl_impl::sample_scale(context, sampling_bone_stream) : sampling_bone_stream.default_value.scale;
-				rtm::qvvf local_transform = rtm::qvv_set(rotation, translation, scale);
-
-				if (has_additive_base)
-				{
-					const segment_context& base_segment = additive_base_clip_context.segments[0];
-					const transform_streams& base_bone_stream = base_segment.bone_streams[transform_index];
-
-					const rtm::quatf base_rotation = base_bone_stream.rotations.get_sample_clamped(base_sample_index);
-					const rtm::vector4f base_translation = base_bone_stream.translations.get_sample_clamped(base_sample_index);
-					const rtm::vector4f base_scale = base_bone_stream.scales.get_sample_clamped(base_sample_index);
-					const rtm::qvvf base_transform = rtm::qvv_set(base_rotation, base_translation, base_scale);
-
-					local_transform = rtm::qvv_normalize(acl::apply_additive_to_base(additive_format, base_transform, local_transform));
-				}
-
-				// Compute our object space transform
-				rtm::qvvf object_transform;
-				if (parent_index != k_invalid_track_index)
-					object_transform = rtm::qvv_normalize(rtm::qvv_mul(local_transform, object_transforms[parent_index]));
-				else
-					object_transform = local_transform;
-
-				object_transforms[transform_index] = object_transform;
-			}
-
-			// Convert our local shell distances into object space
-			for (uint32_t transform_index = 0; transform_index < num_transforms; ++transform_index)
-			{
-				rigid_shell_metadata_t& transform_shell_metadata = out_shell_metadata[transform_index];
-
-				const rtm::qvvf& object_transform = object_transforms[transform_index];
-
-				const rtm::vector4f abs_scale = rtm::vector_abs(object_transform.scale);
-				const rtm::scalarf largest_scale = rtm::scalar_max(rtm::scalar_max((rtm::scalarf)rtm::vector_get_x(abs_scale), (rtm::scalarf)rtm::vector_get_y(abs_scale)), (rtm::scalarf)rtm::vector_get_z(abs_scale));
-
-				transform_shell_metadata.local_shell_distance = rtm::scalar_cast(largest_scale) * transform_shell_metadata.local_shell_distance;
-			}
-
-			// Now that we computed the object space transforms for this sample,
-			// we identity which transforms are dominant
-			for (const uint32_t transform_index : make_reverse_iterator(owner_clip_context.sorted_transforms_parent_first, num_transforms))
-			{
-				const transform_metadata& metadata = owner_clip_context.metadata[transform_index];
-				const uint32_t parent_index = metadata.parent_index;
-
-				if (parent_index != k_invalid_track_index)
-				{
-					// We have a parent, propagate our shell distance if we are a dominant transform
-					// We are a dominant transform if our shell distance in parent space is larger
-					// than our parent's shell distance in local space. Otherwise, if we are smaller
-					// or equal, it means that the full range of motion of our transform fits within
-					// the parent's shell distance.
-
-					const rigid_shell_metadata_t& transform_shell = out_shell_metadata[transform_index];
-
-					// Compute our transform length in object space
-					const rtm::qvvf& object_transform = object_transforms[transform_index];
-					rtm::vector4f object_parent_position = rtm::vector_zero();
-					if (parent_index != k_invalid_track_index)
-						object_parent_position = object_transforms[parent_index].translation;
-
-					const rtm::scalarf local_shell_distance = rtm::scalar_set(transform_shell.local_shell_distance);
-					const rtm::scalarf shell_distance = rtm::scalar_add(local_shell_distance, (rtm::scalarf)rtm::vector_distance3(object_transform.translation, object_parent_position));
-					const float shell_distance_f = rtm::scalar_cast(shell_distance);
-
-					rigid_shell_metadata_t& parent_shell = out_shell_metadata[parent_index];
-
-					if (shell_distance_f > parent_shell.local_shell_distance)
-					{
-						// We are the new dominant transform, use our shell distance and precision
-						parent_shell.local_shell_distance = shell_distance_f;
-						parent_shell.precision = transform_shell.precision;
-					}
-				}
-			}
-
-			deallocate_type_array(allocator, object_transforms, num_transforms);
-#endif
-			// EpicGames - END
 		}
 	}
 
