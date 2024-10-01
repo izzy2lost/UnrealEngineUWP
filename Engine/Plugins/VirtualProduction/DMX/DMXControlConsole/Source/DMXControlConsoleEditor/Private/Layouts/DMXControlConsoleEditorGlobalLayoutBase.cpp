@@ -435,7 +435,7 @@ void UDMXControlConsoleEditorGlobalLayoutBase::Register(UDMXControlConsoleData* 
 	UDMXControlConsoleEditorLayouts& OwnerEditorLayouts = GetOwnerEditorLayoutsChecked();
 	if (!OwnerEditorLayouts.GetOnActiveLayoutChanged().IsBoundToObject(this))
 	{
-		OwnerEditorLayouts.GetOnActiveLayoutChanged().AddUObject(this, &UDMXControlConsoleEditorGlobalLayoutBase::OnActiveLayoutchanged);
+		OwnerEditorLayouts.GetOnActiveLayoutChanged().AddUObject(this, &UDMXControlConsoleEditorGlobalLayoutBase::OnActiveLayoutChanged);
 	}
 
 	if (IsDefaultLayout())
@@ -554,100 +554,30 @@ TMap<int32, TArray<UDMXControlConsoleFaderGroupController*>> UDMXControlConsoleE
 	return UniverseIDToControllersMap;
 }
 
-void UDMXControlConsoleEditorGlobalLayoutBase::OnActiveLayoutchanged(const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout)
+void UDMXControlConsoleEditorGlobalLayoutBase::UpdateActiveLayoutByControllersData() const
 {
+	const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = GetOwnerEditorLayoutsChecked().GetActiveLayout();
 	if (ActiveLayout != this)
 	{
 		return;
 	}
 
-	const auto SynchElementControllerValueLambda =
-		[](UDMXControlConsoleElementController* ElementController, UDMXControlConsoleFaderBase* Fader)
-		{
-			if (ElementController && Fader)
-			{
-				const uint8 NumChannels = static_cast<uint8>(Fader->GetDataType()) + 1;
-				const float ValueRange = FMath::Pow(2.f, 8.f * NumChannels) - 1;
-				const float NormalizedMaxValue = Fader->GetMaxValue() / ValueRange;
-				const float NormalizedMinValue = Fader->GetMinValue() / ValueRange;
-				const float NormalizedValue = Fader->GetValue() / ValueRange;
-
-				ElementController->SetMaxValue(NormalizedMaxValue);
-				ElementController->SetMinValue(NormalizedMinValue);
-				ElementController->SetValue(NormalizedValue);
-			}
-		};
-
 	const TArray<UDMXControlConsoleFaderGroupController*> AllFaderGroupControllers = GetAllFaderGroupControllers();
+
+	const float NumSteps = AllFaderGroupControllers.Num();
+	FScopedSlowTask Task(NumSteps, LOCTEXT("UpdateLayoutByControllersDataSlowTask", "Updating Control Console..."));
+	Task.MakeDialogDelayed(.5f);
+
 	for (UDMXControlConsoleFaderGroupController* FaderGroupController : AllFaderGroupControllers)
 	{
+		Task.EnterProgressFrame();
+
 		if (!FaderGroupController)
 		{
 			continue;
 		}
 
-		const TArray<UDMXControlConsoleElementController*> ElementControllers = FaderGroupController->GetAllElementControllers();
-		TArray<UDMXControlConsoleCellAttributeController*> CellAttributeControllers;
-		Algo::TransformIf(ElementControllers, CellAttributeControllers,
-			[](UDMXControlConsoleElementController* ElementController)
-			{
-				return IsValid(Cast<UDMXControlConsoleCellAttributeController>(ElementController));
-			},
-			[](UDMXControlConsoleElementController* ElementController)
-			{
-				return Cast<UDMXControlConsoleCellAttributeController>(ElementController);
-			}
-		);
-
-		// Synch cell attribute controllers before their matrix cell controllers
-		for (UDMXControlConsoleCellAttributeController* CellAttributeController : CellAttributeControllers)
-		{
-			if (!CellAttributeController)
-			{
-				continue;
-			}
-
-			// Ensure that all elements are possessed by controllers in the active layout
-			const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>>& Elements = CellAttributeController->GetElements();
-			for (const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element : Elements)
-			{
-				if (Element)
-				{
-					CellAttributeController->Possess(Element);
-				}
-			}
-
-			if (Elements.Num() == 1)
-			{
-				UDMXControlConsoleFaderBase* Fader = Cast<UDMXControlConsoleFaderBase>(Elements[0].GetObject());
-				SynchElementControllerValueLambda(CellAttributeController, Fader);
-			}
-		}
-
-		for (UDMXControlConsoleElementController* ElementController : ElementControllers)
-		{
-			if (!ElementController || CellAttributeControllers.Contains(ElementController))
-			{
-				continue;
-			}
-
-			// Ensure that all elements are possessed by controllers in the active layout
-			const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>>& Elements = ElementController->GetElements();
-			for (const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element : Elements)
-			{
-				if (Element)
-				{
-					ElementController->Possess(Element);
-				}
-			}
-
-			// Synch the controller value only if there's one element
-			if (Elements.Num() == 1)
-			{
-				UDMXControlConsoleFaderBase* Fader = Cast<UDMXControlConsoleFaderBase>(Elements[0].GetObject());
-				SynchElementControllerValueLambda(ElementController, Fader);
-			}
-		}
+		FaderGroupController->Modify();
 
 		// Ensure that all fader groups are possessed by controllers in the active layout
 		const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>>& FaderGroups = FaderGroupController->GetFaderGroups();
@@ -658,6 +588,20 @@ void UDMXControlConsoleEditorGlobalLayoutBase::OnActiveLayoutchanged(const UDMXC
 				FaderGroupController->Possess(FaderGroup.Get());
 			}
 		}
+
+		FaderGroupController->GenerateElementControllers();
+		if (FaderGroups.Num() > 1)
+		{
+			FaderGroupController->Group();
+		}
+	}
+}
+
+void UDMXControlConsoleEditorGlobalLayoutBase::OnActiveLayoutChanged(const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout)
+{
+	if (ActiveLayout == this)
+	{
+		UpdateActiveLayoutByControllersData();
 	}
 }
 
@@ -730,6 +674,13 @@ void UDMXControlConsoleEditorGlobalLayoutBase::OnFaderGroupAddedToData(const UDM
 	LayoutRows.Add(LayoutRow);
 
 	SortLayoutByUniverseID();
+
+	// Update the active layout only if it's not the default layout
+	const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = GetOwnerEditorLayoutsChecked().GetActiveLayout();
+	if (ActiveLayout && ActiveLayout != &GetOwnerEditorLayoutsChecked().GetDefaultLayoutChecked())
+	{
+		ActiveLayout->UpdateActiveLayoutByControllersData();
+	}
 }
 
 void UDMXControlConsoleEditorGlobalLayoutBase::CleanLayoutFromFaderGroupControllers(const bool bHasFixturePatch)
