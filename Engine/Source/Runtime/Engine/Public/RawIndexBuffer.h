@@ -332,6 +332,8 @@ public:
 
 	virtual void SerializeMetaData(FArchive& Ar) = 0;
 
+	virtual void SetMetaData(int32 InCachedNumIndices) = 0;
+
 	/**
 	 * The following methods are basically just accessors that allow us
 	 * to hide the implementation of FRawStaticIndexBuffer16or32 by making
@@ -426,6 +428,11 @@ public:
 	virtual void SerializeMetaData(FArchive& Ar) override
 	{
 		Ar << CachedNumIndices;
+	}
+
+	virtual void SetMetaData(int32 InCachedNumIndices) override
+	{
+		CachedNumIndices = InCachedNumIndices;
 	}
 
 	/**
