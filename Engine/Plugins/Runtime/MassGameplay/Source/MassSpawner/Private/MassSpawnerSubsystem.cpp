@@ -128,19 +128,20 @@ void UMassSpawnerSubsystem::DoSpawning(const FMassEntityTemplate& EntityTemplate
 	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("MassSpawnerSubsystem DoSpawning");
 
 	// 1. Create required number of entities with EntityTemplate.Archetype
-	// 2. Copy data from FMassEntityTemplate.Fragments.
-	//		a. @todo, could be done as part of creation?
-	// 3. Run SpawlDataInitializer if set
-	// 4. "OnEntitiesCreated" notifies will be sent out once the CreationContext gets destroyed (via its destructor).
-
 	TArray<FMassEntityHandle> SpawnedEntities;
 	TSharedRef<FMassEntityManager::FEntityCreationContext> CreationContext
 		= EntityManager->BatchCreateEntities(EntityTemplate.GetArchetype(), EntityTemplate.GetSharedFragmentValues(), NumToSpawn, SpawnedEntities);
 
+	// 2. Copy data from FMassEntityTemplate.Fragments.
+	//		a. @todo, could be done as part of creation?
 	TConstArrayView<FInstancedStruct> FragmentInstances = EntityTemplate.GetInitialFragmentValues();
 	EntityManager->BatchSetEntityFragmentsValues(CreationContext->GetEntityCollections(), FragmentInstances);
 	
-	UMassProcessor* SpawnDataInitializer = SpawnData.IsValid() ? GetSpawnDataInitializer(InitializerClass) : nullptr;
+	// 3. Run SpawnDataInitializer, if set. This is a special type of processor that operates on the entities to initialize them.
+	// e.g., will run UInstancedActorsInitializerProcessor for Mass InstancedActors
+	UMassProcessor* SpawnDataInitializer = SpawnData.IsValid() 
+		? GetSpawnDataInitializer(InitializerClass) 
+		: nullptr;
 
 	if (SpawnDataInitializer)
 	{
@@ -150,6 +151,7 @@ void UMassSpawnerSubsystem::DoSpawning(const FMassEntityTemplate& EntityTemplate
 	}
 
 	OutEntities.Append(MoveTemp(SpawnedEntities));
+	// 4. "OnEntitiesCreated" notifies will be sent out once the CreationContext gets destroyed (via its destructor).
 }
 
 const FMassEntityTemplate* UMassSpawnerSubsystem::GetMassEntityTemplate(FMassEntityTemplateID TemplateID) const

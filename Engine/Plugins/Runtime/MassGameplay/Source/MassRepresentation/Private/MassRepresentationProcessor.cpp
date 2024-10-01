@@ -51,6 +51,7 @@ void UMassRepresentationProcessor::UpdateRepresentation(FMassExecutionContext& C
 {
 	UMassRepresentationSubsystem* RepresentationSubsystem = Context.GetMutableSharedFragment<FMassRepresentationSubsystemSharedFragment>().RepresentationSubsystem;
 	check(RepresentationSubsystem);
+
 	const FMassRepresentationParameters& RepresentationParams = Context.GetConstSharedFragment<FMassRepresentationParameters>();
 	UMassRepresentationActorManagement* RepresentationActorManagement = RepresentationParams.CachedRepresentationActorManagement;
 	check(RepresentationActorManagement);
@@ -58,7 +59,8 @@ void UMassRepresentationProcessor::UpdateRepresentation(FMassExecutionContext& C
 	UMassActorSubsystem* MassActorSubsystem = Context.GetMutableSubsystem<UMassActorSubsystem>();
 
 	FMassEntityManager& CachedEntityManager = Context.GetEntityManagerChecked();
-
+	
+	// Get Transform, Representation, RepresentationLOD and Actor fragments from Context
 	const TConstArrayView<FTransformFragment> TransformList = Context.GetFragmentView<FTransformFragment>();
 	const TArrayView<FMassRepresentationFragment> RepresentationList = Context.GetMutableFragmentView<FMassRepresentationFragment>();
 	const TConstArrayView<FMassRepresentationLODFragment> RepresentationLODList = Context.GetFragmentView<FMassRepresentationLODFragment>();
@@ -66,6 +68,14 @@ void UMassRepresentationProcessor::UpdateRepresentation(FMassExecutionContext& C
 
 	const bool bDoKeepActorExtraFrame = UE::Mass::Representation::bAllowKeepActorExtraFrame ? RepresentationParams.bKeepLowResActors : false;
 
+	// Iterate over all entities, and:
+	// 1. Find their current EMassRepresentationType value based on their current RepresentationLOD;
+	// 2. Change EMassRepresentationType value based on some configs (not all flows will care about this);
+	// 3. Switch the in-game instance representation depending on the EMassRepresentationType;
+	// 		a. If EMassRepresentationType == HighResSpawnedActor or LowResSpawnedActor, sends an Actor SpawnRequest to MassRepresentationActorManagement;
+	// 		b. If EMassRepresentationType == StaticMeshInstance, sends an Actor disable request to MassRepresentationActorManagement;
+	//		c. If EMassRepresentationType == StaticMeshInstance, sends an Actor disable request to MassRepresentationActorManagement.
+	// 		NOTE: I guess this system assumes all instances are already represented by ISMs, which is why we're only dealing with Actor spawn/deactivation
 	const int32 NumEntities = Context.GetNumEntities();
 	for (int32 EntityIdx = 0; EntityIdx < NumEntities; EntityIdx++)
 	{
@@ -79,12 +89,15 @@ void UMassRepresentationProcessor::UpdateRepresentation(FMassExecutionContext& C
 		// Keeping a copy of the that last calculated previous representation
 		const EMassRepresentationType PrevRepresentationCopy = Representation.PrevRepresentation;
 		Representation.PrevRepresentation = Representation.CurrentRepresentation;
-		
-		EMassRepresentationType WantedRepresentationType = RepresentationParams.LODRepresentation[FMath::Min((int32)RepresentationLOD.LOD, (int32)EMassLOD::Off)];
 
+		// === 1. Find the current EMassRepresentationType value based on their current RepresentationLOD		
+		EMassRepresentationType WantedRepresentationType = RepresentationParams.LODRepresentation[FMath::Min((int32)RepresentationLOD.LOD, (int32)EMassLOD::Off)];
+		// === 1 end
+
+		// === 2. Change EMassRepresentationType value based on some configs (not all flows will care about this)
 		// Make sure we do not have actor spawned in areas not fully loaded
 		if (Params.bTestCollisionAvailibilityForActorVisualization
-			&& (WantedRepresentationType == EMassRepresentationType::HighResSpawnedActor || WantedRepresentationType == EMassRepresentationType::LowResSpawnedActor) 
+			&& (WantedRepresentationType == EMassRepresentationType::HighResSpawnedActor || WantedRepresentationType == EMassRepresentationType::LowResSpawnedActor)
 			&& !RepresentationSubsystem->IsCollisionLoaded(RepresentationParams.WorldPartitionGridNameContainingCollision, TransformFragment.GetTransform()))
 		{
 			WantedRepresentationType = RepresentationParams.CachedDefaultRepresentationType;
@@ -97,19 +110,29 @@ void UMassRepresentationProcessor::UpdateRepresentation(FMassExecutionContext& C
 		//
 		// Useful for server-authoritative Actor spawning, with replicated Actors inserting themselves into Mass whilst they're
 		// replicated, enforcing actor representation on clients whilst they're present.
-		if (RepresentationParams.bForceActorRepresentationForExternalActors && IsValid(Actor) && !ActorInfo.IsOwnedByMass())
+		//
+		// NOTE:
+		// IsOwnedByMass = Hydrated by mass
+		// !IsOwnedByMass = Hydrated by some external system
+		if (IsValid(Actor))
 		{
-			WantedRepresentationType = Representation.CurrentRepresentation == EMassRepresentationType::LowResSpawnedActor ? EMassRepresentationType::LowResSpawnedActor : EMassRepresentationType::HighResSpawnedActor;
+			if (RepresentationParams.bForceActorRepresentationForExternalActors && !ActorInfo.IsOwnedByMass())
+			{
+				WantedRepresentationType = (Representation.CurrentRepresentation == EMassRepresentationType::LowResSpawnedActor)
+					? EMassRepresentationType::LowResSpawnedActor
+					: EMassRepresentationType::HighResSpawnedActor;
+			}
 		}
-
 		// Has Actor unexpectedly been unset / destroyed since we last ran? 
-		if (!IsValid(Actor) && (Representation.CurrentRepresentation == EMassRepresentationType::LowResSpawnedActor || Representation.CurrentRepresentation == EMassRepresentationType::HighResSpawnedActor))
+		else if (Representation.CurrentRepresentation == EMassRepresentationType::LowResSpawnedActor 
+			|| Representation.CurrentRepresentation == EMassRepresentationType::HighResSpawnedActor)
 		{
 			// Set CurrentRepresentation = None so we get a chance to see CurrentRepresentation != WantedRepresentationType and spawn 
 			// another actor.
 			Representation.CurrentRepresentation = EMassRepresentationType::None;
 		}
-		
+		// === 2 end
+
 		auto DisableActorForISM = [&](AActor*& Actor)
 		{
 			if (!Actor || ActorInfo.IsOwnedByMass())
@@ -141,6 +164,7 @@ void UMassRepresentationProcessor::UpdateRepresentation(FMassExecutionContext& C
 			}
 		};
 
+		// === 3. Switch the in-game instance representation depending on the EMassRepresentationType;
 		// Process switch between representation if there is a change in the representation or there is a pending spawning request
 		if (WantedRepresentationType != Representation.CurrentRepresentation || Representation.ActorSpawnRequestHandle.IsValid())
 		{
@@ -235,12 +259,14 @@ void UMassRepresentationProcessor::UpdateRepresentation(FMassExecutionContext& C
 					break;
 			}
 		}
-		else if (bDoKeepActorExtraFrame && 
-				 Representation.PrevRepresentation == EMassRepresentationType::StaticMeshInstance &&
-			    (PrevRepresentationCopy == EMassRepresentationType::HighResSpawnedActor || PrevRepresentationCopy == EMassRepresentationType::LowResSpawnedActor))
+		else if (bDoKeepActorExtraFrame
+				&& Representation.PrevRepresentation == EMassRepresentationType::StaticMeshInstance 
+				&& (PrevRepresentationCopy == EMassRepresentationType::HighResSpawnedActor 
+					|| PrevRepresentationCopy == EMassRepresentationType::LowResSpawnedActor))
 		{
 			DisableActorForISM(Actor);
 		}
+		// === 3 end
 	}
 
 #if WITH_MASSGAMEPLAY_DEBUG

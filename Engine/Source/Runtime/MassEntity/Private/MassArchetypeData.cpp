@@ -470,7 +470,7 @@ void FMassArchetypeData::ExecuteFunction(FMassExecutionContext& RunContext, cons
 		return;
 	}
 
-	// mz@todo to be removed
+	// @todo do we really want users to check composition of the archetype being processed at the moment?
 	RunContext.SetCurrentArchetypeCompositionDescriptor(GetCompositionDescriptor());
 
 	uint32 PrevSharedFragmentValuesHash = UINT32_MAX;
@@ -510,7 +510,6 @@ void FMassArchetypeData::ExecuteFunction(FMassExecutionContext& RunContext, cons
 		return;
 	}
 
-	// mz@todo to be removed
 	RunContext.SetCurrentArchetypeCompositionDescriptor(GetCompositionDescriptor());
 
 	uint32 PrevSharedFragmentValuesHash = UINT32_MAX;
@@ -656,6 +655,7 @@ void FMassArchetypeData::GetRequirementsFragmentMapping(TConstArrayView<FMassFra
 	}
 }
 
+// @todo make ChunkRequirements a dedicated type, so that we can ensure that the contents are sorted as expected by the for loop below
 void FMassArchetypeData::GetRequirementsChunkFragmentMapping(TConstArrayView<FMassFragmentRequirementDescription> ChunkRequirements, FMassFragmentIndicesMapping& OutFragmentIndices) const
 {
 	int32 LastFoundFragmentIndex = -1;
@@ -665,7 +665,6 @@ void FMassArchetypeData::GetRequirementsChunkFragmentMapping(TConstArrayView<FMa
 		if (Requirement.RequiresBinding())
 		{
 			int32 FragmentIndex = INDEX_NONE;
-			// mz@todo Add comment here as this code seems to be assuming a certain order for chunk fragments, please explain
 			for (int32 i = LastFoundFragmentIndex + 1; i < ChunkFragmentsTemplate.Num(); ++i)
 			{
 				if (ChunkFragmentsTemplate[i].GetScriptStruct()->IsChildOf(Requirement.StructType))
