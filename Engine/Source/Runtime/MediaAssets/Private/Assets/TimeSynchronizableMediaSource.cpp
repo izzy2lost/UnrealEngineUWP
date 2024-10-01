@@ -36,7 +36,7 @@ int64 UTimeSynchronizableMediaSource::GetMediaOption(const FName& Key, int64 Def
 {
 	if (Key == TimeSynchronizableMedia::FrameDelay)
 	{
-		return FrameDelay;
+		return FMath::Clamp(FrameDelay, 0, 4);
 	}
 
 	return Super::GetMediaOption(Key, DefaultValue);

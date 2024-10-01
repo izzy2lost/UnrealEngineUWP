@@ -163,6 +163,7 @@ public:
 	virtual bool SupportsSubFrames() const override;
 
 public:
+	/** Class used to pass information about current frame for sample picking.*/
 	class FFrameInfo
 	{
 	public:
@@ -173,6 +174,7 @@ public:
 	};
 
 	/** Deprecated in UE5.5. */
+	UE_DEPRECATED("5.5", "Use the overloaded method that takes FFrameInfo instead of proxy sample.")
 	bool JustInTimeSampleRender_RenderThread(FRHICommandListImmediate& RHICmdList, TSharedPtr<FMediaIOCoreTextureSampleBase>& JITRProxySample) { return false; };
 	
 	/**
