@@ -10,6 +10,7 @@
 
 class SSlider;
 class UMediaPlayer;
+enum class EMediaPlayerTrack : uint8;
 
 /**
  * Implements a scrubber to visualize the current playback position of a Media Player
@@ -62,6 +63,8 @@ private:
 
 		FMediaPlayerEntry(const TWeakObjectPtr<UMediaPlayer>& InMediaPlayerWeak) : MediaPlayerWeak(InMediaPlayerWeak) { }
 	};
+
+	const FMediaPlayerEntry* FindValidPlayerEntryForTrackType(EMediaPlayerTrack InTrackType) const;
 	
 	TArray<FMediaPlayerEntry> MediaPlayerEntries;
 	
