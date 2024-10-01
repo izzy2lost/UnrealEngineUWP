@@ -13,6 +13,7 @@
 #include "Misc/MessageDialog.h"
 #include "DataValidationCommandlet.h"
 #include "EditorValidatorBase.h"
+#include "EditorValidator_Material.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
 #include "Logging/MessageLog.h"
 #include "UObject/ICookInfo.h"
@@ -76,6 +77,8 @@ void FDataValidationModule::StartupModule()
 			LOCTEXT("DataValidationDescription", "Settings related to validating assets in the editor."),
 			GetMutableDefault<UDataValidationSettings>()
 		);
+
+		FMaterialEditorValidationShaderPlatform::RegisterCustomPropertyTypeLayout();
 	}
 }
 
@@ -89,6 +92,8 @@ void FDataValidationModule::ShutdownModule()
 		UToolMenus::UnregisterOwner(this);
 
 		UPackage::PackageSavedWithContextEvent.RemoveAll(this);
+
+		FMaterialEditorValidationShaderPlatform::UnregisterCustomPropertyTypeLayout();
 	}
 }
 

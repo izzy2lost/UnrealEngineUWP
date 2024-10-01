@@ -128,6 +128,9 @@ class FGenericDataDrivenShaderPlatformInfo
 	uint32 bSupportsWave64 : 1;
 	uint32 bSupportsIndependentSamplers : 1;
 	uint32 bSupportsWorkGraphs : 1;
+#if WITH_EDITOR
+	uint32 bCanUsePreviewPlatformForMaterialValidation : 1;
+#endif
 
 	// NOTE: When adding fields, you must also add to ParseDataDrivenShaderInfo!
 	uint32 bContainsValidPlatformInfo : 1;
@@ -829,6 +832,14 @@ public:
 		check(IsValid(Platform));
 		return Infos[Platform].bSupportsWorkGraphs;
 	}
+
+#if WITH_EDITOR
+	static FORCEINLINE_DEBUGGABLE const bool CanUseForMaterialValidation(const FStaticShaderPlatform Platform)
+	{
+		check(IsValid(Platform));
+		return Infos[Platform].bCanUsePreviewPlatformForMaterialValidation || !Infos[Platform].bIsPreviewPlatform;
+	}
+#endif
 
 	static FORCEINLINE_DEBUGGABLE const bool IsValid(const FStaticShaderPlatform Platform)
 	{
