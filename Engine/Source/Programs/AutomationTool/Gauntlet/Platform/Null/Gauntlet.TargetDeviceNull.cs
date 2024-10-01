@@ -37,9 +37,9 @@ namespace Gauntlet
 
 		public string StdOut { get { return ""; } }
 
-		public ILogStreamReader GetLogReader() { return null; }
+		public ILogStreamReader GetLogReader() { return new DynamicStringReader(() => ""); }
 
-		public ILogStreamReader GetLogBufferReader() { return null; }
+		public ILogStreamReader GetLogBufferReader() { return new DynamicStringReader(() => ""); }
 
 		public bool WriteOutputToFile(string FilePath) { return false; }
 
