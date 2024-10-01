@@ -7722,6 +7722,20 @@ namespace UE::AssetRegistry
 
 void FAssetRegistryImpl::AddLoadedAssetToProcess(const UObject& AssetLoaded)
 {
+	// Make sure the loaded asset is from a monitored path
+	{
+		FString LocalPath;
+		if (!FPackageName::TryConvertLongPackageNameToFilename(AssetLoaded.GetPackage()->GetName(), LocalPath))
+		{
+			return;
+		}
+
+		if (!GlobalGatherer->IsMonitored(LocalPath))
+		{
+			return;
+		}
+	}
+
 	LoadedAssetsToProcess.Add(&AssetLoaded);
 }
 
