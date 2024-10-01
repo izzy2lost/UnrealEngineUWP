@@ -379,6 +379,8 @@ void FAnimNode_ControlRigBase::OnInitializeAnimInstance(const FAnimInstanceProxy
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
 	FAnimNode_CustomProperty::OnInitializeAnimInstance(InProxy, InAnimInstance);
+	
+	bEnablePoseAdapter = (CVarControlRigEnableAnimNodePerformanceOptimizations->GetInt() != 0);
 
 	WeakAnimInstanceObject = TWeakObjectPtr<const UAnimInstance>(InAnimInstance);
 	if(bEnablePoseAdapter)
