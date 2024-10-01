@@ -42,6 +42,8 @@ private:
 	float GetViewMinInput() const;
 	float GetViewMaxInput() const;
 
+	FText GetDisplayString() const;
+
 	UDataflowEditorMode* GetEdMode() const;
 };
 

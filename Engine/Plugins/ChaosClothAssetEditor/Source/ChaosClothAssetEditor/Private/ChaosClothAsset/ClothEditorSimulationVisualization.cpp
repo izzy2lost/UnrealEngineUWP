@@ -6,6 +6,9 @@
 #include "ChaosClothAsset/ClothSimulationProxy.h"
 #include "ChaosClothAsset/ClothComponent.h"
 #include "ChaosCloth/ChaosClothVisualization.h"
+#include "Dataflow/DataflowEditorToolkit.h"
+#include "Dataflow/DataflowSimulationScene.h"
+#include "Dataflow/DataflowSimulationViewportClient.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "Delegates/Delegate.h"
@@ -95,7 +98,7 @@ DECLARE_DELEGATE_FourParams(FClothVisualizationDebugDrawTexts, const FClothEdito
 
 DECLARE_DELEGATE_RetVal_TwoParams(FText, FLocalDebugDisplayString, const FClothEditorSimulationVisualization&, const FClothSimulationProxy& );
 
-DECLARE_DELEGATE_ThreeParams(FAdditionalMenus, FClothEditorSimulationVisualization&, FMenuBuilder&, TSharedRef<FChaosClothAssetEditor3DViewportClient>);
+DECLARE_DELEGATE_TwoParams(FAdditionalMenus, FClothEditorSimulationVisualization&, FMenuBuilder&);
 
 struct FVisualizationOption
 {
@@ -167,7 +170,7 @@ const FVisualizationOption FVisualizationOption::OptionData[] =
 		}),
 		LOCTEXT("ChaosVisName_SimulationStatistics", "Simulation Statistics"),
 		LOCTEXT("ChaosVisName_SimulationStatistics_Tooltip", "Displays simulation statistics"),
-		/*bDisablesSimulation =*/false, /*bHidesClothSections=*/true, /*bDefaultFlagValue=*/true),
+		/*bDisablesSimulation =*/false, /*bHidesClothSections=*/false, /*bDefaultFlagValue=*/true),
 	FVisualizationOption(
 		FClothVisualizationDebugDraw::CreateLambda([](const FClothEditorSimulationVisualization&, const ::Chaos::FClothVisualizationNoGC& Visualization, FPrimitiveDrawInterface* PDI)
 		{
@@ -216,7 +219,7 @@ const FVisualizationOption FVisualizationOption::OptionData[] =
 		LOCTEXT("ChaosVisName_PointNormals", "Physical Mesh Normals"), 
 		LOCTEXT("ChaosVisName_PointNormals_ToolTip", "Draws the current point normals for the simulation mesh"),
 		/*bDisablesSimulation =*/false, /*bHidesClothSections=*/false, /*bDefaultFlagValue=*/false, 
-		FAdditionalMenus::CreateLambda([](FClothEditorSimulationVisualization& EditorVisualization, FMenuBuilder& MenuBuilder, TSharedRef<FChaosClothAssetEditor3DViewportClient> ViewportClient)
+		FAdditionalMenus::CreateLambda([](FClothEditorSimulationVisualization& EditorVisualization, FMenuBuilder& MenuBuilder)
 		{
 			EditorVisualization.ExtendViewportShowMenuPointNormalsLength(MenuBuilder);
 		})),
@@ -235,7 +238,7 @@ const FVisualizationOption FVisualizationOption::OptionData[] =
 		LOCTEXT("ChaosVisName_AnimNormals", "Animated Mesh Normals"), 
 		LOCTEXT("ChaosVisName_AnimNormals_ToolTip", "Draws the current point normals for the animated mesh"),
 		/*bDisablesSimulation =*/false, /*bHidesClothSections=*/false, /*bDefaultFlagValue=*/false,
-		FAdditionalMenus::CreateLambda([](FClothEditorSimulationVisualization& EditorVisualization, FMenuBuilder& MenuBuilder, TSharedRef<FChaosClothAssetEditor3DViewportClient> ViewportClient)
+		FAdditionalMenus::CreateLambda([](FClothEditorSimulationVisualization& EditorVisualization, FMenuBuilder& MenuBuilder)
 		{
 			EditorVisualization.ExtendViewportShowMenuAnimatedNormalsLength(MenuBuilder);
 		})),
@@ -311,7 +314,7 @@ const FVisualizationOption FVisualizationOption::OptionData[] =
 		LOCTEXT("ChaosVisName_WindAndPressureForces", "Wind Aerodynamic And Pressure Forces"), 
 		LOCTEXT("ChaosVisName_WindAndPressure_Tooltip", "Draws the Wind drag and lift and pressure forces"),
 		/*bDisablesSimulation =*/false, /*bHidesClothSections=*/false, /*bDefaultFlagValue=*/false,
-		FAdditionalMenus::CreateLambda([](FClothEditorSimulationVisualization& EditorVisualization, FMenuBuilder& MenuBuilder, TSharedRef<FChaosClothAssetEditor3DViewportClient> ViewportClient)
+		FAdditionalMenus::CreateLambda([](FClothEditorSimulationVisualization& EditorVisualization, FMenuBuilder& MenuBuilder)
 		{
 			EditorVisualization.ExtendViewportShowMenuAerodynamicsLengthScale(MenuBuilder);
 		})),
@@ -395,9 +398,9 @@ const FVisualizationOption FVisualizationOption::OptionData[] =
 		LOCTEXT("ChaosVisName_DrawWeightMap", "Weight Map"), 
 		LOCTEXT("ChaosVisName_DrawWeightMap_ToolTip", "Draw the weight map for the simulation mesh. You can control the name of the map to be visualized by setting the p.ChaosClothVisualization.WeightMapName console variable."), 
 		/*bDisablesSimulation =*/false, /*bHidesClothSections=*/true, /*bDefaultFlagValue=*/false,
-		FAdditionalMenus::CreateLambda([](FClothEditorSimulationVisualization& EditorVisualization, FMenuBuilder& MenuBuilder, TSharedRef<FChaosClothAssetEditor3DViewportClient> ViewportClient)
+		FAdditionalMenus::CreateLambda([](FClothEditorSimulationVisualization& EditorVisualization, FMenuBuilder& MenuBuilder)
 		{
-			EditorVisualization.ExtendViewportShowMenuWeightMapSelector(MenuBuilder, ViewportClient);
+			EditorVisualization.ExtendViewportShowMenuWeightMapSelector(MenuBuilder);
 		})),
 	FVisualizationOption(
 		FClothVisualizationDebugDraw::CreateLambda([](const FClothEditorSimulationVisualization&, const ::Chaos::FClothVisualizationNoGC& Visualization, FPrimitiveDrawInterface* PDI)
@@ -423,18 +426,19 @@ FClothEditorSimulationVisualization::FClothEditorSimulationVisualization()
 	}
 }
 
-void FClothEditorSimulationVisualization::ExtendViewportShowMenu(FMenuBuilder& MenuBuilder, TSharedRef<FChaosClothAssetEditor3DViewportClient> ViewportClient)
+
+void FClothEditorSimulationVisualization::ExtendViewportShowMenu(FMenuBuilder& MenuBuilder, const TFunction<UChaosClothComponent*()>& GetClothComponentFunc)
 {
-	MenuBuilder.BeginSection(TEXT("ChaosSimulation_Visualizations"), LOCTEXT("VisualizationSection", "Visualizations"));
+	MenuBuilder.BeginSection(TEXT("ChaosSimulation_Visualizations"), LOCTEXT("ClothVisualizationSection", "Chaos Cloth Visualization"));
 	{
 		for (uint32 OptionIndex = 0; OptionIndex < Private::FVisualizationOption::Count; ++OptionIndex)
 		{
 			// Handler for visualization entry being clicked
-			const FExecuteAction ExecuteAction = FExecuteAction::CreateLambda([this, OptionIndex, ViewportClient]()
+			const FExecuteAction ExecuteAction = FExecuteAction::CreateLambda([this, OptionIndex, GetClothComponentFunc]()
 			{
 				Flags[OptionIndex] = !Flags[OptionIndex];
 
-				if (UChaosClothComponent* const ClothComponent = ViewportClient->GetPreviewClothComponent())
+				if (UChaosClothComponent* const ClothComponent = GetClothComponentFunc())
 				{
 					// If we need to toggle the disabled or visibility states, handle it
 					// Disable simulation
@@ -462,13 +466,55 @@ void FClothEditorSimulationVisualization::ExtendViewportShowMenu(FMenuBuilder& M
 
 			// Add menu entry
 			MenuBuilder.AddMenuEntry(Private::FVisualizationOption::OptionData[OptionIndex].DisplayName, Private::FVisualizationOption::OptionData[OptionIndex].ToolTip, FSlateIcon(), Action, NAME_None, EUserInterfaceActionType::ToggleButton);
-			Private::FVisualizationOption::OptionData[OptionIndex].AdditionalMenus.ExecuteIfBound(*this, MenuBuilder, ViewportClient);
+			Private::FVisualizationOption::OptionData[OptionIndex].AdditionalMenus.ExecuteIfBound(*this, MenuBuilder);
 		}
 	}
 	MenuBuilder.EndSection();
 }
 
-void FClothEditorSimulationVisualization::ExtendViewportShowMenuWeightMapSelector(FMenuBuilder& MenuBuilder, TSharedRef<FChaosClothAssetEditor3DViewportClient> ViewportClient)
+
+void FClothEditorSimulationVisualization::ExtendViewportShowMenu(FMenuBuilder& MenuBuilder, const TSharedRef<FChaosClothAssetEditor3DViewportClient>& ViewportClient)
+{
+	TWeakPtr<FChaosClothAssetEditor3DViewportClient> ViewportClientWeakPtr(ViewportClient);
+
+	ExtendViewportShowMenu(MenuBuilder, [ViewportClientWeakPtr]() -> UChaosClothComponent*
+	{
+		if (TSharedPtr<FChaosClothAssetEditor3DViewportClient> ViewportClient = ViewportClientWeakPtr.Pin())
+		{
+			return ViewportClient->GetPreviewClothComponent();
+		}
+
+		return nullptr;
+	});
+}
+
+
+void FClothEditorSimulationVisualization::ExtendViewportShowMenu(FMenuBuilder& MenuBuilder, const TSharedRef<FDataflowSimulationViewportClient>& ViewportClient)
+{
+	TWeakPtr<FDataflowSimulationViewportClient> ViewportClientWeakPtr(ViewportClient);
+
+	ExtendViewportShowMenu(MenuBuilder, [ViewportClientWeakPtr]() -> UChaosClothComponent*
+	{
+		if (TSharedPtr<FDataflowSimulationViewportClient> ViewportClient = ViewportClientWeakPtr.Pin())
+		{
+			if (TSharedPtr<FDataflowEditorToolkit> Toolkit = ViewportClient->GetDataflowEditorToolkit().Pin())
+			{
+				if (const TSharedPtr<FDataflowSimulationScene>& SimulationScene = Toolkit->GetSimulationScene())
+				{
+					if (const TObjectPtr<AActor> PreviewActor = SimulationScene->GetPreviewActor())
+					{
+						return PreviewActor->GetComponentByClass<UChaosClothComponent>();
+					}
+				}
+			}
+		}
+
+		return nullptr;
+	});
+}
+
+
+void FClothEditorSimulationVisualization::ExtendViewportShowMenuWeightMapSelector(FMenuBuilder& MenuBuilder)
 {
 	WeightMapSelector =
 		SNew(STextComboBox)

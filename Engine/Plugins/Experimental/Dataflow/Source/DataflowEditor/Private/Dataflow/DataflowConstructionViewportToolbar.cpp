@@ -3,6 +3,8 @@
 #include "Dataflow/DataflowConstructionViewportToolbar.h"
 
 #include "Dataflow/DataflowConstructionViewport.h"
+#include "Dataflow/DataflowConstructionViewportClient.h"
+#include "Dataflow/DataflowConstructionVisualization.h"
 #include "Dataflow/DataflowEditorCommands.h"
 #include "Dataflow/DataflowEditorMode.h"
 #include "Dataflow/DataflowRenderingViewMode.h"
@@ -71,10 +73,22 @@ void SDataflowConstructionViewportSelectionToolBar::Construct(const FArguments& 
 
 	// Display (Lit, Unlit, Wireframe, etc.)
 	MainBoxPtr->AddSlot()
+		.AutoWidth()
 		.Padding(ToolbarSlotPadding)
-		.HAlign(HAlign_Left)
 		[
 			MakeDisplayToolBar(InArgs._Extenders)
+		];
+
+	// Show menu
+	MainBoxPtr->AddSlot()
+		.AutoWidth()
+		.Padding(ToolbarSlotPadding)
+		[
+			SNew(SEditorViewportToolbarMenu)
+				.Label(LOCTEXT("ShowMenuTitle", "Show"))
+				.Cursor(EMouseCursor::Default)
+				.ParentToolBar(SharedThis(this))
+				.OnGetMenuContent(this, &SDataflowConstructionViewportSelectionToolBar::GenerateShowMenu)
 		];
 
 	// View mode (Sim2D/Sim3D/Render)
@@ -88,7 +102,25 @@ void SDataflowConstructionViewportSelectionToolBar::Construct(const FArguments& 
 	// See SCommonEditorViewportToolbarBase::Construct for more possible menus to add
 }
 
+TSharedRef<SWidget> SDataflowConstructionViewportSelectionToolBar::GenerateShowMenu() const
+{
+	FMenuBuilder MenuBuilder(false, CommandList);
 
+	using namespace UE::Dataflow;
+
+	if (const TSharedPtr<SDataflowConstructionViewport> PinnedEditorViewport = EditorViewport.Pin())
+	{
+		if (const TSharedPtr<FEditorViewportClient> ViewportClient = PinnedEditorViewport->GetViewportClient())
+		{
+			for (const TPair<FName, TUniquePtr<IDataflowConstructionVisualization>>& Visualization : FDataflowConstructionVisualizationRegistry::GetInstance().GetVisualizations())
+			{
+				Visualization.Value->ExtendViewportShowMenu(StaticCastSharedPtr<FDataflowConstructionViewportClient>(ViewportClient), MenuBuilder);
+			}
+		}
+	}
+
+	return MenuBuilder.MakeWidget();
+}
 
 TSharedRef<SWidget> SDataflowConstructionViewportSelectionToolBar::MakeToolBar(const TSharedPtr<FExtender> InExtenders)
 {

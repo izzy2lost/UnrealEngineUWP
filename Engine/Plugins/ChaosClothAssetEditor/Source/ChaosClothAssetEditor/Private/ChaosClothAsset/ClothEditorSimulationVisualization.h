@@ -10,6 +10,7 @@ class FPrimitiveDrawInterface;
 class FCanvas;
 class FSceneView;
 class STextComboBox;
+class FDataflowSimulationViewportClient;
 
 namespace ESelectInfo
 {
@@ -25,8 +26,10 @@ class FClothEditorSimulationVisualization
 {
 public:
 	FClothEditorSimulationVisualization();
+	   
+	void ExtendViewportShowMenu(FMenuBuilder& MenuBuilder, const TSharedRef<FChaosClothAssetEditor3DViewportClient>& ViewportClient);
+	void ExtendViewportShowMenu(FMenuBuilder& MenuBuilder, const TSharedRef<FDataflowSimulationViewportClient>& ViewportClient);
 
-	void ExtendViewportShowMenu(FMenuBuilder& MenuBuilder, TSharedRef<FChaosClothAssetEditor3DViewportClient> ViewportClient);
 	void DebugDrawSimulation(const UChaosClothComponent* ClothComponent, FPrimitiveDrawInterface* PDI);
 	void DebugDrawSimulationTexts(const UChaosClothComponent* ClothComponent, FCanvas* Canvas, const FSceneView* SceneView);
 	FText GetDisplayString(const UChaosClothComponent* ClothComponent) const;
@@ -34,7 +37,8 @@ public:
 
 	// WeightMaps 
 	const FString* GetCurrentlySelectedWeightMap() const { return CurrentlySelectedWeightMap.Get(); }
-	void ExtendViewportShowMenuWeightMapSelector(FMenuBuilder& MenuBuilder, TSharedRef<FChaosClothAssetEditor3DViewportClient> ViewportClient);
+	void ExtendViewportShowMenuWeightMapSelector(FMenuBuilder& MenuBuilder);
+
 	// Normals
 	void ExtendViewportShowMenuPointNormalsLength(FMenuBuilder& MenuBuilder)
 	{
@@ -51,7 +55,11 @@ public:
 	float GetPointNormalLength() const { return PointNormalLength; }
 	float GetAnimatedNormalLength() const { return AnimatedNormalLength; }
 	float GetAerodynamicsLengthScale() const { return AerodynamicsLengthScale; }
+
 private:
+
+	void ExtendViewportShowMenu(FMenuBuilder& MenuBuilder, const TFunction<UChaosClothComponent*()>& GetClothComponentFunc);
+
 	/** Return whether or not - given the current enabled options - the simulation should be disabled. */
 	bool ShouldDisableSimulation() const;
 	/** Show/hide all cloth sections for the specified mesh compoment. */

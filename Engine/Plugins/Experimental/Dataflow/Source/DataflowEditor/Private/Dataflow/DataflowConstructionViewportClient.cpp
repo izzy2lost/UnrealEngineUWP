@@ -9,6 +9,7 @@
 #include "Dataflow/DataflowEngineSceneHitProxies.h"
 #include "Dataflow/DataflowGraphEditor.h"
 #include "Dataflow/DataflowConstructionScene.h"
+#include "Dataflow/DataflowConstructionVisualization.h"
 #include "Dataflow/DataflowEditorPreviewSceneBase.h"
 #include "Dataflow/DataflowRenderingViewMode.h"
 #include "EditorModeManager.h"
@@ -244,6 +245,28 @@ void FDataflowConstructionViewportClient::AddReferencedObjects(FReferenceCollect
 {
 	Super::AddReferencedObjects(Collector);
 	Collector.AddReferencedObject(BehaviorSet);
+}
+
+void FDataflowConstructionViewportClient::Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI)
+{
+	FEditorViewportClient::Draw(View, PDI);
+
+	using namespace UE::Dataflow;
+	for (const TPair<FName, TUniquePtr<IDataflowConstructionVisualization>>& Visualization : FDataflowConstructionVisualizationRegistry::GetInstance().GetVisualizations())
+	{
+		Visualization.Value->Draw(static_cast<FDataflowConstructionScene*>(PreviewScene), PDI);
+	}
+}
+
+void FDataflowConstructionViewportClient::DrawCanvas(FViewport& InViewport, FSceneView& View, FCanvas& Canvas)
+{
+	FEditorViewportClient::DrawCanvas(InViewport, View, Canvas);
+
+	using namespace UE::Dataflow;
+	for (const TPair<FName, TUniquePtr<IDataflowConstructionVisualization>>& Visualization : FDataflowConstructionVisualizationRegistry::GetInstance().GetVisualizations())
+	{
+		Visualization.Value->DrawCanvas(static_cast<FDataflowConstructionScene*>(PreviewScene), &Canvas, &View);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE 

@@ -12,6 +12,8 @@
 #include "Dataflow/DataflowSimulationScene.h"
 #include "Dataflow/DataflowSimulationPanel.h"
 #include "Dataflow/DataflowSimulationViewportToolbar.h"
+#include "Dataflow/DataflowSimulationVisualization.h"
+#include "Widgets/Text/SRichTextBlock.h"
 
 #define LOCTEXT_NAMESPACE "SDataflowSimulationViewport"
 
@@ -65,8 +67,52 @@ void SDataflowSimulationViewport::Construct(const FArguments& InArgs, const FAss
 				]
 			]
 		];
+
+		ViewportOverlay->AddSlot()
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Top)
+			.FillWidth(1)
+			.Padding(10.0f, 40.0f)
+			[
+				// Display text 
+				SNew(SRichTextBlock)
+					.DecoratorStyleSet(&FAppStyle::Get())
+					.Text(this, &SDataflowSimulationViewport::GetDisplayString)
+					.TextStyle(&FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("AnimViewport.MessageText"))
+			]
+		];
+
 	}
 }
+
+FText SDataflowSimulationViewport::GetDisplayString() const
+{
+	using namespace UE::Dataflow;
+	
+	auto ConcatenateLine = [](const FText& InText, const FText& InNewLine)->FText
+	{
+		if (InText.IsEmpty())
+		{
+			return InNewLine;
+		}
+		return FText::Format(LOCTEXT("ViewportTextNewlineFormatter", "{0}\n{1}"), InText, InNewLine);
+	};
+
+	FText DisplayText;
+
+	const TMap<FName, TUniquePtr<IDataflowSimulationVisualization>>& Visualizations = FDataflowSimulationVisualizationRegistry::GetInstance().GetVisualizations();
+	for (const TPair<FName, TUniquePtr<IDataflowSimulationVisualization>>& Visualization : Visualizations)
+	{
+		FText Text = Visualization.Value->GetDisplayString(GetSimulationScene().Get());
+		DisplayText = ConcatenateLine(DisplayText, Text);
+	}
+	
+	return DisplayText;
+}
+
 TSharedPtr<SWidget> SDataflowSimulationViewport::MakeViewportToolbar()
 {
 	return SNew(SDataflowSimulationViewportToolBar, SharedThis(this)).CommandList(CommandList);
