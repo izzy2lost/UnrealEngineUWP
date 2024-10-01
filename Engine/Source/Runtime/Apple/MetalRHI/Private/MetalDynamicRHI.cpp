@@ -56,11 +56,10 @@ FGraphicsPipelineStateRHIRef FMetalDynamicRHI::RHICreateGraphicsPipelineState(co
 		{
 			FMetalVertexDeclaration* VertexDeclaration = ResourceCast(Initializer.BoundShaderState.VertexDeclarationRHI);
 			
-			IRShaderReflection* VertexReflection = IRShaderReflectionCreate();
 			IRMetalLibBinary* StageInMetalLib = IRMetalLibBinaryCreate();
 			
 			const FString& SerializedJSON = VertexShader->Bindings.IRConverterReflectionJSON;
-			IRShaderReflectionDeserialize(TCHAR_TO_ANSI(*SerializedJSON), VertexReflection);
+			IRShaderReflection* VertexReflection = IRShaderReflectionCreateFromJSON(TCHAR_TO_ANSI(*SerializedJSON));
 			
 			bool bStageInCreationSuccessful = IRMetalLibSynthesizeStageInFunction(CompilerInstance,
 																				  VertexReflection,

@@ -680,7 +680,7 @@ void FMetalCompileShaderMSC::DoCompileMetalShader(
 			
 			if(bDumpDebugInfo)
 			{
-				ReflectionJSON = IRShaderReflectionAllocStringAndSerialize(AirReflection);
+				ReflectionJSON = IRShaderReflectionCopyJSONString(AirReflection);
 				FString ReflectionString = ANSI_TO_TCHAR(ReflectionJSON);
 				DumpDebugShaderText(Input, ReflectionString, TEXT("reflection.json"));
 				checkSlow(ReflectionJSON);
@@ -704,7 +704,7 @@ void FMetalCompileShaderMSC::DoCompileMetalShader(
 					if(!ReflectionJSON)
 					{
 						// Serialize Reflection for vs (required to generate stage_in functions at PSO creation-time)
-						ReflectionJSON = IRShaderReflectionAllocStringAndSerialize(AirReflection);
+						ReflectionJSON = IRShaderReflectionCopyJSONString(AirReflection);
 						checkSlow(ReflectionJSON);
 					}
 					break;

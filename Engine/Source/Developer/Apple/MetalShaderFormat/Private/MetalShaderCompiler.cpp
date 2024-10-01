@@ -530,7 +530,7 @@ void BuildMetalShaderOutput(
         if (Frequency == SF_Vertex)
         {
             Header.Bindings.IRConverterReflectionJSON = ANSI_TO_TCHAR(ShaderReflectionJSON);
-			IRShaderReflectionFreeString(ShaderReflectionJSON);
+			IRShaderReflectionReleaseString(ShaderReflectionJSON);
 			check(ShaderReflectionJSON && Header.Bindings.IRConverterReflectionJSON.Len() > 0);
         }
         else

@@ -178,7 +178,8 @@ public:
 		const TArray<TArray<uint8>>& ShaderCode,
 		TArray<FString>* OutputFiles) const override final
 	{
-		const int32 NumShadersPerLibrary = 10000;
+		int32 NumShadersPerLibrary = 10000;
+		
 		check(LibraryName.Len() > 0);
 
 		TArray<FString> Components;
@@ -189,6 +190,12 @@ public:
 
 		check(ShaderFormatName == NAME_SF_METAL || ShaderFormatName == NAME_SF_METAL_MRT || ShaderFormatName == NAME_SF_METAL_TVOS || ShaderFormatName == NAME_SF_METAL_MRT_TVOS || ShaderFormatName == NAME_SF_METAL_SM5 || ShaderFormatName == NAME_SF_METAL_SM6 || ShaderFormatName == NAME_SF_METAL_SIM || ShaderFormatName == NAME_SF_METAL_MACES3_1 || ShaderFormatName == NAME_SF_METAL_MRT_MAC);
 
+		// SM6 needs a lower limit of shaders per library as the packing process takes a significant amount of RAM
+		if(ShaderFormatName == NAME_SF_METAL_SM6)
+		{
+			NumShadersPerLibrary = 2000;
+		}
+		
 		const FString ArchivePath = (WorkingDirectory / ShaderFormatAndShaderPlatformName.GetPlainNameString());
 		IFileManager::Get().DeleteDirectory(*ArchivePath, false, true);
 		IFileManager::Get().MakeDirectory(*ArchivePath);
