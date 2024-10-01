@@ -183,6 +183,9 @@ public:
 	/** Called by the UI when the Simulcam Viewport receives keyboard input */
 	bool OnSimulcamViewportInputKey(const FKey& InKey, const EInputEvent& InEvent);
 
+	/** Called by the UI when the Simulcam Viewport receives a marquee select event */
+	void OnSimulcamViewportMarqueeSelect(FVector2D StartPosition, FVector2D EndPosition);
+
 	/** Called by the UI when the rewind button is clicked */
 	FReply OnRewindButtonClicked();
 
