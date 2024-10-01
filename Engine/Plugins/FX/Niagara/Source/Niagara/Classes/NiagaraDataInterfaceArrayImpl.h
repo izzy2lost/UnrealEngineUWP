@@ -1070,9 +1070,9 @@ struct FNDIArrayProxyImpl : public INDIArrayProxyBase
 							}
 							if ( FrameData.NumElements > 0 )
 							{
-								TArray<TArrayType> ArrayData;
+								TArray<TVMArrayType> ArrayData;
 								ArrayData.AddUninitialized(FrameData.NumElements);
-								FNDIArrayImplHelper<TArrayType>::CopyGpuToCpuMemory(ArrayData.GetData(), reinterpret_cast<const TVMArrayType*>(ReadbackData[0].Key), FrameData.NumElements);
+								FNDIArrayImplHelper<TArrayType>::CopyGpuToCpuMemory(ArrayData.GetData(), ReadbackData[0].Key, FrameData.NumElements);
 
 								FrameData.DataOffset = CacheData->FindOrAddData(
 									MakeArrayView(
