@@ -256,7 +256,7 @@ static bool IsMaterialUsedWithWater(const UMaterialInterface* InMaterial)
 
 void UWaterMeshComponent::RebuildWaterMesh(float InTileSize, const FIntPoint& InExtentInTiles)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(RebuildWaterMesh);
+	TRACE_CPUPROFILER_EVENT_SCOPE(UWaterMeshComponent::RebuildWaterMesh);
 
 	AWaterZone* WaterZone = CastChecked<AWaterZone>(GetOwner());
 
@@ -541,6 +541,7 @@ void UWaterMeshComponent::RebuildWaterMesh(float InTileSize, const FIntPoint& In
 
 void UWaterMeshComponent::Update()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UWaterMeshComponent::Update);
 	bIsEnabled = FWaterUtils::IsWaterMeshEnabled(/*bIsRenderThread = */false) && FApp::CanEverRender();
 
 	// Early out

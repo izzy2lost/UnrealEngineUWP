@@ -202,6 +202,8 @@ FWaterViewExtension* UWaterSubsystem::GetWaterViewExtension(const UWorld* InWorl
 
 void UWaterSubsystem::Tick(float DeltaTime)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UWaterSubsystem::Tick);
+
 	Super::Tick(DeltaTime);
 
 	check(GetWorld() != nullptr);
