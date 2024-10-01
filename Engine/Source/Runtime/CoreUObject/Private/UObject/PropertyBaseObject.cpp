@@ -604,7 +604,7 @@ TObjectPtr<UObject> FObjectPropertyBase::FindImportedObject( const FProperty* Pr
 		&& Result->GetPackage() != OwnerObject->GetPackage())
 	{
 		const FObjectPropertyBase* ObjectProperty = CastField<const FObjectPropertyBase>(Property);
-		if ( !ObjectProperty || !ObjectProperty->AllowCrossLevel())
+		if (!ObjectProperty || !ObjectProperty->AllowCrossLevel())
 		{
 			UE_LOG(LogProperty, Warning, TEXT("Illegal TEXT reference to a private object in external package (%s) from referencer (%s).  Import failed..."), *Result->GetFullName(), *OwnerObject->GetFullName());
 			Result = nullptr;
