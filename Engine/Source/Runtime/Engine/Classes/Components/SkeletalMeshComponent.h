@@ -106,6 +106,9 @@ struct FAnimationEvaluationContext
 	// duplicate the cached attributes
 	bool bDuplicateToCachedAttributes;
 
+	// Force reference pose
+	bool bForceRefPose;
+
 	// Curve data, swapped in from the component when we are running parallel eval
 	FBlendedHeapCurve	Curve;
 	FBlendedHeapCurve	CachedCurve;
@@ -140,6 +143,7 @@ struct FAnimationEvaluationContext
 		bDuplicateToCacheBones = Other.bDuplicateToCacheBones;
 		bDuplicateToCacheCurve = Other.bDuplicateToCacheCurve;
 		bDuplicateToCachedAttributes = Other.bDuplicateToCachedAttributes;
+		bForceRefPose = Other.bForceRefPose;
 
 		CustomAttributes.CopyFrom(Other.CustomAttributes);
 		CachedCustomAttributes.CopyFrom(Other.CachedCustomAttributes);
@@ -2028,18 +2032,19 @@ public:
 	UE_DEPRECATED(4.26, "Please use PerformAnimationEvaluation with different signature")
 	ENGINE_API void PerformAnimationEvaluation(const USkeletalMesh* InSkeletalMesh, UAnimInstance* InAnimInstance, TArray<FTransform>& OutSpaceBases, TArray<FTransform>& OutBoneSpaceTransforms, FVector& OutRootBoneTranslation, FBlendedHeapCurve& OutCurve);
 #endif
-	ENGINE_API void PerformAnimationProcessing(const USkeletalMesh* InSkeletalMesh, UAnimInstance* InAnimInstance, bool bInDoEvaluation, TArray<FTransform>& OutSpaceBases, TArray<FTransform>& OutBoneSpaceTransforms, FVector& OutRootBoneTranslation, FBlendedHeapCurve& OutCurve, UE::Anim::FMeshAttributeContainer& OutAttributes);
 
-	UE_DEPRECATED(4.26, "Please use PerformAnimationEvaluation with different signature")
-	ENGINE_API void PerformAnimationProcessing(const USkeletalMesh* InSkeletalMesh, UAnimInstance* InAnimInstance, bool bInDoEvaluation, TArray<FTransform>& OutSpaceBases, TArray<FTransform>& OutBoneSpaceTransforms, FVector& OutRootBoneTranslation, FBlendedHeapCurve& OutCurve);
+	ENGINE_API void PerformAnimationProcessing(const USkeletalMesh* InSkeletalMesh, UAnimInstance* InAnimInstance, bool bInDoEvaluation, bool bInForceRefPose, TArray<FTransform>& OutSpaceBases, TArray<FTransform>& OutBoneSpaceTransforms, FVector& OutRootBoneTranslation, FBlendedHeapCurve& OutCurve, UE::Anim::FMeshAttributeContainer& OutAttributes);
+
+	UE_DEPRECATED(5.5, "Please use PerformAnimationEvaluation with different signature")
+	ENGINE_API void PerformAnimationProcessing(const USkeletalMesh* InSkeletalMesh, UAnimInstance* InAnimInstance, bool bInDoEvaluation, TArray<FTransform>& OutSpaceBases, TArray<FTransform>& OutBoneSpaceTransforms, FVector& OutRootBoneTranslation, FBlendedHeapCurve& OutCurve, UE::Anim::FMeshAttributeContainer& OutAttributes);
 
 	/**
 	 * Evaluates the post process instance from the skeletal mesh this component is using.
 	 */
-	ENGINE_API void EvaluatePostProcessMeshInstance(TArray<FTransform>& OutBoneSpaceTransforms, FCompactPose& InOutPose, FBlendedHeapCurve& OutCurve, const USkeletalMesh* InSkeletalMesh, FVector& OutRootBoneTranslation, UE::Anim::FHeapAttributeContainer& OutAttributes) const;
+	ENGINE_API void EvaluatePostProcessMeshInstance(TArray<FTransform>& OutBoneSpaceTransforms, FCompactPose& InOutPose, FBlendedHeapCurve& OutCurve, const USkeletalMesh* InSkeletalMesh, FVector& OutRootBoneTranslation, UE::Anim::FHeapAttributeContainer& OutAttributes, bool bInForceRefPose) const;
 
-	UE_DEPRECATED(4.26, "Please use EvaluatePostProcessMeshInstance with different signature")
-	ENGINE_API void EvaluatePostProcessMeshInstance(TArray<FTransform>& OutBoneSpaceTransforms, FCompactPose& InOutPose, FBlendedHeapCurve& OutCurve, const USkeletalMesh* InSkeletalMesh, FVector& OutRootBoneTranslation) const;
+	UE_DEPRECATED(5.5, "Please use EvaluatePostProcessMeshInstance with different signature")
+	ENGINE_API void EvaluatePostProcessMeshInstance(TArray<FTransform>& OutBoneSpaceTransforms, FCompactPose& InOutPose, FBlendedHeapCurve& OutCurve, const USkeletalMesh* InSkeletalMesh, FVector& OutRootBoneTranslation, UE::Anim::FHeapAttributeContainer& OutAttributes) const;
 
 	ENGINE_API void PostAnimEvaluation(FAnimationEvaluationContext& EvaluationContext);
 
@@ -2434,7 +2439,7 @@ private:
 	ENGINE_API void EndPhysicsTickComponent(FSkeletalMeshComponentEndPhysicsTickFunction& ThisTickFunction);
 
 	/** Evaluate Anim System **/
-	ENGINE_API void EvaluateAnimation(const USkeletalMesh* InSkeletalMesh, UAnimInstance* InAnimInstance, FVector& OutRootBoneTranslation, FBlendedHeapCurve& OutCurve, FCompactPose& OutPose, UE::Anim::FHeapAttributeContainer& OutAttributes) const;
+	ENGINE_API void EvaluateAnimation(const USkeletalMesh* InSkeletalMesh, UAnimInstance* InAnimInstance, bool bInForceRefPose, FVector& OutRootBoneTranslation, FBlendedHeapCurve& OutCurve, FCompactPose& OutPose, UE::Anim::FHeapAttributeContainer& OutAttributes) const;
 
 	/** Queues up tasks for parallel update/evaluation, as well as the chained game thread completion task */
 	ENGINE_API void DispatchParallelEvaluationTasks(FActorComponentTickFunction* TickFunction);
