@@ -28,15 +28,24 @@ struct FGPUTimingCalibrationTimestamp
 
 class FName;
 
+#if RHI_NEW_GPU_PROFILER
+// Adds a GPUIndex argument to each function in the API without breaking back compat
+#define GPU_TRACE_ARG , uint32 GPUIndex
+#else
+#define GPU_TRACE_ARG
+#endif
+
 struct FGpuProfilerTrace
 {
-	RHI_API static void BeginFrame(struct FGPUTimingCalibrationTimestamp& Calibration);
-	RHI_API static void SpecifyEventByName(const FName& Name);
-	RHI_API static void BeginEventByName(const FName& Name, uint32 FrameNumber, uint64 TimestampMicroseconds);
-	RHI_API static void EndEvent(uint64 TimestampMicroseconds);
+	RHI_API static void BeginFrame(struct FGPUTimingCalibrationTimestamp& Calibration GPU_TRACE_ARG);
+	RHI_API static void SpecifyEventByName(const FName& Name GPU_TRACE_ARG);
+	RHI_API static void BeginEventByName(const FName& Name, uint32 FrameNumber, uint64 TimestampMicroseconds GPU_TRACE_ARG);
+	RHI_API static void EndEvent(uint64 TimestampMicroseconds GPU_TRACE_ARG);
 	RHI_API static void EndFrame(uint32 GPUIndex);
 	RHI_API static void Deinitialize();
 };
+
+#undef GPU_TRACE_ARG
 
 #define TRACE_GPUPROFILER_DEFINE_EVENT_TYPE(Name) \
 	FGpuProfilerTrace::FEventType PREPROCESSOR_JOIN(__GGpuProfilerEventType, Name)(TEXT(#Name));
