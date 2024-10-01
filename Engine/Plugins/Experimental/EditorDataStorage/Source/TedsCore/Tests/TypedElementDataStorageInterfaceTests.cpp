@@ -2,8 +2,10 @@
 
 
 #if WITH_TESTS
+#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Framework/TypedElementTestColumns.h"
-#include "Elements/Framework/TypedElementRegistry.h"
+#include "Elements/Framework/TypedElementQueryBuilder.h"
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Misc/AutomationTest.h"
 
 namespace UE::Editor::DataStorage::Tests
@@ -126,8 +128,7 @@ namespace UE::Editor::DataStorage::Tests
 	{
 		BeforeEach([this]()
 		{
-			UTypedElementRegistry* TypedElementRegistry = UTypedElementRegistry::GetInstance();
-			TedsInterface = TypedElementRegistry->GetMutableDataStorage();
+			TedsInterface = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
 			TestTrue("", TedsInterface != nullptr);
 		});
 

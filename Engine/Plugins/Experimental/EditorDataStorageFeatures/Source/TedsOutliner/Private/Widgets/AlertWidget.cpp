@@ -6,7 +6,7 @@
 #include "Elements/Columns/TypedElementAlertColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
-#include "Elements/Framework/TypedElementRegistry.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/SOverlay.h"
@@ -17,7 +17,7 @@
 namespace UE::Editor::DataStorage::Widgets::Private
 {
 	void UpdateWidget(const TSharedPtr<SWidget>& Widget, const FText& Alert, bool bIsWarning, uint16 ErrorCount, uint16 WarningCount,
-		UE::Editor::DataStorage::RowHandle RowWithAlertAction)
+		RowHandle RowWithAlertAction)
 	{
 		if (Widget)
 		{
@@ -117,14 +117,13 @@ namespace UE::Editor::DataStorage::Widgets::Private
 				}
 
 				// If there's an action to call, enable the invisible button, otherwise turn it off.
-				if (RowWithAlertAction != UE::Editor::DataStorage::InvalidRowHandle)
+				if (RowWithAlertAction != InvalidRowHandle)
 				{
 					Background.SetVisibility(EVisibility::HitTestInvisible);
 					ActionButton.SetVisibility(EVisibility::Visible);
 					ActionButton.SetOnClicked(FOnClicked::CreateLambda([RowWithAlertAction]()
 						{
-							UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-							const IEditorDataStorageProvider* DataStorage = Registry->GetDataStorage();
+							const IEditorDataStorageProvider* DataStorage = GetDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
 							if (const FTypedElementAlertActionColumn* Action =
 								DataStorage->GetColumn<FTypedElementAlertActionColumn>(RowWithAlertAction))
 							{

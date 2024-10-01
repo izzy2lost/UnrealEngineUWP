@@ -5,8 +5,8 @@
 #include "Columns/TedsStylingColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Framework/TypedElementIndexHasher.h"
-#include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "HAL/IConsoleManager.h"
 #include "Styling/SlateBrush.h"
@@ -38,7 +38,8 @@ void UTedsStylingFactory::RegisterQueries(IEditorDataStorageProvider& DataStorag
 
 void UTedsStylingFactory::RegisterAllKnownStyles()
 {
-	IEditorDataStorageProvider* Interface = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+	using namespace UE::Editor::DataStorage;
+	IEditorDataStorageProvider* Interface = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
 
 	auto RegisterBrushesForStyle = [Interface](const ISlateStyle& Style)
 	{

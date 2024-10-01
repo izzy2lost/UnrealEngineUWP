@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Elements/Framework/TypedElementRegistry.h"
 #if WITH_TESTS
 #include "TypedElementTestColumns.h"
 
@@ -8,7 +7,9 @@
 #include "CoreTypes.h"
 #include "Containers/Array.h"
 #include "Containers/UnrealString.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Common/TypedElementQueryConditions.h"
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Tests/TestHarnessAdapter.h"
 #include "UObject/Class.h"
 
@@ -31,9 +32,9 @@ static void AppendColumnName(FString& Output, TWeakObjectPtr<const UScriptStruct
 
 static bool TestMatching(FConditions& TestQuery, const TArray<FColumnBase>& RequestedColumns, bool Expected, bool Sort = false)
 {
-	IEditorDataStorageProvider* Storage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+	IEditorDataStorageProvider* Storage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
 
-	TestQuery.Compile(UE::Editor::DataStorage::Queries::FEditorStorageQueryConditionCompileContext(Storage));
+	TestQuery.Compile(FEditorStorageQueryConditionCompileContext(Storage));
 	
 	if (Sort)
 	{

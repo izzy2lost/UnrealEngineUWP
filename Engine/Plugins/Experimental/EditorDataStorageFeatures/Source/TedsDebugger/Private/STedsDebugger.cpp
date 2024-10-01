@@ -7,7 +7,8 @@
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementSelectionColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
-#include "Elements/Framework/TypedElementRegistry.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Framework/Docking/LayoutService.h"
 #include "Modules/ModuleManager.h"
 #include "QueryEditor/TedsQueryEditor.h"
@@ -26,11 +27,9 @@ namespace UE::Editor::DataStorage::Debug
 
 STedsDebugger::~STedsDebugger()
 {
-	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-
-	if (Registry && Registry->AreDataStorageInterfacesSet())
+	if (AreEditorDataStorageFeaturesEnabled())
 	{
-		Registry->GetMutableDataStorage()->UnregisterQuery(TableViewerQuery);
+		GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName)->UnregisterQuery(TableViewerQuery);
 	}
 }
 
@@ -128,11 +127,9 @@ TSharedRef<SDockTab> STedsDebugger::SpawnQueryEditorTab(const FSpawnTabArgs& Arg
 	TSharedRef<SDockTab> DockTab = SNew(SDockTab).TabRole(ETabRole::NomadTab);
 	if (!QueryEditorModel)
 	{
-		UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-
-		if (Registry && Registry->AreDataStorageInterfacesSet())
+		if (AreEditorDataStorageFeaturesEnabled())
 		{
-			IEditorDataStorageProvider* DataStorageInterface = Registry->GetMutableDataStorage();
+			IEditorDataStorageProvider* DataStorageInterface = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
 			QueryEditorModel = MakeUnique<QueryEditor::FTedsQueryEditorModel>(*DataStorageInterface);
 		}
 	}

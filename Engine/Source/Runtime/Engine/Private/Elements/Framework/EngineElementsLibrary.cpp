@@ -2,8 +2,10 @@
 
 #include "Elements/Framework/EngineElementsLibrary.h"
 
+#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Framework/TypedElementOwnerStore.h"
+#include "Elements/Interfaces/TypedElementDataStorageCompatibilityInterface.h"
 
 #include "Elements/Object/ObjectElementData.h"
 
@@ -379,8 +381,8 @@ void UEngineElementsLibrary::DestroyActorElement(const AActor* InActor, TTypedEl
 
 void UEngineElementsLibrary::RegisterActorElement(const AActor* InActor)
 {
-	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-	IEditorDataStorageCompatibilityProvider* Storage = Registry->GetMutableDataStorageCompatibility();
+	using namespace UE::Editor::DataStorage;
+	IEditorDataStorageCompatibilityProvider* Storage = GetMutableDataStorageFeature<IEditorDataStorageCompatibilityProvider>(CompatibilityFeatureName);
 	if (Storage)
 	{
 		Storage->AddCompatibleObject(const_cast<AActor*>(InActor));
@@ -389,8 +391,8 @@ void UEngineElementsLibrary::RegisterActorElement(const AActor* InActor)
 
 void UEngineElementsLibrary::UnregisterActorElement(const AActor* InActor)
 {
-	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-	if (IEditorDataStorageCompatibilityProvider* Storage = Registry->GetMutableDataStorageCompatibility())
+	using namespace UE::Editor::DataStorage;
+	if (IEditorDataStorageCompatibilityProvider* Storage = GetMutableDataStorageFeature<IEditorDataStorageCompatibilityProvider>(CompatibilityFeatureName))
 	{
 		Storage->RemoveCompatibleObject(const_cast<AActor*>(InActor));
 	}

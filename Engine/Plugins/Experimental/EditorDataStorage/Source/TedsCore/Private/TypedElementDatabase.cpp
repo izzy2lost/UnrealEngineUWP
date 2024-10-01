@@ -4,8 +4,9 @@
 
 #include "Editor.h"
 #include "EditorDataStorageSettings.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Interfaces/TypedElementDataStorageFactory.h"
-#include "Elements/Framework/TypedElementRegistry.h"
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Engine/World.h"
 #include "GlobalLock.h"
 #include "MassEntityEditorSubsystem.h"
@@ -32,12 +33,10 @@ FAutoConsoleCommandWithOutputDevice PrintQueryCallbacksConsoleCommand(
 	TEXT("Prints out a list of all processors."),
 	FConsoleCommandWithOutputDeviceDelegate::CreateLambda([](FOutputDevice& Output)
 		{
-			if (UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance())
+			using namespace UE::Editor::DataStorage;
+			if (IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName))
 			{
-				if (IEditorDataStorageProvider* DataStorage = Registry->GetMutableDataStorage())
-				{
-					DataStorage->DebugPrintQueryCallbacks(Output);
-				}
+				DataStorage->DebugPrintQueryCallbacks(Output);
 			}
 		}));
 
