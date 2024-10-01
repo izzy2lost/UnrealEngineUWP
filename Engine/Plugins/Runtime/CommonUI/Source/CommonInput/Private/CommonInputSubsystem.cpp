@@ -179,10 +179,12 @@ void UCommonInputSubsystem::AddOrRemoveInputTypeLock(FName InReason, ECommonInpu
 		CurrentInputLock = (ECommonInputType)ComputedInputLock;
 	}
 
+	const ECommonInputType PreviousInput = CurrentInputType;
+
 	// If a lock was put in place, lock the current input type.
 	CurrentInputType = LockInput(LastInputType);
 
-	if (CurrentInputType != LastInputType)
+	if (CurrentInputType != PreviousInput)
 	{
 		BroadcastInputMethodChanged();
 	}
