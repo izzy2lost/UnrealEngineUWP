@@ -12,8 +12,8 @@
 #include "USDErrorUtils.h"
 #include "USDLayerUtils.h"
 #include "USDLog.h"
+#include "USDMaterialUtils.h"
 #include "USDProjectSettings.h"
-#include "USDSchemasModule.h"
 #include "USDSchemaTranslator.h"
 #include "USDStageActor.h"
 #include "USDStageEditorSettings.h"
@@ -1437,21 +1437,21 @@ void SUsdStage::FillPurposesToLoadSubMenu(FMenuBuilder& MenuBuilder)
 
 void SUsdStage::FillRenderContextSubMenu(FMenuBuilder& MenuBuilder)
 {
-	auto AddRenderContextEntry = [&](const FName& RenderContext)
+	auto AddRenderContextEntry = [&](const FName& RenderContextName)
 	{
-		FText RenderContextName = FText::FromName(RenderContext);
-		if (RenderContext.IsNone())
+		FText RenderContextText = FText::FromName(RenderContextName);
+		if (RenderContextName == UnrealIdentifiers::UniversalRenderContext)
 		{
-			RenderContextName = LOCTEXT("UniversalRenderContext", "universal");
+			RenderContextText = FText::FromString(UnrealIdentifiers::UniversalRenderContextDisplayString);
 		}
 
 		MenuBuilder.AddMenuEntry(
-			RenderContextName,
+			RenderContextText,
 			FText::GetEmpty(),
 			FSlateIcon(),
 			FUIAction(
 				FExecuteAction::CreateLambda(
-					[this, RenderContext]()
+					[this, RenderContextName]()
 					{
 						if (AUsdStageActor* StageActor = GetStageActorOrCDO())
 						{
@@ -1463,7 +1463,7 @@ void SUsdStage::FillRenderContextSubMenu(FMenuBuilder& MenuBuilder)
 							// c.f. comment in SUsdStage::FillCollapsingSubMenu
 							TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
 
-							StageActor->SetRenderContext(RenderContext);
+							StageActor->SetRenderContext(RenderContextName);
 							if (StageActor->IsTemplate())
 							{
 								StageActor->SaveConfig();
@@ -1473,11 +1473,11 @@ void SUsdStage::FillRenderContextSubMenu(FMenuBuilder& MenuBuilder)
 				),
 				FCanExecuteAction{},
 				FIsActionChecked::CreateLambda(
-					[this, RenderContext]()
+					[this, RenderContextName]()
 					{
 						if (AUsdStageActor* StageActor = GetStageActorOrCDO())
 						{
-							return StageActor->RenderContext == RenderContext;
+							return StageActor->RenderContext == RenderContextName;
 						}
 						return false;
 					}
@@ -1488,9 +1488,7 @@ void SUsdStage::FillRenderContextSubMenu(FMenuBuilder& MenuBuilder)
 		);
 	};
 
-	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
-
-	for (const FName& RenderContext : UsdSchemasModule.GetRenderContextRegistry().GetRenderContexts())
+	for (const FName& RenderContext : UsdUnreal::MaterialUtils::GetRegisteredRenderContexts())
 	{
 		AddRenderContextEntry(RenderContext);
 	}

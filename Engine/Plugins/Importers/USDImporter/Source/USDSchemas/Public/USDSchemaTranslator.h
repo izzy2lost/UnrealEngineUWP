@@ -140,37 +140,16 @@ public:
 	FCreateTranslator CreateFunction;
 };
 
-class USDSCHEMAS_API FUsdRenderContextRegistry
+class UE_DEPRECATED(5.5, "Use the render context functions in USDMaterialUtils.h instead.") USDSCHEMAS_API FUsdRenderContextRegistry
 {
 public:
 	FUsdRenderContextRegistry();
 
-	void Register(const FName& RenderContextToken)
-	{
-		RegisteredRenderContexts.Add(RenderContextToken);
-	}
-	void Unregister(const FName& RenderContextToken)
-	{
-		RegisteredRenderContexts.Remove(RenderContextToken);
-	}
-
-	const TSet<FName>& GetRenderContexts() const
-	{
-		return RegisteredRenderContexts;
-	}
-	const FName& GetUniversalRenderContext() const
-	{
-		return UniversalRenderContext;
-	}
-	const FName& GetUnrealRenderContext() const
-	{
-		return UnrealRenderContext;
-	}
-
-protected:
-	TSet<FName> RegisteredRenderContexts;
-	FName UniversalRenderContext;
-	FName UnrealRenderContext;
+	void Register(const FName& RenderContextToken);
+	void Unregister(const FName& RenderContextToken);
+	const TSet<FName>& GetRenderContexts() const;
+	const FName& GetUniversalRenderContext() const;
+	const FName& GetUnrealRenderContext() const;
 };
 
 struct USDSCHEMAS_API FUsdSchemaTranslationContext : public TSharedFromThis<FUsdSchemaTranslationContext>

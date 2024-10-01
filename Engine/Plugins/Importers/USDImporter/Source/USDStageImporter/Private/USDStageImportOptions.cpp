@@ -27,7 +27,7 @@ UUsdStageImportOptions::UUsdStageImportOptions(const FObjectInitializer& ObjectI
 	PurposesToImport = (int32)(EUsdPurpose::Default | EUsdPurpose::Proxy | EUsdPurpose::Render | EUsdPurpose::Guide);
 	NaniteTriangleThreshold = INT32_MAX;
 	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
-	RenderContextToImport = UsdSchemasModule.GetRenderContextRegistry().GetUnrealRenderContext();
+	RenderContextToImport = UnrealIdentifiers::UnrealRenderContext;
 	MaterialPurpose = *UnrealIdentifiers::MaterialPreviewPurpose;
 	SubdivisionLevel = 0;
 	MetadataOptions = FUsdMetadataImportOptions{

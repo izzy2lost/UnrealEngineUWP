@@ -2,7 +2,9 @@
 
 #include "USDSchemaTranslator.h"
 
+#include "UnrealUSDWrapper.h"
 #include "USDInfoCache.h"
+#include "USDMaterialUtils.h"
 #include "USDMemory.h"
 #include "USDSchemasModule.h"
 #include "USDTypesConversion.h"
@@ -63,18 +65,38 @@ TSharedPtr<FUsdSchemaTranslator> FUsdSchemaTranslatorRegistry::CreateTranslatorF
 	return {};
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FUsdRenderContextRegistry::FUsdRenderContextRegistry()
 {
-#if USE_USD_SDK
-	LLM_SCOPE_BYTAG(Usd);
-
-	UniversalRenderContext = FName(UsdToUnreal::ConvertToken(pxr::UsdShadeTokens->universalRenderContext));
-	Register(UniversalRenderContext);
-
-	UnrealRenderContext = FName(UsdToUnreal::ConvertToken(UnrealIdentifiers::Unreal));
-	Register(UnrealRenderContext);
-#endif	  // #if USE_USD_SDK
 }
+
+void FUsdRenderContextRegistry::Register(const FName& RenderContextToken)
+{
+	UsdUnreal::MaterialUtils::RegisterRenderContext(RenderContextToken);
+}
+
+void FUsdRenderContextRegistry::Unregister(const FName& RenderContextToken)
+{
+	UsdUnreal::MaterialUtils::UnregisterRenderContext(RenderContextToken);
+}
+
+const TSet<FName>& FUsdRenderContextRegistry::GetRenderContexts() const
+{
+	static TSet<FName> TempValue;
+	TempValue = TSet<FName>{UsdUnreal::MaterialUtils::GetRegisteredRenderContexts()};
+	return TempValue;
+}
+
+const FName& FUsdRenderContextRegistry::GetUniversalRenderContext() const
+{
+	return UnrealIdentifiers::UniversalRenderContext;
+}
+
+const FName& FUsdRenderContextRegistry::GetUnrealRenderContext() const
+{
+	return UnrealIdentifiers::UnrealRenderContext;
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 FRegisteredSchemaTranslatorHandle FUsdSchemaTranslatorRegistry::Register(const FString& SchemaName, FCreateTranslator CreateFunction)
 {
@@ -151,16 +173,14 @@ FUsdSchemaTranslationContext::FUsdSchemaTranslationContext(const UE::FUsdStage& 
 	: Stage(InStage)
 	, UsdAssetCache(NewObject<UUsdAssetCache3>())
 {
-	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
-	RenderContext = UsdSchemasModule.GetRenderContextRegistry().GetUniversalRenderContext();
+	RenderContext = UnrealIdentifiers::UniversalRenderContext;
 }
 
 FUsdSchemaTranslationContext::FUsdSchemaTranslationContext(const UE::FUsdStage& InStage, UUsdAssetCache3& InAssetCache)
 	: Stage(InStage)
 	, UsdAssetCache(&InAssetCache)
 {
-	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
-	RenderContext = UsdSchemasModule.GetRenderContextRegistry().GetUniversalRenderContext();
+	RenderContext = UnrealIdentifiers::UniversalRenderContext;
 }
 
 FUsdSchemaTranslatorRegistry::FSchemaTranslatorsStack* FUsdSchemaTranslatorRegistry::FindSchemaTranslatorStack(const FString& SchemaName)

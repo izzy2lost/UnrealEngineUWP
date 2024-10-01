@@ -14,7 +14,10 @@ class IUsdSchemasModule : public IModuleInterface
 {
 public:
 	virtual FUsdSchemaTranslatorRegistry& GetTranslatorRegistry() = 0;
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	virtual FUsdRenderContextRegistry& GetRenderContextRegistry() = 0;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 namespace UsdUnreal::Analytics

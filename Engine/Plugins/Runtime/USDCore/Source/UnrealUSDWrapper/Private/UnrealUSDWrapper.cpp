@@ -4,6 +4,7 @@
 
 #include "USDClassesModule.h"
 #include "USDLog.h"
+#include "USDMaterialUtils.h"
 #include "USDMemory.h"
 #include "USDProjectSettings.h"
 #include "USDReferenceOptions.h"
@@ -475,9 +476,18 @@ FString UnrealIdentifiers::ModelApplyDrawMode = TEXT("model:applyDrawMode");
 FString UnrealIdentifiers::UsdNamespaceDelimiter = TEXT(":");
 #endif	  // USE_USD_SDK
 
-#if WITH_EDITOR
-const FName UnrealIdentifiers::MaterialXRenderContext = TEXT("mtlx");
+#if USE_USD_SDK
+// This is largely for show, as the universalRenderContext is an empty string, and FNames created from empty strings equal NAME_None anyway
+// i.e.: NAME_None == FName(TEXT("")) == FName(TEXT("None")) == UnrealIdentifiers::UniversalRenderContext
+const FName UnrealIdentifiers::UniversalRenderContext = ANSI_TO_TCHAR(pxr::UsdShadeTokens->universalRenderContext.GetString().c_str());
+#else
+const FName UnrealIdentifiers::UniversalRenderContext = NAME_None;
 #endif
+const FName UnrealIdentifiers::UnrealRenderContext = TEXT("unreal");
+const FName UnrealIdentifiers::MaterialXRenderContext = TEXT("mtlx");
+const FName UnrealIdentifiers::MdlRenderContext = TEXT("mdl");
+
+const FString UnrealIdentifiers::UniversalRenderContextDisplayString = TEXT("universal");
 
 FUsdDelegates::FUsdImportDelegate FUsdDelegates::OnPreUsdImport;
 FUsdDelegates::FUsdImportDelegate FUsdDelegates::OnPostUsdImport;
@@ -1239,6 +1249,9 @@ public:
 
 		FUsdMemoryManager::Initialize();
 
+		UsdUnreal::MaterialUtils::RegisterRenderContext(UnrealIdentifiers::UniversalRenderContext);
+		UsdUnreal::MaterialUtils::RegisterRenderContext(UnrealIdentifiers::UnrealRenderContext);
+
 #if WITH_EDITOR
 		// Update the supported filetype filters for reference/payload picker dialogs
 		for (TFieldIterator<FProperty> PropertyIterator(UUsdReferenceOptions::StaticClass()); PropertyIterator; ++PropertyIterator)
@@ -1266,6 +1279,9 @@ public:
 
 	virtual void ShutdownModule() override
 	{
+		UsdUnreal::MaterialUtils::UnregisterRenderContext(UnrealIdentifiers::UniversalRenderContext);
+		UsdUnreal::MaterialUtils::UnregisterRenderContext(UnrealIdentifiers::UnrealRenderContext);
+
 #if WITH_EDITOR
 		// We can't query default objects during engine exit
 		if (UObjectInitialized())

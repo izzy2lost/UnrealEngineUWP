@@ -297,3 +297,29 @@ bool UsdUnreal::MaterialUtils::IsReferencePreviewSurfaceMaterial(const FSoftObje
 
 	return ReferenceMaterials.Contains(Material);
 }
+
+namespace UE::USDMaterialUtils::Private
+{
+	static TArray<FName> RegisteredRenderContexts;
+}
+
+void UsdUnreal::MaterialUtils::RegisterRenderContext(const FName& RenderContextName)
+{
+	UE::USDMaterialUtils::Private::RegisteredRenderContexts.AddUnique(RenderContextName);
+	UE::USDMaterialUtils::Private::RegisteredRenderContexts.Sort(
+		[](const FName& LHS, const FName& RHS)
+		{
+			return LHS.ToString() < RHS.ToString();
+		}
+	);
+}
+
+void UsdUnreal::MaterialUtils::UnregisterRenderContext(const FName& RenderContextName)
+{
+	UE::USDMaterialUtils::Private::RegisteredRenderContexts.Remove(RenderContextName);
+}
+
+const TArray<FName>& UsdUnreal::MaterialUtils::GetRegisteredRenderContexts()
+{
+	return UE::USDMaterialUtils::Private::RegisteredRenderContexts;
+}
