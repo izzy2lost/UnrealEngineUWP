@@ -54,4 +54,7 @@ private:
 	void CustomizeAttachmentCategory(IDetailLayoutBuilder& DetailBuilder);
 	void CustomizeDriveModeCategory(IDetailLayoutBuilder& DetailBuilder);
 	void HideExtraCategories(IDetailLayoutBuilder& DetailBuilder);
+
+	ECheckBoxState IsAttachRotationOptionChecked(TArray<TSharedRef<IPropertyHandle>> PropertyHandles) const;
+	void OnRotationAxisAttachmentChanged(ECheckBoxState NewState, TSharedRef<IPropertyHandle> PropertyHandle);
 };

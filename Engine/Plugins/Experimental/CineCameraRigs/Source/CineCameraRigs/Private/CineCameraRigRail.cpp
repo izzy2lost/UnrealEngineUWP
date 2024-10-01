@@ -125,15 +125,15 @@ void ACineCameraRigRail::UpdateRailComponents()
 		{
 			Position.Z = SplinePosition.Z;
 		}
-		if (bAttachRotationX)
+		if (bAttachRotationX && bLockOrientationToRail)
 		{
 			Rotation.Roll = SplineQuat.Rotator().Roll;
 		}
-		if (bAttachRotationY)
+		if (bAttachRotationY && bLockOrientationToRail)
 		{
 			Rotation.Pitch = SplineQuat.Rotator().Pitch;
 		}
-		if (bAttachRotationZ)
+		if (bAttachRotationZ && bLockOrientationToRail)
 		{
 			Rotation.Yaw = SplineQuat.Rotator().Yaw;
 		}
