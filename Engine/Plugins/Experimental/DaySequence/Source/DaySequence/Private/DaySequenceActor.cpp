@@ -405,6 +405,12 @@ bool ADaySequenceActor::GetReferencedContentObjects(TArray<UObject*>& Objects) c
 
 void ADaySequenceActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
+	auto ReinitializeActor = [this]()
+	{
+		bUpdateRootSequenceOnTick = true;
+		SubSections.Empty();
+	};
+	
 	const FName PropertyName = (PropertyChangedEvent.Property != nullptr) ? PropertyChangedEvent.Property->GetFName() : NAME_None;
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(ADaySequenceActor, TimeOfDayPreview))
 	{
@@ -419,11 +425,9 @@ void ADaySequenceActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 	{
 		SetTimePerCycle(GetTimePerCycle());
 
+		// need to null this out to guarantee total reconstruction.
 		RootSequence = nullptr;
-		SubSections.Empty();
-		
-		// Update our root sequence with the new asset.
-		UpdateRootSequence();
+		ReinitializeActor();
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(ADaySequenceActor, InitialTimeOfDay))
 	{
@@ -431,7 +435,12 @@ void ADaySequenceActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(ADaySequenceActor, DaySequenceCollection))
 	{
-		SubSections.Empty();
+		ReinitializeActor();
+	}
+	else if (PropertyChangedEvent.ChangeType == EPropertyChangeType::Unspecified)
+	{
+		// This handles undo/redo transactions.
+		ReinitializeActor();
 	}
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);

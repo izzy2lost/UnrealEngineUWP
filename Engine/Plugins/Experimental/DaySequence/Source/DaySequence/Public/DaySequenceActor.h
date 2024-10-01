@@ -333,6 +333,9 @@ protected:
 	//~ Begin UObject interface
 	virtual void PostInitProperties() override;
 	virtual void PostLoad() override;
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 	//~ End UObject interface
 	
 	//~ Begin AActor interface
@@ -366,8 +369,6 @@ protected:
 	virtual void UpdateObjectFromProxy(FStructOnScope& Proxy, IPropertyHandle& ObjectPropertyHandle) override;
 	virtual UMovieSceneSequence* RetrieveOwnedSequence() const override;
 	//~ End IMovieSceneBindingOwnerInterface
-	
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif //WITH_EDITOR
 
 	/** Initialize SequencePlayer with transient root sequence */
