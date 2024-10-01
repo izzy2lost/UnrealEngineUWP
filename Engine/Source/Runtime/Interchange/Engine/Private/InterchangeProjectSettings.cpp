@@ -64,7 +64,7 @@ FName FInterchangeProjectSettingsUtils::GetDefaultPipelineStackName(const bool b
 	const FInterchangeGroup& UsedInterchangeGroup = FInterchangeProjectSettingsUtils::GetUsedGroup(UsedGroupStatus);
 	bool bInterchangeGroupUsed = (UsedGroupStatus == FInterchangeGroup::EUsedGroupStatus::SetAndValid);
 
-	FName DefaultPipelineStack = bInterchangeGroupUsed ? ImportSettings.DefaultPipelineStack : UsedInterchangeGroup.DefaultPipelineStack;
+	FName DefaultPipelineStack = bInterchangeGroupUsed ? UsedInterchangeGroup.DefaultPipelineStack : ImportSettings.DefaultPipelineStack;
 
 	if (!bIsSceneImport)
 	{
