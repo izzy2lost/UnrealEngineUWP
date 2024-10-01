@@ -64,5 +64,6 @@ namespace UE::PixelStreaming2
 		TSharedPtr<FFrameRunnable>	FrameRunnable = nullptr; // constant fps runnable
 
 		mutable FCriticalSection CriticalSection;
+		mutable FCriticalSection RunnableCriticalSection;
 	};
 } // namespace UE::PixelStreaming2
