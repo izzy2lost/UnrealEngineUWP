@@ -1118,6 +1118,8 @@ public:
 
 	FRayTracingPipelineStateRHIRef RHIPipeline;
 
+	uint32 MaxLocalBindingSize = 0;
+
 	uint64 HitsAcrossFrames = 0;
 	uint64 LastFrameHit = 0;
 
@@ -1139,6 +1141,15 @@ FRHIRayTracingPipelineState* GetRHIRayTracingPipelineState(FRayTracingPipelineSt
 		return PipelineState->RHIPipeline;
 	}
 	return nullptr;
+}
+
+uint32 GetRHIRayTracingPipelineStateMaxLocalBindingDataSize(FRayTracingPipelineState* PipelineState)
+{
+	if (PipelineState)
+	{
+		return PipelineState->MaxLocalBindingSize;
+	}
+	return 0;
 }
 
 int32 FindRayTracingHitGroupIndex(FRayTracingPipelineState* Pipeline, FRHIRayTracingShader* HitGroupShader, bool bRequired)
@@ -2633,6 +2644,7 @@ public:
 	FRayTracingPipelineState* Add(const FRayTracingPipelineStateInitializer& Initializer)
 	{
 		FRayTracingPipelineState* Result = new FRayTracingPipelineState(Initializer);
+		Result->MaxLocalBindingSize = Initializer.GetMaxLocalBindingDataSize();
 
 		FScopeLock ScopeLock(&CriticalSection);
 

@@ -2101,6 +2101,8 @@ public:
 			CallableShaders.Shaders.Add(Shader);
 		}
 
+		check(Initializer.GetMaxLocalBindingDataSize() >= MaxLocalRootSignatureSize);
+
 		// Wait for all compilation tasks to be complete and then gather the compiled collection descriptors
 
 		CompileTime -= FPlatformTime::Cycles64();

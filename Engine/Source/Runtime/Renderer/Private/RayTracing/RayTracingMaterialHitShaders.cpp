@@ -757,8 +757,6 @@ void FDeferredShadingSceneRenderer::CreateRayTracingMaterialPipeline(
 		PipelineCacheFlags |= ERayTracingPipelineCacheFlags::NonBlocking;
 	}
 
-	OutMaxLocalBindingDataSize = Initializer.GetMaxLocalBindingDataSize();
-
 	FRayTracingPipelineState* PipelineState = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, Initializer, PipelineCacheFlags);
 
 	if (PipelineState)
@@ -775,6 +773,10 @@ void FDeferredShadingSceneRenderer::CreateRayTracingMaterialPipeline(
 		check(FallbackPipelineState);
 		PipelineState = FallbackPipelineState;
 	}
+
+	// Retrieve the binding data size from the actual used RTPSO because the requested RTPSO could still be non blocking async compiling
+	// and then we are using the RTPSO from the previous frame
+	OutMaxLocalBindingDataSize = GetRHIRayTracingPipelineStateMaxLocalBindingDataSize(PipelineState);
 
 	check(PipelineState);
 
