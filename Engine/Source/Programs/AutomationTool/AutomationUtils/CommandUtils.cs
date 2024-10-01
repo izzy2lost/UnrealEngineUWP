@@ -3057,7 +3057,7 @@ namespace AutomationTool
 			string DescriptionArg = String.IsNullOrEmpty(Description) ? "" : $"/d \"{Description}\"";
 			string SpecificStoreArg = bUseMachineStoreForCertificates ? " /sm" : "";
 			string MultipleSignatureArg = AllowMultipleSignatures ? " /as" : "";
-			string SHA1TimestampArg = AllowMultipleSignatures ? " /tr" : " /t";
+			string SHA1TimestampArg = " /tr";
 			string SHA256TimestampArg = " /tr";
 
 			List<Task> SignTaskList = new List<Task>();
