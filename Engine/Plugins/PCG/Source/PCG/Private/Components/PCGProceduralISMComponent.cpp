@@ -105,6 +105,11 @@ UPCGManagedProceduralISMComponent* PCGManagedProceduralISMComponent::GetOrCreate
 	return Resource;
 }
 
+FPCGProceduralISMComponentDescriptor::FPCGProceduralISMComponentDescriptor()
+{
+	*this = FPCGSoftISMComponentDescriptor();
+}
+
 FPCGProceduralISMComponentDescriptor& FPCGProceduralISMComponentDescriptor::operator=(const FPCGSoftISMComponentDescriptor& Other)
 {
 	InstanceStartCullDistance = Other.InstanceStartCullDistance;
