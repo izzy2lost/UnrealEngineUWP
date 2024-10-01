@@ -50,13 +50,29 @@ void UActorLabelDataStorageFactory::RegisterActorLabelToColumnQuery(IEditorDataS
 void UActorLabelDataStorageFactory::RegisterLabelColumnToActorQuery(IEditorDataStorageProvider& DataStorage) const
 {
 	using namespace UE::Editor::DataStorage::Queries;
+
+	struct FRenameActorCommand
+	{
+		void operator()()
+		{
+			TStrongObjectPtr<AActor> PinnedActor = Actor.Pin();
+			if (PinnedActor)
+			{
+				const FScopedTransaction Transaction(LOCTEXT("RenameActorTransaction", "Rename Actor"));
+				FActorLabelUtilities::RenameExistingActor(PinnedActor.Get(), NewLabel);
+			}
+			
+		}
+		TWeakObjectPtr<AActor> Actor;
+		FString NewLabel;
+	};
 	
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Sync label column to actor"),
 			FProcessor(EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncDataStorageToExternal))
 				.SetExecutionMode(EExecutionMode::GameThread),
-			[](FTypedElementUObjectColumn& Actor, const FTypedElementLabelColumn& Label, const FTypedElementLabelHashColumn& LabelHash)
+			[](IQueryContext& Context, FTypedElementUObjectColumn& Actor, const FTypedElementLabelColumn& Label, const FTypedElementLabelHashColumn& LabelHash)
 			{
 				if (AActor* ActorInstance = Cast<AActor>(Actor.Object); ActorInstance != nullptr)
 				{
@@ -64,8 +80,11 @@ void UActorLabelDataStorageFactory::RegisterLabelColumnToActorQuery(IEditorDataS
 					uint64 ActorLabelHash = CityHash64(reinterpret_cast<const char*>(*ActorLabel), ActorLabel.Len() * sizeof(**ActorLabel));
 					if (LabelHash.LabelHash != ActorLabelHash)
 					{
-						const FScopedTransaction Transaction(LOCTEXT("RenameActorTransaction", "Rename Actor"));
-						FActorLabelUtilities::RenameExistingActor(ActorInstance, Label.Label);
+						Context.PushCommand(FRenameActorCommand
+							{
+								.Actor = ActorInstance,
+								.NewLabel = Label.Label
+							});
 					}
 				}
 			}

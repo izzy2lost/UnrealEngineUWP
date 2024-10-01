@@ -227,6 +227,11 @@ namespace UE::Editor::DataStorage::Queries
 		return ParentContext.RunSubquery(SubqueryIndex, Row, Callback);
 	}
 
+	void FQueryContextForwarder::PushCommand(void(* CommandFunction)(void*), void* CommandData)
+	{
+    		return ParentContext.PushCommand(CommandFunction, CommandData);
+	}
+
 	//
 	// FCachedQueryContext
 	//

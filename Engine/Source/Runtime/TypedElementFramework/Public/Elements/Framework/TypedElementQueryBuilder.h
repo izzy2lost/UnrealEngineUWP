@@ -329,6 +329,8 @@ namespace UE::Editor::DataStorage::Queries
 		inline void RemoveColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override;
 		inline void RemoveColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override;
 
+		inline void PushCommand(void(* CommandFunction)(void*), void* CommandData) override;
+
 		inline FQueryResult RunQuery(QueryHandle Query) override;
 		inline FQueryResult RunSubquery(int32 SubqueryIndex) override;
 		inline FQueryResult RunSubquery(int32 SubqueryIndex, SubqueryCallbackRef Callback) override;

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Async/Mutex.h"
 #include "DynamicColumnGenerator.h"
 #include "MassEntityManager.h"
 #include "MassProcessingPhaseManager.h"
@@ -60,7 +61,19 @@ namespace UE::Editor::DataStorage
 		void NextUpdateCycle();
 		uint64 GetUpdateCycleId() const;
 
+		struct FEnvironmentCommand
+		{
+			void (*CommandFunction)(void*);
+			// If this is not static data or null, it should be a pointer into the scratch buffer
+			void* CommandData = nullptr;
+		};
+
+		// Commands are flushed on NextUpdateCycle
+		void PushCommands(TConstArrayView<const FEnvironmentCommand> Commands);
+
 	private:
+		void FlushCommands();
+		
 		UEditorDataStorage& DataStorage;
 		Legacy::FCommandBuffer DirectDeferredCommands;
 		FIndexTable IndexTable;
@@ -69,6 +82,9 @@ namespace UE::Editor::DataStorage
 		FMementoSystem MementoSystem;
 		FDynamicColumnGenerator DynamicColumnGenerator;
 		FValueTagManager ValueTagManager;
+
+		FMutex CommandQueueMutex;
+		TArray<FEnvironmentCommand> CommandQueue;
 
 		FMassEntityManager& MassEntityManager;
 		FMassProcessingPhaseManager& MassPhaseManager;

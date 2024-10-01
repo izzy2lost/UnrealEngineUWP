@@ -274,6 +274,38 @@ namespace UE::Editor::DataStorage
 		 * tick group.
 		 */
 		virtual void RemoveColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) = 0;
+		
+		/**
+		 * Creates a command that will run immediately after all processors have completed.
+		 * Intended to be used for cases where the query callback calls into something that cannot run while
+		 * the TEDS processors are running.
+		 * Note that commands will be executed in order with respect to the thread that pushed them and will be executed
+		 * on the game thread.
+		 *
+		 * Usage:
+		 *  Define a command struct with a mutable operator() overload
+		 *  struct FMyCommand
+		 *  {
+		 *      void operator()() { DoSomethingWithSideEffects(MyActor) };
+		 *      TWeakObjectPtr<AActor> MyActor;
+		 *  };
+		 *
+		 *  Context.PushCommand(FMyCommand{ .MyActor = Actor });
+		 */
+		template<typename T>
+		void PushCommand(T CommandContext);
+		
+		virtual void PushCommand(void (*CommandFunction)(void* /*CommandData*/), void* InCommandData) = 0;
+	protected:
+		struct FEmplaceObjectParams
+		{
+			size_t ObjectSize;
+			size_t Alignment;
+			void (*Construct)(void*, void*);
+			void(*Destroy)(void*);
+			void* SourceObject;
+		};
+		virtual void* EmplaceObjectInScratch(const FEmplaceObjectParams& Params) = 0;
 	};
 
 	enum class EDirectQueryExecutionFlags : uint32
@@ -591,4 +623,51 @@ namespace UE::Editor::DataStorage
 	{
 		RemoveColumns(Rows, { Columns::StaticStruct()... });
 	}
+
+	template <typename T>
+	void ICommonQueryWithEnvironmentContext::PushCommand(T CommandContext)
+	{
+		void (*CommandFunction)(void* /*Context*/);
+
+		// If a member operator() is defined
+		CommandFunction = [](void* InInstanceOfT)
+		{
+			T* Instance = static_cast<T*>(InInstanceOfT);
+			Instance->operator()();
+		};
+			
+		if (std::is_empty_v<T>)
+		{
+			PushCommand(CommandFunction, nullptr);
+		}
+		else
+		{
+			FEmplaceObjectParams Params;
+
+			Params.ObjectSize = sizeof(T);
+			Params.Alignment = alignof(T);
+			Params.Construct = [](void* Destination, void* SourceCommandContext)
+			{
+				T& SourceCommand = *static_cast<T*>(SourceCommandContext);
+				new (Destination) T(MoveTemp(SourceCommand));
+			};
+			if (std::is_trivially_destructible_v<T>)
+			{
+				Params.Destroy = nullptr;
+			}
+			else
+			{
+				Params.Destroy = [](void* EmplacedObject)
+				{
+					static_cast<T*>(EmplacedObject)->~T();
+				};
+			}
+				
+			Params.SourceObject = &CommandContext;
+				
+			void* EmplacedCommandContext = EmplaceObjectInScratch(Params);
+			PushCommand(CommandFunction, EmplacedCommandContext);
+		}
+	}
+
 } // namespace UE::Editor::DataStorage
