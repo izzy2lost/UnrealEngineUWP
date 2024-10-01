@@ -612,6 +612,51 @@ namespace UE::Editor::DataStorage
 				this->Context.Defer().DestroyEntities(
 					TConstArrayView<FMassEntityHandle>(reinterpret_cast<const FMassEntityHandle*>(Rows.begin()), Rows.Num()));
 			}
+
+			void PushCommand(void (*CommandFunction)(void*), void* InCommandData)
+			{
+				if (!ensure(CommandFunction))
+				{
+					return;
+				}
+				const FEnvironment::FEnvironmentCommand Command
+				{
+					.CommandFunction = CommandFunction,
+					.CommandData = InCommandData
+				};
+				Environment.PushCommands(MakeConstArrayView(&Command, 1));
+			}
+
+			void* EmplaceObjectInScratch(size_t ObjectSize, size_t Alignment, void(* Construct)(void*, void*), void(* Destroy)(void*), void* SourceCommandContext)
+			{
+				FScratchBuffer& ScratchBuffer = Environment.GetScratchBuffer();
+				void* ObjectMemory = ScratchBuffer.Allocate(ObjectSize, Alignment);
+				Construct(ObjectMemory, SourceCommandContext);
+				// The presence of a Destroy function implies that the objects that was just added to the scratch buffer
+				// is not trivially destructable, hence needs its destructor called.
+				// The API for the scratch buffer's internal memory allocator needs us to emplace a non-trivially destructable object
+				// of some type.  FDestructor is used to fulfil that role to destroy the object that was just constructed.
+				if (Destroy)
+				{
+					struct FDestructor
+					{
+						using DestroyFnType = decltype(Destroy);
+						using ObjectPtrType = decltype(ObjectMemory);
+						FDestructor(DestroyFnType InDestroyFn, ObjectPtrType InObjectPtr)
+							: DestroyFn(InDestroyFn)
+							, ObjectPtr(InObjectPtr)
+						{}
+						~FDestructor()
+						{
+							DestroyFn(ObjectPtr);
+						}
+						DestroyFnType DestroyFn;
+						ObjectPtrType ObjectPtr;
+					};
+					ScratchBuffer.Emplace<FDestructor>(Destroy, ObjectMemory);
+				}
+				return ObjectMemory;
+			}
 		};
 
 		struct FMassDirectContextForwarder final : public IEditorDataStorageProvider::IDirectQueryContext
@@ -665,7 +710,9 @@ namespace UE::Editor::DataStorage
 			void RemoveColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override { Implementation.RemoveColumns(Row, ColumnTypes); }
 			void RemoveColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override { Implementation.RemoveColumns(Rows, ColumnTypes); }
 			const UScriptStruct* FindDynamicColumnType(const UE::Editor::DataStorage::FDynamicColumnDescription& Description) const override { return Implementation.FindDynamicColumnType(Description); }
-			
+			void PushCommand(void (*CommandFunction)(void*), void* CommandData) override { return Implementation.PushCommand(CommandFunction, CommandData); }
+		protected:
+			void* EmplaceObjectInScratch(const FEmplaceObjectParams& Params) override { return Implementation.EmplaceObjectInScratch(Params.ObjectSize, Params.Alignment, Params.Construct, Params.Destroy, Params.SourceObject); }
 
 			FMassWithEnvironmentContextCommon Implementation;
 		};
@@ -811,6 +858,7 @@ namespace UE::Editor::DataStorage
 			void RemoveColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override { Implementation.RemoveColumns(Row, ColumnTypes); }
 			void RemoveColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override { Implementation.RemoveColumns(Rows, ColumnTypes); }
 			const UScriptStruct* FindDynamicColumnType(const UE::Editor::DataStorage::FDynamicColumnDescription& Description) const override { return Implementation.FindDynamicColumnType(Description); }
+			void PushCommand(void (*CommandFunction)(void*), void* Context) override { return Implementation.PushCommand(CommandFunction, Context); }
 
 			const UObject* GetDependency(const UClass* DependencyClass) override { return Implementation.GetDependency(DependencyClass); }
 			UObject* GetMutableDependency(const UClass* DependencyClass) override { return Implementation.GetMutableDependency(DependencyClass); }
@@ -821,6 +869,9 @@ namespace UE::Editor::DataStorage
 			FQueryResult RunSubquery(int32 SubqueryIndex, UE::Editor::DataStorage::SubqueryCallbackRef Callback) override { return Implementation.RunSubquery(SubqueryIndex, Callback); }
 			FQueryResult RunSubquery(int32 SubqueryIndex, RowHandle Row, UE::Editor::DataStorage::SubqueryCallbackRef Callback) override { return Implementation.RunSubquery(SubqueryIndex, Row, Callback); }
 	
+protected:
+			void* EmplaceObjectInScratch(const FEmplaceObjectParams& Params) override { return Implementation.EmplaceObjectInScratch(Params.ObjectSize, Params.Alignment, Params.Construct, Params.Destroy, Params.SourceObject); }
+			
 			FMassQueryContextImplementation Implementation;
 		};
 	} // namespace Processors::Private

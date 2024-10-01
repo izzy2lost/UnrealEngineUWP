@@ -114,6 +114,7 @@ namespace UE::Editor::DataStorage
 	void FEnvironment::NextUpdateCycle()
 	{
 		Queries.UpdateActivatableQueries();
+		FlushCommands();
 		ScratchBuffer.BatchDelete();
 		UpdateCycleId++;
 	}
@@ -121,5 +122,21 @@ namespace UE::Editor::DataStorage
 	uint64 FEnvironment::GetUpdateCycleId() const
 	{
 		return UpdateCycleId;
+	}
+
+	void FEnvironment::PushCommands(TConstArrayView<const FEnvironmentCommand> Commands)
+	{
+		TUniqueLock<FMutex> Lock(CommandQueueMutex);
+
+		CommandQueue.Append(Commands);
+	}
+
+	void FEnvironment::FlushCommands()
+	{
+		for (FEnvironmentCommand& Command : CommandQueue)
+		{
+			Command.CommandFunction(Command.CommandData);
+		}
+		CommandQueue.SetNum(0, EAllowShrinking::No);
 	}
 } // namespace UE::Editor::DataStorage
