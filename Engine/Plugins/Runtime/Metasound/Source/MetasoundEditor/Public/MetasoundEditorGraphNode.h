@@ -13,6 +13,7 @@
 #include "Sound/SoundWave.h"
 #include "Textures/SlateIcon.h"
 #include "UObject/ObjectMacros.h"
+#include "UObject/SoftObjectPath.h"
 
 #include "MetasoundEditorGraphNode.generated.h"
 
@@ -68,6 +69,12 @@ struct FMetasoundEditorGraphMemberNodeBreadcrumb : public FMetasoundEditorGraphN
 
 	UPROPERTY()
 	TMap<FGuid, FMetasoundFrontendLiteral> DefaultLiterals;
+	
+	UPROPERTY()
+	FMetasoundFrontendVertexMetadata VertexMetadata;
+
+	UPROPERTY()
+	TOptional<FSoftObjectPath> MemberMetadataPath;
 };
 
 USTRUCT()
@@ -264,8 +271,9 @@ public:
 	UPROPERTY()
 	TObjectPtr<UMetasoundEditorGraphOutput> Output;
 
-	virtual const FMetasoundEditorGraphNodeBreadcrumb& GetBreadcrumb() const override;
-	virtual void CacheBreadcrumb() override;
+	const FMetasoundEditorGraphVertexNodeBreadcrumb& GetBreadcrumb() const;
+
+	virtual void CacheBreadcrumb() override;	
 
 	UE_DEPRECATED(5.4, "Use the Frontend node or Breadcrumb directly to get the class name.")
 	virtual FMetasoundFrontendClassName GetClassName() const override;
@@ -273,8 +281,6 @@ public:
 	virtual FGuid GetNodeID() const override;
 	virtual UMetasoundEditorGraphMember* GetMember() const override;
 
-	// Can't duplicate, only one node per graph.
-	virtual bool CanDuplicateNode() const override;
 
 	// Disallow deleting outputs as they require being connected to some
 	// part of the graph by the Frontend Graph Builder (which is enforced

@@ -315,14 +315,15 @@ namespace Metasound
 			{
 				// Apply the clamp range to the default value if using a widget or ClampDefault is otherwise true
 				// Only show clamp row if not using a widget (widgets always require a clamp and range)
-				// Presets are an exception, because they may have a widget inherited, but that doesn't apply and isn't editable
+				// Presets and non inputs are an exception, because they may have a widget inherited, but that doesn't apply and isn't editable,
 				const bool bUsingWidget = FloatLiteral->WidgetType != EMetasoundMemberDefaultWidget::None;
 				const UMetasoundEditorGraphMember* Member = FloatLiteral->FindMember();
 				const bool bIsPreset = Member ? Member->GetFrontendBuilderChecked().IsPreset() : false;
-				const bool bShowClampRow = !bUsingWidget || bIsPreset;
-				const bool bApplyRange = (bUsingWidget && !bIsPreset) || FloatLiteral->ClampDefault;
+				const bool bIsInput = Member ? Cast<UMetasoundEditorGraphInput>(Member) != nullptr : true;
+				const bool bClampActiveWithoutWidget = !bUsingWidget || bIsPreset || !bIsInput;
+				const bool bApplyRange = FloatLiteral->ClampDefault || !bClampActiveWithoutWidget;
 
-				ClampRow->Visibility(bShowClampRow ? DefaultVisibility : EVisibility::Hidden);
+				ClampRow->Visibility(bClampActiveWithoutWidget ? DefaultVisibility : EVisibility::Hidden);
 				for (TSharedPtr<IPropertyHandle>& DefaultValueHandle : DefaultProperties)
 				{
 					if (DefaultValueHandle.IsValid())

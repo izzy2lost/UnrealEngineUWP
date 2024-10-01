@@ -227,18 +227,8 @@ UMetaSoundFrontendMemberMetadata* UMetaSoundEditorSubsystem::FindOrCreateGraphIn
 			else
 			{
 				// Get literal class
-				FDataTypeRegistryInfo DataTypeInfo;
-				IMetasoundEditorModule& EditorModule = FModuleManager::GetModuleChecked<IMetasoundEditorModule>("MetaSoundEditor");
 				const FName TypeName = DocBuilder.FindGraphInput(InputName)->TypeName;
-				IDataTypeRegistry::Get().GetDataTypeInfo(TypeName, DataTypeInfo);
-				const EMetasoundFrontendLiteralType LiteralType = static_cast<EMetasoundFrontendLiteralType>(DataTypeInfo.PreferredLiteralType);
-
-				TSubclassOf<UMetasoundEditorGraphMemberDefaultLiteral> LiteralClass = EditorModule.FindDefaultLiteralClass(LiteralType);
-				if (!LiteralClass)
-				{
-					LiteralClass = UMetasoundEditorGraphMemberDefaultLiteral::StaticClass();
-				}
-
+				TSubclassOf<UMetasoundEditorGraphMemberDefaultLiteral> LiteralClass = GetLiteralClassForType(TypeName);
 
 				if (InBuilder->IsPreset())
 				{
@@ -271,6 +261,25 @@ UMetaSoundFrontendMemberMetadata* UMetaSoundEditorSubsystem::FindOrCreateGraphIn
 
 	OutResult = EMetaSoundBuilderResult::Failed;
 	return nullptr;
+}
+
+TSubclassOf<UMetasoundEditorGraphMemberDefaultLiteral> UMetaSoundEditorSubsystem::GetLiteralClassForType(FName TypeName) const
+{
+	using namespace Metasound::Editor;
+	using namespace Metasound::Frontend;
+
+	// Get literal class
+	FDataTypeRegistryInfo DataTypeInfo;
+	IMetasoundEditorModule& EditorModule = FModuleManager::GetModuleChecked<IMetasoundEditorModule>("MetaSoundEditor");
+	IDataTypeRegistry::Get().GetDataTypeInfo(TypeName, DataTypeInfo);
+	const EMetasoundFrontendLiteralType LiteralType = static_cast<EMetasoundFrontendLiteralType>(DataTypeInfo.PreferredLiteralType);
+
+	TSubclassOf<UMetasoundEditorGraphMemberDefaultLiteral> LiteralClass = EditorModule.FindDefaultLiteralClass(LiteralType);
+	if (!LiteralClass)
+	{
+		LiteralClass = UMetasoundEditorGraphMemberDefaultLiteral::StaticClass();
+	}
+	return LiteralClass;
 }
 
 UMetaSoundEditorSubsystem& UMetaSoundEditorSubsystem::GetChecked()

@@ -1592,6 +1592,16 @@ namespace Metasound
 
 			MetasoundGraphEditor->AddNotification(Info, false /* bSuccess */);
 		}
+		
+		void FEditor::NotifyNodePasteFailure_MultipleOutputs()
+		{
+			FNotificationInfo Info(LOCTEXT("NodePasteFailed_MultipleOutputs", "Node(s) not pasted: Only one output node possible per graph."));
+			Info.bFireAndForget = true;
+			Info.bUseSuccessFailIcons = false;
+			Info.ExpireDuration = 5.0f;
+
+			MetasoundGraphEditor->AddNotification(Info, false /* bSuccess */);
+		}
 
 		void FEditor::NotifyNodePasteFailure_ReferenceLoop()
 		{
@@ -3361,7 +3371,7 @@ namespace Metasound
 			for (FGraphPanelSelectionSet::TConstIterator SelectedIter(SelectedNodes); SelectedIter; ++SelectedIter)
 			{
 				UEdGraphNode* Node = Cast<UEdGraphNode>(*SelectedIter);
-				if (!Node || !Node->CanDuplicateNode())
+				if (!Node)
 				{
 					return false;
 				}
@@ -3486,6 +3496,22 @@ namespace Metasound
 			FDocumentPasteNotifications Notifications;
 			TArray<UEdGraphNode*> PastedNodes = FDocumentClipboardUtils::PasteClipboardString(InTransactionText, NodeTextToPaste, Location, *GetMetasoundObject(), Notifications);
 
+			// Paste notifications 
+			if (Notifications.bPastedNodesCreateLoop)
+			{
+				NotifyNodePasteFailure_ReferenceLoop();
+			}
+
+			if (Notifications.bPastedNodesAddMultipleVariableSetters)
+			{
+				NotifyNodePasteFailure_MultipleVariableSetters();
+			}
+
+			if (Notifications.bPastedNodesAddMultipleOutputNodes)
+			{
+				NotifyNodePasteFailure_MultipleOutputs();
+			}
+
 			// Clear the selection set (newly pasted stuff will be selected)
 			if (!PastedNodes.IsEmpty())
 			{
@@ -3495,16 +3521,6 @@ namespace Metasound
 				for (UEdGraphNode* GraphNode : PastedNodes)
 				{
 					MetasoundGraphEditor->SetNodeSelection(GraphNode, true);
-				}
-
-				if (Notifications.bPastedNodesCreateLoop)
-				{
-					NotifyNodePasteFailure_ReferenceLoop();
-				}
-
-				if (Notifications.bPastedNodesAddMultipleVariableSetters)
-				{
-					NotifyNodePasteFailure_MultipleVariableSetters();
 				}
 
 				MetasoundGraphEditor->NotifyGraphChanged();
