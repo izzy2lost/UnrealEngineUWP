@@ -388,6 +388,10 @@ void FObjectDataResource::Serialize(FStructuredArchive::FSlot Slot, TArray<FObje
 		FStructuredArchive::FRecord Record = Slot.EnterRecord();
 		
 		Record << SA_VALUE(TEXT("Flags"), D.Flags);
+		if (Version >= (uint32)FObjectDataResource::EVersion::AddedCookedIndex)
+		{
+			Record << SA_VALUE(TEXT("CookedIndex"), D.CookedIndex);
+		}
 		Record << SA_VALUE(TEXT("SerialOffset"), D.SerialOffset);
 		Record << SA_VALUE(TEXT("DuplicateSerialOffset"), D.DuplicateSerialOffset);
 		Record << SA_VALUE(TEXT("SerialSize"), D.SerialSize);

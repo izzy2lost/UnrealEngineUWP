@@ -1,23 +1,29 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UObject/PackageResourceIoDispatcherBackend.h"
-#include "UObject/PackageResourceManager.h"
+
 #include "Async/AsyncFileHandle.h"
 #include "Async/MappedFileHandle.h"
 #include "Misc/PackageSegment.h"
 #include "Misc/ScopeLock.h"
+#include "Serialization/BulkDataCookedIndex.h"
+#include "UObject/PackageResourceManager.h"
 
 namespace UE
 {
 
-FIoChunkId CreatePackageResourceChunkId(const FName& PackageName, EPackageSegment Segment, bool bExternalResource)
+static_assert(sizeof(FBulkDataCookedIndex::ValueType) == sizeof(uint8)); // If FBulkDataCookedIndex changes type then we need update CreatePackageResourceChunkId
+constexpr uint8 CookedIndexByteIdx = 8; // Position in the byte array that we are storing the cooked index in
+
+FIoChunkId CreatePackageResourceChunkId(const FName& PackageName, EPackageSegment Segment, const FBulkDataCookedIndex& CookedIndex, bool bExternalResource)
 {
 	const int32 Index = PackageName.GetComparisonIndex().ToUnstableInt();
 	const int32 Number = PackageName.GetNumber();
 	
 	uint8 Id[12] = {0};
-	FMemory::Memcpy(Id, &Index, sizeof(int32));
-	FMemory::Memcpy(Id + sizeof(int32), &Number, sizeof(int32));
+	FMemory::Memcpy(Id, &Index, sizeof(int32)); // Bytes 0-3
+	FMemory::Memcpy(Id + sizeof(int32), &Number, sizeof(int32)); // Bytes 4-7
+	Id[CookedIndexByteIdx] = CookedIndex.GetValue();
 	Id[9] = uint8(Segment);
 	Id[10] = uint8(bExternalResource);
 	Id[11] = uint8(EIoChunkType::PackageResource);
@@ -51,6 +57,18 @@ bool TryGetPackagePathFromChunkId(const FIoChunkId& ChunkId, FPackagePath& OutPa
 	FName PackageName;
 	if (TryGetPackageNameFromChunkId(ChunkId, PackageName, OutSegment, bExternal))
 	{
+		return FPackagePath::TryFromPackageName(PackageName, OutPath);
+	}
+
+	return false;
+}
+
+bool TryGetPackagePathFromChunkId(const FIoChunkId& ChunkId, FPackagePath& OutPath, EPackageSegment& OutSegment, bool& bExternal, FBulkDataCookedIndex& OutCookedIndex)
+{
+	FName PackageName;
+	if (TryGetPackageNameFromChunkId(ChunkId, PackageName, OutSegment, bExternal))
+	{
+		OutCookedIndex = FBulkDataCookedIndex(ChunkId.GetData()[CookedIndexByteIdx]);
 		return FPackagePath::TryFromPackageName(PackageName, OutPath);
 	}
 
@@ -211,15 +229,18 @@ bool FPackageResourceIoBackend::Resolve(FIoRequestImpl* Request)
 	FPackagePath Path;
 	EPackageSegment Segment;
 	bool bExternalResource = false;
+	FBulkDataCookedIndex CookedIndex;
 
-	if (TryGetPackagePathFromChunkId(ChunkId, Path, Segment, bExternalResource) == false)
+	if (TryGetPackagePathFromChunkId(ChunkId, Path, Segment, bExternalResource, CookedIndex) == false)
 	{
 		return false;
 	}
-	
+
+	checkf(!bExternalResource || CookedIndex.IsDefault(), TEXT("Cannot use 'CookedIndices' with packages in the workspace domain"));
+
 	TUniquePtr<IAsyncReadFileHandle> FileHandle = bExternalResource
 		? ResourceMgr.OpenAsyncReadExternalResource(EPackageExternalResource::WorkspaceDomainFile, Path.GetPackageName()).Handle
-		: ResourceMgr.OpenAsyncReadPackage(Path, Segment).Handle;
+		: ResourceMgr.OpenAsyncReadPackage(Path, CookedIndex, Segment).Handle;
 
 	if (FileHandle.IsValid() == false)
 	{
@@ -299,13 +320,15 @@ bool FPackageResourceIoBackend::DoesChunkExist(const FIoChunkId& ChunkId) const
 	FPackagePath Path;
 	EPackageSegment Segment;
 	bool bExternalResource = false;
+	FBulkDataCookedIndex CookedIndex;
 
-	if (TryGetPackagePathFromChunkId(ChunkId, Path, Segment, bExternalResource) == false)
+	if (TryGetPackagePathFromChunkId(ChunkId, Path, Segment, bExternalResource, CookedIndex) == false)
 	{
 		return false;
 	}
+
 	
-	return ResourceMgr.DoesPackageExist(Path, Segment);
+	return ResourceMgr.DoesPackageExist(Path, CookedIndex, Segment);
 }
 
 TIoStatusOr<uint64> FPackageResourceIoBackend::GetSizeForChunk(const FIoChunkId& ChunkId) const
@@ -313,13 +336,15 @@ TIoStatusOr<uint64> FPackageResourceIoBackend::GetSizeForChunk(const FIoChunkId&
 	FPackagePath Path;
 	EPackageSegment Segment;
 	bool bExternalResource = false;
+	FBulkDataCookedIndex CookedIndex;
 
-	if (TryGetPackagePathFromChunkId(ChunkId, Path, Segment, bExternalResource) == false)
+	if (TryGetPackagePathFromChunkId(ChunkId, Path, Segment, bExternalResource, CookedIndex) == false)
 	{
 		return FIoStatus(EIoErrorCode::NotFound);
 	}
+
 	
-	if (int64 FileSize = ResourceMgr.FileSize(Path, Segment); FileSize > 0)
+	if (int64 FileSize = ResourceMgr.FileSize(Path, CookedIndex, Segment); FileSize > 0)
 	{
 		return static_cast<uint64>(FileSize);
 	}
@@ -344,8 +369,9 @@ TIoStatusOr<FIoMappedRegion> FPackageResourceIoBackend::OpenMapped(const FIoChun
 	FPackagePath Path;
 	EPackageSegment Segment;
 	bool bExternalResource = false;
+	FBulkDataCookedIndex ChunkGroup;
 
-	if (TryGetPackagePathFromChunkId(ChunkId, Path, Segment, bExternalResource) == false)
+	if (TryGetPackagePathFromChunkId(ChunkId, Path, Segment, bExternalResource, ChunkGroup) == false)
 	{
 		return FIoStatus(EIoErrorCode::NotFound);
 	}

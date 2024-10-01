@@ -26,6 +26,7 @@
 #include "Misc/PackagePath.h"
 #include "Misc/PackageSegment.h"
 #include "Serialization/Archive.h"
+#include "Serialization/BulkDataCookedIndex.h"
 #include "Serialization/CustomVersion.h"
 #include "Serialization/FileRegions.h"
 #include "Templates/Function.h"
@@ -458,6 +459,8 @@ struct FBulkDataSerializationParams
 	EFileRegionType RegionType;
 	/** Flag indicating whether to try to memory map the bulk data payload or not. */
 	bool bAttemptMemoryMapping = false;
+	/** The group to which the cooked version of the bulkdata payload should be assigned*/
+	FBulkDataCookedIndex CookedIndex;
 };
 
 /**
@@ -714,6 +717,9 @@ public:
 	*/
 	COREUOBJECT_API uint32 GetBulkDataFlags() const;
 
+#if WITH_EDITOR
+	COREUOBJECT_API void SetCookedIndex(FBulkDataCookedIndex Index);
+#endif //WITH_EDITOR
 	/**
 	* Gets the current bulk data alignment.
 	*
@@ -1007,9 +1013,11 @@ private:
 protected:
 #if WITH_EDITOR
 	/** Archive associated with bulk data for serialization																*/
-	FArchive*									AttachedAr = nullptr;
+	FArchive*				AttachedAr = nullptr;
 	/** Used to make sure the linker doesn't get garbage collected at runtime for things with attached archives			*/
-	FLinkerLoad*								Linker = nullptr;
+	FLinkerLoad*			Linker = nullptr;
+	/** The index to which the cooked version of the bulkdata payload should be assigned*/
+	FBulkDataCookedIndex	CookedIndex;
 #endif // WITH_EDITOR
 	   //
 #if !USE_RUNTIME_BULKDATA

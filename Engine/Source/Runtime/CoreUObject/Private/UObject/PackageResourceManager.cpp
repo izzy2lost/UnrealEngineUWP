@@ -69,22 +69,22 @@ void IPackageResourceManager::Shutdown()
 
 bool IPackageResourceManager::DoesPackageExist(const FPackagePath& PackagePath, FPackagePath* OutUpdatedPath)
 {
-	return DoesPackageExist(PackagePath, EPackageSegment::Header, OutUpdatedPath);
+	return DoesPackageExist(PackagePath, FBulkDataCookedIndex::Default, EPackageSegment::Header, OutUpdatedPath);
 }
 
 int64 IPackageResourceManager::FileSize(const FPackagePath& PackagePath, FPackagePath* OutUpdatedPath)
 {
-	return FileSize(PackagePath, EPackageSegment::Header, OutUpdatedPath);
+	return FileSize(PackagePath, FBulkDataCookedIndex::Default, EPackageSegment::Header, OutUpdatedPath);
 }
 
 FOpenPackageResult IPackageResourceManager::OpenReadPackage(const FPackagePath& PackagePath, FPackagePath* OutUpdatedPath)
 {
-	return OpenReadPackage(PackagePath, EPackageSegment::Header, OutUpdatedPath);
+	return OpenReadPackage(PackagePath, FBulkDataCookedIndex::Default, EPackageSegment::Header, OutUpdatedPath);
 }
 
 FOpenAsyncPackageResult IPackageResourceManager::OpenAsyncReadPackage(const FPackagePath& PackagePath)
 {
-	return OpenAsyncReadPackage(PackagePath, EPackageSegment::Header);
+	return OpenAsyncReadPackage(PackagePath, FBulkDataCookedIndex::Default, EPackageSegment::Header);
 }
 
 IMappedFileHandle* IPackageResourceManager::OpenMappedHandleToPackage(const FPackagePath& PackagePath, FPackagePath* OutUpdatedPath)

@@ -639,6 +639,7 @@ void FPackageStoreOptimizer::ProcessDataResources(const FCookedHeaderData& Cooke
 		Entry.DuplicateSerialOffset = DataResource.DuplicateSerialOffset;
 		Entry.SerialSize = DataResource.SerialSize;
 		Entry.Flags = DataResource.LegacyBulkDataFlags;
+		Entry.CookedIndex = DataResource.CookedIndex;
 	}
 }
 

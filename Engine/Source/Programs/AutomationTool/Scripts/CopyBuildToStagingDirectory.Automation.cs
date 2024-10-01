@@ -495,6 +495,38 @@ namespace AutomationScripts
 			Logger.LogDebug("End Deployment Context **************");
 		}
 
+		private static bool IsBulkDataExtension(string Extension)
+		{
+			return Extension == ".ubulk" || Extension == ".uptnl";
+		}
+
+		private static bool IsOptionalSegment(string Extension)
+		{
+			return Extension == ".o";
+		}
+
+		private static bool IsMemoryMapped(string Extension)
+		{
+			return Extension == ".m";
+		}
+
+		private static string StripPackageExtension(string FullPath)
+		{
+			string Extension = Path.GetExtension(FullPath);
+			string TrimmedPath = FullPath.Substring(0, FullPath.Length - Extension.Length);
+			string SecondExtension = Path.GetExtension(TrimmedPath);
+
+			if (IsBulkDataExtension(Extension) || IsOptionalSegment(SecondExtension) || IsMemoryMapped(SecondExtension))
+			{
+				if(SecondExtension.Length != 0)
+				{
+					TrimmedPath = FullPath.Substring(0, TrimmedPath.Length - SecondExtension.Length);
+				}
+			}
+
+			return TrimmedPath;
+		}
+		
 		private static string GetInternationalizationPreset(ProjectParams Params, ConfigHierarchy PlatformGameConfig, bool bMustExist = true)
 		{
 			// Initialize internationalization preset.
@@ -4741,13 +4773,7 @@ namespace AutomationScripts
 					HashSet<ChunkDefinition> PakList = new HashSet<ChunkDefinition>();
 
 					string OriginalFilename = StagingFile.Key;
-					string NoExtension = CombinePaths(Path.GetDirectoryName(OriginalFilename), Path.GetFileNameWithoutExtension(OriginalFilename));
-					string AdditionalExtension = Path.GetExtension(NoExtension);
-					if (AdditionalExtension == ".m" || AdditionalExtension == ".o")
-					{
-						// Hack around .m.ubulk files having a double extension
-						NoExtension = CombinePaths(Path.GetDirectoryName(OriginalFilename), Path.GetFileNameWithoutExtension(NoExtension));
-					}
+					string NoExtension = StripPackageExtension(OriginalFilename);
 					string OriginalReplaceSlashes = OriginalFilename.Replace('/', '\\');
 					string NoExtensionReplaceSlashes = NoExtension.Replace('/', '\\');
 

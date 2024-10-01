@@ -216,7 +216,8 @@ FArchive& operator<<(FArchive& Ar, FBulkDataMapEntry& BulkDataEntry)
 	Ar << BulkDataEntry.DuplicateSerialOffset;
 	Ar << BulkDataEntry.SerialSize;
 	Ar << BulkDataEntry.Flags;
-	Ar << BulkDataEntry.Pad;
+	Ar << BulkDataEntry.CookedIndex;
+	Ar.Serialize(&BulkDataEntry.Pad, 3);
 
 	return Ar;
 }
@@ -2149,8 +2150,9 @@ public:
 		const uint16 ChunkIndex = bIsOptionalSegment ? 1 : 0; 
 
 		UE::BulkData::Private::FBulkMetaData& Meta = BulkData.BulkMeta;
+		FBulkDataCookedIndex CookedIndex;
 		int64 DuplicateSerialOffset = -1;
-		SerializeBulkMeta(Meta, DuplicateSerialOffset, Params.ElementSize);
+		SerializeBulkMeta(Meta, CookedIndex, DuplicateSerialOffset, Params.ElementSize);
 
 		const bool bIsInline = Meta.HasAnyFlags(BULKDATA_PayloadAtEndOfFile) == false;
 		if (bIsInline)
@@ -2166,41 +2168,51 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				Serialize(BulkData.ReallocateData(PayloadSize), PayloadSize);
 			}
 		}
+		else if (Meta.HasAnyFlags(BULKDATA_MemoryMappedPayload))
+		{
+#if UE_DISABLE_COOKEDINDEX_FOR_MEMORYMAPPED
+			CookedIndex = FBulkDataCookedIndex::Default;
+#endif //UE_DISABLE_COOKEDINDEX_FOR_MEMORYMAPPED
+
+			BulkData.BulkChunkId = CreateBulkDataIoChunkId(PackageId.Value(), ChunkIndex, CookedIndex.GetValue(), EIoChunkType::MemoryMappedBulkData);
+
+			if (Params.bAttemptMemoryMapping)
+			{
+				TIoStatusOr<FIoMappedRegion> Status = IoDispatcher.OpenMapped(BulkData.BulkChunkId, FIoReadOptions(Meta.GetOffset(), Meta.GetSize()));
+
+				if (Status.IsOk())
+				{
+					FIoMappedRegion Mapping = Status.ConsumeValueOrDie();
+					BulkData.DataAllocation.SetMemoryMappedData(&BulkData, Mapping.MappedFileHandle, Mapping.MappedFileRegion);
+				}
+				else
+				{
+					UE_LOG(LogSerialization, Warning, TEXT("Memory map bulk data from chunk '%s', offset '%lld', size '%lld' FAILED"),
+						*LexToString(BulkData.BulkChunkId), Meta.GetOffset(), Meta.GetSize());
+
+					BulkData.ForceBulkDataResident();
+				}
+			}
+		}
 		else
 		{
 			const EIoChunkType ChunkType = Meta.HasAnyFlags(BULKDATA_OptionalPayload) ? EIoChunkType::OptionalBulkData : EIoChunkType::BulkData;
-			BulkData.BulkChunkId = CreateIoChunkId(PackageId.Value(), ChunkIndex, ChunkType);
+			BulkData.BulkChunkId = CreateBulkDataIoChunkId(PackageId.Value(), ChunkIndex, CookedIndex.GetValue(), ChunkType);
 
 			if (Meta.HasAnyFlags(BULKDATA_DuplicateNonOptionalPayload))
 			{
-				const FIoChunkId OptionalChunkId = CreateIoChunkId(PackageId.Value(), ChunkIndex, EIoChunkType::OptionalBulkData);
+#if UE_DISABLE_COOKEDINDEX_FOR_NONDUPLICATE
+				CookedIndex = FBulkDataCookedIndex::Default;
+#endif //UE_DISABLE_COOKEDINDEX_FOR_NONDUPLICATE
+				
+				const FIoChunkId OptionalChunkId = CreateBulkDataIoChunkId(PackageId.Value(), ChunkIndex, CookedIndex.GetValue(), EIoChunkType::OptionalBulkData);
+
 				if (IoDispatcher.DoesChunkExist(OptionalChunkId))
 				{
 					BulkData.BulkChunkId = OptionalChunkId;
 					Meta.ClearFlags(BULKDATA_DuplicateNonOptionalPayload);
 					Meta.AddFlags(BULKDATA_OptionalPayload);
 					Meta.SetOffset(DuplicateSerialOffset);
-				}
-			}
-			else if (Meta.HasAnyFlags(BULKDATA_MemoryMappedPayload))
-			{
-				BulkData.BulkChunkId = CreateIoChunkId(PackageId.Value(), ChunkIndex, EIoChunkType::MemoryMappedBulkData);
-				if (Params.bAttemptMemoryMapping)
-				{
-					TIoStatusOr<FIoMappedRegion> Status = IoDispatcher.OpenMapped(BulkData.BulkChunkId, FIoReadOptions(Meta.GetOffset(), Meta.GetSize()));
-
-					if (Status.IsOk())
-					{
-						FIoMappedRegion Mapping = Status.ConsumeValueOrDie(); 
-						BulkData.DataAllocation.SetMemoryMappedData(&BulkData, Mapping.MappedFileHandle, Mapping.MappedFileRegion);
-					}
-					else
-					{
-						UE_LOG(LogSerialization, Warning, TEXT("Memory map bulk data from chunk '%s', offset '%lld', size '%lld' FAILED"),
-							*LexToString(BulkData.BulkChunkId), Meta.GetOffset(), Meta.GetSize());
-
-						BulkData.ForceBulkDataResident();
-					}
 				}
 			}
 		}
@@ -2210,7 +2222,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	//~ End FArchive::FLinkerLoad Interface
 
 private:
-	inline void SerializeBulkMeta(UE::BulkData::Private::FBulkMetaData& Meta, int64& DuplicateSerialOffset, int32 ElementSize)
+	inline void SerializeBulkMeta(UE::BulkData::Private::FBulkMetaData& Meta, FBulkDataCookedIndex& CookedIndex, int64& DuplicateSerialOffset, int32 ElementSize)
 	{
 		using namespace UE::BulkData::Private;
 		FArchive& Ar = *this;
@@ -2221,6 +2233,7 @@ private:
 		}
 		else
 		{
+			const int32 Size = sizeof(FBulkDataMapEntry);
 			int32 EntryIndex = INDEX_NONE;
 			Ar << EntryIndex;
 			const FBulkDataMapEntry& Entry = HeaderData->BulkDataMap[EntryIndex];
@@ -2240,6 +2253,7 @@ private:
 #endif //!USE_RUNTIME_BULKDATA
 
 			DuplicateSerialOffset = Entry.DuplicateSerialOffset;
+			CookedIndex = Entry.CookedIndex;
 		}
 
 		Meta.AddFlags(static_cast<EBulkDataFlags>(BULKDATA_UsesIoDispatcher | BULKDATA_LazyLoadable));

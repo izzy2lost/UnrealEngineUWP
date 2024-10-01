@@ -30,6 +30,10 @@
 
 //////////////////////////////////////////////////////////////////////////////
 
+const FBulkDataCookedIndex FBulkDataCookedIndex::Default;
+
+//////////////////////////////////////////////////////////////////////////////
+
 FStringBuilderBase& LexToString(EBulkDataFlags Flags, FStringBuilderBase& Sb)
 {
 	#define TEST_AND_ADD_FLAG(Sb, Flags, Contains)\
@@ -1176,6 +1180,15 @@ uint32 FBulkData::GetBulkDataFlags() const
 	return BulkMeta.GetFlags();
 }
 
+#if WITH_EDITOR
+
+void FBulkData::SetCookedIndex(FBulkDataCookedIndex Index)
+{
+	CookedIndex = Index;
+}
+
+#endif //WITH_EDITOR
+
 /**
 * Gets the current bulk data alignment.
 *
@@ -1248,7 +1261,12 @@ void FBulkData::Serialize(FArchive& Ar, UObject* Owner, bool bAttemptFileMapping
 	
 	check(!bAttemptFileMapping || Ar.IsLoading()); // makes no sense to map unless we are loading
 
-	if (Ar.SerializeBulkData(*this, FBulkDataSerializationParams {Owner, ElementSize, FileRegionType, bAttemptFileMapping}))
+#if !WITH_EDITOR
+	FBulkDataCookedIndex CookedIndex;	// Dummy value to pass into ::SerializeBulkData, as this is the editor we will only
+										// ever be loading and so this value will not be used.
+#endif //!WITH_EDITOR
+
+	if (Ar.SerializeBulkData(*this, FBulkDataSerializationParams {Owner, ElementSize, FileRegionType, bAttemptFileMapping, CookedIndex }))
 	{
 		// Just early out when the archive overrides the serialization of bulk data
 		return;

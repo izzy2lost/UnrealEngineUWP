@@ -796,7 +796,7 @@ void FPackagePath::AppendLocalFullPath(FStringBuilderBase& Builder, EPackageSegm
 		{
 			check(PackageSegment == EPackageSegment::Header);
 			FPackagePath PathWithExtension;
-			if (IPackageResourceManager::Get().DoesPackageExist(*this, EPackageSegment::Header, &PathWithExtension))
+			if (IPackageResourceManager::Get().DoesPackageExist(*this, FBulkDataCookedIndex::Default, EPackageSegment::Header, &PathWithExtension))
 			{
 				Extension = PathWithExtension.GetHeaderExtension();
 				// DoesPackageExist should not search for files with non-standard extensions, so we don't handle CustomExtensions here

@@ -2275,7 +2275,8 @@ ESavePackageResult WriteExports(FStructuredArchive::FRecord& StructuredArchiveRo
 	
 	if (Linker.IsCooking() == false)
 	{
-		VirtualExportsFileOffset += Linker.GetBulkDataArchive().TotalSize();
+		check(!Linker.HasCookedIndexBulkData());
+		VirtualExportsFileOffset += Linker.GetBulkDataArchive(FBulkDataCookedIndex::Default).TotalSize();
 	}
 
 	const bool bIsOptionalRealm = SaveContext.GetCurrentHarvestingRealm() == ESaveRealm::Optional;
@@ -2286,10 +2287,11 @@ ESavePackageResult WriteExports(FStructuredArchive::FRecord& StructuredArchiveRo
 	{
 		// Saving non-inline bulk data to the end of the package (Editor)
 
+		check(!Linker.HasCookedIndexBulkData());
 		check(Linker.IsCooking() == false);
 		check(bIsOptionalRealm == false);
 
-		FFileRegionMemoryWriter& Ar = Linker.GetBulkDataArchive();
+		FFileRegionMemoryWriter& Ar = Linker.GetBulkDataArchive(FBulkDataCookedIndex::Default);
 		if (const int64 TotalSize = Ar.TotalSize(); TotalSize > 0)
 		{
 			FIoBuffer Buffer(FIoBuffer::AssumeOwnership, Ar.ReleaseOwnership(), TotalSize);
@@ -2320,10 +2322,18 @@ ESavePackageResult WriteExports(FStructuredArchive::FRecord& StructuredArchiveRo
 	const FPackageId PackageId = FPackageId::FromName(PackageName);
 	const uint16 MultiOutputIndex = bIsOptionalRealm ? 1 : 0;
 
-	auto GetFilePath = [&SaveContext, bIsOptionalRealm](EPackageExtension Ext) -> FString
+	auto GetFilePath = [&SaveContext, bIsOptionalRealm](EPackageExtension Ext, FBulkDataCookedIndex CookedIndex = FBulkDataCookedIndex::Default) -> FString
 	{
-		FString FileExt = bIsOptionalRealm ? FString(TEXT(".o")) + LexToString(Ext) : LexToString(Ext);
-		return FPathViews::ChangeExtension(SaveContext.GetFilename(), FileExt);
+			if (CookedIndex.IsDefault())
+			{
+				FString FileExt = bIsOptionalRealm ? FString(TEXT(".o")) + LexToString(Ext) : LexToString(Ext);
+				return FPathViews::ChangeExtension(SaveContext.GetFilename(), FileExt);
+			}
+			else
+			{
+				FString FileExt = CookedIndex.GetAsExtension() + LexToString(Ext);
+				return FPathViews::ChangeExtension(SaveContext.GetFilename(), FileExt);
+			}
 	};
 
 	auto WriteToPackageWriter = [&SaveContext, PackageWriter, bIsOptionalRealm](FFileRegionMemoryWriter& Ar, IPackageWriter::FBulkDataInfo Info) -> int64
@@ -2341,38 +2351,51 @@ ESavePackageResult WriteExports(FStructuredArchive::FRecord& StructuredArchiveRo
 	};
 
 	FScopedSlowTask Feedback(3.0f);
-	SaveContext.TotalPackageSizeUncompressed += WriteToPackageWriter(Linker.GetBulkDataArchive(), IPackageWriter::FBulkDataInfo
-	{
-		PackageName,
-		IPackageWriter::FBulkDataInfo::BulkSegment,
-		GetFilePath(EPackageExtension::BulkDataDefault),
-		CreateIoChunkId(PackageId.Value(), MultiOutputIndex, EIoChunkType::BulkData),
-		MultiOutputIndex
-	});
+
+	Linker.ForEachBulkDataCookedIndex([&SaveContext, &PackageName, &PackageId, &WriteToPackageWriter, &GetFilePath, MultiOutputIndex](FBulkDataCookedIndex CookedIndex, FFileRegionMemoryWriter& Ar)
+		{
+			SaveContext.TotalPackageSizeUncompressed += WriteToPackageWriter(Ar, IPackageWriter::FBulkDataInfo
+				{
+					PackageName,
+					IPackageWriter::FBulkDataInfo::BulkSegment,
+					GetFilePath(EPackageExtension::BulkDataDefault, CookedIndex),
+					CreateBulkDataIoChunkId(PackageId.Value(), MultiOutputIndex, CookedIndex.GetValue(), EIoChunkType::BulkData),
+					MultiOutputIndex
+				});
+		}, EBulkDataPayloadType::BulkSegment);
+
 	Feedback.EnterProgressFrame();
 
 	// @note FH: temporarily do not handle optional bulk data into editor optional packages, proper support will be added soon
 	if (bIsOptionalRealm == false)
 	{
-		SaveContext.TotalPackageSizeUncompressed += WriteToPackageWriter(Linker.GetOptionalBulkDataArchive(), IPackageWriter::FBulkDataInfo
-		{
-			PackageName,
-			IPackageWriter::FBulkDataInfo::Optional,
-			GetFilePath(EPackageExtension::BulkDataOptional),
-			CreateIoChunkId(PackageId.Value(), MultiOutputIndex, EIoChunkType::OptionalBulkData),
-			MultiOutputIndex
-		});
+		Linker.ForEachBulkDataCookedIndex([&SaveContext, &PackageName, &PackageId, &WriteToPackageWriter, &GetFilePath, MultiOutputIndex](FBulkDataCookedIndex CookedIndex, FFileRegionMemoryWriter& Ar)
+			{
+				SaveContext.TotalPackageSizeUncompressed += WriteToPackageWriter(Ar, IPackageWriter::FBulkDataInfo
+					{
+						PackageName,
+						IPackageWriter::FBulkDataInfo::Optional,
+						GetFilePath(EPackageExtension::BulkDataOptional, CookedIndex),
+						CreateBulkDataIoChunkId(PackageId.Value(), MultiOutputIndex, CookedIndex.GetValue(), EIoChunkType::OptionalBulkData),
+						MultiOutputIndex
+					});
+			}, EBulkDataPayloadType::Optional);
 	}
+
 	Feedback.EnterProgressFrame();
 
-	SaveContext.TotalPackageSizeUncompressed += WriteToPackageWriter(Linker.GetMemoryMappedBulkDataArchive(), IPackageWriter::FBulkDataInfo
-	{
-		PackageName,
-		IPackageWriter::FBulkDataInfo::Mmap,
-		GetFilePath(EPackageExtension::BulkDataMemoryMapped),
-		CreateIoChunkId(PackageId.Value(), MultiOutputIndex, EIoChunkType::MemoryMappedBulkData),
-		MultiOutputIndex
-	});
+	Linker.ForEachBulkDataCookedIndex([&SaveContext, &PackageName, &PackageId, &WriteToPackageWriter, &GetFilePath, MultiOutputIndex](FBulkDataCookedIndex CookedIndex, FFileRegionMemoryWriter& Ar)
+		{
+			SaveContext.TotalPackageSizeUncompressed += WriteToPackageWriter(Ar, IPackageWriter::FBulkDataInfo
+				{
+					PackageName,
+					IPackageWriter::FBulkDataInfo::Mmap,
+					GetFilePath(EPackageExtension::BulkDataMemoryMapped),
+					CreateBulkDataIoChunkId(PackageId.Value(), MultiOutputIndex, CookedIndex.GetValue(), EIoChunkType::MemoryMappedBulkData),
+					MultiOutputIndex
+				});
+		}, EBulkDataPayloadType::MemoryMapped);
+
 	Feedback.EnterProgressFrame();
 
 	return ESavePackageResult::Success;

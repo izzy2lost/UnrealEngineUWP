@@ -142,14 +142,14 @@ public:
 	// IPackageResourceManager interface
 	virtual bool SupportsLocalOnlyPaths() override;
 	virtual bool SupportsPackageOnlyPaths() override;
-	virtual bool DoesPackageExist(const FPackagePath& PackagePath, EPackageSegment PackageSegment,
-		FPackagePath* OutUpdatedPath = nullptr) override;
-	virtual int64 FileSize(const FPackagePath& PackagePath, EPackageSegment PackageSegment,
-		FPackagePath* OutUpdatedPath = nullptr) override;
-	virtual FOpenPackageResult OpenReadPackage(const FPackagePath& PackagePath, EPackageSegment PackageSegment,
-		FPackagePath* OutUpdatedPath = nullptr) override;
+	virtual bool DoesPackageExist(const FPackagePath& PackagePath, FBulkDataCookedIndex CookedIndex,
+		EPackageSegment PackageSegment, FPackagePath* OutUpdatedPath = nullptr) override;
+	virtual int64 FileSize(const FPackagePath& PackagePath, FBulkDataCookedIndex CookedIndex,
+		EPackageSegment PackageSegment, FPackagePath* OutUpdatedPath = nullptr) override;
+	virtual FOpenPackageResult OpenReadPackage(const FPackagePath& PackagePath, FBulkDataCookedIndex CookedIndex,
+		EPackageSegment PackageSegment, FPackagePath* OutUpdatedPath = nullptr) override;
 	virtual FOpenAsyncPackageResult OpenAsyncReadPackage(const FPackagePath& PackagePath,
-		EPackageSegment PackageSegment) override;
+		FBulkDataCookedIndex CookedIndex, EPackageSegment PackageSegment) override;
 	virtual IMappedFileHandle* OpenMappedHandleToPackage(const FPackagePath& PackagePath,
 		EPackageSegment PackageSegment, FPackagePath* OutUpdatedPath = nullptr) override;
 	virtual bool TryMatchCaseOnDisk(const FPackagePath& PackagePath, FPackagePath* OutNormalizedPath = nullptr) override;

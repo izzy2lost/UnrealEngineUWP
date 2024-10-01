@@ -522,7 +522,7 @@ bool FEditorDomainReadArchive::TryCreateFallbackData(FEditorDomain& EditorDomain
 	// will fail here because we are creating the file handle on the callback thread and using it on the 
 	// interface thread which is on the game thread. Need to make all editor platforms support that, or
 	// have this fallback occur when WaitForReady is called.
-	FOpenPackageResult Result = Workspace.OpenReadPackage(Segments.GetPackagePath(), EPackageSegment::Header);
+	FOpenPackageResult Result = Workspace.OpenReadPackage(Segments.GetPackagePath(), FBulkDataCookedIndex::Default, EPackageSegment::Header);
 	if (Result.Archive)
 	{
 		InnerArchive = MoveTemp(Result.Archive);
@@ -809,7 +809,7 @@ void FEditorDomainAsyncReadFileHandle::CreateSegmentData(bool bValid)
 bool FEditorDomainAsyncReadFileHandle::TryCreateFallbackData(FEditorDomain& EditorDomain)
 {
 	IPackageResourceManager& Workspace = *EditorDomain.Workspace;
-	FOpenAsyncPackageResult Result = Workspace.OpenAsyncReadPackage(Segments.GetPackagePath(), EPackageSegment::Header);
+	FOpenAsyncPackageResult Result = Workspace.OpenAsyncReadPackage(Segments.GetPackagePath(), FBulkDataCookedIndex::Default, EPackageSegment::Header);
 	check(Result.Handle);
 	InnerArchive = MoveTemp(Result.Handle);
 	PackageFormat = Result.Format;
