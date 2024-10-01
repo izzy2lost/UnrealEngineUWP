@@ -357,7 +357,7 @@ void UMaterialBillboardComponent::PostLoad()
 {
 	Super::PostLoad();
 
-	if ((IsComponentPSOPrecachingEnabled() && RHISupportsManualVertexFetch(GMaxRHIShaderPlatform)) || IsDynamicShaderPreloadingEnabled())
+	if ((IsComponentPSOPrecachingEnabled() && RHISupportsManualVertexFetch(GMaxRHIShaderPlatform)))
 	{
 		FPSOPrecacheParams PrecachePSOParams;
 		SetupPrecachePSOParams(PrecachePSOParams);
@@ -374,14 +374,7 @@ void UMaterialBillboardComponent::PostLoad()
 		{
 			if (MaterialInterface)
 			{
-				if (IsDynamicShaderPreloadingEnabled())
-				{					
-					MaterialInterface->PreloadShaders(VFDataList, PrecachePSOParams);
-				}
-				else
-				{
-					MaterialInterface->PrecachePSOs(VFType, PrecachePSOParams);
-				}
+				MaterialInterface->PrecachePSOs(VFType, PrecachePSOParams);
 			}
 		}
 	}

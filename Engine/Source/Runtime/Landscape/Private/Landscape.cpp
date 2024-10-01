@@ -1200,7 +1200,7 @@ void ULandscapeComponent::PostLoad()
 
 	Super::PostLoad();
 
-	if (IsComponentPSOPrecachingEnabled() || IsDynamicShaderPreloadingEnabled())
+	if (IsComponentPSOPrecachingEnabled())
 	{
 		TArray<UMaterialInterface*> Materials;
 		bool bGetDebugMaterials = false;
@@ -1238,10 +1238,6 @@ void ULandscapeComponent::PostLoad()
 				if (IsComponentPSOPrecachingEnabled())
 				{
 					MaterialInterface->PrecachePSOs(VertexFactoryDataList, PrecachePSOParams, EPSOPrecachePriority::High, MaterialPrecacheRequestIDs);
-				}
-				else if(IsDynamicShaderPreloadingEnabled())
-				{
-					MaterialInterface->PreloadShaders(VertexFactoryDataList, PrecachePSOParams);
 				}
 			}
 		}

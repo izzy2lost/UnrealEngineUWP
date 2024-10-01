@@ -143,12 +143,12 @@ PSOCollectorStats::EPSOPrecacheValidationMode PSOCollectorStats::GetPrecachingVa
 
 bool PSOCollectorStats::IsPrecachingValidationEnabled()
 {
-	return PipelineStateCache::IsPSOPrecachingEnabled() && GetPrecachingValidationMode() != EPSOPrecacheValidationMode::Disabled;
+	return (GetPSOPrecacheMode() == EPSOPrecacheMode::PSO) && PipelineStateCache::IsPSOPrecachingEnabled() && GetPrecachingValidationMode() != EPSOPrecacheValidationMode::Disabled;
 }
 
 bool PSOCollectorStats::IsFullPrecachingValidationEnabled()
 {
-	return PipelineStateCache::IsPSOPrecachingEnabled() && GetPrecachingValidationMode() == EPSOPrecacheValidationMode::Full;
+	return (GetPSOPrecacheMode() == EPSOPrecacheMode::PSO) && PipelineStateCache::IsPSOPrecachingEnabled() && GetPrecachingValidationMode() == EPSOPrecacheValidationMode::Full;
 }
 
 void PSOCollectorStats::FPrecacheUsageData::Empty()

@@ -527,7 +527,7 @@ void CollectDeferredDecalPassPSOInitializers(
 	const FSceneTexturesConfig& SceneTexturesConfig,
 	const FMaterial& Material,
 	EDecalRenderStage DecalRenderStage,
-	FPassProcessorPSOCollection& OutCollection)
+	TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	const EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(FeatureLevel);
 	const FDecalBlendDesc DecalBlendDesc = DecalRendering::ComputeDecalBlendDesc(ShaderPlatform, Material);
@@ -540,12 +540,19 @@ void CollectDeferredDecalPassPSOInitializers(
 		return;
 	}
 
-	if (OutCollection.IsCollectingShadersOnly())
+	if (IsPSOShaderPreloadingEnabled())
 	{
-		FShaderPreloadData ShaderData;
-		ShaderData.Shaders.Add(VertexShader);
-		ShaderData.Shaders.Add(PixelShader);
-		OutCollection.Collect(MoveTemp(ShaderData));
+		FPSOPrecacheData PSOPrecacheData;
+		PSOPrecacheData.bRequired = true;
+		PSOPrecacheData.Type = FPSOPrecacheData::EType::Graphics;
+		PSOPrecacheData.ShaderPreloadData.Shaders.Add(VertexShader);
+		PSOPrecacheData.ShaderPreloadData.Shaders.Add(PixelShader);
+#if PSO_PRECACHING_VALIDATE
+		PSOPrecacheData.PSOCollectorIndex = PSOCollectorIndex;
+		PSOPrecacheData.VertexFactoryType = nullptr;
+#endif // PSO_PRECACHING_VALIDATE	
+
+		PSOInitializers.Add(MoveTemp(PSOPrecacheData));
 		return;
 	}
 
@@ -589,7 +596,7 @@ void CollectDeferredDecalPassPSOInitializers(
 		PSOPrecacheData.VertexFactoryType = nullptr;
 #endif // PSO_PRECACHING_VALIDATE		
 
-		OutCollection.Collect(MoveTemp(PSOPrecacheData));
+		PSOInitializers.Add(MoveTemp(PSOPrecacheData));
 	};
 
 	const auto AddDeferredDecalPSOInsideOutside = [&](bool bReverseHanded, bool bReverseCulling, bool bDecalUsesStencil)

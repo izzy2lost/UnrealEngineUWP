@@ -123,7 +123,7 @@ public:
 	FWaterInfoTexturePassMeshProcessor(const FScene* Scene, ERHIFeatureLevel::Type FeatureLevel, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext, bool bIsMobile);
 
 	virtual void AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch, uint64 BatchElementMask, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, int32 StaticMeshId = -1) override final;
-	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection) override final;
+	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers) override final;
 
 private:
 	bool TryAddMeshBatch(
@@ -175,7 +175,7 @@ void FWaterInfoTexturePassMeshProcessor::AddMeshBatch(const FMeshBatch& RESTRICT
 	}
 }
 
-void FWaterInfoTexturePassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection)
+void FWaterInfoTexturePassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	// Try to reduce the number of materials considered for this mesh pass:
 	// Materials for drawing the water info texture are supposed to be unlit (they write velocity and possibly other data into Emissive).
@@ -214,12 +214,6 @@ void FWaterInfoTexturePassMeshProcessor::CollectPSOInitializers(const FSceneText
 				return;
 			}
 
-			if (OutCollection.IsCollectingShadersOnly())
-			{
-				OutCollection.Collect(PassShaders.GetUntypedShaders().GetValidShaders());
-				return;
-			}
-
 			AddGraphicsPipelineStateInitializer(
 				VertexFactoryData,
 				Material,
@@ -231,7 +225,7 @@ void FWaterInfoTexturePassMeshProcessor::CollectPSOInitializers(const FSceneText
 				(EPrimitiveType)PreCacheParams.PrimitiveType,
 				EMeshPassFeatures::Default,
 				true /*bRequired*/,
-				OutCollection);
+				PSOInitializers);
 		}
 		else
 		{
@@ -250,12 +244,6 @@ void FWaterInfoTexturePassMeshProcessor::CollectPSOInitializers(const FSceneText
 
 			Shaders.TryGetVertexShader(PassShaders.VertexShader);
 			Shaders.TryGetPixelShader(PassShaders.PixelShader);
-
-			if (OutCollection.IsCollectingShadersOnly())
-			{
-				OutCollection.Collect(PassShaders.GetUntypedShaders().GetValidShaders());
-				return;
-			}
 	
 			AddGraphicsPipelineStateInitializer(
 				VertexFactoryData,
@@ -268,7 +256,7 @@ void FWaterInfoTexturePassMeshProcessor::CollectPSOInitializers(const FSceneText
 				(EPrimitiveType)PreCacheParams.PrimitiveType,
 				EMeshPassFeatures::Default,
 				true /*bRequired*/,
-				OutCollection);
+				PSOInitializers);
 		}
 		
 	}
@@ -397,7 +385,7 @@ public:
 	FWaterInfoTextureDepthPassMeshProcessor(const FScene* Scene, ERHIFeatureLevel::Type FeatureLevel, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext);
 
 	virtual void AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch, uint64 BatchElementMask, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, int32 StaticMeshId = -1) override final;
-	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection) override final;
+	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers) override final;
 
 private:
 	bool TryAddMeshBatch(
@@ -427,7 +415,7 @@ private:
 		ERasterizerFillMode MeshFillMode,
 		ERasterizerCullMode MeshCullMode,
 		const FPSOPrecacheParams& PreCacheParams,
-		FPassProcessorPSOCollection& OutCollection);
+		TArray<FPSOPrecacheData>& PSOInitializers);
 
 	FMeshPassProcessorRenderState PassDrawRenderState;
 };
@@ -554,7 +542,7 @@ bool FWaterInfoTextureDepthPassMeshProcessor::Process(
 	return true;
 }
 
-void FWaterInfoTextureDepthPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection)
+void FWaterInfoTextureDepthPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	// We need to support all materials that could possibly be rendered in a depth-only pass. Unfortunately there doesn't seem to be a way to filter for bUseForWaterInfoTextureDepth at this point.
 	if (Material.GetMaterialDomain() == MD_Surface && !IsTranslucentBlendMode(Material))
@@ -575,7 +563,7 @@ void FWaterInfoTextureDepthPassMeshProcessor::CollectPSOInitializers(const FScen
 			const FMaterial* DefaultMaterial = UMaterial::GetDefaultMaterial(MD_Surface)->GetMaterialResource(FeatureLevel, ActiveQualityLevel);
 			check(DefaultMaterial);
 
-			CollectPSOInitializersInternal<true>(SceneTexturesConfig, VertexFactoryData, *DefaultMaterial, MeshFillMode, MeshCullMode, PreCacheParams, OutCollection);
+			CollectPSOInitializersInternal<true>(SceneTexturesConfig, VertexFactoryData, *DefaultMaterial, MeshFillMode, MeshCullMode, PreCacheParams, PSOInitializers);
 		}
 		else
 		{
@@ -590,7 +578,7 @@ void FWaterInfoTextureDepthPassMeshProcessor::CollectPSOInitializers(const FScen
 				check(EffectiveMaterial);
 			}
 
-			CollectPSOInitializersInternal<false>(SceneTexturesConfig, VertexFactoryData, *EffectiveMaterial, MeshFillMode, MeshCullMode, PreCacheParams, OutCollection);
+			CollectPSOInitializersInternal<false>(SceneTexturesConfig, VertexFactoryData, *EffectiveMaterial, MeshFillMode, MeshCullMode, PreCacheParams, PSOInitializers);
 		}
 	}
 }
@@ -603,7 +591,7 @@ void FWaterInfoTextureDepthPassMeshProcessor::CollectPSOInitializersInternal(
 	ERasterizerFillMode MeshFillMode,
 	ERasterizerCullMode MeshCullMode,
 	const FPSOPrecacheParams& PreCacheParams,
-	FPassProcessorPSOCollection& OutCollection)
+	TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	TMeshProcessorShaders<TDepthOnlyVS<bPositionOnly>, FDepthOnlyPS> DepthPassShaders;
 	FShaderPipelineRef ShaderPipeline;
@@ -617,12 +605,6 @@ void FWaterInfoTextureDepthPassMeshProcessor::CollectPSOInitializersInternal(
 		DepthPassShaders.PixelShader,
 		ShaderPipeline))
 	{
-		return;
-	}
-
-	if (OutCollection.IsCollectingShadersOnly())
-	{
-		OutCollection.Collect(DepthPassShaders.GetUntypedShaders().GetValidShaders());
 		return;
 	}
 
@@ -642,7 +624,7 @@ void FWaterInfoTextureDepthPassMeshProcessor::CollectPSOInitializersInternal(
 		(EPrimitiveType)PreCacheParams.PrimitiveType,
 		bPositionOnly ? EMeshPassFeatures::PositionOnly : EMeshPassFeatures::Default,
 		true /*bRequired*/,
-		OutCollection);
+		PSOInitializers);
 }
 
 FMeshPassProcessor* CreateWaterInfoTextureDepthPassMeshProcessor(ERHIFeatureLevel::Type FeatureLevel, const FScene* Scene, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext)

@@ -750,11 +750,9 @@ public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Lighting)
 	FLightingChannels LightingChannels;
 
-#if UE_WITH_PSO_PRECACHING || UE_WITH_DYNAMIC_SHADER_PRELOADING
-#if UE_WITH_PSO_PRECACHING
+#if UE_WITH_PSO_PRECACHING 
 	/** Cached array of material PSO requests which can be used to boost the priority */
 	TArray<FMaterialPSOPrecacheRequestID> MaterialPSOPrecacheRequestIDs;
-#endif
 	/** Atomic int used to track the last PSO precache events */
 	std::atomic<int> LatestPSOPrecacheJobSetCompleted = 0;
 	int32 LatestPSOPrecacheJobSet = 0;

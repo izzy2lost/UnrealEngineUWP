@@ -4660,7 +4660,7 @@ void PrecacheComputePipelineStatesForGlobalShaders(EShaderPlatform Platform, con
 		return;
 	}
 
-	if (!IsDynamicShaderPreloadingEnabled() && !(PipelineStateCache::IsPSOPrecachingEnabled() && GRHISupportsPSOPrecaching))
+	if (!IsPSOShaderPreloadingEnabled() && !(PipelineStateCache::IsPSOPrecachingEnabled() && GRHISupportsPSOPrecaching))
 	{
 		return;
 	}
@@ -4730,7 +4730,7 @@ void PrecacheComputePipelineStatesForGlobalShaders(EShaderPlatform Platform, con
 				}
 			});
 		}
-		else if (IsDynamicShaderPreloadingEnabled())
+		else if (IsPSOShaderPreloadingEnabled())
 		{
 			// Kick off preloading tasks.
 			FGraphEventArray Events;

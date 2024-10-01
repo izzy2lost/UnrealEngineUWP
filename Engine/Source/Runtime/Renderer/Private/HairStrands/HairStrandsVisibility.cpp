@@ -621,7 +621,7 @@ public:
 	virtual void AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch, uint64 BatchElementMask, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, int32 StaticMeshId = -1) override final;
 	void AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch, uint64 BatchElementMask, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, int32 StaticMeshId, int32 MacroGroupId, int32 HairMaterialId, uint32 HairFlags, float HairCoverageScale);
 
-	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection) override final;
+	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers) override final;
 
 private:
 	bool TryAddMeshBatch(
@@ -792,7 +792,7 @@ void FHairMaterialProcessor::CollectPSOInitializers(
 	const FMaterial& Material, 
 	const FPSOPrecacheVertexFactoryData& VertexFactoryData, 
 	const FPSOPrecacheParams& PreCacheParams, 
-	FPassProcessorPSOCollection& OutCollection)
+	TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	const bool bShouldRender = ShouldRenderHairStrands(FeatureLevel, Material, VertexFactoryData.VertexFactoryType, PreCacheParams.bRenderInMainPass);
 	if (!bShouldRender)
@@ -816,12 +816,6 @@ void FHairMaterialProcessor::CollectPSOInitializers(
 
 		Shaders.TryGetVertexShader(PassShaders.VertexShader);
 		Shaders.TryGetPixelShader(PassShaders.PixelShader);
-
-		if (OutCollection.IsCollectingShadersOnly())
-		{
-			OutCollection.Collect(PassShaders.GetUntypedShaders().GetValidShaders());
-			return;
-		}
 	}
 		
 	const auto AddPSOInitializer = [&](EHairMaterialPassFilter InFilter)
@@ -859,7 +853,7 @@ void FHairMaterialProcessor::CollectPSOInitializers(
 			(EPrimitiveType)PreCacheParams.PrimitiveType,
 			EMeshPassFeatures::Default,
 			true /*bRequired*/,
-			OutCollection);	
+			PSOInitializers);
 	};
 
 	AddPSOInitializer(EHairMaterialPassFilter::All);
@@ -1528,7 +1522,7 @@ public:
 	virtual void AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch, uint64 BatchElementMask, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, int32 StaticMeshId = -1) override final;
 	void AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch, uint64 BatchElementMask, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, int32 StaticMeshId, uint32 HairMacroGroupId, uint32 HairMaterialId, float HairCoverageScale, bool bCullingEnable);
 
-	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection) override final;
+	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers) override final;
 
 private:
 	bool TryAddMeshBatch(
@@ -1566,7 +1560,7 @@ private:
 		const FPSOPrecacheParams& PreCacheParams,
 		ERasterizerFillMode MeshFillMode,
 		ERasterizerCullMode MeshCullMode,
-		FPassProcessorPSOCollection& OutCollection);
+		TArray<FPSOPrecacheData>& PSOInitializers);
 
 	void SetupDrawRenderState(EHairVisibilityRenderMode InRenderMode);
 
@@ -1722,7 +1716,7 @@ void FHairVisibilityProcessor::CollectPSOInitializers(
 	const FMaterial& Material, 
 	const FPSOPrecacheVertexFactoryData& VertexFactoryData, 
 	const FPSOPrecacheParams& PreCacheParams, 
-	FPassProcessorPSOCollection& OutCollection)
+	TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	const bool bShouldRender = ShouldRenderHairStrands(FeatureLevel, Material, VertexFactoryData.VertexFactoryType, PreCacheParams.bRenderInMainPass);
 	if (!bShouldRender)
@@ -1734,11 +1728,11 @@ void FHairVisibilityProcessor::CollectPSOInitializers(
 	const ERasterizerFillMode MeshFillMode = ComputeMeshFillMode(Material, OverrideSettings);
 	const ERasterizerCullMode MeshCullMode = ComputeMeshCullMode(Material, OverrideSettings);
 
-	AddPSOInitializer<HairVisibilityRenderMode_MSAA_Visibility, true>(SceneTexturesConfig, Material, VertexFactoryData, PreCacheParams, MeshFillMode, MeshCullMode, OutCollection);
-	AddPSOInitializer<HairVisibilityRenderMode_MSAA_Visibility, false>(SceneTexturesConfig, Material, VertexFactoryData, PreCacheParams, MeshFillMode, MeshCullMode, OutCollection);
-	AddPSOInitializer<HairVisibilityRenderMode_Transmittance>(SceneTexturesConfig, Material, VertexFactoryData, PreCacheParams, MeshFillMode, MeshCullMode, OutCollection);
-	AddPSOInitializer<HairVisibilityRenderMode_TransmittanceAndHairCount>(SceneTexturesConfig, Material, VertexFactoryData, PreCacheParams, MeshFillMode, MeshCullMode, OutCollection);
-	AddPSOInitializer<HairVisibilityRenderMode_PPLL>(SceneTexturesConfig, Material, VertexFactoryData, PreCacheParams, MeshFillMode, MeshCullMode, OutCollection);
+	AddPSOInitializer<HairVisibilityRenderMode_MSAA_Visibility, true>(SceneTexturesConfig, Material, VertexFactoryData, PreCacheParams, MeshFillMode, MeshCullMode, PSOInitializers);
+	AddPSOInitializer<HairVisibilityRenderMode_MSAA_Visibility, false>(SceneTexturesConfig, Material, VertexFactoryData, PreCacheParams, MeshFillMode, MeshCullMode, PSOInitializers);
+	AddPSOInitializer<HairVisibilityRenderMode_Transmittance>(SceneTexturesConfig, Material, VertexFactoryData, PreCacheParams, MeshFillMode, MeshCullMode, PSOInitializers);
+	AddPSOInitializer<HairVisibilityRenderMode_TransmittanceAndHairCount>(SceneTexturesConfig, Material, VertexFactoryData, PreCacheParams, MeshFillMode, MeshCullMode, PSOInitializers);
+	AddPSOInitializer<HairVisibilityRenderMode_PPLL>(SceneTexturesConfig, Material, VertexFactoryData, PreCacheParams, MeshFillMode, MeshCullMode, PSOInitializers);
 }
 
 template<EHairVisibilityRenderMode TRenderMode, bool bCullingEnable>
@@ -1749,7 +1743,7 @@ void FHairVisibilityProcessor::AddPSOInitializer(
 	const FPSOPrecacheParams& PreCacheParams,
 	ERasterizerFillMode MeshFillMode,
 	ERasterizerCullMode MeshCullMode,
-	FPassProcessorPSOCollection& OutCollection)
+	TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	SetupDrawRenderState(TRenderMode);
 
@@ -1769,12 +1763,6 @@ void FHairVisibilityProcessor::AddPSOInitializer(
 
 		Shaders.TryGetVertexShader(PassShaders.VertexShader);
 		Shaders.TryGetPixelShader(PassShaders.PixelShader);
-
-		if (OutCollection.IsCollectingShadersOnly())
-		{
-			OutCollection.Collect(PassShaders.GetUntypedShaders().GetValidShaders());
-			return;
-		}
 	}
 
 	FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
@@ -1817,7 +1805,7 @@ void FHairVisibilityProcessor::AddPSOInitializer(
 		(EPrimitiveType)PreCacheParams.PrimitiveType,
 		EMeshPassFeatures::Default,
 		true /*bRequired*/,
-		OutCollection);
+		PSOInitializers);
 }
 
 static const TCHAR* HairVisibilityPassName = TEXT("HairVisibility");

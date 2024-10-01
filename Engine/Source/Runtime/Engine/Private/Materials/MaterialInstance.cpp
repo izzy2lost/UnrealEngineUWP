@@ -2742,7 +2742,7 @@ void UMaterialInstance::CacheShaders(EMaterialShaderPrecompileMode CompileMode)
 FGraphEventArray UMaterialInstance::PrecachePSOs(const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const FPSOPrecacheParams& InPreCacheParams, EPSOPrecachePriority Priority, TArray<FMaterialPSOPrecacheRequestID>& OutMaterialPSORequestIDs)
 {
 	FGraphEventArray GraphEvents;
-	if (FApp::CanEverRender() && PipelineStateCache::IsPSOPrecachingEnabled() && Parent)
+	if (FApp::CanEverRender()  && (PipelineStateCache::IsPSOPrecachingEnabled() || IsPSOShaderPreloadingEnabled()) && Parent)
 	{
 		// Make sure material is initialized.
 		ConditionalPostLoad();
@@ -2764,36 +2764,6 @@ FGraphEventArray UMaterialInstance::PrecachePSOs(const FPSOPrecacheVertexFactory
 		else
 		{
 			GraphEvents = Parent->PrecachePSOs(VertexFactoryDataList, InPreCacheParams, Priority, OutMaterialPSORequestIDs);
-		}
-	}
-	return GraphEvents;
-}
-
-FGraphEventArray UMaterialInstance::PreloadShaders(const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const struct FPSOPrecacheParams& PreCacheParams)
-{
-	FGraphEventArray GraphEvents;
-	if (FApp::CanEverRender() && Parent)
-	{
-		// Make sure material is initialized.
-		ConditionalPostLoad();
-
-		if (bHasStaticPermutationResource)
-		{
-			EMaterialQualityLevel::Type ActiveQualityLevel = GetCachedScalabilityCVars().MaterialQualityLevel;
-			uint32 FeatureLevelsToCompile = GetFeatureLevelsToCompileForRendering();
-			while (FeatureLevelsToCompile != 0)
-			{
-				const ERHIFeatureLevel::Type FeatureLevel = (ERHIFeatureLevel::Type)FBitSet::GetAndClearNextBit(FeatureLevelsToCompile);
-				FMaterialResource* StaticPermutationResource = FindMaterialResource(StaticPermutationMaterialResources, FeatureLevel, ActiveQualityLevel, true /*bAllowDefaultMaterial*/);
-				if (StaticPermutationResource)
-				{
-					GraphEvents.Append(StaticPermutationResource->CollectShaders(FeatureLevel, VertexFactoryDataList, PreCacheParams));
-				}
-			}
-		}
-		else
-		{
-			GraphEvents = Parent->PreloadShaders(VertexFactoryDataList, PreCacheParams);
 		}
 	}
 	return GraphEvents;

@@ -1464,7 +1464,7 @@ void UGroomAsset::PostLoad()
 	UpdateCachedSettings();
 #endif // #if WITH_EDITORONLY_DATA
 
-	if (IsResourcePSOPrecachingEnabled() || IsDynamicShaderPreloadingEnabled())
+	if (IsResourcePSOPrecachingEnabled())
 	{
 		ERHIFeatureLevel::Type FeatureLevel = GetWorld() ? GetWorld()->GetFeatureLevel() : GMaxRHIFeatureLevel;
 		EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(FeatureLevel);
@@ -1478,14 +1478,7 @@ void UGroomAsset::PostLoad()
 			UMaterialInterface* MaterialInterface = GetHairGroupsMaterials()[VFsPerMaterial.MaterialIndex].Material;
 			if (MaterialInterface)
 			{
-				if (IsResourcePSOPrecachingEnabled())
-				{
-					MaterialInterface->PrecachePSOs(VFsPerMaterial.VertexFactoryDataList, PrecachePSOParams, EPSOPrecachePriority::Medium, RequestIDs);
-				}
-				else if (IsDynamicShaderPreloadingEnabled())
-				{
-					MaterialInterface->PreloadShaders(VFsPerMaterial.VertexFactoryDataList, PrecachePSOParams);
-				}
+				MaterialInterface->PrecachePSOs(VFsPerMaterial.VertexFactoryDataList, PrecachePSOParams, EPSOPrecachePriority::Medium, RequestIDs);
 			}
 		}
 	}

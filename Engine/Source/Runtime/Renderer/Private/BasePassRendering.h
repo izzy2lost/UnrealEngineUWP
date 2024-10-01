@@ -869,7 +869,7 @@ public:
 
 	virtual void AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch, uint64 BatchElementMask, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, int32 StaticMeshId = -1) override final;
 	
-	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection) override final;
+	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers) override final;
 
 	FMeshPassProcessorRenderState PassDrawRenderState;
 
@@ -899,7 +899,7 @@ public:
 		EPrimitiveType PrimitiveType,
 		bool bPrecacheAlphaColorChannel,
 		int InPSOCollectorIndex,
-		FPassProcessorPSOCollection& OutCollection)
+		TArray<FPSOPrecacheData>& PSOInitializers)
 	{
 		AddGraphicsPipelineStateInitializer(
 			VertexFactoryData,
@@ -915,7 +915,7 @@ public:
 			0,
 			true /*bRequired*/,
 			InPSOCollectorIndex,
-			OutCollection);
+			PSOInitializers);
 
 		// Planar reflections and scene captures use scene color alpha to keep track of where content has been rendered, for compositing into a different scene later
 		static TConsoleVariableData<int32>* CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.PSOPrecache.PrecacheAlphaColorChannel"));
@@ -946,7 +946,7 @@ public:
 				0,
 				true,
 				InPSOCollectorIndex,
-				OutCollection);
+				PSOInitializers);
 		}
 	}
 
@@ -981,7 +981,7 @@ private:
 		ERasterizerFillMode MeshFillMode,
 		ERasterizerCullMode MeshCullMode,
 		EPrimitiveType PrimitiveType, 
-		FPassProcessorPSOCollection& OutCollection);
+		TArray<FPSOPrecacheData>& PSOInitializers);
 
 	template<typename LightMapPolicyType>
 	void CollectPSOInitializersForLMPolicy(
@@ -996,7 +996,7 @@ private:
 		ERasterizerFillMode MeshFillMode,
 		ERasterizerCullMode MeshCullMode, 
 		EPrimitiveType PrimitiveType, 
-		FPassProcessorPSOCollection& OutCollection);
+		TArray<FPSOPrecacheData>& PSOInitializers);
 
 	const ETranslucencyPass::Type TranslucencyPassType;
 	const bool bTranslucentBasePass;

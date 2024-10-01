@@ -239,7 +239,7 @@ bool FAnisotropyMeshProcessor::Process(
 }
 
 
-void FAnisotropyMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, FPassProcessorPSOCollection& OutCollection)
+void FAnisotropyMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	if (ShouldDraw(Material, Material.MaterialUsesAnisotropy_GameThread()) && 
 		SupportsAnisotropicMaterials(FeatureLevel, GShaderPlatformForFeatureLevel[FeatureLevel]))
@@ -259,12 +259,6 @@ void FAnisotropyMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig
 			AnisotropyPassShaders.VertexShader,
 			AnisotropyPassShaders.PixelShader))
 		{
-			return;
-		}
-
-		if (OutCollection.IsCollectingShadersOnly())
-		{
-			OutCollection.Collect(AnisotropyPassShaders.GetUntypedShaders().GetValidShaders());
 			return;
 		}
 
@@ -288,7 +282,7 @@ void FAnisotropyMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig
 			(EPrimitiveType)PreCacheParams.PrimitiveType,
 			EMeshPassFeatures::Default,
 			true /*bRequired*/,
-			OutCollection);
+			PSOInitializers);
 	}
 }
 

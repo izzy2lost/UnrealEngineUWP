@@ -1416,7 +1416,7 @@ void UNiagaraSystem::DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutCons
 
 void UNiagaraSystem::PrecachePSOs()
 {
-	if (HasLaunchedPSOPrecaching() || (!IsComponentPSOPrecachingEnabled() && !IsResourcePSOPrecachingEnabled() && !IsDynamicShaderPreloadingEnabled()))
+	if (HasLaunchedPSOPrecaching() || (!IsComponentPSOPrecachingEnabled() && !IsResourcePSOPrecachingEnabled()))
 	{
 		return;
 	}

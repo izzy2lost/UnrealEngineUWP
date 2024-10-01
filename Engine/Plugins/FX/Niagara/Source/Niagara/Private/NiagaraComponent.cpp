@@ -2348,7 +2348,7 @@ FPrimitiveSceneProxy* UNiagaraComponent::CreateSceneProxy()
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraCreateSceneProxy);
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraOverview_GT);
     
-#if UE_WITH_PSO_PRECACHING || UE_WITH_DYNAMIC_SHADER_PRELOADING
+#if UE_WITH_PSO_PRECACHING
 	if (Asset != nullptr)
 	{
 		// If PSOs not precached yet then rely on PSOs reuqested by the shared asset itself - this will make sure
@@ -2365,7 +2365,7 @@ FPrimitiveSceneProxy* UNiagaraComponent::CreateSceneProxy()
 			return nullptr;
 		}
 	}
-#endif // UE_WITH_PSO_PRECACHING || UE_WITH_DYNAMIC_SHADER_PRELOADING
+#endif // UE_WITH_PSO_PRECACHING
 
 	// The constructor will set up the System renderers from the component.
 	FNiagaraSceneProxy* Proxy = new FNiagaraSceneProxy(this);

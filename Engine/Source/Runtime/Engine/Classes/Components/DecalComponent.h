@@ -125,7 +125,7 @@ public:
 	ENGINE_API virtual class UMaterialInstanceDynamic* CreateDynamicMaterialInstance();
 
 public:
-#if UE_WITH_PSO_PRECACHING || UE_WITH_DYNAMIC_SHADER_PRELOADING
+#if UE_WITH_PSO_PRECACHING
 	/** Atomic int used to track the last PSO precache events */
 	std::atomic<int> LatestPSOPrecacheJobSetCompleted = 0;
 	int32 LatestPSOPrecacheJobSet = 0;

@@ -1562,8 +1562,9 @@ FVertexDeclarationElementList InitDummyVertexDeclarationElementsForText()
 
 void UTextRenderComponent::PrecachePSOs()
 {
-	if (((IsComponentPSOPrecachingEnabled() && RHISupportsManualVertexFetch(GMaxRHIShaderPlatform)) || IsDynamicShaderPreloadingEnabled()) && TextMaterial)
+	if (((IsComponentPSOPrecachingEnabled() && RHISupportsManualVertexFetch(GMaxRHIShaderPlatform))) && TextMaterial)
 	{
+		// FIXME: need to collect an actual vertex declaration for non-MVF path
 		FPSOPrecacheParams PrecachePSOParams;
 		SetupPrecachePSOParams(PrecachePSOParams);
 
@@ -1571,22 +1572,10 @@ void UTextRenderComponent::PrecachePSOs()
 		// and leaves the default CastShadow value which is true
 		PrecachePSOParams.bCastShadow = true;
 
-
 		const FVertexFactoryType* VFType = &FLocalVertexFactory::StaticType;
 		FPSOPrecacheVertexFactoryDataList VFDataList;
 		VFDataList.Add(FPSOPrecacheVertexFactoryData(VFType));
-
-
-
-		if (IsDynamicShaderPreloadingEnabled())
-		{
-			TextMaterial->PreloadShaders(VFDataList, PrecachePSOParams);
-		}
-		else
-		{
-			TextMaterial->PrecachePSOs(VFType, PrecachePSOParams);
-		}
-
+		TextMaterial->PrecachePSOs(VFType, PrecachePSOParams);
 	}
 }
 

@@ -967,7 +967,7 @@ namespace RuntimeVirtualTexture
 			const ERasterizerCullMode& MeshCullMode,
 			uint8 OutputAttributeMask,
 			ERuntimeVirtualTextureMaterialType MaterialType,
-			FPassProcessorPSOCollection& OutCollection)
+			TArray<FPSOPrecacheData>& PSOInitializers)
 		{			
 			FMaterialShaderTypes ShaderTypes;
 			ShaderTypes.AddShaderType<FShader_VirtualTextureMaterialDraw_VS< MaterialPolicy>>();
@@ -983,12 +983,6 @@ namespace RuntimeVirtualTexture
 				FShader_VirtualTextureMaterialDraw_PS< MaterialPolicy > > VirtualTexturePassShaders;
 			Shaders.TryGetVertexShader(VirtualTexturePassShaders.VertexShader);
 			Shaders.TryGetPixelShader(VirtualTexturePassShaders.PixelShader);
-
-			if (OutCollection.IsCollectingShadersOnly())
-			{
-				OutCollection.Collect(VirtualTexturePassShaders.GetUntypedShaders().GetValidShaders());
-				return;
-			}
 
 			FMeshPassProcessorRenderState PSODrawRenderState(DrawRenderState);
 			PSODrawRenderState.SetBlendState(MaterialPolicy::GetBlendState(OutputAttributeMask));
@@ -1008,7 +1002,7 @@ namespace RuntimeVirtualTexture
 				PT_TriangleList,
 				EMeshPassFeatures::Default,
 				true /*bRequired*/,
-				OutCollection);
+				PSOInitializers);
 		}
 
 	public:
@@ -1038,7 +1032,7 @@ namespace RuntimeVirtualTexture
 			const FMaterial& Material, 
 			const FPSOPrecacheVertexFactoryData& VertexFactoryData,
 			const FPSOPrecacheParams& PreCacheParams, 
-			FPassProcessorPSOCollection& OutCollection) override final
+			TArray<FPSOPrecacheData>& PSOInitializers) override final
 		{
 			const uint8 OutputAttributeMask = Material.IsDefaultMaterial() ? 0xff : Material.GetRuntimeVirtualTextureOutputAttibuteMask_GameThread();
 
@@ -1051,12 +1045,12 @@ namespace RuntimeVirtualTexture
 				// Tried checking which virtual textures are used on primitive component at PSO level, but if only those types are precached
 				// then quite a few hitches can be seen - if we want to reduce the amount of PSOs to precache here then better investigation
 				// is needed what types should be compiled (currently there are around 300+ PSOs coming from virtual textures after level loading)
-				CollectPSOInitializersInternal<FMaterialPolicy_BaseColor>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, OutputAttributeMask, ERuntimeVirtualTextureMaterialType::BaseColor, OutCollection);
-				CollectPSOInitializersInternal<FMaterialPolicy_BaseColorNormalRoughness>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, OutputAttributeMask, ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Roughness, OutCollection);
-				CollectPSOInitializersInternal<FMaterialPolicy_BaseColorNormalSpecular>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, OutputAttributeMask, ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular, OutCollection);
-				CollectPSOInitializersInternal<FMaterialPolicy_Mask4>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, OutputAttributeMask, ERuntimeVirtualTextureMaterialType::BaseColor, OutCollection);
-				CollectPSOInitializersInternal<FMaterialPolicy_WorldHeight>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, OutputAttributeMask, ERuntimeVirtualTextureMaterialType::WorldHeight, OutCollection);
-				CollectPSOInitializersInternal<FMaterialPolicy_Displacement>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, OutputAttributeMask, ERuntimeVirtualTextureMaterialType::Displacement, OutCollection);
+				CollectPSOInitializersInternal<FMaterialPolicy_BaseColor>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, OutputAttributeMask, ERuntimeVirtualTextureMaterialType::BaseColor, PSOInitializers);
+				CollectPSOInitializersInternal<FMaterialPolicy_BaseColorNormalRoughness>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, OutputAttributeMask, ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Roughness, PSOInitializers);
+				CollectPSOInitializersInternal<FMaterialPolicy_BaseColorNormalSpecular>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, OutputAttributeMask, ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular, PSOInitializers);
+				CollectPSOInitializersInternal<FMaterialPolicy_Mask4>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, OutputAttributeMask, ERuntimeVirtualTextureMaterialType::BaseColor, PSOInitializers);
+				CollectPSOInitializersInternal<FMaterialPolicy_WorldHeight>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, OutputAttributeMask, ERuntimeVirtualTextureMaterialType::WorldHeight, PSOInitializers);
+				CollectPSOInitializersInternal<FMaterialPolicy_Displacement>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, OutputAttributeMask, ERuntimeVirtualTextureMaterialType::Displacement, PSOInitializers);
 			}
 		}
 

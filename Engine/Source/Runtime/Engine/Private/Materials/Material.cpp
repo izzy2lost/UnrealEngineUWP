@@ -614,7 +614,7 @@ void UMaterialInterface::InitDefaultMaterials()
 
 		// Now precache PSOs for all the default materials after the default materials are marked initialize
 		// PSO precaching can request default materials so they have to marked as initialized to avoid endless recursion
-		if (bDefaultMaterialInitialized && (PipelineStateCache::IsPSOPrecachingEnabled() || IsDynamicShaderPreloadingEnabled()))
+		if (bDefaultMaterialInitialized && (PipelineStateCache::IsPSOPrecachingEnabled() || IsPSOShaderPreloadingEnabled()))
 		{
 			PrecacheDefaultMaterialPSOs();
 		}
@@ -623,7 +623,7 @@ void UMaterialInterface::InitDefaultMaterials()
 
 void UMaterialInterface::PrecacheDefaultMaterialPSOs()
 {
-	if (!GIsRHIInitialized || (!RHISupportsManualVertexFetch(GMaxRHIShaderPlatform) && !IsDynamicShaderPreloadingEnabled()))
+	if (!GIsRHIInitialized || (!RHISupportsManualVertexFetch(GMaxRHIShaderPlatform) && !IsPSOShaderPreloadingEnabled()))
 	{
 		// Skip platforms that do not support MVF, non-MVF path needs mesh information for PSO 
 		return;
@@ -647,22 +647,14 @@ void UMaterialInterface::PrecacheDefaultMaterialPSOs()
 		if (GDefaultMaterials[Domain])
 		{
 			PrecachePSOParams.Mobility = EComponentMobility::Static;
-			if (PipelineStateCache::IsPSOPrecachingEnabled())
+			if (PipelineStateCache::IsPSOPrecachingEnabled() || IsPSOShaderPreloadingEnabled())
 			{
 				GDefaultMaterials[Domain]->PrecachePSOs(AllVertexFactoryTypes, PrecachePSOParams, EPSOPrecachePriority::High, MaterialPrecacheRequestIDs);
-			}
-			else if (IsDynamicShaderPreloadingEnabled())
-			{
-				GDefaultMaterials[Domain]->PreloadShaders(AllVertexFactoryTypes, PrecachePSOParams);
 			}
 			PrecachePSOParams.Mobility = EComponentMobility::Movable;
-			if (PipelineStateCache::IsPSOPrecachingEnabled())
+			if (PipelineStateCache::IsPSOPrecachingEnabled() || IsPSOShaderPreloadingEnabled())
 			{
 				GDefaultMaterials[Domain]->PrecachePSOs(AllVertexFactoryTypes, PrecachePSOParams, EPSOPrecachePriority::High, MaterialPrecacheRequestIDs);
-			}
-			else if (IsDynamicShaderPreloadingEnabled())
-			{
-				GDefaultMaterials[Domain]->PreloadShaders(AllVertexFactoryTypes, PrecachePSOParams);
 			}
 		}
 	}
@@ -2777,7 +2769,7 @@ bool UMaterial::IsCompiling() const
 FGraphEventArray UMaterial::PrecachePSOs(const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const FPSOPrecacheParams& InPreCacheParams, EPSOPrecachePriority Priority, TArray<FMaterialPSOPrecacheRequestID>& OutMaterialPSORequestIDs)
 {
 	FGraphEventArray GraphEvents;
-	if (FApp::CanEverRender() && MaterialResources.Num() > 0 && PipelineStateCache::IsPSOPrecachingEnabled())
+	if (FApp::CanEverRender() && MaterialResources.Num() > 0 && (PipelineStateCache::IsPSOPrecachingEnabled() || IsPSOShaderPreloadingEnabled()))
 	{
 		EMaterialQualityLevel::Type ActiveQualityLevel = GetCachedScalabilityCVars().MaterialQualityLevel;
 		uint32 FeatureLevelsToCompile = GetFeatureLevelsToCompileForRendering();
@@ -2788,26 +2780,6 @@ FGraphEventArray UMaterial::PrecachePSOs(const FPSOPrecacheVertexFactoryDataList
 			if (MaterialResource)
 			{
 				GraphEvents.Append(MaterialResource->CollectPSOs(FeatureLevel, VertexFactoryDataList, InPreCacheParams, Priority, OutMaterialPSORequestIDs));
-			}
-		}
-	}
-	return GraphEvents;
-}
-
-FGraphEventArray UMaterial::PreloadShaders(const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const struct FPSOPrecacheParams& PreCacheParams)
-{
-	FGraphEventArray GraphEvents;
-	if (FApp::CanEverRender() && MaterialResources.Num() > 0)
-	{
-		EMaterialQualityLevel::Type ActiveQualityLevel = GetCachedScalabilityCVars().MaterialQualityLevel;
-		uint32 FeatureLevelsToCompile = GetFeatureLevelsToCompileForRendering();
-		while (FeatureLevelsToCompile != 0)
-		{
-			const ERHIFeatureLevel::Type FeatureLevel = (ERHIFeatureLevel::Type)FBitSet::GetAndClearNextBit(FeatureLevelsToCompile);
-			FMaterialResource* MaterialResource = FindMaterialResource(MaterialResources, FeatureLevel, ActiveQualityLevel, true /*bAllowDefaultMaterial*/);
-			if (MaterialResource)
-			{
-				GraphEvents.Append(MaterialResource->CollectShaders(FeatureLevel, VertexFactoryDataList, PreCacheParams));
 			}
 		}
 	}

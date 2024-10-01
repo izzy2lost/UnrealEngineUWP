@@ -324,8 +324,8 @@ void UDecalComponent::PostLoad()
 
 void UDecalComponent::PrecachePSOs()
 {
-#if (UE_WITH_PSO_PRECACHING || UE_WITH_DYNAMIC_SHADER_PRELOADING)
-	if (!FApp::CanEverRender() || (!IsComponentPSOPrecachingEnabled() && !IsDynamicShaderPreloadingEnabled()))
+#if UE_WITH_PSO_PRECACHING
+	if (!FApp::CanEverRender() || !IsComponentPSOPrecachingEnabled())
 	{
 		return;
 	}
@@ -336,22 +336,10 @@ void UDecalComponent::PrecachePSOs()
 		FPSOPrecacheVertexFactoryDataList VertexFactoryDataList;		
 		VertexFactoryDataList.Add(FPSOPrecacheVertexFactoryData(&FLocalVertexFactory::StaticType));
 
-		FGraphEventArray GraphEvents;
 
-		if (IsComponentPSOPrecachingEnabled())
-		{
-#if UE_WITH_PSO_PRECACHING
-			// Immediately create at high priority and thus doesn't need boosting anymore
-			TArray<FMaterialPSOPrecacheRequestID> MaterialPSOPrecacheRequestIDs;
-			GraphEvents = DecalMaterial->PrecachePSOs(VertexFactoryDataList, PSOPrecacheParams, EPSOPrecachePriority::High, MaterialPSOPrecacheRequestIDs);
-#else 
-			check(false);
-#endif 
-		}
-		else if (IsDynamicShaderPreloadingEnabled())
-		{
-			GraphEvents = DecalMaterial->PreloadShaders(VertexFactoryDataList, PSOPrecacheParams);
-		}
+		// Immediately create at high priority and thus doesn't need boosting anymore
+		TArray<FMaterialPSOPrecacheRequestID> MaterialPSOPrecacheRequestIDs;
+		FGraphEventArray GraphEvents = DecalMaterial->PrecachePSOs(VertexFactoryDataList, PSOPrecacheParams, EPSOPrecachePriority::High, MaterialPSOPrecacheRequestIDs);
 
 		// Request recreate of the render state when the PSO compilation is ready (if we want to delay proxy creation)
 		if (GetPSOPrecacheProxyCreationStrategy() != EPSOPrecacheProxyCreationStrategy::AlwaysCreate)
@@ -437,12 +425,12 @@ FDeferredDecalProxy* UDecalComponent::CreateSceneProxy()
 {
 	LLM_SCOPE(ELLMTag::SceneRender);
 
-#if UE_WITH_PSO_PRECACHING || UE_WITH_DYNAMIC_SHADER_PRELOADING
+#if UE_WITH_PSO_PRECACHING
 	if (LatestPSOPrecacheJobSetCompleted != LatestPSOPrecacheJobSet && GetPSOPrecacheProxyCreationStrategy() == EPSOPrecacheProxyCreationStrategy::DelayUntilPSOPrecached)
 	{
 		return nullptr;
 	}
-#endif // UE_WITH_PSO_PRECACHING || UE_WITH_DYNAMIC_SHADER_PRELOADING
+#endif // UE_WITH_PSO_PRECACHING
 
 	return new FDeferredDecalProxy(this);
 }
