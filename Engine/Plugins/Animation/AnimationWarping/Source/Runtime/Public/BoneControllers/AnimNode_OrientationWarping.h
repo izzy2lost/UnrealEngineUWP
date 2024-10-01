@@ -41,13 +41,6 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OrientationWarping : public FAnimNo
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Experimental, meta = (PinShownByDefault))
 	float TargetTime = 0.8f;
 
-	// Experimental. A bias in which the future root motion is preferred, even if the current root motion is closer to the previous orientation.
-	// We compare the current / future root motion to our previous orientation for continuity. 
-	// By default the current root motion is used, so it will always win this comparision without some bias.
-	// Note: We default to 5 degrees which may seem large, but the animation itself being continuous should prevent popping.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Experimental, meta = (PinHiddenByDefault))
-	float TargetBiasAngle = 5.f;
-
 	// The desired orientation angle (in degrees) to warp by relative to the specified RotationAxis
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Evaluation, meta=(PinShownByDefault))
 	float OrientationAngle = 0.f;
@@ -225,7 +218,7 @@ private:
 
 #if ENABLE_ANIM_DEBUG || ENABLE_VISUAL_LOG
 	// Store these in debug only so that they can persist in debug / across pauses
-	FVector CurrentRootMotionDeltaDirection = FVector::ZeroVector;
+	FVector FutureRootMotionDeltaDirection = FVector::ZeroVector;
 	bool bUsedFutureRootMotion = false;
 #endif
 
