@@ -403,41 +403,6 @@ void URigVMBlueprint::GetPreloadDependencies(TArray<UObject*>& OutDeps)
 	}
 }
 
-void URigVMBlueprint::PreloadDependenciesBeforeCompilation()
-{
-	Super::PreloadDependenciesBeforeCompilation();
-
-	TArray<URigVMGraph*> AllGraphs = GetAllModels();
-
-	for(int32 GraphIndex = 0; GraphIndex < AllGraphs.Num(); GraphIndex++)
-	{
-		const URigVMGraph* Graph = AllGraphs[GraphIndex];
-		
-		for(const URigVMNode* Node : Graph->GetNodes())
-		{
-			const TArray<URigVMPin*> AllPins = Node->GetAllPinsRecursively();
-			for(const URigVMPin* Pin : AllPins)
-			{
-				// force load a potential type dependency
-				(void)Pin->GetCPPTypeObject();
-			}
-
-			if(const URigVMFunctionReferenceNode* FunctionReferenceNode = Cast<URigVMFunctionReferenceNode>(Node))
-			{
-				// force load the referenced function
-				if(const URigVMLibraryNode* ReferencedNode = FunctionReferenceNode->LoadReferencedNode(true))
-				{
-					if(URigVMGraph* ReferencedGraph = ReferencedNode->GetContainedGraph())
-					{
-						// keep recursing into the function to load additional dependencies
-						AllGraphs.AddUnique(ReferencedGraph);
-					}
-				}
-			}
-		}
-	}
-}
-
 FRigVMClient* URigVMBlueprint::GetRigVMClient()
 {
 	return &RigVMClient;
