@@ -3,6 +3,7 @@
 #pragma once
 
 #if WITH_EDITOR
+#include "PoseSearch/PoseSearchDerivedDataKey.h"
 #include "TickableEditorObject.h"
 #include "UObject/GCObject.h"
 #include "UObject/ObjectSaveContext.h"
@@ -85,6 +86,9 @@ namespace UE::PoseSearch
 		FDelegateHandle OnPackageReloadedHandle;
 		FDelegateHandle OnPreObjectPropertyChangedHandle;
 		FDelegateHandle OnObjectPropertyChangedHandle;
+
+		// Experimental, this feature might be removed without warning, not for production use
+		FPartialKeyHashes PartialKeyHashes;
 
 		static FCriticalSection Mutex;
 	};

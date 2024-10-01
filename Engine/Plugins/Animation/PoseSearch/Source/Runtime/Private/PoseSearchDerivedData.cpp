@@ -93,7 +93,10 @@ static bool AnyTestFlags(int32 Flags) { return (CVarMotionMatchTestFlags.GetValu
 #endif // ENABLE_ANIM_DEBUG
 
 static TAutoConsoleVariable<bool> CVarMotionMatchReindexCancelledDatabases(TEXT("a.MotionMatch.ReindexCancelledDatabases"), false, TEXT("Reindex Cancelled Databases"));
+// Experimental, this feature might be removed without warning, not for production use
 static TAutoConsoleVariable<bool> CVarMotionMatchReindexAllReferencedDatabases(TEXT("a.MotionMatch.ReindexAllReferencedDatabases"), true, TEXT("Reindex All Referenced Databases"));
+// Experimental, this feature might be removed without warning, not for production use
+static TAutoConsoleVariable<int32> CVarMotionMatchPartialKeyHashesMode(TEXT("a.MotionMatch.PartialKeyHashesMode"), 0, TEXT("0: use partial key hashes, 1: do not use partial key hashes, 2: do not use and validate partial key hashes"));
 
 static const UE::DerivedData::FValueId Id(UE::DerivedData::FValueId::FromName("Data"));
 static const UE::DerivedData::FCacheBucket Bucket("PoseSearchDatabase");
@@ -1300,9 +1303,9 @@ struct FPoseSearchDatabaseAsyncCacheTask
 		Failed		// the task has ended unsuccessfully
 	};
 
-	FPoseSearchDatabaseAsyncCacheTask(UPoseSearchDatabase* InDatabase, bool bPerformConditionalPostLoadIfRequired);
-	void StartNewRequestIfNeeded(bool bPerformConditionalPostLoadIfRequired);
-	void Update(FCriticalSection& OuterMutex);
+	FPoseSearchDatabaseAsyncCacheTask(UPoseSearchDatabase* InDatabase, bool bPerformConditionalPostLoadIfRequired, FPartialKeyHashes& PartialKeyHashes);
+	void StartNewRequestIfNeeded(bool bPerformConditionalPostLoadIfRequired, FPartialKeyHashes& PartialKeyHashes);
+	void Update(FCriticalSection& OuterMutex, FPartialKeyHashes& PartialKeyHashes);
 	void Wait(FCriticalSection& OuterMutex);
 	void PreCancelIfDependsOn(const UObject* Object);
 	void Cancel();
@@ -1346,7 +1349,7 @@ private:
 
 class FPoseSearchDatabaseAsyncCacheTasks : public TArray<TUniquePtr<FPoseSearchDatabaseAsyncCacheTask>> {};
 
-FPoseSearchDatabaseAsyncCacheTask::FPoseSearchDatabaseAsyncCacheTask(UPoseSearchDatabase* InDatabase, bool bPerformConditionalPostLoadIfRequired)
+FPoseSearchDatabaseAsyncCacheTask::FPoseSearchDatabaseAsyncCacheTask(UPoseSearchDatabase* InDatabase, bool bPerformConditionalPostLoadIfRequired, FPartialKeyHashes& PartialKeyHashes)
 	: Database(InDatabase)
 	, Owner(UE::DerivedData::EPriority::Normal)
 	, DerivedDataKey(FIoHash::Zero)
@@ -1354,7 +1357,7 @@ FPoseSearchDatabaseAsyncCacheTask::FPoseSearchDatabaseAsyncCacheTask(UPoseSearch
 	if (IsInGameThread())
 	{
 		// it is safe to compose DDC key only on the game thread, since assets can modified in this thread execution
-		StartNewRequestIfNeeded(bPerformConditionalPostLoadIfRequired);
+		StartNewRequestIfNeeded(bPerformConditionalPostLoadIfRequired, PartialKeyHashes);
 	}
 	else
 	{
@@ -1393,7 +1396,7 @@ void FPoseSearchDatabaseAsyncCacheTask::TestSynchronizeWithExternalDependencies(
 }
 #endif //ENABLE_ANIM_DEBUG
 
-void FPoseSearchDatabaseAsyncCacheTask::StartNewRequestIfNeeded(bool bPerformConditionalPostLoadIfRequired)
+void FPoseSearchDatabaseAsyncCacheTask::StartNewRequestIfNeeded(bool bPerformConditionalPostLoadIfRequired, FPartialKeyHashes& PartialKeyHashes)
 {
 	using namespace UE::DerivedData;
 
@@ -1403,8 +1406,22 @@ void FPoseSearchDatabaseAsyncCacheTask::StartNewRequestIfNeeded(bool bPerformCon
 	// Owner.Cancel must be performed before SearchIndex.Reset() in case any task is flying (launched by Owner.LaunchTask)
 	Owner.Cancel();
 
+	FKeyBuilder::EDebugPartialKeyHashesMode DebugPartialKeyHashesMode;
+	switch (CVarMotionMatchPartialKeyHashesMode.GetValueOnAnyThread())
+	{
+	case 0:
+		DebugPartialKeyHashesMode = FKeyBuilder::EDebugPartialKeyHashesMode::Use;
+		break;
+	case 1:
+		DebugPartialKeyHashesMode = FKeyBuilder::EDebugPartialKeyHashesMode::DoNotUse;
+		break;
+	default:
+		DebugPartialKeyHashesMode = FKeyBuilder::EDebugPartialKeyHashesMode::Validate;
+		break;
+	}
+
 	// composing the key
-	const FKeyBuilder KeyBuilder(Database.Get(), true, bPerformConditionalPostLoadIfRequired);
+	const FKeyBuilder KeyBuilder(Database.Get(), true, bPerformConditionalPostLoadIfRequired, &PartialKeyHashes, DebugPartialKeyHashesMode);
 	if (KeyBuilder.AnyAssetNotReady())
 	{
 		DerivedDataKey = FIoHash::Zero;
@@ -1483,7 +1500,7 @@ void FPoseSearchDatabaseAsyncCacheTask::Cancel()
 	SetState(EState::Cancelled);
 }
 
-void FPoseSearchDatabaseAsyncCacheTask::Update(FCriticalSection& OuterMutex)
+void FPoseSearchDatabaseAsyncCacheTask::Update(FCriticalSection& OuterMutex, FPartialKeyHashes& PartialKeyHashes)
 {
 	check(IsInGameThread());
 
@@ -1491,7 +1508,7 @@ void FPoseSearchDatabaseAsyncCacheTask::Update(FCriticalSection& OuterMutex)
 
 	if (GetState() == EState::Notstarted)
 	{
-		StartNewRequestIfNeeded(false);
+		StartNewRequestIfNeeded(false, PartialKeyHashes);
 	}
 
 	if (GetState() == EState::Prestarted && Poll())
@@ -2076,6 +2093,8 @@ void FAsyncPoseSearchDatabasesManagement::PreModified(UObject* Object)
 
 	FScopeLock Lock(&Mutex);
 
+	PartialKeyHashes.Remove(Object);
+
 	// iterating backwards because of the possible RemoveAtSwap
 	for (int32 TaskIndex = Tasks.Num() - 1; TaskIndex >= 0; --TaskIndex)
 	{
@@ -2400,7 +2419,7 @@ void FAsyncPoseSearchDatabasesManagement::Tick(float DeltaTime)
 		}
 		else
 		{
-			Tasks[TaskIndex]->Update(Mutex);
+			Tasks[TaskIndex]->Update(Mutex, PartialKeyHashes);
 		}
 	}
 	
@@ -2417,8 +2436,13 @@ void FAsyncPoseSearchDatabasesManagement::Tick(float DeltaTime)
 
 				for (int32 IterationIndex = 0; IterationIndex < NumIterations; ++IterationIndex)
 				{
-					const FKeyBuilder TestKeyBuilder(Database, false, false);
+					const FKeyBuilder TestKeyBuilder(Database, false, false, &PartialKeyHashes, FKeyBuilder::EDebugPartialKeyHashesMode::Use);
 					const FIoHash TestIoHash = TestKeyBuilder.Finalize();
+
+					if (!KeyBuilder.ValidateAgainst(TestKeyBuilder))
+					{
+						UE_LOG(LogPoseSearch, Error, TEXT("FKeyBuilder - key generation is not deterministic: %s / %s for asset %s"), *LexToString(IoHash), *LexToString(TestIoHash), *Database->GetName());
+					}
 
 					if (IoHash != TestIoHash)
 					{
@@ -2479,7 +2503,7 @@ EAsyncBuildIndexResult FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildInd
 				{
 					Task->Cancel();
 				}
-				Task->StartNewRequestIfNeeded(bWaitForCompletion);
+				Task->StartNewRequestIfNeeded(bWaitForCompletion, This.PartialKeyHashes);
 			}
 			break;
 		}
@@ -2488,7 +2512,7 @@ EAsyncBuildIndexResult FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildInd
 	if (!Task)
 	{
 		// we didn't find the Task, so we Emplace a new one
-		This.Tasks.Emplace(MakeUnique<FPoseSearchDatabaseAsyncCacheTask>(const_cast<UPoseSearchDatabase*>(Database), bWaitForCompletion));
+		This.Tasks.Emplace(MakeUnique<FPoseSearchDatabaseAsyncCacheTask>(const_cast<UPoseSearchDatabase*>(Database), bWaitForCompletion, This.PartialKeyHashes));
 		Task = This.Tasks.Last().Get();
 	}
 
