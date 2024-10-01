@@ -273,8 +273,6 @@ public:
 	// Copy data generated in the mutable thread over to the instance and initializes additional data required during the update
 	void PrepareForUpdate(const TSharedRef<FUpdateContextPrivate>& OperationData);
 
-	int32 GetNumLODsAvailable() const { return NumLODsAvailable; }
-	
 	// The following method is basically copied from PostEditChangeProperty and/or SkeletalMesh.cpp to be able to replicate PostEditChangeProperty without the editor
 	void PostEditChangePropertyWithoutEditor();
 	
@@ -414,11 +412,6 @@ public:
 	ESkeletalMeshStatus SkeletalMeshStatus = ESkeletalMeshStatus::NotGenerated;
 
 	TMap<FString, bool> ParamNameToExpandedMap; // Used to check whether a mutable param is expanded in the editor to show its child params
-
-#if WITH_EDITOR
-	/** During editor, always remember the duration of the last update in the mutable runtime, for profiling. */
-	int32 LastUpdateMutableRuntimeCycles = 0;
-#endif
 
 	bool bShowOnlyRuntimeParameters = true;
 	bool bShowOnlyRelevantParameters = true;

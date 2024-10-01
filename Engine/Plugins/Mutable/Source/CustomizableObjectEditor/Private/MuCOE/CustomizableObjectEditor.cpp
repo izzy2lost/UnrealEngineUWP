@@ -52,7 +52,6 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeStaticMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeTable.h"
 #include "MuCOE/SCustomizableObjectEditorAdvancedPreviewSettings.h"
-#include "MuCOE/SCustomizableObjectEditorPerformanceReport.h"
 #include "MuCOE/SCustomizableObjectEditorTagExplorer.h"
 #include "MuCOE/SCustomizableObjectEditorTextureAnalyzer.h"
 #include "MuCOE/SCustomizableObjectEditorViewport.h"
@@ -88,7 +87,6 @@ const FName FCustomizableObjectEditor::GraphTabId( TEXT( "CustomizableObjectEdit
 const FName FCustomizableObjectEditor::GraphNodePropertiesTabId( TEXT( "CustomizableObjectEditor_GraphNodeProperties" ) );
 const FName FCustomizableObjectEditor::AdvancedPreviewSettingsTabId(TEXT("CustomizableObjectEditor_AdvancedPreviewSettings"));
 const FName FCustomizableObjectEditor::TextureAnalyzerTabId(TEXT("CustomizableObjectEditor_TextureAnalyzer"));
-const FName FCustomizableObjectEditor::PerformanceReportTabId(TEXT("CustomizableObjectEditor_PerformanceReport"));
 const FName FCustomizableObjectEditor::PerformanceAnalyzerTabId(TEXT("CustomizableObjectEditor_MewPerformanceReport"));
 const FName FCustomizableObjectEditor::TagExplorerTabId(TEXT("CustomizableObjectEditor_TagExplorer"));
 const FName FCustomizableObjectEditor::ObjectDebuggerTabId(TEXT("CustomizableObjectEditor_ObjectDebugger"));
@@ -136,10 +134,6 @@ void FCustomizableObjectEditor::RegisterTabSpawners(const TSharedRef<class FTabM
 		.SetDisplayName(LOCTEXT("TextureAnalyzer", "Texture Analyzer"))
 		.SetGroup(WorkspaceMenuCategoryRef);
 
-	InTabManager->RegisterTabSpawner(PerformanceReportTabId, FOnSpawnTab::CreateSP(this, &FCustomizableObjectEditor::SpawnTab_PerformanceReport))
-		.SetDisplayName(LOCTEXT("PerformanceReport", "Performance Report"))
-		.SetGroup(WorkspaceMenuCategoryRef);
-
 	InTabManager->RegisterTabSpawner(PerformanceAnalyzerTabId, FOnSpawnTab::CreateSP(this, &FCustomizableObjectEditor::SpawnTab_PerformanceAnalyzer))
 		.SetDisplayName(LOCTEXT("PerformanceAnalyzer", "Performance Analyzer"))
 		.SetGroup(WorkspaceMenuCategoryRef);
@@ -157,10 +151,9 @@ void FCustomizableObjectEditor::UnregisterTabSpawners(const TSharedRef<class FTa
 	InTabManager->UnregisterTabSpawner( InstancePropertiesTabId );
 	InTabManager->UnregisterTabSpawner( GraphTabId );
 	InTabManager->UnregisterTabSpawner( GraphNodePropertiesTabId );
-	InTabManager->UnregisterTabSpawner(AdvancedPreviewSettingsTabId);
-	InTabManager->UnregisterTabSpawner(TextureAnalyzerTabId);
-	InTabManager->UnregisterTabSpawner(PerformanceReportTabId);
-	InTabManager->UnregisterTabSpawner(PerformanceAnalyzerTabId);
+	InTabManager->UnregisterTabSpawner( AdvancedPreviewSettingsTabId );
+	InTabManager->UnregisterTabSpawner( TextureAnalyzerTabId );
+	InTabManager->UnregisterTabSpawner( PerformanceAnalyzerTabId );
 }	
 
 
@@ -660,14 +653,7 @@ void FCustomizableObjectEditor::BindCommands()
 		FExecuteAction::CreateSP(this, &FCustomizableObjectEditor::OpenTextureAnalyzerTab),
 		FCanExecuteAction(),
 		FIsActionChecked());
-
-	// Performance Report
-	ToolkitCommands->MapAction(
-		Commands.PerformanceReport,
-		FExecuteAction::CreateSP(this, &FCustomizableObjectEditor::OpenPerformanceReportTab),
-		FCanExecuteAction(),
-		FIsActionChecked());
-
+	
 	// Performance Analyzer
 	ToolkitCommands->MapAction(
 		Commands.PerformanceAnalyzer,
@@ -1216,7 +1202,6 @@ void FCustomizableObjectEditor::ExtendToolbar()
 			
 			ToolbarBuilder.BeginSection("Information");
 			ToolbarBuilder.AddToolBarButton(FCustomizableObjectEditorCommands::Get().TextureAnalyzer);
-			ToolbarBuilder.AddToolBarButton(FCustomizableObjectEditorCommands::Get().PerformanceReport);
 			ToolbarBuilder.AddToolBarButton(FCustomizableObjectEditorCommands::Get().PerformanceAnalyzer);
 			ToolbarBuilder.EndSection();
 		}
@@ -2247,15 +2232,11 @@ void FCustomizableObjectEditor::OpenTextureAnalyzerTab()
 }
 
 
-void FCustomizableObjectEditor::OpenPerformanceReportTab()
-{
-	TabManager->TryInvokeTab(PerformanceReportTabId);
-}
-
 void FCustomizableObjectEditor::OpenPerformanceAnalyzerTab()
 {
 	TabManager->TryInvokeTab(PerformanceAnalyzerTabId);
 }
+
 
 TSharedRef<SDockTab> FCustomizableObjectEditor::SpawnTab_TextureAnalyzer(const FSpawnTabArgs& Args)
 {
@@ -2265,24 +2246,6 @@ TSharedRef<SDockTab> FCustomizableObjectEditor::SpawnTab_TextureAnalyzer(const F
 	.Label(LOCTEXT("Texture Analyzer", "Texture Analyzer"))
 	[
 		TextureAnalyzer.ToSharedRef()
-	];
-}
-
-
-TSharedRef<SDockTab> FCustomizableObjectEditor::SpawnTab_PerformanceReport(const FSpawnTabArgs& Args)
-{
-	check(Args.GetTabId() == PerformanceReportTabId);
-	check(CustomizableObject);
-
-	if (!PerformanceReport.IsValid())
-	{
-		PerformanceReport = SNew(SCustomizableObjecEditorPerformanceReport).CustomizableObject(CustomizableObject);
-	}
-
-	return SNew(SDockTab)
-	.Label(LOCTEXT("Performance Report", "Performance Report"))
-	[
-		PerformanceReport.ToSharedRef()
 	];
 }
 

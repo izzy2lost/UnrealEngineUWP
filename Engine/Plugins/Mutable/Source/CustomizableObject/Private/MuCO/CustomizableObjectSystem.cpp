@@ -1564,7 +1564,6 @@ namespace impl
 	void Task_Mutable_GetMeshes_GetImage_Loop(
 		const TSharedRef<FUpdateContextPrivate>& OperationData,
 		double StartTime,
-		uint32 StartCycles,
 		const TSharedRef<TArray<FGetImageData>>& GetImagesData,
 		int32 GetImageIndex);
 	
@@ -1580,7 +1579,6 @@ namespace impl
 	void Task_Mutable_GetMeshes_GetMesh_Loop(
 		const TSharedRef<FUpdateContextPrivate>& OperationData,
 		double StartTime,
-		uint32 StartCycles,
 		const TSharedRef<TArray<FGetMeshData>>& GetMeshesData,
 		int32 GetMeshIndex);
 
@@ -1590,7 +1588,6 @@ namespace impl
 	void Task_Mutable_GetImages_GetImage(
 		const TSharedRef<FUpdateContextPrivate>& OperationData,
 		double StartTime,
-		uint32 StartCycles,
 		const TSharedPtr<TArray<mu::FResourceID>>& ImagesInThisInstance,
 		int32 ImageIndex,
 		UE::Tasks::TTask<mu::FImageDesc> GetImageDescTask);
@@ -1600,7 +1597,6 @@ namespace impl
 	void Task_Mutable_GetImages_Loop(
 		const TSharedRef<FUpdateContextPrivate>& OperationData,
 		double StartTime,
-		uint32 StartCycles,
 		const TSharedPtr<TArray<mu::FResourceID>>& ImagesInThisInstance,
 		int32 ImageIndex);
 
@@ -2088,8 +2084,7 @@ namespace impl
 	/** End of the GetMeshes tasks. */
 	void Task_Mutable_GetMeshes_End(
 		const TSharedRef<FUpdateContextPrivate>& OperationData,
-		double StartTime,
-		uint32 StartCycles)
+		double StartTime)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(Task_Mutable_GetMeshes_End)
 
@@ -2119,10 +2114,6 @@ namespace impl
 			check(NewEntry.Name != NAME_None);
 		}
 		
-#if WITH_EDITOR
-		const uint32 EndCycles = FPlatformTime::Cycles();
-		OperationData->MutableRuntimeCycles = EndCycles - StartCycles;
-#endif
 		OperationData->TaskGetMeshTime = FPlatformTime::Seconds() - StartTime;
 
 		TRACE_END_REGION(UE_TASK_MUTABLE_GETMESHES_REGION);
@@ -2133,7 +2124,6 @@ namespace impl
 	void Task_Mutable_GetMeshes_GetImage_Post(
 		const TSharedRef<FUpdateContextPrivate>& OperationData,
 		double StartTime,
-		uint32 StartCycles,
 		const TSharedRef<TArray<FGetImageData>>& GetImagesData,
 		int32 GetImageIndex,
 		UE::Tasks::TTask<mu::Ptr<const mu::Image>> GetImageTask)
@@ -2164,7 +2154,7 @@ namespace impl
 			UE_LOG(LogMutable, Error, TEXT("Referenced image [%d] was not stored in the resource array."), ReferenceID);
 		}
 			
-		Task_Mutable_GetMeshes_GetImage_Loop(OperationData, StartTime, StartCycles, GetImagesData, ++GetImageIndex);
+		Task_Mutable_GetMeshes_GetImage_Loop(OperationData, StartTime, GetImagesData, ++GetImageIndex);
 	}
 
 	
@@ -2172,7 +2162,6 @@ namespace impl
 	void Task_Mutable_GetMeshes_GetImage_Loop(
 		const TSharedRef<FUpdateContextPrivate>& OperationData,
 		double StartTime,
-		uint32 StartCycles,
 		const TSharedRef<TArray<FGetImageData>>& GetImagesData,
 		int32 GetImageIndex)
 	{
@@ -2180,7 +2169,7 @@ namespace impl
 
 		if (GetImageIndex >= GetImagesData->Num()) 
 		{
-			Task_Mutable_GetMeshes_End(OperationData, StartTime, StartCycles);
+			Task_Mutable_GetMeshes_End(OperationData, StartTime);
 			return;
 		}
 
@@ -2190,7 +2179,7 @@ namespace impl
 
 		UE::Tasks::AddNested(UE::Tasks::Launch(TEXT("Task_Mutable_GetMeshes_GetImage_Post"), [=]()
 		{
-			Task_Mutable_GetMeshes_GetImage_Post(OperationData, StartTime, StartCycles, GetImagesData, GetImageIndex, GetImageTask);
+			Task_Mutable_GetMeshes_GetImage_Post(OperationData, StartTime, GetImagesData, GetImageIndex, GetImageTask);
 		},
 		GetImageTask));
 	}
@@ -2199,8 +2188,7 @@ namespace impl
 	/** Gather all GetImages that have to be called. */
 	void Task_Mutable_GetMeshes_GetImages(
 		const TSharedRef<FUpdateContextPrivate>& OperationData,
-		double StartTime,
-		uint32 StartCycles)
+		double StartTime)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(Task_Mutable_GetMeshes_GetImages)
 		
@@ -2388,7 +2376,7 @@ namespace impl
 			}	
 		}
 
-		Task_Mutable_GetMeshes_GetImage_Loop(OperationData, StartTime, StartCycles, GetImagesData, 0);
+		Task_Mutable_GetMeshes_GetImage_Loop(OperationData, StartTime, GetImagesData, 0);
 	}
 
 
@@ -2396,7 +2384,6 @@ namespace impl
 	void Task_MutableGetMeshes_GetMesh_Post(
 		const TSharedRef<FUpdateContextPrivate>& OperationData,
 		double StartTime,
-		uint32 StartCycles,
 		const TSharedRef<TArray<FGetMeshData>>& GetMeshesData,
 		int32 GetMeshIndex,
 		UE::Tasks::TTask<mu::Ptr<const mu::Mesh>> GetMeshTask)
@@ -2429,7 +2416,7 @@ namespace impl
 			}
 		}
 			
-		Task_Mutable_GetMeshes_GetMesh_Loop(OperationData, StartTime, StartCycles, GetMeshesData, ++GetMeshIndex);
+		Task_Mutable_GetMeshes_GetMesh_Loop(OperationData, StartTime, GetMeshesData, ++GetMeshIndex);
 	}
 	
 
@@ -2437,7 +2424,6 @@ namespace impl
 	void Task_Mutable_GetMeshes_GetMesh_Loop(
 		const TSharedRef<FUpdateContextPrivate>& OperationData,
 		double StartTime,
-		uint32 StartCycles,
 		const TSharedRef<TArray<FGetMeshData>>& GetMeshesData,
 		int32 GetMeshIndex)
 	{
@@ -2445,7 +2431,7 @@ namespace impl
 
 		if (GetMeshIndex >= GetMeshesData->Num())
 		{
-			Task_Mutable_GetMeshes_GetImages(OperationData, StartTime, StartCycles);
+			Task_Mutable_GetMeshes_GetImages(OperationData, StartTime);
 			return;
 		}
 		
@@ -2454,7 +2440,7 @@ namespace impl
 		
 		UE::Tasks::AddNested(UE::Tasks::Launch(TEXT("Task_MutableGetMeshes_GetMesh_Post"), [=]()
 		{
-			Task_MutableGetMeshes_GetMesh_Post(OperationData, StartTime, StartCycles, GetMeshesData, GetMeshIndex, GetMeshTask);
+			Task_MutableGetMeshes_GetMesh_Post(OperationData, StartTime, GetMeshesData, GetMeshIndex, GetMeshTask);
 		},
 		GetMeshTask));
 	}
@@ -2470,7 +2456,6 @@ namespace impl
 			TRACE_BEGIN_REGION(UE_TASK_MUTABLE_GETMESHES_REGION);
 
 			const double StartTime = FPlatformTime::Seconds();
-			const uint32 StartCycles = FPlatformTime::Cycles();
 
 			check(OperationData->Parameters);
 			OperationData->InstanceUpdateData.Clear();
@@ -2499,7 +2484,7 @@ namespace impl
 			if (!Instance)
 			{
 				UE_LOG(LogMutable, Warning, TEXT("An Instace update has failed."));
-				Task_Mutable_GetMeshes_End(OperationData, StartTime, StartCycles);
+				Task_Mutable_GetMeshes_End(OperationData, StartTime);
 				return;
 			}
 
@@ -2555,7 +2540,7 @@ namespace impl
 				}
 			}
 
-			Task_Mutable_GetMeshes_GetMesh_Loop(OperationData, StartTime, StartCycles, GetMeshesData, 0);
+			Task_Mutable_GetMeshes_GetMesh_Loop(OperationData, StartTime, GetMeshesData, 0);
 		}
 	}
 
@@ -2567,15 +2552,13 @@ namespace impl
 
 	
 		/** End of the GetImages tasks. */
-	void Task_Mutable_GetImages_End(const TSharedRef<FUpdateContextPrivate>& OperationData, double StartCycles, double StartTime)
+	void Task_Mutable_GetImages_End(const TSharedRef<FUpdateContextPrivate>& OperationData, double StartTime)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(Task_Mutable_GetImages_End)
 		
 		// TODO: Not strictly mutable: move to another worker thread task to free mutable access?
 		Subtask_Mutable_PrepareTextures(OperationData);
-
-		const uint32 EndCycles = FPlatformTime::Cycles();
-		OperationData->MutableRuntimeCycles += EndCycles - StartCycles;
+		
 		OperationData->TaskGetImagesTime = FPlatformTime::Seconds() - StartTime;
 
 		TRACE_END_REGION(UE_TASK_MUTABLE_GETIMAGES_REGION);
@@ -2587,7 +2570,6 @@ namespace impl
 	void Task_Mutable_GetImages_GetImageDesc(
 		const TSharedRef<FUpdateContextPrivate>& OperationData,
 		double StartTime,
-		uint32 StartCycles,
 		const TSharedPtr<TArray<mu::FResourceID>>& ImagesInThisInstance,
 		int32 ImageIndex)
 	{
@@ -2600,7 +2582,7 @@ namespace impl
 		
 		UE::Tasks::AddNested(UE::Tasks::Launch(TEXT("Task_Mutable_GetImages_GetImage"), [=]()
 		{
-			Task_Mutable_GetImages_GetImage(OperationData, StartTime, StartCycles, ImagesInThisInstance, ImageIndex, GetImageDescTask);
+			Task_Mutable_GetImages_GetImage(OperationData, StartTime, ImagesInThisInstance, ImageIndex, GetImageDescTask);
 		},
 		GetImageDescTask));
 	}
@@ -2610,7 +2592,6 @@ namespace impl
 	void Task_Mutable_GetImages_GetImage_Post(
 		const TSharedRef<FUpdateContextPrivate>& OperationData,
     	double StartTime,
-    	uint32 StartCycles,
     	const TSharedPtr<TArray<mu::FResourceID>>& ImagesInThisInstance,
     	int32 ImageIndex,
     	UE::Tasks::TTask<mu::Ptr<const mu::Image>> GetImageTask,
@@ -2669,7 +2650,7 @@ namespace impl
 
 		ImagesInThisInstance->Add(Image.ImageID);
 
-		Task_Mutable_GetImages_Loop(OperationData, StartTime, StartCycles, ImagesInThisInstance, ++ImageIndex);
+		Task_Mutable_GetImages_Loop(OperationData, StartTime, ImagesInThisInstance, ++ImageIndex);
 	}
 
 
@@ -2677,7 +2658,6 @@ namespace impl
 	void Task_Mutable_GetImages_GetImage(
 		const TSharedRef<FUpdateContextPrivate>& OperationData,
 		double StartTime,
-		uint32 StartCycles,
 		const TSharedPtr<TArray<mu::FResourceID>>& ImagesInThisInstance,
 		int32 ImageIndex,
 		UE::Tasks::TTask<mu::FImageDesc> GetImageDescTask)
@@ -2714,7 +2694,7 @@ namespace impl
 		{
 			UE_LOG(LogMutable, VeryVerbose, TEXT("Texture resource with id [%llu] is cached."), Image.ImageID);
 
-			Task_Mutable_GetImages_Loop(OperationData, StartTime, StartCycles, ImagesInThisInstance, ++ImageIndex);
+			Task_Mutable_GetImages_Loop(OperationData, StartTime, ImagesInThisInstance, ++ImageIndex);
 			return;
 		}
 		
@@ -2737,7 +2717,7 @@ namespace impl
 			mu::Ptr<const mu::Image> NewImage = new mu::Image(MipSizeX, MipSizeY, FullLODCount - MipsToSkip, ImageDesc.m_format, mu::EInitializationType::Black);
 
 			UE::Tasks::TTask<mu::Ptr<const mu::Image>> DummyTask = UE::Tasks::MakeCompletedTask<mu::Ptr<const mu::Image>>(NewImage);
-			Task_Mutable_GetImages_GetImage_Post(OperationData, StartTime, StartCycles, ImagesInThisInstance, ImageIndex, DummyTask, MipSizeX, MipSizeY, FullLODCount, MipsToSkip);
+			Task_Mutable_GetImages_GetImage_Post(OperationData, StartTime, ImagesInThisInstance, ImageIndex, DummyTask, MipSizeX, MipSizeY, FullLODCount, MipsToSkip);
 		}
 		else
 		{
@@ -2745,7 +2725,7 @@ namespace impl
 			
 			UE::Tasks::AddNested(UE::Tasks::Launch(TEXT("Task_Mutable_GetImages_GetImage_Post"), [=]()
 			{
-				Task_Mutable_GetImages_GetImage_Post(OperationData, StartTime, StartCycles, ImagesInThisInstance, ImageIndex, GetImageTask, MipSizeX, MipSizeY, FullLODCount, MipsToSkip);
+				Task_Mutable_GetImages_GetImage_Post(OperationData, StartTime, ImagesInThisInstance, ImageIndex, GetImageTask, MipSizeX, MipSizeY, FullLODCount, MipsToSkip);
 			},
 			GetImageTask));
 		}
@@ -2756,7 +2736,6 @@ namespace impl
 	void Task_Mutable_GetImages_Loop(
 		const TSharedRef<FUpdateContextPrivate>& OperationData,
 		double StartTime,
-		uint32 StartCycles,
 		const TSharedPtr<TArray<mu::FResourceID>>& ImagesInThisInstance,
 		int32 ImageIndex)
 	{
@@ -2768,13 +2747,13 @@ namespace impl
 			const FInstanceUpdateData::FImage& Image = OperationData->InstanceUpdateData.Images[ImageIndex];
 			if (!Image.bIsPassThrough)
 			{
-				Task_Mutable_GetImages_GetImageDesc(OperationData, StartTime, StartCycles, ImagesInThisInstance, ImageIndex);
+				Task_Mutable_GetImages_GetImageDesc(OperationData, StartTime, ImagesInThisInstance, ImageIndex);
 				return;
 			}
 		}
 
 		// If not image needs to be processed, go to end directly
-		Task_Mutable_GetImages_End(OperationData, StartCycles, StartTime);
+		Task_Mutable_GetImages_End(OperationData, StartTime);
 	}
 
 
@@ -2787,10 +2766,9 @@ namespace impl
 			TRACE_BEGIN_REGION(UE_TASK_MUTABLE_GETIMAGES_REGION);
 
 			const double StartTime = FPlatformTime::Seconds();		
-			const uint32 StartCycles = FPlatformTime::Cycles();
 
 			const TSharedPtr<TArray<mu::FResourceID>> ImagesInThisInstance = MakeShared<TArray<mu::FResourceID>>();
-			Task_Mutable_GetImages_Loop(OperationData, StartTime, StartCycles, ImagesInThisInstance, 0);
+			Task_Mutable_GetImages_Loop(OperationData, StartTime, ImagesInThisInstance, 0);
 		}
 		
 	}
@@ -2947,10 +2925,6 @@ namespace impl
 		if (!bInstanceInvalid)
 		{
 			UCustomizableInstancePrivate* CustomizableInstancePrivateData = CustomizableObjectInstance->GetPrivate();
-
-#if WITH_EDITOR
-			CustomizableObjectInstance->GetPrivate()->LastUpdateMutableRuntimeCycles = OperationData->MutableRuntimeCycles;
-#endif
 
 			// Convert Step
 			//-------------------------------------------------------------

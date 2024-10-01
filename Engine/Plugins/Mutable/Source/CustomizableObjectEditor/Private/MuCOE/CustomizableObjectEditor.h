@@ -275,7 +275,6 @@ private:
 	TSharedRef<SDockTab> SpawnTab_GraphNodeProperties(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_AdvancedPreviewSettings(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_TextureAnalyzer(const FSpawnTabArgs& Args);
-	TSharedRef<SDockTab> SpawnTab_PerformanceReport(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_PerformanceAnalyzer(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_TagExplorer(const FSpawnTabArgs& Args);
 	
@@ -356,9 +355,6 @@ private:
 	/** Open the Texture Analyzer tab */
 	void OpenTextureAnalyzerTab();
 
-	/** Open the Performance Report tab */
-	void OpenPerformanceReportTab();
-
 	/** Open the Performance Analyzer tab */
 	void OpenPerformanceAnalyzerTab();
 	
@@ -390,7 +386,6 @@ public:
 	static const FName SystemPropertiesTabId;
 	static const FName AdvancedPreviewSettingsTabId;
 	static const FName TextureAnalyzerTabId;
-	static const FName PerformanceReportTabId;
 	static const FName PerformanceAnalyzerTabId;
 	static const FName TagExplorerTabId;
 	static const FName ObjectDebuggerTabId;
@@ -435,9 +430,6 @@ private:
 	
 	/** Texture Analyzer table widget which shows the information of the transient textures used in the customizable object instance */
 	TSharedPtr<class SCustomizableObjecEditorTextureAnalyzer> TextureAnalyzer;
-
-	/** Performance report widget to test and analyze the current customizable object resource demands */
-	TSharedPtr<class SCustomizableObjecEditorPerformanceReport> PerformanceReport;
 
 	/** New performance analyzer widget */
 	TSharedPtr<SCustomizableObjectEditorPerformanceAnalyzer> PerformanceAnalyzer;
