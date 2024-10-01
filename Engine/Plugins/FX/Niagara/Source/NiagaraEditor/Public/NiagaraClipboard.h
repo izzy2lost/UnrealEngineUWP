@@ -266,6 +266,9 @@ public:
 	UPROPERTY()
 	TArray<FNiagaraClipboardScriptVariable> ScriptVariables;
 
+	UPROPERTY()
+	TArray<TObjectPtr<const UObject>> StatelessModules;
+
 	/** We expect nodes to be exported into this string using FEdGraphUtilities::ExportNodesToText */
 	UPROPERTY()
 	FString ExportedNodes;

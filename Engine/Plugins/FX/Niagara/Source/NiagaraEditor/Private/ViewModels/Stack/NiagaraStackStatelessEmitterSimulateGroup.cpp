@@ -3,6 +3,7 @@
 #include "ViewModels/Stack/NiagaraStackStatelessEmitterSimulateGroup.h"
 
 #include "IDetailTreeNode.h"
+#include "NiagaraClipboard.h"
 #include "NiagaraEditorStyle.h"
 #include "NiagaraStackEditorData.h"
 #include "PropertyHandle.h"
@@ -18,6 +19,65 @@
 #include "ViewModels/Stack/NiagaraStackObject.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraEmitterStatelessSimulateGroup"
+
+namespace NiagaraStackStatelessEmitterSimulateGroupPrivate
+{
+	bool TestCanPasteModules(UNiagaraStatelessEmitter* StatelessEmitter, const UNiagaraClipboardContent* ClipboardContent, FText& OutMessage)
+	{
+		if (StatelessEmitter)
+		{
+			for (const UObject* ClipboardModuleObject : ClipboardContent->StatelessModules)
+			{
+				const UNiagaraStatelessModule* ClipboardModule = Cast<const UNiagaraStatelessModule>(ClipboardModuleObject);
+				UNiagaraStatelessModule* StatelessModule = ClipboardModule ? StatelessEmitter->GetModule(ClipboardModule->GetClass()) : nullptr;
+				if (!StatelessModule)
+				{
+					continue;
+				}
+
+				OutMessage = LOCTEXT("CanPasteStatelessModules", "Paste module data, either adding or replacing existing module.");
+				return true;
+			}
+		}
+
+		OutMessage = LOCTEXT("CanPasteStatelessModuleUnsupported", "Incompatible or no data to paste.");
+		return false;
+	}
+
+	FText GetPasteModulesTransactionText(const UNiagaraClipboardContent* ClipboardContent)
+	{
+		return LOCTEXT("PasteStatelessModulesTransaction", "Paste modules(s).");
+	}
+
+	TArray<UObject*> PasteModules(UNiagaraStatelessEmitter* StatelessEmitter, const UNiagaraClipboardContent* ClipboardContent)
+	{
+		TArray<UObject*> ModifiedObjects;
+		if (StatelessEmitter)
+		{
+			for (const UObject* ClipboardModuleObject : ClipboardContent->StatelessModules)
+			{
+				const UNiagaraStatelessModule* ClipboardModule = Cast<const UNiagaraStatelessModule>(ClipboardModuleObject);
+				UNiagaraStatelessModule* StatelessModule = ClipboardModule ? StatelessEmitter->GetModule(ClipboardModule->GetClass()) : nullptr;
+				if (!StatelessModule)
+				{
+					continue;
+				}
+
+				StatelessModule->Modify();
+				UEngine::CopyPropertiesForUnrelatedObjects(const_cast<UNiagaraStatelessModule*>(ClipboardModule), StatelessModule);
+				if (StatelessModule->CanDisableModule())
+				{
+					StatelessModule->SetIsModuleEnabled(ClipboardModule->IsModuleEnabled());
+				}
+				StatelessModule->PostEditChange();
+
+				ModifiedObjects.Add(StatelessModule);
+			}
+		}
+
+		return ModifiedObjects;
+	}
+}
 
 class FNiagaraStatelessEmitterAddModuleAction : public INiagaraStackItemGroupAddAction
 {
@@ -110,6 +170,26 @@ const FSlateBrush* UNiagaraStackStatelessEmitterSimulateGroup::GetIconBrush() co
 	return FNiagaraEditorStyle::Get().GetBrush("NiagaraEditor.Stateless.UpdateIcon");
 }
 
+bool UNiagaraStackStatelessEmitterSimulateGroup::TestCanPasteWithMessage(const UNiagaraClipboardContent* ClipboardContent, FText& OutMessage) const
+{
+	return NiagaraStackStatelessEmitterSimulateGroupPrivate::TestCanPasteModules(GetStatelessEmitter(), ClipboardContent, OutMessage);
+}
+
+FText UNiagaraStackStatelessEmitterSimulateGroup::GetPasteTransactionText(const UNiagaraClipboardContent* ClipboardContent) const
+{
+	return NiagaraStackStatelessEmitterSimulateGroupPrivate::GetPasteModulesTransactionText(ClipboardContent);
+}
+
+void UNiagaraStackStatelessEmitterSimulateGroup::Paste(const UNiagaraClipboardContent* ClipboardContent, FText& OutPasteWarning)
+{
+	TArray<UObject*> ModifiedObjects = NiagaraStackStatelessEmitterSimulateGroupPrivate::PasteModules(GetStatelessEmitter(), ClipboardContent);
+	if (ModifiedObjects.Num() > 0)
+	{
+		OnDataObjectModified().Broadcast(ModifiedObjects, ENiagaraDataObjectChange::Changed);
+		RefreshChildren();
+	}
+}
+
 void UNiagaraStackStatelessEmitterSimulateGroup::RefreshChildrenInternal(const TArray<UNiagaraStackEntry*>& CurrentChildren, TArray<UNiagaraStackEntry*>& NewChildren, TArray<FStackIssue>& NewIssues)
 {
 	Super::RefreshChildrenInternal(CurrentChildren, NewChildren, NewIssues);
@@ -178,6 +258,49 @@ FText UNiagaraStackStatelessModuleItem::GetTooltipText() const
 	return Super::GetTooltipText();
 }
 
+bool UNiagaraStackStatelessModuleItem::TestCanCopyWithMessage(FText& OutMessage) const
+{
+	if (UNiagaraStatelessModule* StatelessModule = StatelessModuleWeak.Get())
+	{
+		OutMessage = LOCTEXT("CanCopyStatelessModule", "Copy module to the clipboard.");
+		return true;
+	}
+	OutMessage = LOCTEXT("CanCopyStatelessModuleUnsupported", "This module does not support copy.");
+	return false;
+}
+
+void UNiagaraStackStatelessModuleItem::Copy(UNiagaraClipboardContent* ClipboardContent) const
+{
+	UNiagaraStatelessModule* StatelessModule = StatelessModuleWeak.Get();
+	if (StatelessModule == nullptr)
+	{
+		return;
+	}
+
+	ClipboardContent->StatelessModules.Add(StaticDuplicateObject(StatelessModule, ClipboardContent));
+}
+
+bool UNiagaraStackStatelessModuleItem::TestCanPasteWithMessage(const UNiagaraClipboardContent* ClipboardContent, FText& OutMessage) const
+{
+	return NiagaraStackStatelessEmitterSimulateGroupPrivate::TestCanPasteModules(GetStatelessEmitter(), ClipboardContent, OutMessage);
+}
+
+FText UNiagaraStackStatelessModuleItem::GetPasteTransactionText(const UNiagaraClipboardContent* ClipboardContent) const
+{
+	return NiagaraStackStatelessEmitterSimulateGroupPrivate::GetPasteModulesTransactionText(ClipboardContent);
+}
+
+void UNiagaraStackStatelessModuleItem::Paste(const UNiagaraClipboardContent* ClipboardContent, FText& OutPasteWarning)
+{
+	TArray<UObject*> ModifiedObjects = NiagaraStackStatelessEmitterSimulateGroupPrivate::PasteModules(GetStatelessEmitter(), ClipboardContent);
+	if (ModifiedObjects.Num() > 0)
+	{
+		OnDataObjectModified().Broadcast(ModifiedObjects, ENiagaraDataObjectChange::Changed);
+		GetStackEditorData().Modify();
+		OnModifiedGroupItems().Broadcast();
+	}
+}
+
 bool UNiagaraStackStatelessModuleItem::TestCanDeleteWithMessage(FText& OutCanDeleteMessage) const
 {
 	UNiagaraStatelessModule* StatelessModule = StatelessModuleWeak.Get();
@@ -223,6 +346,12 @@ bool UNiagaraStackStatelessModuleItem::GetIsEnabled() const
 {
 	UNiagaraStatelessModule* StatelessModule = StatelessModuleWeak.Get();
 	return StatelessModule != nullptr && StatelessModule->IsModuleEnabled();
+}
+
+UNiagaraStatelessEmitter* UNiagaraStackStatelessModuleItem::GetStatelessEmitter() const
+{
+	UNiagaraStatelessModule* StatelessModule = GetStatelessModule();
+	return StatelessModule ? StatelessModule->GetTypedOuter<UNiagaraStatelessEmitter>() : nullptr;
 }
 
 void UNiagaraStackStatelessModuleItem::RefreshChildrenInternal(const TArray<UNiagaraStackEntry*>& CurrentChildren, TArray<UNiagaraStackEntry*>& NewChildren, TArray<FStackIssue>& NewIssues)
