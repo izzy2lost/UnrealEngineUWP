@@ -80,6 +80,11 @@
 #define PPI_WorldTangent 29
 #define PPI_Anisotropy 30
 
+#ifdef POST_PROCESS_PROPAGATE_ALPHA_INPUT
+// Arbitrary internal value to fetch local variable propagated alpha stored in the SceneTextureLookup function
+#define PPI_PropagatedAlpha 64
+#endif
+
 // Defines to remap PPI_UserSceneTexture0-6 to PPI_PostProcessInput0-6, generated via GenerateUserSceneTextureRemapDefines
 %{user_scene_texture_remap}
 
@@ -2935,6 +2940,11 @@ uint bMetalMSAAHDRDecode;
 
 #if NEEDS_SCENE_TEXTURES
 
+#if POST_PROCESS_MATERIAL
+// SceneTextureId of UserSceneTexture SceneColor input, to allow SceneColor alpha to be dynamically propagated
+uint UserSceneTextureSceneColorInput;
+#endif
+
 #if SHADING_PATH_MOBILE
 
 MaterialFloat4 MobileSceneTextureLookup(inout FMaterialPixelParameters Parameters, int SceneTextureId, float2 UV)
@@ -2953,6 +2963,11 @@ MaterialFloat4 MobileSceneTextureLookup(inout FMaterialPixelParameters Parameter
 		return 0.0f;
 	}
 #else
+
+	#ifdef POST_PROCESS_PROPAGATE_ALPHA_INPUT
+	static float PropagatedAlpha = 0.0f;
+	#endif
+
 	const float2 PixelPos = UV * View.BufferSizeAndInvSize.xy;
 	FGBufferData GBuffer = MobileFetchAndDecodeGBuffer(UV, PixelPos, GetViewId(Parameters));
 
@@ -2997,6 +3012,15 @@ MaterialFloat4 MobileSceneTextureLookup(inout FMaterialPixelParameters Parameter
 			Input0.rgb = Input0.rgb * rcp(Input0.r*(-0.299) + Input0.g*(-0.587) + Input0.b*(-0.114) + 1.0);
 		}
 		#endif
+		#ifdef POST_PROCESS_PROPAGATE_ALPHA_INPUT
+		// We do a comparison of the POST_PROCESS_PROPAGATE_ALPHA_INPUT define with the PPI input index, to support propagation of alpha for shaders with UserSceneTextures,
+		// where the specific PPI_PostProcessInput that has SceneColor as an input is dynamic.  Usually, POST_PROCESS_PROPAGATE_ALPHA_INPUT will be a constant, when a normal
+		// SceneTexture node is used.
+		if (POST_PROCESS_PROPAGATE_ALPHA_INPUT == PPI_PostProcessInput0)
+		{
+			PropagatedAlpha = Input0.a;
+		}
+		#endif
 		return Input0;
 	}
 #endif // POST_PROCESS_MATERIAL
@@ -3012,6 +3036,10 @@ MaterialFloat4 MobileSceneTextureLookup(inout FMaterialPixelParameters Parameter
 		return GBuffer.CustomStencil;
 	case PPI_WorldTangent:
 		return MaterialFloat4(GBuffer.WorldTangent, 0);
+#ifdef POST_PROCESS_PROPAGATE_ALPHA_INPUT
+	case PPI_PropagatedAlpha:
+		return MaterialFloat4(PropagatedAlpha, 0, 0, 0);
+#endif
 	default:
 		return MaterialFloat4(0, 0, 0, 0);
 	}
@@ -3080,6 +3108,42 @@ float4 SceneTextureLookup(float2 UV, int SceneTextureIndex, bool bFiltered)
 
 	const uint2 PixelPos = uint2(UV * View.BufferSizeAndInvSize.xy);
 
+#ifdef POST_PROCESS_PROPAGATE_ALPHA_INPUT
+	// Propagation of SceneColor alpha, to preserve it in materials that don't themselves write to alpha, is supported by storing the propagated alpha to a local variable,
+	// which can be read from with a call to this function at the end of the shader.  The big advantage of this approach is that it even works with Custom HLSL, since it
+	// just requires the SceneTextureLookup code to be reached by any means.  It also works well with UserSceneTexture fetches, where a given input can be dynamically set
+	// to SceneColor.  Some complexity is added in that SceneTexture or UserSceneTexture nodes feeding into custom HLSL, where the input pin value itself isn't used, now
+	// need to be explicitly dead stripped, as the side effect of writing to PropagatedAlpha prevents the shader compiler from optimizing out calls to SceneTextureLookup
+	// based on the return value being unused in downstream code.  See UMaterialExpressionCustom::Compile for where that is handled.
+	static float PropagatedAlpha = 0.0f;
+
+	// There are three parts to the condition to detect whether we should automatically propagate SceneColor alpha:
+	//		1.  To make the shader compiler optimize out repeated reads of alpha, we set a local bool to ensure we only read alpha from a given scene texture index once.
+	//		2.  We want to support propagation of alpha for UserSceneTextures.  A given input is a UserSceneTexture if it's not used as a regular SceneTexture, as
+	//			specified by the POST_PROCESS_USED_SCENE_TEXTURES mask compile define, so we skip propagation for any input with a bit set there.
+	//			PPI_PostProcessInput0 is an exception, which is the SceneColor itself when used as a SceneTexture, and should always support propagation.
+	//		3.  Finally, we test if the given input equals POST_PROCESS_PROPAGATE_ALPHA_INPUT, which will either be PPI_PostProcessInput0 if the material in question
+	//			directly uses that as a SceneTexture, or the dynamic UserSceneTextureSceneColorInput variable, if UserSceneTexture nodes are in use, and one of them
+	//			may be mapped to SceneColor.
+	// If PostProcessInput0 is directly fetched in a SceneTexture node, the conditional will be compile time invariant, and no extra code is generated, making the alpha
+	// propagation free.  Otherwise, for UserSceneTextures, only the final part of the comparison is dynamic, and the rest will be compile time invariant, so it adds one
+	// scalar ALU (equals) and one vector ALU (conditional move), although the first UserSceneTexture vector ALU is free, rolled into the output assignment.  The material
+	// can be set up to output opacity to optimize that minor overhead out completely if desired.
+	//
+	#define RETURN_POST_PROCESS_INPUT_SAMPLE(Index) {  \
+			float4 Result = Texture2DSample(PostProcessInput_##Index##_Texture, bFiltered ? PostProcessInput_BilinearSampler : PostProcessInput_##Index##_SharedSampler, UV);  \
+			static bool bFirstRead = true;  \
+			if (bFirstRead && !(POST_PROCESS_USED_SCENE_TEXTURES & (1u << (Index + PPI_PostProcessInput0)) & ~(1u<<PPI_PostProcessInput0)) && POST_PROCESS_PROPAGATE_ALPHA_INPUT == PPI_PostProcessInput##Index)  \
+			{ PropagatedAlpha = Result.a; }  \
+			bFirstRead = false;  \
+			return Result;  \
+		}
+
+#else
+	#define RETURN_POST_PROCESS_INPUT_SAMPLE(Index) \
+		return Texture2DSample(PostProcessInput_##Index##_Texture, bFiltered ? PostProcessInput_BilinearSampler : PostProcessInput_##Index##_SharedSampler, UV)
+#endif
+
 	// 1. Post-process inputs which are independent on material data
 	switch (SceneTextureIndex)
 	{
@@ -3088,17 +3152,20 @@ float4 SceneTextureLookup(float2 UV, int SceneTextureIndex, bool bFiltered)
 		case PPI_SeparateTranslucency:	return float4(1, 1, 1, 1);	// todo
 		case PPI_CustomDepth:			return CalcSceneCustomDepth(UV);
 	#if POST_PROCESS_MATERIAL
-		case PPI_PostProcessInput0:		return Texture2DSample(PostProcessInput_0_Texture, bFiltered ? PostProcessInput_BilinearSampler : PostProcessInput_0_SharedSampler, UV);
-		case PPI_PostProcessInput1:		return Texture2DSample(PostProcessInput_1_Texture, bFiltered ? PostProcessInput_BilinearSampler : PostProcessInput_1_SharedSampler, UV);
-		case PPI_PostProcessInput2:		return Texture2DSample(PostProcessInput_2_Texture, bFiltered ? PostProcessInput_BilinearSampler : PostProcessInput_2_SharedSampler, UV);
-		case PPI_PostProcessInput3:		return Texture2DSample(PostProcessInput_3_Texture, bFiltered ? PostProcessInput_BilinearSampler : PostProcessInput_3_SharedSampler, UV);
-		case PPI_PostProcessInput4:		return Texture2DSample(PostProcessInput_4_Texture, bFiltered ? PostProcessInput_BilinearSampler : PostProcessInput_4_SharedSampler, UV);
-	#endif // __POST_PROCESS_COMMON__
+		case PPI_PostProcessInput0:		RETURN_POST_PROCESS_INPUT_SAMPLE(0);
+		case PPI_PostProcessInput1:		RETURN_POST_PROCESS_INPUT_SAMPLE(1);
+		case PPI_PostProcessInput2:		RETURN_POST_PROCESS_INPUT_SAMPLE(2);
+		case PPI_PostProcessInput3:		RETURN_POST_PROCESS_INPUT_SAMPLE(3);
+		case PPI_PostProcessInput4:		RETURN_POST_PROCESS_INPUT_SAMPLE(4);
+	#endif // POST_PROCESS_MATERIAL
 		case PPI_DecalMask:				return 0;  // material compiler will return an error
 		case PPI_AmbientOcclusion:		return CalcSceneAO(UV);
 		case PPI_CustomStencil:			return CalcSceneCustomStencil(PixelPos);
 	#if POST_PROCESS_MATERIAL
 		case PPI_Velocity:				return float4(PostProcessVelocityLookup(ConvertToDeviceZ(CalcSceneDepth(UV)), UV), 0, 0);
+	#endif
+	#ifdef POST_PROCESS_PROPAGATE_ALPHA_INPUT
+		case PPI_PropagatedAlpha:		return float4(PropagatedAlpha, 0, 0, 0);
 	#endif
 	}
 

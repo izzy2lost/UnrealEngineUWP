@@ -4615,7 +4615,7 @@ bool UMaterialExpressionObjectRadius::GenerateHLSLExpression(FMaterialHLSLGenera
 	return true;
 }
 
-extern FString CustomExpressionSceneTextureInputFixup(const UMaterialExpressionCustom* Custom, const TCHAR* Code);
+extern FString CustomExpressionSceneTextureInputFixup(const UMaterialExpressionCustom* Custom, const TCHAR* Code, TArray<int8>& OutSceneTextureInfo);
 
 bool UMaterialExpressionCustom::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
@@ -4691,7 +4691,8 @@ bool UMaterialExpressionCustom::GenerateHLSLExpression(FMaterialHLSLGenerator& G
 		FormattedCode.Appendf(TEXT("return %s;"), *Code);
 	}
 
-	FString SceneTextureFixupCode = CustomExpressionSceneTextureInputFixup(this, FormattedCode.Len() ? FormattedCode.ToString() : *Code);
+	TArray<int8> SceneTextureInfoIgnored;
+	FString SceneTextureFixupCode = CustomExpressionSceneTextureInputFixup(this, FormattedCode.Len() ? FormattedCode.ToString() : *Code, SceneTextureInfoIgnored);
 
 	FStringView FunctionCode;
 	if (SceneTextureFixupCode.Len())

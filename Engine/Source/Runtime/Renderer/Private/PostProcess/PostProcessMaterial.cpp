@@ -536,6 +536,10 @@ FPostProcessMaterialParameters* GetPostProcessMaterialParameters(
 
 	PostProcessMaterialParameters->NeuralPostProcessParameters = GetDefaultNeuralPostProcessShaderParameters(GraphBuilder);
 
+	// UserSceneTextureSceneColorInput is used for automatic scene color alpha propagation.  Alpha propagation only occurs if the output is scene color
+	// (meaning not a user scene texture), so set this to INDEX_NONE if writing to a UserSceneTexture output instead.
+	PostProcessMaterialParameters->UserSceneTextureSceneColorInput = Inputs.bUserSceneTextureOutput ? INDEX_NONE : Inputs.UserSceneTextureSceneColorInput;
+
 	return PostProcessMaterialParameters;
 }
 
@@ -764,14 +768,18 @@ FScreenPassTexture AddPostProcessMaterialPass(
 	FScreenPassRenderTarget Output = Inputs.OverrideOutput;
 
 	// We can re-use the scene color texture as the render target if we're not simultaneously reading from it.
-	// This is only necessary to do if we're going to be priming content from the render target since it avoids
-	// the copy. Otherwise, we just allocate a new render target.
 	const bool bValidShaderPlatform = (GMaxRHIShaderPlatform != SP_PCD3D_ES3_1);
-	if (!Output.IsValid() && !MaterialShaderMap->UsesSceneTexture(PPI_PostProcessInput0) && bPrimeOutputColor && !bForceIntermediateTarget && Inputs.bAllowSceneColorInputAsOutput && bValidShaderPlatform && !Inputs.bUserSceneTextureOutput)
+	if (!Output.IsValid() && !MaterialShaderMap->UsesSceneTexture(PPI_PostProcessInput0) && !bForceIntermediateTarget && Inputs.bAllowSceneColorInputAsOutput && bValidShaderPlatform && !Inputs.bUserSceneTextureOutput)
 	{
 		FScreenPassTexture SceneColor = FScreenPassTexture::CopyFromSlice(GraphBuilder, SceneColorOutput);
 
 		Output = FScreenPassRenderTarget(SceneColor, ERenderTargetLoadAction::ELoad);
+
+		// If material doesn't output alpha, and we are writing to an existing scene color, preserve its alpha by masking out writes
+		if (!Material->GetBlendableOutputAlpha())
+		{
+			BlendState = TStaticBlendState<CW_RGB>::GetRHI();
+		}
 	}
 	else
 	{
@@ -1090,9 +1098,9 @@ FScreenPassTexture AddPostProcessMaterialChain(
 			UserSceneTextureOutput = MaterialRenderProxy->GetUserSceneTextureOutput(Material);
 		}
 
-		if (UserSceneTextureOutput.IsNone())
+		if (UserSceneTextureOutput.IsNone() || UserSceneTextureOutput == NAME_SceneColor)
 		{
-			// Doesn't write to a UserSceneTexture, so it writes to the default SceneColor output
+			// If it doesn't write to a UserSceneTexture, it writes to the default SceneColor output (or it could be a UserSceneTexture set to write to SceneColor)
 			LastOutputWrite = Materials[MaterialIndex];
 			break;
 		}
@@ -1157,6 +1165,9 @@ FScreenPassTexture AddPostProcessMaterialChain(
 							// the use of SceneColor as an input is detected by the flags on the original FMaterialShaderMap (accessed via the UsesSceneTexture
 							// function), but those flags won't be set if a UserSceneTexture input is overridden to point at SceneColor.
 							Inputs.bAllowSceneColorInputAsOutput = false;
+
+							// Handle automatic propagation of scene color alpha from a UserSceneTexture input
+							Inputs.UserSceneTextureSceneColorInput = PostProcessIndex + (uint32)PPI_PostProcessInput0;
 						}
 						else
 						{

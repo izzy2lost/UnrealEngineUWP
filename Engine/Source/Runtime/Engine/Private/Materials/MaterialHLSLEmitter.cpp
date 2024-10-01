@@ -432,6 +432,14 @@ static void GetMaterialEnvironment(EShaderPlatform InPlatform,
 	{
 		OutEnvironment.SetDefine(TEXT("NEEDS_SCENE_TEXTURES"), TEXT("1"));
 	}
+
+	// If post process material doesn't already output alpha, and reads from PostProcessInput0 or a UserSceneTexture, enable automatic alpha propagation for SceneColor
+	if (InMaterial.GetMaterialDomain() == MD_PostProcess && InMaterial.GetBlendableOutputAlpha() == false && (MaterialCompilationOutput.IsSceneTextureUsed(PPI_PostProcessInput0) || !MaterialCompilationOutput.UserSceneTextureInputs.IsEmpty()))
+	{
+		OutEnvironment.SetDefine(TEXT("POST_PROCESS_PROPAGATE_ALPHA_INPUT"), MaterialCompilationOutput.IsSceneTextureUsed(PPI_PostProcessInput0) ? TEXT("PPI_PostProcessInput0") : TEXT("UserSceneTextureSceneColorInput"));
+		OutEnvironment.SetDefine(TEXT("POST_PROCESS_USED_SCENE_TEXTURES"), MaterialCompilationOutput.UsedSceneTextures);
+	}
+
 	if (MaterialCompilationOutput.bUsesEyeAdaptation)
 	{
 		OutEnvironment.SetDefine(TEXT("USES_EYE_ADAPTATION"), TEXT("1"));

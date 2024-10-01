@@ -171,6 +171,7 @@ struct FPostProcessMaterialInputs
 
 	bool bUserSceneTextureOutput = false;
 	bool bUserSceneTextureFirstRender = false;
+	uint32 UserSceneTextureSceneColorInput = INDEX_NONE;
 };
 
 class UMaterialInterface;
