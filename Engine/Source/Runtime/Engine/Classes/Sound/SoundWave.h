@@ -1669,7 +1669,7 @@ private:
 #endif //WITH_EDITORONLY_DATA
 	
 #if WITH_EDITOR
-	int32 CurrentChunkRevision;
+	int32 CurrentChunkRevision = 0;
 #endif // #if WITH_EDITOR
 
 	FName NameCached;

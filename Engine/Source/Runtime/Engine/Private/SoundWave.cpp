@@ -231,6 +231,7 @@ void FSoundWaveData::InitializeDataFromSoundWave(USoundWave& InWave)
 
 #if WITH_EDITOR
 	bLoadedFromCookedData = InWave.IsLoadedFromCookedData();
+	CurrentChunkRevision = InWave.CurrentChunkRevision;
 
 	// only necessary to set cue points here in editor 
 	// when the sample rate can change due to platform settings changing
