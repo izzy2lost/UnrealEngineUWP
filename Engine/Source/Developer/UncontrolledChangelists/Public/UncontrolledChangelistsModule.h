@@ -284,6 +284,7 @@ private:
 	TUniquePtr<FAsyncTask<FStartupTask>> StartupTask;
 	FUncontrolledChangelistsStateCache	UncontrolledChangelistsStateCache;
 	TSet<FString>						AddedAssetsCache;
+	FDelegateHandle						OnEnginePreExitDelegateHandle;
 	FDelegateHandle						OnAssetAddedDelegateHandle;
 	FDelegateHandle						OnObjectPreSavedDelegateHandle;
 	FDelegateHandle						OnEndFrameDelegateHandle;
