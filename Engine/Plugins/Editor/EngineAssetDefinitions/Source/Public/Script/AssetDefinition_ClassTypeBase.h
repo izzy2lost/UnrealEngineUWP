@@ -9,7 +9,7 @@
 class IClassTypeActions;
 
 /** Base class for "class type" assets (C++ classes and Blueprints */
-UCLASS(Abstract)
+UCLASS(Abstract, MinimalAPI)
 class UAssetDefinition_ClassTypeBase : public UAssetDefinitionDefault
 {
 	GENERATED_BODY()
@@ -20,7 +20,7 @@ public:
 	{
 		return FAssetSupportResponse::NotSupported();
 	}
-	virtual TSharedPtr<class SWidget> GetThumbnailOverlay(const FAssetData& AssetData) const override;
+	ENGINEASSETDEFINITIONS_API virtual TSharedPtr<class SWidget> GetThumbnailOverlay(const FAssetData& AssetData) const override;
 	// UAssetDefinition End
 
 	/** Get the class type actions for this asset */
