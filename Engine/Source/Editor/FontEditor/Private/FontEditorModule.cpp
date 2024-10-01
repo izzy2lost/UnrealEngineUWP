@@ -6,6 +6,7 @@
 #include "Engine/Font.h"
 #include "Engine/FontFace.h"
 #include "FontEditor.h"
+#include "FontFaceEditor.h"
 #include "FontFaceDetailsCustomization.h"
 #include "HAL/Platform.h"
 #include "Modules/ModuleManager.h"
@@ -63,6 +64,14 @@ public:
 	{
 		TSharedRef<FFontEditor> NewFontEditor(new FFontEditor());
 		NewFontEditor->InitFontEditor(Mode, InitToolkitHost, Font);
+		return NewFontEditor;
+	}
+
+	/** Creates a new Font Face editor */
+	virtual TSharedRef<IFontFaceEditor> CreateFontFaceEditor( const EToolkitMode::Type Mode, const TSharedPtr< IToolkitHost >& InitToolkitHost, UFontFace* FontFace ) override
+	{
+		TSharedRef<FFontFaceEditor> NewFontEditor(new FFontFaceEditor());
+		NewFontEditor->InitFontFaceEditor(Mode, InitToolkitHost, FontFace);
 		return NewFontEditor;
 	}
 
