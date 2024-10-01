@@ -167,6 +167,8 @@ protected:
 
 	// tracking of unlocked stuff
 	static FDelegateHandle GlobalModelingWorldTeardownEventHandle;
+private:
+	bool bIsToolActive = false;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

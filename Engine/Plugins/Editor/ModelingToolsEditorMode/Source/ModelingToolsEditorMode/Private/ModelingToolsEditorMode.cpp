@@ -1472,6 +1472,11 @@ bool UModelingToolsEditorMode::BoxSelect(FBox& InBox, bool InSelect)
 
 bool UModelingToolsEditorMode::FrustumSelect(const FConvexVolume& InFrustum, FEditorViewportClient* InViewportClient, bool InSelect)
 {
+	if (bIsToolActive)
+	{
+		return true; // will signal that Frustum Select does not need to do anything; disables all frustum select when tool is active
+	}
+
 	if (GetMeshElementSelectionSystemEnabled()
 		&& SelectionManager
 		&& SelectionManager->HasActiveTargets() 
@@ -1527,6 +1532,8 @@ void UModelingToolsEditorMode::OnToolStarted(UInteractiveToolManager* Manager, U
 	// the result. This apparently broken behavior is currently by-design.
 	FSlateThrottleManager::Get().DisableThrottle(true);
 
+	bIsToolActive = true;
+
 	FModelingToolActionCommands::UpdateToolCommandBinding(Tool, Toolkit->GetToolkitCommands(), false);
 	
 	if( FEngineAnalytics::IsAvailable() )
@@ -1548,6 +1555,8 @@ void UModelingToolsEditorMode::OnToolEnded(UInteractiveToolManager* Manager, UIn
 {
 	// re-enable slate throttling (see OnToolStarted)
 	FSlateThrottleManager::Get().DisableThrottle(false);
+
+	bIsToolActive = false;
 
 	FModelingToolActionCommands::UpdateToolCommandBinding(Tool, Toolkit->GetToolkitCommands(), true);
 	
