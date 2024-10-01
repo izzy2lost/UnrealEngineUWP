@@ -26,67 +26,17 @@
 namespace UE::MovieScene
 {
 
-TEntitySystemLinkerExtensionID<FEditorViewportLinkerExtension> FEditorViewportLinkerExtension::GetExtensionID()
+struct FSetInitialTransformValues
 {
-	static TEntitySystemLinkerExtensionID<FEditorViewportLinkerExtension> ID = UMovieSceneEntitySystemLinker::RegisterExtension<FEditorViewportLinkerExtension>();
-	return ID;
-}
-
-TSharedPtr<FEditorViewportLinkerExtension> FEditorViewportLinkerExtension::GetOrCreateExtension(UMovieSceneEntitySystemLinker* Linker)
-{
-	if (FEditorViewportLinkerExtension* ViewportExtension = Linker->FindExtension<FEditorViewportLinkerExtension>())
-	{
-		return ViewportExtension->AsShared();
-	}
-
-	TSharedPtr<FEditorViewportLinkerExtension> NewViewportExtension = MakeShared<FEditorViewportLinkerExtension>(Linker);
-	Linker->AddExtension(NewViewportExtension.Get());
-	return NewViewportExtension;
-}
-
-FEditorViewportLinkerExtension::FEditorViewportLinkerExtension(UMovieSceneEntitySystemLinker* Linker)
-	: TSharedEntitySystemLinkerExtension(Linker)
-{
-}
-
-struct FEvaluateViewportTransform
-{
-	TOptional<FTransform> ViewportTransform;
-	const FInstanceRegistry* InstanceRegistry;
+	TOptional<FTransform> TransformToSet;
 	TArray<FMovieSceneEntityID> Entities;
-
-	FEvaluateViewportTransform(const FInstanceRegistry* InInstanceRegistry, const TArray<FMovieSceneEntityID> InEntities)
-		: InstanceRegistry(InInstanceRegistry)
-		, Entities(InEntities)
-	{}
-
-	void PreTask()
-	{
-		ViewportTransform.Reset();
-		if (GEditor)
-		{
-			for (FLevelEditorViewportClient* ViewportClient : GEditor->GetLevelViewportClients())
-			{
-				if (ViewportClient && 
-						ViewportClient->IsPerspective() && 
-						ViewportClient->GetViewMode() != VMI_Unknown &&
-						ViewportClient->AllowsCinematicControl())
-				{
-					ViewportTransform.Emplace(FTransform::Identity);
-					ViewportTransform->SetLocation(ViewportClient->GetViewLocation());
-					ViewportTransform->SetRotation(ViewportClient->GetViewRotation().Quaternion());
-					break;
-				}
-			}
-		}
-	}
 
 	void ForEachAllocation(
 			const FEntityAllocation* Allocation, 
 			FReadEntityIDs EntityIDs,
 			TWrite<FIntermediate3DTransform> InitialTransforms) const
 	{
-		if (!ViewportTransform.IsSet())
+		if (!TransformToSet.IsSet())
 		{
 			return;
 		}
@@ -99,21 +49,65 @@ struct FEvaluateViewportTransform
 			{
 				FIntermediate3DTransform& InitialTransform = InitialTransforms[Index];
 				InitialTransform = FIntermediate3DTransform(
-						ViewportTransform->GetLocation(),
-						ViewportTransform->GetRotation().Rotator(),
-						ViewportTransform->GetScale3D());
+						TransformToSet->GetLocation(),
+						TransformToSet->GetRotation().Rotator(),
+						TransformToSet->GetScale3D());
 			}
 		}
+	}
+};
+
+struct FSetInitialTransformToViewport : FSetInitialTransformValues
+{
+	FSetInitialTransformToViewport(const TArray<FMovieSceneEntityID> InEntities)
+	{
+		Entities = InEntities;
+	}
+
+	void PreTask()
+	{
+		TransformToSet.Reset();
+		if (GEditor)
+		{
+			for (FLevelEditorViewportClient* ViewportClient : GEditor->GetLevelViewportClients())
+			{
+				if (ViewportClient && 
+						ViewportClient->IsPerspective() && 
+						ViewportClient->GetViewMode() != VMI_Unknown &&
+						ViewportClient->AllowsCinematicControl())
+				{
+					TransformToSet.Emplace(FTransform::Identity);
+					TransformToSet->SetLocation(ViewportClient->GetViewLocation());
+					TransformToSet->SetRotation(ViewportClient->GetViewRotation().Quaternion());
+					break;
+				}
+			}
+		}
+	}
+};
+
+struct FSetInitialTransformToOrigin : FSetInitialTransformValues
+{
+	FSetInitialTransformToOrigin(const TArray<FMovieSceneEntityID> InEntities)
+	{
+		Entities = InEntities;
+		TransformToSet = FTransform::Identity;
 	}
 };
 
 }
 
 bool UTemplateSequenceCameraPreviewSystem::bEnableNextFrame = false;
+bool UTemplateSequenceCameraPreviewSystem::bDisableNextFrame = false;
 
 void UTemplateSequenceCameraPreviewSystem::EnableNextFrame()
 {
 	bEnableNextFrame = true;
+}
+
+void UTemplateSequenceCameraPreviewSystem::DisableNextFrame()
+{
+	bDisableNextFrame = true;
 }
 
 UTemplateSequenceCameraPreviewSystem::UTemplateSequenceCameraPreviewSystem(const FObjectInitializer& ObjInit)
@@ -126,21 +120,14 @@ UTemplateSequenceCameraPreviewSystem::UTemplateSequenceCameraPreviewSystem(const
 
 bool UTemplateSequenceCameraPreviewSystem::IsRelevantImpl(UMovieSceneEntitySystemLinker* InLinker) const
 {
-	return bEnableNextFrame;
+	return bEnableNextFrame || bDisableNextFrame;
 }
 
 void UTemplateSequenceCameraPreviewSystem::OnRun(FSystemTaskPrerequisites& InPrerequisites, FSystemSubsequentTasks& Subsequents)
 {
 	using namespace UE::MovieScene;
 
-	// Don't actually run if we don't really want cameras to be additive to viewports.
-	const UTemplateSequenceEditorSettings* Settings = GetDefault<UTemplateSequenceEditorSettings>();
-	if (!Settings->bCameraInitiallyAdditiveToViewport)
-	{
-		return;
-	}
-
-	if (!bEnableNextFrame)
+	if (!(bEnableNextFrame || bDisableNextFrame))
 	{
 		return;
 	}
@@ -259,16 +246,29 @@ void UTemplateSequenceCameraPreviewSystem::OnRun(FSystemTaskPrerequisites& InPre
 				 }
 			});
 
-	FEntityTaskBuilder()
-	.ReadEntityIDs()
-	.Write(TrackComponents->ComponentTransform.InitialValue)
-	.FilterAll({ TrackComponents->ComponentTransform.PropertyTag })
-	.Dispatch_PerAllocation<FEvaluateViewportTransform>(
-			&Linker->EntityManager, InPrerequisites, &Subsequents, InstanceRegistry, EntitiesToTag);
+	if (bEnableNextFrame)
+	{
+		FEntityTaskBuilder()
+		.ReadEntityIDs()
+		.Write(TrackComponents->ComponentTransform.InitialValue)
+		.FilterAll({ TrackComponents->ComponentTransform.PropertyTag })
+		.Dispatch_PerAllocation<FSetInitialTransformToViewport>(
+				&Linker->EntityManager, InPrerequisites, &Subsequents, EntitiesToTag);
+	}
+	else if (bDisableNextFrame)
+	{
+		FEntityTaskBuilder()
+		.ReadEntityIDs()
+		.Write(TrackComponents->ComponentTransform.InitialValue)
+		.FilterAll({ TrackComponents->ComponentTransform.PropertyTag })
+		.Dispatch_PerAllocation<FSetInitialTransformToOrigin>(
+				&Linker->EntityManager, InPrerequisites, &Subsequents, EntitiesToTag);
+	}
 
 	if (!Linker->FindExtension<IInterrogationExtension>())
 	{
 		bEnableNextFrame = false;
+		bDisableNextFrame = false;
 	}
 }
 

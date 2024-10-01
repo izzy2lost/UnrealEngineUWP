@@ -70,7 +70,8 @@ void FCameraAnimationSequenceCustomization::ExtendToolbar(FToolBarBuilder& Toolb
 
 		ToolbarBuilder.AddToolBarButton(
 				FUIAction(
-					FExecuteAction::CreateRaw(this, &FCameraAnimationSequenceCustomization::SetCameraAdditiveToViewportOffset)),
+					FExecuteAction::CreateRaw(this, &FCameraAnimationSequenceCustomization::SetCameraAdditiveToViewportOffset),
+					FCanExecuteAction::CreateRaw(this, &FCameraAnimationSequenceCustomization::CanSetCameraAdditiveToViewportOffset)),
 				NAME_None,
 				FText::GetEmpty(),
 				LOCTEXT("SetCameraAdditiveToViewportOffsetToolTip", "Base Cameras to Current Viewport Transform"),
@@ -118,6 +119,12 @@ void FCameraAnimationSequenceCustomization::ToggleCameraInitiallyAdditiveToViewp
 	UTemplateSequenceEditorSettings* Settings = GetMutableDefault<UTemplateSequenceEditorSettings>();
 	Settings->bCameraInitiallyAdditiveToViewport = !Settings->bCameraInitiallyAdditiveToViewport;
 	Settings->SaveConfig();
+
+	UTemplateSequenceCameraPreviewSystem::DisableNextFrame();
+	if (TSharedPtr<ISequencer> SequencerPtr = GetSequencer())
+	{
+		SequencerPtr->ForceEvaluate();
+	}
 }
 
 bool FCameraAnimationSequenceCustomization::IsCameraInitiallyAdditiveToViewport()
@@ -135,4 +142,10 @@ void FCameraAnimationSequenceCustomization::SetCameraAdditiveToViewportOffset()
 	}
 }
 
+bool FCameraAnimationSequenceCustomization::CanSetCameraAdditiveToViewportOffset()
+{
+	return IsCameraInitiallyAdditiveToViewport();
+}
+
 #undef LOCTEXT_NAMESPACE
+
