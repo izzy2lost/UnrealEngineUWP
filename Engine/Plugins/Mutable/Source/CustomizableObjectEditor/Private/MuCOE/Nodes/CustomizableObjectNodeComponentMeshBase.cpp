@@ -30,3 +30,10 @@ FLinearColor UCustomizableObjectNodeComponentMeshBase::GetNodeTitleColor() const
 	return Schema->GetPinTypeColor(Schema->PC_Component);
 }
 
+bool UCustomizableObjectNodeComponentMeshBase::IsSingleOutputNode() const
+{
+	// todo UE-225446 : By limiting the number of connections this node can have we avoid a check failure. However, this method should be
+	// removed in the future and the inherent issue with 1:n output connections should be fixed in its place
+	return false;
+}
+
