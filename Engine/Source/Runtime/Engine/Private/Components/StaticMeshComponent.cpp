@@ -760,6 +760,22 @@ void UStaticMeshComponent::InitializeComponent()
 
 void UStaticMeshComponent::PostDuplicate(bool bDuplicateForPIE)
 {
+	if (!bDuplicateForPIE && MeshPaintTexture)
+	{
+		UMeshPaintVirtualTexture* NewTexture = nullptr;
+		
+		FImage Image;
+		if (MeshPaintTexture->Source.GetMipImage(Image, 0))
+		{
+			NewTexture = NewObject<UMeshPaintVirtualTexture>(GetOutermost());
+			NewTexture->Source.Init(Image);
+			NewTexture->OwningComponent = MakeWeakObjectPtr(this);
+			NewTexture->UpdateResource();
+		}
+
+		MeshPaintTexture = NewTexture;
+	}
+
 	NotifyIfStaticMeshChanged();
 
 	Super::PostDuplicate(bDuplicateForPIE);
