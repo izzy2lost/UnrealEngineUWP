@@ -98,6 +98,12 @@ public:
 		return ToSoftObjectPath().GetLongPackageName();
 	}
 	
+	/** Returns /package/path name, leaving off the asset name */
+	FORCEINLINE FName GetLongPackageFName() const
+	{
+		return ToSoftObjectPath().GetLongPackageFName();
+	}
+
 	/** Returns assetname string, leaving off the /package/path. part */
 	FORCEINLINE FString GetAssetName() const
 	{
@@ -495,6 +501,12 @@ public:
 		return ToSoftObjectPath().GetLongPackageName();
 	}
 	
+	/** Returns /package/path name, leaving off the asset name */
+	FORCEINLINE FName GetLongPackageFName() const
+	{
+		return ToSoftObjectPath().GetLongPackageFName();
+	}
+
 	/** Returns assetname string, leaving off the /package/path part */
 	FORCEINLINE FString GetAssetName() const
 	{
@@ -851,6 +863,12 @@ public:
 		return ToSoftObjectPath().GetLongPackageName();
 	}
 	
+	/** Returns /package/path name, leaving off the asset name */
+	FORCEINLINE FName GetLongPackageFName() const
+	{
+		return ToSoftObjectPath().GetLongPackageFName();
+	}
+
 	/** Returns assetname string, leaving off the /package/path part */
 	FORCEINLINE FString GetAssetName() const
 	{
