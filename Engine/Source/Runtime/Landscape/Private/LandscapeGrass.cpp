@@ -1023,10 +1023,6 @@ void ULandscapeComponent::RemoveGrassMap()
 	// this ensures if anyone else is accessing the old grassdata (while holding a shared ref to it), it won't be modified or deleted
 	// this is also important for PIE, which can share grassdatas with editor
 	GrassData = MakeShared<FLandscapeComponentGrassData>();
-
-#if WITH_EDITOR
-	GrassData->bIsDirty = true;
-#endif // WITH_EDITOR
 }
 
 void ALandscapeProxy::UpdateGrassTypeSummary()

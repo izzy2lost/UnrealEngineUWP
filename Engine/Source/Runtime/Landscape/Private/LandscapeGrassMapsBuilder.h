@@ -262,6 +262,7 @@ private:
 		void RemoveTextureStreamingRequests(FComponentState& State);
 
 	// state transition helpers
+	void StreamingToNotReady(FComponentState& State);
 	void PendingToNotReady(FComponentState& State);
 	void PendingToPopulatedFastPathAlreadyHasData(FComponentState& State);
 	void PendingToPopulatedFastPathNoGrass(FComponentState& State);

@@ -826,10 +826,6 @@ void FLandscapeGrassWeightExporter::ApplyResults(TMap<ULandscapeComponent*, TUni
 		// Assign the new data (thread-safe)
 		Component->GrassData = MakeShareable(ComponentGrassData);
 
-#if WITH_EDITORONLY_DATA
-		Component->GrassData->bIsDirty = true;
-#endif // WITH_EDITORONLY_DATA
-
 #if WITH_EDITOR
 		if (Proxy->bBakeMaterialPositionOffsetIntoCollision)
 		{

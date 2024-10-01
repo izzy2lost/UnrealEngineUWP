@@ -577,6 +577,17 @@ bool FLandscapeGrassMapsBuilder::UpdateTrackedComponents(const TArray<FVector>& 
 
 			if (State->AreTexturesStreamedIn())
 			{
+#if WITH_EDITOR
+				// in editor the renderability can change unexpectedly -- so check one last time just before we actually render
+				// (in game, we only check at the beginning of kicking off the generation process)
+				if (!UE::Landscape::CanRenderGrassMap(State->Component))
+				{
+					// can't render, move to NotReady state, which will monitor until it is renderable
+					StreamingToNotReady(*State);
+					bChanged= true;
+					continue;
+				}
+#endif // WITH_EDITOR
 				KickOffRenderAndReadback(*State);
 				bRenderCommandsQueuedByLastUpdate = true;
 				bChanged = true;
@@ -1182,6 +1193,18 @@ bool FLandscapeGrassMapsBuilder::StartGrassMapGeneration(FComponentState& State,
 
 	PendingToStreaming(State);
 	return true;
+}
+
+void FLandscapeGrassMapsBuilder::StreamingToNotReady(FComponentState& State)
+{
+	check(StreamingCount > 0);
+	StreamingCount--;
+	RemoveTextureStreamingRequests(State);
+	State.Stage = EComponentStage::NotReady;
+	NotReadyCount++;
+
+	DEBUG_TRANSITION(State, Streaming, NotReady);
+	State.TickCount = 0;
 }
 
 void FLandscapeGrassMapsBuilder::PendingToNotReady(FComponentState& State)
