@@ -14793,17 +14793,18 @@ int32 UMaterialExpressionObjectPositionWS::Compile(class FMaterialCompiler* Comp
 
 void UMaterialExpressionObjectPositionWS::GetCaption(TArray<FString>& OutCaptions) const
 {
+	FString ObjectType = Material->MaterialDomain == MD_LightFunction ? "Light" : "Object";
 	switch (OriginType)
 	{
 		case EPositionOrigin::Absolute:
 		{
-			OutCaptions.Add(TEXT("Object Position (Absolute)"));
+			OutCaptions.Add(FString::Printf(TEXT("%s Position  (Absolute)"), *ObjectType));
 			break;
 		}
 
 		case EPositionOrigin::CameraRelative:
 		{
-			OutCaptions.Add(TEXT("Object Position (Camera Relative)"));
+			OutCaptions.Add(FString::Printf(TEXT("%s Position  (Camera Relative)"), *ObjectType));
 			break;
 		}
 
