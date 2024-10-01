@@ -4348,7 +4348,7 @@ int32 FCsvProfiler::GetNumFrameToCaptureOnEvent() const
 	return CaptureOnEventFrameCount;
 }
 
-const FGuid& FCsvProfiler::GetCsvID()
+const FGuid& FCsvProfiler::GetCsvID() const
 {
 	return CsvGUID;
 }

@@ -424,7 +424,7 @@ public:
 	CORE_API int32 GetCaptureFrameNumber() const;
 	CORE_API int32 GetCaptureFrameNumberRT() const;
 	CORE_API int32 GetNumFrameToCaptureOnEvent() const;
-	CORE_API const FGuid& GetCsvID();
+	CORE_API const FGuid& GetCsvID() const;
 
 	CORE_API bool EnableCategoryByString(const FString& CategoryName) const;
 	CORE_API void EnableCategoryByIndex(uint32 CategoryIndex, bool bEnable) const;
