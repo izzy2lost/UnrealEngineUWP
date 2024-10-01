@@ -6332,7 +6332,7 @@ UAudioComponent* FAudioDevice::CreateComponent(USoundBase* Sound, const FCreateC
 				// Let engine pick the outer (transient package).
 				else
 				{
-					AudioComponent = NewObject<UAudioComponent>((Params.AudioComponentClass != nullptr) ? (UClass*)Params.AudioComponentClass : UAudioComponent::StaticClass());
+					AudioComponent = NewObject<UAudioComponent>(GetTransientPackage(), (Params.AudioComponentClass != nullptr) ? (UClass*)Params.AudioComponentClass : UAudioComponent::StaticClass());
 				}
 
 				check(AudioComponent);
