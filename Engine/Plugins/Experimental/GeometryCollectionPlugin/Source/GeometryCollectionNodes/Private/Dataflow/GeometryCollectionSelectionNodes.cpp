@@ -1280,11 +1280,18 @@ void FCollectionSelectionByAttrDataflowNode::Evaluate(UE::Dataflow::FContext& Co
 		Out->IsA<FDataflowMaterialSelection>(&MaterialSelection))
 	{
 		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		const FName GroupName = UE::Dataflow::Private::GetAttributeFromEnumAsName(Group);
+		FCollectionAttributeKey InAttributeKey = GetValue<FCollectionAttributeKey>(Context, &AttributeKey);
+		FName GroupName = UE::Dataflow::Private::GetAttributeFromEnumAsName(Group);
+		FName AttributeName = FName(Attribute);
+		if (IsConnected(&AttributeKey))
+		{
+			GroupName = FName(InAttributeKey.Group);
+			AttributeName = FName(InAttributeKey.Attribute);
+		}
 
 		if (InCollection.HasGroup(GroupName))
 		{
-			if (InCollection.HasAttribute(FName(*Attribute), GroupName))
+			if (InCollection.HasAttribute(AttributeName, GroupName))
 			{
 				const int32 NumFaces = InCollection.NumElements(GroupName);
 
@@ -1293,16 +1300,16 @@ void FCollectionSelectionByAttrDataflowNode::Evaluate(UE::Dataflow::FContext& Co
 
 				CreateSelectionFromAttr(InCollection,
 					GroupName,
-					FName(*Attribute),
+					AttributeName,
 					Value,
 					Operation,
 					NewSelection);
 
-				SetValue(Context, Group == ESelectionByAttrGroup::Vertices ? MoveTemp(NewSelection) : FDataflowSelection(), &VertexSelection);
-				SetValue(Context, Group == ESelectionByAttrGroup::Faces ? MoveTemp(NewSelection) : FDataflowSelection(), &FaceSelection);
-				SetValue(Context, Group == ESelectionByAttrGroup::Transform ? MoveTemp(NewSelection) : FDataflowSelection(), &TransformSelection);
-				SetValue(Context, Group == ESelectionByAttrGroup::Geometry ? MoveTemp(NewSelection) : FDataflowSelection(), &GeometrySelection);
-				SetValue(Context, Group == ESelectionByAttrGroup::Material ? MoveTemp(NewSelection) : FDataflowSelection(), &MaterialSelection);
+				SetValue(Context, GroupName == UE::Dataflow::Private::GetAttributeFromEnumAsName(ESelectionByAttrGroup::Vertices) ? MoveTemp(NewSelection) : FDataflowSelection(), &VertexSelection);
+				SetValue(Context, GroupName == UE::Dataflow::Private::GetAttributeFromEnumAsName(ESelectionByAttrGroup::Faces) ? MoveTemp(NewSelection) : FDataflowSelection(), &FaceSelection);
+				SetValue(Context, GroupName == UE::Dataflow::Private::GetAttributeFromEnumAsName(ESelectionByAttrGroup::Transform) ? MoveTemp(NewSelection) : FDataflowSelection(), &TransformSelection);
+				SetValue(Context, GroupName == UE::Dataflow::Private::GetAttributeFromEnumAsName(ESelectionByAttrGroup::Geometry) ? MoveTemp(NewSelection) : FDataflowSelection(), &GeometrySelection);
+				SetValue(Context, GroupName == UE::Dataflow::Private::GetAttributeFromEnumAsName(ESelectionByAttrGroup::Material) ? MoveTemp(NewSelection) : FDataflowSelection(), &MaterialSelection);
 
 				return;
 			}

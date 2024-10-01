@@ -49,7 +49,7 @@ struct FScalarVertexPropertyGroup
 	GENERATED_USTRUCT_BODY()
 
 	UPROPERTY(EditAnywhere, Category = "Vertex Group")
-	FName Name;
+	FName Name = FGeometryCollection::VerticesGroup;
 };
 
 

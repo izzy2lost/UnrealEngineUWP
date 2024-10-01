@@ -8,8 +8,9 @@
 #include "Dataflow/DataflowSelection.h"
 #include "Math/MathFwd.h"
 #include "Math/Sphere.h"
-#include "GeometryCollectionSelectionNodes.generated.h"
+#include "Dataflow/DataflowConnectionTypes.h"
 
+#include "GeometryCollectionSelectionNodes.generated.h"
 
 class FGeometryCollection;
 
@@ -1416,6 +1417,10 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
+	/** AttributeKey input */
+	UPROPERTY(meta = (DataflowInput))
+	FCollectionAttributeKey AttributeKey;
+
 	/** Group */
 	UPROPERTY(EditAnywhere, Category = "Selection")
 	ESelectionByAttrGroup Group = ESelectionByAttrGroup::Faces;
@@ -1456,6 +1461,7 @@ public:
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
+		RegisterInputConnection(&AttributeKey);
 		RegisterOutputConnection(&Collection, &Collection);
 		RegisterOutputConnection(&VertexSelection);
 		RegisterOutputConnection(&FaceSelection);
