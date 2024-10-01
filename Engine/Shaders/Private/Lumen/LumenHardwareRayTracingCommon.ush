@@ -655,6 +655,8 @@ struct FLumenHitLightingMaterial
 	float3 ApproxFullyRoughDiffuseColor;
 	float3 DiffuseColor;
 	float3 ApproxFullyRoughSpecularColor;
+
+	float3 RefractedThroughputPreCoverage;
 };
 
 FLumenHitLightingMaterial GetLumenHitLightingMaterial(FPackedMaterialClosestHitPayload PackedPayload, FRayDesc Ray)
@@ -665,6 +667,7 @@ FLumenHitLightingMaterial GetLumenHitLightingMaterial(FPackedMaterialClosestHitP
 	LumenMaterial.ApproxFullyRoughDiffuseColor = 0.0f;
 	LumenMaterial.DiffuseColor = 0.0f;
 	LumenMaterial.ApproxFullyRoughSpecularColor = 0.0f;
+	LumenMaterial.RefractedThroughputPreCoverage = 1.f;
 
 	float3 DiffuseAndSubsurfaceColor = 0.0f;
 	float3 SpecularColor = 0.0f;
@@ -698,6 +701,7 @@ FLumenHitLightingMaterial GetLumenHitLightingMaterial(FPackedMaterialClosestHitP
 		FSubstrateTopLayerData SubstrateTopLayerData = SubstrateUnpackTopLayerData(PackedPayload.SubstrateData.PackedTopLayerData);
 		LumenMaterial.TopLayerRoughness = SubstrateTopLayerData.Roughness;
 		LumenMaterial.TopLayerSpecularColor = SpecularColor;
+		LumenMaterial.RefractedThroughputPreCoverage = PackedPayload.GetTransmittancePreCoverage();
 	}
 	#else
 	{
@@ -750,7 +754,7 @@ FRayTracedLightingResult TraceAndCalculateRayTracedLighting(
 	}
 	#endif
 
-	float RefractionPathThroughput = 1.0f; // TODO: make it colored accounting for coverage and transmittance
+	float3 RefractionPathThroughput = 1.0f;
 	uint RefractionIndex = 0;
 #if RECURSIVE_REFRACTION_TRACES
 	// Refraction are traced as follow due to the lack of a proper path stack:
@@ -761,12 +765,12 @@ FRayTracedLightingResult TraceAndCalculateRayTracedLighting(
 	const float3 RefractionDir = Ray.Direction;				// The refraction direction is set once for all at the beginning. No change of direction as of today.
 	float3 RefractionPos = 0;								// Translated world post
 	bool bStopRefraction = false;
-	for (RefractionIndex = 0; (RefractionPathThroughput >= RefractionPassThroughputThreshold && RefractionIndex < Context.MaxRefractionBounces); ++RefractionIndex)
+	for (RefractionIndex = 0; (any(RefractionPathThroughput >= RefractionPassThroughputThreshold) && RefractionIndex < Context.MaxRefractionBounces); ++RefractionIndex)
 #endif
 	{
 		float ReflectionPathRoughness = 0.0f;
 		float3 ReflectionPathThroughput = 1.0f;
-		float NextRefractionPathVertexThroughput = 1.0f;
+		float3 NextRefractionPathVertexThroughput = 1.0f;
 		for (uint ReflectionBounceIndex = 0; ReflectionBounceIndex < Context.MaxReflectionBounces; ++ReflectionBounceIndex)
 		{
 			float NextReflectionRayAlpha = 0.0f;
@@ -945,12 +949,10 @@ FRayTracedLightingResult TraceAndCalculateRayTracedLighting(
 					{
 						// Update throughput only if hitting a front face or if the material is two sided.
 						// According to opacity
+						// Coverage needs to be factored into the refracted througput with Substrate.
 						NextRefractionPathVertexThroughput = 1.0f - SurfaceCoverage;
 					#if SUBSTRATE_ENABLED
-						// And according to the surface specular transmission.
-						// This is not applied by the legacy shading model, so it is only accounted when Substrate is enabled.
-						const float NoV = saturate(dot(-Ray.Direction, Payload.GetWorldNormal()));
-						NextRefractionPathVertexThroughput *= 1.0 - EnvBRDF(LumenMaterial.TopLayerSpecularColor, LumenMaterial.TopLayerRoughness, NoV).x;
+						NextRefractionPathVertexThroughput += LumenMaterial.RefractedThroughputPreCoverage * SurfaceCoverage;
 					#endif
 					}
 				#endif // RECURSIVE_REFRACTION_TRACES
