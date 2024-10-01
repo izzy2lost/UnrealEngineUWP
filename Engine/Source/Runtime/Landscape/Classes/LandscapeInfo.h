@@ -77,7 +77,7 @@ struct FLandscapeInfoLayerSettings
 	TObjectPtr<UMaterialInstanceConstant> ThumbnailMIC;
 
 	UPROPERTY()
-	TObjectPtr<ALandscapeProxy> Owner;
+	TWeakObjectPtr<ALandscapeProxy> Owner;
 
 	UPROPERTY(transient)
 	int32 DebugColorChannel;
@@ -100,17 +100,7 @@ struct FLandscapeInfoLayerSettings
 
 	LANDSCAPE_API FLandscapeInfoLayerSettings(ULandscapeLayerInfoObject* InLayerInfo, ALandscapeProxy* InProxy);
 
-	FLandscapeInfoLayerSettings(FName InPlaceholderLayerName, ALandscapeProxy* InProxy)
-		: LayerInfoObj(nullptr)
-		, LayerName(InPlaceholderLayerName)
-#if WITH_EDITORONLY_DATA
-		, ThumbnailMIC(nullptr)
-		, Owner(InProxy)
-		, DebugColorChannel(0)
-		, bValid(false)
-#endif
-	{
-	}
+	LANDSCAPE_API FLandscapeInfoLayerSettings(FName InPlaceholderLayerName, ALandscapeProxy* InProxy);
 
 	LANDSCAPE_API FName GetLayerName() const;
 

@@ -2,6 +2,7 @@
 
 #include "LandscapeInfo.h"
 #include "LandscapeLayerInfoObject.h"
+#include "LandscapeProxy.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LandscapeInfo)
 
@@ -15,3 +16,15 @@ LANDSCAPE_API FLandscapeInfoLayerSettings::FLandscapeInfoLayerSettings(ULandscap
 	, bValid(false)
 #endif
 {}
+
+LANDSCAPE_API FLandscapeInfoLayerSettings::FLandscapeInfoLayerSettings(FName InPlaceholderLayerName, ALandscapeProxy* InProxy)
+		: LayerInfoObj(nullptr)
+		, LayerName(InPlaceholderLayerName)
+#if WITH_EDITORONLY_DATA
+		, ThumbnailMIC(nullptr)
+		, Owner(InProxy)
+		, DebugColorChannel(0)
+		, bValid(false)
+#endif
+	{
+	}
