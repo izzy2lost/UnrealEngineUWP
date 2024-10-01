@@ -14,9 +14,11 @@ DEFINE_LOG_CATEGORY(LogNDIMedia);
 class UNDIMediaCapture::FNDICaptureInstance
 {
 public:
-	FNDICaptureInstance(const UNDIMediaOutput* InMediaOutput)
+	FNDICaptureInstance(const TSharedPtr<FNDIMediaRuntimeLibrary>& InNDILib, const UNDIMediaOutput* InMediaOutput)
+		: NDILibHandle(InNDILib)
+		, NDILib(InNDILib ? InNDILib->Lib : nullptr)
 	{
-		if (FNDIMediaModule::NDILib != nullptr)
+		if (NDILib != nullptr)
 		{
 			NDIlib_send_create_t SendDesc;
 
@@ -29,12 +31,12 @@ public:
 			// Clocked video
 			SendDesc.clock_video = true;
 
-			Sender = FNDIMediaModule::NDILib->send_create(&SendDesc);
+			Sender = NDILib->send_create(&SendDesc);
 		}
 
 		if (!Sender)
 		{
-			UE_LOG(LogNDIMedia, Error, TEXT("Failed to create NDI sender."));
+			UE_LOG(LogNDIMedia, Error, TEXT("Failed to create NDI capture."));
 		}
 
 		// Keep track of specified frame rate.
@@ -69,10 +71,10 @@ public:
 		if (Sender)
 		{
 			// Force sync in case some data is still used by the ndi encoder.
-			FNDIMediaModule::NDILib->send_send_video_v2(Sender, nullptr);
+			NDILib->send_send_video_v2(Sender, nullptr);
 
 			// Destroy the NDI sender
-			FNDIMediaModule::NDILib->send_destroy(Sender);
+			NDILib->send_destroy(Sender);
 
 			Sender = nullptr;
 		}
@@ -129,6 +131,9 @@ public:
 	}
 
 public:
+	TSharedPtr<FNDIMediaRuntimeLibrary> NDILibHandle;
+	const NDIlib_v5* NDILib = nullptr;
+	
 	NDIlib_send_instance_t Sender = nullptr;
 	int32 FrameRateNumerator = 30000;
 	int32 FrameRateDenominator = 1001;
@@ -225,7 +230,7 @@ void UNDIMediaCapture::OnFrameCaptured_RenderingThread(const FCaptureBaseData& I
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(NDIlib_send_send_video_async_v2);
 				NDI_video_frame.p_data = VideoFrameBuffer->GetData();
-				FNDIMediaModule::NDILib->send_send_video_async_v2(CaptureInstance->Sender, &NDI_video_frame);
+				CaptureInstance->NDILib->send_send_video_async_v2(CaptureInstance->Sender, &NDI_video_frame);
 			}
 		}
 		else
@@ -233,7 +238,7 @@ void UNDIMediaCapture::OnFrameCaptured_RenderingThread(const FCaptureBaseData& I
 			// send the video synchroneously.
 			TRACE_CPUPROFILER_EVENT_SCOPE(NDIlib_send_send_video_v2);
 			NDI_video_frame.p_data = static_cast<uint8_t*>(InBuffer);
-			FNDIMediaModule::NDILib->send_send_video_v2(CaptureInstance->Sender, &NDI_video_frame);
+			CaptureInstance->NDILib->send_send_video_v2(CaptureInstance->Sender, &NDI_video_frame);
 		}
 	}
 }
@@ -284,10 +289,9 @@ bool UNDIMediaCapture::StartNewCapture()
 		delete CaptureInstance;
 		CaptureInstance = nullptr;
 
-		UNDIMediaOutput* NDIMediaOutput = CastChecked<UNDIMediaOutput>(MediaOutput);
-		if (NDIMediaOutput)
+		if (const UNDIMediaOutput* NDIMediaOutput = Cast<UNDIMediaOutput>(MediaOutput))
 		{
-			CaptureInstance = new FNDICaptureInstance(NDIMediaOutput);
+			CaptureInstance = new FNDICaptureInstance(FNDIMediaModule::GetNDIRuntimeLibrary(), NDIMediaOutput);
 		}
 		else
 		{

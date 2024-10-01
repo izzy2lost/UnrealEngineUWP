@@ -17,6 +17,7 @@ public class NDIMedia : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"CoreUObject",
+				"DeveloperSettings",
 				"Engine",
 				"NDISDK",
 				"Projects",
