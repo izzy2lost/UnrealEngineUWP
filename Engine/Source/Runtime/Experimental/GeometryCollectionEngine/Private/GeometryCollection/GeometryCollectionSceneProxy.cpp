@@ -148,8 +148,7 @@ FGeometryCollectionSceneProxy::FGeometryCollectionSceneProxy(UGeometryCollection
 		}
 	}
 
-	Component->GetRestTransforms(RestTransforms);
-	NumTransforms = RestTransforms.Num();
+	NumTransforms = GeometryCollection? GeometryCollection->NumElements(FTransformCollection::TransformGroup) : 0;
 
 #if GEOMETRYCOLLECTION_EDITOR_SELECTION
 	// Render by SubSection if we are in the rigid body picker.
@@ -190,19 +189,6 @@ FGeometryCollectionSceneProxy::FGeometryCollectionSceneProxy(UGeometryCollection
 		}
 	}
 
-	// Get hidden geometry and zero the associated transforms.
-	Component->GetHiddenTransforms(HiddenTransforms);
-	if (HiddenTransforms.Num())
-	{
-		check(HiddenTransforms.Num() == RestTransforms.Num());
-		for (int32 TransformIndex = 0; TransformIndex < RestTransforms.Num(); ++TransformIndex)
-		{
-			if (HiddenTransforms[TransformIndex])
-			{
-				RestTransforms[TransformIndex] = FMatrix44f(EForceInit::ForceInitToZero);
-			}
-		}
-	}
 #endif
 
 	// #todo(dmp): This flag means that when motion blur is turned on, it will always render geometry collections into the
@@ -267,7 +253,7 @@ void FGeometryCollectionSceneProxy::SetupVertexFactory(FRHICommandListBase& RHIC
 	{
 		Data.BoneMapSRV = MeshResource.BoneMapVertexBuffer.GetSRV();
 		Data.BoneTransformSRV = TransformBuffers[CurrentTransformBufferIndex].VertexBufferSRV;
-		Data.BonePrevTransformSRV = PrevTransformBuffers[CurrentTransformBufferIndex].VertexBufferSRV;
+		Data.BonePrevTransformSRV = Data.BoneTransformSRV; // setup : both prev and crrent are the same 
 	}
 	else
 	{
@@ -295,20 +281,15 @@ void FGeometryCollectionSceneProxy::CreateRenderThreadResources(FRHICommandListB
 	{
 		// Initialize transform buffers and upload rest transforms.
 		TransformBuffers.AddDefaulted(1);
-		PrevTransformBuffers.AddDefaulted(1);
 
 		TransformBuffers[0].NumTransforms = NumTransforms;
-		PrevTransformBuffers[0].NumTransforms = NumTransforms;
 		TransformBuffers[0].InitResource(RHICmdList);
-		PrevTransformBuffers[0].InitResource(RHICmdList);
 
 		const bool bLocalGeometryCollectionTripleBufferUploads = (GGeometryCollectionTripleBufferUploads != 0) && bSupportsTripleBufferVertexUpload;
 		const EResourceLockMode LockMode = bLocalGeometryCollectionTripleBufferUploads ? RLM_WriteOnly_NoOverwrite : RLM_WriteOnly;
 
 		FGeometryCollectionTransformBuffer& TransformBuffer = GetCurrentTransformBuffer();
 		TransformBuffer.UpdateDynamicData(RHICmdList, DynamicData->Transforms, LockMode);
-		FGeometryCollectionTransformBuffer& PrevTransformBuffer = GetCurrentPrevTransformBuffer();
-		PrevTransformBuffer.UpdateDynamicData(RHICmdList, DynamicData->PrevTransforms, LockMode);
 	}
 	else
 	{
@@ -381,7 +362,6 @@ void FGeometryCollectionSceneProxy::DestroyRenderThreadResources()
 		for (int32 i = 0; i < TransformBuffers.Num(); i++)
 		{
 			TransformBuffers[i].ReleaseResource();
-			PrevTransformBuffers[i].ReleaseResource();
 		}
 		TransformBuffers.Reset();
 	}
@@ -426,12 +406,6 @@ void FGeometryCollectionSceneProxy::SetDynamicData_RenderThread(FRHICommandListB
 	{
 		return;
 	}
-	// Early out if if we are applying (non-dynamic) rest transforms over multiple frames.
-	if (!DynamicData->IsDynamic && TransformVertexBuffersContainsRestTransforms)
-	{
-		return;
-	}
-	TransformVertexBuffersContainsRestTransforms = !DynamicData->IsDynamic;
 		
 	if (bSupportsManualVertexFetch)
 	{
@@ -440,14 +414,12 @@ void FGeometryCollectionSceneProxy::SetDynamicData_RenderThread(FRHICommandListB
 		if (bLocalGeometryCollectionTripleBufferUploads && TransformBuffers.Num() == 1)
 		{
 			TransformBuffers.AddDefaulted(2);
-			PrevTransformBuffers.AddDefaulted(2);
+			check(TransformBuffers.Num() == 3);
 
-			for (int32 i = 1; i < 3; i++)
+			for (int32 i = 1; i < TransformBuffers.Num(); i++)
 			{
 				TransformBuffers[i].NumTransforms = NumTransforms;
-				PrevTransformBuffers[i].NumTransforms = NumTransforms;
 				TransformBuffers[i].InitResource(RHICmdList);
-				PrevTransformBuffers[i].InitResource(RHICmdList);
 			}
 		}
 
@@ -462,34 +434,8 @@ void FGeometryCollectionSceneProxy::SetDynamicData_RenderThread(FRHICommandListB
 
 			VertexFactory.SetBoneTransformSRV(TransformBuffer.VertexBufferSRV);
 			VertexFactory.SetBonePrevTransformSRV(PrevTransformBuffer.VertexBufferSRV);
-
-#if WITH_EDITOR
-			// Implement hiding geometry in editor by zeroing the transform.
-			// Could move this to InitDynamicData?
-			if (HiddenTransforms.Num())
-			{
-				for (int32 TransformIndex = 0; TransformIndex < DynamicData->Transforms.Num(); ++TransformIndex)
-				{
-					if (HiddenTransforms[TransformIndex])
-					{
-						DynamicData->Transforms[TransformIndex] = FMatrix44f(EForceInit::ForceInitToZero);
-						DynamicData->PrevTransforms[TransformIndex] = FMatrix44f(EForceInit::ForceInitToZero);
-					}
-				}
-			}
-#endif
-				
-			if (DynamicData->IsDynamic)
-			{
-				TransformBuffer.UpdateDynamicData(RHICmdList, DynamicData->Transforms, LockMode);
-				PrevTransformBuffer.UpdateDynamicData(RHICmdList, DynamicData->PrevTransforms, LockMode);
-			}
-			else
-			{
-				// If we are rendering the base mesh geometry then use RestTransforms for both current and previous transforms.
-				TransformBuffer.UpdateDynamicData(RHICmdList, RestTransforms, LockMode);
-				PrevTransformBuffer.UpdateDynamicData(RHICmdList, RestTransforms, LockMode);
-			}
+	
+			TransformBuffer.UpdateDynamicData(RHICmdList, DynamicData->Transforms, LockMode);
 
 			UpdateLooseParameter(VertexFactory, TransformBuffer.VertexBufferSRV, PrevTransformBuffer.VertexBufferSRV, MeshResource.BoneMapVertexBuffer.GetSRV());
 
@@ -505,7 +451,7 @@ void FGeometryCollectionSceneProxy::SetDynamicData_RenderThread(FRHICommandListB
 	}
 	else
 	{
-		UpdateSkinnedPositions(RHICmdList, DynamicData->IsDynamic ? DynamicData->Transforms : RestTransforms);
+		UpdateSkinnedPositions(RHICmdList, DynamicData->Transforms);
 	}
 
 #if RHI_RAYTRACING
@@ -696,13 +642,8 @@ void FGeometryCollectionSceneProxy::GetDynamicMeshElements(const TArray<const FS
 				continue;
 			}
 
-			// If not dynamic then use the section array with interior fracture surfaces removed.
-			bool bRemoveInternalFaces = DynamicData != nullptr && !DynamicData->IsDynamic && MeshDescription.SectionsNoInternal.Num();
-
-#if WITH_EDITOR
 			// If hiding geometry in editor then we don't remove hidden faces.
-			bRemoveInternalFaces &= HiddenTransforms.Num() == 0;
-#endif
+			const bool bRemoveInternalFaces = false;
 
 #if GEOMETRYCOLLECTION_EDITOR_SELECTION
 			// If using subsections then use the subsection array. 
@@ -833,9 +774,7 @@ void FGeometryCollectionSceneProxy::GetDynamicRayTracingInstances(FRayTracingIns
 
 	SetupVertexFactory(Collector.GetRHICommandList(), GeometryCollectionVertexFactory);
 
-	// If not dynamic then use the section array with interior fracture surfaces removed.
-	const bool bRemoveInternalFaces = DynamicData != nullptr && !DynamicData->IsDynamic && MeshDescription.SectionsNoInternal.Num();
-	TArray<FGeometryCollectionMeshElement> const& SectionArray = bRemoveInternalFaces ? MeshDescription.SectionsNoInternal : MeshDescription.Sections;
+	TArray<FGeometryCollectionMeshElement> const& SectionArray = MeshDescription.Sections;
 
 	UpdatingRayTracingGeometry_RenderingThread(SectionArray);
 
@@ -985,12 +924,10 @@ uint32 FGeometryCollectionSceneProxy::GetAllocatedSize() const
 		+ Materials.GetAllocatedSize()
 		+ MeshDescription.Sections.GetAllocatedSize()
 		+ MeshDescription.SubSections.GetAllocatedSize()
-		+ RestTransforms.GetAllocatedSize()
 		+ (SkinnedPositionVertexBuffer.GetAllowCPUAccess() ? SkinnedPositionVertexBuffer.GetStride() * SkinnedPositionVertexBuffer.GetNumVertices() : 0)
 #if WITH_EDITOR
 		+ BoneColors.GetAllocatedSize()
 		+ (ColorVertexBuffer.GetAllowCPUAccess() ? ColorVertexBuffer.GetStride() * ColorVertexBuffer.GetNumVertices() : 0)
-		+ HiddenTransforms.GetAllocatedSize()
 #endif
 #if GEOMETRYCOLLECTION_EDITOR_SELECTION
 		+ HitProxies.GetAllocatedSize()
@@ -1006,7 +943,6 @@ uint32 FGeometryCollectionSceneProxy::GetAllocatedSize() const
 FNaniteGeometryCollectionSceneProxy::FNaniteGeometryCollectionSceneProxy(UGeometryCollectionComponent* Component)
 : Nanite::FSceneProxyBase(Component)
 , GeometryCollection(Component->GetRestCollection())
-, bCurrentlyInMotion(false)
 , bRequiresGPUSceneUpdate(false)
 , bEnableBoneSelection(false)
 {
@@ -1273,13 +1209,6 @@ uint32 FNaniteGeometryCollectionSceneProxy::GetMemoryFootprint() const
 	return sizeof(*this) + GetAllocatedSize();
 }
 
-void FNaniteGeometryCollectionSceneProxy::OnTransformChanged(FRHICommandListBase& RHICmdList)
-{
-	Super::OnTransformChanged(RHICmdList);
-
-	SetDynamicData_RenderThread(DynamicData, GetLocalToWorld());
-}
-
 void FNaniteGeometryCollectionSceneProxy::GetNaniteResourceInfo(uint32& ResourceID, uint32& HierarchyOffset, uint32& ImposterIndex) const
 {
 	ResourceID = NaniteResourceID;
@@ -1320,77 +1249,66 @@ void FNaniteGeometryCollectionSceneProxy::SetDynamicData_RenderThread(FGeometryC
 		DynamicData = NewDynamicData;
 	}
 
-	// Are we currently simulating?
-	if (NewDynamicData->IsDynamic)
-	{
-		FInstanceSceneDataBuffers::FAccessTag AccessTag(PointerHash(this));
-		FInstanceSceneDataBuffers::FWriteView ProxyData = InstanceSceneDataBuffersImpl.BeginWriteAccess(AccessTag);
-		InstanceSceneDataBuffersImpl.SetPrimitiveLocalToWorld(PrimitiveLocalToWorld, AccessTag);
+	FInstanceSceneDataBuffers::FAccessTag AccessTag(PointerHash(this));
+	FInstanceSceneDataBuffers::FWriteView ProxyData = InstanceSceneDataBuffersImpl.BeginWriteAccess(AccessTag);
+	InstanceSceneDataBuffersImpl.SetPrimitiveLocalToWorld(PrimitiveLocalToWorld, AccessTag);
 
-		const TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> Collection = GeometryCollection->GetGeometryCollection();
-		const TManagedArray<int32>& TransformToGeometryIndices	 = Collection->TransformToGeometryIndex;
-		const TManagedArray<TSet<int32>>& TransformChildren		 = Collection->Children;
-		const TManagedArray<int32>& SimulationType				 = Collection->SimulationType;
+	const TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> Collection = GeometryCollection->GetGeometryCollection();
+	const TManagedArray<int32>& TransformToGeometryIndices	 = Collection->TransformToGeometryIndex;
+	const TManagedArray<TSet<int32>>& TransformChildren		 = Collection->Children;
+	const TManagedArray<int32>& SimulationType				 = Collection->SimulationType;
 
-		const int32 TransformCount = NewDynamicData->Transforms.Num();
-		check(TransformCount == TransformToGeometryIndices.Num());
-		check(TransformCount == TransformChildren.Num());
-		check(TransformCount == NewDynamicData->PrevTransforms.Num());
+	const int32 TransformCount = NewDynamicData->Transforms.Num();
+	check(TransformCount == TransformToGeometryIndices.Num());
+	check(TransformCount == TransformChildren.Num());
 
+	// set the prev by copying the last current
+	ProxyData.PrevInstanceToPrimitiveRelative = ProxyData.InstanceToPrimitiveRelative;
+	bCanSkipRedundantTransformUpdates = false; // shoudl we compare the transform to better decide about this ? 
 
-		ProxyData.InstanceToPrimitiveRelative.Reset(TransformCount);
-		ProxyData.PrevInstanceToPrimitiveRelative.Reset(TransformCount);
-		ProxyData.InstanceLocalBounds.Reset(TransformCount);
-		ProxyData.InstanceHierarchyOffset.Reset(TransformCount);
+	ProxyData.InstanceToPrimitiveRelative.Reset(TransformCount);
+	ProxyData.InstanceLocalBounds.Reset(TransformCount);
+	ProxyData.InstanceHierarchyOffset.Reset(TransformCount);
 		
 #if GEOMETRYCOLLECTION_EDITOR_SELECTION
-		ProxyData.InstanceEditorData.Reset(bEnableBoneSelection ? TransformCount : 0);
+	ProxyData.InstanceEditorData.Reset(bEnableBoneSelection ? TransformCount : 0);
 #endif
 
-		ProxyData.Flags.bHasPerInstanceDynamicData = true;
-		ProxyData.Flags.bHasPerInstanceLocalBounds = true;
-		ProxyData.Flags.bHasPerInstanceHierarchyOffset = true;
+	ProxyData.Flags.bHasPerInstanceDynamicData = true;
+	ProxyData.Flags.bHasPerInstanceLocalBounds = true;
+	ProxyData.Flags.bHasPerInstanceHierarchyOffset = true;
 
-		for (int32 TransformIndex = 0; TransformIndex < TransformCount; ++TransformIndex)
+	for (int32 TransformIndex = 0; TransformIndex < TransformCount; ++TransformIndex)
+	{
+		const int32 TransformToGeometryIndex = TransformToGeometryIndices[TransformIndex];
+		if (SimulationType[TransformIndex] != FGeometryCollection::ESimulationTypes::FST_Rigid)
 		{
-			const int32 TransformToGeometryIndex = TransformToGeometryIndices[TransformIndex];
-			if (SimulationType[TransformIndex] != FGeometryCollection::ESimulationTypes::FST_Rigid)
-			{
-				continue;
-			}
+			continue;
+		}
 
-			const FGeometryNaniteData& NaniteData = GeometryNaniteData[TransformToGeometryIndex];
+		const FGeometryNaniteData& NaniteData = GeometryNaniteData[TransformToGeometryIndex];
+		const FRenderTransform& InstanceToPrimitiveRelative = ProxyData.InstanceToPrimitiveRelative.Emplace_GetRef(InstanceSceneDataBuffersImpl.ComputeInstanceToPrimitiveRelative(NewDynamicData->Transforms[TransformIndex], AccessTag));
 
-			const FRenderTransform& InstanceToPrimitiveRelative = ProxyData.InstanceToPrimitiveRelative.Emplace_GetRef(InstanceSceneDataBuffersImpl.ComputeInstanceToPrimitiveRelative(NewDynamicData->Transforms[TransformIndex], AccessTag));
-
-			FRenderTransform& PrevInstanceToPrimitiveRelative = ProxyData.PrevInstanceToPrimitiveRelative.Emplace_GetRef();
-
-			if (bCurrentlyInMotion)
-			{
-				PrevInstanceToPrimitiveRelative = InstanceSceneDataBuffersImpl.ComputeInstanceToPrimitiveRelative(NewDynamicData->PrevTransforms[TransformIndex], AccessTag);
-			}
-			else
-			{
-				PrevInstanceToPrimitiveRelative = InstanceToPrimitiveRelative;
-			}
-
-			ProxyData.InstanceLocalBounds.Emplace(PadInstanceLocalBounds(NaniteData.LocalBounds));
-			ProxyData.InstanceHierarchyOffset.Emplace(NaniteData.HierarchyOffset);
+		ProxyData.InstanceLocalBounds.Emplace(PadInstanceLocalBounds(NaniteData.LocalBounds));
+		ProxyData.InstanceHierarchyOffset.Emplace(NaniteData.HierarchyOffset);
 			
 #if GEOMETRYCOLLECTION_EDITOR_SELECTION
-			if (bEnableBoneSelection)
-			{
-				ProxyData.InstanceEditorData.Emplace(FInstanceEditorData::Pack(HitProxies[TransformToGeometryIndex]->Id.GetColor(), false));
-			}
-#endif
+		if (bEnableBoneSelection)
+		{
+			ProxyData.InstanceEditorData.Emplace(FInstanceEditorData::Pack(HitProxies[TransformToGeometryIndex]->Id.GetColor(), false));
 		}
-		InstanceSceneDataBuffersImpl.EndWriteAccess(AccessTag);
+#endif
 	}
-	else
+
+	// make sure the previous transform count do match the current one
+	// if not simply use the current as previous
+	if (ProxyData.PrevInstanceToPrimitiveRelative.Num() != ProxyData.InstanceToPrimitiveRelative.Num())
 	{
-		// Rendering base geometry, use rest transforms rather than simulated transforms.
-		// ...
+		ProxyData.PrevInstanceToPrimitiveRelative = ProxyData.InstanceToPrimitiveRelative;
+		bCanSkipRedundantTransformUpdates = true;
 	}
+
+	InstanceSceneDataBuffersImpl.EndWriteAccess(AccessTag);
 }
 
 void FNaniteGeometryCollectionSceneProxy::ResetPreviousTransforms_RenderThread()
@@ -1422,20 +1340,6 @@ void FNaniteGeometryCollectionSceneProxy::FlushGPUSceneUpdate_GameThread()
 		}
 	);
 }
-
-void FNaniteGeometryCollectionSceneProxy::OnMotionBegin()
-{
-	bCurrentlyInMotion = true;
-	bCanSkipRedundantTransformUpdates = false;
-}
-
-void FNaniteGeometryCollectionSceneProxy::OnMotionEnd()
-{
-	bCurrentlyInMotion = false;
-	bCanSkipRedundantTransformUpdates = true;
-	ResetPreviousTransforms_RenderThread();
-}
-
 
 bool FNaniteGeometryCollectionSceneProxy::ShowCollisionMeshes(const FEngineShowFlags& EngineShowFlags) const
 {

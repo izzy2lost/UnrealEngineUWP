@@ -651,7 +651,6 @@ UGeometryCollectionComponent::UGeometryCollectionComponent(const FObjectInitiali
 	, bEnableBoneSelection(false)
 	, IsObjectDynamic(false)
 	, IsObjectLoading(true)
-	, bIsMoving(false)
 	, ViewLevel(-1)
 	, NavmeshInvalidationTimeSliceIndex(0)
 	, ComponentSpaceTransforms(this)
@@ -1126,20 +1125,7 @@ FPrimitiveSceneProxy* UGeometryCollectionComponent::CreateSceneProxy()
 			RestCollection->HasNaniteData() &&
 			GGeometryCollectionNanite != 0)
 		{
-			FNaniteGeometryCollectionSceneProxy* NaniteProxy = new FNaniteGeometryCollectionSceneProxy(this);
-			LocalSceneProxy = NaniteProxy;
-
-			// ForceMotionBlur means we maintain bIsMoving, regardless of actual state.
-			if (bForceMotionBlur)
-			{
-				bIsMoving = true;
-				ENQUEUE_RENDER_COMMAND(NaniteProxyOnMotionEnd)(
-					[NaniteProxy] (FRHICommandListBase&)
-					{
-						NaniteProxy->OnMotionBegin();
-					}
-				);
-			}
+			LocalSceneProxy = new FNaniteGeometryCollectionSceneProxy(this);
 		}
 		else if (RestCollection->HasMeshData())
 		{
@@ -1781,39 +1767,15 @@ void UGeometryCollectionComponent::RestTransformsChanged()
 {
 	if (SceneProxy)
 	{
-		FGeometryCollectionDynamicData* DynamicData = GDynamicDataPool.Allocate();
-		DynamicData->SetPrevTransforms(ComponentSpaceTransforms.RequestAllTransforms());
-
 		OnTransformsDirty();
 
-		DynamicData->SetTransforms(ComponentSpaceTransforms.RequestAllTransforms());
-		DynamicData->IsDynamic = true;
-
 #if WITH_EDITOR
-			// We need to do this in case we're controlled by Sequencer in editor, which doesn't invoke PostEditChangeProperty
-			UpdateCachedBounds();
-			SendRenderTransform_Concurrent();
+		// We need to do this in case we're controlled by Sequencer in editor, which doesn't invoke PostEditChangeProperty
+		UpdateCachedBounds();
+		SendRenderTransform_Concurrent();
 #endif
-		if (SceneProxy->IsNaniteMesh())
-		{
-			FNaniteGeometryCollectionSceneProxy* GeometryCollectionSceneProxy = static_cast<FNaniteGeometryCollectionSceneProxy*>(SceneProxy);
-			ENQUEUE_RENDER_COMMAND(SendRenderDynamicData)(
-				[GeometryCollectionSceneProxy, DynamicData] (FRHICommandListBase&)
-				{
-					GeometryCollectionSceneProxy->SetDynamicData_RenderThread(DynamicData, GeometryCollectionSceneProxy->GetLocalToWorld());
-				}
-			);
-		}
-		else
-		{
-			FGeometryCollectionSceneProxy* GeometryCollectionSceneProxy = static_cast<FGeometryCollectionSceneProxy*>(SceneProxy);
-			ENQUEUE_RENDER_COMMAND(SendRenderDynamicData)(
-				[GeometryCollectionSceneProxy, DynamicData] (FRHICommandListBase& RHICmdList)
-				{
-					GeometryCollectionSceneProxy->SetDynamicData_RenderThread(RHICmdList, DynamicData);
-				}
-			);
-		}
+
+		SendDynamicDataToSceneProxy();
 	}
 	else
 	{
@@ -3221,88 +3183,31 @@ void UGeometryCollectionComponent::GetRestTransforms(TArray<FMatrix44f>& OutRest
 FGeometryCollectionDynamicData* UGeometryCollectionComponent::InitDynamicData(bool bInitialization)
 {
 	SCOPE_CYCLE_COUNTER(STAT_GCInitDynamicData);
+	FGeometryCollectionDynamicData* DynamicData = GDynamicDataPool.Allocate();
+	DynamicData->SetTransforms(ComponentSpaceTransforms.RequestAllTransforms());
 
-	FGeometryCollectionDynamicData* DynamicData = nullptr;
-
-	const bool bEditorMode = bShowBoneColors || bEnableBoneSelection;
-	const bool bIsDynamic  = GetIsObjectDynamic() || bEditorMode || bInitialization;
-
-	if (bIsDynamic)
+#if WITH_EDITOR
+	// zero out transfrom matrices if they are marked to be hidden 
+	if (RestCollection && RestCollection->GetGeometryCollection())
 	{
-		DynamicData = GDynamicDataPool.Allocate();
-		DynamicData->IsDynamic = true;
-		DynamicData->IsLoading = GetIsObjectLoading();
+		static const FName HideAttribute{ "Hide" };
 
-		const TArray<FTransform3f>& CompSpaceTransforms = ComponentSpaceTransforms.RequestAllTransforms();
-
-		// If we have no transforms stored in the dynamic data, then assign both prev and current to the same global matrices
-		// Copy existing global matrices into prev transforms
-		DynamicData->PrevTransforms = DynamicData->Transforms;
-
-		// Copy global matrices over to DynamicData
-		bool bComputeChanges = true;
-
-		// if the number of matrices has changed between frames, then sync previous to current
-		if (CompSpaceTransforms.Num() != DynamicData->PrevTransforms.Num())
+		const FGeometryCollection& Collection = *RestCollection->GetGeometryCollection();
+		if (const TManagedArray<bool>* HideTransforms = Collection.FindAttribute<bool>(HideAttribute, FGeometryCollection::TransformGroup))
 		{
-			DynamicData->SetPrevTransforms(CompSpaceTransforms);
-			DynamicData->ChangedCount = CompSpaceTransforms.Num();
-			bComputeChanges = false; // Optimization to just force all transforms as changed and skip comparison
-		}
-
-		DynamicData->SetTransforms(CompSpaceTransforms);
-
-		// The number of transforms for current and previous should match now
-		check(DynamicData->PrevTransforms.Num() == DynamicData->Transforms.Num());
-
-		if (bComputeChanges)
-		{
-			DynamicData->DetermineChanges();
-		}
-	}
-
-	if (!bEditorMode && !bInitialization)
-	{
-		if (DynamicData && DynamicData->ChangedCount == 0)
-		{
-			GDynamicDataPool.Release(DynamicData);
-			DynamicData = nullptr;
-
-			// Change of state?
-			if (bIsMoving && !bForceMotionBlur)
+			if (DynamicData->Transforms.Num() == HideTransforms->Num())
 			{
-				bIsMoving = false;
-				if (SceneProxy && SceneProxy->IsNaniteMesh())
+				for (int32 TransformIndex = 0; TransformIndex < HideTransforms->Num(); TransformIndex++)
 				{
-					FNaniteGeometryCollectionSceneProxy* NaniteProxy = static_cast<FNaniteGeometryCollectionSceneProxy*>(SceneProxy);
-					ENQUEUE_RENDER_COMMAND(NaniteProxyOnMotionEnd)(
-						[NaniteProxy] (FRHICommandListBase&)
-						{
-							NaniteProxy->OnMotionEnd();
-						}
-					);
-				}
-			}
-		}
-		else
-		{
-			// Change of state?
-			if (!bIsMoving && !bForceMotionBlur)
-			{
-				bIsMoving = true;
-				if (SceneProxy && SceneProxy->IsNaniteMesh())
-				{
-					FNaniteGeometryCollectionSceneProxy* NaniteProxy = static_cast<FNaniteGeometryCollectionSceneProxy*>(SceneProxy);
-					ENQUEUE_RENDER_COMMAND(NaniteProxyOnMotionBegin)(
-						[NaniteProxy] (FRHICommandListBase&)
-						{
-							NaniteProxy->OnMotionBegin();
-						}
-					);
+					if ((*HideTransforms)[TransformIndex])
+					{
+						DynamicData->Transforms[TransformIndex] = FMatrix44f(EForceInit::ForceInitToZero);
+					}
 				}
 			}
 		}
 	}
+#endif
 
 	return DynamicData;
 }
@@ -3335,6 +3240,13 @@ void UGeometryCollectionComponent::OnUpdateTransform(EUpdateTransformFlags Updat
 	if (!bSkipPhysicsUpdate && PhysicsProxy)
 	{
 		PhysicsProxy->SetWorldTransform_External(GetComponentTransform());
+	}
+
+	if (SceneProxy && SceneProxy->IsNaniteMesh())
+	{
+		// Nanite scene proxy requires an render update because it may fail to detect rotation and scale changes in the transform 
+		MarkRenderTransformDirty();
+		MarkRenderDynamicDataDirty();
 	}
 }
 
@@ -4884,59 +4796,43 @@ void UGeometryCollectionComponent::OnDestroyPhysicsState()
 	OnComponentPhysicsStateChanged.Broadcast(this, EComponentPhysicsStateChange::Destroyed);
 }
 
+void UGeometryCollectionComponent::SendDynamicDataToSceneProxy()
+{
+	FGeometryCollectionDynamicData* DynamicData = InitDynamicData();
+	if (SceneProxy && DynamicData)
+	{
+		if (SceneProxy->IsNaniteMesh())
+		{
+			INC_DWORD_STAT_BY(STAT_GCTotalTransforms, DynamicData ? DynamicData->Transforms.Num() : 0);
+
+			const FMatrix RenderMatrix{ GetRenderMatrix() };
+			FNaniteGeometryCollectionSceneProxy* GeometryCollectionSceneProxy = static_cast<FNaniteGeometryCollectionSceneProxy*>(SceneProxy);
+			ENQUEUE_RENDER_COMMAND(SendRenderDynamicData)(
+				[GeometryCollectionSceneProxy, DynamicData, RenderMatrix](FRHICommandListBase&)
+				{
+					GeometryCollectionSceneProxy->SetDynamicData_RenderThread(DynamicData, RenderMatrix);
+				}
+			);
+		}
+		else
+		{
+			FGeometryCollectionSceneProxy* GeometryCollectionSceneProxy = static_cast<FGeometryCollectionSceneProxy*>(SceneProxy);
+			ENQUEUE_RENDER_COMMAND(SendRenderDynamicData)(
+				[GeometryCollectionSceneProxy, DynamicData](FRHICommandListBase& RHICmdList)
+				{
+					GeometryCollectionSceneProxy->SetDynamicData_RenderThread(RHICmdList, DynamicData);
+				}
+			);
+		}
+	}
+}
+
 void UGeometryCollectionComponent::SendRenderDynamicData_Concurrent()
 {
 	//UE_LOG(UGCC_LOG, Log, TEXT("GeometryCollectionComponent[%p]::SendRenderDynamicData_Concurrent()"), this);
 	Super::SendRenderDynamicData_Concurrent();
 
-	// Only update the dynamic data if the dynamic collection is dirty
-	if (SceneProxy && ((DynamicCollection && DynamicCollection->IsDirty()) || CachePlayback))
-	{
-		FGeometryCollectionDynamicData* DynamicData = InitDynamicData(false /* initialization */);
-
-		if (DynamicData || SceneProxy->IsNaniteMesh())
-		{
-			INC_DWORD_STAT_BY(STAT_GCTotalTransforms, DynamicData ? DynamicData->Transforms.Num() : 0);
-			INC_DWORD_STAT_BY(STAT_GCChangedTransforms, DynamicData ? DynamicData->ChangedCount : 0);
-
-			// #todo (bmiller) Once ISMC changes have been complete, this is the best place to call this method
-			// but we can't currently because it's an inappropriate place to call MarkRenderStateDirty on the ISMC.
-			// RefreshEmbeddedGeometry();
-
-			// Enqueue command to send to render thread
-			if (SceneProxy->IsNaniteMesh())
-			{
-				FNaniteGeometryCollectionSceneProxy* GeometryCollectionSceneProxy = static_cast<FNaniteGeometryCollectionSceneProxy*>(SceneProxy);
-				ENQUEUE_RENDER_COMMAND(SendRenderDynamicData)(
-					[GeometryCollectionSceneProxy, DynamicData] (FRHICommandListBase&)
-					{
-						if (DynamicData)
-						{
-							GeometryCollectionSceneProxy->SetDynamicData_RenderThread(DynamicData, GeometryCollectionSceneProxy->GetLocalToWorld());
-						}
-						else
-						{
-							// No longer dynamic, make sure previous transforms are reset
-							GeometryCollectionSceneProxy->ResetPreviousTransforms_RenderThread();
-						}
-					}
-				);
-			}
-			else
-			{
-				FGeometryCollectionSceneProxy* GeometryCollectionSceneProxy = static_cast<FGeometryCollectionSceneProxy*>(SceneProxy);
-				ENQUEUE_RENDER_COMMAND(SendRenderDynamicData)(
-					[GeometryCollectionSceneProxy, DynamicData](FRHICommandListBase& RHICmdList)
-					{
-						if (GeometryCollectionSceneProxy)
-						{
-							GeometryCollectionSceneProxy->SetDynamicData_RenderThread(RHICmdList, DynamicData);
-						}
-					}
-				);
-			}
-		}		
-	}
+	SendDynamicDataToSceneProxy();
 }
 
 void UGeometryCollectionComponent::SetCollisionObjectType(ECollisionChannel Channel)
