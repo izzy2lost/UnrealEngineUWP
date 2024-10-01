@@ -302,6 +302,7 @@ TSharedRef<SDockTab> FTraceInsightsFrontendModule::SpawnConnectionTab(const FSpa
 {
 	const TSharedRef<SDockTab> DockTab = SNew(SLockedTab)
 		.TabRole(ETabRole::MajorTab)
+		.CanEverClose(false)
 		.OnCanCloseTab_Lambda([]() { return false; }); // can't close this tab
 
 	DockTab->SetOnTabClosed(SDockTab::FOnTabClosedCallback::CreateRaw(this, &FTraceInsightsFrontendModule::OnConnectionTabClosed));

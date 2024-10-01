@@ -212,9 +212,13 @@ const FTraceStats& FSessionTraceControllerFilterService::GetStats() const
 
 void FSessionTraceControllerFilterService::Reset()
 {
+	Objects.Empty(Objects.Num());
+
 	bHasStats = false;
 	bHasSettings = false;
 	TraceEndpoint.Empty();
+	ChannelsTimestamp = FDateTime();
+	StatusTimestamp = FDateTime();
 }
 
 void FSessionTraceControllerFilterService::SetInstanceId(const FGuid& Id)

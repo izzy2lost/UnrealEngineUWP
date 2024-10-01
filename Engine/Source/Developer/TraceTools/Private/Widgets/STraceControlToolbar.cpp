@@ -391,6 +391,21 @@ FText STraceControlToolbar::TogglePauseResume_GetTooltip() const
 	return LOCTEXT("PauseTraceTooltip", "Disable all the trace channels and save the channel list so they can be enabled again with the resume command.");
 }
 
+void STraceControlToolbar::SetInstanceId(const FGuid& Id)
+{
+	InstanceId = Id;
+	Reset();
+}
+
+void STraceControlToolbar::Reset()
+{
+	TraceTarget = ETraceTarget::Server;
+	bIsTracing = false;
+	bIsPaused = false;
+	bAreStatNamedEventsEnabled = false;
+	bIsTracingAvailable = false;
+}
+
 } // namespace UE::TraceTools
 
 #undef LOCTEXT_NAMESPACE
