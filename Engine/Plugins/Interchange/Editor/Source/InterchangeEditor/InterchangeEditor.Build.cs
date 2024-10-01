@@ -34,7 +34,11 @@ namespace UnrealBuildTool.Rules
 					"InterchangePipelines",
 					"MessageLog",
 					"SlateCore",
+					"InputCore", // Translator settings customizations
+					"Slate", // Translator settings customizations
 					"ToolMenus",
+					"UnrealUSDWrapper", // UnrealIdentifiers in the USD translator settings customization
+					"USDClasses", // USDProjectSettings, to fetch other material purporses
 				}
 			);
 		}

@@ -7,10 +7,12 @@
 #include "InterchangeEditorLog.h"
 #include "InterchangeFbxAssetImportDataConverter.h"
 #include "InterchangeManager.h"
+#include "InterchangeUsdTranslatorSettingsCustomization.h"
 #include "MessageLogModule.h"
 #include "Misc/App.h"
 #include "Misc/CoreDelegates.h"
 #include "Modules/ModuleManager.h"
+#include "PropertyEditorModule.h"
 #include "Settings/EditorLoadingSavingSettings.h"
 
 #define LOCTEXT_NAMESPACE "InterchangeEditorModule"
@@ -131,6 +133,13 @@ void FInterchangeEditorModule::StartupModule()
 		};
 
 		InterchangeManager.OnPreDestroyInterchangeManager.AddLambda(UnregisterItems);
+
+		// Translator settings customizations
+		FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
+		PropertyModule.RegisterCustomClassLayout(
+			TEXT("InterchangeUsdTranslatorSettings"),
+			FOnGetDetailCustomizationInstance::CreateStatic(&FInterchangeUsdTranslatorSettingsCustomization::MakeInstance)
+		);
 	};
 
 	if (GEngine)
@@ -140,6 +149,15 @@ void FInterchangeEditorModule::StartupModule()
 	else
 	{
 		FCoreDelegates::OnPostEngineInit.AddLambda(RegisterItems);
+	}
+}
+
+void FInterchangeEditorModule::ShutdownModule()
+{
+	//Translator settings customizations
+	if (FPropertyEditorModule* PropertyModule = FModuleManager::GetModulePtr<FPropertyEditorModule>(TEXT("PropertyEditor")))
+	{
+		PropertyModule->UnregisterCustomClassLayout(TEXT("InterchangeUsdTranslatorSettings"));
 	}
 }
 

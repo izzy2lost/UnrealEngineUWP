@@ -56,6 +56,10 @@
 				"Editor",
 				"Program"
 			]
+		},
+		{
+			"Name": "USDCore",
+			"Enabled": true
 		}
 	],
 	"IsExperimentalVersion": false

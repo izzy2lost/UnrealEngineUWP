@@ -35,7 +35,9 @@
 
 #define LOCTEXT_NAMESPACE "MDLUSDShadeMaterialTranslator"
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FName FMdlUsdShadeMaterialTranslator::MdlRenderContext = TEXT("mdl");
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 namespace UE::MDLShadeTranslator::Private
 {
@@ -73,7 +75,7 @@ void FMdlUsdShadeMaterialTranslator::CreateAssets()
 	//   info:mdl:sourceAsset:subIdentifier -> Name of the material in the MDL file
 	//   inputs -> material parameters
 
-	if (Context->RenderContext != MdlRenderContext)
+	if (Context->RenderContext != UnrealIdentifiers::MdlRenderContext)
 	{
 		Super::CreateAssets();
 		return;
@@ -102,7 +104,7 @@ void FMdlUsdShadeMaterialTranslator::CreateAssets()
 		return;
 	}
 
-	const pxr::TfToken MdlToken = UnrealToUsd::ConvertToken(*MdlRenderContext.ToString()).Get();
+	const static pxr::TfToken MdlToken = UnrealToUsd::ConvertToken(*UnrealIdentifiers::MdlRenderContext.ToString()).Get();
 
 	pxr::UsdShadeShader SurfaceShader = ShadeMaterial.ComputeSurfaceSource(MdlToken);
 

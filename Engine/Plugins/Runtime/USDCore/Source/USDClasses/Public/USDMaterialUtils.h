@@ -57,4 +57,8 @@ namespace UsdUnreal::MaterialUtils
 	// Returns whether the Material is one of the UsdPreviewSurface reference materials (which can be reassigned by the
 	// user on a per project basis)
 	USDCLASSES_API bool IsReferencePreviewSurfaceMaterial(const FSoftObjectPath& ReferenceMaterial);
+
+	USDCLASSES_API void RegisterRenderContext(const FName& RenderContextName);
+	USDCLASSES_API void UnregisterRenderContext(const FName& RenderContextName);
+	USDCLASSES_API const TArray<FName>& GetRegisteredRenderContexts();
 };	  // namespace UsdUnreal::MaterialUtils

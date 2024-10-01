@@ -45,7 +45,6 @@ public:
 		LLM_SCOPE_BYTAG(Usd);
 
 		FUsdSchemaTranslatorRegistry& Registry = GetTranslatorRegistry();
-		FUsdRenderContextRegistry& ShaderRegistry = GetRenderContextRegistry();
 
 		// Register the default translators
 		TranslatorHandles = {
@@ -65,7 +64,7 @@ public:
 			Registry.Register<FUsdVolVolumeTranslator>(TEXT("UsdVolVolume"))};
 
 #if WITH_EDITOR
-		ShaderRegistry.Register(UnrealIdentifiers::MaterialXRenderContext);
+		UsdUnreal::MaterialUtils::RegisterRenderContext(UnrealIdentifiers::MaterialXRenderContext);
 		TranslatorHandles.Add(Registry.Register<FMaterialXUsdShadeMaterialTranslator>(TEXT("UsdShadeMaterial")));
 
 		// Creating skeletal meshes technically works in Standalone mode, but by checking for this we artificially block it
@@ -73,18 +72,18 @@ public:
 		// static meshes, at least.
 		if (GIsEditor)
 		{
-			TranslatorHandles.Append({
-				Registry.Register<FUsdSkelSkeletonTranslator>(TEXT("UsdSkelSkeleton")),
-				Registry.Register<FUsdGroomTranslator>(TEXT("UsdGeomXformable")),
-				// The GeometryCacheTranslator also works on UsdGeomXformable through the GroomTranslator
-				Registry.Register<FUsdGeometryCacheTranslator>(TEXT("UsdGeomMesh")),
-				// It doesn't seem possible to create SoundWave assets at runtime at the moment, for whatever reason
-				Registry.Register<FUsdMediaSpatialAudioTranslator>(TEXT("UsdMediaSpatialAudio"))
-			});
+			TranslatorHandles.Append(
+				{Registry.Register<FUsdSkelSkeletonTranslator>(TEXT("UsdSkelSkeleton")),
+				 Registry.Register<FUsdGroomTranslator>(TEXT("UsdGeomXformable")),
+				 // The GeometryCacheTranslator also works on UsdGeomXformable through the GroomTranslator
+				 Registry.Register<FUsdGeometryCacheTranslator>(TEXT("UsdGeomMesh")),
+				 // It doesn't seem possible to create SoundWave assets at runtime at the moment, for whatever reason
+				 Registry.Register<FUsdMediaSpatialAudioTranslator>(TEXT("UsdMediaSpatialAudio"))}
+			);
 
 			if (IMDLImporterModule* MDLImporterModule = FModuleManager::Get().LoadModulePtr<IMDLImporterModule>(TEXT("MDLImporter")))
 			{
-				ShaderRegistry.Register(FMdlUsdShadeMaterialTranslator::MdlRenderContext);
+				UsdUnreal::MaterialUtils::RegisterRenderContext(UnrealIdentifiers::MdlRenderContext);
 				TranslatorHandles.Add(Registry.Register<FMdlUsdShadeMaterialTranslator>(TEXT("UsdShadeMaterial")));
 			}
 		}
@@ -98,7 +97,6 @@ public:
 	virtual void ShutdownModule() override
 	{
 		FUsdSchemaTranslatorRegistry& Registry = GetTranslatorRegistry();
-		FUsdRenderContextRegistry& ShaderRegistry = GetRenderContextRegistry();
 
 		for (const FRegisteredSchemaTranslatorHandle& TranslatorHandle : TranslatorHandles)
 		{
@@ -106,8 +104,8 @@ public:
 		}
 
 #if USE_USD_SDK && WITH_EDITOR
-		ShaderRegistry.Unregister(FMdlUsdShadeMaterialTranslator::MdlRenderContext);
-		ShaderRegistry.Unregister(UnrealIdentifiers::MaterialXRenderContext);
+		UsdUnreal::MaterialUtils::UnregisterRenderContext(UnrealIdentifiers::MdlRenderContext);
+		UsdUnreal::MaterialUtils::UnregisterRenderContext(UnrealIdentifiers::MaterialXRenderContext);
 #endif	  // WITH_EDITOR
 	}
 
@@ -116,14 +114,19 @@ public:
 		return UsdSchemaTranslatorRegistry;
 	}
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	virtual FUsdRenderContextRegistry& GetRenderContextRegistry() override
 	{
 		return UsdRenderContextRegistry;
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 protected:
 	FUsdSchemaTranslatorRegistry UsdSchemaTranslatorRegistry;
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FUsdRenderContextRegistry UsdRenderContextRegistry;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	TArray<FRegisteredSchemaTranslatorHandle> TranslatorHandles;
 };

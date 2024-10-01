@@ -555,9 +555,12 @@ namespace UnrealIdentifiers
 	// The character used to separate property namespaces (usually just ':')
 	extern UNREALUSDWRAPPER_API FString UsdNamespaceDelimiter;
 
-#if WITH_EDITOR
+	extern UNREALUSDWRAPPER_API const FName UniversalRenderContext; // Likely the empty string
+	extern UNREALUSDWRAPPER_API const FName UnrealRenderContext;
 	extern UNREALUSDWRAPPER_API const FName MaterialXRenderContext;
-#endif
+	extern UNREALUSDWRAPPER_API const FName MdlRenderContext;
+
+	extern UNREALUSDWRAPPER_API const FString UniversalRenderContextDisplayString; // "universal"
 
 }	 // namespace UnrealIdentifiers
 

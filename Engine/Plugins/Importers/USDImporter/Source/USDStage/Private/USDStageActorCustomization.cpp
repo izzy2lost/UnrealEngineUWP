@@ -4,8 +4,8 @@
 
 #include "USDStageActorCustomization.h"
 
+#include "USDMaterialUtils.h"
 #include "USDProjectSettings.h"
-#include "USDSchemasModule.h"
 #include "USDSchemaTranslator.h"
 #include "USDStageActor.h"
 
@@ -53,16 +53,14 @@ void FUsdStageActorCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailL
 
 	CurrentActor->OnStageChanged.AddSP(this, &FUsdStageActorCustomization::ForceRefreshDetails);
 
-	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
-
 	RenderContextComboBoxItems.Reset();
 	TSharedPtr<FString> InitiallySelectedContext;
-	for (const FName& Context : UsdSchemasModule.GetRenderContextRegistry().GetRenderContexts())
+	for (const FName& Context : UsdUnreal::MaterialUtils::GetRegisteredRenderContexts())
 	{
 		TSharedPtr<FString> ContextStr;
-		if (Context == NAME_None)
+		if (Context == UnrealIdentifiers::UniversalRenderContext)
 		{
-			ContextStr = MakeShared<FString>(TEXT("universal"));
+			ContextStr = MakeShared<FString>(UnrealIdentifiers::UniversalRenderContextDisplayString);
 		}
 		else
 		{
@@ -291,7 +289,8 @@ void FUsdStageActorCustomization::OnComboBoxSelectionChanged(TSharedPtr<FString>
 		FText::FromString(NewContext.IsValid() ? *NewContext : TEXT("None"))
 	));
 
-	FName NewContextName = (*NewContext) == TEXT("universal") ? NAME_None : FName(**NewContext);
+	FName NewContextName = (*NewContext) == UnrealIdentifiers::UniversalRenderContextDisplayString ? UnrealIdentifiers::UniversalRenderContext
+																								   : FName(**NewContext);
 
 	CurrentActor->SetRenderContext(NewContextName);
 }

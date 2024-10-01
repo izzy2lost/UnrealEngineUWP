@@ -925,6 +925,7 @@ AUsdStageActor::AUsdStageActor()
 	, bShareAssetsForIdenticalPrims(true)
 	, PurposesToLoad((int32)EUsdPurpose::Proxy)
 	, NaniteTriangleThreshold((uint64)1000000)
+	, RenderContext(UnrealIdentifiers::UnrealRenderContext)
 	, MaterialPurpose(*UnrealIdentifiers::MaterialPreviewPurpose)
 	, RootMotionHandling(EUsdRootMotionHandling::NoAdditionalRootMotion)
 	, SubdivisionLevel(0)
@@ -951,9 +952,6 @@ AUsdStageActor::AUsdStageActor()
 	// package and we are the only strong reference to them, so the lifetime works out about the same, except we get to keep them during
 	// some transitions like reinstantiation.
 	// c.f. doc comment on FRecompilationTracker for more info.
-
-	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
-	RenderContext = UsdSchemasModule.GetRenderContextRegistry().GetUnrealRenderContext();
 
 	// This is marked as a subobject now or else instances of blueprints that derive the AUsdStageActor don't get new transactors created
 	// for them

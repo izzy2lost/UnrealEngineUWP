@@ -738,7 +738,7 @@ namespace UE::InterchangeUsdTranslator::Private
 			}
 		};
 
-		FString RenderContext = TranslatorSettings ? TranslatorSettings->RenderContext.ToString() : FString();
+		FName RenderContext = TranslatorSettings ? TranslatorSettings->RenderContext : UnrealIdentifiers::UniversalRenderContext;
 
 		// Check for any references of MaterialX
 #if WITH_EDITOR
@@ -790,8 +790,7 @@ namespace UE::InterchangeUsdTranslator::Private
 		}
 #endif	  // WITH_EDITOR
 
-		const static FName UnrealName = *UsdToUnreal::ConvertToken(UnrealIdentifiers::Unreal);
-		if (RenderContext == UnrealName)
+		if (RenderContext == UnrealIdentifiers::UnrealRenderContext)
 		{
 			UE_LOG(
 				LogUsd,
@@ -801,7 +800,7 @@ namespace UE::InterchangeUsdTranslator::Private
 				),
 				*PrimPath
 			);
-			RenderContext = FString{};
+			RenderContext = UnrealIdentifiers::UniversalRenderContext;
 		}
 
 		UInterchangeMaterialInstanceNode* MaterialNode = NewObject<UInterchangeMaterialInstanceNode>(&NodeContainer);
@@ -814,7 +813,7 @@ namespace UE::InterchangeUsdTranslator::Private
 		SetMaterialSlotDependencies();
 
 		UsdToUnreal::FUsdPreviewSurfaceMaterialData MaterialData;
-		const bool bSuccess = UsdToUnreal::ConvertMaterial(Prim, MaterialData, TranslatorSettings ? *RenderContext : nullptr);
+		const bool bSuccess = UsdToUnreal::ConvertMaterial(Prim, MaterialData, *RenderContext.ToString());
 
 		// Set all the parameter values to the interchange node
 		bool bHasUDIMTexture = false;
@@ -2335,7 +2334,7 @@ namespace UE::InterchangeUsdTranslator::Private
 
 UInterchangeUsdTranslatorSettings::UInterchangeUsdTranslatorSettings()
 	: GeometryPurpose((int32)(EUsdPurpose::Default | EUsdPurpose::Proxy | EUsdPurpose::Render | EUsdPurpose::Guide))
-	, RenderContext(NAME_None)	  // Default to the universal render context for now as we don't support 'unreal' yet anyway
+	, RenderContext(UnrealIdentifiers::UniversalRenderContext)	  // Default to the universal render context for now as we don't support 'unreal' yet
 	, MaterialPurpose(*UnrealIdentifiers::MaterialPreviewPurpose)
 	, InterpolationType(EUsdInterpolationType::Linear)
 	, bOverrideStageOptions(false)
@@ -2428,8 +2427,9 @@ bool UInterchangeUSDTranslator::Translate(UInterchangeBaseNodeContainer& NodeCon
 	// really do anything anyway as the module doesn't use IMPLEMENT_MODULE_USD!
 	// Luckily we can get around this here because pxr::TfToken doesn't allocate on its own: At most USD makes a copy of the string, which it should
 	// allocate/deallocate on its own allocator.
-	MeshOptions.RenderContext = Settings->RenderContext.IsNone() ? pxr::UsdShadeTokens->universalRenderContext
-																 : pxr::TfToken{TCHAR_TO_ANSI(*Settings->RenderContext.ToString())};
+	MeshOptions.RenderContext = Settings->RenderContext == UnrealIdentifiers::UniversalRenderContext
+									? pxr::UsdShadeTokens->universalRenderContext
+									: pxr::TfToken{TCHAR_TO_ANSI(*Settings->RenderContext.ToString())};
 	MeshOptions.MaterialPurpose = Settings->MaterialPurpose.IsNone() ? pxr::UsdShadeTokens->allPurpose
 																	 : pxr::TfToken{TCHAR_TO_ANSI(*Settings->MaterialPurpose.ToString())};
 
