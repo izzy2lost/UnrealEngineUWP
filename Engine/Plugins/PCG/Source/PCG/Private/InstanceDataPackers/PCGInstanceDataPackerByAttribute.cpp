@@ -48,7 +48,21 @@ void UPCGInstanceDataPackerByAttribute::PackInstances_Implementation(FPCGContext
 	for (const FPCGAttributePropertyInputSelector& Selector : AttributeSelectors)
 	{
 		TUniquePtr<const IPCGAttributeAccessor> Accessor = PCGAttributeAccessorHelpers::CreateConstAccessor(InSpatialData, Selector);
-		TUniquePtr<const IPCGAttributeAccessorKeys> Keys = MakeUnique<FPCGAttributeAccessorKeysEntries>(InstanceList.InstancesMetadataEntry);
+		TUniquePtr<const IPCGAttributeAccessorKeys> Keys;
+		const UPCGPointData* PointData = InstanceList.PointData.Get();
+		TArray<const PCGMetadataEntryKey> ExtractedKeys;
+		
+		if (InSpatialData == PointData)
+		{
+			Keys = MakeUnique<const FPCGAttributeAccessorKeysPointsSubset>(PointData->GetPoints(), InstanceList.InstancesIndices);
+		}
+		else
+		{
+			// Convert indices to entry keys
+			ExtractedKeys.Reserve(InstanceList.InstancesIndices.Num());
+			Algo::Transform(InstanceList.InstancesIndices, ExtractedKeys, [](const int32 Index) -> PCGMetadataEntryKey{ return Index; });
+			Keys = MakeUnique<const FPCGAttributeAccessorKeysEntries>(ExtractedKeys);
+		}
 
 		if (!Accessor.IsValid() || !Keys.IsValid())
 		{

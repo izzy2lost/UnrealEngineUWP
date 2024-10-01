@@ -22,7 +22,7 @@ public:
 	virtual bool GetAttributeNames(TArray<FName>* OutNames) override;
 
 public:
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = InstanceDataPacker, meta = (PCG_DiscardPropertySelection))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = InstanceDataPacker)
 	TArray<FPCGAttributePropertyInputSelector> AttributeSelectors;
 
 #if WITH_EDITORONLY_DATA

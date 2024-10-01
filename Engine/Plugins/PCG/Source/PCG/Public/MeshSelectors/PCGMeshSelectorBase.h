@@ -3,6 +3,7 @@
 #pragma once
 
 #include "PCGPoint.h"
+#include "Data/PCGPointData.h"
 #include "MeshSelectors/PCGISMDescriptor.h"
 #include "Metadata/PCGMetadata.h"
 
@@ -24,12 +25,20 @@ struct FPCGMeshInstanceList
 {
 	GENERATED_BODY()
 
-	FPCGMeshInstanceList() = default;
-
+	// Note: We need to explicitly disable warnings on these constructors/operators for clang to be happy with deprecated variables
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	explicit FPCGMeshInstanceList(const FPCGSoftISMComponentDescriptor& InDescriptor)
 		: Descriptor(InDescriptor)
 		, AttributePartitionIndex(INDEX_NONE)
 	{}
+	
+	FPCGMeshInstanceList() = default;
+	~FPCGMeshInstanceList() = default;
+	FPCGMeshInstanceList(const FPCGMeshInstanceList&) = default;
+	FPCGMeshInstanceList(FPCGMeshInstanceList&&) = default;
+	FPCGMeshInstanceList& operator=(const FPCGMeshInstanceList&) = default;
+	FPCGMeshInstanceList& operator=(FPCGMeshInstanceList&&) = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	UPROPERTY(EditAnywhere, Category = Settings)
 	FPCGSoftISMComponentDescriptor Descriptor;
@@ -37,11 +46,20 @@ struct FPCGMeshInstanceList
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	TArray<FTransform> Instances;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
-	TArray<int64> InstancesMetadataEntry;
-
 	/** Tracks which partition the instance list belongs to. */
 	int64 AttributePartitionIndex;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	TWeakObjectPtr<const UPCGPointData> PointData;
+	
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	TArray<int32> InstancesIndices;
+
+#if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.5, "Use PointData + InstanceIndices instead.")
+	UPROPERTY(meta = (DeprecatedProperty))
+	TArray<int64> InstancesMetadataEntry;
+#endif // WITH_EDITORONLY_DATA
 };
 
 UENUM()

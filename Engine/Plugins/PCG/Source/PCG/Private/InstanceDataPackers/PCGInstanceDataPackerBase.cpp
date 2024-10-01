@@ -4,6 +4,7 @@
 
 #include "PCGElement.h"
 #include "Elements/Metadata/PCGMetadataElementCommon.h"
+#include "MeshSelectors/PCGMeshSelectorBase.h"
 #include "Metadata/PCGMetadata.h"
 #include "Metadata/Accessors/IPCGAttributeAccessor.h"
 #include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
@@ -63,8 +64,10 @@ void UPCGInstanceDataPackerBase::PackCustomDataFromAttributes(const FPCGMeshInst
 
 void UPCGInstanceDataPackerBase::PackCustomDataFromAttributes(const FPCGMeshInstanceList& InstanceList, const TArray<const FPCGMetadataAttributeBase*>& Attributes, FPCGPackedCustomData& OutPackedCustomData) const
 {
-	for(uint64 PointMetadataEntry : InstanceList.InstancesMetadataEntry)
+	const UPCGPointData* PointData = InstanceList.PointData.Get();
+	for (const int32 Index : InstanceList.InstancesIndices)
 	{
+		const PCGMetadataEntryKey EntryKey = PointData ? PointData->GetPoints()[Index].MetadataEntry : Index;
 		for (const FPCGMetadataAttributeBase* AttributeBase : Attributes)
 		{
 			check(AttributeBase);
@@ -76,7 +79,7 @@ void UPCGInstanceDataPackerBase::PackCustomDataFromAttributes(const FPCGMeshInst
 				const FPCGMetadataAttribute<bool>* Attribute = static_cast<const FPCGMetadataAttribute<bool>*>(AttributeBase);
 				check(Attribute);
 
-				const bool Value = Attribute->GetValueFromItemKey(PointMetadataEntry);
+				const bool Value = Attribute->GetValueFromItemKey(EntryKey);
 				OutPackedCustomData.CustomData.Add(Value);
 				break;
 			}
@@ -85,7 +88,7 @@ void UPCGInstanceDataPackerBase::PackCustomDataFromAttributes(const FPCGMeshInst
 				const FPCGMetadataAttribute<float>* Attribute = static_cast<const FPCGMetadataAttribute<float>*>(AttributeBase);
 				check(Attribute);
 
-				const float Value = Attribute->GetValueFromItemKey(PointMetadataEntry);
+				const float Value = Attribute->GetValueFromItemKey(EntryKey);
 				OutPackedCustomData.CustomData.Add(Value);
 				break;
 			}
@@ -94,7 +97,7 @@ void UPCGInstanceDataPackerBase::PackCustomDataFromAttributes(const FPCGMeshInst
 				const FPCGMetadataAttribute<double>* Attribute = static_cast<const FPCGMetadataAttribute<double>*>(AttributeBase);
 				check(Attribute);
 
-				const double Value = Attribute->GetValueFromItemKey(PointMetadataEntry);
+				const double Value = Attribute->GetValueFromItemKey(EntryKey);
 				OutPackedCustomData.CustomData.Add(Value);
 				break;
 			}
@@ -103,7 +106,7 @@ void UPCGInstanceDataPackerBase::PackCustomDataFromAttributes(const FPCGMeshInst
 				const FPCGMetadataAttribute<int32>* Attribute = static_cast<const FPCGMetadataAttribute<int32>*>(AttributeBase);
 				check(Attribute);
 
-				const float Value = static_cast<float>(Attribute->GetValueFromItemKey(PointMetadataEntry));
+				const float Value = static_cast<float>(Attribute->GetValueFromItemKey(EntryKey));
 				OutPackedCustomData.CustomData.Add(Value);
 				break;
 			}
@@ -112,7 +115,7 @@ void UPCGInstanceDataPackerBase::PackCustomDataFromAttributes(const FPCGMeshInst
 				const FPCGMetadataAttribute<int64>* Attribute = static_cast<const FPCGMetadataAttribute<int64>*>(AttributeBase);
 				check(Attribute);
 
-				const float Value = static_cast<float>(Attribute->GetValueFromItemKey(PointMetadataEntry));
+				const float Value = static_cast<float>(Attribute->GetValueFromItemKey(EntryKey));
 				OutPackedCustomData.CustomData.Add(Value);
 				break;
 			}
@@ -121,7 +124,7 @@ void UPCGInstanceDataPackerBase::PackCustomDataFromAttributes(const FPCGMeshInst
 				const FPCGMetadataAttribute<FRotator>* Attribute = static_cast<const FPCGMetadataAttribute<FRotator>*>(AttributeBase);
 				check(Attribute);
 
-				const FRotator Value = Attribute->GetValueFromItemKey(PointMetadataEntry);
+				const FRotator Value = Attribute->GetValueFromItemKey(EntryKey);
 				OutPackedCustomData.CustomData.Add(Value.Roll);
 				OutPackedCustomData.CustomData.Add(Value.Pitch);
 				OutPackedCustomData.CustomData.Add(Value.Yaw);
@@ -132,7 +135,7 @@ void UPCGInstanceDataPackerBase::PackCustomDataFromAttributes(const FPCGMeshInst
 				const FPCGMetadataAttribute<FVector2D>* Attribute = static_cast<const FPCGMetadataAttribute<FVector2D>*>(AttributeBase);
 				check(Attribute);
 
-				const FVector2D Value = Attribute->GetValueFromItemKey(PointMetadataEntry);
+				const FVector2D Value = Attribute->GetValueFromItemKey(EntryKey);
 				OutPackedCustomData.CustomData.Add(Value.X);
 				OutPackedCustomData.CustomData.Add(Value.Y);
 				break;
@@ -142,7 +145,7 @@ void UPCGInstanceDataPackerBase::PackCustomDataFromAttributes(const FPCGMeshInst
 				const FPCGMetadataAttribute<FVector>* Attribute = static_cast<const FPCGMetadataAttribute<FVector>*>(AttributeBase);
 				check(Attribute);
 
-				const FVector Value = Attribute->GetValueFromItemKey(PointMetadataEntry);
+				const FVector Value = Attribute->GetValueFromItemKey(EntryKey);
 				OutPackedCustomData.CustomData.Add(Value.X);
 				OutPackedCustomData.CustomData.Add(Value.Y);
 				OutPackedCustomData.CustomData.Add(Value.Z);
@@ -153,7 +156,7 @@ void UPCGInstanceDataPackerBase::PackCustomDataFromAttributes(const FPCGMeshInst
 				const FPCGMetadataAttribute<FVector4>* Attribute = static_cast<const FPCGMetadataAttribute<FVector4>*>(AttributeBase);
 				check(Attribute);
 
-				const FVector4 Value = Attribute->GetValueFromItemKey(PointMetadataEntry);
+				const FVector4 Value = Attribute->GetValueFromItemKey(EntryKey);
 				OutPackedCustomData.CustomData.Add(Value.X);
 				OutPackedCustomData.CustomData.Add(Value.Y);
 				OutPackedCustomData.CustomData.Add(Value.Z);
@@ -165,7 +168,7 @@ void UPCGInstanceDataPackerBase::PackCustomDataFromAttributes(const FPCGMeshInst
 				const FPCGMetadataAttribute<FQuat>* Attribute = static_cast<const FPCGMetadataAttribute<FQuat>*>(AttributeBase);
 				check(Attribute);
 
-				const FQuat Value = Attribute->GetValueFromItemKey(PointMetadataEntry);
+				const FQuat Value = Attribute->GetValueFromItemKey(EntryKey);
 				OutPackedCustomData.CustomData.Add(Value.X);
 				OutPackedCustomData.CustomData.Add(Value.Y);
 				OutPackedCustomData.CustomData.Add(Value.Z);
