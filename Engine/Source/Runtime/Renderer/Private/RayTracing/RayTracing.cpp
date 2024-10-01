@@ -1350,6 +1350,13 @@ namespace RayTracing
 			// TODO: Debug Visualization to highlight primitives using this?
 			const bool bNeedDecalInstance = RelevantPrimitive.CachedMeshCommandFlags.bAnySegmentsDecal && !ShouldExcludeDecals();
 
+			// skip if not needed for main or decal - default values for bAllSegmentsDecal is true because it's updated with & op for added cached segments
+			// but if there are no cached command indices then default value of true is kept but bAnySegmentsDecal will false as well then.
+			if (!bNeedMainInstance && !bNeedDecalInstance)
+			{
+				continue;
+			}
+
 			if (ShouldExcludeDecals() && RelevantPrimitive.CachedMeshCommandFlags.bAllSegmentsDecal)
 			{
 				continue;
