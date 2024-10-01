@@ -85,14 +85,32 @@ void UCEClonerLayoutBase::LoadLayout()
 		return;
 	}
 
-	if (LayoutAssetPath.IsEmpty())
+	// System already cached and available with matching version
+	if (NiagaraSystem)
 	{
-		return;
+		if (CachedVersion == ECEClonerLayoutAssetVersion::LatestVersion)
+		{
+			UE_LOG(LogCEClonerLayoutBase, Verbose, TEXT("%s : Cloner layout %s using cached system V%i"), *GetClonerActor()->GetActorNameOrLabel(), *LayoutName.ToString(), CachedVersion)
+
+			CacheMeshRenderer();
+			OnSystemLoaded();
+			return;
+		}
+
+		UE_LOG(LogCEClonerLayoutBase, Warning, TEXT("%s : Cloner layout %s skipping cached system V%i due to version mismatch V%i"), *GetClonerActor()->GetActorNameOrLabel(), *LayoutName.ToString(), CachedVersion, ECEClonerLayoutAssetVersion::LatestVersion)
+
+		NiagaraSystem->MarkAsGarbage();
+		NiagaraSystem = nullptr;
 	}
 
 	const UCEClonerComponent* ClonerComponent = GetClonerComponent();
 
 	if (!IsValid(ClonerComponent))
+	{
+		return;
+	}
+
+	if (LayoutAssetPath.IsEmpty())
 	{
 		return;
 	}
@@ -148,18 +166,14 @@ bool UCEClonerLayoutBase::UnloadLayout()
 	}
 
 	MeshRenderer->Meshes.Empty();
-	NiagaraSystem->RemoveFromRoot();
 #if WITH_EDITOR
+	MeshRenderer->OnMeshChanged();
+	MeshRenderer->OnChanged().Broadcast();
 	NiagaraSystem->KillAllActiveCompilations();
 #endif
-
-	// Prevent GC Leak
-	UPackage* Package = NiagaraSystem->GetPackage();
-	Package->ClearFlags(RF_Standalone);
-	Package->MarkAsGarbage();
+	NiagaraSystem->RemoveFromRoot();
 
 	MeshRenderer = nullptr;
-	NiagaraSystem = nullptr;
 
 	UE_LOG(LogCEClonerLayoutBase, Verbose, TEXT("%s : Cloner layout unloaded %s"), *GetClonerActor()->GetActorNameOrLabel(), *LayoutName.ToString())
 
@@ -280,6 +294,20 @@ void UCEClonerLayoutBase::PostEditImport()
 {
 	Super::PostEditImport();
 
+	// After cloner duplication in editor, niagara system should not be duplicated but still is,
+	// so look for it in outer chain otherwise it will trigger a world GC leak when switching level
+
+	TArray<UObject*> OwnedObjects;
+	GetObjectsWithOuter(this, OwnedObjects, false);
+
+	for (UObject* OwnedObject : OwnedObjects)
+	{
+		if (OwnedObject && OwnedObject->IsA<UNiagaraSystem>())
+		{
+			OwnedObject->MarkAsGarbage();
+		}
+	}
+
 	MarkLayoutDirty();
 }
 
@@ -306,22 +334,34 @@ void UCEClonerLayoutBase::OnSystemPackageLoaded(const FName& InName, UPackage* I
 	{
 		InPackage->SetFlags(RF_Transient);
 		NiagaraSystem->RemoveFromRoot();
-		NiagaraSystem->ClearFlags(RF_Standalone);
+		NiagaraSystem->ClearFlags(RF_Standalone | RF_Public | RF_Transient | RF_Transactional);
 
-		CacheMeshRenderer();
+		constexpr ERenameFlags RenameFlags = REN_NonTransactional | REN_DontCreateRedirectors;
+		if (NiagaraSystem->Rename(nullptr, this, RenameFlags))
+		{
+			CachedVersion = ECEClonerLayoutAssetVersion::LatestVersion;
+			CacheMeshRenderer();
+		}
+
+		InPackage->MarkAsGarbage();
 	}
 
+	OnSystemLoaded();
+}
+
+void UCEClonerLayoutBase::OnSystemLoaded()
+{
 	const bool bLayoutLoaded = IsLayoutLoaded();
 
 	if (bLayoutLoaded)
 	{
-		UE_LOG(LogCEClonerLayoutBase, Verbose, TEXT("%s : Cloner layout loaded %s - Template system %s - Package %s"), *GetClonerActor()->GetActorNameOrLabel(), *LayoutName.ToString(), *LayoutAssetPath, *InName.ToString())
+		UE_LOG(LogCEClonerLayoutBase, Verbose, TEXT("%s : Cloner layout loaded %s - Template system %s"), *GetClonerActor()->GetActorNameOrLabel(), *LayoutName.ToString(), *LayoutAssetPath)
 
 		OnLayoutLoaded();
 	}
 	else
 	{
-		UE_LOG(LogCEClonerLayoutBase, Warning, TEXT("%s : Cloner layout load failed %s - Template system %s - Package %s"), *GetClonerActor()->GetActorNameOrLabel(), *LayoutName.ToString(), *LayoutAssetPath, *InName.ToString())
+		UE_LOG(LogCEClonerLayoutBase, Warning, TEXT("%s : Cloner layout load failed %s - Template system %s"), *GetClonerActor()->GetActorNameOrLabel(), *LayoutName.ToString(), *LayoutAssetPath)
 	}
 
 	OnClonerLayoutLoadedDelegate.Broadcast(this, bLayoutLoaded);

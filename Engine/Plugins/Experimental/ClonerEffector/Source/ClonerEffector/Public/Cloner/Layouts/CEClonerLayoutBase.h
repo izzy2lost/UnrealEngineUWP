@@ -12,6 +12,16 @@ class UCEClonerExtensionBase;
 class UNiagaraMeshRendererProperties;
 class UNiagaraSystem;
 
+UENUM()
+enum class ECEClonerLayoutAssetVersion : uint8
+{
+	PreVersioning = 0,
+	/** Niagara System is now cached to improve loading time */
+	CachedVersion,
+	LatestVersionPlusOne,
+	LatestVersion = LatestVersionPlusOne - 1
+};
+
 /**
  * Base class for layouts available in the cloner actor
  * Steps to add a new layout :
@@ -141,6 +151,7 @@ private:
 
 	/** Called when the system package was async loaded */
 	void OnSystemPackageLoaded(const FName& InName, UPackage* InPackage, EAsyncLoadingResult::Type InResult);
+	void OnSystemLoaded();
 
 	/** Finds and cache first mesh renderer in emitter */
 	void CacheMeshRenderer();
@@ -161,15 +172,21 @@ private:
 	UPROPERTY(Transient)
 	FString LayoutAssetPath;
 
-	/** Niagara system representing this layout */
-	UPROPERTY(Transient, DuplicateTransient)
+	/** Niagara system used for this layout, cached to save some time */
+	UPROPERTY(DuplicateTransient, TextExportTransient)
 	TObjectPtr<UNiagaraSystem> NiagaraSystem;
 
 	/** Mesh renderer in this niagara system */
-	UPROPERTY(Transient, DuplicateTransient)
+	UPROPERTY(Transient, DuplicateTransient, TextExportTransient)
 	TObjectPtr<UNiagaraMeshRendererProperties> MeshRenderer;
 
+	/** Version of the cached system for diffs */
+	UPROPERTY(DuplicateTransient, TextExportTransient)
+	ECEClonerLayoutAssetVersion CachedVersion = ECEClonerLayoutAssetVersion::PreVersioning;
+
+	/** Id for the load request initiated */
 	int32 LoadRequestIdentifier = INDEX_NONE;
 
+	/** Status for this layout */
 	ECEClonerSystemStatus LayoutStatus = ECEClonerSystemStatus::UpToDate;
 };
