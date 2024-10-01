@@ -508,6 +508,12 @@ namespace UnrealBuildTool
 
 			// always select the driver g++ in-case we are using a different binary for clang, such as clang/clang-cl
 			Arguments.Add("--driver-mode=g++");
+
+			if (Options.HasFlag(ClangToolChainOptions.CompressDebugFile))
+			{
+				Arguments.Add("-gz=zlib");
+			}
+
 			if (ShouldUseLibcxx())
 			{
 				Arguments.Add("-nostdinc++");
@@ -648,6 +654,11 @@ namespace UnrealBuildTool
 			// always select the driver g++ in-case we are using a different binary for clang, such as clang/clang-cl
 			Arguments.Add("--driver-mode=g++");
 			Arguments.Add((BuildHostPlatform.Current.Platform == UnrealTargetPlatform.Win64) ? "-fuse-ld=lld.exe" : "-fuse-ld=lld");
+
+			if (Options.HasFlag(ClangToolChainOptions.CompressDebugFile))
+			{
+				Arguments.Add("-Wl,--compress-debug-sections=zlib");
+			}
 
 			// debugging symbols
 			// Applying to all configurations @FIXME: temporary hack for FN to enable callstack in Shipping builds (proper resolution: UEPLAT-205)
@@ -896,6 +907,11 @@ namespace UnrealBuildTool
 			else
 			{
 				Logger.LogInformation("Using fast way to relink  circularly dependent libraries (no FixDeps).");
+			}
+
+			if (Options.HasFlag(ClangToolChainOptions.CompressDebugFile))
+			{
+				Logger.LogInformation("Compressing debug files");
 			}
 
 			Logger.LogInformation("Targeted minimum CPU architecture: {0}", (CompileEnvironment.Architecture == UnrealArch.X64) ? CompileEnvironment.MinCpuArchX64 : "default");

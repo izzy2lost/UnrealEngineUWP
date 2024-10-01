@@ -119,6 +119,11 @@ namespace UnrealBuildTool
 		/// Supported only on some platforms.
 		/// </summary>
 		OptimizeForDebugging = 1 << 19,
+
+		/// <summary>
+		/// Enables compressing the debug sections if the platform supports this
+		/// </summary>
+		CompressDebugFile = 1 << 20,
 	}
 
 	abstract class ClangToolChain : ISPCToolChain

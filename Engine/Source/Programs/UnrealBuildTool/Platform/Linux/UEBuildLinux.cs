@@ -672,6 +672,11 @@ namespace UnrealBuildTool
 				Options |= ClangToolChainOptions.UseAutoRTFMCompiler;
 			}
 
+			if (Target.bCompressDebugFile)
+			{
+				Options |= ClangToolChainOptions.CompressDebugFile;
+			}
+
 			if (Target.LinuxPlatform.bTuneDebugInfoForLLDB)
 			{
 				Options |= ClangToolChainOptions.TuneDebugInfoForLLDB;
