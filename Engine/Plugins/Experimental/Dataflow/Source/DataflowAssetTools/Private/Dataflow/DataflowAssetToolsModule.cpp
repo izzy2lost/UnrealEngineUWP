@@ -3,7 +3,7 @@
 #include "Features/IModularFeatures.h"
 #include "Modules/ModuleManager.h"
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	class FDataflowAssetToolsModule : public IModuleInterface
 	{
@@ -19,4 +19,4 @@ namespace Dataflow
 	};
 }
 
-IMPLEMENT_MODULE(Dataflow::FDataflowAssetToolsModule, DataflowAssetTools);
+IMPLEMENT_MODULE(UE::Dataflow::FDataflowAssetToolsModule, DataflowAssetTools);

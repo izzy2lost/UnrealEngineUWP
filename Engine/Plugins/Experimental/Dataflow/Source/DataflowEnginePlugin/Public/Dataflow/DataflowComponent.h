@@ -10,7 +10,7 @@
 
 #include "DataflowComponent.generated.h"
 
-namespace Dataflow { class IDataflowConstructionViewMode; }
+namespace UE::Dataflow { class IDataflowConstructionViewMode; }
 
 /**
 *	UDataflowComponent
@@ -45,7 +45,7 @@ public:
 	const TArray<const UDataflowEdNode*>& GetRenderTargets() const {return RenderTargets;}
 
 	/** Context */
-	void SetContext(TSharedPtr<Dataflow::FContext> InContext) { Context = InContext; }
+	void SetContext(TSharedPtr<UE::Dataflow::FContext> InContext) { Context = InContext; }
 
 	/** RenderCollection */
 	void SetRenderingCollection(FManagedArrayCollection&& InCollection);
@@ -67,13 +67,13 @@ public:
 	/* View mode */
 	// NOTE: Currently UDataflowComponent is not used in the Dataflow Editor. Instead the FDataflowConstructionScene converts the FRenderingFacade to a UDynamicMeshComponent.
 	// If we do start using UDataflowComponent we will need to update the current View Mode as it's changed using this function.
-	void SetViewMode(const Dataflow::IDataflowConstructionViewMode* InViewMode)
+	void SetViewMode(const UE::Dataflow::IDataflowConstructionViewMode* InViewMode)
 	{
 		ViewMode = InViewMode;
 	}
 
 private:
-	TSharedPtr<Dataflow::FContext> Context;
+	TSharedPtr<UE::Dataflow::FContext> Context;
 	TArray<const UDataflowEdNode*> RenderTargets;
 	TObjectPtr< const UDataflow> Dataflow;
 	FManagedArrayCollection RenderCollection;
@@ -83,6 +83,6 @@ private:
 	bool bBoundsNeedsUpdate = true;
 	FBoxSphereBounds BoundingBox = FBoxSphereBounds(ForceInitToZero);
 	FDataflowSelectionState SelectionState = FDataflowSelectionState(FDataflowSelectionState::EMode::DSS_Dataflow_None);
-	const Dataflow::IDataflowConstructionViewMode* ViewMode;
+	const UE::Dataflow::IDataflowConstructionViewMode* ViewMode;
 };
 

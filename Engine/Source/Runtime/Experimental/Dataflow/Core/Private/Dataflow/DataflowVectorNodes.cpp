@@ -5,7 +5,7 @@
 #include "Dataflow/DataflowNodeFactory.h"
 #include "Dataflow/DataflowNodeColorsRegistry.h"
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void RegisterDataflowVectorNodes()
 	{
@@ -28,7 +28,7 @@ namespace Dataflow
 
 //-----------------------------------------------------------
 
-FDataflowVectorMakeVec2Node::FDataflowVectorMakeVec2Node(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowVectorMakeVec2Node::FDataflowVectorMakeVec2Node(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&X);
@@ -38,7 +38,7 @@ FDataflowVectorMakeVec2Node::FDataflowVectorMakeVec2Node(const Dataflow::FNodePa
 	SetOutputConcreteType<FVector2D>(&Vector2D);
 }
 
-void FDataflowVectorMakeVec2Node::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDataflowVectorMakeVec2Node::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Vector2D))
 	{
@@ -50,7 +50,7 @@ void FDataflowVectorMakeVec2Node::Evaluate(Dataflow::FContext& Context, const FD
 
 //-----------------------------------------------------------
 
-FDataflowVectorMakeVec3Node::FDataflowVectorMakeVec3Node(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowVectorMakeVec3Node::FDataflowVectorMakeVec3Node(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&X);
@@ -61,7 +61,7 @@ FDataflowVectorMakeVec3Node::FDataflowVectorMakeVec3Node(const Dataflow::FNodePa
 	SetOutputConcreteType<FVector>(&Vector3D);
 }
 
-void FDataflowVectorMakeVec3Node::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDataflowVectorMakeVec3Node::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Vector3D))
 	{
@@ -74,7 +74,7 @@ void FDataflowVectorMakeVec3Node::Evaluate(Dataflow::FContext& Context, const FD
 
 //-----------------------------------------------------------
 
-FDataflowVectorMakeVec4Node::FDataflowVectorMakeVec4Node(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowVectorMakeVec4Node::FDataflowVectorMakeVec4Node(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&X);
@@ -86,7 +86,7 @@ FDataflowVectorMakeVec4Node::FDataflowVectorMakeVec4Node(const Dataflow::FNodePa
 	SetOutputConcreteType<FVector4>(&Vector4D);
 }
 
-void FDataflowVectorMakeVec4Node::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDataflowVectorMakeVec4Node::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Vector4D))
 	{
@@ -100,7 +100,7 @@ void FDataflowVectorMakeVec4Node::Evaluate(Dataflow::FContext& Context, const FD
 
 //-----------------------------------------------------------
 
-FDataflowVectorBreakNode::FDataflowVectorBreakNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowVectorBreakNode::FDataflowVectorBreakNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&V);
@@ -116,7 +116,7 @@ FDataflowVectorBreakNode::FDataflowVectorBreakNode(const Dataflow::FNodeParamete
 	SetOutputConcreteType<double>(&W);
 }
 
-void FDataflowVectorBreakNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDataflowVectorBreakNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&X))
 	{
@@ -138,7 +138,7 @@ void FDataflowVectorBreakNode::Evaluate(Dataflow::FContext& Context, const FData
 
 //-----------------------------------------------------------
 
-FDataflowVectorAddNode::FDataflowVectorAddNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowVectorAddNode::FDataflowVectorAddNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&A);
@@ -149,7 +149,7 @@ FDataflowVectorAddNode::FDataflowVectorAddNode(const Dataflow::FNodeParameters& 
 
 }
 
-void FDataflowVectorAddNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDataflowVectorAddNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&V))
 	{
@@ -161,7 +161,7 @@ void FDataflowVectorAddNode::Evaluate(Dataflow::FContext& Context, const FDatafl
 
 //-----------------------------------------------------------
 
-FDataflowVectorSubtractNode::FDataflowVectorSubtractNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowVectorSubtractNode::FDataflowVectorSubtractNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&A);
@@ -172,7 +172,7 @@ FDataflowVectorSubtractNode::FDataflowVectorSubtractNode(const Dataflow::FNodePa
 
 }
 
-void FDataflowVectorSubtractNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDataflowVectorSubtractNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&V))
 	{
@@ -184,7 +184,7 @@ void FDataflowVectorSubtractNode::Evaluate(Dataflow::FContext& Context, const FD
 
 //-----------------------------------------------------------
 
-FDataflowVectorDotProductNode::FDataflowVectorDotProductNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowVectorDotProductNode::FDataflowVectorDotProductNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&A);
@@ -194,7 +194,7 @@ FDataflowVectorDotProductNode::FDataflowVectorDotProductNode(const Dataflow::FNo
 	SetOutputConcreteType<double>(&DotProduct);
 }
 
-void FDataflowVectorDotProductNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDataflowVectorDotProductNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&DotProduct))
 	{
@@ -207,7 +207,7 @@ void FDataflowVectorDotProductNode::Evaluate(Dataflow::FContext& Context, const 
 
 //-----------------------------------------------------------
 
-FDataflowVectorLengthNode::FDataflowVectorLengthNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowVectorLengthNode::FDataflowVectorLengthNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&V);
@@ -216,7 +216,7 @@ FDataflowVectorLengthNode::FDataflowVectorLengthNode(const Dataflow::FNodeParame
 	SetOutputConcreteType<double>(&Length);
 }
 
-void FDataflowVectorLengthNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDataflowVectorLengthNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Length))
 	{
@@ -228,7 +228,7 @@ void FDataflowVectorLengthNode::Evaluate(Dataflow::FContext& Context, const FDat
 
 //-----------------------------------------------------------
 
-FDataflowVectorSquaredLengthNode::FDataflowVectorSquaredLengthNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowVectorSquaredLengthNode::FDataflowVectorSquaredLengthNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&V);
@@ -237,7 +237,7 @@ FDataflowVectorSquaredLengthNode::FDataflowVectorSquaredLengthNode(const Dataflo
 	SetOutputConcreteType<double>(&SquaredLength);
 }
 
-void FDataflowVectorSquaredLengthNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDataflowVectorSquaredLengthNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&SquaredLength))
 	{
@@ -249,7 +249,7 @@ void FDataflowVectorSquaredLengthNode::Evaluate(Dataflow::FContext& Context, con
 
 //-----------------------------------------------------------
 
-FDataflowVectorDistanceNode::FDataflowVectorDistanceNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowVectorDistanceNode::FDataflowVectorDistanceNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&A);
@@ -259,7 +259,7 @@ FDataflowVectorDistanceNode::FDataflowVectorDistanceNode(const Dataflow::FNodePa
 	SetOutputConcreteType<double>(&Distance);
 }
 
-void FDataflowVectorDistanceNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDataflowVectorDistanceNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Distance))
 	{
@@ -273,7 +273,7 @@ void FDataflowVectorDistanceNode::Evaluate(Dataflow::FContext& Context, const FD
 
 //-----------------------------------------------------------
 
-FDataflowVectorCrossProductNode::FDataflowVectorCrossProductNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowVectorCrossProductNode::FDataflowVectorCrossProductNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&A);
@@ -283,7 +283,7 @@ FDataflowVectorCrossProductNode::FDataflowVectorCrossProductNode(const Dataflow:
 	SetOutputConcreteType<FVector>(&CrossProduct);
 }
 
-void FDataflowVectorCrossProductNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDataflowVectorCrossProductNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&CrossProduct))
 	{
@@ -297,7 +297,7 @@ void FDataflowVectorCrossProductNode::Evaluate(Dataflow::FContext& Context, cons
 
 //-----------------------------------------------------------
 
-FDataflowVectorScaleNode::FDataflowVectorScaleNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowVectorScaleNode::FDataflowVectorScaleNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	Scale.Value = 1.0; // set default
@@ -306,7 +306,7 @@ FDataflowVectorScaleNode::FDataflowVectorScaleNode(const Dataflow::FNodeParamete
 	RegisterOutputConnection(&Scaled);
 }
 
-void FDataflowVectorScaleNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDataflowVectorScaleNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Scaled))
 	{
@@ -337,14 +337,14 @@ bool FDataflowVectorScaleNode::OnOutputTypeChanged(const FDataflowOutput* Output
 
 //-----------------------------------------------------------
 
-FDataflowVectorNormalize::FDataflowVectorNormalize(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowVectorNormalize::FDataflowVectorNormalize(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&V);
 	RegisterOutputConnection(&Normalized);
 }
 
-void FDataflowVectorNormalize::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDataflowVectorNormalize::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Normalized))
 	{

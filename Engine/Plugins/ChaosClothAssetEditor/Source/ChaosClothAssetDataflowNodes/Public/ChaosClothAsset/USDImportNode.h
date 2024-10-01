@@ -23,7 +23,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "USD Import", Meta = (DisplayName = "USD File"))
 	FChaosClothAssetImportFilePath UsdFile;
 
-	FChaosClothAssetUSDImportNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetUSDImportNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	friend struct FChaosClothAssetUSDImportNode_v2;  // For ImportFromFile
@@ -37,8 +37,8 @@ private:
 		class FText& OutErrorText);
 
 	//~ Begin FDataflowNode interface
-	virtual void SetAssetValue(TObjectPtr<UObject> Asset, Dataflow::FContext& Context) const override;
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void SetAssetValue(TObjectPtr<UObject> Asset, UE::Dataflow::FContext& Context) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 	virtual void Serialize(FArchive& Archive) override;
 	//~ End FDataflowNode interface
 

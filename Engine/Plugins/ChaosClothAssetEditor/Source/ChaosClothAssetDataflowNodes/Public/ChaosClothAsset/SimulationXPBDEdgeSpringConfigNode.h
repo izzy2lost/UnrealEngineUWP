@@ -32,7 +32,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "XPBDEdgeSpring Properties", Meta = (UIMin = "0", UIMax = "10", ClampMin = "0", ClampMax = "1000"))
 	FChaosClothAssetWeightedValue XPBDEdgeSpringDamping = { true, 1.f, 1.f, TEXT("XPBDEdgeSpringDamping") };
 
-	FChaosClothAssetSimulationXPBDEdgeSpringConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetSimulationXPBDEdgeSpringConfigNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;

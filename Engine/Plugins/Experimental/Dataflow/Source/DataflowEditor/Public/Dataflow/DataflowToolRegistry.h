@@ -11,7 +11,7 @@ class UInteractiveToolBuilder;
 class FUICommandList;
 class UInteractiveTool;
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	class DATAFLOWEDITOR_API FDataflowToolRegistry
 	{
@@ -60,3 +60,4 @@ namespace Dataflow
 	};
 
 }
+

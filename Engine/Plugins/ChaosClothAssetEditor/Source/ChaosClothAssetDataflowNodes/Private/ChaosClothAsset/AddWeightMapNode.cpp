@@ -149,7 +149,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }
 
-FChaosClothAssetAddWeightMapNode::FChaosClothAssetAddWeightMapNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetAddWeightMapNode::FChaosClothAssetAddWeightMapNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowTerminalNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
@@ -163,7 +163,7 @@ FChaosClothAssetAddWeightMapNode::FChaosClothAssetAddWeightMapNode(const Dataflo
 	RegisterOutputConnection(&Name);
 }
 
-void FChaosClothAssetAddWeightMapNode::SetAssetValue(TObjectPtr<UObject> Asset, Dataflow::FContext& Context) const
+void FChaosClothAssetAddWeightMapNode::SetAssetValue(TObjectPtr<UObject> Asset, UE::Dataflow::FContext& Context) const
 {
 	using namespace UE::Chaos::ClothAsset;
 
@@ -171,7 +171,7 @@ void FChaosClothAssetAddWeightMapNode::SetAssetValue(TObjectPtr<UObject> Asset, 
 	{
 		if (UDataflow* const DataflowAsset = ClothAsset->GetDataflow())
 		{
-			const TSharedPtr<Dataflow::FGraph, ESPMode::ThreadSafe> Dataflow = DataflowAsset->GetDataflow();
+			const TSharedPtr<UE::Dataflow::FGraph, ESPMode::ThreadSafe> Dataflow = DataflowAsset->GetDataflow();
 			if (const TSharedPtr<FDataflowNode> BaseNode = Dataflow->FindBaseNode(this->GetGuid()))  // This is basically a safe const_cast
 			{
 				FChaosClothAssetAddWeightMapNode* const MutableThis = static_cast<FChaosClothAssetAddWeightMapNode*>(BaseNode.Get());
@@ -243,7 +243,7 @@ void FChaosClothAssetAddWeightMapNode::SetAssetValue(TObjectPtr<UObject> Asset, 
 	}
 }
 
-void FChaosClothAssetAddWeightMapNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FChaosClothAssetAddWeightMapNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	using namespace UE::Chaos::ClothAsset;
 
@@ -330,7 +330,7 @@ void FChaosClothAssetAddWeightMapNode::Evaluate(Dataflow::FContext& Context, con
 	}
 }
 
-FName FChaosClothAssetAddWeightMapNode::GetInputName(Dataflow::FContext& Context) const
+FName FChaosClothAssetAddWeightMapNode::GetInputName(UE::Dataflow::FContext& Context) const
 {
 	FString InputNameString = GetValue<FString>(Context, &InputName.StringValue);
 	UE::Chaos::ClothAsset::FWeightMapTools::MakeWeightMapName(InputNameString);

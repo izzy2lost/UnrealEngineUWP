@@ -6,7 +6,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionSamplingNodes)
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 
 	void GeometryCollectionSamplingNodes()
@@ -22,7 +22,7 @@ namespace Dataflow
 	}
 }
 
-void FUniformPointSamplingDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FUniformPointSamplingDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&SamplePoints) || 
 		Out->IsA(&SampleTriangleIDs) ||
@@ -66,7 +66,7 @@ void FUniformPointSamplingDataflowNode::Evaluate(Dataflow::FContext& Context, co
 	}
 }
 
-void FNonUniformPointSamplingDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FNonUniformPointSamplingDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&SamplePoints) ||
 		Out->IsA(&SampleRadii) ||
@@ -117,7 +117,7 @@ void FNonUniformPointSamplingDataflowNode::Evaluate(Dataflow::FContext& Context,
 	}
 }
 
-void FVertexWeightedPointSamplingDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FVertexWeightedPointSamplingDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&SamplePoints) ||
 		Out->IsA(&SampleRadii) ||

@@ -65,15 +65,15 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Attribute", Meta = (EditCondition = "Type == EChaosClothAssetNodeAttributeType::Vector", EditConditionHides))
 	FVector3f VectorValue = FVector3f::ZeroVector;
 
-	FChaosClothAssetAttributeNode_v2(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetAttributeNode_v2(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 	/** Return a cached array of all the groups used by the input collection during at the time of the latest evaluation. */
 	const TArray<FName>& GetCachedCollectionGroupNames() const { return CachedCollectionGroupNames; }
 
 private:
 	//~ Begin FDataflowNode interface
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
-	virtual void OnSelected(Dataflow::FContext& Context) override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void OnSelected(UE::Dataflow::FContext& Context) override;
 	virtual void OnDeselected() override;
 	//~ End FDataflowNode interface
 
@@ -116,15 +116,15 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Attribute", Meta = (EditCondition = "Type == EChaosClothAssetNodeAttributeType::Vector", EditConditionHides))
 	FVector3f VectorValue = FVector3f::ZeroVector;
 
-	FChaosClothAssetAttributeNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetAttributeNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 	/** Return a cached array of all the groups used by the input collection during at the time of the latest evaluation. */
 	const TArray<FName>& GetCachedCollectionGroupNames() const { return CachedCollectionGroupNames; }
 
 private:
 	//~ Begin FDataflowNode interface
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
-	virtual void OnSelected(Dataflow::FContext& Context) override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void OnSelected(UE::Dataflow::FContext& Context) override;
 	virtual void OnDeselected() override;
 	//~ End FDataflowNode interface
 

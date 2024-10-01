@@ -5,7 +5,7 @@
 #include "Framework/Commands/UICommandInfo.h"
 #include "Dataflow/DataflowEditorCommands.h"
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 
 	FDataflowToolRegistry& FDataflowToolRegistry::Get()

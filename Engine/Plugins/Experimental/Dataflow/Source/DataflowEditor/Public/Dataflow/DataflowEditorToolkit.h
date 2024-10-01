@@ -93,7 +93,7 @@ protected:
 	void OnTabClosed(TSharedRef<SDockTab> Tab);
 
 	// Node evaluation
-	void EvaluateNode(const FDataflowNode* Node, const FDataflowOutput* Output, Dataflow::FTimestamp& InOutTimestamp);
+	void EvaluateNode(const FDataflowNode* Node, const FDataflowOutput* Output, UE::Dataflow::FTimestamp& InOutTimestamp);
 	void OnFinishEvaluate();
 
 private:

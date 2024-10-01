@@ -11,15 +11,15 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogDataflowFactory, Warning, All);
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	FNodeFactory* FNodeFactory::Instance = nullptr;
 
 	void FNodeFactory::RegisterDefaultNodes()
 	{
-		Dataflow::RegisterCoreNodes();
-		Dataflow::RegisterDataflowMathNodes();
-		Dataflow::RegisterDataflowVectorNodes();
+		RegisterCoreNodes();
+		RegisterDataflowMathNodes();
+		RegisterDataflowVectorNodes();
 	}
 
 	TSharedPtr<FDataflowNode> FNodeFactory::NewNodeFromRegisteredType(FGraph& Graph, const FNewNodeParameters& Param)
@@ -120,9 +120,9 @@ namespace Dataflow
 	bool FNodeFactory::IsNodeDeprecated(const FName NodeType)
 	{
 		// Display node deprecated if InNode is deprecated
-		if (Dataflow::FNodeFactory* Factory = GetInstance())
+		if (FNodeFactory* Factory = GetInstance())
 		{
-			const Dataflow::FFactoryParameters& Param = Factory->GetParameters(NodeType);
+			const FFactoryParameters& Param = Factory->GetParameters(NodeType);
 			if (Param.IsValid() && Param.IsDeprecated())
 			{
 				return true;
@@ -135,9 +135,9 @@ namespace Dataflow
 	bool FNodeFactory::IsNodeExperimental(const FName NodeType)
 	{
 		// Display node experimental if InNode is experimental
-		if (Dataflow::FNodeFactory* Factory = GetInstance())
+		if (FNodeFactory* Factory = GetInstance())
 		{
-			const Dataflow::FFactoryParameters& Param = Factory->GetParameters(NodeType);
+			const FFactoryParameters& Param = Factory->GetParameters(NodeType);
 			if (Param.IsValid() && Param.IsExperimental())
 			{
 				return true;

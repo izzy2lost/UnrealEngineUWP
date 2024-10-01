@@ -19,7 +19,7 @@
 class FArchive;
 class UEdGraphPin;
 class UObject;
-namespace Dataflow { class FGraph; class FRenderingParameters; class IDataflowConstructionViewMode;  }
+namespace UE::Dataflow { class FGraph; class FRenderingParameters; class IDataflowConstructionViewMode;  }
 namespace GeometryCollection::Facades { class FRenderingFacade; }
 
 UCLASS(MinimalAPI)
@@ -28,7 +28,7 @@ class UDataflowEdNode : public UEdGraphNode
 	GENERATED_UCLASS_BODY()
 
 	FGuid DataflowNodeGuid;
-	TSharedPtr<Dataflow::FGraph> DataflowGraph;
+	TSharedPtr<UE::Dataflow::FGraph> DataflowGraph;
 
 public:
 
@@ -59,9 +59,9 @@ public:
 
 	bool IsBound() { return DataflowGraph && DataflowNodeGuid.IsValid(); }
 
-	TSharedPtr<Dataflow::FGraph> GetDataflowGraph() { return DataflowGraph; }
-	TSharedPtr<const Dataflow::FGraph> GetDataflowGraph() const { return DataflowGraph; }
-	void SetDataflowGraph(TSharedPtr<Dataflow::FGraph> InDataflowGraph) { DataflowGraph = InDataflowGraph; }
+	TSharedPtr<UE::Dataflow::FGraph> GetDataflowGraph() { return DataflowGraph; }
+	TSharedPtr<const UE::Dataflow::FGraph> GetDataflowGraph() const { return DataflowGraph; }
+	void SetDataflowGraph(TSharedPtr<UE::Dataflow::FGraph> InDataflowGraph) { DataflowGraph = InDataflowGraph; }
 
 	DATAFLOWENGINE_API void UpdatePinsFromDataflowNode();
 
@@ -99,7 +99,7 @@ public:
 	DATAFLOWENGINE_API void SetCanEnableWireframeRenderNode(bool bInCanEnable);
 	DATAFLOWENGINE_API bool CanEnableWireframeRenderNode() const;
 
-	DATAFLOWENGINE_API TArray<Dataflow::FRenderingParameter> GetRenderParameters() const;
+	DATAFLOWENGINE_API TArray<UE::Dataflow::FRenderingParameter> GetRenderParameters() const;
 
 private:
 

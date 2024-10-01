@@ -1048,7 +1048,7 @@ UAnimationAsset* UChaosClothAsset::GetPreviewSceneAnimation() const
 
 TObjectPtr<UDataflowBaseContent> UChaosClothAsset::CreateDataflowContent()
 {
-	TObjectPtr<UDataflowSkeletalContent> SkeletalContent = DataflowContextHelpers::CreateNewDataflowContent<UDataflowSkeletalContent>(this);
+	TObjectPtr<UDataflowSkeletalContent> SkeletalContent = UE::DataflowContextHelpers::CreateNewDataflowContent<UDataflowSkeletalContent>(this);
 
 	SkeletalContent->SetDataflowOwner(this);
 	SkeletalContent->SetTerminalAsset(this);

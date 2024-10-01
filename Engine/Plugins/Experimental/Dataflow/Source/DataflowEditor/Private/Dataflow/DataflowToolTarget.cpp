@@ -178,7 +178,7 @@ UToolTarget* UDataflowReadOnlyToolTargetFactory::BuildTarget(UObject* SourceObje
 		UDataflowReadOnlyToolTarget* Target = NewObject<UDataflowReadOnlyToolTarget>();
 		Target->Asset = BaseContent->GetDataflowOwner();
 		Target->Dataflow = BaseContent->GetDataflowAsset();
-		Target->Context = Dataflow::GetContext(BaseContent);
+		Target->Context = UE::Dataflow::GetContext(BaseContent);
 
 		// @todo(brice) : I needed to comment this out?
 		//checkSlow(Target->Component.IsValid() && Requirements.AreSatisfiedBy(Target));
@@ -220,7 +220,7 @@ UToolTarget* UDataflowToolTargetFactory::BuildTarget(UObject* SourceObject, cons
 		UDataflowToolTarget* Target = NewObject<UDataflowToolTarget>();
 		Target->Asset = BaseContent->GetDataflowOwner();
 		Target->Dataflow = BaseContent->GetDataflowAsset();
-		Target->Context = Dataflow::GetContext(BaseContent);
+		Target->Context = UE::Dataflow::GetContext(BaseContent);
 		//checkSlow(Target->Component.IsValid() && Requirements.AreSatisfiedBy(Target));
 
 		return Target;

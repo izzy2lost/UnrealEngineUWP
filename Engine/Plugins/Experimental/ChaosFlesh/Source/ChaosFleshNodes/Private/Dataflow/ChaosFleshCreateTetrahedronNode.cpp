@@ -37,7 +37,7 @@
 // FCreateTetrahedronDataflowNode
 //=============================================================================
 
-void FCreateTetrahedronDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCreateTetrahedronDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<DataType>(&Collection))
 	{
@@ -71,7 +71,7 @@ void FCreateTetrahedronDataflowNode::Evaluate(Dataflow::FContext& Context, const
 				return (int32)INDEX_NONE;
 			};
 
-			TArray<int32> ProcessGeometryIndices = Dataflow::GetMatchingMeshIndices(Selection, InSourceCollectionVal.Get());
+			TArray<int32> ProcessGeometryIndices = UE::Dataflow::GetMatchingMeshIndices(Selection, InSourceCollectionVal.Get());
 
 			TArray<TUniquePtr<FFleshCollection>> CollectionBuffer;
 			for (int32 Gdx = 0; Gdx < Source.NumGeometry(); Gdx++)
@@ -190,7 +190,7 @@ void FCreateTetrahedronDataflowNode::Evaluate(Dataflow::FContext& Context, const
 }
 
 void FCreateTetrahedronDataflowNode::EvaluateIsoStuffing(
-	Dataflow::FContext& Context, 
+	UE::Dataflow::FContext& Context, 
 	FFleshCollection& InCollection,
 	const UE::Geometry::FDynamicMesh3& DynamicMesh) const
 {
@@ -219,7 +219,7 @@ void FCreateTetrahedronDataflowNode::EvaluateIsoStuffing(
 		{
 			TArray<FVector> Vertices; Vertices.SetNumUninitialized(IsosurfaceStuffing.Vertices.Num());
 			TArray<FIntVector4> Elements; Elements.SetNumUninitialized(IsosurfaceStuffing.Tets.Num());
-			TArray<FIntVector3> SurfaceElements = Dataflow::GetSurfaceTriangles(IsosurfaceStuffing.Tets, !bDiscardInteriorTriangles);
+			TArray<FIntVector3> SurfaceElements = UE::Dataflow::GetSurfaceTriangles(IsosurfaceStuffing.Tets, !bDiscardInteriorTriangles);
 
 			for (int32 Tdx = 0; Tdx < IsosurfaceStuffing.Tets.Num(); ++Tdx)
 			{
@@ -247,7 +247,7 @@ void FCreateTetrahedronDataflowNode::EvaluateIsoStuffing(
 }
 
 void FCreateTetrahedronDataflowNode::EvaluateTetWild(
-	Dataflow::FContext& Context, 
+	UE::Dataflow::FContext& Context, 
 	FFleshCollection& InCollection,
 	const UE::Geometry::FDynamicMesh3& DynamicMesh) const
 {
@@ -285,7 +285,7 @@ void FCreateTetrahedronDataflowNode::EvaluateTetWild(
 		UE_LOG(LogChaosFlesh, Display,TEXT("Generating tet mesh via TetWild..."));
 		if (UE::Geometry::FTetWild::ComputeTetMesh(Params, Verts, Tris, TetVerts, Tets, &Progress))
 		{
-			TArray<FIntVector3> SurfaceElements = Dataflow::GetSurfaceTriangles(Tets, !bDiscardInteriorTriangles);
+			TArray<FIntVector3> SurfaceElements = UE::Dataflow::GetSurfaceTriangles(Tets, !bDiscardInteriorTriangles);
 			TUniquePtr<FTetrahedralCollection> TetCollection(FTetrahedralCollection::NewTetrahedralCollection(TetVerts, SurfaceElements, Tets));
 			InCollection.AppendGeometry(*TetCollection.Get());
 

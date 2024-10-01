@@ -63,7 +63,7 @@ protected:
 	TObjectPtr<UObject> Asset = nullptr;
 
 	/**  Engine context to be used for dataflow evaluation */
-	TSharedPtr<Dataflow::FEngineContext> Context = nullptr;
+	TSharedPtr<UE::Dataflow::FEngineContext> Context = nullptr;
 };
 
 /**

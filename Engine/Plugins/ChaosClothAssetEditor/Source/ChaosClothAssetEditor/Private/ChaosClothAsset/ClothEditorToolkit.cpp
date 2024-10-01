@@ -204,7 +204,7 @@ FChaosClothAssetEditorToolkit::~FChaosClothAssetEditorToolkit()
 	EditorModeManager->DestroyMode(UChaosClothAssetEditorMode::EM_ChaosClothAssetEditorModeId);
 }
 
-TSharedPtr<Dataflow::FEngineContext> FChaosClothAssetEditorToolkit::GetDataflowContext() const
+TSharedPtr<UE::Dataflow::FEngineContext> FChaosClothAssetEditorToolkit::GetDataflowContext() const
 {
 	return DataflowContext;
 }
@@ -469,7 +469,7 @@ void FChaosClothAssetEditorToolkit::PostInitAssetEditor()
 
 	ClothMode->DataflowGraph = GetDataflow();
 	ClothMode->SetDataflowGraphEditor(GraphEditor);
-	DataflowContext = TSharedPtr<Dataflow::FEngineContext>(new Dataflow::FClothAssetDataflowContext(GetAsset(), GetDataflow()));
+	DataflowContext = TSharedPtr<UE::Dataflow::FEngineContext>(new UE::Dataflow::FClothAssetDataflowContext(GetAsset(), GetDataflow()));
 	ClothMode->SetDataflowContext(DataflowContext);
 
 	// Handle Dataflow asset reload event
@@ -858,7 +858,7 @@ void FChaosClothAssetEditorToolkit::EvaluateNode(const FDataflowNode* Node, cons
 		SlowTask.EnterProgressFrame(1.f);
 
 		// Evaluate the node and update LastDataflowNodeTimestamp if doing so
-		const Dataflow::FTimestamp OldTimestamp = LastDataflowNodeTimestamp;
+		const UE::Dataflow::FTimestamp OldTimestamp = LastDataflowNodeTimestamp;
 		Node = FDataflowEditorCommands::EvaluateNode(
 			*DataflowContext,
 			LastDataflowNodeTimestamp,
@@ -893,7 +893,7 @@ TSharedRef<SDataflowGraphEditor> FChaosClothAssetEditorToolkit::CreateGraphEdito
 {
 	UDataflow* const Dataflow = GetDataflow();
 	ensure(Dataflow);
-	using namespace Dataflow;
+	using namespace UE::Dataflow;
 
 	const auto EvalLambda = [this](const FDataflowNode* Node, const FDataflowOutput* Output)
 	{
@@ -1022,7 +1022,7 @@ void FChaosClothAssetEditorToolkit::OnNodeTitleCommitted(const FText& InNewText,
 }
 
 
-TSharedPtr<FManagedArrayCollection> FChaosClothAssetEditorToolkit::GetClothCollectionIfPossible(const TSharedPtr<FDataflowNode> InDataflowNode, const TSharedPtr<Dataflow::FEngineContext> Context)
+TSharedPtr<FManagedArrayCollection> FChaosClothAssetEditorToolkit::GetClothCollectionIfPossible(const TSharedPtr<FDataflowNode> InDataflowNode, const TSharedPtr<UE::Dataflow::FEngineContext> Context)
 {
 	if (InDataflowNode && Context)
 	{
@@ -1050,7 +1050,7 @@ TSharedPtr<FManagedArrayCollection> FChaosClothAssetEditorToolkit::GetClothColle
 }
 
 
-TSharedPtr<FManagedArrayCollection> FChaosClothAssetEditorToolkit::GetInputClothCollectionIfPossible(const TSharedPtr<FDataflowNode> InDataflowNode, const TSharedPtr<Dataflow::FEngineContext> Context)
+TSharedPtr<FManagedArrayCollection> FChaosClothAssetEditorToolkit::GetInputClothCollectionIfPossible(const TSharedPtr<FDataflowNode> InDataflowNode, const TSharedPtr<UE::Dataflow::FEngineContext> Context)
 {
 	if (InDataflowNode && Context)
 	{
@@ -1083,7 +1083,7 @@ TSharedPtr<FDataflowNode> FChaosClothAssetEditorToolkit::GetSelectedDataflowNode
 	{
 		if (UDataflow* const Dataflow = GetDataflow())
 		{
-			if (TSharedPtr<Dataflow::FGraph> Graph = Dataflow->GetDataflow())
+			if (TSharedPtr<UE::Dataflow::FGraph> Graph = Dataflow->GetDataflow())
 			{
 				return Graph->FindBaseNode(SelectedDataflowNodeGuid);
 			}
@@ -1098,7 +1098,7 @@ TSharedPtr<const FDataflowNode> FChaosClothAssetEditorToolkit::GetSelectedDatafl
 	{
 		if (const UDataflow* const Dataflow = GetDataflow())
 		{
-			if (TSharedPtr<const Dataflow::FGraph> Graph = Dataflow->GetDataflow())
+			if (TSharedPtr<const UE::Dataflow::FGraph> Graph = Dataflow->GetDataflow())
 			{
 				return Graph->FindBaseNode(SelectedDataflowNodeGuid);
 			}
@@ -1226,7 +1226,7 @@ void FChaosClothAssetEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>&
 			}
 		}
 
-		Dataflow->LastModifiedRenderTarget = Dataflow::FTimestamp::Current();
+		Dataflow->LastModifiedRenderTarget = UE::Dataflow::FTimestamp::Current();
 	}
 
 

@@ -20,8 +20,8 @@ struct FDataflowReRouteNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowReRouteNode, "ReRouteNode", "Core", "")
 
 public:
-	FDataflowReRouteNode(const Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid());
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const;
+	FDataflowReRouteNode(const UE::Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid());
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const;
 
 
 public:
@@ -42,8 +42,8 @@ struct FDataflowBranchNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowBranchNode, "Branch", "FlowControl", "")
 
 public:
-	FDataflowBranchNode(const Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid());
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const;
+	FDataflowBranchNode(const UE::Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid());
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const;
 
 public:
 	UPROPERTY(meta = (DataflowInput, DisplayName = "TrueValue"))
@@ -72,8 +72,8 @@ struct FDataflowSelectNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowSelectNode, "Select", "FlowControl", "")
 
 public:
-	FDataflowSelectNode(const Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid());
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const;
+	FDataflowSelectNode(const UE::Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid());
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const;
 
 public:
 	UPROPERTY()
@@ -88,14 +88,14 @@ public:
 private:
 	virtual bool OnInputTypeChanged(const FDataflowInput* Input) override;
 	virtual bool OnOutputTypeChanged(const FDataflowOutput* Input) override;
-	virtual TArray<Dataflow::FPin> AddPins() override;
+	virtual TArray<UE::Dataflow::FPin> AddPins() override;
 	virtual bool CanAddPin() const override { return true; }
 	virtual bool CanRemovePin() const override { return Inputs.Num() > NumInitialInputs; }
-	virtual TArray<Dataflow::FPin> GetPinsToRemove() const override;
-	virtual void OnPinRemoved(const Dataflow::FPin& Pin) override;
+	virtual TArray<UE::Dataflow::FPin> GetPinsToRemove() const override;
+	virtual void OnPinRemoved(const UE::Dataflow::FPin& Pin) override;
 	virtual void Serialize(FArchive& Ar) override;
 
-	Dataflow::TConnectionReference<FDataflowAnyType> GetConnectionReference(int32 Index) const;
+	UE::Dataflow::TConnectionReference<FDataflowAnyType> GetConnectionReference(int32 Index) const;
 
 	static constexpr int32 NumRequiredDataflowInputs = 1;
 	static constexpr int32 NumInitialInputs = 2;
@@ -113,15 +113,15 @@ struct FDataflowPrintNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowPrintNode, "Print", "Core", "")
 
 public:
-	FDataflowPrintNode(const Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid());
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const;
+	FDataflowPrintNode(const UE::Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid());
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const;
 
 public:
 	UPROPERTY(meta = (DataflowInput, DisplayName = "Value"))
 	FDataflowStringConvertibleTypes Value;
 };
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void RegisterCoreNodes();
 }

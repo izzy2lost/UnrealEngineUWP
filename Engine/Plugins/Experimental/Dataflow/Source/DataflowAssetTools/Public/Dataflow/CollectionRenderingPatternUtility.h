@@ -10,7 +10,7 @@ namespace GeometryCollection::Facades { class FRenderingFacade; }
 class UDataflow;
 class UObject;
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	namespace Conversion
 	{
@@ -21,4 +21,4 @@ namespace Dataflow
 		void DATAFLOWASSETTOOLS_API DynamicMeshToRenderingFacade(const UE::Geometry::FDynamicMesh3& DynamicMesh, GeometryCollection::Facades::FRenderingFacade& Facade);
 	}
 
-}	// namespace Dataflow
+}	// namespace UE::Dataflow

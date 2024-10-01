@@ -18,7 +18,7 @@ FAutoConsoleVariableRef CVARDataflowEnableContextCaching(TEXT("p.Dataflow.Editor
 	TEXT("Allow the Dataflow editor to crate and use a pre-evaluated graph when the dataflow editor is re-opened.[def:true]"));
 
 
-namespace DataflowContextHelpers
+namespace UE::DataflowContextHelpers
 {
 
 	/*
@@ -32,7 +32,7 @@ namespace DataflowContextHelpers
 	*/
 	bool BindContextToGraph(TObjectPtr<UObject>& Asset, UDataflow* DataflowAsset)
 	{
-		using namespace Dataflow;
+		using namespace UE::Dataflow;
 
 		TSharedPtr<FGraph> Dataflow = DataflowAsset->GetDataflow();
 		if (!Dataflow) return false;
@@ -87,7 +87,7 @@ namespace DataflowContextHelpers
 	*/
 	bool ValidateCachedNodeHash(TObjectPtr<UObject>& Asset, UDataflow* DataflowAsset)
 	{
-		using namespace Dataflow;
+		using namespace UE::Dataflow;
 
 		TSharedPtr<FGraph> Dataflow = DataflowAsset->GetDataflow();
 		if (!Dataflow) return false;
@@ -127,13 +127,13 @@ namespace DataflowContextHelpers
 
 	bool ResetCacheTimestamp(TObjectPtr<UObject>& Asset, UDataflow* DataflowAsset)
 	{
-		using namespace Dataflow;
+		using namespace UE::Dataflow;
 
 		UDataflowBaseContent* BaseContent = Cast< UDataflowBaseContent>(Asset.Get());
 		if (!BaseContent) return false;
 		if (!BaseContent->GetDataflowContext()) return false;
 
-		Dataflow::FTimestamp NewTimestamp = DataflowAsset->GetRenderingTimestamp().Value + 1;
+		UE::Dataflow::FTimestamp NewTimestamp = DataflowAsset->GetRenderingTimestamp().Value + 1;
 		BaseContent->SetLastModifiedTimestamp(NewTimestamp, false /*bMakeDirty*/);
 
 		TSharedPtr<FEngineContext>& Context = BaseContent->GetDataflowContext();
@@ -306,7 +306,7 @@ void UDataflowBaseContent::SetDataflowOwner(const TObjectPtr<UObject>& InOwner)
 {
 	if(!DataflowContext)
 	{
-		DataflowContext = MakeShared<Dataflow::FEngineContext>(nullptr);
+		DataflowContext = MakeShared<UE::Dataflow::FEngineContext>(nullptr);
 	}
 	DataflowContext->Owner = InOwner;  
 	SetConstructionDirty(true);
@@ -322,7 +322,7 @@ void UDataflowBaseContent::SetDataflowAsset(const TObjectPtr<UDataflow>& Dataflo
 {
 	if(!DataflowContext)
 	{
-		DataflowContext = MakeShared<Dataflow::FEngineContext>(nullptr);
+		DataflowContext = MakeShared<UE::Dataflow::FEngineContext>(nullptr);
 	}
 	DataflowGraph = DataflowAsset;  
 	SetConstructionDirty(true);
@@ -343,7 +343,7 @@ void UDataflowBaseContent::PostEditChangeProperty(FPropertyChangedEvent& Propert
 
 #endif //if WITH_EDITOR
 
-void UDataflowBaseContent::SetLastModifiedTimestamp(Dataflow::FTimestamp InTimestamp, bool bMakeDirty) 
+void UDataflowBaseContent::SetLastModifiedTimestamp(UE::Dataflow::FTimestamp InTimestamp, bool bMakeDirty) 
 { 
 	if (InTimestamp.IsInvalid() || LastModifiedTimestamp < InTimestamp)
 	{
@@ -360,7 +360,7 @@ void UDataflowBaseContent::SetLastModifiedTimestamp(Dataflow::FTimestamp InTimes
 	}
 }
 
-void UDataflowBaseContent::SetDataflowContext(const TSharedPtr<Dataflow::FEngineContext>& InContext) 
+void UDataflowBaseContent::SetDataflowContext(const TSharedPtr<UE::Dataflow::FEngineContext>& InContext) 
 { 
 	DataflowContext = InContext;  
 	SetConstructionDirty(true);
@@ -375,7 +375,7 @@ void UDataflowBaseContent::Serialize(FArchive& Ar)
 
 	if (!DataflowContext)
 	{
-		DataflowContext = MakeShared<Dataflow::FEngineContext>(nullptr);
+		DataflowContext = MakeShared<UE::Dataflow::FEngineContext>(nullptr);
 	}
 	DataflowContext->Serialize(Ar);
 }

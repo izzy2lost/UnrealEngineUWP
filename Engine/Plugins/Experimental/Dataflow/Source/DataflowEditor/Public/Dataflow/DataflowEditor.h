@@ -47,7 +47,7 @@ public:
 	virtual void Initialize(const TArray<TObjectPtr<UObject>>& InObjects, const TSubclassOf<AActor>& InPreviewClass = nullptr) override;
 
 	/** Update the terminal contents */
-	void UpdateTerminalContents(const Dataflow::FTimestamp TimeStamp);
+	void UpdateTerminalContents(const UE::Dataflow::FTimestamp TimeStamp);
 	
 	/** Update the editor content */
 	void UpdateEditorContent();
@@ -70,10 +70,10 @@ private :
 	using ValidTerminalsType = TMap<TSharedPtr<FDataflowNode>,TObjectPtr<UDataflowBaseContent>>;
 
 	/** Remove invalid terminal contents from the container */
-	void RemoveTerminalContents(const TSharedPtr<Dataflow::FGraph>& DataflowGraph, ValidTerminalsType& ValidTerminals);
+	void RemoveTerminalContents(const TSharedPtr<UE::Dataflow::FGraph>& DataflowGraph, ValidTerminalsType& ValidTerminals);
 	
 	/** Add valid terminal nodes to the container */
-	void AddTerminalContents(const TSharedPtr<Dataflow::FGraph>& DataflowGraph, ValidTerminalsType& ValidTerminals);
+	void AddTerminalContents(const TSharedPtr<UE::Dataflow::FGraph>& DataflowGraph, ValidTerminalsType& ValidTerminals);
 	
 	// Dataflow editor is the owner of the object list to edit/process and the dataflow mode
 	// is the one holding the dynamic mesh components to be rendered in the viewport

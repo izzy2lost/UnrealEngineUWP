@@ -64,7 +64,7 @@ namespace UE::Chaos::ClothAsset::Private
 	}
 }  // End namespace UE::Chaos::ClothAsset::Private
 
-FChaosClothAssetUSDImportNode::FChaosClothAssetUSDImportNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetUSDImportNode::FChaosClothAssetUSDImportNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowTerminalNode(InParam, InGuid)
 {
 	using namespace UE::Chaos::ClothAsset;
@@ -79,7 +79,7 @@ FChaosClothAssetUSDImportNode::FChaosClothAssetUSDImportNode(const Dataflow::FNo
 	RegisterOutputConnection(&Collection);
 }
 
-void FChaosClothAssetUSDImportNode::SetAssetValue(TObjectPtr<UObject> Asset, Dataflow::FContext& Context) const
+void FChaosClothAssetUSDImportNode::SetAssetValue(TObjectPtr<UObject> Asset, UE::Dataflow::FContext& Context) const
 {
 	using namespace UE::Chaos::ClothAsset;
 
@@ -87,7 +87,7 @@ void FChaosClothAssetUSDImportNode::SetAssetValue(TObjectPtr<UObject> Asset, Dat
 	{
 		if (UDataflow* const DataflowAsset = ClothAsset->GetDataflow())
 		{
-			const TSharedPtr<Dataflow::FGraph, ESPMode::ThreadSafe> Dataflow = DataflowAsset->GetDataflow();
+			const TSharedPtr<UE::Dataflow::FGraph, ESPMode::ThreadSafe> Dataflow = DataflowAsset->GetDataflow();
 			if (const TSharedPtr<FDataflowNode> BaseNode = Dataflow->FindBaseNode(this->GetGuid()))  // This is basically a safe const_cast
 			{
 				FChaosClothAssetUSDImportNode* const MutableThis = static_cast<FChaosClothAssetUSDImportNode*>(BaseNode.Get());
@@ -125,7 +125,7 @@ void FChaosClothAssetUSDImportNode::SetAssetValue(TObjectPtr<UObject> Asset, Dat
 	}
 }
 
-void FChaosClothAssetUSDImportNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FChaosClothAssetUSDImportNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	using namespace UE::Chaos::ClothAsset;
 

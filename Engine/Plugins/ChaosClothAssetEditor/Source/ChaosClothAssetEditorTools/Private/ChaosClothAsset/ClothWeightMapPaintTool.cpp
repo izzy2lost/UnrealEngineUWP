@@ -458,7 +458,7 @@ void UClothEditorWeightMapPaintTool::InitializeSculptMeshFromTarget()
 			const bool bIsRenderMode = ViewMode == EClothPatternVertexType::Render;
 
 			// Find the map if it exists.
-			if (TSharedPtr<Dataflow::FEngineContext> DataflowContext = DataflowContextObject->GetDataflowContext())
+			if (TSharedPtr<UE::Dataflow::FEngineContext> DataflowContext = DataflowContextObject->GetDataflowContext())
 			{
 				const FName InputName = WeightMapNodeToUpdate->GetInputName(*DataflowContext);
 				if (bIsRenderMode)

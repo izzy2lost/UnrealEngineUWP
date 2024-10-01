@@ -21,23 +21,23 @@ public:
 	UPROPERTY(Meta = (DataflowOutput, DataflowPassthrough = "Collections[0]"))
 	FManagedArrayCollection Collection;
 
-	FChaosClothAssetMergeClothCollectionsNode_v2(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetMergeClothCollectionsNode_v2(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	//~ Begin FDataflowNode interface
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
-	virtual TArray<Dataflow::FPin> AddPins() override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual TArray<UE::Dataflow::FPin> AddPins() override;
 	virtual bool CanAddPin() const override { return true; }
 	virtual bool CanRemovePin() const override { return Collections.Num() > NumInitialOptionalInputs; }
-	virtual TArray<Dataflow::FPin> GetPinsToRemove() const override;
-	virtual void OnPinRemoved(const Dataflow::FPin& Pin) override;
+	virtual TArray<UE::Dataflow::FPin> GetPinsToRemove() const override;
+	virtual void OnPinRemoved(const UE::Dataflow::FPin& Pin) override;
 	virtual void Serialize(FArchive& Ar) override;
 	//~ End FDataflowNode interface
 
 
 	static constexpr int32 NumRequiredInputs = 0;
 	static constexpr int32 NumInitialOptionalInputs = 2;
-	Dataflow::TConnectionReference<FManagedArrayCollection> GetConnectionReference(int32 Index) const;
+	UE::Dataflow::TConnectionReference<FManagedArrayCollection> GetConnectionReference(int32 Index) const;
 };
 
 
@@ -77,16 +77,16 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	int32 NumInputs = NumInitialOptionalInputs;
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	FChaosClothAssetMergeClothCollectionsNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetMergeClothCollectionsNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	//~ Begin FDataflowNode interface
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
-	virtual TArray<Dataflow::FPin> AddPins() override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual TArray<UE::Dataflow::FPin> AddPins() override;
 	virtual bool CanAddPin() const override { return NumInputs < MaxInputs; }
 	virtual bool CanRemovePin() const override { return NumInputs > NumInitialOptionalInputs; }
-	virtual TArray<Dataflow::FPin> GetPinsToRemove() const override;
-	virtual void OnPinRemoved(const Dataflow::FPin& Pin) override;
+	virtual TArray<UE::Dataflow::FPin> GetPinsToRemove() const override;
+	virtual void OnPinRemoved(const UE::Dataflow::FPin& Pin) override;
 	virtual void Serialize(FArchive& Ar) override;
 	//~ End FDataflowNode interface
 

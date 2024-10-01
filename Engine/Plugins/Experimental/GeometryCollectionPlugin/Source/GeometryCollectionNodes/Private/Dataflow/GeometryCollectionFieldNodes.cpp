@@ -47,7 +47,7 @@
 
 //#include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionFieldNodes)
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void GeometryCollectionFieldNodes()
 	{
@@ -209,7 +209,7 @@ static void RadialFalloffFieldProcess(const TArray<FVector3f>& InSamplePositions
 	}
 }
 
-void FRadialFalloffFieldDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FRadialFalloffFieldDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<float>>(&FieldFloatResult) ||
 		Out->IsA<TArray<int32>>(&FieldRemap) ||
@@ -437,7 +437,7 @@ static void BoxFalloffFieldProcess(const TArray<FVector3f>& InSamplePositions,
 	}
 }
 
-void FBoxFalloffFieldDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FBoxFalloffFieldDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<float>>(&FieldFloatResult) ||
 		Out->IsA<TArray<int32>>(&FieldRemap) ||
@@ -653,7 +653,7 @@ static void PlaneFalloffFieldProcess(const TArray<FVector3f>& InSamplePositions,
 	}
 }
 
-void FPlaneFalloffFieldDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FPlaneFalloffFieldDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<float>>(&FieldFloatResult) ||
 		Out->IsA<TArray<int32>>(&FieldRemap) ||
@@ -833,7 +833,7 @@ static void RadialIntMaskFieldProcess(const TArray<FVector3f>& InSamplePositions
 	}
 }
 
-void FRadialIntMaskFieldDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FRadialIntMaskFieldDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<int32>>(&FieldIntResult) ||
 		Out->IsA<TArray<int32>>(&FieldRemap) ||
@@ -963,7 +963,7 @@ static void UniformScalarFieldProcess(const TArray<FVector3f>& InSamplePositions
 	}
 }
 
-void FUniformScalarFieldDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FUniformScalarFieldDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<float>>(&FieldFloatResult) ||
 		Out->IsA<TArray<int32>>(&FieldRemap) ||
@@ -1078,7 +1078,7 @@ static void UniformVectorFieldProcess(const TArray<FVector3f>& InSamplePositions
 	}
 }
 
-void FUniformVectorFieldDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FUniformVectorFieldDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<FVector>>(&FieldVectorResult) ||
 		Out->IsA<TArray<int32>>(&FieldRemap) ||
@@ -1194,7 +1194,7 @@ static void RadialVectorFieldProcess(const TArray<FVector3f>& InSamplePositions,
 		OutFieldFloatResult[Idx] = ResultsView[Idx];
 	}
 }
-void FRadialVectorFieldDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FRadialVectorFieldDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<FVector>>(&FieldVectorResult) ||
 		Out->IsA<TArray<int32>>(&FieldRemap) ||
@@ -1308,7 +1308,7 @@ static void RandomVectorFieldProcess(const TArray<FVector3f>& InSamplePositions,
 	}
 }
 
-void FRandomVectorFieldDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FRandomVectorFieldDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<FVector>>(&FieldVectorResult) ||
 		Out->IsA<TArray<int32>>(&FieldRemap) ||
@@ -1425,7 +1425,7 @@ static void NoiseFieldProcess(const TArray<FVector3f>& InSamplePositions,
 	}
 }
 
-void FNoiseFieldDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FNoiseFieldDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<float>>(&FieldFloatResult) ||
 		Out->IsA<TArray<int32>>(&FieldRemap) ||
@@ -1540,7 +1540,7 @@ static void UniformIntegerFieldProcess(const TArray<FVector3f>& InSamplePosition
 	}
 }
 
-void FUniformIntegerFieldDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FUniformIntegerFieldDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<int32>>(&FieldIntResult) ||
 		Out->IsA<TArray<int32>>(&FieldRemap) ||
@@ -1671,7 +1671,7 @@ static void WaveScalarFieldProcess(const TArray<FVector3f>& InSamplePositions,
 	}
 }
 
-void FWaveScalarFieldDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FWaveScalarFieldDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<float>>(&FieldFloatResult) ||
 		Out->IsA<TArray<int32>>(&FieldRemap) ||
@@ -1838,7 +1838,7 @@ static void SumScalarEvaluate(const TArray<float>& InFieldFloatLeft,
 }
 
 
-void FSumScalarFieldDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FSumScalarFieldDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<float>>(&FieldFloatResult) ||
 		Out->IsA<TArray<int32>>(&FieldRemap))
@@ -2067,7 +2067,7 @@ static void SumVectorEvaluate(const TArray<float>* InFieldFloat,
 	}
 }
 
-void FSumVectorFieldDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FSumVectorFieldDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<FVector>>(&FieldVectorResult) ||
 		Out->IsA<TArray<int32>>(&FieldRemap))
@@ -2457,7 +2457,7 @@ void FSumVectorFieldDataflowNode::Evaluate(Dataflow::FContext& Context, const FD
 
 // ----------------------------------------------------------------------------
 
-void FFieldMakeDenseFloatArrayDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FFieldMakeDenseFloatArrayDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<float>>(&FieldFloatResult))
 	{

@@ -18,7 +18,7 @@ class UDataflowBaseContent;
 class FPreviewScene;
 class UAnimSingleNodeInstance;
 
-namespace DataflowContextHelpers
+namespace UE::DataflowContextHelpers
 {
 	// Return a new(or saved) content that can store the execution state of the graph. 
 	template<class T>
@@ -93,14 +93,14 @@ public:
 	*	LastModifiedTimestamp - State Invalidation 
 	*   Dataflow timestamp accessors can be used to see if the EvaluationContext has been invalidated. 
 	*/
-	void SetLastModifiedTimestamp(Dataflow::FTimestamp InTimestamp, bool bMakeDirty =true);
-	const Dataflow::FTimestamp& GetLastModifiedTimestamp() const { return LastModifiedTimestamp; }
+	void SetLastModifiedTimestamp(UE::Dataflow::FTimestamp InTimestamp, bool bMakeDirty =true);
+	const UE::Dataflow::FTimestamp& GetLastModifiedTimestamp() const { return LastModifiedTimestamp; }
 
 	/**  
 	*	Context - Dataflow Evaluation State
 	*   Dataflow context stores the evaluated state of the graph. 
 	*/
-	virtual void SetDataflowContext(const TSharedPtr<Dataflow::FEngineContext>& InContext) override;
+	virtual void SetDataflowContext(const TSharedPtr<UE::Dataflow::FEngineContext>& InContext) override;
  
 	/** Rebuild the owner dependent datas  */
 	void UpdateContentDatas();
@@ -155,7 +155,7 @@ protected:
 	TObjectPtr<UObject> TerminalAsset = nullptr;
 
     /** Last data flow evaluated node time stamp */
-	Dataflow::FTimestamp LastModifiedTimestamp = Dataflow::FTimestamp::Invalid;
+	UE::Dataflow::FTimestamp LastModifiedTimestamp = UE::Dataflow::FTimestamp::Invalid;
 
     /** Dirty flag to trigger rendering. Do we need that? since when accessing the member by non const ref we will not dirty it */
 	UPROPERTY()
@@ -258,3 +258,4 @@ protected:
 	/** Boolean to control if the animation asset could be edited or not */
 	bool bHideAnimationAsset = false;
 };
+

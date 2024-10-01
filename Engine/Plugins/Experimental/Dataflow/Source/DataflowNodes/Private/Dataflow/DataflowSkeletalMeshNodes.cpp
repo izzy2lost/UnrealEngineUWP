@@ -11,7 +11,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataflowSkeletalMeshNodes)
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void RegisterSkeletalMeshNodes()
 	{
@@ -22,7 +22,7 @@ namespace Dataflow
 	}
 }
 
-void FGetSkeletalMeshDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FGetSkeletalMeshDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	typedef TObjectPtr<const USkeletalMesh> DataType;
 	if (Out->IsA<DataType>(&SkeletalMesh))
@@ -31,9 +31,9 @@ void FGetSkeletalMeshDataflowNode::Evaluate(Dataflow::FContext& Context, const F
 
 		if (!SkeletalMesh)
 		{
-			if (const Dataflow::FEngineContext* EngineContext = Context.AsType<Dataflow::FEngineContext>())
+			if (const UE::Dataflow::FEngineContext* EngineContext = Context.AsType<UE::Dataflow::FEngineContext>())
 			{
-				if (const USkeletalMesh* SkeletalMeshFromOwner = Dataflow::Reflection::FindObjectPtrProperty<USkeletalMesh>(
+				if (const USkeletalMesh* SkeletalMeshFromOwner = UE::Dataflow::Reflection::FindObjectPtrProperty<USkeletalMesh>(
 					EngineContext->Owner, PropertyName))
 				{
 					SetValue<DataType>(Context, DataType(SkeletalMeshFromOwner), &SkeletalMesh);
@@ -44,7 +44,7 @@ void FGetSkeletalMeshDataflowNode::Evaluate(Dataflow::FContext& Context, const F
 }
 
 
-void FGetSkeletonDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FGetSkeletonDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	typedef TObjectPtr<const USkeleton> DataType;
 	if (Out->IsA<DataType>(&Skeleton))
@@ -53,9 +53,9 @@ void FGetSkeletonDataflowNode::Evaluate(Dataflow::FContext& Context, const FData
 
 		if (!Skeleton)
 		{
-			if (const Dataflow::FEngineContext* EngineContext = Context.AsType<Dataflow::FEngineContext>())
+			if (const UE::Dataflow::FEngineContext* EngineContext = Context.AsType<UE::Dataflow::FEngineContext>())
 			{
-				if (const USkeleton* SkeletonFromOwner = Dataflow::Reflection::FindObjectPtrProperty<USkeleton>(
+				if (const USkeleton* SkeletonFromOwner = UE::Dataflow::Reflection::FindObjectPtrProperty<USkeleton>(
 					EngineContext->Owner, PropertyName))
 				{
 					SetValue<DataType>(Context, DataType(SkeletonFromOwner), &Skeleton);
@@ -65,7 +65,7 @@ void FGetSkeletonDataflowNode::Evaluate(Dataflow::FContext& Context, const FData
 	}
 }
 
-void FSkeletalMeshBoneDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FSkeletalMeshBoneDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	typedef TObjectPtr<const USkeletalMesh> InDataType;
 	if (Out->IsA<int>(&BoneIndexOut))
@@ -77,9 +77,9 @@ void FSkeletalMeshBoneDataflowNode::Evaluate(Dataflow::FContext& Context, const 
 			FName LocalBoneName = BoneName;
 			if (LocalBoneName.IsNone())
 			{
-				if (const Dataflow::FEngineContext* EngineContext = Context.AsType<Dataflow::FEngineContext>())
+				if (const UE::Dataflow::FEngineContext* EngineContext = Context.AsType<UE::Dataflow::FEngineContext>())
 				{
-					LocalBoneName = FName(Dataflow::Reflection::FindOverrideProperty< FString >(EngineContext->Owner, PropertyName, FName("BoneName")));
+					LocalBoneName = FName(UE::Dataflow::Reflection::FindOverrideProperty< FString >(EngineContext->Owner, PropertyName, FName("BoneName")));
 				}
 			}
 
@@ -91,7 +91,7 @@ void FSkeletalMeshBoneDataflowNode::Evaluate(Dataflow::FContext& Context, const 
 }
 
 
-void FSkeletalMeshReferenceTransformDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FSkeletalMeshReferenceTransformDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	typedef TObjectPtr<const USkeletalMesh> InDataType;
 	if (Out->IsA<FTransform>(&TransformOut))
@@ -104,7 +104,7 @@ void FSkeletalMeshReferenceTransformDataflowNode::Evaluate(Dataflow::FContext& C
 			if (InDataType SkeletalMesh = GetValue<InDataType>(Context, &SkeletalMeshIn))
 			{
 				TArray<FTransform> ComponentPose;
-				Dataflow::Animation::GlobalTransforms(SkeletalMesh->GetRefSkeleton(), ComponentPose);
+				UE::Dataflow::Animation::GlobalTransforms(SkeletalMesh->GetRefSkeleton(), ComponentPose);
 				if (BoneIndex < ComponentPose.Num())
 				{
 					SetValue(Context, ComponentPose[BoneIndex], &TransformOut);

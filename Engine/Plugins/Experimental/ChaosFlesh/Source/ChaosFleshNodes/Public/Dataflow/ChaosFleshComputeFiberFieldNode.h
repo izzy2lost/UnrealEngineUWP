@@ -50,7 +50,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Dataflow")
 	float Tolerance = 1.0e-7;
 
-	FComputeFiberFieldNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FComputeFiberFieldNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
@@ -59,7 +59,7 @@ public:
 		RegisterOutputConnection(&Collection, &Collection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 	TArray<int32> GetNonZeroIndices(const TArray<uint8>& Map) const;
 
@@ -117,7 +117,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "VectorField"))
 	FFieldCollection VectorField;
 
-	FComputeFiberStreamlineNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FComputeFiberStreamlineNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
@@ -127,5 +127,5 @@ public:
 		RegisterOutputConnection(&VectorField);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };

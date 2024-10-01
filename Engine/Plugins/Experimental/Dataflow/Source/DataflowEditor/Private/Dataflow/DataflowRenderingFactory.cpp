@@ -6,7 +6,7 @@
 #include "Dataflow/DataflowInputOutput.h"
 #include "Misc/MessageDialog.h"
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	FRenderingFactory* FRenderingFactory::Instance = nullptr;
 

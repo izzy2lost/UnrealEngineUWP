@@ -206,7 +206,7 @@ void FDataflowConstructionViewportClient::ProcessClick(FSceneView& View, HHitPro
 	OnSelectionChangedMulticast.Broadcast(CurrentlySelectedComponents);
 }
 
-void FDataflowConstructionViewportClient::SetConstructionViewMode(const Dataflow::IDataflowConstructionViewMode* InViewMode)
+void FDataflowConstructionViewportClient::SetConstructionViewMode(const UE::Dataflow::IDataflowConstructionViewMode* InViewMode)
 {
 	checkf(InViewMode, TEXT("SetConstructionViewMode received null IDataflowConstructionViewMode pointer"));
 

@@ -20,7 +20,7 @@
 bool bCanEditDataflow = false;
 FAutoConsoleVariableRef CVarDataflowIsEditable(TEXT("p.Dataflow.IsEditable"), bCanEditDataflow, TEXT("Whether to allow edits of the dataflow [def:true]"));
 
-namespace DataflowAssetDefinitionHelpers
+namespace UE::DataflowAssetDefinitionHelpers
 {
 	// Return true if we should proceed, false if we should re-open the dialog
 	bool CreateNewDataflowAsset(const UObject* Asset, UObject*& OutDataflowAsset)

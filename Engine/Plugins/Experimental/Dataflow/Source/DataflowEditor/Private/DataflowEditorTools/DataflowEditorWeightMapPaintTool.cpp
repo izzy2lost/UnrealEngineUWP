@@ -54,7 +54,7 @@ using namespace UE::Geometry;
 
 #define LOCTEXT_NAMESPACE "UDataflowEditorWeightMapPaintTool"
 
-namespace Dataflow::Private
+namespace UE::Dataflow::Private
 {
 	// probably should be something defined for the whole tool framework...
 #if WITH_EDITOR
@@ -68,15 +68,15 @@ namespace Dataflow::Private
 /*
  * ToolBuilder
  */
-void UDataflowEditorWeightMapPaintToolBuilder::GetSupportedConstructionViewModes(const UDataflowContextObject& ContextObject, TArray<const Dataflow::IDataflowConstructionViewMode*>& Modes) const
+void UDataflowEditorWeightMapPaintToolBuilder::GetSupportedConstructionViewModes(const UDataflowContextObject& ContextObject, TArray<const UE::Dataflow::IDataflowConstructionViewMode*>& Modes) const
 {
-	//Modes.Add(Dataflow::EDataflowPatternVertexType::Sim3D);
-	//Modes.Add(Dataflow::EDataflowPatternVertexType::Sim2D);
+	//Modes.Add(UE::Dataflow::EDataflowPatternVertexType::Sim3D);
+	//Modes.Add(UE::Dataflow::EDataflowPatternVertexType::Sim2D);
 }
 
 bool UDataflowEditorWeightMapPaintToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
 {
-	auto HasManagedArrayCollection = [](const FDataflowNode* InDataflowNode, const TSharedPtr<Dataflow::FEngineContext> Context)
+	auto HasManagedArrayCollection = [](const FDataflowNode* InDataflowNode, const TSharedPtr<UE::Dataflow::FEngineContext> Context)
 	{
 		if (InDataflowNode && Context)
 		{
@@ -102,7 +102,7 @@ bool UDataflowEditorWeightMapPaintToolBuilder::CanBuildTool(const FToolBuilderSt
 				{
 					if (ContextObject->GetSelectedNode() == Component->Node)
 					{
-						if (const TSharedPtr<Dataflow::FEngineContext> EvaluationContext = ContextObject->GetDataflowContext())
+						if (const TSharedPtr<UE::Dataflow::FEngineContext> EvaluationContext = ContextObject->GetDataflowContext())
 						{
 							if (const FDataflowNode* PrimarySelection = ContextObject->GetSelectedNodeOfType<FDataflowCollectionAddScalarVertexPropertyNode>())
 							{
@@ -200,12 +200,12 @@ void UDataflowEditorWeightMapPaintTool::Setup()
 	Mesh->Attributes()->PrimaryColors()->CreateFromPredicate([](int ParentVID, int TriIDA, int TriIDB) {return true; }, 0.f);
 	FAxisAlignedBox3d Bounds = Mesh->GetBounds(true);
 
-	TFuture<void> PrecomputeFuture = Async(Dataflow::Private::WeightPaintToolAsyncExecTarget, [&]()
+	TFuture<void> PrecomputeFuture = Async(UE::Dataflow::Private::WeightPaintToolAsyncExecTarget, [&]()
 	{
 		PrecomputeFilterData();
 	});
 
-	TFuture<void> OctreeFuture = Async(Dataflow::Private::WeightPaintToolAsyncExecTarget, [&]()
+	TFuture<void> OctreeFuture = Async(UE::Dataflow::Private::WeightPaintToolAsyncExecTarget, [&]()
 	{
 		// initialize dynamic octree
 		if (Mesh->TriangleCount() > 100000)
@@ -351,7 +351,7 @@ void UDataflowEditorWeightMapPaintTool::Setup()
 	{
 		if (const TSharedPtr<const FManagedArrayCollection> Collection = DataflowEditorContextObject->GetRenderCollection())
 		{
-			using namespace Dataflow;
+			using namespace UE::Dataflow;
 			const FNonManifoldMappingSupport NonManifoldMapping(*Mesh);
 
 			bHaveDynamicMeshToWeightConversion = NonManifoldMapping.IsNonManifoldVertexInSource();
@@ -850,7 +850,7 @@ bool UDataflowEditorWeightMapPaintTool::SyncWeightBufferWithMesh(const FDynamicM
 	return (NumModified > 0);
 }
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	template<typename RealType>
 	static bool FindPolylineSelfIntersection(
@@ -998,7 +998,7 @@ void UDataflowEditorWeightMapPaintTool::OnPolyLassoFinished(const FCameraPolyLas
 	// Try to clip polyline to be closed, or closed-enough for winding evaluation to work.
 	// If that returns false, the polyline is "too open". In that case we will extend
 	// outwards from the endpoints and then try to create a closed very large polygon
-	if (Dataflow::ApproxSelfClipPolyline(Polyline) == false)
+	if (UE::Dataflow::ApproxSelfClipPolyline(Polyline) == false)
 	{
 		FVector2f StartDirOut = UE::Geometry::Normalized(Polyline[0] - Polyline[1]);
 		FLine2f StartLine(Polyline[0], StartDirOut);
@@ -1555,7 +1555,7 @@ void UDataflowEditorWeightMapPaintTool::OnTick(float DeltaTime)
 
 			// append updated ROI to modified region (async)
 			FDynamicMesh3* Mesh = GetSculptMesh();
-			TFuture<void> AccumulateROI = Async(Dataflow::Private::WeightPaintToolAsyncExecTarget, [&]()
+			TFuture<void> AccumulateROI = Async(UE::Dataflow::Private::WeightPaintToolAsyncExecTarget, [&]()
 			{
 				UE::Geometry::VertexToTriangleOneRing(Mesh, VertexROI, AccumulatedTriangleROI);
 			});
@@ -1730,7 +1730,7 @@ void UDataflowEditorWeightMapPaintTool::UpdateSelectedNode()
 // Change Tracking
 //
 
-namespace DataflowWeightPaintLocals
+namespace UE::DataflowWeightPaintLocals
 {
 
 	/**
@@ -1793,11 +1793,11 @@ void UDataflowEditorWeightMapPaintTool::EndChange()
 
 	TUniquePtr<FDynamicMeshChange> EditResult = ActiveWeightEditChangeTracker->EndChange();
 
-	TUniquePtr<DataflowWeightPaintLocals::FDataflowWeightPaintMeshChange> DataflowWeightPaintMeshChange =
-		MakeUnique<DataflowWeightPaintLocals::FDataflowWeightPaintMeshChange>(DynamicMeshComponent.Get(), MoveTemp(EditResult));
+	TUniquePtr<UE::DataflowWeightPaintLocals::FDataflowWeightPaintMeshChange> DataflowWeightPaintMeshChange =
+		MakeUnique<UE::DataflowWeightPaintLocals::FDataflowWeightPaintMeshChange>(DynamicMeshComponent.Get(), MoveTemp(EditResult));
 	ActiveWeightEditChangeTracker = nullptr;
 
-	TUniquePtr<TWrappedToolCommandChange<DataflowWeightPaintLocals::FDataflowWeightPaintMeshChange>> NewChange = MakeUnique<TWrappedToolCommandChange<DataflowWeightPaintLocals::FDataflowWeightPaintMeshChange>>();
+	TUniquePtr<TWrappedToolCommandChange<UE::DataflowWeightPaintLocals::FDataflowWeightPaintMeshChange>> NewChange = MakeUnique<TWrappedToolCommandChange<UE::DataflowWeightPaintLocals::FDataflowWeightPaintMeshChange>>();
 	NewChange->WrappedChange = MoveTemp(DataflowWeightPaintMeshChange);
 	NewChange->BeforeModify = [this](bool bRevert)
 	{

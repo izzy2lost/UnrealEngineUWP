@@ -19,11 +19,11 @@
 
 namespace UE::Dataflow
 {
-	bool ShouldResetWorld(const TObjectPtr<UDataflow>& SimulationGraph, const TObjectPtr<UWorld>& SimulationWorld, ::Dataflow::FTimestamp& LastTimeStamp)
+	bool ShouldResetWorld(const TObjectPtr<UDataflow>& SimulationGraph, const TObjectPtr<UWorld>& SimulationWorld, UE::Dataflow::FTimestamp& LastTimeStamp)
 	{
-		if(const TSharedPtr<::Dataflow::FGraph> DataflowGraph = SimulationGraph->GetDataflow())
+		if(const TSharedPtr<UE::Dataflow::FGraph> DataflowGraph = SimulationGraph->GetDataflow())
 		{
-			::Dataflow::FTimestamp MaxTimeStamp = ::Dataflow::FTimestamp::Invalid;
+			UE::Dataflow::FTimestamp MaxTimeStamp = UE::Dataflow::FTimestamp::Invalid;
 			for(const TSharedPtr<FDataflowNode>& TerminalNode : DataflowGraph->GetFilteredNodes(FDataflowTerminalNode::StaticType()))
 			{
 				MaxTimeStamp.Value = FMath::Max(MaxTimeStamp.Value, TerminalNode->GetTimestamp().Value);

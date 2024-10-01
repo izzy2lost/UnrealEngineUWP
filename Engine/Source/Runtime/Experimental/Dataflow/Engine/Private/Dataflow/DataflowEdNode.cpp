@@ -24,28 +24,28 @@
 
 DEFINE_LOG_CATEGORY_STATIC(DATAFLOWNODE_LOG, Error, All);
 
-namespace Dataflow::Private
+namespace UE::Dataflow::Private
 {
-static Dataflow::FPin::EDirection EdPinDirectionToDataflowDirection(EEdGraphPinDirection EdDirection)
+static UE::Dataflow::FPin::EDirection EdPinDirectionToDataflowDirection(EEdGraphPinDirection EdDirection)
 {
 	if (EdDirection == EEdGraphPinDirection::EGPD_Input)
 	{
-		return Dataflow::FPin::EDirection::INPUT;
+		return FPin::EDirection::INPUT;
 	}
 	if (EdDirection == EEdGraphPinDirection::EGPD_Output)
 	{
-		return Dataflow::FPin::EDirection::OUTPUT;
+		return FPin::EDirection::OUTPUT;
 	}
-	return Dataflow::FPin::EDirection::NONE;
+	return FPin::EDirection::NONE;
 }
 
-static EEdGraphPinDirection DataflowDirectionToEdPinDirection(Dataflow::FPin::EDirection Direction)
+static EEdGraphPinDirection DataflowDirectionToEdPinDirection(UE::Dataflow::FPin::EDirection Direction)
 {
-	if (Direction == Dataflow::FPin::EDirection::INPUT)
+	if (Direction == FPin::EDirection::INPUT)
 	{
 		return EEdGraphPinDirection::EGPD_Input;
 	}
-	if (Direction == Dataflow::FPin::EDirection::OUTPUT)
+	if (Direction == FPin::EDirection::OUTPUT)
 	{
 		return EEdGraphPinDirection::EGPD_Output;
 	}
@@ -115,7 +115,7 @@ bool UDataflowEdNode::CanEnableWireframeRenderNode() const
 
 TSharedPtr<FDataflowNode> UDataflowEdNode::GetDataflowNode()
 {
-	if(TSharedPtr<Dataflow::FGraph> Dataflow = GetDataflowGraph())
+	if(TSharedPtr<UE::Dataflow::FGraph> Dataflow = GetDataflowGraph())
 	{
 		return Dataflow->FindBaseNode(GetDataflowNodeGuid());
 	}
@@ -124,7 +124,7 @@ TSharedPtr<FDataflowNode> UDataflowEdNode::GetDataflowNode()
 
 TSharedPtr<const FDataflowNode> UDataflowEdNode::GetDataflowNode() const
 {
-	if (TSharedPtr<const Dataflow::FGraph> Dataflow = GetDataflowGraph())
+	if (TSharedPtr<const UE::Dataflow::FGraph> Dataflow = GetDataflowGraph())
 	{
 		return Dataflow->FindBaseNode(GetDataflowNodeGuid());
 	}
@@ -144,9 +144,9 @@ void UDataflowEdNode::AllocateDefaultPins()
 		{
 			if (TSharedPtr<FDataflowNode> DataflowNode = DataflowGraph->FindBaseNode(DataflowNodeGuid))
 			{
-				for (const Dataflow::FPin& Pin : DataflowNode->GetPins())
+				for (const UE::Dataflow::FPin& Pin : DataflowNode->GetPins())
 				{
-					UEdGraphPin* const EdPin = CreatePin(Dataflow::Private::DataflowDirectionToEdPinDirection(Pin.Direction), Pin.Type, Pin.Name);
+					UEdGraphPin* const EdPin = CreatePin(UE::Dataflow::Private::DataflowDirectionToEdPinDirection(Pin.Direction), Pin.Type, Pin.Name);
 					EdPin->bHidden = Pin.bHidden;
 				}
 			}
@@ -215,9 +215,9 @@ void UDataflowEdNode::UpdatePinsFromDataflowNode()
 				}
 				PinsToRemove.Reset();
 
-				for (const Dataflow::FPin& Pin : DataflowNode->GetPins())
+				for (const UE::Dataflow::FPin& Pin : DataflowNode->GetPins())
 				{
-					const EEdGraphPinDirection EdDirection = Dataflow::Private::DataflowDirectionToEdPinDirection(Pin.Direction);
+					const EEdGraphPinDirection EdDirection = UE::Dataflow::Private::DataflowDirectionToEdPinDirection(Pin.Direction);
 					UEdGraphPin* EdPin = FindPin(Pin.Name, EdDirection);
 					if (!EdPin)
 					{
@@ -240,14 +240,14 @@ void UDataflowEdNode::AddOptionPin()
 
 		if (const TSharedPtr<FDataflowNode> DataflowNode = DataflowGraph->FindBaseNode(DataflowNodeGuid))
 		{
-			const TArray<Dataflow::FPin> AddedPins = DataflowNode->AddPins();
-			for (const Dataflow::FPin& Pin : AddedPins)
+			const TArray<UE::Dataflow::FPin> AddedPins = DataflowNode->AddPins();
+			for (const UE::Dataflow::FPin& Pin : AddedPins)
 			{
 				switch (Pin.Direction)
 				{
-				case Dataflow::FPin::EDirection::INPUT:
-				case Dataflow::FPin::EDirection::OUTPUT:
-					CreatePin(Dataflow::Private::DataflowDirectionToEdPinDirection(Pin.Direction), Pin.Type, Pin.Name);
+				case UE::Dataflow::FPin::EDirection::INPUT:
+				case UE::Dataflow::FPin::EDirection::OUTPUT:
+					CreatePin(UE::Dataflow::Private::DataflowDirectionToEdPinDirection(Pin.Direction), Pin.Type, Pin.Name);
 					ReconstructNode();
 					break;
 				default:
@@ -274,15 +274,15 @@ void UDataflowEdNode::RemoveOptionPin()
 
 		if (const TSharedPtr<FDataflowNode> DataflowNode = DataflowGraph->FindBaseNode(DataflowNodeGuid))
 		{
-			const TArray<Dataflow::FPin> RemovePins = DataflowNode->GetPinsToRemove();
-			Dataflow::FDataflowNodePauseInvalidationScope PauseInvalidationScope(DataflowNode.Get()); // Don't call invalidations per pin. Nodes may not evaluate correctly until all pins have been removed.
-			for (const Dataflow::FPin& Pin : RemovePins)
+			const TArray<UE::Dataflow::FPin> RemovePins = DataflowNode->GetPinsToRemove();
+			UE::Dataflow::FDataflowNodePauseInvalidationScope PauseInvalidationScope(DataflowNode.Get()); // Don't call invalidations per pin. Nodes may not evaluate correctly until all pins have been removed.
+			for (const UE::Dataflow::FPin& Pin : RemovePins)
 			{
 				switch (Pin.Direction)
 				{
-				case Dataflow::FPin::EDirection::INPUT:
-				case Dataflow::FPin::EDirection::OUTPUT:
-					if (UEdGraphPin* const EdPin = FindPin(Pin.Name, Dataflow::Private::DataflowDirectionToEdPinDirection(Pin.Direction)))
+				case UE::Dataflow::FPin::EDirection::INPUT:
+				case UE::Dataflow::FPin::EDirection::OUTPUT:
+					if (UEdGraphPin* const EdPin = FindPin(Pin.Name, UE::Dataflow::Private::DataflowDirectionToEdPinDirection(Pin.Direction)))
 					{
 						constexpr bool bNotifyNodes = true;
 						EdPin->BreakAllPinLinks(bNotifyNodes);
@@ -453,7 +453,7 @@ FLinearColor UDataflowEdNode::GetNodeTitleColor() const
 		{
 			if (TSharedPtr<FDataflowNode> DataflowNode = DataflowGraph->FindBaseNode(DataflowNodeGuid))
 			{
-				return Dataflow::FNodeColorsRegistry::Get().GetNodeTitleColor(DataflowNode->GetCategory());
+				return UE::Dataflow::FNodeColorsRegistry::Get().GetNodeTitleColor(DataflowNode->GetCategory());
 			}
 		}
 	}
@@ -464,7 +464,7 @@ FLinearColor UDataflowEdNode::GetNodeBodyTintColor() const
 {
 	if (const TSharedPtr<const FDataflowNode> DataflowNode = GetDataflowNode())
 	{
-		Dataflow::FNodeColorsRegistry::Get().GetNodeBodyTintColor(DataflowNode->GetCategory());
+		UE::Dataflow::FNodeColorsRegistry::Get().GetNodeBodyTintColor(DataflowNode->GetCategory());
 	}
 	return FDataflowNode::DefaultNodeBodyTintColor;
 }
@@ -486,7 +486,7 @@ FText UDataflowEdNode::GetPinDisplayName(const UEdGraphPin* Pin) const
 	{
 		if (const TSharedPtr<const FDataflowNode> DataflowNode = GetDataflowNode())
 		{
-			const FText DisplayName = DataflowNode->GetPinDisplayName(Pin->PinName, Dataflow::Private::EdPinDirectionToDataflowDirection(Pin->Direction));
+			const FText DisplayName = DataflowNode->GetPinDisplayName(Pin->PinName, UE::Dataflow::Private::EdPinDirectionToDataflowDirection(Pin->Direction));
 			if (!DisplayName.IsEmpty())
 			{
 				return DisplayName;
@@ -500,7 +500,7 @@ void UDataflowEdNode::GetPinHoverText(const UEdGraphPin& Pin, FString& HoverText
 {
 	if (const TSharedPtr<const FDataflowNode> DataflowNode = GetDataflowNode())
 	{
-		const Dataflow::FPin::EDirection PinDirection = Dataflow::Private::EdPinDirectionToDataflowDirection(Pin.Direction);
+		const UE::Dataflow::FPin::EDirection PinDirection = UE::Dataflow::Private::EdPinDirectionToDataflowDirection(Pin.Direction);
 
 		FString MetaDataStr;
 		TArray<FString> PinMetaData = DataflowNode->GetPinMetaData(Pin.PinName, PinDirection);
@@ -616,7 +616,7 @@ void UDataflowEdNode::OnPinRemoved(UEdGraphPin* InRemovedPin)
 			{
 				if (FDataflowInput* Con = DataflowNode->FindInput(FName(InRemovedPin->GetName())))
 				{
-					const Dataflow::FPin Pin = { Dataflow::FPin::EDirection::INPUT, Con->GetType(), Con->GetName() };
+					const UE::Dataflow::FPin Pin = { UE::Dataflow::FPin::EDirection::INPUT, Con->GetType(), Con->GetName() };
 					DataflowNode->OnPinRemoved(Pin);
 					DataflowNode->UnregisterPinConnection(Pin);
 				}
@@ -625,7 +625,7 @@ void UDataflowEdNode::OnPinRemoved(UEdGraphPin* InRemovedPin)
 			{
 				if (FDataflowOutput* Con = DataflowNode->FindOutput(FName(InRemovedPin->GetName())))
 				{
-					const Dataflow::FPin Pin = { Dataflow::FPin::EDirection::OUTPUT, Con->GetType(), Con->GetName() };
+					const UE::Dataflow::FPin Pin = { UE::Dataflow::FPin::EDirection::OUTPUT, Con->GetType(), Con->GetName() };
 					DataflowNode->OnPinRemoved(Pin);
 					DataflowNode->UnregisterPinConnection(Pin);
 				}
@@ -770,13 +770,13 @@ bool UDataflowEdNode::IsInputPinShown(FName PinName) const
 #endif //WITH_EDITOR
 
 
-TArray<Dataflow::FRenderingParameter> UDataflowEdNode::GetRenderParameters() const
+TArray<UE::Dataflow::FRenderingParameter> UDataflowEdNode::GetRenderParameters() const
 {
 	if (TSharedPtr<const FDataflowNode> DataflowNode = GetDataflowNode())
 	{
 		return DataflowNode->GetRenderParameters();
 	}
-	return 	TArray<Dataflow::FRenderingParameter>();
+	return 	TArray<UE::Dataflow::FRenderingParameter>();
 }
 
 

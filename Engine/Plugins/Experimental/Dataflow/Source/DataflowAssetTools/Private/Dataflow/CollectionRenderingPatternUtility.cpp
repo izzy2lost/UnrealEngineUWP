@@ -13,7 +13,7 @@
 
 using namespace UE::Geometry;
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	namespace Conversion
 	{
@@ -117,4 +117,4 @@ namespace Dataflow
 		}
 	}
 
-}	// namespace Dataflow
+}	// namespace UE::Dataflow

@@ -6,7 +6,7 @@
 
 namespace UE::Chaos::ClothAsset
 {
-	class FCloth2DSimViewMode : public Dataflow::FDataflowConstruction2DViewModeBase
+	class FCloth2DSimViewMode : public UE::Dataflow::FDataflowConstruction2DViewModeBase
 	{
 	public:
 		static const FName Name;
@@ -17,7 +17,7 @@ namespace UE::Chaos::ClothAsset
 		virtual FText GetTooltipText() const override;
 	};
 
-	class FCloth3DSimViewMode : public Dataflow::FDataflowConstruction3DViewModeBase
+	class FCloth3DSimViewMode : public UE::Dataflow::FDataflowConstruction3DViewModeBase
 	{
 	public:
 		static const FName Name;
@@ -28,7 +28,7 @@ namespace UE::Chaos::ClothAsset
 		virtual FText GetTooltipText() const override;
 	};
 
-	class FClothRenderViewMode : public Dataflow::FDataflowConstruction3DViewMode
+	class FClothRenderViewMode : public UE::Dataflow::FDataflowConstruction3DViewMode
 	{
 	public:
 		static const FName Name;
@@ -40,3 +40,5 @@ namespace UE::Chaos::ClothAsset
 	};
 
 }  // End namespace UE::Chaos::ClothAsset
+
+

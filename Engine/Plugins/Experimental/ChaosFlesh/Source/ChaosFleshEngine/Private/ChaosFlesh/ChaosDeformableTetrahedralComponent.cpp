@@ -182,7 +182,7 @@ UDeformablePhysicsComponent::FDataMapValue UDeformableTetrahedralComponent::NewD
 									if (!Roots.IsEmpty() && ensureMsgf(Roots.Num() == 1, TEXT("Error: Only supports a single root per skeleton.(%s)"), *Skeleton->GetName()))
 									{
 										TArray<FTransform> ComponentLocalPose;
-										Dataflow::Animation::GlobalTransforms(SkeletalMesh->GetRefSkeleton(), ComponentLocalPose);
+										UE::Dataflow::Animation::GlobalTransforms(SkeletalMesh->GetRefSkeleton(), ComponentLocalPose);
 
 										const TArray<FTransform>& ComponentTransforms = SkeletalMeshComponent->GetComponentSpaceTransforms();
 										if (ComponentLocalPose.Num() == ComponentTransforms.Num())
@@ -763,7 +763,7 @@ TArray<FVector> UDeformableTetrahedralComponent::GetSkeletalMeshEmbeddedPosition
 		Format == ChaosDeformableBindingOption::ComponentDelta) // BoneDelta handled below
 	{
 		TArray<FTransform> ComponentPose;
-		Dataflow::Animation::GlobalTransforms(GetRestCollection()->TargetDeformationSkeleton->GetRefSkeleton(), ComponentPose);
+		UE::Dataflow::Animation::GlobalTransforms(GetRestCollection()->TargetDeformationSkeleton->GetRefSkeleton(), ComponentPose);
 		TransformPositions.SetNumUninitialized(ComponentPose.Num());
 		if (TargetDeformationSkeletonOffset.Equals(FTransform::Identity))
 		{
@@ -1053,7 +1053,7 @@ TArray<FVector> UDeformableTetrahedralComponent::GetSkeletalMeshBindingPositions
 				{
 					// Component relative transforms, not world.
 					TArray<FTransform> ComponentPose;
-					Dataflow::Animation::GlobalTransforms(InSkeletalMesh->GetRefSkeleton(), ComponentPose);
+					UE::Dataflow::Animation::GlobalTransforms(InSkeletalMesh->GetRefSkeleton(), ComponentPose);
 
 					TransformPositions.SetNumUninitialized(ComponentPose.Num());
 					for (int32 i = 0; i < ComponentPose.Num(); i++)

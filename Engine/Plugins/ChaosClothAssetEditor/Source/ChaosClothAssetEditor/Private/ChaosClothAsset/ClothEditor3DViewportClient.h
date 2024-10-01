@@ -128,7 +128,7 @@ private:
 	bool bRenderMeshWireframe = false;
 
 	// Dataflow render support
-	Dataflow::FTimestamp LastModifiedTimestamp = Dataflow::FTimestamp::Invalid;
+	UE::Dataflow::FTimestamp LastModifiedTimestamp = UE::Dataflow::FTimestamp::Invalid;
 
 	// Gizmo support
 	TObjectPtr<UTransformProxy> TransformProxy = nullptr;

@@ -7,7 +7,7 @@
 
 #include "MathUtil.h"
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void RegisterDataflowMathNodes()
 	{
@@ -57,7 +57,7 @@ namespace Dataflow
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathOneInputOperatorNode::FDataflowMathOneInputOperatorNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathOneInputOperatorNode::FDataflowMathOneInputOperatorNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	:FDataflowNode(InParam, InGuid)
 {
 }
@@ -72,7 +72,7 @@ void FDataflowMathOneInputOperatorNode::RegisterInputsAndOutputs()
 	SetOutputConcreteType(&Result, TDataflowSingleTypePolicy<double>::TypeName);
 }
 
-void FDataflowMathOneInputOperatorNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDataflowMathOneInputOperatorNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Result))
 	{
@@ -84,7 +84,7 @@ void FDataflowMathOneInputOperatorNode::Evaluate(Dataflow::FContext& Context, co
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathTwoInputsOperatorNode::FDataflowMathTwoInputsOperatorNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathTwoInputsOperatorNode::FDataflowMathTwoInputsOperatorNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	:FDataflowNode(InParam, InGuid)
 {
 }
@@ -100,7 +100,7 @@ void FDataflowMathTwoInputsOperatorNode::RegisterInputsAndOutputs()
 	SetOutputConcreteType(&Result, TDataflowSingleTypePolicy<double>::TypeName);
 }
 
-void FDataflowMathTwoInputsOperatorNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDataflowMathTwoInputsOperatorNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Result))
 	{
@@ -113,53 +113,53 @@ void FDataflowMathTwoInputsOperatorNode::Evaluate(Dataflow::FContext& Context, c
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathAddNode::FDataflowMathAddNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathAddNode::FDataflowMathAddNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathTwoInputsOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathAddNode::ComputeResult(Dataflow::FContext& Context, double InA, double InB) const
+double FDataflowMathAddNode::ComputeResult(UE::Dataflow::FContext& Context, double InA, double InB) const
 {
 	return (InA + InB);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathSubtractNode::FDataflowMathSubtractNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathSubtractNode::FDataflowMathSubtractNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathTwoInputsOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathSubtractNode::ComputeResult(Dataflow::FContext& Context, double InA, double InB) const
+double FDataflowMathSubtractNode::ComputeResult(UE::Dataflow::FContext& Context, double InA, double InB) const
 {
 	return (InA - InB);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathMultiplyNode::FDataflowMathMultiplyNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathMultiplyNode::FDataflowMathMultiplyNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathTwoInputsOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathMultiplyNode::ComputeResult(Dataflow::FContext& Context, double InA, double InB) const
+double FDataflowMathMultiplyNode::ComputeResult(UE::Dataflow::FContext& Context, double InA, double InB) const
 {
 	return (InA * InB);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathDivideNode::FDataflowMathDivideNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathDivideNode::FDataflowMathDivideNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathTwoInputsOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 	RegisterInputConnection(&Fallback);
 }
 
-double FDataflowMathDivideNode::ComputeResult(Dataflow::FContext& Context, double InA, double InB) const
+double FDataflowMathDivideNode::ComputeResult(UE::Dataflow::FContext& Context, double InA, double InB) const
 {
 	if (InB == 0)
 	{
@@ -170,40 +170,40 @@ double FDataflowMathDivideNode::ComputeResult(Dataflow::FContext& Context, doubl
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathMinimumNode::FDataflowMathMinimumNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathMinimumNode::FDataflowMathMinimumNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathTwoInputsOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathMinimumNode::ComputeResult(Dataflow::FContext& Context, double InA, double InB) const
+double FDataflowMathMinimumNode::ComputeResult(UE::Dataflow::FContext& Context, double InA, double InB) const
 {
 	return FMath::Min(InA, InB);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathMaximumNode::FDataflowMathMaximumNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathMaximumNode::FDataflowMathMaximumNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathTwoInputsOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathMaximumNode::ComputeResult(Dataflow::FContext& Context, double InA, double InB) const
+double FDataflowMathMaximumNode::ComputeResult(UE::Dataflow::FContext& Context, double InA, double InB) const
 {
 	return FMath::Max(InA, InB);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathReciprocalNode::FDataflowMathReciprocalNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathReciprocalNode::FDataflowMathReciprocalNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 	RegisterInputConnection(&Fallback);
 }
 
-double FDataflowMathReciprocalNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathReciprocalNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	if (InA == 0)
 	{
@@ -214,39 +214,39 @@ double FDataflowMathReciprocalNode::ComputeResult(Dataflow::FContext& Context, d
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathSquareNode::FDataflowMathSquareNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathSquareNode::FDataflowMathSquareNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathSquareNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathSquareNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	return (InA * InA);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathCubeNode::FDataflowMathCubeNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathCubeNode::FDataflowMathCubeNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathCubeNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathCubeNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	return (InA * InA * InA);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathSquareRootNode::FDataflowMathSquareRootNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathSquareRootNode::FDataflowMathSquareRootNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathSquareRootNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathSquareRootNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	if (InA < 0)
 	{
@@ -258,14 +258,14 @@ double FDataflowMathSquareRootNode::ComputeResult(Dataflow::FContext& Context, d
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathInverseSquareRootNode::FDataflowMathInverseSquareRootNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathInverseSquareRootNode::FDataflowMathInverseSquareRootNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 	RegisterInputConnection(&Fallback);
 }
 
-double FDataflowMathInverseSquareRootNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathInverseSquareRootNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	if (InA == 0)
 	{
@@ -276,111 +276,111 @@ double FDataflowMathInverseSquareRootNode::ComputeResult(Dataflow::FContext& Con
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathNegateNode::FDataflowMathNegateNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathNegateNode::FDataflowMathNegateNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathNegateNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathNegateNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	return -InA;
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathAbsNode::FDataflowMathAbsNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathAbsNode::FDataflowMathAbsNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathAbsNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathAbsNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	return FMath::Abs(InA);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathFloorNode::FDataflowMathFloorNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathFloorNode::FDataflowMathFloorNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathFloorNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathFloorNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	return FMath::FloorToDouble(InA);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathCeilNode::FDataflowMathCeilNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathCeilNode::FDataflowMathCeilNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathCeilNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathCeilNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	return FMath::CeilToDouble(InA);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathRoundNode::FDataflowMathRoundNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathRoundNode::FDataflowMathRoundNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathRoundNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathRoundNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	return FMath::RoundToDouble(InA);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathTruncNode::FDataflowMathTruncNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathTruncNode::FDataflowMathTruncNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathTruncNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathTruncNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	return FMath::TruncToDouble(InA);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathFracNode::FDataflowMathFracNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathFracNode::FDataflowMathFracNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathFracNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathFracNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	return FMath::Frac(InA);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathPowNode::FDataflowMathPowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathPowNode::FDataflowMathPowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathTwoInputsOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathPowNode::ComputeResult(Dataflow::FContext& Context, double InA, double InB) const
+double FDataflowMathPowNode::ComputeResult(UE::Dataflow::FContext& Context, double InA, double InB) const
 {
 	return FMath::Pow(InA, InB);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathLogXNode::FDataflowMathLogXNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathLogXNode::FDataflowMathLogXNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	Base.Value = 10.0; // default is base 10
@@ -388,7 +388,7 @@ FDataflowMathLogXNode::FDataflowMathLogXNode(const Dataflow::FNodeParameters& In
 	RegisterInputConnection(&Base);
 }
 
-double FDataflowMathLogXNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathLogXNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	const double InBase = GetValue(Context, &Base);
 	if (InBase <= 0.f)
@@ -400,59 +400,59 @@ double FDataflowMathLogXNode::ComputeResult(Dataflow::FContext& Context, double 
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathLogNode::FDataflowMathLogNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathLogNode::FDataflowMathLogNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathLogNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathLogNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	return FMath::Loge(InA);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathExpNode::FDataflowMathExpNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathExpNode::FDataflowMathExpNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathExpNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathExpNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	return FMath::Exp(InA);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathSignNode::FDataflowMathSignNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathSignNode::FDataflowMathSignNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathSignNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathSignNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	return FMath::Sign(InA);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathOneMinusNode::FDataflowMathOneMinusNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathOneMinusNode::FDataflowMathOneMinusNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathOneMinusNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathOneMinusNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	return (1.0 - InA);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathConstantNode::FDataflowMathConstantNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathConstantNode::FDataflowMathConstantNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterOutputConnection(&Result);
@@ -486,7 +486,7 @@ double FDataflowMathConstantNode::GetConstant() const
 	return 0.0;
 }
 
-void FDataflowMathConstantNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDataflowMathConstantNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Result))
 	{
@@ -500,117 +500,117 @@ void FDataflowMathConstantNode::Evaluate(Dataflow::FContext& Context, const FDat
 //
 //--------------------------------------------------------------------------
 
-FDataflowMathSinNode::FDataflowMathSinNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathSinNode::FDataflowMathSinNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathSinNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathSinNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	return FMath::Sin(InA);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathCosNode::FDataflowMathCosNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathCosNode::FDataflowMathCosNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathCosNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathCosNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	return FMath::Cos(InA);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathTanNode::FDataflowMathTanNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathTanNode::FDataflowMathTanNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathTanNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathTanNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	return FMath::Tan(InA);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathArcSinNode::FDataflowMathArcSinNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathArcSinNode::FDataflowMathArcSinNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathArcSinNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathArcSinNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	return FMath::Asin(InA);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathArcCosNode::FDataflowMathArcCosNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathArcCosNode::FDataflowMathArcCosNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathArcCosNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathArcCosNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	return FMath::Acos(InA);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathArcTanNode::FDataflowMathArcTanNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathArcTanNode::FDataflowMathArcTanNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathArcTanNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathArcTanNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	return FMath::Atan(InA);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathArcTan2Node::FDataflowMathArcTan2Node(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathArcTan2Node::FDataflowMathArcTan2Node(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathTwoInputsOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathArcTan2Node::ComputeResult(Dataflow::FContext& Context, double InA, double InB) const
+double FDataflowMathArcTan2Node::ComputeResult(UE::Dataflow::FContext& Context, double InA, double InB) const
 {
 	return FMath::Atan2(InA, InB);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathDegToRadNode::FDataflowMathDegToRadNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathDegToRadNode::FDataflowMathDegToRadNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathDegToRadNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathDegToRadNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	return FMath::DegreesToRadians(InA);
 }
 
 //-----------------------------------------------------------------------------------------------
 
-FDataflowMathRadToDegNode::FDataflowMathRadToDegNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FDataflowMathRadToDegNode::FDataflowMathRadToDegNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
 {
 	RegisterInputsAndOutputs();
 }
 
-double FDataflowMathRadToDegNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+double FDataflowMathRadToDegNode::ComputeResult(UE::Dataflow::FContext& Context, double InA) const
 {
 	return FMath::RadiansToDegrees(InA);
 }

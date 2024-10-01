@@ -189,7 +189,7 @@ private:
 	TSharedPtr<FManagedArrayCollection> GetClothCollection();
 	TSharedPtr<FManagedArrayCollection> GetInputClothCollection();
 
-	void SetDataflowContext(TWeakPtr<Dataflow::FEngineContext> InDataflowContext);
+	void SetDataflowContext(TWeakPtr<UE::Dataflow::FEngineContext> InDataflowContext);
 	void SetDataflowGraphEditor(TSharedPtr<SDataflowGraphEditor> InGraphEditor);
 	
 	void StartToolForSelectedNode(const UObject* SelectedNode);
@@ -313,7 +313,7 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UEditorInteractiveToolsContext> ActiveToolsContext = nullptr;
-	TWeakPtr<Dataflow::FEngineContext> DataflowContext;
+	TWeakPtr<UE::Dataflow::FEngineContext> DataflowContext;
 	TSharedPtr<FManagedArrayCollection> SelectedClothCollection = nullptr;
 	TSharedPtr<FManagedArrayCollection> SelectedInputClothCollection = nullptr;
 

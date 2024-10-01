@@ -16,7 +16,7 @@ struct FDataflowConnection;
 
 #define DATAFLOW_EDITOR_EVALUATION WITH_EDITOR
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	class FContext;
 
@@ -179,21 +179,21 @@ namespace Dataflow
 	};
 };
 
-inline FArchive& operator<<(FArchive& Ar, Dataflow::FTimestamp& ValueIn)
+inline FArchive& operator<<(FArchive& Ar, UE::Dataflow::FTimestamp& ValueIn)
 {
 	Ar << ValueIn.Value;
 	Ar << ValueIn.Invalid;
 	return Ar;
 }
 
-inline FArchive& operator<<(FArchive& Ar, Dataflow::FContextCache& ValueIn)
+inline FArchive& operator<<(FArchive& Ar, UE::Dataflow::FContextCache& ValueIn)
 {
 	ValueIn.Serialize(Ar);
 	return Ar;
 }
 
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 
 	class FContext
@@ -451,3 +451,5 @@ namespace Dataflow
 		return MakeUnique<FContextCacheElementNull>(GetNodeGuid(), GetProperty(), InReferenceDataKey, GetNodeHash(), GetTimestamp());
 	}
 }
+
+

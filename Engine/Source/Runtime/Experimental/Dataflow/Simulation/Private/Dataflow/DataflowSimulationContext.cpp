@@ -91,7 +91,7 @@ int32 TSimulationContext<Base>::NumSimulationProxies(const FString& ProxyType) c
 	return TypedProxies ? TypedProxies->Num() : 0;
 }
 
-template class TSimulationContext<::Dataflow::FContextSingle>;
-template class TSimulationContext<::Dataflow::FContextThreaded>;
+template class TSimulationContext<UE::Dataflow::FContextSingle>;
+template class TSimulationContext<UE::Dataflow::FContextThreaded>;
 	
 }

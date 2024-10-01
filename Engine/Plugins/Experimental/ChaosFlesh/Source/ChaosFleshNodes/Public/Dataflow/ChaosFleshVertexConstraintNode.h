@@ -23,7 +23,7 @@ public:
 	UPROPERTY(meta = (DataflowInput, DisplayName = "SelectionSet"))
 		TArray<int32> VertexIndicesIn;
 
-	FSetVerticesKinematicDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FSetVerticesKinematicDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
@@ -31,7 +31,7 @@ public:
 		RegisterInputConnection(&VertexIndicesIn);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 

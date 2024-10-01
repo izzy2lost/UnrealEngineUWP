@@ -8,7 +8,7 @@
 struct FDataflowNode;
 struct FDataflowConnection;
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	struct FNewNodeParameters {
 		FGuid Guid;
@@ -91,7 +91,7 @@ namespace Dataflow
 				GetVersionFromTypeName(T::StaticType())
 			};
 
-			auto CreationFunction = [](const ::Dataflow::FNewNodeParameters& InParam)
+			auto CreationFunction = [](const UE::Dataflow::FNewNodeParameters& InParam)
 			{
 				const FNodeParameters NodeParameters = { InParam.Name, InParam.OwningObject };
 				TUniquePtr<T> Val = MakeUnique<T>(NodeParameters, InParam.Guid);
@@ -138,4 +138,5 @@ namespace Dataflow
 		DATAFLOWCORE_API void RegisterDefaultNodes();
 	};
 }
+
 

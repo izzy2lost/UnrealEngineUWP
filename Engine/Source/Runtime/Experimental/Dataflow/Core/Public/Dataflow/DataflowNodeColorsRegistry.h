@@ -12,7 +12,7 @@ struct FDataflowConnection;
 	
 class FLazySingleton;
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	//
 	//
@@ -37,5 +37,5 @@ namespace Dataflow
 
 		friend FLazySingleton;
 	};
-
 }
+

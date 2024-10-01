@@ -22,9 +22,9 @@ const FLinearColor FDataflowNode::DefaultNodeBodyTintColor = FLinearColor(0.f, 0
 
 const FName FDataflowAnyType::TypeName = TEXT("FDataflowAnyType");
 
-namespace Dataflow::Private
+namespace UE::Dataflow::Private
 {
-static uint32 GetArrayElementOffsetFromReference(const FArrayProperty* const ArrayProperty, const Dataflow::FConnectionReference& Reference)
+static uint32 GetArrayElementOffsetFromReference(const FArrayProperty* const ArrayProperty, const UE::Dataflow::FConnectionReference& Reference)
 {
 	check(ArrayProperty);
 	if (const void* const AddressAtIndex = ArrayProperty->GetValueAddressAtIndex_Direct(ArrayProperty->Inner, const_cast<void*>(Reference.ContainerReference), Reference.Index))
@@ -131,7 +131,7 @@ void FDataflowNode::AddInput(FDataflowInput* InPtr)
 {
 	if (InPtr)
 	{
-		for (const TPair<Dataflow::FConnectionKey, FDataflowInput*>& Elem : ExpandedInputs)
+		for (const TPair<UE::Dataflow::FConnectionKey, FDataflowInput*>& Elem : ExpandedInputs)
 		{
 			const FDataflowInput* const In = Elem.Value;
 			ensureMsgf(!In->GetName().IsEqual(InPtr->GetName()), TEXT("Add Input Failed: Existing Node input already defined with name (%s)"), *InPtr->GetName().ToString());
@@ -139,7 +139,7 @@ void FDataflowNode::AddInput(FDataflowInput* InPtr)
 
 		check(InPtr->GetOwningNode() == this);
 
-		const Dataflow::FConnectionKey Key(InPtr->GetOffset(), InPtr->GetContainerIndex(), InPtr->GetContainerElementOffset());
+		const UE::Dataflow::FConnectionKey Key(InPtr->GetOffset(), InPtr->GetContainerIndex(), InPtr->GetContainerElementOffset());
 		if (ensure(!ExpandedInputs.Contains(Key)))
 		{
 			ExpandedInputs.Add(Key, InPtr);
@@ -154,7 +154,7 @@ int32 FDataflowNode::GetNumInputs() const
 
 FDataflowInput* FDataflowNode::FindInput(FName InName)
 {
-	for (TPair<Dataflow::FConnectionKey, FDataflowInput*>& Elem : ExpandedInputs)
+	for (TPair<UE::Dataflow::FConnectionKey, FDataflowInput*>& Elem : ExpandedInputs)
 	{
 		FDataflowInput* const Con = Elem.Value;
 		if (Con->GetName().IsEqual(InName))
@@ -167,7 +167,7 @@ FDataflowInput* FDataflowNode::FindInput(FName InName)
 
 const FDataflowInput* FDataflowNode::FindInput(FName InName) const
 {
-	for (const TPair<Dataflow::FConnectionKey, FDataflowInput*>& Elem : ExpandedInputs)
+	for (const TPair<UE::Dataflow::FConnectionKey, FDataflowInput*>& Elem : ExpandedInputs)
 	{
 		const FDataflowInput* const Con = Elem.Value;
 		if (Con->GetName().IsEqual(InName))
@@ -178,7 +178,7 @@ const FDataflowInput* FDataflowNode::FindInput(FName InName) const
 	return nullptr;
 }
 
-const FDataflowInput* FDataflowNode::FindInput(const Dataflow::FConnectionKey& Key) const
+const FDataflowInput* FDataflowNode::FindInput(const UE::Dataflow::FConnectionKey& Key) const
 {
 	if (const FDataflowInput* const* Con = ExpandedInputs.Find(Key))
 	{
@@ -188,9 +188,9 @@ const FDataflowInput* FDataflowNode::FindInput(const Dataflow::FConnectionKey& K
 	return nullptr;
 }
 
-const FDataflowInput* FDataflowNode::FindInput(const Dataflow::FConnectionReference& Reference) const
+const FDataflowInput* FDataflowNode::FindInput(const UE::Dataflow::FConnectionReference& Reference) const
 {
-	const Dataflow::FConnectionKey Key = GetKeyFromReference(Reference);
+	const UE::Dataflow::FConnectionKey Key = GetKeyFromReference(Reference);
 	if (const FDataflowInput* const Con = FindInput(Key))
 	{
 		check(Con->RealAddress() == Reference.Reference);
@@ -199,7 +199,7 @@ const FDataflowInput* FDataflowNode::FindInput(const Dataflow::FConnectionRefere
 	if (Reference.ContainerReference == nullptr && !InputArrayProperties.IsEmpty())
 	{
 		// Search through all connections to see if Reference is the RealAddress of an array property.
-		for (const TPair<Dataflow::FConnectionKey, FDataflowInput*>& Elem : ExpandedInputs)
+		for (const TPair<UE::Dataflow::FConnectionKey, FDataflowInput*>& Elem : ExpandedInputs)
 		{
 			const FDataflowInput* const Con = Elem.Value;
 			if (Con->RealAddress() == Reference.Reference)
@@ -211,7 +211,7 @@ const FDataflowInput* FDataflowNode::FindInput(const Dataflow::FConnectionRefere
 	return nullptr;
 }
 
-FDataflowInput* FDataflowNode::FindInput(const Dataflow::FConnectionKey& Key)
+FDataflowInput* FDataflowNode::FindInput(const UE::Dataflow::FConnectionKey& Key)
 {
 	if (FDataflowInput* const* Con = ExpandedInputs.Find(Key))
 	{
@@ -221,9 +221,9 @@ FDataflowInput* FDataflowNode::FindInput(const Dataflow::FConnectionKey& Key)
 	return nullptr;
 }
 
-FDataflowInput* FDataflowNode::FindInput(const Dataflow::FConnectionReference& Reference)
+FDataflowInput* FDataflowNode::FindInput(const UE::Dataflow::FConnectionReference& Reference)
 {
-	const Dataflow::FConnectionKey Key = GetKeyFromReference(Reference);
+	const UE::Dataflow::FConnectionKey Key = GetKeyFromReference(Reference);
 	if (FDataflowInput* const Con = FindInput(Key))
 	{
 		check(Con->RealAddress() == Reference.Reference);
@@ -232,7 +232,7 @@ FDataflowInput* FDataflowNode::FindInput(const Dataflow::FConnectionReference& R
 	if (Reference.ContainerReference == nullptr && !InputArrayProperties.IsEmpty())
 	{
 		// Search through all connections to see if Reference is the RealAddress of an array property.
-		for (TPair<Dataflow::FConnectionKey, FDataflowInput*>& Elem : ExpandedInputs)
+		for (TPair<UE::Dataflow::FConnectionKey, FDataflowInput*>& Elem : ExpandedInputs)
 		{
 			FDataflowInput* const Con = Elem.Value;
 			if (Con->RealAddress() == Reference.Reference)
@@ -246,7 +246,7 @@ FDataflowInput* FDataflowNode::FindInput(const Dataflow::FConnectionReference& R
 
 const FDataflowInput* FDataflowNode::FindInput(const FGuid& InGuid) const
 {
-	for (const TPair<Dataflow::FConnectionKey, FDataflowInput*>& Elem : ExpandedInputs)
+	for (const TPair<UE::Dataflow::FConnectionKey, FDataflowInput*>& Elem : ExpandedInputs)
 	{
 		const FDataflowInput* const Con = Elem.Value;
 		if (Con->GetGuid() == InGuid)
@@ -266,7 +266,7 @@ TArray< FDataflowInput* > FDataflowNode::GetInputs() const
 
 void FDataflowNode::ClearInputs()
 {
-	for (TPair<Dataflow::FConnectionKey, FDataflowInput*>& Elem : ExpandedInputs)
+	for (TPair<UE::Dataflow::FConnectionKey, FDataflowInput*>& Elem : ExpandedInputs)
 	{
 		FDataflowInput* const Con = Elem.Value;
 		delete Con;
@@ -276,7 +276,7 @@ void FDataflowNode::ClearInputs()
 
 bool FDataflowNode::HasHideableInputs() const
 {
-	for (const TPair<Dataflow::FConnectionKey, FDataflowInput*>& Elem : ExpandedInputs)
+	for (const TPair<UE::Dataflow::FConnectionKey, FDataflowInput*>& Elem : ExpandedInputs)
 	{
 		const FDataflowInput* const Con = Elem.Value;
 		if (Con->GetCanHidePin())
@@ -289,7 +289,7 @@ bool FDataflowNode::HasHideableInputs() const
 
 bool FDataflowNode::HasHiddenInputs() const
 {
-	for (const TPair<Dataflow::FConnectionKey, FDataflowInput*>& Elem : ExpandedInputs)
+	for (const TPair<UE::Dataflow::FConnectionKey, FDataflowInput*>& Elem : ExpandedInputs)
 	{
 		const FDataflowInput* const Con = Elem.Value;
 		if (Con->GetPinIsHidden())
@@ -390,7 +390,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	return nullptr;
 }
 
-const FDataflowOutput* FDataflowNode::FindOutput(const Dataflow::FConnectionKey& Key) const
+const FDataflowOutput* FDataflowNode::FindOutput(const UE::Dataflow::FConnectionKey& Key) const
 {
 PRAGMA_DISABLE_DEPRECATION_WARNINGS  // Until Outputs becomes private
 	if (const FDataflowOutput* const* Con = Outputs.Find(Key.Offset))
@@ -402,9 +402,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	return nullptr;
 }
 
-const FDataflowOutput* FDataflowNode::FindOutput(const Dataflow::FConnectionReference& Reference) const
+const FDataflowOutput* FDataflowNode::FindOutput(const UE::Dataflow::FConnectionReference& Reference) const
 {
-	const Dataflow::FConnectionKey Key = GetKeyFromReference(Reference);
+	const UE::Dataflow::FConnectionKey Key = GetKeyFromReference(Reference);
 	if (const FDataflowOutput* const Con = FindOutput(Key))
 	{
 		check(Con->RealAddress() == Reference.Reference);
@@ -413,7 +413,7 @@ const FDataflowOutput* FDataflowNode::FindOutput(const Dataflow::FConnectionRefe
 	return nullptr;
 }
 
-FDataflowOutput* FDataflowNode::FindOutput(const Dataflow::FConnectionKey& Key)
+FDataflowOutput* FDataflowNode::FindOutput(const UE::Dataflow::FConnectionKey& Key)
 {
 PRAGMA_DISABLE_DEPRECATION_WARNINGS  // Until Outputs becomes private
 	if (FDataflowOutput* const* Con = Outputs.Find(Key.Offset))
@@ -425,9 +425,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	return nullptr;
 }
 
-FDataflowOutput* FDataflowNode::FindOutput(const Dataflow::FConnectionReference& Reference)
+FDataflowOutput* FDataflowNode::FindOutput(const UE::Dataflow::FConnectionReference& Reference)
 {
-	const Dataflow::FConnectionKey Key = GetKeyFromReference(Reference);
+	const UE::Dataflow::FConnectionKey Key = GetKeyFromReference(Reference);
 	if (FDataflowOutput* const Con = FindOutput(Key))
 	{
 		check(Con->RealAddress() == Reference.Reference);
@@ -513,29 +513,29 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	return false;
 }
 
-TArray<Dataflow::FPin> FDataflowNode::GetPins() const
+TArray<UE::Dataflow::FPin> FDataflowNode::GetPins() const
 {
-	TArray<Dataflow::FPin> RetVal;
-	for (const TPair<Dataflow::FConnectionKey, FDataflowInput*>& Elem : ExpandedInputs)
+	TArray<UE::Dataflow::FPin> RetVal;
+	for (const TPair<UE::Dataflow::FConnectionKey, FDataflowInput*>& Elem : ExpandedInputs)
 	{
 		const FDataflowInput* const Con = Elem.Value;
-		RetVal.Add({ Dataflow::FPin::EDirection::INPUT,Con->GetType(), Con->GetName(), Con->GetPinIsHidden()});
+		RetVal.Add({ UE::Dataflow::FPin::EDirection::INPUT,Con->GetType(), Con->GetName(), Con->GetPinIsHidden()});
 	}
 PRAGMA_DISABLE_DEPRECATION_WARNINGS  // Until Outputs becomes private
 	for (const TPair<int32, FDataflowOutput*>& Elem : Outputs)
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		const FDataflowOutput* const Con = Elem.Value;
-		RetVal.Add({ Dataflow::FPin::EDirection::OUTPUT,Con->GetType(), Con->GetName(), Con->GetPinIsHidden() });
+		RetVal.Add({ UE::Dataflow::FPin::EDirection::OUTPUT,Con->GetType(), Con->GetName(), Con->GetPinIsHidden() });
 	}
 	return RetVal;
 }
 
-void FDataflowNode::UnregisterPinConnection(const Dataflow::FPin& Pin)
+void FDataflowNode::UnregisterPinConnection(const UE::Dataflow::FPin& Pin)
 {
-	if (Pin.Direction == Dataflow::FPin::EDirection::INPUT)
+	if (Pin.Direction == UE::Dataflow::FPin::EDirection::INPUT)
 	{
-		for (TMap<Dataflow::FConnectionKey, FDataflowInput*>::TIterator Iter = ExpandedInputs.CreateIterator(); Iter; ++Iter)
+		for (TMap<UE::Dataflow::FConnectionKey, FDataflowInput*>::TIterator Iter = ExpandedInputs.CreateIterator(); Iter; ++Iter)
 		{
 			FDataflowInput* Con = Iter.Value();
 			if (Con->GetName().IsEqual(Pin.Name) && Con->GetType().IsEqual(Pin.Type))
@@ -549,7 +549,7 @@ void FDataflowNode::UnregisterPinConnection(const Dataflow::FPin& Pin)
 			}
 		}
 	}
-	else if (Pin.Direction == Dataflow::FPin::EDirection::OUTPUT)
+	else if (Pin.Direction == UE::Dataflow::FPin::EDirection::OUTPUT)
 	{
 PRAGMA_DISABLE_DEPRECATION_WARNINGS  // Until Outputs becomes private
 		for (TMap<int32, FDataflowOutput*>::TIterator Iter = Outputs.CreateIterator(); Iter; ++Iter)
@@ -569,7 +569,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }
 
-void FDataflowNode::Invalidate(const Dataflow::FTimestamp& InModifiedTimestamp)
+void FDataflowNode::Invalidate(const UE::Dataflow::FTimestamp& InModifiedTimestamp)
 {
 	if (bPauseInvalidations)
 	{
@@ -598,12 +598,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 const FProperty* FDataflowNode::FindProperty(const UStruct* Struct, const void* InProperty, const FName& PropertyName, TArray<const FProperty*>* OutPropertyChain) const
 {
-	return Dataflow::Private::FindProperty(Struct, this, InProperty, PropertyName, OutPropertyChain);
+	return UE::Dataflow::Private::FindProperty(Struct, this, InProperty, PropertyName, OutPropertyChain);
 }
 
 const FProperty& FDataflowNode::FindPropertyChecked(const UStruct* Struct, const void* InProperty, const FName& PropertyName, TArray<const FProperty*>* OutPropertyChain) const
 {
-	return Dataflow::Private::FindPropertyChecked(Struct, this, InProperty, PropertyName, OutPropertyChain);
+	return UE::Dataflow::Private::FindPropertyChecked(Struct, this, InProperty, PropertyName, OutPropertyChain);
 }
 
 const FProperty* FDataflowNode::FindProperty(const UStruct* Struct, const FName& PropertyFullName, TArray<const FProperty*>* OutPropertyChain) const
@@ -660,15 +660,15 @@ uint32 FDataflowNode::GetConnectionOffsetFromReference(const void* Reference) co
 	return (uint32)((size_t)Reference - (size_t)this);
 }
 
-Dataflow::FConnectionKey FDataflowNode::GetKeyFromReference(const Dataflow::FConnectionReference& Reference) const
+UE::Dataflow::FConnectionKey FDataflowNode::GetKeyFromReference(const UE::Dataflow::FConnectionReference& Reference) const
 {
-	Dataflow::FConnectionKey Key;
+	UE::Dataflow::FConnectionKey Key;
 	Key.Offset = Reference.ContainerReference ? GetConnectionOffsetFromReference(Reference.ContainerReference) : GetConnectionOffsetFromReference(Reference.Reference);
 	Key.ContainerIndex = Reference.Index;
 	Key.ContainerElementOffset = INDEX_NONE;
 	if (const FArrayProperty* const* ArrayProperty = InputArrayProperties.Find(Key.Offset))
 	{
-		Key.ContainerElementOffset = Dataflow::Private::GetArrayElementOffsetFromReference(*ArrayProperty, Reference);
+		Key.ContainerElementOffset = UE::Dataflow::Private::GetArrayElementOffsetFromReference(*ArrayProperty, Reference);
 	}
 	return Key;
 }
@@ -769,7 +769,7 @@ FText FDataflowNode::GetPropertyDisplayNameText(const TArray<const FProperty*>& 
 #endif
 }
 
-void FDataflowNode::InitConnectionParametersFromPropertyReference(const FStructOnScope& StructOnScope, const void* PropertyRef, const FName& PropertyName, Dataflow::FConnectionParameters& OutParams)
+void FDataflowNode::InitConnectionParametersFromPropertyReference(const FStructOnScope& StructOnScope, const void* PropertyRef, const FName& PropertyName, UE::Dataflow::FConnectionParameters& OutParams)
 {
 	const UStruct* Struct = StructOnScope.GetStruct();
 	check(Struct);
@@ -786,11 +786,11 @@ void FDataflowNode::InitConnectionParametersFromPropertyReference(const FStructO
 	check(OutParams.Offset == GetPropertyOffset(PropertyChain));
 }
 
-FDataflowInput& FDataflowNode::RegisterInputConnectionInternal(const Dataflow::FConnectionReference& Reference, const FName& PropertyName)
+FDataflowInput& FDataflowNode::RegisterInputConnectionInternal(const UE::Dataflow::FConnectionReference& Reference, const FName& PropertyName)
 {
 	TUniquePtr<FStructOnScope> ScriptOnStruct = TUniquePtr<FStructOnScope>(NewStructOnScope());
 	check(ScriptOnStruct);
-	Dataflow::FInputParameters InputParams;
+	UE::Dataflow::FInputParameters InputParams;
 	InitConnectionParametersFromPropertyReference(*ScriptOnStruct, Reference.Reference, PropertyName, InputParams);
 	FDataflowInput* const Input = new FDataflowInput(InputParams);
 	check(Input->RealAddress() == Reference.Reference);
@@ -800,14 +800,14 @@ FDataflowInput& FDataflowNode::RegisterInputConnectionInternal(const Dataflow::F
 	return *Input;
 }
 
-FDataflowInput& FDataflowNode::RegisterInputArrayConnectionInternal(const Dataflow::FConnectionReference& Reference, const FName& ElementPropertyName,
+FDataflowInput& FDataflowNode::RegisterInputArrayConnectionInternal(const UE::Dataflow::FConnectionReference& Reference, const FName& ElementPropertyName,
 	const FName& ArrayPropertyName)
 {
 	TUniquePtr<FStructOnScope> ScriptOnStruct = TUniquePtr<FStructOnScope>(NewStructOnScope());
 	check(ScriptOnStruct);
 	const UStruct* Struct = ScriptOnStruct->GetStruct();
 	check(Struct);
-	Dataflow::FArrayInputParameters InputParams;
+	UE::Dataflow::FArrayInputParameters InputParams;
 	InputParams.Owner = this;
 
 	// Find the Array property.
@@ -835,7 +835,7 @@ FDataflowInput& FDataflowNode::RegisterInputArrayConnectionInternal(const Datafl
 	}
 	else if (const FStructProperty* const InnerStruct = CastField<FStructProperty>(InputParams.ArrayProperty->Inner))
 	{
-		InputParams.Property = &Dataflow::Private::FindPropertyChecked(InnerStruct->Struct, AddressAtIndex, Reference.Reference, ElementPropertyName, &PropertyChain);
+		InputParams.Property = &UE::Dataflow::Private::FindPropertyChecked(InnerStruct->Struct, AddressAtIndex, Reference.Reference, ElementPropertyName, &PropertyChain);
 		PropertyChain.Add(InnerStruct);
 	}
 
@@ -846,7 +846,7 @@ FDataflowInput& FDataflowNode::RegisterInputArrayConnectionInternal(const Datafl
 	const FString CPPType = InputParams.Property->GetCPPType(&ExtendedType);
 	InputParams.Type = FName(CPPType + ExtendedType);
 	InputParams.Name = GetPropertyFullName(PropertyChain, Reference.Index);
-	InputParams.InnerOffset = Dataflow::Private::GetArrayElementOffsetFromReference(InputParams.ArrayProperty, Reference);
+	InputParams.InnerOffset = UE::Dataflow::Private::GetArrayElementOffsetFromReference(InputParams.ArrayProperty, Reference);
 
 	InputArrayProperties.Emplace(InputParams.Offset, InputParams.ArrayProperty);
 
@@ -856,7 +856,7 @@ FDataflowInput& FDataflowNode::RegisterInputArrayConnectionInternal(const Datafl
 	return *Input;
 }
 
-void FDataflowNode::UnregisterInputConnection(const Dataflow::FConnectionKey& Key)
+void FDataflowNode::UnregisterInputConnection(const UE::Dataflow::FConnectionKey& Key)
 {
 	if (ExpandedInputs.Remove(Key))
 	{
@@ -865,11 +865,11 @@ void FDataflowNode::UnregisterInputConnection(const Dataflow::FConnectionKey& Ke
 	}
 }
 
-FDataflowOutput& FDataflowNode::RegisterOutputConnectionInternal(const Dataflow::FConnectionReference& Reference, const FName& PropertyName)
+FDataflowOutput& FDataflowNode::RegisterOutputConnectionInternal(const UE::Dataflow::FConnectionReference& Reference, const FName& PropertyName)
 {
 	TUniquePtr<FStructOnScope> ScriptOnStruct = TUniquePtr<FStructOnScope>(NewStructOnScope());
 	check(ScriptOnStruct);
-	Dataflow::FOutputParameters OutputParams;
+	UE::Dataflow::FOutputParameters OutputParams;
 	InitConnectionParametersFromPropertyReference(*ScriptOnStruct, Reference.Reference, PropertyName, OutputParams);
 	FDataflowOutput* OutputConnection = new FDataflowOutput(OutputParams);
 	check(OutputConnection->RealAddress() == Reference.Reference);
@@ -1049,7 +1049,7 @@ bool FDataflowNode::ValidateConnections()
 #if 0
 		 // disabling this out this for now as this fail all over the place for some dataflow graphs 
 		 // we may get rid of the metadata constraints we may not need it anymore ( to be decided later )
-			for (const TPair<Dataflow::FConnectionKey, FDataflowInput*>& ExpandedInput : ExpandedInputs)
+			for (const TPair<UE::Dataflow::FConnectionKey, FDataflowInput*>& ExpandedInput : ExpandedInputs)
 			{
 				const FDataflowInput* Input = ExpandedInput.Value;
 
@@ -1095,23 +1095,23 @@ TUniquePtr<const FStructOnScope> FDataflowNode::NewStructOnScopeConst() const
 
 FString FDataflowNode::GetToolTip() const
 {
-	Dataflow::FFactoryParameters FactoryParameters = ::Dataflow::FNodeFactory::GetInstance()->GetParameters(GetType());
+	UE::Dataflow::FFactoryParameters FactoryParameters = UE::Dataflow::FNodeFactory::GetInstance()->GetParameters(GetType());
 
 	return FactoryParameters.ToolTip;
 }
 
-FText FDataflowNode::GetPinDisplayName(const FName& PropertyFullName, const Dataflow::FPin::EDirection Direction) const
+FText FDataflowNode::GetPinDisplayName(const FName& PropertyFullName, const UE::Dataflow::FPin::EDirection Direction) const
 {
 	int32 ContainerIndex = INDEX_NONE;
 
-	if (Direction == Dataflow::FPin::EDirection::INPUT)
+	if (Direction == UE::Dataflow::FPin::EDirection::INPUT)
 	{
 		if (const FDataflowInput* const Input = FindInput(PropertyFullName))
 		{
 			ContainerIndex = Input->GetContainerIndex();
 		}
 	}
-	else if (Direction == Dataflow::FPin::EDirection::OUTPUT)
+	else if (Direction == UE::Dataflow::FPin::EDirection::OUTPUT)
 	{
 		if (const FDataflowOutput* const Output = FindOutput(PropertyFullName))
 		{
@@ -1134,26 +1134,26 @@ FText FDataflowNode::GetPinDisplayName(const FName& PropertyFullName, const Data
 	return FText();
 }
 
-FString FDataflowNode::GetPinToolTip(const FName& PropertyFullName, const Dataflow::FPin::EDirection Direction) const
+FString FDataflowNode::GetPinToolTip(const FName& PropertyFullName, const UE::Dataflow::FPin::EDirection Direction) const
 {
 #if WITH_EDITORONLY_DATA
-	if (Direction == Dataflow::FPin::EDirection::INPUT)
+	if (Direction == UE::Dataflow::FPin::EDirection::INPUT)
 	{
 		if (const FDataflowInput* const Input = FindInput(PropertyFullName))
 		{
 			if (const FProperty* const Property = Input->GetProperty())
 			{
-				return Dataflow::Private::GetPinToolTipFromProperty(Property);
+				return UE::Dataflow::Private::GetPinToolTipFromProperty(Property);
 			}
 		}
 	}
-	else if (Direction == Dataflow::FPin::EDirection::OUTPUT)
+	else if (Direction == UE::Dataflow::FPin::EDirection::OUTPUT)
 	{
 		if (const FDataflowOutput* const Output = FindOutput(PropertyFullName))
 		{
 			if (const FProperty* const Property = Output->GetProperty())
 			{
-				return Dataflow::Private::GetPinToolTipFromProperty(Property);
+				return UE::Dataflow::Private::GetPinToolTipFromProperty(Property);
 			}
 		}
 	}
@@ -1163,7 +1163,7 @@ FString FDataflowNode::GetPinToolTip(const FName& PropertyFullName, const Datafl
 		{
 			if (const FProperty* const Property = FindProperty(Struct, PropertyFullName))
 			{
-				return Dataflow::Private::GetPinToolTipFromProperty(Property);
+				return UE::Dataflow::Private::GetPinToolTipFromProperty(Property);
 			}
 		}
 	}
@@ -1172,26 +1172,26 @@ FString FDataflowNode::GetPinToolTip(const FName& PropertyFullName, const Datafl
 	return {};
 }
 
-TArray<FString> FDataflowNode::GetPinMetaData(const FName& PropertyFullName, const Dataflow::FPin::EDirection Direction) const
+TArray<FString> FDataflowNode::GetPinMetaData(const FName& PropertyFullName, const UE::Dataflow::FPin::EDirection Direction) const
 {
 #if WITH_EDITORONLY_DATA
-	if (Direction == Dataflow::FPin::EDirection::INPUT)
+	if (Direction == UE::Dataflow::FPin::EDirection::INPUT)
 	{
 		if (const FDataflowInput* const Input = FindInput(PropertyFullName))
 		{
 			if (const FProperty* const Property = Input->GetProperty())
 			{
-				return Dataflow::Private::GetPinMetaDataFromProperty(Property);
+				return UE::Dataflow::Private::GetPinMetaDataFromProperty(Property);
 			}
 		}
 	}
-	else if (Direction == Dataflow::FPin::EDirection::OUTPUT)
+	else if (Direction == UE::Dataflow::FPin::EDirection::OUTPUT)
 	{
 		if (const FDataflowOutput* const Output = FindOutput(PropertyFullName))
 		{
 			if (const FProperty* const Property = Output->GetProperty())
 			{
-				return Dataflow::Private::GetPinMetaDataFromProperty(Property);
+				return UE::Dataflow::Private::GetPinMetaDataFromProperty(Property);
 			}
 		}
 	}
@@ -1201,7 +1201,7 @@ TArray<FString> FDataflowNode::GetPinMetaData(const FName& PropertyFullName, con
 		{
 			if (const FProperty* const Property = FindProperty(Struct, PropertyFullName))
 			{
-				return Dataflow::Private::GetPinMetaDataFromProperty(Property);
+				return UE::Dataflow::Private::GetPinMetaDataFromProperty(Property);
 			}
 		}
 	}
@@ -1221,7 +1221,7 @@ void FDataflowNode::CopyNodeProperties(const TSharedPtr<FDataflowNode> CopyFromD
 	this->SerializeInternal(ArReader);
 }
 
-void FDataflowNode::ForwardInput(Dataflow::FContext& Context, const Dataflow::FConnectionReference& InputReference, const Dataflow::FConnectionReference& Reference) const
+void FDataflowNode::ForwardInput(UE::Dataflow::FContext& Context, const UE::Dataflow::FConnectionReference& InputReference, const UE::Dataflow::FConnectionReference& Reference) const
 {
 	if (const FDataflowOutput* Output = FindOutput(Reference))
 	{
@@ -1260,18 +1260,18 @@ void FDataflowNode::NotifyConnectionTypeChanged(FDataflowConnection* Connection)
 {
 	if (Connection->IsAnyType())
 	{
-		if (Connection->GetDirection() == Dataflow::FPin::EDirection::INPUT)
+		if (Connection->GetDirection() == UE::Dataflow::FPin::EDirection::INPUT)
 		{
 			OnInputTypeChanged((FDataflowInput*)Connection);
 		}
-		if (Connection->GetDirection() == Dataflow::FPin::EDirection::OUTPUT)
+		if (Connection->GetDirection() == UE::Dataflow::FPin::EDirection::OUTPUT)
 		{
 			OnOutputTypeChanged((FDataflowOutput*)Connection);
 		}
 	}
 }
 
-bool FDataflowNode::SetInputConcreteType(const Dataflow::FConnectionReference& InputReference, FName NewType)
+bool FDataflowNode::SetInputConcreteType(const UE::Dataflow::FConnectionReference& InputReference, FName NewType)
 {
 	if (FDataflowInput* Input = FindInput(InputReference))
 	{
@@ -1283,7 +1283,7 @@ bool FDataflowNode::SetInputConcreteType(const Dataflow::FConnectionReference& I
 	return false;
 }
 
-bool FDataflowNode::SetOutputConcreteType(const Dataflow::FConnectionReference& OutputReference, FName NewType)
+bool FDataflowNode::SetOutputConcreteType(const UE::Dataflow::FConnectionReference& OutputReference, FName NewType)
 {
 	if (FDataflowOutput* Output = FindOutput(OutputReference))
 	{
@@ -1298,7 +1298,7 @@ bool FDataflowNode::SetOutputConcreteType(const Dataflow::FConnectionReference& 
 bool FDataflowNode::SetAllConnectionConcreteType(FName NewType)
 {
 	bool bChanged = false;
-	for (const TPair<Dataflow::FConnectionKey, FDataflowInput*>& InputEntry : ExpandedInputs)
+	for (const TPair<UE::Dataflow::FConnectionKey, FDataflowInput*>& InputEntry : ExpandedInputs)
 	{
 		FDataflowInput* const Input = InputEntry.Value;
 		if (Input && Input->GetType() != NewType)

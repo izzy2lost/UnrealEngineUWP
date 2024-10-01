@@ -48,7 +48,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Mass Properties", meta = (ClampMin = "0"))
 	float MinPerParticleMass = 0.0001f;
 
-	FChaosClothAssetSimulationMassConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetSimulationMassConfigNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 	virtual void Serialize(FArchive& Ar) override;
 

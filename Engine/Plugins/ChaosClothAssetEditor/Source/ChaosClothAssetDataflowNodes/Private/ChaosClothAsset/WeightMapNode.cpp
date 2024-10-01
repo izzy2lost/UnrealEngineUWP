@@ -34,7 +34,7 @@ namespace UE::Chaos::ClothAsset::Private
 	void CalculateFinalVertexWeightValues(const TConstArrayView<float> InputMap, TArrayView<float> FinalOutputMap, EChaosClothAssetWeightMapOverrideType OverrideType, const TArray<float>& SourceVertexWeights);
 }
 
-FChaosClothAssetWeightMapNode::FChaosClothAssetWeightMapNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetWeightMapNode::FChaosClothAssetWeightMapNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 	, Transfer(FSimpleDelegate::CreateRaw(this, &FChaosClothAssetWeightMapNode::OnTransfer))
 {
@@ -54,7 +54,7 @@ void FChaosClothAssetWeightMapNode::OnTransfer()
 	using namespace UE::Chaos::ClothAsset;
 
 	// Create a temporary context (until we find a way to re-use the one from the tool calling this function)
-	Dataflow::FContextThreaded Context;
+	UE::Dataflow::FContextThreaded Context;
 
 	// Transfer weight map if the transfer collection input has changed and is valid
 	FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
@@ -105,7 +105,7 @@ void FChaosClothAssetWeightMapNode::OnTransfer()
 	}
 }
 
-void FChaosClothAssetWeightMapNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FChaosClothAssetWeightMapNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	using namespace UE::Chaos::ClothAsset;
 
@@ -214,7 +214,7 @@ FDataflowOutput* FChaosClothAssetWeightMapNode::RedirectSerializedOutput(const F
 	return nullptr;
 }
 
-FName FChaosClothAssetWeightMapNode::GetInputName(Dataflow::FContext& Context) const
+FName FChaosClothAssetWeightMapNode::GetInputName(UE::Dataflow::FContext& Context) const
 {
 	FString InputNameString = GetValue<FString>(Context, &InputName.StringValue);
 	UE::Chaos::ClothAsset::FWeightMapTools::MakeWeightMapName(InputNameString);

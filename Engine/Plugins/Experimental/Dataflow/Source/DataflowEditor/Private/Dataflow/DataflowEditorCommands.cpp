@@ -72,11 +72,11 @@ void FDataflowEditorCommandsImpl::RegisterCommands()
 	UI_COMMAND(StartSimulationScene, "StartSimulationScene", "Start the simulation scene", EUserInterfaceActionType::ToggleButton, FInputChord());
 	UI_COMMAND(StepSimulationScene, "StepSimulationScene", "Step the simulation scene", EUserInterfaceActionType::ToggleButton, FInputChord());
 
-	for (const TPair<FName, TUniquePtr<Dataflow::IDataflowConstructionViewMode>>& NameAndMode : Dataflow::FRenderingViewModeFactory::GetInstance().GetViewModes())
+	for (const TPair<FName, TUniquePtr<UE::Dataflow::IDataflowConstructionViewMode>>& NameAndMode : UE::Dataflow::FRenderingViewModeFactory::GetInstance().GetViewModes())
 	{
 		TSharedPtr< FUICommandInfo > SetViewModeCommand;
 		
-		const Dataflow::IDataflowConstructionViewMode* const ViewMode = NameAndMode.Value.Get();
+		const UE::Dataflow::IDataflowConstructionViewMode* const ViewMode = NameAndMode.Value.Get();
 		checkf(ViewMode, TEXT("Registered mode in FRenderingViewModeFactory has no associated IDataflowConstructionViewMode object. Registered name: %s"), *NameAndMode.Key.ToString());
 
 		FUICommandInfo::MakeCommandInfo(
@@ -92,7 +92,7 @@ void FDataflowEditorCommandsImpl::RegisterCommands()
 		SetConstructionViewModeCommands.Add(ViewMode->GetName(), SetViewModeCommand);
 	}
 
-	Dataflow::FDataflowToolRegistry& ToolRegistry = Dataflow::FDataflowToolRegistry::Get();
+	UE::Dataflow::FDataflowToolRegistry& ToolRegistry = UE::Dataflow::FDataflowToolRegistry::Get();
 	const TArray<FName> NodeNames = ToolRegistry.GetNodeNames();
 	for (const FName& NodeName : NodeNames)
 	{
@@ -113,7 +113,7 @@ void FDataflowEditorCommandsImpl::RegisterCommands()
 
 void FDataflowEditorCommandsImpl::UpdateToolCommandBinding(UInteractiveTool* Tool, TSharedPtr<FUICommandList> UICommandList, bool bUnbind)
 {
-	Dataflow::FDataflowToolRegistry& ToolRegistry = Dataflow::FDataflowToolRegistry::Get();
+	UE::Dataflow::FDataflowToolRegistry& ToolRegistry = UE::Dataflow::FDataflowToolRegistry::Get();
 	if (bUnbind)
 	{
 		ToolRegistry.UnbindActiveCommands(UICommandList);
@@ -145,14 +145,14 @@ bool FDataflowEditorCommands::IsRegistered()
 }
 
 
-const FDataflowNode* FDataflowEditorCommands::EvaluateNode(Dataflow::FContext& Context, Dataflow::FTimestamp& InOutLastNodeTimestamp,
+const FDataflowNode* FDataflowEditorCommands::EvaluateNode(UE::Dataflow::FContext& Context, UE::Dataflow::FTimestamp& InOutLastNodeTimestamp,
 	const UDataflow* Dataflow, const FDataflowNode* Node, const FDataflowOutput* Output, const FString& NodeName, UObject* Asset)
 {
 	UE_LOG(LogChaosDataflow, Verbose, TEXT("FDataflowEditorCommands::EvaluateNode(): Node [%s], NodeName [%s] Output [%s]"), Node ? *Node->GetName().ToString() : TEXT("nullptr"), *NodeName, Output ? *Output->GetName().ToString() : TEXT("nullptr"));
 
 	if (!Node && Dataflow)
 	{
-		if (const TSharedPtr<const Dataflow::FGraph> Graph = Dataflow->GetDataflow())
+		if (const TSharedPtr<const UE::Dataflow::FGraph> Graph = Dataflow->GetDataflow())
 		{
 			Node = Graph->FindBaseNode(FName(NodeName)).Get();
 		}
@@ -188,7 +188,7 @@ bool FDataflowEditorCommands::OnNodeVerifyTitleCommit(const FText& NewText, UEdG
 	{
 		if (UDataflowEdNode* DataflowNode = Cast<UDataflowEdNode>(GraphNode))
 		{
-			if (TSharedPtr<Dataflow::FGraph> Graph = DataflowNode->GetDataflowGraph())
+			if (TSharedPtr<UE::Dataflow::FGraph> Graph = DataflowNode->GetDataflowGraph())
 			{
 				if( Graph->FindBaseNode(FName(NewString)).Get()==nullptr )
 				{
@@ -217,7 +217,7 @@ void FDataflowEditorCommands::OnNodeTitleCommitted(const FText& InNewText, EText
 	{
 		if (UDataflowEdNode* DataflowNode = Cast<UDataflowEdNode>(GraphNode))
 		{
-			if (TSharedPtr<Dataflow::FGraph> Graph = DataflowNode->GetDataflowGraph())
+			if (TSharedPtr<UE::Dataflow::FGraph> Graph = DataflowNode->GetDataflowGraph())
 			{
 				if (TSharedPtr<FDataflowNode> Node = Graph->FindBaseNode(DataflowNode->GetDataflowNodeGuid()))
 				{
@@ -296,7 +296,7 @@ void FDataflowEditorCommands::OnAssetPropertyValueChanged(TObjectPtr<UDataflowBa
 	}
 }
 
-void FDataflowEditorCommands::OnPropertyValueChanged(UDataflow* OutDataflow, TSharedPtr<Dataflow::FEngineContext>& Context, Dataflow::FTimestamp& OutLastNodeTimestamp, const FPropertyChangedEvent& InPropertyChangedEvent, const TSet<TObjectPtr<UObject> >& SelectedNodes)
+void FDataflowEditorCommands::OnPropertyValueChanged(UDataflow* OutDataflow, TSharedPtr<UE::Dataflow::FEngineContext>& Context, UE::Dataflow::FTimestamp& OutLastNodeTimestamp, const FPropertyChangedEvent& InPropertyChangedEvent, const TSet<TObjectPtr<UObject> >& SelectedNodes)
 {
 	switch (InPropertyChangedEvent.ChangeType)
 	{
@@ -318,7 +318,7 @@ void FDataflowEditorCommands::OnPropertyValueChanged(UDataflow* OutDataflow, TSh
 					if (TSharedPtr<FDataflowNode> DataflowNode = Node->GetDataflowNode())
 					{
 						DataflowNode->Invalidate();
-						OutLastNodeTimestamp = Dataflow::FTimestamp::Invalid;
+						OutLastNodeTimestamp = UE::Dataflow::FTimestamp::Invalid;
 
 						// Reflect the active state on the drawing of the node
 						if (DataflowNode->bActive != Node->IsNodeEnabled())
@@ -343,7 +343,7 @@ void FDataflowEditorCommands::DeleteNodes(UDataflow* Graph, const FGraphPanelSel
 		{
 			if (UDataflowEdNode* EdNode = dynamic_cast<UDataflowEdNode*>(Node))
 			{
-				if (const TSharedPtr<Dataflow::FGraph> DataflowGraph = EdNode->GetDataflowGraph())
+				if (const TSharedPtr<UE::Dataflow::FGraph> DataflowGraph = EdNode->GetDataflowGraph())
 				{
 					Graph->RemoveNode(EdNode);
 					if (TSharedPtr<FDataflowNode> DataflowNode = DataflowGraph->FindBaseNode(EdNode->GetDataflowNodeGuid()))
@@ -378,7 +378,7 @@ void FDataflowEditorCommands::OnSelectedNodesChanged(TSharedPtr<IStructureDetail
 
 	if (Graph && PropertiesEditor)
 	{
-		if (const TSharedPtr<Dataflow::FGraph> DataflowGraph = Graph->GetDataflow())
+		if (const TSharedPtr<UE::Dataflow::FGraph> DataflowGraph = Graph->GetDataflow())
 		{
 			auto AsRawPointers = [](const TSet<TObjectPtr<UObject> >& NewSelection) {
 				TSet<UObject*> Raw; for (UObject* Elem : NewSelection) Raw.Add(Elem);
@@ -476,7 +476,7 @@ void FDataflowEditorCommands::DuplicateNodes(UDataflow* Graph, const TSharedPtr<
 		}
 
 		FDataflowAssetEdit Edit = Graph->EditDataflow();
-		if (Dataflow::FGraph* DataflowGraph = Edit.GetGraph())
+		if (UE::Dataflow::FGraph* DataflowGraph = Edit.GetGraph())
 		{
 			// Process Dataflow nodes
 			TSet<UDataflowEdNode*> DuplicatedEdNodes;
@@ -675,7 +675,7 @@ void FDataflowEditorCommands::CopyNodes(UDataflow* InGraph, const TSharedPtr<SDa
 			}
 
 			FDataflowAssetEdit Edit = InGraph->EditDataflow();
-			if (Dataflow::FGraph* DataflowGraph = Edit.GetGraph())
+			if (UE::Dataflow::FGraph* DataflowGraph = Edit.GetGraph())
 			{
 				FDataflowCopyPasteContent CopyPasteContent;
 
@@ -915,7 +915,7 @@ void FDataflowEditorCommands::PasteNodes(UDataflow* Graph, const TSharedPtr<SDat
 				const FName OutputputName = *PropertyOut;
 
 				FDataflowAssetEdit Edit = Graph->EditDataflow();
-				if (Dataflow::FGraph* DataflowGraph = Edit.GetGraph())
+				if (UE::Dataflow::FGraph* DataflowGraph = Edit.GetGraph())
 				{
 					if (TSharedPtr<FDataflowNode> DataflowNodeFrom = DataflowGraph->FindBaseNode(GuidOut))
 					{

@@ -7,7 +7,7 @@
 #include "AssetDefinition_DataflowAsset.generated.h"
 
 
-namespace DataflowAssetDefinitionHelpers
+namespace UE::DataflowAssetDefinitionHelpers
 {
 	// Return true if we should proceed, false if we should re-open the dialog
 	DATAFLOWEDITOR_API bool CreateNewDataflowAsset(const UObject* Asset, UObject*& OutDataflowAsset);

@@ -32,12 +32,12 @@ struct FDataflowMathOneInputOperatorNode : public FDataflowNode
 
 public:
 	FDataflowMathOneInputOperatorNode() {};
-	FDataflowMathOneInputOperatorNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	FDataflowMathOneInputOperatorNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 protected:
 	void RegisterInputsAndOutputs();
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const { ensure(false); return 0.0; };
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const { ensure(false); return 0.0; };
 };
 
 /** Two inputs operators base class */
@@ -57,12 +57,12 @@ struct FDataflowMathTwoInputsOperatorNode : public FDataflowNode
 
 public:
 	FDataflowMathTwoInputsOperatorNode() {};
-	FDataflowMathTwoInputsOperatorNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	FDataflowMathTwoInputsOperatorNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 protected:
 	void RegisterInputsAndOutputs();
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA, double InB) const { ensure(false); return 0.0; };
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA, double InB) const { ensure(false); return 0.0; };
 };
 
 /** Addition (A + B) */
@@ -73,8 +73,8 @@ struct FDataflowMathAddNode : public FDataflowMathTwoInputsOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathAddNode, "Add", DATAFLOW_MATH_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathAddNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA, double InB) const override;
+	FDataflowMathAddNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA, double InB) const override;
 };
 
 /** Subtraction (A - B) */
@@ -85,8 +85,8 @@ struct FDataflowMathSubtractNode : public FDataflowMathTwoInputsOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathSubtractNode, "Subtract", DATAFLOW_MATH_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathSubtractNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA, double InB) const override;
+	FDataflowMathSubtractNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA, double InB) const override;
 };
 
 /** Multiplication (A * B) */
@@ -97,8 +97,8 @@ struct FDataflowMathMultiplyNode : public FDataflowMathTwoInputsOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathMultiplyNode, "Multiply", DATAFLOW_MATH_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathMultiplyNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA, double InB) const override;
+	FDataflowMathMultiplyNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA, double InB) const override;
 };
 
 /**
@@ -115,8 +115,8 @@ struct FDataflowMathDivideNode : public FDataflowMathTwoInputsOperatorNode
 	FDataflowNumericTypes Fallback;
 
 public:
-	FDataflowMathDivideNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA, double InB) const override;
+	FDataflowMathDivideNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA, double InB) const override;
 };
 
 /** Minimum ( Min(A, B) ) */
@@ -127,8 +127,8 @@ struct FDataflowMathMinimumNode : public FDataflowMathTwoInputsOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathMinimumNode, "Minimum", DATAFLOW_MATH_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathMinimumNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA, double InB) const override;
+	FDataflowMathMinimumNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA, double InB) const override;
 };
 
 /** Maximum ( Max(A, B) ) */
@@ -139,8 +139,8 @@ struct FDataflowMathMaximumNode : public FDataflowMathTwoInputsOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathMaximumNode, "Maximum", DATAFLOW_MATH_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathMaximumNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA, double InB) const override;
+	FDataflowMathMaximumNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA, double InB) const override;
 };
 
 /** 
@@ -157,8 +157,8 @@ struct FDataflowMathReciprocalNode : public FDataflowMathOneInputOperatorNode
 	FDataflowNumericTypes Fallback;
 
 public:
-	FDataflowMathReciprocalNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathReciprocalNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 /** Square ( A * A ) */
@@ -169,8 +169,8 @@ struct FDataflowMathSquareNode : public FDataflowMathOneInputOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathSquareNode, "Square", DATAFLOW_MATH_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathSquareNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathSquareNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 /** Cube ( A * A * A ) */
@@ -181,8 +181,8 @@ struct FDataflowMathCubeNode : public FDataflowMathOneInputOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathCubeNode, "Cube", DATAFLOW_MATH_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathCubeNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathCubeNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 /** Square Root ( sqrt(A) ) */
@@ -193,8 +193,8 @@ struct FDataflowMathSquareRootNode : public FDataflowMathOneInputOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathSquareRootNode, "SquareRoot", DATAFLOW_MATH_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathSquareRootNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathSquareRootNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 /** 
@@ -211,8 +211,8 @@ struct FDataflowMathInverseSquareRootNode : public FDataflowMathOneInputOperator
 	FDataflowNumericTypes Fallback;
 
 public:
-	FDataflowMathInverseSquareRootNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathInverseSquareRootNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 /** Negate ( -A ) */
@@ -226,8 +226,8 @@ struct FDataflowMathNegateNode : public FDataflowMathOneInputOperatorNode
 	FDataflowNumericTypes Fallback;
 
 public:
-	FDataflowMathNegateNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathNegateNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 /** Absolute value ( |A| ) */
@@ -241,8 +241,8 @@ struct FDataflowMathAbsNode : public FDataflowMathOneInputOperatorNode
 	FDataflowNumericTypes Fallback;
 
 public:
-	FDataflowMathAbsNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathAbsNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 /** Floor ( 1.4 => 1.0 | 1.9 => 1.0 | -5.3 => -6.0 ) */
@@ -253,8 +253,8 @@ struct FDataflowMathFloorNode : public FDataflowMathOneInputOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathFloorNode, "Floor", DATAFLOW_MATH_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathFloorNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathFloorNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 /** Ceil ( 1.4 => 2.0 | 1.9 => 2.0 | -5.3 => -5.0) */
@@ -265,8 +265,8 @@ struct FDataflowMathCeilNode : public FDataflowMathOneInputOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathCeilNode, "Ceil", DATAFLOW_MATH_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathCeilNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathCeilNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 /** Round ( 1.4 => 1.0 | 1.9 => 2.0 | -5.3 => -5.0) */
@@ -277,8 +277,8 @@ struct FDataflowMathRoundNode : public FDataflowMathOneInputOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathRoundNode, "Round", DATAFLOW_MATH_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathRoundNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathRoundNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 /** Trunc ( 1.4 => 1.0 | 1.9 => 1.0 | -5.3 => -5.0) */
@@ -289,8 +289,8 @@ struct FDataflowMathTruncNode : public FDataflowMathOneInputOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathTruncNode, "Trunc", DATAFLOW_MATH_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathTruncNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathTruncNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 /** Frac ( 1.4 => 0.4 | 1.9 => 0.9 | -5.3 => 0.3 ) */
@@ -301,8 +301,8 @@ struct FDataflowMathFracNode : public FDataflowMathOneInputOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathFracNode, "Frac", DATAFLOW_MATH_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathFracNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathFracNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 /** power ( A ^ B) */
@@ -313,8 +313,8 @@ struct FDataflowMathPowNode : public FDataflowMathTwoInputsOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathPowNode, "Pow", DATAFLOW_MATH_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathPowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA, double InB) const override;
+	FDataflowMathPowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA, double InB) const override;
 };
 
 /**
@@ -331,8 +331,8 @@ struct FDataflowMathLogXNode : public FDataflowMathOneInputOperatorNode
 	FDataflowNumericTypes Base;
 
 public:
-	FDataflowMathLogXNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathLogXNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 /** Natural log ( Log(A) ) */
@@ -343,8 +343,8 @@ struct FDataflowMathLogNode : public FDataflowMathOneInputOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathLogNode, "Log", DATAFLOW_MATH_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathLogNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathLogNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 /** Exponential ( Exp(A) ) */
@@ -355,8 +355,8 @@ struct FDataflowMathExpNode : public FDataflowMathOneInputOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathExpNode, "Exp", DATAFLOW_MATH_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathExpNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathExpNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 /** return -1, 0, +1 whether the input is respectively negative, zero or positive ( Sign(A) ) */
@@ -367,8 +367,8 @@ struct FDataflowMathSignNode : public FDataflowMathOneInputOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathSignNode, "Sign", DATAFLOW_MATH_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathSignNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathSignNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 /** One minus (1 - A) */
@@ -379,8 +379,8 @@ struct FDataflowMathOneMinusNode : public FDataflowMathOneInputOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathOneMinusNode, "OneMinus", DATAFLOW_MATH_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathOneMinusNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathOneMinusNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 UENUM(BlueprintType)
@@ -419,8 +419,8 @@ struct FDataflowMathConstantNode : public FDataflowNode
 	FDataflowNumericTypes Result;
 
 public:
-	FDataflowMathConstantNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	FDataflowMathConstantNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 private:
 	double GetConstant() const;
@@ -442,8 +442,8 @@ struct FDataflowMathSinNode : public FDataflowMathOneInputOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathSinNode, "Sin", DATAFLOW_MATH_TRIG_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathSinNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathSinNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 /** Cos(A) with A in radians  */
@@ -454,8 +454,8 @@ struct FDataflowMathCosNode : public FDataflowMathOneInputOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathCosNode, "Cos", DATAFLOW_MATH_TRIG_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathCosNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathCosNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 /** Tan(A) with A in radians  */
@@ -466,8 +466,8 @@ struct FDataflowMathTanNode : public FDataflowMathOneInputOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathTanNode, "Tan", DATAFLOW_MATH_TRIG_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathTanNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathTanNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 /** ArcSin(A) returns a value in radians  */
@@ -478,8 +478,8 @@ struct FDataflowMathArcSinNode : public FDataflowMathOneInputOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathArcSinNode, "ArcSin", DATAFLOW_MATH_TRIG_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathArcSinNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathArcSinNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 /** ArcCos(A) returns a value in radians  */
@@ -490,8 +490,8 @@ struct FDataflowMathArcCosNode : public FDataflowMathOneInputOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathArcCosNode, "ArcCos", DATAFLOW_MATH_TRIG_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathArcCosNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathArcCosNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 /** ArcTan(A) returns a value in radians  */
@@ -502,8 +502,8 @@ struct FDataflowMathArcTanNode : public FDataflowMathOneInputOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathArcTanNode, "ArcTan", DATAFLOW_MATH_TRIG_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathArcTanNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathArcTanNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 /** ArcTan2(A, B) returns a value in radians  */
@@ -514,8 +514,8 @@ struct FDataflowMathArcTan2Node : public FDataflowMathTwoInputsOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathArcTan2Node, "ArcTan2", DATAFLOW_MATH_TRIG_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathArcTan2Node(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA, double InB) const override;
+	FDataflowMathArcTan2Node(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA, double InB) const override;
 };
 
 
@@ -527,8 +527,8 @@ struct FDataflowMathDegToRadNode : public FDataflowMathOneInputOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathDegToRadNode, "DegToRad", DATAFLOW_MATH_TRIG_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathDegToRadNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathDegToRadNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 /** RadToDeg(A) convert radians to degrees */
@@ -539,8 +539,8 @@ struct FDataflowMathRadToDegNode : public FDataflowMathOneInputOperatorNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathRadToDegNode, "RadToDeg", DATAFLOW_MATH_TRIG_NODES_CATEGORY, "")
 
 public:
-	FDataflowMathRadToDegNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
-	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+	FDataflowMathRadToDegNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(UE::Dataflow::FContext& Context, double InA) const override;
 };
 
 //--------------------------------------------------------------------------
@@ -582,7 +582,7 @@ Nodes Left to be converted :
 
 */
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void RegisterDataflowMathNodes();
 }

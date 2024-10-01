@@ -34,7 +34,7 @@ struct FDataflowSimulationNode : public FDataflowNode
 	FDataflowSimulationNode()
 		: Super() { }
 
-	FDataflowSimulationNode(const Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid())
+	FDataflowSimulationNode(const UE::Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid())
 		: Super(Param,InGuid) {
 	}
 
@@ -50,7 +50,7 @@ struct FDataflowSimulationNode : public FDataflowNode
 	}
 
 	/** Evaluate simulation dispatch */
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Output) const override
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Output) const override
 	{
 		if(Context.IsA(UE::Dataflow::FDataflowSimulationContext::StaticType()))
 		{
@@ -80,7 +80,7 @@ struct FDataflowInvalidNode : public FDataflowSimulationNode
 	FDataflowInvalidNode()
 		: Super() { }
 
-	FDataflowInvalidNode(const Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid())
+	FDataflowInvalidNode(const UE::Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid())
 		: Super(Param,InGuid) {
 	}
 
@@ -110,7 +110,7 @@ struct FDataflowExecutionNode : public FDataflowSimulationNode
 	FDataflowExecutionNode()
 		: Super() { }
 
-	FDataflowExecutionNode(const Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid())
+	FDataflowExecutionNode(const UE::Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid())
 		: Super(Param,InGuid) {
 	}
 
@@ -161,7 +161,7 @@ struct DATAFLOWSIMULATION_API FGetSimulationTimeDataflowNode : public FDataflowI
 
 public:
 	
-	FGetSimulationTimeDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FGetSimulationTimeDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 	: FDataflowInvalidNode(InParam, InGuid)
 	{
 		RegisterOutputConnection(&SimulationTime);
@@ -184,7 +184,7 @@ struct FGetPhysicsSolversDataflowNode : public FDataflowInvalidNode
 
 public:
 	
-	FGetPhysicsSolversDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FGetPhysicsSolversDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 	: FDataflowInvalidNode(InParam, InGuid)
 	{
 		RegisterOutputConnection(&PhysicsSolvers);
@@ -211,7 +211,7 @@ struct FAdvancePhysicsSolversDataflowNode : public FDataflowSimulationNode
 
 public:
 	
-	FAdvancePhysicsSolversDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FAdvancePhysicsSolversDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 	: FDataflowSimulationNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&SimulationTime);
@@ -240,7 +240,7 @@ struct FFilterSimulationProxiesDataflowNode : public FDataflowSimulationNode
 
 public:
 	
-	FFilterSimulationProxiesDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FFilterSimulationProxiesDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 	: FDataflowSimulationNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&SimulationProxies);
@@ -272,7 +272,7 @@ struct FSimulationProxiesTerminalDataflowNode : public FDataflowExecutionNode
 
 public:
 	
-	FSimulationProxiesTerminalDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FSimulationProxiesTerminalDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 	: FDataflowExecutionNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&SimulationProxies);
@@ -286,7 +286,7 @@ public:
 	virtual void EvaluateSimulation(UE::Dataflow::FDataflowSimulationContext& SimulationContext, const FDataflowOutput* Output) const override;
 };
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void RegisterDataflowSimulationNodes();
 }

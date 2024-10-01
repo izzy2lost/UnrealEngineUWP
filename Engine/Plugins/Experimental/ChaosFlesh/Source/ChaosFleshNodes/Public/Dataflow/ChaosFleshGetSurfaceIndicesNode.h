@@ -25,7 +25,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "SurfaceIndicesOut"))
 	TArray<int32> SurfaceIndicesOut;
 
-	FGetSurfaceIndicesNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FGetSurfaceIndicesNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
@@ -33,10 +33,10 @@ public:
 		RegisterOutputConnection(&SurfaceIndicesOut);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void RegisterChaosFleshEngineAssetNodes();
 }

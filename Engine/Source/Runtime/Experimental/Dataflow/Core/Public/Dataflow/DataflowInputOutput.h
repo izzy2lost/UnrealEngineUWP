@@ -17,7 +17,7 @@ struct FDataflowOutput;
 //
 //  Input
 //
-namespace Dataflow
+namespace UE::Dataflow
 {
 	struct FInputParameters : public FConnectionParameters
 	{
@@ -53,9 +53,9 @@ protected:
 
 public:
 	UE_DEPRECATED(5.5, "Deprecated constructor : Guid is now passed through FInputParameters")
-	DATAFLOWCORE_API FDataflowInput(const Dataflow::FInputParameters& Param, FGuid InGuid);
+	DATAFLOWCORE_API FDataflowInput(const UE::Dataflow::FInputParameters& Param, FGuid InGuid);
 
-	DATAFLOWCORE_API FDataflowInput(const Dataflow::FInputParameters& Param = {});
+	DATAFLOWCORE_API FDataflowInput(const UE::Dataflow::FInputParameters& Param = {});
 
 	virtual bool AddConnection(FDataflowConnection* InOutput) override;
 	virtual bool RemoveConnection(FDataflowConnection* InOutput) override;
@@ -72,21 +72,21 @@ public:
 	* @return the typed value of the input 
 	*/
 	template<class T>
-	const T& GetValue(Dataflow::FContext& Context, const T& Default) const;
+	const T& GetValue(UE::Dataflow::FContext& Context, const T& Default) const;
 
 	template<typename TAnyType>
-	typename TAnyType::FStorageType GetValueFromAnyType(Dataflow::FContext& Context, const typename TAnyType::FStorageType& Default) const;
+	typename TAnyType::FStorageType GetValueFromAnyType(UE::Dataflow::FContext& Context, const typename TAnyType::FStorageType& Default) const;
 
 	/**
 	* pull the value from the upstream connections
 	* the upstream graph is evaluated if necessary and values are cached along the way 
 	*/
-	DATAFLOWCORE_API void PullValue(Dataflow::FContext& Context) const;
+	DATAFLOWCORE_API void PullValue(UE::Dataflow::FContext& Context) const;
 
 	template<class T>
-	TFuture<const T&> GetValueParallel(Dataflow::FContext& Context, const T& Default) const;
+	TFuture<const T&> GetValueParallel(UE::Dataflow::FContext& Context, const T& Default) const;
 
-	virtual void Invalidate(const Dataflow::FTimestamp& ModifiedTimestamp = Dataflow::FTimestamp::Current()) override;
+	virtual void Invalidate(const UE::Dataflow::FTimestamp& ModifiedTimestamp = UE::Dataflow::FTimestamp::Current()) override;
 };
 
 USTRUCT()
@@ -101,7 +101,7 @@ private:
 	// uint32 Offset; // On base class. This is the Offset to ArrayProperty from OwningNode.
 
 public:
-	explicit FDataflowArrayInput(int32 InIndex = INDEX_NONE, const Dataflow::FArrayInputParameters& Param = {});
+	explicit FDataflowArrayInput(int32 InIndex = INDEX_NONE, const UE::Dataflow::FArrayInputParameters& Param = {});
 
 	DATAFLOWCORE_API virtual void* RealAddress() const override;
 	virtual int32 GetContainerIndex() const override { return Index; }
@@ -111,7 +111,7 @@ public:
 //
 // Output
 //
-namespace Dataflow
+namespace UE::Dataflow
 {
 	struct FOutputParameters: public FConnectionParameters
 	{
@@ -133,7 +133,7 @@ struct FDataflowOutput : public FDataflowConnection
 	UE_DEPRECATED(5.5, "Use PassthroughKey instead")
 	uint32 PassthroughOffset = INDEX_NONE;
 
-	Dataflow::FConnectionKey PassthroughKey;
+	UE::Dataflow::FConnectionKey PassthroughKey;
 
 protected:
 	friend struct FDataflowInput;
@@ -145,9 +145,9 @@ public:
 	mutable TSharedPtr<FCriticalSection> OutputLock;
 	
 	UE_DEPRECATED(5.5, "Deprecated constructor : Guid is now passed through FOutputParameters")
-	DATAFLOWCORE_API FDataflowOutput(const Dataflow::FOutputParameters& Param, FGuid InGuid);
+	DATAFLOWCORE_API FDataflowOutput(const UE::Dataflow::FOutputParameters& Param, FGuid InGuid);
 
-	DATAFLOWCORE_API FDataflowOutput(const Dataflow::FOutputParameters& Param = {});
+	DATAFLOWCORE_API FDataflowOutput(const UE::Dataflow::FOutputParameters& Param = {});
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	~FDataflowOutput() = default;
@@ -171,11 +171,11 @@ public:
 	UE_DEPRECATED(5.5, "Use SetPassthroughInput instead")
 	virtual void SetPassthroughOffset(const uint32 InPassthroughOffset)
 	{
-		SetPassthroughInput(Dataflow::FConnectionKey(InPassthroughOffset, INDEX_NONE, INDEX_NONE));
+		SetPassthroughInput(UE::Dataflow::FConnectionKey(InPassthroughOffset, INDEX_NONE, INDEX_NONE));
 	}
 
-	DATAFLOWCORE_API FDataflowOutput& SetPassthroughInput(const Dataflow::FConnectionReference& Reference);
-	DATAFLOWCORE_API FDataflowOutput& SetPassthroughInput(const Dataflow::FConnectionKey& Key);
+	DATAFLOWCORE_API FDataflowOutput& SetPassthroughInput(const UE::Dataflow::FConnectionReference& Reference);
+	DATAFLOWCORE_API FDataflowOutput& SetPassthroughInput(const UE::Dataflow::FConnectionKey& Key);
 
 	DATAFLOWCORE_API const FDataflowInput* GetPassthroughInput() const;
 
@@ -189,7 +189,7 @@ public:
 	}
  
 	template<class T>
-	void SetValue(T&& InVal, Dataflow::FContext& Context) const
+	void SetValue(T&& InVal, UE::Dataflow::FContext& Context) const
 	{
 		if (Property)
 		{
@@ -198,7 +198,7 @@ public:
 	}
 
 	template<typename TAnyType>
-	void SetValueFromAnyType(const typename TAnyType::FStorageType& InVal, Dataflow::FContext& Context) const
+	void SetValueFromAnyType(const typename TAnyType::FStorageType& InVal, UE::Dataflow::FContext& Context) const
 	{
 		TAnyType::FPolicyType::VisitPolicyByType(GetType(),
 			[this, &Context, &InVal](auto SingleTypePolicy)
@@ -211,7 +211,7 @@ public:
 	}
 
 	template<class T>
-	const T& GetValue(Dataflow::FContext& Context, const T& Default) const
+	const T& GetValue(UE::Dataflow::FContext& Context, const T& Default) const
 	{
 		if (!this->Evaluate(Context))
 		{
@@ -226,24 +226,24 @@ public:
 		return Default;
 	}
 
-	bool HasCachedValue(Dataflow::FContext& Context) const
+	bool HasCachedValue(UE::Dataflow::FContext& Context) const
 	{
 		return Context.HasData(CacheKey(), GetOwningNodeTimestamp());
 	}
 
 	// there's no need for a templatized version as the parameter will not be used
 	// the method do check if the type of the input is the same as the output type though 
-	DATAFLOWCORE_API void ForwardInput(const Dataflow::FConnectionReference& InputReference, Dataflow::FContext& Context) const;
-	DATAFLOWCORE_API void ForwardInput(const FDataflowInput* Input, Dataflow::FContext& Context) const;
+	DATAFLOWCORE_API void ForwardInput(const UE::Dataflow::FConnectionReference& InputReference, UE::Dataflow::FContext& Context) const;
+	DATAFLOWCORE_API void ForwardInput(const FDataflowInput* Input, UE::Dataflow::FContext& Context) const;
 
 
-	DATAFLOWCORE_API bool EvaluateImpl(Dataflow::FContext& Context) const;
+	DATAFLOWCORE_API bool EvaluateImpl(UE::Dataflow::FContext& Context) const;
 	
-	DATAFLOWCORE_API bool Evaluate(Dataflow::FContext& Context) const;
+	DATAFLOWCORE_API bool Evaluate(UE::Dataflow::FContext& Context) const;
 
-	DATAFLOWCORE_API TFuture<bool> EvaluateParallel(Dataflow::FContext& Context) const;
+	DATAFLOWCORE_API TFuture<bool> EvaluateParallel(UE::Dataflow::FContext& Context) const;
 
-	DATAFLOWCORE_API virtual void Invalidate(const Dataflow::FTimestamp& ModifiedTimestamp = Dataflow::FTimestamp::Current()) override;
+	DATAFLOWCORE_API virtual void Invalidate(const UE::Dataflow::FTimestamp& ModifiedTimestamp = UE::Dataflow::FTimestamp::Current()) override;
 
 private:
 };
@@ -258,7 +258,7 @@ struct TStructOpsTypeTraits<FDataflowOutput> : public  TStructOpsTypeTraitsBase2
 };
 
 template<typename T>
-const T& FDataflowInput::GetValue(Dataflow::FContext& Context, const T& Default) const
+const T& FDataflowInput::GetValue(UE::Dataflow::FContext& Context, const T& Default) const
 {
 	if (const FDataflowOutput* ConnectionOut = GetConnection())
 	{
@@ -276,14 +276,14 @@ const T& FDataflowInput::GetValue(Dataflow::FContext& Context, const T& Default)
 }
 
 template<typename TAnyType>
-typename TAnyType::FStorageType FDataflowInput::GetValueFromAnyType(Dataflow::FContext& Context, const typename TAnyType::FStorageType& Default) const
+typename TAnyType::FStorageType FDataflowInput::GetValueFromAnyType(UE::Dataflow::FContext& Context, const typename TAnyType::FStorageType& Default) const
 {
 	typename TAnyType::FStorageType ReturnValue = Default;
 	if (const FDataflowOutput* ConnectionOut = GetConnection())
 	{
 		if (ConnectionOut->Evaluate(Context))
 		{
-			if (const TUniquePtr<Dataflow::FContextCacheElementBase>* CacheEntry = Context.GetDataImpl(ConnectionOut->CacheKey()))
+			if (const TUniquePtr<UE::Dataflow::FContextCacheElementBase>* CacheEntry = Context.GetDataImpl(ConnectionOut->CacheKey()))
 			{
 				if (*CacheEntry)
 				{
@@ -303,7 +303,7 @@ typename TAnyType::FStorageType FDataflowInput::GetValueFromAnyType(Dataflow::FC
 }
 
 template<class T>
-TFuture<const T&> FDataflowInput::GetValueParallel(Dataflow::FContext& Context, const T& Default) const
+TFuture<const T&> FDataflowInput::GetValueParallel(UE::Dataflow::FContext& Context, const T& Default) const
 {
 	return Async(EAsyncExecution::TaskGraph, [&]() -> const T& { return this->GetValue<T>(Context, Default); });
 }

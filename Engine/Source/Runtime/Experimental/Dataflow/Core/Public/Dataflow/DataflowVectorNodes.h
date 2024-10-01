@@ -16,7 +16,7 @@ struct FDataflowVectorMakeVec2Node : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowVectorMakeVec2Node, "MakeVector2", DATAFLOW_MATH_VECTOR_NODES_CATEGORY, "")
 
 public:
-	FDataflowVectorMakeVec2Node(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FDataflowVectorMakeVec2Node(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	/** X component */
@@ -31,7 +31,7 @@ private:
 	UPROPERTY(meta = (DataflowOutput))
 	FDataflowVectorTypes Vector2D;
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /** Make a 3D Vector */
@@ -42,7 +42,7 @@ struct FDataflowVectorMakeVec3Node : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowVectorMakeVec3Node, "MakeVector3", DATAFLOW_MATH_VECTOR_NODES_CATEGORY, "")
 
 public:
-	FDataflowVectorMakeVec3Node(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FDataflowVectorMakeVec3Node(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	/** X component */
@@ -61,7 +61,7 @@ private:
 	UPROPERTY(meta = (DataflowOutput))
 	FDataflowVectorTypes Vector3D;
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 
@@ -73,7 +73,7 @@ struct FDataflowVectorMakeVec4Node : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowVectorMakeVec4Node, "MakeVector4", DATAFLOW_MATH_VECTOR_NODES_CATEGORY, "")
 
 public:
-	FDataflowVectorMakeVec4Node(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FDataflowVectorMakeVec4Node(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	/** X component */
@@ -96,7 +96,7 @@ private:
 	UPROPERTY(meta = (DataflowOutput))
 	FDataflowVectorTypes Vector4D;
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 
@@ -111,7 +111,7 @@ struct FDataflowVectorBreakNode: public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowVectorBreakNode, "BreakVector", DATAFLOW_MATH_VECTOR_NODES_CATEGORY, "")
 
 public:
-	FDataflowVectorBreakNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FDataflowVectorBreakNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	/** Vector to break into components */
@@ -134,7 +134,7 @@ private:
 	UPROPERTY(meta = (DataflowOutput));
 	FDataflowNumericTypes W;
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /** Add two vectors component wise : V = (A + B)*/
@@ -145,7 +145,7 @@ struct FDataflowVectorAddNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowVectorAddNode, "AddVector", DATAFLOW_MATH_VECTOR_NODES_CATEGORY, "")
 
 public:
-	FDataflowVectorAddNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FDataflowVectorAddNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	/** A Vector operand */
@@ -160,7 +160,7 @@ private:
 	UPROPERTY(meta = (DataflowOutput))
 	FDataflowVectorTypes V;
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /** Subtract two vectors component wise: V = (A - B) */
@@ -171,7 +171,7 @@ struct FDataflowVectorSubtractNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowVectorSubtractNode, "SubtractVector", DATAFLOW_MATH_VECTOR_NODES_CATEGORY, "")
 
 public:
-	FDataflowVectorSubtractNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FDataflowVectorSubtractNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	/** A Vector operand */
@@ -186,7 +186,7 @@ private:
 	UPROPERTY(meta = (DataflowOutput))
 	FDataflowVectorTypes V;
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /** Compute the dot product between two vectors : DotProduct = A.B */
@@ -197,7 +197,7 @@ struct FDataflowVectorDotProductNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowVectorDotProductNode, "VectorDotProduct", DATAFLOW_MATH_VECTOR_NODES_CATEGORY, "")
 
 public:
-	FDataflowVectorDotProductNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FDataflowVectorDotProductNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	/** A Vector operand */
@@ -212,7 +212,7 @@ private:
 	UPROPERTY(meta = (DataflowOutput))
 	FDataflowNumericTypes DotProduct;
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /** Compute the Length of a vector : Length = |V| */
@@ -223,7 +223,7 @@ struct FDataflowVectorLengthNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowVectorLengthNode, "VectorLength", DATAFLOW_MATH_VECTOR_NODES_CATEGORY, "")
 
 public:
-	FDataflowVectorLengthNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FDataflowVectorLengthNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	/** Vector to get length from */
@@ -234,7 +234,7 @@ private:
 	UPROPERTY(meta = (DataflowOutput))
 	FDataflowNumericTypes Length;
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /** Compute the Squared length of a vector : Length = |V||V| */
@@ -245,7 +245,7 @@ struct FDataflowVectorSquaredLengthNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowVectorSquaredLengthNode, "VectorSquaredLength", DATAFLOW_MATH_VECTOR_NODES_CATEGORY, "")
 
 public:
-	FDataflowVectorSquaredLengthNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FDataflowVectorSquaredLengthNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	/** Vector to get squared length from */
@@ -256,7 +256,7 @@ private:
 	UPROPERTY(meta = (DataflowOutput))
 	FDataflowNumericTypes SquaredLength;
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /** Compute the distance between two vectors : Distance = |B-A| */
@@ -267,7 +267,7 @@ struct FDataflowVectorDistanceNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowVectorDistanceNode, "VectorDistance", DATAFLOW_MATH_VECTOR_NODES_CATEGORY, "")
 
 public:
-	FDataflowVectorDistanceNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FDataflowVectorDistanceNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	/** A Vector operand */
@@ -282,7 +282,7 @@ private:
 	UPROPERTY(meta = (DataflowOutput))
 	FDataflowNumericTypes Distance;
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /** 
@@ -296,7 +296,7 @@ struct FDataflowVectorCrossProductNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowVectorCrossProductNode, "VectorCrossProduct", DATAFLOW_MATH_VECTOR_NODES_CATEGORY, "")
 
 public:
-	FDataflowVectorCrossProductNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FDataflowVectorCrossProductNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	/** A Vector operand */
@@ -311,7 +311,7 @@ private:
 	UPROPERTY(meta = (DataflowOutput))
 	FDataflowVectorTypes CrossProduct;
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /** Scale a vector by a scalar : Scaled = (V * Scale) */
@@ -322,7 +322,7 @@ struct FDataflowVectorScaleNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowVectorScaleNode, "ScaleVector", DATAFLOW_MATH_VECTOR_NODES_CATEGORY, "")
 
 public:
-	FDataflowVectorScaleNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FDataflowVectorScaleNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	/** Vector to scale */
@@ -337,7 +337,7 @@ private:
 	UPROPERTY(meta = (DataflowOutput))
 	FDataflowVectorTypes Scaled;
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 	virtual bool OnInputTypeChanged(const FDataflowInput* Input) override;
 	virtual bool OnOutputTypeChanged(const FDataflowOutput* Output) override;
@@ -351,7 +351,7 @@ struct FDataflowVectorNormalize : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowVectorNormalize, "NormalizeVector", DATAFLOW_MATH_VECTOR_NODES_CATEGORY, "")
 
 public:
-	FDataflowVectorNormalize(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FDataflowVectorNormalize(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	/** Vector to normalize */
@@ -362,13 +362,13 @@ private:
 	UPROPERTY(meta = (DataflowOutput))
 	FDataflowVectorTypes Normalized;
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 	virtual bool OnInputTypeChanged(const FDataflowInput* Input) override;
 	virtual bool OnOutputTypeChanged(const FDataflowOutput* Output) override;
 };
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void RegisterDataflowVectorNodes();
 }

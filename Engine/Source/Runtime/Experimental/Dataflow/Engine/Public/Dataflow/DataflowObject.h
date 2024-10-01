@@ -20,7 +20,7 @@ class UDataflow;
 class UObject;
 class UDataflowEdNode;
 class UMaterial;
-namespace Dataflow { class FGraph; }
+namespace UE::Dataflow { class FGraph; }
 
 
 /**
@@ -42,7 +42,7 @@ public:
 	DATAFLOWENGINE_API FDataflowAssetEdit(UDataflow *InAsset, FPostEditFunctionCallback InCallable);
 	DATAFLOWENGINE_API ~FDataflowAssetEdit();
 
-	DATAFLOWENGINE_API Dataflow::FGraph* GetGraph();
+	DATAFLOWENGINE_API UE::Dataflow::FGraph* GetGraph();
 
 private:
 	FPostEditFunctionCallback PostEditCallback;
@@ -63,7 +63,7 @@ enum class EDataflowType : uint8
 /**
 * UDataflow (UObject)
 *
-* UObject wrapper for the Dataflow::FGraph
+* UObject wrapper for the UE::Dataflow::FGraph
 *
 */
 UCLASS(BlueprintType, customconstructor, MinimalAPI)
@@ -71,10 +71,10 @@ class UDataflow : public UEdGraph
 {
 	GENERATED_UCLASS_BODY()
 
-	Dataflow::FTimestamp LastModifiedRenderTarget = Dataflow::FTimestamp::Invalid; 
+	UE::Dataflow::FTimestamp LastModifiedRenderTarget = UE::Dataflow::FTimestamp::Invalid; 
 	TArray< TObjectPtr<const UDataflowEdNode> > RenderTargets; // Not Serialized
 	TArray< TObjectPtr<const UDataflowEdNode> > WireframeRenderTargets; // Not Serialized
-	TSharedPtr<Dataflow::FGraph, ESPMode::ThreadSafe> Dataflow;
+	TSharedPtr<UE::Dataflow::FGraph, ESPMode::ThreadSafe> Dataflow;
 	DATAFLOWENGINE_API void PostEditCallback();
 
 public:
@@ -118,8 +118,8 @@ public:
 	DATAFLOWENGINE_API void Serialize(FArchive& Ar);
 
 	/** Accessors for internal geometry collection */
-	TSharedPtr<const Dataflow::FGraph, ESPMode::ThreadSafe> GetDataflow() const { return Dataflow; }
-	TSharedPtr<Dataflow::FGraph, ESPMode::ThreadSafe> GetDataflow() { return Dataflow; }
+	TSharedPtr<const UE::Dataflow::FGraph, ESPMode::ThreadSafe> GetDataflow() const { return Dataflow; }
+	TSharedPtr<UE::Dataflow::FGraph, ESPMode::ThreadSafe> GetDataflow() { return Dataflow; }
 
 	/**Editing the collection should only be through the edit object.*/
 	FDataflowAssetEdit EditDataflow() const {
@@ -142,7 +142,7 @@ public:
 	DATAFLOWENGINE_API void RemoveWireframeRenderTarget(TObjectPtr<const UDataflowEdNode>);
 	const TArray< TObjectPtr<const UDataflowEdNode> >& GetWireframeRenderTargets() const { return WireframeRenderTargets; }
 
-	const Dataflow::FTimestamp& GetRenderingTimestamp() const { return LastModifiedRenderTarget; }
+	const UE::Dataflow::FTimestamp& GetRenderingTimestamp() const { return LastModifiedRenderTarget; }
 
 #if WITH_EDITORONLY_DATA
 
@@ -181,4 +181,5 @@ private:
 	bool bEnablePerNodeTransactionSerialization = true;
 #endif
 };
+
 

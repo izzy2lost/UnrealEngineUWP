@@ -347,12 +347,12 @@ void UDataflowSimulationSceneDescription::GenerateGeometryCache()
 			Cast<AChaosCacheManager>(GetRootActor)->SetStartTime(Time);
 			RenderPositions[Frame] = GeometryCachable->GetGeometryCachePositions(EmbeddedSkeletalMesh);
 		}
-		DataflowSimulationGeometryCache::SaveGeometryCache(*GeometryCacheAsset, *EmbeddedSkeletalMesh, ImportedVertexNumbers, RenderPositions);
-		DataflowSimulationGeometryCache::SavePackage(*GeometryCacheAsset);
+		UE::DataflowSimulationGeometryCache::SaveGeometryCache(*GeometryCacheAsset, *EmbeddedSkeletalMesh, ImportedVertexNumbers, RenderPositions);
+		UE::DataflowSimulationGeometryCache::SavePackage(*GeometryCacheAsset);
 	}
 }
 
-namespace Dataflow::Private
+namespace UE::Dataflow::Private
 {
 	template<class T>
 	T* CreateOrLoad(const FString& PackageName)
@@ -412,7 +412,7 @@ namespace Dataflow::Private
 void UDataflowSimulationSceneDescription::NewGeometryCache()
 {
 	const UObject* const NamingAsset = CacheAsset? CacheAsset.Get() : nullptr;
-	GeometryCacheAsset = Dataflow::Private::NewGeometryCacheDialog(NamingAsset);
+	GeometryCacheAsset = UE::Dataflow::Private::NewGeometryCacheDialog(NamingAsset);
 }
 
 void UDataflowSimulationSceneDescription::SetSimulationScene(FDataflowSimulationScene* InSimulationScene)

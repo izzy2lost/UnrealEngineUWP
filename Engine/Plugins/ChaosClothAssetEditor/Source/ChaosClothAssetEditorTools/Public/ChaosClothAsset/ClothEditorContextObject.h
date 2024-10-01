@@ -24,7 +24,7 @@ class CHAOSCLOTHASSETEDITORTOOLS_API UClothEditorContextObject : public UObject
 	GENERATED_BODY()
 
 public:
-	void Init(TWeakPtr<SDataflowGraphEditor> DataflowGraphEditor, TWeakPtr<Dataflow::FEngineContext> DataflowContext, UE::Chaos::ClothAsset::EClothPatternVertexType InConstructionViewMode, TWeakPtr<FManagedArrayCollection> SelectedClothCollection, bool bInUsingInputCollection);
+	void Init(TWeakPtr<SDataflowGraphEditor> DataflowGraphEditor, TWeakPtr<UE::Dataflow::FEngineContext> DataflowContext, UE::Chaos::ClothAsset::EClothPatternVertexType InConstructionViewMode, TWeakPtr<FManagedArrayCollection> SelectedClothCollection, bool bInUsingInputCollection);
 
 	UE_DEPRECATED(5.5, "Use the Init with a DataflowContext")
 	void Init(TWeakPtr<SDataflowGraphEditor> InDataflowGraphEditor, UE::Chaos::ClothAsset::EClothPatternVertexType InConstructionViewMode, TWeakPtr<FManagedArrayCollection> InSelectedClothCollection, TWeakPtr<FManagedArrayCollection> InSelectedInputClothCollection = nullptr)
@@ -55,12 +55,12 @@ public:
 		return nullptr;
 	}
 	
-	TWeakPtr<Dataflow::FEngineContext> GetDataflowContext() const 
+	TWeakPtr<UE::Dataflow::FEngineContext> GetDataflowContext() const 
 	{
 		return DataflowContext;
 	}
 
-	void SetDataflowContext(TWeakPtr<Dataflow::FEngineContext> InDataflowContext)
+	void SetDataflowContext(TWeakPtr<UE::Dataflow::FEngineContext> InDataflowContext)
 	{
 		DataflowContext = InDataflowContext;
 	}
@@ -96,7 +96,7 @@ public:
 private:
 
 	TWeakPtr<SDataflowGraphEditor> DataflowGraphEditor;
-	TWeakPtr<Dataflow::FEngineContext> DataflowContext;
+	TWeakPtr<UE::Dataflow::FEngineContext> DataflowContext;
 
 	UE::Chaos::ClothAsset::EClothPatternVertexType ConstructionViewMode;
 	TWeakPtr<const FManagedArrayCollection> SelectedClothCollection;

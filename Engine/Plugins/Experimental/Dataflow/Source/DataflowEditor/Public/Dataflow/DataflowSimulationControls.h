@@ -14,7 +14,7 @@ namespace UE::Dataflow
 {
 	/** Check if the simulation cache nodes have changed to trigger a reset */
 	bool ShouldResetWorld(const TObjectPtr<UDataflow>& SimulationGraph,
-		const TObjectPtr<UWorld>& SimulationWorld, ::Dataflow::FTimestamp& LastTimeStamp);
+		const TObjectPtr<UWorld>& SimulationWorld, UE::Dataflow::FTimestamp& LastTimeStamp);
 
 	/** Spawn an actor given a class type and attach it to the cache manager */
 	TObjectPtr<AActor> SpawnSimulatedActor(const TSubclassOf<AActor>& ActorClass,

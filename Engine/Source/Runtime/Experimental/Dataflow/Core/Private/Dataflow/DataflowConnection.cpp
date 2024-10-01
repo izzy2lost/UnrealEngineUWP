@@ -7,10 +7,10 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataflowConnection)
 
-const Dataflow::FConnectionKey Dataflow::FConnectionKey::Invalid = { (uint32)INDEX_NONE, INDEX_NONE, (uint32)INDEX_NONE };
-const Dataflow::FPin Dataflow::FPin::InvalidPin = { Dataflow::FPin::EDirection::NONE, NAME_None, NAME_None };
+const UE::Dataflow::FConnectionKey UE::Dataflow::FConnectionKey::Invalid = { (uint32)INDEX_NONE, INDEX_NONE, (uint32)INDEX_NONE };
+const UE::Dataflow::FPin UE::Dataflow::FPin::InvalidPin = { UE::Dataflow::FPin::EDirection::NONE, NAME_None, NAME_None };
 
-FDataflowConnection::FDataflowConnection(Dataflow::FPin::EDirection InDirection, FName InType, FName InName, FDataflowNode* InOwningNode, const FProperty* InProperty, FGuid InGuid)
+FDataflowConnection::FDataflowConnection(UE::Dataflow::FPin::EDirection InDirection, FName InType, FName InName, FDataflowNode* InOwningNode, const FProperty* InProperty, FGuid InGuid)
 	: Type(InType)
 	, Name(InName)
 	, OwningNode(InOwningNode)
@@ -22,7 +22,7 @@ FDataflowConnection::FDataflowConnection(Dataflow::FPin::EDirection InDirection,
 	InitFromType();
 }
 
-FDataflowConnection::FDataflowConnection(Dataflow::FPin::EDirection InDirection, const Dataflow::FConnectionParameters& Params)
+FDataflowConnection::FDataflowConnection(UE::Dataflow::FPin::EDirection InDirection, const UE::Dataflow::FConnectionParameters& Params)
 	: Type(Params.Type)
 	, Name(Params.Name)
 	, OwningNode(Params.Owner)
@@ -62,9 +62,9 @@ FGuid FDataflowConnection::GetOwningNodeGuid() const
 	return OwningNode ? OwningNode->GetGuid() : FGuid();
 }
 
-Dataflow::FTimestamp FDataflowConnection::GetOwningNodeTimestamp() const
+UE::Dataflow::FTimestamp FDataflowConnection::GetOwningNodeTimestamp() const
 {
-	return OwningNode ? OwningNode->GetTimestamp() : Dataflow::FTimestamp::Invalid;
+	return OwningNode ? OwningNode->GetTimestamp() : UE::Dataflow::FTimestamp::Invalid;
 }
 
 uint32 FDataflowConnection::GetOwningNodeValueHash() const

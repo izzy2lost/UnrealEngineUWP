@@ -33,7 +33,7 @@ FDataflowAssetEdit::~FDataflowAssetEdit()
 	PostEditCallback();
 }
 
-Dataflow::FGraph* FDataflowAssetEdit::GetGraph()
+UE::Dataflow::FGraph* FDataflowAssetEdit::GetGraph()
 {
 	if (Asset)
 	{
@@ -44,7 +44,7 @@ Dataflow::FGraph* FDataflowAssetEdit::GetGraph()
 
 UDataflow::UDataflow(const FObjectInitializer& ObjectInitializer)
 	: UEdGraph(ObjectInitializer)
-	, Dataflow(new Dataflow::FGraph())
+	, Dataflow(new UE::Dataflow::FGraph())
 {}
 
 void UDataflow::EvaluateTerminalNodeByName(FName NodeName, UObject* Asset)
@@ -102,7 +102,7 @@ void UDataflow::PostLoad()
 	}
 
 	// Resync connections (nodes might have redirected connections
-	for (const Dataflow::FLink& Link : Dataflow->GetConnections())
+	for (const UE::Dataflow::FLink& Link : Dataflow->GetConnections())
 	{
 		TSharedPtr<const FDataflowNode> OutputNode = Dataflow->FindBaseNode(Link.OutputNode);
 		TSharedPtr<const FDataflowNode> InputNode = Dataflow->FindBaseNode(Link.InputNode);
@@ -133,34 +133,34 @@ void UDataflow::PostLoad()
 	}
 #endif
 
-	LastModifiedRenderTarget = Dataflow::FTimestamp::Current();
+	LastModifiedRenderTarget = UE::Dataflow::FTimestamp::Current();
 	UObject::PostLoad();
 }
 
 void UDataflow::AddRenderTarget(TObjectPtr<const UDataflowEdNode> InNode)
 {
-	LastModifiedRenderTarget = Dataflow::FTimestamp::Current();
+	LastModifiedRenderTarget = UE::Dataflow::FTimestamp::Current();
 	check(InNode->ShouldRenderNode());
 	RenderTargets.AddUnique(InNode);
 }
 
 void UDataflow::RemoveRenderTarget(TObjectPtr<const UDataflowEdNode> InNode)
 {
-	LastModifiedRenderTarget = Dataflow::FTimestamp::Current();
+	LastModifiedRenderTarget = UE::Dataflow::FTimestamp::Current();
 	check(!InNode->ShouldRenderNode());
 	RenderTargets.Remove(InNode);
 }
 
 void UDataflow::AddWireframeRenderTarget(TObjectPtr<const UDataflowEdNode> InNode)
 {
-	LastModifiedRenderTarget = Dataflow::FTimestamp::Current();
+	LastModifiedRenderTarget = UE::Dataflow::FTimestamp::Current();
 	check(InNode->ShouldWireframeRenderNode());
 	WireframeRenderTargets.AddUnique(InNode);
 }
 
 void UDataflow::RemoveWireframeRenderTarget(TObjectPtr<const UDataflowEdNode> InNode)
 {
-	LastModifiedRenderTarget = Dataflow::FTimestamp::Current();
+	LastModifiedRenderTarget = UE::Dataflow::FTimestamp::Current();
 	check(!InNode->ShouldWireframeRenderNode());
 	WireframeRenderTargets.Remove(InNode);
 }

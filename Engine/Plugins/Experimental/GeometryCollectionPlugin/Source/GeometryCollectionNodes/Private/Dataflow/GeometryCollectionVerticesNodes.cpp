@@ -7,7 +7,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionVerticesNodes)
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void GeometryCollectionVerticesNodes()
 	{
@@ -16,7 +16,7 @@ namespace Dataflow
 }
 
 
-void FTransformCollectionAttributeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FTransformCollectionAttributeDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<DataType>(&Collection))
 	{

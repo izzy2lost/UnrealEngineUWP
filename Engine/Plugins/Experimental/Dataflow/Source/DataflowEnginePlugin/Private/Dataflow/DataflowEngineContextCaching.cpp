@@ -7,11 +7,11 @@
 #include "Dataflow/DataflowContextCachingFactory.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void ContextCachingCallbacks()
 	{
-		using namespace Dataflow;
+		using namespace UE::Dataflow;
 
 		/**
 		* Dataflow ContextCaching (FManagedArrayCollection) 

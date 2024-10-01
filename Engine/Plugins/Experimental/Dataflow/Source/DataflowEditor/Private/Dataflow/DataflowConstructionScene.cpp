@@ -83,7 +83,7 @@ void FDataflowConstructionScene::TickDataflowScene(const float DeltaSeconds)
 		{
 			if (Dataflow->GetDataflow())
 			{
-				Dataflow::FTimestamp SystemTimestamp = Dataflow::FTimestamp::Invalid;
+				UE::Dataflow::FTimestamp SystemTimestamp = UE::Dataflow::FTimestamp::Invalid;
 				bool bMustUpdateConstructionScene = false;
 				for (TObjectPtr<const UDataflowBaseContent> DataflowBaseContent : GetTerminalContents())
 				{
@@ -139,7 +139,7 @@ void FDataflowConstructionScene::UpdateDynamicMeshComponents()
 	if (const TObjectPtr<UDataflowBaseContent>& EditorContent = GetEditorContent())
 	{
 		const TObjectPtr<UDataflow>& DataflowAsset = EditorContent->GetDataflowAsset();
-		const TSharedPtr<Dataflow::FEngineContext>& DataflowContext = EditorContent->GetDataflowContext();
+		const TSharedPtr<UE::Dataflow::FEngineContext>& DataflowContext = EditorContent->GetDataflowContext();
 		if(DataflowAsset && DataflowContext)
 		{
 			for (TObjectPtr<const UDataflowEdNode> Target : DataflowAsset->GetRenderTargets())
@@ -150,13 +150,13 @@ void FDataflowConstructionScene::UpdateDynamicMeshComponents()
 					GeometryCollection::Facades::FRenderingFacade Facade(*RenderCollection);
 					Facade.DefineSchema();
 
-					Dataflow::RenderNodeOutput(Facade, *Target, *EditorContent);
+					UE::Dataflow::RenderNodeOutput(Facade, *Target, *EditorContent);
 
 					const int32 NumGeometry = Facade.NumGeometry();
 					for (int32 MeshIndex = 0; MeshIndex < NumGeometry; ++MeshIndex)
 					{
 						FDynamicMesh3 DynamicMesh;
-						Dataflow::Conversion::RenderingFacadeToDynamicMesh(Facade, MeshIndex, DynamicMesh);
+						UE::Dataflow::Conversion::RenderingFacadeToDynamicMesh(Facade, MeshIndex, DynamicMesh);
 
 						if (DynamicMesh.VertexCount())
 						{
@@ -188,7 +188,7 @@ void FDataflowConstructionScene::UpdateDynamicMeshComponents()
 					GeometryCollection::Facades::FRenderingFacade Facade(*RenderCollection);
 					Facade.DefineSchema();
 
-					Dataflow::RenderNodeOutput(Facade, *Target, *EditorContent);
+					UE::Dataflow::RenderNodeOutput(Facade, *Target, *EditorContent);
 
 					const int32 NumGeometry = Facade.NumGeometry();
 					for (int32 MeshIndex = 0; MeshIndex < NumGeometry; ++MeshIndex)
@@ -203,7 +203,7 @@ void FDataflowConstructionScene::UpdateDynamicMeshComponents()
 						else
 						{
 							FDynamicMesh3 DynamicMesh;
-							Dataflow::Conversion::RenderingFacadeToDynamicMesh(Facade, MeshIndex, DynamicMesh);
+							UE::Dataflow::Conversion::RenderingFacadeToDynamicMesh(Facade, MeshIndex, DynamicMesh);
 
 							if (DynamicMesh.VertexCount())
 							{

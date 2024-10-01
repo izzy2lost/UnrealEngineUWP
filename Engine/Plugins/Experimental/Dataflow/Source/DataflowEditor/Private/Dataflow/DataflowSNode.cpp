@@ -147,9 +147,9 @@ TSharedPtr<SGraphPin> SDataflowEdNode::CreatePinWidget(UEdGraphPin* Pin) const
 			{
 				if (FDataflowOutput* Output = DataflowNode->FindOutput(Pin->GetFName()))
 				{
-					if (const TSharedPtr<Dataflow::FEngineContext> DataflowContext = DataflowInterface->GetDataflowContext())
+					if (const TSharedPtr<UE::Dataflow::FEngineContext> DataflowContext = DataflowInterface->GetDataflowContext())
 					{
-						TSet<Dataflow::FContextCacheKey> CacheKeys;
+						TSet<UE::Dataflow::FContextCacheKey> CacheKeys;
 						const int32 NumKeys = DataflowContext->GetKeys(CacheKeys);
 
 						//
@@ -213,12 +213,12 @@ void SDataflowEdNode::UpdateErrorInfo()
 	{
 		if (const TSharedPtr<FDataflowNode> DataflowNode = DataflowGraphNode->GetDataflowNode())
 		{
-			if (Dataflow::FNodeFactory::IsNodeExperimental(DataflowNode->GetType()))
+			if (UE::Dataflow::FNodeFactory::IsNodeExperimental(DataflowNode->GetType()))
 			{
 				ErrorMsg = FString(TEXT("Experimental"));
 				ErrorColor = FAppStyle::GetColor("ErrorReporting.WarningBackgroundColor");
 			} 
-			if (Dataflow::FNodeFactory::IsNodeDeprecated(DataflowNode->GetType()))
+			if (UE::Dataflow::FNodeFactory::IsNodeDeprecated(DataflowNode->GetType()))
 			{
 				ErrorMsg = FString(TEXT("Deprecated"));
 				ErrorColor = FAppStyle::GetColor("ErrorReporting.WarningBackgroundColor");
@@ -234,7 +234,7 @@ FReply SDataflowEdNode::OnMouseButtonDoubleClick(const FGeometry& InMyGeometry, 
 	{
 		if (UDataflowEdNode* DataflowNode = Cast<UDataflowEdNode>(GraphNode))
 		{
-			if (TSharedPtr<Dataflow::FGraph> Graph = DataflowNode->GetDataflowGraph())
+			if (TSharedPtr<UE::Dataflow::FGraph> Graph = DataflowNode->GetDataflowGraph())
 			{
 				if (TSharedPtr<FDataflowNode> Node = Graph->FindBaseNode(DataflowNode->GetDataflowNodeGuid()))
 				{
@@ -353,9 +353,9 @@ TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> FAssetSchemaAc
 {
 	if (const UDataflow* Dataflow = Cast<UDataflow>(ParentGraph))
 	{
-		if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
+		if (UE::Dataflow::FNodeFactory* Factory = UE::Dataflow::FNodeFactory::GetInstance())
 		{
-			const Dataflow::FFactoryParameters& Param = Factory->GetParameters(InNodeTypeName);
+			const UE::Dataflow::FFactoryParameters& Param = Factory->GetParameters(InNodeTypeName);
 			if (Param.IsValid())
 			{
 				const bool bIsSimulationNode = Param.Tags.Contains(UDataflow::SimulationTag);
@@ -422,7 +422,7 @@ void SDataflowEdNode::CopyDataflowNodeSettings(TSharedPtr<FDataflowNode> SourceD
 
 static UDataflowEdNode* CreateNode(UDataflow* Dataflow, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode, const FName NodeUniqueName, const FName NodeTypeName, TSharedPtr<FDataflowNode> DataflowNodeToDuplicate, bool bCopySettings = false)
 {
-	if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
+	if (UE::Dataflow::FNodeFactory* Factory = UE::Dataflow::FNodeFactory::GetInstance())
 	{
 		if (TSharedPtr<FDataflowNode> DataflowNode =
 			Factory->NewNodeFromRegisteredType(
@@ -502,9 +502,9 @@ UEdGraphNode* FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode::PerformActi
 //
 TSharedPtr<FAssetSchemaAction_Dataflow_DuplicateNode_DataflowEdNode> FAssetSchemaAction_Dataflow_DuplicateNode_DataflowEdNode::CreateAction(UEdGraph* ParentGraph, const FName& InNodeTypeName)
 {
-	if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
+	if (UE::Dataflow::FNodeFactory* Factory = UE::Dataflow::FNodeFactory::GetInstance())
 	{
-		const Dataflow::FFactoryParameters& Param = Factory->GetParameters(InNodeTypeName);
+		const UE::Dataflow::FFactoryParameters& Param = Factory->GetParameters(InNodeTypeName);
 		if (Param.IsValid())
 		{
 			const FText ToolTip = FText::FromString(Param.ToolTip.IsEmpty() ? FString("Add a Dataflow node.") : Param.ToolTip);
@@ -542,9 +542,9 @@ UEdGraphNode* FAssetSchemaAction_Dataflow_DuplicateNode_DataflowEdNode::PerformA
 //
 TSharedPtr<FAssetSchemaAction_Dataflow_PasteNode_DataflowEdNode> FAssetSchemaAction_Dataflow_PasteNode_DataflowEdNode::CreateAction(UEdGraph* ParentGraph, const FName& InNodeTypeName)
 {
-	if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
+	if (UE::Dataflow::FNodeFactory* Factory = UE::Dataflow::FNodeFactory::GetInstance())
 	{
-		const Dataflow::FFactoryParameters& Param = Factory->GetParameters(InNodeTypeName);
+		const UE::Dataflow::FFactoryParameters& Param = Factory->GetParameters(InNodeTypeName);
 		if (Param.IsValid())
 		{
 			const FText ToolTip = FText::FromString(Param.ToolTip.IsEmpty() ? FString("Add a Dataflow node.") : Param.ToolTip);
@@ -561,7 +561,7 @@ TSharedPtr<FAssetSchemaAction_Dataflow_PasteNode_DataflowEdNode> FAssetSchemaAct
 
 static UDataflowEdNode* CreateNodeFromPaste(UDataflow* Dataflow, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode, const FName NodeUniqueName, const FName NodeTypeName, FString NodeProperties)
 {
-	if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
+	if (UE::Dataflow::FNodeFactory* Factory = UE::Dataflow::FNodeFactory::GetInstance())
 	{
 		if (TSharedPtr<FDataflowNode> DataflowNode =
 			Factory->NewNodeFromRegisteredType(

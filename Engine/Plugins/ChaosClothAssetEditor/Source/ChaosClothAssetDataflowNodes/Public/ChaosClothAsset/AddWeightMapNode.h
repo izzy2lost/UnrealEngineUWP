@@ -93,7 +93,7 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Add Weight Map")
 	EChaosClothAssetWeightMapMeshType MeshTarget = EChaosClothAssetWeightMapMeshType::Simulation;
 
-	FChaosClothAssetAddWeightMapNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetAddWeightMapNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	friend class UClothEditorWeightMapPaintTool;
@@ -111,7 +111,7 @@ private:
 	TArray<float> RenderVertexWeights;
 
 	// These methods are exported for UClothEditorWeightMapPaintTool which lives in a different module.
-	FName CHAOSCLOTHASSETDATAFLOWNODES_API GetInputName(Dataflow::FContext& Context) const;
+	FName CHAOSCLOTHASSETDATAFLOWNODES_API GetInputName(UE::Dataflow::FContext& Context) const;
 
 	void CHAOSCLOTHASSETDATAFLOWNODES_API SetVertexWeights(const TConstArrayView<float> InputMap, const TArray<float>& FinalValues);
 	void CHAOSCLOTHASSETDATAFLOWNODES_API SetRenderVertexWeights(const TConstArrayView<float> InputMap, const TArray<float>& FinalValues);
@@ -121,8 +121,8 @@ private:
 	void CHAOSCLOTHASSETDATAFLOWNODES_API CalculateFinalRenderVertexWeightValues(const TConstArrayView<float> InputMap, TArrayView<float> FinalOutputMap) const;
 
 	//~ Begin FDataflowNode interface
-	virtual void SetAssetValue(TObjectPtr<UObject> Asset, Dataflow::FContext& Context) const override;
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void SetAssetValue(TObjectPtr<UObject> Asset, UE::Dataflow::FContext& Context) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 	//~ End FDataflowNode interface
 
 	UPROPERTY()

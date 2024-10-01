@@ -51,7 +51,7 @@
 
 const FEditorModeID UDataflowEditorMode::EM_DataflowEditorModeId = TEXT("EM_DataflowAssetEditorMode");
 
-namespace Dataflow::Private
+namespace UE::Dataflow::Private
 {
 	bool bDataflowEditorEnableToolsInPIE = true;
 	FAutoConsoleVariableRef CVARDataflowEditorEnableToolsInPIE(TEXT("p.Dataflow.EnableToolsInPIE"), bDataflowEditorEnableToolsInPIE,
@@ -87,7 +87,7 @@ void UDataflowEditorMode::Enter()
 	UE::TransformGizmoUtil::RegisterTransformGizmoContextObject(GetInteractiveToolsContext());
 
 	// Initialize view mode to a default
-	ConstructionViewMode = Dataflow::FRenderingViewModeFactory::GetInstance().GetViewMode(Dataflow::FDataflowConstruction3DViewMode::Name);
+	ConstructionViewMode = UE::Dataflow::FRenderingViewModeFactory::GetInstance().GetViewMode(UE::Dataflow::FDataflowConstruction3DViewMode::Name);
 }
 
 void UDataflowEditorMode::SetDataflowEditor(UDataflowEditor* InDataflowEditor) 
@@ -141,7 +141,7 @@ void UDataflowEditorMode::RegisterDataflowTool(TSharedPtr<FUICommandInfo> UIComm
 			if (const IDataflowEditorToolBuilder* const DataflowToolBuilder = Cast<IDataflowEditorToolBuilder>(Builder))
 			{
 				// Check if we need to switch view modes before starting the tool
-				TArray<const Dataflow::IDataflowConstructionViewMode*> SupportedModes;
+				TArray<const UE::Dataflow::IDataflowConstructionViewMode*> SupportedModes;
 
 				DataflowToolBuilder->GetSupportedConstructionViewModes(*ContextObject, SupportedModes);
 
@@ -181,7 +181,7 @@ void UDataflowEditorMode::RegisterDataflowTool(TSharedPtr<FUICommandInfo> UIComm
 
 			// Make sure the ContextObject's selected Collection is the from the Input side of the selected node (so that the tool gets the Collection as it appears before node execution)
 
-			if (TSharedPtr<Dataflow::FEngineContext> DataflowContext = ContextObject->GetDataflowContext())
+			if (TSharedPtr<UE::Dataflow::FEngineContext> DataflowContext = ContextObject->GetDataflowContext())
 			{
 				if (UDataflowEdNode* const SelectedNode = ContextObject->GetSelectedNode())
 				{
@@ -254,7 +254,7 @@ void UDataflowEditorMode::RegisterTools()
 
 	UEditorInteractiveToolsContext* const ConstructionViewportToolsContext = GetInteractiveToolsContext();
 
-	Dataflow::FDataflowToolRegistry& ToolRegistry = Dataflow::FDataflowToolRegistry::Get();
+	UE::Dataflow::FDataflowToolRegistry& ToolRegistry = UE::Dataflow::FDataflowToolRegistry::Get();
 	const TArray<FName> NodeNames = ToolRegistry.GetNodeNames();
 	for (const FName& RegisteredNodeName : NodeNames)
 	{
@@ -293,7 +293,7 @@ bool UDataflowEditorMode::ShouldToolStartBeAllowed(const FString& ToolIdentifier
 	}
 
 
-	if (Dataflow::Private::bDataflowEditorEnableToolsInPIE)
+	if (UE::Dataflow::Private::bDataflowEditorEnableToolsInPIE)
 	{
 		// UEdMode::ShouldToolStartBeAllowed returns (!GEditor->PlayWorld && !GIsPlayInEditorWorld) but we want to allow tools to start while in PIE
 		return true;
@@ -723,8 +723,8 @@ void UDataflowEditorMode::SetConstructionViewMode(const FName& NewViewModeName)
 		}
 	}
 
-	const Dataflow::FRenderingViewModeFactory& ViewModes = Dataflow::FRenderingViewModeFactory::GetInstance();
-	const Dataflow::IDataflowConstructionViewMode* const NewMode = ViewModes.GetViewMode(NewViewModeName);
+	const UE::Dataflow::FRenderingViewModeFactory& ViewModes = UE::Dataflow::FRenderingViewModeFactory::GetInstance();
+	const UE::Dataflow::IDataflowConstructionViewMode* const NewMode = ViewModes.GetViewMode(NewViewModeName);
 	if (!NewMode)
 	{
 		UE_LOG(LogChaos, Warning, TEXT("Warning : Unknown rendering view mode: %s"), *NewViewModeName.ToString());
@@ -784,7 +784,7 @@ void UDataflowEditorMode::SetConstructionViewMode(const FName& NewViewModeName)
 	}
 }
 
-const Dataflow::IDataflowConstructionViewMode* UDataflowEditorMode::GetConstructionViewMode() const
+const UE::Dataflow::IDataflowConstructionViewMode* UDataflowEditorMode::GetConstructionViewMode() const
 {
 	return ConstructionViewMode;
 }
@@ -801,9 +801,9 @@ bool UDataflowEditorMode::CanChangeConstructionViewModeTo(const FName& NewViewMo
 				{
 					if (const UDataflowEdNode* const SelectedDataflowEdNode = Cast<UDataflowEdNode>(SelectedNode))
 					{
-						if (const Dataflow::IDataflowConstructionViewMode* const ViewMode = Dataflow::FRenderingViewModeFactory::GetInstance().GetViewMode(NewViewModeName))
+						if (const UE::Dataflow::IDataflowConstructionViewMode* const ViewMode = UE::Dataflow::FRenderingViewModeFactory::GetInstance().GetViewMode(NewViewModeName))
 						{
-							if (Dataflow::CanRenderNodeOutput(*SelectedDataflowEdNode, *EditorContent, *ViewMode))
+							if (UE::Dataflow::CanRenderNodeOutput(*SelectedDataflowEdNode, *EditorContent, *ViewMode))
 							{
 								return true;
 							}
@@ -830,10 +830,10 @@ bool UDataflowEditorMode::CanChangeConstructionViewModeTo(const FName& NewViewMo
 		const UDataflowContextObject* const DataflowContextObject = ConstructionToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>();
 		checkf(DataflowContextObject, TEXT("No Dataflow Context Object found in ContextObjectStore, despite having an Active Tool. This should have been created by the time a tool is activated"));
 
-		TArray<const Dataflow::IDataflowConstructionViewMode*> SupportedViewModes;
+		TArray<const UE::Dataflow::IDataflowConstructionViewMode*> SupportedViewModes;
 		DataflowToolBuilder->GetSupportedConstructionViewModes(*DataflowContextObject, SupportedViewModes);
 
-		if (const Dataflow::IDataflowConstructionViewMode* const NewViewMode = Dataflow::FRenderingViewModeFactory::GetInstance().GetViewMode(NewViewModeName))
+		if (const UE::Dataflow::IDataflowConstructionViewMode* const NewViewMode = UE::Dataflow::FRenderingViewModeFactory::GetInstance().GetViewMode(NewViewModeName))
 		{
 			return SupportedViewModes.Contains(NewViewMode);
 		}

@@ -11,7 +11,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ChaosFleshKinematicSkeletonConstraintNode)
 
-void FKinematicSkeletonConstraintDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FKinematicSkeletonConstraintDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<DataType>(&Collection))
 	{
@@ -27,7 +27,7 @@ void FKinematicSkeletonConstraintDataflowNode::Evaluate(Dataflow::FContext& Cont
 			int32 NumTets = TetCollection.Tetrahedron.Num();
 
 			TArray<FTransform> ComponentPose;
-			Dataflow::Animation::GlobalTransforms(Skeleton->GetReferenceSkeleton(), ComponentPose);
+			UE::Dataflow::Animation::GlobalTransforms(Skeleton->GetReferenceSkeleton(), ComponentPose);
 
 			TArray<FVector3f> Vertex = TetCollection.Vertex.Get().GetConstArray();
 			TetCollection.ComponentSpaceVertices(Vertex);

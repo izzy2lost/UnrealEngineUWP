@@ -11,7 +11,7 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ChaosFleshSkeletalMeshConstraintNode)
 
 
-void FKinematicSkeletalMeshInitializationDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FKinematicSkeletalMeshInitializationDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<DataType>(&Collection) || Out->IsA<TArray<int32>>(&IndicesOut))
 	{
@@ -38,7 +38,7 @@ void FKinematicSkeletalMeshInitializationDataflowNode::Evaluate(Dataflow::FConte
 				const FSkinWeightVertexBuffer* SkinWeightVertexBuffer = LODRenderData->GetSkinWeightVertexBuffer();
 				const int32 MaxBoneInfluences = SkinWeightVertexBuffer->GetMaxBoneInfluences();
 				TArray<FTransform> ComponentPose;
-				Dataflow::Animation::GlobalTransforms(SkeletalMesh->GetRefSkeleton(), ComponentPose);
+				UE::Dataflow::Animation::GlobalTransforms(SkeletalMesh->GetRefSkeleton(), ComponentPose);
 				TArray<TArray<int32>> BoundVerts;
 				TArray<TArray<float>> BoundWeights;
 				BoundVerts.SetNum(ComponentPose.Num());
