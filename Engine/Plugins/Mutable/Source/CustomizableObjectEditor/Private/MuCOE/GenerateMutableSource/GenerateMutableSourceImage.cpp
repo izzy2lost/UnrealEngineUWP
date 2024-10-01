@@ -128,6 +128,9 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 				int32 HighResMipsForThisImage = FMath::Min(NumMipsBeyondMin, GenerationContext.Options.NumHighResImageMips);
 				ConstantImageNode->SourceDataDescriptor.SourceHighResMips = HighResMipsForThisImage;
 
+				const FString TextureName = GetNameSafe(BaseTexture);
+				ConstantImageNode->SourceDataDescriptor.SourceId = CityHash32(reinterpret_cast<const char*>(*TextureName), TextureName.Len() * sizeof(FString::ElementType));
+
 				ImageNode = ConstantImageNode;
 
 				GenerationContext.GeneratedImages.Add(ImageKey, ImageNode);
@@ -228,6 +231,9 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 			int32 NumMipsBeyondMin = FMath::Max(0, TotalMips - int32(MipsToSkip) - GenerationContext.Options.MinDiskMips);
 			int32 HighResMipsForThisImage = FMath::Min(NumMipsBeyondMin, GenerationContext.Options.NumHighResImageMips);
 			ImageNode->SourceDataDescriptor.SourceHighResMips = HighResMipsForThisImage;
+
+			const FString TextureName = GetNameSafe(Texture);
+			ImageNode->SourceDataDescriptor.SourceId = CityHash32(reinterpret_cast<const char*>(*TextureName), TextureName.Len() * sizeof(FString::ElementType));
 		}
 		else
 		{
@@ -997,6 +1003,9 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 		}
 		else
 		{
+			const FString TableName = TypedNodeTable->Table ? GetNameSafe(TypedNodeTable->Table) : GetNameSafe(TypedNodeTable->Structure);
+			const uint32 TableId = CityHash32(reinterpret_cast<const char*>(*TableName), TableName.Len() * sizeof(FString::ElementType));
+
 			// This node will add a checker texture in case of error
 			mu::Ptr<mu::NodeImageConstant> EmptyNode = new mu::NodeImageConstant();
 			Result = EmptyNode;
@@ -1119,6 +1128,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 								int32 NumMipsBeyondMin = FMath::Max(0, TotalMips - GenerationContext.Options.MinDiskMips);
 								int32 HighResMipsForThisImage = FMath::Min(NumMipsBeyondMin, GenerationContext.Options.NumHighResImageMips);
 								ImageTableNode->SourceDataDescriptor.SourceHighResMips = HighResMipsForThisImage;
+								ImageTableNode->SourceDataDescriptor.SourceId = TableId; // It will be combined with the RowId when generating constants
 							}
 						}
 					}

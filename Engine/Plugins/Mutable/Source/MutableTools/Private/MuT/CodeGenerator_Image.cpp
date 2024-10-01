@@ -1455,6 +1455,7 @@ namespace mu
                 // will remove the faces that are not in the layout block we are generating.
                 Ptr<ASTOpConstantResource> cop = new ASTOpConstantResource();
                 cop->Type = OP_TYPE::ME_CONSTANT;
+				cop->SourceDataDescriptor = CurrentMeshToProjectOp->GetSourceDataDescriptor();
 				Ptr<Mesh> FormatMeshResult = new Mesh();
 				CreateMeshOptimisedForWrappingProjection(FormatMeshResult.get(), node.m_layout);
 
@@ -1485,6 +1486,7 @@ namespace mu
                 // Reformat the mesh to a more efficient format for this operation
                 Ptr<ASTOpConstantResource> cop = new ASTOpConstantResource();
                 cop->Type = OP_TYPE::ME_CONSTANT;
+				cop->SourceDataDescriptor = CurrentMeshToProjectOp->GetSourceDataDescriptor();
 
 				Ptr<Mesh> FormatMeshResult = new Mesh();
                 CreateMeshOptimisedForProjection(FormatMeshResult.get(), node.m_layout);
@@ -1906,6 +1908,11 @@ namespace mu
 
 					// TODO: We probably want to get the data tags from the table row.
 					ImageConst->SourceDataDescriptor = InNode->SourceDataDescriptor;
+
+					// Combine the SourceId of the node with the RowId to generate one shared between all resources from this row.
+					// Hash collisions are allowed, since it is used to group resources, not to differentiate them.
+					const uint32 RowId = node.Table->GetPrivate()->Rows[row].Id;
+					ImageConst->SourceDataDescriptor.SourceId = HashCombine(InNode->SourceDataDescriptor.SourceId, RowId);
 
 					FImageGenerationResult Result;
 					GenerateImage(Options, Result, ImageConst);

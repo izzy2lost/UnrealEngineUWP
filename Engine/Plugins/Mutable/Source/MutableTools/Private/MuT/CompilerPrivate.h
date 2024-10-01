@@ -103,6 +103,11 @@ namespace mu
 			* It must have the same size than the Program::ConstantImages array.
 			*/
 			TArray<FSourceDataDescriptor> SourceImagePerConstant;
+
+			/** Source data descriptor for every mesh constant that has been generated.
+			* It must have the same size than the Program::ConstantMeshes array.
+			*/
+			TArray<FSourceDataDescriptor> SourceMeshPerConstant;
 		};
 
 		//!

@@ -31,7 +31,7 @@
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
 
-bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr MutableTable, const FString& ColumnName, const FString& RowName, const int32 RowIdx, uint8* CellData, const FProperty* ColumnProperty,
+bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr MutableTable, const FString& ColumnName, const FString& RowName, const uint32 RowId, uint8* CellData, const FProperty* ColumnProperty,
 	const int LODIndexConnected, const int32 SectionIndexConnected, int32 LODIndex, int32 SectionIndex, const bool bOnlyConnectedLOD, FMutableGraphGenerationContext& GenerationContext)
 {
 	int32 CurrentColumn;
@@ -62,7 +62,7 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr
 				}
 
 				mu::MeshPtr EmptySkeletalMesh = nullptr;
-				MutableTable->SetCell(CurrentColumn, RowIdx, EmptySkeletalMesh.get());
+				MutableTable->SetCell(CurrentColumn, RowId, EmptySkeletalMesh.get());
 
 				return true;
 			}
@@ -321,7 +321,7 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr
 					AddTagToMutableMeshUnique(*MutableMesh, MeshTag);
 				}
 
-				MutableTable->SetCell(CurrentColumn, RowIdx, MutableMesh.get(), SkeletalMesh);
+				MutableTable->SetCell(CurrentColumn, RowId, MutableMesh.get(), SkeletalMesh);
 			}
 			else
 			{
@@ -395,7 +395,7 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr
 
 			if (MutableMesh)
 			{
-				MutableTable->SetCell(CurrentColumn, RowIdx, MutableMesh.get(), StaticMesh);
+				MutableTable->SetCell(CurrentColumn, RowId, MutableMesh.get(), StaticMesh);
 			}
 			else
 			{
@@ -437,7 +437,7 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr
 
 			const bool bIsPassthroughTexture = TableNode->GetColumnImageMode(PinName) == ETableTextureType::PASSTHROUGH_TEXTURE;
 			mu::Ptr<mu::ResourceProxyMemory<mu::Image>> Proxy = new mu::ResourceProxyMemory<mu::Image>(GenerateImageConstant(Texture, GenerationContext, bIsPassthroughTexture));
-			MutableTable->SetCell(CurrentColumn, RowIdx, Proxy.get());
+			MutableTable->SetCell(CurrentColumn, RowId, Proxy.get());
 		}
 
 		else if (SoftObjectProperty->PropertyClass->IsChildOf(UMaterialInterface::StaticClass()))
@@ -511,7 +511,7 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr
 				}
 
 				int32 ReferenceMaterialId = GenerationContext.ReferencedMaterials.AddUnique(MaterialInstance);
-				MutableTable->SetCell(CurrentColumn, RowIdx, (float)ReferenceMaterialId);
+				MutableTable->SetCell(CurrentColumn, RowId, (float)ReferenceMaterialId);
 
 				return true;
 			}
@@ -571,7 +571,7 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr
 
 				bool bIsPassthroughTexture = false;
 				mu::Ptr<mu::ResourceProxyMemory<mu::Image>> Proxy = new mu::ResourceProxyMemory<mu::Image>(GenerateImageConstant(ParameterTexture, GenerationContext, bIsPassthroughTexture));
-				MutableTable->SetCell(ColumnIndex, RowIdx, Proxy.get());
+				MutableTable->SetCell(ColumnIndex, RowId, Proxy.get());
 
 				return true;
 			}
@@ -613,7 +613,7 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr
 					MutableMesh->SetBonePose(i, BoneId, (FTransform3f)ArrayTransform[i], mu::EBoneUsageFlags::Skinning);
 				}
 
-				MutableTable->SetCell(CurrentColumn, RowIdx, MutableMesh.get());
+				MutableTable->SetCell(CurrentColumn, RowId, MutableMesh.get());
 			}
 		}
 
@@ -640,7 +640,7 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr
 
 			// Setting cell value
 			FLinearColor Value = *(FLinearColor*)CellData;
-			MutableTable->SetCell(CurrentColumn, RowIdx, Value);
+			MutableTable->SetCell(CurrentColumn, RowId, Value);
 		}
 		
 		else
@@ -661,7 +661,7 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr
 
 		// Setting cell value
 		float Value = FloatNumProperty->GetFloatingPointPropertyValue(CellData);
-		MutableTable->SetCell(CurrentColumn, RowIdx, Value);
+		MutableTable->SetCell(CurrentColumn, RowId, Value);
 	}
 
 	else if (const FNumericProperty* DoubleNumProperty = CastField<FDoubleProperty>(ColumnProperty))
@@ -675,7 +675,7 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr
 	
 		// Setting cell value
 		float Value = DoubleNumProperty->GetFloatingPointPropertyValue(CellData);
-		MutableTable->SetCell(CurrentColumn, RowIdx, Value);
+		MutableTable->SetCell(CurrentColumn, RowId, Value);
 	}
 
 	else
@@ -858,10 +858,44 @@ void RestrictRowContentByVersion( TArray<FName>& InOutRowNames, const UDataTable
 }
 
 
-TArray<FName> GetRowsToCompile(const UDataTable& DataTable, const UCustomizableObjectNodeTable& TableNode, FMutableGraphGenerationContext& GenerationContext)
+void GenerateUniqueRowIds(const TArray<FName>& RowNames, TArray<uint32>& OutRowIds)
+{
+	const int32 NumRows = RowNames.Num();
+
+	OutRowIds.SetNum(NumRows);
+
+	for (int32 RowIndex = 0; RowIndex < NumRows; ++RowIndex)
+	{
+		const FString& RowName = RowNames[RowIndex].ToString();
+
+		uint32 RowId = CityHash32(reinterpret_cast<const char*>(*RowName), RowName.Len() * sizeof(FString::ElementType));
+
+		// Ensure Row Id is unique 
+		bool bIsUnique = false;
+		while (!bIsUnique)
+		{
+			bIsUnique = true;
+			for (int32 RowIdIndex = 0; RowIdIndex < RowIndex; ++RowIdIndex)
+			{
+				if (OutRowIds[RowIdIndex] == RowId)
+				{
+					bIsUnique = false;
+					++RowId;
+					break;
+				}
+			}
+		}
+
+		OutRowIds[RowIndex] = RowId;
+	}
+}
+
+
+TArray<FName> GetRowsToCompile(const UDataTable& DataTable, const UCustomizableObjectNodeTable& TableNode, FMutableGraphGenerationContext& GenerationContext, TArray<uint32>& OutRowIds)
 {
 	if (FMutableGraphGenerationContext::FGeneratedDataTablesData* Result = GenerationContext.GeneratedTables.Find(DataTable.GetName()))
 	{
+		OutRowIds = Result->RowIds;
 		return Result->RowNames;
 	}
 	else
@@ -873,6 +907,8 @@ TArray<FName> GetRowsToCompile(const UDataTable& DataTable, const UCustomizableO
 			RestrictRowNamesToSelectedOption(RowNames, TableNode, GenerationContext);
 			RestrictRowContentByVersion(RowNames, DataTable, TableNode, GenerationContext);
 		}
+
+		GenerateUniqueRowIds(RowNames, OutRowIds);
 
 		return RowNames;
 	}
@@ -901,7 +937,8 @@ bool GenerateTableColumn(const UCustomizableObjectNodeTable* TableNode, const UE
 	GenerationContext.AddParticipatingObject(*DataTable);
 
 	// Getting names of the rows to access the information
-	TArray<FName> RowNames = GetRowsToCompile(*DataTable, *TableNode, GenerationContext);
+	TArray<uint32> RowIds;
+	TArray<FName> RowNames = GetRowsToCompile(*DataTable, *TableNode, GenerationContext, RowIds);
 
 	// Pre-pass to request async loading of all data. This seems to be slightly faster because it avoids the sync after every separate load.
 	if (!GenerationContext.bParticipatingObjectsPass)
@@ -937,7 +974,7 @@ bool GenerateTableColumn(const UCustomizableObjectNodeTable* TableNode, const UE
 	{
 		if (uint8* CellData = GetCellData(RowNames[RowIndex], *DataTable, *ColumnProperty))
 		{
-			bool bCellGenerated = FillTableColumn(TableNode, MutableTable, DataTableColumnName, RowNames[RowIndex].ToString(), RowIndex, CellData, ColumnProperty,
+			bool bCellGenerated = FillTableColumn(TableNode, MutableTable, DataTableColumnName, RowNames[RowIndex].ToString(), RowIds[RowIndex], CellData, ColumnProperty,
 				LODIndexConnected, SectionIndexConnected, LODIndex, SectionIndex, bOnlyConnectedLOD, GenerationContext);
 
 			if (!bCellGenerated)
@@ -956,7 +993,8 @@ void GenerateTableParameterUIData(const UDataTable* DataTable, const UCustomizab
 	// Checking if the parameter name already exists
 	GenerationContext.AddParameterNameUnique(TableNode, TableNode->ParameterName);
 
-	TArray<FName> RowNames = GetRowsToCompile(*DataTable, *TableNode, GenerationContext);
+	TArray<uint32> RowIds;
+	TArray<FName> RowNames = GetRowsToCompile(*DataTable, *TableNode, GenerationContext, RowIds);
 
 	for (const FName& Name : RowNames)
 	{
@@ -1103,15 +1141,16 @@ mu::TablePtr GenerateMutableSourceTable(const UDataTable* DataTable, const UCust
 	if (const UScriptStruct* TableStruct = DataTable->GetRowStruct())
 	{
 		// Getting Table and row names to access the information
-		TArray<FName> RowNames = GetRowsToCompile(*DataTable, *TableNode, GenerationContext);
+		TArray<uint32> RowIds;
+		TArray<FName> RowNames = GetRowsToCompile(*DataTable, *TableNode, GenerationContext, RowIds);
 
 		// Adding and filling Name Column
 		MutableTable->AddColumn("Name", mu::ETableColumnType::String);
 
-		for (int32 NameIndex = 0; NameIndex < RowNames.Num(); ++NameIndex)
+		for (int32 RowIndex = 0; RowIndex < RowNames.Num(); ++RowIndex)
 		{
-			MutableTable->AddRow(NameIndex);
-			MutableTable->SetCell(0, NameIndex, RowNames[NameIndex].ToString());
+			MutableTable->AddRow(RowIds[RowIndex]);
+			MutableTable->SetCell(0, RowIds[RowIndex], RowNames[RowIndex].ToString());
 		}
 
 		// Generating Parameter Metadata for new table parameters
@@ -1122,6 +1161,7 @@ mu::TablePtr GenerateMutableSourceTable(const UDataTable* DataTable, const UCust
 		GeneratedTable.bDisableCheckedRows = TableNode->bDisableCheckedRows;
 		GeneratedTable.VersionColumn = TableNode->VersionColumn;
 		GeneratedTable.RowNames = RowNames;
+		GeneratedTable.RowIds = RowIds;
 		GeneratedTable.ReferenceNode = TableNode;
 
 		// Add table to cache
