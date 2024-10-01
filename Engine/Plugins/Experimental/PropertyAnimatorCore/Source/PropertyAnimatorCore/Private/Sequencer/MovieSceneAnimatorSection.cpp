@@ -5,7 +5,7 @@
 UMovieSceneAnimatorSection::UMovieSceneAnimatorSection()
 	: UMovieSceneSection()
 {
-	bSupportsInfiniteRange = true;
+	bSupportsInfiniteRange = false;
 	EvalOptions.CompletionMode = EMovieSceneCompletionMode::RestoreState;
 }
 

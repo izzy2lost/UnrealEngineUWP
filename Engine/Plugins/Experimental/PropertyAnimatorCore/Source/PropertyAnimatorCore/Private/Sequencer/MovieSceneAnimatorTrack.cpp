@@ -28,12 +28,18 @@ UMovieSceneSection* UMovieSceneAnimatorTrack::CreateNewSection()
 
 	if (const UMovieScene* MovieScene = GetTypedOuter<UMovieScene>())
 	{
+		// Playback range
 		NewSection->SetStartFrame(MovieScene->GetPlaybackRange().GetLowerBound());
 		NewSection->SetEndFrame(MovieScene->GetPlaybackRange().GetUpperBound());
 
 		// For easing
 		NewSection->SetBlendType(EMovieSceneBlendType::Absolute);
 		UpdateEasing();
+
+		// Pre/Post roll
+		const FFrameRate TickResolution = MovieScene->GetTickResolution();
+		NewSection->SetPreRollFrames((1.0 * TickResolution).RoundToFrame().Value);
+		NewSection->SetPostRollFrames((1.0 * TickResolution).RoundToFrame().Value);
 	}
 
 	return NewSection;
