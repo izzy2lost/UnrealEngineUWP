@@ -125,7 +125,7 @@ bool FLayeredMove_RootMotionAttribute::GenerateMove(const FMoverTickStartData& S
 
 		// TODO: Provide better options to control when we should skip proposed movement
 		if (!bHasValidWarpingContext &&
-				(InputCmd->bIsJumpJustPressed || MoverComp->HasGameplayTag(Mover_IsFalling, false)))
+				((InputCmd && InputCmd->bIsJumpJustPressed) || MoverComp->HasGameplayTag(Mover_IsFalling, false)))
 		{
 			return false;	// do not perform root motion while jumping or falling, so that we can have air control, unless we're under montage influence
 		}
