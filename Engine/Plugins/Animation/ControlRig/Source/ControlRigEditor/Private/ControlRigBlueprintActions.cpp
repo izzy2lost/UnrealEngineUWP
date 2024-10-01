@@ -275,7 +275,14 @@ UControlRigBlueprint* FControlRigBlueprintActions::CreateControlRigFromSkeletalM
 	if(URigHierarchyController* Controller = NewControlRigBlueprint->GetHierarchyController())
 	{
 		Controller->ImportBones(*RefSkeleton, NAME_None, false, false, false, false);
-		Controller->ImportCurves(Skeleton, NAME_None, false, false);
+		if(SkeletalMesh)
+		{
+			Controller->ImportCurvesFromSkeletalMesh(SkeletalMesh, NAME_None, false, false);
+		}
+		else
+		{
+			Controller->ImportCurves(Skeleton, NAME_None, false, false);
+		}
 	}
 	NewControlRigBlueprint->SourceHierarchyImport = Skeleton;
 	NewControlRigBlueprint->SourceCurveImport = Skeleton;

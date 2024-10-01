@@ -6,13 +6,13 @@
 #include "UObject/Package.h"
 #include "ModularRig.h"
 #include "HelperUtil.h"
+#include "Engine/SkeletalMesh.h"
 
 #if WITH_EDITOR
 #include "Framework/Notifications/NotificationManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Styling/AppStyle.h"
 #include "ScopedTransaction.h"
-#include "Engine/SkeletalMesh.h"
 #include "RigVMPythonUtils.h"
 #endif
 
@@ -1076,13 +1076,33 @@ TArray<FRigElementKey> URigHierarchyController::ImportBonesFromAsset(FString InA
 }
 
 TArray<FRigElementKey> URigHierarchyController::ImportCurvesFromAsset(FString InAssetPath, FName InNameSpace,
-	bool bSelectCurves, bool bSetupUndo)
+                                                                      bool bSelectCurves, bool bSetupUndo)
 {
+	if(USkeletalMesh* SkeletalMesh = GetSkeletalMeshFromAssetPath(InAssetPath))
+	{
+		return ImportCurvesFromSkeletalMesh(SkeletalMesh, InNameSpace, bSelectCurves, bSetupUndo);
+	}
 	if(USkeleton* Skeleton = GetSkeletonFromAssetPath(InAssetPath))
 	{
 		return ImportCurves(Skeleton, InNameSpace, bSelectCurves, bSetupUndo);
 	}
 	return TArray<FRigElementKey>();
+}
+
+USkeletalMesh* URigHierarchyController::GetSkeletalMeshFromAssetPath(const FString& InAssetPath)
+{
+	UObject* AssetObject = StaticLoadObject(UObject::StaticClass(), NULL, *InAssetPath, NULL, LOAD_None, NULL);
+	if(AssetObject == nullptr)
+	{
+		return nullptr;
+	}
+
+	if(USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(AssetObject))
+	{
+		return SkeletalMesh;
+	}
+
+	return nullptr;
 }
 
 USkeleton* URigHierarchyController::GetSkeletonFromAssetPath(const FString& InAssetPath)
@@ -1108,23 +1128,23 @@ USkeleton* URigHierarchyController::GetSkeletonFromAssetPath(const FString& InAs
 
 #endif
 
-TArray<FRigElementKey> URigHierarchyController::ImportCurves(USkeleton* InSkeleton, FName InNameSpace,
-                                                             bool bSelectCurves, bool bSetupUndo, bool bPrintPythonCommand)
+TArray<FRigElementKey> URigHierarchyController::ImportCurves(UAnimCurveMetaData* InAnimCurvesMetadata, FName InNameSpace, bool bSetupUndo)
 {
-	if (InSkeleton == nullptr)
+	TArray<FRigElementKey> Keys;
+	if (InAnimCurvesMetadata == nullptr)
 	{
-		return TArray<FRigElementKey>();
+		return Keys;
 	}
 
-	TArray<FRigElementKey> Keys;
 	if(!IsValid())
 	{
 		return Keys;
 	}
 
 	URigHierarchy* Hierarchy = GetHierarchy();
+	FRigHierarchyInteractionBracket InteractionBracket(Hierarchy);
 
-	InSkeleton->ForEachCurveMetaData([this, Hierarchy, InNameSpace, &Keys, bSetupUndo](const FName& InCurveName, const FCurveMetaData& InMetaData)
+	InAnimCurvesMetadata->ForEachCurveMetaData([this, Hierarchy, InNameSpace, &Keys, bSetupUndo](const FName& InCurveName, const FCurveMetaData& InMetaData)
 	{
 		FName Name = InCurveName;
 		if (!InNameSpace.IsNone())
@@ -1143,6 +1163,37 @@ TArray<FRigElementKey> URigHierarchyController::ImportCurves(USkeleton* InSkelet
 		Keys.Add(FRigElementKey(Name, ERigElementType::Curve));
 	});
 
+	return Keys;
+}
+
+TArray<FRigElementKey> URigHierarchyController::ImportCurves(USkeleton* InSkeleton, FName InNameSpace,
+                                                             bool bSelectCurves, bool bSetupUndo, bool bPrintPythonCommand)
+{
+	TArray<FRigElementKey> Keys;
+	if (InSkeleton == nullptr)
+	{
+		return Keys;
+	}
+
+	if(!IsValid())
+	{
+		return Keys;
+	}
+
+	URigHierarchy* Hierarchy = GetHierarchy();
+	FRigHierarchyInteractionBracket InteractionBracket(Hierarchy);
+
+#if WITH_EDITOR
+	TSharedPtr<FScopedTransaction> TransactionPtr;
+	if(bSetupUndo)
+	{
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("RigHierarchyController", "Import Curves", "Import Curves"));
+		Hierarchy->Modify();
+	}
+#endif
+
+	Keys.Append(ImportCurves(InSkeleton->GetAssetUserData<UAnimCurveMetaData>(), InNameSpace, bSetupUndo));
+
 	if(bSelectCurves)
 	{
 		SetSelection(Keys);
@@ -1157,6 +1208,60 @@ TArray<FRigElementKey> URigHierarchyController::ImportCurves(USkeleton* InSkelet
 			RigVMPythonUtils::Print(Blueprint->GetFName().ToString(),
 				FString::Printf(TEXT("hierarchy_controller.import_curves_from_asset('%s', '%s', %s)"),
 				*InSkeleton->GetPathName(),
+				*InNameSpace.ToString(),
+				(bSelectCurves) ? TEXT("True") : TEXT("False")));
+		}
+	}
+#endif
+
+	Hierarchy->EnsureCacheValidity();
+
+	return Keys;
+}
+
+TArray<FRigElementKey> URigHierarchyController::ImportCurvesFromSkeletalMesh(USkeletalMesh* InSkeletalMesh, FName InNameSpace,
+	bool bSelectCurves, bool bSetupUndo, bool bPrintPythonCommand)
+{
+	TArray<FRigElementKey> Keys;
+	if(InSkeletalMesh == nullptr)
+	{
+		return Keys;
+	}
+
+	if(!IsValid())
+	{
+		return Keys;
+	}
+
+	URigHierarchy* Hierarchy = GetHierarchy();
+	FRigHierarchyInteractionBracket InteractionBracket(Hierarchy);
+
+#if WITH_EDITOR
+	TSharedPtr<FScopedTransaction> TransactionPtr;
+	if(bSetupUndo)
+	{
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("RigHierarchyController", "Import Curves", "Import Curves"));
+		Hierarchy->Modify();
+	}
+#endif
+
+	Keys.Append(ImportCurves(InSkeletalMesh->GetSkeleton(), InNameSpace, false, bSetupUndo, false));
+	Keys.Append(ImportCurves(InSkeletalMesh->GetAssetUserData<UAnimCurveMetaData>(), InNameSpace, bSetupUndo));
+	
+	if(bSelectCurves)
+	{
+		SetSelection(Keys);
+	}
+	
+#if WITH_EDITOR
+	if (!Keys.IsEmpty() && bPrintPythonCommand && !bSuspendPythonPrinting)
+	{
+		UBlueprint* Blueprint = GetTypedOuter<UBlueprint>();
+		if (Blueprint)
+		{
+			RigVMPythonUtils::Print(Blueprint->GetFName().ToString(),
+				FString::Printf(TEXT("hierarchy_controller.import_curves_from_asset('%s', '%s', %s)"),
+				*InSkeletalMesh->GetPathName(),
 				*InNameSpace.ToString(),
 				(bSelectCurves) ? TEXT("True") : TEXT("False")));
 		}

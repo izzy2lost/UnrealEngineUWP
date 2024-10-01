@@ -1656,12 +1656,12 @@ void SRigHierarchy::RefreshHierarchy(const FAssetData& InAssetData, bool bOnlyRe
 			{
 				Controller->RemoveElement(CurveKey, true, true);
 			}			
-			Controller->ImportCurves(Mesh->GetSkeleton(), NAME_None, false, true, true);
+			Controller->ImportCurvesFromSkeletalMesh(Mesh, NAME_None, false, true, true);
 		}
 		else
 		{
 			Controller->ImportBones(Mesh->GetSkeleton(), NAME_None, true, true, bSelectBones, true, true);
-			Controller->ImportCurves(Mesh->GetSkeleton(), NAME_None, false, true, true);
+			Controller->ImportCurvesFromSkeletalMesh(Mesh, NAME_None, false, true, true);
 		}
 	}
 
@@ -1786,7 +1786,7 @@ void SRigHierarchy::ImportHierarchy(const FAssetData& InAssetData)
 		check(Controller);
 
 		const TArray<FRigElementKey> ImportedBones = Controller->ImportBones(Mesh->GetSkeleton(), NAME_None, false, false, bSelectBones, true, true);
-		Controller->ImportCurves(Mesh->GetSkeleton(), NAME_None, false, true);
+		Controller->ImportCurvesFromSkeletalMesh(Mesh, NAME_None, false, true);
 
 		ControlRigBlueprint->SourceHierarchyImport = Mesh->GetSkeleton();
 		ControlRigBlueprint->SourceCurveImport = Mesh->GetSkeleton();

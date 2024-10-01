@@ -344,6 +344,18 @@ public:
 #endif
 
 	/**
+	 * Imports all curves from an anim curve metadata object to the hierarchy
+	 * @param InAnimCurvesMetadata The anim curve metadata object to import the curves from
+	 * @param InNameSpace The namespace to prefix the bone names with
+	 * @param bSetupUndo If set to true the stack will record the change for undo / redo
+	 * @return The keys of the imported elements
+	 */
+	TArray<FRigElementKey> ImportCurves(
+		UAnimCurveMetaData* InAnimCurvesMetadata, 
+		FName InNameSpace = NAME_None,
+		bool bSetupUndo = false);
+
+	/**
 	 * Imports all curves from a skeleton to the hierarchy
 	 * @param InSkeleton The skeleton to import the curves from
 	 * @param InNameSpace The namespace to prefix the bone names with
@@ -354,6 +366,22 @@ public:
 	UFUNCTION(BlueprintCallable, Category = URigHierarchyController)
 	TArray<FRigElementKey> ImportCurves(
 		USkeleton* InSkeleton, 
+		FName InNameSpace = NAME_None,  
+		bool bSelectCurves = false,
+		bool bSetupUndo = false,
+		bool bPrintPythonCommand = false);
+
+	/**
+	 * Imports all curves from a skeletalmesh to the hierarchy
+	 * @param InSkeletalMesh The skeletalmesh to import the curves from
+	 * @param InNameSpace The namespace to prefix the bone names with
+	 * @param bSelectCurves If true the curves will be selected upon import
+	 * @param bSetupUndo If set to true the stack will record the change for undo / redo
+	 * @return The keys of the imported elements
+	 */
+	UFUNCTION(BlueprintCallable, Category = URigHierarchyController)
+	TArray<FRigElementKey> ImportCurvesFromSkeletalMesh(
+		USkeletalMesh* InSkeletalMesh, 
 		FName InNameSpace = NAME_None,  
 		bool bSelectCurves = false,
 		bool bSetupUndo = false,
@@ -821,6 +849,7 @@ private:
 	void RemoveElementToDirty(FRigBaseElement* InParent, FRigBaseElement* InElementToRemove) const;
 
 #if WITH_EDITOR
+	static USkeletalMesh* GetSkeletalMeshFromAssetPath(const FString& InAssetPath);
 	static USkeleton* GetSkeletonFromAssetPath(const FString& InAssetPath);
 #endif
 

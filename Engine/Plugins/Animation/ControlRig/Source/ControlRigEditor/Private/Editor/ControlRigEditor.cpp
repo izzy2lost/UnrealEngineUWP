@@ -2923,7 +2923,14 @@ void FControlRigEditor::HandlePreviewMeshChanged(USkeletalMesh* InOldSkeletalMes
 						
 						USkeleton* Skeleton = InNewSkeletalMesh ? InNewSkeletalMesh->GetSkeleton() : nullptr;
 						Controller->ImportBones(Skeleton, NAME_None, true, true, false, true, true);
-						Controller->ImportCurves(Skeleton, NAME_None, false, true, true);
+						if(InNewSkeletalMesh)
+						{
+							Controller->ImportCurvesFromSkeletalMesh(InNewSkeletalMesh, NAME_None, false, true, true);
+						}
+						else
+						{
+							Controller->ImportCurves(Skeleton, NAME_None, false, true, true);
+						}
 
 						// Recreate manually created elements
 						for (const TTuple<FRigElementKey, FRigElementKey, FTransform>& Tuple : ConnectorsAndSocketsToParents)
