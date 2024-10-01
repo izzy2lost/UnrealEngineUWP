@@ -6223,6 +6223,7 @@ void FMaterialEditor::DeleteNodes(const TArray<UEdGraphNode*>& NodesToDelete, bo
 			}
 			RegenerateCodeView();
 		}
+		InvalidateSubstrateConversionVersion(Material);
 		UpdatePreviewMaterial();
 		Material->MarkPackageDirty();
 		SetMaterialDirty();
