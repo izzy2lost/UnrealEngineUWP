@@ -488,15 +488,15 @@ bool STraceDataFilterWidget::EnumerateAllItems(TFunction<bool(TSharedPtr<ITraceO
 
 void STraceDataFilterWidget::RefreshTileViewData()
 {
+	SyncTimeStamp = SessionFilterService->GetChannelsUpdateTimestamp();
+
+	/** Save expansion and selection */
+	SaveItemSelection();
+
+	ListItems.Empty();
+
 	if (SessionFilterService.IsValid())
 	{
-		SyncTimeStamp = SessionFilterService->GetChannelsUpdateTimestamp();
-
-		/** Save expansion and selection */
-		SaveItemSelection();
-
-		ListItems.Empty();
-
 		TArray<FTraceObjectInfo> RootEvents;
 		SessionFilterService->GetRootObjects(RootEvents);
 
@@ -506,11 +506,11 @@ void STraceDataFilterWidget::RefreshTileViewData()
 		{
 			TSharedRef<ITraceObject> TraceObject = AddFilterableObject(RootEvent, FString());
 		}
-
-		RestoreItemSelection();
-
-		FilterPresetsListWidget->RefreshPresetEnabledState();
 	}
+
+	RestoreItemSelection();
+
+	FilterPresetsListWidget->RefreshPresetEnabledState();
 }
 
 void STraceDataFilterWidget::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)

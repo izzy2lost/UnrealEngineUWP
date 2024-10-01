@@ -40,7 +40,7 @@ public:
 
 	void Construct( const FArguments& InArgs, const TSharedRef<FUICommandList>& CommandList, TSharedPtr<ITraceController> InTraceController);
 
-	void SetInstanceId(const FGuid& Id) { InstanceId = Id; }
+	void SetInstanceId(const FGuid& Id);
 
 private:
 	void BindCommands(const TSharedRef<FUICommandList>& CommandList);
@@ -79,6 +79,8 @@ private:
 	const FSlateBrush* GetPauseResumeBrush() const;
 
 	bool IsInstanceAvailable() const;
+
+	void Reset();
 
 private:
 	TSharedPtr<ITraceController> TraceController;
