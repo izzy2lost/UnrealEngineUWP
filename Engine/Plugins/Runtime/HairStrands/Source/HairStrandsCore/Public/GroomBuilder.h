@@ -59,7 +59,8 @@ struct HAIRSTRANDSCORE_API FGroomBuilder
 	// 1. Build hair group based on the hair description
 	static bool BuildHairDescriptionGroups(
 		const FHairDescription& HairDescription, 
-		FHairDescriptionGroups& Out);
+		FHairDescriptionGroups& Out,
+		bool bAllowAddEndControlPoint=true);
 
 	// 2.a Build FHairStrandsDatas for Strands & Guides, based on HairDescriptionGroups and DecimationSettings
 	static void BuildData(
