@@ -29,9 +29,6 @@ class CUSTOMIZABLEOBJECT_API UCustomizableObjectInstanceUsage : public UObject
 public:
 	GENERATED_BODY()
 
-	// UObject interface
-	virtual void PostInitProperties() override;
-	
 	// Own interface
 	UCustomizableObjectInstanceUsage();
 	

@@ -29,8 +29,6 @@ public:
 	
 	// Own interface
 	
-	UCustomizableObjectInstanceUsagePrivate();
-	
 	/** Common end point of all updates. Even those which failed. */
 	void Callbacks() const;
 
