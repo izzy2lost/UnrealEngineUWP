@@ -52,6 +52,8 @@ static FAutoConsoleVariableRef CVarD3D12SubmissionTimeout(
 	TEXT("The maximum time, in seconds, that a submitted GPU command list is allowed to take before the RHI reports a GPU hang"),
 	ECVF_RenderThreadSafe);
 
+static std::atomic<int> GGPUCrashDetected = false;
+
 class FD3D12Thread final : private FRunnable
 {
 public:
@@ -1167,6 +1169,9 @@ void FD3D12DynamicRHI::ProcessInterruptQueueUntil(FGraphEvent* GraphEvent)
 void FD3D12DynamicRHI::ProcessInterruptQueueOnGPUCrash()
 {
 	// This function will not return.
+
+	// We know this function was called due to a GPU crash, so let the thread know.
+	GGPUCrashDetected.store(true, std::memory_order_release);
 	
 	if (InterruptThread)
 	{
@@ -1424,6 +1429,13 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessInterruptQueue()
 
 		CheckForDeviceRemoved(CurrentQueue);
 	});
+
+	if (GGPUCrashDetected.load(std::memory_order_relaxed))
+	{
+		// If this was set by ProcessInterruptQueueOnGPUCrash, we know a crash was detected, so process it immediately. We can't always rely on
+		// queue processing to catch it, as GetDeviceRemovedReason sometimes returns S_OK despite an earlier API call having reported a lost device.
+		TerminateOnGPUCrash();
+	}
 
 	return Result;
 }
