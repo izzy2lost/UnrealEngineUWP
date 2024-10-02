@@ -151,7 +151,6 @@ FPCGAttributeAccessorKeysPointsSubset::FPCGAttributeAccessorKeysPointsSubset(con
 FPCGAttributeAccessorKeysPointsSubset::FPCGAttributeAccessorKeysPointsSubset(const TArrayView<const FPCGPoint>& InPoints, const TArrayView<const int32>& InPointIndices)
 	: IPCGAttributeAccessorKeys(/*bInReadOnly=*/ true)
 {
-	check(InPoints.Num() == InPointIndices.Num());
 	Points.Reserve(InPointIndices.Num());
 	Algo::Transform(InPointIndices, Points, [&InPoints](const int32 Index) -> FPCGPoint* { return const_cast<FPCGPoint*>(&InPoints[Index]); });
 }
