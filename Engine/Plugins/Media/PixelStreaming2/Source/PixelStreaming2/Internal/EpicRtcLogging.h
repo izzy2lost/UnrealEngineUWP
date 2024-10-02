@@ -3,7 +3,6 @@
 #pragma once
 
 #include "Logging/LogMacros.h"
-#include "Misc/AssertionMacros.h"
 
 #include "epic_rtc/common/logging.h"
 
@@ -16,4 +15,4 @@ namespace UE::PixelStreaming2
 	public:
 		virtual void Log(const EpicRtcLogMessage& Message) override;
 	};
-}
+} // namespace UE::PixelStreaming2

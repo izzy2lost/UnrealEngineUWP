@@ -7,8 +7,8 @@
 #include "EpicRtcVideoBufferRHI.h"
 #include "Logging.h"
 #include "PixelStreaming2Trace.h"
-#include "ToStringExtensions.h"
-#include "VideoUtils.h"
+#include "UtilsString.h"
+#include "UtilsVideo.h"
 
 #include "epic_rtc/core/video/video_codec_info.h"
 

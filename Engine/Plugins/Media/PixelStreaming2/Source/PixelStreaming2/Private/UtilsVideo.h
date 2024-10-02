@@ -3,18 +3,13 @@
 #pragma once
 
 #include "Containers/Array.h"
-#include "PixelStreaming2PluginSettings.h"
-#include "IPixelStreaming2Streamer.h"
 #include "EpicRtcVideoCommon.h"
+#include "IPixelStreaming2Streamer.h"
+#include "PixelStreaming2PluginSettings.h"
 #include "Video/VideoEncoder.h"
 
 #include "epic_rtc/core/video/video_common.h"
 #include "epic_rtc/core/video/video_rate_control.h"
-
-FORCEINLINE bool operator==(const EpicRtcVideoResolution& Lhs, const EpicRtcVideoResolution& Rhs)
-{
-	return Lhs._width == Rhs._width && Lhs._height == Rhs._height;
-}
 
 namespace UE::PixelStreaming2
 {
@@ -168,114 +163,92 @@ namespace UE::PixelStreaming2
 		return SimulcastParams;
 	}
 
-	class FGenericFrameInfoWrapper : public EpicRtcGenericFrameInfoInterface, public TRefCountingMixin<FGenericFrameInfoWrapper>
+	inline FEpicRtcParameterPairArray* CreateH264Format(EH264Profile Profile, UE::AVCodecCore::H264::EH264Level Level)
 	{
-	public:
-		FGenericFrameInfoWrapper(const FGenericFrameInfo& GenericFrameInfo)
-			: SpatialId(GenericFrameInfo.SpatialId)
-			, TemporalId(GenericFrameInfo.TemporalId)
-			, DecodeTargetIndications(MakeRefCount<FEpicRtcDecodeTargetIndicationArray>(GenericFrameInfo.DecodeTargetIndications))
-			, FrameDiffs(MakeRefCount<FEpicRtcInt32Array>(GenericFrameInfo.FrameDiffs))
-			, ChainDiffs(MakeRefCount<FEpicRtcInt32Array>(GenericFrameInfo.ChainDiffs))
-			, EncoderBuffers(MakeRefCount<FEpicRtcCodecBufferUsageArray>(GenericFrameInfo.EncoderBuffers))
-			, PartOfChain(MakeRefCount<FEpicRtcBoolArray>(GenericFrameInfo.PartOfChain))
-			, ActiveDecodeTargets(MakeRefCount<FEpicRtcBoolArray>(GenericFrameInfo.ActiveDecodeTargets))
+		// TODO (Migration): RTCP-7028 picRtcStringView needs a way to own the memory passed into it
+		// return new FEpicRtcParameterPairArray(
+		// {
+		// 	EpicRtcParameterPair{
+		// 		._key = EpicRtcStringView{ ._ptr = "profile-level-id", ._length = 16 },
+		// 		._value = EpicRtcStringView{ ._ptr = TCHAR_TO_ANSI(*ProfileString), ._length = (uint64_t)ProfileString.Len() }
+		// 	},
+		// 	EpicRtcParameterPair{
+		// 		._key = EpicRtcStringView{ ._ptr = "packetization-mode", ._length = 18 },
+		// 		._value = EpicRtcStringView{ ._ptr = "1", ._length = 1 }
+		// 	},
+		// 	EpicRtcParameterPair{
+		// 		._key = EpicRtcStringView{ ._ptr = "level-asymmetry-allowed", ._length = 23 },
+		// 		._value = EpicRtcStringView{ ._ptr = "1", ._length = 1 }
+		// 	}
+		// });
+
+		using namespace UE::AVCodecCore::H264;
+		if (Profile == EH264Profile::ConstrainedBaseline && Level == EH264Level::Level_3_1)
 		{
+			return new FEpicRtcParameterPairArray(
+				{ EpicRtcParameterPair{
+					  ._key = EpicRtcStringView{ ._ptr = "profile-level-id", ._length = 16 },
+					  ._value = EpicRtcStringView{ ._ptr = "42e01f", ._length = 6 } },
+					EpicRtcParameterPair{
+						._key = EpicRtcStringView{ ._ptr = "packetization-mode", ._length = 18 },
+						._value = EpicRtcStringView{ ._ptr = "1", ._length = 1 } },
+					EpicRtcParameterPair{
+						._key = EpicRtcStringView{ ._ptr = "level-asymmetry-allowed", ._length = 23 },
+						._value = EpicRtcStringView{ ._ptr = "1", ._length = 1 } } });
 		}
+		else if (Profile == EH264Profile::Baseline && Level == EH264Level::Level_3_1)
+		{
+			return new FEpicRtcParameterPairArray(
+				{ EpicRtcParameterPair{
+					  ._key = EpicRtcStringView{ ._ptr = "profile-level-id", ._length = 16 },
+					  ._value = EpicRtcStringView{ ._ptr = "42001f", ._length = 6 } },
+					EpicRtcParameterPair{
+						._key = EpicRtcStringView{ ._ptr = "packetization-mode", ._length = 18 },
+						._value = EpicRtcStringView{ ._ptr = "1", ._length = 1 } },
+					EpicRtcParameterPair{
+						._key = EpicRtcStringView{ ._ptr = "level-asymmetry-allowed", ._length = 23 },
+						._value = EpicRtcStringView{ ._ptr = "1", ._length = 1 } } });
+		}
+		else
+		{
+			return nullptr;
+		}
+	}
 
-		virtual int32_t										 GetSpatialLayerId() override { return SpatialId; }
-		virtual int32_t										 GetTemporalLayerId() override { return TemporalId; }
-		virtual EpicRtcDecodeTargetIndicationArrayInterface* GetDecodeTargetIndications() override { return DecodeTargetIndications; }
-		virtual EpicRtcInt32ArrayInterface*					 GetFrameDiffs() override { return FrameDiffs; }
-		virtual EpicRtcInt32ArrayInterface*					 GetChainDiffs() override { return ChainDiffs; }
-		virtual EpicRtcCodecBufferUsageArrayInterface*		 GetEncoderBufferUsages() override { return EncoderBuffers; }
-		virtual EpicRtcBoolArrayInterface*					 GetPartOfChain() override { return PartOfChain; }
-		virtual EpicRtcBoolArrayInterface*					 GetActiveDecodeTargets() override { return ActiveDecodeTargets; }
-
-	private:
-		int32_t											  SpatialId;
-		int32_t											  TemporalId;
-		TRefCountPtr<FEpicRtcDecodeTargetIndicationArray> DecodeTargetIndications;
-		TRefCountPtr<FEpicRtcInt32Array>				  FrameDiffs;
-		TRefCountPtr<FEpicRtcInt32Array>				  ChainDiffs;
-		TRefCountPtr<FEpicRtcCodecBufferUsageArray>		  EncoderBuffers;
-		TRefCountPtr<FEpicRtcBoolArray>					  PartOfChain;
-		TRefCountPtr<FEpicRtcBoolArray>					  ActiveDecodeTargets;
-
-	public:
-		/* Begin EpicRtcRefCountInterface */
-		virtual uint32_t AddRef() override final { return TRefCountingMixin<FGenericFrameInfoWrapper>::AddRef(); }
-		virtual uint32_t Release() override final { return TRefCountingMixin<FGenericFrameInfoWrapper>::Release(); }
-		virtual uint32_t Count() const override final { return TRefCountingMixin<FGenericFrameInfoWrapper>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
-	};
-
-	class FFrameDependencyStructureWrapper : public EpicRtcFrameDependencyStructure, public TRefCountingMixin<FFrameDependencyStructureWrapper>
+	inline FEpicRtcParameterPairArray* CreateVP9Format(UE::AVCodecCore::VP9::EProfile Profile)
 	{
-	public:
-		FFrameDependencyStructureWrapper(const FFrameDependencyStructure& FrameDependencyStructure)
-			: StructureId(FrameDependencyStructure.StructureId)
-			, NumDecodeTargets(FrameDependencyStructure.NumDecodeTargets)
-			, NumChains(FrameDependencyStructure.NumChains)
-			, DecodeTargetProtectedByChain(MakeRefCount<FEpicRtcInt32Array>(FrameDependencyStructure.DecodeTargetProtectedByChain))
-			, Resolutions(MakeRefCount<FEpicRtcVideoResolutionArray>(FrameDependencyStructure.Resolutions))
+		using namespace UE::AVCodecCore::VP9;
+		if (Profile == EProfile::Profile0)
 		{
-			TArray<EpicRtcGenericFrameInfoInterface*> GenericFrameInfoArray;
-			GenericFrameInfoArray.SetNum(FrameDependencyStructure.Templates.Num());
-
-			for (size_t i = 0; i < FrameDependencyStructure.Templates.Num(); i++)
-			{
-				FGenericFrameInfo GenericFrameInfo;
-				GenericFrameInfo.SpatialId = FrameDependencyStructure.Templates[i].SpatialId;
-				GenericFrameInfo.TemporalId = FrameDependencyStructure.Templates[i].TemporalId;
-				GenericFrameInfo.DecodeTargetIndications = FrameDependencyStructure.Templates[i].DecodeTargetIndications;
-				GenericFrameInfo.FrameDiffs = FrameDependencyStructure.Templates[i].FrameDiffs;
-				GenericFrameInfo.ChainDiffs = FrameDependencyStructure.Templates[i].ChainDiffs;
-
-				GenericFrameInfoArray[i] = new FGenericFrameInfoWrapper(GenericFrameInfo);
-			}
-
-			Templates = MakeRefCount<FEpicRtcGenericFrameInfoArray>(GenericFrameInfoArray);
+			return new FEpicRtcParameterPairArray(
+				{ EpicRtcParameterPair{
+					._key = EpicRtcStringView{ ._ptr = "profile-id", ._length = 10 },
+					._value = EpicRtcStringView{ ._ptr = "0", ._length = 1 } } });
 		}
-
-		virtual int32_t								   GetStructureId() override { return StructureId; }
-		virtual int32_t								   GetNumDecodeTargets() override { return NumDecodeTargets; }
-		virtual int32_t								   GetNumChains() override { return NumChains; }
-		virtual EpicRtcInt32ArrayInterface*			   GetDecodeTargetProtectedByChain() override { return DecodeTargetProtectedByChain; }
-		virtual EpicRtcVideoResolutionArrayInterface*  GetResolutions() override { return Resolutions; }
-		virtual EpicRtcGenericFrameInfoArrayInterface* GetTemplates() override { return Templates; }
-
-		friend bool operator==(FFrameDependencyStructureWrapper& Lhs, FFrameDependencyStructureWrapper& Rhs)
+		else if (Profile == EProfile::Profile1)
 		{
-			TArray<int32_t> LhsDecodeTargetProtectedByChain(Lhs.GetDecodeTargetProtectedByChain()->Get(), Lhs.GetDecodeTargetProtectedByChain()->Size());
-			TArray<int32_t> RhsDecodeTargetProtectedByChain(Rhs.GetDecodeTargetProtectedByChain()->Get(), Rhs.GetDecodeTargetProtectedByChain()->Size());
-
-			TArray<EpicRtcVideoResolution> LhsResolutions(Lhs.GetResolutions()->Get(), Lhs.GetResolutions()->Size());
-			TArray<EpicRtcVideoResolution> RhsResolutions(Rhs.GetResolutions()->Get(), Rhs.GetResolutions()->Size());
-
-			TArray<EpicRtcGenericFrameInfoInterface*> LhsTemplates(Lhs.GetTemplates()->Get(), Lhs.GetTemplates()->Size());
-			TArray<EpicRtcGenericFrameInfoInterface*> RhsTemplates(Rhs.GetTemplates()->Get(), Rhs.GetTemplates()->Size());
-
-			return Lhs.NumDecodeTargets == Rhs.NumDecodeTargets
-				&& Lhs.NumChains == Rhs.NumChains
-				&& LhsDecodeTargetProtectedByChain == RhsDecodeTargetProtectedByChain
-				&& LhsResolutions == RhsResolutions
-				&& LhsTemplates == RhsTemplates;
+			return new FEpicRtcParameterPairArray(
+				{ EpicRtcParameterPair{
+					._key = EpicRtcStringView{ ._ptr = "profile-id", ._length = 10 },
+					._value = EpicRtcStringView{ ._ptr = "1", ._length = 1 } } });
 		}
-
-	private:
-		int											StructureId;
-		int											NumDecodeTargets;
-		int											NumChains;
-		TRefCountPtr<FEpicRtcInt32Array>			DecodeTargetProtectedByChain;
-		TRefCountPtr<FEpicRtcVideoResolutionArray>	Resolutions;
-		TRefCountPtr<FEpicRtcGenericFrameInfoArray> Templates;
-
-	public:
-		/* Begin EpicRtcRefCountInterface */
-		virtual uint32_t AddRef() override final { return TRefCountingMixin<FFrameDependencyStructureWrapper>::AddRef(); }
-		virtual uint32_t Release() override final { return TRefCountingMixin<FFrameDependencyStructureWrapper>::Release(); }
-		virtual uint32_t Count() const override final { return TRefCountingMixin<FFrameDependencyStructureWrapper>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
-	};
+		else if (Profile == EProfile::Profile2)
+		{
+			return new FEpicRtcParameterPairArray(
+				{ EpicRtcParameterPair{
+					._key = EpicRtcStringView{ ._ptr = "profile-id", ._length = 10 },
+					._value = EpicRtcStringView{ ._ptr = "2", ._length = 1 } } });
+		}
+		else if (Profile == EProfile::Profile3)
+		{
+			return new FEpicRtcParameterPairArray(
+				{ EpicRtcParameterPair{
+					._key = EpicRtcStringView{ ._ptr = "profile-id", ._length = 10 },
+					._value = EpicRtcStringView{ ._ptr = "3", ._length = 1 } } });
+		}
+		else
+		{
+			return nullptr;
+		}
+	}
 } // namespace UE::PixelStreaming2

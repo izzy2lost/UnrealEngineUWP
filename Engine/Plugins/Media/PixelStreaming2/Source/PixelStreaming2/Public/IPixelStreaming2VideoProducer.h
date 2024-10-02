@@ -5,7 +5,7 @@
 #include "CoreTypes.h"
 #include "IPixelCaptureInputFrame.h"
 
-/*
+/**
  * A "Video Producer" is an object that you use to push video frames into the Pixel Streaming system.
  *
  * Example usage:

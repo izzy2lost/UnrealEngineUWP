@@ -19,7 +19,7 @@ namespace UE::PixelStreaming2
 	class FVideoSourceGroup;
 	class FEpicRtcWebsocketFactory;
 
-	/*
+	/**
 	 * This plugin allows the back buffer to be sent as a compressed video across a network.
 	 */
 	class FPixelStreaming2Module : public IPixelStreaming2Module
@@ -29,7 +29,7 @@ namespace UE::PixelStreaming2
 
 		virtual ~FPixelStreaming2Module() = default;
 
-		/** IPixelStreaming2Module implementation */
+		// Begin IPixelStreaming2Module
 		virtual FReadyEvent&							  OnReady() override;
 		virtual bool									  IsReady() override;
 		virtual bool									  StartStreaming() override;
@@ -49,17 +49,17 @@ namespace UE::PixelStreaming2
 		virtual void								 RemoveInputComponent(UPixelStreaming2Input* InInputComponent);
 		virtual const TArray<UPixelStreaming2Input*> GetInputComponents();
 		virtual void								 ForEachStreamer(const TFunction<void(TSharedPtr<IPixelStreaming2Streamer>)>& Func) override;
-		/** End IPixelStreaming2Module implementation */
+		// End IPixelStreaming2Module
 
 		TSharedPtr<class FEpicRtcAudioMixingCapturer> GetAudioCapturer();
 		TRefCountPtr<EpicRtcConferenceInterface>	  GetEpicRtcConference() { return EpicRtcConference; }
 		TRefCountPtr<FEpicRtcStatsCollector>		  GetStatsCollector() { return StatsCollector; }
 
 	private:
-		/** IModuleInterface implementation */
+		// Begin IModuleInterface
 		void StartupModule() override;
 		void ShutdownModule() override;
-		/** End IModuleInterface implementation */
+		// End IModuleInterface
 
 		// Own methods
 		void InitDefaultStreamer();

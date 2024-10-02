@@ -9,29 +9,29 @@ class IXRTrackingSystem;
 
 namespace UE::PixelStreaming2HMD
 {
-	/*
+	/**
 	 * This module allows HMD input to be used with pixel streaming
 	 */
 	class FPixelStreaming2HMDModule : public IPixelStreaming2HMDModule
 	{
 	public:
-		FPixelStreaming2HMD*	   GetPixelStreaming2HMD() const;
+		FPixelStreaming2HMD*	 GetPixelStreaming2HMD() const;
 		EPixelStreaming2XRSystem GetActiveXRSystem() { return ActiveXRSystem; }
-		void						   SetActiveXRSystem(EPixelStreaming2XRSystem System) { ActiveXRSystem = System; }
+		void					 SetActiveXRSystem(EPixelStreaming2XRSystem System) { ActiveXRSystem = System; }
 
 	private:
-		/** IModuleInterface implementation */
+		// Begin IModuleInterface
 		void StartupModule() override;
 		void ShutdownModule() override;
-		/** End IModuleInterface implementation */
+		// End IModuleInterface
 
-		/** IHeadMountedDisplayModule implementation */
+		// Begin IHeadMountedDisplayModule
 		virtual TSharedPtr<IXRTrackingSystem, ESPMode::ThreadSafe> CreateTrackingSystem() override;
 		FString													   GetModuleKeyName() const override { return FString(TEXT("PixelStreaming2HMD")); }
 		bool													   IsHMDConnected() override { return true; }
+		// End IHeadMountedDisplayModule
 
-		/** IHeadMountedDisplayModule implementation */
 		TSharedPtr<FPixelStreaming2HMD, ESPMode::ThreadSafe> HMD;
-		EPixelStreaming2XRSystem							   ActiveXRSystem;
+		EPixelStreaming2XRSystem							 ActiveXRSystem;
 	};
 } // namespace UE::PixelStreaming2HMD

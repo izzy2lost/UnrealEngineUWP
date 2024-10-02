@@ -62,7 +62,7 @@ public:
 	bool bAutoFindPeer;
 
 private:
-	IPixelStreaming2AudioSink*											AudioSink;
+	IPixelStreaming2AudioSink*											  AudioSink;
 	TSharedPtr<UE::PixelStreaming2::FSoundGenerator, ESPMode::ThreadSafe> SoundGenerator;
 
 public:

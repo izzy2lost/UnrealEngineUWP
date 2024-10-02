@@ -122,6 +122,26 @@ namespace UE::PixelStreaming2
 		}
 	}
 
+	inline FString ToString(EpicRtcRoomState State)
+	{
+		switch (State)
+		{
+			case EpicRtcRoomState::New:
+				return TEXT("New");
+			case EpicRtcRoomState::Pending:
+				return TEXT("Pending");
+			case EpicRtcRoomState::Joined:
+				return TEXT("Joined");
+			case EpicRtcRoomState::Left:
+				return TEXT("Left");
+			case EpicRtcRoomState::Failed:
+				return TEXT("Failed");
+			case EpicRtcRoomState::Exiting:
+				return TEXT("Exiting");
+		}
+		return TEXT("Unknown");
+	}
+
 	inline FString ToString(const TSharedPtr<FJsonObject>& JsonObj, bool bPretty = true)
 	{
 		FString Res;
@@ -147,5 +167,23 @@ namespace UE::PixelStreaming2
 	inline EpicRtcStringView ToEpicRtcStringView(const FUtf8String& Str)
 	{
 		return EpicRtcStringView{ ._ptr = (const char*)*Str, ._length = static_cast<uint64>(Str.Len()) };
+	}
+
+	/**
+	 * Reads a string represented by 2 bytes length (in bytes) followed by UTF16 characters.
+	 * String and length are encoded in little endian format.
+	 */
+	inline FString ReadString(const uint8*& Data, uint32_t& Size)
+	{
+		uint16_t BytesLength = Data[1] << 8 | Data[0];
+		check(Size >= (uint32_t)(BytesLength + 2));
+		Data += 2;
+		Size -= 2;
+
+		FString Message(BytesLength / sizeof(TCHAR), reinterpret_cast<const TCHAR*>(Data));
+		Data += BytesLength;
+		Size -= BytesLength;
+
+		return Message;
 	}
 } // namespace UE::PixelStreaming2

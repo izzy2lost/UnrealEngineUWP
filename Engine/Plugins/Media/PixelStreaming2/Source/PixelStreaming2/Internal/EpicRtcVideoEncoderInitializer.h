@@ -3,8 +3,6 @@
 #pragma once
 
 #include "EpicRtcVideoCommon.h"
-
-#include "Containers/StaticArray.h"
 #include "Video/VideoConfig.h"
 
 #include "epic_rtc/core/video/video_encoder.h"
@@ -18,25 +16,21 @@ namespace UE::PixelStreaming2
 		FEpicRtcVideoEncoderInitializer() = default;
 		virtual ~FEpicRtcVideoEncoderInitializer() = default;
 
-		/* Begin EpicRtcVideoEncoderInitializerInterface */
+		// Begin EpicRtcVideoEncoderInitializerInterface
 		virtual void								 CreateEncoder(EpicRtcVideoCodecInfoInterface* CodecInfo, EpicRtcVideoEncoderInterface** OutEncoder) override;
 		virtual EpicRtcStringView					 GetName() override;
 		virtual EpicRtcVideoCodecInfoArrayInterface* GetSupportedCodecs() override;
-		/* End EpicRtcVideoEncoderInitializerInterface */
-
-	private:
-		// The list of each individual codec we have support for (order of this array is preference order after selected codec)
-		static TStaticArray<EVideoCodec, 4> SupportedCodecList;
+		// End EpicRtcVideoEncoderInitializerInterface
 
 	private:
 		TMap<EVideoCodec, TArray<TRefCountPtr<EpicRtcVideoCodecInfoInterface>>> CreateSupportedEncoderMap();
 
 	public:
-		/* Begin EpicRtcRefCountInterface */
+		// Begin EpicRtcRefCountInterface
 		virtual uint32_t AddRef() override final { return TRefCountingMixin<FEpicRtcVideoEncoderInitializer>::AddRef(); }
 		virtual uint32_t Release() override final { return TRefCountingMixin<FEpicRtcVideoEncoderInitializer>::Release(); }
 		virtual uint32_t Count() const override final { return TRefCountingMixin<FEpicRtcVideoEncoderInitializer>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
+		// End EpicRtcRefCountInterface
 	};
 
 } // namespace UE::PixelStreaming2

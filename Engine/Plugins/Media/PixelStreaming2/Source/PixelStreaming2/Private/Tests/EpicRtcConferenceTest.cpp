@@ -4,7 +4,7 @@
 #include "Logging.h"
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationCommon.h"
-#include "ToStringExtensions.h"
+#include "UtilsString.h"
 
 #include "epic_rtc/core/platform.h"
 

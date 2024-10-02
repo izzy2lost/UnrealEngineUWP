@@ -11,9 +11,13 @@
 #include "epic_rtc/core/video/video_buffer.h"
 #include "epic_rtc/core/video/video_codec_info.h"
 
+FORCEINLINE bool operator==(const EpicRtcVideoResolution& Lhs, const EpicRtcVideoResolution& Rhs)
+{
+	return Lhs._width == Rhs._width && Lhs._height == Rhs._height;
+}
+
 namespace UE::PixelStreaming2
 {
-
 	class PIXELSTREAMING2_API FEpicRtcEncodedVideoBuffer : public EpicRtcEncodedVideoBufferInterface, public TRefCountingMixin<FEpicRtcEncodedVideoBuffer>
 	{
 	public:
@@ -31,11 +35,11 @@ namespace UE::PixelStreaming2
 		TArray<uint8> Data;
 
 	public:
-		/* Begin EpicRtcRefCountInterface */
+		// Begin EpicRtcRefCountInterface
 		virtual uint32_t AddRef() override final { return TRefCountingMixin<FEpicRtcEncodedVideoBuffer>::AddRef(); }
 		virtual uint32_t Release() override final { return TRefCountingMixin<FEpicRtcEncodedVideoBuffer>::Release(); }
 		virtual uint32_t Count() const override final { return TRefCountingMixin<FEpicRtcEncodedVideoBuffer>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
+		// End EpicRtcRefCountInterface
 	};
 
 	class PIXELSTREAMING2_API FEpicRtcParameterPairArray : public EpicRtcParameterPairArrayInterface, public TRefCountingMixin<FEpicRtcParameterPairArray>
@@ -78,11 +82,11 @@ namespace UE::PixelStreaming2
 		TArray<EpicRtcParameterPair> Data;
 
 	public:
-		/* Begin EpicRtcRefCountInterface */
+		// Begin EpicRtcRefCountInterface
 		virtual uint32_t AddRef() override final { return TRefCountingMixin<FEpicRtcParameterPairArray>::AddRef(); }
 		virtual uint32_t Release() override final { return TRefCountingMixin<FEpicRtcParameterPairArray>::Release(); }
 		virtual uint32_t Count() const override final { return TRefCountingMixin<FEpicRtcParameterPairArray>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
+		// End EpicRtcRefCountInterface
 	};
 
 	class PIXELSTREAMING2_API FEpicRtcScalabilityModeArray : public EpicRtcVideoScalabilityModeArrayInterface, public TRefCountingMixin<FEpicRtcScalabilityModeArray>
@@ -133,17 +137,17 @@ namespace UE::PixelStreaming2
 		TArray<EpicRtcVideoScalabilityMode> Data;
 
 	public:
-		/* Begin EpicRtcRefCountInterface */
+		// Begin EpicRtcRefCountInterface
 		virtual uint32_t AddRef() override final { return TRefCountingMixin<FEpicRtcScalabilityModeArray>::AddRef(); }
 		virtual uint32_t Release() override final { return TRefCountingMixin<FEpicRtcScalabilityModeArray>::Release(); }
 		virtual uint32_t Count() const override final { return TRefCountingMixin<FEpicRtcScalabilityModeArray>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
+		// End EpicRtcRefCountInterface
 	};
 
-	class PIXELSTREAMING2_API FVideoCodecInfo : public EpicRtcVideoCodecInfoInterface, public TRefCountingMixin<FVideoCodecInfo>
+	class PIXELSTREAMING2_API FEpicRtcVideoCodecInfo : public EpicRtcVideoCodecInfoInterface, public TRefCountingMixin<FEpicRtcVideoCodecInfo>
 	{
 	public:
-		FVideoCodecInfo(EpicRtcVideoCodec Codec, bool bIsHardwareAccelerated = false, EpicRtcParameterPairArrayInterface* Parameters = new FEpicRtcParameterPairArray(), EpicRtcVideoScalabilityModeArrayInterface* ScalabilityModes = new FEpicRtcScalabilityModeArray())
+		FEpicRtcVideoCodecInfo(EpicRtcVideoCodec Codec, bool bIsHardwareAccelerated = false, EpicRtcParameterPairArrayInterface* Parameters = new FEpicRtcParameterPairArray(), EpicRtcVideoScalabilityModeArrayInterface* ScalabilityModes = new FEpicRtcScalabilityModeArray())
 			: Codec(Codec)
 			, bIsHardwareAccelerated(bIsHardwareAccelerated)
 			, Parameters(Parameters)
@@ -151,7 +155,7 @@ namespace UE::PixelStreaming2
 		{
 		}
 
-		virtual ~FVideoCodecInfo() = default;
+		virtual ~FEpicRtcVideoCodecInfo() = default;
 
 		EpicRtcVideoCodec GetCodec() override
 		{
@@ -180,11 +184,11 @@ namespace UE::PixelStreaming2
 		TRefCountPtr<EpicRtcVideoScalabilityModeArrayInterface> ScalabilityModes;
 
 	public:
-		/* Begin EpicRtcRefCountInterface */
-		virtual uint32_t AddRef() override final { return TRefCountingMixin<FVideoCodecInfo>::AddRef(); }
-		virtual uint32_t Release() override final { return TRefCountingMixin<FVideoCodecInfo>::Release(); }
-		virtual uint32_t Count() const override final { return TRefCountingMixin<FVideoCodecInfo>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
+		// Begin EpicRtcRefCountInterface
+		virtual uint32_t AddRef() override final { return TRefCountingMixin<FEpicRtcVideoCodecInfo>::AddRef(); }
+		virtual uint32_t Release() override final { return TRefCountingMixin<FEpicRtcVideoCodecInfo>::Release(); }
+		virtual uint32_t Count() const override final { return TRefCountingMixin<FEpicRtcVideoCodecInfo>::GetRefCount(); }
+		// End EpicRtcRefCountInterface
 	};
 
 	class PIXELSTREAMING2_API FVideoCodecInfoArray : public EpicRtcVideoCodecInfoArrayInterface, public TRefCountingMixin<FVideoCodecInfoArray>
@@ -258,11 +262,11 @@ namespace UE::PixelStreaming2
 		TArray<EpicRtcVideoCodecInfoInterface*> Data;
 
 	public:
-		/* Begin EpicRtcRefCountInterface */
+		// Begin EpicRtcRefCountInterface
 		virtual uint32_t AddRef() override final { return TRefCountingMixin<FVideoCodecInfoArray>::AddRef(); }
 		virtual uint32_t Release() override final { return TRefCountingMixin<FVideoCodecInfoArray>::Release(); }
 		virtual uint32_t Count() const override final { return TRefCountingMixin<FVideoCodecInfoArray>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
+		// End EpicRtcRefCountInterface
 	};
 
 	class PIXELSTREAMING2_API FEpicRtcVideoResolutionBitrateLimitsArray : public EpicRtcVideoResolutionBitrateLimitsArrayInterface, public TRefCountingMixin<FEpicRtcVideoResolutionBitrateLimitsArray>
@@ -300,11 +304,11 @@ namespace UE::PixelStreaming2
 		TArray<EpicRtcVideoResolutionBitrateLimits> Data;
 
 	public:
-		/* Begin EpicRtcRefCountInterface */
+		// Begin EpicRtcRefCountInterface
 		virtual uint32_t AddRef() override final { return TRefCountingMixin<FEpicRtcVideoResolutionBitrateLimitsArray>::AddRef(); }
 		virtual uint32_t Release() override final { return TRefCountingMixin<FEpicRtcVideoResolutionBitrateLimitsArray>::Release(); }
 		virtual uint32_t Count() const override final { return TRefCountingMixin<FEpicRtcVideoResolutionBitrateLimitsArray>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
+		// End EpicRtcRefCountInterface
 	};
 
 	class PIXELSTREAMING2_API FEpicRtcPixelFormatArray : public EpicRtcPixelFormatArrayInterface, public TRefCountingMixin<FEpicRtcPixelFormatArray>
@@ -342,11 +346,11 @@ namespace UE::PixelStreaming2
 		TArray<EpicRtcPixelFormat> Data;
 
 	public:
-		/* Begin EpicRtcRefCountInterface */
+		// Begin EpicRtcRefCountInterface
 		virtual uint32_t AddRef() override final { return TRefCountingMixin<FEpicRtcPixelFormatArray>::AddRef(); }
 		virtual uint32_t Release() override final { return TRefCountingMixin<FEpicRtcPixelFormatArray>::Release(); }
 		virtual uint32_t Count() const override final { return TRefCountingMixin<FEpicRtcPixelFormatArray>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
+		// End EpicRtcRefCountInterface
 	};
 
 	class PIXELSTREAMING2_API FEpicRtcVideoFrameTypeArray : public EpicRtcVideoFrameTypeArrayInterface, public TRefCountingMixin<FEpicRtcVideoFrameTypeArray>
@@ -379,11 +383,11 @@ namespace UE::PixelStreaming2
 		TArray<EpicRtcVideoFrameType> Data;
 
 	public:
-		/* Begin EpicRtcRefCountInterface */
+		// Begin EpicRtcRefCountInterface
 		virtual uint32_t AddRef() override final { return TRefCountingMixin<FEpicRtcVideoFrameTypeArray>::AddRef(); }
 		virtual uint32_t Release() override final { return TRefCountingMixin<FEpicRtcVideoFrameTypeArray>::Release(); }
 		virtual uint32_t Count() const override final { return TRefCountingMixin<FEpicRtcVideoFrameTypeArray>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
+		// End EpicRtcRefCountInterface
 	};
 
 	class PIXELSTREAMING2_API FEpicRtcInt32Array : public EpicRtcInt32ArrayInterface, public TRefCountingMixin<FEpicRtcInt32Array>
@@ -426,11 +430,11 @@ namespace UE::PixelStreaming2
 		TArray<int32_t> Data;
 
 	public:
-		/* Begin EpicRtcRefCountInterface */
+		// Begin EpicRtcRefCountInterface
 		virtual uint32_t AddRef() override final { return TRefCountingMixin<FEpicRtcInt32Array>::AddRef(); }
 		virtual uint32_t Release() override final { return TRefCountingMixin<FEpicRtcInt32Array>::Release(); }
 		virtual uint32_t Count() const override final { return TRefCountingMixin<FEpicRtcInt32Array>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
+		// End EpicRtcRefCountInterface
 	};
 
 	class PIXELSTREAMING2_API FEpicRtcBoolArray : public EpicRtcBoolArrayInterface, public TRefCountingMixin<FEpicRtcBoolArray>
@@ -485,11 +489,11 @@ namespace UE::PixelStreaming2
 		TArray<EpicRtcBool> Data;
 
 	public:
-		/* Begin EpicRtcRefCountInterface */
+		// Begin EpicRtcRefCountInterface
 		virtual uint32_t AddRef() override final { return TRefCountingMixin<FEpicRtcBoolArray>::AddRef(); }
 		virtual uint32_t Release() override final { return TRefCountingMixin<FEpicRtcBoolArray>::Release(); }
 		virtual uint32_t Count() const override final { return TRefCountingMixin<FEpicRtcBoolArray>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
+		// End EpicRtcRefCountInterface
 	};
 
 	class PIXELSTREAMING2_API FEpicRtcDecodeTargetIndicationArray : public EpicRtcDecodeTargetIndicationArrayInterface, public TRefCountingMixin<FEpicRtcDecodeTargetIndicationArray>
@@ -554,11 +558,11 @@ namespace UE::PixelStreaming2
 		TArray<EpicRtcDecodeTargetIndication> Data;
 
 	public:
-		/* Begin EpicRtcRefCountInterface */
+		// Begin EpicRtcRefCountInterface
 		virtual uint32_t AddRef() override final { return TRefCountingMixin<FEpicRtcDecodeTargetIndicationArray>::AddRef(); }
 		virtual uint32_t Release() override final { return TRefCountingMixin<FEpicRtcDecodeTargetIndicationArray>::Release(); }
 		virtual uint32_t Count() const override final { return TRefCountingMixin<FEpicRtcDecodeTargetIndicationArray>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
+		// End EpicRtcRefCountInterface
 	};
 
 	class PIXELSTREAMING2_API FEpicRtcCodecBufferUsageArray : public EpicRtcCodecBufferUsageArrayInterface, public TRefCountingMixin<FEpicRtcCodecBufferUsageArray>
@@ -611,11 +615,11 @@ namespace UE::PixelStreaming2
 		TArray<EpicRtcCodecBufferUsage> Data;
 
 	public:
-		/* Begin EpicRtcRefCountInterface */
+		// Begin EpicRtcRefCountInterface
 		virtual uint32_t AddRef() override final { return TRefCountingMixin<FEpicRtcCodecBufferUsageArray>::AddRef(); }
 		virtual uint32_t Release() override final { return TRefCountingMixin<FEpicRtcCodecBufferUsageArray>::Release(); }
 		virtual uint32_t Count() const override final { return TRefCountingMixin<FEpicRtcCodecBufferUsageArray>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
+		// End EpicRtcRefCountInterface
 	};
 
 	class PIXELSTREAMING2_API FEpicRtcVideoResolutionArray : public EpicRtcVideoResolutionArrayInterface, public TRefCountingMixin<FEpicRtcVideoResolutionArray>
@@ -667,11 +671,11 @@ namespace UE::PixelStreaming2
 		TArray<EpicRtcVideoResolution> Data;
 
 	public:
-		/* Begin EpicRtcRefCountInterface */
+		// Begin EpicRtcRefCountInterface
 		virtual uint32_t AddRef() override final { return TRefCountingMixin<FEpicRtcVideoResolutionArray>::AddRef(); }
 		virtual uint32_t Release() override final { return TRefCountingMixin<FEpicRtcVideoResolutionArray>::Release(); }
 		virtual uint32_t Count() const override final { return TRefCountingMixin<FEpicRtcVideoResolutionArray>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
+		// End EpicRtcRefCountInterface
 	};
 
 	class PIXELSTREAMING2_API FEpicRtcGenericFrameInfoArray : public EpicRtcGenericFrameInfoArrayInterface, public TRefCountingMixin<FEpicRtcGenericFrameInfoArray>
@@ -745,11 +749,125 @@ namespace UE::PixelStreaming2
 		TArray<EpicRtcGenericFrameInfoInterface*> Data;
 
 	public:
-		/* Begin EpicRtcRefCountInterface */
+		// Begin EpicRtcRefCountInterface
 		virtual uint32_t AddRef() override final { return TRefCountingMixin<FEpicRtcGenericFrameInfoArray>::AddRef(); }
 		virtual uint32_t Release() override final { return TRefCountingMixin<FEpicRtcGenericFrameInfoArray>::Release(); }
 		virtual uint32_t Count() const override final { return TRefCountingMixin<FEpicRtcGenericFrameInfoArray>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
+		// End EpicRtcRefCountInterface
 	};
 
+	class PIXELSTREAMING2_API FEpicRtcGenericFrameInfo : public EpicRtcGenericFrameInfoInterface, public TRefCountingMixin<FEpicRtcGenericFrameInfo>
+	{
+	public:
+		FEpicRtcGenericFrameInfo(const FGenericFrameInfo& GenericFrameInfo)
+			: SpatialId(GenericFrameInfo.SpatialId)
+			, TemporalId(GenericFrameInfo.TemporalId)
+			, DecodeTargetIndications(MakeRefCount<FEpicRtcDecodeTargetIndicationArray>(GenericFrameInfo.DecodeTargetIndications))
+			, FrameDiffs(MakeRefCount<FEpicRtcInt32Array>(GenericFrameInfo.FrameDiffs))
+			, ChainDiffs(MakeRefCount<FEpicRtcInt32Array>(GenericFrameInfo.ChainDiffs))
+			, EncoderBuffers(MakeRefCount<FEpicRtcCodecBufferUsageArray>(GenericFrameInfo.EncoderBuffers))
+			, PartOfChain(MakeRefCount<FEpicRtcBoolArray>(GenericFrameInfo.PartOfChain))
+			, ActiveDecodeTargets(MakeRefCount<FEpicRtcBoolArray>(GenericFrameInfo.ActiveDecodeTargets))
+		{
+		}
+
+		virtual ~FEpicRtcGenericFrameInfo() = default;
+
+		virtual int32_t										 GetSpatialLayerId() override { return SpatialId; }
+		virtual int32_t										 GetTemporalLayerId() override { return TemporalId; }
+		virtual EpicRtcDecodeTargetIndicationArrayInterface* GetDecodeTargetIndications() override { return DecodeTargetIndications; }
+		virtual EpicRtcInt32ArrayInterface*					 GetFrameDiffs() override { return FrameDiffs; }
+		virtual EpicRtcInt32ArrayInterface*					 GetChainDiffs() override { return ChainDiffs; }
+		virtual EpicRtcCodecBufferUsageArrayInterface*		 GetEncoderBufferUsages() override { return EncoderBuffers; }
+		virtual EpicRtcBoolArrayInterface*					 GetPartOfChain() override { return PartOfChain; }
+		virtual EpicRtcBoolArrayInterface*					 GetActiveDecodeTargets() override { return ActiveDecodeTargets; }
+
+	private:
+		int32_t											  SpatialId;
+		int32_t											  TemporalId;
+		TRefCountPtr<FEpicRtcDecodeTargetIndicationArray> DecodeTargetIndications;
+		TRefCountPtr<FEpicRtcInt32Array>				  FrameDiffs;
+		TRefCountPtr<FEpicRtcInt32Array>				  ChainDiffs;
+		TRefCountPtr<FEpicRtcCodecBufferUsageArray>		  EncoderBuffers;
+		TRefCountPtr<FEpicRtcBoolArray>					  PartOfChain;
+		TRefCountPtr<FEpicRtcBoolArray>					  ActiveDecodeTargets;
+
+	public:
+		// Begin EpicRtcRefCountInterface
+		virtual uint32_t AddRef() override final { return TRefCountingMixin<FEpicRtcGenericFrameInfo>::AddRef(); }
+		virtual uint32_t Release() override final { return TRefCountingMixin<FEpicRtcGenericFrameInfo>::Release(); }
+		virtual uint32_t Count() const override final { return TRefCountingMixin<FEpicRtcGenericFrameInfo>::GetRefCount(); }
+		// End EpicRtcRefCountInterface
+	};
+
+	class PIXELSTREAMING2_API FEpicRtcFrameDependencyStructure : public EpicRtcFrameDependencyStructure, public TRefCountingMixin<FEpicRtcFrameDependencyStructure>
+	{
+	public:
+		FEpicRtcFrameDependencyStructure(const FFrameDependencyStructure& FrameDependencyStructure)
+			: StructureId(FrameDependencyStructure.StructureId)
+			, NumDecodeTargets(FrameDependencyStructure.NumDecodeTargets)
+			, NumChains(FrameDependencyStructure.NumChains)
+			, DecodeTargetProtectedByChain(MakeRefCount<FEpicRtcInt32Array>(FrameDependencyStructure.DecodeTargetProtectedByChain))
+			, Resolutions(MakeRefCount<FEpicRtcVideoResolutionArray>(FrameDependencyStructure.Resolutions))
+		{
+			TArray<EpicRtcGenericFrameInfoInterface*> GenericFrameInfoArray;
+			GenericFrameInfoArray.SetNum(FrameDependencyStructure.Templates.Num());
+
+			for (size_t i = 0; i < FrameDependencyStructure.Templates.Num(); i++)
+			{
+				FGenericFrameInfo GenericFrameInfo;
+				GenericFrameInfo.SpatialId = FrameDependencyStructure.Templates[i].SpatialId;
+				GenericFrameInfo.TemporalId = FrameDependencyStructure.Templates[i].TemporalId;
+				GenericFrameInfo.DecodeTargetIndications = FrameDependencyStructure.Templates[i].DecodeTargetIndications;
+				GenericFrameInfo.FrameDiffs = FrameDependencyStructure.Templates[i].FrameDiffs;
+				GenericFrameInfo.ChainDiffs = FrameDependencyStructure.Templates[i].ChainDiffs;
+
+				GenericFrameInfoArray[i] = new FEpicRtcGenericFrameInfo(GenericFrameInfo);
+			}
+
+			Templates = MakeRefCount<FEpicRtcGenericFrameInfoArray>(GenericFrameInfoArray);
+		}
+
+		virtual ~FEpicRtcFrameDependencyStructure() = default;
+
+		virtual int32_t								   GetStructureId() override { return StructureId; }
+		virtual int32_t								   GetNumDecodeTargets() override { return NumDecodeTargets; }
+		virtual int32_t								   GetNumChains() override { return NumChains; }
+		virtual EpicRtcInt32ArrayInterface*			   GetDecodeTargetProtectedByChain() override { return DecodeTargetProtectedByChain; }
+		virtual EpicRtcVideoResolutionArrayInterface*  GetResolutions() override { return Resolutions; }
+		virtual EpicRtcGenericFrameInfoArrayInterface* GetTemplates() override { return Templates; }
+
+		friend bool operator==(FEpicRtcFrameDependencyStructure& Lhs, FEpicRtcFrameDependencyStructure& Rhs)
+		{
+			TArray<int32_t> LhsDecodeTargetProtectedByChain(Lhs.GetDecodeTargetProtectedByChain()->Get(), Lhs.GetDecodeTargetProtectedByChain()->Size());
+			TArray<int32_t> RhsDecodeTargetProtectedByChain(Rhs.GetDecodeTargetProtectedByChain()->Get(), Rhs.GetDecodeTargetProtectedByChain()->Size());
+
+			TArray<EpicRtcVideoResolution> LhsResolutions(Lhs.GetResolutions()->Get(), Lhs.GetResolutions()->Size());
+			TArray<EpicRtcVideoResolution> RhsResolutions(Rhs.GetResolutions()->Get(), Rhs.GetResolutions()->Size());
+
+			TArray<EpicRtcGenericFrameInfoInterface*> LhsTemplates(Lhs.GetTemplates()->Get(), Lhs.GetTemplates()->Size());
+			TArray<EpicRtcGenericFrameInfoInterface*> RhsTemplates(Rhs.GetTemplates()->Get(), Rhs.GetTemplates()->Size());
+
+			return Lhs.NumDecodeTargets == Rhs.NumDecodeTargets
+				&& Lhs.NumChains == Rhs.NumChains
+				&& LhsDecodeTargetProtectedByChain == RhsDecodeTargetProtectedByChain
+				&& LhsResolutions == RhsResolutions
+				&& LhsTemplates == RhsTemplates;
+		}
+
+	private:
+		int											StructureId;
+		int											NumDecodeTargets;
+		int											NumChains;
+		TRefCountPtr<FEpicRtcInt32Array>			DecodeTargetProtectedByChain;
+		TRefCountPtr<FEpicRtcVideoResolutionArray>	Resolutions;
+		TRefCountPtr<FEpicRtcGenericFrameInfoArray> Templates;
+
+	public:
+		// Begin EpicRtcRefCountInterface
+		virtual uint32_t AddRef() override final { return TRefCountingMixin<FEpicRtcFrameDependencyStructure>::AddRef(); }
+		virtual uint32_t Release() override final { return TRefCountingMixin<FEpicRtcFrameDependencyStructure>::Release(); }
+		virtual uint32_t Count() const override final { return TRefCountingMixin<FEpicRtcFrameDependencyStructure>::GetRefCount(); }
+		// End EpicRtcRefCountInterface
+	};
 } // namespace UE::PixelStreaming2

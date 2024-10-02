@@ -3,33 +3,32 @@
 #pragma once
 
 #include "Engine/EngineTypes.h"
-#include "EpicRtcMemory.h"
 #include "Tickable.h"
+
 #include "epic_rtc/plugins/signalling/websocket.h"
 
 class IWebSocket;
 
 namespace UE::PixelStreaming2
 {
-
-	class PIXELSTREAMING2_API FEpicRtcWebsocket : public EpicRtcWebsocketInterface, public TRefCountingMixin<FEpicRtcWebsocket>, public FTickableGameObject
+	class PIXELSTREAMING2_API FEpicRtcWebsocket : public EpicRtcWebsocketInterface, public FTickableGameObject, public TRefCountingMixin<FEpicRtcWebsocket>
 	{
 	public:
 		FEpicRtcWebsocket(bool bKeepAlive = true, TSharedPtr<IWebSocket> WebSocket = nullptr);
 		virtual ~FEpicRtcWebsocket() = default;
 
-		/* Begin EpicRtcWebsocketInterface */
+		// Begin EpicRtcWebsocketInterface
 		virtual EpicRtcBool Connect(EpicRtcStringView Url, EpicRtcWebsocketObserverInterface* Observer) override;
 		virtual void		Disconnect(const EpicRtcStringView Reason) override;
 		virtual void		Send(EpicRtcStringView Message) override;
-		/* End EpicRtcWebsocketInterface */
+		// End EpicRtcWebsocketInterface
 
-		/* Begin FTickableGameObject */
+		// Begin FTickableGameObject
 		virtual void		Tick(float DeltaTime) override;
 		virtual bool		IsTickableInEditor() const override { return true; }
 		virtual bool		IsTickableWhenPaused() const override { return true; }
 		FORCEINLINE TStatId GetStatId() const { RETURN_QUICK_DECLARE_CYCLE_STAT(EpicRtcWebSocket, STATGROUP_Tickables); }
-		/* End FTickableGameObject */
+		// End FTickableGameObject
 
 	private:
 		void OnConnected();
@@ -58,11 +57,11 @@ namespace UE::PixelStreaming2
 		bool											bCloseRequested = false;
 
 	public:
-		/* Begin EpicRtcRefCountInterface */
+		// Begin EpicRtcRefCountInterface
 		virtual uint32_t AddRef() override final { return TRefCountingMixin<FEpicRtcWebsocket>::AddRef(); }
 		virtual uint32_t Release() override final { return TRefCountingMixin<FEpicRtcWebsocket>::Release(); }
 		virtual uint32_t Count() const override final { return TRefCountingMixin<FEpicRtcWebsocket>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
+		// End EpicRtcRefCountInterface
 	};
 
 } // namespace UE::PixelStreaming2

@@ -16,7 +16,6 @@
 
 namespace UE::PixelStreaming2
 {
-
 	/**
 	 * A base class for managing epic rtc sessions, rooms and participants
 	 *
@@ -28,7 +27,7 @@ namespace UE::PixelStreaming2
 		virtual ~FEpicRtcManager() = default;
 
 	public:
-		/* Begin FEpicRtcSessionObserver Callbacks */
+		// Begin FEpicRtcSessionObserver Callbacks
 		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnSessionStateUpdate, const EpicRtcSessionState);
 		FOnSessionStateUpdate OnSessionStateUpdate;
 
@@ -37,9 +36,9 @@ namespace UE::PixelStreaming2
 
 		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnSessionRoomsAvailableUpdate, EpicRtcStringArrayInterface*);
 		FOnSessionRoomsAvailableUpdate OnSessionRoomsAvailableUpdate;
-		/* End FEpicRtcSessionObserver Callbacks */
+		// End FEpicRtcSessionObserver Callbacks
 
-		/* Begin FEpicRtcRoomObserver Callbacks */
+		// Begin FEpicRtcRoomObserver Callbacks
 		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnRoomStateUpdate, const EpicRtcRoomState);
 		FOnRoomStateUpdate OnRoomStateUpdate;
 
@@ -66,9 +65,9 @@ namespace UE::PixelStreaming2
 
 		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnRoomErrorUpdate, const EpicRtcErrorCode);
 		FOnRoomErrorUpdate OnRoomErrorUpdate;
-		/* End FEpicRtcRoomObserver Callbacks */
+		// End FEpicRtcRoomObserver Callbacks
 
-		/* Begin FEpicRtcAudioTrackObserver Callbacks */
+		// Begin FEpicRtcAudioTrackObserver Callbacks
 		DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnAudioTrackMuted, EpicRtcAudioTrackInterface*, EpicRtcBool);
 		FOnAudioTrackMuted OnAudioTrackMuted;
 
@@ -80,9 +79,9 @@ namespace UE::PixelStreaming2
 
 		DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnAudioTrackState, EpicRtcAudioTrackInterface*, const EpicRtcTrackState);
 		FOnAudioTrackState OnAudioTrackState;
-		/* End FEpicRtcAudioTrackObserver Callbacks */
+		// End FEpicRtcAudioTrackObserver Callbacks
 
-		/* Begin FEpicRtcVideoTrackObserver Callbacks */
+		// Begin FEpicRtcVideoTrackObserver Callbacks
 		DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnVideoTrackMuted, EpicRtcVideoTrackInterface*, EpicRtcBool);
 		FOnVideoTrackMuted OnVideoTrackMuted;
 
@@ -94,10 +93,9 @@ namespace UE::PixelStreaming2
 
 		DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnVideoTrackState, EpicRtcVideoTrackInterface*, const EpicRtcTrackState);
 		FOnVideoTrackState OnVideoTrackState;
+		// End FEpicRtcVideoTrackObserver Callbacks
 
-		/* End FEpicRtcVideoTrackObserver Callbacks */
-
-		/* Begin FEpicRtcDataTrackObserver Callbacks */
+		// Begin FEpicRtcDataTrackObserver Callbacks
 		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnDataTrackRemoved, EpicRtcDataTrackInterface*);
 		FOnDataTrackRemoved OnDataTrackRemoved;
 
@@ -106,21 +104,21 @@ namespace UE::PixelStreaming2
 
 		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnDataTrackMessage, EpicRtcDataTrackInterface*);
 		FOnDataTrackMessage OnDataTrackMessage;
-		/* End FEpicRtcDataTrackObserver Callbacks */
+		// End FEpicRtcDataTrackObserver Callbacks
 
 	public:
-		/* Begin EpicRtc Classes */
+		// Begin EpicRtc Classes
 		TRefCountPtr<EpicRtcConferenceInterface> EpicRtcConference;
 		TRefCountPtr<EpicRtcSessionInterface>	 EpicRtcSession;
 		TRefCountPtr<EpicRtcRoomInterface>		 EpicRtcRoom;
-		/* End EpicRtc Classes */
+		// End EpicRtc Classes
 
-		/* Begin EpicRtc Observers */
+		// Begin EpicRtc Observers
 		TRefCountPtr<FEpicRtcSessionObserver>			SessionObserver;
 		TRefCountPtr<FEpicRtcRoomObserver>				RoomObserver;
 		TRefCountPtr<FEpicRtcAudioTrackObserverFactory> AudioTrackObserverFactory;
 		TRefCountPtr<FEpicRtcVideoTrackObserverFactory> VideoTrackObserverFactory;
 		TRefCountPtr<FEpicRtcDataTrackObserverFactory>	DataTrackObserverFactory;
-		/* End EpicRtc Observers */
+		// End EpicRtc Observers
 	};
 } // namespace UE::PixelStreaming2

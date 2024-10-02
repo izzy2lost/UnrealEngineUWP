@@ -33,7 +33,7 @@ namespace UE::PixelStreaming2Input
 
 	inline void ExtractJsonFromDescriptor(FString Descriptor, FString FieldName, FString& StringValue, bool& Success)
 	{
-		/*
+		/**
 		 * ExtractJsonFromDescriptor supports parsing nested objects, as well as keys that contain a period.
 		 * eg
 		 * { "Encoder.MinQP": val }

@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "EpicRtcMemory.h"
 #include "PixelCaptureCapturerMultiFormat.h"
 #include "Video/Resources/VideoResourceRHI.h"
 
@@ -22,7 +21,7 @@ namespace UE::PixelStreaming2
 		virtual ~FEpicRtcVideoBufferMultiFormatBase() = default;
 
 	public:
-		/* Begin EpicRtcVideoBufferInterface */
+		// Begin EpicRtcVideoBufferInterface
 		virtual void* GetData() override
 		{
 			unimplemented();
@@ -33,14 +32,14 @@ namespace UE::PixelStreaming2
 		{
 			return EpicRtcPixelFormat::Native;
 		}
-		/* End EpicRtcVideoBufferInterface */
+		// End EpicRtcVideoBufferInterface
 
 	public:
-		/* Begin EpicRtcRefCountInterface */
+		// Begin EpicRtcRefCountInterface
 		virtual uint32_t AddRef() override final { return TRefCountingMixin<FEpicRtcVideoBufferMultiFormatBase>::AddRef(); }
 		virtual uint32_t Release() override final { return TRefCountingMixin<FEpicRtcVideoBufferMultiFormatBase>::Release(); }
 		virtual uint32_t Count() const override final { return TRefCountingMixin<FEpicRtcVideoBufferMultiFormatBase>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
+		// End EpicRtcRefCountInterface
 
 	protected:
 		TSharedPtr<FPixelCaptureCapturerMultiFormat> FrameCapturer;

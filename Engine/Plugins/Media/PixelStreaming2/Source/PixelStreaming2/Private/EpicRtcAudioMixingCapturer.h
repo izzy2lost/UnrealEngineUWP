@@ -85,7 +85,7 @@ namespace UE::PixelStreaming2
 
 		virtual ~FEpicRtcMixAudioTask() = default;
 
-		/* Begin FEpicRtcMixAudioTask */
+		// Begin FEpicRtcMixAudioTask
 		virtual void Tick(float DeltaMs) override
 		{
 			if (!Mixer)
@@ -119,7 +119,7 @@ namespace UE::PixelStreaming2
 			static FString TaskName = TEXT("EpicRtcMixAudioTask");
 			return TaskName;
 		}
-		/* End FEpicRtcMixAudioTask */
+		// End FEpicRtcMixAudioTask
 
 	private:
 		bool								  bIsRunning;

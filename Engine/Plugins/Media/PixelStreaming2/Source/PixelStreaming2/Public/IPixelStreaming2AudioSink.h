@@ -6,7 +6,7 @@
 
 class IPixelStreaming2AudioConsumer;
 
-/*
+/**
  * An "Audio Sink" is an object that receives audio from a singular peer. From here, you can add multiple consumers to
  * output the received audio.
  */

@@ -24,13 +24,13 @@ namespace UE::PixelStreaming2Input
 
 		virtual void Tick(float DeltaTime) override;
 
-		/** Poll for controller state and send events if needed */
+		// Poll for controller state and send events if needed
 		virtual void SendControllerEvents() override {};
 
-		/** Set which MessageHandler will route input  */
+		// Set which MessageHandler will route input
 		virtual void SetMessageHandler(const TSharedRef<FGenericApplicationMessageHandler>& InTargetHandler) override;
 
-		/** Register a custom function to execute when command JSON is received. */
+		// Register a custom function to execute when command JSON is received.
 		virtual void SetCommandHandler(const FString& CommandName, const CommandHandlerFn& Handler) override;
 
 		virtual void SetElevatedCheck(const TFunction<bool(FString)>& CheckFn) override;
@@ -39,8 +39,9 @@ namespace UE::PixelStreaming2Input
 		virtual TSharedPtr<IPixelStreaming2DataProtocol> GetToStreamerProtocol() override;
 		virtual TSharedPtr<IPixelStreaming2DataProtocol> GetFromStreamerProtocol() override;
 
-		/** Exec handler to allow console commands to be passed through for debugging */
+		// Exec handler to allow console commands to be passed through for debugging
 		virtual bool Exec(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar) override;
+
 		/**
 		 * IInputInterface pass through functions
 		 */
@@ -151,14 +152,14 @@ namespace UE::PixelStreaming2Input
 
 		struct FAnalogValue
 		{
-			/* The actual analog value from the controller axis, typical 0.0..1.0 */
+			/** The actual analog value from the controller axis, typical 0.0..1.0 */
 			double Value;
-			/* If value is non-zero then keep applying this analog values across frames.
+			/** If value is non-zero then keep applying this analog values across frames.
 			 * This is useful for trigger axis inputs where if a value is not transmitted
 			 * UE will assume a gap in input means a full trigger press (which is not accurate if we were still pressing).
 			 */
 			bool bKeepUnlessZero = false;
-			/* Has this key event already been fired once? */
+			/** Has this key event already been fired once? */
 			bool bIsRepeat = false;
 		};
 
@@ -201,16 +202,16 @@ namespace UE::PixelStreaming2Input
 			TArray<uint8>							 Data;
 		};
 
-		TWeakPtr<SWindow>				TargetWindow;
-		TWeakPtr<SViewport>				TargetViewport;
-		TWeakPtr<FIntPoint>				TargetScreenSize; // Deprecated functionality but remaining until it can be removed
-		TWeakPtr<FIntRect>				TargetScreenRect; // Manual size override used when we don't have a single window/viewport target
-		uint8							NumActiveTouches;
-		bool							bIsMouseActive;
-		TQueue<FMessage>				Messages;
-		EPixelStreaming2InputType InputType = EPixelStreaming2InputType::RouteToWindow;
-		FVector2D						LastTouchLocation = FVector2D(EForceInit::ForceInitToZero);
-		TMap<uint8, MessageHandlerFn>	DispatchTable;
+		TWeakPtr<SWindow>			  TargetWindow;
+		TWeakPtr<SViewport>			  TargetViewport;
+		TWeakPtr<FIntPoint>			  TargetScreenSize; // Deprecated functionality but remaining until it can be removed
+		TWeakPtr<FIntRect>			  TargetScreenRect; // Manual size override used when we don't have a single window/viewport target
+		uint8						  NumActiveTouches;
+		bool						  bIsMouseActive;
+		TQueue<FMessage>			  Messages;
+		EPixelStreaming2InputType	  InputType = EPixelStreaming2InputType::RouteToWindow;
+		FVector2D					  LastTouchLocation = FVector2D(EForceInit::ForceInitToZero);
+		TMap<uint8, MessageHandlerFn> DispatchTable;
 
 		/** Reference to the message handler which events should be passed to. */
 		TSharedPtr<FGenericApplicationMessageHandler> MessageHandler;
@@ -225,7 +226,7 @@ namespace UE::PixelStreaming2Input
 		 */
 		bool bFakingTouchEvents;
 
-		/*
+		/**
 		 * Padding for string parsing when handling messages.
 		 * 1 character for the actual message and then
 		 * 2 characters for the length which are skipped

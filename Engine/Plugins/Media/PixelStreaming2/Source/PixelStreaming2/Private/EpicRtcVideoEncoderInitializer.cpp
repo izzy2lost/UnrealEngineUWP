@@ -8,9 +8,9 @@
 #include "NvmlEncoder.h"
 #include "PixelStreaming2Delegates.h"
 #include "PixelStreaming2PluginSettings.h"
-#include "ToStringExtensions.h"
-#include "Utils.h"
-#include "VideoUtils.h"
+#include "UtilsCommon.h"
+#include "UtilsString.h"
+#include "UtilsVideo.h"
 #include "Video/Encoders/Configs/VideoEncoderConfigAV1.h"
 #include "Video/Encoders/Configs/VideoEncoderConfigH264.h"
 #include "Video/Encoders/Configs/VideoEncoderConfigVP8.h"
@@ -192,7 +192,7 @@ namespace UE::PixelStreaming2
 		// UE doesn't support the automatic conversion of a RefCountPtr from a derived type to a base type.
 		if (UE::PixelStreaming2::IsEncoderSupported<FVideoEncoderConfigVP8>())
 		{
-			Codecs[EVideoCodec::VP8].Add(TRefCountPtr<EpicRtcVideoCodecInfoInterface>(new FVideoCodecInfo(
+			Codecs[EVideoCodec::VP8].Add(TRefCountPtr<EpicRtcVideoCodecInfoInterface>(new FEpicRtcVideoCodecInfo(
 				EpicRtcVideoCodec::VP8,
 				UE::PixelStreaming2::IsHardwareEncoderSupported<FVideoEncoderConfigVP8>(),
 				nullptr,
@@ -202,30 +202,32 @@ namespace UE::PixelStreaming2
 		if (UE::PixelStreaming2::IsEncoderSupported<FVideoEncoderConfigVP9>())
 		{
 			using namespace UE::AVCodecCore::VP9;
-			Codecs[EVideoCodec::VP9].Add(TRefCountPtr<EpicRtcVideoCodecInfoInterface>(new FVideoCodecInfo(
+			Codecs[EVideoCodec::VP9].Add(TRefCountPtr<EpicRtcVideoCodecInfoInterface>(new FEpicRtcVideoCodecInfo(
 				EpicRtcVideoCodec::VP9,
 				UE::PixelStreaming2::IsHardwareEncoderSupported<FVideoEncoderConfigVP9>(),
 				UE::PixelStreaming2::CreateVP9Format(EProfile::Profile0),
 				new FEpicRtcScalabilityModeArray(UE::PixelStreaming2::AllScalabilityModes))));
 
-			/* Only advertise profile 0 until EpicRtc provides us with a way to extract the negotiated profile in the encoder config
-			Codecs[EVideoCodec::VP9].Add(TRefCountPtr<EpicRtcVideoCodecInfoInterface>(new FVideoCodecInfo(
-				EpicRtcVideoCodec::VP9,
-				UE::PixelStreaming2::IsHardwareEncoderSupported<FVideoEncoderConfigVP9>(),
-				UE::PixelStreaming2::CreateVP9Format(EProfile::Profile2),
-				new FEpicRtcScalabilityModeArray(AllScalabilityModes))));
-			*/
+			/**
+			 * Only advertise profile 0 until EpicRtc provides us with a way to extract the negotiated profile in the encoder config
+			 * 
+			 * Codecs[EVideoCodec::VP9].Add(TRefCountPtr<EpicRtcVideoCodecInfoInterface>(new FEpicRtcVideoCodecInfo(
+			 *	EpicRtcVideoCodec::VP9,
+			 *	UE::PixelStreaming2::IsHardwareEncoderSupported<FVideoEncoderConfigVP9>(),
+			 *	UE::PixelStreaming2::CreateVP9Format(EProfile::Profile2),
+			 *	new FEpicRtcScalabilityModeArray(AllScalabilityModes))));
+			 */
 		}
 
 		if (UE::PixelStreaming2::IsEncoderSupported<FVideoEncoderConfigH264>())
 		{
 			using namespace UE::AVCodecCore::H264;
-			Codecs[EVideoCodec::H264].Add(TRefCountPtr<EpicRtcVideoCodecInfoInterface>(new FVideoCodecInfo(
+			Codecs[EVideoCodec::H264].Add(TRefCountPtr<EpicRtcVideoCodecInfoInterface>(new FEpicRtcVideoCodecInfo(
 				EpicRtcVideoCodec::H264,
 				UE::PixelStreaming2::IsHardwareEncoderSupported<FVideoEncoderConfigH264>(),
 				UE::PixelStreaming2::CreateH264Format(EH264Profile::ConstrainedBaseline, EH264Level::Level_3_1),
 				new FEpicRtcScalabilityModeArray({ EScalabilityMode::L1T1 }))));
-			Codecs[EVideoCodec::H264].Add(TRefCountPtr<EpicRtcVideoCodecInfoInterface>(new FVideoCodecInfo(
+			Codecs[EVideoCodec::H264].Add(TRefCountPtr<EpicRtcVideoCodecInfoInterface>(new FEpicRtcVideoCodecInfo(
 				EpicRtcVideoCodec::H264,
 				UE::PixelStreaming2::IsHardwareEncoderSupported<FVideoEncoderConfigH264>(),
 				UE::PixelStreaming2::CreateH264Format(EH264Profile::Baseline, EH264Level::Level_3_1),
@@ -234,7 +236,7 @@ namespace UE::PixelStreaming2
 
 		if (UE::PixelStreaming2::IsEncoderSupported<FVideoEncoderConfigAV1>())
 		{
-			Codecs[EVideoCodec::AV1].Add(TRefCountPtr<EpicRtcVideoCodecInfoInterface>(new FVideoCodecInfo(
+			Codecs[EVideoCodec::AV1].Add(TRefCountPtr<EpicRtcVideoCodecInfoInterface>(new FEpicRtcVideoCodecInfo(
 				EpicRtcVideoCodec::AV1,
 				UE::PixelStreaming2::IsHardwareEncoderSupported<FVideoEncoderConfigAV1>(),
 				nullptr,

@@ -9,7 +9,7 @@
 #include "EpicRtcVideoSource.h"
 #include "RTCStatsCollector.h"
 #include "Templates/RefCounting.h"
-#include "Utils.h"
+#include "UtilsCommon.h"
 
 #include "epic_rtc/core/audio/audio_track.h"
 #include "epic_rtc/core/video/video_track.h"

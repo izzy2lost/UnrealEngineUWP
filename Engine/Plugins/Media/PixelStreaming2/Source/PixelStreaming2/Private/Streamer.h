@@ -128,7 +128,7 @@ namespace UE::PixelStreaming2
 		TSharedPtr<FEpicRtcManager> EpicRtcManager;
 
 	public:
-		/* Begin FEpicRtcManager Callbacks */
+		// Begin FEpicRtcManager Callbacks
 		void OnSessionStateUpdate(const EpicRtcSessionState StateUpdate);
 		void OnSessionErrorUpdate(const EpicRtcErrorCode ErrorUpdate);
 		void OnSessionRoomsAvailableUpdate(EpicRtcStringArrayInterface* RoomsList);
@@ -156,6 +156,6 @@ namespace UE::PixelStreaming2
 		void OnDataTrackRemoved(EpicRtcDataTrackInterface* DataTrack);
 		void OnDataTrackState(EpicRtcDataTrackInterface* DataTrack, const EpicRtcTrackState State);
 		void OnDataTrackMessage(EpicRtcDataTrackInterface* DataTrack);
-		/* End FEpicRtcManager Callbacks */
+		// End FEpicRtcManager Callbacks
 	};
 } // namespace UE::PixelStreaming2

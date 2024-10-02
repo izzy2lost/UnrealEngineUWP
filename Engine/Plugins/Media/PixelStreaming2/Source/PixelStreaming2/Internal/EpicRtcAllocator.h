@@ -2,8 +2,9 @@
 
 #pragma once
 
-#include "epic_rtc/common/memory.h"
 #include "HAL/UnrealMemory.h"
+
+#include "epic_rtc/common/memory.h"
 
 namespace UE::PixelStreaming2
 {
@@ -11,7 +12,7 @@ namespace UE::PixelStreaming2
 	{
 	public:
 		FEpicRtcAllocator() = default;
-		~FEpicRtcAllocator() = default;
+		virtual ~FEpicRtcAllocator() = default;
 
 		[[nodiscard]] virtual void* Allocate(uint64_t Size, uint64_t Alignment, const char* Tag) override
 		{

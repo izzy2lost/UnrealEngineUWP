@@ -3,7 +3,6 @@
 #include "EpicRtcAudioSource.h"
 
 #include "EpicRtcAudioMixingCapturer.h"
-#include "Utils.h"
 #include "PixelStreaming2Module.h"
 
 namespace UE::PixelStreaming2

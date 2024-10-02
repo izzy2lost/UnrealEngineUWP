@@ -25,4 +25,4 @@ namespace UE::PixelStreaming2
 	{
 		return SampleRate;
 	}
-}
+} // namespace UE::PixelStreaming2

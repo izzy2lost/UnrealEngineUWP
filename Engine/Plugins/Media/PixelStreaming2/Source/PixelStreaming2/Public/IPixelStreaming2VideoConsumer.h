@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "Rendering/SlateRenderer.h"
 
-/*
+/**
  * An "Video Consumer" is an object that is responsible for outputting the video received from a peer. For example, by
  * rendering to a render target.
  */

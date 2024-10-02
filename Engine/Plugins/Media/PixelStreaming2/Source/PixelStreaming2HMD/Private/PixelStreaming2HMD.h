@@ -19,7 +19,7 @@ class UCanvas;
 class PIXELSTREAMING2HMD_API FPixelStreaming2HMD : public IPixelStreaming2HMD, public FHeadMountedDisplayBase, public FHMDSceneViewExtension
 {
 public:
-	/** IXRTrackingSystem interface */
+	// Begin IXRTrackingSystem
 	virtual FName GetSystemName() const override
 	{
 		static FName DefaultName(TEXT("PixelStreaming2HMD"));
@@ -53,13 +53,15 @@ public:
 	{
 		return SharedThis(this);
 	}
+	// End IXRTrackingSystem
 
 protected:
-	/** FXRTrackingSystemBase protected interface */
+	// Begin FXRTrackingSystemBase
 	virtual float GetWorldToMetersScale() const override;
+	// End FXRTrackingSystemBase
 
 public:
-	/** IHeadMountedDisplay interface */
+	// Begin IHeadMountedDisplay
 	virtual bool IsHMDConnected() override { return true; }
 	virtual bool IsHMDEnabled() const override;
 	virtual void EnableHMD(bool allow = true) override;
@@ -68,33 +70,36 @@ public:
 	virtual bool IsChromaAbCorrectionEnabled() const override;
 	virtual bool GetHMDDistortionEnabled(EShadingPath ShadingPath) const override { return false; }
 	virtual void DrawDistortionMesh_RenderThread(struct FHeadMountedDisplayPassContext& Context, const FIntPoint& TextureSize) override;
+	// End IHeadMountedDisplay
 
-	/** IStereoRendering interface */
+	// Begin IStereoRendering
 	virtual bool	IsStereoEnabled() const override;
 	virtual bool	EnableStereo(bool stereo = true) override;
 	virtual void	AdjustViewRect(int32 ViewIndex, int32& X, int32& Y, uint32& SizeX, uint32& SizeY) const override;
 	virtual void	CalculateStereoViewOffset(const int32 ViewIndex, FRotator& ViewRotation, const float InWorldToMeters, FVector& ViewLocation) override;
 	virtual FMatrix GetStereoProjectionMatrix(const int32 ViewIndex) const override;
 	virtual void	GetEyeRenderParams_RenderThread(const struct FHeadMountedDisplayPassContext& Context, FVector2D& EyeToSrcUVScaleValue, FVector2D& EyeToSrcUVOffsetValue) const override;
+	// End IStereoRendering
 
-	/** ISceneViewExtension interface */
+	// Begin ISceneViewExtension
 	virtual void SetupViewFamily(FSceneViewFamily& InViewFamily) override;
 	virtual void SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView) override {};
 	virtual void BeginRenderViewFamily(FSceneViewFamily& InViewFamily) {}
 	virtual void PreRenderView_RenderThread(FRDGBuilder& GraphBuilder, FSceneView& InView) override;
 	virtual void PreRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder, FSceneViewFamily& InViewFamily) override;
+	// End ISceneViewExtension
 
-	/** Constructor */
 	FPixelStreaming2HMD(const FAutoRegister&);
 
-	/** Destructor */
 	virtual ~FPixelStreaming2HMD();
 
-	/** @return	True if the HMD was initialized OK */
+	/**
+	 * @return	True if the HMD was initialized OK
+	 */
 	bool IsInitialized() const { return true; }
 
 	virtual void SetTransform(FTransform Transform) override { CurHmdTransform = Transform; }
-	virtual void SetEyeViews(FTransform Left, FMatrix LeftProj, FTransform Right, FMatrix RightProj, FTransform HMD) override ;
+	virtual void SetEyeViews(FTransform Left, FMatrix LeftProj, FTransform Right, FMatrix RightProj, FTransform HMD) override;
 
 private:
 	FVector	   BasePosition = FVector::ZeroVector;

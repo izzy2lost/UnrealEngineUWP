@@ -21,7 +21,7 @@
 #include "ScreenPass.h"
 #include "ScreenRendering.h"
 #include "TextureResource.h"
-#include "Utils.h"
+#include "UtilsCommon.h"
 
 namespace UE::PixelStreaming2
 {
@@ -43,7 +43,7 @@ namespace UE::PixelStreaming2
 		RemoveFreezeFrameBinding();
 	}
 
-	/*
+	/**
 	 * Add the commands to the RHI command list to copy a texture from source to dest - even if the format is different.
 	 * Assumes SourceTexture is in ERHIAccess::CopySrc and DestTexture is in ERHIAccess::CopyDest
 	 */

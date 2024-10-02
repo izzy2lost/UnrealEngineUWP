@@ -6,7 +6,10 @@
 #include "Logging.h"
 #include "PixelCaptureBufferFormat.h"
 #include "PixelCaptureInputFrameRHI.h"
-#include "Utils.h"
+#include "RHI.h"
+#include "UtilsCommon.h"
+#include "Widgets/SWindow.h"
+
 
 namespace UE::PixelStreaming2
 {

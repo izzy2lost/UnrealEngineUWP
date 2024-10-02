@@ -5,9 +5,9 @@
 #include "Delegates/IDelegateInstance.h"
 #include "Misc/Optional.h"
 #include "MediaOutput.h"
-
 #include "PixelStreaming2MediaIOCapture.h"
 #include "VideoProducer.h"
+
 
 #include "VideoProducerMediaCapture.generated.h"
 
@@ -29,7 +29,7 @@ private:
 namespace UE::PixelStreaming2
 {
 
-	/*
+	/**
 	 * Use this if you want to send media capture frames as video input.
 	 */
 	class PIXELSTREAMING2_API FVideoProducerMediaCapture : public FVideoProducer, public TSharedFromThis<FVideoProducerMediaCapture>

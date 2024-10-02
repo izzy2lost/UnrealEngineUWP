@@ -18,6 +18,9 @@ namespace UE::PixelStreaming2
 
 		// Begin EpicRtcStatsCollectorCallbackInterface interface
 		void			 OnStatsDelivered(const EpicRtcStatsReport& InReport) override;
+		// End EpicRtcStatsCollectorCallbackInterface interface
+
+		// Begin EpicRtcRefCountInterface
 		virtual uint32_t AddRef() override final { return TRefCountingMixin<FEpicRtcStatsCollector>::AddRef(); }
 		virtual uint32_t Release() override final { return TRefCountingMixin<FEpicRtcStatsCollector>::Release(); }
 		virtual uint32_t Count() const override final { return TRefCountingMixin<FEpicRtcStatsCollector>::GetRefCount(); }

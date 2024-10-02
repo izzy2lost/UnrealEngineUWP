@@ -7,7 +7,7 @@
 #include "IWebSocket.h"
 #include "Logging.h"
 #include "Misc/AutomationTest.h"
-#include "ToStringExtensions.h"
+#include "UtilsString.h"
 
 #include "epic_rtc/common/common.h"
 #include "epic_rtc/core/conference.h"
@@ -15,33 +15,13 @@
 
 namespace UE::PixelStreaming2
 {
-	inline FString ToString(EpicRtcRoomState State)
-	{
-		switch (State)
-		{
-			case EpicRtcRoomState::New:
-				return TEXT("New");
-			case EpicRtcRoomState::Pending:
-				return TEXT("Pending");
-			case EpicRtcRoomState::Joined:
-				return TEXT("Joined");
-			case EpicRtcRoomState::Left:
-				return TEXT("Left");
-			case EpicRtcRoomState::Failed:
-				return TEXT("Failed");
-			case EpicRtcRoomState::Exiting:
-				return TEXT("Exiting");
-		}
-		return TEXT("Unknown");
-	}
-
 	// A mock manager class for tests to receive callbacks from EpicRtc. Typically, the controlling class will inherit from FEpicRtcManager
 	// and implement the methods itself (see streamer.cpp). However, we can't force the tests to inherit the class, so instead we have the
 	// mock manager and the test bodies bind to the events they're interested in
 	class FMockManager : public FEpicRtcManager
 	{
 	public:
-		/* Begin FEpicRtcAudioTrackObserver Callbacks */
+		// Begin FEpicRtcAudioTrackObserver Callbacks
 		void OnAudioTrackMuted(EpicRtcAudioTrackInterface* AudioTrack, EpicRtcBool bIsMuted)
 		{
 		}
@@ -54,9 +34,9 @@ namespace UE::PixelStreaming2
 		void OnAudioTrackState(EpicRtcAudioTrackInterface* AudioTrack, const EpicRtcTrackState State)
 		{
 		}
-		/* End FEpicRtcAudioTrackObserver Callbacks */
+		// End FEpicRtcAudioTrackObserver Callbacks
 
-		/* Begin FEpicRtcVideoTrackObserver Callbacks */
+		// Begin FEpicRtcVideoTrackObserver Callbacks
 		void OnVideoTrackMuted(EpicRtcVideoTrackInterface* VideoTrack, EpicRtcBool bIsMuted)
 		{
 		}
@@ -69,9 +49,9 @@ namespace UE::PixelStreaming2
 		void OnVideoTrackState(EpicRtcVideoTrackInterface* VideoTrack, const EpicRtcTrackState State)
 		{
 		}
-		/* End FEpicRtcVideoTrackObserver Callbacks */
+		// End FEpicRtcVideoTrackObserver Callbacks
 
-		/* Begin FEpicRtcDataTrackObserver Callbacks */
+		// Begin FEpicRtcDataTrackObserver Callbacks
 		void OnDataTrackRemoved(EpicRtcDataTrackInterface* DataTrack)
 		{
 		}
@@ -81,7 +61,7 @@ namespace UE::PixelStreaming2
 		void OnDataTrackMessage(EpicRtcDataTrackInterface* DataTrack)
 		{
 		}
-		/* End FEpicRtcDataTrackObserver Callbacks */
+		// End FEpicRtcDataTrackObserver Callbacks
 
 	public:
 		TRefCountPtr<EpicRtcConferenceInterface>& GetEpicRtcConference()
@@ -200,11 +180,11 @@ namespace UE::PixelStreaming2
 		}
 
 	public:
-		/* Begin EpicRtcRefCountInterface */
+		// Begin EpicRtcRefCountInterface
 		virtual uint32_t AddRef() override final { return TRefCountingMixin<FMockWebSocketFactory>::AddRef(); }
 		virtual uint32_t Release() override final { return TRefCountingMixin<FMockWebSocketFactory>::Release(); }
 		virtual uint32_t Count() const override final { return TRefCountingMixin<FMockWebSocketFactory>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
+		// End EpicRtcRefCountInterface
 
 	private:
 		TRefCountPtr<EpicRtcWebsocketInterface> Websocket;

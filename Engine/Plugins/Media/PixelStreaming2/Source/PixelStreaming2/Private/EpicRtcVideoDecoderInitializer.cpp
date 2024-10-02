@@ -6,9 +6,9 @@
 #include "CoderUtils.h"
 #include "Logging.h"
 #include "PixelStreaming2PluginSettings.h"
-#include "ToStringExtensions.h"
-#include "Utils.h"
-#include "VideoUtils.h"
+#include "UtilsCommon.h"
+#include "UtilsString.h"
+#include "UtilsVideo.h"
 #include "Video/Decoders/Configs/VideoDecoderConfigAV1.h"
 #include "Video/Decoders/Configs/VideoDecoderConfigH264.h"
 #include "Video/Decoders/Configs/VideoDecoderConfigVP8.h"
@@ -136,14 +136,14 @@ namespace UE::PixelStreaming2
 
 		if (UE::PixelStreaming2::IsDecoderSupported<FVideoDecoderConfigVP8>())
 		{
-			Codecs[EVideoCodec::VP8].Add(TRefCountPtr<EpicRtcVideoCodecInfoInterface>(new FVideoCodecInfo(
+			Codecs[EVideoCodec::VP8].Add(TRefCountPtr<EpicRtcVideoCodecInfoInterface>(new FEpicRtcVideoCodecInfo(
 				EpicRtcVideoCodec::VP8,
 				UE::PixelStreaming2::IsHardwareDecoderSupported<FVideoDecoderConfigVP8>())));
 		}
 
 		if (UE::PixelStreaming2::IsDecoderSupported<FVideoDecoderConfigVP9>())
 		{
-			Codecs[EVideoCodec::VP9].Add(TRefCountPtr<EpicRtcVideoCodecInfoInterface>(new FVideoCodecInfo(
+			Codecs[EVideoCodec::VP9].Add(TRefCountPtr<EpicRtcVideoCodecInfoInterface>(new FEpicRtcVideoCodecInfo(
 				EpicRtcVideoCodec::VP9,
 				UE::PixelStreaming2::IsHardwareDecoderSupported<FVideoDecoderConfigVP9>())));
 		}
@@ -151,11 +151,11 @@ namespace UE::PixelStreaming2
 		if (UE::PixelStreaming2::IsDecoderSupported<FVideoDecoderConfigH264>())
 		{
 			using namespace UE::AVCodecCore::H264;
-			Codecs[EVideoCodec::H264].Add(TRefCountPtr<EpicRtcVideoCodecInfoInterface>(new FVideoCodecInfo(
+			Codecs[EVideoCodec::H264].Add(TRefCountPtr<EpicRtcVideoCodecInfoInterface>(new FEpicRtcVideoCodecInfo(
 				EpicRtcVideoCodec::H264,
 				UE::PixelStreaming2::IsHardwareDecoderSupported<FVideoDecoderConfigH264>(),
 				UE::PixelStreaming2::CreateH264Format(EH264Profile::ConstrainedBaseline, EH264Level::Level_3_1))));
-			Codecs[EVideoCodec::H264].Add(TRefCountPtr<EpicRtcVideoCodecInfoInterface>(new FVideoCodecInfo(
+			Codecs[EVideoCodec::H264].Add(TRefCountPtr<EpicRtcVideoCodecInfoInterface>(new FEpicRtcVideoCodecInfo(
 				EpicRtcVideoCodec::H264,
 				UE::PixelStreaming2::IsHardwareDecoderSupported<FVideoDecoderConfigH264>(),
 				UE::PixelStreaming2::CreateH264Format(EH264Profile::Baseline, EH264Level::Level_3_1))));
@@ -163,7 +163,7 @@ namespace UE::PixelStreaming2
 
 		if (UE::PixelStreaming2::IsDecoderSupported<FVideoDecoderConfigAV1>())
 		{
-			Codecs[EVideoCodec::AV1].Add(TRefCountPtr<EpicRtcVideoCodecInfoInterface>(new FVideoCodecInfo(
+			Codecs[EVideoCodec::AV1].Add(TRefCountPtr<EpicRtcVideoCodecInfoInterface>(new FEpicRtcVideoCodecInfo(
 				EpicRtcVideoCodec::AV1,
 				UE::PixelStreaming2::IsHardwareDecoderSupported<FVideoDecoderConfigAV1>())));
 		}

@@ -2,10 +2,8 @@
 
 #pragma once
 
-#include "Containers/Set.h"
-#include "EpicRtcAudioTrack.h"
-#include "IPixelStreaming2AudioConsumer.h"
 #include "AudioSink.h"
+#include "EpicRtcAudioTrack.h"
 
 namespace UE::PixelStreaming2
 {

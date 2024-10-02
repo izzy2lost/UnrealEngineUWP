@@ -1,12 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "EpicRtcDataTrack.h"
-#include "Utils.h"
-#include "ToStringExtensions.h"
+
+#include "UtilsCommon.h"
+#include "UtilsString.h"
 
 namespace UE::PixelStreaming2
 {
-
 	TSharedPtr<FEpicRtcDataTrack> FEpicRtcDataTrack::Create(TRefCountPtr<EpicRtcDataTrackInterface> InTrack, TWeakPtr<IPixelStreaming2DataProtocol> InDataProtocol)
 	{
 		TSharedPtr<FEpicRtcDataTrack> DataTrack = TSharedPtr<FEpicRtcDataTrack>(new FEpicRtcDataTrack(InTrack, InDataProtocol));
@@ -32,11 +32,13 @@ namespace UE::PixelStreaming2
 			UE_LOG(LogPixelStreaming2, Error, TEXT("Cannot send message when datatrack is null."));
 			return false;
 		}
+
 		if (Track->GetState() != EpicRtcTrackState::Active)
 		{
 			UE_LOG(LogPixelStreaming2, Error, TEXT("Cannot send message when datatrack is not active."));
 			return false;
 		}
+
 		return true;
 	}
 
@@ -56,7 +58,9 @@ namespace UE::PixelStreaming2
 			UE_LOG(LogPixelStreaming2, Error, TEXT("Cannot send message called '%s' as it is not in the data protocol. Try GetTo/FromStreamerProtocol()->Add()"), *MessageType);
 			return false;
 		}
+
 		OutMessageId = Message->GetID();
+
 		return true;
 	}
 
@@ -67,12 +71,15 @@ namespace UE::PixelStreaming2
 			._size = (uint32_t)Buffer.Num(),
 			._binary = true
 		};
+
 		TRefCountPtr<EpicRtcDataTrackInterface> OutgoingTrack = SendTrack ? SendTrack : Track;
+
 		EpicRtcBool SendResult = OutgoingTrack->PushFrame(DataFrame);
 		if (!SendResult)
 		{
 			UE_LOG(LogPixelStreaming2, Error, TEXT("DataTrack PushFrame return false"));
 		}
+
 		return static_cast<bool>(SendResult);
 	}
 
@@ -83,11 +90,12 @@ namespace UE::PixelStreaming2
 
 	bool FEpicRtcDataTrack::SendArbitraryData(const FString& MessageType, const TArray64<uint8>& DataBytes) const
 	{
-		uint8 Type;
 		if (!IsActive())
 		{
 			return false;
 		}
+
+		uint8 Type;
 		if (!GetMessageId(MessageType, Type))
 		{
 			return false;

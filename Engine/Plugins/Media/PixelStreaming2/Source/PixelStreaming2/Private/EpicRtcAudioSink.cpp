@@ -2,7 +2,7 @@
 
 #include "EpicRtcAudioSink.h"
 
-namespace UE::PixelStreaming2 
+namespace UE::PixelStreaming2
 {
 	TSharedPtr<FEpicRtcAudioSink> FEpicRtcAudioSink::Create(TRefCountPtr<EpicRtcAudioTrackInterface> InTrack)
 	{

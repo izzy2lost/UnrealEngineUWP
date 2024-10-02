@@ -11,8 +11,8 @@
 #include "PixelCaptureOutputFrameI420.h"
 #include "PixelCaptureOutputFrameRHI.h"
 #include "PixelStreaming2PluginSettings.h"
-#include "ToStringExtensions.h"
-#include "VideoUtils.h"
+#include "UtilsString.h"
+#include "UtilsVideo.h"
 
 #include "epic_rtc/core/video/video_buffer.h"
 #include "epic_rtc/core/video/video_encoder_callback.h"
@@ -473,14 +473,14 @@ namespace UE::PixelStreaming2
 				CodecSpecificInfo._endOfPicture = Packet.CodecSpecificInfo.bEndOfPicture;
 				if (Packet.CodecSpecificInfo.GenericFrameInfo.IsSet())
 				{
-					CodecSpecificInfo._genericFrameInfo = new FGenericFrameInfoWrapper(Packet.CodecSpecificInfo.GenericFrameInfo.GetValue());
+					CodecSpecificInfo._genericFrameInfo = new FEpicRtcGenericFrameInfo(Packet.CodecSpecificInfo.GenericFrameInfo.GetValue());
 					CodecSpecificInfo._genericFrameInfo->AddRef();
 					CodecSpecificInfo._hasGenericFrameInfo = true;
 				}
 
 				if (Packet.CodecSpecificInfo.TemplateStructure.IsSet())
 				{
-					CodecSpecificInfo._templateStructure = new FFrameDependencyStructureWrapper(Packet.CodecSpecificInfo.TemplateStructure.GetValue());
+					CodecSpecificInfo._templateStructure = new FEpicRtcFrameDependencyStructure(Packet.CodecSpecificInfo.TemplateStructure.GetValue());
 					CodecSpecificInfo._templateStructure->AddRef();
 					CodecSpecificInfo._hasTemplateStructure = true;
 				}

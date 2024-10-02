@@ -4,7 +4,9 @@
 
 #include "Engine/TextureRenderTarget2D.h"
 #include "PixelCaptureInputFrameRHI.h"
+#include "RHI.h"
 #include "TextureResource.h"
+#include "Widgets/SWindow.h"
 
 namespace UE::PixelStreaming2
 {

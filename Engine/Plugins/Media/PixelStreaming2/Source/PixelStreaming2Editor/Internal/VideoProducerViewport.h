@@ -12,7 +12,7 @@ namespace UE::EditorPixelStreaming2
 
 	using namespace UE::PixelStreaming2;
 
-	/*
+	/**
 	 * Use this if you want to send the UE primary scene viewport as video input - will only work in editor.
 	 */
 	class PIXELSTREAMING2EDITOR_API FVideoProducerViewport : public FVideoProducer

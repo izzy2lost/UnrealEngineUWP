@@ -4,12 +4,10 @@
 
 #include "Containers/ContainerAllocationPolicies.h"
 #include "Containers/Map.h"
-#include "HAL/ThreadSafeBool.h"
 #include "Misc/ScopeLock.h"
 
 namespace UE::PixelStreaming2
 {
-
 	/** A TThreadSafeMapBase specialization that only allows a single value associated with each key whilst being thread safe.*/
 	template <typename InKeyType, typename InValueType, typename SetAllocator = FDefaultSetAllocator, typename KeyFuncs = TDefaultMapHashableKeyFuncs<InKeyType, InValueType, false>>
 	class TThreadSafeMap : protected TSortableMapBase<InKeyType, InValueType, SetAllocator, KeyFuncs>

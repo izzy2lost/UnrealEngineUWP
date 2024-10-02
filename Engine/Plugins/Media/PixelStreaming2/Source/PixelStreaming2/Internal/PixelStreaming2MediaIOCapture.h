@@ -5,6 +5,7 @@
 #include "MediaCapture.h"
 #include "Slate/SceneViewport.h"
 #include "VideoProducer.h"
+
 #include "PixelStreaming2MediaIOCapture.generated.h"
 
 UCLASS(BlueprintType)
@@ -44,10 +45,10 @@ public:
 	virtual ETextureCreateFlags GetOutputTextureFlags() const override;
 	//~ End UMediaCapture interface
 
-	TSharedPtr<FSceneViewport>					  GetViewport() const { return SceneViewport.Pin(); }
-	virtual void								  ViewportResized(FViewport* Viewport, uint32 ResizeCode);
-	bool										  WasViewportResized() const { return bViewportResized; }
-	void										  SetVideoProducer(TSharedPtr<IPixelStreaming2VideoProducer> InVideoProducer) { VideoProducer = InVideoProducer; }
+	TSharedPtr<FSceneViewport>				GetViewport() const { return SceneViewport.Pin(); }
+	virtual void							ViewportResized(FViewport* Viewport, uint32 ResizeCode);
+	bool									WasViewportResized() const { return bViewportResized; }
+	void									SetVideoProducer(TSharedPtr<IPixelStreaming2VideoProducer> InVideoProducer) { VideoProducer = InVideoProducer; }
 	TWeakPtr<IPixelStreaming2VideoProducer> GetVideoProducer() { return VideoProducer; }
 
 	DECLARE_MULTICAST_DELEGATE(FOnCaptureViewportInitialized);
@@ -58,7 +59,7 @@ private:
 	void UpdateCaptureResolution(int32 Width, int32 Height);
 
 private:
-	TWeakPtr<FSceneViewport>					  SceneViewport;
+	TWeakPtr<FSceneViewport>				SceneViewport;
 	TWeakPtr<IPixelStreaming2VideoProducer> VideoProducer;
 
 	/* We track whether the viewport has been resized since we created this capturer as resize means restart capturer. */

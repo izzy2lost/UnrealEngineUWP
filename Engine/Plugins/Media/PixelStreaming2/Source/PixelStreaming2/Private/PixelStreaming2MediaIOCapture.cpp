@@ -13,7 +13,7 @@
 #include "Slate/SceneViewport.h"
 
 void UPixelStreaming2MediaIOCapture::OnRHIResourceCaptured_RenderingThread(
-	FRHICommandListImmediate& /*RHICmdList*/,
+	FRHICommandListImmediate& /* RHICmdList */,
 	const FCaptureBaseData&								   InBaseData,
 	TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData,
 	FTextureRHIRef										   InTexture)

@@ -35,7 +35,7 @@ namespace UE::PixelStreaming2
 		void Process(const EpicRtcConnectionStats& InStats);
 
 	private:
-		/*
+		/**
 		 * ---------- FRTCTrackedStat -------------------
 		 * Tracks a stat from WebRTC. Stores the current value and previous value.
 		 */
@@ -146,7 +146,7 @@ namespace UE::PixelStreaming2
 			void Process(const EpicRtcAudioSourceStats& InStats, const FString& PeerId, double SecondsDelta);
 		};
 
-		/*
+		/**
 		 * ---------- FDataChannelSink -------------------
 		 */
 		class FDataTrackStatsSink : public FStatsSink

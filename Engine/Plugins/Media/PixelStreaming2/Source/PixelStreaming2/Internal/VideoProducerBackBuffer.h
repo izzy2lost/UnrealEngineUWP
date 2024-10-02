@@ -9,8 +9,7 @@
 
 namespace UE::PixelStreaming2
 {
-
-	/*
+	/**
 	 * Use this if you want to send the contents of the UE backbuffer.
 	 */
 	class PIXELSTREAMING2_API FVideoProducerBackBuffer : public FVideoProducer

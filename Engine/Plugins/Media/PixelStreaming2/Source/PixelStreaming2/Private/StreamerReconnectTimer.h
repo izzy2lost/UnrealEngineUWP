@@ -24,12 +24,12 @@ namespace UE::PixelStreaming2
 		void Start(TWeakPtr<IPixelStreaming2Streamer> InWeakStreamer);
 		void Stop();
 
-		/* Begin FTickableGameObject */
+		// Begin FTickableGameObject
 		virtual void Tick (float DeltaTime) override;
 		virtual bool IsTickableInEditor() const override { return true; }
 		virtual bool IsTickableWhenPaused() const override { return true; }
 		FORCEINLINE TStatId GetStatId() const { RETURN_QUICK_DECLARE_CYCLE_STAT(PixelStreaming2StreamerReconnectTimer, STATGROUP_Tickables); }
-		/* End FTickableGameObject */
+		// End FTickableGameObject
 
 	private:
 		TWeakPtr<IPixelStreaming2Streamer> WeakStreamer;

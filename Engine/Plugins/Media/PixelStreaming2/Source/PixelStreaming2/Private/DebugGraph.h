@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "CanvasTypes.h"
+#include "CoreMinimal.h"
 
 namespace UE::PixelStreaming2
 {
@@ -22,17 +22,17 @@ namespace UE::PixelStreaming2
 
 	private:
 		FName Name;
-		int MaxSamples = 0;
+		int	  MaxSamples = 0;
 		float MinRange = 0.0f;
 		float MaxRange = 0.0f;
 		float RefValue = 0.0f;
 
-		float Sum = 0;
+		float		  Sum = 0;
 		TArray<float> Values;
 		TArray<float> AvgValues;
-		int InsertIndex = 0;
-		int BufferedValues = 0;
-		bool bFirstValue = true;
+		int			  InsertIndex = 0;
+		int			  BufferedValues = 0;
+		bool		  bFirstValue = true;
 
 		mutable FCriticalSection CriticalSection;
 	};
