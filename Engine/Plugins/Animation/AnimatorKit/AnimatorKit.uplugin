@@ -31,6 +31,10 @@
 		{
 			"Name": "DeformerGraph",
 			"Enabled": true
+		},
+		{
+			"Name": "GizmoFramework",
+			"Enabled": true 
 		}
 	],
 	"NoCode": true
