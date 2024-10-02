@@ -234,15 +234,18 @@ class FGroomCacheUpdatePassCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(uint32, InstanceRegisteredIndex)
-		SHADER_PARAMETER(uint32, ElementCount)
+		SHADER_PARAMETER(uint32, CachePointCount)
 		SHADER_PARAMETER(uint32, bHasRadiusData)
+		SHADER_PARAMETER(uint32, bHasAddedControlPoint)
 		SHADER_PARAMETER(float, InterpolationFactor)
 		SHADER_PARAMETER(float, MaxHairRadius)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InPosition0Buffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InPosition1Buffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InRadius0Buffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InRadius1Buffer)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InRestPoseBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, InRestPositionBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, InRestCurveBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, InRestPointToCurveBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer, InDeformedOffsetBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OutDeformedBuffer)
 	END_SHADER_PARAMETER_STRUCT()
@@ -265,11 +268,14 @@ void AddGroomCacheUpdatePass(
 	FGlobalShaderMap* ShaderMap,
 	uint32 InstanceRegisteredIndex,
 	uint32 PointCount,
+	uint32 CurveCount,
 	float InterpolationFactor,
 	float InMaxHairRadius,
 	FGroomCacheResources CacheResources0,
 	FGroomCacheResources CacheResources1,
-	FRDGBufferSRVRef InBuffer,
+	FRDGBufferSRVRef InRestPositionBuffer,
+	FRDGBufferSRVRef InRestCurveBuffer,
+	FRDGBufferSRVRef InRestPointToCurveBuffer,
 	FRDGBufferSRVRef InDeformedOffsetBuffer,
 	FRDGBufferUAVRef OutBuffer)
 {
@@ -279,17 +285,20 @@ void AddGroomCacheUpdatePass(
 
 	FGroomCacheUpdatePassCS::FParameters* Parameters = GraphBuilder.AllocParameters<FGroomCacheUpdatePassCS::FParameters>();
 	Parameters->InstanceRegisteredIndex = InstanceRegisteredIndex;
-	Parameters->ElementCount = PointCount;
+	Parameters->CachePointCount = PointCount;
 	Parameters->InPosition0Buffer = CacheResources0.PositionBuffer;
 	Parameters->InPosition1Buffer = CacheResources1.PositionBuffer;
 	Parameters->InRadius0Buffer = CacheResources0.RadiusBuffer;
 	Parameters->InRadius1Buffer = CacheResources1.RadiusBuffer;
-	Parameters->InRestPoseBuffer = InBuffer;
+	Parameters->InRestPositionBuffer = InRestPositionBuffer;
+	Parameters->InRestCurveBuffer = InRestCurveBuffer;
+	Parameters->InRestPointToCurveBuffer = InRestPointToCurveBuffer;
 	Parameters->InDeformedOffsetBuffer = InDeformedOffsetBuffer;
 	Parameters->OutDeformedBuffer = OutBuffer;
 	Parameters->InterpolationFactor = InterpolationFactor;
 	Parameters->MaxHairRadius = InMaxHairRadius;
 	Parameters->bHasRadiusData = CacheResources0.bHasRadiusData ? 1u : 0u;
+	Parameters->bHasAddedControlPoint = GetHairStrandsUsesTriangleStrips() ? 1u : 0u;
 
 	const FIntVector DispatchCount = FIntVector(FMath::DivideAndRoundUp(PointCount, FGroomCacheUpdatePassCS::GetGroupSize()), 1, 1);
 	TShaderMapRef<FGroomCacheUpdatePassCS> ComputeShader(ShaderMap);
