@@ -34,6 +34,19 @@ DEFINE_LOG_CATEGORY_STATIC(LogStorageServerPlatformFile, Log, All);
 #define EXCLUDE_NONSERVER_UE_EXTENSIONS 1	// Use .Build.cs file to disable this if the game relies on accessing loose files on the local filesystem
 #endif
 
+#if !defined(HAS_STORAGE_SERVER_COMPRESSED_FILE_HANDLE)
+#	define HAS_STORAGE_SERVER_COMPRESSED_FILE_HANDLE 0
+#endif
+
+#if HAS_STORAGE_SERVER_COMPRESSED_FILE_HANDLE
+	IWrappedFileHandle* CreateCompressedPlatformFileHandle(IFileHandle* InLowerLevelHandle);
+#else
+	IWrappedFileHandle* CreateCompressedPlatformFileHandle(IFileHandle* InLowerLevelHandle)
+	{
+		return nullptr;
+	}
+#endif // HAS_STORAGE_SERVER_COMPRESSED_FILE_HANDLE
+
 static FDateTime GAssumedImmutableTimeStamp = FDateTime::Now();
 
 FStorageServerFileSystemTOC::~FStorageServerFileSystemTOC()
@@ -163,6 +176,32 @@ bool FStorageServerFileSystemTOC::IterateDirectory(const FString& Path, TFunctio
 	return true;
 }
 
+bool FStorageServerFileSystemTOC::IterateDirectoryRecursively(const FString& Path, TFunctionRef<bool(const FIoChunkId&, const TCHAR*, int64)> Callback)
+{
+	UE_LOG(LogStorageServerPlatformFile, Verbose, TEXT("IterateDirectoryRecursively '%s'"), *Path);
+
+	FReadScopeLock _(TocLock);
+	FDirectory* Directory = Directories.FindRef(Path);
+	if (!Directory)
+	{
+		return false;
+	}
+	for (int32 FileIndex : Directory->Files)
+	{
+		const FFile& File = Files[FileIndex];
+		if (!Callback(File.FileChunkId, *File.FilePath, File.RawSize))
+		{
+			return false;
+		}
+	}
+	bool bFail = false;
+	for (const FString& ChildDirectoryPath : Directory->Directories)
+	{
+		bFail |= !IterateDirectoryRecursively(ChildDirectoryPath, Callback);
+	}
+
+	return !bFail;
+}
 
 #if COUNTERSTRACE_ENABLED
 	TRACE_DECLARE_ATOMIC_FLOAT_COUNTER(StorageServerCache_HitRatioBytes, TEXT("ZenClient/FileCacheHitRatio"));
@@ -537,6 +576,11 @@ public:
 
 FStorageServerPlatformFile::FStorageServerPlatformFile()
 {
+	if (UE::IsUsingZenPakFileStreaming())
+	{
+		ServerEngineDirView = FStringView(TEXT("Engine/"));
+		ServerProjectDirView = FStringView(TEXT(PREPROCESSOR_TO_STRING(UE_PROJECT_NAME)) TEXT("/"));
+	}
 }
 
 FStorageServerPlatformFile::~FStorageServerPlatformFile()
@@ -744,6 +788,11 @@ bool FStorageServerPlatformFile::Initialize(IPlatformFile* Inner, const TCHAR* C
 			UE_LOG(LogStorageServerPlatformFile, Display, TEXT("Using settings from command line: -ZenStoreBaseURI='%s'"), *BaseURI);
 		}
 
+		if (UE::IsUsingZenPakFileStreaming())
+		{
+			InitializeConnection();
+		}
+
 		return true;
 	}
 	return false;
@@ -924,7 +973,10 @@ FFileStatData FStorageServerPlatformFile::GetStatData(const TCHAR* FilenameOrDir
 
 IFileHandle* FStorageServerPlatformFile::InternalOpenFile(const FIoChunkId& FileChunkId, int64 RawSize, const TCHAR* LocalFilename)
 {
-	return new FStorageServerFileHandle(*this, FileChunkId, RawSize, LocalFilename);
+	IFileHandle* FileHandle = new FStorageServerFileHandle(*this, FileChunkId, RawSize, LocalFilename);
+	IWrappedFileHandle* FileDecompressor = CreateCompressedPlatformFileHandle(FileHandle);
+	
+	return FileDecompressor ? FileDecompressor : FileHandle;
 }
 
 IFileHandle* FStorageServerPlatformFile::OpenRead(const TCHAR* Filename, bool bAllowWrite)
@@ -962,6 +1014,29 @@ bool FStorageServerPlatformFile::IterateDirectory(const TCHAR* Directory, IPlatf
 	{
 		bResult |= LowerLevel->IterateDirectory(Directory, Visitor);
 	}
+	return bResult;
+}
+
+bool FStorageServerPlatformFile::IterateDirectoryRecursively(const TCHAR* Directory, IPlatformFile::FDirectoryVisitor& Visitor)
+{
+	TStringBuilder<1024> StorageServerDirectory;
+	bool bResult = false;
+	if (MakeStorageServerPath(Directory, StorageServerDirectory) && ServerToc.DirectoryExists(*StorageServerDirectory))
+	{
+		bResult |= ServerToc.IterateDirectoryRecursively(*StorageServerDirectory, [this, &Visitor](const FIoChunkId& FileChunkId, const TCHAR* FilenameOrDirectory, int64 RawSize)
+		{
+			TStringBuilder<1024> LocalPath;
+			bool bConverted = MakeLocalPath(FilenameOrDirectory, LocalPath);
+			check(bConverted);
+			const bool bDirectory = !FileChunkId.IsValid();
+			return Visitor.CallShouldVisitAndVisit(*LocalPath, bDirectory);
+		});
+	}
+	else
+	{
+		bResult |= LowerLevel->IterateDirectoryRecursively(Directory, Visitor);
+	}
+
 	return bResult;
 }
 

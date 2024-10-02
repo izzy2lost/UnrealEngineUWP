@@ -35,6 +35,7 @@ public:
 	int64 GetFileSize(const FString& Path);
 	bool GetFileData(const FString& Path, FIoChunkId& OutChunkId, int64& OutRawSize);
 	bool IterateDirectory(const FString& Path, TFunctionRef<bool(const FIoChunkId&, const TCHAR*, int64)> Callback);
+	bool IterateDirectoryRecursively(const FString& Path, TFunctionRef<bool(const FIoChunkId&, const TCHAR*, int64)> Callback);
 
 private:
 	struct FDirectory
@@ -93,6 +94,7 @@ public:
 	virtual bool DirectoryExists(const TCHAR* Directory) override;
 	virtual FFileStatData GetStatData(const TCHAR* FilenameOrDirectory) override;
 	virtual bool IterateDirectory(const TCHAR* Directory, FDirectoryVisitor& Visitor) override;
+	virtual bool IterateDirectoryRecursively(const TCHAR* Directory, FDirectoryVisitor& Visitor) override;
 	virtual bool IterateDirectoryStat(const TCHAR* Directory, FDirectoryStatVisitor& Visitor) override;
 	virtual IMappedFileHandle* OpenMapped(const TCHAR* Filename) override;
 	virtual FString GetFilenameOnDisk(const TCHAR* Filename) override;

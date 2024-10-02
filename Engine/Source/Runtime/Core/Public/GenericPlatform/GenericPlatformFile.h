@@ -921,6 +921,12 @@ public:
 	}
 };
 
+class IWrappedFileHandle : public IFileHandle
+{
+public:
+	virtual void SetLowerLevel(IFileHandle* LowerLevelHandle) = 0;
+};
+
 /**
 * Common base for physical platform File I/O Interface
 **/

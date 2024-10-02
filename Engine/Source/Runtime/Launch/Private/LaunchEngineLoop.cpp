@@ -1121,6 +1121,7 @@ bool LaunchCheckForFileOverride(const TCHAR* CmdLine, bool& OutFileOverrideFound
 		{
 			CurrentPlatformFile = NetworkPlatformFile;
 			FPlatformFileManager::Get().SetPlatformFile(*CurrentPlatformFile);
+			FPlatformFileManager::Get().SetPlatformPhysical(*CurrentPlatformFile);
 		}
 	}
 
@@ -1174,8 +1175,7 @@ bool LaunchCheckForFileOverride(const TCHAR* CmdLine, bool& OutFileOverrideFound
 		}
 	}
 #endif
-
-	if (!NetworkPlatformFile)
+	if (UE::IsUsingZenPakFileStreaming() || !NetworkPlatformFile)
 	{
 		IPlatformFile* PlatformFile = ConditionallyCreateFileWrapper(TEXT("PakFile"), CurrentPlatformFile, CmdLine);
 		if (PlatformFile)
@@ -1183,8 +1183,11 @@ bool LaunchCheckForFileOverride(const TCHAR* CmdLine, bool& OutFileOverrideFound
 			CurrentPlatformFile = PlatformFile;
 			FPlatformFileManager::Get().SetPlatformFile(*CurrentPlatformFile);
 		}
+	}
 
-		PlatformFile = ConditionallyCreateFileWrapper(TEXT("CachedReadFile"), CurrentPlatformFile, CmdLine);
+	if (!NetworkPlatformFile)
+	{
+		IPlatformFile* PlatformFile = ConditionallyCreateFileWrapper(TEXT("CachedReadFile"), CurrentPlatformFile, CmdLine);
 		if (PlatformFile)
 		{
 			CurrentPlatformFile = PlatformFile;

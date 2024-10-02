@@ -832,3 +832,7 @@ extern CORE_API UE::Core::FVisualizerDebuggingState* GCoreDebuggingState;
 
 /** @return True if running cook-on-the-fly. */
 bool CORE_API IsRunningCookOnTheFly();
+
+namespace UE {
+	bool CORE_API IsUsingZenPakFileStreaming();
+}
