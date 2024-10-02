@@ -154,8 +154,9 @@ public:
 	void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials) const override
 	{
 		const UStaticMesh* StaticMesh = WeakStaticMesh.Get();
-		if (!ensure(StaticMesh))
+		if (StaticMesh == nullptr)
 		{
+			UE_LOG(LogNiagara, Log, TEXT("FNiagaraRenderableStaticMesh - StaticMesh is no longer valid"));
 			return;
 		}
 
