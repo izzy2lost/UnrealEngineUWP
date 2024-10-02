@@ -354,7 +354,7 @@ FMovieSceneInstancePreAnimatedState* FMovieScenePreAnimatedState::GetState() con
 	using namespace UE::MovieScene;
 
 	UMovieSceneEntitySystemLinker* Linker = WeakLinker.Get();
-	if (Linker && InstanceHandle.IsValid())
+	if (Linker && InstanceHandle.IsValid() && Linker->GetInstanceRegistry()->IsHandleValid(InstanceHandle))
 	{
 		const FSequenceInstance& Instance = Linker->GetInstanceRegistry()->GetInstance(InstanceHandle);
 		return &Instance.GetSharedPlaybackState()->GetPreAnimatedState();
