@@ -561,8 +561,6 @@ void FGenericDataDrivenShaderPlatformInfo::UpdatePreviewPlatforms()
 				PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsPrimitiveShaders);
 				PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsUInt64ImageAtomics);
 				PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsGen5TemporalAA);
-				PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsInlineRayTracing);
-				PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsRayTracingShaders);
 				PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsMeshShadersTier0);
 				PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsMeshShadersTier1);
 				PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsMobileMultiView);
@@ -576,6 +574,9 @@ void FGenericDataDrivenShaderPlatformInfo::UpdatePreviewPlatforms()
 				PREVIEW_USE_RUNTIME_VALUE(bSupportsManualVertexFetch);
 				PREVIEW_USE_RUNTIME_VALUE(bSupportsRealTypes);
 				PREVIEW_USE_RUNTIME_VALUE(bSupportsUniformBufferObjects);
+
+				PREVIEW_USE_RUNTIME_VALUE(bSupportsInlineRayTracing);
+				PREVIEW_USE_RUNTIME_VALUE(bSupportsRayTracingShaders);
 
 				// Settings that will never be supported in preview
 				PREVIEW_FORCE_DISABLE(bSupportsShaderRootConstants);
