@@ -637,11 +637,36 @@ void UGameFeaturesSubsystem::ForEachGameFeature(TFunctionRef<void(FGameFeatureIn
 
 void UGameFeaturesSubsystem::AddObserver(UObject* Observer)
 {
-	//@TODO: GameFeaturePluginEnginePush: May want to warn if one is added after any game feature plugins are already initialized, or go to a CallOrRegister sort of pattern
 	check(Observer);
-	if (ensureAlwaysMsgf(Cast<IGameFeatureStateChangeObserver>(Observer) != nullptr, TEXT("Observers must implement the IGameFeatureStateChangeObserver interface.")))
+	IGameFeatureStateChangeObserver* Interface = Cast<IGameFeatureStateChangeObserver>(Observer);
+	if (ensureAlwaysMsgf(Interface != nullptr, TEXT("Observers must implement the IGameFeatureStateChangeObserver interface.")))
 	{
 		Observers.AddUnique(Observer);
+
+		// Push the current state of all known game features to the new observer
+		for (auto StateMachineIt = GameFeaturePluginStateMachines.CreateConstIterator(); StateMachineIt; ++StateMachineIt)
+		{
+			if (UGameFeaturePluginStateMachine* GFSM = StateMachineIt.Value())
+			{
+				if (const UGameFeatureData* GameFeatureData = GFSM->GetGameFeatureDataForRegisteredPlugin(false))
+				{
+					FString PluginName = GFSM->GetPluginName();
+					FString PluginURL = GFSM->GetPluginURL();
+
+					Interface->OnGameFeatureRegistering(GameFeatureData, *PluginName, PluginURL);
+
+					if (GFSM->GetCurrentState() >= EGameFeaturePluginState::Loaded)
+					{
+						Interface->OnGameFeatureLoading(GameFeatureData, PluginURL);
+					}
+
+					if (GFSM->GetCurrentState() >= EGameFeaturePluginState::Active)
+					{
+						Interface->OnGameFeatureActivating(GameFeatureData, PluginURL);
+					}
+				}
+			}
+		}
 	}
 }
 
