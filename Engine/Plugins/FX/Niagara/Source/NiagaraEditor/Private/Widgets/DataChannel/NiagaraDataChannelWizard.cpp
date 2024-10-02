@@ -838,7 +838,7 @@ TSharedRef<FModuleWizardModel> DataChannel::CreateSpawnNDCModuleWizardModel()
 
 		virtual FText GetHeaderLabel() override
 		{
-			return LOCTEXT("VariablesPageLabel", "Please select which variables should be read into particle attributes when spawning.");
+			return LOCTEXT("VariablesPageSpawnLabel", "Please select which variables should be read into particle attributes when spawning.");
 		}
 		
 		virtual FText GetFormattedModuleName(const FText& AssetName) const override
