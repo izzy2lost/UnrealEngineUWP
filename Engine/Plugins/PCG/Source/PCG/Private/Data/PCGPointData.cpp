@@ -298,52 +298,18 @@ void UPCGPointData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
 	// Crc point data.
 	{
 		// Create copy so we can zero-out the metadata keys which are non-deterministic.
-		TArray<FPCGPoint> PointsCopy = Points;
-		for (FPCGPoint& Point : PointsCopy)
+		for (const FPCGPoint& OriginalPoint : Points)
 		{
+			FPCGPoint Point = OriginalPoint;
 			Point.MetadataEntry = 0;
-		}
-
-		Ar.Serialize(PointsCopy.GetData(), PointsCopy.Num() * PointsCopy.GetTypeSize());
+			Ar << Point;
+		} 
 	}
 
 	// Crc metadata.
 	if (const UPCGMetadata* PCGMetadata = ConstMetadata())
 	{
-		FPCGAttributeAccessorKeysPoints AccessorKeys(Points);
-
-		TArray<FName> AttributeNames;
-		{
-			TArray<EPCGMetadataTypes> AttributeTypes;
-			PCGMetadata->GetAttributes(AttributeNames, AttributeTypes);
-		}
-
-		// Attribute names might come in different orders for e.g. if edge order changes.
-		Algo::Sort(AttributeNames, [this](const FName& A, const FName& B) { return A.LexicalLess(B); });
-
-		for (FName AttributeName : AttributeNames)
-		{
-			Ar << AttributeName;
-
-			if (const FPCGMetadataAttributeBase* Attribute = PCGMetadata->GetConstAttribute(AttributeName))
-			{
-				for (const FPCGPoint& Point : Points)
-				{
-					auto Callback = [Attribute, PCGMetadata, &Ar, &Point](auto ValueWithType)
-					{
-						using AttributeType = decltype(ValueWithType);
-
-						if (const FPCGMetadataAttribute<AttributeType>* TypedAttribute = static_cast<const FPCGMetadataAttribute<AttributeType>*>(Attribute))
-						{
-							ValueWithType = TypedAttribute->GetValueFromItemKey(Point.MetadataEntry);
-							PCG::Private::Serialize(Ar, ValueWithType);
-						}
-					};
-
-					PCGMetadataAttribute::CallbackWithRightType(Attribute->GetTypeId(), Callback);
-				}
-			}
-		}
+		PCGMetadata->AddToCrc(Ar, bFullDataCrc);
 	}
 }
 

@@ -21,48 +21,14 @@ UPCGParamData::UPCGParamData(const FObjectInitializer& ObjectInitializer)
 
 void UPCGParamData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
 {
+	Super::AddToCrc(Ar, bFullDataCrc);
+
 	uint32 UniqueTypeID = StaticClass()->GetDefaultObject()->GetUniqueID();
 	Ar << UniqueTypeID;
 
-	if (!Metadata)
+	if (Metadata)
 	{
-		// Nothing to contribute
-		return;
-	}
-
-	// Get attribute names. Preserve order as attribute order matters.
-	TArray<FName> AttributeNames;
-	{
-		TArray<EPCGMetadataTypes> AttributeTypes;
-		Metadata->GetAttributes(AttributeNames, AttributeTypes);
-	}
-
-	// Add attributes to CRC
-	for (FName AttributeName : AttributeNames)
-	{
-		Ar << AttributeName;
-
-		FPCGAttributePropertyInputSelector InputSource;
-		InputSource.SetAttributeName(AttributeName);
-
-		TUniquePtr<const IPCGAttributeAccessor> InputAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(this, InputSource);
-		TUniquePtr<const IPCGAttributeAccessorKeys> InputKeys = PCGAttributeAccessorHelpers::CreateConstKeys(this, InputSource);
-
-		auto Callback = [&InputAccessor, &InputKeys, &Ar](auto && Dummy)
-		{
-			using AttributeType = std::decay_t<decltype(Dummy)>;
-			TArray<AttributeType> Values;
-			Values.SetNum(InputKeys->GetNum());
-			InputAccessor->GetRange<AttributeType>(Values, 0, *InputKeys);
-
-			for (AttributeType Value : Values)
-			{
-				// Add value to Crc
-				PCG::Private::Serialize(Ar, Value);
-			}
-		};
-
-		PCGMetadataAttribute::CallbackWithRightType(InputAccessor->GetUnderlyingType(), Callback);
+		Metadata->AddToCrc(Ar, bFullDataCrc);
 	}
 }
 

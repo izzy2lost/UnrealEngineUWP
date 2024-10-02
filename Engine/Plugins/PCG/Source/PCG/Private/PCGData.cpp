@@ -20,7 +20,7 @@
 static TAutoConsoleVariable<bool> CVarCachePropagateCrcThroughBooleanData(
 	TEXT("pcg.Cache.PropagateCrcThroughBooleanData"),
 	false,
-	TEXT("Whether intersection, union, difference combine Crc values from operands. If false they fall back to using data UID."));
+	TEXT("Whether intersection, union, difference, projection combine Crc values from operands. If false they fall back to using data UID."));
 
 UPCGData::UPCGData(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
