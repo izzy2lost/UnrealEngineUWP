@@ -742,13 +742,3 @@ using FStopRenderingThreadDelegate = FStopRenderingThread::FDelegate;
 extern RENDERCORE_API FDelegateHandle RegisterStopRenderingThreadDelegate(const FStopRenderingThreadDelegate& InDelegate);
 
 extern RENDERCORE_API void UnregisterStopRenderingThreadDelegate(FDelegateHandle InDelegateHandle);
-
-namespace FFrameEndSync
-{
-	/**
-	 * Syncs the game thread based on progress throughout the rendering pipeline
-	 * @param bFullSync - when true, blocks the caller until all rendering work is completed,
-	 * otherwise only blocks until the N - m frame has completed, where m is driven by various config.
-	 */
-	RENDERCORE_API void Sync(bool bFullSync = false);
-};

@@ -449,6 +449,12 @@ FSystemResolution GSystemResolution;
 
 ENGINE_API int32 GUnbuiltHLODCount = 0;
 
+TAutoConsoleVariable<int32> CVarAllowOneFrameThreadLag(
+	TEXT("r.OneFrameThreadLag"),
+	1,
+	TEXT("Whether to allow the rendering thread to lag one frame behind the game thread (0: disabled, otherwise enabled)")
+);
+
 static FAutoConsoleVariable CVarSystemResolution(
 	TEXT("r.SetRes"),
 	TEXT("1280x720w"),
@@ -732,7 +738,6 @@ void CalculateFPSTimings()
 
 	static auto CVarGTSyncType = IConsoleManager::Get().FindConsoleVariable(TEXT("r.GTSyncType"));
 	static auto CVarVsync = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VSync"));
-
 	if (CVarGTSyncType->GetInt() == 2 && CVarVsync->GetInt() != 0)
 	{
 		float RHIFrameTime = RHIGetFrameTime();
@@ -13257,6 +13262,7 @@ DEFINE_STAT(STAT_RedrawViewports);
 DEFINE_STAT(STAT_UpdateLevelStreaming);
 DEFINE_STAT(STAT_RHITickTime);
 DEFINE_STAT(STAT_IntentionalHitch);
+DEFINE_STAT(STAT_FrameSyncTime);
 DEFINE_STAT(STAT_DeferredTickTime);
 
 /** Input stat */
@@ -13288,6 +13294,72 @@ DEFINE_STAT(STAT_UnitGPU);
 UFont* GetStatsFont()
 {
 	return GEngine->GetSmallFont();
+}
+
+
+FFrameEndSync::FFrameEndSync()
+{
+	// FFrameEndSync instances are often used as static local vars. we need to cleanup them on engine exit to avoid static destruciton order problem
+	CleanupDelegate = FCoreDelegates::OnEnginePreExit.AddRaw(this, &FFrameEndSync::Cleanup);
+}
+
+FFrameEndSync::~FFrameEndSync()
+{
+	// if it's destroyed before the engine exit, remove the delegate so it doesn't use the instance after destruction
+	if (CleanupDelegate.IsValid())
+	{
+		FCoreDelegates::OnEnginePreExit.Remove(CleanupDelegate);
+	}
+}
+
+void FFrameEndSync::Cleanup()
+{
+	// forcing static deallocation order:
+	// fences can hold task completion handles that need to be freed before their allocator is destroyed. wating for fences does the job
+	Fence[0].Wait();
+	Fence[1].Wait();
+
+	FCoreDelegates::OnEnginePreExit.Remove(CleanupDelegate);
+	// notify the destructor
+	CleanupDelegate = {};
+}
+
+void FFrameEndSync::Sync( bool bAllowOneFrameThreadLag )
+{
+	check(IsInGameThread());			
+
+#if !UE_BUILD_SHIPPING && PLATFORM_SUPPORTS_FLIP_TRACKING
+	// Set the FrameDebugInfo on platforms that have accurate frame tracking.
+	ENQUEUE_RENDER_COMMAND(FrameDebugInfo)(
+		[CurrentFrameCounter = GFrameCounter, CurrentInputTime = GInputTime](FRHICommandListImmediate& RHICmdList)
+	{
+		RHICmdList.EnqueueLambda(
+			[CurrentFrameCounter, CurrentInputTime](FRHICommandListImmediate&)
+		{
+			// Set the FrameCount and InputTime for input latency stats and flip debugging.
+			RHISetFrameDebugInfo(GRHIPresentCounter - 1, CurrentFrameCounter, CurrentInputTime);
+		});
+	});
+#endif
+
+	// Since this is the frame end sync, allow sync with the RHI and GPU (true).
+	Fence[EventIndex].BeginFence(true);
+
+	bool bEmptyGameThreadTasks = !FTaskGraphInterface::Get().IsThreadProcessingTasks(ENamedThreads::GameThread);
+
+	if (bEmptyGameThreadTasks)
+	{
+		// need to process gamethread tasks at least once a frame no matter what
+		FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread);
+	}
+
+	// Use two events if we allow a one frame lag.
+	if( bAllowOneFrameThreadLag )
+	{
+		EventIndex = (EventIndex + 1) % 2;
+	}
+
+	Fence[EventIndex].Wait(bEmptyGameThreadTasks);  // here we also opportunistically execute game thread tasks while we wait
 }
 
 FString appGetStartupMap(const TCHAR* CommandLine)
