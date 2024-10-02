@@ -144,3 +144,15 @@ protected:
 	void OnRep_ReferencedObjects();
 
 };
+
+
+UCLASS()
+class UTestPropertyReplicationState_NoRegisterFragments : public UReplicatedTestObject
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(Transient, Replicated)
+	int IntA = 0;
+};

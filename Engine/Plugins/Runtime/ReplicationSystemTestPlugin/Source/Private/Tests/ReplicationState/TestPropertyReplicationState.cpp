@@ -62,6 +62,11 @@ void UTestPropertyReplicationState_TestClassWithTArray::OnRep_ReferencedObjects(
 	bOnRepWasCalled = true;
 }
 
+void UTestPropertyReplicationState_NoRegisterFragments::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty> & OutLifetimeProps) const
+{
+	DOREPLIFETIME(ThisClass, IntA);
+}
+
 namespace UE::Net::Private
 {
 
@@ -621,6 +626,35 @@ UE_NET_TEST_FIXTURE(FTestPropertyReplicationStateContext, TestArrayOnRepWithUnre
 			UE_NET_ASSERT_FALSE(ClientObject->bOnRepWasCalled);
 		}
 	}
+}
+
+// Test that automatic fragment registration works for any class that doesn't implement RegisterReplicationFragments
+UE_NET_TEST_FIXTURE(FTestPropertyReplicationStateContext, TestClassDefaultRegisterFragments)
+{
+	using namespace UE::Net;
+
+	// Add a client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// Spawn object
+	UTestPropertyReplicationState_NoRegisterFragments* ServerObject = Server->CreateObject<UTestPropertyReplicationState_NoRegisterFragments>();
+
+	// Create replica on client
+	Server->UpdateAndSend({ Client });
+
+	// Find the replica
+	const FNetRefHandle ServerHandle = Server->GetReplicationBridge()->GetReplicatedRefHandle(ServerObject);
+	UTestPropertyReplicationState_NoRegisterFragments* ClientObject = Cast<UTestPropertyReplicationState_NoRegisterFragments>(Client->GetReplicationBridge()->GetReplicatedObject(ServerHandle));
+	UE_NET_ASSERT_NE(ClientObject, nullptr);
+
+	// Dirty a replicated property
+	ServerObject->IntA = 0xAA;
+
+	// Update it for the client
+	Server->UpdateAndSend({ Client });
+
+	// Make sure it was received
+	UE_NET_ASSERT_EQ(ClientObject->IntA, 0xAA);
 }
 
 }
