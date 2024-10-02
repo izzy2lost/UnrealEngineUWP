@@ -48,12 +48,12 @@ struct FNiagaraDataChannelPublishRequest
 #endif
 
 	FNiagaraDataChannelPublishRequest() = default;
-	explicit FNiagaraDataChannelPublishRequest(FNiagaraDataBuffer* InData)
+	explicit FNiagaraDataChannelPublishRequest(FNiagaraDataBufferRef InData)
 		: Data(InData)
 	{
 	}
 
-	explicit FNiagaraDataChannelPublishRequest(FNiagaraDataBuffer* InData, bool bInVisibleToGame, bool bInVisibleToCPUSims, bool bInVisibleToGPUSims, FVector3f InLwcTile)
+	explicit FNiagaraDataChannelPublishRequest(FNiagaraDataBufferRef InData, bool bInVisibleToGame, bool bInVisibleToCPUSims, bool bInVisibleToGPUSims, FVector3f InLwcTile)
 	: Data(InData), bVisibleToGame(bInVisibleToGame), bVisibleToCPUSims(bInVisibleToCPUSims), bVisibleToGPUSims(bInVisibleToGPUSims), LwcTile(InLwcTile)
 	{
 	}
@@ -66,12 +66,13 @@ Some data channels will have many of these and can distribute them as needed to 
 For example, some data channel handlers may subdivide the scene such that distant systems are not interacting.
 In this case, each subdivision would have it's own FNiagaraDataChannelData and distribute these to the relevant NiagaraSystems.
 */
-struct FNiagaraDataChannelData final
+struct FNiagaraDataChannelData final : public TSharedFromThis<FNiagaraDataChannelData, ESPMode::ThreadSafe>
 {
 	UE_NONCOPYABLE(FNiagaraDataChannelData)
-	NIAGARA_API explicit FNiagaraDataChannelData(UNiagaraDataChannelHandler* Owner);
+	NIAGARA_API explicit FNiagaraDataChannelData();
 	NIAGARA_API ~FNiagaraDataChannelData();
 
+	NIAGARA_API void Init(UNiagaraDataChannelHandler* Owner);
 	NIAGARA_API void Reset();
 
 	NIAGARA_API void BeginFrame(UNiagaraDataChannelHandler* Owner);
@@ -84,6 +85,8 @@ struct FNiagaraDataChannelData final
 	
 	/** Adds a request to publish some data into the channel on the next tick. */
 	NIAGARA_API void Publish(const FNiagaraDataChannelPublishRequest& Request);
+
+	NIAGARA_API void PublishFromGPU(const FNiagaraDataChannelPublishRequest& Request);
 		
 	/**
 	 *Removes all publish requests involving the given dataset.
@@ -97,6 +100,9 @@ struct FNiagaraDataChannelData final
 
 	void SetLwcTile(FVector3f InLwcTile){ LwcTile = InLwcTile; }
 	FVector3f GetLwcTile()const { return LwcTile; }
+
+	//This will get a buffer from the CPU dataset intended to be written to on the CPU.
+	FNiagaraDataBuffer* GetBufferForCPUWrite();
 private:
 
 	/** DataChannel data accessible from Game/BP. AoS Layout. LWC types. */
@@ -136,6 +142,9 @@ private:
 
 	/** Pending requests to publish data into this data channel. These requests are consumed at tick tick group. */
 	TArray<FNiagaraDataChannelPublishRequest> PublishRequests;
+
+	/** Pending requests to publish data into this data channel from the GPU. To alleviate data race behavior with data coming back from the GPU, we always consume GPU requests at the start of the frame only. */
+	TArray<FNiagaraDataChannelPublishRequest> PublishRequestsFromGPU;
 
 	FVector3f LwcTile = FVector3f::ZeroVector;
 

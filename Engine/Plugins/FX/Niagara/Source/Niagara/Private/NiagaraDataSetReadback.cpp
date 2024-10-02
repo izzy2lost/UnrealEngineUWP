@@ -193,3 +193,145 @@ void FNiagaraDataSetReadback::GPUReadbackInternal(FRHICommandListImmediate& RHIC
 	}
 	RHICmdList.Transition(Transitions);
 }
+
+//////////////////////////////////////////////////////////////////////////
+
+void FNiagaraDataBufferReadback::EnqueueReadback(FRHICommandList& RHICmdList, FNiagaraDataBufferRef InDataBuffer, FNiagaraGpuReadbackManager* ReadbackManager, FNiagaraGPUInstanceCountManager& InstanceCountManager)
+{
+	check(InDataBuffer);
+	check(IsInRenderingThread());
+
+	FNiagaraDataBuffer* DestBuffer = &InDataBuffer->GetOwner()->AllocateBuffer();
+	bool bHasGPUData = InDataBuffer->GetGPUBufferFloat().NumBytes > 0 || InDataBuffer->GetGPUBufferInt().NumBytes > 0 || InDataBuffer->GetGPUBufferHalf().NumBytes > 0;
+	++PendingReadbacks;
+	if (bHasGPUData)
+	{
+		GPUReadbackInternal(RHICmdList, ReadbackManager, InstanceCountManager, InDataBuffer, DestBuffer);
+	}
+	else
+	{
+		InDataBuffer->CopyTo(*DestBuffer, 0, 0, InDataBuffer->GetNumInstances());
+		ReadbackCompleteInternal(DestBuffer);
+	}
+}
+
+void FNiagaraDataBufferReadback::ReadbackCompleteInternal(FNiagaraDataBuffer* CompleteDataBuffer)
+{	
+	if (OnReadbackComplete.IsBound() && CompleteDataBuffer)
+	{
+		AsyncTask(
+			ENamedThreads::GameThread,
+			[Readback = AsShared(),
+			 CompleteBuffer_GT = CompleteDataBuffer->UnlockForRead()]()
+			{
+				Readback->PendingReadbacks--;
+				Readback->OnReadbackComplete.Execute(CompleteBuffer_GT);
+			}
+		);
+	}
+	else
+	{
+		PendingReadbacks--;
+	}
+}
+
+void FNiagaraDataBufferReadback::GPUReadbackInternal(FRHICommandList& RHICmdList, FNiagaraGpuReadbackManager* ReadbackManager, FNiagaraGPUInstanceCountManager& InstanceCountManager, FNiagaraDataBufferRef SrcDataBuffer, FNiagaraDataBuffer* DestDataBuffer)
+{
+	if (SrcDataBuffer == nullptr || DestDataBuffer == nullptr || ReadbackManager == nullptr)
+	{
+		ReadbackCompleteInternal(nullptr);
+		return;
+	}
+
+	const uint32 CountOffset = SrcDataBuffer->GetGPUInstanceCountBufferOffset();
+	if (CountOffset == INDEX_NONE)
+	{
+		ReadbackCompleteInternal(nullptr);
+		return;
+	}
+
+	FRWBuffer& FloatBuffer = SrcDataBuffer->GetGPUBufferFloat();
+	FRWBuffer& HalfBuffer = SrcDataBuffer->GetGPUBufferHalf();
+	FRWBuffer& IntBuffer = SrcDataBuffer->GetGPUBufferInt();
+	FRWBuffer& IDtoIndexBuffer = SrcDataBuffer->GetGPUIDToIndexTable();
+
+	constexpr int32 NumReadbackBuffers = 5;
+	TArray<FNiagaraGpuReadbackManager::FBufferRequest, TInlineAllocator<NumReadbackBuffers>> ReadbackBuffers;
+	const int32 CountBufferIndex = ReadbackBuffers.Emplace(InstanceCountManager.GetInstanceCountBuffer().Buffer, sizeof(uint32) * CountOffset, sizeof(uint32));
+	const int32 FloatBufferIndex = FloatBuffer.NumBytes == 0 ? INDEX_NONE : ReadbackBuffers.Emplace(FloatBuffer.Buffer, 0, FloatBuffer.NumBytes);
+	const int32 HalfBufferIndex = HalfBuffer.NumBytes == 0 ? INDEX_NONE : ReadbackBuffers.Emplace(HalfBuffer.Buffer, 0, HalfBuffer.NumBytes);
+	const int32 IntBufferIndex = IntBuffer.NumBytes == 0 ? INDEX_NONE : ReadbackBuffers.Emplace(IntBuffer.Buffer, 0, IntBuffer.NumBytes);
+	const int32 IDtoIndexBufferIndex = IDtoIndexBuffer.NumBytes == 0 ? INDEX_NONE : ReadbackBuffers.Emplace(IDtoIndexBuffer.Buffer, 0, IDtoIndexBuffer.NumBytes);
+
+	const int32 FloatBufferStride = SrcDataBuffer->GetFloatStride();
+	const int32 HalfBufferStride = SrcDataBuffer->GetHalfStride();
+	const int32 IntBufferStride = SrcDataBuffer->GetInt32Stride();
+
+	int32 SourceNumInstancesAllocated = (int32)SrcDataBuffer->GetNumInstancesAllocated();
+
+	check(SrcDataBuffer->GetOwner() == DestDataBuffer->GetOwner());
+
+	// Transition buffers to copy
+	TArray<FRHITransitionInfo, TInlineAllocator<NumReadbackBuffers>> Transitions;
+	Transitions.Emplace(ReadbackBuffers[0].Buffer, FNiagaraGPUInstanceCountManager::kCountBufferDefaultState, ERHIAccess::CopySrc);
+	for (int32 i = 1; i < ReadbackBuffers.Num(); ++i)
+	{
+		Transitions.Emplace(
+			ReadbackBuffers[i].Buffer,
+			(i == IDtoIndexBufferIndex) ? ERHIAccess::SRVCompute : ERHIAccess::SRVMask,
+			ERHIAccess::CopySrc
+		);
+	}
+	RHICmdList.Transition(Transitions);
+
+	// Enqueue readback
+	ReadbackManager->EnqueueReadbacks(
+		RHICmdList,
+		MakeArrayView(ReadbackBuffers),
+		[=, Readback = AsShared()](TConstArrayView<TPair<void*, uint32>> BufferData)
+		{
+			int32 InstanceCount = reinterpret_cast<int32*>(BufferData[CountBufferIndex].Key)[0];
+
+			ensure(SourceNumInstancesAllocated >= InstanceCount);
+			InstanceCount = FMath::Min(InstanceCount, SourceNumInstancesAllocated);
+
+			// Copy dataset databuffer
+			const float* FloatDataBuffer = FloatBufferIndex == INDEX_NONE ? nullptr : reinterpret_cast<float*>(BufferData[FloatBufferIndex].Key);
+			const FFloat16* HalfDataBuffer = HalfBufferIndex == INDEX_NONE ? nullptr : reinterpret_cast<FFloat16*>(BufferData[HalfBufferIndex].Key);
+			const int32* IntDataBuffer = IntBufferIndex == INDEX_NONE ? nullptr : reinterpret_cast<int32*>(BufferData[IntBufferIndex].Key);
+			DestDataBuffer->GPUCopyFrom(FloatDataBuffer, IntDataBuffer, HalfDataBuffer, 0, InstanceCount, FloatBufferStride, IntBufferStride, HalfBufferStride);
+
+			check(DestDataBuffer->GetNumInstances() <= DestDataBuffer->GetNumInstancesAllocated());
+
+//			DestDataBuffer->Dump(0, DestDataBuffer->GetNumInstances(), TEXT("GPU Readback dump"));
+
+			// Copy ID to Index table
+			if (SrcDataBuffer)
+			{
+				TArray<int32>& IDTable = SrcDataBuffer->GetIDTable();
+
+				const int32* IDtoIndexBuffer = IDtoIndexBufferIndex == INDEX_NONE ? nullptr : reinterpret_cast<int32*>(BufferData[IDtoIndexBufferIndex].Key);
+				if (IDtoIndexBuffer != nullptr)
+				{
+					const int32 NumIDs = BufferData[IDtoIndexBufferIndex].Value / sizeof(int32);
+					check(NumIDs >= InstanceCount);
+					IDTable.SetNumUninitialized(NumIDs);
+					FMemory::Memcpy(IDTable.GetData(), IDtoIndexBuffer, NumIDs * sizeof(int32));
+				}
+				else
+				{
+					IDTable.Empty();
+				}
+			}
+
+			Readback->ReadbackCompleteInternal(DestDataBuffer);
+		}
+	);
+
+	// Transition buffers from copy
+	for (FRHITransitionInfo& Transition : Transitions)
+	{
+		Swap(Transition.AccessBefore, Transition.AccessAfter);
+	}
+	RHICmdList.Transition(Transitions);
+}

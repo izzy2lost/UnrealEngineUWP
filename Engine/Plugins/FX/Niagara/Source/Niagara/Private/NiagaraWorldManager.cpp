@@ -27,6 +27,7 @@
 #include "Engine/LocalPlayer.h"
 #include "SceneView.h"
 #include "UObject/UObjectIterator.h"
+#include "Logging/StructuredLog.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraWorldManager)
 
@@ -250,6 +251,7 @@ FAutoConsoleCommandWithWorldAndArgs GCmdNiagaraScalabilityCullingMode(
 );
 
 FDelegateHandle FNiagaraWorldManager::OnWorldInitHandle;
+FDelegateHandle FNiagaraWorldManager::OnPostWorldInitHandle;
 FDelegateHandle FNiagaraWorldManager::OnWorldCleanupHandle;
 FDelegateHandle FNiagaraWorldManager::OnPostWorldCleanupHandle;
 FDelegateHandle FNiagaraWorldManager::OnPreWorldFinishDestroyHandle;
@@ -399,8 +401,6 @@ void FNiagaraWorldManager::Init(UWorld* InWorld)
 	//Possibly a later hook we can use.
 	//PrimePoolForAllSystems();
 
-	DataChannelManager->Init();
-
 #if WITH_NIAGARA_DEBUGGER
 	NiagaraDebugHud.Reset(new FNiagaraDebugHud(World));
 #endif
@@ -413,6 +413,11 @@ void FNiagaraWorldManager::Init(UWorld* InWorld)
 
 	// Make sure we update our component settings, this includes ban lists, etc
 	FNiagaraComponentSettings::UpdateSettings();
+}
+
+void FNiagaraWorldManager::OnPostWorldInit()
+{
+	DataChannelManager->Init();
 }
 
 FNiagaraWorldManager::~FNiagaraWorldManager()
@@ -436,6 +441,7 @@ FNiagaraWorldManager* FNiagaraWorldManager::Get(const UWorld* World)
 void FNiagaraWorldManager::OnStartup()
 {
 	OnWorldInitHandle = FWorldDelegates::OnPreWorldInitialization.AddStatic(&FNiagaraWorldManager::OnWorldInit);
+	OnPostWorldInitHandle = FWorldDelegates::OnPostWorldInitialization.AddStatic(&FNiagaraWorldManager::OnPostWorldInit);
 	OnWorldCleanupHandle = FWorldDelegates::OnWorldCleanup.AddStatic(&FNiagaraWorldManager::OnWorldCleanup);
 	OnPostWorldCleanupHandle = FWorldDelegates::OnPostWorldCleanup.AddStatic(&FNiagaraWorldManager::OnPostWorldCleanup);
 	OnPreWorldFinishDestroyHandle = FWorldDelegates::OnPreWorldFinishDestroy.AddStatic(&FNiagaraWorldManager::OnPreWorldFinishDestroy);
@@ -472,6 +478,7 @@ void FNiagaraWorldManager::OnStartup()
 void FNiagaraWorldManager::OnShutdown()
 {
 	FWorldDelegates::OnPreWorldInitialization.Remove(OnWorldInitHandle);
+	FWorldDelegates::OnPostWorldInitialization.Remove(OnPostWorldInitHandle);
 	FWorldDelegates::OnWorldCleanup.Remove(OnWorldCleanupHandle);
 	FWorldDelegates::OnPostWorldCleanup.Remove(OnPostWorldCleanupHandle);
 	FWorldDelegates::OnPreWorldFinishDestroy.Remove(OnPreWorldFinishDestroyHandle);
@@ -647,7 +654,7 @@ FNiagaraSystemSimulationRef FNiagaraWorldManager::GetSystemSimulation(ETickingGr
 	//The async work for this system can then properly be chained to the tick task so that everything completes on time.
 	//Most systems most of the time will no need this and we'll clear this requirement as soon as all systems no longer need it.
 	//TODO: This should go away when we move over to the new task graph system and rejig our dependency tracking.
-	if(System->AsyncWorkCanOverlapTickGroups())
+	if(!System->AsyncWorkCanOverlapTickGroups())
 	{
 		TickFunctions[ActualTickGroup].EndTickGroup = (ETickingGroup)ActualTickGroup;
 	}
@@ -896,6 +903,19 @@ void FNiagaraWorldManager::OnWorldInit(UWorld* World, const UWorld::Initializati
 		NewManager = new FNiagaraWorldManager();
 	}
 	NewManager->Init(World);
+}
+
+void FNiagaraWorldManager::OnPostWorldInit(UWorld* World, const UWorld::InitializationValues IVS)
+{
+	FNiagaraWorldManager** Manager = WorldManagers.Find(World);
+	if (Manager)
+	{
+		FNiagaraWorldManager* WorldMan = *Manager;
+		if (ensure(WorldMan))
+		{
+			WorldMan->OnPostWorldInit();
+		}
+	}
 }
 
 void FNiagaraWorldManager::OnWorldCleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources)
@@ -1460,6 +1480,10 @@ void FNiagaraWorldManager::Tick(ETickingGroup TickGroup, float DeltaSeconds, ELe
 	{
 		//Set here but this wont take effect until next tick.
 		TickFunctions[ActualTickGroup].EndTickGroup = TG_LastDemotable;
+	}
+	else
+	{
+		TickFunctions[ActualTickGroup].EndTickGroup = (ETickingGroup)ActualTickGroup;
 	}
 
 	ActiveNiagaraTickGroup = -1;

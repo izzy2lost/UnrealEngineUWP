@@ -92,6 +92,8 @@ public:
 
 	void Init(UWorld* InWorld);
 
+	void OnPostWorldInit();
+
 	static NIAGARA_API FNiagaraWorldManager* Get(const UWorld* World);
 	static void OnStartup();
 	static void OnShutdown();
@@ -297,6 +299,9 @@ public:
 private:
 	// Callback function registered with global world delegates to instantiate world manager when a game world is created
 	static void OnWorldInit(UWorld* World, const UWorld::InitializationValues IVS);
+	
+	// Callback function registered with global world delegates to instantiate world manager after a game world is initialized
+	static void OnPostWorldInit(UWorld* World, const UWorld::InitializationValues IVS);
 
 	// Callback function registered with global world delegates to cleanup world manager contents
 	static void OnWorldCleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources);
@@ -350,6 +355,7 @@ private:
 	void HandleCSVStats(float DeltaSeconds);
 
 	static FDelegateHandle OnWorldInitHandle;
+	static FDelegateHandle OnPostWorldInitHandle;
 	static FDelegateHandle OnWorldCleanupHandle;
 	static FDelegateHandle OnPostWorldCleanupHandle;
 	static FDelegateHandle OnPreWorldFinishDestroyHandle;

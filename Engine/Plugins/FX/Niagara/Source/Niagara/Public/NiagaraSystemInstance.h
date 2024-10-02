@@ -188,6 +188,7 @@ public:
 	NIAGARA_API bool RequiresEarlyViewData() const;
 	NIAGARA_API bool RequiresViewUniformBuffer() const;
 	NIAGARA_API bool RequiresRayTracingScene() const;
+	NIAGARA_API bool RequiresCurrentFrameNDC() const;
 
 	/** Requests the the simulation be reset on the next tick. */
 	NIAGARA_API void Reset(EResetMode Mode);

@@ -4,13 +4,30 @@
 #include "NiagaraDataChannelAccessor.h"
 #include "NiagaraDataChannelCommon.h"
 
-UNiagaraDataChannelHandler::~UNiagaraDataChannelHandler()
+void UNiagaraDataChannelHandler::BeginDestroy()
 {
+	Super::BeginDestroy();
+	Cleanup();
 }
 
 void UNiagaraDataChannelHandler::Init(const UNiagaraDataChannel* InChannel)
 {
 	DataChannel = InChannel;
+}
+
+void UNiagaraDataChannelHandler::Cleanup()
+{
+	if(Reader)
+	{
+		Reader->Cleanup();
+		Reader = nullptr;
+	}
+	
+	if(Writer)
+	{
+		Writer->Cleanup();
+		Writer = nullptr;
+	}
 }
 
 void UNiagaraDataChannelHandler::BeginFrame(float DeltaTime, FNiagaraWorldManager* OwningWorld)
@@ -50,5 +67,7 @@ UNiagaraDataChannelReader* UNiagaraDataChannelHandler::GetDataChannelReader()
 
 FNiagaraDataChannelDataPtr UNiagaraDataChannelHandler::CreateData()
 {
-	return MakeShared<FNiagaraDataChannelData>(this);
+	FNiagaraDataChannelDataPtr Ret = MakeShared<FNiagaraDataChannelData>();
+	Ret->Init(this);
+	return Ret;
 }

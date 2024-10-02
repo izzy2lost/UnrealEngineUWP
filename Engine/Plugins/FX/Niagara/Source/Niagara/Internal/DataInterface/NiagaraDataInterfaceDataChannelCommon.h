@@ -5,6 +5,8 @@
 #include "NiagaraDataSetCompiledData.h"
 #include "NiagaraCompileHash.h"
 #include "NiagaraDataInterface.h"
+#include "RHIUtilities.h"
+#include "Containers/DynamicRHIResourceArray.h"
 #include "NiagaraDataInterfaceDataChannelCommon.generated.h"
 
 UENUM()
@@ -13,10 +15,8 @@ enum class ENiagaraDataChannelAllocationMode : uint8
 	/** Fixed number of elements available to write per frame. */
 	Static,
 
-	/** Allow N elements per instance, per frame. Per instance is context dependent meaning data written from particles scripts will allocate per particle. From emitter script will allocate per writing emitter etc. */
-	//TODO: For this we need a Pre Stage (+on CPU) from which we can allocate and a Post Stage from which we can publish the results.
-	//PerInstance,
-	//Dynamic?
+	/** Allocation count is determined by DI script calls to Allocate in Emitter Scripts. */
+	Dynamic
 };
 
 //TODO: Possible we may want to do reads and writes using data channels in a single system in future, avoiding the need to push data out to any manager class etc.
@@ -202,12 +202,43 @@ protected:
 	void GatherAccessInfo(UNiagaraSystem* System, UNiagaraDataInterface* Owner);
 };
 
+class FNDIDummyUAV : public FRenderResource
+{
+private:
+
+	EPixelFormat PixelFmt;
+	uint32 Size;
+
+public:
+	FNDIDummyUAV(EPixelFormat Fmt, uint32 InSize) :PixelFmt(Fmt), Size(InSize) {}
+
+	FRWBuffer Buffer;
+
+	virtual void InitRHI(FRHICommandListBase& RHICmdList) override
+	{
+		Buffer.Initialize(RHICmdList, TEXT("FNDIDummyUAV"), Size, 1, PixelFmt, BUF_Static);
+	}
+
+	virtual void ReleaseRHI() override
+	{
+		Buffer.Release();
+	}
+};
 
 namespace NDIDataChannelUtilities
 {
 	extern const FName GetNDCSpawnDataName;
 
+	const TGlobalResource<FNDIDummyUAV>& GetDummyUAVFloat();
+	const TGlobalResource<FNDIDummyUAV>& GetDummyUAVInt32();
+	const TGlobalResource<FNDIDummyUAV>& GetDummyUAVHalf();
+
 	void SortParameters(TArray<FNiagaraVariableBase>& Parameters);
+
+#if WITH_EDITORONLY_DATA
+	void GenerateDataChannelAccessHlsl(FNiagaraDataInterfaceHlslGenerationContext& HlslGenContext, TConstArrayView<FString> CommonTemplateShaderCode, const TMap<FName, FString>& TemplateShaderMap, FString& OutHLSL);
+#endif
+
 }
 
 
@@ -363,6 +394,62 @@ struct FNDIVariadicOutputHandler
 				{
 					FMemory::Memzero(HalfOutputs[OutIdx].GetDest(), sizeof(FFloat16) * Count);
 					HalfOutputs[OutIdx].Advance(Count);
+				}
+			}
+		}
+	}
+};
+
+
+struct FVariadicParameterGPUScriptInfo
+{
+	/**
+	Table of all parameter offsets used by each GPU script using this DI.
+	Each script has to have it's own section of this table as the offsets into this table are embedded in the hlsl.
+	At hlsl gen time we only have the context of each script individually to generate these indexes.
+	TODO: Can possible elevate this up to the LayoutManager and have a single layout buffer for all scripts
+	*/
+	TResourceArray<uint32> GPUScriptParameterOffsetTable;
+
+	/**
+	Offsets into the parameter table are embedded in the gpu script hlsl.
+	At hlsl gen time we can only know which parameters are accessed by each script individually so each script must have it's own parameter binding table.
+	We provide the offset into the above table via a shader param.
+	TODO: Can just as easily be an offset into a global buffer in the Layout manager.
+	*/
+	TMap<FNiagaraCompileHash, uint32> GPUScriptParameterTableOffsets;
+
+	bool bDirty = false;
+
+	void Init(const FNDIDataChannelCompiledData& DICompiledData, const FNiagaraDataSetCompiledData& GPUDataSetCompiledData)
+	{
+		bDirty = true;
+
+		//For every GPU script, we append it's parameter access info to the table.
+		GPUScriptParameterTableOffsets.Reset();
+		constexpr int32 ElemsPerParam = 3;
+		GPUScriptParameterOffsetTable.Reset(DICompiledData.GetTotalParams() * ElemsPerParam);
+		for (auto& GPUParameterAccessInfoPair : DICompiledData.GetGPUScriptParameterInfos())
+		{
+			const FNDIDataChannel_GPUScriptParameterAccessInfo& ParamAccessInfo = GPUParameterAccessInfoPair.Value;
+
+			//First get the offset for this script in the table.
+			GPUScriptParameterTableOffsets.FindOrAdd(GPUParameterAccessInfoPair.Key) = GPUScriptParameterOffsetTable.Num();
+
+			//Now fill the table for this script
+			for (const FNiagaraVariableBase& Param : ParamAccessInfo.SortedParameters)
+			{
+				if (const FNiagaraVariableLayoutInfo* LayoutInfo = GPUDataSetCompiledData.FindVariableLayoutInfo(Param))
+				{
+					GPUScriptParameterOffsetTable.Add(LayoutInfo->GetNumFloatComponents() > 0 ? LayoutInfo->GetFloatComponentStart() : INDEX_NONE);
+					GPUScriptParameterOffsetTable.Add(LayoutInfo->GetNumInt32Components() > 0 ? LayoutInfo->GetInt32ComponentStart() : INDEX_NONE);
+					GPUScriptParameterOffsetTable.Add(LayoutInfo->GetNumHalfComponents() > 0 ? LayoutInfo->GetHalfComponentStart() : INDEX_NONE);
+				}
+				else
+				{
+					GPUScriptParameterOffsetTable.Add(INDEX_NONE);
+					GPUScriptParameterOffsetTable.Add(INDEX_NONE);
+					GPUScriptParameterOffsetTable.Add(INDEX_NONE);
 				}
 			}
 		}

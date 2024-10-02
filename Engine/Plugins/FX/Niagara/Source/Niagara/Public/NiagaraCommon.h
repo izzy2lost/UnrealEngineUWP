@@ -706,6 +706,9 @@ struct FNiagaraFunctionSignature
 	bool VariadicInput()const { return RequiredInputs != INDEX_NONE; }
 	bool VariadicOutput()const { return RequiredOutputs != INDEX_NONE; }
 
+	int32 VariadicInputStartIndex()const { return VariadicInput() ? NumRequiredInputs() + (bRequiresExecPin ? 1 : 0) : INDEX_NONE; }
+	int32 VariadicOutputStartIndex()const { return VariadicOutput() ? NumRequiredOutputs() + (bRequiresExecPin ? 1 : 0) : INDEX_NONE; }
+
 	int32 NumRequiredInputs()const { return RequiredInputs == INDEX_NONE ? Inputs.Num() : RequiredInputs; }
 	int32 NumOptionalInputs()const { return Inputs.Num() - NumRequiredInputs(); }
 
@@ -721,9 +724,9 @@ struct FNiagaraFunctionSignature
 	}
 	TConstArrayView<FNiagaraVariableBase> GetOutputs() const { return Outputs; }
 #endif
-	
-	NIAGARA_API void GetVariadicInputs(TArray<FNiagaraVariableBase>& OutVariadicInputs, bool bStripNonExecution = true)const;
-	NIAGARA_API void GetVariadicOutputs(TArray<FNiagaraVariableBase>& OutVariadicOutputs, bool bStripNonExecution = true)const;
+
+	NIAGARA_API void GetVariadicInputs(TArray<FNiagaraVariableBase>& OutVariadicInputs)const;
+	NIAGARA_API void GetVariadicOutputs(TArray<FNiagaraVariableBase>& OutVariadicOutputs)const;
 };
 
 USTRUCT()

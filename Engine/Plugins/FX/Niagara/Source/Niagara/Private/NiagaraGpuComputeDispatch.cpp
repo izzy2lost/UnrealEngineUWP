@@ -37,6 +37,8 @@
 #include "Rendering/RenderCommandPipes.h"
 #include "GPUSkinCache.h"
 
+#include "NiagaraDataChannel.h"
+
 DECLARE_CYCLE_STAT(TEXT("GPU Dispatch Setup [RT]"), STAT_NiagaraGPUDispatchSetup_RT, STATGROUP_Niagara);
 DECLARE_CYCLE_STAT(TEXT("GPU Emitter Dispatch [RT]"), STAT_NiagaraGPUSimTick_RT, STATGROUP_Niagara);
 DECLARE_CYCLE_STAT(TEXT("GPU Data Readback [RT]"), STAT_NiagaraGPUReadback_RT, STATGROUP_Niagara);
@@ -252,6 +254,7 @@ void FNiagaraGpuComputeDispatch::AddGpuComputeProxy(FNiagaraSystemGpuComputeProx
 	NumProxiesThatRequireDepthBuffer			+= ComputeProxy->RequiresDepthBuffer() ? 1 : 0;
 	NumProxiesThatRequireEarlyViewData			+= ComputeProxy->RequiresEarlyViewData() ? 1 : 0;
 	NumProxiesThatRequireRayTracingScene		+= ComputeProxy->RequiresRayTracingScene() ? 1 : 0;
+	NumProxiesThatRequireCurrentFrameNDC		+= ComputeProxy->RequiresCurrentFrameNDC() ? 1 : 0;
 }
 
 void FNiagaraGpuComputeDispatch::RemoveGpuComputeProxy(FNiagaraSystemGpuComputeProxy* ComputeProxy)
@@ -273,6 +276,7 @@ void FNiagaraGpuComputeDispatch::RemoveGpuComputeProxy(FNiagaraSystemGpuComputeP
 	NumProxiesThatRequireDepthBuffer			-= ComputeProxy->RequiresDepthBuffer() ? 1 : 0;
 	NumProxiesThatRequireEarlyViewData			-= ComputeProxy->RequiresEarlyViewData() ? 1 : 0;
 	NumProxiesThatRequireRayTracingScene		-= ComputeProxy->RequiresRayTracingScene() ? 1 : 0;
+	NumProxiesThatRequireCurrentFrameNDC		-= ComputeProxy->RequiresCurrentFrameNDC() ? 1 : 0;
 
 #if NIAGARA_COMPUTEDEBUG_ENABLED
 	if (FNiagaraGpuComputeDebug* GpuComputeDebug = GpuComputeDebugPtr.Get())
@@ -294,6 +298,18 @@ void FNiagaraGpuComputeDispatch::RemoveGpuComputeProxy(FNiagaraSystemGpuComputeP
 		}
 	);
 #endif
+}
+
+void FNiagaraGpuComputeDispatch::AddNDCDataProxy(FNiagaraDataChannelDataProxy* NDCDataProxy)
+{
+	check(NDCDataProxy->DispatchInterface == this);
+	NDCDataProxies.Add(NDCDataProxy);	
+}
+
+void FNiagaraGpuComputeDispatch::RemoveNDCDataProxy(FNiagaraDataChannelDataProxy* NDCDataProxy)
+{
+	check(NDCDataProxy->DispatchInterface == this);
+	NDCDataProxies.RemoveSwap(NDCDataProxy);
 }
 
 void FNiagaraGpuComputeDispatch::Tick(UWorld* World, float DeltaTime)
@@ -713,6 +729,11 @@ void FNiagaraGpuComputeDispatch::UpdateInstanceCountManager(FRHICommandListImmed
 			// Release the readback buffer
 			GPUInstanceCounterManager.ReleaseGPUReadback();
 		}
+	}
+
+	//Run instance count Initialization task. Some instance counts must be initialized with values from the CPU before use in GPU sims.
+	{
+		GPUInstanceCounterManager.ProcessInitInstanceCountTasks(this, RHICmdList);
 	}
 }
 
@@ -1921,6 +1942,11 @@ void FNiagaraGpuComputeDispatch::PreInitViews(FRDGBuilder& GraphBuilder, bool bA
 		{
 			FramesBeforeTickFlush = 0;
 
+			for(FNiagaraDataChannelDataProxy* NDCProxy : NDCDataProxies)
+			{
+				NDCProxy->BeginFrame(GraphBuilder.RHICmdList);
+			}
+
 			UpdateInstanceCountManager(GraphBuilder.RHICmdList);
 			PrepareAllTicks(GraphBuilder.RHICmdList);
 
@@ -2081,6 +2107,11 @@ void FNiagaraGpuComputeDispatch::PostRenderOpaque(FRDGBuilder& GraphBuilder, TCo
 			if (bAllowGPUParticleUpdate)
 			{
 				FinishDispatches();
+
+				for (FNiagaraDataChannelDataProxy* NDCProxy : NDCDataProxies)
+				{
+					NDCProxy->EndFrame(RHICmdList);
+				}
 			}
 		}
 	);
@@ -2329,7 +2360,7 @@ FNiagaraAsyncGpuTraceHelper& FNiagaraGpuComputeDispatch::GetAsyncGpuTraceHelper(
 	return *AsyncGpuTraceHelper.Get();
 }
 
-void FNiagaraGpuComputeDispatch::ResetDataInterfaces(FRDGBuilder& GraphBuilder, const FNiagaraGPUSystemTick& Tick, const FNiagaraComputeInstanceData& InstanceData) const
+void FNiagaraGpuComputeDispatch::ResetDataInterfaces(FRDGBuilder& GraphBuilder, const FNiagaraGPUSystemTick& Tick, const FNiagaraComputeInstanceData& InstanceData) 
 {
 	const int32 NumDataInterfaces = InstanceData.DataInterfaceProxies.Num();
 	if (NumDataInterfaces == 0)
@@ -2352,7 +2383,7 @@ void FNiagaraGpuComputeDispatch::ResetDataInterfaces(FRDGBuilder& GraphBuilder, 
 	}
 }
 
-void FNiagaraGpuComputeDispatch::SetDataInterfaceParameters(FRDGBuilder& GraphBuilder, const FNiagaraGPUSystemTick& Tick, const FNiagaraComputeInstanceData& InstanceData, const FNiagaraShaderRef& ComputeShader, const FNiagaraSimStageData& SimStageData, const FNiagaraShaderScriptParametersMetadata& NiagaraShaderParametersMetadata, uint8* ParametersStructure) const
+void FNiagaraGpuComputeDispatch::SetDataInterfaceParameters(FRDGBuilder& GraphBuilder, const FNiagaraGPUSystemTick& Tick, const FNiagaraComputeInstanceData& InstanceData, const FNiagaraShaderRef& ComputeShader, const FNiagaraSimStageData& SimStageData, const FNiagaraShaderScriptParametersMetadata& NiagaraShaderParametersMetadata, uint8* ParametersStructure) 
 {
 	const int32 NumDataInterfaces = InstanceData.DataInterfaceProxies.Num();
 	if (NumDataInterfaces == 0)
@@ -2377,7 +2408,7 @@ void FNiagaraGpuComputeDispatch::SetDataInterfaceParameters(FRDGBuilder& GraphBu
 	}
 }
 
-void FNiagaraGpuComputeDispatch::PreStageInterface(FRDGBuilder& GraphBuilder, const FNiagaraGPUSystemTick& Tick, const FNiagaraComputeInstanceData& InstanceData, const FNiagaraSimStageData& SimStageData, TSet<FNiagaraDataInterfaceProxy*>& ProxiesToFinalize) const
+void FNiagaraGpuComputeDispatch::PreStageInterface(FRDGBuilder& GraphBuilder, const FNiagaraGPUSystemTick& Tick, const FNiagaraComputeInstanceData& InstanceData, const FNiagaraSimStageData& SimStageData, TSet<FNiagaraDataInterfaceProxy*>& ProxiesToFinalize) 
 {
 	const int32 NumDataInterfaces = InstanceData.DataInterfaceProxies.Num();
 	if (NumDataInterfaces == 0)
@@ -2405,7 +2436,7 @@ void FNiagaraGpuComputeDispatch::PreStageInterface(FRDGBuilder& GraphBuilder, co
 	}
 }
 
-void FNiagaraGpuComputeDispatch::PostStageInterface(FRDGBuilder& GraphBuilder, const FNiagaraGPUSystemTick& Tick, const FNiagaraComputeInstanceData& InstanceData, const FNiagaraSimStageData& SimStageData, TSet<FNiagaraDataInterfaceProxy*>& ProxiesToFinalize) const
+void FNiagaraGpuComputeDispatch::PostStageInterface(FRDGBuilder& GraphBuilder, const FNiagaraGPUSystemTick& Tick, const FNiagaraComputeInstanceData& InstanceData, const FNiagaraSimStageData& SimStageData, TSet<FNiagaraDataInterfaceProxy*>& ProxiesToFinalize) 
 {
 	const int32 NumDataInterfaces = InstanceData.DataInterfaceProxies.Num();
 	if (NumDataInterfaces == 0)
@@ -2433,7 +2464,7 @@ void FNiagaraGpuComputeDispatch::PostStageInterface(FRDGBuilder& GraphBuilder, c
 	}
 }
 
-void FNiagaraGpuComputeDispatch::PostSimulateInterface(FRDGBuilder& GraphBuilder, const FNiagaraGPUSystemTick& Tick, const FNiagaraComputeInstanceData& InstanceData, const FNiagaraSimStageData& SimStageData) const
+void FNiagaraGpuComputeDispatch::PostSimulateInterface(FRDGBuilder& GraphBuilder, const FNiagaraGPUSystemTick& Tick, const FNiagaraComputeInstanceData& InstanceData, const FNiagaraSimStageData& SimStageData) 
 {
 	const int32 NumDataInterfaces = InstanceData.DataInterfaceProxies.Num();
 	if (NumDataInterfaces == 0)

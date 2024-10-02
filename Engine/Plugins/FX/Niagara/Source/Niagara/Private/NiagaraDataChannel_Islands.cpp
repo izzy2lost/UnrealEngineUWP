@@ -110,14 +110,6 @@ UNiagaraDataChannelHandler_Islands::UNiagaraDataChannelHandler_Islands(FObjectIn
 {
 }
 
-void UNiagaraDataChannelHandler_Islands::BeginDestroy()
-{
-	Super::BeginDestroy();
-	ActiveIslands.Empty();
-	FreeIslands.Empty();
-	IslandPool.Empty();
-}
-
 void UNiagaraDataChannelHandler_Islands::Init(const UNiagaraDataChannel* InChannel)
 {
 	Super::Init(InChannel);
@@ -135,6 +127,14 @@ void UNiagaraDataChannelHandler_Islands::Init(const UNiagaraDataChannel* InChann
 			FreeIslands.Emplace(i);
 		}
 	}
+}
+
+void UNiagaraDataChannelHandler_Islands::Cleanup()
+{
+	Super::Cleanup();
+	ActiveIslands.Empty();
+	FreeIslands.Empty();
+	IslandPool.Empty();
 }
 
 void UNiagaraDataChannelHandler_Islands::BeginFrame(float DeltaTime, FNiagaraWorldManager* OwningWorld)

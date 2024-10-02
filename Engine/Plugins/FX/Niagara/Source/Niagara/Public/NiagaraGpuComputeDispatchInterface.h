@@ -23,6 +23,7 @@ class FNiagaraGpuReadbackManager;
 class FNiagaraRayTracingHelper;
 struct FNiagaraScriptDebuggerInfo;
 class FNiagaraSystemGpuComputeProxy;
+struct FNiagaraDataChannelDataProxy;
 
 // Public API for Niagara's Compute Dispatcher
 // This is generally used with DataInterfaces or Custom Renderers
@@ -48,6 +49,11 @@ public:
 	virtual void AddGpuComputeProxy(FNiagaraSystemGpuComputeProxy* ComputeProxy) = 0;
 	/** Remove system instance proxy from the batcher. */
 	virtual void RemoveGpuComputeProxy(FNiagaraSystemGpuComputeProxy* ComputeProxy) = 0;
+
+	/** Add NDC Data to the batcher for tracking */
+	virtual void AddNDCDataProxy(FNiagaraDataChannelDataProxy* NDCDataProxy) = 0;
+	/** Add NDC Data to the batcher for tracking */
+	virtual void RemoveNDCDataProxy(FNiagaraDataChannelDataProxy* NDCDataProxy) = 0;
 
 	/**
 	 * Register work for GPU sorting (using the GPUSortManager).

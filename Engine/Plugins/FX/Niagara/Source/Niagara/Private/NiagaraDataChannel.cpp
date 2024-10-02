@@ -17,6 +17,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "Dom/JsonObject.h"
 #endif
+#include "NiagaraDataSetReadback.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraDataChannel)
 
@@ -455,33 +456,10 @@ void FNiagaraDataChannelGameData::SetFromSimCache(const FNiagaraVariableBase& So
 
 //////////////////////////////////////////////////////////////////////////
 
-void FNiagaraDataChannelDataProxy::BeginFrame(bool bKeepPreviousFrameData)
+FNiagaraDataChannelDataProxy::~FNiagaraDataChannelDataProxy()
 {
-	check(GPUDataSet);
-	check(GPUDataSet->GetSimTarget() == ENiagaraSimTarget::GPUComputeSim);
-
-}
-
-void FNiagaraDataChannelDataProxy::EndFrame(FNiagaraGpuComputeDispatchInterface* DispathInterface, FRHICommandListImmediate& CmdList, const TArray<FNiagaraDataBufferRef>& BuffersForGPU)
-{
-	check(GPUDataSet);
-	check(GPUDataSet->GetSimTarget() == ENiagaraSimTarget::GPUComputeSim);
-
-	PrevFrameData = GPUDataSet->GetCurrentData();
-
-	uint32 NumInstance = 0;
-	for (auto& Buffer : BuffersForGPU)
-	{
-		NumInstance += Buffer->GetNumInstances();
-	}
-
-	GPUDataSet->BeginSimulate();
-	FNiagaraDataBuffer* DestBuffer = GPUDataSet->GetDestinationData();	
-	DestBuffer->PushCPUBuffersToGPU(BuffersForGPU, true, CmdList, DispathInterface->GetFeatureLevel(), GetDebugName());
-	GPUDataSet->EndSimulate();
-
-	//For now we need not deal with the instance count manager but when we do GPU->GPU writes we will
-	//DestBuffer->SetGPUInstanceCountBufferOffset()
+	check(DispatchInterface);
+	DispatchInterface->RemoveNDCDataProxy(this);
 }
 
 void FNiagaraDataChannelDataProxy::Reset()
@@ -489,36 +467,120 @@ void FNiagaraDataChannelDataProxy::Reset()
 	PrevFrameData = nullptr;
 }
 
+void FNiagaraDataChannelDataProxy::Init()
+{
+	check(DispatchInterface);
+	DispatchInterface->AddNDCDataProxy(this);
+}
+
+void FNiagaraDataChannelDataProxy::BeginFrame(FRHICommandListImmediate& RHICmdList)
+{
+	check(GPUDataSet);
+	check(GPUDataSet->GetSimTarget() == ENiagaraSimTarget::GPUComputeSim);
+
+	FNiagaraGPUInstanceCountManager& InstCountManager = DispatchInterface->GetGPUInstanceCounterManager();	
+	if(this->bNeedsPrevFrameData)
+	{
+		Swap(PrevFrameData, CurrFrameData);
+	}
+
+	//The base num instances for writing from the GPU.
+	uint32 NumInstanceFromCPU = 0;
+	for (auto& Buffer : PendingCPUBuffers)
+	{
+		NumInstanceFromCPU += Buffer->GetNumInstances();
+	}
+
+	//Allocate our GPU buffers we'll write into. Combine accumulated counts from writing DIs and the data coming in from the CPU.
+	uint32 InstancesToAllocate = NumInstanceFromCPU + PendingGPUAllocations;
+	PendingGPUAllocations = 0;
+
+	if(InstancesToAllocate == 0)
+	{
+		return;
+	}
+
+	if(CurrFrameData == nullptr)
+	{		
+		FNiagaraDataBuffer& NewBuffer = GPUDataSet->AllocateBuffer();
+		CurrFrameData = NewBuffer.UnlockForRead();
+	}
+
+	uint32 InstanceCountOffset = CurrFrameData->GetGPUInstanceCountBufferOffset();
+	InstCountManager.FreeEntry(InstanceCountOffset);
+
+	CurrFrameData->AllocateGPU(RHICmdList, InstancesToAllocate, DispatchInterface->GetFeatureLevel(), GetDebugName());
+	CurrFrameData->PushCPUBuffersToGPU(PendingCPUBuffers, true, RHICmdList, DispatchInterface->GetFeatureLevel(), GetDebugName(), false);
+	CurrFrameData->SetNumInstances(InstancesToAllocate);
+	PendingCPUBuffers.Reset();
+
+	InstanceCountOffset = InstCountManager.AcquireOrAllocateEntry(RHICmdList);	
+	CurrFrameData->SetGPUInstanceCountBufferOffset(InstanceCountOffset);
+
+	//Init the instance count to the value from the CPU before it is added to by the GPU writes.
+	if(NumInstanceFromCPU > 0)
+	{
+		InstCountManager.AddInstanceCountInitTask(InstanceCountOffset, NumInstanceFromCPU);
+	}
+}
+
+void FNiagaraDataChannelDataProxy::EndFrame(FRHICommandListImmediate& RHICmdList)
+{
+	check(GPUDataSet);
+	check(GPUDataSet->GetSimTarget() == ENiagaraSimTarget::GPUComputeSim);
+}
+
+FNiagaraDataBufferRef FNiagaraDataChannelDataProxy::AllocateBufferForCPU(FRHICommandListImmediate& RHICmdList, ERHIFeatureLevel::Type FeatureLevel, int32 AllocationSize)
+{
+	FNiagaraDataBuffer* Ret = &GPUDataSet->AllocateBuffer();
+	Ret->AllocateGPU(RHICmdList, AllocationSize, FeatureLevel, TEXT("NDC GPU Buffers for CPU"));	
+	return Ret->UnlockForRead();
+}
+
+void FNiagaraDataChannelDataProxy::EnqueueReadbackForCPUBuffer(FRHICommandList& RHICmdList, FNiagaraDataBufferRef Buffer, FNiagaraGpuReadbackManager* ReadbackManager, FNiagaraGPUInstanceCountManager& InstanceCountManager, bool bPublishToGame, bool bPublishToCPU, FVector3f LWCTile)
+{
+	auto PublishOnCPU = [=, LocalOwner = Owner](FNiagaraDataBufferRef ReadbackBuffer)
+	{
+		if (FNiagaraDataChannelData* NDCData = LocalOwner.Pin().Get())
+		{
+			if (ReadbackBuffer && ReadbackBuffer->GetNumInstances())
+			{
+				FNiagaraDataChannelPublishRequest PublishRequest(ReadbackBuffer);
+				PublishRequest.bVisibleToGame = bPublishToGame;
+				PublishRequest.bVisibleToCPUSims = bPublishToCPU;
+				PublishRequest.bVisibleToGPUSims = false;//Don't want to ping pong back to the GPU
+				PublishRequest.LwcTile = LWCTile;
+#if WITH_NIAGARA_DEBUGGER
+				PublishRequest.DebugSource = TEXT("NDC GPU Readback");//TODO: Feed in real source names also
+#endif
+				NDCData->PublishFromGPU(PublishRequest);
+			}
+		}
+	};
+
+	//We enqueue a readback for the data if we're wanting to publish it to the CPU or Game
+	check(bPublishToCPU || bPublishToGame);//We should be doing one or the other or we should not be calling this function.
+
+	TSharedPtr<FNiagaraDataBufferReadback, ESPMode::ThreadSafe> NewReadback = MakeShared<FNiagaraDataBufferReadback, ESPMode::ThreadSafe>();
+	NewReadback->GetOnReadbackComplete().BindLambda(PublishOnCPU);
+	NewReadback->EnqueueReadback(RHICmdList, Buffer, ReadbackManager, InstanceCountManager);
+}
+
+void FNiagaraDataChannelDataProxy::AddBuffersFromCPU(const TArray<FNiagaraDataBufferRef>& BuffersFromCPU)
+{
+	PendingCPUBuffers.Append(BuffersFromCPU);
+}
+
+void FNiagaraDataChannelDataProxy::AddGPUAllocationForNextTick(int32 AllocationCount)
+{
+	PendingGPUAllocations += AllocationCount;
+}
+
 //////////////////////////////////////////////////////////////////////////
 
-FNiagaraDataChannelData::FNiagaraDataChannelData(UNiagaraDataChannelHandler* Owner)
+FNiagaraDataChannelData::FNiagaraDataChannelData()
 {
-	const UNiagaraDataChannel* DataChannel = Owner->GetDataChannel();
-	check(DataChannel);
 
-	GameData = DataChannel->CreateGameData();
-
-	CPUSimData = new FNiagaraDataSet();
-	GPUSimData = new FNiagaraDataSet();
-
-
-	const FNiagaraDataSetCompiledData& CompiledData = DataChannel->GetCompiledData(ENiagaraSimTarget::CPUSim);
-	const FNiagaraDataSetCompiledData& CompiledDataGPU = DataChannel->GetCompiledData(ENiagaraSimTarget::GPUComputeSim);
-	CPUSimData->Init(&CompiledData);
-	GPUSimData->Init(&CompiledDataGPU);
-
-	//TODO: Send game data to GPU direct without staging.
-	GameDataStaging = new FNiagaraDataSet();
-	GameDataStaging->Init(&CompiledData);
-
-	CPUSimData->BeginSimulate();
-	CPUSimData->EndSimulate();
-
-	RTProxy.Reset(new FNiagaraDataChannelDataProxy());
-	RTProxy->GPUDataSet = GPUSimData;
-	#if !UE_BUILD_SHIPPING
-	RTProxy->DebugName = FString::Printf(TEXT("%s__GPUData"), *DataChannel->GetName());
-	#endif
 }
 
 FNiagaraDataChannelData::~FNiagaraDataChannelData()
@@ -545,6 +607,45 @@ FNiagaraDataChannelData::~FNiagaraDataChannelData()
 	);
 	CPUSimData = nullptr;
 	GPUSimData = nullptr;
+}
+
+void FNiagaraDataChannelData::Init(UNiagaraDataChannelHandler* Owner)
+{
+	check(Owner);
+	const UNiagaraDataChannel* DataChannel = Owner->GetDataChannel();
+	check(DataChannel);
+
+	GameData = DataChannel->CreateGameData();
+
+	CPUSimData = new FNiagaraDataSet();
+	GPUSimData = new FNiagaraDataSet();
+
+
+	const FNiagaraDataSetCompiledData& CompiledData = DataChannel->GetCompiledData(ENiagaraSimTarget::CPUSim);
+	const FNiagaraDataSetCompiledData& CompiledDataGPU = DataChannel->GetCompiledData(ENiagaraSimTarget::GPUComputeSim);
+	CPUSimData->Init(&CompiledData, 1);
+	GPUSimData->Init(&CompiledDataGPU, 2);
+
+	//TODO: Send game data to GPU direct without staging.
+	GameDataStaging = new FNiagaraDataSet();
+	GameDataStaging->Init(&CompiledData);
+
+	if (FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface = FNiagaraGpuComputeDispatchInterface::Get(Owner->GetWorld()))
+	{
+		RTProxy.Reset(new FNiagaraDataChannelDataProxy());
+		RTProxy->GPUDataSet = GPUSimData;
+		RTProxy->bNeedsPrevFrameData = DataChannel->KeepPreviousFrameData();
+		RTProxy->DispatchInterface = FNiagaraGpuComputeDispatchInterface::Get(Owner->GetWorld());
+		RTProxy->Owner = this->AsWeak();
+#if !UE_BUILD_SHIPPING
+		RTProxy->DebugName = FString::Printf(TEXT("%s__GPUData"), *DataChannel->GetName());
+#endif
+		ENQUEUE_RENDER_COMMAND(FNiagaraDataChannelDataProxyInit) (
+			[RT_Proxy = RTProxy.Get()](FRHICommandListImmediate& CmdList)
+			{
+				RT_Proxy->Init();
+			});
+	}
 }
 
 void FNiagaraDataChannelData::Reset()
@@ -583,16 +684,10 @@ void FNiagaraDataChannelData::BeginFrame(UNiagaraDataChannelHandler* Owner)
 	//Grab a new buffer to store the CPU data.
 	CPUSimData->BeginSimulate();
 	CPUSimData->EndSimulate();
-	
-	check(RTProxy);
-	if (FNiagaraGpuComputeDispatchInterface* DispathInterface = FNiagaraGpuComputeDispatchInterface::Get(Owner->GetWorld()))
-	{
-		ENQUEUE_RENDER_COMMAND(FDataChannelProxyBeginFrame) (
-			[RT_Proxy = RTProxy.Get(), bRequirePreviousData](FRHICommandListImmediate& CmdList)
-		{
-			RT_Proxy->BeginFrame(bRequirePreviousData);
-		});
-	}
+
+	//Pull in our publish requests from the GPU to be processed in the first tick group.
+	PublishRequests.Append(PublishRequestsFromGPU);
+	PublishRequestsFromGPU.Reset();
 }
 
 void FNiagaraDataChannelData::EndFrame(UNiagaraDataChannelHandler* Owner)
@@ -600,14 +695,13 @@ void FNiagaraDataChannelData::EndFrame(UNiagaraDataChannelHandler* Owner)
 	//We must do one final tick to process any final items generated by the last things to tick this frame.
 	ConsumePublishRequests(Owner, TG_LastDemotable);
 
-	check(RTProxy);
-	if (FNiagaraGpuComputeDispatchInterface* DispathInterface = FNiagaraGpuComputeDispatchInterface::Get(Owner->GetWorld()))
+	if(RTProxy)
 	{
 		ENQUEUE_RENDER_COMMAND(FDataChannelProxyEndFrame) (
-			[DispathInterface, RT_Proxy = RTProxy.Get(), RT_BuffersForGPU = MoveTemp(BuffersForGPU)](FRHICommandListImmediate& CmdList)
-		{
-			RT_Proxy->EndFrame(DispathInterface, CmdList, RT_BuffersForGPU);
-		});
+			[RT_Proxy = RTProxy.Get(), RT_BuffersForGPU = MoveTemp(BuffersForGPU)](FRHICommandListImmediate& CmdList)
+			{
+				RT_Proxy->AddBuffersFromCPU(RT_BuffersForGPU);
+			});
 	}
 	BuffersForGPU.Reset();
 }
@@ -720,25 +814,13 @@ int32 FNiagaraDataChannelData::ConsumePublishRequests(UNiagaraDataChannelHandler
 
 		if (PublishRequest.Data)
 		{
-			const ENiagaraSimTarget SimTarget = PublishRequest.Data->GetOwner()->GetSimTarget();
-			if (SimTarget == ENiagaraSimTarget::CPUSim)
+			if (PublishRequest.bVisibleToGame)
 			{
-				if (PublishRequest.bVisibleToGame)
-				{
-					GameData->AppendFromDataSet(PublishRequest.Data, PublishRequest.LwcTile);
-				}
-				if (PublishRequest.bVisibleToCPUSims)
-				{
-					PublishRequest.Data->CopyToUnrelated(CPUSimData->GetDestinationDataChecked(), 0, CPUSimData->GetDestinationDataChecked().GetNumInstances(), PublishRequest.Data->GetNumInstances());
-				}
+				GameData->AppendFromDataSet(PublishRequest.Data, PublishRequest.LwcTile);
 			}
-			else if (SimTarget == ENiagaraSimTarget::GPUComputeSim)
+			if (PublishRequest.bVisibleToCPUSims)
 			{
-				//TODO: GPU->GPU handling will be done all RT side. GPU->CPU may be done here in future but we'll have to pull the data from the GPU on the RT and pass beck to GT here.
-			}
-			else
-			{
-				check(0);
+				PublishRequest.Data->CopyToUnrelated(CPUSimData->GetDestinationDataChecked(), 0, CPUSimData->GetDestinationDataChecked().GetNumInstances(), PublishRequest.Data->GetNumInstances());
 			}
 		}
 #if WITH_NIAGARA_DEBUGGER
@@ -791,6 +873,12 @@ void FNiagaraDataChannelData::Publish(const FNiagaraDataChannelPublishRequest& R
 	PublishRequests.Add(Request);
 }
 
+void FNiagaraDataChannelData::PublishFromGPU(const FNiagaraDataChannelPublishRequest& Request)
+{
+	check(IsInGameThread());
+	PublishRequestsFromGPU.Add(Request);
+}
+
 void FNiagaraDataChannelData::RemovePublishRequests(const FNiagaraDataSet* DataSet)
 {
 	FScopeLock Lock(&PublishCritSec);
@@ -820,6 +908,16 @@ const FNiagaraDataSetCompiledData& FNiagaraDataChannelData::GetCompiledData(ENia
 {
 	check(CPUSimData && GPUSimData)
 	return SimTarget == ENiagaraSimTarget::CPUSim ? CPUSimData->GetCompiledData() : GPUSimData->GetCompiledData();
+}
+
+FNiagaraDataBuffer* FNiagaraDataChannelData::GetBufferForCPUWrite()
+{
+	check(IsInGameThread());
+	if(CPUSimData)
+	{
+		return &CPUSimData->AllocateBuffer();
+	}
+	return nullptr;
 }
 
 //////////////////////////////////////////////////////////////////////////

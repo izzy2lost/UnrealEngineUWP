@@ -3083,6 +3083,7 @@ void FNiagaraHlslTranslator::DefineDataInterfaceHLSL(FString& InHlslOutput)
 			DIHlslGenContext.GetStructHlslTypeNameDelegate.BindStatic(&FNiagaraHlslTranslator::GetStructHlslTypeName);
 			DIHlslGenContext.GetPropertyHlslTypeNameDelegate.BindStatic(&FNiagaraHlslTranslator::GetPropertyHlslTypeName);
 			DIHlslGenContext.GetSanitizedSymbolNameDelegate.BindStatic(&FNiagaraHlslTranslator::GetSanitizedSymbolName);
+			DIHlslGenContext.GetHlslDefaultForTypeDelegate.BindStatic(&FNiagaraHlslTranslator::GetHlslDefaultForType);
 			CDO->GetParameterDefinitionHLSL(DIHlslGenContext, InterfaceUniformHLSL);
 
 			// Ask the DI to generate HLSL.
@@ -9315,7 +9316,6 @@ FString FNiagaraHlslTranslator::GetFunctionSignatureSymbol(const FNiagaraFunctio
 	TArray<FNiagaraVariableBase> VariadicParams;
 	VariadicParams.Reserve(Sig.NumOptionalInputs() + Sig.NumOptionalOutputs());
 	Sig.GetVariadicInputs(VariadicParams);
-	AddVarsToSig(VariadicParams);
 	Sig.GetVariadicOutputs(VariadicParams);
 	AddVarsToSig(VariadicParams);
 

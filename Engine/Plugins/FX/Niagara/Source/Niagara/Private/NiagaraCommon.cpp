@@ -1696,19 +1696,24 @@ EPSCPoolMethod ToPSCPoolMethod(ENCPoolMethod PoolingMethod)
 //////////////////////////////////////////////////////////////////////////
 
 
-void FNiagaraFunctionSignature::GetVariadicInputs(TArray<FNiagaraVariableBase>& OutVariadicInputs, bool bStripNonExecution/* =true */)const
+void FNiagaraFunctionSignature::GetVariadicInputs(TArray<FNiagaraVariableBase>& OutVariadicInputs)const
 {
+	if(!VariadicInput())
+	{
+		return;
+	}
+
 	static const FNiagaraVariableBase InstDataVar(FNiagaraTypeDefinition::GetIntDef(), TEXT("InstanceData"));
 	OutVariadicInputs.Reset(NumOptionalInputs());
 	int32 NumInputs = 0;
 	for (const FNiagaraVariableBase& Param : Inputs)
 	{
-		if (bStripNonExecution && (Param.GetType() == FNiagaraTypeDefinition::GetParameterMapDef() || Param == InstDataVar))
+		if (Param == InstDataVar)
 		{
 			continue;
 		}
 
-		if (NumInputs++ < NumRequiredInputs())
+		if (NumInputs++ < VariadicInputStartIndex())
 		{
 			continue;
 		}
@@ -1717,18 +1722,18 @@ void FNiagaraFunctionSignature::GetVariadicInputs(TArray<FNiagaraVariableBase>& 
 	}
 }
 
-void FNiagaraFunctionSignature::GetVariadicOutputs(TArray<FNiagaraVariableBase>& OutVariadicOutputs, bool bStripNonExecution/* =true */)const
+void FNiagaraFunctionSignature::GetVariadicOutputs(TArray<FNiagaraVariableBase>& OutVariadicOutputs)const
 {
+	if(!VariadicOutput())
+	{
+		return;
+	}
+
 	OutVariadicOutputs.Reset(NumOptionalOutputs());
 	int32 NumOutputs = 0;
 	for (const FNiagaraVariableBase& Param : Outputs)
 	{
-		if (bStripNonExecution && (Param.GetType() == FNiagaraTypeDefinition::GetParameterMapDef()))
-		{
-			continue;
-		}
-
-		if (NumOutputs++ < NumRequiredOutputs())
+		if (NumOutputs++ < VariadicOutputStartIndex())
 		{
 			continue;
 		}

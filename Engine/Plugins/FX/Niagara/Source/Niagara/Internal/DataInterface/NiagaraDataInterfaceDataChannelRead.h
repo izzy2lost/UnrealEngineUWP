@@ -26,7 +26,6 @@ There is working code for this already but the concept/API needs more fleshing o
 #include "NiagaraDataChannelPublic.h"
 #include "NiagaraDataInterfaceDataChannelCommon.h"
 #include "NiagaraDataInterfaceRW.h"
-#include "NiagaraDataSetAccessor.h"
 #include "NiagaraDataInterfaceDataChannelRead.generated.h"
 
 class UNiagaraDataInterfaceDataChannelWrite;
@@ -162,6 +161,9 @@ public:
 
 	//We cannot overlap frames as we must correctly sync up with the data channel manager on Begin/End frame etc.
 	virtual bool PostSimulateCanOverlapFrames() const { return false; }
+	virtual bool PostStageCanOverlapTickGroups() const { return false; }
+
+	virtual bool RequiresCurrentFrameNDC() const { return bReadCurrentFrame; }
 	//UNiagaraDataInterface Interface
 
 	//Functions usable anywhere.
@@ -276,6 +278,9 @@ struct FNDIDataChannelReadInstanceData
 	*/
 	std::atomic<int32> ConsumeIndex = 0;
 
+	// Num Elements in the NDC at the time we generated our NDCSpawnData.
+	int32 NDCElementCountAtSpawn = 0;
+
 	/** 
 	Instance data for each emitter using this DI.
 	*/
@@ -285,7 +290,7 @@ struct FNDIDataChannelReadInstanceData
 	FNiagaraSystemInstance* Owner = nullptr;
 
 	virtual ~FNDIDataChannelReadInstanceData();
-	FNiagaraDataBuffer* GetReadBufferCPU(bool bPrevFrame);
+	FNiagaraDataBuffer* GetReadBufferCPU(bool bPrevFrame)const;
 	bool Init(UNiagaraDataInterfaceDataChannelRead* Interface, FNiagaraSystemInstance* Instance);
 	bool Tick(UNiagaraDataInterfaceDataChannelRead* Interface, FNiagaraSystemInstance* Instance, bool bIsInit = false);	
 	bool PostTick(UNiagaraDataInterfaceDataChannelRead* Interface, FNiagaraSystemInstance* Instance);
@@ -309,6 +314,8 @@ struct FNiagaraDataInterfaceProxy_DataChannelRead : public FNiagaraDataInterface
 
 		bool bReadPrevFrame = false;
 
+		int32 NDCElementCountAtSpawn = 0;
+
 		/**
 		A buffer containing layout information needed to access parameters for each script using this DI.
 		*/
@@ -326,6 +333,8 @@ struct FNiagaraDataInterfaceProxy_DataChannelRead : public FNiagaraDataInterface
 		TArray<int32> NDCSpawnData;
 
 		FRDGBufferRef NDCSpawnDataBuffer;
+
+		uint32 ConsumeInstanceCountOffset = INDEX_NONE;
 	};
 
 	TMap<FNiagaraSystemInstanceID, FInstanceData> SystemInstancesToProxyData_RT;

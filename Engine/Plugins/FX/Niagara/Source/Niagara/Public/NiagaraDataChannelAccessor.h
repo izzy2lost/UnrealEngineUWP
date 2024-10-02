@@ -30,6 +30,8 @@ private:
 
 public:
 
+	void Cleanup();
+
 	UPROPERTY()
 	TObjectPtr<UNiagaraDataChannelHandler> Owner;
 	
@@ -99,6 +101,8 @@ public:
 			}
 		}
 	}
+
+	void Cleanup();
 
 	UPROPERTY()
 	TObjectPtr<UNiagaraDataChannelHandler> Owner;

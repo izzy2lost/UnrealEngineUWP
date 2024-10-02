@@ -54,10 +54,19 @@ public:
 		return ReadRefCount.CompareExchange(Expected, INDEX_NONE);
 	}
 
+	//Remove the write lock
 	FORCEINLINE void Unlock()
 	{
 		int32 Expected = INDEX_NONE;
 		ensureAlwaysMsgf(ReadRefCount.CompareExchange(Expected, 0), TEXT("Trying to release a write lock on a Niagara shared object that is not locked for write."));
+	}
+	
+	//Removes the write lock and moves directly into a read state.
+	FORCEINLINE TRefCountPtr<FNiagaraSharedObject> UnlockForRead()
+	{
+		int32 Expected = INDEX_NONE;
+		ensureAlwaysMsgf(ReadRefCount.CompareExchange(Expected, 1), TEXT("Trying to release a write lock on a Niagara shared object that is not locked for write."));
+		return TRefCountPtr<FNiagaraSharedObject>(this, false);
 	}
 
 protected:
@@ -84,6 +93,13 @@ protected:
 	NIAGARA_API virtual ~FNiagaraDataBuffer();
 
 public:
+	FORCEINLINE TRefCountPtr<FNiagaraDataBuffer> UnlockForRead()
+	{
+		int32 Expected = INDEX_NONE;
+		ensureAlwaysMsgf(ReadRefCount.CompareExchange(Expected, 1), TEXT("Trying to release a write lock on a Niagara shared object that is not locked for write."));
+		return TRefCountPtr<FNiagaraDataBuffer>(this, false);
+	}
+
 	NIAGARA_API FNiagaraDataBuffer(FNiagaraDataSet* InOwner);
 	NIAGARA_API void Allocate(uint32 NumInstances, bool bMaintainExisting = false);
 	NIAGARA_API void ReleaseCPU();
@@ -97,7 +113,7 @@ public:
 	NIAGARA_API void CopyTo(FNiagaraDataBuffer& DestBuffer, int32 SrcStartIdx, int32 DestStartIdx, int32 NumInstances) const;
 	NIAGARA_API void CopyToUnrelated(FNiagaraDataBuffer& DestBuffer, int32 SrcStartIdx, int32 DestStartIdx, int32 NumInstances) const;
 	NIAGARA_API void GPUCopyFrom(const float* GPUReadBackFloat, const int* GPUReadBackInt, const FFloat16* GPUReadBackHalf, int32 StartIdx, int32 NumInstances, uint32 InSrcFloatStride, uint32 InSrcIntStride, uint32 InSrcHalfStride);
-	NIAGARA_API void PushCPUBuffersToGPU(const TArray<FNiagaraDataBufferRef>& SourceBuffers, bool bReleaseRef, FRHICommandList& RHICmdList, ERHIFeatureLevel::Type FeatureLevel, const TCHAR* DebugSimName);
+	NIAGARA_API void PushCPUBuffersToGPU(const TArray<FNiagaraDataBufferRef>& SourceBuffers, bool bReleaseRef, FRHICommandList& RHICmdList, ERHIFeatureLevel::Type FeatureLevel, const TCHAR* DebugSimName, bool bAllocate=true);
 	NIAGARA_API void TransferGPUToCPUImmediate(FRHICommandListImmediate& RHICmdList, FNiagaraGpuComputeDispatchInterface* ComputeInterface, FNiagaraDataBuffer* CPUBuffer) const;
 	NIAGARA_API void Dump(int32 StartIndex, int32 NumInstances, const FString& Label, const FName& SortParameterKey = FName()) const;
 
@@ -254,10 +270,13 @@ public:
 	FNiagaraDataSet& operator=(const FNiagaraDataSet&) = delete;
 
 	/** Initialize the data set with the compiled data */
-	NIAGARA_API void Init(const FNiagaraDataSetCompiledData* InDataSetCompiledData);
+	NIAGARA_API void Init(const FNiagaraDataSetCompiledData* InDataSetCompiledData, int32 DefaultNumBuffers=0);
 
 	/** Resets current data but leaves variable/layout information etc intact. */
 	NIAGARA_API void ResetBuffers();
+
+	/** Allocates a new buffer from this data set, or reuses an unused one. */
+	NIAGARA_API FNiagaraDataBuffer& AllocateBuffer();
 
 	/** Begins a new simulation pass and grabs a destination buffer. Returns the new destination data buffer. */
 	NIAGARA_API FNiagaraDataBuffer& BeginSimulate(bool bResetDestinationData = true);

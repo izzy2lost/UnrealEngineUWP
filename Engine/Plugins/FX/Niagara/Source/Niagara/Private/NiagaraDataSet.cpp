@@ -149,9 +149,15 @@ FNiagaraDataSet::~FNiagaraDataSet()
 	GPUNumAllocatedIDs = 0;
 }
 
-void FNiagaraDataSet::Init(const FNiagaraDataSetCompiledData* InDataSetCompiledData)
+void FNiagaraDataSet::Init(const FNiagaraDataSetCompiledData* InDataSetCompiledData, int32 DefaultNumBuffers)
 {
 	CompiledData.Init(InDataSetCompiledData != nullptr ? InDataSetCompiledData : &FNiagaraDataSetCompiledData::DummyCompiledData);
+
+	while(Data.Num() < DefaultNumBuffers)
+	{
+		Data.Add(new FNiagaraDataBuffer(this));
+	}
+
 	if (bInitialized)
 	{
 		Reset();
@@ -243,11 +249,8 @@ void FNiagaraDataSet::ResetBuffersInternal()
 #endif
 }
 
-FNiagaraDataBuffer& FNiagaraDataSet::BeginSimulate(bool bResetDestinationData)
+FNiagaraDataBuffer& FNiagaraDataSet::AllocateBuffer()
 {
-	//CheckCorrectThread();
-	check(DestinationData == nullptr);
-
 	//Find a free buffer we can write into.
 	//Linear search but there should only be 2 or three entries.
 	for (FNiagaraDataBuffer* Buffer : Data)
@@ -255,18 +258,22 @@ FNiagaraDataBuffer& FNiagaraDataSet::BeginSimulate(bool bResetDestinationData)
 		check(Buffer);
 		if (Buffer != CurrentData && Buffer->TryLock())
 		{
-			DestinationData = Buffer;
-			break;
+			return *Buffer;
 		}
 	}
 
-	if (DestinationData == nullptr)
-	{
-		Data.Add(new FNiagaraDataBuffer(this));
-		DestinationData = Data.Last();
-		verifySlow(DestinationData->TryLock());
-		checkSlow(DestinationData->IsBeingWritten());
-	}
+	FNiagaraDataBuffer* Buffer = Data.Add_GetRef(new FNiagaraDataBuffer(this));
+	verify(Buffer->TryLock());
+	check(Buffer->IsBeingWritten());
+	return *Buffer;
+}
+
+FNiagaraDataBuffer& FNiagaraDataSet::BeginSimulate(bool bResetDestinationData)
+{
+	//CheckCorrectThread();
+	check(DestinationData == nullptr);
+
+	DestinationData = &AllocateBuffer();
 
 	if (bResetDestinationData)
 	{
@@ -774,6 +781,11 @@ void FNiagaraDataBuffer::Allocate(uint32 InNumInstances, bool bMaintainExisting)
 		HalfStride = NewHalfStride;
 		BuildRegisterTable();
 	}
+
+	check(GetNumInstances() <= NumInstancesAllocated);
+	check(FloatData.Num() >= NewFloatNum);
+	check(Int32Data.Num() >= NewInt32Num);
+	check(HalfData.Num() >= NewHalfNum);
 }
 
 void FNiagaraDataBuffer::ReleaseCPU()
@@ -1035,8 +1047,6 @@ void FNiagaraDataBuffer::KillInstance(uint32 InstanceIdx)
 
 void FNiagaraDataBuffer::CopyToUnrelated(FNiagaraDataBuffer& DestBuffer, int32 StartIdx, int32 DestStartIdx, int32 InNumInstances)const
 {
-	CheckUsage(false);
-
 	if (StartIdx < 0 || (uint32)StartIdx >= NumInstances)
 	{
 		return;
@@ -1225,13 +1235,13 @@ void FNiagaraDataBuffer::GPUCopyFrom(const float* GPUReadBackFloat, const int* G
 {
 	//CheckUsage(false); //Have to disable this as in this specific case we write to a "CPUSim" from the RT.
 
+	Allocate(InNumInstances);
+	SetNumInstances(InNumInstances);
+
 	if (InNumInstances <= 0)
 	{
 		return;
 	}
-
-	Allocate(InNumInstances);
-	SetNumInstances(InNumInstances);
 
 	if (GPUReadBackFloat)
 	{
@@ -1277,7 +1287,7 @@ void FNiagaraDataBuffer::GPUCopyFrom(const float* GPUReadBackFloat, const int* G
 	}
 }
 
-void FNiagaraDataBuffer::PushCPUBuffersToGPU(const TArray<FNiagaraDataBufferRef>& SourceBuffers, bool bReleaseRef, FRHICommandList& RHICmdList, ERHIFeatureLevel::Type FeatureLevel, const TCHAR* DebugSimName)
+void FNiagaraDataBuffer::PushCPUBuffersToGPU(const TArray<FNiagaraDataBufferRef>& SourceBuffers, bool bReleaseRef, FRHICommandList& RHICmdList, ERHIFeatureLevel::Type FeatureLevel, const TCHAR* DebugSimName, bool bAllocate)
 {
 	uint32 NewCount = 0;
 	check(GetOwner()->GetSimTarget() == ENiagaraSimTarget::GPUComputeSim);
@@ -1293,7 +1303,10 @@ void FNiagaraDataBuffer::PushCPUBuffersToGPU(const TArray<FNiagaraDataBufferRef>
 		}
 	}
 
-	AllocateGPU(RHICmdList, NewCount, FeatureLevel, DebugSimName);
+	if(bAllocate)
+	{
+		AllocateGPU(RHICmdList, NewCount, FeatureLevel, DebugSimName);
+	}
 	SetNumInstances(NewCount);
 
 	if (NewCount > 0)

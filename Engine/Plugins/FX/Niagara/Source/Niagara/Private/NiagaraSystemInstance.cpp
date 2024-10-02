@@ -1407,6 +1407,31 @@ bool FNiagaraSystemInstance::RequiresRayTracingScene() const
 	return false;
 }
 
+bool FNiagaraSystemInstance::RequiresCurrentFrameNDC() const
+{
+	if (!bHasGPUEmitters)
+	{
+		return false;
+	}
+
+	for (const FNiagaraEmitterInstanceRef& Emitter : Emitters)
+	{
+		FNiagaraComputeExecutionContext* GPUContext = Emitter->GetGPUContext();
+		if (GPUContext)
+		{
+			for (UNiagaraDataInterface* DataInterface : GPUContext->CombinedParamStore.GetDataInterfaces())
+			{
+				if (DataInterface && DataInterface->RequiresCurrentFrameNDC())
+				{
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
 FNDIStageTickHandler* FNiagaraSystemInstance::GetSystemDIStageTickHandler(ENiagaraScriptUsage Usage)
 {
 	if(Usage == ENiagaraScriptUsage::SystemSpawnScript || Usage == ENiagaraScriptUsage::EmitterSpawnScript)

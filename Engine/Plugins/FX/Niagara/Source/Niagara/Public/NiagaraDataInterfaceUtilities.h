@@ -57,6 +57,7 @@ struct FNiagaraDataInterfaceHlslGenerationContext
 	DECLARE_DELEGATE_RetVal_OneParam(FString, FGetStructHlslTypeName, const FNiagaraTypeDefinition& /*Type*/)
 	DECLARE_DELEGATE_RetVal_OneParam(FString, FGetPropertyHlslTypeName, const FProperty* /*Property*/)
 	DECLARE_DELEGATE_RetVal_TwoParams(FString, FGetSanitizedSymbolName, FStringView /*SymbolName*/, bool /*bCollapsNamespaces*/)
+	DECLARE_DELEGATE_RetVal_OneParam(FString, FGetHlslDefaultForType, const FNiagaraTypeDefinition& /*Type*/)
 
 	FNiagaraDataInterfaceHlslGenerationContext(const FNiagaraDataInterfaceGPUParamInfo& InParameterInfo, TArrayView<const FNiagaraFunctionSignature> InSignatures)
 		: ParameterInfo(InParameterInfo), Signatures(InSignatures)
@@ -71,6 +72,7 @@ struct FNiagaraDataInterfaceHlslGenerationContext
 	FGetStructHlslTypeName GetStructHlslTypeNameDelegate;
 	FGetPropertyHlslTypeName GetPropertyHlslTypeNameDelegate;
 	FGetSanitizedSymbolName GetSanitizedSymbolNameDelegate;
+	FGetHlslDefaultForType GetHlslDefaultForTypeDelegate;
 
 	const FNiagaraDataInterfaceGeneratedFunction& GetFunctionInfo() const { return ParameterInfo.GeneratedFunctions[FunctionInstanceIndex]; }
 
@@ -78,6 +80,7 @@ struct FNiagaraDataInterfaceHlslGenerationContext
 	FString GetStructHlslTypeName(const FNiagaraTypeDefinition& Type) { return GetStructHlslTypeNameDelegate.Execute(Type); }
 	FString GetPropertyHlslTypeName(const FProperty* Property) { return GetPropertyHlslTypeNameDelegate.Execute(Property); }
 	FString GetSanitizedSymbolName(FStringView SymbolName, bool bCollapsNamespaces = false) { return GetSanitizedSymbolNameDelegate.Execute(SymbolName, bCollapsNamespaces); }
+	FString GetHlslDefaultForType(const FNiagaraTypeDefinition& Type) { return GetHlslDefaultForTypeDelegate.Execute(Type); }
 };
 
 #endif
