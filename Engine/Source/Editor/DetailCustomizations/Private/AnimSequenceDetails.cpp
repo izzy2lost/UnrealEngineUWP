@@ -82,7 +82,9 @@ void FAnimSequenceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 
 	// *** Retarget source handler ***
 	RetargetSourceNameHandler = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAnimSequence, RetargetSource));
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	RetargetSourceAssetHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAnimSequence, RetargetSourceAsset));
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// first create profile combo list
 	RetargetSourceComboList.Empty();
@@ -468,10 +470,12 @@ EVisibility FAnimSequenceDetails::UpdateRetargetSourceAssetDataVisibility() cons
 	{
 		if (UAnimSequence* AnimSequence = WeakAnimSequence.Get())
 		{
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			if (!AnimSequence->RetargetSourceAsset.IsNull())
 			{
 				return EVisibility::Visible;
 			}
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 
