@@ -1317,11 +1317,6 @@ FSlateShaderResource* FSceneViewport::GetViewportRenderTargetTexture() const
 	return (BufferedSlateHandles.Num() != 0) ? BufferedSlateHandles[CurrentBufferedTargetIndex] : nullptr;
 }
 
-bool FSceneViewport::IsStereoscopic3D() const
-{
-	return GEngine->IsStereoscopic3D(this);
-}
-
 void FSceneViewport::SetDebugCanvas(TSharedPtr<SDebugCanvas> InDebugCanvas)
 {
 	DebugCanvas = InDebugCanvas;
@@ -2002,7 +1997,7 @@ void FSceneViewport::WindowRenderTargetUpdate(FSlateRenderer* Renderer, SWindow*
 	if (Renderer && Window)
 	{
 		// The viewport provider interface is ONLY used for stereo VR compositing to blit the intermediate viewport target over to the VR swap chain.
-		Renderer->SetWindowRenderTarget(*Window, UseSeparateRenderTarget() ? this : nullptr);
+		Renderer->SetWindowRenderTarget(*Window, UseSeparateRenderTarget() && GEngine->IsStereoscopic3D(this) ? this : nullptr);
 	}
 }
 

@@ -2819,7 +2819,7 @@ public:
 	ENGINE_API virtual bool HasMultipleLocalPlayers(UWorld* InWorld);
 
 	/** @return whether we're currently running with stereoscopic 3D enabled for the specified viewport (or globally, if viewport is nullptr) */
-	ENGINE_API bool IsStereoscopic3D(const FViewport* InViewport = nullptr) const;
+	ENGINE_API bool IsStereoscopic3D(FViewport* InViewport = nullptr);
 
 	/**
 	 * Adds a world location as a secondary view location for purposes of texture streaming.
