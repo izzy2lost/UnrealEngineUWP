@@ -738,6 +738,18 @@ public:
 	void NormalizeWeights();
 	void HammerWeights();
 
+	// HELPER functions for modifying weights
+	//
+	// given a map of BoneIndex > Weight values for a single vertex, modify the map by removing the smallest weights to fit in Max Influences
+	static void TruncateWeightMap(TMap<BoneIndex, float>& InOutWeights);
+	// given a map of BoneIndex > Weight values for a single vertex, modify the weights to sum to 1
+	static void NormalizeWeightMap(TMap<BoneIndex, float>& InOutWeights);
+	// sum all the weights on all bones for a given list of vertices (results we not be normalized!)
+	static void AccumulateWeights(
+		const TArray<SkinPaintTool::VertexWeights>& AllWeights,
+		const TArray<VertexIndex>& VerticesToAccumulate,
+		TMap<BoneIndex, float>& OutWeights);
+
 	// copy paste
 	void CopyWeights();
 	void PasteWeights();
@@ -921,18 +933,6 @@ protected:
 	TOptional<FName> PendingCurrentBone;
 	TArray<FName> SelectedBoneNames;
 	TArray<BoneIndex> SelectedBoneIndices;
-
-	// HELPER functions for modifying weights
-	//
-	// given a map of BoneIndex > Weight values for a single vertex, modify the map by removing the smallest weights to fit in Max Influences
-	void TruncateWeightMap(TMap<BoneIndex, float>& InOutWeights);
-	// given a map of BoneIndex > Weight values for a single vertex, modify the weights to sum to 1
-	void NormalizeWeightMap(TMap<BoneIndex, float>& InOutWeights);
-	// sum all the weights on all bones for a given list of vertices (results we not be normalized!)
-	void AccumulateWeights(
-		const TArray<SkinPaintTool::VertexWeights>& AllWeights,
-		const TArray<VertexIndex>& VerticesToAccumulate,
-		TMap<BoneIndex, float>& OutWeights);
 
 	// ISkeletalMeshEditionInterface
 	virtual void HandleSkeletalMeshModified(const TArray<FName>& InBoneNames, const ESkeletalMeshNotifyType InNotifyType) override;
