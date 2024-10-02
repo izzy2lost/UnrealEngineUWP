@@ -251,6 +251,10 @@ namespace mu
 					if (bReturnBestOption)
 					{
 						Candidate.m_format = GetMostGenericFormat(Candidate.m_format, ChildDesc.m_format);
+
+						// Return the biggest size
+						Candidate.m_size[0] = FMath::Max(Candidate.m_size[0], ChildDesc.m_size[0]);
+						Candidate.m_size[1] = FMath::Max(Candidate.m_size[1], ChildDesc.m_size[1]);
 					}
 				}
 			}
