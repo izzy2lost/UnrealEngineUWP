@@ -39,6 +39,7 @@ protected:
 	virtual bool IsCacheable(const UPCGSettings*) const override { return false; }
 	virtual bool ShouldVerifyIfOutputsAreUsedMultipleTimes(const UPCGSettings*) const override { return true; }
 
+public:
 	PCGGEOMETRYSCRIPTINTEROP_API static UPCGDynamicMeshData* CopyOrSteal(const FPCGTaggedData& InTaggedData, FPCGContext* InContext);
 };
 
