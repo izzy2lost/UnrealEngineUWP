@@ -143,6 +143,7 @@ void FJavaWrapper::FindClassesAndMethods(JNIEnv* Env)
 	AndroidThunkJava_GetSharedPreferenceString = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_GetSharedPreferenceString", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", bIsOptional);
 	AndroidThunkJava_DeleteSharedPreference = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_DeleteSharedPreference", "(Ljava/lang/String;Ljava/lang/String;)V", bIsOptional);
 	AndroidThunkJava_DeleteSharedPreferenceGroup = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_DeleteSharedPreferenceGroup", "(Ljava/lang/String;)V", bIsOptional);
+	AndroidThunkJava_GetCacheDir = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_GetCacheDir", "()Ljava/lang/String;", bIsOptional);
 
 	// Screen capture/recording permission
 	AndroidThunkJava_IsScreenCaptureDisabled = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_IsScreenCaptureDisabled", "()Z", bIsOptional);
@@ -555,6 +556,7 @@ jmethodID FJavaWrapper::AndroidThunkJava_SetSharedPreferenceString;
 jmethodID FJavaWrapper::AndroidThunkJava_GetSharedPreferenceString;
 jmethodID FJavaWrapper::AndroidThunkJava_DeleteSharedPreference;
 jmethodID FJavaWrapper::AndroidThunkJava_DeleteSharedPreferenceGroup;
+jmethodID FJavaWrapper::AndroidThunkJava_GetCacheDir;
 
 jclass FJavaWrapper::InputDeviceInfoClass;
 jfieldID FJavaWrapper::InputDeviceInfo_VendorId;
@@ -1565,6 +1567,16 @@ FString AndroidThunkCpp_GetSharedPreferenceString(const FString& Group, const FS
 		auto KeyArg = FJavaHelper::ToJavaString(Env, Key);
 		auto DefaultValueArg = FJavaHelper::ToJavaString(Env, DefaultValue);
 		Result = FJavaHelper::FStringFromLocalRef(Env, (jstring)FJavaWrapper::CallObjectMethod(Env, FJavaWrapper::GameActivityThis, FJavaWrapper::AndroidThunkJava_GetSharedPreferenceString, *GroupArg, *KeyArg, *DefaultValueArg));
+	}
+	return Result;
+}
+
+FString AndroidThunkCpp_GetCacheDir()
+{
+	FString Result;
+	if (JNIEnv* Env = FAndroidApplication::GetJavaEnv())
+	{
+		Result = FJavaHelper::FStringFromLocalRef(Env, (jstring)FJavaWrapper::CallObjectMethod(Env, FJavaWrapper::GameActivityThis, FJavaWrapper::AndroidThunkJava_GetCacheDir));
 	}
 	return Result;
 }
