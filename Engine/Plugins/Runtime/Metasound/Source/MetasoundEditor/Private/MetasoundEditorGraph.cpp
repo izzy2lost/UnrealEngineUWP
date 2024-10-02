@@ -1635,6 +1635,13 @@ void UMetasoundEditorGraphVariable::SetDataType(FName InNewType, bool bPostTrans
 		TypeName = InNewType;
 		InitializeLiteral();
 
+		{
+			FMetasoundFrontendLiteral DefaultLiteral;
+			DefaultLiteral.SetFromLiteral(IDataTypeRegistry::Get().CreateDefaultLiteral(GetDataType()));
+			check(Literal); // Should exist from prior InitializeLiteral() call
+			Literal->SetFromLiteral(DefaultLiteral);
+		}
+
 		// Add the nodes with the same identifier data but new datatype.
 		UObject& Metasound = Graph->GetMetasoundChecked();
 		AddVariableNodes(Metasound, FrontendGraph, CachedData.Locations);
