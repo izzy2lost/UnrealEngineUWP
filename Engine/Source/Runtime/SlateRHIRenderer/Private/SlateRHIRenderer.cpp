@@ -174,15 +174,6 @@ struct FSlateViewportInfo : public FRenderResource
 		}
 		return nullptr;
 	}
-
-	bool IsStereoscopic3D() const
-	{
-		if (RenderTargetProvider)
-		{
-			return RenderTargetProvider->IsStereoscopic3D();
-		}
-		return false;
-	}
 };
 
 struct FSlatePostProcessUpdateRequest
@@ -695,7 +686,7 @@ FSlateDrawWindowPassOutputs FSlateRHIRenderer::DrawWindow_RenderThread(FRDGBuild
 		FRHITexture* SwapChainTextureRHI = RHIGetViewportBackBuffer(ViewportInfo.ViewportRHI);
 
 		// Only render to the intermediate viewport render target if stereo rendering is enabled, which we'll then composite later.
-		const bool bCompositeStereoToSwapChain = ViewportTextureRHI && GEngine && GEngine->StereoRenderingDevice.IsValid() && ViewportInfo.IsStereoscopic3D();
+		const bool bCompositeStereoToSwapChain = ViewportTextureRHI && GEngine && GEngine->StereoRenderingDevice.IsValid();
 
 		// The output texture is what we ultimately render or composite slate elements into.
 		OutputTextureRHI = bCompositeStereoToSwapChain ? ViewportTextureRHI : SwapChainTextureRHI;

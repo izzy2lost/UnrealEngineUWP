@@ -4332,7 +4332,7 @@ bool UEngine::HasMultipleLocalPlayers(UWorld* InWorld)
 }
 
 /** @return whether we're currently running with stereoscopic 3D enabled */
-bool UEngine::IsStereoscopic3D(const FViewport* InViewport) const
+bool UEngine::IsStereoscopic3D(FViewport* InViewport)
 {
 	return (!InViewport || InViewport->IsStereoRenderingAllowed()) &&
 		(StereoRenderingDevice.IsValid() && StereoRenderingDevice->IsStereoEnabled());
