@@ -534,7 +534,7 @@ private:
 	void PostProcessGraph(const FBox& InNewBounds, bool bInGenerated, FPCGContext* Context);
 	void CallPostGenerateFunctions(FPCGContext* Context) const;
 	void PostCleanupGraph();
-	void OnProcessGraphAborted(bool bQuiet = false);
+	void OnProcessGraphAborted(bool bQuiet = false, bool bCleanupUnusedResources = true);
 	void CleanupUnusedManagedResources();
 	bool MoveResourcesToNewActor(AActor* InNewActor, bool bCreateChild);
 

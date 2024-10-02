@@ -401,6 +401,9 @@ void FPCGContext::OverrideSettings()
 			OverriddenParams.Add(&Param);
 		}
 	}
+
+	// Make sure CacheCrc is up to date
+	SettingsWithOverride->CacheCrc();
 }
 
 bool FPCGContext::IsValueOverriden(const FName PropertyName)

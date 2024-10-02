@@ -11,6 +11,7 @@
 #include "Algo/Find.h"
 #include "Containers/UnrealString.h"
 #include "Misc/StringBuilder.h"
+#include "Serialization/ArchiveCrc32.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGStackContext)
 
@@ -197,6 +198,27 @@ bool FPCGStack::operator==(const FPCGStack& Other) const
 	}
 
 	return true;
+}
+
+FPCGCrc FPCGStack::GetCrc() const
+{
+	FArchiveCrc32 Ar;
+		
+	for (const FPCGStackFrame& StackFrame : StackFrames)
+	{
+		if (!StackFrame.Object.IsNull())
+		{
+			TSoftObjectPtr<const UObject> SoftObjectPtr = StackFrame.Object;
+			Ar << SoftObjectPtr;
+		}
+		else
+		{
+			int32 LoopIndex = StackFrame.LoopIndex;
+			Ar << LoopIndex;
+		}
+	}
+
+	return FPCGCrc(Ar.GetCrc());
 }
 
 int32 FPCGStackContext::PushFrame(const UObject* InFrameObject)

@@ -844,6 +844,11 @@ FPCGTaskId UPCGSubsystem::ScheduleGenericWithContext(TFunction<bool(FPCGContext*
 
 void UPCGSubsystem::CancelGeneration(UPCGComponent* Component)
 {
+	CancelGeneration(Component, /*bCleanupUnusedResources=*/true);
+}
+
+void UPCGSubsystem::CancelGeneration(UPCGComponent* Component, bool bCleanupUnusedResources)
+{
 	check(GraphExecutor && IsInGameThread());
 	if (!Component || !Component->IsGenerating())
 	{
@@ -852,11 +857,11 @@ void UPCGSubsystem::CancelGeneration(UPCGComponent* Component)
 
 	if (Component->IsPartitioned())
 	{
-		auto LocalCancel = [this](UPCGComponent* LocalComponent)
+		auto LocalCancel = [this, bCleanupUnusedResources](UPCGComponent* LocalComponent)
 		{
 			if (LocalComponent->IsGenerating())
 			{
-				CancelGeneration(LocalComponent);
+				CancelGeneration(LocalComponent, bCleanupUnusedResources);
 			}
 
 			return InvalidPCGTaskId;
@@ -870,7 +875,7 @@ void UPCGSubsystem::CancelGeneration(UPCGComponent* Component)
 	{
 		if (CancelledComponent)
 		{
-			CancelledComponent->OnProcessGraphAborted(/*bQuiet=*/true);
+			CancelledComponent->OnProcessGraphAborted(/*bQuiet=*/true, bCleanupUnusedResources);
 		}
 	}	
 }

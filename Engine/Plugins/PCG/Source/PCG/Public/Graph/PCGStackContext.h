@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "PCGCrc.h"
+
 #include "Utils/PCGExtraCapture.h"
 
 #include "Containers/Array.h"
@@ -144,6 +146,8 @@ public:
 
 		return Hash;
 	}
+
+	FPCGCrc GetCrc() const;
 
 private:
 	FPCGTaskId GraphExecutionTaskId = InvalidPCGTaskId;

@@ -4,6 +4,7 @@
 
 #include "PCGComponent.h"
 #include "PCGContext.h"
+#include "PCGCrc.h"
 #include "PCGElement.h"
 #include "PCGManagedResource.h"
 #include "PCGModule.h"
@@ -15,7 +16,9 @@
 #include "Engine/Blueprint.h"
 #include "Engine/BlueprintGeneratedClass.h"
 #include "Engine/Engine.h"
+#include "Engine/Level.h"
 #include "GameFramework/Actor.h"
+#include "Serialization/ArchiveCrc32.h"
 #include "UObject/Package.h"
 
 #if WITH_EDITOR
@@ -39,6 +42,59 @@ namespace PCGCreateTargetActorConstants
 {
 	const FName ActorPropertyOverridesLabel = TEXT("Property Overrides");
 	const FText ActorPropertyOverridesTooltip = LOCTEXT("ActorOverrideToolTip", "Provide property overrides for the created target actor. The attribute name must match the InputSource name in the actor property override description.");
+}
+
+namespace PCGCreateTargetActor
+{
+	static TAutoConsoleVariable<bool> CVarCreateTargetActorAllowReuse(
+		TEXT("pcg.CreateTargetActor.AllowReuse"),
+		false,
+		TEXT("Controls whether PCG Create Target Actor node can reuse actors when re-executing (requires Create Target Actor node resave so they have a Stable Reuse Guid)"));
+
+	FPCGCrc GetAdditionalDependenciesCrc(const UPCGActorHelpers::FSpawnDefaultActorParams& InParams, AActor* TargetActor)
+	{
+		FArchiveCrc32 Ar;
+
+		Ar << TargetActor;
+
+		// Do not CRC Everything as some of those params come from the Settings which is already CRCed
+		UObject* Level = InParams.SpawnParams.OverrideLevel;
+		Ar << Level;
+
+		int32 ObjectFlags = InParams.SpawnParams.ObjectFlags;
+		Ar << ObjectFlags;
+				
+		// Include transform - round sufficiently to ensure stability
+		FVector TransformLocation = InParams.Transform.GetLocation();
+		FIntVector Location(FMath::RoundToInt(TransformLocation.X), FMath::RoundToInt(TransformLocation.Y), FMath::RoundToInt(TransformLocation.Z));
+		Ar << Location;
+
+		FRotator Rotator(InParams.Transform.Rotator().GetDenormalized());
+		const int32 MAX_DEGREES = 360;
+		FIntVector Rotation(FMath::RoundToInt(Rotator.Pitch) % MAX_DEGREES, FMath::RoundToInt(Rotator.Yaw) % MAX_DEGREES, FMath::RoundToInt(Rotator.Roll) % MAX_DEGREES);
+		Ar << Rotation;
+
+		FVector TransformScale = InParams.Transform.GetScale3D();
+		const float SCALE_FACTOR = 100;
+		FIntVector Scale(FMath::RoundToInt(TransformScale.X * SCALE_FACTOR), FMath::RoundToInt(TransformScale.Y * SCALE_FACTOR), FMath::RoundToInt(TransformScale.Z * SCALE_FACTOR));
+		Ar << Scale;
+				
+#if WITH_EDITOR
+		TArray<const UDataLayerInstance*> DataLayerInstances = InParams.DataLayerInstances;
+		DataLayerInstances.Sort([](const UDataLayerInstance& A, const UDataLayerInstance& B)
+		{
+			return A.GetDataLayerFullName() < B.GetDataLayerFullName();
+		});
+
+		for (const UDataLayerInstance* DataLayerInstance : DataLayerInstances)
+		{
+			UDataLayerInstance* NonConstDataLayerInstance = const_cast<UDataLayerInstance*>(DataLayerInstance);
+			Ar << NonConstDataLayerInstance;
+		}
+#endif
+		
+		return FPCGCrc(Ar.GetCrc());
+	}
 }
 
 UPCGCreateTargetActor::UPCGCreateTargetActor(const FObjectInitializer& ObjectInitializer)
@@ -317,39 +373,98 @@ bool FPCGCreateTargetActorElement::ExecuteInternal(FPCGContext* Context) const
 	SpawnDefaultActorParams.DataLayerInstances = TargetActor->GetDataLayerInstances();
 #endif
 
-	AActor* GeneratedActor = UPCGActorHelpers::SpawnDefaultActor(SpawnDefaultActorParams);
+	UPCGManagedActors* ReusableResource = nullptr;
+	FPCGCrc ResourceCrc;
 
-	if (!GeneratedActor)
+	if (PCGCreateTargetActor::CVarCreateTargetActorAllowReuse.GetValueOnAnyThread())
 	{
-		PCGE_LOG(Error, GraphAndLog, LOCTEXT("ActorSpawnFailed", "Failed to spawn actor"));
-		return true;
-	}
+		if (!Context->DependenciesCrc.IsValid())
+		{
+			// TODO: we should be able to use the InputData to compute Crcs but this Crc contains a non stable UID
+			// since CreateTargetActor settings are already overriden by the inputdata, it doesn't matter here and we can just ignore it
+			// but for future reference if we want to have better reusing and stable generation across, we need to fix this.
+			FPCGDataCollection EmptyCollection;
+			GetDependenciesCrc(EmptyCollection, Settings, Context->SourceComponent.Get(), Context->DependenciesCrc);
+		}
 
-	// Always attach if root actor is provided
-	PCGHelpers::AttachToParent(GeneratedActor, TargetActor, Settings->RootActor.Get() ? EPCGAttachOptions::Attached : Settings->AttachOptions, Context);
+		if (Context->DependenciesCrc.IsValid())
+		{
+			ResourceCrc = Context->DependenciesCrc;
+
+			const FPCGCrc StackCRC = Context->Stack->GetCrc();
+			ResourceCrc.Combine(StackCRC);
+
+			const FPCGCrc AdditionalCRC = PCGCreateTargetActor::GetAdditionalDependenciesCrc(SpawnDefaultActorParams, TargetActor);
+			ResourceCrc.Combine(AdditionalCRC);
+
+			Context->SourceComponent->ForEachManagedResource([&ReusableResource, ResourceCrc, &Context](UPCGManagedResource* InResource)
+			{
+				if (ReusableResource)
+				{
+					return;
+				}
+
+				if (UPCGManagedActors* Resource = Cast<UPCGManagedActors>(InResource))
+				{
+					if (Resource->GetCrc().IsValid() && Resource->GetCrc() == ResourceCrc && Resource->GeneratedActors.Num() == 1 && Resource->GeneratedActors.Array()[0].IsValid())
+					{
+						ReusableResource = Resource;
+					}
+				}
+			});
+		}
+	}
+		
+	AActor* GeneratedActor = nullptr;
+	if (ReusableResource)
+	{
+		ReusableResource->MarkAsReused();
+		GeneratedActor = ReusableResource->GeneratedActors.Array()[0].Get();
+		ensure(GeneratedActor->Tags.Contains(PCGHelpers::DefaultPCGActorTag));
+	}
+	else
+	{
+		GeneratedActor = UPCGActorHelpers::SpawnDefaultActor(SpawnDefaultActorParams);
+		if (!GeneratedActor)
+		{
+			PCGE_LOG(Error, GraphAndLog, LOCTEXT("ActorSpawnFailed", "Failed to spawn actor"));
+			return true;
+		}
+
+		GeneratedActor->Tags.Add(PCGHelpers::DefaultPCGActorTag);
 
 #if WITH_EDITOR
-	if (Settings->ActorLabel != FString())
-	{
-		GeneratedActor->SetActorLabel(Settings->ActorLabel);
-	}
+		if (!Settings->ActorLabel.IsEmpty())
+		{
+			GeneratedActor->SetActorLabel(Settings->ActorLabel);
+		}
 #endif
 
-	GeneratedActor->Tags.Add(PCGHelpers::DefaultPCGActorTag);
+		// Always attach if root actor is provided
+		PCGHelpers::AttachToParent(GeneratedActor, TargetActor, Settings->RootActor.Get() ? EPCGAttachOptions::Attached : Settings->AttachOptions, Context);
 
-	// Apply property overrides to the GeneratedActor
-	PCGObjectPropertyOverrideHelpers::ApplyOverridesFromParams(Settings->PropertyOverrideDescriptions, GeneratedActor, PCGCreateTargetActorConstants::ActorPropertyOverridesLabel, Context);
-
+		// Apply property overrides to the GeneratedActor
+		PCGObjectPropertyOverrideHelpers::ApplyOverridesFromParams(Settings->PropertyOverrideDescriptions, GeneratedActor, PCGCreateTargetActorConstants::ActorPropertyOverridesLabel, Context);
+	}
+	
 	for (UFunction* Function : PCGHelpers::FindUserFunctions(GeneratedActor->GetClass(), Settings->PostProcessFunctionNames, { UPCGFunctionPrototypes::GetPrototypeWithNoParams() }, Context))
 	{
 		GeneratedActor->ProcessEvent(Function, nullptr);
 	}
 
-	if (UPCGComponent* SourceComponent = Context->SourceComponent.Get())
+	// Create Resource if it isn't reused
+	if (!ReusableResource)
 	{
-		UPCGManagedActors* ManagedActors = NewObject<UPCGManagedActors>(SourceComponent);
-		ManagedActors->GeneratedActors.Add(GeneratedActor);
-		SourceComponent->AddToManagedResources(ManagedActors);
+		if (UPCGComponent* SourceComponent = Context->SourceComponent.Get())
+		{
+			UPCGManagedActors* ManagedActors = NewObject<UPCGManagedActors>(SourceComponent);
+			if (ResourceCrc.IsValid())
+			{
+				ManagedActors->SetCrc(ResourceCrc);
+			}
+			ManagedActors->GeneratedActors.Add(GeneratedActor);
+			SourceComponent->AddToManagedResources(ManagedActors);
+		}
 	}
 
 	// Create param data output with reference to actor
