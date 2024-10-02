@@ -214,7 +214,7 @@ public:
 	virtual void OnClickDrag(const FInputDeviceRay& DragPos);
 	virtual void OnClickRelease(const FInputDeviceRay& ReleasePos);
 	virtual void OnTerminateDragSequence();
-protected:
+private:
 
 	UPROPERTY()
 	TObjectPtr<UDrawSplineToolProperties> Settings = nullptr;
@@ -230,13 +230,8 @@ protected:
 	// This is only used to initialize TargetActor in the settings object
 	TWeakObjectPtr<AActor> SelectedActor = nullptr;
 
-	// PreviewRootActor either holds WorkingSpline inside it directly, or has some preview actor
-	// attached to it (so that the preview actor is hidden from outliner, like APreviewGeometryActor is).
-	UPROPERTY()
-	TObjectPtr<APreviewGeometryActor> PreviewRootActor = nullptr;
-
-	// The preview actor may be a duplicate of some target blueprint actor so that we can see the
-	// effects of the drawn spline immediately
+	// The preview actor is either a APreviewGeometryActor with a spline, or a duplicate of 
+	// some target blueprint actor so that we can see the effects of the drawn spline immediately.
 	UPROPERTY()
 	TObjectPtr<AActor> PreviewActor = nullptr;
 

@@ -57,6 +57,7 @@ public class MeshModelingToolsEditorOnlyExp : ModuleRules
 				"UnrealEd",
 				"Persona",
 				"AdvancedPreviewScene",
+				"SceneOutliner",
 				"Slate",
 				"Json",
 				"ApplicationCore"
