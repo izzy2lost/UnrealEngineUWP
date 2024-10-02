@@ -210,11 +210,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	/** Override this method to provide custom reconnections when a node outputs has been deprecated and removed. */
 	virtual FDataflowOutput* RedirectSerializedOutput(const FName& MissingOutputName) { return nullptr; }
 
-	/** Called by editor toolkits when the node is selected, or already selected and invalidated. */
-	virtual void OnSelected(UE::Dataflow::FContext& Context) {}
-	/** Called by editor toolkits when the node is deselected. */
-	virtual void OnDeselected() {}
-
 	//
 	//  Struct Support
 	//

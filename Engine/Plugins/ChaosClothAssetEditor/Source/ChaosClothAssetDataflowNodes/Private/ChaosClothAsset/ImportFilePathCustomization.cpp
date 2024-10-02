@@ -2,6 +2,7 @@
 
 #include "ChaosClothAsset/ImportFilePathCustomization.h"
 #include "ChaosClothAsset/ImportFilePath.h"
+#include "Dataflow/DataflowGraphEditor.h"
 #include "Misc/MessageDialog.h"
 #include "Misc/PackageName.h"
 #include "Widgets/Images/SImage.h"
@@ -45,6 +46,9 @@ namespace UE::Chaos::ClothAsset
 
 	void FImportFilePathCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> StructPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils)
 	{
+		// Keep a weak pointer to the graph editor asking for this customization
+		DataflowGraphEditor = SDataflowGraphEditor::GetSelectedGraphEditor();
+
 		StructProperty = StructPropertyHandle;
 		PathStringProperty = StructPropertyHandle->GetChildHandle(TEXT("FilePath"));
 
@@ -165,7 +169,13 @@ namespace UE::Chaos::ClothAsset
 				PathStringProperty->SetValue(FinalPath, EPropertyValueSetFlags::InteractiveChange);  // Do as an interactive change so that the delegate is called with the correct value before the node invalidates
 				if (const FChaosClothAssetImportFilePath* const ImportFilePath = Private::GetImportFilePath(StructProperty))
 				{
-					ImportFilePath->Execute();
+					// Retrieve context if any
+					const TSharedPtr<const SDataflowGraphEditor> DataflowGraphEditorPtr = DataflowGraphEditor.Pin();
+					const TSharedPtr<UE::Dataflow::FContext> Context = DataflowGraphEditorPtr ? DataflowGraphEditorPtr->GetDataflowContext() : TSharedPtr<UE::Dataflow::FContext>();
+
+					// Execute function
+					UE::Dataflow::FContextThreaded EmptyContext;
+					ImportFilePath->Execute(Context.IsValid() ? *Context : EmptyContext);
 				}
 				PathStringProperty->SetValue(FinalPath);  // This will set the final value and call invalidate on the node
 			}

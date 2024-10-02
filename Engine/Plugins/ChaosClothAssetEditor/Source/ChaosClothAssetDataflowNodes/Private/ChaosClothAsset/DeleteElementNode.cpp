@@ -372,21 +372,6 @@ void FChaosClothAssetDeleteElementNode::Evaluate(UE::Dataflow::FContext& Context
 	}
 }
 
-void FChaosClothAssetDeleteElementNode::OnSelected(UE::Dataflow::FContext& Context)
-{
-	// Re-evaluate the input collection
-	const FManagedArrayCollection& SelectionCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-
-	// Update the list of used group for the UI customization
-	CachedCollectionGroupNames = SelectionCollection.GroupNames();
-}
-
-void FChaosClothAssetDeleteElementNode::OnDeselected()
-{
-	// Clean up, to avoid another toolkit picking up the wrong context evaluation
-	CachedCollectionGroupNames.Reset();
-}
-
 void FChaosClothAssetDeleteElementNode::Serialize(FArchive& Ar)
 {
 	using namespace UE::Chaos::ClothAsset;

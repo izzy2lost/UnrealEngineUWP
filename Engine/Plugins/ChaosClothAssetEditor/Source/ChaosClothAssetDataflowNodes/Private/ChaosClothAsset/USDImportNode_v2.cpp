@@ -211,7 +211,7 @@ namespace UE::Chaos::ClothAsset::Private
 FChaosClothAssetUSDImportNode_v2::FChaosClothAssetUSDImportNode_v2(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 	, UsdFile(
-		FSimpleDelegate::CreateLambda([this, OwningObject = InParam.OwningObject]()
+		FDataflowFunctionProperty::FDelegate::CreateLambda([this, OwningObject = InParam.OwningObject](UE::Dataflow::FContext& /*Context*/)
 			{
 				const FString AssetPath = OwningObject ? OwningObject->GetPackage()->GetPathName() : FString();
 				FText ErrorText;
@@ -224,12 +224,12 @@ FChaosClothAssetUSDImportNode_v2::FChaosClothAssetUSDImportNode_v2(const UE::Dat
 				}
 			}))
 	, ReimportUsdFile(
-		FSimpleDelegate::CreateLambda([this]()
+		FDataflowFunctionProperty::FDelegate::CreateLambda([this](UE::Dataflow::FContext& Context)
 			{
-				UsdFile.Execute();
+				UsdFile.Execute(Context);
 			}))
 	, ReloadSimStaticMesh(
-		FSimpleDelegate::CreateLambda([this]()
+		FDataflowFunctionProperty::FDelegate::CreateLambda([this](UE::Dataflow::FContext& /*Context*/)
 			{
 				const TSharedRef<FManagedArrayCollection> ClothCollection = MakeShared<FManagedArrayCollection>(MoveTemp(Collection));
 				FText ErrorText;
@@ -242,7 +242,7 @@ FChaosClothAssetUSDImportNode_v2::FChaosClothAssetUSDImportNode_v2(const UE::Dat
 				Collection = MoveTemp(*ClothCollection);
 			}))
 	, ReloadRenderStaticMesh(
-		FSimpleDelegate::CreateLambda([this]()
+		FDataflowFunctionProperty::FDelegate::CreateLambda([this](UE::Dataflow::FContext& /*Context*/)
 			{
 				const TSharedRef<FManagedArrayCollection> ClothCollection = MakeShared<FManagedArrayCollection>(MoveTemp(Collection));
 				FText ErrorText;

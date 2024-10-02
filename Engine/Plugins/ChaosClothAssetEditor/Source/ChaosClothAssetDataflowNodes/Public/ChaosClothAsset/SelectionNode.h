@@ -55,7 +55,7 @@ enum class EChaosClothAssetSelectionOverrideType : uint8
 };
 
 USTRUCT(Meta = (DataflowCloth))
-struct FChaosClothAssetSelectionNode_v2 : public FDataflowNode
+struct FChaosClothAssetSelectionNode_v2 final : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetSelectionNode_v2, "Selection", "Cloth", "Cloth Selection")
@@ -126,9 +126,6 @@ public:
 
 	FChaosClothAssetSelectionNode_v2(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
-	/** Return a cached array of all the groups used by the input collection during at the time of the latest evaluation. */
-	const TArray<FName>& GetCachedCollectionGroupNames() const { return CachedCollectionGroupNames; }
-
 private:
 	friend class UClothMeshSelectionTool;
 
@@ -141,15 +138,11 @@ private:
 
 	//~ Begin FDataflowNode implementation
 	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
-	virtual void OnSelected(UE::Dataflow::FContext& Context) override;
-	virtual void OnDeselected() override;
 	//~ End FDataflowNode implementation
 
-	void OnImport();
-	void OnImportSecondary();
-	void OnTransfer();
-
-	TArray<FName> CachedCollectionGroupNames;
+	void OnImport(UE::Dataflow::FContext& Context);
+	void OnImportSecondary(UE::Dataflow::FContext& Context);
+	void OnTransfer(UE::Dataflow::FContext& Context);
 };
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS  // For EChaosClothAssetSelectionType
@@ -236,6 +229,7 @@ public:
 	FChaosClothAssetSelectionNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 	/** Return a cached array of all the groups used by the input collection during at the time of the latest evaluation. */
+	UE_DEPRECATED(5.5, "This function is deprecated and will now return an empty array.")
 	const TArray<FName>& GetCachedCollectionGroupNames() const { return CachedCollectionGroupNames; }
 
 	FName CHAOSCLOTHASSETDATAFLOWNODES_API GetInputName(UE::Dataflow::FContext& Context) const;
@@ -250,8 +244,10 @@ public:
 private:
 	virtual void SetAssetValue(TObjectPtr<UObject> Asset, UE::Dataflow::FContext& Context) const override;
 	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
-	virtual void OnSelected(UE::Dataflow::FContext& Context) override;
-	virtual void OnDeselected() override;
+	UE_DEPRECATED(5.5, "This function is deprecated and will not be called on selection/deselection.")
+	virtual void OnSelected(UE::Dataflow::FContext& /*Context*/) {}
+	UE_DEPRECATED(5.5, "This function is deprecated and will not be called on selection/deselection.")
+	virtual void OnDeselected() {}
 	virtual void Serialize(FArchive& Ar);
 
 	TArray<FName> CachedCollectionGroupNames;

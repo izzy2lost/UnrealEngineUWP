@@ -275,9 +275,9 @@ private:
 
 FChaosClothAssetSelectionNode_v2::FChaosClothAssetSelectionNode_v2(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
-	, Import(FSimpleDelegate::CreateRaw(this, &FChaosClothAssetSelectionNode_v2::OnImport))
-	, ImportSecondary(FSimpleDelegate::CreateRaw(this, &FChaosClothAssetSelectionNode_v2::OnImportSecondary))
-	, Transfer(FSimpleDelegate::CreateRaw(this, &FChaosClothAssetSelectionNode_v2::OnTransfer))
+	, Import(FDataflowFunctionProperty::FDelegate::CreateRaw(this, &FChaosClothAssetSelectionNode_v2::OnImport))
+	, ImportSecondary(FDataflowFunctionProperty::FDelegate::CreateRaw(this, &FChaosClothAssetSelectionNode_v2::OnImportSecondary))
+	, Transfer(FDataflowFunctionProperty::FDelegate::CreateRaw(this, &FChaosClothAssetSelectionNode_v2::OnTransfer))
 {
 	RegisterInputConnection(&Collection);
 	RegisterInputConnection(&InputName.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue))
@@ -290,12 +290,9 @@ FChaosClothAssetSelectionNode_v2::FChaosClothAssetSelectionNode_v2(const UE::Dat
 	RegisterOutputConnection(&OutputName.StringValue, (FString*)nullptr, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableOStringValue, StringValue));
 }
 
-void FChaosClothAssetSelectionNode_v2::OnImport()
+void FChaosClothAssetSelectionNode_v2::OnImport(UE::Dataflow::FContext& Context)
 {
 	using namespace UE::Chaos::ClothAsset;
-
-	// Create a temporary context (until we find a way to re-use the one from the tool calling this function)
-	UE::Dataflow::FContextThreaded Context;
 
 	FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
 	const TSharedRef<FManagedArrayCollection> ClothCollection = MakeShared<FManagedArrayCollection>(MoveTemp(InCollection));
@@ -318,12 +315,9 @@ void FChaosClothAssetSelectionNode_v2::OnImport()
 	}
 }
 
-void FChaosClothAssetSelectionNode_v2::OnImportSecondary()
+void FChaosClothAssetSelectionNode_v2::OnImportSecondary(UE::Dataflow::FContext& Context)
 {
 	using namespace UE::Chaos::ClothAsset;
-
-	// Create a temporary context (until we find a way to re-use the one from the tool calling this function)
-	UE::Dataflow::FContextThreaded Context;
 
 	FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
 	const TSharedRef<FManagedArrayCollection> ClothCollection = MakeShared<FManagedArrayCollection>(MoveTemp(InCollection));
@@ -346,12 +340,9 @@ void FChaosClothAssetSelectionNode_v2::OnImportSecondary()
 	}
 }
 
-void FChaosClothAssetSelectionNode_v2::OnTransfer()
+void FChaosClothAssetSelectionNode_v2::OnTransfer(UE::Dataflow::FContext& Context)
 {
 	using namespace UE::Chaos::ClothAsset;
-
-	// Create a temporary context (until we find a way to re-use the one from the tool calling this function)
-	UE::Dataflow::FContextThreaded Context;
 
 	// Transfer selection if the transfer collection input has changed and is valid
 	FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
@@ -458,33 +449,6 @@ void FChaosClothAssetSelectionNode_v2::Evaluate(UE::Dataflow::FContext& Context,
 		FClothDataflowTools::MakeCollectionName(InputNameString);
 		SetValue(Context, OutputName.StringValue.IsEmpty() ? InputNameString : OutputName.StringValue, &OutputName.StringValue);
 	}
-}
-
-void FChaosClothAssetSelectionNode_v2::OnSelected(UE::Dataflow::FContext& Context)
-{
-	using namespace UE::Chaos::ClothAsset;
-
-	// Re-evaluate the input collection
-	FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-	const TSharedRef<FManagedArrayCollection> ClothCollection = MakeShared<FManagedArrayCollection>(MoveTemp(InCollection));
-	FCollectionClothFacade Cloth(ClothCollection);
-
-	// Update the list of used group for the UI customization
-	const TArray<FName> GroupNames = ClothCollection->GroupNames();
-	CachedCollectionGroupNames.Reset(GroupNames.Num());
-	for (const FName& GroupName : GroupNames)
-	{
-		if (Cloth.IsValidClothCollectionGroupName(GroupName))  // Restrict to the cloth facade groups
-		{
-			CachedCollectionGroupNames.Emplace(GroupName);
-		}
-	}
-}
-
-void FChaosClothAssetSelectionNode_v2::OnDeselected()
-{
-	// Clean up, to avoid another toolkit picking up the wrong context evaluation
-	CachedCollectionGroupNames.Reset();
 }
 
 FName FChaosClothAssetSelectionNode_v2::GetInputName(UE::Dataflow::FContext& Context) const
@@ -707,33 +671,6 @@ void FChaosClothAssetSelectionNode::Evaluate(UE::Dataflow::FContext& Context, co
 		FClothDataflowTools::MakeCollectionName(InputNameString);
 		SetValue(Context, Name.IsEmpty() ? InputNameString : Name, &Name);
 	}
-}
-
-void FChaosClothAssetSelectionNode::OnSelected(UE::Dataflow::FContext& Context)
-{
-	using namespace UE::Chaos::ClothAsset;
-
-	// Re-evaluate the input collection
-	FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-	const TSharedRef<FManagedArrayCollection> ClothCollection = MakeShared<FManagedArrayCollection>(MoveTemp(InCollection));
-	FCollectionClothFacade Cloth(ClothCollection);
-
-	// Update the list of used group for the UI customization
-	const TArray<FName> GroupNames = ClothCollection->GroupNames();
-	CachedCollectionGroupNames.Reset(GroupNames.Num());
-	for (const FName& GroupName : GroupNames)
-	{
-		if (Cloth.IsValidClothCollectionGroupName(GroupName))  // Restrict to the cloth facade groups
-		{
-			CachedCollectionGroupNames.Emplace(GroupName);
-		}
-	}
-}
-
-void FChaosClothAssetSelectionNode::OnDeselected()
-{
-	// Clean up, to avoid another toolkit picking up the wrong context evaluation
-	CachedCollectionGroupNames.Reset();
 }
 
 void FChaosClothAssetSelectionNode::Serialize(FArchive& Ar)

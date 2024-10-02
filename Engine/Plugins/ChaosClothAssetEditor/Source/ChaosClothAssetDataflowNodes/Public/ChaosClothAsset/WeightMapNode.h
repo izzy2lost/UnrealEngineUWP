@@ -88,7 +88,7 @@ private:
 	virtual FDataflowOutput* RedirectSerializedOutput(const FName& MissingOutputName) override;
 	//~ End FDataflowNode interface
 
-	void OnTransfer();
+	void OnTransfer(UE::Dataflow::FContext& Context);
 
 	UPROPERTY()
 	TArray<float> VertexWeights;

@@ -114,26 +114,4 @@ void FDataflowCollectionAddScalarVertexPropertyNode::Evaluate(UE::Dataflow::FCon
 	}
 }
 
-void FDataflowCollectionAddScalarVertexPropertyNode::OnSelected(UE::Dataflow::FContext& Context)
-{
-	// Re-evaluate the input collection
-	FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-	const TSharedRef<FManagedArrayCollection> ManagedArrayCollection = MakeShared<FManagedArrayCollection>(MoveTemp(InCollection));
-
-	// Update the list of used group for the UI customization
-	const TArray<FName> GroupNames = ManagedArrayCollection->GroupNames();
-	CachedCollectionGroupNames.Reset(GroupNames.Num());
-	for (const FName& GroupName : GroupNames)
-	{
-		CachedCollectionGroupNames.Emplace(GroupName);
-	}
-}
-
-void FDataflowCollectionAddScalarVertexPropertyNode::OnDeselected()
-{
-	// Clean up, to avoid another toolkit picking up the wrong context evaluation
-	CachedCollectionGroupNames.Reset();
-}
-
-
 #undef LOCTEXT_NAMESPACE

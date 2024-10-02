@@ -45,7 +45,7 @@ public:
 
 	SLATE_ARGUMENT(TSharedPtr<FUICommandList>, AdditionalCommands)
 	SLATE_ATTRIBUTE(FGraphAppearanceInfo, Appearance)
-	SLATE_ARGUMENT(UEdGraph*, GraphToEdit)
+	SLATE_ARGUMENT_DEFAULT(UEdGraph*, GraphToEdit) = nullptr;
 	SLATE_ARGUMENT(FGraphEditorEvents, GraphEvents)
 	SLATE_ARGUMENT(TSharedPtr<IStructureDetailsView>, DetailsView)
 	SLATE_ARGUMENT(FDataflowEditorCommands::FGraphEvaluationCallback, EvaluateGraph)
@@ -146,7 +146,10 @@ public:
 	virtual FString GetReferencerName() const override { return TEXT("SDataflowGraphEditor"); }
 
 	/** FDataflowSNodeInterface */
-	virtual const TSharedPtr<UE::Dataflow::FEngineContext> GetDataflowContext() const override;
+	virtual TSharedPtr<UE::Dataflow::FContext> GetDataflowContext() const override;
+
+	/** Return the currently selected editor. Only valid for the duration of the OnSelectedNodesChanged callback where the property editor is updated. */
+	static const TWeakPtr<SDataflowGraphEditor>& GetSelectedGraphEditor() { return SelectedGraphEditor; }
 
 private:
 	/** Add an additional option pin to all selected Dataflow nodes for those that overrides the AddPin function. */
@@ -178,6 +181,9 @@ private:
 
 	/** Factory to create the associated SGraphNode classes for Dataprep graph's UEdGraph classes */
 	static TSharedPtr<FDataflowGraphEditorNodeFactory> NodeFactory;
+
+	/** The current graph editor when the selection callback is invoked. */
+	static TWeakPtr<SDataflowGraphEditor> SelectedGraphEditor;
 
 	/** Editor for the content */
 	UDataflowEditor* DataflowEditor = nullptr;

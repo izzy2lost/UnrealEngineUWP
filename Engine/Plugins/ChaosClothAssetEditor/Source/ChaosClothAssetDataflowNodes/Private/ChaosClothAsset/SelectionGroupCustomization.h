@@ -9,6 +9,7 @@ class ITableRow;
 class SComboButton;
 class STableViewBase;
 class SWidget;
+class SDataflowGraphEditor;
 
 namespace UE::Chaos::ClothAsset
 {
@@ -34,6 +35,7 @@ namespace UE::Chaos::ClothAsset
 		template<typename T>
 		T* GetOwnerStruct() const;
 
+		TWeakPtr<const SDataflowGraphEditor> DataflowGraphEditor;
 		TSharedPtr<IPropertyHandle> ChildPropertyHandle;
 		TSharedPtr<SComboButton> ComboButton;
 		TArray<TSharedPtr<FText>> GroupNames;

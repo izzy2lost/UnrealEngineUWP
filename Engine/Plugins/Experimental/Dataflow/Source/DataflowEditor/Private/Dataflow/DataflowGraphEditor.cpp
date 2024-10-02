@@ -22,6 +22,7 @@
 #define LOCTEXT_NAMESPACE "DataflowGraphEditor"
 
 TSharedPtr<FDataflowGraphEditorNodeFactory> SDataflowGraphEditor::NodeFactory;
+TWeakPtr<SDataflowGraphEditor> SDataflowGraphEditor::SelectedGraphEditor;
 
 void SDataflowGraphEditor::Construct(const FArguments& InArgs, UObject* InAssetOwner)
 {
@@ -164,7 +165,7 @@ void SDataflowGraphEditor::Construct(const FArguments& InArgs, UObject* InAssetO
 	SetNodeFactory( MakeShared<FDataflowGraphNodeFactory>(this) );
 }
 
-const TSharedPtr<UE::Dataflow::FEngineContext> SDataflowGraphEditor::GetDataflowContext() const
+TSharedPtr<UE::Dataflow::FContext> SDataflowGraphEditor::GetDataflowContext() const
 {
 	if (DataflowEditor)
 	{
@@ -173,7 +174,7 @@ const TSharedPtr<UE::Dataflow::FEngineContext> SDataflowGraphEditor::GetDataflow
 			return DataflowEditor->GetEditorContent()->GetDataflowContext();
 		}
 	}
-	return TSharedPtr<UE::Dataflow::FEngineContext>(nullptr);
+	return TSharedPtr<UE::Dataflow::FContext>();
 }
 
 void SDataflowGraphEditor::EvaluateNode()
@@ -292,7 +293,11 @@ bool SDataflowGraphEditor::CanRenameNode() const
 
 void SDataflowGraphEditor::OnSelectedNodesChanged(const TSet<UObject*>& NewSelection)
 {
-	OnSelectionChangedMulticast.Broadcast(NewSelection);  // Broadcast the selection change before refreshing the DetailsView, the nodes' specific UI data have to be updated before the UI is being redrawn
+	// Set the currently selected graph editor before running any callback
+	ensureMsgf(!SelectedGraphEditor.IsValid(), TEXT("Two different editors cannot have their selection changed at once."));
+	SelectedGraphEditor = StaticCastSharedRef<SDataflowGraphEditor>(AsShared()).ToWeakPtr();
+
+	OnSelectionChangedMulticast.Broadcast(NewSelection);
 
 	if (DataflowAsset.Get() && DetailsView)
 	{
@@ -303,6 +308,9 @@ void SDataflowGraphEditor::OnSelectedNodesChanged(const TSet<UObject*>& NewSelec
 
 		FDataflowEditorCommands::OnSelectedNodesChanged(DetailsView, AssetOwner.Get(), DataflowAsset.Get(), AsObjectPointers(NewSelection) );
 	}
+
+	// Clear the current selected editor
+	SelectedGraphEditor.Reset();
 }
 
 FReply SDataflowGraphEditor::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)

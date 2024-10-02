@@ -147,7 +147,7 @@ TSharedPtr<SGraphPin> SDataflowEdNode::CreatePinWidget(UEdGraphPin* Pin) const
 			{
 				if (FDataflowOutput* Output = DataflowNode->FindOutput(Pin->GetFName()))
 				{
-					if (const TSharedPtr<UE::Dataflow::FEngineContext> DataflowContext = DataflowInterface->GetDataflowContext())
+					if (const TSharedPtr<UE::Dataflow::FContext> DataflowContext = DataflowInterface->GetDataflowContext())
 					{
 						TSet<UE::Dataflow::FContextCacheKey> CacheKeys;
 						const int32 NumKeys = DataflowContext->GetKeys(CacheKeys);
