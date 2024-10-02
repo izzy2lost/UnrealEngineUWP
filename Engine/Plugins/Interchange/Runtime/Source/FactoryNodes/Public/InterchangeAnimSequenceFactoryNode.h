@@ -410,7 +410,7 @@ public:
 	/** Return if the import of the class is allowed at runtime.*/
 	virtual bool IsRuntimeImportAllowed() const override
 	{
-		return false;
+		return true;
 	}
 
 private:
