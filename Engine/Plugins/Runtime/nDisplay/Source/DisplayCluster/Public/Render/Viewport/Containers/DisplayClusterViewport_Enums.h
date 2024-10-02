@@ -239,3 +239,16 @@ enum class EDisplayClusterViewportCameraPostProcessFlags : uint8
 	All = 0xFF
 };
 ENUM_CLASS_FLAGS(EDisplayClusterViewportCameraPostProcessFlags);
+
+/**
+* Rules for customizing nDisplay views and view families for the renderer.
+*/
+enum class EDisplayClusterViewportRenderingFlags : uint8
+{
+	// No flags
+	None = 0,
+
+	// Stereo rendering: Change screen percentage method to raw output when doing dynamic resolution with VR if not using TAA upsample.
+	StereoRendering = 1 << 0,
+};
+ENUM_CLASS_FLAGS(EDisplayClusterViewportRenderingFlags);
