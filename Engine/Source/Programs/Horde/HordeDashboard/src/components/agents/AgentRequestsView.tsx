@@ -98,7 +98,7 @@ const AgentsPanel: React.FC = observer(() => {
             await agentStore.update(false);
             navigate("/agents");
          } else {
-            setTimeout(queryAgents, 3000);
+            setTimeout(queryAgents, 2000);
          }
       }
 

@@ -56,9 +56,11 @@ export class AgentStore {
                     toSet.push(updatedAgent);
                 }
             });            
-            this._agents = toSet.filter(a => true /*!!a.deleted*/);
-            this.agentsUpdated++;
+            this._agents = toSet.filter(a => true /*!!a.deleted*/);            
+        } else {
+            this._agents = [];
         }
+        this.agentsUpdated++;
     }
 
     async updateAgent(agentId: string): Promise<GetAgentResponse> {
@@ -122,6 +124,10 @@ export class AgentStore {
             if (this.inflight !== undefined && slim) {                
                 resolve();
                 return;
+            }
+
+            if (invalidateCache) {
+                this.modifiedAfterDate = undefined;
             }
 
             this.inflight = true;
