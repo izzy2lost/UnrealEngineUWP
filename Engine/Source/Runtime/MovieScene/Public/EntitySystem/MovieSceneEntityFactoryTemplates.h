@@ -107,6 +107,23 @@ struct TDuplicateChildEntityInitializer : FChildEntityInitializer
 	}
 };
 
+/* Duplicates child components, but only if the parent entity passes the given component mask*/
+template<typename ComponentType>
+struct TConditionalDuplicateChildEntityInitializer : TDuplicateChildEntityInitializer<ComponentType>
+{
+	explicit TConditionalDuplicateChildEntityInitializer(TComponentTypeID<ComponentType> InComponent, FComponentMask InParentComponentMask)
+		: TDuplicateChildEntityInitializer<ComponentType>(InComponent)
+		, ParentComponentMask(InParentComponentMask)
+	{}
+
+	virtual bool IsRelevant(const FComponentMask& InParentType, const FComponentMask& InChildType) const override
+	{
+		return TDuplicateChildEntityInitializer<ComponentType>::IsRelevant(InParentType, InChildType) && InParentType.ContainsAll(ParentComponentMask);
+	}
+
+	FComponentMask ParentComponentMask;
+};
+
 struct FObjectFactoryBatch : FChildEntityFactory
 {
 	void Add(int32 EntityIndex, UObject* BoundObject);
@@ -158,6 +175,12 @@ template<typename ComponentType>
 inline void FEntityFactories::DuplicateChildComponent(TComponentTypeID<ComponentType> InComponent)
 {
 	DefineChildComponent(TDuplicateChildEntityInitializer<ComponentType>(InComponent));
+}
+
+template<typename ComponentType>
+inline void FEntityFactories::ConditionallyDuplicateChildComponent(TComponentTypeID<ComponentType> InComponent, FComponentMask InParentComponentMask)
+{
+	DefineChildComponent(TConditionalDuplicateChildEntityInitializer<ComponentType>(InComponent, InParentComponentMask));
 }
 
 template<typename ParentComponent, typename ChildComponent, typename InitializerCallback>

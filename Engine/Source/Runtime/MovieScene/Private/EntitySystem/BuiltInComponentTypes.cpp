@@ -466,7 +466,10 @@ FBuiltInComponentTypes::FBuiltInComponentTypes()
 	ComponentRegistry->Factories.DuplicateChildComponent(PropertyBinding);
 	ComponentRegistry->Factories.DuplicateChildComponent(HierarchicalBias);
 	ComponentRegistry->Factories.DuplicateChildComponent(BlendingOrder);
+	ComponentRegistry->Factories.DuplicateChildComponent(BindingLifetime);
+	ComponentRegistry->Factories.ConditionallyDuplicateChildComponent(GenericObjectBinding, FComponentMask({BindingLifetime}));
 
+	
 	// Children always need a Parent - these are initialized by the tasks that create them
 	{
 		ComponentRegistry->Factories.DefineChildComponent(FComponentTypeID::Invalid(), ParentEntity);

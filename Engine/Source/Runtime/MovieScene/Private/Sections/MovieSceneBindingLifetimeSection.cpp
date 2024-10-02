@@ -40,8 +40,9 @@ void UMovieSceneBindingLifetimeSection::ImportEntityImpl(UMovieSceneEntitySystem
 
 	OutImportedEntity->AddBuilder(
 		FEntityBuilder()
+		.Add(BuiltInComponentTypes->GenericObjectBinding, Params.GetObjectBindingID())
 		.AddConditional(BuiltInComponentTypes->SpawnableBinding, Params.GetObjectBindingID(), Params.GetObjectBindingID().IsValid() && bSpawnable)
-		.AddConditional(BuiltInComponentTypes->BindingLifetime, FMovieSceneBindingLifetimeComponentData{ Params.GetObjectBindingID(), EMovieSceneBindingLifetimeState::Active }, Params.GetObjectBindingID().IsValid())
+		.AddConditional(BuiltInComponentTypes->BindingLifetime, FMovieSceneBindingLifetimeComponentData{ EMovieSceneBindingLifetimeState::Active }, Params.GetObjectBindingID().IsValid())
 	);
 
 

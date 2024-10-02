@@ -337,8 +337,6 @@ enum class EMovieSceneBindingLifetimeState : uint8
 
 struct FMovieSceneBindingLifetimeComponentData
 {
-	FGuid BindingGuid;
-
 	EMovieSceneBindingLifetimeState BindingLifetimeState = EMovieSceneBindingLifetimeState::Active;
 };
 

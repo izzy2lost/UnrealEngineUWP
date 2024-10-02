@@ -53,7 +53,7 @@ struct FChildEntityInitializer
 {
 	virtual ~FChildEntityInitializer(){}
 
-	bool IsRelevant(const FComponentMask& InParentType, const FComponentMask& InChildType) const
+	virtual bool IsRelevant(const FComponentMask& InParentType, const FComponentMask& InChildType) const
 	{
 		// Entity initializers with no parent component are always valid
 		const bool bHasParentComponent = !ParentComponent || InParentType.Contains(ParentComponent);
