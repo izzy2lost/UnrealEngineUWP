@@ -3,24 +3,73 @@
 #pragma once
 
 #include "PCGCommon.h"
+#include "Graph/PCGGraphTask.h"
 #include "Graph/PCGStackContext.h"
 
 class IPCGElement;
+class UPCGComputeGraph;
 class UPCGGraph;
-struct FPCGGraphTask;
 
 typedef TSharedPtr<IPCGElement, ESPMode::ThreadSafe> FPCGElementPtr;
 
+/** Holds compilation results from FPCGGraphCompiler. */
+struct FPCGGraphCompilerCache
+{
+	friend class FPCGGraphCompiler;
+	friend class UPCGGraph;
+#if WITH_EDITOR
+	friend class FPCGGraphCompilerGPU;
+#endif
+
+public:
+	UPCGComputeGraph* GetCompiledComputeGraph(const UPCGGraph* InGraph, uint32 GridSize, uint32 ComputeGraphIndex);
+
+#if WITH_EDITOR
+	void RemoveFromCache(UPCGGraph* InGraph);
+#endif // WITH_EDITOR
+
+private:
+#if WITH_EDITOR
+	void RemoveFromCacheRecursive(UPCGGraph* InGraph);
+#endif // WITH_EDITOR
+
+	mutable FRWLock GraphToTaskMapLock;
+	TMap<UPCGGraph*, TArray<FPCGGraphTask>> GraphToTaskMap;
+	TMap<UPCGGraph*, FPCGStackContext> GraphToStackContextMap;
+
+	// Top graphs are optimized for execution grid and store one set of compiled tasks per grid size.
+	TMap<UPCGGraph*, TMap<uint32, TArray<FPCGGraphTask>>> TopGraphToTaskMap;
+	TMap<UPCGGraph*, TMap<uint32, FPCGStackContext>> TopGraphToStackContextMap;
+
+	// A single graph can have multiple compute graphs at each grid size, so we store multiple and refer to them by index when querying them.
+	TMap<UPCGGraph*, TMap<uint32, TArray<TObjectPtr<UPCGComputeGraph>>>> TopGraphToComputeGraphMap;
+
+#if WITH_EDITOR
+	FCriticalSection GraphDependenciesLock;
+	TMultiMap<UPCGGraph*, UPCGGraph*> GraphDependencies;
+#endif // WITH_EDITOR
+};
+
 /** 
-* FPCGGraphCompiler
-* This class compiles a graph into tasks and keeps an internal cache
+* This class compiles a graph into tasks and populates an FPCGGraphCompilerCache.
 */
 class FPCGGraphCompiler
 {
 public:
+	explicit FPCGGraphCompiler(bool bInIsCooking = false)
+		: bIsCooking(bInIsCooking)
+	{}
+
 	void Compile(UPCGGraph* InGraph);
 	TArray<FPCGGraphTask> GetCompiledTasks(UPCGGraph* InGraph, uint32 GenerationGridSize, FPCGStackContext& OutStackContext, bool bIsTopGraph = true);
 	TArray<FPCGGraphTask> GetPrecompiledTasks(const UPCGGraph* InGraph, uint32 GenerationGridSize, FPCGStackContext& OutStackContext, bool bIsTopGraph = true) const;
+
+	FPCGGraphCompilerCache& GetCache() { return Cache; }
+	const FPCGGraphCompilerCache& GetCache() const { return Cache; }
+
+	UPCGComputeGraph* GetComputeGraph(const UPCGGraph* InGraph, uint32 GridSize, uint32 ComputeGraphIndex);
+
+	bool IsCooking() const { return bIsCooking; }
 
 	static void OffsetNodeIds(TArray<FPCGGraphTask>& Tasks, FPCGTaskId Offset, FPCGTaskId ParentId);
 
@@ -29,32 +78,31 @@ public:
 	* The cache will be updated with the latest compiled result. Returns true if the compiled result changes;
 	*/
 	bool Recompile(UPCGGraph* InGraph, uint32 GenerationGridSize, bool bIsTopGraph = true);
-
-	void RemoveFromCache(UPCGGraph* InGraph);
-
 	void NotifyGraphChanged(UPCGGraph* InGraph, EPCGChangeType ChangeType);
 #endif
 
 	/** Flush all cached compiled graphs. */
 	void ClearCache();
 
+	/** Returns the trivial element object shared by all tasks that need it. */
+	FPCGElementPtr GetSharedTrivialElement();
+
 	/** Returns the post graph element, which is used to determine results caching behavior */
 	FPCGElementPtr GetSharedTrivialPostGraphElement();
 
 	/** Returns the gather element object shared by all tasks that need it. */
-	static FPCGElementPtr GetSharedGatherElement();
+	FPCGElementPtr GetSharedGatherElement();
 
 	/** Culls tasks based on a given lambda. Never culls the first (input) task in the array. */
 	static void CullTasks(TArray<FPCGGraphTask>& InOutCompiledTasks, bool bAddPassthroughWires, TFunctionRef<bool(const FPCGGraphTask&)> CullTask);
+
+	void AddReferencedObjects(FReferenceCollector& Collector);
 
 private:
 	TArray<FPCGGraphTask> CompileGraph(UPCGGraph* InGraph, FPCGTaskId& NextId, FPCGStackContext& InOutStackContext);
 
 	/** Compiles the top graph and applies culling optimizations if a non-unitialized grid size is provided. */
 	void CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGridSize);
-
-	/** Returns the trivial element object shared by all tasks that need it. */
-	FPCGElementPtr GetSharedTrivialElement();
 
 	/** Propagates grid sizes through a graph's compiled tasks. */
 	static void ResolveGridSizes(
@@ -74,10 +122,12 @@ private:
 
 	/** Create linkage tasks for edges that cross from large grid to small grid tasks. */
 	static void CreateGridLinkages(
+		UPCGGraph* InGraph,
 		EPCGHiGenGrid InGenerationGrid,
 		TArray<EPCGHiGenGrid>& TaskGenerationGrid,
 		TArray<FPCGGraphTask>& InOutCompiledTasks,
-		const FPCGStackContext& InStackContext);
+		const FPCGStackContext& InStackContext,
+		bool bIsCooking);
 
 	/** Discovers whether task is on a statically active branch (and needs to be passed to graph executor). */
 	static bool CalculateStaticallyActiveRecursive(FPCGTaskId InTaskId, const TArray<FPCGGraphTask>& InCompiledTasks, TMap<FPCGTaskId, bool>& InTaskIdToActiveFlag);
@@ -91,26 +141,16 @@ private:
 	/** Task will be active if *any* of the upstream pin IDs are active, or if the pin ID list is empty. */
 	static void CalculateDynamicActivePinDependencies(FPCGTaskId InTaskId, TArray<FPCGGraphTask>& InOutCompiledTasks);
 
-	mutable FRWLock GraphToTaskMapLock;
-	TMap<UPCGGraph*, TArray<FPCGGraphTask>> GraphToTaskMap;
-	TMap<UPCGGraph*, FPCGStackContext> GraphToStackContext;
-
-	// Top graphs are optimized for execution grid and store one set of compiled tasks per grid size.
-	TMap<UPCGGraph*, TMap<uint32, TArray<FPCGGraphTask>>> TopGraphToTaskMap;
-	TMap<UPCGGraph*, TMap<uint32, FPCGStackContext>> TopGraphToStackContextMap;
+private:
+	FPCGGraphCompilerCache Cache;
+	bool bIsCooking = false;
 
 	FPCGElementPtr SharedTrivialElement;
-	mutable FRWLock SharedTrivialElementLock;
+	FRWLock SharedTrivialElementLock;
 
 	FPCGElementPtr SharedTrivialPostGraphElement;
+	FRWLock SharedTrivialPostGraphElementLock;
 
-	static FPCGElementPtr SharedGatherElement;
-	static FRWLock SharedGatherElementLock;
-
-#if WITH_EDITOR
-	void RemoveFromCacheRecursive(UPCGGraph* InGraph);
-
-	FCriticalSection GraphDependenciesLock;
-	TMultiMap<UPCGGraph*, UPCGGraph*> GraphDependencies;
-#endif // WITH_EDITOR
+	FPCGElementPtr SharedGatherElement;
+	FRWLock SharedGatherElementLock;
 };

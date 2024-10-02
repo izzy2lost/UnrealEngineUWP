@@ -34,23 +34,23 @@ public:
 	
 	/** Set of input pins at the CPU -> GPU border. */
 	UPROPERTY()
-	TArray<TWeakObjectPtr<const UPCGPin>> PinsReceivingDataFromCPU;
+	TArray<TSoftObjectPtr<const UPCGPin>> PinsReceivingDataFromCPU;
 
 	/** Pin label aliases, used for selecting data items corresponding to an input pin from the input data collection. */
 	UPROPERTY()
-	TMap<TObjectPtr<const UPCGPin>, FName> InputPinLabelAliases;
+	TMap<TSoftObjectPtr<const UPCGPin>, FName> InputPinLabelAliases;
 
 	/** Mapping from upstream output pin to downstream pin alias, used to select data items originating from upstream pin from the input data collection. */
 	UPROPERTY()
-	TMap<TObjectPtr<const UPCGPin>, FName> OutputCPUPinToInputGPUPinAlias;
+	TMap<TSoftObjectPtr<const UPCGPin>, FName> OutputCPUPinToInputGPUPinAlias;
 
 	/** Node corresponding to each kernel, useful for compilation feedback. */
 	UPROPERTY()
-	TArray<TWeakObjectPtr<const UPCGNode>> KernelToNode;
+	TArray<TSoftObjectPtr<const UPCGNode>> KernelToNode;
 
 	/** List of settings for all nodes that spawn static meshes, so we can do required primitive & DI setup when compute graph element executes. */
 	UPROPERTY()
-	TArray<TObjectPtr<const UPCGSettings>> StaticMeshSpawners;
+	TArray<TSoftObjectPtr<const UPCGSettings>> StaticMeshSpawners;
 
 	UPROPERTY()
 	bool bLogDataDescriptions = false;

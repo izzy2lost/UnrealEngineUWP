@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "PCGComputeGraph.h"
+#include "Compute/PCGComputeGraph.h"
 
 #include "PCGGraph.h"
 #include "PCGModule.h"

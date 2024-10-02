@@ -15,9 +15,10 @@
 
 class APCGPartitionActor;
 class APCGWorldActor;
+class FPCGRuntimeGenScheduler;
+class UPCGComputeGraph;
 class UPCGGraph;
 class UPCGLandscapeCache;
-class FPCGRuntimeGenScheduler;
 
 enum class EPCGComponentDirtyFlag : uint8;
 enum class ETickableTickType : uint8;
@@ -273,6 +274,8 @@ public:
 	bool IsGraphCacheDebuggingEnabled() const;
 
 	FPCGGenSourceManager* GetGenSourceManager() const;
+	FPCGGraphCompiler* GetGraphCompiler();
+	UPCGComputeGraph* GetComputeGraph(const UPCGGraph* InGraph, uint32 GridSize, uint32 ComputeGraphIndex);
 
 #if WITH_EDITOR
 public:
@@ -308,9 +311,6 @@ public:
 
 	/** Clears the landscape data cache */
 	void ClearLandscapeCache();
-
-	/** Returns the graph compiler so we can figure out task info in the profiler view **/
-	FPCGGraphCompiler* GetGraphCompiler();
 
 	/** Get the execution stack information for the given component. */
 	bool GetStackContext(const UPCGComponent* InComponent, FPCGStackContext& OutStackContext);

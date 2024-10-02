@@ -160,10 +160,10 @@ struct FPCGDataForGPU
 
 	// All the node input pins that have edges that cross from CPU to GPU.
 	UPROPERTY()
-	TSet<TObjectPtr<const UPCGPin>> InputPins;
+	TSet<TSoftObjectPtr<const UPCGPin>> InputPins;
 
 	UPROPERTY()
-	TMap<TObjectPtr<const UPCGPin>, FName> InputPinLabelAliases;
+	TMap<TSoftObjectPtr<const UPCGPin>, FName> InputPinLabelAliases;
 
 	// Since the compute graph is collapsed to a single element, all data crossing from CPU to GPU is in a single collection.
 	UPROPERTY()

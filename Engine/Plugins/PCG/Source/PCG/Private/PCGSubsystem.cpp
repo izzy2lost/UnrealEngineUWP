@@ -1292,6 +1292,21 @@ FPCGGenSourceManager* UPCGSubsystem::GetGenSourceManager() const
 	return RuntimeGenScheduler ? RuntimeGenScheduler->GenSourceManager : nullptr;
 }
 
+FPCGGraphCompiler* UPCGSubsystem::GetGraphCompiler()
+{
+	return GraphExecutor ? GraphExecutor->GetCompiler() : nullptr;
+}
+
+UPCGComputeGraph* UPCGSubsystem::GetComputeGraph(const UPCGGraph* InGraph, uint32 GridSize, uint32 ComputeGraphIndex)
+{
+	if (FPCGGraphCompiler* GraphCompiler = GetGraphCompiler())
+	{
+		return GraphCompiler->GetComputeGraph(InGraph, GridSize, ComputeGraphIndex);
+	}
+
+	return nullptr;
+}
+
 bool UPCGSubsystem::GetOutputData(FPCGTaskId TaskId, FPCGDataCollection& OutData)
 {
 	check(GraphExecutor);
@@ -1665,16 +1680,6 @@ void UPCGSubsystem::ClearLandscapeCache()
 	}
 }
 
-FPCGGraphCompiler* UPCGSubsystem::GetGraphCompiler()
-{
-	if (GraphExecutor)
-	{
-		return &(GraphExecutor->GetCompiler());
-	}
-
-	return nullptr;
-}
-
 bool UPCGSubsystem::GetStackContext(const UPCGComponent* InComponent, FPCGStackContext& OutStackContext)
 {
 	UPCGGraph* Graph = InComponent ? InComponent->GetGraph() : nullptr;
@@ -1695,14 +1700,15 @@ bool UPCGSubsystem::GetStackContext(const UPCGComponent* InComponent, FPCGStackC
 
 	if (bDoesComponentExecute)
 	{
-		GetGraphCompiler()->GetCompiledTasks(Graph, InComponent->GetGenerationGridSize(), OutStackContext, /*bIsCooking=*/false);
-		return true;
+		if (FPCGGraphCompiler* GraphCompiler = GetGraphCompiler())
+		{
+			GraphCompiler->GetCompiledTasks(Graph, InComponent->GetGenerationGridSize(), OutStackContext, /*bIsTopGraph=*/false);
+			return true;
+		}
 	}
-	else
-	{
-		OutStackContext = FPCGStackContext();
-		return false;
-	}
+
+	OutStackContext = FPCGStackContext();
+	return false;
 }
 
 uint32 UPCGSubsystem::GetGraphCacheEntryCount(IPCGElement* InElement) const
@@ -1924,10 +1930,10 @@ IPCGGraphCache* UPCGSubsystem::GetCache()
 
 void UPCGSubsystem::FlushCache()
 {
-	if (GraphExecutor)
+	if (GraphExecutor && GraphExecutor->GetCompiler())
 	{
 		GraphExecutor->GetCache().ClearCache();
-		GraphExecutor->GetCompiler().ClearCache();
+		GraphExecutor->GetCompiler()->ClearCache();
 	}
 
 #if WITH_EDITOR
