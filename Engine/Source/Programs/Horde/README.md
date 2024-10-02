@@ -1,4 +1,4 @@
-![Horde](Docs/Images/Logo.png#gh-light-mode-only)![Horde](Docs/Images/Logo-DarkMode.png#gh-dark-mode-only)
+![Horde](Images/ue-horde-black.svg#gh-light-mode-only)![Horde](Images/ue-horde-white.svg#gh-dark-mode-only)
 
 **Horde** is a set of services supporting workflows Epic uses to develop Fortnite,
 Unreal Engine, and other titles.

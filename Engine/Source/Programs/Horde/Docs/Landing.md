@@ -1,4 +1,4 @@
-![Horde](Images/Logo.png#gh-light-mode-only)![Horde](Images/Logo-DarkMode.png#gh-dark-mode-only)
+![Horde](Images/ue-horde-black.svg#gh-light-mode-only)![Horde](Images/ue-horde-white.svg#gh-dark-mode-only)
 
 ## Getting Started
 
