@@ -97,6 +97,7 @@ private:
 	/** Builds a V1 Session data type from a V2 equivalent */
 	FOnlineSession BuildV1Session(const TSharedRef<const ISession> InSession) const;
 	/** Builds a V2 Session data type from a V1 equivalent */
+	TSharedRef<FSessionCommon> BuildV2Session(const FNamedOnlineSession* InSession) const;
 	TSharedRef<FSessionCommon> BuildV2Session(const FOnlineSession* InSession) const;
 	/** Builds a V2 Session Search Results array from the passed V1 equivalent types */
 	TArray<TSharedRef<FSessionCommon>> BuildV2SessionSearchResults(const TArray<FOnlineSessionSearchResult>& SessionSearchResults) const;

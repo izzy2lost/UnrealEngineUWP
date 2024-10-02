@@ -235,7 +235,7 @@ void FUniqueNetIdRepl::MakeReplicationDataV2()
 	UE::Online::FAccountId AccountId = GetV2();
 	UE::Online::EOnlineServices OnlineServicesType = AccountId.GetOnlineServicesType();
 	TArray<uint8> ReplicationData = UE::Online::FOnlineIdRegistryRegistry::Get().ToReplicationData(AccountId);
-	check(!ReplicationData.IsEmpty());
+	checkSlow(!ReplicationData.IsEmpty());
 
 	const int32 TotalBytes = sizeof(EncodingFlags) + sizeof(OnlineServicesType) + sizeof(TArray<uint8>::SizeType) + ReplicationData.Num();
 	ReplicationBytes.Empty(TotalBytes);
@@ -452,7 +452,7 @@ void FUniqueNetIdRepl::NetSerializeLoadV2(FArchive& Ar, const EUniqueIdEncodingF
 	Ar << ReplicationData;
 
 	const UE::Online::FAccountId AccountId = UE::Online::FOnlineIdRegistryRegistry::Get().ToAccountId(OnlineServicesType, ReplicationData);
-	check(AccountId.IsValid());
+	checkSlow(AccountId.IsValid());
 	SetAccountId(AccountId);
 }
 
