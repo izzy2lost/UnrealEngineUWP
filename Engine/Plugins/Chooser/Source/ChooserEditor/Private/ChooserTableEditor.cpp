@@ -200,11 +200,13 @@ FChooserTableEditor::~FChooserTableEditor()
 	if (SelectedColumn)
 	{
 		SelectedColumn->ClearFlags(RF_Standalone);
+		SelectedColumn = nullptr;
 	}
 	for (UObject* SelectedRow : SelectedRows)
 	{
 		SelectedRow->ClearFlags(RF_Standalone);
 	}
+	SelectedRows.Empty();
 	
 	FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
 	FCoreUObjectDelegates::OnObjectTransacted.RemoveAll(this);
@@ -734,6 +736,8 @@ void FChooserTableEditor::FocusWindow(UObject* ObjectToFocusOn)
 	{
 		SetChooserTableToEdit(Chooser);
 	}
+	// refresh, even if we set the same chooser we were already editing. (Rewind Debugger double click enables debug testing, which requires recreating the header widgets)
+	RefreshAll();
 	FAssetEditorToolkit::FocusWindow(ObjectToFocusOn);
 }
 
@@ -2584,3 +2588,7 @@ void FChooserTableEditor::RegisterWidgets()
 
 #undef LOCTEXT_NAMESPACE
 
+void UChooserColumnDetails::BeginDestroy()
+{
+	UObject::BeginDestroy();
+}
