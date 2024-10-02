@@ -173,10 +173,11 @@ void GetSceneColorFormatAndCreateFlags(ERHIFeatureLevel::Type FeatureLevel, bool
 	SceneColorCreateFlags |= sRGBFlag;
 }
 
-static ETextureCreateFlags GetSceneDepthStencilCreateFlags(uint32 NumSamples, bool bKeepDepthContent, bool bMemorylessMSAA, ETextureCreateFlags ExtraSceneDepthCreateFlags)
+static ETextureCreateFlags GetSceneDepthStencilCreateFlags(uint32 NumSamples, bool bKeepDepthContent, bool bMemorylessMSAA, EShaderPlatform ShaderPlatform, ETextureCreateFlags ExtraSceneDepthCreateFlags) //ericado
 {
 	ETextureCreateFlags DepthCreateFlags = TexCreate_DepthStencilTargetable | TexCreate_ShaderResource | TexCreate_InputAttachmentRead | ExtraSceneDepthCreateFlags;
-	if (!bKeepDepthContent || (NumSamples > 1 && bMemorylessMSAA))
+	// We can't discard the SceneDepth MSAA target if full depth prepass is enabled because it will be used in the base pass later on.
+	if (!bKeepDepthContent || (NumSamples > 1 && bMemorylessMSAA && (!IsMobilePlatform(ShaderPlatform) || !MobileUsesFullDepthPrepass(ShaderPlatform))))
 	{
 		DepthCreateFlags |= TexCreate_Memoryless;
 	}
@@ -357,7 +358,7 @@ void FSceneTexturesConfig::SetupMobileGBufferFlags(bool bRequiresMultiPass)
 void FSceneTexturesConfig::BuildSceneColorAndDepthFlags()
 {
     GetSceneColorFormatAndCreateFlags(FeatureLevel, bRequiresAlphaChannel, ExtraSceneColorCreateFlags, NumSamples, bMemorylessMSAA, ColorFormat, ColorCreateFlags);
-    DepthCreateFlags = GetSceneDepthStencilCreateFlags(NumSamples, bKeepDepthContent, bMemorylessMSAA, ExtraSceneDepthCreateFlags);
+    DepthCreateFlags = GetSceneDepthStencilCreateFlags(NumSamples, bKeepDepthContent, bMemorylessMSAA, ShaderPlatform, ExtraSceneDepthCreateFlags);
 }
 
 uint32 FSceneTexturesConfig::GetGBufferRenderTargetsInfo(FGraphicsPipelineRenderTargetsInfo& RenderTargetsInfo, EGBufferLayout Layout) const 
