@@ -218,7 +218,7 @@ float3 SubstrateMobileForwardLighting(
 				////
 				//// Evaluate the single directional light selected for forward lighting.
 				////
-				const bool bHasDirectionalLight = any(MobileDirectionalLight.DirectionalLightColor > 0);
+				const bool bHasDirectionalLight = any(MobileDirectionalLight.DirectionalLightColor.rgb > 0);
 				BRANCH
 				if (bHasDirectionalLight)
 				{
