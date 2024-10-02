@@ -325,6 +325,7 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	/** If RetargetSource is set to Default (None), this is asset for the base pose to use when retargeting. Transform data will be saved in RetargetSourceAssetReferencePose. */
+	UE_DEPRECATED(5.5, "Direct access to RetargetSourceAsset has been deprecated. Please use member SetRetargetSourceAssetData instead.")
 	UPROPERTY(EditAnywhere, AssetRegistrySearchable, Category=Animation, meta = (DisallowedClasses = "/Script/ApexDestruction.DestructibleMesh"))
 	TSoftObjectPtr<USkeletalMesh> RetargetSourceAsset;
 #endif
@@ -491,9 +492,13 @@ protected:
 	
 	UE_DEPRECATED(5.3, "Please use UpdateCompressedCurveName that takes FNames.")
 	void UpdateCompressedCurveName(SmartName::UID_Type CurveUID, const struct FSmartName& NewCurveName) {}
-private:
-	ENGINE_API void UpdateRetargetSourceAsset();
 
+public:
+	ENGINE_API void SetRetargetSourceAsset(USkeletalMesh* InRetargetSourceAsset);
+	ENGINE_API USkeletalMesh* GetRetargetSourceAsset() const;
+	ENGINE_API void UpdateRetargetSourceAssetData();
+
+private:
 	/** Updates the stored sampling frame-rate using the sequence length and number of sampling keys */
 	UE_DEPRECATED(5.0, "UpdateFrameRate has been deprecated see UAnimDataController::SetFrameRate")
 	ENGINE_API void UpdateFrameRate();

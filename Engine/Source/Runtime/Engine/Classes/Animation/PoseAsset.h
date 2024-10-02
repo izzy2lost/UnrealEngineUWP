@@ -205,6 +205,7 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	/** If RetargetSource is set to Default (None), this is asset for the base pose to use when retargeting. Transform data will be saved in RetargetSourceAssetReferencePose. */
+	UE_DEPRECATED(5.5, "Direct access to RetargetSourceAsset has been deprecated. Please use member SetRetargetSourceAsset instead.")
 	UPROPERTY(EditAnywhere, AssetRegistrySearchable, Category=Animation, meta = (DisallowedClasses = "/Script/ApexDestruction.DestructibleMesh"))
 	TSoftObjectPtr<USkeletalMesh> RetargetSourceAsset;
 #endif
@@ -421,9 +422,14 @@ private:
 	void UpdateTrackBoneIndices();
 	bool RemoveInvalidTracks();
 
+public:
 #if WITH_EDITORONLY_DATA
-	void UpdateRetargetSourceAsset();
+	ENGINE_API void SetRetargetSourceAsset(USkeletalMesh* InRetargetSourceAsset);
+	ENGINE_API USkeletalMesh* GetRetargetSourceAsset() const;
+	ENGINE_API void UpdateRetargetSourceAssetData();
 #endif
+
+private:
 	const TArray<FTransform>& GetRetargetTransforms() const;
 	FName GetRetargetTransformsSourceName() const;
 
