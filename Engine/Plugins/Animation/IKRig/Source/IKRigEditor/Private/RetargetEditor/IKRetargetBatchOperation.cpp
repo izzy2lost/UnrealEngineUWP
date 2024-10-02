@@ -242,7 +242,7 @@ void UIKRetargetBatchOperation::RetargetAssets(
 			
 			// set the retarget source to the target skeletal mesh
 			AnimSequenceToRetarget->RetargetSource = NAME_None;
-			AnimSequenceToRetarget->RetargetSourceAsset = Context.TargetMesh;
+			AnimSequenceToRetarget->SetRetargetSourceAsset(Context.TargetMesh);
 			Controller.UpdateWithSkeleton(NewSkeleton, bShouldTransact);
 
 			// done editing sequence data, close bracket
@@ -258,8 +258,6 @@ void UIKRetargetBatchOperation::RetargetAssets(
 	// Call PostEditChange after the references of all assets were replaced, to prevent order dependence of post edit
 	// change hooks. If PostEditChange is called right after ReplaceReferredAnimations it can access references that are
 	// still queued for retarget and follow the current asset in the array.
-	static const FName RetargetSourceAssetPropertyName =  GET_MEMBER_NAME_STRING_CHECKED(UAnimSequence, RetargetSourceAsset);
-	static FProperty* RetargetAssetProperty = UAnimSequence::StaticClass()->FindPropertyByName(RetargetSourceAssetPropertyName);
 	for (UAnimationAsset* AssetToRetarget : AnimationAssetsToRetarget)
 	{
 		if (Progress.ShouldCancel())
@@ -270,8 +268,7 @@ void UIKRetargetBatchOperation::RetargetAssets(
 		// force updating of the retarget pose, this is normally done on PreSave() but is guarded against procedural saves
 		if (UAnimSequence* AnimSequenceToRetarget = Cast<UAnimSequence>(AssetToRetarget))
 		{
-			FPropertyChangedEvent RetargetAssetPropertyChangedEvent(RetargetAssetProperty);
-			AnimSequenceToRetarget->PostEditChangeProperty(RetargetAssetPropertyChangedEvent);
+			AnimSequenceToRetarget->UpdateRetargetSourceAssetData();
 		}
 		
 		AssetToRetarget->PostEditChange();
