@@ -383,9 +383,7 @@ protected:
 		TArray<TSharedPtr<FDynamicMesh3, ESPMode::ThreadSafe>>& ToMeshes,
 		TFunctionRef<bool(const FDynamicMesh3*, int32, int32)> TrisConnectedPredicate);
 
-	TUniquePtr<UE::Geometry::FPolygroupSet> ActiveGroupSet;
 	void OnSelectedGroupLayerChanged();
-	void UpdateActiveGroupLayer(FDynamicMesh3* GroupLayersMesh);
 
 	FTransform OrigTargetTransform;
 	UE::Geometry::FTransformSequence3d TargetInverseTransform;
@@ -407,4 +405,7 @@ protected:
 
 	UPROPERTY()
 	TObjectPtr<UPreviewGeometry> GeometrySelectionViz = nullptr;
+
+private:
+	UE::Geometry::FPolygroupSet GetActiveGroupLayer(const FDynamicMesh3* GroupLayersMesh);
 };
