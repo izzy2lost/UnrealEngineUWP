@@ -292,22 +292,24 @@ protected:
 	 * Create a ComponentMask shader node.
 	 *
 	 * @param RGBA - The mask component. For example: 0b1011 -> Only RBA are toggled
+	 * @param Element - The element that we take the whole hierarchy from to ensure the uniqueness of the name
 	 * @param NodeName - the name of the shader node.
 	 * @param OutputName - the name of the output of the MaterialX node. The default name is 'out' as stated by the standard library.
 	 * @return The ComponentMask node.
 	 */
-	UInterchangeShaderNode* CreateMaskShaderNode(uint8 RGBA, const FString& NodeName, const FString& OutputName = TEXT("out"));
+	UInterchangeShaderNode* CreateMaskShaderNode(uint8 RGBA, MaterialX::ElementPtr Element, const FString& NodeName, const FString& OutputName = TEXT("out"));
 
 	/**
 	 * Helper function to create an InterchangeShaderNode.
 	 *
+	 * @param Element - The element that we take the whole hierarchy from to ensure the uniqueness of the name
 	 * @param NodeName - The name of the shader node.
 	 * @param ShaderType - The type of shader node we want to create.
 	 * @param OutputName - The output name of the MaterialX node. The default name is 'out' as stated by the standard library.
 	 *
 	 * @return The shader node that was created.
 	 */
-	UInterchangeShaderNode* CreateShaderNode(const FString& NodeName, const FString& ShaderType, const FString& OutputName = TEXT("out"));
+	UInterchangeShaderNode* CreateShaderNode(MaterialX::ElementPtr Element, const FString& NodeName, const FString& ShaderType, const FString& OutputName = TEXT("out"));
 
 	/**
 	 * Helper function to create an InterchangeFunctionCallShaderNode.
@@ -318,7 +320,7 @@ protected:
 	 *
 	 * @return The shader node that was created.
 	 */
-	UInterchangeFunctionCallShaderNode* CreateFunctionCallShaderNode(const FString& NodeName, const FString& FunctionPath, const FString& OutputName = TEXT("out"));
+	UInterchangeFunctionCallShaderNode* CreateFunctionCallShaderNode(MaterialX::ElementPtr Element, const FString& NodeName, const FString& FunctionPath, const FString& OutputName = TEXT("out"));
 	UInterchangeFunctionCallShaderNode* CreateFunctionCallShaderNode(const FString& NodeName, uint8 EnumType, uint8 EnumValue, const FString& OutputName = TEXT("out"));
 
 	/**
@@ -449,6 +451,14 @@ protected:
 	 * @return The node of the parent.
 	 */
 	FString GetAttributeParentName(MaterialX::NodePtr Node) const;
+
+	/**
+	 * Ensure that we put in the node container the unique name, 2 nodes in a same file may have the same name as long as their parent's name is different, we just traverse the whole hierarchy to have a unique name
+	 * 
+	 * @param Element - An Element that may be an Input a node or a nodegraph
+	 * @return The unique name of the Element taking the whole hierarchy into account
+	 */
+	FString GetUniqueName(MaterialX::ElementPtr Element) const;
 
 	virtual void RegisterConnectNodeOutputToInputDelegates();
 
