@@ -34,7 +34,8 @@ struct GLTFEXPORTER_API FGLTFJsonRoot : IGLTFJsonObject
 	TGLTFJsonIndexedObjectArray<FGLTFJsonBufferView> BufferViews;
 	TGLTFJsonIndexedObjectArray<FGLTFJsonCamera>     Cameras;
 	TGLTFJsonIndexedObjectArray<FGLTFJsonMaterial>   Materials;
-	TGLTFJsonIndexedObjectArray<FGLTFJsonMesh>       Meshes;
+	TGLTFJsonIndexedObjectArray<FGLTFJsonMesh>       Meshes; // Important! : FGLTFJsonMeshes are validated in "FGLTFJsonBuilder::ValidateAndFixGLTFJson" and any that's found invalid (has no value) it will be removed from the list and deleted.
+															 //					Any references to said deleted item need to be removed as well (for example Nodes.Mesh (1 line below))
 	TGLTFJsonIndexedObjectArray<FGLTFJsonNode>       Nodes;
 	TGLTFJsonIndexedObjectArray<FGLTFJsonImage>      Images;
 	TGLTFJsonIndexedObjectArray<FGLTFJsonSampler>    Samplers;
