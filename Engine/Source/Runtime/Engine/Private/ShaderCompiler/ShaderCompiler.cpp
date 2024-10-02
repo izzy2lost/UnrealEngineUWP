@@ -716,6 +716,7 @@ static bool FindShaderCompileWorkerExecutableInLaunchDir(const FString& Executab
 		}
 	}
 
+	OutFilename = LocalShaderCompileWorkerName;
 	return true;
 }
 
