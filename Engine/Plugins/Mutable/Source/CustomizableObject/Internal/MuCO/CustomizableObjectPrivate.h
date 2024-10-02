@@ -827,6 +827,10 @@ namespace MutablePrivate
 
 	struct FFileCategoryID
 	{
+		FFileCategoryID(EDataType DataType, uint16 ResourceType, uint16 Flags);
+
+		FFileCategoryID() = default;
+
 		// DATATYPE
 		EDataType DataType = EDataType::None;
 
