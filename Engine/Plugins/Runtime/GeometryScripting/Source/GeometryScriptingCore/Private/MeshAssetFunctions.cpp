@@ -1379,6 +1379,7 @@ UDynamicMesh* UGeometryScriptLibrary_StaticMeshFunctions::CopySkinWeightProfileT
 	}
 
 	ToSkeletalMeshAsset->CommitMeshDescription(TargetLOD.LODIndex);
+	ToSkeletalMeshAsset->InvalidateDeriveDataCacheGUID();
 
 	if (Options.bDeferMeshPostEditChange == false)
 	{

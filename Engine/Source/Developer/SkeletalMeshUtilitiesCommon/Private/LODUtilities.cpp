@@ -2498,7 +2498,7 @@ bool FLODUtilities::UpdateAlternateSkinWeights(
 		ZBound.Z = PositionZ.Z - ComparisonThreshold;
 		const int32 StartRange = Algo::LowerBound(VertIndexAndZ, ZBound, FCompareIndexAndZ{});
 
-		ZBound.Z = Position.Z + ComparisonThreshold;
+		ZBound.Z = PositionZ.Z + ComparisonThreshold;
 		const int32 EndRange = Algo::UpperBound(VertIndexAndZ, ZBound, FCompareIndexAndZ{});
 		
 		// Search for duplicates, quickly!
@@ -2974,6 +2974,8 @@ void FLODUtilities::GenerateImportedSkinWeightProfileData(
 	int32 BoneInfluenceLimit,
 	const ITargetPlatform* TargetPlatform)
 {
+	using namespace UE::AnimationCore;
+	
 	//Add the override buffer with the alternate influence data
 	TArray<FSoftSkinVertex> DestinationSoftVertices;
 	LODModelDest.GetVertices(DestinationSoftVertices);
@@ -2997,6 +2999,18 @@ void FLODUtilities::GenerateImportedSkinWeightProfileData(
 	TMap<FBoneIndexType, float> WeightForBone;
 	TArray<const SkeletalMeshImportData::FVertInfluence*> FoundInfluences;
 
+	// cf. FCompareVertexIndex (should be factorized for next versions) 
+	auto VertInfluencePredicate = [](const SkeletalMeshImportData::FVertInfluence* A, const SkeletalMeshImportData::FVertInfluence* B) 
+	{
+		if (A->VertIndex > B->VertIndex) return false;
+		if (A->VertIndex < B->VertIndex) return true;
+		if (A->Weight < B->Weight) return false;
+		if (A->Weight > B->Weight) return true;
+		if (A->BoneIndex > B->BoneIndex) return false;
+		if (A->BoneIndex < B->BoneIndex) return true;
+		return  false;
+	};
+	
 	for (int32 VertexInstanceIndex = 0; VertexInstanceIndex < DestinationSoftVertices.Num(); ++VertexInstanceIndex)
 	{
 		int32 SectionIndex = INDEX_NONE;
@@ -3006,18 +3020,19 @@ void FLODUtilities::GenerateImportedSkinWeightProfileData(
 		{
 			continue;
 		}
+		
 		FSkelMeshSection& Section = LODModelDest.Sections[SectionIndex];
 		const TArray<FBoneIndexType>& SectionBoneMap = Section.BoneMap;
-		const FSoftSkinVertex& Vertex = DestinationSoftVertices[VertexInstanceIndex];
 		const int32 VertexIndex = LODModelDest.MeshToImportVertexMap[VertexInstanceIndex];
 		check(VertexIndex >= 0 && VertexIndex <= LODModelDest.MaxImportVertex);
 		FRawSkinWeight& SkinWeight = SkinWeights.AddDefaulted_GetRef();
 
-		WeightForBone.Reset();
+		// get the bone weights for that vertex and sort them (mostly by weights here as VertIndex are similar)
 		FoundInfluences.Reset();
-		
 		VertexToInfluenceMap.MultiFind(VertexIndex, FoundInfluences);
-		
+		Algo::Sort(FoundInfluences, VertInfluencePredicate);
+
+		WeightForBone.Reset();
 		for (const SkeletalMeshImportData::FVertInfluence* VertInfluence : FoundInfluences)
 		{
 			//Use the section bone map to remap the bone index
@@ -3031,51 +3046,50 @@ void FLODUtilities::GenerateImportedSkinWeightProfileData(
 			WeightForBone.Add(static_cast<FBoneIndexType>(BoneMapIndex), VertInfluence->Weight);
 		}
 
-		using namespace UE::AnimationCore;
-
-		//Add the prepared alternate influences for this skin vertex
-		int32 InfluenceBoneCount = 0;
+		//Add the prepared alternate influences for this skin vertex (cf. MeshUtilities::GenerateSkeletalRenderMesh)
+		int32 InfluenceBoneCount = FMath::Min<uint32>(WeightForBone.Num(), MaxBoneInfluencesFromAsset);
+		if (InfluenceBoneCount > EXTRA_BONE_INFLUENCES && !FGPUBaseSkinVertexFactory::UseUnlimitedBoneInfluences(InfluenceBoneCount, TargetPlatform))
+		{
+			InfluenceBoneCount = EXTRA_BONE_INFLUENCES;
+		}
 		
 		FBoneIndexType InfluenceBones[MAX_TOTAL_INFLUENCES];
 		float InfluenceWeights[MAX_TOTAL_INFLUENCES];
-		
-		for (const TTuple<FBoneIndexType, float>& Kvp : WeightForBone)
+
+		int32 ActualInfluenceCount = 0;
+		for (const TTuple<FBoneIndexType, float>& BoneAndWeight : WeightForBone)
 		{
-			InfluenceBones[InfluenceBoneCount] = Kvp.Key;
-			InfluenceWeights[InfluenceBoneCount] = Kvp.Value;
-			InfluenceBoneCount++;
-			//Do not add more influence then the maximum we support on the platform or for this asset
-			if (InfluenceBoneCount >= MaxInfluenceCount)
+			if (ActualInfluenceCount < InfluenceBoneCount)
 			{
-				break;
+				InfluenceBones[ActualInfluenceCount] = BoneAndWeight.Key;
+				InfluenceWeights[ActualInfluenceCount] = BoneAndWeight.Value;
+				ActualInfluenceCount++;
 			}
 		}
 
-		const FBoneWeights BoneWeights = FBoneWeights::Create(InfluenceBones, InfluenceWeights, InfluenceBoneCount);
+		const FBoneWeights BoneWeights = FBoneWeights::Create(InfluenceBones, InfluenceWeights, ActualInfluenceCount);
 		FMemory::Memzero(SkinWeight.InfluenceBones);
 		FMemory::Memzero(SkinWeight.InfluenceWeights);
 	
 		if (BoneWeights.Num() == 0)
 		{
 			SkinWeight.InfluenceWeights[0] = std::numeric_limits<uint16>::max();
-			InfluenceBoneCount = 1;
 		}
 		else
 		{
 			int32 Index = 0;
-			for (FBoneWeight BoneWeight: BoneWeights)
+			for (const FBoneWeight& BoneWeight: BoneWeights)
 			{
 				SkinWeight.InfluenceBones[Index] = BoneWeight.GetBoneIndex();
 				SkinWeight.InfluenceWeights[Index] = BoneWeight.GetRawWeight();
 				Index++;
 			}
-			InfluenceBoneCount = BoneWeights.Num(); 
 		}
 
 		//Adjust section influence count if the alternate influence bone count is greater
-		if (InfluenceBoneCount > MaxNumInfluences)
+		if (ActualInfluenceCount > MaxNumInfluences)
 		{
-			MaxNumInfluences = InfluenceBoneCount;
+			MaxNumInfluences = ActualInfluenceCount;
 			if (MaxNumInfluences > Section.GetMaxBoneInfluences())
 			{
 				Section.MaxBoneInfluences = MaxNumInfluences;
