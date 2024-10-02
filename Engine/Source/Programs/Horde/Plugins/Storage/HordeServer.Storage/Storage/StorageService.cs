@@ -88,7 +88,7 @@ namespace HordeServer.Storage
 			}
 
 			/// <inheritdoc/>
-			public async Task<BlobLocator> WriteBlobAsync(Stream stream, IReadOnlyCollection<BlobLocator>? imports, string? basePath = null, CancellationToken cancellationToken = default)
+			public async Task<BlobLocator> WriteBlobAsync(Stream stream, IReadOnlyCollection<BlobLocator> imports, string? basePath = null, CancellationToken cancellationToken = default)
 			{
 				BlobLocator locator = StorageHelpers.CreateUniqueLocator(basePath);
 
@@ -106,7 +106,7 @@ namespace HordeServer.Storage
 			}
 
 			/// <inheritdoc/>
-			public async ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(IReadOnlyCollection<BlobLocator>? imports = null, string? prefix = null, CancellationToken cancellationToken = default)
+			public async ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(IReadOnlyCollection<BlobLocator> imports, string? prefix = null, CancellationToken cancellationToken = default)
 			{
 				if (!_store.SupportsRedirects)
 				{
@@ -607,29 +607,26 @@ namespace HordeServer.Storage
 		#region Blobs
 
 		/// <inheritdoc/>
-		async Task AddBlobAsync(NamespaceId namespaceId, BlobLocator locator, IReadOnlyCollection<BlobLocator>? imports = null, List<AliasInfo>? exports = null, CancellationToken cancellationToken = default)
+		async Task AddBlobAsync(NamespaceId namespaceId, BlobLocator locator, IReadOnlyCollection<BlobLocator> imports, List<AliasInfo>? exports = null, CancellationToken cancellationToken = default)
 		{
 			ObjectId id = ObjectId.GenerateNewId(_clock.UtcNow);
 			BlobInfo blobInfo = new BlobInfo(id, namespaceId, locator);
 			blobInfo.Aliases = exports;
 
-			if (imports != null)
+			if (imports.Count == 0)
 			{
-				if (imports.Count == 0)
-				{
-					blobInfo.Imports = new List<ObjectId>();
-				}
-				else
-				{
-					List<string> paths = imports.Select(x => x.BaseLocator.ToString()).ToList();
+				blobInfo.Imports = new List<ObjectId>();
+			}
+			else
+			{
+				List<string> paths = imports.Select(x => x.BaseLocator.ToString()).ToList();
 
-					FilterDefinition<BlobInfo> filter =
-						Builders<BlobInfo>.Filter.Eq(x => x.NamespaceId, namespaceId) &
-						Builders<BlobInfo>.Filter.In(x => x.Path, paths);
+				FilterDefinition<BlobInfo> filter =
+					Builders<BlobInfo>.Filter.Eq(x => x.NamespaceId, namespaceId) &
+					Builders<BlobInfo>.Filter.In(x => x.Path, paths);
 
-					blobInfo.Imports = await _blobCollection.Find(filter).Project(x => x.Id).ToListAsync(cancellationToken);
-					blobInfo.Imports.Sort();
-				}
+				blobInfo.Imports = await _blobCollection.Find(filter).Project(x => x.Id).ToListAsync(cancellationToken);
+				blobInfo.Imports.Sort();
 			}
 
 			await _blobCollection.InsertOneAsync(blobInfo, new InsertOneOptions { }, cancellationToken);
