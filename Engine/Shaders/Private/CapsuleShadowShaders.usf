@@ -947,6 +947,8 @@ Texture2D ReceiverBentNormalTexture;
 RWTexture2D<float4> RWBentNormalTexture;
 #endif
 
+uint EyeIndex;
+
 float IndirectCapsuleSelfShadowingIntensity;
 uint DownsampleFactor;
 RWTexture2D<float2> RWShadowFactors;
@@ -972,7 +974,11 @@ void CapsuleShadowingCS(
 	float3 ReceiverBentNormal = ReceiverTextureValue.xyz;
 	float SceneDepth = ReceiverTextureValue.w;
 #else
+#if SHADING_PATH_MOBILE
+	float SceneDepth = CalcSceneDepth(ScreenUV, EyeIndex);
+#else
 	float SceneDepth = CalcSceneDepth(ScreenUV);
+#endif
 #endif
 	
 	const float3 OpaqueTranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), PrimaryView.ScreenToTranslatedWorld).xyz;
@@ -1129,8 +1135,14 @@ void CapsuleShadowingUpsampleVS(
 	uint VertexId : SV_VertexID,
 	uint InstanceId : SV_InstanceID, 
 	out float4 OutPosition : SV_POSITION
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
+	, out uint LayerIndex : SV_RenderTargetArrayIndex
+#endif
 	)
 {
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
+	LayerIndex = EyeIndex;
+#endif
 	// Compute the actual instance id for when multiple tiles are packed into the vertex buffer
 	uint EffectiveInstanceId = InstanceId * TILES_PER_INSTANCE + VertexId / 4;
 	uint NumCapsulesAffectingTile = TileIntersectionCounts[EffectiveInstanceId];
@@ -1167,7 +1179,7 @@ void CapsuleShadowingUpsamplePS(
 
 	float Output;
 	float SceneDepth;
-	UpsampleShadowFactors(SVPos, ScissorRectMinAndSize, 1.0f / DOWNSAMPLE_FACTOR, 0, POSITIVE_INFINITY, ShadowFactorsTexture, ShadowFactorsSampler, ShadowFactorsUVBilinearMax, Output, SceneDepth);
+	UpsampleShadowFactors(SVPos, ScissorRectMinAndSize, 1.0f / DOWNSAMPLE_FACTOR, 0, POSITIVE_INFINITY, ShadowFactorsTexture, ShadowFactorsSampler, ShadowFactorsUVBilinearMax, Output, SceneDepth, EyeIndex);
 
 	if (OutputtingToLightAttenuation > 0)
 	{
