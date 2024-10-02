@@ -316,6 +316,10 @@ namespace AutomationTool
 			return ExitCode == 0;
 		}
 
+		public virtual void PersistSdkRootVar()
+		{
+		}
+
 		public virtual string GetSDKCreationHelp()
 		{
 			return null;

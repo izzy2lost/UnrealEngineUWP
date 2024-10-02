@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -215,6 +215,7 @@ namespace Turnkey
 					Environment.SetEnvironmentVariable("UE_SDKS_ROOT", Response);
 					Environment.SetEnvironmentVariable("UE_SDKS_ROOT", Response, EnvironmentVariableTarget.User);
 					TurnkeyUtils.EndTrackingExternalEnvVarChanges();
+					AutomationPlatform.PersistSdkRootVar();
 
 					bSetupEnvVarAfterInstall = false;
 				}
@@ -274,6 +275,7 @@ namespace Turnkey
 				Environment.SetEnvironmentVariable("UE_SDKS_ROOT", AutoSdkDir);
 				Environment.SetEnvironmentVariable("UE_SDKS_ROOT", AutoSdkDir, EnvironmentVariableTarget.User);
 				TurnkeyUtils.EndTrackingExternalEnvVarChanges();
+				AutomationPlatform.PersistSdkRootVar();
 
 			}
 
