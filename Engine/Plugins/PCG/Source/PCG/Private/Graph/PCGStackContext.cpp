@@ -15,6 +15,26 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGStackContext)
 
+void FPCGStackFrame::PostSerialize(const FArchive& Ar)
+{
+	if (Ar.IsLoading())
+	{
+		ComputeHash();
+	}
+}
+
+void FPCGStackFrame::ComputeHash()
+{
+	if (Object.IsNull())
+	{
+		Hash = GetTypeHash(LoopIndex);
+	}
+	else
+	{
+		Hash = GetTypeHash(Object.ToString());
+	}
+}
+
 const FPCGStack* FPCGStackContext::GetStack(int32 InStackIndex) const
 {
 	if (ensure(Stacks.IsValidIndex(InStackIndex)))
