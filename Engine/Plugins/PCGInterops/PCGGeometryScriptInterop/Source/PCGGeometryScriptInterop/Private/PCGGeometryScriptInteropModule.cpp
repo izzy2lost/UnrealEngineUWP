@@ -21,6 +21,8 @@ public:
 	
 	virtual void StartupModule() override
 	{
+		FModuleManager::Get().LoadModuleChecked(TEXT("PCG"));
+
 #if WITH_EDITOR
 		FPCGDataVisualizationRegistry& DataVisRegistry = FPCGModule::GetMutablePCGDataVisualizationRegistry();
 		DataVisRegistry.RegisterPCGDataVisualization(UPCGDynamicMeshData::StaticClass(), MakeUnique<const FPCGDynamicMeshDataVisualization>());
