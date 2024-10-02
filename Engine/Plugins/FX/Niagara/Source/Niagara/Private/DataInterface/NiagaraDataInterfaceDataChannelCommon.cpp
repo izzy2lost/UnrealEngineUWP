@@ -540,7 +540,7 @@ void Write_{FunctionParameterName}_{ParameterName}(FNDCAccessContext_{ParameterN
 			{
 				Ret = HashCombine(Ret, GetTypeHash(Input));
 			}
-			for (const FNiagaraVariable& Output : Sig.Outputs)
+			for (const FNiagaraVariableBase& Output : Sig.Outputs)
 			{
 				Ret = HashCombine(Ret, GetTypeHash(Output));
 			}
