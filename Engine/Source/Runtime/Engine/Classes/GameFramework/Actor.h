@@ -4582,6 +4582,7 @@ private:
 	friend class FFoliageHelper;
 	friend class ULevelInstanceSubsystem;
 	friend class UExternalDataLayerInstance;
+	friend class FModelingToolsSetActorHiddenInSceneOutliner;
 };
 
 struct FSetActorGuid
