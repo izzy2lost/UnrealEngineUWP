@@ -6,6 +6,7 @@
 #include "AssetTextFilter.h"
 #include "AssetThumbnail.h"
 #include "DMDefs.h"
+#include "DMTextureSetBlueprintFunctionLibrary.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialEditorStyle.h"
 #include "DynamicMaterialModule.h"
@@ -125,6 +126,88 @@ TSharedPtr<SDMMaterialDesigner> SDMMaterialWizard::GetDesignerWidget() const
 UDynamicMaterialModel* SDMMaterialWizard::GetMaterialModel() const
 {
 	return MaterialModelWeak.Get();
+}
+
+void SDMMaterialWizard::HandleDrop_CreateTextureSet(const TArray<FAssetData>& InTextureAssets)
+{
+	if (InTextureAssets.Num() < 2)
+	{
+		return;
+	}
+
+	UDMTextureSetBlueprintFunctionLibrary::CreateTextureSetFromAssetsInteractive(
+		InTextureAssets,
+		FDMTextureSetBuilderOnComplete::CreateSPLambda(
+			this,
+			[this](UDMTextureSet* InTextureSet, bool bInWasAccepted)
+			{
+				if (bInWasAccepted)
+				{
+					HandleDrop_TextureSet(InTextureSet);
+				}
+			}
+		)
+	);
+}
+
+void SDMMaterialWizard::HandleDrop_TextureSet(UDMTextureSet* InTextureSet)
+{
+	if (!InTextureSet)
+	{
+		return;
+	}
+
+	UDynamicMaterialModel* MaterialModel = GetMaterialModel();
+
+	if (!MaterialModel)
+	{
+		if (!MaterialObjectProperty.IsSet())
+		{
+			return;
+		}
+
+		if (!MaterialObjectProperty->IsValid())
+		{
+			return;
+		}
+
+		UDynamicMaterialInstance* Material = MaterialObjectProperty->GetMaterial();
+
+		if (!Material)
+		{
+			MaterialModel = UDMMaterialInstanceFunctionLibrary::CreateMaterialInObject(*MaterialObjectProperty);
+		}
+		else
+		{
+			UDynamicMaterialModelBase* MaterialModelBase = Material->GetMaterialModelBase();
+
+			if (!MaterialModelBase)
+			{
+				return;
+			}
+
+			MaterialModel = Cast<UDynamicMaterialModel>(MaterialModelBase);
+		}
+
+		if (!MaterialModel)
+		{
+			return;
+		}
+	}
+
+	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel);
+
+	if (!EditorOnlyData)
+	{
+		return;
+	}
+
+	FDMScopedUITransaction Transaction(LOCTEXT("DropTextureSet", "Drop Texture Set"));
+
+	EditorOnlyData->Modify();
+	EditorOnlyData->AddTextureSet(InTextureSet, /* Replace */ true);
+
+	OpenMaterialInEditor();
 }
 
 TSharedRef<SWidget> SDMMaterialWizard::CreateLayout()
@@ -580,16 +663,22 @@ void SDMMaterialWizard::OpenMaterialInEditor()
 		return;
 	}
 
-	DesignerWidget->Empty();
-
 	if (MaterialObjectProperty.IsSet())
 	{
-		DesignerWidget->OpenObjectMaterialProperty(MaterialObjectProperty.GetValue());
+		if (DesignerWidget->OpenObjectMaterialProperty(*MaterialObjectProperty))
+		{
+			return;
+		}
 	}
-	else if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
+	else if (UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get())
 	{
-		DesignerWidget->OpenMaterialModelBase(MaterialModel);
+		if (DesignerWidget->OpenMaterialModelBase(MaterialModel))
+		{
+			return;
+		}
 	}
+
+	DesignerWidget->Empty();
 }
 
 ECheckBoxState SDMMaterialWizard::IsModeSelected(EDMMaterialWizardMode InMode) const

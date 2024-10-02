@@ -20,8 +20,10 @@ class SDMMaterialDesigner;
 class SToolInputAssetPicker;
 class SWidget;
 class SWidgetSwitcher;
+class UDMTextureSet;
 class UDynamicMaterialModel;
 enum class ECheckBoxState : uint8;
+struct FAssetData;
 struct FContentBrowserItem;
 
 class SDMMaterialWizard : public SCompoundWidget
@@ -44,6 +46,10 @@ public:
 	TSharedPtr<SDMMaterialDesigner> GetDesignerWidget() const;
 
 	UDynamicMaterialModel* GetMaterialModel() const;
+
+	void HandleDrop_CreateTextureSet(const TArray<FAssetData>& InTextureAssets);
+
+	void HandleDrop_TextureSet(UDMTextureSet* InTextureSet);
 
 protected:
 	enum EDMMaterialWizardMode : uint8
