@@ -443,13 +443,13 @@ struct FVariadicParameterGPUScriptInfo
 				{
 					GPUScriptParameterOffsetTable.Add(LayoutInfo->GetNumFloatComponents() > 0 ? LayoutInfo->GetFloatComponentStart() : INDEX_NONE);
 					GPUScriptParameterOffsetTable.Add(LayoutInfo->GetNumInt32Components() > 0 ? LayoutInfo->GetInt32ComponentStart() : INDEX_NONE);
-					GPUScriptParameterOffsetTable.Add(LayoutInfo->GetNumHalfComponents() > 0 ? LayoutInfo->GetHalfComponentStart() : INDEX_NONE);
+					//TODO: Half Support | GPUScriptParameterOffsetTable.Add(LayoutInfo->GetNumHalfComponents() > 0 ? LayoutInfo->GetHalfComponentStart() : INDEX_NONE);
 				}
 				else
 				{
 					GPUScriptParameterOffsetTable.Add(INDEX_NONE);
 					GPUScriptParameterOffsetTable.Add(INDEX_NONE);
-					GPUScriptParameterOffsetTable.Add(INDEX_NONE);
+					//TODO: Half Support | GPUScriptParameterOffsetTable.Add(INDEX_NONE);
 				}
 			}
 		}

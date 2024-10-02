@@ -167,22 +167,22 @@ namespace NDIDataChannelWriteLocal
 		SHADER_PARAMETER(int32, ParameterOffsetTableIndex)
 		SHADER_PARAMETER(int32, FloatStride)
 		SHADER_PARAMETER(int32, Int32Stride)
-		SHADER_PARAMETER(int32, HalfStride)
+		//TODO: Half Support | SHADER_PARAMETER(int32, HalfStride)
 
 		SHADER_PARAMETER_UAV(RWBuffer<float>, GPUBufferFloat)
 		SHADER_PARAMETER_UAV(RWBuffer<int>, GPUBufferInt32)
-		SHADER_PARAMETER_UAV(RWBuffer<float>, GPUBufferHalf)
+		//TODO: Half Support | SHADER_PARAMETER_UAV(RWBuffer<float>, GPUBufferHalf)
 		SHADER_PARAMETER(int32, GPUInstanceCountOffset)
 		SHADER_PARAMETER(int32, GPUBufferSize)
 
 		SHADER_PARAMETER_UAV(RWBuffer<float>, CPUBufferFloat)
 		SHADER_PARAMETER_UAV(RWBuffer<int>, CPUBufferInt32)
-		SHADER_PARAMETER_UAV(RWBuffer<float>, CPUBufferHalf)
+		//TODO: Half Support | SHADER_PARAMETER_UAV(RWBuffer<float>, CPUBufferHalf)
 		SHADER_PARAMETER(int32, CPUInstanceCountOffset)
 		SHADER_PARAMETER(int32, CPUBufferSize)
 		SHADER_PARAMETER(int32, CPUFloatStride)
 		SHADER_PARAMETER(int32, CPUInt32Stride)
-		SHADER_PARAMETER(int32, CPUHalfStride)
+		//TODO: Half Support | SHADER_PARAMETER(int32, CPUHalfStride)
 	END_SHADER_PARAMETER_STRUCT()
 }
 
@@ -1333,13 +1333,13 @@ void UNiagaraDataInterfaceDataChannelWrite::SetShaderParameters(const FNiagaraDa
 				{
 					Transitions.Emplace(GPUBuffer->GetGPUBufferFloat().UAV, ERHIAccess::Unknown, ERHIAccess::UAVCompute);
 					Transitions.Emplace(GPUBuffer->GetGPUBufferInt().UAV, ERHIAccess::Unknown, ERHIAccess::UAVCompute);
-					Transitions.Emplace(GPUBuffer->GetGPUBufferHalf().UAV, ERHIAccess::Unknown, ERHIAccess::UAVCompute);
+					//TODO: Half Support | Transitions.Emplace(GPUBuffer->GetGPUBufferHalf().UAV, ERHIAccess::Unknown, ERHIAccess::UAVCompute);
 				}
 				if(BufferForCPU)
 				{
 					Transitions.Emplace(BufferForCPU->GetGPUBufferFloat().UAV, ERHIAccess::Unknown, ERHIAccess::UAVCompute);
 					Transitions.Emplace(BufferForCPU->GetGPUBufferInt().UAV, ERHIAccess::Unknown, ERHIAccess::UAVCompute);
-					Transitions.Emplace(BufferForCPU->GetGPUBufferHalf().UAV, ERHIAccess::Unknown, ERHIAccess::UAVCompute);
+					//TODO: Half Support | Transitions.Emplace(BufferForCPU->GetGPUBufferHalf().UAV, ERHIAccess::Unknown, ERHIAccess::UAVCompute);
 				}
 				Context.GetGraphBuilder().RHICmdList.Transition(Transitions);
 
@@ -1351,24 +1351,24 @@ void UNiagaraDataInterfaceDataChannelWrite::SetShaderParameters(const FNiagaraDa
 					InstParameters->ParameterOffsetTableIndex = ParameterOffsetTableIndex;
 					InstParameters->FloatStride = (GPUBuffer ? GPUBuffer->GetFloatStride() : sizeof(float)) / sizeof(float);
 					InstParameters->Int32Stride = (GPUBuffer ? GPUBuffer->GetInt32Stride() : sizeof(int32)) / sizeof(int32);
-					InstParameters->HalfStride = (GPUBuffer ? GPUBuffer->GetHalfStride() : sizeof(FFloat16)) / sizeof(FFloat16);
+					//TODO: Half Support | InstParameters->HalfStride = (GPUBuffer ? GPUBuffer->GetHalfStride() : sizeof(FFloat16)) / sizeof(FFloat16);
 					
 					InstParameters->GPUBufferFloat = GPUBuffer && GPUBuffer->GetGPUBufferFloat().UAV.IsValid() ? GPUBuffer->GetGPUBufferFloat().UAV : NDIDataChannelUtilities::GetDummyUAVFloat().Buffer.UAV;
 					InstParameters->GPUBufferInt32 = GPUBuffer && GPUBuffer->GetGPUBufferInt().UAV.IsValid() ? GPUBuffer->GetGPUBufferInt().UAV : NDIDataChannelUtilities::GetDummyUAVInt32().Buffer.UAV;
-					InstParameters->GPUBufferHalf = GPUBuffer && GPUBuffer->GetGPUBufferHalf().UAV.IsValid() ? GPUBuffer->GetGPUBufferHalf().UAV : NDIDataChannelUtilities::GetDummyUAVHalf().Buffer.UAV;
+					//TODO: Half Support | InstParameters->GPUBufferHalf = GPUBuffer && GPUBuffer->GetGPUBufferHalf().UAV.IsValid() ? GPUBuffer->GetGPUBufferHalf().UAV : NDIDataChannelUtilities::GetDummyUAVHalf().Buffer.UAV;
 					InstParameters->GPUInstanceCountOffset = GPUBuffer ? GPUBuffer->GetGPUInstanceCountBufferOffset() : INDEX_NONE;
 					InstParameters->GPUBufferSize = GPUBuffer ? GPUBuffer->GetNumInstancesAllocated() : INDEX_NONE;
 
 
 					InstParameters->CPUBufferFloat = BufferForCPU && BufferForCPU->GetGPUBufferFloat().UAV.IsValid() ? BufferForCPU->GetGPUBufferFloat().UAV : NDIDataChannelUtilities::GetDummyUAVFloat().Buffer.UAV;
 					InstParameters->CPUBufferInt32 = BufferForCPU && BufferForCPU->GetGPUBufferInt().UAV.IsValid() ? BufferForCPU->GetGPUBufferInt().UAV : NDIDataChannelUtilities::GetDummyUAVInt32().Buffer.UAV;
-					InstParameters->CPUBufferHalf = BufferForCPU && BufferForCPU->GetGPUBufferHalf().UAV.IsValid() ? BufferForCPU->GetGPUBufferHalf().UAV : NDIDataChannelUtilities::GetDummyUAVHalf().Buffer.UAV;
+					//TODO: Half Support | InstParameters->CPUBufferHalf = BufferForCPU && BufferForCPU->GetGPUBufferHalf().UAV.IsValid() ? BufferForCPU->GetGPUBufferHalf().UAV : NDIDataChannelUtilities::GetDummyUAVHalf().Buffer.UAV;
 					InstParameters->CPUInstanceCountOffset = BufferForCPU ? BufferForCPU->GetGPUInstanceCountBufferOffset() : INDEX_NONE;
 					InstParameters->CPUBufferSize = BufferForCPU ? BufferForCPU->GetNumInstancesAllocated() : INDEX_NONE;
 
 					InstParameters->CPUFloatStride = (BufferForCPU ? BufferForCPU->GetFloatStride() : sizeof(float)) / sizeof(float);
 					InstParameters->CPUInt32Stride = (BufferForCPU ? BufferForCPU->GetInt32Stride() : sizeof(int32)) / sizeof(int32);
-					InstParameters->CPUHalfStride = (BufferForCPU ? BufferForCPU->GetHalfStride() : sizeof(FFloat16)) / sizeof(FFloat16);
+					//TODO: Half Support | InstParameters->CPUHalfStride = (BufferForCPU ? BufferForCPU->GetHalfStride() : sizeof(FFloat16)) / sizeof(FFloat16);
 
 					bSuccess = true;
 				}
@@ -1382,18 +1382,18 @@ void UNiagaraDataInterfaceDataChannelWrite::SetShaderParameters(const FNiagaraDa
 		InstParameters->ParameterOffsetTableIndex = INDEX_NONE;
 		InstParameters->FloatStride = 0;
 		InstParameters->Int32Stride = 0;
-		InstParameters->HalfStride = 0;
+		//TODO: Half Support | InstParameters->HalfStride = 0;
 
 		InstParameters->GPUBufferFloat = NDIDataChannelUtilities::GetDummyUAVFloat().Buffer.UAV;
 		InstParameters->GPUBufferInt32 = NDIDataChannelUtilities::GetDummyUAVInt32().Buffer.UAV;
-		InstParameters->GPUBufferHalf = NDIDataChannelUtilities::GetDummyUAVHalf().Buffer.UAV;
+		//TODO: Half Support | InstParameters->GPUBufferHalf = NDIDataChannelUtilities::GetDummyUAVHalf().Buffer.UAV;
 		InstParameters->GPUInstanceCountOffset = INDEX_NONE;
 		InstParameters->GPUBufferSize = INDEX_NONE;
 
 
 		InstParameters->CPUBufferFloat = NDIDataChannelUtilities::GetDummyUAVFloat().Buffer.UAV;
 		InstParameters->CPUBufferInt32 = NDIDataChannelUtilities::GetDummyUAVInt32().Buffer.UAV;
-		InstParameters->CPUBufferHalf = NDIDataChannelUtilities::GetDummyUAVHalf().Buffer.UAV;
+		//TODO: Half Support | InstParameters->CPUBufferHalf = NDIDataChannelUtilities::GetDummyUAVHalf().Buffer.UAV;
 		InstParameters->CPUInstanceCountOffset = INDEX_NONE;
 		InstParameters->CPUBufferSize = INDEX_NONE;
 	}

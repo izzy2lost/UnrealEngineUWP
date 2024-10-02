@@ -277,11 +277,11 @@ namespace NDIDataChannelReadLocal
 		SHADER_PARAMETER(int32, ParameterOffsetTableIndex)
 		SHADER_PARAMETER(int32, FloatStride)
 		SHADER_PARAMETER(int32, Int32Stride)
-		SHADER_PARAMETER(int32, HalfStride)
+		//TODO: Half Support | SHADER_PARAMETER(int32, HalfStride)
 
 		SHADER_PARAMETER_SRV(Buffer<float>, DataFloat)
 		SHADER_PARAMETER_SRV(Buffer<int>, DataInt32)
-		SHADER_PARAMETER_SRV(Buffer<float>, DataHalf)
+		//TODO: Half Support | SHADER_PARAMETER_SRV(Buffer<float>, DataHalf)
 		SHADER_PARAMETER(int32, InstanceCountOffset)
 		SHADER_PARAMETER(int32, ConsumeInstanceCountOffset)
 		SHADER_PARAMETER(int32, BufferSize)
@@ -2013,7 +2013,7 @@ void UNiagaraDataInterfaceDataChannelRead::SetShaderParameters(const FNiagaraDat
 					Transitions.Reserve(3);
 					Transitions.Emplace(Data->GetGPUBufferFloat().UAV, ERHIAccess::Unknown, ERHIAccess::SRVCompute);
 					Transitions.Emplace(Data->GetGPUBufferInt().UAV, ERHIAccess::Unknown, ERHIAccess::SRVCompute);
-					Transitions.Emplace(Data->GetGPUBufferHalf().UAV, ERHIAccess::Unknown, ERHIAccess::SRVCompute);
+					//TODO: Half Support | Transitions.Emplace(Data->GetGPUBufferHalf().UAV, ERHIAccess::Unknown, ERHIAccess::SRVCompute);
 					Context.GetGraphBuilder().RHICmdList.Transition(Transitions);
 
 					InstParameters->ParamOffsetTable = ParameterLayoutBuffer.SRV.IsValid() ? ParameterLayoutBuffer.SRV.GetReference() : FNiagaraRenderer::GetDummyUIntBuffer();
@@ -2021,11 +2021,11 @@ void UNiagaraDataInterfaceDataChannelRead::SetShaderParameters(const FNiagaraDat
 
 					InstParameters->FloatStride = Data->GetFloatStride() / sizeof(float);
 					InstParameters->Int32Stride = Data->GetInt32Stride() / sizeof(int32);
-					InstParameters->HalfStride = Data->GetHalfStride() / sizeof(FFloat16);
+					//TODO: Half Support | InstParameters->HalfStride = Data->GetHalfStride() / sizeof(FFloat16);
 
 					InstParameters->DataFloat = Data->GetGPUBufferFloat().SRV.IsValid() ? Data->GetGPUBufferFloat().SRV.GetReference() : FNiagaraRenderer::GetDummyFloatBuffer();
 					InstParameters->DataInt32 = Data->GetGPUBufferInt().SRV.IsValid() ? Data->GetGPUBufferInt().SRV.GetReference() : FNiagaraRenderer::GetDummyIntBuffer();
-					InstParameters->DataHalf = Data->GetGPUBufferHalf().SRV.IsValid() ? Data->GetGPUBufferHalf().SRV.GetReference() : FNiagaraRenderer::GetDummyHalfBuffer();
+					//TODO: Half Support | InstParameters->DataHalf = Data->GetGPUBufferHalf().SRV.IsValid() ? Data->GetGPUBufferHalf().SRV.GetReference() : FNiagaraRenderer::GetDummyHalfBuffer();
 					InstParameters->InstanceCountOffset = Data->GetGPUInstanceCountBufferOffset();
 					InstParameters->ConsumeInstanceCountOffset = InstanceData->ConsumeInstanceCountOffset;
 					InstParameters->BufferSize = Data ? Data->GetNumInstancesAllocated() : INDEX_NONE;
@@ -2046,11 +2046,11 @@ void UNiagaraDataInterfaceDataChannelRead::SetShaderParameters(const FNiagaraDat
 
 		InstParameters->FloatStride = 0;
 		InstParameters->Int32Stride = 0;
-		InstParameters->HalfStride = 0;
+		//TODO: Half Support | InstParameters->HalfStride = 0;
 
 		InstParameters->DataFloat = FNiagaraRenderer::GetDummyFloatBuffer();
 		InstParameters->DataInt32 = FNiagaraRenderer::GetDummyIntBuffer();
-		InstParameters->DataHalf = FNiagaraRenderer::GetDummyHalfBuffer();
+		//TODO: Half Support | InstParameters->DataHalf = FNiagaraRenderer::GetDummyHalfBuffer();
 
 		InstParameters->InstanceCountOffset = INDEX_NONE;
 		InstParameters->ConsumeInstanceCountOffset = INDEX_NONE;

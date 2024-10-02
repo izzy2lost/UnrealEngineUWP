@@ -6,7 +6,7 @@ Template hlsl for Data Channel Read DI functions to apply to their own that is s
 
 Buffer<float> {ParameterName}_DataFloat;
 Buffer<int> {ParameterName}_DataInt32;
-Buffer<float> {ParameterName}_DataHalf;
+//TODO: Half Support | Buffer<half> {ParameterName}_DataHalf;
 
 //Instance count offset for the buffer we're reading.
 //Must be done via an instance count slot as data can come from CPU and GPU.
@@ -34,20 +34,20 @@ struct FNDCAccessContext_{ParameterName}
 	//Component start offests for the current parameter.
 	int ParameterComponentStart_Float;
 	int ParameterComponentStart_Int32;
-	int ParameterComponentStart_Half;
+	//TODO: Half Support | int ParameterComponentStart_Half;
 
 	//Current registe indices for each of the GPU write buffers
 	int Register_Float;
 	int Register_Int32;
-	int Register_Half;
+	//TODO: Half Support | int Register_Half;
 
 	int GetFloatStride() { return {ParameterName}_FloatStride; }
 	int GetIntStride() { return {ParameterName}_Int32Stride; }
-	int GetHalfStride() { return {ParameterName}_HalfStride; }
+	//TODO: Half Support | int GetHalfStride() { return {ParameterName}_HalfStride; }
 		
 	Buffer<float> GetBuffer_Float() { return {ParameterName}_DataFloat; }
 	Buffer<int> GetBuffer_Int32() { return {ParameterName}_DataInt32; }
-	Buffer<float> GetBuffer_Half() { return {ParameterName}_DataHalf; }
+	//TODO: Half Support | Buffer<half> GetBuffer_Half() { return {ParameterName}_DataHalf; }
 	
 	//Instance count used for the written number of elements in the NDC buffers.
 	int GetInstanceCountOffset() { return {ParameterName}_InstanceCountOffset; }
@@ -92,11 +92,11 @@ struct FNDCAccessContext_{ParameterName}
 
 	void InitForParameter(int ParameterIndex)
 	{
-		bValid = bValid && GetParameterLayoutInfo_{ParameterName}(ParameterIndex, ParameterComponentStart_Float, ParameterComponentStart_Int32, ParameterComponentStart_Half);
+		bValid = bValid && GetParameterLayoutInfo_{ParameterName}(ParameterIndex, ParameterComponentStart_Float, ParameterComponentStart_Int32);//TODO: Half Support | ParameterComponentStart_Half);
 		
 		Register_Float = ParameterComponentStart_Float;
 		Register_Int32 = ParameterComponentStart_Int32;
-		Register_Half = ParameterComponentStart_Half;
+		//TODO: Half Support | Register_Half = ParameterComponentStart_Half;
 	}
 
 	void Read_Float(out float Value){ NiagaraDataChannelRead_Float(GetBuffer_Float(), GetFloatStride(), Register_Float, ReadIndex, Value); }
@@ -109,10 +109,10 @@ struct FNDCAccessContext_{ParameterName}
 	void Read_Int32(out int3 Value){ NiagaraDataChannelRead_Int32(GetBuffer_Int32(), GetIntStride(), Register_Int32, ReadIndex, Value); }
 	void Read_Int32(out int4 Value){ NiagaraDataChannelRead_Int32(GetBuffer_Int32(), GetIntStride(), Register_Int32, ReadIndex, Value); }
 
-	void Read_Half(out half Value){ NiagaraDataChannelRead_Half(GetBuffer_Half(), GetHalfStride(), Register_Half, ReadIndex, Value); }
-	void Read_Half(out half2 Value){ NiagaraDataChannelRead_Half(GetBuffer_Half(), GetHalfStride(), Register_Half, ReadIndex, Value); }
-	void Read_Half(out half3 Value){ NiagaraDataChannelRead_Half(GetBuffer_Half(), GetHalfStride(), Register_Half, ReadIndex, Value); }
-	void Read_Half(out half4 Value){ NiagaraDataChannelRead_Half(GetBuffer_Half(), GetHalfStride(), Register_Half, ReadIndex, Value); }
+	//TODO: Half Support | void Read_Half(out half Value){ NiagaraDataChannelRead_Half(GetBuffer_Half(), GetHalfStride(), Register_Half, ReadIndex, Value); }
+	//TODO: Half Support | void Read_Half(out half2 Value){ NiagaraDataChannelRead_Half(GetBuffer_Half(), GetHalfStride(), Register_Half, ReadIndex, Value); }
+	//TODO: Half Support | void Read_Half(out half3 Value){ NiagaraDataChannelRead_Half(GetBuffer_Half(), GetHalfStride(), Register_Half, ReadIndex, Value); }
+	//TODO: Half Support | void Read_Half(out half4 Value){ NiagaraDataChannelRead_Half(GetBuffer_Half(), GetHalfStride(), Register_Half, ReadIndex, Value); }
 };
 
 void Num_{ParameterName}(out int OutNum)
