@@ -361,7 +361,10 @@ bool SDMMaterialDesigner::OnAssetDraggedOver(TArrayView<FAssetData> InAssets)
 	const bool bIsEditor = Content.IsValid()
 		&& Content->GetWidgetClass().GetWidgetType() == SDMMaterialEditor::StaticWidgetClass().GetWidgetType();
 
-	if (bIsEditor)
+	const bool bIsWizard = Content.IsValid()
+		&& Content->GetWidgetClass().GetWidgetType() == SDMMaterialWizard::StaticWidgetClass().GetWidgetType();
+
+	if (bIsEditor || bIsWizard)
 	{
 		AllowedClasses.Add(UDMTextureSet::StaticClass());
 	}
@@ -391,7 +394,7 @@ bool SDMMaterialDesigner::OnAssetDraggedOver(TArrayView<FAssetData> InAssets)
 		}
 	}
 
-	if (bIsEditor && DroppedTextures.Num() > 1)
+	if ((bIsEditor || bIsWizard) && DroppedTextures.Num() > 1)
 	{
 		return true;
 	}
@@ -402,6 +405,12 @@ bool SDMMaterialDesigner::OnAssetDraggedOver(TArrayView<FAssetData> InAssets)
 void SDMMaterialDesigner::OnAssetsDropped(const FDragDropEvent& InDragDropEvent, TArrayView<FAssetData> InAssets)
 {
 	TArray<FAssetData> DroppedTextures;
+
+	const bool bIsEditor = Content.IsValid()
+		&& Content->GetWidgetClass().GetWidgetType() == SDMMaterialEditor::StaticWidgetClass().GetWidgetType();
+
+	const bool bIsWizard = Content.IsValid()
+		&& Content->GetWidgetClass().GetWidgetType() == SDMMaterialWizard::StaticWidgetClass().GetWidgetType();
 
 	for (const FAssetData& Asset : InAssets)
 	{
@@ -439,9 +448,15 @@ void SDMMaterialDesigner::OnAssetsDropped(const FDragDropEvent& InDragDropEvent,
 		}
 		else if (AssetClass->IsChildOf(UDMTextureSet::StaticClass()))
 		{
-			if (Content.IsValid() && Content->GetWidgetClass().GetWidgetType() == SDMMaterialEditor::StaticWidgetClass().GetWidgetType())
+			if (bIsEditor)
 			{
 				StaticCastSharedPtr<SDMMaterialEditor>(Content)->HandleDrop_TextureSet(Cast<UDMTextureSet>(Asset.GetAsset()));
+				return;
+			}
+
+			if (bIsWizard)
+			{
+				StaticCastSharedPtr<SDMMaterialWizard>(Content)->HandleDrop_TextureSet(Cast<UDMTextureSet>(Asset.GetAsset()));
 				return;
 			}
 		}
@@ -449,9 +464,13 @@ void SDMMaterialDesigner::OnAssetsDropped(const FDragDropEvent& InDragDropEvent,
 
 	if (DroppedTextures.Num() > 1)
 	{
-		if (Content.IsValid() && Content->GetWidgetClass().GetWidgetType() == SDMMaterialEditor::StaticWidgetClass().GetWidgetType())
+		if (bIsEditor)
 		{
 			StaticCastSharedPtr<SDMMaterialEditor>(Content)->HandleDrop_CreateTextureSet(DroppedTextures);
+		}
+		else if (bIsWizard)
+		{
+			StaticCastSharedPtr<SDMMaterialWizard>(Content)->HandleDrop_CreateTextureSet(DroppedTextures);
 		}
 	}
 }
