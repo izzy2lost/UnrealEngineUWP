@@ -1562,6 +1562,13 @@ void AddPostProcessingPasses(
 		SceneColor = VirtualShadowMapArray->AddVisualizePass(GraphBuilder, View, ViewIndex, EVSMVisualizationPostPass::PreEditorPrimitives, SceneColor, OverrideOutput);
 	}
 	
+#if WITH_EDITOR || !UE_BUILD_SHIPPING
+ 	if (EngineShowFlags.VisualizeNanite && NaniteRasterResults != nullptr)
+ 	{
+ 		AddVisualizeNanitePass(GraphBuilder, View, SceneColor, *NaniteRasterResults);
+ 	}
+#endif
+
 #if WITH_EDITOR
 	if (PassSequence.IsEnabled(EPass::SelectionOutline))
 	{
@@ -1852,11 +1859,6 @@ void AddPostProcessingPasses(
 		if (EngineShowFlags.TestImage)
 		{
 			AddTestImagePass(GraphBuilder, View, SceneColor);
-		}
-
-		if (EngineShowFlags.VisualizeNanite && NaniteRasterResults != nullptr)
-		{
-			AddVisualizeNanitePass(GraphBuilder, View, SceneColor, *NaniteRasterResults);
 		}
 
 		#if WITH_EDITOR
