@@ -3,10 +3,11 @@
 using EpicGames.Core;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Horde.Tools;
-using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Text.Json;
 
 namespace UnrealToolbox
 {
@@ -19,6 +20,7 @@ namespace UnrealToolbox
 			public string? UpdateVersion { get; set; }
 		}
 
+		readonly string? _currentVersion;
 		readonly DirectoryReference _baseDir;
 		readonly JsonConfig<JsonState> _config;
 		readonly string[] _args;
@@ -47,9 +49,10 @@ namespace UnrealToolbox
 			_args = args;
 
 			FileReference currentAssembly = new FileReference(Assembly.GetExecutingAssembly().Location);
+			_currentVersion = ReadVersion(currentAssembly.Directory);
 
 			_isLaunchApp = !currentAssembly.IsUnderDirectory(_baseDir);
-			if(_isLaunchApp && !String.Equals(_config.Current.LaunchApp, currentAssembly.FullName, StringComparison.OrdinalIgnoreCase))
+			if (_isLaunchApp && !String.Equals(_config.Current.LaunchApp, currentAssembly.FullName, StringComparison.OrdinalIgnoreCase))
 			{
 				UpdateState(x => x.LaunchApp = currentAssembly.FullName);
 			}
@@ -111,7 +114,7 @@ namespace UnrealToolbox
 				{
 					string fileName = Path.GetFileName(Assembly.GetExecutingAssembly().Location);
 					FileReference executable = FileReference.Combine(LatestDir, fileName);
-					if (FileReference.Exists(executable))
+					if (FileReference.Exists(executable) && ShouldLaunchLatest(LatestDir))
 					{
 						return Launch(executable.FullName, _args);
 					}
@@ -126,6 +129,69 @@ namespace UnrealToolbox
 				}
 			}
 			return false;
+		}
+
+		static bool TryParseVersion(string? version, [NotNullWhen(true)] out VersionNumber? versionNumber)
+		{
+			if (version == null)
+			{
+				versionNumber = null;
+				return false;
+			}
+
+			version = version.Replace("-PF-", ".", StringComparison.OrdinalIgnoreCase);
+			version = version.Replace("-", ".", StringComparison.Ordinal);
+
+			return VersionNumber.TryParse(version, out versionNumber);
+		}
+
+		bool ShouldLaunchLatest(DirectoryReference latestDir)
+		{
+			// If this build is not versioned, always launch latest
+			VersionNumber? currentVersionNumber;
+			if (!TryParseVersion(_currentVersion, out currentVersionNumber))
+			{
+				return true;
+			}
+
+			// If the latest build is versioned, make sure it's newer than the current version
+			VersionNumber? latestVersionNumber;
+			if (TryParseVersion(ReadVersion(latestDir), out latestVersionNumber))
+			{
+				return latestVersionNumber > currentVersionNumber;
+			}
+			else
+			{
+				return false;
+			}
+		}
+
+		class VersionFile
+		{
+			public string? Version { get; set; }
+		}
+
+		static string? ReadVersion(DirectoryReference dir)
+		{
+			FileReference file = FileReference.Combine(dir, "Version.json");
+			if (!FileReference.Exists(file))
+			{
+				return null;
+			}
+
+			string? version;
+			try
+			{
+				byte[] versionData = FileReference.ReadAllBytes(file);
+				VersionFile? versionFile = JsonSerializer.Deserialize<VersionFile>(versionData, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+				version = versionFile?.Version;
+			}
+			catch
+			{
+				return null;
+			}
+
+			return version;
 		}
 
 		static bool Launch(string executable, string[] args)
