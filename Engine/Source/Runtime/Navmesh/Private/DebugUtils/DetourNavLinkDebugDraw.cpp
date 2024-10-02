@@ -104,11 +104,16 @@ namespace UE::Detour::Private
 		}
 	}
 
-	void drawTrajectorySlice(duDebugDraw* dd, dtReal* pa, dtReal* pb, const dtNavLinkBuilder::Trajectory2D* trajectory, const dtReal* trajectoryDir, const unsigned int color)
+	void drawTrajectorySlice(duDebugDraw* dd, const dtReal* pa, const dtReal* pb, const dtNavLinkBuilder::Trajectory2D* trajectory, const dtReal* trajectoryDir, const unsigned int color)
 	{
+		dtReal start[3];
+		dtReal end[3];
+		dtVcopy(start, pa);
+		dtVcopy(end, pb);
+		
 		// Offset start and end points to account for the agent radius.
-		dtVmad(pa, pa, trajectoryDir, -trajectory->radiusOverflow);
-		dtVmad(pb, pb, trajectoryDir,  trajectory->radiusOverflow);
+		dtVmad(start, pa, trajectoryDir, -trajectory->radiusOverflow);
+		dtVmad(end, pb, trajectoryDir,  trajectory->radiusOverflow);
 		
 		unsigned int colt = duTransCol(color, 50);
 		unsigned int colb = duTransCol(duLerpCol(color,duColor::black,96), 50);
@@ -120,7 +125,7 @@ namespace UE::Detour::Private
 		{
 			const dtNavLinkBuilder::TrajectorySample& s = trajectory->samples[i];
 			const dtReal u = (float)i / (float)(nsamples-1);
-			dtVlerp(p1, pa, pb, u);
+			dtVlerp(p1, start, end, u);
 			dtVcopy(p0, p1);
 			p0[1] += s.ymin;
 			p1[1] += s.ymax;
@@ -151,7 +156,7 @@ namespace UE::Detour::Private
 		{
 			const dtNavLinkBuilder::TrajectorySample& s = trajectory->samples[i];
 			const float u = (float)i / (float)(nsamples-1);
-			dtVlerp(p1, pa, pb, u);
+			dtVlerp(p1, start, end, u);
 			dtVcopy(p0, p1);
 			p0[1] += s.ymin;
 			p1[1] += s.ymax;
@@ -556,9 +561,6 @@ void duDebugDrawNavLinkBuilder(duDebugDraw* dd, const dtNavLinkBuilder& linkBuil
 						dtReal spt[3], ept[3];
 						dtVlerp(spt, es->start.p, es->start.q, u);
 						dtVlerp(ept, es->end.p, es->end.q, u);
-
-						spt[1] = ssmp->height;
-						ept[1] = esmp->height;
 						
 						if (ssmp->flags & dtNavLinkBuilder::UNRESTRICTED)
 							UE::Detour::Private::drawTrajectorySlice(dd, spt, ept, &es->trajectory, es->az, duColor::green);
