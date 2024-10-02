@@ -437,6 +437,9 @@ public:
 	 * Unselected elements, Hover over selection, Hover over non-selection, and Selected elements
 	 */
 	void SetSelectionColors(FLinearColor UnselectedCol, FLinearColor HoverOverSelectedCol, FLinearColor HoverOverUnselectedCol, FLinearColor GeometrySelectedCol);
+
+	/** Disconnect and cleanup for PreviewGeometry object. */
+	void DisconnectPreviewGeometry();
 	
 protected:
 
