@@ -61,8 +61,11 @@ public:
 	struct TrajectorySample
 	{
 		// Min and max heights relative to the height on the segment between the start and the end point (at the sampling locations). 
-		float ymin;
-		float ymax;
+		float ymin = 0.f;
+		float ymax = 0.f;
+		
+		bool floorStart = false;
+		bool floorEnd = false;
 	};
 	
 	struct Trajectory2D
@@ -161,8 +164,8 @@ public:
 	NAVMESH_API void debugBuildEdge(const dtLinkBuilderConfig& acfg, dtNavLinkAction action, int edgeIndex, EdgeSampler& sampler);
 	
 private:
-	void initTrajectory(Trajectory2D* trajectory) const;
-	bool isTrajectoryClear(dtReal* pa, dtReal* pb, const Trajectory2D* trajectory, const dtReal* trajectoryDir) const;
+	void initTrajectorySamples(Trajectory2D* trajectory) const;
+	bool isTrajectoryClear(const dtReal* pa, const dtReal* pb, const Trajectory2D* trajectory, const dtReal* trajectoryDir) const;
 	
 	int findPotentialJumpOverEdges(const dtReal* sp, const dtReal* sq,
 								   const float depthRange, const float heightRange,
@@ -179,6 +182,10 @@ private:
 	bool checkHeightfieldCollision(const dtReal x, const dtReal ymin, const dtReal ymax, const dtReal z) const;
 
 	void sampleGroundSegment(GroundSegment* seg, const int nsamples, const float groundRange) const;
+
+	// Update the min height of the trajectory samples from the height of the ground at the start and the end of the trajectories.
+	// This method must be called after the segments have been sampled for ground. 
+	void updateTrajectorySamples(EdgeSampler* es) const;
 	
 	void sampleAction(EdgeSampler* es) const;
 	
