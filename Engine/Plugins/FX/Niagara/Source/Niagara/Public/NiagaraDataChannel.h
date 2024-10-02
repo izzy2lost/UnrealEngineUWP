@@ -79,17 +79,16 @@ struct FNiagaraDataChannelDataProxy
 	//Users that need space in this NDC Data add to this for each tick via AddGPUAllocationForNextTick().
 	int32 PendingGPUAllocations = 0;
 
-	FNiagaraGpuComputeDispatchInterface* DispatchInterface = nullptr;
-
 	#if !UE_BUILD_SHIPPING
+	FNiagaraGpuComputeDispatchInterface* DispatchInterfaceForDebuggingOnly = nullptr;
+	
 	FString DebugName;
 	const TCHAR* GetDebugName()const{return *DebugName;}
 	#else
 	const TCHAR* GetDebugName()const{return nullptr;}
 	#endif
 
-	void Init();
-	void BeginFrame(FRHICommandListImmediate& RHICmdList);
+	void BeginFrame(FNiagaraGpuComputeDispatchInterface* DispatchInterface, FRHICommandListImmediate& RHICmdList);
 	void EndFrame(FRHICommandListImmediate& RHICmdList);
 	void Reset();
 
