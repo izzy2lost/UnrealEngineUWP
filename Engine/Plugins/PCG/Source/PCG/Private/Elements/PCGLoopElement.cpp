@@ -312,16 +312,22 @@ bool FPCGLoopElement::ExecuteInternal(FPCGContext* InContext) const
 			Context->bIsPaused = true;
 
 			Subsystem->ScheduleGeneric(
-				[Context]() // Normal execution: Wake up the current task
+				[ContextHandle = Context->GetOrCreateHandle()]() // Normal execution: Wake up the current task
 				{
-					Context->bIsPaused = false;
+					if (FPCGSubgraphContext* ContextPtr = FPCGContext::GetContextFromHandle<FPCGSubgraphContext>(ContextHandle))
+					{
+						ContextPtr->bIsPaused = false;
+					}
 					return true;
 				},
-				[Context]() // On abort: wakeup and cancel, forget subgraphs
+				[ContextHandle = Context->GetOrCreateHandle()]() // On abort: wakeup and cancel, forget subgraphs
 				{
-					Context->bIsPaused = false;
-					Context->SubgraphTaskIds.Reset();
-					Context->OutputData.bCancelExecution = true;
+					if (FPCGSubgraphContext* ContextPtr = FPCGContext::GetContextFromHandle<FPCGSubgraphContext>(ContextHandle))
+					{
+						ContextPtr->bIsPaused = false;
+						ContextPtr->SubgraphTaskIds.Reset();
+						ContextPtr->OutputData.bCancelExecution = true;
+					}
 					return true;
 				},
 				Context->SourceComponent.Get(),

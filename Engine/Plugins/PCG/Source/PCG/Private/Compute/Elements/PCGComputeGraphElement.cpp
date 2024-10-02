@@ -106,13 +106,19 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 		return true;
 	}
 
-	auto SleepUntilNextFrame = [Context]()
+	auto SleepUntilNextFrame = [](FPCGComputeGraphContext* InContext)
 	{
-		// TODO unsafe access to raw pointer, need cancellation lambda
-		Context->bIsPaused = true;
-		Context->SourceComponent->GetSubsystem()->RegisterBeginTickAction([Context]()
+		check(InContext);
+		InContext->bIsPaused = true;
+		InContext->SourceComponent->GetSubsystem()->RegisterBeginTickAction([ContextHandle = InContext->GetOrCreateHandle()]()
 		{
-			Context->bIsPaused = false;
+			if (TSharedPtr<FPCGContextHandle> SharedHandle = ContextHandle.Pin())
+			{
+				if (FPCGContext* ContextPtr = SharedHandle->GetContext())
+				{
+					ContextPtr->bIsPaused = false;
+				}
+			}
 		});
 	};
 
@@ -120,7 +126,7 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 	if (Context->ComputeGraph->HasKernelResourcesPendingShaderCompilation())
 	{
 		UE_LOG(LogPCG, Log, TEXT("Deferring until next frame as the kernel has pending shader compilations."));
-		SleepUntilNextFrame();
+		SleepUntilNextFrame(Context);
 		return false;
 	}
 
@@ -128,7 +134,7 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 	if (Context->bGraphEnqueued)
 	{
 		// Likely we need a frame to pass in order to make progress.
-		SleepUntilNextFrame();
+		SleepUntilNextFrame(Context);
 		return true;
 	}
 
@@ -193,7 +199,7 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 		if (bAnyComponentsSetup)
 		{
 			// Delay to give time for proxy to settle and for scene update to allocate space in the GPU scene.
-			SleepUntilNextFrame();
+			SleepUntilNextFrame(Context);
 			return false;
 		}
 	}
@@ -207,7 +213,7 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 
 		Context->ComputeGraph->UpdateResources();
 
-		SleepUntilNextFrame();
+		SleepUntilNextFrame(Context);
 		return false;
 	}
 

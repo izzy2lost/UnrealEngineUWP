@@ -638,15 +638,21 @@ bool FPCGSpawnActorElement::SpawnAndPrepareSubgraphs(FPCGSubgraphContext* Contex
 		Context->bIsPaused = true;
 
 		Subsystem->ScheduleGeneric(
-			[Context]() // Normal execution: Wake up the current task
+			[ContextHandle = Context->GetOrCreateHandle()]() // Normal execution: Wake up the current task
 			{
-				Context->bIsPaused = false;
+				if (FPCGSubgraphContext* ContextPtr = FPCGContext::GetContextFromHandle<FPCGSubgraphContext>(ContextHandle))
+				{
+					ContextPtr->bIsPaused = false;
+				}
 				return true;
 			}, 
-			[Context]() // On Abort: Wake up & cancel
+			[ContextHandle = Context->GetOrCreateHandle()]() // On Abort: Wake up & cancel
 			{
-				Context->bIsPaused = false;
-				Context->OutputData.bCancelExecution = true;
+				if (FPCGSubgraphContext* ContextPtr = FPCGContext::GetContextFromHandle<FPCGSubgraphContext>(ContextHandle))
+				{
+					ContextPtr->bIsPaused = false;
+					ContextPtr->OutputData.bCancelExecution = true;
+				}
 			},
 			Context->SourceComponent.Get(), 
 			Context->SubgraphTaskIds);
