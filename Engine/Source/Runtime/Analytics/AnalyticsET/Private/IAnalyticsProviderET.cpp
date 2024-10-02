@@ -296,6 +296,13 @@ FAnalyticsProviderET::FAnalyticsProviderET(const FAnalyticsET::Config& ConfigVal
 		UE_LOG(LogAnalytics, Warning, TEXT("AnalyticsET: APIServerET is empty for APIKey (%s), creating as a NULL provider!"), *Config.APIKeyET);
 	}
 
+#if !UE_HTTP_SUPPORT_UNIX_SOCKET
+	if (!Config.APIUnixSocketPathET.IsEmpty())
+	{
+		UE_LOG(LogAnalytics, Warning, TEXT("[%s] Specified UnixSocketPath '%s' but that is not supported on this platform"), *Config.APIKeyET, *Config.APIUnixSocketPathET);
+	}
+#endif //UE_HTTP_SUPPORT_UNIX_SOCKET
+
 	// only need these if we are using the data router protocol.
 	if (!Config.UseLegacyProtocol)
 	{
@@ -499,6 +506,13 @@ void FAnalyticsProviderET::FlushEventsOnce()
 			HttpRequest->SetURL(Config.APIServerET / URLPath);
 			HttpRequest->SetVerb(TEXT("POST"));
 			HttpRequest->SetContent(MoveTemp(Payload));
+
+#if UE_HTTP_SUPPORT_UNIX_SOCKET
+			if (!Config.APIUnixSocketPathET.IsEmpty())
+			{
+				HttpRequest->SetOption(HttpRequestOptions::UnixSocketPath, Config.APIUnixSocketPathET);
+			}
+#endif //UE_HTTP_SUPPORT_UNIX_SOCKET
 
 			// Don't set a response callback if we are in our destructor, as the instance will no longer be there to call.
 			if (!bInDestructor)
@@ -776,6 +790,14 @@ void FAnalyticsProviderET::FlushEventLegacy(const FString& EventName, const TArr
 		URLPath += EventParams;
 		HttpRequest->SetURL(URLPath);
 		HttpRequest->SetVerb(TEXT("GET"));
+
+#if UE_HTTP_SUPPORT_UNIX_SOCKET
+		if (!Config.APIUnixSocketPathET.IsEmpty())
+		{
+			HttpRequest->SetOption(HttpRequestOptions::UnixSocketPath, Config.APIUnixSocketPathET);
+		}
+#endif //UE_HTTP_SUPPORT_UNIX_SOCKET
+
 		if (!bInDestructor)
 		{
 			HttpRequest->OnProcessRequestComplete().BindSP(this, &FAnalyticsProviderET::EventRequestComplete);
