@@ -442,6 +442,10 @@ FVirtualShadowMapSampleResult ProjectLight(
 					}
 					#endif
 				}
+				else
+				{
+					AccShadowFactor += 1.f;
+				}
 			}
 
 			AccShadowFactor /= float(max(1, min(RayIndex, HairRayCount)));
