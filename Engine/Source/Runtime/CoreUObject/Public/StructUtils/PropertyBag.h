@@ -618,7 +618,7 @@ struct COREUOBJECT_API FInstancedPropertyBag
 	TValueOrError<FPropertyBagArrayRef, EPropertyBagResult> GetMutableArrayRef(const FName Name);
 
 	/**
-	 * Returns helper class to modify and access an array property.
+	 * Returns helper class to access an array property.
 	 * Note: The array reference is not valid after the layout of the referenced property bag has changed!
 	 * @returns helper class to modify and access arrays
 	*/
@@ -626,6 +626,13 @@ struct COREUOBJECT_API FInstancedPropertyBag
 
 	/**
 	 * Returns helper class to modify and access a set property.
+	 * Note: The set reference is not valid after the layout of the referenced property bag has changed!
+	 * @returns helper class to modify and access sets
+	*/
+	TValueOrError<FPropertyBagSetRef, EPropertyBagResult> GetMutableSetRef(const FName Name);
+	
+	/**
+	 * Returns helper class to access a set property.
 	 * Note: The set reference is not valid after the layout of the referenced property bag has changed!
 	 * @returns helper class to modify and access sets
 	*/
