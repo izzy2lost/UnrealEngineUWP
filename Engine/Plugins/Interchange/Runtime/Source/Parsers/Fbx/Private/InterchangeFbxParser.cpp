@@ -59,7 +59,10 @@ namespace UE::Interchange
 		SourceFilename = Filename;
 		ResultsContainer->Empty();
 
-		if (!FbxParserPrivate->LoadFbxFile(Filename))
+		//Since we are not in main thread we cannot use TStrongPtr, so we will add the object to the root and remove it when we are done
+		UInterchangeBaseNodeContainer* Container = NewObject<UInterchangeBaseNodeContainer>(GetTransientPackage(), NAME_None);
+
+		if (!FbxParserPrivate->LoadFbxFile(Filename, *Container))
 		{
 			if (UInterchangeResultError_Generic* Error = AddMessage<UInterchangeResultError_Generic>())
 			{
@@ -70,8 +73,7 @@ namespace UE::Interchange
 		}
 
 		ResultFilepath = ResultFolder + TEXT("/SceneDescription.itc");
-		//Since we are not in main thread we cannot use TStrongPtr, so we will add the object to the root and remove it when we are done
-		UInterchangeBaseNodeContainer* Container = NewObject<UInterchangeBaseNodeContainer>(GetTransientPackage(), NAME_None);
+		
 		if (!ensure(Container != nullptr))
 		{
 			if (UInterchangeResultError_Generic* Error = AddMessage<UInterchangeResultError_Generic>())
@@ -101,7 +103,7 @@ namespace UE::Interchange
 			return;
 		}
 		
-		if (!FbxParserPrivate->LoadFbxFile(Filename))
+		if (!FbxParserPrivate->LoadFbxFile(Filename, BaseNodecontainer))
 		{
 			if (UInterchangeResultError_Generic* Error = AddMessage<UInterchangeResultError_Generic>())
 			{

@@ -74,7 +74,7 @@ namespace UE
 				return FbxHelper;
 			}
 
-			bool FFbxParser::LoadFbxFile(const FString& Filename)
+			bool FFbxParser::LoadFbxFile(const FString& Filename, UInterchangeBaseNodeContainer& NodeContainer)
 			{
 				SourceFilename = Filename;
 				int32 SDKMajor, SDKMinor, SDKRevision;
@@ -140,7 +140,13 @@ namespace UE
 				EnsureNodeNameAreValid(FPaths::GetBaseFilename(Filename, bRemovePath));
 
 				//We always convert scene to UE axis and units
-				FFbxConvert::ConvertScene(SDKScene, bConvertScene, bForceFrontXAxis, bConvertSceneUnit, FileDetails.AxisDirection, FileDetails.UnitSystem);
+				FbxAMatrix AxisConversionInverseMatrix;
+				FFbxConvert::ConvertScene(SDKScene, bConvertScene, bForceFrontXAxis, bConvertSceneUnit, FileDetails.AxisDirection, FileDetails.UnitSystem, AxisConversionInverseMatrix);
+
+				//Save the AxisConversionInverseTransform into InterchangeSourceNode (so that socket transport can use it accordingly).
+				FTransform AxisConversionInverseTransform = FFbxConvert::ConvertTransform<FTransform, FVector, FQuat>(AxisConversionInverseMatrix);
+				UInterchangeSourceNode* SourceNode = UInterchangeSourceNode::FindOrCreateUniqueInstance(&NodeContainer);
+				SourceNode->SetCustomAxisConversionInverseTransform(AxisConversionInverseTransform);
 
 				FrameRate = FbxTime::GetFrameRate(SDKScene->GetGlobalSettings().GetTimeMode());
 				FileDetails.FrameRate = FString::Printf(TEXT("%.2f"), FrameRate);
