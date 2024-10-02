@@ -1094,18 +1094,22 @@ void UInterchangeStaticMeshFactory::SetupSourceModelsSettings(UStaticMesh& Stati
 	constexpr int32 LODIndex = 0;
 	float PreviousLODScreenSize = UStaticMesh::ComputeLODScreenSize(LODIndex);
 
-	// If no values are provided, then force AutoCompute
-	if (LodScreenSizes.IsEmpty())
+	// No change during reimport
+	if (!bIsAReimport)
 	{
-		bAutoComputeLODScreenSizes = true;
+		// If no values are provided, then force AutoCompute
+		if (LodScreenSizes.IsEmpty())
+		{
+			bAutoComputeLODScreenSizes = true;
+		}
+		StaticMesh.bAutoComputeLODScreenSize = bAutoComputeLODScreenSizes;
 	}
-	StaticMesh.bAutoComputeLODScreenSize = bAutoComputeLODScreenSizes;
 	
 	for (int32 LodIndex = 0; LodIndex < FinalLodCount; ++LodIndex)
 	{
 		FStaticMeshSourceModel& SrcModel = StaticMesh.GetSourceModel(LodIndex);
 
-		if (!bAutoComputeLODScreenSizes)
+		if (!bIsAReimport && !bAutoComputeLODScreenSizes)
 		{
 			if (LodScreenSizes.IsValidIndex(LodIndex))
 			{
