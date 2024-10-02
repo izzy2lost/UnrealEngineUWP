@@ -58,7 +58,7 @@ namespace UnrealToolbox
 			}
 
 			using EventWaitHandle settingsEvent = new EventWaitHandle(false, EventResetMode.AutoReset, SettingsEventName);
-			if (args.Any(x => x.Equals("-Settings", StringComparison.OrdinalIgnoreCase)))
+			if (!args.Any(x => x.Equals("-Quiet", StringComparison.OrdinalIgnoreCase)))
 			{
 				settingsEvent.Set();
 			}
