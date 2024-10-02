@@ -455,6 +455,17 @@ TAutoConsoleVariable<int32> CVarAllowOneFrameThreadLag(
 	TEXT("Whether to allow the rendering thread to lag one frame behind the game thread (0: disabled, otherwise enabled)")
 );
 
+TAutoConsoleVariable<int32> CVarGTSyncType(
+	TEXT("r.GTSyncType"),
+	0,
+	TEXT("Determines how the game thread syncs with the render thread, RHI thread and GPU.\n")
+	TEXT("Syncing to the GPU swap chain flip allows for lower frame latency.\n")
+	TEXT(" <= 0 - Sync the game thread with the N-1 render thread frame. Then sync with the N-m RHI thread frame where m is (2 + (-r.GTSyncType)) (i.e. negative values increase the amount of RHI thread overlap) (default = 0).\n")
+	TEXT("    1 - Sync the game thread with the N-1 RHI thread frame.\n")
+	TEXT("    2 - Sync the game thread with the GPU swap chain flip (only on supported platforms).\n"),
+	ECVF_Default
+);
+
 static FAutoConsoleVariable CVarSystemResolution(
 	TEXT("r.SetRes"),
 	TEXT("1280x720w"),
@@ -736,9 +747,8 @@ void CalculateFPSTimings()
 	double CurrentTime = FPlatformTime::Seconds();
 	float FrameTimeMS = (float)((CurrentTime - LastTime) * 1000.0);
 
-	static auto CVarGTSyncType = IConsoleManager::Get().FindConsoleVariable(TEXT("r.GTSyncType"));
 	static auto CVarVsync = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VSync"));
-	if (CVarGTSyncType->GetInt() == 2 && CVarVsync->GetInt() != 0)
+	if (CVarGTSyncType.GetValueOnAnyThread() == 2 && CVarVsync->GetInt() != 0)
 	{
 		float RHIFrameTime = RHIGetFrameTime();
 		if (RHIFrameTime != 0)
@@ -13296,70 +13306,122 @@ UFont* GetStatsFont()
 	return GEngine->GetSmallFont();
 }
 
-
-FFrameEndSync::FFrameEndSync()
+namespace FFrameEndSync
 {
-	// FFrameEndSync instances are often used as static local vars. we need to cleanup them on engine exit to avoid static destruciton order problem
-	CleanupDelegate = FCoreDelegates::OnEnginePreExit.AddRaw(this, &FFrameEndSync::Cleanup);
-}
+	using ESyncDepth = FRenderCommandFence::ESyncDepth;
 
-FFrameEndSync::~FFrameEndSync()
-{
-	// if it's destroyed before the engine exit, remove the delegate so it doesn't use the instance after destruction
-	if (CleanupDelegate.IsValid())
+	struct FRenderThreadFence
 	{
-		FCoreDelegates::OnEnginePreExit.Remove(CleanupDelegate);
-	}
-}
+		// Legacy game code assumes the game thread will never get further than 1 frame ahead of the render thread.
+		// This fence is used to sync the game thread with the N-1 render thread frame.
+		FRenderCommandFence Fence;
 
-void FFrameEndSync::Cleanup()
-{
-	// forcing static deallocation order:
-	// fences can hold task completion handles that need to be freed before their allocator is destroyed. wating for fences does the job
-	Fence[0].Wait();
-	Fence[1].Wait();
-
-	FCoreDelegates::OnEnginePreExit.Remove(CleanupDelegate);
-	// notify the destructor
-	CleanupDelegate = {};
-}
-
-void FFrameEndSync::Sync( bool bAllowOneFrameThreadLag )
-{
-	check(IsInGameThread());			
-
-#if !UE_BUILD_SHIPPING && PLATFORM_SUPPORTS_FLIP_TRACKING
-	// Set the FrameDebugInfo on platforms that have accurate frame tracking.
-	ENQUEUE_RENDER_COMMAND(FrameDebugInfo)(
-		[CurrentFrameCounter = GFrameCounter, CurrentInputTime = GInputTime](FRHICommandListImmediate& RHICmdList)
-	{
-		RHICmdList.EnqueueLambda(
-			[CurrentFrameCounter, CurrentInputTime](FRHICommandListImmediate&)
+		FRenderThreadFence()
 		{
-			// Set the FrameCount and InputTime for input latency stats and flip debugging.
-			RHISetFrameDebugInfo(GRHIPresentCounter - 1, CurrentFrameCounter, CurrentInputTime);
+			Fence.BeginFence(ESyncDepth::RenderThread);
+		}
+
+		~FRenderThreadFence()
+		{
+			Fence.Wait(true);
+		}
+	};
+	TArray<FRenderThreadFence, TInlineAllocator<2>> RenderThreadFences;
+
+	// Additional fences to await. These sync with either the RHI thread or swapchain,
+	// and are used to prevent the game thread running too far ahead of presented frames.
+	TArray<FRenderCommandFence, TInlineAllocator<3>> PipelineFences;
+
+	void Sync(bool bFullSync)
+	{
+		// The "r.OneFrameThreadLag" cvar forces a full sync, meaning the game thread will
+		// not start work until all the rendering work for the previous frame has completed.
+		bFullSync |= CVarAllowOneFrameThreadLag.GetValueOnAnyThread() <= 0;
+
+		SCOPE_CYCLE_COUNTER(STAT_FrameSyncTime);
+
+		check(IsInGameThread());
+
+	#if !UE_BUILD_SHIPPING && PLATFORM_SUPPORTS_FLIP_TRACKING
+		// Set the FrameDebugInfo on platforms that have accurate frame tracking.
+		ENQUEUE_RENDER_COMMAND(FrameDebugInfo)(
+			[CurrentFrameCounter = GFrameCounter, CurrentInputTime = GInputTime](FRHICommandListImmediate& RHICmdList)
+		{
+			RHICmdList.EnqueueLambda(
+				[CurrentFrameCounter, CurrentInputTime](FRHICommandListImmediate&)
+			{
+				// Set the FrameCount and InputTime for input latency stats and flip debugging.
+				RHISetFrameDebugInfo(GRHIPresentCounter - 1, CurrentFrameCounter, CurrentInputTime);
+			});
 		});
-	});
-#endif
+	#endif
 
-	// Since this is the frame end sync, allow sync with the RHI and GPU (true).
-	Fence[EventIndex].BeginFence(true);
+		// Always sync with the render thread (either current frame, or N-1 frame)
+		RenderThreadFences.Emplace();
+		while (RenderThreadFences.Num() > (bFullSync ? 0 : 1))
+		{
+			RenderThreadFences.RemoveAt(0);
+		}
 
-	bool bEmptyGameThreadTasks = !FTaskGraphInterface::Get().IsThreadProcessingTasks(ENamedThreads::GameThread);
+		// Insert an additional fence based on how we want to sync with the RHI thread / swapchain
+		ESyncDepth SyncDepth;
+		int32 NumFramesOverlap;
 
-	if (bEmptyGameThreadTasks)
-	{
-		// need to process gamethread tasks at least once a frame no matter what
-		FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread);
+		int32 const GTSyncType = CVarGTSyncType.GetValueOnAnyThread();
+
+		if (bFullSync)
+		{
+			SyncDepth = GTSyncType >= 2
+				? ESyncDepth::Swapchain
+				: ESyncDepth::RHIThread;
+
+			NumFramesOverlap = 0;
+		}
+		else if (GTSyncType >= 2)
+		{
+			SyncDepth = ESyncDepth::Swapchain;
+			NumFramesOverlap = 1;
+		}
+		else if (GTSyncType == 1)
+		{
+			SyncDepth = ESyncDepth::RHIThread;
+			NumFramesOverlap = 1;
+		}
+		else
+		{
+			check(GTSyncType <= 0);
+
+			// Modes <= 0 allows N frames of overlap with the RHI thread.
+			SyncDepth = ESyncDepth::RHIThread;
+			NumFramesOverlap = 2 + (-GTSyncType);
+		}
+
+		if (SyncDepth == ESyncDepth::Swapchain)
+		{
+			// Swapchain sync mode does not work when vsync is disabled. Fallback to RHI thread sync in that case.
+			static auto CVarVsync = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VSync"));
+			check(CVarVsync != nullptr);
+
+			if (CVarVsync->GetInt() == 0)
+			{
+				SyncDepth = ESyncDepth::RHIThread;
+			}
+		}
+
+		PipelineFences.Emplace_GetRef().BeginFence(SyncDepth);
+
+		if (!FTaskGraphInterface::Get().IsThreadProcessingTasks(ENamedThreads::GameThread))
+		{
+			// need to process gamethread tasks at least once a frame no matter what
+			FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread);
+		}
+
+		while (PipelineFences.Num() > NumFramesOverlap)
+		{
+			PipelineFences[0].Wait(true);
+			PipelineFences.RemoveAt(0);
+		}
 	}
-
-	// Use two events if we allow a one frame lag.
-	if( bAllowOneFrameThreadLag )
-	{
-		EventIndex = (EventIndex + 1) % 2;
-	}
-
-	Fence[EventIndex].Wait(bEmptyGameThreadTasks);  // here we also opportunistically execute game thread tasks while we wait
 }
 
 FString appGetStartupMap(const TCHAR* CommandLine)

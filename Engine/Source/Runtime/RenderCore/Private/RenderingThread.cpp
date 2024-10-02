@@ -1008,178 +1008,87 @@ bool IsRenderThreadTimeoutSuspended()
 	return GTimeoutSuspendCount > 0;
 }
 
-TAutoConsoleVariable<int32> CVarGTSyncType(
-	TEXT("r.GTSyncType"),
-	0,
-	TEXT("Determines how the game thread syncs with the render thread, RHI thread and GPU.\n")
-	TEXT("Syncing to the GPU swap chain flip allows for lower frame latency.\n")
-	TEXT(" 0 - Sync the game thread with the render thread (default).\n")
-	TEXT(" 1 - Sync the game thread with the RHI thread.\n")
-	TEXT(" 2 - Sync the game thread with the GPU swap chain flip (only on supported platforms).\n"),
-	ECVF_Default);
-
-FRHICOMMAND_MACRO(FRHISyncFrameCommand)
-{
-	UE::Tasks::FTaskEvent TaskEvent;
-	int32 GTSyncType;
-
-	FORCEINLINE_DEBUGGABLE FRHISyncFrameCommand(UE::Tasks::FTaskEvent InTaskEvent, int32 InGTSyncType)
-		: TaskEvent(MoveTemp(InTaskEvent))
-		, GTSyncType(InGTSyncType)
-	{}
-
-	void Execute(FRHICommandListBase& CmdList)
-	{
-		if (GTSyncType == 1)
-		{
-			// Sync the Game Thread with the RHI Thread
-
-			// "Complete" the graph event
-			TaskEvent.Trigger();
-		}
-		else
-		{
-			// This command runs *after* a present has happened, so the counter has already been incremented.
-			// Subtracting 1 gives us the index of the frame that has *just* been presented.
-			RHITriggerTaskEventOnFlip(GRHIPresentCounter - 1, TaskEvent);
-		}
-	}
-};
-
 FRenderCommandFence::FRenderCommandFence() = default;
 FRenderCommandFence::~FRenderCommandFence() = default;
 
-void FRenderCommandFence::BeginFence(bool bSyncToRHIAndGPU)
+void FRenderCommandFence::BeginFence(ESyncDepth SyncDepth)
 {
 	if (!GIsThreadedRendering)
 	{
 		return;
 	}
+
+	check(IsInGameThread());
 	
-	if (GRenderCommandFenceBundlerState.Event && IsInGameThread())
+	if (GRenderCommandFenceBundlerState.Event && SyncDepth == ESyncDepth::RenderThread)
 	{
+		// Case for game->render thread syncs when fence bundling is enabled. These are used
+		// throughout the engine when resources are destroyed. The fence bundling is an optimization
+		// to avoid the overhead of hundreds of individual fences.
+		// We aren't syncing any deeper than the render thread, so just use the bundled fence event.
 		CompletionTask = *GRenderCommandFenceBundlerState.Event;
 		return;
 	}
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRenderCommandFence::BeginFence);
+	UE::Tasks::FTaskEvent Event{ UE_SOURCE_LOCATION };
 
-	struct FRenderCommandPipeFence : public TConcurrentLinearObject<FRenderCommandPipeFence>
+	if (GRenderCommandFenceBundlerState.Event)
 	{
-		FRenderCommandPipeFence(int32 InNumRefs)
-			: NumRefs(InNumRefs)
-		{}
-
-		void Trigger(int32 NumTriggerRefs = 1)
-		{
-			if (NumRefs.fetch_sub(NumTriggerRefs, std::memory_order_release) == 1)
-			{
-				std::atomic_thread_fence(std::memory_order_acquire);
-				CompletionTaskEvent.Trigger();
-				delete this;
-			}
-		}
-
-		UE::Tasks::FTaskEvent CompletionTaskEvent{ UE_SOURCE_LOCATION };
-		std::atomic_int32_t NumRefs;
-	};
-
-	TConstArrayView<FRenderCommandPipe*> Pipes = GRenderCommandPipeMode == ERenderCommandPipeMode::All
-		? UE::RenderCommandPipe::GetPipes()
-		: TConstArrayView<FRenderCommandPipe*>{};
-
-	FRenderCommandPipeBitArray ActivePipeBits;
-	int32 NumActivePipes = 0;
-
-	for (FRenderCommandPipe* Pipe : Pipes)
-	{
-		// Skip pipes that aren't recording or replaying any work.
-		const bool bIsActive = Pipe->IsRecording() && !Pipe->IsEmpty();
-		ActivePipeBits.Add(bIsActive);
-		NumActivePipes += bIsActive ? 1 : 0;
+		// Render command fences are bundled, but we're syncing deeper than the render thread.
+		// Flush the fence bundler so we can insert an RHIThread (or deeper) fence in the right location.
+		Event.AddPrerequisites(*GRenderCommandFenceBundlerState.Event);
+		FlushRenderCommandFenceBundler();
 	}
 
-	FRenderCommandPipeFence* Fence = nullptr;
-
-	if (NumActivePipes > 0)
+	if (GRenderCommandPipeMode == ERenderCommandPipeMode::All)
 	{
-		Fence = new FRenderCommandPipeFence(NumActivePipes + 1);
-
-		for (FRenderCommandPipeSetBitIterator BitIt(ActivePipeBits); BitIt; ++BitIt)
+		for (FRenderCommandPipe* Pipe : UE::RenderCommandPipe::GetPipes())
 		{
-			FRenderCommandPipe* Pipe = Pipes[BitIt.GetIndex()];
-
-			ENQUEUE_RENDER_COMMAND(BeginFence)(Pipe, [Fence]
+			// Skip pipes that aren't recording or replaying any work.
+			if (Pipe->IsRecording() && !Pipe->IsEmpty())
 			{
-				Fence->Trigger();
+				UE::Tasks::FTaskEvent PipeEvent { UE_SOURCE_LOCATION };
+				Event.AddPrerequisites(PipeEvent);
+
+				ENQUEUE_RENDER_COMMAND(BeginFence)([PipeEvent = MoveTemp(PipeEvent)](FRHICommandList&) mutable
+				{
+					PipeEvent.Trigger();
+				});
+			}
+		}
+	}
+
+	ENQUEUE_RENDER_COMMAND(BeginFence)([Event, SyncDepth](FRHICommandListImmediate& RHICmdList) mutable
+	{
+		if (SyncDepth == ESyncDepth::RenderThread)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(SyncTrigger_RenderThread);
+			Event.Trigger();
+		}
+		else
+		{
+			RHICmdList.EnqueueLambda([SyncDepth, Event](FRHICommandListImmediate&) mutable
+			{
+				if (SyncDepth == ESyncDepth::RHIThread)
+				{
+					// Sync the Game Thread with the RHI Thread
+					TRACE_CPUPROFILER_EVENT_SCOPE(SyncTrigger_RHIThread);
+					Event.Trigger();
+				}
+				else
+				{
+					// This command runs *after* a present has happened, so the counter has already been incremented.
+					// Subtracting 1 gives us the index of the frame that has *just* been presented.
+					RHITriggerTaskEventOnFlip(GRHIPresentCounter - 1, Event);
+				}
 			});
+			RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
 		}
-	}
+	});
 
-	const int32 GTSyncType = CVarGTSyncType.GetValueOnAnyThread();
-
-	if (bSyncToRHIAndGPU)
-	{
-		// Don't sync to the RHI and GPU if GtSyncType is disabled, or we're not vsyncing
-		//@TODO: do this logic in the caller?
-		static auto CVarVsync = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VSync"));
-		check(CVarVsync != nullptr);
-
-		if (GTSyncType == 0 || CVarVsync->GetInt() == 0)
-		{
-			bSyncToRHIAndGPU = false;
-		}
-	}
-
-	if (bSyncToRHIAndGPU)
-	{
-		UE::Tasks::FTaskEvent CompletionTaskEvent{ UE_SOURCE_LOCATION };
-
-		if (Fence)
-		{
-			// RHI frame sync command requires a task event, so connect it to the ref-counted fence event.
-			CompletionTaskEvent.AddPrerequisites(Fence->CompletionTaskEvent);
-			Fence->Trigger();
-		}
-
-		ENQUEUE_RENDER_COMMAND(FSyncFrameCommand)(
-			[CompletionTaskEvent, GTSyncType, bSyncToRHIAndGPU](FRHICommandListImmediate& RHICmdList) mutable
-		{
-			if (IsRHIThreadRunning())
-			{
-				ALLOC_COMMAND_CL(RHICmdList, FRHISyncFrameCommand)(MoveTemp(CompletionTaskEvent), GTSyncType);
-				RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
-			}
-			else
-			{
-				FRHISyncFrameCommand Command(MoveTemp(CompletionTaskEvent), GTSyncType);
-				Command.Execute(RHICmdList);
-			}
-		});
-
-		CompletionTask = MoveTemp(CompletionTaskEvent);
-	}
-	else if (Fence)
-	{
-		CompletionTask = Fence->CompletionTaskEvent;
-
-		ENQUEUE_RENDER_COMMAND(BeginFence)([Fence](FRHICommandListBase& RHICmdList)
-		{
-			Fence->Trigger();
-		});
-	}
-	else
-	{
-		UE::Tasks::FTaskEvent CompletionTaskEvent{ UE_SOURCE_LOCATION };
-
-		ENQUEUE_RENDER_COMMAND(BeginFence)([CompletionTaskEvent](FRHICommandListBase& RHICmdList) mutable
-		{
-			CompletionTaskEvent.Trigger();
-		});
-
-		CompletionTask = MoveTemp(CompletionTaskEvent);
-	}
-} //-V773
+	CompletionTask = MoveTemp(Event);
+}
 
 bool FRenderCommandFence::IsFenceComplete() const
 {
