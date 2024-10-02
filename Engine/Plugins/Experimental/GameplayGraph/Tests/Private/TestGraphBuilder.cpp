@@ -6,7 +6,7 @@
 FTestGraphBuilder::FTestGraphBuilder()
 {
 	Graph = NewObject<UGraph>();
-	Graph->InitializeFromProperties(FGraphProperties{ true });
+	Graph->InitializeFromProperties(FGraphProperties());
 }
 
 FTestGraphBuilder::~FTestGraphBuilder()
