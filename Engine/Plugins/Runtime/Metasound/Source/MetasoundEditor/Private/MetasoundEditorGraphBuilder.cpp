@@ -2253,7 +2253,7 @@ namespace Metasound
 						if (const FMetasoundFrontendClassOutput* Output = ClassOutputPtr.Get())
 						{
 							const FGuid& InitialID = Node->GetNodeID();
-							if (Node->GetNodeHandle()->GetID() != Output->NodeID)
+							if (NodeHandle->GetID() != Output->NodeID)
 							{
 								Node->SetNodeID(Output->NodeID);
 								UE_LOG(LogMetasoundEditor, Verbose, TEXT("Editor Output Node '%s' interface versioned"), *Node->GetDisplayName().ToString());
@@ -2309,21 +2309,28 @@ namespace Metasound
 					UMetasoundEditorGraphNode* EditorNode = EditorNodes[j];
 					if (EditorNode->GetNodeID() == Node->GetID())
 					{
-						bFoundEditorNode = true;
-						FAssociatedNodes& AssociatedNodeData = AssociatedNodes.FindOrAdd(Node->GetID());
-						if (AssociatedNodeData.Node->IsValid())
+						// Editor node may have the same Frontend NodeID as another page,
+						// but may have been assigned a different Editor NodeID, so synchronize
+						// from frontend data here only if node location was able to sync.
+						constexpr bool bUpdateEditorNodeID = true;
+						const bool bLocationFound = EditorNode->SyncLocationFromFrontendNode(bUpdateEditorNodeID);
+						if (bLocationFound)
 						{
-							ensure(AssociatedNodeData.Node == Node);
-						}
-						else
-						{
-							AssociatedNodeData.Node = Node;
-						}
+							bFoundEditorNode = true;
+							FAssociatedNodes& AssociatedNodeData = AssociatedNodes.FindOrAdd(Node->GetID());
+							if (AssociatedNodeData.Node->IsValid())
+							{
+								ensure(AssociatedNodeData.Node == Node);
+							}
+							else
+							{
+								AssociatedNodeData.Node = Node;
+							}
 
-						EditorNode->SyncLocationFromFrontendNode();
-						EditorNode->SyncCommentFromFrontendNode();
-						AssociatedNodeData.EditorNodes.Add(EditorNode);
-						EditorNodes.RemoveAtSwap(j, EAllowShrinking::No);
+							EditorNode->SyncCommentFromFrontendNode();
+							AssociatedNodeData.EditorNodes.Add(EditorNode);
+							EditorNodes.RemoveAtSwap(j, EAllowShrinking::No);
+						}
 					}
 				}
 

@@ -70,10 +70,9 @@ void UMetasoundEditorGraphNode::UpdateFrontendNodeLocation(const FVector2D& InLo
 	
 	ensureMsgf(NodeGuid.IsValid(), TEXT("Cannot update frontend node location prior to node guid being finalized."));
 
-	FNodeHandle NodeHandle = GetNodeHandle();
-	FMetasoundFrontendNodeStyle Style = NodeHandle->GetNodeStyle();
-	Style.Display.Locations.FindOrAdd(NodeGuid) = InLocation;
-	NodeHandle->SetNodeStyle(Style);
+	const FGuid NodeID = GetNodeID();
+	UMetaSoundBuilderBase& Builder = GetBuilderChecked();
+	Builder.GetBuilder().SetNodeLocation(NodeID, InLocation, &NodeGuid);
 }
 
 bool UMetasoundEditorGraphNode::ShowNodeDebugData()
@@ -912,10 +911,18 @@ bool UMetasoundEditorGraphOutputNode::RemoveFromDocument() const
 {
 	if (Output)
 	{
+		// When removing ed graph output nodes, just remove the location as all frontend page graphs
+		// require the graph vertex node to exist and contain matching NodeIDs across all pages.
+		const FGuid& NodeID = GetNodeID();
 		UMetaSoundBuilderBase& Builder = GetBuilderChecked();
-		EMetaSoundBuilderResult Result = EMetaSoundBuilderResult::Failed;
-		Builder.RemoveGraphOutput(Output->GetMemberName(), Result);
-		return Result == EMetaSoundBuilderResult::Succeeded;
+		const int32 NumLocationsRemoved = Builder.GetBuilder().RemoveNodeLocation(NodeID);
+
+		if (FMetasoundAssetBase* MetaSoundAsset = Metasound::IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&GetMetasoundChecked()))
+		{
+			MetaSoundAsset->GetModifyContext().AddNodeIDsModified({ NodeID });
+		}
+
+		return NumLocationsRemoved > 0;
 	}
 
 	return false;
@@ -1032,7 +1039,12 @@ bool UMetasoundEditorGraphOutputNode::CanUserDeleteNode() const
 {
 	if (const UMetasoundEditorGraphVertex* Vertex = Cast<UMetasoundEditorGraphVertex>(GetMember()))
 	{
-		return !Vertex->IsInterfaceMember();
+		FMetasoundFrontendInterface MemberInterface;
+		if (Vertex->IsInterfaceMember(&MemberInterface))
+		{
+			FText RequiredText;
+			return !MemberInterface.IsMemberOutputRequired(Vertex->GetMemberName(), RequiredText);
+		}
 	}
 	
 	return true;

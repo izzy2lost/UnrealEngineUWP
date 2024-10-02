@@ -319,7 +319,7 @@ namespace Metasound
 			DRAG_DROP_OPERATOR_TYPE(FMetaSoundDragDropMemberAction, FGraphSchemaActionDragDropAction)
 
 			virtual FReply DroppedOnPanel(const TSharedRef<SWidget>& InPanel, FVector2D InScreenPosition, FVector2D InGraphPosition, UEdGraph& InGraph) override
-			{			
+			{
 				if (!GraphMember.IsValid() || &InGraph != GraphMember->GetOwningGraph())
 				{
 					return FReply::Unhandled();
@@ -1503,6 +1503,8 @@ namespace Metasound
 			{
 				ToolMenus->RefreshAllWidgets();
 			}
+
+			SyncAuditionState();
 		}
 
 		void FEditor::NotifyAssetPrimeInProgress()
@@ -2702,12 +2704,14 @@ namespace Metasound
 
 			if (Builder.IsValid())
 			{
-				constexpr bool bOpenEditor = false; // Already Focused
-				constexpr bool bPostTransaction = false;
-				const FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetConstBuilder();
-				const FGuid BuildPageID = DocBuilder.GetBuildPageID();
-
-				UMetaSoundEditorSubsystem::GetChecked().SetFocusedPage(*Builder.Get(), BuildPageID, bOpenEditor, bPostTransaction);
+				if (bSetAuditionFocus)
+				{
+					constexpr bool bOpenEditor = false; // Already Focused
+					constexpr bool bPostTransaction = false;
+					const FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetConstBuilder();
+					const FGuid BuildPageID = DocBuilder.GetBuildPageID();
+					UMetaSoundEditorSubsystem::GetChecked().SetFocusedPage(*Builder.Get(), BuildPageID, bOpenEditor, bPostTransaction);
+				}
 
 				if (const UMetasoundEditorSettings* EdSettings = GetDefault<UMetasoundEditorSettings>())
 				{
