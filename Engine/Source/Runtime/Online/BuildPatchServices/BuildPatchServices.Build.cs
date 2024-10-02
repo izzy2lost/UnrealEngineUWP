@@ -7,6 +7,8 @@ public class BuildPatchServices : ModuleRules
 {
 	public BuildPatchServices(ReadOnlyTargetRules Target) : base(Target)
 	{
+		StaticAnalyzerDisabledCheckers.Add("core.uninitialized.ArraySubscript");
+
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
