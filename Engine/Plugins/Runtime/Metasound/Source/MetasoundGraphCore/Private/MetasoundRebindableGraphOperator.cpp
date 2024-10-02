@@ -10,6 +10,7 @@
 #include "MetasoundVertex.h"
 #include "MetasoundVertexData.h"
 #include "Misc/Guid.h"
+#include "Misc/ReverseIterate.h"
 #include "Templates/UniquePtr.h"
 
 namespace Metasound
@@ -48,7 +49,9 @@ namespace Metasound
 	{
 		using namespace DynamicGraph;
 
-		for (FPostExecuteEntry& Entry : GraphOperatorData.PostExecuteTable)
+		// Reverse iterate over post execute to keep inputs to operators unchanged
+		// between calls to Execute() and PostExecute()
+		for (FPostExecuteEntry& Entry : ReverseIterate(GraphOperatorData.PostExecuteTable))
 		{
 			Entry.PostExecute();
 		}
