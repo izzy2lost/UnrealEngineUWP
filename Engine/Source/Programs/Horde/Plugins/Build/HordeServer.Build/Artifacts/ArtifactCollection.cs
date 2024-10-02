@@ -145,7 +145,6 @@ namespace HordeServer.Artifacts
 
 		class ArtifactBuilder : IArtifactBuilder
 		{
-			readonly ArtifactCollection _collection;
 			readonly IArtifact _artifact;
 			readonly IStorageNamespace _storage;
 
@@ -160,9 +159,8 @@ namespace HordeServer.Artifacts
 			public NamespaceId NamespaceId => _artifact.NamespaceId;
 			public RefName RefName => _artifact.RefName;
 
-			public ArtifactBuilder(ArtifactCollection collection, Artifact artifact, IStorageNamespace storage)
+			public ArtifactBuilder(Artifact artifact, IStorageNamespace storage)
 			{
-				_collection = collection;
 				_artifact = artifact;
 				_storage = storage;
 			}
@@ -275,7 +273,7 @@ namespace HordeServer.Artifacts
 			await _artifactCollection.InsertOneAsync(artifactDocument, null, cancellationToken);
 
 			Artifact artifact = new Artifact(this, artifactDocument);
-			return new ArtifactBuilder(this, artifact, _storageService.GetNamespace(namespaceId));
+			return new ArtifactBuilder(artifact, _storageService.GetNamespace(namespaceId));
 		}
 
 		async Task AddExpiryRecordAsync(StreamId streamId, ArtifactType type, DateTime utcNow, CancellationToken cancellationToken = default)

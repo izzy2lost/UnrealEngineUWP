@@ -63,7 +63,6 @@ namespace EpicGames.Horde.Artifacts
 
 		class ArtifactBuilder : IArtifactBuilder
 		{
-			readonly HttpArtifactCollection _collection;
 			readonly Artifact _artifact;
 			readonly CreateArtifactResponse _response;
 			readonly IStorageNamespace _namespace;
@@ -81,7 +80,6 @@ namespace EpicGames.Horde.Artifacts
 
 			public ArtifactBuilder(HttpArtifactCollection collection, Artifact artifact, CreateArtifactResponse response)
 			{
-				_collection = collection;
 				_artifact = artifact;
 				_response = response;
 				_namespace = collection._hordeClient.GetStorageNamespace(response.NamespaceId, response.Token);
@@ -94,7 +92,7 @@ namespace EpicGames.Horde.Artifacts
 			/// <inheritdoc/>
 			public async Task<IArtifact> CompleteAsync(IHashedBlobRef blobRef, CancellationToken cancellationToken = default)
 			{
-				await _namespace.WriteRefAsync(_response.RefName, blobRef);
+				await _namespace.WriteRefAsync(_response.RefName, blobRef, cancellationToken: cancellationToken);
 				return _artifact;
 			}
 
