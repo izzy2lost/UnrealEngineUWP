@@ -89,6 +89,7 @@ namespace UE::Chaos::ClothAsset::Private
 
 FChaosClothAssetTerminalNode_v2::FChaosClothAssetTerminalNode_v2(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowTerminalNode(InParam, InGuid)
+	, RefreshAsset(FDataflowFunctionProperty::FDelegate::CreateLambda([this](UE::Dataflow::FContext& /*Context*/) { bClothCollectionChecksumValid = false; }))
 {
 	// Start with Lod0
 	for (int32 Index = 0; Index < NumInitialCollectionLods; ++Index)
@@ -104,13 +105,7 @@ void FChaosClothAssetTerminalNode_v2::SetAssetValue(TObjectPtr<UObject> Asset, U
 	{
 		using namespace UE::Chaos::ClothAsset;
 
-		if (RefreshAsset.bRefreshAsset)
-		{
-			bClothCollectionChecksumValid = false;
-			RefreshAsset.bRefreshAsset = false;
-		}
-
-		TArray<TSharedRef<FManagedArrayCollection>> InClothCollections = GetCleanedCollectionLodValues(Context);
+		TArray<TSharedRef<FManagedArrayCollection>> InClothCollections = bActive ? GetCleanedCollectionLodValues(Context) : TArray<TSharedRef<FManagedArrayCollection>>();
 		TArray<TSharedRef<FManagedArrayCollection>>& ClothCollections = ClothAsset->GetClothCollections();
 
 		const uint32 PreviousChecksum = ClothColllectionChecksum;
@@ -386,13 +381,15 @@ void FChaosClothAssetTerminalNode::SetAssetValue(TObjectPtr<UObject> Asset, UE::
 	{
 		using namespace UE::Chaos::ClothAsset;
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (RefreshAsset.bRefreshAsset)
 		{
 			bClothCollectionChecksumValid = false;
 			RefreshAsset.bRefreshAsset = false;
 		}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-		TArray<TSharedRef<FManagedArrayCollection>> InClothCollections = GetCleanedCollectionLodValues(Context);
+		TArray<TSharedRef<FManagedArrayCollection>> InClothCollections = bActive ? GetCleanedCollectionLodValues(Context) : TArray<TSharedRef<FManagedArrayCollection>>();
 		TArray<TSharedRef<FManagedArrayCollection>>& ClothCollections = ClothAsset->GetClothCollections();
 
 		const uint32 PreviousChecksum = ClothColllectionChecksum;

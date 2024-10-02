@@ -29,11 +29,6 @@ void FChaosClothAssetImportNode::Evaluate(UE::Dataflow::FContext& Context, const
 
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
-		if (ReimportAsset.bRefreshAsset)
-		{
-			ReimportAsset.bRefreshAsset = false;
-		}
-
 		bool bSetValue = false;
 		if (ClothAsset)
 		{
@@ -100,7 +95,7 @@ void FChaosClothAssetImportNode::Evaluate(UE::Dataflow::FContext& Context, const
 			}
 		}
 		SetValue(Context, MoveTemp(*ClothCollection), &Collection);
-}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE
