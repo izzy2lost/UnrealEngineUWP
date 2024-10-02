@@ -3,7 +3,6 @@
 #include "Properties/PropertyAnimatorCoreData.h"
 
 #include "Properties/PropertyAnimatorCoreResolver.h"
-#include "Properties/Handlers/PropertyAnimatorCoreHandlerBase.h"
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
 
 FPropertyAnimatorCoreData::FPropertyAnimatorCoreData(UObject* InObject, FProperty* InMemberProperty, FProperty* InProperty, TSubclassOf<UPropertyAnimatorCoreResolver> InResolverClass)
@@ -95,7 +94,7 @@ FPropertyAnimatorCoreData::FPropertyAnimatorCoreData(AActor* InActor, const FStr
 	{
 		FString ResolverClass;
 		FString ResolverName;
-		Elements[ElementIndex].Split(TEXT(":"), &ResolverClass, &ResolverName);
+		Elements[ElementIndex++].Split(TEXT(":"), &ResolverClass, &ResolverName);
 
 		Resolver = Subsystem->FindResolverByName(FName(ResolverName));
 		Resolver = Resolver ? Resolver : Subsystem->FindResolverByClass(LoadObject<UClass>(nullptr, *ResolverClass));
@@ -104,67 +103,118 @@ FPropertyAnimatorCoreData::FPropertyAnimatorCoreData(AActor* InActor, const FStr
 		{
 			PropertyResolverClass = Resolver->GetClass();
 		}
-
-		ElementIndex++;
 	}
 
 	// Locate Owner
 	TArray<FString> Outers;
-	Elements[ElementIndex].ParseIntoArray(Outers, TEXT(","));
+	Elements[ElementIndex++].ParseIntoArray(Outers, TEXT(","));
 
-	UObject* FoundObject = InActor;
-	for (const FString& Outer : Outers)
+	// Locate Property
+	TArray<FString> Properties;
+	Elements[ElementIndex].ParseIntoArray(Properties, TEXT(","));
+
+	for (const FString& PropertyPath : Properties)
 	{
-		FString OuterClass;
-		FString OuterName;
-		Outer.Split(TEXT(":"), &OuterClass, &OuterName);
+		FProperty* Property = FindFProperty<FProperty>(*PropertyPath);
 
-		TArray<UObject*> OwnedObjects;
-		GetObjectsWithOuter(FoundObject, OwnedObjects);
-
-		bool bFound = false;
-
-		// Search by name
-		for (UObject* OwnedObject : OwnedObjects)
+		if (!Property)
 		{
-			if (OwnedObject->GetName() == OuterName)
-			{
-				FoundObject = OwnedObject;
-				bFound = true;
-				break;
-			}
+			break;
 		}
 
-		// Search by class
-		if (!bFound)
+		ChainProperties.Add(Property);
+	}
+
+	// Search for an object containing member property
+	if (const FProperty* MemberProperty = GetMemberProperty())
+	{
+		UClass* MemberOwningClass = MemberProperty->GetOwnerClass();
+
+		UObject* FoundObject = InActor;
+		for (int32 Index = 0; Index < Outers.Num(); Index++)
 		{
+			FString OuterClass;
+			FString OuterName;
+			Outers[Index].Split(TEXT(":"), &OuterClass, &OuterName);
+
+			TArray<UObject*> OwnedObjects;
+			GetObjectsWithOuter(FoundObject, OwnedObjects, /** IncludeNested */false);
+
+			bool bFound = false;
+
+			// Search by name
 			for (UObject* OwnedObject : OwnedObjects)
 			{
-				if (OwnedObject->GetClass()->GetClassPathName().ToString() == OuterClass)
+				if (OwnedObject->GetName() == OuterName)
 				{
 					FoundObject = OwnedObject;
 					bFound = true;
 					break;
 				}
 			}
+
+			// Search by class
+			if (!bFound)
+			{
+				for (UObject* OwnedObject : OwnedObjects)
+				{
+					if (OwnedObject->GetClass()->GetClassPathName().ToString() == OuterClass)
+					{
+						FoundObject = OwnedObject;
+						bFound = true;
+						break;
+					}
+				}
+			}
+
+			// Search by parent class when last outer to allow (USceneComponent::RelativeLocation == UStaticMeshComponent::RelativeLocation)
+			if (!bFound && (Outers.Num() - 1) == Index && MemberProperty)
+			{
+				for (UObject* OwnedObject : OwnedObjects)
+				{
+					if (OwnedObject->GetClass()->IsChildOf(MemberOwningClass))
+					{
+						FoundObject = OwnedObject;
+						bFound = true;
+						break;
+					}
+				}
+			}
+
+			if (!bFound)
+			{
+				FoundObject = nullptr;
+				break;
+			}
 		}
 
-		if (!bFound)
+		OwnerWeak = FoundObject;
+
+		// Use resolver if owner was not found
+		if (!FoundObject && Resolver && MemberProperty)
 		{
-			return;
+			const FPropertyAnimatorCoreData ActorData(InActor, nullptr, nullptr);
+			TSet<FPropertyAnimatorCoreData> ResolvableProperties;
+			Resolver->GetResolvableProperties(ActorData, ResolvableProperties);
+
+			for (const FPropertyAnimatorCoreData& ResolvableProperty : ResolvableProperties)
+			{
+				UObject* PropertyOwner = ResolvableProperty.GetOwner();
+
+				if (!PropertyOwner)
+				{
+					continue;
+				}
+
+				if (PropertyOwner->IsA(MemberOwningClass))
+				{
+					FoundObject = PropertyOwner;
+					break;
+				}
+			}
+
+			OwnerWeak = FoundObject;
 		}
-	}
-
-	OwnerWeak = FoundObject;
-	ElementIndex++;
-
-	// Locate Property
-	TArray<FString> Properties;
-	Elements[ElementIndex].ParseIntoArray(Properties, TEXT(","));
-
-	for (const FString& Property : Properties)
-	{
-		ChainProperties.Add(FindFProperty<FProperty>(*Property));
 	}
 
 	GeneratePropertyPath();
