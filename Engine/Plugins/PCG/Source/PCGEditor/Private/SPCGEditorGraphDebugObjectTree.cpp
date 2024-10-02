@@ -141,7 +141,24 @@ void FPCGEditorGraphDebugObjectItem::OnObjectsReplaced(const TMap<UObject*, UObj
 		TArray<FPCGStackFrame>& StackFrames = Stack->GetStackFramesMutable();
 		if (!StackFrames.IsEmpty())
 		{
-			if (UObject* NewStackRoot = ReplacementMap.FindRef(StackFrames[0].Object.GetEvenIfUnreachable()))
+			UObject* NewStackRoot = ReplacementMap.FindRef(StackFrames[0].Object.Get());
+
+			// If the stack frame was marked as garbage, NewStackRoot will be nullptr, but we still match against the object path.
+			if (!NewStackRoot)
+			{
+				for(const TPair<UObject*, UObject*>& Pair : ReplacementMap)
+				{
+					if (Pair.Key && Pair.Value)
+					{
+						if (Pair.Key->GetPathName() == StackFrames[0].Object.ToString())
+						{
+							NewStackRoot = Pair.Value;
+						}
+					}
+				}
+			}
+
+			if (NewStackRoot)
 			{
 				StackFrames[0].SetObject(NewStackRoot);
 			}
@@ -695,7 +712,7 @@ void SPCGEditorGraphDebugObjectTree::AddStacksToTree(const TArray<FPCGStack>& St
 			FPCGEditorGraphDebugObjectItemPtr CurrentItem;
 
 			// When we encounter a graph, we look at the frame index and/or preceding frames to determine the graph type.
-			if (const UPCGGraph* StackGraph = Cast<const UPCGGraph>(StackFrame.Object))
+			if (const UPCGGraph* StackGraph = Cast<const UPCGGraph>(StackFrame.Object.Get()))
 			{
 				const bool bIsDebuggable = (GraphBeingEdited == StackGraph);
 
@@ -717,14 +734,14 @@ void SPCGEditorGraphDebugObjectTree::AddStacksToTree(const TArray<FPCGStack>& St
 					}
 				}
 				// Previous stack was node, therefore static subgraph.
-				else if (const UPCGNode* SubgraphNode = Cast<const UPCGNode>(PreviousStackFrame.Object))
+				else if (const UPCGNode* SubgraphNode = Cast<const UPCGNode>(PreviousStackFrame.Object.Get()))
 				{
 					AddSubgraphOrLoopItemToStack(StackGraph, SubgraphNode, FrameIndex + 1, bIsDebuggable, bDisplayGrayedOut);
 				}
 				// Previous stack was loop index, therefore loop subgraph.
 				else if (FrameIndex >= 2 && (PreviousStackFrame.LoopIndex != INDEX_NONE))
 				{
-					const UPCGNode* LoopSubgraphNode = Cast<const UPCGNode>(StackFrames[FrameIndex - 2].Object);
+					const UPCGNode* LoopSubgraphNode = Cast<const UPCGNode>(StackFrames[FrameIndex - 2].Object.Get());
 					if (ensure(LoopSubgraphNode))
 					{
 						// Take the stack up to the looped subgraph node, add a item for the node + graph
@@ -747,7 +764,7 @@ void SPCGEditorGraphDebugObjectTree::AddStacksToTree(const TArray<FPCGStack>& St
 				// Previous stack was invalid node / node with a INDEX_NONE loop, therefore most likely a dynamic subgraph
 				else if (FrameIndex >= 2 && !PreviousStackFrame.IsValid())
 				{
-					const UPCGNode* DynamicSubgraphNode = Cast<const UPCGNode>(StackFrames[FrameIndex - 2].Object);
+					const UPCGNode* DynamicSubgraphNode = Cast<const UPCGNode>(StackFrames[FrameIndex - 2].Object.Get());
 					if (DynamicSubgraphNode)
 					{
 						AddSubgraphOrLoopItemToStack(StackGraph, DynamicSubgraphNode, FrameIndex + 1, bIsDebuggable, bDisplayGrayedOut);
@@ -1215,8 +1232,8 @@ void SPCGEditorGraphDebugObjectTree::ContextMenu_JumpToGraphInTree()
 			{
 				if (SelectedStack.GetStackFrames()[i].Object != nullptr && SelectedStack.GetStackFrames()[i].Object->IsA<UPCGGraph>())
 				{
-					JumpToPCGGraph = const_cast<UPCGGraph*>(Cast<const UPCGGraph>(SelectedStack.GetStackFrames()[i].Object));
-					JumpToPCGNode = const_cast<UPCGNode*>(Cast<const UPCGNode>(SelectedStack.GetStackFrames()[i + 1].Object));
+					JumpToPCGGraph = const_cast<UPCGGraph*>(Cast<const UPCGGraph>(SelectedStack.GetStackFrames()[i].Object.Get()));
+					JumpToPCGNode = const_cast<UPCGNode*>(Cast<const UPCGNode>(SelectedStack.GetStackFrames()[i + 1].Object.Get()));
 					break;
 				}
 			}
@@ -1231,7 +1248,7 @@ void SPCGEditorGraphDebugObjectTree::ContextMenu_JumpToGraphInTree()
 			const int SubjectNodeFrameIndex = SelectedStack.GetStackFrames().Num();
 			if (PreviouslySelectedStack.GetStackFrames().IsValidIndex(SubjectNodeFrameIndex))
 			{
-				JumpToPCGNode = const_cast<UPCGNode*>(Cast<const UPCGNode>(PreviouslySelectedStack.GetStackFrames()[SubjectNodeFrameIndex].Object));
+				JumpToPCGNode = const_cast<UPCGNode*>(Cast<const UPCGNode>(PreviouslySelectedStack.GetStackFrames()[SubjectNodeFrameIndex].Object.Get()));
 			}
 		}
 

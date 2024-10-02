@@ -20,16 +20,17 @@
 
 #include "ComputeFramework/ComputeKernel.h"
 #include "HAL/IConsoleManager.h"
+#include "Misc/App.h"
 #include "Shader/ShaderTypes.h"
+#include "UObject/Package.h"
 
+#if WITH_EDITOR
 namespace PCGGraphCompilerGPU
 {
-#if WITH_EDITOR
 	static TAutoConsoleVariable<bool> CVarEnableDebugging(
 		TEXT("pcg.GraphExecution.GPU.EnableDebugging"),
 		false,
 		TEXT("Enable verbose logging of GPU compilation and execution."));
-#endif
 }
 
 void FPCGGraphCompilerGPU::LabelConnectedGPUNodeIslands(
@@ -253,7 +254,7 @@ void FPCGGraphCompilerGPU::CollectGPUNodeSubsets(
 	}
 }
 
-void FPCGGraphCompilerGPU::CreateGatherTasksAtGPUInputs(const TSet<FPCGTaskId>& InGPUCompatibleTaskIds, TArray<FPCGGraphTask>& InOutCompiledTasks)
+void FPCGGraphCompilerGPU::CreateGatherTasksAtGPUInputs(UPCGGraph* InGraph, const TSet<FPCGTaskId>& InGPUCompatibleTaskIds, TArray<FPCGGraphTask>& InOutCompiledTasks)
 {
 	using FOriginalInputPinKey = TPair<FPCGTaskId /* Original GPU task */, FName /* Input pin label */>;
 
@@ -304,7 +305,7 @@ void FPCGGraphCompilerGPU::CreateGatherTasksAtGPUInputs(const TSet<FPCGTaskId>& 
 			FPCGGraphTask& GatherTask = InOutCompiledTasks.Emplace_GetRef();
 			GatherTask.NodeId = GatherTaskId;
 			GatherTask.ParentId = InOutCompiledTasks[GPUTaskId].ParentId;
-			GatherTask.Element = FPCGGraphCompiler::GetSharedGatherElement();
+			GatherTask.ElementSource = EPCGElementSource::Gather;
 
 			InputPinToGatherTask.Add(PinKey, GatherTaskId);
 		}
@@ -364,7 +365,7 @@ void FPCGGraphCompilerGPU::WireGPUGraphNode(
 	TArray<FPCGGraphTask>& InOutCompiledTasks,
 	const FTaskToSuccessors& InTaskSuccessors,
 	FOriginalToVirtualPin& OutOriginalToVirtualPin,
-	TMap<TObjectPtr<const UPCGPin>, FName>& OutOutputCPUPinToVirtualPin)
+	TMap<TSoftObjectPtr<const UPCGPin>, FName>& OutOutputCPUPinToVirtualPin)
 {
 	FPCGGraphTask& GPUGraphTask = InOutCompiledTasks[InGPUGraphTaskId];
 
@@ -399,13 +400,23 @@ void FPCGGraphCompilerGPU::WireGPUGraphNode(
 				const UPCGPin* OutputPin = UpstreamTask.Node ? UpstreamTask.Node->GetOutputPin(AddedInput.UpstreamPin->Label) : nullptr;
 
 				// Grid Linkages don't have a node associated, so ask the GridLinkageElement for the output pin instead.
-				if (!OutputPin && UpstreamTask.Element && UpstreamTask.Element->IsGridLinkage())
+				if (!OutputPin)
 				{
-					const PCGGraphExecutor::FPCGGridLinkageElement* LinkageElement = static_cast<const PCGGraphExecutor::FPCGGridLinkageElement*>(UpstreamTask.Element.Get());
-					OutputPin = LinkageElement->GetUpstreamPin();
+					// TODO: In the future FPCGGridLinkageElement shoud be stateless (like all other elements), and we should always only consult the
+					// linkage settings for the upstream pin.
+					if (UpstreamTask.Element && UpstreamTask.Element->IsGridLinkage())
+					{
+						const PCGGraphExecutor::FPCGGridLinkageElement* LinkageElement = static_cast<const PCGGraphExecutor::FPCGGridLinkageElement*>(UpstreamTask.Element.Get());
+						OutputPin = LinkageElement->GetUpstreamPin();
+					}
+					else if (UpstreamTask.CookedSettings && UpstreamTask.CookedSettings->IsA<UPCGGridLinkageSettings>())
+					{
+						const UPCGGridLinkageSettings* LinkageSettings = CastChecked<UPCGGridLinkageSettings>(UpstreamTask.CookedSettings);
+						OutputPin = LinkageSettings->UpstreamPin.Get();
+					}
 				}
 
-				if (OutputPin)
+				if (ensure(OutputPin))
 				{
 					OutOutputCPUPinToVirtualPin.Add(OutputPin, VirtualLabel);
 				}
@@ -471,26 +482,26 @@ void FPCGGraphCompilerGPU::WireGPUGraphNode(
 }
 
 void FPCGGraphCompilerGPU::BuildGPUGraphTask(
+	FPCGGraphCompiler& InOutCompiler,
 	UPCGGraph* InGraph,
+	uint32 InGridSize,
 	FPCGTaskId InGPUGraphTaskId,
 	const TSet<FPCGTaskId>& InCollapsedTasks,
 	const FTaskToSuccessors& InTaskSuccessors,
 	TArray<FPCGGraphTask>& InOutCompiledTasks,
 	const FOriginalToVirtualPin& InOriginalToVirtualPin,
-	const TMap<TObjectPtr<const UPCGPin>, FName>& InOutputCPUPinToVirtualPin)
+	const TMap<TSoftObjectPtr<const UPCGPin>, FName>& InOutputCPUPinToVirtualPin)
 {
-	TSharedPtr<FPCGComputeGraphElement> Element = MakeShared<FPCGComputeGraphElement>();
-	InOutCompiledTasks[InGPUGraphTaskId].Element = Element;
-
+	check(InGraph);
 	const FName GraphName = MakeUniqueObjectName(InGraph, UPCGComputeGraph::StaticClass(), InGraph->GetFName());
 
-	UPCGComputeGraph* ComputeGraph = NewObject<UPCGComputeGraph>(InGraph, GraphName);
+	UObject* ComputeGraphOuter = InOutCompiler.IsCooking() ? InGraph : Cast<UObject>(GetTransientPackage());
+	UPCGComputeGraph* ComputeGraph = NewObject<UPCGComputeGraph>(ComputeGraphOuter, GraphName);
 	ComputeGraph->OutputCPUPinToInputGPUPinAlias = InOutputCPUPinToVirtualPin;
-	Element->Graph.Reset(ComputeGraph);
 
 	// Not incredibly useful for us - DG adds GetComponentSource()->GetComponentClass() object which allows it to bind at execution time by class.
 	// But execution code requires it currently.
-	Element->Graph->Bindings.Add(UPCGDataBinding::StaticClass());
+	ComputeGraph->Bindings.Add(UPCGDataBinding::StaticClass());
 
 	// Create data interfaces which allow kernels to read or write data. Each data interface is associated with a node output pin.
 	// For CPU->GPU edges, an upload data interface is created. For GPU->CPU edges, a readback data interface is created.
@@ -958,7 +969,6 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 				UE_LOG(LogPCG, Log, TEXT("Cooked HLSL:\n%s\n"), *KernelSource->GetSource());
 			}
 
-#if WITH_EDITOR
 			if (PCGGraphCompilerGPU::CVarEnableDebugging.GetValueOnAnyThread())
 			{
 				UE_LOG(LogPCG, Warning, TEXT("ATTRIBUTE LOOK-UP TABLE [%s]"), *Settings->GetDefaultNodeTitle().ToString());
@@ -971,7 +981,6 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 						*UEnum::GetValueAsString(Pair.Value.Type));
 				}
 			}
-#endif
 
 			// Add functions for external inputs/outputs which must be fulfilled by DIs
 			for (FInterfaceBinding& Binding : KernelWithBindings.InputDataBindings)
@@ -1073,13 +1082,40 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 		}
 	}
 
-	// Kick off shader compilation (if needed).
-	ComputeGraph->UpdateResources();
+	TMap<uint32, TArray<TObjectPtr<UPCGComputeGraph>>>& GridToComputeGraphs = InOutCompiler.GetCache().TopGraphToComputeGraphMap.FindOrAdd(InGraph);
+	TArray<TObjectPtr<UPCGComputeGraph>>& ComputeGraphs = GridToComputeGraphs.FindOrAdd(InGridSize);
+	const uint32 ComputeGraphIndex = ComputeGraphs.Num();
+	ComputeGraphs.Add(ComputeGraph);
+
+	if (InOutCompiler.IsCooking())
+	{
+		TObjectPtr<UPCGComputeGraphSettings> Settings = NewObject<UPCGComputeGraphSettings>(InGraph);
+		Settings->ComputeGraphIndex = ComputeGraphIndex;
+		InOutCompiledTasks[InGPUGraphTaskId].ElementSource = EPCGElementSource::FromCookedSettings;
+		InOutCompiledTasks[InGPUGraphTaskId].CookedSettings = Settings;
+	}
+	else
+	{
+		InOutCompiledTasks[InGPUGraphTaskId].Element = MakeShared<FPCGComputeGraphElement>(ComputeGraphIndex);
+	}
+
+	if (FApp::CanEverRender())
+	{
+		// Compile shader resources and create render proxies.
+		ComputeGraph->UpdateResources();
+	}
 }
 
-void FPCGGraphCompilerGPU::CreateGPUNodes(UPCGGraph* InGraph, TArray<FPCGGraphTask>& InOutCompiledTasks)
+void FPCGGraphCompilerGPU::CreateGPUNodes(FPCGGraphCompiler& InOutCompiler, UPCGGraph* InGraph, uint32 InGridSize, TArray<FPCGGraphTask>& InOutCompiledTasks)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphCompilerGPU::CreateGPUNodes);
+
+	// Clear out any previous compute graphs for this grid level before adding new ones.
+	if (ensure(InGraph))
+	{
+		TMap<uint32, TArray<TObjectPtr<UPCGComputeGraph>>>& ComputeGraphs = InOutCompiler.GetCache().TopGraphToComputeGraphMap.FindOrAdd(InGraph);
+		ComputeGraphs.FindOrAdd(InGridSize).Reset();
+	}
 
 	TSet<FPCGTaskId> GPUCompatibleTaskIds;
 	GPUCompatibleTaskIds.Reserve(InOutCompiledTasks.Num());
@@ -1111,15 +1147,17 @@ void FPCGGraphCompilerGPU::CreateGPUNodes(UPCGGraph* InGraph, TArray<FPCGGraphTa
 
 	// For input pins at CPU -> GPU boundary, inject gather elements to pre-combine data on CPU side
 	// before passing to GPU.
-	CreateGatherTasksAtGPUInputs(GPUCompatibleTaskIds, InOutCompiledTasks);
+	CreateGatherTasksAtGPUInputs(InGraph, GPUCompatibleTaskIds, InOutCompiledTasks);
 
 	TArray<TSet<FPCGTaskId>> NodeSubsetsToConvertToCFGraph;
 	CollectGPUNodeSubsets(InOutCompiledTasks, TaskSuccessors, GPUCompatibleTaskIds, NodeSubsetsToConvertToCFGraph);
 
 	// Do actual collapsing now, one subset at a time. Each collapse will do all fixup of task ids? That will invalidate
 	// ids in NodeSubsetsToConvertToCFGraph, so may need remap table. But can ignore this for now.
-	for (TSet<FPCGTaskId>& NodeSubsetToConvertToCFGraph : NodeSubsetsToConvertToCFGraph)
+	for (int32 ComputeGraphIndex = 0; ComputeGraphIndex < NodeSubsetsToConvertToCFGraph.Num(); ++ComputeGraphIndex)
 	{
+		TSet<FPCGTaskId>& NodeSubsetToConvertToCFGraph = NodeSubsetsToConvertToCFGraph[ComputeGraphIndex];
+
 		if (NodeSubsetToConvertToCFGraph.IsEmpty())
 		{
 			ensure(false);
@@ -1144,7 +1182,7 @@ void FPCGGraphCompilerGPU::CreateGPUNodes(UPCGGraph* InGraph, TArray<FPCGGraphTa
 		// PCG provides through the input data collection correctly, and route the output data to the downstream pins correctly.
 		FOriginalToVirtualPin OriginalToVirtualPin;
 
-		TMap<TObjectPtr<const UPCGPin>, FName> OutputCPUPinToVirtualPin;
+		TMap<TSoftObjectPtr<const UPCGPin>, FName> OutputCPUPinToVirtualPin;
 
 		// Wire in the compute graph task, side by side with the individual GPU tasks, which will be culled below.
 		WireGPUGraphNode(
@@ -1158,7 +1196,9 @@ void FPCGGraphCompilerGPU::CreateGPUNodes(UPCGGraph* InGraph, TArray<FPCGGraphTa
 
 		// Generate a compute graph from all of the individual GPU tasks.
 		BuildGPUGraphTask(
+			InOutCompiler,
 			InGraph,
+			InGridSize,
 			ComputeGraphTaskId,
 			NodeSubsetToConvertToCFGraph,
 			TaskSuccessors,
@@ -1181,3 +1221,4 @@ void FPCGGraphCompilerGPU::CreateGPUNodes(UPCGGraph* InGraph, TArray<FPCGGraphTa
 		return false;
 	});
 }
+#endif // WITH_EDITOR
