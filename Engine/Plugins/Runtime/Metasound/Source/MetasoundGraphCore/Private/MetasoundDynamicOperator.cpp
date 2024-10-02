@@ -10,6 +10,7 @@
 #include "MetasoundOperatorInterface.h"
 #include "MetasoundVertexData.h"
 #include "MetasoundTrace.h"
+#include "Misc/ReverseIterate.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/UniquePtr.h"
 
@@ -220,7 +221,7 @@ namespace Metasound
 
 		void FDynamicOperator::PostExecute()
 		{
-			for (FPostExecuteEntry& Entry : DynamicOperatorData.PostExecuteTable)
+			for (FPostExecuteEntry& Entry : ReverseIterate(DynamicOperatorData.PostExecuteTable))
 			{
 				Entry.PostExecute();
 			}

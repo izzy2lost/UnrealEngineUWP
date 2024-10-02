@@ -9,6 +9,7 @@
 #include "MetasoundExecutableOperator.h"
 #include "MetasoundGraphAlgoPrivate.h"
 #include "MetasoundOperatorInterface.h"
+#include "Misc/ReverseIterate.h"
 
 namespace Metasound
 {
@@ -163,31 +164,27 @@ namespace Metasound
 
 	void FGraphOperator::Execute()
 	{
-		FExecuteEntry* StackPtr = ExecuteStack.GetData();
-		const int32 Num = ExecuteStack.Num();
-		for (int32 i = 0; i < Num; i++)
+		for (FExecuteEntry& Entry : ExecuteStack)
 		{
-			StackPtr[i].Execute();
+			Entry.Execute();
 		}
 	}
 
 	void FGraphOperator::PostExecute()
 	{
-		FPostExecuteEntry* StackPtr = PostExecuteStack.GetData();
-		const int32 Num = PostExecuteStack.Num();
-		for (int32 i = 0; i < Num; i++)
+		// Reverse iterate over post execute so that inputs to operators do
+		// not change from last execute
+		for (FPostExecuteEntry& Entry : ReverseIterate(PostExecuteStack))
 		{
-			StackPtr[i].PostExecute();
+			Entry.PostExecute();
 		}
 	}
 
 	void FGraphOperator::Reset(const FGraphOperator::FResetParams& InParams)
 	{
-		FResetEntry* StackPtr = ResetStack.GetData();
-		const int32 Num = ResetStack.Num();
-		for (int32 i = 0; i < Num; i++)
+		for (FResetEntry& Entry : ResetStack)
 		{
-			StackPtr[i].Reset(InParams);
+			Entry.Reset(InParams);
 		}
 	}
 
