@@ -186,7 +186,7 @@ void FCineCameraRigRailDetails::CustomizeAttachmentCategory(IDetailLayoutBuilder
 					LockOrientationPropertyHandle.Get().GetValue(LockOrientation);
 					if (!LockOrientation)
 					{
-						return FText(LOCTEXT("RotationAttachmentToolTip", "Disabled because LockOrientationToRail is false"));
+						return FText(LOCTEXT("RotationAttachmentDisabledToolTip", "Disabled because LockOrientationToRail is false"));
 					}
 					return LOCTEXT("RotationAttachmentToolTip", "Determines if camera mount inherits Rotation");
 				})
