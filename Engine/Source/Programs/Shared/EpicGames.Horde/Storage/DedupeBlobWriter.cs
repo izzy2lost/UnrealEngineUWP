@@ -216,12 +216,16 @@ namespace EpicGames.Horde.Storage
 		/// <param name="dedupeWriter">Dedupe writer to operate on</param>
 		/// <param name="directoryNodeRef">Reference to the directory to add</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public static async Task AddToCacheAsync(this DedupeBlobWriter dedupeWriter, IHashedBlobRef<DirectoryNode> directoryNodeRef, CancellationToken cancellationToken = default)
+		public static async Task AddToCacheAsync(this DedupeBlobWriter dedupeWriter, IBlobRef<DirectoryNode> directoryNodeRef, CancellationToken cancellationToken = default)
 		{
-			using BlobData blobData = await directoryNodeRef.ReadBlobDataAsync(cancellationToken);
-			dedupeWriter.AddToCache(blobData.Type, directoryNodeRef);
+			DirectoryNode directoryNode;
+			using (BlobData blobData = await directoryNodeRef.ReadBlobDataAsync(cancellationToken))
+			{
+				IHashedBlobRef hashedBlobRef = HashedBlobRef.Create(IoHash.Compute(blobData.Data.Span), directoryNodeRef);
+				dedupeWriter.AddToCache(blobData.Type, hashedBlobRef);
+				directoryNode = BlobSerializer.Deserialize<DirectoryNode>(blobData);
+			}
 
-			DirectoryNode directoryNode = BlobSerializer.Deserialize<DirectoryNode>(blobData);
 			foreach (DirectoryEntry directoryEntry in directoryNode.Directories)
 			{
 				await AddToCacheAsync(dedupeWriter, directoryEntry.Handle, cancellationToken);

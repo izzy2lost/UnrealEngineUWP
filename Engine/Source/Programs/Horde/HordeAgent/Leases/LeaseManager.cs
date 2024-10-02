@@ -310,7 +310,6 @@ namespace HordeAgent.Leases
 				}
 
 				// Get the new agent status to be reported back to server
-				bool busy = _statusService.IsBusy;
 				if (stopping)
 				{
 					updateSessionRequest.Status = RpcAgentStatus.Stopping;
@@ -319,7 +318,7 @@ namespace HordeAgent.Leases
 				{
 					updateSessionRequest.Status = RpcAgentStatus.Unhealthy;
 				}
-				else if (busy)
+				else if (_statusService.IsBusy)
 				{
 					updateSessionRequest.Status = RpcAgentStatus.Busy;
 				}
@@ -413,7 +412,7 @@ namespace HordeAgent.Leases
 					{
 						_statusService.Set(false, _activeLeases.Count, "Attempting to connect to server...");
 					}
-					else if (busy)
+					else if (_statusService.IsBusy)
 					{
 						_statusService.Set(true, 0, "Paused");
 
