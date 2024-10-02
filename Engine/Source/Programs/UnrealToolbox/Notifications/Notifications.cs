@@ -9,6 +9,8 @@ using DesktopNotifications.FreeDesktop;
 using DesktopNotifications.Windows;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using UnrealToolbox;
 
 namespace UnrealToolbox
@@ -16,7 +18,7 @@ namespace UnrealToolbox
 	/// <summary>
 	/// Toolbox notification manager interface
 	/// </summary>
-	public interface IToolboxNotificationManager 
+	public interface IToolboxNotificationManager
 	{
 		/// <summary>
 		/// Show a notification
@@ -41,6 +43,9 @@ namespace UnrealToolbox
 		string? _lastTitle;
 		string? _lastBody;
 
+		[DllImport("shell32.dll", SetLastError = true)]
+		private static extern void SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string appId);
+
 		public ToolboxNotificationManager(ILogger<ToolboxNotificationManager> logger)
 		{
 			_logger = logger;
@@ -50,7 +55,11 @@ namespace UnrealToolbox
 		{
 			if (Environment.OSVersion.Platform == PlatformID.Win32NT)
 			{
-				WindowsApplicationContext context = WindowsApplicationContext.FromCurrentProcess();
+				// WindowsApplicationContext.FromCurrentProcess() has side effects of creating start menu items, and changing the app user model id to the executing assembly, which can be dotnet.exe
+				// WindowsApplicationContext context = WindowsApplicationContext.FromCurrentProcess();
+				WindowsApplicationContext? context = Activator.CreateInstance(type: typeof(WindowsApplicationContext), bindingAttr: BindingFlags.Instance | BindingFlags.NonPublic, binder: null, args: new object[] { "Unreal Toolbox", "Unreal Toolbox" }, culture: null) as WindowsApplicationContext;
+				SetCurrentProcessExplicitAppUserModelID("Unreal Toolbox");
+
 				_platformManager = new WindowsNotificationManager(context);
 			}
 			else
@@ -77,9 +86,9 @@ namespace UnrealToolbox
 		public void ShowNotification(string title, string body, bool force = false)
 		{
 			// spawn 
-			if (!force && _lastNotificationTime != null && !String.IsNullOrEmpty(_lastBody) && !String.IsNullOrEmpty(_lastTitle)) 
+			if (!force && _lastNotificationTime != null && !String.IsNullOrEmpty(_lastBody) && !String.IsNullOrEmpty(_lastTitle))
 			{
-				TimeSpan deltaTime = DateTime.Now - _lastNotificationTime.Value; 
+				TimeSpan deltaTime = DateTime.Now - _lastNotificationTime.Value;
 
 				// don't show a new notification if already displayed one in last minute
 				if (deltaTime.TotalSeconds < 60)
