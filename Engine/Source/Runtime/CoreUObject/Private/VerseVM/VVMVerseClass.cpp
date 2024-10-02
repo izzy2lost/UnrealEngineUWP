@@ -48,7 +48,7 @@ void UVerseClass::Link(FArchive& Ar, bool bRelinkExistingProperties)
 	// Properties which represent native C++ members need to be removed from the
 	// destruct chain, as they will be destructed by the native C++ destructor.
 	bool bPropertiesChanged = false;
-	
+
 	UEProperty_Private::FPropertyListBuilderDestructorLink DestructorLinkBuilder(&DestructorLink);
 	for (FProperty* Prop = DestructorLinkBuilder.GetListStart(); Prop;)
 	{
@@ -61,7 +61,7 @@ void UVerseClass::Link(FArchive& Ar, bool bRelinkExistingProperties)
 			DestructorLinkBuilder.Remove(*Prop);
 			bPropertiesChanged = true;
 		}
-		
+
 		Prop = NextProp;
 	}
 
