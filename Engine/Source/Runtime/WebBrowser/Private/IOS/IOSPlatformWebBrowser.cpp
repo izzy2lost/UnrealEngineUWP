@@ -873,6 +873,12 @@ supportsMetal : (bool)InSupportsMetal supportsMetalMRT : (bool)InSupportsMetalMR
 //	NSLog(@"didFailNavigation: %@, error %@", CurrentUrl, InError);
 	WebBrowserWidget->HandleReceivedError(InError.code, CurrentUrl);
 }
+-(void)webView:(WKWebView *)InWebView didFailProvisionalNavigation : (WKNavigation *)InNavigation withError : (NSError*)InError
+{
+	NSString* CurrentUrl = [InError.userInfo objectForKey : @"NSErrorFailingURLStringKey"];
+	// NSLog(@"didFailProvisionalNavigation: %@, error %@", CurrentUrl, InError);
+	WebBrowserWidget->HandleReceivedError(InError.code, CurrentUrl);
+}
 #endif
 @end
 
