@@ -56,6 +56,7 @@
 #include "Math/NumericLimits.h"
 #include "Hash/CityHash.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeCopyMaterial.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeGroupProjectorParameter.h"
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
@@ -119,6 +120,16 @@ void CheckNumOutputs(const UEdGraphPin& Pin, const FMutableGraphGenerationContex
 			}
 		}
 	}
+}
+
+
+uint32 GetTypeHash(const FGeneratedGroupProjectorsKey& Key)
+{
+	uint32 Hash = GetTypeHash(Key.Node);
+
+	Hash = HashCombine(Hash, GetTypeHash(Key.CurrentComponent));
+	
+	return Hash; 
 }
 
 
@@ -253,21 +264,6 @@ int32 FMutableGraphGenerationContext::AddAssetUserDataToStreamedResources(UAsset
 	return ResourceIndex;
 }
 
-
-/** Adds to ParameterNamesMap the node Node to the array of elements with name Name */
-void FMutableGraphGenerationContext::AddParameterNameUnique(const UCustomizableObjectNode* Node, FString Name)
-{
-	if (TArray<const UObject*>* ArrayResult = ParameterNamesMap.Find(Name))
-	{
-		ArrayResult->AddUnique(Node);
-	}
-	else
-	{
-		TArray<const UObject*> ArrayTemp;
-		ArrayTemp.Add(Node);
-		ParameterNamesMap.Add(Name, ArrayTemp);
-	}
-}
 
 uint32 FMutableGraphGenerationContext::GetSkinWeightProfileIdUnique(const FName InProfileName)
 {
@@ -436,20 +432,10 @@ mu::FBoneName FMutableGraphGenerationContext::GetBoneUnique(const FName& InBoneN
 
 FMutableComponentInfo* FMutableGraphGenerationContext::GetCurrentComponentInfo()
 {
-	FMutableComponentInfo* CurrentComponentInfo = ComponentInfos.FindByPredicate(
-		[this](const FMutableComponentInfo& Component) { return Component.ComponentName == CurrentMeshComponent; });
-	
-	// Temp workaround to the problem of modifiers that generate meshes (like ExtendMeshSection) not having a known component at generation time.
-	// TODO: Actually detect all possible components and change this query in GenerationContext state to accomodate a set of "current components" instead of one.
-	//check(CurrentComponentInfo);
-
-	if (!CurrentComponentInfo)
+	return ComponentInfos.FindByPredicate([this](const FMutableComponentInfo& Component)
 	{
-		check(!ComponentInfos.IsEmpty());
-		CurrentComponentInfo = &ComponentInfos[0];
-	}
-
-	return CurrentComponentInfo;
+		return Component.ComponentName == CurrentMeshComponent;
+	});
 }
 
 
@@ -497,18 +483,6 @@ FGeneratedKey::FGeneratedKey(void* InFunctionAddress, const UEdGraphPin& InPin, 
 }
 
 
-bool FGeneratedKey::operator==(const FGeneratedKey& Other) const
-{
-	return FunctionAddress == Other.FunctionAddress &&
-		Pin == Other.Pin &&
-		LOD == Other.LOD &&
-		Flags == Other.Flags &&
-		LayoutFlags == Other.LayoutFlags &&
-		MeshMorphStack == Other.MeshMorphStack &&
-		bOnlyConnectedLOD == Other.bOnlyConnectedLOD;
-}
-
-
 uint32 GetTypeHash(const FGeneratedKey& Key)
 {
 	uint32 Hash = GetTypeHash(Key.FunctionAddress);
@@ -518,6 +492,7 @@ uint32 GetTypeHash(const FGeneratedKey& Key)
 	//Hash = HashCombine(Hash, GetTypeHash(Key.LayoutFlags)); // Does not support array
 	//Hash = HashCombine(Hash, GetTypeHash(Key.MeshMorphStack)); // Does not support array
 	Hash = HashCombine(Hash, GetTypeHash(Key.bOnlyConnectedLOD));
+	Hash = HashCombine(Hash, GetTypeHash(Key.CurrentMeshComponent));
 	
 	return Hash;
 }
@@ -999,17 +974,18 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 				{
 					continue;
 				}
-
-				// Temp hack
-				if (GenerationContext.ComponentInfos.Num())
-				{
-					GenerationContext.CurrentMeshComponent = GenerationContext.ComponentInfos[0].ComponentName;
-				}
 				
-				mu::Ptr<mu::NodeModifier> ModifierNode = GenerateMutableSourceModifier(ChildNodePin, GenerationContext);
-				ObjectNode->Modifiers.Add(ModifierNode);
+				for (const FMutableComponentInfo& Pair : GenerationContext.ComponentInfos)
+				{
+					GenerationContext.CurrentMeshComponent = Pair.ComponentName;
+					GenerationContext.CurrentAutoLODStrategy = Pair.Node->AutoLODStrategy;
+					
+					mu::Ptr<mu::NodeModifier> ModifierNode = GenerateMutableSourceModifier(ChildNodePin, GenerationContext);
+					ObjectNode->Modifiers.Add(ModifierNode);
 
-				GenerationContext.CurrentMeshComponent = FName();
+					GenerationContext.CurrentMeshComponent = {};
+					GenerationContext.CurrentAutoLODStrategy = {};
+				}
 			}
 		}
 		
@@ -1068,21 +1044,26 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 		// All sockets from all mesh parts plugged into this group node will have the following priority when there's a socket name clash
 		GenerationContext.SocketPriorityStack.Push(TypedNodeGroup->SocketPriority);
 
-		GenerationContext.AddParameterNameUnique(TypedNodeGroup, TypedNodeGroup->GroupName);
 		GroupNode->SetName(TypedNodeGroup->GroupName);
 		GroupNode->SetUid(TypedNodeGroup->NodeGuid.ToString());
-
-		// Get all group projectors and put them in the generation context so that they are available to the child material nodes of this group node
-		uint32 NumProjectorCountBeforeNode = GenerationContext.ProjectorGroupMap.Num();
-		UEdGraphPin* ProjectorsPin = TypedNodeGroup->GroupProjectorsPin();
 		
-		if (ProjectorsPin && TypedNodeGroup)
+		TArray<UCustomizableObjectNodeGroupProjectorParameter*> GroupProjectors;
+		if (UEdGraphPin* ProjectorsPin = TypedNodeGroup->GroupProjectorsPin())
 		{
-			for (const UEdGraphPin* GroupProjectorNodePin : FollowInputPinArray(*ProjectorsPin))
+			for (const UEdGraphPin* ConnectedPin : FollowInputPinArray(*ProjectorsPin))
 			{
-				GenerateMutableSourceGroupProjector(GroupProjectorNodePin, GenerationContext, TypedNodeGroup);
+				if (UCustomizableObjectNodeGroupProjectorParameter* GroupProjectorNode = Cast<UCustomizableObjectNodeGroupProjectorParameter>(ConnectedPin->GetOwningNode()))
+				{
+					GroupProjectors.Add(GroupProjectorNode);
+				}
 			}
 		}
+
+		GenerationContext.CurrentGroupProjectors.Push(GroupProjectors);
+		ON_SCOPE_EXIT
+		{
+			GenerationContext.CurrentGroupProjectors.Pop();
+		};
 
 		mu::NodeObjectGroup::CHILD_SELECTION Type = mu::NodeObjectGroup::CS_ALWAYS_ALL;
 		switch (TypedNodeGroup->GroupType)
@@ -1150,8 +1131,6 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 
 					if (TypedNodeGroup->GroupType == ECustomizableObjectGroupType::COGT_TOGGLE)
 					{
-						GenerationContext.AddParameterNameUnique(CustomizableObjectNodeObject, CustomizableObjectNodeObject->ObjectName);
-						
 						// UI Data is only relevant when the group node is set to Toggle
 						GenerationContext.ParameterUIDataMap.Add(CustomizableObjectNodeObject->ObjectName, FMutableParameterData(
 							CustomizableObjectNodeObject->ParamUIMetadata,
@@ -1263,8 +1242,6 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 
 					if (TypedNodeGroup->GroupType == ECustomizableObjectGroupType::COGT_TOGGLE)
 					{
-						GenerationContext.AddParameterNameUnique(CustomizableObjectNodeObject, CustomizableObjectNodeObject->ObjectName);
-
 						// UI Data is only relevant when the group node is set to Toggle
 						GenerationContext.ParameterUIDataMap.Add(CustomizableObjectNodeObject->ObjectName, FMutableParameterData(
 							CustomizableObjectNodeObject->ParamUIMetadata,
@@ -1314,14 +1291,9 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 			GenerationContext.ParameterUIDataMap.Add(TypedNodeGroup->GroupName, ParameterUIData);
 		}
 
-		// Remove the projectors from this node
-		GenerationContext.ProjectorGroupMap.Remove(TypedNodeGroup);
-
 		// Go back to the parent group node's socket priority if it exists
 		ensure(GenerationContext.SocketPriorityStack.Num() > 0);
 		GenerationContext.SocketPriorityStack.Pop();
-
-		check(NumProjectorCountBeforeNode == GenerationContext.ProjectorGroupMap.Num());
 	}
 	else
 	{

@@ -40,7 +40,7 @@
 /** Generate LOD pins of the given NodeComponentBase (NodeComponent, NodeComponentExtend...).
  * @param TypedComponentMesh Given component node.
  * @param NodeComponent Core node to connect LOD generated pins. */
-void GenerateMutableSourceComponentMesh(FMutableGraphGenerationContext& GenerationContext, const UCustomizableObjectNodeComponentMeshBase& TypedComponentMesh, mu::Ptr<mu::NodeComponent> NodeComponent, mu::Ptr<mu::NodeObjectNew> NodeObject)
+void GenerateMutableSourceComponentMesh(FMutableGraphGenerationContext& GenerationContext, const UCustomizableObjectNodeComponentMeshBase& TypedComponentMesh, mu::Ptr<mu::NodeComponent> NodeComponent)
 {
 	int32 FirstLOD = -1;
 
@@ -130,168 +130,37 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 	
 	if (const UCustomizableObjectNodeComponentMesh* TypedComponentMesh = Cast<UCustomizableObjectNodeComponentMesh>(Node))
 	{
-		FName ComponentName = TypedComponentMesh->ComponentName;
-		
-		if (TypedComponentMesh->ComponentName.IsNone())
+		if (!GenerationContext.ComponentInfos.ContainsByPredicate([&](const FMutableComponentInfo& ComponentInfo)
 		{
-			GenerationContext.Log(LOCTEXT("EmptyComponentNameError", "Error! Missing name in a component of the Customizable Object."), TypedComponentMesh, EMessageSeverity::Error);
-			return nullptr;
-		}
-
-		if (GenerationContext.ComponentInfos.ContainsByPredicate([&](const FMutableComponentInfo& ComponentInfo)
-		{
-			return ComponentInfo.ComponentName == ComponentName;
+			return ComponentInfo.Node == TypedComponentMesh;
 		}))
 		{
-			GenerationContext.Log(FText::Format(LOCTEXT("RepeatedComponentName", "Error! Repeated name [{0}] used in more than one Component"),
-				FText::FromName(ComponentName)), TypedComponentMesh, EMessageSeverity::Error);
-			return nullptr;
-		}
-			
-		USkeletalMesh* RefSkeletalMesh = TypedComponentMesh->ReferenceSkeletalMesh;
-		if (!RefSkeletalMesh)
-		{
-			GenerationContext.Log(LOCTEXT("NoReferenceMeshObjectTab", "Error! Missing reference Skeletal Mesh"), TypedComponentMesh, EMessageSeverity::Error);
-			return nullptr;
-		}
-
-		USkeleton* RefSkeleton = RefSkeletalMesh->GetSkeleton();
-		if(!RefSkeleton)
-		{
-			FText Msg = FText::Format(LOCTEXT("NoReferenceSkeleton", "Error! Missing skeleton in the reference mesh [{0}]"), FText::FromString(GenerationContext.CustomizableObjectWithCycle->GetPathName()));
-
-			GenerationContext.Log(Msg, TypedComponentMesh, EMessageSeverity::Error);
-			return nullptr;
-		}
-
-		// Add a new entry to the list of Component Infos
-		FMutableComponentInfo& ComponentInfo = GenerationContext.ComponentInfos.Add_GetRef(FMutableComponentInfo(ComponentName, RefSkeletalMesh));
-
-		ComponentInfo.AccumulateBonesToRemovePerLOD(TypedComponentMesh->LODReductionSettings, TypedComponentMesh->NumLODs);
-
-		// Make sure the Skeleton from the reference mesh is added to the list of referenced Skeletons.
-		GenerationContext.ReferencedSkeletons.Add(RefSkeleton);
-
-		// Add reference meshes to the participating objects
-		GenerationContext.AddParticipatingObject(*RefSkeletalMesh);
-		
-		// Ensure that the CO has a valid AutoLODStrategy on the Component node.
-		if (TypedComponentMesh->AutoLODStrategy == ECustomizableObjectAutomaticLODStrategy::Inherited)
-		{
-			GenerationContext.Log(LOCTEXT("RootInheritsFromParent", "Error! Component LOD Strategy can't be set to 'Inherit from parent object'"), TypedComponentMesh, EMessageSeverity::Error);
-			return nullptr;
-		}
-		GenerationContext.CurrentAutoLODStrategy = TypedComponentMesh->AutoLODStrategy;
-		
-		mu::Ptr<mu::NodeObjectNew> ObjectNode = new mu::NodeObjectNew();
-
-		ObjectNode->SetName(TypedComponentMesh->ComponentName.ToString());
-		FGuid FinalGuid = GenerationContext.GetNodeIdUnique(TypedComponentMesh);
-		if (FinalGuid != TypedComponentMesh->NodeGuid)
-		{
-			GenerationContext.Log(FText::FromString(TEXT("Warning: Node has a duplicated GUID. A new ID has been generated, but cooked data will not be deterministic.")), Node, EMessageSeverity::Warning);
-		}
-		ObjectNode->SetUid(FinalGuid.ToString());
-
-
-		// Process the pins defining components
-		//-------------------------------------------------------------------
-
-		// LOD
-		const int32 NumLODs = TypedComponentMesh->LODPins.Num();
-
-		// Fill the basic LOD Settings
-		if (!GenerationContext.NumLODsInRoot)
-		{
-			check(!GenerationContext.ComponentInfos.IsEmpty());
-
-			// NumLODsInRoot
-			int32 MaxRefMeshLODs = TypedComponentMesh->ReferenceSkeletalMesh->GetLODNum();
-			if (MaxRefMeshLODs < NumLODs)
-			{
-				FString Msg = FString::Printf(TEXT("The object has %d LODs but the reference mesh only %d. Resulting objects will have %d LODs."),
-					NumLODs, MaxRefMeshLODs, MaxRefMeshLODs);
-				GenerationContext.Log(FText::FromString(Msg), Node, EMessageSeverity::Warning);
-				GenerationContext.NumLODsInRoot = MaxRefMeshLODs;
-			}
-			else
-			{
-				GenerationContext.NumLODsInRoot = FMath::Max(GenerationContext.NumLODsInRoot, static_cast<uint8>(NumLODs));
-			}
-		
-			const FMutableLODSettings& LODSettings = GenerationContext.Object->LODSettings;
-
-			// Find the MinLOD available for the target platform
-			if (RefSkeletalMesh->IsMinLodQualityLevelEnable())
-			{
-				FSupportedQualityLevelArray SupportedQualityLevels = LODSettings.MinQualityLevelLOD.GetSupportedQualityLevels(*GenerationContext.Options.TargetPlatform->GetPlatformInfo().IniPlatformName.ToString());
-				
-				int32 MinValue = GenerationContext.NumLODsInRoot - 1;
-				for (int32& QL : SupportedQualityLevels)
-				{
-					// check if have data for the supported quality level or set to default.
-					if (LODSettings.MinQualityLevelLOD.IsQualityLevelValid(QL))
-					{
-						MinValue = FMath::Min(LODSettings.MinQualityLevelLOD.GetValueForQualityLevel(QL), MinValue);
-					}
-					else 
-					{
-						MinValue = LODSettings.MinQualityLevelLOD.GetDefault();
-						break;
-					}
-				}
-
-				GenerationContext.FirstLODAvailable = FMath::Max(0, MinValue);
-			}
-			else
-			{
-				GenerationContext.FirstLODAvailable = LODSettings.MinLOD.GetValueForPlatform(*GenerationContext.Options.TargetPlatform->IniPlatformName());
-			}
-
-			GenerationContext.FirstLODAvailable = FMath::Clamp(GenerationContext.FirstLODAvailable, 0, GenerationContext.NumLODsInRoot - 1);
-
-			// Find the streaming settings for the target platform
-			if (LODSettings.bOverrideLODStreamingSettings)
-			{
-				GenerationContext.bEnableLODStreaming = LODSettings.bEnableLODStreaming.GetValueForPlatform(*GenerationContext.Options.TargetPlatform->IniPlatformName());
-				GenerationContext.NumMaxLODsToStream = LODSettings.NumMaxStreamedLODs.GetValueForPlatform(*GenerationContext.Options.TargetPlatform->IniPlatformName());
-			}
-			else
-			{
-				for (int32 MeshIndex = 0; MeshIndex < GenerationContext.ComponentInfos.Num(); ++MeshIndex)
-				{
-					RefSkeletalMesh = GenerationContext.ComponentInfos[MeshIndex].RefSkeletalMesh;
-					check(RefSkeletalMesh);
-
-					GenerationContext.bEnableLODStreaming = GenerationContext.bEnableLODStreaming &&
-						RefSkeletalMesh->GetEnableLODStreaming(GenerationContext.Options.TargetPlatform);
-
-					GenerationContext.NumMaxLODsToStream = FMath::Min(static_cast<int32>(GenerationContext.NumMaxLODsToStream),
-						RefSkeletalMesh->GetMaxNumStreamedLODs(GenerationContext.Options.TargetPlatform));
-				}
-			}
-
-			GenerationContext.NumMaxLODsToStream = FMath::Clamp(GenerationContext.NumMaxLODsToStream, 0, GenerationContext.NumLODsInRoot - 1);
+			return nullptr; // Not generated in the first pass.
 		}
 		
 		mu::Ptr<mu::NodeComponentNew> NodeComponentNew = new mu::NodeComponentNew();
-		NodeComponentNew->Id = GenerationContext.ComponentNames.Num();
-		GenerationContext.ComponentNames.Add(TypedComponentMesh->ComponentName);
-	
+		NodeComponentNew->Id = GenerationContext.ComponentNames.Add(TypedComponentMesh->ComponentName);
 		NodeComponentNew->SetMessageContext(Node);
-		ObjectNode->Components.Add(NodeComponentNew);
-
-		GenerationContext.CurrentMeshComponent = TypedComponentMesh->ComponentName;
-		GenerateMutableSourceComponentMesh(GenerationContext, *TypedComponentMesh, NodeComponentNew, ObjectNode);
 		
 		Result = NodeComponentNew;
+
+		GenerationContext.CurrentMeshComponent = TypedComponentMesh->ComponentName;
+		GenerationContext.CurrentAutoLODStrategy = TypedComponentMesh->AutoLODStrategy;
+		
+		GenerateMutableSourceComponentMesh(GenerationContext, *TypedComponentMesh, NodeComponentNew);
+
+		GenerationContext.CurrentMeshComponent = {};
+		GenerationContext.CurrentAutoLODStrategy = {};
 	}
 
 	else if (const UCustomizableObjectNodeComponentMeshAddTo* TypedComponentMeshExtend = Cast<UCustomizableObjectNodeComponentMeshAddTo>(Node))
 	{
-		if (UCustomizableObjectNodeComponentMesh** FindResult = GenerationContext.MeshComponents.Find(TypedComponentMeshExtend->ParentComponentName))
+		if (FMutableComponentInfo* FindResult = GenerationContext.ComponentInfos.FindByPredicate([&](const FMutableComponentInfo& Element)
 		{
-			UCustomizableObjectNodeComponentMesh* TypedParentComponentMesh = *FindResult;
+			return Element.ComponentName == TypedComponentMeshExtend->ParentComponentName;
+		}))
+		{
+			UCustomizableObjectNodeComponentMesh* TypedParentComponentMesh = FindResult->Node;
 
 			if (TypedComponentMeshExtend->NumLODs > TypedParentComponentMesh->NumLODs)
 			{
@@ -306,13 +175,15 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 			NodeComponentEdit->SetMessageContext(TypedComponentMeshExtend);
 		
 			GenerationContext.CurrentMeshComponent = TypedParentComponentMesh->ComponentName;
-
 			GenerationContext.CurrentAutoLODStrategy = TypedComponentMeshExtend->AutoLODStrategy == ECustomizableObjectAutomaticLODStrategy::Inherited ?
 				TypedParentComponentMesh->AutoLODStrategy :
 				TypedComponentMeshExtend->AutoLODStrategy;
 			
-			GenerateMutableSourceComponentMesh(GenerationContext, *TypedComponentMeshExtend, NodeComponentEdit, nullptr);
+			GenerateMutableSourceComponentMesh(GenerationContext, *TypedComponentMeshExtend, NodeComponentEdit);
 
+			GenerationContext.CurrentMeshComponent = {};
+			GenerationContext.CurrentAutoLODStrategy = {};
+			
 			Result = NodeComponentEdit;	
 		}
 		else
@@ -534,6 +405,137 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 	
 	return Result;
 }
+
+
+void FirstPass(UCustomizableObjectNodeComponentMesh& Node, FMutableGraphGenerationContext& GenerationContext)
+{
+	if (Node.ComponentName.IsNone())
+	{
+		GenerationContext.Log(LOCTEXT("EmptyComponentNameError", "Error! Missing name in a component of the Customizable Object."), &Node, EMessageSeverity::Error);
+		return;
+	}
+	
+	if (FMutableComponentInfo* Result = GenerationContext.ComponentInfos.FindByPredicate([&](const FMutableComponentInfo& Element)
+	{
+		return Element.ComponentName == Node.ComponentName;
+	}))
+	{
+		FText Msg = FText::Format(LOCTEXT("ComponentNodeWithSameNameExists", "Error! It already exists a Mesh Component node with the same name in Customizable Object [{0}]"), FText::FromString(GetRootObject(*Result->Node)->GetName()));
+		GenerationContext.Log(Msg, &Node, EMessageSeverity::Error);
+		return;
+	}
+	
+	USkeletalMesh* RefSkeletalMesh = Node.ReferenceSkeletalMesh;
+	if (!RefSkeletalMesh)
+	{
+		GenerationContext.Log(LOCTEXT("NoReferenceMeshObjectTab", "Error! Missing reference Skeletal Mesh"), &Node, EMessageSeverity::Error);
+		return;
+	}
+	
+	USkeleton* RefSkeleton = RefSkeletalMesh->GetSkeleton();
+	if (!RefSkeleton)
+	{
+		FText Msg = FText::Format(LOCTEXT("NoReferenceSkeleton", "Error! Missing skeleton in the reference mesh [{0}]"), FText::FromString(GenerationContext.CustomizableObjectWithCycle->GetPathName()));
+
+		GenerationContext.Log(Msg, &Node, EMessageSeverity::Error);
+		return;
+	}
+	
+	// Ensure that the CO has a valid AutoLODStrategy on the Component node.
+	if (Node.AutoLODStrategy == ECustomizableObjectAutomaticLODStrategy::Inherited)
+	{
+		GenerationContext.Log(LOCTEXT("RootInheritsFromParent", "Error! Component LOD Strategy can't be set to 'Inherit from parent object'"), &Node, EMessageSeverity::Error);
+		return;
+	}
+
+	// Fill the basic LOD Settings
+	const int32 NumLODs = Node.LODPins.Num();
+
+	if (!GenerationContext.NumLODsInRoot)
+	{
+		// NumLODsInRoot
+		int32 MaxRefMeshLODs = Node.ReferenceSkeletalMesh->GetLODNum();
+		if (MaxRefMeshLODs < NumLODs)
+		{
+			FString Msg = FString::Printf(TEXT("The object has %d LODs but the reference mesh only %d. Resulting objects will have %d LODs."),
+				NumLODs, MaxRefMeshLODs, MaxRefMeshLODs);
+			GenerationContext.Log(FText::FromString(Msg), &Node, EMessageSeverity::Warning);
+			GenerationContext.NumLODsInRoot = MaxRefMeshLODs;
+		}
+		else
+		{
+			GenerationContext.NumLODsInRoot = FMath::Max(GenerationContext.NumLODsInRoot, static_cast<uint8>(NumLODs));
+		}
+	
+		const FMutableLODSettings& LODSettings = GenerationContext.Object->LODSettings;
+
+		// Find the MinLOD available for the target platform
+		if (RefSkeletalMesh->IsMinLodQualityLevelEnable())
+		{
+			FSupportedQualityLevelArray SupportedQualityLevels = LODSettings.MinQualityLevelLOD.GetSupportedQualityLevels(*GenerationContext.Options.TargetPlatform->GetPlatformInfo().IniPlatformName.ToString());
+			
+			int32 MinValue = GenerationContext.NumLODsInRoot - 1;
+			for (int32& QL : SupportedQualityLevels)
+			{
+				// check if have data for the supported quality level or set to default.
+				if (LODSettings.MinQualityLevelLOD.IsQualityLevelValid(QL))
+				{
+					MinValue = FMath::Min(LODSettings.MinQualityLevelLOD.GetValueForQualityLevel(QL), MinValue);
+				}
+				else 
+				{
+					MinValue = LODSettings.MinQualityLevelLOD.GetDefault();
+					break;
+				}
+			}
+
+			GenerationContext.FirstLODAvailable = FMath::Max(0, MinValue);
+		}
+		else
+		{
+			GenerationContext.FirstLODAvailable = LODSettings.MinLOD.GetValueForPlatform(*GenerationContext.Options.TargetPlatform->IniPlatformName());
+		}
+
+		GenerationContext.FirstLODAvailable = FMath::Clamp(GenerationContext.FirstLODAvailable, 0, GenerationContext.NumLODsInRoot - 1);
+
+		// Find the streaming settings for the target platform
+		if (LODSettings.bOverrideLODStreamingSettings)
+		{
+			GenerationContext.bEnableLODStreaming = LODSettings.bEnableLODStreaming.GetValueForPlatform(*GenerationContext.Options.TargetPlatform->IniPlatformName());
+			GenerationContext.NumMaxLODsToStream = LODSettings.NumMaxStreamedLODs.GetValueForPlatform(*GenerationContext.Options.TargetPlatform->IniPlatformName());
+		}
+		else
+		{
+			for (int32 MeshIndex = 0; MeshIndex < GenerationContext.ComponentInfos.Num(); ++MeshIndex)
+			{
+				RefSkeletalMesh = GenerationContext.ComponentInfos[MeshIndex].RefSkeletalMesh;
+				check(RefSkeletalMesh);
+
+				GenerationContext.bEnableLODStreaming = GenerationContext.bEnableLODStreaming &&
+					RefSkeletalMesh->GetEnableLODStreaming(GenerationContext.Options.TargetPlatform);
+
+				GenerationContext.NumMaxLODsToStream = FMath::Min(static_cast<int32>(GenerationContext.NumMaxLODsToStream),
+					RefSkeletalMesh->GetMaxNumStreamedLODs(GenerationContext.Options.TargetPlatform));
+			}
+		}
+
+		GenerationContext.NumMaxLODsToStream = FMath::Clamp(GenerationContext.NumMaxLODsToStream, 0, GenerationContext.NumLODsInRoot - 1);
+	}
+	
+	// Add a new entry to the list of Component Infos
+	FMutableComponentInfo ComponentInfo(Node.ComponentName, RefSkeletalMesh);
+	ComponentInfo.Node = &Node;
+	ComponentInfo.AccumulateBonesToRemovePerLOD(Node.LODReductionSettings, Node.NumLODs);
+
+	GenerationContext.ComponentInfos.Add(ComponentInfo);
+
+	// Make sure the Skeleton from the reference mesh is added to the list of referenced Skeletons.
+	GenerationContext.ReferencedSkeletons.Add(RefSkeleton);
+
+	// Add reference meshes to the participating objects
+	GenerationContext.AddParticipatingObject(*RefSkeletalMesh);
+}
+
 
 #undef LOCTEXT_NAMESPACE
 

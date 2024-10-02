@@ -68,8 +68,6 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 		mu::NodeScalarParameterPtr ScalarNode = new mu::NodeScalarParameter();
 		Result = ScalarNode;
 
-		GenerationContext.AddParameterNameUnique(Node, FloatParameterNode->ParameterName);
-
 		ScalarNode->SetName(FloatParameterNode->ParameterName);
 		ScalarNode->SetUid(GenerationContext.GetNodeIdUnique(Node).ToString());
 		ScalarNode->SetDefaultValue(FloatParameterNode->DefaultValue);
@@ -86,8 +84,6 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 		const int32 NumSelectors = EnumParamNode->Values.Num();
 
 		int32 DefaultValue = FMath::Clamp(EnumParamNode->DefaultIndex, 0, NumSelectors - 1);
-
-		GenerationContext.AddParameterNameUnique(Node, EnumParamNode->ParameterName);
 
 		EnumParameterNode->SetName(EnumParamNode->ParameterName);
 		EnumParameterNode->SetUid(GenerationContext.GetNodeIdUnique(Node).ToString());

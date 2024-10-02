@@ -9,6 +9,7 @@
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "Materials/MaterialInterface.h"
 #include "MessageLogModule.h"
+#include "GenerateMutableSource/GenerateMutableSourceComponent.h"
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectInstance.h"
@@ -485,7 +486,7 @@ mu::Ptr<mu::NodeObject> GenerateMutableRoot(
 	}
 
 	bool bMultipleBaseObjectsFound;
-	UCustomizableObjectNodeObject* Root = GetRootNode(Object, bMultipleBaseObjectsFound);
+	UCustomizableObjectNodeObject* LocalRootNodeObject = GetRootNode(Object, bMultipleBaseObjectsFound);
 
 	if (bMultipleBaseObjectsFound)
 	{
@@ -493,19 +494,19 @@ mu::Ptr<mu::NodeObject> GenerateMutableRoot(
 		return nullptr;
 	}
 
-	if (!Root)
+	if (!LocalRootNodeObject)
 	{
 		GenerationContext.Log(LOCTEXT("NoRootBase","No base object node found. Object not built."));
 		return nullptr;
 	}
 	
-	const UCustomizableObject* ActualRootObject = GraphTraversal::GetRootObject(Object);
-	check(ActualRootObject);
+	const UCustomizableObject* RootObject = GraphTraversal::GetRootObject(Object);
+	check(RootObject);
 
-	GenerationContext.RootVersionBridge = ActualRootObject->VersionBridge;
+	GenerationContext.RootVersionBridge = RootObject->VersionBridge;
 
-	UCustomizableObjectNodeObject* ActualRoot = GetRootNode(ActualRootObject, bMultipleBaseObjectsFound);
-	GenerationContext.Root = ActualRoot;
+	UCustomizableObjectNodeObject* RootNodeObject = GetRootNode(RootObject, bMultipleBaseObjectsFound);
+	GenerationContext.Root = RootNodeObject;
 	
 	if (bMultipleBaseObjectsFound)
 	{
@@ -513,20 +514,20 @@ mu::Ptr<mu::NodeObject> GenerateMutableRoot(
 		return nullptr;
 	}
 
-	if (!ActualRoot)
+	if (!RootNodeObject)
 	{
 		GenerationContext.Log(LOCTEXT("NoActualRootBase", "No base object node found in root Customizable Object. Object not built."));
 		return nullptr;
 	}
 	
-	if (Root->ObjectName.IsEmpty())
+	if (LocalRootNodeObject->ObjectName.IsEmpty())
 	{
-		GenerationContext.NoNameNodeObjectArray.AddUnique(Root);
+		GenerationContext.NoNameNodeObjectArray.AddUnique(LocalRootNodeObject);
 	}
 
 	if ((Object->MeshCompileType == EMutableCompileMeshType::Full) || GenerationContext.Options.bIsCooking)
 	{
-		if (Root->ParentObject!=nullptr && GenerationContext.Options.bIsCooking)
+		if (LocalRootNodeObject->ParentObject!=nullptr && GenerationContext.Options.bIsCooking)
 		{
 			// This happens while packaging.
 			return nullptr;
@@ -539,7 +540,7 @@ mu::Ptr<mu::NodeObject> GenerateMutableRoot(
 
 			// The object doesn't reference a root object but is a root object, look for all the objects that reference it and get their root nodes
 			FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-			ProcessChildObjectsRecursively(ActualRootObject, GenerationContext);
+			ProcessChildObjectsRecursively(RootObject, GenerationContext);
 			UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] End search for children."), FPlatformTime::Seconds());
 		}
 	}
@@ -551,7 +552,7 @@ mu::Ptr<mu::NodeObject> GenerateMutableRoot(
 		
 		if (!GetParentsUntilRoot(Object, ArrayNodeObject, ArrayCustomizableObject))
 		{
-			GenerationContext.Log(LOCTEXT("SkeletalMeshCycleFound", "Error! Cycle detected in the Customizable Object hierarchy."), Root);
+			GenerationContext.Log(LOCTEXT("SkeletalMeshCycleFound", "Error! Cycle detected in the Customizable Object hierarchy."), LocalRootNodeObject);
 			return nullptr;
 		}
 
@@ -567,7 +568,7 @@ mu::Ptr<mu::NodeObject> GenerateMutableRoot(
 
 					if (!GetParentsUntilRoot(WorkingSetObject, ArrayNodeObject, ArrayCustomizableObject))
 					{
-						GenerationContext.Log(LOCTEXT("NoReferenceMesh", "Error! Cycle detected in the Customizable Object hierarchy."), Root);
+						GenerationContext.Log(LOCTEXT("NoReferenceMesh", "Error! Cycle detected in the Customizable Object hierarchy."), LocalRootNodeObject);
 						return nullptr;
 					}
 				}
@@ -594,80 +595,30 @@ mu::Ptr<mu::NodeObject> GenerateMutableRoot(
 			}
 		}
 	}
-	
-	// Find all component nodes
-	TSet<const UCustomizableObject*> CustomizableObjects; // All COs in the hierarchy
+
+	// First pass. Only used to recollect info required for the primary pass.
+	// Notice that the traversal is different form the primary pass. Here we follow all pins indiscriminately,
+	// while the primary pass follows the Mutable Source structure (which may cut branches).
+	GraphTraversal::VisitNodes(*RootNodeObject, GenerationContext.GroupIdToExternalNodeMap, [&GenerationContext](UCustomizableObjectNode& Node)
 	{
-		auto GetParents = [&CustomizableObjects](const UCustomizableObject* Object)
+		if (UCustomizableObjectNodeComponentMesh* NodeComponentMesh = Cast<UCustomizableObjectNodeComponentMesh>(&Node))
 		{
-			TArray<UCustomizableObjectNodeObject*> ArrayNodeObject;
-			TArray<const UCustomizableObject*> ArrayCustomizableObject;
-
-			GetParentsUntilRoot(Object, ArrayNodeObject, ArrayCustomizableObject);
-
-			CustomizableObjects.Append(ArrayCustomizableObject);
-		};
-
-		// Parents
-		GetParents(Object);
-
-		// Working set and their parents
-		for (TSoftObjectPtr<UCustomizableObject> SoftObject :  Object->WorkingSet)
-		{
-			if (UCustomizableObject* WorkingSetObject = SoftObject.LoadSynchronous())
-			{
-				GetParents(WorkingSetObject);
-			}
+			FirstPass(*NodeComponentMesh, GenerationContext);
 		}
-
-		// Children
-		TArray<FAssetData> ReferencingAssets;
-		GetReferencingPackages(*Object, ReferencingAssets);
-		for (FAssetData& AssetData : ReferencingAssets)
-		{
-			if (UCustomizableObject* ChildObject = Cast<UCustomizableObject>(AssetData.GetAsset()))
-			{
-				CustomizableObjects.Add(ChildObject);
-			}
-		}
-	}
+	});
 	
-	for (const UCustomizableObject* ParticipatingObject : CustomizableObjects)
-	{
-		for (UEdGraphNode* Node : ParticipatingObject->GetPrivate()->GetSource()->Nodes)
-		{
-			UCustomizableObjectNodeComponentMesh* NodeComponentMesh = Cast<UCustomizableObjectNodeComponentMesh>(Node);
-			if (!NodeComponentMesh)
-			{
-				continue;
-			}
-
-			if (UCustomizableObjectNodeComponentMesh** Result = GenerationContext.MeshComponents.Find(NodeComponentMesh->ComponentName))
-			{
-				UCustomizableObjectNodeComponentMesh* NodeMeshComponent = *Result;
-				check(NodeMeshComponent);
-				
-				FText Msg = FText::Format(LOCTEXT("ComponentNodeWithSameNameExists", "Already exists a Mesh Component node with the same name in Customizable Object [{0}]"), FText::FromString(GetRootObject(*NodeMeshComponent)->GetName()));
-				GenerationContext.Log(Msg, Node, EMessageSeverity::Error);
-				return nullptr;
-			}
-
-			GenerationContext.MeshComponents.Add(NodeComponentMesh->ComponentName, NodeComponentMesh);
-		}
-	}
-	
-    GenerationContext.RealTimeMorphTargetsOverrides = ActualRoot->RealTimeMorphSelectionOverrides;
+    GenerationContext.RealTimeMorphTargetsOverrides = RootNodeObject->RealTimeMorphSelectionOverrides;
 
 	if (!GenerationContext.Options.ParamNamesToSelectedOptions.IsEmpty())
 	{
 		GenerationContext.TableToParamNames = Object->GetPrivate()->GetModelResources().TableToParamNames;
 	}
 
-	GenerationContext.bPartialCompilation = Root->ParentObject != nullptr;
+	GenerationContext.bPartialCompilation = LocalRootNodeObject->ParentObject != nullptr;
 
 	// Generate the object expression
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] GenerateMutableSource start."), FPlatformTime::Seconds());
-	mu::NodeObjectPtr MutableRoot = GenerateMutableSource(ActualRoot->OutputPin(), GenerationContext);
+	mu::NodeObjectPtr MutableRoot = GenerateMutableSource(RootNodeObject->OutputPin(), GenerationContext);
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] GenerateMutableSource end."), FPlatformTime::Seconds());
 
 	GenerationContext.GenerateSharedSurfacesUniqueIds();

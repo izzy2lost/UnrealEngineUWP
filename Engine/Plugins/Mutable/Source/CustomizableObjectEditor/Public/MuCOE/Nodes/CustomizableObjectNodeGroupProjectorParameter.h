@@ -104,5 +104,8 @@ public:
 	// UCustomizableObjectNode interface.
 	virtual void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion) override;
 	virtual void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins);
+
+	// Own interface
+	UEdGraphPin& OutputPin() const;
 };
 

@@ -398,6 +398,58 @@ const UCustomizableObject* GraphTraversal::GetRootObject(const UCustomizableObje
 }
 
 
+void GraphTraversal::VisitNodes(UCustomizableObjectNode& StartNode, const TMultiMap<FGuid, UCustomizableObjectNodeObject*>& ObjectGroupMap, const TFunction<void(UCustomizableObjectNode&)>& VisitFunction)
+{
+	TSet<UCustomizableObjectNode*> VisitedNodes;
+	
+	TArray<UCustomizableObjectNode*> NodesToVisit;
+	NodesToVisit.Add(&StartNode);
+
+	while (!NodesToVisit.IsEmpty())
+	{
+		UCustomizableObjectNode* CurrentNode = NodesToVisit.Pop();
+
+		if (VisitedNodes.Contains(CurrentNode))
+		{
+			continue;
+		}
+
+		VisitedNodes.Add(CurrentNode);
+
+		VisitFunction(*CurrentNode);
+
+		for (UEdGraphPin* Pin : CurrentNode->GetAllNonOrphanPins())
+		{
+			if (Pin->Direction != EGPD_Input)
+			{
+				continue;
+			}
+
+			for (UEdGraphPin* ConnectedPin : FollowInputPinArray(*Pin))
+			{
+				UEdGraphNode* ConnectedNode = ConnectedPin->GetOwningNode();
+				
+				if (UCustomizableObjectNode* Node = Cast<UCustomizableObjectNode>(ConnectedNode))
+				{
+					NodesToVisit.Add(Node);
+				}
+
+				if (UCustomizableObjectNodeObjectGroup* ObjectGroupNode = Cast<UCustomizableObjectNodeObjectGroup>(ConnectedNode))
+				{
+					TArray<UCustomizableObjectNodeObject*> ChildObjectNodes;
+					ObjectGroupMap.MultiFind(ObjectGroupNode->NodeGuid, ChildObjectNodes);
+						
+					for (UCustomizableObjectNodeObject* ChildObjectNode : ChildObjectNodes)
+					{
+						NodesToVisit.Add(ChildObjectNode);
+					}
+				}
+			}
+		}
+	}
+}
+
+
 UCustomizableObjectNodeObject* GetFullGraphRootNodeObject(const UCustomizableObjectNodeObject* Node, TArray<const UCustomizableObject*>& VisitedObjects)
 {
 	if (Node->ParentObject != nullptr)
