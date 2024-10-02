@@ -12,26 +12,26 @@ Buffer<uint> {ParameterName}_ParamOffsetTable;
 int {ParameterName}_ParameterOffsetTableIndex;
 int {ParameterName}_FloatStride;
 int {ParameterName}_Int32Stride;
-int {ParameterName}_HalfStride;
+//TODO: Half Support | int {ParameterName}_HalfStride;
 
 // Outputs the starting offset of each component in the channel data for a partiuclar parameter.
-bool GetParameterLayoutInfo_{ParameterName}(uint ParameterIndex, out uint OutFloatRegister, out uint OutInt32Register, out uint OutHalfRegister)
+bool GetParameterLayoutInfo_{ParameterName}(uint ParameterIndex, out uint OutFloatRegister, out uint OutInt32Register)//TODO: Half Support | , out uint OutHalfRegister)
 {
 	int ParameterTableStart = {ParameterName}_ParameterOffsetTableIndex;
 	if(ParameterTableStart != -1)
 	{
-		const int NumComponents = 3;
+		const int NumComponents = 2;
 		uint ParamLayoutStart = ParameterTableStart + NumComponents * ParameterIndex;
 		OutFloatRegister = {ParameterName}_ParamOffsetTable[ParamLayoutStart];
 		OutInt32Register = {ParameterName}_ParamOffsetTable[ParamLayoutStart + 1];
-		OutHalfRegister = {ParameterName}_ParamOffsetTable[ParamLayoutStart + 2];
+		//TODO: Half Support | OutHalfRegister = {ParameterName}_ParamOffsetTable[ParamLayoutStart + 2];
 		return true;
 	}
 	else
 	{
 		OutFloatRegister = -1;
 		OutInt32Register = -1;
-		OutHalfRegister = -1;
+		//TODO: Half Support | OutHalfRegister = -1;
 		return false;
 	}
 }

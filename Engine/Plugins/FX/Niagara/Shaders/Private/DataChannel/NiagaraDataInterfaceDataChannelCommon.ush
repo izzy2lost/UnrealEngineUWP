@@ -68,6 +68,8 @@ void NiagaraDataChannelRead_Int32(Buffer<int> InBuffer, uint Stride, in out uint
 	NiagaraDataChannelRead_Int32(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.w);
 }
 
+/*
+//TODO: Half Support | 
 void NiagaraDataChannelRead_Half(Buffer<half> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out half OutValue)
 {
 	OutValue = InBuffer[RegisterIdx * Stride + ParticleIdx];
@@ -94,6 +96,7 @@ void NiagaraDataChannelRead_Half(Buffer<half> InBuffer, uint Stride, in out uint
 	NiagaraDataChannelRead_Half(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.z);
 	NiagaraDataChannelRead_Half(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.w);
 }
+*/
 
 // Write accessors 
 
@@ -151,6 +154,8 @@ void NiagaraDataChannelWrite_Int32(RWBuffer<int> InBuffer, uint Stride, in out u
 	NiagaraDataChannelWrite_Int32(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.w);
 }
 
+/*
+//TODO: Half Support | 
 void NiagaraDataChannelWrite_Half(RWBuffer<half> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, half InValue)
 {
 	InBuffer[RegisterIdx * Stride + ParticleIdx] = InValue;
@@ -177,6 +182,7 @@ void NiagaraDataChannelWrite_Half(RWBuffer<half> InBuffer, uint Stride, in out u
 	NiagaraDataChannelWrite_Half(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.z);
 	NiagaraDataChannelWrite_Half(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.w);
 }
+*/
 
 //TODO: More base type accessors.
 
