@@ -41,9 +41,9 @@ namespace UnrealToolbox.Plugins.HordeProxy
 			_hordeClientProvider.OnStateChanged += OnStateChanged;
 			_synchronizationContext = SynchronizationContext.Current;
 
-			DirectoryReference ? settingsRoot = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.CommonApplicationData);
+			DirectoryReference? settingsRoot = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.LocalApplicationData);
 			settingsRoot ??= DirectoryReference.GetCurrentDirectory();
-			_settings = new JsonConfig<HordeProxySettings>(FileReference.Combine(settingsRoot, "Epic", "Horde", "Proxy", "Settings.json"));
+			_settings = new JsonConfig<HordeProxySettings>(FileReference.Combine(settingsRoot, "Epic Games", "Unreal Toolbox", "HordeProxy.json"));
 			_settings.LoadSettings();
 
 			_serverTask = BackgroundTask.StartNew(RunServerAsync);

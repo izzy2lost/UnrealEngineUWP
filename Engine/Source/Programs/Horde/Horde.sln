@@ -69,6 +69,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Installer", "Installer", "{
 	ProjectSection(SolutionItems) = preProject
 		Installer\AgentInstaller.wxs = Installer\AgentInstaller.wxs
 		Installer\ServerInstaller.wxs = Installer\ServerInstaller.wxs
+		Installer\ToolboxInstaller.wxs = Installer\ToolboxInstaller.wxs
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Build", "Build", "{94A745C1-C2C6-46BB-8F12-498D3DE066F6}"
