@@ -246,15 +246,6 @@ void UAnimGraphNode_Base::DestroyNode()
 	Super::DestroyNode();
 }
 
-FString UAnimGraphNode_Base::GetDescriptiveCompiledName() const
-{
-	// Compiled names for nodes should be stable according to the locus in the graph, so if we rewire nodes we can distinguish between different nodes
-	// of the same type. In this case we use the hash of the node GUID to get a unique (or near as possible) value per node in the anim BP while still
-	// keeping the impact on the name table the same as incrementally numbering nodes during compilation via FNetNameMapping.
-	const uint32 Hash = GetTypeHash(NodeGuid);
-	return Super::GetDescriptiveCompiledName() + FString::Printf(TEXT("_%u"), Hash);
-}
-
 void UAnimGraphNode_Base::CreateOutputPins()
 {
 	if (!IsSinkNode())
