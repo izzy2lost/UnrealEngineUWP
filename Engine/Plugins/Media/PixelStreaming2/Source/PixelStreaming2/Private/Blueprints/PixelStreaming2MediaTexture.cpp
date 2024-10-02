@@ -5,6 +5,7 @@
 #include "Async/Async.h"
 #include "DeviceProfiles/DeviceProfile.h"
 #include "DeviceProfiles/DeviceProfileManager.h"
+#include "RenderUtils.h"
 #include "TextureResource.h"
 
 constexpr int32 DEFAULT_WIDTH = 1920;
