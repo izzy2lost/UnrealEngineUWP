@@ -38,6 +38,10 @@ struct FNetworkPredictionSettings
 	UPROPERTY(config, EditAnywhere, Category = FixedTick)
 	ENetworkLOD SimulatedProxyNetworkLOD = ENetworkLOD::ForwardPredict;
 
+	// If enabled, the fixed tick smoothing service will be active, allowing drivers to receive smoothly interpolated updates for any locally-simulated objects (including forward-predicted sim proxies).
+	UPROPERTY(config, EditAnywhere, Category = FixedTick)
+	bool bEnableFixedTickSmoothing = false;
+
 	// ------------------------------------------------------------------------------------------
 
 	// How much buffered time to keep for fixed ticking interpolated sims (client only).

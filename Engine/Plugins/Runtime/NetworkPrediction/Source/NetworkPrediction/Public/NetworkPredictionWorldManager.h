@@ -365,6 +365,12 @@ void UNetworkPredictionWorldManager::ConfigureInstance(FNetworkPredictionID ID, 
 			{
 				ServiceMask |= ENetworkPredictionService::FixedTick;
 				ServiceMask |= ENetworkPredictionService::FixedFinalize;
+
+				if (FNetworkPredictionDriver<ModelDef>::HasFinalizeSmoothingFrame && Settings.bEnableFixedTickSmoothing)
+				{
+					ServiceMask |= ENetworkPredictionService::FixedSmoothing;
+				}
+				
 			}
 		}
 		else
@@ -379,6 +385,11 @@ void UNetworkPredictionWorldManager::ConfigureInstance(FNetworkPredictionID ID, 
 				{
 					ServiceMask |= ENetworkPredictionService::FixedTick;
 					ServiceMask |= ENetworkPredictionService::FixedFinalize;
+
+					if (FNetworkPredictionDriver<ModelDef>::HasFinalizeSmoothingFrame && Settings.bEnableFixedTickSmoothing)
+					{
+						ServiceMask |= ENetworkPredictionService::FixedSmoothing;
+					}
 				}
 
 				bUsePhysicsRecording = true;

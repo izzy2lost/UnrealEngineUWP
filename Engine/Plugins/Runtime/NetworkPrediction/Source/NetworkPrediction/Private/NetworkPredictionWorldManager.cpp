@@ -347,6 +347,14 @@ void UNetworkPredictionWorldManager::BeginNewSimulationFrame_Internal(float Delt
 				Ptr->Tick(Step, ServiceStep);
 			}
 			
+			if (Settings.bEnableFixedTickSmoothing)
+			{
+				for (TUniquePtr<IFixedSmoothingService>& Ptr : Services.FixedSmoothing.Array)
+				{
+					Ptr->UpdateSmoothing(ServiceStep, &FixedTickState);
+				}
+			}
+
 			if (bSingleTick)
 			{
 				FixedTickState.UnspentTimeMS = 0.f;
@@ -555,6 +563,14 @@ void UNetworkPredictionWorldManager::BeginNewSimulationFrame_Internal(float Delt
 		for (TUniquePtr<IFinalizeService>& Ptr : Services.FixedFinalize.Array)
 		{
 			Ptr->FinalizeFrame(DeltaTimeSeconds, FixedServerFrame, FixedTotalSimTimeMS, FixedTickState.FixedStepMS);
+		}
+
+		if (Settings.bEnableFixedTickSmoothing)
+		{
+			for (TUniquePtr<IFixedSmoothingService>& Ptr : Services.FixedSmoothing.Array)
+			{
+				Ptr->FinalizeSmoothingFrame(&FixedTickState);
+			}
 		}
 
 		const int32 IndependentTotalSimTimeMS = VariableTickState.Frames[VariableTickState.PendingFrame].TotalMS;
