@@ -589,7 +589,9 @@ namespace mu
         }
 
         // See if it was already generated
-		FGeneratedMeshCacheKey Key( InUntypedNode, InOptions );
+		FGeneratedMeshCacheKey Key;
+		Key.Node = InUntypedNode;
+		Key.Options = InOptions;
         GeneratedMeshMap::ValueType* it = GeneratedMeshes.Find(Key);
         if ( it )
         {
@@ -1322,7 +1324,7 @@ namespace mu
 		// Apply the modifier for the pre-normal operations stage.
 		TArray<FirstPassGenerator::FModifier> Modifiers;
 		constexpr bool bModifiersForBeforeOperations = true;
-		GetModifiersFor(InOptions.ComponentId, InOptions.ActiveTags, bModifiersForBeforeOperations, Modifiers);
+		GetModifiersFor(InOptions.ActiveTags, bModifiersForBeforeOperations, Modifiers);
 
 		OutResult.MeshOp = ApplyMeshModifiers(Modifiers, InOptions, OutResult, nullptr, InNode->GetMessageContext(), InNode);
     }

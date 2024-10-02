@@ -36,8 +36,7 @@ public:
 	Ptr<ASTOp> Clone(MapChildFuncRef mapChild) const override;
 	void ForEachChild(const TFunctionRef<void(ASTChild&)>) override;
 	void Link(FProgram& program, FLinkerOptions* Options) override;
-	virtual FSourceDataDescriptor GetSourceDataDescriptor(FGetSourceDataDescriptorContext*) const override;
-
+	FSourceDataDescriptor GetSourceDataDescriptor(FGetSourceDataDescriptorContext*) const override;
 };
 
 }
