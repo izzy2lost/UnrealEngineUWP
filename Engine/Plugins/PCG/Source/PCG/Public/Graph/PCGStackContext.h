@@ -144,6 +144,9 @@ public:
 	/** Stack has a frame corresponding to the given object. */
 	bool HasObject(const UObject* InObject) const;
 
+	/** Utility function to replace the root object, in case of re-instantiation. Returns true if a replacement happened. */
+	bool ReplaceRoot(const TMap<UObject*, UObject*>& ReplacementMap);
+
 	bool operator==(const FPCGStack& Other) const;
 	bool operator!=(const FPCGStack& Other) const { return !(*this == Other); }
 

@@ -201,6 +201,36 @@ bool FPCGStack::HasObject(const UObject* InObject) const
 	});
 }
 
+bool FPCGStack::ReplaceRoot(const TMap<UObject*, UObject*>& ReplacementMap)
+{
+	if (!StackFrames.IsEmpty())
+	{
+		UObject* NewStackRoot = ReplacementMap.FindRef(StackFrames[0].Object.Get());
+
+		// If the stack frame was marked as garbage, NewStackRoot will be nullptr, but we still match against the object ptr hash.
+		if (!NewStackRoot)
+		{
+			for (const TPair<UObject*, UObject*>& Pair : ReplacementMap)
+			{
+				// TODO: If we ever have a replacement where the name changed, this won't work.
+				// We might need to have a serialization pointer (soft) and an execution pointer (weak).
+				if (Pair.Key && Pair.Value && StackFrames[0].Object == Pair.Value)
+				{
+					NewStackRoot = Pair.Value;
+				}
+			}
+		}
+
+		if (NewStackRoot)
+		{
+			StackFrames[0].SetObject(NewStackRoot);
+			return true;
+		}
+	}
+
+	return false;
+}
+
 bool FPCGStack::operator==(const FPCGStack& Other) const
 {
 	// Stacks are the same if all stack frames are the same

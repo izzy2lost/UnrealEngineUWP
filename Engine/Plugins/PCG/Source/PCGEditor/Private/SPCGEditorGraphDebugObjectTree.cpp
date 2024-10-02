@@ -138,31 +138,7 @@ void FPCGEditorGraphDebugObjectItem::OnObjectsReplaced(const TMap<UObject*, UObj
 {
 	if (FPCGStack* Stack = GetMutablePCGStack())
 	{
-		TArray<FPCGStackFrame>& StackFrames = Stack->GetStackFramesMutable();
-		if (!StackFrames.IsEmpty())
-		{
-			UObject* NewStackRoot = ReplacementMap.FindRef(StackFrames[0].Object.Get());
-
-			// If the stack frame was marked as garbage, NewStackRoot will be nullptr, but we still match against the object path.
-			if (!NewStackRoot)
-			{
-				for(const TPair<UObject*, UObject*>& Pair : ReplacementMap)
-				{
-					if (Pair.Key && Pair.Value)
-					{
-						if (Pair.Key->GetPathName() == StackFrames[0].Object.ToString())
-						{
-							NewStackRoot = Pair.Value;
-						}
-					}
-				}
-			}
-
-			if (NewStackRoot)
-			{
-				StackFrames[0].SetObject(NewStackRoot);
-			}
-		}
+		Stack->ReplaceRoot(ReplacementMap);
 	}
 }
 
@@ -435,12 +411,25 @@ void SPCGEditorGraphDebugObjectTree::OnObjectsReplaced(const TMap<UObject*, UObj
 		}
 	}
 
-	// While we'll update the selected original component here (might make stack matching more efficient),
-	// we will not update the previously selected stack, as the selection will be redone anyway.
+	// We need to replace the selected component, selected stacks and expanded stacks as they are used for selection matching.
 	if (UObject* NewComponent = ReplacementMap.FindRef(SelectedOriginalComponent.GetEvenIfUnreachable()))
 	{
 		SelectedOriginalComponent = Cast<UPCGComponent>(NewComponent);
 	}
+
+	SelectedStack.ReplaceRoot(ReplacementMap);
+
+	// For the expanded stacks, since it is a set, if we ever modify the root, we should probably re-hash it.
+	// We can't modify it in place so we'll just rebuild it.
+	TSet<FPCGStack> UpdatedExpandedStacks;
+	UpdatedExpandedStacks.Reserve(ExpandedStacks.Num());
+	for (FPCGStack& Stack : ExpandedStacks)
+	{
+		Stack.ReplaceRoot(ReplacementMap);
+		UpdatedExpandedStacks.Add(std::move(Stack));
+	}
+	
+	ExpandedStacks = std::move(UpdatedExpandedStacks);
 }
 
 void SPCGEditorGraphDebugObjectTree::SetNodeBeingInspected(const UPCGNode* InPCGNode)
@@ -877,8 +866,9 @@ void SPCGEditorGraphDebugObjectTree::SortTreeItems(bool bIsAscending, bool bIsRe
 
 void SPCGEditorGraphDebugObjectTree::RestoreTreeState()
 {
-	// Try to restore user item expansion.
-	TSet<FPCGStack> ExpandedStacksBefore = ExpandedStacks;
+	// Try to restore user item expansion. We can't modify ExpandedStack, so we'll rebuild it.
+	TSet<FPCGStack> ExpandedStacksBefore = std::move(ExpandedStacks);
+	ExpandedStacks.Empty(ExpandedStacksBefore.Num());
 	for (const FPCGStack& ExpandedStack : ExpandedStacksBefore)
 	{
 		for (FPCGEditorGraphDebugObjectItemPtr& Item : AllGraphItems)
