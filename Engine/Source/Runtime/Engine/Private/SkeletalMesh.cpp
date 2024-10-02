@@ -7567,11 +7567,7 @@ int32 FSkeletalMeshSceneProxy::GetCurrentLODIndex()
  */
 void FSkeletalMeshSceneProxy::DebugDrawPhysicsAsset(int32 ViewIndex, FMeshElementCollector& Collector, const FEngineShowFlags& EngineShowFlags) const
 {
-	FMatrix ProxyLocalToWorld, WorldToLocal;
-	if (!GetWorldMatrices(ProxyLocalToWorld, WorldToLocal))
-	{
-		return; // Cannot draw this, world matrix not valid
-	}
+	const FMatrix& ProxyLocalToWorld = GetLocalToWorld(); 
 
 	FMatrix ScalingMatrix = ProxyLocalToWorld;
 	FVector TotalScale = ScalingMatrix.ExtractScaling();
@@ -7616,11 +7612,7 @@ void FSkeletalMeshSceneProxy::DebugDrawPoseWatchSkeletons(int32 ViewIndex, FMesh
 void FSkeletalMeshSceneProxy::DebugDrawSkeleton(int32 ViewIndex, FMeshElementCollector& Collector, const FEngineShowFlags& EngineShowFlags) const
 {
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	FMatrix ProxyLocalToWorld, WorldToLocal;
-	if (!GetWorldMatrices(ProxyLocalToWorld, WorldToLocal))
-	{
-		return; // Cannot draw this, world matrix not valid
-	}
+	const FMatrix& ProxyLocalToWorld = GetLocalToWorld();
 
 	// Can't draw this, don't have ComponentSpaceTransforms. This happens with sk meshes rendered with FSkeletalMeshObjectStatic.
 	if (!MeshObject->GetComponentSpaceTransforms())
