@@ -2584,12 +2584,12 @@ FTextureResource* FStaticMeshSceneProxyDesc::GetMeshPaintTextureResource() const
 FStaticMeshSceneProxyDesc::FStaticMeshSceneProxyDesc(const UStaticMeshComponent* InComponent)
 	: FStaticMeshSceneProxyDesc()
 {	
-	InitializeFrom(InComponent);
+	InitializeFromStaticMeshComponent(InComponent);
 }
 
-void FStaticMeshSceneProxyDesc::InitializeFrom(const UStaticMeshComponent* InComponent)
+void FStaticMeshSceneProxyDesc::InitializeFromStaticMeshComponent(const UStaticMeshComponent* InComponent)
 {
-	FPrimitiveSceneProxyDesc::InitializeFrom(InComponent);	
+	InitializeFromPrimitiveComponent(InComponent);	
 
 	StaticMesh = InComponent->GetStaticMesh();
 	OverrideMaterials = const_cast<UStaticMeshComponent*>(InComponent)->OverrideMaterials;	

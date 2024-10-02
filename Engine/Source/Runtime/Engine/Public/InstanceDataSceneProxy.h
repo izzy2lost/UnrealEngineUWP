@@ -9,6 +9,7 @@
 #include "Rendering/RenderingSpatialHash.h"
 
 class FPrimitiveDrawInterface;
+class FStaticMeshInstanceBuffer;
 
 class FInstanceIdIndexMap
 {
@@ -440,6 +441,10 @@ public:
 
 	ENGINE_API virtual void DebugDrawInstanceChanges(FPrimitiveDrawInterface* DebugPDI, ESceneDepthPriorityGroup SceneDepthPriorityGroup) {};
 
+	/**
+	 * Workaround to support the ISMC non GPU scene rendering path.
+	 */
+	virtual ENGINE_API FStaticMeshInstanceBuffer* GetLegacyInstanceBuffer() { return nullptr; }
 
 protected:
 	ENGINE_API void IncStatCounters();

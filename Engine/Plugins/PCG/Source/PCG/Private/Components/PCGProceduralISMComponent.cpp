@@ -9,8 +9,10 @@
 #include "MeshSelectors/PCGISMDescriptor.h"
 
 #include "InstanceDataSceneProxy.h"
+#include "InstancedStaticMeshSceneProxyDesc.h"
 #include "NaniteSceneProxy.h"
 #include "SceneInterface.h"
+#include "StaticMeshSceneProxyDesc.h"
 #include "Engine/StaticMesh.h"
 #include "Serialization/ArchiveCrc32.h"
 #include "VT/RuntimeVirtualTexture.h"
@@ -222,6 +224,17 @@ FPrimitiveSceneProxy* UPCGProceduralISMComponent::CreateStaticMeshSceneProxy(Nan
 {
 	LLM_SCOPE(ELLMTag::InstancedMesh);
 
+	if (!ensure(GetWorld()) || !ensure(GetWorld()->Scene))
+	{
+		return nullptr;
+	}
+	
+	if (!UseGPUScene(GetWorld()->Scene->GetShaderPlatform(), GetWorld()->Scene->GetFeatureLevel()))
+	{
+		UE_LOG(LogPCG, Warning, TEXT("PCGProceduralISMComponent depends on GPUScene functionality which is not available on this platform, component will not render."));
+		return nullptr;
+	}
+
 	if (CheckPSOPrecachingAndBoostPriority() && GetPSOPrecacheProxyCreationStrategy() == EPSOPrecacheProxyCreationStrategy::DelayUntilPSOPrecached)
 	{
 		UE_LOG(LogPCG, Verbose, TEXT("Skipping CreateSceneProxy for PCGProceduralISMComponent %s (PCGProceduralISMComponent PSOs are still compiling)"), *GetFullName());
@@ -229,32 +242,37 @@ FPrimitiveSceneProxy* UPCGProceduralISMComponent::CreateStaticMeshSceneProxy(Nan
 	}
 
 	FInstanceSceneDataBuffers InstanceSceneDataBuffers(/*InbInstanceDataIsGPUOnly=*/true);
+	{
+		FInstanceSceneDataBuffers::FAccessTag AccessTag(PointerHash(this));
+		FInstanceSceneDataBuffers::FWriteView ProxyData = InstanceSceneDataBuffers.BeginWriteAccess(AccessTag);
 
-	FInstanceSceneDataBuffers::FAccessTag AccessTag(PointerHash(this));
-	FInstanceSceneDataBuffers::FWriteView ProxyData = InstanceSceneDataBuffers.BeginWriteAccess(AccessTag);
+		InstanceSceneDataBuffers.SetPrimitiveLocalToWorld(GetRenderMatrix(), AccessTag);
 
-	InstanceSceneDataBuffers.SetPrimitiveLocalToWorld(GetRenderMatrix(), AccessTag);
+		ProxyData.NumInstancesGPUOnly = GetNumInstances();
+		ProxyData.NumCustomDataFloats = GetNumCustomDataFloats();
+		ProxyData.InstanceLocalBounds.SetNum(1);
+		ProxyData.InstanceLocalBounds[0] = GetStaticMesh()->GetBounds();
 
-	ProxyData.NumInstancesGPUOnly = GetNumInstances();
-	ProxyData.NumCustomDataFloats = GetNumCustomDataFloats();
-	ProxyData.InstanceLocalBounds.SetNum(1);
-	ProxyData.InstanceLocalBounds[0] = GetStaticMesh()->GetBounds();
+		ProxyData.Flags.bHasPerInstanceCustomData = ProxyData.NumCustomDataFloats > 0;
 
-	ProxyData.Flags.bHasPerInstanceCustomData = ProxyData.NumCustomDataFloats > 0;
+		InstanceSceneDataBuffers.EndWriteAccess(AccessTag);
+		InstanceSceneDataBuffers.ValidateData();
+	}
 
-	InstanceSceneDataBuffers.EndWriteAccess(AccessTag);
-	InstanceSceneDataBuffers.ValidateData();
-
-	auto InstanceDataSceneProxy = MakeShared<FInstanceDataSceneProxy, ESPMode::ThreadSafe>(MoveTemp(InstanceSceneDataBuffers));
+	FInstancedStaticMeshSceneProxyDesc Desc;
+	Desc.InitializeFromStaticMeshComponent(this);
+	Desc.InstanceDataSceneProxy = MakeShared<FInstanceDataSceneProxy, ESPMode::ThreadSafe>(MoveTemp(InstanceSceneDataBuffers));
+	Desc.InstanceStartCullDistance = InstanceStartCullDistance;
+	Desc.InstanceEndCullDistance = InstanceEndCullDistance;
+	Desc.bUseGpuLodSelection = true;
 
 	if (bCreateNanite)
 	{
-		return ::new Nanite::FSceneProxy(NaniteMaterials, this, InstanceDataSceneProxy);
+		return ::new Nanite::FSceneProxy(NaniteMaterials, Desc);
 	}
 	else
 	{
-		UE_LOG(LogPCG, Warning, TEXT("Only Nanite meshes are supported by PCGProceduralISMComponent currently, component will not render."));
-		return nullptr;
+		return ::new FInstancedStaticMeshSceneProxy(Desc, GetWorld()->GetFeatureLevel());
 	}
 }
 

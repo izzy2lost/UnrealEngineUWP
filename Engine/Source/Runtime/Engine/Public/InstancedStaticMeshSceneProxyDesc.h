@@ -11,9 +11,13 @@ struct FInstancedStaticMeshSceneProxyDesc : public FStaticMeshSceneProxyDesc
 {		
 	FInstancedStaticMeshSceneProxyDesc() = default;
 	ENGINE_API FInstancedStaticMeshSceneProxyDesc(UInstancedStaticMeshComponent*);
-	void InitializeFrom(UInstancedStaticMeshComponent*);
 
-	TSharedPtr<FISMCInstanceDataSceneProxy, ESPMode::ThreadSafe> InstanceDataSceneProxy;
+	void InitializeFromInstancedStaticMeshComponent(UInstancedStaticMeshComponent*);
+
+	UE_DEPRECATED(5.5, "Use InitializeFromInstancedStaticMeshComponent instead.")
+	void InitializeFrom(UInstancedStaticMeshComponent* InComponent) { InitializeFromInstancedStaticMeshComponent(InComponent); }
+
+	TSharedPtr<FInstanceDataSceneProxy, ESPMode::ThreadSafe> InstanceDataSceneProxy;
 #if WITH_EDITOR
 	bool bHasSelectedInstances = false;
 #endif

@@ -1053,7 +1053,7 @@ void FScene::AddGeometryInstanceFromComponent(UInstancedStaticMeshComponent* InC
 		{
 			TaskInfo->WaitForUpdateCompletion();
 		}
-		InstanceRenderState.InstanceSceneDataBuffers = &InstanceRenderState.InstanceDataSceneProxy->GetData();
+		InstanceRenderState.InstanceSceneDataBuffers = InstanceRenderState.InstanceDataSceneProxy->GeInstanceSceneDataBuffers();
 		InstanceRenderState.NumInstances = InstanceRenderState.InstanceSceneDataBuffers->GetNumInstances();
 
 		FInstanceGroupRenderStateRef InstanceRenderStateRef = RenderState.InstanceGroupRenderStates.Emplace(MoveTemp(InstanceRenderState));
