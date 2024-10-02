@@ -130,22 +130,25 @@ void SCustomizableObjecEditorTextureAnalyzer::FillTextureAnalyzerTable(UCustomiz
 
 	if (PreviewInstance && PreviewInstance->HasAnySkeletalMesh())
 	{
+		const UCustomizableObject* CustomizableObject = PreviewInstance->GetCustomizableObject();
+		check(CustomizableObject)
+
 		for (int32 ComponentIndex = 0; ComponentIndex < PreviewInstance->GetNumComponents(); ++ComponentIndex)
 		{
-			if (PreviewInstance->GetSkeletalMesh(ComponentIndex))
+			const FName ComponentName = CustomizableObject->GetComponentName(ComponentIndex);
+			
+			if (const USkeletalMesh* SkeletalMesh = PreviewInstance->GetComponentMeshSkeletalMesh(ComponentName))
 			{
-				for (int i = 0; i < PreviewInstance->GetSkeletalMesh(ComponentIndex)->GetMaterials().Num(); ++i)
+				for (int MaterialIndex = 0; MaterialIndex < SkeletalMesh->GetMaterials().Num(); ++MaterialIndex)
 				{
-					UMaterialInterface* MaterialInterface = PreviewInstance->GetSkeletalMesh(ComponentIndex)->GetMaterials()[i].MaterialInterface;
-					UMaterialInstance* Material = Cast<UMaterialInstance>(MaterialInterface);
-					FString MaterialPath = MaterialInterface->GetPathName();
+					UMaterialInstance* Material = Cast<UMaterialInstance>(SkeletalMesh->GetMaterials()[MaterialIndex].MaterialInterface);
 
 					// We just want the Transient materials
-					if (Material && MaterialPath.Contains("Transient"))
+					if (Material && Material->GetPathName().Contains("Transient"))
 					{
-						for (int32 j = 0; j < Material->TextureParameterValues.Num(); ++j)
+						for (int32 TextureIndex = 0; TextureIndex < Material->TextureParameterValues.Num(); ++TextureIndex)
 						{
-							UTexture* Texture = Material->TextureParameterValues[j].ParameterValue;
+							UTexture* Texture = Material->TextureParameterValues[TextureIndex].ParameterValue;
 							if (!Texture) continue;
 
 							FString TextPath = Texture->GetPathName();
@@ -160,7 +163,7 @@ void SCustomizableObjecEditorTextureAnalyzer::FillTextureAnalyzerTable(UCustomiz
 								//Texture Info
 								Entry->Texture = Texture;
 								Entry->TextureName = Texture->GetName();
-								Entry->TextureParameterName = Material->TextureParameterValues[j].ParameterInfo.Name.ToString();
+								Entry->TextureParameterName = Material->TextureParameterValues[TextureIndex].ParameterInfo.Name.ToString();
 								Entry->ResolutionX = Cast<UTexture2D>(Texture)->GetSizeX();
 								Entry->ResolutionY = Cast<UTexture2D>(Texture)->GetSizeY();
 								Entry->LODBias = Texture->GetCachedLODBias();
@@ -171,8 +174,8 @@ void SCustomizableObjecEditorTextureAnalyzer::FillTextureAnalyzerTable(UCustomiz
 								Entry->LODGroup = Texture->LODGroup;
 
 								//Material Info
-								Entry->Material = MaterialInterface;
-								Entry->MaterialName = MaterialInterface->GetName();
+								Entry->Material = Material;
+								Entry->MaterialName = Material->GetName();
 								Entry->ParentMaterial = Material->Parent;
 								Entry->MaterialParameterName = Material->Parent ? Material->Parent->GetName() : FString();
 								Entry->Component = ComponentIndex;
