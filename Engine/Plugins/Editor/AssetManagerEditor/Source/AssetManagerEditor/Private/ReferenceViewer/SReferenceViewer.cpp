@@ -2487,7 +2487,7 @@ void SReferenceViewer::ResolveReferencingProperties() const
 			MainResolveTask.EnterProgressFrame(
 				1.0f,
 				FText::Format(
-					LOCTEXT("ReferencingProperties_ResolveTaskDialog", "Resolving Referencing Properties for {0}"),
+					LOCTEXT("ReferencingProperties_ResolveTaskDialogDetail", "Resolving Referencing Properties for {0}"),
 					FText::FText::FromName(ReferencedNode->GetAssetData().AssetName)
 				)
 			);
