@@ -8,7 +8,6 @@
 #include "Containers/Ticker.h"
 #include "DaySequenceActor.h"
 #include "DaySequenceConditionSet.h"
-#include "DrawDebugHelpers.h"	// Defines ENABLE_DRAW_DEBUG
 #include "Generators/MovieSceneEasingFunction.h"
 
 #include "DaySequenceModifierComponent.generated.h"
@@ -25,7 +24,7 @@ class UMovieSceneSubSection;
 
 struct FDaySequenceCollectionEntry;
 
-#if ENABLE_DRAW_DEBUG
+#if DAY_SEQUENCE_ENABLE_DRAW_DEBUG
 namespace UE::DaySequence
 {
 	struct FDaySequenceDebugEntry;
@@ -374,8 +373,8 @@ private:
 
 	UE::DaySequence::FOnInvalidateMuteStates OnInvalidateMuteStates;
 	
-#if ENABLE_DRAW_DEBUG
-	const FName ShowDebug_ModifierCategory = "DaySequence_Modifiers";
+#if DAY_SEQUENCE_ENABLE_DRAW_DEBUG
+	const FName ShowDebug_ModifierCategory = "DaySequenceModifiers";
 	
 	void OnDebugLevelChanged(int32 InDebugLevel);
 	bool ShouldShowDebugInfo() const;
