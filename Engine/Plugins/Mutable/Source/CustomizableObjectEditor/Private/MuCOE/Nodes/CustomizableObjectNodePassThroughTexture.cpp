@@ -14,14 +14,14 @@ void UCustomizableObjectNodePassThroughTexture::BackwardsCompatibleFixup(int32 C
 	
 	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::AddedAnyTextureTypeToPassThroughTextures)
 	{
-		if (Texture)
+		if (Texture_DEPRECATED)
 		{
 			if (!PassThroughTexture)
 			{
-				PassThroughTexture = Texture;
+				PassThroughTexture = Texture_DEPRECATED;
 			}
 
-			Texture = nullptr;
+			Texture_DEPRECATED = nullptr;
 		}
 	}
 }
@@ -39,10 +39,10 @@ void UCustomizableObjectNodePassThroughTexture::AllocateDefaultPins(UCustomizabl
 
 FText UCustomizableObjectNodePassThroughTexture::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	if (Texture)
+	if (PassThroughTexture)
 	{
 		FFormatNamedArguments Args;
-		Args.Add(TEXT("TextureName"), FText::FromString(Texture->GetName()));
+		Args.Add(TEXT("TextureName"), FText::FromString(PassThroughTexture->GetName()));
 
 		return FText::Format(LOCTEXT("Passthrough Texture_Title", "{TextureName}\nPassthrough Texture"), Args);
 	}
@@ -64,5 +64,12 @@ FText UCustomizableObjectNodePassThroughTexture::GetTooltipText() const
 {
 	return LOCTEXT("PassThrough_Texture_Tooltip", "Defines a pass-through texture. It will not be modified by Mutable in any way, just referenced as a UE asset. It's much cheaper than a Mutable texture, but you cannot make any operations on it, just switch it.");
 }
+
+
+TObjectPtr<UTexture> UCustomizableObjectNodePassThroughTexture::GetTexture()
+{
+	return PassThroughTexture;
+}
+
 
 #undef LOCTEXT_NAMESPACE

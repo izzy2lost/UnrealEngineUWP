@@ -2,15 +2,16 @@
 
 #include "MuCOE/Nodes/CustomizableObjectNodeTexture.h"
 
-#include "ISinglePropertyView.h"
-#include "Modules/ModuleManager.h"
+#include "MuCOE/Nodes/CustomizableObjectNodePassThroughTexture.h"
 #include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCOE/CustomizableObjectEditorStyle.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
+#include "ISinglePropertyView.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SOverlay.h"
+#include "Modules/ModuleManager.h"
 
 class UCustomizableObjectNodeRemapPins;
 struct FGeometry;
@@ -71,6 +72,12 @@ FLinearColor UCustomizableObjectNodeTexture::GetNodeTitleColor() const
 }
 
 
+TObjectPtr<UTexture> UCustomizableObjectNodeTexture::GetTexture()
+{
+	return Texture;
+}
+
+
 FText UCustomizableObjectNodeTexture::GetTooltipText() const
 {
 	return LOCTEXT("Texture_Tooltip", "Defines a texture.");
@@ -87,9 +94,21 @@ void SGraphNodeTexture::Construct(const FArguments& InArgs, UEdGraphNode* InGrap
 	SingleDetails.NamePlacement = EPropertyNamePlacement::Hidden;
 	SingleDetails.bHideAssetThumbnail = true;
 
-	TextureSelector = PropPlugin.CreateSingleProperty(NodeTexture, "Texture", SingleDetails);
+	if (Cast<UCustomizableObjectNodeTexture>(InGraphNode))
+	{
+		TextureSelector = PropPlugin.CreateSingleProperty(NodeTexture, "Texture", SingleDetails);
+	}
+	else if (Cast<UCustomizableObjectNodePassThroughTexture>(InGraphNode))
+	{
+		TextureSelector = PropPlugin.CreateSingleProperty(NodeTexture, "PassThroughTexture", SingleDetails);
+	}
+	else
+	{
+		// Node type not supported.
+		ensure(false);
+	}
 
-	TextureBrush.SetResourceObject(NodeTexture->Texture);
+	TextureBrush.SetResourceObject(NodeTexture->GetTexture());
 	TextureBrush.ImageSize.X = 128.0f;
 	TextureBrush.ImageSize.Y = 128.0f;
 	TextureBrush.DrawAs = ESlateBrushDrawType::Image;
@@ -194,13 +213,11 @@ EVisibility SGraphNodeTexture::ExpressionPreviewVisibility() const
 
 void SGraphNodeTexture::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
-	UTexture2D* BrushTexture = Cast<UTexture2D>(TextureBrush.GetResourceObject());
-	
-	if (NodeTexture && BrushTexture)
+	if (NodeTexture)
 	{
-		if (NodeTexture->Texture != BrushTexture)
+		if (NodeTexture->GetTexture() != TextureBrush.GetResourceObject())
 		{
-			TextureBrush.SetResourceObject(NodeTexture->Texture);
+			TextureBrush.SetResourceObject(NodeTexture->GetTexture());
 		}
 	}
 }

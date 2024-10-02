@@ -18,12 +18,20 @@ public:
 
 	// UCustomizableObjectNode interface
 	virtual void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion) override;
-
-	// UCustomizableObjectNode interface
 	void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
+
+	// UCustomizableObjectNodeTextureBase interface
+	virtual TObjectPtr<UTexture> GetTexture() override;
 
 	// Begin EdGraphNode interface
 	FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
 	FLinearColor GetNodeTitleColor() const override;
 	FText GetTooltipText() const override;
+
+private:
+
+	// For backwards compatibility
+	UPROPERTY()
+	TObjectPtr<UTexture2D> Texture_DEPRECATED = nullptr;
+
 };
