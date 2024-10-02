@@ -3909,6 +3909,10 @@ void FMVVMViewBlueprintCompiler::PreCompileViewExtensions(UWidgetBlueprintGenera
 								{
 									return LastSourceField.GetProperty();
 								}
+								else if (LastSourceField.IsFunction())
+								{
+									return BindingHelper::GetReturnProperty(LastSourceField.GetFunction());
+								}
 							}
 						}
 					}
