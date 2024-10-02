@@ -614,6 +614,7 @@ void FAnimationViewportClient::HandleSkeletalMeshChanged(USkeletalMesh* OldSkele
 void FAnimationViewportClient::HandleOnMeshChanged()
 {
 	UpdateCameraSetup();
+	UpdateBonesToDraw();
 	Invalidate();
 }
 
@@ -953,7 +954,7 @@ void FAnimationViewportClient::ShowBoneNames( FCanvas* Canvas, FSceneView* View,
 	{
 		const int32 BoneIndex = LODData.RequiredBones[i];
 
-		if (!BonesToDraw[BoneIndex])
+		if (!BonesToDraw.IsValidIndex(BoneIndex) || !BonesToDraw[BoneIndex])
 		{
 			continue;
 		}

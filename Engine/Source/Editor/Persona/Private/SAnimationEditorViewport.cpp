@@ -1258,6 +1258,8 @@ void SAnimationEditorViewportTabBody::OnShowBoneNames()
 		InMesh->MarkRenderStateDirty();
 	});
 	RefreshViewport();
+
+	GetAnimationViewportClient()->UpdateBonesToDraw();
 }
 
 void SAnimationEditorViewportTabBody::OnShowRawAnimation()
