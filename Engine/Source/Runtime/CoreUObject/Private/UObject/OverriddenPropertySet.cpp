@@ -6,6 +6,7 @@
 #include "Serialization/ArchiveSerializedPropertyChain.h"
 #include "UObject/PropertyOptional.h"
 #include "Misc/ScopeExit.h"
+#include "UObject/UObjectArchetypeHelper.h"
 #include "UObject/UObjectThreadContext.h"
 
 /*
@@ -1099,14 +1100,6 @@ void FOverriddenPropertySet::RemoveOverriddenSubProperties(FOverriddenPropertyNo
 	PropertyNode.SubPropertyNodeKeys.Empty();
 }
 
-void FOverriddenPropertySet::CacheArchetype()
-{
-	if (!CachedArchetype)
-	{
-		CachedArchetype = Owner->GetArchetype();
-	}
-}
-
 EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperation(FPropertyVisitorPath::Iterator PropertyIterator, bool* bOutInheritedOperation /*= nullptr*/) const
 {
 	if (const FOverriddenPropertyNode* RootNode = OverriddenPropertyNodes.Find(RootNodeID))
@@ -1270,12 +1263,14 @@ void FOverriddenPropertySet::Reset()
 
 void FOverriddenPropertySet::HandleObjectsReInstantiated(const TMap<UObject*, UObject*>& Map)
 {
-	// When the saved archetype is set, it is an indicator this object is about to be replaced
+#if WITH_EDITOR
+	// When their is a cached archetype, it is an indicator this object is about to be replaced
 	// So no need to replace any ptr, otherwise we might not be able to reconstitute the right information
-	if (CachedArchetype)
+	if (FEditorCacheArchetypeManager::Get().GetCachedArchetype(Owner))
 	{
 		return;
 	}
+#endif // WITH_EDITOR
 
 	for (FOverriddenPropertyNode& Node : OverriddenPropertyNodes)
 	{

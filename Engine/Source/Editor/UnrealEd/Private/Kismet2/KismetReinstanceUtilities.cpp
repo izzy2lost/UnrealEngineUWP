@@ -47,6 +47,7 @@
 #include "UObject/OverridableManager.h"
 #include "UObject/PropertyOptional.h"
 #include "UObject/PropertyBagRepository.h"
+#include "UObject/UObjectArchetypeHelper.h"
 #include "ProfilingDebugging/LoadTimeTracker.h"
 
 DECLARE_CYCLE_STAT(TEXT("Replace Instances"), EKismetReinstancerStats_ReplaceInstancesOfClass, STATGROUP_KismetReinstancer );
@@ -2211,8 +2212,6 @@ static void ReplaceObjectHelper(UObject*& OldObject, UClass* OldClass, UObject*&
 
 	FName OldName(OldObject->GetFName());
 
-	UObject* OldArchetype = nullptr;
-
 	// If the old object is in this table, we've already renamed it away in a previous iteration. Don't rename it again!
 	if (!OldToNewNameMap.Contains(OldObject))
 	{
@@ -2234,7 +2233,6 @@ static void ReplaceObjectHelper(UObject*& OldObject, UClass* OldClass, UObject*&
 		}
 		else
 		{
-			OldArchetype = OldObject->GetArchetype(); // Cache the old object's archetype before renaming
 			OldObject->Rename(nullptr, OldObject->GetOuter(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_AllowPackageLinkerMismatch);
 		}
 	}
@@ -2303,15 +2301,6 @@ static void ReplaceObjectHelper(UObject*& OldObject, UClass* OldClass, UObject*&
 	// We only need to copy properties of the pre-created instances, the rest of the default sub object is done inside the UEditorEngine::CopyPropertiesForUnrelatedObjects
 	for (const auto& Pair : OrderedListOfObjectToCopy)
 	{
-		if (Pair.Key == OldObject)
-		{
-			// If we're copying the object itself, make sure to use the archetype that was cached before
-			Options.SourceObjectArchetype = OldArchetype;
-		}
-		else
-		{
-			Options.SourceObjectArchetype = nullptr;
-		}
 		UEditorEngine::CopyPropertiesForUnrelatedObjects(Pair.Key, Pair.Value, Options);
 	}
 
@@ -2652,6 +2641,8 @@ void FBlueprintCompileReinstancer::ReplaceInstancesOfClass_Inner(const TMap<UCla
 
 	{
 		TArray<UObject*> ObjectsToReplace;
+		TSet<UObject*> CachedArchetypeObjects;
+		FEditorCacheArchetypeManager& CacheManager = FEditorCacheArchetypeManager::Get();
 
 		BP_SCOPED_COMPILER_EVENT_STAT(EKismetReinstancerStats_ReplaceInstancesOfClass);
 
@@ -2727,23 +2718,26 @@ void FBlueprintCompileReinstancer::ReplaceInstancesOfClass_Inner(const TMap<UCla
 						}
 						return Dependencies;
 					});
+				}
 
-					// We need to cache the archetype of the objects about to be replaced 
-					// as it will not be possible to get them during this process as it renames the objects
-					for (UObject* OldObject : ObjectsToReplace)
+				// We need to cache the archetype of the objects about to be replaced 
+				// as it will not be possible to get them during this process as it renames the objects
+				// These cached archetypes will not be updated if they were set earlier
+				for (UObject* OldObject : ObjectsToReplace)
+				{
+					if(!IsValid(OldObject))
 					{
-						if(!IsValid(OldObject))
-						{
-							continue;
-						}
-
-						FOverridableManager::Get().CacheArchetype(*OldObject);
-
-						ForEachObjectWithOuter(OldObject, [](UObject* SubObject)
-						{
-							FOverridableManager::Get().CacheArchetype(*SubObject);
-						});
+						continue;
 					}
+
+					CacheManager.CacheArchetype(OldObject);
+					CachedArchetypeObjects.Add(OldObject);
+
+					ForEachObjectWithOuter(OldObject, [&CacheManager, &CachedArchetypeObjects](UObject* SubObject)
+					{
+						CacheManager.CacheArchetype(SubObject);
+						CachedArchetypeObjects.Add(SubObject);
+					});
 				}
 				
 				// Then fix 'real' (non archetype) instances of the class
@@ -2896,6 +2890,13 @@ void FBlueprintCompileReinstancer::ReplaceInstancesOfClass_Inner(const TMap<UCla
 				}
 			}
 		}
+
+		// Reset any cached archetypes
+		for (UObject* CachedArchetypeObject : CachedArchetypeObjects)
+		{
+			CacheManager.ResetCacheArchetype(CachedArchetypeObject);
+		}
+
 		if (GEngine)
 		{
 			GEngine->OnLevelActorDeleted().Remove(OnLevelActorDeletedHandle);
