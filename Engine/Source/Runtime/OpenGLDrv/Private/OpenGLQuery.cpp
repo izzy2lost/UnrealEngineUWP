@@ -780,8 +780,6 @@ struct FOpenGLGPUFenceProxy
 
 	void Write()
 	{
-		checkf(Fence == 0, TEXT("Fence must be cleared before re-using it."))
-		
 		if (Fence != 0)
 		{
 			FOpenGL::DeleteSync(Fence);
@@ -825,14 +823,8 @@ TArray<FOpenGLGPUFenceProxy*> FOpenGLGPUFenceProxy::AllOpenGLGPUFences;
 
 void OpenGL_PollAllFences()
 {
-	if (IsRunningRHIInSeparateThread())
-	{
-		RunOnGLRenderContextThread([]()
-		{
-			VERIFY_GL_SCOPE();
-			FOpenGLGPUFenceProxy::PollAllFences();
-		});
-	}
+	VERIFY_GL_SCOPE();
+	FOpenGLGPUFenceProxy::PollAllFences();
 }
 
 FGPUFenceRHIRef FOpenGLDynamicRHI::RHICreateGPUFence(const FName &Name)
@@ -848,16 +840,14 @@ FOpenGLGPUFence::FOpenGLGPUFence(FName InName)
 
 FOpenGLGPUFence::~FOpenGLGPUFence()
 {
-	RunOnGLRenderContextThread([Proxy = Proxy]()
-	{
-		VERIFY_GL_SCOPE();
-		delete Proxy;
-	});
+	VERIFY_GL_SCOPE();
+	delete Proxy;
 }
 
 void FOpenGLGPUFence::Clear()
 {
-	RunOnGLRenderContextThread([Proxy = Proxy]()
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+	RHICmdList.EnqueueLambda([Proxy = Proxy](FRHICommandListImmediate&)
 	{
 		VERIFY_GL_SCOPE();
 		delete Proxy;
@@ -883,7 +873,8 @@ bool FOpenGLGPUFence::Poll() const
 	}
 	else
 	{
-		RunOnGLRenderContextThread([Proxy = Proxy]()
+		FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+		RHICmdList.EnqueueLambda([Proxy = Proxy](FRHICommandListImmediate&)
 		{
 			VERIFY_GL_SCOPE();
 			check(Proxy != nullptr);

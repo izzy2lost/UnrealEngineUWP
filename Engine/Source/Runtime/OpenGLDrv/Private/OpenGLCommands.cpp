@@ -2720,7 +2720,8 @@ void FOpenGLDynamicRHI::RHIClearMRT(const bool* bClearColorArray,int32 NumClearC
 // Blocks the CPU until the GPU catches up and goes idle.
 void FOpenGLDynamicRHI::RHIBlockUntilGPUIdle()
 {
-	RunOnGLRenderContextThread([&]()
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+	RHICmdList.EnqueueLambda([&](FRHICommandListImmediate&)
 	{
 		FOpenGL::Flush();
 	});
@@ -2769,7 +2770,7 @@ void FOpenGLDynamicRHI::RHISetGraphicsPipelineState(FRHIGraphicsPipelineState* G
 	}
 
 	RHISetBoundShaderState(
-		RHICreateBoundShaderState_internal(
+		RHICreateBoundShaderState_Internal(
 			PsoInit.BoundShaderState.VertexDeclarationRHI,
 			PsoInit.BoundShaderState.VertexShaderRHI,
 			PsoInit.BoundShaderState.PixelShaderRHI,

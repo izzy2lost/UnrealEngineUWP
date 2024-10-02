@@ -1159,7 +1159,8 @@ void AndroidEGL::RefreshWindowSize()
 	ENQUEUE_RENDER_COMMAND(EGLResizeRenderContextSurface)(
 		[](FRHICommandListImmediate& RHICmdList)
 	{
-		RunOnGLRenderContextThread([&] {
+		RHICmdList.EnqueueLambda([](FRHICommandListImmediate&)
+		{
 			AndroidEGL::GetInstance()->ResizeRenderContextSurface();
 		});
 	});
@@ -1273,10 +1274,10 @@ void BlockOnLostWindowRenderCommand(TSharedPtr<FEvent, ESPMode::ThreadSafe> RTBl
 	// Hold GC scope guard, as GC will timeout if anything waits for RT fences.
 	FGCScopeGuard GCGuard;
 	
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 	UE_LOG(LogAndroid, Log, TEXT("Blocking renderer"));
 	if (FAndroidMisc::ShouldUseVulkan())
 	{
-		FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
 		if (IsRunningRHIInSeparateThread() && !RHICmdList.Bypass()) 
 		{
 			UE_LOG(LogAndroid, Log, TEXT("RendererBlock FlushRHIThread"));
@@ -1305,14 +1306,16 @@ void BlockOnLostWindowRenderCommand(TSharedPtr<FEvent, ESPMode::ThreadSafe> RTBl
 	}
 	else
 	{
-		RunOnGLRenderContextThread([&] {
+		RHICmdList.EnqueueLambda([RTBlockedTrigger](FRHICommandListImmediate&)
+		{
 			RTBlockedTrigger->Trigger();
 			GAndroidWindowLock.Lock();
 			UE_LOG(LogAndroid, Log, TEXT("RendererBlock acquired window lock"));
 			AndroidEGL::GetInstance()->SetRenderContextWindowSurface();
 			UE_LOG(LogAndroid, Log, TEXT("RendererBlock updating window"));
 			GAndroidWindowLock.Unlock();
-		}, true);
+		});
+		RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 	}
 	UE_LOG(LogAndroid, Log, TEXT("RendererBlock released window lock"));
 }

@@ -290,7 +290,8 @@ FOpenGLTexture::FOpenGLTexture(FOpenGLTexture& Other, const FString& Name, EAlia
 	, bAlias             (true)
 	, bMultisampleRenderbuffer(Other.bMultisampleRenderbuffer)
 {
-	RunOnGLRenderContextThread([&]()
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+	RHICmdList.EnqueueLambda([&](FRHICommandListImmediate&)
 	{
 		AliasResources(Other);
 	});
@@ -355,9 +356,7 @@ FOpenGLTexture::FOpenGLTexture(FRHICommandListBase& RHICmdList, FOpenGLTextureCr
 
 	if (CreateDesc.BulkData)
 	{
-// FORT-672412: speculative and temporary fix for create texture/lock happening out of order.
-		if (!ShouldRunGLRenderContextOpOnThisThread(RHICmdList))
-// 		if (RHICmdList.IsTopOfPipe())
+ 		if (RHICmdList.IsTopOfPipe())
 		{
 			// If bulk data is provided, and texture initialization is done by the RHI thread, it needs to be copied out of the FResourceBulkDataInterface.
 			// It is not safe to pass this pointer to the RHI thread, as the interface may have been stack allocated in the renderer.
@@ -376,9 +375,7 @@ FOpenGLTexture::FOpenGLTexture(FRHICommandListBase& RHICmdList, FOpenGLTextureCr
 			BulkDataPtr = const_cast<void*>(CreateDesc.BulkData->GetResourceBulkData());
 		}
 	}
-// 	FORT-672412: speculative and temporary fix for create texture/lock happening out of order.
-	RunOnGLRenderContextThread([this, BulkDataPtr, BulkDataSize, bFreeBulkData]()
-// 	RHICmdList.EnqueueLambda([this, BulkDataPtr, BulkDataSize, bFreeBulkData](FRHICommandListBase&)
+ 	RHICmdList.EnqueueLambda([this, BulkDataPtr, BulkDataSize, bFreeBulkData](FRHICommandListBase&)
 	{
 		FOpenGLDynamicRHI::Get().InitializeGLTexture(this, BulkDataPtr, BulkDataSize);
 		if (bFreeBulkData)
@@ -871,6 +868,7 @@ void FOpenGLTexture::Resolve(uint32 MipIndex,uint32 ArrayIndex)
 
 uint32 FOpenGLTexture::GetLockSize(uint32 InMipIndex, uint32 ArrayIndex, EResourceLockMode LockMode, uint32& DestStride)
 {
+	check(LockMode != EResourceLockMode::RLM_WriteOnly_NoOverwrite);
 	// Calculate the dimensions of the mip-map.
 	EPixelFormat PixelFormat = this->GetFormat();
 	const uint32 BlockSizeX = GPixelFormats[PixelFormat].BlockSizeX;
@@ -1537,7 +1535,7 @@ void FOpenGLDynamicRHI::RHIUpdateTexture2D(FRHICommandListBase& RHICmdList, FRHI
 	const void* UpdateMemory = SourceData + FormatInfo.BlockBytes * SrcXInBlocks + SourcePitch * SrcYInBlocks * FormatInfo.BlockSizeY;
 	uint32 UpdatePitch = SourcePitch;
 
-	const bool bNeedStagingMemory = !ShouldRunGLRenderContextOpOnThisThread(RHICmdList);
+	const bool bNeedStagingMemory = RHICmdList.IsTopOfPipe();
 	if (bNeedStagingMemory)
 	{
 		const size_t SourceDataSizeInBlocks = static_cast<size_t>(WidthInBlocks) * static_cast<size_t>(HeightInBlocks);
@@ -1618,7 +1616,7 @@ void FOpenGLDynamicRHI::RHIUpdateTexture2D(FRHICommandListBase& RHICmdList, FRHI
 void FOpenGLDynamicRHI::RHIUpdateTexture3D(FRHICommandListBase& RHICmdList, FRHITexture* TextureRHI, uint32 MipIndex, const FUpdateTextureRegion3D& UpdateRegion, uint32 SourceRowPitch, uint32 SourceDepthPitch, const uint8* SourceData)
 {
 	uint8* RHITSourceData = nullptr;
-	if (!ShouldRunGLRenderContextOpOnThisThread(RHICmdList))
+	if (RHICmdList.IsTopOfPipe())
 	{
 		uint32 DataSize = SourceDepthPitch * UpdateRegion.Depth;
 		RHITSourceData = (uint8*)FMemory::Malloc(DataSize, 16);
@@ -1926,16 +1924,17 @@ FTextureRHIRef FOpenGLDynamicRHI::RHICreateAliasedTexture(FTextureRHIRef& Source
 void* FOpenGLDynamicRHI::LockTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail, bool bNeedsDefaultRHIFlush, uint64* OutLockedByteCount)
 {
 	check(IsInRenderingThread());
-	static auto* CVarRHICmdBufferWriteLocks = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.RHICmdBufferWriteLocks"));
-	bool bBuffer = CVarRHICmdBufferWriteLocks->GetValueOnRenderThread() > 0;
+	check(LockMode != EResourceLockMode::RLM_WriteOnly_NoOverwrite);
 	void* Result;
 	uint32 MipBytes = 0;
-	if (!bBuffer || LockMode != RLM_WriteOnly || RHICmdList.Bypass() || !IsRunningRHIInSeparateThread())
+	if (LockMode != RLM_WriteOnly)
 	{
-		RHITHREAD_GLCOMMAND_PROLOGUE();
-		return this->RHILockTexture2D(Texture, MipIndex, LockMode, DestStride, bLockWithinMiptail, OutLockedByteCount);
-		RHITHREAD_GLCOMMAND_EPILOGUE_GET_RETURN(void *);
-		Result = ReturnValue;
+		RHICmdList.EnqueueLambda([this, &Result, Texture, MipIndex, LockMode, &DestStride, bLockWithinMiptail, OutLockedByteCount](FRHICommandListImmediate&)
+		{
+			Result = this->RHILockTexture2D(Texture, MipIndex, LockMode, DestStride, bLockWithinMiptail, OutLockedByteCount);
+		});
+		RHITHREAD_GLTRACE_BLOCKING;
+		RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 		MipBytes = ResourceCast(Texture)->GetLockSize(MipIndex, 0, LockMode, DestStride);
 	}
 	else
@@ -1957,19 +1956,18 @@ void* FOpenGLDynamicRHI::LockTexture2D_RenderThread(class FRHICommandListImmedia
 void FOpenGLDynamicRHI::UnlockTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 MipIndex, bool bLockWithinMiptail, bool bNeedsDefaultRHIFlush)
 {
 	check(IsInRenderingThread());
-	static auto* CVarRHICmdBufferWriteLocks = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.RHICmdBufferWriteLocks"));
-	bool bBuffer = CVarRHICmdBufferWriteLocks->GetValueOnRenderThread() > 0;
 	FTextureLockTracker::FLockParams Params = GLLockTracker.Unlock(Texture, 0, MipIndex);
-	if (!bBuffer || Params.LockMode != RLM_WriteOnly || RHICmdList.Bypass() || !IsRunningRHIInSeparateThread())
+	if (Params.LockMode != RLM_WriteOnly)
 	{
 		GLLockTracker.TotalMemoryOutstanding = 0;
-		RHITHREAD_GLCOMMAND_PROLOGUE();
-		this->RHIUnlockTexture2D(Texture, MipIndex, bLockWithinMiptail);
-		RHITHREAD_GLCOMMAND_EPILOGUE();
+		RHICmdList.EnqueueLambda([this, Texture, MipIndex, bLockWithinMiptail](FRHICommandListImmediate&)
+		{
+			this->RHIUnlockTexture2D(Texture, MipIndex, bLockWithinMiptail);
+		});
 	}
 	else
 	{
-		auto GLCommand = [this, Params, Texture, MipIndex, bLockWithinMiptail]()
+		RHICmdList.EnqueueLambda([this, Params, Texture, MipIndex, bLockWithinMiptail](FRHICommandListImmediate&)
 		{
 			uint32 DestStride;
 			uint64 LockedByteCount = ~0ULL;
@@ -1981,24 +1979,24 @@ void FOpenGLDynamicRHI::UnlockTexture2D_RenderThread(class FRHICommandListImmedi
 			FMemory::Memcpy(TexMem, BuffMem, Params.BufferSize);
 			FMemory::Free(Params.Buffer);
 			this->RHIUnlockTexture2D(Texture, MipIndex, bLockWithinMiptail);
-		};
-		ALLOC_COMMAND_CL(RHICmdList, FRHICommandGLCommand)(MoveTemp(GLCommand));
+		});
 	}
 }
 
 void* FOpenGLDynamicRHI::RHILockTextureCubeFace_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail)
 {
 	check(IsInRenderingThread());
-	static auto* CVarRHICmdBufferWriteLocks = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.RHICmdBufferWriteLocks"));
-	bool bBuffer = CVarRHICmdBufferWriteLocks->GetValueOnRenderThread() > 0;
+	check(LockMode != EResourceLockMode::RLM_WriteOnly_NoOverwrite);
 	void* Result;
 	uint32 MipBytes = 0;
-	if (!bBuffer || LockMode != RLM_WriteOnly || RHICmdList.Bypass() || !IsRunningRHIInSeparateThread())
+	if (LockMode != RLM_WriteOnly)
 	{
-		RHITHREAD_GLCOMMAND_PROLOGUE();
-		return this->RHILockTextureCubeFace(Texture, FaceIndex, ArrayIndex, MipIndex, LockMode, DestStride, bLockWithinMiptail);
-		RHITHREAD_GLCOMMAND_EPILOGUE_GET_RETURN(void *);
-		Result = ReturnValue;
+		RHICmdList.EnqueueLambda([this, &Result, Texture, FaceIndex, ArrayIndex, MipIndex, LockMode, &DestStride, bLockWithinMiptail](FRHICommandListImmediate&)
+		{
+			Result = this->RHILockTextureCubeFace(Texture, FaceIndex, ArrayIndex, MipIndex, LockMode, DestStride, bLockWithinMiptail);
+		});
+		RHITHREAD_GLTRACE_BLOCKING;
+		RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 		MipBytes = ResourceCast(Texture)->GetLockSize(MipIndex, 0, LockMode, DestStride);
 	}
 	else
@@ -2014,19 +2012,19 @@ void* FOpenGLDynamicRHI::RHILockTextureCubeFace_RenderThread(class FRHICommandLi
 void FOpenGLDynamicRHI::RHIUnlockTextureCubeFace_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, bool bLockWithinMiptail)
 {
 	check(IsInRenderingThread());
-	static auto* CVarRHICmdBufferWriteLocks = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.RHICmdBufferWriteLocks"));
-	bool bBuffer = CVarRHICmdBufferWriteLocks->GetValueOnRenderThread() > 0;
+
 	FTextureLockTracker::FLockParams Params = GLLockTracker.Unlock(Texture, ArrayIndex, MipIndex);
-	if (!bBuffer || Params.LockMode != RLM_WriteOnly || RHICmdList.Bypass() || !IsRunningRHIInSeparateThread())
+	if (Params.LockMode != RLM_WriteOnly)
 	{
 		GLLockTracker.TotalMemoryOutstanding = 0;
-		RHITHREAD_GLCOMMAND_PROLOGUE();
-		this->RHIUnlockTextureCubeFace(Texture, FaceIndex, ArrayIndex, MipIndex, bLockWithinMiptail);
-		RHITHREAD_GLCOMMAND_EPILOGUE();
+		RHICmdList.EnqueueLambda([this, Texture, FaceIndex, ArrayIndex, MipIndex, bLockWithinMiptail](FRHICommandListImmediate&)
+		{
+			this->RHIUnlockTextureCubeFace(Texture, FaceIndex, ArrayIndex, MipIndex, bLockWithinMiptail);
+		});
 	}
 	else
 	{
-		auto GLCommand = [this, Params, Texture, FaceIndex, ArrayIndex, MipIndex, bLockWithinMiptail]()
+		RHICmdList.EnqueueLambda([this, Params, Texture, FaceIndex, ArrayIndex, MipIndex, bLockWithinMiptail](FRHICommandListImmediate&)
 		{
 			uint32 DestStride;
 			uint8* TexMem = (uint8*)this->RHILockTextureCubeFace(Texture, FaceIndex, ArrayIndex, MipIndex, RLM_WriteOnly, DestStride, bLockWithinMiptail);
@@ -2035,24 +2033,26 @@ void FOpenGLDynamicRHI::RHIUnlockTextureCubeFace_RenderThread(class FRHICommandL
 			FMemory::Memcpy(TexMem, BuffMem, Params.BufferSize);
 			FMemory::Free(Params.Buffer);
 			this->RHIUnlockTextureCubeFace(Texture, FaceIndex, ArrayIndex, MipIndex, bLockWithinMiptail);
-		};
-		ALLOC_COMMAND_CL(RHICmdList, FRHICommandGLCommand)(MoveTemp(GLCommand));
+		});
 	}
 }
 
 void* FOpenGLDynamicRHI::LockTexture2DArray_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 ArrayIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail)
 {
 	check(IsInRenderingThread());
-	static auto* CVarRHICmdBufferWriteLocks = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.RHICmdBufferWriteLocks"));
-	bool bBuffer = CVarRHICmdBufferWriteLocks->GetValueOnRenderThread() > 0;
+	check(LockMode != EResourceLockMode::RLM_WriteOnly_NoOverwrite);
 	void* Result;
 	uint32 MipBytes = 0;
-	if (!bBuffer || LockMode != RLM_WriteOnly || RHICmdList.Bypass() || !IsRunningRHIInSeparateThread())
+
+	if (LockMode != RLM_WriteOnly)
 	{
-		RHITHREAD_GLCOMMAND_PROLOGUE();
-		return this->RHILockTexture2DArray(Texture, ArrayIndex, MipIndex, LockMode, DestStride, bLockWithinMiptail);
-		RHITHREAD_GLCOMMAND_EPILOGUE_GET_RETURN(void*);
-		Result = ReturnValue;
+		RHICmdList.EnqueueLambda([this, &Result, Texture, ArrayIndex, MipIndex, LockMode, &DestStride, bLockWithinMiptail](FRHICommandListImmediate&)
+		{
+			Result = this->RHILockTexture2DArray(Texture, ArrayIndex, MipIndex, LockMode, DestStride, bLockWithinMiptail);
+		});
+		RHITHREAD_GLTRACE_BLOCKING;
+		RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+
 		MipBytes = ResourceCast(Texture)->GetLockSize(MipIndex, ArrayIndex, LockMode, DestStride);
 	}
 	else
@@ -2069,19 +2069,18 @@ void* FOpenGLDynamicRHI::LockTexture2DArray_RenderThread(class FRHICommandListIm
 void FOpenGLDynamicRHI::UnlockTexture2DArray_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 ArrayIndex, uint32 MipIndex, bool bLockWithinMiptail)
 {
 	check(IsInRenderingThread());
-	static auto* CVarRHICmdBufferWriteLocks = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.RHICmdBufferWriteLocks"));
-	bool bBuffer = CVarRHICmdBufferWriteLocks->GetValueOnRenderThread() > 0;
 	FTextureLockTracker::FLockParams Params = GLLockTracker.Unlock(Texture, ArrayIndex, MipIndex);
-	if (!bBuffer || Params.LockMode != RLM_WriteOnly || RHICmdList.Bypass() || !IsRunningRHIInSeparateThread())
+	if (Params.LockMode != RLM_WriteOnly)
 	{
 		GLLockTracker.TotalMemoryOutstanding = 0;
-		RHITHREAD_GLCOMMAND_PROLOGUE();
-		this->RHIUnlockTexture2DArray(Texture, ArrayIndex, MipIndex, bLockWithinMiptail);
-		RHITHREAD_GLCOMMAND_EPILOGUE();
+		RHICmdList.EnqueueLambda([this, Texture, ArrayIndex, MipIndex, bLockWithinMiptail](FRHICommandListImmediate&)
+		{
+			this->RHIUnlockTexture2DArray(Texture, ArrayIndex, MipIndex, bLockWithinMiptail);
+		});
 	}
 	else
 	{
-		auto GLCommand = [this, Params, Texture, ArrayIndex, MipIndex, bLockWithinMiptail]()
+		RHICmdList.EnqueueLambda([this, Params, Texture, ArrayIndex, MipIndex, bLockWithinMiptail](FRHICommandListImmediate&)
 		{
 			uint32 DestStride;
 			uint8* TexMem = (uint8*)this->RHILockTexture2DArray(Texture, ArrayIndex, MipIndex, Params.LockMode, DestStride, bLockWithinMiptail);
@@ -2090,8 +2089,7 @@ void FOpenGLDynamicRHI::UnlockTexture2DArray_RenderThread(class FRHICommandListI
 			FMemory::Memcpy(TexMem, BuffMem, Params.BufferSize);
 			FMemory::Free(Params.Buffer);
 			this->RHIUnlockTexture2DArray(Texture, ArrayIndex, MipIndex, bLockWithinMiptail);
-		};
-		ALLOC_COMMAND_CL(RHICmdList, FRHICommandGLCommand)(MoveTemp(GLCommand));
+		});
 	}
 }
 

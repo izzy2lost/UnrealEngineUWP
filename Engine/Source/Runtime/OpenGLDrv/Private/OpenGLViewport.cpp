@@ -268,7 +268,7 @@ FOpenGLViewport::FOpenGLViewport(FOpenGLDynamicRHI* InOpenGLRHI,void* InWindowHa
 
 	ENQUEUE_RENDER_COMMAND(CreateFrameSyncEvent)([this](FRHICommandListImmediate& RHICmdList)
 	{
-		RunOnGLRenderContextThread([this]()
+		RHICmdList.EnqueueLambda([this](FRHICommandListImmediate&)
 		{
 			FrameSyncEvent = MakeUnique<FOpenGLEventQuery>();
 		});
@@ -288,11 +288,14 @@ FOpenGLViewport::~FOpenGLViewport()
 	BackBuffer.SafeRelease();
 	check(!IsValidRef(BackBuffer));
 
-	RunOnGLRenderContextThread([&]()
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+	RHICmdList.EnqueueLambda([&](FRHICommandListImmediate&)
 	{
 		FrameSyncEvent = nullptr;
 		PlatformDestroyOpenGLContext(OpenGLRHI->PlatformDevice, OpenGLContext);
-	}, true);
+	});
+	RHITHREAD_GLTRACE_BLOCKING;
+	RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 
 	OpenGLContext = NULL;
 	OpenGLRHI->Viewports.Remove(this);
