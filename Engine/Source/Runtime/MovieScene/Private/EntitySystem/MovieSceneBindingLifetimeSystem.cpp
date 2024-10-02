@@ -94,6 +94,11 @@ void UMovieSceneBindingLifetimeSystem::OnRun(FSystemTaskPrerequisites& InPrerequ
 						}
 					}
 				}
+				if (!bLink)
+				{
+					// Invalidate the binding, forcing it to be rebound
+					EvaluationState->Invalidate(BindingLifetime.BindingGuid, SequenceID);
+				}
 			}
 		}
 	};
