@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DebugGraph.h"
+
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 
@@ -33,10 +34,10 @@ namespace UE::PixelStreaming2
 	{
 		FScopeLock Lock(&CriticalSection);
 
-		if(bFirstValue)
+		if (bFirstValue)
 		{
 			// If it the first value, fill the graph with it
-			for(int i = 0; i < MaxSamples; i++)
+			for (int i = 0; i < MaxSamples; i++)
 			{
 				AddValueInternal(InValue);
 			}
@@ -50,7 +51,7 @@ namespace UE::PixelStreaming2
 
 	void FDebugGraph::AddValueInternal(float InValue)
 	{
-		if(InValue > MaxRange)
+		if (InValue > MaxRange)
 		{
 			// Increase max range by 50% larger than this new larger value
 			float NewMax = InValue * 2.0f;
@@ -59,7 +60,7 @@ namespace UE::PixelStreaming2
 			MaxRange = NewMax;
 
 			// Increasing the max range means we must adjust all our existing values/averages/sum by the inverse
-			for(int i = 0; i < MaxSamples; i++)
+			for (int i = 0; i < MaxSamples; i++)
 			{
 				Values[i] *= Ratio;
 				AvgValues[i] *= Ratio;
@@ -147,8 +148,8 @@ namespace UE::PixelStreaming2
 
 		if (RefValue != 0.0f)
 		{
-			const float NormalizedRefValue = FMath::Clamp((RefValue - MinRange) / (MaxRange - MinRange), 0.0f, 1.0f);
-			const float ValueOffset = NormalizedRefValue * Size.Y;
+			const float		NormalizedRefValue = FMath::Clamp((RefValue - MinRange) / (MaxRange - MinRange), 0.0f, 1.0f);
+			const float		ValueOffset = NormalizedRefValue * Size.Y;
 			const FVector2D StartRefPosition{ Position.X, Position.Y + Size.Y - ValueOffset };
 			const FVector2D EndRefPosition{ Position.X + Size.X, Position.Y + Size.Y - ValueOffset };
 			FCanvasLineItem RefLine(StartRefPosition, EndRefPosition);

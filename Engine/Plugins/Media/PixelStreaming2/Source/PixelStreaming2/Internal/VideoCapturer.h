@@ -2,9 +2,8 @@
 
 #pragma once
 
-#include "Delegates/IDelegateInstance.h"
+#include "Delegates/Delegate.h"
 #include "IPixelCaptureCapturerSource.h"
-#include "PixelCaptureBufferFormat.h"
 #include "PixelCaptureCapturerMultiFormat.h"
 #include "VideoProducer.h"
 
@@ -12,7 +11,6 @@
 
 namespace UE::PixelStreaming2
 {
-
 	/**
 	 * The start of PixelCapture pipeline. Frames enter the system when `OnFrameCaptured` is called.
 	 * This class creates the underlying PixelCapture `FPixelCaptureCapturer` that handles frame capture when `RequestFormat` is called.
@@ -23,9 +21,9 @@ namespace UE::PixelStreaming2
 		static TSharedPtr<FVideoCapturer> Create(TSharedPtr<FVideoProducer> VideoProducer = nullptr);
 		virtual ~FVideoCapturer() = default;
 
-		/** Begin IPixelCaptureCapturerSource Interface */
+		// Begin IPixelCaptureCapturerSource Interface
 		virtual TSharedPtr<FPixelCaptureCapturer> CreateCapturer(int32 FinalFormat, float FinalScale) override;
-		/** End IPixelCaptureCapturerSource Interface */
+		// End IPixelCaptureCapturerSource Interface
 
 		bool IsReady() const { return bReady; }
 

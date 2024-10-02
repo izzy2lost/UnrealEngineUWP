@@ -305,7 +305,7 @@ namespace UE::EditorPixelStreaming2
 		if (!DownloadProcess.IsValid())
 		{
 			// We set bSkipIfPresent to false, which means the get_ps_servers script will always be run, that script will choose whether to download or not
-			DownloadProcess = UE::PixelStreaming2Servers::DownloadPixelStreaming2Servers(/*bSkipIfPresent*/ false);
+			DownloadProcess = UE::PixelStreaming2Servers::DownloadPixelStreaming2Servers(false /* bSkipIfPresent */);
 			if (DownloadProcess.IsValid())
 			{
 				DownloadProcess->OnCompleted().BindLambda([this](int ExitCode) {

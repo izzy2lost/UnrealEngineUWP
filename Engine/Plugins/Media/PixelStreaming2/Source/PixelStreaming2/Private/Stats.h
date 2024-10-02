@@ -52,8 +52,8 @@ namespace UE::PixelStreaming2
 		bool			 bSmooth;
 		double			 LastEMA = 0;
 		int				 NumSamples = 0;
-		uint8			 DisplayFlags = EDisplayFlags::TEXT; /* Some stats we only wish to store or broadcast, but not display */
-		TOptional<FName> Alias;								 /* Some stats need an alias that they are stored by/queried by to disambiguate them from other stats */
+		uint8			 DisplayFlags = EDisplayFlags::TEXT; // Some stats we only wish to store or broadcast, but not display
+		TOptional<FName> Alias;								 // Some stats need an alias that they are stored by/queried by to disambiguate them from other stats
 	};
 
 	FORCEINLINE uint32 GetTypeHash(const FStatData& Obj)

@@ -2,12 +2,12 @@
 
 #include "MockPlayer.h"
 
+#include "DefaultDataProtocol.h"
 #include "EpicRtcVideoEncoderInitializer.h"
 #include "EpicRtcVideoDecoderInitializer.h"
 #include "EpicRtcWebsocketFactory.h"
 #include "Logging.h"
-#include "ToStringExtensions.h"
-#include "DefaultDataProtocol.h"
+#include "UtilsString.h"
 
 #include "epic_rtc/core/platform.h"
 

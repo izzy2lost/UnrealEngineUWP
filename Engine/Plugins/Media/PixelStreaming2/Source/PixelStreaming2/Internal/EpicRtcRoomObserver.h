@@ -2,23 +2,23 @@
 
 #pragma once
 
-#include "EpicRtcMemory.h"
+#include "Templates/RefCounting.h"
 #include "Templates/SharedPointer.h"
 
 #include "epic_rtc/core/room_observer.h"
 
 namespace UE::PixelStreaming2
 {
-
 	class FEpicRtcManager;
 
 	class PIXELSTREAMING2_API FEpicRtcRoomObserver : public EpicRtcRoomObserverInterface, public TRefCountingMixin<FEpicRtcRoomObserver>
 	{
 	public:
 		FEpicRtcRoomObserver(TWeakPtr<FEpicRtcManager> Manager);
+		virtual ~FEpicRtcRoomObserver() = default;
 
 	private:
-		/* Begin EpicRtcRoomObserver */
+		// Begin EpicRtcRoomObserver
 		virtual void							   OnRoomStateUpdate(const EpicRtcRoomState State) override;
 		virtual void							   OnRoomJoinedUpdate(EpicRtcParticipantInterface* Participant) override;
 		virtual void							   OnRoomLeftUpdate(const EpicRtcStringView ParticipantId) override;
@@ -28,14 +28,14 @@ namespace UE::PixelStreaming2
 		[[nodiscard]] virtual EpicRtcSdpInterface* OnLocalSdpUpdate(EpicRtcParticipantInterface* Participant, EpicRtcSdpInterface* Sdp) override;
 		[[nodiscard]] virtual EpicRtcSdpInterface* OnRemoteSdpUpdate(EpicRtcParticipantInterface* Participant, EpicRtcSdpInterface* Sdp) override;
 		virtual void							   OnRoomErrorUpdate(const EpicRtcErrorCode Error) override;
-		/* Begin EpicRtcRoomObserver */
+		// Begin EpicRtcRoomObserver
 
 	public:
-		/* Begin EpicRtcRefCountInterface */
+		// Begin EpicRtcRefCountInterface
 		virtual uint32_t AddRef() override final { return TRefCountingMixin<FEpicRtcRoomObserver>::AddRef(); }
 		virtual uint32_t Release() override final { return TRefCountingMixin<FEpicRtcRoomObserver>::Release(); }
 		virtual uint32_t Count() const override final { return TRefCountingMixin<FEpicRtcRoomObserver>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
+		// End EpicRtcRefCountInterface
 
 	private:
 		TWeakPtr<FEpicRtcManager> Manager;

@@ -13,7 +13,7 @@
 #include "PixelStreaming2PluginSettings.h"
 #include "Logging.h"
 #include "PixelStreaming2Trace.h"
-#include "VideoUtils.h"
+#include "UtilsVideo.h"
 
 namespace UE::PixelStreaming2
 {

@@ -26,6 +26,6 @@ namespace UE::PixelStreaming2
 
 	private:
 		FCriticalSection AudioConsumersCS;
-		bool bIsMuted = false;
+		bool			 bIsMuted = false;
 	};
 } // namespace UE::PixelStreaming2

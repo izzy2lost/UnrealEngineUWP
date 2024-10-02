@@ -22,17 +22,17 @@ namespace UE::PixelStreaming2Input
 		FInputProtocolMap(EPixelStreaming2MessageDirection InDirection)
 			: Direction(InDirection) {}
 
-		/* Begin IPixelStreaming2DataProtocol interface */
+		// Begin IPixelStreaming2DataProtocol interface
 		TSharedPtr<IPixelStreaming2InputMessage> Add(FString Key) override;
 		TSharedPtr<IPixelStreaming2InputMessage> Add(FString Key, TArray<EPixelStreaming2MessageTypes> InStructure) override;
 		TSharedPtr<IPixelStreaming2InputMessage> Find(FString Key) override;
-		FOnProtocolUpdated&							   OnProtocolUpdated() override { return OnProtocolUpdatedDelegate; };
-		TSharedPtr<FJsonObject>						   ToJson() override;
-		/* End IPixelStreaming2DataProtocol interface */
+		FOnProtocolUpdated&						 OnProtocolUpdated() override { return OnProtocolUpdatedDelegate; };
+		TSharedPtr<FJsonObject>					 ToJson() override;
+		// End IPixelStreaming2DataProtocol interface
 
-		bool												 AddInternal(FString Key, uint8 Id);
-		bool												 AddInternal(FString Key, uint8 Id, TArray<EPixelStreaming2MessageTypes> InStructure);
-		int													 Remove(FString Key);
+		bool										   AddInternal(FString Key, uint8 Id);
+		bool										   AddInternal(FString Key, uint8 Id, TArray<EPixelStreaming2MessageTypes> InStructure);
+		int											   Remove(FString Key);
 		const TSharedPtr<IPixelStreaming2InputMessage> Find(FString Key) const;
 
 		void Clear();
@@ -44,11 +44,11 @@ namespace UE::PixelStreaming2Input
 		TSharedPtr<IPixelStreaming2InputMessage> AddMessageInternal(FString Key, uint8 Id, TArray<EPixelStreaming2MessageTypes> InStructure);
 
 	private:
-		TSet<uint8>													  Ids;
+		TSet<uint8>												Ids;
 		TMap<FString, TSharedPtr<IPixelStreaming2InputMessage>> InnerMap;
-		FOnProtocolUpdated											  OnProtocolUpdatedDelegate;
-		EPixelStreaming2MessageDirection						  Direction;
-		uint8														  UserMessageId = 200;
+		FOnProtocolUpdated										OnProtocolUpdatedDelegate;
+		EPixelStreaming2MessageDirection						Direction;
+		uint8													UserMessageId = 200;
 	};
 
 } // namespace UE::PixelStreaming2Input

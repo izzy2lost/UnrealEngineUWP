@@ -11,7 +11,7 @@
 
 /*
  * Utility namespace for launching Pixel Streaming servers signaling or selective forwarding.
- * This utility can launch embedded servers from C++ classes in this module, 
+ * This utility can launch embedded servers from C++ classes in this module,
  * from known server binaries and from the Github releases of the servers.
  */
 namespace UE::PixelStreaming2Servers
@@ -65,7 +65,9 @@ namespace UE::PixelStreaming2Servers
 	public:
 		virtual ~IServer() = default;
 
-		/* Immediately stops the server. */
+		/**
+		 * Immediately stops the server.
+		 */
 		virtual void Stop() = 0;
 
 		/**
@@ -98,7 +100,7 @@ namespace UE::PixelStreaming2Servers
 		/**
 		 * Asynchronously queries the numbers of streamers connected to the signalling server.
 		 * @param OnNumStreamersReceived	Callback fired when the query for the number of streamers returns.
-		*/
+		 */
 		virtual void GetNumStreamers(TFunction<void(uint16)> OnNumStreamersReceived) = 0;
 
 	public:

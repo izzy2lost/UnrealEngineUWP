@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "EpicRtcMemory.h"
 #include "Video/Resources/VideoResourceRHI.h"
 
 #include "epic_rtc/core/video/video_buffer.h"
@@ -13,11 +12,14 @@ namespace UE::PixelStreaming2
 	{
 	public:
 		FEpicRtcVideoBufferRHI(TSharedPtr<FVideoResourceRHI> VideoResourceRHI)
-			: VideoResourceRHI(VideoResourceRHI) {}
+			: VideoResourceRHI(VideoResourceRHI) 
+		{
+		}
+
 		virtual ~FEpicRtcVideoBufferRHI() = default;
 
 	public:
-		/* Begin EpicRtcVideoBufferInterface */
+		// Begin EpicRtcVideoBufferInterface
 		virtual void* GetData() override
 		{
 			unimplemented();
@@ -38,16 +40,16 @@ namespace UE::PixelStreaming2
 		{
 			return VideoResourceRHI->GetDescriptor().Height;
 		}
-		/* End EpicRtcVideoBufferInterface */
+		// End EpicRtcVideoBufferInterface
 
 		TSharedPtr<FVideoResourceRHI> GetVideoResource() { return VideoResourceRHI; }
 
 	public:
-		/* Begin EpicRtcRefCountInterface */
+		// Begin EpicRtcRefCountInterface
 		virtual uint32_t AddRef() override final { return TRefCountingMixin<FEpicRtcVideoBufferRHI>::AddRef(); }
 		virtual uint32_t Release() override final { return TRefCountingMixin<FEpicRtcVideoBufferRHI>::Release(); }
 		virtual uint32_t Count() const override final { return TRefCountingMixin<FEpicRtcVideoBufferRHI>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
+		// End EpicRtcRefCountInterface
 
 	private:
 		TSharedPtr<FVideoResourceRHI> VideoResourceRHI;

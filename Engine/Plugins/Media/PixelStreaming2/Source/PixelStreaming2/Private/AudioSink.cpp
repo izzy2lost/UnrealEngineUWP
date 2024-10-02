@@ -25,7 +25,7 @@ namespace UE::PixelStreaming2
 	void FAudioSink::AddAudioConsumer(IPixelStreaming2AudioConsumer* AudioConsumer)
 	{
 		FScopeLock Lock(&AudioConsumersCS);
-		bool bAlreadyInSet = false;
+		bool	   bAlreadyInSet = false;
 		AudioConsumers.Add(AudioConsumer, &bAlreadyInSet);
 		if (!bAlreadyInSet)
 		{

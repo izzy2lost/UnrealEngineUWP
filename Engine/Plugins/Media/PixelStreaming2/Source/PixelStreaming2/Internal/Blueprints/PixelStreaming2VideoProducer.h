@@ -2,13 +2,12 @@
 
 #pragma once
 
-#include "Engine/Texture2DDynamic.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "IPixelStreaming2VideoProducer.h"
 
 #include "PixelStreaming2VideoProducer.generated.h"
 
-/*
+/**
  * The base video producer blueprint class
  */
 UCLASS(NotBlueprintType, NotBlueprintable, Category = "PixelStreaming2", META = (DisplayName = "Video Producer"))
@@ -23,7 +22,7 @@ protected:
 	TSharedPtr<IPixelStreaming2VideoProducer> VideoProducer;
 };
 
-/*
+/**
  * A video producer that streams the Unreal Engine's back buffer
  */
 UCLASS(NotBlueprintType, NotBlueprintable, Category = "PixelStreaming2", META = (DisplayName = "Back Buffer Video Producer"))
@@ -35,7 +34,7 @@ public:
 	virtual TSharedPtr<IPixelStreaming2VideoProducer> GetVideoProducer() override;
 };
 
-/*
+/**
  * A video producer that streams the Unreal Engine's back buffer but uses the MediaIO Framework to capture the frame rather than Pixel Capture
  */
 UCLASS(NotBlueprintType, NotBlueprintable, Category = "PixelStreaming2", META = (DisplayName = "Media Capture Video Producer"))
@@ -47,8 +46,8 @@ public:
 	virtual TSharedPtr<IPixelStreaming2VideoProducer> GetVideoProducer() override;
 };
 
-/*
- * A video producer that streams the specified render target 
+/**
+ * A video producer that streams the specified render target
  */
 UCLASS(NotBlueprintType, NotBlueprintable, Category = "PixelStreaming2", META = (DisplayName = "Render Target Video Producer"))
 class PIXELSTREAMING2_API UPixelStreaming2VideoProducerRenderTarget : public UPixelStreaming2VideoProducer

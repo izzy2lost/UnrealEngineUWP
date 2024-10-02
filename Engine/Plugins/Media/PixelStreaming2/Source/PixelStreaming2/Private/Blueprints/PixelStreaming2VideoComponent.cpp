@@ -7,7 +7,7 @@
 #include "IPixelStreaming2Streamer.h"
 #include "Logging.h"
 
-/*
+/**
  * Component that recieves video from a remote webrtc connection and outputs it into UE using a "synth component".
  */
 UPixelStreaming2VideoComponent::UPixelStreaming2VideoComponent(const FObjectInitializer& ObjectInitializer)

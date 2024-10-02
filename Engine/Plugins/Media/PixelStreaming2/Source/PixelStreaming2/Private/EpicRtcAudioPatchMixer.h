@@ -6,18 +6,18 @@
 
 namespace UE::PixelStreaming2
 {
-    class FEpicRtcAudioPatchMixer : public Audio::FPatchMixer
-    {
-    public:
+	class FEpicRtcAudioPatchMixer : public Audio::FPatchMixer
+	{
+	public:
 		FEpicRtcAudioPatchMixer(uint8 NumChannels, uint32 SampleRate, float SampleSizeSeconds);
 
 		uint32 GetMaxBufferSize() const;
-		uint8 GetNumChannels() const;
+		uint8  GetNumChannels() const;
 		uint32 GetSampleRate() const;
-        
+
 	private:
-		uint8 NumChannels;
+		uint8  NumChannels;
 		uint32 SampleRate;
-		float SampleSizeSeconds;
-    };
-}
+		float  SampleSizeSeconds;
+	};
+} // namespace UE::PixelStreaming2

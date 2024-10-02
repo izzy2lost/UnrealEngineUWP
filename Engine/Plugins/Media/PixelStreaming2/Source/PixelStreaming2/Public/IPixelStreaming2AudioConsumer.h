@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 
-/*
+/**
  * An "Audio Consumer" is an object that is responsible for outputting the audio received from a peer. For example, by
  * passing the audio into a UE submix.
  */

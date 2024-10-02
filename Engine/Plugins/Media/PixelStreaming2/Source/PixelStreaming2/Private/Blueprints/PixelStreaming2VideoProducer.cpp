@@ -7,7 +7,7 @@
 #include "VideoProducerPIEViewport.h"
 #include "VideoProducerRenderTarget.h"
 
-/*
+/**
  * ---------- UPixelStreaming2VideoProducer -------------------
  */
 UPixelStreaming2VideoProducer::UPixelStreaming2VideoProducer(const FObjectInitializer& ObjectInitializer)
@@ -15,7 +15,7 @@ UPixelStreaming2VideoProducer::UPixelStreaming2VideoProducer(const FObjectInitia
 {
 }
 
-/*
+/**
  * ---------- UPixelStreaming2VideoProducerBackBuffer -------------------
  */
 UPixelStreaming2VideoProducerBackBuffer::UPixelStreaming2VideoProducerBackBuffer(const FObjectInitializer& ObjectInitializer)
@@ -43,7 +43,7 @@ TSharedPtr<IPixelStreaming2VideoProducer> UPixelStreaming2VideoProducerBackBuffe
 	return VideoProducer;
 }
 
-/*
+/**
  * ---------- UPixelStreaming2VideoProducerMediaCapture -------------------
  */
 UPixelStreaming2VideoProducerMediaCapture::UPixelStreaming2VideoProducerMediaCapture(const FObjectInitializer& ObjectInitializer)
@@ -71,7 +71,7 @@ TSharedPtr<IPixelStreaming2VideoProducer> UPixelStreaming2VideoProducerMediaCapt
 	return VideoProducer;
 }
 
-/*
+/**
  * ---------- UPixelStreaming2VideoProducerRenderTarget -------------------
  */
 UPixelStreaming2VideoProducerRenderTarget::UPixelStreaming2VideoProducerRenderTarget(const FObjectInitializer& ObjectInitializer)
@@ -87,4 +87,3 @@ TSharedPtr<IPixelStreaming2VideoProducer> UPixelStreaming2VideoProducerRenderTar
 	}
 	return VideoProducer;
 }
-

@@ -5,7 +5,7 @@
 #include "Logging.h"
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationCommon.h"
-#include "ToStringExtensions.h"
+#include "UtilsString.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 

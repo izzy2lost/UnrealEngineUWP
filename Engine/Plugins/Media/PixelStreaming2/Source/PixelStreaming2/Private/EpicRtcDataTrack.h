@@ -10,7 +10,6 @@
 
 namespace UE::PixelStreaming2
 {
-
 	template <typename T>
 	inline size_t ValueSize(T&& Value)
 	{

@@ -106,7 +106,7 @@ namespace UE::PixelStreaming2
 			return this;
 		}
 
-		/*
+		/**
 		 * Note this function is required as part of `FSingleThreadRunnable` and only gets called when engine is run in single-threaded mode,
 		 * so the logic is much less complex as this is not a case we particularly optimize for, a simple tick on an interval will be acceptable.
 		 */
@@ -135,7 +135,7 @@ namespace UE::PixelStreaming2
 		TWeakPtr<FVideoSourceGroup> OuterVideoSourceGroup = nullptr;
 		uint64						LastSubmitCycles = 0;
 
-		/* Use this event to signal when we should wake and also how long we should sleep for between transmitting a frame. */
+		// Use this event to signal when we should wake and also how long we should sleep for between transmitting a frame.
 		FEventRef FrameEvent;
 	};
 

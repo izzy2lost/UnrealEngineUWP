@@ -25,9 +25,9 @@
 #include "EpicRtcDataTrack.h"
 #include "IPixelStreaming2Module.h"
 #include "IPixelStreaming2InputModule.h"
-#include "ToStringExtensions.h"
 #include "CoreGlobals.h"
-#include "VideoUtils.h"
+#include "UtilsString.h"
+#include "UtilsVideo.h"
 
 namespace UE::PixelStreaming2
 {
@@ -628,7 +628,7 @@ namespace UE::PixelStreaming2
 						return false;
 					}
 					InputControllingId = PlayerId;
-					PlayerContext.DataTrack->SendMessage(EPixelStreaming2FromStreamerMessage::InputControlOwnership, 1 /*ControlsInput*/);
+					PlayerContext.DataTrack->SendMessage(EPixelStreaming2FromStreamerMessage::InputControlOwnership, 1 /* ControlsInput */);
 					return true;
 				});
 			}
@@ -718,7 +718,7 @@ namespace UE::PixelStreaming2
 			const uint8 ControlsInput = (GetEnumFromCVar<EInputControllerMode>(UPixelStreaming2PluginSettings::CVarInputController) == EInputControllerMode::Host) ? (PlayerId == InputControllingId) : 1;
 			// Even though the QualityController feature is removed we send it for backwards compatibility with older frontends (can probably remove 2 versions after 5.5)
 			PlayerContext->DataTrack->SendMessage(EPixelStreaming2FromStreamerMessage::InputControlOwnership, ControlsInput);
-			PlayerContext->DataTrack->SendMessage(EPixelStreaming2FromStreamerMessage::QualityControlOwnership, 1 /*True*/);
+			PlayerContext->DataTrack->SendMessage(EPixelStreaming2FromStreamerMessage::QualityControlOwnership, 1 /* True */);
 		}
 	}
 

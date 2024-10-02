@@ -2,11 +2,12 @@
 
 #pragma once
 
+#include "Delegates/DelegateCombinations.h"
 #include "IPixelStreaming2VideoProducer.h"
+#include "Templates/SharedPointer.h"
 
 namespace UE::PixelStreaming2
 {
-
 	class PIXELSTREAMING2_API FVideoProducer : public IPixelStreaming2VideoProducer
 	{
 	public:

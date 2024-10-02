@@ -4,7 +4,6 @@
 
 #include "Engine/Texture2DDynamic.h"
 #include "IPixelStreaming2VideoConsumer.h"
-#include "RenderTargetPool.h"
 
 #include "PixelStreaming2MediaTexture.generated.h"
 

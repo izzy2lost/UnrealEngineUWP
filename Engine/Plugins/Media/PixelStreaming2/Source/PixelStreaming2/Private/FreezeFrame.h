@@ -12,7 +12,7 @@
 
 namespace UE::PixelStreaming2
 {
-	/*
+	/**
 	 * The user of the Pixel Streaming application can trigger a freeze frame to happen at any time during stream.
 	 * What a freeze frame will do is either:
 	 * 1) Mode 1 - Send a known texture/image (effectively a still image, e.g. a loading screen).

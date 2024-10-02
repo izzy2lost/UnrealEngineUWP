@@ -2,7 +2,7 @@
 
 #include "EpicRtcStatsCollector.h"
 
-#include "ToStringExtensions.h"
+#include "UtilsString.h"
 
 namespace UE::PixelStreaming2
 {

@@ -2,11 +2,10 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Templates/UniquePtr.h"
 
 namespace UE::PixelStreaming2
 {
-
 	template <typename T>
 	using TUniqueTaskPtr = TUniquePtr<T, struct FEpicRtcTaskDeleter>;
 

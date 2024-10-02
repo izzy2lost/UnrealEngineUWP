@@ -4,15 +4,12 @@
 
 #include "Delegates/IDelegateInstance.h"
 #include "VideoProducer.h"
-#include "RHI.h"
-#include "Widgets/SWindow.h"
 
 class UTextureRenderTarget2D;
 
 namespace UE::PixelStreaming2
 {
-
-	/*
+	/**
 	 * Use this if you want to send the contents of a render target.
 	 */
 	class PIXELSTREAMING2_API FVideoProducerRenderTarget : public FVideoProducer

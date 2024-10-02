@@ -2,14 +2,14 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "HAL/ThreadSafeBool.h"
+#include "CoreTypes.h"
 #include "Sound/SoundGenerator.h"
+
+#include <atomic>
 
 namespace UE::PixelStreaming2
 {
-
-	/*
+	/**
 	 * An `ISoundGenerator` implementation to pump some audio from EpicRtc into this synth component
 	 */
 	class PIXELSTREAMING2_API FSoundGenerator : public ::ISoundGenerator
@@ -46,8 +46,8 @@ namespace UE::PixelStreaming2
 		FCriticalSection		  CriticalSection;
 
 	public:
-		FThreadSafeBool bGeneratingAudio = false;
-		FThreadSafeBool bShouldGenerateAudio = false;
+		std::atomic<bool> bGeneratingAudio = false;
+		std::atomic<bool> bShouldGenerateAudio = false;
 	};
 
 } // namespace UE::PixelStreaming2

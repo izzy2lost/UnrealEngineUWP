@@ -1606,7 +1606,7 @@ namespace UE::PixelStreaming2Input
 			Buffer << Descriptor;
 			TArray<uint8> Data(Buffer.GetData(), Buffer.Num());
 
-			/*
+			/**
 			 * Send the following JSON string in a "Command" message to all players
 			 * {
 			 *	"command": "onScreenKeyboard",

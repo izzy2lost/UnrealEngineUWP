@@ -54,7 +54,7 @@ enum class EPortAllocatorFlags : uint32
 };
 ENUM_CLASS_FLAGS(EPortAllocatorFlags);
 
-/* Pixel Streaming can limit who can send input (keyboard, mouse, etc). */
+/** Pixel Streaming can limit who can send input (keyboard, mouse, etc). */
 UENUM()
 enum class EInputControllerMode : uint8
 {

@@ -5,8 +5,8 @@
 #include "Engine/GameViewportClient.h"
 #include "PixelCaptureInputFrameRHI.h"
 #include "RenderingThread.h"
-#include "Utils.h"
 #include "UnrealClient.h"
+#include "UtilsCommon.h"
 
 namespace UE::PixelStreaming2
 {

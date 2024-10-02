@@ -6,7 +6,7 @@
 
 class IPixelStreaming2VideoConsumer;
 
-/*
+/**
  * Interface for a sink that collects video coming in from the browser and passes into into UE.
  */
 class PIXELSTREAMING2_API IPixelStreaming2VideoSink

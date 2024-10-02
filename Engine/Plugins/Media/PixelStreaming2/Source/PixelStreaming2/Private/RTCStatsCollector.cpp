@@ -6,7 +6,7 @@
 #include "PixelStreaming2PluginSettings.h"
 #include "PixelStreaming2StatNames.h"
 #include "Streamer.h"
-#include "ToStringExtensions.h"
+#include "UtilsString.h"
 
 namespace UE::PixelStreaming2
 {
@@ -122,7 +122,7 @@ namespace UE::PixelStreaming2
 
 		LastCalculationCycles = FPlatformTime::Cycles64();
 	}
-	/*
+	/**
 	 * ---------- FRTPLocalVideoTrackSink ----------
 	 */
 	FRTCStatsCollector::FRTPLocalVideoTrackStatsSink::FRTPLocalVideoTrackStatsSink()
@@ -431,7 +431,7 @@ namespace UE::PixelStreaming2
 			PostProcess(PSStats, StatsId, SecondsDelta);
 		}
 	}
-	/*
+	/**
 	 * ---------- FRTPLocalAudioTrackStatsSink ----------
 	 */
 	FRTCStatsCollector::FRTPLocalAudioTrackStatsSink::FRTPLocalAudioTrackStatsSink()
@@ -663,7 +663,7 @@ namespace UE::PixelStreaming2
 		PostProcess(PSStats, PeerId, SecondsDelta);
 	}
 
-	/*
+	/**
 	 * ---------- FRTPRemoteTrackStatsSink ----------
 	 */
 	FRTCStatsCollector::FRTPRemoteTrackStatsSink::FRTPRemoteTrackStatsSink(FName InCategory)
@@ -932,7 +932,7 @@ namespace UE::PixelStreaming2
 		PostProcess(PSStats, PeerId, SecondsDelta);
 	}
 
-	/*
+	/**
 	 * ---------- FRTPVideoSourceSink ----------
 	 */
 	FRTCStatsCollector::FVideoSourceStatsSink::FVideoSourceStatsSink()
@@ -967,7 +967,7 @@ namespace UE::PixelStreaming2
 		PostProcess(PSStats, PeerId, SecondsDelta);
 	}
 
-	/*
+	/**
 	 * ---------- FRTPAudioSourceSink ----------
 	 */
 	FRTCStatsCollector::FAudioSourceStatsSink::FAudioSourceStatsSink()
@@ -1006,7 +1006,7 @@ namespace UE::PixelStreaming2
 		PostProcess(PSStats, PeerId, SecondsDelta);
 	}
 
-	/*
+	/**
 	 * ----------- FDataChannelSink -----------
 	 */
 	FRTCStatsCollector::FDataTrackStatsSink::FDataTrackStatsSink()
@@ -1056,7 +1056,8 @@ namespace UE::PixelStreaming2
 
 		PostProcess(PSStats, PeerId, SecondsDelta);
 	}
-	/*
+
+	/**
 	 * ---------- FRTPAudioSourceSink ----------
 	 */
 	FRTCStatsCollector::FCandidatePairStatsSink::FCandidatePairStatsSink()
@@ -1095,7 +1096,7 @@ namespace UE::PixelStreaming2
 		PostProcess(PSStats, PeerId, SecondsDelta);
 	}
 
-	/*
+	/**
 	 * ---------- FRTCTrackedStat -------------------
 	 */
 	FRTCStatsCollector::FRTCTrackedStat::FRTCTrackedStat(FName StatName, FName Alias, int NDecimalPlaces, uint8 DisplayFlags)
@@ -1121,7 +1122,7 @@ namespace UE::PixelStreaming2
 		LatestStat.StatValue = InValue;
 	}
 
-	/*
+	/**
 	 * --------- FStatsSink ------------------------
 	 */
 	FRTCStatsCollector::FStatsSink::FStatsSink(FName InCategory)

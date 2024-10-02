@@ -10,7 +10,6 @@
 
 namespace UE::PixelStreaming2
 {
-
 	class PIXELSTREAMING2_API FEpicRtcTickConferenceTask : public FEpicRtcTickableTask
 	{
 	public:
@@ -34,7 +33,7 @@ namespace UE::PixelStreaming2
 			}
 		}
 
-		/** Begin FEpicRtcTickableTask */
+		// Begin FEpicRtcTickableTask
 		virtual void Tick(float DeltaMs) override
 		{
 			if (EpicRtcConference)
@@ -74,7 +73,7 @@ namespace UE::PixelStreaming2
 		{
 			return TaskName;
 		}
-		/** End FEpicRtcTickableTask */
+		// End FEpicRtcTickableTask
 
 	private:
 		TRefCountPtr<EpicRtcConferenceInterface> EpicRtcConference;

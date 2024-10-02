@@ -13,7 +13,7 @@ namespace UE::PixelStreaming2Input
 	{
 		TSharedPtr<FInputProtocolMap> ToStreamerProtocol = TSharedPtr<FInputProtocolMap>(new FInputProtocolMap(EPixelStreaming2MessageDirection::ToStreamer));
 
-		/*
+		/**
 		 * Control Messages.
 		 */
 		// Simple commands with no payload
@@ -27,7 +27,7 @@ namespace UE::PixelStreaming2Input
 		ToStreamerProtocol->AddInternal(EPixelStreaming2ToStreamerMessage::RequestInitialSettings, 7);
 		ToStreamerProtocol->AddInternal(EPixelStreaming2ToStreamerMessage::TestEcho, 8, { EType::String });
 
-		/*
+		/**
 		 * Input Messages.
 		 */
 		// Generic Input Messages.

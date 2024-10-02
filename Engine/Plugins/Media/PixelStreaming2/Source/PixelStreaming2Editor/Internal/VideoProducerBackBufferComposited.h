@@ -12,7 +12,7 @@ namespace UE::EditorPixelStreaming2
 {
 	using namespace UE::PixelStreaming2;
 
-	/*
+	/**
 	 * Use this if you want to send the full UE editor as video input.
 	 */
 	class PIXELSTREAMING2EDITOR_API FVideoProducerBackBufferComposited : public FVideoProducer

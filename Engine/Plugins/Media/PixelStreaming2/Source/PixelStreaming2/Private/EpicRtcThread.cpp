@@ -20,7 +20,7 @@ namespace UE::PixelStreaming2
 	class FEpicRtcRunnable : public FRunnable, public FSingleThreadRunnable
 	{
 	public:
-		/* Begin FRunnable */
+		// Begin FRunnable
 		virtual bool Init() override
 		{
 			return true;
@@ -58,9 +58,9 @@ namespace UE::PixelStreaming2
 		{
 			return this;
 		}
-		/* End FRunnable */
+		// End FRunnable
 
-		/* Begin FSingleThreadRunnable */
+		// Begin FSingleThreadRunnable
 		virtual void Tick() override
 		{
 			FScopeLock TaskLock(&TasksMutex);
@@ -83,7 +83,7 @@ namespace UE::PixelStreaming2
 
 			LastTickCycles = NowCycles;
 		}
-		/* End FSingleThreadRunnable */
+		// End FSingleThreadRunnable
 
 		void StartTicking()
 		{
@@ -175,7 +175,7 @@ namespace UE::PixelStreaming2
 		// This critical section should be locked during entire tick process
 		FCriticalSection TasksMutex;
 
-		/* Use this event to signal when we should wake. */
+		// Use this event to signal when we should wake.
 		FEventRef TaskEvent;
 
 		// Tasks can removed from any thread so this needs to be thread safe

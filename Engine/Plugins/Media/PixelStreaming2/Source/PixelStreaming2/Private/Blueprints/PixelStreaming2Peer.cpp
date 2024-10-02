@@ -8,7 +8,7 @@
 #include "PixelStreaming2Module.h"
 #include "SampleBuffer.h"
 #include "SoundGenerator.h"
-#include "ToStringExtensions.h"
+#include "UtilsString.h"
 
 uint32_t UPixelStreaming2Peer::PlayerId = 0;
 

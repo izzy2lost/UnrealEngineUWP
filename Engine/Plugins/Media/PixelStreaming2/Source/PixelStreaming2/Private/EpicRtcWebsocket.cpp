@@ -6,8 +6,8 @@
 #include "IWebSocket.h"
 #include "PixelStreaming2PluginSettings.h"
 #include "Serialization/JsonSerializer.h"
-#include "ToStringExtensions.h"
-#include "VideoUtils.h"
+#include "UtilsString.h"
+#include "UtilsVideo.h"
 #include "WebSocketsModule.h"
 
 namespace UE::PixelStreaming2

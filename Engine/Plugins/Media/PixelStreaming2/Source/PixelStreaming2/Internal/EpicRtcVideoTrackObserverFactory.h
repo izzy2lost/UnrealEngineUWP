@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "EpicRtcMemory.h"
 #include "Templates/RefCounting.h"
 #include "Templates/SharedPointer.h"
 
@@ -10,25 +9,25 @@
 
 namespace UE::PixelStreaming2
 {
-
 	class FEpicRtcManager;
 
 	class PIXELSTREAMING2_API FEpicRtcVideoTrackObserverFactory : public EpicRtcVideoTrackObserverFactoryInterface, public TRefCountingMixin<FEpicRtcVideoTrackObserverFactory>
 	{
 	public:
 		FEpicRtcVideoTrackObserverFactory(TWeakPtr<FEpicRtcManager> Manager);
+		virtual ~FEpicRtcVideoTrackObserverFactory() = default;
 
 	public:
-		/* Begin EpicRtcVideoTrackObserverFactoryInterface */
+		// Begin EpicRtcVideoTrackObserverFactoryInterface
 		virtual EpicRtcErrorCode CreateVideoTrackObserver(const EpicRtcStringView ParticipantId, const EpicRtcStringView VideoTrackId, EpicRtcVideoTrackObserverInterface** OutVideoTrackObserver) override;
-		/* End EpicRtcVideoTrackObserverFactoryInterface */
+		// End EpicRtcVideoTrackObserverFactoryInterface
 
 	public:
-		/* Begin EpicRtcRefCountInterface */
+		// Begin EpicRtcRefCountInterface
 		virtual uint32_t AddRef() override final { return TRefCountingMixin<FEpicRtcVideoTrackObserverFactory>::AddRef(); }
 		virtual uint32_t Release() override final { return TRefCountingMixin<FEpicRtcVideoTrackObserverFactory>::Release(); }
 		virtual uint32_t Count() const override final { return TRefCountingMixin<FEpicRtcVideoTrackObserverFactory>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
+		// End EpicRtcRefCountInterface
 
 	private:
 		TWeakPtr<FEpicRtcManager> Manager;

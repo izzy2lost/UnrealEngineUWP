@@ -9,7 +9,7 @@
 #include "SampleBuffer.h"
 #include "SoundGenerator.h"
 
-/*
+/**
  * Component that recieves audio from a remote webrtc connection and outputs it into UE using a "synth component".
  */
 UPixelStreaming2AudioComponent::UPixelStreaming2AudioComponent(const FObjectInitializer& ObjectInitializer)

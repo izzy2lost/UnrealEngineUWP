@@ -41,7 +41,7 @@ public:
 		return FModuleManager::Get().IsModuleLoaded("PixelStreaming2");
 	}
 
-	/*
+	/**
 	 * Event fired when internal streamer is initialized and the methods on this module are ready for use.
 	 */
 	DECLARE_EVENT_OneParam(IPixelStreaming2Module, FReadyEvent, IPixelStreaming2Module&);

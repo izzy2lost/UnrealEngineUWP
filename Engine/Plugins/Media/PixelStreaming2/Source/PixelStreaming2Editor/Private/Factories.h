@@ -8,7 +8,7 @@
 
 #include "Factories.generated.h"
 
-/*
+/**
  * ---------- UPixelStreaming2MediaTextureFactory -------------------
  */
 UCLASS()
@@ -22,7 +22,7 @@ public:
 	virtual UObject* FactoryCreateNew(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn) override;
 };
 
-/*
+/**
  * ---------- UPixelStreaming2VideoProducerBackBufferFactory -------------------
  */
 UCLASS()
@@ -36,7 +36,7 @@ public:
 	virtual UObject* FactoryCreateNew(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn) override;
 };
 
-/*
+/**
  * ---------- UPixelStreaming2VideoProducerMediaCaptureFactory -------------------
  */
 UCLASS()
@@ -50,7 +50,7 @@ public:
 	virtual UObject* FactoryCreateNew(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn) override;
 };
 
-/*
+/**
  * ---------- UPixelStreaming2VideoProducerRenderTargetFactory -------------------
  */
 UCLASS()

@@ -1,4 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
+
 #include "ColorConversion.h"
 
 #include "Math/UnrealMathUtility.h"

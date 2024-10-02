@@ -3,7 +3,6 @@
 #pragma once
 
 #include "AVConstants.h"
-#include "EpicRtcMemory.h"
 #include "EpicRtcVideoCommon.h"
 #include "HAL/PlatformFileManager.h"
 #include "Video/Encoders/Configs/VideoEncoderConfigAV1.h"
@@ -25,7 +24,7 @@ namespace UE::PixelStreaming2
 		TEpicRtcVideoEncoder(EpicRtcVideoCodecInfoInterface* InCodecInfo);
 		virtual ~TEpicRtcVideoEncoder() override;
 
-		/* Begin EpicRtcVideoEncoderInterface */
+		// Begin EpicRtcVideoEncoderInterface
 		virtual EpicRtcStringView		  GetName() const override;
 		virtual EpicRtcVideoEncoderConfig GetConfig() const override;
 		virtual EpicRtcMediaResult		  SetConfig(const EpicRtcVideoEncoderConfig& VideoEncoderConfig) override;
@@ -33,7 +32,7 @@ namespace UE::PixelStreaming2
 		virtual EpicRtcMediaResult		  Encode(const EpicRtcVideoFrame& VideoFrame, EpicRtcVideoFrameTypeArrayInterface* FrameTypes) override;
 		virtual void					  RegisterCallback(EpicRtcVideoEncoderCallbackInterface* InCallback) override;
 		virtual void					  Reset() override;
-		/* End EpicRtcVideoEncoderInterface */
+		// End EpicRtcVideoEncoderInterface
 
 	private:
 		EpicRtcVideoEncoderConfig								EncoderConfig;
@@ -65,10 +64,10 @@ namespace UE::PixelStreaming2
 		FDelegateHandle DelegateHandle;
 
 	public:
-		/* Begin EpicRtcRefCountInterface */
+		// Begin EpicRtcRefCountInterface
 		virtual uint32_t AddRef() override final { return TRefCountingMixin<TEpicRtcVideoEncoder>::AddRef(); }
 		virtual uint32_t Release() override final { return TRefCountingMixin<TEpicRtcVideoEncoder>::Release(); }
 		virtual uint32_t Count() const override final { return TRefCountingMixin<TEpicRtcVideoEncoder>::GetRefCount(); }
-		/* End EpicRtcRefCountInterface */
+		// End EpicRtcRefCountInterface
 	};
 } // namespace UE::PixelStreaming2

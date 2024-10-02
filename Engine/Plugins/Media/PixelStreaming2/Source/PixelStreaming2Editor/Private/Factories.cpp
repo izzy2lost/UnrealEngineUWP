@@ -11,7 +11,7 @@
 
 #define LOCTEXT_NAMESPACE "PixelStreaming2"
 
-/*
+/**
  * ---------- UPixelStreaming2MediaTextureFactory -------------------
  */
 UPixelStreaming2MediaTextureFactory::UPixelStreaming2MediaTextureFactory(const FObjectInitializer& ObjectInitializer)
@@ -44,7 +44,7 @@ UObject* UPixelStreaming2MediaTextureFactory::FactoryCreateNew(UClass* InClass, 
 	return nullptr;
 }
 
-/*
+/**
  * ---------- UPixelStreaming2VideoProducerBackBufferFactory -------------------
  */
 UPixelStreaming2VideoProducerBackBufferFactory::UPixelStreaming2VideoProducerBackBufferFactory(const FObjectInitializer& ObjectInitializer)
@@ -76,7 +76,7 @@ UObject* UPixelStreaming2VideoProducerBackBufferFactory::FactoryCreateNew(UClass
 	return nullptr;
 }
 
-/*
+/**
  * ---------- UPixelStreaming2VideoProducerMediaCaptureFactory -------------------
  */
 UPixelStreaming2VideoProducerMediaCaptureFactory::UPixelStreaming2VideoProducerMediaCaptureFactory(const FObjectInitializer& ObjectInitializer)
@@ -108,7 +108,7 @@ UObject* UPixelStreaming2VideoProducerMediaCaptureFactory::FactoryCreateNew(UCla
 	return nullptr;
 }
 
-/*
+/**
  * ---------- UPixelStreaming2VideoProducerRenderTargetFactory -------------------
  */
 UPixelStreaming2VideoProducerRenderTargetFactory::UPixelStreaming2VideoProducerRenderTargetFactory(const FObjectInitializer& ObjectInitializer)

@@ -4,7 +4,7 @@
 
 #include "CoreTypes.h"
 
-/*
+/**
  * A "Audio Producer" is an object that you use to push audio frames into the Pixel Streaming system.
  *
  * Example usage:
@@ -26,5 +26,5 @@ public:
 	 * @param NumChannels Number of audio channels. For example 2 for stero audio.
 	 * @param SampleRate Audio sample rate in samples per second.
 	 */
-    virtual void PushAudio(const float* InBuffer, int32 NumSamples, int32 NumChannels, int32 SampleRate) = 0;
+	virtual void PushAudio(const float* InBuffer, int32 NumSamples, int32 NumChannels, int32 SampleRate) = 0;
 };

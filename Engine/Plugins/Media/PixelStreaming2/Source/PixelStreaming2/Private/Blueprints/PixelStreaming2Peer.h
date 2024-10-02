@@ -92,13 +92,13 @@ private:
 	bool Disconnect(const FString& OptionalReason);
 
 public:
-	/* Begin IPixelStreaming2AudioConsumer Callbacks */
+	// Begin IPixelStreaming2AudioConsumer Callbacks
 	virtual void ConsumeRawPCM(const int16_t* AudioData, int InSampleRate, size_t NChannels, size_t NFrames) override;
 	virtual void OnConsumerAdded() override;
 	virtual void OnConsumerRemoved() override;
-	/* End IPixelStreaming2AudioConsumer Callbacks */
+	// End IPixelStreaming2AudioConsumer Callbacks
 
-	/* Begin FEpicRtcManager Callbacks */
+	// Begin FEpicRtcManager Callbacks
 	void OnSessionStateUpdate(const EpicRtcSessionState StateUpdate);
 	void OnSessionErrorUpdate(const EpicRtcErrorCode ErrorUpdate);
 	void OnSessionRoomsAvailableUpdate(EpicRtcStringArrayInterface* RoomsList);
@@ -126,7 +126,7 @@ public:
 	void OnDataTrackRemoved(EpicRtcDataTrackInterface* DataTrack);
 	void OnDataTrackState(EpicRtcDataTrackInterface* DataTrack, const EpicRtcTrackState State);
 	void OnDataTrackMessage(EpicRtcDataTrackInterface* DataTrack);
-	/* End FEpicRtcManager Callbacks */
+	// End FEpicRtcManager Callbacks
 
 	void OnStatsReady(const FString& PeerId, const EpicRtcConnectionStats& ConnectionStats);
 

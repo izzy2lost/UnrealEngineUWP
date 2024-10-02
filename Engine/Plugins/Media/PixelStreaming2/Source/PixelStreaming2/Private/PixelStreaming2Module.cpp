@@ -18,7 +18,7 @@
 #include "Slate/SceneViewport.h"
 #include "Streamer.h"
 #include "UObject/UObjectIterator.h"
-#include "Utils.h"
+#include "UtilsCommon.h"
 
 #if PLATFORM_LINUX
 	#include "CudaModule.h"
@@ -59,7 +59,7 @@ THIRD_PARTY_INCLUDES_END
 #include "VideoProducerMediaCapture.h"
 #include "Engine/GameEngine.h"
 #include "Stats.h"
-#include "ToStringExtensions.h"
+#include "UtilsString.h"
 
 #include "EpicRtcAllocator.h"
 #include "EpicRtcAudioMixingCapturer.h"
@@ -96,7 +96,7 @@ namespace UE::PixelStreaming2
 
 	FUtf8String FPixelStreaming2Module::EpicRtcConferenceName("pixel_streaming_conference_instance");
 
-	/*
+	/**
 	 * Stats logger - as turned on/off by CVarPixelStreaming2LogStats
 	 */
 	void ConsumeStat(FString PlayerId, FName StatName, float StatValue)
