@@ -37,7 +37,7 @@ public:
 	LIVELINKINTERFACE_API virtual bool SupportsRole(TSubclassOf<ULiveLinkRole> InDesiredRole) const;
 
 	virtual bool HasValidFrameSnapshot() const = 0;
-	virtual FLiveLinkStaticDataStruct& GetStaticData() = 0;
+	virtual FLiveLinkStaticDataStruct& GetStaticData(bool bGetOverrideData=true) = 0;
 	virtual const FLiveLinkStaticDataStruct& GetStaticData() const = 0;
 	virtual TArray<FLiveLinkTime> GetFrameTimes() const = 0;
 

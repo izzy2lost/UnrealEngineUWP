@@ -309,9 +309,11 @@ public:
 	virtual FText GetSubjectDisplayName(const FLiveLinkSubjectKey& SubjectKey) const = 0;
 
 	/**
-	 * Utility method to grab a subject's static data. Used by the RecordingController when static data is missing from the recording. 
+	 * Utility method to grab a subject's static data. Used by the RecordingController when static data is missing from the recording.
+	 * @param InSubjectKey The subject key to use.
+	 * @param bGetOverrideData Whether to get static override data if it exists.
 	 */
-	virtual const FLiveLinkStaticDataStruct* GetSubjectStaticData_AnyThread(const FLiveLinkSubjectKey& InSubjectKey) const = 0;
+	virtual const FLiveLinkStaticDataStruct* GetSubjectStaticData_AnyThread(const FLiveLinkSubjectKey& InSubjectKey, bool bGetOverrideData=true) const = 0;
 
 	/**
 	 * Return the evaluated subject from a specific source snapshot for a specific role.

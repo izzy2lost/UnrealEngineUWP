@@ -124,7 +124,7 @@ public:
 	virtual FText GetSubjectDisplayName(const FLiveLinkSubjectKey& SubjectKey) const override;
 	virtual ULiveLinkSourceSettings* GetSourceSettings(const FGuid& SourceGuid) const override;
 	virtual UObject* GetSubjectSettings(const FLiveLinkSubjectKey& SubjectKey) const override;
-	virtual const FLiveLinkStaticDataStruct* GetSubjectStaticData_AnyThread(const FLiveLinkSubjectKey& InSubjectKey) const override;
+	virtual const FLiveLinkStaticDataStruct* GetSubjectStaticData_AnyThread(const FLiveLinkSubjectKey& InSubjectKey, bool bGetOverrideData=true) const override;
 
 
 	virtual bool EvaluateFrameFromSource_AnyThread(const FLiveLinkSubjectKey& SubjectKey, TSubclassOf<ULiveLinkRole> Role, FLiveLinkSubjectFrameData& OutFrame) override;
@@ -232,10 +232,24 @@ protected:
 	virtual FLiveLinkSkeletonStaticData* GetSubjectAnimationStaticData_Deprecation(const FLiveLinkSubjectKey& SubjectKey) override;
 	//~ End FLiveLinkClient_Base_DEPRECATED implementation
 
-	/** Add delegates that will be triggered for all subjects. */
-	bool RegisterGlobalSubjectFramesDelegate(const FOnLiveLinkSubjectStaticDataAdded::FDelegate& InOnStaticDataAdded, const FOnLiveLinkSubjectFrameDataAdded::FDelegate& InOnFrameDataAdded, FDelegateHandle& OutStaticDataAddedHandle, FDelegateHandle& OutFrameDataAddedHandle);
-	/** Remove the delegates that were triggered for all subjects. */
-	void UnregisterGlobalSubjectFramesDelegate(FDelegateHandle& InStaticDataAddedHandle, FDelegateHandle& InFrameDataAddedHandle);
+	/**
+	 * Add delegates that will be triggered for all subjects.
+	 * @param InOnStaticDataAdded The delegate for when static data is added.
+	 * @param InOnFrameDataAdded The delegate for when frame data is added.
+	 * @param OutStaticDataAddedHandle [Out] The handle for adding static data.
+	 * @param OutFrameDataAddedHandle [Out] The handle for adding frame data.
+	 * @param bUseUnmappedData Whether to use raw, unmapped data. If false, then the data received may have a remapper applied.
+	 */
+	bool RegisterGlobalSubjectFramesDelegate(const FOnLiveLinkSubjectStaticDataAdded::FDelegate& InOnStaticDataAdded,
+		const FOnLiveLinkSubjectFrameDataAdded::FDelegate& InOnFrameDataAdded, FDelegateHandle& OutStaticDataAddedHandle,
+		FDelegateHandle& OutFrameDataAddedHandle, bool bUseUnmappedData);
+	/**
+	 * Remove the delegates that were triggered for all subjects.
+	 * @param InStaticDataAddedHandle The static data handle to remove.
+	 * @param InFrameDataAddedHandle The frame data handle to remove.
+	 * @param bUseUnmappedData Whether this is for unmapped or remapped data.
+	 */
+	void UnregisterGlobalSubjectFramesDelegate(FDelegateHandle& InStaticDataAddedHandle, FDelegateHandle& InFrameDataAddedHandle, bool bUseUnmappedData);
 
 private:
 	/** Common initialization code for the different constructors. */
@@ -301,6 +315,10 @@ private:
 	{
 		FOnLiveLinkSubjectStaticDataAdded OnStaticDataAdded;
 		FOnLiveLinkSubjectFrameDataAdded OnFrameDataAdded;
+		/** Original data that hasn't been remapped. */
+		FOnLiveLinkSubjectStaticDataAdded OnUnmappedStaticDataAdded;
+		/** Original data that hasn't been remapped. */
+		FOnLiveLinkSubjectFrameDataAdded OnUnmappedFrameDataAdded;
 	};
 
 	/** Map of delegates to notify interested parties when the client receives a static or data frame for each subject */

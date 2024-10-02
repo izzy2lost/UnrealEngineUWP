@@ -61,7 +61,7 @@ public:
 	virtual FLiveLinkSubjectKey GetSubjectKey() const override { return SubjectKey; }
 	virtual TSubclassOf<ULiveLinkRole> GetRole() const override { return Role; }
 	virtual bool HasValidFrameSnapshot() const override;
-	virtual FLiveLinkStaticDataStruct& GetStaticData() override;
+	virtual FLiveLinkStaticDataStruct& GetStaticData(bool bGetOverrideData=true) override;
 	virtual const FLiveLinkStaticDataStruct& GetStaticData() const override;
 	virtual TArray<FLiveLinkTime> GetFrameTimes() const override;
 	virtual const TArray<ULiveLinkFrameTranslator::FWorkerSharedPtr> GetFrameTranslators() const override

@@ -302,6 +302,8 @@ void FLiveLinkHubPlaybackController::Eject(TFunction<void()> CompletionCallback)
 	bIsReady = false;
 	
 	StopPlayback();
+
+	LastStaticFrameIndex.Empty();
 	
 	bIsPaused = false;
 	RecordingPlayer->RestartPlayback(0);
@@ -550,6 +552,17 @@ void FLiveLinkHubPlaybackController::PushSubjectData(const FLiveLinkRecordedFram
 	// If we're sending static data
 	if (NextFrame.LiveLinkRole)
 	{
+		// Make sure we only push static data if it has changed.
+    	if (const int32* Idx = LastStaticFrameIndex.Find(NextFrame.SubjectKey))
+    	{
+    		if (*Idx == NextFrame.FrameIndex)
+    		{
+    			return;
+    		}
+    	}
+
+    	LastStaticFrameIndex.Add(NextFrame.SubjectKey, NextFrame.FrameIndex);
+	
 		FLiveLinkStaticDataStruct StaticDataStruct;
 		StaticDataStruct.InitializeWith(NextFrame.Data.GetScriptStruct(), (FLiveLinkBaseStaticData*)NextFrame.Data.GetMemory());
 		Client->PushSubjectStaticData_AnyThread(NextFrame.SubjectKey, NextFrame.LiveLinkRole, MoveTemp(StaticDataStruct));
