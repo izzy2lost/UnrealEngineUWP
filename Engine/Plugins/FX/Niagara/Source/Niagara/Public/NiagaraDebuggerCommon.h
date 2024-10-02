@@ -126,6 +126,9 @@ struct FNiagaraOutlinerSystemInstanceData
 	UPROPERTY(VisibleAnywhere, Category = "Gpu")
 	uint32 bRequiresRayTracingScene : 1;
 
+	UPROPERTY(VisibleAnywhere, Category = "Gpu")
+	uint32 bRequiresCurrentFrameNDC : 1;
+
 	FNiagaraOutlinerSystemInstanceData()
 		: bPendingKill(false)
 		, bUsingCullProxy(false)
@@ -137,6 +140,7 @@ struct FNiagaraOutlinerSystemInstanceData
 		, bRequiresEarlyViewData(false)
 		, bRequiresViewUniformBuffer(false)
 		, bRequiresRayTracingScene(false)
+		, bRequiresCurrentFrameNDC(false)
 	{}
 };
 

@@ -56,6 +56,10 @@ void FNiagaraDataChannelManager::Init()
 
 void FNiagaraDataChannelManager::Cleanup()
 {
+	for (auto& ChannelPair : Channels)
+	{
+		ChannelPair.Value->Cleanup();
+	}
 	Channels.Empty();
 	bIsCleanedUp = true;
 }

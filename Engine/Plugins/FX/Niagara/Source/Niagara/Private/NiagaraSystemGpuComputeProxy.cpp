@@ -20,6 +20,7 @@ FNiagaraSystemGpuComputeProxy::FNiagaraSystemGpuComputeProxy(FNiagaraSystemInsta
 	bRequiresEarlyViewData = OwnerInstance->RequiresEarlyViewData();
 	bRequiresViewUniformBuffer = OwnerInstance->RequiresViewUniformBuffer();
 	bRequiresRayTracingScene = OwnerInstance->RequiresRayTracingScene();
+	bRequiresCurrentFrameNDC = OwnerInstance->RequiresCurrentFrameNDC();
 
 	// Gather all emitter compute contexts
 	for ( auto& Emitter : OwnerInstance->GetEmitters() )
@@ -31,7 +32,7 @@ FNiagaraSystemGpuComputeProxy::FNiagaraSystemGpuComputeProxy(FNiagaraSystemInsta
 	}
 
 	// Calculate Tick Stage
-	if (bRequiresGlobalDistanceField || bRequiresDepthBuffer || bRequiresRayTracingScene)
+	if (bRequiresGlobalDistanceField || bRequiresDepthBuffer || bRequiresRayTracingScene || bRequiresCurrentFrameNDC)
 	{
 		ComputeTickStage = ENiagaraGpuComputeTickStage::PostOpaqueRender;
 	}
@@ -166,8 +167,11 @@ void FNiagaraSystemGpuComputeProxy::QueueTick(const FNiagaraGPUSystemTick& Tick)
 		for (auto& Pair : Tick.DIInstanceData->InterfaceProxiesToOffsets)
 		{
 			FNiagaraDataInterfaceProxy* Proxy = Pair.Key;
-			uint8* InstanceDataPtr = BasePointer + Pair.Value;
-			Proxy->ConsumePerInstanceDataFromGameThread(InstanceDataPtr, Tick.SystemInstanceID);
+			//if(Proxy->bConsumeCPUDataEarly)//TODO: Add path to optionally allow DIs to consume data in "Frames" rather than here when we consume the ticks.
+			//{
+				uint8* InstanceDataPtr = BasePointer + Pair.Value;
+				Proxy->ConsumePerInstanceDataFromGameThread(InstanceDataPtr, Tick.SystemInstanceID);
+			//}
 		}
 	}
 }

@@ -456,6 +456,7 @@ void FNiagaraDebuggerClient::CaptureOutlinerData(FNiagaraOutlinerData& OutlinerD
 				InstData.bRequiresEarlyViewData = Inst->RequiresEarlyViewData();
 				InstData.bRequiresViewUniformBuffer = Inst->RequiresViewUniformBuffer();
 				InstData.bRequiresRayTracingScene = Inst->RequiresRayTracingScene();
+				InstData.bRequiresCurrentFrameNDC = Inst->RequiresCurrentFrameNDC();
 
 				InstData.Emitters.Reserve(Inst->GetEmitters().Num());
 				for (const FNiagaraEmitterInstanceRef& EmitterInst : Inst->GetEmitters())

@@ -58,14 +58,28 @@ class UNiagaraDataChannelWriter;
 class UNiagaraDataChannelReader;
 struct FNiagaraDataChannelPublishRequest;
 struct FNiagaraDataChannelGameDataLayout;
+class FNiagaraGpuReadbackManager;
 
 //////////////////////////////////////////////////////////////////////////
 
 /** Render thread proxy of FNiagaraDataChannelData. */
 struct FNiagaraDataChannelDataProxy
 {
+	~FNiagaraDataChannelDataProxy();
+
+	TWeakPtr<FNiagaraDataChannelData> Owner;
 	FNiagaraDataSet* GPUDataSet = nullptr;
+	FNiagaraDataBufferRef CurrFrameData = nullptr;
 	FNiagaraDataBufferRef PrevFrameData = nullptr;
+	bool bNeedsPrevFrameData = false;
+
+	//Buffers coming from the CPU that we're going to copy up for reading on the GPU
+	TArray<FNiagaraDataBufferRef> PendingCPUBuffers;
+	
+	//Users that need space in this NDC Data add to this for each tick via AddGPUAllocationForNextTick().
+	int32 PendingGPUAllocations = 0;
+
+	FNiagaraGpuComputeDispatchInterface* DispatchInterface = nullptr;
 
 	#if !UE_BUILD_SHIPPING
 	FString DebugName;
@@ -74,9 +88,18 @@ struct FNiagaraDataChannelDataProxy
 	const TCHAR* GetDebugName()const{return nullptr;}
 	#endif
 
-	void BeginFrame(bool bKeepPreviousFrameData);
-	void EndFrame(FNiagaraGpuComputeDispatchInterface* DispathInterface, FRHICommandListImmediate& CmdList, const TArray<FNiagaraDataBufferRef>& BuffersForGPU);
+	void Init();
+	void BeginFrame(FRHICommandListImmediate& RHICmdList);
+	void EndFrame(FRHICommandListImmediate& RHICmdList);
 	void Reset();
+
+	FNiagaraDataBufferRef AllocateBufferForCPU(FRHICommandListImmediate& RHICmdList, ERHIFeatureLevel::Type FeatureLevel, int32 AllocationSize);
+	void EnqueueReadbackForCPUBuffer(FRHICommandList& RHICmdList, FNiagaraDataBufferRef Buffer, FNiagaraGpuReadbackManager* ReadbackManager, FNiagaraGPUInstanceCountManager& InstanceCountManager, bool bPublishToGame, bool bPublishToCPU, FVector3f LWCTile);
+	void AddBuffersFromCPU(const TArray<FNiagaraDataBufferRef>& BuffersFromCPU);	
+	void AddGPUAllocationForNextTick(int32 AllocationCount);
+
+	FNiagaraDataBufferRef GetCurrentData()const { return CurrFrameData; }
+	FNiagaraDataBufferRef GetPrevFrameData()const { return PrevFrameData; }
 };
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnDataChannelCreated, const UNiagaraDataChannel*);

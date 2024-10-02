@@ -25,6 +25,7 @@
 #include "NiagaraGPUSystemTick.h"
 
 #include "NiagaraDataInterfaceUtilities.h"
+#include "NiagaraGpuComputeDispatchInterface.h"
 
 #if WITH_EDITOR
 #include "INiagaraEditorOnlyDataUtlities.h"
@@ -85,6 +86,7 @@ namespace NDIDataChannelReadLocal
 {
 	static const TCHAR* CommonShaderFile = TEXT("/Plugin/FX/Niagara/Private/DataChannel/NiagaraDataInterfaceDataChannelCommon.ush");
 	static const TCHAR* TemplateShaderFile_Common = TEXT("/Plugin/FX/Niagara/Private/DataChannel/NiagaraDataInterfaceDataChannelTemplateCommon.ush");
+	static const TCHAR* TemplateShaderFile_ReadCommon = TEXT("/Plugin/FX/Niagara/Private/DataChannel/NiagaraDataInterfaceDataChannelTemplateReadCommon.ush");
 	static const TCHAR* TemplateShaderFile_Read = TEXT("/Plugin/FX/Niagara/Private/DataChannel/NiagaraDataInterfaceDataChannelTemplate_Read.ush");
 	static const TCHAR* TemplateShaderFile_Consume = TEXT("/Plugin/FX/Niagara/Private/DataChannel/NiagaraDataInterfaceDataChannelTemplate_Consume.ush");
 
@@ -268,24 +270,30 @@ namespace NDIDataChannelReadLocal
 	// Function definitions END
 	//////////////////////////////////////////////////////////////////////////
 
-	const TCHAR* GetFunctionTemplate(FName FunctionName)
+	void BuildFunctionTemplateMap(TArray<FString>& OutCommonTemplateShaders, TMap<FName, FString>& OutMap)
 	{
-		if (FunctionName == GetFunctionSig_Read().Name) return TemplateShaderFile_Read;
-		if (FunctionName == GetFunctionSig_Consume().Name) return TemplateShaderFile_Consume;
+		LoadShaderSourceFile(TemplateShaderFile_Common, EShaderPlatform::SP_PCD3D_SM5, &OutCommonTemplateShaders.AddDefaulted_GetRef(), nullptr);
+		LoadShaderSourceFile(TemplateShaderFile_ReadCommon, EShaderPlatform::SP_PCD3D_SM5, &OutCommonTemplateShaders.AddDefaulted_GetRef(), nullptr);
 
-		return nullptr;
+		LoadShaderSourceFile(TemplateShaderFile_Read, EShaderPlatform::SP_PCD3D_SM5, &OutMap.Add(GetFunctionSig_Read().Name), nullptr);
+		LoadShaderSourceFile(TemplateShaderFile_Consume, EShaderPlatform::SP_PCD3D_SM5, &OutMap.Add(GetFunctionSig_Consume().Name), nullptr);
 	}
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FShaderParameters, )
 		SHADER_PARAMETER_SRV(Buffer<uint>, ParamOffsetTable)
-		SHADER_PARAMETER_SRV(Buffer<float>, DataFloat)
-		SHADER_PARAMETER_SRV(Buffer<int>, DataInt32)
-		SHADER_PARAMETER_SRV(Buffer<float>, DataHalf)
 		SHADER_PARAMETER(int32, ParameterOffsetTableIndex)
-		SHADER_PARAMETER(int32, Num)
 		SHADER_PARAMETER(int32, FloatStride)
 		SHADER_PARAMETER(int32, Int32Stride)
 		SHADER_PARAMETER(int32, HalfStride)
+
+		SHADER_PARAMETER_SRV(Buffer<float>, DataFloat)
+		SHADER_PARAMETER_SRV(Buffer<int>, DataInt32)
+		SHADER_PARAMETER_SRV(Buffer<float>, DataHalf)
+		SHADER_PARAMETER(int32, InstanceCountOffset)
+		SHADER_PARAMETER(int32, ConsumeInstanceCountOffset)
+		SHADER_PARAMETER(int32, BufferSize)
+
+		SHADER_PARAMETER(int32, NDCElementCountAtSpawn)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<int32>, NDCSpawnDataBuffer)
 	END_SHADER_PARAMETER_STRUCT()
 }
@@ -297,27 +305,15 @@ struct FNDIDataChannelReadInstanceData_RT
 	FNiagaraDataChannelDataProxy* ChannelDataRTProxy = nullptr;
 
 	bool bReadPrevFrame = false;
-	/**
-	Table of all parameter offsets used by each GPU script using this DI.
-	Each script has to have it's own section of this table as the offsets into this table are embedded in the hlsl.
-	At hlsl gen time we only have the context of each script individually to generate these indexes.
-	TODO: Can possible elevate this up to the LayoutManager and have a single layout buffer for all scripts
-	*/
-	TResourceArray<uint32> GPUScriptParameterOffsetTable;
 
-	/**
-	Offsets into the parameter table are embedded in the gpu script hlsl.
-	At hlsl gen time we can only know which parameters are accessed by each script individually so each script must have it's own parameter binding table.
-	We provide the offset into the above table via a shader param.
-	TODO: Can just as easily be an offset into a global buffer in the Layout manager.
-	*/
-	TMap<FNiagaraCompileHash, uint32> GPUScriptParameterTableOffsets;
-
-	/** Signal we have updated function binding data from the GT this frame we should process. */
-	bool bHasFunctionBindingUpdate = false;
+	/** Parameter mapping info for every function in every script used by this DI. */
+	FVariadicParameterGPUScriptInfo ScriptParamInfo;
 
 	/** Buffer containing packed data for all emitters NDC spawning data for use on the GPU. */
 	TArray<int32> NDCSpawnData;
+
+	/** Number of NDC elements at the point of spawning. More could have been added after this. */
+	int32 NDCElementCountAtSpawn = 0;
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -327,7 +323,7 @@ FNDIDataChannelReadInstanceData::~FNDIDataChannelReadInstanceData()
 
 }
 
-FNiagaraDataBuffer* FNDIDataChannelReadInstanceData::GetReadBufferCPU(bool bPrevFrame)
+FNiagaraDataBuffer* FNDIDataChannelReadInstanceData::GetReadBufferCPU(bool bPrevFrame)const
 {
 	if (DataChannelData)
 	{
@@ -686,6 +682,8 @@ void UNiagaraDataInterfaceDataChannelRead::PostStageTick(FNDICpuPostStageContext
 	check(InstanceData);
 	check(Context.Usage == ENiagaraScriptUsage::EmitterUpdateScript || Context.Usage == ENiagaraScriptUsage::SystemUpdateScript);
 
+	InstanceData->NDCElementCountAtSpawn = 0;
+	
 	for (auto& EmitterInstanceDataPair : InstanceData->EmitterInstanceData)
 	{
 		FNDIDataChannelRead_EmitterInstanceData& EmitterInstData = EmitterInstanceDataPair.Value;
@@ -695,6 +693,12 @@ void UNiagaraDataInterfaceDataChannelRead::PostStageTick(FNDICpuPostStageContext
 			EmitterInstData.Reset();
 			continue;
 		}
+		
+		if (InstanceData->NDCElementCountAtSpawn == 0)
+		{
+			InstanceData->NDCElementCountAtSpawn = EmitterInstData.NDCSpawnCounts.Num();
+		}
+		check(EmitterInstData.NDCSpawnCounts.Num() == InstanceData->NDCElementCountAtSpawn);
 
 		TArray<uint32> PerNDCSpawnCounts;
 		PerNDCSpawnCounts.Reserve(EmitterInstData.NDCSpawnCounts.Num());
@@ -703,7 +707,7 @@ void UNiagaraDataInterfaceDataChannelRead::PostStageTick(FNDICpuPostStageContext
 			PerNDCSpawnCounts.Add(Info.Get());
 		}
 
-		EmitterInstData.Reset();
+		EmitterInstData.NDCSpawnData.Reset();
 
 		//-TODO:Stateless:
 		if (FNiagaraEmitterInstanceImpl* StatefulEmitter = TargetEmitter->AsStateful())
@@ -803,113 +807,87 @@ void UNiagaraDataInterfaceDataChannelRead::ProvidePerInstanceDataForRenderThread
 
 	bool bReadPrevFrame = bReadCurrentFrame == false || GNDCReadForcePrevFrame;
 	TargetData->bReadPrevFrame = bReadPrevFrame;
+	TargetData->NDCElementCountAtSpawn = SourceData.NDCElementCountAtSpawn;
 
 	if (SourceData.bUpdateFunctionBindingRTData && INiagaraModule::DataChannelsEnabled())
 	{
 		SourceData.bUpdateFunctionBindingRTData = false;
-
-		TargetData->bHasFunctionBindingUpdate = true;
 		
 		const FNiagaraDataSetCompiledData& GPUCompiledData = SourceData.DataChannel->GetDataChannel()->GetCompiledData(ENiagaraSimTarget::GPUComputeSim);
-
-		//For every GPU script, we append it's parameter access info to the table.
-		TargetData->GPUScriptParameterTableOffsets.Reset();
-		constexpr int32 ElemsPerParam = 3;
-		TargetData->GPUScriptParameterOffsetTable.Reset(CompiledData.GetTotalParams() * ElemsPerParam);
-		for (auto& GPUParameterAccessInfoPair : CompiledData.GetGPUScriptParameterInfos())
-		{
-			const FNDIDataChannel_GPUScriptParameterAccessInfo& ParamAccessInfo = GPUParameterAccessInfoPair.Value;
-
-			//First get the offset for this script in the table.
-			TargetData->GPUScriptParameterTableOffsets.FindOrAdd(GPUParameterAccessInfoPair.Key) = TargetData->GPUScriptParameterOffsetTable.Num();
-
-			//Now fill the table for this script
-			for (const FNiagaraVariableBase& Param : ParamAccessInfo.SortedParameters)
-			{
-				if (const FNiagaraVariableLayoutInfo* LayoutInfo = GPUCompiledData.FindVariableLayoutInfo(Param))
-				{
-					TargetData->GPUScriptParameterOffsetTable.Add(LayoutInfo->GetNumFloatComponents() > 0 ? LayoutInfo->GetFloatComponentStart() : INDEX_NONE);
-					TargetData->GPUScriptParameterOffsetTable.Add(LayoutInfo->GetNumInt32Components() > 0 ? LayoutInfo->GetInt32ComponentStart() : INDEX_NONE);
-					TargetData->GPUScriptParameterOffsetTable.Add(LayoutInfo->GetNumHalfComponents() > 0 ? LayoutInfo->GetHalfComponentStart() : INDEX_NONE);
-				}
-				else
-				{
-					TargetData->GPUScriptParameterOffsetTable.Add(INDEX_NONE);
-					TargetData->GPUScriptParameterOffsetTable.Add(INDEX_NONE);
-					TargetData->GPUScriptParameterOffsetTable.Add(INDEX_NONE);
-				}
-			}
-		}
+		TargetData->ScriptParamInfo.Init(CompiledData, GPUCompiledData);
 	}
 
-	//Always need to fill in the NDCSpawnData array as it will change every frame and be pushed into an RDG buffer.
-
-	//New buffer is every emitter continuous NDCSpawnDataArray. We need to store an offset that we pass in as a uniform.
-	//The buckets come first, then the per NDC SpawnCounts, Then the bucket back ptrs.
-
-	//Do one pass to calculate size.
-	auto GetEmitterNDCSpawnDataSize = [](const FNDIDataChannelRead_EmitterInstanceData& EmitterInstData)
+	//NDC SpawnData Handling. TODO: Refactor into function
 	{
-		return 16 + EmitterInstData.NDCSpawnCounts.Num() + EmitterInstData.NDCSpawnData.NDCSpawnData.Num();
-	};
+		//Always need to fill in the NDCSpawnData array as it will change every frame and be pushed into an RDG buffer.
 
-	uint32 NumEmitters = SourceData.EmitterInstanceData.Num();
-	uint32 TotalPacckedNDCSpawnDataSize = 0;
-	int32 MaxEmitterIndex = 0;
-	for (const TPair<FNiagaraEmitterInstance*, FNDIDataChannelRead_EmitterInstanceData>& EmitterInstDataPair : SourceData.EmitterInstanceData)
-	{
-		if (const FNiagaraEmitterInstance* EmitterInst = EmitterInstDataPair.Key)
+		//New buffer is every emitter continuous NDCSpawnDataArray. We need to store an offset that we pass in as a uniform.
+		//The buckets come first, then the per NDC SpawnCounts, Then the bucket back ptrs.
+
+		//Do one pass to calculate size.
+		auto GetEmitterNDCSpawnDataSize = [](const FNDIDataChannelRead_EmitterInstanceData& EmitterInstData)
 		{
-			const FNDIDataChannelRead_EmitterInstanceData& EmitterInstData = EmitterInstDataPair.Value;
+			return 16 + EmitterInstData.NDCSpawnCounts.Num() + EmitterInstData.NDCSpawnData.NDCSpawnData.Num();
+		};
 
-			TotalPacckedNDCSpawnDataSize += GetEmitterNDCSpawnDataSize(EmitterInstData);
-			FNiagaraEmitterID ID = EmitterInst->GetEmitterID();
-			MaxEmitterIndex = FMath::Max(MaxEmitterIndex, ID.ID);
+		uint32 NumEmitters = SourceData.EmitterInstanceData.Num();
+		uint32 TotalPacckedNDCSpawnDataSize = 0;
+		int32 MaxEmitterIndex = 0;
+		for (const TPair<FNiagaraEmitterInstance*, FNDIDataChannelRead_EmitterInstanceData>& EmitterInstDataPair : SourceData.EmitterInstanceData)
+		{
+			if (const FNiagaraEmitterInstance* EmitterInst = EmitterInstDataPair.Key)
+			{
+				const FNDIDataChannelRead_EmitterInstanceData& EmitterInstData = EmitterInstDataPair.Value;
+
+				TotalPacckedNDCSpawnDataSize += GetEmitterNDCSpawnDataSize(EmitterInstData);
+				FNiagaraEmitterID ID = EmitterInst->GetEmitterID();
+				MaxEmitterIndex = FMath::Max(MaxEmitterIndex, ID.ID);
+			}
 		}
-	}
 
-	//First section of the NDCSpawnDataBuffer is an offset into the buffer for each emitter.
-	TotalPacckedNDCSpawnDataSize += MaxEmitterIndex;
+		//First section of the NDCSpawnDataBuffer is an offset into the buffer for each emitter.
+		TotalPacckedNDCSpawnDataSize += MaxEmitterIndex;
 
-	TargetData->NDCSpawnData.Reset(TotalPacckedNDCSpawnDataSize);
-	TArray<int32>& TargetNDCSpawnData = TargetData->NDCSpawnData;
+		TargetData->NDCSpawnData.Reset(TotalPacckedNDCSpawnDataSize);
+		TArray<int32>& TargetNDCSpawnData = TargetData->NDCSpawnData;
 
-	//First grab space for the per emitter offset table. We'll fill this in as we go.
-	TargetNDCSpawnData.AddZeroed(MaxEmitterIndex + 1);
+		//First grab space for the per emitter offset table. We'll fill this in as we go.
+		TargetNDCSpawnData.AddZeroed(MaxEmitterIndex + 1);
 
-	uint32 CurrentSpawnDataOffset = TargetNDCSpawnData.Num();
+		uint32 CurrentSpawnDataOffset = TargetNDCSpawnData.Num();
 
-	for (const TPair<FNiagaraEmitterInstance*, FNDIDataChannelRead_EmitterInstanceData>& EmitterInstDataPair : SourceData.EmitterInstanceData)
-	{
-		if (const FNiagaraEmitterInstance* EmitterInst = EmitterInstDataPair.Key)
+		for (const TPair<FNiagaraEmitterInstance*, FNDIDataChannelRead_EmitterInstanceData>& EmitterInstDataPair : SourceData.EmitterInstanceData)
 		{
-			const FNDIDataChannelRead_EmitterInstanceData& EmitterInstData = EmitterInstDataPair.Value;
-			if(EmitterInst->GetGPUContext() == nullptr)
+			if (const FNiagaraEmitterInstance* EmitterInst = EmitterInstDataPair.Key)
 			{
-				continue;
+				const FNDIDataChannelRead_EmitterInstanceData& EmitterInstData = EmitterInstDataPair.Value;
+				if (EmitterInst->GetGPUContext() == nullptr)
+				{
+					continue;
+				}
+
+
+				uint32 EmitterNDCSpawnDataSize = GetEmitterNDCSpawnDataSize(EmitterInstData);
+
+				//First fill in the current offset for this emitter.
+				FNiagaraEmitterID EmitterID = EmitterInst->GetEmitterID();
+				TargetNDCSpawnData[EmitterID.ID] = CurrentSpawnDataOffset;
+
+				CurrentSpawnDataOffset += EmitterNDCSpawnDataSize;
+
+				//Next fill in bucket counts
+				for (int32 i = 0; i < 16; ++i)
+				{
+					TargetNDCSpawnData.Add(EmitterInstData.NDCSpawnData.NDCSpawnDataBuckets[i]);
+				}
+				//Next the per NDC Spawn Counts
+				for (int32 i = 0; i < EmitterInstData.NDCSpawnCounts.Num(); ++i)
+				{
+					TargetNDCSpawnData.Add(EmitterInstData.NDCSpawnCounts[i].Get());
+				}
+				//Finally the exec index to NDC index mapping table
+				TargetNDCSpawnData.Append(EmitterInstData.NDCSpawnData.NDCSpawnData);
 			}
-
-
-			uint32 EmitterNDCSpawnDataSize = GetEmitterNDCSpawnDataSize(EmitterInstData);
-
-			//First fill in the current offset for this emitter.
-			FNiagaraEmitterID EmitterID = EmitterInst->GetEmitterID();
-			TargetNDCSpawnData[EmitterID.ID] = CurrentSpawnDataOffset;
-
-			CurrentSpawnDataOffset += EmitterNDCSpawnDataSize;
-
-			//Next fill in bucket counts
-			for (int32 i = 0; i < 16; ++i)
-			{
-				TargetNDCSpawnData.Add(EmitterInstData.NDCSpawnData.NDCSpawnDataBuckets[i]);
-			}
-			//Next the per NDC Spawn Counts
-			for(int32 i=0; i < EmitterInstData.NDCSpawnCounts.Num(); ++i)
-			{
-				TargetNDCSpawnData.Add(EmitterInstData.NDCSpawnCounts[i].Get());
-			}
-			//Finally the exec index to NDC index mapping table
-			TargetNDCSpawnData.Append(EmitterInstData.NDCSpawnData.NDCSpawnData);
 		}
 	}
 }
@@ -1358,12 +1336,11 @@ void UNiagaraDataInterfaceDataChannelRead::GetNDCSpawnData(FVectorVMExternalFunc
 
 	if(Buffer && INiagaraModule::DataChannelsEnabled())
 	{
-		uint32 NumNDCEntries = Buffer->GetNumInstances();
-
 		auto CalculateNDCSpawnInfo = [&](const FNDIDataChannelRead_EmitterInstanceData& EmitterInstanceData)
 		{
 			const int32* NDCSpawnBukets = EmitterInstanceData.NDCSpawnData.NDCSpawnDataBuckets;
 			TConstArrayView<int32> NDCSpawnData(EmitterInstanceData.NDCSpawnData.NDCSpawnData);
+			uint32 NumNDCEntries = EmitterInstanceData.NDCSpawnCounts.Num();
 
 			uint32 ExecIndex = InExecIndex.GetAndAdvance();
 			uint32 NDCIndex = INDEX_NONE;
@@ -1580,34 +1557,41 @@ void UNiagaraDataInterfaceDataChannelRead::Consume(FVectorVMExternalFunctionCont
 			bool bConsume = InConsume.GetAndAdvance();
 
 			bool bSuccess = false;
-			int32 Index = InstData->ConsumeIndex;
+			int32 Index = INDEX_NONE;
 			if (bConsume)
 			{
-				while (Index < (int32)Data->GetNumInstances() && InstData->ConsumeIndex.compare_exchange_strong(Index, Index + 1) == false)
+				//Increment counter and enforce max if the result is over acceptable values.
+				//Note: This allows the index to temporarily exceed the max limits so is unsafe if we access this concurrently anywhere else without checking the limits.
+				//Note: However it does avoid a more expensive looping compare exchange.
+				Index = InstData->ConsumeIndex++;
+				if(Index >= 0 && Index < (int32)Data->GetNumInstances())
 				{
-					Index = InstData->ConsumeIndex;
+					//TODO: Wrap/clamp modes etc
+
+					auto FloatFunc = [Data, Index](const FNDIDataChannelRegisterBinding& VMBinding, VectorVM::FExternalFuncRegisterHandler<float>& FloatData)
+					{
+						if (VMBinding.DataSetRegisterIndex != INDEX_NONE)
+							*FloatData.GetDestAndAdvance() = *Data->GetInstancePtrFloat(VMBinding.DataSetRegisterIndex, (uint32)Index);
+					};
+					auto IntFunc = [Data, Index](const FNDIDataChannelRegisterBinding& VMBinding, VectorVM::FExternalFuncRegisterHandler<int32>& IntData)
+					{
+						if (VMBinding.DataSetRegisterIndex != INDEX_NONE)
+							*IntData.GetDestAndAdvance() = *Data->GetInstancePtrInt32(VMBinding.DataSetRegisterIndex, (uint32)Index);
+					};
+					auto HalfFunc = [Data, Index](const FNDIDataChannelRegisterBinding& VMBinding, VectorVM::FExternalFuncRegisterHandler<FFloat16>& HalfData)
+					{
+						if (VMBinding.DataSetRegisterIndex != INDEX_NONE)
+							*HalfData.GetDestAndAdvance() = *Data->GetInstancePtrHalf(VMBinding.DataSetRegisterIndex, (uint32)Index);
+					};
+					bSuccess = VariadicOutputs.Process(bConsume, 1, BindingInfo, FloatFunc, IntFunc, HalfFunc);
 				}
-
-				bConsume &= (uint32)Index < Data->GetNumInstances();
-
-				auto FloatFunc = [Data, Index](const FNDIDataChannelRegisterBinding& VMBinding, VectorVM::FExternalFuncRegisterHandler<float>& FloatData)
+				else
 				{
-					if (VMBinding.DataSetRegisterIndex != INDEX_NONE)
-						*FloatData.GetDestAndAdvance() = *Data->GetInstancePtrFloat(VMBinding.DataSetRegisterIndex, (uint32)Index);
-				};
-				auto IntFunc = [Data, Index](const FNDIDataChannelRegisterBinding& VMBinding, VectorVM::FExternalFuncRegisterHandler<int32>& IntData)
-				{
-					if (VMBinding.DataSetRegisterIndex != INDEX_NONE)
-						*IntData.GetDestAndAdvance() = *Data->GetInstancePtrInt32(VMBinding.DataSetRegisterIndex, (uint32)Index);
-				};
-				auto HalfFunc = [Data, Index](const FNDIDataChannelRegisterBinding& VMBinding, VectorVM::FExternalFuncRegisterHandler<FFloat16>& HalfData)
-				{
-					if (VMBinding.DataSetRegisterIndex != INDEX_NONE)
-						*HalfData.GetDestAndAdvance() = *Data->GetInstancePtrHalf(VMBinding.DataSetRegisterIndex, (uint32)Index);
-				};
-				bSuccess = VariadicOutputs.Process(bConsume, 1, BindingInfo, FloatFunc, IntFunc, HalfFunc);
+					InstData->ConsumeIndex = Data->GetNumInstances();
+				}
 			}
-			else
+		
+			if(bSuccess == false)
 			{
 				VariadicOutputs.Fallback(1);
 			}
@@ -1930,7 +1914,8 @@ bool UNiagaraDataInterfaceDataChannelRead::AppendCompileHash(FNiagaraCompileHash
 {
 	bool bSuccess = Super::AppendCompileHash(InVisitor);
 	bSuccess &= InVisitor->UpdateString(TEXT("UNiagaraDataInterfaceDataChannelCommon"), GetShaderFileHash(NDIDataChannelReadLocal::CommonShaderFile, EShaderPlatform::SP_PCD3D_SM5).ToString());
-	bSuccess &= InVisitor->UpdateString(TEXT("UNiagaraDataInterfaceDataChannelRead_Common"), GetShaderFileHash(NDIDataChannelReadLocal::TemplateShaderFile_Common, EShaderPlatform::SP_PCD3D_SM5).ToString());
+	bSuccess &= InVisitor->UpdateString(TEXT("UNiagaraDataInterfaceDataChannelTemplateCommon"), GetShaderFileHash(NDIDataChannelReadLocal::TemplateShaderFile_Common, EShaderPlatform::SP_PCD3D_SM5).ToString());
+	bSuccess &= InVisitor->UpdateString(TEXT("UNiagaraDataInterfaceDataChannelRead_Common"), GetShaderFileHash(NDIDataChannelReadLocal::TemplateShaderFile_ReadCommon, EShaderPlatform::SP_PCD3D_SM5).ToString());
 	bSuccess &= InVisitor->UpdateString(TEXT("UNiagaraDataInterfaceDataChannelRead_Read"), GetShaderFileHash(NDIDataChannelReadLocal::TemplateShaderFile_Read, EShaderPlatform::SP_PCD3D_SM5).ToString());
 	bSuccess &= InVisitor->UpdateString(TEXT("UNiagaraDataInterfaceDataChannelRead_Consume"), GetShaderFileHash(NDIDataChannelReadLocal::TemplateShaderFile_Consume, EShaderPlatform::SP_PCD3D_SM5).ToString());
 
@@ -1954,279 +1939,13 @@ bool UNiagaraDataInterfaceDataChannelRead::GetFunctionHLSL(FNiagaraDataInterface
 
 void UNiagaraDataInterfaceDataChannelRead::GetParameterDefinitionHLSL(FNiagaraDataInterfaceHlslGenerationContext& HlslGenContext, FString& OutHLSL)
 {
-	//Desc:
-	// This function iterates over all functions called for this DI in each script and builds the correct hlsl.
-	// The main part of the complexity here is dealing with Variadic function parameters.
-	// We must interrogate the script to see what parameters are actually accessed and generate hlsl accordingly.
-	// Ideally at some future point we can refactor most of this out to a utility helper that will do most of the heavy lifting.
-	// Allowing users to simply provide some details and lambdas etc to specify what exactly they'd like to do in the function body with each variadic param.
+	Super::GetParameterDefinitionHLSL(HlslGenContext, OutHLSL);
 
-	//Initially we'll do some preamble, setting up various template strings and args etc.
-
-	//Map of all arguments for various pieces of template code.
-	//We have some common code that is shared by all functions.
-	//Some code is unique for each function.
-	//Some is unique per parameter to each function.
-	//Finally there is some that is unique for each sub component of each parameter until we've hit a base type. float/2/3/4 etc.
-	TMap<FString, FStringFormatArg> HlslTemplateArgs =
-	{
-		//Common args for all functions
-		{TEXT("ParameterName"),							HlslGenContext.ParameterInfo.DataInterfaceHLSLSymbol},
-		
-		//Per function args. These will be changed with each function written
-		{TEXT("FunctionSymbol"),						FString(TEXT("FunctionSymbol"))},//Function symbol which will be a mangled form from the translator.
-		{TEXT("FunctionParameters"),					FString(TEXT("FunctionParameters"))},//Function parameters written into the function signature.
-		{TEXT("PerFunctionParameterShaderCode"),		FString(TEXT("PerFunctionParameterShaderCode"))},//Combined string of all code dealing with each of the function parameters.
-		//Per function parameter args. These will be changed with each parameter written
-		{TEXT("FunctionParameterIndex"),				TEXT("FunctionParameterIndex")},//Function parameter index allowing us to look up the layout information for the correct parameter to the function.
-		{TEXT("FunctionParameterName"),					FString(TEXT("FunctionParameterName"))},//Name of this function parameter.
-		{TEXT("FunctionParameterType"),					FString(TEXT("FunctionParameterType"))},//Type of this function parameter.
-		{TEXT("PerParamRWCode"),						FString(TEXT("PerParamRWCode"))},//Code that does the actual reading or writing to the data channel buffers.
-		//Per component/base type args. These will change with every base type we I/O from the Data Channel.
-		{TEXT("FunctionParameterComponentBufferType"),	FString(TEXT("FunctionParameterComponentBufferType"))},//The actual base data buffer type being accessed by a particular DataChannel access code line. Float, Int32, Half etc
-		{TEXT("FunctionParameterComponentName"),		FString(TEXT("FunctionParameterComponentName"))},//The name/symbol of the actual member of a parameter that we can I/O from the DataChannel via a standard getter/setter.
-		{TEXT("FunctionParameterComponentType"),		FString(TEXT("FunctionParameterComponentType"))},//The type of the actual member of a parameter that we can I/O from the DataChannel via a standard getter/setter.
-	};
-
-	//Grab refs to per function args we'll change with each function written.
-	FStringFormatArg& FunctionSymbol = HlslTemplateArgs.FindChecked(TEXT("FunctionSymbol"));
-	FStringFormatArg& FunctionParameters = HlslTemplateArgs.FindChecked(TEXT("FunctionParameters"));
-	FStringFormatArg& PerFunctionParameterShaderCode = HlslTemplateArgs.FindChecked(TEXT("PerFunctionParameterShaderCode"));
-
-	//Grab refs to per function args we'll change with each parameter written.
-	FStringFormatArg& FunctionParameterIndex = HlslTemplateArgs.FindChecked(TEXT("FunctionParameterIndex"));
-	FStringFormatArg& FuncParamName = HlslTemplateArgs.FindChecked(TEXT("FunctionParameterName"));
-	FStringFormatArg& FuncParamType = HlslTemplateArgs.FindChecked(TEXT("FunctionParameterType"));
-	FStringFormatArg& PerParamRWCode = HlslTemplateArgs.FindChecked(TEXT("PerParamRWCode"));
-
-	//Grab refs to per component/base type args we'll change for every parameter component we access in the Data Channel.
-	FStringFormatArg& FunctionParameterComponentBufferType = HlslTemplateArgs.FindChecked(TEXT("FunctionParameterComponentBufferType"));
-	FStringFormatArg& FunctionParameterComponentName = HlslTemplateArgs.FindChecked(TEXT("FunctionParameterComponentName"));
-	FStringFormatArg& FunctionParameterComponentType = HlslTemplateArgs.FindChecked(TEXT("FunctionParameterComponentType"));
-
-	//Template code for writing handling code for each of the function parameters.
-	//Some preamble and an replacement arg into which we write all the actual I/O with the DataChannel buffers.
-	FString PerFunctionParameterTemplate = TEXT("\n\
-		//Handling for function parameter {FunctionParameterName}\n\
-		int FloatRegisterIndex_{FunctionParameterName};\n\
-		int Int32RegisterIndex_{FunctionParameterName};\n\
-		int HalfRegisterIndex_{FunctionParameterName};\n\
-		if(GetParameterLayoutInfo_{ParameterName}({FunctionParameterIndex}, FloatRegisterIndex_{FunctionParameterName}, Int32RegisterIndex_{FunctionParameterName}, HalfRegisterIndex_{FunctionParameterName}))\n\
-		{\n\
-{PerParamRWCode}\n\
-		}\n\
-		else\n\
-		{\n\
-			bOutSuccess = false;\n\
-		}\n");
-
-	//Template code for accessing data from the Data Channel's buffers.
-	static const FString ReadDataTemplate = TEXT("			NiagaraDataChannelRead_{FunctionParameterComponentType}({ParameterName}_Data{FunctionParameterComponentBufferType}, {ParameterName}_{FunctionParameterComponentBufferType}Stride, {FunctionParameterComponentBufferType}RegisterIndex_{FunctionParameterName}, ElementIndex, {FunctionParameterComponentName});\n\t\t");
-	static const FString WriteDataTemplate = TEXT("			NiagaraDataChannelWrite_{FunctionParameterComponentType}({ParameterName}_Data{FunctionParameterComponentBufferType}, {ParameterName}_{FunctionParameterComponentBufferType}Stride, {FunctionParameterComponentBufferType}RegisterIndex_{FunctionParameterName}, ElementIndex, {FunctionParameterComponentName});\n\t\t");
-
-	//Map to store template shader code for each DI function as each is in it's own ush file. We'll load those as needed and place in here for ease of access.
-	TMap<FName, FString> FunctionTemplateMap;
-
-	//We may call the same function multiple times so avoid duplicating the same function impl.
-	TMap<uint32, FString> FunctionHlslMap;
-
-	//Now lets build some hlsl!
-	// 
-	//First build the shader code common to all functions.
-	FString CommonTemplateFile;
-	LoadShaderSourceFile(NDIDataChannelReadLocal::TemplateShaderFile_Common, EShaderPlatform::SP_PCD3D_SM5, &CommonTemplateFile, nullptr);
-	OutHLSL += FString::Format(*CommonTemplateFile, HlslTemplateArgs);
-
-	auto GetSignatureHash = [](const FNiagaraFunctionSignature& Sig)
-	{
-		uint32 Ret = GetTypeHash(Sig.Name);
-		for (const FNiagaraVariable& Input : Sig.Inputs)
-		{
-			Ret = HashCombine(Ret, GetTypeHash(Input));
-		}
-		for (const FNiagaraVariableBase& Output : Sig.Outputs)
-		{
-			Ret = HashCombine(Ret, GetTypeHash(Output));
-		}
-		return Ret;
-	};
-
-	TArray<FNiagaraVariableBase> ParametersAccessed;
-	//First iterate over the generated functions to gather all used parameters so we can generate the sorted parameter list for all functions called by this script.
-	for (int32 FuncIdx = 0; FuncIdx < HlslGenContext.ParameterInfo.GeneratedFunctions.Num(); ++FuncIdx)
-	{
-		const FNiagaraDataInterfaceGeneratedFunction& Func = HlslGenContext.ParameterInfo.GeneratedFunctions[FuncIdx];
-		const FNiagaraFunctionSignature& Signature = HlslGenContext.Signatures[FuncIdx];
-
-		for (int32 InputIdx = Signature.NumRequiredInputs(); InputIdx < Signature.Inputs.Num(); ++InputIdx)
-		{
-			const FNiagaraVariable& InputParam = Signature.Inputs[InputIdx];
-			ParametersAccessed.AddUnique(InputParam);
-		}
-
-		for (int32 OutputIdx = Signature.NumRequiredOutputs(); OutputIdx < Signature.Outputs.Num(); ++OutputIdx)
-		{
-			const FNiagaraVariableBase& OutputParam = Signature.Outputs[OutputIdx];
-			ParametersAccessed.AddUnique(OutputParam);
-		}
-	}
-	//Sort the parameters so that that generated hlsl can exactly match the runtime ordering of parameters.
-	NDIDataChannelUtilities::SortParameters(ParametersAccessed);
-
-	//Utility map for easy access of the right param offset during hlsl gen.
-	TMap<FNiagaraVariableBase, uint32> ParamOffsets;
-	for (int32 ParamIdx = 0; ParamIdx < ParametersAccessed.Num(); ++ParamIdx)
-	{
-		ParamOffsets.FindOrAdd(ParametersAccessed[ParamIdx]) = ParamIdx;
-	}
-
-	//Now to iterate on the functions and build the hlsl for each as needed.
-	for (int32 FuncIdx = 0; FuncIdx < HlslGenContext.ParameterInfo.GeneratedFunctions.Num(); ++FuncIdx)
-	{
-		const FNiagaraDataInterfaceGeneratedFunction& Func = HlslGenContext.ParameterInfo.GeneratedFunctions[FuncIdx];
-		const FNiagaraFunctionSignature& Signature = HlslGenContext.Signatures[FuncIdx];
-
-		const TCHAR* FunctionTemplateFilename = NDIDataChannelReadLocal::GetFunctionTemplate(Signature.Name);
-
-		//Init/Reset our per function hlsl template args.
-		FunctionSymbol.StringValue = HlslGenContext.GetFunctionSignatureSymbol(Signature);
-		FunctionParameters.StringValue.Reset();//Reset function parameters ready to rebuild when we iterate over the parameters.
-		PerFunctionParameterShaderCode.StringValue.Reset(); //Reset function parameters ready to rebuild when we iterate over the parameters.
-
-		//Generate the function hlsl if we've not done so already for this signature. We can also skip for functions that have no template file as they don't need special per signature hlsl generation.
-		uint32 FuncHash = GetSignatureHash(Signature);
-		FString& FunctionHlsl = FunctionHlslMap.FindOrAdd(FuncHash);
-		if (FunctionHlsl.IsEmpty() && FunctionTemplateFilename != nullptr)
-		{
-			//Function that will recurse down a parameter's type and generate the appropriate IO code for all of it's members.
-			TFunction<void(bool, UScriptStruct*, FString&)> GenerateRWParameterCode = [&](bool bRead, UScriptStruct* Struct, FString& OutCode)
-			{
-				//Intercept positions and replace with FVector3fs
-				if(Struct == FNiagaraPosition::StaticStruct())
-				{
-					Struct = FNiagaraTypeDefinition::GetVec3Struct();
-				}
-
-				if (Struct == FNiagaraTypeDefinition::GetFloatStruct() || Struct == FNiagaraTypeDefinition::GetVec2Struct() || Struct == FNiagaraTypeDefinition::GetVec3Struct()
-					|| Struct == FNiagaraTypeDefinition::GetVec4Struct() || Struct == FNiagaraTypeDefinition::GetColorStruct() || Struct == FNiagaraTypeDefinition::GetQuatStruct())
-				{
-					FunctionParameterComponentBufferType = TEXT("Float");
-					FunctionParameterComponentType = HlslGenContext.GetStructHlslTypeName(FNiagaraTypeDefinition(Struct));
-					OutCode += FString::Format(bRead ? *ReadDataTemplate : *WriteDataTemplate, HlslTemplateArgs);
-				}
-				else if (Struct == FNiagaraTypeDefinition::GetIntStruct())
-				{
-					FunctionParameterComponentBufferType = TEXT("Int32");
-					FunctionParameterComponentType = HlslGenContext.GetStructHlslTypeName(FNiagaraTypeDefinition(Struct));
-					OutCode += FString::Format(bRead ? *ReadDataTemplate : *WriteDataTemplate, HlslTemplateArgs);
-				}
-				else if (Struct == FNiagaraTypeDefinition::GetBoolStruct())
-				{
-					FunctionParameterComponentBufferType = TEXT("Int32");
-					FunctionParameterComponentType = HlslGenContext.GetStructHlslTypeName(FNiagaraTypeDefinition::GetIntDef());
-					OutCode += FString::Format(bRead ? *ReadDataTemplate : *WriteDataTemplate, HlslTemplateArgs);
-				}
-				else
-				{
-					FString PropertyBaseName = FunctionParameterComponentName.StringValue;
-
-					for (TFieldIterator<FProperty> PropertyIt(Struct, EFieldIteratorFlags::IncludeSuper); PropertyIt; ++PropertyIt)
-					{
-						FunctionParameterComponentName.StringValue = PropertyBaseName;
-						const FProperty* Property = *PropertyIt;
-
-						if (Property->IsA(FFloatProperty::StaticClass()))
-						{
-							FunctionParameterComponentBufferType = TEXT("Float");
-							FunctionParameterComponentType = HlslGenContext.GetStructHlslTypeName(FNiagaraTypeDefinition::GetFloatDef());
-							FunctionParameterComponentName.StringValue += FString::Printf(TEXT(".%s"), *HlslGenContext.GetSanitizedSymbolName(Property->GetName()));
-							OutCode += FString::Format(bRead ? *ReadDataTemplate : *WriteDataTemplate, HlslTemplateArgs);
-						}
-						else if (Property->IsA(FIntProperty::StaticClass()))
-						{
-							FunctionParameterComponentBufferType = TEXT("Int32");
-							FunctionParameterComponentType = HlslGenContext.GetStructHlslTypeName(FNiagaraTypeDefinition::GetIntDef());
-							FunctionParameterComponentName.StringValue += FString::Printf(TEXT(".%s"), *HlslGenContext.GetSanitizedSymbolName(Property->GetName()));
-							OutCode += FString::Format(bRead ? *ReadDataTemplate : *WriteDataTemplate, HlslTemplateArgs);
-						}
-						else if (const FStructProperty* StructProp = CastFieldChecked<const FStructProperty>(Property))
-						{
-							FunctionParameterComponentName.StringValue += FString::Printf(TEXT(".%s"), *HlslGenContext.GetSanitizedSymbolName(Property->GetName()));
-							FunctionParameterComponentType = HlslGenContext.GetPropertyHlslTypeName(Property);
-							GenerateRWParameterCode(bRead, StructProp->Struct, OutCode);
-						}
-						else
-						{
-							check(false);
-							OutCode += FString::Printf(TEXT("Error! - DataChannel Interface encountered an invalid type when generating it's function hlsl. %s"), *Property->GetName());
-						}
-					}
-				}
-			};
-
-			int32 CurrParamIdx = 0;
-			int32 CurrVariadicParamIdx = 0;//Track current variadic param index so the shader code can tell which param's layout info to lookup.
-
-			//Iterate through the variadic inputs and output parameters building the function signature and the per parameter function body as we go.
-			static FString FirstParamPrefix = TEXT("");
-			static FString ParamPrefix = TEXT(", ");
-			static FString OutputParamPrefix = TEXT("out");
-			static FString InputParamPrefix = TEXT("in");
-			auto HandleParameters = [&](TConstArrayView<FNiagaraVariableBase> Parameters, int32 StartParamIdx, bool bOutput)
-			{
-				for (int32 ParamIdx = StartParamIdx; ParamIdx < Parameters.Num(); ++ParamIdx)
-				{
-					const FNiagaraVariableBase& Param = Parameters[ParamIdx];
-
-					//Reset or init per parameter hlsl template args.
-
-					//Grab the offset for this parameter and embed in the hlsl directly.
-					//This will correspond to an entry in the ParameterLayoutBuffer passed to the shader.
-					int32 ParamOffset = ParamOffsets.FindChecked(Param);
-					FunctionParameterIndex = LexToString(ParamOffset);
-					FuncParamName = Param.GetName().ToString();
-					FuncParamType = HlslGenContext.GetStructHlslTypeName(Param.GetType());
-					PerParamRWCode.StringValue.Reset();
-
-					bool bFirstParam = CurrParamIdx++ == 0;
-					FunctionParameters.StringValue += FString::Printf(TEXT("%s%s %s %s"),
-						bFirstParam ? *FirstParamPrefix : *ParamPrefix,
-						bOutput ? *OutputParamPrefix : *InputParamPrefix,
-						*FuncParamType.StringValue, *FuncParamName.StringValue);
-
-					//Reset per component args and build the code for per component/base type Data Channel access.
-					FunctionParameterComponentName.StringValue.Reset();
-					FunctionParameterComponentType.StringValue.Reset();
-					FunctionParameterComponentBufferType.StringValue.Reset();
-
-					//Generate the per component/base type IO code that will be used in the subsequent per paramters shader code template.
-					FunctionParameterComponentName = HlslGenContext.GetSanitizedSymbolName(Param.GetName().ToString());
-					GenerateRWParameterCode(bOutput, Param.GetType().GetScriptStruct(), PerParamRWCode.StringValue);
-
-					//Generate the whole code for this parameter and append it to the function's per parameter code.
-					//This will be used at the end in the per function template.
-					PerFunctionParameterShaderCode.StringValue += FString::Format(*PerFunctionParameterTemplate, HlslTemplateArgs);
-
-					++CurrVariadicParamIdx;
-				}
-			};
-
-			HandleParameters(Signature.GetInputs(), Signature.NumRequiredInputs(), false);
-			HandleParameters(Signature.Outputs, Signature.NumRequiredOutputs(), true);
-
-			//Grab the template file for the function.
-			FString& FunctionTemplateFile = FunctionTemplateMap.FindOrAdd(Signature.Name);
-			if (FunctionTemplateFile.IsEmpty())
-			{
-				//Load it if we have not previously.
-				LoadShaderSourceFile(FunctionTemplateFilename, EShaderPlatform::SP_PCD3D_SM5, &FunctionTemplateFile, nullptr);
-			}
-
-			//Finally generate the final code for this function and add it to the final hlsl.
-			OutHLSL += FString::Format(*FunctionTemplateFile, HlslTemplateArgs);
-			OutHLSL += TEXT("\n");
-		}
-	}
+	TArray<FString> CommonTemplateShaders;
+	TMap<FName, FString> TemplateShaderMap;
+	NDIDataChannelReadLocal::BuildFunctionTemplateMap(CommonTemplateShaders, TemplateShaderMap);
+	
+	NDIDataChannelUtilities::GenerateDataChannelAccessHlsl(HlslGenContext, CommonTemplateShaders, TemplateShaderMap, OutHLSL);
 }
 
 bool UNiagaraDataInterfaceDataChannelRead::UpgradeFunctionCall(FNiagaraFunctionSignature& FunctionSignature)
@@ -2287,7 +2006,7 @@ void UNiagaraDataInterfaceDataChannelRead::SetShaderParameters(const FNiagaraDat
 
 		if (InstanceData->ChannelDataRTProxy && ParameterOffsetTableIndex != INDEX_NONE)
 		{
-			FNiagaraDataBuffer* Data = InstanceData->bReadPrevFrame ? InstanceData->ChannelDataRTProxy->PrevFrameData.GetReference() : InstanceData->ChannelDataRTProxy->GPUDataSet->GetCurrentData();
+			FNiagaraDataBuffer* Data = InstanceData->bReadPrevFrame ? InstanceData->ChannelDataRTProxy->GetPrevFrameData().GetReference() : InstanceData->ChannelDataRTProxy->GetCurrentData().GetReference();
 			if (Data)
 			{
 				const FReadBuffer& ParameterLayoutBuffer = InstanceData->ParameterLayoutBuffer;
@@ -2295,17 +2014,30 @@ void UNiagaraDataInterfaceDataChannelRead::SetShaderParameters(const FNiagaraDat
 				FRDGBufferSRVRef NDCSpawnDataBufferSRV = Context.GetGraphBuilder().CreateSRV(InstanceData->NDCSpawnDataBuffer, PF_R32_SINT);
 				if (NDCSpawnDataBufferSRV && ParameterLayoutBuffer.SRV.IsValid() && ParameterLayoutBuffer.NumBytes > 0)
 				{
+					TArray<FRHITransitionInfo, TInlineAllocator<3>> Transitions;
+					Transitions.Reserve(3);
+					Transitions.Emplace(Data->GetGPUBufferFloat().UAV, ERHIAccess::Unknown, ERHIAccess::SRVCompute);
+					Transitions.Emplace(Data->GetGPUBufferInt().UAV, ERHIAccess::Unknown, ERHIAccess::SRVCompute);
+					Transitions.Emplace(Data->GetGPUBufferHalf().UAV, ERHIAccess::Unknown, ERHIAccess::SRVCompute);
+					Context.GetGraphBuilder().RHICmdList.Transition(Transitions);
+
 					InstParameters->ParamOffsetTable = ParameterLayoutBuffer.SRV.IsValid() ? ParameterLayoutBuffer.SRV.GetReference() : FNiagaraRenderer::GetDummyUIntBuffer();
-					InstParameters->DataFloat = Data->GetGPUBufferFloat().SRV.IsValid() ? Data->GetGPUBufferFloat().SRV.GetReference() : FNiagaraRenderer::GetDummyFloatBuffer();
-					InstParameters->DataInt32 = Data->GetGPUBufferInt().SRV.IsValid() ? Data->GetGPUBufferInt().SRV.GetReference() : FNiagaraRenderer::GetDummyIntBuffer();
-					InstParameters->DataHalf = Data->GetGPUBufferHalf().SRV.IsValid() ? Data->GetGPUBufferHalf().SRV.GetReference() : FNiagaraRenderer::GetDummyHalfBuffer();
 					InstParameters->ParameterOffsetTableIndex = ParameterOffsetTableIndex;
-					InstParameters->Num = Data->GetNumInstances();
+
 					InstParameters->FloatStride = Data->GetFloatStride() / sizeof(float);
 					InstParameters->Int32Stride = Data->GetInt32Stride() / sizeof(int32);
 					InstParameters->HalfStride = Data->GetHalfStride() / sizeof(FFloat16);
 
+					InstParameters->DataFloat = Data->GetGPUBufferFloat().SRV.IsValid() ? Data->GetGPUBufferFloat().SRV.GetReference() : FNiagaraRenderer::GetDummyFloatBuffer();
+					InstParameters->DataInt32 = Data->GetGPUBufferInt().SRV.IsValid() ? Data->GetGPUBufferInt().SRV.GetReference() : FNiagaraRenderer::GetDummyIntBuffer();
+					InstParameters->DataHalf = Data->GetGPUBufferHalf().SRV.IsValid() ? Data->GetGPUBufferHalf().SRV.GetReference() : FNiagaraRenderer::GetDummyHalfBuffer();
+					InstParameters->InstanceCountOffset = Data->GetGPUInstanceCountBufferOffset();
+					InstParameters->ConsumeInstanceCountOffset = InstanceData->ConsumeInstanceCountOffset;
+					InstParameters->BufferSize = Data ? Data->GetNumInstancesAllocated() : INDEX_NONE;
+
+					InstParameters->NDCElementCountAtSpawn = InstanceData->NDCElementCountAtSpawn;
 					InstParameters->NDCSpawnDataBuffer = NDCSpawnDataBufferSRV;
+
 					bSuccess = true;
 				}
 			}
@@ -2315,15 +2047,21 @@ void UNiagaraDataInterfaceDataChannelRead::SetShaderParameters(const FNiagaraDat
 	if (bSuccess == false)
 	{
 		InstParameters->ParamOffsetTable = FNiagaraRenderer::GetDummyUIntBuffer();
-		InstParameters->DataFloat = FNiagaraRenderer::GetDummyFloatBuffer();
-		InstParameters->DataInt32 = FNiagaraRenderer::GetDummyIntBuffer();
-		InstParameters->DataHalf = FNiagaraRenderer::GetDummyHalfBuffer();
 		InstParameters->ParameterOffsetTableIndex = INDEX_NONE;
-		InstParameters->Num = 0;
+
 		InstParameters->FloatStride = 0;
 		InstParameters->Int32Stride = 0;
 		InstParameters->HalfStride = 0;
+
+		InstParameters->DataFloat = FNiagaraRenderer::GetDummyFloatBuffer();
+		InstParameters->DataInt32 = FNiagaraRenderer::GetDummyIntBuffer();
+		InstParameters->DataHalf = FNiagaraRenderer::GetDummyHalfBuffer();
+
+		InstParameters->InstanceCountOffset = INDEX_NONE;
+		InstParameters->ConsumeInstanceCountOffset = INDEX_NONE;
+		InstParameters->BufferSize = INDEX_NONE;
 		
+		InstParameters->NDCElementCountAtSpawn = 0;
 		FRDGBufferRef DummyBuffer = GSystemTextures.GetDefaultBuffer(Context.GetGraphBuilder(), 4, 0u);
 		InstParameters->NDCSpawnDataBuffer = Context.GetGraphBuilder().CreateSRV(DummyBuffer, PF_R32_SINT);		
 	}
@@ -2333,12 +2071,22 @@ void FNiagaraDataInterfaceProxy_DataChannelRead::PreStage(const FNDIGpuComputePr
 {
 	FNiagaraDataInterfaceProxy_DataChannelRead::FInstanceData* InstanceData = SystemInstancesToProxyData_RT.Find(Context.GetSystemInstanceID());
 
-	if(InstanceData && InstanceData->NDCSpawnDataBuffer == nullptr)
+	if(InstanceData)
 	{
-		InstanceData->NDCSpawnDataBuffer = CreateUploadBuffer<int32>(
-			Context.GetGraphBuilder(),
-			TEXT("Niagara_NDCReadDI_NDCSpawnData"),
-			InstanceData->NDCSpawnData);
+		//TODO: Should grab just one for the whole frame...
+		//TODO: Add some wrap behavior...		
+		if(InstanceData->ConsumeInstanceCountOffset == INDEX_NONE)
+		{
+			InstanceData->ConsumeInstanceCountOffset = Context.GetInstanceCountManager().AcquireOrAllocateEntry(Context.GetGraphBuilder().RHICmdList);
+		}
+
+		if(InstanceData->NDCSpawnDataBuffer == nullptr)
+		{
+			InstanceData->NDCSpawnDataBuffer = CreateUploadBuffer<int32>(
+				Context.GetGraphBuilder(),
+				TEXT("Niagara_NDCReadDI_NDCSpawnData"),
+				InstanceData->NDCSpawnData);
+		}
 	}
 }
 
@@ -2349,6 +2097,8 @@ void FNiagaraDataInterfaceProxy_DataChannelRead::PostSimulate(const FNDIGpuCompu
 		if(FNiagaraDataInterfaceProxy_DataChannelRead::FInstanceData* InstanceData = SystemInstancesToProxyData_RT.Find(Context.GetSystemInstanceID()))
 		{
 			InstanceData->NDCSpawnDataBuffer = nullptr;
+
+			Context.GetInstanceCountManager().FreeEntry(InstanceData->ConsumeInstanceCountOffset);
 		}
 	}
 }
@@ -2362,16 +2112,17 @@ void FNiagaraDataInterfaceProxy_DataChannelRead::ConsumePerInstanceDataFromGameT
 
 	InstData.ChannelDataRTProxy = SourceData.ChannelDataRTProxy;
 	InstData.bReadPrevFrame = SourceData.bReadPrevFrame;
+	InstData.NDCElementCountAtSpawn = SourceData.NDCElementCountAtSpawn;
 
 	InstData.NDCSpawnData = SourceData.NDCSpawnData;
 	InstData.NDCSpawnDataBuffer = nullptr;//Clear the RDG buffer ready for re-up to the GPU.
 
-	if (SourceData.bHasFunctionBindingUpdate) 
+	if (SourceData.ScriptParamInfo.bDirty) 
 	{
 		//Take the offset map from the source data.
 		//This maps from GPU script to that scripts offset into the ParameterLayoutBuffer.
 		//Allows us to look up and pass in at SetShaderParameters time.
-		InstData.GPUScriptParameterTableOffsets = MoveTemp(SourceData.GPUScriptParameterTableOffsets);
+		InstData.GPUScriptParameterTableOffsets = MoveTemp(SourceData.ScriptParamInfo.GPUScriptParameterTableOffsets);
 
 		//Now generate the ParameterLayoutBuffer
 		//This contains a table of all parameters used by each GPU script that uses this DI.
@@ -2382,10 +2133,10 @@ void FNiagaraDataInterfaceProxy_DataChannelRead::ConsumePerInstanceDataFromGameT
 				InstData.ParameterLayoutBuffer.Release();
 			}
 
-			if(SourceData.GPUScriptParameterOffsetTable.Num() > 0)
+			if(SourceData.ScriptParamInfo.GPUScriptParameterOffsetTable.Num() > 0)
 			{
-				InstData.ParameterLayoutData = SourceData.GPUScriptParameterOffsetTable;
-				InstData.ParameterLayoutBuffer.Initialize(RHICmdList, TEXT("NDIDataChannel_ParameterLayoutBuffer"), sizeof(uint32), SourceData.GPUScriptParameterOffsetTable.Num(), EPixelFormat::PF_R32_UINT, BUF_Static, &InstData.ParameterLayoutData);
+				InstData.ParameterLayoutData = SourceData.ScriptParamInfo.GPUScriptParameterOffsetTable;
+				InstData.ParameterLayoutBuffer.Initialize(RHICmdList, TEXT("NDIDataChannel_ParameterLayoutBuffer"), sizeof(uint32), SourceData.ScriptParamInfo.GPUScriptParameterOffsetTable.Num(), EPixelFormat::PF_R32_UINT, BUF_Static, &InstData.ParameterLayoutData);
 			}
 		}
 	}
@@ -2403,10 +2154,13 @@ void FNiagaraDataInterfaceProxy_DataChannelRead::GetDispatchArgs(const FNDIGpuCo
 	const FNiagaraDataInterfaceProxy_DataChannelRead::FInstanceData* InstanceData = SystemInstancesToProxyData_RT.Find(Context.GetSystemInstanceID());
 	if (InstanceData && InstanceData->ChannelDataRTProxy)
 	{
-		FNiagaraDataBuffer* Data = InstanceData->bReadPrevFrame ? InstanceData->ChannelDataRTProxy->PrevFrameData.GetReference() : InstanceData->ChannelDataRTProxy->GPUDataSet->GetCurrentData();
+		FNiagaraDataBuffer* Data = InstanceData->bReadPrevFrame ? InstanceData->ChannelDataRTProxy->PrevFrameData.GetReference() : InstanceData->ChannelDataRTProxy->GetCurrentData().GetReference();
 		if (Data)
 		{
-			Context.SetDirect(Data->GetNumInstances());
+			//Indirect args via the instance count buffer is not working. TODO.
+			//Running for all allocated elements will execute more than needed but should allow things to work.
+			//Context.CreateIndirect(Data->GetGPUInstanceCountBufferOffset());
+			Context.SetDirect(Data->GetNumInstancesAllocated());
 		}
 	}
 }

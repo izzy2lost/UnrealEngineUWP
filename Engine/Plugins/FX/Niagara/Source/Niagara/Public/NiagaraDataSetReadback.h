@@ -9,6 +9,7 @@
 struct FNiagaraComputeExecutionContext;
 class FNiagaraEmitterInstance;
 class FNiagaraGpuComputeDispatchInterface;
+class FNiagaraGpuReadbackManager;
 
 class FNiagaraDataSetReadback : public TSharedFromThis<FNiagaraDataSetReadback, ESPMode::ThreadSafe>
 {
@@ -41,4 +42,26 @@ private:
 	FNiagaraParameterStore	ParameterStore;
 
 	FOnReadbackReady		OnReadbackReady;
+};
+
+
+
+class FNiagaraDataBufferReadback : public TSharedFromThis<FNiagaraDataBufferReadback, ESPMode::ThreadSafe>
+{
+public:
+	DECLARE_DELEGATE_OneParam(FOnReadbackComplete, FNiagaraDataBufferRef);
+
+public:
+	FOnReadbackComplete& GetOnReadbackComplete() { return OnReadbackComplete; }
+
+	void EnqueueReadback(FRHICommandList& RHICmdList, FNiagaraDataBufferRef InDataBuffer, FNiagaraGpuReadbackManager* ReadbackManager, FNiagaraGPUInstanceCountManager& InstanceCountManager);
+
+private:
+	void ReadbackCompleteInternal(FNiagaraDataBuffer* CompleteDataBuffer);
+	void GPUReadbackInternal(FRHICommandList& RHICmdList, FNiagaraGpuReadbackManager* ReadbackManager, FNiagaraGPUInstanceCountManager& InstanceCountManager, FNiagaraDataBufferRef SrcDataBuffer, FNiagaraDataBuffer* DestDataBuffer);
+
+private:
+	std::atomic<int>		PendingReadbacks;
+
+	FOnReadbackComplete		OnReadbackComplete;
 };

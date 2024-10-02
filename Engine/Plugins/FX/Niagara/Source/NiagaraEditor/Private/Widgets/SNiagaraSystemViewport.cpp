@@ -523,6 +523,11 @@ void FNiagaraSystemViewportClient::DrawGpuTickInformation(UNiagaraComponent* Com
 			Canvas->DrawShadowedString(CurrentX + 5.0f, CurrentY, TEXT("RequiresRayTracingScene"), Font, FLinearColor::White);
 			CurrentY += FontHeight;
 		}
+		if (SystemInstance->RequiresCurrentFrameNDC())
+		{
+			Canvas->DrawShadowedString(CurrentX + 5.0f, CurrentY, TEXT("RequiresCurrentFrameNDC"), Font, FLinearColor::White);
+			CurrentY += FontHeight;
+		}
 	}
 }
 

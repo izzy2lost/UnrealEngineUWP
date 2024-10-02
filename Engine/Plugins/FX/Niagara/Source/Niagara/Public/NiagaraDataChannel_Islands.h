@@ -176,7 +176,7 @@ protected:
 
 	/** How many pre-allocated islands to keep in the pool. Higher values will incur a larger standing memory cost but will reduce activation times for new islands. */
 	UPROPERTY(EditAnywhere, Category = "Islands")
-	int32 IslandPoolSize = 16;
+	int32 IslandPoolSize = 4;
 
 	UPROPERTY(EditAnywhere, Category = "Debug Rendering")
 	FNDCIslandDebugDrawSettings DebugDrawSettings;
@@ -194,11 +194,8 @@ class UNiagaraDataChannelHandler_Islands : public UNiagaraDataChannelHandler
 {
 	GENERATED_UCLASS_BODY()
 
-	//UObject Interface
-	NIAGARA_API virtual void BeginDestroy()override;
-	//UObject Interface End
-
 	NIAGARA_API virtual void Init(const UNiagaraDataChannel* InChannel) override;
+	NIAGARA_API virtual void Cleanup() override;
 	NIAGARA_API virtual void BeginFrame(float DeltaTime, FNiagaraWorldManager* OwningWorld)override;
 	NIAGARA_API virtual void EndFrame(float DeltaTime, FNiagaraWorldManager* OwningWorld)override;
 	NIAGARA_API virtual void Tick(float DeltaTime, ETickingGroup TickGroup, FNiagaraWorldManager* OwningWorld) override;

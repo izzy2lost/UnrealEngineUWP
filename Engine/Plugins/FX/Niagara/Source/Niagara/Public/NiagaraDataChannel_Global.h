@@ -27,11 +27,8 @@ class UNiagaraDataChannelHandler_Global : public UNiagaraDataChannelHandler
 
 	FNiagaraDataChannelDataPtr Data;
 
-	//UObject Interface
-	NIAGARA_API virtual void BeginDestroy()override;
-	//UObject Interface End
-
 	NIAGARA_API virtual void Init(const UNiagaraDataChannel* InChannel) override;
+	NIAGARA_API virtual void Cleanup() override;
 	NIAGARA_API virtual void BeginFrame(float DeltaTime, FNiagaraWorldManager* OwningWorld)override;
 	NIAGARA_API virtual void EndFrame(float DeltaTime, FNiagaraWorldManager* OwningWorld)override;
 	NIAGARA_API virtual void Tick(float DeltaTime, ETickingGroup TickGroup, FNiagaraWorldManager* OwningWorld) override;

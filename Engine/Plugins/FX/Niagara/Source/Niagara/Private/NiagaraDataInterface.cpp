@@ -326,10 +326,16 @@ FSimpleMulticastDelegate& UNiagaraDataInterface::OnErrorsRefreshed()
 
 #endif
 
+//////////////////////////////////////////////////////////////////////////
+//FNDIGpuComputeContext
+
 FRDGExternalAccessQueue& FNDIGpuComputeContext::GetRDGExternalAccessQueue() const
 {
 	return static_cast<const FNiagaraGpuComputeDispatch&>(ComputeDispatchInterface).GetCurrentPassExternalAccessQueue();
 }
+
+//////////////////////////////////////////////////////////////////////////
+//FNDIGpuComputePrePostStageContext
 
 FNiagaraSystemInstanceID FNDIGpuComputePrePostStageContext::GetSystemInstanceID() const
 {
@@ -358,6 +364,21 @@ bool FNDIGpuComputePrePostStageContext::IsIterationStage() const
 	check(DataInterfaceProxy);
 	return ComputeInstanceData.IsIterationStage(DataInterfaceProxy, SimStageData.StageIndex);
 }
+
+FNiagaraGPUInstanceCountManager& FNDIGpuComputePrePostStageContext::GetInstanceCountManager() const
+{
+	return ComputeDispatchInterface.GetGPUInstanceCounterManager();
+}
+
+//////////////////////////////////////////////////////////////////////////
+//FNDIGpuComputePostSimulateContext
+
+FNiagaraGPUInstanceCountManager& FNDIGpuComputePostSimulateContext::GetInstanceCountManager() const
+{
+	return ComputeDispatchInterface.GetGPUInstanceCounterManager();
+}
+
+//////////////////////////////////////////////////////////////////////////
 
 FRDGExternalAccessQueue& FNiagaraDataInterfaceSetShaderParametersContext::GetRDGExternalAccessQueue() const
 {

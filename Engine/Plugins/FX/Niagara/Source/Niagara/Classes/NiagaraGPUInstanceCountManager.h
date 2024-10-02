@@ -123,6 +123,9 @@ public:
 
 	void CopyToMultiViewCountBuffer(FRHICommandListImmediate& RHICmdList);
 
+	void ProcessInitInstanceCountTasks(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface, FRHICommandList& RHICmdList);
+	void AddInstanceCountInitTask(uint32 Offset, uint32 Value);
+
 protected:
 	struct FIndirectArgsPoolEntry
 	{
@@ -179,6 +182,14 @@ protected:
 
 	/** The list of all instance count clear tasks that are to be run in UpdateDrawIndirectBuffers() */
 	TArray<uint32> InstanceCountClearTasks;
+
+	struct FInstanceCountInitTask
+	{
+		uint32 Offset = INDEX_NONE;
+		uint32 Value = INDEX_NONE;
+	};
+	/** The list of initialization tasks we process in ProcessInitializationTasks. These initialize instance counts with data from the CPU. */
+	TArray<uint32> InstanceCountInitTasks;
 
 	/** Buffers holding drawindirect data to render GPU emitter renderers. */
 	TArray<FIndirectArgsPoolEntryPtr> DrawIndirectPool;

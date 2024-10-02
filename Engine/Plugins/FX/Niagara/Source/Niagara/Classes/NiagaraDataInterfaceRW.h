@@ -22,7 +22,7 @@ struct FNDIGpuComputeDispatchArgsGenContext : public FNDIGpuComputeContext
 	using FIndirectArgs = TPair<FRDGBuffer*, uint32>;
 	using FCreateIndirectCallback = TFunction<void(FRHICommandList&, FRDGBuffer*, uint32)>;
 
-	explicit FNDIGpuComputeDispatchArgsGenContext(FRDGBuilder& InGraphBuilder, const FNiagaraGpuComputeDispatchInterface& InComputeDispatchInterface)
+	explicit FNDIGpuComputeDispatchArgsGenContext(FRDGBuilder& InGraphBuilder, FNiagaraGpuComputeDispatchInterface& InComputeDispatchInterface)
 		: FNDIGpuComputeContext(InGraphBuilder, InComputeDispatchInterface)
 	{
 	}

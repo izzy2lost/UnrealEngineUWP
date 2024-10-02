@@ -734,6 +734,10 @@ namespace NiagaraDebugLocal
 			{
 				GpuFeaturesBuilder.Append(TEXT(" RayTracingScene"));
 			}
+			if (SystemInstance->RequiresCurrentFrameNDC())
+			{
+				GpuFeaturesBuilder.Append(TEXT(" CurrentFrameNDC"));
+			}
 			if (GpuFeaturesBuilder.Len() > 0)
 			{
 				Output.Appendf(TEXT("GpuFeatures -%s\n"), *GpuFeaturesBuilder);

@@ -20,10 +20,14 @@ class UNiagaraDataChannelHandler : public UObject
 public:
 
 	GENERATED_BODY()
-
-	NIAGARA_API virtual ~UNiagaraDataChannelHandler();
+	
+	//UObject Interface
+	NIAGARA_API virtual void BeginDestroy()override;
+	//UObject Interface END
 
 	NIAGARA_API virtual void Init(const UNiagaraDataChannel* InChannel);
+
+	NIAGARA_API virtual void Cleanup();
 
 	NIAGARA_API virtual void BeginFrame(float DeltaTime, FNiagaraWorldManager* OwningWorld);
 

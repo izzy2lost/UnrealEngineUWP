@@ -33,6 +33,7 @@ public:
 	bool RequiresEarlyViewData() const { return bRequiresEarlyViewData; }
 	bool RequiresViewUniformBuffer() const { return bRequiresViewUniformBuffer; }
 	bool RequiresRayTracingScene() const { return bRequiresRayTracingScene; }
+	bool RequiresCurrentFrameNDC() const { return bRequiresCurrentFrameNDC; }
 	FVector3f GetSystemLWCTile() const { return SystemLWCTile; }
 
 private:
@@ -48,6 +49,7 @@ private:
 	uint32										bRequiresEarlyViewData : 1;
 	uint32										bRequiresViewUniformBuffer : 1;
 	uint32										bRequiresRayTracingScene : 1;
+	uint32										bRequiresCurrentFrameNDC: 1;
 
 	FShaderResourceViewRHIRef					StaticFloatBuffer;
 

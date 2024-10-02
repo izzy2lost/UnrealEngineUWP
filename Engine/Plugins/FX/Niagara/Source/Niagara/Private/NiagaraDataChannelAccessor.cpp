@@ -14,6 +14,11 @@
 
 //////////////////////////////////////////////////////////////////////////
 
+void UNiagaraDataChannelReader::Cleanup()
+{
+	Data = nullptr;
+}
+
 bool UNiagaraDataChannelReader::InitAccess(FNiagaraDataChannelSearchParameters SearchParams, bool bReadPreviousFrameData)
 {
 	Data = nullptr;
@@ -129,6 +134,11 @@ FNiagaraSpawnInfo UNiagaraDataChannelReader::ReadSpawnInfo(FName VarName, int32 
 }
 
 //////////////////////////////////////////////////////////////////////////
+
+void UNiagaraDataChannelWriter::Cleanup()
+{
+	Data = nullptr;
+}
 
 bool UNiagaraDataChannelWriter::InitWrite(FNiagaraDataChannelSearchParameters SearchParams, int32 Count, bool bVisibleToGame, bool bVisibleToCPU, bool bVisibleToGPU, const FString& DebugSource)
 {

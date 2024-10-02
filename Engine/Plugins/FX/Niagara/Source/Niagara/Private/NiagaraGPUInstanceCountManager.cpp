@@ -719,3 +719,73 @@ void FNiagaraGPUInstanceCountManager::CopyToMultiViewCountBuffer(FRHICommandList
 	}
 }
 
+
+void FNiagaraGPUInstanceCountManager::ProcessInitInstanceCountTasks(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface, FRHICommandList& RHICmdList)
+{
+	if(InstanceCountInitTasks.NumBytes() == 0)
+	{
+		return;
+	}
+
+	SCOPED_DRAW_EVENT(RHICmdList, NiagaraProcessInitInstanceCountTasks);
+
+	const int32 NumTasks = InstanceCountInitTasks.Num() / 2;
+
+	// Allocate task buffer
+	FReadBuffer TaskInfosBuffer;
+	{
+		const uint32 TaskBufferSize = InstanceCountInitTasks.Num() * sizeof(uint32);
+		TaskInfosBuffer.Initialize(RHICmdList, TEXT("NiagaraInitCountsTaskInfosBuffer"), sizeof(uint32), InstanceCountInitTasks.Num(), EPixelFormat::PF_R32_UINT, BUF_Volatile);
+
+		uint8* TaskBufferData = (uint8*)RHICmdList.LockBuffer(TaskInfosBuffer.Buffer, 0, TaskBufferSize, RLM_WriteOnly);
+		FMemory::Memcpy(TaskBufferData, InstanceCountInitTasks.GetData(), TaskBufferSize);
+		RHICmdList.UnlockBuffer(TaskInfosBuffer.Buffer);
+	}
+
+	FNiagaraEmptyUAVPoolScopedAccess UAVPoolAccessScope(ComputeDispatchInterface->GetEmptyUAVPool());
+	TArray<FRHITransitionInfo, TInlineAllocator<10>> Transitions;
+	Transitions.Reserve(1);
+	FRWBuffer& CurrentCountBuffer = CountBuffer;
+
+	// Get counts buffer
+	FUnorderedAccessViewRHIRef CountsUAV = nullptr;
+	const bool bCountBufferIsValid = CurrentCountBuffer.UAV.IsValid();
+	if (bCountBufferIsValid)
+	{
+		// treat the incoming UAV as being unknown to be sure a barrier is inserted in the case
+		// where the preceding dispatch wrote to the counts buffer
+		Transitions.Emplace(CurrentCountBuffer.UAV, ERHIAccess::Unknown, ERHIAccess::UAVCompute);
+		CountsUAV = CurrentCountBuffer.UAV;
+	}
+	else
+	{
+		// This can happen if there are no InstanceCountClearTasks and all DrawIndirectArgGenTasks_PreOpaque are using culled counts
+		CountsUAV = ComputeDispatchInterface->GetEmptyUAVFromPool(RHICmdList, PF_R32_UINT, ENiagaraEmptyUAVType::Buffer);
+	}
+
+	RHICmdList.Transition(Transitions);
+
+
+	FNiagaraInstanceCountsInitCS::FParameters InitCountParameters;
+	InitCountParameters.TaskInfos = TaskInfosBuffer.SRV;
+	InitCountParameters.RWInstanceCounts = CountsUAV;
+	InitCountParameters.TaskCount.X = NumTasks;
+	
+
+	FNiagaraInstanceCountsInitCS::FPermutationDomain PermutationVectorResetCounts;
+	TShaderMapRef<FNiagaraInstanceCountsInitCS> InitCountsCS(GetGlobalShaderMap(FeatureLevel), PermutationVectorResetCounts);
+	FComputeShaderUtils::Dispatch(RHICmdList, InitCountsCS, InitCountParameters, FIntVector(FMath::DivideAndRoundUp(NumTasks, NIAGARA_DRAW_INDIRECT_ARGS_GEN_THREAD_COUNT), 1, 1));
+
+	// Generate and execute transitions
+	Transitions.Reset();
+	Transitions.Emplace(CurrentCountBuffer.UAV, ERHIAccess::UAVCompute, kCountBufferDefaultState);
+	RHICmdList.Transition(Transitions);
+
+	InstanceCountInitTasks.Reset();
+}
+
+void FNiagaraGPUInstanceCountManager::AddInstanceCountInitTask(uint32 Offset, uint32 Value)
+{
+ 	InstanceCountInitTasks.Emplace(Offset);
+ 	InstanceCountInitTasks.Emplace(Value);
+}

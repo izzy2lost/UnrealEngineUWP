@@ -36,17 +36,17 @@ UNiagaraDataChannelHandler_Global::UNiagaraDataChannelHandler_Global(FObjectInit
 {
 }
 
-void UNiagaraDataChannelHandler_Global::BeginDestroy()
-{
-	Super::BeginDestroy();
-	Data.Reset();
-}
-
 void UNiagaraDataChannelHandler_Global::Init(const UNiagaraDataChannel* InChannel)
 {
 	check(InChannel);
 	Super::Init(InChannel);
 	Data = CreateData();
+}
+
+void UNiagaraDataChannelHandler_Global::Cleanup()
+{
+	Super::Cleanup();
+	Data.Reset();
 }
 
 void UNiagaraDataChannelHandler_Global::BeginFrame(float DeltaTime, FNiagaraWorldManager* OwningWorld)
