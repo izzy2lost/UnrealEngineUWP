@@ -75,6 +75,5 @@ namespace PCGWorldQueryHelpers
 		const FVector& RayDirection,
 		FPCGPoint& OutPoint,
 		UPCGMetadata* OutMetadata,
-		TWeakObjectPtr<UWorld> World,
-		bool bShouldCreateAttributes = true);
+		TWeakObjectPtr<UWorld> World);
 }

@@ -172,22 +172,9 @@ namespace PCGWorldQueryHelpers
 
 	bool CreateRayHitAttributes(const FPCGWorldRaycastQueryParams& QueryParams, UPCGMetadata* OutMetadata)
 	{
-		auto CreateAttribute = [OutMetadata]<typename Type>(FName AttributeName, bool bShouldCreate, const Type& DefaultValue)
+		auto CreateAttribute = [OutMetadata]<typename Type>(FName AttributeName, bool bShouldCreate, const Type& DefaultValue) -> bool
 		{
-			if (!bShouldCreate)
-			{
-				return true;
-			}
-
-			if (!OutMetadata->HasAttribute(AttributeName))
-			{
-				if (OutMetadata->FindOrCreateAttribute<Type>(AttributeName, DefaultValue, /*bAllowsInterpolation=*/true, /*bOverrideParent=*/false, /*bOverwriteIfTypeMismatch=*/true))
-				{
-					return true;
-				}
-			}
-
-			return false;
+			return !bShouldCreate || OutMetadata->FindOrCreateAttribute<Type>(AttributeName, DefaultValue, /*bAllowsInterpolation=*/true, /*bOverrideParent=*/false, /*bOverwriteIfTypeMismatch=*/true);
 		};
 
 		bool bResult = true;
@@ -221,7 +208,7 @@ namespace PCGWorldQueryHelpers
 			return false;
 		}
 
-		if (FPCGMetadataAttribute<bool>* Attribute = OutMetadata->FindOrCreateAttribute<bool>(PCGWorldQueryConstants::ImpactAttribute, true, /*bAllowsInterpolation=*/true, /*bOverrideParent=*/false))
+		if (FPCGMetadataAttribute<bool>* Attribute = OutMetadata->FindOrCreateAttribute<bool>(PCGWorldQueryConstants::ImpactAttribute, true, /*bAllowsInterpolation=*/true, /*bOverrideParent=*/false, /*bOverwriteIfTypeMismatch=*/true))
 		{
 			OutMetadata->InitializeOnSet(OutPoint.MetadataEntry);
 			Attribute->SetValue(OutPoint.MetadataEntry, false);
@@ -238,17 +225,11 @@ namespace PCGWorldQueryHelpers
 		const FVector& RayDirection,
 		FPCGPoint& OutPoint,
 		UPCGMetadata* OutMetadata,
-		TWeakObjectPtr<UWorld> World,
-		bool bShouldCreateAttributes)
+		TWeakObjectPtr<UWorld> World)
 	{
 		if (!OutMetadata)
 		{
 			return false;
-		}
-
-		if (bShouldCreateAttributes)
-		{
-			CreateRayHitAttributes(QueryParams, OutMetadata);
 		}
 
 		auto ApplyAttribute = [&OutPoint, OutMetadata]<typename Type>(FName AttributeName, const Type& Value, bool bShouldApply = true)
@@ -302,10 +283,8 @@ namespace PCGWorldQueryHelpers
 					const TArray<FName> Layers = LandscapeCache->GetLayerNames(Landscape);
 					for (const FName& Layer : Layers)
 					{
-						if (!OutMetadata->HasAttribute(Layer))
-						{
-							OutMetadata->CreateAttribute<float>(Layer, float(), /*bAllowInterpolation=*/true, /*bOverrideParent=*/true);
-						}
+						// Use Threadsafe version for on the fly attribute creation.
+						OutMetadata->FindOrCreateAttribute<float>(Layer, float());
 					}
 
 					LandscapeCache->SampleMetadataOnPoint(Landscape, OutPoint, OutMetadata);

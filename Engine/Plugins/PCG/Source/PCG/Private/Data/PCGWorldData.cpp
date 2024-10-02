@@ -203,6 +203,7 @@ void UPCGWorldRayHitData::Initialize(UWorld* InWorld, const FTransform& InTransf
 	Transform = InTransform;
 	Bounds = InBounds;
 	LocalBounds = InLocalBounds;
+	PCGWorldQueryHelpers::CreateRayHitAttributes(QueryParams, Metadata);
 }
 
 void UPCGWorldRayHitData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
@@ -237,8 +238,7 @@ bool UPCGWorldRayHitData::SamplePoint(const FTransform& InTransform, const FBox&
 		{
 			const FHitResult& Hit = HitResult.GetValue();
 			OutPoint = FPCGPoint(PCGWorldQueryHelpers::GetOrthonormalImpactTransform(Hit), 1.0f, UPCGBlueprintHelpers::ComputeSeedFromPosition(Hit.Location));
-			// TODO: Pre-create attributes within caller or find a better solution than per point
-			PCGWorldQueryHelpers::ApplyRayHitMetadata(Hit, QueryParams, QueryParams.RayDirection, OutPoint, OutMetadata, World, /*bShouldCreateAttributes=*/true);
+			PCGWorldQueryHelpers::ApplyRayHitMetadata(Hit, QueryParams, QueryParams.RayDirection, OutPoint, OutMetadata, World);
 			return true;
 		}
 	}
@@ -250,6 +250,7 @@ const UPCGPointData* UPCGWorldRayHitData::CreatePointData(FPCGContext* Context, 
 {
 	UPCGPointData* Data = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 	Data->InitializeFromData(this);
+	PCGWorldQueryHelpers::CreateRayHitAttributes(QueryParams, Metadata);
 
 	FBox EffectiveBounds = Bounds;
 	if (InBounds.IsValid)

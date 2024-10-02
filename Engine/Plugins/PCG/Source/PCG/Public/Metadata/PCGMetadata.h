@@ -198,6 +198,9 @@ public:
 	FPCGMetadataAttribute<T>* GetMutableTypedAttribute(FName AttributeName);
 
 	template <typename T>
+	FPCGMetadataAttribute<T>* GetMutableTypedAttribute_Unsafe(FName AttributeName);
+
+	template <typename T>
 	const FPCGMetadataAttribute<T>* GetConstTypedAttribute(FName AttributeName) const;
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Metadata")
@@ -399,7 +402,7 @@ FPCGMetadataAttribute<T>* UPCGMetadata::CreateAttribute(FName AttributeName, con
 
 	if (ParentAttribute && (ParentAttribute->GetTypeId() != PCG::Private::MetadataTypes<T>::Id))
 	{
-		// Can't parent if the types doesn't match
+		// Can't parent if the types do not match
 		ParentAttribute = nullptr;
 	}
 
@@ -436,23 +439,70 @@ FPCGMetadataAttribute<T>* UPCGMetadata::CreateAttribute(FName AttributeName, con
 }
 
 template<typename T>
-FPCGMetadataAttribute<T>* UPCGMetadata::FindOrCreateAttribute(FName AttributeName, const T& DefaultValue, bool bAllowsInterpolation, bool bOverrideParent, bool bOverwriteIfTypeMismatch)
+FPCGMetadataAttribute<T>* UPCGMetadata::GetMutableTypedAttribute_Unsafe(FName AttributeName)
 {
-	FPCGMetadataAttribute<T>* Attribute = GetMutableTypedAttribute<T>(AttributeName);
+	FPCGMetadataAttribute<T>* Attribute = nullptr;
 
-	// If Attribute is null, but we have an attribute with this name, we have a type mismatch.
-	// Will be overwrite if flag bOverwriteIfTypeMismatch is at true.
-	if (!Attribute && HasAttribute(AttributeName) && bOverwriteIfTypeMismatch)
+	if (FPCGMetadataAttributeBase** FoundAttribute = Attributes.Find(AttributeName))
 	{
-		DeleteAttribute(AttributeName);
-	}
-
-	if (!Attribute)
-	{
-		Attribute = CreateAttribute<T>(AttributeName, DefaultValue, bAllowsInterpolation, bOverrideParent);
+		FPCGMetadataAttributeBase* BaseAttribute = *FoundAttribute;
+		if (BaseAttribute && BaseAttribute->GetTypeId() == PCG::Private::MetadataTypes<T>::Id)
+		{
+			Attribute = static_cast<FPCGMetadataAttribute<T>*>(BaseAttribute);
+		}
 	}
 
 	return Attribute;
+}
+
+template<typename T>
+FPCGMetadataAttribute<T>* UPCGMetadata::FindOrCreateAttribute(FName AttributeName, const T& DefaultValue, bool bAllowsInterpolation, bool bOverrideParent, bool bOverwriteIfTypeMismatch)
+{
+	{
+		FReadScopeLock ScopeLock(AttributeLock);
+		if (FPCGMetadataAttribute<T>* Attribute = GetMutableTypedAttribute_Unsafe<T>(AttributeName))
+		{
+			return Attribute;
+		}
+	}
+
+	FWriteScopeLock ScopeLock(AttributeLock);
+	if (FPCGMetadataAttribute<T>* Attribute = GetMutableTypedAttribute_Unsafe<T>(AttributeName))
+	{
+		return Attribute;
+	}
+
+	// If an attribute with this name exists here, there is a type mismatch.
+	if (FPCGMetadataAttributeBase** FoundAttribute = Attributes.Find(AttributeName))
+	{
+		if (bOverwriteIfTypeMismatch)
+		{
+			delete *FoundAttribute;
+			RemoveAttributeInternal(AttributeName);
+		}
+		else
+		{
+			return nullptr;
+		}
+	}
+
+	// A new attribute will be created.
+	if (!FPCGMetadataAttributeBase::IsValidName(AttributeName))
+	{
+		UE_LOG(LogPCG, Error, TEXT("Attribute name '%s' is invalid"), *AttributeName.ToString());
+		return nullptr;
+	}
+
+	// Parent is const and therefore should be safe
+	const FPCGMetadataAttributeBase* ParentAttribute = (bOverrideParent && Parent) ? Parent->GetConstTypedAttribute<T>(AttributeName) : nullptr;
+	FPCGMetadataAttribute<T>* NewAttribute = new FPCGMetadataAttribute<T>(this, AttributeName, ParentAttribute, DefaultValue, bAllowsInterpolation);
+	NewAttribute->AttributeId = NextAttributeId++;
+	AddAttributeInternal(AttributeName, NewAttribute);
+
+	// Also when creating an attribute, notify the PCG Data owner that the latest attribute manipulated is this one.
+	SetLastCachedSelectorOnOwner(AttributeName);
+
+	return NewAttribute;
 }
 
 template <typename T>
@@ -462,7 +512,6 @@ FPCGMetadataAttribute<T>* UPCGMetadata::GetMutableTypedAttribute(FName Attribute
 	return (BaseAttribute && (BaseAttribute->GetTypeId() == PCG::Private::MetadataTypes<T>::Id))
 		? static_cast<FPCGMetadataAttribute<T>*>(BaseAttribute)
 		: nullptr;
-
 }
 
 template <typename T>
