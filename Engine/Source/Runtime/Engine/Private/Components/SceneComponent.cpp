@@ -3758,12 +3758,26 @@ FScopedPreventAttachedComponentMove::~FScopedPreventAttachedComponentMove()
 	}
 }
 
+bool GLocalBoundsUseAttachParentBound = true;
+static FAutoConsoleVariableRef CVarLocalBoundsUseAttachParentBound (
+	TEXT("p.LocalBoundsUseAttachParentBound"),
+	GLocalBoundsUseAttachParentBound,
+	TEXT("If enabled, Components with 'Use Attach Parent Bound' will compute their local bounds based their parent's bounds"),
+	ECVF_Default
+);
+
 FBoxSphereBounds USceneComponent::GetLocalBounds() const
 {
 	if (bComputeFastLocalBounds)
 	{
 		return Bounds.TransformBy(ComponentToWorld.Inverse());
 	}
+
+	if (GLocalBoundsUseAttachParentBound && bUseAttachParentBound && GetAttachParent() != nullptr)
+	{
+		return GetAttachParent()->Bounds.TransformBy(ComponentToWorld.Inverse());
+	}
+
 	return CalcBounds(FTransform::Identity);
 }
 
