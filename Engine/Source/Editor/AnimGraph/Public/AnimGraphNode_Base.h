@@ -257,7 +257,6 @@ public:
 	virtual void PostPlacedNewNode() override;
 	virtual void PostPasteNode() override;
 	virtual void DestroyNode() override;
-	virtual FString GetDescriptiveCompiledName() const override;
 	// End of UEdGraphNode interface
 
 	// UK2Node interface
