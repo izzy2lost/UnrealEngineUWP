@@ -63,6 +63,14 @@ struct FEntityFactories
 	void DuplicateChildComponent(TComponentTypeID<ComponentType> InComponent);
 
 	/**
+	 * Makes the given component automatically copied from a parent entity to all its children entities,
+	 * but only if the parent entity passes the given InParentComponentMask.
+	 * @note: include "EntitySystem/MovieSceneEntityFactoryTemplates.h" for definition
+	 */
+	template<typename ComponentType>
+	void ConditionallyDuplicateChildComponent(TComponentTypeID<ComponentType> InComponent, FComponentMask InParentComponentMask);
+
+	/**
 	 * Specifies that if a component is present on a parent entity, the given child component should
 	 * be created on any child entity, and initialized with the given initializer.
 	 * @note: include "EntitySystem/MovieSceneEntityFactoryTemplates.h" for definition
