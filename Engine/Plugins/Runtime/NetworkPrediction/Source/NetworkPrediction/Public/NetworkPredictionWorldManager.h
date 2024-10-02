@@ -538,6 +538,8 @@ void UNetworkPredictionWorldManager::BindClientNetRecv_Fixed(FNetworkPredictionI
 	if (!RepProxy) 
 		return;
 
+	TFixedTickReplicator_Server<ModelDef>::SetNumInputsPerSend(Settings.FixedTickInputSendCount);
+
 	const int32 ClientRecvIdx = DataStore->ClientRecv.GetIndex(ID);
 	NpResizeAndSetBit(DataStore->ClientRecvBitMask, ClientRecvIdx, false);
 
@@ -561,6 +563,8 @@ void UNetworkPredictionWorldManager::BindClientNetRecv_Independent(FNetworkPredi
 {
 	if (!RepProxy) 
 		return;
+
+	TIndependentTickReplicator_Server<ModelDef>::SetNumInputsPerSend(Settings.IndependentTickInputSendCount);
 
 	const int32 ClientRecvIdx = DataStore->ClientRecv.GetIndex(ID);
 	NpResizeAndSetBit(DataStore->ClientRecvBitMask, ClientRecvIdx, false);
