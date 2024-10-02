@@ -678,7 +678,8 @@ void RENDERER_API AddDrawTexturePass(
 	FRDGBuilder& GraphBuilder,
 	FScreenPassViewInfo ViewInfo,
 	FScreenPassTexture Input,
-	FScreenPassRenderTarget Output);
+	FScreenPassRenderTarget Output,
+	uint32 RTMultiviewCount = 1);
 
 inline void AddDrawTexturePass(
 	FRDGBuilder& GraphBuilder,

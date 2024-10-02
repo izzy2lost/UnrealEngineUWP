@@ -354,7 +354,8 @@ void AddDrawTexturePass(
 	FRDGBuilder& GraphBuilder,
 	FScreenPassViewInfo ViewInfo,
 	FScreenPassTexture Input,
-	FScreenPassRenderTarget Output)
+	FScreenPassRenderTarget Output,
+	uint32 RTMultiViewCount)
 {
 	const FScreenPassTextureViewport InputViewport(Input);
 	const FScreenPassTextureViewport OutputViewport(Output);
@@ -365,6 +366,7 @@ void AddDrawTexturePass(
 	Parameters->InputTexture = Input.Texture;
 	Parameters->InputSampler = TStaticSamplerState<>::GetRHI();
 	Parameters->RenderTargets[0] = Output.GetRenderTargetBinding();
+	Parameters->RenderTargets.MultiViewCount = RTMultiViewCount;
 
 	AddDrawScreenPass(GraphBuilder, RDG_EVENT_NAME("DrawTexture"), ViewInfo, OutputViewport, InputViewport, PixelShader, Parameters);
 }
