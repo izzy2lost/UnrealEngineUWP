@@ -383,6 +383,12 @@ namespace GameFeatureVersePathMapper
 		const TArray<int32> AlwaysResidentChunks = GetAlwaysResidentChunks();
 		const TArray<FString> AlwaysResidentBundles = GetAlwaysResidentBundles();
 
+		FString TargetPlatformName = TargetPlatform ? TargetPlatform->IniPlatformName() : FPlatformMisc::GetUBTPlatform();
+		if (TargetPlatformName.Equals(TEXT("Windows"), ESearchCase::IgnoreCase))
+		{
+			// legacy change of windows -> win64 as that's how SupportedTargetPlatforms expects windows.
+			TargetPlatformName = TEXT("Win64");
+		}
 		FGameFeatureVersePathLookup Output;
 		for (const TPair<FString, int32>& Pair : GFPChunks)
 		{
@@ -395,6 +401,12 @@ namespace GameFeatureVersePathMapper
 
 			FStringView PluginNameView(Plugin->GetName());
 			FName PluginName(PluginNameView);
+
+			// Skip plugins that won't be enabled on the platform.
+			if (!Plugin->GetDescriptor().SupportsTargetPlatform(TargetPlatformName))
+			{
+				continue;
+			}
 
 			Output.VersePathToGfpMap.Add(FPaths::Combine(GameFeatureRootVersePath, PluginNameView), PluginName);
 
@@ -436,6 +448,21 @@ namespace GameFeatureVersePathMapper
 				if (!GFPChunks.Contains(Dependency.Name))
 				{
 					// Dependency is not a GFP
+					continue;
+				}
+
+				if (!Dependency.IsSupportedTargetPlatform(TargetPlatformName))
+				{
+					continue;
+				}
+				TSharedPtr<IPlugin> DepPlugin = PluginMan.FindPlugin(Dependency.Name);
+				if (!DepPlugin)
+				{
+					UE_LOGFMT(LogGameFeatureVersePathMapper, Error, "Could not find uplugin dependency {PluginName}", Dependency.Name);
+					continue;
+				}
+				if (!DepPlugin->GetDescriptor().SupportsTargetPlatform(TargetPlatformName))
+				{
 					continue;
 				}
 
