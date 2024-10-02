@@ -54,7 +54,6 @@ protected:
 	FReply DisableAnimators();
 
 	// Post Process
-	FSlateColor GetPostProcessColor() const;
 	bool GetPostProcessEnabled() const;
 	TSharedRef<SWidget> GetPostProcessMenuContent();
 
