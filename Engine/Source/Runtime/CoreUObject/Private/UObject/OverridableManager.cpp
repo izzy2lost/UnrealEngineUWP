@@ -54,16 +54,6 @@ void FOverridableManager::InheritEnabledFrom(UObject& Object, const UObject* Def
 #endif // WITH_EDITORONLY_DATA
 }
 
-void FOverridableManager::CacheArchetype(UObject& Object)
-{
-#if WITH_EDITORONLY_DATA
-	if (FOverriddenPropertySet* OverriddenProperties = OverriddenObjectAnnotations.Find(Object))
-	{
-		OverriddenProperties->CacheArchetype();
-	}
-#endif // WITH_EDITORONLY_DATA
-}
-
 bool FOverridableManager::NeedSubObjectTemplateInstantiation(const UObject& Object)
 {
 #if WITH_EDITORONLY_DATA

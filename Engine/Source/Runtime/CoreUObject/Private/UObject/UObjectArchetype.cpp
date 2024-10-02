@@ -71,6 +71,14 @@ FAutoConsoleVariableRef CVarEnableArchetypeCache(
 }
 #endif // UE_CACHE_ARCHETYPE
 
+#if WITH_EDITOR
+FEditorCacheArchetypeManager& FEditorCacheArchetypeManager::Get()
+{
+	static FEditorCacheArchetypeManager Manager;
+	return Manager;
+}
+#endif // WITH_EDITOR
+
 UObject* GetArchetypeImpl(const UObject* InObject, const FObjectArchetypeHelper::IObjectArchetypePolicy* Policy);
 
 UObject* GetArchetypeFromRequiredInfoImpl(const UClass* Class, const UObject* Outer, FName Name, EObjectFlags ObjectFlags, bool bUseUpToDateClass, const FObjectArchetypeHelper::IObjectArchetypePolicy* Policy)
@@ -205,13 +213,10 @@ UObject* GetArchetypeImpl(const UObject* InObject, const FObjectArchetypeHelper:
 		}
 	}
 
-	if (const FOverriddenPropertySet* OverriddenProperties = FOverridableManager::Get().GetOverriddenProperties(*InObject))
+	if (UObject* CacheArchetype = FEditorCacheArchetypeManager::Get().GetCachedArchetype(InObject))
 	{
 		// Use the cached archetype if set
-		if (UObject* CacheArchetype = OverriddenProperties->GetCachedArchetype())
-		{
-			return CacheArchetype;
-		}
+		return CacheArchetype;
 	}
 
 #endif

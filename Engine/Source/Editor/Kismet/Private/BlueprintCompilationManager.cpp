@@ -52,6 +52,7 @@
 #include "Stats/StatsHierarchical.h"
 #include "UObject/PropertyBagRepository.h"
 #include "UObject/OverridableManager.h"
+#include "UObject/UObjectArchetypeHelper.h"
 
 extern UNREALED_API UUnrealEdEngine* GUnrealEd;
 
@@ -2738,6 +2739,8 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 
 			UClass* NewClass = ReinstancingJob.OldToNew.Value;
 
+			TSet<UObject*> CachedArchetypeObjects;
+			FEditorCacheArchetypeManager& CacheManager = FEditorCacheArchetypeManager::Get();
 			TMap<UObject*, UObject*>* OldToNewTemplatesForClass = OldToNewTemplates ? &OldToNewTemplates->FindOrAdd(OldClass) : nullptr;
 
 			for(const FReinstancingJob::FArchetypeInfo& OldArchetypeInfo : ReinstancingJob.OldArchetypeObjects)
@@ -2751,19 +2754,19 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 
 				// We need to cache the archetype of the instances of this archetype
 				// as it will not be possible to get them afterwards as it gets renamed
-				if (FOverridableManager::Get().IsEnabled(*OldInstance))
+				// These cached archetypes will not be updated if they were set earlier
+				TArray<UObject*> ArchetypeInstances;
+				OldInstance->GetArchetypeInstances(ArchetypeInstances);
+				for (UObject* ArchetypeInstance : ArchetypeInstances)
 				{
-					TArray<UObject*> ArchetypeInstances;
-					OldInstance->GetArchetypeInstances(ArchetypeInstances);
-					for (UObject* ArchetypeInstance : ArchetypeInstances)
-					{
-						FOverridableManager::Get().CacheArchetype(*ArchetypeInstance);
+					CacheManager.CacheArchetype(ArchetypeInstance);
+					CachedArchetypeObjects.Add(ArchetypeInstance);
 
-						ForEachObjectWithOuter(ArchetypeInstance, [](UObject* SubObject)
-						{
-							FOverridableManager::Get().CacheArchetype(*SubObject);
-						});
-					}
+					ForEachObjectWithOuter(ArchetypeInstance, [&CachedArchetypeObjects, &CacheManager](UObject* SubObject)
+					{
+						CacheManager.CacheArchetype(SubObject);
+						CachedArchetypeObjects.Add(SubObject);
+					});
 				}
 
 				UObject* Destination = GetTransientOuterForRename(OldInstance->GetClass());
@@ -2831,6 +2834,13 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 					OldInstance->MarkAsGarbage();
 				}
 			}
+
+			// Reset any cached archetypes
+			for (UObject* CachedArchetypeObject : CachedArchetypeObjects)
+			{
+				CacheManager.ResetCacheArchetype(CachedArchetypeObject);
+			}
+
 		}
 	}
 
