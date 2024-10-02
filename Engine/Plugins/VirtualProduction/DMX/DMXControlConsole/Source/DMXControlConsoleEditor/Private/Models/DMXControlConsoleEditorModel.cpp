@@ -168,7 +168,8 @@ void UDMXControlConsoleEditorModel::InitializeEditorData() const
 
 void UDMXControlConsoleEditorModel::InitializeEditorLayouts() const
 {
-	if (!ControlConsole.IsValid())
+	const UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData();
+	if (!ControlConsole.IsValid() || !ControlConsoleData)
 	{
 		return;
 	}
@@ -183,8 +184,13 @@ void UDMXControlConsoleEditorModel::InitializeEditorLayouts() const
 		ControlConsoleLayouts->SetActiveLayout(&ControlConsoleLayouts->GetDefaultLayoutChecked());
 	}
 
+	// Update the Default layout if it's not synched to the Control Console Data
 	UDMXControlConsoleEditorGlobalLayoutBase& DefaultLayout = ControlConsoleLayouts->GetDefaultLayoutChecked();
-	if (DefaultLayout.GetLayoutRows().IsEmpty())
+	const bool bUpdateDefaultLayout = 
+		(!DefaultLayout.GetLayoutRows().IsEmpty() && ControlConsoleData->GetFaderGroupRows().IsEmpty()) ||
+		(DefaultLayout.GetLayoutRows().IsEmpty() && !ControlConsoleData->GetFaderGroupRows().IsEmpty() && ControlConsoleData->GetDMXLibrary());
+
+	if(bUpdateDefaultLayout)
 	{
 		ControlConsoleLayouts->UpdateDefaultLayout();
 		ControlConsoleLayouts->SetActiveLayout(&DefaultLayout);
