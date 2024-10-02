@@ -248,7 +248,6 @@ TUniquePtr<UE::Net::FNetObjectCreationHeader> UNetActorFactory::CreateAndFillHea
 		}
 		else
 		{
-			//OutHeader.SpawnInfo = FactoryGetDefaultActorReplicationBridgeSpawnInfo();
 			check(!Header->SpawnInfo.Location.ContainsNaN());
 		}
 	}
@@ -472,8 +471,12 @@ void UNetActorFactory::PostInstantiation(const FPostInstantiationContext& Contex
 
 void UNetActorFactory::PostInit(const FPostInitContext& Context)
 {
-	AActor* Actor = CastChecked<AActor>(Context.Instance);
-	Actor->PostNetInit();
+	// PostNetInit is only called for dynamic actors
+	if (Context.Handle.IsDynamic())
+	{
+		AActor* Actor = CastChecked<AActor>(Context.Instance);
+		Actor->PostNetInit();
+	}
 }
 
  namespace UE::Net

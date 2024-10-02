@@ -101,6 +101,8 @@ static FAutoConsoleVariableRef CvarResolvedObjectsDispatchDebugging(
 
 static const FName NetError_FailedToFindAttachmentQueue("Failed to find attachment queue");
 
+//------------------------------------------------------------------------
+
 class FResolveAndCollectUnresolvedAndResolvedReferenceCollector
 {
 public:
@@ -151,6 +153,24 @@ private:
 	FReferenceInfoArray ResolvedReferenceInfos;
 	bool bIncludeInitState = false;
 };
+
+//------------------------------------------------------------------------
+
+struct FReplicationReader::FDispatchObjectInfo
+{
+	FInternalNetRefIndex InternalIndex = FNetRefHandleManager::InvalidInternalIndex;
+	FChangeMaskStorageOrPointer ChangeMaskOrPointer;
+	uint32 bIsInitialState : 1 = false;
+	uint32 bHasState : 1 = false;
+	uint32 bHasAttachments : 1 = false;
+	uint32 bDestroy : 1 = false;
+	uint32 bTearOff : 1 = false;
+	uint32 bDeferredEndReplication : 1 = false;
+	uint32 bShouldCallSubObjectCreatedFromReplication : 1 = false;
+	uint32 bDynamicObjectCreated : 1 = false;
+};
+
+//------------------------------------------------------------------------
 
 // Helper class to deal with management of ObjectsToDispatch allocations from our temporary allocator
 class FReplicationReader::FObjectsToDispatchArray
@@ -203,6 +223,8 @@ private:
 	uint32 ObjectsToDispatchCount;
 	uint32 Capacity;		
 };
+
+//------------------------------------------------------------------------
 
 FReplicationReader::FReplicatedObjectInfo::FReplicatedObjectInfo()
 : InternalIndex(FNetRefHandleManager::InvalidInternalIndex)
