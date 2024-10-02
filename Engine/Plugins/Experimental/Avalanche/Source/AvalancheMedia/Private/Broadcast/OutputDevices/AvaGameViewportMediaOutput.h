@@ -8,7 +8,7 @@
 DECLARE_LOG_CATEGORY_EXTERN(LogAvaGameViewportMedia, Log, All);
 
 UCLASS(BlueprintType, ClassGroup = "Motion Design Broadcast",
-	meta = (DisplayName = "Motion Design Game Viewport Media Output"))
+	meta = (DisplayName = "Motion Design Game Viewport Media Output", MediaIOCustomLayout = "AvaGameViewport"))
 class UAvaGameViewportMediaOutput : public UMediaOutput
 {
 	GENERATED_BODY()
