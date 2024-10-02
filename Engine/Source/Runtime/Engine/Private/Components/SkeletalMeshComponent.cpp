@@ -3259,6 +3259,11 @@ UAnimInstance* USkeletalMeshComponent::GetAnimInstance() const
 	return AnimScriptInstance;
 }
 
+void USkeletalMeshComponent::SetAnimInstanceClass_Internal(const TSubclassOf<UAnimInstance>& InAnimClass)
+{
+	SetAnimInstanceClass(InAnimClass.Get());
+}
+
 UAnimInstance* USkeletalMeshComponent::GetPostProcessInstance() const
 {
 	return PostProcessAnimInstance;
