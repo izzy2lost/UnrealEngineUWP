@@ -579,6 +579,10 @@ static UDataflowEdNode* CreateNodeFromPaste(UDataflow* Dataflow, UEdGraphPin* Fr
 				{
 					DataflowNode->TypedScriptStruct()->ImportText(*NodeProperties, DataflowNode.Get(), nullptr, EPropertyPortFlags::PPF_None, nullptr, DataflowNode->TypedScriptStruct()->GetName(), true);
 				}
+				// Do any post-import fixup.
+				FArchive Ar;
+				Ar.SetIsLoading(true);
+				DataflowNode->PostSerialize(Ar);
 
 				EdNode->CreateNewGuid();
 				EdNode->PostPlacedNewNode();

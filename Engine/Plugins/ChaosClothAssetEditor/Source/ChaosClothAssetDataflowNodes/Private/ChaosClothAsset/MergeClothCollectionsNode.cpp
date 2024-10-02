@@ -474,7 +474,7 @@ void FChaosClothAssetMergeClothCollectionsNode_v2::OnPinRemoved(const UE::Datafl
 	return Super::OnPinRemoved(Pin);
 }
 
-void FChaosClothAssetMergeClothCollectionsNode_v2::Serialize(FArchive& Ar)
+void FChaosClothAssetMergeClothCollectionsNode_v2::PostSerialize(const FArchive& Ar)
 {
 	if (Ar.IsLoading())
 	{
@@ -755,7 +755,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }
 
-void FChaosClothAssetMergeClothCollectionsNode::Serialize(FArchive& Ar)
+void FChaosClothAssetMergeClothCollectionsNode::PostSerialize(const FArchive& Ar)
 {
 	if (Ar.IsLoading())
 	{
