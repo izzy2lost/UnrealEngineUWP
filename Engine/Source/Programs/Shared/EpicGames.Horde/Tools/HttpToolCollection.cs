@@ -18,6 +18,8 @@ namespace EpicGames.Horde.Tools
 		[DebuggerDisplay("{Id}")]
 		class Tool : ITool
 		{
+			static readonly IReadOnlyDictionary<string, string> s_defaultMetadata = new Dictionary<string, string>();
+
 			readonly GetToolResponse _response;
 			readonly List<ToolDeployment> _deployments;
 
@@ -33,6 +35,7 @@ namespace EpicGames.Horde.Tools
 			bool ITool.ShowInUgs => _response.ShowInUgs;
 			bool ITool.ShowInDashboard => _response.ShowInDashboard;
 			bool ITool.ShowInToolbox => _response.ShowInToolbox;
+			IReadOnlyDictionary<string, string> ITool.Metadata => _response.Metadata ?? s_defaultMetadata;
 			IReadOnlyList<IToolDeployment> ITool.Deployments => _deployments;
 
 			public Tool(HttpToolCollection collection, GetToolResponse response)

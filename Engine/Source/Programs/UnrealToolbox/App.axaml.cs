@@ -55,6 +55,7 @@ namespace UnrealToolbox
 			_serviceProvider = serviceCollection.BuildServiceProvider();
 		}
 
+		/// <inheritdoc/>
 		public async ValueTask DisposeAsync()
 		{
 			if (_settingsThreadStop != null)

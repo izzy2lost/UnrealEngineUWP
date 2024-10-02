@@ -105,6 +105,7 @@ namespace HordeServer.Tools
 			public bool ShowInUgs => _config.ShowInUgs;
 			public bool ShowInDashboard => _config.ShowInDashboard;
 			public bool ShowInToolbox => _config.ShowInToolbox;
+			public IReadOnlyDictionary<string, string> Metadata => _config.Metadata;
 			public IReadOnlyList<IToolDeployment> Deployments => _deployments;
 
 			public Tool(ToolCollection collection, ToolDocument document, ToolConfig config, DateTime utcNow)

@@ -1,13 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Diagnostics;
-using System.Runtime.InteropServices;
-using System.Text.Json;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Horde.Tools;
 using Microsoft.Extensions.Logging;
+using Microsoft.Win32;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Text.Json;
 
 #nullable enable
 
@@ -15,7 +16,7 @@ namespace UnrealToolbox
 {
 	class ToolCatalog : IToolCatalog, IAsyncDisposable
 	{
-		record class ItemState(string Name, string Description, CurrentToolDeploymentInfo? Current, PendingToolDeploymentInfo? Pending, IToolDeployment? Latest);
+		record class ItemState(string Name, string Description, string? MsiProductId, CurrentToolDeploymentInfo? Current, PendingToolDeploymentInfo? Pending, IToolDeployment? Latest);
 
 		[DebuggerDisplay("{Id}")]
 		class Item : IToolCatalogItem
@@ -150,6 +151,7 @@ namespace UnrealToolbox
 			public ToolId Id { get; set; }
 			public string Name { get; set; }
 			public string Description { get; set; }
+			public string? MsiProductId { get; set; }
 			public JsonDeploymentState? Current { get; set; }
 
 			public JsonItemState()
@@ -171,6 +173,7 @@ namespace UnrealToolbox
 		{
 			public ToolDeploymentId Id { get; set; }
 			public string Version { get; set; }
+			public string? MsiProductId { get; set; }
 
 			public JsonDeploymentState()
 			{
@@ -389,7 +392,7 @@ namespace UnrealToolbox
 							current = new CurrentToolDeploymentInfo(jsonItem.Current.Id, jsonItem.Current.Version, toolDir, toolConfig);
 						}
 
-						ItemState itemState = new ItemState(jsonItem.Name, jsonItem.Description, current, null, null);
+						ItemState itemState = new ItemState(jsonItem.Name, jsonItem.Description, jsonItem.MsiProductId, current, null, null);
 						items.Add(jsonItem.Id, new Item(this, jsonItem.Id, itemState));
 					}
 				}
@@ -500,8 +503,31 @@ namespace UnrealToolbox
 				int exitCode = await RunCommandAsync(item.Id.ToString(), toolConfig.InstallCommand, toolDir.FullName, cancellationToken);
 				if (exitCode != 0)
 				{
-					pending = new PendingToolDeploymentInfo(true, $"Installation failed ({exitCode}). See log.", deploymentInfo);
+					pending = new PendingToolDeploymentInfo(true, $"Installation failed ({exitCode}).", deploymentInfo);
 					UpdateStateAndNotify(item, state => state with { Pending = pending });
+					return;
+				}
+			}
+			else if (OperatingSystem.IsWindows() && !String.IsNullOrEmpty(item._state.MsiProductId))
+			{
+				PendingToolDeploymentInfo pending = new PendingToolDeploymentInfo(false, "Running installer...", deploymentInfo);
+				UpdateStateAndNotify(item, state => state with { Pending = pending });
+
+				FileReference? msiFile = DirectoryReference.EnumerateFiles(toolDir, "*.msi").FirstOrDefault();
+				if (msiFile == null)
+				{
+					pending = new PendingToolDeploymentInfo(true, $"MSI file not found", deploymentInfo);
+					UpdateStateAndNotify(item, state => state with { Pending = pending });
+					return;
+				}
+
+				ToolCommand installCommand = new ToolCommand { FileName = "msiexec.exe" };
+				installCommand.Arguments = new List<string> { "/I", msiFile.FullName };
+
+				int exitCode = await RunCommandAsync(item.Id.ToString(), installCommand, toolDir.FullName, cancellationToken);
+				if (exitCode != 0 || !IsMsiInstalled(item._state.MsiProductId))
+				{
+					UpdateStateAndNotify(item, state => state with { Pending = null });
 					return;
 				}
 			}
@@ -510,28 +536,48 @@ namespace UnrealToolbox
 			UpdateStateAndNotify(item, state => state with { Pending = null, Current = current });
 		}
 
+		static bool IsMsiInstalled(string msiProductId)
+		{
+			string? value =
+				(Registry.GetValue($"HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{{msiProductId}}}", "UninstallString", null) as string) ??
+				(Registry.GetValue($"HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{{msiProductId}}}", "UninstallString", null) as string);
+
+			return !String.IsNullOrEmpty(value);
+		}
+
 		async Task UninstallAsync(Item item, CancellationToken cancellationToken)
 		{
-			CurrentToolDeploymentInfo? current = null;
-			UpdateStateAndNotify(item, state =>
-			{
-				current = state.Current;
-
-				PendingToolDeploymentInfo? pending = null;
-				if (current != null)
-				{
-					pending = new PendingToolDeploymentInfo(false, $"Removing {current.Version}", null);
-				}
-
-				return state with { Pending = pending, Current = null };
-			});
-
+			CurrentToolDeploymentInfo? current = item._state.Current;
 			if (current != null)
 			{
-				ToolCommand? uninstallCommand = current.Config.UninstallCommand;
-				if (uninstallCommand != null)
+				if (current.Config.UninstallCommand != null)
 				{
-					await RunCommandAsync(current.Id.ToString(), uninstallCommand, current.Dir.FullName, cancellationToken);
+					PendingToolDeploymentInfo? pending = new PendingToolDeploymentInfo(false, $"Removing {current.Version}", null);
+					UpdateStateAndNotify(item, state => state with { Pending = pending, Current = null });
+
+					await RunCommandAsync(current.Id.ToString(), current.Config.UninstallCommand, current.Dir.FullName, cancellationToken);
+				}
+				else if (OperatingSystem.IsWindows() && !String.IsNullOrEmpty(item._state.MsiProductId) && IsMsiInstalled(item._state.MsiProductId))
+				{
+					PendingToolDeploymentInfo pending = new PendingToolDeploymentInfo(false, $"Running installer...", current);
+					UpdateStateAndNotify(item, state => state with { Pending = pending });
+
+					ToolCommand uninstallCommand = new ToolCommand { FileName = "msiexec.exe" };
+					uninstallCommand.Arguments = new List<string> { "/x", $"{{{item._state.MsiProductId}}}" };
+
+					int exitCode = await RunCommandAsync(current.Id.ToString(), uninstallCommand, current.Dir.FullName, cancellationToken);
+					if (exitCode == 1602)
+					{
+						// User cancelled (https://learn.microsoft.com/en-us/windows/win32/msi/error-codes)
+						UpdateStateAndNotify(item, state => state with { Pending = null });
+						return;
+					}
+					else if (exitCode != 0 || IsMsiInstalled(item._state.MsiProductId))
+					{
+						pending = new PendingToolDeploymentInfo(true, $"Uninstall failed ({exitCode}).", current);
+						UpdateStateAndNotify(item, state => state with { Pending = pending });
+						return;
+					}
 				}
 			}
 
@@ -793,15 +839,27 @@ namespace UnrealToolbox
 				{
 					if (ShouldIncludeTool(tool))
 					{
+						string? msiProductId;
+						if (!tool.Metadata.TryGetValue("msi-product-id", out msiProductId))
+						{
+							msiProductId = null;
+						}
+
 						IToolDeployment? latestDeployment = (tool.Deployments.Count > 0) ? tool.Deployments[^1] : null;
 						if (_items.TryGetValue(tool.Id, out Item? item))
 						{
-							item._state = new ItemState(tool.Name, tool.Description, item._state.Current, item._state.Pending, latestDeployment);
+							item._state = new ItemState(tool.Name, tool.Description, msiProductId, item._state.Current, item._state.Pending, latestDeployment);
 						}
 						else
 						{
-							item = new Item(this, tool.Id, new ItemState(tool.Name, tool.Description, null, null, latestDeployment));
+							item = new Item(this, tool.Id, new ItemState(tool.Name, tool.Description, msiProductId, null, null, latestDeployment));
 						}
+
+						if (OperatingSystem.IsWindows() && item._state.Current != null && msiProductId != null && !IsMsiInstalled(msiProductId))
+						{
+							item._state = item._state with { Current = null };
+						}
+
 						newItems[item.Id] = item;
 					}
 				}

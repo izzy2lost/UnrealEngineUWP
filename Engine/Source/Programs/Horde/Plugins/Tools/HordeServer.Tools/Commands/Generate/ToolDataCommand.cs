@@ -62,6 +62,10 @@ namespace HordeServer.Commands.Generate
 		[Description("Shows the tool for download on the dashboard")]
 		public bool ShowInDashboard { get; set; } = true;
 
+		[CommandLine(ListSeparator = ';')]
+		[Description("Semicolon delimited list of key=value metadata pairs")]
+		public List<string> Metadata { get; set; } = new List<string>();
+
 		[CommandLine(Required = true)]
 		[Description("Source directory for tool data")]
 		public DirectoryReference InputDir { get; set; } = null!;
@@ -144,6 +148,21 @@ namespace HordeServer.Commands.Generate
 						platforms.Add(platform);
 					}
 					bundledTool[nameof(BundledToolConfig.Platforms)] = platforms;
+				}
+
+				if (Metadata.Count > 0)
+				{
+					JsonObject metadata = new JsonObject();
+					foreach (string metadataItem in Metadata)
+					{
+						int equalsIdx = metadataItem.IndexOf(':', StringComparison.Ordinal);
+						if (equalsIdx == -1)
+						{
+							throw new InvalidOperationException($"Missing colon symbol in {metadataItem}");
+						}
+						metadata.Add(metadataItem.Substring(0, equalsIdx), metadataItem.Substring(equalsIdx + 1));
+					}
+					bundledTool[nameof(BundledToolConfig.Metadata)] = metadata;
 				}
 
 				bundledTool[nameof(BundledToolConfig.RefName)] = refName.ToString();
