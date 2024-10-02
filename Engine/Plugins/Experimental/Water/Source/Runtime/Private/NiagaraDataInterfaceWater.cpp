@@ -358,7 +358,14 @@ bool UNiagaraDataInterfaceWater::PerInstanceTick(void* PerInstanceData, FNiagara
 		}
 		else
 		{
-			InstData->WaterBodyComponent = SourceBodyComponent;
+			if (AActor* SourceActor = Cast<AActor>(SourceBodyComponent))
+			{
+				InstData->WaterBodyComponent = SourceActor->GetComponentByClass<UWaterBodyComponent>();
+			}
+			else
+			{
+				InstData->WaterBodyComponent = Cast<UWaterBodyComponent>(SourceBodyComponent);
+			}
 		}
 		InstData->bFindClosestBody = false;
 		InstData->WaterBodyChangeId = SourceBodyChangeId;
@@ -502,5 +509,10 @@ void UNiagaraDataInterfaceWater::GetWaveParamLookupTableOffset(FVectorVMExternal
 	}
 }
 
-#undef LOCTEXT_NAMESPACE
+void UNiagaraDataInterfaceWater::SetWaterBodyComponent(UWaterBodyComponent* InWaterBodyComponent)
+{
+	SourceBodyComponent = InWaterBodyComponent;
+	++SourceBodyChangeId;
+}
 
+#undef LOCTEXT_NAMESPACE
