@@ -30,11 +30,12 @@ IRISCORE_API FString LexToString(EEndReplicationFlags EndReplicationFlags);
 
 //------------------------------------------------------------------------
 
-enum class EReplicationBridgeCreateNetRefHandleResultFlags : unsigned
+enum class EReplicationBridgeCreateNetRefHandleResultFlags : uint32
 {
 	None = 0U,
 	/** Whether the instance may be destroyed due to the remote peer requesting the object to be destroyed. If not then the object itself must not be destroyed. */
 	AllowDestroyInstanceFromRemote = 1U << 0U,
+	/** Set this flag if you created a subobject and want the RootObject to be notified of the subobject's creation. */
 	ShouldCallSubObjectCreatedFromReplication = AllowDestroyInstanceFromRemote << 1U,
 };
 ENUM_CLASS_FLAGS(EReplicationBridgeCreateNetRefHandleResultFlags);
@@ -49,7 +50,7 @@ struct FReplicationBridgeCreateNetRefHandleResult
 
 //------------------------------------------------------------------------
 
-enum class EReplicationBridgeDestroyInstanceReason : unsigned
+enum class EReplicationBridgeDestroyInstanceReason : uint32
 {
 	DoNotDestroy,
 	TearOff,
@@ -59,7 +60,7 @@ IRISCORE_API const TCHAR* LexToString(EReplicationBridgeDestroyInstanceReason Re
 
 //------------------------------------------------------------------------
 
-enum class EReplicationBridgeDestroyInstanceFlags : unsigned
+enum class EReplicationBridgeDestroyInstanceFlags : uint32
 {
 	None = 0U,
 	/** Whether the instance may be destroyed when instructed from the remote peer. This flag applies when the destroy reason is TearOff and torn off actors are to be destroyed as well as regular Destroy. */

@@ -115,19 +115,7 @@ private:
 	};
 
 	// Temporary Data to dispatch
-	struct FDispatchObjectInfo
-	{
-		uint32 InternalIndex;
-		FChangeMaskStorageOrPointer ChangeMaskOrPointer;
-		uint32 bIsInitialState : 1;
-		uint32 bHasState : 1;
-		uint32 bHasAttachments : 1;
-		uint32 bDestroy : 1;
-		uint32 bTearOff : 1;
-		uint32 bDeferredEndReplication : 1;
-		uint32 bShouldCallSubObjectCreatedFromReplication : 1;
-	};
-
+	struct FDispatchObjectInfo;
 
 	enum : uint32
 	{
