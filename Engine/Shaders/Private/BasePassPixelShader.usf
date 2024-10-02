@@ -1721,6 +1721,7 @@ void FPixelShaderInOut_MainPS(
 #endif
 	{
 		float3 EmissiveLuminance = 0.0f;
+		float3 ScatteredPrecomputedLuminance = 0.0f;
 		uint2 PixelPos = uint2(In.SvPosition.xy);
 		const float3 WorldBentNormal0 = GetWorldBentNormalZero(MaterialParameters);
 
@@ -1757,8 +1758,15 @@ void FPixelShaderInOut_MainPS(
 			,BasePassInterpolants
 			,LightmapVTPageTableResult
 			,VolumetricLightmapBrickTextureUVs
+			,ScatteredPrecomputedLuminance
 	#endif
 		);
+
+	#if MATERIAL_SUBSTRATE_OPAQUE_PRECOMPUTED_LIGHTING
+		// Add ScatteredPrecomputedLuminance to DiffuseColor in order to handle correctly SSS diffuse with precomputed lighting.
+		// Luminance added to Color and to DiffuseColor are disjoint (emissive luminance vs. scattered precomputed luminance)
+		DiffuseColor = ScatteredPrecomputedLuminance;
+	#endif
 
 		// Write out MRT data
 	#if SUBSTRATE_BASE_PASS_MRT_OUTPUT_COUNT != 3
