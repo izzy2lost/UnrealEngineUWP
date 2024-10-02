@@ -107,7 +107,7 @@ void FPCGSplineStruct::ApplyTo(USplineComponent* InSplineComponent) const
 	check(InSplineComponent);
 
 	InSplineComponent->ClearSplinePoints(false);
-	InSplineComponent->SetComponentToWorld(Transform);
+	InSplineComponent->SetWorldTransform(Transform);
 	InSplineComponent->DefaultUpVector = DefaultUpVector;
 	InSplineComponent->ReparamStepsPerSegment = ReparamStepsPerSegment;
 

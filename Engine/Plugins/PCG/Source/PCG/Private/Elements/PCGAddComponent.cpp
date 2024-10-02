@@ -489,7 +489,7 @@ void FPCGAddComponentElement::AddComponents(FPCGAddComponentContext* Context,
 				if (USceneComponent* SceneComponent = Cast<USceneComponent>(Component))
 				{
 					SceneComponent->AttachToComponent(TargetActor->GetRootComponent(), FAttachmentTransformRules(EAttachmentRule::KeepRelative, EAttachmentRule::KeepWorld, EAttachmentRule::KeepWorld, false));
-					SceneComponent->SetComponentToWorld(Transform);
+					SceneComponent->SetWorldTransform(Transform);
 				}
 
 				Component->ComponentTags.Add(SourceComponent->GetFName());
