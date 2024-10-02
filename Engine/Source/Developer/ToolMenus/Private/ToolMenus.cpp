@@ -1842,6 +1842,11 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(
 
 		FMenuEntryStyleParams StyleParams = Block.WidgetData.StyleParams;
 		StyleParams.HorizontalAlignment = HAlign_Fill;
+		// Default to vertical fill if vertical alignment hasn't been modified for this particular entry.
+		if (!StyleParams.VerticalAlignment.IsSet())
+		{
+			StyleParams.VerticalAlignment = VAlign_Fill;
+		}
 
 		ToolBarBuilder.AddWidget(Widget.ToSharedRef(), StyleParams, Block.TutorialHighlightName, Block.WidgetData.bSearchable, FNewMenuDelegate(), VisibilityOverride);
 	}
