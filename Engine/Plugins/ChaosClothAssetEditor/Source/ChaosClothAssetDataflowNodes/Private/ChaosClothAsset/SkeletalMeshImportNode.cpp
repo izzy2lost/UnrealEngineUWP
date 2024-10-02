@@ -83,6 +83,8 @@ void FChaosClothAssetSkeletalMeshImportNode_v2::Evaluate(UE::Dataflow::FContext&
 				}
 			}
 
+			FClothGeometryTools::CleanupAndCompactMesh(ClothCollection);
+
 			if (const UPhysicsAsset* PhysicsAsset = bSetPhysicsAsset ? InSkeletalMesh->GetPhysicsAsset() : nullptr)
 			{
 				ClothFacade.SetPhysicsAssetPathName(PhysicsAsset->GetPathName());
