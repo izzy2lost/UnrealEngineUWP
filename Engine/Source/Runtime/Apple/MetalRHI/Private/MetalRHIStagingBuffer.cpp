@@ -9,7 +9,7 @@
 #include "MetalResources.h"
 #include "MetalDevice.h"
 #include "MetalRHIPrivate.h"
-
+#include "MetalDynamicRHI.h"
 
 //------------------------------------------------------------------------------
 
@@ -27,7 +27,7 @@ FMetalRHIStagingBuffer::~FMetalRHIStagingBuffer()
 {
 	if (ShadowBuffer)
 	{
-		Device.ReleaseBuffer(ShadowBuffer);
+		FMetalDynamicRHI::Get().DeferredDelete(ShadowBuffer);
 		ShadowBuffer = nullptr;
 	}
 }

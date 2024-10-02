@@ -268,3 +268,17 @@ bool FMetalDynamicRHI::RHIMatchPrecachePSOInitializers(const FGraphicsPipelineSt
 
 	return true;
 }
+
+void FMetalDynamicRHI::AddDeferredDeleteFence(TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe> Fence)
+{
+	FScopeLock Lock(&ObjectsToDeleteCS);
+	DeferredDeleteFences.Add(Fence);
+}
+
+void FMetalDynamicRHI::GatherDeferredDeleteObjects(TArray<FMetalDeferredDeleteObject>& DeferredDeleteObjects,
+											   TArray<TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe>>& WaitFences)
+{
+	FScopeLock Lock(&ObjectsToDeleteCS);
+	WaitFences = MoveTemp(DeferredDeleteFences);
+	DeferredDeleteObjects = MoveTemp(ObjectsToDelete);
+}

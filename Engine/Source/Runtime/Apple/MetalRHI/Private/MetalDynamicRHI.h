@@ -22,6 +22,41 @@ class FMetalDevice;
 class FMetalRayTracingCompactionRequestHandler;
 #endif // METAL_RHI_RAYTRACING
 
+struct FMetalDeferredDeleteObject
+{
+	typedef TVariant<FMetalBufferPtr, 
+					MTLTexturePtr,
+					NS::Object*,
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+					FRHIDescriptorHandle,
+#endif
+					FMetalFence*,
+					TUniqueFunction<void()>*> TObjectStorage;
+	
+	TObjectStorage Storage;
+	
+	explicit FMetalDeferredDeleteObject(FMetalBufferPtr InBuffer) : Storage(TInPlaceType<FMetalBufferPtr>(), InBuffer)
+	{}
+
+	explicit FMetalDeferredDeleteObject(MTLTexturePtr InTexture) : Storage(TInPlaceType<MTLTexturePtr>(), InTexture)
+	{}
+	
+	explicit FMetalDeferredDeleteObject(NS::Object* InObject) : Storage(TInPlaceType<NS::Object*>(), InObject)
+	{}
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	explicit FMetalDeferredDeleteObject(FRHIDescriptorHandle InHandle) : Storage(TInPlaceType<FRHIDescriptorHandle>(), InHandle)
+	{}
+#endif
+
+	explicit FMetalDeferredDeleteObject(FMetalFence* InFence) : Storage(TInPlaceType<FMetalFence*>(), InFence)
+	{}
+	
+	explicit FMetalDeferredDeleteObject(TUniqueFunction<void()>&& Func) : 
+			Storage(TInPlaceType<TUniqueFunction<void()>*>(), new TUniqueFunction<void()>(MoveTemp(Func)))
+	{}
+};
+
 /** The interface which is implemented by the dynamically bound RHI. */
 class FMetalDynamicRHI : public FDynamicRHI
 {
@@ -126,6 +161,7 @@ public:
 	virtual IRHIUploadContext* RHIGetUploadContext() final override;
 	
 	virtual IRHIComputeContext* RHIGetCommandContext(ERHIPipeline Pipeline, FRHIGPUMask GPUMask) final override;
+	virtual void RHIProcessDeleteQueue() final override;
 	virtual void RHIFinalizeContext(FRHIFinalizeContextArgs&& Args, TRHIPipelineArray<IRHIPlatformCommandList*>& Output) final override;
 	virtual void RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args) final override;
 
@@ -175,6 +211,19 @@ public:
 	
 	virtual void RHIBeginRenderQuery_TopOfPipe(FRHICommandListBase& RHICmdList, FRHIRenderQuery* RenderQuery) override;
 	virtual void RHIEndRenderQuery_TopOfPipe  (FRHICommandListBase& RHICmdList, FRHIRenderQuery* RenderQuery) override;
+	
+	template <typename ...Args>
+	void DeferredDelete(Args&&... InArgs)
+	{
+		check(!IsInGameThread() || !IsRunningRHIInSeparateThread());
+		FScopeLock Lock(&ObjectsToDeleteCS);
+		ObjectsToDelete.Emplace(Forward<Args>(InArgs)...);
+	}
+	
+	void AddDeferredDeleteFence(TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe> Fence);
+	void GatherDeferredDeleteObjects(TArray<FMetalDeferredDeleteObject>& DeferredDeleteObjects,
+									 TArray<TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe>>& WaitFences);
+	void ProcessDeferredDeleteQueue();
 
 private:
 	FMetalDevice* Device;
@@ -182,6 +231,18 @@ private:
 	FMetalRHICommandContext ImmediateContext;
 	TMap<uint32, FVertexDeclarationRHIRef> VertexDeclarationCache;
 	TLockFreePointerListUnordered<FMetalRHICommandContext, PLATFORM_CACHE_LINE_SIZE> MetalCommandContextPool;
+	
+	struct FDeferredDeleteData
+	{
+		TArray<FMetalDeferredDeleteObject> DeferredDeleteObjects;
+		TArray<TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe>> WaitFences;
+	};
+	
+	TArray<FDeferredDeleteData> DeferredDeleteQueue;
+	
+	FCriticalSection ObjectsToDeleteCS;
+	TArray<FMetalDeferredDeleteObject> ObjectsToDelete;
+	TArray<TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe>> DeferredDeleteFences;
 	
 #if METAL_USE_METAL_SHADER_CONVERTER
     struct IRCompiler* CompilerInstance;

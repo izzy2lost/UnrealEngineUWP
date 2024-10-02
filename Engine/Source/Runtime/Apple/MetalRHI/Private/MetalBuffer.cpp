@@ -7,6 +7,7 @@
 #include "MetalLLM.h"
 #include "MetalProfiler.h"
 #include "MetalRHIPrivate.h"
+#include "MetalDynamicRHI.h"
 #include "Templates/AlignmentTemplates.h"
 #include <objc/runtime.h>
 
@@ -915,7 +916,7 @@ FMetalRingBufferRef::FMetalRingBufferRef(FMetalDevice& InDevice, FMetalBufferPtr
 
 FMetalRingBufferRef::~FMetalRingBufferRef()
 {
-	Device.ReleaseBuffer(Buffer);
+	FMetalDynamicRHI::Get().DeferredDelete(Buffer);
 }
 
 FMetalSubBufferRing::FMetalSubBufferRing(FMetalDevice& MetalDevice, NS::UInteger Size, NS::UInteger Alignment, MTL::ResourceOptions InOptions)

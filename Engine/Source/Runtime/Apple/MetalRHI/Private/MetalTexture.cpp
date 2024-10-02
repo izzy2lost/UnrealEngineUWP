@@ -666,7 +666,7 @@ FMetalSurface::FMetalSurface(FMetalDevice& MetalDevice, FRHICommandListBase* RHI
 
 			Texture = NS::TransferPtr(Buffer->GetMTLBuffer()->newTexture(NewCreateDesc.Desc.get(), Buffer->GetOffset(), BytesPerRow));
             
-            Device.ReleaseBuffer(Buffer);
+			FMetalDynamicRHI::Get().DeferredDelete(Buffer);
 		}
         else if (bTextureArrayWithAtomics)
         {
@@ -686,7 +686,7 @@ FMetalSurface::FMetalSurface(FMetalDevice& MetalDevice, FRHICommandListBase* RHI
             NewCreateDesc.Desc->setTextureType(MTL::TextureType2D);
             Texture = NS::TransferPtr(Buffer->GetMTLBuffer()->newTexture(NewCreateDesc.Desc.get(), Buffer->GetOffset(), BytesPerRow));
             
-            Device.ReleaseBuffer(Buffer);
+			FMetalDynamicRHI::Get().DeferredDelete(Buffer);
         }
 		else
 		{
@@ -886,7 +886,7 @@ FMetalSurface::~FMetalSurface()
     DeferredStats->Flags = GetDesc().Flags;
     DeferredStats->TextureSize = TotalTextureSize;
     
-	Device.ReleaseFunction([DeferredStats]() {
+	FMetalDynamicRHI::Get().DeferredDelete([DeferredStats]() {
         delete DeferredStats;
     });
 	
@@ -894,7 +894,7 @@ FMetalSurface::~FMetalSurface()
 	{
 		// CFArray can contain CFType objects and is toll-free bridged with NSArray
 		CFArrayRef Temp = CFArrayCreate(kCFAllocatorSystemDefault, &ImageSurfaceRef, 1, &kCFTypeArrayCallBacks);
-		Device.ReleaseObject((__bridge NS::Array*)Temp);
+		FMetalDynamicRHI::Get().DeferredDelete((__bridge NS::Array*)Temp);
 		CFRelease(ImageSurfaceRef);
 	}
 	
@@ -908,7 +908,7 @@ FMetalSurface::~FMetalSurface()
 	{
 		if (!(GetDesc().Flags & TexCreate_Presentable))
 		{
-			BindlessDescriptorManager->FreeDescriptor(BindlessHandle);
+			FMetalDynamicRHI::Get().DeferredDelete(BindlessHandle);
 		}
 	}
 #endif
@@ -918,7 +918,7 @@ void FMetalSurface::SafeRelease(MTLTexturePtr InTexture)
 {
 	if(GIsMetalInitialized && GDynamicRHI)
 	{
-		Device.ReleaseTexture(InTexture);
+		FMetalDynamicRHI::Get().DeferredDelete(InTexture);
 	}
 }
 
@@ -1044,11 +1044,6 @@ void FMetalSurface::UpdateSurfaceAndDestroySourceBuffer(FMetalRHICommandContext*
 		Context->AddCompletionHandler(CompletionHandler);
 		
 		INC_DWORD_STAT_BY(STAT_MetalTextureMemUpdate, Size);
-		
-		if (bWait)
-		{
-			Device.ClearFreeList();
-		}
 	}
 	else
 	{
@@ -1066,7 +1061,7 @@ void FMetalSurface::UpdateSurfaceAndDestroySourceBuffer(FMetalRHICommandContext*
 		INC_DWORD_STAT_BY(STAT_MetalTextureMemUpdate, BytesPerImage);
 	}
 	
-	Device.ReleaseBuffer(Source);
+	FMetalDynamicRHI::Get().DeferredDelete(Source);
 	
 	FPlatformAtomics::InterlockedExchange(&Written, 1);
 	
@@ -1661,7 +1656,7 @@ void FMetalDynamicRHI::RHIUpdateTexture2D(FRHICommandListBase& RHICmdList, FRHIT
     RHICmdList.EnqueueLambda([TextureRHI, MipIndex, UpdateRegion, SourcePitch, Buffer, InDevice=Device](FRHICommandListBase& InRHICmdList) mutable
     {
 		InternalUpdateTexture2D(FMetalRHICommandContext::Get(InRHICmdList), TextureRHI, MipIndex, UpdateRegion, SourcePitch, Buffer);
-		InDevice->ReleaseBuffer(Buffer);
+		FMetalDynamicRHI::Get().DeferredDelete(Buffer);
     });
 
     INC_DWORD_STAT_BY(STAT_MetalTextureMemUpdate, UpdateRegion.Height*SourcePitch);
@@ -1761,7 +1756,7 @@ void FMetalDynamicRHI::RHIUpdateTexture3D(FRHICommandListBase& RHICmdList, FRHIT
     RHICmdList.EnqueueLambda([TextureRHI, MipIndex, UpdateRegion, SourceRowPitch, SourceDepthPitch, Buffer, InDevice=Device](FRHICommandListBase& InRHICmdList) mutable
     {
         InternalUpdateTexture3D(FMetalRHICommandContext::Get(InRHICmdList), TextureRHI, MipIndex, UpdateRegion, SourceRowPitch, SourceDepthPitch, Buffer);
-		InDevice->ReleaseBuffer(Buffer);
+		FMetalDynamicRHI::Get().DeferredDelete(Buffer);
     });
 
     INC_DWORD_STAT_BY(STAT_MetalTextureMemUpdate, UpdateRegion.Height * UpdateRegion.Width * SourceDepthPitch);
@@ -1911,14 +1906,14 @@ void FMetalRHICommandContext::RHICopyTexture(FRHITexture* SourceTextureRHI, FRHI
                     CopyFromTextureToBuffer(MetalSrcTexture->Texture.get(), SourceSliceIndex, SourceMipIndex, SourceOrigin, SourceSize, Buffer, 0, AlignedStride, BytesPerImage, Options);
                     CopyFromBufferToTexture(Buffer, 0, Stride, BytesPerImage, DestSize, MetalDestTexture->Texture.get(), DestSliceIndex, DestMipIndex, DestinationOrigin, Options);
                     
-                    Device.ReleaseBuffer(Buffer);
+					FMetalDynamicRHI::Get().DeferredDelete(Buffer);
                 }
             }
         }
         
         if (SrcTexture && (SrcTexture != MetalSrcTexture->Texture))
         {
-			Device.ReleaseTexture(SrcTexture);
+			FMetalDynamicRHI::Get().DeferredDelete(SrcTexture);
         }
     }
     else

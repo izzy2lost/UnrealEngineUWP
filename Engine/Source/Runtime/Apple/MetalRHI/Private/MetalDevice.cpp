@@ -52,7 +52,7 @@ static FAutoConsoleVariableRef CVarMetalBufferScribble(
 	GMetalBufferScribble,
 	TEXT("Debug option: when enabled will scribble over the buffer contents with a single value when releasing buffer objects, or regions thereof. (Default: 0, Off)"));
 
-static int32 GMetalResourcePurgeOnDelete = 0;
+int32 GMetalResourcePurgeOnDelete = 0;
 static FAutoConsoleVariableRef CVarMetalResourcePurgeOnDelete(
 	TEXT("rhi.Metal.ResourcePurgeOnDelete"),
 	GMetalResourcePurgeOnDelete,
@@ -411,9 +411,6 @@ FMetalDevice::~FMetalDevice()
 {
 	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 	RHICmdList.SubmitAndBlockUntilGPUIdle();
-
-	FlushFreeList(true);
-	ClearFreeList();
 	
 	delete &(GetCommandQueue());
 	delete PSOManager;
@@ -639,200 +636,17 @@ void FMetalDevice::EndDrawingViewport(bool bPresent)
 	}
 }
 
-void FMetalDevice::ClearFreeList()
-{
-	FreeListMutex.Lock();
-	
-	uint32 Index = 0;
-	while(Index < DelayedFreeLists.Num())
-	{
-		FMetalDelayedFreeList* Pair = DelayedFreeLists[Index];
-		if(METAL_DEBUG_OPTION(Pair->DeferCount-- <= 0 &&) Pair->IsComplete())
-		{
-			for(NS::Object* Entry : Pair->ObjectFreeList )
-			{
-				Entry->release();
-			}
-			for (FMetalBufferPtr Buffer : Pair->UsedBuffers)
-			{
-                Buffer->MarkDeleted();
-				
-#if METAL_DEBUG_OPTIONS
-                MTL::Buffer* MTLBuffer = Buffer->GetMTLBuffer();
-				if (GMetalResourcePurgeOnDelete && !MTLBuffer->heap() &&
-                    Buffer->GetOffset() == 0 && Buffer->GetLength() == MTLBuffer->length())
-				{
-                    MTLBuffer->setPurgeableState(MTL::PurgeableStateEmpty);
-				}
-#endif
-			}
-			for (MTLTexturePtr Texture : Pair->UsedTextures)
-			{
-                if (!Texture->buffer() && !Texture->parentTexture())
-				{
-#if METAL_DEBUG_OPTIONS
-					if (GMetalResourcePurgeOnDelete && !Texture->heap())
-					{
-						Texture->setPurgeableState(MTL::PurgeableStateEmpty);
-					}
-#endif
-					Heap.ReleaseTexture(nullptr, Texture);
-				}
-			}
-			for (FMetalFence* Fence : Pair->FenceFreeList)
-			{
-				FMetalFencePool::Get().ReleaseFence(Fence);
-			}
-            for (TFunction<void()>& Function : Pair->FunctionFreeList)
-            {
-                Function();
-            }
-			delete Pair;
-			DelayedFreeLists.RemoveAt(Index, EAllowShrinking::No);
-		}
-		else
-		{
-			Index++;
-		}
-	}
-	
-	FreeListMutex.Unlock();
-}
-
 void FMetalDevice::DrainHeap()
 {
 	Heap.Compact(false);
 }
 
-bool FMetalDevice::FMetalDelayedFreeList::IsComplete() const
-{
-	bool bFinished = true;
-	for (TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe> Fence : Fences)
-	{
-		bFinished &= Fence->Wait(0);
-
-		if (!bFinished)
-			break;
-	}
-	return bFinished;
-}
-
-void FMetalDevice::AddCommandBufferFence(TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe> Fence)
-{
-	FreeListMutex.Lock();
-	
-	// TODO: Temporary, removing this code for 5.5, moving to RHI deferred delete
-	FreeListFences.Add(Fence);
-	if(bPendingGarbageCollect)
-	{
-		FlushFreeList(true);
-		bPendingGarbageCollect = false;
-	}
-	FreeListMutex.Unlock();
-}
-
-void FMetalDevice::FlushFreeList(bool const bFlushFences)
-{
-	FreeListMutex.Lock();
-	
-	FMetalDelayedFreeList* NewList = new FMetalDelayedFreeList;
-	
-	// Get the committed command buffer fences and clear the array in the command-queue
-	NewList->Fences = MoveTemp(FreeListFences);
-	
-	METAL_DEBUG_OPTION(NewList->DeferCount = GMetalResourceDeferDeleteNumFrames);
-	NewList->UsedBuffers = MoveTemp(UsedBuffers);
-	NewList->UsedTextures = MoveTemp(UsedTextures);
-	NewList->ObjectFreeList = ObjectFreeList;
-	if (bFlushFences)
-	{
-		TArray<FMetalFence*> Fences;
-		FenceFreeList.PopAll(Fences);
-		for (FMetalFence* Fence : Fences)
-		{
-			if(!UsedFences.Contains(Fence))
-			{
-				UsedFences.Add(Fence);
-			}
-		}
-		NewList->FenceFreeList = MoveTemp(UsedFences);
-        
-	}
-    NewList->FunctionFreeList = MoveTemp(FunctionFreeList);
-    
-#if METAL_DEBUG_OPTIONS
-	if (FrameFences.Num())
-	{
-		FrameFences.Empty();
-	}
-#endif
-	ObjectFreeList.Empty(ObjectFreeList.Num());
-	
-	DelayedFreeLists.Add(NewList);
-	
-	FreeListMutex.Unlock();
-}
-
 void FMetalDevice::GarbageCollect()
 {
-	MarkForGarbageCollect();
-	ClearFreeList();
 	DrainHeap();
 	
 	TransferBufferAllocator->Cleanup();
 	UniformBufferAllocator->Cleanup();
-}
-
-void FMetalDevice::ReleaseObject(NS::Object* obj)
-{
-	check(GIsMetalInitialized);
-	 
-	check(obj);
-	FreeListMutex.Lock();
-	if(!ObjectFreeList.Contains(obj))
-	{
-		ObjectFreeList.Add(obj);
-	}
-	else
-	{
-		obj->release();
-	}
-	FreeListMutex.Unlock();
-}
-
-void FMetalDevice::ReleaseTexture(MTLTexturePtr Texture)
-{
-	check(GIsMetalInitialized);
-	
-	check(Texture);
-	FreeListMutex.Lock();
-	if(!UsedTextures.Contains(Texture))
-	{
-		UsedTextures.Add(Texture);
-	}
-	FreeListMutex.Unlock();
-}
-
-void FMetalDevice::ReleaseFence(FMetalFence* Fence)
-{
-#if METAL_DEBUG_OPTIONS
-	if(GetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation)
-	{
-		FScopeLock Lock(&FreeListMutex);
-		FrameFences.Add(Fence);
-	}
-#endif
-	
-	check(GIsMetalInitialized);
-	
-	check(Fence);
-	FenceFreeList.Push(Fence);
-}
-
-void FMetalDevice::ReleaseFunction(TFunction<void()> Func)
-{
-	check(GIsMetalInitialized);
-	FunctionFreeList.Push(Func);
 }
 
 MTLTexturePtr FMetalDevice::CreateTexture(FMetalSurface* Surface, MTL::TextureDescriptor* Descriptor)
@@ -886,20 +700,6 @@ MTLEventPtr FMetalDevice::CreateEvent()
 {
 	MTLEventPtr Event = NS::TransferPtr(Device->newEvent());
 	return Event;
-}
-
-void FMetalDevice::ReleaseBuffer(FMetalBufferPtr Buffer)
-{
-	if(GIsMetalInitialized)
-	{
-		check(Buffer);
-		FreeListMutex.Lock();
-		if(!UsedBuffers.Contains(Buffer))
-		{
-			UsedBuffers.Add(Buffer);
-		}
-		FreeListMutex.Unlock();
-	}
 }
 
 uint32 FMetalDevice::GetDeviceIndex(void) const

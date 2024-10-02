@@ -10,6 +10,7 @@
 
 #include "MetalDevice.h"
 #include "MetalCommandEncoder.h"
+#include "MetalDynamicRHI.h"
 
 #define USE_CPU_DESCRIPTOR_COPY 0
 #define USE_DESCRIPTOR_BUFFER_COPY !USE_CPU_DESCRIPTOR_COPY
@@ -32,7 +33,6 @@ static FAutoConsoleVariableRef CVarBindlessSamplerDescriptorHeapSize(
 
 FMetalDescriptorHeap::FMetalDescriptorHeap(FMetalDevice& MetalDevice, const ERHIDescriptorHeapType DescriptorType)
 	: Device(MetalDevice)
-	, DeferredDeletionListIndex(0)
 	, ResourceHeap(nullptr)
 	, Type(DescriptorType)
 {
@@ -68,26 +68,10 @@ void FMetalDescriptorHeap::Init(const int32 HeapSize)
 	MaxDirtyIndex = 0;
 }
 
-void FMetalDescriptorHeap::Reset()
-{
-	DeferredDeletionListIndex = (Device.GetFrameNumberRHIThread() % NumPendingFrame);
-
-	{
-		FScopeLock ScopeLock(&FreeListCS);
-
-		while (!DeferredDeletionList[DeferredDeletionListIndex].IsEmpty())
-		{
-			FRHIDescriptorHandle DeletionIndex;
-			DeferredDeletionList[DeferredDeletionListIndex].Dequeue(DeletionIndex);
-			FreeList.Enqueue(DeletionIndex.GetIndex());
-		}
-	}
-}
-
 void FMetalDescriptorHeap::FreeDescriptor(FRHIDescriptorHandle DescriptorHandle)
 {
 	FScopeLock ScopeLock(&FreeListCS);
-	DeferredDeletionList[DeferredDeletionListIndex].Enqueue(DescriptorHandle);
+	FreeList.Enqueue(DescriptorHandle.GetIndex());
 }
 
 uint32 FMetalDescriptorHeap::GetFreeResourceIndex()
@@ -155,17 +139,6 @@ void FMetalBindlessDescriptorManager::Init()
 	SamplerResources.Init(GBindlessSamplerDescriptorHeapSize);
 	
 	bIsSupported = true;
-}
-
-void FMetalBindlessDescriptorManager::Reset()
-{
-	if(!bIsSupported)
-	{
-		return;
-	}
-
-	StandardResources.Reset();
-	SamplerResources.Reset();
 }
 
 FRHIDescriptorHandle FMetalBindlessDescriptorManager::ReserveDescriptor(ERHIDescriptorHeapType InType)
@@ -413,7 +386,7 @@ void FMetalBindlessDescriptorManager::UpdateDescriptorsWithCompute()
 		InContext->WaitForEvent(InEvt, 1);
 	});
 	
-	Device.ReleaseFunction([Evt](){});
+	FMetalDynamicRHI::Get().DeferredDelete([Evt](){});
 #endif
 }
 
