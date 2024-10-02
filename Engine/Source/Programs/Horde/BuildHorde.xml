@@ -173,6 +173,7 @@
 		<Node Name="Build UnrealToolbox" Produces="#UnrealToolboxFiles">
 			<Delete Files="$(ServerToolsStagingDir_UnrealToolbox)/..."/>
 			<DotNet	Arguments="publish &quot;$(RootDir)/Engine/Source/Programs/UnrealToolbox/UnrealToolbox.csproj&quot; --output &quot;$(ServerToolsStagingDir_UnrealToolbox)&quot; --runtime win-x64 --self-contained $(VersionArguments)" DotNetPath="$(DotNetPath)" />
+			<WriteTextFile File="$(ServerToolsStagingDir_UnrealToolbox)/Version.json" Text="{ &quot;version&quot;: &quot;$(InformationalVersion)&quot; }"/>
 			<Sign Files="$(ServerToolsStagingDir_UnrealToolbox)/UnrealToolbox.exe;$(ServerToolsStagingDir_UnrealToolbox)/UnrealToolbox.dll;$(ServerToolsStagingDir_UnrealToolbox)/EpicGames.*.dll" If="'$(SignOutputs)' == 'true'"/>
 			<Tag Files="$(ServerToolsStagingDir_UnrealToolbox)/..." With="#UnrealToolboxFiles"/>
 		</Node>
@@ -290,14 +291,8 @@
 
 		</Node>
 		
-		<Node Name="Build Horde Agent Installer (Toolbox)" Requires="Build Horde Agent Installer" Produces="#HordeAgentMsiToolboxFiles">
-			<Copy Files="UnrealHordeAgent.msi" From="$(ServerToolsStagingDir_HordeAgentMsi)" To="$(ServerToolsStagingDir_HordeAgentMsiToolbox)"/>
-			<Copy Files="Toolbox.json" From="$(RootDir)/Engine/Source/Programs/Horde/HordeAgent" To="$(ServerToolsStagingDir_HordeAgentMsiToolbox)"/>
-			<Tag Files="$(ServerToolsStagingDir_HordeAgentMsiToolbox)/..." With="#HordeAgentMsiToolboxFiles"/>
-		</Node>
-
 		<ForEach Name="ServerArch" Values="$(ServerArchList)">
-			<Node Name="Stage Horde Server Installer ($(ServerArch))" Requires="#DashboardOutputFiles;#HordeCmdFiles;#HordeAgentFiles;#HordeAgentMsiFiles;#HordeAgentMsiToolboxFiles;#UnrealToolboxFiles;#UnrealToolboxMsiFiles;#P4VUtilsFiles;#UnrealGameSyncFiles;#UnrealGameSyncCmdFiles;#UnrealGameSyncMsiFiles;" Produces="#ServerWithToolsFiles_$(ServerArch)">
+			<Node Name="Stage Horde Server Installer ($(ServerArch))" Requires="#DashboardOutputFiles;#HordeCmdFiles;#HordeAgentFiles;#HordeAgentMsiFiles;#UnrealToolboxFiles;#UnrealToolboxMsiFiles;#P4VUtilsFiles;#UnrealGameSyncFiles;#UnrealGameSyncCmdFiles;#UnrealGameSyncMsiFiles;" Produces="#ServerWithToolsFiles_$(ServerArch)">
 		
 				<!-- Stage the server -->
 				<Delete Files="$(StagingDir)/Server/$(ServerArch)/..."/>
