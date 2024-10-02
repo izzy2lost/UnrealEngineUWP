@@ -102,15 +102,21 @@ bool FPCGWaitLandscapeReadyElement::ExecuteInternal(FPCGContext* InContext) cons
 		Context->bIsPaused = true;
 
 		Subsystem->ScheduleGeneric(
-			[Context]() // Normal execution: wake up the current task
+			[ContextHandle = Context->GetOrCreateHandle()]() // Normal execution: wake up the current task
 			{
-				Context->bIsPaused = false;
+				if (FPCGWaitLandscapeReadyElementContext* ContextPtr = FPCGContext::GetContextFromHandle<FPCGWaitLandscapeReadyElementContext>(ContextHandle))
+				{
+					ContextPtr->bIsPaused = false;
+				}
 				return true;
 			},
-			[Context]() // On abort: wakeup and cancel
+			[ContextHandle = Context->GetOrCreateHandle()]() // On abort: wakeup and cancel
 			{
-				Context->bIsPaused = false;
-				Context->OutputData.bCancelExecution = true;
+				if (FPCGWaitLandscapeReadyElementContext* ContextPtr = FPCGContext::GetContextFromHandle<FPCGWaitLandscapeReadyElementContext>(ContextHandle))
+				{
+					ContextPtr->bIsPaused = false;
+					ContextPtr->OutputData.bCancelExecution = true;
+				}
 				return true;
 			},
 			Context->SourceComponent.Get(),

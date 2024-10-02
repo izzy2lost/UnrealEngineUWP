@@ -45,6 +45,21 @@ enum class EPCGExecutionPhase : uint8
 		Done
 };
 
+struct FPCGContext;
+
+struct PCG_API FPCGContextHandle : public TSharedFromThis<FPCGContextHandle>
+{
+public:
+	FPCGContextHandle(FPCGContext* InContext)
+		: Context(InContext)
+	{
+	}
+
+	FPCGContext* GetContext() { return Context; }
+private:
+	FPCGContext* Context = nullptr;
+};
+
 USTRUCT(BlueprintType)
 struct PCG_API FPCGContext
 {
@@ -145,6 +160,27 @@ struct PCG_API FPCGContext
 		return PCGContextHelpers::GetInputSettings<SettingsType>(Node, InputData);
 	}
 
+	TWeakPtr<FPCGContextHandle> GetOrCreateHandle()
+	{
+		if (!Handle)
+		{
+			Handle = MakeShared<FPCGContextHandle>(this);
+		}
+
+		return Handle.ToWeakPtr();
+	}
+
+	template <typename ContextType>
+	static ContextType* GetContextFromHandle(TWeakPtr<FPCGContextHandle> WeakHandle)
+	{
+		if (TSharedPtr<FPCGContextHandle> SharedHandle = WeakHandle.Pin())
+		{
+			return (ContextType*)SharedHandle->GetContext();
+		}
+
+		return nullptr;
+	}
+
 protected:
 	virtual UObject* GetExternalContainerForOverridableParam(const FPCGSettingsOverridableParam& InParam) { return nullptr; }
 	virtual void* GetUnsafeExternalContainerForOverridableParam(const FPCGSettingsOverridableParam& InParam) { return nullptr; }
@@ -182,6 +218,9 @@ private:
 	// List of objects created by the PCG Elements, we need to track them so we can remove their Async flags when storing results on main thread
 	// so that they can be considered as existing on the main thread (and get properly GCed)
 	TSet<TObjectPtr<UObject>> AsyncObjects;
+
+	// Lazy initialized shared handle pointer that can be used in lambda captures to test if Context is still valid before accessing it
+	TSharedPtr<FPCGContextHandle> Handle;
 
 	friend struct FPCGGraphActiveTask;
 #if WITH_EDITOR

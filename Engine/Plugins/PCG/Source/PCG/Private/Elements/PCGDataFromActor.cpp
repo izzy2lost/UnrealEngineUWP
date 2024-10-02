@@ -492,16 +492,22 @@ bool FPCGDataFromActorElement::ExecuteInternal(FPCGContext* InContext) const
 					Context->bIsPaused = true;
 
 					Subsystem->ScheduleGeneric(
-						[Context]() // Normal execution: Wake up the current task
+						[ContextHandle = Context->GetOrCreateHandle()]() // Normal execution: Wake up the current task
 						{
-							Context->bIsPaused = false; 
+							if (FPCGDataFromActorContext* ContextPtr = FPCGContext::GetContextFromHandle<FPCGDataFromActorContext>(ContextHandle))
+							{
+								ContextPtr->bIsPaused = false;
+							}
 							return true;
 						}, 
-						[Context]() // On Abort: Wake up on abort, clear all results and mark as cancelled
+						[ContextHandle = Context->GetOrCreateHandle()]() // On Abort: Wake up on abort, clear all results and mark as cancelled
 						{
-							Context->bIsPaused = false; 
-							Context->FoundActors.Reset();
-							Context->OutputData.bCancelExecution = true;
+							if (FPCGDataFromActorContext* ContextPtr = FPCGContext::GetContextFromHandle<FPCGDataFromActorContext>(ContextHandle))
+							{
+								ContextPtr->bIsPaused = false;
+								ContextPtr->FoundActors.Reset();
+								ContextPtr->OutputData.bCancelExecution = true;
+							}
 							return true;
 						},
 						Context->SourceComponent.Get(),

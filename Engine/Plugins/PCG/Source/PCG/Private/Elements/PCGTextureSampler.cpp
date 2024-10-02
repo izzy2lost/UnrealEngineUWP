@@ -245,9 +245,12 @@ bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 		{
 			// Initialization not complete. Could be waiting on async texture processing or for GPU readback. Sleep until next frame.
 			Context->bIsPaused = true;
-			Context->SourceComponent->GetSubsystem()->RegisterBeginTickAction([Context]()
+			Context->SourceComponent->GetSubsystem()->RegisterBeginTickAction([ContextHandle = Context->GetOrCreateHandle()]()
 			{
-				Context->bIsPaused = false;
+				if (FPCGTextureSamplerContext* ContextPtr = FPCGContext::GetContextFromHandle<FPCGTextureSamplerContext>(ContextHandle))
+				{
+					ContextPtr->bIsPaused = false;
+				}
 			});
 
 			return false;
