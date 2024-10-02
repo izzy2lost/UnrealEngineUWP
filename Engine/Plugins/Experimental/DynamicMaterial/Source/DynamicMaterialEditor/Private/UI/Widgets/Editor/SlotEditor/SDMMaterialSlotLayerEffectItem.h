@@ -47,6 +47,8 @@ protected:
 
 	FText GetLayerHeaderText() const;
 
+	bool CanModifyMaterialModel() const;
+
 	const FSlateBrush* GetLayerBypassButtonImage() const;
 
 	FReply OnLayerRemoveButtonClick();
