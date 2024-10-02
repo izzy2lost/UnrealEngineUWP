@@ -111,7 +111,7 @@ struct FNDCIslandDebugDrawSettings
 /**
 Data channel that will automatically sub-divide the world into discreet "islands" based on location.
 */
-UCLASS(Experimental, MinimalAPI)
+UCLASS(MinimalAPI)
 class UNiagaraDataChannel_Islands : public UNiagaraDataChannel
 {
 	GENERATED_BODY()
@@ -189,7 +189,7 @@ protected:
 	mutable TSharedPtr<FStreamableHandle> AsyncLoadHandle;
 };
 
-UCLASS(Experimental, BlueprintType, MinimalAPI)
+UCLASS(BlueprintType, MinimalAPI)
 class UNiagaraDataChannelHandler_Islands : public UNiagaraDataChannelHandler
 {
 	GENERATED_UCLASS_BODY()

@@ -9,7 +9,7 @@
 /**
 Simple DataChannel handler that makes all data visible globally.
 */
-UCLASS(Experimental, MinimalAPI)
+UCLASS(MinimalAPI)
 class UNiagaraDataChannel_Global : public UNiagaraDataChannel
 {
 	GENERATED_BODY()
@@ -20,7 +20,7 @@ class UNiagaraDataChannel_Global : public UNiagaraDataChannel
 /**
 Basic DataChannel handler that makes all data visible globally.
 */
-UCLASS(Experimental, BlueprintType, MinimalAPI)
+UCLASS(BlueprintType, MinimalAPI)
 class UNiagaraDataChannelHandler_Global : public UNiagaraDataChannelHandler
 {
 	GENERATED_UCLASS_BODY()

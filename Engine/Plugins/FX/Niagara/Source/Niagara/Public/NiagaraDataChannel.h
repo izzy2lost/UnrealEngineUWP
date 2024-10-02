@@ -15,10 +15,6 @@ Each of these writes optionally being made visible to Game, CPU and/or GPU Syste
 At the "Game" level, all data is held in LWC compatible types in AoS format.
 When making this data available to Niagara Systems it is converted to SWC, SoA layout that is compatible with Niagara simulation.
 
-EXPERIMENTAL:
-Data Channels are currently experimental and undergoing heavy development.
-Anything and everything can change, including content breaking changes.
-
 Some Current limitations:
 
 Tick Ordering:
@@ -26,13 +22,6 @@ Niagara Systems can chose to read the current frame's data or the previous frame
 Reading from the current frame allows zero latency but introduces a frame dependency, i.e. you must ensure that the reader ticks after the writer.
 This frame dependency needs work to be more robust and less error prone.
 Reading the previous frames data introduces a frame of latency but removes the need to tick later than the writer. Also means you're sure to get a complete frame worth of data.
-
-GPU Support:
-Currently GPU support is very limited.
-Only Game->GPU and CPUSim->GPU are supported.
-Only the Read function of the DI is supported.
-GPU simulations always use the current frame's CPU data as this is all pushed to the at the end of the frame.
-When GPU->GPU is supported, the frame dependency issue have more meaning for GPU systems.
 
 ==============================================================================*/
 
@@ -103,7 +92,7 @@ struct FNiagaraDataChannelDataProxy
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnDataChannelCreated, const UNiagaraDataChannel*);
 
-UCLASS(Experimental, abstract, EditInlineNew, MinimalAPI, prioritizeCategories=("Data Channel"))
+UCLASS(abstract, EditInlineNew, MinimalAPI, prioritizeCategories=("Data Channel"))
 class UNiagaraDataChannel : public UObject
 {
 public:
@@ -225,7 +214,7 @@ enum class ENiagartaDataChannelReadResult : uint8
 /**
 * A C++ and Blueprint accessible library of utility functions for accessing Niagara DataChannel
 */
-UCLASS(Experimental)
+UCLASS()
 class NIAGARA_API UNiagaraDataChannelLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_UCLASS_BODY()
