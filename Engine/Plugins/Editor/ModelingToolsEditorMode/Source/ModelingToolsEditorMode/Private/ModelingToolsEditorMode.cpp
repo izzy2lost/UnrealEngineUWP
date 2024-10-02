@@ -1222,6 +1222,12 @@ void UModelingToolsEditorMode::OnEditorClosed()
 	{
 		GEditor->OnEditorClose().Remove(EditorClosedEventHandle);
 	}
+
+	// cleanup active toolkit stylus input contexts/windows
+	if (Toolkit.IsValid())
+	{
+		static_cast<FModelingToolsEditorModeToolkit*>(Toolkit.Get())->DisconnectStylusStateProviderAPI();
+	}
 }
 
 

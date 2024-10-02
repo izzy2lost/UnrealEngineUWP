@@ -114,6 +114,9 @@ public:
 
 	void NotifySelectionSystemEnabledStateModified();
 
+	// Tells the stylus API to clean up any active tracked windows / contexts
+	void DisconnectStylusStateProviderAPI();
+	
 	IToolStylusStateProviderAPI* GetStylusStateProviderAPI() const;
 
 private:
