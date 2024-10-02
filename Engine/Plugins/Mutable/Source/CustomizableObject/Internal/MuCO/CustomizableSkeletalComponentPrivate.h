@@ -47,7 +47,7 @@ public:
 	UPROPERTY()
 	bool bSkipSkipSetSkeletalMeshOnAttach = false;
 
-	UPROPERTY(Transient)
+	UPROPERTY()
 	TObjectPtr<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage;
 };
 

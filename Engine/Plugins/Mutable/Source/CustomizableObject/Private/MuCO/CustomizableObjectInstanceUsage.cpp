@@ -52,9 +52,26 @@ void UCustomizableObjectInstanceUsagePrivate::Callbacks() const
 }
 
 
+void UCustomizableObjectInstanceUsage::PostInitProperties()
+{
+	Super::PostInitProperties();
+	
+	if (!HasAllFlags(RF_ClassDefaultObject))
+	{
+		if (!Private)
+		{
+			Private = NewObject<UCustomizableObjectInstanceUsagePrivate>(this, FName("Private"), RF_Public);
+		}
+		else if (Private->GetOuter() != this)
+		{
+			Private = Cast<UCustomizableObjectInstanceUsagePrivate>(StaticDuplicateObject(Private, this, FName("Private")));
+		}
+	}
+}
+
+
 UCustomizableObjectInstanceUsage::UCustomizableObjectInstanceUsage()
 {
-	Private = CreateDefaultSubobject<UCustomizableObjectInstanceUsagePrivate>(FName("Private"));
 }
 
 
@@ -678,6 +695,17 @@ bool UCustomizableObjectInstanceUsagePrivate::IsTickableInEditor() const
 bool UCustomizableObjectInstanceUsagePrivate::IsTickable() const
 {
 	return !HasAnyFlags(RF_BeginDestroyed);
+}
+
+
+UCustomizableObjectInstanceUsagePrivate::UCustomizableObjectInstanceUsagePrivate()
+{
+	// This object may get instantiated into a level, as a part of UCustomizableSkeletalComponent, so needs to be public to ensure
+	// it can be serialized out.
+	if (!HasAllFlags(RF_ClassDefaultObject))
+	{
+		SetFlags(RF_Public);
+	}
 }
 
 
