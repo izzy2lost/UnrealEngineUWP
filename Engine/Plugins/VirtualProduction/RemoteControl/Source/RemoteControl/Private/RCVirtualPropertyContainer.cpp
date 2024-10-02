@@ -412,10 +412,6 @@ void URCVirtualPropertyContainerBase::PostEditUndo()
 
 void URCVirtualPropertyContainerBase::OnModifyPropertyValue(const FPropertyChangedEvent& PropertyChangedEvent)
 {
-	const FScopedTransaction Transaction(LOCTEXT("OnModifyPropertyValue", "On Modify Property Value"));
-
-	Modify();
-
 	MarkPackageDirty();
 }
 #endif
