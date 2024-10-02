@@ -18,7 +18,7 @@ namespace UnrealToolbox
 	/// <summary>
 	/// Main application class
 	/// </summary>
-	public sealed partial class App : Application, ITrayAppHost
+	public sealed partial class App : Application, ITrayAppHost, IAsyncDisposable
 	{
 		readonly ServiceProvider _serviceProvider;
 
@@ -28,6 +28,9 @@ namespace UnrealToolbox
 		WindowIcon? _errorIcon;
 
 		SettingsWindow? _settingsWindow;
+
+		Thread? _settingsThread;
+		ManualResetEvent? _settingsThreadStop;
 
 		/// <summary>
 		/// Constructor
@@ -52,6 +55,18 @@ namespace UnrealToolbox
 			_serviceProvider = serviceCollection.BuildServiceProvider();
 		}
 
+		public async ValueTask DisposeAsync()
+		{
+			if (_settingsThreadStop != null)
+			{
+				_settingsThreadStop.Set();
+				_settingsThread?.Join();
+				_settingsThreadStop.Dispose();
+				_settingsThreadStop = null;
+			}
+			await _serviceProvider.DisposeAsync();
+		}
+
 		/// <inheritdoc/>
 		public override void Initialize()
 		{
@@ -74,6 +89,37 @@ namespace UnrealToolbox
 
 			ToolboxNotificationManager notificationManager = _serviceProvider.GetRequiredService<ToolboxNotificationManager>();
 			notificationManager.Start();
+
+			_settingsThreadStop = new ManualResetEvent(false);
+			_settingsThread = new Thread(WaitForEvents);
+			_settingsThread.Start();
+		}
+
+		private void WaitForEvents()
+		{
+			using EventWaitHandle closeEvent = new EventWaitHandle(false, EventResetMode.AutoReset, Program.CloseEventName);
+			using EventWaitHandle settingsEvent = new EventWaitHandle(false, EventResetMode.AutoReset, Program.SettingsEventName);
+			for(; ;)
+			{
+				int index = WaitHandle.WaitAny(new[] { closeEvent, settingsEvent, _settingsThreadStop! });
+				if (index == 0)
+				{
+					Dispatcher.UIThread.Post(() => CloseMainThread());
+				}
+				else if (index == 1)
+				{
+					Dispatcher.UIThread.Post(() => OpenSettings());
+				}
+				else
+				{
+					break;
+				}
+			}
+		}
+
+		void CloseMainThread()
+		{
+			((IClassicDesktopStyleApplicationLifetime)ApplicationLifetime!).Shutdown();
 		}
 
 		private void UpdateReady()

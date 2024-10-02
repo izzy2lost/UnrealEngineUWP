@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using EpicGames.Core;
 using FluentAvalonia.UI.Controls;
 using HordeAgent;
+using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using System.Diagnostics;
 using System.IO.Pipes;
@@ -18,6 +19,7 @@ namespace UnrealToolbox.Plugins.HordeAgent
 		record struct IdleStat(string Name, long Value, long MinValue);
 
 		readonly ITrayAppHost _host;
+		readonly ILogger _logger;
 
 		readonly BackgroundTask _clientTask;
 		readonly BackgroundTask _tickPauseStateTask;
@@ -67,13 +69,14 @@ namespace UnrealToolbox.Plugins.HordeAgent
 			}
 		}
 
-		public HordeAgentPlugin(ITrayAppHost host)
+		public HordeAgentPlugin(ITrayAppHost host, ILogger<HordeAgentPlugin> logger)
 		{
 			_host = host;
+			_logger = logger;
 
-			DirectoryReference? settingsRoot = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.CommonApplicationData);
+			DirectoryReference? settingsRoot = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.LocalApplicationData);
 			settingsRoot ??= DirectoryReference.GetCurrentDirectory();
-			_settingsFile = FileReference.Combine(settingsRoot, "Epic", "Horde", "Agent", "Toolbox.json");
+			_settingsFile = FileReference.Combine(settingsRoot, "Epic Games", "Unreal Toolbox", "HordeAgent.json");
 
 			LoadSettings();
 
@@ -120,8 +123,34 @@ namespace UnrealToolbox.Plugins.HordeAgent
 						return;
 					}
 				}
-				catch (Exception)
+				catch (Exception ex)
 				{
+					_logger.LogError(ex, "Error while reading {File}: {Message}", _settingsFile, ex.Message);
+				}
+			}
+			else
+			{
+				DirectoryReference? programData = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.CommonApplicationData);
+				if (programData != null)
+				{
+					FileReference legacySettingsFile = FileReference.Combine(programData, "Epic", "Horde", "TrayApp", "settings.json");
+					if (FileReference.Exists(legacySettingsFile))
+					{
+						try
+						{
+							byte[] data = FileReference.ReadAllBytes(legacySettingsFile);
+
+							HordeAgentSettings settings = JsonSerializer.Deserialize<HordeAgentSettings>(data, GetJsonSerializerOptions())!;
+							settings.Mode ??= ReadLegacyMode();
+
+							UpdateSettings(settings);
+							return;
+						}
+						catch (Exception ex)
+						{
+							_logger.LogError(ex, "Error while reading {File}: {Message}", legacySettingsFile, ex.Message);
+						}
+					}
 				}
 			}
 
@@ -186,7 +215,11 @@ namespace UnrealToolbox.Plugins.HordeAgent
 
 		void SetStatus(AgentStatusMessage status)
 		{
-			if (!status.Healthy)
+			if (!IsEnabled)
+			{
+				_status = null;
+			}
+			else if (!status.Healthy)
 			{
 				string message = String.IsNullOrEmpty(status.Detail) ? "Error. Check logs." : status.Detail.Length > 100 ? status.Detail.Substring(0, 100) : status.Detail;
 				_status = new TrayAppPluginStatus(TrayAppPluginState.Error, message, message);

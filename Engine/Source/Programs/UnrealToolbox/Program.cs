@@ -12,7 +12,8 @@ namespace UnrealToolbox
 	static class Program
 	{
 		const string MutexName = "UnrealToolbox-Mutex";
-		const string EventName = "UnrealToolbox-Exit";
+		public const string CloseEventName = "UnrealToolbox-Close";
+		public const string SettingsEventName = "UnrealToolbox-Settings";
 
 		public static SelfUpdateState? Update { get; private set; }
 
@@ -41,14 +42,36 @@ namespace UnrealToolbox
 
 		static int RealMain(string[] args)
 		{
+			using EventWaitHandle closeEvent = new EventWaitHandle(false, EventResetMode.AutoReset, CloseEventName);
+			if (args.Any(x => x.Equals("-Close", StringComparison.OrdinalIgnoreCase)))
+			{
+				closeEvent.Set();
+			}
+
+			using EventWaitHandle settingsEvent = new EventWaitHandle(false, EventResetMode.AutoReset, SettingsEventName);
+			if (args.Any(x => x.Equals("-Settings", StringComparison.OrdinalIgnoreCase)))
+			{
+				settingsEvent.Set();
+			}
+
 			using SingleInstanceMutex mutex = new SingleInstanceMutex(MutexName);
 			if (!mutex.Wait(0))
 			{
 				return 1;
 			}
 
-			BuildAvaloniaApp()
-				.StartWithClassicDesktopLifetime(args, ShutdownMode.OnExplicitShutdown);
+			AppBuilder builder = BuildAvaloniaApp();
+			try
+			{
+				builder.StartWithClassicDesktopLifetime(args, ShutdownMode.OnExplicitShutdown);
+			}
+			finally
+			{
+				if (builder.Instance is App app)
+				{
+					Task.Run(async () => await app.DisposeAsync()).Wait();
+				}
+			}
 
 			return 0;
 		}
