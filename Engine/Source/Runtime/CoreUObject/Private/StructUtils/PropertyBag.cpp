@@ -2210,6 +2210,30 @@ TValueOrError<const FPropertyBagArrayRef, EPropertyBagResult> FInstancedProperty
 	return MakeValue(FPropertyBagArrayRef(*Desc, Address));
 }
 
+TValueOrError<FPropertyBagSetRef, EPropertyBagResult> FInstancedPropertyBag::GetMutableSetRef(const FName Name)
+{
+	const FPropertyBagPropertyDesc* Desc = FindPropertyDescByName(Name);
+	if (Desc == nullptr)
+	{
+		return MakeError(EPropertyBagResult::PropertyNotFound);
+	}
+	check(Desc->CachedProperty);
+
+	if (Desc->ContainerTypes.GetFirstContainerType() != EPropertyBagContainerType::Set)
+	{
+		return MakeError(EPropertyBagResult::TypeMismatch);
+	}
+
+	const void* Address = GetValueAddress(Desc);
+	if (Address == nullptr)
+	{
+		return MakeError(EPropertyBagResult::PropertyNotFound);
+	}
+	
+	return MakeValue(FPropertyBagSetRef(*Desc, Address));
+}
+
+
 TValueOrError<const FPropertyBagSetRef, EPropertyBagResult> FInstancedPropertyBag::GetSetRef(const FName Name) const
 {
 	const FPropertyBagPropertyDesc* Desc = FindPropertyDescByName(Name);

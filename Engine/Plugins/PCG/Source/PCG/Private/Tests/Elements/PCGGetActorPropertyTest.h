@@ -152,6 +152,9 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "")
 	FPCGDummyGetPropertyStruct DummyStruct;
+	
+	UPROPERTY(BlueprintReadOnly, Category = "")
+    TArray<int32> SetOfIntsProperty;
 };
 
 UCLASS(MinimalAPI, NotBlueprintable, NotPlaceable, NotBlueprintType, Transient, HideDropdown, meta = (Hidden))

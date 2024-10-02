@@ -104,8 +104,8 @@ public:
 
 	virtual const FInstancedPropertyBag* GetUserParametersStruct() const PURE_VIRTUAL(UPCGGraphInterface::GetUserParametersStruct, return nullptr;)
 
-	// Mutable version should not be used outside of testing, since there are callbacks fired when parameters changes.
-	// TODO: Make it safe to change parameters from the outside.
+	// Mutable version - should not be used outside of testing. Use UpdateUserParametersStruct on PCGGraph,
+	// or the different get/set/update functions in PCGGraphInterface instead to have proper callbacks.
 	FInstancedPropertyBag* GetMutableUserParametersStruct_Unsafe() const { return const_cast<FInstancedPropertyBag*>(GetUserParametersStruct()); }
 
 	bool IsInstance() const;
@@ -193,6 +193,22 @@ public:
 	}
 
 	EPropertyBagResult SetGraphParameter(const FName PropertyName, const uint64 Value, const UEnum* Enum);
+
+	/**
+	 * Allows to manipulate directly FPropertyBagArrayRef, while propagating changes to child instances. 
+	 * @param PropertyName Name of the property to access. Must be an Array.
+	 * @param Callback Callback to call with the FPropertyBagArrayRef. Returns a bool telling if there was a change.
+	 * @returns True if the change succeeded.
+	 */
+	bool UpdateArrayGraphParameter(const FName PropertyName, TFunctionRef<bool(FPropertyBagArrayRef& PropertyBagArrayRef)> Callback);
+
+	/**
+	 * Allows to manipulate directly FPropertyBagSetRef, while propagating changes to child instances. 
+	 * @param PropertyName Name of the property to access. Must be a Set.
+	 * @param Callback Callback to call with the FPropertyBagSetRef. Returns a bool telling if there was a change.
+	 * @returns True if the change succeeded.
+	 */
+	bool UpdateSetGraphParameter(const FName PropertyName, TFunctionRef<bool(FPropertyBagSetRef& PropertyBagSetRef)> Callback);
 
 	virtual void OnGraphParametersChanged(EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName) PURE_VIRTUAL(UPCGGraphInterface::OnGraphParametersChanged, )
 
@@ -469,6 +485,9 @@ public:
 	FPCGRuntimeGenerationRadii GenerationRadii;
 
 	virtual void OnGraphParametersChanged(EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName) override;
+
+	// Will call the callback function with a mutable property bag and will trigger the updates when it's done.
+	void UpdateUserParametersStruct(TFunctionRef<void(FInstancedPropertyBag&)> Callback);
 
 #if WITH_EDITOR
 private:

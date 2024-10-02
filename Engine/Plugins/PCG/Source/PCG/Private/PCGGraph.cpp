@@ -133,6 +133,42 @@ EPropertyBagResult UPCGGraphInterface::SetGraphParameter(const FName PropertyNam
 	return Result;
 }
 
+bool UPCGGraphInterface::UpdateArrayGraphParameter(const FName PropertyName, TFunctionRef<bool(FPropertyBagArrayRef& PropertyBagArrayRef)> Callback)
+{
+	FInstancedPropertyBag* UserParameters = GetMutableUserParametersStruct();
+	check(UserParameters);
+
+	TValueOrError<FPropertyBagArrayRef, EPropertyBagResult> Result = UserParameters->GetMutableArrayRef(PropertyName);
+
+	if (!Result.HasError() && Result.HasValue() && Callback(Result.GetValue()))
+	{
+		OnGraphParametersChanged(EPCGGraphParameterEvent::ValueModifiedLocally, PropertyName);
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+bool UPCGGraphInterface::UpdateSetGraphParameter(const FName PropertyName, TFunctionRef<bool(FPropertyBagSetRef& PropertyBagSetRef)> Callback)
+{
+	FInstancedPropertyBag* UserParameters = GetMutableUserParametersStruct();
+	check(UserParameters);
+
+	TValueOrError<FPropertyBagSetRef, EPropertyBagResult> Result = UserParameters->GetMutableSetRef(PropertyName);
+
+	if (!Result.HasError() && Result.HasValue() && Callback(Result.GetValue()))
+	{
+		OnGraphParametersChanged(EPCGGraphParameterEvent::ValueModifiedLocally, PropertyName);
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
 bool UPCGGraphInterface::IsInstance() const
 {
 	return this != GetGraph();
@@ -1641,6 +1677,13 @@ void UPCGGraph::OnGraphParametersChanged(EPCGGraphParameterEvent InChangeType, F
 #if WITH_EDITOR
 	NotifyGraphParametersChanged(InChangeType, InChangedPropertyName);
 #endif // WITH_EDITOR
+}
+
+void UPCGGraph::UpdateUserParametersStruct(TFunctionRef<void(FInstancedPropertyBag&)> Callback)
+{
+	Callback(UserParameters);
+	// Since anything could have changed, trigger a refresh like a post load (to compare what changed)
+	OnGraphParametersChanged(EPCGGraphParameterEvent::GraphPostLoad, NAME_None);
 }
 
 FInstancedPropertyBag* UPCGGraph::GetMutableUserParametersStruct()
