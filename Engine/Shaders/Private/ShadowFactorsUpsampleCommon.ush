@@ -21,14 +21,18 @@ void UpsampleShadowFactors(
 	SamplerState ShadowFactorsSampler,
 	float2 ShadowFactorsUVBilinearMax,
 	out float ShadowFactor, 
-	out float SceneDepth)
+	out float SceneDepth,
+	uint EyeIndex)
 {
 	float2 BufferUV = SvPositionToBufferUV(SVPos);
 
 	// ShadowFactors is computed at 0,0 regardless of viewrect min
 	float2 ShadowFactorsUV = BufferUV - ScissorRectMinAndSize.xy * View.BufferSizeAndInvSize.zw;
-
+#if MOBILE_MULTI_VIEW
+	SceneDepth = CalcSceneDepth(BufferUV, EyeIndex);
+#else
 	SceneDepth = CalcSceneDepth(BufferUV);
+#endif
 
 #define BILATERAL_UPSAMPLE 1
 #if BILATERAL_UPSAMPLE && SHADOW_FACTORS_UPSAMPLE_REQUIRED
@@ -84,4 +88,19 @@ void UpsampleShadowFactors(
 #else
 	ShadowFactor = Texture2DSampleLevel(ShadowFactorsTexture, ShadowFactorsSampler, ShadowFactorsUV, 0).x;
 #endif
+}
+
+void UpsampleShadowFactors(
+	float4 SVPos,
+	int4 ScissorRectMinAndSize,
+	float OneOverDownsampleFactor,
+	float ShadowFactorsMinDepth,
+	float ShadowFactorsMaxDepth,
+	Texture2D ShadowFactorsTexture,
+	SamplerState ShadowFactorsSampler,
+	float2 ShadowFactorsUVBilinearMax,
+	out float ShadowFactor,
+	out float SceneDepth)
+{
+	UpsampleShadowFactors(SVPos, ScissorRectMinAndSize, OneOverDownsampleFactor, ShadowFactorsMinDepth, ShadowFactorsMaxDepth, ShadowFactorsTexture, ShadowFactorsSampler, ShadowFactorsUVBilinearMax, ShadowFactor, SceneDepth, 0);
 }
