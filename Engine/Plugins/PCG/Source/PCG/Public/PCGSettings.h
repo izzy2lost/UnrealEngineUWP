@@ -408,6 +408,9 @@ public:
 	FText Description;
 #endif
 
+	// Returns Original UID when this is a duplicated settings so we can compare successive executions for reuse cases
+	uint64 GetStableUID() const { return OriginalSettings ? OriginalSettings->UID : UID; }
+
 	// Holds the original settings used to duplicate this object if it was overridden
 	const UPCGSettings* OriginalSettings = nullptr;
 

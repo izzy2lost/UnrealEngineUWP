@@ -82,15 +82,12 @@ UPCGManagedISMComponent* UPCGActorHelpers::GetOrCreateManagedISMC(AActor* InTarg
 
 	auto AddTagsToComponent = [InSourceComponent, &InParams](UInstancedStaticMeshComponent* ISMC)
 	{
-		if(ISMC)
-		{
-			ISMC->ComponentTags.AddUnique(PCGHelpers::DefaultPCGTag);
-			ISMC->ComponentTags.AddUnique(InSourceComponent->GetFName());
+		ISMC->ComponentTags.AddUnique(PCGHelpers::DefaultPCGTag);
+		ISMC->ComponentTags.AddUnique(InSourceComponent->GetFName());
 			
-			for (FName ComponentTag : InParams.Descriptor.ComponentTags)
-			{
-				ISMC->ComponentTags.AddUnique(ComponentTag);
-			}
+		for (FName ComponentTag : InParams.Descriptor.ComponentTags)
+		{
+			ISMC->ComponentTags.AddUnique(ComponentTag);
 		}
 	};
 
@@ -156,7 +153,13 @@ UPCGManagedISMComponent* UPCGActorHelpers::GetOrCreateManagedISMC(AActor* InTarg
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(UPCGActorHelpers::GetOrCreateManagedISMC::MarkAsUsed);
 			MatchingResource->MarkAsUsed();
-			AddTagsToComponent(Cast<UInstancedStaticMeshComponent>(MatchingResource->GeneratedComponent.Get()));
+
+			UInstancedStaticMeshComponent* ISMC = Cast<UInstancedStaticMeshComponent>(MatchingResource->GeneratedComponent.Get());
+			if (ensure(ISMC))
+			{
+				ISMC->Modify(!InSourceComponent->IsInPreviewMode());
+				AddTagsToComponent(ISMC);
+			}
 
 			return MatchingResource;
 		}
@@ -267,6 +270,12 @@ UPCGManagedSplineMeshComponent* UPCGActorHelpers::GetOrCreateManagedSplineMeshCo
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(UPCGActorHelpers::GetOrCreateManagedSplineMeshComponent::MarkAsUsed);
 			MatchingResource->MarkAsUsed();
+
+			USplineMeshComponent* SplineMeshComponent = MatchingResource->GetComponent();
+			if (ensure(SplineMeshComponent))
+			{
+				SplineMeshComponent->Modify(!InSourceComponent->IsInPreviewMode());
+			}
 
 			return MatchingResource;
 		}
