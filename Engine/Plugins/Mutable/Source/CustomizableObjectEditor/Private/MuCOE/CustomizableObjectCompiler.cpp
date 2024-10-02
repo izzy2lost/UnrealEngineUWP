@@ -762,8 +762,7 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 	}
 	else
 	{
-		// Always work with the ModelResources (Editor) when compiling. They'll be copied to the cooked version during PreSave.
-		FModelResources& ModelResources = CurrentObject->GetPrivate()->GetModelResources(false);
+		FModelResources& ModelResources = CurrentObject->GetPrivate()->GetModelResources(CurrentOptions.bIsCooking);
 		ModelResources = FModelResources();
 		ModelStreamableBulkData = MakeShared<FModelStreamableBulkData>();
 		
@@ -1301,7 +1300,7 @@ void FCustomizableObjectCompiler::FinishCompilationTask()
 
 	// Create SaveDD task
 	TRACE_BEGIN_REGION(UE_MUTABLE_SAVEDD_REGION);
-	SaveDDTask = MakeShareable(new FCustomizableObjectSaveDDRunnable(CurrentRequest, Model, CurrentObject->GetPrivate()->GetModelResources(false), ModelStreamableBulkData));
+	SaveDDTask = MakeShareable(new FCustomizableObjectSaveDDRunnable(CurrentRequest, Model, CurrentObject->GetPrivate()->GetModelResources(CurrentOptions.bIsCooking), ModelStreamableBulkData));
 }
 
 
