@@ -187,21 +187,17 @@ namespace AutomationTool.Tasks
 
 			// Create the new artifact
 			IHordeClient hordeClient = CommandUtils.ServiceProvider.GetRequiredService<IHordeClient>();
-			IArtifact artifact = await hordeClient.Artifacts.AddAsync(name, type, _parameters.Description, streamId, commitId, keys, metadata);
+			IArtifactBuilder artifact = await hordeClient.Artifacts.CreateAsync(name, type, _parameters.Description, streamId, commitId, keys, metadata);
 			Logger.LogInformation("Creating artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with namespace {NamespaceId}, ref {RefName} ({Link})", artifact.Id, name, type, artifact.NamespaceId, artifact.RefName, $"{hordeClient.ServerUrl}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
 
 			// Upload the files
-			IStorageNamespace storage = hordeClient.GetStorageNamespace(artifact.NamespaceId);
 			Stopwatch timer = Stopwatch.StartNew();
 
 			IHashedBlobRef<DirectoryNode> rootRef;
-			await using (IBlobWriter blobWriter = storage.CreateBlobWriter(artifact.RefName))
+			await using (IBlobWriter blobWriter = artifact.CreateBlobWriter())
 			{
 				rootRef = await blobWriter.WriteFilesAsync(baseDir, files);
 			}
-			await storage.WriteRefAsync(artifact.RefName, rootRef);
-
-			Logger.LogInformation("Uploaded artifact {ArtifactId} in {Time:n1}s", artifact.Id, timer.Elapsed.TotalSeconds);
 
 			// Tag any uploaded symbols
 			if (_parameters.Symbols)
@@ -223,11 +219,15 @@ namespace AutomationTool.Tasks
 							string fileName = file.GetFileName().ToUpperInvariant();
 							string alias = $"sym:{fileName}/{hash}/{fileName}";
 							Logger.LogInformation("Adding symbol alias: {Alias}", alias);
-							await storage.AddAliasAsync(alias, fileEntry.Target.Handle);
+							await artifact.AddAliasAsync(alias, fileEntry.Target.Handle);
 						}
 					}
 				}
 			}
+
+			// Finalize the artifact
+			await artifact.CompleteAsync(rootRef);
+			Logger.LogInformation("Uploaded artifact {ArtifactId} in {Time:n1}s", artifact.Id, timer.Elapsed.TotalSeconds);
 		}
 
 		static async Task<FileEntry?> FindFileAsync(IBlobRef<DirectoryNode> rootDir, string path, CancellationToken cancellationToken = default)

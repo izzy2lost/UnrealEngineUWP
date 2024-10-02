@@ -35,7 +35,7 @@ namespace HordeServer.Artifacts
 
 			public ArtifactDocument Document => _document;
 
-			ArtifactId IArtifact.Id => new ArtifactId(BinaryIdUtils.FromObjectId(_document.Id));
+			public ArtifactId Id => new ArtifactId(BinaryIdUtils.FromObjectId(_document.Id));
 			ArtifactName IArtifact.Name => _document.Name;
 			ArtifactType IArtifact.Type => _document.Type;
 			string? IArtifact.Description => _document.Description;
@@ -143,6 +143,43 @@ namespace HordeServer.Artifacts
 			public DateTime Time { get; set; }
 		}
 
+		class ArtifactBuilder : IArtifactBuilder
+		{
+			readonly ArtifactCollection _collection;
+			readonly IArtifact _artifact;
+			readonly IStorageNamespace _storage;
+
+			public ArtifactId Id => _artifact.Id;
+			public ArtifactName Name => _artifact.Name;
+			public ArtifactType Type => _artifact.Type;
+			public string? Description => _artifact.Description;
+			public StreamId StreamId => _artifact.StreamId;
+			public CommitIdWithOrder CommitId => _artifact.CommitId;
+			public IReadOnlyList<string> Keys => _artifact.Keys;
+			public IReadOnlyList<string> Metadata => _artifact.Metadata;
+			public NamespaceId NamespaceId => _artifact.NamespaceId;
+			public RefName RefName => _artifact.RefName;
+
+			public ArtifactBuilder(ArtifactCollection collection, Artifact artifact, IStorageNamespace storage)
+			{
+				_collection = collection;
+				_artifact = artifact;
+				_storage = storage;
+			}
+
+			public Task AddAliasAsync(string name, IBlobRef handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
+				=> _storage.AddAliasAsync(name, handle, rank, data, cancellationToken);
+
+			public async Task<IArtifact> CompleteAsync(IHashedBlobRef blobRef, CancellationToken cancellationToken = default)
+			{
+				await _storage.WriteRefAsync(_artifact.RefName, blobRef, cancellationToken: cancellationToken);
+				return _artifact;
+			}
+
+			public IBlobWriter CreateBlobWriter()
+				=> _storage.CreateBlobWriter(_artifact.RefName);
+		}
+
 		readonly IMongoCollection<ArtifactDocument> _artifactCollection;
 		readonly IMongoCollection<ArtifactExpiryDocument> _artifactExpiryCollection;
 		readonly IClock _clock;
@@ -205,7 +242,7 @@ namespace HordeServer.Artifacts
 		public static string GetArtifactPath(StreamId streamId, ArtifactType type) => $"{type}/{streamId}";
 
 		/// <inheritdoc/>
-		public async Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, IEnumerable<string> keys, IEnumerable<string> metadata, CancellationToken cancellationToken = default)
+		public async Task<IArtifactBuilder> CreateAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, IEnumerable<string> keys, IEnumerable<string> metadata, CancellationToken cancellationToken = default)
 		{
 			if (name.Id.IsEmpty)
 			{
@@ -237,7 +274,8 @@ namespace HordeServer.Artifacts
 			ArtifactDocument artifactDocument = new ArtifactDocument(id, name, type, description, streamId, commitIdWithOrder, keys.Select(x => NormalizeKey(x)), metadata, namespaceId, refName, _clock.UtcNow);
 			await _artifactCollection.InsertOneAsync(artifactDocument, null, cancellationToken);
 
-			return new Artifact(this, artifactDocument);
+			Artifact artifact = new Artifact(this, artifactDocument);
+			return new ArtifactBuilder(this, artifact, _storageService.GetNamespace(namespaceId));
 		}
 
 		async Task AddExpiryRecordAsync(StreamId streamId, ArtifactType type, DateTime utcNow, CancellationToken cancellationToken = default)

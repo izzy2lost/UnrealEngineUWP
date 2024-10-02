@@ -145,7 +145,7 @@ namespace HordeServer.Artifacts
 
 		async Task<ActionResult<CreateArtifactResponse>> CreateArtifactInternalAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, List<string> keys, List<string> metadata, CancellationToken cancellationToken)
 		{
-			IArtifact artifact = await _artifactCollection.AddAsync(name, type, description, streamId, commitId, keys, metadata, cancellationToken);
+			IArtifactBuilder artifact = await _artifactCollection.CreateAsync(name, type, description, streamId, commitId, keys, metadata, cancellationToken);
 			RefName? prevRefName = await GetPrevRefNameForArtifactAsync(artifact, cancellationToken);
 
 			List<AclClaimConfig> claims = new List<AclClaimConfig>();
@@ -156,7 +156,7 @@ namespace HordeServer.Artifacts
 			return new CreateArtifactResponse(artifact.Id, artifact.CommitId, artifact.NamespaceId, artifact.RefName, prevRefName, token);
 		}
 
-		async Task<RefName?> GetPrevRefNameForArtifactAsync(IArtifact artifact, CancellationToken cancellationToken)
+		async Task<RefName?> GetPrevRefNameForArtifactAsync(IArtifactBuilder artifact, CancellationToken cancellationToken)
 		{
 			IStorageBackend storageBackend = _storageService.CreateBackend(artifact.NamespaceId);
 			await foreach (IArtifact prevArtifact in _artifactCollection.FindAsync(artifact.StreamId, maxCommitId: artifact.CommitId, name: artifact.Name, type: artifact.Type, cancellationToken: cancellationToken))
