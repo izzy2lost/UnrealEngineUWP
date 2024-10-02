@@ -28,7 +28,7 @@ enum class ENDISocketReaderSourceMode : uint8
 Data interface for reading sockets from various sources.
 This can be from a live component in the scene or from a static / skeletal mesh asset.
 */
-UCLASS(EditInlineNew, Category = "Actor", CollapseCategories, meta = (DisplayName = "Socket Reader Interface"), MinimalAPI)
+UCLASS(EditInlineNew, Category = "Actor", CollapseCategories, meta = (DisplayName = "Socket Reader"), MinimalAPI)
 class UNiagaraDataInterfaceSocketReader : public UNiagaraDataInterface
 {
 	GENERATED_UCLASS_BODY()
