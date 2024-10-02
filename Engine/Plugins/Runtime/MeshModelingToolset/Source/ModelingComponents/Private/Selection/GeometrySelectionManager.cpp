@@ -52,12 +52,7 @@ void UGeometrySelectionManager::Shutdown()
 	ToolsContext = nullptr;
 	TransactionsAPI = nullptr;
 
-	if (PreviewGeometry)
-	{
-		RemoveAllSets();
-		PreviewGeometry->Disconnect();
-		PreviewGeometry = nullptr;
-	}
+	DisconnectPreviewGeometry();
 
 	for (TSharedPtr<FGeometrySelectionTarget> Target : ActiveTargetReferences)
 	{
@@ -1859,6 +1854,15 @@ void UGeometrySelectionManager::SetSelectionColors(const FLinearColor Unselected
 	UpdateAllSetsColor(SelectedParams);
 }
 
+void UGeometrySelectionManager::DisconnectPreviewGeometry()
+{
+	if (PreviewGeometry)
+	{
+		RemoveAllSets();
+		PreviewGeometry->Disconnect();
+		PreviewGeometry = nullptr;
+	}
+}
 
 
 #undef LOCTEXT_NAMESPACE

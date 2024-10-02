@@ -1206,6 +1206,7 @@ void UModelingToolsEditorMode::OnEditorClosed()
 
 	if (SelectionManager != nullptr)
 	{
+		SelectionManager->DisconnectPreviewGeometry();
 		SelectionManager->ClearSelection();
 		SelectionManager->ClearActiveTargets();
 	}
