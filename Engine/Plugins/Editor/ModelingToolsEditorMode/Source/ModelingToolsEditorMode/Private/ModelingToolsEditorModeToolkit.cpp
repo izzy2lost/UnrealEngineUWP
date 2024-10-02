@@ -2716,6 +2716,17 @@ FReply FModelingToolsEditorModeToolkit::HandleCompleteClick()
 	return FReply::Handled();
 }
 
+void FModelingToolsEditorModeToolkit::DisconnectStylusStateProviderAPI()
+{
+#if ENABLE_STYLUS_SUPPORT
+	if (StylusInputHandler)
+	{
+		// replace the input handler with a new, empty version -- disconnecting old windows/contexts
+		StylusInputHandler = MakeUnique<UE::Modeling::FStylusInputHandler>();
+	}
+#endif
+}
+
 IToolStylusStateProviderAPI* FModelingToolsEditorModeToolkit::GetStylusStateProviderAPI() const
 {
 #if ENABLE_STYLUS_SUPPORT
